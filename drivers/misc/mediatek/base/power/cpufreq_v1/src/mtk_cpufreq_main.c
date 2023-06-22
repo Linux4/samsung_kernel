@@ -21,7 +21,8 @@
 
 #ifdef CONFIG_CPU_FREQ_LIMIT
 #include <linux/cpufreq_limit.h>
-#endif
+#endif /* CONFIG_CPU_FREQ_LIMIT  */
+
 #define met_tag_oneshot(a, b, c) do {} while (0)
 //#define _set_met_tag_oneshot(a, bz) do{}while(0)
 
@@ -1752,7 +1753,7 @@ static int __init _mt_cpufreq_tbl_init(void)
 			p->freq_tbl_for_cpufreq = table;
 #ifdef CONFIG_CPU_FREQ_LIMIT
 			cpufreq_limit_set_table(p->cpu_id, table);
-#endif
+#endif /* CONFIG_CPU_FREQ_LIMIT  */
 		}
 	}
 	return 0;

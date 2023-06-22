@@ -15,7 +15,6 @@
 #include <linux/cpufreq.h>
 #include <linux/cpufreq_limit.h>
 #include <cpu_ctrl.h>
-#include "eas_ctrl_plat.h"
 
 #define SCHED_BOOST_ENABLE 1
 
@@ -28,6 +27,10 @@ enum {
 #endif
 	SCHED_UNKNOWN_BOOST
 };
+
+#if SCHED_BOOST_ENABLE
+extern int set_sched_boost_type(int type);
+#endif
 
 /* cpu frequency table from cpufreq dt parse */
 static struct cpufreq_frequency_table *cpuftbl_L;

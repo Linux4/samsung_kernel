@@ -67,6 +67,14 @@ void fsm_md_bootup_timeout_handler(struct ccci_fsm_ee *ee_ctl)
 		"Dump MD ee boot failed info\n");
 
 	ee_ctl->ops->dump_ee_info(ee_ctl, MDEE_DUMP_LEVEL_BOOT_FAIL, 0);
+
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
+	if (ccci_fsm_get_md_state(ee_ctl->md_id)
+			== BOOT_WAITING_FOR_HS1) {
+		CCCI_ERROR_LOG(ee_ctl->md_id, FSM, "[md1] MD_BOOT_HS1_FAIL trigger panic\n");
+		drv_tri_panic_by_lvl(ee_ctl->md_id);
+	}
+#endif
 }
 
 void fsm_md_exception_stage(struct ccci_fsm_ee *ee_ctl, int stage)
@@ -183,7 +191,9 @@ _dump_done:
 		struct ccci_smem_region *mdss_dbg
 			= ccci_md_get_smem_by_user_id(ee_ctl->md_id,
 				SMEM_USER_RAW_MDSS_DBG);
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
 		struct ccci_modem *md;
+#endif
 
 		CCCI_ERROR_LOG(md_id, FSM, "MD exception stage 2!\n");
 		CCCI_MEM_LOG_TAG(md_id, FSM, "MD exception stage 2! ee=%x\n",
@@ -238,6 +248,7 @@ _dump_done:
 		CCCI_ERROR_LOG(md_id, FSM,
 			"MD exception stage 2:end\n");
 
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
 		md = ccci_md_get_modem_by_id(ee_ctl->md_id);
 		if (md == NULL) {
 			CCCI_ERROR_LOG(md_id, FSM,
@@ -255,6 +266,7 @@ _dump_done:
 				"[md1] EE time out case, call panic\n");
 			drv_tri_panic_by_lvl(md_id);
 		}
+#endif
 	}
 }
 

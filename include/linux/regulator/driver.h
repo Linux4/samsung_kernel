@@ -405,9 +405,10 @@ struct regulator_config {
 	struct device_node *of_node;
 	struct regmap *regmap;
 
-#if IS_ENABLED(CONFIG_SEC_PM)
+#ifdef CONFIG_SEC_PM
 	bool skip_gpio_request;
-#endif
+#endif /* CONFIG_SEC_PM */	
+
 	bool ena_gpio_initialized;
 	int ena_gpio;
 	struct gpio_desc *ena_gpiod;

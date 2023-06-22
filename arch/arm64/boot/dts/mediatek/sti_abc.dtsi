@@ -182,13 +182,6 @@
 			aicl,threshold_time=<300>;
 		};
 #if 0
-		mipi_overflow {
-			mipi_overflow,label="MIPI Overflow";
-			mipi_overflow,threshold_count=<${mipi_overflow_threshold_count}>;
-			mipi_overflow,threshold_time=<${mipi_overflow_threshold_time}>;
-		};
-#endif
-#if 0
 		motto {
 			motto,label="motto info base";
 			motto,info_bootcheck_base = <${motto_info_bootcheck_base}>;

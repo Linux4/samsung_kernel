@@ -866,6 +866,15 @@ static int usb_uevent(struct device *dev, struct kobj_uevent_env *env)
 			   usb_dev->descriptor.bDeviceSubClass,
 			   usb_dev->descriptor.bDeviceProtocol))
 		return -ENOMEM;
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+	pr_info("usb_host : %s: PRODUCT=%x/%x/%x TYPE=%d/%d/%d\n", __func__,
+			   le16_to_cpu(usb_dev->descriptor.idVendor),
+			   le16_to_cpu(usb_dev->descriptor.idProduct),
+			   le16_to_cpu(usb_dev->descriptor.bcdDevice),
+			   usb_dev->descriptor.bDeviceClass,
+			   usb_dev->descriptor.bDeviceSubClass,
+			   usb_dev->descriptor.bDeviceProtocol);
+#endif
 
 	return 0;
 }
@@ -1398,8 +1407,15 @@ static int usb_resume_both(struct usb_device *udev, pm_message_t msg)
 	int			i;
 	struct usb_interface	*intf;
 
+#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
+	if (!udev || udev->state == USB_STATE_NOTATTACHED) {
+#else
 	if (udev->state == USB_STATE_NOTATTACHED) {
+#endif
 		status = -ENODEV;
+#if defined(CONFIG_USB_DEBUG_DETAILED_LOG)
+		pr_err("%s: status %d\n", __func__, status);
+#endif
 		goto done;
 	}
 	udev->can_submit = 1;

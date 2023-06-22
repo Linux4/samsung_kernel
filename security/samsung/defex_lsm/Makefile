@@ -8,6 +8,7 @@ SAFEPLACE_ENABLE=true
 IMMUTABLE_ENABLE=true
 LP_ENABLE=true
 UMH_RESTRICTION_ENABLE=true
+TRUSTED_MAP_ENABLE=false
 
 ifneq ($(wildcard $(srctree)/include/crypto/internal/rsa.h),)
     $(warning [DEFEX] INTEGRITY_ENABLE)
@@ -30,10 +31,9 @@ defex-y := core/defex_common.o
 defex-y += core/defex_lsm.o
 defex-y += core/defex_main.o
 defex-y += core/defex_get_mode.o
-defex-y += core/defex_sysfs.o
+defex-y += core/defex_rules_proc.o
 defex-y += catch_engine/defex_catch_list.o
 defex-y += catch_engine/defex_ht.o
-defex-y += defex_rules.o
 defex-$(CONFIG_COMPAT) += catch_engine/defex_catch_list_compat.o
 
 # Immutable Feature is applied with permissive mode first.
@@ -45,7 +45,10 @@ ifeq ($(CONFIG_DEFEX_KERNEL_ONLY), y)
         $(warning [DEFEX] Kernel_only & Ship)
     else
         $(warning [DEFEX] Kernel_only & Noship)
+        defex-y += debug/defex_debug.o
+        defex-y += core/defex_sysfs.o
         DEFEX_DEFINES += -DDEFEX_PERMISSIVE_SP
+        DEFEX_DEFINES += -DDEFEX_PERMISSIVE_TM
         DEFEX_DEFINES += -DDEFEX_PERMISSIVE_IM
         DEFEX_DEFINES += -DDEFEX_PERMISSIVE_LP
         DEFEX_DEFINES += -DDEFEX_DEBUG_ENABLE
@@ -54,14 +57,6 @@ endif
 
 ifeq ($(CONFIG_SEC_FACTORY), y)
     DEFEX_DEFINES += -DDEFEX_FACTORY_ENABLE
-endif
-
-# kunit tests options:
-ifeq ($(CONFIG_KUNIT), y)
-    GCOV_PROFILE := y
-    DEFEX_DEFINES += -DDEFEX_KUNIT_ENABLED
-else
-    DEFEX_DEFINES += -D__visible_for_testing=static
 endif
 
 ifeq ($(PED_ENABLE), true)
@@ -109,17 +104,38 @@ ifeq ($(SIGN_ENABLE), true)
 endif
 endif
 
+ifeq ($(TRUSTED_MAP_ENABLE), true)
+    DEFEX_DEFINES += -DDEFEX_TRUSTED_MAP_ENABLE
+    DEFEX_DEFINES += -DDEFEX_PERMISSIVE_TM
+    #DEFEX_DEFINES += -DDEFEX_TM_DEFAULT_POLICY_ENABLE
+    ###defex-y += feature_trusted_map/defex_trusted_map.o
+    defex-y += feature_trusted_map/dtm.o
+    ###defex-y += feature_trusted_map/dtm_engine.o
+    ###defex-y += feature_trusted_map/dtm_log.o
+    ###defex-y += feature_trusted_map/dtm_utils.o
+    ###defex-y += feature_trusted_map/ptree.o
+endif
+
 ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
     defex-y += debug/defex_debug.o
+    defex-y += core/defex_sysfs.o
     DEFEX_DEFINES += -DDEFEX_PERMISSIVE_SP
+    DEFEX_DEFINES += -DDEFEX_PERMISSIVE_TM
     DEFEX_DEFINES += -DDEFEX_PERMISSIVE_IM
     DEFEX_DEFINES += -DDEFEX_PERMISSIVE_LP
     DEFEX_DEFINES += -DDEFEX_DEBUG_ENABLE
-    DEFEX_DEFINES += -DDEFEX_SYSFS_ENABLE
 else
     ifeq ($(CONFIG_SECURITY_DSMS), y)
         DEFEX_DEFINES += -DDEFEX_DSMS_ENABLE
     endif
+endif
+
+# kunit tests options:
+ifeq ($(CONFIG_SEC_KUNIT), y)
+    GCOV_PROFILE := y
+    DEFEX_DEFINES += -DDEFEX_KUNIT_ENABLED
+else
+    DEFEX_DEFINES += -D__visible_for_testing=static
 endif
 
 ccflags-y := -Wformat
@@ -130,16 +146,13 @@ EXTRA_CFLAGS += -I$(srctree)/$(src)/cert
 EXTRA_AFLAGS += -Isecurity/samsung/defex_lsm/cert
 
 ifneq ($(wildcard  $(srctree)/$(src)/pack_rules.c),)
-    DEFEX_DEFINES += -DDEFEX_USE_PACKED_RULES
     EXTRA_CFLAGS += $(DEFEX_DEFINES)
     EXTRA_AFLAGS += $(DEFEX_DEFINES)
+    hostprogs := pack_rules
     hostprogs-y := pack_rules
     HOST_EXTRACFLAGS += $(DEFEX_DEFINES)
     clean-files := $(srctree)/$(src)/defex_packed_rules.inc
     DEPEND_LIST := $(obj)/pack_rules
-
-    quiet_cmd_copy = COPY    $(obj)/pack_rules
-          cmd_copy = cp -n $(obj)/pack_rules $(srctree)/$(src)/pack_rules 2>/dev/null || true
 
     quiet_cmd_pack = PACK    $<
           cmd_pack = $(obj)/pack_rules -p $< $@ $(srctree)/$(src)/defex_packed_rules.bin
@@ -147,7 +160,7 @@ ifneq ($(wildcard  $(srctree)/$(src)/pack_rules.c),)
     quiet_cmd_mkey = MAKEKEY $<
           cmd_mkey = cp -n $< $@ 2>/dev/null || true
 
-    $(obj)/core/defex_sysfs.o: $(obj)/pack_rules $(srctree)/$(src)/defex_packed_rules.inc
+    $(obj)/core/defex_rules_proc.o: $(obj)/pack_rules $(srctree)/$(src)/defex_packed_rules.inc
 
     $(obj)/cert/defex_cert.o: $(obj)/cert/pubkey_eng.der $(obj)/cert/pubkey_user.der
 
@@ -174,7 +187,7 @@ ifneq ($(wildcard  $(srctree)/$(src)/pack_rules.c),)
 
     $(srctree)/$(src)/defex_packed_rules.inc: $(SOURCE_RULES) $(DEPEND_LIST)
 	$(call cmd,pack)
-	$(call cmd,copy)
+	@cp -n $(obj)/pack_rules $(srctree)/$(src)/pack_rules 2>/dev/null || true
 
 else
     EXTRA_CFLAGS += $(DEFEX_DEFINES)

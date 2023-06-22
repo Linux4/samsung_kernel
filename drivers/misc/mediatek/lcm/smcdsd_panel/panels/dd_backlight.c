@@ -83,6 +83,7 @@ struct bl_info {
 
 	unsigned int input_tune_value[INPUT_LIMIT];
 	unsigned int input_brightness[INPUT_LIMIT];
+	unsigned int input_flat_value[INPUT_LIMIT];
 };
 
 struct ic_info {
@@ -107,7 +108,7 @@ static void make_bl_default_point(struct bl_info *bl)
 		bl->default_brightness[BL_POINT_OFF] = 0;
 		bl->default_brightness[BL_POINT_MIN] = 1;
 		bl->default_brightness[BL_POINT_DFT] = bl->bd->props.brightness;
-		bl->default_brightness[BL_POINT_MAX] = 255;
+		bl->default_brightness[BL_POINT_MAX] = U8_MAX;
 		bl->default_brightness[BL_POINT_OUT] = bl->bd->props.max_brightness;
 
 		for (i = 0; i <= bl->default_brightness[BL_POINT_MAX]; i++) {
@@ -143,11 +144,12 @@ static void reverse_order(unsigned int *o, unsigned int size)
 	}
 }
 
-static unsigned int parse_curve(char *str, char *delim, unsigned int *out)
+static unsigned int parse_curve(char *str, char *delim, unsigned int *out, unsigned int *flat)
 {
 	unsigned int i = 0;
 	char *p = NULL;
 	int ret;
+	int flat_option = flat ? 1 : 0;
 
 	if (!str) {
 		dbg_info("str is invalid. null\n");
@@ -156,7 +158,7 @@ static unsigned int parse_curve(char *str, char *delim, unsigned int *out)
 
 	/* trim */
 	for (i = 0; str[i]; i++) {
-		if (isdigit(str[i]))
+		if (isdigit(str[i]) || str[i] == '!')
 			break;
 	}
 	str = str + i;
@@ -166,6 +168,18 @@ static unsigned int parse_curve(char *str, char *delim, unsigned int *out)
 	while ((p = strsep(&str, delim)) != NULL) {
 		if (*p == '\0')
 			continue;
+
+		dbg_info("%dth is %s\n", i, p);
+
+		if (flat_option && (*p == '!')) {
+			dbg_info("%dth input has flat mark\n", i);
+			*(flat + i) = 1;
+			p++;
+		}
+
+		if (!isdigit(*p))
+			continue;
+
 		ret = kstrtouint(p, 0, out + i);
 		if (ret < 0)
 			break;
@@ -173,11 +187,13 @@ static unsigned int parse_curve(char *str, char *delim, unsigned int *out)
 	}
 
 	reverse_order(out, i);
+	if (flat)
+		reverse_order(flat, i);
 
 	return i;
 }
 
-static int make_bl_curve(struct bl_info *bl, unsigned int *tune_value_point, unsigned int *brightness_point)
+static int make_bl_curve(struct bl_info *bl, unsigned int *tune_value_point, unsigned int *brightness_point, unsigned int *flat_value_point)
 {
 	int i, idx;
 	unsigned int value;
@@ -188,23 +204,26 @@ static int make_bl_curve(struct bl_info *bl, unsigned int *tune_value_point, uns
 				break;
 		}
 
-		if ((i >= 255 && idx == 1) || tune_value_point[idx] == 0)	/* flat */
+		//if ((i >= 255 && idx == 1) || tune_value_point[idx] == 0)	/* flat */
+		if (tune_value_point[idx] == 0 || (flat_value_point && flat_value_point[idx]))
 			value = tune_value_point[idx];
 		else if (i >= brightness_point[idx])
 			value = (i - brightness_point[idx]) * (tune_value_point[idx - 1] - tune_value_point[idx]) / (brightness_point[idx - 1] - brightness_point[idx]) + tune_value_point[idx];
 		else
 			value = 0;
 
-		dbg_info("[%4d] = %4d -> %4d, idx: %d,\t%s\n", i, bl->brightness_table[i], value, idx, (value != bl->brightness_table[i]) ? "X" : "");
+		dbg_info("[%4d] = %4d -> %4d, idx: %d, %s\n", i, bl->brightness_table[i], value, idx, (value != bl->brightness_table[i]) ? "X" : "");
 		bl->brightness_table[i] = value;
 	}
 
 	memset(bl->input_tune_value, 0, sizeof(bl->input_tune_value));
 	memset(bl->input_brightness, 0, sizeof(bl->input_brightness));
+	memset(bl->input_flat_value, 0, sizeof(bl->input_flat_value));
 
 	for (i = 0; brightness_point[i]; i++) {
 		bl->input_tune_value[i] = tune_value_point[i];
 		bl->input_brightness[i] = brightness_point[i];
+		bl->input_flat_value[i] = flat_value_point ? flat_value_point[i] : 0;
 	}
 
 	return 0;
@@ -215,6 +234,7 @@ static int check_curve(struct bl_info *bl, char *str)
 	int i, ret = 0;
 	unsigned int brightness_point[INPUT_LIMIT] = {0, };
 	unsigned int tune_value_point[INPUT_LIMIT] = {0, };
+	unsigned int flat_value_point[INPUT_LIMIT] = {0, };
 	int max_brightness_point = 0;
 	int max_tune_value_point = 0;
 	int off_bl_point = BL_POINT_END - 1;
@@ -233,10 +253,10 @@ static int check_curve(struct bl_info *bl, char *str)
 		pos++;
 	}
 
-	max_tune_value_point = parse_curve(str, " ", tune_value_point);
-	max_brightness_point = parse_curve(pos, " ", brightness_point);
+	max_tune_value_point = parse_curve(str, " ", tune_value_point, flat_value_point);
+	max_brightness_point = parse_curve(pos, " ", brightness_point, NULL);
 
-	if (bl->bd->props.max_brightness <= 255)
+	if (bl->bd->props.max_brightness <= U8_MAX)
 		off_bl_point -= 1;
 
 	dbg_info("max_tune_value_point: %d, max_brightness_point: %d, total_bl_point: %d\n", max_tune_value_point, max_brightness_point, off_bl_point);
@@ -301,9 +321,9 @@ static int check_curve(struct bl_info *bl, char *str)
 	dbg_info("max_tune_value_point: %d, max_brightness_point: %d, off_bl_point: %d\n", max_tune_value_point, max_brightness_point, off_bl_point);
 
 	for (i = max_tune_value_point; i >= 0; i--)
-		dbg_info("tune_value_point: %4d, brightness_point: %4d\n", tune_value_point[i], brightness_point[i]);
+		dbg_info("tune_value_point: %4d, brightness_point: %4d, flat_value_point: %d\n", tune_value_point[i], brightness_point[i], flat_value_point[i]);
 
-	make_bl_curve(bl, tune_value_point, brightness_point);
+	make_bl_curve(bl, tune_value_point, brightness_point, flat_value_point);
 
 exit:
 	return ret;
@@ -353,7 +373,7 @@ static int bl_tuning_show(struct seq_file *m, void *unused)
 	if (off) {
 		seq_puts(m, "TUNING -------------------------------------------\n");
 		for (i = off; i >= 0; i--)
-			seq_printf(m, "%8s| %8d| %8d\n", " ", bl->input_tune_value[i], bl->input_brightness[i]);
+			seq_printf(m, "%8s| %8d| %8d%s\n", " ", bl->input_tune_value[i], bl->input_brightness[i], bl->input_flat_value[i] ? " (flat)" : "");
 	}
 
 	seq_puts(m, "TABLE 2-------------------------------------------\n");
@@ -395,9 +415,9 @@ static ssize_t bl_tuning_write(struct file *f, const char __user *user_buf,
 		goto exit;
 	}
 
-	if (!strncmp(ibuf, "0", count - 1)) {
+	if (sysfs_streq(ibuf, "0")) {
 		dbg_info("input is 0(zero). reset brightness table to default\n");
-		make_bl_curve(bl, bl->default_tune_value, bl->default_brightness);
+		make_bl_curve(bl, bl->default_tune_value, bl->default_brightness, NULL);
 		for (i = 0; i < bl->bd->props.max_brightness; i++) {
 			dbg_info("[%4d] = %4d, %4d%s\n", i, bl->brightness_table[i], bl->brightness_reset[i],
 				(bl->brightness_table[i] == bl->brightness_reset[i]) ? "" : ", (X)");
@@ -408,6 +428,7 @@ static ssize_t bl_tuning_write(struct file *f, const char __user *user_buf,
 		}
 		memset(bl->input_tune_value, 0, sizeof(bl->input_tune_value));
 		memset(bl->input_brightness, 0, sizeof(bl->input_brightness));
+		memset(bl->input_flat_value, 0, sizeof(bl->input_flat_value));
 		goto exit;
 	}
 
@@ -669,8 +690,8 @@ int init_debugfs_backlight(struct backlight_device *bd, unsigned int *table, str
 		bl = kzalloc(sizeof(struct bl_info), GFP_KERNEL);
 		bl->bd = bd;
 		bl->brightness_table = table ? table : kcalloc(bd->props.max_brightness, sizeof(unsigned int), GFP_KERNEL);
-		bl->brightness_reset = kmemdup(bl->brightness_table, bd->props.max_brightness * sizeof(unsigned int), GFP_KERNEL);
 		make_bl_default_point(bl);
+		bl->brightness_reset = kmemdup(bl->brightness_table, bd->props.max_brightness * sizeof(unsigned int), GFP_KERNEL);
 
 		debugfs_create_file("_help", 0400, debugfs_root, bl, &help_fops);
 		debugfs_create_file("bl_tuning", 0600, debugfs_root, bl, &bl_tuning_fops);

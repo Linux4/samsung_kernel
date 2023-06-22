@@ -43,6 +43,11 @@ config MMC_BLOCK
 	  mount the filesystem. Almost everyone wishing MMC support
 	  should say Y or M here.
 
+config MMC_SUPPORT_STLOG
+        bool "Enable storage log"
+        depends on MMC && PROC_STLOG
+        default y
+
 config MMC_BLOCK_MINORS
 	int "Number of minors per block device"
 	depends on MMC_BLOCK
@@ -60,17 +65,6 @@ config MMC_BLOCK_MINORS
 	  hardwired device numbering.
 
 	  If unsure, say 8 here.
-
-config MMC_BLOCK_DEFERRED_RESUME
-	bool "Defer MMC layer resume until I/O is requested"
-	depends on MMC_BLOCK
-	default n
-	help
-	  Say Y here to enable deferred MMC resume until I/O
-	  is requested.
-
-	  This will reduce overall resume latency and
-	  save power when there is an SD card inserted but not being used.
 
 config SDIO_UART
 	tristate "SDIO UART/GPS class support"

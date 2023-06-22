@@ -316,7 +316,7 @@ out:
 void ili_irq_wake_disable(void)
 {
 	if (atomic_read(&ilits->irq_wake_stat) == DISABLE) {
-		input_info(true, ilits->dev, "%s already diabled\n", __func__);
+		input_info(true, ilits->dev, "%s already disabled\n", __func__);
 		return;
 	}
 
@@ -783,6 +783,14 @@ static int ilitek_plat_probe(void)
 		input_err(true, ilits->dev, "%s : parse_dt fail unload driver!\n", __func__);
 		return -EINVAL;
 	}
+
+#ifdef CONFIG_BATTERY_SAMSUNG
+	if (lpcharge) {
+		input_info(true, ilits->dev, "%s: enter sleep mode in lpcharge %d\n", __func__, lpcharge);
+		ilitek_pin_control(false);
+		return -ENODEV;
+	}
+#endif
 
 #if REGULATOR_POWER
 	ilitek_plat_regulator_power_init();

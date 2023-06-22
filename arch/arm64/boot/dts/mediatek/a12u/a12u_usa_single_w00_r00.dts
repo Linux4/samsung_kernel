@@ -206,13 +206,6 @@
 			aicl,threshold_time=<300>;
 		};
 #if 0
-		mipi_overflow {
-			mipi_overflow,label="MIPI Overflow";
-			mipi_overflow,threshold_count=<${mipi_overflow_threshold_count}>;
-			mipi_overflow,threshold_time=<${mipi_overflow_threshold_time}>;
-		};
-#endif
-#if 0
 		motto {
 			motto,label="motto info base";
 			motto,info_bootcheck_base = <${motto_info_bootcheck_base}>;
@@ -402,6 +395,9 @@
 #define SEC_GPIO_REF(src, type, num)	&type num
 #define SEC_GPIO_NUM(src, type, num)	num
 #define SEC_GPIO_TYPE(src, type, num)	&type
+#define SEC_GPIO_PHANDLE_ACTIVE(src, type, num)	SEC_GPIO_PHANDLE(type, num, active)
+#define SEC_GPIO_PHANDLE_SLEEP(src, type, num)	SEC_GPIO_PHANDLE(type, num, sleep)
+#define SEC_GPIO_PHANDLE(type, num, mode)	type##_##num##_##mode
 
 #define MTK_PINMUX(gpio, func) (MTK_PIN_NO(gpio) | func)
 
@@ -650,6 +646,29 @@
 				};
 			};
 		};
+
+		booster_key@9 {
+			input_booster,label = "pen";
+			input_booster,type = <8>;	/* BOOSTER_DEVICE_MOUSE */
+
+			/* Time table */
+			input_booster,head_time = <200>;
+			input_booster,tail_time = <600>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1484000 1085000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+			};
+		};
 		/* If you need to add new key type, add it this position */
 	};
 };
@@ -660,6 +679,55 @@
 
 /* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6765/ap_mtk_mt6765.a12u.00.dtsi */
 #include "../../mediatek/k65v1_64_bsp_titan_rat-01.dts"
+
+
+/* #include "../i2c-gpio.dtsi" */                    /* From i2c-gpio.py */
+&pio {
+       gpio_i2c_0_sda {
+               gpio_i2c_0_sda_default: gpio_i2c_0_sda_default {
+                       GPIO_CONFIG_PUD_DRV(AP,pio,42, FUNC_INPUT, PULL_NONE, DRV_LV1);
+               };
+       };
+};
+
+&pio {
+       gpio_i2c_0_scl {
+               gpio_i2c_0_scl_default: gpio_i2c_0_scl_default {
+                       GPIO_CONFIG_PUD_DRV(AP,pio,41, FUNC_INPUT, PULL_NONE, DRV_LV1);
+               };
+       };
+};
+
+/ {
+	fragment@model {
+		target-path = "/";
+	        __overlay__ {
+			aliases {
+				  i2c30 = "/i2c@30";
+			};
+			/* Software I2C */
+			sw_i2c0: i2c@30 {
+				cell-index = <30>;
+				compatible = "i2c-gpio";
+				gpios = <
+					SEC_GPIO_REF(AP,pio,42) 0 /* SDA */
+					SEC_GPIO_REF(AP,pio,41) 0 /* SCL */
+					>;
+				#i2c-gpio,delay-us = <2>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				pinctrl-names = "default";
+				pinctrl-0 = <
+					&gpio_i2c_0_sda_default
+					&gpio_i2c_0_scl_default
+					>;
+
+				status = "disabled";
+			};
+		};
+	};
+};
 
 
 /* #include "../fingerprint_gw3x.dtsi" */            /* From fingerprint_gw3x.py */
@@ -994,13 +1062,32 @@
 #if 1 || 0
 		sec,det_conn_name =
 #endif
-#if 1 && 0
-					"SUB_CONNECT", "", "", "", "", "",
-					"", "";
-#elif 1
-					"SUB_CONNECT", "", "", "", "", "";
-#elif 0
-					"", "";
+#if 1
+					"SUB_CONNECT"
+#endif
+#if 0
+					,""
+#endif
+#if 0
+					,""
+#endif
+#if 0
+					,""
+#endif
+#if 0
+					,""
+#endif
+#if 0
+					,""
+#endif
+#if 0
+					,""
+#endif
+#if 0
+					,""
+#endif
+#if 1 || 0
+;
 #endif
 #endif /*use_dynamic_ap_gpio_detect*/
 
@@ -1017,8 +1104,7 @@
 		sec,det_pm_conn_name =
 #endif
 #if 0 && 0
-					"",
-					"";
+					"", "";
 #elif 0
 					"";
 #elif 0
@@ -1223,7 +1309,7 @@
 &mt_pmic_vcamio_ldo_reg {
     regulator-min-microvolt = <0>;
     regulator-max-microvolt = <0>;
-     
+    
      
 };
 #endif
@@ -1486,6 +1572,188 @@
 	};
 };
 
+/* #include "../sensors_a96t3x6.dtsi" */             /* From sensors_a96t3x6.py */
+#define COMMON_GRIP_VDD 1
+
+#if 1
+
+&sw_i2c0 {
+	gpios = <SEC_GPIO_REF(AP,pio,42) 0 /* sda */
+			SEC_GPIO_REF(AP,pio,41) 0>; /* scl */
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <100000>;
+	a96t3x6: a96t3x6@20 {
+		compatible = "a96t3x6";
+		reg = <0x20>;
+		
+		pinctrl-names = "default";
+#if 1
+		pinctrl-0 = <&grip_int &grip_ldo_en>;
+#else
+		pinctrl-0 = <&grip_int>;
+#endif
+		interrupt-parent = <SEC_GPIO_TYPE(AP,pio,79)>;
+		interrupts = <SEC_GPIO_NUM(AP,pio,79) 0>;
+
+		a96t3x6,irq_gpio = <SEC_GPIO_REF(AP,pio,79) 0>;
+		a96t3x6,ldo_en = <SEC_GPIO_REF(AP,pio,4) 0>;
+		a96t3x6,fw_path = "abov/a96t356_a12_main.bin";
+		a96t3x6,firmup_cmd = <0x3b>;
+	};
+};
+
+&pio {
+	grip_int: grip-int {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,79), 0)>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+};
+
+#if 1
+&pio {
+	grip_ldo_en: grip-ldo-en {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,4), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+			output-high;
+		};
+	};
+};
+#endif
+
+#if 0
+&pio {
+	grip_i2c: grip-i2c {
+		pins_cmd0_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,42), 0)>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+		pins_cmd1_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,41), 0)>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+};
+#endif
+#endif
+
+#if 1
+
+&sw_i2c0 {
+	gpios = <SEC_GPIO_REF(AP,pio,42) 0 /* sda */
+			SEC_GPIO_REF(AP,pio,41) 0>; /* scl */
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <100000>;
+	a96t3x6_sub: a96t3x6@21 {
+		compatible = "a96t3x6_sub";
+		reg = <0x21>;
+		
+		pinctrl-names = "default";
+#if 0
+		pinctrl-0 = <&grip_sub_int &grip_sub_ldo_en>;
+#else
+		pinctrl-0 = <&grip_sub_int>;
+#endif
+		interrupt-parent = <SEC_GPIO_TYPE(AP,pio,80)>;
+		interrupts = <SEC_GPIO_NUM(AP,pio,80) 0>;
+
+		a96t3x6,irq_gpio = <SEC_GPIO_REF(AP,pio,80) 0>;
+#if 0
+		a96t3x6,ldo_en = <SEC_GPIO_REF(${gpio_grip_sub_ldo_en}) 0>;
+#elif COMMON_GRIP_VDD == COMMON_GRIP_VDD
+		a96t3x6,ldo_en = <SEC_GPIO_REF(AP,pio,4) 0>;
+#endif
+		a96t3x6,fw_path = "abov/a96t356_a12_sub.bin";
+		a96t3x6,firmup_cmd = <0x3b>;
+	};
+};
+
+&pio {
+	grip_sub_int: grip-sub-int {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,80), 0)>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+};
+
+#if 0
+&${gpio_grip_sub_ldo_en_parent} {
+	grip_sub_ldo_en: grip-sub-ldo-en {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${gpio_grip_sub_en}), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+			output-high;
+		};
+	};
+};
+#endif
+
+#if 0
+&pio {
+	grip_sub_i2c: grip-sub-i2c {
+		pins_cmd0_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,42), 0)>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+		pins_cmd1_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,41), 0)>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+};
+#endif
+#endif
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensors/a96t3x6/dts/a96t3x6_mtk.a12u.dtsi */
+&a96t3x6 {
+	a96t3x6,fw_path = "abov/a96t356_a12_usa_main.bin";
+};
+
+&a96t3x6_sub {
+	a96t3x6,fw_path = "abov/a96t356_a12_usa_sub.bin";
+};
+
+
+/* #include "../sensorhub_shub.dtsi" */              /* From sensorhub_shub.py */
+#if 1
+&mt_pmic_vcamd_ldo_reg {
+	regulator-name = "VDD_SENSOR_1P8";
+};
+#endif
+
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+#if 1
+				sensor-vdd-regulator = "VDD_SENSOR_1P8";
+#endif
+
+#if 0
+				mag-check-nfc = <SEC_GPIO_REF(${gpio_nfc_check}) 0>;
+#endif
+			};
+		};
+	};
+};
+
 /* #include "../nfc_lsi.dtsi" */                     /* From nfc_lsi.py */
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -1646,9 +1914,9 @@
 
 /* #include "../sm5714_fuelgauge.dtsi" */            /* From sm5714_fuelgauge.py */
 /*
- * Vogue battery device tree common
+ * sm5714 battery device tree common
  *
- * Copyright (c) 2018 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
  *		http://www.samsung.com
  *
  * This program is free software; you can redistribute it and/or modify
@@ -1670,6 +1938,12 @@
 		fuelgauge,sw_v_empty_voltage = <3200>;
 		fuelgauge,sw_v_empty_voltage_cisd = <3100>;
 		fuelgauge,sw_v_empty_recover_voltage = <3480>;
+#if 0
+		fuelgauge,bat_id_gpio = <
+				SEC_GPIO_REF(${bat_id_gpio_02}) 0  /* BAT_ID_2 */
+				SEC_GPIO_REF(${bat_id_gpio_01}) 0  /* BAT_ID_1 */
+				>;
+#endif
 		battery_params {
 			battery,id = <0>;
 			battery0,battery_type = <4400 0x1D44>; /* batt_v_max, cap */
@@ -1942,8 +2216,8 @@
 
 		battery,cisd_alg_index = <8>;
 		battery,cisd_max_voltage_thr = <4400>; /* batttery ovp dettection voltage */
-		battery,ignore_cisd_index = <0 960>; /* Do not use AFC_FAIL to DROP_VALUE */
-		battery,ignore_cisd_index_d = <0 120>; /* Do not use AFC_FAIL_PER_DAY to DROP_VALUE_PER_DAY */
+		battery,ignore_cisd_index = <0 0>;
+		battery,ignore_cisd_index_d = <0 80>; /* Do not use BUCK_OFF_PER_DAY, DROP_SENSOR_PER_DAY */
 
 		battery,expired_time = <10800>;
 		battery,recharging_expired_time = <5400>;

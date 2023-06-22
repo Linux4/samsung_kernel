@@ -1,3 +1,18 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include "../comm/shub_comm.h"
 #include "../sensormanager/shub_sensor.h"
 #include "../sensormanager/shub_sensor_manager.h"
@@ -19,7 +34,11 @@
 #define PDATA_MIN			0
 #define PDATA_MAX			0x0FFF
 
-#define PROX_CALIBRATION_FILE_PATH "/efs/FactoryApp/prox_cal_data"
+#define PROX_CALIBRATION_FILE_PATH		"/efs/FactoryApp/prox_cal_data"
+#define PROX_SETTING_MODE_FILE_PATH		"/efs/FactoryApp/prox_settings"
+
+#define PROX_CMD_CALIBRATION_START		128
+
 
 enum {
 	PROX_RAW_MIN = 0,
@@ -58,10 +77,12 @@ struct proximity_data {
 	bool need_compensation;
 	void *cal_data;
 	int cal_data_len;
+
+	u8 setting_mode;
 };
 
 struct proximity_chipset_funcs {
-	void (*init)(struct proximity_data *data);
+	int (*init)(struct proximity_data *data);
 	void (*init_proximity_variable)(struct proximity_data *data);
 	void (*parse_dt)(struct device *dev);
 	u8 (*get_proximity_threshold_mode)(void);
@@ -73,7 +94,6 @@ struct proximity_chipset_funcs {
 };
 
 struct proximity_gp2ap110s_data {
-	int prox_setting_mode;
 	u16 prox_setting_thresh[2];
 	u16 prox_mode_thresh[PROX_THRESH_SIZE];
 };
@@ -82,10 +102,25 @@ struct proximity_stk3x6x_data {
 	u8 prox_cal_mode;
 };
 
+struct proximity_stk3328_data {
+	u16 prox_cal_add_value;
+	u16 prox_cal_thresh[PROX_THRESH_SIZE];
+	u16 prox_thresh_default[PROX_THRESH_SIZE];
+};
+
+int open_default_proximity_calibration(void);
+
 void set_proximity_threshold(void);
 int save_proximity_calibration(void);
 int set_proximity_calibration(void);
 
+int open_default_proximity_setting_mode(void);
+int save_proximity_setting_mode(void);
+int set_proximity_setting_mode(void);
+
 struct proximity_chipset_funcs *get_proximity_stk3x6x_function_pointer(char *name);
 struct proximity_chipset_funcs *get_proximity_gp2ap110s_function_pointer(char *name);
 struct proximity_chipset_funcs *get_proximity_stk3328_function_pointer(char *name);
+struct proximity_chipset_funcs *get_proximity_stk33910_function_pointer(char *name);
+
+u16 get_prox_raw_data(void);

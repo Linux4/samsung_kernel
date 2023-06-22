@@ -29,7 +29,9 @@
 #include <linux/regulator/consumer.h>
 #include <linux/usb/typec/common/pdic_core.h>
 #include <linux/usb/typec/common/pdic_sysfs.h>
+#if IS_ENABLED(CONFIG_ANDROID_SWITCH) || IS_ENABLED(CONFIG_SWITCH)
 #include <linux/switch.h>
+#endif
 
 static struct device *pdic_device;
 #if IS_ENABLED(CONFIG_ANDROID_SWITCH) || IS_ENABLED(CONFIG_SWITCH)

@@ -1,3 +1,18 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include "shub_factory.h"
 #include "../utility/shub_utility.h"
 
@@ -14,9 +29,9 @@ init_sensor_factory init_sensor_factory_funcs[] = {
 
 int initialize_factory(void)
 {
-	int i;
+	uint64_t i;
 
-	for (i = 0; i < ARRAY_LEN(init_sensor_factory_funcs); i++)
+	for (i = 0; i < ARRAY_SIZE(init_sensor_factory_funcs); i++)
 		init_sensor_factory_funcs[i](true);
 
 	return 0;
@@ -24,9 +39,9 @@ int initialize_factory(void)
 
 void remove_factory(void)
 {
-	int i;
+	uint64_t i;
 
-	for (i = 0; i < ARRAY_LEN(init_sensor_factory_funcs); i++)
+	for (i = 0; i < ARRAY_SIZE(init_sensor_factory_funcs); i++)
 		init_sensor_factory_funcs[i](false);
 
 }

@@ -16,48 +16,50 @@
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
 #endif
-#if defined(CONFIG_PDIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 #include <linux/usb/typec/common/pdic_notifier.h>
 #endif
-#if defined(CONFIG_MUIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 #include <linux/muic/common/muic.h>
 #endif
-#if defined(CONFIG_MUIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 #include <linux/muic/common/muic_notifier.h>
 #endif
-#if defined(CONFIG_VBUS_NOTIFIER)
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 #include <linux/vbus_notifier.h>
 #endif
-#if defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 #include <linux/usb/typec/manager/usb_typec_manager_notifier.h>
 #endif
-#if defined(CONFIG_BATTERY_SAMSUNG)
-#include "../../battery/common/sec_charging_common.h"
+#if IS_MODULE(CONFIG_BATTERY_SAMSUNG)
+#include <linux/battery/sec_battery_common.h>
+#elif defined(CONFIG_BATTERY_SAMSUNG)
+#include "../../../battery/common/sec_charging_common.h"
 #endif
 #include "usb_notifier.h"
 
 #include <linux/regulator/consumer.h>
 #include <linux/workqueue.h>
 
-#if IS_ENABLED(CONFIG_USB_MTK_HDRC)
+#if IS_ENABLED(CONFIG_MACH_MT6768) || IS_ENABLED(CONFIG_MACH_MT6739) || IS_ENABLED(CONFIG_MACH_MT6765)
 #include "../../misc/mediatek/usb20/mtk_musb.h"
 #endif
 
 struct usb_notifier_platform_data {
-#if defined(CONFIG_PDIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 	struct	notifier_block pdic_usb_nb;
 	int is_host;
 #endif
-#if defined(CONFIG_MUIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 	struct	notifier_block muic_usb_nb;
 #endif
-#if defined(CONFIG_VBUS_NOTIFIER)
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 	struct	notifier_block vbus_nb;
 #endif
 	int	gpio_redriver_en;
 	int can_disable_usb;
 
-#if defined(CONFIG_PDIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 	struct delayed_work usb_ldo_work;
 	unsigned int usb_ldocontrol;
 	unsigned int usb_ldo_onoff;
@@ -89,7 +91,7 @@ static void of_get_usb_redriver_dt(struct device_node *np,
 		!(of_property_read_bool(np, "samsung,unsupport-disable-usb"));
 	pr_info("%s, can_disable_usb %d\n", __func__, pdata->can_disable_usb);
 
-#if defined(CONFIG_PDIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 	if (of_property_read_string(np, "hs-regulator", &pdata->hs_vdd) < 0) {
 		pr_err("%s - get hs_vdd error\n", __func__);
 		pdata->hs_vdd = NULL;
@@ -114,7 +116,8 @@ static void of_get_usb_redriver_dt(struct device_node *np,
 	pdata->device_wake_lock_enable =
 		!(of_property_read_bool(np, "disable_device_wakelock"));
 
-	pr_info("%s, host_wake_lock_enable %d ,device_wake_lock_enable %d\n", __func__, pdata->host_wake_lock_enable, pdata->device_wake_lock_enable);
+	pr_info("%s, host_wake_lock_enable %d ,device_wake_lock_enable %d\n", __func__,
+		pdata->host_wake_lock_enable, pdata->device_wake_lock_enable);
 
 }
 
@@ -131,7 +134,7 @@ static int of_usb_notifier_dt(struct device *dev,
 }
 #endif
 
-#if defined(CONFIG_PDIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 static void usb_hs_regulator_onoff(struct usb_notifier_platform_data *pdata,
 				   unsigned int onoff)
 {
@@ -285,7 +288,7 @@ static void usb_ldo_off_control(struct work_struct *work)
 }
 #endif
 
-#if defined(CONFIG_PDIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 static int pdic_usb_handle_notification(struct notifier_block *nb,
 		unsigned long action, void *data)
 {
@@ -326,12 +329,12 @@ static int pdic_usb_handle_notification(struct notifier_block *nb,
 	return 0;
 }
 #endif
-#if defined(CONFIG_MUIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 static int muic_usb_handle_notification(struct notifier_block *nb,
 		unsigned long action, void *data)
 {
 	struct otg_notify *o_notify = get_otg_notify();
-#ifdef CONFIG_PDIC_NOTIFIER
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 	PD_NOTI_ATTACH_TYPEDEF *p_noti = (PD_NOTI_ATTACH_TYPEDEF *)data;
 	muic_attached_dev_t attached_dev = p_noti->cable_type;
 
@@ -365,12 +368,15 @@ static int muic_usb_handle_notification(struct notifier_block *nb,
 	case ATTACHED_DEV_CDP_MUIC:
 	case ATTACHED_DEV_UNOFFICIAL_ID_USB_MUIC:
 	case ATTACHED_DEV_UNOFFICIAL_ID_CDP_MUIC:
-		if (action == MUIC_NOTIFY_CMD_DETACH)
+		if (action == MUIC_NOTIFY_CMD_DETACH) {
 			send_otg_notify(o_notify, NOTIFY_EVENT_USB_CABLE, 0);
-		else if (action == MUIC_NOTIFY_CMD_ATTACH)
+			send_otg_notify(o_notify, NOTIFY_EVENT_VBUS, 0);
+		} else if (action == MUIC_NOTIFY_CMD_ATTACH) {
 			send_otg_notify(o_notify, NOTIFY_EVENT_USB_CABLE, 1);
-		else
-			;
+			send_otg_notify(o_notify, NOTIFY_EVENT_VBUS, 1);
+		} else
+			pr_err("%s - ACTION Error!\n", __func__);
+		break;
 	case ATTACHED_DEV_JIG_USB_OFF_MUIC:
 	case ATTACHED_DEV_JIG_USB_ON_MUIC:
 		if (action == MUIC_NOTIFY_CMD_DETACH)
@@ -463,7 +469,7 @@ static int muic_usb_handle_notification(struct notifier_block *nb,
 	return 0;
 }
 #endif
-#if defined(CONFIG_VBUS_NOTIFIER)
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 static int vbus_handle_notification(struct notifier_block *nb,
 		unsigned long cmd, void *data)
 {
@@ -491,7 +497,7 @@ static int vbus_handle_notification(struct notifier_block *nb,
 
 static int otg_accessory_power(bool enable)
 {
-#if defined(CONFIG_BATTERY_SAMSUNG)
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	u8 on = (u8)!!enable;
 	union power_supply_propval val;
 
@@ -506,7 +512,7 @@ static int otg_accessory_power(bool enable)
 
 static int set_online(int event, int state)
 {
-#if defined(CONFIG_BATTERY_SAMSUNG)
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	union power_supply_propval val;
 #endif
 	struct device_node *np_charger = NULL;
@@ -536,7 +542,7 @@ static int set_online(int event, int state)
 	}
 	/* for KNOX DT charging */
 	pr_info("Knox Desktop connection state = %s\n", state ? "Connected" : "Disconnected");
-#if defined(CONFIG_BATTERY_SAMSUNG)
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	if (state)
 		val.intval = SEC_BATTERY_CABLE_SMART_NOTG;
 	else
@@ -549,28 +555,43 @@ static int set_online(int event, int state)
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_USB_MTK_HDRC)
+#if IS_ENABLED(CONFIG_USB_MTK_HDRC) || IS_ENABLED(CONFIG_USB_MTU3)
 static int mtk_set_host(bool enable)
 {
-#if IS_ENABLED(CONFIG_USB_MTK_OTG)
 	pr_info("%s enable %d +\n", __func__, enable);
+#if !IS_ENABLED(CONFIG_USB_MU3D_DRV)
+#if IS_ENABLED(CONFIG_MACH_MT6768) || IS_ENABLED(CONFIG_MACH_MT6739) || IS_ENABLED(CONFIG_MACH_MT6765)
 	if (enable)
 		mt_usb_host_connect(0);
 	else
 		mt_usb_host_disconnect(0);
-	pr_info("%s -\n", __func__);
+#else
+	if (enable)
+		mtk_usbhost_connect();
+	else
+		mtk_usbhost_disconnect();
 #endif
+#endif
+	pr_info("%s -\n", __func__);
 	return 0;
 }
 
 static int mtk_set_peripheral(bool enable)
 {
 	pr_info("%s enable %d +\n", __func__, enable);
+#if !IS_ENABLED(CONFIG_USB_MU3D_DRV)
+#if IS_ENABLED(CONFIG_MACH_MT6768) || IS_ENABLED(CONFIG_MACH_MT6739) || IS_ENABLED(CONFIG_MACH_MT6765)
 	if (enable)
 		mt_usb_connect();
-	else {
+	else
 		mt_usb_disconnect();
-	}
+#else
+	if (enable)
+		mtk_usb_connect();
+	else
+		mtk_usb_disconnect();
+#endif
+#endif
 	pr_info("%s -\n", __func__);
 	return 0;
 }
@@ -578,7 +599,7 @@ static int mtk_set_peripheral(bool enable)
 
 static int usb_set_chg_current(int state)
 {
-#if defined(CONFIG_BATTERY_SAMSUNG)
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	union power_supply_propval val;
 #endif
 	struct device_node *np_charger = NULL;
@@ -600,9 +621,9 @@ static int usb_set_chg_current(int state)
 	}
 
 	/* current setting */
-	pr_info("usb : charing current set = %d\n", state);
+	pr_info("usb : charging current set = %d\n", state);
 
-#if defined(CONFIG_BATTERY_SAMSUNG)
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	switch (state) {
 	case NOTIFY_USB_SUSPENDED:
 		val.intval = USB_CURRENT_SUSPENDED;
@@ -623,8 +644,37 @@ static int usb_set_chg_current(int state)
 
 	return 0;
 }
+#if defined(CONFIG_USB_HW_PARAM)
+static int is_skip_list(int index)
+{
+	int ret = 0;
 
-#if IS_ENABLED(CONFIG_USB_MTK_HDRC)
+	switch (index) {
+	case USB_CCIC_VR_USE_COUNT:
+	case USB_HOST_CLASS_COMM_COUNT:
+	case USB_HOST_CLASS_PHYSICAL_COUNT:
+	case USB_HOST_CLASS_IMAGE_COUNT:
+	case USB_HOST_CLASS_PRINTER_COUNT:
+	case USB_HOST_CLASS_CDC_COUNT:
+	case USB_HOST_CLASS_CSCID_COUNT:
+	case USB_HOST_CLASS_CONTENT_COUNT:
+	case USB_HOST_CLASS_VIDEO_COUNT:
+	case USB_HOST_CLASS_WIRELESS_COUNT:
+	case USB_HOST_CLASS_MISC_COUNT:
+	case USB_HOST_CLASS_APP_COUNT:
+	case USB_HOST_CLASS_VENDOR_COUNT:
+	case USB_CCIC_FWUP_ERROR_COUNT:
+	case USB_CCIC_VERSION:
+		ret = 1;
+		break;
+	default:
+		break;
+	}
+
+	return ret;
+}
+#endif
+#if IS_ENABLED(CONFIG_USB_MTK_HDRC) || IS_ENABLED(CONFIG_USB_MTU3)
 static struct otg_notify musb_mtk_notify = {
 	.vbus_drive	= otg_accessory_power,
 	.set_host = mtk_set_host,
@@ -633,19 +683,22 @@ static struct otg_notify musb_mtk_notify = {
 	.is_host_wakelock = 1,
 	.is_wakelock = 1,
 	.booting_delay_sec = 12,
-#if !defined(CONFIG_PDIC_NOTIFIER)
+#if !IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 	.auto_drive_vbus = NOTIFY_OP_POST,
 #endif
 	.disable_control = 1,
 	.device_check_sec = 3,
 	.set_battcall = set_online,
-#if defined(CONFIG_PDIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 	.set_ldo_onoff = usb_regulator_onoff,
 #endif
 	.set_chg_current = usb_set_chg_current,
 	.pre_peri_delay_us = 6,
 #if defined(CONFIG_USB_OTG_WHITELIST_FOR_MDM)
 	.sec_whitelist_enable = 0,
+#endif
+#if defined(CONFIG_USB_HW_PARAM)
+	.is_skip_list = is_skip_list,
 #endif
 	.pre_peri_delay_us = 6,
 };
@@ -674,7 +727,7 @@ static int usb_notifier_probe(struct platform_device *pdev)
 	} else
 		pdata = pdev->dev.platform_data;
 
-#if IS_ENABLED(CONFIG_USB_MTK_HDRC)
+#if IS_ENABLED(CONFIG_USB_MTK_HDRC) || IS_ENABLED(CONFIG_USB_MTU3)
 	musb_mtk_notify.redriver_en_gpio = pdata->gpio_redriver_en;
 	musb_mtk_notify.disable_control = pdata->can_disable_usb;
 	musb_mtk_notify.is_host_wakelock = pdata->host_wake_lock_enable;
@@ -682,25 +735,25 @@ static int usb_notifier_probe(struct platform_device *pdev)
 	set_otg_notify(&musb_mtk_notify);
 	set_notify_data(&musb_mtk_notify, pdata);
 #endif
-#if defined(CONFIG_PDIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 	pdata->usb_ldo_onoff = 0;
 	INIT_DELAYED_WORK(&pdata->usb_ldo_work,
 		  usb_ldo_off_control);
 	pdata->is_host = 0;
 #endif
 
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	manager_notifier_register(&pdata->pdic_usb_nb, pdic_usb_handle_notification,
 					MANAGER_NOTIFY_PDIC_USB);
-#else
+#elif IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 	pdic_notifier_register(&pdata->pdic_usb_nb, pdic_usb_handle_notification,
 				   PDIC_NOTIFY_DEV_USB);
 #endif
-#if defined(CONFIG_MUIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 	muic_notifier_register(&pdata->muic_usb_nb, muic_usb_handle_notification,
 			       MUIC_NOTIFY_DEV_USB);
 #endif
-#if defined(CONFIG_VBUS_NOTIFIER)
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 	vbus_notifier_register(&pdata->vbus_nb, vbus_handle_notification,
 			       VBUS_NOTIFY_DEV_MANAGER);
 #endif
@@ -712,16 +765,16 @@ static int usb_notifier_probe(struct platform_device *pdev)
 static int usb_notifier_remove(struct platform_device *pdev)
 {
 	struct usb_notifier_platform_data *pdata = dev_get_platdata(&pdev->dev);
-#if defined(CONFIG_PDIC_NOTIFIER)
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	manager_notifier_unregister(&pdata->pdic_usb_nb);
 #else
 	pdic_notifier_unregister(&pdata->pdic_usb_nb);
 #endif
-#elif defined(CONFIG_MUIC_NOTIFIER)
+#elif IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 	muic_notifier_unregister(&pdata->muic_usb_nb);
 #endif
-#if defined(CONFIG_VBUS_NOTIFIER)
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 	vbus_notifier_unregister(&pdata->vbus_nb);
 #endif
 	return 0;
@@ -753,7 +806,7 @@ static int __init usb_notifier_init(void)
 	return platform_driver_register(&usb_notifier_driver);
 }
 
-static void __init usb_notifier_exit(void)
+static void __exit usb_notifier_exit(void)
 {
 	platform_driver_unregister(&usb_notifier_driver);
 }

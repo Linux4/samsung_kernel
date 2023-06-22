@@ -26,7 +26,9 @@ obj-$(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) += trusted_mem/
 obj-$(CONFIG_MTK_ENABLE_GENIEZONE) += geniezone/
 obj-$(CONFIG_MTK_TEE_SANITY) += tee_sanity/
 obj-$(CONFIG_MTK_CMDQ) += cmdq/
+obj-$(CONFIG_MTK_CMDQ_TAB) += cmdq/
 obj-$(CONFIG_MTK_CMDQ) += mdp/
+obj-$(CONFIG_MTK_CMDQ_TAB) += mdp/
 obj-$(CONFIG_MTK_LCM) += lcm/
 obj-$(CONFIG_MTK_LCM) += ext_disp/
 obj-$(CONFIG_MTK_FB) += video/
@@ -57,6 +59,7 @@ ifneq ($(CONFIG_MACH_MT6779), y)
 obj-$(CONFIG_MTK_DCM_COMMON) += dcm/
 endif
 obj-$(CONFIG_MTK_SMI) += smi/
+obj-$(CONFIG_MTK_SMI_VARIANT) += smi/
 obj-$(CONFIG_MTK_LOW_POWER_MODULE) += lpm/
 obj-$(CONFIG_MTK_PERFORMANCE_MODULE) += performance/
 obj-y += mmdvfs/
@@ -96,6 +99,7 @@ obj-$(CONFIG_MTK_FLASHLIGHT) += flashlight/
 obj-$(CONFIG_RT_FLASHLIGHT)     += flashlight/richtek/
 obj-$(CONFIG_USB) += usb_boost/
 obj-$(CONFIG_USB_MTK_HDRC) += usb20/
+obj-$(CONFIG_MTK_MUSB_PHY) += usb20/mt6765/
 obj-$(CONFIG_EXTCON_MTK_USB) += extcon/
 obj-$(CONFIG_MTK_DRAM_LOG_STORE) += log_store/
 obj-$(CONFIG_MTK_ECCCI_C2K) += c2k_usb/

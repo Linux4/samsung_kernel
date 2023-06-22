@@ -51,23 +51,22 @@ usb_f_printer-y			:= f_printer.o
 obj-$(CONFIG_USB_F_PRINTER)	+= usb_f_printer.o
 usb_f_dm-y			:= f_dm.o
 obj-$(CONFIG_USB_CONFIGFS_F_DM)	+= usb_f_dm.o
-usb_f_adm-y			:= f_adm.o
-obj-$(CONFIG_USB_CONFIGFS_F_ADM)	+= usb_f_adm.o
 usb_f_tcm-y			:= f_tcm.o
 obj-$(CONFIG_USB_F_TCM)		+= usb_f_tcm.o
+usb_f_accessory-y		:= f_accessory.o
+obj-$(CONFIG_USB_F_ACC)		+= usb_f_accessory.o
+usb_f_audio_source-y		:= f_audio_source.o
+obj-$(CONFIG_USB_F_AUDIO_SRC)	+= usb_f_audio_source.o
 ifeq ($(CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE),y)
 	usb_f_mtp_samsung-y     := f_mtp_samsung.o
-	obj-$(CONFIG_USB_F_MTP) += usb_f_mtp_samsung.o
+	obj-$(CONFIG_USB_CONFIGFS_UEVENT) += usb_f_mtp_samsung.o
 else
-	usb_f_mtp-y             := f_mtp.o
-        obj-$(CONFIG_USB_F_MTP) += usb_f_mtp.o
+usb_f_mtp-y                     := f_mtp.o
+obj-$(CONFIG_USB_CONFIGFS_UEVENT)         += usb_f_mtp.o
 endif
 usb_f_ptp-y                     := f_ptp.o
-obj-$(CONFIG_USB_F_PTP)         += usb_f_ptp.o
-usb_f_audio_source-y            := f_audio_source.o
-obj-$(CONFIG_USB_F_AUDIO_SRC)   += usb_f_audio_source.o
-usb_f_accessory-y               := f_accessory.o
-obj-$(CONFIG_USB_F_ACC)         += usb_f_accessory.o
+obj-$(CONFIG_USB_CONFIGFS_UEVENT)         += usb_f_ptp.o
 usb_f_conn_gadget-y             := f_conn_gadget.o
 obj-$(CONFIG_USB_F_CONN_GADGET) += usb_f_conn_gadget.o
-obj-$(CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE)	+= multi_config.o
+usb_f_ss_mon_gadget-y             := f_ss_mon_gadget.o
+obj-$(CONFIG_USB_F_SS_MON_GADGET) += usb_f_ss_mon_gadget.o

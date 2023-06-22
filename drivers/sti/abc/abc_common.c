@@ -18,48 +18,17 @@
  *
  */
 #include <linux/sti/abc_common.h>
-
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+#include <linux/sti/abc_kunit.h>
+#endif
 #define DEBUG_ABC
 #define ABC_WARNING_REPORT
 
 struct device *sec_abc;
-static int abc_enabled;
-static int abc_init;
+__visible_for_testing int abc_enabled;
+__visible_for_testing int abc_init;
 
 #if IS_ENABLED(CONFIG_OF)
-static int parse_mipi_overflow_data(struct device *dev,
-			  struct abc_platform_data *pdata,
-			  struct device_node *np)
-{
-	struct abc_qdata *cmipi_overflow;
-
-	cmipi_overflow = pdata->mipi_overflow_items;
-	cmipi_overflow->desc = of_get_property(np, "mipi_overflow,label", NULL);
-
-	if (of_property_read_u32(np, "mipi_overflow,threshold_count", &cmipi_overflow->threshold_cnt)) {
-		dev_err(dev, "Failed to get mipi_overflow threshold count: node not exist\n");
-		return -EINVAL;
-	}
-	pr_info("%s: mipi_overflow, threshold_count : %d\n", __func__, cmipi_overflow->threshold_cnt);
-
-	if (of_property_read_u32(np, "mipi_overflow,threshold_time", &cmipi_overflow->threshold_time)) {
-		dev_err(dev, "Failed to get mipi_overflow threshold time: node not exist\n");
-		return -EINVAL;
-	}
-	pr_info("%s: mipi_overflow, threshold_time : %d\n", __func__, cmipi_overflow->threshold_time);
-	cmipi_overflow->buffer.abc_element = kzalloc(sizeof(cmipi_overflow->buffer.abc_element[0]) *
-						(cmipi_overflow->threshold_cnt + 1), GFP_KERNEL);
-
-	if (!cmipi_overflow->buffer.abc_element)
-		return -ENOMEM;
-
-	cmipi_overflow->buffer.size = cmipi_overflow->threshold_cnt + 1;
-	cmipi_overflow->buffer.rear = 0;
-	cmipi_overflow->buffer.front = 0;
-	cmipi_overflow->fail_cnt = 0;
-
-	return 0;
-}
 
 static int parse_gpu_data(struct device *dev,
 			  struct abc_platform_data *pdata,
@@ -94,8 +63,8 @@ static int parse_gpu_data(struct device *dev,
 }
 
 static int parse_gpu_page_data(struct device *dev,
-			       struct abc_platform_data *pdata,
-			       struct device_node *np)
+				   struct abc_platform_data *pdata,
+				   struct device_node *np)
 {
 	struct abc_qdata *cgpu_page;
 
@@ -146,7 +115,7 @@ static int parse_aicl_data(struct device *dev,
 	}
 
 	caicl->buffer.abc_element = kzalloc(sizeof(caicl->buffer.abc_element[0]) *
-					    (caicl->threshold_cnt + 1), GFP_KERNEL);
+						(caicl->threshold_cnt + 1), GFP_KERNEL);
 
 	if (!caicl->buffer.abc_element)
 		return -ENOMEM;
@@ -166,10 +135,6 @@ static int abc_parse_dt(struct device *dev)
 	struct device_node *gpu_np;
 	struct device_node *gpu_page_np;
 	struct device_node *aicl_np;
-	struct device_node *mipi_overflow_np;
-#if IS_ENABLED(CONFIG_SEC_ABC_MOTTO)
-	struct device_node *motto_np;
-#endif
 
 	np = dev->of_node;
 	pdata->nItem = of_get_child_count(np);
@@ -194,7 +159,7 @@ static int abc_parse_dt(struct device *dev)
 	gpu_page_np = of_find_node_by_name(np, "gpu_page");
 	pdata->nGpuPage = of_get_child_count(gpu_page_np);
 	pdata->gpu_page_items = devm_kzalloc(dev,
-					     sizeof(struct abc_qdata), GFP_KERNEL);
+						 sizeof(struct abc_qdata), GFP_KERNEL);
 
 	if (!pdata->gpu_page_items) {
 		dev_err(dev, "Failed to allocate GPU PAGE memory\n");
@@ -216,29 +181,6 @@ static int abc_parse_dt(struct device *dev)
 
 	if (aicl_np)
 		parse_aicl_data(dev, pdata, aicl_np);
-
-	mipi_overflow_np = of_find_node_by_name(np, "mipi_overflow");
-	pdata->nMipiOverflow = of_get_child_count(mipi_overflow_np);
-	pdata->mipi_overflow_items = devm_kzalloc(dev,
-					 sizeof(struct abc_qdata), GFP_KERNEL);
-
-	if (!pdata->mipi_overflow_items) {
-		dev_err(dev, "Failed to allocate MIPI Overflow memory\n");
-		return -ENOMEM;
-	}
-
-	if (mipi_overflow_np)
-		parse_mipi_overflow_data(dev, pdata, mipi_overflow_np);
-
-#if IS_ENABLED(CONFIG_SEC_ABC_MOTTO)
-	motto_np = of_find_node_by_name(np, "motto");
-	pdata->motto_data = devm_kzalloc(dev,
-					 sizeof(struct abc_motto_data), GFP_KERNEL);
-	if (pdata->motto_data == NULL)
-		return -ENOMEM;
-	if (motto_np)
-		parse_motto_data(dev, pdata, motto_np);
-#endif
 
 	return 0;
 }
@@ -265,7 +207,7 @@ static const struct dev_pm_ops sec_abc_pm = {
 	.resume = sec_abc_resume,
 };
 
-static void sec_abc_reset_gpu_buffer(void)
+__visible_for_testing void sec_abc_reset_gpu_buffer(void)
 {
 	struct abc_info *pinfo = dev_get_drvdata(sec_abc);
 
@@ -274,7 +216,7 @@ static void sec_abc_reset_gpu_buffer(void)
 	pinfo->pdata->gpu_items->fail_cnt = 0;
 }
 
-static void sec_abc_reset_gpu_page_buffer(void)
+__visible_for_testing void sec_abc_reset_gpu_page_buffer(void)
 {
 	struct abc_info *pinfo = dev_get_drvdata(sec_abc);
 
@@ -283,7 +225,7 @@ static void sec_abc_reset_gpu_page_buffer(void)
 	pinfo->pdata->gpu_page_items->fail_cnt = 0;
 }
 
-static void sec_abc_reset_aicl_buffer(void)
+__visible_for_testing void sec_abc_reset_aicl_buffer(void)
 {
 	struct abc_info *pinfo = dev_get_drvdata(sec_abc);
 
@@ -292,46 +234,51 @@ static void sec_abc_reset_aicl_buffer(void)
 	pinfo->pdata->aicl_items->fail_cnt = 0;
 }
 
-static void sec_abc_reset_mipi_overflow_buffer(void)
-{
-	struct abc_info *pinfo = dev_get_drvdata(sec_abc);
-
-	pinfo->pdata->mipi_overflow_items->buffer.rear = 0;
-	pinfo->pdata->mipi_overflow_items->buffer.front = 0;
-	pinfo->pdata->mipi_overflow_items->fail_cnt = 0;
-}
-
-static ssize_t store_abc_enabled(struct device *dev,
+__visible_for_testing ssize_t store_abc_enabled(struct device *dev,
 				 struct device_attribute *attr,
 				 const char *buf, size_t count)
 {
 	struct abc_info *pinfo = dev_get_drvdata(sec_abc);
 
 	if (!strncmp(buf, "1", 1)) {
-		ABC_PRINT("ABC driver enabled.\n");
-		abc_enabled = ABC_TYPE1_ENABLED;
-#if IS_ENABLED(CONFIG_SEC_ABC_MOTTO)
-		init_motto_magic();
+		ABC_PRINT("ERROR report mode enabled.\n");
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+		abc_common_test_get_log_str("ERROR report mode enabled.\n");
 #endif
-		complete(&pinfo->enable_done);
-	} else if (!strncmp(buf, "2", 1)) {
-		ABC_PRINT("Common driver enabled.\n");
-		abc_enabled = ABC_TYPE2_ENABLED;
-#if IS_ENABLED(CONFIG_SEC_ABC_MOTTO)
-		init_motto_magic();
-#endif
+		abc_enabled |= ERROR_REPORT_MODE_BIT;
 		complete(&pinfo->enable_done);
 	} else if (!strncmp(buf, "0", 1)) {
-		ABC_PRINT("ABC/Common driver disabled.\n");
-		if (abc_enabled == ABC_TYPE1_ENABLED) {
-			sec_abc_reset_gpu_buffer();
-			sec_abc_reset_gpu_page_buffer();
-			sec_abc_reset_aicl_buffer();
-			sec_abc_reset_mipi_overflow_buffer();
-		}
-
-		abc_enabled = ABC_DISABLED;
+		ABC_PRINT("ERROR report mode disabled.\n");
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+		abc_common_test_get_log_str("ERROR report mode disabled.\n");
+#endif
+		abc_enabled &= ~(ERROR_REPORT_MODE_BIT);
+	} else if (!strncmp(buf, "ALL_REPORT=1", 12)) {
+		ABC_PRINT("ALL report mode enabled.\n");
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+		abc_common_test_get_log_str("ALL report mode enabled.\n");
+#endif
+		abc_enabled |= ALL_REPORT_MODE_BIT;
+		complete(&pinfo->enable_done);
+	} else if (!strncmp(buf, "ALL_REPORT=0", 12)) {
+		ABC_PRINT("ALL report mode disabled.\n");
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+		abc_common_test_get_log_str("ALL report mode disabled.\n");
+#endif
+		abc_enabled &= ~(ALL_REPORT_MODE_BIT);
+	} else {
+		ABC_PRINT("Invalid input.\n");
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+		abc_common_test_get_log_str("Invalid input.\n");
+#endif
 	}
+
+	if (abc_enabled == ABC_DISABLED) {
+		sec_abc_reset_gpu_buffer();
+		sec_abc_reset_gpu_page_buffer();
+		sec_abc_reset_aicl_buffer();
+	}
+
 	return count;
 }
 
@@ -339,30 +286,17 @@ static ssize_t show_abc_enabled(struct device *dev,
 				struct device_attribute *attr,
 				char *buf)
 {
-	return sprintf(buf, "%d\n", abc_enabled);
+	if (abc_enabled)
+		return sprintf(buf, "1\n");
+	else
+		return sprintf(buf, "0\n");
 }
 static DEVICE_ATTR(enabled, 0644, show_abc_enabled, store_abc_enabled);
 
-#if IS_ENABLED(CONFIG_SEC_ABC_MOTTO)
-static ssize_t show_abc_motto_info(struct device *dev,
-				struct device_attribute *attr,
-				char *buf)
-{
-	u32 info_boot = 0;
-	u32 info_device = 0;
-
-	get_motto_info(dev, &info_boot, &info_device);
-	ABC_PRINT("info_boot = 0x%08x , info_device = 0x%08x\n", info_boot, info_device);
-
-	return sprintf(buf, "%d info_boot = 0x%08x info_device = 0x%08x\n", abc_enabled, info_boot, info_device);
-}
-static DEVICE_ATTR(motto_info, 0444, show_abc_motto_info, NULL);
-#endif
-
 /* reset abc log_list */
 static ssize_t store_abc_log(struct device *dev,
-			     struct device_attribute *attr,
-			     const char *buf, size_t count)
+				 struct device_attribute *attr,
+				 const char *buf, size_t count)
 {
 	struct abc_info *pinfo = dev_get_drvdata(sec_abc);
 	struct abc_log_entry *abc_log;
@@ -384,8 +318,8 @@ static ssize_t store_abc_log(struct device *dev,
 
 /* read abc log_list */
 static ssize_t show_abc_log(struct device *dev,
-			    struct device_attribute *attr,
-			    char *buf)
+				struct device_attribute *attr,
+				char *buf)
 {
 	struct abc_info *pinfo = dev_get_drvdata(sec_abc);
 	struct abc_log_entry *abc_log;
@@ -403,7 +337,7 @@ static ssize_t show_abc_log(struct device *dev,
 }
 static DEVICE_ATTR(log, 0644, show_abc_log, store_abc_log);
 
-static int sec_abc_is_full(struct abc_buffer *buffer)
+__visible_for_testing int sec_abc_is_full(struct abc_buffer *buffer)
 {
 	if ((buffer->rear + 1) % buffer->size == buffer->front)
 		return 1;
@@ -411,7 +345,7 @@ static int sec_abc_is_full(struct abc_buffer *buffer)
 		return 0;
 }
 
-static int sec_abc_is_empty(struct abc_buffer *buffer)
+__visible_for_testing int sec_abc_is_empty(struct abc_buffer *buffer)
 {
 	if (buffer->front == buffer->rear)
 		return 1;
@@ -419,27 +353,33 @@ static int sec_abc_is_empty(struct abc_buffer *buffer)
 		return 0;
 }
 
-static void sec_abc_enqueue(struct abc_buffer *buffer, struct abc_fault_info in)
+__visible_for_testing void sec_abc_enqueue(struct abc_buffer *buffer, struct abc_fault_info in)
 {
 	if (sec_abc_is_full(buffer)) {
 		ABC_PRINT("queue is full.\n");
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+		abc_common_test_get_log_str("queue is full.\n");
+#endif
 	} else {
 		buffer->rear = (buffer->rear + 1) % buffer->size;
 		buffer->abc_element[buffer->rear] = in;
 	}
 }
 
-static void sec_abc_dequeue(struct abc_buffer *buffer, struct abc_fault_info *out)
+__visible_for_testing void sec_abc_dequeue(struct abc_buffer *buffer, struct abc_fault_info *out)
 {
 	if (sec_abc_is_empty(buffer)) {
 		ABC_PRINT("queue is empty.\n");
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+		abc_common_test_get_log_str("queue is empty.\n");
+#endif
 	} else {
 		buffer->front = (buffer->front + 1) % buffer->size;
 		*out = buffer->abc_element[buffer->front];
 	}
 }
 
-static int sec_abc_get_diff_time(struct abc_buffer *buffer)
+__visible_for_testing int sec_abc_get_diff_time(struct abc_buffer *buffer)
 {
 	int front_time, rear_time;
 
@@ -462,10 +402,29 @@ int sec_abc_get_enabled(void)
 }
 EXPORT_SYMBOL(sec_abc_get_enabled);
 
+static void sec_abc_get_uevent_level_str(char *uevent_level_str, char *event_level, char *event_type)
+{
+	if (abc_enabled & ALL_REPORT_MODE_BIT) {
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+		if (!strncmp(event_type, "gpu_", 4))
+			snprintf(uevent_level_str, ABC_BUFFER_MAX, "WARN=%s", event_type);
+		else
+			snprintf(uevent_level_str, ABC_BUFFER_MAX, "INFO=%s", event_type);
+#else
+		if (!strncmp(event_level, "INFO", 4))
+			snprintf(uevent_level_str, ABC_BUFFER_MAX, "INFO=%s", event_type);
+		else
+			snprintf(uevent_level_str, ABC_BUFFER_MAX, "WARN=%s", event_type);
+#endif
+	} else {
+		snprintf(uevent_level_str, ABC_BUFFER_MAX, "%s=%s", event_level, event_type);
+	}
+}
+
 static void sec_abc_work_func(struct work_struct *work)
 {
 	struct abc_info *pinfo = container_of(work, struct abc_info, work);
-	struct abc_qdata *pgpu, *pgpu_page, *paicl, *pmipi_overflow;
+	struct abc_qdata *pgpu, *pgpu_page, *paicl;
 	struct abc_fault_info in, out;
 	struct abc_log_entry *abc_log;
 
@@ -476,7 +435,11 @@ static void sec_abc_work_func(struct work_struct *work)
 	char *c, *p, *p2;
 	char *uevent_str[ABC_UEVENT_MAX] = {0,};
 	char temp[ABC_BUFFER_MAX], timestamp[ABC_BUFFER_MAX], temp2[ABC_BUFFER_MAX];
+	char uevent_level_str[ABC_BUFFER_MAX] = {0,};
 	char *event_level, *event_type;
+#if IS_ENABLED(CONFIG_SEC_ABC_MOTTO)
+	char temp3[ABC_BUFFER_MAX], *event_module, *tempp;
+#endif
 	int idx = 0;
 	int i = 0;
 	u64 ktime;
@@ -488,8 +451,9 @@ static void sec_abc_work_func(struct work_struct *work)
 
 	/* Caculate current kernel time */
 	ktime = local_clock();
-	ktime_ms = ktime / NSEC_PER_MSEC;
-	ktime_rem = do_div(ktime, NSEC_PER_SEC);
+	ktime_rem = do_div(ktime, NSEC_PER_MSEC);
+	ktime_ms = (unsigned long)ktime;
+	ktime_rem = do_div(ktime, MSEC_PER_SEC);
 
 	/* Caculate current local time */
 	getnstimeofday(&ts);
@@ -516,9 +480,24 @@ static void sec_abc_work_func(struct work_struct *work)
 
 	ABC_PRINT("event_level : %s, event type : %s\n", event_level, event_type);
 #if IS_ENABLED(CONFIG_SEC_ABC_MOTTO)
-	motto_send_device_info(event_type);
+	strcpy(temp3,uevent_str[0]);
+	event_module = &temp3[0];
+	tempp = strsep(&event_module, "=");
+
+	if (event_module != NULL) {
+		ABC_PRINT("event_module : %s\n", event_module);
+		motto_send_device_info(event_module, event_type);
+	}
 #endif
-	if (!strncmp(event_level, "INFO", 4)) {
+
+	sec_abc_get_uevent_level_str(uevent_level_str, event_level, event_type);
+
+	if (abc_enabled & ALL_REPORT_MODE_BIT) {
+		uevent_str[1] = uevent_level_str;
+		kobject_uevent_env(&sec_abc->kobj, KOBJ_CHANGE, uevent_str);
+	}
+
+	if (!strncmp(uevent_level_str, "INFO=", 5)) {
 		ABC_PRINT("event_level is INFO. Don't Send uevent\n");
 		return;
 	}
@@ -552,11 +531,13 @@ static void sec_abc_work_func(struct work_struct *work)
 
 	mutex_unlock(&pinfo->log_mutex);
 
-	if (abc_enabled == ABC_TYPE1_ENABLED) {
+	if (abc_enabled != ABC_DISABLED) {
+		snprintf(uevent_level_str, ABC_BUFFER_MAX, "ERROR=%s", event_type);
+		uevent_str[1] = uevent_level_str;
+
 		pgpu = pinfo->pdata->gpu_items;
 		pgpu_page = pinfo->pdata->gpu_page_items;
 		paicl = pinfo->pdata->aicl_items;
-		pmipi_overflow = pinfo->pdata->mipi_overflow_items;
 		/* GPU fault */
 		if (pgpu->buffer.size && !strncasecmp(event_type, "gpu_fault", 9)) {
 			in.cur_time = (unsigned long)ktime;
@@ -570,26 +551,29 @@ static void sec_abc_work_func(struct work_struct *work)
 			if (pgpu->fail_cnt >= pgpu->threshold_cnt) {
 				if (sec_abc_get_diff_time(&pgpu->buffer) < pgpu->threshold_time) {
 					ABC_PRINT("GPU fault occurred. Send uevent.\n");
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+					abc_common_test_get_work_str(uevent_str);
+#endif
 					kobject_uevent_env(&sec_abc->kobj, KOBJ_CHANGE, uevent_str);
 				}
 				pgpu->fail_cnt = 0;
 				sec_abc_dequeue(&pgpu->buffer, &out);
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+				abc_common_test_get_work_str(uevent_str);
+#endif
 				ABC_PRINT("cur_time : %lu sec cur_cnt : %d\n", out.cur_time, out.cur_cnt);
 			/* Case 2 : Check front and rear node in queue. Because it's occurred within max count */
 			} else if (sec_abc_is_full(&pgpu->buffer)) {
 				if (sec_abc_get_diff_time(&pgpu->buffer) < pgpu->threshold_time) {
 					ABC_PRINT("GPU fault occurred. Send uevent.\n");
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+					abc_common_test_get_work_str(uevent_str);
+#endif
 					kobject_uevent_env(&sec_abc->kobj, KOBJ_CHANGE, uevent_str);
 				}
 				sec_abc_dequeue(&pgpu->buffer, &out);
 				ABC_PRINT("cur_time : %lu sec cur_cnt : %d\n", out.cur_time, out.cur_cnt);
 			}
-
-#ifdef ABC_WARNING_REPORT
-			/* Send GPU fault warning */
-			strcat(uevent_str[1], "_w");
-			kobject_uevent_env(&sec_abc->kobj, KOBJ_CHANGE, uevent_str);
-#endif
 		} else if (pgpu_page->buffer.size && !strncasecmp(event_type, "gpu_page_fault", 14)) { /* gpu page fault */
 			in.cur_time = (unsigned long)ktime;
 			in.cur_cnt = pgpu_page->fail_cnt++;
@@ -602,15 +586,22 @@ static void sec_abc_work_func(struct work_struct *work)
 			if (pgpu_page->fail_cnt >= pgpu_page->threshold_cnt) {
 				if (sec_abc_get_diff_time(&pgpu_page->buffer) < pgpu_page->threshold_time) {
 					ABC_PRINT("GPU PAGE fault occurred. Send uevent.\n");
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+					abc_common_test_get_work_str(uevent_str);
+#endif
 					kobject_uevent_env(&sec_abc->kobj, KOBJ_CHANGE, uevent_str);
 				}
 				pgpu_page->fail_cnt = 0;
 				sec_abc_dequeue(&pgpu_page->buffer, &out);
+
 				ABC_PRINT("cur_time : %lu sec cur_cnt : %d\n", out.cur_time, out.cur_cnt);
 			/* Case 2 : Check front and rear node in queue. Because it's occurred within max count */
 			} else if (sec_abc_is_full(&pgpu_page->buffer)) {
 				if (sec_abc_get_diff_time(&pgpu_page->buffer) < pgpu_page->threshold_time) {
 					ABC_PRINT("GPU PAGE fault occurred. Send uevent.\n");
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+					abc_common_test_get_work_str(uevent_str);
+#endif
 					kobject_uevent_env(&sec_abc->kobj, KOBJ_CHANGE, uevent_str);
 				}
 				sec_abc_dequeue(&pgpu_page->buffer, &out);
@@ -627,7 +618,11 @@ static void sec_abc_work_func(struct work_struct *work)
 			if (paicl->fail_cnt >= paicl->threshold_cnt) {
 				if (sec_abc_get_diff_time(&paicl->buffer) < paicl->threshold_time) {
 					ABC_PRINT("AICL fault occurred. Send uevent.\n");
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+					abc_common_test_get_work_str(uevent_str);
+#endif
 					kobject_uevent_env(&sec_abc->kobj, KOBJ_CHANGE, uevent_str);
+					ABC_PRINT("AFTER AICL UEVENT.\n");
 					while (!sec_abc_is_empty(&paicl->buffer))
 						sec_abc_dequeue(&paicl->buffer, &out);
 					paicl->fail_cnt = 0;
@@ -637,47 +632,21 @@ static void sec_abc_work_func(struct work_struct *work)
 					ABC_PRINT("cur_time : %lu sec cur_cnt : %d\n", out.cur_time, out.cur_cnt);
 				}
 			}
-		} else if (pmipi_overflow->buffer.size && !strncasecmp(event_type, "mipi_overflow", 13)) { /* mipi overflow */
-			in.cur_time = (unsigned long)ktime;
-			in.cur_cnt = pmipi_overflow->fail_cnt++;
-
-			ABC_PRINT("mipi_overflow fail count : %d\n", pmipi_overflow->fail_cnt);
-			sec_abc_enqueue(&pmipi_overflow->buffer, in);
-
-			/* Check mipi_overflow fault */
-			/* Case 1 : Over threshold count */
-			if (pmipi_overflow->fail_cnt >= pmipi_overflow->threshold_cnt) {
-				if (sec_abc_get_diff_time(&pmipi_overflow->buffer) < pmipi_overflow->threshold_time) {
-					ABC_PRINT("MIPI Overflow fault occurred. Send uevent.\n");
-					kobject_uevent_env(&sec_abc->kobj, KOBJ_CHANGE, uevent_str);
-				}
-				pmipi_overflow->fail_cnt = 0;
-				sec_abc_dequeue(&pmipi_overflow->buffer, &out);
-				ABC_PRINT("cur_time : %lu sec cur_cnt : %d\n", out.cur_time, out.cur_cnt);
-			/* Case 2 : Check front and rear node in queue. Because it's occurred within max count */
-			} else if (sec_abc_is_full(&pmipi_overflow->buffer)) {
-				if (sec_abc_get_diff_time(&pmipi_overflow->buffer) < pmipi_overflow->threshold_time) {
-					ABC_PRINT("MIPI Overflow fault occurred. Send uevent.\n");
-					kobject_uevent_env(&sec_abc->kobj, KOBJ_CHANGE, uevent_str);
-				}
-				sec_abc_dequeue(&pmipi_overflow->buffer, &out);
-				ABC_PRINT("cur_time : %lu sec cur_cnt : %d\n", out.cur_time, out.cur_cnt);
-			}
 		} else {
 			/* Others */
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+			abc_common_test_get_work_str(uevent_str);
+#endif
 			kobject_uevent_env(&sec_abc->kobj, KOBJ_CHANGE, uevent_str);
 			ABC_PRINT("Send uevent.\n");
 		}
-	} else { /* ABC_TYPE2_ENABLED */
-		kobject_uevent_env(&sec_abc->kobj, KOBJ_CHANGE, uevent_str);
-		ABC_PRINT("Send uevent.\n");
 	}
 }
 
 /* event string format
  *
  * ex) MODULE=tsp@ERROR=power_status_mismatch
- *     MODULE=tsp@ERROR=power_status_mismatch@EXT_LOG=fw_ver(0108)
+ *	 MODULE=tsp@ERROR=power_status_mismatch@EXT_LOG=fw_ver(0108)
  *
  */
 void sec_abc_send_event(char *str)
@@ -686,11 +655,17 @@ void sec_abc_send_event(char *str)
 
 	if (!abc_init) {
 		ABC_PRINT("ABC driver is not initialized!\n");
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+		abc_common_test_get_log_str("ABC driver is not initialized!\n");
+#endif
 		return;
 	}
 
 	if (abc_enabled == ABC_DISABLED) {
 		ABC_PRINT("ABC is disabled!\n");
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+		abc_common_test_get_log_str("ABC is disabled!\n");
+#endif
 		return;
 	}
 	pr_info("%s: %s\n", __func__, str);
@@ -723,7 +698,7 @@ int sec_abc_wait_enabled(void)
 	reinit_completion(&pinfo->enable_done);
 
 	timeout = wait_for_completion_timeout(&pinfo->enable_done,
-					      msecs_to_jiffies(ABC_WAIT_ENABLE_TIMEOUT));
+						  msecs_to_jiffies(ABC_WAIT_ENABLE_TIMEOUT));
 
 	if (timeout == 0) {
 		ABC_PRINT("%s : timeout!\n", __func__);
@@ -746,7 +721,7 @@ static int sec_abc_probe(struct platform_device *pdev)
 
 	if (pdev->dev.of_node) {
 		pdata = devm_kzalloc(&pdev->dev,
-				     sizeof(struct abc_platform_data), GFP_KERNEL);
+					 sizeof(struct abc_platform_data), GFP_KERNEL);
 
 		if (!pdata) {
 			dev_err(&pdev->dev, "Failed to allocate platform data\n");
@@ -803,14 +778,6 @@ static int sec_abc_probe(struct platform_device *pdev)
 		goto err_create_abc_log_sysfs;
 	}
 
-#if IS_ENABLED(CONFIG_SEC_ABC_MOTTO)
-	ret = device_create_file(pinfo->dev, &dev_attr_motto_info);
-	if (ret) {
-		pr_err("%s: Failed to create device motto_info file\n", __func__);
-		goto err_create_abc_motto_info_sysfs;
-	}
-#endif
-
 	INIT_WORK(&pinfo->work, sec_abc_work_func);
 
 	pinfo->workqueue = create_singlethread_workqueue("sec_abc_wq");
@@ -827,14 +794,12 @@ static int sec_abc_probe(struct platform_device *pdev)
 	pinfo->pdata = pdata;
 
 	platform_set_drvdata(pdev, pinfo);
-
+#if IS_ENABLED(CONFIG_SEC_ABC_MOTTO)
+	motto_init(pdev);
+#endif
 	abc_init = true;
 	return ret;
 err_create_abc_wq:
-#if IS_ENABLED(CONFIG_SEC_ABC_MOTTO)
-	device_remove_file(pinfo->dev, &dev_attr_motto_info);
-err_create_abc_motto_info_sysfs:
-#endif
 	device_remove_file(pinfo->dev, &dev_attr_log);
 err_create_abc_log_sysfs:
 	device_remove_file(pinfo->dev, &dev_attr_enabled);
@@ -869,15 +834,28 @@ static struct platform_driver sec_abc_driver = {
 	},
 };
 
+#ifdef CONFIG_SEC_KUNIT
+kunit_notifier_chain_init(abc_common_test_module);
+#endif
+
 static int __init sec_abc_init(void)
 {
 	ABC_PRINT("%s\n", __func__);
+
+#ifdef CONFIG_SEC_KUNIT
+	kunit_notifier_chain_register(abc_common_test_module);
+#endif
 
 	return platform_driver_register(&sec_abc_driver);
 }
 
 static void __exit sec_abc_exit(void)
 {
+
+#ifdef CONFIG_SEC_KUNIT
+	kunit_notifier_chain_unregister(abc_common_test_module);
+#endif
+
 	return platform_driver_unregister(&sec_abc_driver);
 }
 

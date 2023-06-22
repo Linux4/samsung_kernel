@@ -1,3 +1,18 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include "shub_kfifo_buf.h"
 
 #include <linux/slab.h>
@@ -13,6 +28,9 @@
 #include <linux/iio/buffer_impl.h>
 #include <linux/sched.h>
 #include <linux/poll.h>
+#include <linux/bitmap.h>
+#include <linux/version.h>
+
 
 struct iio_kfifo {
 	struct iio_buffer buffer;
@@ -33,7 +51,7 @@ static inline int __iio_allocate_kfifo(struct iio_kfifo *buf,
 	 * Make sure we don't overflow an unsigned int after kfifo rounds up to
 	 * the next power of 2.
 	 */
-	if (roundup_pow_of_two(length) > UINT_MAX / bytes_per_datum)
+	if (roundup_pow_of_two(length) > (UINT_MAX / bytes_per_datum))
 		return -EINVAL;
 
 	return __kfifo_alloc((struct __kfifo *)&buf->kf, length,
@@ -105,7 +123,7 @@ static int iio_store_to_kfifo(struct iio_buffer *r,
 	return 0;
 }
 
-static int iio_read_first_n_kfifo(struct iio_buffer *r,
+static int iio_read_kfifo(struct iio_buffer *r,
 			   size_t n, char __user *buf)
 {
 	int ret, copied;
@@ -148,7 +166,11 @@ static void iio_kfifo_buffer_release(struct iio_buffer *buffer)
 
 static const struct iio_buffer_access_funcs kfifo_access_funcs = {
 	.store_to = &iio_store_to_kfifo,
-	.read_first_n = &iio_read_first_n_kfifo,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0))
+	.read = &iio_read_kfifo,
+#else
+	.read_first_n = &iio_read_kfifo,
+#endif
 	.data_available = iio_kfifo_buf_data_available,
 	.request_update = &iio_request_update_kfifo,
 	.set_bytes_per_datum = &shub_iio_set_bytes_per_datum_kfifo,

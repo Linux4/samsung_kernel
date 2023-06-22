@@ -69,6 +69,8 @@ struct ccci_smem_region md1_6293_noncacheable_fat[] = {
 	SMF_NCLR_FIRST, },
 {SMEM_USER_CCISM_MCU,		160*1024, (720+1)*1024, SMF_NCLR_FIRST, },
 {SMEM_USER_CCISM_MCU_EXP,	881*1024, (120+1)*1024, SMF_NCLR_FIRST, },
+{SMEM_USER_MD_BIGDATA,	1002*1024,	512,	0},
+{SMEM_USER_MD_IPCA_BIGDATA,	1002*1024+512,	128,	0},
 {SMEM_USER_RAW_DFD,		1*1024*1024,	448*1024,	0, },
 {SMEM_USER_RAW_UDC_DATA, (1*1024+448)*1024, 0*1024*1024,	0, },
 {SMEM_USER_RAW_AMMS_POS,	(1*1024 + 448)*1024,	0,
@@ -201,6 +203,8 @@ static void init_smem_user_name(void)
 	s_smem_user_names[SMEM_USER_RAW_RESERVED] = "RAW_RESERVED";
 	s_smem_user_names[SMEM_USER_CCISM_MCU] = "CCISM_MCU";
 	s_smem_user_names[SMEM_USER_CCISM_MCU_EXP] = "CCISM_MCU_EXP";
+	s_smem_user_names[SMEM_USER_MD_BIGDATA] = "BIGDATA_CRASHINFO";
+	s_smem_user_names[SMEM_USER_MD_IPCA_BIGDATA] = "IPCA_BIGDATA_CRASHINFO";
 	s_smem_user_names[SMEM_USER_SMART_LOGGING] = "SMART_LOGGING";
 	s_smem_user_names[SMEM_USER_RAW_MD_CONSYS] = "RAW_MD_CONSYS";
 	s_smem_user_names[SMEM_USER_RAW_PHY_CAP] = "RAW_PHY_CAP";
@@ -940,8 +944,12 @@ int ccci_md_register(struct ccci_modem *md)
 
 int ccci_md_set_boot_data(unsigned char md_id, unsigned int data[], int len)
 {
-	int ret = 0;
 	struct ccci_modem *md = ccci_md_get_modem_by_id(md_id);
+	unsigned int rat_flag;
+	unsigned int rat_str_int[MD_CFG_RAT_STR5 - MD_CFG_RAT_STR0 + 1];
+	unsigned int wm_idx;
+	char *rat_str;
+	int i, ret;
 
 	if (len < 0 || data == NULL)
 		return -1;
@@ -952,7 +960,48 @@ int ccci_md_set_boot_data(unsigned char md_id, unsigned int data[], int len)
 		data[MD_CFG_DUMP_FLAG] == MD_DBG_DUMP_INVALID ?
 		md->per_md_data.md_dbg_dump_flag : data[MD_CFG_DUMP_FLAG];
 
-	return ret;
+	rat_flag = data[MD_CFG_RAT_CHK_FLAG];
+	if (rat_flag) {
+		if (check_rat_at_md_img(md_id, "C") == 0) {
+			char aee_info[32];
+
+			i = scnprintf(aee_info, sizeof(aee_info),
+				"C2K DEP check fail(0x%x)",
+				get_md_bin_capability(md_id));
+			if (i >= (sizeof(aee_info) - 1))
+				CCCI_ERROR_LOG(md_id, TAG, "buf not enough\n");
+			CCCI_ERROR_LOG(md_id, TAG, "C2K DEP check fail\n");
+#ifdef CONFIG_MTK_AEE_FEATURE
+			aed_md_exception_api(NULL, 0, NULL,
+				0, aee_info, DB_OPT_DEFAULT);
+#endif
+			return -1;
+		}
+	}
+
+	for (i = 0; i < (MD_CFG_RAT_STR5 - MD_CFG_RAT_STR0 + 1); i++)
+		rat_str_int[i] = data[MD_CFG_RAT_STR0 + i];
+	rat_str = (char *)rat_str_int;
+	rat_str[sizeof(rat_str_int) - 1] = 0;
+
+	wm_idx = data[MD_CFG_WM_IDX];
+	if (set_soc_md_rt_rat_by_idx(md_id, wm_idx) == 0) {
+		CCCI_NORMAL_LOG(-1, TAG, "Using WM IDX: %u\n", wm_idx);
+		return 0;
+	}
+
+	ret = set_soc_md_rt_rat_str(md_id, rat_str);
+	if (ret < 0) {
+		CCCI_ERROR_LOG(md_id, TAG,
+			"Current setting has mistake!!\n");
+		return -1;
+	}
+
+	if (ret == 1)
+		CCCI_ERROR_LOG(md_id, TAG,
+			"runtime rat setting abnormal, using default!!\n");
+
+	return 0;
 }
 
 struct ccci_mem_layout *ccci_md_get_mem(int md_id)
@@ -1229,10 +1278,12 @@ static unsigned int get_booting_start_id(struct ccci_modem *md)
 	enum LOGGING_MODE mdlog_flag = MODE_IDLE;
 	u32 booting_start_id = 0;
 
-	mdlog_flag = md->mdlg_mode;
+	mdlog_flag = (md->mdlg_mode & 0x0000ffff);
 
 	booting_start_id = (((char)mdlog_flag << 8)
 				| get_boot_mode_from_dts());
+
+	booting_start_id |= (md->mdlg_mode & 0xffff0000);
 
 	CCCI_BOOTUP_LOG(md->index, TAG,
 		"%s 0x%x\n", __func__, booting_start_id);
@@ -1287,6 +1338,11 @@ static void config_ap_side_feature(struct ccci_modem *md,
 	else
 		md_feature->feature_set[MD_POS_SHARE_MEMORY].support_mask =
 			CCCI_FEATURE_NOT_SUPPORT;
+
+	md_feature->feature_set[CCCI_MD_BIGDATA_SHARE_MEMORY].support_mask
+		= CCCI_FEATURE_MUST_SUPPORT;
+	md_feature->feature_set[CCCI_MD_IPCA_BIGDATA_SHARE_MEMORY].support_mask
+		= CCCI_FEATURE_MUST_SUPPORT;
 
 	/* notice: CCB_SHARE_MEMORY should be set to support
 	 * when at least one CCB region exists
@@ -1377,6 +1433,9 @@ static void config_ap_side_feature(struct ccci_modem *md,
 
 	md_feature->feature_set[MD_MTEE_SHARE_MEMORY_ENABLE].support_mask
 		= CCCI_FEATURE_OPTIONAL_SUPPORT;
+	md_feature->feature_set[AP_DEBUG_LEVEL].support_mask =
+		CCCI_FEATURE_MUST_SUPPORT;
+
 }
 
 unsigned int align_to_2_power(unsigned int n)
@@ -1436,6 +1495,7 @@ int ccci_md_prepare_runtime_data(unsigned char md_id, unsigned char *data,
 	unsigned int random_seed = 0;
 	struct timeval t;
 	unsigned int c2k_flags = 0;
+	int debug_level;
 
 	CCCI_BOOTUP_LOG(md->index, TAG,
 		"prepare_runtime_data  AP total %u features\n",
@@ -1674,14 +1734,14 @@ int ccci_md_prepare_runtime_data(unsigned char md_id, unsigned char *data,
 				rt_feature.data_len =
 				sizeof(struct ccci_misc_info_element);
 				rt_f_element.feature[0] = md->sbp_code;
-				if (md->per_md_data.config.load_type
-					< modem_ultg)
-					rt_f_element.feature[1] = 0;
-				else
-					rt_f_element.feature[1] =
-					get_wm_bitmap_for_ubin();
+				rt_f_element.feature[1] =
+						get_soc_md_rt_rat(MD_SYS1);
 				CCCI_BOOTUP_LOG(md->index, TAG,
-					"sbp=0x%x,wmid[%d]\n",
+					"sbp=0x%x,wmid[0x%x]\n",
+					rt_f_element.feature[0],
+					rt_f_element.feature[1]);
+				CCCI_NORMAL_LOG(md->index, TAG,
+					"sbp=0x%x,wmid[0x%x]\n",
 					rt_f_element.feature[0],
 					rt_f_element.feature[1]);
 				append_runtime_feature(&rt_data,
@@ -1718,21 +1778,13 @@ int ccci_md_prepare_runtime_data(unsigned char md_id, unsigned char *data,
 				rt_feature.data_len =
 				sizeof(struct ccci_misc_info_element);
 				c2k_flags = 0;
-#if defined(CONFIG_MTK_MD3_SUPPORT) && (CONFIG_MTK_MD3_SUPPORT > 0)
-				c2k_flags |= (1 << 0);
-#endif
-				/* SVLTE_MODE */
-				if (ccci_get_opt_val("opt_c2k_lte_mode") == 1)
-					c2k_flags |= (1 << 1);
-				/* SRLTE_MODE */
-				if (ccci_get_opt_val("opt_c2k_lte_mode") == 2)
+
+				if (check_rat_at_rt_setting(MD_SYS1, "C"))
 					c2k_flags |= (1 << 2);
-#ifdef CONFIG_MTK_C2K_OM_SOLUTION1
-				c2k_flags |=  (1 << 3);
-#endif
-#ifdef CONFIG_CT6M_SUPPORT
-				c2k_flags |= (1 << 4)
-#endif
+				CCCI_NORMAL_LOG(md_id, TAG,
+					"c2k_flags 0x%X; MD_GENERATION: %d\n",
+					c2k_flags, MD_GENERATION);
+
 				rt_f_element.feature[0] = c2k_flags;
 				append_runtime_feature(&rt_data,
 				&rt_feature, &rt_f_element);
@@ -1777,6 +1829,20 @@ int ccci_md_prepare_runtime_data(unsigned char md_id, unsigned char *data,
 			case CCISM_SHARE_MEMORY_EXP:
 				ccci_smem_region_set_runtime(md_id,
 					SMEM_USER_CCISM_MCU_EXP,
+					&rt_feature, &rt_shm);
+				append_runtime_feature(&rt_data, &rt_feature,
+				&rt_shm);
+				break;
+			case CCCI_MD_BIGDATA_SHARE_MEMORY:
+				ccci_smem_region_set_runtime(md_id,
+					SMEM_USER_MD_BIGDATA,
+					&rt_feature, &rt_shm);
+				append_runtime_feature(&rt_data, &rt_feature,
+				&rt_shm);
+				break;
+			case CCCI_MD_IPCA_BIGDATA_SHARE_MEMORY:
+				ccci_smem_region_set_runtime(md_id,
+					SMEM_USER_MD_IPCA_BIGDATA,
 					&rt_feature, &rt_shm);
 				append_runtime_feature(&rt_data, &rt_feature,
 				&rt_shm);
@@ -1849,6 +1915,13 @@ int ccci_md_prepare_runtime_data(unsigned char md_id, unsigned char *data,
 					&rt_feature, &rt_shm);
 				append_runtime_feature(&rt_data, &rt_feature,
 					&rt_shm);
+				break;
+			case AP_DEBUG_LEVEL:
+				rt_feature.data_len = sizeof(int);
+				debug_level = ccci_get_ap_debug_level();
+				CCCI_ERROR_LOG(-1, TAG, "AP_DEBUG_LEVEL:%d\n", debug_level);
+				append_runtime_feature(&rt_data,
+					&rt_feature, &debug_level);
 				break;
 			default:
 				break;
@@ -2068,8 +2141,10 @@ int exec_ccci_kern_func_by_md_id(int md_id, unsigned int id, char *buf,
 			/*send tx power status for swtp and carkit*/
 			ret = ccci_port_send_msg_to_md(md_id, CCCI_SYSTEM_TX,
 				msg_id, mode, 0);
+#ifdef CUST_FT_SEND_TX_POWER
 			ret = ccci_port_send_msg_to_md(md_id, CCCI_SYSTEM_TX,
 				MD_CARKIT_STATUS, mode, 0);
+#endif
 		}
 		break;
 	case ID_DUMP_MD_SLEEP_MODE:

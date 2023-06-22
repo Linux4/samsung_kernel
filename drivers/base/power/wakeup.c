@@ -1139,7 +1139,7 @@ int wakeup_sources_stats_active(void)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(wakeup_sources_stats_active);
-#endif
+#endif /* CONFIG_SEC_PM */
 
 static void *wakeup_sources_stats_seq_start(struct seq_file *m,
 					loff_t *pos)

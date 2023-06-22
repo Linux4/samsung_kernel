@@ -34,12 +34,19 @@ static struct device *mag_sysfs_device;
 static struct device_attribute **chipset_attrs;
 static u8 chipset_index;
 
-typedef int (*check_adc_data_spec)(int);
+typedef int (*check_adc_data_spec)(s32 sensor_value[3]);
 check_adc_data_spec check_adc_data_spec_funcs[] = {
 	check_ak09918c_adc_data_spec,
 	check_mmc5633_adc_data_spec,
 	check_yas539_adc_data_spec,
 };
+
+void get_magnetometer_sensor_value_s32(struct mag_power_event *event, s32 *sensor_value)
+{
+	sensor_value[0] = (s32) event->x;
+	sensor_value[1] = (s32) event->y;
+	sensor_value[2] = (s32) event->z;
+}
 
 static ssize_t status_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -125,7 +132,8 @@ static ssize_t logging_data_show(struct device *dev, struct device_attribute *at
 
 static ssize_t raw_data_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	struct mag_event *sensor_value = (struct mag_event *)(get_sensor_event(SENSOR_TYPE_GEOMAGNETIC_POWER)->value);
+	struct mag_power_event *sensor_value =
+	    (struct mag_power_event *)(get_sensor_event(SENSOR_TYPE_GEOMAGNETIC_POWER)->value);
 
 	shub_info("%d,%d,%d\n", sensor_value->x, sensor_value->y, sensor_value->z);
 
@@ -144,6 +152,7 @@ static ssize_t raw_data_store(struct device *dev, struct device_attribute *attr,
 	int ret = 0;
 	int64_t dEnable;
 	s32 dMsDelay = 20;
+	s32 sensor_buf[3] = {0, };
 
 	memcpy(&chTempbuf[0], &dMsDelay, 4);
 
@@ -152,8 +161,8 @@ static ssize_t raw_data_store(struct device *dev, struct device_attribute *attr,
 		return ret;
 
 	if (dEnable) {
-		struct mag_event *sensor_value =
-		    (struct mag_event *)(get_sensor_event(SENSOR_TYPE_GEOMAGNETIC_POWER)->value);
+		struct mag_power_event *sensor_value =
+		    (struct mag_power_event *)(get_sensor_event(SENSOR_TYPE_GEOMAGNETIC_POWER)->value);
 
 		int retries = 50;
 
@@ -166,7 +175,8 @@ static ssize_t raw_data_store(struct device *dev, struct device_attribute *attr,
 
 		do {
 			msleep(20);
-			if (check_adc_data_spec_funcs[chipset_index](SENSOR_TYPE_GEOMAGNETIC_POWER) == 0) { // success
+			get_magnetometer_sensor_value_s32(sensor_value, sensor_buf);
+			if (check_adc_data_spec_funcs[chipset_index](sensor_buf) == 0) { // success
 				break;
 			}
 		} while (--retries);
@@ -186,7 +196,7 @@ static ssize_t raw_data_store(struct device *dev, struct device_attribute *attr,
 static ssize_t adc_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	bool bSuccess = false;
-	s16 sensor_buf[3] = {0, };
+	s32 sensor_buf[3] = {0, };
 	int retries = 10;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_GEOMAGNETIC_FIELD);
 	struct mag_event *sensor_value = (struct mag_event *)(sensor->event_buffer.value);
@@ -201,7 +211,10 @@ static ssize_t adc_show(struct device *dev, struct device_attribute *attr, char 
 
 	do {
 		msleep(60);
-		if (check_adc_data_spec_funcs[chipset_index](SENSOR_TYPE_GEOMAGNETIC_FIELD) == 0) { // success
+		sensor_buf[0] = sensor_value->x;
+		sensor_buf[1] = sensor_value->y;
+		sensor_buf[2] = sensor_value->z;
+		if (check_adc_data_spec_funcs[chipset_index](sensor_buf) == 0) { // success
 			break;
 		}
 	} while (--retries);
@@ -245,7 +258,8 @@ get_chipset_dev_attrs get_mag_chipset_dev_attrs[] = {
 void initialize_magnetometer_sysfs(void)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_GEOMAGNETIC_FIELD);
-	int ret, i;
+	int ret;
+	uint64_t i;
 
 	ret = sensor_device_create(&mag_sysfs_device, NULL, "magnetic_sensor");
 	if (ret < 0) {
@@ -259,8 +273,8 @@ void initialize_magnetometer_sysfs(void)
 		return;
 	}
 
-	for (i = 0; i < ARRAY_LEN(get_mag_chipset_dev_attrs); i++) {
-		chipset_attrs = get_mag_chipset_dev_attrs[i](sensor->chipset_name);
+	for (i = 0; i < ARRAY_SIZE(get_mag_chipset_dev_attrs); i++) {
+		chipset_attrs = get_mag_chipset_dev_attrs[i](sensor->spec.name);
 		if (chipset_attrs) {
 			ret = add_sensor_device_attr(mag_sysfs_device, chipset_attrs);
 			chipset_index = i;
@@ -284,7 +298,7 @@ void remove_magnetometer_sysfs(void)
 
 void initialize_magnetometer_factory(bool en)
 {
-	if (!get_sensor_probe_state(SENSOR_TYPE_GEOMAGNETIC_FIELD))
+	if (!get_sensor(SENSOR_TYPE_GEOMAGNETIC_FIELD))
 		return;
 
 	if (en)

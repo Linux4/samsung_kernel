@@ -472,11 +472,9 @@
 	mediatek,kpd-use-extend-type = <0>;
 	/*HW Keycode [0~71] -> Linux Keycode*/
 	mediatek,kpd-hw-map-num = <72>;
-	mediatek,kpd-hw-init-map =
-	< 0 115 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-	0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-	0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-	0 0 0 0 0 0 0 0 0 0 0 0 >;
+	mediatek,kpd-hw-init-map = <0 115 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+	0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+	0 0 0 0 0 0 0 0 0 0 0 0 0 >;
 	mediatek,kpd-pwrkey-eint-gpio = <0>;
 	mediatek,kpd-pwkey-gpio-din  = <0>;
 	mediatek,kpd-hw-dl-key2 = <8>;

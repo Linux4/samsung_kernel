@@ -96,7 +96,9 @@ static enum UT_RET_STATE mem_alloc_variant(enum TRUSTED_MEM_TYPE mem_type,
 					   bool clean, bool un_order_sz_enable)
 {
 	int ret;
-	u32 alignment, chunk_size, handle, ref_count;
+	u32 alignment, chunk_size;
+	u32 handle = 0;
+	u32 ref_count = 0;
 	u32 try_size;
 	u32 max_try_size = SZ_16M;
 	u32 min_alloc_sz = tmem_core_get_min_chunk_size(mem_type);
@@ -182,7 +184,9 @@ enum UT_RET_STATE mem_alloc_alignment_test(enum TRUSTED_MEM_TYPE mem_type,
 					   int region_final_state)
 {
 	int ret;
-	u32 alignment, chunk_size, handle, ref_count;
+	u32 alignment, chunk_size;
+	u32 handle = 0;
+	u32 ref_count = 0;
 	u32 min_chunk_sz = tmem_core_get_min_chunk_size(mem_type);
 
 	/* alignment is less than size, we expect result by defines:
@@ -285,7 +289,8 @@ mem_alloc_saturation_variant(enum TRUSTED_MEM_TYPE mem_type, u8 *mem_owner,
 {
 	int ret;
 	int chunk_num;
-	u32 alignment = 0, chunk_size, ref_count;
+	u32 alignment = 0, chunk_size;
+	u32 ref_count = 0;
 	u32 one_more_handle;
 	int max_pool_size = tmem_core_get_max_pool_size(mem_type);
 	int max_items;
@@ -358,7 +363,8 @@ mem_regmgr_region_defer_off_test(enum TRUSTED_MEM_TYPE mem_type, u8 *mem_owner,
 				 int region_final_state)
 {
 	int ret;
-	u32 handle, ref_count;
+	u32 handle = 0;
+	u32 ref_count = 0;
 	int defer_ms = (REGMGR_REGION_DEFER_OFF_DELAY_MS - 100);
 	int defer_end_ms = (REGMGR_REGION_DEFER_OFF_OPERATION_LATENCY_MS + 100);
 	u32 min_chunk_sz = tmem_core_get_min_chunk_size(mem_type);
@@ -410,7 +416,8 @@ static enum UT_RET_STATE mem_delay_after_free(enum TRUSTED_MEM_TYPE mem_type,
 {
 	int ret;
 	int chunk_num;
-	u32 handle, ref_count;
+	u32 handle = 0;
+	u32 ref_count = 0;
 	u32 min_chunk_sz = tmem_core_get_min_chunk_size(mem_type);
 
 	for (chunk_num = 0; chunk_num < alloc_cnt; chunk_num++) {
@@ -526,7 +533,7 @@ static int mem_thread_alloc_test(void *data)
 	int chunk_size = param->alloc_chunk_size;
 	int max_items = param->alloc_total_size / chunk_size;
 	int idx;
-	u32 ref_count;
+	u32 ref_count = 0;
 	u8 *owner = param->name;
 	int mem_type = param->mem_type;
 
@@ -649,7 +656,8 @@ mem_alloc_mixed_size_test_with_alignment(enum TRUSTED_MEM_TYPE mem_type,
 	int chunk_idx;
 	u32 try_size;
 	u32 max_try_size = SZ_16M;
-	u32 handle, ref_count;
+	u32 handle = 0;
+	u32 ref_count = 0;
 	u32 max_pool_size = tmem_core_get_max_pool_size(mem_type);
 	u32 next_free_pos = 0x0;
 	int remained_free_size;

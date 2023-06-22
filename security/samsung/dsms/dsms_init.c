@@ -11,7 +11,7 @@
 #include "dsms_init.h"
 #include "dsms_kernel_api.h"
 #include "dsms_netlink.h"
-#include "dsms_message_list.h"
+#include "dsms_preboot_buffer.h"
 #include "dsms_rate_limit.h"
 #include "dsms_test.h"
 
@@ -34,16 +34,16 @@ __visible_for_testing int __kunit_init dsms_init(void)
 	ret = dsms_rate_limit_init();
 	if (ret != 0)
 		goto exit_ret;
-	ret = dsms_message_list_init();
-	if (ret != 0)
-		goto exit_rate_limit;
 	ret = dsms_netlink_init();
 	if (ret != 0)
-		goto exit_message_list;
+		goto exit_rate_limit;
+	ret = dsms_preboot_buffer_init();
+	if (ret != 0)
+		goto exit_netlink;
 	is_dsms_initialized_flag = true;
 	goto exit_ret;
-exit_message_list:
-	dsms_message_list_exit();
+exit_netlink:
+	dsms_netlink_exit();
 exit_rate_limit:
 	dsms_rate_limit_exit();
 exit_ret:
@@ -59,11 +59,7 @@ __visible_for_testing void __kunit_exit dsms_exit(void)
 	DSMS_LOG_DEBUG("Exiting.");
 	if (is_dsms_initialized_flag) {
 		is_dsms_initialized_flag = false;
-		/* Although message list is initialized before netlink,
-		 * it needs to be finalized before also, to avoid netlink
-		 * thread being blocked on message list.
-		 */
-		dsms_message_list_exit();
+		dsms_preboot_buffer_exit();
 		dsms_netlink_exit();
 		dsms_rate_limit_exit();
 	}

@@ -138,7 +138,6 @@ static void mmc_bus_shutdown(struct device *dev)
 		pr_debug("%s: %s: drv or card is NULL. SD card/tray was removed.\n", dev_name(dev), __func__);
 		return;
 	}
-
 	/* disable rescan in shutdown sequence */
 	host->rescan_disable = 1;
 
@@ -175,14 +174,9 @@ static int mmc_bus_resume(struct device *dev)
 {
 	struct mmc_card *card = mmc_dev_to_card(dev);
 	struct mmc_host *host = card->host;
-	int ret = 0;
+	int ret;
 
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-	if (mmc_bus_manual_resume(host))
-		host->bus_resume_flags |= MMC_BUSRESUME_NEEDS_RESUME;
-	else
-#endif
-		ret = host->bus_ops->resume(host);
+	ret = host->bus_ops->resume(host);
 	if (ret)
 		pr_warn("%s: error %d during resume (card was removed?)\n",
 			mmc_hostname(host), ret);
@@ -198,11 +192,6 @@ static int mmc_runtime_suspend(struct device *dev)
 	struct mmc_card *card = mmc_dev_to_card(dev);
 	struct mmc_host *host = card->host;
 
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-	if (mmc_bus_needs_resume(host))
-		return 0;
-#endif
-
 	return host->bus_ops->runtime_suspend(host);
 }
 
@@ -210,11 +199,6 @@ static int mmc_runtime_resume(struct device *dev)
 {
 	struct mmc_card *card = mmc_dev_to_card(dev);
 	struct mmc_host *host = card->host;
-
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-	if (mmc_bus_needs_resume(host))
-		host->bus_resume_flags &= ~MMC_BUSRESUME_NEEDS_RESUME;
-#endif
 
 	return host->bus_ops->runtime_resume(host);
 }
@@ -404,15 +388,14 @@ int mmc_add_card(struct mmc_card *card)
 void mmc_remove_card(struct mmc_card *card)
 {
 	struct mmc_host *host = card->host;
+	struct mmc_card_error_log *err_log;
+	u64 total_c_cnt = 0;
+	u64 total_t_cnt = 0;
+	int i = 0;
 
 #ifdef CONFIG_DEBUG_FS
 	mmc_remove_card_debugfs(card);
 #endif
-
-	if (host->cqe_enabled) {
-		host->cqe_ops->cqe_disable(host);
-		host->cqe_enabled = false;
-	}
 
 	if (mmc_card_present(card)) {
 		if (mmc_host_is_spi(card->host)) {
@@ -423,11 +406,29 @@ void mmc_remove_card(struct mmc_card *card)
 				mmc_hostname(card->host), card->rca);
 			ST_LOG("%s: card %04x removed\n",
 				mmc_hostname(card->host), card->rca);
+
+			err_log = card->err_log;
+			for (i = 0 ; i < 6 ; i++) {
+				if (err_log[i].err_type == -EILSEQ && total_c_cnt < MAX_CNT_U64)
+					total_c_cnt += err_log[i].count;
+				if (err_log[i].err_type == -ETIMEDOUT && total_t_cnt < MAX_CNT_U64)
+					total_t_cnt += err_log[i].count;
+			}
+
+			ST_LOG("%s: \"GE\":\"%d\",\"CC\":\"%d\",\"ECC\":\"%d\",\"WP\":\"%d\","
+				"\"OOR\":\"%d\",\"CRC\":\"%lld\",\"TMO\":\"%lld\"\n",
+				mmc_hostname(card->host),
+				err_log[0].ge_cnt, err_log[0].cc_cnt, err_log[0].ecc_cnt,
+				err_log[0].wp_cnt, err_log[0].oor_cnt, total_c_cnt, total_t_cnt);
 		}
 		device_del(&card->dev);
 		of_node_put(card->dev.of_node);
 	}
 
+	if (host->cqe_enabled) {
+		host->cqe_ops->cqe_disable(host);
+		host->cqe_enabled = false;
+	}
+
 	put_device(&card->dev);
 }
-

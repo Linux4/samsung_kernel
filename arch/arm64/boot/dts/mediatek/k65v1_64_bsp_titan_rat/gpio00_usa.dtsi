@@ -455,76 +455,7 @@
 /*************************
  * POWER DTSI File
  *************************/
-/ {
-	fragment@smd {
-		target-path = "/";
-		__overlay__ {
-			fixed_regulator_grip_ldo {
-				compatible = "regulator-fixed";
-				regulator-name = "grip_ldo";
-				gpio = <&pio 151 0>;
-				enable-active-high;
-				skip-gpio-request;
-			};
 
-			fixed_regulator_proxy_ldo {
-				compatible = "regulator-fixed";
-				regulator-name = "proxy_ldo";
-				gpio = <&pio 153 0>;
-				enable-active-high;
-				skip-gpio-request;
-			};
-
-			fixed_regulator_rcam1_ldo {
-				compatible = "regulator-fixed";
-				regulator-name = "rcam1_ldo";
-				gpio = <&pio 164 0>;
-				enable-active-high;
-				skip-gpio-request;
-			};
-
-			fixed_regulator_rcam2_ldo {
-				compatible = "regulator-fixed";
-				regulator-name = "rcam2_ldo";
-				gpio = <&pio 165 0>;
-				enable-active-high;
-				skip-gpio-request;
-			};
-
-			fixed_regulator_rcam3_ldo {
-				compatible = "regulator-fixed";
-				regulator-name = "rcam3_ldo";
-				gpio = <&pio 166 0>;
-				enable-active-high;
-				skip-gpio-request;
-			};
-
-			fixed_regulator_rcam4_ldo {
-				compatible = "regulator-fixed";
-				regulator-name = "rcam4_ldo";
-				gpio = <&pio 167 0>;
-				enable-active-high;
-				skip-gpio-request;
-			};
-
-			fixed_regulator_fcam_ldo {
-				compatible = "regulator-fixed";
-				regulator-name = "fcam_ldo";
-				gpio = <&pio 168 0>;
-				enable-active-high;
-				skip-gpio-request;
-			};
-
-			fixed_regulator_rcam_vddio {
-				compatible = "regulator-fixed";
-				regulator-name = "rcam_vddio";
-				gpio = <&pio 169 0>;
-				enable-active-high;
-				skip-gpio-request;
-			};
-		};
-	};
-};
 
 /*************************
  * KPD DTSI File
@@ -580,4 +511,9 @@
 			output-low;
 		};
 	};
+};
+
+&consys {
+
+	regulator-name = "externalFEM";
 };

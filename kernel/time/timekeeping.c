@@ -150,6 +150,11 @@ static void tk_set_wall_to_mono(struct timekeeper *tk, struct timespec64 wtm)
 static inline void tk_update_sleep_time(struct timekeeper *tk, ktime_t delta)
 {
 	tk->offs_boot = ktime_add(tk->offs_boot, delta);
+	/*
+	 * Timespec representation for VDSO update to avoid 64bit division
+	 * on every update.
+	 */
+	tk->monotonic_to_boot = ktime_to_timespec64(tk->offs_boot);
 }
 
 /*
@@ -1004,9 +1009,8 @@ static int scale64_check_overflow(u64 mult, u64 div, u64 *base)
 	    ((int)sizeof(u64)*8 - fls64(mult) < fls64(rem)))
 		return -EOVERFLOW;
 	tmp *= mult;
-	rem *= mult;
 
-	do_div(rem, div);
+	rem = div64_u64(rem * mult, div);
 	*base = tmp + rem;
 	return 0;
 }
@@ -1591,9 +1595,9 @@ static struct timespec64 timekeeping_suspend_time;
 static void __timekeeping_inject_sleeptime(struct timekeeper *tk,
 					   const struct timespec64 *delta)
 {
-#if IS_ENABLED(CONFIG_SEC_PM)
+#ifdef CONFIG_SEC_PM
 	struct timespec64 sleep_duration;
-#endif
+#endif /* CONFIG_SEC_PM  */
 
 	if (!timespec64_valid_strict(delta)) {
 		printk_deferred(KERN_WARNING
@@ -1604,14 +1608,14 @@ static void __timekeeping_inject_sleeptime(struct timekeeper *tk,
 	tk_xtime_add(tk, delta);
 	tk_set_wall_to_mono(tk, timespec64_sub(tk->wall_to_monotonic, *delta));
 	tk_update_sleep_time(tk, timespec64_to_ktime(*delta));
-#if IS_ENABLED(CONFIG_SEC_PM)
-	sleep_duration = *delta;
-	if (timespec64_to_ns(&sleep_duration) > 0)
-		printk_deferred("PM: Timekeeping suspended for %lld.%03lu seconds\n",
-				   (s64)sleep_duration.tv_sec, sleep_duration.tv_nsec / NSEC_PER_MSEC);
+#ifdef CONFIG_SEC_PM
+    sleep_duration = *delta;
+    if (timespec64_to_ns(&sleep_duration) > 0)
+        printk_deferred("PM: Timekeeping suspended for %lld.%03lu seconds\n",
+                   (s64)sleep_duration.tv_sec, sleep_duration.tv_nsec / NSEC_PER_MSEC);
 #else
-	tk_debug_account_sleep_time(delta);
-#endif
+    tk_debug_account_sleep_time(delta);
+#endif /* CONFIG_SEC_PM  */
 }
 
 #if defined(CONFIG_PM_SLEEP) && defined(CONFIG_RTC_HCTOSYS_DEVICE)

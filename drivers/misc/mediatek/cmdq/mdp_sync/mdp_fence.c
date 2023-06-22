@@ -177,17 +177,17 @@ static void timeline_fence_release(struct dma_fence *fence)
 {
 	struct sync_pt *pt = fence_to_sync_pt(fence);
 	struct sync_timeline *parent = fence_parent(fence);
+	unsigned long flags;
 
+	if (!pt)
+		return;
+
+	spin_lock_irqsave(fence->lock, flags);
 	if (!list_empty(&pt->link)) {
-		unsigned long flags;
-
-		spin_lock_irqsave(fence->lock, flags);
-		if (!list_empty(&pt->link)) {
-			list_del(&pt->link);
-			rb_erase(&pt->node, &parent->pt_tree);
-		}
-		spin_unlock_irqrestore(fence->lock, flags);
+		list_del(&pt->link);
+		rb_erase(&pt->node, &parent->pt_tree);
 	}
+	spin_unlock_irqrestore(fence->lock, flags);
 
 	sync_timeline_put(parent);
 	dma_fence_free(fence);
@@ -315,7 +315,8 @@ static struct sync_pt *sync_pt_create(struct sync_timeline *obj,
 				p = &parent->rb_left;
 			} else {
 				if (dma_fence_get_rcu(&other->base)) {
-					dma_fence_put(&pt->base);
+					sync_timeline_put(obj);
+					kfree(pt);
 					pt = ERR_PTR(-EEXIST);
 					goto unlock;
 				}
@@ -362,8 +363,18 @@ static int mdp_sync_open(struct inode *inode, struct file *file)
 static int mdp_sync_release(struct inode *inode, struct file *file)
 {
 	struct sync_timeline *obj = file->private_data;
+	struct sync_pt *pt, *next;
 
-	smp_wmb();/*memory barrier*/
+	spin_lock_irq(&obj->lock);
+
+	list_for_each_entry_safe(pt, next, &obj->pt_list, link) {
+		dma_fence_set_error(&pt->base, -ENOENT);
+		dma_fence_signal_locked(&pt->base);
+	}
+
+	spin_unlock_irq(&obj->lock);
+
+	//smp_wmb();/*memory barrier*/
 
 	sync_timeline_put(obj);
 	return 0;
@@ -379,7 +390,8 @@ static long mdp_sync_ioctl_create_fence(struct sync_timeline *obj,
 	struct mdp_sync_create_fence_data data;
 
 	if (atomic_read(&fd_counter) > fd_max)
-		return -EFAULT;
+		pr_notice("[CMDQ][MDP] user create too much fence %d\n",
+				fd_counter);
 
 	fd = get_unused_fd_flags(O_CLOEXEC);
 

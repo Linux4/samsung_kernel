@@ -1,3 +1,19 @@
+
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include <linux/delay.h>
 #include <linux/of_gpio.h>
 #include <linux/slab.h>
@@ -37,24 +53,25 @@ static void parse_dt_magnetometer_mmc5633(struct device *dev)
 		shub_err("no mag-mmc5633-array, set as 0");
 
 	// check nfc/mst for mag matrix
-	check_nfc_gpio = of_get_named_gpio(np, "shub-mag-check-nfc", 0);
+	check_nfc_gpio = of_get_named_gpio(np, "mag-check-nfc", 0);
 	if (check_nfc_gpio >= 0)
 		value_nfc = gpio_get_value(check_nfc_gpio);
 
-	check_mst_gpio = of_get_named_gpio(np, "shub-mag-check-mst", 0);
+	check_mst_gpio = of_get_named_gpio(np, "mag-check-mst", 0);
 	if (check_mst_gpio >= 0) {
 		value_mst = gpio_get_value(check_mst_gpio);
-		if (value_mst == 1) {
-			shub_info("mag matrix(%d %d) nfc/mst array", value_nfc, value_mst);
-			if (of_property_read_u8_array(np, "mag-mmc5633-mst-array", data->mag_matrix,
-						      data->mag_matrix_len))
-				shub_err("no mag-mmc5633-mst-array");
-		} else if (value_nfc == 1) {
-			shub_info("mag matrix(%d %d) nfc only array", value_nfc, value_mst);
-			if (of_property_read_u8_array(np, "mag-mmc5633-nfc-array", data->mag_matrix,
-						      data->mag_matrix_len))
-				shub_err("no mag-mmc5633-nfc-array");
-		}
+	}
+
+	if (value_mst == 1) {
+		shub_info("mag matrix(%d %d) nfc/mst array", value_nfc, value_mst);
+		if (of_property_read_u8_array(np, "mag-mmc5633-mst-array", data->mag_matrix,
+							data->mag_matrix_len))
+			shub_err("no mag-mmc5633-mst-array");
+	} else if (value_nfc == 1) {
+		shub_info("mag matrix(%d %d) nfc only array", value_nfc, value_mst);
+		if (of_property_read_u8_array(np, "mag-mmc5633-nfc-array", data->mag_matrix,
+							data->mag_matrix_len))
+			shub_err("no mag-mmc5633-nfc-array");
 	}
 }
 

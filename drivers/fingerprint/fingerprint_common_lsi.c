@@ -16,6 +16,40 @@ static struct exynos_pm_qos_request fingerprint_boost_qos;
 #endif
 
 
+void spi_get_ctrldata(struct spi_device *spi)
+{
+
+}
+
+int spi_clk_register(struct spi_clk_setting *clk_setting, struct device *dev)
+{
+#ifdef ENABLE_SENSORS_FPRINT_SECURE
+	clk_setting->fp_spi_pclk = devm_clk_get(dev, "gate_spi_clk");
+	if (IS_ERR(clk_setting->fp_spi_pclk)) {
+		pr_err("Can't get gate_spi_clk\n");
+		return PTR_ERR(clk_setting->fp_spi_pclk);
+	}
+
+	clk_setting->fp_spi_sclk = devm_clk_get(dev, "ipclk_spi");
+	if (IS_ERR(clk_setting->fp_spi_sclk)) {
+		pr_err("Can't get ipclk_spi\n");
+		return PTR_ERR(clk_setting->fp_spi_sclk);
+	}
+#endif
+
+	return 0;
+}
+
+int spi_clk_unregister(struct spi_clk_setting *clk_setting)
+{
+#ifdef ENABLE_SENSORS_FPRINT_SECURE
+	clk_put(clk_setting->fp_spi_pclk);
+	clk_put(clk_setting->fp_spi_sclk);
+#endif
+
+	return 0;
+}
+
 int spi_clk_enable(struct spi_clk_setting *clk_setting)
 {
 	int rc = 0;

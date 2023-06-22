@@ -559,8 +559,6 @@ static __s16 mtk_ts_bts_volt_to_temp(__u32 dwVolt)
 
 static int get_hw_bts_temp(void)
 {
-
-
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
 	int val = 0;
 	int ret = 0, output;
@@ -568,6 +566,28 @@ static int get_hw_bts_temp(void)
 	int ret = 0, data[4], i, ret_value = 0, ret_temp = 0, output;
 	int times = 1, Channel = g_RAP_ADC_channel; /* 6752=0(AUX_IN0_NTC) */
 	static int valid_temp;
+	#if defined(APPLY_AUXADC_CALI_DATA)
+	int auxadc_cali_temp;
+	#endif
+#endif
+#ifdef CONFIG_OF
+	struct device_node *dev_node;
+
+	dev_node = of_find_compatible_node(NULL, NULL, "mediatek,mtboard-thermistor1");
+
+	if (dev_node) {
+		if (of_property_read_bool(dev_node, "fixed_thermal")) {
+			mtkts_bts_printk("[%s] Bypass thermal check\n", __func__);
+			return 40;
+		}
+		else
+			mtkts_bts_printk("[%s] JENNY 1 : NOT Bypass thermal check\n", __func__);
+	}
+	else
+		mtkts_bts_printk("[%s] JENNY 2 : NOT Bypass thermal check\n", __func__);
+
+	mtkts_bts_printk("[%s] JENNY 3 : force return\n", __func__);
+	return 40;
 #endif
 
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
@@ -580,12 +600,7 @@ static int get_hw_bts_temp(void)
 	/* NOT need to do the conversion "val * 1500 / 4096" */
 	/* iio_read_channel_processed can get mV immediately */
 	ret = val;
-
 #else
-#if defined(APPLY_AUXADC_CALI_DATA)
-	int auxadc_cali_temp;
-#endif
-
 	if (IMM_IsAdcInitReady() == 0) {
 		mtkts_bts_printk(
 			"[thermal_auxadc_get_data]: AUXADC is not ready\n");

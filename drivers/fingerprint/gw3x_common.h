@@ -60,8 +60,10 @@
 #define GF_GW36C_CHIP_ID		0x002502
 #define GF_GW36T1_CHIP_ID		0x002507 /* FAB : SMIC */
 #define GF_GW36T2_CHIP_ID		0x002510 /* FAB : SILTRRA */
+#define GF_GW36T3_CHIP_ID		0x002508 /* FAB : CANSEMI */
 #define GF_GW36T1_SHIFT_CHIP_ID	0x004a0f
 #define GF_GW36T2_SHIFT_CHIP_ID	0x004a21
+#define GF_GW36T3_SHIFT_CHIP_ID	0x004a11
 
 #define gw3x_SPI_BAUD_RATE 9600000
 #define TANSFER_MAX_LEN (512*1024)
@@ -89,6 +91,22 @@ struct gf_ioc_transfer_raw {
 	uint32_t bits_per_word;
 };
 
+struct gf_ioc_transfer_32 {
+	u8 cmd;    /* spi read = 0, spi  write = 1 */
+	u8 reserved;
+	u16 addr;
+	u32 len;
+	u32 buf;
+};
+
+struct gf_ioc_transfer_raw_32 {
+	u32 len;
+	u32 read_buf;
+	u32 write_buf;
+	uint32_t high_time;
+	uint32_t bits_per_word;
+};
+
 /* define commands */
 #define GF_IOC_INIT             _IOR(GF_IOC_MAGIC, 0, u8)
 #define GF_IOC_EXIT             _IO(GF_IOC_MAGIC, 1)
@@ -105,10 +123,20 @@ struct gf_ioc_transfer_raw {
 
 /* for SPI REE transfer */
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
+#ifdef CONFIG_SENSORS_FINGERPRINT_32BITS_PLATFORM_ONLY
+#define GF_IOC_TRANSFER_CMD     _IOWR(GF_IOC_MAGIC, 15, \
+		struct gf_ioc_transfer_32)
+#else
 #define GF_IOC_TRANSFER_CMD     _IOWR(GF_IOC_MAGIC, 15, \
 		struct gf_ioc_transfer)
+#endif
+#ifdef CONFIG_SENSORS_FINGERPRINT_32BITS_PLATFORM_ONLY
+#define GF_IOC_TRANSFER_RAW_CMD _IOWR(GF_IOC_MAGIC, 16, \
+		struct gf_ioc_transfer_raw_32)
+#else
 #define GF_IOC_TRANSFER_RAW_CMD _IOWR(GF_IOC_MAGIC, 16, \
 		struct gf_ioc_transfer_raw)
+#endif
 #else
 #define GF_IOC_SET_SENSOR_TYPE _IOW(GF_IOC_MAGIC, 18, unsigned int)
 #endif
@@ -147,10 +175,6 @@ struct gf_device {
 	/* for netlink use */
 	int pid;
 
-	struct work_struct work_debug;
-	struct workqueue_struct *wq_dbg;
-	struct timer_list dbg_timer;
-
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
 	u8 *spi_buffer;
 	u8 *tx_buf;
@@ -172,6 +196,7 @@ struct gf_device {
 	struct pinctrl_state *pins_poweroff;
 	struct spi_clk_setting *clk_setting;
 	struct boosting_config *boosting;
+	struct debug_logger *logger;
 };
 
 
@@ -179,12 +204,9 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev);
 void gw3x_cleanup_info(struct gf_device *gf_dev);
 void gw3x_hw_power_enable(struct gf_device *gf_dev, u8 onoff);
 void gw3x_hw_reset(struct gf_device *gf_dev, u8 delay);
-void gw3x_spi_setup_conf(struct gf_device *gf_dev, u32 speed);
-int gw3x_pin_control(struct gf_device *gf_dev, bool pin_set);
-int gw3x_register_platform_variable(struct gf_device *gf_dev);
-int gw3x_unregister_platform_variable(struct gf_device *gf_dev);
 
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
+void gw3x_spi_setup_conf(struct gf_device *gf_dev, u32 bits);
 int gw3x_spi_read_bytes(struct gf_device *gf_dev, u16 addr,
 		u32 data_len, u8 *rx_buf);
 int gw3x_spi_write_bytes(struct gf_device *gf_dev, u16 addr,

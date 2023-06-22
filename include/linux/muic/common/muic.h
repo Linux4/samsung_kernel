@@ -1,10 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * include/linux/muic/common/muic.h
  *
  * header file supporting MUIC common information
  *
- * Copyright (C) 2010 Samsung Electronics
- * Seoyoung Jeong <seo0.jeong@samsung.com>
+ * Copyright (C) 2022 Samsung Electronics
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,8 +17,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
  *
  */
 
@@ -28,8 +27,11 @@
 #ifdef CONFIG_IFCONN_NOTIFIER
 #include <linux/ifconn/ifconn_notifier.h>
 #endif
+#include <linux/muic/common/muic_param.h>
 
 #define MUIC_CORE "MUIC_CORE"
+#define SIOP (1 << 0)
+#define FLED (1 << 1)
 /* Status of IF PMIC chip (suspend and resume) */
 enum {
 	MUIC_SUSPEND		= 0,
@@ -254,15 +256,24 @@ typedef enum {
 typedef enum {
 	HV_TRANS_INVALID = -1,
 	HV_TRANS_MUIC_DETACH = 0,
-	HV_TRANS_DCP_DETECTED = 1,
-	HV_TRANS_NO_RESPONSE = 2,
-	HV_TRANS_VDNMON_LOW = 3,
-	HV_TRANS_FAST_CHARGE_PING_RESPONSE = 4,
-	HV_TRANS_VBUS_BOOST = 5,
-	HV_TRANS_VBUS_REDUCE = 6,
-	HV_TRANS_FAST_CHARGE_REOPEN = 7,
-	HV_TRANS_MAX_NUM = 8,
+	HV_TRANS_DCP_DETECTED,
+	HV_TRANS_NO_RESPONSE,
+	HV_TRANS_VDNMON_LOW,
+	HV_TRANS_FAST_CHARGE_PING_RESPONSE,
+	HV_TRANS_AFC_TA_DETECTED,
+	HV_TRANS_QC_TA_DETECTED,
+	HV_TRANS_VBUS_5V_BOOST,
+	HV_TRANS_VBUS_BOOST,
+	HV_TRANS_VBUS_REDUCE,
+	HV_TRANS_VBUS_UPDATE,
+	HV_TRANS_FAST_CHARGE_REOPEN,
+	HV_TRANS_MAX_NUM,
 } muic_hv_transaction_t;
+
+typedef enum {
+	HV_9V = 0,
+	HV_5V,
+} muic_hv_voltage_t;
 
 #ifdef CONFIG_MUIC_COMMON_SYSFS
 struct muic_sysfs_cb {
@@ -295,6 +306,7 @@ struct muic_platform_data {
 	struct mutex sysfs_mutex;
 	struct muic_sysfs_cb sysfs_cb;
 #endif
+	struct device *muic_device;
 
 	int switch_sel;
 
@@ -348,6 +360,9 @@ struct muic_platform_data {
 	/* muic set hiccup mode function */
 	int (*muic_set_hiccup_mode_cb)(int on_off);
 
+	/* muic request afc cause */
+	int afc_request_cause;
+
 	void *drv_data;
 };
 
@@ -355,6 +370,14 @@ struct muic_platform_data {
 {\
 	if (func)	\
 		func(param);	\
+	else	\
+		pr_err("[muic_core] func not defined %s\n", __func__);	\
+}
+
+#define MUIC_PDATA_VOID_FUNC_MULTI_PARAM(func, param1, param2) \
+{\
+	if (func)	\
+		func(param1, param2);	\
 	else	\
 		pr_err("[muic_core] func not defined %s\n", __func__);	\
 }
@@ -566,34 +589,29 @@ typedef enum tx_data{
 #endif
 
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
-extern int get_switch_sel(void);
-extern int get_pdic_info(void);
-extern int get_afc_mode(void);
+extern void muic_send_lcd_on_uevent(struct muic_platform_data *muic_pdata);
 extern int muic_set_hiccup_mode(int on_off);
 extern int muic_hv_charger_init(void);
 extern int muic_afc_get_voltage(void);
-#if !defined(CONFIG_DISCRETE_CHARGER)
+#if !defined(CONFIG_DISCRETE_CHARGER) || defined(CONFIG_VIRTUAL_MUIC)
 extern int muic_afc_set_voltage(int voltage);
+extern int muic_afc_request_voltage(int cause, int voltage);
+extern int muic_afc_request_cause_clear(void);
 #endif
 extern int muic_hv_charger_disable(bool en);
-#ifdef CONFIG_SEC_FACTORY
-extern void muic_send_attached_muic_cable_intent(int type);
-#endif /* CONFIG_SEC_FACTORY */
 
 #else
-static inline int get_switch_sel(void) {return 0; }
-static inline int get_pdic_info(void) {return 0; }
-static inline int get_afc_mode(void) {return 0; }
+static inline void muic_send_lcd_on_uevent(struct muic_platform_data *muic_pdata)
+	{return; }
 static inline int muic_set_hiccup_mode(int on_off) {return 0; }
 static inline int muic_hv_charger_init(void) {return 0; }
 static inline int muic_afc_get_voltage(void) {return 0; }
-#if !defined(CONFIG_DISCRETE_CHARGER)
+#if !defined(CONFIG_DISCRETE_CHARGER) || defined(CONFIG_VIRTUAL_MUIC)
 static inline int muic_afc_set_voltage(int voltage) {return 0; }
+static inline int muic_afc_request_voltage(int cause, int voltage);
+static inline int muic_afc_request_cause_clear(void);
 #endif
 static inline int muic_hv_charger_disable(bool en) {return 0; }
-#ifdef CONFIG_SEC_FACTORY
-static inline void muic_send_attached_muic_cable_intent(int type) {}
-#endif /* CONFIG_SEC_FACTORY */
 #endif
 
 #endif /* __MUIC_H__ */

@@ -71,8 +71,8 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.framelength = 3196,
 		.startx = 0,
 		.starty = 0,
-		.grabwindow_width = 1920,
-		.grabwindow_height = 1080,
+		.grabwindow_width = 2104,
+		.grabwindow_height = 1560,
 		.mipi_data_lp2hs_settle_dc = 19,//unit , ns , 85
 		.mipi_pixel_rate = 224000000,
 		.max_framerate = 300,
@@ -146,18 +146,18 @@ static struct imgsensor_struct imgsensor = {
 
 /* Sensor output window information */
 static struct SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[10] = {
-	{ 4240, 3136,    0,    0, 4240, 3136, 2120, 1560,
+	{ 4240, 3136,    0,    8, 4240, 3120, 2120, 1560,
 	      8,    4, 2104, 1560,    0,    0, 2104, 1560},
 	{ 4240, 3136,    0,    0, 4240, 3136, 4240, 3136,
 	      16,    8, 4208, 3120,    0,    0, 4208, 3120},
-	{ 4240, 3136,    0,    0, 4240, 3136, 1920, 1080,
-	      0,    0, 1920, 1080,    0,    0, 1920, 1080},
+	{ 4240, 3136,    0,    8, 4240, 3120, 2120, 1560,
+	      8,    4, 2104, 1560,    0,    0, 2104, 1560},
 	/*{ 4256, 3168,    0,    8, 4256, 3152, 4256, 3152,
 	    16,    8, 4224, 3136,    0,    0, 4224, 3136},
 		*/
-	{ 4256, 3168,   64,   64, 4128, 3104, 1032,  776,
+	{ 4240, 3136,   6,   16, 4128, 3104, 1032,  776,
 	   196,  148,  640,  480,    0,    0,  640,  480},
-	{ 4256, 3168,   64,   64, 4128, 3104, 1032,  776,
+	{ 4240, 3136,   6,   16, 4128, 3104, 1032,  776,
 	     4,    4, 1024,  768,    0,    0, 1024,  768},
 };
 
@@ -247,7 +247,7 @@ static void set_dummy(void)
 {
 	write_cmos_sensor(0x380c, imgsensor.line_length >> 8);
 	write_cmos_sensor(0x380d, imgsensor.line_length & 0xFF);
-	write_cmos_sensor(0x380e, imgsensor.frame_length >> 8);
+	write_cmos_sensor(0x380e, (imgsensor.frame_length >> 8) & 0x7f);
 	write_cmos_sensor(0x380f, imgsensor.frame_length & 0xFF);
 }
 
@@ -310,22 +310,21 @@ static void write_shutter(kal_uint16 shutter)
 			realtime_fps = 146;
 			set_max_framerate(realtime_fps, 0);
 		} else	{
-			imgsensor.frame_length =
-				(imgsensor.frame_length  >> 1) << 1;
-			write_cmos_sensor(0x380e, imgsensor.frame_length >> 8);
+			/* Extend frame length */
+			write_cmos_sensor(0x380e,
+				(imgsensor.frame_length >> 8) & 0x7f);
 			write_cmos_sensor(0x380f,
 				imgsensor.frame_length & 0xFF);
 		}
 	} else	{
-		imgsensor.frame_length = (imgsensor.frame_length  >> 1) << 1;
-		write_cmos_sensor(0x380e, imgsensor.frame_length >> 8);
+		write_cmos_sensor(0x380e, (imgsensor.frame_length >> 8) & 0x7f);
 		write_cmos_sensor(0x380f, imgsensor.frame_length & 0xFF);
 	}
 
-	/*Warning : shutter must be even. Odd might happen Unexpected Results */
-	write_cmos_sensor(0x3500, (shutter >> 12) & 0x0F);
-	write_cmos_sensor(0x3501, (shutter >> 4) & 0xFF);
-	write_cmos_sensor(0x3502, (shutter<<4)  & 0xF0);
+	/* Update Shutter */
+	write_cmos_sensor(0x3500, (shutter >> 16) & 0xFF);
+	write_cmos_sensor(0x3501, (shutter >> 8) & 0xFF);
+	write_cmos_sensor(0x3502, shutter & 0xFF);
 
 	cam_pr_debug("shutter =%d, framelength =%d, realtime_fps =%d\n",
 		shutter, imgsensor.frame_length, realtime_fps);

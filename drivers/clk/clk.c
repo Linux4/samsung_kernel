@@ -44,6 +44,19 @@ static HLIST_HEAD(clk_root_list);
 static HLIST_HEAD(clk_orphan_list);
 static LIST_HEAD(clk_notifier_list);
 
+static struct hlist_head *all_lists[] = {
+	&clk_root_list,
+	&clk_orphan_list,
+	NULL,
+};
+
+#ifdef CONFIG_DEBUG_FS
+static struct hlist_head *orphan_list[] = {
+	&clk_orphan_list,
+	NULL,
+};
+#endif
+
 /*
  * clk_rate_change_list is used during clk_core_set_rate_nolock() calls to
  * handle vdd_class vote tracking.  core->rate_change_node is added to
@@ -126,7 +139,11 @@ static int clk_pm_runtime_get(struct clk_core *core)
 		return 0;
 
 	ret = pm_runtime_get_sync(core->dev);
-	return ret < 0 ? ret : 0;
+	if (ret < 0) {
+		pm_runtime_put_noidle(core->dev);
+		return ret;
+	}
+	return 0;
 }
 
 static void clk_pm_runtime_put(struct clk_core *core)
@@ -3166,56 +3183,56 @@ void clk_debug_print_hw(struct clk_core *clk, struct seq_file *f)
 }
 EXPORT_SYMBOL(clk_debug_print_hw);
 
-#if IS_ENABLED(CONFIG_SEC_PM)
+#ifdef CONFIG_SEC_PM
 static struct hlist_head *debug_all_lists[] = {
-	&clk_root_list,
-	&clk_orphan_list,
-	NULL,
+    &clk_root_list,
+    &clk_orphan_list,
+    NULL,
 };
 
 static int sec_clock_debug_print_clock(struct clk_core *c, int level)
 {
-	int count = 0;
-	struct clk_core *child;
+    int count = 0;
+    struct clk_core *child;
 
-	if (!c || !c->enable_count)
-		return count;
+    if (!c || !c->enable_count)
+        return count;
 
-	pr_info("%*s%-*s %11d %12d %11lu %10lu %-3d\n",
-		   level * 3 + 1, "",
-		   30 - level * 3, c->name,
-		   c->enable_count, c->prepare_count, clk_core_get_rate(c),
-		   clk_core_get_accuracy(c), clk_core_get_phase(c));
-	count++;
+    pr_info("%*s%-*s %11d %12d %11lu %10lu %-3d\n",
+           level * 3 + 1, "",
+           30 - level * 3, c->name,
+           c->enable_count, c->prepare_count, clk_core_get_rate(c),
+           clk_core_get_accuracy(c), clk_core_get_phase(c));
+    count++;
 
-	hlist_for_each_entry(child, &c->children, child_node)
-		count += sec_clock_debug_print_clock(child, level + 1);
+    hlist_for_each_entry(child, &c->children, child_node)
+        count += sec_clock_debug_print_clock(child, level + 1);
 
-	return count;
+    return count;
 }
 
 void sec_clock_debug_print_enabled(void)
 {
-	int count = 0;
-	struct clk_core *c;
-	struct hlist_head **lists = (struct hlist_head **)debug_all_lists;
+    int count = 0;
+    struct clk_core *c;
+    struct hlist_head **lists = (struct hlist_head **)debug_all_lists;
 
-	pr_info("Enabled clocks:\n");
-	pr_info("   clock                         enable_cnt  prepare_cnt        rate   accuracy   phase\n");
-	pr_info("----------------------------------------------------------------------------------------\n");
+    pr_info("Enabled clocks:\n");
+    pr_info("   clock                         enable_cnt  prepare_cnt        rate   accuracy   phase\n");
+    pr_info("----------------------------------------------------------------------------------------\n");
 
-	clk_prepare_lock();
+    clk_prepare_lock();
 
-	for (; *lists; lists++)
-		hlist_for_each_entry(c, *lists, child_node)
-			count += sec_clock_debug_print_clock(c, 0);
+    for (; *lists; lists++)
+        hlist_for_each_entry(c, *lists, child_node)
+            count += sec_clock_debug_print_clock(c, 0);
 
-	clk_prepare_unlock();
+    clk_prepare_unlock();
 
-	pr_info("Enabled clock count: %d\n", count);
+    pr_info("Enabled clock count: %d\n", count);
 }
 EXPORT_SYMBOL(sec_clock_debug_print_enabled);
-#endif
+#endif /* CONFIG_SEC_PM  */
 
 /***        debugfs support        ***/
 
@@ -3226,17 +3243,6 @@ static struct dentry *rootdir;
 static int inited = 0;
 static DEFINE_MUTEX(clk_debug_lock);
 static HLIST_HEAD(clk_debug_list);
-
-static struct hlist_head *all_lists[] = {
-	&clk_root_list,
-	&clk_orphan_list,
-	NULL,
-};
-
-static struct hlist_head *orphan_list[] = {
-	&clk_orphan_list,
-	NULL,
-};
 
 static void clk_summary_show_one(struct seq_file *s, struct clk_core *c,
 				 int level)
@@ -3993,6 +3999,34 @@ static const struct clk_ops clk_nodrv_ops = {
 	.set_parent	= clk_nodrv_set_parent,
 };
 
+static void clk_core_evict_parent_cache_subtree(struct clk_core *root,
+						struct clk_core *target)
+{
+	int i;
+	struct clk_core *child;
+
+	for (i = 0; i < root->num_parents; i++)
+		if (root->parents[i] == target)
+			root->parents[i] = NULL;
+
+	hlist_for_each_entry(child, &root->children, child_node)
+		clk_core_evict_parent_cache_subtree(child, target);
+}
+
+/* Remove this clk from all parent caches */
+static void clk_core_evict_parent_cache(struct clk_core *core)
+{
+	struct hlist_head **lists;
+	struct clk_core *root;
+
+	lockdep_assert_held(&prepare_lock);
+
+	for (lists = all_lists; *lists; lists++)
+		hlist_for_each_entry(root, *lists, child_node)
+			clk_core_evict_parent_cache_subtree(root, core);
+
+}
+
 /**
  * clk_unregister - unregister a currently registered clock
  * @clk: clock to unregister
@@ -4030,6 +4064,8 @@ void clk_unregister(struct clk *clk)
 					  child_node)
 			clk_core_set_parent_nolock(child, NULL);
 	}
+
+	clk_core_evict_parent_cache(clk->core);
 
 	hlist_del_init(&clk->core->child_node);
 
@@ -4425,20 +4461,19 @@ int clk_notifier_register(struct clk *clk, struct notifier_block *nb)
 	/* search the list of notifiers for this clk */
 	list_for_each_entry(cn, &clk_notifier_list, node)
 		if (cn->clk == clk)
-			break;
+			goto found;
 
 	/* if clk wasn't in the notifier list, allocate new clk_notifier */
-	if (cn->clk != clk) {
-		cn = kzalloc(sizeof(*cn), GFP_KERNEL);
-		if (!cn)
-			goto out;
+	cn = kzalloc(sizeof(*cn), GFP_KERNEL);
+	if (!cn)
+		goto out;
 
-		cn->clk = clk;
-		srcu_init_notifier_head(&cn->notifier_head);
+	cn->clk = clk;
+	srcu_init_notifier_head(&cn->notifier_head);
 
-		list_add(&cn->node, &clk_notifier_list);
-	}
+	list_add(&cn->node, &clk_notifier_list);
 
+found:
 	ret = srcu_notifier_chain_register(&cn->notifier_head, nb);
 
 	clk->core->notifier_count++;
@@ -4463,32 +4498,28 @@ EXPORT_SYMBOL_GPL(clk_notifier_register);
  */
 int clk_notifier_unregister(struct clk *clk, struct notifier_block *nb)
 {
-	struct clk_notifier *cn = NULL;
-	int ret = -EINVAL;
+	struct clk_notifier *cn;
+	int ret = -ENOENT;
 
 	if (!clk || !nb)
 		return -EINVAL;
 
 	clk_prepare_lock();
 
-	list_for_each_entry(cn, &clk_notifier_list, node)
-		if (cn->clk == clk)
+	list_for_each_entry(cn, &clk_notifier_list, node) {
+		if (cn->clk == clk) {
+			ret = srcu_notifier_chain_unregister(&cn->notifier_head, nb);
+
+			clk->core->notifier_count--;
+
+			/* XXX the notifier code should handle this better */
+			if (!cn->notifier_head.head) {
+				srcu_cleanup_notifier_head(&cn->notifier_head);
+				list_del(&cn->node);
+				kfree(cn);
+			}
 			break;
-
-	if (cn->clk == clk) {
-		ret = srcu_notifier_chain_unregister(&cn->notifier_head, nb);
-
-		clk->core->notifier_count--;
-
-		/* XXX the notifier code should handle this better */
-		if (!cn->notifier_head.head) {
-			srcu_cleanup_notifier_head(&cn->notifier_head);
-			list_del(&cn->node);
-			kfree(cn);
 		}
-
-	} else {
-		ret = -ENOENT;
 	}
 
 	clk_prepare_unlock();

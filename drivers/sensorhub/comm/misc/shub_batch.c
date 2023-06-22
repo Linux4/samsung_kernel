@@ -1,3 +1,18 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include <linux/kernel.h>
 #include <linux/miscdevice.h>
 #include <linux/uaccess.h>
@@ -70,18 +85,25 @@ static struct file_operations shub_batch_fops = {
 	.owner = THIS_MODULE,
 	.open = nonseekable_open,
 	.unlocked_ioctl = shub_batch_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = shub_batch_ioctl,
+#endif
 };
 
 int register_misc_dev_batch(bool en)
 {
 	int res = 0;
-	if(en) {
+
+	if (en) {
 		batch_io_device.minor = MISC_DYNAMIC_MINOR;
 		batch_io_device.name = "batch_io";
 		batch_io_device.fops = &shub_batch_fops;
 		res = misc_register(&batch_io_device);
 	} else {
 		shub_batch_fops.unlocked_ioctl = NULL;
+#ifdef CONFIG_COMPAT
+		shub_batch_fops.compat_ioctl = NULL;
+#endif
 		misc_deregister(&batch_io_device);
 	}
 

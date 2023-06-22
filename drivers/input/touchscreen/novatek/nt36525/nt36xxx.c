@@ -2427,6 +2427,20 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	nvt_irq_enable(true);
 	input_err(true, &client->dev, "%s : end\n", __func__);
 
+#ifdef CONFIG_BATTERY_SAMSUNG
+	if (lpcharge) {
+		input_info(true, &client->dev, "%s: enter sleep mode in lpcharge %d\n", __func__, lpcharge);
+		nvt_ts_suspend(&ts->client->dev);
+#if BOOT_UPDATE_FIRMWARE
+		if (nvt_fwu_wq) {
+			cancel_delayed_work_sync(&ts->nvt_fwu_work);
+			destroy_workqueue(nvt_fwu_wq);
+			nvt_fwu_wq = NULL;
+		}
+#endif
+	}
+#endif
+
 	return 0;
 
 #if defined(CONFIG_HAS_EARLYSUSPEND)

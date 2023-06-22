@@ -1,8 +1,24 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include "../../comm/shub_comm.h"
 #include "../../sensor/magnetometer.h"
 #include "../../sensormanager/shub_sensor.h"
 #include "../../sensormanager/shub_sensor_manager.h"
 #include "../../utility/shub_utility.h"
+#include "magnetometer_factory.h"
 
 #include <linux/delay.h>
 #include <linux/slab.h>
@@ -13,15 +29,13 @@
 #define GM_DATA_SPEC_MIN -6500
 #define GM_DATA_SPEC_MAX 6500
 
-int check_yas539_adc_data_spec(int type)
+int check_yas539_adc_data_spec(s32 sensor_value[3])
 {
-	struct mag_event *sensor_value = (struct mag_event *)(get_sensor_event(type)->value);
-
-	if ((sensor_value->x == 0) && (sensor_value->y == 0) && (sensor_value->z == 0)) {
+	if ((sensor_value[0] == 0) && (sensor_value[1] == 0) && (sensor_value[2] == 0)) {
 		return -1;
-	} else if ((sensor_value->x > GM_DATA_SPEC_MAX) || (sensor_value->x < GM_DATA_SPEC_MIN)
-		   || (sensor_value->y > GM_DATA_SPEC_MAX) || (sensor_value->y < GM_DATA_SPEC_MIN)
-		   || (sensor_value->z > GM_DATA_SPEC_MAX) || (sensor_value->z < GM_DATA_SPEC_MIN)) {
+	} else if ((sensor_value[0] > GM_DATA_SPEC_MAX) || (sensor_value[0] < GM_DATA_SPEC_MIN)
+		   || (sensor_value[1] > GM_DATA_SPEC_MAX) || (sensor_value[1] < GM_DATA_SPEC_MIN)
+		   || (sensor_value[2] > GM_DATA_SPEC_MAX) || (sensor_value[2] < GM_DATA_SPEC_MIN)) {
 		return -1;
 	} else {
 		return 0;

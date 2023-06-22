@@ -3,6 +3,14 @@
 # Makefile for the linux memory manager.
 #
 
+#if IS_ENABLED(CONFIG_MTK_GPU_SUPPORT)
+ccflags-y += -I$(srctree)/drivers/gpu/mediatek
+#endif
+
+ifdef CONFIG_MTK_ION
+subdir-ccflags-y += -I$(srctree)/drivers/staging/android/mtk_ion
+endif
+
 KASAN_SANITIZE_slab_common.o := n
 KASAN_SANITIZE_slab.o := n
 KASAN_SANITIZE_slub.o := n
@@ -42,7 +50,7 @@ obj-y			:= filemap.o mempool.o oom_kill.o fadvise.o \
 			   mm_init.o mmu_context.o percpu.o slab_common.o \
 			   compaction.o vmacache.o \
 			   interval_tree.o list_lru.o workingset.o \
-			   debug.o $(mmu-y) showmem_extra.o
+			   debug.o $(mmu-y) showmem_extra.o mm_debug.o
 
 obj-y += init-mm.o
 

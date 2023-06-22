@@ -493,8 +493,10 @@ static void check_battery_exist(struct mtk_charger *info)
 
 #ifdef FIXME
 	if (count >= 3) {
-		if (boot_mode == META_BOOT || boot_mode == ADVMETA_BOOT ||
-		    boot_mode == ATE_FACTORY_BOOT)
+		/*1 = META_BOOT, 5 = ADVMETA_BOOT*/
+		/*6 = ATE_FACTORY_BOOT */
+		if (boot_mode == 1 || boot_mode == 5 ||
+		    boot_mode == 6)
 			chr_info("boot_mode = %d, bypass battery check\n",
 				boot_mode);
 		else {
@@ -767,6 +769,18 @@ static ssize_t ADC_Charger_Voltage_show(struct device *dev,
 }
 
 static DEVICE_ATTR_RO(ADC_Charger_Voltage);
+
+static ssize_t Charger_Config_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	struct mtk_charger *pinfo = dev->driver_data;
+	int chg_cfg = pinfo->config;
+
+	chr_err("%s: %d\n", __func__, chg_cfg);
+	return sprintf(buf, "%d\n", chg_cfg);
+}
+
+static DEVICE_ATTR_RO(Charger_Config);
 
 static ssize_t input_current_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
@@ -1504,6 +1518,22 @@ static bool mtk_is_charger_on(struct mtk_charger *info)
 	return true;
 }
 
+static void kpoc_power_off_check(struct mtk_charger *info)
+{
+	unsigned int boot_mode = info->bootmode;
+	int vbus = 0;
+
+	/* 8 = KERNEL_POWER_OFF_CHARGING_BOOT */
+	/* 9 = LOW_POWER_OFF_CHARGING_BOOT */
+	if (boot_mode == 8 || boot_mode == 9) {
+		vbus = get_vbus(info);
+		if (vbus >= 0 && vbus < 2500 && !mtk_is_charger_on(info) && !info->pd_reset) {
+			chr_err("Unplug Charger/USB in KPOC mode, vbus=%d, shutdown\n", vbus);
+			kernel_power_off();
+		}
+	}
+}
+
 static char *dump_charger_type(int type)
 {
 	switch (type) {
@@ -1569,6 +1599,7 @@ static int charger_routine_thread(void *arg)
 		check_battery_exist(info);
 		check_dynamic_mivr(info);
 		charger_check_status(info);
+		kpoc_power_off_check(info);
 
 		if (is_disable_charger(info) == false &&
 			is_charger_on == true &&
@@ -1681,6 +1712,11 @@ static int mtk_charger_setup_files(struct platform_device *pdev)
 	ret = device_create_file(&(pdev->dev), &dev_attr_ADC_Charger_Voltage);
 	if (ret)
 		goto _out;
+
+	ret = device_create_file(&(pdev->dev), &dev_attr_Charger_Config);
+	if (ret)
+		goto _out;
+
 	ret = device_create_file(&(pdev->dev), &dev_attr_input_current);
 	if (ret)
 		goto _out;
@@ -1901,10 +1937,13 @@ static void mtk_charger_external_power_changed(struct power_supply *psy)
 	int ret;
 
 	info = (struct mtk_charger *)power_supply_get_drvdata(psy);
-	chg_psy = devm_power_supply_get_by_phandle(&info->pdev->dev,
-						       "charger");
+	chg_psy = info->chg_psy;
+
 	if (IS_ERR_OR_NULL(chg_psy)) {
 		pr_notice("%s Couldn't get chg_psy\n", __func__);
+		chg_psy = devm_power_supply_get_by_phandle(&info->pdev->dev,
+			"charger");
+		info->chg_psy = chg_psy;
 	} else {
 		ret = power_supply_get_property(chg_psy,
 			POWER_SUPPLY_PROP_ONLINE, &prop);
@@ -2059,6 +2098,16 @@ static int mtk_charger_probe(struct platform_device *pdev)
 	info->psy_cfg1.drv_data = info;
 	info->psy1 = power_supply_register(&pdev->dev, &info->psy_desc1,
 			&info->psy_cfg1);
+
+	info->chg_psy = devm_power_supply_get_by_phandle(&pdev->dev,
+		"charger");
+	if (IS_ERR_OR_NULL(info->chg_psy))
+		chr_err("%s: devm power fail to get chg_psy\n", __func__);
+
+	info->bat_psy = devm_power_supply_get_by_phandle(&pdev->dev,
+		"gauge");
+	if (IS_ERR_OR_NULL(info->bat_psy))
+		chr_err("%s: devm power fail to get bat_psy\n", __func__);
 
 	if (IS_ERR(info->psy1))
 		chr_err("register psy1 fail:%d\n",

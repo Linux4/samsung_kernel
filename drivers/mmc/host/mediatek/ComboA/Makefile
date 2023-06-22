@@ -55,6 +55,7 @@ msdc-y += sd.o
 msdc-y += dbg.o
 msdc-y += msdc_tune.o
 msdc-y += autok.o
+msdc-y += mmc-sec-sysfs.o
 ifeq ($(CONFIG_MMC_CRYPTO),y)
 msdc-y += sw-cqhci-crypto.o
 endif

@@ -92,7 +92,7 @@
 &mt_pmic_vcamio_ldo_reg {
     regulator-min-microvolt = <0>;
     regulator-max-microvolt = <0>;
-     
+    
      
 };
 #endif

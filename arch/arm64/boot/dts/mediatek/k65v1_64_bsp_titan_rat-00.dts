@@ -116,14 +116,12 @@
 		pins_cmd_dat {
 			pinmux = <PINMUX_GPIO150__FUNC_GPIO150>;
 			slew-rate = <1>;
-			bias-disable;
 			output-low;
 		};
 	};
 	gpslna_pins_oh: gpslna@1 {
 		pins_cmd_dat {
 			pinmux = <PINMUX_GPIO150__FUNC_GPIO150>;
-			slew-rate = <1>;
 			output-high;
 		};
 	};
@@ -531,8 +529,10 @@
 };
 
 &mtkfb {
-	pinctrl-names = "mode_te_gpio",	"mode_te_te", "mode_te1_te", "lcm_rst_out0_gpio", "lcm_rst_out1_gpio", "lcm1_rst_out0_gpio", "lcm1_rst_out1_gpio",
-					"lcd_bias_enn_gpio", "lcd_bias_enp_gpio","lcd_bias_enp0_gpio","lcd_bias_enp1_gpio", "lcd_bias_enn0_gpio","lcd_bias_enn1_gpio";
+	pinctrl-names = "mode_te_gpio",	"mode_te_te", "mode_te1_te", "lcm_rst_out0_gpio",
+		"lcm_rst_out1_gpio", "lcm1_rst_out0_gpio", "lcm1_rst_out1_gpio",
+		"lcd_bias_enn_gpio", "lcd_bias_enp_gpio","lcd_bias_enp0_gpio",
+		"lcd_bias_enp1_gpio", "lcd_bias_enn0_gpio","lcd_bias_enn1_gpio";
 	pinctrl-0 = <&mtkfb_pins_mode_te_gpio>;
 	pinctrl-1 = <&mtkfb_pins_mode_te_te>;
 	pinctrl-2 = <&mtkfb_pins_mode_te1_te>;
@@ -574,7 +574,7 @@
 			&pio 177 0 >; /* scl */
 	i2c-gpio,delay-us = <5>;
 	status = "okay";
-    id = <20>;
+	id = <20>;
 
 	i2c_lcd_bias_mtk:i2c_lcd_bias@11 {
 		compatible = "mediatek,i2c_lcd_bias";
@@ -598,6 +598,7 @@
 		io-channels = <&auxadc 4>;
 		io-channel-names = "thermistor-ch0";
 		interconnects = <&auxadc 4>;
+		fixed_thermal;
 };
 
 &tboard_thermistor2{

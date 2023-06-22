@@ -72,8 +72,7 @@ config INIT_ENV_ARG_LIMIT
 
 config COMPILE_TEST
 	bool "Compile also drivers which will not load"
-	depends on !UML
-	default n
+	depends on HAS_IOMEM
 	help
 	  Some drivers can be compiled on a different platform than they are
 	  intended to be run on. Despite they cannot be loaded there (or even
@@ -589,7 +588,8 @@ config IKHEADERS
 
 config LOG_BUF_SHIFT
 	int "Kernel log buffer size (16 => 64KB, 17 => 128KB)"
-	range 12 25
+	range 12 25 if !H8300
+	range 12 19 if H8300
 	default 17
 	depends on PRINTK
 	help
@@ -725,6 +725,46 @@ config UCLAMP_BUCKETS_COUNT
 	  precision.
 
 	  If in doubt, use the default value.
+
+choice
+	bool "Configure PELT speed for load/utilization tracking"
+	default PELT_HALFLIFE_32
+	help
+	  Allows to choose one of the possible values for the PELT half-life to
+	  be used for the update of the load and utilization of tasks and CPUs.
+	  The half-life is the amount of [ms] required by the PELT signal to
+	  build up to 50% load/utilization.
+	  The higher the half-life the longer it takes for a task to be
+	  represented as a big one.
+
+	  If not sure, use the default of 32 ms.
+
+config PELT_HALFLIFE_32
+	bool "32 ms, default"
+	help
+	  A 32ms PELT half-life is the default value usually suitable for
+	  server/enterprise class of workloads where tasks can normally
+	  runs for tens or hundreds of milliseconds.
+
+	  If not sure, use this option
+
+config PELT_HALFLIFE_16
+	bool "16 ms, faster"
+	help
+	  A 16ms PELT half-life is suggested for mobile/interactive workloads
+	  where tasks usually run with a 60Hz activation cadence.
+
+	  If not sure, use the default of 32 ms
+
+config PELT_HALFLIFE_8
+	bool "8 ms, very fast"
+	help
+	  An 8ms PELT half-life is suggested for mobile/interactive workloads
+	  where tasks usually run with a 120Hz activation cadence.
+
+	  If not sure, use the default of 32 ms
+
+endchoice
 
 endmenu
 

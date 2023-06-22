@@ -16,7 +16,7 @@
 
 #define CALI_CAR_TUNE_AVG_NUM   60
 
-#define GAUGE_SYSFS_FIELD_RW(_name_set, _name_get, _prop)	\
+#define GAUGE_SYSFS_FIELD_RW(_name, _name_set, _name_get, _prop)	\
 {									 \
 	.attr   = __ATTR(_name, 0644, gauge_sysfs_show, gauge_sysfs_store),\
 	.prop	= _prop,	\
@@ -102,6 +102,7 @@ enum gauge_property {
 	GAUGE_PROP_R_FG_VALUE,
 	GAUGE_PROP_VBAT2_DETECT_TIME,
 	GAUGE_PROP_VBAT2_DETECT_COUNTER,
+	GAUGE_PROP_BAT_TEMP_FROZE_EN,
 };
 
 struct gauge_hw_status {

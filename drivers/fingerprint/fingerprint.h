@@ -20,11 +20,7 @@
 #undef pr_fmt
 #define pr_fmt(fmt) "fps_%s: " fmt, __func__
 
-#include <linux/clk.h>
 #include "fingerprint_sysfs.h"
-
-/* fingerprint debug timer */
-#define FPSENSOR_DEBUG_TIMER_SEC (10 * HZ)
 
 #if defined(CONFIG_FINGERPRINT_SECURE) && !defined(CONFIG_SEC_FACTORY)
 #define ENABLE_SENSORS_FPRINT_SECURE

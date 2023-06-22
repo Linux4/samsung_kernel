@@ -655,6 +655,10 @@ static int usb_audio_probe(struct usb_interface *intf,
 	int ifnum;
 	u32 id;
 
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+	pr_info("%s\n", __func__);
+#endif
+
 	alts = &intf->altsetting[0];
 	ifnum = get_iface_desc(alts)->bInterfaceNumber;
 	id = USB_ID(le16_to_cpu(dev->descriptor.idVendor),
@@ -746,10 +750,14 @@ static int usb_audio_probe(struct usb_interface *intf,
 			goto __error;
 	}
 
-	/* we are allowed to call snd_card_register() many times */
-	err = snd_card_register(chip->card);
-	if (err < 0)
-		goto __error;
+	/* we are allowed to call snd_card_register() many times, but first
+	 * check to see if a device needs to skip it or do anything special
+	 */
+	if (!snd_usb_registration_quirk(chip, ifnum)) {
+		err = snd_card_register(chip->card);
+		if (err < 0)
+			goto __error;
+	}
 
 	usb_chip[chip->index] = chip;
 	chip->num_interfaces++;
@@ -762,6 +770,9 @@ static int usb_audio_probe(struct usb_interface *intf,
 
 	atomic_dec(&chip->active);
 	mutex_unlock(&register_mutex);
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+	pr_info("%s done\n", __func__);
+#endif
 	return 0;
 
  __error:

@@ -93,14 +93,8 @@ int tzdev_platform_smc_call(struct tzdev_smc_data *data)
 	register unsigned long _r5 __asm__(REGISTERS_NAME "5") = data->args[5];
 	register unsigned long _r6 __asm__(REGISTERS_NAME "6") = data->args[6];
 
-	__asm__ __volatile("sub sp, sp, #16\n"
-			"str %0, [sp]\n" : : "r" (data));
-
 	__asm__ __volatile__(ARCH_EXTENSION SMC(0): "+r"(_r0) , "+r" (_r1) , "+r" (_r2),
-			"+r" (_r3), "+r" (_r4), "+r" (_r5), "+r" (_r6) : : "memory");
-
-	__asm__ __volatile("ldr %0, [sp]\n"
-			"add sp, sp, #16\n" : : "r" (data));
+			"+r" (_r3), "+r" (_r4), "+r" (_r5), "+r" (_r6) : : "memory", PARAM_REGISTERS);
 
 	data->args[0] = _r0;
 	data->args[1] = _r1;

@@ -159,8 +159,8 @@
 
 		battery,cisd_alg_index = <8>;
 		battery,cisd_max_voltage_thr = <4400>; /* batttery ovp dettection voltage */
-		battery,ignore_cisd_index = <0 960>; /* Do not use AFC_FAIL to DROP_VALUE */
-		battery,ignore_cisd_index_d = <0 120>; /* Do not use AFC_FAIL_PER_DAY to DROP_VALUE_PER_DAY */
+		battery,ignore_cisd_index = <0 0>;
+		battery,ignore_cisd_index_d = <0 80>; /* Do not use BUCK_OFF_PER_DAY, DROP_SENSOR_PER_DAY */
 
 		battery,expired_time = <10800>;
 		battery,recharging_expired_time = <5400>;

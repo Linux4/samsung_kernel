@@ -23,10 +23,6 @@ ccflags-y  += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/imgsensor/inc/
 ccflags-y  += -I$(srctree)/drivers/gpu/mediatek/gpufreq/include/
 
-ifneq (,$(filter $(CONFIG_ARCH_MTK_PROJECT), "k65v1_64_bsp_titan_rat"))
-ccflags-y  += -DMTK_FIX_PA_THERMAL=1
-endif
-
 ifneq (,$(filter $(CONFIG_MTK_LEGACY_THERMAL_PLATFORM), "mt6779"))
 obj-$(CONFIG_THERMAL) += mtk_ts_battery.o
 obj-$(CONFIG_THERMAL) += mtk_ts_bts.o

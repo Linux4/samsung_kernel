@@ -169,7 +169,7 @@ struct sec_info {
 };
 
 enum mem_info {
-	MAGIC_CODE=16,
+	MAGIC_CODE = 16,
 	CP_MEM,
 	SHM_MEM
 };

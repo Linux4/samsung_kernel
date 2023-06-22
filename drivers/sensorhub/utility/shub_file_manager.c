@@ -1,3 +1,18 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include "../comm/shub_iio.h"
 #include "../sensorhub/shub_device.h"
 #include "../sensormanager/shub_sensor_type.h"
@@ -25,12 +40,16 @@ struct mutex fm_mutex;
 struct completion fm_done;
 bool is_fm_ready;
 
-bool fm_wait_result;
-int32_t fm_result;
-int32_t fm_rx_buf_size;
-char fm_rx_buf[PAGE_SIZE];
-int32_t fm_tx_buf_size;
-char fm_tx_buf[PAGE_SIZE];
+struct fm_msg_t {
+	int32_t result;
+	int32_t rx_buf_size;
+	char rx_buf[PAGE_SIZE];
+	int32_t tx_buf_size;
+	char tx_buf[PAGE_SIZE];
+	bool wait;
+};
+
+struct fm_msg_t fm_msg;
 
 static void fm_notifier_work_func(struct work_struct *work)
 {
@@ -72,21 +91,29 @@ static int _shub_file_rw(char type, bool wait)
 	send_buf[0] = FILE_MANAGER;
 	send_buf[1] = type;
 
-	if (wait)
-		init_completion(&fm_done);
+	fm_msg.wait = wait;
+
+	init_completion(&fm_done);
 
 	shub_report_sensordata(SENSOR_TYPE_SENSORHUB, get_current_timestamp(), send_buf, sizeof(send_buf));
 
 	if (wait) {
 		ret = wait_for_completion_timeout(&fm_done, msecs_to_jiffies(1000));
 		if (!ret) {
-			memset(fm_tx_buf, 0, fm_tx_buf_size);
-			fm_tx_buf_size = 0;
 			shub_errf("time out");
 			result = -EIO;
 		} else {
-			result = fm_result;
+			result = fm_msg.result;
 		}
+	} else {
+		ret = wait_for_completion_timeout(&fm_done, msecs_to_jiffies(500));
+		if (!ret)
+			shub_errf("write_no_wait time out");
+	}
+
+	if (!ret) {
+		memset(fm_msg.tx_buf, 0, fm_msg.tx_buf_size);
+		fm_msg.tx_buf_size = 0;
 	}
 
 	return result;
@@ -100,7 +127,10 @@ static int _shub_file_write(char *path, char *buf, int buf_len, long long pos, b
 		return -ENODEV;
 
 	mutex_lock(&fm_mutex);
-	fm_tx_buf_size = snprintf(fm_tx_buf, sizeof(fm_tx_buf), "%s,%d,%lld,%d,%s", path, buf_len, pos, wait, buf);
+	fm_msg.tx_buf_size =
+	    snprintf(fm_msg.tx_buf, sizeof(fm_msg.tx_buf), "%s,%d,%lld,%d,", path, buf_len, pos, wait);
+	memcpy(&fm_msg.tx_buf[fm_msg.tx_buf_size], buf, buf_len);
+	fm_msg.tx_buf_size += buf_len;
 	ret = _shub_file_rw(FM_WRITE, wait);
 	mutex_unlock(&fm_mutex);
 
@@ -129,9 +159,9 @@ int shub_file_read(char *path, char *buf, int buf_len, long long pos)
 		return -ENODEV;
 
 	mutex_lock(&fm_mutex);
-	fm_tx_buf_size = snprintf(fm_tx_buf, sizeof(fm_tx_buf), "%s,%d,%lld", path, buf_len, pos);
+	fm_msg.tx_buf_size = snprintf(fm_msg.tx_buf, sizeof(fm_msg.tx_buf), "%s,%d,%lld", path, buf_len, pos);
 	ret = _shub_file_rw(FM_READ, true);
-	memcpy(buf, fm_rx_buf, buf_len);
+	memcpy(buf, fm_msg.rx_buf, buf_len);
 	mutex_unlock(&fm_mutex);
 
 	return ret;
@@ -139,11 +169,13 @@ int shub_file_read(char *path, char *buf, int buf_len, long long pos)
 
 ssize_t shub_file_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	if (fm_tx_buf_size == 0)
+	if (fm_msg.tx_buf_size == 0)
 		return -EINVAL;
 
-	memcpy(buf, fm_tx_buf, fm_tx_buf_size);
-	return fm_tx_buf_size;
+	memcpy(buf, fm_msg.tx_buf, fm_msg.tx_buf_size);
+	if (!fm_msg.wait)
+		complete(&fm_done);
+	return fm_msg.tx_buf_size;
 }
 
 ssize_t shub_file_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
@@ -163,13 +195,13 @@ ssize_t shub_file_store(struct device *dev, struct device_attribute *attr, const
 			return -EINVAL;
 		}
 
-		memset(fm_tx_buf, 0, fm_tx_buf_size);
-		fm_tx_buf_size = 0;
+		memset(fm_msg.tx_buf, 0, fm_msg.tx_buf_size);
+		fm_msg.tx_buf_size = 0;
 
-		memcpy(&fm_result, &buf[1], sizeof(int32_t));
-		if (buf[0] == FM_READ && fm_result > 0) {
-			fm_rx_buf_size = fm_result;
-			memcpy(fm_rx_buf, &buf[5], fm_rx_buf_size);
+		memcpy(&fm_msg.result, &buf[1], sizeof(int32_t));
+		if (buf[0] == FM_READ && fm_msg.result > 0) {
+			fm_msg.rx_buf_size = fm_msg.result;
+			memcpy(fm_msg.rx_buf, &buf[5], fm_msg.rx_buf_size);
 		}
 
 		complete(&fm_done);

@@ -46,6 +46,7 @@ config ARCH_BCM_IPROC
 config ARCH_BERLIN
 	bool "Marvell Berlin SoC Family"
 	select DW_APB_ICTL
+	select DW_APB_TIMER_OF
 	select GPIOLIB
 	select PINCTRL
 	help
@@ -145,7 +146,7 @@ config MACH_MT6761
 	select MTK_PMQOS
 	select ARM_MTK_ARCH_CPUIDLE
 	select DEVAPC_LEGACY
-	select MTK_AVB20_SUPPORT
+        select MTK_AVB20_SUPPORT
 	help
 	  This enables support for MediaTek MT6761. Highly power-efficient,
 	  performance-oriented 4G LTE processor for premium,
@@ -195,8 +196,8 @@ config MACH_MT6765
 	select MTK_PMQOS
 	select MTK_LM_MODE if !MTK_GMO_RAM_OPTIMIZE
 	select DEVAPC_LEGACY
-	select MTK_SECURITY_SW_SUPPORT
-	select MTK_AVB20_SUPPORT
+        select MTK_SECURITY_SW_SUPPORT
+        select MTK_AVB20_SUPPORT
 	help
 	  This enables support for MediaTek MT6765
 	  Highly power-efficient, performance-oriented 4G LTE processor
@@ -220,13 +221,63 @@ config MACH_MT6779
 	select MTK_GIC_V3_EXT
 	select MTK_SYS_CIRQ
 	select FAST_CIRQ_CLONE_FLUSH
-	select MTK_SECURITY_SW_SUPPORT
-	select MTK_AVB20_SUPPORT
+	select MTK_DRAMC_LEGACY
+        select MTK_SECURITY_SW_SUPPORT
+        select MTK_AVB20_SUPPORT
 	help
 	  This enables support for MediaTek MT6779. Highly power-efficient,
 	  performance-oriented 4G LTE processor for premium,
 	  thin-design smartphones.
 	  Support for aarch64 Architecture
+
+config MACH_MT8173
+	bool "MediaTek MT8173"
+	select ARCH_MEDIATEK
+	select MTK_BASE_POWER
+	select MTK_SYS_CIRQ
+	select MTK_GIC_EXT
+	select MTK_SYSIRQ
+	select COMMON_CLK_MT8173
+	select CPU_IDLE
+	select ARM_MTK_81XX_CPUIDLE
+	select CPU_IDLE_GOV_MTK
+	select CPU_IDLE_NO_MTK
+	help
+	  This enable support for MediaTek MT8173. If you need support
+	  for MediaTek MT8173, say Y here.
+	  Please note this also select ARCH_MEDIATEK, so driver depends
+	  on it can be selected.
+
+config MACH_MT8195
+	bool "MediaTek MT8195"
+	select GENERIC_TIME
+	select GENERIC_CLOCKEVENTS
+	select ARCH_HAS_CPUFREQ
+	select ARM_AMBA
+	select CPU_V7
+	select HAVE_SMP
+	select NEED_MACH_MEMORY_H
+	select MFD_SYSCON
+	select IRQ_DOMAIN
+	select IRQ_DOMAIN_DEBUG
+	select GENERIC_SCHED_CLOCK
+	select ARMV7_COMPAT
+	select ARMV7_COMPAT_CPUINFO
+	select CPU_IDLE
+	select MTK_LM_MODE if !MTK_GMO_RAM_OPTIMIZE
+	select MTK_GIC_TARGET_ALL
+	select MTK_GIC_V3_EXT
+	select MTK_BOUNCING_CHECK if MTK_AEE_FEATURE
+	select MTK_TIMER_SYSTIMER
+	select OVERLAY_FS
+	select MTK_SYSTRACKER_V2
+	select MTK_PLAT_SRAM_FLAG
+	select MTK_DEBUG_LATCH
+	help
+	  This enables support for MediaTek MT8195
+	  Support for aarch64 Architecture
+	  Support for fpga_64_mt8195 related projects
+	  Support for mt8195 related projects
 
 config ARCH_MESON
 	bool "Amlogic Platforms"

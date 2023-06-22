@@ -546,6 +546,7 @@ static struct snd_pcm_ops mtk_deep_buffer_dl_ops = {
 	.trigger = mtk_deep_buffer_dl_trigger,
 	.pointer = mtk_deep_buffer_dl_pointer,
 	.page = mtk_deep_buffer_dl_page,
+	.copy_user = mtk_afe_pcm_copy,
 	.ack = mtk_deep_buffer_dl_ack,
 };
 
@@ -591,7 +592,7 @@ static int mtk_deep_buffer_dl_probe(struct platform_device *pdev)
 {
 	pr_info("%s\n", __func__);
 
-	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(64);
+	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32);
 	if (!pdev->dev.dma_mask)
 		pdev->dev.dma_mask = &pdev->dev.coherent_dma_mask;
 

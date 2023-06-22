@@ -11,7 +11,7 @@
  */
 
 #include <linux/muic/common/muic.h>
-#if defined(CONFIG_IF_CB_MANAGER)
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
 #include <linux/usb/typec/manager/if_cb_manager.h>
 #endif
 
@@ -209,7 +209,7 @@ struct muic_irq_t {
 	int irq_afc_ta_attached;
 };
 
-#if defined(CONFIG_MUIC_SUPPORT_PDIC)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_PDIC)
 enum {
 	SM5714_MUIC_AFC_NORMAL = 0,
 	SM5714_MUIC_AFC_ABNORMAL = 1,
@@ -255,22 +255,24 @@ struct sm5714_muic_data {
 	bool is_factory_start;
 	bool is_rustproof;
 	bool is_otg_test;
+	bool is_pdic_ready;
+	bool is_charger_ready;
 
 #if defined(CONFIG_USB_EXTERNAL_NOTIFY)
 	/* USB Notifier */
 	struct notifier_block	usb_nb;
 #endif
 
-#if defined(CONFIG_MUIC_SUPPORT_PDIC)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_PDIC)
 	struct sm5714_pdic_evt	pdic_info_data;
 	int		pdic_evt_id;
 	bool	need_to_path_open;
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	struct notifier_block	manager_nb;
 #else
 	struct notifier_block	pdic_nb;
 #endif
-#ifdef CONFIG_VBUS_NOTIFIER
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 	struct notifier_block	vbus_nb;
 #endif
 
@@ -310,7 +312,8 @@ struct sm5714_muic_data {
 
 	struct work_struct	muic_event_work;
 	struct delayed_work	muic_debug_work;
-#if defined(CONFIG_IF_CB_MANAGER)
+	struct delayed_work	muic_U200_work;
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
 	struct muic_dev		*muic_d;
 	struct if_cb_manager	*man;
 #endif
@@ -321,10 +324,13 @@ struct sm5714_muic_data {
 
 #if defined(CONFIG_MUIC_BCD_RESCAN)
 	int bc12_retry_count;
+	int bc1p2_retry_count_max;
 #endif
 
 	struct delayed_work	delayed_523Kto619K_work;
 	int delayed_523Kto619K_state;
+
+	int shut_down;
 };
 
 extern struct device *switch_device;
@@ -352,7 +358,7 @@ int sm5714_set_afc_ctrl_reg(struct sm5714_muic_data *muic_data,
 		int shift, bool on);
 void sm5714_hv_muic_initialize(struct sm5714_muic_data *muic_data);
 
-#if defined(CONFIG_MUIC_SUPPORT_PDIC)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_PDIC)
 void sm5714_muic_register_pdic_notifier(struct sm5714_muic_data *pmuic);
 void sm5714_muic_unregister_pdic_notifier(struct sm5714_muic_data *pmuic);
 #endif

@@ -29,6 +29,7 @@ extern struct platform_device *of_find_decon_platform_device(void);
 extern struct platform_device *of_find_device_by_path(const char *name);
 extern struct device_node *of_find_smcdsd_board(struct device *dev);
 extern struct device_node *of_find_recommend_lcd_info(struct device *dev);
+extern struct device_node *of_find_recommend_vrr_info(struct device *dev, int index);
 
 extern int of_update_phandle_property(struct device_node *from, const char *phandle_name, const char *node_name);
 extern int of_update_phandle_property_list(struct device_node *from, const char *phandle_name, const char **node_names);

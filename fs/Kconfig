@@ -8,9 +8,6 @@ menu "File systems"
 config DCACHE_WORD_ACCESS
        bool
 
-config INTERRUPTIBLE_SYNC
-    bool "Support interruptible sync for Samsung Mobile Device"
-
 if BLOCK
 
 config FS_IOMAP

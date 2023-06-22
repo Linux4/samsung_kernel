@@ -95,15 +95,11 @@ enum {
 struct sm5714_charger_platform_data {
 	int chg_float_voltage;
 	int chg_ocp_current;
+	int chg_lxslope;
 };
 
 #define REDUCE_CURRENT_STEP						100
 #define MINIMUM_INPUT_CURRENT					300
-#if defined(CONFIG_TABLET_MODEL_CONCEPT) && !defined(CONFIG_SEC_FACTORY)
-#define SLOW_CHARGING_CURRENT_STANDARD          1000
-#else
-#define SLOW_CHARGING_CURRENT_STANDARD          400
-#endif
 
 struct sm5714_charger_data {
 	struct device *dev;

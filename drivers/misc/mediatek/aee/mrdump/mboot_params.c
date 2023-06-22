@@ -53,11 +53,12 @@ static u32 mbootlog_buf_len = SZ_128K;
 static u32 mbootlog_first_idx;
 static u32 mbootlog_size;
 
+#ifndef CONFIG_SEC_DEBUG
+#define CPU_NUMS 8
 /*
  *  This group of API call by sub-driver module to report reboot reasons
  *  aee_rr_* stand for previous reboot reason
  */
-#ifndef CONFIG_SEC_DEBUG
 struct last_reboot_reason {
 	uint32_t fiq_step;
 	/* 0xaeedeadX: X=1 (HWT), X=2 (KE), X=3 (nested panic) */
@@ -65,13 +66,13 @@ struct last_reboot_reason {
 	uint64_t kaslr_offset;
 	uint64_t oops_in_progress_addr;
 
-	uint32_t last_irq_enter[AEE_MTK_CPU_NUMS];
-	uint64_t jiffies_last_irq_enter[AEE_MTK_CPU_NUMS];
+	uint32_t last_irq_enter[CPU_NUMS];
+	uint64_t jiffies_last_irq_enter[CPU_NUMS];
 
-	uint32_t last_irq_exit[AEE_MTK_CPU_NUMS];
-	uint64_t jiffies_last_irq_exit[AEE_MTK_CPU_NUMS];
+	uint32_t last_irq_exit[CPU_NUMS];
+	uint64_t jiffies_last_irq_exit[CPU_NUMS];
 
-	uint8_t hotplug_footprint[AEE_MTK_CPU_NUMS];
+	uint8_t hotplug_footprint[CPU_NUMS];
 	uint8_t hotplug_cpu_event;
 	uint8_t hotplug_cb_index;
 	uint64_t hotplug_cb_fp;
@@ -98,8 +99,8 @@ struct last_reboot_reason {
 	uint32_t mcsodi_data;
 	uint32_t spm_suspend_data;
 	uint32_t spm_common_scenario_data;
-	uint32_t mtk_cpuidle_footprint[AEE_MTK_CPU_NUMS];
-	uint32_t mcdi_footprint[AEE_MTK_CPU_NUMS];
+	uint32_t mtk_cpuidle_footprint[CPU_NUMS];
+	uint32_t mcdi_footprint[CPU_NUMS];
 	uint32_t clk_data[8];
 	uint32_t suspend_debug_flag;
 	uint32_t fiq_cache_step;
@@ -309,6 +310,9 @@ void sram_log_save(const char *msg, int count)
 {
 	int rem;
 
+	if (!mbootlog_buf)
+		return;
+
 	/* count >= buffer_size, full the buffer */
 	if (count >= mbootlog_buf_len) {
 		memcpy(mbootlog_buf, msg + (count - mbootlog_buf_len),
@@ -365,6 +369,8 @@ void aee_sram_fiq_log(const char *msg)
 	unsigned int count = strlen(msg);
 	int delay = 100;
 
+	if (!mbootlog_buf)
+		return;
 	if (FIQ_log_size + count > mbootlog_buf_len)
 		return;
 
@@ -385,6 +391,8 @@ static void mboot_params_write(struct console *console, const char *s,
 {
 	unsigned long flags;
 
+	if (!mbootlog_buf)
+		return;
 	if (atomic_read(&mp_in_fiq))
 		return;
 
@@ -410,6 +418,8 @@ void aee_sram_printk(const char *fmt, ...)
 	int r, tlen;
 	char sram_printk_buf[256];
 
+	if (!mbootlog_buf)
+		return;
 	va_start(args, fmt);
 
 	preempt_disable();
@@ -426,6 +436,29 @@ void aee_sram_printk(const char *fmt, ...)
 	va_end(args);
 }
 EXPORT_SYMBOL(aee_sram_printk);
+
+int aee_is_enable(void)
+{
+	struct device_node *node;
+	const char *aee_enable;
+	int ret = 0;
+
+	node = of_find_node_by_path("/chosen");
+	if (node) {
+		if (of_property_read_string(node, "aee,enable", &aee_enable) == 0) {
+			if (strnstr(aee_enable, "mini", 4))
+				ret = 1;
+			else if (strnstr(aee_enable, "full", 4))
+				ret = 2;
+		}
+		of_node_put(node);
+	} else {
+		pr_notice("%s: Can't find chosen node\n", __func__);
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL(aee_is_enable);
 
 void mboot_params_enable_console(int enabled)
 {

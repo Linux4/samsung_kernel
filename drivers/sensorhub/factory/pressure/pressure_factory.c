@@ -20,6 +20,7 @@
 #include "../../sensormanager/shub_sensor_manager.h"
 #include "../../utility/shub_dev_core.h"
 #include "../../utility/shub_utility.h"
+#include "pressure_factory.h"
 
 #include <linux/slab.h>
 
@@ -31,33 +32,23 @@
 /*************************************************************************/
 
 static struct device *pressure_sysfs_device;
+static struct device_attribute **chipset_attrs;
 
 static ssize_t name_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PRESSURE);
 
-	return sprintf(buf, "%s\n", sensor->chipset_name);
+	return sprintf(buf, "%s\n", sensor->spec.name);
 }
 
 static ssize_t vendor_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PRESSURE);
+	char vendor[VENDOR_MAX] = "";
 
-	return sprintf(buf, "%s\n", sensor->vendor);
-}
+	get_sensor_vendor_name(sensor->spec.vendor, vendor);
 
-static ssize_t pressure_temperature_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	s32 temperature = 0;
-	s32 float_temperature = 0;
-	s32 temp = 0;
-	struct pressure_event *sensor_value = (struct pressure_event *)(get_sensor_event(SENSOR_TYPE_PRESSURE)->value);
-
-	temp = (s32)(sensor_value->temperature);
-	temperature = (4250) + ((temp / (120 * 4)) * 100); //(42.5f) + (temperature/(120 * 4));
-	float_temperature = ((temperature % 100) > 0 ? (temperature % 100) : -(temperature % 100));
-
-	return sprintf(buf, "%d.%02d\n", (temperature / 100), float_temperature);
+	return sprintf(buf, "%s\n", vendor);
 }
 
 static ssize_t sea_level_pressure_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
@@ -137,12 +128,43 @@ exit:
 	return ret;
 }
 
+static ssize_t pressure_sw_offset_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PRESSURE);
+	struct pressure_data *data = sensor->data;
+
+	return sprintf(buf, "%d\n", data->sw_offset);
+}
+
+static ssize_t pressure_sw_offset_store(struct device *dev, struct device_attribute *attr, const char *buf,
+					 size_t size)
+{
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PRESSURE);
+	struct pressure_data *data = sensor->data;
+	int sw_offset = 0;
+	int ret;
+
+	ret = kstrtoint(buf, 10, &sw_offset);
+	if (ret < 0) {
+		shub_errf("kstrtoint failed.(%d)", ret);
+		return ret;
+	}
+
+	save_pressure_sw_offset_file(sw_offset);
+
+	data->sw_offset = sw_offset;
+
+	shub_infof("%d", sw_offset);
+
+	return size;
+}
+
 static DEVICE_ATTR(name, S_IRUGO, name_show, NULL);
 static DEVICE_ATTR(vendor, S_IRUGO, vendor_show, NULL);
 static DEVICE_ATTR(calibration, S_IRUGO | S_IWUSR | S_IWGRP, pressure_cabratioin_show, pressure_cabratioin_store);
 static DEVICE_ATTR(sea_level_pressure, S_IWUSR | S_IWGRP, NULL, sea_level_pressure_store);
 static DEVICE_ATTR(selftest, S_IRUGO, pressure_selftest_show, NULL);
-static DEVICE_ATTR(temperature, S_IRUGO, pressure_temperature_show, NULL);
+static DEVICE_ATTR(sw_offset, S_IRUGO | S_IWUSR | S_IWGRP, pressure_sw_offset_show, pressure_sw_offset_store);
 
 static struct device_attribute *pressure_attrs[] = {
 	&dev_attr_name,
@@ -150,14 +172,22 @@ static struct device_attribute *pressure_attrs[] = {
 	&dev_attr_calibration,
 	&dev_attr_sea_level_pressure,
 	&dev_attr_selftest,
-	&dev_attr_temperature,
+	&dev_attr_sw_offset,
 	NULL,
+};
+
+typedef struct device_attribute** (*get_chipset_dev_attrs)(char *);
+get_chipset_dev_attrs get_pressure_chipset_dev_attrs[] = {
+	get_pressure_lps22hh_dev_attrs,
+	get_pressure_lps25h_dev_attrs,
+	get_pressure_bmp580_dev_attrs,
 };
 
 void initialize_pressure_sysfs(void)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PRESSURE);
 	int ret;
+	uint64_t i;
 
 	ret = sensor_device_create(&pressure_sysfs_device, NULL, "barometer_sensor");
 	if (ret < 0) {
@@ -170,10 +200,24 @@ void initialize_pressure_sysfs(void)
 		shub_errf("fail to add %s sysfs device attr", sensor->name);
 		return;
 	}
+
+	for (i = 0; i < ARRAY_SIZE(get_pressure_chipset_dev_attrs); i++) {
+		chipset_attrs = get_pressure_chipset_dev_attrs[i](sensor->spec.name);
+		if (chipset_attrs) {
+			ret = add_sensor_device_attr(pressure_sysfs_device, chipset_attrs);
+			if (ret < 0) {
+				shub_errf("fail to add sysfs chipset device attr(%d)", i);
+				return;
+			}
+			break;
+		}
+	}
 }
 
 void remove_pressure_sysfs(void)
 {
+	if (chipset_attrs)
+		remove_sensor_device_attr(pressure_sysfs_device, chipset_attrs);
 	remove_sensor_device_attr(pressure_sysfs_device, pressure_attrs);
 	sensor_device_destroy(pressure_sysfs_device);
 	pressure_sysfs_device = NULL;
@@ -181,7 +225,7 @@ void remove_pressure_sysfs(void)
 
 void initialize_pressure_factory(bool en)
 {
-	if (!get_sensor_probe_state(SENSOR_TYPE_PRESSURE))
+	if (!get_sensor(SENSOR_TYPE_PRESSURE))
 		return;
 
 	if (en)

@@ -486,6 +486,17 @@ void fpsgo_notify_vsync(void)
 	queue_work(g_psNotifyWorkQueue, &vpPush->sWork);
 }
 
+void fpsgo_get_fps(int *pid, int *fps)
+{
+	//int pid = -1, fps = -1;
+
+	fpsgo_ctrl2fstb_get_fps(pid, fps);
+
+	FPSGO_LOGE("[FPSGO_CTRL] get_fps %d %d\n", *pid, *fps);
+
+	//return fps;
+}
+
 
 void fpsgo_notify_cpufreq(int cid, unsigned long freq)
 {
@@ -632,26 +643,6 @@ int fpsgo_fstb_percentile_frametime(int ratio)
 	return switch_percentile_frametime(ratio);
 }
 
-static int freq_notifier_call(struct notifier_block *self,
-				unsigned long event, void *data)
-{
-	struct cpufreq_freqs *p = data;
-	int cl;
-
-	if (event != CPUFREQ_PRECHANGE)
-		return 0;
-
-	cl = arch_cpu_cluster_id(p->cpu);
-
-	fpsgo_notify_cpufreq(cl, p->new);
-
-	return 0;
-}
-
-static struct notifier_block freq_notifier = {
-	.notifier_call = freq_notifier_call,
-};
-
 static void __exit fpsgo_exit(void)
 {
 	fpsgo_notifier_wq_cb_enable(0);
@@ -681,8 +672,6 @@ static int __init fpsgo_init(void)
 	if (g_psNotifyWorkQueue == NULL)
 		return -EFAULT;
 
-	cpufreq_register_notifier(&freq_notifier, CPUFREQ_TRANSITION_NOTIFIER);
-
 	mutex_init(&notify_lock);
 
 	fpsgo_force_onoff = FPSGO_FREE;
@@ -695,9 +684,10 @@ static int __init fpsgo_init(void)
 
 	fpsgo_switch_enable(1);
 
-	//cpufreq_notifier_fp = fpsgo_notify_cpufreq;
+	cpufreq_notifier_fp = fpsgo_notify_cpufreq;
 
 	fpsgo_notify_vsync_fp = fpsgo_notify_vsync;
+	fpsgo_get_fps_fp = fpsgo_get_fps;
 
 	fpsgo_notify_qudeq_fp = fpsgo_notify_qudeq;
 	fpsgo_notify_connect_fp = fpsgo_notify_connect;

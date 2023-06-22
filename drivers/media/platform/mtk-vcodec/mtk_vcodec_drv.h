@@ -32,6 +32,7 @@
 #define WAIT_INTR_TIMEOUT_MS    500
 #define SUSPEND_TIMEOUT_CNT     5000
 #define MTK_MAX_CTRLS_HINT      64
+#define V4L2_BUF_FLAG_OUTPUT_NOT_GENERATED 0x02000000
 
 /**
  * enum mtk_instance_type - The type of an MTK Vcodec instance.
@@ -362,7 +363,7 @@ struct mtk_vcodec_ctx {
 	int is_hdr;
 	int last_is_hdr;
 	unsigned int errormap_info[VB2_MAX_FRAME];
-	u64 input_max_ts;
+	s64 input_max_ts;
 
 	int int_cond[MTK_VDEC_HW_NUM];
 	int int_type;

@@ -33,19 +33,22 @@
 #include <linux/mfd/sm/sm5714/sm5714-private.h>
 #endif
 #include <linux/muic/sm/sm5714/sm5714-muic.h>
-#if defined(CONFIG_MUIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 #include <linux/muic/common/muic_notifier.h>
 #endif
 
-#if defined(CONFIG_BATTERY_NOTIFIER)
-#include <linux/battery/battery_notifier.h>
-#endif
-
-#if defined(CONFIG_MUIC_SUPPORT_PDIC)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_PDIC)
 #include <linux/usb/typec/common/pdic_notifier.h>
 #endif
-#if defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 #include <linux/usb/typec/manager/usb_typec_manager_notifier.h>
+#endif
+
+#if !defined(CONFIG_BATTERY_NOTIFIER)
+#include <linux/battery/sec_pd.h>
+#endif
+#if defined(CONFIG_BATTERY_NOTIFIER)
+#include <linux/battery/battery_notifier.h>
 #endif
 
 static void sm5714_muic_init_pdic_info_data(struct sm5714_muic_data *muic_data)
@@ -69,7 +72,7 @@ static void sm5714_muic_handle_pdic_detach(struct sm5714_muic_data *muic_data)
 	muic_data->pdic_afc_state = SM5714_MUIC_AFC_NORMAL;
 }
 
-#if defined(CONFIG_BATTERY_SAMSUNG)
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 static void sm5714_muic_handle_pdic_ABNORMAL(struct sm5714_muic_data *muic_data)
 {
 	muic_data->pdic_afc_state = SM5714_MUIC_AFC_ABNORMAL;
@@ -133,7 +136,7 @@ static int sm5714_muic_handle_pdic_ATTACH(struct sm5714_muic_data *muic_data,
 			need_to_run_work = true;
 		}
 
-#if defined(CONFIG_BATTERY_SAMSUNG)
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 		if (pnoti->cable_type == RP_CURRENT_ABNORMAL)
 			sm5714_muic_handle_pdic_ABNORMAL(muic_data);
 		else if (pnoti->cable_type == RP_CURRENT_LEVEL2 ||
@@ -171,6 +174,16 @@ static int sm5714_muic_handle_pdic_ATTACH(struct sm5714_muic_data *muic_data,
 	if (need_to_run_work) {
 		pr_info("%s: do workqueue\n", __func__);
 		schedule_work(&(muic_data->muic_event_work));
+	}
+
+	if (!muic_data->is_pdic_ready) {
+		muic_data->is_pdic_ready = true;
+
+		if (muic_data->is_charger_ready) {
+			if ((muic_data->attached_dev == ATTACHED_DEV_TA_MUIC) ||
+					(muic_data->attached_dev == ATTACHED_DEV_UNOFFICIAL_TA_MUIC))
+				schedule_work(&muic_data->muic_afc_init_work);
+		}
 	}
 
 	return 0;
@@ -261,7 +274,7 @@ static int sm5714_muic_handle_pdic_notification(struct notifier_block *nb,
 				unsigned long action, void *data)
 {
 	PD_NOTI_TYPEDEF *pnoti = (PD_NOTI_TYPEDEF *)data;
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	struct sm5714_muic_data *muic_data = container_of(nb,
 			struct sm5714_muic_data, manager_nb);
 #else
@@ -273,7 +286,7 @@ static int sm5714_muic_handle_pdic_notification(struct notifier_block *nb,
 		(int)action, pnoti->src, pnoti->dest, pnoti->id,
 		pnoti->sub1, pnoti->sub2, pnoti->sub3);
 
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	if (pnoti->dest != PDIC_NOTIFY_DEV_MUIC) {
 		pr_info("%s destination id is invalid\n", __func__);
 		return 0;
@@ -313,7 +326,7 @@ void sm5714_muic_register_pdic_notifier(struct sm5714_muic_data *muic_data)
 	pr_info("%s: Registering PDIC_NOTIFY_DEV_MUIC.\n", __func__);
 
 	sm5714_muic_init_pdic_info_data(muic_data);
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	ret = manager_notifier_register(&muic_data->manager_nb,
 		sm5714_muic_handle_pdic_notification, MANAGER_NOTIFY_PDIC_MUIC);
 #else
@@ -332,7 +345,7 @@ void sm5714_muic_unregister_pdic_notifier(struct sm5714_muic_data *muic_data)
 {
 	int ret = 0;
 
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	ret = manager_notifier_unregister(&muic_data->manager_nb);
 #else
 	ret = pdic_notifier_unregister(&muic_data->pdic_nb);

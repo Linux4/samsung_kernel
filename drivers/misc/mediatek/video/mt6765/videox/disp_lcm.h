@@ -45,6 +45,7 @@ int disp_lcm_suspend(struct disp_lcm_handle *plcm);
 int disp_lcm_resume(struct disp_lcm_handle *plcm);
 #if defined(CONFIG_SMCDSD_PANEL)
 int disp_lcm_power_enable(struct disp_lcm_handle *plcm, unsigned int enable);
+int disp_lcm_disable(struct disp_lcm_handle *plcm);
 #endif
 int disp_lcm_is_support_adjust_fps(struct disp_lcm_handle *plcm);
 int disp_lcm_adjust_fps(void *cmdq, struct disp_lcm_handle *plcm, int fps);
@@ -66,7 +67,6 @@ int disp_lcm_validate_roi(struct disp_lcm_handle *plcm,
 	int *x, int *y, int *w, int *h);
 int disp_lcm_aod(struct disp_lcm_handle *plcm, int enter);
 int disp_lcm_is_arr_support(struct disp_lcm_handle *plcm);
-int disp_lcm_disable(struct disp_lcm_handle *plcm);
 
 /*-----------------------DynFPS start-----------------------------------*/
 int disp_lcm_is_dynfps_support(struct disp_lcm_handle *plcm);

@@ -13,6 +13,7 @@
 #include <dt-bindings/gce/mt6765-gce.h>
 #include <generated/autoconf.h>
 #include <dt-bindings/soc/mediatek,boot-mode.h>
+#include <dt-bindings/phy/phy.h>
 
 /dts-v1/;
 
@@ -496,29 +497,28 @@ firmware_class.path=/vendor/firmware";
 		};
 
 #if defined(CONFIG_SEC_DEBUG)
-		sec-log-reserve-memory@0x4B000000 {
-			reg = <0 0x4B000000 0 0x200000>;
+		sec-log-reserve-memory@0x46C00000 {
+			reg = <0 0x46C00000 0 0x200000>;
 		};
 
-		sec-lastklog@0x4B200000 {
-			reg = <0 0x4B200000 0 0x200000>;
+		sec-lastklog@0x46E00000 {
+			reg = <0 0x46E00000 0 0x200000>;
 		};
 
-		sec-logger-reserve-memory@0x4B400000 {
-			reg = <0 0x4B400000 0 0x400000>;
+		sec-logger-reserve-memory@0x47000000 {
+			reg = <0 0x47000000 0 0x400000>;
 		};
 
-		sec-autocomment-reserve-memory@0x4B800000 {
-			reg = <0 0x4B800000 0 0x10000>;
+		sec-autocomment-reserve-memory@0x47400000 {
+			reg = <0 0x47400000 0 0x10000>;
 		};
-
-		sec-extrainfo-reserve-memory@0x4B810000 {
-			reg = <0 0x4B810000 0 0x1F0000>;
+		
+		sec-extrainfo-reserve-memory@0x47410000 {
+			reg = <0 0x47410000 0 0x1F0000>;
 		};
-
 #ifdef CONFIG_SEC_DEBUG_INIT_LOG
-		sec-initlog-reserve-memory@0x4BA00000 {
-			reg = <0 0x4BA00000 0 0x200000>;
+		sec-initlog-reserve-memory@0x47600000 {
+			reg = <0 0x47600000 0 0x200000>;
 		};
 #endif
 #endif
@@ -575,22 +575,6 @@ firmware_class.path=/vendor/firmware";
 			alignment = <0 0x1000>;
 			alloc-ranges = <0 0xc0000000 0 0x10000000>;
 		};
-
-#ifdef CONFIG_MICROTRUST_TEE_SUPPORT
-		soter-shared-mem {
-			compatible = "microtrust,shared_mem";
-			no-map;
-#if defined(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) || \
-	defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
-			size = <0 0x800000>;
-			alignment = <0 0x1000000>;
-#else
-			size = <0 0x200000>;
-			alignment = <0 0x200000>;
-#endif
-			alloc-ranges = <0 0x40000000 0 0x50000000>;
-		};
-#endif
 
 	};
 
@@ -693,6 +677,7 @@ firmware_class.path=/vendor/firmware";
 
 	infracfg_ao: infracfg_ao@10001000 {
 		compatible = "mediatek,common-infracfg_ao",
+			     "mediatek,infracfg_ao",
 			     "mediatek,mt6765-infracfg", "syscon";
 		reg = <0 0x10001000 0 0x1000>;
 		interrupts = <GIC_SPI 147 IRQ_TYPE_EDGE_RISING>;
@@ -854,7 +839,7 @@ firmware_class.path=/vendor/firmware";
 	teegris {
 		compatible = "samsung,teegris";
 		interrupts = <GIC_SPI 123 IRQ_TYPE_LEVEL_LOW>,
-			     <GIC_SPI 124 IRQ_TYPE_LEVEL_LOW>;
+					<GIC_SPI 124 IRQ_TYPE_LEVEL_LOW>;
 	};
 
 	tee_sanity {
@@ -1082,16 +1067,6 @@ firmware_class.path=/vendor/firmware";
 
 	goodix_fp: fingerprint {
 		compatible = "mediatek,goodix-fp";
-	};
-
-	mt6357_gauge {
-		compatible = "mediatek,mt6357_gauge";
-		gauge_name = "gauge";
-		alias_name = "mt6357";
-	};
-
-	gauge_timer {
-		compatible = "mediatek,gauge_timer_service";
 	};
 
 	topmisc@10011000 {
@@ -2433,7 +2408,7 @@ firmware_class.path=/vendor/firmware";
 		memory-region = <&consys_mem>;
 	};
 
-	wifi@18000000 {
+	wifi: wifi@18000000 {
 		compatible = "mediatek,wifi";
 		reg = <0 0x18000000 0 0x100000>;
 		interrupts = <GIC_SPI 268 IRQ_TYPE_LEVEL_LOW>;
@@ -2529,12 +2504,31 @@ firmware_class.path=/vendor/firmware";
 		clock-names = "usb0",
 			"usb0_clk_top_sel",
 			"usb0_clk_univpll3_d4";
+		pericfg= <&pericfg>;
+		interrupt-names = "mc";
+		phys = <&u2port0 PHY_TYPE_USB2>;
+		dr_mode = "otg";
+		usb-role-switch;
 		charger = <&mt6370_chg>;
 	};
 
-	usb_sif@11210000 {
-		compatible = "mediatek,usb_sif";
-		reg = <0 0x11210000 0 0x10000>;
+	u2phy0: usb-phy@11210000 {
+		compatible = "mediatek,generic-tphy-v1";
+		reg = <0 0x11cc0000 0 0x0800>;
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+		status = "okay";
+		u2port0: usb-phy@11210000 {
+			reg = <0 0x11cc0800 0 0x100>;
+			clocks = <&clk26m>;
+			clock-names = "ref";
+			#phy-cells = <1>;
+			nvmem-cells = <&u2_phy_data>;
+			nvmem-cell-names = "intr_cal";
+			nvmem-cell-masks = <0x1f>;
+			status = "okay";
+		};
 	};
 
 	usb_tuning:usb_tuning {
@@ -2798,6 +2792,9 @@ firmware_class.path=/vendor/firmware";
 		efuse_ly: ly@210 {
 			reg = <0x210 0x4>;
 		};
+		u2_phy_data: u2_phy_data@1ac {
+			reg = <0x1ac 0x4>;
+		};
 	};
 
 	mipi_tx0@11c80000 {
@@ -2940,7 +2937,7 @@ firmware_class.path=/vendor/firmware";
 			<&imgsys CLK_IMG_DIP>,
 			<&camsys CLK_CAM>,
 			<&camsys CLK_CAMTG>,
-			<&camsys CLK_CAM_SENINF>,
+			/*<&camsys CLK_CAM_SENINF>,*/
 			<&camsys CLK_CAMSV0>,
 			<&camsys CLK_CAMSV1>,
 			<&camsys CLK_CAMSV2>;
@@ -2950,7 +2947,7 @@ firmware_class.path=/vendor/firmware";
 			"ISP_CLK_IMG_DIP",
 			"ISP_CLK_CAM",
 			"ISP_CLK_CAMTG",
-			"ISP_CLK_CAM_SENINF",
+			/*"ISP_CLK_CAM_SENINF",*/
 			"ISP_CLK_CAMSV0",
 			"ISP_CLK_CAMSV1",
 			"ISP_CLK_CAMSV2";
@@ -3657,6 +3654,16 @@ firmware_class.path=/vendor/firmware";
 		adapter_name = "pd_adapter";
 	};
 
+	extcon_usb: extcon_usb {
+		compatible = "mediatek,extcon-usb";
+		charger = <&mt6370_chg>;
+		vbus-supply = <&otg_vbus>;
+		vbus-voltage = <5000000>;
+		vbus-current = <1800000>;
+		dev-conn = <&usb>;
+		mediatek,bypss-typec-sink = <1>;
+	};
+
 	rt9465_slave_chr: rt9465_slave_chr {
 		compatible = "richtek,rt9465";
 		status = "disabled";
@@ -3688,8 +3695,9 @@ firmware_class.path=/vendor/firmware";
 		compatible = "mediatek,memory-ssmr-features";
 #if defined(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) || \
 	defined(CONFIG_TRUSTONIC_TEE_SUPPORT) || \
-	defined(CONFIG_MICROTRUST_TEE_SUPPORT)
-		svp-size = <0 0x10000000>;
+	defined(CONFIG_MICROTRUST_TEE_SUPPORT) || \
+	defined(CONFIG_TEEGRIS_TEE_SUPPORT)
+		svp-region-based-size = <0 0x10000000>;
 #endif
 #ifdef CONFIG_MTK_CAM_SECURITY_SUPPORT
 		2d_fr-size = <0 0x8000000>;
@@ -3702,7 +3710,7 @@ firmware_class.path=/vendor/firmware";
 		wfd-size = <0 0x4000000>;
 #endif
 #ifdef CONFIG_MTK_PROT_MEM_SUPPORT
-		prot-sharedmem-size = <0 0x8000000>;
+		prot-region-based-size = <0 0x8000000>;
 #endif
 #ifdef CONFIG_MTK_HAPP_MEM_SUPPORT
 		ta-elf-size = <0 0x1000000>;
@@ -3872,6 +3880,9 @@ firmware_class.path=/vendor/firmware";
 
 	mt_soc_pcm_voice_usb_echoref {
 		compatible = "mediatek,mt_soc_pcm_voice_usb_echoref";
+	};
+
+	firmware: firmware {
 	};
 
 	pmic_clock_buffer_ctrl: pmic_clock_buffer_ctrl {

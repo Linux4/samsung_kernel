@@ -15,6 +15,14 @@ config MTK_PLATFORM
 config ARCH_MTK_PROJECT
 	string "MTK project name"
 
+config FPGA_EARLY_PORTING
+	bool "MTK FPGA EARLY PORTING"
+	help
+	  Used for FPGA early porting to separate code segments between FPGA
+	  platform and non-FPGA platform.
+	  Say Y here if you are doing FPGA early porting.
+	  If unsure, say N
+
 config MTK_ENG_BUILD
 	bool "MTK Engineer Build"
 	help
@@ -212,7 +220,7 @@ config MTK_SEC_VIDEO_PATH_SUPPORT
 	bool "Enable MTK Secure Video Path Support"
 	depends on MTK_IN_HOUSE_TEE_SUPPORT || TRUSTONIC_TEE_SUPPORT || \
 	           MTK_GOOGLE_TRUSTY_SUPPORT || MICROTRUST_TEE_SUPPORT || \
-	           TEEGRIS_TEE_SUPPORT
+		   TEEGRIS_TEE_SUPPORT
 	help
 	  This enable MTK Secure Video Path function of Widevine Level1,
 	  HW protect the online secure video streaming by ARM/Trustzone
@@ -228,7 +236,7 @@ config MTK_DRM_KEY_MNG_SUPPORT
 	bool "Enable MTK DRM Key Manager Support"
 	depends on MTK_IN_HOUSE_TEE_SUPPORT || TRUSTONIC_TEE_SUPPORT || \
 	           MTK_GOOGLE_TRUSTY_SUPPORT || MICROTRUST_TEE_SUPPORT || \
-	           TEEGRIS_TEE_SUPPORT
+		   TEEGRIS_TEE_SUPPORT
 	help
 	  This enable MTK DRM Key Manager Support.
 	  the DRM key install function is used in the feature of SVP .etc
@@ -317,8 +325,7 @@ config TEEGRIS_TEE_SUPPORT
 
 config MTK_TEE_GP_SUPPORT
 	bool "Enable MTK GlobalPlatform support in TEE related modules"
-	depends on TRUSTONIC_TEE_SUPPORT || MICROTRUST_TEE_SUPPORT || \
-	           TEEGRIS_TEE_SUPPORT
+	depends on (TRUSTONIC_TEE_SUPPORT) || (MICROTRUST_TEE_SUPPORT) || (TEEGRIS_TEE_SUPPORT)
 	help
 	  GlobalPlatform defines common/consistent APIs and this option
 	  enables TEE related modules to use GPAPIs. (depending on
@@ -482,7 +489,9 @@ config MTK_GKI_COMPAT
 	  It's testing only, no any guarantee.
 	  Select "Y" if you want to use.
 	  Select "N" if you are not sure.
-
+config MTK_HIGH_FRAME_RATE
+	bool "high frame rate,for 90hz or 120hz display"
+	default n
 source "drivers/misc/mediatek/met_drv/Kconfig"
 source "drivers/misc/mediatek/mtprof/Kconfig"
 source "drivers/misc/mediatek/aee/Kconfig"

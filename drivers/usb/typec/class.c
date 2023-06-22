@@ -702,6 +702,7 @@ EXPORT_SYMBOL_GPL(typec_register_partner);
  */
 void typec_unregister_partner(struct typec_partner *partner)
 {
+
 	if (!IS_ERR_OR_NULL(partner))
 		device_unregister(&partner->dev);
 }
@@ -1035,7 +1036,6 @@ static ssize_t data_role_store(struct device *dev,
 		goto unlock_and_ret;
 
 	ret = size;
-
 unlock_and_ret:
 	mutex_unlock(&port->port_type_lock);
 	pr_info("%s-\n", __func__);
@@ -1136,9 +1136,8 @@ port_type_store(struct device *dev, struct device_attribute *attr,
 
 	type = ret;
 	mutex_lock(&port->port_type_lock);
-	pr_info("%s port_type : %d, type : %d\n", 
+	pr_info("%s port_type : %d, type : %d\n",
 		__func__, port->port_type, type);
-
 	if (port->port_type == type) {
 		ret = size;
 		goto unlock_and_ret;
@@ -1392,7 +1391,6 @@ void typec_set_pwr_opmode(struct typec_port *port,
 {
 	struct device *partner_dev;
 
-	pr_info("%s pwr_opmode=%d opmode=%d\n", __func__, port->pwr_opmode, opmode);
 	if (port->pwr_opmode == opmode)
 		return;
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2019, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,14 +20,16 @@
 
 #ifdef CONFIG_SHUB_FIRMWARE_DOWNLOAD
 int download_sensorhub_firmware(struct device* dev, void * addr);
-void remove_shub_firmware(void);
 unsigned int get_kernel_fw_rev(void);
+#endif /* CONFIG_SHUB_FIRMWARE_DOWNLOAD */
+
 int initialize_shub_firmware(void);
 void remove_shub_firmware(void);
-#endif /* CONFIG_SHUB_FIRMWARE_DOWNLOAD */
 
 void set_firmware_rev(uint32_t version);
 int get_firmware_rev(void);
 int get_firmware_type(void);
+
+int init_shub_firmware(void);
 
 #endif /*_SHUB_FIRMWARE_H__*/

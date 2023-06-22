@@ -35,6 +35,7 @@
 #if defined(DSMS_KUNIT_ENABLED)
 
 #include <kunit/mock.h>
+#include <linux/kthread.h>
 #include <linux/slab.h>
 #include <linux/types.h>
 
@@ -65,27 +66,28 @@ extern int __kunit_init dsms_init(void);
 extern void __kunit_exit dsms_exit(void);
 
 /* -------------------------------------------------------------------------- */
-/* dsms_kernel_api */
-/* -------------------------------------------------------------------------- */
-
-extern struct dsms_message *create_message(const char *feature_code,
-		const char *detail,
-		int64_t value);
-
-/* -------------------------------------------------------------------------- */
-/* dsms_message_list */
-/* -------------------------------------------------------------------------- */
-
-struct dsms_message;
-extern atomic_t list_counter;
-extern struct dsms_message_node *create_node(struct dsms_message *message);
-
-/* -------------------------------------------------------------------------- */
 /* dsms_netlink */
 /* -------------------------------------------------------------------------- */
 
-extern int dsms_send_netlink_message(struct dsms_message *message);
-extern struct task_struct *dsms_sender_thread;
+extern atomic_t daemon_ready;
+extern int dsms_send_netlink_message(const char *feature_code,
+				     const char *detail,
+				     int64_t value);
+
+/* -------------------------------------------------------------------------- */
+/* dsms_preboot_buffer */
+/* -------------------------------------------------------------------------- */
+
+struct dsms_message;
+extern atomic_t message_counter;
+extern struct task_struct *sender_thread;
+extern struct dsms_message *create_message(const char *feature_code,
+					   const char *detail,
+					   int64_t value);
+extern void destroy_message(struct dsms_message *message);
+extern struct dsms_message_node *create_node(struct dsms_message *message);
+extern void destroy_node(struct dsms_message_node *node);
+extern struct dsms_message *dsms_preboot_buffer_get(void);
 
 /* -------------------------------------------------------------------------- */
 /* dsms_rate_limit */

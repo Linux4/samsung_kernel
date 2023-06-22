@@ -306,12 +306,6 @@ config PM_GENERIC_DOMAINS_OF
 config CPU_PM
 	bool
 
-config SEC_PM
-	bool "Samsung PowerManagement Feature"
-	default n
-	help
-	  Samsung PowerManagement Feature.
-
 config ENERGY_MODEL
 	bool "Energy Model for CPUs"
 	depends on SMP
@@ -326,3 +320,9 @@ config ENERGY_MODEL
 	  The exact usage of the energy model is subsystem-dependent.
 
 	  If in doubt, say N.
+
+config SEC_PM
+	bool "Samsung PowerManagement Feature"
+	default n
+	help
+	  Samsung PowerManagement Feature.

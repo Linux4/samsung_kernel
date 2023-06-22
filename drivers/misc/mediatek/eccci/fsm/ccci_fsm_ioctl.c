@@ -43,12 +43,11 @@ unsigned int get_sim_switch_type(void)
 }
 #endif
 
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
 static int ccci_md_log_level;
-
 #define MD_LOG_LEVEL_HIGH	0x4948
 #define MD_LOG_LEVEL_MID	0x494d
 #define MD_LOG_LEVEL_LOW	0x4f4c
-
 void drv_tri_panic_by_lvl(int md_id)
 {
 	if (ccci_md_log_level == MD_LOG_LEVEL_LOW) {
@@ -66,6 +65,24 @@ void drv_tri_panic_by_lvl(int md_id)
 		CCCI_NORMAL_LOG(md_id, FSM,
 			"md log level is invalid, do nothing\n");
 }
+#endif
+
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
+int ccci_get_ap_debug_level(void)
+{
+	if (ccci_md_log_level == MD_LOG_LEVEL_LOW)
+		return 0;
+	else if (ccci_md_log_level == MD_LOG_LEVEL_MID)
+		return 1;
+	else if (ccci_md_log_level == MD_LOG_LEVEL_HIGH)
+		return 2;
+
+	CCCI_ERROR_LOG(-1, FSM,
+		"%s:debug_level(%d) invalid\n", __func__,
+		ccci_md_log_level);
+	return -1;
+}
+#endif
 
 static int fsm_md_data_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 {
@@ -196,6 +213,12 @@ static int fsm_md_data_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 				ret = -EFAULT;
 			}
 		}
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
+			ccci_md_log_level = per_md_data->md_boot_data[MD_CFG_LOG_LEVEL];
+			CCCI_BOOTUP_LOG(md_id, FSM,
+			    "md log level: 0x%x\n", ccci_md_log_level);
+#endif
+
 		break;
 	case CCCI_IOC_SIM_SWITCH:
 		if (copy_from_user(&data, (void __user *)arg,
@@ -241,25 +264,15 @@ static int fsm_md_data_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 		}
 		break;
 	case CCCI_IOC_RELOAD_MD_TYPE:
-		data = 0;
 		if (copy_from_user(&data, (void __user *)arg,
 				sizeof(unsigned int))) {
-			CCCI_NORMAL_LOG(md_id, FSM,
+			CCCI_ERROR_LOG(md_id, FSM,
 				"CCCI_IOC_RELOAD_MD_TYPE: copy_from_user fail\n");
 			ret = -EFAULT;
 		} else {
+			ret = set_soc_md_rt_rat_by_idx(md_id, (unsigned int)data);
 			CCCI_NORMAL_LOG(md_id, FSM,
-				"CCCI_IOC_RELOAD_MD_TYPE: 0x%x\n", data);
-			/* add md type check to
-			 * avoid it being changed to illegal value
-			 */
-			if (check_md_type(data) > 0) {
-				if (set_modem_support_cap(md_id, data) == 0)
-					per_md_data->config.load_type = data;
-			} else {
-				CCCI_ERROR_LOG(md_id, FSM,
-				"invalid MD TYPE: 0x%x\n", data);
-			}
+				"CCCI_IOC_RELOAD_MD_TYPE: %d ret:%d\n", data, ret);
 		}
 		break;
 	case CCCI_IOC_SET_MD_IMG_EXIST:
@@ -275,7 +288,7 @@ static int fsm_md_data_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 			"CCCI_IOC_SET_MD_IMG_EXIST: set done!\n");
 		break;
 	case CCCI_IOC_GET_MD_IMG_EXIST:
-		data = get_md_type_from_lk(md_id);
+		data = get_md_img_type(md_id);
 		if (data) {
 			memset(&per_md_data->md_img_exist, 0,
 				sizeof(per_md_data->md_img_exist));
@@ -299,14 +312,19 @@ static int fsm_md_data_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 		}
 		break;
 	case CCCI_IOC_GET_MD_TYPE:
-		retry = 600;
-		do {
-			data = get_legacy_md_type(md_id);
-			if (data)
-				break;
-			msleep(500);
-			retry--;
-		} while (retry);
+		data = get_md_img_type(md_id);
+		if (!data)
+			data = 3; //MT6580 using this
+		else {
+			retry = 6000;
+			do {
+				data = get_soc_md_rt_rat_idx(md_id);
+				if (data)
+					break;
+				msleep(50);
+				retry--;
+			} while (retry);
+		}
 		CCCI_NORMAL_LOG(md_id, FSM,
 			"CCCI_IOC_GET_MD_TYPE: %d!\n", data);
 		ret = put_user((unsigned int)data,
@@ -454,7 +472,9 @@ long ccci_fsm_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 	enum MD_STATE_FOR_USER state_for_user;
 	unsigned int data;
 	char *VALID_USER = "ccci_mdinit";
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
 	struct ccci_modem *md;
+#endif
 
 	if (!ctl)
 		return -EINVAL;
@@ -526,8 +546,10 @@ long ccci_fsm_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 		/* add check whether the user call md start ioctl is valid */
 		if (strncmp(current->comm,
 			VALID_USER, strlen(VALID_USER)) == 0) {
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
 			md = ccci_md_get_modem_by_id(md_id);
 			md->ccci_drv_trigger_upload = 0;
+#endif
 			CCCI_NORMAL_LOG(md_id, FSM,
 				"MD start ioctl called by %s\n", current->comm);
 			ret = fsm_append_command(ctl, CCCI_COMMAND_START, 0);
@@ -594,6 +616,14 @@ long ccci_fsm_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 		inject_md_status_event(md_id, MD_STA_EV_LEAVE_FLIGHT_E_REQUEST,
 					current->comm);
 		break;
+	/* RILD nodify ccci power off md */
+	case CCCI_IOC_RILD_POWER_OFF_MD:
+		CCCI_NORMAL_LOG(md_id, FSM,
+				"MD will power off ioctl called by %s\n",
+				current->comm);
+		inject_md_status_event(md_id, MD_STA_EV_RILD_POWEROFF_START,
+				current->comm);
+		break;
 	case CCCI_IOC_SET_EFUN:
 		if (copy_from_user(&data, (void __user *)arg,
 				sizeof(unsigned int))) {
@@ -623,6 +653,7 @@ long ccci_fsm_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 			"get modem exception type=%d ret=%d\n",
 			ctl->ee_ctl.ex_type, ret);
 		break;
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
 	case CCCI_IOC_ENTER_UPLOAD:
 		drv_tri_panic_by_lvl(md_id);
 		break;
@@ -642,6 +673,7 @@ long ccci_fsm_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 		CCCI_NORMAL_LOG(md_id, FSM,
 			"cpy log level value:0x%x\n", ccci_md_log_level);
 		break;
+#endif
 	default:
 		ret = fsm_md_data_ioctl(md_id, cmd, arg);
 		break;

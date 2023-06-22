@@ -14,6 +14,7 @@
  */
 
 #include <linux/delay.h>
+#include <linux/random.h>
 #include <linux/slab.h>
 
 #include "../comm/shub_comm.h"
@@ -42,9 +43,14 @@ struct system_env_backup {
 struct sensor_test_factor {
 	int32_t comm_test_response_cnt;
 	int32_t event_test_response_cnt;
+	int32_t order_test_response_cnt;
+
+	int32_t order_test_fail_cnt;
+	int32_t min_delay;
 
 	uint64_t expected_delay_ns;
 	uint64_t pre_event_timestamp;
+	uint64_t order_test_reversed_timestamp;
 	uint64_t standard_deviation;
 	uint64_t min_diff;
 	uint64_t max_diff;
@@ -52,6 +58,7 @@ struct sensor_test_factor {
 
 struct system_check_data {
 	bool is_system_checking;
+	int32_t is_event_order_checking;
 	struct mutex system_test_mutex;
 	struct system_env_backup env_backup;
 	struct sensor_test_factor sensor[SENSOR_TYPE_LEGACY_MAX];
@@ -61,17 +68,31 @@ static struct system_check_data ssc;
 static uint32_t ssc_delay_us;
 static uint32_t ssc_count;
 
-static inline void register_test_cb(void)
+static inline void register_system_test_cb(void)
 {
 	mutex_lock(&ssc.system_test_mutex);
 	ssc.is_system_checking = true;
 	mutex_unlock(&ssc.system_test_mutex);
 }
 
-static inline void unregister_test_cb(void)
+static inline void unregister_system_test_cb(void)
 {
 	mutex_lock(&ssc.system_test_mutex);
 	ssc.is_system_checking = false;
+	mutex_unlock(&ssc.system_test_mutex);
+}
+
+static inline void register_event_order_test_cb(void)
+{
+	mutex_lock(&ssc.system_test_mutex);
+	ssc.is_event_order_checking = true;
+	mutex_unlock(&ssc.system_test_mutex);
+}
+
+static inline void unregister_event_order_test_cb(void)
+{
+	mutex_lock(&ssc.system_test_mutex);
+	ssc.is_event_order_checking = false;
 	mutex_unlock(&ssc.system_test_mutex);
 }
 
@@ -92,13 +113,13 @@ static void run_comm_test(void)
 	int32_t i;
 
 	shub_infof("[SSC] run comm test...");
-	register_test_cb();
+	register_system_test_cb();
 
 	for (i = 0; i < ssc_count; i++)
 		flush_all_sensors();
 
 	msleep(100);
-	unregister_test_cb();
+	unregister_system_test_cb();
 }
 
 static void set_sensors_sampling_rate(void)
@@ -107,12 +128,12 @@ static void set_sensors_sampling_rate(void)
 	struct shub_sensor *sensor = NULL;
 
 	for (type = SENSOR_TYPE_ACCELEROMETER; type < SENSOR_TYPE_LEGACY_MAX; type++) {
-		if (!get_sensor_enabled(type))
+		sensor = get_sensor(type);
+		if (!sensor)
 			continue;
 
-		sensor = get_sensor(type);
 		rate = (int32_t)(ssc.sensor[type].expected_delay_ns / 1000000);
-		sensor->sampling_period = sensor->max_report_latency = rate;
+		sensor->sampling_period = sensor->max_report_latency = ssc.sensor[type].min_delay = rate;
 	}
 }
 
@@ -133,7 +154,7 @@ static void run_event_test(void)
 	}
 
 	msleep(100);
-	register_test_cb();
+	register_system_test_cb();
 	msleep(1000);
 
 	for (type = SENSOR_TYPE_ACCELEROMETER; type < SENSOR_TYPE_LEGACY_MAX; type++) {
@@ -143,7 +164,108 @@ static void run_event_test(void)
 		disable_sensor(type, NULL, 0);
 		usleep_range(500, 1000);
 	}
-	unregister_test_cb();
+	unregister_system_test_cb();
+}
+
+int32_t order_test_types[3] = {SENSOR_TYPE_ACCELEROMETER, SENSOR_TYPE_GEOMAGNETIC_FIELD, SENSOR_TYPE_GYROSCOPE};
+
+static uint32_t get_random(void)
+{
+	uint32_t rand;
+
+	get_random_bytes(&rand, sizeof(uint32_t));
+
+	return rand;
+}
+
+static void enable_order_test_sensors(void)
+{
+	int32_t type;
+	uint64_t i;
+
+	for (i = 0 ; i < ARRAY_SIZE(order_test_types) ; i++) {
+		type = order_test_types[i];
+
+		batch_sensor(type, ssc.sensor[type].min_delay, 0);
+		enable_sensor(type, NULL, 0);
+		usleep_range(500, 1000);
+	}
+}
+
+static void disable_order_test_sensors(void)
+{
+	int32_t type;
+	uint64_t i;
+
+	for (i = 0 ; i < ARRAY_SIZE(order_test_types) ; i++) {
+		type = order_test_types[i];
+		disable_sensor(type, NULL, 0);
+		usleep_range(500, 1000);
+	}
+}
+
+static void run_event_order_test(void)
+{
+	uint64_t i;
+	int32_t type;
+	int32_t sampling_rate = 5;
+	int32_t report_latency = 0;
+	int32_t test_cnt = ssc_count;
+
+	shub_infof("[SSC] run event order test...");
+
+	for (i = 0 ; i < ARRAY_SIZE(order_test_types) ; i++) {
+		type = order_test_types[i];
+		ssc.sensor[type].order_test_response_cnt = 0;
+		ssc.sensor[type].order_test_fail_cnt = 0;
+		ssc.sensor[type].order_test_reversed_timestamp = 0;
+	}
+
+	register_event_order_test_cb();
+	shub_infof("[SSC] sampling rate : fastest, report latency : random");
+	while (test_cnt--) {
+		shub_infof("[SSC] #%d", ssc_count - test_cnt);
+		enable_order_test_sensors();
+		msleep(2000);
+
+		for (i = 0 ; i < 100 ; i++) {
+			type = order_test_types[get_random() % 3];
+
+			sampling_rate = ssc.sensor[type].min_delay;
+			report_latency = (get_random() % 2) * 5000;
+
+			batch_sensor(type, sampling_rate, report_latency);
+			flush_sensor(type);
+			msleep(10 * (get_random() % 15));
+		}
+
+		disable_order_test_sensors();
+	}
+
+	test_cnt = ssc_count;
+	shub_infof("[SSC] sampling rate : random, report latency : random");
+	while (test_cnt--) {
+		shub_infof("[SSC] #%d", ssc_count - test_cnt);
+		enable_order_test_sensors();
+
+		for (i = 0 ; i < 100 ; i++) {
+			type = order_test_types[get_random() % 3];
+
+			sampling_rate = get_random() % 10;
+			if (sampling_rate == 0)
+				sampling_rate = ssc.sensor[type].min_delay;
+			else
+				sampling_rate = ssc.sensor[type].min_delay * sampling_rate;
+
+			report_latency = (get_random() % 6) * 1000;
+			batch_sensor(type, sampling_rate, report_latency);
+			flush_sensor(type);
+			msleep(10 * (get_random() % 15));
+		}
+
+		disable_order_test_sensors();
+	}
+	unregister_event_order_test_cb();
 }
 
 static void sensor_on_off(void)
@@ -201,6 +323,33 @@ void event_test_cb(int32_t type, uint64_t timestamp)
 	ssc.sensor[type].pre_event_timestamp = timestamp;
 }
 
+void order_test_cb(int32_t type, uint64_t timestamp)
+{
+	if (!(type == SENSOR_TYPE_ACCELEROMETER || type == SENSOR_TYPE_GYROSCOPE ||
+	      type == SENSOR_TYPE_GEOMAGNETIC_FIELD))
+		return;
+
+	if (!ssc.sensor[type].pre_event_timestamp || !timestamp) {
+		ssc.sensor[type].pre_event_timestamp = timestamp;
+		return;
+	}
+
+	if (ssc.sensor[type].pre_event_timestamp >= timestamp) {
+		ssc.sensor[type].order_test_reversed_timestamp = timestamp;
+		ssc.sensor[type].order_test_fail_cnt++;
+
+		shub_errf("[SSC] reversed type : %d, prev : %lld, curr : %lld",
+		    type, ssc.sensor[type].pre_event_timestamp, timestamp);
+	}
+
+	ssc.sensor[type].order_test_response_cnt++;
+
+	//shub_infof("[SSC] type : %d, prev : %lld, curr : %lld",
+	//	    type, ssc.sensor[type].pre_event_timestamp, timestamp);
+
+	ssc.sensor[type].pre_event_timestamp = timestamp;
+}
+
 static void restore_test_env(void)
 {
 	int32_t type = 0;
@@ -209,17 +358,15 @@ static void restore_test_env(void)
 	shub_infof("");
 	for (type = SENSOR_TYPE_ACCELEROMETER; type < SENSOR_TYPE_LEGACY_MAX; type++) {
 		sensor = get_sensor(type);
-		if (get_sensor_probe_state(type)) {
+		if (sensor) {
 			mutex_lock(&sensor->enabled_mutex);
 			sensor->enabled = (ssc.env_backup.pre_sensor_state & (1ULL << type));
 			sensor->enabled_cnt = ssc.env_backup.pre_enabled_count[type];
 			mutex_unlock(&sensor->enabled_mutex);
-		}
 
-		if (!get_sensor_enabled(type))
-			continue;
-		sensor->sampling_period = ssc.env_backup.pre_rate[type].sampling_ms;
-		sensor->max_report_latency = ssc.env_backup.pre_rate[type].report_ms;
+			sensor->sampling_period = ssc.env_backup.pre_rate[type].sampling_ms;
+			sensor->max_report_latency = ssc.env_backup.pre_rate[type].report_ms;
+		}
 	}
 }
 
@@ -228,7 +375,7 @@ static uint64_t test_sqrt(uint64_t in)
 	int32_t count = 30;
 	uint64_t out = 1;
 
-	for (count; count > 0; --count)
+	while (count-- > 0)
 		out = (out + in / out) / 2;
 
 	return out;
@@ -255,6 +402,8 @@ static void report_test_result(void)
 		struct sensor_debug_factor op[OPERATION_MAX];
 	} __attribute__((__packed__));
 
+	int32_t ret = 0;
+	int32_t i = 0;
 	int32_t type = 0;
 	int32_t count = 0;
 	int32_t index = 0;
@@ -286,9 +435,9 @@ static void report_test_result(void)
 	}
 
 	shub_infof("[SSC] == system test result ======");
-	shub_send_command_wait(CMD_GETVALUE, TYPE_MCU, HUB_SYSTEM_CHECK,
+	ret = shub_send_command_wait(CMD_GETVALUE, TYPE_MCU, HUB_SYSTEM_CHECK,
 			       1000, NULL, 0, (char **)&buffer, &buffer_length, true);
-	if (!buffer || buffer_length == 0) {
+	if (ret < 0 || !buffer || buffer_length == 0) {
 		shub_infof("[SSC] ERROR! Fail to get system test result!!");
 		return;
 	}
@@ -319,6 +468,15 @@ static void report_test_result(void)
 				result->op[OPERATION_CLOSE].tt_sum / result->op[OPERATION_CLOSE].count);
 	}
 
+	shub_infof("[SSC] == event order test result ======");
+	for (i = 0 ; i < ARRAY_SIZE(order_test_types); i++) {
+		type = order_test_types[i];
+		shub_infof("[SSC] sensor(%2d)", type);
+		shub_infof("[SSC]    ORDER  - cnt(%4d) fail cnt(%4d), last reversed timestamp(%7lld)",
+			    ssc.sensor[type].order_test_response_cnt, ssc.sensor[type].order_test_fail_cnt,
+			    ssc.sensor[type].order_test_reversed_timestamp);
+	}
+
 	kfree(buffer);
 }
 
@@ -332,6 +490,7 @@ void run_system_check(void)
 	run_system_test();
 	run_comm_test();
 	run_event_test();
+	run_event_order_test();
 
 	usleep_range(500, 1000);
 
@@ -342,46 +501,36 @@ void run_system_check(void)
 
 void system_ready_cb(void)
 {
-	unregister_test_cb();
+	unregister_system_test_cb();
+	unregister_event_order_test_cb();
 	run_system_check();
 }
 
 static void prepare_test_env(void)
 {
-	int32_t idx = 0, type = 0;
-	char *buf = kzalloc(4096, GFP_KERNEL);
-	int spec_size = get_sensor_spec(buf);
-	struct sensor_spec_t *spec = (struct sensor_spec_t *)buf;
-	int32_t spec_count = spec_size / sizeof(struct sensor_spec_t);
+	int32_t type = 0;
 	struct shub_sensor *sensor;
 
 	shub_infof("");
 	// init check_system data
 	memset(&ssc, 0, sizeof(ssc));
-	for (idx = 0; idx < spec_count; idx++) {
-		type = spec[idx].uid;
-		ssc.sensor[type].expected_delay_ns = spec[idx].min_delay * 1000;
-	}
+
 	// backup shub env
 	ssc.env_backup.pre_sensor_state = get_sensors_legacy_enable_state();
 	for (type = SENSOR_TYPE_ACCELEROMETER; type < SENSOR_TYPE_LEGACY_MAX; type++) {
 		sensor = get_sensor(type);
-		if (get_sensor_probe_state(type)) {
+		if (sensor) {
 			ssc.env_backup.pre_enabled_count[type] = sensor->enabled_cnt;
 			mutex_lock(&sensor->enabled_mutex);
 			sensor->enabled = false;
 			sensor->enabled_cnt = 0;
 			mutex_unlock(&sensor->enabled_mutex);
+
+			ssc.env_backup.pre_rate[type].sampling_ms = sensor->sampling_period;
+			ssc.env_backup.pre_rate[type].report_ms = sensor->max_report_latency;
+			ssc.sensor[type].expected_delay_ns = sensor->spec.min_delay * 1000;
 		}
-
-		if (!get_sensor_enabled(type))
-			continue;
-
-		ssc.env_backup.pre_rate[type].sampling_ms = sensor->sampling_period;
-		ssc.env_backup.pre_rate[type].report_ms = sensor->max_report_latency;
 	}
-
-	kfree(buf);
 }
 
 void sensorhub_system_check(uint32_t test_delay_us, uint32_t test_count)
@@ -390,7 +539,7 @@ void sensorhub_system_check(uint32_t test_delay_us, uint32_t test_count)
 	ssc_count = test_count && test_count < 100 ? test_count : SSC_DEFAULT_COUNT;
 
 	prepare_test_env();
-	register_test_cb();
+	register_system_test_cb();
 	reset_mcu(RESET_TYPE_KERNEL_SYSFS);
 }
 
@@ -402,6 +551,11 @@ void shub_system_checker_init(void)
 bool is_system_checking(void)
 {
 	return ssc.is_system_checking;
+}
+
+bool is_event_order_checking(void)
+{
+	return ssc.is_event_order_checking;
 }
 
 void shub_system_check_lock(void)

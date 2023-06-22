@@ -43,6 +43,10 @@ static ssize_t shub_injection_write(struct file *file, const char __user *buf, s
 	}
 
 	buffer = kzalloc(count * sizeof(char), GFP_KERNEL);
+	if (!buffer) {
+		shub_errf("fail to alloc memory");
+		return -ENOMEM;
+	}
 
 	ret = copy_from_user(buffer, buf, count);
 	if (unlikely(ret)) {
@@ -53,9 +57,10 @@ static ssize_t shub_injection_write(struct file *file, const char __user *buf, s
 
 	if (buffer[0] == INJECTION_MODE_ADDITIONAL_INFO) {
 		int type = (int)buffer[1];
-		if(count > 2) {
+
+		if (count > 2)
 			ret = inject_sensor_additional_data(type, &buffer[2], count-2);
-		} else {
+		else {
 			shub_errf("type %d buffer length(%d) err", type, count-2);
 			ret = -EINVAL;
 		}
@@ -64,15 +69,15 @@ static ssize_t shub_injection_write(struct file *file, const char __user *buf, s
 		ret = -EINVAL;
 	}
 
-	if (ret < 0) {
+	if (ret < 0)
 		shub_errf("inject data err(%d)", ret);
-	}
 
 	kfree(buffer);
-	return (ret == 0)? count : ret;
+
+	return (ret == 0) ? count : ret;
 }
 
-static struct file_operations shub_injection_fops = {
+static const struct file_operations shub_injection_fops = {
 	.owner = THIS_MODULE,
 	.open = nonseekable_open,
 	.write = shub_injection_write,
@@ -81,13 +86,13 @@ static struct file_operations shub_injection_fops = {
 int register_misc_dev_injection(bool en)
 {
 	int res = 0;
-	if(en) {
+
+	if (en) {
 		injection_device.minor = MISC_DYNAMIC_MINOR;
 		injection_device.name = "shub_data_injection";
 		injection_device.fops = &shub_injection_fops;
 		res = misc_register(&injection_device);
 	} else {
-		shub_injection_fops.write = NULL;
 		misc_deregister(&injection_device);
 	}
 

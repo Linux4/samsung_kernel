@@ -76,12 +76,6 @@
 
 #include "audit.h"
 
-// [ SEC_SELINUX_PORTING_COMMON
-#ifdef CONFIG_PROC_AVC
-#include <linux/proc_avc.h>
-#endif
-// ] SEC_SELINUX_PORTING_COMMON
-
 /* No auditing will take place until audit_initialized == AUDIT_INITIALIZED.
  * (Initialization happens after skb_init is called.) */
 #define AUDIT_DISABLED		-1
@@ -89,20 +83,13 @@
 #define AUDIT_INITIALIZED	1
 static int	audit_initialized;
 
-// [ SEC_SELINUX_PORTING_COMMON
-u32		audit_enabled = AUDIT_ON;
-bool		audit_ever_enabled = !!AUDIT_ON;
-// ] SEC_SELINUX_PORTING_COMMON
-
+u32		audit_enabled = AUDIT_OFF;
+bool		audit_ever_enabled = !!AUDIT_OFF;
 
 EXPORT_SYMBOL_GPL(audit_enabled);
 
 /* Default state when kernel boots without any parameters. */
-// [ SEC_SELINUX_PORTING_COMMON
-// Samsung Change Value from AUDIT_OFF to AUDIT_ON
-static u32	audit_default = AUDIT_ON;
-// ] SEC_SELINUX_PORTING_COMMON
-
+static u32	audit_default = AUDIT_OFF;
 
 /* If auditing cannot proceed, audit_failure selects what happens. */
 static u32	audit_failure = AUDIT_FAIL_PRINTK;
@@ -555,15 +542,8 @@ static void kauditd_printk_skb(struct sk_buff *skb)
 	struct nlmsghdr *nlh = nlmsg_hdr(skb);
 	char *data = nlmsg_data(nlh);
 
-// [ SEC_SELINUX_PORTING_COMMON
-#ifdef CONFIG_PROC_AVC
-	if (nlh->nlmsg_type != AUDIT_EOE && nlh->nlmsg_type != AUDIT_NETFILTER_CFG)
-		sec_avc_log("%s\n", data);
-#else
 	if (nlh->nlmsg_type != AUDIT_EOE && printk_ratelimit())
 		pr_notice("type=%d %s\n", nlh->nlmsg_type, data);
-#endif
-// ] SEC_SELINUX_PORTING_COMMON
 }
 
 #ifdef CONFIG_MTK_SELINUX_AEE_WARNING
@@ -792,15 +772,6 @@ static int kauditd_send_queue(struct sock *sk, u32 portid,
 				/* no - requeue to preserve ordering */
 				skb_queue_head(queue, skb);
 		} else {
-// [ SEC_SELINUX_PORTING_COMMON
-#ifdef CONFIG_PROC_AVC
-			struct nlmsghdr *nlh = nlmsg_hdr(skb);
-			char *data = nlmsg_data(nlh);
-
-			if (nlh->nlmsg_type != AUDIT_EOE && nlh->nlmsg_type != AUDIT_NETFILTER_CFG)
-				sec_avc_log("%s\n", data);
-#endif
-// ] SEC_SELINUX_PORTING_COMMON
 			/* it worked - drop the extra reference and continue */
 			consume_skb(skb);
 			failed = 0;
@@ -932,7 +903,7 @@ main_queue:
 	return 0;
 }
 
-int audit_send_list(void *_dest)
+int audit_send_list_thread(void *_dest)
 {
 	struct audit_netlink_list *dest = _dest;
 	struct sk_buff *skb;
@@ -976,19 +947,30 @@ out_kfree_skb:
 	return NULL;
 }
 
+static void audit_free_reply(struct audit_reply *reply)
+{
+	if (!reply)
+		return;
+
+	if (reply->skb)
+		kfree_skb(reply->skb);
+	if (reply->net)
+		put_net(reply->net);
+	kfree(reply);
+}
+
 static int audit_send_reply_thread(void *arg)
 {
 	struct audit_reply *reply = (struct audit_reply *)arg;
-	struct sock *sk = audit_get_sk(reply->net);
 
 	audit_ctl_lock();
 	audit_ctl_unlock();
 
 	/* Ignore failure. It'll only happen if the sender goes away,
 	   because our timeout is set to infinite. */
-	netlink_unicast(sk, reply->skb, reply->portid, 0);
-	put_net(reply->net);
-	kfree(reply);
+	netlink_unicast(audit_get_sk(reply->net), reply->skb, reply->portid, 0);
+	reply->skb = NULL;
+	audit_free_reply(reply);
 	return 0;
 }
 
@@ -1002,35 +984,32 @@ static int audit_send_reply_thread(void *arg)
  * @payload: payload data
  * @size: payload size
  *
- * Allocates an skb, builds the netlink message, and sends it to the port id.
- * No failure notifications.
+ * Allocates a skb, builds the netlink message, and sends it to the port id.
  */
 static void audit_send_reply(struct sk_buff *request_skb, int seq, int type, int done,
 			     int multi, const void *payload, int size)
 {
-	struct net *net = sock_net(NETLINK_CB(request_skb).sk);
-	struct sk_buff *skb;
 	struct task_struct *tsk;
-	struct audit_reply *reply = kmalloc(sizeof(struct audit_reply),
-					    GFP_KERNEL);
+	struct audit_reply *reply;
 
+	reply = kzalloc(sizeof(*reply), GFP_KERNEL);
 	if (!reply)
 		return;
 
-	skb = audit_make_reply(seq, type, done, multi, payload, size);
-	if (!skb)
-		goto out;
-
-	reply->net = get_net(net);
+	reply->skb = audit_make_reply(seq, type, done, multi, payload, size);
+	if (!reply->skb)
+		goto err;
+	reply->net = get_net(sock_net(NETLINK_CB(request_skb).sk));
 	reply->portid = NETLINK_CB(request_skb).portid;
-	reply->skb = skb;
 
 	tsk = kthread_run(audit_send_reply_thread, reply, "audit_send_reply");
-	if (!IS_ERR(tsk))
-		return;
-	kfree_skb(skb);
-out:
-	kfree(reply);
+	if (IS_ERR(tsk))
+		goto err;
+
+	return;
+
+err:
+	audit_free_reply(reply);
 }
 
 /*

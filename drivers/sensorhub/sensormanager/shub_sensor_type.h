@@ -1,3 +1,18 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #ifndef __SHUB_SENSOR_TYPE_H_
 #define __SHUB_SENSOR_TYPE_H_
 
@@ -30,7 +45,7 @@ enum sensor_type {
 	SENSOR_TYPE_GLANCE_GESTURE,
 	SENSOR_TYPE_PICK_UP_GESTURE,
 	SENSOR_TYPE_WRIST_TILT_GESTURE,
-	SENSOR_TYPE_DEVICE_PRIVATE_BASE = 27, // SENSOR_TYPE_ANDROID_MAX
+	SENSOR_TYPE_DEVICE_ORIENTATION,
 	SENSOR_TYPE_ACCELEROMETER_INT,
 	SENSOR_TYPE_PROXIMITY_RAW,
 	SENSOR_TYPE_GEOMAGNETIC_POWER = 30,
@@ -55,6 +70,9 @@ enum sensor_type {
 	SENSOR_TYPE_TAP_TRACKER,
 	SENSOR_TYPE_SHAKE_TRACKER = 50,
 	SENSOR_TYPE_THERMISTOR,
+	SENSOR_TYPE_DEVICE_ORIENTATION_WU,
+	SENSOR_TYPE_HUB_DEBUGGER,
+	SENSOR_TYPE_SAR_BACKOFF_MOTION = 54,
 	SENSOR_TYPE_LEGACY_MAX,
 };
 #define LEGACY_SENSOR_COUNT                       (SENSOR_TYPE_LEGACY_MAX)

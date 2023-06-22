@@ -312,7 +312,7 @@ static void mmc_manage_enhanced_area(struct mmc_card *card, u8 *ext_csd)
 	}
 }
 
-static void mmc_part_add(struct mmc_card *card, unsigned int size,
+static void mmc_part_add(struct mmc_card *card, u64 size,
 			 unsigned int part_cfg, char *name, int idx, bool ro,
 			 int area_type)
 {
@@ -328,7 +328,7 @@ static void mmc_manage_gp_partitions(struct mmc_card *card, u8 *ext_csd)
 {
 	int idx;
 	u8 hc_erase_grp_sz, hc_wp_grp_sz;
-	unsigned int part_size;
+	u64 part_size;
 
 	/*
 	 * General purpose partition feature support --
@@ -358,8 +358,7 @@ static void mmc_manage_gp_partitions(struct mmc_card *card, u8 *ext_csd)
 				(ext_csd[EXT_CSD_GP_SIZE_MULT + idx * 3 + 1]
 				<< 8) +
 				ext_csd[EXT_CSD_GP_SIZE_MULT + idx * 3];
-			part_size *= (size_t)(hc_erase_grp_sz *
-				hc_wp_grp_sz);
+			part_size *= (hc_erase_grp_sz * hc_wp_grp_sz);
 			mmc_part_add(card, part_size << 19,
 				EXT_CSD_PART_CONFIG_ACC_GP0 + idx,
 				"gp%d", idx, false,
@@ -377,7 +376,7 @@ static void mmc_manage_gp_partitions(struct mmc_card *card, u8 *ext_csd)
 static int mmc_decode_ext_csd(struct mmc_card *card, u8 *ext_csd)
 {
 	int err = 0, idx;
-	unsigned int part_size;
+	u64 part_size;
 	struct device_node *np;
 	bool broken_hpi = false;
 
@@ -439,10 +438,6 @@ static int mmc_decode_ext_csd(struct mmc_card *card, u8 *ext_csd)
 
 		/* EXT_CSD value is in units of 10ms, but we store in ms */
 		card->ext_csd.part_time = 10 * ext_csd[EXT_CSD_PART_SWITCH_TIME];
-		/* Some eMMC set the value too low so set a minimum */
-		if (card->ext_csd.part_time &&
-		    card->ext_csd.part_time < MMC_MIN_PART_SWITCH_TIME)
-			card->ext_csd.part_time = MMC_MIN_PART_SWITCH_TIME;
 
 		/* Sleep / awake timeout in 100ns units */
 		if (sa_shift > 0 && sa_shift <= 0x17)
@@ -632,14 +627,22 @@ static int mmc_decode_ext_csd(struct mmc_card *card, u8 *ext_csd)
 		card->ext_csd.data_sector_size = 512;
 	}
 
+	/*
+	 * GENERIC_CMD6_TIME is to be used "unless a specific timeout is defined
+	 * when accessing a specific field", so use it here if there is no
+	 * PARTITION_SWITCH_TIME.
+	 */
+	if (!card->ext_csd.part_time)
+		card->ext_csd.part_time = card->ext_csd.generic_cmd6_time;
+	/* Some eMMC set the value too low so set a minimum */
+	if (card->ext_csd.part_time < MMC_MIN_PART_SWITCH_TIME)
+		card->ext_csd.part_time = MMC_MIN_PART_SWITCH_TIME;
+
 	/* eMMC v5 or later */
 	if (card->ext_csd.rev >= 7) {
-		int i;
-
-		for (i = 0; i < 8; i++) {
-			card->ext_csd.fwrev[i] =
-				ext_csd[EXT_CSD_FIRMWARE_VERSION + 8 - 1 - i];
-		}
+		for (idx = 0 ; idx < MMC_FIRMWARE_LEN ; idx++)
+			card->ext_csd.fwrev[idx] =
+				ext_csd[EXT_CSD_FIRMWARE_VERSION + MMC_FIRMWARE_LEN - 1 - idx];
 		card->ext_csd.ffu_capable =
 			(ext_csd[EXT_CSD_SUPPORTED_MODE] & 0x1) &&
 			!(ext_csd[EXT_CSD_FW_CONFIG] & 0x1);
@@ -792,42 +795,6 @@ static int mmc_compare_ext_csds(struct mmc_card *card, unsigned bus_width)
 	return err;
 }
 
-static ssize_t mmc_gen_unique_number_show(struct device *dev,
-		struct device_attribute *attr,
-		char *buf)
-{
-	struct mmc_card *card = mmc_dev_to_card(dev);
-	char gen_pnm[3];
-	int i;
-
-	switch (card->cid.manfid) {
-	case 0x02:	/* Sandisk	-> [3][4] */
-	case 0x45:
-		sprintf(gen_pnm, "%.*s", 2, card->cid.prod_name + 3);
-		break;
-	case 0x11:	/* Toshiba	-> [1][2] */
-	case 0x90:	/* Hynix */
-		sprintf(gen_pnm, "%.*s", 2, card->cid.prod_name + 1);
-		break;
-	case 0x13:
-	case 0xFE:	/* Micron	-> [4][5] */
-		sprintf(gen_pnm, "%.*s", 2, card->cid.prod_name + 4);
-		break;
-	case 0x15:	/* Samsung	-> [0][1] */
-	default:
-		sprintf(gen_pnm, "%.*s", 2, card->cid.prod_name + 0);
-		break;
-	}
-	/* Convert to Capital */
-	for (i = 0 ; i < 2 ; i++) {
-		if (gen_pnm[i] >= 'a' && gen_pnm[i] <= 'z')
-			gen_pnm[i] -= ('a' - 'A');
-	}
-	return sprintf(buf, "C%s%02X%08X%02X\n",
-			gen_pnm, card->cid.prv, card->cid.serial,
-			UNSTUFF_BITS(card->raw_cid, 8, 8));
-}
-
 MMC_DEV_ATTR(cid, "%08x%08x%08x%08x\n", card->raw_cid[0], card->raw_cid[1],
 	card->raw_cid[2], card->raw_cid[3]);
 MMC_DEV_ATTR(csd, "%08x%08x%08x%08x\n", card->raw_csd[0], card->raw_csd[1],
@@ -871,7 +838,6 @@ static ssize_t mmc_fwrev_show(struct device *dev,
 	}
 }
 
-static DEVICE_ATTR(unique_number, 0440, mmc_gen_unique_number_show, NULL);
 static DEVICE_ATTR(fwrev, S_IRUGO, mmc_fwrev_show, NULL);
 
 static ssize_t mmc_dsr_show(struct device *dev,
@@ -916,7 +882,6 @@ static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_rca.attr,
 	&dev_attr_dsr.attr,
 	&dev_attr_cmdq_en.attr,
-	&dev_attr_unique_number.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(mmc_std);

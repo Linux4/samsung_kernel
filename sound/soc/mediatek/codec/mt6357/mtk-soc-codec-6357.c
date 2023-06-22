@@ -65,6 +65,8 @@
 #endif
 #include <linux/nvmem-consumer.h>
 
+#include "mtk-soc-speaker-amp.h"
+
 /* Use analog setting to do dc compensation */
 #define ANALOG_HPTRIM
 //#define ANALOG_HPTRIM_FOR_CUST
@@ -590,7 +592,7 @@ static void Zcd_Enable(bool _enable, int device)
 		Ana_Set_Reg(ZCD_CON0, 0x1 << 0, 0x1 << 0);
 	} else {
 		Ana_Set_Reg(AUDDEC_ANA_CON8, 0x4, 0x7);
-		Ana_Set_Reg(ZCD_CON0, 0x0000, 0xfffe);
+		Ana_Set_Reg(ZCD_CON0, 0x0000, 0xffff);
 	}
 }
 static void hp_main_output_ramp(bool up)
@@ -2505,10 +2507,14 @@ static void get_hp_lr_trim_offset(void)
 {
 #ifdef ANALOG_HPTRIM
 	set_lr_trim_code();
-	set_l_trim_code_spk();
+	if (mtk_spk_get_type() == 0)
+		set_l_trim_code_spk();
 #else
 	get_hp_trim_offset();
-	spkl_dc_offset = get_spk_trim_offset(AUDIO_OFFSET_TRIM_MUX_HPL);
+	if (mtk_spk_get_type() == 0)
+		spkl_dc_offset = get_spk_trim_offset(AUDIO_OFFSET_TRIM_MUX_HPL);
+	else
+		spkl_dc_offset = 0;
 #endif
 	udelay(1000);
 	dctrim_calibrated = 2;
@@ -6072,7 +6078,7 @@ static int mtk_codec_dev_probe(struct platform_device *pdev)
 
 	mt63xx_set_local_priv(mCodec_priv);
 
-	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(64);
+	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32);
 	if (pdev->dev.dma_mask == NULL)
 		pdev->dev.dma_mask = &pdev->dev.coherent_dma_mask;
 	if (pdev->dev.of_node) {

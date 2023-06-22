@@ -24,7 +24,12 @@
 #include <linux/component.h>
 #include <linux/of_device.h>
 #include <linux/errno.h>
-
+#include <linux/trace_events.h>
+#include "ddp_hal.h"
+#include "ddp_irq.h"
+#if !defined(CONFIG_SMCDSD_PANEL)
+#include "primary_display.h"
+#endif
 
 struct mtk_uevent_dev {
 	const char *name;
@@ -37,5 +42,8 @@ int uevent_dev_register(struct mtk_uevent_dev *sdev);
 int noti_uevent_user(struct mtk_uevent_dev *sdev, int state);
 
 extern struct mtk_uevent_dev uevent_data;
+
+void vsync_print_handler(enum DISP_MODULE_ENUM module,
+		unsigned int reg_val);
 
 #endif

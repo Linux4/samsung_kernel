@@ -16,4 +16,4 @@ unsigned int Custom_read_region(struct i2c_client *client,
 				unsigned char *data,
 				unsigned int size);
 
-#endif				/* __EEPROM_I2C_CUSTOM_DRIVER_H */
+#endif				/* __CAM_CAL_LIST_H */

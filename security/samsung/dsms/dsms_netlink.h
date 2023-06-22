@@ -13,5 +13,9 @@
 
 extern int __kunit_init dsms_netlink_init(void);
 extern void __kunit_exit dsms_netlink_exit(void);
+extern int dsms_daemon_ready(void);
+extern int dsms_send_netlink_message(const char *feature_code,
+				     const char *detail,
+				     int64_t value);
 
 #endif /* _DSMS_NETLINK_H */

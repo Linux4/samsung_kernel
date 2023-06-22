@@ -374,59 +374,6 @@ static void set_shutter(kal_uint16 shutter)
 		shutter, imgsensor.frame_length);
 }
 
-static void set_shutter_frame_length(kal_uint16 shutter, kal_uint16 frame_length)
-{
-	unsigned long flags;
-	kal_uint16 realtime_fps = 0;
-	kal_int32 dummy_line = 0;
-
-	/* kal_uint32 frame_length = 0; */
-	spin_lock_irqsave(&imgsensor_drv_lock, flags);
-	imgsensor.shutter = shutter;
-	spin_unlock_irqrestore(&imgsensor_drv_lock, flags);
-
-	// if shutter bigger than frame_length, should extend frame length first
-	spin_lock(&imgsensor_drv_lock);
-
-	dummy_line = frame_length - imgsensor.frame_length;
-	imgsensor.frame_length = imgsensor.frame_length + dummy_line;
-
-	if (shutter > imgsensor.frame_length - imgsensor_info.margin)
-		imgsensor.frame_length = shutter + imgsensor_info.margin;
-
-
-	if (imgsensor.frame_length > imgsensor_info.max_frame_length)
-		imgsensor.frame_length = imgsensor_info.max_frame_length;
-	spin_unlock(&imgsensor_drv_lock);
-	shutter = (shutter < imgsensor_info.min_shutter)
-		? imgsensor_info.min_shutter : shutter;
-	shutter =
-		(shutter >
-		(imgsensor_info.max_frame_length - imgsensor_info.margin)) ?
-		(imgsensor_info.max_frame_length - imgsensor_info.margin)
-		: shutter;
-
-	realtime_fps = imgsensor.pclk
-		/ imgsensor.line_length * 10 / imgsensor.frame_length;
-
-	if (imgsensor.autoflicker_en) {
-		if (realtime_fps >= 297 && realtime_fps <= 305)
-			set_max_framerate(296, 0);
-		else if (realtime_fps >= 147 && realtime_fps <= 150)
-			set_max_framerate(146, 0);
-		else
-			set_max_framerate(realtime_fps, 0);
-	} else
-		set_max_framerate(realtime_fps, 0);
-
-	write_cmos_sensor(0xfe, 0x00);
-	write_cmos_sensor(0x03, (shutter >> 8) & 0x3f);
-	write_cmos_sensor(0x04, shutter  & 0xff);
-	pr_debug("shutter = %d, framelength = %d Stereo\n",
-		shutter, imgsensor.frame_length);
-}
-
-
 /*************************************************************************
  * FUNCTION
  *	set_gain
@@ -2290,8 +2237,8 @@ static kal_uint32 set_max_framerate_by_scenario(enum MSDK_SCENARIO_ID_ENUM
 			imgsensor_info.pre.framelength + imgsensor.dummy_line;
 		imgsensor.min_frame_length = imgsensor.frame_length;
 		spin_unlock(&imgsensor_drv_lock);
-	if (imgsensor.frame_length > imgsensor.shutter)
-		set_dummy();
+		if (imgsensor.frame_length > imgsensor.shutter)
+			set_dummy();
 		break;
 	case MSDK_SCENARIO_ID_VIDEO_PREVIEW:
 		if (framerate == 0)
@@ -2645,9 +2592,6 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 	case SENSOR_FEATURE_SET_FLASHLIGHT:
 	break;
 	case SENSOR_FEATURE_SET_ISP_MASTER_CLOCK_FREQ:
-	break;
-	case SENSOR_FEATURE_SET_SHUTTER_FRAME_TIME:
-	set_shutter_frame_length((UINT16) (*feature_data), (UINT16) (*(feature_data + 1)));
 	break;
 	case SENSOR_FEATURE_SET_REGISTER:
 		write_cmos_sensor(sensor_reg_data->RegAddr,

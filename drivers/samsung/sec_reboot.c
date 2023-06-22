@@ -54,7 +54,7 @@ extern int mtk_pmic_pwrkey_status(void);
 static void sec_power_off(void)
 {
 	int pressed;
-	union power_supply_propval ac_val, usb_val, wc_val;
+	union power_supply_propval ac_val = {0, }, usb_val = {0, }, wc_val = {0, };
 	struct power_supply *ac_psy = power_supply_get_by_name("ac");
 	struct power_supply *usb_psy = power_supply_get_by_name("usb");
 	struct power_supply *wc_psy = power_supply_get_by_name("wireless");
@@ -72,18 +72,6 @@ static void sec_power_off(void)
 	__inner_flush_dcache_all();
 
 	while (1) {
-		/* Check reboot charging */
-		if (ac_val.intval || usb_val.intval || wc_val.intval) {
-			pr_emerg("%s: charger connected, reboot!\n", __func__);
-			/* To enter LP charging */
-			LAST_RR_SET(is_power_reset, SEC_POWER_OFF);
-			LAST_RR_SET(power_reset_reason, SEC_RESET_REASON_IN_OFFSEQ);
-
-			mach_restart(REBOOT_COLD, "hw reset");
-
-			while (1);
-		}
-
 		/* wait for power button release */
 		pressed = mtk_pmic_pwrkey_status();
 		if (!pressed) {

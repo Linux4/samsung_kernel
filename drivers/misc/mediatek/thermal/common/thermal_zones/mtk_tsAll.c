@@ -45,7 +45,7 @@ static struct thz_data g_tsData[RESERVED_TZS];
 
 #if AUTO_GEN_COOLERS
 static int tztsAll_polling_interval = 1000; /* mseconds, 0 : no auto polling */
-static int tztsAll_enable_switch = 1; /* 1: switch on, 0: switch off */
+static int tztsAll_enable_switch; /* 1: switch on, 0: switch off */
 struct cooler_data {
 	struct thermal_cooling_device *cooler_dev;
 	int state; /* 0: inactivated, 1: activated */

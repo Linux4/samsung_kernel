@@ -584,8 +584,8 @@ long eeprom_ioctl_control_command(struct stCAM_CAL_INFO_STRUCT *camCalInfo,
 #define NEW_UNLOCK_IOCTL
 #ifndef NEW_UNLOCK_IOCTL
 static int EEPROM_drv_ioctl(struct inode *a_pstInode,
-				struct file *a_pstFile,
-				unsigned int a_u4Command, unsigned long a_u4Param)
+			    struct file *a_pstFile,
+			    unsigned int a_u4Command, unsigned long a_u4Param)
 #else
 static long EEPROM_drv_ioctl(struct file *file,
 	unsigned int a_u4Command, unsigned long a_u4Param)
@@ -607,6 +607,7 @@ static long EEPROM_drv_ioctl(struct file *file,
 		pBuff = kmalloc(sizeof(struct stCAM_CAL_INFO_STRUCT),
 					GFP_KERNEL);
 		if (pBuff == NULL) {
+
 			pr_debug("ioctl allocate pBuff mem failed\n");
 			return -ENOMEM;
 		}
@@ -689,8 +690,7 @@ static long EEPROM_drv_ioctl(struct file *file,
 				i4RetValue = pcmdInf->writeCMDFunc(
 					pcmdInf->client,
 					ptempbuf,
-					ptempbuf->u4Offset,
-					pu1Params,
+					ptempbuf->u4Offset, pu1Params,
 					ptempbuf->u4Length);
 			} else
 				pr_debug("pcmdInf->writeCMDFunc == NULL\n");
@@ -757,14 +757,14 @@ static long EEPROM_drv_ioctl(struct file *file,
 		}
 
 		if (pcmdInf != NULL) {
-			if (pcmdInf->readCMDFunc != NULL) {
+			if (pcmdInf->readCMDFunc != NULL)
 				i4RetValue =
 					pcmdInf->readCMDFunc(pcmdInf->client,
 							ptempbuf,
-							ptempbuf->u4Offset,
-							pu1Params,
-							ptempbuf->u4Length);
-			} else {
+							  ptempbuf->u4Offset,
+							  pu1Params,
+							  ptempbuf->u4Length);
+			else {
 				pr_debug("pcmdInf->readCMDFunc == NULL\n");
 				kfree(pBuff);
 				kfree(pu1Params);
@@ -791,7 +791,7 @@ static long EEPROM_drv_ioctl(struct file *file,
 
 	default:
 		pr_debug("No CMD\n");
-		i4RetValue = -EINVAL;
+		i4RetValue = -EPERM;
 		break;
 	}
 

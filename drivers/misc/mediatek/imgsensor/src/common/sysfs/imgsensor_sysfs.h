@@ -243,4 +243,5 @@ const struct imgsensor_vendor_rom_addr *imgsensor_sys_get_rom_addr_by_id(
 	unsigned int dualDeviceId, unsigned int sensorId);
 int imgsensor_get_cal_size_by_sensor_idx(int sensor_idx);
 int imgsensor_get_cal_buf_by_sensor_idx(int sensor_idx, char **buf);
+bool get_sr846d_is_default_cal(void);
 #endif /* _IMGSENSOR_SYSFS_H_ */

@@ -1,3 +1,18 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include <linux/of_gpio.h>
 #include <linux/slab.h>
 
@@ -161,7 +176,6 @@ static int inject_light_ab_additional_data(char *buf, int count)
 {
 	struct light_autobrightness_data *data = get_sensor(SENSOR_TYPE_LIGHT_AUTOBRIGHTNESS)->data;
 
-	data->camera_lux;
 	if (count < 4) {
 		shub_errf("camera lux length error %d", count);
 		return -EINVAL;
@@ -174,21 +188,29 @@ static int inject_light_ab_additional_data(char *buf, int count)
 	return 0;
 }
 
-void init_light_autobrightness(bool en)
+int init_light_autobrightness(bool en)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT_AUTOBRIGHTNESS);
 
 	if (!sensor)
-		return;
+		return 0;
 
 	if (en) {
 		strcpy(sensor->name, "auto_brightness");
 		sensor->receive_event_size = 9;
 		sensor->report_event_size = 5;
 		sensor->event_buffer.value = kzalloc(sizeof(struct light_ab_event), GFP_KERNEL);
+		if (!sensor->event_buffer.value)
+			goto err_no_mem;
 
 		sensor->data = kzalloc(sizeof(struct light_autobrightness_data), GFP_KERNEL);
+		if (!sensor->data)
+			goto err_no_mem;
+
 		sensor->funcs = kzalloc(sizeof(struct sensor_funcs), GFP_KERNEL);
+		if (!sensor->funcs)
+			goto err_no_mem;
+
 		sensor->funcs->sync_status = sync_light_autobrightness_status;
 		sensor->funcs->enable = enable_light_autobrightness;
 		sensor->funcs->disable = disable_light_autobrightness;
@@ -209,5 +231,17 @@ void init_light_autobrightness(bool en)
 		sensor->event_buffer.value = NULL;
 	}
 
-	return;
+	return 0;
+
+err_no_mem:
+	kfree(sensor->event_buffer.value);
+	sensor->event_buffer.value = NULL;
+
+	kfree(sensor->data);
+	sensor->data = NULL;
+
+	kfree(sensor->funcs);
+	sensor->funcs = NULL;
+
+	return -ENOMEM;
 }

@@ -36,6 +36,9 @@
 
 #include "gz_main.h"
 #include "mtee_ut/gz_ut.h"
+#include "mtee_ut/gz_shmem_ut.h"
+#include "mtee_ut/gz_chmem_ut.h"
+#include "mtee_ut/gz_vreg_ut.h"
 #include "unittest.h"
 
 #define enable_code 0 /*replace #if 0*/
@@ -74,15 +77,8 @@ uint32_t sdsp_elf_size[2] = { 0, 0 };
 uint64_t sdsp_elf_pa[2] = { 0, 0 };
 #endif
 
-#define MTEE_kernel_UT_RUN 1
-#if MTEE_kernel_UT_RUN		//add tmp
-#include "mtee_ut/gz_shmem_ut.h"
-#include "mtee_ut/gz_chmem_ut.h"
-#include "mtee_ut/gz_rkp_ut.h"
-#include "mtee_ut/gz_sec_storage_ut.h"
-#endif
-
-#define KREE_DEBUG(fmt...) pr_debug("[KREE]" fmt)
+//#define KREE_DEBUG(fmt...) pr_debug("[KREE]" fmt)
+#define KREE_DEBUG(fmt...) pr_info("[KREE]" fmt)
 #define KREE_INFO(fmt...) pr_info("[KREE]" fmt)
 #define KREE_ERR(fmt...) pr_info("[KREE][ERR]" fmt)
 
@@ -138,41 +134,24 @@ static ssize_t gz_test_store(struct device *dev,
 		th = kthread_run(get_gz_version, NULL, "GZ version");
 		break;
 	case '1':
-		KREE_DEBUG("test tipc\n");
-		th = kthread_run(gz_tipc_test, NULL, "GZ tipc test");
+		KREE_DEBUG("test simple ut\n");
+		th = kthread_run(simple_ut, NULL, "Simple test");
 		break;
 	case '2':
-		KREE_DEBUG("test general functions\n");
-		th = kthread_run(gz_test, NULL, "GZ KREE test");
+		KREE_DEBUG("test_gz_syscall\n"); /*ReeServiceCall*/
+		th = kthread_run(test_gz_syscall, NULL, "test_gz_syscall");
 		break;
 	case '3':
-		KREE_DEBUG("test shared memory functions\n");
-		th = kthread_run(gz_test_shm, NULL, "GZ KREE test");
+		KREE_DEBUG("gz_test_shm\n");
+		th = kthread_run(gz_test_shm, NULL, "test_shm");
 		break;
 	case '4':
-		KREE_DEBUG("test GenieZone abort\n");
-		th = kthread_run(gz_abort_test, NULL, "GZ KREE test");
+		KREE_DEBUG("gz_test_chm\n");
+		th = kthread_run(gz_test_chm, NULL, "test_chm");
 		break;
 	case '5':
-		KREE_DEBUG("test chunk memory\n");
-		th = kthread_run(chunk_memory_ut, NULL, "MCM UT");
-		break;
-	case '6':
-		KREE_DEBUG("test VReg\n");
-		th = kthread_run(vreg_test, NULL, "VReg test");
-		break;
-	case '9':
-		KREE_DEBUG("test RKP_GZKM\n");
-		th = kthread_run(test_rkp_gzkernel_memory, NULL, "RKP_GZKM");
-		break;
-	case 'a':
-		KREE_DEBUG("test RKP\n");
-		th = kthread_run(test_rkp, NULL, "RKP_LinuxKM");
-		break;
-	case 'C':
-		KREE_DEBUG("test GZ Secure Storage\n");
-		th = kthread_run(test_SecureStorageBasic, NULL,
-				 "sec_storage_ut");
+		KREE_DEBUG("gz_test_vreg\n");
+		th = kthread_run(gz_test_vreg, NULL, "test_vreg");
 		break;
 	default:
 		KREE_DEBUG("err: unknown test case\n");
@@ -695,7 +674,7 @@ static int gz_dev_release(struct inode *inode, struct file *filp)
  *  DEV DRIVER IOCTL
  *  Ported from trustzone driver
  **************************************************************************/
-static long tz_client_open_session(struct file *filep, unsigned long arg)
+static long tz_client_open_session(struct file *filep, void __user *arg)
 {
 	struct kree_session_cmd_param param;
 	unsigned long cret;
@@ -704,7 +683,7 @@ static long tz_client_open_session(struct file *filep, unsigned long arg)
 	TZ_RESULT ret;
 	KREE_SESSION_HANDLE handle = 0;
 
-	cret = copy_from_user(&param, (void *)arg, sizeof(param));
+	cret = copy_from_user(&param, arg, sizeof(param));
 	if (cret)
 		return -EFAULT;
 
@@ -713,7 +692,7 @@ static long tz_client_open_session(struct file *filep, unsigned long arg)
 		return -EFAULT;
 
 	KREE_DEBUG("%s: uuid addr = 0x%llx\n", __func__, param.data);
-	len = strncpy_from_user(uuid, (void *)(unsigned long)param.data,
+	len = strncpy_from_user(uuid, (void *)param.data,
 		sizeof(uuid));
 	if (len <= 0)
 		return -EFAULT;
@@ -732,20 +711,20 @@ static long tz_client_open_session(struct file *filep, unsigned long arg)
 tz_client_open_session_end:
 	param.ret = ret;
 	param.handle = handle;
-	cret = copy_to_user((void *)arg, &param, sizeof(param));
+	cret = copy_to_user(arg, &param, sizeof(param));
 	if (cret)
 		return cret;
 
 	return 0;
 }
 
-static long tz_client_close_session(struct file *filep, unsigned long arg)
+static long tz_client_close_session(struct file *filep, void __user *arg)
 {
 	struct kree_session_cmd_param param;
 	unsigned long cret;
 	TZ_RESULT ret;
 
-	cret = copy_from_user(&param, (void *)arg, sizeof(param));
+	cret = copy_from_user(&param, arg, sizeof(param));
 	if (cret)
 		return -EFAULT;
 
@@ -762,14 +741,14 @@ static long tz_client_close_session(struct file *filep, unsigned long arg)
 
 _tz_client_close_session_end:
 	param.ret = ret;
-	cret = copy_to_user((void *)arg, &param, sizeof(param));
+	cret = copy_to_user(arg, &param, sizeof(param));
 	if (cret)
 		return -EFAULT;
 
 	return 0;
 }
 
-static long tz_client_tee_service(struct file *file, unsigned long arg,
+static long tz_client_tee_service(struct file *file, void __user *arg,
 	unsigned int compat)
 {
 	struct kree_tee_service_cmd_param cparam;
@@ -782,7 +761,7 @@ static long tz_client_tee_service(struct file *file, unsigned long arg,
 	void __user *ubuf;
 	uint32_t ubuf_sz;
 
-	cret = copy_from_user(&cparam, (void *)arg, sizeof(cparam));
+	cret = copy_from_user(&cparam, arg, sizeof(cparam));
 	if (cret) {
 		KREE_ERR("%s: copy_from_user(msg) failed\n", __func__);
 		return -EFAULT;
@@ -897,8 +876,8 @@ static long tz_client_tee_service(struct file *file, unsigned long arg,
 		}
 	}
 
-	ret = KREE_TeeServiceCall(handle, cparam.command, cparam.paramTypes,
-			param);
+	ret = KREE_TeeServiceCallPlus(handle, cparam.command, cparam.paramTypes,
+				      param, cparam.cpumask);
 
 	cparam.ret = ret;
 	tmpTypes = cparam.paramTypes;
@@ -955,7 +934,7 @@ static long tz_client_tee_service(struct file *file, unsigned long arg,
 	}
 
 
-	cret = copy_to_user((void *)arg, &cparam, sizeof(cparam));
+	cret = copy_to_user(arg, &cparam, sizeof(cparam));
 	if (cret) {
 		KREE_ERR("%s: copy_to_user(msg) failed\n", __func__);
 		return -EFAULT;
@@ -980,105 +959,6 @@ error:
 		}
 	}
 	return cret;
-}
-
-static long _sc_test_cp_chm2shm(struct file *filep, unsigned long arg)
-{
-
-	struct kree_user_sc_param cparam;
-	int ret;
-	KREE_ION_HANDLE ION_Handle = 0;
-	KREE_SECUREMEM_HANDLE shm_handle;
-	KREE_SESSION_HANDLE cp_session;
-	uint32_t size;
-
-	/* copy param from user */
-	ret = copy_from_user(&cparam, (void *)arg, sizeof(cparam));
-
-	if (ret < 0) {
-		KREE_ERR("%s: copy_from_user failed(%d)\n", __func__, ret);
-		return ret;
-	}
-
-	/*input params */
-	shm_handle = cparam.other_handle;
-	ION_Handle = cparam.ION_handle;	/*need to transform to mem_handle */
-	size = cparam.size;	/*alloc size */
-	cp_session = cparam.chmp.alloc_chm_session;
-
-	KREE_DEBUG("[%s] input: cp_session=0x%x, shm_handle=0x%x\n",
-		__func__, cp_session, shm_handle);
-	KREE_DEBUG("[%s] input: ION_Handle=0x%x, size=0x%x\n",
-		__func__, ION_Handle, size);
-
-	ret = KREE_ION_CP_Chm2Shm(cp_session, ION_Handle, shm_handle, size);
-
-	if (ret != TZ_RESULT_SUCCESS)
-		KREE_ERR("[%s] KREE_ION_CP_Chm2Shm Fail. ret=0x%x\n", __func__,
-			ret);
-	else
-		KREE_DEBUG("[OK]KREE_ION_CP_Chm2Shm done\n");
-
-	return ret;
-}
-
-static long _sc_test_upt_chmdata(struct file *filep, unsigned long arg)
-{
-	struct kree_user_sc_param cparam;
-	int ret;
-	KREE_ION_HANDLE ION_Handle = 0;
-	KREE_SECUREMEM_HANDLE shm_handle;
-	KREE_SESSION_HANDLE echo_session = 0;
-	union MTEEC_PARAM param[4];
-	uint32_t size;
-
-	/* copy param from user */
-	ret = copy_from_user(&cparam, (void *)arg, sizeof(cparam));
-
-	if (ret < 0) {
-		KREE_ERR("%s: copy_from_user failed(%d)\n", __func__, ret);
-		return ret;
-	}
-
-	/*input params */
-	shm_handle = cparam.other_handle;
-	ION_Handle = cparam.ION_handle;
-	size = cparam.size;
-
-	/*create session for echo */
-	ret = KREE_CreateSession(echo_srv_name, &echo_session);
-	if (ret != TZ_RESULT_SUCCESS) {
-		KREE_ERR
-		("echo_srv CreateSession (echo_session:0x%x) Error: %d\n",
-		(uint32_t) echo_session, ret);
-		return ret;
-	}
-	KREE_DEBUG("[OK] create echo_session=0x%x.\n", (uint32_t) echo_session);
-
-	param[0].value.a = ION_Handle; /*need to transform to mem_handle */
-	param[1].value.a = size;       /*alloc size */
-
-	KREE_DEBUG("[%s] input: shm_handle=0x%x. ION_Handle=0x%x\n", __func__,
-		param[0].value.b, param[0].value.a);
-
-	/*test: modify chm memory data */
-	/*TZCMD_TEST_CHM_UPT_DATA */
-	ret = KREE_ION_AccessChunkmem(echo_session, param, 0x9989);
-	if (ret != TZ_RESULT_SUCCESS)
-		KREE_ERR("[%s] modify chm memory data Fail. ret=0x%x\n",
-			__func__, ret);
-	else
-		KREE_DEBUG("[OK]modify chm memory data done\n");
-
-	ret = KREE_CloseSession(echo_session);
-	if (ret != TZ_RESULT_SUCCESS)
-		KREE_ERR("KREE_CloseSession Error:echo_session=0x%x, ret=%d\n",
-			 (uint32_t) echo_session, ret);
-	else
-		KREE_DEBUG("[OK] close session OK. echo_session=0x%x\n",
-			   (uint32_t) echo_session);
-
-	return ret;
 }
 
 #define SZ_32KB (32*1024)
@@ -1242,14 +1122,14 @@ int gz_adjust_task_attr(struct trusty_task_attr *manual_task_attr)
 	return trusty_adjust_task_attr(tz_system_dev->dev.parent, manual_task_attr);
 }
 
-TZ_RESULT gz_manual_adjust_trusty_wq_attr(char __user *user_req)
+TZ_RESULT gz_manual_adjust_trusty_wq_attr(void __user *user_req)
 {
 	int err;
 	char str[32];
 	struct trusty_task_attr manual_task_attr;
 
 	err = copy_from_user(&str, user_req, sizeof(str));
-	if (err < 0) {
+	if (err) {
 		KREE_ERR("[%s]copy_from_user fail(0x%x)\n", __func__,
 			err);
 		return err;
@@ -1272,35 +1152,28 @@ TZ_RESULT gz_manual_adjust_trusty_wq_attr(char __user *user_req)
 		manual_task_attr.mask[TRUSTY_TASK_CHK_ID],
 		manual_task_attr.pri[TRUSTY_TASK_CHK_ID]);
 
+	tipc_set_default_cpumask(manual_task_attr.mask[TRUSTY_TASK_KICK_ID]);
+
 	return gz_adjust_task_attr(&manual_task_attr);
 }
 
-static long _gz_ioctl(struct file *filep, unsigned int cmd, unsigned long arg,
+static long _gz_ioctl(struct file *filep, unsigned int cmd, void __user *arg,
 	unsigned int compat)
 {
 	int err;
 	TZ_RESULT ret = 0;
-	char __user *user_req;
 	struct user_shm_param shm_data;
-	struct kree_user_sc_param cparam;
 	KREE_SHAREDMEM_HANDLE shm_handle = 0;
 
 	if (_IOC_TYPE(cmd) != MTEE_IOC_MAGIC)
 		return -EINVAL;
 
-#if IS_ENABLED(CONFIG_COMPAT)
-	if (compat)
-		user_req = (char __user *)compat_ptr(arg);
-	else
-#endif
-		user_req = (char __user *)arg;
-
 	switch (cmd) {
 	case MTEE_CMD_SHM_REG:
 		KREE_DEBUG("[%s]cmd=MTEE_CMD_SHM_REG(0x%x)\n", __func__, cmd);
 		/* copy param from user */
-		err = copy_from_user(&shm_data, user_req, sizeof(shm_data));
-		if (err < 0) {
+		err = copy_from_user(&shm_data, arg, sizeof(shm_data));
+		if (err) {
 			KREE_ERR("[%s]copy_from_user fail(0x%x)\n", __func__,
 				err);
 			return err;
@@ -1323,16 +1196,12 @@ static long _gz_ioctl(struct file *filep, unsigned int cmd, unsigned long arg,
 
 		/* copy result back to user */
 		shm_data.session = ret;
-		err = copy_to_user(user_req, &shm_data, sizeof(shm_data));
-		if (err < 0) {
+		err = copy_to_user(arg, &shm_data, sizeof(shm_data));
+		if (err) {
 			KREE_ERR("[%s]copy_to_user fail(0x%x)\n", __func__,
 				err);
 			return err;
 		}
-		break;
-
-	case MTEE_CMD_SHM_UNREG:
-		/* do nothing */
 		break;
 
 	case MTEE_CMD_OPEN_SESSION:
@@ -1362,41 +1231,6 @@ static long _gz_ioctl(struct file *filep, unsigned int cmd, unsigned long arg,
 			cmd);
 		return tz_client_tee_service(filep, arg, compat);
 
-	case MTEE_CMD_SC_TEST_CP_CHM2SHM:	/*Secure Camera Test */
-		KREE_DEBUG("[%s]cmd=MTEE_CMD_SC_TEST_CP_CHM2SHM(0x%x)\n",
-			__func__, cmd);
-		return _sc_test_cp_chm2shm(filep, arg);
-
-	case MTEE_CMD_SC_TEST_UPT_CHMDATA:	/*Secure Camera Test */
-		KREE_DEBUG("[%s]cmd=MTEE_CMD_SC_TEST_UPT_CHMDATA(0x%x)\n",
-			__func__, cmd);
-		return _sc_test_upt_chmdata(filep, arg);
-
-	case MTEE_CMD_SC_CHMEM_HANDLE:
-		KREE_DEBUG("[%s]cmd=MTEE_CMD_SC_CHMEM_HANDLE(0x%x)\n", __func__,
-			cmd);
-		err = copy_from_user(&cparam, user_req, sizeof(cparam));
-		if (err < 0) {
-			KREE_ERR("[%s]copy_from_user fail(0x%x)\n", __func__,
-				err);
-			return err;
-		}
-		ret =
-			_IONHandle2MemHandle(cparam.ION_handle,
-			&(cparam.other_handle));
-		if (ret != TZ_RESULT_SUCCESS) {
-			KREE_ERR("[%s]_IONHandle2MemHandle fail(0x%x)\n",
-				__func__, ret);
-			return ret;
-		}
-		err = copy_to_user(user_req, &cparam, sizeof(cparam));
-		if (err < 0) {
-			KREE_ERR("[%s]copy_to_user fail(0x%x)\n", __func__,
-				err);
-			return err;
-		}
-		break;
-
 #ifndef CONFIG_MTK_GZ_SUPPORT_SDSP
 	case MTEE_CMD_FOD_TEE_SHM_ON:
 		KREE_DEBUG("====> MTEE_CMD_FOD_TEE_SHM_ON ====\n");
@@ -1410,7 +1244,7 @@ static long _gz_ioctl(struct file *filep, unsigned int cmd, unsigned long arg,
 #endif
 
 	case MTEE_CMD_ADJUST_WQ_ATTR:
-		ret = gz_manual_adjust_trusty_wq_attr(user_req);
+		ret = gz_manual_adjust_trusty_wq_attr(arg);
 		break;
 
 	default:
@@ -1425,8 +1259,9 @@ static long _gz_ioctl(struct file *filep, unsigned int cmd, unsigned long arg,
 static long gz_ioctl(struct file *filep, unsigned int cmd, unsigned long arg)
 {
 	long ret;
+	void __user *user_req = (void __user *)arg;
 
-	ret = _gz_ioctl(filep, cmd, arg, 0);
+	ret = _gz_ioctl(filep, cmd, user_req, 0);
 	return ret;
 }
 
@@ -1435,8 +1270,9 @@ static long gz_compat_ioctl(struct file *filep, unsigned int cmd,
 	unsigned long arg)
 {
 	long ret;
+	void __user *user_req = (void __user *)compat_ptr(arg);
 
-	ret = _gz_ioctl(filep, cmd, arg, 1);
+	ret = _gz_ioctl(filep, cmd, user_req, 1);
 	return ret;
 }
 #endif
@@ -1465,7 +1301,6 @@ static struct devapc_vio_callbacks gz_devapc_vio_handle = {
 #endif
 
 #endif
-
 /************ kernel module init entry ***************/
 static int __init gz_init(void)
 {
@@ -1478,7 +1313,6 @@ static int __init gz_init(void)
 		KREE_DEBUG("create sysfs failed: %d\n", res);
 	} else {
 		struct task_struct *gz_get_cpuinfo_task;
-		struct task_struct *ree_dummy_task;
 
 		gz_get_cpuinfo_task =
 		    kthread_create(gz_get_cpuinfo_thread, NULL,
@@ -1489,17 +1323,6 @@ static int __init gz_init(void)
 			res = PTR_ERR(gz_get_cpuinfo_task);
 		} else
 			wake_up_process(gz_get_cpuinfo_task);
-
-		ree_dummy_task =
-		kthread_create(ree_dummy_thread, NULL, "ree_dummy_task");
-		if (IS_ERR(ree_dummy_task)) {
-			KREE_ERR("Unable to start kernel thread %s\n",
-				__func__);
-			res = PTR_ERR(ree_dummy_task);
-		} else {
-			set_user_nice(ree_dummy_task, -20);
-			wake_up_process(ree_dummy_task);
-		}
 	}
 
 #if enable_code

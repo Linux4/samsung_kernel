@@ -30,6 +30,9 @@
 /*********** sub module : cond ************/
 #if IS_ENABLED(CONFIG_SEC_ABC_HUB_COND)
 #define DET_CONN_MAX_NUM_GPIOS 32
+#define DET_CONN_GPIO_IRQ_NOT_INIT 0
+#define DET_CONN_GPIO_IRQ_ENABLED 1
+#define DET_CONN_GPIO_IRQ_DISABLED 2
 
 struct sub_cond_pdata {
 	// common

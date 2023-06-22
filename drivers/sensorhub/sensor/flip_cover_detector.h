@@ -33,8 +33,10 @@ struct flip_cover_detector_event {
 struct flip_cover_detector_data {
 	int factory_cover_status;
 	int nfc_cover_status;
-	uint8_t axis_update;
+	uint32_t axis_update;
 	int32_t threshold_update;
 };
+
+bool check_flip_cover_detector_supported(void);
 
 #endif /* __SHUB_FLIP_COVER_DETECTOR_H_ */

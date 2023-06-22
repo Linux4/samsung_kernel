@@ -29,11 +29,11 @@
 static const int read_expire = HZ / 2;  /* max time before a read is submitted. */
 static const int write_expire = 5 * HZ; /* ditto for writes, these limits are SOFT! */
 static const int writes_starved = 2;    /* max times reads can starve a write */
-/* IOPP-mq_dd_max_async_dispatch-v1.0.k5.4 */
+/* IOPP-mq_dd_max_async_dispatch-v2.0.k5.4 */
 static const int fifo_batch;		/* # of sequential requests treated as one
 				     by the above parameters. For throughput. */
-static const int async_percent = 25;	/* reserve 75% of requests for sync. */
-static const unsigned int max_async_depth = 8;	/* maximun value of async request. */
+static const int async_write_percent = 25;     /* max tags percentige for async write */
+static const unsigned int max_async_write_tags = 8;    /* max tags for async write. */
 
 struct deadline_data {
 	/*
@@ -60,7 +60,8 @@ struct deadline_data {
 	int fifo_batch;
 	int writes_starved;
 	int front_merges;
-	int async_word_depth;
+	int async_write_depth;	/* async write depth for each tag map */
+	atomic_t async_write_cnt;
 
 	spinlock_t lock;
 	spinlock_t zone_lock;
@@ -403,47 +404,57 @@ static unsigned int dd_sched_tags_depth(struct request_queue *q)
 	return q->queue_hw_ctx[0]->sched_tags->bitmap_tags.sb.depth;
 }
 
-static unsigned int dd_set_async_word_depth(struct request_queue *q)
+static void dd_set_shallow_depth(struct request_queue *q)
 {
+	struct deadline_data *dd = q->elevator->elevator_data;
 	unsigned int map_nr;
 	unsigned int depth;
-	unsigned int async_depth;
-
-	/* depth = map_nr * word_depth */
+	unsigned int async_write_depth;
 
 	depth = dd_sched_tags_depth(q);
 	map_nr = dd_sched_tags_map_nr(q);
 
-	async_depth = depth * async_percent / 100U;
-	async_depth = min(async_depth, max_async_depth);
+	async_write_depth = depth * async_write_percent / 100U;
+	async_write_depth = min(async_write_depth, max_async_write_tags);
 
-	return (async_depth/map_nr) ? (async_depth/map_nr):1;
+	dd->async_write_depth =
+		(async_write_depth / map_nr) ? (async_write_depth / map_nr) : 1;
 }
 
 static void dd_depth_updated(struct blk_mq_hw_ctx *hctx)
 {
-	struct deadline_data *dd = hctx->queue->elevator->elevator_data;
 	struct request_queue *q = hctx->queue;
+	struct deadline_data *dd = hctx->queue->elevator->elevator_data;
 
-	dd->async_word_depth = dd_set_async_word_depth(q);
-	sbitmap_queue_min_shallow_depth(&hctx->sched_tags->bitmap_tags, dd->async_word_depth);
+	dd_set_shallow_depth(q);
+	sbitmap_queue_min_shallow_depth(&hctx->sched_tags->bitmap_tags,
+			dd->async_write_depth);
+}
+
+static inline bool dd_op_is_async_write(unsigned int op)
+{
+	return (op & REQ_OP_MASK) == REQ_OP_WRITE && !op_is_sync(op);
 }
 
 static void dd_limit_depth(unsigned int op, struct blk_mq_alloc_data *data)
 {
-	if (!op_is_sync(op)) {
-		struct deadline_data *dd = data->q->elevator->elevator_data;
+	struct deadline_data *dd = data->q->elevator->elevator_data;
 
-		data->shallow_depth = dd->async_word_depth;
-	}
+	if (!dd_op_is_async_write(op))
+		return;
+
+	if (atomic_read(&dd->async_write_cnt) > max_async_write_tags)
+		data->shallow_depth = dd->async_write_depth;
 }
 
 static int dd_init_hctx(struct blk_mq_hw_ctx *hctx, unsigned int hctx_idx)
 {
-	struct deadline_data *dd = hctx->queue->elevator->elevator_data;
+	struct request_queue *q = hctx->queue;
+	struct deadline_data *dd = q->elevator->elevator_data;
 
+	dd_set_shallow_depth(q);
 	sbitmap_queue_min_shallow_depth(&hctx->sched_tags->bitmap_tags,
-			dd->async_word_depth);
+			dd->async_write_depth);
 	return 0;
 }
 
@@ -485,11 +496,10 @@ static int dd_init_queue(struct request_queue *q, struct elevator_type *e)
 	dd->writes_starved = writes_starved;
 	dd->front_merges = 1;
 	dd->fifo_batch = fifo_batch;
+	atomic_set(&dd->async_write_cnt, 0);
 	spin_lock_init(&dd->lock);
 	spin_lock_init(&dd->zone_lock);
 	INIT_LIST_HEAD(&dd->dispatch);
-
-	dd->async_word_depth = dd_set_async_word_depth(q);
 
 	q->elevator = eq;
 	return 0;
@@ -601,6 +611,10 @@ static void dd_insert_requests(struct blk_mq_hw_ctx *hctx,
  */
 static void dd_prepare_request(struct request *rq, struct bio *bio)
 {
+	struct deadline_data *dd = rq->q->elevator->elevator_data;
+
+	if (dd_op_is_async_write(rq->cmd_flags))
+		atomic_inc(&dd->async_write_cnt);
 }
 
 /*
@@ -620,9 +634,9 @@ static void dd_prepare_request(struct request *rq, struct bio *bio)
 static void dd_finish_request(struct request *rq)
 {
 	struct request_queue *q = rq->q;
+	struct deadline_data *dd = q->elevator->elevator_data;
 
 	if (blk_queue_is_zoned(q)) {
-		struct deadline_data *dd = q->elevator->elevator_data;
 		unsigned long flags;
 
 		spin_lock_irqsave(&dd->zone_lock, flags);
@@ -635,6 +649,12 @@ static void dd_finish_request(struct request *rq)
 		}
 		spin_unlock_irqrestore(&dd->zone_lock, flags);
 	}
+
+	if (unlikely(!(rq->rq_flags & RQF_ELVPRIV)))
+		return;
+
+	if (dd_op_is_async_write(rq->cmd_flags))
+		atomic_dec(&dd->async_write_cnt);
 }
 
 static bool dd_has_work(struct blk_mq_hw_ctx *hctx)
@@ -677,7 +697,7 @@ SHOW_FUNCTION(deadline_write_expire_show, dd->fifo_expire[WRITE], 1);
 SHOW_FUNCTION(deadline_writes_starved_show, dd->writes_starved, 0);
 SHOW_FUNCTION(deadline_front_merges_show, dd->front_merges, 0);
 SHOW_FUNCTION(deadline_fifo_batch_show, dd->fifo_batch, 0);
-SHOW_FUNCTION(deadline_async_word_depth_show, dd->async_word_depth, 0);
+SHOW_FUNCTION(deadline_async_write_depth_show, dd->async_write_depth, 0);
 #undef SHOW_FUNCTION
 
 #define STORE_FUNCTION(__FUNC, __PTR, MIN, MAX, __CONV)			\
@@ -715,7 +735,7 @@ static struct elv_fs_entry deadline_attrs[] = {
 	DD_ATTR(writes_starved),
 	DD_ATTR(front_merges),
 	DD_ATTR(fifo_batch),
-	DD_ATTR_RO(async_word_depth),
+	DD_ATTR_RO(async_write_depth),
 	__ATTR_NULL
 };
 

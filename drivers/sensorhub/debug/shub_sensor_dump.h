@@ -13,8 +13,8 @@
  *
  */
 
-#ifndef __SSP_DUMP_H__
-#define __SSP_DUMP_H__
+#ifndef __SHUB_DUMP_H__
+#define __SHUB_DUMP_H__
 
 #define DUMPREGISTER_MAX_SIZE           130
 #define NUM_LINE_ITEM                   16

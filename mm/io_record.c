@@ -71,7 +71,7 @@ int fill_result_buf(int start_idx, int end_idx)
 	int pathsize;
 	int result_buf_used;
 	int prev_offset = -1;
-	int long max_size = 0;
+	long max_size = 0;
 	void *buf_start;
 	struct file *file;
 
@@ -278,11 +278,11 @@ static int io_info_compare(const void *lhs, const void *rhs)
 	struct io_info *linfo = (struct io_info *)lhs;
 	struct io_info *rinfo = (struct io_info *)rhs;
 
-	if ((unsigned long)linfo->inode > (unsigned long)rinfo->inode)
+	if ((unsigned long)linfo->inode > (unsigned long)rinfo->inode) {
 		return 1;
-	else if ((unsigned long)linfo->inode < (unsigned long)rinfo->inode)
+	} else if ((unsigned long)linfo->inode < (unsigned long)rinfo->inode) {
 		return -1;
-	else {
+	} else {
 		if ((unsigned long)linfo->offset > (unsigned long)rinfo->offset)
 			return 1;
 		else if ((unsigned long)linfo->offset <

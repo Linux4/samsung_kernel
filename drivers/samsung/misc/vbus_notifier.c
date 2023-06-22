@@ -6,7 +6,7 @@
  *
  * This program is free software: you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -58,7 +58,7 @@ int vbus_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 
 	return ret;
 }
-
+EXPORT_SYMBOL(vbus_notifier_register);
 int vbus_notifier_unregister(struct notifier_block *nb)
 {
 	int ret = 0;
@@ -73,7 +73,7 @@ int vbus_notifier_unregister(struct notifier_block *nb)
 
 	return ret;
 }
-
+EXPORT_SYMBOL(vbus_notifier_unregister);
 static int vbus_notifier_notify(void)
 {
 	int ret = 0;
@@ -100,7 +100,7 @@ static int vbus_notifier_notify(void)
 
 	return ret;
 }
-
+EXPORT_SYMBOL(vbus_notifier_notify);
 void vbus_notifier_handle(vbus_status_t new_dev)
 {
 	pr_info("%s: (%d)->(%d)\n", __func__, vbus_notifier.vbus_type, new_dev);
@@ -120,4 +120,4 @@ void vbus_notifier_handle(vbus_status_t new_dev)
 	/* vbus attach broadcast */
 	vbus_notifier_notify();
 }
-
+EXPORT_SYMBOL(vbus_notifier_handle);

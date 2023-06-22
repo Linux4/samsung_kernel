@@ -3,8 +3,6 @@
 */
 
 #include "mt6765_input_a12_common.dtsi"
-#include "mt6765_a12_grip_00.dtsi"
-#include "display_lcd_a12_common.dtsi"
 
 /* Add Samsung configuration over here */
 / {
@@ -63,4 +61,21 @@
 	msdcpll {
 		mediatek,fh-ssc-rate = <1>;
 	};
+};
+
+&u2port0 {
+	mediatek,eye-src = <0x0>;
+	mediatek,eye-vrt = <0x7>;
+	mediatek,eye-term = <0x3>;
+	mediatek,eye-rev6 = <0x3>;
+	mediatek,eye-disc = <0xe>;
+	mediatek,eye-sqth = <0x0>;
+	mediatek,eye-intr_cal = <0x19>;
+	mediatek,host-eye-src = <0x0>;
+	mediatek,host-eye-vrt = <0x7>;
+	mediatek,host-eye-term = <0x1>;
+	mediatek,host-eye-rev6 = <0x3>;
+	mediatek,host-eye-disc = <0xe>;
+	mediatek,host-eye-sqth = <0x0>;
+	mediatek,host-eye-intr_cal = <0x19>;
 };

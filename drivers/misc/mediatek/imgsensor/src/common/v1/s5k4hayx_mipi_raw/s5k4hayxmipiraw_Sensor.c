@@ -1472,6 +1472,7 @@ static kal_uint32 close(void)
 {
 	MUINT32 ret = ERROR_NONE;
 
+	streaming_control(false);
 	return ret;
 }		/* close */
 
@@ -2543,6 +2544,12 @@ bool s5k4hayx_select_otp_page(unsigned int page)
 	return complete;
 }
 
+void s5k4hayx_otp_off_setting()
+{
+	write_cmos_sensor_8(0x0A00, 0x04);
+	write_cmos_sensor_8(0x0A00, 0x00);
+}
+
 int s5k4hayx_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int size)
 {
 	int const PAGE_START_ADDR = 0x0A04, PAGE_END_ADDR = 0x0A43;
@@ -2558,6 +2565,7 @@ int s5k4hayx_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int s
 
 	if (bank >= BANK_PAGE_SIZE || bank_page[bank] == -1) {
 		pr_err("[%s] Invalid bank data %d", __func__, bank);
+		s5k4hayx_otp_off_setting();
 		return -1;
 	}
 
@@ -2566,6 +2574,7 @@ int s5k4hayx_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int s
 
 	if (!s5k4hayx_select_otp_page(otp_page)) {
 		pr_err("[%s] Failed to select OTP bank page: %d", __func__, otp_page);
+		s5k4hayx_otp_off_setting();
 		return -1;
 	}
 	otp_addr = PAGE_START_ADDR + 4;
@@ -2577,8 +2586,8 @@ int s5k4hayx_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int s
 		}
 		*(data + i) = read_cmos_sensor_8(otp_addr++);
 	}
-	write_cmos_sensor_8(0x0A00, 0x04);
-	write_cmos_sensor_8(0x0A00, 0x00);
+
+	s5k4hayx_otp_off_setting();
 
 	return size;
 }

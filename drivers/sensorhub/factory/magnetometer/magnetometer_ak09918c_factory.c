@@ -1,8 +1,24 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include "../../comm/shub_comm.h"
 #include "../../sensormanager/shub_sensor.h"
 #include "../../sensormanager/shub_sensor_manager.h"
 #include "../../utility/shub_utility.h"
 #include "../../sensor/magnetometer.h"
+#include "magnetometer_factory.h"
 
 #include <linux/slab.h>
 #include <linux/delay.h>
@@ -22,17 +38,16 @@
 #define GM_SELFTEST_Z_SPEC_MIN -1000
 #define GM_SELFTEST_Z_SPEC_MAX -200
 
-int check_ak09918c_adc_data_spec(int type)
+int check_ak09918c_adc_data_spec(s32 sensor_value[3])
 {
-	struct mag_event *sensor_value = (struct mag_event *)(get_sensor_event(type)->value);
-
-	if ((sensor_value->x == 0) && (sensor_value->y == 0) && (sensor_value->z == 0)) {
+	if ((sensor_value[0] == 0) && (sensor_value[1] == 0) && (sensor_value[2] == 0)) {
 		return -1;
-	} else if ((sensor_value->x >= GM_AKM_DATA_SPEC_MAX) || (sensor_value->x <= GM_AKM_DATA_SPEC_MIN) ||
-		   (sensor_value->y >= GM_AKM_DATA_SPEC_MAX) || (sensor_value->y <= GM_AKM_DATA_SPEC_MIN) ||
-		   (sensor_value->z >= GM_AKM_DATA_SPEC_MAX) || (sensor_value->z <= GM_AKM_DATA_SPEC_MIN)) {
+	} else if ((sensor_value[0] >= GM_AKM_DATA_SPEC_MAX) || (sensor_value[0] <= GM_AKM_DATA_SPEC_MIN) ||
+		   (sensor_value[1] >= GM_AKM_DATA_SPEC_MAX) || (sensor_value[1] <= GM_AKM_DATA_SPEC_MIN) ||
+		   (sensor_value[2] >= GM_AKM_DATA_SPEC_MAX) || (sensor_value[2] <= GM_AKM_DATA_SPEC_MIN)) {
 		return -1;
-	} else if ((int)abs(sensor_value->x) + (int)abs(sensor_value->y) + (int)abs(sensor_value->z) >= GM_DATA_SUM_SPEC) {
+	} else if ((int)abs(sensor_value[0]) + (int)abs(sensor_value[1])
+		   + (int)abs(sensor_value[2]) >= GM_DATA_SUM_SPEC) {
 		return -1;
 	} else {
 		return 0;
@@ -101,8 +116,64 @@ static ssize_t matrix_store(struct device *dev, struct device_attribute *attr, c
 		  data->mag_matrix[24], data->mag_matrix[25], data->mag_matrix[26]);
 	set_mag_matrix(data);
 
-	return ret;
+	return size;
 }
+
+static ssize_t cover_matrix_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct magnetometer_data *data = get_sensor(SENSOR_TYPE_GEOMAGNETIC_FIELD)->data;
+
+	return sprintf(buf, "%u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u\n",
+		       data->cover_matrix[0], data->cover_matrix[1], data->cover_matrix[2], data->cover_matrix[3],
+		       data->cover_matrix[4], data->cover_matrix[5], data->cover_matrix[6], data->cover_matrix[7],
+		       data->cover_matrix[8], data->cover_matrix[9], data->cover_matrix[10], data->cover_matrix[11],
+		       data->cover_matrix[12], data->cover_matrix[13], data->cover_matrix[14], data->cover_matrix[15],
+		       data->cover_matrix[16], data->cover_matrix[17], data->cover_matrix[18], data->cover_matrix[19],
+		       data->cover_matrix[20], data->cover_matrix[21], data->cover_matrix[22], data->cover_matrix[23],
+		       data->cover_matrix[24], data->cover_matrix[25], data->cover_matrix[26]);
+}
+
+static ssize_t cover_matrix_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
+{
+	u8 val[27] = {0, };
+	int ret = 0;
+	int i;
+	char *token;
+	char *str;
+	struct magnetometer_data *data = get_sensor(SENSOR_TYPE_GEOMAGNETIC_FIELD)->data;
+
+	str = (char *)buf;
+
+	for (i = 0; i < 27; i++) {
+		token = strsep(&str, "\n ");
+		if (token == NULL) {
+			shub_err("too few arguments (27 needed)");
+			return -EINVAL;
+		}
+
+		ret = kstrtou8(token, 10, &val[i]);
+		if (ret < 0) {
+			shub_err("kstros8 error %d", ret);
+			return ret;
+		}
+	}
+
+	for (i = 0; i < 27; i++)
+		data->cover_matrix[i] = val[i];
+
+	shub_info("%u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u\n",
+		  data->cover_matrix[0], data->cover_matrix[1], data->cover_matrix[2], data->cover_matrix[3],
+		  data->cover_matrix[4], data->cover_matrix[5], data->cover_matrix[6], data->cover_matrix[7],
+		  data->cover_matrix[8], data->cover_matrix[9], data->cover_matrix[10], data->cover_matrix[11],
+		  data->cover_matrix[12], data->cover_matrix[13], data->cover_matrix[14], data->cover_matrix[15],
+		  data->cover_matrix[16], data->cover_matrix[17], data->cover_matrix[18], data->cover_matrix[19],
+		  data->cover_matrix[20], data->cover_matrix[21], data->cover_matrix[22], data->cover_matrix[23],
+		  data->cover_matrix[24], data->cover_matrix[25], data->cover_matrix[26]);
+	set_mag_cover_matrix(data);
+
+	return size;
+}
+
 
 static ssize_t selftest_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -220,6 +291,7 @@ static DEVICE_ATTR_RO(selftest);
 static DEVICE_ATTR_RO(ak09911_asa);
 static DEVICE_ATTR_RO(hw_offset);
 static DEVICE_ATTR(matrix, 0664, matrix_show, matrix_store);
+static DEVICE_ATTR(matrix2, 0664, cover_matrix_show, cover_matrix_store);
 
 static struct device_attribute *mag_ak09918c_attrs[] = {
 	&dev_attr_name,
@@ -229,12 +301,22 @@ static struct device_attribute *mag_ak09918c_attrs[] = {
 	&dev_attr_matrix,
 	&dev_attr_hw_offset,
 	NULL,
+	NULL,
 };
 
 struct device_attribute **get_magnetometer_ak09918c_dev_attrs(char *name)
 {
+	int index = 0;
+	struct magnetometer_data *data = get_sensor(SENSOR_TYPE_GEOMAGNETIC_FIELD)->data;
+
 	if (strcmp(name, AK09918C_NAME) != 0)
 		return NULL;
+
+	if (data->cover_matrix) {
+		while (mag_ak09918c_attrs[index] != NULL)
+			index++;
+		mag_ak09918c_attrs[index] = &dev_attr_matrix2;
+	}
 
 	return mag_ak09918c_attrs;
 }

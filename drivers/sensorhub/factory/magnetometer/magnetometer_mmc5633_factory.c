@@ -1,8 +1,24 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include "../../comm/shub_comm.h"
 #include "../../sensor/magnetometer.h"
 #include "../../sensormanager/shub_sensor.h"
 #include "../../sensormanager/shub_sensor_manager.h"
 #include "../../utility/shub_utility.h"
+#include "magnetometer_factory.h"
 
 #include <linux/delay.h>
 #include <linux/slab.h>
@@ -20,15 +36,13 @@
 #define GM_SELFTEST_Z_SPEC_MIN 50
 #define GM_SELFTEST_Z_SPEC_MAX 150
 
-int check_mmc5633_adc_data_spec(int type)
+int check_mmc5633_adc_data_spec(s32 sensor_value[3])
 {
-	struct mag_event *sensor_value = (struct mag_event *)(get_sensor_event(type)->value);
-
-	if ((sensor_value->x == 0) && (sensor_value->y == 0) && (sensor_value->z == 0)) {
+	if ((sensor_value[0] == 0) && (sensor_value[1] == 0) && (sensor_value[2] == 0)) {
 		return -1;
-	} else if ((sensor_value->x > GM_MMC_DATA_SPEC_MAX) || (sensor_value->x < GM_MMC_DATA_SPEC_MIN) ||
-		   (sensor_value->y > GM_MMC_DATA_SPEC_MAX) || (sensor_value->y < GM_MMC_DATA_SPEC_MIN) ||
-		   (sensor_value->z > GM_MMC_DATA_SPEC_MAX) || (sensor_value->z < GM_MMC_DATA_SPEC_MIN)) {
+	} else if ((sensor_value[0] > GM_MMC_DATA_SPEC_MAX) || (sensor_value[0] < GM_MMC_DATA_SPEC_MIN) ||
+		   (sensor_value[1] > GM_MMC_DATA_SPEC_MAX) || (sensor_value[1] < GM_MMC_DATA_SPEC_MIN) ||
+		   (sensor_value[2] > GM_MMC_DATA_SPEC_MAX) || (sensor_value[2] < GM_MMC_DATA_SPEC_MIN)) {
 		return -1;
 	} else {
 		return 0;
@@ -97,7 +111,7 @@ static ssize_t matrix_store(struct device *dev, struct device_attribute *attr, c
 		  data->mag_matrix[24], data->mag_matrix[25], data->mag_matrix[26]);
 	set_mag_matrix(data);
 
-	return ret;
+	return size;
 }
 
 static ssize_t selftest_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -105,16 +119,16 @@ static ssize_t selftest_show(struct device *dev, struct device_attribute *attr, 
 	s8 result[4] = {-1, -1, -1, -1};
 	char *buf_selftest = NULL;
 	int buf_selftest_length = 0;
-	char bufAdc[8] = {0, };
 	s16 ratio_X = 0, ratio_Y = 0, ratio_Z = 0;
 	s16 iADC_X = 0, iADC_Y = 0, iADC_Z = 0;
 	s16 srdiff_X = 0, srdiff_Y = 0, srdiff_Z = 0;
 	s16 ref_X = 0, ref_Y = 0, ref_Z = 0;
 	int srsum_X = 0, srsum_Y = 0, srsum_Z = 0;
-	s32 dMsDelay = 20;
 	int ret = 0;
 	int spec_out_retries = 0;
-	struct mag_event *sensor_value = (struct mag_event *)(get_sensor_event(SENSOR_TYPE_GEOMAGNETIC_POWER)->value);
+	s32 sensor_buf[3] = {0, };
+	struct mag_power_event *sensor_value =
+		(struct mag_power_event *)(get_sensor_event(SENSOR_TYPE_GEOMAGNETIC_POWER)->value);
 
 	shub_infof("");
 
@@ -198,34 +212,20 @@ Retry_selftest:
 		goto Retry_selftest;
 	}
 
-	spec_out_retries = 10;
-
 	/* ADC */
-	memcpy(&bufAdc[0], &dMsDelay, 4);
 
-	sensor_value->x = 0;
-	sensor_value->y = 0;
-	sensor_value->z = 0;
+	sensor_value->x = (s16)((buf_selftest[31] << 8) + buf_selftest[32]);
+	sensor_value->y = (s16)((buf_selftest[33] << 8) + buf_selftest[34]);
+	sensor_value->z = (s16)((buf_selftest[35] << 8) + buf_selftest[36]);
 
-	if (!get_sensor_enabled(SENSOR_TYPE_GEOMAGNETIC_POWER))
-		batch_sensor(SENSOR_TYPE_GEOMAGNETIC_POWER, 20, 0);
-	enable_sensor(SENSOR_TYPE_GEOMAGNETIC_POWER, NULL, 0);
+	get_magnetometer_sensor_value_s32(sensor_value, sensor_buf);
 
-	do {
-		msleep(60);
-		if (check_mmc5633_adc_data_spec(SENSOR_TYPE_GEOMAGNETIC_POWER) == 0) { // success
-			break;
-		}
-	} while (--spec_out_retries);
-
-	if (spec_out_retries > 0)
+	if (check_mmc5633_adc_data_spec(sensor_buf) == 0) // success
 		result[3] = 0;
 
 	iADC_X = sensor_value->x;
 	iADC_Y = sensor_value->y;
 	iADC_Z = sensor_value->z;
-
-	disable_sensor(SENSOR_TYPE_GEOMAGNETIC_POWER, NULL, 0);
 
 	shub_info("-adc, x = %d, y = %d, z = %d, retry = %d\n", iADC_X, iADC_Y, iADC_Z, spec_out_retries);
 

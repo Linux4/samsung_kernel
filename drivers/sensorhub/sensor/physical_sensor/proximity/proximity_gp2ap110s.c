@@ -1,3 +1,18 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include <linux/delay.h>
 #include <linux/of_gpio.h>
 #include <linux/slab.h>
@@ -14,13 +29,9 @@
 #define GP2AP110S_NAME    "GP2AP110S"
 #define GP2AP110S_VENDOR  "SHARP"
 
-#define PROX_SETTINGS_FILE_PATH     "/efs/FactoryApp/prox_settings"
-
 void init_proximity_gp2ap110s_variable(struct proximity_data *data)
 {
-	struct proximity_gp2ap110s_data *thd_data = data->threshold_data;
-
-	thd_data->prox_setting_mode = 1;
+	data->setting_mode = 1;
 }
 
 void parse_dt_proximity_gp2ap110s(struct device *dev)
@@ -54,60 +65,43 @@ int open_proximity_setting_mode(void)
 	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
 	struct proximity_gp2ap110s_data *thd_data = data->threshold_data;
 
-	ret = shub_file_read(PROX_SETTINGS_FILE_PATH, buf, sizeof(buf), 0);
+	ret = shub_file_read(PROX_SETTING_MODE_FILE_PATH, buf, sizeof(buf), 0);
 	if (ret <= 0) {
 		shub_errf("Can't read the prox settings data from file, bytes=%d", ret);
 		ret = -EIO;
 	} else {
-		sscanf(buf, "%d", &thd_data->prox_setting_mode);
-		shub_infof("prox_settings %d", thd_data->prox_setting_mode);
-		if (thd_data->prox_setting_mode != 1 && thd_data->prox_setting_mode != 2) {
-			thd_data->prox_setting_mode = 1;
+		sscanf(buf, "%d", &data->setting_mode);
+		shub_infof("prox_settings %d", data->setting_mode);
+		if (data->setting_mode != 1 && data->setting_mode != 2) {
+			data->setting_mode = 1;
 			shub_errf("leg_reg_val is wrong. set defulat setting");
 		}
 	}
 
-	if (thd_data->prox_setting_mode != 1)
+	if (data->setting_mode != 1)
 		memcpy(data->prox_threshold, thd_data->prox_mode_thresh, sizeof(data->prox_threshold));
 
 	return ret;
 }
 
-static void set_proximity_setting_mode(struct proximity_data *data)
-{
-	int ret = 0;
-	struct proximity_gp2ap110s_data *thd_data = data->threshold_data;
-	u8 mode = thd_data->prox_setting_mode;
-
-	if (!get_sensor_probe_state(SENSOR_TYPE_PROXIMITY)) {
-		shub_infof("proximity sensor is not connected");
-		return;
-	}
-
-	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_PROXIMITY, PROXIMITY_SETTING_MODE,
-				(char *)&mode, sizeof(mode));
-	if (ret < 0) {
-		shub_errf("PROXIMITY_SETTING_MODE CMD fail %d", ret);
-		return;
-	}
-
-	shub_infof("proximity setting mode : %d", mode);
-}
-
 void set_proximity_gp2ap110s_state(struct proximity_data *data) // sync
 {
-	set_proximity_setting_mode(data);
+	set_proximity_setting_mode();
 }
 
 void pre_enable_proximity_gp2ap110s(struct proximity_data *data)
 {
-	set_proximity_setting_mode(data);
+	set_proximity_setting_mode();
 }
 
-void init_proximity_gp2ap110s(struct proximity_data *data)
+int init_proximity_gp2ap110s(struct proximity_data *data)
 {
-	if (data->threshold_data == NULL)
+	if (data->threshold_data == NULL) {
 		data->threshold_data = kzalloc(sizeof(struct proximity_gp2ap110s_data), GFP_KERNEL);
+		if (!data->threshold_data)
+			return -ENOMEM;
+	}
+	return 0;
 }
 
 struct proximity_chipset_funcs prox_gp2ap110s_ops = {

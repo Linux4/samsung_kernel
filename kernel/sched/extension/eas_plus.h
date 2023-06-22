@@ -62,6 +62,10 @@ bool pod_is_ready(void);
 extern bool is_rt_throttle(int cpu);
 #endif
 
+#if defined(CONFIG_ENERGY_MODEL) && defined(CONFIG_CPU_FREQ_GOV_SCHEDUTIL)
+unsigned int cpu_is_slowest(int cpu);
+#endif
+
 #ifdef CONFIG_MTK_SCHED_LB_ENHANCEMENT
 bool is_intra_domain(int prev, int target);
 #endif
@@ -174,3 +178,4 @@ static inline unsigned long map_util_freq_with_margin(
 	return freq;
 }
 #endif
+extern int sched_forked_ramup_factor(void);

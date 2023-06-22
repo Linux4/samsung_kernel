@@ -1,3 +1,18 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include <linux/slab.h>
 
 #include "../sensor/proximity.h"
@@ -40,21 +55,29 @@ void report_event_proximity_raw(void)
 	}
 }
 
-void init_proximity_raw(bool en)
+int init_proximity_raw(bool en)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PROXIMITY_RAW);
 
 	if (!sensor)
-		return;
+		return 0;
 
 	if (en) {
 		strcpy(sensor->name, "proximity_raw");
 		sensor->receive_event_size = 2;
 		sensor->report_event_size = 0;
 		sensor->event_buffer.value = kzalloc(sizeof(struct prox_raw_event), GFP_KERNEL);
+		if (!sensor->event_buffer.value)
+			goto err_no_mem;
 
 		sensor->data = kzalloc(sizeof(struct proximity_raw_data), GFP_KERNEL);
+		if (!sensor->data)
+			goto err_no_mem;
+
 		sensor->funcs = kzalloc(sizeof(struct sensor_funcs), GFP_KERNEL);
+		if (!sensor->funcs)
+			goto err_no_mem;
+
 		sensor->funcs->report_event = report_event_proximity_raw;
 	} else {
 		kfree(sensor->event_buffer.value);
@@ -66,4 +89,17 @@ void init_proximity_raw(bool en)
 		kfree(sensor->funcs);
 		sensor->funcs = NULL;
 	}
+	return 0;
+
+err_no_mem:
+	kfree(sensor->event_buffer.value);
+	sensor->event_buffer.value = NULL;
+
+	kfree(sensor->data);
+	sensor->data = NULL;
+
+	kfree(sensor->funcs);
+	sensor->funcs = NULL;
+
+	return -ENOMEM;
 }

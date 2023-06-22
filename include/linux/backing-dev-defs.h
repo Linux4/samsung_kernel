@@ -221,7 +221,6 @@ struct bdi_sec_bdp_entry {
 	unsigned long wb_thresh;
 	unsigned long wb_dirty;
 	unsigned long wb_avg_write_bandwidth;
-	unsigned long wb_timelist_dirty;
 	unsigned long wb_timelist_inodes;
 };
 

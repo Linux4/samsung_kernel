@@ -41,14 +41,17 @@ static ssize_t name_show(struct device *dev, struct device_attribute *attr, char
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_ACCELEROMETER);
 
-	return sprintf(buf, "%s\n", sensor->chipset_name);
+	return sprintf(buf, "%s\n", sensor->spec.name);
 }
 
 static ssize_t vendor_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_ACCELEROMETER);
+	char vendor[VENDOR_MAX] = "";
 
-	return sprintf(buf, "%s\n", sensor->vendor);
+	get_sensor_vendor_name(sensor->spec.vendor, vendor);
+
+	return sprintf(buf, "%s\n", vendor);
 }
 
 static ssize_t accel_calibration_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -328,7 +331,7 @@ void remove_accelerometer_sysfs(void)
 
 void initialize_accelerometer_factory(bool en)
 {
-	if (!get_sensor_probe_state(SENSOR_TYPE_ACCELEROMETER))
+	if (!get_sensor(SENSOR_TYPE_ACCELEROMETER))
 		return;
 
 	if (en)

@@ -51,7 +51,6 @@ static size_t mt_secure_call(size_t function_id,
 
 	arm_smccc_smc(function_id, arg0, arg1,
 			arg2, arg3, r1, r2, r3, &res);
-
 	return res.a0;
 }
 
@@ -1416,6 +1415,7 @@ int port_rpc_recv_match(struct port_t *port, struct sk_buff *skb)
 			break;
 
 		case IPC_RPC_QUERY_AP_SYS_PROPERTY:
+		case IPC_RPC_SAR_TABLE_IDX_QUERY_OP:
 			is_userspace_msg = 1;
 			break;
 		default:

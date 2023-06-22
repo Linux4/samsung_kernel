@@ -120,7 +120,7 @@
 #define RTC_PROT		0x0034
 #define RTC_CON			0x003c
 
-#define RTC_SPAR0_BATT_REMOVAL  BIT(15)
+#define RTC_SPAR0_BATT_REMOVAL	BIT(15)
 
 #define RTC_MIN_YEAR		1968
 #define RTC_BASE_YEAR		1900
@@ -153,7 +153,7 @@
 #define RTC_PWRON_DOM_MASK     0xf800
 #define RTC_PWRON_DOM_SHIFT     11
 
-#define RTC_SPAR0_BATT_REMOVAL  BIT(15)
+#define RTC_POFF_ALM_SET	_IOW('p', 0x15, struct rtc_time) /* Set alarm time  */
 
 enum mtk_rtc_spare_enum {
 	SPARE_AL_HOU,
@@ -634,6 +634,10 @@ static void mtk_rtc_reset_bbpu_alarm_status(struct mt6397_rtc *rtc)
 	u32 bbpu;
 	int ret;
 
+	if (rtc->dev_comp->eosc_cali_version == EOSC_CALI_MT6357_SERIES ||
+		rtc->dev_comp->eosc_cali_version == EOSC_CALI_MT6358_SERIES)
+		return;
+
 	bbpu = RTC_BBPU_KEY | RTC_BBPU_PWREN | RTC_BBPU_RESET_AL;
 	ret = regmap_write(rtc->regmap, rtc->addr_base + RTC_BBPU, bbpu);
 	if (ret < 0)
@@ -961,11 +965,16 @@ static int mtk_rtc_read_time(struct device *dev, struct rtc_time *tm)
 	time64_t time;
 	struct mt6397_rtc *rtc = dev_get_drvdata(dev);
 	int days, sec, ret;
+	unsigned long long timeout = sched_clock() + 500000000;
 
 	do {
 		ret = __mtk_rtc_read_time(rtc, tm, &sec);
 		if (ret < 0)
 			goto exit;
+		if (sched_clock() > timeout) {
+			pr_notice("%s, time out\n", __func__);
+			break;
+		}
 	} while (sec < tm->tm_sec);
 
 	/* HW register use 7 bits to store year data, minus
@@ -1171,7 +1180,54 @@ exit:
 	return ret;
 }
 
+static int mtk_set_power_on(struct device *dev, struct rtc_wkalrm *alm)
+{
+	int err = 0;
+	struct rtc_time tm;
+	time64_t now, scheduled;
+
+	err = rtc_valid_tm(&alm->time);
+	if (err != 0)
+		return err;
+	scheduled = rtc_tm_to_time64(&alm->time);
+
+	err = mtk_rtc_read_time(dev, &tm);
+	if (err != 0)
+		return err;
+	now = rtc_tm_to_time64(&tm);
+
+	if (scheduled <= now)
+		alm->enabled = 4;
+	else
+		alm->enabled = 3;
+
+	mtk_rtc_set_alarm(dev, alm);
+
+	return err;
+}
+
+static int mtk_rtc_ioctl(struct device *dev, unsigned int cmd, unsigned long arg)
+{
+	void __user *uarg = (void __user *) arg;
+	int err = 0;
+	struct rtc_wkalrm alm;
+
+	switch (cmd) {
+	case RTC_POFF_ALM_SET:
+		if (copy_from_user(&alm.time, uarg, sizeof(alm.time)))
+			return -EFAULT;
+		err = mtk_set_power_on(dev, &alm);
+		break;
+	default:
+		err = -EINVAL;
+		break;
+	}
+
+	return err;
+}
+
 static const struct rtc_class_ops mtk_rtc_ops = {
+	.ioctl      = mtk_rtc_ioctl,
 	.read_time  = mtk_rtc_read_time,
 	.set_time   = mtk_rtc_set_time,
 	.read_alarm = mtk_rtc_read_alarm,
@@ -1189,7 +1245,7 @@ static void rtc_reset_check(struct platform_device *pdev)
 	regmap_read(rtc->regmap, rtc->addr_base + RTC_SPAR0, &spar0);
 	if (!(spar0 & RTC_SPAR0_BATT_REMOVAL)) {
 		poff_status = 1;
-		pr_info("%s BATTERY REMOVED\n", __func__);
+		pr_info("%s: BATTERY REMOVED\n", __func__);
 
 		mutex_lock(&rtc->lock);
 		regmap_update_bits(rtc->regmap, rtc->addr_base + RTC_SPAR0,
@@ -1204,7 +1260,7 @@ static ssize_t rtc_status_show(struct kobject *kobj,
 {
 	int status = poff_status;
 
-	pr_info("complete power off status(%d)\n", status);
+	pr_info("%s: complete power off status(%d)\n", __func__, status);
 	poff_status = 0;
 	return sprintf(buf, "%d\n", status);
 }
@@ -1216,7 +1272,7 @@ static struct kobj_attribute rtc_status_attr = {
 	},
 	.show = rtc_status_show,
 };
-#endif
+#endif /* CONFIG_SEC_PM  */
 
 static int mtk_rtc_reload(struct mt6397_rtc *rtc)
 {
@@ -1608,6 +1664,47 @@ static int mtk_rtc_probe(struct platform_device *pdev)
 	if (IS_ERR(rtc->rtc_dev))
 		return PTR_ERR(rtc->rtc_dev);
 
+	/* KPOC alarm related setting */
+	mt6397_rtc_suspend_lock =
+		wakeup_source_register(NULL, "mt6397-rtc suspend wakelock");
+
+	boot_node = of_parse_phandle(pdev->dev.of_node, "bootmode", 0);
+	if (!boot_node) {
+		dev_err(&pdev->dev,
+			"%s: failed to get boot mode phandle\n", __func__);
+	} else {
+		tag = (struct tag_bootmode *)of_get_property(
+			boot_node, "atag,boot", NULL);
+		if (!tag)
+			dev_err(&pdev->dev,
+				"%s: failed to get atag,boot\n", __func__);
+		else {
+			dev_notice(&pdev->dev,
+				"%s, bootmode:%d\n", __func__, tag->bootmode);
+			bootmode = tag->bootmode;
+		}
+	}
+
+#ifdef CONFIG_PM
+	rtc->pm_nb.notifier_call = rtc_pm_event;
+	rtc->pm_nb.priority = 0;
+	if (register_pm_notifier(&rtc->pm_nb))
+		pr_notice("rtc pm failed\n");
+	else
+		rtc_pm_notifier_registered = true;
+#endif /* CONFIG_PM */
+
+#ifdef CONFIG_SEC_PM
+	rtc_reset_check(pdev);
+	if (power_kobj) {
+		ret = sysfs_create_file(power_kobj, &rtc_status_attr.attr);
+		if (ret)
+			pr_err("%s: failed %d\n", __func__, ret);
+	}
+#endif /* CONFIG_SEC_PM */
+	INIT_WORK(&rtc->work, mtk_rtc_work_queue);
+	/* KPOC alarm related setting */
+
 	ret = request_threaded_irq(rtc->irq, NULL,
 				   mtk_rtc_irq_handler_thread,
 				   IRQF_ONESHOT | IRQF_TRIGGER_HIGH,
@@ -1619,9 +1716,6 @@ static int mtk_rtc_probe(struct platform_device *pdev)
 	}
 
 	device_init_wakeup(&pdev->dev, 1);
-
-	mt6397_rtc_suspend_lock =
-		wakeup_source_register(NULL, "mt6397-rtc suspend wakelock");
 
 	rtc->rtc_dev->ops = &mtk_rtc_ops;
 
@@ -1645,23 +1739,6 @@ static int mtk_rtc_probe(struct platform_device *pdev)
 
 	mtk_rtc_set_lp_irq(rtc);
 
-	boot_node = of_parse_phandle(pdev->dev.of_node, "bootmode", 0);
-	if (!boot_node) {
-		dev_err(&pdev->dev,
-			"%s: failed to get boot mode phandle\n", __func__);
-	} else {
-		tag = (struct tag_bootmode *)of_get_property(
-			boot_node, "atag,boot", NULL);
-		if (!tag)
-			dev_err(&pdev->dev,
-				"%s: failed to get atag,boot\n", __func__);
-		else {
-			dev_notice(&pdev->dev,
-				"%s, bootmode:%d\n", __func__, tag->bootmode);
-			bootmode = tag->bootmode;
-		}
-	}
-
 	mtk_rtc_dir = debugfs_create_dir("mtk_rtc", NULL);
 	if (!mtk_rtc_dir) {
 		dev_err(&pdev->dev,
@@ -1675,26 +1752,6 @@ static int mtk_rtc_probe(struct platform_device *pdev)
 				"create /sys/kernel/debug/mtk_rtc/mtk_rtc failed\n");
 		}
 	}
-
-#ifdef CONFIG_PM
-	rtc->pm_nb.notifier_call = rtc_pm_event;
-	rtc->pm_nb.priority = 0;
-	if (register_pm_notifier(&rtc->pm_nb))
-		pr_notice("rtc pm failed\n");
-	else
-		rtc_pm_notifier_registered = true;
-#endif /* CONFIG_PM */
-
-#ifdef CONFIG_SEC_PM
-	rtc_reset_check(pdev);
-	if (power_kobj) {
-		ret = sysfs_create_file(power_kobj, &rtc_status_attr.attr);
-		if (ret)
-			pr_err("%s: failed %d\n", __func__, ret);
-	}
-#endif
-
-	INIT_WORK(&rtc->work, mtk_rtc_work_queue);
 
 	return 0;
 

@@ -536,6 +536,22 @@ static enum DSI_STATUS DSI_Reset(enum DISP_MODULE_ENUM module,
 	return DSI_STATUS_OK;
 }
 
+static enum DSI_STATUS DPHY_Reset(enum DISP_MODULE_ENUM module,
+				 struct cmdqRecStruct *cmdq)
+{
+	int i = 0;
+
+	/* do reset */
+	for (i = DSI_MODULE_BEGIN(module); i <= DSI_MODULE_END(module); i++) {
+		DSI_OUTREGBIT(cmdq, struct DSI_COM_CTRL_REG,
+				  DSI_REG[i]->DSI_COM_CTRL, DPHY_RESET, 1);
+		DSI_OUTREGBIT(cmdq, struct DSI_COM_CTRL_REG,
+				  DSI_REG[i]->DSI_COM_CTRL, DPHY_RESET, 0);
+	}
+
+	return DSI_STATUS_OK;
+}
+
 static enum DSI_STATUS DSI_SetMode(enum DISP_MODULE_ENUM module,
 	struct cmdqRecStruct *cmdq, unsigned int mode)
 {
@@ -588,10 +604,11 @@ void DSI_enter_ULPS(enum DISP_MODULE_ENUM module)
 
 		DSI_OUTREGBIT(NULL, struct DSI_PHY_LD0CON_REG,
 			DSI_REG[i]->DSI_PHY_LD0CON, Lx_ULPM_AS_L0, 1);
-		DSI_OUTREGBIT(NULL, struct DSI_PHY_LD0CON_REG,
-			DSI_REG[i]->DSI_PHY_LD0CON, L0_ULPM_EN, 1);
 		DSI_OUTREGBIT(NULL, struct DSI_PHY_LCCON_REG,
 			DSI_REG[i]->DSI_PHY_LCCON, LC_ULPM_EN, 1);
+		udelay(1);
+		DSI_OUTREGBIT(NULL, struct DSI_PHY_LD0CON_REG,
+			DSI_REG[i]->DSI_PHY_LD0CON, L0_ULPM_EN, 1);
 
 		waitq = &(_dsi_context[i].sleep_in_done_wq);
 		ret = wait_event_timeout(waitq->wq,
@@ -606,8 +623,6 @@ void DSI_enter_ULPS(enum DISP_MODULE_ENUM module)
 		DSI_OUTREGBIT(NULL, struct DSI_INT_ENABLE_REG,
 			DSI_REG[i]->DSI_INTEN, SLEEPIN_ULPS_INT_EN, 0);
 		/* clear lane_num when enter ulps */
-		DSI_OUTREGBIT(NULL, struct DSI_TXRX_CTRL_REG,
-			DSI_REG[i]->DSI_TXRX_CTRL, LANE_NUM, 0);
 	}
 }
 
@@ -654,11 +669,6 @@ void DSI_exit_ULPS(enum DISP_MODULE_ENUM module)
 			DSI_REG[i]->DSI_PHY_LD0CON, Lx_ULPM_AS_L0, 1);
 		DSI_OUTREGBIT(NULL, struct DSI_INT_ENABLE_REG,
 			DSI_REG[i]->DSI_INTEN, SLEEPOUT_DONE, 1);
-		DSI_OUTREGBIT(NULL, struct DSI_MODE_CTRL_REG,
-			DSI_REG[i]->DSI_MODE_CTRL, SLEEP_MODE, 1);
-		DSI_OUTREGBIT(NULL, struct DSI_TIME_CON0_REG,
-			DSI_REG[i]->DSI_TIME_CON0, UPLS_WAKEUP_PRD,
-			wake_up_prd);
 
 		switch (_dsi_context[i].dsi_params.LANE_NUM) {
 		case LCM_ONE_LANE:
@@ -680,6 +690,11 @@ void DSI_exit_ULPS(enum DISP_MODULE_ENUM module)
 		DSI_OUTREGBIT(NULL, struct DSI_TXRX_CTRL_REG,
 			DSI_REG[i]->DSI_TXRX_CTRL, LANE_NUM, lane_num_bitvalue);
 
+		DSI_OUTREGBIT(NULL, struct DSI_MODE_CTRL_REG,
+			DSI_REG[i]->DSI_MODE_CTRL, SLEEP_MODE, 1);
+		DSI_OUTREGBIT(NULL, struct DSI_TIME_CON0_REG,
+			DSI_REG[i]->DSI_TIME_CON0, UPLS_WAKEUP_PRD,
+			wake_up_prd);
 		DSI_OUTREGBIT(NULL, struct DSI_START_REG,
 			DSI_REG[i]->DSI_START, SLEEPOUT_START, 0);
 		DSI_OUTREGBIT(NULL, struct DSI_START_REG,
@@ -2580,6 +2595,11 @@ void DSI_CPHY_TIMCONFIG(enum DISP_MODULE_ENUM module, struct cmdqRecStruct *cmdq
 		ASSERT(0);
 	}
 
+	if (cycle_time == 0) {
+		DISPCHECK("[dsi_dsi.c] cycle_time should not be 0!\n");
+		return;
+	}
+
 
 #define NS_TO_CYCLE(n, c)	((n) / (c))
 
@@ -2705,6 +2725,7 @@ void DSI_DPHY_TIMCONFIG(enum DISP_MODULE_ENUM module,
 	unsigned int ui = 0;
 	unsigned int hs_trail_m, hs_trail_n;
 	unsigned char timcon_temp;
+	unsigned int temp_data_rate = 0;
 
 #ifdef CONFIG_FPGA_EARLY_PORTING
 	/* sync from cmm */
@@ -2749,14 +2770,20 @@ void DSI_DPHY_TIMCONFIG(enum DISP_MODULE_ENUM module,
 	} else {
 		DISPERR("[dsi_dsi.c] PLL clock should not be 0!\n");
 		ASSERT(0);
+		return;
 	}
 
 #define NS_TO_CYCLE(n, c)	((n) / (c))
 
+	if (dsi_params->data_rate != 0)
+		temp_data_rate = dsi_params->data_rate;
+	else
+		temp_data_rate = dsi_params->PLL_CLOCK * 2;
+
 	hs_trail_m = 1;
 	hs_trail_n = (dsi_params->HS_TRAIL == 0) ?
 				(NS_TO_CYCLE(((hs_trail_m * 0x4 * ui) + 0x50)
-				* dsi_params->PLL_CLOCK * 2, 0x1F40) + 0x1) :
+				* temp_data_rate, 0x1F40) + 0x1) :
 				dsi_params->HS_TRAIL;
 	/* +3 is recommended from designer becauase of HW latency */
 	timcon0.HS_TRAIL = (hs_trail_m > hs_trail_n) ? hs_trail_m : hs_trail_n;
@@ -2776,7 +2803,7 @@ void DSI_DPHY_TIMCONFIG(enum DISP_MODULE_ENUM module,
 		timcon0.HS_ZERO -= timcon0.HS_PRPR;
 
 	timcon0.LPX = (dsi_params->LPX == 0) ?
-		(NS_TO_CYCLE(dsi_params->PLL_CLOCK * 2 * 0x4B, 0x1F40)  + 0x1) :
+		(NS_TO_CYCLE(temp_data_rate * 0x4B, 0x1F40)  + 0x1) :
 								dsi_params->LPX;
 	if (timcon0.LPX < 1)
 		timcon0.LPX = 1;
@@ -2797,7 +2824,7 @@ void DSI_DPHY_TIMCONFIG(enum DISP_MODULE_ENUM module,
 				(0x2 * timcon0.LPX) : dsi_params->DA_HS_EXIT;
 
 	timcon2.CLK_TRAIL = ((dsi_params->CLK_TRAIL == 0) ?
-				NS_TO_CYCLE(0x64 * dsi_params->PLL_CLOCK * 2,
+				NS_TO_CYCLE(0x64 * temp_data_rate,
 				0x1F40) : dsi_params->CLK_TRAIL) + 0x01;
 	/* CLK_TRAIL can't be 1. */
 	if (timcon2.CLK_TRAIL < 2)
@@ -2809,7 +2836,7 @@ void DSI_DPHY_TIMCONFIG(enum DISP_MODULE_ENUM module,
 						dsi_params->CLK_ZERO;
 
 	timcon3.CLK_HS_PRPR = (dsi_params->CLK_HS_PRPR == 0) ?
-				NS_TO_CYCLE(0x50 * dsi_params->PLL_CLOCK * 2,
+				NS_TO_CYCLE(0x50 * temp_data_rate,
 				0x1F40) : dsi_params->CLK_HS_PRPR;
 
 	if (timcon3.CLK_HS_PRPR < 1)
@@ -3578,9 +3605,6 @@ void DSI_set_cmdq_V2(enum DISP_MODULE_ENUM module, struct cmdqRecStruct *cmdq,
 		DISPERR("DSI%d register addr invalid\n", i);
 		return;
 	}
-
-	DISPMSG("DSI%d set current mode = %d\n",
-		 d, DSI_REG[d]->DSI_MODE_CTRL.MODE);
 
 	if (DSI_REG[d]->DSI_MODE_CTRL.MODE) { /* vdo cmd */
 		struct DSI_VM_CMD_CON_REG vm_cmdq;
@@ -4964,8 +4988,10 @@ static void lcm_mdelay(UINT32 ms)
 {
 	if (ms < 10)
 		udelay(ms * 1000);
+	else if (ms <= 20)
+		usleep_range(ms*1000, (ms+1)*1000);
 	else
-		msleep(ms);
+		usleep_range(ms * 1000 - 100, ms * 1000);
 }
 
 void DSI_set_cmdq_V11_wrapper_DSI0(void *cmdq, unsigned int *pdata,
@@ -6421,6 +6447,7 @@ int ddp_dsi_power_on(enum DISP_MODULE_ENUM module, void *cmdq_handle)
 		ddp_clk_prepare_enable(CLK_DSI0_IF_CLK);
 	}
 
+	DPHY_Reset(module, cmdq_handle);
 	/* DSI_RestoreRegisters(module, NULL); */
 	if (atomic_read(&dsi_idle_flg) == 0)
 		DSI_exit_ULPS(module);
@@ -6611,6 +6638,7 @@ int ddp_dsi_build_cmdq(enum DISP_MODULE_ENUM module,
 	struct DSI_RX_DATA_REG read_data3;
 	unsigned char packet_type;
 	unsigned char buffer[30];
+	memset((void *)buffer, 0, 30);
 	int recv_data_cnt = 0;
 
 	static cmdqBackupSlotHandle hSlot[4] = {0, 0, 0, 0};

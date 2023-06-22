@@ -446,7 +446,7 @@ static void port_dump_string(struct port_t *port, int dir,
 #define DUMP_BUF_SIZE 32
 	unsigned char *char_ptr = (unsigned char *)msg_buf;
 	char buf[DUMP_BUF_SIZE];
-	int i, j, ret = 0;
+	int i, j;
 	u64 ts_nsec;
 	unsigned long rem_nsec;
 	char *replace_str;
@@ -473,24 +473,12 @@ static void port_dump_string(struct port_t *port, int dir,
 				replace_str = "";
 				break;
 			}
-			ret = snprintf(buf+j, DUMP_BUF_SIZE - j,
+			scnprintf(buf+j, DUMP_BUF_SIZE - j,
 				"%s", replace_str);
-			if (ret <= 0) {
-				CCCI_ERROR_LOG(port->md_id, TAG,
-					"%s snprintf replace_str fail\n",
-					__func__);
-				break;
-			}
 			j += 2;
 		} else {
-			ret = snprintf(buf+j, DUMP_BUF_SIZE - j,
+			scnprintf(buf+j, DUMP_BUF_SIZE - j,
 				"[%02X]", char_ptr[i]);
-			if (ret <= 0) {
-				CCCI_ERROR_LOG(port->md_id, TAG,
-					"%s snprintf char_ptr0[%d] fail\n",
-					__func__, i);
-				break;
-			}
 			j += 4;
 		}
 	}
@@ -1595,6 +1583,24 @@ int ccci_port_check_critical_user(int md_id)
 	proxy_p = GET_PORT_PROXY(md_id);
 	return proxy_check_critical_user(proxy_p);
 }
+
+int ccci_port_critical_user_only_fsd(int md_id)
+{
+	struct port_proxy *proxy_p;
+
+	if (md_id < 0 || md_id >= MAX_MD_NUM)
+		return 0;
+
+	proxy_p = GET_PORT_PROXY(md_id);
+	if (!proxy_p)
+		return 0;
+
+	if (proxy_p->critical_user_active == (1 << CRIT_USR_FS))
+		return 1;
+
+	return 0;
+}
+
 
 /*
  * This API is called by ccci fsm,

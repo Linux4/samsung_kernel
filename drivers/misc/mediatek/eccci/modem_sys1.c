@@ -42,42 +42,6 @@
 #include "hif/ccci_hif_cldma.h"
 #include "hif/ccci_hif_ccif.h"
 
-#ifdef ENABLE_MD_SEC_SMEM
-#include <linux/arm-smccc.h>
-#define MTK_SIP_CCCI_CONTROL_ARCH32		0x82000505
-#define MTK_SIP_CCCI_CONTROL_ARCH64		0xC2000505
-enum CCCI_SECURE_REQ_ID {
-	MD_DBGSYS_REG_DUMP = 0,
-	MD_BANK0_HW_REMAP,
-	MD_BANK1_HW_REMAP,
-	MD_BANK4_HW_REMAP,
-	MD_SIB_HW_REMAP,
-	MD_CLOCK_REQUEST,
-	MD_POWER_CONFIG,
-	MD_FLIGHT_MODE_SET,
-	MD_HW_REMAP_LOCKED,
-	MD_SEC_SMEM_INF,
-	UPDATE_MD_SEC_SMEM,
-};
-int ccci_get_md_sec_smem_size_and_update(void)
-{
-	struct arm_smccc_res res;
-#ifdef __aarch64__
-	arm_smccc_smc(MTK_SIP_CCCI_CONTROL_ARCH64,
-				UPDATE_MD_SEC_SMEM, 0, 0, 0, 0, 0, 0, &res);
-#else
-	arm_smccc_smc(MTK_SIP_CCCI_CONTROL_ARCH32,
-				UPDATE_MD_SEC_SMEM, 0, 0, 0, 0, 0, 0, &res);
-#endif
-	return (int)res.a0;
-}
-#else
-int ccci_get_md_sec_smem_size_and_update(void)
-{
-	return 0;
-}
-#endif
-
 #define TAG "mcd"
 
 static void debug_in_flight_mode(struct ccci_modem *md);
@@ -847,6 +811,7 @@ static void config_ap_runtime_data_v2_1(struct ccci_modem *md,
 	struct ccci_smem_region *runtime_data =
 		ccci_md_get_smem_by_user_id(md->index,
 			SMEM_USER_RAW_RUNTIME_DATA);
+
 	int sec_smem_size = ccci_get_md_sec_smem_size_and_update();
 
 	ap_feature->head_pattern = AP_FEATURE_QUERY_PATTERN;

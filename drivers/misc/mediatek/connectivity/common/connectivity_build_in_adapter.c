@@ -9,7 +9,7 @@
 #define DFT_TAG "[CONNADP]"
 #include "connectivity_build_in_adapter.h"
 
-#include "../../../../kernel/sched/sched.h"
+#include <kernel/sched/sched.h>
 
 /*device tree mode*/
 #ifdef CONFIG_OF

@@ -258,7 +258,7 @@ static ssize_t secgpio_ctrl_file_write(
 	 *	gpio_ctrl[2] = L/H
 	 */
 	if (gpio_ctrl[0] == 1) {
-		gpio_request(gpio_ctrl[1], "gpio_output_test_on");
+		gpio_request(gpio_ctrl[1], "gpio_input_test_on");
 		gpio_direction_input(gpio_ctrl[1]);
 		gpio_free(gpio_ctrl[1]);
 	} else {
@@ -266,11 +266,11 @@ static ssize_t secgpio_ctrl_file_write(
 		gpio_direction_output(gpio_ctrl[1], 1);
 		gpio_free(gpio_ctrl[1]);
 		if (gpio_ctrl[2] == 1) {
-			gpio_request(gpio_ctrl[1], "gpio_output_test_on");
+			gpio_request(gpio_ctrl[1], "gpio_set_value_on");
 			gpio_set_value(gpio_ctrl[1], 1);
 			gpio_free(gpio_ctrl[1]);
 		} else if (gpio_ctrl[2] == 0) {
-			gpio_request(gpio_ctrl[1], "gpio_output_test_off");
+			gpio_request(gpio_ctrl[1], "gpio_set_value_off");
 			gpio_set_value(gpio_ctrl[1], 0);
 			gpio_free(gpio_ctrl[1]);
 		}

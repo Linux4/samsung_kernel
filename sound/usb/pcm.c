@@ -22,6 +22,7 @@
 #include <linux/usb/audio.h>
 #include <linux/usb/audio-v2.h>
 #include <linux/pm_qos.h>
+#include <linux/usb_notify.h>
 
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -422,6 +423,7 @@ static int set_sync_ep_implicit_fb_quirk(struct snd_usb_substream *subs,
 	switch (subs->stream->chip->usb_id) {
 	case USB_ID(0x0763, 0x2030): /* M-Audio Fast Track C400 */
 	case USB_ID(0x0763, 0x2031): /* M-Audio Fast Track C600 */
+	case USB_ID(0x22f0, 0x0006): /* Allen&Heath Qu-16 */
 		ep = 0x81;
 		ifnum = 3;
 		goto add_sync_ep_from_ifnum;
@@ -431,11 +433,16 @@ static int set_sync_ep_implicit_fb_quirk(struct snd_usb_substream *subs,
 		ifnum = 2;
 		goto add_sync_ep_from_ifnum;
 	case USB_ID(0x2466, 0x8003): /* Fractal Audio Axe-Fx II */
+	case USB_ID(0x0499, 0x172a): /* Yamaha MODX */
 		ep = 0x86;
 		ifnum = 2;
 		goto add_sync_ep_from_ifnum;
 	case USB_ID(0x2466, 0x8010): /* Fractal Audio Axe-Fx III */
 		ep = 0x81;
+		ifnum = 2;
+		goto add_sync_ep_from_ifnum;
+	case USB_ID(0x1686, 0xf029): /* Zoom UAC-2 */
+		ep = 0x82;
 		ifnum = 2;
 		goto add_sync_ep_from_ifnum;
 	case USB_ID(0x1397, 0x0001): /* Behringer UFX1604 */
@@ -1517,6 +1524,16 @@ static int snd_usb_pcm_open(struct snd_pcm_substream *substream)
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct snd_usb_substream *subs = &as->substream[direction];
 
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+	int enable = 1, type = 0;
+
+	if (direction == SNDRV_PCM_STREAM_PLAYBACK)
+		type = NOTIFY_PCM_PLAYBACK;
+	else
+		type = NOTIFY_PCM_CAPTURE;
+	store_usblog_notify(type, (void *)&enable, NULL);
+#endif
+
 	subs->interface = -1;
 	subs->altset_idx = 0;
 	runtime->hw = snd_usb_hardware;
@@ -1538,6 +1555,16 @@ static int snd_usb_pcm_close(struct snd_pcm_substream *substream)
 	struct snd_usb_stream *as = snd_pcm_substream_chip(substream);
 	struct snd_usb_substream *subs = &as->substream[direction];
 	int ret;
+
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+		int enable = 0, type = 0;
+
+		if (direction == SNDRV_PCM_STREAM_PLAYBACK)
+			type = NOTIFY_PCM_PLAYBACK;
+		else
+			type = NOTIFY_PCM_CAPTURE;
+		store_usblog_notify(type, (void *)&enable, NULL);
+#endif
 
 	stop_endpoints(subs, true);
 
@@ -2039,7 +2066,7 @@ void snd_usb_preallocate_buffer(struct snd_usb_substream *subs)
 {
 	struct snd_pcm *pcm = subs->stream->pcm;
 	struct snd_pcm_substream *s = pcm->streams[subs->direction].substream;
-	struct device *dev = subs->dev->bus->controller;
+	struct device *dev = subs->dev->bus->sysdev;
 
 	if (!snd_usb_use_vmalloc)
 		snd_pcm_lib_preallocate_pages(s, SNDRV_DMA_TYPE_DEV_SG,

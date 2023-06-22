@@ -1,13 +1,29 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include "../comm/shub_comm.h"
 #include "../sensorhub/shub_device.h"
 #include "../sensormanager/shub_sensor_type.h"
 #include "../utility/shub_utility.h"
+#include "../debug/shub_dump.h"
 #include "shub_mtk.h"
 
 #include <linux/delay.h>
 #include <linux/notifier.h>
 
-#define IPI_SSP	    IPI_SENSOR
+#define IPI_SHUB	    IPI_SENSOR
 #define IPI_DMA_LEN 8
 
 static DEFINE_SPINLOCK(scp_state_lock);
@@ -15,6 +31,7 @@ static uint8_t scp_system_ready;
 
 static phys_addr_t shub_dram_phys;
 static phys_addr_t shub_dram_virt;
+static phys_addr_t shub_dram_size;
 
 void scp_wdt_reset(enum scp_core_id cpu_id);
 
@@ -27,15 +44,12 @@ static void sensorhub_IPI_handler(int id, void *packet, unsigned int len)
 		return;
 	}
 
-	if (id == IPI_SSP) {
+	if (id == IPI_SHUB) {
 		if (len == IPI_DMA_LEN) {
 			uint32_t dma_info[2] = {0, }; /* address, size */
 
 			memcpy(dma_info, packet, len);
-			if (dma_info[0] == shub_dram_phys)
-				handle_packet((void *)shub_dram_virt, dma_info[1]);
-			else
-				shub_errf("dma address is not matched 0x%lx len %d", dma_info[0], dma_info[1]);
+			handle_packet((void *)(shub_dram_virt + dma_info[0]), dma_info[1]);
 		} else {
 			handle_packet(packet, len);
 		}
@@ -70,7 +84,7 @@ static struct notifier_block scp_state_notifier = {
 
 int sensorhub_probe(void)
 {
-	scp_ipi_registration(IPI_SSP, sensorhub_IPI_handler, "shub_sensorhub");
+	scp_ipi_registration(IPI_SHUB, sensorhub_IPI_handler, "shub_sensorhub");
 	scp_A_register_notify(&scp_state_notifier);
 
 	return 0;
@@ -86,11 +100,17 @@ int sensorhub_refresh_func(void)
 {
 	int ret;
 
+	int dram_info[2];
 	shub_dram_phys = scp_get_reserve_mem_phys(SENS_MEM_ID);
 	shub_dram_virt = scp_get_reserve_mem_virt(SENS_MEM_ID);
+	shub_dram_size = scp_get_reserve_mem_size(SENS_MEM_ID);
 
-	shub_infof("dma address phys 0x%llx virt 0x%llx", shub_dram_phys, shub_dram_virt);
-	ret = shub_send_command(CMD_SETVALUE, TYPE_MCU, DMA_ADDRESS, (char *)&shub_dram_phys, sizeof(shub_dram_phys));
+	dram_info[0] = shub_dram_phys;
+	dram_info[1] = shub_dram_size;
+
+	shub_infof("dma address phys 0x%llx virt 0x%llx size 0x%llx", shub_dram_phys, shub_dram_virt, shub_dram_size);
+	// ret = shub_send_command(CMD_SETVALUE, TYPE_MCU, DMA_ADDRESS, (char *)&shub_dram_phys, sizeof(shub_dram_phys));
+	ret = shub_send_command(CMD_SETVALUE, TYPE_MCU, DMA_ADDRESS, (char *)dram_info, sizeof(dram_info));
 
 	if (ret < 0)
 		shub_errf("DMA_ADDRESS CMD fail %d", ret);
@@ -103,7 +123,7 @@ int sensorhub_comms_write(u8 *buf, int length)
 	int status = 0, retry = 0;
 
 	do {
-		status = scp_ipi_send(IPI_SSP, (unsigned char *)buf, length, 0, SCP_A_ID);
+		status = scp_ipi_send(IPI_SHUB, (unsigned char *)buf, length, 0, SCP_A_ID);
 		if (status == SCP_IPI_ERROR) {
 			shub_errf("scp_ipi_send fail");
 			return -1;
@@ -136,4 +156,35 @@ int sensorhub_reset(void)
 
 void sensorhub_fs_ready(void)
 {
+}
+
+void sensorhub_save_ram_dump(void)
+{
+}
+
+void shub_dump_write_file(void *dump_data, int dump_size)
+{
+	struct shub_data_t *data = get_shub_data();
+	int dump_type;
+
+	if (!data) {
+		shub_infof("shub is not probed yet !");
+		return;
+	}
+
+	if (data->reset_type < RESET_TYPE_MAX)
+		dump_type = DUMP_TYPE_BASE + data->reset_type;
+	else
+		dump_type = 1;
+
+	write_shub_dump_file((char *)dump_data, dump_size, dump_type, 4);
+}
+
+int sensorhub_get_dump_size(void)
+{
+	int dump_size = get_scp_dump_size();
+
+	shub_infof("scp dump size : %d", dump_size);
+
+	return dump_size;
 }

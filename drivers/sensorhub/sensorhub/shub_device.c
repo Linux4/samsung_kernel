@@ -31,37 +31,33 @@
 #include "../utility/shub_file_manager.h"
 #include "../vendor/shub_vendor.h"
 #include "../others/shub_motor_callback.h"
+#include "../others/shub_panel.h"
 #ifdef CONFIG_SHUB_OIS
 #include "../others/shub_ois.h"
 #endif
+#include "../debug/shub_dump.h"
 #include "../factory/shub_factory.h"
-#include "shub_device.h"
-#include "shub_sysfs.h"
 #include "../sensor/light.h"
+#include "shub_device.h"
+#include "shub_firmware.h"
+#include "shub_sysfs.h"
 
 #include <linux/device.h>
 #include <linux/kernel.h>
+#include <linux/of_gpio.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
-
-#include "shub_firmware.h"
-
-#ifdef CONFIG_SHUB_DUMP
-#include "../debug/shub_dump.h"
-#endif
-
-struct shub_system_info {
-	uint32_t fw_version;
-	uint64_t scan[3];
-	uint32_t support_ddi;
-	uint32_t reserved_1;
-	uint32_t reserved_2;
-} __attribute__((__packed__));
+#include <linux/regulator/consumer.h>
 
 static struct shub_data_t *shub_data;
 
 #define SHUB_TIMESTAMP_SYNC_TIMER_SEC (10 * HZ)
+
+#define PM_RESUME             (0x1)
+#define PM_SUSPEND            (0x2)
+#define PM_PREPARE          (0x3)
+#define PM_COMPLETE         (0x4)
 
 struct shub_data_t *get_shub_data(void)
 {
@@ -109,12 +105,11 @@ static int initialize_timestamp_sync_timer(void)
 	return 0;
 }
 
-static int get_shub_system_info(void)
+static int get_shub_system_info_from_hub(void)
 {
 	int ret = 0;
 	char *buffer = NULL;
 	unsigned int buffer_length;
-	struct shub_system_info system_info;
 
 	ret = shub_send_command_wait(CMD_GETVALUE, TYPE_MCU, HUB_SYSTEM_INFO, 1000, NULL, 0, &buffer, &buffer_length,
 				     true);
@@ -124,17 +119,31 @@ static int get_shub_system_info(void)
 		return ret;
 	}
 
-	if (buffer_length != sizeof(system_info)) {
+	if (buffer_length != sizeof(shub_data->system_info)) {
 		shub_errf("buffer length error %d", buffer_length);
 		return -EINVAL;
 	}
 
-	memcpy(&system_info, buffer, sizeof(system_info));
+	memcpy(&shub_data->system_info, buffer, sizeof(shub_data->system_info));
 	kfree(buffer);
 
-	set_firmware_rev(system_info.fw_version);
-	set_sensor_probe_state(system_info.scan);
-	set_light_ddi_support(system_info.support_ddi);
+	return ret;
+}
+
+struct shub_system_info *get_shub_system_info(void)
+{
+	return &shub_data->system_info;
+}
+
+static int send_pm_state(u8 pm_state)
+{
+	int ret;
+
+	ret = shub_send_command(CMD_SETVALUE, TYPE_MCU, PM_STATE, &pm_state, 1);
+	if (ret < 0)
+		shub_errf("command %d failed", pm_state);
+	else
+		shub_infof("command %d", pm_state);
 
 	return ret;
 }
@@ -143,11 +152,11 @@ static int init_sensorhub(void)
 {
 	int ret = 0;
 
-	ret = get_shub_system_info();
+	ret = get_shub_system_info_from_hub();
 	if (ret < 0)
 		return ret;
 
-	shub_send_status(shub_data->ap_status);
+	send_pm_state(shub_data->pm_status);
 	shub_send_status(shub_data->lcd_status);
 
 	return ret;
@@ -195,14 +204,15 @@ static void refresh_task(struct work_struct *work)
 	if (init_sensorhub() < 0)
 		goto exit;
 
-	if (refresh_sensors(&shub_data->pdev->dev)  < 0)
+	if (init_shub_firmware() < 0)
+		goto exit;
+
+	if (refresh_sensors(&shub_data->pdev->dev) < 0)
 		goto exit;
 
 	if (shub_data->cnt_reset == 0) {
 		initialize_factory();
-#ifdef CONFIG_SHUB_DUMP
 		initialize_shub_dump();
-#endif
 	}
 
 #ifdef CONFIG_SHUB_DEBUG
@@ -274,6 +284,15 @@ void reset_mcu(int reason)
 		return;
 	}
 
+/*
+ * Temporary blocking comm fail reset, no event reset for sensor hub bring-up
+ * To Do : delete this after Papaya bring-up
+ */
+#ifdef CONFIG_SHUB_LSI
+	if (reason == RESET_TYPE_KERNEL_COM_FAIL || reason == RESET_TYPE_KERNEL_NO_EVENT)
+		return;
+#endif
+
 	shub_infof("- reason(%u)", reason);
 	shub_data->reset_type = reason;
 
@@ -285,17 +304,87 @@ void reset_mcu(int reason)
 	queue_work(shub_data->shub_wq, &shub_data->work_reset);
 }
 
+static int init_sensor_vdd(void)
+{
+	int ret = 0;
+	const char *sensor_vdd;
+	struct device_node *np = shub_data->pdev->dev.of_node;
+
+	if (of_property_read_string(np, "sensor-vdd-regulator", &sensor_vdd) < 0) {
+		shub_infof("not use sensor_vdd_regulator");
+		sensor_vdd = NULL;
+		return ret;
+	}
+	shub_infof("regulator: %s", sensor_vdd);
+
+	shub_data->sensor_vdd_regulator = regulator_get(NULL, sensor_vdd);
+	if (IS_ERR(shub_data->sensor_vdd_regulator)) {
+		shub_errf("regulator get failed");
+		shub_data->sensor_vdd_regulator = NULL;
+		ret = -EINVAL;
+	} else {
+		regulator_set_load(shub_data->sensor_vdd_regulator, 1800000);
+		shub_infof("sensor_vdd_regulator ok");
+	}
+
+	return 0;
+}
+
+int enable_sensor_vdd(void)
+{
+	int ret = 0;
+
+	shub_infof();
+
+	if (!shub_data->sensor_vdd_regulator)
+		return ret;
+
+	if (regulator_is_enabled(shub_data->sensor_vdd_regulator) == 0) {
+		ret = regulator_enable(shub_data->sensor_vdd_regulator);
+		if (ret)
+			shub_err("sensor vdd regulator enable failed, ret = %d", ret);
+	} else {
+		shub_info("sensor vdd regulator is already enabled");
+	}
+
+	return ret;
+}
+
+int disable_sensor_vdd(void)
+{
+	int ret = 0;
+
+	shub_infof();
+
+	if (!shub_data->sensor_vdd_regulator)
+		return ret;
+
+	if (regulator_is_enabled(shub_data->sensor_vdd_regulator)) {
+		ret = regulator_disable(shub_data->sensor_vdd_regulator);
+		if (ret)
+			shub_err("sensor vdd regulator disable failed, ret = %d", ret);
+	} else {
+		shub_info("sensor vdd regulator is already disabled");
+	}
+
+	return ret;
+}
+
 int init_sensorhub_device(void)
 {
 	int ret;
 
-#ifdef CONFIG_SHUB_FIRMWARE_DOWNLOAD
 	ret = initialize_shub_firmware();
 	if (ret < 0) {
 		shub_errf("init firmware failed");
 		return ret;
 	}
-#endif
+
+	ret = init_sensor_vdd();
+	if (ret < 0) {
+		shub_errf("init sensor vdd failed");
+		return ret;
+	}
 
 	shub_data->is_probe_done = false;
 	shub_data->is_working = false;
@@ -309,7 +398,7 @@ int init_sensorhub_device(void)
 			shub_data->cnt_shub_reset[type] = 0;
 	}
 
-	shub_data->ap_status = AP_RESUME;
+	shub_data->pm_status = PM_COMPLETE;
 	shub_data->lcd_status = LCD_OFF;
 
 	shub_data->shub_wq = create_singlethread_workqueue("shub_dev_wq");
@@ -342,9 +431,7 @@ void exit_sensorhub_device(void)
 	del_timer(&shub_data->ts_sync_timer);
 	cancel_work_sync(&shub_data->work_ts_sync);
 	destroy_workqueue(shub_data->shub_wq);
-#ifdef CONFIG_SHUB_FIRMWARE_DOWNLOAD
 	remove_shub_firmware();
-#endif
 }
 
 int shub_probe(struct platform_device *pdev)
@@ -355,6 +442,11 @@ int shub_probe(struct platform_device *pdev)
 	shub_infof();
 
 	shub_data = kzalloc(sizeof(struct shub_data_t), GFP_KERNEL);
+	if (!shub_data) {
+		shub_errf("failed to alloc for shub data");
+		return -ENOMEM;
+	}
+
 	shub_data->pdev = pdev;
 
 	if (!dev->of_node) {
@@ -407,6 +499,7 @@ int shub_probe(struct platform_device *pdev)
 		goto err_init_file_manager;
 	}
 
+	init_shub_panel();
 #ifdef CONFIG_SHUB_DEBUG
 	shub_system_checker_init();
 #endif
@@ -451,9 +544,8 @@ void shub_shutdown(struct platform_device *pdev)
 	shub_data->is_probe_done = false;
 
 	sensorhub_shutdown();
-#ifdef CONFIG_SHUB_DUMP
+	remove_shub_panel();
 	remove_shub_dump();
-#endif
 	remove_shub_motor_callback();
 	remove_factory();
 	remove_indio_dev();
@@ -473,28 +565,52 @@ int shub_suspend(struct device *dev)
 {
 	shub_infof();
 
-	disable_debug_timer();
-	disable_timestamp_sync_timer();
-
-	shub_data->ap_status = AP_SUSPEND;
+	shub_data->pm_status = PM_SUSPEND;
 
 #ifdef CONFIG_SHUB_AP_STATUS_CMD
-	shub_send_status(AP_SUSPEND);
+	send_pm_state(PM_SUSPEND);
 #endif
 	return 0;
 }
 
-void shub_resume(struct device *dev)
+int shub_resume(struct device *dev)
+{
+	shub_infof();
+
+	shub_data->pm_status = PM_RESUME;
+
+#ifdef CONFIG_SHUB_AP_STATUS_CMD
+	send_pm_state(PM_RESUME);
+#endif
+	return 0;
+}
+
+int shub_prepare(struct device *dev)
+{
+	shub_infof();
+
+	disable_debug_timer();
+	disable_timestamp_sync_timer();
+
+	shub_data->pm_status = PM_PREPARE;
+
+#ifdef CONFIG_SHUB_AP_STATUS_CMD
+	send_pm_state(PM_PREPARE);
+#endif
+	return 0;
+}
+
+void shub_complete(struct device *dev)
 {
 	shub_infof();
 
 	enable_debug_timer();
 	enable_timestamp_sync_timer();
 
-	shub_data->ap_status = AP_RESUME;
+	shub_data->pm_status = PM_COMPLETE;
 
 #ifdef CONFIG_SHUB_AP_STATUS_CMD
-	shub_send_status(AP_RESUME);
+	send_pm_state(PM_COMPLETE);
 #endif
 }
 

@@ -31,10 +31,22 @@
 #include <linux/delay.h>
 
 #define NAD_PRINT(format, ...) printk("[NAD] " format, ##__VA_ARGS__)
-//#define NAD_DEBUG
+#define NAD_DEBUG
+
+#define REBOOT "Reboot"
+
+
+#define SMD_NAD_PROG		"/system/bin/mnad/mtk_nad_exec.sh"
+#define ETC_NAD_PROG		"/system/bin/mnad/mtk_nad_exec.sh"
+#define ERASE_NAD_PRG		"/system/bin/mnad/remove_mtk_nad_files.sh"
+
+#define SMD_NAD_RESULT		"/sdcard/log/mtknad/NAD_SMD/test_result.csv"
+#define ETC_NAD_RESULT		"/sdcard/log/mtknad/NAD/test_result.csv"
+
+#define SMD_NAD_LOGPATH		"logPath:/sdcard/log/mtknad/NAD_SMD"
+#define ETC_NAD_LOGPATH		"logPath:/sdcard/log/mtknad/NAD"
 
 struct kobj_uevent_env nad_uevent;
-int curr_event = 0;
 
 static void sec_nad_param_update(struct work_struct *work)
 {
@@ -73,7 +85,6 @@ static void sec_nad_param_update(struct work_struct *work)
 			NAD_PRINT("nad_dram_test_result : %d\n", sec_nad_env.nad_dram_test_result);
 			NAD_PRINT("nad_dram_fail_data : %d\n", sec_nad_env.nad_dram_fail_data);
 			NAD_PRINT("nad_dram_fail_address : 0x%016llx\n", sec_nad_env.nad_dram_fail_address);
-			NAD_PRINT("smd_item_result : %s\n", sec_nad_env.smd_item_result);
 
 			if (ret < 0) pr_err("%s: write error! %d\n", __func__, ret);
 			break;
@@ -88,7 +99,6 @@ static void sec_nad_param_update(struct work_struct *work)
 			NAD_PRINT("nad_dram_test_result : %d\n", sec_nad_env.nad_dram_test_result);
 			NAD_PRINT("nad_dram_fail_data : %d\n", sec_nad_env.nad_dram_fail_data);
 			NAD_PRINT("nad_dram_fail_address : 0x%016llx\n", sec_nad_env.nad_dram_fail_address);
-			NAD_PRINT("smd_item_result : %s\n", sec_nad_env.smd_item_result);
 
 			if (ret < 0) pr_err("%s: read error! %d\n", __func__, ret);
 			break;
@@ -139,6 +149,95 @@ static void sec_nad_init_update(struct work_struct *work)
 		pr_err("%s: read error! %d\n", __func__, ret);
 }
 
+static int Nad_Result(enum nad_enum_step mode)
+{
+	int fd = 0;
+	int found = 0;
+	int fd_proc = 0;
+	int ret = NAD_CHECK_NONE;
+	char buf[512] = {'\0',};
+	char proc_buf[200] = {'\0',};
+ 
+	mm_segment_t old_fs = get_fs();
+	set_fs(KERNEL_DS);
+ 
+	fd_proc = sys_open("/proc/reset_reason", O_RDONLY, 0);
+	
+	if (fd_proc >= 0) {
+		printk(KERN_DEBUG);
+		sys_read(fd_proc, proc_buf, 200);
+
+		NAD_PRINT("/proc/reset_reason value = %s\n", proc_buf);
+		sys_close(fd_proc);
+	}
+
+	if(mode == STEP_SMD_NAD_START) {
+		NAD_PRINT("checking SMD NAD result\n");
+		fd = sys_open(SMD_NAD_RESULT, O_RDONLY, 0);
+	}
+	else if(mode == STEP_ETC) {
+		NAD_PRINT("checking ACAT NAD result\n");
+		fd = sys_open(ETC_NAD_RESULT, O_RDONLY, 0);
+	}
+
+	if (fd >= 0) {
+		printk(KERN_DEBUG);
+
+		while(sys_read(fd, buf, 512))
+		{
+			char *ptr;
+			char *div = "\n";
+			char *tok = NULL;
+
+			ptr = buf;
+			while((tok = strsep(&ptr, div)) != NULL )
+			{
+				if((strstr(tok, "FAIL")))
+				{
+					NAD_PRINT("There is a FAIL in test_result.csv %d\n", ret);
+					ret = NAD_CHECK_FAIL;
+					found = 1;
+					break;
+				}
+
+				if((strstr(tok, "AllTestDone")))
+				{
+					NAD_PRINT("AllTestDone found in test_result.csv %d\n", ret);
+					ret = NAD_CHECK_PASS;
+					found = 1;
+					break;
+				}
+			}
+			
+			if(ret == NAD_CHECK_NONE)
+			{
+				if( !(strncasecmp(proc_buf, "KPON",4)) || !(strncasecmp(proc_buf, "DPON",4)) )
+					ret = NAD_CHECK_FAIL;
+				else
+					ret = NAD_CHECK_INCOMPLETED;
+
+				found = 1;
+			}
+
+			if(found)
+				break;
+		}
+		
+		if (!found)
+			ret = NAD_CHECK_INCOMPLETED;
+		sys_close(fd);
+	}
+	else
+	{
+		NAD_PRINT("The File is not existed\n");
+		ret = NAD_CHECK_NONE;
+	}
+
+	set_fs(old_fs);
+	
+	NAD_PRINT("The result is %d\n", ret);
+	return ret;
+}
 
 static ssize_t show_nad_remain_count(struct device *dev,
         struct device_attribute *attr,
@@ -188,21 +287,43 @@ static ssize_t show_nad_stat(struct device *dev,
 	ret = sec_set_nad_param(NAD_PARAM_READ);
 	if (ret < 0)
 		pr_err("%s: read error! %d\n", __func__, ret);
+	
+	if(sec_nad_env.curr_step == STEP_SMD_NAD_DONE) {
+		dramscan_result = sec_nad_env.nad_smd_result & 0x3;
+		hlos_result = (sec_nad_env.nad_smd_result >> 2) & 0x3;
+	} else if (sec_nad_env.curr_step == STEP_SMD_NAD_START) {
+		dramscan_result = sec_nad_env.nad_smd_result & 0x3;
+		hlos_result = Nad_Result(STEP_SMD_NAD_START);
 
-	dramscan_result = sec_nad_env.nad_smd_result & 0x3;
-	hlos_result = (sec_nad_env.nad_smd_result >> 2) & 0x3;
-
+		sec_nad_env.nad_smd_result = sec_nad_env.nad_smd_result + (hlos_result << 2);
+		sec_nad_env.curr_step = STEP_SMD_NAD_DONE;
+	}
+	
+	ret = sec_set_nad_param(NAD_PARAM_WRITE);
+	if (ret < 0)
+		pr_err("%s: read error! %d\n", __func__, ret);
+	
 	if(dramscan_result == NAD_CHECK_FAIL ||
 		hlos_result == NAD_CHECK_FAIL) {
+		char strResult[30] = { '\0', };
+		if (dramscan_result == NAD_CHECK_FAIL)
+			strcat(strResult, "[X]");
+		else
+			strcat(strResult, "[P]");
+		
+		if(hlos_result == NAD_CHECK_FAIL)
+			strcat(strResult, "[X]");
+		else
+			strcat(strResult, "[P]");
 
-		return sprintf(buf, "NG_2.0_FAIL_%s\n", sec_nad_env.smd_item_result);
+		return sprintf(buf, "NG_2.0_FAIL_%s\n", strResult);
 	}
 	else if (hlos_result == NAD_CHECK_PASS)
 		return sprintf(buf, "OK_2.0\n");
 	else if(hlos_result == NAD_CHECK_NONE && sec_nad_env.curr_step < STEP_SMD_NAD_START)
 		return sprintf(buf, "OK\n");
 	else	// NAD test is not finished(in SMD F/T)
-		return sprintf(buf, "RE_WORK_%s\n", sec_nad_env.smd_item_result);
+		return sprintf(buf, "RE_WORK\n");
 }
 static DEVICE_ATTR(nad_stat, S_IRUGO, show_nad_stat, NULL);
 
@@ -210,8 +331,7 @@ static ssize_t show_nad_support(struct device *dev,
         struct device_attribute *attr,
         char *buf)
 {
-#if defined(CONFIG_MACH_MT6757) || defined(CONFIG_MACH_MT6768) \
-	|| defined(CONFIG_MACH_MT6765)
+#if defined(CONFIG_MACH_MT6757) || defined(CONFIG_MACH_MT6768)
 	return sprintf(buf, "SUPPORT\n");
 #else
 	return sprintf(buf, "NOT_SUPPORT\n");
@@ -234,10 +354,44 @@ static ssize_t store_nad_erase(struct device *dev,
         struct device_attribute *attr,
         const char *buf, size_t count)
 {
-	if (!strncmp(buf, "erase", 5))
-		curr_event = 4;
+	int ret = -1;
+	if (!strncmp(buf, "erase", 5)) {
+		char *argv[4] = { NULL, NULL, NULL, NULL };
+		char *envp[3] = { NULL, NULL, NULL };
+		int ret_userapp;
 
-	return count;
+		NAD_PRINT("store_nad_erase\n");
+		sec_nad_env.curr_step = 0;
+		sec_nad_env.nad_acat_remaining_count = 0;
+		sec_nad_env.nad_dramtest_remaining_count = 0;
+		sec_nad_env.nad_smd_result = 0;
+		sec_nad_env.nad_dram_test_result = 0;
+		sec_nad_env.nad_dram_fail_data = 0;
+		sec_nad_env.nad_dram_fail_address = 0;
+			
+		ret = sec_set_nad_param(NAD_PARAM_WRITE);
+		if (ret < 0)
+			pr_err("%s: write error! %d\n", __func__, ret);
+
+		argv[0] = ERASE_NAD_PRG;
+				
+		envp[0] = "HOME=/";
+		envp[1] = "PATH=/system/bin:/sbin:/bin:/usr/sbin:/usr/bin";
+		ret_userapp = call_usermodehelper( argv[0], argv, envp, UMH_WAIT_EXEC);
+	
+		if(!ret_userapp)
+		{
+			NAD_PRINT("remove_mtk_nad_files.sh is executed. ret_userapp = %d\n", ret_userapp);
+			erase_pass = 1;
+		}
+		else
+		{
+			NAD_PRINT("remove_mtk_nad_files.sh is NOT executed. ret_userapp = %d\n", ret_userapp);
+			erase_pass = 0;
+		}
+		return count;
+	} else
+		return count;
 }
 
 static ssize_t show_nad_erase(struct device *dev,
@@ -256,10 +410,10 @@ static ssize_t show_nad_acat(struct device *dev,
 					   struct device_attribute *attr,
 					   char *buf)
 {
-	if(sec_nad_env.nad_acat_result == NAD_CHECK_NONE){
+	if(Nad_Result(STEP_ETC) == NAD_CHECK_NONE){
 		NAD_PRINT("MTK_NAD No Run\n");
 		return sprintf(buf, "OK\n");
-	}else if(sec_nad_env.nad_acat_result == NAD_CHECK_FAIL){
+	}else if(Nad_Result(STEP_ETC) == NAD_CHECK_FAIL){
 		NAD_PRINT("MTK_NAD fail\n");
 		return sprintf(buf, "NG_ACAT_ASV\n");
 	}else{
@@ -267,6 +421,46 @@ static ssize_t show_nad_acat(struct device *dev,
 		return sprintf(buf, "OK_ACAT_NONE\n");
 	} 
 }
+
+static void do_nad(int mode)
+{
+	char *argv[4] = { NULL, NULL, NULL, NULL };
+	char *envp[3] = { NULL, NULL, NULL };
+	int ret_userapp;
+
+	envp[0] = "HOME=/";
+	envp[1] = "PATH=/system/bin:/sbin:/bin:/usr/sbin:/usr/bin";
+
+	switch (mode) {
+		case STEP_SMD_NAD_START:
+			argv[0] = SMD_NAD_PROG;
+			argv[1] = SMD_NAD_LOGPATH;
+			NAD_PRINT("SMD_NAD, nad_test_mode : %d\n", mode);
+			break;
+		default:
+			argv[0] = ETC_NAD_PROG;
+			argv[1] = REBOOT;
+			argv[2] = ETC_NAD_LOGPATH;
+			NAD_PRINT("ETC_NAD, nad_test_mode : %d\n", mode);
+			NAD_PRINT
+			    ("Setting an argument to reboot after NAD completes.\n");
+			break;
+	}
+
+	ret_userapp = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_EXEC);
+
+	if (!ret_userapp) {
+		NAD_PRINT("%s is executed. ret_userapp = %d\n", argv[0],
+			  ret_userapp);
+
+		if (erase_pass)
+			erase_pass = 0;
+	} else {
+		NAD_PRINT("%s is NOT executed. ret_userapp = %d\n", argv[0],
+			  ret_userapp);
+	}
+}
+
 
 static ssize_t store_nad_acat(struct device *dev,
 					    struct device_attribute *attr,
@@ -300,8 +494,15 @@ static ssize_t store_nad_acat(struct device *dev,
 		if(sec_nad_env.curr_step < STEP_SMD_NAD_START) ///////////// SMD NAD section //////////////
 		{
 			NAD_PRINT("1st boot at SMD\n");
-			curr_event = 1;
-
+			sec_nad_env.curr_step = STEP_SMD_NAD_START;
+			sec_nad_env.nad_acat_remaining_count = 0x0;
+			sec_nad_env.nad_dramtest_remaining_count = 0x0;
+			
+			ret = sec_set_nad_param(NAD_PARAM_WRITE);
+			if (ret < 0)
+				pr_err("%s: read error! %d\n", __func__, ret);
+			
+			do_nad(STEP_SMD_NAD_START);
 			return count;
 		}
 
@@ -318,7 +519,6 @@ static ssize_t store_nad_acat(struct device *dev,
 		if( nad_count || dram_count) {
 			sec_nad_env.nad_acat_remaining_count = nad_count;
 			sec_nad_env.nad_dramtest_remaining_count = dram_count;
-			sec_nad_env.nad_acat_result = NAD_CHECK_NONE;
 			
 			NAD_PRINT
 				("new cmd : nad_acat_remaining_count = %d, nad_dramtest_remaining_count = %d\n",
@@ -329,10 +529,35 @@ static ssize_t store_nad_acat(struct device *dev,
 			if (ret < 0)
 				pr_err("%s: write error! %d\n", __func__, ret);
 		} else {
-			curr_event =2;
+			if(sec_nad_env.curr_step >= STEP_SMD_NAD_START &&
+				Nad_Result(STEP_ETC) == NAD_CHECK_FAIL) {
+				pr_err("%s : nad test fail - set the remain counts to 0\n",
+					     __func__);
+				sec_nad_env.nad_acat_remaining_count = 0;
+				sec_nad_env.nad_dramtest_remaining_count = 0;
+
+				// flushing to param partition
+				ret = sec_set_nad_param(NAD_PARAM_WRITE);
+				if (ret < 0)
+					pr_err("%s: read error! %d\n", __func__, ret);
+
+				goto err_out;
+			}
+			if (sec_nad_env.nad_acat_remaining_count > 0) {
+				NAD_PRINT("nad : nad_remain_count = %d, ddrtest_remain_count = %d\n",
+						sec_nad_env.nad_acat_remaining_count,
+						sec_nad_env.nad_dramtest_remaining_count);
+				
+				sec_nad_env.nad_acat_remaining_count--;
+				ret = sec_set_nad_param(NAD_PARAM_WRITE);
+				if (ret < 0)
+					pr_err("%s: read error! %d\n", __func__, ret);
+
+				do_nad(STEP_ETC);
+			}
 		}
 	}
-//err_out:
+err_out:
 	return count;
 
 }
@@ -356,29 +581,6 @@ static ssize_t show_nad_dram(struct device *dev,
 }
 
 static DEVICE_ATTR(nad_dram, S_IRUGO, show_nad_dram, NULL);
-
-
-static ssize_t store_nad_event(struct device *dev,
-        struct device_attribute *attr,
-        const char *buf, size_t count)
-{
-	NAD_PRINT("%s\n", __func__);
-
-	sscanf(buf, "%d", &curr_event);
-
-	return count;
-}
-
-static ssize_t show_nad_event(struct device *dev,
-        struct device_attribute *attr,
-        char *buf)
-{
-//	NAD_PRINT("%s\n", __func__);
-
-	return sprintf(buf, "%d", curr_event);
-}
-
-static DEVICE_ATTR(nad_event, S_IRUGO | S_IWUSR, show_nad_event, store_nad_event);
 
 static int __init sec_nad_init(void)
 {
@@ -446,13 +648,7 @@ static int __init sec_nad_init(void)
 		pr_err("%s: Failed to create device file\n", __func__);
 		goto err_create_nad_sysfs;
 	}
-	
-	ret = device_create_file(sec_nad, &dev_attr_nad_event); 
-	if(ret) {
-		pr_err("%s: Failed to create device file\n", __func__);
-		goto err_create_nad_sysfs;
-	}
-	
+
 	if(add_uevent_var(&nad_uevent, "NAD_TEST=%s", "DONE")) {
 		pr_err("%s : uevent NAD_TEST_AND_PASS is failed to add\n", __func__);
 		goto err_create_nad_sysfs;

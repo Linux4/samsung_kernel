@@ -16,15 +16,15 @@
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 #include <linux/suspend.h>
-#if IS_ENABLED(CONFIG_SEC_PM)
+#ifdef CONFIG_SEC_PM
 #include <linux/fb.h>
-#endif
+#endif /* CONFIG_SEC_PM */
 
 #include "power.h"
 
-#if IS_ENABLED(CONFIG_SEC_PM)
+#ifdef CONFIG_SEC_PM
 static struct delayed_work ws_work;
-#endif
+#endif /* CONFIG_SEC_PM  */
 
 #ifdef CONFIG_PM_SLEEP
 
@@ -850,50 +850,50 @@ power_attr(pm_freeze_timeout);
 
 #endif	/* CONFIG_FREEZER*/
 
-#if defined(CONFIG_FOTA_LIMIT)
+#ifdef CONFIG_FOTA_LIMIT
 static char fota_limit_str[] =
-#if defined(CONFIG_MACH_MT6853)
-	"[START]\n"
-	"/sys/power/cpufreq_max_limit 1418000\n"
-	"[STOP]\n"
-	"/sys/power/cpufreq_max_limit -1\n"
-	"[END]\n";
+#ifdef CONFIG_MACH_MT6853
+    "[START]\n"
+    "/sys/power/cpufreq_max_limit 1418000\n"
+    "[STOP]\n"
+    "/sys/power/cpufreq_max_limit -1\n"
+    "[END]\n";
 #elif defined(CONFIG_MACH_MT6768)
-	"[START]\n"
-	"/sys/power/cpufreq_max_limit 1443000\n"
-	"[STOP]\n"
-	"/sys/power/cpufreq_max_limit -1\n"
-	"[END]\n";
+    "[START]\n"
+    "/sys/power/cpufreq_max_limit 1443000\n"
+    "[STOP]\n"
+    "/sys/power/cpufreq_max_limit -1\n"
+    "[END]\n";
 #elif defined(CONFIG_MACH_MT6765)
-	"[START]\n"
-	"/sys/power/cpufreq_max_limit 1750000\n"
-	"[STOP]\n"
-	"/sys/power/cpufreq_max_limit -1\n"
-	"[END]\n";
+    "[START]\n"
+    "/sys/power/cpufreq_max_limit 1750000\n"
+    "[STOP]\n"
+    "/sys/power/cpufreq_max_limit -1\n"
+    "[END]\n";
 #elif defined(CONFIG_MACH_MT6739)
-	"[START]\n"
-	"/sys/power/cpufreq_max_limit 1495000\n"
-	"[STOP]\n"
-	"/sys/power/cpufreq_max_limit -1\n"
-	"[END]\n";
+    "[START]\n"
+    "/sys/power/cpufreq_max_limit 1495000\n"
+    "[STOP]\n"
+    "/sys/power/cpufreq_max_limit -1\n"
+    "[END]\n";
 #else
-	"[NOT_SUPPORT]\n";
+    "[NOT_SUPPORT]\n";
 #endif
 
 static ssize_t fota_limit_show(struct kobject *kobj,
-					struct kobj_attribute *attr,
-					char *buf)
+                    struct kobj_attribute *attr,
+                    char *buf)
 {
-	pr_info("%s\n", __func__);
-	return sprintf(buf, "%s", fota_limit_str);
+    pr_info("%s\n", __func__);
+    return sprintf(buf, "%s", fota_limit_str);
 }
 
 static struct kobj_attribute fota_limit_attr = {
-	.attr	= {
-		.name = __stringify(fota_limit),
-		.mode = 0440,
-	},
-	.show	= fota_limit_show,
+    .attr   = {
+        .name = __stringify(fota_limit),
+        .mode = 0440,
+    },
+    .show   = fota_limit_show,
 };
 #endif /* CONFIG_FOTA_LIMIT */
 
@@ -926,7 +926,7 @@ static struct attribute * g[] = {
 #ifdef CONFIG_FREEZER
 	&pm_freeze_timeout_attr.attr,
 #endif
-#if defined(CONFIG_FOTA_LIMIT)
+#ifdef CONFIG_FOTA_LIMIT
 	&fota_limit_attr.attr,
 #endif /* CONFIG_FOTA_LIMIT */
 	NULL,
@@ -954,7 +954,7 @@ static int __init pm_start_workqueue(void)
 	return pm_wq ? 0 : -ENOMEM;
 }
 
-#if IS_ENABLED(CONFIG_SEC_PM)
+#ifdef CONFIG_SEC_PM
 static void handle_ws_work(struct work_struct *work)
 {
 	wakeup_sources_stats_active();
@@ -972,10 +972,11 @@ static int state_change_fb_notifier_callback(struct notifier_block *nb,
 
 	blank = *(int *)evdata->data;
 
-	if (blank == FB_BLANK_UNBLANK)
+	if (blank == FB_BLANK_UNBLANK) {
 		cancel_delayed_work_sync(&ws_work);
-	else
+	} else {
 		schedule_delayed_work(&ws_work, msecs_to_jiffies(5000));
+	}
 
 	return NOTIFY_OK;
 }
@@ -983,7 +984,7 @@ static int state_change_fb_notifier_callback(struct notifier_block *nb,
 static struct notifier_block fb_notifier = {
 	.notifier_call = state_change_fb_notifier_callback,
 };
-#endif
+#endif /* CONFIG_SEC_PM */
 
 static int __init pm_init(void)
 {
@@ -1000,10 +1001,10 @@ static int __init pm_init(void)
 	if (error)
 		return error;
 	pm_print_times_init();
-#if IS_ENABLED(CONFIG_SEC_PM)
+#ifdef CONFIG_SEC_PM
 	fb_register_client(&fb_notifier);
 	INIT_DELAYED_WORK(&ws_work, handle_ws_work);
-#endif
+#endif /* CONFIG_SEC_PM */
 	return pm_autosleep_init();
 }
 

@@ -10,6 +10,7 @@
 #include <gz-trusty/sm_err.h>
 #include <linux/device.h>
 #include <linux/pagemap.h>
+#include <linux/kthread.h>
 
 extern void handle_trusty_ipi(int ipinr);
 s32 trusty_std_call32(struct device *dev, u32 smcnr, u32 a0, u32 a1, u32 a2);
@@ -84,7 +85,7 @@ enum tee_id_t {
 	TEE_ID_END
 };
 
-void trusty_enqueue_nop(struct device *dev, struct trusty_nop *nop);
+void trusty_enqueue_nop(struct device *dev, struct trusty_nop *nop, int cpu);
 
 void trusty_dequeue_nop(struct device *dev, struct trusty_nop *nop);
 
@@ -97,6 +98,11 @@ void trusty_dequeue_nop(struct device *dev, struct trusty_nop *nop);
 #define get_tee_name(tee_id)	\
 	((is_tee_id(tee_id)) ?		\
 	((is_trusty_tee(tee_id)) ? "Trusty" : "Nebula") : "None")
+
+#define TIPC_RXVQ_NOTIFYID_START	(1)
+#define TIPC_TXVQ_NOTIFYID_START	(2)
+
+#define TIPC_MULTIPLE_VQUEUE_FEATURE	(1)
 
 #ifndef VIRTIO_ID_TRUSTY_IPC /*for kernel-4.19*/
 #define VIRTIO_ID_TRUSTY_IPC   13
@@ -125,6 +131,15 @@ struct trusty_work {
 	struct work_struct work;
 };
 
+struct nop_task_info {
+	struct trusty_state *ts;
+	int idx;
+	struct completion run;
+	struct completion rdy;
+	void (*nop_func)(struct nop_task_info *nop_ti);
+	struct list_head nop_queue;
+};
+
 struct trusty_state {
 	struct mutex smc_lock;
 	struct atomic_notifier_head notifier;
@@ -133,111 +148,18 @@ struct trusty_state {
 	char *version_str;
 	u32 api_version;
 	struct device *dev;
-	struct workqueue_struct *nop_wq;
-	struct trusty_work __percpu *nop_works;
-	struct list_head nop_queue;
+	struct task_struct __percpu *nop_tasks_fd;
+	struct nop_task_info __percpu *nop_tasks_info;
 	spinlock_t nop_lock;	/* protects nop_queue */
 	enum tee_id_t tee_id;
+	struct notifier_block poll_notifier;
+	struct task_struct *poll_task;
+	struct kthread_worker poll_worker;
+	struct kthread_work poll_work;
 };
 
 #if IS_ENABLED(CONFIG_MT_GZ_TRUSTY_DEBUGFS)
 void mtee_create_debugfs(struct trusty_state *s, struct device *dev);
 #endif
-
-#if IS_ENABLED(CONFIG_FTRACE)
-
-#include <linux/kallsyms.h>
-#include <linux/trace_events.h>
-static unsigned long __read_mostly gz_trusty_tracing_writer;
-
-#define GZ_TRUSTY_TRACE_BEGIN(fmt, args...) do { \
-	if (gz_trusty_tracing_writer == 0) \
-		gz_trusty_tracing_writer = \
-			kallsyms_lookup_name("tracing_mark_write"); \
-	preempt_disable(); \
-	event_trace_printk(gz_trusty_tracing_writer, \
-		"B|%d|GZT_"fmt"\n", current->tgid, ##args); \
-	preempt_enable();\
-} while (0)
-
-#define GZ_TRUSTY_TRACE_END() do { \
-	preempt_disable(); \
-	event_trace_printk(gz_trusty_tracing_writer, "E\n"); \
-	preempt_enable(); \
-} while (0)
-
-#define GZ_TRUSTY_TRACE_CNT(cnt, fmt, args...) do { \
-	if (gz_trusty_tracing_writer == 0) \
-		gz_trusty_tracing_writer = \
-			kallsyms_lookup_name("tracing_mark_write"); \
-	preempt_disable(); \
-	event_trace_printk(gz_trusty_tracing_writer, \
-		"C|%d|GZT_"fmt"|%d\n", current->tgid, ##args, cnt); \
-	preempt_enable();\
-} while (0)
-
-#define GZ_TRUSTY_ASYNC_TRACE_BEGIN(cookie, fmt, args...) do { \
-	if (gz_trusty_tracing_writer == 0) \
-		gz_trusty_tracing_writer = \
-			kallsyms_lookup_name("tracing_mark_write"); \
-	preempt_disable(); \
-	event_trace_printk(gz_trusty_tracing_writer, \
-		"S|%d|GZT_"fmt"|%d\n", current->tgid, ##args, cookie); \
-	preempt_enable();\
-} while (0)
-
-#define GZ_TRUSTY_ASYNC_TRACE_END(cookie, fmt, args...) do { \
-	preempt_disable(); \
-	event_trace_printk(gz_trusty_tracing_writer, \
-		"F|%d|GZT_"fmt"|%d\n", current->tgid, ##args, cookie); \
-	preempt_enable();\
-} while (0)
-
-#define GZ_TRUSTY_TRACE_INJECTION(fmt, args...) do { \
-	if (gz_trusty_tracing_writer == 0) \
-		gz_trusty_tracing_writer = \
-			kallsyms_lookup_name("tracing_mark_write"); \
-	preempt_disable(); \
-	event_trace_printk(gz_trusty_tracing_writer, \
-		"GZT|"fmt"\n", ##args); \
-	preempt_enable();\
-} while (0)
-
-/* How to,
- * use for in the same process
- * no need add "\n"
- * you can find time slot in systrace by keyword GZ_XXXX
- * GZ_TRUSTY_TRACE_BEGIN("%s", __func__);
- * GZ_TRUSTY_TRACE_END();
-
- * use for async case
- * no need add "\n"
- * you can find time slot in systrace by keyword GZ_XXXX
- * GZ_TRUSTY_ASYNC_TRACE_BEGIN(atomic_read(&tctx->kick_cookie), "ToKick");
- * GZ_TRUSTY_ASYNC_TRACE_END(atomic_read(&tctx->kick_cookie), "ToKick");
- * atomic_inc(&tctx->kick_cookie);
- *
- * use for add news
- * can't find info in systrace UI, only find in raw data
- * GZ_TRUSTY_TRACE_CNT(100, "my_std_call32");
- */
-#else
-
-#define GZ_TRUSTY_TRACE_BEGIN(fmt, args...) do { \
-} while (0)
-
-#define GZ_TRUSTY_TRACE_END() do { \
-} while (0)
-
-#define GZ_TRUSTY_TRACE_CNT(cnt, fmt, args...) do { \
-} while (0)
-
-#define GZ_TRUSTY_ASYNC_TRACE_BEGIN(cookie, fmt, args...) do { \
-} while (0)
-
-#define GZ_TRUSTY_ASYNC_TRACE_END(cookie, fmt, args...) do { \
-} while (0)
-
-#endif /* CONFIG_FTRACE */
 
 #endif

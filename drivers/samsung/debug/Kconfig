@@ -53,6 +53,13 @@ config SEC_DEBUG_AUTO_COMMENT
 	  This option also requires bootloader change that enables auto comment
 	  extraction along with ramdump.
 
+config SEC_DEBUG_HIST_LOG
+	bool "support storing debug history log"
+	depends on SEC_DEBUG
+	default y
+	help
+	  This option enables to store debug history log.
+
 config SEC_DEBUG_LIMIT_BACKTRACE
 	bool "Forcely break infinity backtrace"
 	depends on SEC_DEBUG

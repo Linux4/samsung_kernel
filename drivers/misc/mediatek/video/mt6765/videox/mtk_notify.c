@@ -5,6 +5,9 @@
  */
 
 #include "mtk_notify.h"
+#if defined(CONFIG_SMCDSD_PANEL)
+#include "primary_display.h"
+#endif
 
 static struct class *notify_class;
 
@@ -72,3 +75,77 @@ int noti_uevent_user(struct mtk_uevent_dev *udev, int state)
 
 	return 0;
 }
+
+#if defined(CONFIG_MTK_VSYNC_PRINT)
+static unsigned long mtk_ddp_get_tracing_mark(void)
+{
+	static unsigned long addr;
+
+	if (addr == 0)
+		addr = kallsyms_lookup_name("tracing_mark_write");
+
+	return addr;
+}
+
+static void print_trace(const char *tag, int value)
+{
+	preempt_disable();
+	event_trace_printk(mtk_ddp_get_tracing_mark(), "C|%d|%s|%d\n",
+		0xFFFF0000, tag, value);
+	preempt_enable();
+}
+
+static void vsync_tag_start(unsigned int index)
+{
+	char tag_name[30] = { '\0' };
+
+	sprintf(tag_name,
+		index ? "ExtDispRefresh" : "PrimDispRefresh");
+	print_trace(tag_name, 1);
+}
+
+static void vsync_tag_end(unsigned int index)
+{
+	char tag_name[30] = { '\0' };
+
+	sprintf(tag_name, index ?
+		"ExtDispRefresh" : "PrimDispRefresh");
+
+	print_trace(tag_name, 0);
+}
+
+void vsync_print_handler(enum DISP_MODULE_ENUM module,
+		unsigned int reg_val)
+{
+	int index = 0;
+
+	switch (module) {
+	case DISP_MODULE_RDMA0:
+	case DISP_MODULE_RDMA1:
+		if (!primary_display_is_video_mode())
+			break;
+		index = module - DISP_MODULE_RDMA0;
+		/*Always process eof prior to sof*/
+		if (reg_val & (1 << 1)) {
+			vsync_tag_start(index);
+			vsync_tag_end(index);
+		}
+		break;
+
+	case DISP_MODULE_DSI0:
+		if (primary_display_is_video_mode())
+			break;
+
+		index = module - DISP_MODULE_DSI0;
+
+		if (reg_val & (1 << 2)) {
+			vsync_tag_start(index);
+			vsync_tag_end(index);
+		}
+		break;
+
+	default:
+		break;
+	}
+}
+#endif

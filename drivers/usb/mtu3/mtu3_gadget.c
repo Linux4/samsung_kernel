@@ -266,12 +266,19 @@ struct usb_request *mtu3_alloc_request(struct usb_ep *ep, gfp_t gfp_flags)
 void mtu3_free_request(struct usb_ep *ep, struct usb_request *req)
 {
 	struct mtu3_request *mreq = to_mtu3_request(req);
+	struct mtu3_request *r;
 	struct mtu3_ep *mep = to_mtu3_ep(ep);
 	struct mtu3 *mtu = mep->mtu;
 	unsigned long flags;
 
 	trace_mtu3_free_request(mreq);
 	spin_lock_irqsave(&mtu->lock, flags);
+	list_for_each_entry(r, &mep->req_list, list) {
+		if (r == mreq) {
+			list_del(&mreq->list);
+			break;
+		}
+	}
 	kfree(mreq);
 	spin_unlock_irqrestore(&mtu->lock, flags);
 }
@@ -764,17 +771,10 @@ void mtu3_gadget_suspend(struct mtu3 *mtu)
 /* called when VBUS drops below session threshold, and in other cases */
 void mtu3_gadget_disconnect(struct mtu3 *mtu)
 {
-	struct usb_gadget_driver *driver;
-
 	dev_dbg(mtu->dev, "gadget DISCONNECT\n");
 	if (mtu->gadget_driver && mtu->gadget_driver->disconnect) {
-		driver = mtu->gadget_driver;
 		spin_unlock(&mtu->lock);
-		/*
-		 * avoid kernel panic because mtu3_gadget_stop() assigned NULL
-		 * to mtu->gadget_driver.
-		 */
-		driver->disconnect(&mtu->g);
+		mtu->gadget_driver->disconnect(&mtu->g);
 		spin_lock(&mtu->lock);
 	}
 

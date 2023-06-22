@@ -18,7 +18,7 @@
 
 #define DUMP_TYPE_BASE 100
 
-void write_shub_dump_file(char *dump, int dumpsize, int type);
+void write_shub_dump_file(char *dump, int dumpsize, int type, int count);
 void initialize_shub_dump(void);
 void remove_shub_dump(void);
 

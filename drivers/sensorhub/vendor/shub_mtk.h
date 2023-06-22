@@ -8,6 +8,7 @@
 #else
 #include "../../misc/mediatek/scp/mt6765/scp_helper.h"
 #include "../../misc/mediatek/scp/mt6765/scp_ipi.h"
+#include "../../misc/mediatek/scp/mt6765/scp_excep.h"
 #endif
 
 int sensorhub_probe(void);

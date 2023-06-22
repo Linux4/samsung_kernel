@@ -38,7 +38,7 @@
 
 #ifdef CONFIG_SEC_GPIO_DVS
 #include <linux/secgpio_dvs.h>
-#endif
+#endif /* CONFIG_SEC_GPIO_DVS  */
 
 #define MTK_SOLUTION 1
 
@@ -370,19 +370,6 @@ static int suspend_prepare(suspend_state_t state)
 		goto Finish;
 	}
 
-#ifndef CONFIG_SUSPEND_SKIP_SYNC
-	trace_suspend_resume(TPS("sync_filesystems"), 0, true);
-	pr_info("Syncing filesystems ... ");
-	if (intr_sync(NULL)) {
-		printk("canceled.\n");
-		trace_suspend_resume(TPS("sync_filesystems"), 0, false);
-		error = -EBUSY;
-		goto Finish;
-	}
-	pr_cont("done.\n");
-	trace_suspend_resume(TPS("sync_filesystems"), 0, false);
-#endif
-
 	trace_suspend_resume(TPS("freeze_processes"), 0, true);
 	error = suspend_freeze_processes();
 	trace_suspend_resume(TPS("freeze_processes"), 0, false);
@@ -428,7 +415,7 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 	 */
 	/************************ Caution !!! ****************************/
 	gpio_dvs_check_sleepgpio();
-#endif
+#endif /* CONFIG_SEC_GPIO_DVS  */
 
 	error = platform_suspend_prepare(state);
 	if (error)
@@ -668,7 +655,23 @@ static int enter_state(suspend_state_t state)
 	if (state == PM_SUSPEND_TO_IDLE)
 		s2idle_begin();
 
-	pr_info("Preparing system for sleep (%s)\n", mem_sleep_labels[state]);
+#ifndef CONFIG_SUSPEND_SKIP_SYNC
+	trace_suspend_resume(TPS("sync_filesystems"), 0, true);
+	pr_info("Syncing filesystems ... ");
+#if MTK_SOLUTION
+	error = suspend_syssync_enqueue();
+	if (error) {
+		pr_info("sys_sync timeout.\n");
+		goto Unlock;
+	}
+#else
+	ksys_sync();
+#endif
+	pr_cont("done.\n");
+	trace_suspend_resume(TPS("sync_filesystems"), 0, false);
+#endif
+
+	pm_pr_dbg("Preparing system for sleep (%s)\n", mem_sleep_labels[state]);
 	pm_suspend_clear_flags();
 	error = suspend_prepare(state);
 	if (error)
@@ -678,14 +681,14 @@ static int enter_state(suspend_state_t state)
 		goto Finish;
 
 	trace_suspend_resume(TPS("suspend_enter"), state, false);
-	pr_info("Suspending system (%s)\n", mem_sleep_labels[state]);
+	pm_pr_dbg("Suspending system (%s)\n", mem_sleep_labels[state]);
 	pm_restrict_gfp_mask();
 	error = suspend_devices_and_enter(state);
 	pm_restore_gfp_mask();
 
  Finish:
 	events_check_enabled = false;
-	pr_info("Finishing wakeup.\n");
+	pm_pr_dbg("Finishing wakeup.\n");
 	suspend_finish();
  Unlock:
 	mutex_unlock(&system_transition_mutex);

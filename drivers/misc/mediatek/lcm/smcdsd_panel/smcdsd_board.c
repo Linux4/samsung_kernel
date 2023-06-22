@@ -105,6 +105,8 @@ run_list(dev, "subnode_4"); pre-configured lcd_pin pinctrl at subnode_1 will be 
 #define BOARD_DTS_NAME	"smcdsd_board"
 #define PANEL_DTS_NAME	"smcdsd_panel"
 #define PANEL_LUT_NAME	"panel-lut"
+#define PANEL_VRR_NAME	"vrr_info"
+#define PANEL_PBA_NODE	"panel_not_connected"
 
 #if defined(CONFIG_BOARD_DEBUG)
 #define dbg_none(fmt, ...)		pr_debug(pr_fmt("%s: %3d: %s: " fmt), BOARD_DTS_NAME, __LINE__, __func__, ##__VA_ARGS__)
@@ -113,6 +115,7 @@ run_list(dev, "subnode_4"); pre-configured lcd_pin pinctrl at subnode_1 will be 
 #endif
 #define dbg_info(fmt, ...)		pr_info(pr_fmt("%s: %3d: %s: " fmt), BOARD_DTS_NAME, __LINE__, __func__, ##__VA_ARGS__)
 #define dbg_warn(fmt, ...)		pr_warn(pr_fmt("%s: %3d: %s: " fmt), BOARD_DTS_NAME, __LINE__, __func__, ##__VA_ARGS__)
+#define dbg_once(fmt, ...)		pr_info_once(pr_fmt("%s: %3d: %s: " fmt), BOARD_DTS_NAME, __LINE__, __func__, ##__VA_ARGS__)
 
 #define STREQ(a, b)			(a && b && (*(a) == *(b)) && (strcmp((a), (b)) == 0))
 #define STRNEQ(a, b)			(a && b && (strncmp((a), (b), (strlen(a))) == 0))
@@ -412,7 +415,7 @@ static int decide_subinfo(struct device_node *np, struct action_info *action)
 	switch (action->idx) {
 	case ACTION_GPIO_HIGH:
 	case ACTION_GPIO_LOW:
-		action->gpio = of_get_named_gpio(np->parent, subinfo, 0);
+		action->gpio = of_get_named_gpio(np, subinfo, 0);
 		if (!gpio_is_valid(action->gpio)) {
 			dbg_warn("of_get_named_gpio fail %d %s\n", action->gpio, subinfo);
 			ret = -EINVAL;
@@ -515,7 +518,7 @@ static int decide_subinfo(struct device_node *np, struct action_info *action)
 		}
 		break;
 	case ACTION_PINCTRL:
-		pdev = of_find_device_by_node(np->parent);
+		pdev = of_find_device_by_node(np);
 		if (!pdev) {
 			dbg_warn("of_find_device_by_node fail\n");
 			ret = -EINVAL;
@@ -601,7 +604,7 @@ struct device_node *of_find_recommend_lcd_info(struct device *dev)
 
 	np = of_find_lcd_info(dev);
 	if (of_node_is_recommend(np)) {
-		dbg_info("%s is recommended\n", of_node_full_name(np));
+		dbg_once("%s is recommended\n", of_node_full_name(np));
 		return np;
 	}
 
@@ -610,13 +613,48 @@ struct device_node *of_find_recommend_lcd_info(struct device *dev)
 		for (i = 0; i < count; i++) {
 			np = of_parse_phandle(parent, PANEL_DTS_NAME, i);
 			if (of_node_is_recommend(np)) {
-				dbg_info("%s is recommended\n", of_node_full_name(np));
+				dbg_once("%s is recommended\n", of_node_full_name(np));
 				return np;
 			}
 		}
 	}
 
 	np = of_find_lcd_info(NULL);	/* if there is no recommend, return 1st lcd_info */
+
+	dbg_once("%s is found\n", of_node_full_name(np));
+
+	return np;
+}
+
+struct device_node *of_find_recommend_vrr_info(struct device *dev, int index)
+{
+	struct device_node *parent = NULL;
+	struct device_node *np = NULL;
+	int count = 0;
+
+	parent = of_find_recommend_lcd_info(dev);
+	if (!parent) {
+		dbg_info("of_find_recommend_lcd_info fail\n");
+		return np;
+	}
+
+	if (index < 0) {
+		dbg_info("index(%d) invalid\n", index);
+		return np;
+	}
+
+	count = of_count_phandle_with_args(parent, PANEL_VRR_NAME, NULL);
+	if (count <= 1) {
+		dbg_info("count(%d) invalid\n", count);
+		return np;
+	}
+
+	if (index >= count) {
+		dbg_info("index(%d) count(%d) invalid\n", index, count);
+		return np;
+	}
+
+	np = of_parse_phandle(parent, PANEL_VRR_NAME, index);
 
 	dbg_info("%s is found\n", of_node_full_name(np));
 
@@ -641,6 +679,17 @@ struct device_node *of_find_smcdsd_board(struct device *dev)
 	dbg_info("%s property in %s has %s\n", BOARD_DTS_NAME, of_node_full_name(parent), of_node_full_name(np));
 
 	return np;
+}
+
+static int skip_list(const char *node_name, const char *type_name)
+{
+	if (STRNEQ(PANEL_PBA_NODE, node_name))
+		return 0;
+
+	if (!get_boot_lcdconnected() && !STRNEQ("delay", type_name) && !STRNEQ("timer", type_name))
+		return 1;
+
+	return 0;
 }
 
 static int make_list(struct device *dev, struct list_head *lh, const char *name)
@@ -675,7 +724,7 @@ static int make_list(struct device *dev, struct list_head *lh, const char *name)
 		of_property_read_string_index(np, "type", i * 2, &type);
 		of_property_read_string_index(np, "type", i * 2 + 1, &subinfo);
 
-		if (!get_boot_lcdconnected() && !STRNEQ("delay", type) && !STRNEQ("timer", type)) {
+		if (skip_list(name, type)) {
 			dbg_info("lcdtype(%d) is invalid, so skip to add %s: %2d: %s\n", get_boot_lcdtype(), name, count, type);
 			continue;
 		}
@@ -687,7 +736,7 @@ static int make_list(struct device *dev, struct list_head *lh, const char *name)
 		ret = decide_type(action);
 		if (ret < 0)
 			break;
-		ret = decide_subinfo(np, action);
+		ret = decide_subinfo(np->parent, action);
 		if (ret < 0)
 			break;
 
@@ -742,7 +791,7 @@ static int make_text(struct device *dev, struct list_head *lh, const char *name,
 		type = type_list[i * 2];
 		subinfo = type_list[i * 2 + 1];
 
-		if (!get_boot_lcdconnected() && !STRNEQ("delay", type) && !STRNEQ("timer", type)) {
+		if (skip_list(name, type)) {
 			dbg_info("lcdtype(%d) is invalid, so skip to add %s: %2d: %s\n", get_boot_lcdtype(), name, count, type);
 			continue;
 		}
@@ -1015,125 +1064,81 @@ void run_timer_to(struct device *dev, const char *name, const char *timer_name)
 	run_action(dev, name, "timer,delay", timer_name);
 }
 
-int of_gpio_get_active(const char *gpioname)
-{
-	int ret = 0, gpio = 0, gpio_level, active_level;
-	struct device_node *np = NULL;
-	enum of_gpio_flags flags = {0, };
-
-	np = of_find_node_with_property(NULL, gpioname);
-	if (!np) {
-		dbg_info("of_find_node_with_property fail for %s\n", gpioname);
-		ret = -EINVAL;
-		goto exit;
-	}
-
-	dbg_none("%s property find in node %s\n", gpioname, np->name);
-
-	gpio = of_get_named_gpio_flags(np, gpioname, 0, &flags);
-	if (!gpio_is_valid(gpio)) {
-		dbg_warn("of_get_named_gpio fail %d %s\n", gpio, gpioname);
-		ret = -EINVAL;
-		goto exit;
-	}
-	of_node_put(np);
-
-	active_level = !(flags & OF_GPIO_ACTIVE_LOW);
-	gpio_level = gpio_get_value(gpio);
-	ret = (gpio_level == active_level) ? 1 : 0;
-exit:
-	return ret;
-}
-
-int of_gpio_get_value(const char *gpioname)
-{
-	int ret = 0, gpio = 0, gpio_level, active_level;
-	struct device_node *np = NULL;
-	enum of_gpio_flags flags = {0, };
-
-	np = of_find_node_with_property(NULL, gpioname);
-	if (!np) {
-		dbg_info("of_find_node_with_property fail for %s\n", gpioname);
-		ret = -EINVAL;
-		goto exit;
-	}
-
-	dbg_none("%s property find in node %s\n", gpioname, np->name);
-
-	gpio = of_get_named_gpio_flags(np, gpioname, 0, &flags);
-	if (!gpio_is_valid(gpio)) {
-		dbg_warn("of_get_named_gpio fail %d %s\n", gpio, gpioname);
-		of_node_put(np);
-		ret = -EINVAL;
-		goto exit;
-	}
-	of_node_put(np);
-
-	active_level = !(flags & OF_GPIO_ACTIVE_LOW);
-	gpio_level = gpio_get_value(gpio);
-	ret = gpio_level;
-
-exit:
-	return ret;
-}
-
-int of_gpio_set_value(const char *gpioname, int value)
-{
-	int ret = 0, gpio = 0;
-	struct device_node *np = NULL;
-	enum of_gpio_flags flags = {0, };
-
-	np = of_find_node_with_property(NULL, gpioname);
-	if (!np) {
-		dbg_info("of_find_node_with_property fail for %s\n", gpioname);
-		ret = -EINVAL;
-		goto exit;
-	}
-
-	dbg_none("%s property find in node %s\n", gpioname, np->name);
-
-	gpio = of_get_named_gpio_flags(np, gpioname, 0, &flags);
-	if (!gpio_is_valid(gpio)) {
-		dbg_warn("of_get_named_gpio fail %d %s\n", gpio, gpioname);
-		of_node_put(np);
-		ret = -EINVAL;
-		goto exit;
-	}
-	of_node_put(np);
-
-	ret = gpio_request_one(gpio, value ? GPIOF_OUT_INIT_HIGH : GPIOF_OUT_INIT_LOW, NULL);
-	if (ret < 0)
-		dbg_warn("gpio_request_one fail %d, %d, %s\n", ret, gpio, gpioname);
-	gpio_free(gpio);
-exit:
-	return ret;
-}
-
 int of_get_gpio_with_name(const char *gpioname)
 {
 	int ret = 0, gpio = 0;
 	struct device_node *np = NULL;
 	enum of_gpio_flags flags = {0, };
 
-	np = of_find_node_with_property(NULL, gpioname);
+	np = of_find_smcdsd_board(NULL);
 	if (!np) {
-		dbg_info("of_find_node_with_property fail for %s\n", gpioname);
-		ret = -EINVAL;
-		goto exit;
+		dbg_info("of_find_smcdsd_board fail for %s\n", gpioname);
+		return -EINVAL;
 	}
-
-	dbg_none("%s property find in node %s\n", gpioname, np->name);
 
 	gpio = of_get_named_gpio_flags(np, gpioname, 0, &flags);
 	if (!gpio_is_valid(gpio)) {
-		dbg_warn("of_get_named_gpio fail %d %s\n", gpio, gpioname);
-		ret = -EINVAL;
-		goto exit;
+		dbg_warn("of_get_named_gpio_flags fail %d %s\n", gpio, gpioname);
+		return -EINVAL;
 	}
-	of_node_put(np);
 
 	ret = gpio;
-exit:
+
+	return ret;
+}
+
+int of_gpio_get_value(const char *gpioname)
+{
+	int ret = 0, gpio = 0, gpio_level;
+
+	gpio = of_get_gpio_with_name(gpioname);
+	if (!gpio_is_valid(gpio))
+		return -EINVAL;
+
+	gpio_level = gpio_get_value(gpio);
+	ret = gpio_level;
+
+	return ret;
+}
+
+int of_gpio_set_value(const char *gpioname, int value)
+{
+	int ret = 0, gpio = 0;
+
+	gpio = of_get_gpio_with_name(gpioname);
+	if (!gpio_is_valid(gpio))
+		return -EINVAL;
+
+	ret = gpio_request_one(gpio, value ? GPIOF_OUT_INIT_HIGH : GPIOF_OUT_INIT_LOW, NULL);
+	if (ret < 0)
+		dbg_warn("gpio_request_one fail %d, %d, %s\n", ret, gpio, gpioname);
+	gpio_free(gpio);
+
+	return ret;
+}
+
+int of_gpio_get_active(const char *gpioname)
+{
+	int ret = 0, gpio = 0, gpio_level, active_level;
+	struct device_node *np = NULL;
+	enum of_gpio_flags flags = {0, };
+
+	np = of_find_smcdsd_board(NULL);
+	if (!np) {
+		dbg_info("of_find_smcdsd_board fail for %s\n", gpioname);
+		return -EINVAL;
+	}
+
+	gpio = of_get_named_gpio_flags(np, gpioname, 0, &flags);
+	if (!gpio_is_valid(gpio)) {
+		dbg_warn("of_get_named_gpio_flags fail %d %s\n", gpio, gpioname);
+		return -EINVAL;
+	}
+
+	active_level = !(flags & OF_GPIO_ACTIVE_LOW);
+	gpio_level = gpio_get_value(gpio);
+	ret = (gpio_level == active_level) ? 1 : 0;
+
 	return ret;
 }
 
@@ -1566,6 +1571,14 @@ static int __init panel_lut_ddi_recommend_init(void)
 	return 0;
 }
 
+int panel_clean_board(struct device *dev)
+{
+	if (!get_boot_lcdconnected())
+		run_list(dev, PANEL_PBA_NODE);
+
+	return 0;
+}
+
 static int __init smcdsd_board_init(void)
 {
 	panel_lut_ddi_recommend_init();
@@ -1573,4 +1586,15 @@ static int __init smcdsd_board_init(void)
 	return 0;
 }
 core_initcall(smcdsd_board_init);
+
+static int __init smcdsd_board_late_initcall(void)
+{
+	struct platform_device *pdev = of_find_device_by_path("/panel");
+	struct device *dev = pdev ? &(pdev->dev) : NULL;
+
+	panel_clean_board(dev);
+
+	return 0;
+}
+late_initcall_sync(smcdsd_board_late_initcall);
 

@@ -38,6 +38,14 @@ struct reset_info_t {
 	int reason;
 };
 
+struct shub_system_info {
+	uint32_t fw_version;
+	uint64_t scan[3];
+	uint32_t support_ddi;
+	uint32_t reserved_1;
+	uint32_t reserved_2;
+} __attribute__((__packed__));
+
 struct shub_data_t {
 	struct platform_device *pdev;
 	struct device *sysfs_dev;
@@ -52,7 +60,7 @@ struct shub_data_t {
 	struct shub_waitevent reset_lock;
 	struct reset_info_t reset_info;
 
-	u8 ap_status;
+	u8 pm_status;
 	u8 lcd_status;
 
 	struct workqueue_struct *shub_wq;
@@ -61,6 +69,10 @@ struct shub_data_t {
 
 	struct timer_list ts_sync_timer;
 	struct work_struct work_ts_sync;
+
+	struct shub_system_info system_info;
+
+	struct regulator *sensor_vdd_regulator;
 };
 
 struct device *get_shub_device(void); // ssp_sensor sysfs 위한 device pdev랑 다름
@@ -79,7 +91,14 @@ int queue_refresh_task(void);
 int shub_probe(struct platform_device *pdev);
 void shub_shutdown(struct platform_device *pdev);
 int shub_suspend(struct device *dev);
-void shub_resume(struct device *dev);
+int shub_resume(struct device *dev);
+int shub_prepare(struct device *dev);
+void shub_complete(struct device *dev);
 
 void shub_queue_work(struct work_struct *work);
+
+struct shub_system_info *get_shub_system_info(void);
+
+int enable_sensor_vdd(void);
+int disable_sensor_vdd(void);
 #endif /* __SHUB_DEVICE_H_ */

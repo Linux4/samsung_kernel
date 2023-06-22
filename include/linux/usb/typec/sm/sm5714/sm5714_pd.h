@@ -29,6 +29,7 @@
 #define MAX_CHARGING_VOLT		9000 /* 9V */
 #define USBPD_VOLT_UNIT			50 /* 50mV */
 #define USBPD_CURRENT_UNIT		10 /* 10mA */
+#define USBPD_POWER_UNIT		250 /* 250mW */
 #define USBPD_PPS_VOLT_UNIT		100	/* 100mV */
 #define USBPD_OUT_VOLT_UNIT		20	/* 20mV */
 #define USBPD_PPS_CURRENT_UNIT	50	/* 50mV */
@@ -64,7 +65,7 @@
 #define tVDMWaitModeExit		(50)    /* 40~50  ms */
 #define tDiscoverIdentity		(50)	/* 40~50  ms */
 #define tSwapSourceStart		(20)	/* 20  ms */
-#define tSwapSinkReady			(15)	/* 15 ms */
+#define tSwapSinkReady			(10)	/* 10 ms */
 #define tSrcRecover				(670)	/* 660~1000 ms */
 
 typedef enum {
@@ -701,7 +702,56 @@ typedef union {
 		unsigned reserved:28;
 		unsigned bist_mode:4;
 	} bist_data_object;
+
+	struct{
+		unsigned VID:16;
+		unsigned PID:16;
+	} source_capabilities_extended_data1;
+
+	struct{
+		unsigned XID:32;
+	} source_capabilities_extended_data2;
+
+	struct{
+		unsigned fw_version:8;
+		unsigned hw_version:8;
+		unsigned voltage_regulation:8;
+		unsigned holdup_time:8;
+	} source_capabilities_extended_data3;
+
+	struct{
+		unsigned compliance:8;
+		unsigned torch_current:8;
+		unsigned peak_current1:16;
+	} source_capabilities_extended_data4;
+
+	struct{
+		unsigned peak_current2:16;
+		unsigned peak_current3:16;
+	} source_capabilities_extended_data5;
+
+	struct{
+		unsigned touch_temp:8;
+		unsigned source_inputs:8;
+		unsigned number_battery:8;
+		unsigned source_pdp_rating:8;
+	} source_capabilities_extended_data6;
+
 } data_obj_type;
+
+typedef union {
+	u16 word;
+	u8  byte[2];
+
+	struct {
+		unsigned data_size:9;
+		unsigned rsvd:1;
+		unsigned request_chunk:1;
+		unsigned chunk_number:4;
+		unsigned chunked:1;
+	};
+} ext_msg_header_type;
+
 
 typedef struct usbpd_phy_ops {
 	/*    1st param should be 'usbpd_data *'    */
@@ -726,6 +776,7 @@ struct sm5714_policy_data {
 	policy_state	last_state;
 	msg_header_type	tx_msg_header;
 	msg_header_type	rx_msg_header;
+	ext_msg_header_type	rx_msg_ext_header;
 	data_obj_type	tx_data_obj[USBPD_MAX_COUNT_MSG_OBJECT];
 	data_obj_type	rx_data_obj[USBPD_MAX_COUNT_MSG_OBJECT];
 	bool			rx_hardreset;
@@ -791,7 +842,6 @@ struct sm5714_usbpd_manager_data {
 	bool data_role_swap;
 	bool vconn_source_swap;
 	u8 is_samsung_accessory_enter_mode;
-	int send_enter_mode_req;
 	bool uvdm_first_req;
 	bool uvdm_dir;
 	wait_queue_head_t	uvdm_in_wq;
@@ -801,12 +851,14 @@ struct sm5714_usbpd_manager_data {
 	bool pn_flag;
 	int alt_sended;
 	int vdm_en;
+	int ext_sended;
 	uint16_t Standard_Vendor_ID;
 	uint16_t Vendor_ID;
 	uint16_t Product_ID;
 	uint16_t Device_Version;
 	uint16_t SVID_0;
 	uint16_t SVID_1;
+	uint16_t SVID_DP;
 	u32 acc_type;
 	u32 dp_selected_pin;
 	uint32_t is_sent_pin_configuration;
@@ -815,12 +867,14 @@ struct sm5714_usbpd_manager_data {
 	u8 pin_assignment;
 	struct sm5714_usbpd_data *pd_data;
 	struct delayed_work start_discover_msg_handler;
+	struct delayed_work start_dex_discover_msg_handler;
 	struct delayed_work	acc_detach_handler;
 	struct delayed_work	new_power_handler;
 	uint32_t dr_swap_cnt;
 #if defined(CONFIG_SEC_FACTORY)
-        int vbus_adc;
+	int vbus_adc;
 #endif
+	bool support_vpdo;
 };
 
 struct sm5714_usbpd_data {
@@ -834,7 +888,7 @@ struct sm5714_usbpd_data {
 	struct sm5714_protocol_data	protocol_rx;
 	struct sm5714_policy_data	policy;
 	msg_header_type		source_msg_header;
-	data_obj_type           source_data_obj;
+	data_obj_type           source_data_obj[2];
 	data_obj_type		source_request_obj;
 	struct sm5714_usbpd_manager_data	manager;
 	struct work_struct	worker;
@@ -842,6 +896,10 @@ struct sm5714_usbpd_data {
 	struct completion	pd_completion;
 	unsigned int            wait_for_msg_arrived;
 	int			specification_revision;
+	int			thermal_state;
+	int			auth_type;
+	int			d2d_type;
+	struct pdic_notifier_struct pd_noti;
 };
 
 static inline struct sm5714_usbpd_data *protocol_rx_to_usbpd(
@@ -898,6 +956,9 @@ extern data_obj_type sm5714_usbpd_select_capability(
 		struct sm5714_usbpd_data *pd_data);
 extern bool sm5714_usbpd_vdm_request_enabled(
 		struct sm5714_usbpd_data *pd_data);
+extern bool sm5714_usbpd_ext_request_enabled(
+		struct sm5714_usbpd_data *pd_data);
+extern bool sm5714_usbpd_dex_vdm_request(struct sm5714_usbpd_data *pd_data);
 extern void sm5714_usbpd_set_rp_scr_sel(struct sm5714_usbpd_data *pd_data,
 		int scr_sel);
 extern void sm5714_usbpd_policy_work(struct work_struct *work_s);
@@ -926,7 +987,11 @@ extern void (*fp_select_pdo)(int num);
 extern int (*fp_sec_pd_select_pps)(int num, int ppsVol, int ppsCur);
 extern int (*fp_sec_pd_get_apdo_max_power)(unsigned int *pdo_pos,
 		unsigned int *taMaxVol, unsigned int *taMaxCur, unsigned int *taMaxPwr);
-#if IS_ENABLED(CONFIG_ARCH_QCOM)
+extern void (*fp_sec_pd_vpdo_auth)(int auth, int d2d_type);
+extern int (*fp_count_cisd_pd_data)(unsigned short vid, unsigned short pid);
+#if IS_ENABLED(CONFIG_ARCH_QCOM) && !defined(CONFIG_USB_ARCH_EXYNOS) && !defined(CONFIG_ARCH_EXYNOS)
 extern int dwc3_restart_usb_host_mode_hs(void);
 #endif
+void sm5714_usbpd_turn_on_reverse_booster(struct sm5714_usbpd_data *pd_data);
+void sm5714_usbpd_turn_off_reverse_booster(struct sm5714_usbpd_data *pd_data);
 #endif

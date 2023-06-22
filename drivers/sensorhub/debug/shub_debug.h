@@ -1,3 +1,18 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include <linux/types.h>
 
 enum {
@@ -15,7 +30,17 @@ int init_shub_debug_sysfs(void);
 void remove_shub_debug_sysfs(void);
 
 int print_mcu_debug(char *dataframe, int *index, int frame_len);
+void print_log_debug(char *buf, int buf_len, u64 timestamp);
 void print_dataframe(char *dataframe, int frame_len);
-int print_system_info(char *dataframe, int *index);
+int print_system_info(char *dataframe, int *index, int frame_len);
 
 bool check_debug_log_state(int log_type);
+void set_open_cal_result(int type, int result);
+
+#ifdef CONFIG_SHUB_DEBUG
+struct print_log_t {
+	struct list_head list;
+	char *buf;
+	u64 timestamp;
+};
+#endif

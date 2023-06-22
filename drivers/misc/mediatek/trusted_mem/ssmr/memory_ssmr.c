@@ -65,13 +65,13 @@ const char *const ssmr_state_text[NR_STATES] = {
 
 static struct SSMR_Feature _ssmr_feats[__MAX_NR_SSMR_FEATURES] = {
 	[SSMR_FEAT_SVP] = {
-		.dt_prop_name = "svp-size",
+		.dt_prop_name = "svp-region-based-size",
 		.feat_name = "svp",
 		.cmd_online = "svp=on",
 		.cmd_offline = "svp=off",
 #if IS_ENABLED(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) ||\
 	IS_ENABLED(CONFIG_TRUSTONIC_TEE_SUPPORT) ||\
-	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) || \
+	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) ||\
 	IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
 		.enable = "on",
 #else
@@ -80,7 +80,7 @@ static struct SSMR_Feature _ssmr_feats[__MAX_NR_SSMR_FEATURES] = {
 		.scheme_flag = SVP_FLAGS
 	},
 	[SSMR_FEAT_PROT_SHAREDMEM] = {
-		.dt_prop_name = "prot-sharedmem-size",
+		.dt_prop_name = "prot-region-based-size",
 		.feat_name = "prot-sharedmem",
 		.cmd_online = "prot_sharedmem=on",
 		.cmd_offline = "prot_sharedmem=off",
@@ -188,8 +188,7 @@ struct SSMR_HEAP_INFO _ssmr_heap_info[__MAX_NR_SSMR_FEATURES];
 
 #if IS_ENABLED(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) ||\
 	IS_ENABLED(CONFIG_TRUSTONIC_TEE_SUPPORT) ||\
-	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) || \
-	IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
+	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT)
 static int __init dedicate_svp_memory(struct reserved_mem *rmem)
 {
 	struct SSMR_Feature *feature;
@@ -591,8 +590,7 @@ static int memory_region_offline(struct SSMR_Feature *feature, phys_addr_t *pa,
 	 * setup init device with rmem
 	 */
 	of_reserved_mem_device_init_by_idx(ssmr_dev, ssmr_dev->of_node, 0);
-	
-	pr_info("[SSMR-ALLOCATION]: total retry: %d\n", 200);
+
 	do {
 		pr_info("[SSMR-ALLOCATION]: retry: %d\n", offline_retry);
 		feature->virt_addr = dma_alloc_attrs(ssmr_dev, alloc_size,
@@ -601,7 +599,7 @@ static int memory_region_offline(struct SSMR_Feature *feature, phys_addr_t *pa,
 			offline_retry++;
 			msleep(100);
 		}
-	} while (!feature->phy_addr && offline_retry < 200);
+	} while (!feature->phy_addr && offline_retry < 20);
 
 	if (feature->phy_addr) {
 		pr_info("%s: pa=%pad is allocated\n", __func__,
@@ -891,8 +889,7 @@ int ssmr_probe(struct platform_device *pdev)
 
 #if IS_ENABLED(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) ||\
 	IS_ENABLED(CONFIG_TRUSTONIC_TEE_SUPPORT) ||\
-	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) || \
-	IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
+	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT)
 	/* check svp statis reserved status */
 	get_svp_memory_info();
 #endif

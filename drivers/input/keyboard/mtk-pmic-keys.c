@@ -29,9 +29,6 @@
 #include <linux/mfd/mt6397/core.h>
 #include <linux/mfd/mt6357/registers.h>
 #include <linux/mfd/mt6357/core.h>
-#ifdef CONFIG_SEC_PM
-#include <linux/sec_class.h>
-#endif
 
 #define MTK_PMIC_PWRKEY_INDEX	0
 #define MTK_PMIC_HOMEKEY_INDEX	1
@@ -166,99 +163,6 @@ enum mtk_pmic_keys_lp_mode {
 
 struct mtk_pmic_keys *keys;
 
-#ifdef CONFIG_SEC_PM
-static struct device *key_reset;
-static int volkey_wakeup;
-static int prev_volkey_wakeup;
-static const struct mtk_pmic_regs *pmic_regs_rst_key;
-
-static ssize_t volkey_wakeup_show(struct kobject *kobj,
-				struct kobj_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%d\n", volkey_wakeup);
-}
-
-static ssize_t volkey_wakeup_store(struct kobject *kobj,
-				struct kobj_attribute *attr, const char *buf, size_t n)
-{
-	int val;
-
-	if (kstrtoint(buf, 10, &val))
-		return -EINVAL;
-
-	if (volkey_wakeup == val)
-		return n;
-
-	volkey_wakeup = val;
-	return n;
-}
-
-static ssize_t reset_enable_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	int key_mode;
-	struct mtk_pmic_keys *pmic_keys = keys;
-	u32 pmic_rst_reg = pmic_regs_rst_key->pmic_rst_reg;
-	u32 pwrkey_rst = PWRKEY_RST_EN << pmic_regs_rst_key->pwrkey_rst_shift;
-	u32 homekey_rst = HOMEKEY_RST_EN << pmic_regs_rst_key->homekey_rst_shift;
-
-	if (!pmic_keys)
-		return 0;
-
-	regmap_read(pmic_keys->regmap, pmic_rst_reg, &key_mode);
-
-	if ((key_mode & pwrkey_rst) == pwrkey_rst &&
-		(key_mode & homekey_rst) == homekey_rst)
-		return snprintf(buf, PAGE_SIZE, "%s\n", "N");
-	else
-		return snprintf(buf, PAGE_SIZE, "%s\n", "Y");
-}
-
-static ssize_t reset_enable_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	int err = 0;
-	unsigned int value = 0;
-	struct mtk_pmic_keys *pmic_keys = keys;
-	u32 pmic_rst_reg = pmic_regs_rst_key->pmic_rst_reg;
-	u32 pwrkey_rst = PWRKEY_RST_EN << pmic_regs_rst_key->pwrkey_rst_shift;
-	u32 homekey_rst = HOMEKEY_RST_EN << pmic_regs_rst_key->homekey_rst_shift;
-
-	err = kstrtouint(buf, 10, &value);
-	if (err)
-		pr_err("%s, kstrtoint failed.", __func__);
-
-	if (!pmic_keys)
-		return count;
-
-	value = !!value;
-
-	if (value) {
-		//set One Key
-		regmap_update_bits(pmic_keys->regmap, pmic_rst_reg,
-				   pwrkey_rst,
-				   pwrkey_rst);
-		regmap_update_bits(pmic_keys->regmap, pmic_rst_reg,
-				   homekey_rst,
-				   0);
-	} else {
-		//set Two Key
-		regmap_update_bits(pmic_keys->regmap, pmic_rst_reg,
-				   pwrkey_rst,
-				   pwrkey_rst);
-		regmap_update_bits(pmic_keys->regmap, pmic_rst_reg,
-				   homekey_rst,
-				   homekey_rst);
-	}
-
-	return count;
-}
-
-static struct kobj_attribute volkey_wakeup_attr =
-	__ATTR(volkey_wakeup, 0644, volkey_wakeup_show, volkey_wakeup_store);
-static DEVICE_ATTR(reset_enabled, 0664, reset_enable_show, reset_enable_store);
-#endif
-
 static void mtk_pmic_keys_lp_reset_setup(struct mtk_pmic_keys *keys,
 		const struct mtk_pmic_regs *pmic_regs)
 {
@@ -324,12 +228,6 @@ static irqreturn_t mtk_pmic_keys_release_irq_handler_thread(
 	dev_dbg(info->keys->dev, "release key =%d using PMIC\n",
 			info->keycode);
 
-#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
-	pr_info("%s %s: code=%d, state=0\n", SECLOG, __func__, info->keycode);
-#else
-	pr_info("%s %s: key state=0\n", SECLOG, __func__);
-#endif
-
 	return IRQ_HANDLED;
 }
 
@@ -351,12 +249,6 @@ static irqreturn_t mtk_pmic_keys_irq_handler_thread(int irq, void *data)
 
 	dev_dbg(info->keys->dev, "(%s) key =%d using PMIC\n",
 		 pressed ? "pressed" : "released", info->keycode);
-
-#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
-	pr_info("%s %s: code=%d, state=%ld\n", SECLOG, __func__, info->keycode, pressed);
-#else
-	pr_info("%s %s: key state=%ld\n", SECLOG, __func__, pressed);
-#endif
 
 	return IRQ_HANDLED;
 }
@@ -462,14 +354,6 @@ static int __maybe_unused mtk_pmic_keys_suspend(struct device *dev)
 			enable_irq_wake(keys->keys[index].irq);
 	}
 
-#ifdef CONFIG_SEC_PM
-	if (volkey_wakeup) {
-		prev_volkey_wakeup = volkey_wakeup;
-		/* Enable Vol Dn key interrupt while system going to suspend */
-		enable_irq_wake(keys->keys[MTK_PMIC_HOMEKEY_INDEX].irq);
-	}
-#endif
-
 	return 0;
 }
 
@@ -482,14 +366,6 @@ static int __maybe_unused mtk_pmic_keys_resume(struct device *dev)
 		if (keys->keys[index].wakeup)
 			disable_irq_wake(keys->keys[index].irq);
 	}
-
-#ifdef CONFIG_SEC_PM
-	if (prev_volkey_wakeup) {
-		prev_volkey_wakeup = 0;
-		/* Disable Vol Dn key interrupt, if enabled*/
-		disable_irq_wake(keys->keys[MTK_PMIC_HOMEKEY_INDEX].irq);
-	}
-#endif
 
 	return 0;
 }
@@ -603,28 +479,6 @@ static int mtk_pmic_keys_probe(struct platform_device *pdev)
 	mtk_pmic_keys_lp_reset_setup(keys, mtk_pmic_regs);
 
 	platform_set_drvdata(pdev, keys);
-
-#ifdef CONFIG_SEC_PM
-	pmic_regs_rst_key = of_id->data;
-
-	key_reset = sec_device_create(pdev, "key_reset");
-	if (IS_ERR(key_reset)) {
-		dev_err(&pdev->dev, "%s: Failed to create device(key_reset)!\n", __func__);
-		goto out;
-	}
-
-	error = device_create_file(key_reset, &dev_attr_reset_enabled);
-	if (error) {
-		dev_err(&pdev->dev, "%s: Failed to create device file in sysfs entries(%s)!\n",
-			__func__, dev_attr_reset_enabled.attr.name);
-	}
-
-	error = sysfs_create_file(power_kobj, &volkey_wakeup_attr.attr);
-	if (error)
-		dev_err(&pdev->dev, "volkey_wakeup sysfs_create_file failed (%d)\n", error);
-
-out:
-#endif
 
 	return 0;
 }

@@ -15,8 +15,7 @@ extern "C" {
 #endif
 
 #if (defined(CONFIG_TRUSTONIC_TEE_SUPPORT) || \
-	defined(CONFIG_MICROTRUST_TEE_SUPPORT) || \
-	defined(CONFIG_TEEGRIS_TEE_SUPPORT))
+	defined(CONFIG_MICROTRUST_TEE_SUPPORT))
 
 #define M4U_TEE_SERVICE_ENABLE
 

@@ -53,13 +53,6 @@ static struct i2c_client *g_pstI2CclientG;
 #define EEPROM_I2C_WRITE_MSG_LENGTH_MAX 32
 #endif
 
-void set_global_i2c_client(struct i2c_client *client)
-{
-	spin_lock(&g_spinLock);
-	g_pstI2CclientG = client;
-	spin_unlock(&g_spinLock);
-}
-
 static int Read_I2C_CAM_CAL(u16 a_u2Addr, u32 ui4_length, u8 *a_puBuff)
 {
 	int i4RetValue = 0;
@@ -182,10 +175,6 @@ static int iWriteRegI2C(u8 *a_pSendData, u16 a_sizeSendData)
 {
 	int  i4RetValue = 0;
 	struct i2c_msg msg;
-	/*
-	 * u8 *pdata = a_pSendData;
-	 * u8 *pend = a_pSendData + a_sizeSendData;
-	 */
 	int i = 1;
 
 	msg.addr = g_pstI2CclientG->addr;
@@ -194,7 +183,8 @@ static int iWriteRegI2C(u8 *a_pSendData, u16 a_sizeSendData)
 	msg.buf = a_pSendData;
 
 	i4RetValue = i2c_transfer(g_pstI2CclientG->adapter,
-				&msg, i);
+				&msg,
+				i);
 
 	if (i4RetValue != i) {
 		pr_debug("I2C write failed!!\n");
@@ -220,6 +210,24 @@ static void write_otp(u32 addr, u32 para)
 	iWriteRegI2C(pu_send_cmd, 2);
 }
 
+static u16 read_otp_16bit(u32 addr)
+{
+	u16 get_byte = 0;
+	char pu_send_cmd[2] = { (char)((addr>>8) & 0xFF), (char)(addr & 0xFF) };
+
+	iReadRegI2C(pu_send_cmd, 2, (u8 *)&get_byte, 1);
+
+	return get_byte;
+}
+
+static void write_otp_16bit(u32 addr, u32 para)
+{
+	char pu_send_cmd[3] = { (char)((addr>>8) & 0xFF), (char)(addr & 0xFF),
+		(char)(para & 0xFF) };
+
+	iWriteRegI2C(pu_send_cmd, 3);
+}
+
 unsigned int Common_read_region(struct i2c_client *client, struct stCAM_CAL_INFO_STRUCT *sensor_info,
 				unsigned int addr, unsigned char *data, unsigned int size)
 {
@@ -232,92 +240,236 @@ unsigned int Common_read_region(struct i2c_client *client, struct stCAM_CAL_INFO
 		return 0;
 }
 
-unsigned int Otp_read_region_SR846D(struct i2c_client *client, unsigned int addr,
-				unsigned char *data, unsigned int size)
+unsigned int Otp_read_region_SR846(struct i2c_client *client,
+	unsigned int addr, unsigned char *data, unsigned int size)
 {
-	unsigned int ret = 0;
+	u16 ret = 0;
 
 	u16 OTP_addr = addr & 0xFFFF;
-	u16 OTP_page_select = (addr >> 16) & 0xFFFF;
 	u8 OTP_addr_1 = OTP_addr & 0xFF;
 	u8 OTP_addr_2 = (OTP_addr >> 8) & 0xFF;
 
-	u8 Complete = 0x00;
-	unsigned int count = 0;
+	u32 readsize = size;
+	u8 *read_data = data;
+
+	g_pstI2CclientG = client;
+
+	pr_debug("readsize: 0x%x\n", size);
+	pr_debug("addr: 0x%08x\n", addr);
+
+	//Fast sleep on
+	write_otp_16bit(0x0A02, 0x01);
+	//Stand by on
+	write_otp_16bit(0x0A20, 0x00);
+	write_otp_16bit(0x0A00, 0x00);
+
+	mdelay(10);
+
+	//PLL disable
+	write_otp_16bit(0x0F02, 0x00);
+	//CP TRIM_H
+	write_otp_16bit(0x071A, 0x01);
+	//IPGM TRIM_H
+	write_otp_16bit(0x071B, 0x09);
+	//Fsync(OTP busy) Output Enable
+	write_otp_16bit(0x0D04, 0x01);
+	//Fsync(OTP busy) Output Drivability
+	write_otp_16bit(0x0D00, 0x07);
+	//OTP R/W mode
+	write_otp_16bit(0x003E, 0x10);
+	write_otp_16bit(0x0A20, 0x01);
+	//Stand by off
+	write_otp_16bit(0x0A00, 0x01);
+
+	//Start address H
+	write_otp_16bit(0x070A, OTP_addr_2);
+	//Start address L
+	write_otp_16bit(0x070B, OTP_addr_1);
+	//Single read
+	write_otp_16bit(0x0702, 0x01);
+
+	for (; ret < readsize; ret++) {
+		//OTP data read
+		*(read_data + ret) = read_otp_16bit(0x0708);
+	}
+
+	//Stand by on
+	write_otp_16bit(0x0A20, 0x00);
+	write_otp_16bit(0x0A00, 0x00);
+
+	mdelay(100);
+
+	//Display mode
+	write_otp_16bit(0x003E, 0x00);
+	write_otp_16bit(0x0A20, 0x01);
+	//Stand by off
+	write_otp_16bit(0x0A00, 0x01);
+
+	pr_debug("OTP read done\n");
+	return readsize;
+}
+
+unsigned int Otp_read_region_SR846D(struct i2c_client *client,
+	unsigned int addr, unsigned char *data, unsigned int size)
+{
+	u16 ret = 0;
+
+	u16 OTP_addr = addr & 0xFFFF;
+	u8 OTP_addr_1 = OTP_addr & 0xFF;
+	u8 OTP_addr_2 = (OTP_addr >> 8) & 0xFF;
+
+	u32 readsize = size;
+	u8 *read_data = data;
+
+	g_pstI2CclientG = client;
+
+	pr_debug("readsize: 0x%x\n", size);
+	pr_debug("addr: 0x%08x\n", addr);
+
+	//Fast sleep on
+	write_otp_16bit(0x0A02, 0x01);
+	//Stand by on
+	write_otp_16bit(0x0A20, 0x00);
+	write_otp_16bit(0x0A00, 0x00);
+
+	mdelay(10);
+
+	//PLL disable
+	write_otp_16bit(0x0F02, 0x00);
+	//CP TRIM_H
+	write_otp_16bit(0x071A, 0x01);
+	//IPGM TRIM_H
+	write_otp_16bit(0x071B, 0x09);
+	//Fsync(OTP busy) Output Enable
+	write_otp_16bit(0x0D04, 0x01);
+	//Fsync(OTP busy) Output Drivability
+	write_otp_16bit(0x0D00, 0x07);
+	//OTP R/W mode
+	write_otp_16bit(0x003E, 0x10);
+	write_otp_16bit(0x0A20, 0x01);
+	//Stand by off
+	write_otp_16bit(0x0A00, 0x01);
+
+	//Start address H
+	write_otp_16bit(0x070A, OTP_addr_2);
+	//Start address L
+	write_otp_16bit(0x070B, OTP_addr_1);
+	//Single read
+	write_otp_16bit(0x0702, 0x01);
+
+	for (; ret < readsize; ret++) {
+		//OTP data read
+		*(read_data + ret) = read_otp_16bit(0x0708);
+	}
+
+	//Stand by on
+	write_otp_16bit(0x0A20, 0x00);
+	write_otp_16bit(0x0A00, 0x00);
+
+	mdelay(100);
+
+	//Display mode
+	write_otp_16bit(0x003E, 0x00);
+	write_otp_16bit(0x0A20, 0x01);
+	//Stand by off
+	write_otp_16bit(0x0A00, 0x01);
+
+	pr_debug("OTP read done\n");
+	return readsize;
+}
+
+unsigned int Otp_read_region_GC5035(struct i2c_client *client,
+	unsigned int addr, unsigned char *data, unsigned int size)
+{
+	u8 OTP_clk_en_rd = 0;
+	u8 OTP_clk_en_wr = 0;
+	u8 OTP_read_pulse = 0;
+	u8 do_read_opt = 0;
+	u8 checkflag = 0;
+	u32 OTP_addr = addr*8 + 0x1020;
+	u32 OTP_addr_1 = OTP_addr&0xFF;
+	u32 OTP_addr_2 = (OTP_addr>>8)&0xFF;
+	u16 i = 0;
 	u32 readsize = size;
 	u8 *read_data = data;
 
 	g_pstI2CclientG = client;
 	pr_debug("readsize: 0x%x\n", size);
-	pr_debug("addr: 0x%08x\n", addr);
+	pr_debug("addr: 0x%x\n", addr);
 
-	if (OTP_addr_1 > 0x43 || OTP_addr_2 != 0x0A || OTP_page_select > 0xFF) {
-		pr_debug("Wrong OTP address:0x%04x, page:%d\n"
-			, OTP_addr, OTP_page_select);
-		return ret;
-	}
+	//Initial setting
+	OTP_clk_en_rd = read_otp(0xfa);
+	OTP_clk_en_wr = (OTP_clk_en_rd | 0x10);
+	write_otp(0xfa, OTP_clk_en_wr);
+	OTP_clk_en_rd = read_otp(0xfa);
 
-	//Streaming On
-	pr_debug("Streaming On\n");
-	write_otp(0x0100, 0x01);
-	msleep(50);
+	write_otp(0xf5, 0xe9);
+	write_otp(0xfe, 0x02);
+	write_otp(0x67, 0xc0);
+	write_otp(0x59, 0x3f);
+	write_otp(0x55, 0x80);
+	write_otp(0x65, 0x80);
+	write_otp(0x66, 0x03);
 
-	//Initial State
-	write_otp(0x0A00, 0x04);
-	//Write OTP Page
-	write_otp(0x0A02, OTP_page_select);
-	//Write Read CMD
-	write_otp(0x0A00, 0x01);
+	for (; i < readsize; i++) {
+		//Set page
+		write_otp(0xfe, 0x02);
 
-	for (; ret < readsize; ret++) {
-		//Check If Start Read A New Page
-		if (OTP_addr_1 == 0x04) {
-			//Initial State
-			write_otp(0x0A00, 0x04);
-			//Write OTP Page
-			write_otp(0x0A02, OTP_page_select);
-			//Write Read CMD
-			write_otp(0x0A00, 0x01);
-			//Check Complete Flag
-			count = 0;
-			do {
-				if (count == 100) {
-					pr_debug("OTP read too much time! More than 100ms\n");
-					return ret;
-				}
-				usleep_range(1000, 1001);
-				Complete = read_otp(0x0A01) & 0x01;
-				count++;
-			} while (!Complete);
+		//OTP access address
+		write_otp(0x69, OTP_addr_2);
+		write_otp(0x6a, OTP_addr_1);
+
+		OTP_addr = OTP_addr + 8;
+		OTP_addr_1 = OTP_addr&0xFF;
+		OTP_addr_2 = (OTP_addr>>8)&0xFF;
+
+		mdelay(1);
+
+		//Do read OTP
+		OTP_read_pulse = read_otp(0xf3);
+		do_read_opt = (OTP_read_pulse | 0x20);
+		write_otp(0xf3, do_read_opt);
+
+		while (1) {
+			checkflag = read_otp(0x6f);
+			if ((checkflag & 0x04) != 1)
+				break;
+			mdelay(1);
 		}
-		*(read_data + ret) = read_otp(OTP_addr);
-		pr_debug("otp_data[0x%04x] = 0x%04x\n", ret, *(read_data + ret));
-
-		OTP_addr++;
-		//Turn Next Page
-		if ((OTP_addr&0xFF) > 0x43) {
-			//Initial State
-			write_otp(0x0A00, 0x04);
-			write_otp(0x0A00, 0x00);
-			//Round-up
-			OTP_addr = (OTP_addr & 0xFF00) + 0x0004;
-			OTP_page_select++;
-			if (OTP_page_select > 0xFF) {
-				pr_debug("Last Page last address!\n");
-				if (ret < readsize)
-					pr_debug("Overflow...\n");
-				return ret + 1;
-			}
-			pr_debug("Turn next page in OTP address:0x%04x, page:%d\n"
-				, OTP_addr, OTP_page_select);
-		}
-		OTP_addr_1 = OTP_addr & 0xFF;
-		OTP_addr_2 = (OTP_addr >> 8) & 0xFF;
+		*(read_data+i) = read_otp(0x6c);
 	}
-	//Initial State
-	write_otp(0x0A00, 0x04);
-	write_otp(0x0A00, 0x00);
-	pr_debug("OTP read done\n");
-	return readsize;
+	return size;
 }
 
+unsigned int Otp_read_region_GC02M1B(struct i2c_client *client,
+	unsigned int addr, unsigned char *data, unsigned int size)
+{
+	u32 OTP_addr = addr*8 + 0x78;
+	u32 OTP_addr_1 = OTP_addr&0xFF;
+	u16 i = 0;
+	u32 readsize = size;
+	u8 *read_data = data;
+
+	g_pstI2CclientG = client;
+	pr_debug("readsize: 0x%x\n", size);
+	pr_debug("addr: 0x%x\n", addr);
+
+	//OTP enable OTP clock enable
+	write_otp(0xf3, 0x30);
+	//Set Page
+	write_otp(0xfe, 0x02);
+
+	for (; i < readsize; i++) {
+		//OTP access address
+		write_otp(0x17, OTP_addr_1);
+
+		OTP_addr = OTP_addr + 8;
+		OTP_addr_1 = OTP_addr&0xFF;
+
+		//OTP read pulse
+		write_otp(0xf3, 0x34);
+		//Read
+		*(read_data+i) = read_otp(0x19);
+	}
+	return size;
+}

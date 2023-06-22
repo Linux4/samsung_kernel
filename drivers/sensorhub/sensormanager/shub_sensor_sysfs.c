@@ -92,7 +92,7 @@ static ssize_t show_sensor_spec(struct device *dev,
 		return -EINVAL;
 	}
 
-	return get_sensor_spec(buf);
+	return get_total_sensor_spec(buf);
 }
 
 static ssize_t scontext_list_show(struct device *dev,

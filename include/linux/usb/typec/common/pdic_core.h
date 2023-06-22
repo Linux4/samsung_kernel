@@ -53,6 +53,7 @@ typedef enum {
 	TRY_ROLE_SWAP_PR = 1, /* pr_swap */
 	TRY_ROLE_SWAP_DR = 2, /* dr_swap */
 	TRY_ROLE_SWAP_TYPE = 3, /* type */
+	TRY_ROLE_SWAP_VC = 4, /* vconn swap */
 } PDIC_ROLE_SWAP_MODE;
 
 #define TRY_ROLE_SWAP_WAIT_MS 5000
@@ -79,14 +80,20 @@ typedef enum {
 #define DEXPAD_PRODUCT_ID		0xA029
 #define MPA_PRODUCT_ID			0x2122
 #define FRIENDS_PRODUCT_ID		0xB002
+
 /* Samsung UVDM structure */
 #define SEC_UVDM_SHORT_DATA		0x0
 #define SEC_UVDM_LONG_DATA		0x1
 #define SEC_UVDM_ININIATOR		0x0
+#define SEC_UVDM_RESPONDER_INIT	0x0
 #define SEC_UVDM_RESPONDER_ACK	0x1
 #define SEC_UVDM_RESPONDER_NAK	0x2
 #define SEC_UVDM_RESPONDER_BUSY	0x3
+#define SEC_UVDM_RX_HEADER_BUSY	0x2
 #define SEC_UVDM_UNSTRUCTURED_VDM	0x4
+#define SEC_UVDM_RX_HEADER_ACK	0x0
+#define SEC_UVDM_RX_HEADER_NAK	0x1
+
 
 #define SEC_UVDM_ALIGN (4)
 #define SEC_UVDM_MAXDATA_FIRST (12)
@@ -101,6 +108,8 @@ typedef enum {
 #define DP_PIN_ASSIGNMENT_D	0x00000008	/* ( 1 << 3 ) */
 #define DP_PIN_ASSIGNMENT_E	0x00000010	/* ( 1 << 4 ) */
 #define DP_PIN_ASSIGNMENT_F	0x00000020	/* ( 1 << 5 ) */
+
+#define MAX_BUF_DATA 256
 
 typedef union {
 	u16 word;
@@ -318,14 +327,14 @@ void *pdic_core_get_drvdata(void);
 int pdic_misc_init(ppdic_data_t ppdic_data);
 void pdic_misc_exit(void);
 /* SEC UVDM Utility function */
-void set_endian(char *src, char *dest, int size);
-int get_checksum(char *data, int start_addr, int size);
+int get_checksum(const char *data, int start_addr, int size);
+int get_data_size(bool is_first_data, int data_size);
+int set_endian(const char *src, char *dest, int size);
 int set_uvdmset_count(int size);
 void set_msg_header(void *data, int msg_type, int obj_num);
 void set_uvdm_header(void *data, int vid, int vdm_type);
 void set_sec_uvdm_header(void *data, int pid, bool data_type, int cmd_type,
 		bool dir, int total_set_num, uint8_t received_data);
-int get_data_size(int first_set, int remained_data_size);
 void set_sec_uvdm_tx_header(void *data, int first_set, int cur_set, int total_size,
 		int remained_size);
 void set_sec_uvdm_tx_tailer(void *data);

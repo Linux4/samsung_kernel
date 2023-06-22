@@ -548,10 +548,18 @@ enum SMEM_USER_ID {
 	SMEM_USER_RAW_MD_CONSYS,
 	SMEM_USER_RAW_PHY_CAP,
 	SMEM_USER_RAW_USIP,
+	SMEM_USER_RESV_0,// Sync to MT6779 SMEM_USER_MAX_K,
+	SMEM_USER_ALIGN_PADDING, // Sync to MT6779 SMEM_USER_NON_PADDING
 	SMEM_USER_RAW_UDC_DATA,
 	SMEM_USER_RAW_UDC_DESCTAB,
 	SMEM_USER_RAW_AMMS_POS,
 	SMEM_USER_RAW_ALIGN_PADDING,
+	SMEM_USER_MD_WIFI_PROXY,
+	SMEM_USER_MD_NVRAM_CACHE,
+	SMEM_USER_MD_BIGDATA,
+	SMEM_USER_MD_IPCA_BIGDATA,
+	SMEM_USER_LOW_POWER,
+	SMEM_USER_SECURITY_SMEM,
 	SMEM_USER_MAX,
 };
 
@@ -645,8 +653,9 @@ void clear_meta_1st_boot_arg(int md_id);
 
 /* CCCI dump */
 #define CCCI_DUMP_TIME_FLAG		(1<<0)
-#define CCCI_DUMP_CLR_BUF_FLAG	(1<<1)
+#define CCCI_DUMP_CLR_BUF_FLAG		(1<<1)
 #define CCCI_DUMP_CURR_FLAG		(1<<2)
+#define CCCI_DUMP_ANDROID_TIME_FLAG	(1<<3)
 enum {
 	CCCI_DUMP_INIT = 0,
 	CCCI_DUMP_BOOTUP,
@@ -655,6 +664,7 @@ enum {
 	CCCI_DUMP_MEM_DUMP,
 	CCCI_DUMP_HISTORY,
 	CCCI_DUMP_REGISTER,
+	CCCI_DUMP_MD_INIT,
 	CCCI_DUMP_MAX,
 };
 void ccci_util_mem_dump(int md_id, int buf_type, void *start_addr, int len);
@@ -681,11 +691,14 @@ struct _mpu_cfg *get_mpu_region_cfg_info(int region_id);
 int ccci_get_opt_val(char *opt_name);
 
 /* RAT configure relate */
-unsigned int get_wm_bitmap_for_ubin(void); /* Universal bin */
-void update_rat_bit_map_to_drv(int md_id, unsigned int val);
 int get_md_img_type(int md_id);
-int get_legacy_md_type(int md_id);
-int check_md_type(int data);
+int check_rat_at_md_img(int md_id, char str[]);
+unsigned int get_md_bin_capability(int md_id);
+int set_soc_md_rt_rat_str(int md_id, char str[]);
+unsigned int get_soc_md_rt_rat(int md_id);
+int check_rat_at_rt_setting(int md_id, char str[]);
+unsigned int get_soc_md_rt_rat_idx(int md_id);
+int set_soc_md_rt_rat_by_idx(int md_id, unsigned int wm_idx);
 
 int get_md_resv_csmem_info(int md_id, phys_addr_t *buf_base,
 	unsigned int *buf_size);

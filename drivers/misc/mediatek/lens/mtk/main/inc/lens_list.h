@@ -143,7 +143,6 @@ extern int FP5510E2AF_Release(struct inode *a_pstInode,
 	struct file *a_pstFile);
 extern int FP5510E2AF_GetFileName(unsigned char *pFileName);
 
-
 #define FP5519AF_SetI2Cclient FP5519AF_SetI2Cclient_Main
 #define FP5519AF_Ioctl FP5519AF_Ioctl_Main
 #define FP5519AF_Release FP5519AF_Release_Main

@@ -1,3 +1,18 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include "../debug/shub_debug.h"
 #include "../sensor/scontext.h"
 #include "../sensorhub/shub_device.h"
@@ -16,11 +31,11 @@
 #define SHUB2AP_BYPASS_DATA	0x37
 #define SHUB2AP_LIBRARY_DATA	0x01
 #define SHUB2AP_DEBUG_DATA	0x03
-#define SHUB2AP_BIG_DATA		0x04
+#define SHUB2AP_BIG_DATA	0x04
 #define SHUB2AP_META_DATA	0x05
 #define SHUB2AP_TIME_SYNC	0x06
 #define SHUB2AP_NOTI_RESET	0x07
-#define SHUB2AP_GYRO_CAL		0x08
+#define SHUB2AP_GYRO_CAL	0x08
 #define SHUB2AP_PROX_THRESH	0x09
 #define SHUB2AP_REQ_RESET	0x0A
 #define SHUB2AP_MAG_CAL		0x0B
@@ -84,9 +99,10 @@ static struct shub_msg *make_msg(u8 cmd, u8 type, u8 subcmd, char *send_buf, int
 	return msg;
 }
 
-static void clean_msg(struct shub_msg *msg)
+static void clean_msg(struct shub_msg *msg, bool buf_free)
 {
-	kfree(msg->buffer);
+	if (buf_free)
+		kfree(msg->buffer);
 	kfree(msg);
 }
 
@@ -110,7 +126,8 @@ static int comm_to_sensorhub(struct shub_msg *msg)
 		return -EIO;
 	}
 
-	shub_infof("cmd %d type %d subcmd %d send_buf_len %d", msg->cmd, msg->type, msg->subcmd, msg->length);
+	shub_infof("cmd %d type %d subcmd %d send_buf_len %d ts %llu", msg->cmd, msg->type, msg->subcmd, msg->length,
+		   msg->timestamp);
 
 	ret = sensorhub_comms_write(shub_cmd_data, SHUB_CMD_SIZE);
 	mutex_unlock(&comm_mutex);
@@ -141,7 +158,7 @@ int shub_send_command(u8 cmd, u8 type, u8 subcmd, char *send_buf, int send_buf_l
 	if (ret < 0)
 		shub_errf("comm_to_sensorhub FAILED.");
 
-	clean_msg(msg);
+	clean_msg(msg, true);
 
 	return ret;
 }
@@ -152,6 +169,11 @@ int shub_send_command_wait(u8 cmd, u8 type, u8 subcmd, int timeout, char *send_b
 	int ret = 0;
 	DECLARE_COMPLETION_ONSTACK(done);
 	struct shub_msg *msg;
+
+	if (cmd != CMD_GETVALUE) {
+		shub_errf("invalid command %d", cmd);
+		return -EINVAL;
+	}
 
 	if (receive_buf == NULL || receive_buf_len == NULL)
 		return -EINVAL;
@@ -194,7 +216,7 @@ int shub_send_command_wait(u8 cmd, u8 type, u8 subcmd, int timeout, char *send_b
 		mutex_unlock(&pending_mutex);
 		cnt_timeout += (is_shub_shutdown) ? 0 : 1;
 
-		shub_errf("wait_for_completion_timeout TIMEOUT. cnt_timeout %d, shub_down %d !!", cnt_timeout,
+		shub_errf("timeout(%d %d %d). cnt_timeout %d, shub_down %d", cmd, type, subcmd, cnt_timeout,
 			  is_shub_shutdown);
 		ret = -EIO;
 #ifndef CONFIG_SHUB_MTK
@@ -203,21 +225,15 @@ int shub_send_command_wait(u8 cmd, u8 type, u8 subcmd, int timeout, char *send_b
 #endif
 	} else {
 		if (msg->length != 0) {
-			*receive_buf = kzalloc(msg->length, GFP_KERNEL);
-			if (!(*receive_buf)) {
-				shub_errf("kzalloc error");
-				ret = -ENOMEM;
-				goto exit;
-			}
+			*receive_buf = msg->buffer;
 			*receive_buf_len = msg->length;
-			memcpy(*receive_buf, msg->buffer, msg->length);
 		} else {
 			ret = -EINVAL;
 		}
 	}
 
 exit:
-	clean_msg(msg);
+	clean_msg(msg, false);
 	return ret;
 }
 
@@ -263,39 +279,44 @@ static int parse_dataframe(char *dataframe, int frame_len)
 			ret = parsing_bypass_data(dataframe, &index, frame_len);
 			break;
 		case SHUB2AP_META_DATA:
-			ret = parsing_meta_data(dataframe, &index);
+			ret = parsing_meta_data(dataframe, &index, frame_len);
 			break;
 		case SHUB2AP_LIBRARY_DATA:
-			ret = parsing_scontext_data(dataframe, &index);
+			ret = parsing_scontext_data(dataframe, &index, frame_len);
 			break;
 		case SHUB2AP_GYRO_CAL:
 			sensor = get_sensor(SENSOR_TYPE_GYROSCOPE);
 			if (sensor)
-				ret = sensor->funcs->parsing_data(dataframe, &index);
+				ret = sensor->funcs->parsing_data(dataframe, &index, frame_len);
 			break;
 		case SHUB2AP_MAG_CAL:
 			sensor = get_sensor(SENSOR_TYPE_GEOMAGNETIC_FIELD);
 			if (sensor)
-				ret = sensor->funcs->parsing_data(dataframe, &index);
+				ret = sensor->funcs->parsing_data(dataframe, &index, frame_len);
 			break;
 		case SHUB2AP_SYSTEM_INFO:
-			ret = print_system_info(dataframe + index, &index);
+			ret = print_system_info(dataframe + index, &index, frame_len);
 			break;
 		case SHUB2AP_NOTI_RESET:
 			shub_infof("Reset MSG received from MCU");
 			break;
 		case SHUB2AP_REQ_RESET:
-			reset_type = dataframe[index++];
-			no_event_type = dataframe[index++];
-			// if (reset_type == HUB_RESET_REQ_NO_EVENT) {
-			shub_infof("Hub request reset[0x%x] No Event type %d", reset_type, no_event_type);
-			reset_mcu(RESET_TYPE_HUB_NO_EVENT);
-			//}
+			if (index + 2 <= frame_len) {
+				reset_type = dataframe[index++];
+				no_event_type = dataframe[index++];
+				// if (reset_type == HUB_RESET_REQ_NO_EVENT) {
+				shub_infof("Hub request reset[0x%x] No Event type %d", reset_type, no_event_type);
+				reset_mcu(RESET_TYPE_HUB_NO_EVENT);
+				//}
+			} else {
+				shub_errf("parsing error");
+				ret = -EINVAL;
+			}
 			break;
 		case SHUB2AP_PROX_THRESH:
 			sensor = get_sensor(SENSOR_TYPE_PROXIMITY);
 			if (sensor)
-				sensor->funcs->parsing_data(dataframe, &index);
+				sensor->funcs->parsing_data(dataframe, &index, frame_len);
 			break;
 		default:
 			shub_errf("0x%x cmd doesn't support, index = %d", cmd, index);
@@ -312,101 +333,149 @@ static int parse_dataframe(char *dataframe, int frame_len)
 	return ret;
 }
 
-void handle_packet(char *packet, int packet_size)
+
+int get_shub_msg_big_buffer(struct shub_msg *msg, char *packet, int packet_size)
 {
-	struct shub_msg msg;
+	int ret = 0;
+
+	mutex_lock(&rx_msg_mutex);
+	if (rx_msg.timestamp != msg->timestamp) {
+		kfree(rx_msg.buffer);
+		memcpy(&rx_msg, msg, SHUB_MSG_HEADER_SIZE);
+		rx_msg.length = 0;
+		rx_msg.buffer = kzalloc(rx_msg.total_length, GFP_KERNEL);
+		if (ZERO_OR_NULL_PTR(rx_msg.buffer)) {
+			shub_errf("fail to alloc memory for total buffer(%d %d %d)", msg->cmd, msg->type,
+					msg->subcmd);
+			ret = -ENOMEM;
+			goto msg_alloc_error;
+		}
+	}
+
+	if (rx_msg.length + msg->length > rx_msg.total_length) {
+		shub_errf("length error. cmd %d, type %d, sub_cmd %d, total %d, len %d", rx_msg.cmd,
+			rx_msg.type, rx_msg.subcmd, rx_msg.total_length, rx_msg.length + msg->length);
+		ret = -EINVAL;
+		goto msg_error;
+	}
+
+	memcpy(&rx_msg.buffer[rx_msg.length], packet + SHUB_MSG_HEADER_SIZE, msg->length);
+	rx_msg.length += msg->length;
+
+	if (rx_msg.length == rx_msg.total_length) {
+		msg->length = rx_msg.length;
+		msg->buffer = rx_msg.buffer;
+		memset(&rx_msg, 0, sizeof(struct shub_msg));
+		ret = 0;
+	} else {
+		ret = -EINVAL;
+	}
+
+	mutex_unlock(&rx_msg_mutex);
+	return ret;
+msg_error:
+	kfree(rx_msg.buffer);
+msg_alloc_error:
+	memset(&rx_msg, 0, sizeof(struct shub_msg));
+	mutex_unlock(&rx_msg_mutex);
+	return ret;
+}
+
+int get_shub_msg_buffer(struct shub_msg *msg, char *packet, int packet_size)
+{
+	int ret = 0;
+
+	if (msg->total_length != msg->length) {
+		ret = get_shub_msg_big_buffer(msg, packet, packet_size);
+	} else {
+		msg->buffer = kzalloc(msg->length, GFP_KERNEL);
+		if (ZERO_OR_NULL_PTR(msg->buffer)) {
+			shub_errf("fail to alloc memory for msg buffer(%d %d %d)", msg->cmd, msg->type, msg->subcmd);
+			return -ENOMEM;
+		}
+
+		memcpy(msg->buffer, &packet[SHUB_MSG_HEADER_SIZE], msg->length);
+	}
+
+	return ret;
+}
+
+int get_shub_msg(struct shub_msg *msg, char *packet, int packet_size)
+{
+	int ret = 0;
 
 	if (packet_size < SHUB_MSG_HEADER_SIZE) {
 		shub_infof("packet size is small/(%s)", packet);
-		return;
+		return -EINVAL;
 	}
 
-	memcpy(&msg, packet, SHUB_MSG_HEADER_SIZE);
+	memcpy(msg, packet, SHUB_MSG_HEADER_SIZE);
 
-	if (msg.total_length == 0) {
-		shub_errf("length is zero %d %d %d", msg.cmd, msg.type, msg.subcmd);
-		return;
+	if (msg->total_length)
+		ret = get_shub_msg_buffer(msg, packet, packet_size);
+
+	return ret;
+}
+
+struct shub_msg *get_msg_from_pending_list(struct shub_msg msg)
+{
+	struct shub_msg *m, *n;
+	struct shub_msg *found_msg = NULL;
+
+	mutex_lock(&pending_mutex);
+	if (!list_empty(&pending_list)) {
+		list_for_each_entry_safe(m, n, &pending_list, list) {
+			if ((m->cmd == msg.cmd) && (m->type == msg.type) && (m->subcmd == msg.subcmd)) {
+				list_del(&m->list);
+				found_msg = m;
+				break;
+			}
+		}
+
+		if (!found_msg)
+			shub_errf("%d %d %d - Not match error", msg.cmd, msg.type, msg.subcmd);
+	} else {
+		shub_errf("List empty error(%d %d %d)", msg.cmd, msg.type, msg.subcmd);
 	}
+
+	mutex_unlock(&pending_mutex);
+
+	return found_msg;
+}
+
+void handle_packet(char *packet, int packet_size)
+{
+	struct shub_msg msg;
+	int ret;
 
 #ifdef CONFIG_SHUB_DEBUG
 	if (check_debug_log_state(SHUB_LOG_DATA_PACKET))
 		print_dataframe(packet, packet_size);
 #endif
 
-	if (msg.total_length != msg.length) {
-		mutex_lock(&rx_msg_mutex);
-		if (rx_msg.timestamp != msg.timestamp) {
-			kfree(rx_msg.buffer);
-			memcpy(&rx_msg, &msg, SHUB_MSG_HEADER_SIZE);
-			rx_msg.buffer = kzalloc(rx_msg.total_length, GFP_KERNEL);
-			rx_msg.length = 0;
+	ret = get_shub_msg(&msg, packet, packet_size);
+	if (ret)
+		return;
+
+	if (msg.cmd == CMD_GETVALUE) {
+		struct shub_msg *pending_msg;
+
+		pending_msg = get_msg_from_pending_list(msg);
+		if (pending_msg) {
+			kfree(pending_msg->buffer);
+			pending_msg->length = msg.length;
+			if (pending_msg->length != 0)
+				pending_msg->buffer = msg.buffer;
+
+			if (pending_msg->done != NULL && !completion_done(pending_msg->done))
+				complete(pending_msg->done);
 		}
-
-		if (rx_msg.length + msg.length > rx_msg.total_length) {
-			shub_errf("length error!! cmd %d, type %d, sub_cmd %d, total %d, len %d", rx_msg.cmd,
-				  rx_msg.type, rx_msg.subcmd, rx_msg.total_length, rx_msg.length + msg.length);
-			kfree(rx_msg.buffer);
-			memset(&rx_msg, 0, sizeof(struct shub_msg));
-			mutex_unlock(&rx_msg_mutex);
-			return;
-		}
-
-		memcpy(&rx_msg.buffer[rx_msg.length], packet + SHUB_MSG_HEADER_SIZE, msg.length);
-		rx_msg.length += msg.length;
-
-		if (rx_msg.length != rx_msg.total_length) {
-			mutex_unlock(&rx_msg_mutex);
-			return;
-		}
-		memcpy(&msg, &rx_msg, sizeof(struct shub_msg));
-		memset(&rx_msg, 0, sizeof(struct shub_msg));
-		mutex_unlock(&rx_msg_mutex);
-	} else {
-		msg.buffer = kzalloc(msg.length, GFP_KERNEL);
-		memcpy(msg.buffer, &packet[SHUB_MSG_HEADER_SIZE], msg.length);
-	}
-
-	if (msg.cmd <= CMD_GETVALUE) {
-		bool found = false;
-		struct shub_msg *m, *n;
-
-		mutex_lock(&pending_mutex);
-		if (!list_empty(&pending_list)) {
-			list_for_each_entry_safe(m, n, &pending_list, list) {
-				if ((m->cmd == msg.cmd) && (m->type == msg.type) && (m->subcmd == msg.subcmd)) {
-					list_del(&m->list);
-					found = true;
-					break;
-				}
-			}
-
-			if (!found) {
-				shub_errf("%d %d %d - Not match error", msg.cmd, msg.type, msg.subcmd);
-				goto exit;
-			}
-
-			if (msg.cmd == CMD_GETVALUE) {
-				m->length = msg.length;
-				if (m->length != 0) {
-					kfree(m->buffer);
-					m->buffer = kzalloc(m->length, GFP_KERNEL);
-					memcpy(m->buffer, msg.buffer, m->length);
-				}
-			}
-
-			if (m->done != NULL && !completion_done(m->done))
-				complete(m->done);
-
-		} else {
-			shub_errf("List empty error(%d %d %d)", msg.cmd, msg.type, msg.subcmd);
-		}
-exit:
-		mutex_unlock(&pending_mutex);
 	} else if (msg.cmd == CMD_REPORT) {
 		parse_dataframe(msg.buffer, msg.length);
 		kfree(msg.buffer);
 	} else {
-		shub_infof("msg_cmd does not define. cmd is %d", msg.cmd);
+		shub_errf("msg_cmd : %d, packet size %d", msg.cmd, packet_size);
+		print_dataframe(packet, packet_size);
 	}
 }
 

@@ -33,6 +33,7 @@ static const struct of_device_id gw3x_of_match[] = {
 MODULE_DEVICE_TABLE(of, gw3x_of_match);
 
 static struct gf_device *g_data;
+struct debug_logger *g_logger;
 
 static ssize_t gw3x_bfs_values_show(struct device *dev,
 				      struct device_attribute *attr, char *buf)
@@ -40,7 +41,7 @@ static ssize_t gw3x_bfs_values_show(struct device *dev,
 	struct gf_device *gf_dev = dev_get_drvdata(dev);
 
 	return snprintf(buf, PAGE_SIZE, "\"FP_SPICLK\":\"%d\"\n",
-			gf_dev->spi->max_speed_hz);
+			gf_dev->clk_setting->spi_speed);
 }
 
 static ssize_t gw3x_type_check_show(struct device *dev,
@@ -135,14 +136,19 @@ static struct device_attribute *fp_attrs[] = {
 static void gw3x_enable_irq(struct gf_device *gf_dev)
 {
 	struct irq_desc *desc = irq_to_desc(gf_dev->irq);
+#if KERNEL_VERSION(5, 4, 0) <= LINUX_VERSION_CODE
+	struct irq_data *d = irq_get_irq_data(gf_dev->irq);
+#endif
 	if (gf_dev->irq_enabled == 1) {
 		pr_err("irq already enabled\n");
 	} else {
 		/* Pending IRQ clear */
-		if ((!IS_ERR_OR_NULL(desc)) && (desc->irq_data.chip->irq_ack)) {
-			pr_debug("pending IRQ clear!\n");
+		if ((!IS_ERR_OR_NULL(desc)) && (desc->irq_data.chip->irq_ack))
 			desc->irq_data.chip->irq_ack(&desc->irq_data);
-		}
+#if KERNEL_VERSION(5, 4, 0) <= LINUX_VERSION_CODE
+		if (d->parent_data) /* QC case 05534084 */
+			irq_chip_set_parent_state(d, IRQCHIP_STATE_PENDING, false);
+#endif
 		enable_irq(gf_dev->irq);
 		enable_irq_wake(gf_dev->irq);
 		gf_dev->irq_enabled = 1;
@@ -510,12 +516,13 @@ static const struct file_operations gw3x_fops = {
 
 static void gw3x_work_func_debug(struct work_struct *work)
 {
-	struct gf_device *gf_dev = NULL;
 	u8 rst_value = -1;
 	u8 irq_value = -1;
+	struct debug_logger *logger;
+	struct gf_device *gf_dev;
 
-	gf_dev = container_of(work, struct gf_device, work_debug);
-
+	logger = container_of(work, struct debug_logger, work_debug);
+	gf_dev = dev_get_drvdata(logger->dev);
 	if (gf_dev->reset_gpio)
 		rst_value = gpio_get_value(gf_dev->reset_gpio);
 	if (gf_dev->irq_gpio)
@@ -526,44 +533,27 @@ static void gw3x_work_func_debug(struct work_struct *work)
 		sensor_status[gf_dev->sensortype + 2]);
 }
 
-static void gw3x_enable_debug_timer(struct gf_device *gf_dev)
-{
-	mod_timer(&g_data->dbg_timer,
-		round_jiffies_up(jiffies + FPSENSOR_DEBUG_TIMER_SEC));
-}
-
-static void gw3x_disable_debug_timer(struct gf_device *gf_dev)
-{
-	del_timer_sync(&g_data->dbg_timer);
-	cancel_work_sync(&g_data->work_debug);
-}
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
-static void gw3x_timer_func(unsigned long ptr)
-#else
-static void gw3x_timer_func(struct timer_list *t)
-#endif
-{
-	queue_work(g_data->wq_dbg, &g_data->work_debug);
-	mod_timer(&g_data->dbg_timer,
-		round_jiffies_up(jiffies + FPSENSOR_DEBUG_TIMER_SEC));
-}
-
-static int gw3x_set_timer(struct gf_device *gf_dev)
+int gw3x_pin_control(struct gf_device *gf_dev, bool pin_set)
 {
 	int retval = 0;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
-	setup_timer(&gf_dev->dbg_timer, gw3x_timer_func, (unsigned long)gf_dev);
-#else
-	timer_setup(&gf_dev->dbg_timer, gw3x_timer_func, 0);
-#endif
-	gf_dev->wq_dbg = create_singlethread_workqueue("gf_debug_wq");
-	if (!gf_dev->wq_dbg) {
-		retval = -ENOMEM;
-		pr_err("could not create workqueue\n");
-		return -ENOMEM;
+
+	pr_info("Pin control entry");
+	gf_dev->p->state = NULL;
+	if (pin_set) {
+		if (!IS_ERR(gf_dev->pins_poweron)) {
+			retval = pinctrl_select_state(gf_dev->p, gf_dev->pins_poweron);
+			if (retval)
+				pr_err("can't set pin wakeup state\n");
+			pr_debug("idle\n");
+		}
+	} else {
+		if (!IS_ERR(gf_dev->pins_poweroff)) {
+			retval = pinctrl_select_state(gf_dev->p, gf_dev->pins_poweroff);
+			if (retval)
+				pr_err("can't set pin sleep state\n");
+			pr_debug("sleep\n");
+		}
 	}
-	INIT_WORK(&gf_dev->work_debug, gw3x_work_func_debug);
 	return retval;
 }
 
@@ -655,10 +645,11 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 		pr_info("not use btp_regulator\n");
 		gf_dev->btp_vdd = NULL;
 	} else {
-		gf_dev->regulator_3p3 = regulator_get(NULL, gf_dev->btp_vdd);
+		gf_dev->regulator_3p3 = regulator_get(dev, gf_dev->btp_vdd);
 		if (IS_ERR(gf_dev->regulator_3p3) || (gf_dev->regulator_3p3) == NULL) {
-			pr_info("not use regulator_3p3\n");
+			pr_info("fail to get regulator_3p3\n");
 			gf_dev->regulator_3p3 = NULL;
+			return -EINVAL;
 		} else {
 			pr_info("btp_regulator ok\n");
 		}
@@ -705,6 +696,13 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 	if (of_property_read_u32(np, "goodix,orient", &gf_dev->orient))
 		gf_dev->orient = 0;
 	pr_info("orient: %d\n", gf_dev->orient);
+
+	if (of_property_read_u32(np, "goodix,spiclk_speed", &gf_dev->clk_setting->spi_speed))
+		gf_dev->clk_setting->spi_speed = gw3x_SPI_BAUD_RATE;
+#ifndef ENABLE_SENSORS_FPRINT_SECURE
+	gf_dev->spi->max_speed_hz = gf_dev->clk_setting->spi_speed;
+#endif
+	pr_info("spi_speed: %d\n", gf_dev->clk_setting->spi_speed);
 
 	gf_dev->p = pinctrl_get_select_default(dev);
 	if (IS_ERR(gf_dev->p)) {
@@ -804,6 +802,11 @@ int gw3x_type_check(struct gf_device *gf_dev)
 		pr_info("%s sensor type is GW36T2\n",
 		sensor_status[gf_dev->sensortype + 2]);
 		retval = 0;
+	} else if (mcuid32 == GF_GW36T3_CHIP_ID) {
+		gf_dev->sensortype = SENSOR_GOODIX;
+		pr_info("%s sensor type is GW36T3\n",
+		sensor_status[gf_dev->sensortype + 2]);
+		retval = 0;
 	} else if (mcuid32 == GF_GW36T1_SHIFT_CHIP_ID) {
 		gf_dev->sensortype = SENSOR_GOODIX;
 		pr_info("%s sensor type is GW36T1 SHIFT\n",
@@ -812,6 +815,11 @@ int gw3x_type_check(struct gf_device *gf_dev)
 	} else if (mcuid32 == GF_GW36T2_SHIFT_CHIP_ID) {
 		gf_dev->sensortype = SENSOR_GOODIX;
 		pr_info("%s sensor type is GW36T2 SHIFT\n",
+		sensor_status[gf_dev->sensortype + 2]);
+		retval = 0;
+	} else if (mcuid32 == GF_GW36T3_SHIFT_CHIP_ID) {
+		gf_dev->sensortype = SENSOR_GOODIX;
+		pr_info("%s sensor type is GW36T3 SHIFT\n",
 		sensor_status[gf_dev->sensortype + 2]);
 		retval = 0;
 	} else {
@@ -840,6 +848,10 @@ static struct gf_device *alloc_platformdata(struct device *dev)
 	if (gf_dev->boosting == NULL)
 		return NULL;
 
+	gf_dev->logger = devm_kzalloc(dev, sizeof(*gf_dev->logger), GFP_KERNEL);
+	if (gf_dev->logger == NULL)
+		return NULL;
+
 	return gf_dev;
 }
 
@@ -862,7 +874,9 @@ static int gw3x_probe_common(struct device *dev, struct gf_device *gf_dev)
 	gf_dev->reset_count = 0;
 	gf_dev->interrupt_count = 0;
 	g_data = gf_dev;
+	gf_dev->logger->dev = dev;
 	gf_dev->irq = 0;
+	dev_set_drvdata(dev, gf_dev);
 
 	/* get gpio info from dts or defination */
 	retval = gw3x_get_gpio_dts_info(dev, gf_dev);
@@ -870,13 +884,21 @@ static int gw3x_probe_common(struct device *dev, struct gf_device *gf_dev)
 		pr_err("Failed to get gpio info:%d\n", retval);
 		goto gw3x_probe_get_gpio;
 	}
+#ifndef ENABLE_SENSORS_FPRINT_SECURE
+	if (spi_setup(gf_dev->spi)) {
+		pr_err("failed to setup spi conf\n");
+		goto gw3x_probe_spi_setup_failed;
+	} else {
+		pr_info("setup spi success.\n");
+	}
 	gw3x_spi_setup_conf(gf_dev, 1);
+#endif
 
 	/* set AP spectific configuration */
-	retval = gw3x_register_platform_variable(gf_dev);
+	retval = spi_clk_register(gf_dev->clk_setting, dev);
 	if (retval < 0) {
-		pr_err("Failed to set platform_variable:%d\n", retval);
-		goto gw3x_probe_set_platform;
+		pr_err("Failed to register spi clk:%d\n", retval);
+		goto gw3x_probe_spi_clk_register;
 	}
 
 	/* create class */
@@ -951,7 +973,7 @@ static int gw3x_probe_common(struct device *dev, struct gf_device *gf_dev)
 		goto gw3x_probe_netlink_init;
 	}
 
-#if KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE
+#if KERNEL_VERSION(4, 19, 188) > LINUX_VERSION_CODE
 	// 4.19 R
 	wakeup_source_init(gf_dev->wake_lock, "gw3x_irq_wake_lock");
 	// 4.19 Q
@@ -989,10 +1011,11 @@ static int gw3x_probe_common(struct device *dev, struct gf_device *gf_dev)
 	gf_dev->irq_enabled = 1;
 	gw3x_disable_irq(gf_dev);
 
-	retval = gw3x_set_timer(gf_dev);
+	g_logger = gf_dev->logger;
+	retval = set_fp_debug_timer(gf_dev->logger, gw3x_work_func_debug);
 	if (retval)
 		goto gw3x_probe_debug_timer;
-	gw3x_enable_debug_timer(gf_dev);
+	enable_fp_debug_timer(gf_dev->logger);
 
 	pr_info("probe finished\n");
 	return 0;
@@ -1013,9 +1036,12 @@ gw3x_probe_device:
 gw3x_probe_devno:
 	class_destroy(gf_dev->class);
 gw3x_probe_class_create:
-gw3x_probe_set_platform:
+	spi_clk_unregister(gf_dev->clk_setting);
+gw3x_probe_spi_clk_register:
+#ifndef ENABLE_SENSORS_FPRINT_SECURE
+gw3x_probe_spi_setup_failed:
+#endif
 gw3x_probe_get_gpio:
-	gw3x_unregister_platform_variable(gf_dev);
 	pr_err("failed. %d", retval);
 	return retval;
 }
@@ -1045,6 +1071,10 @@ static int gw3x_probe(struct platform_device *pdev)
 
 gw3x_platform_probe_failed:
 	gf_dev = NULL;
+#if !IS_ENABLED(CONFIG_QGKI)
+	pr_err("deferred probe\n");
+	return -EPROBE_DEFER;
+#endif
 gw3x_platform_alloc_failed:
 	pr_err("is failed : %d\n", retval);
 	return retval;
@@ -1068,15 +1098,7 @@ static int gw3x_probe(struct spi_device *spi)
 	gf_dev->prev_bits_per_word = 8;
 	gf_dev->tz_mode = false;
 	gf_dev->spi = spi;
-	spi_set_drvdata(spi, gf_dev);
 	mutex_init(&gf_dev->buf_lock);
-
-	if (spi_setup(gf_dev->spi)) {
-		pr_err("failed to setup spi conf\n");
-		goto gw3x_spi_spi_setup_failed;
-	} else {
-		pr_info("setup spi success.\n");
-	}
 
 	/* init transfer buffer */
 	retval = gw3x_init_buffer(gf_dev);
@@ -1095,9 +1117,7 @@ static int gw3x_probe(struct spi_device *spi)
 gw3x_spi_probe_failed:
 	gw3x_free_buffer(gf_dev);
 gw3x_spi_init_buffer_failed:
-gw3x_spi_spi_setup_failed:
 	mutex_destroy(&gf_dev->buf_lock);
-	spi_set_drvdata(spi, NULL);
 	gf_dev->spi = NULL;
 	gf_dev = NULL;
 gw3x_spi_alloc_failed:
@@ -1120,8 +1140,8 @@ static int gw3x_remove_common(struct device *dev)
 	}
 
 	gw3x_hw_power_enable(gf_dev, 0);
-	gw3x_unregister_platform_variable(gf_dev);
-	gw3x_disable_debug_timer(gf_dev);
+	spi_clk_unregister(gf_dev->clk_setting);
+	disable_fp_debug_timer(gf_dev->logger);
 	wakeup_source_unregister(gf_dev->wake_lock);
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	wakeup_source_unregister(gf_dev->clk_setting->spi_wake_lock);
@@ -1135,14 +1155,13 @@ static int gw3x_remove_common(struct device *dev)
 
 	unregister_chrdev_region(gf_dev->devno, 1);
 	class_destroy(gf_dev->class);
-
 	return 0;
 }
 
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 static int gw3x_remove(struct platform_device *pdev)
 {
-	struct gf_device *gf_dev = dev_get_drvdata(&pdev->dev);
+	struct gf_device *gf_dev = platform_get_drvdata(pdev);
 
 	gw3x_remove_common(&pdev->dev);
 	gf_dev = NULL;
@@ -1159,7 +1178,6 @@ static int gw3x_remove(struct spi_device *spi)
 
 	mutex_destroy(&gf_dev->buf_lock);
 	spin_lock_irq(&gf_dev->spi_lock);
-	spi_set_drvdata(spi, NULL);
 	gf_dev->spi = NULL;
 	spin_unlock_irq(&gf_dev->spi_lock);
 	gf_dev = NULL;
@@ -1171,12 +1189,8 @@ static int gw3x_pm_suspend(struct device *dev)
 {
 	struct gf_device *gf_dev = dev_get_drvdata(dev);
 
-#ifdef CONFIG_BATTERY_SAMSUNG
-	if (lpcharge)
-		return 0;
-#endif
 	pr_info("Entry\n");
-	gw3x_disable_debug_timer(gf_dev);
+	disable_fp_debug_timer(gf_dev->logger);
 	return 0;
 }
 
@@ -1184,12 +1198,8 @@ static int gw3x_pm_resume(struct device *dev)
 {
 	struct gf_device *gf_dev = dev_get_drvdata(dev);
 
-#ifdef CONFIG_BATTERY_SAMSUNG
-	if (lpcharge)
-		return 0;
-#endif
 	pr_info("Entry\n");
-	gw3x_enable_debug_timer(gf_dev);
+	enable_fp_debug_timer(gf_dev->logger);
 	return 0;
 }
 
@@ -1221,12 +1231,7 @@ static int __init gw3x_init(void)
 	int status = 0;
 
 	pr_info("Entry\n");
-#ifdef CONFIG_BATTERY_SAMSUNG
-	if (lpcharge) {
-		pr_info("Do not load driver due to : lpm %d\n", lpcharge);
-		return status;
-	}
-#endif
+
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
 	status = spi_register_driver(&gw3x_spi_driver);
 #else

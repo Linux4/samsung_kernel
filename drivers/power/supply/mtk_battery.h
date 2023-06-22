@@ -240,6 +240,7 @@ enum fg_daemon_cmds {
 	FG_DAEMON_CMD_GET_SOC_DECIMAL_RATE,
 	FG_DAEMON_CMD_GET_DIFF_SOC_SET,
 	FG_DAEMON_CMD_SET_ZCV_INTR_EN,
+	FG_DAEMON_CMD_GET_IS_FORCE_FULL,
 
 	FG_DAEMON_CMD_FROM_USER_NUMBER
 
@@ -816,6 +817,9 @@ struct mtk_battery {
 	bool ntc_disable_nafg;
 	bool cmd_disable_nafg;
 
+/*battery full*/
+	bool is_force_full;
+
 	/*battery plug in out*/
 	int chr_type;
 	bool disable_plug_int;
@@ -825,6 +829,7 @@ struct mtk_battery {
 	int ui_soc;
 	struct timespec uisoc_oldtime;
 	int d_saved_car;
+	int tbat_precise;
 
 	/*battery interrupt*/
 	/* coulomb interrupt */

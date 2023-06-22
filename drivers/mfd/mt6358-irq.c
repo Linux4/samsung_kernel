@@ -17,11 +17,6 @@
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/wakeup_reason.h>
-#if IS_ENABLED(CONFIG_SEC_PM)
-#include <linux/wakeup_reason.h>
-#endif
-
-#define DEBUG_PMIC_IRQ	1
 
 #define DEBUG_PMIC_IRQ	1
 
@@ -199,9 +194,9 @@ static void mt6358_irq_sp_handler(struct mt6397_chip *chip,
 			}
 			log_threaded_irq_wakeup_reason(virq, chip->irq);
 #endif
-#if IS_ENABLED(CONFIG_SEC_PM)
+#ifdef CONFIG_SEC_PM
 			log_threaded_irq_wakeup_reason(virq, chip->irq);
-#endif
+#endif /* CONFIG_SEC_PM  */
 			if (virq)
 				handle_nested_irq(virq);
 		}
@@ -218,10 +213,12 @@ static irqreturn_t mt6358_irq_handler(int irq, void *data)
 	unsigned int i = 0;
 	int ret = 0;
 
+	pm_stay_awake(chip->dev);
 	ret = regmap_read(chip->regmap,
 			  irqd->top_int_status_reg,
 			  &top_irq_status);
 	if (ret) {
+		pm_relax(chip->dev);
 		dev_err(chip->dev, "Can't read TOP_INT_STATUS ret=%d\n", ret);
 		return IRQ_NONE;
 	}
@@ -230,7 +227,7 @@ static irqreturn_t mt6358_irq_handler(int irq, void *data)
 		if (top_irq_status & BIT(irqd->pmic_ints[i].top_offset))
 			mt6358_irq_sp_handler(chip, i);
 	}
-
+	pm_relax(chip->dev);
 	return IRQ_HANDLED;
 }
 

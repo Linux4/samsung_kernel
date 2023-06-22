@@ -510,7 +510,7 @@ static int proc_pid_ioinfo(struct seq_file *m, struct pid_namespace *ns,
 #ifdef CONFIG_TASK_IO_ACCOUNTING
 		   (unsigned long long)acct.read_bytes,
 #else
- 		   (unsigned long long)0,                 
+		   (unsigned long long)0,
 #endif
 		   (unsigned long long)delayacct_blkio_nsecs(task));
 
@@ -1091,7 +1091,6 @@ static ssize_t oom_adj_read(struct file *file, char __user *buf, size_t count,
 
 static int __set_oom_adj(struct file *file, int oom_adj, bool legacy)
 {
-	static DEFINE_MUTEX(oom_adj_mutex);
 	struct mm_struct *mm = NULL;
 	struct task_struct *task;
 	int err = 0;
@@ -1131,7 +1130,7 @@ static int __set_oom_adj(struct file *file, int oom_adj, bool legacy)
 		struct task_struct *p = find_lock_task_mm(task);
 
 		if (p) {
-			if (atomic_read(&p->mm->mm_users) > 1) {
+			if (test_bit(MMF_MULTIPROCESS, &p->mm->flags)) {
 				mm = p->mm;
 				mmgrab(mm);
 			}

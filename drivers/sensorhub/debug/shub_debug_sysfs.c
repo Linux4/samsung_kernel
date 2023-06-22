@@ -54,6 +54,11 @@ static ssize_t sensor_dump_show(struct device *dev, struct device_attribute *att
 	sensor_dump = kzalloc(
 	    (sensor_dump_length(DUMPREGISTER_MAX_SIZE) + LENGTH_SENSOR_TYPE_MAX + 3) * (ARRAY_SIZE(types)), GFP_KERNEL);
 
+	if (!sensor_dump) {
+		shub_errf("fail to allocate memory for dump buffer");
+		return -ENOMEM;
+	}
+
 	for (i = 0; i < ARRAY_SIZE(types); i++) {
 		if (sensor_dump_data[types[i]] != NULL) {
 			snprintf(temp, (int)strlen(sensor_dump_data[types[i]]) + LENGTH_SENSOR_TYPE_MAX + 3,
@@ -100,6 +105,12 @@ static ssize_t sensor_dump_show(struct device *dev, struct device_attribute *att
 
 	if (cnt > 0) {
 		time_info = kzalloc(TIMEINFO_SIZE * 3 * cnt, GFP_KERNEL);
+		if (!time_info) {
+			shub_infof("fail to allocate memory for time info");
+			time_info = NULL;
+			cnt = 0;
+			goto print_sensordump;
+		}
 
 		for (i = 0; i < SENSOR_TYPE_MAX; i++) {
 			sensor = get_sensor(i);
@@ -153,6 +164,7 @@ static ssize_t sensor_dump_show(struct device *dev, struct device_attribute *att
 		time_info = str_no_registered_sensor;
 	}
 
+print_sensordump:
 	if ((int)strlen(sensor_dump) == 0)
 		ret = snprintf(buf, PAGE_SIZE, "%s\n%s\n%s\n", str_no_sensor_dump, reset_info, time_info);
 	else
@@ -174,9 +186,7 @@ static ssize_t sensor_dump_store(struct device *dev, struct device_attribute *at
 		return -EINVAL;
 
 	if ((strcmp(name, "all")) == 0) {
-#ifdef CONFIG_SHUB_DUMP
 		sensorhub_save_ram_dump();
-#endif
 		ret = send_all_sensor_dump_command();
 	} else {
 		if (strcmp(name, "accelerometer") == 0)
@@ -273,6 +283,9 @@ static ssize_t debug_enable_store(struct device *dev, struct device_attribute *a
 		return size;
 
 	input_str = kzalloc(strlen(buf) + 1, GFP_KERNEL);
+	if (!input_str)
+		return -ENOMEM;
+
 	memcpy(input_str, buf, strlen(buf));
 	dup_str = kstrdup(input_str, GFP_KERNEL);
 
@@ -338,6 +351,9 @@ static ssize_t make_command_store(struct device *dev, struct device_attribute *a
 		return size;
 
 	input_str = kzalloc(strlen(buf) + 1, GFP_KERNEL);
+	if (!input_str)
+		return -ENOMEM;
+
 	memcpy(input_str, buf, strlen(buf));
 	dup_str = kstrdup(input_str, GFP_KERNEL);
 
@@ -371,6 +387,11 @@ static ssize_t make_command_store(struct device *dev, struct device_attribute *a
 				}
 				send_buf_len = (strlen(tmp) - 1) / 2;
 				send_buf = kzalloc(send_buf_len, GFP_KERNEL);
+				if (!send_buf) {
+					shub_errf("fail to alloc memory");
+					goto exit;
+				}
+
 				for (i = 0; i < send_buf_len; i++) {
 					send_buf[i] = (u8)((htou8(tmp[2 * i]) << 4) | htou8(tmp[2 * i + 1]));
 					shub_infof("[%d]:%d", i, send_buf[i]);

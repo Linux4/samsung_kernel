@@ -1,14 +1,32 @@
 #include "fingerprint_common.h"
 #include <linux/version.h>
+#if defined(CONFIG_CPU_FREQ_LIMIT) || defined(CONFIG_CPU_FREQ_LIMIT_USERSPACE)
 #if (KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE)
 #include <linux/cpufreq.h>
 #else
 #include <linux/cpufreq_limit.h>
 extern int set_freq_limit(unsigned int id, unsigned int freq);
 #endif
+#endif
 
 #define FINGER_ID 2
 #define LIMIT_RELEASE -1
+
+
+void spi_get_ctrldata(struct spi_device *spi)
+{
+
+}
+
+int spi_clk_register(struct spi_clk_setting *clk_setting, struct device *dev)
+{
+	return 0;
+}
+
+int spi_clk_unregister(struct spi_clk_setting *clk_setting)
+{
+	return 0;
+}
 
 int spi_clk_enable(struct spi_clk_setting *clk_setting)
 {

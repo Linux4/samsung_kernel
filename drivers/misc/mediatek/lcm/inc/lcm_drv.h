@@ -1014,6 +1014,7 @@ struct LCM_DRIVER {
 
 #if defined(CONFIG_SMCDSD_PANEL)
 	void (*power_enable)(unsigned int enable);
+	void (*disable)(void);
 #endif
 
 	void (*aod)(int enter);
@@ -1023,9 +1024,6 @@ struct LCM_DRIVER {
 		unsigned int from_level, unsigned int to_level);
 	bool (*dfps_need_send_cmd)(
 	unsigned int from_level, unsigned int to_level);
-
-	/* /////////////suspend////////////////////////// */
-	void (*disable)(void);
 };
 
 /* LCM Driver Functions */

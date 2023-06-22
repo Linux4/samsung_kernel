@@ -1,3 +1,18 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include "../../../comm/shub_comm.h"
 #include "../../../sensormanager/shub_sensor.h"
 #include "../../../sensormanager/shub_sensor_manager.h"
@@ -36,11 +51,11 @@ static void parse_dt_magnetometer_yas539(struct device *dev)
 		shub_err("no mag-yas539-array, set as 0");
 
 	// check nfc/mst for mag matrix
-	check_nfc_gpio = of_get_named_gpio(np, "shub-mag-check-nfc", 0);
+	check_nfc_gpio = of_get_named_gpio(np, "mag-check-nfc", 0);
 	if (check_nfc_gpio >= 0)
 		value_nfc = gpio_get_value(check_nfc_gpio);
 
-	check_mst_gpio = of_get_named_gpio(np, "shub-mag-check-mst", 0);
+	check_mst_gpio = of_get_named_gpio(np, "mag-check-mst", 0);
 	if (check_mst_gpio >= 0) {
 		value_mst = gpio_get_value(check_mst_gpio);
 		if (value_mst == 1) {

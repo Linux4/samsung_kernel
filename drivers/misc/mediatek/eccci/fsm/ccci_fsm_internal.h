@@ -276,6 +276,10 @@ int fsm_ee_init(struct ccci_fsm_ee *ee_ctl);
 int fsm_monitor_init(struct ccci_fsm_monitor *monitor_ctl);
 int fsm_sys_init(void);
 
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
+	int ccci_get_ap_debug_level(void);
+#endif
+
 struct ccci_fsm_ctl *fsm_get_entity_by_device_number(dev_t dev_n);
 struct ccci_fsm_ctl *fsm_get_entity_by_md_id(int md_id);
 int fsm_monitor_send_message(int md_id, enum CCCI_MD_MSG msg, u32 resv);

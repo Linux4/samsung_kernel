@@ -118,11 +118,7 @@ static void kpd_keymap_handler(unsigned long data)
 				continue;
 			input_report_key(keypad->input_dev, keycode, pressed);
 			input_sync(keypad->input_dev);
-#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
-			pr_info("%s %s: code=%d, state=%ld\n", SECLOG, __func__, keycode, pressed);
-#else
-			pr_info("%s %s: key state=%ld\n", SECLOG, __func__, pressed);
-#endif
+			pr_debug("report Linux keycode = %d\n", keycode);
 		}
 	}
 

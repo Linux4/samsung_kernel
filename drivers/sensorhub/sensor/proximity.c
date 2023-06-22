@@ -1,3 +1,18 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include "../comm/shub_comm.h"
 #include "../sensorhub/shub_device.h"
 #include "../sensormanager/shub_sensor.h"
@@ -10,13 +25,17 @@
 #include <linux/of_gpio.h>
 #include <linux/slab.h>
 
-static void init_proximity_variable(struct proximity_data *data)
+static int init_proximity_variable(struct proximity_data *data)
 {
 	if (data->chipset_funcs && data->chipset_funcs->init_proximity_variable)
 		data->chipset_funcs->init_proximity_variable(data);
 
-	if (data->cal_data_len)
+	if (data->cal_data_len) {
 		data->cal_data = kzalloc(data->cal_data_len, GFP_KERNEL);
+		if (!data->cal_data)
+			return -ENOMEM;
+	}
+	return 0;
 }
 
 static void parse_dt_proximity(struct device *dev)
@@ -95,25 +114,24 @@ get_proximity_function_pointer *get_prox_funcs_ary[] = {
 	get_proximity_stk3x6x_function_pointer,
 	get_proximity_gp2ap110s_function_pointer,
 	get_proximity_stk3328_function_pointer,
+	get_proximity_stk33910_function_pointer,
 };
 
-int init_proximity_chipset(char *name, char *vendor)
+int init_proximity_chipset(void)
 {
-	int i;
+	int ret;
+	uint64_t i;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PROXIMITY);
 	struct proximity_data *data = sensor->data;
 	struct proximity_chipset_funcs *funcs;
 
-	shub_infof("");
-
 	if (data->chipset_funcs)
 		return 0;
 
-	strcpy(sensor->chipset_name, name);
-	strcpy(sensor->vendor, vendor);
+	shub_infof("");
 
-	for (i = 0; i < ARRAY_LEN(get_prox_funcs_ary); i++) {
-		funcs = get_prox_funcs_ary[i](name);
+	for (i = 0; i < ARRAY_SIZE(get_prox_funcs_ary); i++) {
+		funcs = get_prox_funcs_ary[i](sensor->spec.name);
 		if (funcs) {
 			data->chipset_funcs = funcs;
 			if (data->chipset_funcs->init)
@@ -123,14 +141,14 @@ int init_proximity_chipset(char *name, char *vendor)
 	}
 
 	if (!data->chipset_funcs) {
-		shub_errf("cannot find proximity sensor chipset.");
+		shub_errf("cannot find proximity sensor chipset");
 		return -EINVAL;
 	}
 
 	parse_dt_proximity(get_shub_device());
-	init_proximity_variable(data);
+	ret = init_proximity_variable(data);
 
-	return 0;
+	return ret;
 }
 
 static int sync_proximity_status(void)
@@ -185,10 +203,15 @@ void report_event_proximity(void)
 	shub_infof("Proximity Sensor Detect : %u, raw : %u", sensor_value->prox, sensor_value->prox_raw);
 }
 
-int parsing_proximity_threshold(char *dataframe, int *index)
+int parsing_proximity_threshold(char *dataframe, int *index, int frame_len)
 {
 	u16 thresh[2] = {0, };
 	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
+
+	if (*index + sizeof(thresh) > frame_len) {
+		shub_errf("parsing error");
+		return -EINVAL;
+	}
 
 	memcpy(thresh, dataframe + (*index), sizeof(thresh));
 	data->prox_threshold[0] = thresh[0];
@@ -236,7 +259,7 @@ int save_proximity_calibration(void)
 	return ret;
 }
 
-static int open_default_proximity_calibration(void)
+int open_default_proximity_calibration(void)
 {
 	int ret = 0;
 	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
@@ -253,7 +276,7 @@ static int open_default_proximity_calibration(void)
 	return ret;
 }
 
-int open_proximity_calibration(void)
+static int open_proximity_calibration(void)
 {
 	int ret = 0;
 	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
@@ -266,21 +289,86 @@ int open_proximity_calibration(void)
 	return ret;
 }
 
-void init_proximity(bool en)
+int set_proximity_setting_mode(void)
+{
+	int ret = 0;
+	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
+
+	if (data->setting_mode == 0)
+		return ret;
+
+	shub_infof("%d", data->setting_mode);
+
+	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_PROXIMITY, PROXIMITY_SETTING_MODE, 
+				 (char *)&data->setting_mode, sizeof(data->setting_mode));
+	if (ret < 0)
+		shub_errf("failed %d", ret);
+
+	return ret;
+}
+
+int save_proximity_setting_mode(void)
+{
+	int ret = 0;
+	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
+
+	if (data->setting_mode == 0)
+		return ret;
+
+	shub_infof("%d", data->setting_mode);
+
+	ret = shub_file_write_no_wait(PROX_SETTING_MODE_FILE_PATH, (char *)&data->setting_mode, 
+					sizeof(data->setting_mode), 0);
+	if (ret != sizeof(data->setting_mode)) {
+		shub_errf("failed");
+		return -EIO;
+	}
+
+	return ret;
+}
+
+int open_default_proximity_setting_mode(void)
+{
+	int ret = 0;
+	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
+	u8 mode;
+
+	ret = shub_file_read(PROX_SETTING_MODE_FILE_PATH, (char *)&mode, sizeof(mode), 0);
+	if (ret != sizeof(mode)) {
+		shub_errf("failed");
+		ret = -EIO;
+	} else {
+		data->setting_mode = mode;
+	}
+
+	shub_infof("%d", data->setting_mode);
+
+	return ret;
+}
+
+int init_proximity(bool en)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PROXIMITY);
 
 	if (!sensor)
-		return;
+		return 0;
 
 	if (en) {
 		strcpy(sensor->name, "proximity_sensor");
 		sensor->receive_event_size = 3;
 		sensor->report_event_size = 1;
 		sensor->event_buffer.value = kzalloc(sizeof(struct prox_event), GFP_KERNEL);
+		if (!sensor->event_buffer.value)
+			goto err_no_mem;
 
 		sensor->data = kzalloc(sizeof(struct proximity_data), GFP_KERNEL);
+		if (!sensor->data)
+			goto err_no_mem;
+
 		sensor->funcs = kzalloc(sizeof(struct sensor_funcs), GFP_KERNEL);
+		if (!sensor->funcs)
+			goto err_no_mem;
+
 		sensor->funcs->enable = enable_proximity;
 		sensor->funcs->sync_status = sync_proximity_status;
 		sensor->funcs->print_debug = print_debug_proximity;
@@ -304,4 +392,17 @@ void init_proximity(bool en)
 		kfree(sensor->event_buffer.value);
 		sensor->event_buffer.value = NULL;
 	}
+	return 0;
+
+err_no_mem:
+	kfree(sensor->event_buffer.value);
+	sensor->event_buffer.value = NULL;
+
+	kfree(sensor->data);
+	sensor->data = NULL;
+
+	kfree(sensor->funcs);
+	sensor->funcs = NULL;
+
+	return -ENOMEM;
 }

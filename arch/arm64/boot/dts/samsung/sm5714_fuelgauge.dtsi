@@ -1,7 +1,7 @@
 /*
- * Vogue battery device tree common
+ * sm5714 battery device tree common
  *
- * Copyright (c) 2018 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
  *		http://www.samsung.com
  *
  * This program is free software; you can redistribute it and/or modify
@@ -23,6 +23,12 @@
 		fuelgauge,sw_v_empty_voltage = <3200>;
 		fuelgauge,sw_v_empty_voltage_cisd = <3100>;
 		fuelgauge,sw_v_empty_recover_voltage = <3480>;
+#if 0
+		fuelgauge,bat_id_gpio = <
+				SEC_GPIO_REF(${bat_id_gpio_02}) 0  /* BAT_ID_2 */
+				SEC_GPIO_REF(${bat_id_gpio_01}) 0  /* BAT_ID_1 */
+				>;
+#endif
 		battery_params {
 			battery,id = <0>;
 			battery0,battery_type = <4400 0x1D44>; /* batt_v_max, cap */

@@ -16,8 +16,9 @@ config MTK_PROT_MEM_SUPPORT
 	  If unsure, say N.
 
 config MTK_SECURE_MEM_SUPPORT
-	bool "MTK SVP SECURE Memory Support"
-	depends on TRUSTONIC_TEE_SUPPORT || MICROTRUST_TEE_SUPPORT || TEEGRIS_TEE_SUPPORT
+	tristate "MTK SVP SECURE Memory Support"
+	depends on TRUSTONIC_TEE_SUPPORT || MTK_TEE_GP_SUPPORT || \
+			  MTK_GZ_KREE && MTK_SVP_ON_MTEE_SUPPORT  || TEEGRIS_TEE_SUPPORT
 	default y
 	help
 	  Enable the support of MediaTek SVP secure memory driver.

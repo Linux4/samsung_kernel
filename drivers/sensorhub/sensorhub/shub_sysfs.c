@@ -78,7 +78,7 @@ ssize_t mcu_revision_show(struct device *dev, struct device_attribute *attr, cha
 {
 #ifdef CONFIG_SHUB_FIRMWARE_DOWNLOAD
 	return sprintf(buf, "%s01%u,%s01%u\n", SENSORHUB_VENDOR, get_firmware_rev(), SENSORHUB_VENDOR,
-		       get_kernel_fw_rev());
+		       get_firmware_rev());
 #else
 	return sprintf(buf, "N,N\n");
 #endif

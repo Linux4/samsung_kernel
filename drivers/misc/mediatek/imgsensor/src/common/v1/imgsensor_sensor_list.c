@@ -790,11 +790,17 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 	{0, {0}, NULL}, /* end of list */
 };
 /* e_add new sensor driver here */
-
+extern struct IMGSENSOR_SENSOR *imgsensor_sensor_get_inst(enum IMGSENSOR_SENSOR_IDX idx);
 unsigned int imgsensor_read_otp_cal(struct i2c_client *client,
 		struct stCAM_CAL_INFO_STRUCT *sensor_info, unsigned int addr, unsigned char *data, unsigned int size)
 {
 	int ret = 0;
+	struct IMGSENSOR_SENSOR *psensor = NULL;
+
+	psensor = imgsensor_sensor_get_inst(IMGSENSOR_SENSOR_IDX_MAP(sensor_info->deviceID));
+	if (psensor != NULL) {
+		imgsensor_i2c_set_device(&psensor->inst.i2c_cfg);
+	}
 
 	pr_debug("[%s] sensor_id: %#06x - E\n", __func__, sensor_info->sensorID);
 	switch (sensor_info->sensorID) {
@@ -832,6 +838,10 @@ unsigned int imgsensor_read_otp_cal(struct i2c_client *client,
 		pr_err("[%s] no searched otp cal\n", __func__);
 		ret = -1;
 		break;
+	}
+
+	if (psensor != NULL) {
+		imgsensor_i2c_set_device(NULL);
 	}
 
 	if (ret < 0) {

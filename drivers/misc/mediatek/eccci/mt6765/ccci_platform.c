@@ -25,6 +25,42 @@
 #include <mt-plat/mtk_lpae.h>
 #endif
 
+#ifdef ENABLE_MD_SEC_SMEM
+#include <linux/arm-smccc.h>
+#define MTK_SIP_CCCI_CONTROL_ARCH32		0x82000505
+#define MTK_SIP_CCCI_CONTROL_ARCH64		0xC2000505
+enum CCCI_SECURE_REQ_ID {
+	MD_DBGSYS_REG_DUMP = 0,
+	MD_BANK0_HW_REMAP,
+	MD_BANK1_HW_REMAP,
+	MD_BANK4_HW_REMAP,
+	MD_SIB_HW_REMAP,
+	MD_CLOCK_REQUEST,
+	MD_POWER_CONFIG,
+	MD_FLIGHT_MODE_SET,
+	MD_HW_REMAP_LOCKED,
+	MD_SEC_SMEM_INF,
+	UPDATE_MD_SEC_SMEM,
+};
+int ccci_get_md_sec_smem_size_and_update(void)
+{
+	struct arm_smccc_res res;
+#ifdef __aarch64__
+	arm_smccc_smc(MTK_SIP_CCCI_CONTROL_ARCH64,
+				UPDATE_MD_SEC_SMEM, 0, 0, 0, 0, 0, 0, &res);
+#else
+	arm_smccc_smc(MTK_SIP_CCCI_CONTROL_ARCH32,
+				UPDATE_MD_SEC_SMEM, 0, 0, 0, 0, 0, 0, &res);
+#endif
+	return (int)res.a0;
+}
+#else
+int ccci_get_md_sec_smem_size_and_update(void)
+{
+	return 0;
+}
+#endif
+
 #define TAG "plat"
 
 #ifdef FEATURE_LOW_BATTERY_SUPPORT

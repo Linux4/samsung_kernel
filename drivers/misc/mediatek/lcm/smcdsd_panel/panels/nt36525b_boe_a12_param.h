@@ -25,7 +25,7 @@ static u8 LM36274_INIT[] = {
 	TYPE_WRITE, 0x0E, 0x26,
 	TYPE_WRITE, 0x09, 0xBE,
 	TYPE_WRITE, 0x02, 0x6B,
-	TYPE_WRITE, 0x03, 0x0D,
+	TYPE_WRITE, 0x03, 0x27,
 	TYPE_WRITE, 0x11, 0x74,
 	TYPE_WRITE, 0x04, 0x05,
 	TYPE_WRITE, 0x05, 0xCC,
@@ -1314,10 +1314,17 @@ static unsigned char SEQ_NT36525B_BOE_247[] = {
 	0x01,
 };
 
+#ifdef CONFIG_SMCDSD_PANEL_A12U
+static unsigned char SEQ_NT36525B_BOE_248[] = {
+	0xBA,
+	0x03,
+};
+#else
 static unsigned char SEQ_NT36525B_BOE_248[] = {
 	0xBA,
 	0x02,
 };
+#endif
 
 static unsigned char SEQ_NT36525B_BOE_249[] = {
 	0x53,

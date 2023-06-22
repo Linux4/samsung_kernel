@@ -1,3 +1,18 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include <linux/slab.h>
 
 #include "../comm/shub_comm.h"
@@ -105,7 +120,7 @@ void shub_report_scontext_notice_data(char notice)
 
 	notice_buf[2] = notice;
 
-	if (notice == SCONTEXT_AP_STATUS_RESET) {
+	if (notice == SCONTEXT_NOTIFY_HUB_RESET) {
 		struct reset_info_t reset_info = get_reset_info();
 
 		len = 4;
@@ -123,11 +138,7 @@ void shub_report_scontext_notice_data(char notice)
 
 	shub_report_scontext_data(notice_buf, len);
 
-	if (notice == SCONTEXT_AP_STATUS_WAKEUP)
-		shub_infof("wake up");
-	else if (notice == SCONTEXT_AP_STATUS_SLEEP)
-		shub_infof("sleep");
-	else if (notice == SCONTEXT_AP_STATUS_RESET)
+	if (notice == SCONTEXT_NOTIFY_HUB_RESET)
 		shub_infof("reset");
 	else
 		shub_errf("invalid notice(0x%x)", notice);
@@ -142,17 +153,11 @@ int convert_ap_status(int command)
 	case SCONTEXT_AP_STATUS_SHUTDOWN:
 		ret = AP_SHUTDOWN;
 		break;
-	case SCONTEXT_AP_STATUS_WAKEUP:
+	case SCONTEXT_AP_STATUS_LCD_ON:
 		ret = LCD_ON;
 		break;
-	case SCONTEXT_AP_STATUS_SLEEP:
+	case SCONTEXT_AP_STATUS_LCD_OFF:
 		ret = LCD_OFF;
-		break;
-	case SCONTEXT_AP_STATUS_RESUME:
-		ret = AP_RESUME;
-		break;
-	case SCONTEXT_AP_STATUS_SUSPEND:
-		ret = AP_SUSPEND;
 		break;
 	case SCONTEXT_AP_STATUS_POW_CONNECTED:
 		ret = POW_CONNECTED;
@@ -177,19 +182,16 @@ int shub_scontext_send_cmd(const char *buf, int count)
 	int convert_status = 0;
 	struct shub_data_t *shub_data = get_shub_data();
 
-	if (buf[2] < SCONTEXT_AP_STATUS_WAKEUP || buf[2] > SCONTEXT_AP_STATUS_CALL_ACTIVE) {
+	convert_status = convert_ap_status(buf[2]);
+	if (convert_status < 0) {
 		shub_errf("INST_LIB_NOTI err(%d)", buf[2]);
 		return -EINVAL;
 	}
 
-	convert_status = convert_ap_status(buf[2]);
 	ret = shub_send_status(convert_status);
 
-	if (buf[2] == SCONTEXT_AP_STATUS_WAKEUP || buf[2] == SCONTEXT_AP_STATUS_SLEEP)
+	if (buf[2] == SCONTEXT_AP_STATUS_LCD_ON || buf[2] == SCONTEXT_AP_STATUS_LCD_OFF)
 		shub_data->lcd_status = convert_status;
-
-	if (buf[2] == SCONTEXT_AP_STATUS_SUSPEND || buf[2] == SCONTEXT_AP_STATUS_RESUME)
-		shub_data->ap_status = convert_status;
 
 	return ret;
 }
@@ -370,20 +372,25 @@ void print_scontext_debug(void)
 	/* print nothing for debug */
 }
 
-void init_scontext(bool en)
+int init_scontext(bool en)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_SCONTEXT);
 
 	if (!sensor)
-		return;
+		return 0;
 
 	if (en) {
 		strcpy(sensor->name, "scontext_iio");
 		sensor->receive_event_size = 0;
 		sensor->report_event_size = 64;
 		sensor->event_buffer.value = kzalloc(sensor->report_event_size, GFP_KERNEL);
+		if (!sensor->event_buffer.value)
+			goto err_no_mem;
 
 		sensor->funcs = kzalloc(sizeof(struct sensor_funcs), GFP_KERNEL);
+		if (!sensor->funcs)
+			goto err_no_mem;
+
 		sensor->funcs->print_debug = print_scontext_debug;
 	} else {
 		kfree(sensor->event_buffer.value);
@@ -392,4 +399,15 @@ void init_scontext(bool en)
 		kfree(sensor->funcs);
 		sensor->funcs = NULL;
 	}
+
+	return 0;
+
+err_no_mem:
+	kfree(sensor->event_buffer.value);
+	sensor->event_buffer.value = NULL;
+
+	kfree(sensor->funcs);
+	sensor->funcs = NULL;
+
+	return -ENOMEM;
 }

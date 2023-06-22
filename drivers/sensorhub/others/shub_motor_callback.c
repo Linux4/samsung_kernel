@@ -1,3 +1,18 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #ifdef CONFIG_SEC_VIB_NOTIFIER
 #include <linux/vibrator/sec_vibrator_notifier.h>
 #include "../utility/shub_utility.h"
@@ -101,7 +116,7 @@ void set_motor_coef(int coef)
 	shub_infof("%d", motor_coef);
 }
 
-int get_motor_coef()
+int get_motor_coef(void)
 {
 	return motor_coef;
 }
@@ -120,5 +135,5 @@ void init_shub_motor_callback(void) {}
 void remove_shub_motor_callback(void) {}
 void sync_motor_state(void) {}
 void set_motor_coef(int coef) {}
-int get_motor_coef() {return 0; }
+int get_motor_coef(void) {return 0; }
 #endif

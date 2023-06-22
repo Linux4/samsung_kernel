@@ -1,3 +1,18 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #ifndef __SHUB_CMD_H
 #define __SHUB_CMD_H
 
@@ -86,7 +101,9 @@ enum {
 	COPR_ROIX,
 	PANEL_STATE,
 	DEBUG_INFO,
-	PANEL_LCD_TYPE,
+	MAGNETIC_COVER_MATRIX,
+	EXTRA_EXTERNAL_CLIENT_ADDED,
+	EXTRA_EXTERNAL_CLIENT_REMOVED,
 	CMD_VALUE_MAX,
 };
 #endif

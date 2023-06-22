@@ -18,20 +18,28 @@
 
 #include <linux/device.h>
 
+#define MAG_EVENT_SIZE_4BYTE_VERSION 2
+
 struct mag_event {
-	s16 x;
-	s16 y;
-	s16 z;
+	s32 x;
+	s32 y;
+	s32 z;
 	u8 accuracy;
 } __attribute__((__packed__));
 
 struct uncal_mag_event {
-	s16 uncal_x;
-	s16 uncal_y;
-	s16 uncal_z;
-	s16 offset_x;
-	s16 offset_y;
-	s16 offset_z;
+	s32 uncal_x;
+	s32 uncal_y;
+	s32 uncal_z;
+	s32 offset_x;
+	s32 offset_y;
+	s32 offset_z;
+} __attribute__((__packed__));
+
+struct mag_power_event {
+	s16 x;
+	s16 y;
+	s16 z;
 } __attribute__((__packed__));
 
 struct magnetometer_data {
@@ -41,6 +49,7 @@ struct magnetometer_data {
 	void *cal_data;
 	int cal_data_len;
 
+	u8 *cover_matrix;
 	u8 *mag_matrix;
 	int mag_matrix_len;
 };
@@ -55,6 +64,7 @@ struct magnetometer_chipset_funcs *get_magnetic_mmc5633_function_pointer(char *n
 struct magnetometer_chipset_funcs *get_magnetic_yas539_function_pointer(char *name);
 
 int set_mag_matrix(struct magnetometer_data *data);
+int set_mag_cover_matrix(struct magnetometer_data *data);
 
 /* magnetometer calibration data */
 struct calibration_data_ak09918c {

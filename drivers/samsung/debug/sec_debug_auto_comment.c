@@ -222,12 +222,7 @@ static ssize_t sec_debug_auto_comment_proc_read(struct file *file, char __user *
 		return -ENODEV;
 	}
 
-	if (reset_reason >= RR_R && reset_reason <= RR_N) {
-		pr_err("%s : reset_reason %d\n", __func__, reset_reason);
-		return -ENOENT;
-	}
-
-	if (pos >= AC_SIZE) {
+	if (pos > AC_SIZE) {
 		pr_err("%s : pos 0x%llx\n", __func__, pos);
 		return 0;
 	}

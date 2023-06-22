@@ -7,5 +7,6 @@
 #include "mt6765-a12_common.dtsi"
 #include "mt6765_a12_camera_04.dtsi"
 #include "mt6765_input_a12_07.dtsi"
+#include "display_lcd_a12_common.dtsi"
 
 /*End of this file, DO NOT ADD ANYTHING HERE*/

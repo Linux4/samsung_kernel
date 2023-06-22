@@ -19,6 +19,7 @@ void (*fpsgo_notify_connect_fp)(int pid,
 void (*fpsgo_notify_bqid_fp)(int pid, unsigned long long bufID,
 		int queue_SF, unsigned long long identifier, int create);
 void (*fpsgo_notify_vsync_fp)(void);
+void (*fpsgo_get_fps_fp)(int *pid, int *fps);
 void (*fpsgo_notify_nn_job_begin_fp)(unsigned int tid, unsigned long long mid);
 void (*fpsgo_notify_nn_job_end_fp)(int pid, int tid, unsigned long long mid,
 	int num_step, __s32 *boost, __s32 *device, __u64 *exec_time);
@@ -287,6 +288,7 @@ static long device_ioctl(struct file *filp,
 		unsigned int cmd, unsigned long arg)
 {
 	ssize_t ret = 0;
+	int pwr_pid = -1, pwr_fps = -1;
 	struct _FPSGO_PACKAGE *msgKM = NULL,
 			*msgUM = (struct _FPSGO_PACKAGE *)arg;
 	struct _FPSGO_PACKAGE smsgKM;
@@ -327,15 +329,30 @@ static long device_ioctl(struct file *filp,
 	case FPSGO_TOUCH:
 		usrtch_ioctl(cmd, msgKM->frame_time);
 		break;
+	case FPSGO_SWAP_BUFFER:
+		break;
 	case FPSGO_VSYNC:
 		if (fpsgo_notify_vsync_fp)
 			fpsgo_notify_vsync_fp();
 		break;
+	case FPSGO_GET_FPS:
+		if (fpsgo_get_fps_fp) {
+			fpsgo_get_fps_fp(&pwr_pid, &pwr_fps);
+			msgKM->tid = pwr_pid;
+			msgKM->value1 = pwr_fps;
+		} else
+			ret = -1;
+		perfctl_copy_to_user(msgUM, msgKM,
+				sizeof(struct _FPSGO_PACKAGE));
+		break;
+	case FPSGO_GET_CMD:
+		ret = -1;
+		break;
+	case FPSGO_GBE_GET_CMD:
+		ret = -1;
 		break;
 
 #else
-	case FPSGO_TOUCH:
-		/* FALLTHROUGH */
 	case FPSGO_QUEUE:
 		/* FALLTHROUGH */
 	case FPSGO_DEQUEUE:
@@ -345,6 +362,21 @@ static long device_ioctl(struct file *filp,
 	case FPSGO_VSYNC:
 		/* FALLTHROUGH */
 	case FPSGO_BQID:
+		/* FALLTHROUGH */
+	case FPSGO_TOUCH:
+		/* FALLTHROUGH */
+	case FPSGO_SWAP_BUFFER:
+		break;
+	case FPSGO_GET_FPS:
+		pwr_pid = -1;
+		pwr_fps = -1;
+		ret = -1;
+		break;
+	case FPSGO_GET_CMD:
+		ret = -1;
+		break;
+	case FPSGO_GBE_GET_CMD:
+		ret = -1;
 		break;
 #endif
 

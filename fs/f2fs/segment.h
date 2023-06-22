@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * fs/f2fs/segment.h
  *
@@ -88,11 +88,11 @@
 #define BLKS_PER_SEC(sbi)					\
 	((sbi)->segs_per_sec * (sbi)->blocks_per_seg)
 #define GET_SEC_FROM_SEG(sbi, segno)				\
-	((segno) / (sbi)->segs_per_sec)
+	(((segno) == -1) ? -1: (segno) / (sbi)->segs_per_sec)
 #define GET_SEG_FROM_SEC(sbi, secno)				\
 	((secno) * (sbi)->segs_per_sec)
 #define GET_ZONE_FROM_SEC(sbi, secno)				\
-	((secno) / (sbi)->secs_per_zone)
+	(((secno) == -1) ? -1: (secno) / (sbi)->secs_per_zone)
 #define GET_ZONE_FROM_SEG(sbi, segno)				\
 	GET_ZONE_FROM_SEC(sbi, GET_SEC_FROM_SEG(sbi, segno))
 
@@ -271,7 +271,7 @@ struct dirty_seglist_info {
 	unsigned long *victim_secmap;		/* background GC victims */
 
 	/* W/A for FG_GC failure due to Atomic Write File and Pinned File */
-	unsigned long *blacklist_victim_secmap; /* GC Failed Bitmap */
+	unsigned long *unable_victim_secmap; /* GC Failed Bitmap */
 };
 
 /* victim selection function for cleaning and SSR */
@@ -618,6 +618,9 @@ static inline int utilization(struct f2fs_sb_info *sbi)
 #define DEF_MIN_IPU_UTIL	70
 #define DEF_MIN_FSYNC_BLOCKS	8
 #define DEF_MIN_HOT_BLOCKS	16
+
+#define DEF_DISCARD_SLAB_THRESHOLD (4)		/* 4MB */
+#define DEF_UNDISCARD_THRESHOLD (128)		/* 128MB */
 
 #define SMALL_VOLUME_SEGMENTS	(16 * 512)	/* 16GB */
 

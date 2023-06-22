@@ -70,9 +70,20 @@ enum {
  * SiP commands
  */
 #define MTK_SIP_UFS_CONTROL               MTK_SIP_SMC_CMD(0x276)
+#define UFS_MTK_SIP_VA09_PWR_CTRL         BIT(0)
 #define UFS_MTK_SIP_DEVICE_RESET          BIT(1)
 #define UFS_MTK_SIP_CRYPTO_CTRL           BIT(2)
 #define UFS_MTK_SIP_REF_CLK_NOTIFICATION  BIT(3)
+
+/*
+ * Quirks
+ */
+enum ufs_mtk_host_quirks {
+	/*
+	 * Auto-hibern8 shall be disabled while doorbell is not empty
+	 */
+	UFS_MTK_HOST_QUIRK_BROKEN_AUTO_HIBERN8    = 1 << 0,
+};
 
 /*
  * VS_DEBUGCLOCKENABLE
@@ -99,12 +110,22 @@ enum {
 	REF_CLK_HW_MODE         = 2
 };
 
+struct ufs_mtk_host_cfg {
+	enum ufs_mtk_host_quirks quirks;
+};
+
 struct ufs_mtk_host {
+	struct ufs_mtk_host_cfg *cfg;
 	struct ufs_hba *hba;
 	struct phy *mphy;
+	struct regulator *reg_va09;
+	struct reset_control *hci_reset;
+	struct reset_control *unipro_reset;
+	struct reset_control *crypto_reset;
 	bool mphy_powered_on;
 	bool unipro_lpm;
 	bool ref_clk_enabled;
+	bool auto_hibern_enabled;
 	u16 ref_clk_ungating_wait_us;
 	u16 ref_clk_gating_wait_us;
 	u32 refclk_ctrl;

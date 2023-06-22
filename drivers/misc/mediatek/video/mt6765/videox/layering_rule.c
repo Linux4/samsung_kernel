@@ -16,7 +16,7 @@
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
 
-#if defined(CONFIG_MTK_DRAMC) && 0
+#if defined(CONFIG_MTK_DRAMC)
 #include "mtk_dramc.h"
 #endif
 #include "mmdvfs_pmqos.h"
@@ -30,7 +30,6 @@
 
 static struct layering_rule_ops l_rule_ops;
 static struct layering_rule_info_t l_rule_info;
-static DEFINE_SPINLOCK(hrt_table_lock);
 
 int emi_bound_table[HRT_BOUND_NUM][HRT_LEVEL_NUM] = {
 	/* HRT_BOUND_TYPE_LP4 */
@@ -402,7 +401,7 @@ static void layering_rule_senario_decision(struct disp_layer_info *disp_info)
 
 	l_rule_info.primary_fps = 60;
 
-#if defined(CONFIG_MTK_DRAMC) && 0
+#if defined(CONFIG_MTK_DRAMC)
 	if (get_ddr_type() == TYPE_LPDDR3) {
 		if (primary_display_get_width() < 800) {
 			if (primary_display_get_height() < 1500)
@@ -526,6 +525,7 @@ unsigned int layering_rule_get_hrt_idx(void)
 {
 	return l_rule_info.hrt_idx;
 }
+
 static void clear_layer(struct disp_layer_info *disp_info)
 {
 	int di = 0;
@@ -652,42 +652,6 @@ done:
 }
 #endif
 
-void copy_hrt_bound_table(int is_larb, int *hrt_table,
-	int active_config_id)
-{
-	unsigned long flags = 0;
-	int valid_num, ovl_bound;
-	int i;
-
-	/* Not used in 6779 */
-	if (is_larb)
-		return;
-
-	/* update table if hrt bw is enabled */
-	spin_lock_irqsave(&hrt_table_lock, flags);
-#ifdef MTK_FB_MMDVFS_SUPPORT
-	valid_num = layering_get_valid_hrt(active_config_id);
-#else
-	valid_num = 200;
-#endif
-	ovl_bound = get_phy_layer_limit(
-		get_mapping_table(
-		DISP_HW_LAYER_TB,
-		MAX_PHY_OVL_CNT - 1), 0);
-	valid_num = min(valid_num, ovl_bound * 100);
-	DISPINFO("%s:valid_num:%d,ovl_bound:%d\n",
-		__func__, valid_num, ovl_bound);
-
-	for (i = 0; i < HRT_LEVEL_NUM; i++) {
-		emi_bound_table[l_rule_info.bound_tb_idx][i] =
-			valid_num;
-	}
-	spin_unlock_irqrestore(&hrt_table_lock, flags);
-
-	for (i = 0; i < HRT_LEVEL_NUM; i++)
-		hrt_table[i] = emi_bound_table[l_rule_info.bound_tb_idx][i];
-}
-
 unsigned long long layering_get_frame_bw(int active_cfg_id)
 {
 #ifdef CONFIG_ARM64
@@ -761,7 +725,7 @@ int layering_rule_get_mm_freq_table(enum HRT_OPP_LEVEL opp_level)
 		return 0;
 	}
 
-#if defined(CONFIG_MTK_DRAMC) && 0
+#if defined(CONFIG_MTK_DRAMC)
 	if (get_ddr_type() == TYPE_LPDDR3)
 		dramc_type = HRT_DRAMC_TYPE_LP3;
 	else {

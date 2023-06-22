@@ -42,6 +42,10 @@
 #include <linux/platform_data/spi-mt65xx.h>
 #endif
 
+#ifdef CONFIG_BATTERY_SAMSUNG
+extern unsigned int lpcharge;
+#endif
+
 #define NVT_DEBUG 1
 
 //---GPIO number---

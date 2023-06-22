@@ -229,7 +229,7 @@ static void spm_suspend_pcm_setup_before_wfi(u32 cpu,
 #endif
 
 	/* Only get resource usage from user SCP */
-	resource_usage = spm_get_resource_usage_by_user(SPM_RESOURCE_USER_SCP);
+	resource_usage = spm_get_resource_usage();
 
 	spm_suspend_pre_process(pwrctrl);
 
@@ -319,9 +319,7 @@ static unsigned int spm_output_wake_reason(struct wake_status *wakesta)
 		NULL, 0);
 #endif
 #endif
-#if !IS_ENABLED(CONFIG_SEC_PM)
 	log_irq_wakeup_reason(mtk_spm_get_irq_0());
-#endif
 
 #if defined(CONFIG_MTK_GIC_V3_EXT)
 	for (i = 0; i < IRQ_NUMBER; i++) {

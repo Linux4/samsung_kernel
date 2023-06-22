@@ -72,7 +72,7 @@
 					"regulator,disable",	"gpio_lcd_rst",
 					"delay,usleep",	"5000";
 				};
-				panel_regulator_init {
+				panel_not_connected {
 					type =
 					"regulator,enable",	"vcamio",
 					"regulator,enable",	"gpio_lcd_rst",
@@ -145,7 +145,7 @@
 					"regulator,disable",	"gpio_lcd_rst",
 					"delay,usleep",	"5000";
 				};
-				panel_regulator_init {
+				panel_not_connected {
 					type =
 					"regulator,enable",	"vcamio",
 					"regulator,enable",	"gpio_lcd_rst",
@@ -279,12 +279,18 @@
 	};
 };
 
+&mt_pmic_vcamio_ldo_reg {
+	regulator-name = "vcamio";
+	regulator-boot-on;
+};
+
 &i2c3 {
 	status = "okay";
 
-	lm36274@11 {
-		compatible = "i2c,lm36274";
+	i2c_lcd_bias@11 {
+		compatible = "mediatek,i2c_lcd_bias";
 		reg = <0x11>;
+		status = "okay";
 	};
 };
 

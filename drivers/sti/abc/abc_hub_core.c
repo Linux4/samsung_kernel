@@ -19,8 +19,11 @@
  */
 
 #include <linux/sti/abc_hub.h>
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+#include <linux/sti/abc_kunit.h>
+#endif
 
-static struct device *abc_hub_dev;
+__visible_for_testing struct device *abc_hub_dev;
 static int abc_hub_probed;
 
 #if IS_ENABLED(CONFIG_OF)
@@ -99,9 +102,9 @@ static const struct dev_pm_ops abc_hub_pm = {
 	.resume = abc_hub_resume,
 };
 
-static ssize_t store_abc_hub_enable(struct device *dev,
-				    struct device_attribute *attr,
-				    const char *buf, size_t count)
+__visible_for_testing ssize_t store_abc_hub_enable(struct device *dev,
+					struct device_attribute *attr,
+					const char *buf, size_t count)
 {
 	struct abc_hub_info *pinfo = dev_get_drvdata(dev);
 
@@ -147,9 +150,9 @@ static ssize_t show_abc_hub_enable(struct device *dev,
 static DEVICE_ATTR(enable, 0644, show_abc_hub_enable, store_abc_hub_enable);
 
 #if IS_ENABLED(CONFIG_SEC_ABC_HUB_BOOTC)
-static ssize_t store_abc_hub_bootc_offset(struct device *dev,
-				    struct device_attribute *attr,
-				    const char *buf, size_t count)
+__visible_for_testing ssize_t store_abc_hub_bootc_offset(struct device *dev,
+								struct device_attribute *attr,
+								const char *buf, size_t count)
 {
 	struct abc_hub_info *pinfo = dev_get_drvdata(dev);
 	char module[BOOTC_OFFSET_STR_MAX] = {0,};
@@ -177,7 +180,7 @@ static ssize_t store_abc_hub_bootc_offset(struct device *dev,
 
 	pr_info("%s: module(%s), offset(%d)\n", __func__, module, offset);
 
-	if (offset > 0) {
+	if (offset >= 0) {
 		for (i = 0; i < BOOTC_OFFSET_DATA_CNT; i++) {
 			if (strcmp(module, pinfo->pdata->bootc_pdata.offset_data[i].module) == 0) {
 				pinfo->pdata->bootc_pdata.offset_data[i].offset = offset;
@@ -206,9 +209,9 @@ static ssize_t show_abc_hub_bootc_offset(struct device *dev,
 }
 static DEVICE_ATTR(bootc_offset, 0644, show_abc_hub_bootc_offset, store_abc_hub_bootc_offset);
 
-static ssize_t store_abc_hub_bootc_time(struct device *dev,
-				    struct device_attribute *attr,
-				    const char *buf, size_t count)
+__visible_for_testing ssize_t store_abc_hub_bootc_time(struct device *dev,
+								struct device_attribute *attr,
+								const char *buf, size_t count)
 {
 	struct abc_hub_info *pinfo = dev_get_drvdata(dev);
 
@@ -252,7 +255,7 @@ EXPORT_SYMBOL(abc_hub_get_enabled);
 /* event string format
  *
  * ex) MODULE=tsp@ERROR=power_status_mismatch
- *     MODULE=tsp@ERROR=power_status_mismatch@EXT_LOG=fw_ver(0108)
+ *	 MODULE=tsp@ERROR=power_status_mismatch@EXT_LOG=fw_ver(0108)
  *
  */
 void abc_hub_send_event(char *str)
@@ -270,7 +273,9 @@ void abc_hub_send_event(char *str)
 		dev_info(abc_hub_dev, "ABC Hub is disabled!\n");
 		return;
 	}
-
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+	abc_hub_test_get_uevent_str(str);
+#endif
 	/* It just sends event to abc driver. The function will be added for gathering hw param big data. */
 	sec_abc_send_event(str);
 }
@@ -288,7 +293,7 @@ static int abc_hub_probe(struct platform_device *pdev)
 
 	if (pdev->dev.of_node) {
 		pdata = devm_kzalloc(&pdev->dev,
-				     sizeof(struct abc_hub_platform_data), GFP_KERNEL);
+					 sizeof(struct abc_hub_platform_data), GFP_KERNEL);
 
 		if (!pdata) {
 			dev_err(&pdev->dev, "Failed to allocate platform data\n");
@@ -416,15 +421,24 @@ static struct platform_driver abc_hub_driver = {
 	},
 };
 
+#ifdef CONFIG_SEC_KUNIT
+kunit_notifier_chain_init(abc_hub_test_module);
+#endif
+
 static int __init abc_hub_init(void)
 {
 	pr_info("%s\n", __func__);
-
+#ifdef CONFIG_SEC_KUNIT
+	kunit_notifier_chain_register(abc_hub_test_module);
+#endif
 	return platform_driver_register(&abc_hub_driver);
 }
 
 static void __exit abc_hub_exit(void)
 {
+#ifdef CONFIG_SEC_KUNIT
+	kunit_notifier_chain_unregister(abc_hub_test_module);
+#endif
 	return platform_driver_unregister(&abc_hub_driver);
 }
 

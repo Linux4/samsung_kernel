@@ -1,3 +1,18 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include <linux/kernel.h>
 #include <linux/device.h>
 #include <linux/platform_device.h>
@@ -9,8 +24,10 @@
 #include "../utility/shub_utility.h"
 
 static const struct dev_pm_ops shub_pm_ops = {
-	.prepare = shub_suspend,
-	.complete = shub_resume,
+	.prepare = shub_prepare,
+	.complete = shub_complete,
+	.suspend = shub_suspend,
+	.resume = shub_resume,
 };
 
 static struct of_device_id shub_match_table[] = {
@@ -31,23 +48,7 @@ static struct platform_driver shub_driver = {
 };
 
 #ifdef CONFIG_SHUB_MODULE
-static int __init shub_init(void)
-{
-	int ret = 0;
-	shub_infof();
-	ret = platform_driver_register(&shub_driver);
-
-	shub_infof("ret %d", ret);
-	return ret;
-}
-
-static void __exit shub_exit(void)
-{
-	platform_driver_unregister(&shub_driver);
-}
-
-late_initcall(shub_init);
-module_exit(shub_exit);
+module_platform_driver(shub_driver);
 MODULE_DESCRIPTION("(Sensor Hub)SHUB dev driver");
 MODULE_AUTHOR("Samsung Electronics");
 MODULE_LICENSE("GPL");

@@ -14,9 +14,6 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/
 obj-y		+= cpufreq_limit.o
 endif
 
-# SchedBoost
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/performance/include/
-
 # CPUfreq governors
 obj-$(CONFIG_CPU_FREQ_GOV_PERFORMANCE)	+= cpufreq_performance.o
 obj-$(CONFIG_CPU_FREQ_GOV_POWERSAVE)	+= cpufreq_powersave.o

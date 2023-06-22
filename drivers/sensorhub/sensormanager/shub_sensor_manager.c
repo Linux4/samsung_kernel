@@ -1,3 +1,18 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include "../sensormanager/shub_sensor_manager.h"
 
 #include "../comm/shub_comm.h"
@@ -56,12 +71,15 @@ init_sensor init_sensor_funcs[] = {
 	init_pocket_mode,
 	init_pocket_mode_lite,
 	init_super,
+	init_hub_debugger,
 	init_thermistor,
 	init_tap_tracker,
 	init_shake_tracker,
 	init_move_detector,
 	init_led_cover_event,
-
+	init_device_orientation,
+	init_device_orientation_wu,
+	init_sar_backoff_motion,
 };
 
 static int make_sensor_instance(void)
@@ -77,7 +95,7 @@ static int make_sensor_instance(void)
 			sensor = kzalloc(sizeof(struct shub_sensor), GFP_KERNEL);
 			if (sensor == NULL) {
 				shub_errf("kzalloc failed");
-				return -1;
+				return -ENOMEM;
 			}
 			sensor->type = type;
 			mutex_init(&sensor->enabled_mutex);
@@ -104,9 +122,9 @@ static int make_sensor_instance(void)
 
 static void remove_sensor_list(struct device *dev)
 {
-	int i;
+	uint64_t i;
 
-	for (i = 0; i < ARRAY_LEN(init_sensor_funcs); i++)
+	for (i = 0; i < ARRAY_SIZE(init_sensor_funcs); i++)
 		init_sensor_funcs[i](false);
 
 	for (i = 0; i < SENSOR_TYPE_MAX; i++) {
@@ -143,6 +161,10 @@ int enable_sensor(int type, char *buf, int buf_len)
 	if (sensor->enabled_cnt > 1) {
 		shub_infof("%s(%d) is already enabled (%d)", sensor->name, type, sensor->enabled_cnt);
 		mutex_unlock(&sensor->enabled_mutex);
+		if (type > SENSOR_TYPE_LEGACY_MAX) {
+			shub_infof("%s(%d) extra external client added", sensor->name, type);
+			ret = shub_send_command(CMD_SETVALUE, type, EXTRA_EXTERNAL_CLIENT_ADDED, buf, buf_len);
+		}
 		return ret;
 	}
 
@@ -210,6 +232,11 @@ int disable_sensor(int type, char *buf, int buf_len)
 	if (sensor->enabled_cnt > 0) {
 		shub_infof("%s(%d) enabled cnt is %d", sensor->name, type, sensor->enabled_cnt);
 		mutex_unlock(&sensor->enabled_mutex);
+
+		if (type > SENSOR_TYPE_LEGACY_MAX) {
+			shub_infof("%s(%d) extra external client removed", sensor->name, type);
+			ret = shub_send_command(CMD_SETVALUE, type, EXTRA_EXTERNAL_CLIENT_REMOVED, buf, buf_len);
+		}
 		return ret;
 	}
 
@@ -238,10 +265,12 @@ int disable_sensor(int type, char *buf, int buf_len)
 		sensor->enabled = false;
 		sensor->disable_timestamp = get_current_timestamp();
 		get_tm(&(sensor->disable_time));
-		if (event->value)
-			memset(event->value, 0, sizeof(*(event->value)));
-		event->timestamp = 0;
-		event->received_timestamp = 0;
+		if (event) {
+			if (event->value)
+				memset(event->value, 0, sizeof(*(event->value)));
+			event->timestamp = 0;
+			event->received_timestamp = 0;
+		}
 
 	}
 
@@ -325,7 +354,6 @@ int inject_sensor_additional_data(int type, char *buf, int buf_len)
 void print_sensor_debug(int type)
 {
 	struct shub_sensor *sensor = get_sensor(type);
-
 	if (!sensor)
 		return;
 
@@ -341,34 +369,53 @@ void print_sensor_debug(int type)
 	}
 }
 
-void get_sensor_value(int type, char *dataframe, int *index, struct sensor_event *event)
+int get_sensor_value(int type, char *dataframe, int *index, struct sensor_event *event, int frame_len)
 {
 	struct shub_sensor *sensor = get_sensor(type);
 	int receive_event_size;
+	int ret = 0;
 	u64 current_timestamp = get_current_timestamp();
+#ifdef CONFIG_SHUB_DEBUG
+	char buf[255];
+	int buf_len;
+#endif
 
 	if (!sensor)
-		return;
+		return -EINVAL;
+
+	if (sensor->receive_event_size != 0) {
+		if (*index + sensor->receive_event_size > frame_len)
+			return -EINVAL;
+	}
 
 	if (sensor->funcs && sensor->funcs->get_sensor_value) {
-		sensor->funcs->get_sensor_value(dataframe, index, event);
+		ret = sensor->funcs->get_sensor_value(dataframe, index, event, frame_len);
+		if (ret < 0)
+			return ret;
 	} else {
 		receive_event_size = sensor->receive_event_size;
 		memcpy(event->value, dataframe + *index, receive_event_size);
 		*index += receive_event_size;
 	}
 
+	if (*index + sizeof(event->timestamp) > frame_len)
+		return -EINVAL;
+
 	memcpy(&event->timestamp, dataframe + *index, 8);
 	*index += 8;
 #ifdef CONFIG_SHUB_DEBUG
-	shub_conditional(check_debug_log_state(SHUB_LOG_EVENT_TIMESTAMP),
-			"ts (%d) %lld %lld %lld",
-			type, current_timestamp, event->timestamp, current_timestamp - event->timestamp);
+	if (check_debug_log_state(SHUB_LOG_EVENT_TIMESTAMP)) {
+		buf_len = snprintf(buf, sizeof(buf), "ts (%d) %lld %lld %lld",
+				   type, current_timestamp, event->timestamp, current_timestamp - event->timestamp);
+		print_log_debug(buf, buf_len, current_timestamp);
+	}
 #endif
 
 	event->received_timestamp = current_timestamp;
 	if (event->timestamp > current_timestamp)
 		event->timestamp = current_timestamp;
+
+	return ret;
 }
 
 int parsing_bypass_data(char *dataframe, int *index, int frame_len)
@@ -384,48 +431,69 @@ int parsing_bypass_data(char *dataframe, int *index, int frame_len)
 	}
 
 	sensor = get_sensor(type);
+	if (!sensor) {
+		shub_errf("Parsing error : sensor(%d) is null", type);
+		return -1;
+	}
+
 	event = get_sensor_event(type);
 	memcpy(&batch_event_count, dataframe + (*index), 2);
 	(*index) += 2;
+
 	do {
-		get_sensor_value(type, dataframe, index, event);
+		if (get_sensor_value(type, dataframe, index, event, frame_len) < 0) {
+			shub_errf("Parsing error : sensor(%d) event error", type);
+			return -EINVAL;
+		}
 		EXECUTE_FUNC(sensor, sensor->funcs->report_event);
 		shub_report_sensordata(type, event->timestamp, event->value, sensor->report_event_size);
 #ifdef CONFIG_SHUB_DEBUG
-	shub_system_check_lock();
-	if (is_system_checking())
-		event_test_cb(type, event->timestamp);
-	shub_system_check_unlock();
+		shub_system_check_lock();
+		if (is_system_checking())
+			event_test_cb(type, event->timestamp);
+		if (is_event_order_checking())
+			order_test_cb(type, event->timestamp);
+		shub_system_check_unlock();
 #endif
 		batch_event_count--;
 	} while ((batch_event_count > 0) && ((*index) < frame_len));
 
-	if (batch_event_count > 0)
-		shub_errf("type(%d) : batch count error (%d)", type, batch_event_count);
-
 	return 0;
 }
 
-int parsing_scontext_data(char *dataframe, int *index)
+int parsing_scontext_data(char *dataframe, int *index, int frame_len)
 {
 	int length;
 
 	memcpy(&length, dataframe + (*index), 2);
 	(*index) += 2;
+
+	if (*index + length > frame_len || length < 0) {
+		shub_errf("error");
+		return -1;
+	}
+
 	shub_report_scontext_data(dataframe + (*index), length);
 	(*index) += length;
 
 	return 0;
 }
 
-int parsing_meta_data(char *dataframe, int *index)
+int parsing_meta_data(char *dataframe, int *index, int frame_len)
 {
 	int ret = 0;
 	struct shub_sensor *sensor;
-	int what = dataframe[(*index)++];
-	int type = dataframe[(*index)++];
+	int what, type;
 	int event_size;
 	char *meta_event;
+
+	if (*index + 2 > frame_len) {
+		shub_errf("parsing error index = %d, frame_len %d", *index, frame_len);
+		return -EINVAL;
+	}
+
+	what = dataframe[(*index)++];
+	type = dataframe[(*index)++];
 
 	if ((type < 0) || (type >= SENSOR_TYPE_LEGACY_MAX)) {
 		shub_errf("Parsing error : meta data sensor dataframe err %d %d", what, type);
@@ -443,7 +511,10 @@ int parsing_meta_data(char *dataframe, int *index)
 		memset(meta_event, 0, event_size);
 		shub_infof("what : %d, sensor : %d", what, type);
 		shub_report_sensordata(type, 0, meta_event, event_size);
+	} else {
+		shub_errf("failed to alloc");
 	}
+
 #ifdef CONFIG_SHUB_DEBUG
 	shub_system_check_lock();
 	if (is_system_checking())
@@ -483,7 +554,7 @@ int get_sensors_scontext_probe_state(uint64_t *buf)
 
 bool get_sensor_probe_state(int type)
 {
-	if (type == SENSOR_TYPE_SCONTEXT || type == SENSOR_TYPE_SENSORHUB)
+	if (type == SENSOR_TYPE_SCONTEXT || type == SENSOR_TYPE_SENSORHUB || type == SENSOR_TYPE_HUB_DEBUGGER)
 		return true;
 
 	if (type < SENSOR_TYPE_LEGACY_MAX)
@@ -520,12 +591,20 @@ bool get_sensor_enabled(int type)
 
 struct sensor_event *get_sensor_event(int type)
 {
-	return &get_sensor(type)->event_buffer;
+	struct shub_sensor *sensor = get_sensor(type);
+
+	if (!sensor)
+		return NULL;
+
+	return &sensor->event_buffer;
 }
 
 int init_sensor_manager(struct device *dev)
 {
 	sensor_manager = kzalloc(sizeof(struct sensor_manager_t), GFP_KERNEL);
+	if (!sensor_manager)
+		return -ENOMEM;
+
 	memset(sensor_manager, 0x00, sizeof(struct sensor_manager_t));
 	return 0;
 }
@@ -553,14 +632,14 @@ int open_sensors_calibration(void)
 
 int sync_sensors_attribute(void)
 {
-	int i;
+	int type;
 
 	if (!sensor_manager->is_fs_ready)
 		return 0;
 
 	shub_infof();
-	for (i = 0; i < SENSOR_TYPE_MAX; i++) {
-		struct shub_sensor *sensor = sensor_manager->sensor_list[i];
+	for (type = 0; type < SENSOR_TYPE_MAX; type++) {
+		struct shub_sensor *sensor = get_sensor(type);
 
 		EXECUTE_FUNC(sensor, sensor->funcs->sync_status);
 	}
@@ -588,9 +667,11 @@ static void sync_sensors_enable_state(void)
 	}
 }
 
-void set_sensor_probe_state(uint64_t *buffer)
+static void set_sensor_probe_state(void)
 {
-	memcpy(sensor_manager->sensor_probe_state, buffer, sizeof(sensor_manager->sensor_probe_state));
+	struct shub_system_info *system_info = get_shub_system_info();
+
+	memcpy(sensor_manager->sensor_probe_state, system_info->scan, sizeof(sensor_manager->sensor_probe_state));
 
 	shub_info("probe state 0x%llx, 0x%llx, 0x%llx", sensor_manager->sensor_probe_state[0],
 		  sensor_manager->sensor_probe_state[1], sensor_manager->sensor_probe_state[2]);
@@ -614,8 +695,7 @@ int get_sensor_spec_from_hub(void)
 	char *buffer = NULL;
 	unsigned int buffer_length;
 	int i = 0, count;
-
-	kfree(sensor_manager->sensor_spec);
+	struct sensor_spec_t *specs = NULL;
 
 	ret = shub_send_command_wait(CMD_GETVALUE, TYPE_MCU, SENSOR_SPEC, 1000, NULL, 0, &buffer, &buffer_length, true);
 
@@ -624,7 +704,7 @@ int get_sensor_spec_from_hub(void)
 		return ret;
 	}
 
-	count = (int)(*buffer);
+	count = (int)(buffer[0]);
 	if (buffer_length != (sizeof(struct sensor_spec_t) * count) + 1) {
 		shub_errf("buffer length error %d", buffer_length);
 		return -EINVAL;
@@ -632,43 +712,70 @@ int get_sensor_spec_from_hub(void)
 		shub_errf("spec count error probe count %d spec count", probe_cnt, count);
 	}
 
-	sensor_manager->sensor_spec = kcalloc(count, sizeof(struct sensor_spec_t), GFP_KERNEL);
-	memcpy(sensor_manager->sensor_spec, buffer + 1, buffer_length - 1);
+	specs = (struct sensor_spec_t *)(buffer + 1);
 
-	for (i = 0; i < count; ++i) {
-		shub_info("id(%d), name(%s), vendor(%d)", sensor_manager->sensor_spec[i].uid,
-			  sensor_manager->sensor_spec[i].name, sensor_manager->sensor_spec[i].vendor);
+	for (i = 0; i < count; i++) {
+		struct shub_sensor *sensor = get_sensor(specs[i].uid);
+
+		shub_info("id(%d), name(%s), vendor(%d)", specs[i].uid, specs[i].name, specs[i].vendor);
+
+		if (sensor)
+			memcpy(&sensor->spec, &specs[i], sizeof(struct sensor_spec_t));
+		else if (specs[i].uid != 0)
+			shub_errf("sensor is probed, but sensor spec is reported");
 	}
 
 	return ret;
 }
 
-int get_sensor_spec(char *buf)
+unsigned int get_total_sensor_spec(char *buf)
 {
-	int size = 0;
+	unsigned int type;
+	unsigned int len = 0;
 
-	if (sensor_manager->sensor_spec) {
-		size = sizeof(struct sensor_spec_t) * get_probed_legacy_count();
-		memcpy(buf, sensor_manager->sensor_spec, size);
+	for (type = 0 ; type < SENSOR_TYPE_MAX ; type++) {
+		struct shub_sensor *sensor = get_sensor(type);
+
+		if (sensor && sensor->spec.uid == type) {
+			memcpy(buf + len, &sensor->spec, sizeof(sensor->spec));
+			len += sizeof(sensor->spec);
+		}
 	}
-	return size;
+
+	return len;
+}
+
+void get_sensor_vendor_name(int vendor_type, char *vendor_name)
+{
+	char *vendor_list[VENDOR_MAX] = VENDOR_LIST;
+
+	strcpy(vendor_name, vendor_list[vendor_type]);
 }
 
 static void init_sensors(void)
 {
-	int i;
-	int spec_count = get_probed_legacy_count();
-	struct sensor_spec_t *spec = (struct sensor_spec_t *)sensor_manager->sensor_spec;
-	char *vendor_list[VENDOR_MAX] = VENDOR_LIST;
+	uint64_t i;
+	int ret;
 
-	for (i = 0; i < ARRAY_LEN(init_sensor_funcs); i++)
+	for (i = 0; i < ARRAY_SIZE(init_sensor_funcs); i++)
 		init_sensor_funcs[i](true);
 
-	for (i = 0; i < spec_count; i++) {
-		struct shub_sensor *sensor = get_sensor(spec[i].uid);
+	for (i = 0; i < SENSOR_TYPE_LEGACY_MAX; i++) {
+		struct shub_sensor *sensor = get_sensor(i);
 
-		if (sensor && sensor->funcs && sensor->funcs->init_chipset)
-			sensor->funcs->init_chipset(spec[i].name, vendor_list[spec[i].vendor]);
+		if (sensor) {
+			if (sensor->receive_event_size != 0 && !sensor->event_buffer.value) { /* there is a error from init_sensor_funcs */
+				shub_errf("%d has error", i);
+				kfree(sensor);
+				sensor_manager->sensor_list[i] = NULL;
+			} else if (sensor->funcs && sensor->funcs->init_chipset) {
+				ret = sensor->funcs->init_chipset();
+				if (ret < 0) {
+					kfree(sensor);
+					sensor_manager->sensor_list[i] = NULL;
+				}
+			}
+		}
 	}
 }
 
@@ -688,10 +795,20 @@ static struct notifier_block fm_notifier = {
 
 int refresh_sensors(struct device *dev)
 {
-	int ret;
-	bool first = (sensor_manager->sensor_spec == NULL);
+	int ret = 0;
+	static bool first = true;
 
 	shub_infof();
+
+	set_sensor_probe_state();
+
+	if (first) {
+		ret = make_sensor_instance();
+		if (ret < 0) {
+			shub_errf("make_sensor_instance failed");
+			return ret;
+		}
+	}
 
 	ret = get_sensor_spec_from_hub();
 	if (ret < 0) {
@@ -700,14 +817,10 @@ int refresh_sensors(struct device *dev)
 	}
 
 	if (first) {
-		ret = make_sensor_instance();
-		if (ret < 0) {
-			shub_errf("make_sensor_instance failed");
-			return ret;
-		}
 		init_sensors();
 		register_file_manager_ready_callback(&fm_notifier);
 		initialize_indio_dev(dev);
+		first = false;
 	} else {
 		init_scontext_enable_state();
 		shub_report_scontext_notice_data(SCONTEXT_AP_STATUS_RESET);

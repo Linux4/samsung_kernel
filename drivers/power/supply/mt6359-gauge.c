@@ -380,6 +380,11 @@
 #define Set_BAT_DISABLE_NAFG _IOW('k', 14, int)
 #define Set_CARTUNE_TO_KERNEL _IOW('k', 15, int)
 
+#define MT6359_AUXADC_BAT_TEMP_1	0x1228
+#define PMIC_AUXADC_BAT_TEMP_FROZE_EN_ADDR	\
+	MT6359_AUXADC_BAT_TEMP_1
+#define PMIC_AUXADC_BAT_TEMP_FROZE_EN_MASK	0x1
+#define PMIC_AUXADC_BAT_TEMP_FROZE_EN_SHIFT	0
 
 static struct class *bat_cali_class;
 static int bat_cali_major;
@@ -2603,6 +2608,27 @@ static int zcv_get(struct mtk_gauge *gauge_dev,
 	return 0;
 }
 
+static int get_charger_zcv(struct mtk_gauge *gauge_dev)
+{
+	struct power_supply *chg_psy;
+	union power_supply_propval val;
+	int ret = 0;
+
+	chg_psy = power_supply_get_by_name("mtk-master-charger");
+
+	if (chg_psy == NULL) {
+		bm_err("[%s] can get charger psy\n", __func__);
+		return -ENODEV;
+	}
+
+	ret = power_supply_get_property(chg_psy,
+		POWER_SUPPLY_PROP_VOLTAGE_BOOT, &val);
+
+	bm_err("[%s]_hw_ocv_chgin=%d, ret=%d\n", __func__, val.intval, ret);
+
+	return val.intval;
+}
+
 static int boot_zcv_get(struct mtk_gauge *gauge_dev,
 	struct mtk_gauge_sysfs_field_info *attr, int *val)
 {
@@ -2618,6 +2644,7 @@ static int boot_zcv_get(struct mtk_gauge *gauge_dev,
 	int _hw_ocv_chgin_rdy;
 	int now_temp;
 	int now_thr;
+	int tmp_hwocv_chgin = 0;
 	bool fg_is_charger_exist;
 	struct mtk_battery *gm;
 	struct zcv_data *zcvinfo;
@@ -2630,9 +2657,12 @@ static int boot_zcv_get(struct mtk_gauge *gauge_dev,
 	_hw_ocv_59_pon = read_hw_ocv_6359_power_on(gauge_dev);
 	_hw_ocv_59_plugin = read_hw_ocv_6359_plug_in(gauge_dev);
 
-	/* todo:charger function is not ready to access charger zcv */
-	/* _hw_ocv_chgin = battery_get_charger_zcv() / 100; */
-	_hw_ocv_chgin = 0;
+	tmp_hwocv_chgin = get_charger_zcv(gauge_dev);
+	if (tmp_hwocv_chgin != -ENODEV)
+		_hw_ocv_chgin = tmp_hwocv_chgin / 100;
+	else
+		_hw_ocv_chgin = 0;
+
 	now_temp = gm->bs_data.bat_batt_temp;
 
 	if (gm == NULL)
@@ -3011,6 +3041,19 @@ static int ptim_resist_get(struct mtk_gauge *gauge,
 	}
 
 	return ret;
+}
+
+static int bat_temp_froze_en_set(struct mtk_gauge *gauge,
+	struct mtk_gauge_sysfs_field_info *attr, int val)
+{
+	if (val != 0)
+		val = 1;
+	regmap_update_bits(gauge->regmap,
+		PMIC_AUXADC_BAT_TEMP_FROZE_EN_ADDR,
+		PMIC_AUXADC_BAT_TEMP_FROZE_EN_MASK
+		<< PMIC_AUXADC_BAT_TEMP_FROZE_EN_SHIFT,
+		val << PMIC_AUXADC_BAT_TEMP_FROZE_EN_SHIFT);
+	return 0;
 }
 
 static int coulomb_interrupt_ht_set(struct mtk_gauge *gauge,
@@ -3542,7 +3585,7 @@ static struct mtk_gauge_sysfs_field_info mt6359_sysfs_field_tbl[] = {
 		GAUGE_PROP_VBAT_HT_INTR_THRESHOLD),
 	GAUGE_SYSFS_FIELD_WO(vbat_lt_set,
 		GAUGE_PROP_VBAT_LT_INTR_THRESHOLD),
-	GAUGE_SYSFS_FIELD_RW(rtc_ui_soc_set, rtc_ui_soc_get,
+	GAUGE_SYSFS_FIELD_RW(rtc_ui_soc, rtc_ui_soc_set, rtc_ui_soc_get,
 		GAUGE_PROP_RTC_UI_SOC),
 	GAUGE_SYSFS_FIELD_RO(ptim_battery_voltage_get,
 		GAUGE_PROP_PTIM_BATTERY_VOLTAGE),
@@ -3560,7 +3603,7 @@ static struct mtk_gauge_sysfs_field_info mt6359_sysfs_field_tbl[] = {
 		GAUGE_PROP_NAFG_CNT),
 	GAUGE_SYSFS_FIELD_RO(nafg_dltv_get,
 		GAUGE_PROP_NAFG_DLTV),
-	GAUGE_SYSFS_FIELD_RW(nafg_c_dltv_set, nafg_c_dltv_get,
+	GAUGE_SYSFS_FIELD_RW(nafg_c_dltv, nafg_c_dltv_set, nafg_c_dltv_get,
 		GAUGE_PROP_NAFG_C_DLTV),
 	GAUGE_SYSFS_FIELD_WO(nafg_en_set,
 		GAUGE_PROP_NAFG_EN),
@@ -3570,7 +3613,7 @@ static struct mtk_gauge_sysfs_field_info mt6359_sysfs_field_tbl[] = {
 		GAUGE_PROP_NAFG_VBAT),
 	GAUGE_SYSFS_FIELD_WO(reset_fg_rtc_set,
 		GAUGE_PROP_RESET_FG_RTC),
-	GAUGE_SYSFS_FIELD_RW(gauge_initialized_set, gauge_initialized_get,
+	GAUGE_SYSFS_FIELD_RW(gauge_initialized, gauge_initialized_set, gauge_initialized_get,
 		GAUGE_PROP_GAUGE_INITIALIZED),
 	GAUGE_SYSFS_FIELD_RO(average_current_get,
 		GAUGE_PROP_AVERAGE_CURRENT),
@@ -3628,6 +3671,8 @@ static struct mtk_gauge_sysfs_field_info mt6359_sysfs_field_tbl[] = {
 		vbat2_detect_time, GAUGE_PROP_VBAT2_DETECT_TIME),
 	GAUGE_SYSFS_INFO_FIELD_RW(
 		vbat2_detect_counter, GAUGE_PROP_VBAT2_DETECT_COUNTER),
+	GAUGE_SYSFS_FIELD_WO(
+		bat_temp_froze_en_set, GAUGE_PROP_BAT_TEMP_FROZE_EN),
 };
 
 static struct attribute *
@@ -4066,6 +4111,7 @@ static int mt6359_gauge_probe(struct platform_device *pdev)
 	gauge->psy = power_supply_register(&pdev->dev, &gauge->psy_desc,
 			&gauge->psy_cfg);
 	mt6359_sysfs_create_group(gauge);
+	initial_set(gauge, 0, 0);
 	bat_create_netlink(pdev);
 	battery_init(pdev);
 	adc_cali_cdev_init(pdev);

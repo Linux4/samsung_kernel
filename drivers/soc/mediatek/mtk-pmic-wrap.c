@@ -14,6 +14,9 @@
 #include <linux/reset.h>
 #include <linux/sched/clock.h>
 
+#include <linux/kprobes.h>
+#include <asm/traps.h>
+
 #define PWRAP_MT8135_BRIDGE_IORD_ARB_EN		0x4
 #define PWRAP_MT8135_BRIDGE_WACS3_EN		0x10
 #define PWRAP_MT8135_BRIDGE_INIT_DONE3		0x14
@@ -1101,6 +1104,11 @@ static int pwrap_write16(struct pmic_wrapper *wrp, u32 adr, u32 wdata)
 {
 	int ret;
 
+	if (adr == 0x20) {
+		dump_stack();
+		dev_info(wrp->dev, "%s pwrap_write adr:%d,wdata:%d\n",
+			__func__, adr, wdata);
+	}
 	ret = pwrap_wait_for_state(wrp, pwrap_is_fsm_idle);
 	if (ret) {
 		pwrap_leave_fsm_vldclr(wrp);

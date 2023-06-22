@@ -193,6 +193,10 @@ do {									\
 #define DO_SPI_RECOVER		-2
 #define DO_I2C_RECOVER		-3
 
+#ifdef CONFIG_BATTERY_SAMSUNG
+extern unsigned int lpcharge;
+#endif
+
 enum TP_SPI_CLK_LIST {
 	TP_SPI_CLK_1M = 1000000,
 	TP_SPI_CLK_2M = 2000000,

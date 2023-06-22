@@ -7,7 +7,6 @@
 #ifndef _ACCDET_H_
 #define _ACCDET_H_
 
-#include <linux/kernel.h>
 #include <linux/ctype.h>
 #include <linux/string.h>
 

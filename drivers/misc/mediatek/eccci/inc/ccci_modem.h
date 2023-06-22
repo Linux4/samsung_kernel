@@ -71,6 +71,16 @@ enum {
 	MD_CFG_MDLOG_MODE,
 	MD_CFG_SBP_CODE,
 	MD_CFG_DUMP_FLAG,
+	MD_CFG_SBP_SUB_ID,
+	MD_CFG_RAT_CHK_FLAG,
+	MD_CFG_RAT_STR0,
+	MD_CFG_RAT_STR1,
+	MD_CFG_RAT_STR2,
+	MD_CFG_RAT_STR3,
+	MD_CFG_RAT_STR4,
+	MD_CFG_RAT_STR5,
+	MD_CFG_WM_IDX,
+	MD_CFG_LOG_LEVEL,
 };
 
 enum {
@@ -166,6 +176,9 @@ enum{
 	MD_MTEE_SHARE_MEMORY_ENABLE = 32,
 	MD_POS_SHARE_MEMORY = 33,
 	UDC_RAW_SHARE_MEMORY = 34,
+	CCCI_MD_BIGDATA_SHARE_MEMORY = 46,
+	CCCI_MD_IPCA_BIGDATA_SHARE_MEMORY = 47,
+	AP_DEBUG_LEVEL = 48,
 	MD_RUNTIME_FEATURE_ID_MAX,
 }; /* MD_CCCI_RUNTIME_FEATURE_ID; */
 
@@ -344,6 +357,8 @@ enum {
 	MD_FLIGHT_MODE_ENTER = 1,
 	MD_FLIGHT_MODE_LEAVE = 2
 };/* FLIGHT_STAGE */
+
+extern int ccci_get_md_sec_smem_size_and_update(void);
 
 struct ccci_mem_layout *ccci_md_get_mem(int md_id);
 struct ccci_smem_region *ccci_md_get_smem_by_user_id(int md_id,

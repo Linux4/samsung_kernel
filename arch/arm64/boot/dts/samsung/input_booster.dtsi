@@ -217,6 +217,29 @@
 				};
 			};
 		};
+
+		booster_key@9 {
+			input_booster,label = "pen";
+			input_booster,type = <8>;	/* BOOSTER_DEVICE_MOUSE */
+
+			/* Time table */
+			input_booster,head_time = <200>;
+			input_booster,tail_time = <600>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1484000 1085000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+			};
+		};
 		/* If you need to add new key type, add it this position */
 	};
 };

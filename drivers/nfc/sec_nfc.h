@@ -91,6 +91,7 @@ enum sec_nfc_mode {
 	SEC_NFC_MODE_FIRMWARE,
 	SEC_NFC_MODE_BOOTLOADER,
 	SEC_NFC_MODE_COUNT,
+	SEC_NFC_MODE_TURNING_ON_OFF,
 };
 
 enum sec_nfc_power {
@@ -127,9 +128,19 @@ enum sec_nfc_coldreset{
 #define FIRMWARE_GUARD_TIME (4)
 #define DEVICEHOST_ID (0x00)
 #define ESE_ID (0x02)
+#define IDX_SLEEP_WAKEUP_NFC 0
+#define IDX_SLEEP_WAKEUP_ESE 1
 /*[END] COLDRESET*/
 #endif
 
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && !defined(CONFIG_NFC_PVDD_LATE_ENABLE)
 extern unsigned int lpcharge;
+#endif
 #define NFC_I2C_LDO_ON  1
 #define NFC_I2C_LDO_OFF 0
+
+enum lpm_status {
+	LPM_NO_SUPPORT = -1,
+	LPM_FALSE,
+	LPM_TRUE
+};

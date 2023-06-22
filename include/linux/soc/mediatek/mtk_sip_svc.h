@@ -161,6 +161,10 @@
 #define MTK_SIP_AUDIO_CONTROL \
 	MTK_SIP_SMC_CMD(0x517)
 
+/* VPU */
+#define MTK_SIP_APUSYS_CONTROL \
+	MTK_SIP_SMC_CMD(0x51E)
+
 /* TMEM */
 #define MTK_SIP_KERNEL_TMEM_CONTROL \
 	MTK_SIP_SMC_CMD(0x524)
@@ -168,5 +172,9 @@
 /* APU VCORE CG control related SMC call */
 #define MTK_SIP_KERNEL_APU_VCORE_CG_CTL \
 	MTK_SIP_SMC_CMD(0x2B1)
+
+/* USB related SMC call */
+#define MTK_SIP_KERNEL_USB_CONTROL \
+	MTK_SIP_SMC_CMD(0x527)
 
 #endif

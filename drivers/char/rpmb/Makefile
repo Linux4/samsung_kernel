@@ -25,6 +25,7 @@ ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/rpmb/tlrpmb/public
 endif
 
 ifeq ($(CONFIG_TEEGRIS_TEE_SUPPORT),y)
+ccflags-y += -I$(srctree)/drivers/tee/tzdev
 ccflags-y += -I$(srctree)/drivers/tee/tzdev/include/tzdev
 ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/rpmb/drrpmb/public
 ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/rpmb/drrpmb_gp/public

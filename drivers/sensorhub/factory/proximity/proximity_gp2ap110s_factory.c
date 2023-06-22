@@ -1,3 +1,18 @@
+/*
+ *  Copyright (C) 2020, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+
 #include <linux/delay.h>
 #include <linux/uaccess.h>
 #include <linux/slab.h>
@@ -15,27 +30,6 @@
 
 #define PROX_SETTINGS_FILE_PATH     "/efs/FactoryApp/prox_settings"
 
-static int save_proximity_setting_mode(void)
-{
-	int ret = -1;
-	char buf[3] = "";
-	int buf_len = 0;
-	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
-	struct proximity_gp2ap110s_data *thd_data = data->threshold_data;
-
-	buf_len = snprintf(buf, sizeof(buf), "%d", thd_data->prox_setting_mode);
-
-	ret = shub_file_write(PROX_SETTINGS_FILE_PATH, buf, buf_len, 0);
-	if (ret != buf_len) {
-		shub_errf("Can't write the prox settings data to file, ret=%d", ret);
-		ret = -EIO;
-	}
-
-	msleep(150);
-
-	return ret;
-}
-
 static ssize_t name_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	return sprintf(buf, "%s\n", GP2AP110S_NAME);
@@ -51,10 +45,9 @@ static ssize_t proximity_modify_settings_show(struct device *dev,
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PROXIMITY);
 	struct proximity_data *data = sensor->data;
-	struct proximity_gp2ap110s_data *thd_data = data->threshold_data;
 
 	sensor->funcs->open_calibration_file();
-	return thd_data->prox_setting_mode;
+	return snprintf(buf, PAGE_SIZE, "%d\n", data->setting_mode);
 }
 
 static ssize_t proximity_modify_settings_store(struct device *dev,
@@ -77,10 +70,13 @@ static ssize_t proximity_modify_settings_store(struct device *dev,
 	}
 
 	shub_infof("prox_setting %d", mode);
+	data->setting_mode = mode;
 
 	ret = save_proximity_setting_mode();
 	if (mode == 2)
 		memcpy(data->prox_threshold, thd_data->prox_mode_thresh, sizeof(data->prox_threshold));
+
+	msleep(150);
 
 	return size;
 }
@@ -185,9 +181,23 @@ static ssize_t prox_trim_show(struct device *dev, struct device_attribute *attr,
 	return ret;
 }
 
+
+static ssize_t prox_cal_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
+{
+	int ret = 0;
+	int result = 0;
+
+	ret = kstrtoint(buf, 10, &result);
+	if (ret < 0)
+		shub_errf("kstrtoint failed. %d", ret);
+
+	return size;
+}
+
 static DEVICE_ATTR_RO(name);
 static DEVICE_ATTR_RO(vendor);
 static DEVICE_ATTR_RO(prox_trim);
+static DEVICE_ATTR_WO(prox_cal);
 static DEVICE_ATTR(modify_settings, 0664, proximity_modify_settings_show, proximity_modify_settings_store);
 static DEVICE_ATTR(settings_thd_high, 0664, proximity_settings_thresh_high_show, proximity_settings_thresh_high_store);
 static DEVICE_ATTR(settings_thd_low, 0664, proximity_settings_thresh_low_show, proximity_settings_thresh_low_store);
@@ -199,6 +209,7 @@ static struct device_attribute *proximity_gp2ap110s_attrs[] = {
 	&dev_attr_settings_thd_high,
 	&dev_attr_settings_thd_low,
 	&dev_attr_prox_trim,
+	&dev_attr_prox_cal,
 	NULL,
 };
 
