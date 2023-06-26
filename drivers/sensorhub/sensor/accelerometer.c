@@ -32,6 +32,7 @@ get_init_chipset_funcs_ptr get_acc_funcs_ary[] = {
 	get_accelometer_lsm6dsl_function_pointer,
 	get_accelometer_lis2dlc12_function_pointer,
 	get_accelometer_lsm6dsotr_function_pointer,
+	get_accelometer_lsm6dsvtr_function_pointer,
 	get_accelometer_icm42632m_function_pointer,
 };
 

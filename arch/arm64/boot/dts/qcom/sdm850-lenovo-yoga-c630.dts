@@ -880,6 +880,10 @@
 						dai@1 {
 							reg = <0x01>;
 						};
+
+						dai@2 {
+							reg = <0x02>;
+						};
 					};
 				};
 
@@ -3584,10 +3588,10 @@
 					#clock-cells = <0x00>;
 					clock-frequency = <0x927c00>;
 					clock-output-names = "mclk";
-					qcom,micbias1-millivolt = <0x708>;
-					qcom,micbias2-millivolt = <0x708>;
-					qcom,micbias3-millivolt = <0x708>;
-					qcom,micbias4-millivolt = <0x708>;
+					qcom,micbias1-microvolt = <0x1b7740>;
+					qcom,micbias2-microvolt = <0x1b7740>;
+					qcom,micbias3-microvolt = <0x1b7740>;
+					qcom,micbias4-microvolt = <0x1b7740>;
 					#address-cells = <0x01>;
 					#size-cells = <0x01>;
 					pinctrl-0 = <0xa4>;
@@ -3653,7 +3657,7 @@
 		sound {
 			compatible = "qcom,db845c-sndcard";
 			model = "Lenovo-YOGA-C630-13Q50";
-			audio-routing = "RX_BIAS\0MCLK\0AMIC2\0MIC BIAS2\0SpkrLeft IN\0SPK1 OUT\0SpkrRight IN\0SPK2 OUT\0MM_DL1\0MultiMedia1 Playback\0MultiMedia2 Capture\0MM_UL2";
+			audio-routing = "RX_BIAS\0MCLK\0AMIC2\0MIC BIAS2\0SpkrLeft IN\0SPK1 OUT\0SpkrRight IN\0SPK2 OUT\0MM_DL1\0MultiMedia1 Playback\0MM_DL3\0MultiMedia3 Playback\0MultiMedia2 Capture\0MM_UL2";
 			phandle = <0x182>;
 
 			mm1-dai-link {
@@ -3669,6 +3673,14 @@
 
 				cpu {
 					sound-dai = <0xa7 0x01>;
+				};
+			};
+
+			mm3-dai-link {
+				link-name = "MultiMedia3";
+
+				cpu {
+					sound-dai = <0xa7 0x02>;
 				};
 			};
 
@@ -3701,6 +3713,22 @@
 
 				codec {
 					sound-dai = <0xa5 0x01>;
+				};
+			};
+
+			slim-wcd-dai-link {
+				link-name = "SLIM WCD Playback";
+
+				cpu {
+					sound-dai = <0xa8 0x04>;
+				};
+
+				platform {
+					sound-dai = <0xa9>;
+				};
+
+				codec {
+					sound-dai = <0xa5 0x02>;
 				};
 			};
 		};

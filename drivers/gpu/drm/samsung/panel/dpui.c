@@ -13,11 +13,6 @@
 #include "dpui.h"
 #include "panel_debug.h"
 
-#ifdef PANEL_PR_TAG
-#undef PANEL_PR_TAG
-#define PANEL_PR_TAG	"dpui"
-#endif
-
 /*
  * DPUI : display use info (panel common info)
  * DPCI : display controller info (ap dependent info)

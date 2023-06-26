@@ -17,9 +17,9 @@ shub-y	+= factory/gyroscope/gyroscope_factory.o
 shub-y	+= factory/gyroscope/gyroscope_icm42605m_factory.o
 shub-y	+= factory/gyroscope/gyroscope_lsm6dsl_factory.o
 shub-y	+= factory/gyroscope/gyroscope_lsm6dsotr_factory.o
+shub-y	+= factory/gyroscope/gyroscope_lsm6dsvtr_factory.o
 shub-y	+= factory/gyroscope/gyroscope_icm42632m_factory.o
 shub-y += factory/light/light_factory.o
-shub-y += factory/light/light_tcs3701_factory.o
 
 shub-y += factory/magnetometer/magnetometer_factory.o
 shub-y += factory/magnetometer/magnetometer_ak09918c_factory.o
@@ -35,12 +35,13 @@ shub-y += factory/proximity/proximity_gp2ap110s_factory.o
 shub-y += factory/proximity/proximity_stk3x6x_factory.o
 shub-y += factory/proximity/proximity_stk3328_factory.o
 shub-y += factory/proximity/proximity_tmd4912_factory.o
-shub-y += factory/proximity/proximity_stk33910_factory.o
+shub-y += factory/proximity/proximity_stk3391x_factory.o
 shub-y += factory/proximity/proximity_stk33512_factory.o
 
 shub-y += others/shub_motor_callback.o
 shub-y += others/shub_panel.o
 shub-y += others/shub_pogo.o
+shub-y += others/shub_aois.o
 
 shub-y += sensor/accelerometer.o
 shub-y += sensor/gyroscope.o
@@ -51,6 +52,8 @@ shub-y += sensor/flip_cover_detector.o
 shub-y += sensor/light.o
 shub-y += sensor/light_cct.o
 shub-y += sensor/light_autobrightness.o
+shub-y += sensor/light_seamless.o
+shub-y += sensor/led_cover_event.o
 shub-y += sensor/pressure.o
 shub-y += sensor/scontext.o
 shub-y += sensor/step.o
@@ -64,15 +67,20 @@ shub-y += sensor/pocket_mode.o
 shub-y += sensor/device_orientation.o
 shub-y += sensor/sar_backoff_motion.o
 shub-y += sensor/pogo_request_handler.o
+shub-y += sensor/aois.o
+shub-y += sensor/rotation_vector.o
+shub-y += sensor/game_rotation_vector.o
 
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_icm42605m.o
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_lsm6dsl.o
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_lis2dlc12.o
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_lsm6dsotr.o
+shub-y += sensor/physical_sensor/accelerometer/accelerometer_lsm6dsvtr.o
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_icm42632m.o
 shub-y += sensor/physical_sensor/gyroscope/gyroscope_icm42605m.o
 shub-y += sensor/physical_sensor/gyroscope/gyroscope_lsm6dsl.o
 shub-y += sensor/physical_sensor/gyroscope/gyroscope_lsm6dsotr.o
+shub-y += sensor/physical_sensor/gyroscope/gyroscope_lsm6dsvtr.o
 shub-y += sensor/physical_sensor/gyroscope/gyroscope_icm42632m.o
 
 shub-y += sensor/physical_sensor/magnetometer/magnetometer_ak09918c.o
@@ -84,7 +92,7 @@ shub-y += sensor/physical_sensor/proximity/proximity_gp2ap110s.o
 shub-y += sensor/physical_sensor/proximity/proximity_stk3328.o
 shub-y += sensor/physical_sensor/proximity/proximity_tmd4912.o
 shub-y += sensor/physical_sensor/proximity/proximity_stk33512.o
-shub-y += sensor/physical_sensor/proximity/proximity_stk33910.o
+shub-y += sensor/physical_sensor/proximity/proximity_stk3391x.o
 shub-y += sensor/physical_sensor/light/light_stk33512.o
 
 shub-y += sensor/physical_sensor/pressure/pressure_bmp580.o
@@ -101,6 +109,7 @@ shub-y += sensormanager/shub_sensor_sysfs.o
 shub-y += sensormanager/shub_sensor.o
 
 shub-y += utility/shub_utility.o
+shub-y += utility/shub_wakelock.o
 shub-y += utility/shub_dev_core.o
 shub-y += utility/shub_wait_event.o
 shub-y += utility/shub_file_manager.o

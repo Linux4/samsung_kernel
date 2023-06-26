@@ -19,7 +19,8 @@
 struct freq {
 	unsigned int freq;
 	unsigned int volt;
-	unsigned int power;
+	unsigned int dyn_power;
+	unsigned int sta_power;
 };
 
 struct my_cluster {

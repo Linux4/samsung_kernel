@@ -84,7 +84,11 @@ static struct list_head *__create_busy_info(struct task_struct *tsk, unsigned lo
 	return &info->node;
 }
 
+#ifdef SEC_DEBUG_LISTSORT_CONST
+static int __residency_cmp(void *priv, const struct list_head *a, const struct list_head *b)
+#else
 static int __residency_cmp(void *priv, struct list_head *a, struct list_head *b)
+#endif
 {
 	struct busy_info *busy_info_a;
 	struct busy_info *busy_info_b;
@@ -193,7 +197,7 @@ static int get_current_sclass(void)
 	int i;
 	char sym[KSYM_SYMBOL_LEN] = {0,};
 
-	sprint_symbol_no_offset(sym, (unsigned long)current->sched_class);
+	snprintf(sym, KSYM_SYMBOL_LEN, "%ps", current->sched_class);
 
 	for (i = SECDBG_SCHED_IDLE; i < SECDBG_SCHED_MAX; i++) {
 		if (!strncmp(sched_class_array[i].symname, sym, KSYM_SYMBOL_LEN))

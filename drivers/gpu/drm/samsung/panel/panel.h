@@ -87,7 +87,10 @@ enum {
 #define PN_CONCAT(a, b)  _PN_CONCAT(a, b)
 #define _PN_CONCAT(a, b) a ## _ ## b
 
-#if IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_TFT_COMMON)
+#if IS_ENABLED(CONFIG_PANEL_ID_READ_REG_ADAEAF)
+#define PANEL_ID_REG		(0xAD)
+#elif IS_ENABLED(CONFIG_PANEL_ID_READ_REG_DADBDC) || \
+	(!IS_ENABLED(CONFIG_PANEL_ID_READ_REG_04) && IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_TFT_COMMON))
 #define PANEL_ID_REG		(0xDA)
 #else
 #define PANEL_ID_REG		(0x04)
@@ -718,11 +721,6 @@ enum PANEL_SEQ {
 	PANEL_ISC_THRESHOLD_SEQ,
 	PANEL_STM_TUNE_SEQ,
 #endif
-
-#ifdef CONFIG_DYNAMIC_MIPI
-	PANEL_DM_SET_FFC_SEQ,
-	PANEL_DM_OFF_FFC_SEQ,
-#endif
 #ifdef CONFIG_SUPPORT_MAFPC
 	PANEL_MAFPC_ON_SEQ,
 	PANEL_MAFPC_OFF_SEQ,
@@ -757,8 +755,6 @@ enum PANEL_SEQ {
 	PANEL_ECC_TEST_SEQ,
 #endif
 	PANEL_DECODER_TEST_SEQ,
-	PANEL_PRE_READ_SEQ,
-	PANEL_POST_READ_SEQ,
 	PANEL_DUMMY_SEQ,
 	MAX_PANEL_SEQ,
 };
@@ -939,6 +935,36 @@ struct ddi_ops {
 	int (*decoder_test)(struct panel_device *panel, void *data, u32 size);
 };
 
+struct rcd_region {
+	int x;
+	int y;
+	int w;
+	int h;
+};
+
+struct rcd_image {
+	char *name;
+	struct rcd_region image_rect;
+	u8 *image_data;
+	u32 image_data_len;
+};
+
+struct rcd_resol {
+	char *name;
+	int resol_x;
+	int resol_y;
+	struct rcd_image **images;
+	int nr_images;
+	struct rcd_region block_rect;
+};
+
+struct panel_rcd_data {
+	u32 version;
+	char *name;
+	struct rcd_resol **rcd_resol;
+	int nr_rcd_resol;
+};
+
 struct common_panel_info {
 	char *ldi_name;
 	char *name;
@@ -981,8 +1007,9 @@ struct common_panel_info {
 	struct blic_data **blic_data_tbl;
 	int nr_blic_data_tbl;
 #endif
-#ifdef CONFIG_DYNAMIC_MIPI
-	struct dm_total_band_info *dm_total_band;
+#ifdef CONFIG_PANEL_FREQ_HOP
+	struct freq_hop_elem *freq_hop_elems;
+	int nr_freq_hop_elems;
 #endif
 #ifdef CONFIG_SUPPORT_MAFPC
 	struct mafpc_info *mafpc_info;
@@ -990,6 +1017,9 @@ struct common_panel_info {
 
 #if defined(CONFIG_PANEL_DISPLAY_MODE)
 	struct common_panel_display_modes *common_panel_modes;
+#endif
+#ifdef CONFIG_MCD_PANEL_RCD
+	struct panel_rcd_data *rcd_data;
 #endif
 };
 
@@ -1143,9 +1173,12 @@ struct panel_id_mask {
 
 struct panel_dt_lut {
 	const char *name;
-	struct device_node *ddi_node;
+	struct device_node *ap_vendor_setting_node;
 	struct device_node *panel_modes_node;
 	struct device_node *power_ctrl_node;
+#ifdef CONFIG_PANEL_FREQ_HOP
+	struct device_node *freq_hop_node;
+#endif
 	struct list_head head;
 	struct list_head id_mask_list;
 	const char *dqe_suffix;
@@ -1161,7 +1194,7 @@ struct panel_lut {
 struct panel_lut_info {
 	const char *names[MAX_PANEL];
 	int nr_panel;
-	struct device_node *ddi_node[MAX_PANEL_DDI];
+	struct device_node *ap_vendor_setting_node[MAX_PANEL_DDI];
 	int nr_panel_ddi;
 	struct device_node *panel_modes_node[MAX_PANEL_DDI];
 	int nr_panel_modes;
@@ -1299,6 +1332,9 @@ struct panel_info {
 #if defined(CONFIG_PANEL_DISPLAY_MODE)
 	struct common_panel_display_modes *common_panel_modes;
 #endif
+#ifdef CONFIG_MCD_PANEL_RCD
+	struct panel_rcd_data *rcd_data;
+#endif
 	const char *dqe_suffix;
 };
 
@@ -1406,6 +1442,7 @@ static inline int search_table(void *tbl, int itemsize, u32 sz_tbl, void *value)
 
 #define disp_div_round(n, m) ((((n) * 10 / (m)) + 5) / 10)
 
+const char *pnobj_type_to_string(u32 type);
 void print_data(char *data, int size);
 int register_common_panel(struct common_panel_info *info);
 int deregister_common_panel(struct common_panel_info *info);
@@ -1415,6 +1452,9 @@ struct common_panel_info *find_panel(struct panel_device *panel, u32 id);
 struct device_node *find_panel_ddi_node(struct panel_device *panel, u32 id);
 struct device_node *find_panel_modes_node(struct panel_device *panel, u32 id);
 const char *get_panel_lut_dqe_suffix(struct panel_device *panel, u32 id);
+#ifdef CONFIG_PANEL_FREQ_HOP
+struct device_node *get_panel_lut_freq_hop_node(struct panel_device *panel, u32 id);
+#endif
 struct device_node *find_panel_power_ctrl_node(struct panel_device *panel, u32 id);
 void print_panel_lut(struct panel_dt_lut *lut_info);
 bool check_seqtbl_exist(struct panel_info *panel_data, u32 index);
@@ -1459,6 +1499,10 @@ int panel_dsi_set_lpdt(struct panel_device *panel, bool on);
 int panel_wake_lock(struct panel_device *panel, unsigned long timeout);
 int panel_wake_unlock(struct panel_device *panel);
 int panel_emergency_off(struct panel_device *panel);
+#if defined(CONFIG_PANEL_FREQ_HOP)
+int panel_set_freq_hop(struct panel_device *panel, struct freq_hop_elem *elem);
+#endif
+int panel_parse_ap_vendor_node(struct panel_device *panel, struct device_node *node);
 int panel_flush_image(struct panel_device *panel);
 int read_panel_id(struct panel_device *panel, u8 *buf);
 int panel_resource_prepare(struct panel_device *panel);

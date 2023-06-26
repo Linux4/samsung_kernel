@@ -1011,7 +1011,7 @@ static void change_dm_table_work(struct work_struct *work)
 static int exynos_cpufreq_mode_update_callback(struct notifier_block *nb,
 		unsigned long val, void *v)
 {
-	cur_type = emstune_get_set_type(v);
+	cur_type = emstune_cpu_dsu_table_index(v);
 
 	schedule_work(&dm_work);
 

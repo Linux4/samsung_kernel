@@ -1367,6 +1367,7 @@ struct mfc_dev {
 	int move_ctx_cnt;
 	struct list_head ctx_list;
 	spinlock_t ctx_list_lock;
+	unsigned int core_balance;
 
 	atomic_t queued_bits;
 	spinlock_t idle_bits_lock;

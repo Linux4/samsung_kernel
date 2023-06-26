@@ -52,6 +52,7 @@ static const u32 **sensor_4ha_setfiles;
 static const u32 *sensor_4ha_setfile_sizes;
 static const struct sensor_pll_info_compact **sensor_4ha_pllinfos;
 static u32 sensor_4ha_max_setfile_num;
+static u8 sensor_4ha_fcount;
 
 static void sensor_4ha_cis_data_calculation(const struct sensor_pll_info_compact *pll_info, cis_shared_data *cis_data)
 {
@@ -654,6 +655,7 @@ int sensor_4ha_cis_stream_on(struct v4l2_subdev *subdev)
 	is_sensor_write8(client, 0x0100, 0x01);
 
 	cis_data->stream_on = true;
+	sensor_4ha_fcount = 0;
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
@@ -671,6 +673,7 @@ int sensor_4ha_cis_stream_off(struct v4l2_subdev *subdev)
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
 	ktime_t st = ktime_get();
+	u8 cur_frame_count = 0;
 
 	BUG_ON(!subdev);
 
@@ -699,16 +702,86 @@ int sensor_4ha_cis_stream_off(struct v4l2_subdev *subdev)
 		err("group_param_hold_func failed at stream off");
 	
 	/* Sensor stream off */
+	ret = is_sensor_read8(client, 0x0005, &cur_frame_count);
+	sensor_4ha_fcount = cur_frame_count;
 	ret = is_sensor_write8(client, 0x0100, 0x00);
 	if (ret < 0)
 		err("stream off fail");
 
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
  
-	info("%s\n", __func__);
+	info("%s done, frame_count(%d)\n", __func__, cur_frame_count);
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
+
+p_err:
+	return ret;
+}
+
+int sensor_4ha_cis_wait_streamoff(struct v4l2_subdev *subdev)
+{
+	int ret = 0;
+	struct is_cis *cis;
+	struct i2c_client *client;
+	u32 wait_cnt = 0, time_out_cnt = 250;
+	u8 sensor_fcount = 0;
+	u32 i2c_fail_cnt = 0, i2c_fail_max_cnt = 5;
+
+	BUG_ON(!subdev);
+
+	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
+
+	BUG_ON(!cis);
+
+	client = cis->client;
+	if (unlikely(!client)) {
+		err("client is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	/*
+	 * Read sensor frame counter (sensor_fcount address = 0x0005)
+	 * stream on (0x00 ~ 0xFF), stream off (0xFF)
+	 */
+	do {
+		I2C_MUTEX_LOCK(cis->i2c_lock);
+		ret = is_sensor_read8(client, 0x0005, &sensor_fcount);
+		I2C_MUTEX_UNLOCK(cis->i2c_lock);
+		if (ret < 0) {
+			i2c_fail_cnt++;
+			err("i2c transfer fail addr(0x0005), val(%x), try(%d), ret = %d",
+				sensor_fcount, i2c_fail_cnt, ret);
+
+			if (i2c_fail_cnt >= i2c_fail_max_cnt) {
+				err("[MOD:D:%d] %s, i2c fail, i2c_fail_cnt(%d) >= i2c_fail_max_cnt(%d), sensor_fcount(%d)",
+						cis->id, __func__, i2c_fail_cnt, i2c_fail_max_cnt, sensor_fcount);
+				ret = -EINVAL;
+				goto p_err;
+			}
+		}
+
+		/* If fcount is '0xfe' or '0xff' in streamoff, delay by 33 ms. */
+		if (sensor_4ha_fcount >= 0xFE && sensor_fcount == 0xFF) {
+			usleep_range(33000, 33001);
+			info("[%s] 33ms delay(stream_off fcount : %d, wait_stream_off fcount : %d)",
+				__func__, sensor_4ha_fcount, sensor_fcount);
+		}
+
+		usleep_range(CIS_STREAM_OFF_WAIT_TIME, CIS_STREAM_OFF_WAIT_TIME + 1);
+		wait_cnt++;
+
+		if (wait_cnt >= time_out_cnt) {
+			err("[MOD:D:%d] %s, time out, wait_limit(%d) > time_out(%d), sensor_fcount(%d)",
+					cis->id, __func__, wait_cnt, time_out_cnt, sensor_fcount);
+			ret = -EINVAL;
+			goto p_err;
+		}
+
+		dbg_sensor(1, "[MOD:D:%d] %s, sensor_fcount(%d), (wait_limit(%d) < time_out(%d))\n",
+				cis->id, __func__, sensor_fcount, wait_cnt, time_out_cnt);
+	} while (sensor_fcount != 0xFF);
 
 p_err:
 	return ret;
@@ -1625,7 +1698,7 @@ static struct is_cis_ops cis_ops = {
 	.cis_get_min_digital_gain = sensor_4ha_cis_get_min_digital_gain,
 	.cis_get_max_digital_gain = sensor_4ha_cis_get_max_digital_gain,
 	.cis_compensate_gain_for_extremely_br = sensor_4ha_cis_compensate_gain_for_extremely_br,
-	.cis_wait_streamoff = sensor_cis_wait_streamoff,
+	.cis_wait_streamoff = sensor_4ha_cis_wait_streamoff,
 	.cis_wait_streamon = sensor_cis_wait_streamon,
 	.cis_set_initial_exposure = sensor_cis_set_initial_exposure,
 	.cis_recover_stream_on = sensor_4ha_cis_recover_stream_on,

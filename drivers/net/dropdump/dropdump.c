@@ -587,7 +587,12 @@ void trace_android_vh_ptype_head(const struct packet_type *pt, struct list_head 
 EXPORT_SYMBOL_GPL(trace_android_vh_ptype_head);
 #endif
 
+#ifndef TRACE_SKB_DROP_REASON
 static void drd_kfree_skb_handler(void *data, struct sk_buff *skb, void *location)
+#else
+static void drd_kfree_skb_handler(void *data, struct sk_buff *skb,
+				  void *location, enum skb_drop_reason reason)
+#endif
 {
 	drd_kfree_skb(skb);
 }

@@ -16,6 +16,8 @@
 #define SM5451_TA_MIN_CURRENT   1000
 #define SM5451_CV_OFFSET        0
 #define SM5451_CI_OFFSET        300
+#define SM5451_SIOP_LEV1        1100
+#define SM5451_SIOP_LEV2        1700
 
 enum SM5451_flag1_desc {
 	SM5451_FLAG1_VBUSPD         = 1 << 5,
@@ -91,7 +93,7 @@ enum SM5451_reg_addr {
 	SM5451_REG_THEM_ADC_H       = 0x65,
 	SM5451_REG_THEM_ADC_L       = 0x66,
 	SM5451_REG_IBATOCP_DG       = 0x92,
-	SM5451_REG_VDSQRB_DG		= 0x95,
+	SM5451_REG_VDSQRB_DG        = 0x95,
 	SM5451_REG_PRECHG_MODE      = 0xA0,
 	SM5451_REG_CTRL_STM_0       = 0xBA,
 	SM5451_REG_CTRL_STM_1       = 0xBB,
@@ -149,17 +151,39 @@ enum SM5451_op_mode {
 	OP_MODE_REV_BOOST   = 0x4,
 };
 
+enum sm5451_chip_id {
+	SM5451_ALONE = 0x0,
+	SM5451_MAIN = 0x1,
+	SM5451_SUB = 0x3,
+};
+
+enum SM5451_freq {
+	SM5451_FREQ_200KHZ  = 0x0,
+	SM5451_FREQ_375KHZ  = 0x1,
+	SM5451_FREQ_500KHZ  = 0x2,
+	SM5451_FREQ_750KHZ  = 0x3,
+	SM5451_FREQ_1000KHZ = 0x4,
+	SM5451_FREQ_1250KHZ = 0x5,
+	SM5451_FREQ_1500KHZ = 0x6,
+};
+
 struct sm5451_platform_data {
 	u8 rev_id;
 	int irq_gpio;
+	u32 r_ttl;
 	u32 pps_lr;
 	u32 rpcm;
+	u32 freq;
 	u32 freq_byp;
-	int topoff_current;
+	u32 freq_siop[2];
+	u32 topoff;
+	u32 x2bat_mode;
+	u32 en_vbatreg;
 
 	struct {
 		u32 chg_float_voltage;
 		char *sec_dc_name;
+		char *fuelgauge_name;
 	} battery;
 };
 
@@ -169,7 +193,8 @@ struct sm5451_charger {
 	struct sm5451_platform_data *pdata;
 	struct power_supply	*psy_chg;
 	struct sm_dc_info *pps_dc;
-	int ps_type;
+	struct sm_dc_info *x2bat_dc;
+	int chip_id;
 
 	struct mutex i2c_lock;
 	struct mutex pd_lock;

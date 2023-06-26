@@ -3597,7 +3597,7 @@ static int slsi_set_ncho_mode(struct net_device *dev, char *command, int buf_len
 	kfree_skb(cfm);
 
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
-
+	slsi_conn_log2us_ncho_mode(sdev, dev, mode);
 	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
 	sdev->device_config.ncho_mode = mode;
 	SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);

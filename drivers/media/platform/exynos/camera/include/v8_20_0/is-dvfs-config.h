@@ -12,9 +12,6 @@
 #ifndef IS_DVFS_CONFIG_H
 #define IS_DVFS_CONFIG_H
 
-/* dvfs table idx ex.different dvfa table  pure bayer or dynamic bayer */
-#define IS_DVFS_TABLE_IDX_MAX 3
-
 /* FIMC-IS DVFS SCENARIO enum */
 enum IS_SCENARIO_ID {
 	IS_SN_DEFAULT,

@@ -52,7 +52,7 @@ static void input_irq_handler(int irq, void *data)
 	 * until the error has been processed and the system has been reinitialised.
 	 */
 	if (th->block_thread == 1) {
-		SCSC_TAG_DEBUG(MXMGT_TRANS, "discard message.\n");
+		SCSC_TAG_ERR(MXMGT_TRANS, "discard message.\n");
 		/*
 		 * Do not try to acknowledge a pending interrupt here.
 		 * This function is called by a function which in turn can be
@@ -90,7 +90,7 @@ static void input_irq_handler_wpan(int irq, void *data)
 	 * until the error has been processed and the system has been reinitialised.
 	 */
 	if (th->block_thread == 1) {
-		SCSC_TAG_DEBUG(MXMGT_TRANS, "discard message.\n");
+		SCSC_TAG_ERR(MXMGT_TRANS, "discard message.\n");
 		/*
 		 * Do not try to acknowledge a pending interrupt here.
 		 * This function is called by a function which in turn can be
@@ -183,9 +183,9 @@ static int mxmgmt_thread_function(void *arg)
 	const struct mxmgr_message *current_message;
 	int                        ret;
 
+	th->block_thread = 0;
 	complete(&th->completion);
 
-	th->block_thread = 0;
 	while (!kthread_should_stop()) {
 
 		/* wait until an error occurs, or we need to process something. */

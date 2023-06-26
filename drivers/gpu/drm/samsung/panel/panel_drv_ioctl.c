@@ -22,10 +22,8 @@ size_t panel_drv_ioctl_scnprintf_cmd(char *buf, size_t size, unsigned int cmd)
 size_t panel_drv_ioctl_scnprintf_cmd_name(char *buf, size_t size, unsigned int cmd)
 {
     static const char *ioctl_cmd_names[] = {
-		[_IOC_NR(PANEL_IOC_DSIM_PROBE)] = "DSIM_PROBE",
-		[_IOC_NR(PANEL_IOC_PARSE_LCD_INFO)] = "PARSE_LCD_INFO",
+		[_IOC_NR(PANEL_IOC_ATTACH_ADAPTER)] = "ATTACH_ADAPTER",
 		[_IOC_NR(PANEL_IOC_GET_PANEL_STATE)] = "GET_PANEL_STATE",
-		[_IOC_NR(PANEL_IOC_DSIM_PUT_MIPI_OPS)] = "DSIM_PUT_MIPI_OPS",
 		[_IOC_NR(PANEL_IOC_PANEL_PROBE)] = "PANEL_PROBE",
 		[_IOC_NR(PANEL_IOC_SET_POWER)] = "SET_POWER",
 		[_IOC_NR(PANEL_IOC_SLEEP_IN)] = "SLEEP_IN",
@@ -50,11 +48,6 @@ size_t panel_drv_ioctl_scnprintf_cmd_name(char *buf, size_t size, unsigned int c
 #ifdef CONFIG_SUPPORT_MASK_LAYER
 		[_IOC_NR(PANEL_IOC_SET_MASK_LAYER)] = "SET_MASK_LAYER",
 #endif
-#ifdef CONFIG_DYNAMIC_MIPI
-		[_IOC_NR(PANEL_IOC_DM_GET_INFO)] = "DM_GET_INFO",
-		[_IOC_NR(PANEL_IOC_DM_SET_PANEL_FFC)] = "DM_SET_PANEL_FFC",
-		[_IOC_NR(PANEL_IOC_DM_OFF_PANEL_FFC)] = "DM_OFF_PANEL_FFC",
-#endif
 	};
 	int nr = _IOC_NR(cmd);
 
@@ -67,9 +60,7 @@ size_t panel_drv_ioctl_scnprintf_cmd_name(char *buf, size_t size, unsigned int c
 
 /* panel driver ioctl table */
 static const struct panel_drv_ioctl_desc panel_drv_ioctls[] = {
-	PANEL_DRV_IOCTL_DEF(PANEL_IOC_DSIM_PROBE, panel_drv_dsim_probe_ioctl),
-	PANEL_DRV_IOCTL_DEF(PANEL_IOC_PARSE_LCD_INFO, panel_drv_parse_lcd_info_ioctl),
-	PANEL_DRV_IOCTL_DEF(PANEL_IOC_DSIM_PUT_MIPI_OPS, panel_drv_dsim_put_mipi_ops_ioctl),
+	PANEL_DRV_IOCTL_DEF(PANEL_IOC_ATTACH_ADAPTER, panel_drv_attach_adapter_ioctl),
 	PANEL_DRV_IOCTL_DEF(PANEL_IOC_GET_PANEL_STATE, panel_drv_get_panel_state_ioctl),
 	PANEL_DRV_IOCTL_DEF(PANEL_IOC_PANEL_PROBE, panel_drv_panel_probe_ioctl),
 	PANEL_DRV_IOCTL_DEF(PANEL_IOC_SET_POWER, panel_drv_set_power_ioctl),
@@ -94,11 +85,6 @@ static const struct panel_drv_ioctl_desc panel_drv_ioctls[] = {
 	PANEL_DRV_IOCTL_DEF(PANEL_IOC_REG_VRR_CB, panel_drv_reg_vrr_cb_ioctl),
 #ifdef CONFIG_SUPPORT_MASK_LAYER
 	PANEL_DRV_IOCTL_DEF(PANEL_IOC_SET_MASK_LAYER, panel_drv_set_mask_layer_ioctl),
-#endif
-#ifdef CONFIG_DYNAMIC_MIPI
-	PANEL_DRV_IOCTL_DEF(PANEL_IOC_DM_GET_INFO, panel_drv_dm_get_info_ioctl),
-	PANEL_DRV_IOCTL_DEF(PANEL_IOC_DM_SET_PANEL_FFC, panel_drv_dm_set_panel_ffc_ioctl),
-	PANEL_DRV_IOCTL_DEF(PANEL_IOC_DM_OFF_PANEL_FFC, panel_drv_dm_off_panel_ffc_ioctl),
 #endif
 };
 

@@ -9,6 +9,7 @@
 #include <linux/notifier.h>
 #include <linux/device.h>
 #include <linux/workqueue.h>
+#include <linux/mutex.h>
 
 enum {
 	PM_QOS_NETWORK_LATENCY = 1,
@@ -186,6 +187,7 @@ struct exynos_pm_qos_constraints {
 	enum exynos_pm_qos_type type;
 	struct blocking_notifier_head *notifiers;
 	spinlock_t lock;
+	struct mutex mlock;
 
 	struct exynos_pm_qos_log log[EXYNOS_PM_QOS_LOG_LENGTH];
 	unsigned int log_index;
@@ -206,9 +208,6 @@ enum exynos_pm_qos_req_action {
 
 extern int exynos_pm_qos_update_target(struct exynos_pm_qos_constraints *c, struct plist_node *node,
 		enum exynos_pm_qos_req_action action, int value, bool nosync);
-extern bool exynos_pm_qos_update_flags(struct exynos_pm_qos_flags *pqf,
-		struct exynos_pm_qos_flags_request *req,
-		enum exynos_pm_qos_req_action action, s32 val);
 extern void exynos_pm_qos_add_request_trace(char *func, unsigned int line,
 		struct exynos_pm_qos_request *req, int exynos_pm_qos_class,
 		s32 value);

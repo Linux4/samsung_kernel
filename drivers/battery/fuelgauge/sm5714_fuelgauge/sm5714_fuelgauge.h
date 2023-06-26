@@ -286,6 +286,7 @@ struct sm5714_fuelgauge_platform_data {
 	int capacity_max;
 	int capacity_max_margin;
 	int capacity_min;
+	unsigned int capacity_full;
 
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
 	int num_age_step;
@@ -327,6 +328,11 @@ struct sm5714_fuelgauge_data {
 
 	unsigned int capacity_old;	/* only for atomic calculation */
 	unsigned int capacity_max;	/* only for dynamic calculation */
+#if defined(CONFIG_UI_SOC_PROLONGING)
+	unsigned int g_capacity_max;	/* only for dynamic calculation */
+	bool capacity_max_conv;
+	int prev_raw_soc;
+#endif
 	unsigned int standard_capacity;
 
 	bool initial_update_of_soc;

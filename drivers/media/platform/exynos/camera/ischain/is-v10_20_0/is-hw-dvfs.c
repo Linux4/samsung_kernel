@@ -14,21 +14,21 @@
 #include "is-dvfs.h"
 #include "is-hw-dvfs.h"
 
-static char str_face[IS_DVFS_FACE_END + 1][IS_DVFS_STR_LEN] = {
+static const char *str_face[IS_DVFS_FACE_END + 1] = {
 	"REAR",
 	"FRONT",
 	"PIP",
 	"INVALID",
 };
 
-static char str_num[IS_DVFS_NUM_END + 1][IS_DVFS_STR_LEN] = {
+static const char *str_num[IS_DVFS_NUM_END + 1] = {
 	"SINGLE",
 	"DUAL",
 	"TRIPLE",
 	"INVALID",
 };
 
-static char str_sensor[IS_DVFS_SENSOR_END + 1][IS_DVFS_STR_LEN] = {
+static const char *str_sensor[IS_DVFS_SENSOR_END + 1] = {
 	"NORMAL",
 	"FASTAE",
 	"REMOSAIC",
@@ -39,7 +39,7 @@ static char str_sensor[IS_DVFS_SENSOR_END + 1][IS_DVFS_STR_LEN] = {
 	"INVALID",
 };
 
-static char str_mode[IS_DVFS_MODE_END + 1][IS_DVFS_STR_LEN] = {
+static const char *str_mode[IS_DVFS_MODE_END + 1] = {
 	"PHOTO",
 	"CAPTURE",
 	"VIDEO",
@@ -47,7 +47,7 @@ static char str_mode[IS_DVFS_MODE_END + 1][IS_DVFS_STR_LEN] = {
 	"INVALID",
 };
 
-static char str_resol[IS_DVFS_RESOL_END + 1][IS_DVFS_STR_LEN] = {
+static const char *str_resol[IS_DVFS_RESOL_END + 1] = {
 	"HD",
 	"FHD",
 	"UHD",
@@ -56,7 +56,7 @@ static char str_resol[IS_DVFS_RESOL_END + 1][IS_DVFS_STR_LEN] = {
 	"INVALID",
 };
 
-static char str_fps[IS_DVFS_FPS_END + 1][IS_DVFS_STR_LEN] = {
+static const char *str_fps[IS_DVFS_FPS_END + 1] = {
 	"24",
 	"30",
 	"60",
@@ -65,18 +65,6 @@ static char str_fps[IS_DVFS_FPS_END + 1][IS_DVFS_STR_LEN] = {
 	"480",
 	"INVALID",
 };
-
-unsigned int is_hw_dvfs_get_bit_count(unsigned long bits)
-{
-	unsigned int count = 0;
-
-	while (bits) {
-		bits &= (bits - 1);
-		count++;
-	}
-
-	return count;
-}
 
 int is_hw_dvfs_get_face(struct is_device_ischain *device,
 	struct is_dvfs_scenario_param *param)
@@ -94,7 +82,7 @@ int is_hw_dvfs_get_face(struct is_device_ischain *device,
 int is_hw_dvfs_get_num(struct is_device_ischain *device,
 	struct is_dvfs_scenario_param *param)
 {
-	unsigned int num = is_hw_dvfs_get_bit_count(param->sensor_active_map);
+	unsigned int num = is_get_bit_count(param->sensor_active_map);
 
 	if (num == 1)
 		return IS_DVFS_NUM_SINGLE;

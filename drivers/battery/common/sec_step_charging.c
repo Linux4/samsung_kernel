@@ -20,6 +20,7 @@
 #define STEP_CHARGING_CONDITION_INPUT_CURRENT		0x40
 #define STEP_CHARGING_CONDITION_SOC_INIT_ONLY		0x80 /* use this to consider SOC to decide starting step only */
 #define STEP_CHARGING_CONDITION_FORCE_SOC		0x100
+#define STEP_CHARGING_CONDITION_FG_CURRENT		0x200
 
 #define STEP_CHARGING_CONDITION_DC_INIT		(STEP_CHARGING_CONDITION_VOLTAGE | STEP_CHARGING_CONDITION_SOC | STEP_CHARGING_CONDITION_SOC_INIT_ONLY)
 
@@ -62,6 +63,8 @@ bool sec_bat_check_step_charging(struct sec_battery_info *battery)
 #else
 	int age_step = 0;
 #endif
+	union power_supply_propval val = {0, };
+	int fpdo_sc = 0;
 
 #if defined(CONFIG_SEC_FACTORY)
 	if (!battery->step_chg_en_in_factory)
@@ -81,9 +84,19 @@ bool sec_bat_check_step_charging(struct sec_battery_info *battery)
 	else
 		lcd_status = 0;
 
+	if (battery->cable_type == SEC_BATTERY_CABLE_FPDO_DC) {
+		psy_do_property(battery->pdata->charger_name, get,
+				POWER_SUPPLY_EXT_PROP_CHARGING_ENABLED_DC, val);
+		fpdo_sc = val.intval;
+		pr_info("%s: SC for FPDO_DC(%d)", __func__, fpdo_sc);
+
+		if (!fpdo_sc && battery->step_chg_status >= 0)
+			sec_bat_reset_step_charging(battery);
+	}
+
 	if (battery->step_chg_type & STEP_CHARGING_CONDITION_ONLINE) {
 #if IS_ENABLED(CONFIG_DIRECT_CHARGING)
-		if (is_pd_apdo_wire_type(battery->cable_type) &&
+		if ((is_pd_apdo_wire_type(battery->cable_type) && !fpdo_sc) &&
 			!((battery->current_event & SEC_BAT_CURRENT_EVENT_DC_ERR) &&
 			(battery->ta_alert_mode == OCP_NONE))) {
 			sec_vote(battery->fv_vote, VOTER_STEP_CHARGE, false, 0);
@@ -91,7 +104,8 @@ bool sec_bat_check_step_charging(struct sec_battery_info *battery)
 			return false;
 		}
 
-		if ((is_pd_apdo_wire_type(battery->cable_type) || is_pd_apdo_wire_type(battery->wire_status)) &&
+		if (((is_pd_apdo_wire_type(battery->cable_type) || is_pd_apdo_wire_type(battery->wire_status)) &&
+					!fpdo_sc) &&
 			(battery->sink_status.rp_currentlvl == RP_CURRENT_LEVEL3)) {
 			pr_info("%s: This cable type should be checked in dc step check\n", __func__);
 			sec_vote(battery->fv_vote, VOTER_STEP_CHARGE, false, 0);
@@ -262,7 +276,7 @@ bool sec_bat_check_dc_step_charging(struct sec_battery_info *battery)
 {
 	int i, value;
 	int step = -1, step_vol = -1, step_input = -1, step_soc = -1, soc_condition = 0;
-	int force_step_soc = 0;
+	int force_step_soc = 0, step_fg_current = -1;
 	bool force_change_step = false;
 	union power_supply_propval val = {0, };
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
@@ -271,6 +285,15 @@ bool sec_bat_check_dc_step_charging(struct sec_battery_info *battery)
 	int age_step = 0;
 #endif
 	unsigned int dc_step_chg_type;
+
+	if (battery->cable_type == SEC_BATTERY_CABLE_FPDO_DC) {
+		sec_vote(battery->dc_fv_vote, VOTER_DC_STEP_CHARGE, false, 0);
+		sec_vote(battery->fcc_vote, VOTER_CABLE, true,
+			battery->pdata->charging_current[SEC_BATTERY_CABLE_FPDO_DC].fast_charging_current);
+		sec_vote_refresh(battery->fcc_vote);
+
+		return false;
+	}
 
 	i = (battery->step_chg_status < 0 ? 0 : battery->step_chg_status);
 	dc_step_chg_type = battery->dc_step_chg_type[i];
@@ -436,6 +459,52 @@ bool sec_bat_check_dc_step_charging(struct sec_battery_info *battery)
 	} else
 		step_input = battery->dc_step_chg_step - 1;
 
+	if (dc_step_chg_type & STEP_CHARGING_CONDITION_FG_CURRENT) {
+		step_fg_current = i;
+		psy_do_property(battery->pdata->charger_name, get,
+			POWER_SUPPLY_EXT_PROP_DIRECT_CHARGER_MODE, val);
+		if (val.intval != SEC_DIRECT_CHG_MODE_DIRECT_ON) {
+			pr_info("%s : dc no charging status = %d\n", __func__, val.intval);
+			battery->dc_step_chg_iin_cnt = 0;
+			return false;
+		} else if (battery->siop_level >= 100 && !battery->lcd_status) {
+			int current_now, current_avg;
+
+			val.intval = SEC_BATTERY_CURRENT_MA;
+			psy_do_property(battery->pdata->fuelgauge_name, get,
+				POWER_SUPPLY_PROP_CURRENT_NOW, val);
+			current_now = val.intval;
+			val.intval = SEC_BATTERY_CURRENT_MA;
+			psy_do_property(battery->pdata->fuelgauge_name, get,
+				POWER_SUPPLY_PROP_CURRENT_AVG, val);
+			current_avg = val.intval;
+			value = max(current_now, current_avg) / 2;
+
+			while (step_fg_current < battery->dc_step_chg_step - 1) {
+				if (value > battery->pdata->dc_step_chg_cond_iin[step_fg_current])
+					break;
+				step_fg_current++;
+
+				if (battery->step_chg_status >= 0) {
+					battery->dc_step_chg_iin_cnt++;
+					break;
+				}
+				battery->dc_step_chg_iin_cnt = 0;
+			}
+		} else {
+			/*
+			 * Do not check input current when lcd is on or siop is not 100
+			 * since there might be quite big system current
+			 */
+			step_fg_current = battery->dc_step_chg_step - 1;
+		}
+
+		if ((step_fg_current < step) || (step < 0))
+			step = step_fg_current;
+	} else
+		step_fg_current = battery->dc_step_chg_step - 1;
+
+
 	if (dc_step_chg_type & STEP_CHARGING_CONDITION_FORCE_SOC) {
 		force_step_soc = i;
 		if (battery->capacity >= battery->pdata->dc_step_chg_cond_soc[age_step][i]) {
@@ -451,13 +520,15 @@ bool sec_bat_check_dc_step_charging(struct sec_battery_info *battery)
 
 
 check_dc_step_change:
-	pr_info("%s : curr_step(%d), step_vol(%d), step_soc(%d), step_input(%d), curr_cnt(%d/%d) force_step_soc(%d)\n",
-		__func__, step, step_vol, step_soc, step_input,
+	pr_info("%s : curr_step(%d), step_vol(%d), step_soc(%d), step_input(%d, %d), curr_cnt(%d/%d) force_step_soc(%d)\n",
+		__func__, step, step_vol, step_soc, step_input, step_fg_current,
 		battery->dc_step_chg_iin_cnt, battery->pdata->dc_step_chg_iin_check_cnt, force_step_soc);
 
 	if (battery->step_chg_status < 0 || force_step_soc ||
-		(step != battery->step_chg_status && step == min(min(step_vol, step_soc), step_input))) {
-		if ((dc_step_chg_type & STEP_CHARGING_CONDITION_INPUT_CURRENT) &&
+		(step != battery->step_chg_status &&
+		step == min(min(step_vol, step_soc), min(step_input, step_fg_current)))) {
+		if ((dc_step_chg_type &
+			(STEP_CHARGING_CONDITION_INPUT_CURRENT | STEP_CHARGING_CONDITION_FG_CURRENT)) &&
 			(battery->step_chg_status >= 0)) {
 			if ((battery->dc_step_chg_iin_cnt < battery->pdata->dc_step_chg_iin_check_cnt) &&
 				(battery->siop_level >= 100 && !battery->lcd_status) && !force_step_soc) {
@@ -524,6 +595,9 @@ int sec_dc_step_charging_dt(struct sec_battery_info *battery, struct device *dev
 #else
 	int num_age_step = 0;
 #endif
+	battery->dchg_dc_in_swelling = of_property_read_bool(np,
+						     "battery,dchg_dc_in_swelling");
+	pr_info("%s: dchg_dc_in_swelling(%d)\n", __func__, battery->dchg_dc_in_swelling);
 
 	ret = of_property_read_u32(np, "battery,dc_step_chg_step",
 			&battery->dc_step_chg_step);
@@ -1009,8 +1083,7 @@ void sec_bat_set_aging_info_step_charging(struct sec_battery_info *battery)
 			POWER_SUPPLY_EXT_PROP_DIRECT_CONSTANT_CHARGE_VOLTAGE_MAX, val);
 	}
 
-	if (battery->step_chg_status >= 0 && !battery->dc_float_voltage_set)
-		sec_vote(battery->dc_fv_vote, VOTER_DC_STEP_CHARGE, true, max_fv);
+	sec_vote(battery->dc_fv_vote, VOTER_AGING_STEP, true, max_fv);
 
 	sec_bat_reset_step_charging(battery);
 	sec_bat_check_dc_step_charging(battery);
@@ -1039,10 +1112,6 @@ void sec_step_charging_dt(struct sec_battery_info *battery, struct device *dev)
 
 	battery->step_chg_en_in_factory = of_property_read_bool(np,
 						     "battery,step_chg_en_in_factory");
-	battery->dchg_dc_in_swelling = of_property_read_bool(np,
-						     "battery,dchg_dc_in_swelling");
-	pr_info("%s: dchg_dc_in_swelling(%d)\n", __func__, battery->dchg_dc_in_swelling);
-
 
 	ret = of_property_read_u32(np, "battery,step_chg_step",
 			&battery->step_chg_step);

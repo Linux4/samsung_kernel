@@ -275,6 +275,11 @@ struct fscrypt_info {
 
 	/* Hashed inode number.  Only set for IV_INO_LBLK_32 */
 	u32 ci_hashed_ino;
+};
+
+#if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+struct ext_fscrypt_info {
+	struct fscrypt_info fscrypt_info;
 
 #ifdef CONFIG_DDAR
 	struct dd_info *ci_dd_info;
@@ -284,6 +289,12 @@ struct fscrypt_info {
 	struct sdp_info *ci_sdp_info;
 #endif
 };
+
+static inline struct ext_fscrypt_info *GET_EXT_CI(struct fscrypt_info *ci)
+{
+	return container_of(ci, struct ext_fscrypt_info, fscrypt_info);
+}
+#endif
 
 typedef enum {
 	FS_DECRYPT = 0,
@@ -611,8 +622,9 @@ int __init fscrypt_init_keyring(void);
 struct fscrypt_mode {
 	const char *friendly_name;
 	const char *cipher_str;
-	int keysize;
-	int ivsize;
+	int keysize;		/* key size in bytes */
+	int security_strength;	/* security strength in bytes */
+	int ivsize;		/* IV size in bytes */
 	int logged_impl_name;
 	enum blk_crypto_mode_num blk_crypto_mode;
 };
@@ -681,18 +693,24 @@ static inline bool fscrypt_sdp_protected(const u32 knox_flags) {
 static inline int fscrypt_set_knox_sdp_flags(union fscrypt_context *ctx_u,
 						struct fscrypt_info *crypt_info)
 {
-	if (!crypt_info || !crypt_info->ci_sdp_info)
+	struct ext_fscrypt_info *ext_crypt_info;
+
+	if (!crypt_info)
+		return 0;
+
+	ext_crypt_info = GET_EXT_CI(crypt_info);
+	if (!ext_crypt_info->ci_sdp_info)
 		return 0;
 
 	switch (ctx_u->version) {
 	case FSCRYPT_CONTEXT_V1: {
 		struct fscrypt_context_v1 *ctx = &ctx_u->v1;
-		ctx->knox_flags = crypt_info->ci_sdp_info->sdp_flags;
+		ctx->knox_flags = ext_crypt_info->ci_sdp_info->sdp_flags;
 		return 0;
 	}
 	case FSCRYPT_CONTEXT_V2: {
 		struct fscrypt_context_v2 *ctx = &ctx_u->v2;
-		ctx->knox_flags = crypt_info->ci_sdp_info->sdp_flags;
+		ctx->knox_flags = ext_crypt_info->ci_sdp_info->sdp_flags;
 		return 0;
 	}
 	}
@@ -713,18 +731,24 @@ static inline bool fscrypt_ddar_protected(const u32 knox_flags)
 static inline int fscrypt_set_knox_ddar_flags(union fscrypt_context *ctx_u,
 						struct fscrypt_info *crypt_info)
 {
-	if (!crypt_info || !crypt_info->ci_dd_info)
+	struct ext_fscrypt_info *ext_crypt_info;
+
+	if (!crypt_info)
+		return 0;
+
+	ext_crypt_info = GET_EXT_CI(crypt_info);
+	if (!ext_crypt_info->ci_dd_info)
 		return 0;
 
 	switch (ctx_u->version) {
 	case FSCRYPT_CONTEXT_V1: {
 		struct fscrypt_context_v1 *ctx = &ctx_u->v1;
-		ctx->knox_flags |= ((crypt_info->ci_dd_info->policy.flags << FSCRYPT_KNOX_FLG_DDAR_SHIFT) & FSCRYPT_KNOX_FLG_DDAR_MASK);
+		ctx->knox_flags |= ((ext_crypt_info->ci_dd_info->policy.flags << FSCRYPT_KNOX_FLG_DDAR_SHIFT) & FSCRYPT_KNOX_FLG_DDAR_MASK);
 		return 0;
 	}
 	case FSCRYPT_CONTEXT_V2: {
 		struct fscrypt_context_v2 *ctx = &ctx_u->v2;
-		ctx->knox_flags |= ((crypt_info->ci_dd_info->policy.flags << FSCRYPT_KNOX_FLG_DDAR_SHIFT) & FSCRYPT_KNOX_FLG_DDAR_MASK);
+		ctx->knox_flags |= ((ext_crypt_info->ci_dd_info->policy.flags << FSCRYPT_KNOX_FLG_DDAR_SHIFT) & FSCRYPT_KNOX_FLG_DDAR_MASK);
 		return 0;
 	}
 	}
@@ -737,14 +761,16 @@ static inline int fscrypt_set_knox_ddar_flags(union fscrypt_context *ctx_u,
 static inline struct fscrypt_info *fscrypt_has_dar_info(struct inode *parent)
 {
 	struct fscrypt_info *ci = fscrypt_get_info(parent);
+	struct ext_fscrypt_info *ext_ci;
 	if (ci) {
+		ext_ci = GET_EXT_CI(ci);
 #ifdef CONFIG_FSCRYPT_SDP
-		if (ci->ci_sdp_info) {
+		if (ext_ci->ci_sdp_info) {
 			return ci;
 		}
 #endif
 #ifdef CONFIG_DDAR
-		if (ci->ci_dd_info) {
+		if (ext_ci->ci_dd_info) {
 			return ci;
 		}
 #endif

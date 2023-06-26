@@ -89,11 +89,19 @@ ssize_t mcu_model_name_show(struct device *dev, struct device_attribute *attr, c
 	return sprintf(buf, "%s\n", SENSORHUB_NAME);
 }
 
+ssize_t minidump_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct shub_data_t *data = get_shub_data();
+
+	return sprintf(buf, "%s\n", data->mini_dump);
+}
+
 static DEVICE_ATTR(mcu_rev, S_IRUGO, mcu_revision_show, NULL);
 static DEVICE_ATTR(mcu_name, S_IRUGO, mcu_model_name_show, NULL);
 static DEVICE_ATTR(mcu_reset, S_IRUGO, mcu_reset_show, NULL);
 static DEVICE_ATTR(reset_info, S_IRUGO, show_reset_info, NULL);
 static DEVICE_ATTR(fs_ready, 0220, NULL, fs_ready_store);
+static DEVICE_ATTR(minidump, S_IRUGO, minidump_show, NULL);
 
 static struct device_attribute *shub_attrs[] = {
 	&dev_attr_mcu_rev,
@@ -101,6 +109,7 @@ static struct device_attribute *shub_attrs[] = {
 	&dev_attr_mcu_reset,
 	&dev_attr_reset_info,
 	&dev_attr_fs_ready,
+	&dev_attr_minidump,
 	NULL,
 };
 

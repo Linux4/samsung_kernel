@@ -16,9 +16,6 @@
 #define IS_SN_MAX IS_DVFS_SN_MAX
 #define IS_SN_END IS_DVFS_SN_END
 
-/* dvfs table idx ex.different dvfa table  pure bayer or dynamic bayer */
-#define IS_DVFS_TABLE_IDX_MAX 3
-
 /* Pablo DVFS SCENARIO enum */
 enum IS_DVFS_SN {
 	IS_DVFS_SN_DEFAULT,

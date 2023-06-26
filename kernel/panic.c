@@ -36,6 +36,8 @@
 #include <asm/daifflags.h>
 #endif
 
+#include <linux/sec_debug.h>
+
 #define PANIC_TIMER_STEP 100
 #define PANIC_BLINK_SPD 18
 
@@ -582,11 +584,13 @@ void __warn(const char *file, int line, void *caller, unsigned taint,
 	disable_trace_on_warning();
 
 	if (file)
-		pr_warn("WARNING: CPU: %d PID: %d at %s:%d %pS\n",
+		pr_auto_on(panic_on_warn, ASL1,
+			"WARNING: CPU: %d PID: %d at %s:%d %pS\n",
 			raw_smp_processor_id(), current->pid, file, line,
 			caller);
 	else
-		pr_warn("WARNING: CPU: %d PID: %d at %pS\n",
+		pr_auto_on(panic_on_warn, ASL1,
+			"WARNING: CPU: %d PID: %d at %pS\n",
 			raw_smp_processor_id(), current->pid, caller);
 
 	if (args)
@@ -594,8 +598,13 @@ void __warn(const char *file, int line, void *caller, unsigned taint,
 
 	print_modules();
 
+#if IS_ENABLED(CONFIG_SEC_DEBUG_AUTO_COMMENT)
+	if (regs)
+		show_regs_auto_comment(regs, panic_on_warn);
+#else
 	if (regs)
 		show_regs(regs);
+#endif
 
 	if (panic_on_warn) {
 		/*
@@ -727,7 +736,9 @@ EXPORT_SYMBOL(__stack_chk_fail);
 core_param(panic, panic_timeout, int, 0644);
 core_param(panic_print, panic_print, ulong, 0644);
 core_param(pause_on_oops, pause_on_oops, int, 0644);
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 core_param(panic_on_warn, panic_on_warn, int, 0644);
+#endif
 core_param(crash_kexec_post_notifiers, crash_kexec_post_notifiers, bool, 0644);
 
 static int __init oops_setup(char *s)

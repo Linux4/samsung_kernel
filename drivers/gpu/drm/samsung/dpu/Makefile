@@ -18,12 +18,6 @@ dpu-dir := exynos_p1
 cal-dir := $(dpu-dir)/cal_pm
 endif
 
-ifdef CONFIG_DRM_MCD_COMMON
-freq-hop-dir := mcd_cal
-else
-freq-hop-dir := $(dpu-dir)
-endif
-
 ifdef CONFIG_DRM_MCD_HDR
 hdr-dir := mcd_cal
 else
@@ -45,11 +39,8 @@ exynos-drm-y := exynos_drm_drv.o  exynos_drm_fb.o exynos_drm_format.o		\
 		exynos_drm_recovery.o						\
 		$(dpu-dir)/exynos_drm_hibernation.o				\
 		$(dpu-dir)/exynos_drm_dqe.o		\
-		$(hdr-dir)/exynos_drm_hdr.o
-
-ifneq ($(filter y m,$(CONFIG_EXYNOS_FREQ_HOP)),)
-exynos-drm-y += $(freq-hop-dir)/exynos_drm_freq_hop.o
-endif
+		$(hdr-dir)/exynos_drm_hdr.o		\
+		$(dpu-dir)/exynos_drm_freq_hop.o
 
 exynos-drm-$(CONFIG_DRM_MCD_COMMON) += mcd_cal/mcd_drm_decon.o mcd_cal/mcd_drm_dsim.o mcd_cal/mcd_drm_helper.o
 

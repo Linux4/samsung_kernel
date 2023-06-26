@@ -21,11 +21,6 @@
 /******************************************************************************
  * data structure and API                                                     *
  ******************************************************************************/
-enum {
-	FREQBOOST,
-	WAKEBOOST
-};
-
 /* Freqboost groups
  * Keep track of all the boost groups which impact on CPU, for example when a
  * CPU has two RUNNABLE tasks belonging to two different boost groups and thus
@@ -48,7 +43,6 @@ struct boost_groups {
 		/* Timestamp of boost activation */
 		u64 ts;
 	} group[CGROUP_COUNT];
-	int type;
 	int timeout;
 };
 
@@ -62,9 +56,8 @@ static inline bool freqboost_boost_timeout(u64 now, u64 ts, u64 timeout)
 static inline bool
 freqboost_boost_group_active(int idx, struct boost_groups *bg, u64 now)
 {
-	if (bg->type == FREQBOOST)
-		if (bg->group[idx].tasks)
-			return true;
+	if (bg->group[idx].tasks)
+		return true;
 
 	return !freqboost_boost_timeout(now, bg->group[idx].ts, bg->timeout);
 }
@@ -147,7 +140,7 @@ freqboost_boosted_util(struct boost_groups *bg, int cpu, unsigned long util)
 	margin = freqboost_margin(capacity_cpu(cpu), util, boost);
 
 out:
-	trace_freqboost_boosted_util(cpu, boost, util, margin, bg->type);
+	trace_freqboost_boosted_util(cpu, boost, util, margin);
 
 	return util + margin;
 }
@@ -198,80 +191,23 @@ unsigned long freqboost_cpu_boost(int cpu, unsigned long util)
 }
 
 /******************************************************************************
- * wakeup boost                                                               *
- ******************************************************************************/
-/* Boost groups affecting each CPU in the system */
-static struct boost_groups __percpu *wakeboost_groups;
-
-/* We hold freqboost in effect for at least this long */
-#define WAKEBOOST_HOLD_NS 4000000ULL	/* 4ms */
-
-static int wakeboost_task_threshold = 50;
-
-static inline void
-wakeboost_tasks_update(struct task_struct *p, int cpu,
-				int idx, int flags, int task_count)
-{
-	struct boost_groups *bg = per_cpu_ptr(wakeboost_groups, cpu);
-
-	if (task_count > 0 && flags & ENQUEUE_WAKEUP) {
-		u64 now;
-
-		if (ml_task_util(p) < wakeboost_task_threshold)
-			return;
-
-		now = sched_clock();
-		bg->group[idx].ts = now;
-
-		freqboost_group_update(bg, now);
-	}
-}
-
-int wakeboost_pending(int cpu)
-{
-	struct boost_groups *bg;
-	u64 now;
-	int i;
-
-	bg = per_cpu_ptr(wakeboost_groups, cpu);
-	now = sched_clock();
-
-	for (i = 0; i < CGROUP_COUNT; i++) {
-		if (!freqboost_boost_group_active(i, bg, now))
-			continue;
-
-		if (!bg->boost_max)
-			continue;
-
-		return 1;
-	}
-
-	return 0;
-}
-
-unsigned long wakeboost_cpu_boost(int cpu, unsigned long util)
-{
-	struct boost_groups *bg = per_cpu_ptr(wakeboost_groups, cpu);
-
-	return freqboost_boosted_util(bg, cpu, util);
-}
-
-/******************************************************************************
  * Heavy Task Boost							      *
  ******************************************************************************/
-unsigned long heavytask_cpu_boost(int cpu, unsigned long util)
+unsigned long heavytask_cpu_boost(int cpu, unsigned long util, int ratio)
 {
-	/* TODO: need to considering gropus */
-	int boost = stt_heavy_tsk_boost(cpu);
+	int boost = 0, hratio = profile_get_htask_ratio(cpu);
 	long margin = 0;
 
-	if (!boost)
+	if (!hratio)
 		goto out;
 
+	boost = (hratio * ratio) >> SCHED_CAPACITY_SHIFT;
+	boost = min(boost, 100);
 	margin = freqboost_margin(capacity_cpu(cpu), util, boost);
 
 out:
-	trace_freqboost_htsk_boosted_util(cpu, boost, util, margin);
+	trace_freqboost_htsk_boosted_util(cpu, hratio,
+				ratio, boost, util, margin);
 	return util + margin;
 }
 
@@ -294,7 +230,6 @@ freqboost_enqdeq_task(struct task_struct *p, int cpu, int flags, int type)
 	idx = cpuctl_task_group_idx(p);
 
 	freqboost_tasks_update(p, cpu, idx, flags, type);
-	wakeboost_tasks_update(p, cpu, idx, flags, type);
 
 	raw_spin_unlock_irqrestore(per_cpu_ptr(lock, cpu), irq_flags);
 }
@@ -397,17 +332,14 @@ static int freqboost_emstune_notifier_call(struct notifier_block *nb,
 				unsigned long val, void *v)
 {
 	struct emstune_set *cur_set = (struct emstune_set *)v;
-	struct boost_groups *fbg, *wbg;
+	struct boost_groups *fbg;
 	int i, cpu;
 
 	for_each_possible_cpu(cpu) {
 		fbg = per_cpu_ptr(freqboost_groups, cpu);
-		wbg = per_cpu_ptr(wakeboost_groups, cpu);
 
-		for (i = 0; i < CGROUP_COUNT; i++) {
+		for (i = 0; i < CGROUP_COUNT; i++)
 			fbg->group[i].boost = cur_set->freqboost.ratio[i][cpu];
-			wbg->group[i].boost = cur_set->wakeboost.ratio[i][cpu];
-		}
 	}
 
 	return NOTIFY_OK;
@@ -427,13 +359,7 @@ freqboost_init_cgroups(void)
 	for_each_possible_cpu(cpu) {
 		bg = per_cpu_ptr(freqboost_groups, cpu);
 		memset(bg, 0, sizeof(struct boost_groups));
-		bg->type = FREQBOOST;
 		bg->timeout = FREQBOOST_HOLD_NS;
-
-		bg = per_cpu_ptr(wakeboost_groups, cpu);
-		memset(bg, 0, sizeof(struct boost_groups));
-		bg->type = WAKEBOOST;
-		bg->timeout = WAKEBOOST_HOLD_NS;
 
 		raw_spin_lock_init(per_cpu_ptr(lock, cpu));
 	}
@@ -446,7 +372,6 @@ int freqboost_init(void)
 {
 	lock = alloc_percpu(raw_spinlock_t);
 	freqboost_groups = alloc_percpu(struct boost_groups);
-	wakeboost_groups = alloc_percpu(struct boost_groups);
 
 	freqboost_spc_rdiv = reciprocal_value(100);
 	freqboost_init_cgroups();
