@@ -1,0 +1,53 @@
+#
+# MMC subsystem configuration
+#
+
+menuconfig MMC
+	tristate "MMC/SD/SDIO card support"
+	depends on HAS_IOMEM
+	help
+	  This selects MultiMediaCard, Secure Digital and Secure
+	  Digital I/O support.
+
+	  If you want MMC/SD/SDIO support, you should say Y here and
+	  also to your specific host controller driver.
+
+config MMC_DEBUG
+	bool "MMC debugging"
+	depends on MMC != n
+	help
+	  This is an option for use by developers; most people should
+	  say N here.  This enables MMC core and driver debugging.
+
+config MMC_PERF_PROFILING
+	bool "MMC performance profiling"
+	depends on MMC != n
+	default n
+	help
+	  If you say Y here, support will be added for collecting
+	  performance numbers at the MMC Queue and Host layers.
+
+config MMC_SUPPORT_STLOG
+	bool "Enable storage log"
+	depends on MMC && PROC_STLOG
+	default y
+
+config SAMSUNG_SDMMC_ENG_TEST
+	bool "enable ENG mode for SD/MMC Setting"
+	default n
+	depends on MMC != n
+	help
+	  If you Say Y here, support will be added for settings
+	  about SD/MMC at the ENG mode only.
+	  This feature must be disabled at the user binary
+	  or it's possible to occur critical issue.
+
+if MMC
+
+source "drivers/mmc/core/Kconfig"
+
+source "drivers/mmc/card/Kconfig"
+
+source "drivers/mmc/host/Kconfig"
+
+endif # MMC
