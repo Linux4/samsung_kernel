@@ -1,0 +1,55 @@
+##############################################################################
+#
+#    Copyright (c) 2005 - 2012 by Vivante Corp.
+#    
+#    This program is free software; you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation; either version 2 of the license, or
+#    (at your option) any later version.
+#    
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#    GNU General Public License for more details.
+#    
+#    You should have received a copy of the GNU General Public License
+#    along with this program; if not write to the Free Software
+#    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+#
+#
+##############################################################################
+
+
+
+#
+# Linux build file for the user level HAL libraries.
+#
+
+
+
+################################################################################
+# Define make command.
+
+MAKE = make --makefile=makefile.linux
+
+
+################################################################################
+# Define build directories.
+ifeq ($(VIVANTE_ENABLE_VG), 1)
+HAL_USER_DRV_ARCH	:= $(AQARCH)/hal/user $(AQVGARCH)/hal/user
+else
+HAL_USER_DRV_ARCH	:= $(AQARCH)/hal/user
+endif
+ifeq ($(QNX), 1)
+HAL_USER_DRV_OS 	:= $(AQROOT)/hal/os/qnx/user
+else
+HAL_USER_DRV_OS 	:= $(AQROOT)/hal/os/linux/user
+endif
+HAL_USER_DRV_MAIN	:= $(AQROOT)/hal/user
+
+$(HAL_USER_DRV_MAIN): $(HAL_USER_DRV_ARCH) $(HAL_USER_DRV_OS)
+
+MODULES 	:= $(HAL_USER_DRV_ARCH) $(HAL_USER_DRV_OS) $(HAL_USER_DRV_MAIN)
+MAIN_MODULE	= $(HAL_USER_DRV_MAIN)
+
+include $(AQROOT)/common.node

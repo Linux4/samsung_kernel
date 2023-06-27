@@ -1,0 +1,618 @@
+if ARCH_MMP
+
+menu "Marvell PXA168/910/MMP2 Implmentations"
+
+config MACH_ASPENITE
+	bool "Marvell's PXA168 Aspenite Development Board"
+	select CPU_PXA168
+	help
+	  Say 'Y' here if you want to support the Marvell PXA168-based
+	  Aspenite Development Board.
+
+config MACH_ZYLONITE2
+	bool "Marvell's PXA168 Zylonite2 Development Board"
+	select CPU_PXA168
+	help
+	  Say 'Y' here if you want to support the Marvell PXA168-based
+	  Zylonite2 Development Board.
+
+config MACH_AVENGERS_LITE
+	bool "Marvell's PXA168 Avengers Lite Development Board"
+	select CPU_PXA168
+	help
+	  Say 'Y' here if you want to support the Marvell PXA168-based
+	  Avengers Lite Development Board.
+
+config MACH_TAVOREVB
+	bool "Marvell's PXA910 TavorEVB Development Board"
+	select CPU_PXA910
+	help
+	  Say 'Y' here if you want to support the Marvell PXA910-based
+	  TavorEVB Development Board.
+
+config MACH_TTC_DKB
+	bool "Marvell's PXA910 TavorEVB Development Board"
+	select CPU_PXA910
+	help
+	  Say 'Y' here if you want to support the Marvell PXA910-based
+	  TTC_DKB Development Board.
+
+config MACH_BROWNSTONE
+	bool "Marvell's Brownstone Development Platform"
+	depends on !CPU_MOHAWK
+	select CPU_MMP2
+	help
+	  Say 'Y' here if you want to support the Marvell MMP2-based
+	  Brown Development Platform.
+	  MMP2-based board can't be co-existed with PXA168-based &
+	  PXA910-based development board. Since MMP2 is compatible to
+	  ARMv7 architecture.
+
+config MACH_FLINT
+	bool "Marvell's Flint Development Platform"
+	depends on !CPU_MOHAWK
+	select CPU_MMP2
+	help
+	  Say 'Y' here if you want to support the Marvell MMP2-based
+	  Flint Development Platform.
+	  MMP2-based board can't be co-existed with PXA168-based &
+	  PXA910-based development board. Since MMP2 is compatible to
+	  ARMv7 architecture.
+
+config MACH_MARVELL_JASPER
+	bool "Marvell's Jasper Development Platform"
+	depends on !CPU_MOHAWK
+	select CPU_MMP2
+	help
+	  Say 'Y' here if you want to support the Marvell MMP2-base
+	  Jasper Development Platform.
+	  MMP2-based board can't be co-existed with PXA168-based &
+	  PXA910-based development board. Since MMP2 is compatible to
+	  ARMv7 architecture.
+
+config MACH_TETON_BGA
+	bool "Marvell's PXA168 Teton BGA Development Board"
+	select CPU_PXA168
+	help
+	  Say 'Y' here if you want to support the Marvell PXA168-based
+	  Teton BGA Development Board.
+
+config MACH_GPLUGD
+	bool "Marvell's PXA168 GuruPlug Display (gplugD) Board"
+	select CPU_PXA168
+	help
+	  Say 'Y' here if you want to support the Marvell PXA168-based
+	  GuruPlug Display (gplugD) Board
+
+config MACH_YELLOWSTONE
+	bool "Marvell's MMP3 YellowStone Development Board"
+	select CPU_MMP3
+	select HAVE_PWM
+	help
+	  Say 'Y' here if you want to support the Marvell MMP3-based
+	  YellowStone Development Board
+
+config MACH_MMP_DT
+	bool "Support MMP (ARMv5) platforms from device tree"
+	select CPU_PXA168
+	select CPU_PXA910
+	select USE_OF
+	help
+	  Include support for Marvell MMP2 based platforms using
+	  the device tree. Needn't select any other machine while
+	  MACH_MMP_DT is enabled.
+
+config MACH_MMP2_DT
+	bool "Support MMP2 (ARMv7) platforms from device tree"
+	depends on !CPU_MOHAWK
+	select CPU_MMP2
+	select USE_OF
+	help
+	  Include support for Marvell MMP2 based platforms using
+	  the device tree.
+
+config MACH_EMEIDKB
+	bool "Marvell's PXA988 Emei DKB Development Board"
+	select CPU_PXA988
+	select ARCH_NEEDS_CPU_IDLE_COUPLED
+	select HAVE_PWM
+	help
+	  Say 'Y' here if you want to support the Marvell PXA988-based
+	  EMEIDKB Development Board.
+	  EMEIDKB board is an evalutation board, not phone like.
+
+config MACH_ARUBA_TD
+	bool "Samsung's PXA988 ARUBA Development Board"
+	select CPU_PXA988
+	help
+	  Say 'Y' here if you want to support the Marvell PXA988-based
+	  ARUBA_TD Development Board.
+
+config MACH_WARUBA
+     bool "Samsung's PXA986 WARUBA Development Board"
+     select CPU_PXA988
+     help
+       Say 'Y' here if you want to support the Marvell PXA986-based
+       WARUBA Development Board.
+
+config MACH_HARRISON
+     bool "Samsung's PXA986 WARUBA Development Board"
+     select CPU_PXA988
+     select HAVE_PWM
+     help
+       Say 'Y' here if you want to support the Marvell PXA986-based
+       HARRISON Development Board.
+       
+ config MACH_LT02
+	bool "Samsung's PXA986 LT02 Development Board"
+	select CPU_PXA988
+	select HAVE_PWM
+	help
+		Say 'Y' here if you want to support the Marvell PXA986-based
+		LT02 Development Board.      
+
+config MACH_HELANDKB
+	bool "Marvell's PXA1088 Helan DKB Development Board"
+	select CPU_PXA1088
+	help
+	  Say 'Y' here if you want to support the Marvell PXA1088-based
+	  HELANDKB Development Board.
+	  HELANDKB board is an evalutation board, not phone like.
+
+config MACH_DELOS3GVIA
+	bool "Samsung's PXA1088 Helan DELOS Development Board"
+	select CPU_PXA1088
+	help
+	  Say 'Y' here if you want to support the Samsung PXA1088-based
+	  HELANDELOS Development Board.
+	  HELANDELOS board is an evalutation board, not phone like.
+	  
+config MACH_HELANDELOS
+	bool "Samsung's PXA1088 Helan DELOS Development Board"
+	select CPU_PXA1088
+	help
+	  Say 'Y' here if you want to support the Samsung PXA1088-based
+	  HELANDELOS Development Board.
+	  HELANDELOS board is an evalutation board, not phone like.
+
+config MACH_CS05
+	bool "Samsung's PXA1088 CS05 Development Board"
+	select CPU_PXA1088
+	help
+	  Say 'Y' here if you want to support the Samsung PXA1088-based
+	  CS05 Development Board.
+	  CS05 board is an evalutation board, not phone like.
+	  
+config CS05_CAMERA_REV02
+    bool "Samsung's PXA1088 CS05 Development Board"
+    select CPUX_PXA1088
+    help
+      Say 'Y' here if you want to support the Samsung PXA1088-based
+      CS05 Revision 02 Development Board for Camera.
+      CS05 board is an evalutation board, not phone like.
+
+config MACH_WILCOX
+	bool "Samsung's PXA1088 WILCOX Development Board"
+	select CPU_PXA1088
+	help
+	  Say 'Y' here if you want to support the Samsung PXA1088-based
+	  WILCOX Development Board.
+	  WILCOX board is an evalutation board, not phone like.
+
+config MACH_DEGAS
+	bool "Samsung's PXA1088 DEGAS Development Board"
+	select CPU_PXA1088
+	help
+	  Say 'Y' here if you want to support the Samsung PXA1088-based
+	  DEGAS Development Board.
+	  DEGAS board is an evalutation board, not phone like.	  
+
+config MACH_CT01
+	bool "Samsung's PXA1088 CT01 Development Board"
+	select CPU_PXA1088
+	help
+	  Say 'Y' here if you want to support the Samsung PXA1088-based
+	  CT01 Development Board.
+	  CT01 board is an evalutation board, not phone like.
+	  
+config MACH_WILCOX_CMCC
+	bool "Samsung's PXA1088 WILCOX Development Board"
+	select CPU_PXA1088
+	help
+	  Say 'Y' here if you want to support the Samsung PXA1088-based
+	  WILCOX Development Board.
+	  WILCOX board is an evalutation board, not phone like.
+	  
+config MACH_CS02
+	bool "Samsung's PXA986 CS02 Development Board"
+	select CPU_PXA988
+	select ARCH_NEEDS_CPU_IDLE_COUPLED
+	help
+	  Say 'Y' here if you want to support the Samsung PXA988-based
+	  CS02 Development Board.
+	  CS02 board is an evalutation board, not phone like.
+
+config MACH_GOLDEN
+	bool "Samsung's PXA986 GOLDEN Development Board"
+	select CPU_PXA988
+	select ARCH_NEEDS_CPU_IDLE_COUPLED
+	help
+	  Say 'Y' here if you want to support the Samsung PXA986-based
+	  GOLDEN Development Board.
+
+config MACH_GOYA
+	bool "Samsung's PXA986 GOYA Development Board"
+	select CPU_PXA988
+	select ARCH_NEEDS_CPU_IDLE_COUPLED
+	help
+	  Say 'Y' here if you want to support the Samsung PXA986-based
+	  GOYA Development Board.
+
+config MACH_GOYA_USA
+        bool "Samsung's PXA986 GOYA Development Board"
+        select CPU_PXA988
+        select ARCH_NEEDS_CPU_IDLE_COUPLED
+        help
+          Say 'Y' here if you want to support the Samsung PXA986-based
+          GOYA USA Development Board.
+	  
+config MACH_BAFFIN
+	bool "Samsung's PXA986 BAFFIN Development Board"
+	select CPU_PXA988
+	select ARCH_NEEDS_CPU_IDLE_COUPLED
+	help
+	  Say 'Y' here if you want to support the Samsung PXA1088-based
+	  BAFFIN Development Board.
+	  BAFFIN board is an evalutation board, not phone like.
+
+config MACH_BAFFINQ
+	bool "Samsung's PXA1088 BAFFIN Lite Development Board"
+	select CPU_PXA1088
+	help
+	  Say 'Y' here if you want to support the Samsung PXA1088-based
+	  BAFFIN Lite Development Board.
+	  BAFFIN Lite board is an evalutation board, not phone like.
+
+config MACH_BAFFINQ_CMCC
+	bool "Samsung's PXA1088 BAFFINQ Development Board"
+	select CPU_PXA1088
+	help
+	  Say 'Y' here if you want to support the Samsung PXA1088-based
+	  BAFFINQ Development Board.
+	  BAFFINQ board is an evalutation board, not phone like.
+
+config FAKE_SYSTEMOFF
+        bool "Marvell's MABOS support"
+        depends on SUSPEND
+        help
+	  MABOS: Marvell Android Bootup Optimization Solution
+	  It is used to support phone fast power on feature, this feature
+	  is based on system suspend.
+
+config MACH_EDEN_FPGA
+	bool "Marvell's EDEN FPGA Development Board"
+	select CPU_EDEN
+	help
+	  Say 'Y' here if you want to support the Marvell EDEN-based
+	  FPGA Board.
+
+config GIC_BYPASS
+	bool "Bypass GIC and use ICU as Primary Interrupt Controller"
+	depends on CPU_EDEN
+	help
+	  Say 'Y' here to use ICU as Primary Interrupt Controller
+
+endmenu
+
+menu "Samsung Product Features"
+config SAMSUNG_PRODUCT_SHIP
+        bool "set up for product for shipping"
+config SEC_DEBUG_LEVEL
+	int "set up debug level"
+	default 1
+endmenu
+
+config CPU_PXA168
+	bool
+	select CPU_MOHAWK
+	help
+	  Select code specific to PXA168
+
+config CPU_PXA910
+	bool
+	select CPU_MOHAWK
+	help
+	  Select code specific to PXA910
+
+config CPU_PXA988
+	bool
+	select CPU_CA9MP
+	select SOC_LOCAL_TIMERS
+	select MIGHT_HAVE_CACHE_L2X0
+	select ARCH_PROVIDES_UDELAY
+	select ARM_HAS_SG_CHAIN
+	select EOF_FC_WORKAROUND
+	select DISP_DFC
+	select CORESIGHT_SUPPORT
+	select BOOST_SUPPORT
+	select SMP_HARDLOCKUP_DETECTOR
+	help
+	  Say 'Y' here if you want to support the Marvell pxa988-base
+	  platforms.
+	  The PXA988 is an SoC with dual-core Cotex-A9 and comunication
+	  processor, code name "Emei".
+
+config CPU_PXA1088
+	bool
+	select CPU_CA7MP
+	select ARCH_PROVIDES_UDELAY
+	select ARM_HAS_SG_CHAIN
+	select EOF_FC_WORKAROUND
+	select DISP_DFC
+	select CORESIGHT_SUPPORT
+	select DDR_FC_HARDWARE
+	select BOOST_SUPPORT
+	select SMP_HARDLOCKUP_DETECTOR
+	help
+	  Say 'Y' here if you want to support the Marvell pxa1088-base
+	  platforms.
+	  The PXA1088 is an SoC with quad-core Cotex-A7 and comunication
+	  processor, code name "Helan".
+
+config CPU_MMP2
+	bool
+	select CPU_PJ4
+	help
+	  Select code specific to MMP2. MMP2 is ARMv7 compatible.
+
+config CPU_MMP3
+	bool
+	select CACHE_TAUROS3
+	select CPU_PJ4B
+	select ARM_GIC
+	select HAVE_SMP
+	select LOCAL_TIMERS if SMP
+	help
+	  Select code specific to MMP3. MMP3 is ARMv7 compatible, and support SMP.
+
+config CPU_EDEN
+	bool
+	select CPU_CA7MP
+	select ARCH_PROVIDES_UDELAY
+	select ARM_HAS_SG_CHAIN
+	help
+	  Support for EDEN processors based on the ARM Cortex-A7 MP CPU.
+	  Select code specific to EDEN
+
+config CPU_CA9MP
+	bool
+	select CPU_V7
+	select ARM_GIC
+	select HAVE_SMP
+	help
+	  Select code specific to Cortex A9
+
+config CPU_CA7MP
+	bool
+	select CPU_V7
+	select ARM_GIC
+	select HAVE_SMP
+	help
+	  Select code specific to Cortex A7
+
+config USB_EHCI_MV_U2O
+        bool "EHCI support for PXA USB OTG controller"
+	depends on USB_EHCI_MV
+	help
+	  Enables support for OTG controller which can be switched to host mode.
+
+config EOF_FC_WORKAROUND
+	bool
+	help
+	  Enables EOF workaround for DDR freq-change.
+
+config DISP_DFC
+	bool
+	help
+	  Enables display dynamic frequency change to avoid EMI.
+
+config CORE_1248
+	bool "Enable 1248M cpu frequency"
+	help
+	  Support 1248M PLL1 cpu frequency or not
+
+config DDR_FC_HARDWARE
+	bool
+	help
+	  Enables hw DFC in LCD V-Blank feature
+
+config CORESIGHT_SUPPORT
+	bool "support coresight features"
+	depends on CPU_PM
+	help
+	  Support coresight features such as dump pcsr, trigger panic etc.
+
+config CORESIGHT_TRACE_SUPPORT
+	bool "support save/restore coresight trace setting when enter/exit LPM"
+	depends on CPU_PM && CORESIGHT_SUPPORT
+	help
+	  Enables support save/restore coresight trace setting when enter/exit LPM.
+
+config APB_LOCALTIMER
+        bool "Provide localtimer support using apb timers"
+        help
+          Enables localtimer using apb timers
+
+config TZ_HYPERVISOR
+	bool "Enable TrustZone security feature"
+	help
+	  This option enables TrustZone security feature. With TrustZone
+	  enabled, the kernel will run under non-secure state and access
+	  secure resources via TZLC (TrustZone light calling).
+
+config BOOST_SUPPORT
+	bool "support touch boost feature"
+	help
+	  Enables support touch boost feature.
+
+choice
+	prompt "Support dynamic CPU Hotplug"
+	depends on HOTPLUG_CPU
+	default NO_HOTPLUG_POLICY
+
+config MMP_ORIGINAL_POLICY
+	bool "MMP dual core Hotplug policy"
+	depends on CPU_PXA988
+	help
+	  PM hotplug policy.
+	  This hotplug policy is first used policy on MMP platform.
+
+config STAND_ALONE_POLICY
+	bool "Stand alone CPU hotplug policy"
+	help
+	  PM hotplug policy.
+	  Enable to use pm hotplug, then it uses stand-hotplug.c file.
+	  Avg-load is calculated with both cpu frequency aspect
+	  and run queue status.
+
+config NO_HOTPLUG_POLICY
+	bool "NO automatic CPU hotplug policy"
+	help
+	  PM hotplug policy
+	  Do not select an automatic hotplug policy
+endchoice
+
+config SEC_MODEM
+	bool "Samsung Modem driver"
+
+if SEC_MODEM
+comment "Samsung Modem Feature"
+
+config SEC_MODEM_DELOS3GVIA
+	bool "PXA1088 with CBP82 PLD_SPI"
+
+config CDMA_MODEM_CBP82
+	bool "modem chip : VIA CBP8.2"
+
+config LINK_DEVICE_PLD
+	bool "modem driver link device PLD"
+
+config ONECHIP_DUAL_MODEM
+	bool "(AP+CP)+CP2"
+	default n
+endif
+
+endif
+
+comment "Debugging Feature"
+menuconfig SEC_DEBUG
+	bool "Samsung TN Ramdump Feature"
+	default y
+	help
+	  Samsung TN Ramdump Feature. Use INFORM3 and magic number at 0xc0000000.
+
+if SEC_DEBUG
+config SEC_DEBUG_SCHED_LOG
+	bool "Samsung Scheduler Logging Feature"
+	default n
+	help
+	  Samsung Scheduler Logging Feature for Debug use.
+
+config SEC_DEBUG_SOFTIRQ_LOG
+	bool "Samsung Softirq Logging Feature"
+	default n
+	depends on SEC_DEBUG_SCHED_LOG
+	help
+	  Samsung Softirq Logging Feature for Debug use.
+	  This option enables us to log softirq enter/exit.
+	  It is not only hard-irq which results in scheduler lockup,
+	  To be more clear we need to see also softirq logs.
+
+config SEC_DEBUG_TIMER_LOG
+	bool "Samsung Timer Logging Feature"
+	default n
+	help
+	  Samsung Timer Logging Feature for Debug use.
+
+config SEC_LOG
+	bool "Samsung log buffer"
+	default n
+endif
+
+comment "Samsung TN Power Management Options"
+menuconfig SEC_PM
+	bool "Samsung TN Power Management"
+	default n
+	help
+		Samsung TN Power Management.
+
+if SEC_PM
+config SEC_PM_DEBUG
+	bool "Enable Samsung TN Power Management debug support"
+	default n
+	help
+		Enable Samsung TN Power Management debug support.
+endif
+
+config SEC_THERMISTOR
+	bool "Use external thermistor with ADC"
+	depends on CPU_PXA1088
+	default n
+	help
+	  Use thermistor driver to check system temperature
+
+config SEC_THERMISTOR
+	bool "Use external thermistor with ADC"
+	depends on CPU_PXA988
+	default n
+	help
+	  Use thermistor driver to check system temperature
+
+config SEC_TEMP_BOARD
+	bool "Use TEMP_BOARD thermistor"
+	default n
+	depends on SEC_THERMISTOR
+	help
+	  Use TEMP_BOARD thermistor instead of TEMP_RF for temperature
+
+#
+# Near Field Communication (NFC) devices
+#
+
+config NFC_PN544
+        bool "NXP PN544 NFC Controller Driver"
+        default n
+        help
+          NXP PN544 Near Field Communication controller support.
+          This option enables device driver support for the NFC.
+          It is used by many services. NFC is fully controlled using I2C
+          to communicate the AP chip.
+
+config NFC_PN547
+        bool "NXP PN547 NFC Controller Driver"
+        default n
+        help
+          NXP PN547 Near Field Communication controller support.
+          This option enables device driver support for the NFC.
+          It is used by many services. NFC is fully controlled using I2C
+          to communicate the AP chip.
+          
+config GOYA_BD_00
+	bool "GOYA Galaxy tap3 rev00 common Board"
+	default n
+
+config GOYA_BD_01
+	bool "GOYA Galaxy tap3 common Board"
+	default n
+
+config GOYA_WIFI
+	bool "GOYA Galaxy tap3 WIFI Board"
+	default n	
+
+config CS05_BD_00
+	bool "SM-G3858 Lumiere rev00 board"
+	default n
+
+config CS05_BD_02
+	bool "SM-G3858 Lumiere rev02 board"
+	default n

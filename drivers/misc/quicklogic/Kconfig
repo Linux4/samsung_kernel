@@ -1,0 +1,10 @@
+#
+# Mobile Quick logic bridge configuration
+config QUICKLOGIC_BRIDGE
+	boolean "QUICKLOGIC BRIDGE chip"
+	depends on I2C && I2C_PXA
+	default n
+	help
+	  If you say yes here, you support for it.
+
+	  This driver can NOT be built as a module.

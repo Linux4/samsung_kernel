@@ -1,0 +1,10 @@
+#
+# Mobile Projector driver configuration
+#
+config USE_DPP2601
+	tristate "TI DPP2601 projector"
+	default n
+	help
+	This option enables TI DPP2601 projector driver
+	select Y to build it into the kernel
+	select N to disable it
