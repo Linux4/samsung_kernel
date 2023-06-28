@@ -906,6 +906,9 @@ int wiphy_register(struct wiphy *wiphy)
 		return res;
 	}
 
+	/* set up regulatory info */
+	wiphy_regulatory_register(wiphy);
+
 	list_add_rcu(&rdev->list, &cfg80211_rdev_list);
 	cfg80211_rdev_list_generation++;
 
@@ -915,9 +918,6 @@ int wiphy_register(struct wiphy *wiphy)
 
 	cfg80211_debugfs_rdev_add(rdev);
 	nl80211_notify_wiphy(rdev, NL80211_CMD_NEW_WIPHY);
-
-	/* set up regulatory info */
-	wiphy_regulatory_register(wiphy);
 
 	if (wiphy->regulatory_flags & REGULATORY_CUSTOM_REG) {
 		struct regulatory_request request;
