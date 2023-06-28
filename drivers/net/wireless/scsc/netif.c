@@ -405,6 +405,9 @@ static int slsi_net_open(struct net_device *dev)
 	}
 	SLSI_NET_INFO(dev, "ifnum:%d r:%d MAC:" MACSTR "\n", ndev_vif->ifnum, sdev->recovery_status, MAC2STR(dev->dev_addr));
 	ndev_vif->is_available = true;
+	if (ndev_vif->ifnum < SLSI_NAN_DATA_IFINDEX_START) {
+		netif_carrier_on(dev);
+	}
 	sdev->netdev_up_count++;
 
 #ifndef CONFIG_ARM
@@ -490,6 +493,7 @@ static struct net_device_stats *slsi_net_get_stats(struct net_device *dev)
 	return &ndev_vif->stats;
 }
 
+#ifndef CONFIG_WLBT_WARN_ON
 static void slsi_netif_show_stats(struct net_device *dev)
 {
 	struct net_device_stats *stats;
@@ -525,6 +529,7 @@ static void slsi_net_tx_timeout(struct net_device *dev)
 
 	slsi_netif_show_stats(dev);
 }
+#endif
 
 #ifdef CONFIG_SCSC_USE_WMM_TOS
 u16 slsi_get_priority_from_tos(u8 *frame, u16 proto)
@@ -1292,7 +1297,9 @@ static const struct net_device_ops slsi_netdev_ops = {
 	.ndo_stop         = slsi_net_stop,
 	.ndo_start_xmit   = slsi_net_hw_xmit,
 	.ndo_do_ioctl     = slsi_net_ioctl,
+#ifndef CONFIG_WLBT_WARN_ON
 	.ndo_tx_timeout   = slsi_net_tx_timeout,
+#endif
 	.ndo_get_stats    = slsi_net_get_stats,
 #ifdef CONFIG_SCSC_WLAN_TX_API
 	.ndo_select_queue = slsi_tx_select_queue,
@@ -1313,7 +1320,9 @@ static void slsi_if_setup(struct net_device *dev)
 #else
 	dev->destructor = free_netdev;
 #endif
+#ifndef CONFIG_WLBT_WARN_ON
 	dev->watchdog_timeo = SLSI_TX_TIMEOUT;
+#endif
 #ifdef CONFIG_SCSC_WLAN_TX_API
 	slsi_tx_setup_net_device(dev);
 #endif

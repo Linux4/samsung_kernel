@@ -1180,8 +1180,15 @@ static int rt5665_hp_vol_put(struct snd_kcontrol *kcontrol,
 	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
 	struct rt5665_priv *rt5665 = snd_soc_component_get_drvdata(component);
 	struct snd_soc_dapm_context *dapm = &component->dapm;
+	struct soc_mixer_control *mc =
+		(struct soc_mixer_control *)kcontrol->private_value;
 	int reg05, reg06;
 	int ret;
+
+	/*  Modified in case the value is set higher than max value */ 
+	/*  For AND operation, MAX values can only be applied to 0xf and 0x1f */ 
+	ucontrol->value.integer.value[0] &= mc->max;
+	ucontrol->value.integer.value[1] &= mc->max;
 
 	snd_soc_dapm_mutex_lock(dapm);
 
@@ -1216,7 +1223,16 @@ static int rt5665_mono_vol_put(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
-	int ret = snd_soc_put_volsw(kcontrol, ucontrol);
+	struct soc_mixer_control *mc =
+		(struct soc_mixer_control *)kcontrol->private_value;
+	int ret;
+
+	/*  Modified in case the value is set higher than max value */ 
+	/*  For AND operation, MAX values can only be applied to 0xf and 0x1f */ 
+	ucontrol->value.integer.value[0] &= mc->max;
+	ucontrol->value.integer.value[1] &= mc->max;
+
+	ret = snd_soc_put_volsw(kcontrol, ucontrol);
 
 	if (snd_soc_component_read(component, RT5665_MONO_NG2_CTRL_1) & RT5665_NG2_EN) {
 		snd_soc_component_update_bits(component, RT5665_MONO_NG2_CTRL_1,

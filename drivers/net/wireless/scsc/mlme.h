@@ -165,10 +165,14 @@ struct slsi_mlme_pkt_filter_elem {
 #define SLSI_MLME_SAMSUNG_OUI		0x001632
 #define SLSI_MLME_TYPE_SCAN_PARAM	0x01
 #define SLSI_MLME_PARAM_HEADER_SIZE	5
+#define SLSI_MLME_TYPE_FILS_ASSOC_IES	0x0b
+#define SLSI_MLME_TYPE_IP 0x03
+#define SLSI_MLME_TYPE_MAC_ADDRESS	0x0b
 
 #define SLSI_MLME_SUBTYPE_SCAN_TIMING  0x1
 #define SLSI_MLME_SUBTYPE_CHANNEL_LIST 0x2
 #define SLSI_MLME_SUBTYPE_SSID_FILTER  0x4
+#define SLSI_MLME_SUBTYPE_RESERVED 0x00
 
 struct slsi_mlme_parameters {
 	u8 element_id;

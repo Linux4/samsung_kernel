@@ -20,6 +20,7 @@
 #include "log2us.h"
 #include "ba.h"
 #include <scsc/scsc_warn.h>
+#include "tdls_manager.h"
 
 #ifdef CONFIG_SCSC_WLAN_ANDROID
 #include "scsc_wifilogger_rings.h"
@@ -1742,7 +1743,7 @@ int slsi_get_channel(struct wiphy *wiphy, struct wireless_dev *wdev,
 	int freq = 0;
 	int width = 0;
 	int r = 0;
-	
+
 	if (ndev_vif->sta.vif_status != SLSI_VIF_STATUS_CONNECTED)
 		return -ENODATA;
 
@@ -1750,20 +1751,20 @@ int slsi_get_channel(struct wiphy *wiphy, struct wireless_dev *wdev,
 	freq = ndev_vif->sta.bss_cf;
 	width = ndev_vif->sta.ch_width;
 
-	if (width == 20){
+	if (width == 20) {
 		width = NL80211_CHAN_WIDTH_20;
 		if (freq != ndev_vif->chan->center_freq) {
 			r = -EINVAL;
 			goto exit;
 		}
-	} else if (width == 40){
+	} else if (width == 40) {
 		width =  NL80211_CHAN_WIDTH_40;
 		if (freq != ndev_vif->chan->center_freq + 10 &&
 		    freq != ndev_vif->chan->center_freq - 10) {
 			r = -EINVAL;
 			goto exit;
 		}
-	} else if (width == 80){
+	} else if (width == 80) {
 		width =  NL80211_CHAN_WIDTH_80;
 		if (freq != ndev_vif->chan->center_freq + 30 &&
 		    freq != ndev_vif->chan->center_freq + 10 &&
@@ -1772,7 +1773,7 @@ int slsi_get_channel(struct wiphy *wiphy, struct wireless_dev *wdev,
 			r = -EINVAL;
 			goto exit;
 		}
-	} else if (width == 160){
+	} else if (width == 160) {
 		width =  NL80211_CHAN_WIDTH_160;
 		if (freq != ndev_vif->chan->center_freq + 70 &&
 		    freq != ndev_vif->chan->center_freq + 50 &&
@@ -1794,6 +1795,7 @@ int slsi_get_channel(struct wiphy *wiphy, struct wireless_dev *wdev,
 	chandef->center_freq2 = 0;
 exit:
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+
 	return r;
 }
 
@@ -1986,46 +1988,6 @@ int slsi_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
 		r = 0;
 	}
 
-	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
-	return r;
-}
-
-int slsi_tdls_oper(struct wiphy *wiphy, struct net_device *dev, const u8 *peer, enum nl80211_tdls_operation oper)
-{
-	struct slsi_dev   *sdev = SDEV_FROM_WIPHY(wiphy);
-	struct netdev_vif *ndev_vif = netdev_priv(dev);
-	int               r = 0;
-
-	SLSI_NET_DBG3(dev, SLSI_CFG80211, "oper:%d, vif_type:%d, vif_index:%d\n", oper, ndev_vif->vif_type,
-		      ndev_vif->ifnum);
-
-	if (!(wiphy->flags & WIPHY_FLAG_SUPPORTS_TDLS))
-		return -ENOTSUPP;
-
-	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
-
-	if (!ndev_vif->activated || SLSI_IS_VIF_INDEX_P2P_GROUP(sdev, ndev_vif) ||
-	    ndev_vif->sta.vif_status != SLSI_VIF_STATUS_CONNECTED) {
-		r = -ENOTSUPP;
-		goto exit;
-	}
-
-	switch (oper) {
-	case NL80211_TDLS_DISCOVERY_REQ:
-		SLSI_NET_DBG1(dev, SLSI_CFG80211, "NL80211_TDLS_DISCOVERY_REQ\n");
-		r = slsi_mlme_tdls_action(sdev, dev, peer, FAPI_TDLSACTION_DISCOVERY);
-		break;
-	case NL80211_TDLS_SETUP:
-		r = slsi_mlme_tdls_action(sdev, dev, peer, FAPI_TDLSACTION_FORCED_SETUP);
-		break;
-	case NL80211_TDLS_TEARDOWN:
-		r = slsi_mlme_tdls_action(sdev, dev, peer, FAPI_TDLSACTION_TEARDOWN);
-		break;
-	default:
-		r = -EOPNOTSUPP;
-		goto exit;
-	}
-exit:
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	return r;
 }
@@ -3880,7 +3842,7 @@ static struct cfg80211_ops slsi_ops = {
 	.set_mac_acl = slsi_set_mac_acl,
 #endif
 	.update_ft_ies = slsi_update_ft_ies,
-	.tdls_oper = slsi_tdls_oper,
+	.tdls_oper = slsi_tdls_manager_oper,
 	.set_monitor_channel = slsi_set_monitor_channel,
 	.set_qos_map = slsi_set_qos_map,
 	.channel_switch = slsi_channel_switch

@@ -14,6 +14,7 @@
 #include "traffic_monitor.h"
 #include "scsc_wifilogger_ring_pktfate_api.h"
 #include "log2us.h"
+#include "tdls_manager.h"
 
 static bool msdu_enable = true;
 module_param(msdu_enable, bool, S_IRUGO | S_IWUSR);
@@ -473,6 +474,11 @@ int slsi_tx_data(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *
 
 		if (is_multicast_ether_addr(eth_hdr(skb)->h_dest)) {
 			SLSI_NET_DBG1(dev, SLSI_TX, "multicast on NAN interface: Source=%pM\n", eth_hdr(skb)->h_source);
+			/* TODO: group option will be added to next fapi.xml.
+			 * Until then, set configuration_option for NAN multicast with 0x0010
+			 */
+			fapi_set_u16(skb, u.ma_unitdata_req.configuration_option,
+				     FAPI_OPTION_INLINE | 0x0010);
 			/**
 			 * The driver shall send (duplicate) frames to all VIFs that
 			 * have the same source address (SA).  i.e. find other peers on same
@@ -494,10 +500,15 @@ int slsi_tx_data(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *
 					fapi_set_u16(duplicate_skb, u.ma_unitdata_req.vif, ndev_vif->peer_sta_record[i]->ndl_vif);
 
 					if (!ndev_vif->peer_sta_record[i]->qos_enabled)
-						fapi_set_u16(duplicate_skb, u.ma_unitdata_req.flow_id, ((FAPI_PRIORITY_CONTENTION >> 8) & 0xff) | ((ndev_vif->peer_sta_record[i]->aid << 8) & 0xff00));
+						fapi_set_u16(duplicate_skb, u.ma_unitdata_req.flow_id,
+									((FAPI_PRIORITY_CONTENTION >> 8) & 0xff) |
+									(ndev_vif->peer_sta_record[i]->flow_id & 0xff00));
 					else
-						fapi_set_u16(duplicate_skb, u.ma_unitdata_req.flow_id, (duplicate_skb->priority & 0xff) | ((ndev_vif->peer_sta_record[i]->aid << 8) & 0xff00));
-					fapi_set_memcpy(duplicate_skb, u.ma_unitdata_req.address, ndev_vif->nan.cluster_id);
+						fapi_set_u16(duplicate_skb, u.ma_unitdata_req.flow_id,
+									(duplicate_skb->priority & 0xff) |
+									(ndev_vif->peer_sta_record[i]->flow_id & 0xff00));
+
+					fapi_set_memcpy(duplicate_skb, u.ma_unitdata_req.address, sdev->nan_cluster_id);
 					/* overwrite the multicast destination address with that of Peer */
 					ether_addr_copy(eth_hdr(duplicate_skb)->h_dest, ndev_vif->peer_sta_record[i]->address);
 
@@ -540,9 +551,12 @@ int slsi_tx_data(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *
 	slsi_debug_frame(sdev, dev, skb, "TX");
 
 	if (!peer->qos_enabled)
-		fapi_set_u16(skb, u.ma_unitdata_req.flow_id, ((FAPI_PRIORITY_CONTENTION >> 8) & 0xff) | ((peer->aid << 8) & 0xff00));
+		fapi_set_u16(skb, u.ma_unitdata_req.flow_id,
+					((FAPI_PRIORITY_CONTENTION >> 8) & 0xff) |
+					(peer->flow_id & 0xff00));
 	else
-		fapi_set_u16(skb, u.ma_unitdata_req.flow_id, (skb->priority & 0xff) | ((peer->aid << 8) & 0xff00));
+		fapi_set_u16(skb, u.ma_unitdata_req.flow_id,
+					(skb->priority & 0xff) | (peer->flow_id & 0xff00));
 
 	if (ndev_vif->vif_type == FAPI_VIFTYPE_STATION) {
 		if (ndev_vif->sta.tdls_enabled && slsi_is_tdls_peer(dev, peer))
@@ -553,7 +567,7 @@ int slsi_tx_data(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *
 		fapi_set_memcpy(skb, u.ma_unitdata_req.address, eth_hdr(skb)->h_source);
 #ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
 	else if (ndev_vif->ifnum >= SLSI_NAN_DATA_IFINDEX_START)
-		fapi_set_memcpy(skb, u.ma_unitdata_req.address, ndev_vif->nan.cluster_id);
+		fapi_set_memcpy(skb, u.ma_unitdata_req.address, sdev->nan_cluster_id);
 #endif
 
 	ret = scsc_wifi_fcq_transmit_data(dev, &peer->data_qs,
@@ -570,7 +584,9 @@ int slsi_tx_data(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *
 	/* SKB is owned by scsc_wifi_transmit_frame() unless the transmission is
 	 * unsuccesful.
 	 */
+
 	slsi_traffic_mon_event_tx(sdev, dev, skb);
+	slsi_tdls_manager_event_tx(sdev, dev, skb, slsi_frame_priority_to_ac_queue(skb->priority));
 	ret = scsc_wifi_transmit_frame(&sdev->hip4_inst, skb, false, vif_index, peer_index, slsi_frame_priority_to_ac_queue(skb->priority));
 	if (ret != NETDEV_TX_OK) {
 		/* scsc_wifi_transmit_frame failed, decrement BoT counters */

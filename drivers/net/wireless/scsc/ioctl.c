@@ -190,6 +190,8 @@
 #define CMD_ROAMING_BLACKLIST_ADD    "ROAMING_BLACKLIST_ADD"
 #define CMD_ROAMING_BLACKLIST_REMOVE "ROAMING_BLACKLIST_REMOVE"
 
+#define CMD_GET_TDLS_MAX_SESSION	"GET_TDLS_MAX_SESSION"
+
 #define ROAMOFFLAPLIST_MIN 1
 #define ROAMOFFLAPLIST_MAX 100
 
@@ -5868,6 +5870,19 @@ struct slsi_ioctl_fn {
 	int (*fn)(struct net_device *dev, char *command, int cmd_len);
 };
 
+static int slsi_get_tdls_max_session(struct net_device *dev, char *command, int buf_len)
+{
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	int               len = 0;
+
+	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+	len = snprintf(command, buf_len, "%s %d", CMD_GET_TDLS_MAX_SESSION,
+		       ndev_vif->sta.tdls_max_peer);
+	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+
+	return len;
+}
+
 static const struct slsi_ioctl_fn slsi_ioctl_fn_table[] = {
 	{ CMD_SETSUSPENDMODE,               slsi_set_suspend_mode },
 	{ CMD_SETJOINPREFER,                slsi_update_rssi_boost },
@@ -6020,7 +6035,8 @@ static const struct slsi_ioctl_fn slsi_ioctl_fn_table[] = {
 	{ CMD_MAX_DTIM_IN_SUSPEND,          slsi_max_dtim_suspend },
 	{ CMD_FORCE_ROAMING_BSSID,          slsi_force_roaming_bssid },
 	{ CMD_ROAMING_BLACKLIST_ADD,        slsi_roaming_blacklist_add },
-	{ CMD_ROAMING_BLACKLIST_REMOVE,     slsi_roaming_blacklist_remove }
+	{ CMD_ROAMING_BLACKLIST_REMOVE,     slsi_roaming_blacklist_remove },
+	{ CMD_GET_TDLS_MAX_SESSION,          slsi_get_tdls_max_session},
 };
 
 static int slsi_ioctl_fn_lookup(char *command, int len)
