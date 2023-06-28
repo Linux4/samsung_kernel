@@ -1858,7 +1858,7 @@ int vl53l8_ldo_onoff(struct vl53l8_k_module_t *data, int io, bool on)
 	vl53l8_k_log_info("%d %s\n", io, on ? "on" : "off");
 
 	if (io == AVDD) {
-		if (data->iovdd_vreg_name) {
+		if (data->avdd_vreg_name) {
 			if (data->avdd_vreg == NULL) {
 				vl53l8_k_log_error("avdd is null\n");
 
@@ -1935,6 +1935,48 @@ int vl53l8_ldo_onoff(struct vl53l8_k_module_t *data, int io, bool on)
 			}
 		} else
 			vl53l8_k_log_info("vdd_vreg err\n");
+#ifdef CONFIG_SEPERATE_IO_CORE_POWER
+	} else if (io == COREVDD) {
+		if (data->corevdd_vreg_name) {
+			if (data->corevdd_vreg == NULL) {
+				vl53l8_k_log_error("corevdd is null\n");
+
+				data->corevdd_vreg = regulator_get(&data->spi_info.device->dev, data->corevdd_vreg_name);
+				if (IS_ERR(data->corevdd_vreg)) {
+					data->corevdd_vreg = NULL;
+					vl53l8_k_log_error("failed corevdd %s\n", data->corevdd_vreg_name);
+				}
+			}
+		}
+
+		if (data->corevdd_vreg) {
+			voltage = regulator_get_voltage(data->corevdd_vreg);
+			reg_enabled = regulator_is_enabled(data->corevdd_vreg);
+			vl53l8_k_log_info("corevdd reg_enabled=%d voltage=%d\n", reg_enabled, voltage);
+
+			if (on) {
+				if (reg_enabled == 0) {
+					vl53l8_k_log_info("corevdd on\n");
+					ret = regulator_enable(data->corevdd_vreg);
+					if (ret) {
+						vl53l8_k_log_error("corevdd enable err\n");
+						return ret;
+					}
+				}
+			} else {
+				if (reg_enabled == 1) {
+					vl53l8_k_log_info("corevdd off\n");
+					ret = regulator_disable(data->corevdd_vreg);
+					if (ret) {
+						vl53l8_k_log_error("corevdd disable err\n");
+						return ret;
+					}
+				}
+			}
+		}
+		else
+			vl53l8_k_log_info("vdd_vreg err\n");
+#endif 
 	} else {
 		vl53l8_k_log_info("wrong io %d\n", io);
 	}
@@ -1951,7 +1993,9 @@ void vl53l8_power_onoff(struct vl53l8_k_module_t *p_module, bool on)
 
 	vl53l8_ldo_onoff(p_module, IOVDD, on);
 	vl53l8_ldo_onoff(p_module, AVDD, on);
-
+#ifdef CONFIG_SEPERATE_IO_CORE_POWER
+	vl53l8_ldo_onoff(p_module, COREVDD, on);
+#endif
 	if (on) {
 		usleep_range(1000, 1100);
 		p_module->stdev.host_dev.p_fw_buff = NULL;

@@ -85,6 +85,7 @@ static struct of_device_id vl53l8_k_match_table[] = {
 #ifdef CONFIG_SENSORS_VL53L8_SLSI
 extern int sensors_register(struct device *dev, void *drvdata,
 	struct device_attribute *attributes[], char *name);
+extern int sensordump_notifier_register(struct notifier_block *nb);
 #endif
 
 #define TEST_300_MM_MAX_ZONE 64
@@ -436,6 +437,13 @@ static int vl53l8_parse_dt(struct device *dev,
 			"The GPIO setting of comms select is not configured.");
 #endif
 #ifdef STM_VL53L5_SUPPORT_SEC_CODE
+#ifdef CONFIG_SEPERATE_IO_CORE_POWER
+	if (of_property_read_string_index(np, "stm,core_vdd", 0,
+			(const char **)&p_module->corevdd_vreg_name)) {
+		p_module->corevdd_vreg_name = NULL;
+	}
+	vl53l8_k_log_info("%s core_vdd %s\n", __func__, p_module->corevdd_vreg_name);
+#endif
 	if (of_property_read_string_index(np, "stm,io_vdd", 0,
 			(const char **)&p_module->iovdd_vreg_name)) {
 		p_module->iovdd_vreg_name = NULL;
@@ -1711,7 +1719,24 @@ static ssize_t vl53l8_status_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct vl53l8_k_module_t *p_module = dev_get_drvdata(dev);
-	return snprintf(buf, PAGE_SIZE, "%d\n", p_module->last_driver_error);
+	return snprintf(buf, PAGE_SIZE, "\"RS_REASON\":\"%d\"\n", p_module->last_driver_error);
+}
+
+static ssize_t vl53l8_interrupt_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct vl53l8_k_module_t *p_module = dev_get_drvdata(dev);
+	int count = 0;
+
+	while ((p_module->range.count == 0) && (count < MAX_READ_COUNT)) {
+		usleep_range(10000, 10100);
+		++count;
+	}
+
+	if (p_module->range.count > 0)
+		return snprintf(buf, PAGE_SIZE, "Pass,%lu\n", p_module->range.count);
+	else
+		return snprintf(buf, PAGE_SIZE, "Fail,%lu\n", p_module->range.count);
 }
 #endif
 
@@ -1741,6 +1766,7 @@ static DEVICE_ATTR(asz, 0660, vl53l8_asz_tuning_show, vl53l8_asz_tuning_store);
 static DEVICE_ATTR(ranging_rate, 0660, vl53l8_ranging_rate_show, vl53l8_ranging_rate_store);
 static DEVICE_ATTR(integration, 0660, vl53l8_integration_show, vl53l8_integration_store);
 static DEVICE_ATTR(spi_clock_speed_hz, 0220, NULL, vl53l8_spi_clock_speed_hz);
+static DEVICE_ATTR(interrupt, 0440, vl53l8_interrupt_show, NULL);
 #endif
 
 // Samsung specific code 
@@ -1771,6 +1797,7 @@ static struct device_attribute *sensor_attrs[] = {
 	&dev_attr_asz,
 	&dev_attr_integration,
 	&dev_attr_spi_clock_speed_hz,
+	&dev_attr_interrupt,
 	NULL,
 };
 
@@ -1958,7 +1985,11 @@ done_freemem:
 	return status;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+void vl53l8_k_spi_remove(struct spi_device *device)
+#else
 int vl53l8_k_spi_remove(struct spi_device *device)
+#endif
 {
 	int status = 0;
 	struct vl53l8_k_module_t *p_module = spi_get_drvdata(device);
@@ -1972,7 +2003,11 @@ int vl53l8_k_spi_remove(struct spi_device *device)
 
 	LOG_FUNCTION_END(status);
 	status = vl53l8_k_convert_error_to_linux_error(status);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	return;
+#else
 	return status;
+#endif
 }
 
 #ifdef STM_VL53L5_SUPPORT_SEC_CODE

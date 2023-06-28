@@ -17,6 +17,7 @@ CONFIG_SAMSUNG_DEBUG_SENSOR_I2C := y
 CONFIG_SAMSUNG_DEBUG_SENSOR_FPS := y
 CONFIG_SAMSUNG_DEBUG_HW_INFO := y
 CONFIG_CAMERA_HYPERLAPSE_300X := y
+CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING_REC := y
 endif
 
 ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),dm1q))
@@ -47,7 +48,7 @@ endif
 
 ifneq ($(filter jpn%, $(PROJECT_REGION)),)
 CONFIG_FLASH_CURRENT_JAPAN := y
-else ifeq ($(PROJECT_REGION), $(filter $(PROJECT_REGION),jpn_dcmw jpn_kdiw jpn_rktw))
+else ifeq ($(PROJECT_REGION), $(filter $(PROJECT_REGION),jpn_dcmw jpn_kdiw jpn_rktw jpn_openw))
 CONFIG_FLASH_CURRENT_JAPAN := y
 endif
 
@@ -75,6 +76,7 @@ ccflags-y += -DCONFIG_SAMSUNG_DEBUG_SENSOR_I2C=1
 ccflags-y += -DCONFIG_SAMSUNG_DEBUG_SENSOR_FPS=1
 ccflags-y += -DCONFIG_SAMSUNG_DEBUG_HW_INFO=1
 ccflags-y += -DCONFIG_CAMERA_HYPERLAPSE_300X=1
+ccflags-y += -DCONFIG_SAMSUNG_DEBUG_SENSOR_TIMING_REC=1
 endif
 
 ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),dm1q))
@@ -107,7 +109,7 @@ endif
 
 ifneq ($(filter jpn%, $(PROJECT_REGION)),)
 ccflags-y += -DCONFIG_FLASH_CURRENT_JAPAN=1
-else ifeq ($(PROJECT_REGION), $(filter $(PROJECT_REGION),jpn_dcmw jpn_kdiw jpn_rktw))
+else ifeq ($(PROJECT_REGION), $(filter $(PROJECT_REGION),jpn_dcmw jpn_kdiw jpn_rktw jpn_openw))
 ccflags-y += -DCONFIG_FLASH_CURRENT_JAPAN=1
 endif
 

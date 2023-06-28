@@ -33,3 +33,8 @@ config SENSORS_VL53L8_SLSI
 	help
 	  VL53L8 ranging sensor feature for Exynos AP.
 
+config SEPERATE_IO_CORE_POWER
+	tristate "VL53L8 ranging sensor feature for IO/CORE Power source"
+	default n
+	help
+	  This option enables IO and CORE power separation.

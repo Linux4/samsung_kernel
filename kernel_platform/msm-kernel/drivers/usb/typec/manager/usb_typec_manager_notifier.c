@@ -13,7 +13,9 @@
 #include <linux/of.h>
 #include <linux/slab.h>
 #include <linux/device.h>
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 #include <linux/sec_class.h>
+#endif
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 #include <linux/vbus_notifier.h>
 #endif
@@ -777,6 +779,12 @@ __visible_for_testing int manager_handle_pdic_notification(struct notifier_block
 	switch (p_noti.id) {
 	case PDIC_NOTIFY_ID_POWER_STATUS:
 		if (p_noti.sub1 && !typec_manager.pd_con_state) {
+#if IS_ENABLED(CONFIG_MTK_CHARGER)
+			if (!typec_manager.pdic_attach_state) {
+				pr_err("%s: PD event is invalid in cc detach state", __func__);
+				return 0;
+			}
+#endif
 			typec_manager.pd_con_state = 1;
 #ifdef CONFIG_USB_NOTIFY_PROC_LOG
 			store_usblog_notify(NOTIFY_MANAGER, (void *)&p_noti, NULL);
@@ -1157,7 +1165,7 @@ __visible_for_testing int manager_handle_vbus_notification(struct notifier_block
 		break;
 	case STATUS_VBUS_LOW:
 		typec_manager.vbus_by_otg_detection = 0;
-		if (typec_manager.water.wVbus_det)
+		if (typec_manager.water.detected)
 			manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_BATT,
 				PDIC_NOTIFY_ID_ATTACH, PDIC_NOTIFY_DETACH, 0, typec_manager.water.report_type);
 		manager_event_processing_by_vbus(true);
@@ -1407,11 +1415,8 @@ int manager_notifier_unregister(struct notifier_block *nb)
 }
 EXPORT_SYMBOL(manager_notifier_unregister);
 
-static int manger_handle_notification_init(void)
+static int manager_handle_notification_init(void)
 {
-	usb_external_notify_register(&typec_manager.manager_external_notifier_nb,
-		manager_external_notifier_notification, EXTERNAL_NOTIFY_DEV_MANAGER);
-
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 	if (!(typec_manager.confirm_notifier_register & VBUS_NOTIFIER))
 		if (!vbus_notifier_register(&typec_manager.vbus_nb,
@@ -1449,7 +1454,7 @@ static int manger_handle_notification_init(void)
 static void delayed_manger_notifier_init(struct work_struct *work)
 {
 	pr_info("%s : %d = times!\n", __func__, typec_manager.notifier_register_try_count);
-	if (manger_handle_notification_init()) {
+	if (manager_handle_notification_init()) {
 		if (typec_manager.notifier_register_try_count != NOTIFIER_REG_RETRY_COUNT)
 			schedule_delayed_work(&typec_manager.manager_init_work,
 				msecs_to_jiffies(NOTIFIER_REG_RETRY_TIME));
@@ -1603,7 +1608,10 @@ static int manager_notifier_init(void)
 
 	mutex_init(&typec_manager.mo_lock);
 
-	if (manger_handle_notification_init())
+	usb_external_notify_register(&typec_manager.manager_external_notifier_nb,
+		manager_external_notifier_notification, EXTERNAL_NOTIFY_DEV_MANAGER);
+
+	if (manager_handle_notification_init())
 		schedule_delayed_work(&typec_manager.manager_init_work,
 			msecs_to_jiffies(NOTIFIER_REG_RETRY_TIME));
 

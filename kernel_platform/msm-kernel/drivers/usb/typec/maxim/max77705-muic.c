@@ -1679,9 +1679,17 @@ muic_attached_dev_t max77705_muic_check_new_dev(struct max77705_muic_data *muic_
 
 #if IS_ENABLED(CONFIG_MUIC_MAX77705_PDIC)
 	adc = max77705_muic_update_adc_with_rid(muic_data, adc);
-	/* Do not check vbus if CCIC RID is 523K */
-	if ((muic_data->pdata->opmode & OPMODE_PDIC) && (adc == MAX77705_UIADC_523K))
-		vbvolt = 0;
+	/* Do not check vbus if CCIC RID/UID is 523K */
+	if (muic_data->mfd_pdata->siso_ovp) {
+		if (adc == MAX77705_UIADC_523K) {
+			chgtyp = 0;
+			spchgtyp = 0;
+			vbvolt = 0;
+		}
+	} else {
+		if ((muic_data->pdata->opmode & OPMODE_PDIC) && (adc == MAX77705_UIADC_523K))
+			vbvolt = 0;
+	}
 #endif /* CONFIG_MUIC_MAX77705_PDIC */
 
 	for (i = 0; i < (int)ARRAY_SIZE(muic_vps_table); i++) {

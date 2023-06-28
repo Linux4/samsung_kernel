@@ -80,9 +80,11 @@ static int cs35l43_regmap_read(struct cs35l43_private *cs35l43,
 
 	do {
 		ret = regmap_read(cs35l43->regmap, reg, val);
-		if (ret)
+		if (ret) {
 			dev_err(cs35l43->dev, "%s: reg = 0x%x, ret = %d\n",
 						__func__, reg, ret);
+			usleep_range(1000, 1100);
+		}
 	} while (ret && retry-- > 0);
 
 	if (retry == 0) {
@@ -101,9 +103,11 @@ static int cs35l43_regmap_bulk_read(struct cs35l43_private *cs35l43,
 
 	do {
 		ret = regmap_bulk_read(cs35l43->regmap, reg, val, val_count);
-		if (ret)
+		if (ret) {
 			dev_err(cs35l43->dev, "%s: reg = 0x%x, ret = %d\n",
 						__func__, reg, ret);
+			usleep_range(1000, 1100);
+		}
 	} while (ret && retry-- > 0);
 
 	if (retry == 0) {
@@ -122,9 +126,11 @@ static int cs35l43_regmap_write(struct cs35l43_private *cs35l43,
 
 	do {
 		ret = regmap_write(cs35l43->regmap, reg, val);
-		if (ret)
+		if (ret) {
 			dev_err(cs35l43->dev, "%s: reg = 0x%x, ret = %d\n",
 						__func__, reg, ret);
+			usleep_range(1000, 1100);
+		}
 	} while (ret && retry-- > 0);
 
 	if (retry == 0) {
@@ -143,9 +149,11 @@ static int cs35l43_regmap_update_bits(struct cs35l43_private *cs35l43,
 
 	do {
 		ret = regmap_update_bits(cs35l43->regmap, reg, mask, val);
-		if (ret)
+		if (ret) {
 			dev_err(cs35l43->dev, "%s: reg = 0x%x, ret = %d\n",
 						__func__, reg, ret);
+			usleep_range(1000, 1100);
+		}
 	} while (ret && retry-- > 0);
 
 	if (retry == 0) {
@@ -1619,6 +1627,10 @@ static int cs35l43_enter_hibernate(struct cs35l43_private *cs35l43)
 
 	dev_info(cs35l43->dev, "%s\n", __func__);
 
+	cs35l43_regmap_write(cs35l43, CS35L43_IRQ1_MASK_1, 0xFFFFFFFF);
+	cs35l43_regmap_write(cs35l43, CS35L43_IRQ1_MASK_2, 0xFFFFFFFF);
+	cs35l43_regmap_write(cs35l43, CS35L43_IRQ1_MASK_3, 0xFFFFFFFF);
+
 	if (cs35l43->limit_spi_clock)
 		cs35l43_regmap_write(cs35l43, CS35L43_WAKESRC_CTL,
 						CS35L43_WKSRC_SPI);
@@ -1671,6 +1683,7 @@ static int cs35l43_exit_hibernate(struct cs35l43_private *cs35l43)
 	do {
 		ret = regmap_write(cs35l43->regmap, CS35L43_DSP_VIRTUAL1_MBOX_1,
 					CS35L43_MBOX_CMD_WAKEUP);
+		usleep_range(1000, 1100);
 	} while (ret < 0 && timeout-- > 0);
 
 
@@ -2060,12 +2073,16 @@ static irqreturn_t cs35l43_irq(int irq, void *data)
 	struct cs35l43_private *cs35l43 = data;
 	unsigned int status[3], masks[3];
 	int ret = IRQ_NONE, i;
+	bool is_pm_runtime_enabled = pm_runtime_enabled(cs35l43->dev);
 
 	if (cs35l43->low_pwr_mode == CS35L43_LOW_PWR_MODE_HIBERNATE &&
 			!pm_runtime_enabled(cs35l43->dev) &&
-			cs35l43->hibernate_state != CS35L43_HIBERNATE_NOT_LOADED)
+			cs35l43->hibernate_state != CS35L43_HIBERNATE_NOT_LOADED) {
+		dev_info_ratelimited(cs35l43->dev,
+			"%s: ignoring: pwr_mode=%d, pm_runtime_enabled=%d, hibernate_state=%d\n",
+			__func__, cs35l43->low_pwr_mode, is_pm_runtime_enabled, cs35l43->hibernate_state);
 		return ret;
-
+	}
 	pm_runtime_get_sync(cs35l43->dev);
 
 	for (i = 0; i < ARRAY_SIZE(status); i++) {
@@ -2082,6 +2099,11 @@ static irqreturn_t cs35l43_irq(int irq, void *data)
 		!(status[1] & ~masks[1]) &&
 		!(status[2] & ~masks[2])) {
 		ret = IRQ_NONE;
+		dev_info_ratelimited(cs35l43->dev,
+			"%s: ignoring due to mask/status bits\n", __func__);
+		for (i = 0; i < ARRAY_SIZE(status); i++)
+			dev_info_ratelimited(cs35l43->dev, "mask[%d]=0x%x status[%d]=0x%x\n",
+				i, masks[i], i, status[i]);
 		goto done;
 	}
 
@@ -2625,6 +2647,10 @@ static int cs35l43_irq_gpio_config(struct cs35l43_private *cs35l43)
 	return irq_pol;
 }
 
+static struct reg_sequence cs35l43_bst_byp_errata_patch[] = {
+	{ CS35L43_BST_RSVD_1, 0x50000802 },
+};
+
 static int cs35l43_set_pdata(struct cs35l43_private *cs35l43)
 {
 	if (cs35l43->pdata.bst_vctrl)
@@ -2752,6 +2778,11 @@ static int cs35l43_set_pdata(struct cs35l43_private *cs35l43)
 				CS35L43_VPBR_EN_MASK,
 				CS35L43_VPBR_EN_MASK);
 
+	if (cs35l43->pdata.use_bst_byp_errata)
+		regmap_register_patch(cs35l43->regmap,
+			cs35l43_bst_byp_errata_patch,
+			ARRAY_SIZE(cs35l43_bst_byp_errata_patch));
+
 	return 0;
 }
 
@@ -2835,6 +2866,8 @@ static int cs35l43_handle_of_data(struct device *dev,
 		pdata->dsp_part_name = "cs35l43";
 
 	cs35l43->low_pwr_mode = of_property_read_bool(np, "cirrus,low-pwr-mode-standby");
+
+	pdata->use_bst_byp_errata = of_property_read_bool(np, "cirrus,use-bst-byp-errata");
 
 	return 0;
 }
@@ -2939,9 +2972,10 @@ static int cs35l43_cirrus_amp_probe(struct cs35l43_private *cs35l43,
 	amp_cfg.bd_prefix = "";
 	amp_cfg.cal_vpk_id = 0;
 	amp_cfg.cal_ipk_id = 0;
-	amp_cfg.amp_reinit = NULL;
+	amp_cfg.amp_reinit = cs35l43_reinit;
 	amp_cfg.cal_ops_idx = CIRRUS_CAL_CS35L43_CAL_OPS_IDX;
 	amp_cfg.runtime_pm = true;
+	amp_cfg.irq = cs35l43->irq;
 
 	ret = cirrus_amp_add(mfd_suffix, amp_cfg);
 	if (ret < 0) {
@@ -3137,7 +3171,7 @@ static const struct snd_soc_component_driver soc_component_dev_cs35l43 = {
 };
 
 static struct reg_sequence cs35l43_errata_patch[] = {
-	{CS35L43_TST_DAC_MSM_CONFIG,	0x11330000},
+	{ CS35L43_TST_DAC_MSM_CONFIG,	0x11330000 },
 };
 
 int cs35l43_probe(struct cs35l43_private *cs35l43,
@@ -3314,6 +3348,57 @@ int cs35l43_remove(struct cs35l43_private *cs35l43)
 
 	return 0;
 }
+
+int cs35l43_reinit(struct snd_soc_component *component)
+{
+	struct cs35l43_private *cs35l43 = snd_soc_component_get_drvdata(component);
+	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(component);
+	struct snd_soc_dapm_widget fake_dapm_widget = {.dapm = dapm};
+
+	if (!cs35l43)
+		return 0;
+
+	if (cs35l43->reset_gpio) {
+		gpiod_direction_output(cs35l43->reset_gpio, 1);
+
+		gpiod_set_value_cansleep(cs35l43->reset_gpio, 0);
+		usleep_range(1000, 1100);
+		gpiod_set_value_cansleep(cs35l43->reset_gpio, 1);
+	}
+
+	usleep_range(2000, 2100);
+
+	regcache_cache_only(cs35l43->regmap, false);
+
+	cs35l43->hibernate_state = CS35L43_HIBERNATE_NOT_LOADED;
+	cs35l43->dsp.hibernate = false;
+	if (cs35l43->low_pwr_mode == CS35L43_LOW_PWR_MODE_HIBERNATE)
+		pm_runtime_get_sync(cs35l43->dev);
+
+	cs35l43->dsp.ops->stop_core(&cs35l43->dsp);
+
+	if (cs35l43->dsp.preloaded) {
+		cs35l43->dsp.preloaded = 0;
+		cs35l43_dsp_preload_ev(&fake_dapm_widget, NULL, SND_SOC_DAPM_PRE_PMD);
+		usleep_range(5000, 5100);
+		cs35l43_dsp_preload_ev(&fake_dapm_widget, NULL, SND_SOC_DAPM_PRE_PMU);
+		cs35l43_dsp_preload_ev(&fake_dapm_widget, NULL, SND_SOC_DAPM_POST_PMU);
+		cs35l43->dsp.preloaded = 1;
+	}
+
+	regcache_mark_dirty(cs35l43->regmap);
+	regcache_sync_region(cs35l43->regmap,  CS35L43_DEVID,
+					CS35L43_MIXER_NGATE_CH2_CFG);
+
+	if (cs35l43->low_pwr_mode == CS35L43_LOW_PWR_MODE_HIBERNATE) {
+		usleep_range(5000, 5100);
+		pm_runtime_put_autosuspend(cs35l43->dev);
+	}
+
+	dev_info(cs35l43->dev, "%s complete\n", __func__);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(cs35l43_reinit);
 
 static void cs35l43_pm_runtime_setup(struct cs35l43_private *cs35l43)
 {

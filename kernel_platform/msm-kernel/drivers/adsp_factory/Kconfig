@@ -27,6 +27,15 @@ config LSM6DSL_FACTORY
 	  request selftest to adsp_factory.
 	  receive test result from adsp_factory.
 
+config LSM6DSV_FACTORY
+	bool "factory test for SSC - LSM6DSV"
+	depends on ADSP_FACTORY
+	help
+	  lsm6dsv factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
 config AK09918_FACTORY
 	bool "factory test for SSC - ak09918"
     depends on ADSP_FACTORY
@@ -48,6 +57,24 @@ config LPS22HH_FACTORY
     depends on ADSP_FACTORY
 	help
 	  lps22hh factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config LPS22DF_FACTORY
+	bool "factory test for SSC - lps22df"
+    depends on ADSP_FACTORY
+	help
+	  lps22df factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config PRESSURE_FACTORY
+	bool "factory test for SSC - pressure"
+    depends on ADSP_FACTORY
+	help
+	  pressure factory driver.
 	  provide sysfs for factory test.
 	  request selftest to adsp_factory.
 	  receive test result from adsp_factory.
@@ -193,6 +220,22 @@ config SUPPORT_VIRTUAL_OPTIC
 	  request selftest to adsp_factory.
 	  receive test result from adsp_factory.
 
+config SUPPORT_DUAL_OPTIC_BUT_SUPPORT_SINGLE_PROX
+	bool "Sensors support virtual optic but support single prox"
+    depends on ADSP_FACTORY
+	help
+	  Support the virtual prox and light function. 
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config SUPPORT_SENSOR_FLIP_MODEL
+	bool "Sensors support sensor flip model"
+	depends on ADSP_FACTORY
+	help
+	  Support sensor flip model. 
+	  Separate the flip model from the factory test.
+
 config SUPPORT_AK09973
 	bool "Support ak09973"
     depends on ADSP_FACTORY
@@ -284,3 +327,9 @@ config SLPI_LOADING_FAILURE_DEBUG
 	depends on SENSORS_SSC
 	help
 	  debug to to slpi loading fail
+
+config SUPPORT_REF_ANGLE_WITHOUT_DIGITAL_HALL
+	bool "support ref angle without digital hall"
+	depends on ADSP_FACTORY
+	help
+	  support ref angle without digital hall

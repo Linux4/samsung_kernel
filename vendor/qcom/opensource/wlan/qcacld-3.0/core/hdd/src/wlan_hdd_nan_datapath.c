@@ -203,18 +203,11 @@ static bool hdd_is_ndp_allowed(struct hdd_context *hdd_ctx)
 }
 #endif /* NDP_SAP_CONCURRENCY_ENABLE */
 
-static void hdd_swap_frequencies(uint32_t *a, uint32_t *b)
-{
-	*b ^= *a;
-	*a ^= *b;
-	*b ^= *a;
-}
-
 /**
- * hdd_ndi_config_ch_list() - Configure the channel list for NDI start
+ * hdd_ndi_select_valid_freq() - Find the valid freq for NDI start
  * @hdd_ctx: hdd context
- * @ch_info: Buffer to fill supported channels, give preference to 5220 and 2437
- * to keep the legacy behavior intact
+ * @freq: pointer to freq, give preference to 5745, 5220 and 2437 to keep the
+ * legacy behavior intact
  *
  * Unlike traditional device modes, where the higher application
  * layer initiates connect / join / start, the NAN data
@@ -228,45 +221,47 @@ static void hdd_swap_frequencies(uint32_t *a, uint32_t *b)
  * start the NDI. Actual channel for NDP data transfer would be negotiated with
  * peer later.
  *
- * Return: SUCCESS if some valid channels are obtained
+ * Return: SUCCESS if valid channel is obtained
  */
-static QDF_STATUS
-hdd_ndi_config_ch_list(struct hdd_context *hdd_ctx,
-		       tCsrChannelInfo *ch_info)
+static QDF_STATUS hdd_ndi_select_valid_freq(struct hdd_context *hdd_ctx,
+					    uint32_t *freq)
 {
+	static const qdf_freq_t valid_freq[] = {NAN_SOCIAL_FREQ_5GHZ_UPPER_BAND,
+						NAN_SOCIAL_FREQ_5GHZ_LOWER_BAND,
+						NAN_SOCIAL_FREQ_2_4GHZ};
+	uint8_t i;
 	struct regulatory_channel *cur_chan_list;
-	int i = 0, swap_index = 0;
 	QDF_STATUS status;
 
-	ch_info->numOfChannels = 0;
+	for (i = 0; i < ARRAY_SIZE(valid_freq); i++) {
+		if (wlan_reg_is_freq_enabled(hdd_ctx->pdev, valid_freq[i],
+					     REG_CURRENT_PWR_MODE)) {
+			*freq = valid_freq[i];
+			return QDF_STATUS_SUCCESS;
+		}
+	}
+
 	cur_chan_list = qdf_mem_malloc(sizeof(*cur_chan_list) *
 							(NUM_CHANNELS + 2));
 	if (!cur_chan_list)
 		return QDF_STATUS_E_NOMEM;
 
 	status = ucfg_reg_get_current_chan_list(hdd_ctx->pdev, cur_chan_list);
-	if (status != QDF_STATUS_SUCCESS) {
+	if (QDF_IS_STATUS_ERROR(status)) {
 		hdd_err_rl("Failed to get the current channel list");
 		qdf_mem_free(cur_chan_list);
 		return QDF_STATUS_E_IO;
 	}
 
-	ch_info->freq_list = qdf_mem_malloc(sizeof(uint32_t) * NUM_CHANNELS);
-	if (!ch_info->freq_list) {
-		qdf_mem_free(cur_chan_list);
-		return QDF_STATUS_E_NOMEM;
-	}
-
 	for (i = 0; i < NUM_CHANNELS; i++) {
-		/**
+		/*
 		 * current channel list includes all channels. Exclude
 		 * disabled channels
 		 */
 		if (cur_chan_list[i].chan_flags & REGULATORY_CHAN_DISABLED ||
 		    cur_chan_list[i].chan_flags & REGULATORY_CHAN_RADAR)
 			continue;
-
-		/**
+		/*
 		 * do not include 6 GHz channels for now as NAN would need
 		 * 2.4 GHz and 5 GHz channels for discovery.
 		 * <TODO> Need to consider the 6GHz channels when there is a
@@ -276,52 +271,19 @@ hdd_ndi_config_ch_list(struct hdd_context *hdd_ctx,
 		if (wlan_reg_is_6ghz_chan_freq(cur_chan_list[i].center_freq))
 			continue;
 
-		ch_info->freq_list[ch_info->numOfChannels++] =
-					cur_chan_list[i].center_freq;
+		/* extracting first valid channel from regulatory list */
+		if (wlan_reg_is_freq_enabled(hdd_ctx->pdev,
+					     cur_chan_list[i].center_freq,
+					     REG_CURRENT_PWR_MODE)) {
+			*freq = cur_chan_list[i].center_freq;
+			qdf_mem_free(cur_chan_list);
+			return QDF_STATUS_SUCCESS;
+		}
 	}
 
-	if (!ch_info->numOfChannels) {
-		status = QDF_STATUS_E_NULL_VALUE;
-		qdf_mem_free(ch_info->freq_list);
-		goto end;
-	}
-
-	/**
-	 * Keep the valid channels in list in below order,
-	 * 149, 44, 6, rest of the channels
-	 */
-	for (i = ch_info->numOfChannels - 1; i >= 0; i--) {
-		if (ch_info->freq_list[i] != NAN_SOCIAL_FREQ_5GHZ_UPPER_BAND)
-			continue;
-		hdd_swap_frequencies(&ch_info->freq_list[i],
-				     &ch_info->freq_list[swap_index]);
-		swap_index++;
-		break;
-	}
-
-	for (i = ch_info->numOfChannels - 1; i >= 0; i--) {
-		if (ch_info->freq_list[i] != NAN_SOCIAL_FREQ_5GHZ_LOWER_BAND)
-			continue;
-
-		hdd_swap_frequencies(&ch_info->freq_list[i],
-				     &ch_info->freq_list[swap_index]);
-		swap_index++;
-		break;
-	}
-
-	for (i = ch_info->numOfChannels - 1; i >= 0; i--) {
-		if (ch_info->freq_list[i] != NAN_SOCIAL_FREQ_2_4GHZ)
-			continue;
-
-		hdd_swap_frequencies(&ch_info->freq_list[i],
-				     &ch_info->freq_list[swap_index]);
-		break;
-	}
-
-end:
 	qdf_mem_free(cur_chan_list);
 
-	return status;
+	return QDF_STATUS_E_FAILURE;
 }
 
 /**
@@ -335,7 +297,7 @@ static int hdd_ndi_start_bss(struct hdd_adapter *adapter)
 	QDF_STATUS status;
 	struct bss_dot11_config dot11_cfg = {0};
 	struct start_bss_config ndi_bss_cfg = {0};
-	tCsrChannelInfo ch_info;
+	qdf_freq_t valid_freq = 0;
 	mac_handle_t mac_handle = hdd_adapter_get_mac_handle(adapter);
 	struct mac_context *mac = MAC_CONTEXT(mac_handle);
 	struct hdd_context *hdd_ctx;
@@ -343,14 +305,14 @@ static int hdd_ndi_start_bss(struct hdd_adapter *adapter)
 	hdd_enter();
 	hdd_ctx = WLAN_HDD_GET_CTX(adapter);
 
-	status = hdd_ndi_config_ch_list(hdd_ctx, &ch_info);
+	status = hdd_ndi_select_valid_freq(hdd_ctx, &valid_freq);
 	if (!QDF_IS_STATUS_SUCCESS(status)) {
 		hdd_err("Unable to retrieve channel list for NAN");
 		return -EINVAL;
 	}
 
 	dot11_cfg.vdev_id = adapter->vdev_id;
-	dot11_cfg.bss_op_ch_freq = ch_info.freq_list[0];
+	dot11_cfg.bss_op_ch_freq = valid_freq;
 	dot11_cfg.phy_mode = eCSR_DOT11_MODE_AUTO;
 	if (!wlan_vdev_id_is_open_cipher(mac->pdev, adapter->vdev_id))
 		dot11_cfg.privacy = 1;
@@ -386,11 +348,8 @@ static int hdd_ndi_start_bss(struct hdd_adapter *adapter)
 		/* change back to NotConnected */
 		hdd_conn_set_connection_state(adapter,
 					      eConnectionState_NotConnected);
-	} else {
-		hdd_info("sme_RoamConnect issued successfully for NDI");
 	}
 
-	qdf_mem_free(ch_info.freq_list);
 	hdd_exit();
 
 	return 0;

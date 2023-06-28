@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/kernel.h>
@@ -463,6 +463,29 @@ static bool mhi_sm_is_legal_pcie_event_on_state(enum mhi_dev_state curr_mstate,
 }
 
 /**
+ * check_dev_ready_for_suspend() - Check if link can be suspended for a PF which might
+ * have VFs associated with it. Host has to ensure that all VFs are already in the same
+ * state as the new state of the PF.
+ */
+static bool check_dev_ready_for_suspend(struct mhi_sm_dev *mhi_sm_ctx, enum mhi_dev_state new_state)
+{
+	bool ready_for_suspend = true;
+	int i;
+	u32 num_vfs = mhi_sm_ctx->mhi_dev->mhi_hw_ctx->ep_cap.num_vfs;
+
+	for (i = 1; i <= num_vfs; i++) {
+		if (!mhi_dev_sm_ctx[i])
+			break;
+
+		if (mhi_dev_sm_ctx[i]->mhi_state != new_state) {
+			ready_for_suspend = false;
+			break;
+		}
+	}
+	return ready_for_suspend;
+}
+
+/**
  * mhi_sm_prepare_resume() - switch to M0 state.
  *
  * Switch MHI-device state to M0, if possible according to MHI state machine.
@@ -541,6 +564,9 @@ static int mhi_sm_prepare_resume(struct mhi_sm_dev *mhi_sm_ctx)
 					goto exit;
 				}
 			}
+		} else if (mhi_sm_ctx->mhi_dev->use_edma) {
+			/* edma resets  when device goes to D3 cold*/
+			mhi_edma_init(mhi_sm_ctx->mhi_dev->mhi_hw_ctx->dev);
 		}
 	}
 
@@ -625,6 +651,7 @@ static int mhi_sm_prepare_suspend(struct mhi_sm_dev *mhi_sm_ctx, enum mhi_dev_st
 	enum mhi_dev_state old_state;
 	struct ep_pcie_inactivity inact_param;
 	int res = 0, rc, wait_timeout = 0;
+	bool ready_for_suspend;
 	struct mhi_dma_function_params mhi_dma_fun_params = mhi_sm_ctx->mhi_dev->mhi_dma_fun_params;
 
 	MHI_SM_DBG("Switching event:%d\n", new_state);
@@ -707,33 +734,47 @@ static int mhi_sm_prepare_suspend(struct mhi_sm_dev *mhi_sm_ctx, enum mhi_dev_st
 	if ((old_state == MHI_DEV_M0_STATE) &&
 			((new_state == MHI_DEV_M2_STATE) ||
 			 (new_state == MHI_DEV_M3_STATE))) {
-		if (mhi_sm_ctx->mhi_dev->use_mhi_dma) {
-			MHI_SM_DBG("Disable MHI DMA with mhi_dma_disable()\n");
-			while (wait_timeout < MHI_DMA_DISABLE_COUNTER) {
+		MHI_SM_DBG("Disable MHI-DMA with mhi_dma_memcpy_disable()\n");
+		while (wait_timeout < MHI_DMA_DISABLE_COUNTER) {
+			if (mhi_sm_ctx->mhi_dev->use_mhi_dma) {
 				/* wait for the disable to finish */
 				res = mhi_dma_fun_ops->mhi_dma_memcpy_disable(mhi_dma_fun_params);
-				if (!res)
-					break;
-				MHI_SM_ERR
-					("MHI DMA disable fail cnt:%d\n",
-						wait_timeout);
-				msleep(MHI_DMA_DISABLE_DELAY_MS);
-				wait_timeout++;
+			} else if (mhi_sm_ctx->mhi_dev->use_edma) {
+				/* wait for edma to be idle*/
+				res = mhi_edma_status();
 			}
-
-			if (wait_timeout >= MHI_DMA_DISABLE_COUNTER) {
-				MHI_SM_ERR
-					("Fail to disable MHI DMA for M3\n");
-				goto exit;
-			}
-			MHI_SM_ERR("MHI DMA successfully disabled\n");
+			if (!res)
+				break;
+			MHI_SM_ERR
+				("DMA disable fail cnt:%d\n",
+					wait_timeout);
+			msleep(MHI_DMA_DISABLE_DELAY_MS);
+			wait_timeout++;
 		}
+
+		if (wait_timeout >= MHI_DMA_DISABLE_COUNTER) {
+			MHI_SM_ERR
+				("Fail to disable DMA for M3\n");
+			goto exit;
+		}
+		MHI_SM_ERR("MHI DMA successfully disabled\n");
+		/* edma completely resets when link goes to susupend state */
+		if (mhi_sm_ctx->mhi_dev->use_edma)
+			mhi_edma_release();
 	}
 
 	if ((old_state == MHI_DEV_M0_STATE) &&
-			((new_state == MHI_DEV_M2_STATE))) {
+			((new_state == MHI_DEV_M2_STATE)) &&
+			(mhi_sm_ctx->mhi_dev->is_mhi_pf)) {
+
 		if (!mhi_sm_ctx->mhi_dev->enable_m2) {
 			MHI_SM_ERR("M2 autonomous not enabled!!\n");
+			goto exit;
+		}
+
+		ready_for_suspend = check_dev_ready_for_suspend(mhi_sm_ctx, new_state);
+		if (!ready_for_suspend) {
+			MHI_SM_ERR("PF cannot suspend EP as VFs are active\n");
 			goto exit;
 		}
 		/*
@@ -1198,9 +1239,14 @@ int mhi_dev_sm_exit(struct mhi_dev *mhi_dev)
 	flush_workqueue(mhi_sm_ctx->mhi_sm_wq);
 	destroy_workqueue(mhi_sm_ctx->mhi_sm_wq);
 	/* Initiate MHI DMA reset */
-	mhi_dma_fun_ops->mhi_dma_memcpy_disable(mhi_dma_fun_params);
-	mhi_dma_fun_ops->mhi_dma_destroy(mhi_dma_fun_params);
-	mhi_dma_fun_ops->mhi_dma_memcpy_destroy(mhi_dma_fun_params);
+	if (mhi_sm_ctx->mhi_dev->use_mhi_dma) {
+		mhi_dma_fun_ops->mhi_dma_memcpy_disable(mhi_dma_fun_params);
+		mhi_dma_fun_ops->mhi_dma_destroy(mhi_dma_fun_params);
+		mhi_dma_fun_ops->mhi_dma_memcpy_destroy(mhi_dma_fun_params);
+	}
+
+	if (mhi_sm_ctx->mhi_dev->use_edma)
+		mhi_edma_release();
 	mutex_destroy(&mhi_sm_ctx->mhi_state_lock);
 	mhi_dev_sm_ctx[vf_id] = NULL;
 
@@ -1380,6 +1426,17 @@ int mhi_dev_notify_sm_event(struct mhi_dev *mhi, enum mhi_dev_event event)
 	INIT_WORK(&state_change_event->work, mhi_sm_dev_event_manager);
 	atomic_inc(&mhi_sm_ctx->pending_device_events);
 	queue_work(mhi_sm_ctx->mhi_sm_wq, &state_change_event->work);
+
+	/*
+	 * Wait until M0 processing is completely done.
+	 * This ensures CHDB won't get processed while resume is in
+	 * progress thus avoids race between M0 and CHDB processing.
+	 */
+	if (event == MHI_DEV_EVENT_M0_STATE) {
+		MHI_SM_DBG("Got M0, wait until resume is done\n");
+		flush_workqueue(mhi_sm_ctx->mhi_sm_wq);
+	}
+
 	res = 0;
 
 exit:
@@ -1456,6 +1513,7 @@ void mhi_dev_sm_pcie_handler(struct ep_pcie_notify *notify)
 
 		atomic_inc(&mhi_sm_ctx->pending_pcie_events);
 		dstate_change_evt->event = event;
+		dstate_change_evt->mhi_sm_ctx = mhi_sm_ctx;
 		INIT_WORK(&dstate_change_evt->work, mhi_sm_pcie_event_manager);
 		/*
 		 * Link init has to be completed as quicly as possible.
@@ -1517,6 +1575,7 @@ void mhi_dev_sm_pcie_handler(struct ep_pcie_notify *notify)
 	}
 
 	dstate_change_evt->event = event;
+	dstate_change_evt->mhi_sm_ctx = mhi_sm_ctx;
 	INIT_WORK(&dstate_change_evt->work, mhi_sm_pcie_event_manager);
 	queue_work(mhi_sm_ctx->mhi_sm_wq, &dstate_change_evt->work);
 	atomic_inc(&mhi_sm_ctx->pending_pcie_events);
@@ -1560,6 +1619,7 @@ int mhi_dev_sm_syserr(void)
 }
 EXPORT_SYMBOL(mhi_dev_sm_syserr);
 
+#ifdef CONFIG_DEBUG_FS
 static ssize_t mhi_sm_debugfs_read(struct file *file, char __user *ubuf,
 				size_t count, loff_t *ppos)
 {
@@ -1675,3 +1735,4 @@ static ssize_t mhi_sm_debugfs_write(struct file *file,
 
 	return count;
 }
+#endif

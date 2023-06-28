@@ -32,6 +32,9 @@
 #include "host_notify_class.h"
 #include "dock_notify.h"
 #include "usb_notify_sysfs.h"
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+#include <linux/combo_redriver/ps5169.h>
+#endif
 
 #define DEFAULT_OVC_POLL_SEC 3
 
@@ -1401,8 +1404,12 @@ static void otg_notify_state(struct otg_notify *n,
 			if (n->pre_peri_delay_us)
 				usleep_range(n->pre_peri_delay_us * 1000,
 					n->pre_peri_delay_us * 1000);
-			if (n->set_peripheral)
+			if (n->set_peripheral) {
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+				ps5169_config(USB_ONLY_MODE, 0);
+#endif
 				n->set_peripheral(true);
+			}
 		} else {
 			mutex_lock(&u_notify->state_lock);
 			u_notify->ndev.mode = NOTIFY_NONE_MODE;

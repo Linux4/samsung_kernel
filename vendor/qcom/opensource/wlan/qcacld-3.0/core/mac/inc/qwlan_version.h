@@ -35,6 +35,6 @@
 #define QWLAN_VERSION_EXTRA            "O"
 #define QWLAN_VERSION_BUILD            38
 
-#define QWLAN_VERSIONSTR               "5.2.1.38O-DM230225A"
+#define QWLAN_VERSIONSTR               "5.2.1.38O-DM230411A"
 
 #endif /* QWLAN_VERSION_H */

@@ -1299,12 +1299,6 @@ static void ndisc_router_discovery(struct sk_buff *skb)
 	}
 
 	lifetime = ntohs(ra_msg->icmph.icmp6_rt_lifetime);
-	/* TODO : 
-	 * P230106-00479: TMO no service issue
-	 * Below line should be removed if proper solution is prepared
-	 * */
-	if (lifetime && strstr(in6_dev->dev->name, "rmnet_data"))
-		lifetime = 0;
 
 #ifdef CONFIG_IPV6_ROUTER_PREF
 	pref = ra_msg->icmph.icmp6_router_pref;
@@ -1339,6 +1333,9 @@ static void ndisc_router_discovery(struct sk_buff *skb)
 		  rt, lifetime, defrtr_usr_metric, skb->dev->name);
 	if (!rt && lifetime) {
 		ND_PRINTK(3, info, "RA: adding default router\n");
+
+		if (neigh)
+			neigh_release(neigh);
 
 		rt = rt6_add_dflt_router(net, &ipv6_hdr(skb)->saddr,
 					 skb->dev, pref, defrtr_usr_metric);

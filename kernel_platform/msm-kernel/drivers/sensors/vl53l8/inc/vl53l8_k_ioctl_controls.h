@@ -146,6 +146,7 @@ int vl53l8_ioctl_set_transfer_speed_hz(struct vl53l8_k_module_t *p_module,
 #ifdef STM_VL53L5_SUPPORT_SEC_CODE
 #define IOVDD	0
 #define AVDD	1
+#define COREVDD	2
 
 
 int vl53l8_set_asz_tuning(struct vl53l8_k_module_t *p_module, struct vl53l8_k_asz_tuning_t *asz_layout);

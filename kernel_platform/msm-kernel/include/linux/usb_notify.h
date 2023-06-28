@@ -248,7 +248,6 @@ extern void enable_usb_notify(void);
 extern int set_otg_notify(struct otg_notify *n);
 extern void put_otg_notify(struct otg_notify *n);
 extern void enable_usb_notify(void);
-extern int dwc3_usb_maximum_speed_control(int speed);
 #else
 static inline const char *event_string(enum otg_notify_events event)
 			{return NULL; }
@@ -309,7 +308,5 @@ static inline struct otg_notify *get_otg_notify(void) {return NULL; }
 static inline void enable_usb_notify(void) {}
 static inline int set_otg_notify(struct otg_notify *n) {return 0; }
 static inline void put_otg_notify(struct otg_notify *n) {}
-static inline int dwc3_usb_maximum_speed_control
-		(int speed) {return 0; }
 #endif
 #endif /* __LINUX_USB_NOTIFY_H__ */

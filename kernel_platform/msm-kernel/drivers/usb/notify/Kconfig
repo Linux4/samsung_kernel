@@ -135,10 +135,11 @@ config USB_HOST_CERTI
 	 The usb framework gets this uevent.
 	 It is made by samsung.
 
-config USB_AUDIO_POWER_SAVING_REVERSE_BYPASS
+config USB_AUDIO_POWER_SAVING
 	bool "Use function saving power with VBUS provided to USB audio"
 	default n
 	help
-	  If you want to use functionality to save power
-	  by changing power source from vbus to reverse bypass for specific USB earphone,
-	  enable this feature.
+	 If you want to use functionality to save power
+	 for specific USB earphone,
+	 enable this feature.
+	 It is made by samsung.

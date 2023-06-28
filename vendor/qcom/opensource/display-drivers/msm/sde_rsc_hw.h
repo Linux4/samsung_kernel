@@ -114,6 +114,7 @@ int rsc_hw_vsync(struct sde_rsc_priv *rsc, enum rsc_vsync_req request,
 void rsc_hw_debug_dump(struct sde_rsc_priv *rsc, u32 mux_sel);
 
 int sde_rsc_debug_show(struct seq_file *s, struct sde_rsc_priv *rsc);
+void sde_rsc_debug_log(struct sde_rsc_priv *rsc);
 
 int rsc_hw_mode_ctrl(struct sde_rsc_priv *rsc, enum rsc_mode_req request,
 		char *buffer, int buffer_size, u32 mode);

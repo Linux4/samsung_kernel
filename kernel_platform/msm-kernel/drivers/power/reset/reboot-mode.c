@@ -27,17 +27,9 @@ static unsigned int get_reboot_mode_magic(struct reboot_mode_driver *reboot,
 	const char *normal = "normal";
 	int magic = 0;
 	struct mode_info *info;
-	char *__cmd;
 
 	if (!cmd)
 		cmd = normal;
-
-	/* Before comparing to modes retrieved via DT, replace ' ' by '-' */
-	__cmd = kstrdup(cmd, GFP_KERNEL);
-	if (__cmd) {
-		strreplace(__cmd, ' ', '-');
-		cmd = __cmd;
-	}
 
 	list_for_each_entry(info, &reboot->head, list) {
 		if (!strcmp(info->mode, cmd)) {
@@ -45,8 +37,6 @@ static unsigned int get_reboot_mode_magic(struct reboot_mode_driver *reboot,
 			break;
 		}
 	}
-
-	kfree(__cmd);
 
 	return magic;
 }
@@ -56,6 +46,10 @@ static int reboot_mode_notify(struct notifier_block *this,
 {
 	struct reboot_mode_driver *reboot;
 	unsigned int magic;
+
+	/* Before comparing to modes retrieved via DT, replace ' ' by '-' */
+	if (cmd && strnstr((char *)cmd, " ", strlen((char *)cmd)))
+		strreplace((char *)cmd, ' ', '-');
 
 	reboot = container_of(this, struct reboot_mode_driver, reboot_notifier);
 	magic = get_reboot_mode_magic(reboot, cmd);

@@ -320,7 +320,7 @@ int i2c_read(struct nfc_dev *nfc_dev, char *buf, size_t count, int timeout)
 	struct i2c_dev *i2c_dev = &nfc_dev->i2c_dev;
 	struct platform_gpio *nfc_gpio = &nfc_dev->configs.gpio;
 
-	NFC_LOG_DBG("rd: %zu\n", count);
+	NFC_LOG_REC("rd: %zu\n", count);
 
 	if (timeout > NCI_CMD_RSP_TIMEOUT_MS)
 		timeout = NCI_CMD_RSP_TIMEOUT_MS;
@@ -755,7 +755,6 @@ int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
 				NFC_LOG_ERR("clk_req_irq failed\n");
 			else {
 				nfc_gpio->clk_req_irq_enabled = true;
-				disable_irq_wake(nfc_gpio->clk_req_irq);
 				i2c_disable_clk_irq(nfc_dev);
 			}
 		}
@@ -810,7 +809,11 @@ err:
 	return ret;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 int nfc_i2c_dev_remove(struct i2c_client *client)
+#else
+void nfc_i2c_dev_remove(struct i2c_client *client)
+#endif
 {
 	int ret = 0;
 	struct nfc_dev *nfc_dev = NULL;
@@ -820,11 +823,12 @@ int nfc_i2c_dev_remove(struct i2c_client *client)
 	if (!nfc_dev) {
 		NFC_LOG_ERR("%s: device doesn't exist anymore\n", __func__);
 		ret = -ENODEV;
-		return ret;
+		goto end;
 	}
 	if (nfc_dev->dev_ref_count > 0) {
 		NFC_LOG_ERR("%s: device already in use\n", __func__);
-		return -EBUSY;
+		ret = -EBUSY;
+		goto end;
 	}
 	device_init_wakeup(&client->dev, false);
 	free_irq(client->irq, nfc_dev);
@@ -842,7 +846,11 @@ int nfc_i2c_dev_remove(struct i2c_client *client)
 	kfree(nfc_dev->read_kbuf);
 	kfree(nfc_dev->write_kbuf);
 	kfree(nfc_dev);
+end:
+	NFC_LOG_INFO("%s: ret :%d\n", __func__, ret);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	return ret;
+#endif
 }
 
 int nfc_i2c_dev_suspend(struct device *device)

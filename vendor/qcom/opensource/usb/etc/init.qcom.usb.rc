@@ -267,6 +267,7 @@ on property:sys.usb.config=* && property:sys.usb.configfs=1
     rm /config/usb_gadget/g1/os_desc/b.1
 
 on property:sys.usb.config=none && property:sys.usb.configfs=1
+    write /sys/class/usb_notify/usb_control/usb_maximum_speed "super-speed"
     write /config/usb_gadget/g1/UDC "none"
     stop adbd
     setprop sys.usb.ffs.ready 0
@@ -301,6 +302,9 @@ on property:sys.usb.ffs.ready=1 && property:sys.usb.config=adb && property:sys.u
     setprop sys.usb.state ${sys.usb.config}
 
 # USB Accessory, Audio Accessory configuraion for Google USB Driver
+on property:sys.boot_completed=1 && property:sys.usb.config=accessory && property:sys.usb.configfs=1 && property:persist.sys.usb.speed_limit=1
+    write /sys/class/usb_notify/usb_control/usb_maximum_speed "full-speed"
+
 on property:sys.boot_completed=1 && property:sys.usb.config=accessory && property:sys.usb.configfs=1
     write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "acc"
     rm /config/usb_gadget/g1/configs/b.1/f1
@@ -318,6 +322,9 @@ on property:sys.boot_completed=1 && property:sys.usb.config=accessory && propert
     symlink /config/usb_gadget/g1/functions/ss_mon.etc /config/usb_gadget/g1/configs/b.1/f2
     write /config/usb_gadget/g1/UDC ${sys.usb.controller}
     setprop sys.usb.state ${sys.usb.config}
+
+on property:sys.boot_completed=1 && property:sys.usb.config=accessory,adb && property:sys.usb.configfs=1 && property:persist.sys.usb.speed_limit=1
+    write /sys/class/usb_notify/usb_control/usb_maximum_speed "full-speed"
 
 on property:sys.boot_completed=1 && property:sys.usb.config=accessory,adb && property:sys.usb.configfs=1
     start adbd
@@ -383,6 +390,9 @@ on property:sys.boot_completed=1 && property:sys.usb.ffs.ready=1 && property:sys
     write /config/usb_gadget/g1/UDC ${sys.usb.controller}
     setprop sys.usb.state ${sys.usb.config}
 
+on property:sys.boot_completed=1 && property:sys.usb.config=accessory,audio_source && property:sys.usb.configfs=1 && property:persist.sys.usb.speed_limit=1
+    write /sys/class/usb_notify/usb_control/usb_maximum_speed "full-speed"
+
 on property:sys.boot_completed=1 && property:sys.usb.config=accessory,audio_source && property:sys.usb.configfs=1
     write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "acc_audio"
     rm /config/usb_gadget/g1/configs/b.1/f1
@@ -401,6 +411,9 @@ on property:sys.boot_completed=1 && property:sys.usb.config=accessory,audio_sour
     symlink /config/usb_gadget/g1/functions/ss_mon.etc /config/usb_gadget/g1/configs/b.1/f3
     write /config/usb_gadget/g1/UDC ${sys.usb.controller}
     setprop sys.usb.state ${sys.usb.config}
+
+on property:sys.boot_completed=1 && property:sys.usb.config=accessory,audio_source,adb && property:sys.usb.configfs=1 && property:persist.sys.usb.speed_limit=1
+    write /sys/class/usb_notify/usb_control/usb_maximum_speed "full-speed"
 
 on property:sys.boot_completed=1 && property:sys.usb.config=accessory,audio_source,adb && property:sys.usb.configfs=1
     start adbd

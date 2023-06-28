@@ -174,6 +174,7 @@ static int _sde_debugfs_init(struct sde_kms *sde_kms)
 		debugfs_create_u32("qdss", 0600, debugfs_root,
 				(u32 *)&sde_kms->qdss_enabled);
 
+	sde_kms->pm_suspend_clk_dump = 1;
 	debugfs_create_u32("pm_suspend_clk_dump", 0600, debugfs_root,
 			(u32 *)&sde_kms->pm_suspend_clk_dump);
 	debugfs_create_u32("hw_fence_status", 0600, debugfs_root,
@@ -4011,6 +4012,7 @@ static void _sde_kms_pm_suspend_idle_helper(struct sde_kms *sde_kms,
 	struct drm_device *ddev = dev_get_drvdata(dev);
 	struct drm_connector *conn;
 	struct drm_connector_list_iter conn_iter;
+	struct sde_encoder_virt *sde_enc;
 	struct msm_drm_private *priv = sde_kms->dev->dev_private;
 
 	drm_connector_list_iter_begin(ddev, &conn_iter);
@@ -4024,6 +4026,7 @@ static void _sde_kms_pm_suspend_idle_helper(struct sde_kms *sde_kms,
 		if (sde_encoder_in_clone_mode(conn->encoder))
 			continue;
 
+		sde_enc = to_sde_encoder_virt(conn->encoder);
 		crtc_id = drm_crtc_index(conn->state->crtc);
 		if (priv->disp_thread[crtc_id].thread)
 			kthread_flush_worker(
@@ -4040,6 +4043,13 @@ static void _sde_kms_pm_suspend_idle_helper(struct sde_kms *sde_kms,
 				kthread_flush_worker(
 					&priv->event_thread[crtc_id].worker);
 			sde_encoder_idle_request(conn->encoder);
+		}
+
+		if (sde_enc->vblank_enabled) {
+			sde_encoder_wait_for_event(conn->encoder, MSM_ENC_VBLANK);
+			if (priv->event_thread[crtc_id].thread)
+				kthread_flush_worker(
+					&priv->event_thread[crtc_id].worker);
 		}
 	}
 	drm_connector_list_iter_end(&conn_iter);
@@ -4213,8 +4223,7 @@ unlock:
 	pm_runtime_get_noresume(dev);
 
 	/* dump clock state before entering suspend */
-	if (sde_kms->pm_suspend_clk_dump)
-		_sde_kms_dump_clks_state(sde_kms);
+	_sde_kms_dump_clks_state(sde_kms);
 
 	return ret;
 }

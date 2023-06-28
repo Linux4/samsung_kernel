@@ -30,6 +30,7 @@
 #include <linux/mfd/samsung/s2mpb02.h>
 #include <linux/mfd/samsung/s2mpb02-regulator.h>
 #include <linux/regulator/machine.h>
+#include <linux/version.h>
 
 #if IS_ENABLED(CONFIG_OF)
 #include <linux/of_device.h>
@@ -289,7 +290,7 @@ err_pdata:
 	return ret;
 }
 
-static int s2mpb02_i2c_remove(struct i2c_client *i2c)
+static int __s2mpb02_i2c_remove(struct i2c_client *i2c)
 {
 	struct s2mpb02_dev *s2mpb02 = i2c_get_clientdata(i2c);
 
@@ -302,6 +303,18 @@ static int s2mpb02_i2c_remove(struct i2c_client *i2c)
 
 	return 0;
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+static void s2mpb02_i2c_remove(struct i2c_client *i2c)
+{
+	__s2mpb02_i2c_remove(i2c);
+}
+#else
+static int s2mpb02_i2c_remove(struct i2c_client *i2c)
+{
+	return __s2mpb02_i2c_remove(i2c);
+}
+#endif
 
 static const struct i2c_device_id s2mpb02_i2c_id[] = {
 	{ MFD_DEV_NAME, TYPE_S2MPB02 },

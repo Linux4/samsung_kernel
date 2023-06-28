@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2020, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -454,7 +454,7 @@ static int tsens2xxx_set_trip_temp(struct tsens_sensor *tm_sensor,
 			(tm_sensor->hw_id * TSENS_TM_SN_ADDR_OFFSET)));
 	}
 
-	if (low_temp != INT_MIN) {
+	if (low_temp != -INT_MAX) {
 		tmdev->sensor[tm_sensor->hw_id].thr_state.low_temp = low_temp;
 		reg_cntl = readl_relaxed((TSENS_TM_SN_UPPER_LOWER_THRESHOLD
 				(tmdev->tsens_tm_addr)) +
@@ -490,7 +490,7 @@ static int tsens2xxx_set_trip_temp(struct tsens_sensor *tm_sensor,
 		}
 	}
 
-	if (low_temp != INT_MIN) {
+	if (low_temp != -INT_MAX) {
 		rc = tsens_tm_activate_trip_type(tm_sensor,
 				TSENS_TRIP_CONFIGURABLE_LOW,
 				THERMAL_DEVICE_ENABLED);
@@ -779,7 +779,6 @@ static const struct tsens_irqs tsens2xxx_irqs[] = {
 	{ "tsens-0C", tsens_tm_zeroc_irq_thread},
 };
 
-#ifdef CONFIG_DEEPSLEEP
 static int tsens2xxx_tsens_suspend(struct tsens_device *tmdev)
 {
 	int i, irq;
@@ -799,8 +798,9 @@ static int tsens2xxx_tsens_suspend(struct tsens_device *tmdev)
 		disable_irq_nosync(irq);
 	}
 	/* Vote for zeroC Voltage restrictions before deep sleep entry */
-	thermal_zone_device_update(tmdev->zeroc.tzd,
-				THERMAL_EVENT_UNSPECIFIED);
+	if (tmdev->zeroc.tzd)
+		thermal_zone_device_update(tmdev->zeroc.tzd,
+					THERMAL_EVENT_UNSPECIFIED);
 	return 0;
 }
 
@@ -827,13 +827,13 @@ static int tsens2xxx_tsens_resume(struct tsens_device *tmdev)
 				tsens2xxx_irqs[i].name);
 			return irq;
 		}
+		enable_irq(irq);
 		enable_irq_wake(irq);
 	}
 	queue_work(tmdev->tsens_reinit_work,
 					&tmdev->therm_fwk_notify);
 	return 0;
 }
-#endif
 
 static int tsens2xxx_register_interrupts(struct tsens_device *tmdev)
 {
@@ -881,10 +881,8 @@ static const struct tsens_ops ops_tsens2xxx = {
 	.interrupts_reg	= tsens2xxx_register_interrupts,
 	.dbg		= tsens2xxx_dbg,
 	.sensor_en	= tsens2xxx_hw_sensor_en,
-#ifdef CONFIG_DEEPSLEEP
 	.suspend = tsens2xxx_tsens_suspend,
 	.resume = tsens2xxx_tsens_resume,
-#endif
 };
 
 const struct tsens_data data_tsens2xxx = {

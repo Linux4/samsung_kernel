@@ -499,7 +499,8 @@ void sec_vib_inputff_unregister(struct sec_vib_inputff_drvdata *ddata)
 	if (ddata->input)
 		input_unregister_device(ddata->input);
 
-	kthread_stop(ddata->compose.compose_thread);
+	if (ddata->compose.compose_thread)
+		kthread_stop(ddata->compose.compose_thread);
 
 	ddata->vibe_init_success = false;
 
@@ -582,12 +583,15 @@ static int sec_vib_inputff_parse_dt(struct platform_device *pdev)
 	ret = of_property_read_u32(np, "haptic,high_temp_ref", &temp);
 	if (ret) {
 		pr_info("%s: high temperature concept isn't used\n", __func__);
+		sec_vib_inputff_pdata.high_temp_ref = SEC_VIBRATOR_INPUTFF_DEFAULT_HIGH_TEMP_REF;
 	} else {
 		sec_vib_inputff_pdata.high_temp_ref = (int)temp;
 
 		ret = of_property_read_u32(np, "haptic,high_temp_ratio", &temp);
-		if (ret)
+		if (ret) {
 			pr_info("%s: high_temp_ratio isn't used\n", __func__);
+			sec_vib_inputff_pdata.high_temp_ratio = SEC_VIBRATOR_INPUTFF_DEFAULT_HIGH_TEMP_RATIO;
+		}
 		else
 			sec_vib_inputff_pdata.high_temp_ratio = (int)temp;
 	}
@@ -629,6 +633,13 @@ static int sec_vib_inputff_parse_dt(struct platform_device *pdev)
 	} else
 		sec_vib_inputff_pdata.fold_close_ratio = (int)temp;
 #endif
+
+	ret = of_property_read_string(np, "haptic,f0_cal_way",
+		(const char **)&sec_vib_inputff_pdata.f0_cal_way);
+	if (ret < 0) {
+		sec_vib_inputff_pdata.f0_cal_way = "NONE";
+		pr_err("%s: WARNING! F0 Calibration Method not found\n", __func__);
+	}
 
 	pr_info("%s : done! ---\n", __func__);
 	return 0;

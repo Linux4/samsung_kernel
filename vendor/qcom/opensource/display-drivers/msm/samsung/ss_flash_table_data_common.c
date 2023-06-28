@@ -749,7 +749,7 @@ static int flash_gamma_read_spi(struct samsung_display_driver_data *vdd,
 
 	cmd_set = ss_get_spi_cmds(vdd, RX_DATA);
 	if (cmd_set == NULL) {
-		LCD_ERR(vdd, "cmd_set is null..\n");
+		LCD_ERR(vdd, "cmd_set is null\n");
 		return -EINVAL;
 	}
 
@@ -764,7 +764,7 @@ static int flash_gamma_read_spi(struct samsung_display_driver_data *vdd,
 
 	rbuf = kmalloc(total_size, GFP_KERNEL | GFP_DMA);
 	if (!rbuf) {
-		LCD_ERR(vdd, "fail to kmalloc for rbuf..\n");
+		LCD_ERR(vdd, "fail to kmalloc for rbuf\n");
 		goto err;
 	}
 
@@ -794,7 +794,7 @@ static int flash_gamma_read_spi(struct samsung_display_driver_data *vdd,
 
 	rbuf = kmalloc(total_size, GFP_KERNEL | GFP_DMA);
 	if (!rbuf) {
-		LCD_ERR(vdd, "fail to kmalloc for rbuf..\n");
+		LCD_ERR(vdd, "fail to kmalloc for rbuf\n");
 
 		goto err;
 	}
@@ -825,7 +825,7 @@ static int flash_gamma_read_spi(struct samsung_display_driver_data *vdd,
 
 	rbuf = kmalloc(total_size, GFP_KERNEL | GFP_DMA);
 	if (!rbuf) {
-		LCD_ERR(vdd, "fail to kmalloc for rbuf..\n");
+		LCD_ERR(vdd, "fail to kmalloc for rbuf\n");
 		goto err;
 	}
 
@@ -861,7 +861,7 @@ static int flash_gamma_read_spi(struct samsung_display_driver_data *vdd,
 
 	rbuf = kmalloc(total_size, GFP_KERNEL | GFP_DMA);
 	if (!rbuf) {
-		LCD_ERR(vdd, "fail to kmalloc for rbuf..\n");
+		LCD_ERR(vdd, "fail to kmalloc for rbuf\n");
 		goto err;
 	}
 
@@ -886,7 +886,7 @@ static int flash_gamma_read_spi(struct samsung_display_driver_data *vdd,
 
 	rbuf = kmalloc(total_size, GFP_KERNEL | GFP_DMA);
 	if (!rbuf) {
-		LCD_ERR(vdd, "fail to kmalloc for rbuf..\n");
+		LCD_ERR(vdd, "fail to kmalloc for rbuf\n");
 		goto err;
 	}
 
@@ -1317,7 +1317,7 @@ skip_read_flash:
 					vdd->panel_func.samsung_interpolation_init(vdd, br_tbl, FLASH_INTERPOLATION);
 			}
 		} else {
-			LCD_ERR(vdd, "[%d] flash checksum fail.. stop reading flash data !\n", count);
+			LCD_ERR(vdd, "[%d] flash checksum fail.. stop reading flash data\n", count);
 			rc = -1;
 			break;
 		}

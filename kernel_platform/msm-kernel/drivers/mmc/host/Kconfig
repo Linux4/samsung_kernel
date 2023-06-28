@@ -1108,3 +1108,12 @@ config SDHCI_MSM_DBG
 	  trace significant events used for debugging purpose.
 
 	  If unsure, say N here.
+
+config SEC_MMC_FEATURE
+	bool "SEC specific MMC/SD feature"
+	depends on MMC_SDHCI_MSM
+	help
+	  Enable Samsung feature support
+	  Enabling this allows kernel to use SEC specific feature
+	  defined and implemented by SEC.
+

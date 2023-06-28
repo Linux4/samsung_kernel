@@ -2007,6 +2007,12 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_kala
 		NULL,
 		msm_vidc_set_u32},
 
+	{BASELAYER_PRIORITY, ENC, H264,
+		{0},
+		{0},
+		NULL,
+		msm_vidc_set_u32},
+
 	{TIME_DELTA_BASED_RC, ENC, CODECS_ALL,
 		{BITRATE_MODE},
 		{0},

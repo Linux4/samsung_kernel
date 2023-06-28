@@ -47,6 +47,14 @@ on the Qualcomm Technologies inc ADSP Hexagon core.
 		    "qcom,monaco-adsp-pas"
 		    "qcom,monaco-modem-pas"
 		    "qcom,sdxpinn-modem-pas"
+		    "qcom,lemans-adsp-pas"
+		    "qcom,lemans-cdsp-pas"
+		    "qcom,lemans-cdsp1-pas"
+		    "qcom,lemans-gpdsp0-pas"
+		    "qcom,lemans-gpdsp1-pas"
+		    "qcom,kona-adsp-pas"
+		    "qcom,kona-cdsp-pas"
+		    "qcom,kona-slpi-pas"
 
 - interrupts-extended:
 	Usage: required
@@ -161,6 +169,10 @@ on the Qualcomm Technologies inc ADSP Hexagon core.
 	Value type: <stringlist>
 	Definition: must be "stop"
 
+- legacy-wlan:
+	Usage: optional
+	Value type: <none>
+	Definition: indicates the presence of legacy WLAN
 
 = SUBNODES
 The adsp node may have an subnode named either "smd-edge" or "glink-edge" that

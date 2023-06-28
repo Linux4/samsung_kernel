@@ -264,15 +264,16 @@ done:
 	lfd_base->min_div_def = min_div_def;
 	lfd_base->min_div_lowest = min_div_lowest;
 	lfd_base->fix_div_def = 1; // LFD MAX/MIN 120hz fix
+	lfd_base->highdot_div_def = 120 * 2; // 120hz % 240 = 0.5hz for highdot test (120hz base)
 
 	vrr->lfd.base_rr = base_rr;
 
-	LCD_DEBUG(vdd, "LFD(%s): base_rr: %uhz, def: %uhz(%u)~%uhz(%u), lowest: %uhz(%u)\n",
-			lfd_scope_name[scope],
-			base_rr,
+	LCD_DEBUG(vdd, "LFD(%s): base_rr: %uhz, def: %uhz(%u)~%uhz(%u), lowest: %uhz(%u), highdot_div: %u\n",
+			lfd_scope_name[scope], base_rr,
 			DIV_ROUND_UP(base_rr, min_div_def), min_div_def,
 			DIV_ROUND_UP(base_rr, max_div_def), max_div_def,
-			DIV_ROUND_UP(base_rr, min_div_lowest), min_div_lowest);
+			DIV_ROUND_UP(base_rr, min_div_lowest), min_div_lowest,
+			lfd_base->highdot_div_def);
 
 	return 0;
 }
@@ -1345,16 +1346,15 @@ static int update_analog1_DM3_S6E3HAE_AMB681AZ01(
 			struct samsung_display_driver_data *vdd,
 			char *val, struct ss_cmd_desc *cmd)
 {
+	struct cmd_ref_state *state = &vdd->cmd_ref_state;
+	int bl_lvl = state->bl_level;
+	struct cmd_legoop_map *analog_map = &vdd->br_info.analog_offset_120hs[0];
 	int i = -1;
-	struct cmd_legoop_map *analog_map;
-	int bl_lvl = vdd->br_info.common_br.bl_level;
 
 	if (GAMMA_SET_REGION_TABLE[bl_lvl] != GAMMA_SET_0)
 		return 0;
 
 	LCD_ERR(vdd, "++ %d\n", bl_lvl);
-
-	analog_map = &vdd->br_info.analog_offset_120hs[0];
 
 	while (!cmd->pos_0xXX[++i] && i < cmd->tx_len);
 
@@ -1401,19 +1401,7 @@ static int update_analog2_DM3_S6E3HAE_AMB681AZ01(
 		LCD_ERR(vdd, "No offset data for analog 120HS\n");
 		return -EINVAL;
 	}
-#if 0
-	if (vdd->night_dim) {
-		/* write analog offset for G0, G1 (120 addr) during on time. */
-		/* analog offset is always same for all levels in each G region. */
-		/* SET 11, 10 : 0690(G0) + 06D6(G1) -> 70+70 byte */
-		memcpy(&cmd->txbuf[i], HS120_R_TYPE_COMP[0], GAMMA_R_SIZE);
-		memcpy(&cmd->txbuf[i + GAMMA_R_SIZE], HS120_R_TYPE_COMP[2], GAMMA_R_SIZE);
-	} else {
-		/* restore MTP buf */
-		memcpy(&cmd->txbuf[i], HS120_R_TYPE_BUF[0], GAMMA_R_SIZE);
-		memcpy(&cmd->txbuf[i + GAMMA_R_SIZE], HS120_R_TYPE_BUF[2], GAMMA_R_SIZE);
-	}
-#endif
+
 	return 0;
 }
 
@@ -1438,19 +1426,6 @@ static int update_analog3_DM3_S6E3HAE_AMB681AZ01(
 		return -EINVAL;
 	}
 
-#if 0
-	if (vdd->night_dim) {
-		/* write analog offset for G0, G1 (120 addr) during on time. */
-		/* analog offset is always same for all levels in each G region. */
-		/* SET 9, 8 : 071C(G2) + 0762(G3) -> 70+70 byte */
-		memcpy(&cmd->txbuf[i], HS120_R_TYPE_COMP[5], GAMMA_R_SIZE);
-		memcpy(&cmd->txbuf[i + GAMMA_R_SIZE], HS120_R_TYPE_COMP[11], GAMMA_R_SIZE);
-	} else {
-		/* restore MTP buf */
-		memcpy(&cmd->txbuf[i], HS120_R_TYPE_BUF[5], GAMMA_R_SIZE);
-		memcpy(&cmd->txbuf[i + GAMMA_R_SIZE], HS120_R_TYPE_BUF[11], GAMMA_R_SIZE);
-	}
-#endif
 	vdd->br_info.last_tx_time = ktime_get();
 
 	return 0;
@@ -1459,9 +1434,9 @@ static int update_analog3_DM3_S6E3HAE_AMB681AZ01(
 static int update_aor_S6E3HAE_AMB681AZ01(struct samsung_display_driver_data *vdd,
 			char *val, struct ss_cmd_desc *cmd)
 {
-	struct vrr_info *vrr = &vdd->vrr;
-	int bl_lvl = vdd->br_info.common_br.bl_level;
-	int cur_rr = vrr->cur_refresh_rate;
+	struct cmd_ref_state *state = &vdd->cmd_ref_state;
+	int cur_rr = state->cur_refresh_rate;
+	int bl_lvl = state->bl_level;
 	struct cmd_legoop_map *manual_aor_map = NULL;
 	int i = -1;
 
@@ -1519,8 +1494,9 @@ static void update_glut_map(struct samsung_display_driver_data *vdd)
 static int update_glut_enable(struct samsung_display_driver_data *vdd,
 			char *val, struct ss_cmd_desc *cmd)
 {
-	int cur_rr = vdd->vrr.cur_refresh_rate;
-	int bl_lvl = vdd->br_info.common_br.bl_level;
+	struct cmd_ref_state *state = &vdd->cmd_ref_state;
+	int cur_rr = state->cur_refresh_rate;
+	int bl_lvl = state->bl_level;
 	int i = -1;
 	bool glut_enable = true;
 
@@ -1559,8 +1535,9 @@ err_skip:
 static int update_glut(struct samsung_display_driver_data *vdd,
 			char *val, struct ss_cmd_desc *cmd)
 {
-	int cur_rr = vdd->vrr.cur_refresh_rate;
-	int bl_lvl = vdd->br_info.common_br.bl_level;
+	struct cmd_ref_state *state = &vdd->cmd_ref_state;
+	int cur_rr = state->cur_refresh_rate;
+	int bl_lvl = state->bl_level;
 	struct cmd_legoop_map *glut_map = NULL;
 	int i = -1, j;
 

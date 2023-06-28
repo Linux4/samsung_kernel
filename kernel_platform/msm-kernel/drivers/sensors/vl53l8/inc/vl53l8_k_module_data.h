@@ -75,7 +75,9 @@
 #ifdef CONFIG_SENSORS_VL53L8_SUPPORT_UAPI
 #include <uapi/linux/sensor/range_sensor.h>
 #endif
+#ifdef CONFIG_SENSORS_VL53L8_QCOM
 #include <linux/sensor/sensors_core.h> //for sec dump
+#endif
 #include <linux/input.h> 	//for input_dev
 #endif
 
@@ -118,8 +120,11 @@ struct vl53l8_k_module_t {
 	enum vl53l8_range_servicing_mode range_mode;
 
 	struct range_t {
-
+#ifndef STM_VL53L5_SUPPORT_SEC_CODE
 		int count;
+#else
+		unsigned long count;
+#endif
 
 		bool is_valid;
 
@@ -177,7 +182,9 @@ struct vl53l8_k_module_t {
 	struct input_dev *input_dev; //for input_dev
 	struct regulator *avdd_vreg;
 	struct regulator *iovdd_vreg;
-
+#ifdef CONFIG_SEPERATE_IO_CORE_POWER
+	struct regulator *corevdd_vreg;
+#endif
 	struct notifier_block dump_nb;
 	struct vl53l5_range_fac_results_t {
 #ifdef VL53L5_PER_ZONE_RESULTS_ON
@@ -201,7 +208,9 @@ struct vl53l8_k_module_t {
 	const char *genshape_name;
 	const char *avdd_vreg_name;
 	const char *iovdd_vreg_name;
-
+#ifdef CONFIG_SEPERATE_IO_CORE_POWER
+	const char *corevdd_vreg_name;
+#endif
 	uint32_t fac_rotation_mode;
 	uint32_t rotation_mode;
 	uint32_t force_suspend_count;

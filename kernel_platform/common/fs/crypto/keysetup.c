@@ -13,6 +13,9 @@
 #include <linux/random.h>
 
 #include "fscrypt_private.h"
+#ifdef CONFIG_DDAR
+#include "ddar/ddar_crypto.h"
+#endif
 
 struct fscrypt_mode fscrypt_modes[] = {
 	[FSCRYPT_MODE_AES_256_XTS] = {
@@ -52,6 +55,13 @@ struct fscrypt_mode fscrypt_modes[] = {
 		.security_strength = 32,
 		.ivsize = 32,
 		.blk_crypto_mode = BLK_ENCRYPTION_MODE_ADIANTUM,
+	},
+	[FSCRYPT_MODE_AES_256_HCTR2] = {
+		.friendly_name = "AES-256-HCTR2",
+		.cipher_str = "hctr2(aes)",
+		.keysize = 32,
+		.security_strength = 32,
+		.ivsize = 32,
 	},
 };
 
@@ -542,12 +552,16 @@ out_release_key:
 static void put_crypt_info(struct fscrypt_info *ci)
 {
 	struct key *key;
+#ifdef CONFIG_DDAR
+	struct ext_fscrypt_info *ext_ci;
+#endif
 
 	if (!ci)
 		return;
 
 #ifdef CONFIG_DDAR
-	dd_info_try_free(ci->ci_dd_info);
+	ext_ci = GET_EXT_CI(ci);
+	dd_info_try_free(ext_ci->ci_dd_info);
 #endif
 
 	if (ci->ci_direct_key)
@@ -575,10 +589,14 @@ static void put_crypt_info(struct fscrypt_info *ci)
 		key_put(key);
 	}
 	memzero_explicit(ci, sizeof(*ci));
+#ifdef CONFIG_DDAR
+	kmem_cache_free(fscrypt_info_cachep, ext_ci);
+#else
 	kmem_cache_free(fscrypt_info_cachep, ci);
+#endif
 }
 
-#if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+#ifdef CONFIG_DDAR
 struct fscrypt_knox_info {
 	u32 flag;
 	void *info; // sdp_info or dd_policy
@@ -590,13 +608,16 @@ static int
 fscrypt_setup_encryption_info(struct inode *inode,
 			      const union fscrypt_policy *policy,
 			      const u8 nonce[FSCRYPT_FILE_NONCE_SIZE],
-#if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+#ifdef CONFIG_DDAR
 			      bool need_dirhash_key,
 			      void *knox_info)
 #else
 			      bool need_dirhash_key)
 #endif
 {
+#ifdef CONFIG_DDAR
+	struct ext_fscrypt_info *ext_crypt_info;
+#endif
 	struct fscrypt_info *crypt_info;
 	struct fscrypt_mode *mode;
 	struct key *master_key = NULL;
@@ -606,12 +627,17 @@ fscrypt_setup_encryption_info(struct inode *inode,
 	if (res)
 		return res;
 
+#ifdef CONFIG_DDAR
+	ext_crypt_info = kmem_cache_zalloc(fscrypt_info_cachep, GFP_KERNEL);
+	if (!ext_crypt_info)
+		return -ENOMEM;
+	crypt_info = &ext_crypt_info->fscrypt_info;
+	ext_crypt_info->ci_dd_info = NULL;
+
+#else
 	crypt_info = kmem_cache_zalloc(fscrypt_info_cachep, GFP_KERNEL);
 	if (!crypt_info)
 		return -ENOMEM;
-
-#ifdef CONFIG_DDAR
-	crypt_info->ci_dd_info = NULL;
 #endif
 
 	crypt_info->ci_inode = inode;
@@ -643,7 +669,7 @@ fscrypt_setup_encryption_info(struct inode *inode,
 				goto out;
 			}
 
-			crypt_info->ci_dd_info = di;
+			ext_crypt_info->ci_dd_info = di;
 		}
 	}
 #endif
@@ -674,9 +700,8 @@ fscrypt_setup_encryption_info(struct inode *inode,
 	}
 #ifdef CONFIG_DDAR
 	if (crypt_info == NULL) {
-		if (inode->i_crypt_info && inode->i_crypt_info->ci_dd_info) {
+		if (ext_crypt_info->ci_dd_info)
 			fscrypt_dd_inc_count();
-		}
 	}
 #endif
 	res = 0;
@@ -731,7 +756,7 @@ int fscrypt_get_encryption_info(struct inode *inode, bool allow_unsupported)
 		return res;
 	}
 
-#if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+#ifdef CONFIG_DDAR
 	switch (ctx.version) {
 	case FSCRYPT_CONTEXT_V1: {
 		if (res == offsetof(struct fscrypt_context_v1, knox_flags)) {
@@ -765,16 +790,13 @@ int fscrypt_get_encryption_info(struct inode *inode, bool allow_unsupported)
 		return -EINVAL;
 	}
 
-#if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+#ifdef CONFIG_DDAR
 	if (fscrypt_has_knox_flags(&ctx)) {
 		struct fscrypt_knox_info knox_info;
-#ifdef CONFIG_DDAR
 		struct dd_crypt_context crypt_context;
-#endif
 
 		memset(&knox_info, 0, sizeof(knox_info));
 		knox_info.flag = fscrypt_knox_flags_from_context(&ctx);
-#ifdef CONFIG_DDAR
 		if (fscrypt_ddar_protected(knox_info.flag)) {
 			if (dd_read_crypt_context(inode, &crypt_context) != sizeof(struct dd_crypt_context)) {
 				dd_error("%s: failed to read dd crypt context (ino:%ld)\n", __func__, inode->i_ino);
@@ -784,7 +806,6 @@ int fscrypt_get_encryption_info(struct inode *inode, bool allow_unsupported)
 			knox_info.info = (void *) &crypt_context.policy;
 			knox_info.ctx = (void *) &crypt_context;
 		}
-#endif
 		res = fscrypt_setup_encryption_info(inode, &policy,
 						    fscrypt_context_nonce(&ctx),
 						    IS_CASEFOLDED(inode) &&
@@ -834,8 +855,9 @@ int fscrypt_prepare_new_inode(struct inode *dir, struct inode *inode,
 			      bool *encrypt_ret)
 {
 	const union fscrypt_policy *policy;
-#if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+#ifdef CONFIG_DDAR
 	struct fscrypt_info *ci;
+	struct ext_fscrypt_info *ext_ci;
 #endif
 	u8 nonce[FSCRYPT_FILE_NONCE_SIZE];
 
@@ -861,27 +883,27 @@ int fscrypt_prepare_new_inode(struct inode *dir, struct inode *inode,
 
 	get_random_bytes(nonce, FSCRYPT_FILE_NONCE_SIZE);
 
-#if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+#ifdef CONFIG_DDAR
 	ci = fscrypt_has_dar_info(dir);
 	if (ci) {
 		struct fscrypt_knox_info knox_info;
 
 		memset(&knox_info, 0, sizeof(knox_info));
 
-#ifdef CONFIG_DDAR
-		if (ci->ci_dd_info) {
+		ext_ci = GET_EXT_CI(ci);
+		if (ext_ci->ci_dd_info) {
 			if (fscrypt_dd_is_locked()
-					&& !fscrypt_dd_flg_gid_restricted(
-							(ci->ci_dd_info->policy.flags << FSCRYPT_KNOX_FLG_DDAR_SHIFT), 0)) {
+					&& !fscrypt_dd_flg_gid_restricted((ext_ci->ci_dd_info->policy.flags
+							<< FSCRYPT_KNOX_FLG_DDAR_SHIFT), 0)) {
 				dd_error("%s - Failed to open a DDAR-protected (CE) file in lock state (ino:%ld)\n", __func__, inode->i_ino);
 				return -ENOKEY;
 			}
 
-			knox_info.flag |= ((ci->ci_dd_info->policy.flags << FSCRYPT_KNOX_FLG_DDAR_SHIFT) & FSCRYPT_KNOX_FLG_DDAR_MASK);
-			knox_info.info = (void *) &ci->ci_dd_info->policy;
+			knox_info.flag |= ((ext_ci->ci_dd_info->policy.flags
+					<< FSCRYPT_KNOX_FLG_DDAR_SHIFT) & FSCRYPT_KNOX_FLG_DDAR_MASK);
+			knox_info.info = (void *) &ext_ci->ci_dd_info->policy;
 			knox_info.ctx = NULL;
 		}
-#endif
 		return fscrypt_setup_encryption_info(inode, policy, nonce,
 						     IS_CASEFOLDED(dir) &&
 						     S_ISDIR(inode->i_mode), &knox_info);
@@ -908,8 +930,11 @@ EXPORT_SYMBOL_GPL(fscrypt_prepare_new_inode);
 void fscrypt_put_encryption_info(struct inode *inode)
 {
 #ifdef CONFIG_DDAR
-	if (inode->i_crypt_info && inode->i_crypt_info->ci_dd_info) {
-		fscrypt_dd_dec_count();
+	if (inode->i_crypt_info) {
+		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(inode->i_crypt_info);
+
+		if (ext_ci->ci_dd_info)
+			fscrypt_dd_dec_count();
 	}
 #endif
 	put_crypt_info(inode->i_crypt_info);
@@ -1161,4 +1186,46 @@ int fscrypt_get_encryption_kek(
 	return res;
 }
 EXPORT_SYMBOL(fscrypt_get_encryption_kek);
+
+int fscrypt_set_ddar_context(struct inode *inode, struct fscrypt_info *ci,
+		union fscrypt_context *ctx, int ctxsize, void *fs_data)
+{
+	if (fscrypt_has_dar_info(inode)) {
+		int res = 0;
+		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
+
+		if (ext_ci->ci_dd_info) {
+			res = fscrypt_set_knox_ddar_flags(ctx, ci);
+			if (res) {
+				dd_error("failed to set knox ddar flag\n");
+				return res;
+			}
+
+			switch (ctx->version) {
+			case FSCRYPT_CONTEXT_V1: {
+				if (ctx->v1.knox_flags != 0)
+					ctxsize = sizeof(ctx->v1);
+				break;
+			}
+			case FSCRYPT_CONTEXT_V2: {
+				if (ctx->v2.knox_flags != 0)
+					ctxsize = sizeof(ctx->v2);
+				break;
+			}
+			}
+
+			res = inode->i_sb->s_cop->set_context(inode, ctx, ctxsize, fs_data);
+			if (res) {
+				dd_error("failed to set context (%ld)\n", inode->i_ino);
+				return res;
+			}
+
+			res = dd_write_crypt_context(inode, &ext_ci->ci_dd_info->crypt_context, fs_data);
+			dd_verbose("%s - ino : %ld, policy.flag:%x, res : %d",
+					__func__, inode->i_ino, ext_ci->ci_dd_info->policy.flags, res);
+		}
+		return res;
+	}
+	return -EAGAIN;
+}
 #endif

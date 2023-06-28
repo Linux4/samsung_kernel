@@ -42,6 +42,9 @@
 #define LSM6DSO_SELFTEST_FALSE 4
 #endif
 
+#define UNKNOWN_INDEX      0
+#define DEVICE_INFO_LENGTH 10
+
 enum {
 	D_FACTOR,
 	R_COEF,
@@ -89,6 +92,9 @@ struct adsp_data {
 	struct mutex light_factory_mutex;
 	struct mutex accel_factory_mutex;
 	struct mutex remove_sysfs_mutex;
+#if IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
+	struct mutex vir_optic_factory_mutex;
+#endif
 #if IS_ENABLED(CONFIG_FLIP_COVER_DETECTOR_FACTORY)
 	struct mutex flip_cover_factory_mutex;
 #endif
@@ -102,8 +108,9 @@ struct adsp_data {
 	int32_t fac_fstate;
 #if IS_ENABLED(CONFIG_LIGHT_FACTORY)
 	struct delayed_work light_init_work;
-	char light_device_vendor[10];
-	char light_device_name[10];
+	bool light_factory_is_ready;
+	char light_device_vendor[2][10];
+	char light_device_name[2][10];
 #endif
 #if IS_ENABLED(CONFIG_SUPPORT_LIGHT_CALIBRATION)
 	struct delayed_work light_cal_work;
@@ -129,36 +136,47 @@ struct adsp_data {
 #if IS_ENABLED(CONFIG_LIGHT_FACTORY)
 	int32_t light_temp_reg;
 	int32_t brightness_info[6];
-	int32_t pre_bl_level;
-	int32_t pre_panel_state;
+	int32_t pre_bl_level[2];
+	int32_t pre_panel_state[2];
+	int32_t pre_screen_mode[2];
 	int32_t pre_panel_idx;
 	int32_t pre_display_idx;
-	int32_t pre_test_state;
-	int32_t pre_screen_mode;
 	int32_t light_debug_info_cmd;
 	int32_t hyst[4];
 #endif
 #if IS_ENABLED(CONFIG_SUPPORT_PROX_CALIBRATION)
 	int32_t prox_cal;
+	int32_t prox_sub_cal;
 #endif
 	struct delayed_work accel_cal_work;
 #if IS_ENABLED(CONFIG_SUPPORT_DUAL_6AXIS)
 	struct delayed_work sub_accel_cal_work;
-	struct delayed_work lsm6dso_selftest_stop_work;
 #endif
 #if IS_ENABLED(CONFIG_SUPPORT_LIGHT_SEAMLESS)
 	struct delayed_work light_seamless_work;
 #endif
-#if IS_ENABLED(CONFIG_SUPPORT_AK09973)
+#if IS_ENABLED(CONFIG_SUPPORT_AK09973) || defined(CONFIG_SUPPORT_AK09973)
+	struct delayed_work lsm6dso_selftest_stop_work;
 	struct delayed_work dhall_cal_work;
+#elif IS_ENABLED(CONFIG_SUPPORT_REF_ANGLE_WITHOUT_DIGITAL_HALL) || defined(CONFIG_SUPPORT_REF_ANGLE_WITHOUT_DIGITAL_HALL)
+	struct delayed_work lsm6dso_selftest_stop_work;
 #endif
 	struct delayed_work pressure_cal_work;
+	char press_device_vendor[DEVICE_INFO_LENGTH];
+	char press_device_name[DEVICE_INFO_LENGTH];
 #if IS_ENABLED(CONFIG_SUPPORT_SENSOR_FOLD)
 	struct sensor_fold_state fold_state;
 #endif
 	uint32_t support_algo;
 	bool restrict_mode;
 	int turn_over_crash;
+	bool send_probe_fail_msg;
+};
+
+struct device_id_t {
+	uint8_t device_id;
+	char device_vendor[DEVICE_INFO_LENGTH];
+	char device_name[DEVICE_INFO_LENGTH];
 };
 
 #ifdef CONFIG_SEC_FACTORY
@@ -167,10 +185,6 @@ int get_mag_raw_data(int32_t *raw_data);
 int get_accel_raw_data(int32_t *raw_data);
 #if IS_ENABLED(CONFIG_SUPPORT_DUAL_6AXIS)
 int get_sub_accel_raw_data(int32_t *raw_data);
-#endif
-int get_prox_raw_data(int *raw_data, int *offset);
-#if IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
-int get_sub_prox_raw_data(int *raw_data, int *offset);
 #endif
 int adsp_get_sensor_data(int sensor_type);
 int adsp_factory_register(unsigned int type,
@@ -210,6 +224,9 @@ void ak09918_factory_exit(void);
 #if IS_ENABLED(CONFIG_LPS22HH_FACTORY)
 int lps22hh_pressure_factory_init(void);
 void lps22hh_pressure_factory_exit(void);
+#elif IS_ENABLED(CONFIG_PRESSURE_FACTORY)
+int pressure_factory_init(void);
+void pressure_factory_exit(void);
 #endif
 #if IS_ENABLED(CONFIG_LIGHT_FACTORY)
 int light_factory_init(void);
@@ -228,12 +245,14 @@ int lsm6dso_sub_gyro_factory_init(void);
 void lsm6dso_sub_gyro_factory_exit(void);
 void sub_accel_factory_init_work(struct adsp_data *data);
 void sub_accel_cal_work_func(struct work_struct *work);
-void lsm6dso_selftest_stop_work_func(struct work_struct *work);
 #endif
 
 #if IS_ENABLED(CONFIG_SUPPORT_AK09973)
 int ak09970_factory_init(void);
 void ak09970_factory_exit(void);
+void lsm6dso_selftest_stop_work_func(struct work_struct *work);
+#elif IS_ENABLED(CONFIG_SUPPORT_REF_ANGLE_WITHOUT_DIGITAL_HALL) || defined(CONFIG_SUPPORT_REF_ANGLE_WITHOUT_DIGITAL_HALL)
+void lsm6dso_selftest_stop_work_func(struct work_struct *work);
 #endif
 
 #if IS_ENABLED(CONFIG_SUPPORT_DEVICE_MODE)
@@ -261,7 +280,7 @@ void light_fifo_debug_work_func(struct work_struct *work);
 #endif
 #if IS_ENABLED(CONFIG_SUPPORT_PROX_CALIBRATION)
 void prox_cal_init_work(struct adsp_data *data);
-void prox_send_cal_data(struct adsp_data *data, bool fac_cal);
+void prox_send_cal_data(struct adsp_data *data, uint16_t prox_idx, bool fac_cal);
 #endif
 #if IS_ENABLED(CONFIG_SUPPORT_PROX_POWER_ON_CAL)
 void prox_factory_init_work(void);
@@ -278,7 +297,7 @@ void light_seamless_init_work(struct adsp_data *data);
 int get_light_sidx(struct adsp_data *data);
 #endif
 #if IS_ENABLED(CONFIG_SUPPORT_BRIGHTNESS_NOTIFY_FOR_LIGHT_SENSOR) && \
-	IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER)
+	(IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2) || IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER))
 struct adsp_data* adsp_get_struct_data(void);
 void light_brightness_work_func(struct work_struct *work);
 #endif

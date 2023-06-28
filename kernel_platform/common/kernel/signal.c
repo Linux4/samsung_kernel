@@ -1226,8 +1226,7 @@ static int send_signal(int sig, struct kernel_siginfo *info, struct task_struct 
 	/* [SystemF/W, si_code is 0 : from userspace, si_code is over 0 : from kernel */
 	if (!is_si_special(info)) {
 		if ((current->pid != 1) && ((sig == SIGKILL && !strncmp("main", t->group_leader->comm, 4))
-				|| ((sig == SIGKILL || sig == SIGSEGV)
-					&& !strncmp("system_server", t->group_leader->comm, 13)))) {
+				|| (sig == SIGKILL && !strncmp("system_server", t->group_leader->comm, 13)))) {
 			pr_info("Send signal %d from %s(%d) to %s(%d) : %d\n",
 						sig, current->comm, current->pid, t->comm, t->pid, info->si_code);
 		}
@@ -1473,6 +1472,7 @@ int group_send_sig_info(int sig, struct kernel_siginfo *info,
 			bool reap = false;
 
 			trace_android_vh_process_killed(current, &reap);
+			trace_android_vh_killed_process(current, p, &reap);
 			if (reap)
 				add_to_oom_reaper(p);
 		}
@@ -2053,12 +2053,12 @@ bool do_notify_parent(struct task_struct *tsk, int sig)
 	bool autoreap = false;
 	u64 utime, stime;
 
-	BUG_ON(sig == -1);
+	WARN_ON_ONCE(sig == -1);
 
- 	/* do_notify_parent_cldstop should have been called instead.  */
- 	BUG_ON(task_is_stopped_or_traced(tsk));
+	/* do_notify_parent_cldstop should have been called instead.  */
+	WARN_ON_ONCE(task_is_stopped_or_traced(tsk));
 
-	BUG_ON(!tsk->ptrace &&
+	WARN_ON_ONCE(!tsk->ptrace &&
 	       (tsk->group_leader != tsk || !thread_group_empty(tsk)));
 
 	/* Wake up all pidfd waiters */

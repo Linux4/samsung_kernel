@@ -142,7 +142,7 @@ static void send_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd
 
 int get_hbm_ce_lux_idx(struct samsung_display_driver_data *vdd)
 {
-	int i, idx;
+	int i, idx = 0;
 
 	for (i = 0; i < vdd->mdnie.hbm_ce_table.size; i++) {
 		if (vdd->br_info.lux >= vdd->mdnie.hbm_ce_table.lux[i])
@@ -151,7 +151,7 @@ int get_hbm_ce_lux_idx(struct samsung_display_driver_data *vdd)
 			break;
 	}
 
-	LCD_INFO(vdd, "idx[%d] lux[%d]\n", idx, vdd->br_info.lux);
+	LCD_INFO(vdd, "tab_size[%d] idx[%d] lux[%d]\n", vdd->mdnie.hbm_ce_table.size, idx, vdd->br_info.lux);
 
 	return idx;
 }

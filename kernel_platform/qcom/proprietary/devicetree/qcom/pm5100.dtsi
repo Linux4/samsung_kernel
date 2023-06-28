@@ -249,6 +249,10 @@
 			interrupts = <0x0 0x65 0x1 IRQ_TYPE_EDGE_RISING>;
 		};
 
+		pm5100_cdc: qcom,pm5100-cdc {
+			compatible = "qcom,pm5100-spmi";
+		};
+
 		pm5100_bcl: bcl@4700 {
 			compatible = "qcom,bcl-v5";
 			reg = <0x4700 0x100>;
@@ -299,9 +303,22 @@
 
 		};
 
+		pm5100_sdam_5: sdam@7400 {
+			compatible = "qcom,spmi-sdam";
+			reg = <0x7400>;
+		};
+
 		pm5100_sdam_7: sdam@7600 {
 			compatible = "qcom,spmi-sdam";
 			reg = <0x7600>;
+		};
+
+		pm5100_sdam_8: sdam@7700 {
+			compatible = "qcom,spmi-sdam";
+			reg = <0x7700>;
+			charger_soc: charger_soc@47 {
+				reg = <0x65 0x2>;
+			};
 		};
 
 		pm5100_sdam_22: sdam@8500 {
@@ -324,8 +341,9 @@
 			compatible = "qcom,qbg";
 			#address-cells = <1>;
 			reg = <0x4f00>;
-			interrupt-names = "qbg-sdam";
-			interrupts = <0x0 0x76 0x1 IRQ_TYPE_EDGE_RISING>;
+			interrupt-names = "qbg-sdam", "qbg-vbatt-empty";
+			interrupts = <0x0 0x76 0x1 IRQ_TYPE_EDGE_RISING>,
+					<0x0 0x4F 0x1 IRQ_TYPE_EDGE_RISING>;
 			qcom,num-data-sdams = <5>;
 			qcom,sdam-base = <0x7600>;
 			qcom,adc-cmn-wb-base = <0x3000>;
@@ -570,7 +588,6 @@
 	pm5100-ibat-lvl0 {
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-governor = "step_wise";
 		thermal-sensors = <&pm5100_bcl 0>;
 
 		trips {
@@ -585,7 +602,6 @@
 	pm5100-ibat-lvl1 {
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-governor = "step_wise";
 		thermal-sensors = <&pm5100_bcl 1>;
 
 		trips {
@@ -600,10 +616,15 @@
 	pm5100-bcl-lvl0 {
 		polling-delay-passive = <100>;
 		polling-delay = <0>;
-		thermal-governor = "step_wise";
 		thermal-sensors = <&pm5100_bcl 5>;
 
 		trips {
+			thermal-engine-trip {
+				temperature = <100>;
+				hysteresis = <0>;
+				type = "passive";
+			};
+
 			bcl_lvl0: bcl-lvl0 {
 				temperature = <1>;
 				hysteresis = <1>;
@@ -615,10 +636,15 @@
 	pm5100-bcl-lvl1 {
 		polling-delay-passive = <100>;
 		polling-delay = <0>;
-		thermal-governor = "step_wise";
 		thermal-sensors = <&pm5100_bcl 6>;
 
 		trips {
+			thermal-engine-trip {
+				temperature = <100>;
+				hysteresis = <0>;
+				type = "passive";
+			};
+
 			bcl_lvl1: bcl-lvl1 {
 				temperature = <1>;
 				hysteresis = <1>;
@@ -630,10 +656,15 @@
 	pm5100-bcl-lvl2 {
 		polling-delay-passive = <100>;
 		polling-delay = <0>;
-		thermal-governor = "step_wise";
 		thermal-sensors = <&pm5100_bcl 7>;
 
 		trips {
+			thermal-engine-trip {
+				temperature = <100>;
+				hysteresis = <0>;
+				type = "passive";
+			};
+
 			bcl_lvl2: bcl-lvl2 {
 				temperature = <1>;
 				hysteresis = <1>;
@@ -645,10 +676,15 @@
 	socd {
 		polling-delay-passive = <100>;
 		polling-delay = <0>;
-		thermal-governor = "step_wise";
 		thermal-sensors = <&bcl_soc>;
 
 		trips {
+			thermal-engine-trip {
+				temperature = <100>;
+				hysteresis = <0>;
+				type = "passive";
+			};
+
 			socd_trip:socd-trip {
 				temperature = <90>;
 				hysteresis = <0>;

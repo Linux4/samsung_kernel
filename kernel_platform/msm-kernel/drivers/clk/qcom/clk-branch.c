@@ -69,6 +69,9 @@ static bool clk_branch2_check_halt(const struct clk_branch *br, bool enabling)
 		return (val & BRANCH_CLK_OFF) == 0 ||
 			val == BRANCH_NOC_FSM_STATUS_ON;
 	} else {
+		if (br->halt_check == BRANCH_HALT_INVERT)
+			return (val & BRANCH_CLK_OFF) == 0;
+
 		return val & BRANCH_CLK_OFF;
 	}
 }
@@ -104,6 +107,7 @@ static int clk_branch_wait(const struct clk_branch *br, bool enabling,
 		udelay(10);
 	} else if (br->halt_check == BRANCH_HALT_ENABLE ||
 		   br->halt_check == BRANCH_HALT ||
+		   br->halt_check == BRANCH_HALT_INVERT ||
 		   (enabling && voted)) {
 		timeout = get_branch_timeout(br);
 
@@ -332,6 +336,21 @@ static void clk_branch2_mem_disable(struct clk_hw *hw)
 	return clk_branch2_disable(hw);
 }
 
+static void clk_branch_restore_context_aon(struct clk_hw *hw)
+{
+	if (clk_enable_regmap(hw))
+		pr_err("Failed to enable %s\n", clk_hw_get_name(hw));
+}
+
+static void clk_branch_restore_context(struct clk_hw *hw)
+{
+	if (!(clk_hw_get_flags(hw) & CLK_IS_CRITICAL))
+		return;
+
+	if (clk_enable_regmap(hw))
+		pr_err("Failed to enable %s\n", clk_hw_get_name(hw));
+}
+
 const struct clk_ops clk_branch2_ops = {
 	.prepare = clk_prepare_regmap,
 	.unprepare = clk_unprepare_regmap,
@@ -342,11 +361,13 @@ const struct clk_ops clk_branch2_ops = {
 	.is_enabled = clk_is_enabled_regmap,
 	.init = clk_branch2_init,
 	.debug_init = clk_branch_debug_init,
+	.restore_context = clk_branch_restore_context,
 };
 EXPORT_SYMBOL_GPL(clk_branch2_ops);
 
 const struct clk_ops clk_branch2_aon_ops = {
 	.enable = clk_branch2_enable,
+	.restore_context = clk_branch_restore_context_aon,
 	.is_enabled = clk_is_enabled_regmap,
 	.init = clk_branch2_init,
 	.debug_init = clk_branch_debug_init,

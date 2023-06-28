@@ -1160,6 +1160,9 @@ CONFIG_WLAN_BCN_RECV_FEATURE := y
 #Flag to enable LTE COEX feature
 CONFIG_LTE_COEX := y
 
+#Flag to enable delayed peer obj free
+CONFIG_FEATURE_DELAYED_PEER_OBJ_DESTROY := y
+
 #Flag to enable/disable TARGET 11d scan
 CONFIG_TARGET_11D_SCAN := y
 
@@ -1189,8 +1192,6 @@ CONFIG_CP_STATS := y
 CONFIG_FEATURE_INTEROP_ISSUES_AP := y
 
 CONFIG_FEATURE_WLAN_WAPI := y
-
-CONFIG_AGEIE_ON_SCAN_RESULTS := y
 
 #Flag to enable FW log parsing support feature
 CONFIG_FEATURE_FW_LOG_PARSING := y

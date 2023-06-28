@@ -1064,7 +1064,9 @@ static int ss_elvss_read(struct samsung_display_driver_data *vdd)
 static void ss_gray_spot(struct samsung_display_driver_data *vdd, int enable)
 {
 	struct dsi_panel_cmd_set *pcmds;
+#if 0 // remove updatable feature
 	int idx = 0;
+#endif
 
 	if (IS_ERR_OR_NULL(vdd)) {
 		LCD_ERR(vdd, "Invalid data vdd : 0x%zx", (size_t)vdd);
@@ -1077,6 +1079,7 @@ static void ss_gray_spot(struct samsung_display_driver_data *vdd, int enable)
         return;
     }
 
+#if 0 // remove updatable feature
 	if (!enable) { /* grayspot off */
 		if (ss_wrapper_restore_backup_cmd(vdd, TX_GRAY_SPOT_TEST_OFF,
 					0x18, 0x94)) {
@@ -1106,6 +1109,7 @@ static void ss_gray_spot(struct samsung_display_driver_data *vdd, int enable)
 				vdd->br_info.common_br.elvss_value[0],
 				vdd->br_info.common_br.elvss_value[1]);
 	}
+#endif
 }
 
 static int dsi_update_mdnie_data(struct samsung_display_driver_data *vdd)

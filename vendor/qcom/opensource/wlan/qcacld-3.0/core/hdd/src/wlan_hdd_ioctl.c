@@ -2678,11 +2678,11 @@ static int drv_cmd_get_wifi6e_channels(struct hdd_adapter *adapter,
 
 	power_trpe_ret = power_type;
 	if (power_type == 0) {
-		power_type = REG_AP_LPI;
+		power_type = REG_CLI_DEF_LPI;
 	} else if (power_type == 1) {
-		power_type = REG_AP_VLP;
+		power_type = REG_CLI_DEF_VLP;
 	} else if (power_type == 2) {
-		power_type = REG_AP_SP;
+		power_type = REG_CLI_DEF_SP;
 	} else {
 		hdd_err("The power type : %d, is incorrect", power_type);
 		return -EINVAL;

@@ -65,7 +65,6 @@
 #include <linux/delay.h>
 #include <linux/slab.h>
 #include <linux/spi/spi.h>
-#include <stddef.h>
 #include <linux/fs.h>
 #include <asm/uaccess.h>
 #include <linux/version.h>
@@ -78,6 +77,10 @@
 #include "vl53l8_k_driver_config.h"
 #include "vl53l8_k_gpio_utils.h"
 #include "vl53l5_platform_user_data.h"
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
+#include <stddef.h>
+#endif
 
 #define GET_CHUNKS_REQD(size, chunk_size) \
 	((size / chunk_size) + ((size % chunk_size) != 0))

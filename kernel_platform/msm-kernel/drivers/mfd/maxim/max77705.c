@@ -505,6 +505,15 @@ static int of_max77705_dt(struct device *dev, struct max77705_platform_data *pda
 		pdata->extra_fw_enable = val;
 	}
 
+	ret = of_property_read_u32(np_max77705, "max77705,siso_ovp", &val);
+	if (ret) {
+		pr_info("%s: siso_ovp value not specified\n", __func__);
+		pdata->siso_ovp = 0;
+	} else {
+		pr_info("%s: siso_ovp: %d\n", __func__, val);
+		pdata->siso_ovp = val;
+	}
+
 	np_battery = of_find_node_by_name(NULL, "mfc-charger");
 	if (!np_battery) {
 		pr_info("%s: np_battery NULL\n", __func__);
@@ -532,7 +541,11 @@ static void max77705_reset_ic(struct max77705_dev *max77705)
 {
 	pr_info("Reset!!");
 	max77705_write_reg(max77705->muic, 0x80, 0x0F);
+#if defined(CONFIG_IFPMIC_CRC_CHECK)
+	msleep(300);
+#else
 	msleep(100);
+#endif
 }
 
 static void max77705_usbc_wait_response_q(struct work_struct *work)
@@ -1017,7 +1030,9 @@ retry:
 			switch (size) {
 			case FW_UPDATE_VERIFY_FAIL:
 				offset -= FW_CMD_WRITE_SIZE;
-				/* FALLTHROUGH */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+				fallthrough;
+#endif
 			case FW_UPDATE_TIMEOUT_FAIL:
 				/*
 				 * Retry FW updating
@@ -1342,7 +1357,11 @@ err:
 	return ret;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 static int max77705_i2c_remove(struct i2c_client *i2c)
+#else
+static void max77705_i2c_remove(struct i2c_client *i2c)
+#endif
 {
 	struct max77705_dev *max77705 = i2c_get_clientdata(i2c);
 
@@ -1354,8 +1373,11 @@ static int max77705_i2c_remove(struct i2c_client *i2c)
 	i2c_unregister_device(max77705->fuelgauge);
 	i2c_unregister_device(max77705->debug);
 	kfree(max77705);
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	return 0;
+#else
+	return;
+#endif
 }
 
 static const struct i2c_device_id max77705_i2c_id[] = {

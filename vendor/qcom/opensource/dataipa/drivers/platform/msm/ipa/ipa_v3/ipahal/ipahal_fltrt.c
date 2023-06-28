@@ -1283,6 +1283,7 @@ static struct ipahal_fltrt_obj ipahal_fltrt_objs[IPA_HW_MAX] = {
 				[IPA_IS_FRAG] = 15,
 				[IPA_IS_PURE_ACK] = 0,
 			},
+			IPA3_0_HW_RULE_PREFETCH_BUF_SIZE,
 	},
 
 };

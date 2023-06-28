@@ -16,7 +16,7 @@
 #include <linux/qcom_scm.h>
 #include <linux/random.h>
 #include <linux/regulator/consumer.h>
-#include <qcom-io-pgtable.h>
+#include <linux/qcom-io-pgtable.h>
 #include <soc/qcom/secure_buffer.h>
 
 #include "adreno.h"
