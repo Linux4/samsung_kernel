@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2014, 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/gpio/driver.h>
@@ -134,6 +134,7 @@ enum pmic_gpio_func_index {
  * struct pmic_gpio_pad - keep current GPIO settings
  * @base: Address base in SPMI device.
  * @is_enabled: Set to false when GPIO should be put in high Z state.
+ * @is_configured: Set to true if the GPIO is configured
  * @out_value: Cached pin output value
  * @have_buffer: Set to true if GPIO output could be configured in push-pull,
  *	open-drain or open-source mode.
@@ -153,6 +154,7 @@ enum pmic_gpio_func_index {
 struct pmic_gpio_pad {
 	u16		base;
 	bool		is_enabled;
+	bool		is_configured;
 	bool		out_value;
 	bool		have_buffer;
 	bool		output_enabled;
@@ -325,6 +327,7 @@ static int pmic_gpio_set_mux(struct pinctrl_dev *pctldev, unsigned function,
 	}
 
 	pad->function = function;
+	pad->is_configured = true;
 
 	if (pad->analog_pass)
 		val = PMIC_GPIO_MODE_ANALOG_PASS_THRU;
@@ -471,6 +474,7 @@ static int pmic_gpio_config_set(struct pinctrl_dev *pctldev, unsigned int pin,
 	pad = pctldev->desc->pins[pin].drv_data;
 
 	pad->is_enabled = true;
+	pad->is_configured = true;
 	for (i = 0; i < nconfs; i++) {
 		param = pinconf_to_config_param(configs[i]);
 		arg = pinconf_to_config_argument(configs[i]);
@@ -866,6 +870,37 @@ static const struct gpio_chip pmic_gpio_gpio_template = {
 	.dbg_show		= pmic_gpio_dbg_show,
 };
 
+#ifdef CONFIG_PM
+static int pmic_gpio_restore(struct device *dev)
+{
+	struct pmic_gpio_state *state = dev_get_drvdata(dev);
+	struct pinctrl_dev *ctrl = state->ctrl;
+	struct pmic_gpio_pad *pad;
+	unsigned int i, npins = ctrl->desc->npins;
+	int ret = 0;
+
+	for (i = 0; i < npins; i++) {
+		pad = ctrl->desc->pins[i].drv_data;
+		if (pad->is_configured) {
+			ret = pmic_gpio_config_set(ctrl, i, NULL, 0);
+			if (ret < 0) {
+				dev_err(state->dev, "Failed to restore pin %s[%d] ret=%d\n",
+					ctrl->desc->pins[i].name, i, ret);
+				return ret;
+			}
+		}
+	}
+
+	return ret;
+}
+
+static const struct dev_pm_ops pmic_gpio_pm_ops = {
+	.restore = pmic_gpio_restore,
+};
+#else
+static const struct dev_pm_ops pmic_gpio_pm_ops = {};
+#endif
+
 static int pmic_gpio_populate(struct pmic_gpio_state *state,
 			      struct pmic_gpio_pad *pad)
 {
@@ -1019,6 +1054,7 @@ static int pmic_gpio_populate(struct pmic_gpio_state *state,
 
 	/* Pin could be disabled with PIN_CONFIG_BIAS_HIGH_IMPEDANCE */
 	pad->is_enabled = true;
+	pad->is_configured = false;
 	return 0;
 }
 
@@ -1285,6 +1321,7 @@ static const struct of_device_id pmic_gpio_of_match[] = {
 	{ .compatible = "qcom,pmx55-gpio", .data = (void *) 11 },
 	{ .compatible = "qcom,pmx65-gpio", .data = (void *) 16 },
 	{ .compatible = "qcom,pmx75-gpio", .data = (void *) 16 },
+	{ .compatible = "qcom,pmx35-gpio", .data = (void *) 8 },
 	{ .compatible = "qcom,pm7550ba-gpio", .data = (void *) 8 },
 	{ .compatible = "qcom,pm8550-gpio", .data = (void *) 12 },
 	{ .compatible = "qcom,pm8550b-gpio", .data = (void *) 12 },
@@ -1292,6 +1329,10 @@ static const struct of_device_id pmic_gpio_of_match[] = {
 	{ .compatible = "qcom,pm8550vs-gpio", .data = (void *) 6 },
 	{ .compatible = "qcom,pmk8550-gpio", .data = (void *) 6 },
 	{ .compatible = "qcom,pmr735d-gpio", .data = (void *) 2 },
+	{ .compatible = "qcom,pm8775-gpio", .data = (void *) 12 },
+	{ .compatible = "qcom,pm5100-gpio", .data = (void *) 16 },
+	{ .compatible = "qcom,pm2250-gpio", .data = (void *) 10 },
+	{ .compatible = "qcom,pm8009-gpio", .data = (void *) 4 },
 	{ },
 };
 
@@ -1301,6 +1342,7 @@ static struct platform_driver pmic_gpio_driver = {
 	.driver = {
 		   .name = "qcom-spmi-gpio",
 		   .of_match_table = pmic_gpio_of_match,
+		   .pm = &pmic_gpio_pm_ops,
 	},
 	.probe	= pmic_gpio_probe,
 	.remove = pmic_gpio_remove,

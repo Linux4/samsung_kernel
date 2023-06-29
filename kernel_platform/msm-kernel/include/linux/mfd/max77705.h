@@ -71,6 +71,7 @@ struct max77705_platform_data {
 	bool wakeup;
 	bool blocking_waterevent;
 	bool extra_fw_enable;
+	bool siso_ovp;
 	int wpc_en;
 	int fw_product_id;
 	struct muic_platform_data *muic_pdata;

@@ -17,8 +17,10 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/slab.h>
+#include <linux/suspend.h>
 #include <linux/uaccess.h>
 #include <soc/qcom/boot_stats.h>
+#include <soc/qcom/soc_sleep_stats.h>
 #include <linux/hashtable.h>
 
 #define MARKER_STRING_WIDTH 40
@@ -38,12 +40,12 @@
 struct boot_stats {
 	uint32_t bootloader_start;
 	uint32_t bootloader_end;
-	uint32_t bootloader_display;
-	uint32_t bootloader_load_kernel;
-#ifdef CONFIG_MSM_BOOT_TIME_MARKER
-	uint32_t bootloader_load_kernel_start;
-	uint32_t bootloader_load_kernel_end;
-#endif
+	uint32_t bootloader_load_boot_start;
+	uint32_t bootloader_load_boot_end;
+	uint32_t bootloader_load_vendor_boot_start;
+	uint32_t bootloader_load_vendor_boot_end;
+	uint32_t bootloader_load_init_boot_start;
+	uint32_t bootloader_load_init_boot_end;
 } __packed;
 
 static void __iomem *mpm_counter_base;
@@ -64,6 +66,58 @@ static struct boot_marker boot_marker_list;
 static struct kobject *bootkpi_obj;
 static int num_markers;
 static DECLARE_HASHTABLE(marker_htable, 5);
+
+
+#if IS_ENABLED(CONFIG_QCOM_SOC_SLEEP_STATS)
+static u64 get_time_in_msec(u64 counter)
+{
+	counter *= MSEC_PER_SEC;
+	do_div(counter, MSM_ARCH_TIMER_FREQ);
+	return counter;
+}
+
+static void measure_wake_up_time(void)
+{
+	u64 wake_up_time, deep_sleep_exit_time, current_time;
+	char wakeup_marker[50] = {0,};
+
+	current_time = arch_timer_read_counter();
+	deep_sleep_exit_time = get_aosd_sleep_exit_time();
+
+	if (deep_sleep_exit_time) {
+		wake_up_time = get_time_in_msec(current_time - deep_sleep_exit_time);
+		pr_debug("Current= %llu, wakeup=%llu, kpi=%llu msec\n",
+				current_time, deep_sleep_exit_time,
+				wake_up_time);
+		snprintf(wakeup_marker, sizeof(wakeup_marker),
+				"M - STR Wakeup : %llu ms", wake_up_time);
+		destroy_marker("M - STR Wakeup");
+		place_marker(wakeup_marker);
+	} else
+		destroy_marker("M - STR Wakeup");
+}
+
+/**
+ * boot_kpi_pm_notifier() - PM notifier callback function.
+ * @nb:		Pointer to the notifier block.
+ * @event:	Suspend state event from PM module.
+ * @unused:	Null pointer from PM module.
+ *
+ * This function is register as callback function to get notifications
+ * from the PM module on the system suspend state.
+ */
+static int boot_kpi_pm_notifier(struct notifier_block *nb,
+				  unsigned long event, void *unused)
+{
+	if (event == PM_POST_SUSPEND)
+		measure_wake_up_time();
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block boot_kpi_pm_nb = {
+	.notifier_call = boot_kpi_pm_notifier,
+};
+#endif
 
 unsigned long long msm_timer_get_sclk_ticks(void)
 {
@@ -221,21 +275,42 @@ EXPORT_SYMBOL(destroy_marker);
 
 static void set_bootloader_stats(void)
 {
+	unsigned long long ts1, ts2;
+
 	if (IS_ERR_OR_NULL(boot_stats)) {
 		pr_err("boot_marker: imem not initialized!\n");
 		return;
 	}
 
 	_create_boot_marker("M - APPSBL Start - ",
-		readl_relaxed(&boot_stats->bootloader_start));
-	_create_boot_marker("M - APPSBL Kernel Load Start - ",
-		readl_relaxed(&boot_stats->bootloader_load_kernel_start));
-	_create_boot_marker("M - APPSBL Kernel Load End - ",
-		readl_relaxed(&boot_stats->bootloader_load_kernel_end));
-	_create_boot_marker("D - APPSBL Kernel Load Time - ",
-		readl_relaxed(&boot_stats->bootloader_load_kernel));
+			readl_relaxed(&boot_stats->bootloader_start));
+
+	ts1 = readl_relaxed(&boot_stats->bootloader_load_boot_start);
+	if (ts1) {
+		_create_boot_marker("M - APPSBL Boot Load Start - ", ts1);
+		ts2 = readl_relaxed(&boot_stats->bootloader_load_boot_end);
+		_create_boot_marker("M - APPSBL Boot Load End - ", ts2);
+		_create_boot_marker("D - APPSBL Boot Load Time - ", ts2 - ts1);
+	}
+
+	ts1 = readl_relaxed(&boot_stats->bootloader_load_vendor_boot_start);
+	if (ts1) {
+		_create_boot_marker("M - APPSBL Vendor Boot Load Start - ", ts1);
+		ts2 = readl_relaxed(&boot_stats->bootloader_load_vendor_boot_end);
+		_create_boot_marker("M - APPSBL Vendor Boot Load End - ", ts2);
+		_create_boot_marker("D - APPSBL Vendor Boot Load Time - ", ts2 - ts1);
+	}
+
+	ts1 = readl_relaxed(&boot_stats->bootloader_load_init_boot_start);
+	if (ts1) {
+		_create_boot_marker("M - APPSBL Init Boot Load Start - ", ts1);
+		ts2 = readl_relaxed(&boot_stats->bootloader_load_init_boot_end);
+		_create_boot_marker("M - APPSBL Init Boot Load End - ", ts2);
+		_create_boot_marker("D - APPSBL Init Load Time - ", ts2 - ts1);
+	}
+
 	_create_boot_marker("M - APPSBL End - ",
-		readl_relaxed(&boot_stats->bootloader_end));
+			readl_relaxed(&boot_stats->bootloader_end));
 }
 
 static ssize_t bootkpi_reader(struct file *fp, struct kobject *obj,
@@ -377,6 +452,13 @@ static int init_bootkpi(void)
 
 	INIT_LIST_HEAD(&boot_marker_list.list);
 	spin_lock_init(&boot_marker_list.slock);
+
+#if IS_ENABLED(CONFIG_QCOM_SOC_SLEEP_STATS)
+	ret = register_pm_notifier(&boot_kpi_pm_nb);
+	if (ret)
+		pr_err("boot_marker: power state notif error\n");
+#endif
+
 	return 0;
 }
 
@@ -439,10 +521,9 @@ static void print_boot_stats(void)
 		readl_relaxed(&boot_stats->bootloader_start));
 	pr_info("KPI: Bootloader end count = %u\n",
 		readl_relaxed(&boot_stats->bootloader_end));
-	pr_info("KPI: Bootloader display count = %u\n",
-		readl_relaxed(&boot_stats->bootloader_display));
 	pr_info("KPI: Bootloader load kernel count = %u\n",
-		readl_relaxed(&boot_stats->bootloader_load_kernel));
+		readl_relaxed(&boot_stats->bootloader_load_boot_end) -
+		readl_relaxed(&boot_stats->bootloader_load_boot_start));
 	pr_info("KPI: Kernel MPM timestamp = %u\n",
 		readl_relaxed(mpm_counter_base));
 	pr_info("KPI: Kernel MPM Clock frequency = %u\n",

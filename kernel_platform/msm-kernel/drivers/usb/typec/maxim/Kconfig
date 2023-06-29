@@ -109,3 +109,9 @@ config MUIC_DISABLE_CHGDET
 	default n
 	help
 	  If you say yes here you will get support for disabling chgdet.
+
+config MUIC_USE_SISO_OVP
+	bool "Using SISO OVP"
+	default n
+	help
+	  If you say yes here you will get support for using siso ovp

@@ -1233,7 +1233,7 @@ static int cam_csiphy_cphy_data_rate_config(struct csiphy_device *csiphy_device,
 				if (g_phy_data[phy_idx].data_rate_aux_mask &
 					BIT_ULL(data_rate_idx)) {
 					cam_io_w_mb(reg_data, csiphybase + reg_addr);
-					CAM_DBG(CAM_CSIPHY,
+					CAM_INFO(CAM_CSIPHY,
 						"CSIPHY: %u configuring new aux setting reg_addr: 0x%x reg_val: 0x%x",
 						csiphy_device->soc_info.index, reg_addr, reg_data);
 				}

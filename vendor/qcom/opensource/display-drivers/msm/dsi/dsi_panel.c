@@ -544,7 +544,7 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 
 			vdd->ub_con_det.current_wakeup_context_gpio_status = ss_gpio_get_value(vdd, vdd->ub_con_det.gpio);
 			if (vdd->ub_con_det.current_wakeup_context_gpio_status) {
-				LCD_ERR(vdd, "Do not panel power on..\n");
+				LCD_INFO(vdd, "Do not panel power on\n");
 				return 0;
 			}
 		}
@@ -552,6 +552,11 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 
 	if (!ss_panel_attach_get(panel->panel_private)) {
 		LCD_INFO(vdd, "PBA booting, skip to power on panel\n");
+
+		if (gpio_is_valid(vdd->ub_con_det.gpio) &&
+				!ss_gpio_get_value(vdd, vdd->ub_con_det.gpio))
+			LCD_ERR(vdd, "PBA booting but UB connected (mipi error)\n");
+
 		return 0;
 	}
 
@@ -678,6 +683,11 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 
 	if (!ss_panel_attach_get(vdd)) {
 		LCD_INFO(vdd, "PBA booting, skip to power off panel\n");
+
+		if (gpio_is_valid(vdd->ub_con_det.gpio) &&
+				!ss_gpio_get_value(vdd, vdd->ub_con_det.gpio))
+			LCD_ERR(vdd, "PBA booting but UB connected (mipi error)\n");
+
 		return 0;
 	}
 #endif
@@ -2972,7 +2982,7 @@ static int dsi_panel_parse_power_cfg(struct dsi_panel *panel)
 	 */
 	if ((!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") && !pba_regulator_control_ss) ||
 		(!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1") && !pba_regulator_control_ss_sub)) {
-		LCD_ERR(vdd, "PBA booting, skip to parse vreg\n");
+		LCD_INFO(vdd, "PBA booting, skip to parse vreg\n");
 		goto error;
 	}
 #endif
@@ -5128,10 +5138,6 @@ int dsi_panel_set_lp1(struct dsi_panel *panel)
 		return -EINVAL;
 	}
 
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, true);
-#endif
-
 	mutex_lock(&panel->panel_lock);
 	if (!panel->panel_initialized)
 		goto exit;
@@ -5156,9 +5162,6 @@ int dsi_panel_set_lp1(struct dsi_panel *panel)
 #endif
 exit:
 	mutex_unlock(&panel->panel_lock);
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, false);
-#endif
 	return rc;
 }
 
@@ -5171,9 +5174,6 @@ int dsi_panel_set_lp2(struct dsi_panel *panel)
 		return -EINVAL;
 	}
 
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, true);
-#endif
 	mutex_lock(&panel->panel_lock);
 	if (!panel->panel_initialized)
 		goto exit;
@@ -5187,9 +5187,6 @@ int dsi_panel_set_lp2(struct dsi_panel *panel)
 #endif
 exit:
 	mutex_unlock(&panel->panel_lock);
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, false);
-#endif
 	return rc;
 }
 
@@ -5201,10 +5198,6 @@ int dsi_panel_set_nolp(struct dsi_panel *panel)
 		DSI_ERR("invalid params\n");
 		return -EINVAL;
 	}
-
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, true);
-#endif
 
 	mutex_lock(&panel->panel_lock);
 	if (!panel->panel_initialized)
@@ -5227,9 +5220,6 @@ int dsi_panel_set_nolp(struct dsi_panel *panel)
 #endif
 exit:
 	mutex_unlock(&panel->panel_lock);
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, false);
-#endif
 	return rc;
 }
 
@@ -5518,7 +5508,8 @@ int dsi_panel_send_qsync_on_dcs(struct dsi_panel *panel,
 		if (!SS_IS_CMDS_NULL(ss_get_cmds(vdd, TX_EARLY_TE))) {
 			vdd->early_te = true;
 			vdd->check_early_te = CHECK_EARLY_TE_COUNT;
-			ss_send_cmd(vdd, TX_EARLY_TE);
+			if (vdd->panel_state != PANEL_PWR_LPM)
+				ss_send_cmd(vdd, TX_EARLY_TE);
 		}
 	}
 #else
@@ -5561,7 +5552,8 @@ int dsi_panel_send_qsync_off_dcs(struct dsi_panel *panel,
 	if (vdd) {
 		if (!SS_IS_CMDS_NULL(ss_get_cmds(vdd, TX_EARLY_TE))) {
 			vdd->early_te = false;
-			ss_send_cmd(vdd, TX_EARLY_TE);
+			if (vdd->panel_state != PANEL_PWR_LPM)
+				ss_send_cmd(vdd, TX_EARLY_TE);
 		}
 	}
 #else
@@ -5843,7 +5835,7 @@ int dsi_panel_enable(struct dsi_panel *panel)
 
 	/* 3FA7 IC : display off, sleep in cmds should be sent befor sleep out in case2 */
 	if (vdd->poc_driver.read_case == READ_CASE2 && vdd->poc_driver.need_sleep_in) {
-		LCD_ERR(vdd, "display off, sleep in cmds should be sent befor sleep out in case2..\n");
+		LCD_INFO(vdd, "display off, sleep in cmds should be sent befor sleep out in case2\n");
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_OFF);
 		if (rc) {
 			LCD_ERR(vdd, "[%s] failed to send DSI_CMD_SET_OFF cmds, rc=%d\n",

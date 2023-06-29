@@ -18,6 +18,8 @@
  *
  ******************************************************************************/
 
+#ifndef _P73_H_
+#define _P73_H_
 #define P61_MAGIC 0xEB
 #define P61_SET_PWR _IOW(P61_MAGIC, 0x01, long)
 #define P61_SET_DBG _IOW(P61_MAGIC, 0x02, long)
@@ -82,6 +84,7 @@ struct p61_spi_platform_data {
 	int irq_gpio;
 	int rst_gpio;
 	int trusted_ese_gpio;
+	bool gpio_coldreset;
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 	int ap_vendor;
 #endif
@@ -103,4 +106,6 @@ struct p61_ioctl_transfer32 {
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 void store_nfc_i2c_device(struct device *nfc_i2c_dev);
+void p61_print_status(const char *func_name);
+#endif
 #endif

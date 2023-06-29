@@ -31,7 +31,9 @@ struct cirrus_amp_group *amp_group;
 static struct cirrus_cal_ops *cirrus_cal_ops[3] = {
 	&cirrus_cspl_cal_ops,
 	&cirrus_cspl_cal_ops,
+#if IS_ENABLED(CONFIG_SND_SOC_CS35L43)
 	&cirrus_cs35l43_cal_ops
+#endif
 };
 
 struct cirrus_amp *cirrus_get_amp_from_suffix(const char *suffix)
@@ -104,6 +106,7 @@ int cirrus_amp_add(const char *mfd_suffix, struct cirrus_amp_config cfg)
 		amp->pwr.exit_temp = cfg.exit_temp;
 		amp->perform_vimon_cal = cfg.perform_vimon_cal;
 		amp->calibration_disable = cfg.calibration_disable;
+		amp->irq = cfg.irq;
 		amp->cal_vpk_id = cfg.cal_vpk_id ? cfg.cal_vpk_id :
 					CIRRUS_CAL_RTLOG_ID_V_PEAK;
 		amp->cal_ipk_id = cfg.cal_ipk_id ? cfg.cal_ipk_id :

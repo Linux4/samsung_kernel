@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2015, 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -28,7 +29,7 @@
 #include <wlan_cm_public_struct.h>
 
 /* Max candidate/attempts to be tried to connect */
-#define CM_MAX_CONNECT_ATTEMPTS 5
+#define CM_MAX_CONNECT_ATTEMPTS 10
 /*
  * Default connect timeout to consider 3 sec join timeout + 5 sec auth timeout +
  * 2 sec assoc timeout + 5 sec buffer for vdev related timeouts.
@@ -273,6 +274,18 @@ struct cnx_mgr {
 	void (*cm_candidate_list_custom_sort)(struct wlan_objmgr_vdev *vdev,
 					      qdf_list_t *list);
 #endif
+};
+
+/**
+ * struct vdev_op_search_arg - vdev op search arguments
+ * @current_vdev_id: current vdev id
+ * @sap_go_vdev_id: sap/go vdev id
+ * @sta_cli_vdev_id: sta/p2p client vdev id
+ */
+struct vdev_op_search_arg {
+	uint8_t current_vdev_id;
+	uint8_t sap_go_vdev_id;
+	uint8_t sta_cli_vdev_id;
 };
 
 /**

@@ -2757,6 +2757,12 @@ cm_update_btm_offload_config(struct wlan_objmgr_psoc *psoc,
 	if (!(*btm_offload_config))
 		return;
 
+	if (!wlan_cm_get_assoc_btm_cap(vdev)) {
+		mlme_debug("BTM not supported, disable BTM offload");
+		*btm_offload_config = 0;
+		return;
+	}
+
 	vdev_id = wlan_vdev_get_id(vdev);
 	wlan_cm_roam_cfg_get_value(psoc, vdev_id, HS_20_AP, &temp);
 	is_hs_20_ap = temp.bool_value;

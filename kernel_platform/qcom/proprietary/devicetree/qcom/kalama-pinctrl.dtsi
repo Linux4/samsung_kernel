@@ -748,7 +748,7 @@
 			config {
 				pins = "gpio44";
 				drive-strength = <2>;
-				bias-pull-up;
+				bias-disable;
 				qcom,i2c_pull;
 			};
 		};
@@ -762,7 +762,7 @@
 			config {
 				pins = "gpio45";
 				drive-strength = <2>;
-				bias-pull-up;
+				bias-disable;
 				qcom,i2c_pull;
 			};
 		};
@@ -776,7 +776,7 @@
 			config {
 				pins = "gpio44", "gpio45";
 				drive-strength = <2>;
-				//bias-disable - Has strong PU
+				bias-disable;
 			};
 		};
 	};

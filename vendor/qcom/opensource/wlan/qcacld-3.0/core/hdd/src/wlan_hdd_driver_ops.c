@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2015-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -749,8 +749,14 @@ static int __hdd_soc_recovery_reinit(struct device *dev,
 				     enum qdf_bus_type bus_type)
 {
 	int errno;
+	struct hdd_context *hdd_ctx = cds_get_context(QDF_MODULE_ID_HDD);
 
 	hdd_info("re-probing driver");
+
+	if (!hdd_ctx) {
+		hdd_err("hdd_ctx is null!");
+		return qdf_status_to_os_return(QDF_STATUS_E_RESOURCES);
+	}
 
 	hdd_soc_load_lock(dev);
 	cds_set_driver_in_bad_state(false);
@@ -778,6 +784,11 @@ static int __hdd_soc_recovery_reinit(struct device *dev,
 	if (!qdf_is_fw_down()) {
 		cds_set_recovery_in_progress(false);
 		hdd_handle_cached_commands();
+	}
+
+	if (!hdd_is_any_interface_open(hdd_ctx)) {
+		hdd_debug("restarting idle shutdown timer");
+		hdd_psoc_idle_timer_start(hdd_ctx);
 	}
 
 	hdd_soc_load_unlock(dev);

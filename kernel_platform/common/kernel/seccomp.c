@@ -945,6 +945,36 @@ static u32 seccomp_actions_logged = SECCOMP_LOG_KILL_PROCESS |
 				    SECCOMP_LOG_TRACE |
 				    SECCOMP_LOG_LOG;
 
+// SEC_PRODUCT_FEATURE_SECURITY_SUPPORT_DSMS {
+#if defined(CONFIG_SECURITY_DSMS) && defined(CONFIG_SECURITY_KUMIHO)
+#include <linux/dsms.h>
+
+#define MSG_SZ 200
+
+noinline void seccomp_notify_dsms(unsigned long syscall, long signr, u32 action)
+{
+	char comm_buf[sizeof(current->comm)];
+
+	get_task_comm(comm_buf, current);
+	if (unlikely(strncmp("kumihodecoder", comm_buf, sizeof(current->comm)) == 0)) {
+		char msg[MSG_SZ];
+		int i;
+
+		snprintf(msg, MSG_SZ, "seccomp '%s' syscall %ld signum %ld pid %d uid %d",
+			comm_buf, syscall, signr, current->pid, current_uid());
+		i = dsms_send_message("KMH0", msg, action);
+		if (unlikely(i != DSMS_SUCCESS))
+			pr_warn("%s::dsms_send_message failed: error %d msg <%s>\n", __func__, i, msg);
+	}
+}
+
+#undef MSG_SZ
+
+#else
+#define seccomp_notify_dsms(syscall, signumber, action) /* nothing */
+#endif
+// SEC_PRODUCT_FEATURE_SECURITY_SUPPORT_DSMS }
+
 static inline void seccomp_log(unsigned long syscall, long signr, u32 action,
 			       bool requested)
 {
@@ -975,6 +1005,8 @@ static inline void seccomp_log(unsigned long syscall, long signr, u32 action,
 	default:
 		log = seccomp_actions_logged & SECCOMP_LOG_KILL_PROCESS;
 	}
+	if (action != SECCOMP_RET_ALLOW)
+		seccomp_notify_dsms(syscall, signr, action);
 
 	/*
 	 * Emit an audit message when the action is RET_KILL_*, RET_LOG, or the

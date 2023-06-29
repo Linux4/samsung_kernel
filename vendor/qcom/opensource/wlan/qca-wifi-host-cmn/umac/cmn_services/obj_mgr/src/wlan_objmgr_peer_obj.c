@@ -451,11 +451,15 @@ wlan_objmgr_peer_obj_destroy(struct wlan_objmgr_peer *peer)
 {
 	QDF_STATUS status;
 
-	status = wlan_peer_obj_free_enqueue(peer);
-	if (status != QDF_STATUS_SUCCESS) {
-		obj_mgr_warn("enqueue failure, call free obj directly");
-		status = __wlan_objmgr_peer_obj_destroy(peer);
+	if (qdf_in_atomic()) {
+		status = wlan_peer_obj_free_enqueue(peer);
+		if (status == QDF_STATUS_SUCCESS)
+			return status;
+
+		obj_mgr_err("enqueue failure, call free obj directly");
 	}
+
+	status = __wlan_objmgr_peer_obj_destroy(peer);
 
 	return status;
 }

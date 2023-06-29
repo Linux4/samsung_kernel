@@ -908,6 +908,25 @@ static void max77705_cc_open_work_func(
 	}
 }
 
+static void max77705_dp_configure_work_func(
+		struct work_struct *work)
+{
+	struct max77705_usbc_platform_data *usbpd_data;
+#if !IS_ENABLED(CONFIG_ARCH_QCOM) || !defined(CONFIG_SEC_FACTORY)
+	int timeleft = 0;
+#endif
+
+	usbpd_data = container_of(work, struct max77705_usbc_platform_data, dp_configure_work);
+#if !IS_ENABLED(CONFIG_ARCH_QCOM) || !defined(CONFIG_SEC_FACTORY)
+	timeleft = wait_event_interruptible_timeout(usbpd_data->device_add_wait_q,
+			usbpd_data->device_add || usbpd_data->pd_data->cc_status == CC_NO_CONN, HZ/2);
+	msg_maxim("%s timeleft = %d\n", __func__, timeleft);
+#endif
+	if (usbpd_data->pd_data->cc_status != CC_NO_CONN)
+		max77705_ccic_event_work(usbpd_data, PDIC_NOTIFY_DEV_DP,
+			PDIC_NOTIFY_ID_DP_LINK_CONF, usbpd_data->dp_selected_pin, 0, 0);
+}
+
 void max77705_response_selftest_read(struct max77705_usbc_platform_data *usbpd_data, unsigned char *data)
 {
 	u8 cc = 0;
@@ -2822,7 +2841,11 @@ static void max77705_reset_ic(struct max77705_usbc_platform_data *usbc_data)
 	//gurantee to block i2c trasaction during ccic reset
 	mutex_lock(&max77705->i2c_lock);
 	max77705_write_reg_nolock(usbc_data->muic, 0x80, 0x0F);
+#if defined(CONFIG_IFPMIC_CRC_CHECK)
+	msleep(300);
+#else
 	msleep(100); /* need 100ms delay */
+#endif
 	mutex_unlock(&max77705->i2c_lock);
 }
 
@@ -3112,6 +3135,16 @@ void max77705_usbc_check_sysmsg(struct max77705_usbc_platform_data *usbc_data, u
 		msg_maxim("TypeC earphone is detached");
 		usbc_data->pd_data->cc_sbu_short = false;
 		max77705_check_pdo(usbc_data);
+		break;
+	case SYSMSG_ABNORMAL_TA:
+		{
+			union power_supply_propval value = {0,};
+
+			msg_maxim("ABNORMAL TA detected");
+			value.intval = true;
+			psy_do_property("battery", set,
+				POWER_SUPPLY_EXT_PROP_ABNORMAL_TA, value);
+		}
 		break;
 	default:
 		break;
@@ -3609,8 +3642,25 @@ static void max77705_usbpd_set_host_on(void *data, int mode)
 	}
 }
 
+static void max77705_usbpd_wait_entermode(void *data, int on)
+{
+	struct max77705_usbc_platform_data *usbpd_data = data;
+
+	if (!usbpd_data)
+		return;
+
+	pr_info("%s : %d!\n", __func__, on);
+	if (on) {
+		usbpd_data->wait_entermode = 1;
+	} else {
+		usbpd_data->wait_entermode = 0;
+		wake_up_interruptible(&usbpd_data->host_turn_on_wait_q);
+	}
+}
+
 struct usbpd_ops ops_usbpd = {
 	.usbpd_set_host_on = max77705_usbpd_set_host_on,
+	.usbpd_wait_entermode = max77705_usbpd_wait_entermode,
 };
 #endif
 
@@ -3764,6 +3814,7 @@ static int max77705_usbc_probe(struct platform_device *pdev)
 
 	INIT_WORK(&usbc_data->op_send_work, max77705_uic_op_send_work_func);
 	INIT_WORK(&usbc_data->cc_open_req_work, max77705_cc_open_work_func);
+	INIT_WORK(&usbc_data->dp_configure_work, max77705_dp_configure_work_func);
 #if defined(MAX77705_SYS_FW_UPDATE)
 	INIT_WORK(&usbc_data->fw_update_work,
 			max77705_firmware_update_sysfs_work);

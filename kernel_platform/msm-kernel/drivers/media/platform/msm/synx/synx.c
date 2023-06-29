@@ -53,9 +53,8 @@ void synx_external_callback(s32 sync_obj, int status, void *data)
 			pr_info("[sess: %u] ext_id %d h_synx %d found in tbl\n",
 				client->id, sync_obj, bind_data->h_synx);
 			synx_obj = (struct synx_coredata *)entry->data;
-			if (!synx_obj) {
+			if (!synx_obj)
 				goto put_cam_tbl_entry;
-			}
 		} else {
 			pr_info("[sess: %u] ext_id %d h_synx %d missing in tbl\n",
 				client->id, sync_obj, bind_data->h_synx);
@@ -999,7 +998,8 @@ int synx_bind(struct synx_session session_id,
 		mutex_lock(&synx_obj->obj_lock);
 		memset(&synx_obj->bound_synxs[bound_idx], 0,
 			sizeof(struct synx_external_desc));
-		synx_obj->num_bound_synxs--;
+		if (synx_obj->num_bound_synxs)
+			synx_obj->num_bound_synxs--;
 		goto free;
 	}
 

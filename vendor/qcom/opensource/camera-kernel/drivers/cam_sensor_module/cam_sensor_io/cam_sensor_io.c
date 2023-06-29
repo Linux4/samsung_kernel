@@ -14,6 +14,19 @@
 #if defined(CONFIG_CAMERA_ADAPTIVE_MIPI) && defined(CONFIG_CAMERA_RF_MIPI)
 #include "cam_sensor_mipi.h"
 #endif
+#if defined(CONFIG_CAMERA_CDR_TEST)
+#include <linux/ktime.h>
+extern char cdr_result[40];
+extern uint64_t cdr_start_ts;
+extern uint64_t cdr_end_ts;
+static void cam_io_cdr_store_result()
+{
+	cdr_end_ts	= ktime_get();
+	cdr_end_ts = cdr_end_ts / 1000 / 1000;
+	sprintf(cdr_result, "%d,%lld\n", 1, cdr_end_ts-cdr_start_ts);
+	CAM_INFO(CAM_CSIPHY, "[CDR_DBG] i2c_fail, time(ms): %llu", cdr_end_ts-cdr_start_ts);
+}
+#endif
 #if defined(CONFIG_CAMERA_HW_ERROR_DETECT) && defined(CONFIG_CAMERA_ADAPTIVE_MIPI) && defined(CONFIG_CAMERA_RF_MIPI)
 extern char rear_i2c_rfinfo[30];
 static void camera_io_rear_i2c_rfinfo()
@@ -70,6 +83,9 @@ int32_t camera_io_dev_poll(struct camera_io_master *io_master_info,
 		camera_io_rear_i2c_rfinfo();
 #endif
 		sec_abc_send_event("MODULE=camera@WARN=i2c_fail");
+#if defined(CONFIG_CAMERA_CDR_TEST)
+		cam_io_cdr_store_result();
+#endif
 	}
 #endif
 
@@ -115,6 +131,9 @@ int32_t camera_io_dev_erase(struct camera_io_master *io_master_info,
 		camera_io_rear_i2c_rfinfo();
 #endif
 		sec_abc_send_event("MODULE=camera@WARN=i2c_fail");
+#if defined(CONFIG_CAMERA_CDR_TEST)
+		cam_io_cdr_store_result();
+#endif
 	}
 #endif
 
@@ -166,6 +185,9 @@ int32_t camera_io_dev_read(struct camera_io_master *io_master_info,
 		camera_io_rear_i2c_rfinfo();
 #endif
 		sec_abc_send_event("MODULE=camera@WARN=i2c_fail");
+#if defined(CONFIG_CAMERA_CDR_TEST)
+		cam_io_cdr_store_result();
+#endif
 	}
 #endif
 
@@ -211,6 +233,9 @@ int32_t camera_io_dev_read_seq(struct camera_io_master *io_master_info,
 		camera_io_rear_i2c_rfinfo();
 #endif
 		sec_abc_send_event("MODULE=camera@WARN=i2c_fail");
+#if defined(CONFIG_CAMERA_CDR_TEST)
+		cam_io_cdr_store_result();
+#endif
 	}
 #endif
 
@@ -263,6 +288,9 @@ int32_t camera_io_dev_write(struct camera_io_master *io_master_info,
 		camera_io_rear_i2c_rfinfo();
 #endif
 		sec_abc_send_event("MODULE=camera@WARN=i2c_fail");
+#if defined(CONFIG_CAMERA_CDR_TEST)
+		cam_io_cdr_store_result();
+#endif
 	}
 #endif
 
@@ -319,6 +347,9 @@ int32_t camera_io_dev_write_continuous(struct camera_io_master *io_master_info,
 		camera_io_rear_i2c_rfinfo();
 #endif
 		sec_abc_send_event("MODULE=camera@WARN=i2c_fail");
+#if defined(CONFIG_CAMERA_CDR_TEST)
+		cam_io_cdr_store_result();
+#endif
 	}
 #endif
 
@@ -359,6 +390,9 @@ int32_t camera_io_init(struct camera_io_master *io_master_info)
 		camera_io_rear_i2c_rfinfo();
 #endif
 		sec_abc_send_event("MODULE=camera@WARN=i2c_fail");
+#if defined(CONFIG_CAMERA_CDR_TEST)
+		cam_io_cdr_store_result();
+#endif
 	}
 #endif
 
@@ -397,6 +431,9 @@ int32_t camera_io_release(struct camera_io_master *io_master_info)
 		camera_io_rear_i2c_rfinfo();
 #endif
 		sec_abc_send_event("MODULE=camera@WARN=i2c_fail");
+#if defined(CONFIG_CAMERA_CDR_TEST)
+		cam_io_cdr_store_result();
+#endif
 	}
 #endif
 

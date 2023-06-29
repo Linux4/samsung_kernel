@@ -14,8 +14,10 @@
 #include <linux/qcom-cpufreq-hw.h>
 #include <linux/cpumask.h>
 #include <linux/arch_topology.h>
+#include <linux/cpu.h>
 
 #include <trace/hooks/sched.h>
+#include <trace/hooks/cgroup.h>
 #include <trace/hooks/cpufreq.h>
 #include <trace/hooks/topology.h>
 #include <trace/events/power.h>
@@ -408,6 +410,8 @@ update_window_start(struct rq *rq, u64 wallclock, int event)
 	u64 old_window_start = wrq->window_start;
 	bool full_window;
 
+	BUG_ON(!raw_spin_is_locked(&rq->__lock));
+
 	if (wallclock < wrq->latest_clock) {
 		printk_deferred("WALT-BUG CPU%d; wallclock=%llu(0x%llx) is lesser than latest_clock=%llu(0x%llx) walt_clock_suspended=%d sched_clock_last=%llu(0x%llx)",
 				rq->cpu, wallclock, wallclock, wrq->latest_clock,
@@ -423,10 +427,18 @@ update_window_start(struct rq *rq, u64 wallclock, int event)
 		WALT_PANIC(1);
 	}
 	wrq->latest_clock = wallclock;
-	wrq->latest_clock_update_cpu = raw_smp_processor_id();
-	wrq->latest_clock_update_ts = sched_clock();
-	wrq->latest_clock_update_caller[0] = __builtin_return_address(1);
-	wrq->latest_clock_update_caller[1] = __builtin_return_address(2);
+
+	if (wrq->hist_array) {
+		int idx = wrq->hist_idx % 8;
+		struct walt_update_history *hist = &wrq->hist_array[idx];
+		hist->latest_clock_update_ts = sched_clock();
+		hist->prev_latest_clock = wallclock;
+		hist->latest_clock_update_cpu = raw_smp_processor_id();
+		hist->latest_clock_update_caller[0] = __builtin_return_address(1);
+		hist->latest_clock_update_caller[1] = __builtin_return_address(2);
+		wrq->hist_idx++;
+	}
+
 	if (delta < sched_ravg_window)
 		return old_window_start;
 
@@ -3823,11 +3835,6 @@ static void walt_irq_work(struct irq_work *irq_work)
 		level++;
 	}
 
-	if (!is_migration) {
-		for_each_cpu(cpu, &lock_cpus)
-			update_cpu_capacity_helper(cpu);
-	}
-
 	__walt_irq_work_locked(is_migration, &lock_cpus);
 
 	for_each_cpu(cpu, &lock_cpus)
@@ -3987,6 +3994,10 @@ static void walt_sched_init_rq(struct rq *rq)
 	wrq->notif_pending = false;
 
 	wrq->num_mvp_tasks = 0;
+
+	wrq->hist_idx = 0;
+	wrq->hist_array = kzalloc(sizeof(struct walt_update_history)*8, GFP_ATOMIC);
+	pr_err("[%s] %d %px\n", __func__, rq->cpu, wrq->hist_array);
 	INIT_LIST_HEAD(&wrq->mvp_tasks);
 }
 
@@ -4503,6 +4514,46 @@ static void android_rvh_build_perf_domains(void *unused, bool *eas_check)
 	*eas_check = true;
 }
 
+static void android_rvh_update_thermal_stats(void *unused, int cpu)
+{
+	if (unlikely(walt_disabled))
+		return;
+	update_cpu_capacity_helper(cpu);
+}
+
+static DECLARE_COMPLETION(rebuild_domains_completion);
+static void rebuild_sd_workfn(struct work_struct *work);
+static DECLARE_WORK(rebuild_sd_work, rebuild_sd_workfn);
+
+/** rebuild_sd_workfn
+ *
+ * rebuild the sched domains (and therefore the perf
+ * domains). It is absolutely necessary that the
+ * em_pds are created for each cpu device before
+ * proceeding, and this must complete for walt to
+ * function properly.
+ */
+static void rebuild_sd_workfn(struct work_struct *work)
+{
+	int cpu;
+	struct device *cpu_dev;
+
+	for_each_possible_cpu(cpu) {
+		cpu_dev = get_cpu_device(cpu);
+		if (cpu_dev->em_pd)
+			continue;
+
+		WARN_ONCE(true, "must wait for perf domains to be created");
+		schedule_work(&rebuild_sd_work);
+
+		/* do not rebuild domains yet, and do not complete this action */
+		return;
+	}
+
+	rebuild_sched_domains();
+	complete(&rebuild_domains_completion);
+}
+
 static void walt_do_sched_yield(void *unused, struct rq *rq)
 {
 	struct task_struct *curr = rq->curr;
@@ -4548,6 +4599,7 @@ static void register_walt_hooks(void)
 	register_trace_android_rvh_build_perf_domains(android_rvh_build_perf_domains, NULL);
 	register_trace_cpu_frequency_limits(walt_cpu_frequency_limits, NULL);
 	register_trace_android_rvh_do_sched_yield(walt_do_sched_yield, NULL);
+	register_trace_android_rvh_update_thermal_stats(android_rvh_update_thermal_stats, NULL);
 }
 
 atomic64_t walt_irq_work_lastq_ws;
@@ -4652,6 +4704,7 @@ static void walt_init(struct work_struct *work)
 {
 	struct ctl_table_header *hdr;
 	static atomic_t already_inited = ATOMIC_INIT(0);
+	struct root_domain *rd = cpu_rq(cpumask_first(cpu_active_mask))->rd;
 	int i;
 
 	might_sleep();
@@ -4674,7 +4727,30 @@ static void walt_init(struct work_struct *work)
 	walt_cfs_init();
 	walt_halt_init();
 	wait_for_completion_interruptible(&tick_sched_clock_completion);
+
+	if (!rcu_dereference(rd->pd)) {
+		/*
+		 * perf domains not properly configured.  this is a must as
+		 * create_util_to_cost depends on rd->pd being properly
+		 * initialized.
+		 */
+		schedule_work(&rebuild_sd_work);
+		wait_for_completion_interruptible(&rebuild_domains_completion);
+	}
+
 	stop_machine(walt_init_stop_handler, NULL, NULL);
+
+	/*
+	 * validate root-domain perf-domain is configured properly
+	 * to work with an asymmetrical soc. This is necessary
+	 * for load balance and task placement to work properly.
+	 * see walt_find_energy_efficient_cpu(), and
+	 * create_util_to_cost().
+	 */
+	if (!rcu_dereference(rd->pd) && num_sched_clusters > 1)
+		WALT_BUG(WALT_BUG_WALT, NULL,
+			 "root domain's perf-domain values not initialized rd->pd=%d.",
+			 rd->pd);
 
 	hdr = register_sysctl_table(walt_base_table);
 	kmemleak_not_leak(hdr);

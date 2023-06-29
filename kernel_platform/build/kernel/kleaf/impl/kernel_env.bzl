@@ -26,11 +26,6 @@ load(":stamp.bzl", "stamp")
 load(":status.bzl", "status")
 load(":utils.bzl", "utils")
 
-def _sanitize_label_as_filename(label):
-    """Sanitize a Bazel label so it is safe to be used as a filename."""
-    label_text = str(label)
-    return "".join([c if c.isalnum() else "_" for c in label_text.elems()])
-
 def _get_kbuild_symtypes(ctx):
     if ctx.attr.kbuild_symtypes == "auto":
         return ctx.attr._kbuild_symtypes_flag[BuildSettingInfo].value
@@ -118,7 +113,7 @@ def _kernel_env_impl(ctx):
     # with --spawn_strategy=local, try to isolate their OUT_DIRs.
     command += """
           export OUT_DIR_SUFFIX={name}
-    """.format(name = _sanitize_label_as_filename(ctx.label).removesuffix("_env"))
+    """.format(name = utils.sanitize_label_as_filename(ctx.label).removesuffix("_env"))
 
     set_source_date_epoch_ret = stamp.set_source_date_epoch(ctx)
     command += set_source_date_epoch_ret.cmd
@@ -131,12 +126,15 @@ def _kernel_env_impl(ctx):
           source {build_utils_sh}
           export BUILD_CONFIG={build_config}
           source {setup_env}
+        # Add to MAKE_GOALS if necessary
+          export MAKE_GOALS="${{MAKE_GOALS}} {internal_additional_make_goals}"
         # capture it as a file to be sourced in downstream rules
           {preserve_env} > {out}
         """.format(
         build_utils_sh = ctx.file._build_utils_sh.path,
         build_config = build_config.path,
         setup_env = setup_env.path,
+        internal_additional_make_goals = " ".join(ctx.attr.internal_additional_make_goals),
         preserve_env = preserve_env.path,
         out = out_file.path,
     )
@@ -295,6 +293,7 @@ kernel_env = rule(
             default = "auto",
             values = ["true", "false", "auto"],
         ),
+        "internal_additional_make_goals": attr.string_list(),
         "_tools": attr.label_list(default = _get_tools),
         "_hermetic_tools": attr.label(default = "//build/kernel:hermetic-tools", providers = [HermeticToolsInfo]),
         "_build_utils_sh": attr.label(

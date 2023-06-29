@@ -16,6 +16,7 @@
 #include <linux/panic_notifier.h>
 #include <linux/qcom_scm.h>
 #include <soc/qcom/minidump.h>
+#include <linux/syscore_ops.h>
 
 enum qcom_download_dest {
 	QCOM_DOWNLOAD_DEST_UNKNOWN = -1,
@@ -56,16 +57,26 @@ static int set_download_mode(enum qcom_download_mode mode)
 
 static int set_dump_mode(enum qcom_download_mode mode)
 {
-	int ret = 0;
+	int ret = 0, temp;
 
 	if (enable_dump) {
 		ret = set_download_mode(mode);
 		if (likely(!ret))
-			dump_mode = mode;
+			dump_mode = qcom_scm_get_download_mode(&temp, 0) ? dump_mode : temp;
 	} else
 		dump_mode = mode;
+
+	if (dump_mode != mode)
+		pr_err("Requested dload mode is not set\n");
+
 	return ret;
 }
+
+int get_dump_mode(void)
+{
+	return dump_mode;
+}
+EXPORT_SYMBOL(get_dump_mode);
 
 static void msm_enable_dump_mode(bool enable)
 {
@@ -253,6 +264,15 @@ static struct attribute_group qcom_dload_attr_group = {
 	.attrs = qcom_dload_attrs,
 };
 
+static void qcom_dload_syscore_resume(void)
+{
+	msm_enable_dump_mode(enable_dump);
+}
+
+static struct syscore_ops qcom_dload_syscore_ops = {
+	.resume = qcom_dload_syscore_resume,
+};
+
 static int qcom_dload_panic(struct notifier_block *this, unsigned long event,
 			      void *ptr)
 {
@@ -280,6 +300,10 @@ static int qcom_dload_reboot(struct notifier_block *this, unsigned long event,
 			set_download_mode(QCOM_DOWNLOAD_EDL);
 		else if (!strcmp(cmd, "qcom_dload"))
 			msm_enable_dump_mode(true);
+		else if (!strcmp(cmd, "rtc"))
+			qcom_scm_custom_reset_type = QCOM_SCM_RST_SHUTDOWN_TO_RTC_MODE;
+		else if (!strcmp(cmd, "twm"))
+			qcom_scm_custom_reset_type = QCOM_SCM_RST_SHUTDOWN_TO_TWM_MODE;
 	}
 
 	if (current_download_mode != QCOM_DOWNLOAD_NODUMP)
@@ -307,7 +331,7 @@ static void __iomem *map_prop_mem(const char *propname)
 static int qcom_dload_probe(struct platform_device *pdev)
 {
 	struct qcom_dload *poweroff;
-	int ret;
+	int ret, temp;
 
 	poweroff = devm_kzalloc(&pdev->dev, sizeof(*poweroff), GFP_KERNEL);
 	if (!poweroff)
@@ -329,8 +353,10 @@ static int qcom_dload_probe(struct platform_device *pdev)
 	}
 
 	poweroff->dload_dest_addr = map_prop_mem("qcom,msm-imem-dload-type");
-
 	msm_enable_dump_mode(enable_dump);
+	dump_mode = qcom_scm_get_download_mode(&temp, 0) ? dump_mode : temp;
+	pr_info("%s: Current dump mode: 0x%x\n", __func__, dump_mode);
+
 	if (!enable_dump)
 		qcom_scm_disable_sdi();
 
@@ -342,6 +368,7 @@ static int qcom_dload_probe(struct platform_device *pdev)
 	poweroff->reboot_nb.notifier_call = qcom_dload_reboot;
 	poweroff->reboot_nb.priority = 255;
 	register_reboot_notifier(&poweroff->reboot_nb);
+	register_syscore_ops(&qcom_dload_syscore_ops);
 
 	platform_set_drvdata(pdev, poweroff);
 

@@ -1240,8 +1240,11 @@ void sde_evtlog_dump_all(struct sde_dbg_evtlog *evtlog)
 			if (!sde_evtlog_dump_to_buffer(evtlog, buf, SDE_EVTLOG_BUF_MAX,
 					update_last_entry, false))
 				break;
-
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+			pr_info("%s", buf);
+#else
 			pr_info("%s\n", buf);
+#endif
 			update_last_entry = false;
 		}
 	}

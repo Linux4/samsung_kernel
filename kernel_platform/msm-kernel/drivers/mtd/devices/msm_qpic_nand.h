@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
  * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
@@ -95,9 +95,8 @@
 #define MSM_NAND_RESET_READ_STS 0x000000C0
 
 /* QPIC NANDc (NAND Controller) Register Set */
-#define MSM_NAND_REG(info, off)		    (info->nand_phys + off)
-#define MSM_NAND_REG_ADJUSTED(info, off)    (info->nand_phys_adjusted + off)
-#define MSM_NAND_QPIC_VERSION(info)	    MSM_NAND_REG_ADJUSTED(info, 0x20100)
+#define MSM_NAND_REG(info, off)		    (off)
+#define MSM_NAND_QPIC_VERSION(info)	    MSM_NAND_REG(info, 0x24100)
 #define MSM_NAND_FLASH_CMD(info)	    MSM_NAND_REG(info, 0x30000)
 #define MSM_NAND_ADDR0(info)                MSM_NAND_REG(info, 0x30004)
 #define MSM_NAND_ADDR1(info)                MSM_NAND_REG(info, 0x30008)
@@ -168,7 +167,7 @@
 
 #define MSM_NAND_CTRL(info)		    MSM_NAND_REG(info, 0x30F00)
 #define BAM_MODE_EN	0
-#define MSM_NAND_VERSION(info)         MSM_NAND_REG_ADJUSTED(info, 0x30F08)
+#define MSM_NAND_VERSION(info)         MSM_NAND_REG(info, 0x34F08)
 #define MSM_NAND_READ_LOCATION_0(info)      MSM_NAND_REG(info, 0x30F20)
 #define MSM_NAND_READ_LOCATION_1(info)      MSM_NAND_REG(info, 0x30F24)
 #define MSM_NAND_READ_LOCATION_LAST_CW_0(info) MSM_NAND_REG(info, 0x30F40)
@@ -313,6 +312,8 @@ struct flash_identification {
 	uint32_t oobsize;
 	uint32_t ecc_correctability;
 	uint32_t ecc_capability; /* Set based on the ECC capability selected. */
+	/* Flag to distinguish b/w ONFI and NON-ONFI properties */
+	bool is_onfi_compliant;
 };
 
 struct msm_bus_vectors {

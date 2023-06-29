@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2014-2015, 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __ESOC_MDM_H__
@@ -29,6 +29,10 @@
 #define SDX55M_PCIE			"PCIe"
 #define LEMUR_LABEL			"SDXLEMUR"
 #define LEMUR_PCIE			"PCIe"
+#define PINN_LABEL			"SDXPINN"
+#define PINN_PCIE			"PCIe"
+#define BAAGHA_LABEL			"SDXBAAGHA"
+#define BAAGHA_PCIE			"PCIe"
 #define MDM2AP_STATUS_TIMEOUT_MS	120000L
 #define MDM_MODEM_TIMEOUT		3000
 #define DEF_RAMDUMP_TIMEOUT		120000

@@ -3497,11 +3497,12 @@ static int dsi_host_detach(struct mipi_dsi_host *host,
 
 int dsi_host_transfer_sub(struct mipi_dsi_host *host, struct dsi_cmd_desc *cmd)
 {
-	struct dsi_display *display;
-	int rc = 0;
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	struct samsung_display_driver_data *vdd;
 #endif
+	struct dsi_display *display;
+	struct dsi_ctrl *ctrl;
+	int i, rc = 0;
 
 	if (!host || !cmd) {
 		DSI_ERR("Invalid params\n");
@@ -3513,6 +3514,14 @@ int dsi_host_transfer_sub(struct mipi_dsi_host *host, struct dsi_cmd_desc *cmd)
 	/* Avoid sending DCS commands when ESD recovery is pending */
 	if (atomic_read(&display->panel->esd_recovery_pending)) {
 		DSI_DEBUG("ESD recovery pending\n");
+		display_for_each_ctrl(i, display) {
+			ctrl = display->ctrl[i].ctrl;
+			if ((ctrl->pending_cmd_flags & DSI_CTRL_CMD_FETCH_MEMORY) &&
+				ctrl->cmd_len!=0) {
+				dsi_ctrl_cmd_transfer_cleanup(ctrl);
+				ctrl->cmd_len = 0;
+			}
+		}
 		return 0;
 	}
 
@@ -6153,6 +6162,38 @@ static const struct component_ops dsi_display_comp_ops = {
 	.unbind = dsi_display_unbind,
 };
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+/* check display core clock in pm suspend */
+static int dsi_display_suspend(struct device *dev)
+{
+	struct dsi_display *display = dev_get_drvdata(dev);
+	int is_core_clk_on;
+
+	if (!display) {
+		DSI_ERR("%s: fail to get display\n", __func__);
+		return 0;
+	}
+
+	is_core_clk_on = dsi_display_is_core_clk_on(display->dsi_clk_handle);
+
+	if (is_core_clk_on == 1) {
+		DSI_ERR("SDE: %s: display core clock is on in suspend\n", __func__);
+#if IS_ENABLED(CONFIG_PANEL_Q5_S6E3XA2_AMF756BQ03_QXGA) || IS_ENABLED(CONFIG_PANEL_DM1_S6E3FAC_AMB606AW01_FHD) || IS_ENABLED(CONFIG_PANEL_DM2_S6E3FAC_AMB655AY01_FHD) || IS_ENABLED(CONFIG_PANEL_DM3_S6E3HAE_AMB681AZ01_WQHD)
+		/* call panic for Q5 and DM projects.
+		 * TBR: remove this code after find out root-cause. (case 06517725)
+		 */
+		BUG_ON(1);
+#endif
+	}
+	
+	return 0;
+}
+
+static const struct dev_pm_ops dsi_display_pm_ops = {
+	.suspend = dsi_display_suspend,
+};
+#endif
+
 static struct platform_driver dsi_display_driver = {
 	.probe = dsi_display_dev_probe,
 	.remove = dsi_display_dev_remove,
@@ -6160,6 +6201,9 @@ static struct platform_driver dsi_display_driver = {
 		.name = "msm-dsi-display",
 		.of_match_table = dsi_display_dt_match,
 		.suppress_bind_attrs = true,
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+		.pm = &dsi_display_pm_ops
+#endif
 	},
 };
 
@@ -8333,17 +8377,19 @@ static void dsi_display_handle_lp_rx_timeout(struct work_struct *work)
 			return;
 		}
 
-		DSI_INFO("recovery display for cmd panel\n");
+		vdd->panel_recovery_cnt++;
+		SS_XLOG(vdd->panel_recovery_cnt);
+		inc_dpui_u32_field(DPUI_KEY_QCT_RCV_CNT, 1);
+
+		if (display->enabled == false) { // dsi_bridge_enable, dsi_bridge_disable
+			LCD_INFO(vdd, "Skip Panel Recovery, Trial Count = %d\n", vdd->panel_recovery_cnt);
+			return;
+		}
+		LCD_INFO(vdd, "Panel Recovery for cmd panel, Trial Count = %d\n", vdd->panel_recovery_cnt);
 
 		vdd->esd_recovery.esd_irq_enable(false, true, (void *)vdd, ESD_MASK_DEFAULT);
 		vdd->panel_lpm.esd_recovery = true;
 		schedule_work(&conn->status_work.work);
-		vdd->panel_recovery_cnt++;
-
-		LCD_INFO(vdd, "Panel Recovery, Trial Count = %d\n", vdd->panel_recovery_cnt);
-		SS_XLOG(vdd->panel_recovery_cnt);
-		inc_dpui_u32_field(DPUI_KEY_QCT_RCV_CNT, 1);
-
 		return;
 	}
 #endif
@@ -8738,11 +8784,12 @@ static int dsi_display_qsync(struct dsi_display *display, bool enable)
 	int rc = 0;
 
 	mutex_lock(&display->display_lock);
+	display->queue_cmd_waits = true;
 
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	SDE_ATRACE_BEGIN(enable ? "qsync_on" : "qsync_off");
-	display->queue_cmd_waits = true;
 #endif
+
 	display_for_each_ctrl(i, display) {
 		if (enable) {
 			/* send the commands to enable qsync */
@@ -8764,10 +8811,12 @@ static int dsi_display_qsync(struct dsi_display *display, bool enable)
 	}
 
 exit:
+
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	display->queue_cmd_waits = false;
 	SDE_ATRACE_END(enable ? "qsync_on" : "qsync_off");
 #endif
+
+	display->queue_cmd_waits = false;
 	SDE_EVT32(enable, display->panel->qsync_caps.qsync_min_fps, rc);
 	mutex_unlock(&display->display_lock);
 	return rc;

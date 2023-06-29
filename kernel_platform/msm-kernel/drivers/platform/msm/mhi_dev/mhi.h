@@ -456,6 +456,7 @@ struct event_req {
 	void			(*msi_cb)(void *req);
 	struct list_head	list;
 	u32			flush_num;
+	u32			snd_cmpl;
 	bool		is_cmd_cpl;
 	bool		is_stale;
 };
@@ -514,6 +515,7 @@ struct mhi_dev_channel {
 	uint32_t			pend_wr_count;
 	uint32_t			msi_cnt;
 	uint32_t			flush_req_cnt;
+	uint32_t			snd_cmpl_cnt;
 	uint32_t			pend_flush_cnt;
 	bool				skip_td;
 	bool				db_pending;
@@ -609,13 +611,11 @@ struct mhi_dev {
 	bool				use_mhi_dma;
 
 	/* Denotes if the MHI instance is physcial or virtual */
-	bool				is_mhi_virtual;
+	bool				is_mhi_pf;
 
 	bool				is_flashless;
 
 	bool				mhi_has_smmu;
-
-	bool				is_mhi_pf;
 
 	/* iATU is required to map control and data region */
 	bool				config_iatu;
@@ -645,7 +645,8 @@ struct mhi_dev {
 
 	struct mhi_dev_ctx		*mhi_hw_ctx;
 	struct mhi_sm_dev		*mhi_sm_ctx;
-	int				vf_id;
+	/* MHI VF number */
+	uint32_t			vf_id;
 
 	int (*device_to_host)(uint64_t dst_pa, void *src, uint32_t len,
 				struct mhi_dev *mhi, struct mhi_req *req);
@@ -686,9 +687,9 @@ struct mhi_dev_ctx {
 	struct dma_chan			*tx_dma_chan;
 	struct dma_chan			*rx_dma_chan;
 
-	struct kobj_uevent_env		kobj_env;
 	struct ep_pcie_notify		*notify;
 	struct mhi_dma_ops		mhi_dma_fun_ops;
+	struct ep_pcie_cap		ep_cap;
 };
 
 enum mhi_id {
@@ -710,7 +711,9 @@ enum mhi_msg_level {
 extern uint32_t bhi_imgtxdb;
 extern enum mhi_msg_level mhi_msg_lvl;
 extern enum mhi_msg_level mhi_ipc_msg_lvl;
+extern enum mhi_msg_level mhi_ipc_err_msg_lvl;
 extern void *mhi_ipc_log;
+extern void *mhi_ipc_err_log;
 
 #define mhi_log(_msg_lvl, _msg, ...) do { \
 	if (_msg_lvl >= mhi_msg_lvl) { \
@@ -719,7 +722,11 @@ extern void *mhi_ipc_log;
 	} \
 	if (mhi_ipc_log && (_msg_lvl >= mhi_ipc_msg_lvl)) { \
 		ipc_log_string(mhi_ipc_log,                     \
-		"[0x%x %s] " _msg, bhi_imgtxdb, __func__, ##__VA_ARGS__);     \
+		"[0x%x %s] " _msg, bhi_imgtxdb, __func__, ##__VA_ARGS__); \
+	} \
+	if (mhi_ipc_err_log && (_msg_lvl >= mhi_ipc_err_msg_lvl)) { \
+		ipc_log_string(mhi_ipc_err_log,                     \
+		"[0x%x %s] " _msg, bhi_imgtxdb, __func__, ##__VA_ARGS__); \
 	} \
 } while (0)
 
@@ -1171,9 +1178,11 @@ int mhi_uci_init(void);
  * mhi_dev_net_interface_init() - Initializes the mhi device network interface
  *		which exposes the virtual network interface (mhi_dev_net0).
  *		data packets will transfer between MHI host interface (mhi_swip)
- *		and mhi_dev_net interface using software path
+ *		and mhi_dev_net interface using software path.
+ * @vf_id       MHI instance (physical or virtual) id.
+ * @num_vfs     Total number of vutual MHI instances supported on this target.
  */
-int mhi_dev_net_interface_init(void);
+int mhi_dev_net_interface_init(u32 vf_id, u32 num_vfs);
 
 void mhi_dev_notify_a7_event(struct mhi_dev *mhi);
 
@@ -1193,4 +1202,14 @@ void mhi_uci_chan_state_notify(struct mhi_dev *mhi,
 
 void mhi_dev_pm_relax(struct mhi_dev *mhi_ctx);
 void mhi_dev_resume_init_with_link_up(struct ep_pcie_notify *notify);
+
+int  mhi_edma_release(void);
+
+int  mhi_edma_status(void);
+
+int mhi_edma_init(struct device *dev);
+void free_coherent(struct mhi_dev *mhi, size_t size, void *virt,
+		   dma_addr_t phys);
+void *alloc_coherent(struct mhi_dev *mhi, size_t size, dma_addr_t *phys,
+		     gfp_t gfp);
 #endif /* _MHI_H */

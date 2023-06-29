@@ -390,7 +390,8 @@ static int debug_display_read_once(struct samsung_display_driver_data *vdd,
 	char buf[SS_ONCE_LOG_BUF_MAX];
 	ssize_t len = 0;
 	int i;
-	u8 ecc[3] = {0, };
+	u8 ecc[3] = {0xFF, 0xFF, 0xFF};
+	int ret;
 
 	for (i = PRIMARY_DISPLAY_NDX; i < MAX_DISPLAY_NDX; i++) {
 		struct samsung_display_driver_data *vddp = ss_get_vdd(i);
@@ -435,14 +436,25 @@ static int debug_display_read_once(struct samsung_display_driver_data *vdd,
 			if (SS_IS_CMDS_NULL(ss_get_cmds(vddp, RX_GCT_ECC)))
 				continue;
 
-			ss_send_cmd_get_rx(vddp, RX_GCT_ECC, ecc);
+			ret = ss_send_cmd_get_rx(vddp, RX_GCT_ECC, ecc);
+			if (ret <= 0)
+				LCD_ERR(vddp, "fail to read gct ecc (%d)\n", ret);
 
 			LCD_INFO(vddp, "ECC = [ENABLE] : 0x%02X, [ERR] : 0x%02X, [RESTORE] : 0x%02X \n",
 				ecc[0], ecc[1], ecc[2]);
 
-			len += scnprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len, "[%s] ECC : %X %X %X\n",
-				i == PRIMARY_DISPLAY_NDX ? "MAIN" : "SUB", ecc[0], ecc[1], ecc[2]);
+			len += scnprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len, "[%s] ECC %s: %X %X %X\n",
+				i == PRIMARY_DISPLAY_NDX ? "MAIN" : "SUB",
+				ret < 0 ? "(rx fail)" : "", ecc[0], ecc[1], ecc[2]);
 		}
+
+		LCD_INFO(vddp, "[%s] LAST SM_SUM_O : %X [%X]\n",
+			i == PRIMARY_DISPLAY_NDX ? "MAIN" : "SUB",
+			vddp->self_disp.debug.SM_SUM_O, vddp->self_disp.operation[FLAG_SELF_MASK].img_checksum);
+		len += scnprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len, "[%s] LAST SM_SUM_O : %X [%X]\n",
+			i == PRIMARY_DISPLAY_NDX ? "MAIN" : "SUB",
+			vddp->self_disp.debug.SM_SUM_O, vddp->self_disp.operation[FLAG_SELF_MASK].img_checksum);
+
 	}
 
 	len += scnprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len, "VRR: adj: %d%s\n",

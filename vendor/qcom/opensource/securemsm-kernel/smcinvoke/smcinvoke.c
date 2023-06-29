@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt) "smcinvoke: %s: " fmt, __func__
@@ -26,6 +26,7 @@
 #include <linux/of_platform.h>
 #include <linux/firmware.h>
 #include <linux/qcom_scm.h>
+#include <linux/freezer.h>
 #include <asm/cacheflush.h>
 #include <soc/qcom/qseecomi.h>
 #include <linux/qtee_shmbridge.h>
@@ -64,7 +65,6 @@
 #define SMCINVOKE_SCM_EBUSY_MAX_RETRY		200
 
 
-
 /* TZ defined values - Start */
 #define SMCINVOKE_INVOKE_PARAM_ID		0x224
 #define SMCINVOKE_CB_RSP_PARAM_ID		0x22
@@ -80,7 +80,7 @@
  */
 #define SMCINVOKE_SERVER_STATE_DEFUNCT		1
 
-#define CBOBJ_MAX_RETRIES 5
+#define CBOBJ_MAX_RETRIES 50
 #define FOR_ARGS(ndxvar, counts, section) \
 	for (ndxvar = OBJECT_COUNTS_INDEX_##section(counts); \
 		ndxvar < (OBJECT_COUNTS_INDEX_##section(counts) \
@@ -134,6 +134,8 @@
 #define TZHANDLE_GET_SERVER(h) ((uint16_t)((h) & 0xFFFF))
 #define TZHANDLE_GET_OBJID(h) (((h) >> 16) & 0x7FFF)
 #define TZHANDLE_MAKE_LOCAL(s, o) (((0x8000 | (o)) << 16) | s)
+#define SET_BIT(s,b) (s | (1 << b))
+#define UNSET_BIT(s,b) (s & (~ (1 << b)))
 
 #define TZHANDLE_IS_NULL(h) ((h) == SMCINVOKE_TZ_OBJ_NULL)
 #define TZHANDLE_IS_LOCAL(h) ((h) & 0x80000000)
@@ -257,6 +259,7 @@ struct smcinvoke_server_info {
 	DECLARE_HASHTABLE(responses_table, 4);
 	struct hlist_node hash;
 	struct list_head pending_cbobjs;
+	uint8_t is_server_suspended;
 };
 
 struct smcinvoke_cbobj {
@@ -1383,6 +1386,7 @@ static void process_tzcb_req(void *buf, size_t buf_len, struct file **arr_filp)
 	int ret = OBJECT_ERROR_DEFUNCT;
 	int cbobj_retries = 0;
 	long timeout_jiff;
+	bool wait_interrupted = false;
 	struct smcinvoke_cb_txn *cb_txn = NULL;
 	struct smcinvoke_tzcb_req *cb_req = NULL, *tmp_cb_req = NULL;
 	struct smcinvoke_server_info *srvr_info = NULL;
@@ -1467,26 +1471,49 @@ static void process_tzcb_req(void *buf, size_t buf_len, struct file **arr_filp)
 	 */
 	wake_up_interruptible_all(&srvr_info->req_wait_q);
 	/* timeout before 1s otherwise tzbusy would come */
-	timeout_jiff = msecs_to_jiffies(1000);
+	timeout_jiff = msecs_to_jiffies(100);
 
 	while (cbobj_retries < CBOBJ_MAX_RETRIES) {
-		ret = wait_event_timeout(srvr_info->rsp_wait_q,
-				(cb_txn->state == SMCINVOKE_REQ_PROCESSED) ||
-				(srvr_info->state == SMCINVOKE_SERVER_STATE_DEFUNCT),
-				timeout_jiff);
-
+		if (wait_interrupted) {
+			ret = wait_event_timeout(srvr_info->rsp_wait_q,
+					(cb_txn->state == SMCINVOKE_REQ_PROCESSED) ||
+					(srvr_info->state == SMCINVOKE_SERVER_STATE_DEFUNCT),
+					timeout_jiff);
+		} else {
+			ret = wait_event_interruptible_timeout(srvr_info->rsp_wait_q,
+					(cb_txn->state == SMCINVOKE_REQ_PROCESSED) ||
+					(srvr_info->state == SMCINVOKE_SERVER_STATE_DEFUNCT),
+					timeout_jiff);
+		}
 		if (ret == 0) {
-			pr_err("CBobj timed out cb-tzhandle:%d, retry:%d, op:%d counts :%d\n",
-					cb_req->hdr.tzhandle, cbobj_retries,
+			if (srvr_info->is_server_suspended == 0) {
+			pr_err("CBobj timed out waiting on cbtxn :%d,cb-tzhandle:%d, retry:%d, op:%d counts :%d\n",
+					cb_txn->txn_id,cb_req->hdr.tzhandle, cbobj_retries,
 					cb_req->hdr.op, cb_req->hdr.counts);
 			pr_err("CBobj %d timedout pid %x,tid %x, srvr state=%d, srvr id:%u\n",
 					cb_req->hdr.tzhandle, current->pid,
 					current->tgid, srvr_info->state,
 					srvr_info->server_id);
+			}
 		} else {
-			break;
+			/* wait_event returned due to a signal */
+			if (srvr_info->state != SMCINVOKE_SERVER_STATE_DEFUNCT &&
+					cb_txn->state != SMCINVOKE_REQ_PROCESSED) {
+				wait_interrupted = true;
+			} else {
+				break;
+			}
 		}
-		cbobj_retries++;
+		/*
+		 * If bit corresponding to any accept thread is set, invoke threads
+		 * should wait infinitely for the accept thread to come back with
+		 * response.
+		 */
+		if (srvr_info->is_server_suspended > 0) {
+			cbobj_retries = 0;
+		} else {
+			cbobj_retries++;
+		}
 	}
 
 out:
@@ -2055,6 +2082,7 @@ static long process_server_req(struct file *filp, unsigned int cmd,
 	hash_init(server_info->reqs_table);
 	hash_init(server_info->responses_table);
 	INIT_LIST_HEAD(&server_info->pending_cbobjs);
+	server_info->is_server_suspended = 0;
 
 	mutex_lock(&g_smcinvoke_lock);
 
@@ -2118,6 +2146,9 @@ static long process_accept_req(struct file *filp, unsigned int cmd,
 	if (server_info->state == SMCINVOKE_SERVER_STATE_DEFUNCT)
 		server_info->state = 0;
 
+	server_info->is_server_suspended = UNSET_BIT(server_info->is_server_suspended,
+				(current->pid)%DEFAULT_CB_OBJ_THREAD_CNT);
+
 	mutex_unlock(&g_smcinvoke_lock);
 
 	/* First check if it has response otherwise wait for req */
@@ -2133,14 +2164,13 @@ static long process_accept_req(struct file *filp, unsigned int cmd,
 		 * invoke thread died while server was processing cb req.
 		 * if invoke thread dies, it would remove req from Q. So
 		 * no matching cb_txn would be on Q and hence NULL cb_txn.
-		 * In this case, we want this thread to come back and start
-		 * waiting for new cb requests, hence return EAGAIN here
+		 * In this case, we want this thread to start waiting
+		 * new cb requests.
 		 */
 		if (!cb_txn) {
 			pr_err("%s txn %d either invalid or removed from Q\n",
 					__func__, user_args.txn_id);
-			ret = -EAGAIN;
-			goto out;
+			goto start_waiting_for_requests;
 		}
 		ret = marshal_out_tzcb_req(&user_args, cb_txn,
 				cb_txn->filp_to_release);
@@ -2163,6 +2193,7 @@ static long process_accept_req(struct file *filp, unsigned int cmd,
 		if (ret && OBJECT_COUNTS_NUM_OO(user_args.counts))
 			goto out;
 	}
+start_waiting_for_requests:
 	/*
 	 * Once response has been delivered, thread will wait for another
 	 * callback req to process.
@@ -2180,7 +2211,26 @@ static long process_accept_req(struct file *filp, unsigned int cmd,
 			 * using server_info and would crash. So dont do that.
 			 */
 			mutex_lock(&g_smcinvoke_lock);
-			server_info->state = SMCINVOKE_SERVER_STATE_DEFUNCT;
+
+			if(freezing(current)) {
+				pr_err("Server id :%d interrupted probaby due to suspend, pid:%d",
+					server_info->server_id, current->pid);
+				/*
+				 * Each accept thread is identified by bits ranging from
+				 * 0 to DEFAULT_CBOBJ_THREAD_CNT-1. When an accept thread is
+				 * interrupted by a signal other than SIGUSR1,SIGKILL,SIGTERM,
+				 * set the corresponding bit of accept thread, indicating that
+				 * current accept thread's state to be "suspended"/ or something
+				 * that needs infinite timeout for invoke thread.
+				 */
+				server_info->is_server_suspended =
+						SET_BIT(server_info->is_server_suspended,
+							(current->pid)%DEFAULT_CB_OBJ_THREAD_CNT);
+			} else {
+				pr_err("Setting pid:%d, server id : %d state to defunct",
+						current->pid, server_info->server_id);
+						server_info->state = SMCINVOKE_SERVER_STATE_DEFUNCT;
+			}
 			mutex_unlock(&g_smcinvoke_lock);
 			wake_up_interruptible(&server_info->rsp_wait_q);
 			goto out;

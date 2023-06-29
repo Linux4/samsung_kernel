@@ -1,5 +1,5 @@
 #include <dt-bindings/clock/qcom,gcc-cinder.h>
-#include <dt-bindings/phy/qcom,usb3-4nm-qmp-uni.h>
+#include <dt-bindings/phy/qcom,usb3-5nm-qmp-uni.h>
 
 &soc {
 	usb0: ssusb@a600000 {
@@ -41,6 +41,7 @@
 				<&gem_noc MASTER_APPSS_PROC &system_noc SLAVE_USB3_0>;
 
 		extcon = <&eud>;
+		qcom,msm-probe-core-init;
 
 		dwc3@a600000 {
 			compatible = "snps,dwc3";

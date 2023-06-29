@@ -805,8 +805,12 @@ typedef struct sec_battery_platform_data {
 
 	unsigned int d2d_check_type;
 	bool support_vpdo;
+	bool support_fpdo_dc;
+	unsigned int fpdo_dc_charge_power;
 
 	bool sc_LRP_25W;
+	bool update_mfc_power_info;
+	bool abnormal_wpc_check;
 	/* ADC type for each channel */
 	unsigned int adc_type[];
 } sec_battery_platform_data_t;
@@ -884,13 +888,13 @@ struct sec_battery_info {
 	int charge_counter;		/* remaining capacity (uAh) */
 	int current_adc;
 
-#if IS_ENABLED(CONFIG_DUAL_BATTERY)
 	int voltage_pack_main;		/* pack voltage main battery (mV) */
 	int voltage_pack_sub;		/* pack voltage sub battery (mV) */
-	int voltage_cell_main;		/* cell voltage main battery (mV) */
-	int voltage_cell_sub;		/* cell voltage sub battery (mV) */
 	int current_now_main;		/* current from main battery (mA) */
 	int current_now_sub;		/* current from sub battery (mA) */
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
+	int voltage_cell_main;		/* cell voltage main battery (mV) */
+	int voltage_cell_sub;		/* cell voltage sub battery (mV) */
 	unsigned int limiter_check;
 #endif
 
@@ -1153,9 +1157,7 @@ struct sec_battery_info {
 	struct wakeup_source *wc_ept_timeout_ws;
 #endif
 	struct delayed_work slowcharging_work;
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 	int batt_cycle;
-#endif
 	int batt_asoc;
 #if IS_ENABLED(CONFIG_STEP_CHARGING)
 	bool step_charging_skip_lcd_on;
@@ -1233,6 +1235,8 @@ struct sec_battery_info {
 	int lrp_temp;
 	int lr_bat_t_1;
 
+	bool is_fpdo_dc;
+
 #if IS_ENABLED(CONFIG_USB_FACTORY_MODE)
 	bool usb_factory_init;
 	int usb_factory_mode;
@@ -1241,10 +1245,15 @@ struct sec_battery_info {
 #endif
 	unsigned int batt_f_mode;
 #endif
+	bool abnormal_ta;
+	int srccap_transit_cnt;
+	int dc_check_cnt;
 	bool usb_slow_chg;
 	bool usb_bootcomplete;
 	unsigned int flash_state;
 	unsigned int mst_en;
+	int abnormal_wpc;
+	bool error_wthm;
 #if defined(CONFIG_MTK_CHARGER)
 	unsigned int mtk_fg_init;
 #endif

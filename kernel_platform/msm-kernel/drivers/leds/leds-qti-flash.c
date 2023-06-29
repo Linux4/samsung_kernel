@@ -901,6 +901,41 @@ int qti_flash_led_set_param(struct led_trigger *trig,
 }
 EXPORT_SYMBOL(qti_flash_led_set_param);
 
+#if IS_ENABLED(CONFIG_LEDS_QTI_FLASH) && IS_ENABLED(CONFIG_SENSORS_STK6D2X)
+#define FLASH_LED_MULTI_STROBE_CTRL			0x67
+#define FLASH_LED_MULTI_STROBE_SEL			BIT(0)
+
+int qti_flash_led_set_strobe_sel(struct led_trigger *trig,
+					int strobe_sel)
+{
+	struct led_classdev *led_cdev = trigger_to_lcdev(trig);
+	struct flash_switch_data *snode;
+	struct qti_flash_led *led;
+	int rc = 0, i;
+
+	if (!led_cdev) {
+		pr_err("Invalid led_cdev in trigger %s\n", trig->name);
+		return -EINVAL;
+	}
+
+	snode = container_of(led_cdev, struct flash_switch_data, cdev);
+	led = snode->led;
+
+	for (i = 0; i < led->num_fnodes; i++) {
+		led->fnode[i].strobe_sel = strobe_sel; //0:SW_STROBE, 1:HW_STROBE
+		rc = qti_flash_led_masked_write(led,
+			FLASH_LED_STROBE_CTRL(led->fnode[i].id), FLASH_LED_HW_SW_STROBE_SEL, led->fnode[i].strobe_sel << FLASH_LED_STROBE_SEL_SHIFT);
+		if (rc < 0)
+			return rc;
+	}
+	qti_flash_led_masked_write(led,
+		FLASH_LED_MULTI_STROBE_CTRL, FLASH_LED_MULTI_STROBE_SEL, strobe_sel? 0 : 1); 
+
+	return 0;
+}
+EXPORT_SYMBOL(qti_flash_led_set_strobe_sel);
+#endif
+
 #define UCONV			1000000LL
 #define MCONV			1000LL
 #define VIN_FLASH_MIN_UV	3300000LL
@@ -950,6 +985,12 @@ static int qti_flash_led_calc_max_avail_current(
 	int64_t ibatt_safe_ua, i_flash_ua, i_avail_ua, vflash_vdip,
 		vph_flash_uv, vin_flash_uv, p_flash_fw;
 	union power_supply_propval prop = {};
+
+//Temp code added because QTI Flash has dependency with QTI battery charger. Kernel panic while taking capture with flash.
+#if 1 
+	*max_current_ma = MAX_FLASH_CURRENT_MA;
+	return 0;
+#endif
 
 	rc = qti_battery_charger_get_prop("battery", BATTERY_RESISTANCE,
 						&rbatt_uohm);

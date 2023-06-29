@@ -11,6 +11,8 @@
 #ifndef __UFS_SEC_FEATURE_H__
 #define __UFS_SEC_FEATURE_H__
 
+#include <linux/notifier.h>
+
 #include "ufshcd.h"
 #include "ufshci.h"
 
@@ -28,10 +30,13 @@
 
 #define UFS_WB_ISSUED_SIZE_CNT_MAX 4
 
+#define HEALTH_DESC_PARAM_VENDOR_LIFE_TIME_EST 0x22
+
 struct ufs_vendor_dev_info {
 	struct ufs_hba *hba;
 	char unique_number[UFS_UN_MAX_DIGITS];
 	u8 lt;
+	u8 flt;
 	unsigned int lc;
 	bool device_stuck;
 };
@@ -45,13 +50,18 @@ struct ufs_sec_cmd_info {
 
 enum ufs_sec_wb_state {
 	WB_OFF = 0,
+#if !IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
 	WB_ON_READY,
 	WB_OFF_READY,
 	WB_ON,
 	NR_WB_STATE
+#else
+	WB_ON
+#endif
 };
 
 struct ufs_sec_wb_info {
+#if !IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
 	bool support;			/* feature support and enabled */
 	bool setup_done;		/* setup is done or not */
 	bool wb_off;			/* WB off or not */
@@ -64,6 +74,7 @@ struct ufs_sec_wb_info {
 	int up_threshold_rqs;		/* threshold for WB on : request count */
 	int down_threshold_block;	/* threshold for WB off : block count */
 	int down_threshold_rqs;		/* threshold for WB off : request count */
+	int sync_write_threshold_block; /* threshold for WB on : sync write req count */
 
 	int disable_threshold_lt;	/* LT threshold that WB is not allowed */
 
@@ -80,6 +91,7 @@ struct ufs_sec_wb_info {
 
 	int current_block;		/* current block counts in WB_ON state */
 	int current_rqs;		/* current request counts in WB_ON */
+	int current_sync_write_block;	/* current sync write request count */
 
 	int curr_issued_min_block;		/* min. issued block count */
 	int curr_issued_max_block;		/* max. issued block count */
@@ -92,6 +104,10 @@ struct ufs_sec_wb_info {
 	struct workqueue_struct *wb_workq;
 	struct work_struct on_work;
 	struct work_struct off_work;
+#else
+	bool support;
+	unsigned long wb_lu_state;
+#endif
 };
 
 enum ufs_sec_log_str_t {
@@ -149,7 +165,10 @@ struct ufs_sec_feature_info {
 #if IS_ENABLED(CONFIG_SEC_UFS_CMD_LOGGING)
 	struct ufs_sec_cmd_log_info *ufs_cmd_log;
 #endif
-
+	struct notifier_block reboot_notify;
+#if IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
+	struct delayed_work noti_work;
+#endif
 	u32 ext_ufs_feature_sup;
 
 	u32 last_ucmd;
@@ -167,13 +186,16 @@ void ufs_sec_set_features(struct ufs_hba *hba);
 void ufs_sec_remove_features(struct ufs_hba *hba);
 void ufs_sec_register_vendor_hooks(void);
 void ufs_sec_print_err_info(struct ufs_hba *hba);
-#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 void ufs_sec_check_device_stuck(void);
-#endif
 
 void ufs_sec_get_health_desc(struct ufs_hba *hba);
 
+#if !IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
 inline bool ufs_sec_is_wb_allowed(void);
+#else
+bool ufs_sec_is_wb_supported(struct scsi_device *sdev);
+int ufs_sec_wb_ctrl(bool enable, struct scsi_device *sdev);
+#endif
 void ufs_sec_wb_force_off(struct ufs_hba *hba);
 
 inline bool ufs_sec_is_err_cnt_allowed(void);
@@ -181,4 +203,8 @@ void ufs_sec_inc_hwrst_cnt(void);
 void ufs_sec_inc_op_err(struct ufs_hba *hba, enum ufs_event_type evt, void *data);
 
 inline bool ufs_sec_is_cmd_log_allowed(void);
+
+#if IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
+extern struct device *sec_ufs_cmd_dev;
+#endif
 #endif

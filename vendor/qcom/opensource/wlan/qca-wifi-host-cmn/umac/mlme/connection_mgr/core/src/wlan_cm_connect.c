@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2015, 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -735,41 +735,66 @@ static inline QDF_STATUS cm_set_fils_key(struct cnx_mgr *cm_ctx,
 }
 #endif /* WLAN_FEATURE_FILS_SK */
 
-static void cm_get_vdev_id_from_bssid(struct wlan_objmgr_pdev *pdev,
-				   void *object, void *arg)
+/**
+ * cm_get_vdev_id_with_active_vdev_op() - Get vdev id from serialization
+ * pending queue for which disconnect or connect is ongoing
+ * @pdev: pdev common object
+ * @object: vdev object
+ * @arg: vdev operation search arg
+ *
+ * Return: None
+ */
+static void cm_get_vdev_id_with_active_vdev_op(struct wlan_objmgr_pdev *pdev,
+					       void *object, void *arg)
 {
-	uint8_t *vdev_id = arg;
+	struct vdev_op_search_arg *vdev_arg = arg;
 	struct wlan_objmgr_vdev *vdev = (struct wlan_objmgr_vdev *)object;
+	uint8_t vdev_id = wlan_vdev_get_id(vdev);
+	enum QDF_OPMODE opmode = wlan_vdev_mlme_get_opmode(vdev);
 
-	if (!vdev_id)
+	if (!vdev_arg)
 		return;
 
-	if (!(wlan_vdev_mlme_get_opmode(vdev) == QDF_STA_MODE ||
-	      wlan_vdev_mlme_get_opmode(vdev) == QDF_P2P_CLIENT_MODE))
+	/* Avoid same vdev id check */
+	if (vdev_arg->current_vdev_id == vdev_id)
 		return;
 
-	if (cm_is_vdev_disconnecting(vdev))
-		*vdev_id = wlan_vdev_get_id(vdev);
+	if (opmode == QDF_STA_MODE || opmode == QDF_P2P_CLIENT_MODE) {
+		if (cm_is_vdev_disconnecting(vdev))
+			vdev_arg->sta_cli_vdev_id = vdev_id;
+		return;
+	}
+
+	if (opmode == QDF_SAP_MODE || opmode == QDF_P2P_GO_MODE ||
+	    opmode == QDF_NDI_MODE) {
+		/* Check if START/STOP AP OP is in progress */
+		if (wlan_ser_is_non_scan_cmd_type_in_vdev_queue(vdev,
+					WLAN_SER_CMD_VDEV_START_BSS) ||
+		    wlan_ser_is_non_scan_cmd_type_in_vdev_queue(vdev,
+					WLAN_SER_CMD_VDEV_STOP_BSS))
+			vdev_arg->sap_go_vdev_id = vdev_id;
+		return;
+	}
 }
 
 /**
- * cm_is_any_other_vdev_disconnecting() - check whether any other vdev is in
- * disconnecting state
+ * cm_is_any_other_vdev_connecting_disconnecting() - check whether any other
+ * vdev is in waiting for vdev operations (connect/disconnect or start/stop AP)
  * @cm_ctx: connection manager context
  * @cm_req: Connect request.
  *
- * As Connect is a blocking call this API will make sure the disconnect
- * doesnt timeout on any vdev and thus make sure that PEER/VDEV SM are cleaned
- * before vdev delete is sent.
+ * As Connect is a blocking call this API will make sure the vdev operations on
+ * other vdev doesn't starve
  *
- * Return : true if disconnection is on any vdev_id
+ * Return : true if any other vdev has pending operation
  */
-static bool cm_is_any_other_vdev_disconnecting(struct cnx_mgr *cm_ctx,
-					       struct cm_req *cm_req)
+static bool
+cm_is_any_other_vdev_connecting_disconnecting(struct cnx_mgr *cm_ctx,
+					      struct cm_req *cm_req)
 {
 	struct wlan_objmgr_pdev *pdev;
-	uint8_t vdev_id;
 	uint8_t cur_vdev_id = wlan_vdev_get_id(cm_ctx->vdev);
+	struct vdev_op_search_arg vdev_arg;
 
 	pdev = wlan_vdev_get_pdev(cm_ctx->vdev);
 	if (!pdev) {
@@ -778,16 +803,32 @@ static bool cm_is_any_other_vdev_disconnecting(struct cnx_mgr *cm_ctx,
 		return false;
 	}
 
-	vdev_id = WLAN_INVALID_VDEV_ID;
+	vdev_arg.current_vdev_id = cur_vdev_id;
+	vdev_arg.sap_go_vdev_id = WLAN_INVALID_VDEV_ID;
+	vdev_arg.sta_cli_vdev_id = WLAN_INVALID_VDEV_ID;
 	wlan_objmgr_pdev_iterate_obj_list(pdev, WLAN_VDEV_OP,
-					  cm_get_vdev_id_from_bssid,
-					  &vdev_id, 0,
+					  cm_get_vdev_id_with_active_vdev_op,
+					  &vdev_arg, 0,
 					  WLAN_MLME_CM_ID);
 
-	if (vdev_id != WLAN_INVALID_VDEV_ID && vdev_id != cur_vdev_id) {
-		mlme_info(CM_PREFIX_FMT "Abort connection as vdev %d is waiting for disconnect",
+	/* For STA/CLI avoid the fist candidate itself if possible */
+	if (vdev_arg.sta_cli_vdev_id != WLAN_INVALID_VDEV_ID) {
+		mlme_info(CM_PREFIX_FMT "Abort connection as sta/cli vdev %d is disconnecting",
 			  CM_PREFIX_REF(cur_vdev_id, cm_req->cm_id),
-			  vdev_id);
+			  vdev_arg.sta_cli_vdev_id);
+		return true;
+	}
+
+	/*
+	 * For SAP/GO ops pending avoid the next candidate, this is to support
+	 * wifi sharing etc use case where we need to connect to AP in parallel
+	 * to SAP operation, so try atleast one candidate.
+	 */
+	if (cm_req->connect_req.cur_candidate &&
+	    vdev_arg.sap_go_vdev_id != WLAN_INVALID_VDEV_ID) {
+		mlme_info(CM_PREFIX_FMT "Avoid next candidate as SAP/GO/NDI vdev %d has pending vdev op",
+			  CM_PREFIX_REF(cur_vdev_id, cm_req->cm_id),
+			  vdev_arg.sap_go_vdev_id);
 		return true;
 	}
 
@@ -1013,10 +1054,9 @@ static void cm_teardown_tdls(struct wlan_objmgr_vdev *vdev)
 }
 
 #else
-
-static inline
-bool cm_is_any_other_vdev_disconnecting(struct cnx_mgr *cm_ctx,
-					struct cm_req *cm_req)
+static inline bool
+cm_is_any_other_vdev_connecting_disconnecting(struct cnx_mgr *cm_ctx,
+					      struct cm_req *cm_req)
 {
 	return false;
 }
@@ -1236,9 +1276,12 @@ static QDF_STATUS cm_update_mlo_filter(struct wlan_objmgr_pdev *pdev,
 }
 #endif
 
-static QDF_STATUS cm_connect_get_candidates(struct wlan_objmgr_pdev *pdev,
-					    struct cnx_mgr *cm_ctx,
-					    struct cm_connect_req *cm_req)
+static QDF_STATUS
+cm_connect_fetch_candidates(struct wlan_objmgr_pdev *pdev,
+			    struct cnx_mgr *cm_ctx,
+			    struct cm_connect_req *cm_req,
+			    qdf_list_t **fetched_candidate_list,
+			    uint32_t *num_bss_found)
 {
 	struct scan_filter *filter;
 	uint32_t num_bss = 0;
@@ -1247,10 +1290,6 @@ static QDF_STATUS cm_connect_get_candidates(struct wlan_objmgr_pdev *pdev,
 	uint8_t vdev_id = wlan_vdev_get_id(cm_ctx->vdev);
 	bool security_valid_for_6ghz;
 	const uint8_t *rsnxe;
-
-	filter = qdf_mem_malloc(sizeof(*filter));
-	if (!filter)
-		return QDF_STATUS_E_NOMEM;
 
 	rsnxe = wlan_get_ie_ptr_from_eid(WLAN_ELEMID_RSNXE,
 					 cm_req->req.assoc_ie.ptr,
@@ -1273,6 +1312,10 @@ static QDF_STATUS cm_connect_get_candidates(struct wlan_objmgr_pdev *pdev,
 			  cm_req->req.chan_freq);
 		return QDF_STATUS_E_INVAL;
 	}
+	filter = qdf_mem_malloc(sizeof(*filter));
+	if (!filter)
+		return QDF_STATUS_E_NOMEM;
+
 	cm_connect_prepare_scan_filter(pdev, cm_ctx, cm_req, filter,
 				       security_valid_for_6ghz);
 
@@ -1284,7 +1327,7 @@ static QDF_STATUS cm_connect_get_candidates(struct wlan_objmgr_pdev *pdev,
 		mlme_debug(CM_PREFIX_FMT "num_entries found %d",
 			   CM_PREFIX_REF(vdev_id, cm_req->cm_id), num_bss);
 	}
-
+	*num_bss_found = num_bss;
 	op_mode = wlan_vdev_mlme_get_opmode(cm_ctx->vdev);
 	if (num_bss && op_mode == QDF_STA_MODE &&
 	    !cm_req->req.is_non_assoc_link)
@@ -1292,8 +1335,27 @@ static QDF_STATUS cm_connect_get_candidates(struct wlan_objmgr_pdev *pdev,
 	qdf_mem_free(filter);
 
 	if (!candidate_list || !qdf_list_size(candidate_list)) {
-		QDF_STATUS status;
+		if (candidate_list)
+			wlan_scan_purge_results(candidate_list);
+		return QDF_STATUS_E_EMPTY;
+	}
+	*fetched_candidate_list = candidate_list;
 
+	return QDF_STATUS_SUCCESS;
+}
+
+static QDF_STATUS cm_connect_get_candidates(struct wlan_objmgr_pdev *pdev,
+					    struct cnx_mgr *cm_ctx,
+					    struct cm_connect_req *cm_req)
+{
+	uint32_t num_bss = 0;
+	qdf_list_t *candidate_list = NULL;
+	uint8_t vdev_id = wlan_vdev_get_id(cm_ctx->vdev);
+	QDF_STATUS status;
+
+	status = cm_connect_fetch_candidates(pdev, cm_ctx, cm_req,
+					     &candidate_list, &num_bss);
+	if (QDF_IS_STATUS_ERROR(status)) {
 		if (candidate_list)
 			wlan_scan_purge_results(candidate_list);
 		mlme_info(CM_PREFIX_FMT "no valid candidate found, num_bss %d scan_id %d",
@@ -1323,8 +1385,99 @@ static QDF_STATUS cm_connect_get_candidates(struct wlan_objmgr_pdev *pdev,
 	}
 	cm_req->candidate_list = candidate_list;
 
-	return QDF_STATUS_SUCCESS;
+	return status;
 }
+
+#ifdef CONN_MGR_ADV_FEATURE
+static void cm_update_candidate_list(struct cnx_mgr *cm_ctx,
+				     struct cm_connect_req *cm_req,
+				     struct scan_cache_node *prev_candidate)
+{
+	struct wlan_objmgr_pdev *pdev;
+	uint32_t num_bss = 0;
+	qdf_list_t *candidate_list = NULL;
+	uint8_t vdev_id = wlan_vdev_get_id(cm_ctx->vdev);
+	QDF_STATUS status;
+	struct scan_cache_node *scan_entry;
+	qdf_list_node_t *cur_node = NULL, *next_node = NULL;
+	struct qdf_mac_addr *bssid;
+	bool found;
+
+	pdev = wlan_vdev_get_pdev(cm_ctx->vdev);
+	if (!pdev) {
+		mlme_err(CM_PREFIX_FMT "Failed to find pdev",
+			 CM_PREFIX_REF(vdev_id, cm_req->cm_id));
+		return;
+	}
+
+	status = cm_connect_fetch_candidates(pdev, cm_ctx, cm_req,
+					     &candidate_list, &num_bss);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		mlme_debug(CM_PREFIX_FMT "failed to fetch bss: %d",
+			   CM_PREFIX_REF(vdev_id, cm_req->cm_id), num_bss);
+		goto free_list;
+	}
+
+	if (qdf_list_peek_front(candidate_list, &cur_node) !=
+					QDF_STATUS_SUCCESS) {
+		mlme_err(CM_PREFIX_FMT"failed to peer front of candidate_list",
+			 CM_PREFIX_REF(vdev_id, cm_req->cm_id));
+		goto free_list;
+	}
+
+	while (cur_node) {
+		qdf_list_peek_next(candidate_list, cur_node, &next_node);
+
+		scan_entry = qdf_container_of(cur_node, struct scan_cache_node,
+					      node);
+		bssid = &scan_entry->entry->bssid;
+		if (qdf_is_macaddr_zero(bssid) ||
+		    qdf_is_macaddr_broadcast(bssid))
+			goto next;
+		found = cm_find_bss_from_candidate_list(cm_req->candidate_list,
+							bssid, NULL);
+		if (found)
+			goto next;
+		status = qdf_list_remove_node(candidate_list, cur_node);
+		if (QDF_IS_STATUS_ERROR(status)) {
+			mlme_err(CM_PREFIX_FMT"failed to remove node for BSS "QDF_MAC_ADDR_FMT" from candidate list",
+				 CM_PREFIX_REF(vdev_id, cm_req->cm_id),
+				 QDF_MAC_ADDR_REF(scan_entry->entry->bssid.bytes));
+			goto free_list;
+		}
+
+		status = qdf_list_insert_after(cm_req->candidate_list,
+					       &scan_entry->node,
+					       &prev_candidate->node);
+		if (QDF_IS_STATUS_ERROR(status)) {
+			mlme_err(CM_PREFIX_FMT"failed to insert node for BSS "QDF_MAC_ADDR_FMT" from candidate list",
+				 CM_PREFIX_REF(vdev_id, cm_req->cm_id),
+				 QDF_MAC_ADDR_REF(scan_entry->entry->bssid.bytes));
+			util_scan_free_cache_entry(scan_entry->entry);
+			qdf_mem_free(scan_entry);
+			goto free_list;
+		}
+		prev_candidate = scan_entry;
+		mlme_debug(CM_PREFIX_FMT"insert new node BSS "QDF_MAC_ADDR_FMT" to existing candidate list",
+			   CM_PREFIX_REF(vdev_id, cm_req->cm_id),
+			   QDF_MAC_ADDR_REF(scan_entry->entry->bssid.bytes));
+next:
+		cur_node = next_node;
+		next_node = NULL;
+	}
+
+free_list:
+	if (candidate_list)
+		wlan_scan_purge_results(candidate_list);
+}
+#else
+static inline void
+cm_update_candidate_list(struct cnx_mgr *cm_ctx,
+			 struct cm_connect_req *cm_req,
+			 struct scan_cache_node *prev_candidate)
+{
+}
+#endif
 
 QDF_STATUS cm_if_mgr_inform_connect_complete(struct wlan_objmgr_vdev *vdev,
 					     QDF_STATUS connect_status)
@@ -1558,10 +1711,14 @@ static QDF_STATUS cm_get_valid_candidate(struct cnx_mgr *cm_ctx,
 	 * This can lead to vdev delete sent without vdev down/stop/peer delete
 	 * for the vdev.
 	 *
-	 * So abort the connection if any of the vdev is waiting for disconnect,
-	 * to avoid disconnect timeout.
+	 * Same way if a SAP/GO has start/stop command or peer disconnect in
+	 * pending queue, delay in processing it can cause timeouts and other
+	 * issues.
+	 *
+	 * So abort the next connection attempt if any of the vdev is waiting
+	 * for vdev operation to avoid timeouts
 	 */
-	if (cm_is_any_other_vdev_disconnecting(cm_ctx, cm_req)) {
+	if (cm_is_any_other_vdev_connecting_disconnecting(cm_ctx, cm_req)) {
 		status = QDF_STATUS_E_FAILURE;
 		goto flush_single_pmk;
 	}
@@ -1596,12 +1753,18 @@ static QDF_STATUS cm_get_valid_candidate(struct cnx_mgr *cm_ctx,
 	 * Get next candidate if prev_candidate is not NULL, else get
 	 * the first candidate
 	 */
-	if (prev_candidate)
+	if (prev_candidate) {
+		/* Fetch new candidate list and append new entries to the
+		 * current candidate list.
+		 */
+		cm_update_candidate_list(cm_ctx, &cm_req->connect_req,
+					 prev_candidate);
 		qdf_list_peek_next(cm_req->connect_req.candidate_list,
 				   &prev_candidate->node, &cur_node);
-	else
+	} else {
 		qdf_list_peek_front(cm_req->connect_req.candidate_list,
 				    &cur_node);
+	}
 
 	while (cur_node) {
 		qdf_list_peek_next(cm_req->connect_req.candidate_list,

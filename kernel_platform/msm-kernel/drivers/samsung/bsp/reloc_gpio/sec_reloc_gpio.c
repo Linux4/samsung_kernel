@@ -219,7 +219,7 @@ static int __reloc_gpio_relocated_to_actual(struct reloc_gpio_drvdata *drvdata)
 
 	gc = gpiochip_find(drvdata, sec_reloc_gpio_is_matched_gpio_chip);
 	if (IS_ERR_OR_NULL(gc))
-		return drvdata->gpio_num;
+		return -ENOENT;
 
 	return __reloc_gpio_from_legacy_number(drvdata, gc);
 }

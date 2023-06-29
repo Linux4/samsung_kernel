@@ -5,6 +5,8 @@
  * Copyright (C) 2013 ARM Limited
  *
  * Author: Will Deacon <will.deacon@arm.com>
+ *
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _ARM_SMMU_H
@@ -23,8 +25,7 @@
 #include <linux/spinlock.h>
 #include <linux/types.h>
 #include <linux/qcom-iommu-util.h>
-
-#include "../../qcom-io-pgtable.h"
+#include <linux/qcom-io-pgtable.h>
 
 /* Configuration registers */
 #define ARM_SMMU_GR0_sCR0		0x0
@@ -381,6 +382,7 @@ struct arm_smmu_device {
 #define ARM_SMMU_OPT_NO_ASID_RETENTION	(1 << 3)
 #define ARM_SMMU_OPT_DISABLE_ATOS	(1 << 4)
 #define ARM_SMMU_OPT_CONTEXT_FAULT_RETRY	(1 << 5)
+#define ARM_SMMU_OPT_MULTI_MATCH_HANDOFF_SMR	(1 << 6)
 	u32				options;
 	enum arm_smmu_arch_version	version;
 	enum arm_smmu_implementation	model;
@@ -511,10 +513,12 @@ struct arm_smmu_domain {
 	 */
 	spinlock_t			iotlb_gather_lock;
 	struct page			*freelist;
-	bool				deferred_sync;
+	bool				deferred_flush;
 
 	struct iommu_debug_attachment	*logger;
 	struct iommu_domain		domain;
+	struct qcom_io_pgtable_info	pgtbl_info;
+	enum io_pgtable_fmt		pgtbl_fmt;
 	/* mapping_cfg.atomic indicates that runtime power management should be disabled. */
 	bool				rpm_always_on;
 

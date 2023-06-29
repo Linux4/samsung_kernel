@@ -292,6 +292,7 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(mst_en),
 	SEC_BATTERY_ATTR(spsn_test),
 	SEC_BATTERY_ATTR(chg_soc_lim),
+	SEC_BATTERY_ATTR(err_wthm),
 };
 
 static struct device_attribute sec_pogo_attrs[] = {
@@ -1994,6 +1995,9 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d %d\n",
 			battery->pdata->store_mode_charging_min,
 			battery->pdata->store_mode_charging_max);
+		break;
+	case ERR_WTHM:
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", battery->error_wthm);
 		break;
 	default:
 		i = -EINVAL;
@@ -4226,6 +4230,17 @@ ssize_t sec_bat_store_attrs(
 #endif
 		break;
 	}
+	case ERR_WTHM:
+		if (sscanf(buf, "%10d\n", &x) == 1) {
+			pr_info("%s: update ERR_WTHM(%d)\n", __func__, x);
+			if (x) {
+				battery->error_wthm = true;
+			} else {
+				battery->error_wthm = false;
+			}
+			ret = count;
+		}
+		break;
 	default:
 		ret = -EINVAL;
 		break;

@@ -3445,12 +3445,6 @@ void msm_vidc_allow_dcvs(struct msm_vidc_inst *inst)
 		goto exit;
 	}
 
-	allow = is_realtime_session(inst);
-	if (!allow) {
-		i_vpr_h(inst, "%s: non-realtime session\n", __func__);
-		goto exit;
-	}
-
 	allow = !is_critical_priority_session(inst);
 	if (!allow) {
 		i_vpr_h(inst, "%s: critical priority session\n", __func__);

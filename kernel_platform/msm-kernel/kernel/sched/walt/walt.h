@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022,2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _WALT_H
@@ -90,6 +90,13 @@ struct load_subtractions {
 	u64			new_subs;
 };
 
+struct walt_update_history {
+	u32			latest_clock_update_cpu;
+	u64			prev_latest_clock;
+	u64			latest_clock_update_ts;
+	void		*latest_clock_update_caller[2];
+};
+
 struct walt_rq {
 	struct task_struct	*push_task;
 	struct walt_sched_cluster *cluster;
@@ -127,10 +134,9 @@ struct walt_rq {
 	struct list_head	mvp_tasks;
 	int                     num_mvp_tasks;
 	u64			latest_clock;
-	u32			latest_clock_update_cpu;
-	u32			latest_clock_update_ts;
-	void		*latest_clock_update_caller[2];
 	u32			enqueue_counter;
+	u32	hist_idx;
+	struct walt_update_history *hist_array;
 };
 
 struct walt_sched_cluster {
@@ -187,6 +193,7 @@ extern void walt_init_foreground_tg(struct task_group *tg);
 extern int register_walt_callback(void);
 extern int input_boost_init(void);
 extern int core_ctl_init(void);
+extern void rebuild_sched_domains(void);
 
 extern atomic64_t walt_irq_work_lastq_ws;
 extern unsigned int __read_mostly sched_ravg_window;
@@ -447,8 +454,14 @@ static inline bool walt_low_latency_task(struct task_struct *p)
 {
 	struct walt_task_struct *wts = (struct walt_task_struct *) p->android_vendor_data1;
 
-	return wts->low_latency &&
-		(task_util(p) < sysctl_walt_low_latency_task_threshold);
+	if (!wts->low_latency)
+		return false;
+
+	if (wts->low_latency == WALT_LOW_LATENCY_PIPELINE)
+		return true;
+
+	/* WALT_LOW_LATENCY_BINDER and WALT_LOW_LATENCY_PROCFS remain */
+	return (task_util(p) < sysctl_walt_low_latency_task_threshold);
 }
 
 static inline bool walt_binder_low_latency_task(struct task_struct *p)
@@ -779,17 +792,17 @@ static inline bool task_fits_capacity(struct task_struct *p,
 		margin = sched_capacity_margin_down[cpu];
 		if (task_in_related_thread_group(p)) {
 			if (is_min_cluster_cpu(cpu))
-				margin = sysctl_sched_early_down[0];
+				margin = max(margin, sysctl_sched_early_down[0]);
 			else if (!is_max_cluster_cpu(cpu))
-				margin = sysctl_sched_early_down[1];
+				margin = max(margin, sysctl_sched_early_down[1]);
 		}
 	} else {
 		margin = sched_capacity_margin_up[task_cpu(p)];
 		if (task_in_related_thread_group(p)) {
 			if (is_min_cluster_cpu(task_cpu(p)))
-				margin = sysctl_sched_early_up[0];
+				margin = max(margin, sysctl_sched_early_up[0]);
 			else if (!is_max_cluster_cpu(task_cpu(p)))
-				margin = sysctl_sched_early_up[1];
+				margin = max(margin, sysctl_sched_early_up[1]);
 		}
 	}
 
@@ -953,8 +966,9 @@ static inline bool walt_flag_test(struct task_struct *p, enum walt_flags feature
 	return !!(wts->flags & (1 << feature));
 }
 
-#define WALT_MVP_SLICE		30000000U
-#define WALT_MVP_LIMIT		(1 * WALT_MVP_SLICE)
+#define WALT_MVP_SLICE		6000000U
+#define WALT_MVP_LIMIT		(2 * WALT_MVP_SLICE)
+#define WALT_MVP_LL_SLICE		30000000U
 
 /* higher number, better priority */
 #define WALT_RTG_MVP		0

@@ -235,8 +235,10 @@ enum SS_CMD_CTRL_STR {
 
 #define CMDSTR_COMMENT "//"
 #define CMDSTR_COMMENT2 "/*"
+#define CMDSTR_COMMENT3 "*/"
 
 #define IS_CMD_DELIMITER(c)	((c) == CMD_STR_SPACE || (c) == CMD_STR_CRLF || (c) == CMD_STR_TAB || (c) == CMD_STR_CR)
+#define IS_CMD_NEWLINE(c)	((c) == CMD_STR_CRLF || (c) == CMD_STR_CR)
 
 enum PANEL_LEVEL_KEY {
 	LEVEL_KEY_NONE = 0,
@@ -283,6 +285,7 @@ enum {
 enum IRC_MODE {
 	IRC_MODERATO_MODE = 0,
 	IRC_FLAT_GAMMA_MODE = 1,
+	IRC_FLAT_Z_GAMMA_MODE = 1,
 	IRC_MAX_MODE,
 };
 
@@ -361,9 +364,6 @@ struct lpm_info {
 	bool need_br_update;
 
 	struct mutex lpm_lock;
-
-	/* To prevent normal brightness patcket after tx LPM on */
-	struct mutex lpm_bl_lock;
 
 	struct lpm_pwr_ctrl lpm_pwr;
 };
@@ -497,6 +497,7 @@ enum ss_dsi_cmd_set_type {
 	TX_SS_HMT_BRIGHT_CTRL,
 	TX_MANUFACTURE_ID_READ_PRE,
 	TX_MANUFACTURE_ID_READ_POST,
+	TX_SW_RESET,
 	TX_MDNIE_ADB_TEST,
 	TX_SELF_GRID_ON,
 	TX_SELF_GRID_OFF,
@@ -657,6 +658,7 @@ enum ss_dsi_cmd_set_type {
 	TX_SPSRAM_DATA_WRITE,
 	TX_SPSRAM_DATA_READ,
 	TX_SPSRAM_DONE,
+	RX_UDC_DATA,
 
 	/* SELF DISPLAY */
 	TX_SELF_DISP_CMD_START,
@@ -772,6 +774,7 @@ enum ss_dsi_cmd_set_type {
 	TX_GRAY_SPOT_TEST_ON,
 	TX_GRAY_SPOT_TEST_OFF,
 	TX_VGLHIGHDOT_TEST_ON,
+	TX_VGLHIGHDOT_TEST_2, /* for 1hz VGL -6V AT CMD */
 	TX_VGLHIGHDOT_TEST_OFF,
 	RX_GRAYSPOT_RESTORE_VALUE,
 	TX_MICRO_SHORT_TEST_ON,
@@ -784,6 +787,9 @@ enum ss_dsi_cmd_set_type {
 	TX_BRIGHTDOT_LF_ON,
 	TX_BRIGHTDOT_LF_OFF,
 	TX_DSC_CRC,
+	TX_TCON_PE_ON,
+	TX_TCON_PE08_ON,
+	TX_TCON_PE_OFF,
 	TX_TEST_MODE_CMD_END,
 
 	/* FLASH GAMMA */
@@ -828,6 +834,9 @@ enum ss_dsi_cmd_set_type {
 	TX_TIMING_SWITCH_POST,
 
 	TX_EARLY_TE,
+
+	TX_VLIN1_TEST_ENTER,
+	TX_VLIN1_TEST_EXIT,
 
 	TX_CMD_END,
 
@@ -977,8 +986,6 @@ struct ss_cmd_desc {
 	int rx_offset; /* read_startoffset */
 
 	enum ss_cmd_update updatable; /* if true, allow to change txbuf's value */
-	u8 backup_addr;
-	size_t backup_tx_len;
 
 	struct list_head op_list;
 	bool skip_by_cond; /* skip both command transmission and post_wait_ms delay */
@@ -1427,6 +1434,7 @@ struct brightness_info {
 	int cd_level;
 	int interpolation_cd;
 	int gm2_wrdisbv;	/* Gamma mode2 WRDISBV Write Display Brightness */
+	int gm2_wrdisbv_hlpm; /* TODO: remove this, and do refatoring of ss_brightness_dcs */
 	int gamma_mode2_support;
 	int multi_to_one_support;
 
@@ -1641,10 +1649,18 @@ void A23XQ_TD4375_BS066FBM_FHD_init(struct samsung_display_driver_data *vdd);
 void Q4_S6E3XA2_AMF756BQ01_QXGA_init(struct samsung_display_driver_data *vdd);
 void Q4_S6E3FAC_AMB619BR01_HD_init(struct samsung_display_driver_data *vdd);
 void DM1_S6E3FAC_AMB606AW01_FHD_init(struct samsung_display_driver_data *vdd);
+void DM1_LX83118_CM002_FHD_init(struct samsung_display_driver_data *vdd);
 void DM2_S6E3FAC_AMB655AY01_FHD_init(struct samsung_display_driver_data *vdd);
 void DM3_S6E3HAE_AMB681AZ01_WQHD_init(struct samsung_display_driver_data *vdd);
+void Q5_S6E3XA2_AMF756BQ03_QXGA_init(struct samsung_display_driver_data *vdd);
 void Q5_S6E3XA2_AMF756EJ01_QXGA_init(struct samsung_display_driver_data *vdd);
 void Q5_S6E3FAC_AMB619EK01_FHD_init(struct samsung_display_driver_data *vdd);
+void GTS9_ANA38407_AMSA10FA01_WQXGA_init(struct samsung_display_driver_data *vdd);
+void GTS9P_ANA38407_AMSA24VU05_WQXGA_init(struct samsung_display_driver_data *vdd);
+void GTS9U_ANA38407_AMSA46AS02_WQXGA_init(struct samsung_display_driver_data *vdd);
+void GTS9P_S6TUUM1_AMSA24VU04_WQXGA_init(struct samsung_display_driver_data *vdd);
+void B5_S6E3FAC_AMF670BS03_FHD_init(struct samsung_display_driver_data *vdd);
+void B5_S6E3FC5_AMB338EH01_SVGA_init(struct samsung_display_driver_data *vdd);
 void PBA_BOOTING_FHD_init(struct samsung_display_driver_data *vdd);
 void PBA_BOOTING_FHD_DSI1_init(struct samsung_display_driver_data *vdd);
 
@@ -1942,6 +1958,7 @@ struct ss_brightness_info {
 	struct cmd_legoop_map glut_offset_48hs;
 	struct cmd_legoop_map glut_offset_60hs;
 	struct cmd_legoop_map glut_offset_96hs;
+	struct cmd_legoop_map glut_offset_120hs;
 	struct cmd_legoop_map glut_offset_night_dim;
 	int glut_offset_size;
 	bool glut_00_val;
@@ -1957,6 +1974,8 @@ struct ss_brightness_info {
 	struct cmd_legoop_map manual_aor_96hs[SUPPORT_PANEL_REVISION];
 	struct cmd_legoop_map manual_aor_60hs[SUPPORT_PANEL_REVISION];
 	struct cmd_legoop_map manual_aor_48hs[SUPPORT_PANEL_REVISION];
+
+	struct cmd_legoop_map acl_offset_map_table[SUPPORT_PANEL_REVISION];
 
 	/*
 	 *  AOR & IRC Interpolation feature
@@ -2081,6 +2100,9 @@ enum VRR_BLACK_FRAME_MODE {
 	BLACK_FRAME_MAX,
 };
 
+#define GET_LFD_INT_PART(rr, div) (rr * 10 / (div ? div : 1) / 10) /* Get Integer Part of LFD hz */
+#define GET_LFD_DEC_PART(rr, div) (rr * 10 / (div ? div : 1) % 10) /* Get Decimal Part of LFD hz */
+
 enum VRR_LFD_FAC_MODE {
 	VRR_LFD_FAC_LFDON = 0,	/* dynamic 120hz <-> 10hz in HS mode, or 60hz <-> 30hz in NS mode */
 	VRR_LFD_FAC_HIGH = 1,	/* always 120hz in HS mode, or 60hz in NS mode */
@@ -2138,6 +2160,7 @@ enum LFD_FUNC_FIX {
 	LFD_FUNC_FIX_HIGH = 1,
 	LFD_FUNC_FIX_LOW = 2,
 	LFD_FUNC_FIX_LFD = 3,
+	LFD_FUNC_FIX_HIGHDOT = 4,
 	LFD_FUNC_FIX_MAX
 };
 
@@ -2160,6 +2183,7 @@ struct lfd_base_str {
 	u32 min_div_def;
 	u32 min_div_lowest;
 	u32 fix_div_def;
+	u32 highdot_div_def;
 	int base_rr;
 };
 
@@ -2422,8 +2446,8 @@ struct cmd_ref_state {
 	bool lpm_ongoing;
 	bool hmt_on;
 	bool is_hbm;
-	int lfd_max_fps;
-	int lfd_min_fps;
+	int lfd_max_fps; /* It is expressed by x10 to support decimal points */
+	int lfd_min_fps; /* It is expressed by x10 to support decimal points */
 	u64 clk_rate_MHz;
 	int clk_idx;
 	int osc_idx;
@@ -2438,6 +2462,10 @@ struct cmd_ref_state {
 	bool dia_off;
 	bool night_dim;
 	bool early_te;
+	int bl_level;
+	int temperature;
+	bool finger_mask_updated;
+	int panel_revision;
 };
 
 struct op_sym_cb_tbl {
@@ -2466,12 +2494,15 @@ struct samsung_display_driver_data {
 
 	void *msm_private;
 
+	char panel_name[MAX_CMDLINE_PARAM_LEN];
+
 	/* mipi cmd type */
 	int cmd_type;
 
 	bool panel_dead;
 	int read_panel_status_from_lk;
 	bool is_factory_mode;
+	bool is_factory_pretest; // to change PD(pretest)/NP(not pretest) config of UB_CON gpio
 	bool panel_attach_status; // 1: attached, 0: detached
 	int panel_revision;
 	char *panel_vendor;
@@ -2480,9 +2511,14 @@ struct samsung_display_driver_data {
 	bool support_optical_fingerprint;
 	bool finger_mask_updated;
 	int finger_mask;
-	int panel_hbm_entry_delay; //hbm entry delay/ unit = vsync
-	int panel_hbm_entry_after_te; /* delay after TE noticed */
-	int panel_hbm_exit_delay; /* hbm exit delay frame */
+	int panel_hbm_entry_delay; /* HBM entry delay after cmd tx, Unit = vsync */
+	int panel_hbm_entry_after_vsync_pre; /* Delay after last VSYNC before cmd Tx, Unit = us */
+	int panel_hbm_entry_after_vsync; /* Delay after last VSYNC after cmd Tx, Unit = us */
+	int panel_hbm_exit_delay; /* HBM exit delay after cmd tx, Unit = vsync */
+	int panel_hbm_exit_after_vsync_pre; /* Delay after last VSYNC before cmd Tx, Unit = us */
+	int panel_hbm_exit_after_vsync; /* Delay after last VSYNC after cmd Tx, Unit = us */
+	int panel_hbm_exit_frame_wait; /* Wait until last Fingermask Frame kickoff started */
+
 	struct lcd_device *lcd_dev;
 
 	struct display_status display_status_dsi;
@@ -2614,6 +2650,9 @@ struct samsung_display_driver_data {
 
 	/* Panel ESD Recovery Count */
 	int panel_recovery_cnt;
+
+	/* lp_rx timeout Count */
+	int lp_rx_fail_cnt;
 
 	/*
 	 *  Image dump
@@ -2861,7 +2900,7 @@ struct samsung_display_driver_data {
 
 	/* Video mode vblank_irq time for fp hbm sync */
 	ktime_t vblank_irq_time;
-	struct wait_queue_head ss_vync_wq;
+	struct wait_queue_head ss_vsync_wq;
 	atomic_t ss_vsync_cnt;
 
 	/* flag to support reading module id at probe timing */
@@ -2889,6 +2928,7 @@ struct samsung_display_driver_data {
 	/* skip bl update until disp_on with qcom,bl-update-flag */
 	bool bl_delay_until_disp_on;
 
+	bool otp_init_done;
 	struct otp_info otp[MAX_OTP_LEN]; /* elvss, irc, or etc */
 	int otp_len;
 
@@ -2904,9 +2944,11 @@ struct samsung_display_driver_data {
 	 */
 	bool allow_level_key_once;
 
-	/* For file test */
+	/* Panel Data File */
 	char *f_buf;
 	size_t f_size;
+	char *h_buf;
+	size_t h_size;
 	bool file_loading;
 
 	struct dbg_tear_info dbg_tear_info;
@@ -2956,6 +2998,7 @@ void ss_panel_init(struct dsi_panel *panel);
 int parse_dt_data(struct samsung_display_driver_data *vdd, struct device_node *np,
 		void *data, size_t size, char *cmd_string, char panel_rev,
 		int (*fnc)(struct samsung_display_driver_data *, struct device_node *, void *, char *));
+void ss_panel_parse_dt(struct samsung_display_driver_data *vdd);
 int ss_parse_panel_legoop_table_str(struct samsung_display_driver_data *vdd,
 		struct device_node *np,	void *tbl, char *keystring);
 
@@ -3141,10 +3184,11 @@ int ub_con_det_status(int index);
 
 void ss_event_frame_update_pre(struct samsung_display_driver_data *vdd);
 void ss_event_frame_update_post(struct samsung_display_driver_data *vdd);
+void ss_event_rd_ptr_irq(struct samsung_display_driver_data *vdd);
 
 void ss_delay(s64 delay, ktime_t from);
 
-void ss_check_te(struct samsung_display_driver_data *vdd);
+bool ss_check_te(struct samsung_display_driver_data *vdd);
 void ss_wait_for_te_gpio(struct samsung_display_driver_data *vdd, int num_of_te, int delay_after_te, bool preemption);
 void ss_panel_recovery(struct samsung_display_driver_data *vdd);
 void ss_pba_config(struct samsung_display_driver_data *vdd, void *arg);
@@ -3164,6 +3208,9 @@ int ss_frame_to_ms(struct samsung_display_driver_data *vdd, int frame);
 bool ss_is_tear_case(struct samsung_display_driver_data *vdd);
 bool ss_is_no_te_case(struct samsung_display_driver_data *vdd);
 void ss_print_ss_cmd_set(struct samsung_display_driver_data *vdd, struct ss_cmd_set *set);
+
+int ss_get_pending_kickoff_cnt(struct samsung_display_driver_data *vdd);
+void ss_wait_for_kickoff_done(struct samsung_display_driver_data *vdd);
 
 /***************************************************************************************************
 *		BRIGHTNESS RELATED END.
@@ -3971,6 +4018,7 @@ static inline bool is_acl_on(struct samsung_display_driver_data *vdd)
 static inline char *ss_get_str_property(const char *buf, const char *name, int *lenp)
 {
 	const char *cur = buf;
+	const char *backup = NULL;
 	const char *data_start = NULL;
 	char *data = NULL;
 
@@ -3982,13 +4030,28 @@ static inline char *ss_get_str_property(const char *buf, const char *name, int *
 	do {
 		cur = strstr(cur, name);
 		if (cur) {
-			if (!IS_CMD_DELIMITER(*(cur + strlen(name))) || !IS_CMD_DELIMITER(*(cur-1))) {
+			/*
+			 * Case 1) TARGET_SYMBOL= ""
+			 * Case 2) TARGET_SYMBOL = ""
+			 * Case 3) TARGET_SYMBOL_OTHER = ""
+			 *
+			 * In case of 1), cur + strlen(name) is '=' (CMD_STR_EQUAL)
+			 * In case of 2), cur + strlen(name) is ' ' (DELIMITER)
+			 * In case of 3), cur + strlen(name) is '_'
+			 *
+			 * We should skip only case 3)
+			 */
+			if ((!IS_CMD_DELIMITER(*(cur + strlen(name))) && *(cur + strlen(name)) != CMD_STR_EQUAL)
+				|| !IS_CMD_DELIMITER(*(cur-1))) {
 				cur++;
 				continue;
 			}
+
+			backup = cur;
 			cur = strnchr(cur, strlen(name) + 5, CMD_STR_EQUAL);
 			if (cur)
 				break;
+			cur = backup + 1;
 		}
 
 	} while (cur);
@@ -4018,6 +4081,7 @@ static inline char *ss_get_str_property(const char *buf, const char *name, int *
 	*lenp = *lenp + 1; /* lenp include last NULL char('\0') to match with of_get_property() API */
 
 	if (*lenp > 2) {
+		/* TODO: free data later, or just return start pointer in buf, instead of allocation */
 		data = kvzalloc(*lenp, GFP_KERNEL);
 		if (!data) {
 			pr_err("[SDE] [%s] data alloc fail (out of memory)\n", name);

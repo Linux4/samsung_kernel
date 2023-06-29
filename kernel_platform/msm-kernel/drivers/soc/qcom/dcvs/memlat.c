@@ -58,7 +58,7 @@ enum mon_type {
 	NUM_MON_TYPES
 };
 
-#define SAMPLING_VOTER	(num_possible_cpus())
+#define SAMPLING_VOTER	max(num_possible_cpus(), 8U)
 #define NUM_FP_VOTERS	(SAMPLING_VOTER + 1)
 
 enum memlat_type {
@@ -959,8 +959,6 @@ static void memlat_update_work(struct work_struct *work)
 	struct dcvs_freq new_freq;
 	u32 max_freqs[MAX_MEMLAT_GRPS] = { 0 };
 
-	calculate_sampling_stats();
-
 	/* aggregate mons to calculate max freq per memlat_group */
 	for (grp = 0; grp < MAX_MEMLAT_GRPS; grp++) {
 		memlat_grp = memlat_data->groups[grp];
@@ -1001,6 +999,7 @@ static void memlat_update_work(struct work_struct *work)
 
 static enum hrtimer_restart memlat_hrtimer_handler(struct hrtimer *timer)
 {
+	calculate_sampling_stats();
 	queue_work(memlat_data->memlat_wq, &memlat_data->work);
 
 	return HRTIMER_NORESTART;
@@ -1435,8 +1434,8 @@ int cpucp_memlat_init(struct scmi_device *sdev)
 		return -EINVAL;
 
 	ops = sdev->handle->devm_protocol_get(sdev, SCMI_PROTOCOL_MEMLAT, &ph);
-	if (!ops)
-		return -ENODEV;
+	if (IS_ERR(ops))
+		return PTR_ERR(ops);
 
 	mutex_lock(&memlat_lock);
 	memlat_data->ph = ph;
@@ -1913,11 +1912,6 @@ module_init(qcom_memlat_init);
 #else
 arch_initcall(qcom_memlat_init);
 #endif
-static __exit void qcom_memlat_exit(void)
-{
-	platform_driver_unregister(&qcom_memlat_driver);
-}
-module_exit(qcom_memlat_exit);
 
 MODULE_DESCRIPTION("QCOM MEMLAT Driver");
 MODULE_LICENSE("GPL v2");

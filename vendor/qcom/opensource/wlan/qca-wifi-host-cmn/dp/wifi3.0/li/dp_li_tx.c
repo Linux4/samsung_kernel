@@ -178,9 +178,17 @@ void dp_tx_process_htt_completion_li(struct dp_soc *soc,
 		ts.tsf = htt_desc[3];
 		ts.first_msdu = 1;
 		ts.last_msdu = 1;
-		ts.status = (tx_status == HTT_TX_FW2WBM_TX_STATUS_OK ?
-			     HAL_TX_TQM_RR_FRAME_ACKED :
-			     HAL_TX_TQM_RR_REM_CMD_REM);
+		switch (tx_status) {
+		case HTT_TX_FW2WBM_TX_STATUS_OK:
+			ts.status = HAL_TX_TQM_RR_FRAME_ACKED;
+			break;
+		case HTT_TX_FW2WBM_TX_STATUS_DROP:
+			ts.status = HAL_TX_TQM_RR_REM_CMD_REM;
+			break;
+		case HTT_TX_FW2WBM_TX_STATUS_TTL:
+			ts.status = HAL_TX_TQM_RR_REM_CMD_TX;
+			break;
+		}
 		tid = ts.tid;
 		if (qdf_unlikely(tid >= CDP_MAX_DATA_TIDS))
 			tid = CDP_MAX_DATA_TIDS - 1;

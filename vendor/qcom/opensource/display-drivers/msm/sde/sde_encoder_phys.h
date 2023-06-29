@@ -230,6 +230,7 @@ enum sde_intr_idx {
 	INTR_IDX_CTL_START,
 	INTR_IDX_CTL_DONE,
 	INTR_IDX_RDPTR,
+	INTR_IDX_TE_DETECTED,
 	INTR_IDX_AUTOREFRESH_DONE,
 	INTR_IDX_WB_DONE,
 	INTR_IDX_PP1_OVFL,
@@ -854,4 +855,5 @@ void sde_encoder_helper_setup_misr(struct sde_encoder_phys *phys_enc,
 int sde_encoder_helper_collect_misr(struct sde_encoder_phys *phys_enc,
 		bool nonblock, u32 *misr_value);
 
+void sde_rsc_log_vsync_info(struct drm_encoder *drm_enc);
 #endif /* __sde_encoder_phys_H__ */

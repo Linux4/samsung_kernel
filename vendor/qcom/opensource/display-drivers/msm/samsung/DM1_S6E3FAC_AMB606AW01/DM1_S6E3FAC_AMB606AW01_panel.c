@@ -475,6 +475,12 @@ static int dsi_update_mdnie_data(struct samsung_display_driver_data *vdd)
 	mdnie_data->DSI_COLOR_LENS_MDNIE_SCR = COLOR_LENS_MDNIE_1;
 	mdnie_data->DSI_COLOR_BLIND_MDNIE_SCR = COLOR_BLIND_MDNIE_1;
 	mdnie_data->DSI_RGB_SENSOR_MDNIE_SCR = RGB_SENSOR_MDNIE_1;
+	mdnie_data->DSI_HBM_CE_MDNIE_SCR_1 = HBM_CE_MDNIE1_1;
+	mdnie_data->DSI_HBM_CE_MDNIE_SCR_2 = HBM_CE_MDNIE2_1;
+	mdnie_data->DSI_HBM_CE_MDNIE_SCR_3 = HBM_CE_MDNIE3_1;
+	mdnie_data->DSI_HBM_CE_MDNIE_DIMMING_1 = HBM_CE_MDNIE1_3;
+	mdnie_data->DSI_HBM_CE_MDNIE_DIMMING_2 = HBM_CE_MDNIE2_3;
+	mdnie_data->DSI_HBM_CE_MDNIE_DIMMING_3 = HBM_CE_MDNIE3_3;
 
 	mdnie_data->mdnie_tune_value_dsi = mdnie_tune_value_dsi0;
 	mdnie_data->hmt_color_temperature_tune_value_dsi = hmt_color_temperature_tune_value_dsi0;
@@ -485,6 +491,7 @@ static int dsi_update_mdnie_data(struct samsung_display_driver_data *vdd)
 	/* Update MDNIE data related with size, offset or index */
 	mdnie_data->dsi_bypass_mdnie_size = ARRAY_SIZE(BYPASS_MDNIE);
 	mdnie_data->mdnie_color_blinde_cmd_offset = MDNIE_COLOR_BLINDE_CMD_OFFSET;
+	mdnie_data->mdnie_scr_cmd_offset = MDNIE_SCR_CMD_OFFSET;
 	mdnie_data->mdnie_step_index[MDNIE_STEP1] = MDNIE_STEP1_INDEX;
 	mdnie_data->mdnie_step_index[MDNIE_STEP2] = MDNIE_STEP2_INDEX;
 	mdnie_data->mdnie_step_index[MDNIE_STEP3] = MDNIE_STEP3_INDEX;
@@ -496,11 +503,13 @@ static int dsi_update_mdnie_data(struct samsung_display_driver_data *vdd)
 	mdnie_data->dsi_rgb_sensor_mdnie_3_size = RGB_SENSOR_MDNIE_3_SIZE;
 
 	mdnie_data->dsi_trans_dimming_data_index = MDNIE_TRANS_DIMMING_DATA_INDEX;
+	mdnie_data->dsi_trans_dimming_slope_index = MDNIE_TRANS_DIMMING_SLOPE_INDEX;
 
 	mdnie_data->dsi_adjust_ldu_table = adjust_ldu_data;
 	mdnie_data->dsi_max_adjust_ldu = 6;
 	mdnie_data->dsi_night_mode_table = night_mode_data;
 	mdnie_data->dsi_max_night_mode_index = 306;
+	mdnie_data->dsi_hbm_scr_table = hbm_scr_data;
 	mdnie_data->dsi_color_lens_table = color_lens_data;
 	mdnie_data->dsi_white_default_r = 0xff;
 	mdnie_data->dsi_white_default_g = 0xff;
@@ -1462,10 +1471,11 @@ static void update_glut_map(struct samsung_display_driver_data *vdd)
 static int update_glut_enable(struct samsung_display_driver_data *vdd,
 			char *val, struct ss_cmd_desc *cmd)
 {
-	int cur_rr = vdd->vrr.cur_refresh_rate;
-	bool cur_hs = vdd->vrr.cur_sot_hs_mode;
-	bool cur_phs = vdd->vrr.cur_phs_mode;
-	int bl_lvl = vdd->br_info.common_br.bl_level;
+	struct cmd_ref_state *state = &vdd->cmd_ref_state;
+	int cur_rr = state->cur_refresh_rate;
+	bool cur_hs = state->sot_hs;
+	bool cur_phs = state->sot_phs;
+	int bl_lvl = state->bl_level;
 	enum VRR_CMD_RR cur_md_base = ss_get_vrr_mode_base(vdd, cur_rr, cur_hs, cur_phs);
 	int i = -1;
 	bool glut_enable = true;
@@ -1505,10 +1515,11 @@ err_skip:
 static int update_glut(struct samsung_display_driver_data *vdd,
 			char *val, struct ss_cmd_desc *cmd)
 {
-	int cur_rr = vdd->vrr.cur_refresh_rate;
-	bool cur_hs = vdd->vrr.cur_sot_hs_mode;
-	bool cur_phs = vdd->vrr.cur_phs_mode;
-	int bl_lvl = vdd->br_info.common_br.bl_level;
+	struct cmd_ref_state *state = &vdd->cmd_ref_state;
+	int cur_rr = state->cur_refresh_rate;
+	bool cur_hs = state->sot_hs;
+	bool cur_phs = state->sot_phs;
+	int bl_lvl = state->bl_level;
 	enum VRR_CMD_RR cur_md_base = ss_get_vrr_mode_base(vdd, cur_rr, cur_hs, cur_phs);
 	struct cmd_legoop_map *glut_map;
 	int i = -1, j;
@@ -1564,11 +1575,12 @@ err_skip:
 static int update_aor_DM1_S6E3FAC_AMB606AW01(struct samsung_display_driver_data *vdd,
 			char *val, struct ss_cmd_desc *cmd)
 {
-	struct vrr_info *vrr = &vdd->vrr;
-	int bl_lvl = vdd->br_info.common_br.bl_level;
-	int cur_rr = vrr->cur_refresh_rate;
-	int cur_hs = vrr->cur_sot_hs_mode;
-	int cur_phs = vrr->cur_phs_mode;
+
+	struct cmd_ref_state *state = &vdd->cmd_ref_state;
+	int cur_rr = state->cur_refresh_rate;
+	bool cur_hs = state->sot_hs;
+	bool cur_phs = state->sot_phs;
+	int bl_lvl = state->bl_level;
 	enum VRR_CMD_RR cur_md_base = ss_get_vrr_mode_base(vdd, cur_rr, cur_hs, cur_phs);
 	struct cmd_legoop_map *manual_aor_map = NULL;
 	int i = -1;
@@ -1729,7 +1741,7 @@ void DM1_S6E3FAC_AMB606AW01_FHD_init(struct samsung_display_driver_data *vdd)
 	ss_vrr_init(&vdd->vrr);
 
 	/* early te */
-	vdd->early_te = true;
+	vdd->early_te = false;
 	vdd->check_early_te = 0;
 
 	/* mdnie */

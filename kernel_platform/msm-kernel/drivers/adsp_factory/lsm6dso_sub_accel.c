@@ -16,11 +16,16 @@
 #include <linux/module.h>
 #include "adsp.h"
 #define VENDOR "STM"
+#if IS_ENABLED(CONFIG_LSM6DSV_FACTORY)
+#define CHIP_ID "LSM6DSVW"
+#else
 #define CHIP_ID "LSM6DSOW"
+#endif
 #define ACCEL_ST_TRY_CNT 3
 #define ACCEL_FACTORY_CAL_CNT 20
 #define ACCEL_RAW_DATA_CNT 3
 #define MAX_ACCEL_1G 2048
+#define PASS 0
 
 #define STM_LSM6DSO_INT_CHECK_RUNNING   4
 
@@ -230,10 +235,17 @@ static ssize_t sub_accel_selftest_show(struct device *dev,
 	struct adsp_data *data = dev_get_drvdata(dev);
 	uint8_t cnt = 0;
 	int retry = 0;
+#if IS_ENABLED(CONFIG_SUPPORT_AK09973) || defined(CONFIG_SUPPORT_AK09973)
 	int msg_buf = LSM6DSO_SELFTEST_TRUE;
 
 	adsp_unicast(&msg_buf, sizeof(msg_buf),
 		MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_OPTION_DEFINE);
+#elif IS_ENABLED(CONFIG_SUPPORT_REF_ANGLE_WITHOUT_DIGITAL_HALL) || defined(CONFIG_SUPPORT_REF_ANGLE_WITHOUT_DIGITAL_HALL)
+	int msg_buf = LSM6DSO_SELFTEST_TRUE;
+
+	adsp_unicast(&msg_buf, sizeof(msg_buf),
+		MSG_REF_ANGLE, 0, MSG_TYPE_OPTION_DEFINE);
+#endif
 
 	pdata->st_complete = false;
 RETRY_ACCEL_SELFTEST:
@@ -249,7 +261,7 @@ RETRY_ACCEL_SELFTEST:
 		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
 		data->msg_buf[MSG_ACCEL_SUB][1] = -1;
 #ifdef CONFIG_SEC_FACTORY
-		panic("force crash : sensor selftest timeout\n");
+		panic("sensor force crash : sub accel selftest timeout\n");
 #endif
 	}
 
@@ -280,7 +292,10 @@ RETRY_ACCEL_SELFTEST:
 
 	pdata->st_complete = true;
 
+#if IS_ENABLED(CONFIG_SUPPORT_AK09973) || defined(CONFIG_SUPPORT_AK09973) ||\
+	IS_ENABLED(CONFIG_SUPPORT_REF_ANGLE_WITHOUT_DIGITAL_HALL) || defined(CONFIG_SUPPORT_REF_ANGLE_WITHOUT_DIGITAL_HALL)
 	schedule_delayed_work(&data->lsm6dso_selftest_stop_work, msecs_to_jiffies(300));
+#endif
 
 	return snprintf(buf, PAGE_SIZE, "%d,%d,%d,%d,%d,%d,%d\n",
 			data->msg_buf[MSG_ACCEL_SUB][1],
@@ -299,6 +314,9 @@ static ssize_t sub_accel_raw_data_show(struct device *dev,
 	int32_t raw_data[ACCEL_RAW_DATA_CNT] = {0, };
 	static int32_t prev_raw_data[ACCEL_RAW_DATA_CNT] = {0, };
 	int ret = 0;
+#ifdef CONFIG_SEC_FACTORY
+	static int same_cnt;
+#endif
 
 	if (pdata->st_complete == false) {
 		pr_info("[FACTORY] %s: selftest is running\n", __func__);
@@ -310,6 +328,21 @@ static ssize_t sub_accel_raw_data_show(struct device *dev,
 	ret = get_sub_accel_raw_data(raw_data);
 	mutex_unlock(&data->accel_factory_mutex);
 
+#ifdef CONFIG_SEC_FACTORY
+	pr_info("[FACTORY] %s: %d, %d, %d\n", __func__,
+		raw_data[0], raw_data[1], raw_data[2]);
+
+	if (prev_raw_data[0] == raw_data[0] &&
+		prev_raw_data[1] == raw_data[1] &&
+		prev_raw_data[2] == raw_data[2]) {
+		same_cnt++;
+		pr_info("[FACTORY] %s: same_cnt %d\n", __func__, same_cnt);
+		if (same_cnt >= 20)
+			panic("sensor force crash : sub accel raw_data stuck\n");
+	} else
+		same_cnt = 0;
+#endif
+
 	if (!ret) {
 		memcpy(prev_raw_data, raw_data, sizeof(int32_t) * 3);
 	} else if (!pdata->lpf_onoff) {
@@ -318,11 +351,6 @@ static ssize_t sub_accel_raw_data_show(struct device *dev,
 	} else {
 		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
 	}
-
-#ifdef CONFIG_SEC_FACTORY
-	pr_info("[FACTORY] %s: %d, %d, %d\n", __func__,
-		raw_data[0], raw_data[1], raw_data[2]);
-#endif
 
 	return snprintf(buf, PAGE_SIZE, "%d,%d,%d\n",
 		raw_data[0], raw_data[1], raw_data[2]);
@@ -357,6 +385,8 @@ static ssize_t sub_accel_reactive_show(struct device *dev,
 
 	if (data->msg_buf[MSG_ACCEL_SUB][0] == 0)
 		success = true;
+	else
+		panic("sensor sub accel interrupt check fail!!");
 
 	return snprintf(buf, PAGE_SIZE, "%d\n", (int)success);
 }
@@ -491,6 +521,89 @@ static ssize_t sub_accel_dhr_sensor_info_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "\"FULL_SCALE\":\"%uG\"\n", fullscale);
 }
 
+#if IS_ENABLED(CONFIG_SUPPORT_REF_ANGLE_WITHOUT_DIGITAL_HALL) || defined(CONFIG_SUPPORT_REF_ANGLE_WITHOUT_DIGITAL_HALL)
+static ssize_t ref_angle_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct adsp_data *data = dev_get_drvdata(dev);
+	uint8_t cnt = 0;
+	int32_t result = PASS;
+
+	mutex_lock(&data->accel_factory_mutex);
+	adsp_unicast(NULL, 0, MSG_REF_ANGLE, 0, MSG_TYPE_GET_RAW_DATA);
+
+	while (!(data->ready_flag[MSG_TYPE_GET_RAW_DATA] & 1 << MSG_REF_ANGLE) &&
+		cnt++ < TIMEOUT_CNT)
+		msleep(20);
+
+	data->ready_flag[MSG_TYPE_GET_RAW_DATA] &= ~(1 << MSG_REF_ANGLE);
+	mutex_unlock(&data->accel_factory_mutex);
+
+	if (cnt >= TIMEOUT_CNT) {
+		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
+		return snprintf(buf, PAGE_SIZE, "-1\n");
+	}
+
+	pr_info("[FACTORY] %s - st %d/%d, akm %d/%d, lf %d/%d, hall %d/%d/%d(uT)\n",
+		__func__, data->msg_buf[MSG_REF_ANGLE][0],
+		data->msg_buf[MSG_REF_ANGLE][1],
+		data->msg_buf[MSG_REF_ANGLE][2],
+		data->msg_buf[MSG_REF_ANGLE][3],
+		data->msg_buf[MSG_REF_ANGLE][4],
+		data->msg_buf[MSG_REF_ANGLE][5],
+		data->msg_buf[MSG_REF_ANGLE][6],
+		data->msg_buf[MSG_REF_ANGLE][7],
+		data->msg_buf[MSG_REF_ANGLE][8]);
+
+	return snprintf(buf, PAGE_SIZE, "%d,%d\n",
+		data->msg_buf[MSG_REF_ANGLE][0], result);
+}
+
+static ssize_t angle_read_data_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct adsp_data *data = dev_get_drvdata(dev);
+	uint8_t cnt = 0;
+
+	mutex_lock(&data->accel_factory_mutex);
+	adsp_unicast(NULL, 0, MSG_REF_ANGLE, 0, MSG_TYPE_GET_RAW_DATA);
+
+	while (!(data->ready_flag[MSG_TYPE_GET_RAW_DATA] & 1 << MSG_REF_ANGLE) &&
+		cnt++ < TIMEOUT_CNT)
+		msleep(20);
+
+	data->ready_flag[MSG_TYPE_GET_RAW_DATA] &= ~(1 << MSG_REF_ANGLE);
+	mutex_unlock(&data->accel_factory_mutex);
+
+	if (cnt >= TIMEOUT_CNT) {
+		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
+                return snprintf(buf, PAGE_SIZE, "-1\n");
+	}
+
+	pr_info("[FACTORY] %s - st %d/%d, akm %d/%d, lf %d/%d, hall %d/%d/%d(uT)\n",
+		__func__, data->msg_buf[MSG_REF_ANGLE][0],
+		data->msg_buf[MSG_REF_ANGLE][1],
+		data->msg_buf[MSG_REF_ANGLE][2],
+		data->msg_buf[MSG_REF_ANGLE][3],
+		data->msg_buf[MSG_REF_ANGLE][4],
+		data->msg_buf[MSG_REF_ANGLE][5],
+		data->msg_buf[MSG_REF_ANGLE][6],
+		data->msg_buf[MSG_REF_ANGLE][7],
+		data->msg_buf[MSG_REF_ANGLE][8]);
+
+	return snprintf(buf, PAGE_SIZE, "%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
+		data->msg_buf[MSG_REF_ANGLE][0],
+		data->msg_buf[MSG_REF_ANGLE][1],
+		data->msg_buf[MSG_REF_ANGLE][2],
+		data->msg_buf[MSG_REF_ANGLE][3],
+		data->msg_buf[MSG_REF_ANGLE][4],
+		data->msg_buf[MSG_REF_ANGLE][5],
+		data->msg_buf[MSG_REF_ANGLE][6],
+		data->msg_buf[MSG_REF_ANGLE][7],
+		data->msg_buf[MSG_REF_ANGLE][8]);
+}
+#endif
+
 static DEVICE_ATTR(name, 0444, sub_accel_name_show, NULL);
 static DEVICE_ATTR(vendor, 0444, sub_accel_vendor_show, NULL);
 static DEVICE_ATTR(type, 0444, sensor_type_show, NULL);
@@ -510,6 +623,10 @@ static DEVICE_ATTR(dhr_sensor_info, 0444,
 static DEVICE_ATTR(dhr_sensor_info, 0440,
 	sub_accel_dhr_sensor_info_show, NULL);
 #endif
+#if IS_ENABLED(CONFIG_SUPPORT_REF_ANGLE_WITHOUT_DIGITAL_HALL) || defined(CONFIG_SUPPORT_REF_ANGLE_WITHOUT_DIGITAL_HALL)
+static DEVICE_ATTR(ref_angle, 0444, ref_angle_show, NULL);
+static DEVICE_ATTR(read_angle_data, 0444, angle_read_data_show, NULL);
+#endif
 
 static struct device_attribute *acc_attrs[] = {
 	&dev_attr_name,
@@ -521,6 +638,10 @@ static struct device_attribute *acc_attrs[] = {
 	&dev_attr_reactive_alert,
 	&dev_attr_lowpassfilter,
 	&dev_attr_dhr_sensor_info,
+#if IS_ENABLED(CONFIG_SUPPORT_REF_ANGLE_WITHOUT_DIGITAL_HALL) || defined(CONFIG_SUPPORT_REF_ANGLE_WITHOUT_DIGITAL_HALL)
+	&dev_attr_ref_angle,
+	&dev_attr_read_angle_data,
+#endif
 	NULL,
 };
 

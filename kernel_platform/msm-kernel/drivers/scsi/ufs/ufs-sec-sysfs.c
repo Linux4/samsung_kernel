@@ -13,10 +13,17 @@
 #include "ufs-sec-sysfs.h"
 
 #define get_vdi_member(member) ufs_sec_features.vdi->member
+
+#if !IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
 #define get_wb_member(member) ufs_sec_features.ufs_wb->member
+#endif
 
 /* sec specific vendor sysfs nodes */
+#if IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
+struct device *sec_ufs_cmd_dev;
+#else
 static struct device *sec_ufs_cmd_dev;
+#endif
 
 /* UFS info nodes : begin */
 static ssize_t ufs_sec_unique_number_show(struct device *dev,
@@ -47,6 +54,29 @@ static ssize_t ufs_sec_lt_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%01x\n", get_vdi_member(lt));
 }
 static DEVICE_ATTR(lt, 0444, ufs_sec_lt_show, NULL);
+
+static ssize_t ufs_sec_flt_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ufs_hba *hba;
+
+	hba = get_vdi_member(hba);
+
+	if (!hba) {
+		dev_err(dev, "skipping ufs flt read\n");
+		get_vdi_member(flt) = 0;
+	} else if (hba->ufshcd_state == UFSHCD_STATE_OPERATIONAL) {
+		pm_runtime_get_sync(&hba->sdev_ufs_device->sdev_gendev);
+		ufs_sec_get_health_desc(hba);
+		pm_runtime_put(&hba->sdev_ufs_device->sdev_gendev);
+	} else {
+		/* return previous FLT value if not operational */
+		dev_info(hba->dev, "ufshcd_state : %d, old FLT: %u\n",
+				hba->ufshcd_state, get_vdi_member(flt));
+	}
+	return snprintf(buf, PAGE_SIZE, "%u\n", get_vdi_member(flt));
+}
+static DEVICE_ATTR(flt, 0444, ufs_sec_flt_show, NULL);
 
 static ssize_t ufs_sec_lc_info_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -88,6 +118,7 @@ static struct attribute *sec_ufs_info_attributes[] = {
 	&dev_attr_lt.attr,
 	&dev_attr_lc.attr,
 	&dev_attr_man_id.attr,
+	&dev_attr_flt.attr,
 	NULL
 };
 
@@ -107,6 +138,7 @@ static void ufs_sec_create_info_sysfs(struct ufs_hba *hba)
 }
 /* UFS info nodes : end */
 
+#if !IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
 /* UFS SEC WB : begin */
 static ssize_t ufs_sec_wb_support_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -173,6 +205,7 @@ SEC_UFS_WB_DATA_ATTR(lp_wb_up_threshold_block, "%d\n", lp_up_threshold_block);
 SEC_UFS_WB_DATA_ATTR(lp_wb_up_threshold_rqs, "%d\n", lp_up_threshold_rqs);
 SEC_UFS_WB_DATA_ATTR(lp_wb_down_threshold_block, "%d\n", lp_down_threshold_block);
 SEC_UFS_WB_DATA_ATTR(lp_wb_down_threshold_rqs, "%d\n", lp_down_threshold_rqs);
+SEC_UFS_WB_DATA_ATTR(wb_sync_write_threshold_block, "%d\n", sync_write_threshold_block);
 
 SEC_UFS_WB_TIME_ATTR(wb_on_delay_ms, "%d\n", on_delay);
 SEC_UFS_WB_TIME_ATTR(wb_off_delay_ms, "%d\n", off_delay);
@@ -206,6 +239,7 @@ static struct attribute *sec_ufs_wb_attributes[] = {
 	&dev_attr_lp_wb_up_threshold_rqs.attr,
 	&dev_attr_lp_wb_down_threshold_block.attr,
 	&dev_attr_lp_wb_down_threshold_rqs.attr,
+	&dev_attr_wb_sync_write_threshold_block.attr,
 	&dev_attr_wb_on_delay_ms.attr,
 	&dev_attr_wb_off_delay_ms.attr,
 	&dev_attr_lp_wb_on_delay_ms.attr,
@@ -235,6 +269,7 @@ static void ufs_sec_create_wb_sysfs(struct ufs_hba *hba)
 				__func__, ret);
 }
 /* UFS SEC WB : end */
+#endif
 
 /* SEC error info : begin */
 static ssize_t SEC_UFS_op_cnt_store(struct device *dev,
@@ -601,8 +636,10 @@ void ufs_sec_add_sysfs_nodes(struct ufs_hba *hba)
 		/* sec specific vendor sysfs nodes */
 		ufs_sec_create_info_sysfs(hba);
 
+#if !IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
 		/* create WB sysfs-nodes */
 		ufs_sec_create_wb_sysfs(hba);
+#endif
 
 #if IS_ENABLED(CONFIG_SEC_UFS_CMD_LOGGING)
 		if (ufs_sec_is_cmd_log_allowed())

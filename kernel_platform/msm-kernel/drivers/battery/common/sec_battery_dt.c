@@ -1345,7 +1345,7 @@ int sec_bat_parse_dt(struct device *dev,
 	pdata->wire_normal_warm_thresh = (int)temp;
 	if (ret) {
 		pr_info("%s : wire_normal_warm_thresh is Empty\n", __func__);
-		pdata->wire_normal_warm_thresh = 410;
+		pdata->wire_normal_warm_thresh = 420;
 	}
 
 	ret = of_property_read_u32(np, "battery,wire_cool1_normal_thresh", &temp);
@@ -1473,6 +1473,11 @@ int sec_bat_parse_dt(struct device *dev,
 		pr_info("%s : wireless_cool3_current is Empty\n", __func__);
 		pdata->wireless_cool3_current = 500;
 	}
+
+	pdata->update_mfc_power_info =
+		of_property_read_bool(np, "battery,update_mfc_power_info");
+	pdata->abnormal_wpc_check =
+		of_property_read_bool(np, "battery,abnormal_wpc_check");
 
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
 	ret = of_property_read_u32(np, "battery,limiter_main_warm_current",
@@ -1786,6 +1791,16 @@ int sec_bat_parse_dt(struct device *dev,
 	if (ret) {
 		pr_err("%s: pd_charging_charge_power is Empty\n", __func__);
 		pdata->pd_charging_charge_power = 15000;
+	}
+
+	pdata->support_fpdo_dc = of_property_read_bool(np, "battery,support_fpdo_dc");
+	if (pdata->support_fpdo_dc) {
+		ret = of_property_read_u32(np, "battery,fpdo_dc_charge_power",
+				&pdata->fpdo_dc_charge_power);
+		if (ret) {
+			pr_err("%s: fpdo_dc_charge_power is Empty\n", __func__);
+			pdata->fpdo_dc_charge_power = 15000;
+		}
 	}
 
 	ret = of_property_read_u32(np, "battery,rp_current_rp1",

@@ -891,11 +891,13 @@ static ssize_t limit_stat_show(struct kobject *kobj,
 	return len;
 }
 
-static ssize_t vbf_table_show(struct kobject *kobj,
+static ssize_t vtable_show(struct kobject *kobj,
 			struct kobj_attribute *attr, char *buf)
 {
 	ssize_t len = 0;
 	int i = 0;
+	struct cpufreq_policy *policy = cpufreq_cpu_get(param.g_first);
+	unsigned int virt_clk = 0;
 
 	if (!cflm_vbf.count)
 		return len;
@@ -906,12 +908,42 @@ static ssize_t vbf_table_show(struct kobject *kobj,
 		return len;
 	}
 
-	for (i = param.vbf_offset; i < cflm_vbf.count; i++) {
-		len += snprintf(buf + len, MAX_BUF_SIZE, "%u - %u\n",
-			cflm_vbf.table[PRIME_CPU][i], cflm_vbf.table[GOLD_CPU][i - param.vbf_offset]);
+	len += snprintf(buf + len, MAX_BUF_SIZE, "====================max=======================min============\n");
+	len += snprintf(buf + len, MAX_BUF_SIZE, "  virt   |  prime   gold    silver |  prime   gold    silver\n");
+	for (i = 0; i < param.freq_count; i++) {
+		virt_clk = param.unified_cpuftbl[i];
+
+		if (virt_clk > param.ltl_max_freq) {
+			len += snprintf(buf + len, MAX_BUF_SIZE, " %7u | %7u %7u %7u | %7u %7u %7u \n",
+				virt_clk,
+
+				/* max = limit */
+				virt_clk,
+				cflm_get_vol_matched_freq(virt_clk),
+				cflm_get_silver_limit(virt_clk),
+
+				/* min = boost */
+				virt_clk,
+				cpufreq_driver_resolve_freq(policy, virt_clk),
+				cflm_get_silver_boost(virt_clk));
+		} else {
+			len += snprintf(buf + len, MAX_BUF_SIZE, " %7u | %7u %7u %7u | %7u %7u %7u \n",
+				virt_clk,
+
+				/* max = limit */
+				param.p_fmin,
+				param.g_fmin,
+				cflm_get_silver_limit(virt_clk),
+
+				/* min = boost */
+				0,
+				0,
+				cflm_get_silver_boost(virt_clk));
+		}
 	}
-	len--;
-	len += snprintf(buf + len, MAX_BUF_SIZE, "\n");
+	len += snprintf(buf + len, MAX_BUF_SIZE, "=============================================================\n");
+
+	cpufreq_cpu_put(policy);
 
 	pr_info("%s: %s\n", __func__, buf);
 
@@ -963,12 +995,12 @@ static struct kobj_attribute limit_stat = {
 	.show	= limit_stat_show,
 };
 
-static struct kobj_attribute vbf_table = {
+static struct kobj_attribute vtable = {
 	.attr	= {
-		.name = "vbf_table",
+		.name = "vtable",
 		.mode = 0444
 	},
-	.show	= vbf_table_show,
+	.show	= vtable_show,
 	.store	= NULL,
 };
 
@@ -1084,7 +1116,7 @@ static struct attribute *cflm_attributes[] = {
 	&over_limit.attr,
 	&limit_stat.attr,
 	&cflm_info.attr,
-	&vbf_table.attr,
+	&vtable.attr,
 	&sched_boost_type_attr.attr,
 	&vol_based_clk_attr.attr,
 	&vbf_offset_attr.attr,

@@ -19,6 +19,7 @@
 #include <linux/panic_notifier.h>
 #include <linux/platform_device.h>
 #include <linux/reboot.h>
+#include <linux/slab.h>
 
 #include <linux/samsung/builder_pattern.h>
 #include <linux/samsung/debug/sec_reboot_cmd.h>
@@ -162,13 +163,44 @@ static void __qc_reboot_reason_iounmap_qcom_restart_reason(struct builder *bd)
 	iounmap(drvdata->qcom_restart_reason);
 }
 
+static void __reboot_reason_write_pon_rr(struct qc_reboot_reason_drvdata *drvdata,
+		unsigned char pon_reason)
+{
+	struct device *dev = drvdata->bd.dev;
+	unsigned char pon_read;
+	const size_t max_retry = 5;
+	size_t retry;
+	void *buf;
+	int err;
+
+	for (retry = 0; retry < max_retry; retry++) {
+		err = nvmem_cell_write(drvdata->nv_restart_reason,
+				&pon_reason, sizeof(pon_reason));
+		if (err <= 0)
+			continue;
+
+		buf = nvmem_cell_read(drvdata->nv_restart_reason,
+				NULL);
+		if (IS_ERR(buf)) {
+			kfree(buf);
+			continue;
+		}
+
+		pon_read = *(unsigned char *)buf;
+		kfree(buf);
+		if (pon_read == pon_reason)
+			return;
+	}
+
+	dev_warn(dev, "pon reason was not written properly!\n");
+}
+
 static int sec_qc_reboot_reason_write_pon_rr(struct notifier_block *this,
 		unsigned long pon_rr, void *data)
 {
 	struct qc_reboot_reason_drvdata *drvdata = container_of(this,
 			struct qc_reboot_reason_drvdata, nb_pon_rr);
 	struct sec_reboot_param *param = data;
-	unsigned char pon_reason;
 
 	if (param && param->mode == SYS_POWER_OFF)
 		return NOTIFY_DONE;
@@ -176,10 +208,10 @@ static int sec_qc_reboot_reason_write_pon_rr(struct notifier_block *this,
 	if (pon_rr == PON_RESTART_REASON_NOT_HANDLE)
 		return NOTIFY_DONE;
 
-	pon_reason = (unsigned char)pon_rr;
+	__reboot_reason_write_pon_rr(drvdata, (unsigned char)pon_rr);
 
-	nvmem_cell_write(drvdata->nv_restart_reason,
-			&pon_reason, sizeof(pon_reason));
+	nvmem_cell_put(drvdata->nv_restart_reason);
+	drvdata->nv_restart_reason = NULL;
 
 	return NOTIFY_OK;
 }

@@ -63,5 +63,3 @@ obj-$(CONFIG_UID_SYS_STATS)	+= uid_sys_stats.o
 obj-$(CONFIG_OPEN_DICE)		+= open-dice.o
 obj-$(CONFIG_QSEECOM_PROXY) 	+= qseecom_proxy.o
 obj-$(CONFIG_MZ_USE_QSEECOM)	+= mz_tee_driver_qc.o
-# TEEGRIS kernel driver
-obj-$(CONFIG_TZDEV)		+= tzdev/

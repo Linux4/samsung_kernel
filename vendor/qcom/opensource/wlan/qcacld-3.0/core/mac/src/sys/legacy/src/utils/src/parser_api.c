@@ -10873,6 +10873,7 @@ QDF_STATUS populate_dot11f_btm_extended_caps(struct mac_context *mac_ctx,
 		pe_debug("ext ie length become 0, disable the ext caps");
 	}
 
+	wlan_cm_set_assoc_btm_cap(pe_session->vdev, p_ext_cap->bss_transition);
 	return QDF_STATUS_SUCCESS;
 }
 

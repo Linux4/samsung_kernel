@@ -29,6 +29,6 @@
 
 /* FIXME: use a modified COMMAND_LINE_SIZE for a recovery mode */
 #undef COMMAND_LINE_SIZE
-#define COMMAND_LINE_SIZE	4096
+#define COMMAND_LINE_SIZE	8192
 
 #endif

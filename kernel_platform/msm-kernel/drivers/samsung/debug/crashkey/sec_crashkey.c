@@ -129,7 +129,6 @@ static __always_inline bool __crashkey_is_same_pattern(
 		const struct sec_key_notifier_param *param)
 {
 	struct crashkey_kelog *keylog = &drvdata->keylog;
-	struct crashkey_timer *timer = &drvdata->timer;
 	const struct sec_key_notifier_param *desired =
 			&keylog->desired[keylog->sequence];
 
@@ -137,9 +136,6 @@ static __always_inline bool __crashkey_is_same_pattern(
 		keylog->sequence++;
 		return true;
 	}
-
-	ratelimit_state_init(&timer->rs, timer->interval,
-			keylog->nr_pattern - 1);
 
 	return false;
 }
@@ -158,10 +154,8 @@ static __always_inline void __crashkey_clear_received_state(
 	/* NOTE: if the current pattern is same as the 1st one of desried,
 	 * advande a 'keylog->sequence'.
 	 */
-	if (param) {
-		__crashkey_is_same_pattern(drvdata, param);
+	if (param && __crashkey_is_same_pattern(drvdata, param))
 		__ratelimit(&timer->rs);
-	}
 }
 
 static __always_inline void __crashkey_call_crashkey_notify(

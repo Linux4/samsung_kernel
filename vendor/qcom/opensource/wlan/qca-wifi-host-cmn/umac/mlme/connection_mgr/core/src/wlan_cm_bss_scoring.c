@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -2231,10 +2231,55 @@ static void cm_list_insert_sorted(qdf_list_t *scan_list,
 		qdf_list_insert_back(scan_list, &scan_entry->node);
 }
 
+#ifdef CONN_MGR_ADV_FEATURE
+
+/**
+ * cm_update_bss_score_for_mac_addr_matching() - boost score based on mac
+ * address matching
+ * @scan_entry: pointer to scan cache entry
+ * @self_mac: pointer to bssid to be matched
+ *
+ * Some IOT APs only allow to connect if last 3 bytes of BSSID
+ * and self MAC is same. They create a new bssid on receiving
+ * unicast probe/auth req from STA and allow STA to connect to
+ * this matching BSSID only. So boost the matching BSSID to try
+ * to connect to this BSSID.
+ *
+ * Return: void
+ */
+static void
+cm_update_bss_score_for_mac_addr_matching(struct scan_cache_node *scan_entry,
+					  struct qdf_mac_addr *self_mac)
+{
+	struct qdf_mac_addr *scan_entry_bssid;
+
+	if (!self_mac)
+		return;
+	scan_entry_bssid = &scan_entry->entry->bssid;
+	if (QDF_IS_LAST_3_BYTES_OF_MAC_SAME(
+		self_mac, scan_entry_bssid)) {
+		mlme_nofl_debug("Candidate("QDF_MAC_ADDR_FMT" freq %d): boost bss score due to same last 3 byte match",
+				QDF_MAC_ADDR_REF(
+				scan_entry_bssid->bytes),
+				scan_entry->entry->channel.chan_freq);
+		scan_entry->entry->bss_score =
+			CM_BEST_CANDIDATE_MAX_BSS_SCORE;
+	}
+}
+#else
+
+static void
+cm_update_bss_score_for_mac_addr_matching(struct scan_cache_node *scan_entry,
+					  struct qdf_mac_addr *self_mac)
+{
+}
+#endif
+
 void wlan_cm_calculate_bss_score(struct wlan_objmgr_pdev *pdev,
 				 struct pcl_freq_weight_list *pcl_lst,
 				 qdf_list_t *scan_list,
-				 struct qdf_mac_addr *bssid_hint)
+				 struct qdf_mac_addr *bssid_hint,
+				 struct qdf_mac_addr *self_mac)
 {
 	struct scan_cache_node *scan_entry;
 	qdf_list_node_t *cur_node = NULL, *next_node = NULL;
@@ -2327,8 +2372,14 @@ void wlan_cm_calculate_bss_score(struct wlan_objmgr_pdev *pdev,
 					scan_entry->entry->channel.chan_freq,
 					scan_entry->entry->rssi_raw,
 					scan_entry->entry->bss_score);
+		} else {
+			mlme_nofl_debug("Candidate("QDF_MAC_ADDR_FMT" freq %d): denylist_action %d",
+					QDF_MAC_ADDR_REF(scan_entry->entry->bssid.bytes),
+					scan_entry->entry->channel.chan_freq,
+					denylist_action);
 		}
 
+		cm_update_bss_score_for_mac_addr_matching(scan_entry, self_mac);
 		/*
 		 * The below logic is added to select the best candidate
 		 * amongst the denylisted candidates. This is done to
@@ -2531,6 +2582,19 @@ bool wlan_cm_get_check_6ghz_security(struct wlan_objmgr_psoc *psoc)
 	return mlme_psoc_obj->psoc_cfg.score_config.check_6ghz_security;
 }
 
+void wlan_cm_set_standard_6ghz_conn_policy(struct wlan_objmgr_psoc *psoc,
+					   bool value)
+{
+	struct psoc_mlme_obj *mlme_psoc_obj;
+
+	mlme_psoc_obj = wlan_psoc_mlme_get_cmpt_obj(psoc);
+	if (!mlme_psoc_obj)
+		return;
+
+	mlme_debug("6ghz standard connection policy val %x", value);
+	mlme_psoc_obj->psoc_cfg.score_config.standard_6ghz_conn_policy = value;
+}
+
 void wlan_cm_set_relaxed_6ghz_conn_policy(struct wlan_objmgr_psoc *psoc,
 					  bool value)
 {
@@ -2553,6 +2617,17 @@ bool wlan_cm_get_relaxed_6ghz_conn_policy(struct wlan_objmgr_psoc *psoc)
 		return false;
 
 	return mlme_psoc_obj->psoc_cfg.score_config.relaxed_6ghz_conn_policy;
+}
+
+bool wlan_cm_get_standard_6ghz_conn_policy(struct wlan_objmgr_psoc *psoc)
+{
+	struct psoc_mlme_obj *mlme_psoc_obj;
+
+	mlme_psoc_obj = wlan_psoc_mlme_get_cmpt_obj(psoc);
+	if (!mlme_psoc_obj)
+		return false;
+
+	return mlme_psoc_obj->psoc_cfg.score_config.standard_6ghz_conn_policy;
 }
 
 void wlan_cm_set_6ghz_key_mgmt_mask(struct wlan_objmgr_psoc *psoc,
