@@ -981,12 +981,6 @@ ifeq ($(HQ_FACTORY_BUILD),true)
 KBUILD_CPPFLAGS += -DHQ_FACTORY_BUILD
 KBUILD_CFLAGS   += -DHQ_FACTORY_BUILD
 endif
-#hs14 code for SR-AL6528A-01-111 by  TangYuhang at 20221110 start
-ifeq ($(HUAQIN_BUILD),true)
-KBUILD_CPPFLAGS += -DHUAQIN_BUILD
-KBUILD_CFLAGS   += -DHUAQIN_BUILD
-endif
-#hs14 code for SR-AL6528A-01-111 by  TangYuhang at 20221110 end
 # Use --build-id when available.
 LDFLAGS_BUILD_ID := $(call ld-option, --build-id)
 KBUILD_LDFLAGS_MODULE += $(LDFLAGS_BUILD_ID)
