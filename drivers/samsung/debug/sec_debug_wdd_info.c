@@ -33,7 +33,7 @@ static int secdbg_wdd_ping_handler(struct notifier_block *nb,
 		wdd_info->init_done = true;
 	}
 
-	pr_info("%s: wdd_info: 0x%p\n", __func__, wdd_info);
+	pr_debug("%s: wdd_info: 0x%p\n", __func__, wdd_info);
 	wdd_info->last_ping_cpu = raw_smp_processor_id();
 	wdd_info->last_ping_time = sched_clock();
 

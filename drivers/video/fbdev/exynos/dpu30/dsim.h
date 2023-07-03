@@ -517,7 +517,9 @@ static inline bool IS_DSIM_OFF_STATE(struct dsim_device *dsim)
 #define DSIM_IOC_NOTIFY         _IOW('D', 50, u32)
 #define DSIM_IOC_SET_ERROR_CB   _IOW('D', 51, struct disp_error_cb_info *)
 #define DSIM_IOC_PANEL_DUMP			_IOW('D', 52, u32)
+#ifdef CONFIG_DYNAMIC_MIPI
 #define DSIM_IOC_MCD_DM_PRE_CHANGE_FREQ  _IOW('D', 60, u32)
 #define DSIM_IOC_MCD_DM_POST_CHANGE_FREQ  _IOW('D', 61, u32)
+#endif
 #endif
 #endif /* __SAMSUNG_DSIM_H__ */

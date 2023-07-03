@@ -699,6 +699,33 @@ static void __nocfi pdp_worker_stat1(struct work_struct *data)
 	}
 }
 
+#if defined(PDP_FAST_VVALID_THRESHOLD_TIME)
+static void __nocfi pdp_worker_fast_vvalid(struct work_struct *data)
+{
+	struct is_pdp *pdp;
+	struct is_cis *cis;
+	struct ae_param expo = {{0}, 0, 0};
+	u32 frame_duration = 0;
+
+	FIMC_BUG_VOID(!data);
+	pdp = container_of(data, struct is_pdp, work_fast_vvalid);
+	FIMC_BUG_VOID(!pdp->subdev_cis);
+	cis = (struct is_cis *)v4l2_get_subdevdata(pdp->subdev_cis);
+	FIMC_BUG_VOID(!cis);
+
+	info("%s, start", __func__);
+	expo.long_val = expo.short_val = 33000;
+	CALL_CISOPS(cis, cis_stream_off, pdp->subdev_cis);
+	CALL_CISOPS(cis, cis_wait_streamoff, pdp->subdev_cis);
+	CALL_CISOPS(cis, cis_adjust_frame_duration, pdp->subdev_cis, expo.long_val, &frame_duration);
+	CALL_CISOPS(cis, cis_set_frame_duration, pdp->subdev_cis, frame_duration);
+	CALL_CISOPS(cis, cis_set_exposure_time, pdp->subdev_cis, &expo);
+	CALL_CISOPS(cis, cis_stream_on, pdp->subdev_cis);
+	CALL_CISOPS(cis, cis_wait_streamon, pdp->subdev_cis);
+	info("%s, end", __func__);
+}
+#endif
+
 int pdp_set_param(struct v4l2_subdev *subdev, struct paf_setting_t *regs, u32 regs_size)
 {
 	int i;
@@ -1047,6 +1074,7 @@ static int is_hw_pdp_init_config(struct is_hw_ip *hw_ip, u32 instance, struct is
 		if (module) {
 			sensor_peri = module->private_data;
 			pdp->cur_frm_time = sensor_peri->cis.cis_data->cur_frame_us_time;
+			pdp->subdev_cis = sensor_peri->subdev_cis;
 		}
 
 		/* A shot after stream on is prevented. */
@@ -2143,6 +2171,12 @@ static int is_hw_pdp_sensor_stop(struct is_hw_ip *hw_ip, u32 instance)
 			set_bit(IS_PDP_DISABLE_REQ_IN_FS, &pdp->state);
 #endif
 		set_bit(IS_PDP_WAITING_IDLE, &pdp->state);
+
+#if defined(PDP_FAST_VVALID_THRESHOLD_TIME)
+		if (pdp->cur_frm_time > PDP_FAST_VVALID_THRESHOLD_TIME) {
+			schedule_work(&pdp->work_fast_vvalid);
+		}
+#endif
 		ret = pdp_hw_wait_idle(pdp->base, pdp->state, pdp->cur_frm_time);
 		if (ret) {
 			mserr_hw("failed to pdp_hw_wait_idle: last INT1(0x%X) INT2(0x%X)",
@@ -2151,6 +2185,12 @@ static int is_hw_pdp_sensor_stop(struct is_hw_ip *hw_ip, u32 instance)
 				pdp->irq_state[PDP_INT2]);
 			print_all_hw_frame_count(hw_ip->hardware);
 		}
+
+#if defined(PDP_FAST_VVALID_THRESHOLD_TIME)
+		if (pdp->cur_frm_time > PDP_FAST_VVALID_THRESHOLD_TIME) {
+			flush_work(&pdp->work_fast_vvalid);
+		}
+#endif
 	}
 
 	/* This is for corex imediate setting after stream off. */
@@ -2643,6 +2683,9 @@ static int pdp_probe(struct platform_device *pdev)
 
 	INIT_WORK(&pdp->work_stat[WORK_PDP_STAT0], pdp_worker_stat0);
 	INIT_WORK(&pdp->work_stat[WORK_PDP_STAT1], pdp_worker_stat1);
+#if defined(PDP_FAST_VVALID_THRESHOLD_TIME)
+	INIT_WORK(&pdp->work_fast_vvalid, pdp_worker_fast_vvalid);
+#endif
 
 	platform_set_drvdata(pdev, pdp);
 
