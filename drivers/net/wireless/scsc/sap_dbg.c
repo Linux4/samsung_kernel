@@ -10,7 +10,6 @@
 #include "sap_dbg.h"
 #include "hip.h"
 
-#define SUPPORTED_VERSION       13
 #define SUPPORTED_OLD_VERSION   0
 
 static int sap_dbg_version_supported(u16 version);
@@ -20,7 +19,7 @@ static struct sap_api sap_dbg = {
 	.sap_class = SAP_DBG,
 	.sap_version_supported = sap_dbg_version_supported,
 	.sap_handler = sap_dbg_rx_handler,
-	.sap_versions = { SUPPORTED_VERSION, SUPPORTED_OLD_VERSION },
+	.sap_versions = { FAPI_DEBUG_SAP_VERSION, SUPPORTED_OLD_VERSION },
 };
 
 static int sap_dbg_version_supported(u16 version)
@@ -32,7 +31,7 @@ static int sap_dbg_version_supported(u16 version)
 	SLSI_INFO_NODEV("Reported version: %d.%d\n", major, minor);
 
 	for (i = 0; i < SAP_MAX_VER; i++)
-		if (sap_dbg.sap_versions[i] == major)
+		if (SAP_MAJOR(sap_dbg.sap_versions[i]) == major)
 			return 0;
 
 	SLSI_ERR_NODEV("Version %d.%d Not supported\n", major, minor);

@@ -81,6 +81,7 @@ struct pn547_dev {
 	atomic_t read_flag;
 	bool cancel_read;
 	struct wake_lock nfc_wake_lock;
+	struct wake_lock nfc_clk_wake_lock;
 	struct clk *nfc_clock;
 	int clk_req_gpio;
 	int clk_req_irq;
@@ -194,6 +195,16 @@ static irqreturn_t pn547_dev_clk_req_irq_handler(int irq, void *dev_id)
 #endif
 static irqreturn_t pn547_nfc_clk_irq(int irq, void *dev_id)
 {
+	struct pn547_dev *pn547_dev = dev_id;
+
+	if (gpio_get_value(pn547_dev->clk_req_gpio)) {
+		if(!wake_lock_active(&pn547_dev->nfc_clk_wake_lock))
+			wake_lock(&pn547_dev->nfc_clk_wake_lock);
+	} else {
+		if (wake_lock_active(&pn547_dev->nfc_clk_wake_lock))
+			wake_unlock(&pn547_dev->nfc_clk_wake_lock);
+	}
+
 	return IRQ_HANDLED;
 }
 
@@ -1327,16 +1338,9 @@ static int pn547_probe(struct i2c_client *client,
 	if (ret)
 		goto err_ese;
 #endif
-#ifdef CONFIG_NFC_PN547_CLOCK_REQUEST
 	ret = gpio_request(platform_data->clk_req_gpio, "nfc_clk_req");
 	if (ret)
 		goto err_clk_req;
-#endif
-#ifdef CONFIG_NFC_PM_BBCLK2
-	ret = gpio_request(platform_data->clk_req_gpio, "nfc_clk_req");
-	if (ret)
-		goto err_clk_req;
-#endif
 
 	pn547_dev = kzalloc(sizeof(*pn547_dev), GFP_KERNEL);
 	if (pn547_dev == NULL) {
@@ -1437,12 +1441,9 @@ static int pn547_probe(struct i2c_client *client,
 	pn547_dev->ese_pwr_req = platform_data->ese_pwr_req;
 #endif
 	pn547_dev->conf_gpio = platform_data->conf_gpio;
+	pn547_dev->clk_req_gpio = platform_data->clk_req_gpio;
 #ifdef CONFIG_NFC_PN547_CLOCK_REQUEST
-	pn547_dev->clk_req_gpio = platform_data->clk_req_gpio;
 	pn547_dev->clk_req_irq = platform_data->clk_req_irq;
-#endif
-#ifdef CONFIG_NFC_PM_BBCLK2
-	pn547_dev->clk_req_gpio = platform_data->clk_req_gpio;
 #endif
 #ifdef CONFIG_NFC_PN547_ESE_SUPPORT
 	pn547_dev->p61_current_state = P61_STATE_IDLE;
@@ -1491,6 +1492,8 @@ static int pn547_probe(struct i2c_client *client,
 	i2c_set_clientdata(client, pn547_dev);
 	wake_lock_init(&pn547_dev->nfc_wake_lock,
 			WAKE_LOCK_SUSPEND, "nfc_wake_lock");
+	wake_lock_init(&pn547_dev->nfc_clk_wake_lock,
+			WAKE_LOCK_SUSPEND, "nfc_clk_wake_lock");
 #ifdef CONFIG_NFC_PN547_CLOCK_REQUEST
 	pn547_dev->wq_clock = create_singlethread_workqueue("nfc_wq");
 	if (!pn547_dev->wq_clock) {
@@ -1523,8 +1526,8 @@ static int pn547_probe(struct i2c_client *client,
 
     if(platform_data->clk_req_gpio > 0) {
         pn547_dev->clk_req_irq = gpio_to_irq(platform_data->clk_req_gpio);
-        ret = request_threaded_irq(pn547_dev->clk_req_irq, NULL, pn547_nfc_clk_irq,
-            IRQF_TRIGGER_RISING | IRQF_ONESHOT, "nfc_clk",pn547_dev);
+        ret = request_irq(pn547_dev->clk_req_irq, pn547_nfc_clk_irq,
+				IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, "nfc_clk",pn547_dev);
         if (ret < 0) {
             dev_err(&client->dev, "failed to register IRQ handler\n");
 			goto err_request_irq_failed;
@@ -1580,6 +1583,7 @@ err_create_workqueue:
 #endif
 	misc_deregister(&pn547_dev->pn547_device);
 	wake_lock_destroy(&pn547_dev->nfc_wake_lock);
+	wake_lock_destroy(&pn547_dev->nfc_clk_wake_lock);
 err_misc_register:
 	mutex_destroy(&pn547_dev->read_mutex);
 #ifdef CONFIG_NFC_PN547_ESE_SUPPORT
@@ -1595,10 +1599,8 @@ err_ioremap:
 err_pvdd:
 	kfree(pn547_dev);
 err_exit:
-#if defined(CONFIG_NFC_PN547_CLOCK_REQUEST) || defined(CONFIG_NFC_PM_BBCLK2)
 	gpio_free(platform_data->clk_req_gpio);
 err_clk_req:
-#endif
 #ifdef CONFIG_NFC_PN547_ESE_SUPPORT
 	gpio_free(platform_data->ese_pwr_req);
 err_ese:
@@ -1626,6 +1628,7 @@ static int pn547_remove(struct i2c_client *client)
 		clk_unprepare(pn547_dev->nfc_clk);
 #endif
 	wake_lock_destroy(&pn547_dev->nfc_wake_lock);
+	wake_lock_destroy(&pn547_dev->nfc_clk_wake_lock);
 	free_irq(client->irq, pn547_dev);
 	misc_deregister(&pn547_dev->pn547_device);
 	mutex_destroy(&pn547_dev->read_mutex);
@@ -1638,11 +1641,8 @@ static int pn547_remove(struct i2c_client *client)
 	else
 		iounmap(pn547_dev->clkctrl);
 	gpio_free(pn547_dev->firm_gpio);
-#ifdef CONFIG_NFC_PM_BBCLK2
 	gpio_free(pn547_dev->clk_req_gpio);
-#endif
 #ifdef CONFIG_NFC_PN547_CLOCK_REQUEST
-	gpio_free(pn547_dev->clk_req_gpio);
 	msm_xo_put(pn547_dev->nfc_clock);
 #endif
 #ifdef CONFIG_NFC_PN547_ESE_SUPPORT

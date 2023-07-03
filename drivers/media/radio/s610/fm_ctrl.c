@@ -386,7 +386,7 @@ void fmspeedy_set_reg_field_core(u32 addr, u32 shift, u32 mask, u32 data)
 	value = (value1 & ~(mask)) | ((data) << (shift));
 
 	if (addr == 0xFFF2A9)
-		dev_err(gradio->dev, "speedy read %x, %x\n", value1, value);
+		APIEBUG(gradio, "speedy read %x, %x\n", value1, value);
 
 #endif
 

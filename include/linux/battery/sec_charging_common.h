@@ -575,16 +575,20 @@ struct sec_battery_platform_data {
 	/* battery swelling */
 	int swelling_high_temp_block;
 	int swelling_high_temp_recov;
-	int swelling_low_temp_block;
-	int swelling_low_temp_recov;
+	int swelling_low_temp_block_1st;
+	int swelling_low_temp_recov_1st;
+	int swelling_low_temp_block_2nd;
+	int swelling_low_temp_recov_2nd;
 	unsigned int swelling_low_temp_current;
 	unsigned int swelling_low_temp_topoff;
 	unsigned int swelling_high_temp_current;
 	unsigned int swelling_high_temp_topoff;
+	int swelling_low_temp_2step_mode;
 	unsigned int swelling_normal_float_voltage;
 	unsigned int swelling_drop_float_voltage;
 	unsigned int swelling_high_rechg_voltage;
 	unsigned int swelling_low_rechg_voltage;
+	unsigned int swelling_drop_voltage_condition;
 
 #if defined(CONFIG_CALC_TIME_TO_FULL)
 	unsigned int ttf_hv_charge_current;
@@ -806,6 +810,11 @@ struct sec_battery_platform_data {
 
 	/* ADC setting */
 	unsigned int adc_check_count;
+
+	unsigned int expired_time;
+	unsigned int recharging_expired_time;
+	int standard_curr;
+
 	/* ADC type for each channel */
 	unsigned int adc_type[];
 };

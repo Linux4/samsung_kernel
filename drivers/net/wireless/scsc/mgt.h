@@ -52,7 +52,14 @@
 /* IF Number (Index) based checks */
 #define SLSI_IS_VIF_INDEX_WLAN(ndev_vif) (ndev_vif->ifnum == SLSI_NET_INDEX_WLAN)
 #define SLSI_IS_VIF_INDEX_P2P(ndev_vif) (ndev_vif->ifnum == SLSI_NET_INDEX_P2P)
-#define SLSI_IS_VIF_INDEX_P2P_GROUP(ndev_vif) (ndev_vif->ifnum == SLSI_NET_INDEX_P2PX)
+#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
+#define SLSI_IS_VIF_INDEX_P2P_GROUP(ndev_vif) ((ndev_vif->ifnum == SLSI_NET_INDEX_P2PX_SWLAN) &&\
+					       (ndev_vif->wifi_sharing == 0))
+#define SLSI_IS_INTERFACE_WIFI_SHARING_AP(ndev_vif) ((ndev_vif->ifnum == SLSI_NET_INDEX_P2PX_SWLAN) &&\
+						     (ndev_vif->wifi_sharing == 1))
+#else
+#define SLSI_IS_VIF_INDEX_P2P_GROUP(ndev_vif) (ndev_vif->ifnum == SLSI_NET_INDEX_P2PX_SWLAN)
+#endif
 
 /* Check for P2P unsync vif type */
 #define SLSI_IS_P2P_UNSYNC_VIF(ndev_vif) ((ndev_vif->ifnum == SLSI_NET_INDEX_P2P) && (ndev_vif->vif_type == FAPI_VIFTYPE_UNSYNCHRONISED))
@@ -362,7 +369,8 @@ static inline void slsi_p2p_queue_unsync_vif_del_work(struct netdev_vif *ndev_vi
 		sdev->p2p_state = next_state; \
 	} while (0)
 
-void slsi_purge_scan_results(struct slsi_scan *scan);
+void slsi_purge_scan_results(struct netdev_vif *ndev_vif, u16 scan_id);
+void slsi_purge_scan_results_locked(struct netdev_vif *ndev_vif, u16 scan_id);
 struct sk_buff *slsi_dequeue_cached_scan_result(struct slsi_scan *scan, int *count);
 void slsi_get_hw_mac_address(struct slsi_dev *sdev, u8 *addr);
 int slsi_start(struct slsi_dev *sdev);
@@ -387,7 +395,6 @@ int slsi_del_station(struct wiphy *wiphy, struct net_device *dev, u8 *mac);
 int slsi_vif_activated(struct slsi_dev *sdev, struct net_device *dev);
 void slsi_vif_deactivated(struct slsi_dev *sdev, struct net_device *dev);
 int slsi_handle_disconnect(struct slsi_dev *sdev, struct net_device *dev, u8 *peer_address, u16 reason);
-int slsi_update_suspend_mode(struct slsi_dev *sdev);
 int slsi_band_update(struct slsi_dev *sdev, int band);
 int slsi_ip_address_changed(struct slsi_dev *sdev, struct net_device *dev, __be32 ipaddress);
 int slsi_send_gratuitous_arp(struct slsi_dev *sdev, struct net_device *dev);
@@ -396,6 +403,7 @@ int slsi_auto_chan_select_scan(struct slsi_dev *sdev, int chan_count, struct iee
 int slsi_set_uint_mib(struct slsi_dev *dev, struct net_device *ndev, u16 psid, int value);
 int slsi_update_regd_rules(struct slsi_dev *sdev, bool country_check);
 int slsi_set_uapsd_qos_info(struct slsi_dev *sdev, struct net_device *dev);
+int slsi_set_boost(struct slsi_dev *sdev, struct net_device *dev);
 int slsi_p2p_init(struct slsi_dev *sdev, struct netdev_vif *ndev_vif);
 void slsi_p2p_deinit(struct slsi_dev *sdev, struct netdev_vif *ndev_vif);
 int slsi_p2p_vif_activate(struct slsi_dev *sdev, struct net_device *dev, struct ieee80211_channel *chan, u16 duration, bool set_probe_rsp_ies);
@@ -410,10 +418,26 @@ int slsi_send_txq_params(struct slsi_dev *sdev, struct net_device *ndev);
 void slsi_abort_sta_scan(struct slsi_dev *sdev);
 int slsi_is_dhcp_packet(u8 *data);
 void slsi_set_packet_filters(struct slsi_dev *sdev, struct net_device *dev);
+int  slsi_update_packet_filters(struct slsi_dev *sdev, struct net_device *dev);
+int  slsi_clear_packet_filters(struct slsi_dev *sdev, struct net_device *dev);
 int slsi_ap_prepare_add_info_ies(struct netdev_vif *ndev_vif, const u8 *ies, size_t ies_len);
 int slsi_set_mib_roam(struct slsi_dev *dev, struct net_device *ndev, u16 psid, int value);
+int slsi_set_mib_rssi_boost(struct slsi_dev *sdev, struct net_device *dev, u16 psid, int index, int boost);
+#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
+bool slsi_if_valid_wifi_sharing_channel(struct slsi_dev *sdev, int freq);
+void slsi_extract_valid_wifi_sharing_channels(struct slsi_dev *sdev);
+void slsi_select_wifi_sharing_ap_channel(struct wiphy *wiphy, struct net_device *dev,
+					 struct cfg80211_ap_settings *settings, struct slsi_dev *sdev,
+					 int *channel_switched_flag);
+int slsi_set_mib_wifi_sharing_5ghz_channel(struct slsi_dev *sdev, u16 psid, int value,
+					   int offset, int readbyte, char *arg);
+int slsi_get_byte_position(int bit);
+#endif
+struct net_device *slsi_new_interface_create(struct wiphy        *wiphy,
+					     const char          *name,
+					     enum nl80211_iftype type,
+					     struct vif_params   *params);
 int slsi_get_mib_roam(struct slsi_dev *sdev, u16 psid, int *mib_value);
-void slsi_mib_get_roaming_report_work(struct work_struct *work);
 void slsi_roam_channel_cache_add(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
 void slsi_roam_channel_cache_prune(struct net_device *dev, int seconds);
 int slsi_roaming_scan_configure_channels(struct slsi_dev *sdev, struct net_device *dev, const u8 *ssid, u8 *channels);
@@ -433,6 +457,7 @@ void slsi_vif_cleanup(struct slsi_dev *sdev, struct net_device *dev, bool hw_ava
 void slsi_scan_cleanup(struct slsi_dev *sdev, struct net_device *dev);
 void slsi_dump_stats(struct net_device *dev);
 int slsi_send_hanged_vendor_event(struct slsi_dev *sdev, u16 scsc_panic_code);
+void slsi_update_supported_channels_regd_flags(struct slsi_dev *sdev);
 #ifdef CONFIG_SCSC_WLAN_HANG_TEST
 int slsi_test_send_hanged_vendor_event(struct net_device *dev);
 #endif

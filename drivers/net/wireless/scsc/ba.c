@@ -237,6 +237,7 @@ static int ba_consume_frame_or_get_buffer_index(struct net_device *dev, struct s
 				 *
 				 * If it lies in the window pass the frame to next process else discard the frame here.
 				 */
+				/*
 				if (IS_SN_LESS(ba_session_rx->highest_received_sn, (((sn + ba_session_rx->buffer_size) & 0xFFF) - 1))) {
 					SLSI_NET_DBG4(dev, SLSI_RX_BA, "old frame, but still in window: sn=%d, highest_received_sn=%d\n", sn, ba_session_rx->highest_received_sn);
 					ba_add_frame_to_ba_complete(dev, frame_desc);
@@ -244,6 +245,9 @@ static int ba_consume_frame_or_get_buffer_index(struct net_device *dev, struct s
 					SLSI_NET_DBG1(dev, SLSI_RX_BA, "old frame, drop: sn=%d, expected_sn=%d\n", sn, ba_session_rx->expected_sn);
 					slsi_kfree_skb(frame_desc->signal);
 				}
+				*/
+				SLSI_NET_DBG1(dev, SLSI_RX_BA, "forward old frame: sn=%d, expected_sn=%d\n", sn, ba_session_rx->expected_sn);
+				ba_add_frame_to_ba_complete(dev, frame_desc);
 			}
 		}
 	}
@@ -424,6 +428,7 @@ static void slsi_rx_ba_stop_lock_held(struct net_device *dev, struct slsi_ba_ses
 {
 	__slsi_rx_ba_stop(dev, ba_session_rx);
 	if (ba_session_rx->timer_on) {
+		ba_session_rx->timer_on = false;
 		slsi_spinlock_unlock(&ba_session_rx->ba_lock);
 		del_timer_sync(&ba_session_rx->ba_age_timer);
 		slsi_spinlock_lock(&ba_session_rx->ba_lock);
@@ -435,6 +440,7 @@ static void slsi_rx_ba_stop_lock_unheld(struct net_device *dev, struct slsi_ba_s
 	slsi_spinlock_lock(&ba_session_rx->ba_lock);
 	__slsi_rx_ba_stop(dev, ba_session_rx);
 	if (ba_session_rx->timer_on) {
+		ba_session_rx->timer_on = false;
 		slsi_spinlock_unlock(&ba_session_rx->ba_lock);
 		del_timer_sync(&ba_session_rx->ba_age_timer);
 	} else {
@@ -488,8 +494,10 @@ static int slsi_rx_ba_start(struct net_device *dev,
 	ba_session_rx->buffer_size = buffer_size;
 	ba_session_rx->start_sn = start_sn;
 	ba_session_rx->expected_sn = start_sn;
+	ba_session_rx->highest_received_sn = 0;
 	ba_session_rx->trigger_ba_after_ssn = false;
 	ba_session_rx->tid = tid;
+	ba_session_rx->timer_on = false;
 	ba_session_rx->ba_age_timer.function = slsi_ba_aging_timeout_handler;
 	ba_session_rx->ba_age_timer.data = (unsigned long)ba_session_rx;
 	init_timer(&ba_session_rx->ba_age_timer);

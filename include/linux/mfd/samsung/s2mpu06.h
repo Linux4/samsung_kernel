@@ -26,7 +26,11 @@
 #if defined(CONFIG_SEC_CHARGER_S2MU005)
 #include <linux/power/sec_charging_common.h>
 #else
+#if defined(CONFIG_BATTERY_SAMSUNG_V2)
+#include "../../../../drivers/battery_v2/include/sec_charging_common.h"
+#else
 #include <linux/battery/sec_charging_common.h>
+#endif
 #endif
 
 #define MFD_DEV_NAME "s2mpu06"
@@ -52,6 +56,8 @@ typedef struct s2mpu06_charger_platform_data {
 	int vf_gnd_short_det_irq;
 	/* IVR Threshold */
 	int ivr_threshold;
+	/* Slow charging current */
+	int slow_charging_current;
 } s2mpu06_charger_platform_data_t;
 #endif
 

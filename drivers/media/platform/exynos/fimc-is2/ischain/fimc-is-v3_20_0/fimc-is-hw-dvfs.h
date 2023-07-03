@@ -14,7 +14,7 @@
 #define FIMC_IS_HW_DVFS_H
 
 /* dvfs table idx ex.different dvfa table  pure bayer or dynamic bayer */
-#define FIMC_IS_DVFS_TABLE_IDX_MAX 2
+#define FIMC_IS_DVFS_TABLE_IDX_MAX 3
 
 /* FIMC-IS DVFS SCENARIO enum */
 enum FIMC_IS_SCENARIO_ID {
@@ -33,6 +33,8 @@ enum FIMC_IS_SCENARIO_ID {
 	FIMC_IS_SN_VIDEO_HIGH_SPEED_60FPS,
 	FIMC_IS_SN_VIDEO_HIGH_SPEED_120FPS,
 	FIMC_IS_SN_VRA,
+	FIMC_IS_SN_EXT_REAR,
+	FIMC_IS_SN_EXT_FRONT,
 	FIMC_IS_SN_MAX,
 	FIMC_IS_SN_END,
 };

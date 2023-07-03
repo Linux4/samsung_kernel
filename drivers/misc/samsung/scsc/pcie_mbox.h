@@ -98,3 +98,4 @@ void pcie_mbox_set_outgoing_interrupt_source(struct pcie_mbox *mbox, enum scsc_m
 u32 *pcie_mbox_get_mailbox_ptr(struct pcie_mbox *mbox, u32 mbox_index);
 
 #endif /* __PCIE_MBOX_H */
+

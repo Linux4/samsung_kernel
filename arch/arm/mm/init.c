@@ -277,11 +277,15 @@ phys_addr_t __init arm_memblock_steal(phys_addr_t size, phys_addr_t align)
 void __init arm_memblock_init(const struct machine_desc *mdesc)
 {
 	/* Register the kernel text, kernel data and initrd with memblock. */
+	set_memsize_kernel_type(MEMSIZE_KERNEL_KERNEL);
 #ifdef CONFIG_XIP_KERNEL
 	memblock_reserve(__pa(_sdata), _end - _sdata);
 #else
 	memblock_reserve(__pa(_stext), _end - _stext);
 #endif
+	set_memsize_kernel_type(MEMSIZE_KERNEL_STOP);
+	record_memsize_reserved("initmem", __pa(__init_begin),
+				__init_end - __init_begin, false, false);
 #ifdef CONFIG_BLK_DEV_INITRD
 	/* FDT scan will populate initrd_start */
 	if (initrd_start && !phys_initrd_size) {
@@ -303,6 +307,8 @@ void __init arm_memblock_init(const struct machine_desc *mdesc)
 	}
 	if (phys_initrd_size) {
 		memblock_reserve(phys_initrd_start, phys_initrd_size);
+		record_memsize_reserved("initrd", phys_initrd_start,
+					phys_initrd_size, false, false);
 
 		/* Now convert initrd to virtual addresses */
 		initrd_start = __phys_to_virt(phys_initrd_start);
@@ -310,12 +316,14 @@ void __init arm_memblock_init(const struct machine_desc *mdesc)
 	}
 #endif
 
+	set_memsize_kernel_type(MEMSIZE_KERNEL_OTHERS);
 	arm_mm_memblock_reserve();
 
 	/* reserve any platform specific memblock areas */
 	if (mdesc->reserve)
 		mdesc->reserve();
 
+	set_memsize_kernel_type(MEMSIZE_KERNEL_STOP);
 	early_init_fdt_scan_reserved_mem();
 
 	/*
@@ -323,6 +331,7 @@ void __init arm_memblock_init(const struct machine_desc *mdesc)
 	 * must come from DMA area inside low memory
 	 */
 	dma_contiguous_reserve(arm_dma_limit);
+	set_memsize_kernel_type(MEMSIZE_KERNEL_OTHERS);
 
 	arm_memblock_steal_permitted = false;
 	memblock_dump_all();

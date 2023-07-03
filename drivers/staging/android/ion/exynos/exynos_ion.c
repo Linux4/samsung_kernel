@@ -198,7 +198,7 @@ bool ion_is_heap_available(struct ion_heap *heap,
 	return true;
 }
 
-int ion_parse_heap_id(unsigned int heap_id_mask, unsigned int flags)
+unsigned int ion_parse_heap_id(unsigned int heap_id_mask, unsigned int flags)
 {
 	unsigned int heap_id = 1;
 	int i;
@@ -220,7 +220,7 @@ int ion_parse_heap_id(unsigned int heap_id_mask, unsigned int flags)
 
 	if (i == nr_heaps) {
 		pr_err("%s: bad heap flags %#x\n", __func__, flags);
-		return -EINVAL;
+		return 0;
 	}
 
 	pr_debug("%s: found new heap id %d for %s\n", __func__,
@@ -294,6 +294,7 @@ static int __init exynos_ion_reserved_mem_setup(struct reserved_mem *rmem)
 
 	rmem->ops = &exynos_ion_rmem_ops;
 	pdata->rmem = rmem;
+	rmem->reusable = pdata->reusable;
 
 	heap_data = &pdata->heap_data;
 	heap_data->id = pdata->id;

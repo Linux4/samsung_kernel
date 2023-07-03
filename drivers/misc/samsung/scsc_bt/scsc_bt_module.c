@@ -59,6 +59,7 @@ static bool call_usermode_helper;
 static char *envp[] = { "HOME=/", "PATH=/system/bin:/sbin:", NULL };
 static char *argv[] = { SCSC_BT_LOGGER, NULL };
 
+
 module_param(bluetooth_address, ullong, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(bluetooth_address,
 		 "Bluetooth address");
@@ -156,7 +157,7 @@ static int slsi_sm_bt_service_cleanup_stop_service(void)
 		SCSC_TAG_ERR(BT_COMMON,
 			     "scsc_mx_service_stop failed err: %d\n", ret);
 		if (0 == atomic_read(&bt_service.error_count)) {
-			scsc_mx_service_service_failed(bt_service.service);
+			scsc_mx_service_service_failed(bt_service.service, "BT service stop failed");
 			SCSC_TAG_DEBUG(BT_COMMON,
 				       "force service fail complete\n");
 			return -EIO;
@@ -175,8 +176,7 @@ static int slsi_sm_bt_service_cleanup(bool allow_service_stop)
 
 		/* If slsi_sm_bt_service_cleanup_stop_service fails, then let
 		   recovery do the rest of the deinit later. */
-		if (0 == atomic_read(&bt_service.error_count) &&
-		    allow_service_stop)
+		if (!recovery_in_progress && allow_service_stop)
 			if (slsi_sm_bt_service_cleanup_stop_service() < 0) {
 				SCSC_TAG_DEBUG(BT_COMMON, "slsi_sm_bt_service_cleanup_stop_service failed. Recovery has been triggered\n");
 				goto done_error;
@@ -462,6 +462,18 @@ int slsi_sm_bt_service_start(void)
 	} else if (firm && firm->size) {
 		u32 u[SCSC_BT_ADDR_LEN];
 
+#ifdef CONFIG_SCSC_BT_BLUEZ
+		/* Convert the data into a native format */
+		if (sscanf(firm->data, "%04x %02X %06x",
+			   &u[0], &u[1], &u[2])
+		    == SCSC_BT_ADDR_LEN) {
+			bhcs->bluetooth_address_lap = u[2];
+			bhcs->bluetooth_address_uap = u[1];
+			bhcs->bluetooth_address_nap = u[0];
+		} else
+			SCSC_TAG_WARNING(BT_COMMON,
+				"data size incorrect = %zu\n", firm->size);
+#else
 		/* Convert the data into a native format */
 		if (sscanf(firm->data, "%02X:%02X:%02X:%02X:%02X:%02X",
 			   &u[0], &u[1], &u[2], &u[3], &u[4], &u[5])
@@ -473,7 +485,7 @@ int slsi_sm_bt_service_start(void)
 		} else
 			SCSC_TAG_WARNING(BT_COMMON,
 				"data size incorrect = %zu\n", firm->size);
-
+#endif
 		/* Relase the configuration information */
 		mx140_release_file(bt_service.maxwell_core, firm);
 		firm = NULL;
@@ -487,6 +499,12 @@ int slsi_sm_bt_service_start(void)
 		       bhcs->bluetooth_address_nap,
 		       bhcs->bluetooth_address_uap,
 		       bhcs->bluetooth_address_lap);
+
+	/* Always print Bluetooth Address in Kernel log */
+	printk(KERN_INFO "Bluetooth address: %04X:%02X:%06X\n",
+		bhcs->bluetooth_address_nap,
+		bhcs->bluetooth_address_uap,
+		bhcs->bluetooth_address_lap);
 
 	/* Initialise the shared-memory interface */
 	err = scsc_bt_shm_init();
@@ -549,10 +567,10 @@ static int slsi_sm_bt_service_stop(void)
 	SCSC_TAG_INFO(BT_COMMON, "service users %u\n", atomic_read(&bt_service.service_users));
 
 	if (1 < atomic_read(&bt_service.service_users)) {
-		atomic_dec_return(&bt_service.service_users);
+		atomic_dec(&bt_service.service_users);
 	} else if (1 == atomic_read(&bt_service.service_users)) {
 		if (slsi_sm_bt_service_cleanup(true) == 0)
-			atomic_dec_return(&bt_service.service_users);
+			atomic_dec(&bt_service.service_users);
 		else
 			return -EIO;
 	}
@@ -733,6 +751,11 @@ void slsi_bt_service_probe(struct scsc_mx_module_client *module_client,
 		recovery_in_progress = 0;
 	}
 
+	slsi_bt_notify_probe(bt_service.dev,
+			     &scsc_bt_shm_fops,
+			     &bt_service.error_count,
+			     &bt_service.read_wait);
+
 done:
 	mutex_unlock(&bt_start_mutex);
 }
@@ -751,6 +774,8 @@ static void slsi_bt_service_remove(struct scsc_mx_module_client *module_client,
 			      "BT service remove recovery, but no recovery in progress\n");
 		goto done;
 	}
+
+	slsi_bt_notify_remove();
 
 	if (reason == SCSC_MODULE_CLIENT_REASON_RECOVERY && recovery_in_progress) {
 		int ret;

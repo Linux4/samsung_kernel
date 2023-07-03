@@ -15,7 +15,6 @@
 #include "fimc-is-core.h"
 #include "fimc-is-param.h"
 #include "fimc-is-device-ischain.h"
-#include "fimc-is-interface-fd.h"
 #include "fimc-is-debug.h"
 
 struct fimc_is_subdev * video2subdev(enum fimc_is_subdev_device_type device_type,
@@ -312,6 +311,15 @@ int fimc_is_sensor_subdev_close(struct fimc_is_device_sensor *device,
 	}
 
 	vctx->subdev = NULL;
+	if (test_bit(FIMC_IS_SENSOR_DRIVING, &device->state)) {
+		if (test_bit(FIMC_IS_SENSOR_FRONT_START, &device->state)) {
+			merr("sudden close, call sensor_front_stop()\n", device);
+
+			ret = fimc_is_sensor_front_stop(device);
+			if (ret)
+				merr("fimc_is_sensor_front_stop is fail(%d)", device, ret);
+		}
+	}
 
 	ret = fimc_is_subdev_close(subdev);
 	if (ret) {

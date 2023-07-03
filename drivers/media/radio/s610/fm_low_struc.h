@@ -19,7 +19,13 @@
 #define VOLUME_CTRL_S610
 /*#undef VOLUME_CTRL_S610*/
 
-#define FM_LOW_DRV_DELAY_MS  1
+#define	USE_RDS_HW_DECODER
+#undef	USE_RDS_HW_DECODER
+
+#define USE_RINGBUFF_API
+/*#undef USE_RINGBUFF_API*/
+
+#define	FM_LOW_DRV_DELAY_MS  1
 #define AGGR_RSSI_OFFSET (-114)
 
 #undef  TRUE
@@ -42,12 +48,17 @@ typedef u32 TIME;
 #define	SEARCH_DELAY_MS	(15)
 #endif
 
+#define FM_RDS_MEM_SIZE_PARSER	1000
 #define FM_RDS_MEM_SIZE	480
+#define RDS_PARSER_ENABLE 0x04
+#define FM_RADIO_RDS_PARSER_VER_CHECK 0x400
 
 #ifdef USE_SPUR_CANCEL
 #define EN_SPUR_REMOVAL        (0x0001)
 #define DIS_SPUR_REMOVAL_MONO      (0x0002)
 #endif
+
+#define RDS_MAX_FIFO	32
 
 /******************************************************************************
  *	DEFINITIONS AND MACROS
@@ -162,6 +173,7 @@ typedef enum {
 } fm_host_rds_errors_enum;
 
 #define RDS_MEM_MAX_THRESH	(48)
+#define RDS_MEM_MAX_THRESH_PARSER	(100)
 
 enum fm_host_rds_data_enum {
 	HOST_RDS_DATA_BLKTYPE_POSI	= 0,
@@ -325,6 +337,15 @@ typedef struct {
 } fm_tuner_state_s;
 
 typedef enum {
+	RDS_RM_ALIGN_0 = 0,
+	RDS_RM_ALIGN_1 = 1,
+	RDS_RM_ALIGN_2 = 2,
+	RDS_RM_ALIGN_3 = 3,
+	RDS_RM_ALIGN_NONE = 4
+} fm_rds_rm_align_enum;
+
+#ifdef	USE_RDS_HW_DECODER
+typedef enum {
 	RDS_BLKTYPE_A	= 0,
 	RDS_BLKTYPE_B	= 1,
 	RDS_BLKTYPE_C	= 2,
@@ -340,6 +361,27 @@ typedef enum {
 	RDS_STATE_PRE_SYNC,
 	RDS_STATE_FULL_SYNC
 } fm_rds_state_enum;
+#else
+typedef enum {
+	RDS_BLKTYPE_A   = 0,
+	RDS_BLKTYPE_B   = 1,
+	RDS_BLKTYPE_C   = 2,
+	RDS_BLKTYPE_D   = 3,
+	RDS_BLKTYPE_E   = 4,
+	RDS_NUM_BLOCK_TYPES = 5
+} fm_rds_block_type_enum;
+
+typedef enum {
+	RDS_STATE_FOUND_BL_A,
+	RDS_STATE_FOUND_BL_B,
+	RDS_STATE_FOUND_BL_C,
+	RDS_STATE_FOUND_BL_D,
+	RDS_STATE_HAVE_DATA,
+	RDS_STATE_PRE_SYNC,
+	RDS_STATE_FULL_SYNC,
+	RDS_STATE_INIT,
+} fm_rds_state_enum;
+#endif	/*USE_RDS_HW_DECODER*/
 
 typedef struct {
 	unsigned current_state :3;
@@ -374,7 +416,7 @@ typedef struct struct_fm_lo_setup {
 	u32 n_lodiv;
 } struct_fm_lo_setup;
 
- typedef struct struct_fm_rx_tune_info {
+typedef struct struct_fm_rx_tune_info {
 	struct_fm_rx_setup rx_setup;
 	struct_fm_lo_setup lo_setup;
 } struct_fm_rx_tune_info;

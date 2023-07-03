@@ -722,18 +722,30 @@ static void csi_err_handler(struct fimc_is_device_csi *csi, u32 *err_id)
 			case CSIS_ERR_DMA_ERR_DMAFIFO_FULL:
 				err_str = GET_STR(CSIS_ERR_DMA_ERR_DMAFIFO_FULL);
 #ifdef OVERFLOW_PANIC_ENABLE
+#ifdef USE_CAMERA_HW_BIG_DATA
+				fimc_is_vender_csi_err_handler(csi);
+				fimc_is_sec_copy_err_cnt_to_file();
+#endif	
 				panic("CSIS error!! %s", err_str);
 #endif
 				break;
 			case CSIS_ERR_DMA_ERR_TRXFIFO_FULL:
 				err_str = GET_STR(CSIS_ERR_DMA_ERR_TRXFIFO_FULL);
 #ifdef OVERFLOW_PANIC_ENABLE
+#ifdef USE_CAMERA_HW_BIG_DATA
+				fimc_is_vender_csi_err_handler(csi);
+				fimc_is_sec_copy_err_cnt_to_file();
+#endif	
 				panic("CSIS error!! %s", err_str);
 #endif
 				break;
 			case CSIS_ERR_DMA_ERR_BRESP_ERR:
 				err_str = GET_STR(CSIS_ERR_DMA_ERR_BRESP_ERR);
 #ifdef OVERFLOW_PANIC_ENABLE
+#ifdef USE_CAMERA_HW_BIG_DATA
+				fimc_is_vender_csi_err_handler(csi);
+				fimc_is_sec_copy_err_cnt_to_file();
+#endif	
 				panic("CSIS error!! %s", err_str);
 #endif
 				break;
@@ -742,6 +754,8 @@ static void csi_err_handler(struct fimc_is_device_csi *csi, u32 *err_id)
 			merr("[VC%d][F%d] Occured the %s(%d)", csi, i, atomic_read(&csi->fcount), err_str, j);
 		}
 	}
+	if (err_str)
+		fimc_is_vender_csi_err_handler(csi);
 }
 
 static irqreturn_t csi_isr(int irq, void *data)
@@ -1017,6 +1031,8 @@ static int csi_stream_on(struct v4l2_subdev *subdev,
 	BUG_ON(!csi);
 	BUG_ON(!csi->sensor_cfg);
 	BUG_ON(!device);
+
+	fimc_is_vendor_csi_stream_on(csi);
 
 	if (test_bit(CSIS_START_STREAM, &csi->state)) {
 		merr("[CSI] already start", csi);

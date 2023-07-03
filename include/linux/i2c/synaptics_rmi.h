@@ -86,6 +86,7 @@ struct synaptics_rmi4_platform_data {
 
 	const char *regulator_dvdd;
 	const char *regulator_avdd;
+	int item_version;
 };
 
 extern unsigned int lcdtype;

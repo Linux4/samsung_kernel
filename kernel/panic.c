@@ -27,10 +27,6 @@
 #include <asm/core_regs.h>
 #include "sched/sched.h"
 
-#ifdef CONFIG_KFAULT_AUTO_SUMMARY
-#include <linux/sec_debug.h>
-#endif
-
 #define PANIC_TIMER_STEP 100
 #define PANIC_BLINK_SPD 18
 
@@ -116,12 +112,13 @@ void panic(const char *fmt, ...)
 	vsnprintf(buf, sizeof(buf), fmt, args);
 	va_end(args);
 
-#ifdef CONFIG_KFAULT_AUTO_SUMMARY
+#ifdef CONFIG_SEC_DEBUG_AUTO_SUMMARY
 	if(buf[strlen(buf)-1] == '\n')
 		buf[strlen(buf)-1] = '\0';
 #endif
 
 	pr_auto(ASL5, "Kernel panic - not syncing: %s\n", buf);
+
 	exynos_ss_prepare_panic();
 	exynos_ss_dump_panic(buf, (size_t)strnlen(buf, sizeof(buf)));
 #ifdef CONFIG_DEBUG_BUGVERBOSE

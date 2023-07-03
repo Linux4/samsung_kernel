@@ -54,12 +54,12 @@ struct mxman {
 	atomic_t		suspend_count;
 	atomic_t                recovery_count;
 	bool			check_crc;
-	char                    fw_build_id[64];
+	char                    fw_build_id[FW_BUILD_ID_SZ];
 	struct completion       recovery_completion;
 	struct wake_lock	recovery_wake_lock;
 	u32			rf_hw_ver;
 	u16			scsc_panic_code;
-	u64 		last_panic_time;
+	u64			last_panic_time;
 };
 
 void mxman_register_gdb_channel(struct scsc_mx *mx, mxmgmt_channel_handler handler, void *data);

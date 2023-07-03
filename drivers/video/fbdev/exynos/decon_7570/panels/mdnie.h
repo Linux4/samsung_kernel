@@ -39,6 +39,12 @@ enum BYPASS {
 	BYPASS_MAX
 };
 
+enum LIGHT_NOTIFICATION {
+	LIGHT_NOTIFICATION_OFF,
+	LIGHT_NOTIFICATION_ON,
+	LIGHT_NOTIFICATION_MAX
+};
+
 enum ACCESSIBILITY {
 	ACCESSIBILITY_OFF,
 	NEGATIVE,
@@ -80,6 +86,12 @@ enum NIGHT_MODE {
 	NIGHT_MODE_MAX
 };
 
+enum COLOR_LENS {
+	COLOR_LENS_OFF,
+	COLOR_LENS_ON,
+	COLOR_LENS_MAX
+};
+
 struct mdnie_seq_info {
 	mdnie_t *cmd;
 	unsigned int len;
@@ -87,39 +99,56 @@ struct mdnie_seq_info {
 };
 
 struct mdnie_table {
+#define MDNIE_IDX_MAX	8
 	char *name;
-	unsigned int update_flag[8];
-	struct mdnie_seq_info seq[8 + 1];
+	unsigned int update_flag[MDNIE_IDX_MAX];
+	struct mdnie_seq_info seq[MDNIE_IDX_MAX + 1];
 };
 
 struct mdnie_scr_info {
 	u32 index;
-	u32 color_blind;	/* Cyan Red */
-	u32 white_r;
-	u32 white_g;
-	u32 white_b;
+	u32 cr;
+	u32 wr;
+	u32 wg;
+	u32 wb;
 };
 
 struct mdnie_night_info {
-	u32 index_max_num;
-	u32 index_size;
+	u32 max_w;
+	u32 max_h;
+};
+
+struct mdnie_color_lens_info {
+	u32 max_color;
+	u32 max_level;
+	u32 max_w;
 };
 
 struct mdnie_tune {
 	struct mdnie_table	*bypass_table;
+	struct mdnie_table	*light_notification_table;
 	struct mdnie_table	*accessibility_table;
 	struct mdnie_table	*hbm_table;
 	struct mdnie_table	*hmt_table;
 	struct mdnie_table	(*main_table)[MODE_MAX];
 	struct mdnie_table	*dmb_table;
 	struct mdnie_table	*night_table;
+	struct mdnie_table	*lens_table;
 
 	struct mdnie_scr_info	*scr_info;
 	struct mdnie_night_info	*night_info;
+	struct mdnie_color_lens_info *color_lens_info;
 	unsigned char **coordinate_table;
 	unsigned char *night_mode_table;
+	unsigned char *color_lens_table;
 	int (*get_hbm_index)(int);
 	int (*color_offset[])(int, int);
+};
+
+struct rgb_info {
+	int r;
+	int g;
+	int b;
 };
 
 struct mdnie_ops {
@@ -146,26 +175,39 @@ struct mdnie_info {
 	enum HBM		hbm;
 	enum hmt_mode		hmt_mode;
 	enum NIGHT_MODE	night_mode;
+	enum LIGHT_NOTIFICATION		light_notification;
+	enum COLOR_LENS	color_lens;
 
 	unsigned int		tuning;
 	unsigned int		accessibility;
 	unsigned int		color_correction;
+	unsigned int		coordinate[2];
 
 	char			path[50];
+
+	void			*dd_mdnie;
 
 	void			*data;
 
 	struct mdnie_ops	ops;
 
 	struct notifier_block	fb_notif;
+#ifdef CONFIG_DISPLAY_USE_INFO
+	struct notifier_block	dpui_notif;
+#endif
 
-	unsigned int white_r;
-	unsigned int white_g;
-	unsigned int white_b;
+	struct rgb_info		wrgb_current;
+	struct rgb_info		wrgb_default;
+	struct rgb_info		wrgb_balance;
+	struct rgb_info		wrgb_ldu;
+
 	unsigned int night_mode_level;
+	unsigned int color_lens_color;
+	unsigned int color_lens_level;
+	unsigned int ldu;
+
 	struct mdnie_table table_buffer;
 	mdnie_t sequence_buffer[256];
-	u16 coordinate[2];
 };
 
 extern int mdnie_register(struct device *p, void *data, mdnie_w w, mdnie_r r, unsigned int *coordinate, struct mdnie_tune *tune);

@@ -37,6 +37,13 @@
 #include "fimc-is-resourcemgr.h"
 #include "fimc-is-vender.h"
 
+/*For control brightness of front flash led*/
+#ifdef CONFIG_LEDS_KTD2692
+#ifdef CONFIG_LEDS_SUPPORT_FRONT_FLASH
+extern int ktd2692_led_set_front_flash_brightness(int brightness);
+#endif
+#endif
+
 const struct v4l2_file_operations fimc_is_ssx_video_fops;
 const struct v4l2_ioctl_ops fimc_is_ssx_video_ioctl_ops;
 const struct vb2_ops fimc_is_ssx_qops;
@@ -620,6 +627,22 @@ static int fimc_is_ssx_video_s_ctrl(struct file *file, void *priv,
 					ctrl->value, ret);
 			ret = -EINVAL;
 		}
+		break;
+	case V4L2_CID_CAMERA_BRIGHTNESS:	/* To control the current for the brightness of front flash led*/
+#ifdef CONFIG_LEDS_KTD2692
+#ifdef CONFIG_LEDS_SUPPORT_FRONT_FLASH
+		pr_emerg("[s]g %s begin\n", __func__);
+		if (ktd2692_led_set_front_flash_brightness(ctrl->value) < 0) {
+			err("failed to set front flash brightness : %d - %d\n", ctrl->value, ret);
+			ret = -EINVAL;
+		}
+		pr_emerg("[s]g %s end\n", __func__);
+#else
+		warn("Not Support V4L2_CID_CAMERA_BRIGHTNESS : %d\n",ctrl->value);
+#endif /* CONFIG_LEDS_SUPPORT_FRONT_FLASH */
+#else
+		warn("Not Support V4L2_CID_CAMERA_BRIGHTNESS : %d\n",ctrl->value);
+#endif /* CONFIG_LEDS_KTD2692 */
 		break;
 	case VENDER_S_CTRL:
 		/* This s_ctrl is needed to skip, when the s_ctrl id was found. */

@@ -28,6 +28,9 @@
 
 #undef FIPS_DEBUG
 
+/* Same as build time */
+static const unsigned char *integrity_check_key = "The quick brown fox jumps over the lazy dog";
+
 static const char *symtab[][3] = {
 		{".text",	"first_fmp_text",	"last_fmp_text"  },
 		{".rodata",	"first_fmp_rodata",	"last_fmp_rodata"},
@@ -76,47 +79,19 @@ static int query_symbol_addresses(const char *first_symbol, const char *last_sym
 	return 0;
 }
 
-static int init_hash(HMAC_SHA256_CTX *ctx)
-{
-	/* Same as build time */
-	const unsigned char *key = "The quick brown fox jumps over the lazy dog";
-
-	HMAC_SHA256_CTX_init(ctx);
-	if (HMAC_SHA256_Init_ex(ctx, key, strlen(key)))
-		return 0;
-	else
-		return -1;
-}
-
-static int finalize_hash(HMAC_SHA256_CTX *ctx, unsigned char *out)
-{
-	if (HMAC_SHA256_Final(ctx, out))
-		return 0;
-	else
-		return -1;
-}
-
-static int update_hash(HMAC_SHA256_CTX *ctx, unsigned char *start_addr, unsigned int size)
-{
-	if (HMAC_SHA256_Update(ctx, start_addr, size))
-		return 0;
-	else
-		return -1;
-}
-
 int do_fips_fmp_integrity_check(void)
 {
 	int i, rows, err;
 	unsigned long start_addr = 0;
 	unsigned long end_addr = 0;
 	unsigned char runtime_hmac[32];
-	HMAC_SHA256_CTX desc;
+	struct hmac_sha256_ctx ctx;
 	const char *builtime_hmac = 0;
 	unsigned int size = 0;
 
 	memset(runtime_hmac, 0x00, 32);
 
-	err = init_hash(&desc);
+	err = hmac_sha256_init(&ctx, integrity_check_key, strlen(integrity_check_key));
 	if (err) {
 		printk(KERN_ERR "FIPS(%s): init_hash failed", __FUNCTION__);
 		return -1;
@@ -136,7 +111,7 @@ int do_fips_fmp_integrity_check(void)
 #endif
 		size = end_addr - start_addr;
 
-		err = update_hash(&desc, (unsigned char *)start_addr, size);
+		err = hmac_sha256_update(&ctx, (unsigned char *)start_addr, size);
 		if (err) {
 			printk(KERN_ERR "FIPS(%s): Error to update hash", __FUNCTION__);
 			return -1;
@@ -145,17 +120,17 @@ int do_fips_fmp_integrity_check(void)
 
 #if FIPS_FMP_FUNC_TEST == 5
 	pr_info("FIPS(%s): Failing Integrity Test\n", __func__);
-	err = update_hash(&desc, (unsigned char *)start_addr, 1);
+	err = hmac_sha256_update(&ctx, (unsigned char *)start_addr, 1);
 #endif
 
-	err = finalize_hash(&desc, runtime_hmac);
+	err = hmac_sha256_final(&ctx, runtime_hmac);
 	if (err) {
 		printk(KERN_ERR "FIPS(%s): Error in finalize", __FUNCTION__);
-		HMAC_SHA256_CTX_cleanup(&desc);
+		hmac_sha256_ctx_cleanup(&ctx);
 		return -1;
 	}
 
-	HMAC_SHA256_CTX_cleanup(&desc);
+	hmac_sha256_ctx_cleanup(&ctx);
 	builtime_hmac = get_builtime_fmp_hmac();
 	if (!builtime_hmac) {
 		printk(KERN_ERR "FIPS(%s): Unable to retrieve builtime_hmac", __FUNCTION__);

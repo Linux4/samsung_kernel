@@ -29,6 +29,10 @@ unsigned int dfs_set_rate_switch(unsigned int rate_from,
 					table->switches[i].mux_value))
 					goto errorout;
 
+			exynos_ss_printk("%s : switch %d, div %d", __func__,
+						table->switches[i].switch_rate,
+						table->switches[i].div_value);
+
 			return table->switches[i].switch_rate;
 		}
 	}

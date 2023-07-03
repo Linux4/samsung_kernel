@@ -487,6 +487,7 @@ struct input_keymap_entry {
 #define KEY_DUMMY_HOME		252
 #define KEY_DUMMY_BACK		253
 #define KEY_RECENT		254
+#define KEY_WINK            0x2bf    /* Intelligence Key */
 
 /* Code 255 is reserved for special needs of AT keyboard driver */
 
@@ -806,6 +807,10 @@ struct input_keymap_entry {
 #define BTN_TRIGGER_HAPPY38		0x2e5
 #define BTN_TRIGGER_HAPPY39		0x2e6
 #define BTN_TRIGGER_HAPPY40		0x2e7
+
+/* 0x2f1~2f8 is key event for specail event. */
+#define KEY_CP_GRIP				0x2f1	/* grip sensor for CP */
+#define KEY_TSP_NONE_KEY2		0x2f2	/* grip sensor for WIFI */
 
 #ifdef CONFIG_USB_HMT_SAMSUNG_INPUT
 #define KEY_START_NOTA_CMD		0x2fc

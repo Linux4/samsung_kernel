@@ -559,7 +559,7 @@ static int exynos5_i2c_set_timing(struct exynos5_i2c *i2c, int mode)
 	if (mode == HSI2C_HIGH_SPD)
 		t_scl_h = ((clk_cycle + 10) / 3) - 5;
 	else
-		t_scl_h = clk_cycle / 2;
+		t_scl_h = clk_cycle / 3;
 
 	t_scl_l = clk_cycle - t_scl_h;
 

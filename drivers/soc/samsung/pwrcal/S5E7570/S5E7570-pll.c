@@ -211,8 +211,11 @@ static int _clk_pll141xx_enable(struct pwrcal_clk *clk)
 	pwrcal_setbit(clk->offset, PLL141XX_ENABLE, 1);
 
 	for (timeout = 0;; timeout++) {
-		if (pwrcal_getbit(clk->offset, PLL141XX_LOCKED))
+		if (pwrcal_getbit(clk->offset, PLL141XX_LOCKED)) {
+			exynos_ss_printk("%s : 0x%X locktime = %d", __func__,
+					pwrcal_readl(clk->offset), timeout);
 			break;
+		}
 		if (timeout > CLK_WAIT_CNT)
 			return -1;
 		cpu_relax();
@@ -285,13 +288,19 @@ static int _clk_pll141xx_set_pms(struct pwrcal_clk *clk,
 	pll_con0 &= ~(1<<26);
 	pll_con0 |= (1<<5);
 
+	exynos_ss_printk("%s : 0x%X = 0x%X, %d, %d, %d", __func__,
+				clk->offset, pll_con0, pdiv, mdiv, sdiv);
+
 	pwrcal_writel(clk->status, pdiv*150);
 	pwrcal_writel(clk->offset, pll_con0);
 
 	if (pll_con0 & (1 << PLL141XX_ENABLE)) {
 		for (timeout = 0;; timeout++) {
-			if (pwrcal_getbit(clk->offset, PLL141XX_LOCKED))
+			if (pwrcal_getbit(clk->offset, PLL141XX_LOCKED)) {
+				exynos_ss_printk("%s : 0x%X locktime = %d", __func__,
+						pwrcal_readl(clk->offset), timeout);
 				break;
+			}
 			if (timeout > CLK_WAIT_CNT)
 				return -1;
 			cpu_relax();

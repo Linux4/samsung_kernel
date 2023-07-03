@@ -15,15 +15,21 @@
 #define EEP_HEADER_AP_SHADING_START_ADDR   0x10
 #define EEP_HEADER_AP_SHADING_END_ADDR	   0x14
 #define EEP_HEADER_PROJECT_NAME_START_ADDR 0x38
+#ifdef CONFIG_CAMERA_XCOVER4
+#else
+#define EEP_HEADER_MODULE_ID_ADDR          0xAE
+#endif
 
 /* OEM referenced section */
-#define EEP_OEM_VER_START_ADDR             0x150
-
+#define EEP_OEM_VER_START_ADDR             0x1E0
 /* AWB referenced section */
+#ifdef CONFIG_CAMERA_XCOVER4
+#define EEP_AWB_VER_START_ADDR             0x2E0
+#else
 #define EEP_AWB_VER_START_ADDR             0x220
-
+#endif
 /* AP Shading referenced section */
-#define EEP_AP_SHADING_VER_START_ADDR      0x1CE0
+#define EEP_AP_SHADING_VER_START_ADDR      0x1FE0
 
 /* Checksum referenced section */
 #define EEP_CHECKSUM_HEADER_ADDR           0xFC
@@ -77,7 +83,13 @@
 #define FIMC_IS_MAX_FW_SIZE                (8 * 1024)
 #endif
 #define FIMC_IS_MAX_SETFILE_SIZE           (1120 * 1024)
+
+#ifdef CONFIG_CAMERA_XCOVER4
 #define HEADER_CRC32_LEN                   (80)
+#else
+#define HEADER_CRC32_LEN                   (216)
+#endif
+
 #define EEPROM_AF_CAL_PAN_ADDR             0x0100
 #define EEPROM_AF_CAL_MACRO_ADDR           0x0108
 

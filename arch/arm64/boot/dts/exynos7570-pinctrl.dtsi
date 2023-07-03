@@ -138,6 +138,48 @@
 			samsung,pin-function = <4>;
 			samsung,pin-pud = <0>;
 		};
+		
+		cp_gpio_j3y17_rev0: cp_gpio_j3y17_rev0 {
+			samsung,pins = "gpa1-7", "gpa2-6", "gpa2-5";
+			samsung,pin-function = <4>;
+			samsung,pin-pud = <0>;
+		};
+		
+		cp_gpio_j3y17_rev1: cp_gpio_j3y17_rev1 {
+			samsung,pins = "gpa1-7", "gpa2-6";
+			samsung,pin-function = <4>;
+			samsung,pin-pud = <0>;
+		};
+		
+		cp_gpio_j4lte: cp_gpio_j4lte {
+			samsung,pins = "gpa2-6";
+			samsung,pin-function = <4>;
+			samsung,pin-pud = <0>;
+		};
+		
+		cp_gpio_j2corelte: cp_gpio_j2corelte {
+			samsung,pins = "gpa1-7" , "gpa2-6" , "gpa2-7";
+			samsung,pin-function = <4>;
+			samsung,pin-pud = <0>;
+		};
+		
+		cp_gpio_tabes_vzw: cp_gpio_tabes_vzw {
+			samsung,pins = "gpa2-0", "gpa2-1", "gpa2-2";
+			samsung,pin-function = <4>;
+			samsung,pin-pud = <0>;
+		};
+		
+		cp_gpio_tabes_vzw_rev1: cp_gpio_tabes_vzw_rev1 {
+			samsung,pins = "gpa1-7", "gpa2-0", "gpa2-1", "gpa2-2";
+			samsung,pin-function = <4>;
+			samsung,pin-pud = <0>;
+		};
+
+		cp_gpio_j3neoelte: cp_gpio_j3neoelte {
+			samsung,pins = "gpa1-7", "gpa2-2", "gpa2-3", "gpa2-4", "gpa2-5", "gpa2-6", "gpa2-7";
+			samsung,pin-function = <4>;	// CP_GPIO
+			samsung,pin-pud = <0>;
+		};
 
 		sim_gpio_default_on5: sim_gpio_default_on5 {
 			samsung,pins = "gpa2-4";
@@ -253,6 +295,27 @@
 			samsung,pin-pud = <3>;
 			samsung,pin-drv = <0>;
 		};
+
+               fimc_is_mclk1_in: fimc_is_mclk1_in {
+                       samsung,pins = "gpa2-3";
+                       samsung,pin-function = <0>;
+                       samsung,pin-pud = <0>;
+                       samsung,pin-drv = <0>;
+               };
+
+               fimc_is_mclk1_out: fimc_is_mclk1_out {
+                       samsung,pins = "gpa2-3";
+                       samsung,pin-function = <1>;
+                       samsung,pin-pud = <1>;
+                       samsung,pin-drv = <2>;
+               };
+
+               fimc_is_mclk1_fn: fimc_is_mclk1_fn {
+                       samsung,pins = "gpa2-3";
+                       samsung,pin-function = <2>;
+                       samsung,pin-pud = <0>;
+                       samsung,pin-drv = <1>;
+               };
 	};
 
 	/* ESE */

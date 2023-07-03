@@ -45,7 +45,7 @@ static void slsi_fw_test_process_frame(struct slsi_dev *sdev, struct slsi_fw_tes
 
 	vif = fapi_get_vif(skb);
 
-	SLSI_DBG3(sdev, SLSI_FW_TEST, "sig:0x%.4X, vif:%d", fapi_get_sigid(skb), vif);
+	SLSI_DBG3(sdev, SLSI_FW_TEST, "sig:0x%.4X, vif:%d\n", fapi_get_sigid(skb), vif);
 	slsi_debug_frame(sdev, NULL, skb, "PROCESS");
 
 	slsi_skb_work_enqueue(&fwtest->fw_test_work, skb);
@@ -211,7 +211,7 @@ static void slsi_fw_test_connect_start_station(struct slsi_dev *sdev, struct net
 	dev->ieee80211_ptr->iftype = NL80211_IFTYPE_STATION;
 	ndev_vif->vif_type = FAPI_VIFTYPE_STATION;
 
-	SLSI_NET_DBG1(dev, SLSI_FW_TEST, "vif:%d slsi_vif_activated", ndev_vif->ifnum);
+	SLSI_NET_DBG1(dev, SLSI_FW_TEST, "vif:%d slsi_vif_activated\n", ndev_vif->ifnum);
 	if (WARN(slsi_vif_activated(sdev, dev) != 0, "slsi_vif_activated() Failed"))
 		return;
 
@@ -325,43 +325,6 @@ static void slsi_fw_test_stop_network(struct slsi_dev *sdev, struct net_device *
 	slsi_vif_deactivated(sdev, dev);
 }
 
-static void slsi_fw_test_started_ibss_network(struct slsi_dev *sdev, struct net_device *dev, struct slsi_fw_test *fwtest, struct sk_buff *skb)
-{
-	struct netdev_vif *ndev_vif = netdev_priv(dev);
-	u16               result = fapi_get_u16(skb, u.mlme_start_cfm.result_code);
-
-	WARN_ON(!SLSI_MUTEX_IS_LOCKED(ndev_vif->vif_mutex));
-
-	SLSI_NET_DBG1(dev, SLSI_FW_TEST, "Start Network(vif:%d)\n", ndev_vif->ifnum);
-
-	if (WARN(!ndev_vif->is_fw_test, "!is_fw_test"))
-		return;
-	if (WARN(ndev_vif->activated, "Already Activated"))
-		return;
-
-	if (FAPI_RESULTCODE_SUCCESS != result) {
-		SLSI_NET_ERR(dev, "slsi_fw_test_started_ibss_network:  start_cfm returned failure (rc=%d)\n", result);
-		return;
-	}
-
-	/* Set iftype here to be sure the right actions are taken in slsi_vif_activated().
-	 * slsi_vif_activated() does a bit of checking and then sets up the packet scheduler
-	 * according to the iftype.
-	 * There is no neutral setting for iftype - it is set explicitly and not
-	 * checked elsehwere for a previous value.
-	 */
-	ndev_vif->iftype = NL80211_IFTYPE_ADHOC;
-	dev->ieee80211_ptr->iftype = NL80211_IFTYPE_ADHOC;
-	ndev_vif->vif_type = FAPI_VIFTYPE_ADHOC;
-
-	if (WARN(slsi_vif_activated(sdev, dev) != 0, "slsi_vif_activated() Failed"))
-		return;
-
-	/* Now we have everything connected for this vif, allow transmit traffic. */
-
-	netif_carrier_on(dev);
-}
-
 static void slsi_fw_test_connect_start_ap(struct slsi_dev *sdev, struct net_device *dev, struct slsi_fw_test *fwtest, struct sk_buff *skb)
 {
 	struct netdev_vif     *ndev_vif = netdev_priv(dev);
@@ -413,31 +376,6 @@ static void slsi_fw_test_connected_network(struct slsi_dev *sdev, struct net_dev
 
 	peer = slsi_get_peer_from_qs(sdev, dev, peer_index - 1);
 	if (WARN(!peer, "Peer(peer_index:%d) Not Found", peer_index))
-		return;
-
-	slsi_ps_port_control(sdev, dev, peer, SLSI_STA_CONN_STATE_CONNECTED);
-	peer->connected_state = SLSI_STA_CONN_STATE_CONNECTED;
-
-	slsi_rx_buffered_frames(sdev, dev, peer);
-}
-
-static void slsi_fw_test_connected_ibss_network(struct slsi_dev *sdev, struct net_device *dev, struct slsi_fw_test *fwtest, struct sk_buff *skb)
-{
-	struct netdev_vif     *ndev_vif = netdev_priv(dev);
-	struct slsi_peer      *peer = NULL;
-	u16                   peer_index = fapi_get_u16(skb, u.mlme_connected_ind.peer_index);
-	struct ieee80211_mgmt *mgmt = fapi_get_mgmt(skb);
-
-	WARN_ON(!SLSI_MUTEX_IS_LOCKED(ndev_vif->vif_mutex));
-
-	SLSI_NET_DBG1(dev, SLSI_FW_TEST, "Network Peer Connect(vif:%d, peer_index:%d)\n", ndev_vif->ifnum, peer_index);
-	WARN(!ndev_vif->is_fw_test, "!is_fw_test");
-
-	if (WARN(!ndev_vif->activated, "Not Activated"))
-		return;
-
-	peer = slsi_peer_add(sdev, dev, mgmt->sa, peer_index);
-	if (WARN_ON(!peer))
 		return;
 
 	slsi_ps_port_control(sdev, dev, peer, SLSI_STA_CONN_STATE_CONNECTED);
@@ -562,9 +500,6 @@ static void slsi_fw_test_connected_ind(struct slsi_dev *sdev, struct net_device 
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 
 	switch (viftype) {
-	case FAPI_VIFTYPE_ADHOC:
-		slsi_fw_test_connected_ibss_network(sdev, dev, fwtest, skb);
-		break;
 	case FAPI_VIFTYPE_AP:
 		slsi_fw_test_connected_network(sdev, dev, fwtest, skb);
 		break;
@@ -689,9 +624,7 @@ static void slsi_fw_test_disconnected_ind(struct slsi_dev *sdev, struct net_devi
 	case FAPI_VIFTYPE_STATION:
 		slsi_fw_test_disconnect_station(sdev, dev, fwtest, skb);
 		break;
-	/* Assume handling for AP and ADHOC are the same */
 	case FAPI_VIFTYPE_AP:
-	case FAPI_VIFTYPE_ADHOC:
 		slsi_fw_test_disconnect_network(sdev, dev, fwtest, skb);
 		break;
 	default:
@@ -731,10 +664,6 @@ static void slsi_fw_test_start_cfm(struct slsi_dev *sdev, struct net_device *dev
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 
 	switch (viftype) {
-	/* Assume the AP and ADHOC can be treated the same */
-	case FAPI_VIFTYPE_ADHOC:
-		slsi_fw_test_started_ibss_network(sdev, dev, fwtest, skb);
-		break;
 	case FAPI_VIFTYPE_AP:
 		slsi_fw_test_started_network(sdev, dev, fwtest, skb);
 		break;
@@ -789,9 +718,7 @@ static void slsi_fw_test_del_vif_req(struct slsi_dev *sdev, struct net_device *d
 	switch (viftype) {
 	/* As there is no specific MLME primitive for shutting down the network
 	 * perform an actions on the MLME-DEL-VIF.
-	 * Assume the AP and ADHOC can be treated the same.
 	 */
-	case FAPI_VIFTYPE_ADHOC:
 	case FAPI_VIFTYPE_AP:
 		slsi_fw_test_stop_network(sdev, dev, fwtest, skb);
 		break;

@@ -52,6 +52,7 @@
 #include "fimc-is-dvfs.h"
 #include "include/fimc-is-module.h"
 #include "fimc-is-device-sensor.h"
+#include "sensor/module_framework/fimc-is-device-sensor-peri.h"
 
 #ifdef ENABLE_FAULT_HANDLER
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0))
@@ -1267,6 +1268,8 @@ static int fimc_is_probe(struct platform_device *pdev)
 	sysfs_debug.en_clk_gate = 1;
 #endif
 	ret = sysfs_create_group(&core->pdev->dev.kobj, &fimc_is_debug_attr_group);
+	core->shutdown = false;
+	core->reboot = false;
 
 	probe_info("%s:end\n", __func__);
 	return 0;
@@ -1285,6 +1288,93 @@ p_err1:
 static int fimc_is_remove(struct platform_device *pdev)
 {
 	return 0;
+}
+
+void fimc_is_cleanup(struct fimc_is_core *core)
+{
+	struct fimc_is_device_sensor *device;
+	int ret = 0;
+	u32 i;
+
+	if (!core) {
+		err("%s: core(NULL)", __func__);
+		return;
+	}
+
+	core->reboot = true;
+	info("%s++: shutdown(%d), reboot(%d)\n", __func__, core->shutdown, core->reboot);
+	for (i = 0; i < FIMC_IS_SENSOR_COUNT; i++) {
+		device = &core->sensor[i];
+		if (!device) {
+			err("%s: device(NULL)", __func__);
+			continue;
+		}
+
+		if (test_bit(FIMC_IS_SENSOR_FRONT_START, &device->state)) {
+			minfo("call sensor_front_stop()\n", device);
+
+			ret = fimc_is_sensor_front_stop(device);
+			if (ret)
+				mwarn("fimc_is_sensor_front_stop() is fail(%d)", device, ret);
+		}
+	}
+	info("%s:--\n", __func__);
+
+	return;
+}
+
+static void fimc_is_shutdown(struct platform_device *pdev)
+{
+	struct fimc_is_core *core = (struct fimc_is_core *)platform_get_drvdata(pdev);
+	struct fimc_is_device_sensor *device;
+	struct v4l2_subdev *subdev;
+	struct fimc_is_module_enum *module;
+	struct fimc_is_device_sensor_peri *sensor_peri;
+	u32 i;
+
+	if (!core) {
+		err("%s: core(NULL)", __func__);
+		return;
+	}
+
+	core->shutdown = true;
+	info("%s++: shutdown(%d), reboot(%d)\n", __func__, core->shutdown, core->reboot);
+#if !defined(ENABLE_IS_CORE)
+	fimc_is_cleanup(core);
+#endif
+	for (i = 0; i < FIMC_IS_SENSOR_COUNT; i++) {
+		device = &core->sensor[i];
+		if (!device) {
+			warn("%s: device(NULL)", __func__);
+			continue;
+		}
+
+		if (test_bit(FIMC_IS_SENSOR_OPEN, &device->state)) {
+			subdev = device->subdev_module;
+			if (!subdev) {
+				warn("%s: subdev(NULL)", __func__);
+				continue;
+			}
+
+			module = (struct fimc_is_module_enum *)v4l2_get_subdevdata(subdev);
+			if (!module) {
+				warn("%s: module(NULL)", __func__);
+				continue;
+			}
+
+			sensor_peri = (struct fimc_is_device_sensor_peri *)module->private_data;
+			if (!sensor_peri) {
+				warn("%s: sensor_peri(NULL)", __func__);
+				continue;
+			}
+
+			fimc_is_sensor_deinit_sensor_thread(sensor_peri);
+			fimc_is_sensor_deinit_mode_change_thread(sensor_peri);
+		}
+	}
+	info("%s:--\n", __func__);
+
+return;
 }
 
 static const struct dev_pm_ops fimc_is_pm_ops = {
@@ -1306,6 +1396,7 @@ MODULE_DEVICE_TABLE(of, exynos_fimc_is_match);
 static struct platform_driver fimc_is_driver = {
 	.probe		= fimc_is_probe,
 	.remove		= fimc_is_remove,
+	.shutdown	= fimc_is_shutdown,
 	.driver = {
 		.name	= FIMC_IS_DRV_NAME,
 		.owner	= THIS_MODULE,

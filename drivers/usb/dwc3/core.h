@@ -33,10 +33,13 @@
 #include <linux/usb/otg.h>
 
 #include <linux/phy/phy.h>
-
+#ifdef CONFIG_BATTERY_SAMSUNG_V2
+#include "../../battery_v2/include/sec_charging_common.h"
+#endif
 #define DWC3_MSG_MAX	500
 
 /* Global constants */
+#define DWC3_ZLP_BUF_SIZE       1024    /* size of a superspeed bulk */
 #define DWC3_EP0_BOUNCE_SIZE	512
 #define DWC3_ENDPOINTS_NUM	32
 #define DWC3_XHCI_RESOURCES_NUM	2
@@ -687,6 +690,7 @@ struct dwc3_scratchpad_array {
  * @ctrl_req: usb control request which is used for ep0
  * @ep0_trb: trb which is used for the ctrl_req
  * @ep0_bounce: bounce buffer for ep0
+ * @zlp_buf: used when request->zero is set
  * @setup_buf: used while precessing STD USB requests
  * @ctrl_req_addr: dma address of ctrl_req
  * @ep0_trb: dma address of ep0_trb
@@ -751,6 +755,7 @@ struct dwc3 {
 	struct dwc3_trb		*ep0_trb;
 	void			*ep0_bounce;
 	void			*scratchbuf;
+	void			*zlp_buf;	
 	u8			*setup_buf;
 	dma_addr_t		ctrl_req_addr;
 	dma_addr_t		ep0_trb_addr;
@@ -865,6 +870,10 @@ struct dwc3 {
 	unsigned		adj_sof_accuracy:1;
 	unsigned		is_not_vbus_pad:1;
 	unsigned		sparse_transfer_control:1;
+#ifdef CONFIG_BATTERY_SAMSUNG_V2
+	struct			work_struct      set_vbus_current_work;
+	int				vbus_current; /* 100mA,  500mA,  900mA */
+#endif	
 };
 
 /* -------------------------------------------------------------------------- */

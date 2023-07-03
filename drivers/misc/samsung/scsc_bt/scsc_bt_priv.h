@@ -48,8 +48,13 @@
 #define HCI_EVENT_HARDWARE_ERROR_EVENT                  (0x10)
 
 #define SCSC_BT_CONF      "bluetooth/bt.hcf"
+#ifdef CONFIG_SCSC_BT_BLUEZ
+#define SCSC_BT_ADDR      "/csa/bluetooth/.bd_addr"
+#define SCSC_BT_ADDR_LEN  (3)
+#else
 #define SCSC_BT_ADDR      "/efs/bluetooth/bt_addr"
 #define SCSC_BT_ADDR_LEN  (6)
+#endif
 
 #define SCSC_H4_DEVICE_NAME             "scsc_h4_0"
 
@@ -306,6 +311,18 @@ extern uint16_t avdtp_hci_connection_handle;
 
 void scsc_avdtp_detect_rxtx(u16 hci_connection_handle, const unsigned char *data, uint16_t length, bool is_tx);
 bool scsc_avdtp_detect_reset_connection_handle(uint16_t hci_connection_handle);
+
+#ifdef CONFIG_SCSC_BT_BLUEZ
+void slsi_bt_notify_probe(struct device *dev,
+			  const struct file_operations *fs,
+			  atomic_t *error_count,
+			  wait_queue_head_t *read_wait);
+void slsi_bt_notify_remove(void);
+#else
+#define slsi_bt_notify_probe(dev, fs, error_count, read_wait)
+#define slsi_bt_notify_remove()
+#endif
+
 bool scsc_bt_shm_h4_avdtp_detect_write(uint32_t flags,
 									   uint16_t l2cap_cid,
 									   uint16_t hci_connection_handle);

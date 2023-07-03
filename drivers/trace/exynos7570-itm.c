@@ -72,6 +72,8 @@
 #define NEED_TO_CHECK			(0xCAFE)
 #define BAAW_RETURN			(0x08000000)
 
+struct itm_dev *gitm;
+
 struct itm_rpathinfo {
 	unsigned int id;
 	char *port_name;
@@ -553,6 +555,38 @@ out:
 		info2);
 }
 
+void itm_dump_all(struct itm_dev *itm)
+{
+	struct itm_platdata *pdata = itm->pdata;
+	struct itm_nodeinfo *node;
+	u32 int_info, info0, info1, info2, offset, i, j, k;
+
+	pr_info("NODE RAW INFORMATION\n"
+		"> NODE NAME   : NODE ADDRESS:  INTERRUPT_INFO:   EXT_INFO_0:   EXT_INFO_1:    EXT_INFO_2: \n");
+	for (i = 0; i < ARRAY_SIZE(nodegroup); i++) {
+		node = pdata->nodegroup[i].nodeinfo;
+		for (j = 0; j < pdata->nodegroup[i].nodesize; j++) {
+			for (k = 0; k < OFFSET_NUM; k++) {
+				offset = k * OFFSET_ERR_REPT;
+				int_info = __raw_readl(node[j].regs + offset + REG_INT_INFO);
+				info0 = __raw_readl(node[j].regs + offset + REG_EXT_INFO_0);
+				info1 = __raw_readl(node[j].regs + offset + REG_EXT_INFO_1);
+				info2 = __raw_readl(node[j].regs + offset + REG_EXT_INFO_2);
+				/* report extention raw information of register */
+				pr_info(
+					">  %s(%s)  0x%08X  0x%08X  0x%08X  0x%08X  0x%08X\n",
+					node[j].name,
+					node[j].type ? "M_NODE" : "S_NODE",
+					node[j].phy_regs + offset,
+					int_info,
+					info0,
+					info1,
+					info2);
+			}
+		}
+	}
+}
+
 static int itm_parse_info(struct itm_dev *itm,
 			      struct itm_nodegroup *group,
 			      bool clear)
@@ -751,10 +785,16 @@ static int itm_probe(struct platform_device *pdev)
 
 	itm_init(itm, true);
 	pdata->probed = true;
+	gitm = itm;
 
 	dev_info(&pdev->dev, "success to probe ITM driver\n");
 
 	return 0;
+}
+
+void itm_dump(void)
+{
+	itm_dump_all(gitm);
 }
 
 static int itm_remove(struct platform_device *pdev)

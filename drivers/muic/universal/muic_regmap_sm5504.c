@@ -44,6 +44,7 @@
 #include "muic-internal.h"
 #include "muic_i2c.h"
 #include "muic_regmap.h"
+#include "muic_vps.h"
 
 enum sm5504_muic_reg_init_value {
 	REG_INTMASK1_VALUE	= (0xDC),
@@ -79,6 +80,7 @@ enum sm5504_muic_reg {
 enum sm5504_muic_reg_item {
 	DEVID_VendorID = REG_ITEM(REG_DEVID, _BIT0, _MASK3),
 
+	CTRL_ADC_EN	= REG_ITEM(REG_CTRL, _BIT7, _MASK1),
 	CTRL_USBCHDEN	= REG_ITEM(REG_CTRL, _BIT6, _MASK1),
 	CTRL_SW_OPEN	= REG_ITEM(REG_CTRL, _BIT4, _MASK1),
 	CTRL_RAWDATA	= REG_ITEM(REG_CTRL, _BIT3, _MASK1),
@@ -182,6 +184,7 @@ enum sm5504_muic_devt2{
 						CTRL_RAW_DATA_MASK | CTRL_MANUAL_SW_MASK |	\
 						CTRL_INT_MASK_MASK)
 
+#define INT1_DCD_OUT_MASK	(0x1 << 3)
 #define INT2_UVLO_MASK		(0x1 << 1)
 #define REG_CTRL_INITIAL (CTRL_MASK | CTRL_MANUAL_SW_MASK)
 
@@ -451,8 +454,14 @@ static int sm5504_get_vps_data(struct regmap_desc *pdesc, void *pbuf)
 		pr_info("%s : USB_CDP DETECTED\n", MUIC_DEV_NAME);
 		break;
 	case SM5504_DEVT1_USB:
-		pvps->t.attached_dev = ATTACHED_DEV_USB_MUIC;
-		pr_info("%s : USB DETECTED\n", MUIC_DEV_NAME);
+		if (vps_is_supported_dev(ATTACHED_DEV_TIMEOUT_OPEN_MUIC) &&
+				pmuic->intr.intr1 & INT1_DCD_OUT_MASK) {
+			pvps->t.attached_dev = ATTACHED_DEV_TIMEOUT_OPEN_MUIC;
+			pr_info("%s : DCD_OUT_SDP DETECTED\n", MUIC_DEV_NAME);
+		} else {
+			pvps->t.attached_dev = ATTACHED_DEV_USB_MUIC;
+			pr_info("%s : USB DETECTED\n", MUIC_DEV_NAME);
+		}
 		break;
 	case SM5504_DEVT1_CAR_KIT_CHARGER:
 	case SM5504_DEVT1_DCP:
@@ -529,6 +538,22 @@ static void sm5504_set_switching_mode(struct regmap_desc *pdesc, int mode)
 		_REGMAP_TRACE(pdesc, 'w', ret, attr, value);
 }
 
+static void sm5504_set_adc_scan_mode(struct regmap_desc *pdesc, int en)
+{
+	int attr, value;
+	int ret = 0;
+
+	pr_info("%s\n", __func__);
+
+	value = (en > 0) ? 1 : 0;
+	attr = CTRL_ADC_EN;
+	ret = regmap_write_value(pdesc, attr, value);
+	if (ret < 0)
+		pr_err("%s REG_CTRL write fail.\n", __func__);
+	else
+		_REGMAP_TRACE(pdesc, 'w', ret, attr, value);
+}
+
 static void sm5504_get_fromatted_dump(struct regmap_desc *pdesc, char *mesg)
 {
 	muic_data_t *muic = pdesc->muic;
@@ -577,6 +602,7 @@ static struct vendor_ops sm5504_muic_vendor_ops = {
 	.get_vps_data = sm5504_get_vps_data,
 	.set_rustproof = sm5504_set_rustproof,
 	.set_manual_JIGON = sm5504_set_manual_JIGON,
+	.set_adc_scan_mode = sm5504_set_adc_scan_mode,
 };
 
 static struct regmap_desc sm5504_muic_regmap_desc = {

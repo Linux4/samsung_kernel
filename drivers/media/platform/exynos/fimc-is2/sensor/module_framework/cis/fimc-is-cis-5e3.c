@@ -165,6 +165,10 @@ int sensor_5e3_cis_init(struct v4l2_subdev *subdev)
 	u8 cal_map_ver[4];
 	bool skip_cal_write = false;
 #endif
+#ifdef USE_CAMERA_HW_BIG_DATA
+	struct cam_hw_param *hw_param = NULL;
+	struct fimc_is_device_sensor_peri *sensor_peri = NULL;
+#endif
 
 	setinfo.param = NULL;
 	setinfo.return_value = 0;
@@ -193,6 +197,15 @@ int sensor_5e3_cis_init(struct v4l2_subdev *subdev)
 
 	ret = sensor_cis_check_rev(cis);
 	if (ret < 0) {
+#ifdef USE_CAMERA_HW_BIG_DATA
+		sensor_peri = container_of(cis, struct fimc_is_device_sensor_peri, cis);
+		if(sensor_peri && sensor_peri->module->position == SENSOR_POSITION_REAR)
+			fimc_is_sec_get_rear_hw_param(&hw_param);
+		else if(sensor_peri && sensor_peri->module->position == SENSOR_POSITION_FRONT)
+			fimc_is_sec_get_front_hw_param(&hw_param);
+		if(hw_param)
+			hw_param->i2c_sensor_err_cnt++;
+#endif
 		warn("sensor_5e3_check_rev is fail when cis init");
 		cis->rev_flag = true;
 		ret = 0;

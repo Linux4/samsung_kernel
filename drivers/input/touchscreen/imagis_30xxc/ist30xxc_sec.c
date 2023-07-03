@@ -236,6 +236,16 @@ static void fw_update(void *dev_data)
 	struct sec_factory *sec = (struct sec_factory *)&data->sec;
 
 	set_default_result(sec);
+	
+#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	if (sec->cmd_param[0] == 1) {
+		snprintf(buf, sizeof(buf), "%s", "OK");
+		set_cmd_result(sec, buf, strnlen(buf, sizeof(buf)));
+		sec->cmd_state = CMD_STATE_OK;
+		tsp_info("%s: user_ship binary, success\n", __func__);
+		return;
+	}
+#endif
 
 	tsp_info("%s(), %d\n", __func__, sec->cmd_param[0]);
 
@@ -1402,7 +1412,14 @@ static ssize_t store_cmd(struct device *dev, struct device_attribute
 	int ret;
 
 	if (strlen(buf) >= SEC_CMD_STR_LEN) {
-		tsp_err("%s: cmd length is over (%s,%d)!!\n", __func__, buf, (int)strlen(buf));
+		pr_err("%s: cmd length(strlen(buf)) is over (%d,%s)!!\n",
+				__func__, (int)strlen(buf), buf);
+		goto err_out;
+	}
+
+	if (count >= (unsigned int)SEC_CMD_STR_LEN) {
+		pr_err("%s: cmd length(count) is over (%d,%s)!!\n",
+				__func__, (unsigned int)count, buf);
 		goto err_out;
 	}
 

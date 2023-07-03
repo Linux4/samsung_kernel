@@ -201,9 +201,9 @@ static void srv_message_handler(const void *message, void *data)
 			break;
 		}
 	}
-	mutex_unlock(&srvman->service_list_mutex);
 	if (!found) {
 		SCSC_TAG_ERR(MXMAN, "No service for msg->service_id=%d", msg->service_id);
+		mutex_unlock(&srvman->service_list_mutex);
 		return;
 	}
 	/* Forward the message to the applicable service to deal with */
@@ -224,6 +224,7 @@ static void srv_message_handler(const void *message, void *data)
 				 service, msg->msg, msg->service_id);
 		break;
 	}
+	mutex_unlock(&srvman->service_list_mutex);
 }
 
 int scsc_mx_service_start(struct scsc_service *service, scsc_mifram_ref ref)
@@ -426,14 +427,27 @@ void srvman_unfreeze_services(struct srvman *srvman, u16 scsc_panic_code)
  * failure handling procedure: _All_ Clients will be called back via
  * their stop_on_failure() handler as a side-effect.
  */
-void scsc_mx_service_service_failed(struct scsc_service *service)
+void scsc_mx_service_service_failed(struct scsc_service *service, const char *reason)
 {
 	struct scsc_mx *mx = service->mx;
 	struct srvman  *srvman = scsc_mx_get_srvman(mx);
 
 	SCSC_TAG_INFO(MXMAN, "\n");
 	srvman_set_error(srvman);
-	mxman_fail(scsc_mx_get_mxman(mx), SCSC_PANIC_CODE_HOST << 15);
+
+	switch (service->id) {
+	case SCSC_SERVICE_ID_WLAN:
+		SCSC_TAG_INFO(MXMAN, "WLAN: %s\n", ((reason != NULL) ? reason : ""));
+		break;
+	case SCSC_SERVICE_ID_BT:
+		SCSC_TAG_INFO(MXMAN, "BT: %s\n", ((reason != NULL) ? reason : ""));
+		break;
+	default:
+		SCSC_TAG_INFO(MXMAN, "service id %d failed\n", service->id);
+		break;
+
+	}
+	mxman_fail(scsc_mx_get_mxman(mx), (SCSC_PANIC_CODE_HOST << 15) | service->id);
 }
 EXPORT_SYMBOL(scsc_mx_service_service_failed);
 
@@ -493,6 +507,7 @@ struct scsc_service *scsc_mx_service_open(struct scsc_mx *mx, enum scsc_service_
 		tval = ns_to_timeval(mxman->last_panic_time);
 		SCSC_TAG_ERR(MXMAN, "error: refused due to previous f/w failure scsc_panic_code=0x%x happened at [%6lu.%06ld]\n",
 				mxman->scsc_panic_code, tval.tv_sec, tval.tv_usec);
+		wake_unlock(&srvman->sm_wake_lock);
 		mutex_unlock(&srvman->api_access_mutex);
 		*status = -EILSEQ;
 		return NULL;

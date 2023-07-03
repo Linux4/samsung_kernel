@@ -230,3 +230,21 @@ config CAMERA_SENSOR_3P3_OBJ
         default n
         help
           Use to build 5E6 camera sensor.
+config CAMERA_SENSOR_4EC_OBJ
+        bool "Use 4EC camera sensor"
+        depends on CAMERA_MODULE_SELECT
+        default n
+        help
+          Use to build 4EC camera sensor
+config CAMERA_SENSOR_SR200_OBJ
+        bool "Use SR200 camera sensor"
+        depends on CAMERA_MODULE_SELECT
+        default n
+        help
+          Use to build SR200 camera sensor
+config CAMERA_SENSOR_SR200_JAVA_OBJ
+        bool "Use SR200 camera sensor"
+        depends on CAMERA_MODULE_SELECT
+        default n
+        help
+          Use to build SR200 camera sensor

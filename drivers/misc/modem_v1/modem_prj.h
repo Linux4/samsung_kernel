@@ -739,5 +739,6 @@ static inline bool rx_possible(struct modem_ctl *mc)
 }
 
 int sipc5_init_io_device(struct io_device *iod);
+void sipc5_deinit_io_device(struct io_device *iod);
 
 #endif

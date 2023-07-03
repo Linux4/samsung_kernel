@@ -123,30 +123,60 @@ config CAMERA_ON5X
         default n
         help
           This camera is on5x project.
+config CAMERA_ON5XREFLTE
+        bool "This camera is on5xreflte project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is on5xreflte project.
 config CAMERA_J3POP
         bool "This camera is j3pop project"
         depends on VENDER_MCD
         default n
         help
-          This camera is j3pop project. 
+          This camera is j3pop project.
+config CAMERA_J3TOP
+        bool "This camera is j3top project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is j3top project.
+config CAMERA_J2CORE
+        bool "This camera is j2core project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is j2core project.		  
+config CAMERA_GTESVELTE
+        bool "This camera is gtesvelte project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is gtesvelte project.
+config CAMERA_GTAXSWIFI
+        bool "This camera is gtaxwifi project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is gtaxswifi project.
 config CAMERA_REMOVE_MSK_ERR_ID
         bool "This feature is to use for IMX241 sensor"
         depends on VENDER_MCD
         default n
         help
-          This feature is to use for IMX241 sensor. 
+          This feature is to use for IMX241 sensor.
 config CAMERA_XCOVER4
         bool "This camera is xcover4 project"
         depends on VENDER_MCD
         default n
         help
-          This camera is j3pop project. 
+          This camera is j3pop project.
 config CAMERA_J3Y17
         bool "This camera is j3y17 project"
         depends on VENDER_MCD
         default n
         help
-          This camera is j3y17 project. 
+          This camera is j3y17 project.
 config OIS_USE_RUMBA_S4
         bool "Use RUMBA S4 ois driver IC"
         depends on OIS_USE

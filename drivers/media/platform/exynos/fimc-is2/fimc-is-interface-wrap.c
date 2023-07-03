@@ -115,9 +115,9 @@ int fimc_is_itf_open_wrap(struct fimc_is_device_ischain *device, u32 module_id,
 	struct fimc_is_device_sensor *sensor;
 	u32 instance = 0;
 	u32 hw_id = 0;
-	u32 group_slot = -1;
 	u32 group_id = -1;
-	int ret = 0;
+	u32 group_slot;
+	int ret = 0, ret_c = 0;
 	int hw_list[GROUP_HW_MAX];
 	int hw_index;
 	int hw_maxnum = 0;
@@ -137,78 +137,40 @@ int fimc_is_itf_open_wrap(struct fimc_is_device_ischain *device, u32 module_id,
 	for (hw_id = 0; hw_id < DEV_HW_END; hw_id++)
 		clear_bit(hw_id, &hardware->hw_map[instance]);
 
-	group_slot = GROUP_SLOT_3AA;
-	group = &device->group_3aa;
-	group_id = path->group[group_slot];
-	dbg_hw("itf_open_wrap: group[SLOT_%d]=[%x]\n", group_slot, group_id);
-	hw_maxnum = fimc_is_get_hw_list(group_id, hw_list);
-	for (hw_index = 0; hw_index < hw_maxnum; hw_index++) {
-		hw_id = hw_list[hw_index];
-		ret = fimc_is_hardware_open(hardware, hw_id, group, instance,
-				flag, module_id);
-		if (ret) {
-			err("fimc_is_hardware_open(%d) is fail", hw_id);
-			return ret;
+	for (group_slot = GROUP_SLOT_3AA; group_slot < GROUP_SLOT_MAX; group_slot++) {
+		switch (group_slot) {
+		case GROUP_SLOT_3AA:
+			group = &device->group_3aa;
+			break;
+		case GROUP_SLOT_ISP:
+			group = &device->group_isp;
+			break;
+		case GROUP_SLOT_DIS:
+			group = &device->group_dis;
+			break;
+		case GROUP_SLOT_MCS:
+			group = &device->group_mcs;
+			break;
+		case GROUP_SLOT_VRA:
+			group = &device->group_vra;
+			break;
+		default:
+			continue;
+			break;
 		}
-	}
 
-	group_slot = GROUP_SLOT_ISP;
-	group = &device->group_isp;
-	group_id = path->group[group_slot];
-	dbg_hw("itf_open_wrap: group[SLOT_%d]=[%x]\n", group_slot, group_id);
-	hw_maxnum = fimc_is_get_hw_list(group_id, hw_list);
-	for (hw_index = 0; hw_index < hw_maxnum; hw_index++) {
-		hw_id = hw_list[hw_index];
-		ret = fimc_is_hardware_open(hardware, hw_id, group, instance,
-				flag, module_id);
-		if (ret) {
-			err("fimc_is_hardware_open(%d) is fail", hw_id);
-			return ret;
-		}
-	}
-
-	group_slot = GROUP_SLOT_DIS;
-	group = &device->group_dis;
-	group_id = path->group[group_slot];
-	dbg_hw("itf_open_wrap: group[SLOT_%d]=[%x]\n", group_slot, group_id);
-	hw_maxnum = fimc_is_get_hw_list(group_id, hw_list);
-	for (hw_index = 0; hw_index < hw_maxnum; hw_index++) {
-		hw_id = hw_list[hw_index];
-		ret = fimc_is_hardware_open(hardware, hw_id, group, instance,
-				flag, module_id);
-		if (ret) {
-			err("fimc_is_hardware_open(%d) is fail", hw_id);
-			return ret;
-		}
-	}
-
-	group_slot = GROUP_SLOT_MCS;
-	group = &device->group_mcs;
-	group_id = path->group[group_slot];
-	dbg_hw("itf_open_wrap: group[SLOT_%d]=[%x]\n", group_slot, group_id);
-	hw_maxnum = fimc_is_get_hw_list(group_id, hw_list);
-	for (hw_index = 0; hw_index < hw_maxnum; hw_index++) {
-		hw_id = hw_list[hw_index];
-		ret = fimc_is_hardware_open(hardware, hw_id, group, instance,
-				flag, module_id);
-		if (ret) {
-			err("fimc_is_hardware_open(%d) is fail", hw_id);
-			return ret;
-		}
-	}
-
-	group_slot = GROUP_SLOT_VRA;
-	group = &device->group_vra;
-	group_id = path->group[group_slot];
-	dbg_hw("itf_open_wrap: group[SLOT_%d]=[%x]\n", group_slot, group_id);
-	hw_maxnum = fimc_is_get_hw_list(group_id, hw_list);
-	for (hw_index = 0; hw_index < hw_maxnum; hw_index++) {
-		hw_id = hw_list[hw_index];
-		ret = fimc_is_hardware_open(hardware, hw_id, group, instance,
-				flag, module_id);
-		if (ret) {
-			err("fimc_is_hardware_open(%d) is fail", hw_id);
-			return ret;
+		group_id = path->group[group_slot];
+		dbg_hw("itf_open_wrap: group[SLOT_%d]=[%x]\n", group_slot, group_id);
+		hw_maxnum = fimc_is_get_hw_list(group_id, hw_list);
+		for (hw_index = 0; hw_index < hw_maxnum; hw_index++) {
+			hw_id = hw_list[hw_index];
+			ret = fimc_is_hardware_open(hardware, hw_id, group, instance,
+					flag, module_id);
+			if (ret) {
+				merr("fimc_is_hardware_open(%d) is fail, ret(%d)", device, hw_id, ret);
+				set_bit(hw_id, &hardware->hw_map[instance]);
+				goto hardware_close;
+			}
 		}
 	}
 
@@ -220,6 +182,22 @@ int fimc_is_itf_open_wrap(struct fimc_is_device_ischain *device, u32 module_id,
 		hardware->sensor_position[instance]);
 
 	return ret;
+
+hardware_close:
+	for (; group_slot >= GROUP_SLOT_3AA; group_slot--) {
+		group_id = path->group[group_slot];
+		hw_maxnum = fimc_is_get_hw_list(group_id, hw_list);
+		for (hw_index = 0; hw_index < hw_maxnum; hw_index++) {
+			hw_id = hw_list[hw_index];
+			info_hw("[%d][ID:%d]itf_close_wrap: call hardware_close(), group_id(%d), ret(%d)\n",
+					instance, hw_id, group_id, ret);
+			ret_c = fimc_is_hardware_close(hardware, hw_id, instance);
+			if (ret_c)
+				merr("fimc_is_hardware_close(%d) is fail", device, hw_id);
+		}
+	}
+
+	return ret;
 }
 
 int fimc_is_itf_close_wrap(struct fimc_is_device_ischain *device)
@@ -229,8 +207,8 @@ int fimc_is_itf_close_wrap(struct fimc_is_device_ischain *device)
 	u32 offset_path = 0;
 	u32 instance = 0;
 	u32 hw_id = 0;
-	u32 group_slot = -1;
 	u32 group_id = -1;
+	u32 group_slot;
 	int ret = 0;
 	int hw_list[GROUP_HW_MAX];
 	int hw_index;
@@ -256,69 +234,15 @@ int fimc_is_itf_close_wrap(struct fimc_is_device_ischain *device)
 			return ret;
 	}
 #endif
-
-	group_slot = GROUP_SLOT_3AA;
-	group_id = path->group[group_slot];
-	dbg_hw("itf_close_wrap: group[SLOT_%d]=[%x]\n", group_slot, group_id);
-	hw_maxnum = fimc_is_get_hw_list(group_id, hw_list);
-	for (hw_index = 0; hw_index < hw_maxnum; hw_index++) {
-		hw_id = hw_list[hw_index];
-		ret = fimc_is_hardware_close(hardware, hw_id, instance);
-		if (ret) {
-			err("fimc_is_hardware_close(%d) is fail", hw_id);
-			return ret;
-		}
-	}
-
-	group_slot = GROUP_SLOT_ISP;
-	group_id = path->group[group_slot];
-	dbg_hw("itf_close_wrap: group[SLOT_%d]=[%x]\n", group_slot, group_id);
-	hw_maxnum = fimc_is_get_hw_list(group_id, hw_list);
-	for (hw_index = 0; hw_index < hw_maxnum; hw_index++) {
-		hw_id = hw_list[hw_index];
-		ret = fimc_is_hardware_close(hardware, hw_id, instance);
-		if (ret) {
-			err("fimc_is_hardware_close(%d) is fail", hw_id);
-			return ret;
-		}
-	}
-
-	group_slot = GROUP_SLOT_DIS;
-	group_id = path->group[group_slot];
-	dbg_hw("itf_close_wrap: group[SLOT_%d]=[%x]\n", group_slot, group_id);
-	hw_maxnum = fimc_is_get_hw_list(group_id, hw_list);
-	for (hw_index = 0; hw_index < hw_maxnum; hw_index++) {
-		hw_id = hw_list[hw_index];
-		ret = fimc_is_hardware_close(hardware, hw_id, instance);
-		if (ret) {
-			err("fimc_is_hardware_close(%d) is fail", hw_id);
-			return ret;
-		}
-	}
-
-	group_slot = GROUP_SLOT_MCS;
-	group_id = path->group[group_slot];
-	dbg_hw("itf_close_wrap: group[SLOT_%d]=[%x]\n", group_slot, group_id);
-	hw_maxnum = fimc_is_get_hw_list(group_id, hw_list);
-	for (hw_index = 0; hw_index < hw_maxnum; hw_index++) {
-		hw_id = hw_list[hw_index];
-		ret = fimc_is_hardware_close(hardware, hw_id, instance);
-		if (ret) {
-			err("fimc_is_hardware_close(%d) is fail", hw_id);
-			return ret;
-		}
-	}
-
-	group_slot = GROUP_SLOT_VRA;
-	group_id = path->group[group_slot];
-	dbg_hw("itf_close_wrap: group[SLOT_%d]=[%x]\n", group_slot, group_id);
-	hw_maxnum = fimc_is_get_hw_list(group_id, hw_list);
-	for (hw_index = 0; hw_index < hw_maxnum; hw_index++) {
-		hw_id = hw_list[hw_index];
-		ret = fimc_is_hardware_close(hardware, hw_id, instance);
-		if (ret) {
-			err("fimc_is_hardware_close(%d) is fail", hw_id);
-			return ret;
+	for (group_slot = GROUP_SLOT_3AA; group_slot < GROUP_SLOT_MAX; group_slot++) {
+		group_id = path->group[group_slot];
+		dbg_hw("itf_close_wrap: group[SLOT_%d]=[%x]\n", group_slot, group_id);
+		hw_maxnum = fimc_is_get_hw_list(group_id, hw_list);
+		for (hw_index = 0; hw_index < hw_maxnum; hw_index++) {
+			hw_id = hw_list[hw_index];
+			ret = fimc_is_hardware_close(hardware, hw_id, instance);
+			if (ret)
+				merr("fimc_is_hardware_close(%d) is fail", device, hw_id);
 		}
 	}
 

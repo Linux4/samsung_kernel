@@ -44,10 +44,6 @@ static u8   h4_hci_event_ncp_header[4 + BSMHCP_TRANSFER_RING_ACL_COUNT * sizeof(
 static u32  h4_hci_event_ncp_header_len = 8;
 static struct hci_credit_entry *h4_hci_credit_entries = (struct hci_credit_entry *) &h4_hci_event_ncp_header[4];
 static u8   h4_hci_event_hardware_error[4] = { HCI_EVENT_PKT, HCI_EVENT_HARDWARE_ERROR_EVENT, 1, 0 };
-static int  h4_strict = 1;
-
-module_param(h4_strict, int, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(h4_strict, "Strict compliance with the H4 protocol");
 
 static void scsc_bt_shm_irq_handler(int irqbit, void *data)
 {
@@ -309,7 +305,7 @@ static ssize_t scsc_bt_shm_h4_acl_write(const unsigned char *data, size_t count)
 			if (l2cap_length == payload_len - L2CAP_HEADER_SIZE)
 				/* Mark it with the END flag if packet length matches the L2CAP payload length */
 				td->flags |= BSMHCP_ACL_L2CAP_FLAG_END;
-			else if (!h4_strict && l2cap_length < payload_len - L2CAP_HEADER_SIZE) {
+			else if (l2cap_length < payload_len - L2CAP_HEADER_SIZE) {
 				/* Mark it with the END flag if packet length is greater than the L2CAP payload length
 				   and generate a warning notifying that this is incorrect according to the specification.
 				   This is allowed to support the BITE tester. */
@@ -345,7 +341,7 @@ static ssize_t scsc_bt_shm_h4_acl_write(const unsigned char *data, size_t count)
 
 				/* Set the remaining length to zero */
 				bt_service.connection_handle_list[td->hci_connection_handle].length = 0;
-			} else if (!h4_strict && bt_service.connection_handle_list[td->hci_connection_handle].length < payload_len) {
+			} else if (bt_service.connection_handle_list[td->hci_connection_handle].length < payload_len) {
 				/* Mark it with the END flag if packet length is greater than the L2CAP missing payload length
 				   and generate a warning notifying that this is incorrect according to the specification.
 				   This is allowed to support the BITE tester. */
@@ -413,100 +409,100 @@ static ssize_t scsc_bt_shm_h4_acl_write(const unsigned char *data, size_t count)
 
 static const char *scsc_hci_evt_decode_event_code(u8 hci_event_code, u8 hci_ulp_sub_code)
 {
-    const char *ret = "NA";
+	const char *ret = "NA";
 
-    switch (hci_event_code) {
-        HCI_EV_DECODE(HCI_EV_INQUIRY_COMPLETE);
-        HCI_EV_DECODE(HCI_EV_INQUIRY_RESULT);
-        HCI_EV_DECODE(HCI_EV_CONN_COMPLETE);
-        HCI_EV_DECODE(HCI_EV_CONN_REQUEST);
-        HCI_EV_DECODE(HCI_EV_DISCONNECT_COMPLETE);
-        HCI_EV_DECODE(HCI_EV_AUTH_COMPLETE);
-        HCI_EV_DECODE(HCI_EV_REMOTE_NAME_REQ_COMPLETE);
-        HCI_EV_DECODE(HCI_EV_ENCRYPTION_CHANGE);
-        HCI_EV_DECODE(HCI_EV_CHANGE_CONN_LINK_KEY_COMPLETE);
-        HCI_EV_DECODE(HCI_EV_MASTER_LINK_KEY_COMPLETE);
-        HCI_EV_DECODE(HCI_EV_READ_REM_SUPP_FEATURES_COMPLETE);
-        HCI_EV_DECODE(HCI_EV_READ_REMOTE_VER_INFO_COMPLETE);
-        HCI_EV_DECODE(HCI_EV_QOS_SETUP_COMPLETE);
-        HCI_EV_DECODE(HCI_EV_COMMAND_COMPLETE);
-        HCI_EV_DECODE(HCI_EV_COMMAND_STATUS);
-        HCI_EV_DECODE(HCI_EV_HARDWARE_ERROR);
-        HCI_EV_DECODE(HCI_EV_FLUSH_OCCURRED);
-        HCI_EV_DECODE(HCI_EV_ROLE_CHANGE);
-        HCI_EV_DECODE(HCI_EV_NUMBER_COMPLETED_PKTS);
-        HCI_EV_DECODE(HCI_EV_MODE_CHANGE);
-        HCI_EV_DECODE(HCI_EV_RETURN_LINK_KEYS);
-        HCI_EV_DECODE(HCI_EV_PIN_CODE_REQ);
-        HCI_EV_DECODE(HCI_EV_LINK_KEY_REQ);
-        HCI_EV_DECODE(HCI_EV_LINK_KEY_NOTIFICATION);
-        HCI_EV_DECODE(HCI_EV_LOOPBACK_COMMAND);
-        HCI_EV_DECODE(HCI_EV_DATA_BUFFER_OVERFLOW);
-        HCI_EV_DECODE(HCI_EV_MAX_SLOTS_CHANGE);
-        HCI_EV_DECODE(HCI_EV_READ_CLOCK_OFFSET_COMPLETE);
-        HCI_EV_DECODE(HCI_EV_CONN_PACKET_TYPE_CHANGED);
-        HCI_EV_DECODE(HCI_EV_QOS_VIOLATION);
-        HCI_EV_DECODE(HCI_EV_PAGE_SCAN_MODE_CHANGE);
-        HCI_EV_DECODE(HCI_EV_PAGE_SCAN_REP_MODE_CHANGE);
-        HCI_EV_DECODE(HCI_EV_FLOW_SPEC_COMPLETE);
-        HCI_EV_DECODE(HCI_EV_INQUIRY_RESULT_WITH_RSSI);
-        HCI_EV_DECODE(HCI_EV_READ_REM_EXT_FEATURES_COMPLETE);
-        HCI_EV_DECODE(HCI_EV_FIXED_ADDRESS);
-        HCI_EV_DECODE(HCI_EV_ALIAS_ADDRESS);
-        HCI_EV_DECODE(HCI_EV_GENERATE_ALIAS_REQ);
-        HCI_EV_DECODE(HCI_EV_ACTIVE_ADDRESS);
-        HCI_EV_DECODE(HCI_EV_ALLOW_PRIVATE_PAIRING);
-        HCI_EV_DECODE(HCI_EV_ALIAS_ADDRESS_REQ);
-        HCI_EV_DECODE(HCI_EV_ALIAS_NOT_RECOGNISED);
-        HCI_EV_DECODE(HCI_EV_FIXED_ADDRESS_ATTEMPT);
-        HCI_EV_DECODE(HCI_EV_SYNC_CONN_COMPLETE);
-        HCI_EV_DECODE(HCI_EV_SYNC_CONN_CHANGED);
-        HCI_EV_DECODE(HCI_EV_SNIFF_SUB_RATE);
-        HCI_EV_DECODE(HCI_EV_EXTENDED_INQUIRY_RESULT);
-        HCI_EV_DECODE(HCI_EV_ENCRYPTION_KEY_REFRESH_COMPLETE);
-        HCI_EV_DECODE(HCI_EV_IO_CAPABILITY_REQUEST);
-        HCI_EV_DECODE(HCI_EV_IO_CAPABILITY_RESPONSE);
-        HCI_EV_DECODE(HCI_EV_USER_CONFIRMATION_REQUEST);
-        HCI_EV_DECODE(HCI_EV_USER_PASSKEY_REQUEST);
-        HCI_EV_DECODE(HCI_EV_REMOTE_OOB_DATA_REQUEST);
-        HCI_EV_DECODE(HCI_EV_SIMPLE_PAIRING_COMPLETE);
-        HCI_EV_DECODE(HCI_EV_LST_CHANGE);
-        HCI_EV_DECODE(HCI_EV_ENHANCED_FLUSH_COMPLETE);
-        HCI_EV_DECODE(HCI_EV_USER_PASSKEY_NOTIFICATION);
-        HCI_EV_DECODE(HCI_EV_KEYPRESS_NOTIFICATION);
-        HCI_EV_DECODE(HCI_EV_REM_HOST_SUPPORTED_FEATURES);
-        HCI_EV_DECODE(HCI_EV_TRIGGERED_CLOCK_CAPTURE);
-        HCI_EV_DECODE(HCI_EV_SYNCHRONIZATION_TRAIN_COMPLETE);
-        HCI_EV_DECODE(HCI_EV_SYNCHRONIZATION_TRAIN_RECEIVED);
-        HCI_EV_DECODE(HCI_EV_CSB_RECEIVE);
-        HCI_EV_DECODE(HCI_EV_CSB_TIMEOUT);
-        HCI_EV_DECODE(HCI_EV_TRUNCATED_PAGE_COMPLETE);
-        HCI_EV_DECODE(HCI_EV_SLAVE_PAGE_RESPONSE_TIMEOUT);
-        HCI_EV_DECODE(HCI_EV_CSB_CHANNEL_MAP_CHANGE);
-        HCI_EV_DECODE(HCI_EV_INQUIRY_RESPONSE_NOTIFICATION);
-        HCI_EV_DECODE(HCI_EV_AUTHENTICATED_PAYLOAD_TIMEOUT_EXPIRED);
-        case HCI_EV_ULP:
-        {
-            switch (hci_ulp_sub_code) {
-                HCI_EV_DECODE(HCI_EV_ULP_CONNECTION_COMPLETE);
-                HCI_EV_DECODE(HCI_EV_ULP_ADVERTISING_REPORT);
-                HCI_EV_DECODE(HCI_EV_ULP_CONNECTION_UPDATE_COMPLETE);
-                HCI_EV_DECODE(HCI_EV_ULP_READ_REMOTE_USED_FEATURES_COMPLETE);
-                HCI_EV_DECODE(HCI_EV_ULP_LONG_TERM_KEY_REQUEST);
-                HCI_EV_DECODE(HCI_EV_ULP_REMOTE_CONNECTION_PARAMETER_REQUEST);
-                HCI_EV_DECODE(HCI_EV_ULP_DATA_LENGTH_CHANGE);
-                HCI_EV_DECODE(HCI_EV_ULP_READ_LOCAL_P256_PUB_KEY_COMPLETE);
-                HCI_EV_DECODE(HCI_EV_ULP_GENERATE_DHKEY_COMPLETE);
-                HCI_EV_DECODE(HCI_EV_ULP_ENHANCED_CONNECTION_COMPLETE);
-                HCI_EV_DECODE(HCI_EV_ULP_DIRECT_ADVERTISING_REPORT);
-                HCI_EV_DECODE(HCI_EV_ULP_PHY_UPDATE_COMPLETE);
-                HCI_EV_DECODE(HCI_EV_ULP_USED_CHANNEL_SELECTION);
-            }
-            break;
-        }
-    }
+	switch (hci_event_code) {
+	HCI_EV_DECODE(HCI_EV_INQUIRY_COMPLETE);
+	HCI_EV_DECODE(HCI_EV_INQUIRY_RESULT);
+	HCI_EV_DECODE(HCI_EV_CONN_COMPLETE);
+	HCI_EV_DECODE(HCI_EV_CONN_REQUEST);
+	HCI_EV_DECODE(HCI_EV_DISCONNECT_COMPLETE);
+	HCI_EV_DECODE(HCI_EV_AUTH_COMPLETE);
+	HCI_EV_DECODE(HCI_EV_REMOTE_NAME_REQ_COMPLETE);
+	HCI_EV_DECODE(HCI_EV_ENCRYPTION_CHANGE);
+	HCI_EV_DECODE(HCI_EV_CHANGE_CONN_LINK_KEY_COMPLETE);
+	HCI_EV_DECODE(HCI_EV_MASTER_LINK_KEY_COMPLETE);
+	HCI_EV_DECODE(HCI_EV_READ_REM_SUPP_FEATURES_COMPLETE);
+	HCI_EV_DECODE(HCI_EV_READ_REMOTE_VER_INFO_COMPLETE);
+	HCI_EV_DECODE(HCI_EV_QOS_SETUP_COMPLETE);
+	HCI_EV_DECODE(HCI_EV_COMMAND_COMPLETE);
+	HCI_EV_DECODE(HCI_EV_COMMAND_STATUS);
+	HCI_EV_DECODE(HCI_EV_HARDWARE_ERROR);
+	HCI_EV_DECODE(HCI_EV_FLUSH_OCCURRED);
+	HCI_EV_DECODE(HCI_EV_ROLE_CHANGE);
+	HCI_EV_DECODE(HCI_EV_NUMBER_COMPLETED_PKTS);
+	HCI_EV_DECODE(HCI_EV_MODE_CHANGE);
+	HCI_EV_DECODE(HCI_EV_RETURN_LINK_KEYS);
+	HCI_EV_DECODE(HCI_EV_PIN_CODE_REQ);
+	HCI_EV_DECODE(HCI_EV_LINK_KEY_REQ);
+	HCI_EV_DECODE(HCI_EV_LINK_KEY_NOTIFICATION);
+	HCI_EV_DECODE(HCI_EV_LOOPBACK_COMMAND);
+	HCI_EV_DECODE(HCI_EV_DATA_BUFFER_OVERFLOW);
+	HCI_EV_DECODE(HCI_EV_MAX_SLOTS_CHANGE);
+	HCI_EV_DECODE(HCI_EV_READ_CLOCK_OFFSET_COMPLETE);
+	HCI_EV_DECODE(HCI_EV_CONN_PACKET_TYPE_CHANGED);
+	HCI_EV_DECODE(HCI_EV_QOS_VIOLATION);
+	HCI_EV_DECODE(HCI_EV_PAGE_SCAN_MODE_CHANGE);
+	HCI_EV_DECODE(HCI_EV_PAGE_SCAN_REP_MODE_CHANGE);
+	HCI_EV_DECODE(HCI_EV_FLOW_SPEC_COMPLETE);
+	HCI_EV_DECODE(HCI_EV_INQUIRY_RESULT_WITH_RSSI);
+	HCI_EV_DECODE(HCI_EV_READ_REM_EXT_FEATURES_COMPLETE);
+	HCI_EV_DECODE(HCI_EV_FIXED_ADDRESS);
+	HCI_EV_DECODE(HCI_EV_ALIAS_ADDRESS);
+	HCI_EV_DECODE(HCI_EV_GENERATE_ALIAS_REQ);
+	HCI_EV_DECODE(HCI_EV_ACTIVE_ADDRESS);
+	HCI_EV_DECODE(HCI_EV_ALLOW_PRIVATE_PAIRING);
+	HCI_EV_DECODE(HCI_EV_ALIAS_ADDRESS_REQ);
+	HCI_EV_DECODE(HCI_EV_ALIAS_NOT_RECOGNISED);
+	HCI_EV_DECODE(HCI_EV_FIXED_ADDRESS_ATTEMPT);
+	HCI_EV_DECODE(HCI_EV_SYNC_CONN_COMPLETE);
+	HCI_EV_DECODE(HCI_EV_SYNC_CONN_CHANGED);
+	HCI_EV_DECODE(HCI_EV_SNIFF_SUB_RATE);
+	HCI_EV_DECODE(HCI_EV_EXTENDED_INQUIRY_RESULT);
+	HCI_EV_DECODE(HCI_EV_ENCRYPTION_KEY_REFRESH_COMPLETE);
+	HCI_EV_DECODE(HCI_EV_IO_CAPABILITY_REQUEST);
+	HCI_EV_DECODE(HCI_EV_IO_CAPABILITY_RESPONSE);
+	HCI_EV_DECODE(HCI_EV_USER_CONFIRMATION_REQUEST);
+	HCI_EV_DECODE(HCI_EV_USER_PASSKEY_REQUEST);
+	HCI_EV_DECODE(HCI_EV_REMOTE_OOB_DATA_REQUEST);
+	HCI_EV_DECODE(HCI_EV_SIMPLE_PAIRING_COMPLETE);
+	HCI_EV_DECODE(HCI_EV_LST_CHANGE);
+	HCI_EV_DECODE(HCI_EV_ENHANCED_FLUSH_COMPLETE);
+	HCI_EV_DECODE(HCI_EV_USER_PASSKEY_NOTIFICATION);
+	HCI_EV_DECODE(HCI_EV_KEYPRESS_NOTIFICATION);
+	HCI_EV_DECODE(HCI_EV_REM_HOST_SUPPORTED_FEATURES);
+	HCI_EV_DECODE(HCI_EV_TRIGGERED_CLOCK_CAPTURE);
+	HCI_EV_DECODE(HCI_EV_SYNCHRONIZATION_TRAIN_COMPLETE);
+	HCI_EV_DECODE(HCI_EV_SYNCHRONIZATION_TRAIN_RECEIVED);
+	HCI_EV_DECODE(HCI_EV_CSB_RECEIVE);
+	HCI_EV_DECODE(HCI_EV_CSB_TIMEOUT);
+	HCI_EV_DECODE(HCI_EV_TRUNCATED_PAGE_COMPLETE);
+	HCI_EV_DECODE(HCI_EV_SLAVE_PAGE_RESPONSE_TIMEOUT);
+	HCI_EV_DECODE(HCI_EV_CSB_CHANNEL_MAP_CHANGE);
+	HCI_EV_DECODE(HCI_EV_INQUIRY_RESPONSE_NOTIFICATION);
+	HCI_EV_DECODE(HCI_EV_AUTHENTICATED_PAYLOAD_TIMEOUT_EXPIRED);
+	case HCI_EV_ULP:
+	{
+		switch (hci_ulp_sub_code) {
+		HCI_EV_DECODE(HCI_EV_ULP_CONNECTION_COMPLETE);
+		HCI_EV_DECODE(HCI_EV_ULP_ADVERTISING_REPORT);
+		HCI_EV_DECODE(HCI_EV_ULP_CONNECTION_UPDATE_COMPLETE);
+		HCI_EV_DECODE(HCI_EV_ULP_READ_REMOTE_USED_FEATURES_COMPLETE);
+		HCI_EV_DECODE(HCI_EV_ULP_LONG_TERM_KEY_REQUEST);
+		HCI_EV_DECODE(HCI_EV_ULP_REMOTE_CONNECTION_PARAMETER_REQUEST);
+		HCI_EV_DECODE(HCI_EV_ULP_DATA_LENGTH_CHANGE);
+		HCI_EV_DECODE(HCI_EV_ULP_READ_LOCAL_P256_PUB_KEY_COMPLETE);
+		HCI_EV_DECODE(HCI_EV_ULP_GENERATE_DHKEY_COMPLETE);
+		HCI_EV_DECODE(HCI_EV_ULP_ENHANCED_CONNECTION_COMPLETE);
+		HCI_EV_DECODE(HCI_EV_ULP_DIRECT_ADVERTISING_REPORT);
+		HCI_EV_DECODE(HCI_EV_ULP_PHY_UPDATE_COMPLETE);
+		HCI_EV_DECODE(HCI_EV_ULP_USED_CHANNEL_SELECTION);
+		}
+		break;
+	}
+	}
 
-    return ret;
+	return ret;
 }
 
 static ssize_t scsc_hci_evt_read(char __user *buf, size_t len)
@@ -815,7 +811,9 @@ static ssize_t scsc_bt_shm_h4_read_hci_evt(char __user *buf, size_t len)
 			/* Update the index if all the data could be copied to the userspace buffer otherwise stop processing the HCI events */
 			if (BT_READ_OP_NONE == bt_service.read_operation)
 				BSMHCP_INCREASE_INDEX(bt_service.mailbox_hci_evt_read, BSMHCP_TRANSFER_RING_EVT_SIZE);
+#ifndef CONFIG_SCSC_BT_BLUEZ
 			else
+#endif
 				break;
 		}
 	}
@@ -867,7 +865,9 @@ static ssize_t scsc_bt_shm_h4_read_acl_data(char __user *buf, size_t len)
 					/* Update the index if all the data could be copied to the userspace buffer otherwise stop processing the ACL data */
 					if (BT_READ_OP_NONE == bt_service.read_operation)
 						BSMHCP_INCREASE_INDEX(bt_service.mailbox_acl_rx_read, BSMHCP_TRANSFER_RING_ACL_SIZE);
+#ifndef CONFIG_SCSC_BT_BLUEZ
 					else
+#endif
 						break;
 				}
 			}
@@ -1114,21 +1114,36 @@ ssize_t scsc_bt_shm_h4_read(struct file *file, char __user *buf, size_t len, lof
 		/* First: process any pending HCI event that needs to be sent to userspace */
 		res = scsc_bt_shm_h4_read_hci_evt(&buf[consumed], len - consumed);
 		if (0 < res)
+		{
 			consumed += res;
+#ifdef CONFIG_SCSC_BT_BLUEZ
+			break;
+#endif
+		}
 		else
 			ret = res;
 
 		/* Second: process any pending ACL data that needs to be sent to userspace */
 		res = scsc_bt_shm_h4_read_acl_data(&buf[consumed], len - consumed);
 		if (0 < res)
+		{
 			consumed += res;
+#ifdef CONFIG_SCSC_BT_BLUEZ
+			break;
+#endif
+		}
 		else
 			ret = res;
 
 		/* Third: process any pending ACL data that needs to be sent to userspace */
 		res = scsc_bt_shm_h4_read_acl_credit(&buf[consumed], len - consumed);
 		if (0 < res)
+		{
 			consumed += res;
+#ifdef CONFIG_SCSC_BT_BLUEZ
+			break;
+#endif
+		}
 		else
 			ret = res;
 	}
@@ -1321,6 +1336,8 @@ unsigned scsc_bt_shm_h4_poll(struct file *file, poll_table *wait)
 	    bt_service.bsmhcp_protocol->header.mailbox_acl_rx_read ||
 	    bt_service.bsmhcp_protocol->header.mailbox_acl_free_write !=
 	    bt_service.bsmhcp_protocol->header.mailbox_acl_free_read ||
+	    (bt_service.read_operation != BT_READ_OP_NONE &&
+	     bt_service.read_operation != BT_READ_OP_STOP) ||
 	    ((BT_READ_OP_STOP != bt_service.read_operation) &&
 	     (0 != atomic_read(&bt_service.error_count) ||
 	     bt_service.bsmhcp_protocol->header.panic_deathbed_confession))) {

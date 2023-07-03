@@ -55,6 +55,8 @@ const char *tagstr[] = {
 	"pcie_mif",
 	"plat_mif",
 	"kic_common",
+	"wlbtd",
+	"wlog",
 #ifdef CONFIG_SCSC_DEBUG_COMPATIBILITY
 	"init_deinit",
 	"netdev",

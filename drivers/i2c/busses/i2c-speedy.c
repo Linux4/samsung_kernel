@@ -221,6 +221,7 @@ struct exynos_speedy {
 
 	int			always_intr_high;
 	unsigned int		int_en;
+	unsigned int		is_srp;
 };
 
 static void dump_batcher_register(struct exynos_speedy *speedy)
@@ -398,7 +399,11 @@ static void program_batcher_fsm(struct exynos_speedy *speedy)
 			(SPEEDY_TIMEOUT_CMD_EN | SPEEDY_TIMEOUT_STANDBY_EN |
 			 SPEEDY_TIMEOUT_DATA_EN | SPEEDY_RX_MODEBIT_ERR_EN |
 			 SPEEDY_RX_GLITCH_ERR_EN | SPEEDY_RX_ENDBIT_ERR_EN |
-			 SPEEDY_TX_LINE_BUSY_ERR_EN | SPEEDY_TX_STOPBIT_ERR_EN);
+			 SPEEDY_TX_LINE_BUSY_ERR_EN);
+
+	if (!speedy->is_srp)
+		ip_batcher_fsm_unexpec_enable |= SPEEDY_TX_STOPBIT_ERR_EN;
+
 	writel(ip_batcher_fsm_unexpec_enable, speedy->regs + IPBATCHER_FSM_UNEXPEN);
 
 	/* select Tx, Rx normal interrupt of IP */
@@ -461,7 +466,6 @@ static void speedy_swreset_with_batcher(struct exynos_speedy *speedy)
 			mp_apbsema_sw_rst(speedy);
 			udelay(100);
 			batcher_swreset(speedy);
-			program_batcher_fsm(speedy);
 
 			timeout = jiffies + EXYNOS_SPEEDY_TIMEOUT;
 
@@ -482,7 +486,6 @@ static void speedy_swreset_with_batcher(struct exynos_speedy *speedy)
 	} else {
 		dev_err(speedy->dev, "speedy reset can't be done by no semaphore\n");
 		batcher_swreset(speedy);
-		program_batcher_fsm(speedy);
 	}
 
 	timeout = jiffies + EXYNOS_SPEEDY_TIMEOUT;
@@ -574,8 +577,11 @@ static void speedy_set_cmd(struct exynos_speedy *speedy, int direction, u16 addr
 		speedy_command |= SPEEDY_DIRECTION_WRITE;
 		speedy_int_en |= (SPEEDY_TRANSFER_DONE_EN |
 				SPEEDY_FIFO_TX_ALMOST_EMPTY_EN |
-				SPEEDY_TX_LINE_BUSY_ERR_EN |
-				SPEEDY_TX_STOPBIT_ERR_EN);
+				SPEEDY_TX_LINE_BUSY_ERR_EN);
+
+		/* To send SRP command, TX STOPBIT ERR interrupt shoud be disabled */
+		if (!speedy->is_srp)
+			speedy_int_en |= SPEEDY_TX_STOPBIT_ERR_EN;
 
 		/* To prevent batcher timeout, interrupt state should be set as high */
 		if (speedy->always_intr_high) {
@@ -612,14 +618,15 @@ static int speedy_batcher_wait_complete(struct exynos_speedy *speedy)
 		ip_batcher_int_status = readl(speedy->regs + IP_INT_STATUS);
 
 		if (ip_batcher_state & BATCHER_OPERATION_COMPLETE) {
-			if ((ip_batcher_int_status & SPEEDY_TIMEOUT_CMD) |
-				(ip_batcher_int_status & SPEEDY_TIMEOUT_STANDBY) |
-				(ip_batcher_int_status & SPEEDY_TIMEOUT_DATA) |
-				(ip_batcher_int_status & SPEEDY_RX_MODEBIT_ERR) |
-				(ip_batcher_int_status & SPEEDY_RX_GLITCH_ERR) |
-				(ip_batcher_int_status & SPEEDY_RX_ENDBIT_ERR) |
-				(ip_batcher_int_status & SPEEDY_TX_LINE_BUSY_ERR) |
-				(ip_batcher_int_status & SPEEDY_TX_STOPBIT_ERR)) {
+			if ((ip_batcher_int_status & SPEEDY_TIMEOUT_CMD) ||
+				(ip_batcher_int_status & SPEEDY_TIMEOUT_STANDBY) ||
+				(ip_batcher_int_status & SPEEDY_TIMEOUT_DATA) ||
+				(ip_batcher_int_status & SPEEDY_RX_MODEBIT_ERR) ||
+				(ip_batcher_int_status & SPEEDY_RX_GLITCH_ERR) ||
+				(ip_batcher_int_status & SPEEDY_RX_ENDBIT_ERR) ||
+				(ip_batcher_int_status & SPEEDY_TX_LINE_BUSY_ERR) ||
+				((ip_batcher_int_status & SPEEDY_TX_STOPBIT_ERR)
+				  && (!speedy->is_srp))) {
 				ret = -EIO;
 				break;
 			} else {
@@ -627,14 +634,15 @@ static int speedy_batcher_wait_complete(struct exynos_speedy *speedy)
 				break;
 			}
 		} else if (ip_batcher_state & UNEXPECTED_IP_INTR) {
-			if ((ip_batcher_int_status & SPEEDY_TIMEOUT_CMD) |
-				(ip_batcher_int_status & SPEEDY_TIMEOUT_STANDBY) |
-				(ip_batcher_int_status & SPEEDY_TIMEOUT_DATA) |
-				(ip_batcher_int_status & SPEEDY_RX_MODEBIT_ERR) |
-				(ip_batcher_int_status & SPEEDY_RX_GLITCH_ERR) |
-				(ip_batcher_int_status & SPEEDY_RX_ENDBIT_ERR) |
-				(ip_batcher_int_status & SPEEDY_TX_LINE_BUSY_ERR) |
-				(ip_batcher_int_status & SPEEDY_TX_STOPBIT_ERR)) {
+			if ((ip_batcher_int_status & SPEEDY_TIMEOUT_CMD) ||
+				(ip_batcher_int_status & SPEEDY_TIMEOUT_STANDBY) ||
+				(ip_batcher_int_status & SPEEDY_TIMEOUT_DATA) ||
+				(ip_batcher_int_status & SPEEDY_RX_MODEBIT_ERR) ||
+				(ip_batcher_int_status & SPEEDY_RX_GLITCH_ERR) ||
+				(ip_batcher_int_status & SPEEDY_RX_ENDBIT_ERR) ||
+				(ip_batcher_int_status & SPEEDY_TX_LINE_BUSY_ERR) ||
+				((ip_batcher_int_status & SPEEDY_TX_STOPBIT_ERR)
+				  && (!speedy->is_srp))) {
 				ret = -EIO;
 				break;
 			}
@@ -686,6 +694,7 @@ static void speedy_set_srp(struct exynos_speedy *speedy)
 		/* set batcher IDLE->INIT state */
 		set_batcher_enable(speedy);
 
+		speedy->is_srp = 1;
 		speedy_set_cmd(speedy, DIRECTION_WRITE, 0x0, ACCESS_RANDOM, 0);
 
 		speedy_ctl |= SPEEDY_REMOTE_RESET_REQ;
@@ -697,20 +706,24 @@ static void speedy_set_srp(struct exynos_speedy *speedy)
 		write_batcher(speedy, speedy_ctl, SPEEDY_CTRL);
 
 		finalize_batcher(speedy);
+		/* select bitfield to monitor interrupt and status by batcher */
+		program_batcher_fsm(speedy);
 		/* TODO : for polling mode, need to enable batcher interrupt ? */
 		set_batcher_interrupt(speedy, 1);
 		start_batcher(speedy);
 		ret = speedy_batcher_wait_complete(speedy);
 		/* TODO : for polling mode, need to enable batcher interrupt ? */
 		set_batcher_interrupt(speedy, 0);
-		set_batcher_idle(speedy);
+		speedy->is_srp = 0;
 
 		if (!ret) {
+			set_batcher_idle(speedy);
 			dev_err(speedy->dev, "SRP was done successfully\n");
 			break;
 		} else {
 			dev_err(speedy->dev, "SRP timeout was occured\n");
 			dump_batcher_register(speedy);
+			set_batcher_idle(speedy);
 			speedy_swreset_with_batcher(speedy);
 		}
 	}
@@ -785,6 +798,9 @@ static int exynos_speedy_xfer_batcher(struct exynos_speedy *speedy,
 
 	finalize_batcher(speedy);
 
+	/* select bitfield to monitor interrupt and status by batcher */
+	program_batcher_fsm(speedy);
+
 	/* TODO : for polling mode, need to enable batcher interrupt ? */
 	set_batcher_interrupt(speedy, 1);
 
@@ -805,13 +821,13 @@ static int exynos_speedy_xfer_batcher(struct exynos_speedy *speedy,
 		}
 		set_batcher_idle(speedy);
 	} else {
-		set_batcher_idle(speedy);
 		if (direction == DIRECTION_READ)
 			dev_err(speedy->dev, "at Read\n");
 		else
 			dev_err(speedy->dev, "at Write\n");
 
 		dump_batcher_register(speedy);
+		set_batcher_idle(speedy);
 
 		speedy_swreset_with_batcher(speedy);
 		speedy_set_srp(speedy);
@@ -1019,9 +1035,6 @@ static int exynos_speedy_probe(struct platform_device *pdev)
 
 	/* reset batcher */
 	batcher_swreset(speedy);
-
-	/* select bitfield to monitor interrupt and status by batcher */
-	program_batcher_fsm(speedy);
 
 	speedy->adap.nr = -1;
 	ret = i2c_add_numbered_adapter(&speedy->adap);

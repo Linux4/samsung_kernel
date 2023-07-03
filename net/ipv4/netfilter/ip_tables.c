@@ -31,11 +31,6 @@
 #include <net/netfilter/nf_log.h>
 #include "../../netfilter/xt_repldata.h"
 
-#ifdef CONFIG_ONESHOT_UID
-#include <net/netfilter/oneshot_uid.h>
-#include <linux/spinlock.h>
-#endif
-
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Netfilter Core Team <coreteam@netfilter.org>");
 MODULE_DESCRIPTION("IPv4 packet filter");
@@ -389,9 +384,6 @@ ipt_do_table(struct sk_buff *skb,
 					verdict = (unsigned int)(-v) - 1;
 					break;
 				}
-#ifdef CONFIG_ONESHOT_UID
-stackpopup:
-#endif
 
 				if (*stackptr <= origptr) {
 					e = get_entry(table_base,
@@ -418,25 +410,6 @@ stackpopup:
 			}
 
 			e = get_entry(table_base, v);
-#ifdef CONFIG_ONESHOT_UID
-			if (unlikely(e == table_base +
-				oneshot_uid_ipv4.myrule_offset))
-				if (table == oneshot_uid_ipv4.myfilter_table &&
-				    read_trylock(&oneshot_uid_ipv4.lock)) {
-					xt_ematch_foreach(ematch, e) {
-						acpar.match =
-							ematch->u.kernel.match;
-						acpar.matchinfo = ematch->data;
-						if (!oneshot_uid_checkmap(
-							&oneshot_uid_ipv4, skb,
-							&acpar)) {
-							read_unlock(&oneshot_uid_ipv4.lock);
-							goto stackpopup;
-						}
-					}
-					read_unlock(&oneshot_uid_ipv4.lock);
-				}
-#endif
 			continue;
 		}
 
@@ -544,6 +517,8 @@ mark_source_chains(const struct xt_table_info *newinfo,
 				size = e->next_offset;
 				e = (struct ipt_entry *)
 					(entry0 + pos + size);
+				if (pos + size >= newinfo->size)
+					return 0;
 				e->counters.pcnt = pos;
 				pos += size;
 			} else {
@@ -565,6 +540,8 @@ mark_source_chains(const struct xt_table_info *newinfo,
 				} else {
 					/* ... this is a fallthru */
 					newpos = pos + e->next_offset;
+					if (newpos >= newinfo->size)
+						return 0;
 				}
 				e = (struct ipt_entry *)
 					(entry0 + newpos);
@@ -589,27 +566,6 @@ static void cleanup_match(struct xt_entry_match *m, struct net *net)
 	if (par.match->destroy != NULL)
 		par.match->destroy(&par);
 	module_put(par.match->me);
-}
-
-static int
-check_entry(const struct ipt_entry *e, const char *name)
-{
-	const struct xt_entry_target *t;
-
-	if (!ip_checkentry(&e->ip)) {
-		duprintf("ip check failed %p %s.\n", e, name);
-		return -EINVAL;
-	}
-
-	if (e->target_offset + sizeof(struct xt_entry_target) >
-	    e->next_offset)
-		return -EINVAL;
-
-	t = ipt_get_target_c(e);
-	if (e->target_offset + t->u.target_size > e->next_offset)
-		return -EINVAL;
-
-	return 0;
 }
 
 static int
@@ -689,10 +645,6 @@ find_check_entry(struct ipt_entry *e, struct net *net, const char *name,
 	struct xt_mtchk_param mtpar;
 	struct xt_entry_match *ematch;
 
-	ret = check_entry(e, name);
-	if (ret)
-		return ret;
-
 	j = 0;
 	mtpar.net	= net;
 	mtpar.table     = name;
@@ -756,9 +708,11 @@ check_entry_size_and_hooks(struct ipt_entry *e,
 			   unsigned int valid_hooks)
 {
 	unsigned int h;
+	int err;
 
 	if ((unsigned long)e % __alignof__(struct ipt_entry) != 0 ||
-	    (unsigned char *)e + sizeof(struct ipt_entry) >= limit) {
+	    (unsigned char *)e + sizeof(struct ipt_entry) >= limit ||
+	    (unsigned char *)e + e->next_offset > limit) {
 		duprintf("Bad offset %p\n", e);
 		return -EINVAL;
 	}
@@ -769,6 +723,14 @@ check_entry_size_and_hooks(struct ipt_entry *e,
 			 e, e->next_offset);
 		return -EINVAL;
 	}
+
+	if (!ip_checkentry(&e->ip))
+		return -EINVAL;
+
+	err = xt_check_entry_offsets(e, e->elems, e->target_offset,
+				     e->next_offset);
+	if (err)
+		return err;
 
 	/* Check hooks & underflows */
 	for (h = 0; h < NF_INET_NUMHOOKS; h++) {
@@ -824,13 +786,6 @@ translate_table(struct net *net, struct xt_table_info *newinfo, void *entry0,
 	unsigned int i;
 	int ret = 0;
 	
-#ifdef CONFIG_ONESHOT_UID
-	int ourchain = ONESHOT_UID_FIND_NONE;
-	unsigned int rulenum = 0;
-	const void *previous_ematch = NULL;
-	const struct xt_entry_match *ematch;
-#endif
-
 	newinfo->size = repl->size;
 	newinfo->number = repl->num_entries;
 
@@ -842,10 +797,6 @@ translate_table(struct net *net, struct xt_table_info *newinfo, void *entry0,
 
 	duprintf("translate_table: size %u\n", newinfo->size);
 	i = 0;
-	
-#ifdef CONFIG_ONESHOT_UID
-	write_lock(&oneshot_uid_ipv4.lock);
-#endif
 
 	/* Walk through entries, checking offsets. */
 	xt_entry_foreach(iter, entry0, newinfo->size) {
@@ -855,59 +806,14 @@ translate_table(struct net *net, struct xt_table_info *newinfo, void *entry0,
 						 repl->underflow,
 						 repl->valid_hooks);
 		if (ret != 0) {
-#ifdef CONFIG_ONESHOT_UID
-			write_unlock(&oneshot_uid_ipv4.lock);
-#endif
 			return ret;
 		}
 		++i;
 		if (strcmp(ipt_get_target(iter)->u.user.name,
 		    XT_ERROR_TARGET) == 0) {
 			++newinfo->stacksize;
-#ifdef CONFIG_ONESHOT_UID
-			if (ourchain != ONESHOT_UID_FINE_END) {
-				struct xt_standard_target *xt_target =
-						(void *) ipt_get_target(iter);
-				if (ourchain == ONESHOT_UID_FIND_UIDCHAIN) {
-					oneshot_uid_cleanup_unusedmem(
-							&oneshot_uid_ipv4);
-					ourchain = ONESHOT_UID_FINE_END;
-				} else if (strcmp(xt_target->target.data,
-						RULE_STANDBY_UID) == 0) {
-					oneshot_uid_ipv4.myfilter_table =
-						net->ipv4.iptable_filter;
-					rulenum = 0;
-					ourchain = ONESHOT_UID_FIND_UIDCHAIN;
-					oneshot_uid_resetmap(&oneshot_uid_ipv4);
-				}
-			}
-		} else if (ourchain == ONESHOT_UID_FIND_UIDCHAIN) {
-			if (previous_ematch) {
-				int ret = oneshot_uid_addrule_to_map(&oneshot_uid_ipv4,
-							     previous_ematch);
-				if (ret == -ENOMEM) {
-					ourchain = ONESHOT_UID_FINE_END;
-					oneshot_uid_ipv4.myfilter_table = NULL;
-					oneshot_uid_ipv4.myrule_offset = 0;
-					pr_err("iptables: oneshot_uid failed to alloc memory\n");
-					continue;
-				}
-			}
-
-			xt_ematch_foreach(ematch, iter) {
-				previous_ematch = ematch->data;
-			}
-
-			if (rulenum == 0)
-				oneshot_uid_ipv4.myrule_offset =
-						((void *)iter - entry0);
-			rulenum++;
-#endif
 		}
 	}
-#ifdef CONFIG_ONESHOT_UID
-	write_unlock(&oneshot_uid_ipv4.lock);
-#endif
 
 	if (i != repl->num_entries) {
 		duprintf("translate_table: %u not %u entries\n",
@@ -1577,7 +1483,8 @@ check_compat_entry_size_and_hooks(struct compat_ipt_entry *e,
 
 	duprintf("check_compat_entry_size_and_hooks %p\n", e);
 	if ((unsigned long)e % __alignof__(struct compat_ipt_entry) != 0 ||
-	    (unsigned char *)e + sizeof(struct compat_ipt_entry) >= limit) {
+	    (unsigned char *)e + sizeof(struct compat_ipt_entry) >= limit ||
+	    (unsigned char *)e + e->next_offset > limit) {
 		duprintf("Bad offset %p, limit = %p\n", e, limit);
 		return -EINVAL;
 	}
@@ -1589,8 +1496,11 @@ check_compat_entry_size_and_hooks(struct compat_ipt_entry *e,
 		return -EINVAL;
 	}
 
-	/* For purposes of check_entry casting the compat entry is fine */
-	ret = check_entry((struct ipt_entry *)e, name);
+	if (!ip_checkentry(&e->ip))
+		return -EINVAL;
+
+	ret = xt_compat_check_entry_offsets(e, e->elems,
+					    e->target_offset, e->next_offset);
 	if (ret)
 		return ret;
 

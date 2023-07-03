@@ -33,6 +33,7 @@ enum slsi_kic_technology_type {
 	slsi_kic_technology_type_nfc,
 	slsi_kic_technology_type_janitor,
 	slsi_kic_technology_type_common,
+	slsi_kic_technology_type_ant,
 
 	/* keep last */
 	slsi_kic_technology_type__after_last,
@@ -46,7 +47,8 @@ static const char *const slsi_kic_technology_type_text[slsi_kic_technology_type_
 	"audio",
 	"gnss",
 	"nfc",
-	"janitor"
+	"janitor",
+	"ant"
 };
 
 /**
@@ -99,6 +101,8 @@ enum slsi_kic_system_events {
 	slsi_kic_system_events_subsystem_crashed,
 	slsi_kic_system_events_subsystem_recovered,
 	slsi_kic_system_events_host_ready_ind,
+	slsi_kic_system_events_ant_on,
+	slsi_kic_system_events_ant_off,
 
 	/* keep last */
 	slsi_kic_system_events__after_last,
@@ -133,7 +137,9 @@ static const char *const slsi_kic_system_event_text[slsi_kic_system_events_max_e
 	"Coredump done",
 	"Subsystem has crashed",
 	"Subsystem has been recovered",
-	"CCP Host ready Ind sent"
+	"CCP Host ready Ind sent",
+	"ANT on",
+	"ANT off"
 };
 
 /**

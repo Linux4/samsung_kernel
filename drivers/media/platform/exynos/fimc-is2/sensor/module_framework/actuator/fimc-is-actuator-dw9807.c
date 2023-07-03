@@ -21,6 +21,7 @@
 #include "fimc-is-device-sensor-peri.h"
 #include "fimc-is-core.h"
 #include "fimc-is-helper-actuator-i2c.h"
+#include "fimc-is-sec-define.h"
 
 #include "interface/fimc-is-interface-library.h"
 
@@ -34,9 +35,12 @@
 #define REG_RESONANCE   0x07 // Default: 0x60, R/W, [5:0] = SACT
 
 #define DEF_DW9807_FIRST_POSITION		100
-#define DEF_DW9807_SECOND_POSITION		170
+#define DEF_DW9807_SECOND_POSITION		180
 #define DEF_DW9807_FIRST_DELAY			20
 #define DEF_DW9807_SECOND_DELAY			10
+
+#define DEF_DW9807_OFFSET_POSITION_MAX 60
+#define DEF_DW9807_AF_PAN 450
 
 extern struct fimc_is_lib_support gPtr_lib_support;
 extern struct fimc_is_sysfs_actuator sysfs_actuator;
@@ -102,15 +106,15 @@ int sensor_dw9807_init(struct i2c_client *client, struct fimc_is_caldata_list_dw
 		if (ret < 0)
 			goto p_err;
 
-		/* wait 100us after power-on */
-		udelay(100);
-
 		/* PD disable(normal operation) */
 		i2c_data[0] = REG_CONTROL;
 		i2c_data[1] = 0x00;
 		ret = fimc_is_sensor_addr8_write8(client, i2c_data[0], i2c_data[1]);
 		if (ret < 0)
 			goto p_err;
+
+		/* wait 100us after power-on */
+		udelay(100);
 
 		/* Ring mode enable */
 		i2c_data[0] = REG_CONTROL;
@@ -223,6 +227,23 @@ static int sensor_dw9807_init_position(struct i2c_client *client,
 	int i;
 	int ret = 0;
 	int init_step = 0;
+	int offset_step = 0;
+	int temp_step = 0;
+	struct fimc_is_from_info *sysfs_finfo;
+
+	fimc_is_sec_get_sysfs_finfo(&sysfs_finfo);
+	temp_step= sysfs_finfo->af_cal_pan - DEF_DW9807_AF_PAN;
+	if(temp_step < 0 ){
+		if(-temp_step > DEF_DW9807_OFFSET_POSITION_MAX)
+			offset_step = -DEF_DW9807_OFFSET_POSITION_MAX;
+		else
+			offset_step = temp_step;
+	}else{
+		if(temp_step > DEF_DW9807_OFFSET_POSITION_MAX)
+			offset_step = DEF_DW9807_OFFSET_POSITION_MAX;
+		else
+			offset_step = temp_step;
+	}
 
 	init_step = sensor_dw9807_valid_check(client);
 
@@ -240,21 +261,21 @@ static int sensor_dw9807_init_position(struct i2c_client *client,
 		sensor_dw9807_print_log(init_step);
 
 	} else {
-		ret = sensor_dw9807_write_position(client, DEF_DW9807_FIRST_POSITION);
+		ret = sensor_dw9807_write_position(client, DEF_DW9807_FIRST_POSITION + offset_step);
 		if (ret < 0)
 			goto p_err;
 
 		mdelay(DEF_DW9807_FIRST_DELAY);
 
-		ret = sensor_dw9807_write_position(client, DEF_DW9807_SECOND_POSITION);
+		ret = sensor_dw9807_write_position(client, DEF_DW9807_SECOND_POSITION + offset_step);
 		if (ret < 0)
 			goto p_err;
 
 		mdelay(DEF_DW9807_SECOND_DELAY);
 
-		actuator->position = DEF_DW9807_SECOND_POSITION;
+		actuator->position = DEF_DW9807_SECOND_POSITION + offset_step;
 
-		dbg_sensor("initial position %d, %d setting\n", DEF_DW9807_FIRST_POSITION, DEF_DW9807_SECOND_POSITION);
+		dbg_sensor("initial position %d, %d setting\n", DEF_DW9807_FIRST_POSITION + offset_step, DEF_DW9807_SECOND_POSITION + offset_step);
 	}
 
 p_err:
@@ -268,6 +289,12 @@ int sensor_dw9807_actuator_init(struct v4l2_subdev *subdev, u32 val)
 	struct fimc_is_caldata_list_dw9807 *cal_data = NULL;
 	struct i2c_client *client = NULL;
 	long cal_addr;
+	
+#ifdef USE_CAMERA_HW_BIG_DATA
+	struct cam_hw_param *hw_param = NULL;
+	struct fimc_is_device_sensor *device = NULL;
+#endif
+	
 #ifdef DEBUG_ACTUATOR_TIME
 	struct timeval st, end;
 	do_gettimeofday(&st);
@@ -296,8 +323,22 @@ int sensor_dw9807_actuator_init(struct v4l2_subdev *subdev, u32 val)
 
 	/* Read into EEPROM data or default setting */
 	ret = sensor_dw9807_init(client, cal_data);
-	if (ret < 0)
+	if (ret < 0){
+#ifdef USE_CAMERA_HW_BIG_DATA
+		device = v4l2_get_subdev_hostdata(subdev);
+		if(device){
+			if(device->position == SENSOR_POSITION_REAR){
+				fimc_is_sec_get_rear_hw_param(&hw_param);
+			}
+			else if(device->position == SENSOR_POSITION_FRONT){
+				fimc_is_sec_get_front_hw_param(&hw_param);
+			}
+		}
+		if(hw_param)
+			hw_param->i2c_af_err_cnt++;
+#endif
 		goto p_err;
+	}
 
 	ret = sensor_dw9807_init_position(client, actuator);
 	if (ret < 0)

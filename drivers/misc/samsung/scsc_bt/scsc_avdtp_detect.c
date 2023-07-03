@@ -179,7 +179,7 @@ static struct scsc_bt_avdtp_detect_hci_connection *scsc_avdtp_detect_find_or_cre
 				/* The element was already present. Free the allocated memory and return the found
 				 * element.
 				 */
-				spin_lock(&avdtp_hci->lock);
+				spin_lock(&recheck_avdtp_hci->lock);
 				spin_unlock(&bt_service.avdtp_detect.lock);
 				kfree(avdtp_hci);
 				avdtp_hci = NULL;
@@ -425,13 +425,16 @@ static bool scsc_bt_avdtp_detect_connection_rxtx(uint16_t hci_connection_handle,
 }
 
 /* Check if there are any SEIDs from the discover that are SINK, and store them as SINK candidates */
-static void scsc_avdtp_detect_check_discover_for_snk_seids(struct scsc_bt_avdtp_detect_hci_connection *avdtp_hci,
-														   const unsigned char *data,
-														   uint16_t length,
-														   bool is_tx)
+static void scsc_avdtp_detect_check_discover_for_snk_seids(uint16_t hci_connection_handle,
+						struct scsc_bt_avdtp_detect_hci_connection *avdtp_hci,
+						const unsigned char *data,
+						uint16_t length,
+						bool is_tx)
 {
 	uint16_t i = 0;
 	uint16_t n_seid_info = (length - HCI_L2CAP_CONF_SEID_OFFSET) / HCI_L2CAP_CONF_SEID_INFO_SIZE;
+	struct scsc_bt_avdtp_detect_snk_seid *seid = NULL;
+
 	/* Remove potential existing SEID infos on the either local or remote */
 	scsc_avdtp_detect_reset(avdtp_hci, false, false, false, false, is_tx, !is_tx);
 	for (i = 0; i < n_seid_info; i++) {
@@ -439,9 +442,16 @@ static void scsc_avdtp_detect_check_discover_for_snk_seids(struct scsc_bt_avdtp_
 		 * For RX look for TSEP equal to SRC, since this would result in our side being SNK */
 		if ((is_tx && HCI_L2CAP_CONF_TSEP(data, i) == HCI_L2CAP_CONF_TSEP_SNK) ||
 			(!is_tx && HCI_L2CAP_CONF_TSEP(data, i) == HCI_L2CAP_CONF_TSEP_SRC)) {
-			struct scsc_bt_avdtp_detect_snk_seid *seid = kmalloc(sizeof(struct scsc_bt_avdtp_detect_snk_seid), GFP_KERNEL);
 
-			if (seid) {
+			if (avdtp_hci)
+				spin_unlock(&avdtp_hci->lock);
+
+			seid = kmalloc(sizeof(struct scsc_bt_avdtp_detect_snk_seid), GFP_KERNEL);
+
+			avdtp_hci = scsc_avdtp_detect_find_or_create_hci_connection(hci_connection_handle,
+											false);
+
+			if (avdtp_hci && seid) {
 				memset(seid, 0, sizeof(struct scsc_bt_avdtp_detect_snk_seid));
 				seid->seid = HCI_L2CAP_CONF_SEID(data, i);
 				SCSC_TAG_DEBUG(BT_H4, "Storing seid=%u as candidate for SINK, aclid: 0x%04X\n",
@@ -457,15 +467,16 @@ static void scsc_avdtp_detect_check_discover_for_snk_seids(struct scsc_bt_avdtp_
 						seid->next = avdtp_hci->tsep_detect.remote_snk_seids;
 					avdtp_hci->tsep_detect.remote_snk_seids = seid;
 				}
-			}
+			} else
+				kfree(seid);
 		}
 	}
 }
 
 /* Check if the set configuration matches any of the SINK candidates */
 static void scsc_avdtp_detect_match_set_conf_seid_with_discover(struct scsc_bt_avdtp_detect_hci_connection *avdtp_hci,
-																const unsigned char *data,
-																bool is_tx)
+								const unsigned char *data,
+								bool is_tx)
 {
 	struct scsc_bt_avdtp_detect_snk_seid *seid_info;
 	uint8_t candidate = 0;
@@ -498,10 +509,11 @@ static void scsc_avdtp_detect_match_set_conf_seid_with_discover(struct scsc_bt_a
 }
 
 /* Detects if the AVDTP signal leads to a state change that the FW should know */
-static uint8_t scsc_avdtp_detect_signaling_rxtx(struct scsc_bt_avdtp_detect_hci_connection *avdtp_hci,
-												const unsigned char *data,
-												uint16_t length,
-												bool is_tx)
+static uint8_t scsc_avdtp_detect_signaling_rxtx(uint16_t hci_connection_handle,
+						struct scsc_bt_avdtp_detect_hci_connection *avdtp_hci,
+						const unsigned char *data,
+						uint16_t length,
+						bool is_tx)
 {
 	u8 signal_id = AVDTP_SIGNAL_ID(data);
 	u8 message_type = AVDTP_MESSAGE_TYPE(data);
@@ -518,7 +530,8 @@ static uint8_t scsc_avdtp_detect_signaling_rxtx(struct scsc_bt_avdtp_detect_hci_
 			return AVDTP_DETECT_SIGNALING_INACTIVE;
 		else if (signal_id == AVDTP_SIGNAL_ID_DISCOVER) {
 			/* Check the discover signal for potential SNK candidate SEIDs */
-			scsc_avdtp_detect_check_discover_for_snk_seids(avdtp_hci, data, length, is_tx);
+			scsc_avdtp_detect_check_discover_for_snk_seids(hci_connection_handle,
+									avdtp_hci, data, length, is_tx);
 		} else if (signal_id == AVDTP_SIGNAL_ID_SET_CONF) {
 			/* Check if the SEID from set config matches a SNK SEID */
 			scsc_avdtp_detect_match_set_conf_seid_with_discover(avdtp_hci, data, is_tx);
@@ -587,7 +600,8 @@ void scsc_avdtp_detect_rxtx(u16 hci_connection_handle, const unsigned char *data
 				(!is_tx && avdtp_hci->signal.src_cid != 0 &&
 				 avdtp_hci->signal.src_cid == HCI_L2CAP_RX_CID((const unsigned char *)(data))))) {
 				/* Signaling has been detected on the given CID and hci_connection_handle */
-				uint8_t result = scsc_avdtp_detect_signaling_rxtx(avdtp_hci, data, length, is_tx);
+				uint8_t result = scsc_avdtp_detect_signaling_rxtx(hci_connection_handle,
+									avdtp_hci, data, length, is_tx);
 
 				if (result != AVDTP_DETECT_SIGNALING_IGNORE) {
 					avdtp_gen_bg_int = true;
@@ -759,20 +773,35 @@ bool scsc_avdtp_detect_reset_connection_handle(uint16_t hci_connection_handle)
 
 void scsc_avdtp_detect_exit(void)
 {
-	struct scsc_bt_avdtp_detect_hci_connection *avdtp_hci;
+	struct scsc_bt_avdtp_detect_hci_connection *head;
+
+	/* Lock the detection list and find the head */
 	spin_lock(&bt_service.avdtp_detect.lock);
+	head = bt_service.avdtp_detect.connections;
 
-	avdtp_hci = bt_service.avdtp_detect.connections;
-	while (avdtp_hci) {
-		struct scsc_bt_avdtp_detect_hci_connection *next;
+	while (head) {
+		spin_lock(&head->lock);
+		/* Clear the remote and local seids lists on head */
+		scsc_avdtp_detect_reset(head, false, false, false, false, true, true);
 
-		spin_lock(&avdtp_hci->lock);
-		next = avdtp_hci->next;
-		scsc_avdtp_detect_reset(avdtp_hci, true, true, true, true, true, true);
-		/* No need to unlock since the element is removed from the reset function */
-		avdtp_hci = next;
+		/* Update the head to bypass the current element */
+		bt_service.avdtp_detect.connections = head->next;
+
+		spin_unlock(&bt_service.avdtp_detect.lock);
+
+		/* Free the used memory */
+		spin_unlock(&head->lock);
+		kfree(head);
+		head = NULL;
+
+		/* Update the head variable */
+		spin_lock(&bt_service.avdtp_detect.lock);
+		head = bt_service.avdtp_detect.connections;
 	}
 
 	spin_unlock(&bt_service.avdtp_detect.lock);
-	memset(&bt_service.avdtp_detect, 0, sizeof(bt_service.avdtp_detect));
+
+	/* The avdtp_detect has now been restored and doesn't contain other information
+	 * than its two locks
+	 */
 }

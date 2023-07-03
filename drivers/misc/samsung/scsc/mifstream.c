@@ -178,3 +178,4 @@ void mif_stream_log(const struct mif_stream *stream, enum scsc_log_level log_lev
 {
 	cpacketbuffer_log(&stream->buffer, log_level);
 }
+

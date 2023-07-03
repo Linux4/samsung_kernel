@@ -121,7 +121,7 @@ u32 mbox_extract_value(enum mcu_ipc_region id, u32 mbx_num, u32 mask, u32 pos)
 	else
 		return 0;
 }
-EXPORT_SYMBOL(mbox_update_value);
+EXPORT_SYMBOL(mbox_extract_value);
 
 void mbox_update_value(enum mcu_ipc_region id, u32 mbx_num,
 				u32 msg, u32 mask, u32 pos)

@@ -128,6 +128,12 @@ struct fimc_is_flash_data {
 	u32				movie_current;
 	u32				torch_current;
 	u32				factory_current;
+	
+	u32				torch_level1;
+	u32				torch_level2;
+	u32				torch_level3;
+	u32				torch_level4;
+	u32				torch_level5;
 #endif
 };
 

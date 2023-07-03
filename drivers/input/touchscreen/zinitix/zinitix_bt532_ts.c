@@ -194,7 +194,7 @@ enum key_event {
 #define MAX_TRAW_DATA_SZ	\
 	(MAX_RAW_DATA_SZ + 4*MAX_SUPPORTED_FINGER_NUM + 2)
 
-#define RAWDATA_DELAY_FOR_HOST		100
+#define RAWDATA_DELAY_FOR_HOST		10000
 
 #ifdef PAT_CONTROL
 /*------------------------------
@@ -2342,7 +2342,7 @@ static bool init_touch(struct bt532_ts_info *info)
 #endif
 	if (!mini_init_touch(info))
 		goto fail_init;
-
+#ifdef PAT_CONTROL
 	get_tsp_nvm_data(info, PAT_TSP_TEST_DATA, (u8 *)data, 2);
 	info->test_result.data[0] = data[0];
 
@@ -2353,6 +2353,7 @@ static bool init_touch(struct bt532_ts_info *info)
 	input_info(true, &info->client->dev, "%s: tsp_test=%x pat_function=%d afe_base=%04X cal_count=%X tune_fix_ver=%04X\n", 
 					__func__, info->test_result.data[0], info->pdata->pat_function, info->pdata->afe_base, 
 					info->cap_info.cal_count, info->cap_info.tune_fix_ver);
+#endif
 	return true;
 fail_init:
 	return false;
@@ -2415,7 +2416,9 @@ static bool mini_init_touch(struct bt532_ts_info *info)
 
 	if((pdata->support_lpm_mode)&&(info->spay_enable||info->aod_enable)){
 		if(info->sleep_mode){
+#if ESD_TIMER_INTERVAL
 			esd_timer_stop(info);
+#endif
 			write_cmd(info->client, BT532_SLEEP_CMD);
 			input_info(true, &misc_info->client->dev, "%s, sleep mode\n", __func__);
 		}
@@ -2645,8 +2648,12 @@ static irqreturn_t bt532_touch_work(int irq, void *data)
 		for (i = 0; i < info->cap_info.multi_fingers; i++) {
 			prev_sub_status = info->reported_touch_info.coord[i].sub_status;
 			if (zinitix_bit_test(prev_sub_status, SUB_BIT_EXIST)) {
+#ifdef PAT_CONTROL
 				input_info(true, &client->dev, "Finger [%02d] up mc=%d (%d) (%x,P%02XT%04X)\n", i, info->move_count[i], __LINE__,
 						info->test_result.data[0], info->cap_info.cal_count, info->cap_info.tune_fix_ver);
+#else
+				input_info(true, &client->dev, "Finger [%02d] up mc=%d (%d)\n", i, info->move_count[i], __LINE__);
+#endif
 				if(info->finger_cnt1 > 0)
 					info->finger_cnt1--;
 				if (info->finger_cnt1 == 0)
@@ -2778,8 +2785,12 @@ static irqreturn_t bt532_touch_work(int irq, void *data)
 			input_report_key(info->input_dev, BTN_TOUCH, 1);
 		} else if (zinitix_bit_test(sub_status, SUB_BIT_UP)||
 			zinitix_bit_test(prev_sub_status, SUB_BIT_EXIST)) {
+#ifdef PAT_CONTROL
 			input_info(true, &client->dev, "Finger [%02d] up mc=%d (%d) (%x,P%02XT%04X)\n", i, info->move_count[i], __LINE__,
 						info->test_result.data[0], info->cap_info.cal_count, info->cap_info.tune_fix_ver);
+#else
+			input_info(true, &client->dev, "Finger [%02d] up mc=%d (%d)\n", i, info->move_count[i], __LINE__);
+#endif
 			if(info->finger_cnt1 > 0)
 				info->finger_cnt1--;
 			if (info->finger_cnt1 == 0)
@@ -3644,6 +3655,15 @@ static void fw_update(void *device_data)
 	int ret;
 
 	set_default_result(info);
+#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	if (info->factory_info->cmd_param[0] == 1) {
+		snprintf(result, sizeof(result) , "%s", "OK");
+		set_cmd_result(info, result, strnlen(result, sizeof(result)));
+		info->factory_info->cmd_state = 2;
+		input_info(true, &client->dev, "%s: user_ship, success\n", __func__);
+		return;
+	}
+#endif
 
 	switch (info->factory_info->cmd_param[0]) {
 	case BUILT_IN:
@@ -5538,8 +5558,8 @@ F1 : not support mis cal concept
 F0 : initial value in function
 00 : pass
 */
-#define DEF_MIS_CAL_SPEC_MIN 70
-#define DEF_MIS_CAL_SPEC_MAX 130
+#define DEF_MIS_CAL_SPEC_MIN 80
+#define DEF_MIS_CAL_SPEC_MAX 120
 static void run_mis_cal_read(void * device_data)
 {
 	struct bt532_ts_info *info = (struct bt532_ts_info *)device_data;
@@ -6622,7 +6642,14 @@ static ssize_t store_cmd(struct device *dev, struct device_attribute
 	int param_cnt = 0;
 
 	if (strlen(buf) >= TSP_CMD_STR_LEN) {
-		input_err(true, &client->dev, "%s: cmd length is over (%s,%d)!!\n", __func__, buf, (int)strlen(buf));
+		pr_err("%s: cmd length(strlen(buf)) is over (%d,%s)!!\n",
+				__func__, (int)strlen(buf), buf);
+		goto err_out;
+	}
+
+	if (count >= (unsigned int)TSP_CMD_STR_LEN) {
+		pr_err("%s: cmd length(count) is over (%d,%s)!!\n",
+				__func__, (unsigned int)count, buf);
 		goto err_out;
 	}
 
@@ -7661,7 +7688,6 @@ static int bt532_ts_probe(struct i2c_client *client,
 	struct i2c_adapter *adapter = to_i2c_adapter(client->dev.parent);
 	struct bt532_ts_platform_data *pdata = client->dev.platform_data;
 	struct bt532_ts_info *info;
-	struct input_dev *input_dev;
 	struct device_node *np = client->dev.of_node;
 	int ret = 0;
 	int i;
@@ -7712,8 +7738,8 @@ static int bt532_ts_probe(struct i2c_client *client,
 	info->client = client;
 	info->pdata = pdata;
 
-	input_dev = input_allocate_device();
-	if (!input_dev) {
+	info->input_dev = input_allocate_device();
+	if (!info->input_dev) {
 		input_err(true, &client->dev, "Failed to allocate input device\n");
 		ret = -ENOMEM;
 		goto err_alloc;
@@ -7726,7 +7752,6 @@ static int bt532_ts_probe(struct i2c_client *client,
 		goto err_get_pinctrl;
 	}
 
-	info->input_dev = input_dev;
 	info->work_state = PROBE;
 
 	// power on
@@ -7788,13 +7813,13 @@ static int bt532_ts_probe(struct i2c_client *client,
 	}
 	snprintf(info->phys, sizeof(info->phys),
 		"%s/input0", dev_name(&client->dev));
-	input_dev->name = "sec_touchscreen";
-	input_dev->id.bustype = BUS_I2C;
-/*	input_dev->id.vendor = 0x0001; */
-	input_dev->phys = info->phys;
-/*	input_dev->id.product = 0x0002; */
-/*	input_dev->id.version = 0x0100; */
-	input_dev->dev.parent = &client->dev;
+	info->input_dev->name = "sec_touchscreen";
+	info->input_dev->id.bustype = BUS_I2C;
+/*	info->input_dev->id.vendor = 0x0001; */
+	info->input_dev->phys = info->phys;
+/*	info->input_dev->id.product = 0x0002; */
+/*	info->input_dev->id.version = 0x0100; */
+	info->input_dev->dev.parent = &client->dev;
 
 #ifdef GLOVE_MODE
 	input_set_capability(info->input_dev, EV_SW, SW_GLOVE);
@@ -7890,8 +7915,8 @@ static int bt532_ts_probe(struct i2c_client *client,
 #endif
 
 #ifdef CONFIG_INPUT_ENABLED
-	input_dev->open = bt532_ts_open;
-	input_dev->close = bt532_ts_close;
+	info->input_dev->open = bt532_ts_open;
+	info->input_dev->close = bt532_ts_close;
 #endif
 
 #if defined(CONFIG_PM_RUNTIME)

@@ -591,6 +591,12 @@ static void exynos_usbdrd_set_hstune(struct exynos_usbdrd_phy *phy_drd,
 				hs_tune->compdis	= 0x7;
 			}
 			break;
+		 case TYPE_EXYNOS7570:
+                        hs_tune->compdis        = 0x7;
+			printk("usb: lucky29.park exynos_usbdrd_set_hstune %x \n", hs_tune->compdis);
+
+                        break;
+
 		default:
 			break;
 		}

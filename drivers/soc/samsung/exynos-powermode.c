@@ -503,15 +503,8 @@ int enter_c2(unsigned int cpu, int index)
 	}
 
 	if (is_sicd_available(cpu)) {
-		if (check_cluster_idle_state(cpu)) {
-#if defined(CONFIG_SOC_EXYNOS8890)
-			exynos_prepare_sys_powerdown(SYS_SICD_CPD, false);
-			index = PSCI_SYSTEM_IDLE_CLUSTER_SLEEP;
-#endif
-		} else {
-			exynos_prepare_sys_powerdown(SYS_SICD, false);
-			index = PSCI_SYSTEM_IDLE;
-		}
+		exynos_prepare_sys_powerdown(SYS_SICD, false);
+		index = PSCI_SYSTEM_IDLE;
 
 		s3c24xx_serial_fifo_wait();
 		powermode_info->sicd_entered = SYS_SICD;
@@ -741,11 +734,10 @@ void exynos_prepare_sys_powerdown(enum sys_powerdown mode, bool is_suspend)
 	cal_pm_enter(mode);
 
 	switch (mode) {
-#if !defined(CONFIG_SOC_EXYNOS7870) && !defined(CONFIG_SOC_EXYNOS7570)
-	case SYS_SICD_AUD:
+	case SYS_SICD:
 		exynos_pm_sicd_enter();
 		break;
-#endif
+
 	case SYS_AFTR:
 #ifdef CONFIG_PMUCAL_MOD
 		cal_cpu_disable(cpu);
@@ -771,11 +763,10 @@ void exynos_wakeup_sys_powerdown(enum sys_powerdown mode, bool early_wakeup)
 		cal_pm_exit(mode);
 
 	switch (mode) {
-#if !defined(CONFIG_SOC_EXYNOS7870) && !defined(CONFIG_SOC_EXYNOS7570)
-	case SYS_SICD_AUD:
+	case SYS_SICD:
 		exynos_pm_sicd_exit();
 		break;
-#endif
+
 	case SYS_AFTR:
 		if (early_wakeup)
 #ifdef CONFIG_PMUCAL_MOD

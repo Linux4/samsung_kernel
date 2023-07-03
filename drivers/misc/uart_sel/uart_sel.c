@@ -32,7 +32,9 @@
 #endif
 #endif
 
+#ifdef CONFIG_MCU_IPC
 #include <linux/mcu_ipc.h>
+#endif
 #include <linux/uart_sel.h>
 
 struct uart_sel_data *switch_data = NULL;
@@ -110,6 +112,7 @@ static void uart_dir_work(void)
 	}
 #endif
 
+#ifdef CONFIG_MCU_IPC
 	if (info_value != mbox_extract_value(MCU_CP, switch_data->mbx_ap_united_status,
 				switch_data->sbi_uart_noti_mask, switch_data->sbi_uart_noti_pos)) {
 		pr_err("%s: change uart state to %s\n", __func__,
@@ -121,10 +124,12 @@ static void uart_dir_work(void)
 			switch_data->sbi_uart_noti_mask, switch_data->sbi_uart_noti_pos))
 			mbox_set_interrupt(MCU_CP, switch_data->int_uart_noti);
 	}
+#endif
 }
 
 void cp_recheck_uart_dir(void)
 {
+#ifdef CONFIG_MCU_IPC
 	u32 mbx_uart_noti;
 
 	mbx_uart_noti = mbox_extract_value(MCU_CP, switch_data->mbx_ap_united_status,
@@ -133,6 +138,7 @@ void cp_recheck_uart_dir(void)
 		pr_err("Uart notifier data is not matched with mbox!\n");
 
 	uart_dir_work();
+#endif
 }
 EXPORT_SYMBOL_GPL(cp_recheck_uart_dir);
 

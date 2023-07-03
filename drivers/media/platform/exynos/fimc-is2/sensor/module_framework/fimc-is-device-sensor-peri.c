@@ -408,6 +408,7 @@ void fimc_is_sensor_deinit_sensor_thread(struct fimc_is_device_sensor_peri *sens
 			err("kthread_stop fail");
 
 		sensor_peri->sensor_task = NULL;
+		info("%s: \n", __func__);
 	}
 }
 
@@ -445,6 +446,7 @@ void fimc_is_sensor_deinit_mode_change_thread(struct fimc_is_device_sensor_peri 
 			err("kthread_stop fail");
 
 		sensor_peri->mode_change_task = NULL;
+		info("%s: \n", __func__);
 	}
 }
 

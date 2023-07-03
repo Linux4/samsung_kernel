@@ -12,4 +12,7 @@ bool fw_parse_m4_panic_record(u32 *m4_panic_record, u32 *m4_panic_record_length)
 
 bool fw_parse_get_r4_sympathetic_panic_flag(u32 *r4_panic_record);
 bool fw_parse_get_m4_sympathetic_panic_flag(u32 *m4_panic_record);
+
+int panic_record_dump_buffer(char *processor, u32 *panic_record,
+			     u32 panic_record_length, char *buffer, size_t blen);
 #endif /* FW_PANIC_RECORD_H__ */

@@ -32,6 +32,7 @@
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
 #include <linux/module.h>
+#include <linux/exynos-ss.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/regulator.h>
@@ -2615,6 +2616,10 @@ static int _regulator_do_set_voltage(struct regulator_dev *rdev,
 			delay = 0;
 		}
 
+		exynos_ss_regulator((char *)rdev_get_name(rdev), rdev->desc->vsel_reg,
+			(rdev->desc->ops->list_voltage) ?
+				rdev->desc->ops->list_voltage(rdev, selector) : selector, 4);
+
 		/* Insert any necessary delays */
 		if (delay >= 1000) {
 			mdelay(delay / 1000);
@@ -2622,6 +2627,10 @@ static int _regulator_do_set_voltage(struct regulator_dev *rdev,
 		} else if (delay) {
 			udelay(delay);
 		}
+
+		exynos_ss_regulator((char *)rdev_get_name(rdev), rdev->desc->vsel_reg,
+			(rdev->desc->ops->list_voltage) ?
+				rdev->desc->ops->list_voltage(rdev, selector) : selector, 5);
 	}
 
 	if (ret == 0 && best_val >= 0) {

@@ -512,9 +512,14 @@ static int misc_release(struct inode *inode, struct file *filp)
 	struct io_device *iod = (struct io_device *)filp->private_data;
 	struct modem_shared *msd = iod->msd;
 	struct link_device *ld;
+	int i;
 
-	if (atomic_dec_and_test(&iod->opened))
+	if (atomic_dec_and_test(&iod->opened)) {
 		skb_queue_purge(&iod->sk_rx_q);
+
+		for (i = 0; i < NUM_SIPC_MULTI_FRAME_IDS; i++)
+			skb_queue_purge(&iod->sk_multi_q[i]);
+	}
 
 	list_for_each_entry(ld, &msd->link_dev_list, list) {
 		if (IS_CONNECTED(iod, ld) && ld->terminate_comm)
@@ -1444,7 +1449,6 @@ int sipc5_init_io_device(struct io_device *iod)
 
 		iod->miscdev.minor = MISC_DYNAMIC_MINOR;
 		iod->miscdev.name = iod->name;
-		iod->miscdev.fops = &misc_io_fops;
 
 		ret = misc_register(&iod->miscdev);
 		if (ret)
@@ -1478,5 +1482,37 @@ int sipc5_init_io_device(struct io_device *iod)
 		skb_queue_head_init(&iod->sk_multi_q[i]);
 
 	return ret;
+}
+
+void sipc5_deinit_io_device(struct io_device *iod)
+{
+	mif_err("%s: io_typ=%d\n", iod->name, iod->io_typ);
+
+	wake_lock_destroy(&iod->wakelock);
+	
+	/* De-register misc or net device */
+	switch (iod->io_typ) {
+	case IODEV_MISC:
+		if (iod->id == SIPC_CH_ID_CPLOG1) {
+			unregister_netdev(iod->ndev);
+			free_netdev(iod->ndev);
+		}
+
+		misc_deregister(&iod->miscdev);
+		break;
+		
+	case IODEV_NET:
+		unregister_netdev(iod->ndev);
+		free_netdev(iod->ndev);
+		break;
+
+	case IODEV_DUMMY:
+		device_remove_file(iod->miscdev.this_device, &attr_waketime);
+		device_remove_file(iod->miscdev.this_device, &attr_loopback);
+		device_remove_file(iod->miscdev.this_device, &attr_txlink);
+		
+		misc_deregister(&iod->miscdev);
+		break;
+	}
 }
 

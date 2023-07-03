@@ -11,6 +11,7 @@
 #include <linux/delay.h>
 #include <linux/version.h>
 #include <linux/kmod.h>
+#include <linux/notifier.h>
 #include "scsc_mx_impl.h"
 #include "miframman.h"
 #include "mifmboxman.h"
@@ -32,6 +33,9 @@
 #include <linux/fs.h>
 
 #include <scsc/scsc_logring.h>
+#ifdef CONFIG_SCSC_WLBTD
+#include "scsc_wlbtd.h"
+#endif
 
 #define STRING_BUFFER_MAX_LENGTH 128
 #define NUMBER_OF_STRING_ARGS 1
@@ -63,6 +67,15 @@
 
 #define SCSC_R4_V2_MINOR_52 52
 #define SCSC_R4_V2_MINOR_53 53
+
+static char panic_record_dump[PANIC_RECORD_DUMP_BUFFER_SZ];
+static BLOCKING_NOTIFIER_HEAD(firmware_chain);
+
+/**
+ * This will be returned as fw version ONLY if Maxwell
+ * was never found or was unloaded.
+ */
+static char saved_fw_build_id[FW_BUILD_ID_SZ] = "Maxwell WLBT unavailable";
 
 static bool allow_unidentified_firmware;
 module_param(allow_unidentified_firmware, bool, S_IRUGO | S_IWUSR);
@@ -118,7 +131,7 @@ static bool disable_error_handling;
 module_param(disable_error_handling, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(disable_error_handling, "Disable error handling");
 
-static bool disable_recovery_handling = 0;
+static bool disable_recovery_handling = 1;
 module_param(disable_recovery_handling, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(disable_recovery_handling, "Disable recovery handling");
 
@@ -179,16 +192,22 @@ static int wait_for_mm_msg_start_ind(struct mxman *mxman)
 	return 0;
 }
 
+#ifndef CONFIG_SCSC_WLBTD
 static int coredump_helper(void)
 {
 	int r;
 	int i;
+	static char mdbin[128];
 
-	slsi_kic_system_event(slsi_kic_system_event_category_recovery,
-			      slsi_kic_system_events_coredump_in_progress, GFP_KERNEL);
+	/* Determine path to moredump helper script */
+	r = mx140_exe_path(NULL, mdbin, sizeof(mdbin), "moredump");
+	if (r) {
+		SCSC_TAG_ERR(MXMAN, "moredump path error\n");
+		return r;
+	}
 
 	for (i = 0; i < 20; i++) {
-		r = _mx_exec("/system/bin/moredump", UMH_WAIT_PROC);
+		r = _mx_exec(mdbin, UMH_WAIT_PROC);
 		if (r != -EBUSY)
 			break;
 		/* If the usermode helper fails with -EBUSY, the userspace is
@@ -202,14 +221,9 @@ static int coredump_helper(void)
 	if (r > 0xffL)
 		SCSC_TAG_INFO(MXMAN, "moredump.bin exit(%ld), check syslog\n", (r & 0xff00L) >> 8);
 
-	if (r >= 0) {
-		slsi_kic_system_event(slsi_kic_system_event_category_recovery,
-			slsi_kic_system_events_coredump_done, GFP_KERNEL);
-	}
-
-
 	return r;
 }
+#endif
 
 static int send_mm_msg_stop_blocking(struct mxman *mxman)
 {
@@ -225,7 +239,7 @@ static void write_m_test_fw_version_file(struct mxman *mxman)
 {
 	struct file *fp = NULL;
 	char *filepath = "/data/misc/conn/.wifiver.info";
-	char buf[80];
+	char buf[256];
 	char *build_id = 0;
 
 	if (mxman)
@@ -240,9 +254,15 @@ static void write_m_test_fw_version_file(struct mxman *mxman)
 		pr_err("%s doesn't exist.\n", filepath);
 		return;
 	}
+#ifdef CONFIG_SCSC_BUILD_TYPE
+	snprintf(buf, sizeof(buf), "drv_ver: %d.%d.%d (build type: %s) N (f/w: %s)\n",
+		 SCSC_RELEASE_PRODUCT, SCSC_RELEASE_ITERATION, SCSC_RELEASE_CANDIDATE, CONFIG_SCSC_BUILD_TYPE,
+		 build_id ? build_id : "unknown");
+#else
 	snprintf(buf, sizeof(buf), "drv_ver: %d.%d.%d N (f/w: %s)\n",
 		 SCSC_RELEASE_PRODUCT, SCSC_RELEASE_ITERATION, SCSC_RELEASE_CANDIDATE,
 		 build_id ? build_id : "unknown");
+#endif
 
 	kernel_write(fp, buf, strlen(buf), 0);
 
@@ -262,6 +282,11 @@ static void mxman_print_versions(struct mxman *mxman)
 		((mxman->rf_hw_ver >> 12) & 0xfU), ((mxman->rf_hw_ver >> 8) & 0xfU));
 
 	SCSC_TAG_INFO(MXMAN, "WLBT FW: %s\n", mxman->fw_build_id);
+  SCSC_TAG_INFO(MXMAN, "WLBT Driver: %d.%d.%d.%d\n",
+		SCSC_RELEASE_PRODUCT, SCSC_RELEASE_ITERATION, SCSC_RELEASE_CANDIDATE, SCSC_RELEASE_POINT);
+#ifdef CONFIG_SCSC_BUILD_TYPE
+	SCSC_TAG_INFO(MXMAN, "WLBT Driver Build Type: %s\n", CONFIG_SCSC_BUILD_TYPE);
+#endif
 
 	/* write /data/.wifiver.info */
 	write_m_test_fw_version_file(mxman);
@@ -626,6 +651,8 @@ static int fw_init(struct mxman *mxman, void *start_dram, size_t size_dram, bool
 
 			(void)snprintf(mxman->fw_build_id, sizeof(mxman->fw_build_id), "%s", build_id);
 			SCSC_TAG_INFO(MXMAN, "Firmware BUILD_ID: %s\n", mxman->fw_build_id);
+			memcpy(saved_fw_build_id, mxman->fw_build_id,
+			       sizeof(saved_fw_build_id));
 
 			(void) snprintf(kic_info.ver_str,
 					min(sizeof(mxman->fw_build_id), sizeof(kic_info.ver_str)),
@@ -765,12 +792,13 @@ static int mxman_start(struct mxman *mxman)
 	} else {
 		msleep(WAIT_FOR_FW_TO_START_DELAY_MS);
 	}
+
 	return 0;
 }
 
 static bool is_bug_on_enabled(struct scsc_mx *mx)
 {
-#define MX140_MEMDUMP_INFO_FILE          "/data/misc/conn/.memdump.info"
+#define MX140_MEMDUMP_INFO_FILE          "/data/.memdump.info"
 	const struct firmware *firm;
 	int r;
 	bool bug_on_enabled = false;
@@ -943,6 +971,8 @@ static void mxman_failure_work(struct work_struct *work)
 	slsi_kic_system_event(slsi_kic_system_event_category_error,
 			      slsi_kic_system_events_subsystem_crashed, GFP_KERNEL);
 
+	blocking_notifier_call_chain(&firmware_chain, SCSC_FW_EVENT_FAILURE, NULL);
+
 	SCSC_TAG_INFO(MXMAN, "Complete mm_msg_start_ind_completion\n");
 	complete(&mxman->mm_msg_start_ind_completion);
 	mutex_lock(&mxman->mxman_mutex);
@@ -954,6 +984,13 @@ static void mxman_failure_work(struct work_struct *work)
 		mutex_unlock(&mxman->mxman_mutex);
 		return;
 	}
+
+	/**
+	 * Set error on mxlog and unregister mxlog msg-handlers.
+	 * mxlog ISR and kthread will ignore further messages
+	 * but mxlog_thread is NOT stopped here.
+	 */
+	mxlog_transport_set_error(scsc_mx_get_mxlog_transport(mx));
 	mxlog_release(scsc_mx_get_mxlog(mx));
 	/* unregister channel handler */
 	mxmgmt_transport_register_channel_handler(scsc_mx_get_mxmgmt_transport(mx), MMTRANS_CHAN_ID_MAXWELL_MANAGEMENT,
@@ -983,10 +1020,20 @@ static void mxman_failure_work(struct work_struct *work)
 		mxman->last_panic_time = local_clock();
 		process_panic_record(mxman);
 		SCSC_TAG_INFO(MXMAN, "Trying to schedule coredump\n");
-		SCSC_TAG_INFO(MXMAN, "scsc_release %d.%d.%d N\n",
+#ifdef CONFIG_SCSC_BUILD_TYPE
+		SCSC_TAG_INFO(MXMAN, "scsc_release %d.%d.%d.%d, Kernel build type: %s\n",
 			SCSC_RELEASE_PRODUCT,
 			SCSC_RELEASE_ITERATION,
-			SCSC_RELEASE_CANDIDATE);
+			SCSC_RELEASE_CANDIDATE,
+			SCSC_RELEASE_POINT,
+			CONFIG_SCSC_BUILD_TYPE);
+#else
+		SCSC_TAG_INFO(MXMAN, "scsc_release %d.%d.%d.%d\n",
+			SCSC_RELEASE_PRODUCT,
+			SCSC_RELEASE_ITERATION,
+			SCSC_RELEASE_CANDIDATE,
+			SCSC_RELEASE_POINT);
+#endif
 
 		/* schedule coredump and wait for it to finish */
 		if (disable_auto_coredump) {
@@ -1005,6 +1052,8 @@ static void mxman_failure_work(struct work_struct *work)
 				      MAX_UHELP_TMO_MS);
 			/* Waits for the usermode_helper subsytem to be re-enabled. */
 			if (usermodehelper_read_lock_wait(msecs_to_jiffies(MAX_UHELP_TMO_MS))) {
+				int used, r;
+
 				/**
 				 * Release immediately the rwsem on usermode_helper
 				 * enabled since we anyway already hold a wakelock here
@@ -1016,7 +1065,35 @@ static void mxman_failure_work(struct work_struct *work)
 				 */
 				mutex_lock(&mxman->mxman_mutex);
 				SCSC_TAG_INFO(MXMAN, "Invoking coredump helper\n");
-				(void)coredump_helper();
+
+				slsi_kic_system_event(slsi_kic_system_event_category_recovery,
+					slsi_kic_system_events_coredump_in_progress,
+					GFP_KERNEL);
+#ifdef CONFIG_SCSC_WLBTD
+				r = coredump_wlbtd();
+#else
+				r = coredump_helper();
+#endif
+				if (r >= 0) {
+					slsi_kic_system_event(slsi_kic_system_event_category_recovery,
+						slsi_kic_system_events_coredump_done, GFP_KERNEL);
+				}
+
+				used = snprintf(panic_record_dump,
+						PANIC_RECORD_DUMP_BUFFER_SZ,
+						"RF HW Ver: 0x%X\n", mxman->rf_hw_ver);
+				used += snprintf(panic_record_dump + used,
+						 PANIC_RECORD_DUMP_BUFFER_SZ - used,
+						 "SCSC Panic Code:: 0x%X\n", mxman->scsc_panic_code);
+				used += snprintf(panic_record_dump + used,
+						 PANIC_RECORD_DUMP_BUFFER_SZ - used,
+						 "SCSC Last Panic Time:: %lld\n", mxman->last_panic_time);
+				/**
+				 * HERE TBD panic_record_dump_buffer() mxman->last_panic_rec_sz is missing
+				 */
+				blocking_notifier_call_chain(&firmware_chain,
+							     SCSC_FW_EVENT_MOREDUMP_COMPLETE,
+							     &panic_record_dump);
 			} else {
 				SCSC_TAG_INFO(MXMAN,
 					      "timed out waiting for usermode_helper. Skipping coredump.\n");
@@ -1026,8 +1103,8 @@ static void mxman_failure_work(struct work_struct *work)
 
 		if (is_bug_on_enabled(mx)) {
 			SCSC_TAG_INFO(MX_FILE, "Deliberately panic the kernel due to WLBT firmware failure!\n");
-			SCSC_TAG_INFO(MX_FILE, "calling WARN_ON(1)\n");
-			WARN_ON(1);
+			SCSC_TAG_INFO(MX_FILE, "calling BUG_ON(1)\n");
+			BUG_ON(1);
 		}
 		/* Clean up the MIF following error handling */
 		if (mif->mif_cleanup && disable_recovery_handling)
@@ -1126,8 +1203,10 @@ static int __mxman_open(struct mxman *mxman)
 	mx140_basedir_file(mxman->mx);
 
 	mutex_lock(&mxman->mxman_mutex);
+	if (mxman->scsc_panic_code) {
 	SCSC_TAG_INFO(MXMAN, "Previously recorded crash panic code: scsc_panic_code=0x%x\n", mxman->scsc_panic_code);
 	print_panic_code(mxman->scsc_panic_code);
+	}
 
 	srvman = scsc_mx_get_srvman(mxman->mx);
 	if (srvman && srvman->error) {
@@ -1158,8 +1237,20 @@ static int __mxman_open(struct mxman *mxman)
 		mxman->users++;
 		mxman->mxman_state = MXMAN_STATE_STARTED;
 		mutex_unlock(&mxman->mxman_mutex);
-		if (!disable_logger)
-			_mx_exec("/system/bin/mx_logger.sh", UMH_WAIT_EXEC);
+
+		/* Start mxlogger */
+		if (!disable_logger) {
+			static char mxlbin[128];
+
+			r = mx140_exe_path(NULL, mxlbin, sizeof(mxlbin), "mx_logger.sh");
+			if (r) {
+				/* Not found */
+				SCSC_TAG_ERR(MXMAN, "mx_logger.sh path error\n");
+			} else {
+				/* Launch it */
+				_mx_exec(mxlbin, UMH_WAIT_EXEC);
+			}
+		}
 		return 0;
 	}
 	WARN_ON(mxman->mxman_state != MXMAN_STATE_STARTED && mxman->mxman_state != MXMAN_STATE_STOPPED);
@@ -1333,6 +1424,8 @@ void mxman_init(struct mxman *mxman, struct scsc_mx *mx)
 	/* set the initial state */
 	mxman->mxman_state = MXMAN_STATE_STOPPED;
 	(void)snprintf(mxman->fw_build_id, sizeof(mxman->fw_build_id), "unknown");
+	memcpy(saved_fw_build_id, mxman->fw_build_id,
+	       sizeof(saved_fw_build_id));
 	mxproc_create_info_proc_dir(&mxman->mxproc, mxman);
 }
 
@@ -1451,7 +1544,10 @@ static void _mx_exec_cleanup(struct subprocess_info *sp_info)
  */
 static int _mx_exec(char *prog, int wait_exec)
 {
-	static char const      *envp[] = { "HOME=/", "PATH=/system/bin:/sbin:", NULL };
+	static char const      *envp_v[] = { "HOME=/", "PATH=/vendor/bin:/sbin:", NULL }; /* O */
+	static char const      *envp_s[] = { "HOME=/", "PATH=/system/bin:/sbin:", NULL }; /* N */
+	char **envp;
+
 	const int              exec_string_buffer_len = STRING_BUFFER_MAX_LENGTH;
 	const int              exec_string_args = NUMBER_OF_STRING_ARGS;
 	char                   **argv;
@@ -1481,8 +1577,14 @@ static int _mx_exec(char *prog, int wait_exec)
 		return -E2BIG;
 	}
 
+	/* Set path specifically for vendor for selinux reasons */
+	if (!strncmp(prog, "/vendor/bin", sizeof("/vendor/bin") - 1))
+		envp = (char **)envp_v;
+	else
+		envp = (char **)envp_s;
+
 	/* Allocate sp_info and initialise pointers to argv and envp. */
-	sp_info = call_usermodehelper_setup(argv[0], argv, (char **)envp, GFP_KERNEL, NULL, _mx_exec_cleanup, NULL);
+	sp_info = call_usermodehelper_setup(argv[0], argv, envp, GFP_KERNEL, NULL, _mx_exec_cleanup, NULL);
 
 	if (!sp_info) {
 		pr_err("%s: call_usermodehelper_setup() failed\n", __func__);
@@ -1513,6 +1615,56 @@ static int _mx_exec(char *prog, int wait_exec)
 
 int mx140_log_dump(void)
 {
-	return _mx_exec("/system/bin/mx_logger_dump.sh", UMH_WAIT_EXEC);
+	int r;
+	char mxlbin[128];
+
+	r = mx140_exe_path(NULL, mxlbin, sizeof(mxlbin), "mx_logger_dump.sh");
+	if (r) {
+		SCSC_TAG_ERR(MXMAN, "mx_logger_dump.sh path error\n");
+	} else {
+		SCSC_TAG_INFO(MXMAN, "Invoking mx_logger_dump.sh UHM\n");
+		r = _mx_exec(mxlbin, UMH_WAIT_EXEC);
+		if (r)
+			SCSC_TAG_ERR(MXMAN, "mx_logger_dump.sh err:%d\n", r);
+	}
+	return r;
 }
 EXPORT_SYMBOL(mx140_log_dump);
+
+/**
+ * This returns the last known loaded FW build_id
+ * even when the fw is NOT running at the time of the request.
+ *
+ * It could be used anytime by Android Enhanced Logging
+ * to query for fw version.
+ */
+void mxman_get_fw_version(char *version, size_t ver_sz)
+{
+	/* unavailable only if chip not probed ! */
+	snprintf(version, ver_sz - 1, "%s", saved_fw_build_id);
+}
+EXPORT_SYMBOL(mxman_get_fw_version);
+
+void mxman_get_driver_version(char *version, size_t ver_sz)
+{
+#ifdef CONFIG_SCSC_BUILD_TYPE
+	snprintf(version, ver_sz - 1, "drv_ver: %d.%d.%d.%d (build type: %s)",
+		 SCSC_RELEASE_PRODUCT, SCSC_RELEASE_ITERATION, SCSC_RELEASE_CANDIDATE, SCSC_RELEASE_POINT, CONFIG_SCSC_BUILD_TYPE);
+#else
+	snprintf(version, ver_sz - 1, "drv_ver: %d.%d.%d.%d",
+		 SCSC_RELEASE_PRODUCT, SCSC_RELEASE_ITERATION, SCSC_RELEASE_CANDIDATE, SCSC_RELEASE_POINT);
+#endif
+}
+EXPORT_SYMBOL(mxman_get_driver_version);
+
+int mxman_register_firmware_notifier(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&firmware_chain, nb);
+}
+EXPORT_SYMBOL(mxman_register_firmware_notifier);
+
+int mxman_unregister_firmware_notifier(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&firmware_chain, nb);
+}
+EXPORT_SYMBOL(mxman_unregister_firmware_notifier);

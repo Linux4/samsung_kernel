@@ -29,7 +29,13 @@ ifeq ($(CONFIG_MALI_T72X),y)
     ifeq ($(CONFIG_MALI_R7P0_T72X),y)
         obj-y += t72x/r7p0/
     endif
-    ifeq ($(CONFIG_MALI_R12P0),y)
-        obj-y += t72x/r12p0/
+    ifeq ($(CONFIG_MALI_R15P0),y)
+        obj-y += t72x/r15p0/
+    endif
+    ifeq ($(CONFIG_MALI_R21P0),y)
+        obj-y += t72x/r21p0/
+    endif
+    ifeq ($(CONFIG_MALI_R22P0),y)
+        obj-y += t72x/r22p0/
     endif
 endif

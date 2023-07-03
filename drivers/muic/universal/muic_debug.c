@@ -101,6 +101,5 @@ void muic_show_debug_info(struct work_struct *work)
 	muic_print_reg_dump(pmuic);
 	mutex_unlock(&pmuic->muic_mutex);
 
-	INIT_DELAYED_WORK(&pmuic->usb_work, muic_show_debug_info);
 	schedule_delayed_work(&pmuic->usb_work, msecs_to_jiffies(60000));
 }

@@ -14,6 +14,10 @@
 #define MEDIA_EXYNOS_MODULE_H
 
 #include <linux/platform_device.h>
+#ifdef CONFIG_CAMERA_USE_SOC_SENSOR
+#include <linux/i2c.h>
+#endif
+
 #include <dt-bindings/camera/fimc_is.h>
 
 #include "fimc-is-device-sensor.h"
@@ -50,6 +54,10 @@ struct exynos_sensor_pin {
 struct exynos_platform_fimc_is_module {
 	int (*gpio_cfg)(struct fimc_is_module_enum *module, u32 scenario, u32 gpio_scenario);
 	int (*gpio_dbg)(struct fimc_is_module_enum *module, u32 scenario, u32 gpio_scenario);
+#ifdef CONFIG_CAMERA_USE_SOC_SENSOR
+	int (*gpio_soc_cfg)(struct i2c_client *client, u32 scenario, u32 enable);
+	int (*gpio_soc_dbg)(struct i2c_client *client, u32 scenario, u32 enable);
+#endif
 	struct exynos_sensor_pin pin_ctrls[SENSOR_SCENARIO_MAX][GPIO_SCENARIO_MAX][GPIO_CTRL_MAX];
 	u32 pinctrl_index[SENSOR_SCENARIO_MAX][GPIO_SCENARIO_MAX];
 	struct pinctrl *pinctrl;

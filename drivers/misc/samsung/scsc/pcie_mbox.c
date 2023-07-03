@@ -113,3 +113,4 @@ u32 *pcie_mbox_get_mailbox_ptr(struct pcie_mbox *mbox, u32 mbox_index)
 
 	return &mbox->shared_data->mailbox[mbox_index];
 }
+

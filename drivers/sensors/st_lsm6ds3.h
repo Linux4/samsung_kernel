@@ -183,7 +183,7 @@ struct lsm6ds3_data {
 
 	struct regulator *reg_vio;
 	struct i2c_client *client;
-
+	u16 stable_count;
 	u8 odr;
 	bool skip_gyro_data;
 	int skip_gyro_cnt;

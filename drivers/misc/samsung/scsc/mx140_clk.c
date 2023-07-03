@@ -328,6 +328,31 @@ static int mx140_clk20mhz_stop_service(struct scsc_mx *mx)
 	return 0;
 }
 
+/* Determine whether recovery.img or normal image is running */
+static bool is_recovery_image(void)
+{
+	mm_segment_t fs;
+	struct kstat stat;
+	int r;
+
+	/* Current segment. */
+	fs = get_fs();
+	/* Set to kernel segment. */
+	set_fs(get_ds());
+
+	/* Presence of /sbin/recovery indicates recovery image being booted */
+	r = vfs_stat("/sbin/recovery", &stat);
+	if (r)
+		SCSC_TAG_INFO(CLK20, "normal image\n");
+	else
+		SCSC_TAG_INFO(CLK20, "recovery image\n");
+
+	/* Restore segment */
+	set_fs(fs);
+
+	return r ? false : true;
+}
+
 #define MX140_CLK_TRIES (20)
 
 static void mx140_clk20mhz_work_func(struct work_struct *work)
@@ -337,6 +362,17 @@ static void mx140_clk20mhz_work_func(struct work_struct *work)
 	enum mx140_clk20mhz_status status;
 
 	mutex_lock(&clk_work_lock);
+	/* Check for recovery image being booted.
+	 * If it is a recovery image, /vendor partition may not be available,
+	 * and we can skip using WLBT anyway, so drop out to the error path.
+	 * This will return USBPLL ownership to AP, and PLL will start without
+	 * WLBT FW involvement.
+	 */
+	if (is_recovery_image()) {
+		SCSC_TAG_INFO(CLK20, "Recovery Image: fail clk20mhz request and return ownership to AP\n");
+		r = -EINVAL;
+		goto err;
+	}
 
 	for (i = 0; i < MX140_CLK_TRIES; i++) {
 		if (atomic_read(&clk20mhz.clk_request) == 0) {

@@ -137,9 +137,10 @@ static int check_event_type(enum otg_notify_events event)
 		ret |= (NOTIFY_EVENT_STATE | NOTIFY_EVENT_NOSAVE
 				| NOTIFY_EVENT_NEED_HOST);
 		break;
+	case NOTIFY_EVENT_LANHUB:
+		ret |= NOTIFY_EVENT_DELAY;
 	case NOTIFY_EVENT_SMARTDOCK_TA:
 	case NOTIFY_EVENT_AUDIODOCK:
-	case NOTIFY_EVENT_LANHUB:
 	case NOTIFY_EVENT_MMDOCK:
 		ret |= NOTIFY_EVENT_NEED_HOST;
 	case NOTIFY_EVENT_CHARGER:

@@ -1,6 +1,6 @@
 /*****************************************************************************
  *
- * Copyright (c) 2012 - 2017 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2018 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -48,6 +48,13 @@
 #include "hip4.h"
 
 #include "nl80211_vendor.h"
+
+/* Modes for CMDGETBSSINFO and CMDGETSTAINFO */
+#define SLSI_80211_MODE_11B 0
+#define SLSI_80211_MODE_11G 1
+#define SLSI_80211_MODE_11N 2
+#define SLSI_80211_MODE_11A 3
+#define SLSI_80211_MODE_11AC 4
 
 #define SLSI_TX_PROCESS_ID_MIN       (0xC001)
 #define SLSI_TX_PROCESS_ID_MAX       (0xCF00)
@@ -234,6 +241,10 @@ struct slsi_scan {
 	struct cfg80211_scan_request       *scan_req;
 	struct cfg80211_sched_scan_request *sched_req;
 	bool                               requeue_timeout_work;
+
+	/* Indicates if the scan req is blocking. i.e, waiting until scan_done_ind received */
+	bool                               is_blocking_scan;
+
 	struct slsi_scan_result *scan_results; /* head for scan_results list*/
 };
 
@@ -402,15 +413,31 @@ enum slsi_filter_id {
 /*From wifi_offload.h (N_AVAIL_ID=3)*/
 #define SLSI_MAX_KEEPALIVE_ID 3
 
+struct slsi_last_connected_bss {
+	u8                                           address[ETH_ALEN];
+	int                                           antenna_mode;
+	int                                           rssi;
+	int                                           mode;
+	int                                           passpoint_version;
+	int                                           snr;
+	int                                           noise_level;
+	u16                                          bandwidth;
+	u16                                          roaming_count;
+	u16                                          channel_freq;
+	u16                                          tx_data_rate;
+	u8                                            roaming_akm;
+	u8                                            kv;
+	u32                                          kvie;
+	bool                                         mimo_used;
+};
+
 struct slsi_vif_sta {
 	/* Only valid when the VIF is activated */
 	u8                      vif_status;
-	struct delayed_work     roam_report_work;
 	bool                    is_wps;
 	u16                     eap_hosttag;
 	u16                     m4_host_tag;
 	u16                     keepalive_host_tag[SLSI_MAX_KEEPALIVE_ID];
-	u8                      mac_addr[ETH_ALEN];
 
 	struct sk_buff          *roam_mlme_procedure_started_ind;
 
@@ -436,6 +463,10 @@ struct slsi_vif_sta {
 	struct list_head        network_map;
 
 	struct slsi_wmm_ac wmm_ac[4];
+	bool                      nd_offload_enabled;
+
+	/*This structure is used to store last disconnected bss info and valid even when vif is deactivated. */
+	struct slsi_last_connected_bss last_connected_bss;
 };
 
 struct slsi_vif_unsync {
@@ -449,8 +480,20 @@ struct slsi_vif_unsync {
 	bool                listen_offload;    /* To indicate if Listen Offload is started */
 };
 
+struct slsi_last_disconnected_sta {
+	u8 address[ETH_ALEN];
+	int bandwidth;
+	int antenna_mode;
+	int rssi;
+	int mode;
+	u16 tx_data_rate;
+	bool mimo_used;
+	u16 reason;
+};
+
 struct slsi_vif_ap {
 	struct slsi_wmm_parameter_element wmm_ie;
+	struct slsi_last_disconnected_sta last_disconnected_sta;
 	u8                                *cache_wmm_ie;
 	u8                                *cache_wpa_ie;
 	u8                                *add_info_ies;
@@ -461,9 +504,11 @@ struct slsi_vif_ap {
 	bool                              privacy;               /* Used for port enabling based on the open/secured AP configuration */
 	bool                              qos_enabled;
 	int                               beacon_interval;       /* Beacon interval in AP/GO mode */
+	int                               mode;
 	bool                              non_ht_bss_present;    /* Non HT BSS observed in HT20 OBSS scan */
 	struct scsc_wifi_fcq_data_qset    group_data_qs;
 	u32                               cipher;
+	u16                               channel_freq;
 	u8                                ssid[IEEE80211_MAX_SSID_LEN];
 	u8                                ssid_len;
 };
@@ -472,10 +517,11 @@ struct slsi_vif_ap {
 
 #define TCP_ACK_SUPPRESSION_OPTIONS_OFFSET 20
 
-#define TCP_ACK_SUPPRESSION_OPTION_EOL 0
-#define TCP_ACK_SUPPRESSION_OPTION_NOP 1
-#define TCP_ACK_SUPPRESSION_OPTION_WINDOW 3
-#define TCP_ACK_SUPPRESSION_OPTION_SACK 5
+#define TCP_ACK_SUPPRESSION_OPTION_EOL		0
+#define TCP_ACK_SUPPRESSION_OPTION_NOP		1
+#define TCP_ACK_SUPPRESSION_OPTION_MSS		2
+#define TCP_ACK_SUPPRESSION_OPTION_WINDOW	3
+#define TCP_ACK_SUPPRESSION_OPTION_SACK		5
 
 #define SLSI_IS_VIF_CHANNEL_5G(ndev_vif) ((ndev_vif->chan) ? (ndev_vif->chan->hw_value > 14) : 0)
 
@@ -485,7 +531,8 @@ struct slsi_tcp_ack_s {
 	int saddr;
 	int sport;
 	struct sk_buff_head list;
-	u8 window_scale_shift_count;
+	u8 window_multiplier;
+	u16 mss;
 	u32 ack_seq;
 	int slow_start_count;
 	int count;
@@ -547,9 +594,12 @@ struct netdev_vif {
 	u32                         tx_no_ack[SLSI_LLS_AC_MAX];
 #ifdef CONFIG_SCSC_WLAN_MUTEX_DEBUG
 	struct slsi_mutex           scan_mutex;
+	struct slsi_mutex           scan_result_mutex;
 #else
 	/* a std mutex */
 	struct mutex                scan_mutex;
+	struct mutex                scan_result_mutex;
+
 #endif
 	struct slsi_scan            scan[SLSI_SCAN_MAX];
 
@@ -577,6 +627,12 @@ struct netdev_vif {
 	u64                         mgmt_tx_cookie; /* Cookie id for mgmt tx */
 	struct slsi_vif_mgmt_tx     mgmt_tx_data;
 	struct delayed_work         scan_timeout_work;     /* Work on scan timeout */
+	bool                        delete_probe_req_ies;    /* Delete probe request stored at  probe_req_ies, if
+							      * connected for WAP2 at mlme_del_vif or in all cases
+							      * if STA
+							      */
+	u8                          *probe_req_ies;
+	size_t                      probe_req_ie_len;
 
 	struct slsi_vif_unsync      unsync;
 	struct slsi_vif_sta         sta;
@@ -592,6 +648,7 @@ struct netdev_vif {
 	unsigned int tack_timeout;
 	unsigned int tack_dacks;
 	unsigned int tack_sacks;
+	unsigned int tack_delay_acks;
 	unsigned int tack_low_window;
 	unsigned int tack_nocache;
 	unsigned int tack_norecord;
@@ -601,6 +658,9 @@ struct netdev_vif {
 	unsigned int tack_lastrecord;
 	unsigned int tack_searchrecord;
 	unsigned int tack_ece;
+#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
+	bool wifi_sharing;
+#endif
 };
 
 struct slsi_802_11d_reg_domain {
@@ -618,9 +678,6 @@ struct slsi_wes_mode_roam_scan_channels {
 #endif
 
 struct slsi_dev_config {
-	/* Current Channel Config */
-	struct sk_buff *channel_config;
-
 	/* Supported Freq Band (Dynamic)
 	 * Set via the freq_band procfs
 	 */
@@ -671,6 +728,11 @@ struct slsi_dev_config {
 	struct slsi_802_11d_reg_domain          domain_info;
 
 	int                                     ap_disconnect_ind_timeout;
+
+	u8                                      host_state;
+
+	int                                      rssi_boost_5g;
+	int                                      rssi_boost_2g;
 };
 
 #define SLSI_DEVICE_STATE_ATTACHING 0
@@ -681,7 +743,7 @@ struct slsi_dev_config {
 
 #define SLSI_NET_INDEX_WLAN 1
 #define SLSI_NET_INDEX_P2P  2
-#define SLSI_NET_INDEX_P2PX 3
+#define SLSI_NET_INDEX_P2PX_SWLAN 3
 
 /* States used during P2P operations */
 enum slsi_p2p_states {
@@ -760,9 +822,12 @@ struct slsi_dev {
 	struct slsi_chip_info_mib  chip_info_mib;
 #ifdef CONFIG_SCSC_WLAN_MUTEX_DEBUG
 	struct slsi_mutex          netdev_add_remove_mutex;
+	struct slsi_mutex          netdev_remove_mutex;
 #else
 	/* a std mutex */
 	struct mutex               netdev_add_remove_mutex;
+	/* a std mutex */
+	struct mutex               netdev_remove_mutex;
 #endif
 	int                        netdev_up_count;
 	struct net_device          __rcu *netdev[CONFIG_SCSC_WLAN_MAX_INTERFACES + 1];               /* 0 is reserved */
@@ -828,9 +893,6 @@ struct slsi_dev {
 
 	struct workqueue_struct    *device_wq;              /* Driver Workqueue */
 	enum slsi_p2p_states       p2p_state;               /* Store current P2P operation */
-	bool                       delete_gc_probe_req_ies; /* Delete probe request stored at  gc_probe_req_ies, if connected for WAP2 at mlme_del_vif */
-	u8                         *gc_probe_req_ies;
-	size_t                     gc_probe_req_ie_len;
 
 	enum slsi_hs2_state        hs2_state; /* Store current HS2 operations */
 
@@ -850,6 +912,10 @@ struct slsi_dev {
 	struct list_head           hotlist_results;
 	bool                       epno_active;
 #endif
+#ifdef CONFIG_SCSC_WLAN_ENABLE_MAC_OUI
+	u8                         scan_oui[6];
+	bool                       scan_oui_active;
+#endif
 #ifdef CONFIG_SCSC_WLAN_DEBUG
 	int                        minor_prof;
 #endif
@@ -866,10 +932,32 @@ struct slsi_dev {
 	int                        recovery_status;
 	struct slsi_ssid_map       ssid_map[SLSI_SCAN_SSID_MAP_MAX];
 	bool                       band_5g_supported;
+	int                        supported_2g_channels[14];
+	int                        supported_5g_channels[25];
+	int                        enabled_channel_count;
 	bool                       fw_ht_enabled;
 	u8                         fw_ht_cap[4]; /* HT capabilities is 21 bytes but host is never intersted in last 17 bytes*/
 	bool                       fw_vht_enabled;
 	u8                         fw_vht_cap[4];
+#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
+	u8                         wifi_sharing_5ghz_channel[8];
+	int                        valid_5g_freq[25];
+	int                        wifi_sharing_5g_restricted_channels[25];
+	int                        num_5g_restricted_channels;
+#endif
+	bool                       fw_2g_40mhz_enabled;
+	u16                        assoc_result_code; /* Status of latest association in STA mode */
+	bool                       allow_switch_40_mhz; /* Used in AP cert to disable HT40 when not configured */
+	bool                       allow_switch_80_mhz; /* Used in AP cert to disable VHT when not configured */
+	int                        lls_num_radio;
+#ifdef CONFIG_SCSC_WLAN_ENHANCED_LOGGING
+#ifdef CONFIG_SCSC_WLAN_MUTEX_DEBUG
+	struct slsi_mutex          logger_mutex;
+#else
+	/* a std mutex */
+	struct mutex               logger_mutex;
+#endif
+#endif
 };
 
 /* Compact representation of channels a ESS has been seen on
@@ -930,6 +1018,7 @@ bool slsi_dev_gscan_supported(void);
 bool slsi_dev_epno_supported(void);
 bool slsi_dev_vo_vi_block_ack(void);
 int slsi_dev_get_scan_result_count(void);
+bool slsi_dev_llslogs_supported(void);
 
 static inline u16 slsi_tx_host_tag(struct slsi_dev *sdev, enum slsi_traffic_q tq)
 {
@@ -951,7 +1040,7 @@ static inline struct net_device *slsi_get_netdev_rcu(struct slsi_dev *sdev, u16 
 {
 	WARN_ON(!rcu_read_lock_held());
 	if (ifnum > CONFIG_SCSC_WLAN_MAX_INTERFACES) {
-		/* WARN(1, "ifnum:%d", ifnum);  WARN() is used like this to avoid Coverity Error */
+		/* WARN(1, "ifnum:%d", ifnum); WARN() is used like this to avoid Coverity Error */
 		return NULL;
 	}
 	return rcu_dereference(sdev->netdev[ifnum]);
@@ -976,6 +1065,23 @@ static inline struct net_device *slsi_get_netdev(struct slsi_dev *sdev, u16 ifnu
 	SLSI_MUTEX_UNLOCK(sdev->netdev_add_remove_mutex);
 
 	return dev;
+}
+
+static inline int slsi_get_supported_mode(const u8 *peer_ie)
+{
+	const u8             *peer_ie_data;
+	u8                   peer_ie_len;
+	int                  i;
+	int                  supported_rate;
+
+	peer_ie_len = peer_ie[1];
+	peer_ie_data = &peer_ie[2];
+	for (i = 0; i < peer_ie_len; i++) {
+		supported_rate = ((peer_ie_data[i] & 0x7F) / 2);
+		if (supported_rate > 11)
+			return SLSI_80211_MODE_11G;
+	}
+	return SLSI_80211_MODE_11B;
 }
 
 #endif

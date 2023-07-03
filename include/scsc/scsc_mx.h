@@ -8,10 +8,14 @@
 #define _SCSC_CORE_H
 
 #include <linux/types.h>
+#include <linux/notifier.h>
 #include "scsc_mifram.h"
 
 #define SCSC_PANIC_CODE_FW 0
 #define SCSC_PANIC_CODE_HOST 1
+
+#define	SCSC_FW_EVENT_FAILURE			0
+#define	SCSC_FW_EVENT_MOREDUMP_COMPLETE		1
 
 struct device;
 struct firmware;
@@ -63,6 +67,8 @@ struct scsc_service_client {
 	int (*resume)(struct scsc_service_client *client);
 };
 
+#define PANIC_RECORD_DUMP_BUFFER_SZ		4096
+
 /* WARNING: THIS IS INTERRUPT CONTEXT!
  * here: some serious warnings about not blocking or doing anything lengthy at all
  */
@@ -96,7 +102,7 @@ int scsc_mx_service_mif_dump_registers(struct scsc_service *service);
 /** Signal a failure detected by the Client. This will trigger the systemwide
  * failure handling procedure: _All_ Clients will be called back via
  * their stop_on_failure() handler as a side-effect. */
-void scsc_mx_service_service_failed(struct scsc_service *service);
+void scsc_mx_service_service_failed(struct scsc_service *service, const char *reason);
 
 
 /* MEMORY Interface*/
@@ -273,5 +279,11 @@ int mx140_clk20mhz_release(void);
 bool slsi_is_232338_test_mode_enabled(void);
 
 int mx140_log_dump(void);
+
+void mxman_get_fw_version(char *version, size_t ver_sz);
+void mxman_get_driver_version(char *version, size_t ver_sz);
+
+int mxman_register_firmware_notifier(struct notifier_block *nb);
+int mxman_unregister_firmware_notifier(struct notifier_block *nb);
 
 #endif

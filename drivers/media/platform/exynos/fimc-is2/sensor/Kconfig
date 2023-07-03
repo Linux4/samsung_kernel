@@ -4,7 +4,6 @@ menu "Sensor/CAMIF Setting"
 
 config EXYNOS_CAMERA_MODULE
 	bool "Use Modules(F/W)"
-	depends on !USE_DIRECT_IS_CONTROL
 	default n
 	help
 	  Use Modules(F/W)

@@ -21,7 +21,9 @@
 #include "panicmon.h"
 #include "mxlog_transport.h"
 #include "suspendmon.h"
-
+#ifdef CONFIG_SCSC_WLBTD
+#include "scsc_wlbtd.h"
+#endif
 struct scsc_mx {
 	struct scsc_mif_abs     *mif_abs;
 	struct mifintrbit       intr;
@@ -58,6 +60,9 @@ struct scsc_mx *scsc_mx_create(struct scsc_mif_abs *mif)
 	mxman_init(&mx->mxman, mx);
 	srvman_init(&mx->srvman, mx);
 	mifproc_create_proc_dir(mx->mif_abs);
+#ifdef CONFIG_SCSC_WLBTD
+	scsc_wlbtd_init();
+#endif
 	SCSC_TAG_DEBUG(MXMAN, "Hurray Maxwell is here with %p\n", mx);
 	return mx;
 }
@@ -72,6 +77,9 @@ void scsc_mx_destroy(struct scsc_mx *mx)
 	mifproc_remove_proc_dir();
 	srvman_deinit(&mx->srvman);
 	mxman_deinit(&mx->mxman);
+#ifdef CONFIG_SCSC_WLBTD
+	scsc_wlbtd_deinit();
+#endif
 	kfree(mx);
 	SCSC_TAG_DEBUG(MXMAN, "OK\n");
 }

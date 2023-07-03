@@ -198,6 +198,9 @@ struct fimc_is_group {
 #endif
 #endif
 	u32				aeflashMode; /* Flash Mode Control */
+#ifdef CONFIG_LEDS_SUPPORT_FRONT_FLASH_AUTO
+	u32				frontFlashMode; /* Auto Flash Mode Control */
+#endif
 };
 
 enum fimc_is_group_task_state {

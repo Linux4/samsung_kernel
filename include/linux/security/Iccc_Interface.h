@@ -87,8 +87,11 @@ typedef struct {
 #define ICCC_SECURE_PARAMETERS_READING_LENGTH	((uint32_t)0x4)
 
 /* ICCC section types are defined */
-
+#if defined(CONFIG_TZDEV)	/* CONFIG_TZDEV will be defined when using Blowfish */
+#define ICCC_BL_SECURE_PARAMETERS_OFFSET		((uint32_t)0x400)
+#else
 #define ICCC_BL_SECURE_PARAMETERS_OFFSET		((uint32_t)0x164)
+#endif
 
 #define BL_ICCC_TYPE_START		0xFFF00000
 #define TA_ICCC_TYPE_START		0xFF000000

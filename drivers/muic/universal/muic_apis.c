@@ -44,6 +44,7 @@
 #include "muic-internal.h"
 #include "muic_i2c.h"
 #include "muic_regmap.h"
+#include "muic_vps.h"
 
 int attach_ta(muic_data_t *pmuic)
 {
@@ -482,12 +483,18 @@ int attach_otg_usb(muic_data_t *pmuic,
 
 	pr_info("%s:%s\n", MUIC_DEV_NAME, __func__);
 
-	/* LANHUB doesn't work under AUTO switch mode, so turn it off */
-	/* set MANUAL SW mode */
-	set_switch_mode(pmuic,SWMODE_MANUAL);
+	if (vps_is_supported_dev(ATTACHED_DEV_USB_LANHUB_MUIC)) {
+#if defined(CONFIG_MUIC_UNIVERSAL_SM5504)
+		pmuic->is_lanhub_work = true;
+		schedule_delayed_work(&pmuic->lanhub_work, msecs_to_jiffies(1000));
+#endif
+		/* LANHUB doesn't work under AUTO switch mode, so turn it off */
+		/* set MANUAL SW mode */
+		set_switch_mode(pmuic,SWMODE_MANUAL);
 
-	/* enable RAW DATA mode, only for OTG LANHUB */
-	set_adc_scan_mode(pmuic,ADC_SCANMODE_CONTINUOUS);
+		/* enable RAW DATA mode, only for OTG LANHUB */
+		set_adc_scan_mode(pmuic,ADC_SCANMODE_CONTINUOUS);
+	}
 
 	ret = switch_to_ap_usb(pmuic);
 
@@ -509,11 +516,17 @@ int detach_otg_usb(muic_data_t *pmuic)
 		return ret;
 	}
 
-	/* disable RAW DATA mode */
-	set_adc_scan_mode(pmuic,ADC_SCANMODE_ONESHOT);
+	if (vps_is_supported_dev(ATTACHED_DEV_USB_LANHUB_MUIC)) {
+#if defined(CONFIG_MUIC_UNIVERSAL_SM5504)
+		pmuic->is_lanhub_work = false;
+		cancel_delayed_work(&pmuic->lanhub_work);
+#endif
+		/* disable RAW DATA mode */
+		set_adc_scan_mode(pmuic,ADC_SCANMODE_ONESHOT);
 
-	/* set AUTO SW mode */
-	set_switch_mode(pmuic,SWMODE_AUTO);
+		/* set AUTO SW mode */
+		set_switch_mode(pmuic,SWMODE_AUTO);
+	}
 
 	pmuic->attached_dev = ATTACHED_DEV_NONE_MUIC;
 

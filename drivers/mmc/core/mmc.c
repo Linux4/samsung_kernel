@@ -661,6 +661,10 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 	}
 
 	if (card->ext_csd.rev >= 7) {
+		for (idx = 0; idx < MMC_FIRMWARE_LEN ; idx++) {
+			card->ext_csd.fwrev[idx] =
+				ext_csd[EXT_CSD_FIRMWARE_VERSION + MMC_FIRMWARE_LEN - 1 - idx];
+		}
 		if (card->cid.manfid == 0x15 &&
 				ext_csd[EXT_CSD_PRE_EOL_INFO] == 0x0 &&
 				ext_csd[EXT_CSD_DEVICE_VERSION] == 0x0) {
@@ -692,6 +696,13 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 
 		card->ext_csd.enhanced_strobe_support =
 			ext_csd[EXT_CSD_STORBE_SUPPORT];
+		card->ext_csd.device_life_time_est_typ_a = 
+			ext_csd[EXT_CSD_DEVICE_LIFE_TIME_EST_TYPE_A];
+		card->ext_csd.device_life_time_est_typ_b =
+			ext_csd[EXT_CSD_DEVICE_LIFE_TIME_EST_TYPE_B];
+	} else {		
+		card->ext_csd.device_life_time_est_typ_a = 0;
+		card->ext_csd.device_life_time_est_typ_b = 0;
 	}
 
 out:
@@ -781,6 +792,44 @@ out:
 	return err;
 }
 
+#ifdef CONFIG_MMC_UNIQUE_NUMBER
+static ssize_t mmc_gen_unique_number_show(struct device *dev,
+			      struct device_attribute *attr,
+			      char *buf)
+{
+	struct mmc_card *card = mmc_dev_to_card(dev);
+	char gen_pnm[3];
+	int i;
+
+	switch (card->cid.manfid) {
+		case 0x02:	/* Sandisk	-> [3][4] */
+		case 0x45:
+			sprintf(gen_pnm, "%.*s", 2, card->cid.prod_name + 3);
+			break;
+		case 0x11:	/* Toshiba	-> [1][2] */
+		case 0x90:	/* Hynix */
+			sprintf(gen_pnm, "%.*s", 2, card->cid.prod_name + 1);
+			break;
+		case 0x13:
+		case 0xFE:	/* Micron 	-> [4][5] */
+			sprintf(gen_pnm, "%.*s", 2, card->cid.prod_name + 4);
+			break;
+		case 0x15:	/* Samsung 	-> [0][1] */
+		default:
+			sprintf(gen_pnm, "%.*s", 2, card->cid.prod_name + 0);
+			break;
+	}
+	/* Convert to Captal */
+	for (i = 0 ; i < 2 ; i++)
+	{
+		if (gen_pnm[i] >= 'a' && gen_pnm[i] <= 'z')
+			gen_pnm[i] -= ('a' - 'A');
+	}
+	return sprintf(buf, "C%s%02X%08X%02X\n",
+			gen_pnm, card->cid.prv, card->cid.serial, UNSTUFF_BITS(card->raw_cid, 8, 8));
+}
+#endif
+
 MMC_DEV_ATTR(cid, "%08x%08x%08x%08x\n", card->raw_cid[0], card->raw_cid[1],
 	card->raw_cid[2], card->raw_cid[3]);
 MMC_DEV_ATTR(csd, "%08x%08x%08x%08x\n", card->raw_csd[0], card->raw_csd[1],
@@ -814,6 +863,9 @@ MMC_DEV_ATTR(erase_type, "MMC_CAP_ERASE %s, type %s, SECURE %s, Sanitize %s\n",
 		(mmc_can_sanitize(card) &&
 		 !(card->quirks & MMC_QUIRK_SEC_ERASE_TRIM_BROKEN)) ?
 		"enabled" : "disabled");
+#ifdef CONFIG_MMC_UNIQUE_NUMBER
+static DEVICE_ATTR(unique_number, (S_IRUSR|S_IRGRP), mmc_gen_unique_number_show, NULL);
+#endif
 
 static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_cid.attr,
@@ -837,6 +889,9 @@ static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_caps.attr,
 	&dev_attr_caps2.attr,
 	&dev_attr_erase_type.attr,
+#ifdef CONFIG_MMC_UNIQUE_NUMBER
+	&dev_attr_unique_number.attr,
+#endif
 	NULL,
 };
 ATTRIBUTE_GROUPS(mmc_std);

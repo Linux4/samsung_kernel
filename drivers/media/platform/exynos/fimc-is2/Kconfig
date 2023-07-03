@@ -7,6 +7,13 @@ config VIDEO_EXYNOS_FIMC_IS2
 	help
 	  This is a v4l2 driver for exynos FIMC-IS device.
 
+config CAMERA_USE_SOC_SENSOR
+        bool "Use soc camera sensor"
+        depends on VIDEO_EXYNOS_FIMC_IS2
+        default n
+        help
+           Use to build SOC camera sensor
+
 source "drivers/media/platform/exynos/fimc-is2/ischain/Kconfig"
 source "drivers/media/platform/exynos/fimc-is2/sensor/Kconfig"
 

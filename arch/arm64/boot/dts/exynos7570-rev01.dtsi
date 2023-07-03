@@ -538,6 +538,7 @@
 		interrupts = <0 429 0>;
 		#address-cells = <1>;
 		#size-cells = <0>;
+		samsung,i2c-clk-logging;
 		pinctrl-names = "default";
 		pinctrl-0 = <&i2c1_bus>;
 		clocks = <&clock 312>, <&clock 312>;
@@ -1025,7 +1026,7 @@
 		ip_ver = <17>;
 		clock_rate = <415000000>;
 		min_rate = <100000>;
-		num_qos_steps = <1>;
+		num_qos_steps = <2>;
 		mfc_qos_table {
 			mfc_qos_variant_0 {
 				thrd_mb = <0>;
@@ -1036,6 +1037,15 @@
 				freq_kfc = <0>;
 				has_enc_table = <0>;
 			};
+			mfc_qos_variant_1 {
+				thrd_mb = <244800>;
+				freq_mfc = <0>;
+				freq_int = <415000>;
+				freq_mif = <666000>;
+				freq_cpu = <0>;
+				freq_kfc = <0>;
+				has_enc_table = <0>;
+			};			
 		};
 	};
 
@@ -1118,6 +1128,7 @@
 		mcu,name = "mcu_ipc_cp";
 		mcu,id = <0>;
 		interrupts = <0 369 0 >;
+		mcu,irq_affinity_mask = <3>;
 	};
 
 	mailbox_gnss: mcu_ipc@10570000 {

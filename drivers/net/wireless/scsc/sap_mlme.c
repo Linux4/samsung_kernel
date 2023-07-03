@@ -10,8 +10,8 @@
 #include "sap_mlme.h"
 #include "hip.h"
 #include "mgt.h"
+#include "scsc_wifilogger_rings.h"
 
-#define SUPPORTED_VERSION       13
 #define SUPPORTED_OLD_VERSION   0
 
 static int sap_mlme_version_supported(u16 version);
@@ -23,7 +23,7 @@ static struct sap_api sap_mlme = {
 	.sap_class = SAP_MLME,
 	.sap_version_supported = sap_mlme_version_supported,
 	.sap_handler = sap_mlme_rx_handler,
-	.sap_versions = { SUPPORTED_VERSION, SUPPORTED_OLD_VERSION },
+	.sap_versions = { FAPI_CONTROL_SAP_VERSION, SUPPORTED_OLD_VERSION },
 	.sap_notifier = sap_mlme_notifier,
 };
 
@@ -83,7 +83,7 @@ static int sap_mlme_version_supported(u16 version)
 	SLSI_INFO_NODEV("Reported version: %d.%d\n", major, minor);
 
 	for (i = 0; i < SAP_MAX_VER; i++)
-		if (sap_mlme.sap_versions[i] == major)
+		if (SAP_MAJOR(sap_mlme.sap_versions[i]) == major)
 			return 0;
 
 	SLSI_ERR_NODEV("Version %d.%d Not supported\n", major, minor);
@@ -146,6 +146,9 @@ static int slsi_rx_netdev_mlme(struct slsi_dev *sdev, struct net_device *dev, st
 	case MLME_LISTEN_END_IND:
 		slsi_rx_listen_end_ind(dev, skb);
 		break;
+	case MLME_CHANNEL_SWITCHED_IND:
+		slsi_rx_channel_switched_ind(sdev, dev, skb);
+		break;
 	case MLME_AC_PRIORITY_UPDATE_IND:
 		SLSI_DBG1(sdev, SLSI_MLME, "Unexpected MLME_AC_PRIORITY_UPDATE_IND\n");
 		slsi_kfree_skb(skb);
@@ -160,7 +163,11 @@ static int slsi_rx_netdev_mlme(struct slsi_dev *sdev, struct net_device *dev, st
 	case MLME_RSSI_REPORT_IND:
 		slsi_rx_rssi_report_ind(sdev, dev, skb);
 		break;
-
+#endif
+#ifdef CONFIG_SCSC_WLAN_ENHANCED_LOGGING
+	case MLME_EVENT_LOG_IND:
+		slsi_rx_event_log_indication(sdev, dev, skb);
+		break;
 #endif
 	default:
 		slsi_kfree_skb(skb);
@@ -276,6 +283,8 @@ static int sap_mlme_rx_handler(struct slsi_dev *sdev, struct sk_buff *skb)
 		return 0;
 
 	if (fapi_is_ind(skb)) {
+		SCSC_WLOG_PKTFATE_LOG_RX_CTRL_FRAME(fapi_get_data(skb), fapi_get_datalen(skb));
+
 		switch (fapi_get_sigid(skb)) {
 		case MLME_SCAN_DONE_IND:
 			scan_id = fapi_get_u16(skb, u.mlme_scan_done_ind.scan_id);
@@ -303,6 +312,10 @@ static int sap_mlme_rx_handler(struct slsi_dev *sdev, struct sk_buff *skb)
 		case MLME_AP_LOSS_IND:
 			return slsi_rx_enqueue_netdev_mlme(sdev, skb,  SLSI_NET_INDEX_WLAN);
 		case MLME_SIGNIFICANT_CHANGE_IND:
+			return slsi_rx_enqueue_netdev_mlme(sdev, skb, SLSI_NET_INDEX_WLAN);
+#endif
+#ifdef CONFIG_SCSC_WLAN_ENHANCED_LOGGING
+		case MLME_EVENT_LOG_IND:
 			return slsi_rx_enqueue_netdev_mlme(sdev, skb, SLSI_NET_INDEX_WLAN);
 #endif
 		default:

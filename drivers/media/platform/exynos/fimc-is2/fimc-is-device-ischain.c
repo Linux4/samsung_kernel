@@ -58,7 +58,6 @@
 #include "fimc-is-clk-gate.h"
 #include "fimc-is-dvfs.h"
 #include "fimc-is-device-preprocessor.h"
-#include "fimc-is-interface-fd.h"
 #include "fimc-is-vender-specific.h"
 #include "exynos-fimc-is-module.h"
 
@@ -868,10 +867,12 @@ static int fimc_is_ischain_loadfirm(struct fimc_is_device_ischain *device,
 	fp = filp_open(vender->fw_path, O_RDONLY, 0);
 	if (IS_ERR_OR_NULL(fp)) {
 		fw_load_ret = fimc_is_vender_fw_filp_open(vender, &fp, FIMC_IS_BIN_FW);
-		if(fw_load_ret == FW_SKIP)
+		if(fw_load_ret == FW_SKIP) {
 			goto request_fw;
-		else if(fw_load_ret == FW_FAIL)
+		} else if(fw_load_ret == FW_FAIL) {
+			fw_requested = 0;
 			goto out;
+		}
 	}
 
 	fw_requested = 0;
@@ -1089,10 +1090,12 @@ static int fimc_is_ischain_loadsetf(struct fimc_is_device_ischain *device,
 	fp = filp_open(vender->setfile_path, O_RDONLY, 0);
 	if (IS_ERR_OR_NULL(fp)) {
 		fw_load_ret = fimc_is_vender_fw_filp_open(vender, &fp, FIMC_IS_BIN_SETFILE);
-		if(fw_load_ret == FW_SKIP)
+		if(fw_load_ret == FW_SKIP) {
 			goto request_fw;
-		else if(fw_load_ret == FW_FAIL)
+		} else if(fw_load_ret == FW_FAIL) {
+			fw_requested = 0;
 			goto out;
+		}
 	}
 
 	fw_requested = 0;
@@ -1184,7 +1187,7 @@ static int fimc_is_ischain_config_secure(struct fimc_is_device_ischain *device)
 {
 	int ret = 0;
 
-#ifdef CONFIG_ARM_TRUSTZONE
+#if defined(CONFIG_ARM_TRUSTZONE) && defined(CONFIG_SOC_EXYNOS8890)
 	u32 i;
 
 	exynos_smc(SMC_CMD_REG, SMC_REG_ID_SFR_W(PA_FIMC_IS_GIC_C + 0x4), 0x000000FF, 0);
@@ -2111,6 +2114,10 @@ int fimc_is_ischain_runtime_suspend(struct device *dev)
 #endif
 #if !defined(ENABLE_IS_CORE)
 	fimc_is_hardware_runtime_suspend(&core->hardware);
+#endif
+#ifdef USE_CAMERA_HW_BIG_DATA
+	if (fimc_is_sec_need_update_to_file())
+		fimc_is_sec_copy_err_cnt_to_file();
 #endif
 	info("FIMC_IS runtime suspend out\n");
 	return 0;

@@ -33,9 +33,10 @@
 #include <linux/gpio_event.h>
 #include <linux/wakelock.h>
 #include <linux/vmalloc.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <linux/regulator/consumer.h>
 #include <linux/pinctrl/consumer.h>
+#include <linux/kernel.h>
 
 #include "melfas_mms400_reg.h"
 
@@ -54,41 +55,7 @@
 #include <linux/sec_debug.h>
 #endif
 
-#ifdef CONFIG_SEC_DEBUG_TSP_LOG
-#define tsp_debug_dbg(mode, dev, fmt, ...)	\
-({								\
-	if (mode) {					\
-		dev_dbg(dev, fmt, ## __VA_ARGS__);	\
-		sec_debug_tsp_log(fmt, ## __VA_ARGS__);		\
-	}				\
-	else					\
-		dev_dbg(dev, fmt, ## __VA_ARGS__);	\
-})
-
-#define tsp_debug_info(mode, dev, fmt, ...)	\
-({								\
-	if (mode) {							\
-		dev_info(dev, fmt, ## __VA_ARGS__);		\
-		sec_debug_tsp_log(fmt, ## __VA_ARGS__);		\
-	}				\
-	else					\
-		dev_info(dev, fmt, ## __VA_ARGS__);	\
-})
-
-#define tsp_debug_err(mode, dev, fmt, ...)	\
-({								\
-	if (mode) {					\
-		dev_err(dev, fmt, ## __VA_ARGS__);	\
-		sec_debug_tsp_log(fmt, ## __VA_ARGS__);	\
-	}				\
-	else					\
-		dev_err(dev, fmt, ## __VA_ARGS__); \
-})
-#else
-#define tsp_debug_dbg(mode, dev, fmt, ...)	dev_dbg(dev, fmt, ## __VA_ARGS__)
-#define tsp_debug_info(mode, dev, fmt, ...)	dev_info(dev, fmt, ## __VA_ARGS__)
-#define tsp_debug_err(mode, dev, fmt, ...)	dev_err(dev, fmt, ## __VA_ARGS__)
-#endif
+#include <linux/input/sec_cmd.h>
 
 #ifdef CONFIG_OF
 #define MMS_USE_DEVICETREE		1
@@ -98,6 +65,11 @@
 
 #if defined(CONFIG_GLOVE_TOUCH)
 #define GLOVE_MODE
+#endif
+
+#if defined(CONFIG_MELFAS_GHOST_TOUCH_AUTO_DETECT) \
+	&& defined(CONFIG_SEC_DEBUG_TSP_LOG) && !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+#define MELFAS_GHOST_TOUCH_AUTO_DETECT
 #endif
 
 #define COVER_MODE
@@ -111,6 +83,11 @@
 #define CHIP_NAME		"MMS438"
 #define CHIP_FW_CODE	"M4H0"
 #define FW_UPDATE_TYPE	"MMS438"
+#elif defined(CONFIG_TOUCHSCREEN_MELFAS_MMS438S)
+#define CHIP_MMS438S
+#define CHIP_NAME		"MMS438S"
+#define CHIP_FW_CODE	"M4HS"
+#define FW_UPDATE_TYPE	"MMS438S"
 #elif defined(CONFIG_TOUCHSCREEN_MELFAS_MMS449)
 #define CHIP_MMS449
 #define CHIP_NAME		"MMS449"
@@ -163,8 +140,7 @@
 #define INPUT_PALM_MAX			1
 
 //Firmware update
-#define INTERNAL_FW_PATH		"tsp_melfas/mms449_carmen2.fw"
-#define EXTERNAL_FW_PATH		"/sdcard/melfas.mfsb"
+#define EXTERNAL_FW_PATH		"/sdcard/Firmware/TSP/melfas.mfsb"
 #define FFU_FW_PATH	"ffu_tsp.bin"
 #define MMS_USE_AUTO_FW_UPDATE		1
 #define MMS_FW_MAX_SECT_NUM		4
@@ -175,7 +151,35 @@
 //Command mode
 #define CMD_LEN				32
 #define CMD_RESULT_LEN			512
+#define CMD_RESULT_STR_LEN		(4096 - 1)
 #define CMD_PARAM_NUM			8
+#if defined(MELFAS_GHOST_TOUCH_AUTO_DETECT)
+#define GHOST_TIMER_INTERVAL	HZ /* 1 sec */
+#define MMS_GHOST_THRESHOLD 100
+#define MMS_INVALID_DATA -1
+#define GHOST_LOG_PATH	"/sdcard/log/tsp_ghost.log"
+#define GHOST_LOG_BUF_SIZE	100
+
+struct mms_data {
+	int x;
+	int y;
+	int z;
+};
+#endif
+
+/**
+ * LPM status bitmask
+ */
+#define MMS_LPM_FLAG_SPAY		(1 << 0)
+#define MMS_LPM_FLAG_AOD		(1 << 1)
+
+typedef enum {
+	SPONGE_EVENT_TYPE_SPAY			= 0x04,
+	SPONGE_EVENT_TYPE_AOD			= 0x08,
+	SPONGE_EVENT_TYPE_AOD_PRESS		= 0x09,
+	SPONGE_EVENT_TYPE_AOD_LONGPRESS		= 0x0A,
+	SPONGE_EVENT_TYPE_AOD_DOUBLETAB		= 0x0B
+} SPONGE_EVENT_TYPE;
 
 /**
  * Device info structure
@@ -194,6 +198,8 @@ struct mms_ts_info {
 	struct mutex lock_test;
 	struct mutex lock_cmd;
 	struct mutex lock_dev;
+
+	struct sec_cmd_data sec;
 
 	int irq;
 	bool	 enabled;
@@ -228,24 +234,15 @@ struct mms_ts_info {
 	u8 esd_cnt;
 	bool disable_esd;
 
+	unsigned int sram_addr_num;
+	u32 sram_addr[8];
+
 	u8 *print_buf;
 	int *image_buf;
 
 	bool test_busy;
 	bool cmd_busy;
 	bool dev_busy;
-
-#if MMS_USE_CMD_MODE
-	dev_t cmd_dev_t;
-	struct device *cmd_dev;
-	struct class *cmd_class;
-	struct list_head cmd_list_head;
-	u8 cmd_state;
-	char cmd[CMD_LEN];
-	char *cmd_result;
-	int cmd_param[CMD_PARAM_NUM];
-	int cmd_buffer_size;
-#endif
 
 #if MMS_USE_DEV_MODE
 	struct cdev cdev;
@@ -266,6 +263,32 @@ struct mms_ts_info {
 	u8 tsp_dump_lock;
 	u8 add_log_header;
 #endif
+#if defined(MELFAS_GHOST_TOUCH_AUTO_DETECT)
+	struct mms_data cur_data[MAX_FINGER_NUM];
+	struct mms_data prev_data[MAX_FINGER_NUM];
+	struct mms_data ghost_data;
+	bool data_first_update;
+	bool ghost_file_created;
+	struct timer_list ghost_timer;
+#endif
+
+	bool lowpower_mode;
+	unsigned char lowpower_flag;
+	int ic_status;
+	unsigned int scrub_id;
+	unsigned int scrub_x;
+	unsigned int scrub_y;
+
+	u8 check_multi;
+	unsigned int multi_count;
+	unsigned int comm_err_count;
+};
+
+enum IC_STATUS {
+	PWR_ON = 0,
+	PWR_OFF = 1,
+	LPM_RESUME = 2,
+	LPM_SUSPEND = 3,
 
 };
 
@@ -280,9 +303,13 @@ struct mms_devicetree_data {
 	const char *gpio_io_en;
 	int gpio_sda;
 	int gpio_scl;
+	int tsp_ldo_en;
 	int panel;
+	int fw_update_skip;
 	struct regulator *vdd_io;
 	const char *fw_name;
+	bool support_lpm;
+	int item_version;
 };
 
 /**
@@ -319,7 +346,7 @@ struct mms_fw_img {
 /**
  * Firmware update error code
  */
-enum fw_update_errno{
+enum fw_update_errno {
 	fw_err_file_read = -4,
 	fw_err_file_open = -3,
 	fw_err_file_type = -2,
@@ -348,9 +375,6 @@ int mms_fw_update_from_kernel(struct mms_ts_info *info, bool force);
 int mms_fw_update_from_storage(struct mms_ts_info *info, bool force);
 int mms_fw_update_from_ffu(struct mms_ts_info *info, bool force);
 
-int mms_suspend(struct device *dev);
-int mms_resume(struct device *dev);
-
 //mod
 int mms_power_control(struct mms_ts_info *info, int enable);
 void mms_clear_input(struct mms_ts_info *info);
@@ -364,6 +388,7 @@ int mms_charger_attached(struct mms_ts_info *info, bool status);
 int mms_parse_devicetree(struct device *dev, struct mms_ts_info *info);
 #endif
 void mms_config_input(struct mms_ts_info *info);
+int mms_lowpower_mode(struct mms_ts_info *info, int on);
 
 //fw_update
 int mms_flash_fw(struct mms_ts_info *info, const u8 *fw_data, size_t fw_size,
@@ -382,12 +407,9 @@ void mms_sysfs_remove(struct mms_ts_info *info);
 static const struct attribute_group mms_test_attr_group;
 #endif
 
-//cmd
 #if MMS_USE_CMD_MODE
 int mms_sysfs_cmd_create(struct mms_ts_info *info);
 void mms_sysfs_cmd_remove(struct mms_ts_info *info);
-static const struct attribute_group mms_cmd_attr_group;
-extern struct class *sec_class;
 #endif
 
 #ifdef USE_TSP_TA_CALLBACKS

@@ -13,6 +13,7 @@
 #define FIMC_IS_RESOURCE_MGR_H
 
 #include <linux/notifier.h>
+#include <linux/reboot.h>
 #include "fimc-is-groupmgr.h"
 #include "fimc-is-interface.h"
 

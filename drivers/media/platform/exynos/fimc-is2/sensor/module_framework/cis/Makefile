@@ -1,6 +1,7 @@
 obj-$(CONFIG_USE_DIRECT_IS_CONTROL) += fimc-is-cis.o
 obj-$(CONFIG_CAMERA_CIS_5E2_OBJ) += fimc-is-cis-5e2.o
 obj-$(CONFIG_CAMERA_CIS_5E3_OBJ) += fimc-is-cis-5e3.o
+obj-$(CONFIG_CAMERA_CIS_SR846_OBJ) += fimc-is-cis-sr846.o
 obj-$(CONFIG_CAMERA_CIS_4H5YC_OBJ) += fimc-is-cis-4h5yc.o
 obj-$(CONFIG_CAMERA_CIS_4H5_OBJ) += fimc-is-cis-4h5.o
 obj-$(CONFIG_CAMERA_CIS_6B2_OBJ) += fimc-is-cis-6b2.o
@@ -14,6 +15,8 @@ obj-$(CONFIG_CAMERA_CIS_2L1_OBJ) += fimc-is-cis-2l1.o
 obj-$(CONFIG_CAMERA_CIS_IMX258_OBJ) += fimc-is-cis-imx258.o
 obj-$(CONFIG_CAMERA_CIS_IMX241_OBJ) += fimc-is-cis-imx241.o
 obj-$(CONFIG_CAMERA_CIS_SR259_OBJ) += fimc-is-cis-sr259.o
+obj-$(CONFIG_CAMERA_CIS_SR556_OBJ) += fimc-is-cis-sr556.o
+obj-$(CONFIG_CAMERA_CIS_SR556B_OBJ) += fimc-is-cis-sr556b.o
 
 EXTRA_CFLAGS += -Idrivers/media/platform/exynos/fimc-is2
 EXTRA_CFLAGS += -Idrivers/media/platform/exynos/fimc-is2/include

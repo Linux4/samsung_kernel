@@ -160,5 +160,19 @@ bool fw_parse_get_m4_sympathetic_panic_flag(u32 *m4_panic_record)
 	return sympathetic_panic_flag;
 }
 
+int panic_record_dump_buffer(char *processor, u32 *panic_record,
+			     u32 panic_record_length, char *buffer, size_t blen)
+{
+	int i, used;
 
+	if (!processor)
+		processor = "WLBT";
 
+	used = snprintf(buffer, blen, "%s panic record dump(length=%d):\n",
+			processor, panic_record_length);
+	for (i = 0; i < panic_record_length && used < blen; i++)
+		used += snprintf(buffer + used, blen - used, "%s_panic_record[%d] = %08x\n",
+				 processor, i, panic_record[i]);
+
+	return used;
+}

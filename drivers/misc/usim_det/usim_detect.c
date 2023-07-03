@@ -183,6 +183,12 @@ static int usim_detect_probe(struct platform_device *pdev)
 
 
 	/* USIM0_DET */
+	err = of_property_read_u32(dev->of_node,
+		"mbx_ap2cp_united_status", &udd->mbx_ap_united_status);
+	if (err) {
+		pr_err("USIM_DET parse error!\n");
+		goto exit_err;
+	}
 	err = of_property_read_u32(dev->of_node, "mif,int_usim0_det_level",
 			&udd->int_usim0_det);
 	if (err) {
@@ -232,12 +238,6 @@ static int usim_detect_probe(struct platform_device *pdev)
 				"mif,int_usim1_det_level", &udd->int_usim1_det);
 		if (err) {
 			pr_err("USIM_DET DTS parse error!\n");
-			goto exit_err;
-		}
-		err = of_property_read_u32(dev->of_node,
-			"mbx_ap2cp_united_status", &udd->mbx_ap_united_status);
-		if (err) {
-			pr_err("USIM_DET parse error!\n");
 			goto exit_err;
 		}
 		err = of_property_read_u32(dev->of_node, "sbi_usim1_det_mask",

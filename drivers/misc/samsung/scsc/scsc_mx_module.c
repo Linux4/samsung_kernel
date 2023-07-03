@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2014 - 2016 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2014 - 2017 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -99,10 +99,20 @@ static struct scsc_mif_abs_driver mx_module_mif_if = {
 
 static int __init scsc_mx_module_init(void)
 {
-	SCSC_TAG_INFO(MXMAN, SCSC_MX_CORE_MODDESC " scsc_release %d.%d.%d N\n",
+#ifdef CONFIG_SCSC_BUILD_TYPE
+	SCSC_TAG_INFO(MXMAN, SCSC_MX_CORE_MODDESC " scsc_release %d.%d.%d.%d (build type: %s\n)",
 		SCSC_RELEASE_PRODUCT,
 		SCSC_RELEASE_ITERATION,
-		SCSC_RELEASE_CANDIDATE);
+		SCSC_RELEASE_CANDIDATE,
+		SCSC_RELEASE_POINT,
+		CONFIG_SCSC_BUILD_TYPE);
+#else
+	SCSC_TAG_INFO(MXMAN, SCSC_MX_CORE_MODDESC " scsc_release %d.%d.%d.%d\n",
+		SCSC_RELEASE_PRODUCT,
+		SCSC_RELEASE_ITERATION,
+		SCSC_RELEASE_CANDIDATE,
+		SCSC_RELEASE_POINT);
+#endif
 
 	scsc_mif_abs_register(&mx_module_mif_if);
 	return 0;

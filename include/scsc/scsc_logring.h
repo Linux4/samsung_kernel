@@ -1,8 +1,8 @@
-/****************************************************************************
+/*****************************************************************************
  *
- *   Copyright (c) 2016 Samsung Electronics Co., Ltd. All rights reserved.
+ *   Copyright (c) 2016-2018 Samsung Electronics Co., Ltd. All rights reserved
  *
- ****************************************************************************/
+ *****************************************************************************/
 
 #ifndef _SCSC_LOGRING_H_
 #define _SCSC_LOGRING_H_
@@ -11,8 +11,6 @@
 #include <linux/types.h>
 #include <linux/printk.h>
 #include <linux/device.h>
-
-#define CONFIG_SCSC_DEBUG_COMPATIBILITY 1
 
 /* NOTE_CREATING_TAGS: when adding a tag here REMEMBER to add it also
  * where required, taking care to maintain the same ordering.
@@ -56,6 +54,8 @@ enum scsc_logring_tags {
 	PCIE_MIF,
 	PLAT_MIF,
 	KIC_COMMON,
+	WLBTD,
+	WLOG,
 #ifdef CONFIG_SCSC_DEBUG_COMPATIBILITY
 	SLSI_INIT_DEINIT,
 	SLSI_NETDEV,

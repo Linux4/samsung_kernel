@@ -46,6 +46,12 @@
 #define S2MPU06_FG_REG_MONSEL		0x1E
 #define S2MPU06_FG_REG_MONOUT_SEL	0x1F
 #define S2MPU06_FG_REG_MONOUT		0x20
+#if defined(CONFIG_BATTERY_AGE_FORECAST)
+#define S2MPU06_FG_REG_CELL_CHAR0	0x34
+#define S2MPU06_FG_REG_CELL_CHAR0_NUM	164
+#define S2MPU06_FG_REG_CELL_CHAR1	0x0F
+#define S2MPU06_FG_REG_CELL_CHAR1_NUM	5
+#endif
 
 struct sec_fg_info {
 	/* test print count */
@@ -66,6 +72,7 @@ struct sec_fg_info {
 	unsigned long fullcap_check_interval;
 	int full_check_flag;
 	bool is_first_check;
+	int data_ver;
 };
 
 #endif /* __S2MPU06_FUELGAUGE_H */

@@ -42,6 +42,7 @@ void fm_set_handler_audio_pause(void (*fn)(struct s610_radio *radio));
 void fm_update_if_count(struct s610_radio *radio);
 void fm_update_if_count_int(struct s610_radio *radio);
 void fm_update_rssi(struct s610_radio *radio);
+void fm_update_rssi_work(struct s610_radio *radio);
 void fm_update_snr(struct s610_radio *radio);
 void fm_update_sig_info(struct s610_radio *radio);
 void fm_update_rds_sync_status(struct s610_radio *radio,
@@ -49,8 +50,6 @@ void fm_update_rds_sync_status(struct s610_radio *radio,
 u16 fm_update_rx_status(struct s610_radio *radio, u16 d_status);
 void fm_update_tuner_mode(struct s610_radio *radio);
 bool fm_check_rssi_level(u16 limit);
-int fm_host_read_rds_data(
-	struct s610_radio *radio, u16 *num_of_block, u8 *rds_data);
 int low_get_search_lvl(struct s610_radio *radio, u16 *value);
 int low_set_if_limit(struct s610_radio *radio, u16 value);
 int low_set_search_lvl(struct s610_radio *radio, u16 value);
@@ -134,7 +133,7 @@ void s610_tune_work(struct work_struct *work);
 #ifdef VOLUME_CTRL_S610
 void fm_set_audio_gain(struct s610_radio *radio, u16 gain);
 #endif /*VOLUME_CTRL_S610*/
-
+void fm_ds_set(u32 data);
 extern void fmspeedy_wakeup(void);
 extern void fm_pwron(void);
 extern void fm_pwroff(void);
@@ -148,8 +147,8 @@ extern u32 fmspeedy_get_reg_field(u32 addr, u32 shift, u32 mask);
 extern void fm_audio_control(struct s610_radio *radio,
 	bool audio_out, bool lr_switch,
 	u32 req_time, u32 audio_addr);
-extern bool fm_read_rds_data(struct s610_radio *radio,
-	u16 *buffer, u16 *size, u16 *blocks);
+extern int fm_read_rds_data(struct s610_radio *radio, u8 *buffer, int size,
+		u16 *blocks);
 extern void fm_process_rds_data(struct s610_radio *radio);
 extern int read_fm_speedy_m(struct s610_radio *radio);
 #endif	/*FM_LOW_REF_H*/

@@ -457,7 +457,6 @@ static int cac_send_delts(struct slsi_dev *sdev, int id)
 	u8                      *bssid;
 	u8                      r = 0;
 	struct slsi_peer        *stapeer;
-	u16                     blockack_control_bitmap = 0;
 
 	entry = find_tspec_entry(id , 1);
 	if (entry == NULL) {
@@ -532,22 +531,14 @@ static int cac_send_delts(struct slsi_dev *sdev, int id)
 		goto exit_free_buf;
 	}
 
-	/* if the DELTS request is for UP = 4 or 5 then generate a
-	 * MLME-BLOCKACK-CONTROL.request so that no BlockAck is negotiated
-	 * on AC_VI. And leave AC_BE enabled
+	/* BlockAck Control Req was previously used to enable blockack for VO & VI. This
+	 * signal is removed and expected to be replaced with MIBs - not able to see
+	 * through the haze yet!. Need to take approp. action when the cloud clears.
+	 * Historical Data:
+	 *     if the DELTS request is for UP = 4 or 5 then generate a
+	 *     MLME-BLOCKACK-CONTROL.request so that no BlockAck is negotiated
+	 *     on AC_VI. And leave AC_BE enabled
 	 */
-	if (priority == FAPI_PRIORITY_QOS_UP4 || priority == FAPI_PRIORITY_QOS_UP5) {
-		/* bits for AC_BE should always be set */
-		blockack_control_bitmap |= FAPI_BLOCKACKCONTROL_BLOCKACK_PRIORITY_0;
-		blockack_control_bitmap |= FAPI_BLOCKACKCONTROL_BLOCKACK_PRIORITY_3;
-
-		if (slsi_mlme_blockack_control_req(sdev, netdev, blockack_control_bitmap,
-						   FAPI_DIRECTION_ANY,
-						   ndev_vif->sta.sta_bss->bssid) != 0) {
-			SLSI_ERR(sdev, "CAC-DELTS: Failed to send MLME-BLOCKACK-CONTROL request\n");
-			goto exit_free_buf;
-		}
-	}
 
 	entry->accepted = 0; /* DELTS sent successfully */
 	sdev->tspec_error_code = 0;
@@ -951,7 +942,6 @@ static void cac_process_delts_req(struct slsi_dev *sdev, struct net_device *netd
 	struct cac_tspec  *itr;
 	u32               priority;
 	int               rc;
-	u16               blockack_control_bitmap = 0;
 	struct slsi_peer  *stapeer;
 	u8 tid;
 
@@ -987,22 +977,14 @@ static void cac_process_delts_req(struct slsi_dev *sdev, struct net_device *netd
 		return;
 	}
 
-	/* if the DELTS request is for UP = 4 or 5 then generate a
-	 * MLME-BLOCKACK-CONTROL.request so that no BlockAck is negotiated
-	 * on AC_VI. And leave AC_BE enabled
+	/* BlockAck Control Req was previously used to enable blockack for VO & VI. This
+	 * signal is removed and expected to be replaced with MIBs - not able to see
+	 * through the haze yet!. Need to take approp. action when the cloud clears.
+	 * Historical Data:
+	 *     if the DELTS request is for UP = 4 or 5 then generate a
+	 *     MLME-BLOCKACK-CONTROL.request so that no BlockAck is negotiated
+	 *     on AC_VI. And leave AC_BE enabled
 	 */
-	if (priority == FAPI_PRIORITY_QOS_UP4 || priority == FAPI_PRIORITY_QOS_UP5) {
-		/* bits for AC_BE should always be set */
-		blockack_control_bitmap |= FAPI_BLOCKACKCONTROL_BLOCKACK_PRIORITY_0;
-		blockack_control_bitmap |= FAPI_BLOCKACKCONTROL_BLOCKACK_PRIORITY_3;
-
-		if (slsi_mlme_blockack_control_req(sdev, netdev, blockack_control_bitmap,
-						   FAPI_DIRECTION_ANY,
-						   ndev_vif->sta.sta_bss->bssid) != 0) {
-			SLSI_ERR(sdev, "CAC: Failed to send MLME-BLOCKACK-CONTROL request\n");
-			return;
-		}
-	}
 
 	itr->accepted = 0; /* del traffic parameters sent successfully */
 	stapeer->tspec_established &= ~BIT(priority);
@@ -1059,9 +1041,7 @@ static void cac_process_addts_rsp(struct slsi_dev *sdev, struct net_device *netd
 	int                      rc;
 	u8                       tsid;
 	u16                      msdu_lifetime;
-	u16                      blockack_control_bitmap = 0;
 	struct slsi_peer         *peer;
-	struct slsi_wmm_ac       *wmm_ac = &ndev_vif->sta.wmm_ac[0];
 	u16 medium_time;
 
 	WARN_ON(!SLSI_MUTEX_IS_LOCKED(ndev_vif->vif_mutex));
@@ -1213,38 +1193,21 @@ set_params:
 	/*update the TSPEC with medium_time allocated by AP*/
 	itr->tspec.medium_time = medium_time;
 
-	/* Currently the firmware autonomously negotiates BlockAck agreement for AC_BE.
-	 * It is required for WMM-AC certification to use BlockAck for AC_VI.
-	 * So if a TSPEC for AC_VI (UP = 5 0r 4) is successfully negotiated, the host
-	 * generates an MLME-BLOCKACK-CONTROL.request, identifying that a BlockAck for the
-	 * corresponding Priority (direction set to Any) should be enabled, i.e. the F/W
-	 * will accept a downlink requested BlockAck Request, and will try to set-up an
-	 * uplink BlockAck Request for that priority (TID).
+	/* BlockAck Control Req was previously used to enable blockack for VO & VI. This
+	 * signal is removed and expected to be replaced with MIBs - not able to see
+	 * through the haze yet!. Need to take approp. action when the cloud clears.
+	 * Historical Data:
+	 *     Currently the firmware autonomously negotiates BlockAck agreement for AC_BE.
+	 *     It is required for WMM-AC certification to use BlockAck for AC_VI.
+	 *     So if a TSPEC for AC_VI (UP = 5 0r 4) is successfully negotiated, the host
+	 *     generates an MLME-BLOCKACK-CONTROL.request, identifying that a BlockAck for the
+	 *     corresponding Priority (direction set to Any) should be enabled, i.e. the F/W
+	 *     will accept a downlink requested BlockAck Request, and will try to set-up an
+	 *     uplink BlockAck Request for that priority (TID).
+	 *     Bits for AC_BE should always be set
+	 *     For WMM-AC certification, if the EDCA parameters for both VO and VI are same
+	 *     during association and both are ACM = 1, then don't use BlockAck for AC_VI.
 	 */
-	if (priority == FAPI_PRIORITY_QOS_UP4 || priority == FAPI_PRIORITY_QOS_UP5) {
-		/* bits for AC_BE should always be set */
-		blockack_control_bitmap |= FAPI_BLOCKACKCONTROL_BLOCKACK_PRIORITY_0;
-		blockack_control_bitmap |= FAPI_BLOCKACKCONTROL_BLOCKACK_PRIORITY_3;
-
-		/* For WMM-AC certification, if the EDCA parameters for both VO and VI are same
-		 * during association and both are ACM = 1, then don't use BlockAck for AC_VI.
-		 */
-		if (slsi_dev_vo_vi_block_ack()  || (wmm_ac[2].aci_aifsn & 0x1f) != (wmm_ac[3].aci_aifsn & 0x1f) ||
-		    !(wmm_ac[2].aci_aifsn & 0x10) ||
-		    wmm_ac[2].ecw != wmm_ac[3].ecw ||
-		    wmm_ac[2].txop_limit != wmm_ac[3].txop_limit) {
-			if (priority == FAPI_PRIORITY_QOS_UP4)
-				blockack_control_bitmap |= FAPI_BLOCKACKCONTROL_BLOCKACK_PRIORITY_4;
-			else
-				blockack_control_bitmap |= FAPI_BLOCKACKCONTROL_BLOCKACK_PRIORITY_5;
-		}
-		if (slsi_mlme_blockack_control_req(sdev, netdev, blockack_control_bitmap,
-						   FAPI_DIRECTION_ANY,
-						   ndev_vif->sta.sta_bss->bssid) != 0) {
-			SLSI_ERR(sdev, "CAC: Failed to send MLME-BLOCKACK-CONTROL request\n");
-			return;
-		}
-	}
 
 	/* Add store in MIB the msdu_lifetime value in case of ccx enabled bss */
 	if (ccx_status == BSS_CCX_ENABLED) {
@@ -1519,3 +1482,4 @@ void cac_update_roam_traffic_params(struct slsi_dev *sdev, struct net_device *de
 						 assoc_rsp_tspec->minimum_data_rate, ndev_vif->sta.sta_bss->bssid);
 	}
 }
+

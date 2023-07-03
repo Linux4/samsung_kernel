@@ -38,7 +38,7 @@
 #include <linux/input.h>
 
 #include <linux/sensor/sensors_core.h>
-#include "linux/sensor/gp2ap070s.h"
+#include "gp2ap070s.h"
 
 #define I2C_M_WR        0 /* for i2c Write */
 
@@ -61,6 +61,7 @@ enum {
 	CAL_CANCELATION,
 	CAL_SKIP,
 };
+static bool prox_cancel_check = false;
 #endif
 
 #define PROX_READ_NUM   40
@@ -95,7 +96,6 @@ static u16 ps_reg_init_setting[PS_REG_NUM][2] = {
 struct gp2a_data {
 	struct input_dev *proximity_input_dev;
 	struct device *dev;
-	struct gp2a_platform_data *pdata;
 	struct i2c_client *i2c_client;
 	struct wake_lock prx_wake_lock;
 	struct hrtimer prox_timer;
@@ -117,6 +117,16 @@ struct gp2a_data {
 	unsigned int prox_cal_result;
 
 	int avg[3];
+
+	int p_out;
+	int default_low_thd;
+	int default_high_thd;
+	int cal_skip_adc;
+	int prox_cancel_l;
+	int prox_cancel_h;
+	int default_trim;
+
+	int vled_ldo; /*0: vled(anode) source regulator, other: get power by LDO control */
 };
 
 enum {
@@ -170,11 +180,11 @@ static int proximity_vled_onoff(struct device *dev, bool onoff)
 	int ret;
 
 	SENSOR_INFO("%s, ldo:%d\n",
-		(onoff) ? "on" : "off", data->pdata->vled_ldo);
+		(onoff) ? "on" : "off", data->vled_ldo);
 
 	/* ldo control */
-	if (data->pdata->vled_ldo) {
-		gpio_set_value(data->pdata->vled_ldo, onoff);
+	if (data->vled_ldo) {
+		gpio_set_value(data->vled_ldo, onoff);
 		return 0;
 	}
 
@@ -188,6 +198,7 @@ static int proximity_vled_onoff(struct device *dev, bool onoff)
 			return -ENOMEM;
 		}
 	}
+
 
 	if (onoff) {
 		if (regulator_is_enabled(data->vled)) {
@@ -238,7 +249,6 @@ int gp2a_i2c_read(struct i2c_client *client, u8 reg, int len, u8 *val)
 	return ret;
 }
 
-#if defined(PROXIMITY_FOR_TEST)
 static int gp2a_i2c_read_byte(struct i2c_client *client, u8 reg)
 {
 	u8 value;
@@ -249,7 +259,6 @@ static int gp2a_i2c_read_byte(struct i2c_client *client, u8 reg)
 		return ret;
 	return value;
 }
-#endif
 
 int gp2a_i2c_write(struct i2c_client *client, u8 reg, int len, u8 *val)
 {
@@ -306,28 +315,40 @@ static uint32_t gp2a_get_proximity_adc(struct gp2a_data *data)
 	return (value[0] | (value[1] << 8));
 }
 
-static void gp2a_set_mode(struct gp2a_data *data, u8 onoff)
+static int32_t gp2a_set_threshold_low(struct gp2a_data *data, u16 thd)
 {
-	int i, ret = 0;
+	u8 val[2];
+	int ret;
 
-	SENSOR_INFO("onoff = %d\n", onoff);
-	if (onoff) {
-		/* enable settings */
-		for (i = 0; i < PS_REG_NUM; i++)
-			ret += gp2a_i2c_write_byte(data->i2c_client,
-				ps_reg_init_setting[i][REG_ADDR],
-				ps_reg_init_setting[i][CMD]);
+	val[0] = thd & 0x00FF;
+	val[1] = (thd & 0xFF00) >> 8;
 
-		/* PS mode */
-		ret += gp2a_i2c_write_byte(data->i2c_client, REG_COM1,
-			COM1_WAKEUP | COM1_PS);
-	} else {
-		/* disable settings */
-		ret = gp2a_i2c_write_byte(data->i2c_client, REG_COM1, COM1_SD);
-	}
-
+	ret = gp2a_i2c_write(data->i2c_client, REG_PS_LT_LSB, 2, val);
 	if (ret < 0)
-		SENSOR_ERR("failed to set mode (%d)\n", ret);
+		SENSOR_ERR("set low thd failed. %d\n", ret);
+	else
+		data->prox_thd_low = thd;
+
+	SENSOR_INFO("low thd = %d\n", data->prox_thd_low);
+	return ret;
+}
+
+static int32_t gp2a_set_threshold_high(struct gp2a_data *data, u16 thd)
+{
+	u8 val[2];
+	int ret;
+
+	val[0] = thd & 0x00FF;
+	val[1] = (thd & 0xFF00) >> 8;
+
+	ret = gp2a_i2c_write(data->i2c_client, REG_PS_HT_LSB, 2, val);
+	if (ret < 0)
+		SENSOR_ERR("set high thd failed. %d\n", ret);
+	else
+		data->prox_thd_high = thd;
+
+	SENSOR_INFO("high thd = %d\n", data->prox_thd_high);
+	return ret;
 }
 
 static int32_t gp2a_set_data_offset(struct gp2a_data *data, u16 thd)
@@ -348,40 +369,28 @@ static int32_t gp2a_set_data_offset(struct gp2a_data *data, u16 thd)
 	return ret;
 }
 
-static int32_t gp2a_set_threshold_low(struct gp2a_data *data, u16 thd)
+static void gp2a_set_mode(struct gp2a_data *data, u8 onoff)
 {
-	u8 val[2];
-	int ret;
+	int i, ret = 0;
 
-	val[0] = thd & 0x00FF;
-	val[1] = (thd & 0xFF00) >> 8;
+	SENSOR_INFO("onoff = %d\n", onoff);
+	if (onoff) {
+		/* enable settings */
+		for (i = 0; i < PS_REG_NUM; i++)
+			ret += gp2a_i2c_write_byte(data->i2c_client,
+				ps_reg_init_setting[i][REG_ADDR],
+				ps_reg_init_setting[i][CMD]);
 
-	ret = gp2a_i2c_write(data->i2c_client, REG_PS_LT_LSB, 2, val);
+		/* PS mode */
+		ret += gp2a_i2c_write_byte(data->i2c_client, REG_COM1,
+			COM1_WAKEUP | COM1_PS);
+	} else {
+		/* Shutdown mode */
+		ret = gp2a_i2c_write_byte(data->i2c_client, REG_COM1, COM1_SD);
+	}
+
 	if (ret < 0)
-		SENSOR_ERR("set low thd failed. %d\n", ret);
-	else
-		data->prox_thd_low = thd;
-
-	SENSOR_INFO("thd = %d\n", data->prox_thd_low);
-	return ret;
-}
-
-static int32_t gp2a_set_threshold_high(struct gp2a_data *data, u16 thd)
-{
-	u8 val[2];
-	int ret;
-
-	val[0] = thd & 0x00FF;
-	val[1] = (thd & 0xFF00) >> 8;
-
-	ret = gp2a_i2c_write(data->i2c_client, REG_PS_HT_LSB, 2, val);
-	if (ret < 0)
-		SENSOR_ERR("set low thd failed. %d\n", ret);
-	else
-		data->prox_thd_high = thd;
-
-	SENSOR_INFO("thd = %d\n", data->prox_thd_high);
-	return ret;
+		SENSOR_ERR("failed to set mode (%d)\n", ret);
 }
 
 static ssize_t name_read(struct device *dev,
@@ -396,13 +405,62 @@ static ssize_t vendor_read(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%s\n", CHIP_DEV_VENDOR);
 }
 
+static ssize_t proximity_dhr_sensor_info_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct gp2a_data *data =  dev_get_drvdata(dev);
+	int ret;
+	u8 value[2];
+	int low_thresh, hi_thresh;
+	int ps_resolution, led_ctrl, persist_time, default_offset;
+
+	ret = gp2a_i2c_read(data->i2c_client, REG_PS_HT_LSB, 2, &value[0]);
+	if (ret < 0) {
+		SENSOR_ERR("fail, ret=%d\n", ret);
+		return ret;
+	}
+	hi_thresh = value[0] | (value[1] << 8);
+
+	ret = gp2a_i2c_read(data->i2c_client, REG_PS_LT_LSB, 2, &value[0]);
+	if (ret < 0) {
+		SENSOR_ERR("fail, ret=%d\n", ret);
+		return ret;
+	}
+	low_thresh = value[0] | (value[1] << 8);
+
+	ps_resolution = gp2a_i2c_read_byte(data->i2c_client, REG_PS1);
+	led_ctrl = gp2a_i2c_read_byte(data->i2c_client, REG_PS2);
+	persist_time = gp2a_i2c_read_byte(data->i2c_client, REG_PS3);
+
+	ret = gp2a_i2c_read(data->i2c_client, REG_OS_D0_LSB, 2, &value[0]);
+	if (ret < 0) {
+		SENSOR_ERR("fail, ret=%d\n", ret);
+		return ret;
+	}
+	default_offset = value[0] | (value[1] << 8);
+
+	return snprintf(buf, PAGE_SIZE,
+			"\"THD\":\"%d %d\","\
+			"\"PS_RESOLUTION\":\"0x%x\","\
+			"\"LED_CTRL\":\"0x%x\","\
+			"\"PERSIST_TIME\":\"0x%x\","\
+			"\"DEFAULT_OFFSET\":\"%d\","\
+			"\"CANCEL_THD\":\"%d %d\"\n",
+			hi_thresh, low_thresh,
+			ps_resolution,
+			led_ctrl,
+			persist_time,
+			default_offset,
+			data->prox_cancel_h, data->prox_cancel_l);
+}
+
 #if defined(PROXIMITY_CANCELATION)
 static int proximity_open_cancelation(struct gp2a_data *data)
 {
 	struct file *cal_filp = NULL;
 	mm_segment_t old_fs;
 	uint16_t file_offset_data;
-	int ret;
+	int ret = 0;
 
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
@@ -410,8 +468,7 @@ static int proximity_open_cancelation(struct gp2a_data *data)
 	cal_filp = filp_open(CANCELATION_FILE_PATH, O_RDONLY, 0);
 	if (IS_ERR(cal_filp)) {
 		ret = PTR_ERR(cal_filp);
-		if (ret != -ENOENT)
-			SENSOR_ERR("Can't open calibration file\n");
+		SENSOR_ERR("Can't open calibration file (%d)\n", ret);
 		set_fs(old_fs);
 		return ret;
 	}
@@ -420,24 +477,28 @@ static int proximity_open_cancelation(struct gp2a_data *data)
 		(char *)&file_offset_data,
 		sizeof(u16), &cal_filp->f_pos);
 	if (ret != sizeof(u16)) {
-		SENSOR_ERR("Can't read the cal data from file(%d)\n", ret);
+		SENSOR_ERR("Can't read the cal data from file (%d)\n", ret);
 		ret = -EIO;
+		goto done;
 	}
 
-	if (file_offset_data != data->pdata->default_trim) {
-		data->prox_offset = file_offset_data;
-		gp2a_set_threshold_high(data, data->pdata->prox_cancel_h);
-		gp2a_set_threshold_low(data, data->pdata->prox_cancel_l);
+	if (file_offset_data != data->default_trim) {
+		gp2a_set_threshold_high(data, data->prox_cancel_h);
+		gp2a_set_threshold_low(data, data->prox_cancel_l);
+		gp2a_set_data_offset(data, file_offset_data);
 	}
+
+	prox_cancel_check = true;
 
 	SENSOR_INFO("file_offset = %d, ps_offset = %d, default_trim = %d\n",
 		file_offset_data, data->prox_offset,
-		data->pdata->default_trim);
+		data->default_trim);
 
+done:
 	filp_close(cal_filp, current->files);
 	set_fs(old_fs);
 
-	return ret;
+	return ret < 0 ? ret : 0;
 }
 
 static int proximity_store_cancelation(struct device *dev, bool do_calib)
@@ -460,34 +521,34 @@ static int proximity_store_cancelation(struct device *dev, bool do_calib)
 		ps_data = (value[0] | (value[1] << 8));
 		SENSOR_INFO("raw data =  %d\n", ps_data);
 
-		if (ps_data * 10 < (data->pdata->default_low_thd * 6)) {
-			data->prox_offset = data->pdata->default_trim;
+		if (ps_data < data->cal_skip_adc) {
+			data->prox_offset = data->default_trim;
 			SENSOR_INFO("skip calibration = %d, crosstalk <\n",
 				ps_data);
 			data->prox_cal_result = CAL_SKIP;
-		} else if (ps_data <= data->pdata->default_high_thd) {
-			data->prox_offset = ps_data + data->pdata->default_trim;
+		} else if (ps_data <= data->default_high_thd) {
+			data->prox_offset = ps_data + data->default_trim;
 			SENSOR_INFO("do calibration, crosstalk_offset = %u", ps_data);
 			data->prox_cal_result = CAL_CANCELATION;
 		} else {
-			data->prox_offset = data->pdata->default_trim;
+			data->prox_offset = data->default_trim;
 			SENSOR_INFO("fail calibration = %d, crosstalk >\n",
 				ps_data);
 			data->prox_cal_result = CAL_FAIL;
 		}
 
 		if (data->prox_cal_result == CAL_CANCELATION) {
-			data->prox_thd_high = data->pdata->prox_cancel_h;
-			data->prox_thd_low = data->pdata->prox_cancel_l;
+			data->prox_thd_high = data->prox_cancel_h;
+			data->prox_thd_low = data->prox_cancel_l;
 		} else {
-			data->prox_thd_high = data->pdata->default_high_thd;
-			data->prox_thd_low = data->pdata->default_low_thd;
+			data->prox_thd_high = data->default_high_thd;
+			data->prox_thd_low = data->default_low_thd;
 		}
 	} else { /*reset*/
 		SENSOR_INFO("reset\n");
-		data->prox_offset = data->pdata->default_trim;
-		data->prox_thd_high = data->pdata->default_high_thd;
-		data->prox_thd_low = data->pdata->default_low_thd;
+		data->prox_offset = data->default_trim;
+		data->prox_thd_high = data->default_high_thd;
+		data->prox_thd_low = data->default_low_thd;
 	}
 
 	if ((data->prox_cal_result == CAL_CANCELATION) || !do_calib) {
@@ -569,8 +630,8 @@ static ssize_t proximity_cancel_show(struct device *dev,
 
 	return snprintf(buf, PAGE_SIZE, "%u,%u,%u\n",
 		data->prox_offset,
-		(data->prox_offset != data->pdata->default_trim) ? data->pdata->prox_cancel_h : data->prox_thd_high,
-		(data->prox_offset != data->pdata->default_trim) ? data->pdata->prox_cancel_l : data->prox_thd_low);
+		(data->prox_offset != data->default_trim) ? data->prox_cancel_h : data->prox_thd_high,
+		(data->prox_offset != data->default_trim) ? data->prox_cancel_l : data->prox_thd_low);
 }
 
 static ssize_t proximity_cancel_pass_show(struct device *dev,
@@ -673,10 +734,6 @@ static ssize_t proximity_avg_store(struct device *dev,
 	SENSOR_INFO("average enable = %d\n", new_value);
 	if (new_value) {
 		if (atomic_read(&data->prox_enable) == OFF) {
-			if (!data->pdata->vdd_always_on)
-				proximity_vdd_onoff(dev, ON);
-			if (!data->pdata->regulator_divided)
-				proximity_vled_onoff(dev, ON);
 			gp2a_set_mode(data, ON);
 		}
 		hrtimer_start(&data->prox_timer, data->prox_poll_delay,
@@ -686,10 +743,6 @@ static ssize_t proximity_avg_store(struct device *dev,
 		cancel_work_sync(&data->work_prox);
 		if (atomic_read(&data->prox_enable) == OFF) {
 			gp2a_set_mode(data, OFF);
-			if (!data->pdata->regulator_divided)
-				proximity_vled_onoff(dev, OFF);
-			if (!data->pdata->vdd_always_on)
-				proximity_vdd_onoff(dev, OFF);
 		}
 	}
 
@@ -785,6 +838,35 @@ static ssize_t proximity_thresh_low_store(struct device *dev,
 	return size;
 }
 
+static ssize_t proximity_default_trim_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct gp2a_data *data = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", data->default_trim);
+}
+
+static ssize_t proximity_default_trim_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct gp2a_data *data = dev_get_drvdata(dev);
+	u16 thresh_value;
+	int err;
+
+	err = kstrtou16(buf, 10, &thresh_value);
+	if (err < 0) {
+		SENSOR_ERR("kstrtoint failed(%d)\n", err);
+		return size;
+	}
+
+	data->default_trim = thresh_value;
+	gp2a_set_data_offset(data, data->default_trim);
+
+	SENSOR_INFO("new default_trim = %d\n", data->default_trim);
+
+	return size;
+}
+
 static DEVICE_ATTR(name, S_IRUGO, name_read, NULL);
 static DEVICE_ATTR(vendor, S_IRUGO, vendor_read, NULL);
 #if defined(PROXIMITY_CANCELATION)
@@ -805,6 +887,10 @@ static DEVICE_ATTR(thresh_high, S_IRUGO | S_IWUSR | S_IWGRP,
 	proximity_thresh_high_show, proximity_thresh_high_store);
 static DEVICE_ATTR(thresh_low, S_IRUGO | S_IWUSR | S_IWGRP,
 	proximity_thresh_low_show, proximity_thresh_low_store);
+static DEVICE_ATTR(dhr_sensor_info, S_IRUSR | S_IRGRP,
+	proximity_dhr_sensor_info_show, NULL);
+static DEVICE_ATTR(prox_trim, S_IRUGO | S_IWUSR | S_IWGRP,
+	proximity_default_trim_show, proximity_default_trim_store);
 
 static struct device_attribute *proximity_attrs[] = {
 	&dev_attr_name,
@@ -821,6 +907,8 @@ static struct device_attribute *proximity_attrs[] = {
 	&dev_attr_state,
 	&dev_attr_thresh_high,
 	&dev_attr_thresh_low,
+	&dev_attr_dhr_sensor_info,
+	&dev_attr_prox_trim,
 	NULL,
 };
 
@@ -831,6 +919,28 @@ static ssize_t proximity_enable_show(struct device *dev,
 
 	return snprintf(buf, PAGE_SIZE, "%d\n",
 			atomic_read(&gp2a->prox_enable));
+}
+
+static void gp2a_check_first_far_event(struct gp2a_data *gp2a)
+{
+	u8 val;
+	u16 ps_data;
+	int enabled;
+
+	enabled = atomic_read(&gp2a->prox_enable);
+	val = gpio_get_value(gp2a->p_out);
+	ps_data = gp2a_get_proximity_adc(gp2a);
+
+	SENSOR_INFO("val =%d ps_data = %d\n", val, ps_data);
+
+	if (enabled) {
+		if (val && (ps_data <= gp2a->prox_thd_low)) {
+			input_report_abs(gp2a->proximity_input_dev, ABS_DISTANCE, val);
+			input_sync(gp2a->proximity_input_dev);
+			SENSOR_INFO("First far event reported\n");
+			wake_lock_timeout(&gp2a->prx_wake_lock, 3 * HZ);
+		}
+	}
 }
 
 static ssize_t proximity_enable_store(struct device *dev,
@@ -855,28 +965,20 @@ static ssize_t proximity_enable_store(struct device *dev,
 
 	if (new_value && !pre_enable) {
 #if defined(PROXIMITY_CANCELATION)
-		int ret;
-#endif
-		if (!data->pdata->vdd_always_on)
-			proximity_vdd_onoff(dev, ON);
-		if (!data->pdata->regulator_divided)
-			proximity_vled_onoff(dev, ON);
-
-#if defined(PROXIMITY_CANCELATION)
 		/* open cancelation data */
-		ret = proximity_open_cancelation(data);
-		if (ret < 0 && ret != -ENOENT)
+		if (!prox_cancel_check && proximity_open_cancelation(data))
 			SENSOR_INFO("proximity_open_cancelation() failed\n");
 #endif
 		gp2a_set_mode(data, ON);
-
 		atomic_set(&data->prox_enable, ON);
-		/* 0 is close, 1 is far */
-		input_report_abs(data->proximity_input_dev, ABS_DISTANCE, 1);
-		input_sync(data->proximity_input_dev);
+
+		// Allow chip to update ADC value (Typ 8.79msec max 10.54msec)
+		usleep_range(15000, 15000);
+
+		// Need to check for first far only. First close is reported via interrupt
+		gp2a_check_first_far_event(data);
 
 		enable_irq_wake(data->irq);
-		msleep(200);
 		enable_irq(data->irq);
 	} else if (!new_value && pre_enable) {
 		disable_irq(data->irq);
@@ -884,10 +986,6 @@ static ssize_t proximity_enable_store(struct device *dev,
 		gp2a_set_mode(data, OFF);
 
 		atomic_set(&data->prox_enable, OFF);
-		if (!data->pdata->regulator_divided)
-			proximity_vled_onoff(dev, OFF);
-		if (!data->pdata->vdd_always_on)
-			proximity_vdd_onoff(dev, OFF);
 	}
 	SENSOR_INFO("enabled = %d\n", atomic_read(&data->prox_enable));
 
@@ -924,7 +1022,7 @@ static enum hrtimer_restart gp2a_prox_timer_func(struct hrtimer *timer)
 }
 
 /* interrupt happened due to transition/change of near/far proximity state */
-irqreturn_t proximity_irq_thread_fn(int irq, void *data)
+irqreturn_t gp2a_irq_thread_fn(int irq, void *data)
 {
 	struct gp2a_data *gp2a = data;
 	u8 val;
@@ -932,7 +1030,7 @@ irqreturn_t proximity_irq_thread_fn(int irq, void *data)
 	int enabled;
 
 	enabled = atomic_read(&gp2a->prox_enable);
-	val = gpio_get_value(gp2a->pdata->p_out);
+	val = gpio_get_value(gp2a->p_out);
 	ps_data = gp2a_get_proximity_adc(gp2a);
 
 	if (enabled) {
@@ -973,13 +1071,13 @@ static int setup_register_gp2a(struct gp2a_data *data)
 	}
 
 	/* SET threshold */
-	ret = gp2a_set_threshold_low(data, data->pdata->default_low_thd);
-	ret += gp2a_set_threshold_high(data, data->pdata->default_high_thd);
+	ret = gp2a_set_threshold_low(data, data->default_low_thd);
+	ret += gp2a_set_threshold_high(data, data->default_high_thd);
 	if (ret < 0)
 		SENSOR_ERR("set thd failed. %d\n", ret);
 
 	/* SET data OFFSET(0x8C) */
-	ret = gp2a_set_data_offset(data, data->pdata->default_trim);
+	ret = gp2a_set_data_offset(data, data->default_trim);
 	if (ret < 0)
 		SENSOR_ERR("set data offset failed. %d\n", ret);
 
@@ -988,33 +1086,32 @@ static int setup_register_gp2a(struct gp2a_data *data)
 
 static int gp2a_setup_irq(struct gp2a_data *gp2a)
 {
-	struct gp2a_platform_data *pdata = gp2a->pdata;
 	int ret;
 
-	ret = gpio_request(pdata->p_out, "gpio_proximity_out");
+	ret = gpio_request(gp2a->p_out, "gpio_proximity_out");
 	if (ret < 0) {
-		SENSOR_ERR("gpio %d request failed (%d)\n", pdata->p_out, ret);
+		SENSOR_ERR("gpio %d request failed (%d)\n", gp2a->p_out, ret);
 		return ret;
 	}
 
-	ret = gpio_direction_input(pdata->p_out);
+	ret = gpio_direction_input(gp2a->p_out);
 	if (ret < 0) {
-		SENSOR_ERR("failed gpio %d as input (%d)\n", pdata->p_out, ret);
+		SENSOR_ERR("failed gpio %d as input (%d)\n", gp2a->p_out, ret);
 		goto err_gpio_direction_input;
 	}
 
-	gp2a->irq = gpio_to_irq(pdata->p_out);
-	ret = request_threaded_irq(gp2a->irq, NULL, proximity_irq_thread_fn,
+	gp2a->irq = gpio_to_irq(gp2a->p_out);
+	ret = request_threaded_irq(gp2a->irq, NULL, gp2a_irq_thread_fn,
 		IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING | IRQF_ONESHOT,
 		"proximity_int", gp2a);
 	if (ret < 0) {
 		SENSOR_ERR("request_irq(%d) failed for gpio %d (%d)\n",
-			gp2a->irq, pdata->p_out, ret);
+			gp2a->irq, gp2a->p_out, ret);
 		goto err_request_irq;
 	}
 
 	SENSOR_INFO("request_irq(%d) success for gpio %d (%d)\n",
-		gp2a->irq, gp2a->ps_gpio, pdata->p_out);
+		gp2a->irq, gp2a->ps_gpio, gp2a->p_out);
 
 	disable_irq(gp2a->irq);
 
@@ -1022,7 +1119,7 @@ static int gp2a_setup_irq(struct gp2a_data *gp2a)
 
 err_request_irq:
 err_gpio_direction_input:
-	gpio_free(pdata->p_out);
+	gpio_free(gp2a->p_out);
 done:
 	return ret;
 }
@@ -1072,56 +1169,63 @@ static int gp2a_input_init(struct gp2a_data *gp2a)
 	return ret;
 }
 
-static int gp2a_parse_dt(struct device *dev, struct gp2a_platform_data *pdata)
+static int gp2a_parse_dt(struct device *dev, struct gp2a_data *gp2a)
 {
 	struct device_node *np = dev->of_node;
 	enum of_gpio_flags flags;
 	int ret;
 	u32 temp;
 
-	if (pdata == NULL)
+	if (np == NULL)
 		return -ENODEV;
 
-	pdata->p_out = of_get_named_gpio_flags(np, "gp2a,irq-gpio", 0,
+	gp2a->p_out = of_get_named_gpio_flags(np, "gp2a,irq-gpio", 0,
 		&flags);
-	if (pdata->p_out < 0) {
-		SENSOR_ERR("get irq_gpio(%d) error\n", pdata->p_out);
+	if (gp2a->p_out < 0) {
+		SENSOR_ERR("get irq_gpio(%d) error\n", gp2a->p_out);
 		return -ENODEV;
 	}
 
 	ret = of_property_read_u32(np, "gp2a,default_high_thd",
-		&pdata->default_high_thd);
+		&gp2a->default_high_thd);
 	if (ret < 0) {
 		SENSOR_ERR("Cannot set default_high_thd\n");
-		pdata->default_high_thd = DEFAULT_HIGH_THD;
+		gp2a->default_high_thd = DEFAULT_HIGH_THD;
 	}
 
 	ret = of_property_read_u32(np, "gp2a,default_low_thd",
-		&pdata->default_low_thd);
+		&gp2a->default_low_thd);
 	if (ret < 0) {
 		SENSOR_ERR("Cannot set default_low_thd\n");
-		pdata->default_low_thd = DEFAULT_LOW_THD;
+		gp2a->default_low_thd = DEFAULT_LOW_THD;
+	}
+
+	ret = of_property_read_u32(np, "gp2a,cal_skip_adc",
+		&gp2a->cal_skip_adc);
+	if (ret < 0) {
+		SENSOR_ERR("Cannot set cal_skip_adc\n");
+		gp2a->cal_skip_adc = (gp2a->default_low_thd * 6) / 10;
 	}
 
 	ret = of_property_read_u32(np, "gp2a,cancel_high_thd",
-		&pdata->prox_cancel_h);
+		&gp2a->prox_cancel_h);
 	if (ret < 0) {
 		SENSOR_ERR("Cannot set cancel_high_thd\n");
-		pdata->prox_cancel_h = CANCEL_HIGH_THD;
+		gp2a->prox_cancel_h = CANCEL_HIGH_THD;
 	}
 
 	ret = of_property_read_u32(np, "gp2a,cancel_low_thd",
-		&pdata->prox_cancel_l);
+		&gp2a->prox_cancel_l);
 	if (ret < 0) {
 		SENSOR_ERR("Cannot set cancel_low_thd\n");
-		pdata->prox_cancel_l = CANCEL_LOW_THD;
+		gp2a->prox_cancel_l = CANCEL_LOW_THD;
 	}
 
 	ret = of_property_read_u32(np, "gp2a,default_offset",
-		&pdata->default_trim);
+		&gp2a->default_trim);
 	if (ret < 0) {
 		SENSOR_ERR("Cannot set default_trim\n");
-		pdata->default_trim = DEFAULT_OFFSET;
+		gp2a->default_trim = DEFAULT_OFFSET;
 	}
 
 	ret = of_property_read_u32(np, "gp2a,reg_intval", &temp);
@@ -1152,32 +1256,23 @@ static int gp2a_parse_dt(struct device *dev, struct gp2a_platform_data *pdata)
 	} else
 		ps_reg_init_setting[PS_PS3][CMD] = temp;
 
-	pdata->vled_ldo = of_get_named_gpio_flags(np, "gp2a,vled_ldo",
+	gp2a->vled_ldo = of_get_named_gpio_flags(np, "gp2a,vled_ldo",
 			0, &flags);
-	if (pdata->vled_ldo < 0) {
+	if (gp2a->vled_ldo < 0) {
 		SENSOR_ERR("fail to get vled_ldo: means to use regulator as vLED\n");
-		pdata->vled_ldo = 0;
+		gp2a->vled_ldo = 0;
 	} else {
-		ret = gpio_request(pdata->vled_ldo, "prox_vled_en");
+		ret = gpio_request(gp2a->vled_ldo, "prox_vled_en");
 		if (ret < 0) {
 			SENSOR_ERR("gpio %d request failed (%d)\n",
-				pdata->vled_ldo, ret);
+				gp2a->vled_ldo, ret);
 			return ret;
 		}
-		gpio_direction_output(pdata->vled_ldo, 0);
+		gpio_direction_output(gp2a->vled_ldo, 0);
 	}
 
-	ret = of_property_read_u32(np, "gp2a,regulator_divided",
-		&pdata->regulator_divided);
-	if (pdata->regulator_divided)
-		pdata->vdd_always_on = 1;
-	else
-		ret = of_property_read_u32(np, "gp2a,vdd_always_on",
-			&pdata->vdd_always_on);
+	SENSOR_INFO("vled_ldo: %d\n", gp2a->vled_ldo);
 
-	SENSOR_INFO("vdd_alwayson_on: %d, regulator_divided: %d, vled_ldo: %d\n",
-		pdata->vdd_always_on, pdata->regulator_divided,
-		pdata->vled_ldo);
 	SENSOR_INFO("initial register 0x83 = 0x%x, 0x85 = 0x%x, 0x86 = 0x%x, 0x87 = 0x%x",
 		ps_reg_init_setting[PS_COM4][CMD],
 		ps_reg_init_setting[PS_PS1][CMD],
@@ -1192,7 +1287,6 @@ static int gp2a_i2c_probe(struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
 	struct gp2a_data *gp2a;
-	struct gp2a_platform_data *pdata = client->dev.platform_data;
 	int ret;
 
 	SENSOR_INFO("start\n");
@@ -1210,31 +1304,18 @@ static int gp2a_i2c_probe(struct i2c_client *client,
 		goto err_mem_alloc;
 	}
 
-	if (client->dev.of_node) {
-		pdata = devm_kzalloc(&client->dev,
-			sizeof(struct gp2a_platform_data), GFP_KERNEL);
-		ret = gp2a_parse_dt(&client->dev, pdata);
-		if (ret) {
-			SENSOR_ERR("error in device tree");
-			goto err_device_tree;
-		}
-	} else
-		pdata = client->dev.platform_data;
-
-	if (!pdata) {
-		SENSOR_ERR("missing pdata!\n");
-		ret = -ENOMEM;
+	ret = gp2a_parse_dt(&client->dev, gp2a);
+	if (ret) {
+		SENSOR_ERR("error in device tree");
 		goto err_device_tree;
 	}
 
-	gp2a->pdata = pdata;
 	gp2a->i2c_client = client;
 	i2c_set_clientdata(client, gp2a);
 
-	if (!gp2a->pdata->regulator_divided)
-		proximity_vdd_onoff(&client->dev, ON);
+	// Keep regulator always ON
+	proximity_vdd_onoff(&client->dev, ON);
 	proximity_vled_onoff(&client->dev, ON);
-	usleep_range(1000, 1100);
 
 	/* Check if the device is there or not. (Shutdown operation) */
 	ret = gp2a_i2c_write_byte(client, REG_COM1, COM1_SD);
@@ -1256,7 +1337,7 @@ static int gp2a_i2c_probe(struct i2c_client *client,
 		goto err_input_init;
 	}
 
-	ret = sensors_register(gp2a->dev, gp2a, proximity_attrs, MODULE_NAME);
+	ret = sensors_register(&gp2a->dev, gp2a, proximity_attrs, MODULE_NAME);
 	if (ret < 0) {
 		SENSOR_INFO("could not sensors_register\n");
 		goto err_sensors_register;
@@ -1289,11 +1370,6 @@ static int gp2a_i2c_probe(struct i2c_client *client,
 		goto err_setup_irq;
 	}
 
-	if (!gp2a->pdata->regulator_divided)
-		proximity_vled_onoff(&client->dev, OFF);
-	if (!gp2a->pdata->vdd_always_on)
-		proximity_vdd_onoff(&client->dev, OFF);
-
 	SENSOR_INFO("success\n");
 	return ret;
 
@@ -1311,11 +1387,10 @@ err_sensors_register:
 err_input_init:
 err_setup_register:
 err_check_device:
+	if (gp2a->vled_ldo)
+		gpio_free(gp2a->vled_ldo);
 	proximity_vled_onoff(&client->dev, OFF);
-	if (gp2a->pdata->vled_ldo)
-		gpio_free(gp2a->pdata->vled_ldo);
-	if (!gp2a->pdata->regulator_divided)
-		proximity_vdd_onoff(&client->dev, OFF);
+	proximity_vdd_onoff(&client->dev, OFF);
 err_device_tree:
 	kfree(gp2a);
 err_mem_alloc:
@@ -1323,6 +1398,21 @@ err_mem_alloc:
 	return ret;
 }
 
+static void gp2a_shutdown(struct i2c_client *client)
+{
+	struct gp2a_data *data = i2c_get_clientdata(client);
+	int enable;
+
+	SENSOR_INFO("is called.\n");
+	enable = atomic_read(&data->prox_enable);
+	if (enable) {
+		disable_irq(data->irq);
+		disable_irq_wake(data->irq);
+		gp2a_set_mode(data, OFF);
+
+		atomic_set(&data->prox_enable, OFF);
+	}
+}
 
 static int gp2a_suspend(struct device *dev)
 {
@@ -1376,6 +1466,7 @@ static struct i2c_driver gp2a_i2c_driver = {
 		.pm = &gp2a_pm_ops
 	},
 	.probe		= gp2a_i2c_probe,
+	.shutdown = gp2a_shutdown,
 	.id_table	= gp2a_device_id,
 };
 

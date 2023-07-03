@@ -76,6 +76,7 @@ int fimc_is_search_sensor_module(struct fimc_is_device_sensor *device,
 	for (mindex = 0; mindex < mmax; mindex++) {
 		if (module_enum[mindex].sensor_id == sensor_id) {
 			*module = &module_enum[mindex];
+			info("mindex=%d, sensor_id=%d, mmax=%d\n", mindex, sensor_id, mmax);
 			break;
 		}
 	}
@@ -476,18 +477,37 @@ int fimc_is_sensor_gpio_on(struct fimc_is_device_sensor *device)
 			goto p_err;
 		}
 
-		if (!pdata->gpio_cfg) {
-			clear_bit(FIMC_IS_MODULE_GPIO_ON, &module->state);
-			merr("gpio_cfg is NULL", device);
-			ret = -EINVAL;
-			goto p_err;
-		}
+#ifdef CONFIG_CAMERA_USE_SOC_SENSOR
+		if (scenario == SENSOR_SCENARIO_EXTERNAL) { /* i2c client */
+			if (!pdata->gpio_soc_cfg) {
+				clear_bit(FIMC_IS_MODULE_GPIO_ON, &module->state);
+				merr("gpio_soc_cfg is NULL", device);
+				ret = -EINVAL;
+				goto p_err;
+			}
+
+			ret = pdata->gpio_soc_cfg(module->client, scenario, GPIO_SCENARIO_ON);
+			if (ret) {
+				clear_bit(FIMC_IS_MODULE_GPIO_ON, &module->state);
+				merr("gpio_soc_cfg is fail(%d)", device, ret);
+				goto p_err;
+			}
+		} else
+#endif
+		{
+			if (!pdata->gpio_cfg) {
+				clear_bit(FIMC_IS_MODULE_GPIO_ON, &module->state);
+				merr("gpio_cfg is NULL", device);
+				ret = -EINVAL;
+				goto p_err;
+			}
 
 		ret = pdata->gpio_cfg(module, scenario, gpio_scenario);
 		if (ret) {
 			clear_bit(FIMC_IS_MODULE_GPIO_ON, &module->state);
 			merr("gpio_cfg is fail(%d)", device, ret);
 			goto p_err;
+			}
 		}
 
 		ret = fimc_is_vender_sensor_gpio_on(vender, scenario, gpio_scenario);
@@ -566,18 +586,38 @@ int fimc_is_sensor_gpio_off(struct fimc_is_device_sensor *device)
 			goto p_err;
 		}
 
-		if (!pdata->gpio_cfg) {
-			set_bit(FIMC_IS_MODULE_GPIO_ON, &module->state);
-			merr("gpio_cfg is NULL", device);
-			ret = -EINVAL;
-			goto p_err;
-		}
+#ifdef CONFIG_CAMERA_USE_SOC_SENSOR
+		/* i2c client */
+		if (scenario == SENSOR_SCENARIO_EXTERNAL) {
+			if (!pdata->gpio_soc_cfg) {
+				set_bit(FIMC_IS_MODULE_GPIO_ON, &module->state);
+				merr("gpio_soc_cfg is NULL", device);
+				ret = -EINVAL;
+				goto p_err;
+			}
+
+			ret = pdata->gpio_soc_cfg(module->client, scenario, GPIO_SCENARIO_OFF);
+			if (ret) {
+				set_bit(FIMC_IS_MODULE_GPIO_ON, &module->state);
+				merr("gpio_soc_cfg is fail(%d)", device, ret);
+				goto p_err;
+			}
+		} else
+#endif
+		{
+			if (!pdata->gpio_cfg) {
+				set_bit(FIMC_IS_MODULE_GPIO_ON, &module->state);
+				merr("gpio_cfg is NULL", device);
+				ret = -EINVAL;
+				goto p_err;
+			}
 
 		ret = pdata->gpio_cfg(module, scenario, gpio_scenario);
 		if (ret) {
 			set_bit(FIMC_IS_MODULE_GPIO_ON, &module->state);
 			merr("gpio_cfg is fail(%d)", device, ret);
 			goto p_err;
+			}
 		}
 
 		ret = fimc_is_vender_sensor_gpio_off(vender, scenario, gpio_scenario);
@@ -937,7 +977,9 @@ static int fimc_is_sensor_notify_by_fstr(struct fimc_is_device_sensor *device, v
 #endif
 #endif
 		frame->fcount = device->fcount;
+#ifndef CONFIG_CAMERA_USE_SOC_SENSOR // TEMP_SOC
 		fimc_is_sensor_dm_tag(device, frame);
+#endif
 	}
 
 #ifdef TASKLET_MSG
@@ -1407,8 +1449,20 @@ int fimc_is_sensor_close(struct fimc_is_device_sensor *device)
 	int ret = 0;
 	struct fimc_is_device_ischain *ischain;
 	struct fimc_is_group *group_3aa;
+	struct fimc_is_core *core;
 
 	BUG_ON(!device);
+
+	if (!device->vctx) {
+		core = device->private_data;
+		if (!core)
+			info("%s: core(null), skip sensor_close() - shutdown \n", __func__);
+		else if (core->shutdown)
+			info("%s: vctx(null), skip sensor_close() - shutdown \n", __func__);
+
+		return 0;
+	}
+
 	BUG_ON(!device->vctx);
 
 	if (!test_bit(FIMC_IS_SENSOR_OPEN, &device->state)) {
@@ -2258,6 +2312,9 @@ int fimc_is_sensor_buffer_finish(struct fimc_is_device_sensor *device,
 	framemgr_e_barrier_irqs(framemgr, FMGR_IDX_3, flags);
 
 	if (frame->state == FS_COMPLETE) {
+#ifdef CONFIG_CAMERA_USE_SOC_SENSOR
+		trans_frame(framemgr, frame, FS_FREE);
+#else
 		if (!frame->shot->dm.request.frameCount)
 			err("request.frameCount is 0\n");
 		trans_frame(framemgr, frame, FS_FREE);
@@ -2266,6 +2323,7 @@ int fimc_is_sensor_buffer_finish(struct fimc_is_device_sensor *device,
 		frame->shot_ext->request_cnt = framemgr->queued_count[FS_REQUEST];
 		frame->shot_ext->process_cnt = framemgr->queued_count[FS_PROCESS];
 		frame->shot_ext->complete_cnt = framemgr->queued_count[FS_COMPLETE];
+#endif
 	} else {
 		err("frame(%d) is not com state(%d)", index, frame->state);
 		frame_manager_print_queues(framemgr);
@@ -2382,6 +2440,7 @@ int fimc_is_sensor_front_start(struct fimc_is_device_sensor *device,
 	struct v4l2_subdev *subdev_module;
 	struct v4l2_subdev *subdev_csi;
 	struct fimc_is_module_enum *module;
+	struct fimc_is_core *core;
 
 	BUG_ON(!device);
 	BUG_ON(!device->pdata);
@@ -2391,6 +2450,12 @@ int fimc_is_sensor_front_start(struct fimc_is_device_sensor *device,
 		merr("already front start", device);
 		ret = -EINVAL;
 		goto p_err;
+	}
+
+	core = device->private_data;
+	if (core && core->reboot) {
+		info("%s: skip sensor_front_start() - reboot(%d)\n", __func__, core->reboot);
+		return -EINVAL;
 	}
 
 	memset(device->timestamp, 0x0, FIMC_IS_TIMESTAMP_HASH_KEY * sizeof(u64));

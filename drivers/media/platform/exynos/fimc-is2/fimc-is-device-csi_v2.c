@@ -130,7 +130,7 @@ static inline void csi_s_config_dma(struct fimc_is_device_csi *csi, struct fimc_
 			}
 		}
 
-		csi_hw_s_config_dma(csi->base_reg, i, image);
+		csi_hw_s_config_dma(csi->base_reg, i, vci_config, image);
 	}
 }
 
@@ -197,13 +197,14 @@ static void csis_s_all_vc_dma_buf(struct fimc_is_device_csi *csi)
 		}
 
 		BUG_ON(!framemgr);
-
+#if !defined(CONFIG_CAMERA_USE_SOC_SENSOR)
 		/* If error happened, return all processing frame to HAL with error state. */
 		if (test_bit((CSIS_BUF_ERR_VC0 + vc), &csi->state)) {
 			csis_flush_vc_buf_done(csi, vc, FS_PROCESS, VB2_BUF_STATE_ERROR);
 			err("[F%d][VC%d] frame was done with error", atomic_read(&csi->fcount), vc);
 			clear_bit((CSIS_BUF_ERR_VC0 + vc), &csi->state);
 		}
+#endif
 
 		framemgr_e_barrier(framemgr, 0);
 

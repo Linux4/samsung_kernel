@@ -1,9 +1,5 @@
 /*
  *
- * $Id: stk3013.h
- *
- * Copyright (C) 2012~2015 Lex Hsieh     <lex_hsieh@sensortek.com.tw>
- *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file COPYING in the main directory of this archive for
  * more details.
@@ -13,8 +9,7 @@
 #define __STK3013_H__
 
 /* platform data */
-struct stk3013_platform_data
-{
+struct stk3013_platform_data {
 	uint8_t state_reg;
 	uint8_t psctrl_reg;
 	uint8_t alsctrl_reg;
@@ -30,5 +25,9 @@ struct stk3013_platform_data
 	int int_pin;
 	uint32_t transmittance;
 	uint32_t int_flags;
+
+	int vdd_always_on; /* 1: vdd is always on, 0: enable only when proximity is on */
+	int vled_ldo; /*0: vled(anode) source regulator, other: get power by LDO control */
+	int regulator_divided; /* 1: vdd & vled uses divided circuit, 0: vdd & vled uses seperate circuit */
 };
-#endif // __STK3013_H__
+#endif

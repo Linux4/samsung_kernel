@@ -409,7 +409,7 @@ void s5p_mfc_release_codec_buffers(struct s5p_mfc_ctx *ctx)
 
 	dev = ctx->dev;
 	if (!dev) {
-		mfc_err_ctx("no mfc device to run\n");
+		mfc_err("no mfc device to run\n");
 		return;
 	}
 
@@ -551,7 +551,7 @@ void s5p_mfc_release_instance_buffer(struct s5p_mfc_ctx *ctx)
 
 	dev = ctx->dev;
 	if (!dev) {
-		mfc_err_ctx("no mfc device to run\n");
+		mfc_err("no mfc device to run\n");
 		return;
 	}
 
@@ -1087,6 +1087,8 @@ int s5p_mfc_set_dec_stream_buffer(struct s5p_mfc_ctx *ctx, struct s5p_mfc_buf *m
 		mfc_info_ctx("Decrease strm_size : %u -> %zu, gap : %d\n",
 				strm_size, set_strm_size_max(cpb_buf_size), CPB_GAP);
 		strm_size = set_strm_size_max(cpb_buf_size);
+		if (mfc_buf)
+			mfc_buf->vb.v4l2_planes[0].bytesused = strm_size;
 	}
 
 	mfc_debug(2, "inst_no: %d, buf_addr: 0x%08llx\n", ctx->inst_no,
@@ -1094,7 +1096,7 @@ int s5p_mfc_set_dec_stream_buffer(struct s5p_mfc_ctx *ctx, struct s5p_mfc_buf *m
 	mfc_debug(2, "strm_size: 0x%08x cpb_buf_size: %zu offset: 0x%08x\n",
 			strm_size, cpb_buf_size, start_num_byte);
 
-	if (ctx->state == MFCINST_GOT_INST && strm_size == 0)
+	if (strm_size == 0)
 		mfc_info_ctx("stream size is 0\n");
 
 	MFC_WRITEL(strm_size, S5P_FIMV_D_STREAM_DATA_SIZE);

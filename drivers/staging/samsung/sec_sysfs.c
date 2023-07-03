@@ -56,4 +56,4 @@ void sec_device_destroy(dev_t devt)
 }
 EXPORT_SYMBOL(sec_device_destroy);
 
-subsys_initcall(sec_class_create);
+arch_initcall_sync(sec_class_create);

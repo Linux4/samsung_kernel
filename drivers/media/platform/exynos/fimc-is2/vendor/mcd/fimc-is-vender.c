@@ -50,6 +50,155 @@ struct workqueue_struct *sensor_pwr_ctrl_wq = 0;
 #define CAMERA_WORKQUEUE_MAX_WAITING	1000
 #endif
 
+#ifdef USE_CAMERA_HW_BIG_DATA
+static struct cam_hw_param_collector cam_hwparam_collector;
+static bool mipi_err_check;
+static bool need_update_to_file;
+
+bool fimc_is_sec_need_update_to_file(void)
+{
+	return need_update_to_file;
+}
+
+void fimc_is_sec_init_err_cnt_file(struct cam_hw_param *hw_param)
+{
+	if (hw_param) {
+		memset(hw_param, 0, sizeof(struct cam_hw_param));
+		fimc_is_sec_copy_err_cnt_to_file();
+	}
+}
+
+void fimc_is_sec_copy_err_cnt_to_file(void)
+{
+	struct file *fp = NULL;
+	mm_segment_t old_fs;
+	long nwrite = 0;
+	bool ret = false;
+	int old_mask = 0;
+
+	if (current && current->fs) {
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+
+		ret = sys_access(CAM_HW_ERR_CNT_FILE_PATH, 0);
+
+		if (ret != 0) {
+			old_mask = sys_umask(7);
+			fp = filp_open(CAM_HW_ERR_CNT_FILE_PATH, O_WRONLY | O_CREAT | O_TRUNC | O_SYNC, 0660);
+			if (IS_ERR_OR_NULL(fp)) {
+				warn("%s open failed", CAM_HW_ERR_CNT_FILE_PATH);
+				sys_umask(old_mask);
+				set_fs(old_fs);
+				return;
+			}
+			
+			filp_close(fp, current->files);
+			sys_umask(old_mask);
+		}
+
+		fp = filp_open(CAM_HW_ERR_CNT_FILE_PATH, O_WRONLY | O_TRUNC | O_SYNC, 0660);
+		if (IS_ERR_OR_NULL(fp)) {
+			warn("%s open failed", CAM_HW_ERR_CNT_FILE_PATH);
+			set_fs(old_fs);
+			return;
+		}
+
+		nwrite = vfs_write(fp, (char *)&cam_hwparam_collector, sizeof(struct cam_hw_param_collector), &fp->f_pos);
+
+		filp_close(fp, current->files);
+		set_fs(old_fs);
+		need_update_to_file = false;
+	}
+}
+
+
+void fimc_is_sec_copy_err_cnt_from_file(void)
+{
+	struct file *fp = NULL;
+	mm_segment_t old_fs;
+	long nread = 0;
+	bool ret = false;
+
+	ret = fimc_is_sec_file_exist(CAM_HW_ERR_CNT_FILE_PATH);
+
+	if (ret) {
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		
+		fp = filp_open(CAM_HW_ERR_CNT_FILE_PATH, O_RDONLY, 0660);
+		if (IS_ERR_OR_NULL(fp)) {
+			warn("%s open failed", CAM_HW_ERR_CNT_FILE_PATH);
+			set_fs(old_fs);
+			return;
+		}
+		
+		nread = vfs_read(fp, (char *)&cam_hwparam_collector, sizeof(struct cam_hw_param_collector), &fp->f_pos);
+
+		filp_close(fp, current->files);
+		set_fs(old_fs);
+	}
+}
+
+int fimc_is_sec_get_rear_hw_param(struct cam_hw_param **hw_param)
+{
+	*hw_param = &cam_hwparam_collector.rear_hwparam;
+	need_update_to_file = true;
+	return 0;
+}
+
+int fimc_is_sec_get_front_hw_param(struct cam_hw_param **hw_param)
+{
+	*hw_param = &cam_hwparam_collector.front_hwparam;
+	need_update_to_file = true;
+	return 0;
+}
+
+#endif
+
+void fimc_is_vendor_csi_stream_on(struct fimc_is_device_csi *csi)
+{
+#ifdef USE_CAMERA_HW_BIG_DATA
+	mipi_err_check = false;
+#endif
+}
+
+void fimc_is_vender_csi_err_handler(struct fimc_is_device_csi *csi)
+{
+#ifdef USE_CAMERA_HW_BIG_DATA
+	struct fimc_is_device_sensor *device = NULL;
+	struct cam_hw_param *hw_param = NULL;
+
+	device = container_of(csi->subdev, struct fimc_is_device_sensor, subdev_csi);
+
+	if (device && device->pdev && !mipi_err_check) {
+		switch (device->pdev->id) {
+
+#ifdef CSI_SCENARIO_SEN_REAR
+			case CSI_SCENARIO_SEN_REAR:
+				fimc_is_sec_get_rear_hw_param(&hw_param);
+				
+				if (hw_param)
+					hw_param->mipi_sensor_err_cnt++;
+				break;
+#endif
+
+#ifdef CSI_SCENARIO_SEN_FRONT
+			case CSI_SCENARIO_SEN_FRONT:
+				fimc_is_sec_get_front_hw_param(&hw_param);
+				
+				if (hw_param)
+					hw_param->mipi_sensor_err_cnt++;
+				break;
+#endif
+
+			default:
+				break;
+		}
+		mipi_err_check = true;
+	}
+#endif
+}
+
 int fimc_is_vender_probe(struct fimc_is_vender *vender)
 {
 	int ret = 0;
@@ -266,6 +415,10 @@ int fimc_is_vender_hw_init(struct fimc_is_vender *vender)
 	dev = &core->ischain[0].pdev->dev;
 
 	is_hw_init_running = true;
+#ifdef USE_CAMERA_HW_BIG_DATA
+	need_update_to_file = false;
+	fimc_is_sec_copy_err_cnt_from_file();
+#endif
 	ret = fimc_is_vender_check_sensor(core);
 	if (ret) {
 		err("Do not init hw routine. Check sensor failed!\n");
@@ -509,7 +662,7 @@ struct fimc_is_module_enum *active_sensor, int position)
 	struct fimc_is_from_info *pinfo;
 	char *loaded_fw_ver;
 
-	mdbgd_ischain("%s\n", device, __func__);
+	info("[%d]%s\n", position, __func__);
 
 	if (!fimc_is_sec_check_from_ver(core, position)) {
 		err("Camera : Did not load cal data.");
@@ -1212,6 +1365,54 @@ extern int sky81296_torch_ctrl(int state);
 extern int s2mpb02_set_torch_current(bool movie);
 #endif
 
+#ifdef CONFIG_LEDS_SUPPORT_FRONT_FLASH_AUTO
+int fimc_is_vender_set_torch(u32 aeflashMode, u32 frontFlashMode)
+{
+	err("[DOO] aeflashMode(%d), frontFlashMode(%d)", aeflashMode, frontFlashMode);
+	switch (aeflashMode) {
+	case AA_FLASHMODE_ON_ALWAYS: /*TORCH(MOVIE) mode*/
+#ifdef CONFIG_LEDS_LM3560
+		lm3560_reg_update_export(0xE0, 0xFF, 0xEF);
+#elif defined(CONFIG_LEDS_SKY81296)
+		sky81296_torch_ctrl(1);
+#elif defined(CONFIG_LEDS_KTD2692) && defined(CONFIG_LEDS_SUPPORT_FRONT_FLASH)
+		ktd2692_led_mode_ctrl(2);
+#endif
+#if defined(CONFIG_TORCH_CURRENT_CHANGE_SUPPORT) && defined(CONFIG_LEDS_S2MPB02)
+		s2mpb02_set_torch_current(true);
+#endif
+
+		break;
+	case AA_FLASHMODE_START: /*Pre flash mode*/
+	case AA_FLASHMODE_ON: /* Main flash Mode */
+#ifdef CONFIG_LEDS_LM3560
+		lm3560_reg_update_export(0xE0, 0xFF, 0xEF);
+#elif defined(CONFIG_LEDS_SKY81296)
+		sky81296_torch_ctrl(1);
+#elif defined(CONFIG_LEDS_KTD2692) && defined(CONFIG_LEDS_SUPPORT_FRONT_FLASH)
+		ktd2692_led_mode_ctrl(2);
+#endif
+#if defined(CONFIG_TORCH_CURRENT_CHANGE_SUPPORT) && defined(CONFIG_LEDS_S2MPB02)
+		s2mpb02_set_torch_current(false);
+#endif
+		break;
+	case AA_FLASHMODE_CAPTURE: /*Main flash mode*/
+		break;
+	case AA_FLASHMODE_OFF: /*OFF mode*/
+#ifdef CONFIG_LEDS_SKY81296
+		sky81296_torch_ctrl(0);
+#elif defined(CONFIG_LEDS_KTD2692) && defined(CONFIG_LEDS_SUPPORT_FRONT_FLASH)
+		ktd2692_led_mode_ctrl(1);
+#endif
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+#else
+
 int fimc_is_vender_set_torch(u32 aeflashMode)
 {
 	switch (aeflashMode) {
@@ -1252,6 +1453,8 @@ int fimc_is_vender_set_torch(u32 aeflashMode)
 
 	return 0;
 }
+
+#endif
 
 int fimc_is_vender_video_s_ctrl(struct v4l2_control *ctrl,
 	void *device_data)

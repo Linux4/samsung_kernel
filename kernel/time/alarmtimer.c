@@ -225,6 +225,11 @@ static int alarmtimer_suspend(struct device *dev)
 	struct rtc_device *rtc;
 	int i;
 	int ret;
+#ifdef CONFIG_SEC_PM_DEBUG
+	pid_t pid = 0;
+	char task_comm[TASK_COMM_LEN] = {0,};
+	void *func = NULL;
+#endif
 
 	spin_lock_irqsave(&freezer_delta_lock, flags);
 	min = freezer_delta;
@@ -248,14 +253,27 @@ static int alarmtimer_suspend(struct device *dev)
 		if (!next)
 			continue;
 		delta = ktime_sub(next->expires, base->gettime());
-		if (!min.tv64 || (delta.tv64 < min.tv64))
+		if (!min.tv64 || (delta.tv64 < min.tv64)) {
 			min = delta;
+#ifdef CONFIG_SEC_PM_DEBUG
+			if (ktime_to_ns(min) < 2 * NSEC_PER_SEC) {
+				pid = next->pid;
+				strncpy(task_comm, next->task_comm,
+						TASK_COMM_LEN - 1);
+				func = next->func;
+			}
+#endif
+        }
 	}
 	if (min.tv64 == 0)
 		return 0;
 
 	if (ktime_to_ns(min) < 2 * NSEC_PER_SEC) {
 		__pm_wakeup_event(ws, 2 * MSEC_PER_SEC);
+#ifdef CONFIG_SEC_PM_DEBUG
+		pr_err("%s: alarm will be expired in 2 secs[PID:%d(%s), %pf]\n",
+				__func__, pid, task_comm, func);
+#endif
 		return -EBUSY;
 	}
 

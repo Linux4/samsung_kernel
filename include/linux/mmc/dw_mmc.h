@@ -236,6 +236,9 @@ struct dw_mci {
 	struct buffer_head *self_test_bh;
 	int self_test_mode;
 	struct idmac_desc_64addr *desc_st;
+	
+	/* Card Clock In */
+	u32			cclk_in;
 };
 
 /* DMA ops for Internal/External DMAC interface */

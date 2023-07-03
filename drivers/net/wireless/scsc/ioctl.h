@@ -17,6 +17,7 @@ struct android_wifi_priv_cmd {
 };
 
 int slsi_ioctl(struct net_device *dev, struct ifreq *rq, int cmd);
+int slsi_get_sta_info(struct net_device *dev, char *command, int buf_len);
 
 struct slsi_supported_channels {
 	int start_chan_num;

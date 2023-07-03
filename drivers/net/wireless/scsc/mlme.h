@@ -33,8 +33,22 @@ enum slsi_ac_index_wmm_pe {
 #define SLSI_WLAN_EXT_CAPA3_INTERWORKING_ENABLED        (1 << 7)
 #define SLSI_WLAN_EXT_CAPA4_QOS_MAP_ENABLED                  (1 << 0)
 #define SLSI_WLAN_EXT_CAPA5_WNM_NOTIF_ENABLED              (1 << 6)
+#define SLSI_WLAN_EXT_CAPA2_QBSS_LOAD_ENABLED                  BIT(7)
+#define SLSI_WLAN_EXT_CAPA1_PROXY_ARP_ENABLED                  BIT(4)
+#define SLSI_WLAN_EXT_CAPA2_TFS_ENABLED                              BIT(0)
+#define SLSI_WLAN_EXT_CAPA2_WNM_SLEEP_ENABLED                 BIT(1)
+#define SLSI_WLAN_EXT_CAPA2_TIM_ENABLED                              BIT(2)
+#define SLSI_WLAN_EXT_CAPA2_DMS_ENABLED                             BIT(4)
 
-#define SLSI_AP_EXT_CAPAB_IE_LEN 10           /* EID (1) + Len (1) + Ext Capab (8) */
+/*RM Enabled Capabilities Bytes*/
+#define SLSI_WLAN_RM_CAPA0_LINK_MEASUREMENT_ENABLED       BIT(0)
+#define SLSI_WLAN_RM_CAPA0_NEIGHBOR_REPORT_ENABLED         BIT(1)
+#define SLSI_WLAN_RM_CAPA0_PASSIVE_MODE_ENABLED              BIT(4)
+#define SLSI_WLAN_RM_CAPA0_ACTIVE_MODE_ENABLED	               BIT(5)
+#define SLSI_WLAN_RM_CAPA0_TABLE_MODE_ENABLED                 BIT(6)
+
+
+#define SLSI_AP_EXT_CAPAB_IE_LEN_MAX 12           /* EID (1) + Len (1) + Ext Capab (8) */
 
 #define SLSI_SCAN_DONE_IND_WAIT_TIMEOUT 40000 /* 40 seconds */
 
@@ -73,7 +87,6 @@ enum slsi_ac_index_wmm_pe {
  * the configured channel.
  */
 #define SLSI_FW_CHANNEL_DURATION_UNSPECIFIED             (0x0000)
-
 extern struct ieee80211_supported_band    slsi_band_2ghz;
 extern struct ieee80211_supported_band    slsi_band_5ghz;
 extern struct ieee80211_sta_vht_cap       slsi_vht_cap;
@@ -84,6 +97,12 @@ extern struct ieee80211_sta_vht_cap       slsi_vht_cap;
 #define SLSI_PKT_FILTER_ELEM_FIXED_LEN  6                                  /* oui(3) + oui type(1) + filter id (1) + pkt filter mode(1)*/
 #define SLSI_PKT_FILTER_ELEM_HDR_LEN  (2 + SLSI_PKT_FILTER_ELEM_FIXED_LEN) /* element id + len + SLSI_PKT_FILTER_ELEM_FIXED_LEN*/
 #define SLSI_MAX_PATTERN_LENGTH 6
+
+/*Default values of MIBS params for GET_STA_INFO driver private command */
+#define SLSI_DEFAULT_UNIFI_PEER_BANDWIDTH             -1
+#define SLSI_DEFAULT_UNIFI_PEER_NSS                          0
+#define SLSI_DEFAULT_UNIFI_PEER_RSSI                         1
+#define SLSI_DEFAULT_UNIFI_PEER_TX_DATA_RATE          0
 
 struct slsi_mlme_pattern_desc {
 	u8 offset;
@@ -149,7 +168,6 @@ int slsi_mlme_start(struct slsi_dev *sdev, struct net_device *dev, u8 *bssid, st
 int slsi_mlme_connect(struct slsi_dev *sdev, struct net_device *dev, struct cfg80211_connect_params *sme, struct ieee80211_channel *channel, const u8 *bssid);
 int slsi_mlme_set_key(struct slsi_dev *sdev, struct net_device *dev, u16 key_id, u16 key_type, const u8 *address, struct key_params *key);
 int slsi_mlme_get_key(struct slsi_dev *sdev, struct net_device *dev, u16 key_id, u16 key_type, u8 *seq, int *seq_len);
-int slsi_mlme_set_cckm_key(struct slsi_dev *sdev, struct net_device *dev, u8 *gk_key);
 
 /**
  * Sends MLME-DISCONNECT-REQ and waits for the MLME-DISCONNECT-CFM
@@ -195,12 +213,11 @@ int slsi_mlme_set_acl(struct slsi_dev *sdev, struct net_device *dev, u16 ifnum, 
 #endif
 int slsi_mlme_set_traffic_parameters(struct slsi_dev *sdev, struct net_device *dev, u16 user_priority, u16 medium_time, u16 minimun_data_rate, u8 *mac);
 int slsi_mlme_del_traffic_parameters(struct slsi_dev *sdev, struct net_device *dev, u16 user_priority);
-int slsi_mlme_blockack_control_req(struct slsi_dev *sdev, struct net_device *dev, u16 blockack_control_bitmap, u16 direction, const u8 *peer_sta_address);
 
 #ifdef CONFIG_SCSC_WLAN_GSCAN_ENABLE
 int slsi_mlme_significant_change_set(struct slsi_dev *sdev, struct net_device *dev, struct slsi_nl_significant_change_params *significant_param_ptr);
 int slsi_mlme_set_pno_list(struct slsi_dev *sdev, int count,
-			   struct slsi_epno_ssid_param *epno_param, struct slsi_epno_hs2_param *epno_hs2_param);
+			   struct slsi_epno_param *epno_param, struct slsi_epno_hs2_param *epno_hs2_param);
 int slsi_mlme_start_link_stats_req(struct slsi_dev *sdev, u16 mpdu_size_threshold, bool aggressive_statis_enabled);
 int slsi_mlme_stop_link_stats_req(struct slsi_dev *sdev, u16 stats_stop_mask);
 #endif
@@ -212,5 +229,9 @@ void slsi_mlme_reassociate_resp(struct slsi_dev *sdev, struct net_device *dev);
 int slsi_modify_ies(struct net_device *dev, u8 eid, u8 *ies, int ies_len, u8 ie_index, u8 ie_value);
 int slsi_mlme_set_rssi_monitor(struct slsi_dev *sdev, struct net_device *dev, u8 enable, s8 low_rssi_threshold, s8 high_rssi_threshold);
 struct slsi_mib_value *slsi_read_mibs(struct slsi_dev *sdev, struct net_device *dev, struct slsi_mib_get_entry *mib_entries, int mib_count, struct slsi_mib_data *mibrsp);
-
+int slsi_mlme_set_host_state(struct slsi_dev *sdev, struct net_device *dev, u8 host_state);
+int slsi_mlme_set_ctwindow(struct slsi_dev *sdev, struct net_device *dev, unsigned int ct_param);
+int slsi_mlme_set_p2p_noa(struct slsi_dev *sdev, struct net_device *dev, unsigned int noa_count,
+			  unsigned int interval, unsigned int duration);
+void slsi_fw_tx_rate_calc(u16 fw_rate, struct rate_info *tx_rate, unsigned long *data_rate_mbps);
 #endif /*__SLSI_MLME_H__*/

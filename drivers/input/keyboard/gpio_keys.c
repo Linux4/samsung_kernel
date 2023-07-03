@@ -40,6 +40,10 @@ int wakeup_reason;
 bool irq_in_suspend;
 bool suspend_state;
 
+#if defined(CONFIG_KEYBOARD_S2MPU06)
+extern int get_pkey_press(void);
+#endif
+
 bool wakeup_by_key(void) {
 	if (irq_in_suspend) {
 		if (wakeup_reason == KEY_HOMEPAGE) {
@@ -64,6 +68,7 @@ struct gpio_button_data {
 	bool disabled;
 	bool key_pressed;
 	bool key_state;
+	int key_press_count;
 };
 
 struct gpio_keys_drvdata {
@@ -375,7 +380,7 @@ static ssize_t key_pressed_show_code(struct device *dev,
 
 	for (i = 0; i < ddata->pdata->nbuttons; i++) {
 		struct gpio_button_data *bdata = &ddata->data[i];
-			if(bdata->button->code == KEY_VOLUMEUP)
+			if (bdata->button->code == KEY_VOLUMEUP)
 				volume_up = bdata->key_state;
 			else if(bdata->button->code == KEY_VOLUMEDOWN)
 				volume_down = bdata->key_state;
@@ -409,11 +414,12 @@ static ssize_t wakeup_enable(struct device *dev,
 
 	for (i = 0; i < ddata->pdata->nbuttons; i++) {
 		struct gpio_button_data *bdata = &ddata->data[i];
-		if (test_bit(bdata->button->code, bits))
+		if (test_bit(bdata->button->code, bits)) {
 			bdata->button->wakeup = 1;
-		else {
-			if (!bdata->button->always_wakeup)
+		} else {
+			if (!bdata->button->always_wakeup) {
 				bdata->button->wakeup = 0;
+			}
 		}
 	}
 
@@ -431,7 +437,7 @@ static ssize_t keycode_pressed_show(struct device *dev,
 	char *buff;
 	char tmp[7] = {0};
 	ssize_t count;
-	int len = (ddata->pdata->nbuttons) * 7 + 2;
+	int len = (ddata->pdata->nbuttons + 1) * 7 + 2;
 
 	buff = kmalloc(len, GFP_KERNEL);
 	if (!buff) {
@@ -453,6 +459,13 @@ static ssize_t keycode_pressed_show(struct device *dev,
 		}
 	}
 
+#if defined(CONFIG_KEYBOARD_S2MPU06)
+	state = get_pkey_press();
+	keycode = KEY_POWER;
+	snprintf(tmp, 7, ",%d:%d", keycode, state);
+	strncat(buff, tmp, 7);
+#endif
+
 	pr_info("%s %s: %s\n", SECLOG, __func__, buff);
 	count = snprintf(buf, strnlen(buff, len - 2) + 2, "%s\n", buff);
 
@@ -461,16 +474,100 @@ static ssize_t keycode_pressed_show(struct device *dev,
 	return count;
 }
 
+extern int pkey_pressed_count(int clear);
+#define GET_KEY_COUNT		0
+#define CLEAR_KEY_COUNT		1
+
+static ssize_t key_pressed_count_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct gpio_keys_drvdata *ddata = dev_get_drvdata(dev);
+	int index;
+	int keycode;
+	char *buff;
+	char tmp[20] = { 0 };
+	ssize_t count;
+	int len = (ddata->pdata->nbuttons + 2) * 20;
+	int endchar;
+
+	buff = kmalloc(len, GFP_KERNEL);
+	if (!buff)
+		return snprintf(buf, 5, "NG\n");
+
+	memset(buff, 0x00, len);
+
+	for (index = 0; index < ddata->pdata->nbuttons; index++) {
+		struct gpio_button_data *button;
+
+		button = &ddata->data[index];
+		keycode = button->button->code;
+
+		memset(tmp, 0x00, 20);
+
+		if (keycode == KEY_VOLUMEUP)
+			snprintf(tmp, 20, "\"KVUP\":\"%d\",", button->key_press_count);
+		else if (keycode == KEY_WINK)
+			snprintf(tmp, 20, "\"KBIX\":\"%d\",", button->key_press_count);
+		else if (keycode == KEY_HOMEPAGE)
+			snprintf(tmp, 20, "\"KHOM\":\"%d\",", button->key_press_count);
+		else if (keycode == KEY_VOLUMEDOWN)
+			snprintf(tmp, 20, "\"KVDN\":\"%d\",", button->key_press_count);
+		else
+			pr_err("%s: do not match keycode(%d)\n", __func__, keycode);
+
+		strncat(buff, tmp, 20);
+	}
+
+#if defined(CONFIG_KEYBOARD_S2MPU06)
+	memset(tmp, 0x00, 20);
+	snprintf(tmp, 20, "\"KPWR\":\"%d\"", pkey_pressed_count(GET_KEY_COUNT));
+	strncat(buff, tmp, 20);
+#endif
+
+	endchar = (int)strnlen(buff, len);
+	buff[endchar - 1] = '\0';
+
+	pr_info("%s %s: %s\n", SECLOG, __func__, buff);
+	count = snprintf(buf, len, "%s", buff);
+
+	kfree(buff);
+
+	return count;
+}
+
+static ssize_t key_pressed_count_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct gpio_keys_drvdata *ddata = dev_get_drvdata(dev);
+	int index;
+
+	for (index = 0; index < ddata->pdata->nbuttons; index++) {
+		struct gpio_button_data *button;
+
+		button = &ddata->data[index];
+
+		button->key_press_count = 0;
+	}
+
+#if defined(CONFIG_KEYBOARD_S2MPU06)
+	pkey_pressed_count(CLEAR_KEY_COUNT);
+#endif
+
+	return count;
+}
+
 static DEVICE_ATTR(sec_key_pressed, 0664, key_pressed_show, NULL);
 static DEVICE_ATTR(sec_key_pressed_code, 0664, key_pressed_show_code, NULL);
 static DEVICE_ATTR(wakeup_keys, 0664, NULL, wakeup_enable);
 static DEVICE_ATTR(keycode_pressed, 0444 , keycode_pressed_show, NULL);
+static DEVICE_ATTR(key_pressed_count, 0664, key_pressed_count_show, key_pressed_count_store);
 
 static struct attribute *sec_key_attrs[] = {
 	&dev_attr_sec_key_pressed.attr,
 	&dev_attr_sec_key_pressed_code.attr,
 	&dev_attr_wakeup_keys.attr,
 	&dev_attr_keycode_pressed.attr,
+	&dev_attr_key_pressed_count.attr,
 	NULL,
 };
 
@@ -520,6 +617,9 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 		bdata->key_state = !!state;
 		input_event(input, type, button->code, !!state);
 	}
+
+	if (state)
+		bdata->key_press_count++;
 
 	input_sync(input);
 }
@@ -813,9 +913,8 @@ gpio_keys_get_devtree_pdata(struct device *dev)
 
 	pdata->buttons = (struct gpio_keys_button *)(pdata + 1);
 	pdata->nbuttons = nbuttons;
-
 	pdata->rep = !!of_get_property(node, "autorepeat", NULL);
-
+	pdata->wakeup = of_property_read_bool(node, "gpio-key,wakeup_enable");
 	i = 0;
 	for_each_child_of_node(node, pp) {
 		int gpio;
@@ -863,7 +962,6 @@ gpio_keys_get_devtree_pdata(struct device *dev)
 
 	if (pdata->nbuttons == 0)
 		return ERR_PTR(-EINVAL);
-
 	return pdata;
 }
 
@@ -898,7 +996,6 @@ static int gpio_keys_probe(struct platform_device *pdev)
 		if (IS_ERR(pdata))
 			return PTR_ERR(pdata);
 	}
-
 	size = sizeof(struct gpio_keys_drvdata) +
 			pdata->nbuttons * sizeof(struct gpio_button_data);
 	ddata = devm_kzalloc(dev, size, GFP_KERNEL);
@@ -956,7 +1053,9 @@ static int gpio_keys_probe(struct platform_device *pdev)
 			error);
 		return error;
 	}
-
+	if (pdata->wakeup)
+		wakeup = 1;
+  
 	sec_key = sec_device_create(ddata, "sec_key");
 	if (IS_ERR(sec_key))
 		pr_err("%s failed to create sec_key\n", __func__);
@@ -974,7 +1073,6 @@ static int gpio_keys_probe(struct platform_device *pdev)
 			error);
 		goto err_remove_group;
 	}
-
 	device_init_wakeup(&pdev->dev, wakeup);
 
 	return 0;

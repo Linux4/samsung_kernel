@@ -54,6 +54,7 @@
 
 #ifdef CONFIG_SEC_DEBUG
 #include <linux/sec_debug.h>
+#include <linux/sec_debug_hard_reset_hook.h>
 #endif
 
 #ifdef CONFIG_SEC_BOOTSTAT
@@ -319,6 +320,15 @@ struct exynos_ss_log {
 		void *last_pc[ESS_ITERATION];
 	} core[ESS_NR_CPUS];
 #endif
+	struct i2c_clk_log {
+		unsigned long long time;
+		int cpu;
+		char	*name;
+		unsigned int	enable_cnt;
+		unsigned int	prepare_cnt;
+		int en;
+		int clk_en;
+	} i2c_clk[ESS_LOG_MAX_NUM];
 };
 
 struct exynos_ss_log_idx {
@@ -371,6 +381,7 @@ struct exynos_ss_log_idx {
 #ifdef CONFIG_EXYNOS_SNAPSHOT_ACPM
 	atomic_t acpm_log_idx;
 #endif
+	atomic_t i2c_clk_log_idx;
 };
 #ifdef CONFIG_ARM64
 struct exynos_ss_mmu_reg {
@@ -475,7 +486,7 @@ typedef int (*ess_initcall_t)(const struct device_node *);
 static bool sec_log_full;
 #endif
 
-#ifdef CONFIG_KFAULT_AUTO_SUMMARY
+#ifdef CONFIG_SEC_DEBUG_AUTO_SUMMARY
 static void (*func_hook_auto_comm_lastfreq)(int type, int old_freq, int new_freq, u64 time);
 #endif
 
@@ -495,12 +506,11 @@ static struct exynos_ss_item ess_items[] = {
 #ifdef CONFIG_EXYNOS_SNAPSHOT_HOOK_LOGGER
 	{"log_platform",{SZ_4M,		0, 0, false, true, true}, NULL ,NULL, 0},
 #endif
+#if !defined(CONFIG_EXYNOS_SNAPSHOT_GO_MODE)
 	{"log_radio",	{SZ_2M,		0, 0, false, true, true}, NULL ,NULL, 0},
+#endif
 #ifdef CONFIG_EXYNOS_SNAPSHOT_SFRDUMP
 	{"log_sfr",	{SZ_4M,		0, 0, false, true, true}, NULL ,NULL, 0},
-#endif
-#ifdef CONFIG_EXYNOS_SNAPSHOT_PSTORE
-	{"log_pstore",	{SZ_2M,		0, 0, true, true, true}, NULL ,NULL, 0},
 #endif
 #ifdef CONFIG_EXYNOS_CORESIGHT_ETR
 	{"log_etm",	{SZ_8M,		0, 0, true, true, true}, NULL ,NULL, 0},
@@ -512,9 +522,9 @@ static struct exynos_ss_item ess_items[] = {
 	{"log_platform",{SZ_4M,		0, 0, false, true, true}, NULL ,NULL, 0},
 #endif
 	{"log_radio",	{SZ_2M,		0, 0, false, true, true}, NULL ,NULL, 0},
-#ifdef CONFIG_EXYNOS_SNAPSHOT_PSTORE
-	{"log_pstore",	{SZ_2M,		0, 0, true, true, true}, NULL ,NULL, 0},
 #endif
+#ifdef CONFIG_EXYNOS_SNAPSHOT_PSTORE
+       {"log_pstore",  {SZ_32K,        0, 0, true, true, true}, NULL ,NULL, 0},
 #endif
 };
 
@@ -792,6 +802,7 @@ int exynos_ss_post_panic(void *pv_regs)
 #endif
 	}
 #ifdef CONFIG_SEC_DEBUG
+	hard_reset_delay();
 	sec_debug_post_panic_handler();
 #endif
 
@@ -834,9 +845,40 @@ int exynos_ss_post_reboot(void)
 	for (cpu = 0; cpu < ESS_NR_CPUS; cpu++)
 		exynos_ss_set_core_panic_stat(ESS_SIGN_RESET, cpu);
 
+#ifdef CONFIG_SEC_DEBUG
+	sec_debug_reboot_handler();
+	flush_cache_all();
+#endif
+
 	return 0;
 }
 EXPORT_SYMBOL(exynos_ss_post_reboot);
+
+#ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
+
+unsigned long merr_symptom;
+
+#define L2MERR0SR	0
+#define TBWMERR0SR	1
+#define LSMERR0SR	2
+#define FEMERR0SR	3
+#define L2MERRSR	4
+#define CPUMERRSR	5
+
+#define FATAL_MASK_M	(BIT(1) | BIT(0))
+#define FATAL_MASK_A	(BIT(63) | BIT(31))
+
+#define hook_merr(merr, reg, mask)		\
+({						\
+	if ((reg & mask) == mask)		\
+		merr_symptom |= (1 << merr);	\
+})
+
+#else
+
+#define hook_merr(merr, reg, mask)	({})
+
+#endif
 
 int exynos_ss_dump(void)
 {
@@ -850,6 +892,8 @@ int exynos_ss_dump(void)
 		"mrs %1, S3_1_c15_c2_3\n"
 		: "=r" (reg1), "=r" (reg2));
 	pr_emerg("CPUMERRSR: %016lx, L2MERRSR: %016lx\n", reg1, reg2);
+	hook_merr(CPUMERRSR, reg1, FATAL_MASK_A);
+	hook_merr(L2MERRSR, reg2, FATAL_MASK_A);	
 #else
 	unsigned long reg0;
 	asm ("mrc p15, 0, %0, c0, c0, 0\n": "=r" (reg0));
@@ -1040,7 +1084,8 @@ static inline int exynos_ss_check_eob(struct exynos_ss_item *item,
 	else
 		return 0;
 }
-#ifdef CONFIG_KFAULT_AUTO_SUMMARY
+
+#ifdef CONFIG_SEC_DEBUG_AUTO_SUMMARY
 void register_set_auto_comm_lastfreq(void (*func)(int type, int old_freq, int new_freq, u64 time))
 {
 	func_hook_auto_comm_lastfreq = func;
@@ -1363,11 +1408,12 @@ void exynos_ss_check_crash_key(unsigned int code, int value)
 	static const unsigned int VOLUME_DOWN = KEY_VOLUMEDOWN;
 
 #ifdef CONFIG_SEC_DEBUG
-	if (sec_debug_get_debug_level() != 0x1) {
+	hard_reset_hook(code, value);
+	if ((sec_debug_get_debug_level() & 0x1) != 0x1) {
 #ifdef CONFIG_SEC_UPLOAD
 		check_crash_keys_in_user(code, value);
 #endif
-			return;
+		return;
 	}
 #endif
 
@@ -1725,6 +1771,7 @@ static void __init exynos_ss_fixmap_header(void)
 #ifdef CONFIG_EXYNOS_SNAPSHOT_I2C
 	atomic_set(&(ess_idx.i2c_log_idx), -1);
 #endif
+	atomic_set(&(ess_idx.i2c_clk_log_idx), -1);
 #ifdef CONFIG_EXYNOS_SNAPSHOT_SPI
 	atomic_set(&(ess_idx.spi_log_idx), -1);
 #endif
@@ -2270,7 +2317,7 @@ void exynos_ss_freq(int type, unsigned long old_freq, unsigned long target_freq,
 		ess_log->freq[i].target_freq = target_freq;
 		ess_log->freq[i].en = en;
 
-#ifdef CONFIG_KFAULT_AUTO_SUMMARY
+#ifdef CONFIG_SEC_DEBUG_AUTO_SUMMARY
 		if(func_hook_auto_comm_lastfreq && en == ESS_FLAG_OUT)
 			func_hook_auto_comm_lastfreq(type, old_freq, target_freq, ess_log->freq[i].time);
 #endif
@@ -2321,6 +2368,28 @@ void exynos_ss_i2c(struct i2c_adapter *adap, struct i2c_msg *msgs, int num, int 
 	}
 }
 #endif
+
+void exynos_ss_i2c_clk(void *clk, int en, int clk_en)
+{
+	struct exynos_ss_item *item = &ess_items[ess_desc.kevents_num];
+	struct clk *st_clk = (struct clk *)clk;
+
+	if (unlikely(!ess_base.enabled || !item->entry.enabled))
+		return;
+	{
+		int cpu = raw_smp_processor_id();
+		unsigned long i = atomic_inc_return(&ess_idx.i2c_clk_log_idx) &
+				(ARRAY_SIZE(ess_log->i2c_clk) - 1);
+
+		ess_log->i2c_clk[i].time = cpu_clock(cpu);
+		ess_log->i2c_clk[i].cpu = cpu;
+		ess_log->i2c_clk[i].name = (char *)st_clk->name;
+		ess_log->i2c_clk[i].enable_cnt = st_clk->enable_count;
+		ess_log->i2c_clk[i].prepare_cnt = st_clk->prepare_count;
+		ess_log->i2c_clk[i].en = en;
+		ess_log->i2c_clk[i].clk_en = clk_en;
+	}
+}
 
 #ifdef CONFIG_EXYNOS_SNAPSHOT_SPI
 void exynos_ss_spi(struct spi_master *master, struct spi_message *cur_msg, int en)
@@ -2711,10 +2780,8 @@ EXPORT_SYMBOL(exynos_ss_hook_pmsg);
  */
 
 static struct ramoops_platform_data ess_ramoops_data = {
-	.record_size	= SZ_512K,
-	.console_size	= SZ_512K,
-	.ftrace_size	= SZ_512K,
-	.pmsg_size	= SZ_512K,
+	.record_size    = SZ_4K,
+	.pmsg_size      = SZ_4K,
 	.dump_oops	= 1,
 };
 
@@ -2733,6 +2800,8 @@ static int __init ess_pstore_init(void)
 	if (exynos_ss_get_enable("log_pstore", true)) {
 		ess_ramoops_data.mem_size = exynos_ss_get_item_size("log_pstore");
 		ess_ramoops_data.mem_address = exynos_ss_get_item_paddr("log_pstore");
+		ess_ramoops_data.pmsg_size = ess_ramoops_data.mem_size / 2;
+		ess_ramoops_data.record_size = ess_ramoops_data.mem_size / 2;
 	}
 	return platform_device_register(&ess_ramoops);
 }

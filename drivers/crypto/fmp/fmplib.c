@@ -16,9 +16,6 @@
 #include <linux/dma-mapping.h>
 #include <linux/smc.h>
 
-#include <crypto/hash.h>
-#include <crypto/sha.h>
-
 #include <asm/cacheflush.h>
 
 #include "fmpdev_int.h"
@@ -144,7 +141,6 @@ int fmpdev_hash_init(struct fmp_info *info, struct hash_data *hdata,
 			int hmac_mode, void *mackey, size_t mackeylen)
 {
 	int ret = -ENOMSG;
-	int ret_crypto = 0; /* fail if zero */
 	struct device *dev = info->dev;
 
 	hdata->init = 0;
@@ -155,15 +151,14 @@ int fmpdev_hash_init(struct fmp_info *info, struct hash_data *hdata,
 		if (!hdata->sha)
 			return -ENOMEM;
 
-		ret_crypto = SHA256_Init(hdata->sha);
+		ret = sha256_init(hdata->sha);
 		break;
 	case 1:
 		hdata->hmac = kzalloc(sizeof(*hdata->hmac), GFP_KERNEL);
 		if (!hdata->hmac)
 			return -ENOMEM;
 
-		HMAC_SHA256_CTX_init(hdata->hmac);
-		ret_crypto = HMAC_SHA256_Init_ex(hdata->hmac,
+		ret = hmac_sha256_init(hdata->hmac,
 						mackey,
 						mackeylen);
 		break;
@@ -172,10 +167,8 @@ int fmpdev_hash_init(struct fmp_info *info, struct hash_data *hdata,
 		return ret;
 	}
 
-	if (ret_crypto != 0) {
+	if (ret == 0)
 		hdata->init = 1;
-		ret = 0;
-	}
 
 	return ret;
 }
@@ -183,14 +176,16 @@ int fmpdev_hash_init(struct fmp_info *info, struct hash_data *hdata,
 void fmpdev_hash_deinit(struct hash_data *hdata)
 {
 	if (hdata->hmac != NULL) {
-		HMAC_SHA256_CTX_cleanup(hdata->hmac);
+		hmac_sha256_ctx_cleanup(hdata->hmac);
 		kfree(hdata->hmac);
+		hdata->init = 0;
 		return;
 	}
 
 	if (hdata->sha != NULL) {
 		memset(hdata->sha, 0x00, sizeof(*hdata->sha));
 		kfree(hdata->sha);
+		hdata->init = 0;
 		return;
 	}
 }
@@ -198,7 +193,6 @@ void fmpdev_hash_deinit(struct hash_data *hdata)
 ssize_t fmpdev_hash_update(struct fmp_info *info, struct hash_data *hdata,
 				struct scatterlist *sg, size_t len)
 {
-	int ret_crypto = 0;  /* fail if zero */
 	int ret = -ENOMSG;
 	int8_t *buf;
 	struct device *dev = info->dev;
@@ -215,12 +209,9 @@ ssize_t fmpdev_hash_update(struct fmp_info *info, struct hash_data *hdata,
 	}
 
 	if (hdata->sha != NULL)
-		ret_crypto = SHA256_Update(hdata->sha, buf, len);
+		ret = sha256_update(hdata->sha, buf, len);
 	else
-		ret_crypto = HMAC_SHA256_Update(hdata->hmac, buf, len);
-
-	if (ret_crypto != 0)
-		ret = 0;
+		ret = hmac_sha256_update(hdata->hmac, buf, len);
 
 exit:
 	kfree(buf);
@@ -229,14 +220,14 @@ exit:
 
 int fmpdev_hash_final(struct fmp_info *info, struct hash_data *hdata, void *output)
 {
-	int ret_crypto = 0; /* fail if zero */
+	int ret_crypto = 0; /* OK if zero */
 
 	if (hdata->sha != NULL)
-		ret_crypto = SHA256_Final(output, hdata->sha);
+		ret_crypto = sha256_final(hdata->sha, output);
 	else
-		ret_crypto = HMAC_SHA256_Final(hdata->hmac, output);
+		ret_crypto = hmac_sha256_final(hdata->hmac, output);
 
-	if (ret_crypto == 0)
+	if (ret_crypto != 0)
 		return -ENOMSG;
 
 	hdata->digestsize = 32;

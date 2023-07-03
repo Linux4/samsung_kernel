@@ -40,7 +40,6 @@
 #include <linux/swap.h>
 #include <linux/rcupdate.h>
 #include <linux/notifier.h>
-#include <linux/delay.h>
 
 static uint32_t lowmem_debug_level = 1;
 static short lowmem_adj[6] = {
@@ -137,7 +136,7 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 	if (min_score_adj == OOM_SCORE_ADJ_MAX + 1) {
 		lowmem_print(5, "lowmem_scan %lu, %x, return 0\n",
 			     sc->nr_to_scan, sc->gfp_mask);
-		return 0;
+		return SHRINK_STOP;
 	}
 
 	selected_oom_score_adj = min_score_adj;
@@ -158,13 +157,18 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 		if (!p)
 			continue;
 
-		if (test_tsk_thread_flag(p, TIF_MEMDIE) &&
-		    time_before_eq(jiffies, lowmem_deathpending_timeout)) {
+		if (p->state & TASK_UNINTERRUPTIBLE) {
 			task_unlock(p);
-			rcu_read_unlock();
-			/* give the system time to free up the memory */
-			msleep_interruptible(20);
-			return 0;
+			continue;
+		}
+
+		if (test_tsk_thread_flag(p, TIF_MEMDIE)) {
+			task_unlock(p);			
+			if (time_before_eq(jiffies, lowmem_deathpending_timeout)) {
+				rcu_read_unlock();
+				return SHRINK_STOP;
+			}
+			continue;
 		}
 		oom_score_adj = p->signal->oom_score_adj;
 		if (oom_score_adj < min_score_adj) {
@@ -218,8 +222,6 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 		rem += selected_tasksize;
 		lowmem_lmkcount++;
 		rcu_read_unlock();
-		/* give the system time to free up the memory */
-		msleep_interruptible(20);
 
 		if (reclaim_state)
 			reclaim_state->reclaimed_slab += selected_tasksize;
@@ -229,6 +231,10 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 
 	lowmem_print(4, "lowmem_scan %lu, %x, return %lu\n",
 		     sc->nr_to_scan, sc->gfp_mask, rem);
+
+	if (!rem)
+		rem = SHRINK_STOP;
+
 	return rem;
 }
 

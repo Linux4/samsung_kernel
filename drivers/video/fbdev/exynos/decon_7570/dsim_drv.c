@@ -46,6 +46,7 @@
 #include "decon.h"
 #include "panels/dsim_panel.h"
 #include "decon_board.h"
+#include "panels/dd.h"
 
 #define MHZ (1000 * 1000)
 
@@ -184,6 +185,7 @@ int dsim_write_data(struct dsim_device *dsim, unsigned int data_id,
 		goto err_exit;
 	}
 	DISP_SS_EVENT_LOG_CMD(&dsim->sd, data_id, data0);
+	dsim_write_data_dump(dsim, data_id, data0, data1);
 
 	switch (data_id) {
 	/* short packet types of packet types for command. */
@@ -333,7 +335,7 @@ static int dsim_partial_area_command(struct dsim_device *dsim, void *arg)
 	char data_2b[5];
 	int retry;
 
-	if (priv->lcdConnected == PANEL_DISCONNEDTED)
+	if (!priv->lcdconnected)
 		return 0;
 
 	/* w is right & h is bottom */
@@ -770,7 +772,8 @@ static int dsim_disable(struct dsim_device *dsim)
 	dsim_pkt_go_enable(dsim, false);
 #endif
 	dsim_set_lcd_full_screen(dsim);
-	call_panel_ops(dsim, suspend, dsim);
+	if (dsim->lcd_info.mode != DECON_VIDEO_MODE)
+		call_panel_ops(dsim, suspend, dsim);
 
 	/* Wait for current read & write CMDs. */
 	mutex_lock(&dsim_rd_wr_mutex);
@@ -1234,6 +1237,9 @@ static int dsim_parse_lcd_info(struct dsim_device *dsim)
 	of_property_read_u32(node, "clklane_onoff", &dsim->lcd_info.clklane_onoff);
 	dsim_info("clklane onoff(%d)\n", dsim->lcd_info.clklane_onoff);
 
+	of_property_read_u32(node, "rev", &dsim->lcd_info.rev);
+	dsim_info("dsim board rev (%d)\n", dsim->lcd_info.rev);
+
 	octa_id_gpio = of_get_gpio(node, 0);
 	if (octa_id_gpio > 0) {
 		gpio_request_one(octa_id_gpio, GPIOF_IN, "octa_id");
@@ -1412,14 +1418,6 @@ static int dsim_probe(struct platform_device *pdev)
 		goto err_mem_region;
 	}
 
-	dsim->irq = res->start;
-	ret = devm_request_irq(dev, res->start,
-			dsim_interrupt_handler, 0, pdev->name, dsim);
-	if (ret) {
-		dev_err(dev, "failed to install irq\n");
-		goto err_irq;
-	}
-
 	ret = dsim_register_entity(dsim);
 	if (ret)
 		goto err_irq;
@@ -1458,6 +1456,14 @@ static int dsim_probe(struct platform_device *pdev)
 #else
 	dsim_runtime_resume(dsim->dev);
 #endif
+
+	dsim->irq = res->start;
+	ret = devm_request_irq(dev, res->start,
+			dsim_interrupt_handler, 0, pdev->name, dsim);
+	if (ret) {
+		dev_err(dev, "failed to install irq\n");
+		goto err_irq;
+	}
 
 	/* DPHY init and power on */
 	phy_init(dsim->phy);

@@ -39,10 +39,6 @@
 #include <soc/samsung/tmu.h>
 #include <soc/samsung/ect_parser.h>
 
-#if defined(CONFIG_KFAULT_AUTO_SUMMARY)
-#include <linux/sec_debug.h>
-#endif
-
 #ifdef CONFIG_SEC_EXT
 #include <linux/sec_ext.h>
 #endif
@@ -80,14 +76,6 @@ static DEFINE_MUTEX(cpufreq_lock);
 
 #ifdef CONFIG_SW_SELF_DISCHARGING
 static int self_discharging;
-#endif
-
-#if defined(CONFIG_KFAULT_AUTO_SUMMARY)
-static struct sec_debug_auto_comm_freq_info* auto_comm_cpufreq_info;
-void sec_debug_set_auto_comm_last_cpufreq_buf(struct sec_debug_auto_comm_freq_info* freq_info)
-{
-	auto_comm_cpufreq_info = freq_info;	
-}
 #endif
 
 static unsigned int clk_get_freq(void)
@@ -1562,13 +1550,6 @@ static int exynos_sc_cpufreq_probe(struct platform_device *pdev)
 		goto alloc_err;
 	}
 
-#if defined(CONFIG_KFAULT_AUTO_SUMMARY)
-	if(auto_comm_cpufreq_info) {
-		int offset = offsetof(struct cpufreq_freqs, new);
-		auto_comm_cpufreq_info[FREQ_INFO_CLD0].last_freq_info = virt_to_phys(freqs) + offset;
-	}
-#endif
-
 	ret = exynos_sc_cpufreq_driver_init(&pdev->dev);
 
 	return ret;
@@ -1603,12 +1584,6 @@ static int exynos_sc_cpufreq_remove(struct platform_device *pdev)
 	unregister_hotcpu_notifier(&exynos_cpufreq_cpu_nb);
 
 	cpufreq_unregister_driver(&exynos_driver);
-
-#if defined(CONFIG_KFAULT_AUTO_SUMMARY)
-	if(auto_comm_cpufreq_info) {
-		auto_comm_cpufreq_info[FREQ_INFO_CLD0].last_freq_info = 0;
-	}
-#endif
 
 	return 0;
 }

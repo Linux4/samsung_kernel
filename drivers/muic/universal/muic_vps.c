@@ -166,6 +166,10 @@ static struct vps_cfg cfg_UNDEFINED_CHARGING = {
 	.name = "Undefined Charging",
 	.attr = MATTR(VCOM_OPEN, VB_HIGH) | MATTR_SUPP,
 };
+static struct vps_cfg cfg_TIMEOUT_OPEN = {
+	.name = "DCD Timeout",
+	.attr = MATTR(VCOM_OPEN, VB_HIGH),
+};
 
 static struct vps_tbl_data vps_table[] = {
 	[MDEV(OTG)]			= {0x00, "GND",	&cfg_OTG,},
@@ -192,6 +196,7 @@ static struct vps_tbl_data vps_table[] = {
 	[MDEV(USB)]			= {0x1f, "OPEN",	&cfg_USB,},
 	[MDEV(CDP)]			= {0x1f, "OPEN",	&cfg_CDP,},
 	[MDEV(UNDEFINED_CHARGING)]	= {0xfe, "UNDEFINED",	&cfg_UNDEFINED_CHARGING,},
+	[MDEV(TIMEOUT_OPEN)]		= {0x1f, "OPEN",	&cfg_TIMEOUT_OPEN,},
 	[ATTACHED_DEV_NUM]		= {0x00, "NUM", NULL,},
 };
 
@@ -641,24 +646,13 @@ static int resolve_dedicated_dev(muic_data_t *pmuic, muic_attached_dev_t *pdev, 
 			pr_info("%s : LANHUB DETECTED\n", MUIC_DEV_NAME);
 			break;
 
-		case ADC_CEA936ATYPE1_CHG : /*200k ohm */
-		{
-			int rescanned_dev;
-
+		case ADC_CEA936ATYPE1_CHG : /* 200k ohm */
 			if (!vbvolt)
 				break;
-
-			/* For LG USB cable which has 219k ohm ID */
-			rescanned_dev = do_BCD_rescan(pmuic);
-
-			if (rescanned_dev > 0) {
-				pr_info("%s : TYPE1 CHARGER DETECTED(%d)\n", MUIC_DEV_NAME,
-						rescanned_dev);
-				intr = MUIC_INTR_ATTACH;
-				new_dev = rescanned_dev;
-			}
+			intr = MUIC_INTR_ATTACH;
+			new_dev = ATTACHED_DEV_USB_MUIC;
+			pr_info("%s : 200K USB DETECTED\n", MUIC_DEV_NAME);
 			break;
-		}
 		case ADC_CEA936ATYPE2_CHG: /* 442k */
 			if (!vbvolt) break;
 			if (vps_is_supported_dev(MDEV(TYPE2_CHG)))
@@ -731,6 +725,7 @@ static int resolve_dedicated_dev(muic_data_t *pmuic, muic_attached_dev_t *pdev, 
 				break;
 			}
 
+#if defined(CONFIG_MUIC_NO_DEVICE_TYPE_WA)
 			/* Workaround for case of Nothing DeviceType value */
 			switch (pmuic->attached_dev) {
 			case ATTACHED_DEV_NONE_MUIC:
@@ -744,6 +739,7 @@ static int resolve_dedicated_dev(muic_data_t *pmuic, muic_attached_dev_t *pdev, 
 			case ATTACHED_DEV_CDP_MUIC:
 			case ATTACHED_DEV_TA_MUIC:
 			case ATTACHED_DEV_UNDEFINED_CHARGING_MUIC:
+			case ATTACHED_DEV_TIMEOUT_OPEN_MUIC:
 				if (vbvolt) {
 					intr = MUIC_INTR_ATTACH;
 					new_dev = pmuic->attached_dev;
@@ -753,6 +749,7 @@ static int resolve_dedicated_dev(muic_data_t *pmuic, muic_attached_dev_t *pdev, 
 			default:
 				break;
 			}
+#endif
 			break;
 
 		case ADC_UNIVERSAL_MMDOCK:

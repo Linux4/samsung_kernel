@@ -27,6 +27,13 @@
 #include <linux/mfd/samsung/s2mpu06-private.h>
 #include <linux/io.h>
 #include <linux/debugfs.h>
+#ifdef CONFIG_SEC_PM
+#include <linux/sec_sysfs.h>
+
+#define STATUS1_ACOK	BIT(2)
+
+static struct device *ap_pmic_dev;
+#endif /* CONFIG_SEC_PM */
 
 static unsigned int sel2volt(int id, unsigned int sel, unsigned int mask);
 
@@ -710,6 +717,37 @@ static const struct file_operations s2mpu06_i2cdata_fops = {
 };
 #endif
 
+#ifdef CONFIG_SEC_PM
+static ssize_t chg_det_show(struct device *dev, struct device_attribute *attr,
+		char *buf)
+{
+	int ret, chg_det;
+	u8 val;
+
+	ret = s2mpu06_read_reg(static_info->i2c, S2MPU06_PMIC_REG_STATUS1, &val);
+
+	if(ret)
+		chg_det = -1;
+	else
+		chg_det = !!(val & STATUS1_ACOK); // ACOK active high
+
+	pr_info("%s: ap pmic chg det: %d\n", __func__, chg_det);
+
+	return sprintf(buf, "%d\n", chg_det);
+}
+
+static DEVICE_ATTR_RO(chg_det);
+
+static struct attribute *ap_pmic_attributes[] = {
+	&dev_attr_chg_det.attr,
+	NULL
+};
+
+static const struct attribute_group ap_pmic_attr_group = {
+	.attrs = ap_pmic_attributes,
+};
+#endif /* CONFIG_SEC_PM */
+
 static int s2mpu06_pmic_probe(struct platform_device *pdev)
 {
 	struct s2mpu06_dev *iodev = dev_get_drvdata(pdev->dev.parent);
@@ -763,6 +801,14 @@ static int s2mpu06_pmic_probe(struct platform_device *pdev)
 	}
 
 	s2mpu06->num_regulators = pdata->num_regulators;
+
+#ifdef CONFIG_SEC_PM
+	ap_pmic_dev = sec_device_create(NULL, "ap_pmic");
+
+	ret = sysfs_create_group(&ap_pmic_dev->kobj, &ap_pmic_attr_group);
+	if (ret)
+		dev_err(&pdev->dev, "failed to create ap_pmic sysfs group\n");
+#endif /* CONFIG_SEC_PM */
 
 #ifdef CONFIG_DEBUG_FS
 	dbgi2c = s2mpu06->i2c;

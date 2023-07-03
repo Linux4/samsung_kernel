@@ -365,9 +365,15 @@ static ssize_t store_cmd(struct device *dev, struct device_attribute *devattr,
 		return -EINVAL;
 	}
 
-	if (count > CMD_STR_LEN) {
-		printk(KERN_ERR "%s: overflow command length\n",
-				__func__);
+	if (strlen(buf) >= CMD_STR_LEN) {
+		pr_err("%s: cmd length(strlen(buf)) is over (%d,%s)!!\n",
+				__func__, (int)strlen(buf), buf);
+		return -EINVAL;
+	}
+
+	if (count >= (unsigned int)CMD_STR_LEN) {
+		pr_err("%s: cmd length(count) is over (%d,%s)!!\n",
+				__func__, (unsigned int)count, buf);
 		return -EINVAL;
 	}
 
@@ -612,6 +618,17 @@ static void fw_update(void *device_data)
 	int retval = 0;
 
 	set_default_result(info);
+	
+#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	if (info->cmd_param[0] == 1) {
+		sprintf(buff, "%s", "OK");
+		set_cmd_result(info, buff, strnlen(buff, sizeof(buff)));
+		info->cmd_state = CMD_STATUS_OK;
+		tsp_debug_info(true, &info->client->dev, "%s: user_ship, success\n", __func__);
+		return;
+	}
+#endif
+
 	if (info->touch_stopped) {
 		tsp_debug_info(true, &info->client->dev, "%s: [ERROR] Touch is stopped\n",
 			__func__);

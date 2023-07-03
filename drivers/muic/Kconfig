@@ -236,3 +236,10 @@ config MUIC_UNIVERSAL_SM5504
 	default n
 	help
 	  If you say yes here you will get support for the SM5504 MUIC chip.
+
+config MUIC_NO_DEVICE_TYPE_WA
+	bool "MUIC_NO_DEVICE_TYPE_WA"
+	depends on USE_MUIC
+	default n
+	help
+	  If you say yes here you will get support for workaround of no device type.

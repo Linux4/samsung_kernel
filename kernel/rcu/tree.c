@@ -1135,6 +1135,7 @@ static void print_cpu_stall(struct rcu_state *rsp)
 	exynos_ss_set_enable("log_kevents", false);
 
 	pr_auto(ASL1, "INFO: %s self-detected stall on CPU", rsp->name);
+
 	print_cpu_stall_info_begin();
 	print_cpu_stall_info(rsp, smp_processor_id());
 	print_cpu_stall_info_end();

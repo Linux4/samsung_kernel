@@ -295,7 +295,11 @@ static int otg_accessory_power(bool enable)
 	union power_supply_propval val;
 	struct device_node *np_charger = NULL;
 	char *charger_name;
-
+#if !defined(CONFIG_CCIC_NOTIFIER)
+	struct otg_notify *o_notify = get_otg_notify();
+	if (enable && o_notify)
+		o_notify->hw_param[USB_CCIC_OTG_USE_COUNT]++;
+#endif
 	pr_info("otg accessory power = %d\n", on);
 
 	np_charger = of_find_node_by_name(NULL, "battery");

@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright (c) 2012 - 2016 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2017 Samsung Electronics Co., Ltd. All rights reserved
  *
  *****************************************************************************/
 
@@ -13,6 +13,8 @@
 #ifdef CONFIG_SCSC_WLAN_DEBUG
 #include "hip4_sampler.h"
 #endif
+
+#include "scsc_wifilogger_rings.h"
 
 /**
  * Needed to get HIP4_DAT)SLOTS...should be part
@@ -41,18 +43,16 @@ static int slsi_tx_eapol(struct slsi_dev *sdev, struct net_device *dev, struct s
 
 	switch (proto) {
 	case ETH_P_PAE:
-		 /*  Detect if this is an EAPOL key frame. If so detect if it is an EAPOL-Key M4 packet
-		 *
+		 /*  Detect if this is an EAPOL key frame. If so detect if
+		 *  it is an EAPOL-Key M4 packet
 		 *  In M4 packet,
-		 *   - MIC bit will be set in key info
-		 *   - Key type bit will be set in key info ( pairwise =1, Group =0)
+		 *   - MIC bit set in key info
+		 *   - Key type bit set in key info (pairwise=1, Group=0)
 		 *   - Key Data Length would be 0
 		 */
 		eapol = skb->data + sizeof(struct ethhdr);
-		if (eapol[SLSI_EAPOL_IEEE8021X_TYPE_POS] == SLSI_IEEE8021X_TYPE_EAP_PACKET) {
-			msg_type = FAPI_MESSAGETYPE_EAP_MESSAGE;
-		} else if (eapol[SLSI_EAPOL_IEEE8021X_TYPE_POS] == SLSI_IEEE8021X_TYPE_EAPOL_KEY) {
-				msg_type = FAPI_MESSAGETYPE_EAPOL_KEY_M123;
+		if (eapol[SLSI_EAPOL_IEEE8021X_TYPE_POS] == SLSI_IEEE8021X_TYPE_EAPOL_KEY) {
+			msg_type = FAPI_MESSAGETYPE_EAPOL_KEY_M123;
 
 			if ((eapol[SLSI_EAPOL_TYPE_POS] == SLSI_EAPOL_TYPE_RSN_KEY || eapol[SLSI_EAPOL_TYPE_POS] == SLSI_EAPOL_TYPE_WPA_KEY) &&
 			    (eapol[SLSI_EAPOL_KEY_INFO_LOWER_BYTE_POS] & SLSI_EAPOL_KEY_INFO_KEY_TYPE_BIT_IN_LOWER_BYTE) &&
@@ -62,6 +62,8 @@ static int slsi_tx_eapol(struct slsi_dev *sdev, struct net_device *dev, struct s
 				SLSI_NET_DBG1(dev, SLSI_MLME, "message M4\n");
 				msg_type = FAPI_MESSAGETYPE_EAPOL_KEY_M4;
 			}
+		} else {
+			msg_type = FAPI_MESSAGETYPE_EAP_MESSAGE;
 		}
 	break;
 	case ETH_P_WAI:
@@ -211,7 +213,11 @@ int slsi_tx_data(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *
 	 * [10:8] - ac queue
 	 */
 	cb->colour = (slsi_frame_priority_to_ac_queue(skb->priority) << 8) |
-		(fapi_get_u16(skb, u.ma_unitdata_req.peer_index) << 3) |  ndev_vif->ifnum << 1;
+		(fapi_get_u16(skb, u.ma_unitdata_req.peer_index) << 3) | ndev_vif->ifnum << 1;
+
+	/* Log only the linear skb chunk ... unidata anywya will be truncated to 100.*/
+	SCSC_WLOG_PKTFATE_LOG_TX_DATA_FRAME(fapi_get_u16(skb, u.ma_unitdata_req.host_tag),
+					    skb_mac_header(skb), skb_headlen(skb));
 
 	/* ACCESS POINT MODE */
 	if (ndev_vif->vif_type == FAPI_VIFTYPE_AP) {
@@ -501,6 +507,10 @@ int slsi_tx_control(struct slsi_dev *sdev, struct net_device *dev, struct sk_buf
 	/* F/w will panic if fw_reference is not zero. */
 	hdr = (struct fapi_signal_header *)skb->data;
 	hdr->fw_reference = 0;
+
+	/* Log only the linear skb  chunk */
+	SCSC_WLOG_PKTFATE_LOG_TX_CTRL_FRAME(fapi_get_u16(skb, u.mlme_frame_transmission_ind.host_tag),
+					    skb_mac_header(skb), skb_headlen(skb));
 
 	res = scsc_wifi_transmit_frame(&sdev->hip4_inst, true, skb);
 	if (res != NETDEV_TX_OK) {

@@ -101,6 +101,16 @@ struct fimc_is_device_ischain;
 	.mipi_speed	= 0,			\
 }
 
+#define FIMC_IS_SENSOR_CFG_SOC(w, h, f, s, m) { \
+	.width		= w,			\
+	.height		= h,			\
+	.framerate	= f,			\
+	.settle		= s,			\
+	.mode		= m,			\
+	.lanes		= 0,			\
+	.mipi_speed	= 0,			\
+}
+
 enum fimc_is_sensor_subdev_ioctl {
 	SENSOR_IOCTL_DMA_CANCEL,
 };
@@ -180,6 +190,7 @@ struct fimc_is_module_enum {
 	struct fimc_is_sensor_ops			*ops;
 	char						*sensor_maker;
 	char						*sensor_name;
+	char                        *sensor_vendorid;
 	char						*setfile_name;
 	void						*private_data;
 	struct exynos_platform_fimc_is_module		*pdata;

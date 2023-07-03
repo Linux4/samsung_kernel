@@ -21,7 +21,13 @@
 #include "hip4_sampler.h"
 #endif
 
+#include "scsc_wifilogger_rings.h"
+
 #include "debug.h"
+
+static int max_buffered_frames = 10000;
+module_param(max_buffered_frames, int, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(max_buffered_frames, "Maximum number of frames to buffer in the driver");
 
 static ktime_t intr_received;
 static ktime_t bh_init;
@@ -734,6 +740,40 @@ exit:
 	spin_unlock_irqrestore(&hip->hip_priv->watchdog_lock, flags);
 }
 
+static bool slsi_check_rx_flowcontrol(struct slsi_dev *sdev)
+{
+	struct netdev_vif *ndev_vif;
+	int qlen = 0;
+
+	ndev_vif = netdev_priv(sdev->netdev[SLSI_NET_INDEX_WLAN]);
+	if (ndev_vif)
+		qlen = skb_queue_len(&ndev_vif->rx_data.queue);
+
+	SLSI_MUTEX_LOCK(sdev->netdev_remove_mutex);
+#if defined(SLSI_NET_INDEX_P2PX_SWLAN)
+	if (sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN]) {
+		ndev_vif = netdev_priv(sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN]);
+		if (ndev_vif)
+			qlen += skb_queue_len(&ndev_vif->rx_data.queue);
+	}
+#elif defined(SLSI_NET_INDEX_P2PX)
+	if (sdev->netdev[SLSI_NET_INDEX_P2PX]) {
+		ndev_vif = netdev_priv(sdev->netdev[SLSI_NET_INDEX_P2PX]);
+		if (ndev_vif)
+			qlen += skb_queue_len(&ndev_vif->rx_data.queue);
+	}
+#endif
+	SLSI_MUTEX_UNLOCK(sdev->netdev_remove_mutex);
+
+	if (qlen > max_buffered_frames) {
+		SLSI_DBG1_NODEV(SLSI_HIP, "max qlen reached: %d\n", qlen);
+		return true;
+	}
+	SLSI_DBG3_NODEV(SLSI_HIP, "qlen %d\n", qlen);
+
+	return false;
+}
+
 /* Tasklet: high priority, low latency atomic tasks
  * cannot sleep (run atomically in soft IRQ context and are guaranteed to
  * never run on more than one CPU of a given processor, for a given tasklet)
@@ -767,6 +807,7 @@ static void hip4_wq(struct work_struct *data)
 	bool                    update = false;
 	bool			no_change = true;
 	u8                      retry;
+	bool                    rx_flowcontrol = false;
 
 #ifdef CONFIG_SCSC_WLAN_DEBUG
 	int                     id;
@@ -776,6 +817,9 @@ static void hip4_wq(struct work_struct *data)
 		BUG();
 		return;
 	}
+	
+	if (slsi_check_rx_flowcontrol(sdev))
+		rx_flowcontrol = true;
 
 	service = sdev->service;
 
@@ -937,6 +981,9 @@ consume_ctl_mbulk:
 	/* Update the scoreboard */
 	if (update)
 		hip4_update_index(hip, HIP4_MIF_Q_TH_CTRL, ridx, idx_r);
+	
+	if (rx_flowcontrol)
+		goto skip_data_q;
 
 	idx_r = hip4_read_index(hip, HIP4_MIF_Q_TH_DAT, ridx);
 	idx_w = hip4_read_index(hip, HIP4_MIF_Q_TH_DAT, widx);
@@ -1018,14 +1065,17 @@ consume_dat_mbulk:
 	if (no_change)
 		atomic_inc(&hip->hip_priv->stats.spurious_irqs);
 
+skip_data_q:
 	if (!atomic_read(&hip->hip_priv->closing)) {
 		/* Reset status variable. DO THIS BEFORE UNMASKING!!!*/
 		atomic_set(&hip->hip_priv->watchdog_timer_active, 0);
 		scsc_service_mifintrbit_bit_unmask(service, hip->hip_priv->rx_intr_tohost);
 	}
 
-	if (wake_lock_active(&hip->hip_priv->hip4_wake_lock))
+	if (wake_lock_active(&hip->hip_priv->hip4_wake_lock)) {
 		wake_unlock(&hip->hip_priv->hip4_wake_lock);
+		SCSC_WLOG_WAKELOCK(WLOG_LAZY, WL_RELEASED, "hip4_wake_lock", WL_REASON_RX);
+	}
 
 	bh_end = ktime_get();
 #ifdef CONFIG_SCSC_WLAN_DEBUG
@@ -1056,8 +1106,10 @@ static void hip4_irq_handler(int irq, void *data)
 
 	intr_received = ktime_get();
 
-	if (!wake_lock_active(&hip->hip_priv->hip4_wake_lock))
+	if (!wake_lock_active(&hip->hip_priv->hip4_wake_lock)) {
 		wake_lock(&hip->hip_priv->hip4_wake_lock);
+		SCSC_WLOG_WAKELOCK(WLOG_LAZY, WL_TAKEN, "hip4_wake_lock", WL_REASON_RX);
+	}
 
 	atomic_set(&hip->hip_priv->watchdog_timer_active, 1);
 	mod_timer(&hip->hip_priv->watchdog, jiffies + HZ);
@@ -1349,8 +1401,10 @@ int scsc_wifi_transmit_frame(struct slsi_hip4 *hip, bool ctrl_packet, struct sk_
 	spin_lock_bh(&hip->hip_priv->tx_lock);
 	atomic_set(&hip->hip_priv->in_tx, 1);
 
-	if (!wake_lock_active(&hip->hip_priv->hip4_wake_lock))
+	if (!wake_lock_active(&hip->hip_priv->hip4_wake_lock)) {
 		wake_lock(&hip->hip_priv->hip4_wake_lock);
+		SCSC_WLOG_WAKELOCK(WLOG_LAZY, WL_TAKEN, "hip4_wake_lock", WL_REASON_TX);
+	}
 
 	service = sdev->service;
 
@@ -1420,8 +1474,10 @@ int scsc_wifi_transmit_frame(struct slsi_hip4 *hip, bool ctrl_packet, struct sk_
 	return 0;
 
 error:
-	if (wake_lock_active(&hip->hip_priv->hip4_wake_lock))
+	if (wake_lock_active(&hip->hip_priv->hip4_wake_lock)) {
 		wake_unlock(&hip->hip_priv->hip4_wake_lock);
+		SCSC_WLOG_WAKELOCK(WLOG_LAZY, WL_RELEASED, "hip4_wake_lock", WL_REASON_TX);
+	}
 	atomic_set(&hip->hip_priv->in_tx, 0);
 	spin_unlock_bh(&hip->hip_priv->tx_lock);
 	return ret;

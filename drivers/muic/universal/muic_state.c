@@ -81,6 +81,7 @@ static void muic_handle_attach(muic_data_t *pmuic,
 	case ATTACHED_DEV_CDP_MUIC:
 	case ATTACHED_DEV_JIG_USB_OFF_MUIC:
 	case ATTACHED_DEV_JIG_USB_ON_MUIC:
+	case ATTACHED_DEV_TIMEOUT_OPEN_MUIC:
 		if (new_dev != pmuic->attached_dev) {
 			pr_warn("%s:%s new(%d)!=attached(%d), assume detach\n",
 					MUIC_DEV_NAME, __func__, new_dev,
@@ -194,6 +195,7 @@ static void muic_handle_attach(muic_data_t *pmuic,
 	switch (new_dev) {
 	case ATTACHED_DEV_USB_MUIC:
 	case ATTACHED_DEV_CDP_MUIC:
+	case ATTACHED_DEV_TIMEOUT_OPEN_MUIC:
 		ret = attach_usb(pmuic, new_dev);
 		break;
 	case ATTACHED_DEV_HMT_MUIC:
@@ -285,6 +287,7 @@ static void muic_handle_detach(muic_data_t *pmuic)
 	case ATTACHED_DEV_JIG_USB_ON_MUIC:
 	case ATTACHED_DEV_USB_MUIC:
 	case ATTACHED_DEV_CDP_MUIC:
+	case ATTACHED_DEV_TIMEOUT_OPEN_MUIC:
 		ret = detach_usb(pmuic);
 		break;
 	case ATTACHED_DEV_HMT_MUIC:

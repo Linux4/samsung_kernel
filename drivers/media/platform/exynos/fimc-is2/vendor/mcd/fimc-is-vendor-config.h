@@ -17,10 +17,20 @@
 #include "fimc-is-vendor-config_on5x.h"
 #elif defined(CONFIG_CAMERA_J3POP)
 #include "fimc-is-vendor-config_j3pop.h"
+#elif defined(CONFIG_CAMERA_GTESVELTE)
+#include "fimc-is-vendor-config_gtesvelte.h"
 #elif defined(CONFIG_CAMERA_XCOVER4)
 #include "fimc-is-vendor-config_xcover4.h"
 #elif defined(CONFIG_CAMERA_J3Y17)
 #include "fimc-is-vendor-config_j3y17.h"
+#elif defined(CONFIG_CAMERA_ON5XREFLTE)
+#include "fimc-is-vendor-config_on5xreflte.h"
+#elif defined(CONFIG_CAMERA_J2CORE)
+#include "fimc-is-vendor-config_j2corelte.h"
+#elif defined(CONFIG_CAMERA_J3TOP)
+#include "fimc-is-vendor-config_j3top.h"
+#elif defined(CONFIG_CAMERA_GTAXSWIFI)
+#include "fimc-is-vendor-config_gtaxswifi.h"
 #else
 #include "fimc-is-vendor-config_javalte.h" /* Default */
 #endif

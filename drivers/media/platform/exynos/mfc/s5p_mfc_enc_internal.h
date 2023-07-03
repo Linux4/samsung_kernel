@@ -913,7 +913,7 @@ static struct v4l2_queryctrl controls[] = {
 		.name = "VP8 number of partitions",
 		.minimum = 0,
 		.maximum = 8,
-		.step = 2,
+		.step = 1,
 		.default_value = 0,
 	},
 	{

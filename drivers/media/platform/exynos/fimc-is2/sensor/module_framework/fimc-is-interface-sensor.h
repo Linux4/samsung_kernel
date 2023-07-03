@@ -377,6 +377,7 @@ struct fimc_is_cis_ops {
 	cis_func_type cis_read_sysreg; /* TBD */
 	cis_func_type cis_read_userreg; /* TBD */
 	int (*cis_wait_streamoff)(struct v4l2_subdev *subdev);
+	int (*cis_wait_streamon)(struct v4l2_subdev *subdev);
 	void (*cis_data_calculation)(struct v4l2_subdev *subdev, u32 mode);
 #ifdef CONFIG_SENSOR_RETENTION_USE
 	int (*cis_retention_prepare)(struct v4l2_subdev *subdev);
@@ -818,14 +819,64 @@ struct fimc_is_flash_interface_ops {
 };
 
 /* MIPI-CSI interface */
+enum itf_vc_buf_data_type{
+	VC_BUF_DATA_TYPE_INVALID = -1,
+	VC_BUF_DATA_TYPE_PDAF = 0,
+	VC_BUF_DATA_TYPE_MIPI_STAT,
+	VC_BUF_DATA_TYPE_MAX
+};
+
 struct fimc_is_csi_interface_ops {
+/*********************************************************************
+**********************************************************************
+***
+***	2017-09-12
+***	This interface is changed the parameter in DDK.
+***	But JAVA don't use this interface about PDAF.
+***	So this interface change as the reserved Function.
+***
+***	// JAVA Original
+***	int (*get_vc_dma_buf)(struct fimc_is_sensor_interface *itf,
+***				u32 ch,
+***				u32 *frame_count,
+***				u64 *addr);
+***	int (*put_vc_dma_buf)(struct fimc_is_sensor_interface *itf,
+***				u32 ch,
+***				u32 index);
+***
+***
+***	// DDK definition
+***	int (*get_vc_dma_buf)(struct fimc_is_sensor_interface *itf,
+***				enum itf_vc_buf_data_type data_type,
+***				u32 *buf_index,
+***				u64 *buf_addr,
+***				u32 *frame_count);
+***	int (*put_vc_dma_buf)(struct fimc_is_sensor_interface *itf,
+***				enum itf_vc_buf_data_type data_type,
+***				u32 buf_index);
+***	int (*get_vc_dma_buf_size)(struct fimc_is_sensor_interface *itf,
+***				enum itf_vc_buf_data_type data_type,
+***				u32 *width,
+***				u32 *height,
+***				u32 *element_size);
+***	int (*reserved[5])(struct fimc_is_sensor_interface *itf);
+***
+*********************************************************************
+********************************************************************/
 	int (*get_vc_dma_buf)(struct fimc_is_sensor_interface *itf,
-				u32 ch,
-				u32 *frame_count,
-				u64 *addr);
+				enum itf_vc_buf_data_type data_type,
+				u32 *buf_index,
+				u64 *buf_addr,
+				u32 *frame_count);
 	int (*put_vc_dma_buf)(struct fimc_is_sensor_interface *itf,
-				u32 ch,
-				u32 index);
+				enum itf_vc_buf_data_type data_type,
+				u32 buf_index);
+	int (*get_vc_dma_buf_size)(struct fimc_is_sensor_interface *itf,
+				enum itf_vc_buf_data_type data_type,
+				u32 *width,
+				u32 *height,
+				u32 *element_size);
+	int (*reserved[5])(struct fimc_is_sensor_interface *itf);
 };
 
 struct fimc_is_sensor_interface {

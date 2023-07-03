@@ -3,6 +3,8 @@
 EXTRA_CFLAGS += -Idrivers/misc/modem_v1 \
 		-DCONFIG_OPTION_REGION=\"$(PROJECT_REGION)\"
 
+ccflags-y := $(KBUILD_GPIO_DS_DETECT)
+
 obj-y += modem_main.o modem_variation.o modem_io_device.o modem_utils.o
 
 obj-$(CONFIG_LINK_DEVICE_MEMORY) += link_device_memory_main.o \

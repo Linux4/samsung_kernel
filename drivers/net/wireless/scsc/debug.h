@@ -14,7 +14,9 @@
  * =======================
  */
 
-#ifndef CONFIG_SCSC_DEBUG_COMPATIBILITY
+#ifdef CONFIG_SCSC_DEBUG_COMPATIBILITY
+#include <scsc/scsc_logring.h>
+#else
 extern const int SLSI_INIT_DEINIT;
 extern const int SLSI_NETDEV;
 extern const int SLSI_CFG80211;
@@ -46,8 +48,6 @@ extern const int SLSI_TDLS;
 extern const int SLSI_GSCAN;
 extern const int SLSI_MBULK;
 extern const int SLSI_FLOWC;
-#else
-#include <scsc/scsc_logring.h>
 #endif /* CONFIG_SCSC_DEBUG_COMPATIBILITY */
 
 extern int       *slsi_dbg_filters[];
@@ -236,8 +236,6 @@ static inline void slsi_debug_frame(struct slsi_dev *sdev, struct net_device *de
 #endif /* CONFIG_SCSC_WLAN_DEBUG */
 
 #ifdef CONFIG_SCSC_DEBUG_COMPATIBILITY
-
-#include <scsc/scsc_logring.h>
 
 #undef SLSI_ERR
 #undef SLSI_WARN

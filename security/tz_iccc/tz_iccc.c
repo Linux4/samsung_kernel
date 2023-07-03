@@ -20,7 +20,120 @@
 /* ICCC implementation for kernel */
 int is_iccc_ready;
 #define DRIVER_DESC "A kernel module to read boot_completed status"
+#if defined(CONFIG_TZDEV)	/* CONFIG_TZDEV will be defined when using Blowfish */
 
+#define CUSTOM_SMC_FID           0xB2000202
+#define SUBFUN_ICCC_SAVE          190
+#define SUBFUN_ICCC_READ          200
+#ifdef CONFIG_ARM64
+uint32_t blowfish_smc_iccc(uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3)
+{
+	register uint64_t _x0 __asm__("x0") = p0;
+	register uint64_t _x1 __asm__("x1") = p1;
+	register uint64_t _x2 __asm__("x2") = p2;
+	register uint64_t _x3 __asm__("x3") = p3;
+
+	__asm__ __volatile__(
+		/* ".arch_extension sec\n" */
+		"smc	0\n"
+		: "+r"(_x0), "+r"(_x1), "+r"(_x2), "+r"(_x3)
+	);
+
+	p0 = _x0;
+	p1 = _x1;
+	p2 = _x2;
+	p3 = _x3;
+
+	return (uint32_t)_x0;
+}
+#else
+uint32_t blowfish_smc_iccc(uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3)
+{
+	register uint32_t _r0 __asm__("r0") = p0;
+	register uint32_t _r1 __asm__("r1") = p1;
+	register uint32_t _r2 __asm__("r2") = p2;
+	register uint32_t _r3 __asm__("r3") = p3;
+
+	__asm__ __volatile__(
+		".arch_extension sec\n"
+		"smc	0\n"
+		: "+r"(_r0), "+r"(_r1), "+r"(_r2), "+r"(_r3)
+	);
+
+	p0 = _r0;
+	p1 = _r1;
+	p2 = _r2;
+	p3 = _r3;
+
+	return _r0;
+}
+#endif
+
+uint32_t Iccc_SaveData_Kernel(uint32_t type, uint32_t value)
+{
+	int ret = 0;
+
+	printk(KERN_ERR "ICCC : Iccc_SaveData_Kernel \n");
+
+	if (!is_iccc_ready) {
+		ret = RET_ICCC_FAIL;
+		pr_err("%s: Not ready! type:%#x, ret:%d\n", __func__, type, ret);
+		goto iccc_ret;
+	}
+
+	if(ICCC_SECTION_TYPE(type) != KERN_ICCC_TYPE_START) {
+		if (type != SELINUX_STATUS) {
+			ret = RET_ICCC_FAIL;
+			pr_err("iccc permission denied! ret = 0x%x", ret);
+			ret = RET_ICCC_FAIL;
+			goto iccc_ret;
+		}
+	}
+	
+	ret = blowfish_smc_iccc(CUSTOM_SMC_FID, SUBFUN_ICCC_SAVE, type, value);
+	if(!ret)
+		pr_err("Savedata Kernel Success\n");
+	else
+		pr_err("Savedata Kernel Fail ret = %d\n", ret);
+
+iccc_ret:
+	return ret;
+}
+
+uint32_t Iccc_ReadData_Kernel(uint32_t type, uint32_t *value)
+{
+	int ret = 0;
+
+	printk(KERN_ERR "ICCC : Iccc_ReadData_Kernel \n");
+
+	if (!is_iccc_ready) {
+		ret = RET_ICCC_FAIL;
+		pr_err("%s: Not ready! type:%#x, ret:%d\n", __func__, type, ret);
+		goto iccc_ret;
+	}
+
+	if(ICCC_SECTION_TYPE(type) != KERN_ICCC_TYPE_START) {
+		if (type != SELINUX_STATUS) {
+			ret = RET_ICCC_FAIL;
+			pr_err("iccc permission denied! ret = 0x%x", ret);
+			ret = RET_ICCC_FAIL;
+			goto iccc_ret;
+		}
+	}
+	
+	ret = blowfish_smc_iccc(CUSTOM_SMC_FID, SUBFUN_ICCC_READ, type, *value);
+	if(ret >= 0) {
+		pr_err("Readdata Kernel Success\n");
+		*value = ret;
+	}
+	else
+		pr_err("Readdata Kernel Fail ret = %d\n", ret);
+
+iccc_ret:
+	return ret;
+}
+
+#else
 uint8_t *iccc_tci = NULL;
 struct mc_session_handle iccc_mchandle;
 
@@ -219,7 +332,7 @@ iccc_close_device:
 iccc_ret:
 	return ret;
 }
-
+#endif
 static ssize_t iccc_write(struct file *fp, const char __user *buf, size_t len, loff_t *off)
 {
 	uint32_t ret;

@@ -250,7 +250,7 @@
 #define ST_LSM6DS3_GYRO_FS_1000			2
 #define ST_LSM6DS3_GYRO_FS_2000			3
 
-#undef ST_LSM6DS3_REG_DUMP_TEST
+#define ST_LSM6DS3_REG_DUMP_TEST
 
 #define SENSOR_DATA_X(datax, datay, dataz, x1, y1, z1, x2, y2, z2, x3, y3, z3) \
 				((x1 == 1 ? datax : (x1 == -1 ? -datax : 0)) + \
@@ -661,6 +661,9 @@ int st_lsm6ds3_acc_set_enable(struct lsm6ds3_data *cdata, bool enable)
 		hrtimer_start(&cdata->acc_timer, cdata->delay,
 							HRTIMER_MODE_REL);
 	} else {
+		hrtimer_cancel(&cdata->acc_timer);
+		cancel_work_sync(&cdata->acc_work);
+
 		if ((cdata->sensors_enabled & ST_LSM6DS3_EXTRA_DEPENDENCY)
 			|| (cdata->sa_flag)) {
 			err = st_lsm6ds3_write_data_with_mask(cdata,
@@ -678,9 +681,6 @@ int st_lsm6ds3_acc_set_enable(struct lsm6ds3_data *cdata, bool enable)
 			return err;
 
 		cdata->sensors_enabled &= ~(1 << ST_INDIO_DEV_ACCEL);
-
-		hrtimer_cancel(&cdata->acc_timer);
-		cancel_work_sync(&cdata->acc_work);
 	}
 
 	return 0;
@@ -698,11 +698,20 @@ int st_lsm6ds3_gyro_set_enable(struct lsm6ds3_data *cdata, bool enable)
 		if (err < 0)
 			return err;
 
+		/* Gyro sensor data is not stable till 50 ms,
+		 * so need to skip reporting data till 50 ms using hrtimers for precision.
+		 * stable_count is 10 for 200Hz, 5 for 100Hz, 2 for 50Hz, 0 for 15Hz/5Hz
+		 */
+		cdata->stable_count = 50000000 / ktime_to_ns(cdata->delay);
+
 		cdata->sensors_enabled |= (1 << ST_INDIO_DEV_GYRO);
 
 		hrtimer_start(&cdata->gyro_timer, cdata->gyro_delay,
 							HRTIMER_MODE_REL);
 	} else {
+		hrtimer_cancel(&cdata->gyro_timer);
+		cancel_work_sync(&cdata->gyro_work);
+
 		err = st_lsm6ds3_write_data_with_mask(cdata,
 		st_lsm6ds3_odr_table.addr[ST_INDIO_DEV_GYRO],
 		st_lsm6ds3_odr_table.mask[ST_INDIO_DEV_GYRO],
@@ -711,9 +720,6 @@ int st_lsm6ds3_gyro_set_enable(struct lsm6ds3_data *cdata, bool enable)
 			return err;
 
 		cdata->sensors_enabled &= ~(1 << ST_INDIO_DEV_GYRO);
-
-		hrtimer_cancel(&cdata->gyro_timer);
-		cancel_work_sync(&cdata->gyro_work);
 	}
 
 	return 0;
@@ -2191,6 +2197,11 @@ static void st_lsm6ds3_gyro_work_func(struct work_struct *work)
 	if (len < 0)
 		goto exit;
 
+	if (cdata->stable_count > 0) {
+		cdata->stable_count--;
+		goto exit;
+	}
+
 	/* Applying rotation matrix */
 	for (n = 0; n < ST_LSM6DS3_NUMBER_DATA_CHANNELS; n++) {
 		raw_data[n] = *((s16 *)&buf[2 * n]);
@@ -2948,6 +2959,9 @@ static struct device_attribute *acc_sensor_attrs[] = {
 	&dev_attr_lowpassfilter,
 	&dev_attr_reactive_alert,
 	&dev_attr_dhr_sensor_info,
+#ifdef ST_LSM6DS3_REG_DUMP_TEST
+	&dev_attr_reg_dump,
+#endif
 	NULL
 };
 
@@ -2976,9 +2990,6 @@ static struct device_attribute *smd_sensor_attrs[] = {
 static struct device_attribute *tilt_sensor_attrs[] = {
 	&dev_attr_vendor,
 	&dev_attr_name,
-#ifdef ST_LSM6DS3_REG_DUMP_TEST
-	&dev_attr_reg_dump,
-#endif
 	NULL
 };
 
@@ -3414,7 +3425,9 @@ EXPORT_SYMBOL(st_lsm6ds3_common_remove);
 
 void st_lsm6ds3_common_shutdown(struct lsm6ds3_data *cdata)
 {
-	SENSOR_INFO("\n");
+	SENSOR_INFO("acc_en=%d, gyro_en=%d\n",
+		atomic_read(&cdata->wkqueue_en), atomic_read(&cdata->gyro_wkqueue_en));
+
 	if (atomic_read(&cdata->wkqueue_en) == 1)
 		st_lsm6ds3_acc_set_enable(cdata, false);
 	if (atomic_read(&cdata->gyro_wkqueue_en) == 1)
@@ -3424,6 +3437,9 @@ EXPORT_SYMBOL(st_lsm6ds3_common_shutdown);
 
 int st_lsm6ds3_common_suspend(struct lsm6ds3_data *cdata)
 {
+	SENSOR_INFO("acc_en=%d, gyro_en=%d\n",
+		atomic_read(&cdata->wkqueue_en), atomic_read(&cdata->gyro_wkqueue_en));
+
 	if (atomic_read(&cdata->wkqueue_en) == 1)
 		st_lsm6ds3_acc_set_enable(cdata, false);
 	if (atomic_read(&cdata->gyro_wkqueue_en) == 1)
@@ -3435,6 +3451,9 @@ EXPORT_SYMBOL(st_lsm6ds3_common_suspend);
 
 int st_lsm6ds3_common_resume(struct lsm6ds3_data *cdata)
 {
+	SENSOR_INFO("acc_en=%d, gyro_en=%d\n",
+		atomic_read(&cdata->wkqueue_en), atomic_read(&cdata->gyro_wkqueue_en));
+
 	if (atomic_read(&cdata->wkqueue_en) == 1) {
 		st_lsm6ds3_set_fs(cdata, cdata->sdata->acc_c_gain,
 					ST_INDIO_DEV_ACCEL);

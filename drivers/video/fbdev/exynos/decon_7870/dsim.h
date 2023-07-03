@@ -87,7 +87,7 @@ struct dsim_resources {
 struct panel_private {
 	struct backlight_device *bd;
 	unsigned int power;
-	unsigned int lcdConnected;
+	unsigned int lcdconnected;
 };
 
 struct dsim_device {

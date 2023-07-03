@@ -138,15 +138,25 @@ fw-shipped-$(CONFIG_USB_SERIAL_XIRCOM) += keyspan_pda/xircom_pgs.fw
 fw-shipped-$(CONFIG_USB_VICAM) += vicam/firmware.fw
 fw-shipped-$(CONFIG_VIDEO_CPIA2) += cpia2/stv0672_vp4.bin
 fw-shipped-$(CONFIG_YAM) += yam/1200.bin yam/9600.bin
-fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_MMS449) += tsp_melfas/mms449_s5neo.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_MMS449) += tsp_melfas/mms449_s5neo.fw tsp_melfas/mms449_gta7_kids.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_MMS438) += tsp_melfas/mms438_j4.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_MMS144) += tsp_melfas/DIABLO_CoreV54_V35_master.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP5) += cyttsp5_csp.fw
-fw-shipped-$(CONFIG_KEYBOARD_TC300K) += coreriver/tc350k.fw coreriver/tc350k_j3pop.fw coreriver/tc305k_j3y17.fw
+fw-shipped-$(CONFIG_KEYBOARD_TC300K) += coreriver/tc350k.fw coreriver/tc350k_j3pop.fw coreriver/tc305k_j3y17.fw coreriver/tc305k_j3y17_kor.fw \
+					coreriver/tc350k_j3top.fw coreriver/tc350k_gta7_kids.fw coreriver/tc305k_j4.fw		
+fw-shipped-$(CONFIG_SENSORS_TC305K) += coreriver/tc305k_j2core_grip.fw
 fw-shipped-$(CONFIG_KEYBOARD_MELFAS_MHS204) += melfas_tk/mhs204_on5xlte.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_TD4X00) += tsp_synaptics/td4100_on5xlte.fw tsp_synaptics/td4100_j3poplte.fw \
-														tsp_synaptics/td4100_on5xlte_recovery.fw tsp_synaptics/td4100_j3poplte_recovery.fw
-fw-shipped-$(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX) += tsp_zinitix/zt7538_xcover4.fw
+														tsp_synaptics/td4100_on5xlte_recovery.fw tsp_synaptics/td4100_j3poplte_recovery.fw \
+														tsp_synaptics/td4100_j3y17.fw tsp_synaptics/td4100_j3y17_recovery.fw \
+														tsp_synaptics/td4100_j3top.fw tsp_synaptics/td4100_j3top_recovery.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_TD4X00_J2CORELTE) += tsp_synaptics/td4101_j2corelte.fw tsp_synaptics/td4101_j2corelte_recovery.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX_OLD) += tsp_zinitix/zt7548_gtesve.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX) += tsp_zinitix/zt7538_xcover4.fw tsp_zinitix/bt541c_gpgo.fw
 fw-shipped-$(CONFIG_KEYBOARD_CYPRESS_TOUCH_MBR31X5) += cypress/cy8cmbr3145_j3pop.fw
+
+fw-shipped-$(CONFIG_SENSORS_A96T3X6_WIFI) += abov/a96t326_gtaxswifi.fw
+fw-shipped-$(CONFIG_FIVE_TEE_DRIVER) += five/ffffffff000000000000000000000072.tlbin
 
 fw-shipped-all := $(fw-shipped-y) $(fw-shipped-m) $(fw-shipped-)
 

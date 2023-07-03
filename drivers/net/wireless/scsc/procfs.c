@@ -13,6 +13,7 @@
 #include "cac.h"
 #include "hip.h"
 #include "netif.h"
+#include "ioctl.h"
 
 #include "mib.h"
 
@@ -79,6 +80,10 @@ static ssize_t slsi_procfs_mutex_stats_read(struct file *file,  char __user *use
 	pos += slsi_printf_mutex_stats(buf + pos, bufsz - pos, "\t", &sdev->device_config_mutex);
 	pos += scnprintf(buf + pos, bufsz - pos, "\tsig_wait.mutex ");
 	pos += slsi_printf_mutex_stats(buf + pos, bufsz - pos, "\t", &sdev->sig_wait.mutex);
+#ifdef CONFIG_SCSC_WLAN_ENHANCED_LOGGING
+	pos += scnprintf(buf + pos, bufsz - pos, "\tlogger_mutex ");
+	pos += slsi_printf_mutex_stats(buf + pos, bufsz - pos, "\t", &sdev->logger_mutex);
+#endif
 
 	for (i = 1; i < CONFIG_SCSC_WLAN_MAX_INTERFACES + 1; i++) {
 		pos += scnprintf(buf + pos, bufsz - pos, "netdevvif %d\n", i);
@@ -113,7 +118,7 @@ static ssize_t slsi_procfs_sta_bss_read(struct file *file,  char __user *user_bu
 	int                  channel = 0, center_freq = 0;
 	u8                   no_mac[] = {0, 0, 0, 0, 0, 0};
 	u8                   *mac_ptr;
-	u8                   ssid[32];
+	u8                   ssid[33];
 	s32                  signal = 0;
 
 	SLSI_UNUSED_PARAMETER(file);
@@ -150,6 +155,29 @@ static ssize_t slsi_procfs_sta_bss_read(struct file *file,  char __user *user_bu
 exit:
 	pos = scnprintf(buf, bufsz, "%pM,%s,%d,%d,%d", mac_ptr, ssid, channel, center_freq, signal);
 	return simple_read_from_buffer(user_buf, count, ppos, buf, pos);
+}
+
+static ssize_t slsi_procfs_big_data_read(struct file *file,  char __user *user_buf, size_t count, loff_t *ppos)
+{
+	char              buf[100];
+	int               pos;
+	const size_t      bufsz = sizeof(buf);
+	struct slsi_dev   *sdev = (struct slsi_dev *)file->private_data;
+	struct net_device *dev;
+	struct netdev_vif *ndev_vif;
+
+	SLSI_UNUSED_PARAMETER(file);
+	dev = slsi_get_netdev(sdev, 1);
+	if (!dev)
+		goto exit;
+
+	ndev_vif = netdev_priv(dev);
+
+exit:
+	pos = slsi_get_sta_info(dev, buf, bufsz);
+	if (pos >= 0)
+		return simple_read_from_buffer(user_buf, count, ppos, buf, pos);
+	return 0;
 }
 
 static int slsi_procfs_status_show(struct seq_file *m, void *v)
@@ -319,6 +347,11 @@ static int slsi_procfs_build_show(struct seq_file *m, void *v)
 #else
 	seq_puts(m, "CONFIG_SCSC_WLAN_MUTEX_DEBUG                      : n\n");
 #endif
+#ifdef CONFIG_SCSC_WLAN_ENHANCED_LOGGING
+	seq_puts(m, "CONFIG_SCSC_WLAN_ENHANCED_LOGGING                      : y\n");
+#else
+	seq_puts(m, "CONFIG_SCSC_WLAN_ENHANCED_LOGGING                      : n\n");
+#endif
 	return 0;
 }
 
@@ -414,7 +447,7 @@ static ssize_t slsi_procfs_uapsd_write(struct file *file,
 	read_string = kmalloc(count + 1, GFP_KERNEL);
 	memset(read_string, 0, (count + 1));
 
-	memory_read_from_buffer(read_string, count, ppos, user_buf, count);
+	simple_write_to_buffer(read_string, count, ppos, user_buf, count);
 	read_string[count] = '\0';
 
 	offset = slsi_str_to_int(read_string, &qos_info);
@@ -426,6 +459,40 @@ static ssize_t slsi_procfs_uapsd_write(struct file *file,
 
 	/*Store the qos info and use it to set MIB during connection*/
 	sdev->device_config.qos_info = qos_info;
+
+	kfree(read_string);
+	return count;
+}
+
+static ssize_t slsi_procfs_ap_cert_disable_ht_vht_write(struct file *file, const char __user *user_buf,
+								size_t count, loff_t *ppos)
+{
+	struct slsi_dev *sdev = file->private_data;
+	int offset = 0;
+	int width = 0;
+	char *read_string;
+
+	if (!count)
+		return -EINVAL;
+
+	read_string = kmalloc(count + 1, GFP_KERNEL);
+	memset(read_string, 0, (count + 1));
+
+	simple_write_to_buffer(read_string, count, ppos, user_buf, count);
+	read_string[count] = '\0';
+
+	offset = slsi_str_to_int(read_string, &width);
+	if (!offset) {
+		SLSI_ERR(sdev, "Failed to read a numeric value");
+		kfree(read_string);
+		return -EINVAL;
+	}
+
+	/* Disable default upgrade of corresponding width during AP start */
+	if (width == 80)
+		sdev->allow_switch_80_mhz = false;
+	else if (width == 40)
+		sdev->allow_switch_40_mhz = false;
 
 	kfree(read_string);
 	return count;
@@ -443,7 +510,7 @@ static ssize_t slsi_procfs_p2p_certif_write(struct file *file,
 	read_string = kmalloc(count + 1, GFP_KERNEL);
 	memset(read_string, 0, (count + 1));
 
-	memory_read_from_buffer(read_string, count, ppos, user_buf, count);
+	simple_write_to_buffer(read_string, count, ppos, user_buf, count);
 	read_string[count] = '\0';
 
 	offset = slsi_str_to_int(read_string, &cert_info);
@@ -504,7 +571,7 @@ static ssize_t slsi_procfs_create_tspec_write(struct file *file, const char __us
 		return 0;
 	}
 
-	memory_read_from_buffer(read_string, count, ppos, user_buf, count);
+	simple_write_to_buffer(read_string, count, ppos, user_buf, count);
 	read_string[count] = '\0';
 
 	sfdev->current_tspec_id = cac_ctrl_create_tspec(sfdev, read_string);
@@ -541,7 +608,7 @@ static ssize_t slsi_procfs_confg_tspec_write(struct file *file, const char __use
 		return 0;
 	}
 
-	memory_read_from_buffer(read_string, count, ppos, user_buf, count);
+	simple_write_to_buffer(read_string, count, ppos, user_buf, count);
 	read_string[count] = '\0';
 
 	/* to do: call to config_tspec() to configure a tspec field */
@@ -580,7 +647,7 @@ static ssize_t slsi_procfs_send_addts_write(struct file *file, const char __user
 		return 0;
 	}
 
-	memory_read_from_buffer(read_string, count, ppos, user_buf, count);
+	simple_write_to_buffer(read_string, count, ppos, user_buf, count);
 	read_string[count] = '\0';
 
 	/* to do: call to config_tspec() to configure a tspec field */
@@ -618,7 +685,7 @@ static ssize_t slsi_procfs_send_delts_write(struct file *file, const char __user
 		return 0;
 	}
 
-	memory_read_from_buffer(read_string, count, ppos, user_buf, count);
+	simple_write_to_buffer(read_string, count, ppos, user_buf, count);
 	read_string[count] = '\0';
 
 	/* to do: call to config_tspec() to configure a tspec field */
@@ -654,7 +721,7 @@ static ssize_t slsi_procfs_del_tspec_write(struct file *file, const char __user 
 		return 0;
 	}
 
-	memory_read_from_buffer(read_string, count, ppos, user_buf, count);
+	simple_write_to_buffer(read_string, count, ppos, user_buf, count);
 	read_string[count] = '\0';
 
 	/* to do: call to config_tspec() to configure a tspec field */
@@ -865,6 +932,7 @@ static int slsi_procfs_tcp_ack_suppression_show(struct seq_file *m, void *v)
 			seq_printf(m, "%s: tack_aged=%u\n", dev->name, ndev_vif->tack_ktime);
 			seq_printf(m, "%s: tack_dacks=%u\n", dev->name, ndev_vif->tack_dacks);
 			seq_printf(m, "%s: tack_sacks=%u\n", dev->name, ndev_vif->tack_sacks);
+			seq_printf(m, "%s: tack_delay_acks=%u\n", dev->name, ndev_vif->tack_delay_acks);
 			seq_printf(m, "%s: tack_low_window=%u\n", dev->name, ndev_vif->tack_low_window);
 			seq_printf(m, "%s: tack_ece=%u\n", dev->name, ndev_vif->tack_ece);
 			seq_printf(m, "%s: tack_nocache=%u\n", dev->name, ndev_vif->tack_nocache);
@@ -882,6 +950,7 @@ static int slsi_procfs_tcp_ack_suppression_show(struct seq_file *m, void *v)
 SLSI_PROCFS_SEQ_FILE_OPS(vifs);
 SLSI_PROCFS_SEQ_FILE_OPS(mac_addr);
 SLSI_PROCFS_WRITE_FILE_OPS(uapsd);
+SLSI_PROCFS_WRITE_FILE_OPS(ap_cert_disable_ht_vht);
 SLSI_PROCFS_RW_FILE_OPS(p2p_certif);
 SLSI_PROCFS_RW_FILE_OPS(create_tspec);
 SLSI_PROCFS_RW_FILE_OPS(confg_tspec);
@@ -901,7 +970,7 @@ SLSI_PROCFS_SEQ_FILE_OPS(offline_dbg_dump_klog);
 SLSI_PROCFS_READ_FILE_OPS(mutex_stats);
 #endif
 SLSI_PROCFS_READ_FILE_OPS(sta_bss);
-
+SLSI_PROCFS_READ_FILE_OPS(big_data);
 SLSI_PROCFS_SEQ_FILE_OPS(tcp_ack_suppression);
 
 int slsi_create_proc_dir(struct slsi_dev *sdev)
@@ -923,6 +992,7 @@ int slsi_create_proc_dir(struct slsi_dev *sdev)
 		SLSI_PROCFS_SEQ_ADD_FILE(sdev, vifs, parent, S_IRUSR | S_IRGRP);
 		SLSI_PROCFS_SEQ_ADD_FILE(sdev, mac_addr, parent, S_IRUSR | S_IRGRP | S_IROTH); /*Add S_IROTH permission so that android settings can access it*/
 		SLSI_PROCFS_ADD_FILE(sdev, uapsd, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+		SLSI_PROCFS_ADD_FILE(sdev, ap_cert_disable_ht_vht, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 		SLSI_PROCFS_ADD_FILE(sdev, p2p_certif, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 		SLSI_PROCFS_ADD_FILE(sdev, create_tspec, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 		SLSI_PROCFS_ADD_FILE(sdev, confg_tspec, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
@@ -939,6 +1009,7 @@ int slsi_create_proc_dir(struct slsi_dev *sdev)
 		SLSI_PROCFS_ADD_FILE(sdev, mutex_stats, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 #endif
 		SLSI_PROCFS_ADD_FILE(sdev, sta_bss, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+		SLSI_PROCFS_ADD_FILE(sdev, big_data, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 		SLSI_PROCFS_SEQ_ADD_FILE(sdev, tcp_ack_suppression, sdev->procfs_dir, S_IRUSR | S_IRGRP);
 	}
 
@@ -959,6 +1030,7 @@ void slsi_remove_proc_dir(struct slsi_dev *sdev)
 		SLSI_PROCFS_REMOVE_FILE(mac_addr, sdev->procfs_dir);
 		SLSI_PROCFS_REMOVE_FILE(fcq, sdev->procfs_dir);
 		SLSI_PROCFS_REMOVE_FILE(uapsd, sdev->procfs_dir);
+		SLSI_PROCFS_REMOVE_FILE(ap_cert_disable_ht_vht, sdev->procfs_dir);
 		SLSI_PROCFS_REMOVE_FILE(p2p_certif, sdev->procfs_dir);
 		SLSI_PROCFS_REMOVE_FILE(create_tspec, sdev->procfs_dir);
 		SLSI_PROCFS_REMOVE_FILE(confg_tspec, sdev->procfs_dir);
@@ -974,6 +1046,7 @@ void slsi_remove_proc_dir(struct slsi_dev *sdev)
 		SLSI_PROCFS_REMOVE_FILE(mutex_stats, sdev->procfs_dir);
 #endif
 		SLSI_PROCFS_REMOVE_FILE(sta_bss, sdev->procfs_dir);
+		SLSI_PROCFS_REMOVE_FILE(big_data, sdev->procfs_dir);
 		SLSI_PROCFS_REMOVE_FILE(tcp_ack_suppression, sdev->procfs_dir);
 
 		(void)snprintf(dir, sizeof(dir), "driver/unifi%d", sdev->procfs_instance);

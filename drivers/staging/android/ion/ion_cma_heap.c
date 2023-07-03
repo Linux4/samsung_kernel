@@ -192,14 +192,14 @@ static void ion_cma_free(struct ion_buffer *buffer)
 
 	dev_dbg(dev, "Release buffer %p\n", buffer);
 
+	if (is_protected)
+		ion_secure_unprotect(buffer);
+
 	mutex_lock(&cma_heap->isolate_mutex);
 	if (should_isolate && (--cma_heap->isolate_count == 0))
 		dma_contiguous_deisolate(dev);
 	BUG_ON(cma_heap->isolate_count < 0);
 	mutex_unlock(&cma_heap->isolate_mutex);
-
-	if (is_protected)
-		ion_secure_unprotect(buffer);
 
 	/* release memory */
 	dma_release_from_contiguous(dev,

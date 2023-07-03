@@ -526,7 +526,7 @@ void input_booster(struct input_dev *dev)
 #if defined(CONFIG_SOC_EXYNOS7420) // This code should be working properly in Exynos7420(Noble & Zero2) only.
 	int lcdoffcounter = 0;
 #endif
-	for(i=0;i<input_count;i++) {
+	for (i = 0; i < input_count && i < MAX_EVENTS; i++) {
 		if (DetectedCategory) {
 			break;
 		} else if (input_events[i].type == EV_KEY) {
@@ -861,6 +861,7 @@ void input_event(struct input_dev *dev,
 		 unsigned int type, unsigned int code, int value)
 {
 	unsigned long flags;
+	int idx;
 
 	if (is_event_supported(type, dev->evbit, EV_MAX)) {
 
@@ -874,14 +875,17 @@ void input_event(struct input_dev *dev,
 				pr_debug("[Input Booster1] ==============================================\n");
 				input_booster(dev);
 				input_count=0;
-			} else {
+			} else if (input_count < MAX_EVENTS) {
 				pr_debug("[Input Booster1] type = %x, code = %x, value =%x\n", type, code, value);
-				input_events[input_count].type = type;
-				input_events[input_count].code = code;
-				input_events[input_count].value = value;
-				if(input_count < MAX_EVENTS) {
-					input_count++;
+				idx = input_count;
+				input_events[idx].type = type;
+				input_events[idx].code = code;
+				input_events[idx].value = value;
+				if (idx < MAX_EVENTS) {
+					input_count = idx + 1 ;
 				}
+			} else {
+				pr_debug("[Input Booster1] type = %x, code = %x, value =%x   Booster Event Exceeded\n", type, code, value);
 			}
 		}
 #endif  // Input Booster -
@@ -1344,16 +1348,18 @@ static int input_default_setkeycode(struct input_dev *dev,
 		}
 	}
 
-	__clear_bit(*old_keycode, dev->keybit);
-	__set_bit(ke->keycode, dev->keybit);
-
-	for (i = 0; i < dev->keycodemax; i++) {
-		if (input_fetch_keycode(dev, i) == *old_keycode) {
-			__set_bit(*old_keycode, dev->keybit);
-			break; /* Setting the bit twice is useless, so break */
+	if (*old_keycode <= KEY_MAX) {
+		__clear_bit(*old_keycode, dev->keybit);
+		for (i = 0; i < dev->keycodemax; i++) {
+			if (input_fetch_keycode(dev, i) == *old_keycode) {
+				__set_bit(*old_keycode, dev->keybit);
+				/* Setting the bit twice is useless, so break */
+				break;
+			}
 		}
 	}
 
+	__set_bit(ke->keycode, dev->keybit);
 	return 0;
 }
 
@@ -1409,9 +1415,13 @@ int input_set_keycode(struct input_dev *dev,
 	 * Simulate keyup event if keycode is not present
 	 * in the keymap anymore
 	 */
-	if (test_bit(EV_KEY, dev->evbit) &&
-	    !is_event_supported(old_keycode, dev->keybit, KEY_MAX) &&
-	    __test_and_clear_bit(old_keycode, dev->key)) {
+	if (old_keycode > KEY_MAX) {
+		dev_warn(dev->dev.parent ?: &dev->dev,
+			 "%s: got too big old keycode %#x\n",
+			 __func__, old_keycode);
+	} else if (test_bit(EV_KEY, dev->evbit) &&
+		   !is_event_supported(old_keycode, dev->keybit, KEY_MAX) &&
+		   __test_and_clear_bit(old_keycode, dev->key)) {
 		struct input_value vals[] =  {
 			{ EV_KEY, old_keycode, 0 },
 			input_value_sync

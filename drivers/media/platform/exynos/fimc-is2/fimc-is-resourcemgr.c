@@ -663,6 +663,29 @@ static struct notifier_block notify_panic_block = {
 };
 #endif
 
+#if defined(ENABLE_REBOOT_HANDLER) && !defined(ENABLE_IS_CORE)
+static int fimc_is_reboot_handler(struct notifier_block *nb, ulong l,
+	void *buf)
+{
+	struct fimc_is_core *core = NULL;
+
+	info("%s:++\n", __func__);
+
+	core = (struct fimc_is_core *)dev_get_drvdata(fimc_is_dev);
+	if (!core)
+		goto exit;
+
+	fimc_is_cleanup(core);
+exit:
+	info("%s:--\n", __func__);
+	return 0;
+}
+
+static struct notifier_block notify_reboot_block = {
+	.notifier_call = fimc_is_reboot_handler,
+};
+#endif
+
 int fimc_is_resourcemgr_probe(struct fimc_is_resourcemgr *resourcemgr,
 	void *private_data)
 {
@@ -735,7 +758,9 @@ int fimc_is_resourcemgr_probe(struct fimc_is_resourcemgr *resourcemgr,
 #ifdef ENABLE_PANIC_HANDLER
 	atomic_notifier_chain_register(&panic_notifier_list, &notify_panic_block);
 #endif
-
+#if defined(ENABLE_REBOOT_HANDLER) && !defined(ENABLE_IS_CORE)
+	register_reboot_notifier(&notify_reboot_block);
+#endif
 #ifdef ENABLE_SHARED_METADATA
 	spin_lock_init(&resourcemgr->shared_meta_lock);
 #endif

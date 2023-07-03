@@ -7,6 +7,8 @@
 #ifndef FWHDR_H
 #define FWHDR_H
 
+#define FW_BUILD_ID_SZ  128
+
 struct fwhdr {
 	u16 hdr_major;
 	u16 hdr_minor;

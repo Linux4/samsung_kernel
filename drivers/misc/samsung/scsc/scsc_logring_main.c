@@ -197,6 +197,8 @@ ADD_DEBUG_MODULE_PARAM(panic_mon, SCSC_FULL_DEBUG, PANIC_MON);
 ADD_DEBUG_MODULE_PARAM(pcie_mif, SCSC_FULL_DEBUG, PCIE_MIF);
 ADD_DEBUG_MODULE_PARAM(plat_mif, SCSC_DBG1, PLAT_MIF);
 ADD_DEBUG_MODULE_PARAM(kic_common, SCSC_FULL_DEBUG, KIC_COMMON);
+ADD_DEBUG_MODULE_PARAM(wlbtd, SCSC_FULL_DEBUG, WLBTD);
+ADD_DEBUG_MODULE_PARAM(wlog, SCSC_DEBUG, WLOG);
 #ifdef CONFIG_SCSC_DEBUG_COMPATIBILITY
 ADD_DEBUG_MODULE_PARAM(init_deinit,  SCSC_FULL_DEBUG, SLSI_INIT_DEINIT);
 ADD_DEBUG_MODULE_PARAM(netdev,  SCSC_DBG4, SLSI_NETDEV);
@@ -262,6 +264,8 @@ int *scsc_droplevels[] = {
 	&scsc_droplevel_pcie_mif,
 	&scsc_droplevel_plat_mif,
 	&scsc_droplevel_kic_common,
+	&scsc_droplevel_wlbtd,
+	&scsc_droplevel_wlog,
 #ifdef CONFIG_SCSC_DEBUG_COMPATIBILITY
 	&scsc_droplevel_init_deinit,
 	&scsc_droplevel_netdev,

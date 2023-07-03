@@ -199,6 +199,18 @@ config HALL
 	help
 	  Enable Hall Feature
 
+config SEC_AUTO_INPUT
+	tristate "Samsung auto input"
+	depends on !SAMSUNG_PRODUCT_SHIP
+	default y
+	help
+	  Say Y here if you use auto input function.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called autoinput.
+
 comment "Input Device Drivers"
 
 source "drivers/input/keyboard/Kconfig"

@@ -524,7 +524,7 @@ int open_vctx(struct file *file,
 		goto p_err;
 	}
 
-	*vctx = kzalloc(sizeof(struct fimc_is_video_ctx), GFP_KERNEL);
+	*vctx = vzalloc(sizeof(struct fimc_is_video_ctx));
 	if (*vctx == NULL) {
 		err("kzalloc is fail");
 		ret = -ENOMEM;
@@ -548,7 +548,7 @@ int close_vctx(struct file *file,
 {
 	int ret = 0;
 
-	kfree(vctx);
+	vfree(vctx);
 	file->private_data = NULL;
 	ret = vref_put(video, NULL);
 
@@ -734,9 +734,11 @@ int fimc_is_queue_buffer_queue(struct fimc_is_queue *queue,
 	}
 
 	/* plane address check */
-	if (video->resourcemgr->hal_version == IS_HAL_VER_1_0) {
-		for (i = 0; i < frame->planes; i++) {
-			if (frame->dvaddr_buffer[i] != queue->buf_dva[index][i]) {
+	for (i = 0; i < frame->planes; i++) {
+		if (frame->dvaddr_buffer[i] != queue->buf_dva[index][i]) {
+			if (video->resourcemgr->hal_version == IS_HAL_VER_3_2) {
+				frame->dvaddr_buffer[i] = queue->buf_dva[index][i];
+			} else {
 				mverr("buffer[%d][%d] is changed(%08X != %08lX)", vctx, video, index, i,
 					frame->dvaddr_buffer[i], queue->buf_dva[index][i]);
 				ret = -EINVAL;

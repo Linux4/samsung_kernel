@@ -39,3 +39,4 @@ static inline void functor_call(struct functor *f)
 }
 
 #endif  /* __FUNCTOR_H */
+

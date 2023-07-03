@@ -1,6 +1,6 @@
 /*****************************************************************************
  *
- * Copyright (c) 2012 - 2016 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2017 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -131,7 +131,7 @@ long slsi_src_sink_cdev_ioctl_cfg(struct slsi_dev *sdev, unsigned long arg)
 
 		src_sink_arg.u.report.duration            = fapi_get_u32(ind, u.debug_pkt_sink_report_ind.duration);
 		src_sink_arg.u.report.count               = fapi_get_u32(ind, u.debug_pkt_sink_report_ind.received_packets);
-		src_sink_arg.u.report.octet               = fapi_get_u32(ind, u.debug_pkt_sink_report_ind.recieved_octets);
+		src_sink_arg.u.report.octet               = fapi_get_u32(ind, u.debug_pkt_sink_report_ind.received_octets);
 		src_sink_arg.u.report.kbps                = fapi_get_u32(ind, u.debug_pkt_sink_report_ind.kbps);
 		src_sink_arg.u.report.idle_ratio          = fapi_get_u16(ind, u.debug_pkt_sink_report_ind.idle_ratio);
 		src_sink_arg.u.report.interrupt_latency   = fapi_get_u16(ind, u.debug_pkt_sink_report_ind.int_latency);
@@ -166,7 +166,7 @@ long slsi_src_sink_cdev_ioctl_cfg(struct slsi_dev *sdev, unsigned long arg)
 		src_sink_arg.u.report.duration     = fapi_get_u32(ind, u.debug_pkt_gen_report_ind.duration);
 		src_sink_arg.u.report.count        = fapi_get_u32(ind, u.debug_pkt_gen_report_ind.received_packets);
 		src_sink_arg.u.report.failed_count = fapi_get_u32(ind, u.debug_pkt_gen_report_ind.failed_count);
-		src_sink_arg.u.report.octet        = fapi_get_u32(ind, u.debug_pkt_gen_report_ind.recieved_octets);
+		src_sink_arg.u.report.octet        = fapi_get_u32(ind, u.debug_pkt_gen_report_ind.received_octets);
 		src_sink_arg.u.report.kbps         = fapi_get_u32(ind, u.debug_pkt_gen_report_ind.kbps);
 		src_sink_arg.u.report.idle_ratio        = fapi_get_u16(ind, u.debug_pkt_gen_report_ind.idle_ratio);
 		src_sink_arg.u.report.interrupt_latency = fapi_get_u16(ind, u.debug_pkt_gen_report_ind.int_latency);
@@ -222,7 +222,7 @@ void slsi_rx_sink_report(struct slsi_dev *sdev, struct net_device *dev, struct s
 	memset(report, 0, sizeof(struct unifiio_src_sink_report));
 	report->duration            = fapi_get_u32(skb, u.debug_pkt_sink_report_ind.duration);
 	report->count               = fapi_get_u32(skb, u.debug_pkt_sink_report_ind.received_packets);
-	report->octet               = fapi_get_u32(skb, u.debug_pkt_sink_report_ind.recieved_octets);
+	report->octet               = fapi_get_u32(skb, u.debug_pkt_sink_report_ind.received_octets);
 	report->kbps                = fapi_get_u32(skb, u.debug_pkt_sink_report_ind.kbps);
 	report->idle_ratio          = fapi_get_u16(skb, u.debug_pkt_sink_report_ind.idle_ratio);
 	report->interrupt_latency   = fapi_get_u16(skb, u.debug_pkt_sink_report_ind.int_latency);
@@ -244,7 +244,7 @@ void slsi_rx_gen_report(struct slsi_dev *sdev, struct net_device *dev, struct sk
 	report->duration          = fapi_get_u32(skb, u.debug_pkt_gen_report_ind.duration);
 	report->count             = fapi_get_u32(skb, u.debug_pkt_gen_report_ind.received_packets);
 	report->failed_count      = fapi_get_u32(skb, u.debug_pkt_gen_report_ind.failed_count);
-	report->octet             = fapi_get_u32(skb, u.debug_pkt_gen_report_ind.recieved_octets);
+	report->octet             = fapi_get_u32(skb, u.debug_pkt_gen_report_ind.received_octets);
 	report->kbps              = fapi_get_u32(skb, u.debug_pkt_gen_report_ind.kbps);
 	report->idle_ratio        = fapi_get_u16(skb, u.debug_pkt_gen_report_ind.idle_ratio);
 	report->interrupt_latency = fapi_get_u16(skb, u.debug_pkt_gen_report_ind.int_latency);

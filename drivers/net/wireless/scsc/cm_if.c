@@ -28,7 +28,6 @@ module_param(EnableRfTestMode, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(EnableRfTestMode, "Enable RF test mode driver.");
 
 static struct mutex slsi_start_mutex;
-static struct mutex slsi_open_mutex;
 static int recovery_in_progress;
 static u16 latest_scsc_panic_code;
 
@@ -178,8 +177,15 @@ void slsi_wlan_service_probe(struct scsc_mx_module_client *module_client, struct
 
 		dev = scsc_mx_get_device(mx);
 
+		/* The mutex must be released at this point since the attach
+		 * process may call various functions including
+		 * slsi_sm_wlan_service_start and slsi_sm_wlan_service_open, which will
+		 * claim the same mutex.
+		 */
+		mutex_unlock(&slsi_start_mutex);
 		sdev = slsi_dev_attach(dev, mx, &mx_wlan_client);
-		if (sdev == NULL) {
+		mutex_lock(&slsi_start_mutex);
+		if (!sdev) {
 			SLSI_ERR_NODEV("WLAN attach failed - slsi_dev_attach\n");
 			goto done;
 		}
@@ -331,7 +337,6 @@ int slsi_sm_service_driver_register(void)
 
 	memset(ctx, 0, sizeof(*ctx));
 	mutex_init(&slsi_start_mutex);
-	mutex_init(&slsi_open_mutex);
 	scsc_mx_module_register_client_module(&wlan_driver);
 
 	return 0;
@@ -366,7 +371,7 @@ void slsi_sm_service_failed(struct slsi_dev *sdev, const char *reason)
 
 		atomic_set(&sdev->cm_if.cm_if_state, SCSC_WIFI_CM_IF_STATE_BLOCKED);
 		slsi_hip_block_bh(sdev);
-		scsc_mx_service_service_failed(sdev->service);
+		scsc_mx_service_service_failed(sdev->service, reason);
 		sdev->fail_reported = true;
 	}
 
@@ -390,7 +395,7 @@ int slsi_sm_wlan_service_open(struct slsi_dev *sdev)
 	int err = 0;
 	int state;
 
-	mutex_lock(&slsi_open_mutex);
+	mutex_lock(&slsi_start_mutex);
 	state = atomic_read(&sdev->cm_if.cm_if_state);
 	if (state != SCSC_WIFI_CM_IF_STATE_PROBED &&
 	    state != SCSC_WIFI_CM_IF_STATE_STOPPED) {
@@ -410,7 +415,7 @@ int slsi_sm_wlan_service_open(struct slsi_dev *sdev)
 	}
 
 exit:
-	mutex_unlock(&slsi_open_mutex);
+	mutex_unlock(&slsi_start_mutex);
 	return err;
 }
 
@@ -595,6 +600,11 @@ skip_state_check:
 		mutex_lock(&slsi_start_mutex);
 
 		__slsi_sm_wlan_service_stop_wait_locked(sdev);
+	} else if (err == -EPERM) {
+		/* Special case when recovery is disabled, otherwise the driver
+		 * will wait forever for recovery that never comes
+		 */
+		SLSI_INFO(sdev, "refused due to previous failure, recovery is disabled: %d\n", err);
 	} else if (err != 0) {
 		SLSI_INFO(sdev, "scsc_mx_service_stop failed, unknown err: %d\n", err);
 	}
@@ -642,6 +652,8 @@ void slsi_sm_wlan_service_close(struct slsi_dev *sdev)
 		if (retry_counter + 1 == SLSI_SM_WLAN_SERVICE_CLOSE_RETRY)
 			SLSI_ERR(sdev, "scsc_mx_service_close failed %d times\n",
 				 SLSI_SM_WLAN_SERVICE_CLOSE_RETRY);
+	} else if (r == -EPERM) {
+		SLSI_ERR(sdev, "scsc_mx_service_close - recovery is disabled (%d)\n", r);
 	}
 
 	if (recovery_in_progress)

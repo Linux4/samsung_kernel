@@ -34,6 +34,33 @@ config SENSORS_K2HH_VDD
 	  Say Y here if you use SENSORS_K2HH_VDD.
 	  This option enables accelerometer sensors using VDD.
 
+config SENSORS_LIS2DS
+	tristate "STMicroelectronics LIS2DS/LIS2DS12 sensors"
+	depends on (I2C || SPI) && SYSFS
+	help
+	   This driver support the STMicroelectronics LIS2DS/LIS2DS12 sensors.
+	   It is a accelerometer device.
+	   To compile this driver as a module, choose M here. The module
+	   will be called lis2ds.
+
+config SENSORS_LIS2DS_I2C
+	tristate "STMicroelectronics LIS2DS/LIS2DS12 sensors"
+	depends on (I2C || SPI) && SYSFS
+	help
+	   This driver support the STMicroelectronics LIS2DS/LIS2DS12 sensors.
+	   It is a accelerometer device.
+	   To compile this driver as a module, choose M here. The module
+	   will be called lis2ds.
+
+config SENSORS_LIS2DS_SPI
+	tristate "STMicroelectronics LIS2DS/LIS2DS12 sensors"
+	depends on (I2C || SPI) && SYSFS
+	help
+	   This driver support the STMicroelectronics LIS2DS/LIS2DS12 sensors.
+	   It is a accelerometer device.
+	   To compile this driver as a module, choose M here. The module
+	   will be called lis2ds.
+
 config SENSORS_BMA2X2
 	tristate "BMA255/BMA250E/BMA222E/BMA280 acceleration sensor support"
 	depends on I2C
@@ -74,6 +101,27 @@ config ST_LSM6DS3_SPI
 	  It is a gyroscope/accelerometer combo device.
 	  This driver can be built as a module. The module will be called
 	  st-lsm6ds3.	  
+
+config SENSORS_LSM6DSL
+	tristate "STMicroelectronics LSM6DSL sensor"
+	depends on (I2C || SPI) && SYSFS
+	help
+	   This driver support the STMicroelectronics LSM6DSL sensor.
+
+	   To compile this driver as a module, choose M here. The module
+	   will be called lsm6dsl.
+
+config SENSORS_LSM6DSL_I2C
+	tristate "STMicroelectronics LSM6DSL sensor"
+	depends on (I2C || SPI) && SYSFS
+	help
+	   This driver support the STMicroelectronics LSM6DSL sensor.
+
+config SENSORS_LSM6DSL_SPI
+	tristate "STMicroelectronics LSM6DSL sensor"
+	depends on (I2C || SPI) && SYSFS
+	help
+	   This driver support the STMicroelectronics LSM6DSL sensor.
 
 config SENSORS_BMM050
 	tristate "BMM050 Magnetic Sensor Driver"
@@ -210,6 +258,15 @@ config SENSORS_SX9310
 	help
 	  Say Y here if you use sx9310.
 	  This option enables grip sensors using SemTech sx9310 device driver.
+	  
+config SENSORS_SX9320
+	depends on I2C
+	tristate "SX9320 driver"
+	default n
+	help
+	  Say Y here if you use sx9320.
+	  This option enables grip sensors using
+	  SemTech sx9320 device driver.
 
 config SENSORS_GRIP_KEYSTRING_SKIPDATA
 	depends on I2C
@@ -224,6 +281,56 @@ config SENSORS_GRIP_CHK_HALLIC
 	default n
 	help
 	 This option enables grip sensors checking hall ic status.
+
+config SENSORS_A96T3X6_WIFI
+	depends on I2C
+	tristate "A96T3X6 driver for grip wifi"
+	default n
+	help
+	  Say Y here if you use A96T3X6 for grip wifi.
+	  This option enables grip sensors using
+	  Above A96T3X6 device driver for grip wifi.
+	  Say N here if you do not use A96T3X6 for grip wifi.
+
+config SENSORS_TC3XXK
+	depends on I2C
+	tristate "TC3XXK driver for grip Sensor"
+	default n
+	help
+	  Say Y here if you use TC3XXK family IC for grip Sensor.
+	  This option enables grip sensors using
+	  Above TC3XXK family device driver for grip Sensor.
+	  Say N here if you do not use TC3XXK family for grip Sensor.
+
+config SENSORS_TC300K
+	depends on I2C
+	tristate "TC300K driver for grip Sensor"
+	default n
+	help
+	  Say Y here if you use TC3XXK IC for grip Sensor.
+	  This option enables grip sensors using
+	  Above TC300K device driver for grip Sensor.
+	  Say N here if you do not use TC300K for grip Sensor.
+
+config SENSORS_TC305K
+	depends on I2C
+	tristate "TC305K driver for grip Sensor"
+	default n
+	help
+	  Say Y here if you use TC305K IC for grip Sensor.
+	  This option enables grip sensors using
+	  Above TC305K device driver for grip Sensor.
+	  Say N here if you do not use TC305K for grip Sensor.
+
+config SENSORS_TC350K
+	depends on I2C
+	tristate "TC350K driver for grip Sensor"
+	default n
+	help
+	  Say Y here if you use TC350K IC for grip Sensor.
+	  This option enables grip sensors using
+	  Above TC350K device driver for grip Sensor.
+	  Say N here if you do not use TC350K for grip Sensor.
 
 config SENSORS_BHA250_DEFENCE_SW_RESET
 	tristate "SENSOR SW RESET support"

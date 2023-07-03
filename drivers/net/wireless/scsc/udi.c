@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2012 - 2016 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2017 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -71,6 +71,8 @@ struct slsi_cdev_client {
 	/* Flags set for special filtering of ma_packet data */
 	u16                 ma_unitdata_filter_config;
 
+	u16					ma_unitdata_size_limit;
+
 	struct sk_buff_head log_list;
 	struct semaphore    log_mutex;
 	wait_queue_head_t   log_wq;
@@ -115,11 +117,11 @@ int slsi_check_cdev_refs(void)
 	for (cdev_num = 0; cdev_num < SLSI_UDI_MINOR_NODES; cdev_num++) {
 		cdev = uf_cdevs[cdev_num];
 
-		if (cdev == NULL)
+		if (!cdev)
 			continue;
 
 		for (client_num = 0; client_num < NUM_CHAR_CLIENTS; client_num++)
-			if (cdev->client[client_num] != NULL)
+			if (cdev->client[client_num])
 				return 1;
 	}
 
@@ -132,7 +134,7 @@ int slsi_kernel_to_user_space_event(struct slsi_log_client *log_client, u16 even
 	struct sk_buff          *skb;
 	int                     ret;
 
-	if (WARN_ON(client == NULL))
+	if (WARN_ON(!client))
 		return -EINVAL;
 
 	if (!client->log_allow_driver_signals)
@@ -176,7 +178,7 @@ static int slsi_cdev_open(struct inode *inode, struct file *file)
 	}
 
 	for (indx = 0; indx < NUM_CHAR_CLIENTS; indx++)
-		if (uf_cdev->client[indx] == NULL)
+		if (!uf_cdev->client[indx])
 			break;
 	if (indx >= NUM_CHAR_CLIENTS) {
 		SLSI_ERR_NODEV("already opened\n");
@@ -184,7 +186,7 @@ static int slsi_cdev_open(struct inode *inode, struct file *file)
 	}
 
 	client = kmalloc(sizeof(*client), GFP_KERNEL);
-	if (client == NULL)
+	if (!client)
 		return -ENOMEM;
 	memset(client, 0, sizeof(struct slsi_cdev_client));
 
@@ -224,7 +226,7 @@ static int slsi_cdev_release(struct inode *inode, struct file *filp)
 		return -EINVAL;
 	}
 
-	if (client == NULL)
+	if (!client)
 		return -EINVAL;
 
 	for (indx = 0; indx < NUM_CHAR_CLIENTS; indx++)
@@ -264,7 +266,7 @@ static ssize_t slsi_cdev_read(struct file *filp, char *p, size_t len, loff_t *po
 
 	SLSI_UNUSED_PARAMETER(poff);
 
-	if (client == NULL)
+	if (!client)
 		return -EINVAL;
 
 	if (!skb_queue_len(&client->log_list)) {
@@ -319,7 +321,7 @@ static ssize_t slsi_cdev_write(struct file *filp, const char *p, size_t len, lof
 	SLSI_UNUSED_PARAMETER(poff);
 
 	client = (void *)filp->private_data;
-	if (client == NULL) {
+	if (!client) {
 		SLSI_ERR_NODEV("filep private data not set\n");
 		return -EINVAL;
 	}
@@ -404,7 +406,7 @@ static long slsi_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long a
 	unsigned char           *mib_data;       /* Mib Input/Output Buffer */
 	u16                     mib_vif;
 
-	if (client == NULL || client->ufcdev == NULL)
+	if (!client || !client->ufcdev)
 		return -EINVAL;
 	sdev = client->ufcdev->sdev;
 
@@ -434,6 +436,19 @@ static long slsi_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long a
 
 		break;
 
+	case UNIFI_SET_UDI_LOG_CONFIG:
+	{
+		struct unifiio_udi_config_t config;
+
+		if (copy_from_user(&config, (void *)arg, sizeof(config))) {
+			SLSI_ERR(sdev, "UNIFI_SET_UDI_LOG_CONFIG: Failed to copy from userspace\n");
+			r = -EFAULT;
+			break;
+		}
+
+		client->ma_unitdata_size_limit = config.ma_unitdata_size_limit;
+		break;
+	}
 	case UNIFI_SET_UDI_LOG_MASK:
 	{
 		struct unifiio_filter_t filter;
@@ -765,9 +780,9 @@ static int udi_log_event(struct slsi_log_client *log_client, struct sk_buff *skb
 	struct udi_msg_t        *msg_skb;
 	u16                     signal_id = fapi_get_sigid(skb);
 
-	if (WARN_ON(client == NULL))
+	if (WARN_ON(!client))
 		return -EINVAL;
-	if (WARN_ON(skb == NULL))
+	if (WARN_ON(!skb))
 		return -EINVAL;
 	if (WARN_ON(skb->len == 0))
 		return -EINVAL;
@@ -901,10 +916,25 @@ allow_frame:
 	up(&client->log_mutex);
 
 allow_config_frame:
+	if ((signal_id == MA_UNITDATA_REQ || signal_id == MA_UNITDATA_IND) &&
+		(client->ma_unitdata_size_limit) && (skb->len > client->ma_unitdata_size_limit)) {
+		struct slsi_skb_cb  *cb;
+		struct sk_buff *skb2 = alloc_skb(sizeof(msg) + client->ma_unitdata_size_limit, GFP_ATOMIC);
 
-	skb = slsi_skb_copy_expand(skb, sizeof(msg), 0, GFP_ATOMIC);
-	if (WARN_ON(!skb))
-		return -ENOMEM;
+		if (WARN_ON(!skb2))
+			return -ENOMEM;
+
+		skb_reserve(skb2, sizeof(msg));
+		cb = slsi_skb_cb_init(skb2);
+		cb->sig_length = fapi_get_siglen(skb);
+		cb->data_length = client->ma_unitdata_size_limit;
+		skb_copy_bits(skb, 0, skb_put(skb2, client->ma_unitdata_size_limit), client->ma_unitdata_size_limit);
+		skb = skb2;
+	} else {
+		skb = slsi_skb_copy_expand(skb, sizeof(msg), 0, GFP_ATOMIC);
+		if (WARN_ON(!skb))
+			return -ENOMEM;
+	}
 
 	msg.length = sizeof(msg) + skb->len;
 	msg.timestamp = ktime_to_ms(ktime_get());
@@ -945,7 +975,7 @@ static int slsi_get_minor(void)
 	int minor;
 
 	for (minor = 0; minor < SLSI_UDI_MINOR_NODES; minor++)
-		if (uf_cdevs[minor] == NULL)
+		if (!uf_cdevs[minor])
 			return minor;
 	return -1;
 }
@@ -965,7 +995,7 @@ static int slsi_cdev_create(struct slsi_dev *sdev, struct device *parent)
 		struct slsi_test_dev *uftestdev = (struct slsi_test_dev *)sdev->maxwell_core;
 
 		minor = uftestdev->device_minor_number;
-		if (uf_cdevs[minor] != NULL)
+		if (uf_cdevs[minor])
 			return -EINVAL;
 	}
 #else
@@ -977,7 +1007,7 @@ static int slsi_cdev_create(struct slsi_dev *sdev, struct device *parent)
 	}
 
 	pdev = kmalloc(sizeof(*pdev), GFP_KERNEL);
-	if (pdev == NULL)
+	if (!pdev)
 		return -ENOMEM;
 	memset(pdev, 0, sizeof(*pdev));
 

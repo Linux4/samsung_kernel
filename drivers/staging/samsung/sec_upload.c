@@ -164,11 +164,11 @@ static void set_key_state_up(unsigned int code)
 
 static void increase_step(void)
 {
-	if (check_step < ARRAYSIZE(user_crash_key_combination)) {
+	if (check_step < ARRAYSIZE(user_crash_key_combination))
 		check_step++;
-		SEC_LOG("%d", check_step);
-	} else
+	else
 		panic("User Crash key");
+	SEC_LOG("%d", check_step);
 }
 
 static void reset_step(void)
@@ -179,11 +179,11 @@ static void reset_step(void)
 
 static void increase_count(void)
 {
-	if (check_count < get_count_for_panic()) {
+	if (check_count < get_count_for_panic())
 		check_count++;
-		SEC_LOG("%d < %d", check_count, get_count_for_panic());
-	} else
+	else
 		panic("User Crash Key");
+	SEC_LOG("%d < %d", check_count, get_count_for_panic());
 }
 
 static void reset_count(void)
@@ -229,4 +229,4 @@ void check_crash_keys_in_user(unsigned int code, int state)
 		}
 	}
 }
-EXPORT_SYMBOL(check_crash_keys_in_user)
+EXPORT_SYMBOL(check_crash_keys_in_user);

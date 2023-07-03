@@ -65,6 +65,7 @@ int fimc_is_ois_fw_open(struct fimc_is_ois *ois, char *name)
 	ret = fimc_is_ois_fw_ver_copy(ois, buf, fsize);
 	if (ret < 0) {
 		err("OIS fw version copy fail\n");
+		set_fs(old_fs);
 		return ret;
 	}
 

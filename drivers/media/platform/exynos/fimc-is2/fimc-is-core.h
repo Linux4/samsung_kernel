@@ -229,6 +229,8 @@ struct fimc_is_core {
 	u32					current_position;
 	atomic_t				rsccount;
 	unsigned long				state;
+	bool					shutdown;
+	bool					reboot;
 
 	/* depended on isp */
 	struct exynos_platform_fimc_is		*pdata;
@@ -297,6 +299,7 @@ int fimc_is_init_set(struct fimc_is_core *dev , u32 val);
 int fimc_is_load_fw(struct fimc_is_core *dev);
 int fimc_is_load_setfile(struct fimc_is_core *dev);
 int fimc_is_otf_close(struct fimc_is_device_ischain *ischain);
+void fimc_is_cleanup(struct fimc_is_core *core);
 
 #define CALL_POPS(s, op, args...) (((s) && (s)->pdata && (s)->pdata->op) ? ((s)->pdata->op(&(s)->pdev->dev)) : -EPERM)
 

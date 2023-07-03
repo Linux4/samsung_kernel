@@ -17,6 +17,14 @@ config TOUCHSCREEN_ZINITIX_BT532
 	  Say Y here if you have a ZINITIX BT532 touchscreen.
 	  If unsure, say N.
 
+config TOUCHSCREEN_ZINITIX_ZT75XX_OLD
+	bool "ZINITIX ZT75XX OLD touchscreen driver"
+	depends on I2C
+	default n
+	help
+	  Say Y here if you have a ZINITIX ZT75XX OLD touchscreen.
+	  If unsure, say N.
+
 config TOUCHSCREEN_ZINITIX_ZT75XX
 	bool "ZINITIX ZT75XX touchscreen driver"
 	depends on I2C

@@ -9,22 +9,11 @@
 #include <linux/smp.h>
 #include <linux/atomic.h>
 
-#ifdef CONFIG_KFAULT_AUTO_SUMMARY
-static void __dump_stack(bool for_auto_summary)
-#else
 static void __dump_stack(void)
-#endif
 {
 	dump_stack_print_info(KERN_DEFAULT);
 
-#ifdef CONFIG_KFAULT_AUTO_SUMMARY
-	if (for_auto_summary)
-		show_stack_auto_summary(NULL, NULL);
-	else
-		show_stack(NULL, NULL);
-#else
 	show_stack(NULL, NULL);
-#endif
 }
 
 /**
@@ -59,11 +48,7 @@ retry:
 		goto retry;
 	}
 
-#ifdef CONFIG_KFAULT_AUTO_SUMMARY
-	__dump_stack(auto_summary);
-#else
 	__dump_stack();
-#endif
 
 	if (!was_locked)
 		atomic_set(&dump_lock, -1);

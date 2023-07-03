@@ -775,6 +775,8 @@ int fimc_is_lib_vra_stop(struct fimc_is_lib_vra *lib_vra)
 		return ret;
 	}
 
+	lib_vra->all_face_num = 0;
+
 	clear_bit(VRA_LIB_APPLY_TUNE_SET, &lib_vra->state);
 
 	return 0;

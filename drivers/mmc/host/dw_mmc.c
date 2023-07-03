@@ -1344,26 +1344,55 @@ disable:
 
 inline u32 dw_mci_calc_hto_timeout(struct dw_mci *host)
 {
-	u32 target_timeout;
-	u32 count;
-	u32 host_clock = host->cur_slot->clock;
+	struct dw_mci_slot *slot = host->cur_slot;
+	u32 target_timeout, count;
+	u32 max_time, max_ext_time;
+	u32 host_clock = host->cclk_in;
+	u32 tmout_value;
+	int ext_cnt = 0;
 
 	if (!host->pdata->hto_timeout)
 		return 0xFFFFFFFF; /* timeout maximum */
 
+	target_timeout = host->pdata->data_timeout;
+
+	if (host->timing == MMC_TIMING_MMC_HS400 ||
+				host->timing == MMC_TIMING_MMC_HS400_ES) {
+		if (host->pdata->quirks & DW_MCI_QUIRK_ENABLE_ULP)
+			host_clock *= 2;
+	}
+
+	max_time = SDMMC_DATA_TMOUT_MAX_CNT * SDMMC_DATA_TMOUT_CRT / (host_clock / 1000);
+
+	if (target_timeout < max_time) {
+		tmout_value = mci_readl(host, TMOUT);
+		goto pass;
+	} else {
+		max_ext_time = SDMMC_DATA_TMOUT_MAX_EXT_CNT / (host_clock / 1000);
+		ext_cnt = target_timeout / max_ext_time;
+	}
+
 	target_timeout = host->pdata->hto_timeout;
 
+	/* use clkout for sysnopsys divider */
+	if (host->timing == MMC_TIMING_MMC_HS400 ||
+			host->timing == MMC_TIMING_MMC_HS400_ES ||
+			(host->timing == MMC_TIMING_MMC_DDR52 &&
+			 slot->ctype == SDMMC_CTYPE_8BIT))
+		host_clock /= 2;
+
 	/* Calculating Timeout value */
-	count = (target_timeout * (host_clock / 1000)) /
-		(SDMMC_DATA_TMOUT_CRT * SDMMC_DATA_TMOUT_EXT);
+	count = target_timeout * (host_clock / 1000);
 
-	if (count > 0x1FFFFF)
-		count = 0x1FFFFF;
+	if (count > 0xFFFFFF)
+		count = 0xFFFFFF;
 
+	tmout_value = (count << SDMMC_HTO_TMOUT_SHIFT) | SDMMC_RESP_TMOUT;
+	tmout_value &= ~(0x7 << SDMMC_DATA_TMOUT_EXT_SHIFT);
+	tmout_value |= ((ext_cnt + 1) << SDMMC_DATA_TMOUT_EXT_SHIFT);
+pass:
 	/* Set return value */
-	return ((count << SDMMC_DATA_TMOUT_SHIFT)
-		| (SDMMC_DATA_TMOUT_EXT << SDMMC_DATA_TMOUT_EXT_SHIFT)
-		| SDMMC_RESP_TMOUT);
+	return tmout_value;
 }
 
 static int dw_mci_submit_data_dma(struct dw_mci *host, struct mmc_data *data)
@@ -1613,23 +1642,34 @@ inline u32 dw_mci_calc_timeout(struct dw_mci *host)
 {
 	u32 target_timeout;
 	u32 count;
-	u32 host_clock = host->cur_slot->clock;
+	u32 max_time;
+	u32 max_ext_time;
+	int ext_cnt = 0;
+	u32 host_clock = host->cclk_in;
 
 	if (!host->pdata->data_timeout)
 		return 0xFFFFFFFF; /* timeout maximum */
 
 	target_timeout = host->pdata->data_timeout;
 
-	/* Calculating Timeout value */
-	count = (target_timeout * (host_clock / 1000)) /
-		(SDMMC_DATA_TMOUT_CRT * SDMMC_DATA_TMOUT_EXT);
+	if (host->timing == MMC_TIMING_MMC_HS400 ||
+				host->timing == MMC_TIMING_MMC_HS400_ES) {
+		if (host->pdata->quirks & DW_MCI_QUIRK_ENABLE_ULP)
+			host_clock *= 2;
+	}
 
-	if (count > 0x1FFFFF)
-		count = 0x1FFFFF;
+	max_time = SDMMC_DATA_TMOUT_MAX_CNT * SDMMC_DATA_TMOUT_CRT / (host_clock / 1000);
+
+	if (target_timeout > max_time) {
+		max_ext_time = SDMMC_DATA_TMOUT_MAX_EXT_CNT / (host_clock / 1000);
+		ext_cnt = target_timeout / max_ext_time;
+		target_timeout -= (max_ext_time * ext_cnt);
+	}
+	count = (target_timeout * (host_clock / 1000)) / SDMMC_DATA_TMOUT_CRT;
 
 	/* Set return value */
 	return ((count << SDMMC_DATA_TMOUT_SHIFT)
-		| (SDMMC_DATA_TMOUT_EXT << SDMMC_DATA_TMOUT_EXT_SHIFT)
+		| ((ext_cnt + SDMMC_DATA_TMOUT_EXT) << SDMMC_DATA_TMOUT_EXT_SHIFT)
 		| SDMMC_RESP_TMOUT);
 }
 
@@ -3216,7 +3256,8 @@ static void dw_mci_work_routine_card(struct work_struct *work)
 			mmc_detect_change(slot->mmc,
 				msecs_to_jiffies(host->pdata->detect_delay_ms));
 		else {
-			mmc_detect_change(slot->mmc, 0);
+			mmc_detect_change(slot->mmc,
+					msecs_to_jiffies(host->pdata->detect_delay_ms));
 			if (host->pdata->only_once_tune)
 				host->pdata->tuned = false;
 		}
@@ -4009,7 +4050,9 @@ int dw_mci_probe(struct dw_mci *host)
 			 && host->pdata->cd_type == DW_MCI_CD_GPIO)
 		 drv_data->misc_control(host, CTRL_REQUEST_EXT_IRQ,
 				 dw_mci_detect_interrupt);
-
+	if (drv_data && drv_data->misc_control)
+		 drv_data->misc_control(host, CTRL_ADD_SYSFS, NULL);
+	 
 	if (host->quirks & DW_MCI_QUIRK_IDMAC_DTO)
 		dev_info(host->dev, "Internal DMAC interrupt fix enabled.\n");
 

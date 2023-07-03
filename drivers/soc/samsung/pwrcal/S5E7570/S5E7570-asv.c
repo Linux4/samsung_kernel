@@ -1056,7 +1056,7 @@ static int asv_get_ids_info(unsigned int domain)
 #endif
 }
 
-#if defined(CONFIG_SEC_FACTORY)
+#if defined(CONFIG_SEC_DEBUG)
 enum ids_info
 {
 	table_ver,
@@ -1088,7 +1088,7 @@ int asv_ids_information(enum ids_info id)
 
 	return res;
 }
-#endif /* CONFIG_SEC_FACTORY */
+#endif /* CONFIG_SEC_DEBUG */
 
 struct cal_asv_ops cal_asv_ops = {
 	.print_asv_info = asv_print_info,

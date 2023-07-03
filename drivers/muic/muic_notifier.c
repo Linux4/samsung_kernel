@@ -57,6 +57,12 @@ static int muic_notifier_notify(void)
 	printk(KERN_DEBUG "[muic] %s: CMD=%d, DATA=%d\n", __func__, muic_notifier.cmd,
 			muic_notifier.attached_dev);
 
+#ifdef CONFIG_SEC_FACTORY
+	if (muic_notifier.cmd != 0)
+		muic_send_attached_muic_cable_intent(muic_notifier.attached_dev);
+	else
+		muic_send_attached_muic_cable_intent(0);
+#endif
 	ret = blocking_notifier_call_chain(&(muic_notifier.notifier_call_chain),
 			muic_notifier.cmd, &(muic_notifier.attached_dev));
 

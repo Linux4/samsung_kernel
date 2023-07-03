@@ -42,13 +42,13 @@
 #define KTD2692_ADDR_FLASH_CURRENT_SETTING	0x80
 #define KTD2692_ADDR_MOVIE_FLASHMODE_CONTROL	0xA0
 
-#define T_H_LB		4			/* us */
-#define T_L_LB		T_H_LB*3	/* us*/
-#define T_H_HB		T_L_HB*3	/* us */
-#define T_L_HB		4			/* us*/
-#define T_SOD		15			/* us */
-#define T_EOD_L		4			/* us */
-#define T_EOD_H		400			/* us */
+#define T_H_LB		(5)			/* us */
+#define T_L_LB		(80)		/* us */
+#define T_H_HB		(80)		/* us */
+#define T_L_HB		(5)			/* us */
+#define T_SOD		(200)		/* us */
+#define T_EOD_L		(25)		/* us */
+#define T_EOD_H		(400)		/* us */
 
 /* LVP_SETTING */
 enum ktd2692_LVPsetting_t {
@@ -145,6 +145,7 @@ struct ktd2692_platform_data {
 
 #if defined(CONFIG_LEDS_SUPPORT_FRONT_FLASH)
 int ktd2692_led_mode_ctrl(int mode);
+int ktd2692_led_set_front_flash_brightness(int brightness);	// For control brightness of front flash led
 #endif
 
 #endif

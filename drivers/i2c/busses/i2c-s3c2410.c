@@ -34,6 +34,7 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/pinctrl/consumer.h>
+#include <linux/exynos-ss.h>
 
 #include <asm/irq.h>
 
@@ -139,6 +140,7 @@ struct s3c24xx_i2c {
 	struct s3c2410_platform_i2c	*pdata;
 	int			gpios[2];
 	struct pinctrl          *pctrl;
+	int			clk_logging;
 };
 
 static struct platform_device_id s3c24xx_driver_ids[] = {
@@ -844,7 +846,13 @@ static int s3c24xx_i2c_xfer(struct i2c_adapter *adap,
 	int ret;
 
 	pm_runtime_get_sync(&adap->dev);
-	clk_prepare_enable(i2c->clk);
+	if (i2c->clk_logging)
+		exynos_ss_i2c_clk(i2c->clk, ESS_FLAG_IN, 1);
+	ret = clk_prepare_enable(i2c->clk);
+	if (i2c->clk_logging)
+		exynos_ss_i2c_clk(i2c->clk, ESS_FLAG_OUT, 1);
+	if (ret)
+		return ret;
 
 	for (retry = 0; retry < adap->retries; retry++) {
 
@@ -854,7 +862,11 @@ static int s3c24xx_i2c_xfer(struct i2c_adapter *adap,
 		ret = s3c24xx_i2c_doxfer(i2c, msgs, num);
 
 		if (ret != -EAGAIN) {
+			if (i2c->clk_logging)
+				exynos_ss_i2c_clk(i2c->clk, ESS_FLAG_IN, 2);
 			clk_disable_unprepare(i2c->clk);
+			if (i2c->clk_logging)
+				exynos_ss_i2c_clk(i2c->clk, ESS_FLAG_OUT, 2);
 			pm_runtime_put(&adap->dev);
 			return ret;
 		}
@@ -864,7 +876,11 @@ static int s3c24xx_i2c_xfer(struct i2c_adapter *adap,
 		udelay(100);
 	}
 
+	if (i2c->clk_logging)
+		exynos_ss_i2c_clk(i2c->clk, ESS_FLAG_IN, 3);
 	clk_disable_unprepare(i2c->clk);
+	if (i2c->clk_logging)
+		exynos_ss_i2c_clk(i2c->clk, ESS_FLAG_OUT, 3);
 	pm_runtime_put(&adap->dev);
 	return -EREMOTEIO;
 }
@@ -1113,6 +1129,11 @@ s3c24xx_i2c_parse_dt(struct device_node *np, struct s3c24xx_i2c *i2c)
 	of_property_read_u32(np, "samsung,i2c-slave-addr", &pdata->slave_addr);
 	of_property_read_u32(np, "samsung,i2c-max-bus-freq",
 				(u32 *)&pdata->frequency);
+
+	if (of_get_property(np, "samsung,i2c-clk-logging", NULL))
+		i2c->clk_logging = 1;
+	else
+		i2c->clk_logging = 0;
 }
 #else
 static void

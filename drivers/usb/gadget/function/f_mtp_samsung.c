@@ -1218,27 +1218,32 @@ static long  mtpg_ioctl(struct file *fd, unsigned int code, unsigned long arg)
 		max_pkt = dev->bulk_in->maxpacket;
 		printk(KERN_DEBUG "[%s] line = %d max_pkt = [%d]\n",
 						 __func__, __LINE__, max_pkt);
-		if (max_pkt == 64)
-			status = 64;
-		else
-			status = 512;
+		status = max_pkt;
 		break;
 	case SEND_FILE_WITH_HEADER:
 	{
 		struct read_send_info	info;
 		struct work_struct *work;
 		struct file *file = NULL;
+
+		if (_lock(&dev->ioctl_excl)){
+			status = -EBUSY;
+			goto exit;
+		}
+
 		printk(KERN_DEBUG "[%s]SEND_FILE_WITH_HEADER line=[%d]\n",
 							__func__, __LINE__);
 
 		if (copy_from_user(&info, (void __user *)arg, sizeof(info))) {
 			status = -EFAULT;
+			_unlock(&dev->ioctl_excl);
 			goto exit;
 		}
 
 		file = fget(info.Fd);
 		if (!file) {
 			status = -EBADF;
+			_unlock(&dev->ioctl_excl);
 			printk(KERN_DEBUG "[%s] line=[%d] bad file number\n",
 							__func__, __LINE__);
 			goto exit;
@@ -1259,6 +1264,7 @@ static long  mtpg_ioctl(struct file *fd, unsigned int code, unsigned long arg)
 
 		smp_rmb();
 		status = dev->read_send_result;
+		_unlock(&dev->ioctl_excl);
 		break;
 	}
 	case MTP_VBUS_DISABLE:

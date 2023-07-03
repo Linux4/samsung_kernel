@@ -58,11 +58,19 @@ enum mem_iface_type {
 
 #ifdef GROUP_MEM_TYPE_SHMEM
 
+#ifdef CONFIG_MODEMIF_SHM_IPC_1MB
+#define SHM_4M_RESERVED_SZ	4056
+#define SHM_4M_FMT_TX_BUFF_SZ	4096
+#define SHM_4M_FMT_RX_BUFF_SZ	4096
+#define SHM_4M_RAW_TX_BUFF_SZ	249856
+#define SHM_4M_RAW_RX_BUFF_SZ	786432
+#else
 #define SHM_4M_RESERVED_SZ	4056
 #define SHM_4M_FMT_TX_BUFF_SZ	4096
 #define SHM_4M_FMT_RX_BUFF_SZ	4096
 #define SHM_4M_RAW_TX_BUFF_SZ	2084864
 #define SHM_4M_RAW_RX_BUFF_SZ	2097152
+#endif
 
 #define SHM_UL_USAGE_LIMIT	SZ_32K	/* Uplink burst limit */
 

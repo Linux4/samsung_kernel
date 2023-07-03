@@ -364,3 +364,4 @@ void cpacketbuffer_log(const struct cpacketbuffer *buffer, enum scsc_log_level l
 		*buffer->read_index, *buffer->write_index,
 		*(uint32_t *)read_start);
 }
+

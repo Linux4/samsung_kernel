@@ -987,10 +987,6 @@ bool fimc_is_hw_mcsc_frame_done(struct fimc_is_hw_ip *hw_ip, struct fimc_is_fram
 		framemgr_e_barrier(framemgr, 0);
 		done_frame = peek_frame(framemgr, FS_HW_WAIT_DONE);
 		framemgr_x_barrier(framemgr, 0);
-		if (done_frame == NULL) {
-			err_hw("[MCSC][F:%d] frame(null)!!", atomic_read(&hw_ip->fcount));
-			BUG_ON(1);
-		}
 		break;
 	case IS_SHOT_UNPROCESSED:
 	case IS_SHOT_LATE_FRAME:

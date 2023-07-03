@@ -88,6 +88,10 @@ config SHARE_MIF_FREQ_INFO
 	bool "Share MIF frequency information with CP"
 	default y
 
+config MODEMIF_SHM_IPC_1MB
+	bool "Set shared memory to 1MB"
+	default n
+
 config GPIO_DS_DETECT
 	bool "Support GPIO DS Detect"
 	default n

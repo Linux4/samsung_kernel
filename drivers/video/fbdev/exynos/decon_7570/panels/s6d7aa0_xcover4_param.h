@@ -19,12 +19,12 @@ struct lcd_seq_info {
 	unsigned int	sleep;
 };
 
-struct ISL98611_rom_data {
+struct i2c_rom_data {
 	u8 addr;
 	u8 val;
 };
 
-static const struct ISL98611_rom_data ISL98611_INIT[] = {
+static const struct i2c_rom_data ISL98611_INIT[] = {
 	{0x01, 0x00},
 	{0x02, 0xBF},
 	{0x03, 0x02},

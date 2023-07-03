@@ -5,10 +5,10 @@
 
 static struct mdnie_scr_info scr_info = {
 	.index = 1,
-	.color_blind = 107,	/* ASCR_WIDE_CR[7:0] */
-	.white_r = 125,		/* ASCR_WIDE_WR[7:0] */
-	.white_g = 127,		/* ASCR_WIDE_WG[7:0] */
-	.white_b = 129		/* ASCR_WIDE_WB[7:0] */
+	.cr = 107,		/* ASCR_WIDE_CR[7:0] */
+	.wr = 125,		/* ASCR_WIDE_WR[7:0] */
+	.wg = 127,		/* ASCR_WIDE_WG[7:0] */
+	.wb = 129		/* ASCR_WIDE_WB[7:0] */
 };
 
 static inline int color_offset_f1(int x, int y)
@@ -6523,11 +6523,11 @@ static char CURTAIN_1[] = {
 	}	\
 }
 
-struct mdnie_table bypass_table[BYPASS_MAX] = {
+static struct mdnie_table bypass_table[BYPASS_MAX] = {
 	[BYPASS_ON] = MDNIE_SET(BYPASS)
 };
 
-struct mdnie_table accessibility_table[ACCESSIBILITY_MAX] = {
+static struct mdnie_table accessibility_table[ACCESSIBILITY_MAX] = {
 	[NEGATIVE] = MDNIE_SET(NEGATIVE),
 	MDNIE_SET(COLOR_BLIND),
 	MDNIE_SET(CURTAIN),
@@ -6536,11 +6536,11 @@ struct mdnie_table accessibility_table[ACCESSIBILITY_MAX] = {
 };
 
 
-struct mdnie_table hbm_table[HBM_MAX] = {
+static struct mdnie_table hbm_table[HBM_MAX] = {
 	[HBM_ON] = MDNIE_SET(HBM_CE)
 };
 
-struct mdnie_table main_table[SCENARIO_MAX][MODE_MAX] = {
+static struct mdnie_table main_table[SCENARIO_MAX][MODE_MAX] = {
 	/*
 		DYNAMIC_MODE
 		STANDARD_MODE
@@ -6650,19 +6650,17 @@ struct mdnie_table main_table[SCENARIO_MAX][MODE_MAX] = {
 		MDNIE_SET(EBOOK_AUTO),
 	},
 };
+
 #undef MDNIE_SET
 
 static struct mdnie_tune tune_info = {
 	.bypass_table = bypass_table,
 	.accessibility_table = accessibility_table,
 	.hbm_table = hbm_table,
-	.night_table = NULL,
 	.main_table = main_table,
 
 	.coordinate_table = coordinate_data,
 	.scr_info = &scr_info,
-	.night_mode_table = NULL,
-	.night_info = NULL,
 	.get_hbm_index = get_hbm_index,
 	.color_offset = {NULL, color_offset_f1, color_offset_f2, color_offset_f3, color_offset_f4}
 };

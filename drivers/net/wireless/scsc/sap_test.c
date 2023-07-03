@@ -11,7 +11,6 @@
 
 #include "debug.h"
 
-#define SUPPORTED_VERSION       13
 #define SUPPORTED_OLD_VERSION   0
 
 static int sap_test_version_supported(u16 version);
@@ -21,7 +20,7 @@ static struct sap_api sap_test = {
 	.sap_class = SAP_TST,
 	.sap_version_supported = sap_test_version_supported,
 	.sap_handler = sap_test_rx_handler,
-	.sap_versions = { SUPPORTED_VERSION, SUPPORTED_OLD_VERSION },
+	.sap_versions = { FAPI_TEST_SAP_VERSION, SUPPORTED_OLD_VERSION },
 };
 
 static int sap_test_version_supported(u16 version)
@@ -33,7 +32,7 @@ static int sap_test_version_supported(u16 version)
 	SLSI_INFO_NODEV("Reported version: %d.%d\n", major, minor);
 
 	for (i = 0; i < SAP_MAX_VER; i++)
-		if (sap_test.sap_versions[i] == major)
+		if (SAP_MAJOR(sap_test.sap_versions[i]) == major)
 			return 0;
 
 	SLSI_ERR_NODEV("Version %d.%d Not supported\n", major, minor);

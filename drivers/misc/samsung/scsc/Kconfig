@@ -10,12 +10,31 @@ config SCSC_CORE_FW_LOCATION
 	string "SCSC FW location"
 	default "/system/etc/wifi"
 	---help---
-	  Select the FW location.
+	  Select the FW location, when CONFIG_SCSC_CORE_FW_LOCATION_AUTO=n
+
+config SCSC_CORE_FW_LOCATION_AUTO
+	string "SCSC FW location auto select"
+	default y
+	---help---
+	  Select the FW location (Android N/O) automatically
+
+config SCSC_CORE_TOOL_LOCATION
+	string "SCSC tool location"
+	default "/system/bin"
+	---help---
+	  Select the moredump tool location, when CONFIG_SCSC_CORE_FW_LOCATION_AUTO=n
 
 config SCSC_PCIE
 	tristate "Samsung SCSC MIF PCIE implementation"
 	depends on SCSC_CORE
 	depends on PCI
+
+config SCSC_WLBTD
+	bool "Samsung SCSC Daemon support for Android O"
+	depends on SCSC_CORE
+	default n
+	---help---
+	   Uses generic netlink messages to communicate events to userspace daemon which takes necessary actions e.g. taking moredump
 
 config SCSC_PLATFORM
 	tristate "Samsung SCSC MIF Platform driver implementation"
@@ -74,5 +93,25 @@ config SCSC_CHV_SUPPORT
 config SCSC_GPR4_CON_DEBUG
 	bool "GPR4 PIO muxes switching to the Maxwell Subsystem"
 	depends on SCSC_PLATFORM
+	default n
+
+config SCSC_BUILD_TYPE
+       string "Type of Kernel Build"
+       ---help---
+         Type of Kernel Build: User, User Debug, Engineering
+
+config SCSC_WIFILOGGER
+	tristate "Samsung SCSC Android Wi-Fi Logger"
+	depends on SCSC_CORE
+	default n
+
+config SCSC_WIFILOGGER_DEBUGFS
+	bool "Samsung SCSC Android Wi-Fi Logger DebugFS"
+	depends on SCSC_WIFILOGGER && DEBUG_FS
+	default y
+
+config SCSC_WIFILOGGER_TEST
+	bool "Samsung SCSC Android Wi-Fi Logger Test Harness"
+	depends on SCSC_WIFILOGGER && SCSC_WIFILOGGER_DEBUGFS
 	default n
 

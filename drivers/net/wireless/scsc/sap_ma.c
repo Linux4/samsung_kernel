@@ -13,7 +13,8 @@
 #include "mgt.h"
 #include "nl80211_vendor.h"
 
-#define SUPPORTED_VERSION       13
+#include "scsc_wifilogger_rings.h"
+
 #define SUPPORTED_OLD_VERSION   0
 
 static int sap_ma_version_supported(u16 version);
@@ -25,7 +26,7 @@ static struct sap_api sap_ma = {
 	.sap_class = SAP_MA,
 	.sap_version_supported = sap_ma_version_supported,
 	.sap_handler = sap_ma_rx_handler,
-	.sap_versions = { SUPPORTED_VERSION, SUPPORTED_OLD_VERSION },
+	.sap_versions = { FAPI_DATA_SAP_VERSION, SUPPORTED_OLD_VERSION },
 	.sap_txdone = sap_ma_txdone,
 	.sap_notifier = sap_ma_notifier,
 };
@@ -43,7 +44,7 @@ static int sap_ma_notifier(struct slsi_dev *sdev, unsigned long event)
 		SLSI_INFO_NODEV("Stop netdev queues\n");
 		rcu_read_lock();
 		for (vif = SLSI_NET_INDEX_WLAN;
-		     vif <= SLSI_NET_INDEX_P2PX; vif++) {
+		     vif <= SLSI_NET_INDEX_P2PX_SWLAN; vif++) {
 			struct net_device *ndev =
 				slsi_get_netdev_rcu(sdev, vif);
 			if (ndev && !netif_queue_stopped(ndev))
@@ -78,7 +79,7 @@ static int sap_ma_version_supported(u16 version)
 	SLSI_INFO_NODEV("Reported version: %d.%d\n", major, minor);
 
 	for (i = 0; i < SAP_MAX_VER; i++)
-		if (sap_ma.sap_versions[i] == major)
+		if (SAP_MAJOR(sap_ma.sap_versions[i]) == major)
 			return 0;
 
 	SLSI_ERR_NODEV("Version %d.%d Not supported\n", major, minor);
@@ -94,6 +95,9 @@ static int slsi_rx_amsdu_deaggregate(struct net_device *dev, struct sk_buff *skb
 	struct sk_buff *subframe = NULL;
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	enum slsi_traffic_q trafic_q = slsi_frame_priority_to_ac_queue(fapi_get_u16(skb, u.ma_unitdata_ind.priority));
+	const unsigned char mac_0[ETH_ALEN] = { 0 };
+	bool skip_frame = false;
+	struct ethhdr *mh;
 
 	SLSI_NET_DBG3(dev, SLSI_RX, "A-MSDU received, length = %d\n", skb->len);
 
@@ -102,10 +106,9 @@ static int slsi_rx_amsdu_deaggregate(struct net_device *dev, struct sk_buff *skb
 	while (skb != subframe) {
 		msdu_len = (skb->data[ETH_ALEN * 2] << 8) | skb->data[(ETH_ALEN * 2) + 1];
 
-		if ((msdu_len > (ETH_DATA_LEN + LLC_SNAP_HDR_LEN)) || (msdu_len > skb->len) ||
-		    (msdu_len < (ETH_ZLEN - (ETH_HLEN - LLC_SNAP_HDR_LEN))) ||
-		    (skb->len < (ETH_ZLEN + LLC_SNAP_HDR_LEN))) {
-			SLSI_NET_ERR(dev, "Wrong MSDU length %d, skb length = %d\n", msdu_len, skb->len);
+		/* check if the length of sub-frame is valid */
+		if (msdu_len > skb->len) {
+			SLSI_NET_ERR(dev, "invalid MSDU length %d, SKB length = %d\n", msdu_len, skb->len);
 			slsi_kfree_skb(skb);
 			return -EINVAL;
 		}
@@ -146,6 +149,30 @@ static int slsi_rx_amsdu_deaggregate(struct net_device *dev, struct sk_buff *skb
 		SLSI_NET_DBG_HEX(dev, SLSI_RX, subframe->data,
 				 subframe->len < 64 ? subframe->len : 64, "Subframe before giving to OS:\n");
 
+		/* Before preparing the skb, filter out if the Destination Address of the Ethernet frame
+		 * or A-MSDU subframe is set to an invalid value, i.e. all zeros
+		 */
+		skb_set_mac_header(subframe, 0);
+		mh = eth_hdr(subframe);
+		if (SLSI_ETHER_EQUAL(mh->h_dest, mac_0)) {
+			SLSI_NET_DBG3(dev, SLSI_RX, "msdu subframe filtered out: MAC destination address %pM\n",
+				      mh->h_dest);
+			skip_frame = true;
+		}
+
+		/* If this is not the last subframe then move to the next subframe */
+		if (skb != subframe)
+			skb_pull(skb, (subframe_len + padding));
+
+		/* If this frame has been filtered out, free the clone and continue */
+		if (skip_frame) {
+			skip_frame = false;
+			/* Free the the skbuff structure itself but not the data */
+			/* skb will be freed if it is the last subframe (i.e. subframe == skb) */
+			slsi_kfree_skb(subframe);
+			continue;
+		}
+
 		/* Prepare the skb */
 		subframe->dev = dev;
 		subframe->ip_summed = CHECKSUM_UNNECESSARY;
@@ -155,10 +182,6 @@ static int slsi_rx_amsdu_deaggregate(struct net_device *dev, struct sk_buff *skb
 
 		dev->last_rx = jiffies;
 		subframe->protocol = eth_type_trans(subframe, dev);
-
-		/* If this is not the last subframe then move to the next subframe */
-		if (skb != subframe)
-			skb_pull(skb, (subframe_len + padding));
 
 #ifdef CONFIG_SCSC_WLAN_RX_NAPI
 		slsi_rx_msdu_napi(dev, subframe);
@@ -258,22 +281,6 @@ static int slsi_rx_data_process_skb(struct slsi_dev *sdev, struct net_device *de
 
 	skb->dev = dev;
 	skb->ip_summed = CHECKSUM_UNNECESSARY;
-
-	/* Test for an overlength frame */
-	if (skb->len > (dev->mtu + ETH_HLEN)) {
-		/* A bogus length ethfrm has been encap'd. */
-		/* Is someone trying an oflow attack? */
-		SLSI_NET_WARN(dev, "oversize frame (%d > %d)\n", skb->len, dev->mtu + ETH_HLEN);
-
-		/* Drop the packet and return */
-		ndev_vif->stats.rx_dropped++;
-		ndev_vif->stats.rx_length_errors++;
-		if (peer)
-			peer->sinfo.rx_dropped_misc++;
-
-		slsi_kfree_skb(skb);
-		return -EINVAL;
-	}
 
 	/* In STA mode, the AP relays back our multicast traffic.
 	 * Receiving these frames and passing it up confuses some
@@ -405,6 +412,7 @@ void slsi_rx_netdev_data_work(struct work_struct *work)
 	while (1) {
 		SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 		if (!ndev_vif->activated) {
+			slsi_skb_queue_purge(&w->queue);
 			SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 			break;
 		}
@@ -452,6 +460,9 @@ static int slsi_rx_queue_data(struct slsi_dev *sdev, struct sk_buff *skb)
 		goto err;
 	}
 	ndev_vif = netdev_priv(dev);
+	SCSC_WLOG_PKTFATE_LOG_RX_DATA_FRAME(fapi_get_u16(skb, u.ma_unitdata_ind.data_unit_descriptor),
+					    fapi_get_data(skb), fapi_get_datalen(skb));
+
 #ifdef CONFIG_SCSC_WLAN_RX_NAPI
 	slsi_rx_data_napi(sdev, dev, skb, false);
 #else
@@ -467,7 +478,6 @@ static int sap_ma_rx_handler(struct slsi_dev *sdev, struct sk_buff *skb)
 {
 	switch (fapi_get_sigid(skb)) {
 	case MA_UNITDATA_IND:
-	case MA_TX_FAILURE_IND:
 	case MA_UNITDATA_CFM:
 		return slsi_rx_queue_data(sdev, skb);
 	case MA_BLOCKACK_IND:
@@ -504,6 +514,7 @@ static int sap_ma_txdone(struct slsi_dev *sdev, u16 colour)
 
 	rcu_read_lock();
 	dev = slsi_get_netdev_rcu(sdev, vif);
+
 	if (!dev) {
 		SLSI_ERR(sdev, "netdev(%d) No longer exists\n", vif);
 		rcu_read_unlock();

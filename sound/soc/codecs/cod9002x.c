@@ -31,6 +31,7 @@
 #include <linux/switch.h>
 #include <linux/input.h>
 #include <linux/completion.h>
+#include <linux/wakelock.h>
 
 #include <linux/mfd/samsung/s2mpu06-private.h>
 #include <sound/exynos-audmixer.h>
@@ -84,6 +85,10 @@
 
 #define BUTTON_PRESS 1
 #define BUTTON_RELEASE 0
+
+#define JACK_OUT_DBNC_TIME_MIN 0x00
+#define JACK_OUT_DBNC_TIME_MAX 0xFF
+#define JACK_OUT_DBNC_TIME_DEFAULT 0x12
 
 /**
  * Helper functions to read ADC value for button detection
@@ -166,7 +171,7 @@ static bool cod9002x_volatile_register(struct device *dev, unsigned int reg)
 	case COD9002X_01_IRQ1PEND ... COD9002X_03_IRQ3PEND:
 	case COD9002X_07_STATUS1 ... COD9002X_08_STATUS2:
 	case COD9002X_61_RESERVED ... COD9002X_62_STATUS3:
-	case COD9002X_80_DET_PDB ... 0x97:
+	case COD9002X_80_DET_PDB ... COD9002X_97_SEL_RES2:
 		return true;
 	default:
 		return false;
@@ -189,7 +194,7 @@ static bool cod9002x_readable_register(struct device *dev, unsigned int reg)
 	case COD9002X_50_DAC1 ... COD9002X_5F_SPKLIMIT3:
 	case COD9002X_60_OFFSET1 ... COD9002X_62_STATUS3:
 	case COD9002X_70_CLK1_AD ... COD9002X_7A_SL_DA2:
-	case COD9002X_80_DET_PDB ... 0x97:
+	case COD9002X_80_DET_PDB ... COD9002X_97_SEL_RES2:
 	case COD9002X_D0_CTRL_IREF1 ... COD9002X_DE_CTRL_SPKS2:
 		return true;
 	default:
@@ -210,7 +215,7 @@ static bool cod9002x_writeable_register(struct device *dev, unsigned int reg)
 	/* Reg-0x61 is reserved, Reg-0x62 is read-only */
 	case COD9002X_60_OFFSET1:
 	case COD9002X_70_CLK1_AD ... COD9002X_7A_SL_DA2:
-	case COD9002X_80_DET_PDB ... 0x97:
+	case COD9002X_80_DET_PDB ... COD9002X_97_SEL_RES2:
 	case COD9002X_D0_CTRL_IREF1 ... COD9002X_DE_CTRL_SPKS2:
 		return true;
 	default:
@@ -761,19 +766,13 @@ int cod9002x_mic_bias_ev(struct snd_soc_codec *codec, int mic_bias, int event)
   */
 static int cod9002x_mute_mic(struct snd_soc_codec *codec, bool on)
 {
-	struct cod9002x_priv *cod9002x = snd_soc_codec_get_drvdata(codec);
 	dev_dbg(codec->dev, "%s called, %s\n", __func__,
 			on ? "Mute" : "Unmute");
 
-	if (on) {
+	if (on)
 		cod9002x_adc_digital_mute(codec, true);
-		snd_soc_update_bits(cod9002x->codec, COD9002X_12_PD_AD2,
-				PDB_MIC_BST3_MASK, 0);
-	} else {
-		snd_soc_update_bits(cod9002x->codec, COD9002X_12_PD_AD2,
-				PDB_MIC_BST3_MASK, PDB_MIC_BST3_MASK);
+	else
 		cod9002x_adc_digital_mute(codec, false);
-	}
 
 	return 0;
 }
@@ -1200,7 +1199,7 @@ static int cod9002x_hp_playback_init(struct snd_soc_codec *codec)
 			EN_DNC_MASK, 0x0);
 
 	snd_soc_update_bits(codec, COD9002X_D8_CTRL_CP2,
-			CTMF_CP_CLK_MASK, CP_MAIN_CLK_195_312KHZ);
+			CTMF_CP_CLK_MASK, CP_MAIN_CLK_390_625KHZ);
 
 	/* set HP volume Level */
 	snd_soc_write(codec, COD9002X_30_VOL_HPL, 0x1A);
@@ -1245,6 +1244,9 @@ static int spkdrv_ev(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
+		snd_soc_update_bits(w->codec, COD9002X_50_DAC1,
+				DAC1_SOFT_MUTE_MASK, DAC1_SOFT_MUTE_MASK);
+
 		/* Update OTP configuration */
 		cod9002x_update_playback_otp(w->codec);
 
@@ -1272,9 +1274,15 @@ static int spkdrv_ev(struct snd_soc_dapm_widget *w,
 		snd_soc_update_bits(w->codec, COD9002X_39_VOL_SPK,
 				CTVOL_SPK_PGA_MASK, spk_gain);
 
+		snd_soc_update_bits(w->codec, COD9002X_50_DAC1,
+				DAC1_SOFT_MUTE_MASK, 0);
+
 		break;
 
 	case SND_SOC_DAPM_PRE_PMD:
+		snd_soc_update_bits(w->codec, COD9002X_50_DAC1,
+				DAC1_SOFT_MUTE_MASK, DAC1_SOFT_MUTE_MASK);
+
 		snd_soc_update_bits(w->codec, COD9002X_39_VOL_SPK,
 				CTVOL_SPK_PGA_MASK, 0x6);
 
@@ -1317,6 +1325,8 @@ static int spkdrv_ev(struct snd_soc_dapm_widget *w,
 					cod9002x->vol_hpr);
 		}
 
+		snd_soc_update_bits(w->codec, COD9002X_50_DAC1,
+				DAC1_SOFT_MUTE_MASK, 0);
 		break;
 
 	default:
@@ -1417,7 +1427,7 @@ static int hpdrv_ev(struct snd_soc_dapm_widget *w,
 				SKIP_HP_SV_MASK, 0x0);
 
 		snd_soc_update_bits(w->codec, COD9002X_54_DNC1,
-				EN_DNC_MASK , 0x0);
+				EN_DNC_MASK, 0x0);
 
 		break;
 
@@ -1980,7 +1990,7 @@ static int cod9002x_water_finish_chk_more(struct cod9002x_priv *cod9002x)
 		dev_dbg(cod9002x->dev, "%s called. gdet_adc:%d\n",
 				__func__, gdet_adc);
 
-		if (gdet_adc < COD9002X_WATER_DET_THRESHOLD_MAX)
+		if (gdet_adc < cod9002x->water_threshold_adc_max)
 			water_finish_det = false;
 	}
 
@@ -2014,8 +2024,15 @@ static void cod9002x_water_polling_work(struct work_struct *work)
 
 	snd_soc_write(codec, COD9002X_84_JACK_DET, 0x71);
 
+	/* need to implement to turn off mic bias in manual mode */
+	snd_soc_write(codec, COD9002X_81_TEST_MODE, 0xFF);
+	if (jackdet->jack_det && jackdet->mic_det)
+		snd_soc_write(codec, COD9002X_80_DET_PDB, 0x38);
+	else
+		snd_soc_write(codec, COD9002X_80_DET_PDB, 0x00);
+
 	if (gdet_adc != 0 && gdet_adc >= cod9002x->water_threshold_adc_min2) {
-		if (gdet_adc < COD9002X_WATER_DET_THRESHOLD_MAX) {
+		if (gdet_adc < cod9002x->water_threshold_adc_max) {
 			dev_dbg(cod9002x->dev, "%s water is detected.\n", __func__);
 
 			waterdet->wrong_jack_cnt++;
@@ -2026,9 +2043,13 @@ static void cod9002x_water_polling_work(struct work_struct *work)
 				/* jack out after water detection */
 				waterdet->jack_det = false;
 				jackdet->jack_det = false;
-				queue_delayed_work(cod9002x->jack_det_wq,
-						&cod9002x->jack_det_work,
-						msecs_to_jiffies(cod9002x->mic_det_delay));
+
+				/* need to implement to turn on mic bias in manual mode */
+				snd_soc_write(codec, COD9002X_80_DET_PDB, 0x38);
+
+				/* jack detection workqueue */
+				cancel_work_sync(&cod9002x->jack_det_work);
+				queue_work(cod9002x->jack_det_wq, &cod9002x->jack_det_work);
 			}
 			/* polling for water detection */
 			schedule_delayed_work(&cod9002x->water_det_polling_work,
@@ -2041,9 +2062,14 @@ static void cod9002x_water_polling_work(struct work_struct *work)
 				waterdet->jack_det_bypass = false;
 				waterdet->water_det = COD9002X_NO_DET_WATER;
 
+				/* set mic bias auto mode */
+				snd_soc_write(codec, COD9002X_80_DET_PDB, 0x00);
+				snd_soc_write(codec, COD9002X_81_TEST_MODE, 0x43);
+
 				/* cancel the polling work */
 				cancel_delayed_work(&cod9002x->water_det_polling_work);
-				snd_soc_write(codec, COD9002X_84_JACK_DET, 0x31);
+
+				snd_soc_write(codec, COD9002X_84_JACK_DET, 0x71);
 				snd_soc_update_bits(codec, COD9002X_04_IRQ1M,
 						IRQ1M_MASK_ALL, 0xCC);
 
@@ -2065,9 +2091,13 @@ static void cod9002x_water_polling_work(struct work_struct *work)
 				/* jack in after water detection */
 				waterdet->jack_det = true;
 				jackdet->jack_det = true;
-				queue_delayed_work(cod9002x->jack_det_wq,
-						&cod9002x->jack_det_work,
-						msecs_to_jiffies(cod9002x->mic_det_delay));
+
+				/* need to implement to turn on mic bias in manual mode */
+				snd_soc_write(codec, COD9002X_80_DET_PDB, 0x38);
+
+				/* jack detection workqueue */
+				cancel_work_sync(&cod9002x->jack_det_work);
+				queue_work(cod9002x->jack_det_wq, &cod9002x->jack_det_work);
 			}
 		}
 
@@ -2079,9 +2109,14 @@ static void cod9002x_water_polling_work(struct work_struct *work)
 			waterdet->jack_det_bypass = false;
 			waterdet->water_det = COD9002X_NO_DET_WATER;
 
+			/* set mic bias auto mode */
+			snd_soc_write(codec, COD9002X_80_DET_PDB, 0x00);
+			snd_soc_write(codec, COD9002X_81_TEST_MODE, 0x43);
+
 			/* cancel the polling work */
 			cancel_delayed_work(&cod9002x->water_det_polling_work);
-			snd_soc_write(codec, COD9002X_84_JACK_DET, 0x31);
+
+			snd_soc_write(codec, COD9002X_84_JACK_DET, 0x71);
 			snd_soc_update_bits(codec, COD9002X_04_IRQ1M,
 					IRQ1M_MASK_ALL, 0xCC);
 
@@ -2106,6 +2141,11 @@ static void cod9002x_water_det_work(struct work_struct *work)
 	dev_dbg(cod9002x->dev, " %s called, jack det %d\n",
 			__func__, jackdet->jack_det);
 
+	if (cod9002x->is_suspend)
+		regcache_cache_only(cod9002x->regmap, false);
+
+	snd_soc_write(codec, COD9002X_84_JACK_DET, 0x31);
+
 	waterdet->wrong_jack_cnt = 0;
 	/* read adc for water detect */
 	cod9002x_set_adc_gpio(cod9002x, 1);
@@ -2113,9 +2153,14 @@ static void cod9002x_water_det_work(struct work_struct *work)
 	dev_dbg(cod9002x->dev, " %s gdet adc: %d\n", __func__, gdet_adc);
 	waterdet->gdet_adc_val = gdet_adc;
 
+	snd_soc_write(codec, COD9002X_84_JACK_DET, 0x71);
+
+	if (cod9002x->is_suspend)
+		regcache_cache_only(cod9002x->regmap, true);
+
 	if (gdet_adc != 0
 			&& gdet_adc >= cod9002x->water_threshold_adc_min1) {
-		if (gdet_adc < COD9002X_WATER_DET_THRESHOLD_MAX) {
+		if (gdet_adc < cod9002x->water_threshold_adc_max) {
 			dev_dbg(cod9002x->dev, "%s water is detected.\n", __func__);
 
 			if (cod9002x->is_suspend)
@@ -2124,10 +2169,13 @@ static void cod9002x_water_det_work(struct work_struct *work)
 			waterdet->wrong_jack_cnt++;
 			waterdet->jack_det = false;
 			waterdet->water_det = COD9002X_DET_WATER;
-			snd_soc_write(codec, COD9002X_84_JACK_DET, 0x71);
+
+			/* set mic bias manual mode */
+			snd_soc_write(codec, COD9002X_80_DET_PDB, 0x00);
+			snd_soc_write(codec, COD9002X_81_TEST_MODE, 0xFF);
+
 			snd_soc_update_bits(codec, COD9002X_04_IRQ1M,
 					IRQ1M_MASK_ALL, 0xCF);
-
 			if (cod9002x->is_suspend)
 				regcache_cache_only(cod9002x->regmap, true);
 
@@ -2143,7 +2191,7 @@ static void cod9002x_water_det_work(struct work_struct *work)
 static void cod9002x_jack_det_work(struct work_struct *work)
 {
 	struct cod9002x_priv *cod9002x =
-		container_of(work, struct cod9002x_priv, jack_det_work.work);
+		container_of(work, struct cod9002x_priv, jack_det_work);
 	struct snd_soc_codec *codec = cod9002x->codec;
 	struct cod9002x_jack_det *jackdet = &cod9002x->jack_det;
 	struct cod9002x_water_det *waterdet = &cod9002x->water_det;
@@ -2160,19 +2208,33 @@ static void cod9002x_jack_det_work(struct work_struct *work)
 			waterdet->jack_det_bypass == false &&
 			waterdet->water_det == COD9002X_DET_WATER) {
 		mutex_unlock(&cod9002x->jackdet_lock);
+		wake_unlock(&cod9002x->jack_wake_lock);
 		return;
 	}
 
 	if (jackdet->jack_det == true) {
+		/* set delay for read correct adc value */
+		msleep(cod9002x->mic_det_delay);
+
 		cod9002x_set_adc_gpio(cod9002x, 0);
 		/* read adc for mic detect */
 		adc = cod9002x_adc_get_value(cod9002x);
 		dev_dbg(cod9002x->dev, "%s mic det adc  %d\n", __func__, adc);
 
-		if (adc > cod9002x->mic_adc_range)
+		if (adc > cod9002x->mic_adc_range) {
+			if (cod9002x->jack_det_adc_max != 0 &&
+					adc > cod9002x->jack_det_adc_max) {
+				dev_dbg(cod9002x->dev, "%s, mic_det adc value exceed the value %d.\n",
+						__func__, cod9002x->jack_det_adc_max);
+				jackdet->jack_det = false;
+				mutex_unlock(&cod9002x->jackdet_lock);
+				wake_unlock(&cod9002x->jack_wake_lock);
+				return;
+			}
 			jackdet->mic_det = true;
-		else
+		} else {
 			jackdet->mic_det = false;
+		}
 
 		jackdet->adc_val = adc;
 	} else {
@@ -2213,6 +2275,7 @@ static void cod9002x_jack_det_work(struct work_struct *work)
 			jackdet->mic_det ? "inserted" : "removed");
 
 	mutex_unlock(&cod9002x->jackdet_lock);
+	wake_unlock(&cod9002x->jack_wake_lock);
 }
 
 static int get_adc_avg(int *adc_values)
@@ -2251,6 +2314,8 @@ static void cod9002x_buttons_work(struct work_struct *work)
 	int adc_final_values[ADC_TRACE_NUM2];
 	int adc_final = 0, adc_max = 0;
 
+	dev_dbg(cod9002x->dev, "%s called.\n", __func__);
+
 	if (!jd->jack_det) {
 		dev_err(cod9002x->dev, "Skip button events for jack_out\n");
 		if (jd->privious_button_state == BUTTON_PRESS) {
@@ -2260,11 +2325,13 @@ static void cod9002x_buttons_work(struct work_struct *work)
 			cod9002x_process_button_ev(cod9002x->codec, jd->button_code, 0);
 			dev_err(cod9002x->dev, ":key %d released when jack_out\n", jd->button_code);
 		}
+		wake_unlock(&cod9002x->jack_wake_lock);
 		return;
 	}
 
 	if (!jd->mic_det) {
 		dev_err(cod9002x->dev, "Skip button events for 3-pole jack\n");
+		wake_unlock(&cod9002x->jack_wake_lock);
 		return;
 	}
 
@@ -2295,6 +2362,7 @@ static void cod9002x_buttons_work(struct work_struct *work)
 						adc_values[i+3], adc_values[i+4]);
 				i += 5;
 			}
+			wake_unlock(&cod9002x->jack_wake_lock);
 			return;
 		}
 		adc_final_values[j] = avg;
@@ -2302,10 +2370,7 @@ static void cod9002x_buttons_work(struct work_struct *work)
 		if (avg > adc_max)
 			adc_max = avg;
 
-		if (cod9002x->btn_press_delay)
-			mdelay(cod9002x->btn_press_delay);
-		else
-			mdelay(ADC_READ_DELAY_MS);
+		mdelay(ADC_READ_DELAY_MS);
 	}
 	adc_final = adc_max;
 
@@ -2317,6 +2382,7 @@ static void cod9002x_buttons_work(struct work_struct *work)
 
 	if (jd->privious_button_state == current_button_state) {
 		dev_err(cod9002x->dev, "Button state did not changed\n");
+		wake_unlock(&cod9002x->jack_wake_lock);
 		return;
 	}
 
@@ -2345,18 +2411,28 @@ static void cod9002x_buttons_work(struct work_struct *work)
 
 				dev_dbg(cod9002x->dev, ":key %d is pressed, adc %d\n",
 						btn_zones[i].code, adc);
+				wake_unlock(&cod9002x->jack_wake_lock);
 				return;
 			}
 
 		dev_dbg(cod9002x->dev, ":key skipped. ADC %d\n", adc);
 	} else {
+		snd_soc_update_bits(cod9002x->codec, COD9002X_12_PD_AD2,
+				PDB_MIC_BST3_MASK, 0);
+
+		msleep(40);
+
+		snd_soc_update_bits(cod9002x->codec, COD9002X_12_PD_AD2,
+				PDB_MIC_BST3_MASK, PDB_MIC_BST3_MASK);
+
 		jd->button_det = false;
 		input_report_key(cod9002x->input, jd->button_code, 0);
 		input_sync(cod9002x->input);
-		cod9002x_process_button_ev(cod9002x->codec, jd->button_code, 0);
 
+		cod9002x_process_button_ev(cod9002x->codec, jd->button_code, 0);
 		dev_dbg(cod9002x->dev, ":key %d released\n", jd->button_code);
 	}
+	wake_unlock(&cod9002x->jack_wake_lock);
 }
 
 int cod9002x_jack_mic_register(struct snd_soc_codec *codec)
@@ -2596,26 +2672,37 @@ static void cod9002x_post_fw_update_failure(void *context)
 	snd_soc_write(codec, COD9002X_81_TEST_MODE, 0x02);
 	cod9002x_usleep(1000);
 	snd_soc_write(codec, COD9002X_81_TEST_MODE, 0x43);
-
 	snd_soc_write(codec, COD9002X_83_JACK_MODE, 0x00);
-	snd_soc_write(codec, COD9002X_84_JACK_DET, 0x31);
-	snd_soc_write(codec, COD9002X_85_JACK_DBNC1, 0xFF);
+
+	/* set pull up resistance according to water proof */
+	if (cod9002x->use_det_gdet_adc_mode || cod9002x->use_jack_pullup_mode)
+		snd_soc_write(codec, COD9002X_84_JACK_DET, 0x71);
+	else
+		snd_soc_write(codec, COD9002X_84_JACK_DET, 0x31);
 
 	/**
-	 * Set jack out debounce time to 18 (550usec)
-	 * to ignore surge test interrupt.
-	 * Also, set btn debounce time to 36 (1msec)
-	 * in order to prevent btn interrupt after jack out.
+	 * If set 'dis-det-surge-mode' in device tree file,
+	 * set jack out debounce time to 4 (120usec)
+	 * in order to prevent jack in/out pop noise for specific model.
+	 * If not, set jack out debounce time to value
+	 * according to 'jack-out-dbnc-time' device tree option.
 	 **/
-	snd_soc_write(codec, COD9002X_86_JACK_DBNC2, 0x12);
-	snd_soc_write(codec, COD9002X_89_BTN_DBNC, 0x09);
+	if (cod9002x->dis_det_surge_mode == true)
+		snd_soc_write(codec, COD9002X_86_JACK_DBNC2, 0x04);
+	else
+		snd_soc_write(codec, COD9002X_86_JACK_DBNC2,
+				cod9002x->jack_out_dbnc_time);
 
-	snd_soc_write(codec, COD9002X_91_DLY_MCB2, 0xB0);
+	snd_soc_write(codec, COD9002X_85_JACK_DBNC1, 0xFF);
+	snd_soc_write(codec, COD9002X_91_DLY_MCB2, 0xA0);
 	snd_soc_write(codec, COD9002X_96_SEL_RES1, 0x47);
 	snd_soc_write(codec, COD9002X_97_SEL_RES2, 0x02);
 
 	/* Default value, enabling HPF and setting freq at 100Hz */
 	snd_soc_write(codec, COD9002X_42_ADC1, 0x0C);
+
+	/* Disable mic bias1 chopping for remove mic noise */
+	snd_soc_write(codec, COD9002X_75_CHOP_AD, 0x3D);
 
 	snd_soc_update_bits(codec, COD9002X_71_CLK1_DA,
 			SEL_CHCLK_DA_MASK | EN_HALF_CHOP_HP_MASK |
@@ -2641,10 +2728,12 @@ static void cod9002x_post_fw_update_failure(void *context)
 
 	snd_soc_write(codec, COD9002X_43_ADC_L_VOL, 0x18);
 	snd_soc_write(codec, COD9002X_44_ADC_R_VOL, 0x18);
+
 	/* Boost 20 dB, Gain 0 dB for MIC1/MIC2/MIC3 */
 	snd_soc_write(codec, COD9002X_20_VOL_AD1, 0xa0);
 	snd_soc_write(codec, COD9002X_21_VOL_AD2, 0xa0);
 	snd_soc_write(codec, COD9002X_22_VOL_AD3, 0xa0);
+
 	/* Gain 6dB for Line-in */
 	snd_soc_write(codec, COD9002X_5A_DNC7, 0x18);
 
@@ -2770,7 +2859,7 @@ static void cod9002x_reg_restore(struct snd_soc_codec *codec)
 			EN_PDB_JD_CLK_MASK, EN_PDB_JD_CLK_MASK);
 
 	/* Give 15ms delay before storing the otp values */
-	msleep(15);
+	cod9002x_usleep(15000);
 
 	/*
 	 * The OTP values are the boot-time values. For registers D0-DE, we need
@@ -2794,7 +2883,10 @@ static void cod9002x_i2c_parse_dt(struct cod9002x_priv *cod9002x)
 	struct device_node *np = dev->of_node;
 	struct of_phandle_args args;
 	unsigned int bias_v_conf;
-	int mic_range, mic_delay, btn_rel_val, btn_delay, water_threshold_min1, water_threshold_min2;
+	unsigned int dbnc_time;
+	int mic_range, mic_delay, btn_rel_val, btn_delay;
+	int water_threshold_min1, water_threshold_min2, water_threshold_max;
+	int jack_adc_max;
 	int i, ret;
 
 	cod9002x->adc_pin = of_get_gpio(np, 0);
@@ -2841,7 +2933,7 @@ static void cod9002x_i2c_parse_dt(struct cod9002x_priv *cod9002x)
 	if (!ret)
 		cod9002x->mic_det_delay = mic_delay;
 	else
-		cod9002x->mic_det_delay = 550;
+		cod9002x->mic_det_delay = 430;
 
 	ret = of_property_read_u32(dev->of_node, "btn-release-value", &btn_rel_val);
 	if (!ret)
@@ -2853,7 +2945,7 @@ static void cod9002x_i2c_parse_dt(struct cod9002x_priv *cod9002x)
 	if (!ret)
 		cod9002x->btn_press_delay = btn_delay;
 	else
-		cod9002x->btn_press_delay = 0;
+		cod9002x->btn_press_delay = 30;
 
 	ret = of_property_read_u32(dev->of_node, "water-threshold-min1", &water_threshold_min1);
 	if (!ret)
@@ -2866,6 +2958,18 @@ static void cod9002x_i2c_parse_dt(struct cod9002x_priv *cod9002x)
 		cod9002x->water_threshold_adc_min2 = water_threshold_min2;
 	else
 		cod9002x->water_threshold_adc_min2 = COD9002X_WATER_DET_THRESHOLD_MIN;
+
+	ret = of_property_read_u32(dev->of_node, "water-threshold-max", &water_threshold_max);
+	if (!ret)
+		cod9002x->water_threshold_adc_max = water_threshold_max;
+	else
+		cod9002x->water_threshold_adc_max = COD9002X_WATER_DET_THRESHOLD_MAX;
+
+	ret = of_property_read_u32(dev->of_node, "jack-adc-max", &jack_adc_max);
+	if (!ret)
+		cod9002x->jack_det_adc_max = jack_adc_max;
+	else
+		cod9002x->jack_det_adc_max = 0;
 
 	ret = of_property_read_u32(dev->of_node,
 			"mic-bias-ldo-voltage", &bias_v_conf);
@@ -2892,6 +2996,23 @@ static void cod9002x_i2c_parse_dt(struct cod9002x_priv *cod9002x)
 
 	if (of_find_property(dev->of_node, "use-btn-adc-mode", NULL) != NULL)
 		cod9002x->use_btn_adc_mode = true;
+
+	if (of_find_property(dev->of_node, "dis-det-surge-mode", NULL) != NULL)
+		cod9002x->dis_det_surge_mode = true;
+
+	ret = of_property_read_u32(dev->of_node, "jack-out-dbnc-time", &dbnc_time);
+	if (!ret)
+		if (dbnc_time < JACK_OUT_DBNC_TIME_MIN)
+			cod9002x->jack_out_dbnc_time = JACK_OUT_DBNC_TIME_MIN;
+		else if (dbnc_time > JACK_OUT_DBNC_TIME_MAX)
+			cod9002x->jack_out_dbnc_time = JACK_OUT_DBNC_TIME_MAX;
+		else
+			cod9002x->jack_out_dbnc_time = dbnc_time;
+	else
+		cod9002x->jack_out_dbnc_time = JACK_OUT_DBNC_TIME_DEFAULT;
+
+	if (of_find_property(dev->of_node, "use-jack-pullup-mode", NULL) != NULL)
+		cod9002x->use_jack_pullup_mode = true;
 
 	dev_dbg(dev, "Using %s for button detection\n",
 			cod9002x->use_btn_adc_mode ? "GPADC" : "internal h/w");
@@ -2979,22 +3100,28 @@ static int cod9002x_notifier_handler(struct notifier_block *nb,
 				&cod9002x->water_det_adc_work, msecs_to_jiffies(400));
 
 		/* mic detection delay */
-		if (jd->jack_det)
-			queue_delayed_work(cod9002x->jack_det_wq,
-				&cod9002x->jack_det_work,
-				msecs_to_jiffies(cod9002x->mic_det_delay));
-		else
-			queue_delayed_work(cod9002x->jack_det_wq,
-					&cod9002x->jack_det_work, msecs_to_jiffies(0));
+		if (jd->jack_det) {
+			wake_lock(&cod9002x->jack_wake_lock);
+			/* jack detection workqueue */
+			cancel_work_sync(&cod9002x->jack_det_work);
+			queue_work(cod9002x->jack_det_wq, &cod9002x->jack_det_work);
+		} else {
+			wake_lock(&cod9002x->jack_wake_lock);
+			/* jack detection workqueue */
+			cancel_work_sync(&cod9002x->jack_det_work);
+			queue_work(cod9002x->jack_det_wq, &cod9002x->jack_det_work);
+		}
 
 		mutex_unlock(&cod9002x->key_lock);
 		goto out;
 	}
 
 	if (cod9002x->use_btn_adc_mode) {
+		wake_lock(&cod9002x->jack_wake_lock);
 		/* start button work */
 		queue_delayed_work(cod9002x->buttons_wq,
-				&cod9002x->buttons_work, msecs_to_jiffies(10));
+				&cod9002x->buttons_work,
+				msecs_to_jiffies(cod9002x->btn_press_delay));
 	} else {
 		dev_dbg(cod9002x->dev, "[DEBUG] %s , line %d\n", __func__, __LINE__);
 		/* need to implement button detection */
@@ -3072,7 +3199,7 @@ static int cod9002x_codec_probe(struct snd_soc_codec *codec)
 		return -ENOMEM;
 	}
 
-	INIT_DELAYED_WORK(&cod9002x->jack_det_work , cod9002x_jack_det_work);
+	INIT_WORK(&cod9002x->jack_det_work, cod9002x_jack_det_work);
 
 	cod9002x->jack_det_wq = create_singlethread_workqueue("jack_det_wq");
 	if (cod9002x->jack_det_wq == NULL) {
@@ -3080,7 +3207,7 @@ static int cod9002x_codec_probe(struct snd_soc_codec *codec)
 		return -ENOMEM;
 	}
 
-	INIT_DELAYED_WORK(&cod9002x->water_det_adc_work , cod9002x_water_det_work);
+	INIT_DELAYED_WORK(&cod9002x->water_det_adc_work, cod9002x_water_det_work);
 
 	cod9002x->water_det_adc_wq =
 		create_singlethread_workqueue("water_det_adc_wq");
@@ -3102,6 +3229,7 @@ static int cod9002x_codec_probe(struct snd_soc_codec *codec)
 
 	mutex_init(&cod9002x->jackdet_lock);
 	mutex_init(&cod9002x->key_lock);
+	wake_lock_init(&cod9002x->jack_wake_lock, WAKE_LOCK_SUSPEND, "jack_wl");
 
 	/*
 	 * interrupt pin should be shared with pmic.
@@ -3164,6 +3292,8 @@ static int cod9002x_codec_remove(struct snd_soc_codec *codec)
 	destroy_workqueue(cod9002x->jack_det_wq);
 	destroy_workqueue(cod9002x->water_det_adc_wq);
 
+	wake_lock_destroy(&cod9002x->jack_wake_lock);
+
 	cancel_delayed_work(&cod9002x->water_det_polling_work);
 
 	cod9002x_adc_stop(cod9002x);
@@ -3203,6 +3333,9 @@ static int cod9002x_i2c_probe(struct i2c_client *i2c,
 	cod9002x->is_probe_done = false;
 	cod9002x->use_btn_adc_mode = false;
 	cod9002x->use_det_gdet_adc_mode = false;
+	cod9002x->dis_det_surge_mode = false;
+	cod9002x->use_jack_pullup_mode = false;
+	cod9002x->mic_status = 0;
 
 	cod9002x->regmap = devm_regmap_init_i2c(i2c, &cod9002x_regmap);
 	if (IS_ERR(cod9002x->regmap)) {
@@ -3268,7 +3401,6 @@ static void cod9002x_cfg_gpio(struct device *dev, const char *name)
 	return;
 err:
 	dev_err(dev, "Unable to configure codec gpio as %s\n", name);
-	return;
 }
 
 static int cod9002x_enable(struct device *dev)

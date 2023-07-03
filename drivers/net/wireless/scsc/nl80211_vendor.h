@@ -1,6 +1,6 @@
 /*****************************************************************************
  *
- * Copyright (c) 2012 - 2016 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2017 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 #ifndef __SLSI_NL80211_VENDOR_H_
@@ -10,6 +10,7 @@
 #define OUI_SAMSUNG                                     0x0000f0
 #define SLSI_NL80211_GSCAN_SUBCMD_RANGE_START           0x1000
 #define SLSI_NL80211_GSCAN_EVENT_RANGE_START            0x01
+#define SLSI_NL80211_LOGGING_SUBCMD_RANGE_START           0x1400
 #define SLSI_GSCAN_SCAN_ID_START                        0x410
 #define SLSI_GSCAN_SCAN_ID_END                          0x500
 
@@ -81,6 +82,11 @@
 #define SLSI_WIFI_HAL_FEATURE_RSSI_MONITOR       0x080000      /* RSSI Monitor */
 #define SLSI_WIFI_HAL_FEATURE_MKEEP_ALIVE        0x100000      /* WiFi mkeep_alive */
 
+enum slsi_wifi_attr {
+	SLSI_NL_ATTRIBUTE_ND_OFFLOAD_VALUE = 0,
+	SLSI_NL_ATTRIBUTE_PNO_RANDOM_MAC_OUI
+};
+
 enum GSCAN_ATTRIBUTE {
 	GSCAN_ATTRIBUTE_NUM_BUCKETS = 10,
 	GSCAN_ATTRIBUTE_BASE_PERIOD,
@@ -142,11 +148,17 @@ enum GSCAN_ATTRIBUTE {
 };
 
 enum epno_ssid_attribute {
-	SLSI_ATTRIBUTE_EPNO_SSID_LIST,
+	SLSI_ATTRIBUTE_EPNO_MINIMUM_5G_RSSI,
+	SLSI_ATTRIBUTE_EPNO_MINIMUM_2G_RSSI,
+	SLSI_ATTRIBUTE_EPNO_INITIAL_SCORE_MAX,
+	SLSI_ATTRIBUTE_EPNO_CUR_CONN_BONUS,
+	SLSI_ATTRIBUTE_EPNO_SAME_NETWORK_BONUS,
+	SLSI_ATTRIBUTE_EPNO_SECURE_BONUS,
+	SLSI_ATTRIBUTE_EPNO_5G_BONUS,
 	SLSI_ATTRIBUTE_EPNO_SSID_NUM,
+	SLSI_ATTRIBUTE_EPNO_SSID_LIST,
 	SLSI_ATTRIBUTE_EPNO_SSID,
 	SLSI_ATTRIBUTE_EPNO_SSID_LEN,
-	SLSI_ATTRIBUTE_EPNO_RSSI,
 	SLSI_ATTRIBUTE_EPNO_FLAGS,
 	SLSI_ATTRIBUTE_EPNO_AUTH,
 	SLSI_ATTRIBUTE_EPNO_MAX
@@ -237,7 +249,22 @@ enum slsi_hal_vendor_subcmds {
 	SLSI_NL80211_VENDOR_SUBCMD_LSTATS_SUBCMD_GET_STATS,
 	SLSI_NL80211_VENDOR_SUBCMD_LSTATS_SUBCMD_CLEAR_STATS,
 	SLSI_NL80211_VENDOR_SUBCMD_GET_FEATURE_SET,
-	SLSI_NL80211_VENDOR_SUBCMD_SET_COUNTRY_CODE
+	SLSI_NL80211_VENDOR_SUBCMD_SET_COUNTRY_CODE,
+	SLSI_NL80211_VENDOR_SUBCMD_CONFIGURE_ND_OFFLOAD,
+	SLSI_NL80211_VENDOR_SUBCMD_START_LOGGING = SLSI_NL80211_LOGGING_SUBCMD_RANGE_START,
+	SLSI_NL80211_VENDOR_SUBCMD_TRIGGER_FW_MEM_DUMP,
+	SLSI_NL80211_VENDOR_SUBCMD_GET_FW_MEM_DUMP,
+	SLSI_NL80211_VENDOR_SUBCMD_GET_VERSION,
+	SLSI_NL80211_VENDOR_SUBCMD_GET_RING_STATUS,
+	SLSI_NL80211_VENDOR_SUBCMD_GET_RING_DATA,
+	SLSI_NL80211_VENDOR_SUBCMD_GET_FEATURE,
+	SLSI_NL80211_VENDOR_SUBCMD_RESET_LOGGING,
+	SLSI_NL80211_VENDOR_SUBCMD_TRIGGER_DRIVER_MEM_DUMP,
+	SLSI_NL80211_VENDOR_SUBCMD_GET_DRIVER_MEM_DUMP,
+	SLSI_NL80211_VENDOR_SUBCMD_START_PKT_FATE_MONITORING,
+	SLSI_NL80211_VENDOR_SUBCMD_GET_TX_PKT_FATES,
+	SLSI_NL80211_VENDOR_SUBCMD_GET_RX_PKT_FATES,
+	SLSI_NL80211_VENDOR_SUBCMD_GET_WAKE_REASON_STATS
 };
 
 enum slsi_supp_vendor_subcmds {
@@ -256,7 +283,9 @@ enum slsi_vendor_event_values {
 	SLSI_NL80211_VENDOR_HANGED_EVENT,
 	SLSI_NL80211_EPNO_EVENT,
 	SLSI_NL80211_HOTSPOT_MATCH,
-	SLSI_NL80211_RSSI_REPORT_EVENT
+	SLSI_NL80211_RSSI_REPORT_EVENT,
+	SLSI_NL80211_LOGGER_RING_EVENT,
+	SLSI_NL80211_LOGGER_FW_DUMP_EVENT
 };
 
 enum slsi_lls_interface_mode {
@@ -314,6 +343,46 @@ enum slsi_lls_peer_type {
 	SLSI_LLS_PEER_NAN,
 	SLSI_LLS_PEER_TDLS,
 	SLSI_LLS_PEER_INVALID,
+};
+
+/* slsi_enhanced_logging_attributes */
+enum slsi_enhanced_logging_attributes {
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_DRIVER_VERSION,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_FW_VERSION,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_RING_ID,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_RING_NAME,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_RING_FLAGS,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_VERBOSE_LEVEL,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_LOG_MAX_INTERVAL,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_LOG_MIN_DATA_SIZE,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_FW_DUMP_LEN,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_FW_DUMP_DATA,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_RING_DATA,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_RING_STATUS,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_RING_NUM,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_DRIVER_DUMP_LEN,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_DRIVER_DUMP_DATA,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_PKT_FATE_NUM,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_PKT_FATE_DATA,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_INVALID = 0,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_TOTAL_CMD_EVENT_WAKE,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_CMD_EVENT_WAKE_CNT_PTR,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_CMD_EVENT_WAKE_CNT_SZ,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_TOTAL_DRIVER_FW_LOCAL_WAKE,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_DRIVER_FW_LOCAL_WAKE_CNT_PTR,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_DRIVER_FW_LOCAL_WAKE_CNT_SZ,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_TOTAL_RX_DATA_WAKE,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_RX_UNICAST_CNT,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_RX_MULTICAST_CNT,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_RX_BROADCAST_CNT,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_ICMP_PKT,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_ICMP6_PKT,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_ICMP6_RA,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_ICMP6_NA,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_ICMP6_NS,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_ICMP4_RX_MULTICAST_CNT,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_ICMP6_RX_MULTICAST_CNT,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_OTHER_RX_MULTICAST_CNT,
 };
 
 struct slsi_nl_gscan_capabilities {
@@ -432,10 +501,23 @@ struct slsi_hotlist_result {
 };
 
 struct slsi_epno_ssid_param {
-	u8  ssid[32];
-	u8  ssid_len;
-	s16 rssi_thresh;
 	u16 flags;
+	u8  ssid_len;
+	u8  ssid[32];
+};
+
+struct slsi_epno_param {
+	u16 min_5g_rssi;                           /* minimum 5GHz RSSI for a BSSID to be considered */
+	u16 min_2g_rssi;                           /* minimum 2.4GHz RSSI for a BSSID to be considered */
+	u16 initial_score_max;                     /* maximum score that a network can have before bonuses */
+	u8 current_connection_bonus;               /* report current connection bonus only, when there is a
+						    * network's score this much higher than the current connection
+						    */
+	u8 same_network_bonus;                     /* score bonus for all networks with the same network flag */
+	u8 secure_bonus;                           /* score bonus for networks that are not open */
+	u8 band_5g_bonus;                          /* 5GHz RSSI score bonus (applied to all 5GHz networks) */
+	u8 num_networks;                           /* number of wifi_epno_network objects */
+	struct slsi_epno_ssid_param epno_ssid[];   /* PNO networks */
 };
 
 struct slsi_epno_hs2_param {
@@ -542,6 +624,52 @@ struct slsi_lls_wmm_ac_stat {
 	u32 contention_num_samples;   /* num of data pkts used for contention statistics*/
 };
 
+struct slsi_rx_data_cnt_details {
+	int rx_unicast_cnt;     /*Total rx unicast packet which woke up host */
+	int rx_multicast_cnt;   /*Total rx multicast packet which woke up host */
+	int rx_broadcast_cnt;   /*Total rx broadcast packet which woke up host */
+};
+
+struct slsi_rx_wake_pkt_type_classification {
+	int icmp_pkt;   /*wake icmp packet count */
+	int icmp6_pkt;  /*wake icmp6 packet count */
+	int icmp6_ra;   /*wake icmp6 RA packet count */
+	int icmp6_na;   /*wake icmp6 NA packet count */
+	int icmp6_ns;   /*wake icmp6 NS packet count */
+};
+
+struct slsi_rx_multicast_cnt {
+	int ipv4_rx_multicast_addr_cnt; /*Rx wake packet was ipv4 multicast */
+	int ipv6_rx_multicast_addr_cnt; /*Rx wake packet was ipv6 multicast */
+	int other_rx_multicast_addr_cnt;/*Rx wake packet was non-ipv4 and non-ipv6*/
+};
+
+/*
+ * Structure holding all the driver/firmware wake count reasons.
+ *
+ * Buffers for the array fields (cmd_event_wake_cnt/driver_fw_local_wake_cnt)
+ * are allocated and freed by the framework. The size of each allocated
+ * array is indicated by the corresponding |_cnt| field. HAL needs to fill in
+ * the corresponding |_used| field to indicate the number of elements used in
+ * the array.
+ */
+struct slsi_wlan_driver_wake_reason_cnt {
+	int total_cmd_event_wake;    /* Total count of cmd event wakes */
+	int *cmd_event_wake_cnt;     /* Individual wake count array, each index a reason */
+	int cmd_event_wake_cnt_sz;   /* Max number of cmd event wake reasons */
+	int cmd_event_wake_cnt_used; /* Number of cmd event wake reasons specific to the driver */
+
+	int total_driver_fw_local_wake;    /* Total count of drive/fw wakes, for local reasons */
+	int *driver_fw_local_wake_cnt;     /* Individual wake count array, each index a reason */
+	int driver_fw_local_wake_cnt_sz;   /* Max number of local driver/fw wake reasons */
+	int driver_fw_local_wake_cnt_used; /* Number of local driver/fw wake reasons specific to the driver */
+
+	int total_rx_data_wake;     /* total data rx packets, that woke up host */
+	struct slsi_rx_data_cnt_details rx_wake_details;
+	struct slsi_rx_wake_pkt_type_classification rx_wake_pkt_classification_info;
+	struct slsi_rx_multicast_cnt rx_multicast_wake_pkt_info;
+};
+
 /* interface statistics */
 struct slsi_lls_iface_stat {
 	void *iface;                          /* wifi interface*/
@@ -574,6 +702,10 @@ int slsi_gscan_alloc_buckets(struct slsi_dev *sdev, struct slsi_gscan *gscan, in
 int slsi_vendor_event(struct slsi_dev *sdev, int event_id, const void *data, int len);
 int slsi_mib_get_gscan_cap(struct slsi_dev *sdev, struct slsi_nl_gscan_capabilities *cap);
 void slsi_rx_rssi_report_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
+void slsi_check_num_radios(struct slsi_dev *sdev);
+#ifdef CONFIG_SCSC_WLAN_ENHANCED_LOGGING
+void slsi_rx_event_log_indication(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
+#endif
 
 static inline bool slsi_is_gscan_id(u16 scan_id)
 {

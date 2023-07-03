@@ -249,9 +249,9 @@ void slsi_init_netdev_mac_addr(struct slsi_dev *sdev)
 	SLSI_ETHER_COPY(sdev->netdev_addresses[SLSI_NET_INDEX_P2P],  sdev->hw_addr);
 	sdev->netdev_addresses[SLSI_NET_INDEX_P2P][0] |= 0x02; /* Set the local bit */
 
-	SLSI_ETHER_COPY(sdev->netdev_addresses[SLSI_NET_INDEX_P2PX], sdev->hw_addr);
-	sdev->netdev_addresses[SLSI_NET_INDEX_P2PX][0] |= 0x02; /* Set the local bit */
-	sdev->netdev_addresses[SLSI_NET_INDEX_P2PX][4] ^= 0x80; /* EXOR 5th byte with 0x80 */
+	SLSI_ETHER_COPY(sdev->netdev_addresses[SLSI_NET_INDEX_P2PX_SWLAN], sdev->hw_addr);
+	sdev->netdev_addresses[SLSI_NET_INDEX_P2PX_SWLAN][0] |= 0x02; /* Set the local bit */
+	sdev->netdev_addresses[SLSI_NET_INDEX_P2PX_SWLAN][4] ^= 0x80; /* EXOR 5th byte with 0x80 */
 
 	SLSI_ETHER_COPY(sdev->netdev[SLSI_NET_INDEX_WLAN]->dev_addr, sdev->netdev_addresses[SLSI_NET_INDEX_WLAN]);
 	SLSI_ETHER_COPY(sdev->netdev[SLSI_NET_INDEX_P2P]->dev_addr, sdev->netdev_addresses[SLSI_NET_INDEX_P2P]);

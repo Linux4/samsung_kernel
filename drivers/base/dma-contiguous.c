@@ -33,6 +33,7 @@
 #include <linux/swap.h>
 #include <linux/mm_types.h>
 #include <linux/dma-contiguous.h>
+#include <linux/cma.h>
 
 struct cma {
 	unsigned long	base_pfn;
@@ -217,6 +218,12 @@ void __init dma_contiguous_reserve(phys_addr_t limit)
 
 		__dma_contiguous_reserve_area(selected_size, 0, limit,
 					    &dma_contiguous_default_area);
+		if (dma_contiguous_default_area) {
+			record_memsize_reserved("default_CMA",
+				cma_get_base(dma_contiguous_default_area),
+				cma_get_size(dma_contiguous_default_area),
+				false, true);
+		}
 	}
 };
 

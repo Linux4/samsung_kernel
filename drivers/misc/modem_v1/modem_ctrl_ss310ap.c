@@ -266,9 +266,18 @@ static int init_mailbox_regs(struct modem_ctl *mc)
 	u32 cp_volt_830;
 #ifdef CONFIG_USIM_DETECT
 	unsigned int ap_status;
+	unsigned int sbi_pda_active_mask;
+	unsigned int sbi_pda_active_pos;
+	unsigned int sbi_ap_status_mask;
+	unsigned int sbi_ap_status_pos;
 
 	/* Save USIM detection value before reset */
 	if (np) {
+		mif_dt_read_u32(np, "sbi_pda_active_mask", sbi_pda_active_mask);
+		mif_dt_read_u32(np, "sbi_pda_active_pos", sbi_pda_active_pos);
+		mif_dt_read_u32(np, "sbi_ap_status_mask", sbi_ap_status_mask);
+		mif_dt_read_u32(np, "sbi_ap_status_pos", sbi_ap_status_pos);
+		
 		mif_dt_read_u32(np, "mbx_ap2cp_united_status", mbx_ap_status);
 		ap_status = mbox_get_value(MCU_CP, mbx_ap_status);
 	}
@@ -316,6 +325,10 @@ static int init_mailbox_regs(struct modem_ctl *mc)
 #ifdef CONFIG_USIM_DETECT
 		/* Resotre USIM detection value */
 		mbox_set_value(MCU_CP, mbx_ap_status, ap_status);
+		mbox_update_value(MCU_CP, mbx_ap_status, 0,
+			sbi_pda_active_mask, sbi_pda_active_pos);
+		mbox_update_value(MCU_CP,mc->mbx_ap_status, 0,
+			sbi_ap_status_mask, sbi_ap_status_pos);
 #endif
 		mbox_update_value(MCU_CP, mbx_ap_status, sys_rev,
 			sbi_sys_rev_mask, sbi_sys_rev_pos);

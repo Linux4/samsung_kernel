@@ -213,4 +213,4 @@ config MALI_SEC_HWCNT
 	help
 	  Enable sec hwcnt feature.
 
-source "drivers/gpu/arm/t8xx/r7p0/platform/Kconfig"
+source "drivers/gpu/arm/t72x/r7p0/platform/Kconfig"

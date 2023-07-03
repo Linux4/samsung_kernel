@@ -233,7 +233,7 @@ void csi_hw_s_dma_addr(u32 __iomem *base_reg, u32 vc, u32 number, u32 addr);
 void csi_hw_s_output_dma(u32 __iomem *base_reg, u32 vc, bool enable);
 bool csi_hw_g_output_dma_enable(u32 __iomem *base_reg, u32 vc);
 bool csi_hw_g_output_cur_dma_enable(u32 __iomem *base_reg, u32 vc);
-int csi_hw_s_config_dma(u32 __iomem *base_reg, u32 channel, struct fimc_is_image *image);
+int csi_hw_s_config_dma(u32 __iomem *base_reg, u32 channel, struct fimc_is_vci_config *config, struct fimc_is_image *image);
 #endif
 
 /*

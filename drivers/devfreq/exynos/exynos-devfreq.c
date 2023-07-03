@@ -30,9 +30,6 @@
 #include <soc/samsung/ect_parser.h>
 
 #include "../governor.h"
-#if defined(CONFIG_KFAULT_AUTO_SUMMARY)
-#include <linux/sec_debug.h>
-#endif
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/exynos.h>
@@ -46,14 +43,6 @@ struct exynos_devfreq_init_func {
 
 static struct exynos_devfreq_init_func exynos_devfreq_init[DEVFREQ_TYPE_END];
 static struct exynos_devfreq_data *devfreq_data[DEVFREQ_TYPE_END];
-
-#if defined(CONFIG_KFAULT_AUTO_SUMMARY)
-static struct sec_debug_auto_comm_freq_info* auto_comm_devfreq_info;
-void sec_debug_set_auto_comm_last_devfreq_buf(struct sec_debug_auto_comm_freq_info* freq_info)
-{
-	auto_comm_devfreq_info = freq_info;;
-}
-#endif
 
 #ifdef CONFIG_ARM_EXYNOS_DEVFREQ_DEBUG
 static ssize_t show_exynos_devfreq_info(struct device *dev,
@@ -1844,16 +1833,6 @@ static int exynos_devfreq_probe(struct platform_device *pdev)
 
 	dev_info(data->dev, "devfreq is initialized!!\n");
 
-#if defined(CONFIG_KFAULT_AUTO_SUMMARY)
-	if(auto_comm_devfreq_info) {
-		int offset = offsetof(struct exynos_devfreq_data, new_freq);
-		if(data->devfreq_type == DEVFREQ_INT)
-			auto_comm_devfreq_info[FREQ_INFO_INT].last_freq_info = virt_to_phys(data) + offset;
-		else if(data->devfreq_type == DEVFREQ_MIF)
-			auto_comm_devfreq_info[FREQ_INFO_MIF].last_freq_info = virt_to_phys(data) + offset;
-	}
-#endif
-
 	return 0;
 
 err_pm_noti:
@@ -1911,15 +1890,6 @@ err_data:
 static int exynos_devfreq_remove(struct platform_device *pdev)
 {
 	struct exynos_devfreq_data *data = platform_get_drvdata(pdev);
-
-#if defined(CONFIG_KFAULT_AUTO_SUMMARY)
-	if(auto_comm_devfreq_info) {
-		if(data->devfreq_type == DEVFREQ_INT)
-			auto_comm_devfreq_info[FREQ_INFO_INT].last_freq_info = 0;
-		else if(data->devfreq_type == DEVFREQ_MIF)
-			auto_comm_devfreq_info[FREQ_INFO_MIF].last_freq_info = 0;
-	}
-#endif
 
 	sysfs_remove_file(&data->devfreq->dev.kobj, &dev_attr_scaling_devfreq_min.attr);
 #ifdef CONFIG_ARM_EXYNOS_DEVFREQ_DEBUG

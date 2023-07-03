@@ -2,6 +2,8 @@ config SCSC_WLAN
 	tristate "Driver for Samsung SCSC Maxwell Wifi"
 	depends on SCSC_CORE
 	depends on CFG80211
+        ---help---
+          FAPI6 version of WIFI driver
 
 if SCSC_WLAN != n
 config SCSC_WLAN_KEY_MGMT_OFFLOAD
@@ -124,9 +126,22 @@ config SCSC_WLAN_HANG_TEST
 	default y
 	---help---
 	   This option facilitates triggering of HANG Event
-	   to reset WLAN
+	   to reset WLAN.
 
-endif
+config SCSC_WLAN_NAT_KEEPALIVE_DISABLE
+	bool "Disable NAT KeepAlive"
+	default n
+	---help---
+	  This option disables the NAT KeepAlive
+	  Offload Feature.
+
+config SCSC_WLAN_ENHANCED_LOGGING
+	bool "Enable Enhanced Logging"
+	depends on SCSC_WIFILOGGER
+	default y
+	---help---
+	  This option enables the Enhanced Logging
+	  Feature.
 
 config SCSC_WLAN_MAC_ADDRESS_FILENAME
 	string "MAC address filename"
@@ -141,3 +156,24 @@ config SCSC_WLAN_MAX_INTERFACES
         ---help---
           The driver structures are sized to support this
           number of interfaces.
+
+config SCSC_WLAN_DEBUG
+	bool "WLAN driver debug"
+	default n
+	---help---
+	Internal debugging for the WLAN driver
+endif
+
+config SCSC_WLAN_WIFI_SHARING
+	bool "Wifi Sharing Support"
+	default n
+	---help---
+	  This option tells if wifi sharing is supported or not.
+
+config SCSC_WLAN_SINGLE_ANTENNA
+	depends on SCSC_WLAN_WIFI_SHARING
+	bool "Single Antenna Supported"
+	default y
+	---help---
+	  This option tells if there is support for single
+	  antenna or dual antenna.

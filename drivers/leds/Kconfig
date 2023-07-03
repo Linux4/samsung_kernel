@@ -569,4 +569,9 @@ config LEDS_SUPPORT_FRONT_FLASH
 	help
 	  This option enables support for the LEDs.
 
+config LEDS_SUPPORT_FRONT_FLASH_AUTO
+	bool "LED support for Front Flash Auto Mode"
+	help
+	  This option enables support for the LEDs.
+
 endif # NEW_LEDS

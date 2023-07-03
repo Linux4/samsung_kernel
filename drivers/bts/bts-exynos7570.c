@@ -521,7 +521,7 @@ static void bts_drex_init(void __iomem *base)
 
 	__raw_writel(0x00000000, base + QOS_TIMEOUT_0xF);
 	__raw_writel(0x00000004, base + QOS_TIMEOUT_0xE);
-	__raw_writel(0x00000010, base + QOS_TIMEOUT_0xD);
+	__raw_writel(0x00000008, base + QOS_TIMEOUT_0xD);
 	__raw_writel(0x00000010, base + QOS_TIMEOUT_0xC);
 	__raw_writel(0x00000020, base + QOS_TIMEOUT_0xB);
 	__raw_writel(0x00000040, base + QOS_TIMEOUT_0xA);

@@ -169,6 +169,7 @@ typedef enum {
 	ATTACHED_DEV_UNSUPPORTED_ID_VB_MUIC,
 	ATTACHED_DEV_UNDEFINED_RANGE_MUIC,
 	ATTACHED_DEV_RDU_TA_MUIC,
+	ATTACHED_DEV_TIMEOUT_OPEN_MUIC,
 	ATTACHED_DEV_UNKNOWN_MUIC,
 	ATTACHED_DEV_NUM,
 } muic_attached_dev_t;
@@ -225,5 +226,8 @@ struct muic_platform_data {
 extern int get_switch_sel(void);
 extern struct device *switch_device;
 extern struct muic_platform_data muic_pdata;
+#ifdef CONFIG_SEC_FACTORY
+extern void muic_send_attached_muic_cable_intent(int type);
+#endif
 
 #endif /* __MUIC_H__ */

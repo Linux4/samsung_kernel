@@ -41,7 +41,8 @@ struct suspendmon	*scsc_mx_get_suspendmon(struct scsc_mx *mx);
 int mx140_file_download_fw(struct scsc_mx *mx, void *dest, size_t dest_size, u32 *fw_image_size);
 int mx140_request_file(struct scsc_mx *mx, char *path, const struct firmware **firmp);
 int mx140_release_file(struct scsc_mx *mx, const struct firmware *firmp);
-void mx140_basedir_file(struct scsc_mx *mx);
+int mx140_basedir_file(struct scsc_mx *mx);
+int mx140_exe_path(struct scsc_mx *mx, char *path, size_t len, const char *bin);
 int mx140_file_select_fw(struct scsc_mx *mx, u32 suffix);
 bool mx140_file_supported_hw(struct scsc_mx *mx, u32 hw_ver);
 #endif

@@ -23,6 +23,7 @@ struct itm_notifier {
 	unsigned long target_addr;
 };
 extern void itm_notifier_chain_register(struct notifier_block *n);
+extern void itm_dump(void);
 #else
 #define itm_notifier_chain_register(x)		do { } while(0)
 #endif

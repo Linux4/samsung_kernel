@@ -498,7 +498,7 @@ unsigned long fimc_is_group_lock(struct fimc_is_group *group,
 		bool leader_lock)
 {
 	u32 entry;
-	unsigned long flags;
+	unsigned long flags = 0;
 	struct fimc_is_subdev *subdev;
 	struct fimc_is_framemgr *ldr_framemgr, *sub_framemgr;
 
@@ -856,7 +856,12 @@ static void fimc_is_group_set_torch(struct fimc_is_group *group,
 
 	if (group->aeflashMode != ldr_frame->shot->ctl.aa.vendor_aeflashMode) {
 		group->aeflashMode = ldr_frame->shot->ctl.aa.vendor_aeflashMode;
+#ifdef CONFIG_LEDS_SUPPORT_FRONT_FLASH_AUTO
+		group->frontFlashMode = ldr_frame->shot->ctl.flash.flashMode;
+		fimc_is_vender_set_torch(group->aeflashMode, group->frontFlashMode);
+#else
 		fimc_is_vender_set_torch(group->aeflashMode);
+#endif
 	}
 
 	return;

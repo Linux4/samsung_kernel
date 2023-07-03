@@ -44,6 +44,25 @@
 int expander_power_keystate = 0;	/* key_pressed_show for 3x4 keypad */
 EXPORT_SYMBOL(expander_power_keystate);
 
+static int check_pkey_press;
+static int pkey_press_count;
+int get_pkey_press(void)
+{
+	return check_pkey_press;
+}
+EXPORT_SYMBOL(get_pkey_press);
+
+int pkey_pressed_count(int clear)
+{
+	if (clear)
+		pkey_press_count = 0;
+	else
+		return pkey_press_count;
+
+	return 0;
+}
+EXPORT_SYMBOL(pkey_pressed_count);
+
 struct device *sec_power_key;
 EXPORT_SYMBOL(sec_power_key);
 
@@ -470,6 +489,12 @@ static void power_keys_power_report_event(struct power_button_data *bdata)
 	wake_lock_timeout(&ddata->key_wake_lock, WAKELOCK_TIME);
 
 	if (button->code == KEY_POWER) {
+		if(state == 1) {
+			check_pkey_press = 1;
+			pkey_press_count++;
+		} else
+			check_pkey_press = 0;
+	
 		printk(KERN_INFO "PWR key is %s\n", (!!state) ? "pressed" : "released");
 	}
 	if ((button->code == KEY_HOMEPAGE) && !!state) {

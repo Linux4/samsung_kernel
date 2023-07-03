@@ -27,7 +27,6 @@ config FMP_ECRYPT_FS
 
 config FIPS_FMP
 	tristate "Samsung EXYNOS FMP Validation Driver for FIPS"
-	depends on ANDROID_MAJOR_VERSION >= "n"
 	depends on FMP_MMC
 	depends on !FUNCTION_TRACER
 	---help---

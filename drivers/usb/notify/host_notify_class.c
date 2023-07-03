@@ -16,6 +16,7 @@
 #include <linux/fs.h>
 #include <linux/err.h>
 #include <linux/host_notify.h>
+#include <linux/usb_notify.h>
 
 struct notify_data {
 	struct class *host_notify_class;
@@ -190,7 +191,8 @@ host_notify_uevent(struct device *dev, struct kobj_uevent_env *env)
 	struct host_notify_dev *ndev = (struct host_notify_dev *)
 		dev_get_drvdata(dev);
 	char *state;
-
+	struct otg_notify *o_notify = get_otg_notify();
+	
 	if (!ndev) {
 		/* this happens when the device is first created */
 		return 0;
@@ -204,6 +206,8 @@ host_notify_uevent(struct device *dev, struct kobj_uevent_env *env)
 		break;
 	case NOTIFY_HOST_OVERCURRENT:
 		state = "OVERCURRENT";
+		if (o_notify)
+			o_notify->hw_param[USB_CCIC_OVC_COUNT]++;		
 		break;
 	case NOTIFY_HOST_LOWBATT:
 		state = "LOWBATT";

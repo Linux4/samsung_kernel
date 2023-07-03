@@ -147,6 +147,10 @@ typedef struct _muic_data_t {
 	bool			undefined_range;
 	struct delayed_work	init_work;
 	struct delayed_work	usb_work;
+#if defined(CONFIG_MUIC_UNIVERSAL_SM5504)
+	bool			is_lanhub_work;
+	struct delayed_work	lanhub_work;
+#endif
 
 	int is_flash_on;
 	int irq_n;

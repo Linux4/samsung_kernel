@@ -372,6 +372,21 @@ static int muic_irq_init(muic_data_t *pmuic)
 	return ret;
 }
 
+#if defined(CONFIG_MUIC_UNIVERSAL_SM5504)
+static void muic_lanhub_work(struct work_struct *work)
+{
+	muic_data_t *pmuic =
+		container_of(work, muic_data_t, lanhub_work.work);
+
+	pr_info("%s:%s\n", MUIC_DEV_NAME, __func__);
+	set_adc_scan_mode(pmuic, 0);
+	set_adc_scan_mode(pmuic, 1);
+
+	if (pmuic->is_lanhub_work)
+		schedule_delayed_work(&pmuic->lanhub_work, msecs_to_jiffies(1000));
+}
+#endif
+
 static int muic_probe(struct i2c_client *i2c,
 				const struct i2c_device_id *id)
 {
@@ -522,6 +537,10 @@ static int muic_probe(struct i2c_client *i2c,
 	INIT_DELAYED_WORK(&pmuic->usb_work, muic_show_debug_info);
 	schedule_delayed_work(&pmuic->usb_work, msecs_to_jiffies(10000));
 #endif
+#if defined(CONFIG_MUIC_UNIVERSAL_SM5504)
+	pmuic->is_lanhub_work = false;
+	INIT_DELAYED_WORK(&pmuic->lanhub_work, muic_lanhub_work);
+#endif
 	return 0;
 
 fail_init_irq:
@@ -551,6 +570,9 @@ static int muic_remove(struct i2c_client *i2c)
 		pr_info("%s:%s\n", pmuic->chip_name, __func__);
 		cancel_delayed_work(&pmuic->init_work);
 		cancel_delayed_work(&pmuic->usb_work);
+#if defined(CONFIG_MUIC_UNIVERSAL_SM5504)
+		cancel_delayed_work(&pmuic->lanhub_work);
+#endif
 		disable_irq_wake(pmuic->i2c->irq);
 		free_irq(pmuic->i2c->irq, pmuic);
 
@@ -601,12 +623,14 @@ static void muic_shutdown(struct i2c_client *i2c)
 
 	pr_info("%s:%s -\n", MUIC_DEV_NAME, __func__);
 }
-#if defined(CONFIG_PM)
 
+#if defined(CONFIG_PM)
 static int muic_suspend(struct device *dev)
 {
 	muic_data_t *pmuic = dev_get_drvdata(dev);
 	struct i2c_client *i2c = pmuic->i2c;
+
+	cancel_delayed_work(&pmuic->usb_work);
 
 	disable_irq_nosync(i2c->irq);
 
@@ -617,6 +641,8 @@ static int muic_resume(struct device *dev)
 {
 	muic_data_t *pmuic = dev_get_drvdata(dev);
 	struct i2c_client *i2c = pmuic->i2c;
+
+	schedule_delayed_work(&pmuic->usb_work, msecs_to_jiffies(1000));
 
 	enable_irq(i2c->irq);
 

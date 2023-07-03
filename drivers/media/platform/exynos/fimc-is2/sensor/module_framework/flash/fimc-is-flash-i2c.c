@@ -29,7 +29,7 @@
 #include "fimc-is-flash-i2c.h"
 
 #ifdef CAMERA_SYSFS_V2
-struct device *led_dev;
+struct device *led_dev = NULL;
 extern struct class *camera_class;
 #endif
 
@@ -348,33 +348,36 @@ static ssize_t store_rear_torch_flash(struct device *dev,
 		/* Turn off Torch */
 		mode = CAM2_FLASH_MODE_OFF;
 		dbg_flash("flash torch off!\n");
-	} else if(value == 1) {
+	} else if (value == 1) {
 		/* Turn on Torch */
 		brightness = flash->flash_data.torch_current;
 		mode = CAM2_FLASH_MODE_TORCH;
 		dbg_flash("flash torch on!\n");
-	} else if(value == 100) {
+	} else if (value == 100) {
 		/* Factory mode Turn on Torch */
 		brightness = flash->flash_data.factory_current;
 		mode = CAM2_FLASH_MODE_TORCH;
 		dbg_flash("Factory mode flash torch on!\n");
-	} else if(1001 <= value && value <= 1010) {
-		/* (value) 1001, 1002, 1004, 1006, 1009
-		: (brightness) 0(20mA), 1(40mA), 3(80mA), 4(100mA), 5(120mA) */
+	} else if (value == 200) {
+		/* Factory mode Turn on Torch */
+		brightness = TORCH_OUT_I_300MA;
+		mode = CAM2_FLASH_MODE_TORCH;
+		dbg_flash("Factory mode flash torch on!\n");
+	} else if (1001 <= value && value <= 1010) {
+		/* The flashlight value is setted to 1001, 1002, 1004, 1006, 1009 in FlashlightController.java of framework. */
 		if (value <= 1001)
-			brightness = 0;
+			brightness = flash->flash_data.torch_level1;
 		else if (value <= 1002)
-			brightness = 1;
+			brightness = flash->flash_data.torch_level2;
 		else if (value <= 1004)
-			brightness = 2;
+			brightness = flash->flash_data.torch_level3;
 		else if (value <= 1006)
-			brightness = 3;
+			brightness = flash->flash_data.torch_level4;
 		else if (value <= 1010)
-			brightness = 5;
+			brightness = flash->flash_data.torch_level5;
 		else
-			brightness = 3;	//80mA
+			brightness = flash->flash_data.torch_level3;
 	
-		/* Turn on Torch Step 20mA ~ 200mA */
 		mode = CAM2_FLASH_MODE_TORCH;
 		dbg_flash("Turn Torch Step on!\n");
 	} else {
@@ -510,6 +513,12 @@ int flash_probe(struct device *dev, struct i2c_client *client)
 	u32 movie_current = 0;
 	u32 torch_current = 0;
 	u32 factory_current = 0;
+
+	u32 torch_level1 = 0;
+	u32 torch_level2 = 0;
+	u32 torch_level3 = 0;
+	u32 torch_level4 = 0;
+	u32 torch_level5 = 0;
 #endif
 
 	BUG_ON(!fimc_is_dev);
@@ -546,6 +555,36 @@ int flash_probe(struct device *dev, struct i2c_client *client)
 	if (ret) {
 		err("movie_current read is fail(%d)", ret);
 		goto p_err;
+	}
+
+	ret = of_property_read_u32(dnode, "torch_level1", &torch_level1);
+	if (ret) {
+		torch_level1 = TORCH_OUT_I_20MA;
+		err("torch_levle1 is not defined in dts(%d). so default set %d", ret, torch_level1);
+	}
+
+	ret = of_property_read_u32(dnode, "torch_level2", &torch_level2);
+	if (ret) {
+		torch_level2 = TORCH_OUT_I_40MA;
+		err("torch_levle2 is not defined in dts(%d). so default set %d", ret, torch_level2);
+	}
+
+	ret = of_property_read_u32(dnode, "torch_level3", &torch_level3);
+	if (ret) {
+		torch_level3 = TORCH_OUT_I_60MA;
+		err("torch_levle3 is not defined in dts(%d). so default set %d", ret, torch_level3);
+	}
+
+	ret = of_property_read_u32(dnode, "torch_level4", &torch_level4);
+	if (ret) {
+		torch_level4 = TORCH_OUT_I_80MA;
+		err("torch_levle4 is not defined in dts(%d). so default set %d", ret, torch_level4);
+	}
+
+	ret = of_property_read_u32(dnode, "torch_level5", &torch_level5);
+	if (ret) {
+		torch_level5 = TORCH_OUT_I_120MA;
+		err("torch_level5 is not defined in dts(%d). so default set %d", ret, torch_level5);
 	}
 #endif
 
@@ -608,6 +647,12 @@ int flash_probe(struct device *dev, struct i2c_client *client)
 	flash->flash_data.movie_current = S2MPU06_TORCH_CURRENT(movie_current);
 	flash->flash_data.torch_current = S2MPU06_TORCH_CURRENT(torch_current);
 	flash->flash_data.factory_current = S2MPU06_TORCH_CURRENT(factory_current);
+
+	flash->flash_data.torch_level1 = torch_level1;
+	flash->flash_data.torch_level2 = torch_level2;
+	flash->flash_data.torch_level3 = torch_level3;
+	flash->flash_data.torch_level4 = torch_level4;
+	flash->flash_data.torch_level5 = torch_level5;
 #endif
 #endif
 	info("flash_current : %d \n",flash_current);
@@ -623,7 +668,9 @@ int flash_probe(struct device *dev, struct i2c_client *client)
 		warn("%s: Failt to torch sysfs init\n", __func__);
 
 #ifdef CAMERA_SYSFS_V2
-	led_dev = device_create(camera_class, NULL, 3, NULL, "flash");
+	if(led_dev == NULL) {
+		led_dev = device_create(camera_class, NULL, 3, NULL, "flash");
+	}
 	if (IS_ERR(led_dev)) {
 		pr_err("<%s> Failed to create device(flash)!\n", __func__);
 	} else {

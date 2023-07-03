@@ -269,12 +269,13 @@ p_err:
 	return ret;
 }
 
-int csi_hw_s_config_dma(u32 __iomem *base_reg, u32 channel, struct fimc_is_image *image)
+int csi_hw_s_config_dma(u32 __iomem *base_reg, u32 channel, struct fimc_is_vci_config *config, struct fimc_is_image *image)
 {
 	int ret = 0;
 	u32 val;
 	u32 dma_dim = 0;
 	u32 dma_pack12 = 0;
+	bool byte_swap = false;
 
 	if (channel > CSI_VIRTUAL_CH_3) {
 		err("invalid channel(%d)", channel);
@@ -297,9 +298,21 @@ int csi_hw_s_config_dma(u32 __iomem *base_reg, u32 channel, struct fimc_is_image
 		dma_dim = CSIS_REG_DMA_2D_DMA;
 		break;
 	}
+	/*
+	 * HACK: If sensor's data is yuv domain's data, byte swap should be enabled.
+	 * If sensor's format was Y1U1Y2V1, csis received and stored this data in dma by V1Y2U1Y1.
+	 * But user expected Y1U1Y2V1 data(by V4L2 format), this problem will be solved if byte swap was enabled.
+	 * TODO: It depends on the specific sensor module, so later it should be fixed the logic by sensor module info.
+	 */
+	if (config->hwformat == HW_FORMAT_YUV420_8BIT ||
+		config->hwformat == HW_FORMAT_YUV420_10BIT ||
+		config->hwformat == HW_FORMAT_YUV422_8BIT ||
+		config->hwformat == HW_FORMAT_YUV422_10BIT)
+		byte_swap = true;
 
 	val = fimc_is_hw_get_reg(base_reg, &csi_regs[CSIS_R_DMA0_FMT + (channel * 15)]);
 	val = fimc_is_hw_set_field_value(val, &csi_fields[CSIS_F_DMA_N_DIM], dma_dim);
+	val = fimc_is_hw_set_field_value(val, &csi_fields[CSIS_F_DMA_N_BYTESWAP], byte_swap);
 	val = fimc_is_hw_set_field_value(val, &csi_fields[CSIS_F_DMA_N_PACK12], dma_pack12);
 	fimc_is_hw_set_reg(base_reg, &csi_regs[CSIS_R_DMA0_FMT + (channel * 15)], val);
 

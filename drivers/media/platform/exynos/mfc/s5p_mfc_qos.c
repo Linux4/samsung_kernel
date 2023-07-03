@@ -170,11 +170,19 @@ static void mfc_qos_add_or_update(struct s5p_mfc_ctx *ctx, int total_mb)
 
 static inline int get_ctx_mb(struct s5p_mfc_ctx *ctx)
 {
+#ifdef CONFIG_EXYNOS_MFC_HRVC
+	struct s5p_mfc_dec *dec = ctx->dec_priv;
+#endif	
 	int mb_width, mb_height, fps;
 
 	mb_width = (ctx->img_width + 15) / 16;
 	mb_height = (ctx->img_height + 15) / 16;
 	fps = ctx->framerate / 1000;
+
+#ifdef CONFIG_EXYNOS_MFC_HRVC
+	if (dec && dec->is_interlaced)
+		fps *= 10;
+#endif
 
 	mfc_debug(2, "ctx[%d:%s], %d x %d @ %d fps\n", ctx->num,
 			(ctx->type == MFCINST_ENCODER ? "ENC" : "DEC"),

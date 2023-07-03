@@ -46,6 +46,7 @@ p_err:
 	return module;
 }
 
+#if 0
 static struct fimc_is_device_sensor *get_device_sensor(struct fimc_is_sensor_interface *itf)
 {
 	struct fimc_is_device_sensor_peri *sensor_peri;
@@ -77,6 +78,7 @@ static struct fimc_is_device_sensor *get_device_sensor(struct fimc_is_sensor_int
 
 	return device;
 }
+#endif
 
 struct fimc_is_device_csi *get_subdev_csi(struct fimc_is_sensor_interface *itf)
 {
@@ -2113,6 +2115,7 @@ int update_flash_dynamic_meta(struct fimc_is_sensor_interface *itf,
 	return ret;
 }
 
+#if 0
 static struct fimc_is_framemgr *get_csi_vc_framemgr(struct fimc_is_device_csi *csi, u32 ch)
 {
 	struct fimc_is_subdev *fimc_is_subdev_vc;
@@ -2145,7 +2148,46 @@ static struct fimc_is_framemgr *get_csi_vc_framemgr(struct fimc_is_device_csi *c
 #endif
 	return framemgr;
 }
+#endif
 
+/*********************************************************************
+**********************************************************************
+***
+***	2017-09-12
+***	This interface is changed the parameter in DDK.
+***	But JAVA don't use this interface about PDAF.
+***	So this interface change as the reserved Function.
+***
+***	// JAVA Original
+***	int (*get_vc_dma_buf)(struct fimc_is_sensor_interface *itf,
+***				u32 ch,
+***				u32 *frame_count,
+***				u64 *addr);
+***	int (*put_vc_dma_buf)(struct fimc_is_sensor_interface *itf,
+***				u32 ch,
+***				u32 index);
+***
+***
+***	// DDK definition
+***	int (*get_vc_dma_buf)(struct fimc_is_sensor_interface *itf,
+***				enum itf_vc_buf_data_type data_type,
+***				u32 *buf_index,
+***				u64 *buf_addr,
+***				u32 *frame_count);
+***	int (*put_vc_dma_buf)(struct fimc_is_sensor_interface *itf,
+***				enum itf_vc_buf_data_type data_type,
+***				u32 buf_index);
+***	int (*get_vc_dma_buf_size)(struct fimc_is_sensor_interface *itf,
+***				enum itf_vc_buf_data_type data_type,
+***				u32 *width,
+***				u32 *height,
+***				u32 *element_size);
+***	int (*reserved[5])(struct fimc_is_sensor_interface *itf);
+***
+*********************************************************************
+********************************************************************/
+
+#if 0
 int get_vc_dma_buf(struct fimc_is_sensor_interface *itf,
 		u32 ch, u32 *frame_count, u64 *addr)
 {
@@ -2233,6 +2275,32 @@ int put_vc_dma_buf(struct fimc_is_sensor_interface *itf,
 	dbg_sen_itf("[%s]: ch: %d, index: %d\n", __func__, ch, index);
 
 	return ret;
+}
+#endif
+
+int csi_reserved_0(struct fimc_is_sensor_interface *itf)
+{
+	return 0;
+}
+
+int csi_reserved_1(struct fimc_is_sensor_interface *itf)
+{
+	return 0;
+}
+
+int csi_reserved_2(struct fimc_is_sensor_interface *itf)
+{
+	return 0;
+}
+
+int csi_reserved_3(struct fimc_is_sensor_interface *itf)
+{
+	return 0;
+}
+
+int csi_reserved_4(struct fimc_is_sensor_interface *itf)
+{
+	return 0;
 }
 
 int init_sensor_interface(struct fimc_is_sensor_interface *itf)
@@ -2343,8 +2411,14 @@ int init_sensor_interface(struct fimc_is_sensor_interface *itf)
 	itf->flash_itf_ops.update_flash_dynamic_meta = update_flash_dynamic_meta;
 
 	/* MIPI-CSI interface */
-	itf->csi_itf_ops.get_vc_dma_buf = get_vc_dma_buf;
-	itf->csi_itf_ops.put_vc_dma_buf = put_vc_dma_buf;
+	itf->csi_itf_ops.get_vc_dma_buf = NULL;
+	itf->csi_itf_ops.put_vc_dma_buf = NULL;
+	itf->csi_itf_ops.get_vc_dma_buf_size = NULL;
+	itf->csi_itf_ops.reserved[0] = csi_reserved_0;
+	itf->csi_itf_ops.reserved[1] = csi_reserved_1;
+	itf->csi_itf_ops.reserved[2] = csi_reserved_2;
+	itf->csi_itf_ops.reserved[3] = csi_reserved_3;
+	itf->csi_itf_ops.reserved[4] = csi_reserved_4;
 
 	return ret;
 }

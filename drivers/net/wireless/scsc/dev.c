@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2012 - 2017 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2018 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -55,11 +55,15 @@ static bool lls_disabled;
 module_param(lls_disabled, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(lls_disabled, "Disable LLS: to disable LLS set 1");
 
-static bool gscan_disabled = true;
+static bool gscan_disabled = 1;
 module_param(gscan_disabled, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(gscan_disabled, "Disable gscan: to disable gscan set 1");
 
-static bool epno_disabled = true;
+static bool llslogs_disabled;
+module_param(llslogs_disabled, bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(llslogs_disabled, "Disable llslogs: to disable llslogs set 1");
+
+static bool epno_disabled;
 module_param(epno_disabled, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(epno_disabled, "Disable ePNO: to disable ePNO set 1.\nNote: for ePNO to work gscan should be enabled");
 
@@ -67,13 +71,18 @@ static bool vo_vi_block_ack_disabled;
 module_param(vo_vi_block_ack_disabled, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(vo_vi_block_ack_disabled, "Disable VO VI Block Ack logic added for WMM AC Cert : 5.1.4");
 
-static int max_scan_result_count = 300;
+static int max_scan_result_count = 200;
 module_param(max_scan_result_count, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(max_scan_result_count, "Max scan results to be reported");
 
 bool slsi_dev_gscan_supported(void)
 {
 	return !gscan_disabled;
+}
+
+bool slsi_dev_llslogs_supported(void)
+{
+	return !llslogs_disabled;
 }
 
 bool slsi_dev_lls_supported(void)
@@ -121,6 +130,14 @@ static int slsi_dev_inetaddr_changed(struct notifier_block *nb, unsigned long da
 	if (SLSI_IS_VIF_INDEX_WLAN(ndev_vif) && wake_lock_active(&sdev->wlan_roam_wl)) {
 		SLSI_NET_DBG2(dev, SLSI_NETDEV, "Releasing the roaming wakelock\n");
 		wake_unlock(&sdev->wlan_roam_wl);
+		/* If upper layers included wps ie in connect but the actually
+		 * connection is not for wps, reset the wps flag.
+		 */
+		if (ndev_vif->sta.is_wps) {
+			SLSI_NET_DBG1(dev, SLSI_NETDEV,
+				      "is_wps set but not wps connection.\n");
+			ndev_vif->sta.is_wps = false;
+		}
 	}
 #endif
 	slsi_ip_address_changed(sdev, dev, ifa->ifa_address);
@@ -208,8 +225,12 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 	sdev->mlme_blocked = false;
 
 	SLSI_MUTEX_INIT(sdev->netdev_add_remove_mutex);
+	SLSI_MUTEX_INIT(sdev->netdev_remove_mutex);
 	SLSI_MUTEX_INIT(sdev->start_stop_mutex);
 	SLSI_MUTEX_INIT(sdev->device_config_mutex);
+#ifdef CONFIG_SCSC_WLAN_ENHANCED_LOGGING
+	SLSI_MUTEX_INIT(sdev->logger_mutex);
+#endif
 
 	sdev->dev = dev;
 	sdev->maxwell_core = core;
@@ -217,11 +238,17 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 
 	sdev->fail_reported = false;
 	sdev->p2p_certif = false;
+	sdev->allow_switch_40_mhz = true;
+	sdev->allow_switch_80_mhz = true;
 	sdev->mib_file_name = mib_file;
 	sdev->local_mib_file_name = local_mib_file;
 	sdev->maddr_file_name = maddr_file;
-	sdev->device_config.qos_info = 0;
+	sdev->device_config.qos_info = -1;
 	memset(&sdev->chip_info_mib, 0xFF, sizeof(struct slsi_chip_info_mib));
+
+#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
+	sdev->num_5g_restricted_channels = 0;
+#endif
 
 #ifdef CONFIG_SCSC_WLAN_WES_NCHO
 	sdev->device_config.okc_mode = 0;
@@ -433,9 +460,6 @@ void slsi_dev_detach(struct slsi_dev *sdev)
 
 	SLSI_DBG2(sdev, SLSI_INIT_DEINIT, "Clean up wakelock\n");
 	slsi_wakelock_exit(&sdev->wlan_wl_to);
-
-	SLSI_DBG2(sdev, SLSI_INIT_DEINIT, "Cleanup Device Data\n");
-	slsi_kfree_skb(sdev->device_config.channel_config);
 
 #ifndef SLSI_TEST_DEV
 	SLSI_DBG2(sdev, SLSI_INIT_DEINIT, "Clean up wakelock\n");

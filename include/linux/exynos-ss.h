@@ -38,6 +38,8 @@ extern int exynos_ss_get_hardlockup(void);
 extern unsigned int exynos_ss_get_item_size(char *);
 extern unsigned int exynos_ss_get_item_paddr(char *);
 extern void exynos_ss_panic_handler_safe(struct pt_regs *regs);
+extern void exynos_ss_i2c_clk(void *clk, int en, int clk_en);
+
 #ifdef CONFIG_EXYNOS_DRAMTEST
 extern int disable_mc_powerdn(void);
 #endif

@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2012 - 2016 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2017 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -39,8 +39,6 @@
 #define CMD_GETSCANNPROBES              "GETSCANNPROBES"
 #define CMD_SETROAMMODE         "SETROAMMODE"
 #define CMD_GETROAMMODE         "GETROAMMODE"
-#define CMD_SETCCXMODE          "SETCCXMODE"
-#define CMD_GETCCXMODE          "GETCCXMODE"
 #define CMD_SETROAMINTRABAND            "SETROAMINTRABAND"
 #define CMD_GETROAMINTRABAND            "GETROAMINTRABAND"
 #define CMD_SETROAMBAND         "SETROAMBAND"
@@ -74,10 +72,16 @@
 #define CMD_TDLSCHANNELSWITCH  "TDLS_CHANNEL_SWITCH"
 #define CMD_SETROAMOFFLOAD     "SETROAMOFFLOAD"
 #define CMD_SETROAMOFFLAPLIST  "SETROAMOFFLAPLIST"
-#define CMD_GETDFSSCANMODE     "GETDFSSCANMODE"
 
 #define CMD_SETBAND "SETBAND"
 #define CMD_GETBAND "GETBAND"
+#define CMD_SET_FCC_CHANNEL "SET_FCC_CHANNEL"
+
+#define CMD_FAKEMAC "FAKEMAC"
+
+#define CMD_GETBSSINFO "GETBSSINFO"
+#define CMD_GETSTAINFO "GETSTAINFO"
+#define CMD_GETASSOCREJECTINFO "GETASSOCREJECTINFO"
 
 /* Known commands from framework for which no handlers */
 #define CMD_AMPDU_MPDU "AMPDU_MPDU"
@@ -87,13 +91,14 @@
 #define CMD_CHANGE_RL "CHANGE_RL"
 #define CMD_INTERFACE_CREATE "INTERFACE_CREATE"
 #define CMD_INTERFACE_DELETE "INTERFACE_DELETE"
+#define CMD_SET_INDOOR_CHANNELS "SET_INDOOR_CHANNELS"
+#define CMD_GET_INDOOR_CHANNELS "GET_INDOOR_CHANNELS"
 #define CMD_LTECOEX "LTECOEX"
 #define CMD_MIRACAST "MIRACAST"
 #define CMD_RESTORE_RL "RESTORE_RL"
 #define CMD_RPSMODE "RPSMODE"
 #define CMD_SETCCXMODE "SETCCXMODE"
 #define CMD_SETDFSSCANMODE "SETDFSSCANMODE"
-#define CMD_SET_FCC_CHANNEL "SET_FCC_CHANNEL"
 #define CMD_SETJOINPREFER "SETJOINPREFER"
 #define CMD_SETSINGLEANT "SETSINGLEANT"
 #define CMD_SET_TX_POWER_CALLING "SET_TX_POWER_CALLING"
@@ -128,16 +133,65 @@ static void slsi_machexstring_to_macarray(char *mac_str, u8 *mac_arr)
 
 static ssize_t slsi_set_suspend_mode(struct net_device *dev, char *command)
 {
-	struct netdev_vif *ndev_vif = netdev_priv(dev);
-	struct slsi_dev   *sdev = ndev_vif->sdev;
-	int               user_suspend_mode = sdev->device_config.user_suspend_mode;
+	int vif;
+	struct netdev_vif *netdev_vif = netdev_priv(dev);
+	struct slsi_dev   *sdev = netdev_vif->sdev;
+	int               user_suspend_mode;
+	int               previous_suspend_mode;
+	u8                host_state;
 	int               ret = 0;
 
-	sdev->device_config.user_suspend_mode = *(command + strlen(CMD_SETSUSPENDMODE) + 1) - '0';
+	user_suspend_mode = *(command + strlen(CMD_SETSUSPENDMODE) + 1) - '0';
 
-	if (user_suspend_mode != sdev->device_config.user_suspend_mode)
-		(void)slsi_update_suspend_mode(sdev);
+	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
+	previous_suspend_mode = sdev->device_config.user_suspend_mode;
+	SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
 
+	SLSI_DBG3(sdev, SLSI_CFG80211, "user_suspend_mode:%d, previous_suspend_mode:%d\n",
+		  user_suspend_mode, previous_suspend_mode);
+
+	if (user_suspend_mode != previous_suspend_mode) {
+		SLSI_MUTEX_LOCK(sdev->netdev_add_remove_mutex);
+		for (vif = 1; vif <= CONFIG_SCSC_WLAN_MAX_INTERFACES; vif++) {
+			struct net_device *dev = slsi_get_netdev_locked(sdev, vif);
+			struct netdev_vif *ndev_vif;
+
+			if (!dev)
+				continue;
+
+			ndev_vif = netdev_priv(dev);
+			SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+			if ((ndev_vif->activated) &&
+			    (ndev_vif->vif_type == FAPI_VIFTYPE_STATION) &&
+			    (ndev_vif->sta.vif_status == SLSI_VIF_STATUS_CONNECTED)) {
+				if (user_suspend_mode)
+					ret = slsi_update_packet_filters(sdev, dev);
+				else
+					ret = slsi_clear_packet_filters(sdev, dev);
+				if (ret != 0)
+					SLSI_NET_ERR(dev, "Error in updating /clearing the packet filters,ret=%d", ret);
+			}
+
+			SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+		}
+		SLSI_MUTEX_UNLOCK(sdev->netdev_add_remove_mutex);
+	}
+
+	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
+	sdev->device_config.user_suspend_mode = user_suspend_mode;
+	host_state = sdev->device_config.host_state;
+
+	if (!sdev->device_config.user_suspend_mode)
+		host_state = host_state | FAPI_HOSTSTATE_LCD_ACTIVE;
+	else
+		host_state = host_state & ~FAPI_HOSTSTATE_LCD_ACTIVE;
+	sdev->device_config.host_state = host_state;
+
+	ret = slsi_mlme_set_host_state(sdev, dev, host_state);
+	if (ret != 0)
+		SLSI_NET_ERR(dev, "Error in setting the Host State, ret=%d", ret);
+
+	SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
 	return ret;
 }
 
@@ -145,13 +199,13 @@ static ssize_t slsi_set_p2p_oppps(struct net_device *dev, char *command, int buf
 {
 	struct netdev_vif *ndev_vif;
 	struct slsi_dev   *sdev;
-
-	u8                   *p2p_oppps_param = NULL;
-	int                  offset = 0;
-	struct slsi_mib_data mib_data = { 0, NULL };
-	int                  error = 0;
-	unsigned int         ct_param;
-	int                  result = 0;
+	u8                *p2p_oppps_param = NULL;
+	int               offset = 0;
+	unsigned int      ct_param;
+	unsigned int      legacy_ps;
+	unsigned int      opp_ps;
+	int               readbyte = 0;
+	int               result = 0;
 
 	SLSI_NET_DBG2(dev, SLSI_CFG80211, "Function entry\n");
 
@@ -167,31 +221,38 @@ static ssize_t slsi_set_p2p_oppps(struct net_device *dev, char *command, int buf
 	}
 
 	sdev = ndev_vif->sdev;
-	offset = slsi_str_to_int(&p2p_oppps_param[0], &ct_param);
-	if (!offset) {
-		SLSI_ERR(sdev, "ct_param: failed to read a numeric value\n");
+	readbyte = slsi_str_to_int(&p2p_oppps_param[offset], &legacy_ps);
+	if (!readbyte) {
+		SLSI_ERR(sdev, "ct_param: failed to read legacy_ps\n");
+		result = -EINVAL;
+		goto exit;
+	}
+	offset = offset + readbyte + 1;
+
+	readbyte = slsi_str_to_int(&p2p_oppps_param[offset], &opp_ps);
+	if (!readbyte) {
+		SLSI_ERR(sdev, "ct_param: failed to read ct_param\n");
+		result = -EINVAL;
+		goto exit;
+	}
+	offset = offset + readbyte + 1;
+
+	readbyte = slsi_str_to_int(&p2p_oppps_param[offset], &ct_param);
+	if (!readbyte) {
+		SLSI_ERR(sdev, "ct_param: failed to read ct_param\n");
 		result = -EINVAL;
 		goto exit;
 	}
 
-	if (ct_param == 1) {
-		SLSI_WARN(sdev, "p2p oppps = %d, Ignore this command as p2p oppps already active\n", ct_param);
-		goto exit;
+	if (opp_ps == 0) {
+		SLSI_DBG1(sdev, SLSI_CFG80211, "p2p opp_ps = %d\n", opp_ps);
+		result = slsi_mlme_set_ctwindow(sdev, dev, opp_ps);
 	} else if (ct_param < (unsigned int)ndev_vif->ap.beacon_interval) {
 		SLSI_DBG1(sdev, SLSI_CFG80211, "p2p ct window = %d\n", ct_param);
-		error = slsi_mib_encode_uint(&mib_data, SLSI_PSID_UNIFI_CT_WINDOW, ct_param, 0);
+		result = slsi_mlme_set_ctwindow(sdev, dev, ct_param);
 	} else {
 		SLSI_DBG1(sdev, SLSI_CFG80211, "p2p ct window = %d is out of range for beacon interval(%d)\n", ct_param, ndev_vif->ap.beacon_interval);
-		goto exit;
 	}
-	if ((error != SLSI_MIB_STATUS_SUCCESS) || (mib_data.dataLength == 0)) {
-		result = -ENOMEM;
-		goto exit;
-	}
-
-	result = slsi_mlme_set(sdev, dev, mib_data.data, mib_data.dataLength);
-	kfree(mib_data.data);
-
 exit:
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 
@@ -200,18 +261,15 @@ exit:
 
 static ssize_t slsi_p2p_set_noa_params(struct net_device *dev, char *command, int buf_len)
 {
-	struct netdev_vif *ndev_vif;
-	struct slsi_dev   *sdev;
-
+	struct netdev_vif    *ndev_vif;
+	struct slsi_dev      *sdev;
 	int                  result = 0;
 	u8                   *noa_params = NULL;
 	int                  offset = 0;
 	int                  readbyte = 0;
-	struct slsi_mib_data mib_data = { 0, NULL };
-	int                  error = 0;
 	unsigned int         noa_count;
-	unsigned int         start_time;
 	unsigned int         duration;
+	unsigned int         interval;
 
 	SLSI_NET_DBG4(dev, SLSI_NETDEV, "Function entry\n");
 
@@ -233,13 +291,15 @@ static ssize_t slsi_p2p_set_noa_params(struct net_device *dev, char *command, in
 		goto exit;
 	}
 	offset = offset + readbyte + 1;
-	readbyte = slsi_str_to_int(&noa_params[offset], &start_time);
+
+	readbyte = slsi_str_to_int(&noa_params[offset], &interval);
 	if (!readbyte) {
-		SLSI_ERR(sdev, "start_time: failed to read a numeric value\n");
+		SLSI_ERR(sdev, "interval: failed to read a numeric value\n");
 		result = -EINVAL;
 		goto exit;
 	}
 	offset = offset + readbyte + 1;
+
 	readbyte = slsi_str_to_int(&noa_params[offset], &duration);
 	if (!readbyte) {
 		SLSI_ERR(sdev, "duration: failed to read a numeric value, at offset(%d)\n", offset);
@@ -247,28 +307,11 @@ static ssize_t slsi_p2p_set_noa_params(struct net_device *dev, char *command, in
 		goto exit;
 	}
 
-	SLSI_DBG1(sdev, SLSI_CFG80211, "p2p noa_params (count,starttime,duration)= (%d,%d,%d)\n", noa_count, start_time, duration);
+	/* Skip start time */
 
-	error = slsi_mib_encode_uint(&mib_data, SLSI_PSID_UNIFI_NOA_COUNT, noa_count, 0);
-	if (error != SLSI_MIB_STATUS_SUCCESS) {
-		result = -ENOMEM;
-		goto exit;
-	}
-	if (noa_count) {
-		error = slsi_mib_encode_uint(&mib_data, SLSI_PSID_UNIFI_NOA_START_OFFSET, start_time, 0);
-		if (error != SLSI_MIB_STATUS_SUCCESS) {
-			result = -ENOMEM;
-			goto mibexit;
-		}
-		error = slsi_mib_encode_uint(&mib_data, SLSI_PSID_UNIFI_NOA_DURATION, duration, 0);
-		if (error != SLSI_MIB_STATUS_SUCCESS) {
-			result = -ENOMEM;
-			goto mibexit;
-		}
-	}
-	result = slsi_mlme_set(sdev, dev, mib_data.data, mib_data.dataLength);
-mibexit:
-	kfree(mib_data.data);
+	SLSI_DBG1(sdev, SLSI_CFG80211, "p2p noa_params (count,interval,duration)= (%d,%d,%d)\n",
+		  noa_count, interval, duration);
+	result = slsi_mlme_set_p2p_noa(sdev, dev, noa_count, interval, duration);
 
 exit:
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
@@ -297,7 +340,7 @@ static ssize_t slsi_p2p_ecsa(struct net_device *dev, char *command)
 	ndev_vif = netdev_priv(dev);
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 	sdev = ndev_vif->sdev;
-	group_dev = slsi_get_netdev(sdev, SLSI_NET_INDEX_P2PX);
+	group_dev = slsi_get_netdev(sdev, SLSI_NET_INDEX_P2PX_SWLAN);
 	if (!group_dev) {
 		SLSI_INFO(sdev, "No Group net_dev found\n");
 		return -EINVAL;
@@ -633,6 +676,96 @@ static ssize_t slsi_rx_filter_num_write(struct net_device *dev, int add_remove, 
 	return ret;
 }
 
+#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
+static ssize_t slsi_create_interface(struct net_device *dev, char *intf_name)
+{
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	struct slsi_dev   *sdev = ndev_vif->sdev;
+	struct net_device   *swlan_dev;
+	struct netdev_vif *ndev_swlan_vif;
+
+	swlan_dev = slsi_get_netdev(sdev, SLSI_NET_INDEX_P2PX_SWLAN);
+	if (WARN_ON(swlan_dev))
+		return -EINVAL;
+
+	swlan_dev = slsi_new_interface_create(sdev->wiphy, intf_name, NL80211_IFTYPE_AP, NULL);
+	if (swlan_dev) {
+		ndev_swlan_vif = netdev_priv(swlan_dev);
+		SLSI_MUTEX_LOCK(ndev_swlan_vif->vif_mutex);
+		ndev_swlan_vif->wifi_sharing = true;
+		SLSI_MUTEX_UNLOCK(ndev_swlan_vif->vif_mutex);
+		SLSI_DBG1_NODEV(SLSI_MLME, "Interface %s created successfully\n", intf_name);
+		return 0;
+	}
+
+	return -EINVAL;
+}
+
+static ssize_t slsi_delete_interface(struct net_device *dev, char *intf_name)
+{
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	struct slsi_dev   *sdev = ndev_vif->sdev;
+
+	if (strcmp(intf_name, "swlan0") == 0)
+		dev = sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN];
+
+	if (WARN_ON(!dev))
+		return -EINVAL;
+	ndev_vif = netdev_priv(dev);
+
+	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+	ndev_vif->wifi_sharing = false;
+	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+
+	if (ndev_vif->activated)
+		slsi_stop_net_dev(sdev, dev);
+	slsi_netif_remove_rtlnl_locked(sdev, dev);
+
+	SLSI_DBG1_NODEV(SLSI_MLME, "Interface %s deleted successfully\n", intf_name);
+
+	return 0;
+}
+
+static ssize_t slsi_set_indoor_channels(struct net_device *dev, char *arg)
+{
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	struct slsi_dev   *sdev = ndev_vif->sdev;
+	int readbyte = 0;
+	int offset = 0;
+	int res;
+	int ret;
+
+	readbyte = slsi_str_to_int(&arg[offset], &res);
+	SLSI_DBG1_NODEV(SLSI_MLME, "SET_INDOOR_CHANNELS : %s\n", arg);
+
+	ret = slsi_set_mib_wifi_sharing_5ghz_channel(sdev, SLSI_PSID_UNIFI_WI_FI_SHARING5_GHZ_CHANNEL,
+						     res, offset, readbyte, arg);
+
+	return ret;
+}
+
+static ssize_t slsi_get_indoor_channels(struct net_device *dev, char *command, int buf_len)
+{
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	struct slsi_dev   *sdev = ndev_vif->sdev;
+	char op[150] = "";
+	char int_string[30] = "";
+	int i;
+	int len = 0;
+
+	SLSI_DBG1_NODEV(SLSI_MLME, "GET_INDOOR_CHANNELS : %d ", sdev->num_5g_restricted_channels);
+
+	for (i = 0; i < sdev->num_5g_restricted_channels; i++) {
+		sprintf(int_string, "%d", sdev->wifi_sharing_5g_restricted_channels[i]);
+		strcat(op, int_string);
+		strcat(op, " ");
+	}
+
+	len = snprintf(command, buf_len, "%d %s", sdev->num_5g_restricted_channels, op);
+
+	return len;
+}
+#endif
 static ssize_t slsi_set_country_rev(struct net_device *dev, char *country_code)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
@@ -703,7 +836,7 @@ static ssize_t slsi_roam_delta_trigger_write(struct net_device *dev, char *comma
 	slsi_str_to_int(command, &mib_value);
 	SLSI_DBG1_NODEV(SLSI_MLME, "Setting to: %d", mib_value);
 
-	return slsi_set_mib_roam(sdev, NULL, SLSI_PSID_UNIFI_RSSI_ROAM_DELTA_TRIGGER, mib_value);
+	return slsi_set_mib_roam(sdev, NULL, SLSI_PSID_UNIFI_ROAM_DELTA_TRIGGER, mib_value);
 }
 
 static ssize_t slsi_roam_delta_trigger_read(struct net_device *dev, char *command, int buf_len)
@@ -713,7 +846,7 @@ static ssize_t slsi_roam_delta_trigger_read(struct net_device *dev, char *comman
 	int               mib_value = 0;
 	int               res;
 
-	res = slsi_get_mib_roam(sdev, SLSI_PSID_UNIFI_RSSI_ROAM_DELTA_TRIGGER, &mib_value);
+	res = slsi_get_mib_roam(sdev, SLSI_PSID_UNIFI_ROAM_DELTA_TRIGGER, &mib_value);
 	if (res)
 		return res;
 
@@ -730,7 +863,7 @@ static ssize_t slsi_cached_channel_scan_period_write(struct net_device *dev, cha
 	slsi_str_to_int(command, &mib_value);
 	SLSI_DBG1_NODEV(SLSI_MLME, "Setting to: %d", mib_value);
 
-	return slsi_set_mib_roam(sdev, NULL, SLSI_PSID_UNIFI_CACHED_CHANNEL_SCAN_PERIOD, mib_value * 1000000);
+	return slsi_set_mib_roam(sdev, NULL, SLSI_PSID_UNIFI_ROAM_CACHED_CHANNEL_SCAN_PERIOD, mib_value * 1000000);
 }
 
 static ssize_t slsi_cached_channel_scan_period_read(struct net_device *dev, char *command, int buf_len)
@@ -740,7 +873,7 @@ static ssize_t slsi_cached_channel_scan_period_read(struct net_device *dev, char
 	int               mib_value = 0;
 	int               res;
 
-	res = slsi_get_mib_roam(sdev, SLSI_PSID_UNIFI_CACHED_CHANNEL_SCAN_PERIOD, &mib_value);
+	res = slsi_get_mib_roam(sdev, SLSI_PSID_UNIFI_ROAM_CACHED_CHANNEL_SCAN_PERIOD, &mib_value);
 	if (res)
 		return res;
 
@@ -917,34 +1050,6 @@ static int slsi_roam_offload_ap_list(struct net_device *dev, char *command, int 
 	return r;
 }
 
-static ssize_t slsi_ccx_mode_write(struct net_device *dev, char *command, int buf_len)
-{
-	struct netdev_vif *ndev_vif = netdev_priv(dev);
-	struct slsi_dev   *sdev = ndev_vif->sdev;
-	int               mib_value = 0;
-
-	slsi_str_to_int(command, &mib_value);
-	SLSI_DBG1_NODEV(SLSI_MLME, "Setting to: %d", mib_value);
-
-	return slsi_set_mib_roam(sdev, NULL, SLSI_PSID_UNIFI_CCX_SUPPORTED_VERSION, mib_value);
-}
-
-static ssize_t slsi_ccx_mode_read(struct net_device *dev, char *command, int buf_len)
-{
-	struct netdev_vif *ndev_vif = netdev_priv(dev);
-	struct slsi_dev   *sdev = ndev_vif->sdev;
-	int               mib_value = 0;
-	int               res;
-
-	res = slsi_get_mib_roam(sdev, SLSI_PSID_UNIFI_CCX_SUPPORTED_VERSION, &mib_value);
-	if (res)
-		return res;
-
-	res = snprintf(command, buf_len, "%s %d", CMD_GETCCXMODE, (mib_value > 0) ? 1 : 0);
-
-	return res;
-}
-
 static ssize_t slsi_roam_scan_band_write(struct net_device *dev, char *command, int buf_len)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
@@ -993,29 +1098,6 @@ static ssize_t slsi_freq_band_read(struct net_device *dev, char *command, int bu
 
 	memset(buf, '\0', 128);
 	pos += scnprintf(buf + pos, bufsz - pos, "Band %d", sdev->device_config.supported_band);
-
-	buf[pos] = '\0';
-	memcpy(command, buf, pos + 1);
-
-	return pos;
-}
-
-static ssize_t slsi_dfs_scan_mode_read(struct net_device *dev, char *command, int buf_len)
-{
-	struct netdev_vif *ndev_vif = netdev_priv(dev);
-	struct slsi_dev   *sdev = ndev_vif->sdev;
-	int               mib_value = 0;
-	int               res;
-	char              buf[128];
-	int               pos = 0;
-	const size_t      bufsz = sizeof(buf);
-
-	memset(buf, '\0', 128);
-	res = slsi_get_mib_roam(sdev, SLSI_PSID_UNIFI_DFS_SCAN_MODE, &mib_value);
-	if (res)
-		return res;
-
-	pos += scnprintf(buf + pos, bufsz - pos, "%s %d", CMD_GETDFSSCANMODE, mib_value);
 
 	buf[pos] = '\0';
 	memcpy(command, buf, pos + 1);
@@ -1304,6 +1386,11 @@ static ssize_t slsi_auto_chan_write(struct net_device *dev, char *command, int b
 	int                      count_channels;
 	int                      offset;
 	int                      chan;
+#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
+	struct net_device *sta_dev = slsi_get_netdev(sdev, SLSI_NET_INDEX_WLAN);
+	struct netdev_vif *ndev_sta_vif  = netdev_priv(sta_dev);
+	int sta_frequency;
+#endif
 
 	offset = slsi_str_to_int(&command[21], &n_channels);
 	if (!offset) {
@@ -1344,6 +1431,21 @@ static ssize_t slsi_auto_chan_write(struct net_device *dev, char *command, int b
 	sdev->device_config.ap_auto_chan = 0;
 	SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
 
+#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
+if ((ndev_sta_vif->activated) && (ndev_sta_vif->vif_type == FAPI_VIFTYPE_STATION) &&
+				 (ndev_sta_vif->sta.vif_status == SLSI_VIF_STATUS_CONNECTING ||
+				  ndev_sta_vif->sta.vif_status == SLSI_VIF_STATUS_CONNECTED)) {
+	sta_frequency = ndev_sta_vif->chan->center_freq;
+	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
+	if ((sta_frequency / 1000) == 2)
+		sdev->device_config.ap_auto_chan = ieee80211_frequency_to_channel(sta_frequency);
+	else
+		sdev->device_config.ap_auto_chan = 1;
+	SLSI_DBG1(sdev, SLSI_INIT_DEINIT, "Auto channel written = %d", sdev->device_config.ap_auto_chan);
+	SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
+	return 0;
+}
+#endif /*wifi sharing*/
 	return slsi_auto_chan_select_scan(sdev, count_channels, channels);
 }
 
@@ -1547,38 +1649,55 @@ static ssize_t slsi_country_write(struct net_device *dev, char *country_code)
 	return status;
 }
 
-static ssize_t slsi_gk_key_write(struct net_device *dev, char *command, int buf_len)
+static ssize_t slsi_update_rssi_boost(struct net_device *dev, char *rssi_boost_string)
 {
-#define CCX_KRK_LEN 16
-#define CCX_BTK_LEN 32
-	struct netdev_vif        *netdev_vif = netdev_priv(dev);
-	struct slsi_dev          *sdev = netdev_vif->sdev;
-	int               r = -EINVAL;
-	s32              vif;
-	u8                gk_key[CCX_KRK_LEN+CCX_BTK_LEN];
+	struct netdev_vif *netdev_vif = netdev_priv(dev);
+	struct slsi_dev   *sdev = netdev_vif->sdev;
+	int digit1, digit2, band, lendigit1, lendigit2;
+	int boost = 0, length = 0, i = 0;
 
-	memcpy((u8 *)gk_key, command, (CCX_BTK_LEN+CCX_KRK_LEN));
-
-	SLSI_MUTEX_LOCK(sdev->netdev_add_remove_mutex);
-	for (vif = 1; vif <= CONFIG_SCSC_WLAN_MAX_INTERFACES; vif++) {
-		SLSI_MUTEX_LOCK(netdev_vif->vif_mutex);
-
-		if (!netdev_vif->activated) {
-			SLSI_MUTEX_UNLOCK(netdev_vif->vif_mutex);
-			continue;
+	if (strlen(rssi_boost_string) < 8)
+		return -EINVAL;
+	for (i = 0; i < (strlen(rssi_boost_string) - 4);) {
+		if (rssi_boost_string[i] == '0' &&
+		    rssi_boost_string[i + 1] == '4') {
+			if (rssi_boost_string[i + 2] == '0' &&
+			    rssi_boost_string[i + 3] == '2' &&
+			    ((i + 7) < strlen(rssi_boost_string)))
+				i = i + 4;
+			else
+				return -EINVAL;
+			digit1 = slsi_parse_hex(rssi_boost_string[i]);
+			digit2 = slsi_parse_hex(rssi_boost_string[i + 1]);
+			boost = (digit1 * 16) + digit2;
+			band = rssi_boost_string[i + 3] - '0';
+			SLSI_MUTEX_LOCK(sdev->device_config_mutex);
+			if (band == 0) {
+				sdev->device_config.rssi_boost_2g = 0;
+				sdev->device_config.rssi_boost_5g = 0;
+			} else if (band == 1) {
+				sdev->device_config.rssi_boost_2g = 0;
+				sdev->device_config.rssi_boost_5g = boost;
+			} else {
+				sdev->device_config.rssi_boost_2g = boost;
+				sdev->device_config.rssi_boost_5g = 0;
+			}
+			SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
+			if ((netdev_vif->activated) &&
+			    (netdev_vif->vif_type == FAPI_VIFTYPE_STATION)) {
+				return slsi_set_boost(sdev, dev);
+			} else {
+				return 0;
+			}
+		} else {
+			i = i + 2;
+			lendigit1 = slsi_parse_hex(rssi_boost_string[i]);
+			lendigit2 = slsi_parse_hex(rssi_boost_string[i + 1]);
+			length = (lendigit1 * 16) + lendigit2;
+			i = i + (length * 2) + 2;
 		}
-
-		if ((netdev_vif->vif_type == FAPI_VIFTYPE_STATION) &&
-		    (netdev_vif->iftype == NL80211_IFTYPE_STATION)) {
-			r = slsi_mlme_set_cckm_key(sdev, dev, gk_key);
-			SLSI_MUTEX_UNLOCK(netdev_vif->vif_mutex);
-			break;
-		}
-		SLSI_MUTEX_UNLOCK(netdev_vif->vif_mutex);
 	}
-	SLSI_MUTEX_UNLOCK(sdev->netdev_add_remove_mutex);
-
-	return r;
+	return -EINVAL;
 }
 
 static int slsi_tdls_channel_switch(struct net_device *dev, char *command, int buf_len)
@@ -1674,22 +1793,24 @@ int slsi_set_tx_power_calling(struct net_device *dev, char *command, int buf_len
 	struct netdev_vif    *ndev_vif = netdev_priv(dev);
 	struct slsi_dev      *sdev = ndev_vif->sdev;
 	int                  mode;
-	struct slsi_mib_data mib_data = { 0, NULL };
 	int                  error = 0;
+	u8                   host_state;
 
 	(void)slsi_str_to_int(command, &mode);
 	SLSI_DBG1(sdev, SLSI_MLME, "Mode:%d\n", mode);
 
-	error = slsi_mib_encode_uint(&mib_data, SLSI_PSID_UNIFI_SAR_BACKOFF_ENABLE, mode == 0 ? 1 : 0, 0);
-	if ((error != SLSI_MIB_STATUS_SUCCESS) || (mib_data.dataLength == 0))
-		return -ENOMEM;
-
 	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
-	error = slsi_mlme_set(sdev, NULL, mib_data.data, mib_data.dataLength);
-	if (error != 0)
-		SLSI_ERR(sdev, "mlme_set_req failed:%d\n", error);
+	host_state = sdev->device_config.host_state;
+
+	if (!mode)
+		host_state = host_state | FAPI_HOSTSTATE_SAR_ACTIVE;
+	else
+		host_state = host_state & ~FAPI_HOSTSTATE_SAR_ACTIVE;
+	sdev->device_config.host_state = host_state;
+
+	error = slsi_mlme_set_host_state(sdev, dev, host_state);
+
 	SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
-	kfree(mib_data.data);
 
 	return error;
 }
@@ -1759,7 +1880,7 @@ static int slsi_print_regulatory(struct slsi_802_11d_reg_domain *domain_info, ch
 			for (k = 0; k < domain_info->regdomain->n_reg_rules; k++) {
 				reg_rule = &domain_info->regdomain->reg_rules[k];
 				if ((reg_rule->freq_range.start_freq_khz <= channel_start_freq) &&
-					(reg_rule->freq_range.end_freq_khz >= channel_end_freq)) {
+				    (reg_rule->freq_range.end_freq_khz >= channel_end_freq)) {
 					if (display_pattern)
 						cur_pos += snprintf(buf + cur_pos, buf_len - cur_pos, ", %d", j);
 					else
@@ -1897,24 +2018,24 @@ int slsi_set_fcc_channel(struct net_device *dev, char *cmd, int cmd_len)
 {
 	struct netdev_vif    *ndev_vif = netdev_priv(dev);
 	struct slsi_dev      *sdev = ndev_vif->sdev;
-	struct slsi_mib_data mib_data = { 0, NULL };
 	int                  status;
 	bool                 max_power_ena;
+	u8                   host_state;
 
 	max_power_ena = (cmd[0]  == '0');
-	SLSI_DBG3(sdev, SLSI_NETDEV, "mib value :%d\n", max_power_ena);
-
-	status = slsi_mib_encode_bool(&mib_data, SLSI_PSID_UNIFI_NO_CELL_MAX_POWER_ENA, max_power_ena, 0);
-	if (status != SLSI_MIB_STATUS_SUCCESS) {
-		SLSI_ERR(sdev, "SET_FCC_CHANNEL FAIL: no mem for MIB\n");
-		return -ENOMEM;
-	}
+	SLSI_DBG3(sdev, SLSI_NETDEV, "max_power_ena :%d\n", max_power_ena);
 
 	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
-	status = slsi_mlme_set(sdev, NULL, mib_data.data, mib_data.dataLength);
-	SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
+	host_state = sdev->device_config.host_state;
 
-	kfree(mib_data.data);
+	if (max_power_ena)
+		host_state = host_state | FAPI_HOSTSTATE_CELLULAR_ACTIVE;
+	else
+		host_state = host_state & ~FAPI_HOSTSTATE_CELLULAR_ACTIVE;
+	sdev->device_config.host_state = host_state;
+
+	status = slsi_mlme_set_host_state(sdev, dev, host_state);
+	SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
 
 	if (status)
 		SLSI_ERR(sdev, "Err setting MMaxPowerEna. error = %d\n", status);
@@ -1922,12 +2043,154 @@ int slsi_set_fcc_channel(struct net_device *dev, char *cmd, int cmd_len)
 	return status;
 }
 
+int slsi_fake_mac_write(struct net_device *dev, char *cmd)
+{
+	struct netdev_vif    *ndev_vif = netdev_priv(dev);
+	struct slsi_dev      *sdev = ndev_vif->sdev;
+	struct slsi_mib_data mib_data = { 0, NULL };
+	int                  status;
+	bool                enable;
+
+	if (strncmp(cmd, "ON", strlen("ON")) == 0)
+		enable = 1;
+	else
+		enable = 0;
+
+	SLSI_DBG3(sdev, SLSI_NETDEV, "FAKE MAC :%d\n", enable);
+
+	status = slsi_mib_encode_bool(&mib_data, SLSI_PSID_UNIFI_MAC_ADDRESS_RANDOMISATION, enable, 0);
+	if (status != SLSI_MIB_STATUS_SUCCESS) {
+		SLSI_ERR(sdev, "FAKE MAC FAIL: no mem for MIB\n");
+		return -ENOMEM;
+	}
+
+	status = slsi_mlme_set(sdev, NULL, mib_data.data, mib_data.dataLength);
+
+	kfree(mib_data.data);
+
+	if (status)
+		SLSI_ERR(sdev, "Err setting unifiMacAddrRandomistaion MIB. error = %d\n", status);
+
+	return status;
+}
+
+static char *slsi_get_assoc_status(u16 fw_result_code)
+{
+	char *assoc_status_label = "unspecified_failure";
+
+	switch (fw_result_code) {
+	case FAPI_RESULTCODE_SUCCESS:
+		assoc_status_label = "success";
+		break;
+	case FAPI_RESULTCODE_TRANSMISSION_FAILURE:
+		assoc_status_label = "transmission_failure";
+		break;
+	case FAPI_RESULTCODE_HOST_REQUEST_SUCCESS:
+		assoc_status_label = "host_request_success";
+		break;
+	case FAPI_RESULTCODE_HOST_REQUEST_FAILED:
+		assoc_status_label = "host_request_failed";
+		break;
+	case FAPI_RESULTCODE_PROBE_TIMEOUT:
+		assoc_status_label = "probe_timeout";
+		break;
+	case FAPI_RESULTCODE_AUTH_TIMEOUT:
+		assoc_status_label = "auth_timeout";
+		break;
+	case FAPI_RESULTCODE_ASSOC_TIMEOUT:
+		assoc_status_label = "assoc_timeout";
+		break;
+	case FAPI_RESULTCODE_ASSOC_ABORT:
+		assoc_status_label = "assoc_abort";
+		break;
+	}
+	return assoc_status_label;
+}
+
+int slsi_get_sta_info(struct net_device *dev, char *command, int buf_len)
+{
+	struct netdev_vif   *ndev_vif = netdev_priv(dev);
+	struct slsi_dev      *sdev = ndev_vif->sdev;
+	int                       len;
+#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
+	struct net_device *ap_dev;
+	struct netdev_vif *ndev_ap_vif;
+
+	ap_dev = slsi_get_netdev(sdev, SLSI_NET_INDEX_P2PX_SWLAN);
+
+	if (ap_dev) {
+		ndev_ap_vif = netdev_priv(ap_dev);
+		SLSI_MUTEX_LOCK(ndev_ap_vif->vif_mutex);
+		if (SLSI_IS_INTERFACE_WIFI_SHARING_AP(ndev_ap_vif))
+			ndev_vif = ndev_ap_vif;
+		SLSI_MUTEX_UNLOCK(ndev_ap_vif->vif_mutex);
+	}
+#endif
+
+	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+
+	if ((!ndev_vif->activated) || (ndev_vif->vif_type != FAPI_VIFTYPE_AP)) {
+		SLSI_ERR(sdev, "slsi_get_sta_info: AP is not up.Command not allowed vif.activated:%d, vif.type:%d\n",
+			 ndev_vif->activated, ndev_vif->vif_type);
+		SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+		return -EINVAL;
+	}
+
+	len = snprintf(command, buf_len, "wl_get_sta_info : %02x%02x%02x %u %d %d %d %d %d %d %u ",
+		       ndev_vif->ap.last_disconnected_sta.address[0], ndev_vif->ap.last_disconnected_sta.address[1],
+		       ndev_vif->ap.last_disconnected_sta.address[2], ndev_vif->ap.channel_freq,
+		       ndev_vif->ap.last_disconnected_sta.bandwidth, ndev_vif->ap.last_disconnected_sta.rssi,
+		       ndev_vif->ap.last_disconnected_sta.tx_data_rate, ndev_vif->ap.last_disconnected_sta.mode,
+		       ndev_vif->ap.last_disconnected_sta.antenna_mode,
+		       ndev_vif->ap.last_disconnected_sta.mimo_used, ndev_vif->ap.last_disconnected_sta.reason);
+
+	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+
+	return len;
+}
+
+static int slsi_get_bss_info(struct net_device *dev, char *command, int buf_len)
+{
+	struct netdev_vif        *ndev_vif = netdev_priv(dev);
+	int len = 0;
+
+	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+
+	len = snprintf(command, buf_len, "%02x:%02x:%02x %u %u %d %u %u %u %u %u %d %d %u %u %u %u",
+		       ndev_vif->sta.last_connected_bss.address[0],  ndev_vif->sta.last_connected_bss.address[1],
+		       ndev_vif->sta.last_connected_bss.address[2],
+		       ndev_vif->sta.last_connected_bss.channel_freq, ndev_vif->sta.last_connected_bss.bandwidth,
+		       ndev_vif->sta.last_connected_bss.rssi, ndev_vif->sta.last_connected_bss.tx_data_rate,
+		       ndev_vif->sta.last_connected_bss.mode, ndev_vif->sta.last_connected_bss.antenna_mode,
+		       ndev_vif->sta.last_connected_bss.mimo_used,
+		       ndev_vif->sta.last_connected_bss.passpoint_version, ndev_vif->sta.last_connected_bss.snr,
+		       ndev_vif->sta.last_connected_bss.noise_level, ndev_vif->sta.last_connected_bss.roaming_akm,
+		       ndev_vif->sta.last_connected_bss.roaming_count, ndev_vif->sta.last_connected_bss.kv,
+		       ndev_vif->sta.last_connected_bss.kvie);
+
+	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+
+	return len;
+}
+
+static int slsi_get_assoc_reject_info(struct net_device *dev, char *command, int buf_len)
+{
+	struct netdev_vif    *ndev_vif = netdev_priv(dev);
+	struct slsi_dev      *sdev = ndev_vif->sdev;
+	int len = 0;
+
+	len = snprintf(command, buf_len, "assoc_reject.status : %d %s", sdev->assoc_result_code,
+		       slsi_get_assoc_status(sdev->assoc_result_code));
+
+	return len;
+}
+
 int slsi_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
 #define MAX_LEN_PRIV_COMMAND    4096 /*This value is the max reply size set in supplicant*/
 	struct android_wifi_priv_cmd priv_cmd;
 	int                          ret = 0;
-	u8                        *command = NULL;
+	u8                           *command = NULL;
 
 	if (!dev) {
 		ret = -ENODEV;
@@ -1965,6 +2228,10 @@ int slsi_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 
 	if (strnicmp(command, CMD_SETSUSPENDMODE, strlen(CMD_SETSUSPENDMODE)) == 0) {
 		ret = slsi_set_suspend_mode(dev, command);
+	} else if (strnicmp(command, CMD_SETJOINPREFER, strlen(CMD_SETJOINPREFER)) == 0) {
+		char *rssi_boost_string = command + strlen(CMD_SETJOINPREFER) + 1;
+
+		ret = slsi_update_rssi_boost(dev, rssi_boost_string);
 	} else if (strnicmp(command, CMD_RXFILTERADD, strlen(CMD_RXFILTERADD)) == 0) {
 		int filter_num = *(command + strlen(CMD_RXFILTERADD) + 1) - '0';
 
@@ -1973,77 +2240,86 @@ int slsi_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 		int filter_num = *(command + strlen(CMD_RXFILTERREMOVE) + 1) - '0';
 
 		ret = slsi_rx_filter_num_write(dev, 0, filter_num);
+#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
+	} else if (strnicmp(command, CMD_INTERFACE_CREATE, strlen(CMD_INTERFACE_CREATE)) == 0) {
+		char *intf_name = command + strlen(CMD_INTERFACE_CREATE) + 1;
+
+		ret = slsi_create_interface(dev, intf_name);
+	} else if (strnicmp(command, CMD_INTERFACE_DELETE, strlen(CMD_INTERFACE_DELETE)) == 0) {
+		char *intf_name = command + strlen(CMD_INTERFACE_DELETE) + 1;
+
+		ret = slsi_delete_interface(dev, intf_name);
+	} else if (strncasecmp(command, CMD_SET_INDOOR_CHANNELS, strlen(CMD_SET_INDOOR_CHANNELS)) == 0) {
+		char *arg = command + strlen(CMD_SET_INDOOR_CHANNELS) + 1;
+
+		ret = slsi_set_indoor_channels(dev, arg);
+	} else if (strncasecmp(command, CMD_GET_INDOOR_CHANNELS, strlen(CMD_GET_INDOOR_CHANNELS)) == 0) {
+		ret = slsi_get_indoor_channels(dev, command, priv_cmd.total_len);
+#endif
 	} else if (strnicmp(command, CMD_SETCOUNTRYREV, strlen(CMD_SETCOUNTRYREV)) == 0) {
 		char *country_code = command + strlen(CMD_SETCOUNTRYREV) + 1;
 
 		ret = slsi_set_country_rev(dev, country_code);
-	} else if (strnicmp(command, CMD_GETCOUNTRYREV, strlen(CMD_GETCOUNTRYREV)) == 0) {
-		ret = slsi_get_country_rev(dev, priv_cmd.buf, priv_cmd.total_len);
+	} else if (strncasecmp(command, CMD_GETCOUNTRYREV, strlen(CMD_GETCOUNTRYREV)) == 0) {
+		ret = slsi_get_country_rev(dev, command, priv_cmd.total_len);
 #ifdef CONFIG_SCSC_WLAN_WES_NCHO
 	} else if (strnicmp(command, CMD_SETROAMTRIGGER, strlen(CMD_SETROAMTRIGGER)) == 0) {
 		int skip = strlen(CMD_SETROAMTRIGGER) + 1;
 
 		ret = slsi_roam_scan_trigger_write(dev, command + skip,
 						   priv_cmd.total_len - skip);
-	} else if (strnicmp(command, CMD_GETROAMTRIGGER, strlen(CMD_GETROAMTRIGGER)) == 0) {
-		ret = slsi_roam_scan_trigger_read(dev, priv_cmd.buf, priv_cmd.total_len);
-	} else if (strnicmp(command, CMD_SETROAMDELTA, strlen(CMD_SETROAMDELTA)) == 0) {
+	} else if (strncasecmp(command, CMD_GETROAMTRIGGER, strlen(CMD_GETROAMTRIGGER)) == 0) {
+		ret = slsi_roam_scan_trigger_read(dev, command, priv_cmd.total_len);
+	} else if (strncasecmp(command, CMD_SETROAMDELTA, strlen(CMD_SETROAMDELTA)) == 0) {
 		int skip = strlen(CMD_SETROAMDELTA) + 1;
 
 		ret = slsi_roam_delta_trigger_write(dev, command + skip,
 						    priv_cmd.total_len - skip);
-	} else if (strnicmp(command, CMD_GETROAMDELTA, strlen(CMD_GETROAMDELTA)) == 0) {
-		ret = slsi_roam_delta_trigger_read(dev, priv_cmd.buf, priv_cmd.total_len);
-	} else if (strnicmp(command, CMD_SETROAMSCANPERIOD, strlen(CMD_SETROAMSCANPERIOD)) == 0) {
+	} else if (strncasecmp(command, CMD_GETROAMDELTA, strlen(CMD_GETROAMDELTA)) == 0) {
+		ret = slsi_roam_delta_trigger_read(dev, command, priv_cmd.total_len);
+	} else if (strncasecmp(command, CMD_SETROAMSCANPERIOD, strlen(CMD_SETROAMSCANPERIOD)) == 0) {
 		int skip = strlen(CMD_SETROAMSCANPERIOD) + 1;
 
 		ret = slsi_cached_channel_scan_period_write(dev, command + skip,
 							    priv_cmd.total_len - skip);
-	} else if (strnicmp(command, CMD_GETROAMSCANPERIOD, strlen(CMD_GETROAMSCANPERIOD)) == 0) {
-		ret = slsi_cached_channel_scan_period_read(dev, priv_cmd.buf, priv_cmd.total_len);
-	} else if (strnicmp(command, CMD_SETFULLROAMSCANPERIOD, strlen(CMD_SETFULLROAMSCANPERIOD)) == 0) {
+	} else if (strncasecmp(command, CMD_GETROAMSCANPERIOD, strlen(CMD_GETROAMSCANPERIOD)) == 0) {
+		ret = slsi_cached_channel_scan_period_read(dev, command, priv_cmd.total_len);
+	} else if (strncasecmp(command, CMD_SETFULLROAMSCANPERIOD, strlen(CMD_SETFULLROAMSCANPERIOD)) == 0) {
 		int skip = strlen(CMD_SETFULLROAMSCANPERIOD) + 1;
 
 		ret = slsi_full_roam_scan_period_write(dev, command + skip,
 						       priv_cmd.total_len - skip);
-	} else if (strnicmp(command, CMD_GETFULLROAMSCANPERIOD, strlen(CMD_GETFULLROAMSCANPERIOD)) == 0) {
-		ret = slsi_full_roam_scan_period_read(dev, priv_cmd.buf, priv_cmd.total_len);
-	} else if (strnicmp(command, CMD_SETSCANCHANNELTIME, strlen(CMD_SETSCANCHANNELTIME)) == 0) {
+	} else if (strncasecmp(command, CMD_GETFULLROAMSCANPERIOD, strlen(CMD_GETFULLROAMSCANPERIOD)) == 0) {
+		ret = slsi_full_roam_scan_period_read(dev, command, priv_cmd.total_len);
+	} else if (strncasecmp(command, CMD_SETSCANCHANNELTIME, strlen(CMD_SETSCANCHANNELTIME)) == 0) {
 		int skip = strlen(CMD_SETSCANCHANNELTIME) + 1;
 
 		ret = slsi_roam_scan_max_active_channel_time_write(dev, command + skip,
 								   priv_cmd.total_len - skip);
-	} else if (strnicmp(command, CMD_GETSCANCHANNELTIME, strlen(CMD_GETSCANCHANNELTIME)) == 0) {
-		ret = slsi_roam_scan_max_active_channel_time_read(dev, priv_cmd.buf, priv_cmd.total_len);
-	} else if (strnicmp(command, CMD_SETSCANNPROBES, strlen(CMD_SETSCANNPROBES)) == 0) {
+	} else if (strncasecmp(command, CMD_GETSCANCHANNELTIME, strlen(CMD_GETSCANCHANNELTIME)) == 0) {
+		ret = slsi_roam_scan_max_active_channel_time_read(dev, command, priv_cmd.total_len);
+	} else if (strncasecmp(command, CMD_SETSCANNPROBES, strlen(CMD_SETSCANNPROBES)) == 0) {
 		int skip = strlen(CMD_SETSCANNPROBES) + 1;
 
 		ret = slsi_roam_scan_probe_interval_write(dev, command + skip,
 							  priv_cmd.total_len - skip);
-	} else if (strnicmp(command, CMD_GETSCANNPROBES, strlen(CMD_GETSCANNPROBES)) == 0) {
-		ret = slsi_roam_scan_probe_interval_read(dev, priv_cmd.buf, priv_cmd.total_len);
-	} else if (strnicmp(command, CMD_SETROAMMODE, strlen(CMD_SETROAMMODE)) == 0) {
+	} else if (strncasecmp(command, CMD_GETSCANNPROBES, strlen(CMD_GETSCANNPROBES)) == 0) {
+		ret = slsi_roam_scan_probe_interval_read(dev, command, priv_cmd.total_len);
+	} else if (strncasecmp(command, CMD_SETROAMMODE, strlen(CMD_SETROAMMODE)) == 0) {
 		int skip = strlen(CMD_SETROAMMODE) + 1;
 
 		ret = slsi_roam_mode_write(dev, command + skip,
 					   priv_cmd.total_len - skip);
-	} else if (strnicmp(command, CMD_GETROAMMODE, strlen(CMD_GETROAMMODE)) == 0) {
-		ret = slsi_roam_mode_read(dev, priv_cmd.buf, priv_cmd.total_len);
-	} else if (strnicmp(command, CMD_SETCCXMODE, strlen(CMD_SETCCXMODE)) == 0) {
-		int skip = strlen(CMD_SETCCXMODE) + 1;
-
-		ret = slsi_ccx_mode_write(dev, command + skip,
-					  priv_cmd.total_len - skip);
-	} else if (strnicmp(command, CMD_GETCCXMODE, strlen(CMD_GETCCXMODE)) == 0) {
-		ret = slsi_ccx_mode_read(dev, priv_cmd.buf, priv_cmd.total_len);
-	} else if (strnicmp(command, CMD_SETROAMINTRABAND, strlen(CMD_SETROAMINTRABAND)) == 0) {
+	} else if (strncasecmp(command, CMD_GETROAMMODE, strlen(CMD_GETROAMMODE)) == 0) {
+		ret = slsi_roam_mode_read(dev, command, priv_cmd.total_len);
+	} else if (strncasecmp(command, CMD_SETROAMINTRABAND, strlen(CMD_SETROAMINTRABAND)) == 0) {
 		int skip = strlen(CMD_SETROAMINTRABAND) + 1;
 
 		ret = slsi_roam_scan_band_write(dev, command + skip,
 						priv_cmd.total_len - skip);
-	} else if (strnicmp(command, CMD_GETROAMINTRABAND, strlen(CMD_GETROAMINTRABAND)) == 0) {
-		ret = slsi_roam_scan_band_read(dev, priv_cmd.buf, priv_cmd.total_len);
-	} else if (strnicmp(command, CMD_SETROAMBAND, strlen(CMD_SETROAMBAND)) == 0) {
+	} else if (strncasecmp(command, CMD_GETROAMINTRABAND, strlen(CMD_GETROAMINTRABAND)) == 0) {
+		ret = slsi_roam_scan_band_read(dev, command, priv_cmd.total_len);
+	} else if (strncasecmp(command, CMD_SETROAMBAND, strlen(CMD_SETROAMBAND)) == 0) {
 		uint band = *(command + strlen(CMD_SETROAMBAND) + 1) - '0';
 
 		ret = slsi_freq_band_write(dev, band);
@@ -2051,55 +2327,54 @@ int slsi_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 		uint band = *(command + strlen(CMD_SETBAND) + 1) - '0';
 
 		ret = slsi_freq_band_write(dev, band);
-	} else if ((strnicmp(command, CMD_GETROAMBAND, strlen(CMD_GETROAMBAND)) == 0) || (strnicmp(command, CMD_GETBAND, strlen(CMD_GETBAND)) == 0)) {
-		ret = slsi_freq_band_read(dev, priv_cmd.buf, priv_cmd.total_len);
-	} else if ((strnicmp(command, CMD_GETDFSSCANMODE, strlen(CMD_GETDFSSCANMODE)) == 0)) {
-		ret = slsi_dfs_scan_mode_read(dev, priv_cmd.buf, priv_cmd.total_len);
-	} else if (strnicmp(command, CMD_SETROAMSCANCONTROL, strlen(CMD_SETROAMSCANCONTROL)) == 0) {
+	} else if ((strncasecmp(command, CMD_GETROAMBAND, strlen(CMD_GETROAMBAND)) == 0) ||
+		   (strncasecmp(command, CMD_GETBAND, strlen(CMD_GETBAND)) == 0)) {
+		ret = slsi_freq_band_read(dev, command, priv_cmd.total_len);
+	} else if (strncasecmp(command, CMD_SETROAMSCANCONTROL, strlen(CMD_SETROAMSCANCONTROL)) == 0) {
 		int mode = *(command + strlen(CMD_SETROAMSCANCONTROL) + 1) - '0';
 
 		ret = slsi_roam_scan_control_write(dev, mode);
-	} else if (strnicmp(command, CMD_GETROAMSCANCONTROL, strlen(CMD_GETROAMSCANCONTROL)) == 0) {
-		ret = slsi_roam_scan_control_read(dev, priv_cmd.buf, priv_cmd.total_len);
-	} else if (strnicmp(command, CMD_SETSCANHOMETIME, strlen(CMD_SETSCANHOMETIME)) == 0) {
+	} else if (strncasecmp(command, CMD_GETROAMSCANCONTROL, strlen(CMD_GETROAMSCANCONTROL)) == 0) {
+		ret = slsi_roam_scan_control_read(dev, command, priv_cmd.total_len);
+	} else if (strncasecmp(command, CMD_SETSCANHOMETIME, strlen(CMD_SETSCANHOMETIME)) == 0) {
 		int skip = strlen(CMD_SETSCANHOMETIME) + 1;
 
 		ret = slsi_roam_scan_home_time_write(dev, command + skip,
 						     priv_cmd.total_len - skip);
-	} else if (strnicmp(command, CMD_GETSCANHOMETIME, strlen(CMD_GETSCANHOMETIME)) == 0) {
-		ret = slsi_roam_scan_home_time_read(dev, priv_cmd.buf, priv_cmd.total_len);
-	} else if (strnicmp(command, CMD_SETSCANHOMEAWAYTIME, strlen(CMD_SETSCANHOMEAWAYTIME)) == 0) {
+	} else if (strncasecmp(command, CMD_GETSCANHOMETIME, strlen(CMD_GETSCANHOMETIME)) == 0) {
+		ret = slsi_roam_scan_home_time_read(dev, command, priv_cmd.total_len);
+	} else if (strncasecmp(command, CMD_SETSCANHOMEAWAYTIME, strlen(CMD_SETSCANHOMEAWAYTIME)) == 0) {
 		int skip = strlen(CMD_SETSCANHOMEAWAYTIME) + 1;
 
 		ret = slsi_roam_scan_home_away_time_write(dev, command + skip,
 							  priv_cmd.total_len - skip);
-	} else if (strnicmp(command, CMD_GETSCANHOMEAWAYTIME, strlen(CMD_GETSCANHOMEAWAYTIME)) == 0) {
-		ret = slsi_roam_scan_home_away_time_read(dev, priv_cmd.buf, priv_cmd.total_len);
-	} else if (strnicmp(command, CMD_SETOKCMODE, strlen(CMD_SETOKCMODE)) == 0) {
+	} else if (strncasecmp(command, CMD_GETSCANHOMEAWAYTIME, strlen(CMD_GETSCANHOMEAWAYTIME)) == 0) {
+		ret = slsi_roam_scan_home_away_time_read(dev, command, priv_cmd.total_len);
+	} else if (strncasecmp(command, CMD_SETOKCMODE, strlen(CMD_SETOKCMODE)) == 0) {
 		int mode = *(command + strlen(CMD_SETOKCMODE) + 1) - '0';
 
 		ret = slsi_okc_mode_write(dev, mode);
-	} else if (strnicmp(command, CMD_GETOKCMODE, strlen(CMD_GETOKCMODE)) == 0) {
-		ret = slsi_okc_mode_read(dev, priv_cmd.buf, priv_cmd.total_len);
-	} else if (strnicmp(command, CMD_SETWESMODE, strlen(CMD_SETWESMODE)) == 0) {
+	} else if (strncasecmp(command, CMD_GETOKCMODE, strlen(CMD_GETOKCMODE)) == 0) {
+		ret = slsi_okc_mode_read(dev, command, priv_cmd.total_len);
+	} else if (strncasecmp(command, CMD_SETWESMODE, strlen(CMD_SETWESMODE)) == 0) {
 		int mode = *(command + strlen(CMD_SETWESMODE) + 1) - '0';
 
 		ret = slsi_wes_mode_write(dev, mode);
-	} else if (strnicmp(command, CMD_GETWESMODE, strlen(CMD_GETWESMODE)) == 0) {
-		ret = slsi_wes_mode_read(dev, priv_cmd.buf, priv_cmd.total_len);
-	} else if (strnicmp(command, CMD_SETROAMSCANCHANNELS, strlen(CMD_SETROAMSCANCHANNELS)) == 0) {
+	} else if (strncasecmp(command, CMD_GETWESMODE, strlen(CMD_GETWESMODE)) == 0) {
+		ret = slsi_wes_mode_read(dev, command, priv_cmd.total_len);
+	} else if (strncasecmp(command, CMD_SETROAMSCANCHANNELS, strlen(CMD_SETROAMSCANCHANNELS)) == 0) {
 		int skip = strlen(CMD_SETROAMSCANCHANNELS) + 1;
 
 		ret = slsi_roam_scan_channels_write(dev, command + skip,
 						    priv_cmd.total_len - skip);
-	} else if (strnicmp(command, CMD_GETROAMSCANCHANNELS, strlen(CMD_GETROAMSCANCHANNELS)) == 0) {
-		ret = slsi_roam_scan_channels_read(dev, priv_cmd.buf, priv_cmd.total_len);
+	} else if (strncasecmp(command, CMD_GETROAMSCANCHANNELS, strlen(CMD_GETROAMSCANCHANNELS)) == 0) {
+		ret = slsi_roam_scan_channels_read(dev, command, priv_cmd.total_len);
 #endif
 	} else if (strnicmp(command, CMD_SET_PMK, strlen(CMD_SET_PMK)) == 0) {
 		ret = slsi_set_pmk(dev, command, priv_cmd.total_len);
-	} else if (strnicmp(command, CMD_HAPD_GET_CHANNEL, strlen(CMD_HAPD_GET_CHANNEL)) == 0) {
-		ret = slsi_auto_chan_read(dev, priv_cmd.buf, priv_cmd.total_len);
-	} else if (strnicmp(command, CMD_SET_SAP_CHANNEL_LIST, strlen(CMD_SET_SAP_CHANNEL_LIST)) == 0) {
+	} else if (strncasecmp(command, CMD_HAPD_GET_CHANNEL, strlen(CMD_HAPD_GET_CHANNEL)) == 0) {
+		ret = slsi_auto_chan_read(dev, command, priv_cmd.total_len);
+	} else if (strncasecmp(command, CMD_SET_SAP_CHANNEL_LIST, strlen(CMD_SET_SAP_CHANNEL_LIST)) == 0) {
 		ret = slsi_auto_chan_write(dev, command, priv_cmd.total_len);
 	} else if (strnicmp(command, CMD_REASSOC, strlen(CMD_REASSOC)) == 0) {
 		int skip = strlen(CMD_REASSOC) + 1;
@@ -2121,11 +2396,6 @@ int slsi_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 		char *country_code = command + strlen(CMD_COUNTRY) + 1;
 
 		ret = slsi_country_write(dev, country_code);
-	} else if (strnicmp(command, CMD_SEND_GK, strlen(CMD_SEND_GK)) == 0) {
-		int skip = strlen(CMD_SEND_GK) + 1;
-
-		ret = slsi_gk_key_write(dev, command + skip,
-					priv_cmd.total_len - skip);
 	} else if (strnicmp(command, CMD_SETAPP2PWPSIE, strlen(CMD_SETAPP2PWPSIE)) == 0) {
 		ret = slsi_set_ap_p2p_wps_ie(dev, command, priv_cmd.total_len);
 	} else if (strnicmp(command, CMD_P2PSETPS, strlen(CMD_P2PSETPS)) == 0) {
@@ -2150,8 +2420,8 @@ int slsi_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 	} else if (strnicmp(command, CMD_SET_TX_POWER_CALLING, strlen(CMD_SET_TX_POWER_CALLING)) == 0) {
 		ret = slsi_set_tx_power_calling(dev, command + strlen(CMD_SET_TX_POWER_CALLING) + 1,
 						priv_cmd.total_len - (strlen(CMD_SET_TX_POWER_CALLING) + 1));
-	} else if (strnicmp(command, CMD_GETREGULATORY, strlen(CMD_GETREGULATORY)) == 0) {
-		ret = slsi_get_regulatory(dev, priv_cmd.buf, priv_cmd.total_len);
+	} else if (strncasecmp(command, CMD_GETREGULATORY, strlen(CMD_GETREGULATORY)) == 0) {
+		ret = slsi_get_regulatory(dev, command, priv_cmd.total_len);
 #ifdef CONFIG_SCSC_WLAN_HANG_TEST
 	} else if (strnicmp(command, CMD_TESTFORCEHANG, strlen(CMD_TESTFORCEHANG)) == 0) {
 		ret = slsi_test_send_hanged_vendor_event(dev);
@@ -2159,23 +2429,32 @@ int slsi_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 	} else if (strnicmp(command, CMD_SET_FCC_CHANNEL, strlen(CMD_SET_FCC_CHANNEL)) == 0) {
 		ret = slsi_set_fcc_channel(dev, command + strlen(CMD_SET_FCC_CHANNEL) + 1,
 					   priv_cmd.total_len - (strlen(CMD_SET_FCC_CHANNEL) + 1));
-	} else if ((strnicmp(command, CMD_RXFILTERSTART, strlen(CMD_RXFILTERSTART)) == 0) ||
-			(strnicmp(command, CMD_RXFILTERSTOP, strlen(CMD_RXFILTERSTOP)) == 0) ||
-			(strnicmp(command, CMD_AMPDU_MPDU, strlen(CMD_AMPDU_MPDU)) == 0) ||
-			(strnicmp(command, CMD_BTCOEXMODE, strlen(CMD_BTCOEXMODE)) == 0) ||
-			(strnicmp(command, CMD_BTCOEXSCAN_START, strlen(CMD_BTCOEXSCAN_START)) == 0) ||
-			(strnicmp(command, CMD_BTCOEXSCAN_STOP, strlen(CMD_BTCOEXSCAN_STOP)) == 0) ||
-			(strnicmp(command, CMD_CHANGE_RL, strlen(CMD_CHANGE_RL)) == 0) ||
-			(strnicmp(command, CMD_INTERFACE_CREATE, strlen(CMD_INTERFACE_CREATE)) == 0) ||
-			(strnicmp(command, CMD_INTERFACE_DELETE, strlen(CMD_INTERFACE_DELETE)) == 0) ||
-			(strnicmp(command, CMD_LTECOEX, strlen(CMD_LTECOEX)) == 0) ||
-			(strnicmp(command, CMD_MIRACAST, strlen(CMD_MIRACAST)) == 0) ||
-			(strnicmp(command, CMD_RESTORE_RL, strlen(CMD_RESTORE_RL)) == 0) ||
-			(strnicmp(command, CMD_RPSMODE, strlen(CMD_RPSMODE)) == 0) ||
-			(strnicmp(command, CMD_SETCCXMODE, strlen(CMD_SETCCXMODE)) == 0) ||
-			(strnicmp(command, CMD_SETDFSSCANMODE, strlen(CMD_SETDFSSCANMODE)) == 0) ||
-			(strnicmp(command, CMD_SETJOINPREFER, strlen(CMD_SETJOINPREFER)) == 0) ||
-			(strnicmp(command, CMD_SETSINGLEANT, strlen(CMD_SETSINGLEANT)) == 0)) {
+	} else if (strncasecmp(command, CMD_FAKEMAC, strlen(CMD_FAKEMAC)) == 0) {
+		ret = slsi_fake_mac_write(dev, command + strlen(CMD_FAKEMAC) + 1);
+	} else if (strncasecmp(command, CMD_GETBSSINFO, strlen(CMD_GETBSSINFO)) == 0) {
+		ret = slsi_get_bss_info(dev, command, priv_cmd.total_len);
+	} else if (strncasecmp(command, CMD_GETSTAINFO, strlen(CMD_GETSTAINFO)) == 0) {
+		ret = slsi_get_sta_info(dev, command, priv_cmd.total_len);
+	} else if (strncasecmp(command, CMD_GETASSOCREJECTINFO, strlen(CMD_GETASSOCREJECTINFO)) == 0) {
+		ret = slsi_get_assoc_reject_info(dev, command, priv_cmd.total_len);
+	} else if ((strncasecmp(command, CMD_RXFILTERSTART, strlen(CMD_RXFILTERSTART)) == 0) ||
+			(strncasecmp(command, CMD_RXFILTERSTOP, strlen(CMD_RXFILTERSTOP)) == 0) ||
+			(strncasecmp(command, CMD_BTCOEXMODE, strlen(CMD_BTCOEXMODE)) == 0) ||
+			(strncasecmp(command, CMD_BTCOEXSCAN_START, strlen(CMD_BTCOEXSCAN_START)) == 0) ||
+			(strncasecmp(command, CMD_BTCOEXSCAN_STOP, strlen(CMD_BTCOEXSCAN_STOP)) == 0) ||
+			(strncasecmp(command, CMD_MIRACAST, strlen(CMD_MIRACAST)) == 0)) {
+		SLSI_NET_DBG3(dev, SLSI_CFG80211, "known command %s - returning success for VTS\n", command);
+		ret = 0;
+	} else if ((strncasecmp(command, CMD_AMPDU_MPDU, strlen(CMD_AMPDU_MPDU)) == 0) ||
+			(strncasecmp(command, CMD_CHANGE_RL, strlen(CMD_CHANGE_RL)) == 0) ||
+			(strncasecmp(command, CMD_INTERFACE_CREATE, strlen(CMD_INTERFACE_CREATE)) == 0) ||
+			(strncasecmp(command, CMD_INTERFACE_DELETE, strlen(CMD_INTERFACE_DELETE)) == 0) ||
+			(strncasecmp(command, CMD_LTECOEX, strlen(CMD_LTECOEX)) == 0) ||
+			(strncasecmp(command, CMD_RESTORE_RL, strlen(CMD_RESTORE_RL)) == 0) ||
+			(strncasecmp(command, CMD_RPSMODE, strlen(CMD_RPSMODE)) == 0) ||
+			(strncasecmp(command, CMD_SETCCXMODE, strlen(CMD_SETCCXMODE)) == 0) ||
+			(strncasecmp(command, CMD_SETDFSSCANMODE, strlen(CMD_SETDFSSCANMODE)) == 0) ||
+			(strncasecmp(command, CMD_SETSINGLEANT, strlen(CMD_SETSINGLEANT)) == 0)) {
 		SLSI_NET_DBG3(dev, SLSI_CFG80211, "known command %s - no handler\n", command);
 		ret  = -ENOTSUPP;
 #ifndef SLSI_TEST_DEV
@@ -2184,8 +2463,12 @@ int slsi_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 		ret = mx140_log_dump();
 #endif
 	} else {
-		SLSI_NET_ERR(dev, "Not Supported : %.*s\n", priv_cmd.total_len, priv_cmd.buf);
+		SLSI_NET_ERR(dev, "Not Supported : %.*s\n", priv_cmd.total_len, command);
 		ret  = -ENOTSUPP;
+	}
+	if (strncasecmp(command, CMD_SETROAMBAND, strlen(CMD_SETROAMBAND)) != 0 && strncasecmp(command, CMD_SETBAND, strlen(CMD_SETBAND)) != 0 && copy_to_user(priv_cmd.buf, command, priv_cmd.total_len)) {
+		ret = -EFAULT;
+		SLSI_NET_ERR(dev, "Buffer copy fail\n");
 	}
 
 exit:

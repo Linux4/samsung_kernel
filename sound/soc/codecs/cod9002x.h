@@ -106,16 +106,19 @@ struct cod9002x_priv {
 	int btn_press_delay;
 	int water_threshold_adc_min1;
 	int water_threshold_adc_min2;
+	int water_threshold_adc_max;
+	int jack_det_adc_max;
 	struct jack_buttons_zone jack_buttons_zones[4];
 	struct delayed_work buttons_work;
 	struct workqueue_struct *buttons_wq;
 	struct iio_channel *jack_adc;
 	unsigned int use_btn_adc_mode;
 	unsigned int use_det_gdet_adc_mode;
-	struct delayed_work jack_det_work;
+	unsigned int dis_det_surge_mode;
+	unsigned int jack_out_dbnc_time;
+	unsigned int use_jack_pullup_mode;
+	struct work_struct jack_det_work;
 	struct workqueue_struct *jack_det_wq;
-	struct delayed_work jack_det_adc_work;
-	struct workqueue_struct *jack_det_adc_wq;
 	struct work_struct adc_mute_work;
 	struct mutex adc_mute_lock;
 	struct workqueue_struct *adc_mute_wq;
@@ -125,6 +128,7 @@ struct cod9002x_priv {
 	struct workqueue_struct *water_det_polling_wq;
 	int adc_pin;
 	unsigned int mic_status;
+	struct wake_lock jack_wake_lock;
 };
 
 /*
@@ -1337,8 +1341,8 @@ struct cod9002x_priv {
 #define CTMF_CP_CLK_MASK	MASK(CTMF_CP_CLK_WIDTH, \
 					CTMF_CP_CLK_SHIFT)
 
-#define CP_MAIN_CLK_781_25MHZ	3
-#define CP_MAIN_CLK_390_625MHZ	2
+#define CP_MAIN_CLK_781_25KHZ	3
+#define CP_MAIN_CLK_390_625KHZ	2
 #define CP_MAIN_CLK_195_312KHZ	1
 #define CP_MAIN_CLK_97_656KHZ	0
 

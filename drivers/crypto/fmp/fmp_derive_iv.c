@@ -14,6 +14,7 @@
 #include <linux/errno.h>
 #include <linux/err.h>
 #include <linux/fs.h>
+#include "sha256.h"
 
 #define FMP_MAX_IV_BYTES		16
 #define FMP_MAX_OFFSET_BYTES		16
@@ -25,13 +26,10 @@ static DEFINE_SPINLOCK(fmp_tfm_lock);
 #ifdef CONFIG_CRYPTO_FIPS
 int calculate_sha256(struct crypto_hash *hash_tfm, char *dst, char *src, int len)
 {
-        if ((src == NULL) || (dst == NULL))
-                return -EINVAL;
+	if ((src == NULL) || (dst == NULL))
+	    return -EINVAL;
 
-        if (SHA256(src, len, dst))
-                return 0;
-        else
-                return -1;
+	return sha256(src, len, dst);
 }
 #endif
 

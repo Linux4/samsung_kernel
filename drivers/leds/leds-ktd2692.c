@@ -16,10 +16,13 @@
 #include <linux/slab.h>
 #include <linux/gpio.h>
 #include <linux/leds-ktd2692.h>
+#include <linux/time.h>
 #ifdef CONFIG_OF
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #endif
+
+//#define DEBUG_LED_TIME
 
 extern struct class *camera_class; /*sys/class/camera*/
 struct device *ktd2692_dev;
@@ -27,6 +30,13 @@ struct device *ktd2692_dev;
 struct ktd2692_platform_data *global_ktd2692data = NULL;
 struct device *global_dev;
 
+#if defined(CONFIG_LEDS_SUPPORT_FRONT_FLASH)
+#if defined(CONFIG_CAMERA_FLASH_I2C_OBJ)
+extern struct device *led_dev;
+#else
+struct device *led_dev = NULL;
+#endif
+#endif
 void ktd2692_setGpio(int onoff)
 {
 	if (onoff) {
@@ -38,18 +48,71 @@ void ktd2692_setGpio(int onoff)
 
 void ktd2692_set_low_bit(void)
 {
+#ifdef DEBUG_LED_TIME
+	struct timeval start_low, end_low, start_high, end_high;
+	unsigned long time_low, time_high;
+#endif
+
+#ifdef DEBUG_LED_TIME
+	do_gettimeofday(&start_low);
+#endif
 	__gpio_set_value(global_ktd2692data->flash_control, 0);
-	ndelay(T_L_LB*1000);	/* 12ms */
+	udelay(T_L_LB);
+
+#ifdef DEBUG_LED_TIME
+	do_gettimeofday(&end_low);
+
+	do_gettimeofday(&start_high);
+#endif
+
 	__gpio_set_value(global_ktd2692data->flash_control, 1);
-	ndelay(T_H_LB*1000);	/* 4ms */
+	udelay(T_H_LB);
+
+#ifdef DEBUG_LED_TIME
+	do_gettimeofday(&end_high);
+
+	time_low = (end_low.tv_sec - start_low.tv_sec) * 1000000 + (end_low.tv_usec - start_low.tv_usec);
+	time_high = (end_high.tv_sec - start_high.tv_sec) * 1000000 + (end_high.tv_usec - start_high.tv_usec);
+
+	LED_INFO("[ta] LOW BIT: time_low(%lu) / time_high(%lu)\n", time_low, time_high);
+	if (time_low <= (time_high*2)) 
+		LED_ERROR("[ta] Low Bit: high pulse too long\n");
+#endif
 }
 
 void ktd2692_set_high_bit(void)
 {
+#ifdef DEBUG_LED_TIME
+	struct timeval start_low, end_low, start_high, end_high;
+	unsigned long time_low, time_high;
+#endif
+
+#ifdef DEBUG_LED_TIME
+	do_gettimeofday(&start_low);
+#endif
+	
 	__gpio_set_value(global_ktd2692data->flash_control, 0);
-	ndelay(T_L_HB*1000);	/* 4ms */
+	udelay(T_L_HB);
+
+#ifdef DEBUG_LED_TIME
+	do_gettimeofday(&end_low);
+
+	do_gettimeofday(&start_high);
+#endif
+
 	__gpio_set_value(global_ktd2692data->flash_control, 1);
-	ndelay(T_H_HB*1000);	/* 12ms */
+	udelay(T_H_HB);
+
+#ifdef DEBUG_LED_TIME
+	do_gettimeofday(&end_high);
+
+	time_low = (end_low.tv_sec - start_low.tv_sec) * 1000000 + (end_low.tv_usec - start_low.tv_usec);
+	time_high = (end_high.tv_sec - start_high.tv_sec) * 1000000 + (end_high.tv_usec - start_high.tv_usec);
+
+	LED_INFO("[ta] HIGHT BIT: time_low(%lu) / time_high(%lu)\n", time_low, time_high);
+	if ((time_low*2) >= time_high) 
+		LED_ERROR("[ta] HIGH BIT: low pulse too long\n");
+#endif
 }
 
 static int ktd2692_set_bit(unsigned int bit)
@@ -69,7 +132,7 @@ static int ktd2692_write_data(unsigned data)
 
 	/* Data Start Condition */
 	__gpio_set_value(global_ktd2692data->flash_control, 1);
-	ndelay(T_SOD*1000); //15us
+	udelay(T_SOD);
 
 	/* BIT 7*/
 	bit = ((data>> 7) & 0x01);
@@ -104,7 +167,7 @@ static int ktd2692_write_data(unsigned data)
 	ktd2692_set_bit(bit);
 
 	 __gpio_set_value(global_ktd2692data->flash_control, 0);
-	ndelay(T_EOD_L*1000); //4us
+	udelay(T_EOD_L);
 
 	/* Data End Condition */
 	__gpio_set_value(global_ktd2692data->flash_control, 1);
@@ -113,6 +176,37 @@ static int ktd2692_write_data(unsigned data)
 	return err;
 }
 
+#ifdef CONFIG_LEDS_SUPPORT_FRONT_FLASH
+int ktd2692_led_set_front_flash_brightness(int brightness)	/*For control brightness of front flash led*/
+{
+	unsigned long flags = 0;
+	int ret = 0;
+	
+	printk("Change Frontflash LED receive br= %d  ", brightness);
+
+	switch(brightness) {
+		case 25:
+			global_ktd2692data->movie_current_value = KTD2692_MOVIE_CURRENT2;
+			break;
+		case 50:
+			global_ktd2692data->movie_current_value = KTD2692_MOVIE_CURRENT4;
+			break;
+		case 100:
+			global_ktd2692data->movie_current_value = KTD2692_MOVIE_CURRENT10;
+			break;
+		default:
+			global_ktd2692data->movie_current_value = KTD2692_MOVIE_CURRENT10;
+			break;
+	}
+
+	spin_lock_irqsave(&global_ktd2692data->int_lock, flags);
+	ktd2692_write_data(global_ktd2692data->movie_current_value|
+						KTD2692_ADDR_MOVIE_CURRENT_SETTING);
+	spin_unlock_irqrestore(&global_ktd2692data->int_lock, flags);
+	gpio_free(global_ktd2692data->flash_control);
+	return ret;
+}
+#endif
 #if defined(CONFIG_LEDS_SUPPORT_FRONT_FLASH)
 int ktd2692_led_mode_ctrl(int mode)
 {
@@ -176,6 +270,9 @@ int ktd2692_led_mode_ctrl(int mode)
 			}
 			break;
 		default :
+			pinctrl = devm_pinctrl_get_select_default(global_dev);
+			if (IS_ERR(pinctrl))
+				pr_err("%s: flash %s pins are not configured\n", __func__, "default");
 			break;
 	}
 	if (!IS_ERR(pinctrl))
@@ -185,7 +282,6 @@ int ktd2692_led_mode_ctrl(int mode)
 }
 #endif
 
-#ifndef CONFIG_LEDS_SUPPORT_FRONT_FLASH
 ssize_t ktd2692_store(struct device *dev,
 			struct device_attribute *attr, const char *buf,
 			size_t count)
@@ -264,7 +360,12 @@ ssize_t ktd2692_show(struct device *dev,
 {
 	return sprintf(buf, "%d\n", global_ktd2692data->sysfs_input_data);
 }
-
+#ifdef CONFIG_LEDS_SUPPORT_FRONT_FLASH
+static DEVICE_ATTR(front_flash, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH,
+	ktd2692_show, ktd2692_store);
+static DEVICE_ATTR(front_torch_flash, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH,
+	ktd2692_show, ktd2692_store);
+#else
 static DEVICE_ATTR(rear_flash, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH,
 	ktd2692_show, ktd2692_store);
 #endif
@@ -279,7 +380,7 @@ static int ktd2692_parse_dt(struct device *dev,
 	pdata->LVP_Voltage = KTD2692_DISABLE_LVP;
 	pdata->flash_timeout = KTD2692_TIMER_1049ms;	/* default */
 	pdata->min_current_value = KTD2692_MIN_CURRENT_240mA;
-	pdata->movie_current_value = KTD2692_MOVIE_CURRENT5;
+	pdata->movie_current_value = KTD2692_MOVIE_CURRENT9;
 	pdata->flash_current_value = KTD2692_FLASH_CURRENT16;
 	pdata->mode_status = KTD2692_DISABLES_MOVIE_FLASH_MODE;
 
@@ -322,7 +423,25 @@ static int ktd2692_probe(struct platform_device *pdev)
 
 	LED_INFO("KTD2692_LED Probed\n");
 
-#ifndef CONFIG_LEDS_SUPPORT_FRONT_FLASH
+#ifdef CONFIG_LEDS_SUPPORT_FRONT_FLASH
+	if( led_dev == NULL) {
+		led_dev = device_create(camera_class, NULL, 3, NULL, "flash");
+	}
+	
+	if (IS_ERR(led_dev)) {
+		LED_ERROR("Failed to create device(flash)!\n");
+	}
+
+	if (device_create_file(led_dev, &dev_attr_front_flash) < 0) {
+		LED_ERROR("failed to create device file, %s\n",
+				dev_attr_front_flash.attr.name);
+	}
+
+	if (device_create_file(led_dev, &dev_attr_front_torch_flash) < 0) {
+		LED_ERROR("failed to create device file, %s\n",
+				dev_attr_front_torch_flash.attr.name);
+	}
+#else
 	ktd2692_dev = device_create(camera_class, NULL, 0, NULL, "flash");
 	if (IS_ERR(ktd2692_dev)) {
 		LED_ERROR("Failed to create device(flash)!\n");
@@ -339,7 +458,10 @@ static int ktd2692_probe(struct platform_device *pdev)
 }
 static int __devexit ktd2692_remove(struct platform_device *pdev)
 {
-#ifndef CONFIG_LEDS_SUPPORT_FRONT_FLASH
+#ifdef CONFIG_LEDS_SUPPORT_FRONT_FLASH
+	device_remove_file(led_dev, &dev_attr_front_flash);
+	device_remove_file(led_dev, &dev_attr_front_torch_flash);
+#else
 	device_remove_file(ktd2692_dev, &dev_attr_rear_flash);
 	device_destroy(camera_class, 0);
 	class_destroy(camera_class);

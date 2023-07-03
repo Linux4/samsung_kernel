@@ -34,6 +34,18 @@ ifneq ($(CONFIG_SCSC_DEBUG),n)
 ccflags-$(CONFIG_SCSC_STATIC_RING)	+= -DCONFIG_SCSC_STATIC_RING_SIZE=$(CONFIG_SCSC_STATIC_RING_SIZE)
 endif
 
+obj-$(CONFIG_SCSC_WIFILOGGER) +=  scsc_wifilogger.o
+scsc_wifilogger-y += scsc_wifilogger_api.o \
+		     scsc_wifilogger_internal.o \
+		     scsc_wifilogger_core.o \
+		     scsc_wifilogger_module.o \
+		     scsc_wifilogger_ring_connectivity.o \
+		     scsc_wifilogger_ring_wakelock.o \
+		     scsc_wifilogger_ring_pktfate.o
+
+scsc_wifilogger-$(CONFIG_SCSC_WIFILOGGER_DEBUGFS) += scsc_wifilogger_debugfs.o
+scsc_wifilogger-$(CONFIG_SCSC_WIFILOGGER_TEST) += scsc_wifilogger_ring_test.o
+
 #pcie_module for static functions and registration of client modules (only core)
 #pcie_mif for instance
 obj-$(CONFIG_SCSC_PCIE) += scsc_pcie_mif.o
@@ -67,6 +79,8 @@ scsc_mx-y += \
 	mxmgmt_transport.o \
 	gdb_transport.o \
 	mx140_file.o
+
+scsc_mx-$(CONFIG_SCSC_WLBTD) += scsc_wlbtd.o
 
 ifneq ($(CONFIG_SCSC_CM_MX_CLIENT_TEST),n)
 obj-$(CONFIG_SCSC_CM_MX_CLIENT_TEST) += mx_client_test.o
