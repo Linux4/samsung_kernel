@@ -1,0 +1,29 @@
+#
+# Kconfig for MCU
+#
+
+config EXYNOS7580_MCU_IPC
+     bool "Exynos 7580 MCU IPC Support"
+     default n
+	 help
+	   This enables MCU_IPC driver to control the MCU_IPC Device.
+
+	   MCU_IPC is the Mailbox which has 16 interrupts for TX/RX each
+	   and 256 bytes memory for communicating messages.
+	   AP and CP can share the messages through this device.
+
+config EXYNOS7580_SHM_IPC
+    bool "Shared Memory for IPC support"
+    default n
+        help
+	  This enables SHM_IPC driver to control the Shared memory
+	  for AP-CP Interface.
+
+config EXYNOS7580_PMU_CP
+     bool "Exynos 7580 Modem PMU Driver"
+     default n
+	 help
+	   This enables Exynos 7580 Modem PMU Driver driver to control
+	   the PMU_CP Device.
+
+	   PMU_CP controls CP power on/off/reset
