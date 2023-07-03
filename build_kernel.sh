@@ -1,9 +1,9 @@
 #!/bin/bash
 
-
-export PLATFORM_VERSION=11
+export PLATFORM_VERSION=12
 export ANDROID_MAJOR_VERSION=s
 export ARCH=arm64
+make exynos980-a51x_defconfig
+make
 
-make ARCH=arm64 exynos980-a51x_defconfig
-make ARCH=arm64 -j64
+cp out/arch/arm64/boot/Image $(pwd)/arch/arm64/boot/Image

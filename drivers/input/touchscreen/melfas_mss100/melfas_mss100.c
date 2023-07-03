@@ -123,7 +123,7 @@ static ssize_t secure_touch_enable_store(struct device *dev,
 		atomic_set(&info->secure_enabled, 0);
 
 		sysfs_notify(&info->input_dev->dev.kobj, NULL, "secure_touch");
-
+		info->secure_interrupt_flag = 1;
 		mms_interrupt(info->client->irq, info);
 		complete(&info->secure_interrupt);
 		complete(&info->secure_powerdown);
@@ -1124,6 +1124,14 @@ static irqreturn_t mms_interrupt(int irq, void *dev_id)
 	if ((size == 0) || (size > packet_size)) {
 		input_err(true, &client->dev, "%s [ERROR] packet size = %d\n", __func__, size);
 
+#ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
+		if(size == 0 || info->secure_interrupt_flag) {
+			info->secure_interrupt_flag = 0;
+			input_err(true, &client->dev, "%s [ERROR] packet size = %d, intrrupt_flag enable\n", __func__, size);
+			kfree(rbuf);
+			return IRQ_HANDLED;
+		}
+#endif
 		size = packet_size;
 
 		wbuf[0] = MIP_R0_EVENT;

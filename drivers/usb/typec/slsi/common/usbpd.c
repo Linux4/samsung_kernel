@@ -436,7 +436,8 @@ void usbpd_set_ops(struct device *dev, usbpd_phy_ops_type *ops)
 	pd_data->phy_ops.ops_dry_check			= ops->ops_dry_check;
 	pd_data->phy_ops.water_opmode			= ops->water_opmode;
 #endif
-	pd_data->phy_ops.authentic				= ops->authentic;
+	pd_data->phy_ops.authentic			= ops->authentic;
+	pd_data->phy_ops.energy_now			= ops->energy_now;
 	pd_data->phy_ops.set_usbpd_reset		= ops->set_usbpd_reset;
 	pd_data->phy_ops.ops_get_fsm_state		= ops->ops_get_fsm_state;
 	pd_data->phy_ops.set_is_otg_vboost		= ops->set_is_otg_vboost;

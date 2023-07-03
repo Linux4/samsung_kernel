@@ -71,6 +71,16 @@ config MFC_CHARGER
 	help
 	This enables the MFC IC sysfs node
 
+config MST_PCR
+	bool "support for MST PCR mode"
+	default n
+	depends on MFC_CHARGER
+	help
+	  Say Y here to enable
+	  support for MST PCR mode
+	  It is for model using MFC IC
+	  Some MFC ICs support PCR mode.
+
 config MST_TEEGRIS
 	bool "MST running on TEEGRIS"
 	default n
@@ -94,3 +104,12 @@ config MST_LPM_CONTROL
 	default n
 	help
 	This enables the MST LPM control code
+
+config MST_DUMMY_DRV
+	bool "MST DUMMY DRVIER for MTK"
+	default n
+	help
+	  Say y here to enable
+	  This config is for mtk devices
+	  It can distinguish the regions
+	  This enables the MST DUMMY DRIVER

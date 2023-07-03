@@ -1955,14 +1955,14 @@ static int pn547_remove(struct i2c_client *client)
 #ifdef CONFIG_PM
 static int pn547_suspend(struct device *dev)
 {
-	NFC_LOG_INFO("suspend!\n");
+	NFC_LOG_INFO_WITH_DATE("suspend!\n");
 
 	return 0;
 }
 
 static int pn547_resume(struct device *dev)
 {
-	NFC_LOG_INFO("resume!\n");
+	NFC_LOG_INFO_WITH_DATE("resume!\n");
 
 	return 0;
 }

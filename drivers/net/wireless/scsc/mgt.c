@@ -96,6 +96,10 @@ static char mac_addr_override[] = "ff:ff:ff:ff:ff:ff";
 module_param_string(mac_addr, mac_addr_override, sizeof(mac_addr_override), S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(mac_addr_override, "WLAN MAC address override");
 
+static bool EnableRfTestMode;
+module_param(EnableRfTestMode, bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(EnableRfTestMode, "Enable RF test mode driver.");
+
 static int slsi_mib_open_file(struct slsi_dev *sdev, struct slsi_dev_mib_info *mib_info, const struct firmware **fw);
 static int slsi_mib_close_file(struct slsi_dev *sdev, const struct firmware *e);
 static int slsi_mib_download_file(struct slsi_dev *sdev, struct slsi_dev_mib_info *mib_info);
@@ -120,9 +124,14 @@ static ssize_t sysfs_store_debugdump(struct kobject *kobj, struct kobj_attribute
 				   const char *buf, size_t count);
 #endif
 
+static ssize_t sysfs_show_pm(struct kobject *kobj, struct kobj_attribute *attr, char *buf);
+static ssize_t sysfs_store_pm(struct kobject *kobj, struct kobj_attribute *attr,
+			      const char *buf, size_t count);
+
 static struct kobject *wifi_kobj_ref;
 static char sysfs_mac_override[] = "ff:ff:ff:ff:ff:ff";
 static struct kobj_attribute mac_attr = __ATTR(mac_addr, 0660, sysfs_show_macaddr, sysfs_store_macaddr);
+static struct kobj_attribute pm_attr = __ATTR(pm, 0660, sysfs_show_pm, sysfs_store_pm);
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
 static int dump_in_progress = 0;
 static struct kobj_attribute dump_attr = __ATTR(dump_in_progress, 0660, sysfs_show_debugdump, sysfs_store_debugdump);
@@ -3922,7 +3931,7 @@ static void slsi_create_packet_filter_element(u8                               f
 					      u8                               num_pattern_desc,
 					      struct slsi_mlme_pattern_desc    *pattern_desc,
 					      struct slsi_mlme_pkt_filter_elem *pkt_filter_elem,
-					      u8                               *pkt_filters_len)
+					      int                              *pkt_filters_len)
 {
 	u8 pkt_filter_hdr[SLSI_PKT_FILTER_ELEM_HDR_LEN] = { 0xdd,             /* vendor ie*/
 							    0x00,             /*Length to be filled*/
@@ -3931,7 +3940,8 @@ static void slsi_create_packet_filter_element(u8                               f
 							    filterid,         /*filter id to be filled*/
 							    pkt_filter_mode   /* pkt filter mode to be filled */
 	};
-	u8 i, pattern_desc_len = 0;
+	u8 i;
+	int pattern_desc_len = 0;
 
 	WARN_ON(num_pattern_desc > SLSI_MAX_PATTERN_DESC);
 
@@ -3957,7 +3967,8 @@ static int slsi_set_common_packet_filters(struct slsi_dev *sdev, struct net_devi
 {
 	struct slsi_mlme_pattern_desc pattern_desc;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem[1];
-	u8 pkt_filters_len = 0, num_filters = 0;
+	int pkt_filters_len = 0;
+	u8 num_filters = 0;
 
 	/*Opt out all broadcast and multicast packets (filter on I/G bit)*/
 	pattern_desc.offset = 0;
@@ -3976,7 +3987,8 @@ int  slsi_set_arp_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[SLSI_MAX_PATTERN_DESC];
 	int num_pattern_desc = 0;
-	u8 pkt_filters_len = 0, num_filters = 0;
+	int pkt_filters_len = 0;
+	u8 num_filters = 0;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem[2];
 	int ret;
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
@@ -4120,7 +4132,7 @@ int slsi_set_enhanced_pkt_filter(struct net_device *dev, char *command, int buf_
 static int slsi_set_opt_out_unicast_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc;
-	u8 pkt_filters_len = 0;
+	int pkt_filters_len = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem;
 
@@ -4143,7 +4155,7 @@ static int slsi_set_opt_out_unicast_packet_filter(struct slsi_dev *sdev, struct 
 static int  slsi_set_opt_in_tcp4_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[2];
-	u8 pkt_filters_len = 0;
+	int pkt_filters_len = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem;
 
@@ -4176,7 +4188,7 @@ static int  slsi_set_opt_in_tcp4_packet_filter(struct slsi_dev *sdev, struct net
 static int  slsi_set_opt_in_tcp6_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[2];
-	u8 pkt_filters_len = 0;
+	int pkt_filters_len = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem;
 
@@ -4209,7 +4221,8 @@ static int  slsi_set_opt_in_tcp6_packet_filter(struct slsi_dev *sdev, struct net
 int  slsi_set_multicast_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[3];
-	u8 pkt_filters_len = 0, i, num_filters = 0;
+	int pkt_filters_len = 0;
+	u8 i, num_filters = 0;
 	u8 num_pattern_desc = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem *pkt_filter_elem = NULL;
@@ -4324,7 +4337,8 @@ int  slsi_clear_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct slsi_peer *peer = slsi_get_peer_from_qs(sdev, dev, SLSI_STA_PEER_QUEUESET);
 
-	u8 i, pkt_filters_len = 0;
+	u8 i;
+	int pkt_filters_len = 0;
 	int num_filters = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem *pkt_filter_elem;
@@ -4458,7 +4472,7 @@ void slsi_set_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[SLSI_MAX_PATTERN_DESC];
 	int num_pattern_desc = 0;
-	u8 pkt_filters_len = 0;
+	int pkt_filters_len = 0;
 	int num_filters = 0;
 
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem[SLSI_ON_CONNECT_FILTERS_COUNT];
@@ -4594,7 +4608,7 @@ int slsi_ip_address_changed(struct slsi_dev *sdev, struct net_device *dev, __be3
 		struct slsi_mlme_pattern_desc pattern_desc[1];
 		u8 num_patterns = 0;
 		struct slsi_mlme_pkt_filter_elem pkt_filter_elem[1];
-		u8 pkt_filters_len = 0;
+		int pkt_filters_len = 0;
 		u8 num_filters = 0;
 #endif
 
@@ -4978,11 +4992,10 @@ void slsi_p2p_vif_deactivate(struct slsi_dev *sdev, struct net_device *dev, bool
 	}
 
 	/* Indicate failure using cfg80211_mgmt_tx_status() if frame TX is not completed during VIF delete */
-	if (ndev_vif->mgmt_tx_data.exp_frame != SLSI_PA_INVALID) {
+	if (ndev_vif->mgmt_tx_data.exp_frame != SLSI_PA_INVALID)
 		ndev_vif->mgmt_tx_data.exp_frame = SLSI_PA_INVALID;
+	if (ndev_vif->mgmt_tx_data.host_tag)
 		cfg80211_mgmt_tx_status(&ndev_vif->wdev, ndev_vif->mgmt_tx_data.cookie, ndev_vif->mgmt_tx_data.buf, ndev_vif->mgmt_tx_data.buf_len, false, GFP_KERNEL);
-	}
-
 	cancel_delayed_work(&ndev_vif->unsync.del_vif_work);
 	if (delayed_work_pending(&ndev_vif->unsync.roc_expiry_work) && sdev->recovery_status) {
 		cfg80211_remain_on_channel_expired(&ndev_vif->wdev, ndev_vif->unsync.roc_cookie, ndev_vif->chan,
@@ -5121,7 +5134,7 @@ int slsi_p2p_dev_null_ies(struct slsi_dev *sdev, struct net_device *dev)
 		SLSI_MUTEX_LOCK(ndev_vif->scan_result_mutex);
 		scan_result = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 		while (scan_result) {
-			slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan_result);
+			slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan_result, true);
 			scan_result = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 		}
 		SLSI_MUTEX_UNLOCK(ndev_vif->scan_result_mutex);
@@ -5427,7 +5440,7 @@ void slsi_abort_sta_scan(struct slsi_dev *sdev)
 		SLSI_MUTEX_LOCK(ndev_vif->scan_result_mutex);
 		scan_result = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 		while (scan_result) {
-			slsi_rx_scan_pass_to_cfg80211(sdev, wlan_net_dev, scan_result);
+			slsi_rx_scan_pass_to_cfg80211(sdev, wlan_net_dev, scan_result, true);
 			scan_result = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 		}
 		SLSI_MUTEX_UNLOCK(ndev_vif->scan_result_mutex);
@@ -8071,4 +8084,72 @@ int slsi_add_probe_ies_request(struct slsi_dev *sdev, struct net_device *dev)
 		kfree(add_info_ies);
 	}
 	return r;
+}
+
+/* Is production rf test mode enabled? */
+bool slsi_is_rf_test_mode_enabled(void)
+{
+	return EnableRfTestMode;
+}
+
+/* Retrieve EnableRfTestMode in sysfs global */
+static ssize_t sysfs_show_pm(struct kobject *kobj,
+			     struct kobj_attribute *attr,
+			     char *buf)
+{
+	return sprintf(buf, "%d\n", !EnableRfTestMode);
+}
+
+/* Update pm in sysfs global */
+static ssize_t sysfs_store_pm(struct kobject *kobj,
+			      struct kobj_attribute *attr,
+			      const char *buf,
+			      size_t count)
+{
+	int r;
+	int sysfs_pm;
+
+	r = kstrtoint(buf, 10, &sysfs_pm);
+	if (r == 0 && (sysfs_pm == 0 || sysfs_pm == 1))
+		EnableRfTestMode = (!(bool)sysfs_pm);
+	else
+		pr_err("Invalid pm value. Must be 0 or 1\n");
+
+	SLSI_INFO_NODEV("pm: %d\n", !EnableRfTestMode);
+
+	return (r == 0) ? count : 0;
+}
+
+/* Register sysfs pm */
+void slsi_create_sysfs_pm(void)
+{
+	int r;
+
+	wifi_kobj_ref = mxman_wifi_kobject_ref_get();
+	pr_info("wifi_kobj_ref: 0x%p\n", wifi_kobj_ref);
+
+	if (wifi_kobj_ref) {
+		/* Create sysfs file /sys/wifi/pm */
+		r = sysfs_create_file(wifi_kobj_ref, &pm_attr.attr);
+		if (r) {
+			/* Failed, so clean up dir */
+			pr_err("Can't create /sys/wifi/pm\n");
+			return;
+		}
+	} else {
+		pr_err("failed to create /sys/wifi/pm\n");
+	}
+}
+
+/* Unregister sysfs pm */
+void slsi_destroy_sysfs_pm(void)
+{
+	if (!wifi_kobj_ref)
+		return;
+
+	/* Destroy /sys/wifi/pm file */
+	sysfs_remove_file(wifi_kobj_ref, &pm_attr.attr);
+
+	/* Destroy /sys/wifi virtual dir */
+	mxman_wifi_kobject_ref_put();
 }

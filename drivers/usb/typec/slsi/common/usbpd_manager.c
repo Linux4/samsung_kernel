@@ -450,11 +450,23 @@ int sec_get_pps_voltage(void)
 #endif
 void pdo_ctrl_by_flash(bool mode)
 {
-	struct usbpd_data *pd_data = g_pd_data;
-	struct usbpd_manager_data *manager = &pd_data->manager;
+	struct usbpd_data *pd_data;
+	struct usbpd_manager_data *manager;
 #if IS_ENABLED(CONFIG_PDIC_PD30)
 	int pps_enable = -1;
 #endif
+
+	pd_data = g_pd_data;
+	if (!pd_data) {
+		pr_info("%s, pd_data is NULL\n", __func__);
+		return;
+	}
+
+	manager = &pd_data->manager;
+	if (!manager) {
+		pr_info("%s, manager is NULL\n", __func__);
+		return;
+	}
 
 	pr_info("%s: mode(%d)\n", __func__, mode);
 
@@ -1511,7 +1523,7 @@ int usbpd_manager_evaluate_capability(struct usbpd_data *pd_data)
 	int i = 0;
 	int power_type = 0;
 	int min_volt = 0, max_volt = 0, cap_current = 0;
-	int pdo_type;
+	int pdo_type = 0;
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	int src_cap_changed = 0;
 	struct usbpd_manager_data *manager = &pd_data->manager;
@@ -2161,6 +2173,9 @@ static int usbpd_manager_set_property(struct power_supply *psy,
 	enum power_supply_lsi_property lsi_psp = (enum power_supply_lsi_property)psp;
 
 	switch ((int)psp) {
+	case POWER_SUPPLY_PROP_ENERGY_NOW:
+		PDIC_OPS_PARAM_FUNC(energy_now, pd_data, val->intval);
+		break;
 	case POWER_SUPPLY_PROP_AUTHENTIC:
 		PDIC_OPS_FUNC(authentic, pd_data);
 		break;

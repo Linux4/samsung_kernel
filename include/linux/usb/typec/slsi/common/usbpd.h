@@ -617,6 +617,7 @@ typedef struct usbpd_phy_ops {
 	int		(*ops_prt_water_threshold)(void *, char *);
 	void	(*ops_set_water_threshold)(void *, int, int);
 #endif
+	void	(*energy_now)(void *, int);
 	void	(*authentic)(void *);
 	void	(*set_usbpd_reset)(void *);
 	int		(*ops_get_fsm_state)(void *);

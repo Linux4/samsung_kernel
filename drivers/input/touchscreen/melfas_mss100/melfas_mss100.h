@@ -470,6 +470,7 @@ struct mms_ts_info {
 	atomic_t secure_pending_irqs;
 	struct completion secure_powerdown;
 	struct completion secure_interrupt;
+	int secure_interrupt_flag;
 #endif
 };
 

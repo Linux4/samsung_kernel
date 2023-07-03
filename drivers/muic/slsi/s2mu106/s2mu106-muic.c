@@ -1012,10 +1012,12 @@ static int s2mu106_if_check_usb_killer(void *mdata)
 {
 	struct s2mu106_muic_data *muic_data = (struct s2mu106_muic_data *)mdata;
 	int ret = MUIC_NORMAL_OTG, i;
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+	int event;
+#endif
 #if defined(CONFIG_USB_HW_PARAM)
 	struct otg_notify *o_notify = get_otg_notify();
 #endif
-
 	if (muic_data->is_water_detected) {
 		pr_err("%s water is detected\n", __func__);
 		return MUIC_ABNORMAL_OTG;
@@ -1027,7 +1029,10 @@ static int s2mu106_if_check_usb_killer(void *mdata)
 			return ret;
 		msleep(150);
 	}
-
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+	event = NOTIFY_EXTRA_USBKILLER;
+	store_usblog_notify(NOTIFY_EXTRA, (void *)&event, NULL);
+#endif
 #if defined(CONFIG_USB_HW_PARAM)
 	if (o_notify)
 		inc_hw_param(o_notify, USB_CCIC_USB_KILLER_COUNT);

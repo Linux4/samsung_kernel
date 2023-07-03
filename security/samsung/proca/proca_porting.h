@@ -159,7 +159,7 @@ static inline struct dentry *d_real_comp(struct dentry *dentry)
 #else
 static inline struct dentry *d_real_comp(struct dentry *dentry)
 {
-	return d_real(dentry, dentry->d_inode);
+	return d_real(dentry, d_real_inode(dentry));
 }
 #endif
 
@@ -195,14 +195,22 @@ static inline struct file *get_task_exe_file(struct task_struct *task)
 }
 #endif
 
-#if defined(CONFIG_ANDROID) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
+#if defined(CONFIG_ANDROID) && (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0) || \
+				LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
 /*
  * __vfs_getxattr was changed in Android Kernel v5.4
  * https://android.googlesource.com/kernel/common/+/3484eba91d6b529cc606486a2db79513f3db6c67
+ * and was reverted in Android Kernel v5.15
+ * https://android.googlesource.com/kernel/common/+/e884438aa554219a6d0df3a18ff0b23ea678c36c
  */
 #define XATTR_NOSECURITY 0x4	/* get value, do not involve security check */
 #define __vfs_getxattr(dentry, inode, name, value, size, flags) \
 		__vfs_getxattr(dentry, inode, name, value, size)
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
+#define __vfs_setxattr_noperm(dentry, name, value, size, flags) \
+		__vfs_setxattr_noperm(&init_user_ns, dentry, name, value, size, flags)
 #endif
 
 #endif /* __LINUX_PROCA_PORTING_H */
