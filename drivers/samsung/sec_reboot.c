@@ -49,6 +49,19 @@ EXPORT_SYMBOL(mach_restart);
 	}	\
 }
 
+#if defined(CONFIG_SEC_DUMP_SINK)
+void sec_set_reboot_magic(int magic)
+{
+	int tmp;
+
+	tmp = LAST_RR_VAL(reboot_magic);
+	pr_info("%s: prev: %x\n", __func__, tmp);
+	tmp = magic;
+	pr_info("%s: set as: %x\n", __func__, tmp);
+	LAST_RR_SET(reboot_magic, tmp);
+}
+#endif
+
 extern int mtk_pmic_pwrkey_status(void);
 
 static void sec_power_off(void)
@@ -122,6 +135,10 @@ static void sec_reboot(enum reboot_mode reboot_mode, const char *cmd)
 		else if (!strncmp(cmd, "debug", 5)
 			 && !kstrtoul(cmd + 5, 0, &value))
 			LAST_RR_SET(power_reset_reason, SEC_RESET_SET_DEBUG | value);
+#if defined(CONFIG_SEC_DUMP_SINK)
+		else if (!strncmp(cmd, "dump_sink", 9) && !kstrtoul(cmd + 9, 0, &value))
+			LAST_RR_SET(power_reset_reason, SEC_RESET_SET_DUMPSINK | (SEC_DUMPSINK_MASK & value));
+#endif
 		else if (!strncmp(cmd, "swsel", 5)
 			 && !kstrtoul(cmd + 5, 0, &value))
 			LAST_RR_SET(power_reset_reason, SEC_RESET_SET_SWSEL | value);

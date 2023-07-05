@@ -372,6 +372,13 @@ static int mtk_drm_idlemgr_monitor_thread(void *data)
 						__LINE__);
 				continue;
 			}
+
+			if ((bool)mtk_state->prop_val[CRTC_PROP_HBM_ENABLE]) {
+				DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__,
+						__LINE__);
+				continue;
+			}
+
 			/* do not enter VDO idle when rsz ratio >= 2.5;
 			 * And When layer fmt is YUV in VP scenario, it
 			 * will flicker into idle repaint, so let it not

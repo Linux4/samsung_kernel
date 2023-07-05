@@ -383,6 +383,10 @@
 	fixed_thermal;
 };
 
+&mmc0 {
+	status = "disabled";
+};
+
 //#include "mediatek/k6877ttv1_64_titan_black_tiger/cust_mt6877_touch_gt9895_1080_2400.dtsi"
 //#include "mediatek/k6877ttv1_64_titan_black_tiger/gpio_00.dtsi"
 //#include "mediatek/k6877ttv1_64_titan_black_tiger/camera_00.dtsi"

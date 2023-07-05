@@ -24,6 +24,7 @@
 #define IMGSENOSR_GET_ADAPTIVE_MIPI_STATUS(position)                                            imgsensor_get_adaptive_mipi_status(position)
 #define IMGSENSOR_IS_DEFAULT_CAL(sensor_idx)                                                    imgsensor_is_default_cal(sensor_idx)
 #define IMGSENSOR_SYSFS_GET_CAMERA_CLASS(cam_class)                                             imgsensor_sysfs_get_camera_class(cam_class)
+#define IMGSENOSR_GET_SENSOR_IDX(sensor_id)                                                     imgsensor_get_sensor_idx(sensor_id)
 #else
 static inline int IMGSENSOR_GET_CAL_SIZE_BY_SENSOR_IDX(int sensor_idx) {
 	return -1;
@@ -55,6 +56,10 @@ static inline bool IMGSENOSR_GET_ADAPTIVE_MIPI_STATUS(int position) {
 static inline int IMGSENSOR_SYSFS_GET_CAMERA_CLASS(struct class **cam_calss)
 {
 	return -1;
+}
+static inline enum IMGSENSOR_SENSOR_IDX IMGSENOSR_GET_SENSOR_IDX(unsigned short sensor_id)
+{
+	return IMGSENSOR_SENSOR_IDX_NONE;
 }
 #endif
 

@@ -31,6 +31,10 @@ static struct adsp_reserve_mblock adsp_reserve_mblocks[] = {
 		= ADSP_RESERVE_MEMORY_BLOCK("adsp-rsv-dbg-dump-a"),
 	[ADSP_A_CORE_DUMP_MEM_ID]
 		= ADSP_RESERVE_MEMORY_BLOCK("adsp-rsv-core-dump-a"),
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	[ADSP_XHCI_MEM_ID]
+		= ADSP_RESERVE_MEMORY_BLOCK("adsp-rsv-xhci"),
+#endif
 #ifndef CONFIG_FPGA_EARLY_PORTING
 	[ADSP_AUDIO_COMMON_MEM_ID]
 		= ADSP_RESERVE_MEMORY_BLOCK("adsp-rsv-audio"),
@@ -138,6 +142,8 @@ void adsp_init_reserve_memory(void)
 
 	/* assign to each memory block */
 	for (id = 0; id < ADSP_NUMS_MEM_ID; id++) {
+		if (adsp_reserve_mblocks[id].size == 0)
+			continue;
 		adsp_reserve_mblocks[id].phys_addr = mem->phys_addr + acc_size;
 		adsp_reserve_mblocks[id].virt_addr = mem->virt_addr + acc_size;
 		acc_size += ALIGN(adsp_reserve_mblocks[id].size, RSV_BLOCK_ALIGN);

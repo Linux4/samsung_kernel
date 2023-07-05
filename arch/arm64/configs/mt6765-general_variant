@@ -36,6 +36,10 @@ CONFIG_PAGE_BOOST=y
 CONFIG_KSWAPD_CPU=0xF0
 """
 
+a12_kor_00="""
+${a12_00}
+"""
+
 a12u_00="""
 CONFIG_CUSTOM_KERNEL_LCM=\"smcdsd_panel\"
 CONFIG_SMCDSD_PANEL=y

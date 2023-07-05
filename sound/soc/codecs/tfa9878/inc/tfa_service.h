@@ -982,6 +982,11 @@ enum tfa98xx_error tfa_set_calibration_values(struct tfa_device *tfa);
 enum tfa98xx_error tfa_set_calibration_values_once(struct tfa_device *tfa);
 
 /*
+ * Force to bypass and initialize algorithm if it's already configured
+ */
+enum tfa98xx_error tfa98xx_set_tfadsp_bypass(struct tfa_device *tfa);
+
+/*
  * start the maximus speakerboost algorithm
  * this implies a full system startup when the system was not already started
  * @param tfa the device struct pointer

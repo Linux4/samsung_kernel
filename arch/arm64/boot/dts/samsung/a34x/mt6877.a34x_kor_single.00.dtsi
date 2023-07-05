@@ -4,7 +4,7 @@
 */
 
 #include "mt6877-a34x_common.dtsi"
-#include "mt6877-a34x_camera_01.dtsi"
+#include "mt6877-a34x_camera_04.dtsi"
 
 &pio {
 	hiccup_switch: hiccup_switch {

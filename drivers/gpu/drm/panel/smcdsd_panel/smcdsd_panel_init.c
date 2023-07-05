@@ -464,6 +464,9 @@ static int smcdsd_panel_get_params_from_dt(struct device_node *np, struct mipi_d
 		smcdsd_of_property_read_u32(np, "ext_params-dyn_fps-vact_timing_fps", &ext->dyn_fps.vact_timing_fps);
 	}
 
+	smcdsd_of_property_read_u32(np, "ext_params-hbm_en_time", &ext->hbm_en_time);
+	smcdsd_of_property_read_u32(np, "ext_params-hbm_dis_time", &ext->hbm_dis_time);
+
 	smcdsd_of_property_read_u32(np, "ext_params-output_mode", &lcm_params->dsi.output_mode);
 	smcdsd_of_property_read_u32(np, "dsc_params-enable", &lcm_params->dsi.dsc_enable);
 	smcdsd_of_property_read_u32(np, "dsc_params-ver", &lcm_params->dsi.dsc_params.ver);
@@ -526,6 +529,7 @@ static int smcdsd_panel_fit_config(struct mipi_dsi_lcd_config *config)
 
 	clock = drm->vrefresh;
 	clock = clock * drm->htotal * drm->vtotal;
+	clock = clock * (drm->vscan ? drm->vscan : 1);
 	clock = div_u64(clock, 1000);
 	drm->clock = clock;
 

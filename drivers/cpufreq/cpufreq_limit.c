@@ -53,6 +53,20 @@ struct cpufreq_limit_parameter {
 	unsigned int over_limit;
 };
 
+#ifdef CONFIG_CPU_FREQ_LTL_LIMIT
+#define MAX_LTL_LIMIT	5
+struct freq_map {
+	unsigned int in;
+	unsigned int out;
+};
+
+struct cpufreq_ltl_limit {
+	struct freq_map ltl_limit_map[MAX_LTL_LIMIT];
+	unsigned int max_ltl_limit;
+	unsigned int ltl_divider;
+};
+#endif
+
 #if defined(CONFIG_MACH_MT6853)
 static struct cpufreq_limit_parameter param = {
 	.ltl_cpu_start			= 0,
@@ -94,12 +108,25 @@ static struct cpufreq_limit_parameter param = {
 	.over_limit				= -1,
 };
 #elif defined(CONFIG_MACH_MT6877)
+#ifdef CONFIG_CPU_FREQ_LTL_LIMIT
+static struct cpufreq_ltl_limit ltl_limit = {
+	.ltl_limit_map = {
+	{2000000, 2000000},
+	{1900000, 1903000},
+	{1660000, 1800000},
+	{1540000, 1703000},
+	{650000, 1600000},
+	},
+	.max_ltl_limit = 5,
+	.ltl_divider = 4,
+};
+#endif
 static struct cpufreq_limit_parameter param = {
 	.ltl_cpu_start			= 0,
 	.big_cpu_start			= 6,
 	.ltl_max_freq			= 2000000,
-	.ltl_min_lock_freq		= 1115000,
-	.big_max_lock_freq		= 900000,
+	.ltl_min_lock_freq		= 1150000,
+	.big_max_lock_freq		= 910000,
 	.ltl_divider			= 4,
 	.over_limit				= -1,
 };
@@ -122,6 +149,25 @@ static int big_policy_index = 1;
 #define LITTLE little_policy_index
 #define BIG big_policy_index
 
+#define MAX(x, y) (((x) > (y) ? (x) : (y)))
+#define MIN(x, y) (((x) < (y) ? (x) : (y)))
+
+#ifdef CONFIG_CPU_FREQ_LTL_LIMIT
+static int get_ltl_limit(int freq)
+{
+	int i;
+
+	pr_info("%s: freq=%d\n", __func__, freq);
+
+	for (i = 0; i < ltl_limit.max_ltl_limit; i++)
+		if (freq >= ltl_limit.ltl_limit_map[i].in)
+			return ltl_limit.ltl_limit_map[i].out;
+
+	pr_info("%s: freq * ltl_limit.ltl_divider=%d\n", __func__, freq * ltl_limit.ltl_divider);
+	return freq * ltl_limit.ltl_divider;
+}
+#endif
+
 void cpufreq_limit_set_table(int cpu, struct cpufreq_frequency_table *ftbl)
 {
 	if (cpu == param.big_cpu_start)
@@ -132,7 +178,10 @@ void cpufreq_limit_set_table(int cpu, struct cpufreq_frequency_table *ftbl)
 
 int set_freq_limit(unsigned int id, int freq)
 {
-	pr_debug("%s: id=%u freq=%d\n", __func__, id, freq);
+	pr_err("%s: id=%u freq=%d\n", __func__, id, freq);
+#ifdef CONFIG_CPU_FREQ_LTL_LIMIT
+	int new_max = -1;
+#endif
 
 	if (unlikely(!freq_to_set[id])) {
 		pr_err("%s: cpufreq_limit driver uninitialization\n", __func__);
@@ -158,6 +207,19 @@ int set_freq_limit(unsigned int id, int freq)
 		freq_to_set[id][BIG].min = -1;
 		cpufreq_limit_set_sched_boost(id, SCHED_NO_BOOST);
 	}
+
+#ifdef CONFIG_CPU_FREQ_LTL_LIMIT
+	if (id == DVFS_USER_ID || id == DVFS_TOUCH_ID) {
+		if (freq_to_set[DVFS_USER_ID][BIG].max > 0) {
+			if (freq > -1) {
+				new_max = MAX((int)param.over_limit, (int)freq_to_set[DVFS_USER_ID][BIG].max);
+			} else if (freq == -1) {
+				new_max = freq_to_set[DVFS_USER_ID][BIG].max;
+			}
+			freq_to_set[DVFS_USER_ID][LITTLE].max = get_ltl_limit(new_max);
+		}
+	}
+#endif
 
 	switch (id) {
 	case DVFS_USER_ID:
@@ -247,8 +309,7 @@ static void cpufreq_limit_set_sched_boost(int id, unsigned int val)
 static void cpufreq_limit_set_sched_boost(int id, unsigned int val) {}
 #endif
 
-#define MAX(x, y) (((x) > (y) ? (x) : (y)))
-#define MIN(x, y) (((x) < (y) ? (x) : (y)))
+
 
 #define cpufreq_limit_attr(_name)				\
 static struct kobj_attribute _name##_attr = {	\
@@ -304,6 +365,9 @@ static ssize_t cpufreq_max_limit_store(struct kobject *kobj,
 {
 	int val;
 	ssize_t ret = -EINVAL;
+#ifdef CONFIG_CPU_FREQ_LTL_LIMIT
+	int new_max = -1;
+#endif
 
 	if (kstrtoint(buf, 10, &val)) {
 		pr_err("%s: Invalid cpufreq format\n", __func__);
@@ -317,6 +381,10 @@ static ssize_t cpufreq_max_limit_store(struct kobject *kobj,
 	} else if (val > ltl_max_freq_div) {
 		freq_to_set[DVFS_USER_ID][LITTLE].max = -1;
 		freq_to_set[DVFS_USER_ID][BIG].max = val;
+#if CONFIG_CPU_FREQ_LTL_LIMIT
+		new_max = MAX((int)param.over_limit, (int)freq_to_set[DVFS_USER_ID][BIG].max);
+		freq_to_set[DVFS_USER_ID][LITTLE].max = get_ltl_limit(new_max);
+#endif
 	} else {
 		freq_to_set[DVFS_USER_ID][LITTLE].max = val * param.ltl_divider;
 		freq_to_set[DVFS_USER_ID][BIG].max = param.big_max_lock_freq;
@@ -395,6 +463,10 @@ static ssize_t over_limit_store(struct kobject *kobj,
 	} else if (val > ltl_max_freq_div) {
 		freq_to_set[DVFS_OVERLIMIT_ID][LITTLE].max = -1;
 		freq_to_set[DVFS_OVERLIMIT_ID][BIG].max = val;
+
+#ifdef CONFIG_CPU_FREQ_LTL_LIMIT
+		freq_to_set[DVFS_OVERLIMIT_ID][LITTLE].max = get_ltl_limit(freq_to_set[DVFS_OVERLIMIT_ID][BIG].max);
+#endif
 	} else {
 		freq_to_set[DVFS_OVERLIMIT_ID][LITTLE].max = val * param.ltl_divider;
 		freq_to_set[DVFS_OVERLIMIT_ID][BIG].max = param.big_max_lock_freq;
@@ -597,7 +669,6 @@ static int __init cpufreq_limit_init(void)
 	}
 
 	pr_info("%s: cpufreq_limit driver initialization done\n", __func__);
-
 	return ret;
 }
 

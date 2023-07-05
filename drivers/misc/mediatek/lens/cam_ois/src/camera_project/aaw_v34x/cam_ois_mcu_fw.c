@@ -54,38 +54,7 @@ int sysboot_connect(struct mcu_info *mcu_info, struct i2c_client *client)
 {
 	int ret = 0;
 
-	LOG_INF("mcu E\n");
-
-#if ENABLE_AOIS == 0
-	/* Assert NRST reset */
-	ret = pinctrl_select_state(mcu_info->pinctrl, mcu_info->mcu_nrst_low);
-	if (ret)
-		LOG_ERR("%error, can not set mcu_nrst_low gpio%d\n", ret);
-
-	/* Change BOOT pins to System Bootloader */
-	ret |= pinctrl_select_state(mcu_info->pinctrl, mcu_info->mcu_boot_high);
-	if (ret)
-		LOG_ERR("%error, can not set mcu_boot_high gpio%d\n", ret);
-
-
-	/* NRST should hold down (Vnf(NRST) > 300 ns), considering capacitor, give enough time */
-	usleep_range(2000, 2100);
-	/* Release NRST reset */
-	ret |= pinctrl_select_state(mcu_info->pinctrl, mcu_info->mcu_nrst_high);
-	if (ret)
-		LOG_ERR("%error, can not set mcu_nrst_high gpio%d\n", ret);
-
-	usleep_range(2000, 2100);
-
-	ret |= pinctrl_select_state(mcu_info->pinctrl, mcu_info->mcu_boot_low);
-	if (ret)
-		LOG_ERR("%error, can not set mcu_boot_low gpio%d\n", ret);
-
-	/* Put little delay for the target prepared */
-	msleep(BOOT_I2C_STARTUP_DELAY);
-#else
-	LOG_INF("VOIS dummy");
-#endif
+	LOG_INF(" - E");
 	return ret;
 }
 
@@ -93,33 +62,7 @@ int sysboot_disconnect(struct mcu_info *mcu_info)
 {
 	int ret = 0;
 
-	LOG_INF("sysboot disconnect");
-#if ENABLE_AOIS == 0
-	/* Change BOOT pins to Main flash */
-	// gpio_direction_output(mcu_info->boot0_ctrl_gpio, 0);
-	ret = pinctrl_select_state(mcu_info->pinctrl, mcu_info->mcu_boot_low);
-	if (ret)
-		LOG_ERR("%error, can not set mcu_boot_low gpio%d\n", ret);
-
-	usleep_range(BOOT_NRST_PULSE_INTVL * 1000, BOOT_NRST_PULSE_INTVL * 1000 + 1000);
-	/* Assert NRST reset */
-	// gpio_direction_output(mcu_info->reset_ctrl_gpio, 0);
-	ret = pinctrl_select_state(mcu_info->pinctrl, mcu_info->mcu_nrst_low);
-	if (ret)
-		LOG_ERR("%error, can not set mcu_nrst_low gpio%d\n", ret);
-
-	/* NRST should hold down (Vnf(NRST) > 300 ns), considering capacitor, give enough time */
-	usleep_range(BOOT_NRST_PULSE_INTVL * 1000, BOOT_NRST_PULSE_INTVL * 1000 + 1000);
-	/* Release NRST reset */
-	// gpio_direction_output(mcu_info->reset_ctrl_gpio, 1);
-	ret = pinctrl_select_state(mcu_info->pinctrl, mcu_info->mcu_nrst_high);
-	if (ret)
-		LOG_ERR("%error, can not set mcu_nrst_high gpio%d\n", ret);
-
-	msleep(BOOT_I2C_STARTUP_DELAY);
-#else
-	LOG_INF("VOIS dummy");
-#endif
+	LOG_INF(" - E");
 	return ret;
 }
 

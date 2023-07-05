@@ -360,6 +360,13 @@ int dsp_daiid_to_scp_reservedid(int task_dai_id)
 	case AUDIO_TASK_KTV_ID:
 	case AUDIO_TASK_CAPTURE_RAW_ID:
 	case AUDIO_TASK_FM_ADSP_ID:
+	case AUDIO_TASK_UL_PROCESS_ID:
+	case AUDIO_TASK_ECHO_REF_ID:
+	case AUDIO_TASK_ECHO_REF_DL_ID:
+	case AUDIO_TASK_USBDL_ID:
+	case AUDIO_TASK_USBUL_ID:
+	case AUDIO_TASK_MDDL_ID:
+	case AUDIO_TASK_MDUL_ID:
 		return ADSP_AUDIO_COMMON_MEM_ID;
 #endif
 	default:

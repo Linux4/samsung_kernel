@@ -39,6 +39,8 @@
 
 		battery,temp_check_count = <1>;
 
+		battery,usb_protection_temp = <610>;
+		battery,temp_gap_bat_usb = <200>;
 		battery,overheatlimit_threshold = <700>;
 		battery,overheatlimit_recovery = <680>;
 		battery,wire_warm_overheat_thresh = <500>;
@@ -504,9 +506,6 @@
 					>;
 
 		battery,temp_check_count = <1>;
-		battery,overheatlimit_threshold = <700>;
-		battery,overheatlimit_recovery = <680>;
-
 		battery,wire_warm_overheat_thresh = <500>;
 		battery,wire_normal_warm_thresh = <420>;
 		battery,wire_cool1_normal_thresh = <180>;

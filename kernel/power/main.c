@@ -14,6 +14,9 @@
 #include <linux/pm-trace.h>
 #include <linux/workqueue.h>
 #include <linux/debugfs.h>
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+#include <linux/proc_fs.h>
+#endif
 #include <linux/seq_file.h>
 #include <linux/suspend.h>
 #ifdef CONFIG_SEC_PM
@@ -354,7 +357,7 @@ static struct attribute_group suspend_attr_group = {
 	.attrs = suspend_attrs,
 };
 
-#ifdef CONFIG_DEBUG_FS
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
 static int suspend_stats_show(struct seq_file *s, void *unused)
 {
 	int i, index, last_dev, last_errno, last_step;
@@ -427,6 +430,9 @@ static int __init pm_debugfs_init(void)
 {
 	debugfs_create_file("suspend_stats", S_IFREG | S_IRUGO,
 			NULL, NULL, &suspend_stats_operations);
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+	proc_create("suspend_stats", 0644, NULL, &suspend_stats_operations);
+#endif
 	return 0;
 }
 

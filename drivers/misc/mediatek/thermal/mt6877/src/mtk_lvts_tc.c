@@ -1526,7 +1526,9 @@ int temperature, int temperature2, int tc_num)
 
 	offset = lvts_tscpu_g_tc[tc_num].tc_offset;
 
-	lvts_dbg_printk("%s t1=%d t2=%d\n",
+	//lvts_dbg_printk("%s t1=%d t2=%d\n",
+	//			__func__, temperature, temperature2);
+	pr_info("%s t1=%d t2=%d\n",
 				__func__, temperature, temperature2);
 
 #if LVTS_USE_DOMINATOR_SENSING_POINT
@@ -1534,18 +1536,25 @@ int temperature, int temperature2, int tc_num)
 		lvts_tscpu_g_tc[tc_num].ts_number){
 		d_index = lvts_tscpu_g_tc[tc_num].dominator_ts_idx;
 	} else {
-		lvts_printk("Error: LVTS TC%d, dominator_ts_idx = %d should smaller than ts_number = %d\n",
+		//lvts_printk("Error: LVTS TC%d, dominator_ts_idx = %d should smaller than ts_number = %d\n",
+		//	tc_num,
+		//	lvts_tscpu_g_tc[tc_num].dominator_ts_idx,
+		//	lvts_tscpu_g_tc[tc_num].ts_number);
+		pr_info("Error: LVTS TC%d, dominator_ts_idx = %d should smaller than ts_number = %d\n",
 			tc_num,
 			lvts_tscpu_g_tc[tc_num].dominator_ts_idx,
 			lvts_tscpu_g_tc[tc_num].ts_number);
 
-		lvts_printk("Use the sensor point 0 as the dominated sensor\n");
+		//lvts_printk("Use the sensor point 0 as the dominated sensor\n");
+		pr_info("Use the sensor point 0 as the dominated sensor\n");
 		d_index = 0;
 	}
 
 	ts_name = lvts_tscpu_g_tc[tc_num].ts[d_index];
 
-	lvts_dbg_printk("%s # in tc%d , the dominator ts_name is %d\n",
+	//lvts_dbg_printk("%s # in tc%d , the dominator ts_name is %d\n",
+	//					__func__, tc_num, ts_name);
+	pr_info("%s # in tc%d , the dominator ts_name is %d\n",
 						__func__, tc_num, ts_name);
 
 	/* temperature to trigger SPM state2 */
@@ -2047,7 +2056,9 @@ void lvts_config_all_tc_hw_protect(int temperature, int temperature2)
 {
 	int i = 0;
 
-	lvts_dbg_printk("%s, temperature=%d,temperature2=%d,\n",
+	//lvts_dbg_printk("%s, temperature=%d,temperature2=%d,\n",
+	//				__func__, temperature, temperature2);
+	pr_info("%s, temperature=%d,temperature2=%d,\n",
 					__func__, temperature, temperature2);
 
 	/*spend 860~1463 us */

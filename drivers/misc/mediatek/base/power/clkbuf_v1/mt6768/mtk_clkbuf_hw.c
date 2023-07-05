@@ -1615,7 +1615,7 @@ void clk_buf_post_init(void)
 	CLK_BUF7_STATUS = CLOCK_BUFFER_DISABLE;
 #endif
 #endif
-#ifndef CONFIG_NFC_CHIP_SUPPORT
+#ifndef CONFIG_MTK_NFC_CLKBUF_ENABLE
 	/* no need to use XO_NFC if no NFC */
 	clk_buf_ctrl_internal(CLK_BUF_NFC, CLK_BUF_FORCE_OFF);
 	CLK_BUF3_STATUS = CLOCK_BUFFER_DISABLE;

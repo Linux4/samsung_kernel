@@ -48,6 +48,9 @@
 		isg6320,multi_use = <0>;
 		isg6320,hallic_detect = <0>;
 		isg6320,hallic_cert_detect = <0>;
+#if 0
+		isg6320,unknown_ch_selection = <${isg6320_unknown_ch_sel}>;
+#endif
 	};
 };
 
@@ -102,10 +105,72 @@
 		isg6320_sub,multi_use = <0>;
 		isg6320_sub,hallic_detect = <0>;
 		isg6320_sub,hallic_cert_detect = <0>;
+#if 0
+		isg6320_sub,unknown_ch_selection = <${isg6320_sub_unknown_ch_sel}>;
+#endif
 	};
 };
 
 #endif/* isg6320_sub */
+
+#if 0
+
+&${gpio_grip_sub2_i2c_parent} {
+	grip_sub2_i2c_sda: grip-sub2-i2c-sda {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub2_i2c_sda}, FUNC_INPUT, PULL_NONE, DRV_LV2);
+	};
+	grip_sub2_i2c_scl: grip-sub2-i2c-scl {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub2_i2c_scl}, FUNC_INPUT, PULL_NONE, DRV_LV2);
+	};
+};
+
+&${gpio_grip_sub2_irq_parent} {
+	grip_sub2_int: grip-sub2-int {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub2_irq}, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV2);
+	};
+};
+
+#if 0
+&${gpio_grip_sub2_en_parent} {
+	grip_sub2_ldo_en: grip-sub2-ldo-en {
+		GPIO_CONFIG_PUD(${gpio_grip_sub2_en}, FUNC_OUTPUT_HIGH, PULL_NONE);
+	};
+};
+#endif
+
+&${i2c_grip_sub2} {
+	pinctrl-names = "default";
+	pinctrl-0 = <&grip_sub2_i2c_sda
+				 &grip_sub2_i2c_scl
+#if 0
+				 &grip_sub2_ldo_en
+#endif
+				 >;
+	status = "okay";
+	#clock-frequency = <100000>;
+	isg6320_sub2: isg6320-sub2@${isg6320_sub2_i2c_address} {
+		compatible = "isg6320_sub2";
+		reg = <0x${isg6320_sub2_i2c_address}>;
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_sub2_int>;
+
+		interrupt-parent = <SEC_GPIO_TYPE(${gpio_grip_sub2_irq})>;
+		interrupts = <SEC_GPIO_NUM(${gpio_grip_sub2_irq}) 0>;
+
+		isg6320_sub2,irq-gpio = <SEC_GPIO_REF(${gpio_grip_sub2_irq}) 0>;
+
+		isg6320_sub2,reg_num = <150>;
+		isg6320_sub2,multi_use = <${sub2_multi_use}>;
+		isg6320_sub2,hallic_detect = <0>;
+		isg6320_sub2,hallic_cert_detect = <0>;
+#if 0
+		isg6320_sub2,unknown_ch_selection = <${isg6320_sub2_unknown_ch_sel}>;
+#endif
+	};
+};
+
+#endif/* isg6320_sub2 */
 
 #if 0
 
@@ -159,6 +224,9 @@
 		isg6320_wifi,multi_use = <0>;
 		isg6320_wifi,hallic_detect = <0>;
 		isg6320_wifi,hallic_cert_detect = <0>;
+#if 0
+		isg6320_wifi,unknown_ch_selection = <${isg6320_wifi_unknown_ch_sel}>;
+#endif
 	};
 };
 

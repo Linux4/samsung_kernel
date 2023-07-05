@@ -6913,12 +6913,15 @@ out:
 		err = SUCCESS;
 	} else {
 		dev_err(hba->dev, "%s: failed with err %d\n", __func__, err);
-		err = FAILED;
+		ufshcd_print_host_regs(hba);
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
-		/* waiting for cache flush and make a panic */
-		ssleep(2);
-		panic("UFS TM ERROR\n");
+		if (err == -ETIMEDOUT) {
+			/* waiting for cache flush and make a panic */
+			ssleep(2);
+			panic("UFS TM ERROR\n");
+		}
 #endif
+		err = FAILED;
 	}
 	return err;
 }

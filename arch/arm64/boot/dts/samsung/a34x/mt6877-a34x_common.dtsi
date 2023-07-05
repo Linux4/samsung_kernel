@@ -34,35 +34,28 @@
 };
 
 &u2port0 {
-	mediatek,eye-src = <0x0>;
+	mediatek,eye-disc = <0x8>;
+	mediatek,eye-sqth = <0x0>;
+	mediatek,eye-src = <0x4>;
+	mediatek,eye-intr_cal = <0x19>;
+	mediatek,eye-rev4 = <0x1>;
+	mediatek,eye-rev6 = <0x3>;
 	mediatek,eye-vrt = <0x7>;
 	mediatek,eye-term = <0x3>;
-	mediatek,eye-rev6 = <0x3>;
-	mediatek,eye-disc = <0xe>;
-	mediatek,eye-sqth = <0x0>;
-	mediatek,eye-intr_cal = <0x19>;
-	mediatek,host-eye-src = <0x0>;
-	mediatek,host-eye-vrt = <0x7>;
-	mediatek,host-eye-term = <0x1>;
-	mediatek,host-eye-rev6 = <0x3>;
-	mediatek,host-eye-disc = <0xe>;
+	mediatek,host-eye-disc = <0x8>;
 	mediatek,host-eye-sqth = <0x0>;
+	mediatek,host-eye-src = <0x4>;
 	mediatek,host-eye-intr_cal = <0x19>;
+	mediatek,host-eye-rev4 = <0x1>;
+	mediatek,host-eye-rev6 = <0x3>;
+	mediatek,host-eye-vrt = <0x7>;
+	mediatek,host-eye-term = <0x3>;
 };
 
 &pio {
 	spk_amp_en: spk-amp-en {
 		pins_cmd_dat {
 			pinmux = <PINMUX_GPIO19__FUNC_GPIO19>;
-			slew-rate = <0>;
-			bias-disable;
-			output-low;
-		};
-	};
-
-	rcv_amp_en: rcv-amp-en {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO111__FUNC_GPIO111>;
 			slew-rate = <0>;
 			bias-disable;
 			output-low;
@@ -87,11 +80,8 @@
 		};
 	};
 
-	/* need to check power down timing */
 	i2c_amp_bus: i2c-amp-bus {
 		pins_cmd_dat {
-/*			pinmux = <PINMUX_GPIO36__FUNC_SCL6>,
-				<PINMUX_GPIO37__FUNC_SDA6>;*/
 			pinmux = <PINMUX_GPIO156__FUNC_SCL11>,
 				<PINMUX_GPIO157__FUNC_SDA11>;
 			slew-rate = <0>;
@@ -107,7 +97,6 @@
 };
 
 &i2c11 {
-/*&i2c6 {*/
 	status = "okay";
 	id = <18>;
 	clock-frequency = <400000>;
@@ -128,7 +117,7 @@
 		reset-gpio = <&pio 19  0>;
 		irq-gpio = <&pio 16 0>;
 
-		dummy-cal = <5800>;
+		dummy-cal = <5494>;
 		inchannel = <1>; /*right*/
 	};
 
@@ -138,12 +127,11 @@
 		reg = <0x35>;
 
 		pinctrl-names = "default";
-		pinctrl-0 = <&rcv_amp_en &rcv_amp_int>;
+		pinctrl-0 = <&rcv_amp_int>;
 
-		reset-gpio = <&pio 111 0>;
 		irq-gpio = <&pio 15 0>;
 
-		dummy-cal = <5900>;
+		dummy-cal = <5913>;
 		inchannel = <0>; /*left*/
 	};
 };
@@ -180,7 +168,7 @@
 				0xffffffff 0x30000>;
 	mtk_dsp_offload = <0x0 0xffffffff 0xffffffff \
 				0xffffffff 0x400000>;
-	mtk_dsp_deep = <0x5 0xffffffff 0xffffffff 0xffffffff 0x30000>;
+	mtk_dsp_deep = <0x7 0xffffffff 0xffffffff 0xffffffff 0x30000>;
 	mtk_dsp_playback = <0x1 0x4 0xffffffff 0x14 0x30000>;
 	mtk_dsp_music = <0x1 0xffffffff 0xffffffff 0xffffffff 0x0>;
 	mtk_dsp_capture1 = <0x1 0xffffffff 0xd 0x13 0x20000>;

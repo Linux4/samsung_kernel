@@ -190,9 +190,11 @@ int cam_ois_mcu_power_up(struct mcu_info *mcu_info)
 {
 	int ret = 0;
 
-	LOG_INF(" - E mcu power %d", mcu_info->power_on);
+	LOG_INF(" - E mcu power %d", mcu_info->power_count);
 
-	if (!mcu_info->power_on) {
+	if (mcu_info->power_count > 0)
+		mcu_info->power_count++;
+	else if (mcu_info->power_count == 0) {
 #if ENABLE_AOIS == 0
 		LOG_INF("MCU_BOOT_LOW\n");
 		ret = pinctrl_select_state(mcu_info->pinctrl, mcu_info->mcu_boot_low);
@@ -220,14 +222,14 @@ int cam_ois_mcu_power_up(struct mcu_info *mcu_info)
 
 		usleep_range(15000, 16000);
 		if (!ret)
-			mcu_info->power_on = true;
+			mcu_info->power_count++;
 #else
-		LOG_INF("VOIS dummy");
-		mcu_info->power_on = true;
+		LOG_INF("AOIS dummy");
+		mcu_info->power_count++;
 #endif
 	}
 
-	LOG_INF(" - X mcu power %d", mcu_info->power_on);
+	LOG_INF(" - X mcu power %d", mcu_info->power_count);
 	return ret;
 }
 
@@ -235,9 +237,11 @@ int cam_ois_sysfs_mcu_power_up(struct mcu_info *mcu_info)
 {
 	int ret = 0;
 
-	LOG_INF(" - E mcu power %d", mcu_info->power_on);
+	LOG_INF(" - E mcu power %d", mcu_info->power_count);
 
-	if (!mcu_info->power_on) {
+	if (mcu_info->power_count > 0)
+		mcu_info->power_count++;
+	else if (mcu_info->power_count == 0) {
 #if ENABLE_AOIS == 0
 		LOG_INF("MCU_BOOT_LOW\n");
 		ret = pinctrl_select_state(mcu_info->pinctrl, mcu_info->mcu_boot_low);
@@ -265,14 +269,14 @@ int cam_ois_sysfs_mcu_power_up(struct mcu_info *mcu_info)
 
 		usleep_range(15000, 16000);
 		if (!ret)
-			mcu_info->power_on = true;
+			mcu_info->power_count++;
 #else
-		LOG_INF("VOIS dummy");
-		mcu_info->power_on = true;
+		LOG_INF("AOIS dummy");
+		mcu_info->power_count++;
 #endif
 	}
 
-	LOG_INF(" - X mcu power %d", mcu_info->power_on);
+	LOG_INF(" - X mcu power %d", mcu_info->power_count);
 	return ret;
 }
 
@@ -280,8 +284,10 @@ int cam_ois_mcu_power_down(struct mcu_info *mcu_info)
 {
 	int ret = 0;
 
-	LOG_INF(" - E mcu power %d", mcu_info->power_on);
-	if (mcu_info->power_on) {
+	LOG_INF(" - E mcu power %d", mcu_info->power_count);
+	if (mcu_info->power_count > 1)
+		mcu_info->power_count--;
+	else if (mcu_info->power_count == 1) {
 #if ENABLE_AOIS == 0
 
 		ret |= pinctrl_select_state(mcu_info->pinctrl, mcu_info->ois_vdd_low);
@@ -298,15 +304,19 @@ int cam_ois_mcu_power_down(struct mcu_info *mcu_info)
 			LOG_ERR("%error, can not set mcu_nrst_low gpio%d\n", ret);
 
 		if (!ret)
-			mcu_info->power_on = false;
+			mcu_info->power_count--;
 
 		usleep_range(1000, 1100);
 #else
-		LOG_INF("VOIS dummy");
-		mcu_info->power_on = false;
+		LOG_INF("AOIS dummy");
+		mcu_info->power_count--;
 #endif
 	}
-	LOG_INF(" - X mcu power %d", mcu_info->power_on);
+
+	if (mcu_info->power_count < 0)
+		mcu_info->power_count = 0;
+
+	LOG_INF(" - X mcu power %d", mcu_info->power_count);
 
 	return ret;
 }
@@ -315,8 +325,10 @@ int cam_ois_sysfs_mcu_power_down(struct mcu_info *mcu_info)
 {
 	int ret = 0;
 
-	LOG_INF(" - E mcu power %d", mcu_info->power_on);
-	if (mcu_info->power_on) {
+	LOG_INF(" - E mcu power %d", mcu_info->power_count);
+	if (mcu_info->power_count > 1)
+		mcu_info->power_count--;
+	else if (mcu_info->power_count == 1) {
 #if ENABLE_AOIS == 0
 		LOG_INF("MCU_VDD_LOW\n");
 		ret |= pinctrl_select_state(mcu_info->pinctrl, mcu_info->mcu_vdd_low);
@@ -334,15 +346,19 @@ int cam_ois_sysfs_mcu_power_down(struct mcu_info *mcu_info)
 			LOG_ERR("%error, can not set mcu_nrst_low gpio%d\n", ret);
 
 		if (!ret)
-			mcu_info->power_on = false;
+			mcu_info->power_count--;
 
 		usleep_range(1000, 1100);
 #else
-		LOG_INF("VOIS dummy");
-		mcu_info->power_on = false;
+		LOG_INF("AOIS dummy");
+		mcu_info->power_count--;
 #endif
 	}
-	LOG_INF(" - X mcu power %d", mcu_info->power_on);
+
+	if (mcu_info->power_count < 0)
+		mcu_info->power_count = 0;
+
+	LOG_INF(" - X mcu power %d", mcu_info->power_count);
 
 	return ret;
 }

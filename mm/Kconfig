@@ -880,7 +880,7 @@ config BALANCE_ANON_FILE_RECLAIM
 
 config MMAP_READAROUND_LIMIT
 	int "Limit mmap readaround upperbound"
-	default 0
+	default 16
 	help
 	  Inappropriate mmap readaround size can hurt device performance
 	  during the sluggish situation. Add the hard upper-limit for
@@ -891,6 +891,13 @@ config FAULT_AROUND_4KB
 	default n
 	help
 	  Reduce fault around bytes to 4KB
+
+config FAULT_AROUND_BYTES
+	int "Fault around bytes"
+	default 32768
+	range 4096 65536
+	help
+	  The number of bytes to be mapped around the fault.
 
 config KSWAPD_CPU
 	hex "Set kswapd cpu affinity by default"

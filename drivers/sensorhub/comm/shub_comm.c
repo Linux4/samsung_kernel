@@ -31,7 +31,6 @@
 #define SHUB2AP_BYPASS_DATA	0x37
 #define SHUB2AP_LIBRARY_DATA	0x01
 #define SHUB2AP_DEBUG_DATA	0x03
-#define SHUB2AP_BIG_DATA	0x04
 #define SHUB2AP_META_DATA	0x05
 #define SHUB2AP_TIME_SYNC	0x06
 #define SHUB2AP_NOTI_RESET	0x07
@@ -44,6 +43,7 @@
 #define SHUB2AP_LOG_DUMP	0x12
 #define SHUB2AP_SYSTEM_INFO	0x31
 #define SHUB2AP_SENSOR_SPEC	0x41
+#define SHUB2AP_BIG_DATA	0x51
 
 struct shub_msg {
 	u8 cmd;
@@ -321,6 +321,9 @@ static int parse_dataframe(char *dataframe, int frame_len)
 		case SHUB2AP_LOG_DUMP:
 			ret = save_log_dump(dataframe, &index, frame_len);
 			break;
+		case SHUB2AP_BIG_DATA:
+			ret = parsing_big_data(dataframe, &index, frame_len);
+			break;
 		default:
 			shub_errf("0x%x cmd doesn't support, index = %d", cmd, index);
 			ret = -1;
@@ -490,6 +493,11 @@ int get_cnt_comm_fail(void)
 int get_cnt_timeout(void)
 {
 	return cnt_timeout;
+}
+
+void stop_comm_to_hub(void)
+{
+	clean_pending_list();
 }
 
 int init_comm_to_hub(void)

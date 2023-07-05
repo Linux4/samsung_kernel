@@ -21,6 +21,9 @@ enum IMGSENSOR_MODE {
 	IMGSENSOR_MODE_CUSTOM1,
 	IMGSENSOR_MODE_CUSTOM2,
 	IMGSENSOR_MODE_CUSTOM3,
+	IMGSENSOR_MODE_CUSTOM4,
+	IMGSENSOR_MODE_CUSTOM5,
+	IMGSENSOR_MODE_CUSTOM6,
 	IMGSENSOR_MODE_MAX
 };
 
@@ -90,6 +93,9 @@ struct imgsensor_info_struct {
 	struct imgsensor_mode_struct custom1;
 	struct imgsensor_mode_struct custom2;
 	struct imgsensor_mode_struct custom3;
+	struct imgsensor_mode_struct custom4;
+	struct imgsensor_mode_struct custom5;
+	struct imgsensor_mode_struct custom6;
 
 	kal_uint8 ae_shut_delay_frame; /* shutter delay frame for AE cycle */
 	kal_uint8 ae_sensor_gain_delay_frame;
@@ -106,7 +112,10 @@ struct imgsensor_info_struct {
 	kal_uint8 slim_video_delay_frame; /* enter slim video delay frame num */
 	kal_uint8 custom1_delay_frame; /* enter custom1 delay frame num */
 	kal_uint8 custom2_delay_frame; /* enter custom2 delay frame num */
-	kal_uint8 custom3_delay_frame; /* enter custom2 delay frame num */
+	kal_uint8 custom3_delay_frame; /* enter custom3 delay frame num */
+	kal_uint8 custom4_delay_frame; /* enter custom4 delay frame num */
+	kal_uint8 custom5_delay_frame; /* enter custom5 delay frame num */
+	kal_uint8 custom6_delay_frame; /* enter custom6 delay frame num */
 	kal_uint8 margin; /* sensor framelength & shutter margin */
 	kal_uint32 min_shutter; /* min shutter */
 	kal_uint32 min_gain;
@@ -160,3 +169,4 @@ extern int iReadRegI2CTiming(u8 *a_pSendData, u16 a_sizeSendData,
 extern int iWriteRegI2CTiming(u8 *a_pSendData, u16 a_sizeSendData,
 	u16 i2cId, u16 timing);
 #endif
+

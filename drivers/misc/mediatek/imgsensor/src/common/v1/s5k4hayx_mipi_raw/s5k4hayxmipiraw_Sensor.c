@@ -430,6 +430,66 @@ static void set_max_framerate(UINT16 framerate, kal_bool min_framelength_en)
 	set_dummy();
 } /*      set_max_framerate  */
 
+/*************************************************************************
+ * FUNCTION
+ *	set_shutter_frame_length
+ *
+ * DESCRIPTION
+ *	for frame & 3A sync
+ *
+ *************************************************************************/
+
+static void set_shutter_frame_length(UINT32 shutter, UINT32 frame_length)
+{
+	unsigned long flags;
+	kal_uint16 realtime_fps = 0;
+	kal_int32 dummy_line = 0;
+
+	spin_lock_irqsave(&imgsensor_drv_lock, flags);
+	imgsensor.shutter = shutter;
+	spin_unlock_irqrestore(&imgsensor_drv_lock, flags);
+
+	spin_lock(&imgsensor_drv_lock);
+
+	dummy_line = frame_length - imgsensor.frame_length;
+	imgsensor.frame_length = imgsensor.frame_length + dummy_line;
+	imgsensor.min_frame_length = imgsensor.frame_length;
+
+	if (shutter > imgsensor.frame_length - imgsensor_info.margin)
+		imgsensor.frame_length = shutter + imgsensor_info.margin;
+
+	if (imgsensor.frame_length > imgsensor_info.max_frame_length)
+		imgsensor.frame_length = imgsensor_info.max_frame_length;
+
+	spin_unlock(&imgsensor_drv_lock);
+
+	shutter = (shutter < imgsensor_info.min_shutter) ? imgsensor_info.min_shutter : shutter;
+	shutter = (shutter > (imgsensor_info.max_frame_length - imgsensor_info.margin)) ?
+				(imgsensor_info.max_frame_length - imgsensor_info.margin) : shutter;
+
+	if (imgsensor.autoflicker_en == KAL_TRUE) {
+		realtime_fps = imgsensor.pclk / imgsensor.line_length * 10
+			/ imgsensor.frame_length;
+		if (realtime_fps >= 297 && realtime_fps <= 305) {
+			set_max_framerate(296, 0);
+			//set_dummy();
+		} else if (realtime_fps >= 147 && realtime_fps <= 150) {
+			set_max_framerate(146, 0);
+			//set_dummy();
+		} else {
+			write_cmos_sensor(0x0340, imgsensor.frame_length);
+		}
+	} else {
+		// Extend frame length
+		write_cmos_sensor(0x0340, imgsensor.frame_length);
+	}
+
+	// Update Shutter
+	write_cmos_sensor(0x0202, shutter);
+	LOG_DBG("realtime_fps =%d\n", realtime_fps);
+	LOG_DBG("shutter =%d, framelength =%d\n", shutter, imgsensor.frame_length);
+}
+
 static void write_shutter(kal_uint32 shutter)
 {
 	kal_uint16 realtime_fps = 0;
@@ -466,7 +526,6 @@ static void write_shutter(kal_uint32 shutter)
 	}
 
 	// Update Shutter
-	write_cmos_sensor(0x0340, imgsensor.frame_length);
 	write_cmos_sensor(0x0202, shutter);
 	LOG_DBG("realtime_fps =%d", realtime_fps);
 	LOG_DBG("shutter =%d, framelength =%d", shutter, imgsensor.frame_length);
@@ -612,19 +671,16 @@ static int set_mode_setfile(enum IMGSENSOR_MODE mode)
 	return ret;
 }
 
-static void sensor_init(void)
+static int sensor_init(void)
 {
-	int ret = 0;
+	int ret = ERROR_NONE;
 
 	LOG_INF(" - E");
 	ret = set_mode_setfile(IMGSENSOR_MODE_INIT);
 
-#ifdef IMGSENSOR_HW_PARAM
-	if (ret != 0)
-		imgsensor_increase_hw_param_err_cnt(S5K4HA_CAL_SENSOR_POSITION);
-#endif
-
 	LOG_INF(" - X");
+
+	return ret;
 }				/*  s5k4hayxMIPI_Sensor_Init  */
 
 
@@ -700,6 +756,7 @@ static kal_uint32 open(void)
 	kal_uint8 i = 0;
 	kal_uint8 retry = 2;
 	kal_uint16 sensor_id = 0;
+	kal_uint32 ret = ERROR_NONE;
 
 	LOG_INF("%s", __func__);
 
@@ -732,7 +789,7 @@ static kal_uint32 open(void)
 	if (imgsensor_info.sensor_id != sensor_id)
 		return ERROR_SENSOR_CONNECT_FAIL;
 
-	sensor_init();
+	ret = sensor_init();
 
 	spin_lock(&imgsensor_drv_lock);
 
@@ -751,7 +808,7 @@ static kal_uint32 open(void)
 	imgsensor.current_fps       = imgsensor_info.pre.max_framerate;
 	spin_unlock(&imgsensor_drv_lock);
 
-	return ERROR_NONE;
+	return ret;
 }		/* open */
 
 /*************************************************************************
@@ -1517,17 +1574,24 @@ static kal_uint32 get_default_framerate_by_scenario(
 
 static kal_uint32 set_test_pattern_mode(kal_bool enable)
 {
-	LOG_INF("enable: %d", enable);
-
+#if 0
 	if (enable)
 		write_cmos_sensor_8(0x0601, 0x02);
 	else
 		write_cmos_sensor_8(0x0601, 0x00);
-	write_cmos_sensor_8(0x3200, 0x00);
 
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.test_pattern = enable;
 	spin_unlock(&imgsensor_drv_lock);
+
+	LOG_INF("test_pattern: %d", imgsensor.test_pattern);
+#else
+	//test pattern is always disable
+	spin_lock(&imgsensor_drv_lock);
+	imgsensor.test_pattern = false;
+	spin_unlock(&imgsensor_drv_lock);
+	LOG_INF("test pattern not supported");
+#endif
 	return ERROR_NONE;
 }
 
@@ -1852,6 +1916,18 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 			}
 		}
 		break;
+	case SENSOR_FEATURE_GET_FRAME_CTRL_INFO_BY_SCENARIO:
+		/*
+		 * 1, if driver support new sw frame sync
+		 * set_shutter_frame_length() support third para auto_extend_en
+		 */
+		*(feature_data + 1) = 1; /* margin info by scenario */
+		*(feature_data + 2) = imgsensor_info.margin;
+		break;
+	case SENSOR_FEATURE_SET_SHUTTER_FRAME_TIME:
+		set_shutter_frame_length((UINT32) (*feature_data),
+					(UINT32) (*(feature_data + 1)));
+		break;
 	case SENSOR_FEATURE_GET_AWB_REQ_BY_SCENARIO:
 		switch (*feature_data) {
 		case MSDK_SCENARIO_ID_CUSTOM2:
@@ -1927,7 +2003,11 @@ int s5k4hayx_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int s
 	int otp_page = -1;
 	unsigned int bank;
 	int bank_select[BANK_PAGE_SIZE] = {0x01, 0x03, 0x07, 0x0F, 0x1F};
+#if IS_ENABLED(CONFIG_CAMERA_AAW_V34X)
+	int bank_page[BANK_PAGE_SIZE] = {17, 36, 55, 74, 93};
+#else
 	int bank_page[BANK_PAGE_SIZE] = {17, 35, 53, 71, 89};
+#endif
 
 	write_cmos_sensor_8(0x0100, 0x01);
 	msleep(50);

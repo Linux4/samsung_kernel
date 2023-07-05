@@ -74,3 +74,4 @@ obj-$(CONFIG_DRM_PANEL_BOE_NT36525B_HDP_DSI_VDO_LM36274) += panel-boe-nt36525b-h
 obj-$(CONFIG_DRM_PANEL_BOE_SW83109_CMD) += panel-boe-sw83109-cmd.o
 obj-$(CONFIG_DRM_PANEL_HIMAX_HX83102J_VDO) += panel-himax-hx83102j-vdo.o
 obj-$(CONFIG_DRM_PANEL_S6E8FC3_VDO) += panel-s6e8fc3-vdo.o
+obj-$(CONFIG_DRM_PANEL_S6E8FC5_CMD) += panel-s6e8fc5-cmd.o

@@ -143,6 +143,7 @@ int mt6877_fe_trigger(struct snd_pcm_substream *substream, int cmd,
 	unsigned int rate = runtime->rate;
 	int fs;
 	int ret = 0;
+	bool adsp_running = false;
 
 	dev_info(afe->dev, "%s(), %s cmd %d, irq_id %d\n",
 		 __func__, memif->data->name, cmd, irq_id);
@@ -230,11 +231,9 @@ int mt6877_fe_trigger(struct snd_pcm_substream *substream, int cmd,
 		/* set memif disable */
 #if defined(CONFIG_SND_SOC_MTK_AUDIO_DSP) || defined(CONFIG_MTK_VOW_SUPPORT)
 #if defined(CONFIG_SND_SOC_MTK_AUDIO_DSP)
+		adsp_running = is_adsp_system_running();
 		/* only when adsp enable using hw semaphore to set memif */
-		if (runtime->stop_threshold == ~(0U) && is_adsp_system_running() &&
-			!mtk_audio_get_adsp_reset_status())
-			ret = 0;
-		else
+		if (runtime->stop_threshold != ~(0U) || !adsp_running)
 			ret = mtk_dsp_memif_set_disable(afe, id);
 #elif defined(CONFIG_MTK_VOW_SUPPORT)
 		/* TODO: check memif->vow_bargein_enable */
@@ -254,8 +253,7 @@ int mt6877_fe_trigger(struct snd_pcm_substream *substream, int cmd,
 
 		/* disable interrupt */
 #if defined(CONFIG_SND_SOC_MTK_AUDIO_DSP)
-		if (runtime->stop_threshold != ~(0U) || (!is_adsp_system_running()) ||
-			mtk_audio_get_adsp_reset_status())
+		if (runtime->stop_threshold != ~(0U) || !adsp_running)
 			mtk_dsp_irq_set_disable(afe, irq_data);
 #else
 		/* barge-in set stop_threshold == ~(0U), interrupt is set by scp */
@@ -1100,11 +1098,17 @@ static int mt6877_adsp_mem_get(struct snd_kcontrol *kcontrol,
 	case AUDIO_TASK_CALL_FINAL_ID:
 	case AUDIO_TASK_KTV_ID:
 	case AUDIO_TASK_VOIP_ID:
+	case AUDIO_TASK_ECHO_REF_DL_ID:
+	case AUDIO_TASK_USBDL_ID:
+	case AUDIO_TASK_MDUL_ID:
 		memif_num = get_dsp_task_attr(task_id,
 					      ADSP_TASK_ATTR_MEMDL);
 		break;
 	case AUDIO_TASK_CAPTURE_UL1_ID:
 	case AUDIO_TASK_FM_ADSP_ID:
+	case AUDIO_TASK_ECHO_REF_ID:
+	case AUDIO_TASK_USBUL_ID:
+	case AUDIO_TASK_MDDL_ID:
 		memif_num = get_dsp_task_attr(task_id,
 					      ADSP_TASK_ATTR_MEMUL);
 		break;
@@ -1140,11 +1144,17 @@ static int mt6877_adsp_mem_set(struct snd_kcontrol *kcontrol,
 	case AUDIO_TASK_FAST_ID:
 	case AUDIO_TASK_OFFLOAD_ID:
 	case AUDIO_TASK_VOIP_ID:
+	case AUDIO_TASK_ECHO_REF_DL_ID:
+	case AUDIO_TASK_USBDL_ID:
+	case AUDIO_TASK_MDUL_ID:
 		dl_memif_num = get_dsp_task_attr(task_id,
 						 ADSP_TASK_ATTR_MEMDL);
 		break;
 	case AUDIO_TASK_CAPTURE_UL1_ID:
 	case AUDIO_TASK_FM_ADSP_ID:
+	case AUDIO_TASK_ECHO_REF_ID:
+	case AUDIO_TASK_USBUL_ID:
+	case AUDIO_TASK_MDDL_ID:
 		ul_memif_num = get_dsp_task_attr(task_id,
 						 ADSP_TASK_ATTR_MEMUL);
 		break;
@@ -1391,6 +1401,30 @@ static const struct snd_kcontrol_new mt6877_pcm_kcontrols[] = {
 		       SND_SOC_NOPM, 0, 0x1, 0,
 		       mt6877_adsp_mem_get,
 		       mt6877_adsp_mem_set),
+	SOC_SINGLE_EXT("adsp_echoref_sharemem_scenario",
+		       SND_SOC_NOPM, 0, 0x1, 0,
+		       mt6877_adsp_mem_get,
+		       mt6877_adsp_mem_set),
+	SOC_SINGLE_EXT("adsp_echodl_sharemem_scenario",
+		       SND_SOC_NOPM, 0, 0x1, 0,
+		       mt6877_adsp_mem_get,
+		       mt6877_adsp_mem_set),
+	SOC_SINGLE_EXT("adsp_usbdl_sharemem_scenario",
+		       SND_SOC_NOPM, 0, 0x1, 0,
+		       mt6877_adsp_mem_get,
+		       mt6877_adsp_mem_set),
+	SOC_SINGLE_EXT("adsp_usbul_sharemem_scenario",
+		       SND_SOC_NOPM, 0, 0x1, 0,
+		       mt6877_adsp_mem_get,
+		       mt6877_adsp_mem_set),
+	SOC_SINGLE_EXT("adsp_mddl_sharemem_scenario",
+		       SND_SOC_NOPM, 0, 0x1, 0,
+		       mt6877_adsp_mem_get,
+		       mt6877_adsp_mem_set),
+	SOC_SINGLE_EXT("adsp_mdul_sharemem_scenario",
+		       SND_SOC_NOPM, 0, 0x1, 0,
+		       mt6877_adsp_mem_get,
+		       mt6877_adsp_mem_set),
 #endif
 #if defined(CONFIG_MTK_ION)
 	SOC_SINGLE_EXT("mmap_play_scenario", SND_SOC_NOPM, 0, 0x1, 0,
@@ -1618,6 +1652,8 @@ static const struct snd_kcontrol_new memif_ul6_ch1_mix[] = {
 				    I_PCM_1_CAP_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("PCM_2_CAP_CH1", AFE_CONN46,
 				    I_PCM_2_CAP_CH1, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("PCM_2_CAP_CH2", AFE_CONN46,
+				    I_PCM_2_CAP_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("GAIN1_OUT_CH1", AFE_CONN46,
 				    I_GAIN1_OUT_CH1, 1, 0),
 };
@@ -1641,6 +1677,8 @@ static const struct snd_kcontrol_new memif_ul6_ch2_mix[] = {
 				    I_PCM_1_CAP_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("PCM_2_CAP_CH1", AFE_CONN47,
 				    I_PCM_2_CAP_CH1, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("PCM_2_CAP_CH2", AFE_CONN47,
+				    I_PCM_2_CAP_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("GAIN1_OUT_CH2", AFE_CONN47,
 				    I_GAIN1_OUT_CH2, 1, 0),
 };
@@ -1822,6 +1860,7 @@ static const struct snd_soc_dapm_widget mt6877_memif_widgets[] = {
 	SND_SOC_DAPM_INPUT("UL2_VIRTUAL_INPUT"),
 	SND_SOC_DAPM_INPUT("UL6_VIRTUAL_INPUT"),
 
+	SND_SOC_DAPM_OUTPUT("DL6_VIRTUAL_OUTPUT"),
 	SND_SOC_DAPM_OUTPUT("DL_TO_DSP"),
 };
 
@@ -1937,6 +1976,8 @@ static const struct snd_soc_dapm_route mt6877_memif_routes[] = {
 	{"UL6_CH2", "PCM_1_CAP_CH1", "PCM 1 Capture"},
 	{"UL6_CH1", "PCM_2_CAP_CH1", "PCM 2 Capture"},
 	{"UL6_CH2", "PCM_2_CAP_CH1", "PCM 2 Capture"},
+	{"UL6_CH1", "PCM_2_CAP_CH2", "PCM 2 Capture"},
+	{"UL6_CH2", "PCM_2_CAP_CH2", "PCM 2 Capture"},
 	{"UL6_CH1", "GAIN1_OUT_CH1", "HW Gain 1 Out"},
 	{"UL6_CH2", "GAIN1_OUT_CH2", "HW Gain 1 Out"},
 
@@ -1963,6 +2004,9 @@ static const struct snd_soc_dapm_route mt6877_memif_routes[] = {
 
 	{"HW_GAIN2_IN_CH1", "ADDA_UL_CH1", "ADDA_UL_Mux"},
 	{"HW_GAIN2_IN_CH2", "ADDA_UL_CH2", "ADDA_UL_Mux"},
+
+	{"DL6_VIRTUAL_OUTPUT", NULL, "Hostless_UL2 DL"},
+	{"Hostless_UL2 DL", NULL, "DL6"},
 };
 
 static const struct mtk_base_memif_data memif_data[MT6877_MEMIF_NUM] = {

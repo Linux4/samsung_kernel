@@ -135,8 +135,13 @@ static const int mt6360_current[MT6360_LEVEL_NUM] = {
 };
 
 static const unsigned char mt6360_torch_level[MT6360_LEVEL_TORCH] = {
+#if IS_ENABLED(CONFIG_CAMERA_AAW_V34X)
+	0x00, 0x02, 0x04, 0x05, 0x08, 0x0A, 0x0C, 0x0E, 0x10, 0x12,
+	0x14, 0x16, 0x18, 0x1A, 0x1C, 0x1E
+#else
 	0x00, 0x02, 0x04, 0x06, 0x08, 0x0A, 0x0C, 0x0E, 0x10, 0x12,
 	0x14, 0x16, 0x18, 0x1A, 0x1C, 0x1E
+#endif
 };
 
 /* 0x00~0x74 6.25mA/step 0x75~0xB1 12.5mA/step */
@@ -795,9 +800,9 @@ static ssize_t mt6360_rear_flash_store(struct device *dev,
 	} else if (value == 200) {
 		/* Factory Flash */
 		pr_info("%s: factory flash current [%d]\n", __func__, g_fled_data->factory_current);
-		/* setup strobe mode timeout : 700ms */
+		/* setup strobe mode timeout : 900ms */
 		if (flashlight_set_strobe_timeout(flashlight_dev_ch1,
-				MT6360_HW_TIMEOUT + 300, MT6360_HW_TIMEOUT + 500) < 0)
+				MT6360_HW_TIMEOUT + 500, MT6360_HW_TIMEOUT + 700) < 0)
 			pr_info("Failed to set strobe timeout.\n");
 		current_level = g_fled_data->factory_current;
 		mode = MT6360_ENABLE_FLASH;
@@ -821,12 +826,14 @@ static ssize_t mt6360_rear_flash_store(struct device *dev,
 	if (mode != MT6360_DISABLE) {
 		mt6360_timer_cancel(MT6360_CHANNEL_CH1);
 		mt6360_timeout_ms[MT6360_CHANNEL_CH1] = 0;
-		mt6360_set_scenario(FLASHLIGHT_SCENARIO_DECOUPLE);
+		mt6360_set_scenario(FLASHLIGHT_SCENARIO_CAMERA | FLASHLIGHT_SCENARIO_DECOUPLE);
 		mt6360_set_level(MT6360_CHANNEL_CH1, current_level);
 		mt6360_operate(MT6360_CHANNEL_CH1, mode);
+	} else {
+		mt6360_set_scenario(FLASHLIGHT_SCENARIO_DECOUPLE);
 	}
-		
-	pr_info("%s: input value - %d\n", __func__, current_level);
+
+	pr_info("current level: %d", current_level);
 	pr_info("%s: rear_flash_store end\n", __func__);
 	return size;
 }

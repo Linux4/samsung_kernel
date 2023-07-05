@@ -32,7 +32,10 @@
 #include <linux/interrupt.h>
 #include <linux/arm-smccc.h>
 #include <linux/soc/mediatek/mtk_sip_svc.h>
-
+#if defined(CONFIG_MACH_MT6768) && defined(CONFIG_MTK_PMQOS)
+#include <linux/soc/mediatek/mtk-pm-qos.h>
+#endif
+#include "../core/card.h"
 #include <linux/mmc/card.h>
 #include <linux/mmc/core.h>
 #include <linux/mmc/host.h>
@@ -48,7 +51,8 @@
 #include "cqhci.h"
 #include "rpmb-mtk.h"
 #include "../../misc/mediatek/include/mt-plat/mtk_boot_common.h"
-
+#include "mtk-msdc.h"
+#include "mtk-sd-dbg.h"
 void msdc_dump_info(struct mmc_host *mmc);
 #include "mmc-sec-sysfs.h"
 
@@ -275,6 +279,7 @@ void msdc_dump_info(struct mmc_host *mmc);
 #define MSDC_PAD_TUNE_RD_SEL	  (0x1 << 13)   /* RW */
 #define MSDC_PAD_TUNE_CMD_SEL	  (0x1 << 21)   /* RW */
 
+#define PAD_DS_TUNE_DLY_SEL       (0x1 << 0)	/* RW */
 #define PAD_DS_TUNE_DLY1	  (0x1f << 2)   /* RW */
 #define PAD_DS_TUNE_DLY2	  (0x1f << 7)   /* RW */
 #define PAD_DS_TUNE_DLY3	  (0x1f << 12)  /* RW */
@@ -315,6 +320,11 @@ void msdc_dump_info(struct mmc_host *mmc);
 #define PAD_CMD_RD_RXDLY_SEL    (0x1 << 11)     /* RW */
 #define PAD_CMD_TX_DLY          (0x1f << 12)    /* RW */
 
+/* EMMC50_PAD_DS_TUNE mask */
+#define PAD_DS_DLY_SEL		(0x1 << 16)	/* RW */
+#define PAD_DS_DLY1		(0x1f << 10)	/* RW */
+#define PAD_DS_DLY3		(0x1f << 0)	/* RW */
+
 #define REQ_CMD_EIO  (0x1 << 0)
 #define REQ_CMD_TMO  (0x1 << 1)
 #define REQ_DAT_ERR  (0x1 << 2)
@@ -331,68 +341,6 @@ void msdc_dump_info(struct mmc_host *mmc);
 #define DAT_TIMEOUT         (HZ    * 5)	/* 1000ms x5 */
 
 #define PAD_DELAY_MAX	32 /* PAD delay cells */
-/*--------------------------------------------------------------------------*/
-/* Descriptor Structure                                                     */
-/*--------------------------------------------------------------------------*/
-struct mt_gpdma_desc {
-	u32 gpd_info;
-#define GPDMA_DESC_HWO		(0x1 << 0)
-#define GPDMA_DESC_BDP		(0x1 << 1)
-#define GPDMA_DESC_CHECKSUM	(0xff << 8) /* bit8 ~ bit15 */
-#define GPDMA_DESC_INT		(0x1 << 16)
-#define GPDMA_DESC_NEXT_H4	(0xf << 24)
-#define GPDMA_DESC_PTR_H4	(0xf << 28)
-	u32 next;
-	u32 ptr;
-	u32 gpd_data_len;
-#define GPDMA_DESC_BUFLEN	(0xffff) /* bit0 ~ bit15 */
-#define GPDMA_DESC_EXTLEN	(0xff << 16) /* bit16 ~ bit23 */
-	u32 arg;
-	u32 blknum;
-	u32 cmd;
-};
-
-struct mt_bdma_desc {
-	u32 bd_info;
-#define BDMA_DESC_EOL		(0x1 << 0)
-#define BDMA_DESC_CHECKSUM	(0xff << 8) /* bit8 ~ bit15 */
-#define BDMA_DESC_BLKPAD	(0x1 << 17)
-#define BDMA_DESC_DWPAD		(0x1 << 18)
-#define BDMA_DESC_NEXT_H4	(0xf << 24)
-#define BDMA_DESC_PTR_H4	(0xf << 28)
-	u32 next;
-	u32 ptr;
-	u32 bd_data_len;
-#define BDMA_DESC_BUFLEN	(0xffff) /* bit0 ~ bit15 */
-#define BDMA_DESC_BUFLEN_EXT	(0xffffff) /* bit0 ~ bit23 */
-};
-
-struct msdc_dma {
-	struct scatterlist *sg;	/* I/O scatter list */
-	struct mt_gpdma_desc *gpd;		/* pointer to gpd array */
-	struct mt_bdma_desc *bd;		/* pointer to bd array */
-	dma_addr_t gpd_addr;	/* the physical address of gpd array */
-	dma_addr_t bd_addr;	/* the physical address of bd array */
-};
-
-struct msdc_save_para {
-	u32 msdc_cfg;
-	u32 iocon;
-	u32 sdc_cfg;
-	u32 pad_tune;
-	u32 patch_bit0;
-	u32 patch_bit1;
-	u32 patch_bit2;
-	u32 pad_ds_tune;
-	u32 pad_cmd_tune;
-	u32 emmc50_cfg0;
-	u32 emmc50_cfg3;
-	u32 sdc_fifo_cfg;
-	u32 emmc_top_control;
-	u32 emmc_top_cmd;
-	u32 emmc50_pad_ds_tune;
-};
-
 struct mtk_mmc_compatible {
 	u8 clk_div_bits;
 	bool hs400_tune; /* only used for MT8173 */
@@ -405,85 +353,12 @@ struct mtk_mmc_compatible {
 	bool support_64g;
 };
 
-struct msdc_tune_para {
-	u32 iocon;
-	u32 pad_tune;
-	u32 pad_cmd_tune;
-	u32 emmc_top_control;
-	u32 emmc_top_cmd;
-};
-
 struct msdc_delay_phase {
 	u8 maxlen;
 	u8 start;
 	u8 final_phase;
 };
 
-struct msdc_host {
-	struct device *dev;
-	const struct mtk_mmc_compatible *dev_comp;
-	struct mmc_host *mmc;	/* mmc structure */
-	int cmd_rsp;
-
-	spinlock_t lock;
-	struct mmc_request *mrq;
-	struct mmc_command *cmd;
-	struct mmc_data *data;
-	int error;
-
-	void __iomem *base;		/* host base address */
-	void __iomem *top_base;		/* host top register base address */
-
-	struct msdc_dma dma;	/* dma channel */
-	u64 dma_mask;
-
-	u32 timeout_ns;		/* data timeout ns */
-	u32 timeout_clks;	/* data timeout clks */
-
-	struct pinctrl *pinctrl;
-	struct pinctrl_state *pins_default;
-	struct pinctrl_state *pins_uhs;
-	struct pinctrl_state *pins_pull_down;
-	struct delayed_work req_timeout;
-	int irq;		/* host interrupt */
-
-	struct clk *src_clk;	/* msdc source clock */
-	struct clk *h_clk;      /* msdc h_clk */
-	struct clk *bus_clk;	/* bus clock which used to access register */
-	struct clk *src_clk_cg; /* msdc source clock control gate */
-	struct clk *crypto_clk; /* msdc crypto clock */
-
-	void __iomem *crypto_clk_base; /*dbg use: for dump aes clk cg*/
-
-	u32 mclk;		/* mmc subsystem clock frequency */
-	u32 src_clk_freq;	/* source clock frequency */
-#ifdef CONFIG_MACH_MT8173
-	u32 sclk;		/* SD/MS bus clock frequency */
-#endif
-	unsigned char timing;
-	bool vqmmc_enabled;
-#ifdef CONFIG_MACH_MT8173
-	u32 host_id;
-#endif
-	u32 latch_ck;
-	u32 hs400_ds_delay;
-	u32 hs200_cmd_int_delay; /* cmd internal delay for HS200/SDR104 */
-	u32 hs400_cmd_int_delay; /* cmd internal delay for HS400 */
-#ifdef CONFIG_MACH_MT8173
-	u32 hs200_cmd_resp_sel; /* cmd response sample selection */
-	/* valid after tune response && final delay != 0xffffffff */
-	bool tune_response_valid;
-	u8 tune_response_delay; /* saved tune response value */
-#endif
-	bool hs400_cmd_resp_sel_rising;
-				 /* cmd response sample selection for HS400 */
-	bool hs400_mode;	/* current eMMC will run at hs400 mode */
-	bool cqhci;	/* support eMMC hw cmdq */
-	struct msdc_save_para save_para; /* used when gate HCLK */
-	struct msdc_tune_para def_tune_para; /* default tune setting */
-	struct msdc_tune_para saved_tune_para; /* tune result of CMD21/CMD19 */
-	struct cqhci_host *cq_host;
-};
 
 struct tag_bootmode {
 	u32 size;
@@ -728,43 +603,41 @@ static void sdr_get_field(void __iomem *reg, u32 field, u32 *val)
 	*val = ((tv & field) >> (ffs((unsigned int)field) - 1));
 }
 
-static void msdc_retry(struct msdc_host *host, int addr, int val, int expr, int retry, int cnt,
+static void msdc_retry(struct msdc_host *host, int addr, int val, int retry, int cnt,
 	struct mmc_host *mmc)
 {
+	int backup = cnt;
 
-	do {
-		int backup = cnt;
-
-		while (retry) {
-			sdr_set_bits(host->base + addr, val);
-			if (!(expr))
-				break;
-			if (cnt-- == 0) {
-				retry--; mdelay(1); cnt = backup;
-			}
+	while (retry > 0) {
+		sdr_set_bits(host->base + addr, val);
+		while(cnt > 0){
+			if (!(readl(host->base + addr) & val))
+				return;
+			cnt--;
 		}
-		if (retry == 0) {
-			dev_info(mmc->parent, "%s\n", __func__);
-			msdc_dump_info(mmc);
+		if (cnt <= 0) {
+			retry--; mdelay(1); cnt = backup;
 		}
-		WARN_ON(retry == 0);
-	} while (0);
+	}
+	if (retry == 0) {
+		dev_info(mmc->parent, "%s\n", __func__);
+		msdc_dump_info(mmc);
+	}
+	WARN_ON(retry == 0);
 }
 static void msdc_reset_hw(struct msdc_host *host)
 {
 	u32 val;
-	u32 count = 0;
-	dev_dbg(host->mmc->parent, "%s\n",__func__);
+
+	dev_dbg(host->mmc->parent, "%s %d\n",__func__,__LINE__);
 
 	//sdr_set_bits(host->base + MSDC_CFG, MSDC_CFG_RST);
 	msdc_retry(host, MSDC_CFG, MSDC_CFG_RST,
-		readl(host->base + MSDC_CFG) & MSDC_CFG_RST,
-		10, 1000, host->mmc);
+		100, 1000, host->mmc);
 
 	//sdr_set_bits(host->base + MSDC_FIFOCS, MSDC_FIFOCS_CLR);
 	msdc_retry(host, MSDC_FIFOCS, MSDC_FIFOCS_CLR,
-		readl(host->base + MSDC_FIFOCS) & MSDC_FIFOCS_CLR,
-		10, 1000, host->mmc);
+		100, 1000, host->mmc);
 
 	val = readl(host->base + MSDC_INT);
 	writel(val, host->base + MSDC_INT);
@@ -1318,7 +1191,8 @@ static bool msdc_cmd_done(struct msdc_host *host, int events,
 	if (!sbc_error && !(events & MSDC_INT_CMDRDY)) {
 		if (events & MSDC_INT_CMDTMO ||
 		    (cmd->opcode != MMC_SEND_TUNING_BLOCK &&
-		     cmd->opcode != MMC_SEND_TUNING_BLOCK_HS200))
+		     cmd->opcode != MMC_SEND_TUNING_BLOCK_HS200 &&
+		     !host->hs400_tuning))
 			/*
 			 * should not clear fifo/interrupt as the tune data
 			 * may have alreay come when cmd19/cmd21 gets response
@@ -1356,7 +1230,7 @@ static inline bool msdc_cmd_is_ready(struct msdc_host *host,
 		struct mmc_request *mrq, struct mmc_command *cmd)
 {
 	/* The max busy time we can endure is 20ms */
-	unsigned long tmo = jiffies + msecs_to_jiffies(CMD_TIMEOUT);
+	unsigned long tmo = jiffies + msecs_to_jiffies(20);
 
 	if (cmd->opcode == MMC_SEND_STATUS) {
 		while ((readl(host->base + SDC_STS) & SDC_STS_CMDBUSY) &&
@@ -1393,6 +1267,8 @@ static void msdc_start_command(struct msdc_host *host,
 	WARN_ON(host->cmd);
 	host->cmd = cmd;
 
+	dbg_add_host_log(host->mmc, 0, cmd->opcode, cmd->arg);
+
 	mod_delayed_work(system_wq, &host->req_timeout, DAT_TIMEOUT);
 	if (!msdc_cmd_is_ready(host, mrq, cmd))
 		return;
@@ -1420,7 +1296,8 @@ static void msdc_cmd_next(struct msdc_host *host,
 	if ((cmd->error &&
 	    !(cmd->error == -EILSEQ &&
 	      (cmd->opcode == MMC_SEND_TUNING_BLOCK ||
-	       cmd->opcode == MMC_SEND_TUNING_BLOCK_HS200))) ||
+	       cmd->opcode == MMC_SEND_TUNING_BLOCK_HS200 ||
+	       host->hs400_tuning))) ||
 	    (mrq->sbc && mrq->sbc->error))
 		msdc_request_done(host, mrq);
 	else if (cmd == mrq->sbc)
@@ -1994,18 +1871,18 @@ static void msdc_ops_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		mdelay(1);
 		break;
 	case MMC_POWER_OFF:
-		if (!IS_ERR(mmc->supply.vmmc))
+		if (!IS_ERR(mmc->supply.vmmc)) {
 			mmc_regulator_set_ocr(mmc, mmc->supply.vmmc, 0);
+		}
 
 		if (!IS_ERR(mmc->supply.vqmmc) && host->vqmmc_enabled) {
 			regulator_disable(mmc->supply.vqmmc);
 			host->vqmmc_enabled = false;
 		}
-
-		if (!IS_ERR(host->pins_pull_down))
+		if (host->pins_pull_down) {
+			dev_info(host->dev, "%s pins_pull_down", __func__);
 			pinctrl_select_state(host->pinctrl, host->pins_pull_down);
-
-		mdelay(1);
+		}
 		break;
 	default:
 		break;
@@ -2552,6 +2429,70 @@ static int msdc_prepare_hs400_tuning(struct mmc_host *mmc, struct mmc_ios *ios)
 	return 0;
 }
 
+static int msdc_execute_hs400_tuning(struct mmc_host *mmc, struct mmc_card *card)
+{
+	struct msdc_host *host = mmc_priv(mmc);
+	struct msdc_delay_phase dly1_delay;
+	u32 val, result_dly1 = 0;
+	u8 *ext_csd;
+	int i, ret;
+
+	if (host->top_base) {
+		sdr_set_bits(host->top_base + EMMC50_PAD_DS_TUNE,
+			     PAD_DS_DLY_SEL);
+		if (host->hs400_ds_dly3)
+			sdr_set_field(host->top_base + EMMC50_PAD_DS_TUNE,
+				      PAD_DS_DLY3, host->hs400_ds_dly3);
+	} else {
+		sdr_set_bits(host->base + PAD_DS_TUNE, PAD_DS_TUNE_DLY_SEL);
+		if (host->hs400_ds_dly3)
+			sdr_set_field(host->base + PAD_DS_TUNE,
+				      PAD_DS_TUNE_DLY3, host->hs400_ds_dly3);
+	}
+
+	host->hs400_tuning = true;
+	for (i = 0; i < PAD_DELAY_MAX; i++) {
+		if (host->top_base)
+			sdr_set_field(host->top_base + EMMC50_PAD_DS_TUNE,
+				      PAD_DS_DLY1, i);
+		else
+			sdr_set_field(host->base + PAD_DS_TUNE,
+				      PAD_DS_TUNE_DLY1, i);
+		ret = mmc_get_ext_csd(card, &ext_csd);
+		if (!ret) {
+			result_dly1 |= (1 << i);
+			kfree(ext_csd);
+		}
+	}
+	host->hs400_tuning = false;
+
+	dly1_delay = get_best_delay(host, result_dly1);
+	if (dly1_delay.maxlen == 0) {
+		dev_info(host->dev, "Failed to get DLY1 delay!\n");
+		goto fail;
+	}
+	if (host->top_base)
+		sdr_set_field(host->top_base + EMMC50_PAD_DS_TUNE,
+			      PAD_DS_DLY1, dly1_delay.final_phase);
+	else
+		sdr_set_field(host->base + PAD_DS_TUNE,
+			      PAD_DS_TUNE_DLY1, dly1_delay.final_phase);
+
+	if (host->top_base) {
+		val = readl(host->top_base + EMMC50_PAD_DS_TUNE);
+		dev_info(host->dev, "Fianl EMMC50_PAD_DS_TUNE: 0x%x\n", val);
+	} else {
+		val = readl(host->base + PAD_DS_TUNE);
+		dev_info(host->dev, "Fianl PAD_DS_TUNE: 0x%x\n", val);
+	}
+
+	return 0;
+
+fail:
+	dev_info(host->dev, "Failed to tuning DS pin delay!\n");
+	return -EIO;
+}
+
 static void msdc_hw_reset(struct mmc_host *mmc)
 {
 	struct msdc_host *host = mmc_priv(mmc);
@@ -2615,6 +2556,7 @@ static const struct mmc_host_ops mt_msdc_ops = {
 	.card_busy = msdc_card_busy,
 	.execute_tuning = msdc_execute_tuning,
 	.prepare_hs400_tuning = msdc_prepare_hs400_tuning,
+	.execute_hs400_tuning = msdc_execute_hs400_tuning,
 	.hw_reset = msdc_hw_reset,
 };
 
@@ -2752,6 +2694,8 @@ static int msdc_drv_probe(struct platform_device *pdev)
 	host = mmc_priv(mmc);
 	ret = mmc_of_parse(mmc);
 
+	msdc_debug_proc_init();
+
 	/* fix uaf(use afer free) issue:backup pdev->name,
 	 * device_rename will free pdev->name
 	 */
@@ -2792,6 +2736,7 @@ static int msdc_drv_probe(struct platform_device *pdev)
 	if (mmc->host_function == MSDC_SD) {
 		/* Aggressive pm on SDcard causes latency at resume/suspend */
 		// mmc->caps |= MMC_CAP_AGGRESSIVE_PM;
+		mmc->caps |= MMC_CAP_CD_WAKE;
 		mmc->trigger_card_event = true;
 		mmc->caps2 |= MMC_CAP2_NO_PRESCAN_POWERUP;
 	}
@@ -2880,8 +2825,11 @@ static int msdc_drv_probe(struct platform_device *pdev)
 	}
 
 	host->pins_pull_down = pinctrl_lookup_state(host->pinctrl, "pull_down");
-	if (IS_ERR(host->pins_pull_down))
-		dev_err(&pdev->dev, "Cannot find pinctrl pull_down!\n");
+	if (IS_ERR(host->pins_pull_down)) {
+		ret = PTR_ERR(host->pins_pull_down);
+		dev_info(&pdev->dev, "Cannot find pinctrl pull_down!\n");
+		host->pins_pull_down = NULL;
+	}
 
 	msdc_of_property_parse(pdev, host);
 
@@ -2970,10 +2918,23 @@ static int msdc_drv_probe(struct platform_device *pdev)
 	if (ret)
 		goto release;
 
+#if defined(CONFIG_MACH_MT6768) && defined(CONFIG_MTK_PMQOS)
+	mtk_pm_qos_add_request(&host->pm_qos, MTK_PM_QOS_VCORE_OPP, 1);
+#endif
+
 	pm_runtime_set_active(host->dev);
 	pm_runtime_set_autosuspend_delay(host->dev, MTK_MMC_AUTOSUSPEND_DELAY);
 	pm_runtime_use_autosuspend(host->dev);
 	pm_runtime_enable(host->dev);
+
+	if (mmc->host_function == MSDC_EMMC) {
+		mmc->ocr_avail_mmc = MMC_VDD_EMMC;
+		mmc->ocr_avail = mmc->ocr_avail_mmc;
+	} else if (mmc->host_function == MSDC_SD) {
+		mmc->ocr_avail_sd = MMC_VDD_SD;
+		mmc->ocr_avail = mmc->ocr_avail_sd;
+	}
+
 	ret = mmc_add_host(mmc);
 
 	if (ret)
@@ -2982,12 +2943,16 @@ static int msdc_drv_probe(struct platform_device *pdev)
 #if IS_ENABLED(CONFIG_RPMB)
 	ret = mmc_rpmb_register(mmc);
 #endif
+	msdc_debug_set_host(mmc);
 
 	mmc_sec_init_sysfs(mmc);
 
 	return 0;
 end:
 	pm_runtime_disable(host->dev);
+#if defined(CONFIG_MACH_MT6768) && defined(CONFIG_MTK_PMQOS)
+	mtk_pm_qos_remove_request(&host->pm_qos);
+#endif
 release:
 	platform_set_drvdata(pdev, NULL);
 	msdc_deinit_hw(host);
@@ -3029,6 +2994,10 @@ static int msdc_drv_remove(struct platform_device *pdev)
 			host->dma.gpd, host->dma.gpd_addr);
 	dma_free_coherent(&pdev->dev, MAX_BD_NUM * sizeof(struct mt_bdma_desc),
 			host->dma.bd, host->dma.bd_addr);
+
+#if defined(CONFIG_MACH_MT6768) && defined(CONFIG_MTK_PMQOS)
+	mtk_pm_qos_remove_request(&host->pm_qos);
+#endif
 
 	mmc_free_host(host->mmc);
 
@@ -3135,6 +3104,17 @@ static int msdc_runtime_suspend(struct device *dev)
 	return 0;
 }
 
+static int msdc_suspend(struct device *dev)
+{
+	struct mmc_host *mmc = dev_get_drvdata(dev);
+	struct msdc_host *host = mmc_priv(mmc);
+
+	dev_err(host->dev,"%s, GPIO set cd wake enable",__func__);
+	mmc_gpio_set_cd_wake(mmc, true);
+
+	return pm_runtime_force_suspend(dev);
+}
+
 static int msdc_runtime_resume(struct device *dev)
 {
 	struct mmc_host *mmc = dev_get_drvdata(dev);
@@ -3158,11 +3138,22 @@ static int msdc_runtime_resume(struct device *dev)
 			1, 4, 1, 0, 0, 0, 0, &smccc_res);
 	return 0;
 }
+
+static int msdc_resume(struct device *dev)
+{
+	struct mmc_host *mmc = dev_get_drvdata(dev);
+	struct msdc_host *host = mmc_priv(mmc);
+
+	dev_err(host->dev,"%s, GPIO set cd wake disable",__func__);
+	mmc_gpio_set_cd_wake(mmc, false);
+
+	return pm_runtime_force_resume(dev);
+}
 #endif
 
 static const struct dev_pm_ops msdc_dev_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
-				pm_runtime_force_resume)
+	SET_SYSTEM_SLEEP_PM_OPS(msdc_suspend, msdc_resume)
+
 	SET_RUNTIME_PM_OPS(msdc_runtime_suspend, msdc_runtime_resume, NULL)
 };
 

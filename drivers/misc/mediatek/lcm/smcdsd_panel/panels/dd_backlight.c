@@ -32,23 +32,23 @@
  * echo min dft max out: platform_min platform_dft platform_max platform_out > bl_tuning
  * echo 0 > bl_tuning
  *
- * ex) echo 1 2 3 > /d/dd_backlight/bl_tuning
- * ex) echo 1 2 3 4 > /d/dd_backlight/bl_tuning
- * ex) echo 1 2 3: 4 5 6 > /d/dd_backlight/bl_tuning
- * ex) echo 1 2 3 4: 5 6 7 8 > /d/dd_backlight/bl_tuning = this means 1 2 3 4 for tune_value and 5 6 7 8 for brightness
- * ex) echo 0 > /d/dd_backlight/bl_tuning = this means reset brightness table to default
+ * ex) echo 1 2 3 > /d/dd/backlight/bl_tuning
+ * ex) echo 1 2 3 4 > /d/dd/backlight/bl_tuning
+ * ex) echo 1 2 3: 4 5 6 > /d/dd/backlight/bl_tuning
+ * ex) echo 1 2 3 4: 5 6 7 8 > /d/dd/backlight/bl_tuning = this means 1 2 3 4 for tune_value and 5 6 7 8 for brightness
+ * ex) echo 0 > /d/dd/backlight/bl_tuning = this means reset brightness table to default
  *
- * ex) echo 1 2 3 4: 5 6 7 > /d/dd_backlight/bl_tuning (X) because tune_value(1 2 3 4) part count is 4 but brightness(5 6 7) part count is 3
- * ex) echo 1 2 3 4: 5 6 7: 8 9 10 > /d/dd_backlight/bl_tuning (X) because we allow only one :(colon) to separate platform brightness point
+ * ex) echo 1 2 3 4: 5 6 7 > /d/dd/backlight/bl_tuning (X) because tune_value(1 2 3 4) part count is 4 but brightness(5 6 7) part count is 3
+ * ex) echo 1 2 3 4: 5 6 7: 8 9 10 > /d/dd/backlight/bl_tuning (X) because we allow only one :(colon) to separate platform brightness point
  *
  */
 
 /* ic tuning usage
- * echo addr (value. if you skip it, we regard this is read mode) > /d/dd_backlight/ic_tuning-i2c_client->name
+ * echo addr (value. if you skip it, we regard this is read mode) > /d/dd/backlight/ic_tuning-i2c_client->name
 
- * ex) echo 0x1 > /d/dd_backlight/ic_tuning-i2c_client
+ * ex) echo 0x1 > /d/dd/backlight/ic_tuning-i2c_client
  * = this means you assign read i2c_command as 0x1 when you cat this sysfs next time
- * ex) echo 0x1 0x2 > /d/dd_backlight/ic_tuning-i2c_client
+ * ex) echo 0x1 0x2 > /d/dd/backlight/ic_tuning-i2c_client
  * = this means you write to 0x01(i2c_command) with 0x02(value) and you assign read i2c_command as 0x1 when you cat this sysfs next time
  */
 
@@ -460,8 +460,7 @@ static const struct file_operations bl_tuning_fops = {
 	.open		= bl_tuning_open,
 	.write		= bl_tuning_write,
 	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
+	.release	= single_release,
 };
 
 static int ic_tuning_show(struct seq_file *m, void *unused)
@@ -607,8 +606,7 @@ static const struct file_operations ic_tuning_fops = {
 	.open		= ic_tuning_open,
 	.write		= ic_tuning_write,
 	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
+	.release	= single_release,
 };
 
 static int help_show(struct seq_file *m, void *unused)
@@ -630,7 +628,7 @@ static int help_show(struct seq_file *m, void *unused)
 	seq_puts(m, "------------------------------------------------------------\n");
 	seq_puts(m, "\n");
 	seq_puts(m, "---------- usage\n");
-	seq_puts(m, "# cd /d/dd_backlight\n");
+	seq_puts(m, "# cd /d/dd/backlight\n");
 	seq_puts(m, "\n");
 	seq_puts(m, "---------- bl_tuning usage\n");
 	if (end == BL_POINT_OUT) {
@@ -691,8 +689,7 @@ static int help_open(struct inode *inode, struct file *f)
 static const struct file_operations help_fops = {
 	.open		= help_open,
 	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
+	.release	= single_release,
 };
 
 static struct dentry *debugfs_root;
@@ -704,6 +701,7 @@ int init_debugfs_backlight(struct backlight_device *bd, unsigned int *table, str
 	char name_string[] = "i2c-";
 	char full_string[I2C_NAME_SIZE + (u16)(ARRAY_SIZE(name_string))];
 	struct i2c_driver *driver;
+	static struct dentry *dd_debugfs_root;
 
 	if (!bd && table) {
 		dbg_warn("failed to get backlight_device\n");
@@ -718,8 +716,11 @@ int init_debugfs_backlight(struct backlight_device *bd, unsigned int *table, str
 
 	dbg_info("+\n");
 
+	dd_debugfs_root = debugfs_lookup("dd", NULL);
+	dd_debugfs_root = dd_debugfs_root ? dd_debugfs_root : debugfs_create_dir("dd", NULL);
+
 	if (!debugfs_root)
-		debugfs_root = debugfs_create_dir("dd_backlight", NULL);
+		debugfs_root = debugfs_create_dir("backlight", dd_debugfs_root);
 
 	if (table) {
 		bl = kzalloc(sizeof(struct bl_info), GFP_KERNEL);

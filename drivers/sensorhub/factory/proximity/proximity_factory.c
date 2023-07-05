@@ -258,7 +258,7 @@ get_chipset_dev_attrs get_proximity_chipset_dev_attrs[] = {
 	get_proximity_stk3x6x_dev_attrs,
 	get_proximity_stk3328_dev_attrs,
 	get_proximity_tmd4912_dev_attrs,
-	get_proximity_stk33910_dev_attrs,
+	get_proximity_stk3391x_dev_attrs,
 	get_proximity_stk33512_dev_attrs,
 };
 

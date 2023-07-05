@@ -4699,6 +4699,12 @@ hub_port_init(struct usb_hub *hub, struct usb_device *udev, int port1,
 						retries == 0 &&
 						udev->speed > USB_SPEED_FULL))
 					break;
+#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
+				if (r == -ETIMEDOUT && udev->reset_resume == 1) {
+					dev_err(&udev->dev, "get descriptor fail in reset resume\n");
+					break;
+				}
+#endif
 			}
 			udev->descriptor.bMaxPacketSize0 =
 					buf->bMaxPacketSize0;
@@ -4733,6 +4739,12 @@ hub_port_init(struct usb_hub *hub, struct usb_device *udev, int port1,
 				retval = hub_set_address(udev, devnum);
 				if (retval >= 0)
 					break;
+#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
+				if (udev->reset_resume && retval < 0) {
+					dev_err(&udev->dev, "set address fail in reset resume\n");
+					break;
+				}
+#endif
 				msleep(200);
 			}
 			if (retval < 0) {
@@ -4862,6 +4874,9 @@ hub_port_init(struct usb_hub *hub, struct usb_device *udev, int port1,
 #endif
 fail:
 	if (retval) {
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+		dev_err(&udev->dev, "%s fail. retval=%d\n", __func__, retval);
+#endif
 		hub_port_disable(hub, port1, 0);
 		update_devnum(udev, devnum);	/* for disconnect processing */
 	}
@@ -5715,6 +5730,12 @@ static int usb_reset_and_verify_device(struct usb_device *udev)
 		ret = hub_port_init(parent_hub, udev, port1, i);
 		if (ret >= 0 || ret == -ENOTCONN || ret == -ENODEV)
 			break;
+#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
+		if (ret < 0 && udev->reset_resume == 1) {
+			dev_err(&udev->dev, "hub_port_init fail in reset resume\n");
+			break;
+		}
+#endif
 	}
 
 	if (ret < 0)

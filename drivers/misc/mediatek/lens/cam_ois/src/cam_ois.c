@@ -46,7 +46,7 @@ int cam_ois_prove_init(void)
 
 	ois_info.af_pos_wide = 0;
 	mcu_info.is_fw_updated = 0;
-	mcu_info.power_on = false;
+	mcu_info.power_count = 0;
 
 	cam_ois_set_i2c_client();
 	mcu_info.pdev = get_cam_ois_dev();
@@ -75,7 +75,7 @@ int cam_ois_get_eeprom_from_sysfs(void)
 	ois_addr = ois_cal_addr->addr;
 	ois_size = ois_cal_addr->size;
 
-	LOG_INF("OIS cal start addr: %#06x, size: %#06x\n", ois_addr, ois_size);
+	LOG_DBG("OIS cal start addr: %#06x, size: %#06x\n", ois_addr, ois_size);
 
 	if (IMGSENSOR_GET_CAL_BUF_BY_SENSOR_IDX(sensor_dev_id, &rom_cal_buf)) {
 		LOG_ERR("cal data is NULL, sensor_dev_id: %d", sensor_dev_id);
@@ -115,7 +115,7 @@ EXPORT_SYMBOL_GPL(cam_ois_mcu_update);
 
 static void cam_ois_print_pinctrl(struct mcu_info *mcu_info)
 {
-	LOG_INF("pinctrl: %x, mcu boot: %x, %x, mcu nRST: %x, %x, mcu VDD: %x, %x, ois VDD: %x, %x",
+	LOG_DBG("pinctrl: %x, mcu boot: %x, %x, mcu nRST: %x, %x, mcu VDD: %x, %x, ois VDD: %x, %x",
 		mcu_info->pinctrl, mcu_info->mcu_boot_high, mcu_info->mcu_boot_low,
 		mcu_info->mcu_nrst_high, mcu_info->mcu_nrst_low, mcu_info->mcu_vdd_high,
 		mcu_info->mcu_vdd_low, mcu_info->ois_vdd_high, mcu_info->ois_vdd_low);
@@ -135,16 +135,16 @@ static void cam_ois_print_ois_info(void)
 
 static void cam_ois_print_info(void)
 {
-	LOG_INF("mcu info dev: 0x%x\n", mcu_info.pdev);
+	LOG_DBG("mcu info dev: 0x%x\n", mcu_info.pdev);
 	if (mcu_info.pdev != NULL)
-		LOG_INF("mcu info dev name: %s\n", mcu_info.pdev->init_name);
+		LOG_DBG("mcu info dev name: %s\n", mcu_info.pdev->init_name);
 
 	if (i2c_client) {
-		LOG_INF("mcu i2c client name: %s\n", i2c_client->name);
-		LOG_INF("mcu i2c addr: %s\n", i2c_client->addr);
+		LOG_DBG("mcu i2c client name: %s\n", i2c_client->name);
+		LOG_DBG("mcu i2c addr: %x\n", i2c_client->addr);
 	} else
-		LOG_INF("i2c client name: NULL\n");
-	// LOG_INF("i2c adapter name: %s\n", i2c_client->adapter->name);
+		LOG_DBG("i2c client name: NULL\n");
+
 	cam_ois_print_ois_info();
 	cam_ois_print_pinctrl(&mcu_info);
 	LOG_INF("mcu is_updated: %d\n", mcu_info.is_updated);
@@ -187,14 +187,21 @@ static int cam_ois_control_servo(u8 data)
 
 static inline u8 cam_ois_check_mcu_status(struct i2c_client *i2c_client_in)
 {
-	int ret = 0;
 	u8 val = 0;
+#if ENABLE_AOIS == 1
+	val = 0x01;
+#else
 	int retries = 5;
+	int ret = 0;
 
 	do {
 		ret = cam_ois_i2c_read_multi(i2c_client_in, MCU_I2C_SLAVE_W_ADDR, 0x01, &val, 1);
-		if (ret != 0)
+		if (ret != 0) {
 			val = -EIO;
+#ifdef IMGSENSOR_HW_PARAM
+			imgsensor_increase_hw_param_ois_err_cnt(SENSOR_POSITION_REAR);
+#endif
+		}
 
 		usleep_range(2000, 2500);
 		if (--retries < 0) {
@@ -202,6 +209,7 @@ static inline u8 cam_ois_check_mcu_status(struct i2c_client *i2c_client_in)
 			break;
 		}
 	} while (val != 0x01);
+#endif
 	return val;
 }
 
@@ -448,7 +456,7 @@ static int cam_ois_set_init_data(void)
 		LOG_ERR("fail to set fadedown\n");
 
 	ret = cam_ois_read_hall_center(&(ois_info.x_hall_center), &(ois_info.y_hall_center));
-	LOG_INF("hall center x: %d, y: %d\n", ois_info.x_hall_center, ois_info.y_hall_center);
+	LOG_DBG("hall center x: %d, y: %d\n", ois_info.x_hall_center, ois_info.y_hall_center);
 
 	ret = cam_ois_i2c_write_one(i2c_client, MCU_I2C_SLAVE_W_ADDR, 0x00BE, 0x01);
 	if (ret < 0)
@@ -545,7 +553,7 @@ int cam_ois_init(void)
 	int ret = 0;
 	unsigned char val = 0;
 
-	LOG_INF("ois_init E\n");
+	LOG_INF(" - E\n");
 
 	mcu_info.prev_vdis_coef = 255;
 	mcu_info.enabled = true;
@@ -570,6 +578,7 @@ int cam_ois_init(void)
 
 	cam_ois_print_info();
 
+	LOG_INF(" - X\n");
 	return ret;
 }
 
@@ -833,25 +842,14 @@ int cam_ois_sysfs_autotest(int *sin_x, int *sin_y, int *result_x, int *result_y,
 	LOG_INF("E");
 
 #if ENABLE_AOIS == 1
-	ret = cam_ois_set_fac_mode(FACTORY_MODE_ON);
-	if (ret < 0)
-		LOG_INF("FACTORY_MODE_ON fail ret:%d", ret);
-	else
-		LOG_INF("FACTORY_MODE_ON success");
-	msleep(30);
+	cam_ois_set_aois_fac_mode_on();
 #endif
 
 	ret = cam_ois_init();
 	if (ret) {
 		LOG_ERR("fail to init");
 #if ENABLE_AOIS == 1
-		ret = cam_ois_set_fac_mode(FACTORY_MODE_OFF);
-		if (ret < 0)
-			LOG_INF("FACTORY_MODE_OFF fail ret:%d", ret);
-		else
-			LOG_INF("FACTORY_MODE_OFF success");
-
-		ret = -1;
+		cam_ois_set_aois_fac_mode_off();
 #endif
 		return ret;
 	}
@@ -894,12 +892,9 @@ int cam_ois_sysfs_autotest(int *sin_x, int *sin_y, int *result_x, int *result_y,
 	}
 
 	cam_ois_af_drv_deinit();
+
 #if ENABLE_AOIS == 1
-	ret = cam_ois_set_fac_mode(FACTORY_MODE_OFF);
-	if (ret < 0)
-		LOG_INF("FACTORY_MODE_OFF fail ret:%d", ret);
-	else
-		LOG_INF("FACTORY_MODE_OFF success");
+	cam_ois_set_aois_fac_mode_off();
 #endif
 	return ret;
 }
@@ -911,28 +906,20 @@ int cam_ois_sysfs_set_mode(int mode)
 
 	LOG_INF("E");
 
-	if (!mcu_info.power_on) {
+	if (mcu_info.power_count == 0) {
 		LOG_ERR("MCU power condition: off");
 		return -1;
 	}
 #if ENABLE_AOIS == 1
-	ret = cam_ois_set_fac_mode(FACTORY_MODE_ON);
-	if (ret < 0)
-		LOG_INF("FACTORY_MODE_ON fail ret:%d", ret);
-	else
-		LOG_INF("FACTORY_MODE_ON success");
-	msleep(30);
+	cam_ois_set_aois_fac_mode_on();
 #endif
 
 	ret = cam_ois_init();
 	if (ret) {
 		LOG_ERR("fail to init");
+
 #if ENABLE_AOIS == 1
-		ret = cam_ois_set_fac_mode(FACTORY_MODE_OFF);
-		if (ret < 0)
-			LOG_INF("FACTORY_MODE_OFF fail ret:%d", ret);
-		else
-			LOG_INF("FACTORY_MODE_OFF success");
+		cam_ois_set_aois_fac_mode_off();
 #endif
 		return ret;
 	}
@@ -963,11 +950,7 @@ int cam_ois_sysfs_set_mode(int mode)
 		LOG_ERR("fail to set mode");
 
 #if ENABLE_AOIS == 1
-		ret = cam_ois_set_fac_mode(FACTORY_MODE_OFF);
-		if (ret < 0)
-			LOG_INF("FACTORY_MODE_OFF fail ret:%d", ret);
-		else
-			LOG_INF("FACTORY_MODE_OFF success");
+		cam_ois_set_aois_fac_mode_off();
 #endif
 	return ret;
 }
@@ -980,17 +963,13 @@ int cam_ois_sysfs_get_mcu_error(int *w_error)
 	LOG_INF("E");
 
 	*w_error = 1;
-	if (!mcu_info.power_on) {
+	if (mcu_info.power_count == 0) {
 		LOG_ERR("MCU power condition: off");
 		return -1;
 	}
 
 #if ENABLE_AOIS == 1
-	ret = cam_ois_set_fac_mode(FACTORY_MODE_ON);
-	if (ret < 0)
-		LOG_INF("FACTORY_MODE_ON fail ret:%d", ret);
-
-	msleep(30);
+	cam_ois_set_aois_fac_mode_on();
 #else
 	ret = cam_ois_init();
 	if (ret) {
@@ -1008,10 +987,229 @@ int cam_ois_sysfs_get_mcu_error(int *w_error)
 	/* b9(0x0200): wide cam x, b10(0x0400): widecam y */
 
 #if ENABLE_AOIS == 1
-	ret |= cam_ois_set_fac_mode(FACTORY_MODE_OFF);
-	if (ret < 0)
-		LOG_INF("FACTORY_MODE_OFF fail ret:%d", ret);
+	cam_ois_set_aois_fac_mode_off();
+#endif
+	return ret;
+}
+
+int cam_ois_gyro_sensor_noise_check(long *stdev_data_x, long *stdev_data_y)
+{
+	int ret = 0, result = 1;
+	u8 rcv_data_array[2] = {0, };
+	int xgnoise_val = 0, ygnoise_val = 0;
+	int retries = 100;
+	int scale_factor = OIS_GYRO_SCALE_FACTOR;
+
+#if ENABLE_AOIS == 1
+	cam_ois_set_aois_fac_mode_on();
 #endif
 
-	return ret;
+	/* OIS Servo Off */
+	ret = cam_ois_i2c_write_one(i2c_client, MCU_I2C_SLAVE_W_ADDR, 0x0000, 0x00);
+	if (ret < 0) {
+		LOG_ERR("OIS Servo Off: i2c write fail %d", ret);
+#if ENABLE_AOIS == 1
+		cam_ois_set_aois_fac_mode_off();
+#endif
+		return 0;
+	}
+
+	/* Waiting for Idle */
+	ret = cam_ois_mcu_wait_idle(i2c_client, 1);
+	if (ret < 0) {
+		LOG_ERR("wait ois idle status failed");
+#if ENABLE_AOIS == 1
+		cam_ois_set_aois_fac_mode_off();
+#endif
+		return 0;
+	}
+
+	/* Gyro Noise Measure Start */
+	ret = cam_ois_i2c_write_one(i2c_client, MCU_I2C_SLAVE_W_ADDR, 0x0029, 0x01);
+	if (ret < 0) {
+		LOG_ERR("Gyro Noise Measure Start: i2c write fail %d", ret);
+#if ENABLE_AOIS == 1
+		cam_ois_set_aois_fac_mode_off();
+#endif
+		return 0;
+	}
+
+#if ENABLE_AOIS == 1
+	cam_ois_set_aois_fac_mode(FACTORY_ONETIME, 10);
+#endif
+	/* Check Noise Measure End */
+	do {
+		ret = cam_ois_i2c_read_multi(i2c_client, MCU_I2C_SLAVE_W_ADDR, 0x0029, rcv_data_array, 1);
+		if (ret < 0) {
+			LOG_ERR("Check Noise Measure End: i2c read fail %d", ret);
+			result = 0;
+		}
+
+		if (--retries < 0) {
+			LOG_ERR("Check Noise Measure End: read failed %d, retry %d", rcv_data_array[0], retries);
+			ret = -1;
+			break;
+		}
+		usleep_range(10000, 11000);
+	} while (rcv_data_array[0] != 0);
+
+	/* XGN_STDEV */
+	ret = cam_ois_i2c_read_multi(i2c_client, MCU_I2C_SLAVE_W_ADDR, 0x024E, rcv_data_array, 2);
+	if (ret < 0) {
+		LOG_ERR("XGN_STDEV: i2c read fail %d", ret);
+		result = 0;
+	}
+
+	xgnoise_val = (rcv_data_array[1] << 8) | rcv_data_array[0];
+	if (xgnoise_val > 0x7FFF)
+		xgnoise_val = -((xgnoise_val ^ 0xFFFF) + 1);
+
+	/* YGN_STDEV */
+	ret = cam_ois_i2c_read_multi(i2c_client, MCU_I2C_SLAVE_W_ADDR, 0x0250, rcv_data_array, 2);
+	if (ret < 0) {
+		LOG_ERR("YGN_STDEV: i2c read fail %d", ret);
+		result = 0;
+	}
+
+	ygnoise_val = (rcv_data_array[1] << 8) | rcv_data_array[0];
+	if (ygnoise_val > 0x7FFF)
+		ygnoise_val = -((ygnoise_val ^ 0xFFFF) + 1);
+
+	*stdev_data_x = xgnoise_val * 1000 / scale_factor;
+	*stdev_data_y = ygnoise_val * 1000 / scale_factor;
+
+	LOG_INF("result: %d, stdev_x: %ld (0x%x), stdev_y: %ld (0x%x)", result, *stdev_data_x, xgnoise_val, *stdev_data_y, ygnoise_val);
+
+#if ENABLE_AOIS == 1
+	cam_ois_set_aois_fac_mode_off();
+#endif
+	return result;
+}
+
+int cam_ois_wait_ois_condition(struct i2c_client *client, unsigned short addr,
+	unsigned short exp_cond, int retries, unsigned char msec)
+{
+	u8 status = 0;
+	int ret = 0;
+
+	do {
+		if (msec < 10)
+			usleep_range(msec * 1000, msec * 1100);
+		else
+			msleep(msec);
+
+		ret = cam_ois_i2c_read_multi(client, MCU_I2C_SLAVE_W_ADDR, addr, &status, 1);
+		if (status == exp_cond)
+			break;
+		if (--retries < 0) {
+			if (ret < 0) {
+				LOG_ERR("failed due to i2c fail");
+				return -EIO;
+			}
+			LOG_ERR("expected status: 0x%04x, current status: 0x%04x", exp_cond, status);
+			return -EBUSY;
+		}
+
+	} while (status != exp_cond);
+	return 0;
+}
+
+void cam_ois_get_hall_position(unsigned int *targetPosition, unsigned int *hallPosition)
+{
+	int ret = 0, i = 0, retries = 5;
+	unsigned char servoCondition = 0;
+	unsigned char recv[4];
+
+	LOG_INF(" - E");
+
+#if ENABLE_AOIS == 1
+	cam_ois_set_aois_fac_mode_on();
+#endif
+
+	LOG_INF(" - Centering mode ");
+	cam_ois_set_mode(OIS_MODE_CENTERING);
+
+
+	LOG_INF("1: set hall read control bit");
+	/* Set hall read ctrl bit */
+	ret = cam_ois_i2c_write_one(i2c_client, MCU_I2C_SLAVE_W_ADDR, 0x0080, 0x01);
+	if (ret < 0)
+		LOG_ERR("fail set ON hall read control bit: %d", ret);
+
+	LOG_INF("2: check OIS condition");
+	ret = cam_ois_i2c_read_multi(i2c_client, MCU_I2C_SLAVE_W_ADDR, 0x0000, &servoCondition, 1);
+	if (ret < 0)
+		LOG_ERR("fail read servo_on %d", ret);
+
+	LOG_INF("3: run OIS depending on OIS Condition %d", servoCondition);
+	if (servoCondition != 0x01) {
+		LOG_INF("3-1: enable OIS");
+		ret = cam_ois_i2c_write_one(i2c_client, MCU_I2C_SLAVE_W_ADDR, 0x0000, 0x01);
+		if (ret < 0)
+			LOG_ERR("fail to set servo_on bit: %d", ret);
+	}
+
+#if ENABLE_AOIS == 1
+	cam_ois_set_aois_fac_mode(FACTORY_1MS, 1);
+#endif
+
+	msleep(200);
+
+	LOG_INF("4: GET OIS HALL POSITION");
+	for (i = 0; i < retries; i++) {
+		usleep_range(5000, 5100);
+		ret = cam_ois_i2c_read_multi(i2c_client, MCU_I2C_SLAVE_W_ADDR, 0x0086, recv, 2);
+		if (ret < 0)
+			LOG_ERR("fail read target hall pos %d", ret);
+
+		targetPosition[0] += (recv[1] << 8) | recv[0];
+
+		ret = cam_ois_i2c_read_multi(i2c_client, MCU_I2C_SLAVE_W_ADDR, 0x008E, recv, 2);
+		if (ret < 0)
+			LOG_ERR("fail read out hall pos %d", ret);
+
+		hallPosition[0] += (recv[1] << 8) | recv[0];
+
+		ret = cam_ois_i2c_read_multi(i2c_client, MCU_I2C_SLAVE_W_ADDR, 0x0088, recv, 2);
+		if (ret < 0)
+			LOG_ERR("fail read target hall pos %d", ret);
+
+		targetPosition[1] += (recv[1] << 8) | recv[0];
+
+		ret = cam_ois_i2c_read_multi(i2c_client, MCU_I2C_SLAVE_W_ADDR, 0x0090, recv, 2);
+		if (ret < 0)
+			LOG_ERR("fail read out hall pos %d", ret);
+
+		hallPosition[1] += (recv[1] << 8) | recv[0];
+
+		LOG_INF("retries %d target (%u %u), hall (%u, %u)", i,
+			targetPosition[0], targetPosition[1], hallPosition[0], hallPosition[1]);
+
+	}
+
+	for (i = 0; i < 2; i++) {
+		targetPosition[i] /= retries;
+		hallPosition[i] /= retries;
+	}
+
+	LOG_INF("5: disable FWINFO_CTRL");
+	ret = cam_ois_i2c_write_one(i2c_client, MCU_I2C_SLAVE_W_ADDR, 0x0080, 0x0);
+	if (ret < 0)
+		LOG_ERR("fail to set OFF hall read control bit: %d", ret);
+
+	LOG_INF("6: REVERT SERVO %d", servoCondition);
+	if (servoCondition != 0x1) {
+		LOG_INF("6-1: SERVO OFF - %d", servoCondition);
+		ret = cam_ois_i2c_write_one(i2c_client, MCU_I2C_SLAVE_W_ADDR, 0x0000, servoCondition);
+		if (ret < 0)
+			LOG_ERR("fail to set servo bit(%d): %d", servoCondition, ret);
+	}
+
+	LOG_INF("out: %u, %u, %u, %u\n", targetPosition[0], targetPosition[1],
+		hallPosition[0], hallPosition[1]);
+
+#if ENABLE_AOIS == 1
+	cam_ois_set_aois_fac_mode_off();
+#endif
+	LOG_INF(" - X");
 }

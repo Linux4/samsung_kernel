@@ -31,6 +31,12 @@ config SAMSUNG_LMKD_DEBUG
 	help
 	  record lmkd kill history
 
+config SAMSUNG_FREECESS
+	bool "thraw frozen process when recv sig"
+	default n
+	help
+	  thraw frozen process when recv sig.
+
 config ANDROID_VSOC
 	tristate "Android Virtual SoC support"
 	default n

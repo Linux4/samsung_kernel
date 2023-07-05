@@ -30,7 +30,7 @@
 	/* chosen */
 	chosen: chosen {
 		bootargs = "console=tty0 console=ttyS0,921600n1 root=/dev/ram \
-		vmalloc=400M slub_debug=OFZPU swiotlb=noforce \
+		vmalloc=400M swiotlb=noforce \
 		firmware_class.path=/vendor/firmware \
 		androidboot.hardware=mt6833 \
 		page_owner=on loop.max_part=7";
@@ -2926,7 +2926,7 @@
                 mediatek,check_dfd_support = <1>;
 		mediatek,dfd_infra_base = <0x390>;
 		mediatek,dfd_ap_addr_offset = <24>;
-		mediatek,dfd_latch_offset = <0x48>;
+		mediatek,dfd_latch_offset = <0x44>;
 	};
 
 	dfd_cache: dfd_cache {

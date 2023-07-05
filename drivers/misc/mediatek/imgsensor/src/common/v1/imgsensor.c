@@ -112,7 +112,7 @@ void IMGSENSOR_PROFILE(struct timeval *ptv, char *tag)
 	time_interval =
 	    (tv.tv_sec - ptv->tv_sec) * 1000000 + (tv.tv_usec - ptv->tv_usec);
 
-	PK_INF("[%s]Profile = %lu us\n", tag, time_interval);
+	PK_INF("[%s]Profile = %lu us[about %d ms]", tag, time_interval, time_interval/1000 + 1);
 }
 
 #else
@@ -228,7 +228,9 @@ imgsensor_sensor_open(struct IMGSENSOR_SENSOR *psensor)
 			    psensor,
 			    psensor_inst->psensor_name,
 			    IMGSENSOR_HW_POWER_STATUS_OFF);
-
+#ifdef IMGSENSOR_HW_PARAM
+			imgsensor_increase_hw_param_sensor_err_cnt(map_position(psensor->inst.sensor_idx));
+#endif
 			PK_ERR("SensorOpen fail");
 		} else {
 			psensor_inst->state = IMGSENSOR_STATE_OPEN;
@@ -701,8 +703,11 @@ int imgsensor_set_driver(struct IMGSENSOR_SENSOR *psensor)
 			PK_INF("search failed(idx[%d], name[%s])", psensor_inst->sensor_idx,
 					config_sensor_name[psensor_inst->sensor_idx]);
 	} else {
-		PK_INF("no searched sensor(idx[%d], name[%s])", psensor_inst->sensor_idx,
-				config_sensor_name[psensor_inst->sensor_idx]);
+		if (psensor_inst->sensor_idx < max_num_of_config_sensor)
+			PK_INF("no searched sensor(idx[%d], name[%s])",
+					psensor_inst->sensor_idx, config_sensor_name[psensor_inst->sensor_idx]);
+		else
+			PK_INF("no searched sensor(idx[%d])", psensor_inst->sensor_idx);
 	}
 
 	//search 2nd sensor

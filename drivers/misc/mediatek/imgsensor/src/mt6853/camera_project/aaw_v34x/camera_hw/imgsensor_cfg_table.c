@@ -113,16 +113,29 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 		},
 	},
 #endif
+#if defined(HI1339_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_HI1339_MIPI_RAW,
+		{
+			{RST, Vol_Low, 1},
+			{DOVDD, Vol_1800, 0},
+			{AVDD, Vol_2800, 0},
+			{DVDD, Vol_1100, 0},
+			{SensorMCLK, Vol_High, 1},
+			{RST, Vol_High, 5},
+		},
+	},
+#endif
 #if defined(S5K4HAYX_MIPI_RAW)
 	{
 		SENSOR_DRVNAME_S5K4HAYX_MIPI_RAW,
 		{
 			{RST, Vol_Low, 1},
-			{AVDD, Vol_2800, 0},
-			{DVDD, Vol_1200, 0},
 			{DOVDD, Vol_1800, 1},
+			{DVDD, Vol_1200, 0},
+			{AVDD, Vol_2800, 1},
 			{SensorMCLK, Vol_High, 1},
-			{RST, Vol_High, 5},
+			{RST, Vol_High, 3},
 		},
 	},
 #endif
@@ -136,6 +149,19 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 			{AVDD, Vol_2800, 1},
 			{SensorMCLK, Vol_High, 1},
 			{RST, Vol_High, 2},
+		},
+	},
+#endif
+#if defined(SR846D_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_SR846D_MIPI_RAW,
+		{
+			{RST, Vol_Low, 1},
+			{DOVDD, Vol_1800, 1},
+			{DVDD, Vol_1200, 0},
+			{AVDD, Vol_2800, 1},
+			{SensorMCLK, Vol_High, 1},
+			{RST, Vol_High, 3},
 		},
 	},
 #endif

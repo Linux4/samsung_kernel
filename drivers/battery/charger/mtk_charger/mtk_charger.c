@@ -440,6 +440,7 @@ static void mtk_charger_set_bat_f_mode(struct mtk_charger_data *charger)
 {
 	union power_supply_propval value = {0, };
 
+	f_mode_battery = charger->f_mode;
 	value.intval = charger->f_mode;
 	psy_do_property("battery", set,
 		POWER_SUPPLY_EXT_PROP_BATT_F_MODE, value);

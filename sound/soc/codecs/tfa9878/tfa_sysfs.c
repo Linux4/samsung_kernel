@@ -27,7 +27,6 @@ static int __init tfa98xx_sysfs_init(void)
 
 	ret = tfa98xx_cal_init(g_tfa_class);
 
-
 	ret = tfa98xx_vval_init(g_tfa_class);
 
 	ret = tfa98xx_stc_init(g_tfa_class);
@@ -40,7 +39,6 @@ static void __exit tfa98xx_sysfs_exit(void)
 {
 	tfa98xx_cal_exit(g_tfa_class);
 
-
 	tfa98xx_vval_exit(g_tfa_class);
 
 	tfa98xx_stc_exit(g_tfa_class);
@@ -52,4 +50,3 @@ module_exit(tfa98xx_sysfs_exit);
 
 MODULE_DESCRIPTION("ASoC TFA98XX sysfs node driver");
 MODULE_LICENSE("GPL");
-

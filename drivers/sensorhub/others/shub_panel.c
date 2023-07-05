@@ -19,13 +19,13 @@
 #include "../sensormanager/shub_sensor_type.h"
 #include "../utility/shub_file_manager.h"
 #include "shub_panel.h"
-
+#include <linux/string.h>
 #include <linux/notifier.h>
 
 #define LCD_PANEL_LCD_TYPE "/sys/class/lcd/panel/lcd_type"
 static u8 lcd_type_flag;
 
-static void get_panel_lcd_type(void)
+int get_panel_lcd_type(void)
 {
 	char lcd_type_data[256];
 	int ret;
@@ -33,7 +33,10 @@ static void get_panel_lcd_type(void)
 	ret = shub_file_read(LCD_PANEL_LCD_TYPE, lcd_type_data, sizeof(lcd_type_data), 0);
 	if (ret < 0) {
 		shub_errf("file read error %d", ret);
-		return;
+		return ret;
+	} else if (ret < 2){
+		shub_errf("unexpected type = %s(%d)", lcd_type_data, ret);
+		return ret;
 	}
 
 	/*
@@ -46,8 +49,21 @@ static void get_panel_lcd_type(void)
 		lcd_type_flag = 1;
 	else
 		lcd_type_flag = 2;
-
 	shub_infof("lcd_type_flag : %d", lcd_type_flag);
+
+	if (strstr(lcd_type_data, SDC_STR))
+		return SDC;
+	else if (strstr(lcd_type_data, BOE_STR))
+		return BOE;
+	else if (strstr(lcd_type_data, CSOT_STR))
+		return CSOT;
+	else if (strstr(lcd_type_data, DTC_STR))
+		return DTC;
+	else if (strstr(lcd_type_data, Tianma_STR))
+		return Tianma;
+	else if (strstr(lcd_type_data, Skyworth_STR))
+		return Skyworth;
+	return OTHER;
 }
 
 static int fm_ready_panel(struct notifier_block *this, unsigned long event, void *ptr)

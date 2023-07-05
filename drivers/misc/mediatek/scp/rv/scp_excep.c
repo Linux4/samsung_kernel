@@ -601,43 +601,21 @@ static unsigned int scp_crash_dump(enum scp_core_id id)
 #ifdef CONFIG_SHUB
 int get_scp_dump_size(void)
 {
-#if 0
 	unsigned int scp_dump_size;
 	uint32_t dram_size = 0;
-	
-#if SCP_RESERVED_MEM && IS_ENABLED(CONFIG_OF_RESERVED_MEM)
-	if (scpreg.secure_dump) {
-		scp_dump_size = get_MDUMP_size_accumulate(MDUMP_TBUF);
 
-		/* dram support? */
-		if ((int)(scp_region_info_copy.ap_dram_size) <= 0) {
-			pr_notice("[scp] ap_dram_size <=0\n");
-		} else {
-			dram_size = scp_region_info_copy.ap_dram_size;
-			scp_dump_size += roundup(dram_size, 4);
-		}
-
-	} else {
-#else
-	{
-#endif
-		
 	scp_dump_size = get_MDUMP_size_accumulate(MDUMP_TBUF);
+
 	/* dram support? */
 	if ((int)(scp_region_info_copy.ap_dram_size) <= 0) {
 		pr_notice("[scp] ap_dram_size <=0\n");
 	} else {
 		dram_size = scp_region_info_copy.ap_dram_size;
 		/* copy dram data*/
-		memcpy((void *)get_MDUMP_addr(MDUMP_DRAM),
-			scp_ap_dram_virt, dram_size);
 		scp_dump_size += roundup(dram_size, 4);
-	}
 	}
 
 	return scp_dump_size;
-#endif
-	return 0;
 }
 EXPORT_SYMBOL(get_scp_dump_size);
 #endif

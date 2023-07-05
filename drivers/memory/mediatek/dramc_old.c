@@ -120,7 +120,12 @@ __weak int mtk_dramc_binning_test(void)
 {
 	return 0;
 }
-
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+__weak int mtk_dramc_binning_test_sz(unsigned int len)
+{
+	return 0;
+}
+#endif
 static ssize_t binning_test_show(struct device_driver *driver, char *buf)
 {
 	int ret;
@@ -138,7 +143,30 @@ static DRIVER_ATTR_RO(mr);
 static DRIVER_ATTR_RO(mr4);
 static DRIVER_ATTR_RO(dram_data_rate);
 static DRIVER_ATTR_RO(binning_test);
-
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+static unsigned int dramc_binning_test_size[4] = {0x2000, };
+#define DEFINE_BINNING_TEST_ATTR_RW(n) \
+	static ssize_t binning_test##n##_show(struct device_driver *driver, char *buf) { \
+		int ret = mtk_dramc_binning_test_sz(dramc_binning_test_size[n-1]); \
+		if (!ret) return snprintf(buf, PAGE_SIZE, "unsupport mem test\n"); \
+		else if (ret > 0) return snprintf(buf, PAGE_SIZE, "mem test(0x%x) all pass\n", dramc_binning_test_size[n-1]); \
+		else return snprintf(buf, PAGE_SIZE, "mem test(0x%x) failed %d\n", dramc_binning_test_size[n-1], ret); \
+	} \
+	static ssize_t binning_test##n##_store(struct device_driver *driver, const char *buf, size_t count) { \
+		unsigned int size; \
+		int ret = kstrtouint(buf, 16, &size); \
+		if (!ret) dramc_binning_test_size[n-1] = size; \
+		return count; \
+	 } \
+	static DRIVER_ATTR_RW(binning_test##n);
+#define MAKE_BINNING_TEST_ATTR_RW(n) \
+	ret = driver_create_file(pdev->dev.driver, &driver_attr_binning_test##n); \
+	if (ret) { pr_info("%s: fail to create binning_test#n sysfs\n", __func__); return ret; }
+DEFINE_BINNING_TEST_ATTR_RW(1);
+DEFINE_BINNING_TEST_ATTR_RW(2);
+DEFINE_BINNING_TEST_ATTR_RW(3);
+DEFINE_BINNING_TEST_ATTR_RW(4);
+#endif
 static int dramc_probe(struct platform_device *pdev)
 {
 	struct device_node *dramc_node = pdev->dev.of_node;
@@ -359,7 +387,12 @@ static int dramc_probe(struct platform_device *pdev)
 		pr_info("%s: fail to create binning_test sysfs\n", __func__);
 		return ret;
 	}
-
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+	MAKE_BINNING_TEST_ATTR_RW(1)
+	MAKE_BINNING_TEST_ATTR_RW(2)
+	MAKE_BINNING_TEST_ATTR_RW(3)
+	MAKE_BINNING_TEST_ATTR_RW(4)
+#endif
 	ret = driver_create_file(
 		pdev->dev.driver, &driver_attr_dram_data_rate);
 	if (ret) {

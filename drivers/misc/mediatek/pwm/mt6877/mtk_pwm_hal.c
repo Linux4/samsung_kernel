@@ -619,3 +619,4 @@ int mt_get_pwm_clk_src(struct platform_device *pdev)
 	}
 	return 0;
 }
+

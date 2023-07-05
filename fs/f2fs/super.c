@@ -33,6 +33,11 @@
 #include "xattr.h"
 #include "gc.h"
 #include "trace.h"
+#ifdef CONFIG_PROC_FSLOG
+#include <linux/fslog.h>
+#else
+#define ST_LOG(fmt, ...)
+#endif
 
 /* @fs.sec -- 1f886d6941ebe5b547fded7e6bc457c5 -- */
 /* @fs.sec -- 31ec0bc200a96535a74acf850b47ae01 -- */
@@ -3233,6 +3238,8 @@ skip_cross:
 	}
 	return 0;
 }
+
+
 
 static void init_sb_info(struct f2fs_sb_info *sbi)
 {

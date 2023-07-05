@@ -184,6 +184,9 @@ struct st21nfc_device {
 	struct regulator *nfc_pvdd;
 };
 
+#ifdef CONFIG_NFC_ST21NFC
+static struct st21nfc_device *g_nfc_dev;
+#endif
 /*
  * Routine to enable clock.
  * this routine can be extended to select from multiple
@@ -867,7 +870,7 @@ static unsigned int st21nfc_poll(struct file *file, poll_table *wait)
 	return mask;
 }
 
-#ifdef WITH_PING_DURING_PROBE
+#if defined(WITH_PING_DURING_PROBE) || defined(CONFIG_NFC_ST21NFC)
 /* Attempt a communication with the chip. Return 0 on success, < 0 on failure */
 static int st21nfc_ping(struct st21nfc_device *st21nfc_dev)
 {
@@ -1132,7 +1135,14 @@ static CLASS_ATTR_WO(pvdd);
 static ssize_t check_show(struct class *class, struct class_attribute *attr,
 	char *buf)
 {
-	return 0;
+	int ret, size;
+
+	ret = st21nfc_ping(g_nfc_dev);
+
+	NFC_LOG_ERR("Check CORE_RESET_NFC : %s (%d)\n", ret ? "NOK":"OK", ret);
+	size = snprintf(buf, PAGE_SIZE, "Check CORE_RESET_NFC : %s (%d)\n", ret ? "NOK":"OK", ret);
+
+	return size;
 }
 
 static ssize_t check_store(struct class *class, struct class_attribute *attr,
@@ -1179,6 +1189,7 @@ static int secnfc_init(struct i2c_client *client)
 	int ret = 0;
 	struct st21nfc_device *st21nfc_dev = i2c_get_clientdata(client);
 
+	g_nfc_dev = st21nfc_dev;
 	ret = secnfc_regulator_onoff(st21nfc_dev, true);
 	if (ret) {
 		NFC_LOG_ERR("%s: regulator on failed, %d\n", __func__, ret);
@@ -1548,10 +1559,10 @@ static int st21nfc_probe(struct i2c_client *client,
 #endif // WITH_PING_DURING_PROBE
 
 	NFC_LOG_INFO("%s ok, rst: %d, irq: %d, clkreq: %d, AP: %d\n", __func__,
-				desc_to_gpio(st21nfc_dev->gpiod_reset),
-				desc_to_gpio(st21nfc_dev->gpiod_irq),
-				desc_to_gpio(st21nfc_dev->gpiod_clkreq),
-				st21nfc_dev->ap_vendor);
+		desc_to_gpio(st21nfc_dev->gpiod_reset),
+		desc_to_gpio(st21nfc_dev->gpiod_irq),
+		IS_ERR_OR_NULL(st21nfc_dev->gpiod_clkreq) ? 0 : desc_to_gpio(st21nfc_dev->gpiod_clkreq),
+		st21nfc_dev->ap_vendor);
 	return 0;
 
 err_sysfs_create_group_failed:
@@ -1609,7 +1620,7 @@ static int st21nfc_suspend(struct device *device)
 	struct i2c_client *client = to_i2c_client(device);
 	struct st21nfc_device *st21nfc_dev = i2c_get_clientdata(client);
 
-	NFC_LOG_INFO("suspend\n");
+	NFC_LOG_INFO_WITH_DATE("suspend\n");
 
 	if (st21nfc_dev->irq_enabled) {
 		if (!enable_irq_wake(client->irq))
@@ -1629,7 +1640,7 @@ static int st21nfc_resume(struct device *device)
 	struct st21nfc_device *st21nfc_dev = i2c_get_clientdata(client);
 	int pidle;
 
-	NFC_LOG_INFO("resume\n");
+	NFC_LOG_INFO_WITH_DATE("resume\n");
 
 	if (st21nfc_dev->irq_wake_up) {
 		if (!disable_irq_wake(client->irq))

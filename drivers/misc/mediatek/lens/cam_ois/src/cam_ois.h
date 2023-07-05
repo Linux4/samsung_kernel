@@ -4,15 +4,15 @@
 #include <linux/i2c.h>
 #include "lens_info.h"
 
-#define OIS_CAL_EEPROM_START_ADDR    0x0170
-#define OIS_CAL_EEPROM_XGG_ADDR      0x0010
-#define OIS_CAL_EEPROM_YGG_ADDR      0x0014
-#define OIS_CAL_EEPROM_XSR_ADDR      0x0038
-#define OIS_CAL_EEPROM_YSR_ADDR      0x003A
-#define OIS_CAL_EEPROM_GG_SIZE       4
-#define OIS_CAL_EEPROM_SR_SIZE       2
-#define MAX_EFS_DATA_LENGTH          30
-#define AF_I2C_SLAVE_ADDR            0x18
+#define OIS_CAL_EEPROM_START_ADDR        0x0170
+#define OIS_CAL_EEPROM_XGG_ADDR          0x0010
+#define OIS_CAL_EEPROM_YGG_ADDR          0x0014
+#define OIS_CAL_EEPROM_XSR_ADDR          0x0038
+#define OIS_CAL_EEPROM_YSR_ADDR          0x003A
+#define OIS_CAL_EEPROM_GG_SIZE           4
+#define OIS_CAL_EEPROM_SR_SIZE           2
+#define MAX_EFS_DATA_LENGTH              30
+#define AF_I2C_SLAVE_ADDR                0x18
 
 
 enum ois_af_param {
@@ -88,5 +88,7 @@ int cam_ois_mcu_update(void);
 int cam_ois_get_eeprom_from_sysfs(void);
 int cam_ois_af_power_on(void);
 int cam_ois_af_power_off(void);
+int cam_ois_gyro_sensor_noise_check(long *stdev_data_x, long *stdev_data_y);
+void cam_ois_get_hall_position(unsigned int *targetPosition, unsigned int *hallPosition);
 extern void AF_PowerDown(void);
 #endif

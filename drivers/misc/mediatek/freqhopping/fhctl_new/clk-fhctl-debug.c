@@ -11,6 +11,9 @@
 #include <linux/platform_device.h>
 #include <linux/string.h>
 #include <linux/debugfs.h>
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+#include <linux/proc_fs.h>
+#endif
 #include <linux/seq_file.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
@@ -204,7 +207,72 @@ static const struct file_operations ctrl_fops = {
 	.write = fh_ctrl_proc_write,
 	.release = single_release,
 };
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+static int fh_ctrl_proc_open2(struct inode *inode, struct file *file)
+{
+	void *v = PDE_DATA(file_inode(file));
+    return single_open(file, fh_ctrl_proc_read, v);
+}
 
+static ssize_t fh_ctrl_proc_write2(struct file *file,
+                const char *buffer, size_t count, loff_t *data)
+{
+    int ret, n;
+    char kbuf[256];
+    char pll_name[32];
+    size_t len = 0;
+    unsigned int cmd, arg;
+    struct pll_dts *array = PDE_DATA(file_inode(file));
+
+    FHDBG("array<%x>\n", array);
+    len = min(count, (sizeof(kbuf) - 1));
+
+    FHDBG("count: %ld", count);
+    if (count == 0)
+        return -1;
+
+    if (count > 255)
+        count = 255;
+
+    ret = copy_from_user(kbuf, buffer, count);
+    if (ret < 0)
+        return -1;
+
+    kbuf[count] = '\0';
+
+    /* permission control */
+    if (strstr(kbuf, array->comp)) {
+        has_perms = true;
+        FHDBG("has_perms to true\n");
+        return count;
+    } else if (!has_perms) {
+        FHDBG("!has_perms\n");
+        return count;
+    } else if (prop_request(kbuf, array)) {
+        FHDBG("prop_request = true\n");
+        return count;
+    }
+
+    n = sscanf(kbuf, "%x %31s %x", &cmd, pll_name, &arg);
+    if ((n != 3) && (n != 2)) {
+        FHDBG("error input format\n");
+        return -EINVAL;
+    }
+
+    FHDBG("pll:%s cmd:0x%x arg:0x%x", pll_name, cmd, arg);
+    __fh_ctrl_cmd_hdlr(array, cmd, pll_name, arg);
+
+	return count;
+}
+
+static const struct file_operations ctrl_fops2 = {
+    .owner = THIS_MODULE,
+    .open = fh_ctrl_proc_open2,
+    .read = seq_read,
+    .write = fh_ctrl_proc_write2,
+    .release = single_release,
+};
+#endif
 static int __sample_dds(struct fh_pll_regs *regs,
 		struct fh_pll_data *data,
 		unsigned int *dds_max,
@@ -351,7 +419,9 @@ int fhctl_debugfs_init(struct pll_dts *array)
 		FHDBG("\n");
 		return -1;
 	}
-
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+	proc_create_data("fhctl", 0644, NULL, &ctrl_fops2, array);
+#endif
 	/* init resources */
 	for (i = 0; i < num_pll; i++, array++) {
 		init_fh_domain(array->domain,

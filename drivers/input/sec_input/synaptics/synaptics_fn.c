@@ -2321,6 +2321,7 @@ void synaptics_ts_set_cover_type(struct synaptics_ts_data *ts, bool enable)
 			__func__, enable ? "close" : "open", ts->plat_data->cover_type);
 
 	cover_cmd = sec_input_check_cover_type(&ts->client->dev) & 0xFF;
+	ts->cover_closed = enable;
 
 	if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		input_err(true, &ts->client->dev, "%s: pwr off, close:%d, touch_fn:%x\n", __func__,
@@ -2636,7 +2637,7 @@ int synaptics_ts_low_sensitivity_mode_enable(struct synaptics_ts_data *ts, u8 en
 		return ret;
 	}
 
-	input_info(true, &ts->client->dev, "%s: %s\n", __func__, enable ? "on" : "off");
+	input_info(true, &ts->client->dev, "%s: %d\n", __func__, enable);
 
 	return 0;
 }

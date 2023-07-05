@@ -28,7 +28,7 @@ const struct imgsensor_vendor_rom_addr rear2_4ha_cal_addr = {
 	.rom_header_main_module_info_start_addr = 0x0A,
 	.rom_header_cal_map_ver_start_addr      = 0x16,
 	.rom_header_project_name_start_addr     = 0x1E,
-	.rom_header_module_id_addr              = 0x30 - 0x6,
+	.rom_header_module_id_addr              = 0x30 + 0x6,
 	.rom_header_main_sensor_id_addr         = 0x40,
 
 	.rom_header_sub_module_info_start_addr  = -1,

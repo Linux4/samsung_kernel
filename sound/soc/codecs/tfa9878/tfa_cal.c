@@ -409,4 +409,3 @@ void tfa98xx_cal_exit(struct class *tfa_class)
 	device_destroy(tfa_class, DEV_ID_TFA_CAL);
 	pr_info("exited\n");
 }
-

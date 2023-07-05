@@ -83,7 +83,7 @@ int sysboot_connect(struct mcu_info *mcu_info, struct i2c_client *client)
 	/* Put little delay for the target prepared */
 	msleep(BOOT_I2C_STARTUP_DELAY);
 #else
-	LOG_INF("VOIS dummy");
+	LOG_INF("AOIS dummy");
 #endif
 	return ret;
 }
@@ -117,7 +117,7 @@ int sysboot_disconnect(struct mcu_info *mcu_info)
 
 	msleep(BOOT_I2C_STARTUP_DELAY);
 #else
-	LOG_INF("VOIS dummy");
+	LOG_INF("AOIS dummy");
 #endif
 	return ret;
 }

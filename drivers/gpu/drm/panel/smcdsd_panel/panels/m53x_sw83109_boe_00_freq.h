@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __SW83109_FREQ_H__
 #define __SW83109_FREQ_H__
 

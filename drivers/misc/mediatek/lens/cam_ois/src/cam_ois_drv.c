@@ -185,15 +185,16 @@ static inline int cam_ois_chrdev_register(void)
 
 static void cam_ois_chrdev_unregister(void)
 {
+	LOG_INF(" - E\n");
 	/*Release char driver */
-
-	class_destroy(g_drvClass);
-
-	device_destroy(g_drvClass, g_devNum);
-
 	cdev_del(g_charDrv);
 
 	unregister_chrdev_region(g_devNum, 1);
+
+	device_destroy(g_drvClass, g_devNum);
+
+	class_destroy(g_drvClass);
+	LOG_INF(" - X\n");
 }
 
 /**************************************************

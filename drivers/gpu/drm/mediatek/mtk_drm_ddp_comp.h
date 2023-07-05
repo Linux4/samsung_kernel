@@ -246,7 +246,7 @@ enum mtk_ddp_io_cmd {
 	SET_LCM_DCS_CMD,
 	SET_LCM_CMDQ,
 	READ_LCM_DCS_CMD,
-	READ_CMDQ_OPTION,
+	DSI_HBM_SET_LCM,
 };
 
 struct golden_setting_context {

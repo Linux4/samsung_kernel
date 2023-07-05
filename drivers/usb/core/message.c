@@ -1299,8 +1299,14 @@ void usb_disable_device(struct usb_device *dev, int skip_ep0)
 
 	dev_dbg(&dev->dev, "%s nuking %s URBs\n", __func__,
 		skip_ep0 ? "non-ep0" : "all");
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+	dev_info(&dev->dev, "%s official+\n", __func__);
+#endif
 
 	usb_disable_device_endpoints(dev, skip_ep0);
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+	dev_info(&dev->dev, "%s official-\n", __func__);
+#endif
 }
 
 /**

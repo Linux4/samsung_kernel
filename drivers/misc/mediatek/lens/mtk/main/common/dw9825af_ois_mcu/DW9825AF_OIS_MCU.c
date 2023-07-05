@@ -28,6 +28,8 @@
 #include "cam_ois.h"
 #endif
 
+#include "kd_imgsensor_sysfs_adapter.h"
+
 #define AF_DRVNAME "DW9825AF_OIS_MCU_DRV"
 #define AF_I2C_SLAVE_ADDR 0x18
 
@@ -127,12 +129,11 @@ static inline int getAFInfo(__user struct stAF_MotorInfo *pstMotorInfo)
 /* initAF include driver initialization and standby mode */
 static int initAF(void)
 {
+	int ret = 0;
+
 	LOG_INF("+\n");
 
 	if (*g_pAF_Opened == 1) {
-
-		int ret = 0;
-
 		/* 00:active mode , 10:Standby mode , x1:Sleep mode */
 		ret = s4AF_WriteReg(0x02, 0x00);
 
@@ -140,6 +141,11 @@ static int initAF(void)
 		*g_pAF_Opened = 2;
 		spin_unlock(g_pAF_SpinLock);
 	}
+
+#ifdef IMGSENSOR_HW_PARAM
+	if (ret)
+		imgsensor_increase_hw_param_af_err_cnt(SENSOR_POSITION_REAR);
+#endif
 
 	LOG_INF("-\n");
 
@@ -224,6 +230,7 @@ static inline int set_ois_sysfs_af(void)
 static inline int setAFPara(__user struct stAF_MotorCmd *pstMotorCmd)
 {
 	struct stAF_MotorCmd stMotorCmd;
+	int ret = -EOPNOTSUPP;
 
 	if (copy_from_user(&stMotorCmd, pstMotorCmd, sizeof(stMotorCmd)))
 		LOG_INF("copy to user failed when getting motor command\n");
@@ -235,10 +242,10 @@ static inline int setAFPara(__user struct stAF_MotorCmd *pstMotorCmd)
 	switch (stMotorCmd.u4CmdID) {
 #if IS_ENABLED(CONFIG_CAMERA_OIS)
 	case OIS_SET_MODE:
-		cam_ois_set_mode((int)stMotorCmd.u4Param);
+		ret = cam_ois_set_mode((int)stMotorCmd.u4Param);
 		break;
 	case OIS_SET_VDIS_COEF:
-		cam_ois_set_vdis_coef((int)stMotorCmd.u4Param);
+		ret = cam_ois_set_vdis_coef((int)stMotorCmd.u4Param);
 		break;
 #endif
 	default:
@@ -246,7 +253,7 @@ static inline int setAFPara(__user struct stAF_MotorCmd *pstMotorCmd)
 		break;
 	}
 
-	return 0;
+	return ret;
 }
 
 /* ////////////////////////////////////////////////////////////// */

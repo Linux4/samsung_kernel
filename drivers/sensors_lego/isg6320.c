@@ -112,6 +112,8 @@ struct multi_channel {
 	u16 fine_coarse_b;
 	int is_unknown_mode;
 	bool first_working;
+	int unknown_ch_selection;
+	int noti_enable;
 };
 #endif
 
@@ -217,6 +219,7 @@ struct isg6320_data {
 	int is_unknown_mode;
 	int motion;
 	bool first_working;
+	int unknown_ch_selection;
 	int otg_attach_state;
 };
 
@@ -823,34 +826,43 @@ static irqreturn_t isg6320_irq_thread(int irq, void *ptr)
 
 static void isg6320_enter_unknown_mode(struct isg6320_data *data, int type)
 {
+	int noti_enable = 0;
+
 	if (data->noti_enable) {
+		noti_enable = data->noti_enable;
 		data->motion = 0;
-			data->first_working = false;
-			if (data->is_unknown_mode == UNKNOWN_OFF) {
-				data->is_unknown_mode = UNKNOWN_ON;
+		data->first_working = false;
+		if (data->is_unknown_mode == UNKNOWN_OFF) {
+			data->is_unknown_mode = UNKNOWN_ON;
+			if (!data->skip_data) {
+				input_report_rel(data->input_dev, REL_X, data->is_unknown_mode);
+				input_sync(data->input_dev);
+			}
+			pr_info("[GRIP_%d] UNKNOWN Re-enter\n", data->ic_num);
+		} else {
+			pr_info("[GRIP_%d] already UNKNOWN\n", data->ic_num);
+		}
+	}
+#ifdef CONFIG_USE_MULTI_CHANNEL
+	if (data->multi_use) {
+		if (data->mul_ch->noti_enable) {
+			noti_enable = data->mul_ch->noti_enable;
+			data->motion = 0;
+			data->mul_ch->first_working = false;
+			if (data->mul_ch->is_unknown_mode == UNKNOWN_OFF) {
+				data->mul_ch->is_unknown_mode = UNKNOWN_ON;
 				if (!data->skip_data) {
-					input_report_rel(data->input_dev, REL_X, data->is_unknown_mode);
+					input_report_rel(data->input_dev, REL_Y, data->mul_ch->is_unknown_mode);
 					input_sync(data->input_dev);
 				}
-				pr_info("[GRIP_%d] UNKNOWN Re-enter\n", data->ic_num);
+				pr_info("[GRIP_%d] [B] UNKNOWN Re-enter\n", data->ic_num);
 			} else {
-				pr_info("[GRIP_%d] already UNKNOWN\n", data->ic_num);
+				pr_info("[GRIP_%d] [B] already UNKNOWN\n", data->ic_num);
 			}
-#ifdef CONFIG_USE_MULTI_CHANNEL
-		if (data->multi_use) {
-			data->mul_ch->first_working = false;
-				if (data->mul_ch->is_unknown_mode == UNKNOWN_OFF) {
-					data->mul_ch->is_unknown_mode = UNKNOWN_ON;
-					if (!data->skip_data) {
-						input_report_rel(data->input_dev, REL_Y, data->mul_ch->is_unknown_mode);
-						input_sync(data->input_dev);
-					}
-					pr_info("[GRIP_%d] [B] UNKNOWN Re-enter\n", data->ic_num);
-				} else {
-					pr_info("[GRIP_%d] [B] already UNKNOWN\n", data->ic_num);
-				}
 		}
+	}
 #endif
+	if (noti_enable) {
 		input_report_rel(data->noti_input_dev, REL_X, type);
 		input_sync(data->noti_input_dev);
 	}
@@ -942,21 +954,6 @@ static void isg6320_initialize(struct isg6320_data *data)
 	}
 #endif
 
-	ret = isg6320_i2c_read(data, ISG6320_A_DIGITAL_ACC_REG, &val, 1);
-	if (ret < 0)
-		pr_err("[GRIP_%d] DIGITAL ACC read fail\n", data->ic_num);
-	else
-		data->cfcal_th = ISG6320_CS_RESET_CONDITION * val / 8;
-
-#ifdef CONFIG_USE_MULTI_CHANNEL
-	if (data->multi_use) {
-		ret = isg6320_i2c_read(data, ISG6320_B_DIGITAL_ACC_REG, &val, 1);
-		if (ret < 0)
-			pr_err("[GRIP_%d] [B] DIGITAL ACC read fail\n", data->ic_num);
-		else
-			data->mul_ch->cfcal_th_b = ISG6320_CS_RESET_CONDITION * val / 8;
-	}
-#endif
 #if defined(CONFIG_TABLET_MODEL_CONCEPT)
 	ret = isg6320_i2c_read(data, ISG6320_A_LSUM_TYPE_REG, &isum_val, 1);
 	data->lsum_a = isum_val;
@@ -2247,6 +2244,7 @@ static ssize_t isg6320_noti_enable_store(struct device *dev,
 {
 	int ret;
 	u8 enable;
+	int noti_enable = 0;
 	struct isg6320_data *data = dev_get_drvdata(dev);
 
 	ret = kstrtou8(buf, 2, &enable);
@@ -2257,9 +2255,16 @@ static ssize_t isg6320_noti_enable_store(struct device *dev,
 
 	pr_info("[GRIP_%d] new_value=%d\n", data->ic_num, __func__, (int)enable);
 
-	data->noti_enable = enable;
+	if (data->unknown_ch_selection & 1)
+		data->noti_enable = noti_enable = enable;
 
-	if (data->noti_enable)
+#ifdef CONFIG_USE_MULTI_CHANNEL
+	if (data->multi_use) {
+		if (data->unknown_ch_selection & 2)
+			data->mul_ch->noti_enable = noti_enable = enable;
+	}
+#endif
+	if (noti_enable)
 		isg6320_enter_unknown_mode(data, TYPE_BOOT);
 
 	return size;
@@ -2270,7 +2275,13 @@ static ssize_t isg6320_noti_enable_show(struct device *dev,
 {
 	struct isg6320_data *data = dev_get_drvdata(dev);
 
-	pr_info("[GRIP_%d] %s - noti_enable = %d\n", data->ic_num, __func__, data->noti_enable);
+#ifdef CONFIG_USE_MULTI_CHANNEL
+	if (data->multi_use)
+		pr_info("[GRIP_%d] %s - noti_enable = %d %d\n", data->ic_num, __func__, data->noti_enable, data->mul_ch->noti_enable);
+	else
+#endif
+		pr_info("[GRIP_%d] %s - noti_enable = %d\n", data->ic_num, __func__, data->noti_enable);
+
 	return sprintf(buf, "%d\n", data->noti_enable);
 }
 
@@ -2474,7 +2485,7 @@ static void init_work_func(struct work_struct *work)
 
 static void isg6320_check_first_working(struct isg6320_data *data, int channel_num)
 {
-	if (data->noti_enable && data->motion) {
+	if (data->noti_enable) {
 		if (channel_num == 1) {
 			if (data->normal_th < data->diff) {
 				if (!data->first_working) {
@@ -2489,9 +2500,11 @@ static void isg6320_check_first_working(struct isg6320_data *data, int channel_n
 				}
 			}
 		}
+	}
 #ifdef CONFIG_USE_MULTI_CHANNEL
-		else if (channel_num == 2) {
-			if (data->multi_use) {
+	if (data->multi_use) {
+		if (data->mul_ch->noti_enable) {
+			if (channel_num == 2) {
 				if (data->mul_ch->normal_th_b < data->mul_ch->diff_b) {
 					if (!data->mul_ch->first_working) {
 						data->mul_ch->first_working = true;
@@ -2506,8 +2519,8 @@ static void isg6320_check_first_working(struct isg6320_data *data, int channel_n
 				}
 			}
 		}
-#endif
 	}
+#endif
 }
 
 static void cal_work_func(struct work_struct *work)
@@ -2673,6 +2686,9 @@ static int isg6320_hall_notifier(struct notifier_block *nb,
 #endif
 	} else {
 		pr_info("[GRIP_%d] %s detach\n", data->ic_num, hall_notifier->name);
+#if !IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+		isg6320_enter_unknown_mode(data, TYPE_HALL);
+#endif
 	}
 	return 0;
 }
@@ -2729,6 +2745,11 @@ static int isg6320_parse_dt(struct isg6320_data *data, struct device *dev)
 		data->gpio_int = of_get_named_gpio_flags(node, "isg6320_sub,irq-gpio", 0,
 							&flags);
 #endif
+#if defined(CONFIG_SENSORS_ISG6320_SUB2)
+	else if (data->ic_num == SUB2_GRIP)
+		data->gpio_int = of_get_named_gpio_flags(node, "isg6320_sub2,irq-gpio", 0,
+							&flags);
+#endif
 #if defined(CONFIG_SENSORS_ISG6320_WIFI)
 	else if (data->ic_num == WIFI_GRIP)
 		data->gpio_int = of_get_named_gpio_flags(node, "isg6320_wifi,irq-gpio", 0,
@@ -2747,6 +2768,10 @@ static int isg6320_parse_dt(struct isg6320_data *data, struct device *dev)
 	else if (data->ic_num == SUB_GRIP)
 		ret = of_property_read_u32(node, "isg6320_sub,reg_num", &data->reg_size);
 #endif
+#if defined(CONFIG_SENSORS_ISG6320_SUB2)
+	else if (data->ic_num == SUB2_GRIP)
+		ret = of_property_read_u32(node, "isg6320_sub2,reg_num", &data->reg_size);
+#endif
 #if defined(CONFIG_SENSORS_ISG6320_WIFI)
 	else if (data->ic_num == WIFI_GRIP)
 		ret = of_property_read_u32(node, "isg6320_wifi,reg_num", &data->reg_size);
@@ -2761,6 +2786,11 @@ static int isg6320_parse_dt(struct isg6320_data *data, struct device *dev)
 #if defined(CONFIG_SENSORS_ISG6320_SUB)
 	else if (data->ic_num == SUB_GRIP)
 		ret = of_property_read_u8_array(node, "isg6320_sub,set_reg", data->setup_reg,
+						data->reg_size * 2);
+#endif
+#if defined(CONFIG_SENSORS_ISG6320_SUB2)
+	else if (data->ic_num == SUB2_GRIP)
+		ret = of_property_read_u8_array(node, "isg6320_sub2,set_reg", data->setup_reg,
 						data->reg_size * 2);
 #endif
 #if defined(CONFIG_SENSORS_ISG6320_WIFI)
@@ -2780,6 +2810,10 @@ static int isg6320_parse_dt(struct isg6320_data *data, struct device *dev)
 	else if (data->ic_num == SUB_GRIP)
 		ret = of_property_read_u32(node, "isg6320_sub,multi_use", &data->multi_use);
 #endif
+#if defined(CONFIG_SENSORS_ISG6320_SUB2)
+	else if (data->ic_num == SUB2_GRIP)
+		ret = of_property_read_u32(node, "isg6320_sub2,multi_use", &data->multi_use);
+#endif
 #if defined(CONFIG_SENSORS_ISG6320_WIFI)
 	else if (data->ic_num == WIFI_GRIP)
 		ret = of_property_read_u32(node, "isg6320_wifi,multi_use", &data->multi_use);
@@ -2787,6 +2821,24 @@ static int isg6320_parse_dt(struct isg6320_data *data, struct device *dev)
 	if (ret < 0) {
 		pr_err("[GRIP_%d] multi_use set err\n", data->ic_num);
 		data->multi_use = 0;
+	}
+	if (data->ic_num == MAIN_GRIP)
+		ret = of_property_read_u32(node, "isg6320,unknown_ch_selection", &data->unknown_ch_selection);
+#if defined(CONFIG_SENSORS_ISG6320_SUB)
+	else if (data->ic_num == SUB_GRIP)
+		ret = of_property_read_u32(node, "isg6320_sub,unknown_ch_selection", &data->unknown_ch_selection);
+#endif
+#if defined(CONFIG_SENSORS_ISG6320_SUB2)
+	else if (data->ic_num == SUB2_GRIP)
+		ret = of_property_read_u32(node, "isg6320_sub2,unknown_ch_selection", &data->unknown_ch_selection);
+#endif
+#if defined(CONFIG_SENSORS_ISG6320_WIFI)
+	else if (data->ic_num == WIFI_GRIP)
+		ret = of_property_read_u32(node, "isg6320_wifi,unknown_ch_selection", &data->unknown_ch_selection);
+#endif
+	if (ret < 0) {
+		pr_err("[GRIP_%d] fail select unknown ch\n", data->ic_num);
+		data->unknown_ch_selection = 3;
 	}
 #if !defined(CONFIG_SEC_FACTORY) && defined(CONFIG_SUPPORT_MCC_THRESHOLD_CHANGE)
 	if (data->ic_num == MAIN_GRIP) {
@@ -2830,23 +2882,6 @@ static int isg6320_gpio_init(struct isg6320_data *data)
 	return ret;
 }
 
-#ifdef CONFIG_USE_MULTI_CHANNEL
-static int isg6320_sensor_attr_offset(void)
-{
-	int i;
-	int offset_max = SENSOR_ATTR_SIZE - 
-				(sizeof(multi_sensor_attrs) / sizeof(ssize_t *));
-
-	for (i = 0; i < offset_max; i++) {
-		if (i == sizeof(sensor_attrs) / sizeof(ssize_t *))
-			break;
-		if (sensor_attrs[i] == NULL)
-			return i;
-	}
-	return -1;
-}
-#endif
-
 static int isg6320_probe(struct i2c_client *client,
 			  const struct i2c_device_id *id)
 {
@@ -2863,6 +2898,10 @@ static int isg6320_probe(struct i2c_client *client,
 #if defined(CONFIG_SENSORS_ISG6320_SUB)
 	else if (strcmp(client->name, "isg6320_sub") == 0)
 		ic_num = SUB_GRIP;
+#endif
+#if defined(CONFIG_SENSORS_ISG6320_SUB2)
+	else if (strcmp(client->name, "isg6320_sub2") == 0)
+		ic_num = SUB2_GRIP;
 #endif
 #if defined(CONFIG_SENSORS_ISG6320_WIFI)
 	else if (strcmp(client->name, "isg6320_wifi") == 0)
@@ -2937,6 +2976,7 @@ static int isg6320_probe(struct i2c_client *client,
 	noti_input_dev = input_allocate_device();
 	if (!noti_input_dev) {
 		pr_err("[GRIP_%d] input_allocate_device failed\n", data->ic_num);
+		input_free_device(input_dev);
 		goto err_noti_input_alloc;
 	}
 
@@ -2952,6 +2992,8 @@ static int isg6320_probe(struct i2c_client *client,
 	ret = isg6320_reset(data);
 	if (ret < 0) {
 		pr_err("[GRIP_%d] reset fail\n", data->ic_num);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_soft_reset;
 	}
 
@@ -2987,6 +3029,8 @@ static int isg6320_probe(struct i2c_client *client,
 
 	if (ret < 0) {
 		pr_err("[GRIP_%d] fail to reg client->irq %d err %d\n", client->irq, data->ic_num, ret);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_irq;
 	}
 	disable_irq(client->irq);
@@ -2994,8 +3038,9 @@ static int isg6320_probe(struct i2c_client *client,
 
 	ret = input_register_device(input_dev);
 	if (ret) {
-		input_free_device(input_dev);
 		pr_err("[GRIP_%d] fail to reg input dev %d\n", data->ic_num, ret);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_register_input_dev;
 	}
 
@@ -3004,26 +3049,29 @@ static int isg6320_probe(struct i2c_client *client,
 					 input_dev->name);
 	if (ret < 0) {
 		pr_err("[GRIP_%d] fail to create symlink %d\n", data->ic_num, ret);
+		input_free_device(noti_input_dev);
 		goto err_create_symlink;
 	}
 
 	ret = sysfs_create_group(&data->input_dev->dev.kobj, &isg6320_attribute_group);
 	if (ret < 0) {
 		pr_err("[GRIP_%d] fail to create sysfs group (%d)\n", data->ic_num, ret);
+		input_free_device(noti_input_dev);
 		goto err_sysfs_create_group;
 	}
 
 #ifdef CONFIG_USE_MULTI_CHANNEL
 	memcpy(grip_sensor_attrs, sensor_attrs, sizeof(sensor_attrs));
 	if (data->multi_use) {
-		int offset = isg6320_sensor_attr_offset();
+		int multi_sensor_attrs_size = sizeof(multi_sensor_attrs) / sizeof(ssize_t *);
+		int sensor_attrs_size = sizeof(sensor_attrs) / sizeof(ssize_t *);
 
-		if (offset < 0) {
-			data->multi_use = 0;
-			pr_err("[GRIP_%d] fail mem size of attr is exceeded\n",
-				data->ic_num);
-		} else
-			memcpy(grip_sensor_attrs + offset, multi_sensor_attrs, sizeof(multi_sensor_attrs));
+		if (SENSOR_ATTR_SIZE < multi_sensor_attrs_size + sensor_attrs_size) {
+			pr_err("failed : mem size of sensor_attr is exceeded : %d, %d\n", multi_sensor_attrs_size, sensor_attrs_size);
+			input_free_device(noti_input_dev);
+			goto err_sysfs_create_group;
+		}
+		memcpy(grip_sensor_attrs + sensor_attrs_size - 1, multi_sensor_attrs, sizeof(multi_sensor_attrs));
 	}
 	ret = sensors_register(&data->dev, data, grip_sensor_attrs,
 				(char *)module_name[data->ic_num]);
@@ -3034,13 +3082,20 @@ static int isg6320_probe(struct i2c_client *client,
 
 	if (ret) {
 		pr_err("[GRIP_%d] fail to reg sensor(%d)\n", data->ic_num, ret);
+		input_free_device(noti_input_dev);
 		goto err_sensor_register;
 	}
-	ret = input_register_device(noti_input_dev);
+
+	if (data->unknown_ch_selection)
+		ret = input_register_device(noti_input_dev);
+	else
+		ret = -1;
+
 	if (ret) {
 		input_free_device(noti_input_dev);
 		pr_err("[GRIP_U] failed to register input dev for noti (%d)\n", ret);
-		goto err_register_input_dev_noti;
+		if (data->unknown_ch_selection)
+			goto err_register_input_dev_noti;
 	}
 #else //!CONFIG_SENSORS_CORE_AP
 	ret = sensors_create_symlink(input_dev);
@@ -3058,15 +3113,16 @@ static int isg6320_probe(struct i2c_client *client,
 #ifdef CONFIG_USE_MULTI_CHANNEL
 	memcpy(grip_sensor_attrs, sensor_attrs, sizeof(sensor_attrs));
 	if (data->multi_use) {
-		int offset = isg6320_sensor_attr_offset();
+		int multi_sensor_attrs_size = sizeof(multi_sensor_attrs) / sizeof(ssize_t *);
+		int sensor_attrs_size = sizeof(sensor_attrs) / sizeof(ssize_t *);
 
-		if (offset < 0) {
-			data->multi_use = 0;
-			pr_err("[GRIP_%d] fail mem size of attr is exceeded\n",
-				data->ic_num);
-		} else
-			memcpy(grip_sensor_attrs + offset, multi_sensor_attrs, sizeof(multi_sensor_attrs));
+		if (SENSOR_ATTR_SIZE < multi_sensor_attrs_size + sensor_attrs_size) {
+			pr_err("failed : mem size of sensor_attr is exceeded : %d, %d\n", multi_sensor_attrs_size, sensor_attrs_size);
+			goto err_sysfs_create_group;
+		}
+		memcpy(grip_sensor_attrs + sensor_attrs_size - 1, multi_sensor_attrs, sizeof(multi_sensor_attrs));
 	}
+
 	ret = sensors_register(data->dev, data, grip_sensor_attrs,
 				(char *)module_name[data->ic_num]);
 #else
@@ -3077,11 +3133,16 @@ static int isg6320_probe(struct i2c_client *client,
 		pr_err("[GRIP_%d] fail to reg sensor(%d).\n", data->ic_num, ret);
 		goto err_sensor_register;
 	}
-	ret = input_register_device(noti_input_dev);
+	if (data->unknown_ch_selection)
+		ret = input_register_device(noti_input_dev);
+	else
+		ret = -1;
+
 	if (ret) {
 		input_free_device(noti_input_dev);
 		pr_err("[GRIP_U] failed to register input dev for noti (%d)\n", ret);
-		goto err_register_input_dev_noti;
+		if (data->unknown_ch_selection)
+			goto err_register_input_dev_noti;
 	}
 #endif
 
@@ -3128,8 +3189,8 @@ static int isg6320_probe(struct i2c_client *client,
 
 	return 0;
 
-err_sensor_register:
 err_register_input_dev_noti:
+err_sensor_register:
 	sysfs_remove_group(&input_dev->dev.kobj, &isg6320_attribute_group);
 err_sysfs_create_group:
 #if defined(CONFIG_SENSORS_CORE_AP)
@@ -3286,6 +3347,32 @@ static struct i2c_driver isg6320_sub_driver = {
 };
 #endif
 
+#if defined(CONFIG_SENSORS_ISG6320_SUB2)
+static const struct of_device_id isg6320_sub2_match_table[] = {
+	{ .compatible = "isg6320_sub2", },
+	{ },
+};
+
+static struct i2c_device_id isg6320_sub2_id_table[] = {
+	{"ISG6320_SUB2", 0},
+	{ },
+};
+MODULE_DEVICE_TABLE(i2c, isg6320_sub2_id_table);
+
+static struct i2c_driver isg6320_sub2_driver = {
+	.driver = {
+		.name = isg6320_sub2_id_table[0].name,
+		.owner = THIS_MODULE,
+		.of_match_table = isg6320_sub2_match_table,
+		.pm = &isg6320_pm_ops,
+	},
+	.id_table = isg6320_sub2_id_table,
+	.probe = isg6320_probe,
+	.remove = isg6320_remove,
+	.shutdown = isg6320_shutdown,
+};
+#endif
+
 #if defined(CONFIG_SENSORS_ISG6320_WIFI)
 static const struct of_device_id isg6320_wifi_match_table[] = {
 	{ .compatible = "isg6320_wifi", },
@@ -3329,6 +3416,11 @@ static int __init isg6320_init(void)
 	if (ret != 0)
 		pr_err("isg6320_sub_driver probe fail\n");
 #endif
+#if defined(CONFIG_SENSORS_ISG6320_SUB2)
+	ret = i2c_add_driver(&isg6320_sub2_driver);
+	if (ret != 0)
+		pr_err("isg6320_sub2_driver probe fail\n");
+#endif
 #if defined(CONFIG_SENSORS_ISG6320_WIFI)
 	ret = i2c_add_driver(&isg6320_wifi_driver);
 	if (ret != 0)
@@ -3343,6 +3435,9 @@ static void __exit isg6320_exit(void)
 	i2c_del_driver(&isg6320_driver);
 #if defined(CONFIG_SENSORS_ISG6320_SUB)
 	i2c_del_driver(&isg6320_sub_driver);
+#endif
+#if defined(CONFIG_SENSORS_ISG6320_SUB2)
+	i2c_del_driver(&isg6320_sub2_driver);
 #endif
 #if defined(CONFIG_SENSORS_ISG6320_WIFI)
 	i2c_del_driver(&isg6320_wifi_driver);

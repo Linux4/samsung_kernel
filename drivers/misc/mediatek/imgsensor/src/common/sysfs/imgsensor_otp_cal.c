@@ -75,6 +75,11 @@ unsigned int imgsensor_read_otp_cal(unsigned int dual_device_id, unsigned int se
 		ret = s5k4hayx_read_otp_cal(addr, data, size);
 		break;
 #endif
+#if defined(HI1339_MIPI_RAW)
+	case HI1339_SENSOR_ID:
+		ret = hi1339_read_otp_cal(addr, data, size);
+		break;
+#endif
 	default:
 		pr_err("[%s] no searched otp cal\n", __func__);
 		ret = 0;

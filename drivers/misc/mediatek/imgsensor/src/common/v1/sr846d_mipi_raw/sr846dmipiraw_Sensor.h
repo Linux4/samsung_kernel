@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2019 MediaTek Inc.
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd
  */
 
 /*****************************************************************************
@@ -32,7 +32,7 @@
 #define SR846D_OTP_BANK1_START_ADDR 0x0234
 #define SR846D_OTP_BANK2_START_ADDR 0x06A4
 
-enum{
+enum IMGSENSOR_MODE {
 	IMGSENSOR_MODE_INIT,
 	IMGSENSOR_MODE_PREVIEW,
 	IMGSENSOR_MODE_CAPTURE,
@@ -44,7 +44,14 @@ enum{
 	IMGSENSOR_MODE_CUSTOM3,
 	IMGSENSOR_MODE_CUSTOM4,
 	IMGSENSOR_MODE_CUSTOM5,
-} IMGSENSOR_MODE;
+	IMGSENSOR_MODE_MAX
+};
+
+struct setfile_mode_info {
+	kal_uint16 *setfile;
+	kal_uint32 size;
+	char *name;
+};
 
 struct imgsensor_mode_struct {
 	kal_uint32 pclk;
@@ -62,7 +69,6 @@ struct imgsensor_mode_struct {
 
 	/*	 following for GetDefaultFramerateByScenario()	*/
 	kal_uint16 max_framerate;
-
 } imgsensor_mode_struct;
 
 /* SENSOR PRIVATE STRUCT FOR VARIABLES*/
@@ -108,6 +114,8 @@ struct imgsensor_info_struct {
 	struct imgsensor_mode_struct custom3; //custom3 scenario relative info
 	struct imgsensor_mode_struct custom4; //custom4 scenario relative info
 	struct imgsensor_mode_struct custom5; //custom5 scenario relative info
+	struct imgsensor_mode_struct *mode_info[IMGSENSOR_MODE_MAX]; //mode relative info
+	kal_bool is_invalid_mode;
 
 	kal_uint8  ae_shut_delay_frame; //shutter delay frame for AE cycle
 	kal_uint8  ae_sensor_gain_delay_frame; //sensorgaindelfra for AEcycle

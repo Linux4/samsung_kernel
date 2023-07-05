@@ -42,6 +42,9 @@ static irqreturn_t mmc_gpio_cd_irqt(int irq, void *dev_id)
 	struct mmc_gpio *ctx = host->slot.handler_priv;
 	bool status;
 
+	if (host->card_detect_cnt < UINT_MAX)
+		host->card_detect_cnt++;
+
 	status = mmc_gpio_get_cd(host) ? true : false;
 
 	if (status ^ ctx->status) {
@@ -53,9 +56,6 @@ static irqreturn_t mmc_gpio_cd_irqt(int irq, void *dev_id)
 				(host->caps2 & MMC_CAP2_CD_ACTIVE_HIGH) ? "HIGH" : "LOW");
 		ctx->status = status;
 		host->trigger_card_event = true;
-
-		if (host->card_detect_cnt < UINT_MAX)
-			host->card_detect_cnt++;
 
 #ifdef CONFIG_SEC_FACTORY
 		if (status)

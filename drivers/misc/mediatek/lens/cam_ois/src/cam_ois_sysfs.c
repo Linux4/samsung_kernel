@@ -65,11 +65,7 @@ int cam_ois_gyro_calibration(struct mcu_info *mcu_info, struct i2c_client *clien
 	}
 
 #if ENABLE_AOIS == 1
-	ret = cam_ois_set_fac_mode(FACTORY_MODE_ON);
-	if (ret < 0)
-		LOG_INF("FACTORY_MODE_ON fail ret:%d", ret);
-	else
-		LOG_INF("FACTORY_MODE_ON success");
+	cam_ois_set_aois_fac_mode_on();
 #endif
 
 	ret = cam_ois_mcu_wait_idle(client, retries);
@@ -82,11 +78,7 @@ int cam_ois_gyro_calibration(struct mcu_info *mcu_info, struct i2c_client *clien
 			LOG_WARN("i2c write fail %d", ret);
 
 #if ENABLE_AOIS == 1
-		ret = cam_ois_set_fac_mode(FACTORY_ONETIME);
-		if (ret < 0)
-			LOG_INF("FACTORY_ONETIME fail ret:%d", ret);
-		else
-			LOG_INF("FACTORY_ONETIME success");
+		cam_ois_set_aois_fac_mode(FACTORY_ONETIME, 1);
 		msleep(200);
 #endif
 		/* Check Gyro Calibration Sequence End */
@@ -114,11 +106,7 @@ int cam_ois_gyro_calibration(struct mcu_info *mcu_info, struct i2c_client *clien
 	}
 
 #if ENABLE_AOIS == 1
-	ret = cam_ois_set_fac_mode(FACTORY_MODE_OFF);
-	if (ret < 0)
-		LOG_INF("FACTORY_MODE_OFF fail ret:%d", ret);
-	else
-		LOG_INF("FACTORY_MODE_OFF success");
+	cam_ois_set_aois_fac_mode_off();
 #endif
 
 	return result;
@@ -151,12 +139,7 @@ int cam_ois_get_offset_testdata(struct mcu_info *mcu_info, struct i2c_client *cl
 	LOG_INF("E\n");
 
 #if ENABLE_AOIS == 1
-	ret = cam_ois_set_fac_mode(FACTORY_MODE_ON);
-	if (ret < 0)
-		LOG_INF("FACTORY_MODE_ON fail ret:%d", ret);
-	else
-		LOG_INF("FACTORY_MODE_ON success");
-	msleep(30);
+	cam_ois_set_aois_fac_mode_on();
 #endif
 
 	ret = cam_ois_mcu_wait_idle(client, retries);
@@ -171,11 +154,7 @@ int cam_ois_get_offset_testdata(struct mcu_info *mcu_info, struct i2c_client *cl
 		LOG_WARN("i2c write fail %d", ret);
 
 #if ENABLE_AOIS == 1
-	ret = cam_ois_set_fac_mode(FACTORY_ONETIME);
-	if (ret < 0)
-		LOG_INF("FACTORY_ONETIME fail ret:%d", ret);
-	else
-		LOG_INF("FACTORY_ONETIME success");
+	cam_ois_set_aois_fac_mode(FACTORY_ONETIME, 1);
 	msleep(200);
 #endif
 
@@ -184,11 +163,7 @@ int cam_ois_get_offset_testdata(struct mcu_info *mcu_info, struct i2c_client *cl
 	if (ret < 0) {
 		LOG_ERR("fail to get gyro calibration status %d", ret);
 #if ENABLE_AOIS == 1
-		ret = cam_ois_set_fac_mode(FACTORY_MODE_OFF);
-		if (ret < 0)
-			LOG_INF("FACTORY_MODE_OFF fail ret:%d", ret);
-		else
-			LOG_INF("FACTORY_MODE_OFF success");
+		cam_ois_set_aois_fac_mode_off();
 #endif
 		return result;
 	}
@@ -221,11 +196,7 @@ int cam_ois_get_offset_testdata(struct mcu_info *mcu_info, struct i2c_client *cl
 	LOG_INF("X raw_x = %ld, raw_y = %ld, raw_z = %ld\n", *out_gyro_x, *out_gyro_y, *out_gyro_z);
 
 #if ENABLE_AOIS == 1
-	ret = cam_ois_set_fac_mode(FACTORY_MODE_OFF);
-	if (ret < 0)
-		LOG_INF("FACTORY_MODE_OFF fail ret:%d", ret);
-	else
-		LOG_INF("FACTORY_MODE_OFF success");
+	cam_ois_set_aois_fac_mode_off();
 #endif
 	return result;
 }
@@ -240,12 +211,7 @@ int cam_ois_selftest(struct mcu_info *mcu_info, struct i2c_client *client)
 	LOG_INF("E\n");
 
 #if ENABLE_AOIS == 1
-	ret = cam_ois_set_fac_mode(FACTORY_MODE_ON);
-	if (ret < 0)
-		LOG_INF("FACTORY_MODE_ON fail ret:%d", ret);
-	else
-		LOG_INF("FACTORY_MODE_ON success");
-	msleep(30);
+	cam_ois_set_aois_fac_mode_on();
 #endif
 
 	ret = cam_ois_mcu_wait_idle(client, retries);
@@ -259,11 +225,7 @@ int cam_ois_selftest(struct mcu_info *mcu_info, struct i2c_client *client)
 		LOG_WARN("i2c write fail %d", ret);
 
 #if ENABLE_AOIS == 1
-	ret = cam_ois_set_fac_mode(FACTORY_ONETIME);
-	if (ret < 0)
-		LOG_INF("FACTORY_ONETIME fail ret:%d", ret);
-	else
-		LOG_INF("FACTORY_ONETIME success");
+	cam_ois_set_aois_fac_mode(FACTORY_ONETIME, 1);
 	msleep(200);
 #endif
 
@@ -290,11 +252,7 @@ int cam_ois_selftest(struct mcu_info *mcu_info, struct i2c_client *client)
 		/* Gyro Sensor Self Test Error Process */
 		LOG_ERR("GyroSensorSelfTest failed %d\n", recv);
 #if ENABLE_AOIS == 1
-		ret = cam_ois_set_fac_mode(FACTORY_MODE_OFF);
-		if (ret < 0)
-			LOG_INF("FACTORY_MODE_OFF fail ret:%d", ret);
-		else
-			LOG_INF("FACTORY_MODE_OFF success");
+		cam_ois_set_aois_fac_mode_off();
 #endif
 		return -1;
 	}
@@ -302,11 +260,7 @@ int cam_ois_selftest(struct mcu_info *mcu_info, struct i2c_client *client)
 	LOG_INF("- X, recv: %d, ret: %d\n", recv, ret);
 
 #if ENABLE_AOIS == 1
-	ret = cam_ois_set_fac_mode(FACTORY_MODE_OFF);
-	if (ret < 0)
-		LOG_INF("FACTORY_MODE_OFF fail ret:%d", ret);
-	else
-		LOG_INF("FACTORY_MODE_OFF success");
+	cam_ois_set_aois_fac_mode_off();
 #endif
 	return (int)recv;
 }
@@ -344,11 +298,7 @@ int cam_ois_sine_wavecheck(int *sin_x, int *sin_y, int *result, struct i2c_clien
 	LOG_INF("i2c write success");
 
 #if ENABLE_AOIS == 1
-	ret = cam_ois_set_fac_mode(FACTORY_1MS);
-	if (ret < 0)
-		LOG_INF("FACTORY_ONETIME fail ret:%d", ret);
-	else
-		LOG_INF("FACTORY_ONETIME success");
+	cam_ois_set_aois_fac_mode(FACTORY_1MS, 1);
 	msleep(200);
 #endif
 
@@ -739,7 +689,7 @@ static ssize_t ois_autotest_show(struct device *dev, struct device_attribute *at
 	if (ret)
 		LOG_ERR("cam_ois_sysfs_autotest fail\n");
 
-	ret |= scnprintf(buf, PAGE_SIZE, "%s, %d, %s, %d",
+	ret = scnprintf(buf, PAGE_SIZE, "%s, %d, %s, %d",
 			(result_x ? "pass" : "fail"), sin_x,
 			(result_y ? "pass" : "fail"), sin_y);
 
@@ -758,7 +708,7 @@ static ssize_t ois_autotest_store(struct device *dev,
 
 	LOG_INF("- E\n");
 	if (buf == NULL || kstrtouint(buf, 10, &value))
-		return -1;
+		return 0;
 	ois_autotest_threshold = value;
 	return size;
 }
@@ -811,6 +761,43 @@ static ssize_t ois_check_valid_show(struct device *dev,
 	return sprintf(buf, "0x%02x\n", wide_val);
 }
 
+static ssize_t gyro_noise_stdev_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	int result = 0;
+	long stdev_data_x = 0, stdev_data_y = 0;
+
+	result = cam_ois_gyro_sensor_noise_check(&stdev_data_x, &stdev_data_y);
+
+	if (stdev_data_x < 0 && stdev_data_y < 0) {
+		return scnprintf(buf, PAGE_SIZE, "%d,-%ld.%03ld,-%ld.%03ld\n", result, abs(stdev_data_x / 1000),
+			abs(stdev_data_x % 1000), abs(stdev_data_y / 1000), abs(stdev_data_y % 1000));
+	} else if (stdev_data_x < 0) {
+		return scnprintf(buf, PAGE_SIZE, "%d,-%ld.%03ld,%ld.%03ld\n", result, abs(stdev_data_x / 1000),
+			abs(stdev_data_x % 1000), stdev_data_y / 1000, stdev_data_y % 1000);
+	} else if (stdev_data_y < 0) {
+		return scnprintf(buf, PAGE_SIZE, "%d,%ld.%03ld,-%ld.%03ld\n", result, stdev_data_x / 1000,
+			stdev_data_x % 1000, abs(stdev_data_y / 1000), abs(stdev_data_y % 1000));
+	} else {
+		return scnprintf(buf, PAGE_SIZE, "%d,%ld.%03ld,%ld.%03ld\n", result, stdev_data_x / 1000,
+			stdev_data_x % 1000, stdev_data_y / 1000, stdev_data_y % 1000);
+	}
+}
+
+static ssize_t ois_hall_position_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	uint32_t const UNSUPPORTED_POSITION = 2048;
+	uint32_t targetPosition[4] = { 0, 0, UNSUPPORTED_POSITION, UNSUPPORTED_POSITION};
+	uint32_t hallPosition[4] = {0, 0, UNSUPPORTED_POSITION, UNSUPPORTED_POSITION};
+
+	cam_ois_get_hall_position(targetPosition, hallPosition);
+
+	return scnprintf(buf, PAGE_SIZE, "%u,%u,%u,%u,%u,%u,%u,%u\n",
+			targetPosition[0], targetPosition[1], targetPosition[2], targetPosition[3],
+			hallPosition[0], hallPosition[1], hallPosition[2], hallPosition[3]);
+}
+
 static DEVICE_ATTR(autotest, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH, ois_autotest_show, ois_autotest_store);
 static DEVICE_ATTR(ois_power, S_IWUSR, NULL, ois_power_store);
 static DEVICE_ATTR(calibrationtest, S_IRUGO, ois_calibration_show, NULL);
@@ -822,6 +809,9 @@ static DEVICE_ATTR(ois_gain_rear, S_IRUGO, ois_gain_rear_show, NULL);
 static DEVICE_ATTR(ois_supperssion_ratio_rear, S_IRUGO, ois_supperssion_ratio_rear_show, NULL);
 static DEVICE_ATTR(ois_set_mode, S_IWUSR, NULL, ois_set_mode_store);
 static DEVICE_ATTR(check_ois_valid, S_IRUGO, ois_check_valid_show, NULL);
+
+static DEVICE_ATTR(ois_noise_stdev, S_IRUGO, gyro_noise_stdev_show, NULL);
+static DEVICE_ATTR(ois_hall_position, S_IRUGO, ois_hall_position_show, NULL);
 
 static int create_ois_sysfs(struct kobject *svc)
 {
@@ -874,6 +864,15 @@ static int create_ois_sysfs(struct kobject *svc)
 	if (device_create_file(camera_ois_dev, &dev_attr_check_ois_valid) < 0)
 		LOG_ERR("failed to create ois device file, %s\n",
 			dev_attr_check_ois_valid.attr.name);
+
+	if (device_create_file(camera_ois_dev, &dev_attr_ois_noise_stdev) < 0)
+		LOG_ERR("failed to create ois device file, %s\n",
+			dev_attr_ois_noise_stdev.attr.name);
+
+	if (device_create_file(camera_ois_dev, &dev_attr_ois_hall_position) < 0)
+		LOG_ERR("failed to create ois device file, %s\n",
+			dev_attr_ois_hall_position.attr.name);
+
 	return ret;
 }
 
@@ -889,16 +888,17 @@ void imgsensor_destroy_ois_sysfs(void)
 	device_remove_file(camera_ois_dev, &dev_attr_ois_set_mode);
 	device_remove_file(camera_ois_dev, &dev_attr_ois_gain_rear);
 	device_remove_file(camera_ois_dev, &dev_attr_check_ois_valid);
+	device_remove_file(camera_ois_dev, &dev_attr_ois_noise_stdev);
+	device_remove_file(camera_ois_dev, &dev_attr_ois_hall_position);
 }
 
 void cam_ois_destroy_sysfs(void)
 {
-	if (camera_ois_dev)
+	if (camera_ois_dev) {
 		imgsensor_destroy_ois_sysfs();
-
-	if (ois_camera_class)
-		device_destroy(ois_camera_class, camera_ois_dev->devt);
-
+		if (ois_camera_class)
+			device_destroy(ois_camera_class, camera_ois_dev->devt);
+	}
 }
 
 int cam_ois_sysfs_init(void)

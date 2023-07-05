@@ -63,6 +63,7 @@ struct temp_job {
 	int operation_rate;
 	long long submit;
 	int kcy;
+	unsigned int svp_mode;
 	struct temp_job *next;
 };
 static struct temp_job *temp_venc_jobs;
@@ -302,7 +303,6 @@ void mtk_unprepare_venc_emi_bw(void)
 #endif
 }
 
-
 void mtk_venc_dvfs_begin(struct temp_job **job_list)
 {
 #if ENC_DVFS
@@ -329,6 +329,9 @@ void mtk_venc_dvfs_begin(struct temp_job **job_list)
 		idx = 2;
 
 	if (job->format == V4L2_PIX_FMT_HEIF)
+		idx = 3;
+	
+	if (job->svp_mode)
 		idx = 3;
 
 	venc_freq = venc_freq_map[idx];
@@ -495,8 +498,10 @@ void mtk_venc_pmqos_gce_flush(struct mtk_vcodec_ctx *ctx, int core_id,
 		frame_rate = ctx->enc_params.framerate_num /
 				ctx->enc_params.framerate_denom;
 	}
-	if (job != NULL)
+	if (job != NULL) {
 		job->operation_rate = frame_rate;
+		job->svp_mode = ctx->enc_params.svp_mode;
+	}
 
 	if (job_cnt == 0) {
 		// Adjust dvfs immediately

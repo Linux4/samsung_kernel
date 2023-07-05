@@ -31,19 +31,16 @@
 #endif
 
 #include "a34x_s6e3fc5_sdc.h"
+#if defined(CONFIG_MTK_ROUND_CORNER_SUPPORT)
+#include "a34x_s6e3fc5_sdc_round.h"
+#endif
+
+#undef pr_fmt
+#define pr_fmt(fmt) "lcd panel: %s: " fmt, __func__
+
+#define dbg_info(fmt, ...)	pr_info(fmt, ##__VA_ARGS__)
 
 #define get_shift_width(value, shift, width)	((value >> shift) & (GENMASK(width - 1, 0)))
-
-#define dbg_info(fmt, ...)	pr_info(pr_fmt("%s: %3d: %s: " fmt), "lcd panel", __LINE__, __func__, ##__VA_ARGS__)
-
-#define DSI_WRITE(cmd, size)		do {				\
-{	\
-	int tx_ret = 0;	\
-	tx_ret = send_cmd(cmd, size);		\
-	if (tx_ret < 0)							\
-		dev_info(&lcd->ld->dev, "%s: tx_ret(%d) failed to write %02x %s\n", __func__, tx_ret, cmd[0], #cmd);	\
-}	\
-} while (0)
 
 #if defined(CONFIG_SMCDSD_DOZE)
 #define IS_NORMAL_MODE(_lcd)		(((_lcd)->state) && !((_lcd)->doze_state))
@@ -73,17 +70,19 @@ struct lcd_info {
 			u8		reserved;
 			u8		id[LDI_LEN_ID];
 		};
-		u32			value;
-	} id_info;
+		u32			id_value;
+	};
 
 	int				lux;
 
 	struct device			svc_dev;
-	unsigned char			code[LDI_LEN_CHIP_ID];
-	unsigned char			date[LDI_LEN_DATE];
-	unsigned char			manufacture_info[LDI_LEN_MANUFACTURE_INFO + LDI_LEN_MANUFACTURE_INFO_CELL_ID];
 
-	unsigned int			coordinate[2];
+	unsigned char			*code;
+	unsigned char			*date;
+	unsigned char			*manufacture_info;
+	unsigned char			*coordinate;
+
+	unsigned int			coordinate_xy[2];
 	unsigned char			coordinates[20];
 
 	struct mipi_dsi_lcd_common	*pdata;
@@ -96,6 +95,7 @@ struct lcd_info {
 	unsigned int			fac_info;
 	unsigned int			fac_done;
 	unsigned int			mcd_mode;
+	unsigned int			dsc_crc_state;
 
 	unsigned int			conn_det_enable;
 	unsigned int			conn_det_count;
@@ -104,8 +104,10 @@ struct lcd_info {
 
 	unsigned int			brightness;
 	unsigned int			adaptive_control;
+	unsigned int			irc_mode;
 	int				temperature;
 	unsigned int			vrefresh;
+	unsigned int			disp_mode_idx;
 
 	unsigned int			current_brightness;	//todo: bit check
 	unsigned int			current_adaptive_control;
@@ -121,7 +123,6 @@ struct lcd_info {
 	union lpm_info			current_alpm;
 
 	unsigned int			prev_brightness;
-	//union lpm_info			prev_alpm;
 #endif
 #if defined(CONFIG_SMCDSD_MDNIE)
 	struct class			*mdnie_class;
@@ -136,11 +137,18 @@ struct lcd_info {
 	struct notifier_block		dpui_notif;
 	struct notifier_block		dpci_notif;
 #endif
-#if defined(CONFIG_SMCDSD_MASK_LAYER)
-	unsigned int			mask_brightness;
-	unsigned int			actual_mask_brightness;
-#endif
+//prevent undef compile error #if defined(CONFIG_SMCDSD_MASK_LAYER)
+	unsigned int			te_cnt;
 	unsigned int			mask_state;
+	unsigned int			mask_brightness;
+//#endif
+#if defined(CONFIG_SMCDSD_MASK_LAYER)
+	unsigned int			actual_mask_brightness;
+
+	unsigned int			hbm_en;	//todo: merge with mask_state
+	unsigned int			hbm_wait;
+	u64				hbm_time_stamp;
+#endif
 };
 
 #define get_shift_width(value, shift, width)	((value >> shift) & (GENMASK(width - 1, 0)))
@@ -326,37 +334,40 @@ static int smcdsd_panel_send_msg(struct lcd_info *lcd, int force)
 	struct msg_segment *segment[MAX_TX_CMD_NUM] = {0, };
 	struct msg_package *package[MAX_TX_CMD_NUM];
 
-	lcd->brightness = lcd->bd->props.brightness;
+	lcd->brightness = lcd->mask_state ? lcd->mask_brightness : lcd->bd->props.brightness;
 
-	dev_info(&lcd->ld->dev, "%s: brightness(%3d) acl(%d) refresh(%3d) degree(%3d)\n", __func__,
-		lcd->brightness, lcd->adaptive_control, lcd->vrefresh, lcd->temperature);
+	dev_info(&lcd->ld->dev, "%s: brightness(%3d) acl(%d) refresh(%3d) degree(%3d) mode(%d)\n", __func__,
+		lcd->brightness, lcd->adaptive_control, lcd->vrefresh, lcd->temperature, lcd->disp_mode_idx);
 
 	/* KEY OPEN */
-	package[count++] = &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_KEY_ON)];
+	package[count++] = GET_PACKAGE(&PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_KEY_ON)]);
 
 	/* VRR */
-	if (lcd->vrefresh == 60)
-		package[count++] = &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_60HZ)];
-	else if (lcd->vrefresh == 120)
-		package[count++] = &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_120HZ)];
+	package[count++] = GET_PACKAGE(&PACKAGE_LIST[MSG_IDX_BASE][disp_mode_table[lcd->disp_mode_idx]], lcd->brightness);
 
 	/* Sync. Control and Dimming Speed */
-	package[count++] = &PACKAGE_LIST[MSG_IDX_BASE][dim_table[lcd->mask_state][lcd->brightness]];
+	package[count++] = GET_PACKAGE(&PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_DIMMING_SPEED)], !!(lcd->mask_state | lcd->hbm_en), lcd->brightness);
 
 	/* BRIGHTNESS */
-	package[count++] = &PACKAGE_LIST[MSG_IDX_BRIGHTNESS][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_BRIGHTNESS) + lcd->brightness];
+	package[count++] = GET_PACKAGE(&PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_BRIGHTNESS)], lcd->brightness);
 
 	/* ACL */
-	package[count++] = &PACKAGE_LIST[MSG_IDX_BASE][acl_table[lcd->mask_state][lcd->adaptive_control]];
+	package[count++] = GET_PACKAGE(&PACKAGE_LIST[MSG_IDX_BASE][acl_table[lcd->adaptive_control][!!lcd->mask_state])];
+
+	/* IRC */
+	package[count++] = GET_PACKAGE(&PACKAGE_LIST[MSG_IDX_BASE][irc_table[lcd->irc_mode]]);
 
 	/* TSET */
-	package[count++] = &PACKAGE_LIST[MSG_IDX_BASE][tset_table[TEMPERATURE_UP(lcd->temperature)]];
+	package[count++] = GET_PACKAGE(&PACKAGE_LIST[MSG_IDX_BASE][tset_table[TEMPERATURE_UP(lcd->temperature)]]);
 
 	/* UPDATE */
-	package[count++] = &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_PANEL_UPDATE)];
+	package[count++] = GET_PACKAGE(&PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_PANEL_UPDATE)]);
 
 	/* KEY CLOSE */
-	package[count++] = &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_KEY_OFF)];
+	if (lcd->mask_state | lcd->hbm_en)
+		package[count++] = GET_PACKAGE(&PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_KEY_OFF_BLOCKING)]);
+	else
+		package[count++] = GET_PACKAGE(&PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_KEY_OFF)]);
 
 	return send_msg_package(package, count, &segment);
 }
@@ -418,6 +429,12 @@ static int s6e3fc5_sdc_doze_exit(struct lcd_info *lcd)
 	dev_info(&lcd->ld->dev, "%s: brightness: %3d, lpm: %06x(%06x)\n", __func__,
 		lcd->bd->props.brightness, lcd->current_alpm.value, lcd->alpm.value);
 
+	/* 1. Update brightness value first */
+	lcd->brightness = lcd->mask_state ? lcd->mask_brightness : lcd->bd->props.brightness;
+	smcdsd_dsi_tx_package(lcd, GET_PACKAGE(&PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_BRIGHTNESS)], lcd->brightness));
+	msleep(35);
+
+	/* 2. Exit HLPM */
 	lpm.value = lcd->alpm.value;
 	lpm.index = (lpm.ver && lpm.mode) ? lpm_exit_table[lcd->bd->props.brightness] : lpm_old_table[lpm.mode];
 
@@ -466,7 +483,7 @@ static int panel_set_brightness(struct backlight_device *bd)
 
 	smcdsd_commit_lock(lcd, true);
 	mutex_lock(&lcd->lock);
-	if (lcd->state) {		/* todo for aod backlight */
+	if (lcd->state) {
 		ret = smcdsd_panel_set_brightness(lcd, 0);
 		if (ret < 0)
 			dev_info(&lcd->ld->dev, "%s: failed to set brightness\n", __func__);
@@ -488,14 +505,13 @@ static const struct backlight_ops panel_backlight_ops = {
 	.check_fb = panel_check_fb_brightness,
 };
 
-static int smcdsd_panel_read_bit_info(struct lcd_info *lcd, u32 index, u8 *rxbuf)
+static int smcdsd_panel_mask_bit_info(struct lcd_info *lcd, u32 index)
 {
 	int ret = 0;
-	u8 buf[RT_MAX_NUM] = {0, };
+	u8 *buf;
 	struct abd_bit_info *bit_info_list = ldi_bit_info_list;
-	unsigned int reg, len, mask, expect, offset, invert, print_tag, bit, i, bit_max = 0, merged = 0;
+	unsigned int reg, len, mask, offset, invert;
 	char **print_org = NULL;
-	char *print_new[sizeof(u32) * BITS_PER_BYTE] = {0, };
 	struct mipi_dsi_lcd_common *pdata = lcd->pdata;
 
 	if (!lcd->connected)
@@ -509,75 +525,17 @@ static int smcdsd_panel_read_bit_info(struct lcd_info *lcd, u32 index, u8 *rxbuf
 
 	reg = bit_info_list[index].reg;
 	len = bit_info_list[index].len;
-	bit_max = len * BITS_PER_BYTE;
 	print_org = bit_info_list[index].print;
-	expect = bit_info_list[index].expect;
 	offset = bit_info_list[index].offset;
 	invert = bit_info_list[index].invert;
-	mask = bit_info_list[index].mask;
-	if (!mask) {
-		for (bit = 0; bit < bit_max; bit++) {
-			if (print_org[bit])
-				mask |= BIT(bit);
-		}
-		bit_info_list[index].mask = mask;
-	}
+	buf = bit_info_list[index].result_buf;
 
-	if (offset + len > ARRAY_SIZE(buf)) {
-		dev_info(&lcd->ld->dev, "%s: invalid length(%d) or offset(%d)\n", __func__, len, offset);
-		ret = -EINVAL;
-		return ret;
-	}
-
-	if (len > sizeof(u32) || !len) {
-		dev_info(&lcd->ld->dev, "%s: invalid length(%d)\n", __func__, len);
-		ret = -EINVAL;
-		return ret;
-	}
-
-	ret = smcdsd_dsi_rx_info(lcd, reg, offset + len, buf);
-	if (ret < 0) {
-		dev_info(&lcd->ld->dev, "%s: fail\n", __func__);
-		return ret;
-	}
-
-	for (i = 0; i < len; i++)
-		merged |= buf[offset + i] << (BITS_PER_BYTE * i);
-
-	print_tag = merged & mask;
-	print_tag = print_tag ^ invert;
-
-	memcpy(&bit_info_list[index].result, &buf[offset], len);
-
-	if (rxbuf)
-		memcpy(rxbuf, &buf[offset], len);
-
-	if (print_tag) {
-		for_each_set_bit(bit, (unsigned long *)&print_tag, bit_max) {
-			if (print_org[bit])
-				print_new[bit] = print_org[bit];
-		}
-
-		if (likely(&pdata->abd)) {
-			dev_info(&lcd->ld->dev, "==================================================\n");
-			smcdsd_abd_save_bit(&pdata->abd, len * BITS_PER_BYTE, merged, print_new);
-		}
-		dev_info(&lcd->ld->dev, "==================================================\n");
-		dev_info(&lcd->ld->dev, "%s: 0x%02X is invalid. 0x%0*X(expect %0*X)\n", __func__, reg, bit_max >> 2, merged, bit_max >> 2, expect);
-		for (bit = 0; bit < bit_max; bit++) {
-			if (print_new[bit]) {
-				if (!bit || !print_new[bit - 1] || strcmp(print_new[bit - 1], print_new[bit]))
-					dev_info(&lcd->ld->dev, "* %s (NG)\n", print_new[bit]);
-			}
-		}
-		dev_info(&lcd->ld->dev, "==================================================\n");
-
-	}
+	smcdsd_abd_mask_bit(&pdata->abd, len * BITS_PER_BYTE, get_merged_value(buf, len), print_org, invert);
 
 #if defined(CONFIG_SMCDSD_DPUI)
 {
 	struct abd_bit_info *bit_dpui_list = ldi_bit_dpui_list;
-	unsigned int key, value;
+	unsigned int i, key, value;
 
 	for (i = 0; i < ARRAY_SIZE(ldi_bit_dpui_list); i++) {
 		if (reg != bit_dpui_list[i].reg)
@@ -588,9 +546,6 @@ static int smcdsd_panel_read_bit_info(struct lcd_info *lcd, u32 index, u8 *rxbuf
 		mask = bit_dpui_list[i].mask;
 
 		value = (buf[offset] & mask) ^ invert;
-
-		dev_info(&lcd->ld->dev, "%s: buf(%2x) reg(%2x) mask(%2x) invert(%2x) key(%u)\n", __func__,
-			buf[offset], bit_dpui_list[i].reg, bit_dpui_list[i].mask, bit_dpui_list[i].invert, bit_dpui_list[i].dpui_key);
 
 		inc_dpui_u32_field(key, value);
 		if (value)
@@ -631,11 +586,11 @@ static int panel_dpui_notifier_callback(struct notifier_block *self,
 			lcd->date[2] & 0x1F, lcd->date[3] & 0x3F, lcd->date[4] & 0x3F);
 	set_dpui_field(DPUI_KEY_MAID_DATE, tbuf, size);
 
-	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", lcd->id_info.id[0]);
+	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", lcd->id[0]);
 	set_dpui_field(DPUI_KEY_LCDID1, tbuf, size);
-	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", lcd->id_info.id[1]);
+	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", lcd->id[1]);
 	set_dpui_field(DPUI_KEY_LCDID2, tbuf, size);
-	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", lcd->id_info.id[2]);
+	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", lcd->id[2]);
 	set_dpui_field(DPUI_KEY_LCDID3, tbuf, size);
 
 	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "0x%02X%02X%02X%02X%02X",
@@ -643,9 +598,8 @@ static int panel_dpui_notifier_callback(struct notifier_block *self,
 	set_dpui_field(DPUI_KEY_CHIPID, tbuf, size);
 
 	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
-		lcd->date[0], lcd->date[1], lcd->date[2], lcd->date[3], lcd->date[4],
-		lcd->date[5], lcd->date[6], (lcd->coordinate[0] & 0xFF00) >> 8, lcd->coordinate[0] & 0x00FF,
-		(lcd->coordinate[1] & 0xFF00) >> 8, lcd->coordinate[1] & 0x00FF);
+		lcd->date[0], lcd->date[1], lcd->date[2], lcd->date[3], lcd->date[4], lcd->date[5], lcd->date[6],
+		lcd->coordinate[0], lcd->coordinate[1], lcd->coordinate[2], lcd->coordinate[3]);
 	set_dpui_field(DPUI_KEY_CELLID, tbuf, size);
 
 	m_info = lcd->manufacture_info;
@@ -677,10 +631,7 @@ static int panel_dpci_notifier_callback(struct notifier_block *self,
 	struct lcd_info *lcd = NULL;
 
 	lcd = container_of(self, struct lcd_info, dpci_notif);
-#if 0
-	inc_dpui_u32_field(DPUI_KEY_EXY_SWRCV, lcd->total_invalid_cnt);
-	lcd->total_invalid_cnt = 0;
-#endif
+
 	return NOTIFY_DONE;
 }
 #endif /* CONFIG_SMCDSD_DPUI */
@@ -690,21 +641,11 @@ static int s6e3fc5_sdc_change_ffc(struct lcd_info *lcd, unsigned int ffc_on)
 {
 	int ret = 0;
 
-	if (!ffc_on) {
-		dev_info(&lcd->ld->dev, "%s: [%d] => [OFF], OFF CMD is not used\n", __func__, lcd->df_index_req);
-		return ret;
-	}
-#if 0
-	if (lcd->df_index_req == DYNAMIC_MIPI_INDEX_1)
-		smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_FFC_822)]);
-	else if (lcd->df_index_req == DYNAMIC_MIPI_INDEX_2)
-		smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_FFC_824)]);
-	else
-		smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_FFC_806)]);
-#endif
-	lcd->df_index_current = lcd->df_index_req;
+	dev_info(&lcd->ld->dev, "%s: %d->%d\n", __func__, lcd->df_index_current, lcd->df_index_req);
 
-	dev_info(&lcd->ld->dev, "%s: [OFF] => [%d]\n", __func__, lcd->df_index_req);
+	smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][ffc_table[lcd->df_index_req]]);
+
+	lcd->df_index_current = lcd->df_index_req;
 
 	return ret;
 }
@@ -794,18 +735,18 @@ static int panel_dynamic_freq_notifier_callback(struct notifier_block *self,
 		dev_info(&lcd->ld->dev, "%s: (b:%d, c:%d) df:%d\n",
 				__func__, ch_info->band, ch_info->channel, df_idx);
 
-		if (df_idx < 0)
+		if (clamp_val(df_idx, DYNAMIC_MIPI_INDEX_0, DYNAMIC_MIPI_INDEX_MAX - 1) != df_idx)
 			return NOTIFY_DONE;
 
 		if (lcd->df_index_current == df_idx)
 			return NOTIFY_DONE;
 
-		smcdsd_commit_lock(lcd, true);
-		mutex_lock(&lcd->lock);
-		if (lcd->state)
-			s6e3fc5_sdc_change_ffc(lcd, FFC_OFF);
-		mutex_unlock(&lcd->lock);
-		smcdsd_commit_lock(lcd, false);
+		//smcdsd_commit_lock(lcd, true);
+		//mutex_lock(&lcd->lock);
+		//if (lcd->state)
+		//	s6e3fc5_sdc_change_ffc(lcd, FFC_OFF);
+		//mutex_unlock(&lcd->lock);
+		//smcdsd_commit_lock(lcd, false);
 
 		smcdsd_panel_dsi_clk_change(lcd->pdata, df_idx);
 
@@ -820,15 +761,17 @@ static int panel_dynamic_freq_notifier_callback(struct notifier_block *self,
 static int smcdsd_panel_framedone_dynamic_mipi(struct platform_device *p)
 {
 	struct lcd_info *lcd = get_lcd_info(p);
-	if (lcd) {
-		smcdsd_commit_lock(lcd, true);
-		mutex_lock(&lcd->lock);
-		if (lcd->df_index_req != lcd->df_index_current)
-			if (lcd->state)
-				s6e3fc5_sdc_change_ffc(lcd, FFC_UPDATE);
-		mutex_unlock(&lcd->lock);
-		smcdsd_commit_lock(lcd, false);
-	}
+
+	if (!lcd)
+		return 0;
+
+	smcdsd_commit_lock(lcd, true);
+	mutex_lock(&lcd->lock);
+	if (lcd->df_index_req != lcd->df_index_current && lcd->state)
+		s6e3fc5_sdc_change_ffc(lcd, 1);
+	mutex_unlock(&lcd->lock);
+	smcdsd_commit_lock(lcd, false);
+
 	return 0;
 }
 #endif
@@ -837,86 +780,25 @@ static int s6e3fc5_sdc_read_id(struct lcd_info *lcd)
 {
 	int i = 0, ret = 0;
 	struct mipi_dsi_lcd_common *pdata = lcd->pdata;
-	static char *LDI_BIT_DESC_ID[BITS_PER_BYTE * LDI_LEN_ID] = {
-		[0 ... 23] = "ID Read Fail",
-	};
 
-	lcd->id_info.value = 0;
+	lcd->id_value = 0;
 	pdata->lcdconnected = lcd->connected = lcdtype ? 1 : 0;
 
 	for (i = 0; i < LDI_LEN_ID; i++) {
-		ret = smcdsd_dsi_rx_info(lcd, LDI_REG_ID + i, 1, &lcd->id_info.id[i]);
+		ret = smcdsd_dsi_rx_info(lcd, LDI_REG_ID + i, 1, &lcd->id[i]);
 		if (ret < 0)
 			break;
 	}
 
-	if (ret < 0 || !lcd->id_info.value) {
+	if (ret < 0 || !lcd->id_value) {
 		pdata->lcdconnected = lcd->connected = 0;
 		dev_info(&lcd->ld->dev, "%s: connected lcd is invalid\n", __func__);
 
 		if (lcdtype)
-			smcdsd_abd_save_bit(&pdata->abd, BITS_PER_BYTE * LDI_LEN_ID, cpu_to_be32(lcd->id_info.value), LDI_BIT_DESC_ID);
+			smcdsd_abd_save_str(&pdata->abd, "ID Read Fail");
 	}
 
-	dev_info(&lcd->ld->dev, "%s: %06x\n", __func__, cpu_to_be32(lcd->id_info.value));
-
-	return ret;
-}
-
-static int s6e3fc5_sdc_read_chip_id(struct lcd_info *lcd)
-{
-	int ret = 0;
-	unsigned char buf[LDI_LEN_CHIP_ID] = {0, };
-
-	smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_KEY_ON)]);
-
-	ret = smcdsd_dsi_rx_info(lcd, LDI_REG_CHIP_ID, LDI_LEN_CHIP_ID, buf);
-	if (ret < 0)
-		dev_info(&lcd->ld->dev, "%s: fail\n", __func__);
-
-	memcpy(lcd->code, buf, LDI_LEN_CHIP_ID);
-
-	dev_info(&lcd->ld->dev, "%s: %*ph\n", __func__, ARRAY_SIZE(lcd->code), lcd->code);
-
-	smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_KEY_OFF)]);
-
-	return ret;
-}
-
-static int s6e3fc5_sdc_read_coordinate(struct lcd_info *lcd)
-{
-	int ret = 0;
-	unsigned char buf[LDI_GPARA_DATE + LDI_LEN_DATE + LDI_LEN_MANUFACTURE_INFO] = {0, };
-
-	ret = smcdsd_dsi_rx_info(lcd, LDI_REG_COORDINATE, ARRAY_SIZE(buf), buf);
-	if (ret < 0)
-		dev_info(&lcd->ld->dev, "%s: fail\n", __func__);
-
-	lcd->coordinate[0] = buf[LDI_GPARA_COORDINATE + 0] << 8 | buf[LDI_GPARA_COORDINATE + 1];	/* X */
-	lcd->coordinate[1] = buf[LDI_GPARA_COORDINATE + 2] << 8 | buf[LDI_GPARA_COORDINATE + 3];	/* Y */
-
-	scnprintf(lcd->coordinates, sizeof(lcd->coordinates), "%d %d\n", lcd->coordinate[0], lcd->coordinate[1]);
-
-	memcpy(lcd->date, &buf[LDI_GPARA_DATE], LDI_LEN_DATE);
-	memcpy(lcd->manufacture_info, &buf[LDI_LEN_DATE + LDI_LEN_MANUFACTURE_INFO], LDI_LEN_MANUFACTURE_INFO);
-
-	dev_info(&lcd->ld->dev, "%s: %*ph\n", __func__, ARRAY_SIZE(lcd->date), lcd->date);
-
-	return ret;
-}
-
-static int s6e3fc5_sdc_read_manufacture_info(struct lcd_info *lcd)
-{
-	int ret = 0;
-	unsigned char buf[LDI_GPARA_MANUFACTURE_INFO_CELL_ID + LDI_LEN_MANUFACTURE_INFO_CELL_ID] = {0, };
-
-	ret = smcdsd_dsi_rx_info(lcd, LDI_REG_MANUFACTURE_INFO_CELL_ID, ARRAY_SIZE(buf), buf);
-	if (ret < 0)
-		dev_info(&lcd->ld->dev, "%s: fail\n", __func__);
-
-	memcpy(&lcd->manufacture_info[LDI_LEN_MANUFACTURE_INFO], &buf[LDI_GPARA_MANUFACTURE_INFO_CELL_ID], LDI_LEN_MANUFACTURE_INFO_CELL_ID);
-
-	dev_info(&lcd->ld->dev, "%s: %*ph\n", __func__, ARRAY_SIZE(lcd->manufacture_info), lcd->manufacture_info);
+	dev_info(&lcd->ld->dev, "%s: %06x\n", __func__, cpu_to_be32(lcd->id_value));
 
 	return ret;
 }
@@ -928,20 +810,30 @@ static int s6e3fc5_sdc_read_init_info(struct lcd_info *lcd)
 
 	pdata->lcdconnected = lcd->connected = lcdtype ? 1 : 0;
 
-	lcd->id_info.id[0] = (lcdtype & 0xFF0000) >> 16;
-	lcd->id_info.id[1] = (lcdtype & 0x00FF00) >> 8;
-	lcd->id_info.id[2] = (lcdtype & 0x0000FF) >> 0;
+	lcd->id[0] = (lcdtype & 0xFF0000) >> 16;
+	lcd->id[1] = (lcdtype & 0x00FF00) >> 8;
+	lcd->id[2] = (lcdtype & 0x0000FF) >> 0;
 
-	dev_info(&lcd->ld->dev, "%s: %x\n", __func__, cpu_to_be32(lcd->id_info.value));
+	dev_info(&lcd->ld->dev, "%s: %x\n", __func__, cpu_to_be32(lcd->id_value));
 
 	s6e3fc5_sdc_read_id(lcd);
 
 	if (!lcd->fac_info)
 		return ret;
 
-	s6e3fc5_sdc_read_chip_id(lcd);
-	s6e3fc5_sdc_read_coordinate(lcd);
-	s6e3fc5_sdc_read_manufacture_info(lcd);
+	lcd->coordinate = BUF_COORDINATE;
+	lcd->date = BUF_DATE;
+	lcd->manufacture_info = BUF_MANUFACTURE_INFO;
+	lcd->code = BUF_CODE;
+
+	send_msg_segment(MSG_S6E3FC5_SDC_KEY_ON, ARRAY_SIZE(MSG_S6E3FC5_SDC_KEY_ON));
+	send_msg_segment(MSG_S6E3FC5_SDC_FAC_INFO, ARRAY_SIZE(MSG_S6E3FC5_SDC_FAC_INFO));
+	send_msg_segment(MSG_S6E3FC5_SDC_GAMMA_OFFSET, ARRAY_SIZE(MSG_S6E3FC5_SDC_GAMMA_OFFSET));
+	send_msg_segment(MSG_S6E3FC5_SDC_KEY_OFF, ARRAY_SIZE(MSG_S6E3FC5_SDC_KEY_OFF));
+
+	lcd->coordinate_xy[0] = lcd->coordinate[0] << 8 | lcd->coordinate[1];	/* X */
+	lcd->coordinate_xy[1] = lcd->coordinate[2] << 8 | lcd->coordinate[3];	/* Y */
+	scnprintf(lcd->coordinates, sizeof(lcd->coordinates), "%d %d\n", lcd->coordinate_xy[0], lcd->coordinate_xy[1]);
 
 #if defined(CONFIG_SMCDSD_MDNIE)
 	attr_store_for_each(lcd->mdnie_class, "color_coordinate", lcd->coordinates, strlen(lcd->coordinates));
@@ -956,15 +848,13 @@ static int s6e3fc5_sdc_exit(struct lcd_info *lcd)
 
 	dev_info(&lcd->ld->dev, "%s\n", __func__);
 
-	smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_KEY_ON)]);
-	smcdsd_panel_read_bit_info(lcd, LDI_BIT_ENUM_05, NULL);
-	smcdsd_panel_read_bit_info(lcd, LDI_BIT_ENUM_0A, NULL);
-	smcdsd_panel_read_bit_info(lcd, LDI_BIT_ENUM_0E, NULL);
-	smcdsd_panel_read_bit_info(lcd, LDI_BIT_ENUM_E9, NULL);
-	smcdsd_panel_read_bit_info(lcd, LDI_BIT_ENUM_EE, NULL);
-	smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_KEY_OFF)]);
-
 	smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_EXIT)]);
+
+	smcdsd_panel_mask_bit_info(lcd, LDI_BIT_ENUM_05);
+	smcdsd_panel_mask_bit_info(lcd, LDI_BIT_ENUM_0A);
+	smcdsd_panel_mask_bit_info(lcd, LDI_BIT_ENUM_0E);
+	smcdsd_panel_mask_bit_info(lcd, LDI_BIT_ENUM_E9);
+	smcdsd_panel_mask_bit_info(lcd, LDI_BIT_ENUM_EE);
 
 #if defined(CONFIG_SMCDSD_DOZE)
 	lcd->current_alpm.value = lcd->doze_state = 0;
@@ -979,16 +869,16 @@ static int s6e3fc5_sdc_init(struct lcd_info *lcd)
 
 	dev_info(&lcd->ld->dev, "%s\n", __func__);
 
-	s6e3fc5_sdc_read_init_info(lcd);
+	s6e3fc5_sdc_read_id(lcd);
 
 	smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_INIT)]);
 #if defined(CONFIG_SMCDSD_DYNAMIC_MIPI)
-	s6e3fc5_sdc_change_ffc(lcd, FFC_UPDATE);
+	s6e3fc5_sdc_change_ffc(lcd, 1);
 #endif
 
-	smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_KEY_ON)]);
-	smcdsd_panel_read_bit_info(lcd, LDI_BIT_ENUM_0F, NULL);
-	smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_KEY_OFF)]);
+	s6e3fc5_sdc_read_init_info(lcd);
+
+	smcdsd_panel_mask_bit_info(lcd, LDI_BIT_ENUM_0F);
 
 	smcdsd_panel_set_brightness(lcd, 1);
 
@@ -1047,7 +937,7 @@ static int panel_after_notifier_callback(struct notifier_block *self,
 	int fb_blank;
 
 	switch (event) {
-	case FB_EVENT_BLANK:
+	case SMCDSD_EVENT_BLANK:
 		break;
 	default:
 		return NOTIFY_DONE;
@@ -1162,7 +1052,7 @@ static ssize_t lcd_type_show(struct device *dev,
 {
 	struct lcd_info *lcd = dev_get_drvdata(dev);
 
-	sprintf(buf, "%s_%02X%02X%02X\n", LCD_TYPE_VENDOR, lcd->id_info.id[0], lcd->id_info.id[1], lcd->id_info.id[2]);
+	sprintf(buf, "%s_%02X%02X%02X\n", LCD_TYPE_VENDOR, lcd->id[0], lcd->id[1], lcd->id[2]);
 
 	return strlen(buf);
 }
@@ -1172,7 +1062,7 @@ static ssize_t window_type_show(struct device *dev,
 {
 	struct lcd_info *lcd = dev_get_drvdata(dev);
 
-	sprintf(buf, "%02x %02x %02x\n", lcd->id_info.id[0], lcd->id_info.id[1], lcd->id_info.id[2]);
+	sprintf(buf, "%02x %02x %02x\n", lcd->id[0], lcd->id[1], lcd->id[2]);
 
 	return strlen(buf);
 }
@@ -1338,6 +1228,48 @@ static ssize_t adaptive_control_store(struct device *dev,
 	return size;
 }
 
+static ssize_t irc_mode_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+
+	sprintf(buf, "%u\n", lcd->irc_mode);
+
+	return strlen(buf);
+}
+
+static ssize_t irc_mode_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	unsigned int value;
+	int rc;
+
+	rc = kstrtouint(buf, 0, &value);
+	if (rc < 0)
+		return rc;
+
+	dev_info(&lcd->ld->dev, "%s: %u->%u\n", __func__, lcd->irc_mode, value);
+
+	if (clamp_val(value, 0, ARRAY_SIZE(irc_table) - 1) != value)
+		return size;
+
+	if (lcd->irc_mode == value)
+		return size;
+
+	smcdsd_commit_lock(lcd, true);
+	mutex_lock(&lcd->lock);
+	lcd->irc_mode = value;
+
+	if (IS_NORMAL_MODE(lcd))
+		smcdsd_panel_set_brightness(lcd, 1);
+
+	mutex_unlock(&lcd->lock);
+	smcdsd_commit_lock(lcd, false);
+
+	return size;
+}
+
 static ssize_t temperature_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -1402,8 +1334,8 @@ static ssize_t manufacture_code_show(struct device *dev,
 {
 	struct lcd_info *lcd = dev_get_drvdata(dev);
 
-	sprintf(buf, "%02X%02X%02X%02X%02X%02X\n",
-		lcd->code[0], lcd->code[1], lcd->code[2], lcd->code[3], lcd->code[4], lcd->code[5]);
+	sprintf(buf, "%02X%02X%02X%02X%02X\n",
+		lcd->code[0], lcd->code[1], lcd->code[2], lcd->code[3], lcd->code[4]);
 
 	return strlen(buf);
 }
@@ -1414,9 +1346,8 @@ static ssize_t cell_id_show(struct device *dev,
 	struct lcd_info *lcd = dev_get_drvdata(dev);
 
 	sprintf(buf, "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n",
-		lcd->date[0], lcd->date[1], lcd->date[2], lcd->date[3], lcd->date[4],
-		lcd->date[5], lcd->date[6], (lcd->coordinate[0] & 0xFF00) >> 8, lcd->coordinate[0] & 0x00FF,
-		(lcd->coordinate[1] & 0xFF00) >> 8, lcd->coordinate[1] & 0x00FF);
+		lcd->date[0], lcd->date[1], lcd->date[2], lcd->date[3], lcd->date[4], lcd->date[5], lcd->date[6],
+		lcd->coordinate[0], lcd->coordinate[1], lcd->coordinate[2], lcd->coordinate[3]);
 
 	return strlen(buf);
 }
@@ -1453,6 +1384,195 @@ static ssize_t octa_id_show(struct device *dev,
 
 	return strlen(buf);
 }
+
+static ssize_t ccd_state_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	struct mipi_dsi_msg *dsi_msg;
+	int i;
+	int valid = 0;
+	int len = 0;
+	u8 result_buf[MAX_RX_READ_NUM] = {0, };
+	struct abd_protect *abd = &lcd->pdata->abd;
+
+	dev_info(&lcd->ld->dev, "%s: state(%d)\n", __func__, IS_NORMAL_MODE(lcd));
+
+	if (!IS_NORMAL_MODE(lcd))
+		return 0;
+
+	smcdsd_commit_lock(lcd, true);
+	mutex_lock(&lcd->lock);
+
+	smcdsd_abd_enable(abd, 0);
+
+	send_msg_segment(MSG_S6E3FC5_SDC_CCD, ARRAY_SIZE(MSG_S6E3FC5_SDC_CCD));
+	for_each_rx_msg_in_segment(i, MSG_S6E3FC5_SDC_CCD, ARRAY_SIZE(MSG_S6E3FC5_SDC_CCD), dsi_msg) {
+		dbg_info("%2x: %*ph\n", ((u8 *)dsi_msg->tx_buf)[0], dsi_msg->rx_len, (u8 *)dsi_msg->rx_buf);
+		memcpy(&result_buf[len], dsi_msg->rx_buf, dsi_msg->rx_len);
+		len += dsi_msg->rx_len;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(fac_check_list); i++) {
+		if (fac_check_list[i].name != attr->attr.name)
+			continue;
+
+		valid += (get_merged_value(result_buf, len) ^ fac_check_list[i].invert) ? 0 : 1;
+	}
+
+	sprintf(buf, "%d\n", valid ? 1 : 0);	/* or */
+
+	dbg_info("len(%d) buf(%*ph) merge(%llx) valid(%d)\n", len, len, result_buf, get_merged_value(result_buf, len), valid);
+
+	for_each_rx_msg_in_segment(i, MSG_S6E3FC5_SDC_CCD, ARRAY_SIZE(MSG_S6E3FC5_SDC_CCD), dsi_msg) {
+		memset(dsi_msg->rx_buf, 0, dsi_msg->rx_len);
+	}
+
+	smcdsd_abd_enable(abd, 1);
+
+	mutex_unlock(&lcd->lock);
+	smcdsd_commit_lock(lcd, false);
+
+	return strlen(buf);
+}
+
+static ssize_t dsc_crc_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	struct mipi_dsi_msg *dsi_msg;
+	int i;
+	int valid = 0;
+	int len = 0;
+	u8 result_buf[MAX_RX_READ_NUM] = {0, };
+	struct abd_protect *abd = &lcd->pdata->abd;
+
+	dev_info(&lcd->ld->dev, "%s: state(%d) dsc_crc_state(%d)%s\n", __func__, IS_NORMAL_MODE(lcd),
+		lcd->dsc_crc_state, lcd->dsc_crc_state ? "" : "invalid");
+
+	if (!IS_NORMAL_MODE(lcd)) {
+		smcdsd_abd_save_str(abd, "dsc_crc_show LCD is not on state");
+		return 0;
+	}
+
+	smcdsd_commit_lock(lcd, true);
+	mutex_lock(&lcd->lock);
+
+	for_each_rx_msg_in_segment(i, MSG_S6E3FC5_SDC_CRC, ARRAY_SIZE(MSG_S6E3FC5_SDC_CRC), dsi_msg) {
+		dbg_info("%2x: %*ph\n", ((u8 *)dsi_msg->tx_buf)[0], dsi_msg->rx_len, (u8 *)dsi_msg->rx_buf);
+		memcpy(&result_buf[len], dsi_msg->rx_buf, dsi_msg->rx_len);
+		len += dsi_msg->rx_len;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(fac_check_list); i++) {
+		if (fac_check_list[i].name != attr->attr.name)
+			continue;
+
+		valid += (get_merged_value(result_buf, len) ^ fac_check_list[i].invert) ? 0 : 1;
+	}
+
+	sprintf(buf, "%d %*ph\n", valid ? 1 : -1, len, result_buf);	/* and */
+
+	dbg_info("len(%d) buf(%*ph) merge(%llx) valid(%d)\n", len, len, result_buf, get_merged_value(result_buf, len), valid);
+
+	if (!valid && !lcd->dsc_crc_state)
+		smcdsd_abd_save_str(abd, "invalid because of unblanced dsc_crc_state");
+
+	for_each_rx_msg_in_segment(i, MSG_S6E3FC5_SDC_CRC, ARRAY_SIZE(MSG_S6E3FC5_SDC_CRC), dsi_msg) {
+		memset(dsi_msg->rx_buf, 0, dsi_msg->rx_len);
+	}
+
+	lcd->dsc_crc_state = 0;
+
+	mutex_unlock(&lcd->lock);
+	smcdsd_commit_lock(lcd, false);
+
+	return strlen(buf);
+}
+
+static ssize_t dsc_crc_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	int value;
+	int rc;
+	struct abd_protect *abd = &lcd->pdata->abd;
+
+	rc = kstrtoint(buf, 0, &value);
+	if (rc < 0)
+		return rc;
+
+	dev_info(&lcd->ld->dev, "%s: state(%d) dsc_crc_state(%d->%d)%s\n", __func__, IS_NORMAL_MODE(lcd),
+		lcd->dsc_crc_state, value, (lcd->dsc_crc_state != value) ? "" : "invalid");
+
+	if (!IS_NORMAL_MODE(lcd)) {
+		smcdsd_abd_save_str(abd, "dsc_crc_store LCD is not on state");
+		return size;
+	}
+
+	smcdsd_commit_lock(lcd, true);
+	mutex_lock(&lcd->lock);
+
+	msleep(40);
+	send_msg_segment(MSG_S6E3FC5_SDC_CRC, ARRAY_SIZE(MSG_S6E3FC5_SDC_CRC));
+
+	lcd->dsc_crc_state = 1;
+
+	mutex_unlock(&lcd->lock);
+	smcdsd_commit_lock(lcd, false);
+
+	return size;
+}
+
+static ssize_t ecc_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	struct mipi_dsi_msg *dsi_msg;
+	int i;
+	int valid = 0;
+	int len = 0;
+	u8 result_buf[MAX_RX_READ_NUM] = {0, };
+
+	dev_info(&lcd->ld->dev, "%s: state(%d)\n", __func__, IS_NORMAL_MODE(lcd));
+
+	if (!IS_NORMAL_MODE(lcd))
+		return 0;
+
+	smcdsd_commit_lock(lcd, true);
+	mutex_lock(&lcd->lock);
+
+	send_msg_segment(MSG_S6E3FC5_SDC_ECC, ARRAY_SIZE(MSG_S6E3FC5_SDC_ECC));
+	for_each_rx_msg_in_segment(i, MSG_S6E3FC5_SDC_ECC, ARRAY_SIZE(MSG_S6E3FC5_SDC_ECC), dsi_msg) {
+		dbg_info("%2x: %*ph\n", ((u8 *)dsi_msg->tx_buf)[0], dsi_msg->rx_len, (u8 *)dsi_msg->rx_buf);
+		memcpy(&result_buf[len], dsi_msg->rx_buf, dsi_msg->rx_len);
+		len += dsi_msg->rx_len;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(fac_check_list); i++) {
+		if (fac_check_list[i].name != attr->attr.name)
+			continue;
+
+		valid += (get_merged_value(result_buf, len) ^ fac_check_list[i].invert) ? 0 : 1;
+	}
+
+	sprintf(buf, "%d\n", valid ? 1 : 0);	/* or */
+
+	dbg_info("len(%d) buf(%*ph) merge(%llx) valid(%d)\n", len, len, result_buf, get_merged_value(result_buf, len), valid);
+
+	for_each_rx_msg_in_segment(i, MSG_S6E3FC5_SDC_ECC, ARRAY_SIZE(MSG_S6E3FC5_SDC_ECC), dsi_msg) {
+		memset(dsi_msg->rx_buf, 0, dsi_msg->rx_len);
+	}
+
+	mutex_unlock(&lcd->lock);
+	smcdsd_commit_lock(lcd, false);
+
+	return strlen(buf);
+}
+
+static DEVICE_ATTR_RO(ccd_state);
+static DEVICE_ATTR_RW(dsc_crc);
+static DEVICE_ATTR_RO(ecc);
 
 #if defined(CONFIG_SMCDSD_DOZE)
 static ssize_t alpm_fac_store(struct device *dev,
@@ -1501,7 +1621,6 @@ static ssize_t alpm_fac_store(struct device *dev,
 	lpm.index = (lpm.ver && lpm.mode) ? lpm_init_table[lcd->bd->props.brightness] : lpm_old_table[lpm.mode];
 
 	mutex_lock(&lcd->lock);
-	//lcd->prev_alpm = lcd->alpm;
 	lcd->alpm = lpm;
 	mutex_unlock(&lcd->lock);
 
@@ -1528,7 +1647,6 @@ static ssize_t alpm_fac_store(struct device *dev,
 	case HLPM_ON_HIGH:
 		smcdsd_commit_lock(lcd, true);
 		mutex_lock(&lcd->lock);
-		//if (lcd->prev_alpm.mode == ALPM_OFF)
 		if (lcd->prev_brightness == 0)
 			lcd->prev_brightness = lcd->bd->props.brightness;
 		lcd->bd->props.brightness = (value <= HLPM_ON_LOW) ? 0 : UI_MAX_BRIGHTNESS;
@@ -1795,13 +1913,13 @@ static ssize_t dynamic_mipi_store(struct device *dev,
 
 	smcdsd_commit_lock(lcd, true);
 	mutex_lock(&lcd->lock);
-	if (lcd->state)
-		s6e3fc5_sdc_change_ffc(lcd, FFC_OFF);
+	//if (lcd->state)
+	//	s6e3fc5_sdc_change_ffc(lcd, FFC_OFF);
 
 	df_idx = value;
 
-	if (df_idx < 0 || df_idx >= DYNAMIC_MIPI_INDEX_MAX)
-		df_idx = 0;
+	if (clamp_val(df_idx, DYNAMIC_MIPI_INDEX_0, DYNAMIC_MIPI_INDEX_MAX - 1) != df_idx)
+		df_idx = DYNAMIC_MIPI_INDEX_0;
 
 	smcdsd_panel_dsi_clk_change(lcd->pdata, df_idx);
 
@@ -1869,8 +1987,8 @@ static ssize_t virtual_dynamic_mipi_show(struct device *dev,
 	return strlen(buf);
 }
 
-static DEVICE_ATTR(dynamic_mipi, 0664, dynamic_mipi_show, dynamic_mipi_store);
-static DEVICE_ATTR(virtual_dynamic_mipi, 0664, virtual_dynamic_mipi_show, virtual_dynamic_mipi_store);
+static DEVICE_ATTR_RW(dynamic_mipi);
+static DEVICE_ATTR_RW(virtual_dynamic_mipi);
 #endif
 
 static void panel_conn_register(struct lcd_info *lcd)
@@ -1994,6 +2112,7 @@ static DEVICE_ATTR_RO(window_type);
 static DEVICE_ATTR_RW(lux);
 static DEVICE_ATTR_RW(conn_det);
 static DEVICE_ATTR_RW(adaptive_control);
+static DEVICE_ATTR_RW(irc_mode);
 static DEVICE_ATTR_RW(temperature);
 static DEVICE_ATTR_RO(manufacture_date);
 static DEVICE_ATTR_RO(manufacture_code);
@@ -2017,6 +2136,7 @@ static struct attribute *lcd_sysfs_attributes[] = {
 	&dev_attr_lux.attr,
 	&dev_attr_conn_det.attr,
 	&dev_attr_adaptive_control.attr,
+	&dev_attr_irc_mode.attr,
 	&dev_attr_temperature.attr,
 	&dev_attr_manufacture_date.attr,
 	&dev_attr_manufacture_code.attr,
@@ -2042,6 +2162,9 @@ static struct attribute *lcd_sysfs_attributes[] = {
 	&dev_attr_mask_brightness.attr,
 	&dev_attr_actual_mask_brightness.attr,
 #endif
+	&dev_attr_ccd_state.attr,
+	&dev_attr_ecc.attr,
+	&dev_attr_dsc_crc.attr,
 	NULL,
 };
 
@@ -2052,42 +2175,12 @@ static umode_t lcd_sysfs_is_visible(struct kobject *kobj,
 	struct lcd_info *lcd = dev_get_drvdata(dev);
 	umode_t mode = attr->mode;
 
-	if (attr == &dev_attr_conn_det.attr) {
-		if (!lcd->fac_info && !lcd->fac_done)
+	if (!lcd->fac_info && !lcd->fac_done) {
+		if (attr == &dev_attr_ccd_state.attr)
 			mode = 0;
-	}
 
-	if (!IS_ENABLED(CONFIG_SMCDSD_MDNIE)) {
-		if (attr == &dev_attr_mdnie_inactive.attr)
+		if (attr == &dev_attr_ecc.attr)
 			mode = 0;
-	}
-
-	if (!IS_ENABLED(CONFIG_SMCDSD_DOZE)) {
-		if (attr == &dev_attr_alpm.attr)
-			mode = 0;
-	}
-
-	if (!IS_ENABLED(CONFIG_SMCDSD_DYNAMIC_MIPI)) {
-		if (attr == &dev_attr_dynamic_mipi.attr ||
-			attr == &dev_attr_virtual_dynamic_mipi.attr) {
-				mode = 0;
-		}
-	}
-
-	if (!IS_ENABLED(CONFIG_SMCDSD_DPUI)) {
-		if (attr == &dev_attr_dpui.attr ||
-			attr == &dev_attr_dpui_dbg.attr ||
-			attr == &dev_attr_dpci.attr ||
-			attr == &dev_attr_dpci_dbg.attr) {
-				mode = 0;
-		}
-	}
-
-	if (!IS_ENABLED(CONFIG_SMCDSD_MASK_LAYER)) {
-		if (attr == &dev_attr_mask_brightness.attr ||
-			attr == &dev_attr_actual_mask_brightness.attr) {
-				mode = 0;
-		}
 	}
 
 	return mode;
@@ -2153,6 +2246,15 @@ static void lcd_init_sysfs(struct lcd_info *lcd)
 		init_debugfs_param("lcd_init", (void *)MSG_S6E3FC5_SDC_INIT[i].dsi_msg.tx_buf, U8_MAX, MSG_S6E3FC5_SDC_INIT[i].dsi_msg.tx_len, 0);
 	for (i = 0; i < (u16)ARRAY_SIZE(MSG_S6E3FC5_SDC_EXIT); i++)
 		init_debugfs_param("lcd_exit", (void *)MSG_S6E3FC5_SDC_EXIT[i].dsi_msg.tx_buf, U8_MAX, MSG_S6E3FC5_SDC_EXIT[i].dsi_msg.tx_len, 0);
+
+	init_debugfs_param("gamma_offset", (void *)gamma_offset, S32_MAX, sizeof(gamma_offset)  / sizeof(int), GS_MAX * CI_MAX);
+
+	init_debugfs_param("gamma_reg_rx", (void *)&RX_BUF_67[167], U8_MAX, GAMMA_LEGNTH, 0);
+	init_debugfs_param("gamma_set_rx", (void *)gamma_set_rx, U32_MAX, sizeof(gamma_set_rx) / sizeof(u32), 0);
+
+	init_debugfs_param("gamma_set_tx", (void *)gamma_set_tx, S32_MAX, sizeof(gamma_set_tx) / sizeof(s32), GS_MAX * CI_MAX);
+
+	init_debugfs_param("gamma_reg_tx", (void *)S6E3FC5_SDC_GAMMA_NDARRAY_DATA, U8_MAX, (EXTEND_BRIGHTNESS + 1) * (1 + GAMMA_LEGNTH), 1 + GAMMA_LEGNTH);
 }
 
 static int smcdsd_panel_framedone_notify(struct platform_device *p)
@@ -2249,19 +2351,21 @@ static int smcdsd_panel_exit(struct platform_device *p)
 	return 0;
 }
 
-static int smcdsd_panel_set_mode(struct platform_device *p, struct drm_display_mode *m, int stage)
+static int smcdsd_panel_set_mode(struct platform_device *p, struct drm_display_mode *m, unsigned int dst_mode, int stage)
 {
 	struct lcd_info *lcd = get_lcd_info(p);
 
 	if (stage == BEFORE_DSI_POWERDOWN)	/* todo */
 		return 0;
 
-	dbg_info("%s: refresh(%3u) after(%d) state(%u) doze(%u)\n", __func__, m->vrefresh, stage, lcd->state, lcd->doze_state);
+	dev_info(&lcd->ld->dev, "%s: refresh(%3u) mode(%d)(%s) state(%u/%u)\n", __func__, m->vrefresh, dst_mode, m->name, lcd->state, lcd->doze_state);
 
 	if (m->vrefresh != 60 && m->vrefresh != 120)	/* todo */
 		return 0;
 
 	lcd->vrefresh = m->vrefresh;
+
+	lcd->disp_mode_idx = dst_mode;
 
 	if (IS_NORMAL_MODE(lcd) == 0)
 		return 0;
@@ -2278,7 +2382,9 @@ static int smcdsd_panel_doze(struct platform_device *p, unsigned int on)
 
 	if (on) {
 		s6e3fc5_sdc_doze_init(lcd);
-		msleep(50);
+		if (!lcd->doze_state)
+			smcdsd_dsi_tx_package(lcd, GET_PACKAGE(&PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_AOD_INIT)]));
+
 		lcd->doze_state = 1;
 	} else {
 		s6e3fc5_sdc_doze_exit(lcd);
@@ -2296,21 +2402,37 @@ static int smcdsd_panel_doze(struct platform_device *p, unsigned int on)
 
 static int smcdsd_panel_setup(struct platform_device *p)
 {
-#if defined(CONFIG_MTK_ROUND_CORNER_SUPPORT) && !defined(CONFIG_SEC_FACTORY)
 	struct mipi_dsi_lcd_common *plcd = get_lcd_common_info(p);
 	int i;
 
+#if defined(CONFIG_MTK_ROUND_CORNER_SUPPORT) && !defined(CONFIG_SEC_FACTORY)
 	for (i = 0; i < LCD_CONFIG_MAX; i++) {
 		if (!plcd->config[i].drm.vrefresh)
 			continue;
 
 		plcd->config[i].ext.round_corner_en = 1;
-		plcd->config[i].ext.corner_pattern_height = S6E3FC5_SDC_ROUND_CORNER_H_TOP;
-		plcd->config[i].ext.corner_pattern_height_bot = S6E3FC5_SDC_ROUND_CORNER_H_BOT;
-		plcd->config[i].ext.corner_pattern_tp_size = sizeof(s6e3fc5_sdc_top_rc_pattern);
-		plcd->config[i].ext.corner_pattern_lt_addr = (void *)s6e3fc5_sdc_top_rc_pattern;
+		plcd->config[i].ext.corner_pattern_height = ROUND_CORNER_H_TOP;
+		plcd->config[i].ext.corner_pattern_height_bot = ROUND_CORNER_H_BOT;
+		plcd->config[i].ext.corner_pattern_tp_size = sizeof(top_rc_pattern);
+		plcd->config[i].ext.corner_pattern_lt_addr = (void *)top_rc_pattern;
 	}
 #endif
+
+	plcd->config[LCD_CONFIG_INDEX_60PHS].drm.type |= DRM_MODE_TYPE_PREFERRED;
+
+	for (i = 0; i < LCD_CONFIG_MAX; i++) {
+		if (!plcd->config[i].drm.vrefresh)
+			continue;
+
+		plcd->config[i].drm.vscan = 1;
+
+		if (i == LCD_CONFIG_INDEX_60PHS)
+			plcd->config[i].drm.vscan = 2;
+
+		snprintf(plcd->config[i].drm.name, DRM_DISPLAY_MODE_LEN, "%dx%d@%d%shs",
+			plcd->config[i].drm.hdisplay, plcd->config[i].drm.vdisplay,
+			plcd->config[i].drm.vrefresh, (plcd->config[i].drm.vscan != 1) ? "p" : "");
+	}
 
 	return 0;
 }
@@ -2323,21 +2445,21 @@ static int smcdsd_panel_probe(struct platform_device *p)
 
 	lcd = kzalloc(sizeof(struct lcd_info), GFP_KERNEL);
 	if (!lcd) {
-		dbg_info("%s: failed to allocate for lcd\n", __func__);
+		dbg_info("failed to allocate for lcd\n");
 		ret = -ENOMEM;
 		goto exit;
 	}
 
 	lcd->ld = lcd_device_register("panel", dev, lcd, NULL);
 	if (IS_ERR(lcd->ld)) {
-		dbg_info("%s: failed to register lcd device\n", __func__);
+		dbg_info("failed to register lcd device\n");
 		ret = PTR_ERR(lcd->ld);
 		goto exit;
 	}
 
 	lcd->bd = backlight_device_register("panel", dev, lcd, &panel_backlight_ops, NULL);
 	if (IS_ERR(lcd->bd)) {
-		dbg_info("%s: failed to register backlight device\n", __func__);
+		dbg_info("failed to register backlight device\n");
 		ret = PTR_ERR(lcd->bd);
 		goto exit;
 	}
@@ -2355,13 +2477,101 @@ static int smcdsd_panel_probe(struct platform_device *p)
 	lcd_init_sysfs(lcd);
 
 #if defined(CONFIG_SMCDSD_MDNIE)
-	lcd->mdnie_class = mdnie_register(&lcd->ld->dev, lcd, (mdnie_w)mdnie_send, (mdnie_r)mdnie_read, lcd->coordinate, &tune_info);
+	lcd->mdnie_class = mdnie_register(&lcd->ld->dev, lcd, (mdnie_w)mdnie_send, (mdnie_r)mdnie_read, lcd->coordinate_xy, &tune_info);
 #endif
 
 	dev_info(&lcd->ld->dev, "%s: %s: done\n", kbasename(__FILE__), __func__);
 exit:
 	return ret;
 }
+
+#if defined(CONFIG_SMCDSD_MASK_LAYER)
+static int smcdsd_panel_hbm_set_lcm_cmdq(struct platform_device *p, bool en)
+{
+	struct lcd_info *lcd = get_lcd_info(p);
+	int hbm_done = 0;
+
+	lcd->mask_state = en;
+
+	dev_info(&lcd->ld->dev, "%s: en(%d->%d) te_cnt(%d) refresh(%3u) %lu\n", __func__,
+		lcd->hbm_en, en, lcd->te_cnt, lcd->vrefresh,
+		div_u64(local_clock() - lcd->hbm_time_stamp, NSEC_PER_USEC));
+
+	if (en == true) {
+		if (lcd->te_cnt == 1 + 0) {
+			smcdsd_dsi_tx_package(lcd, GET_PACKAGE(&PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_S6E3FC5_SDC_PREPARE_FINGER_PRINT)], !!(lcd->mask_state | lcd->hbm_en), lcd->brightness));
+		} else if (lcd->te_cnt == 1 + 2) {
+			smcdsd_panel_set_brightness(lcd, 1);
+			hbm_done = lcd->vrefresh == 60 ? 1 : hbm_done;	/* 60: No Delay after command */
+		} else if (lcd->te_cnt == 1 + 3) {
+			hbm_done = lcd->vrefresh == 120 ? 1 : hbm_done;	/* 120: 1TE delay after command  */
+		}
+	} else if (en == false) {
+		if (lcd->te_cnt == 1 + 0) {
+			smcdsd_panel_set_brightness(lcd, 1);
+			hbm_done = lcd->vrefresh == 60 ? 1 : hbm_done;	/* 60: No Delay after command  */
+		} else if (lcd->te_cnt == 1 + 1) {
+			hbm_done = lcd->vrefresh == 120 ? 1 : hbm_done;	/* 120: 1TE delay after command  */
+		}
+	}
+
+	BUG_ON(lcd->te_cnt >= 10);
+
+	/* if panel's wait state is changed(0->1) = no more TE(VSYNC) */
+	lcd->hbm_wait = hbm_done;
+	lcd->hbm_en = hbm_done ? en : lcd->hbm_en;
+	lcd->te_cnt = hbm_done ? 0 : lcd->te_cnt + 1;
+
+	return hbm_done;
+}
+
+static int smcdsd_panel_hbm_get_state(struct platform_device *p, bool *state)
+{
+	struct lcd_info *lcd = get_lcd_info(p);
+
+	lcd->hbm_time_stamp = local_clock();
+
+	*state = lcd->hbm_en;
+
+	dev_dbg(&lcd->ld->dev, "%s: en_state(%d)\n", __func__, *state);
+
+	return 0;
+}
+
+static int smcdsd_panel_hbm_get_wait_state(struct platform_device *p, bool *wait)
+{
+	struct lcd_info *lcd = get_lcd_info(p);
+
+	lcd->hbm_time_stamp = local_clock();
+
+	*wait = lcd->hbm_wait;
+
+	dev_dbg(&lcd->ld->dev, "%s: wait_state(%d)\n", __func__, *wait);
+
+	return 0;
+}
+
+static int smcdsd_panel_hbm_set_wait_state(struct platform_device *p, bool wait)
+{
+	struct lcd_info *lcd = get_lcd_info(p);
+
+	bool old = lcd->hbm_wait;
+
+	lcd->hbm_wait = wait;
+
+	dev_info(&lcd->ld->dev, "%s: wait_state(%d->%d) refresh(%3u) %lu\n", __func__,
+		old, lcd->hbm_wait, lcd->vrefresh,
+		div_u64(local_clock() - lcd->hbm_time_stamp, NSEC_PER_USEC));
+
+	lcd->actual_mask_brightness = lcd->mask_state ? lcd->mask_brightness : 0;
+
+	sysfs_notify(&lcd->ld->dev.kobj, NULL, "actual_mask_brightness");
+
+	//todo: sysfs notify in this position is proper? or after return? check mtk_drm_crtc_hbm_wait and ddp_cmdq_cb
+
+	return old;
+}
+#endif
 
 struct mipi_dsi_lcd_driver s6e3fc5_sdc_mipi_lcd_driver = {
 	.driver = {
@@ -2380,6 +2590,13 @@ struct mipi_dsi_lcd_driver s6e3fc5_sdc_mipi_lcd_driver = {
 	.enable		= smcdsd_panel_enable,
 	.framedone_notify = smcdsd_panel_framedone_notify,
 	.displayon_late = smcdsd_panel_displayon_late,
+
+#if defined(CONFIG_SMCDSD_MASK_LAYER)
+	.hbm_set_lcm_cmdq = smcdsd_panel_hbm_set_lcm_cmdq,
+	.hbm_get_state	= smcdsd_panel_hbm_get_state,
+	.hbm_get_wait_state	= smcdsd_panel_hbm_get_wait_state,
+	.hbm_set_wait_state	= smcdsd_panel_hbm_set_wait_state,
+#endif
 };
 __XX_ADD_LCD_DRIVER(s6e3fc5_sdc_mipi_lcd_driver);
 
@@ -2391,23 +2608,23 @@ static int __init panel_late_init(void)
 
 	pdev = of_find_device_by_path("/panel");
 	if (!pdev) {
-		dbg_info("%s: of_find_device_by_path fail\n", __func__);
+		dbg_info("of_find_device_by_path fail\n");
 		return 0;
 	}
 
 	pdata = platform_get_drvdata(pdev);
 	if (!pdata) {
-		dbg_info("%s: platform_get_drvdata fail\n", __func__);
+		dbg_info("platform_get_drvdata fail\n");
 		return 0;
 	}
 
 	if (!pdata->drv) {
-		dbg_info("%s: lcd_driver invalid\n", __func__);
+		dbg_info("lcd_driver invalid\n");
 		return 0;
 	}
 
 	if (!pdata->drv->pdev) {
-		dbg_info("%s: lcd_driver pdev invalid\n", __func__);
+		dbg_info("lcd_driver pdev invalid\n");
 		return 0;
 	}
 

@@ -1,4 +1,4 @@
-obj-$(CONFIG_SMCDSD_PANEL) += ../smcdsd_panel_init.o ../smcdsd_panel.o ../smcdsd_board.o ../smcdsd_notify.o ../smcdsd_abd.o ../smcdsd_dsi_msg.o
+obj-$(CONFIG_SMCDSD_PANEL) += ../smcdsd_panel_init.o ../smcdsd_panel.o ../smcdsd_regmap.o ../smcdsd_supply.o ../smcdsd_board.o ../smcdsd_notify.o ../smcdsd_abd.o ../smcdsd_dsi_msg.o
 
 obj-$(CONFIG_SMCDSD_DPUI) += dpui.o
 obj-$(CONFIG_SMCDSD_MDNIE) += mdnie.o

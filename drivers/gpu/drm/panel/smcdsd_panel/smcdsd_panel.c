@@ -44,8 +44,13 @@
 #include "../../mediatek/mtk_drm_fbdev.h"
 #endif
 
-#define dbg_info(fmt, ...)		pr_info(pr_fmt("smcdsd: "fmt), ##__VA_ARGS__)
-#define dbg_none(fmt, ...)		pr_debug(pr_fmt("smcdsd: "fmt), ##__VA_ARGS__)
+#undef pr_fmt
+#define pr_fmt(fmt) "smcdsd: %s: " fmt, __func__
+
+//#define dbg_none
+#define dbg_none(fmt, ...)		pr_debug(fmt, ##__VA_ARGS__)
+#define dbg_info(fmt, ...)		pr_info(fmt, ##__VA_ARGS__)
+#define dbg_init(fmt, ...)		pr_info(fmt, ##__VA_ARGS__)
 
 /* -------------------------------------------------------------------------- */
 /* Global Variables */
@@ -70,7 +75,7 @@ static int common_lcd_set_power(struct drm_panel *panel, int power)
 {
 	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
 
-	dbg_info("%s: dev_name(%s) power(%d)\n", __func__, dev_name(plcd->dev), power);
+	dbg_info("dev_name(%s) power(%d)\n", dev_name(plcd->dev), power);
 
 	if (power) {
 		call_drv_ops(plcd, panel_power, 1);
@@ -89,14 +94,14 @@ static void common_lcd_bridge_disable(struct drm_bridge *bridge)
 
 	//smcdsd_fb_simple_notifier_call_chain(SMCDSD_EARLY_EVENT_BLANK, FB_BLANK_POWERDOWN);
 
-	dbg_info("%s: dev_name(%s)\n", __func__, dev_name(plcd->dev));
+	dbg_info("dev_name(%s)\n", dev_name(plcd->dev));
 }
 
 static int common_lcd_disable(struct drm_panel *panel)
 {
 	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
 
-	dbg_info("%s: dev_name(%s)\n", __func__, dev_name(plcd->dev));
+	dbg_info("dev_name(%s)\n", dev_name(plcd->dev));
 
 	call_drv_ops(plcd, exit);
 
@@ -107,7 +112,7 @@ static int common_lcd_unprepare(struct drm_panel *panel)
 {
 	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
 
-	dbg_info("%s: dev_name(%s)\n", __func__, dev_name(plcd->dev));
+	dbg_info("dev_name(%s)\n", dev_name(plcd->dev));
 
 	return 0;
 }
@@ -116,7 +121,7 @@ static void common_lcd_bridge_post_disable(struct drm_bridge *bridge)
 {
 	struct mipi_dsi_lcd_common *plcd = bridge_to_common_lcd(bridge);
 
-	dbg_info("%s: dev_name(%s)\n", __func__, dev_name(plcd->dev));
+	dbg_info("dev_name(%s)\n", dev_name(plcd->dev));
 
 	//smcdsd_fb_simple_notifier_call_chain(SMCDSD_EVENT_BLANK, FB_BLANK_POWERDOWN);
 }
@@ -128,14 +133,14 @@ static void common_lcd_bridge_pre_enable(struct drm_bridge *bridge)
 
 	//smcdsd_fb_simple_notifier_call_chain(SMCDSD_EARLY_EVENT_BLANK, FB_BLANK_UNBLANK);
 
-	dbg_info("%s: dev_name(%s)\n", __func__, dev_name(plcd->dev));
+	dbg_info("dev_name(%s)\n", dev_name(plcd->dev));
 }
 
 static int common_lcd_prepare(struct drm_panel *panel)
 {
 	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
 
-	dbg_info("%s: dev_name(%s)\n", __func__, dev_name(plcd->dev));
+	dbg_info("dev_name(%s)\n", dev_name(plcd->dev));
 
 	call_drv_ops(plcd, panel_reset, 1);
 
@@ -148,7 +153,7 @@ static int common_lcd_enable(struct drm_panel *panel)
 {
 	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
 
-	dbg_info("%s: dev_name(%s)\n", __func__, dev_name(plcd->dev));
+	dbg_info("dev_name(%s)\n", dev_name(plcd->dev));
 
 	call_drv_ops(plcd, enable);
 
@@ -159,7 +164,7 @@ static void common_lcd_bridge_enable(struct drm_bridge *bridge)
 {
 	struct mipi_dsi_lcd_common *plcd = bridge_to_common_lcd(bridge);
 
-	dbg_info("%s: dev_name(%s)\n", __func__, dev_name(plcd->dev));
+	dbg_info("dev_name(%s)\n", dev_name(plcd->dev));
 
 	//smcdsd_fb_simple_notifier_call_chain(SMCDSD_EVENT_BLANK, FB_BLANK_UNBLANK);
 }
@@ -171,15 +176,13 @@ static int common_framedone_notify(struct drm_panel *panel)
 	return call_drv_ops(plcd, framedone_notify);
 }
 
-static int common_lcd_set_dispon_cmdq(void *dsi, dcs_write_gce cb,
-		void *handle)
+static int common_lcd_set_dispon_cmdq(struct drm_panel *panel)
 {
-	char disp_on[] = {0x29};
+	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
 
-	dbg_info("%s\n", __func__);
+	dbg_none("\n");
 
-//	call_drv_ops(plcd, displayon_late);
-	cb(dsi, handle, disp_on, ARRAY_SIZE(disp_on));
+	call_drv_ops(plcd, displayon_late);
 
 	return 0;
 }
@@ -208,7 +211,7 @@ static int common_lcd_drm_attach_bridge(struct drm_bridge *bridge,
 		bridge->encoder = NULL;
 	}
 
-	dbg_info("%s: dev_name(%s) encoder_name(%s)\n", __func__, dev_name(bridge->dev->dev), encoder->name);
+	dbg_info("dev_name(%s) encoder_name(%s)\n", dev_name(bridge->dev->dev), encoder->name);
 
 	return ret;
 }
@@ -221,7 +224,7 @@ static int common_lcd_bridge_add(struct drm_panel *panel)
 	u32 i;
 
 	if (plcd->bridge.of_node) {
-		dbg_info("%s: %s is already registered\n", __func__, of_node_full_name(plcd->bridge.of_node));
+		dbg_info("%s is already registered\n", of_node_full_name(plcd->bridge.of_node));
 		return 0;
 	}
 
@@ -235,7 +238,7 @@ static int common_lcd_bridge_add(struct drm_panel *panel)
 	}
 
 	if (!encoder) {
-		dbg_info("%s: fail to find encoder\n", __func__);
+		dbg_info("fail to find encoder\n");
 		return -EINVAL;
 	}
 
@@ -268,12 +271,13 @@ static int common_lcd_get_modes(struct drm_panel *panel)
 			return -ENOMEM;
 		}
 
-		drm_mode_set_name(mode);
+		if (!strlen(mode->name))
+			drm_mode_set_name(mode);
 		mode->type = plcd->config[i].drm.type;
 		drm_mode_probed_add(panel->connector, mode);
 		count++;
 
-		dbg_info("%s: %dth Modeline " DRM_MODE_FMT "\n", __func__, i, DRM_MODE_ARG(mode));
+		dbg_info("%dth Modeline " DRM_MODE_FMT "\n", i, DRM_MODE_ARG(mode));
 	}
 
 	panel->connector->display_info.width_mm = plcd->config[LCD_CONFIG_DFT].lcm.physical_width;
@@ -313,13 +317,16 @@ static int common_lcd_ext_param_set(struct drm_panel *panel, unsigned int mode)
 	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
 
 	for (i = 0; i < LCD_CONFIG_MAX; i++) {
-		if (m->vrefresh == plcd->config[i].drm.vrefresh) {
+		if (!plcd->config[i].drm.vrefresh)
+			continue;
+
+		if (i == mode) {
 			ext->params = &plcd->config[i].ext;
 			ret = 0;
 		}
 	}
 
-	dbg_info("%s: mode(%u) vrefresh(%dHz) match(%d)\n", __func__, mode, m->vrefresh, !ret);
+	dbg_info("mode(%u) vrefresh(%dHz) match(%d)\n", mode, m->vrefresh, !ret);
 
 	return ret;
 }
@@ -332,11 +339,11 @@ static int common_lcd_mode_switch(struct drm_panel *panel, unsigned int cur_mode
 	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
 
 	if (cur_mode == dst_mode) {
-		dbg_info("%s: cur_mode(%u) dst_mode(%u)\n", __func__, cur_mode, dst_mode);
+		dbg_info("cur_mode(%u) dst_mode(%u)\n", cur_mode, dst_mode);
 		return ret;
 	}
 
-	ret = call_drv_ops(plcd, set_mode, m, stage);
+	ret = call_drv_ops(plcd, set_mode, m, dst_mode, stage);
 
 	return ret;
 }
@@ -345,11 +352,11 @@ static int common_lcd_late_register(struct drm_panel *panel)
 {
 	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
 
-	dbg_info("%s\n", __func__);
+	dbg_info("\n");
 
 	islcmconnected = mtk_drm_lcm_is_connect();
 	lcdtype = lcdtype ? lcdtype : islcmconnected;
-	dbg_info("%s: lcdtype(%6x) islcmconnected %d\n", __func__, lcdtype, islcmconnected);
+	dbg_info("lcdtype(%6x) islcmconnected %d\n", lcdtype, islcmconnected);
 	call_drv_ops(plcd, probe);
 	plcd->probe = 1;
 
@@ -367,7 +374,7 @@ static unsigned long common_lcd_doze_get_mode_flags(struct drm_panel *panel,
 
 	unsigned long mode_flags;
 
-	dbg_info("%s: doze_en(%d)\n", __func__, doze_en);
+	dbg_info("doze_en(%d)\n", doze_en);
 
 	mode_flags = plcd->config[LCD_CONFIG_DFT].dsi.mode_flags;
 
@@ -377,7 +384,7 @@ static unsigned long common_lcd_doze_get_mode_flags(struct drm_panel *panel,
 static int common_lcd_doze_enable_start(struct drm_panel *panel,
 	void *dsi, dcs_write_gce cb, void *handle)
 {
-	dbg_info("%s\n", __func__);
+	dbg_info("\n");
 
 	return 0;
 }
@@ -388,7 +395,7 @@ static int common_lcd_doze_enable(struct drm_panel *panel,
 {
 	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
 
-	dbg_info("%s\n", __func__);
+	dbg_info("\n");
 
 	call_drv_ops(plcd, doze, 1);
 
@@ -401,7 +408,7 @@ static int common_lcd_doze_area(struct drm_panel *panel,
 {
 	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
 
-	dbg_info("%s\n", __func__);
+	dbg_info("\n");
 
 	return call_drv_ops(plcd, doze_area);
 }
@@ -411,7 +418,7 @@ static int common_lcd_doze_post_disp_on(struct drm_panel *panel,
 {
 	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
 
-	dbg_info("%s\n", __func__);
+	dbg_info("\n");
 
 	call_drv_ops(plcd, doze_post_disp_on);
 
@@ -424,7 +431,7 @@ static int common_lcd_doze_disable(struct drm_panel *panel,
 {
 	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
 
-	dbg_info("%s\n", __func__);
+	dbg_info("\n");
 
 	call_drv_ops(plcd, doze, 0);
 
@@ -437,7 +444,7 @@ static int common_lcd_set_aod_light_mode(void *dsi,
 {
 	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
 
-	dbg_info("%s\n", __func__);
+	dbg_info("\n");
 
 	return 0;
 }
@@ -449,7 +456,7 @@ static int common_lcd_crtc_state_notify(struct drm_panel *panel,
 {
 	//struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
 
-	//dbg_info("%s: dev_name(%s)\n", __func__, dev_name(plcd->dev));
+	//dbg_info("dev_name(%s)\n", dev_name(plcd->dev));
 
 	smcdsd_fb_simple_notifier_call_chain(prepare ? SMCDSD_EARLY_EVENT_BLANK : SMCDSD_EVENT_BLANK, active ? FB_BLANK_UNBLANK : FB_BLANK_POWERDOWN);
 
@@ -463,15 +470,52 @@ int smcdsd_panel_dsi_clk_change(void *drvdata, unsigned int index)
 	struct mipi_dsi_lcd_common *plcd = drvdata ? drvdata : get_lcd_common(0);
 	struct drm_panel *panel = &(plcd->panel);
 	struct mtk_panel_ext *ext = find_panel_ext(panel);
+	int i;
 
-	ext->params->dyn.pll_clk = plcd->config[LCD_CONFIG_DFT].data_rate[index] / 2;
-	ext->params->dyn.switch_en = 1;
-	ext->params->dyn.data_rate = plcd->config[LCD_CONFIG_DFT].data_rate[index];
-	dbg_info("%s: index : %d, data rate: %d\n",
-		__func__, index, ext->params->dyn.data_rate);
+	for (i = 0; i < LCD_CONFIG_MAX; i++) {
+		if (!plcd->config[i].drm.vrefresh)
+			continue;
+
+		plcd->config[i].ext.dyn.pll_clk = plcd->config[i].data_rate[index] / 2;
+		plcd->config[i].ext.dyn.switch_en = 1;
+		plcd->config[i].ext.dyn.data_rate = plcd->config[i].data_rate[index];
+	}
+
+	dbg_info("index(%d) data_rate(%d)\n", index, ext->params->dyn.data_rate);
+
 	mtk_disp_mipi_ccci_callback(1, 0);
 
 	return 0;
+}
+#endif
+
+#if defined(CONFIG_SMCDSD_MASK_LAYER)
+static int common_lcd_hbm_set_lcm_cmdq(struct drm_panel *panel, bool en)
+{
+	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
+
+	return call_drv_ops(plcd, hbm_set_lcm_cmdq, en);
+}
+
+static void common_lcd_hbm_get_state(struct drm_panel *panel, bool *state)
+{
+	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
+
+	call_drv_ops(plcd, hbm_get_state, state);
+}
+
+static void common_lcd_hbm_get_wait_state(struct drm_panel *panel, bool *wait)
+{
+	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
+
+	call_drv_ops(plcd, hbm_get_wait_state, wait);
+}
+
+static bool common_lcd_hbm_set_wait_state(struct drm_panel *panel, bool wait)
+{
+	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
+
+	return call_drv_ops(plcd, hbm_set_wait_state, wait);
 }
 #endif
 
@@ -492,14 +536,76 @@ static struct mtk_panel_funcs ext_funcs = {
 //	.doze_post_disp_on = common_lcd_doze_post_disp_on,
 //	.set_aod_light_mode = common_lcd_set_aod_light_mode,
 #endif
+#if defined(CONFIG_SMCDSD_MASK_LAYER)
+	.hbm_set_lcm_cmdq = common_lcd_hbm_set_lcm_cmdq,
+	.hbm_get_state = common_lcd_hbm_get_state,
+	.hbm_get_wait_state = common_lcd_hbm_get_wait_state,
+	.hbm_set_wait_state = common_lcd_hbm_set_wait_state,
+#endif
 };
 #endif
+
+int smcdsd_dsi_msg_tx(void *drvdata, unsigned long data0, int blocking)
+{
+	struct mipi_dsi_lcd_common *plcd = drvdata ? drvdata : get_lcd_common(0);
+	struct mtk_ddic_dsi_msg *dsi_msg = (struct mtk_ddic_dsi_msg *)data0;
+	int ret = 0;
+
+	if (!plcd->lcdconnected)
+		return ret;
+
+	dump_dsi_msg_tx(data0);
+
+	ret = set_lcm_wrapper(dsi_msg, blocking);
+	if (ret < 0) {
+		dbg_info("error(%d)\n", ret);
+		return -EINVAL;
+	}
+
+	return ret;
+}
+
+int smcdsd_dsi_msg_rx(struct mtk_ddic_dsi_msg *cmd_msg)
+{
+	struct mipi_dsi_lcd_common *plcd = get_lcd_common(0);
+	unsigned int i = 0, j = 0;
+	unsigned long ret_dlen = 0;
+	int ret = 0;
+
+	if (!plcd->lcdconnected)
+		return ret;
+
+	dump_dsi_msg_tx((unsigned long)cmd_msg);
+
+	ret = read_lcm_wrapper(cmd_msg);
+	if (ret < 0) {
+		dbg_info("error(%d)\n", ret);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < (u16)cmd_msg->rx_cmd_num; i++) {
+		ret_dlen = cmd_msg->rx_len[i];
+		dbg_info("read lcm addr:0x%x--dlen:%d--cmd_idx:%d\n",
+			*(char *)(cmd_msg->tx_buf[i]), ret_dlen, i);
+		for (j = 0; j < ret_dlen; j++) {
+			dbg_info("read lcm addr:0x%x--byte:%d,val:0x%x\n",
+				*(char *)(cmd_msg->tx_buf[i]), j,
+				*(char *)(cmd_msg->rx_buf[i] + j));
+
+				//buf[j] = *(char *)(cmd_msg->rx_buf[i] + j);
+		}
+	}
+
+	ret = ret_dlen;
+
+	return ret;
+}
 
 int smcdsd_panel_dsi_command_tx(void *drvdata,
 	unsigned int id, unsigned long data0, unsigned int data1, bool need_lock)
 {
 	struct mipi_dsi_lcd_common *plcd = drvdata ? drvdata : get_lcd_common(0);
-	ssize_t ret = 0;
+	int ret = 0;
 	struct mtk_ddic_dsi_msg dsi_msg;
 
 	if (!plcd->lcdconnected)
@@ -518,31 +624,11 @@ int smcdsd_panel_dsi_command_tx(void *drvdata,
 
 	ret = set_lcm_wrapper(&dsi_msg, 1);
 	if (ret < 0) {
-		dbg_info("%s: error(%d)\n", __func__, ret);
+		dbg_info("error(%d)\n", ret);
 		return -EINVAL;
 	}
 
 	return 0;
-}
-
-int smcdsd_dsi_msg_tx(void *drvdata, unsigned long data0, int blocking)
-{
-	struct mipi_dsi_lcd_common *plcd = drvdata ? drvdata : get_lcd_common(0);
-	struct mtk_ddic_dsi_msg *dsi_msg = (struct mtk_ddic_dsi_msg *)data0;
-	int ret = 0;
-
-	if (!plcd->lcdconnected)
-		return ret;
-
-	dump_dsi_msg_tx(data0);
-
-	ret = set_lcm_wrapper(dsi_msg, blocking);
-	if (ret < 0) {
-		dbg_info("%s: error(%d)\n", __func__, ret);
-		return -EINVAL;
-	}
-
-	return ret;
 }
 
 struct mtk_ddic_dsi_msg rx_cmd_msg;
@@ -550,11 +636,15 @@ unsigned char rx_buf[RT_MAX_NUM * 2];
 int smcdsd_panel_dsi_command_rx(void *drvdata,
 	unsigned int id, unsigned int offset, u8 cmd, unsigned int len, u8 *buf, bool need_lock)
 {
+	struct mipi_dsi_lcd_common *plcd = drvdata ? drvdata : get_lcd_common(0);
 	unsigned int i = 0, j = 0;
 	unsigned long ret_dlen = 0;
-	int ret;
+	int ret = 0;
 	struct mtk_ddic_dsi_msg *cmd_msg = &rx_cmd_msg;
 	u8 tx[10] = {0};
+
+	if (!plcd->lcdconnected)
+		return ret;
 
 	memset(cmd_msg, 0, sizeof(struct mtk_ddic_dsi_msg));
 
@@ -570,9 +660,11 @@ int smcdsd_panel_dsi_command_rx(void *drvdata,
 	memset(cmd_msg->rx_buf[0], 0, sizeof(rx_buf));
 	cmd_msg->rx_len[0] = len;
 
+	dump_dsi_msg_tx((unsigned long)cmd_msg);
+
 	ret = read_lcm_wrapper(cmd_msg);
 	if (ret != 0) {
-		dbg_info("%s error\n", __func__);
+		dbg_info("error\n");
 		goto  done;
 	}
 
@@ -589,6 +681,8 @@ int smcdsd_panel_dsi_command_rx(void *drvdata,
 		}
 	}
 
+	dsi_rx_data_dump(cmd_msg->type[0], *((u8 *)cmd_msg->tx_buf[0]), cmd_msg->rx_len[0], ret_dlen, cmd_msg->rx_buf[0]);
+
 	ret = ret_dlen;
 done:
 	return ret;
@@ -599,6 +693,15 @@ int smcdsd_panel_commit_lock(void *drvdata, bool need_lock)
 	int ret = 0;
 
 	ret = mtk_crtc_lock_control(need_lock);
+
+	return ret;
+}
+
+int smcdsd_panel_frame_skip(void *drvdata, bool need_skip)
+{
+	int ret = 0;
+
+	ret = mtk_drm_set_frame_skip(need_skip);
 
 	return ret;
 }
@@ -614,7 +717,7 @@ static int smcdsd_probe(struct platform_device *p)
 {
 	struct mipi_dsi_lcd_common *plcd = NULL;
 
-	dbg_info("%s: node(%s)\n", __func__, of_node_full_name(p->dev.of_node));
+	dbg_info("node(%s)\n", of_node_full_name(p->dev.of_node));
 
 	plcd = (struct mipi_dsi_lcd_common *)of_device_get_match_data(&p->dev);
 
@@ -622,15 +725,16 @@ static int smcdsd_probe(struct platform_device *p)
 	plcd->drv = mipi_lcd_driver;
 	plcd->tx = smcdsd_panel_dsi_command_tx;
 	plcd->rx = smcdsd_panel_dsi_command_rx;
-	plcd->commit_lock= smcdsd_panel_commit_lock;
+	plcd->commit_lock = smcdsd_panel_commit_lock;
+	plcd->frame_skip = smcdsd_panel_frame_skip;
 
 	if (!plcd->drv) {
-		dbg_info("%s: lcd_driver invalid\n", __func__);
+		dbg_info("lcd_driver invalid\n");
 		kfree(plcd);
 		return -EINVAL;
 	}
 
-	dbg_info("%s: driver is found(%s)\n", __func__, plcd->drv->driver.name);
+	dbg_info("driver is found(%s)\n", plcd->drv->driver.name);
 
 	platform_set_drvdata(p, plcd);
 
@@ -638,7 +742,7 @@ static int smcdsd_probe(struct platform_device *p)
 
 	plcd->drv->pdev = platform_device_register_resndata(&p->dev, "panel_drv", PLATFORM_DEVID_NONE, NULL, 0, NULL, 0);
 	if (!plcd->drv->pdev) {
-		dbg_info("%s: platform_device_register invalid\n", __func__);
+		dbg_info("platform_device_register invalid\n");
 		return -EINVAL;
 	}
 
@@ -663,7 +767,7 @@ static int common_lcd_probe(struct mipi_dsi_device *dsi)
 	struct mipi_dsi_lcd_common *plcd = &lcd_common;
 	int ret, i;
 
-	dbg_info("%s: node(%s)\n", __func__, of_node_full_name(dev->of_node));
+	dbg_info("node(%s)\n", of_node_full_name(dev->of_node));
 
 	mipi_dsi_set_drvdata(dsi, plcd);
 

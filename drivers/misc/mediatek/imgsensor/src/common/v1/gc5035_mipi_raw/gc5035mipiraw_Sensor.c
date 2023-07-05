@@ -729,17 +729,14 @@ static int set_mode_setfile(enum IMGSENSOR_MODE mode)
 	return ret;
 }
 
-static void sensor_init(void)
+static int sensor_init(void)
 {
-	int ret = 0;
+	int ret = ERROR_NONE;
 
 	LOG_INF("%s:fixel_pixel: %d\n", __func__, imgsensor_info.sensor_output_dataformat);
 	ret = set_mode_setfile(IMGSENSOR_MODE_INIT);
 
-#ifdef IMGSENSOR_HW_PARAM
-	if (ret != 0)
-		imgsensor_increase_hw_param_err_cnt(GC5035_CAL_SENSOR_POSITION);
-#endif
+	return ret;
 }
 
 static kal_uint32 set_test_pattern_mode(kal_bool enable)
@@ -829,6 +826,7 @@ static kal_uint32 open(void)
 	kal_uint8 i = 0;
 	kal_uint8 retry = 2;
 	kal_uint32 sensor_id = 0;
+	kal_uint32 ret = ERROR_NONE;
 
 	LOG_1;
 
@@ -856,7 +854,7 @@ static kal_uint32 open(void)
 		return ERROR_SENSOR_CONNECT_FAIL;
 
 	/* initail sequence write in  */
-	sensor_init();
+	ret = sensor_init();
 
 	gc5035_otp_dd_autoload();
 
@@ -874,7 +872,8 @@ static kal_uint32 open(void)
 	imgsensor.test_pattern = KAL_FALSE;
 	imgsensor.current_fps = imgsensor_info.pre.max_framerate;
 	spin_unlock(&imgsensor_drv_lock);
-	return ERROR_NONE;
+
+	return ret;
 }
 
 /*************************************************************************

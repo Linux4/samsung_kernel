@@ -609,7 +609,7 @@ static int battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_TEMP:
 #if defined(CONFIG_BATTERY_SAMSUNG)
 		force_get_tbat_adc();
-		val->intval = gm.tbat_adc;
+			val->intval = gm.tbat_adc;
 		pr_info("%s : val->intval (%d)\n", __func__, val->intval);
 #else
 		val->intval = gm.tbat_precise;
@@ -5062,22 +5062,31 @@ static int battery_resume(struct platform_device *dev)
 		fg_cust_data.disable_nafg,
 		gm.ntc_disable_nafg,
 		gm.cmd_disable_nafg);
-	if (gauge_get_hw_version() >=
-		GAUGE_HW_V2000
-		&& gm.hw_status.iavg_intr_flag == 1) {
-		gauge_enable_interrupt(FG_IAVG_H_NO, 1);
-		if (gm.hw_status.iavg_lt > 0)
-			gauge_enable_interrupt(FG_IAVG_L_NO, 1);
+
+	if (is_fg_disabled()) {
+		bm_info("[%s] fg_disabled, don't enable iavg interrupt\n", __func__);
+	} else {
+		if (gauge_get_hw_version() >=
+			GAUGE_HW_V2000
+			&& gm.hw_status.iavg_intr_flag == 1) {
+			gauge_enable_interrupt(FG_IAVG_H_NO, 1);
+			if (gm.hw_status.iavg_lt > 0)
+				gauge_enable_interrupt(FG_IAVG_L_NO, 1);
+		}
 	}
 	/* reset nafg monitor time to avoid suspend for too long case */
 	get_monotonic_boottime(&gm.last_nafg_update_time);
 
 	fg_update_sw_iavg();
 
-	if (gm.enable_tmp_intr_suspend == 0) {
-		gauge_enable_interrupt(FG_RG_INT_EN_BAT_TEMP_H, 1);
-		gauge_enable_interrupt(FG_RG_INT_EN_BAT_TEMP_L, 1);
-		enable_bat_temp_det(1);
+	if (is_fg_disabled()) {
+		bm_info("[%s] fg_disabled, don't enable bat_temp interrupt\n", __func__);
+	} else {
+		if (gm.enable_tmp_intr_suspend == 0) {
+			gauge_enable_interrupt(FG_RG_INT_EN_BAT_TEMP_H, 1);
+			gauge_enable_interrupt(FG_RG_INT_EN_BAT_TEMP_L, 1);
+			enable_bat_temp_det(1);
+		}
 	}
 
 	return 0;

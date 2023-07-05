@@ -55,18 +55,32 @@
 #include <linux/muic/common/muic_notifier.h>
 #endif
 
-struct gpio_afc_ddata *g_ddata;
-
-#if IS_ENABLED(CONFIG_SEC_HICCUP)
-static int gpio_hiccup;
-#endif
-
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 #include <linux/muic/common/muic_notifier.h>
 extern struct muic_platform_data muic_pdata;
 #if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
 #include <linux/muic/common/vt_muic/vt_muic.h>
 #endif
+#endif
+
+#if defined(CONFIG_PDIC_NOTIFIER)
+#include <linux/usb/typec/common/pdic_notifier.h>
+#if defined(CONFIG_PDIC_USE_MODULE_PARAM)
+#include <linux/usb/typec/common/pdic_param.h>
+#endif
+#if IS_ENABLED(CONFIG_BATTERY_NOTIFIER)
+#include <linux/battery/battery_notifier.h>
+#else
+#include <linux/battery/sec_pd.h>
+#endif
+
+extern struct pdic_notifier_struct pd_noti;
+#endif
+
+struct gpio_afc_ddata *g_ddata;
+
+#if IS_ENABLED(CONFIG_SEC_HICCUP)
+static int gpio_hiccup;
 #endif
 
 /* afc_mode:
@@ -560,14 +574,15 @@ int set_afc_voltage(int voltage)
 #if IS_ENABLED(CONFIG_SEC_HICCUP)
 void set_sec_hiccup(bool en)
 {
-	int ret = 0;
 	struct gpio_afc_ddata *ddata = g_ddata;
+	int ret = 0;
 
-	ret = get_boot_mode();
-	if (ret == KERNEL_POWER_OFF_CHARGING_BOOT) {
-		pr_info("%s %d, lpm mode\n", __func__, en, ret);
+#if defined(CONFIG_PDIC_USE_MODULE_PARAM)
+	if (is_lpcharge_pdic_param()) {
+		pr_info("%s %d, lpm mode\n", __func__, en);
 		return;
 	}
+#endif
 
 	if (en)
 		ddata->is_hiccup_mode = SEC_HICCUP_MODE_ON;
@@ -672,9 +687,12 @@ static ssize_t hiccup_show(struct device *dev,
 static ssize_t hiccup_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
-	if (!strncasecmp(buf, "DISABLE", 7))
+	if (!strncasecmp(buf, "DISABLE", 7)) {
+#if defined(CONFIG_PDIC_NOTIFIER)
+		pd_noti.sink_status.fp_sec_pd_manual_ccopen_req(0);
+#endif
 		set_sec_hiccup(false);
-	else
+	} else
 		pr_warn("%s invalid com : %s\n", __func__, buf);
 
 	return count;
@@ -730,13 +748,12 @@ static const struct attribute_group gpio_afc_group = {
 static int sec_set_hiccup_mode(int val)
 {
 #if IS_ENABLED(CONFIG_SEC_HICCUP)
-	int ret = 0;
-
-	ret = get_boot_mode();
-	if (ret == KERNEL_POWER_OFF_CHARGING_BOOT) {
-		pr_info("%s %d, lpm mode\n", __func__, val, ret);
+#if defined(CONFIG_PDIC_USE_MODULE_PARAM)
+	if (is_lpcharge_pdic_param()) {
+		pr_info("%s %d, lpm mode\n", __func__, val);
 		return 0;
 	}
+#endif
 
 	if (val) {
 		set_attached_afc_dev(ATTACHED_DEV_HICCUP_MUIC);

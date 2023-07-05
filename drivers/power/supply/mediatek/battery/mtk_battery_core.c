@@ -1510,6 +1510,21 @@ void fg_custom_init_from_dts(struct platform_device *dev)
 	fg_read_dts_val(np, "SWOCV_OLDOCV_DIFF_EMB",
 		&(fg_cust_data.swocv_oldocv_diff_emb), 1);
 
+#if defined(CONFIG_SEC_FACTORY)
+	bm_err("%s oldocv diff set 0 in only factory bin\n", __func__);
+	fg_cust_data.hwocv_oldocv_diff = 0;
+	fg_cust_data.hwocv_oldocv_diff_chr = 0;
+	fg_cust_data.hwocv_swocv_diff = 0;
+	fg_cust_data.hwocv_swocv_diff_lt = 0;
+	fg_cust_data.swocv_oldocv_diff = 0;
+	fg_cust_data.swocv_oldocv_diff_chr = 0;
+	fg_cust_data.vbat_oldocv_diff = 0;
+	fg_cust_data.swocv_oldocv_diff_emb = 0;
+	fg_cust_data.vir_oldocv_diff_emb = 0;
+	fg_cust_data.vir_oldocv_diff_emb_lt = 0;
+	fg_cust_data.tnew_told_pon_diff = -1;
+#endif
+
 	fg_read_dts_val(np, "PMIC_SHUTDOWN_TIME",
 		&(fg_cust_data.pmic_shutdown_time), UNIT_TRANS_60);
 	fg_read_dts_val(np, "TNEW_TOLD_PON_DIFF",
@@ -3448,12 +3463,20 @@ void bmd_ctrl_cmd_from_user(void *nl_data, struct fgd_nl_msg_t *ret_msg)
 		{
 			int is_charger_exist = 0;
 
+#if defined(CONFIG_MACH_MT6877) || defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6893) || defined(CONFIG_MACH_MT6873)                         \
+	|| defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT6785)
+			if (battery_main.BAT_STATUS == POWER_SUPPLY_STATUS_CHARGING)
+				is_charger_exist = true;
+			else
+				is_charger_exist = false;
+#else
 			if (upmu_get_rgs_chrdet() == 0 ||
 				mt_usb_is_device() == 0)
 				is_charger_exist = false;
 			else
 				is_charger_exist = true;
-
+#endif
 			ret_msg->fgd_data_len += sizeof(is_charger_exist);
 			memcpy(ret_msg->fgd_data,
 				&is_charger_exist, sizeof(is_charger_exist));

@@ -88,7 +88,7 @@ int cam_ois_i2c_write_multi(struct i2c_client *client, int subaddr, u16 addr, u8
 #if ENABLE_AOIS == 0
 		ret = i2c_transfer(client->adapter, &msg, 1);
 #else
-		LOG_INF("AOIS write, client addr 0x%x", msg.addr);
+		LOG_DBG("AOIS write, client addr 0x%x", msg.addr);
 		ret = cam_ois_cmd_notifier_call_chain(0, addr, data, size);
 #endif
 		if (likely(ret == 1))
@@ -162,7 +162,7 @@ int cam_ois_i2c_read_multi(struct i2c_client *client, int subaddr, u16 addr, u8 
 	client->addr = subaddr >> 1;
 	err = i2c_transfer(client->adapter, msg, 2);
 #else
-	LOG_INF("AOIS read, client addr 0x%x", msg[0].addr);
+	LOG_DBG("AOIS read, client addr 0x%x", msg[0].addr);
 	err = cam_ois_reg_read_notifier_call_chain(0, addr, rxbuf, size);
 #endif
 	if (unlikely(err != 2)) {

@@ -38,35 +38,35 @@
 				__gpio_lcd_buckboost_en: __gpio_lcd_buckboost_en {
 					compatible = "regulator-fixed";
 					regulator-name = "lcd_buckboost_en";
-					gpio = <&pio 119 0>;	/* LCD_BUCKBOOST_EN */
+					gpio = <&panel_gpio 0 0>;	/* LCD_BUCKBOOST_EN */
 					enable-active-high;
 					regulator-boot-on;
 				};
 				__gpio_lcd_buck_en: __gpio_lcd_buck_en {
 					compatible = "regulator-fixed";
 					regulator-name = "lcd_buck_en";
-					gpio = <&pio 139 0>;	/* LCD_BUCK_EN */
+					gpio = <&panel_gpio 1 0>;	/* LCD_BUCK_EN */
 					enable-active-high;
 					regulator-boot-on;
 				};
 				__gpio_lcd_buck_en_n: __gpio_lcd_buck_en_n {
 					compatible = "regulator-fixed";
 					regulator-name = "lcd_buck_en_n";
-					gpio = <&pio 138 0>;	/* LCD_BUCK_EN_N */
+					gpio = <&panel_gpio 2 0>;	/* LCD_BUCK_EN_N */
 					enable-active-high;
 					regulator-boot-on;
 				};
 				__gpio_lcd_rst: __gpio_lcd_rst {
 					compatible = "regulator-fixed";
 					regulator-name = "lcd_rst";
-					gpio = <&pio 40 0>;	/* LCD_RST_N */
+					gpio = <&panel_gpio 3 0>;	/* LCD_RST_N */
 					enable-active-high;
 					regulator-boot-on;
 				};
 			};
 
 			smcdsd_board_hx83102j: smcdsd_board_hx83102j {
-				gpio_con = <&pio 118 0x0>;	/* LCD_CON_DET */
+				gpio_con = <&panel_gpio 4 GPIO_ACTIVE_HIGH>;	/* LCD_CON_DET */
 
 				panel_power_enable {
 					type =
@@ -77,10 +77,14 @@
 					"regulator,enable",	"lcd_buck_en",
 					"delay,usleep",	"1000",
 					"regulator,enable",	"lcd_buck_en_n",
-					"delay,usleep",	"1000";
+					"delay,usleep",	"1000",
+					"regulator,enable",	"lcd_buck_boost",
+					"regulator,enable",	"lcd_buck";
 				};
 				panel_power_disable {
 					type =
+					"regulator,disable",	"lcd_buck",
+					"regulator,disable",	"lcd_buck_boost",
 					"delay,usleep",	"3000",
 					"regulator,disable",	"lcd_buck_en_n",
 					"regulator,disable",	"lcd_buck_en",
@@ -109,6 +113,8 @@
 				panel_not_connected {
 					type =
 					"regulator,disable",	"lcd_rst",
+					"regulator,disable",	"lcd_buck",
+					"regulator,disable",	"lcd_buck_boost",
 					"regulator,disable",	"lcd_buck_en_n",
 					"regulator,disable",	"lcd_buck_en",
 					"regulator,disable",	"lcd_vddi",
@@ -159,12 +165,4 @@
 		compatible = "smcdsd_panel";
 	};
 };
-
-&i2c11 {
-	i2c_lcd_buck@29 {
-		compatible = "mediatek,i2c_lcd_buck";
-		reg = <0x29>;
-	};
-};
-
 

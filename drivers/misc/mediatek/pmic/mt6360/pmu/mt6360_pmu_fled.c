@@ -562,6 +562,10 @@ static int mt6360_fled_set_torch_current_sel(struct rt_fled_dev *fled,
 {
 	struct mt6360_pmu_fled_info *fi = to_fled_info(fled);
 
+	// torch current : (12.5 * selector + 25) mA
+	dev_info(fi->dev, "[%s][D/D] MT6360 torch current: %d mA\n", __func__,
+			selector % 2 == 1 ? ((selector/2 + 1) * 25) + 13 : (selector/2 + 1) * 25);
+
 	return mt6360_pmu_reg_update_bits(fi->mpi, fi->id == MT6360_FLED1 ?
 					  MT6360_PMU_FLED1_TOR_CTRL :
 					  MT6360_PMU_FLED2_TOR_CTRL,
@@ -581,14 +585,23 @@ static int mt6360_fled_set_strobe_current_sel(struct rt_fled_dev *fled,
 	if (selector > 177 || selector < 0)
 		return -EINVAL;
 
-	if (selector < 117) /* 25 ~ 750mA */
+	if (selector < 117) { /* 25 ~ 750mA */
 		ret = mt6360_pmu_reg_set_bits(fi->mpi, reg_strb_cur,
 					     MT6360_UTRAL_ISTRB_MASK);
-	else { /* 762.5 ~ 1500mA */
+
+		// strobe current: (6.25 * selector) + 25 mA
+		dev_info(fi->dev, "[%s][D/D] MT6360 strobe current: %d mA\n", __func__,
+				selector % 4 != 0 ? ((selector/4 + 1) * 25) + (selector % 4) * 7 : (selector/4 + 1) * 25);
+	} else { /* 762.5 ~ 1500mA */
 		ret = mt6360_pmu_reg_clr_bits(fi->mpi, reg_strb_cur,
 					     MT6360_UTRAL_ISTRB_MASK);
 		selector -= 60; /* make the base 762.5 mA */
+
+		// strobe current: (12.5 * selector) + 50 mA
+		dev_info(fi->dev, "[%s][D/D] MT6360 strobe current: %d mA\n", __func__,
+				selector % 2 == 1 ? ((selector/2 + 2) * 25) + 13 : (selector/2 + 2) * 25);
 	}
+
 
 	return mt6360_pmu_reg_update_bits(fi->mpi, reg_strb_cur,
 					  MT6360_ISTRB_MASK,

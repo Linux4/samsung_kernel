@@ -11,7 +11,7 @@
  * GNU General Public License for more details.
  */
 
-/******** A34-5g Board  ***********
+/******** A34-5G Board  ***********
  *    SW          :   HW   : Sensor
  * camera0(Wide)  : RCAM1  : IMX582
  * camera1(Front) : FCAM   : IMX258
@@ -84,48 +84,10 @@
 		};
 	};
 
-	// I2C
-/*
-	camera_main_i2c_scl_on: camera_main_i2c_scl_on@gpio143 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO143__FUNC_SCL2>;
-			bias-disable;
-		};
-	};
-	camera_main_i2c_sda_on: camera_main_i2c_sda_on@gpio144 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO144__FUNC_SDA2>;
-			bias-disable;
-		};
-	};
-	camera_main_i2c_scl_off: camera_main_i2c_scl_off@gpio143 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO143__FUNC_GPIO143>;
-			bias-disable;
-		};
-	};
-	camera_main_i2c_sda_off: camera_main_i2c_sda_off@gpio144 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO144__FUNC_GPIO144>;
-			bias-disable;
-		};
-	};
-*/
-	// AVDD2_LDO_EN
-/*
-	camera0_vcama2_ldo_en_off: camera0_vcama2_ldo_en_output_low@gpio160 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO160__FUNC_GPIO160>;
-			output-low;
-		};
-	};
-	camera0_vcama2_ldo_en_on: camera0_vcama2_ldo_en_output_high@gpio160 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO160__FUNC_GPIO160>;
-			output-high;
-		};
-	};
-*/
+	// DVDD
+	// GPIO contol is not required
+
+	// I2C setting for status of power off is not used
 
 	/****************  camera1  ***************/
 	// MCLK
@@ -174,33 +136,13 @@
 		};
 	};
 
-	// I2C
-/*
-	camera_sub_i2c_scl_on: camera_sub_i2c_scl_on@gpio145 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO145__FUNC_SCL4>;
-			bias-pull-up;
-		};
-	};
-	camera_sub_i2c_sda_on: camera_sub_i2c_sda_on@gpio146 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO146__FUNC_SDA4>;
-			bias-pull-up;
-		};
-	};
-	camera_sub_i2c_scl_off: camera_sub_i2c_scl_off@gpio145 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO145__FUNC_GPIO145>;
-			bias-pull-down;
-		};
-	};
-	camera_sub_i2c_sda_off: camera_sub_i2c_sda_off@gpio146 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO146__FUNC_GPIO146>;
-			bias-pull-down;
-		};
-	};
-*/
+	// AVDD
+	// GPIO contol is not required
+
+	// DVDD
+	// GPIO contol is not required
+
+	// I2C setting for status of power off is not used
 
 	/****************  camera2  ***************/
 	// MCLK
@@ -248,50 +190,14 @@
 			output-high;
 		};
 	};
-/*
+
 	// AVDD
-	camera2_vcama_off: camera2_vcama_output_low@gpio20 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO20__FUNC_GPIO20>;
-			slew-rate = <1>;
-			output-low;
-		};
-	};
-	camera2_vcama_on: camera2_vcama_output_high@gpio20 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO20__FUNC_GPIO20>;
-			slew-rate = <1>;
-			output-high;
-		};
-	};
-*/
-	// I2C
-/*
-	camera_main_two_i2c_scl_on: camera_main_two_i2c_scl_on@gpio136 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO136__FUNC_SCL8>;
-			bias-pull-up;
-		};
-	};
-	camera_main_two_i2c_sda_on: camera_main_two_i2c_sda_on@gpio137 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO137__FUNC_SDA8>;
-			bias-pull-up;
-		};
-	};
-	camera_main_two_i2c_scl_off: camera_main_two_i2c_scl_off@gpio136 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO136__FUNC_GPIO136>;
-			bias-pull-down;
-		};
-	};
-	camera_main_two_i2c_sda_off: camera_main_two_i2c_sda_off@gpio137 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO137__FUNC_GPIO137>;
-			bias-pull-down;
-		};
-	};
-*/
+	// GPIO contol is not required
+
+	// DVDD
+	// GPIO contol is not required
+
+	// I2C setting for status of power off is not used
 
 	/****************  camera3  ***************/
 	// MCLK
@@ -340,120 +246,19 @@
 		};
 	};
 
-	// AVDD & DVDD
-/*
-	camera3_vcama_off: camera3_vcama_output_low@gpio10 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO10__FUNC_GPIO10>;
-			slew-rate = <1>;
-			output-low;
-		};
-	};
-	camera3_vcama_on: camera3_vcama_output_high@gpio10 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO10__FUNC_GPIO10>;
-			slew-rate = <1>;
-			output-high;
-		};
-	};
-*/
-	// I2C
-/*
-	camera_main_three_i2c_scl_on: camera_main_three_i2c_scl_on@gpio136 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO136__FUNC_SCL8>;
-			bias-pull-up;
-		};
-	};
-	camera_main_three_i2c_sda_on: camera_main_three_i2c_sda_on@gpio137 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO137__FUNC_SDA8>;
-			bias-pull-up;
-		};
-	};
-	camera_main_three_i2c_scl_off: camera_main_three_i2c_scl_off@gpio136 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO136__FUNC_GPIO136>;
-			bias-pull-down;
-		};
-	};
-	camera_main_three_i2c_sda_off: camera_main_three_i2c_sda_off@gpio137 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO137__FUNC_GPIO137>;
-			bias-pull-down;
-		};
-	};
-*/
+	// AVDD
+	// GPIO contol is not required
 
-	/****************  Camera OIS  ***************/
-	// OIS_MCU_RST
-	cam0_ois_mcu_rst_low: cam0_ois_mcu_rst_output_low@gpio117 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO117__FUNC_GPIO117>;
-			slew-rate = <1>;
-			output-low;
-		};
-	};
-	cam0_ois_mcu_rst_high: cam0_ois_mcu_rst_output_high@gpio117 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO117__FUNC_GPIO117>;
-			slew-rate = <1>;
-			output-high;
-		};
-	};
+	// DVDD
+	// GPIO contol is not required
 
-	// OIS_MCU_BOOT0
-	cam0_ois_mcu_boot_off: cam0_ois_mcu_boot_off@gpio158 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO158__FUNC_GPIO158>;
-			slew-rate = <1>;
-			output-low;
-		};
-	};
-	cam0_ois_mcu_boot_on: cam0_ois_mcu_boot_on@gpio158 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO158__FUNC_GPIO158>;
-			slew-rate = <1>;
-			output-high;
-		};
-	};
-
-	// CAM_OIS_MCU_VDD
-	cam0_ois_mcu_vdd_off: cam0_ois_mcu_vdd_off@gpio110 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO110__FUNC_GPIO110>;
-			slew-rate = <1>;
-			output-low;
-		};
-	};
-	cam0_ois_mcu_vdd_on: cam0_ois_mcu_vdd_on@gpio110 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO110__FUNC_GPIO110>;
-			slew-rate = <1>;
-			output-high;
-		};
-	};
-
-	// CAM_OIS_VDD
-	cam0_ois_vdd_off: cam0_ois_vdd_off@gpio7 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO7__FUNC_GPIO7>;
-			slew-rate = <1>;
-			output-low;
-		};
-	};
-	cam0_ois_vdd_on: cam0_ois_vdd_on@gpio7 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO7__FUNC_GPIO7>;
-			slew-rate = <1>;
-			output-high;
-		};
-	};
+	// I2C setting for status of power off is not used
 
 	/****************  default  ***************/
 	camera_pins_default: camdefault {
 	};
 };
+
 &kd_camera_hw1 {
 	pinctrl-names = "default",
 		"cam0_rst0", "cam0_rst1",
@@ -461,22 +266,21 @@
 		"cam0_mclk_off",
 		"cam0_mclk_2mA", "cam0_mclk_4mA",
 		"cam0_mclk_6mA", "cam0_mclk_8mA",
+
 		"cam1_rst0", "cam1_rst1",
 		"cam1_mclk_off",
 		"cam1_mclk_2mA", "cam1_mclk_4mA",
 		"cam1_mclk_6mA", "cam1_mclk_8mA",
+
 		"cam2_rst0", "cam2_rst1",
 		"cam2_mclk_off",
 		"cam2_mclk_2mA", "cam2_mclk_4mA",
 		"cam2_mclk_6mA", "cam2_mclk_8mA",
+
 		"cam3_rst0", "cam3_rst1",
 		"cam3_mclk_off",
 		"cam3_mclk_2mA", "cam3_mclk_4mA",
-		"cam3_mclk_6mA", "cam3_mclk_8mA",
-		"cam0_ois_mcu_boot_off", "cam0_ois_mcu_boot_on",
-		"cam0_ois_mcu_rst_0", "cam0_ois_mcu_rst_1",
-		"cam0_ois_mcu_ldo_off", "cam0_ois_mcu_ldo_on",
-		"cam0_ois_vdd_ldo_off", "cam0_ois_vdd_ldo_on";
+		"cam3_mclk_6mA", "cam3_mclk_8mA";
 
 	pinctrl-0 = <&camera_pins_default>;
 	pinctrl-1 = <&camera0_rst_low>;
@@ -513,15 +317,6 @@
 	pinctrl-29 = <&camera3_mclk_6mA>;
 	pinctrl-30 = <&camera3_mclk_8mA>;
 
-	pinctrl-31 = <&cam0_ois_mcu_boot_off>;
-	pinctrl-32 = <&cam0_ois_mcu_boot_on>;
-	pinctrl-33 = <&cam0_ois_mcu_rst_low>;
-	pinctrl-34 = <&cam0_ois_mcu_rst_high>;
-	pinctrl-35 = <&cam0_ois_mcu_vdd_off>;
-	pinctrl-36 = <&cam0_ois_mcu_vdd_on>;
-	pinctrl-37 = <&cam0_ois_vdd_off>;
-	pinctrl-38 = <&cam0_ois_vdd_on>;
-
 	/********* Regulator setting **************/
 	// camera0
 	cam0_vcama-supply = <&s2mpb03_0_l5>;
@@ -546,19 +341,17 @@
 
 	status = "okay";
 	vendor {
-		rear_sensor_id = <120>;     /* SENSOR_NAME_IMX582 */
-		front_sensor_id = <121>;    /* SENSOR_NAME_IMX258 */
-		rear2_sensor_id = <210>;    /* SENSOR_NAME_S5K4HAYX */
-		rear3_sensor_id = <210>;    /* SENSOR_NAME_GC5035 */
+		rear_sensor_id = <120>;   /* SENSOR_NAME_IMX582 */
+		front_sensor_id = <121>;  /* SENSOR_NAME_IMX258 */
+		rear2_sensor_id = <210>;  /* SENSOR_NAME_S5K4HAYX */
+		rear3_sensor_id = <210>;  /* SENSOR_NAME_GC5035 */
 
 		use_dualcam_set_cal;
-		//use_module_check;
-		// skip_cal_loading;
-		//check_final_cam_module;
-		//check_sensor_vendor;
+		use_module_check;
+		//skip_cal_loading;       /* for test without cal loading */
+		//check_final_cam_module; /* use after DVR */
 		max_supported_camera = <4>;
-		supported_cameraId = <0 1 50 54>;
-		/* REAR, FRONT, UW, DUAL_REAR_PORTRAIT_WIDE(Bokeh), REAR_3(Macro) */
+		supported_cameraId = <0 1 50 54>; /* REAR, FRONT, REAR2, REAR3 */
 
 		max_camera_num = <5>;
 		camera_info0 {             /* 0 : rear - IMX582 */
@@ -574,7 +367,7 @@
 			position = <0>;        /* 0 : Rear, 1:Front, 2:Rear2, 3:Front2, 4:Rear3, 6:Rear4 */
 			//includes_sub = <4>;  /* include this for common eeprom. <_position_> - position of the sub camera */
 			afcal_type=<20>;       /* output format - 1: Near, Middle..., Far , 20: Near, Far, Middle... */
-			use_adaptive_mipi=<1>;  /* 0 : N, 1 : Y */
+			use_adaptive_mipi=<0>; /* 0 : N, 1 : Y */
 		};
 		camera_info1 {             /* 1 : front - IMX258 */
 			isp = <0>;             /* 0 : INT , 1 : EXT , 2 : SOC */
@@ -587,7 +380,7 @@
 			valid = <1>;           /* 0 : INVALID, 1 : VALID */
 			dual_open = <0>;       /* 0 : SINGLE_OPEN , 1 : DUAL_OPEN */
 			position = <1>;        /* 0 : Rear, 1:Front, 2:Rear2, 3:Front2, 4:Rear3, 6:Rear4 */
-			use_adaptive_mipi=<0>;  /* 0 : N, 1 : Y */
+			use_adaptive_mipi=<1>; /* 0 : N, 1 : Y */
 		};
 		camera_info2 {             /* 3 : rear2 - S4K4HAYX */
 			isp = <0>;             /* 0 : INT , 1 : EXT , 2 : SOC */
@@ -600,7 +393,7 @@
 			valid = <1>;           /* 0 : INVALID, 1 : VALID */
 			dual_open = <0>;       /* 0 : SINGLE_OPEN , 1 : DUAL_OPEN */
 			position = <2>;        /* 0 : Rear, 1:Front, 2:Rear2, 3:Front2, 4:Rear3, 6:Rear4 */
-			use_adaptive_mipi=<1>;  /* 0 : N, 1 : Y */
+			use_adaptive_mipi=<0>; /* 0 : N, 1 : Y */
 		};
 		camera_info3 {             /* 4 : rear3 - GC5035 */
 			isp = <0>;             /* 0 : INT , 1 : EXT , 2 : SOC */
@@ -613,7 +406,7 @@
 			valid = <1>;           /* 0 : INVALID, 1 : VALID */
 			dual_open = <0>;       /* 0 : SINGLE_OPEN , 1 : DUAL_OPEN */
 			position = <4>;        /* 0 : Rear, 1:Front, 2:Rear2, 3:Front2, 4:Rear3, 6:Rear4 */
-			use_adaptive_mipi=<0>;  /* 0 : N, 1 : Y */
+			use_adaptive_mipi=<0>; /* 0 : N, 1 : Y */
 		};
 	};
 };
@@ -627,22 +420,9 @@
 
 			camera_ois_hw_node: camera_ois_hw_node {
 				compatible = "mediatek,camera_ois_hw";
-				pinctrl-names = "default",
-				"cam0_ois_mcu_boot_off", "cam0_ois_mcu_boot_on",
-				"cam0_ois_mcu_rst_0", "cam0_ois_mcu_rst_1",
-				"cam0_ois_mcu_ldo_off", "cam0_ois_mcu_ldo_on",
-				"cam0_ois_vdd_ldo_off", "cam0_ois_vdd_ldo_on";
+				pinctrl-names = "default";
 
 				pinctrl-0 = <&camera_pins_default>;
-				pinctrl-1 = <&cam0_ois_mcu_boot_off>;
-				pinctrl-2 = <&cam0_ois_mcu_boot_on>;
-				pinctrl-3 = <&cam0_ois_mcu_rst_low>;
-				pinctrl-4 = <&cam0_ois_mcu_rst_high>;
-				pinctrl-5 = <&cam0_ois_mcu_vdd_off>;
-				pinctrl-6 = <&cam0_ois_mcu_vdd_on>;
-				pinctrl-7 = <&cam0_ois_vdd_off>;
-				pinctrl-8 = <&cam0_ois_vdd_on>;
-
 				cam0_vcamaf-supply = <&s2mpb03_0_l7>;
 
 				status = "okay";
@@ -687,12 +467,6 @@
 	regulator-min-microvolt = <2800000>;
 	regulator-max-microvolt = <2800000>;
 };
-/*
-&mt6315_3_vbuck3 {
-	regulator-min-microvolt = <1100000>;
-	regulator-max-microvolt = <1193750>;
-};
-*/
 
 /* Flash */
 &flashlights_mt6360 {

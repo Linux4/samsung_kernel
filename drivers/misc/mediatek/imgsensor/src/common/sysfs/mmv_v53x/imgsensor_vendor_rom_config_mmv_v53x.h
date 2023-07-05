@@ -18,6 +18,10 @@
 #define REAR_SUB_CAMERA
 //#define USE_SHARED_ROM_REAR3
 
+#if IS_ENABLED(CONFIG_IMGSENSOR_SYSFS)
+#define IMGSENSOR_HW_PARAM
+#endif
+
 extern const struct imgsensor_vendor_rom_info vendor_rom_info[SENSOR_POSITION_MAX];
 
 #endif /*IMGESENSOR_VENDOR_ROM_CONFIG_MMV_V53X_H*/

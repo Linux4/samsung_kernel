@@ -450,7 +450,16 @@ static int xhci_stop_device(struct xhci_hcd *xhci, int slot_id, int suspend)
 	    cmd->status == COMP_COMMAND_RING_STOPPED) {
 		xhci_warn(xhci, "Timeout while waiting for stop endpoint command\n");
 		ret = -ETIME;
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+		goto cmd_cleanup;
+#endif
 	}
+
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	ret = xhci_vendor_sync_dev_ctx(xhci, slot_id);
+	if (ret)
+		xhci_warn(xhci, "Sync device context failed, ret=%d\n", ret);
+#endif
 
 cmd_cleanup:
 	xhci_free_command(xhci, cmd);
@@ -1153,7 +1162,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 			}
 			/* In spec software should not attempt to suspend
 			 * a port unless the port reports that it is in the
-			 * enabled (PED = ‘1’,PLS < ‘3’) state.
+			 * enabled (PED = ??1??,PLS < ??3??) state.
 			 */
 			temp = readl(ports[wIndex]->addr);
 			if ((temp & PORT_PE) == 0 || (temp & PORT_RESET)
@@ -1499,6 +1508,13 @@ int xhci_hub_status_data(struct usb_hcd *hcd, char *buf)
 
 static bool xhci_all_ports_suspended(struct xhci_hcd *xhci)
 {
+	if (xhci->xhc_state & XHCI_STATE_REMOVING) {
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+		pr_info("%s - XHCI_STATE_REMOVING\n", __func__);
+#endif
+		return true;
+	}
+
 	if (xhci->main_hcd->state != HC_STATE_SUSPENDED ||
 			xhci->shared_hcd->state != HC_STATE_SUSPENDED)
 		return false;
@@ -1635,6 +1651,7 @@ retry:
 	if (xhci_all_ports_suspended(xhci) &&
 			hcd->self.root_hub->do_remote_wakeup == 1) {
 		struct xhci_hcd_mtk *mtk = hcd_to_mtk(hcd);
+
 		dev_info(&hcd->self.root_hub->dev, "%s %d\n",
 			__func__, hcd->self.root_hub->do_remote_wakeup);
 		mtk_xhci_wakelock_unlock(mtk);
@@ -1745,6 +1762,7 @@ int xhci_bus_resume(struct usb_hcd *hcd)
 
 	if (hcd->self.root_hub->do_remote_wakeup == 1) {
 		struct xhci_hcd_mtk *mtk = hcd_to_mtk(hcd);
+
 		dev_info(&hcd->self.root_hub->dev, "%s %d\n",
 			__func__, hcd->self.root_hub->do_remote_wakeup);
 		mtk_xhci_wakelock_lock(mtk);

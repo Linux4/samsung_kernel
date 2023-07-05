@@ -24,8 +24,6 @@
 #include "gc02m1mipiraw_Sensor.h"
 #include "gc02m1mipiraw_setfile.h"
 
-#include "imgsensor_sysfs.h"
-
 /****************************Modify Following Strings for Debug***************/
 #define PFX "GC02M1 D/D"
 /****************************   Modify end    ********************/
@@ -44,8 +42,6 @@ static const int I2C_BUFFER_LEN = 1020;
 #else
 static const int I2C_BUFFER_LEN = 4;
 #endif
-
-int position_sensor = SENSOR_POSITION_REAR4;
 
 /*
  * Image Sensor Scenario
@@ -670,7 +666,7 @@ static kal_uint16 table_write_cmos_sensor(kal_uint16 *para, kal_uint32 len)
 
 static int set_mode_setfile(enum IMGSENSOR_MODE mode)
 {
-	int ret = -1;
+	int ret = 0;
 
 	if (mode >= IMGSENSOR_MODE_MAX) {
 		LOG_ERR("invalid mode: %d", mode);
@@ -679,8 +675,10 @@ static int set_mode_setfile(enum IMGSENSOR_MODE mode)
 	LOG_INF(" - E");
 	LOG_INF("mode: %s", gc02m1_setfile_info[mode].name);
 
-	if ((gc02m1_setfile_info[mode].setfile == NULL) || (gc02m1_setfile_info[mode].size == 0))
+	if ((gc02m1_setfile_info[mode].setfile == NULL) || (gc02m1_setfile_info[mode].size == 0)) {
 		LOG_ERR("failed, mode: %d", mode);
+		ret = -1;
+	}
 	else
 		ret = table_write_cmos_sensor(gc02m1_setfile_info[mode].setfile, gc02m1_setfile_info[mode].size);
 
@@ -689,19 +687,16 @@ static int set_mode_setfile(enum IMGSENSOR_MODE mode)
 	return ret;
 }
 
-static void sensor_init(void)
+static int sensor_init(void)
 {
-	int ret = 0;
+	int ret = ERROR_NONE;
 
 	LOG_INF("- E");
 	ret = set_mode_setfile(IMGSENSOR_MODE_INIT);
 
-#ifdef IMGSENSOR_HW_PARAM
-	if (ret != 0)
-		imgsensor_increase_hw_param_err_cnt(position_sensor);
-#endif
-
 	LOG_INF("- X");
+
+	return ret;
 }				/*    sensor_init  */
 
 static kal_uint32 set_test_pattern_mode(kal_bool enable)
@@ -793,6 +788,7 @@ static kal_uint32 open(void)
 	kal_uint8 i = 0;
 	kal_uint8 retry = 2;
 	kal_uint32 sensor_id = 0;
+	kal_uint32 ret = ERROR_NONE;
 
 	LOG_INF("- E");
 	LOG_INF("GC02M1,MIPI 1LANE\n");
@@ -825,7 +821,7 @@ static kal_uint32 open(void)
 	//gc02m1_gcore_identify_otp();
 
 	/* initail sequence write in  */
-	sensor_init();
+	ret = sensor_init();
 
 	/*write registers from sram */
 	//gc02m1_gcore_update_otp();
@@ -846,7 +842,7 @@ static kal_uint32 open(void)
 	spin_unlock(&imgsensor_drv_lock);
 	LOG_INF("- X");
 
-	return ERROR_NONE;
+	return ret;
 }				/*    open  */
 
 
@@ -1654,8 +1650,6 @@ static void set_imgsensor_info_by_sensor_id(unsigned int sensor_id)
 	case GC02M1_SENSOR_ID: //for macro sensor
 		LOG_INF("set imgsensor info for GC02M1");
 		imgsensor_info.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_R;
-		position_sensor = GC02M1_CAL_SENSOR_POSITION;
-
 #if defined(CONFIG_CAMERA_AAT_V12) || defined(CONFIG_CAMERA_AAU_V22) ||\
 	defined(CONFIG_CAMERA_MMU_V22) || defined(CONFIG_CAMERA_MMU_V32)
 		imgsensor_info.min_gain_iso = 100; //old models
@@ -1676,7 +1670,6 @@ static void set_imgsensor_info_by_sensor_id(unsigned int sensor_id)
 	case GC02M1B_SENSOR_ID: //for bokeh sensor
 		LOG_INF("set imgsensor info for GC02M1B");
 		imgsensor_info.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_MONO;
-		position_sensor = GC02M1B_CAL_SENSOR_POSITION;
 
 #if defined(CONFIG_CAMERA_AAT_V12) || defined(CONFIG_CAMERA_AAT_V32X) ||\
 	defined(CONFIG_CAMERA_AAU_V22) || defined(CONFIG_CAMERA_MMU_V22)

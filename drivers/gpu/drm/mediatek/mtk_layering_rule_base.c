@@ -48,6 +48,8 @@ static int ext_id_tuning(struct drm_device *dev,
 static unsigned int roll_gpu_for_idle;
 static int g_emi_bound_table[HRT_LEVEL_NUM];
 
+static DEFINE_MUTEX(layering_info_lock);
+
 #if defined(CONFIG_MACH_MT6853) || defined(CONFIG_MACH_MT6833) || \
 	defined(CONFIG_MACH_MT6877)
 #define RSZ_TILE_LENGTH 1088
@@ -1685,7 +1687,8 @@ static void clear_layer(struct drm_mtk_layering_info *disp_info,
 		if (!is_dual_pipe && (c->src_width < c->dst_width &&
 			c->src_height < c->dst_height) &&
 			get_layering_opt(LYE_OPT_RPO) &&
-			top < disp_info->gles_tail[di]) {
+			top < disp_info->gles_tail[di] &&
+			di == HRT_PRIMARY) {
 			c->layer_caps |= MTK_DISP_RSZ_LAYER;
 			l_rule_info->addon_scn[di] = ONE_SCALING;
 		} else {
@@ -1857,6 +1860,8 @@ static int dispatch_gles_range(struct drm_mtk_layering_info *disp_info,
 
 		hrt_disp_num--;
 		for (disp_idx = HRT_TYPE_NUM - 1; disp_idx >= 0; disp_idx--) {
+			if (disp_info->layer_num[disp_idx] <= 0)
+				continue;
 			if (!has_hrt_limit(disp_info, disp_idx))
 				continue;
 			valid_ovl_cnt =
@@ -2000,8 +2005,7 @@ static int check_disp_info(struct drm_mtk_layering_info *disp_info)
 		}
 
 		if ((ghead < 0 && gtail >= 0) || (gtail < 0 && ghead >= 0) || (gtail < ghead) ||
-			(gtail >= layer_num)) {
-			dump_disp_info(disp_info, DISP_DEBUG_LEVEL_ERR);
+		    (layer_num > 0 && gtail >= layer_num)) {
 			DDPPR_ERR("[HRT] gles invalid, disp:%d, head:%d, tail:%d\n", disp_idx,
 				  disp_info->gles_head[disp_idx], disp_info->gles_tail[disp_idx]);
 			return -1;
@@ -2067,14 +2071,19 @@ static int set_disp_info(struct drm_mtk_layering_info *disp_info_user,
 {
 	int i;
 
+	mutex_lock(&layering_info_lock);
 	memcpy(&layering_info, disp_info_user,
 		sizeof(struct drm_mtk_layering_info));
 
-	for (i = 0; i < HRT_TYPE_NUM; i++)
-		if (_copy_layer_info_from_disp(disp_info_user, debug_mode, i))
+	for (i = 0; i < HRT_TYPE_NUM; i++) {
+		if (_copy_layer_info_from_disp(disp_info_user, debug_mode, i)) {
+			mutex_unlock(&layering_info_lock);
 			return -EFAULT;
+		}
+	}
 
 	memset(l_rule_info->addon_scn, 0x0, sizeof(l_rule_info->addon_scn));
+	mutex_unlock(&layering_info_lock);
 	return 0;
 }
 

@@ -37,6 +37,9 @@ void sec_chg_check_modprobe(void)
 	unsigned int check_dev = 0;
 
 	check_dev |= SC_DEV_FG | SC_DEV_MAIN_CHG;
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
+	check_dev |= SC_DEV_MAIN_LIM | SC_DEV_SUB_LIM;
+#endif
 #if IS_ENABLED(CONFIG_DIRECT_CHARGING)
 	check_dev |= SC_DEV_DIR_CHG | SC_DEV_SEC_DIR_CHG;
 #endif

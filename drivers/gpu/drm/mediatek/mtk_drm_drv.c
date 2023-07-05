@@ -1008,6 +1008,9 @@ static void mtk_atomic_complete(struct mtk_drm_private *private,
 				struct drm_atomic_state *state)
 {
 	struct drm_device *drm = private->drm;
+	struct drm_crtc *crtc = private->crtc[0];
+	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
+	bool skip_frame = mtk_crtc->skip_frame;
 
 	mtk_atomic_wait_for_fences(state);
 
@@ -1043,11 +1046,16 @@ static void mtk_atomic_complete(struct mtk_drm_private *private,
 
 	mtk_atomic_check_plane_sec_state(drm, state);
 
-	if (!mtk_atomic_skip_plane_update(private, state)) {
+	if (!mtk_atomic_skip_plane_update(private, state) && !skip_frame) {
 		drm_atomic_helper_commit_planes(drm, state,
 						DRM_PLANE_COMMIT_ACTIVE_ONLY);
 #ifdef MTK_DRM_ESD_SUPPORT
 		drm_atomic_esd_chk_first_enable(drm, state);
+#endif
+	} else if (skip_frame) {
+		pr_info("[%s] skip frame update\n", __func__);
+#ifdef MTK_DRM_FENCE_SUPPORT
+		release_fence_frame_skip(crtc);
 #endif
 	}
 

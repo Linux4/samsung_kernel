@@ -107,6 +107,7 @@ struct lcd_info {
 	unsigned int			adaptive_control;
 	int				temperature;
 	unsigned int			vrefresh;
+	unsigned int			disp_mode_idx;
 
 	unsigned int			current_brightness;	//todo: bit check
 	unsigned int			current_adaptive_control;
@@ -363,7 +364,7 @@ static int smcdsd_panel_send_msg(struct lcd_info *lcd, int force)
 	package[count++] = &PACKAGE_LIST[MSG_IDX_BASE][acl_table[lcd->adaptive_control]];
 
 	/* BRIGHTNESS */
-	package[count++] = &PACKAGE_LIST[MSG_IDX_BRIGHTNESS][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_BRIGHTNESS) + lcd->brightness];
+	package[count++] = GET_PACKAGE(&PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_BRIGHTNESS)], lcd->brightness);
 
 	/* ELVSS TEMP. */
 	if (lcd->temperature >= 1)
@@ -507,7 +508,7 @@ static int panel_set_brightness(struct backlight_device *bd)
 
 	smcdsd_commit_lock(lcd, true);
 	mutex_lock(&lcd->lock);
-	if (lcd->state) {		/* todo for aod backlight */
+	if (lcd->state) {
 		ret = smcdsd_panel_set_brightness(lcd, 0);
 		if (ret < 0)
 			dev_info(&lcd->ld->dev, "%s: failed to set brightness\n", __func__);
@@ -857,6 +858,7 @@ static int panel_dynamic_freq_notifier_callback(struct notifier_block *self,
 static int smcdsd_panel_framedone_dynamic_mipi(struct platform_device *p)
 {
 	struct lcd_info *lcd = get_lcd_info(p);
+
 	if (lcd) {
 		smcdsd_commit_lock(lcd, true);
 		mutex_lock(&lcd->lock);
@@ -1096,7 +1098,7 @@ static int panel_after_notifier_callback(struct notifier_block *self,
 	int fb_blank;
 
 	switch (event) {
-	case FB_EVENT_BLANK:
+	case SMCDSD_EVENT_BLANK:
 		break;
 	default:
 		return NOTIFY_DONE;
@@ -1986,8 +1988,8 @@ static ssize_t virtual_dynamic_mipi_show(struct device *dev,
 	return strlen(buf);
 }
 
-static DEVICE_ATTR(dynamic_mipi, 0664, dynamic_mipi_show, dynamic_mipi_store);
-static DEVICE_ATTR(virtual_dynamic_mipi, 0664, virtual_dynamic_mipi_show, virtual_dynamic_mipi_store);
+static DEVICE_ATTR_RW(dynamic_mipi);
+static DEVICE_ATTR_RW(virtual_dynamic_mipi);
 #endif
 
 static void panel_conn_register(struct lcd_info *lcd)
@@ -2332,19 +2334,21 @@ static int smcdsd_panel_exit(struct platform_device *p)
 	return 0;
 }
 
-static int smcdsd_panel_set_mode(struct platform_device *p, struct drm_display_mode *m, int stage)
+static int smcdsd_panel_set_mode(struct platform_device *p, struct drm_display_mode *m, unsigned int dst_mode, int stage)
 {
 	struct lcd_info *lcd = get_lcd_info(p);
 
 	if (stage == BEFORE_DSI_POWERDOWN)	/* todo */
 		return 0;
 
-	dbg_info("%s: refresh(%3u) after(%d) state(%u) doze(%u)\n", __func__, m->vrefresh, stage, lcd->state, lcd->doze_state);
+	dbg_info("%s: refresh(%3u) state(%u) doze(%u) mode(%d)\n", __func__, m->vrefresh, lcd->state, lcd->doze_state, dst_mode);
 
 	if (m->vrefresh != 60 && m->vrefresh != 120)	/* todo */
 		return 0;
 
 	lcd->vrefresh = m->vrefresh;
+
+	lcd->disp_mode_idx = dst_mode;
 
 	if (IS_NORMAL_MODE(lcd) == 0)
 		return 0;

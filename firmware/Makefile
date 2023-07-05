@@ -24,8 +24,11 @@ fw-external-$(CONFIG_TOUCHSCREEN_GOODIX_9895_BRL) += tsp_goodix/A33_GT9895_COMBI
 fw-external-$(CONFIG_TOUCHSCREEN_GOODIX_BRL) += tsp_goodix/gt9895_a34x.bin
 
 fw-external-$(CONFIG_TOUCHSCREEN_SYNAPTICS) += tsp_synaptics/s3908_m53x_boe.bin tsp_synaptics/s3908_m52xq_sdc.bin
+
 fw-external-$(CONFIG_SENSORS_A96T3X6_A12) += abov/a96t356_a12_main.bin abov/a96t356_a12_sub.bin \
-					 abov/a96t356_a12_usa_main.bin abov/a96t356_a12_usa_sub.bin
+					 abov/a96t356_a12_usa_main.bin abov/a96t356_a12_usa_sub.bin \
+					 abov/a96t356_a12_kor_main.bin abov/a96t356_a12_kor_sub.bin
+
 fw-external-$(CONFIG_SENSORS_A96T396_BIRDIE) += abov/a96t396_birdie_main.bin abov/a96t396_birdie_sub.bin abov/a96t396_birdie_wifi.bin
 fw-external-$(CONFIG_EPEN_WACOM_WEZ01) += epen/w9021_birdie.bin
 fw-external-$(CONFIG_KEYBOARD_STM32_POGO) += keyboard_stm/stm32_birdie.bin

@@ -179,7 +179,6 @@ int swtp_md_tx_power_req_hdlr(int md_id, int data)
 {
 	struct swtp_t *swtp = NULL;
 	unsigned long flags;
-
 	if (md_id < 0 || md_id >= SWTP_MAX_SUPPORT_MD) {
 		CCCI_LEGACY_ERR_LOG(md_id, SYS,
 		"%s:md_id=%d not support\n",

@@ -76,6 +76,7 @@
 extern struct pdic_notifier_struct pd_noti;
 extern int pdc_clear(void);
 extern int pdc_hard_rst(void);
+extern int f_mode_battery;
 #endif
 
 static struct charger_manager *pinfo;
@@ -1971,14 +1972,19 @@ static void mtk_charger_start_timer(struct charger_manager *info)
 	}
 
 	get_monotonic_boottime(&time_now);
+
+#if defined(CONFIG_SEC_FACTORY)
+	if (f_mode_battery == OB_MODE)
+		info->polling_interval = 60;
+#endif
 	time.tv_sec = info->polling_interval;
 	time.tv_nsec = 0;
 	info->endtime = timespec_add(time_now, time);
 
 	ktime = ktime_set(info->endtime.tv_sec, info->endtime.tv_nsec);
 
-	chr_err("%s: alarm timer start:%d, %ld %ld\n", __func__, ret,
-		info->endtime.tv_sec, info->endtime.tv_nsec);
+	chr_err("%s: alarm timer start:%d, %ld %ld polling_interval(%d) f_mode_battery(%d)\n", __func__, ret,
+		info->endtime.tv_sec, info->endtime.tv_nsec, info->polling_interval, f_mode_battery);
 	alarm_start(&pinfo->charger_timer, ktime);
 }
 

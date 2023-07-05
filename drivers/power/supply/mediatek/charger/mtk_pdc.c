@@ -282,8 +282,10 @@ void pdc_select_pdo(int idx)
 	pd_noti.sink_status.selected_pdo_num = idx + 1;
 	pd_noti.sink_status.current_pdo_num = idx + 1;
 #endif
+#if defined(CONFIG_SEC_FACTORY)
 	pr_info("%s: checking capabilities\n", __func__);
 	pdc_get_setting();
+#endif
 }
 
 int pdc_select_pps(int num, int ppsVol, int ppsCur)

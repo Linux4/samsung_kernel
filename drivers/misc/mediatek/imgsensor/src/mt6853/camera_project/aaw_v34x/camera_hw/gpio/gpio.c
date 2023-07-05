@@ -142,8 +142,8 @@ static enum IMGSENSOR_RETURN gpio_set(
 		sensor_idx < 0)
 		return IMGSENSOR_RETURN_ERROR;
 
-	gpio_state = (pin_state > IMGSENSOR_HW_PIN_STATE_LEVEL_0)
-		? GPIO_STATE_H : GPIO_STATE_L;
+	gpio_state = (pin_state > IMGSENSOR_HW_PIN_STATE_LEVEL_0) ? GPIO_STATE_H : GPIO_STATE_L;
+	PK_INFO("[GPIO %s] sensor_idx = %d, pin = %d", gpio_state ? "low" : "high", sensor_idx, pin);
 
 #ifdef MIPI_SWITCH
 	if (pin == IMGSENSOR_HW_PIN_MIPI_SWITCH_EN)

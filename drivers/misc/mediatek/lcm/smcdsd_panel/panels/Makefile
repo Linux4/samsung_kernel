@@ -1,4 +1,8 @@
-obj-$(CONFIG_SMCDSD_PANEL) += ../smcdsd_panel_init.o ../smcdsd_panel.o ../smcdsd_board.o ../smcdsd_notify.o ../smcdsd_abd.o
+obj-$(CONFIG_SMCDSD_PANEL) += ../smcdsd_panel_init.o ../smcdsd_panel.o
+
+obj-$(CONFIG_SMCDSD_PANEL) += ../../../../../gpu/drm/panel/smcdsd_panel/smcdsd_regmap.o ../../../../../gpu/drm/panel/smcdsd_panel/smcdsd_supply.o
+
+obj-$(CONFIG_SMCDSD_PANEL) += ../smcdsd_board.o ../smcdsd_notify.o ../smcdsd_abd.o
 
 obj-$(CONFIG_SMCDSD_DPUI) += dpui.o
 

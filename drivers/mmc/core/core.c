@@ -52,7 +52,7 @@
 #include "sd_ops.h"
 #include "sdio_ops.h"
 #include "mtk_mmc_block.h"
-
+#include "../host/mtk-sd-dbg.h"
 /* The max erase timeout, used when host->max_busy_timeout isn't specified */
 #define MMC_ERASE_TIMEOUT_MS	(60 * 1000) /* 60 s */
 
@@ -166,6 +166,8 @@ void mmc_request_done(struct mmc_host *host, struct mmc_request *mrq)
 	mmc_complete_cmd(mrq);
 
 	trace_mmc_request_done(host, mrq);
+
+	dbg_add_host_log(host, 1, cmd->opcode, cmd->resp[0]);
 
 	/*
 	 * We list various conditions for the command to be considered
@@ -1267,6 +1269,16 @@ int mmc_cqe_start_req(struct mmc_host *host, struct mmc_request *mrq)
 
 	mmc_mrq_pr_debug(host, mrq, true);
 
+	if(mrq->cmd)
+		dbg_add_host_log(host, 5, mrq->cmd->opcode, mrq->cmd->arg);
+
+	if(mrq->data){
+		if (mrq->data->flags & MMC_DATA_WRITE)
+			dbg_add_host_log(host, 5, MMC_EXECUTE_WRITE_TASK, mrq->data->blocks);//CMD47
+		else if (mrq->data->flags & MMC_DATA_READ)
+			dbg_add_host_log(host, 5, MMC_EXECUTE_READ_TASK, mrq->data->blocks);//CMD46
+	}
+
 	err = mmc_mrq_prep(host, mrq);
 	if (err)
 		goto out_err;
@@ -1313,15 +1325,24 @@ void mmc_cqe_request_done(struct mmc_host *host, struct mmc_request *mrq)
 	if (mrq->cmd) {
 		pr_debug("%s: CQE req done (direct CMD%u): %d\n",
 			 mmc_hostname(host), mrq->cmd->opcode, mrq->cmd->error);
+		dbg_add_host_log(host, 6, mrq->cmd->opcode, mrq->cmd->resp[0]);
 	} else {
 		pr_debug("%s: CQE transfer done tag %d\n",
 			 mmc_hostname(host), mrq->tag);
 	}
 
-	if (mrq->data) {
-		pr_debug("%s:     %d bytes transferred: %d\n",
-			 mmc_hostname(host),
-			 mrq->data->bytes_xfered, mrq->data->error);
+	if (mrq->data){
+		if (mrq->data->flags & MMC_DATA_WRITE){
+			pr_debug("%s:     %d bytes transferred: %d WRITE tag %d\n",
+				 mmc_hostname(host),
+				 mrq->data->bytes_xfered, mrq->data->error, mrq->tag);
+			dbg_add_host_log(host, 6, MMC_EXECUTE_WRITE_TASK, mrq->data->error);//CMD47
+		} else if (mrq->data->flags & MMC_DATA_READ){
+			pr_debug("%s:     %d bytes transferred: %d READ tag %d\n",
+				 mmc_hostname(host),
+				 mrq->data->bytes_xfered, mrq->data->error, mrq->tag);
+			dbg_add_host_log(host, 6, MMC_EXECUTE_READ_TASK, mrq->data->error);//CMD46
+		}
 	}
 
 	mrq->done(mrq);
@@ -1666,6 +1687,43 @@ int __mmc_claim_host(struct mmc_host *host, struct mmc_ctx *ctx,
 	return stop;
 }
 EXPORT_SYMBOL(__mmc_claim_host);
+
+/**
+ *     mmc_try_claim_host - try exclusively to claim a host
+ *        and keep trying for given time, with a gap of 10ms
+ *     @host: mmc host to claim
+ *     @dealy_ms: delay in ms
+ *
+ *     Returns %1 if the host is claimed, %0 otherwise.
+ */
+int mmc_try_claim_host(struct mmc_host *host, unsigned int delay_ms)
+{
+	int claimed_host = 0;
+	unsigned long flags;
+	int retry_cnt = delay_ms/10;
+	bool pm = false;
+
+	do {
+		spin_lock_irqsave(&host->lock, flags);
+		if (!host->claimed || mmc_ctx_matches(host, NULL, current)) {
+			host->claimed = 1;
+			mmc_ctx_set_claimer(host, NULL, current);
+			host->claim_cnt += 1;
+			claimed_host = 1;
+			if (host->claim_cnt == 1)
+				pm = true;
+		}
+		spin_unlock_irqrestore(&host->lock, flags);
+		if (!claimed_host)
+			mmc_delay(10);
+	} while (!claimed_host && retry_cnt--);
+
+	if (pm)
+		pm_runtime_get_sync(mmc_dev(host));
+
+	return claimed_host;
+}
+EXPORT_SYMBOL(mmc_try_claim_host);
 
 /**
  *	mmc_release_host - release a host
@@ -3067,7 +3125,7 @@ int mmc_can_sanitize(struct mmc_card *card)
 {
 	/* do not use sanitize*/
 	return 0;
-	
+
 	if (!mmc_can_trim(card) && !mmc_can_erase(card))
 		return 0;
 	if (card->ext_csd.sec_feature_support & EXT_CSD_SEC_SANITIZE)

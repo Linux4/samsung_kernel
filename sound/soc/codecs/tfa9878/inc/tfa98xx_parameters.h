@@ -710,7 +710,6 @@ struct tfa_features {
 	uint16_t value[3];	/* features value */
 };
 
-
 /*
  * the container file
  * - the size field is 32bits long (generic=16)

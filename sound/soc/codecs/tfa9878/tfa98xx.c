@@ -144,9 +144,10 @@ static int _tfa98xx_stop(struct tfa98xx *tfa98xx);
 static void tfa98xx_check_calibration(struct tfa98xx *tfa98xx);
 static int tfa98xx_run_calibration(struct tfa98xx *tfa98xx);
 
-static enum tfa98xx_error tfa98xx_set_tfadsp_bypass(struct tfa_device *tfa);
-
 static void tfa98xx_set_dsp_configured(struct tfa98xx *tfa98xx);
+
+static void tfa98xx_container_loaded
+	(const struct firmware *cont, void *context);
 
 struct tfa98xx_rate {
 	unsigned int rate;
@@ -1352,7 +1353,7 @@ static void tfa98xx_check_calibration(struct tfa98xx *tfa98xx)
 	}
 }
 
-static enum tfa98xx_error tfa98xx_set_tfadsp_bypass(struct tfa_device *tfa)
+enum tfa98xx_error tfa98xx_set_tfadsp_bypass(struct tfa_device *tfa)
 {
 	enum tfa98xx_error err = TFA98XX_ERROR_OK;
 	int res_len = 3;
@@ -2845,30 +2846,30 @@ static int tfa98xx_append_i2c_address(struct device *dev,
 	struct snd_soc_dai_driver *dai_drv,
 	int num_dai)
 {
-	char buf[50];
+	char buf[50], name[50] = {0};
 	int i;
 	int i2cbus = i2c->adapter->nr;
 	int addr = i2c->addr;
 
 	if (dai_drv && num_dai > 0)
 		for (i = 0; i < num_dai; i++) {
-			snprintf(buf, 50, "%s-%d-%x",
-				dai_drv[i].name,
-				i2cbus, addr);
+			memcpy(name, dai_drv[i].name,
+				strlen(dai_drv[i].name));
+			snprintf(buf, 50, "%s-%d-%x", name, i2cbus, addr);
 			dai_drv[i].name = tfa98xx_devm_kstrdup(dev, buf);
 			pr_info("dai_drv[%d].name=%s\n", i, dai_drv[i].name);
 
-			snprintf(buf, 50, "%s-%d-%x",
-				dai_drv[i].playback.stream_name,
-				i2cbus, addr);
+			memcpy(name, dai_drv[i].playback.stream_name,
+				strlen(dai_drv[i].playback.stream_name));
+			snprintf(buf, 50, "%s-%d-%x", name, i2cbus, addr);
 			dai_drv[i].playback.stream_name
 				= tfa98xx_devm_kstrdup(dev, buf);
 			pr_info("dai_drv[%d].playback.stream_name=%s\n",
 				i, dai_drv[i].playback.stream_name);
 
-			snprintf(buf, 50, "%s-%d-%x",
-				dai_drv[i].capture.stream_name,
-				i2cbus, addr);
+			memcpy(name, dai_drv[i].capture.stream_name,
+				strlen(dai_drv[i].capture.stream_name));
+			snprintf(buf, 50, "%s-%d-%x", name, i2cbus, addr);
 			dai_drv[i].capture.stream_name
 				= tfa98xx_devm_kstrdup(dev, buf);
 			pr_info("dai_drv[%d].capture.stream_name=%s\n",
@@ -2888,8 +2889,10 @@ static int tfa98xx_append_i2c_address(struct device *dev,
 				continue;
 			if ((widgets[i].id == snd_soc_dapm_aif_in)
 				|| (widgets[i].id == snd_soc_dapm_aif_out)) {
+				memcpy(name, widgets[i].sname,
+					strlen(widgets[i].sname));
 				snprintf(buf, 50, "%s-%d-%x",
-					widgets[i].sname, i2cbus, addr);
+					name, i2cbus, addr);
 				widgets[i].sname
 					= tfa98xx_devm_kstrdup(dev, buf);
 				pr_info("widgets[%d].sname=%s\n",
@@ -3327,6 +3330,9 @@ static void tfa98xx_interrupt_enable_tfa2(struct tfa98xx *tfa98xx, bool enable)
 {
 	tfa98xx->istatus = 0;
 
+	/* clear all the events before enabling */
+	tfa_irq_clear(tfa98xx->tfa, tfa98xx->tfa->irq_all);
+
 	tfa_irq_ena(tfa98xx->tfa, tfa9878_irq_stotds, enable);
 	tfa_irq_ena(tfa98xx->tfa, tfa9878_irq_stocpr, enable);
 	tfa_irq_ena(tfa98xx->tfa, tfa9878_irq_stuvds, enable);
@@ -3361,6 +3367,7 @@ static void tfa98xx_container_loaded
 		mutex_unlock(&probe_lock);
 		return;
 	}
+
 	tfa98xx->dsp_fw_state = TFA98XX_DSP_FW_FAIL;
 
 	if (!cont) {
@@ -3679,6 +3686,7 @@ static void tfa98xx_dsp_init(struct tfa98xx *tfa98xx)
 	bool reschedule = false;
 	bool sync = false;
 	bool do_sync;
+	int active_device_count = tfa98xx_device_count;
 
 	if (tfa98xx->dsp_fw_state != TFA98XX_DSP_FW_OK) {
 		pr_debug("Skipping tfa_dev_start (no FW: %d)\n",
@@ -3748,10 +3756,11 @@ static void tfa98xx_dsp_init(struct tfa98xx *tfa98xx)
 
 	/* check if all devices have started */
 	mutex_lock(&tfa98xx_mutex);
-	if (tfa98xx_sync_count < tfa98xx_device_count)
+	active_device_count = tfa98xx->tfa->active_count;
+	if (tfa98xx_sync_count < active_device_count)
 		tfa98xx_sync_count++;
 
-	do_sync = (tfa98xx_sync_count >= tfa98xx_device_count);
+	do_sync = (tfa98xx_sync_count >= active_device_count);
 
 	/* when all devices have started then unmute */
 	if (do_sync) {
@@ -4106,8 +4115,10 @@ static int _tfa98xx_mute(struct tfa98xx *tfa98xx, int mute, int stream)
 			mute,
 			tfa98xx->pstream, tfa98xx->cstream, tfa98xx->samstream);
 
-		if (tfa98xx_count_active_stream(BIT_PSTREAM)
-			== tfa98xx_device_count) /* at first device */
+		if ((tfa98xx_count_active_stream(BIT_PSTREAM)
+			== tfa98xx_device_count)
+			&& (tfa98xx_count_active_stream(BIT_CSTREAM)
+			== tfa98xx_device_count)) /* at first mute of either */
 			if (tfa98xx->tfa->blackbox_enable
 				&& !tfa98xx->tfa->unset_log) {
 				/* get logging once
@@ -4160,6 +4171,13 @@ static int _tfa98xx_mute(struct tfa98xx *tfa98xx, int mute, int stream)
 			|((tfa98xx->cstream<<1) & BIT_CSTREAM)
 			|((tfa98xx->samstream<<2) & BIT_SAMSTREAM));
 		mutex_unlock(&tfa98xx->dsp_lock);
+
+		if (tfa98xx->tfa->set_active == 0) {
+			pr_info("%s: skip unmuting device %d, if it's forced to set inactive\n",
+				__func__, tfa98xx->tfa->dev_idx);
+			tfa98xx->tfa->unset_log = 1;
+			return 0;
+		}
 
 		/* case: either p/cstream (both) or samstream is on
 		 * if ((tfa98xx->pstream != 0 && tfa98xx->cstream != 0)
@@ -5471,7 +5489,6 @@ enum tfa98xx_error tfa_get_vval_data_channel(int channel, uint16_t *value)
 }
 EXPORT_SYMBOL(tfa_get_vval_data_channel);
 
-
 int tfa_get_power_state(int index)
 {
 	struct tfa_device *tfa = tfa98xx_get_tfa_device_from_index(index);
@@ -5523,7 +5540,21 @@ int tfa98xx_update_spkt_data(int idx)
 	if (tfa->tfa_family == 0)
 		return DEFAULT_REF_TEMP;
 
+	if (tfa->active_handle > 0) {
+		pr_info("%s: switched to active handle - %d\n",
+			__func__, tfa->active_handle);
+		tfa = tfa98xx_get_tfa_device_from_index(tfa->active_handle);
+		if (tfa == NULL)
+			return DEFAULT_REF_TEMP;
+		if (tfa->tfa_family == 0)
+			return DEFAULT_REF_TEMP;
+	}
+
 	ndev = tfa->dev_count;
+#if !defined(TFA_STEREO_NODE)
+	if (ndev == 1 && idx > 0)
+		idx = 0; /* use device 0 in mono, by force */
+#endif
 	if ((ndev < 1)
 		|| (idx < 0 || idx >= ndev))
 		return DEFAULT_REF_TEMP;
@@ -5552,6 +5583,12 @@ int tfa98xx_update_spkt_data(int idx)
 
 	if (pm > 0) /* reset temperature in low power state */
 		return DEFAULT_REF_TEMP;
+
+	if (tfa->is_configured <= 0) {
+		pr_info("%s: skipped - tfadsp is not active\n",
+			__func__);
+		return DEFAULT_REF_TEMP;
+	}
 
 	pr_info("%s: tfa_stc - read tspkr for stc\n",
 		__func__);
@@ -5603,7 +5640,21 @@ int tfa98xx_write_sknt_control(int idx, int value)
 	if (tfa->tfa_family == 0)
 		return -ENODEV;
 
+	if (tfa->active_handle > 0) {
+		pr_info("%s: switched to active handle - %d\n",
+			__func__, tfa->active_handle);
+		tfa = tfa98xx_get_tfa_device_from_index(tfa->active_handle);
+		if (tfa == NULL)
+			return -ENODEV;
+		if (tfa->tfa_family == 0)
+			return -ENODEV;
+	}
+
 	ndev = tfa->dev_count;
+#if !defined(TFA_STEREO_NODE)
+	if (ndev == 1 && idx > 0)
+		idx = 0; /* use device 0 in mono, by force */
+#endif
 	if ((ndev < 1)
 		|| (idx < 0 || idx >= ndev))
 		return -EINVAL;
@@ -5622,6 +5673,12 @@ int tfa98xx_write_sknt_control(int idx, int value)
 
 	if (tfa->is_calibrating) {
 		pr_info("%s: skipped - tfadsp is running calibraion!\n",
+			__func__);
+		goto tfa98xx_write_sknt_control_exit;
+	}
+
+	if (tfa->is_configured <= 0) {
+		pr_info("%s: skipped - tfadsp is not active\n",
 			__func__);
 		goto tfa98xx_write_sknt_control_exit;
 	}

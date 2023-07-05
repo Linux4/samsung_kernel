@@ -10,7 +10,11 @@
 
 #define RT_MAX_NUM 10
 #define ESD_CHECK_NUM 3
+#if defined(CONFIG_SMCDSD_PANEL)
+#define MAX_TX_CMD_NUM 30
+#else
 #define MAX_TX_CMD_NUM 20
+#endif
 #define MAX_RX_CMD_NUM 20
 #define READ_DDIC_SLOT_NUM (4 * MAX_RX_CMD_NUM)
 #define MAX_DYN_CMD_NUM 20
@@ -290,8 +294,7 @@ struct mtk_panel_funcs {
 #endif
 	int (*set_backlight_cmdq)(void *dsi_drv, dcs_write_gce cb,
 		void *handle, unsigned int level);
-	int (*set_dispon_cmdq)(void *dsi_drv, dcs_write_gce cb,
-		void *handle);
+	int (*set_dispon_cmdq)(struct drm_panel *panel);
 	int (*set_aod_light_mode)(void *dsi_drv, dcs_write_gce cb,
 		void *handle, unsigned int mode);
 	int (*set_backlight_grp_cmdq)(void *dsi_drv, dcs_grp_write_gce cb,
@@ -360,6 +363,7 @@ struct mtk_panel_funcs {
 
 	int (*hbm_set_cmdq)(struct drm_panel *panel, void *dsi_drv,
 			    dcs_write_gce cb, void *handle, bool en);
+	int (*hbm_set_lcm_cmdq)(struct drm_panel *panel, bool en);
 	void (*hbm_get_state)(struct drm_panel *panel, bool *state);
 	void (*hbm_get_wait_state)(struct drm_panel *panel, bool *wait);
 	bool (*hbm_set_wait_state)(struct drm_panel *panel, bool wait);

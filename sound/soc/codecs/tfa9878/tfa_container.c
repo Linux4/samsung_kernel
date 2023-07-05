@@ -27,7 +27,8 @@ static int float_to_int(uint32_t x)
 {
 	unsigned int e, m;
 
-	e = (0x7f + 31) - ((*(unsigned int *)&x & 0x7f800000) >> 23);
+	e = (unsigned int)((0x7f + 31)
+		- (int)((*(unsigned int *)&x & 0x7f800000) >> 23));
 	m = 0x80000000 | (*(unsigned int *)&x << 8);
 
 	return -(int)((m >> e) & -(e < 32));
@@ -2135,12 +2136,12 @@ enum tfa98xx_error tfa_cont_write_profile(struct tfa_device *tfa,
 
 	/* set new settings */
 	for (i = 0; i < prof->length; i++) {
-		/* Remember where we currently are with writing items*/
-		j = i;
-
 		/* only to write the values before default section
 		 * when we switch profile
 		 */
+		if (prof->list[i].type == dsc_default)
+			break;
+
 		/* process and write all non-file items */
 		switch (prof->list[i].type) {
 		case dsc_file:
@@ -2158,11 +2159,13 @@ enum tfa98xx_error tfa_cont_write_profile(struct tfa_device *tfa,
 		case dsc_set_vddp_config:
 		case dsc_cmd:
 		case dsc_filter:
-		case dsc_default:
 			/* Skip files / commands and continue */
 			/* i = prof->length; */
 			break;
 		default:
+			/* Remember where we currently are with writing items*/
+			j = i;
+
 			err = tfa_cont_write_item(tfa, &prof->list[i]);
 			if (err != TFA98XX_ERROR_OK) {
 				pr_err("%s: Error in writing items!\n",
@@ -2261,6 +2264,9 @@ enum tfa98xx_error tfa_cont_write_profile(struct tfa_device *tfa,
 				tfa_cont_get_string(tfa->cnt,
 				&prof_tfadsp->name), prof_idx);
 	}
+
+	if (tfa->dev_tfadsp != -1)
+		j = 0; /* reset to begin from the head */
 
 	/* write everything
 	 * until end or the default section starts
@@ -3007,11 +3013,6 @@ int tfa_tib_dsp_msgmulti(struct tfa_device *tfa,
 		total[idx] = len_word_in_bytes;
 	}
 
-	/* Accumulate messages to buffer */
-	if (tfa->verbose)
-		pr_debug("%s, id:0x%02x%02x%02x, length:%d\n",
-			__func__, buf[0], buf[1], buf[2], length);
-
 	/* check total message size after concatination */
 	post_len = total[idx] + length + (2 * len_word_in_bytes);
 	if (post_len > tfadsp_max_msg_size) {
@@ -3020,6 +3021,17 @@ int tfa_tib_dsp_msgmulti(struct tfa_device *tfa,
 			tfadsp_max_msg_size, total[idx]);
 		return TFA98XX_ERROR_BUFFER_TOO_SMALL;
 	}
+
+	if (buf == NULL) {
+		pr_err("%s: buf is NULL (index %d)!\n",
+			__func__, idx);
+		return TFA98XX_ERROR_FAIL;
+	}
+
+	/* Accumulate messages to buffer */
+	if (tfa->verbose)
+		pr_debug("%s, id:0x%02x%02x%02x, length:%d\n",
+			__func__, buf[0], buf[1], buf[2], length);
 
 	/* add length field (length in words) to the multi message */
 	if (tfa->convert_dsp32) {

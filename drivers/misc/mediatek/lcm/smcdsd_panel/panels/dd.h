@@ -39,9 +39,11 @@ extern void init_debugfs_param(const char *name, void *ptr, u32 ptr_type, u32 su
 
 #if defined(CONFIG_DEBUG_FS) && !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SMCDSD_LCD_DEBUG)
 extern void dsi_write_data_dump(u32 id, unsigned long d0, u32 d1);
+extern void dsi_rx_data_dump(u32 id, u8 cmd, int size, int ret_size, void *data);
 extern int run_cmdlist(u32 index);
 #else
 #define dsi_write_data_dump(...)
+#define dsi_rx_data_dump(...)
 #define run_cmdlist(...)
 #endif
 

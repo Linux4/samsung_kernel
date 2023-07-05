@@ -10,8 +10,11 @@
 #define MEM_TEST_SIZE	0x2000
 #define PATTERN1	0x5A5A5A5A
 #define PATTERN2	0xA5A5A5A5
-
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+int mtk_dramc_binning_test_sz(unsigned int len)
+#else
 int mtk_dramc_binning_test(void)
+#endif
 {
 	unsigned char *mem8_base;
 	unsigned short *mem16_base;
@@ -22,7 +25,9 @@ int mtk_dramc_binning_test(void)
 	unsigned short pattern16;
 	unsigned int i, j, size, pattern32;
 	unsigned int value;
+#if !IS_ENABLED(CONFIG_SEC_FACTORY)
 	unsigned int len = MEM_TEST_SIZE;
+#endif
 	void *ptr;
 	int ret = 1;
 
@@ -370,4 +375,9 @@ fail:
 	vfree(ptr);
 	return ret;
 }
-
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+int mtk_dramc_binning_test(void)
+{
+	return mtk_dramc_binning_test_sz(MEM_TEST_SIZE);
+}
+#endif

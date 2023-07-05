@@ -202,7 +202,7 @@ ccflags-y += -DGED_CONFIGURE_LOADING_BASE_DVFS_STEP
 ccflags-y += -DGED_ENABLE_TIMER_BASED_DVFS_MARGIN
 endif
 
-#ccflags-y += -DCONFIG_MTK_QOS_V1_SUPPORT
+ccflags-y += -DCONFIG_MTK_QOS_V1_SUPPORT
 
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/cmdq/v3
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/cmdq/v3/$(subst ",,$(CONFIG_MTK_PLATFORM))

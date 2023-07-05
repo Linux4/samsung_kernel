@@ -54,12 +54,21 @@ static char *dsp_task_dsp_name[AUDIO_TASK_DAI_NUM] = {
 	[AUDIO_TASK_MUSIC_ID]       = "mtk_dsp_music",
 	[AUDIO_TASK_CAPTURE_UL1_ID] = "mtk_dsp_capture1",
 	[AUDIO_TASK_A2DP_ID]        = "mtk_dsp_a2dp",
+	[AUDIO_TASK_BLEDL_ID]       = "mtk_dsp_bledl",
+	[AUDIO_TASK_BLEUL_ID]       = "mtk_dsp_bleul",
 	[AUDIO_TASK_DATAPROVIDER_ID] = "mtk_dsp_dataprovider",
 	[AUDIO_TASK_CALL_FINAL_ID]  = "mtk_dsp_call_final",
 	[AUDIO_TASK_FAST_ID]        = "mtk_dsp_fast",
 	[AUDIO_TASK_KTV_ID]         = "mtk_dsp_ktv",
 	[AUDIO_TASK_CAPTURE_RAW_ID] = "mtk_dsp_capture_raw",
 	[AUDIO_TASK_FM_ADSP_ID]     = "mtk_dsp_fm",
+	[AUDIO_TASK_UL_PROCESS_ID]  = "mtk_dsp_ulproc",
+	[AUDIO_TASK_ECHO_REF_ID]    = "mtk_dsp_echoref",
+	[AUDIO_TASK_ECHO_REF_DL_ID] = "mtk_dsp_echodl",
+	[AUDIO_TASK_USBDL_ID]       = "mtk_dsp_usbdl",
+	[AUDIO_TASK_USBUL_ID]       = "mtk_dsp_usbul",
+	[AUDIO_TASK_MDDL_ID]        = "mtk_dsp_mddl",
+	[AUDIO_TASK_MDUL_ID]        = "mtk_dsp_mdul",
 };
 
 static int dsp_runtime_suspend(struct device *dev)

@@ -24,6 +24,8 @@ enum AUD_CTL_MSG_id_call_t {
 	/* Boot & recovery */
 	AUD_CTL_MSG_A2D_HAL_REBOOT          = AUD_CTL_MSG_A2D_BASE + 0xB0,
 
+	/* Test */
+	AUD_CTL_MSG_A2D_IPI_TEST            = AUD_CTL_MSG_A2D_BASE + 0xC0,
 
 	/* DMA control msg, 0xADD- */
 	AUD_CTL_MSG_A2D_DMA_INIT            = AUD_CTL_MSG_A2D_BASE + 0xD0,
