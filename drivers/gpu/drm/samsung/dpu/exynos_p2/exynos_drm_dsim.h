@@ -26,15 +26,11 @@
 #include <exynos_drm_crtc.h>
 #include <dsim_cal.h>
 
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-#include <mcd_drm_dsim.h>
-#endif
-
 enum dsim_state {
-	DSIM_STATE_INIT, /* already enabled state froam LK display */
-	DSIM_STATE_HSCLKEN,
-	DSIM_STATE_ULPS,
-	DSIM_STATE_SUSPEND
+	DSIM_STATE_INIT,	/* already enabled state froam LK display */
+	DSIM_STATE_HSCLKEN,	/* enable-state */
+	DSIM_STATE_ULPS,        /* ulps-state by hibernation */
+	DSIM_STATE_SUSPEND      /* disable-state */
 };
 
 struct dsim_pll_params {
@@ -97,8 +93,10 @@ struct dsim_device {
 	struct completion ph_wr_comp;
 	struct completion rd_comp;
 	struct timer_list cmd_timer;
+	struct work_struct cmd_work;
 
 	enum dsim_state state;
+	bool lp_mode_state;
 
 	/* set bist mode by sysfs */
 	unsigned int bist_mode;
@@ -112,12 +110,18 @@ struct dsim_device {
 	struct dsim_fb_handover fb_handover;
 
 	struct dsim_burst_cmd burst_cmd;
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-	struct mcd_dsim_device mcd_dsim;
-#endif
+	bool lp11_reset;
 };
 
 extern struct dsim_device *dsim_drvdata[MAX_DSI_CNT];
+
+static inline struct dsim_device *get_dsim_drvdata(u32 id)
+{
+	if (id < MAX_DSI_CNT)
+		return dsim_drvdata[id];
+
+	return NULL;
+}
 
 #define to_dsi(nm)	container_of(nm, struct dsim_device, nm)
 
@@ -163,4 +167,5 @@ void dsim_exit_ulps(struct dsim_device *dsim);
 void dsim_wait_pending_vblank(struct dsim_device *dsim);
 void dsim_dump(struct dsim_device *dsim);
 int dsim_free_fb_resource(struct dsim_device *dsim);
+void dsim_atomic_activate(struct drm_encoder *encoder);
 #endif /* __EXYNOS_DRM_DSI_H__ */

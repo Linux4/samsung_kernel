@@ -1789,7 +1789,9 @@ static void cal_work_func(struct work_struct *work)
 		isg5320a_i2c_read(data, ISG5320A_TARGET_CDC_REG, &buf[2], sizeof(buf[2]));
 
 		if (buf[0] != data->debug_val[0] || buf[1] != data->debug_val[1] || buf[2] != data->debug_val[2]) {
-			GRIP_ERR("the power was off\n");
+			GRIP_ERR("reg check fail - reg[0] : %d %d, reg[1] : %d %d, reg[2] : %d %d\n",
+				buf[0], data->debug_val[0], buf[1], data->debug_val[1], buf[2], data->debug_val[2]);
+
 			isg5320a_reset(data);
 			isg5320a_set_mode(data, ISG5320A_MODE_SLEEP);
 			isg5320a_initialize(data);
@@ -1800,9 +1802,10 @@ static void cal_work_func(struct work_struct *work)
 		GRIP_INFO("cdc : %d, cfcal_th %d, cal_ok = %d cdc_fail = %d setup_parse_check = %d i2c_err = %d, reg_err = %d\n", data->cdc,
 			data->cfcal_th, data->cal_done_flag, data->cdc_ret_flag, data->setup_reg_exist, data->i2c_fail_err, data->reg_err);
 		isg5320a_force_calibration(data, false);
+		isg5320a_enter_unknown_mode(data, TYPE_FORCE);
 		force_cal = true;
 	}
-
+#if 0
 	// check bfcal
 	if (data->bfcal_chk_start) {
 		data->bfcal_chk_count++;
@@ -1817,6 +1820,7 @@ static void cal_work_func(struct work_struct *work)
 				if (((s32)data->bfcal_chk_cdc - (s32)data->cdc) >=
 				    data->bfcal_chk_diff) {
 					isg5320a_force_calibration(data, true);
+					isg5320a_enter_unknown_mode(data, TYPE_FORCE);
 					force_cal = true;
 					data->bfcal_chk_start = false;
 					data->bfcal_chk_ready = false;
@@ -1829,7 +1833,7 @@ static void cal_work_func(struct work_struct *work)
 			}
 		}
 	}
-
+#endif
 	if (force_cal)
 		schedule_delayed_work(&data->cal_work, msecs_to_jiffies(1000));
 	else
@@ -1944,7 +1948,7 @@ static int isg5320a_parse_dt(struct isg5320a_data *data, struct device *dev)
 			data->setup_reg_exist = true;
 		}
 	}
-#if defined(CONFIG_SENSORS_ISG5320A_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_ISG5320A_SUB)
 	if (data->ic_num == SUB_GRIP) {
 		data->gpio_int = of_get_named_gpio_flags(node, "isg5320a_sub,irq-gpio", 0,
 							 &flags);
@@ -2002,7 +2006,7 @@ static int isg5320a_probe(struct i2c_client *client,
 
 	if (strcmp(client->name, "isg5320a") == 0)
 		ic_num = MAIN_GRIP;
-#if defined(CONFIG_SENSORS_ISG5320A_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_ISG5320A_SUB)
 	else if (strcmp(client->name, "isg5320a_sub") == 0)
 		ic_num = SUB_GRIP;
 #endif
@@ -2060,6 +2064,7 @@ static int isg5320a_probe(struct i2c_client *client,
 	noti_input_dev = input_allocate_device();
 	if (!noti_input_dev) {
 		pr_err("[GRIP_%d] input_allocate_device failed\n", data->ic_num);
+		input_free_device(input_dev);
 		goto err_noti_input_alloc;
 	}
 
@@ -2075,6 +2080,8 @@ static int isg5320a_probe(struct i2c_client *client,
 	ret = isg5320a_reset(data);
 	if (ret < 0) {
 		GRIP_ERR("IMAGIS reset failed\n");
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_soft_reset;
 	}
 
@@ -2109,6 +2116,8 @@ static int isg5320a_probe(struct i2c_client *client,
 				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT, isg5320a_device_name[data->ic_num], data);
 	if (ret < 0) {
 		GRIP_ERR("failed to register interrupt\n");
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_irq;
 	}
 	disable_irq(client->irq);
@@ -2116,15 +2125,16 @@ static int isg5320a_probe(struct i2c_client *client,
 
 	ret = input_register_device(input_dev);
 	if (ret) {
-		input_free_device(input_dev);
 		GRIP_ERR("failed to register input dev (%d)\n", ret);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_register_input_dev;
 	}
 
 	ret = input_register_device(noti_input_dev);
 	if (ret) {
-		input_free_device(noti_input_dev);
 		GRIP_ERR("failed to register input dev for noti (%d)\n", ret);
+		input_free_device(noti_input_dev);
 		goto err_register_input_dev_noti;
 	}
 
@@ -2329,7 +2339,7 @@ static struct i2c_driver isg5320a_driver = {
 	.shutdown = isg5320a_shutdown,
 };
 
-#if defined(CONFIG_SENSORS_ISG5320A_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_ISG5320A_SUB)
 static const struct of_device_id isg5320a_sub_match_table[] = {
 	{ .compatible = "isg5320a_sub", },
 	{ },
@@ -2360,7 +2370,7 @@ static int __init isg5320a_init(void)
 	ret = i2c_add_driver(&isg5320a_driver);
 	if (ret != 0)
 		pr_err("[GRIP] isg5320a_driver probe fail\n");
-#if defined(CONFIG_SENSORS_ISG5320A_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_ISG5320A_SUB)
 	ret = i2c_add_driver(&isg5320a_sub_driver);
 	if (ret != 0)
 		pr_err("[GRIP_SUB] isg5320a_sub_driver probe fail\n");

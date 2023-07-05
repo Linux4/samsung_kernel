@@ -1697,6 +1697,16 @@ int npu_system_resume(struct npu_system *system, u32 mode)
 	set_bit(NPU_SYS_RESUME_FW_LOAD, &system->resume_steps);
 	set_bit(NPU_SYS_RESUME_FW_VERIFY, &system->resume_steps);
 
+#ifdef CONFIG_NPU_USE_HW_DEVICE
+	{
+		struct npu_memory_buffer *fwmem;
+
+		fwmem = npu_get_mem_area(system, "fwmem");
+		if (likely(fwmem->vaddr))
+			print_ufw_signature(fwmem);
+	}
+#endif
+
 #ifndef CONFIG_NPU_USE_BOOT_IOCTL
 	ret = npu_clk_prepare_enable(&system->clks);
 	if (ret) {
@@ -1949,9 +1959,6 @@ static int npu_firmware_load(struct npu_system *system, int mode)
 
 	// dma_sync_sg_for_device(fwmem->attachment->dev, fwmem->sgt->sgl, fwmem->sgt->orig_nents, DMA_TO_DEVICE);
 
-#ifdef CONFIG_NPU_USE_HW_DEVICE
-	print_ufw_signature(fwmem);
-#endif
 	npu_info("complete in npu_firmware_load\n");
 	return ret;
 err_exit:

@@ -71,6 +71,7 @@ static enum power_supply_property s2mu106_otg_props[] = {
 static int s2mu106_get_charging_health(struct s2mu106_charger_data *charger);
 static void s2mu106_set_input_current_limit(struct s2mu106_charger_data *charger, int charging_current);
 static int s2mu106_get_input_current_limit(struct s2mu106_charger_data *charger);
+static irqreturn_t s2mu106_ivr_isr(int irq, void *data);
 
 static void s2mu106_test_read(struct i2c_client *i2c)
 {
@@ -423,10 +424,25 @@ static bool s2mu106_chgin_status(struct s2mu106_charger_data * charger)
 		return false;
 }
 
+static void s2mu106_init_ivr_irq(struct s2mu106_charger_data *charger)
+{
+	int ret;
+
+	charger->irq_ivr = charger->s2mu106_pdata->irq_base + S2MU106_CHG2_IRQ_IVR;
+	ret = request_threaded_irq(charger->irq_ivr, NULL,
+			s2mu106_ivr_isr, 0, "ivr-irq", charger);
+	if (ret < 0) {
+		pr_err("%s: Fail to request IVR_INT IRQ: %d: %d\n",
+			__func__, charger->irq_ivr, ret);
+	}
+	pr_info("%s: %d\n", __func__, irqd_irq_disabled(&irq_to_desc(charger->irq_ivr)->irq_data));
+}
+
 static void s2mu106_set_buck(
 	struct s2mu106_charger_data *charger, int enable)
 {
 	int prev_current;
+	u8 data;
 
 	if (factory_mode) {
 		pr_info("%s: Skip in Factory Mode\n", __func__);
@@ -452,8 +468,13 @@ static void s2mu106_set_buck(
 		}
 		regmode_vote(charger, REG_MODE_CHG|REG_MODE_BUCK, 0);
 		if (chgin_sts) {
-			/* auto async mode */
-			s2mu106_update_reg(charger->i2c, 0x3A, 0x01, 0x03);
+			if (charger->cable_type != SEC_BATTERY_CABLE_PDIC_APDO) {
+				/* auto async mode */
+				s2mu106_update_reg(charger->i2c, 0x3A, 0x01, 0x03);
+			} else {
+				s2mu106_read_reg(charger->i2c, 0x3A, &data);
+				pr_info("%s, skip sync mode default value in DC charging(%02x)\n", __func__, data);
+			}
 			s2mu106_set_input_current_limit(charger, prev_current);
 		}
 	}
@@ -821,6 +842,12 @@ static bool s2mu106_chg_init(struct s2mu106_charger_data *charger)
 	/* change ramp delay 128usec 0x92[3:0] = 0x05 */
 	s2mu106_update_reg(charger->i2c, 0x92, 0x05, 0x0F);
 
+	if (charger->pdata->change_3_level_osc) {
+		/* change 3 level osc 0x98[6:4] = 011 */
+		s2mu106_update_reg(charger->i2c, 0x98, 0x30, 0x70);
+		pr_info("%s: change_3_level_osc\n", __func__);
+	}
+
 	/* OTG OCP 1200mA, TX OCP 1500mA */
 	s2mu106_update_reg(charger->i2c, S2MU106_CHG_CTRL3,
 			(S2MU106_SET_OTG_TX_OCP_1500mA << SET_TX_OCP_SHIFT) |
@@ -965,6 +992,7 @@ static void s2mu106_set_charging_efficiency(struct s2mu106_charger_data *charger
 		s2mu106_update_reg(charger->i2c, 0x9E,
 				(charger->reg_0x9E & 0xF0) >> 4, 0x0F);
 		s2mu106_update_reg(charger->i2c, 0xAD, 0x04, 0x1F);
+		s2mu106_update_reg(charger->i2c, 0x3A, 0x01, 0x03); // SET_auto sync
 
 		s2mu106_read_reg(charger->i2c, 0x9E, &data);
 		pr_info("%s, 9V TA Setting! : 0x9E = 0x%2x(0x%2x)\n",
@@ -1265,6 +1293,40 @@ static void s2mu106_change_charge_path(struct s2mu106_charger_data *charger, int
 	pr_info("%s: CHG_CTRL3 (0x%x)\n", __func__, reg);
 }
 
+static bool s2mu106_irq_enable(int irq, bool en)
+{
+	bool ret = false;
+
+	if (irq <= 0)
+		return ret;
+
+	if (en && irqd_irq_disabled(&irq_to_desc(irq)->irq_data)) {
+		enable_irq(irq);
+		ret = true;
+	} else if (!en && !irqd_irq_disabled(&irq_to_desc(irq)->irq_data)) {
+		disable_irq_nosync(irq);
+		ret = true;
+	}
+	pr_info("%s : irq: %d, en: %d, st: %d\n", __func__, irq, en,
+		irqd_irq_disabled(&irq_to_desc(irq)->irq_data));
+
+	return ret;
+}
+
+static void s2mu106_ivr_irq_enable(struct s2mu106_charger_data *charger, bool en)
+{
+	u8 reg_data = 0;
+	bool ret = false;
+
+	ret = s2mu106_irq_enable(charger->irq_ivr, en);
+
+	if (ret) {
+		s2mu106_read_reg(charger->i2c, S2MU106_CHG_INT2M, &reg_data);
+		pr_info("%s: %s ivr : 0x%x\n",
+			__func__, en ? "enable" : "disable", reg_data);
+	}
+}
+
 static int s2mu106_chg_set_property(struct power_supply *psy,
 		enum power_supply_property psp,
 		const union power_supply_propval *val)
@@ -1288,6 +1350,9 @@ static int s2mu106_chg_set_property(struct power_supply *psy,
 		charger->slow_charging = false;
 		charger->ivr_on = false;
 		s2mu106_change_charge_path(charger, charger->cable_type);
+		if (charger->pdata->boosting_voltage_aicl)
+			s2mu106_ivr_irq_enable(charger, true);
+
 		if (is_wireless_type(charger->cable_type)) {
 			/* Loop B/W 4khz -> 20kHz */
 			s2mu106_update_reg(charger->i2c, 0x75, 0x1, 0x0F);
@@ -1300,6 +1365,7 @@ static int s2mu106_chg_set_property(struct power_supply *psy,
 		if (is_nocharge_type(charger->cable_type)) {
 			pr_err("[DEBUG]%s:[BATT] Type Battery\n", __func__);
 			regmode_vote(charger, REG_MODE_BUCK_OFF_FOR_FLASH | REG_MODE_BST, 0);
+			s2mu106_update_reg(charger->i2c, 0x3A, 0x01, 0x03); // SET_auto sync
 			value.intval = 0;
 		} else {
 			value.intval = 1;
@@ -1314,17 +1380,15 @@ static int s2mu106_chg_set_property(struct power_supply *psy,
 			pr_err("%s: Fail to execute property\n", __func__);
 
 		if (is_nocharge_type(charger->cable_type)) {
-			/* At cable removal enable IVR IRQ if it was disabled */
-			if (charger->irq_ivr_enabled == 0) {
-				u8 reg_data;
-
-				charger->irq_ivr_enabled = 1;
-				/* Unmask IRQ */
-				s2mu106_update_reg(charger->i2c, S2MU106_CHG_INT2M,
-						0 << IVR_M_SHIFT, IVR_M_MASK);
-				enable_irq(charger->irq_ivr);
-				s2mu106_read_reg(charger->i2c, S2MU106_CHG_INT2M, &reg_data);
-				pr_info("%s : enable ivr : 0x%x\n", __func__, reg_data);
+			if (!charger->pdata->boosting_voltage_aicl)
+				s2mu106_ivr_irq_enable(charger, true);
+		} else if (is_hv_wire_type(charger->cable_type) ||
+			(charger->cable_type == SEC_BATTERY_CABLE_HV_TA_CHG_LIMIT)) {
+			if (!charger->pdata->boosting_voltage_aicl) {
+				s2mu106_ivr_irq_enable(charger, false);
+				cancel_delayed_work_sync(&charger->ivr_work);
+				__pm_relax(charger->ivr_ws);
+				charger->slow_charging = false;
 			}
 		}
 		break;
@@ -1364,12 +1428,10 @@ static int s2mu106_chg_set_property(struct power_supply *psy,
 		{
 			u8 ivr_state = 0;
 
+			s2mu106_init_ivr_irq(charger);
 			s2mu106_read_reg(charger->i2c, S2MU106_CHG_STATUS5, &ivr_state);
 			if (ivr_state & IVR_STATUS) {
 				__pm_stay_awake(charger->ivr_ws);
-				/* Mask IRQ */
-				s2mu106_update_reg(charger->i2c,
-					S2MU106_CHG_INT2M, 1 << IVR_M_SHIFT, IVR_M_MASK);
 				queue_delayed_work(charger->charger_wqueue, &charger->ivr_work,
 						msecs_to_jiffies(IVR_WORK_DELAY));
 			}
@@ -1751,16 +1813,23 @@ static int s2mu106_chg_set_property(struct power_supply *psy,
 				s2mu106_set_charging_efficiency(charger, val->intval);
 				break;
 			case POWER_SUPPLY_LSI_PROP_2LV_3LV_CHG_MODE:
+				if (!s2mu106_chgin_status(charger))
+					break;
+
 				cancel_delayed_work(&charger->pmeter_2lv_work);
 				cancel_delayed_work(&charger->pmeter_3lv_work);
 				if (val->intval) {
 					pr_info("%s : 5V->9V\n", __func__);
 					s2mu106_update_reg(charger->i2c, 0xAD, 0x04, 0x1F);
+					s2mu106_update_reg(charger->i2c, 0x3A, 0x03, 0x03); // SET_Async
 					queue_delayed_work(charger->charger_wqueue,
 						&charger->pmeter_3lv_work, msecs_to_jiffies(5000));
+					s2mu106_read_reg(charger->i2c, 0x3A, &data);
+					pr_info("%s, 5V->9V 0x3A:(%02x)\n", __func__, data);
 				} else {
 					pr_info("%s : 9V->5V or detach\n", __func__);
 					s2mu106_update_reg(charger->i2c, 0xAD, 0x0F, 0x1F);
+					s2mu106_update_reg(charger->i2c, 0x3A, 0x01, 0x03);	// SET_auto sync
 					queue_delayed_work(charger->charger_wqueue,
 						&charger->pmeter_2lv_work, msecs_to_jiffies(5000));
 				}
@@ -2104,7 +2173,8 @@ static void s2mu106_ivr_irq_work(struct work_struct *work)
 	mutex_lock(&charger->ivr_mutex);
 
 	while ((ivr_state & IVR_STATUS) &&
-			charger->cable_type != SEC_BATTERY_CABLE_NONE) {
+			charger->cable_type != SEC_BATTERY_CABLE_NONE &&
+			!irqd_irq_disabled(&irq_to_desc(charger->irq_ivr)->irq_data)) {
 
 		if (s2mu106_read_reg(charger->i2c, S2MU106_CHG_STATUS5, &ivr_state)) {
 			pr_err("%s: Error reading S2MU106_CHG_STATUS5\n", __func__);
@@ -2114,6 +2184,10 @@ static void s2mu106_ivr_irq_work(struct work_struct *work)
 
 		if (++ivr_cnt >= 2) {
 			reduce_input_current(charger);
+			if (s2mu106_get_input_current_limit(charger) <= MINIMUM_INPUT_CURRENT) {
+				s2mu106_ivr_irq_enable(charger, false);
+				break;
+			}
 			ivr_cnt = 0;
 		}
 		msleep(50);
@@ -2123,9 +2197,6 @@ static void s2mu106_ivr_irq_work(struct work_struct *work)
 				ivr_state, charger->input_current);
 			break;
 		}
-
-		if (s2mu106_get_input_current_limit(charger) <= MINIMUM_INPUT_CURRENT)
-			break;
 	}
 
 	if (charger->ivr_on) {
@@ -2134,31 +2205,11 @@ static void s2mu106_ivr_irq_work(struct work_struct *work)
 		if (is_not_wireless_type(charger->cable_type))
 			s2mu106_check_slow_charging(charger, charger->input_current);
 
-		if ((charger->irq_ivr_enabled == 1) &&
-			(charger->input_current <= MINIMUM_INPUT_CURRENT) &&
-			(charger->slow_charging)) {
-			/* Disable IVR IRQ, can't reduce current any more */
-			u8 reg_data;
-
-			charger->irq_ivr_enabled = 0;
-			disable_irq_nosync(charger->irq_ivr);
-			/* Mask IRQ */
-			s2mu106_update_reg(charger->i2c,
-				    S2MU106_CHG_INT2M, 1 << IVR_M_SHIFT, IVR_M_MASK);
-			s2mu106_read_reg(charger->i2c, S2MU106_CHG_INT2M, &reg_data);
-			pr_info("%s : disable ivr : 0x%x\n", __func__, reg_data);
-		}
-
 		value.intval = s2mu106_get_input_current_limit(charger);
 		psy_do_property("battery", set,
 				POWER_SUPPLY_EXT_PROP_AICL_CURRENT, value);
 	}
 
-	if (charger->irq_ivr_enabled == 1) {
-		/* Unmask IRQ */
-		s2mu106_update_reg(charger->i2c, S2MU106_CHG_INT2M,
-			0 << IVR_M_SHIFT, IVR_M_MASK);
-	}
 	mutex_unlock(&charger->ivr_mutex);
 	__pm_relax(charger->ivr_ws);
 }
@@ -2225,6 +2276,7 @@ static void s2mu106_pmeter_3lv_check_work(struct work_struct *work)
 	union power_supply_propval value = {0, };
 	int voltage;
 
+	s2mu106_update_reg(charger->i2c, 0x3A, 0x01, 0x03); // SET_auto sync
 	psy_do_property("s2mu106_pmeter", get,
 					POWER_SUPPLY_LSI_PROP_VCHGIN, value);
 
@@ -2258,10 +2310,6 @@ static irqreturn_t s2mu106_ivr_isr(int irq, void *data)
 
 	pr_info("%s: irq(%d)\n", __func__, irq);
 	__pm_stay_awake(charger->ivr_ws);
-
-	/* Mask IRQ */
-	s2mu106_update_reg(charger->i2c,
-		    S2MU106_CHG_INT2M, 1 << IVR_M_SHIFT, IVR_M_MASK);
 
 	queue_delayed_work(charger->charger_wqueue, &charger->ivr_work,
 		msecs_to_jiffies(IVR_WORK_DELAY));
@@ -2321,6 +2369,9 @@ static int s2mu106_charger_parse_dt(struct device *dev,
 
 		pdata->lx_freq_recover = of_property_read_bool(np,
 				"charger,lx_freq_recover");
+
+		pdata->change_3_level_osc = of_property_read_bool(np,
+				"charger,change_3_level_osc");
 	}
 
 	np = of_find_node_by_name(NULL, "battery");
@@ -2369,6 +2420,9 @@ static int s2mu106_charger_parse_dt(struct device *dev,
 
 		pdata->chg_sido_ovp = of_property_read_bool(np,
 				"battery,chg_sido_ovp");
+
+		pdata->boosting_voltage_aicl = of_property_read_bool(np,
+			     "battery,boosting_voltage_aicl");
 	}
 
 	np = of_find_node_by_name(NULL, "sec-direct-charger");
@@ -2516,6 +2570,7 @@ static int s2mu106_charger_probe(struct platform_device *pdev)
 
 	charger->dev = &pdev->dev;
 	charger->i2c = s2mu106->i2c;
+	charger->s2mu106_pdata = pdata;
 
 	charger->pdata = devm_kzalloc(&pdev->dev, sizeof(*(charger->pdata)),
 			GFP_KERNEL);
@@ -2676,17 +2731,6 @@ static int s2mu106_charger_probe(struct platform_device *pdev)
 	if (ret < 0) {
 		dev_err(s2mu106->dev, "%s: Fail to request BAT in IRQ: %d: %d\n",
 				__func__, charger->irq_bat, ret);
-		goto err_reg_irq;
-	}
-
-	charger->irq_ivr = pdata->irq_base + S2MU106_CHG2_IRQ_IVR;
-	charger->irq_ivr_enabled = 1;
-	ret = request_threaded_irq(charger->irq_ivr, NULL,
-			s2mu106_ivr_isr, 0, "ivr-irq", charger);
-	if (ret < 0) {
-		pr_err("%s: Fail to request IVR_INT IRQ: %d: %d\n",
-					__func__, charger->irq_ivr, ret);
-		charger->irq_ivr_enabled = -1;
 		goto err_reg_irq;
 	}
 

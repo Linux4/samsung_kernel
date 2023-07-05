@@ -100,7 +100,7 @@ static int exynos_panel_parse_gpios(struct exynos_panel *ctx)
 {
 	struct device *dev = ctx->dev;
 
-	panel_debug(ctx, "%s +\n", __func__);
+	panel_debug(ctx, "+\n");
 
 	if (IS_ENABLED(CONFIG_BOARD_EMULATOR)) {
 		panel_info(ctx, "no reset/enable pins on emulator\n");
@@ -122,7 +122,7 @@ static int exynos_panel_parse_gpios(struct exynos_panel *ctx)
 	if (IS_ERR(ctx->enable_gpio))
 		ctx->enable_gpio = NULL;
 
-	panel_debug(ctx, "%s -\n", __func__);
+	panel_debug(ctx, "-\n");
 	return 0;
 }
 
@@ -173,7 +173,7 @@ static int exynos_panel_read_id(struct exynos_panel *ctx)
 
 void exynos_panel_reset(struct exynos_panel *ctx)
 {
-	panel_debug(ctx, "%s +\n", __func__);
+	panel_debug(ctx, "+\n");
 
 	if (IS_ENABLED(CONFIG_BOARD_EMULATOR))
 		return;
@@ -187,7 +187,7 @@ void exynos_panel_reset(struct exynos_panel *ctx)
 
 	exynos_panel_read_id(ctx);
 
-	panel_debug(ctx, "%s -\n", __func__);
+	panel_debug(ctx, "-\n");
 }
 EXPORT_SYMBOL(exynos_panel_reset);
 
@@ -295,7 +295,7 @@ int exynos_panel_get_modes(struct drm_panel *panel, struct drm_connector *conn)
 	struct drm_display_mode *preferred_mode = NULL;
 	int i;
 
-	panel_debug(ctx, "%s +\n", __func__);
+	panel_debug(ctx, "+\n");
 
 	for (i = 0; i < ctx->desc->num_modes; i++) {
 		const struct exynos_panel_mode *pmode = &ctx->desc->modes[i];
@@ -324,7 +324,7 @@ int exynos_panel_get_modes(struct drm_panel *panel, struct drm_connector *conn)
 		conn->display_info.height_mm = preferred_mode->height_mm;
 	}
 
-	panel_debug(ctx, "%s -\n", __func__);
+	panel_debug(ctx, "-\n");
 
 	return i;
 }
@@ -339,14 +339,27 @@ void exynos_panel_set_lp_mode(struct exynos_panel *ctx, const struct exynos_pane
 }
 EXPORT_SYMBOL(exynos_panel_set_lp_mode);
 
-
 static int exynos_get_brightness(struct backlight_device *bl)
 {
-	return bl->props.brightness;
+	int ret;
+	u16 brightness;
+	struct exynos_panel *ctx = bl_get_data(bl);
+
+	if (!ctx->enabled) {
+		panel_err(ctx, "panel is not enabled\n");
+		return -EPERM;
+	}
+
+	ret = exynos_dcs_get_brightness(ctx, &brightness);
+	if (ret < 0)
+		return ret;
+
+	return brightness;
 }
 
 static int exynos_update_status(struct backlight_device *bl)
 {
+	int ret;
 	struct exynos_panel *ctx = bl_get_data(bl);
 	const struct exynos_panel_funcs *exynos_panel_func;
 	int brightness = bl->props.brightness;
@@ -365,11 +378,11 @@ static int exynos_update_status(struct backlight_device *bl)
 
 	exynos_panel_func = ctx->desc->exynos_panel_func;
 	if (exynos_panel_func && exynos_panel_func->set_brightness)
-		exynos_panel_func->set_brightness(ctx, brightness);
+		ret = exynos_panel_func->set_brightness(ctx, brightness);
 	else
-		exynos_dcs_set_brightness(ctx, brightness);
+		ret = exynos_dcs_set_brightness(ctx, brightness);
 
-	return 0;
+	return ret;
 }
 
 static const struct backlight_ops exynos_backlight_ops = {
@@ -439,7 +452,7 @@ int exynos_drm_cmdset_add(struct exynos_panel *ctx, u8 type, size_t size,
 	ctx->msg[index].tx_len = size;
 	ctx->cmdset_payload_total += size;
 
-	panel_debug(ctx, "%s, %d msgs, %d payload\n", __func__,
+	panel_debug(ctx, "%d msgs, %d payload\n",
 		 ctx->cmdset_msg_total, ctx->cmdset_payload_total);
 
 	return 0;
@@ -451,7 +464,7 @@ int exynos_drm_cmdset_cleanup(struct exynos_panel *ctx)
 	int i;
 	int msg_total = ctx->cmdset_msg_total;
 
-	panel_debug(ctx, "%s msg:%d\n", __func__, ctx->cmdset_msg_total);
+	panel_debug(ctx, "msg:%d\n", ctx->cmdset_msg_total);
 
 	for (i = 0; i < msg_total; i++) {
 		if (ctx->msg[i].tx_buf != NULL)
@@ -463,16 +476,27 @@ int exynos_drm_cmdset_cleanup(struct exynos_panel *ctx)
 	ctx->cmdset_msg_total = 0;
 	ctx->cmdset_payload_total = 0;
 
-	panel_debug(ctx, "%s-\n", __func__);
+	panel_debug(ctx, "-\n");
 
 	return 0;
 }
 EXPORT_SYMBOL(exynos_drm_cmdset_cleanup);
 
-int exynos_drm_cmdset_flush(struct exynos_panel *ctx, bool wait_vsync, bool wait_fifo)
+int exynos_drm_cmdset_flush(struct exynos_panel *ctx, bool wait_vsync,
+							bool wait_fifo)
 {
 	int ret;
 	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
+	struct mipi_dsi_msg *msg_head;
+
+	if (!ctx->cmdset_msg_total) {
+		panel_err(ctx, "there is no MIPI command to transfer\n");
+		return -EINVAL;
+	}
+
+	msg_head = ctx->msg;
+	if (dsi->mode_flags & MIPI_DSI_MODE_LPM)
+		msg_head->flags |= MIPI_DSI_MSG_USE_LPM;
 
 	ret = dsim_host_cmdset_transfer(dsi->host, ctx->msg, ctx->cmdset_msg_total, wait_vsync, wait_fifo);
 	if (ret < 0)
@@ -627,13 +651,24 @@ exynos_panel_get_mode(struct exynos_panel *ctx,
 
 static void exynos_drm_connector_check_seamless_modeset(
 			struct exynos_drm_connector_state *exynos_conn_state,
-			const struct drm_display_mode *new_mode,
-			const struct drm_display_mode *old_mode)
+			const struct exynos_panel_mode *new_pmode,
+			const struct exynos_panel_mode *old_pmode)
 {
+	const struct drm_display_mode *new_mode;
+	const struct drm_display_mode *old_mode;
+
+	if (!old_pmode)
+		return;
+
+	new_mode = &new_pmode->mode;
+	old_mode = &old_pmode->mode;
+
 	if (!drm_mode_match(new_mode, old_mode, DRM_MODE_MATCH_TIMINGS))
 		exynos_conn_state->seamless_modeset |= SEAMLESS_MODESET_MRES;
 	if (drm_mode_vrefresh(new_mode) != drm_mode_vrefresh(old_mode))
 		exynos_conn_state->seamless_modeset |= SEAMLESS_MODESET_VREF;
+	if (new_pmode->exynos_mode.is_lp_mode != old_pmode->exynos_mode.is_lp_mode)
+		exynos_conn_state->seamless_modeset |= SEAMLESS_MODESET_LP;
 }
 
 static inline bool is_seamless_mode_change(struct drm_crtc_state *crtc_state,
@@ -655,7 +690,7 @@ static int exynos_drm_connector_atomic_check(struct drm_connector *connector,
 	const struct exynos_panel_mode *old_pmode;
 
 	if (!connector_state->best_encoder) {
-		panel_err(ctx, "%s encoder is null\n", __func__);
+		panel_err(ctx, "encoder is null\n");
 		return 0;
 	}
 
@@ -676,12 +711,12 @@ static int exynos_drm_connector_atomic_check(struct drm_connector *connector,
 			(old_crtc_state->active == 0 && new_crtc_state->active == 1)))		/* doze_suspend->doze */
 			exynos_conn_state->is_lp_transition = 1;
 
-		panel_debug(ctx, "%s : old lp_mode(%d), old crtc active(%d)\n",
-			__func__, old_pmode->exynos_mode.is_lp_mode, old_crtc_state->active);
-		panel_debug(ctx, "%s : new lp_mode(%d), new crtc active(%d)\n",
-			__func__, pmode->exynos_mode.is_lp_mode, new_crtc_state->active);
-		panel_debug(ctx, "%s : is_lp_transition(%d)\n",
-			__func__, exynos_conn_state->is_lp_transition);
+		panel_debug(ctx, "old lp_mode(%d), old crtc active(%d)\n",
+			old_pmode->exynos_mode.is_lp_mode, old_crtc_state->active);
+		panel_debug(ctx, "new lp_mode(%d), new crtc active(%d)\n",
+			pmode->exynos_mode.is_lp_mode, new_crtc_state->active);
+		panel_debug(ctx, "is_lp_transition(%d)\n",
+			exynos_conn_state->is_lp_transition);
 	}
 
 	if (!new_crtc_state->mode_changed)
@@ -694,16 +729,13 @@ static int exynos_drm_connector_atomic_check(struct drm_connector *connector,
 
 	if (is_seamless_mode_change(new_crtc_state, pmode)) {
 		exynos_drm_connector_check_seamless_modeset(
-				exynos_conn_state, &new_crtc_state->mode,
-				&old_crtc_state->mode);
+				exynos_conn_state, pmode, old_pmode);
 	}
 
-	panel_debug(ctx, "%s : old mode_changed(%d), active_changed(%d)\n",
-			__func__,
+	panel_debug(ctx, "old mode_changed(%d), active_changed(%d)\n",
 			old_crtc_state->mode_changed,
 			old_crtc_state->active_changed);
-	panel_debug(ctx, "%s : new mode_changed(%d), active_changed(%d)\n",
-			__func__,
+	panel_debug(ctx, "new mode_changed(%d), active_changed(%d)\n",
 			new_crtc_state->mode_changed,
 			new_crtc_state->active_changed);
 
@@ -884,18 +916,26 @@ static void exynos_panel_enable(struct drm_bridge *bridge)
 	const struct drm_display_mode *current_mode = &ctx->current_mode->mode;
 
 	if (exynos_conn_state->is_lp_transition && ctx->enabled) {
-		panel_info(ctx, "%s : skip in lp mode transition\n", __func__);
+		panel_info(ctx, "skip in lp mode transition\n");
 		return;
 	}
 
 	if (is_panel_tui(ctx) || need_panel_recovery(ctx)) {
-		panel_info(ctx, "tui transition : skip %s\n", __func__);
+		panel_info(ctx, "tui transition : skip\n");
 		return;
 	}
 
-	if (ctx->enabled)
-		panel_info(ctx, "%s : panel is already initialized\n", __func__);
-	else if (drm_panel_enable(&ctx->panel))
+	if (ctx->enabled) {
+		panel_info(ctx, "panel is already initialized\n");
+		return;
+	}
+
+	if (ctx->desc->lp11_reset) {
+		exynos_panel_reset(ctx);
+		dsim_atomic_activate(bridge->encoder);
+	}
+
+	if (drm_panel_enable(&ctx->panel))
 		return;
 
 	exynos_conn_state->adjusted_fps = drm_mode_vrefresh(current_mode);
@@ -909,17 +949,17 @@ static void exynos_panel_pre_enable(struct drm_bridge *bridge)
 		to_exynos_connector_state(exynos_conn->base.state);
 
 	if (exynos_conn_state->is_lp_transition && ctx->enabled) {
-		panel_info(ctx, "%s : skip in lp mode transition\n", __func__);
+		panel_info(ctx, "skip in lp mode transition\n");
 		return;
 	}
 
 	if (ctx->enabled) {
-		panel_info(ctx, "%s : panel is already initialized\n", __func__);
+		panel_info(ctx, "panel is already initialized\n");
 		return;
 	}
 
 	if (is_panel_tui(ctx) || need_panel_recovery(ctx)) {
-		panel_info(ctx, "tui transition : skip %s\n", __func__);
+		panel_info(ctx, "tui transition : skip\n");
 		return;
 	}
 
@@ -934,12 +974,12 @@ static void exynos_panel_disable(struct drm_bridge *bridge)
 		to_exynos_connector_state(exynos_conn->base.state);
 
 	if (exynos_conn_state->is_lp_transition) {
-		panel_info(ctx, "%s : skip in lp mode transition\n", __func__);
+		panel_info(ctx, "skip in lp mode transition\n");
 		return;
 	}
 
 	if (is_panel_tui(ctx) || need_panel_recovery(ctx)) {
-		panel_info(ctx, "tui transition : skip %s\n", __func__);
+		panel_info(ctx, "tui transition : skip\n");
 		return;
 	}
 
@@ -954,12 +994,12 @@ static void exynos_panel_post_disable(struct drm_bridge *bridge)
 		to_exynos_connector_state(exynos_conn->base.state);
 
 	if (exynos_conn_state->is_lp_transition) {
-		panel_info(ctx, "%s : skip in lp mode transition\n", __func__);
+		panel_info(ctx, "skip in lp mode transition\n");
 		return;
 	}
 
 	if (is_panel_tui(ctx) || need_panel_recovery(ctx)) {
-		panel_info(ctx, "tui transition : skip %s\n", __func__);
+		panel_info(ctx, "tui transition : skip\n");
 		return;
 	}
 
@@ -977,7 +1017,7 @@ static void exynos_panel_bridge_mode_set(struct drm_bridge *bridge,
 	const struct exynos_panel_mode *pmode =
 				exynos_panel_get_mode(ctx, adjusted_mode);
 
-	panel_debug(ctx, "%s +\n", __func__);
+	panel_debug(ctx, "+\n");
 
 	if (WARN_ON(!pmode))
 		return;
@@ -1010,7 +1050,7 @@ static void exynos_panel_bridge_mode_set(struct drm_bridge *bridge,
 		curr_pmode->mode.name : "none", pmode->mode.name);
 	ctx->current_mode = pmode;
 
-	panel_debug(ctx, "%s -\n", __func__);
+	panel_debug(ctx, "-\n");
 }
 
 void exynos_panel_active_off(struct exynos_panel *panel)
@@ -1042,7 +1082,7 @@ static void exynos_panel_parse_vendor_pps(struct device *dev, struct exynos_pane
 
 		drm_dev = ctx->exynos_connector.base.dev;
 		if (!drm_dev) {
-			panel_info(ctx, "%s: drm_dev has null\n", __func__);
+			panel_info(ctx, "drm_dev has null\n");
 			return;
 		}
 
@@ -1053,13 +1093,13 @@ static void exynos_panel_parse_vendor_pps(struct device *dev, struct exynos_pane
 			}
 
 		if (!exynos_crtc) {
-			panel_info(ctx, "%s: exynos_crtc has null\n", __func__);
+			panel_info(ctx, "exynos_crtc has null\n");
 			return;
 		}
 
 		decon = exynos_crtc->ctx;
 		if (!decon) {
-			panel_info(ctx, "%s: decon has null\n", __func__);
+			panel_info(ctx, "decon has null\n");
 			return;
 		}
 
@@ -1136,7 +1176,7 @@ static void exynos_panel_set_dqe_xml(struct device *dev, struct exynos_panel *ct
 
 	drm_dev = ctx->exynos_connector.base.dev;
 	if (!drm_dev) {
-		panel_info(ctx, "%s: drm_dev has null\n", __func__);
+		panel_info(ctx, "drm_dev has null\n");
 		return;
 	}
 
@@ -1147,13 +1187,13 @@ static void exynos_panel_set_dqe_xml(struct device *dev, struct exynos_panel *ct
 		}
 
 	if (!exynos_crtc) {
-		panel_info(ctx, "%s: exynos_crtc has null\n", __func__);
+		panel_info(ctx, "exynos_crtc has null\n");
 		return;
 	}
 
 	dqe = exynos_crtc->dqe;
 	if (!dqe) {
-		panel_info(ctx, "%s: dqe has null\n", __func__);
+		panel_info(ctx, "dqe has null\n");
 		return;
 	}
 
@@ -1259,13 +1299,13 @@ int drm_mipi_fcmd_write(void *_ctx, const u8 *payload, int size, u32 align)
 
 	dsi = to_mipi_dsi_device(ctx->dev);
 	if (!dsi->host) {
-		panel_err(ctx, "%s: invalid dsi host\n", __func__);
+		panel_err(ctx, "invalid dsi host\n");
 		return -EINVAL;
 	}
 
 	dsim = container_of(dsi->host, struct dsim_device, dsi_host);
 	if (!dsim->fcmd_buf_allocated) {
-		panel_err(ctx, "fcmd_buf not allocated\n", __func__);
+		panel_err(ctx, "fcmd_buf not allocated\n");
 		return -ENOMEM;
 	}
 
@@ -1305,6 +1345,22 @@ static ssize_t active_off_store(struct device *dev,
 }
 static DEVICE_ATTR_RW(active_off);
 
+static void notify_lp11_reset(struct exynos_panel *ctx, bool en)
+{
+	struct mipi_dsi_device *dsi;
+	struct dsim_device *dsim;
+
+	dsi = to_mipi_dsi_device(ctx->dev);
+	if (!dsi || !dsi->host) {
+		panel_err(ctx, "dsi not attached yet\n");
+		return;
+	}
+
+	dsim = container_of(dsi->host, struct dsim_device, dsi_host);
+
+	dsim->lp11_reset = en;
+}
+
 int exynos_panel_probe(struct mipi_dsi_device *dsi)
 {
 	struct device *dev = &dsi->dev;
@@ -1326,6 +1382,8 @@ int exynos_panel_probe(struct mipi_dsi_device *dsi)
 	dsi->format = MIPI_DSI_FMT_RGB888;
 
 	exynos_panel_parse_dt(ctx);
+
+	notify_lp11_reset(ctx, ctx->desc->lp11_reset);
 
 	snprintf(name, sizeof(name), "panel%d-backlight", dsi->channel);
 	ctx->bl = devm_backlight_device_register(ctx->dev, name, NULL,

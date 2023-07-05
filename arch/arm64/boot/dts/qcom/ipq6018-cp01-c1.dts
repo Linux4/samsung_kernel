@@ -161,7 +161,7 @@
 		#size-cells = <0x02>;
 		ranges;
 
-		memory@0x60000 {
+		memory@60000 {
 			reg = <0x00 0x60000 0x00 0x6000>;
 			no-map;
 			phandle = <0x16>;
@@ -216,7 +216,7 @@
 			clock-names = "bam_clk";
 			#dma-cells = <0x01>;
 			qcom,ee = <0x01>;
-			qcom,controlled-remotely = <0x01>;
+			qcom,controlled-remotely;
 			qcom,config-pipe-trust-reg = <0x00>;
 			phandle = <0x0a>;
 		};
@@ -237,7 +237,7 @@
 			interrupts = <0x00 0xd0 0x04>;
 			gpio-controller;
 			#gpio-cells = <0x02>;
-			gpio-ranges = <0x0b 0x00 0x50>;
+			gpio-ranges = <0x0b 0x00 0x00 0x50>;
 			interrupt-controller;
 			#interrupt-cells = <0x02>;
 			phandle = <0x0b>;
@@ -578,7 +578,7 @@
 		tcsr_mutex = "/hwlock";
 		pmuv8 = "/pmu";
 		psci = "/psci";
-		rpm_msg_ram = "/reserved-memory/memory@0x60000";
+		rpm_msg_ram = "/reserved-memory/memory@60000";
 		tz = "/reserved-memory/memory@4a600000";
 		smem_region = "/reserved-memory/memory@4aa00000";
 		q6_region = "/reserved-memory/memory@4ab00000";

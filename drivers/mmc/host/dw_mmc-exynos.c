@@ -1088,6 +1088,11 @@ static int dw_mci_exynos_execute_tuning(struct dw_mci_slot *slot, u32 opcode,
 		return -ENOMEM;
 
 	test_sample = orig_sample = dw_mci_exynos_get_sample(host);
+	if (test_sample == 6 || test_sample == 7)
+		sample_path_sel_en(host, AXI_BURST_LEN);
+	else
+		sample_path_sel_dis(host, AXI_BURST_LEN);
+
 	host->cd_rd_thr = 512;
 	mci_writel(host, CDTHRCTL, host->cd_rd_thr << 16 | 1);
 
@@ -1249,6 +1254,8 @@ static int dw_mci_exynos_execute_tuning(struct dw_mci_slot *slot, u32 opcode,
 		dw_mci_exynos_set_sample(host, orig_sample, false);
 		dev_err(host->dev, "tuning err\n");
 		ret = -EIO;
+		dev_warn(&mmc->class_dev,
+			"There is no candiates value about clksmpl!\n");
 	}
 
 	if (!bypass)

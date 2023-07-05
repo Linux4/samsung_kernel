@@ -10,7 +10,7 @@
 #include <linux/kconfig.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/mz.h>
+#include "mz_internal.h"
 #include "mz_log.h"
 #include "mz_page.h"
 
@@ -217,4 +217,6 @@ MODULE_VERSION("1.00");
 module_init(mz_ioctl_init);
 module_exit(mz_ioctl_exit);
 #endif /* CONFIG_SEC_KUNIT */
+
+
 

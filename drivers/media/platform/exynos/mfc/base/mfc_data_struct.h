@@ -1367,6 +1367,7 @@ struct mfc_dev {
 	int move_ctx_cnt;
 	struct list_head ctx_list;
 	spinlock_t ctx_list_lock;
+	unsigned int core_balance;
 
 	atomic_t queued_bits;
 	spinlock_t idle_bits_lock;
@@ -1973,6 +1974,7 @@ struct mfc_bufs_ops {
 	int (*core_get_buf_ctrls_nal_q_enc)(struct mfc_ctx *ctx,
 			struct list_head *head, EncoderOutputStr *pOutStr);
 	int (*core_recover_buf_ctrls_nal_q)(struct mfc_ctx *ctx, struct list_head *head);
+	int (*core_restore_buf_ctrls)(struct mfc_ctx *ctx, struct list_head *head);
 };
 
 struct stored_dpb_info {

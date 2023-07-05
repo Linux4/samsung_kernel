@@ -795,11 +795,7 @@ static void get_bt_conf_filename(char *buf, int size)
 
 	ret = scsc_mx_phandle_property_read_u32(common_service.maxwell_core,
 			"samsung,wlbt_hcf", "hcf_rev", &value, 1);
-
-	/* If hcf revision version is 0 then only XXXX.hcf.rev0 will be loaded.
-	 * otherwise, default file XXXX.hcf will be loaded.
-	 */
-	if (ret == 0 && value == 0) {
+	if (ret == 0) {
 		scnprintf(buf, size, "%s.rev%d", SCSC_BT_CONF, value);
 		return;
 	}

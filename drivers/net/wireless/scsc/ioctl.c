@@ -3597,7 +3597,7 @@ static int slsi_set_ncho_mode(struct net_device *dev, char *command, int buf_len
 	kfree_skb(cfm);
 
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
-
+	slsi_conn_log2us_ncho_mode(sdev, dev, mode);
 	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
 	sdev->device_config.ncho_mode = mode;
 	SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
@@ -4882,10 +4882,10 @@ int slsi_get_sta_info(struct net_device *dev, char *command, int buf_len)
 	len += snprintf(&command[len], (buf_len - len), "%d %d %d %d %d %d %d %u %d",
 		       ieee80211_frequency_to_channel(ndev_vif->ap.channel_freq),
 		       ndev_vif->ap.last_disconnected_sta.bandwidth, ndev_vif->ap.last_disconnected_sta.rssi,
-		       ndev_vif->ap.last_disconnected_sta.tx_data_rate, ndev_vif->ap.last_disconnected_sta.mode,
+		       ndev_vif->ap.last_disconnected_sta.tx_data_rate, ndev_vif->ap.last_disconnected_sta.support_mode,
 		       ndev_vif->ap.last_disconnected_sta.antenna_mode,
 		       ndev_vif->ap.last_disconnected_sta.mimo_used, ndev_vif->ap.last_disconnected_sta.reason,
-		       ndev_vif->ap.last_disconnected_sta.support_mode);
+		       ndev_vif->ap.last_disconnected_sta.supported_band);
 #else
 	len = snprintf(command, buf_len, "wl_get_sta_info : %02x%02x%02x %u %d %d %d %d %d %d %u ",
 		       ndev_vif->ap.last_disconnected_sta.address[0], ndev_vif->ap.last_disconnected_sta.address[1],
@@ -5473,7 +5473,11 @@ static int slsi_ioctl_driver_bug_dump(struct net_device *dev, char *command, int
 	scsc_log_collector_schedule_collection(SCSC_LOG_DUMPSTATE, SCSC_LOG_DUMPSTATE_REASON_DRIVERDEBUGDUMP);
 #else
 #ifndef SLSI_TEST_DEV
+#if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
+	SLSI_NET_INFO(dev, "SCSC_LOG_COLLECTION not enabled. Sable will not be triggered\n");
+#else
 	ret = mx140_log_dump();
+#endif
 #endif
 #endif
 	return ret;

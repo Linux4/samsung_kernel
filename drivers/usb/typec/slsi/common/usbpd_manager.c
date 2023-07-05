@@ -16,7 +16,7 @@
 #endif /* CONFIG_MUIC_NOTIFIER */
 #include <linux/usb/typec/common/pdic_notifier.h>
 #include <linux/usb/typec/slsi/common/s2m_pdic_notifier.h>
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 #if IS_ENABLED(CONFIG_BATTERY_NOTIFIER)
 #include <linux/battery/battery_notifier.h>
 #else
@@ -55,6 +55,7 @@ extern int (*fp_sec_pd_get_apdo_max_power)(unsigned int *pdo_pos, unsigned int *
 extern int (*fp_pps_enable)(int num, int ppsVol, int ppsCur, int enable);
 int (*fp_get_pps_voltage)(void);
 #endif
+#endif
 
 char *pdo_type_to_str[] = {
 	"FPDO",
@@ -70,6 +71,7 @@ static char *pdic_supplied_to[] = {
 	"battery",
 };
 
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 void usbpd_manager_set_source_cap(int size_of_power_list, POWER_LIST power_list[])
 {
 	struct usbpd_data *pd_data = g_pd_data;
@@ -448,11 +450,23 @@ int sec_get_pps_voltage(void)
 #endif
 void pdo_ctrl_by_flash(bool mode)
 {
-	struct usbpd_data *pd_data = g_pd_data;
-	struct usbpd_manager_data *manager = &pd_data->manager;
+	struct usbpd_data *pd_data;
+	struct usbpd_manager_data *manager;
 #if IS_ENABLED(CONFIG_PDIC_PD30)
 	int pps_enable = -1;
 #endif
+
+	pd_data = g_pd_data;
+	if (!pd_data) {
+		pr_info("%s, pd_data is NULL\n", __func__);
+		return;
+	}
+
+	manager = &pd_data->manager;
+	if (!manager) {
+		pr_info("%s, manager is NULL\n", __func__);
+		return;
+	}
 
 	pr_info("%s: mode(%d)\n", __func__, mode);
 
@@ -1146,6 +1160,7 @@ void usbpd_manager_inform_event(struct usbpd_data *pd_data,
 	case MANAGER_CAP_MISMATCH:
 		usbpd_manager_command_to_policy(pd_data->dev,
 				MANAGER_REQ_GET_SNKCAP);
+		break;
 	default:
 		pr_info("%s: not matched event(%d)\n", __func__, event);
 	}
@@ -1507,10 +1522,10 @@ int usbpd_manager_evaluate_capability(struct usbpd_data *pd_data)
 	struct policy_data *policy = &pd_data->policy;
 	int i = 0;
 	int power_type = 0;
-	int src_cap_changed = 0;
 	int min_volt = 0, max_volt = 0, cap_current = 0;
-	int pdo_type;
+	int pdo_type = 0;
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+	int src_cap_changed = 0;
 	struct usbpd_manager_data *manager = &pd_data->manager;
 	int available_pdo_num = 0;
 #if IS_ENABLED(CONFIG_BATTERY_NOTIFIER)
@@ -1537,8 +1552,10 @@ int usbpd_manager_evaluate_capability(struct usbpd_data *pd_data)
 		10	,	//VARIABLE
 		50};	//PPS
 
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 #if IS_ENABLED(CONFIG_PDIC_PD30)
 	pdic_sink_status->has_apdo = false;
+#endif
 #endif
 
 	for (i = 0; i < policy->rx_msg_header.num_data_objs; i++) {
@@ -1778,7 +1795,9 @@ static void usbpd_manager_send_new_src_cap(int auth_t, int d2d_t)
 		power_list[0].comm_capable = 1;
 		power_list[0].suspend = 1;
 	}
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	usbpd_manager_set_source_cap(size_of_power_list, power_list);
+#endif
 }
 
 void usbpd_manager_vpdo_auth(int auth, int d2d_type)
@@ -1914,7 +1933,7 @@ static bool usbpd_manager_src_otg_type(bool enable, int auth_t, int req_pdo, int
 void usbpd_manager_vbus_turn_on_ctrl(void *_data, bool enable)
 {
 	struct usbpd_data *pd_data = _data;
-	struct power_supply *psy_otg;
+	struct power_supply *psy_otg = NULL;
 	union power_supply_propval val;
 	int on = !!enable;
 	int ret = 0, retry_cnt = 0;
@@ -1962,14 +1981,18 @@ void usbpd_manager_vbus_turn_on_ctrl(void *_data, bool enable)
 		}
 	}
 #endif
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	psy_otg = get_power_supply_by_name("otg");
+#endif
 
 	if (psy_otg) {
 		if (usbpd_manager_check_boost_off(enable, auth_type, req_pdo_type, d2d_type)) {
 			val.intval = 0;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 			 /* disable dc reverse boost before otg on */
 			psy_do_property("battery", set,
 				POWER_SUPPLY_EXT_PROP_CHARGE_OTG_CONTROL, val);
+#endif
 		}
 
 		if (usbpd_manager_src_otg_type(enable, auth_type, req_pdo_type, d2d_type))
@@ -2006,17 +2029,21 @@ void usbpd_manager_vbus_turn_on_ctrl(void *_data, bool enable)
 		if (usbpd_manager_check_boost_enable(enable, auth_type, req_pdo_type, d2d_type)) {
 			for (retry_cnt = 0; retry_cnt < 5; retry_cnt++) {				
 				pr_info("%s, pmeter_name : %s\n", __func__, pd_data->pmeter_name);
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 				psy_do_property(pd_data->pmeter_name, get,
 						POWER_SUPPLY_LSI_PROP_VCHGIN, val);
 				pr_info("@D2D: %s: VCHGIN(%d)\n", __func__, val.intval);
 				if (val.intval < 2000)
 					break;
 				usleep_range(10000, 11000);
+#endif
 			}
 
 			val.intval = enable; /* set dc reverse boost after otg off */
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 			psy_do_property("battery", set,
 				POWER_SUPPLY_EXT_PROP_CHARGE_OTG_CONTROL, val);
+#endif
 		}
 	}
 
@@ -2146,6 +2173,9 @@ static int usbpd_manager_set_property(struct power_supply *psy,
 	enum power_supply_lsi_property lsi_psp = (enum power_supply_lsi_property)psp;
 
 	switch ((int)psp) {
+	case POWER_SUPPLY_PROP_ENERGY_NOW:
+		PDIC_OPS_PARAM_FUNC(energy_now, pd_data, val->intval);
+		break;
 	case POWER_SUPPLY_PROP_AUTHENTIC:
 		PDIC_OPS_FUNC(authentic, pd_data);
 		break;

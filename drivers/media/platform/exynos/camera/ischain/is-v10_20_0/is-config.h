@@ -104,7 +104,7 @@
  */
 #define CHAIN_STRIPE_PROCESSING	1
 #define STRIPE_MARGIN_WIDTH		512	/* filter margin (459) aligned by 64 */
-#define STRIPE_MCSC_MARGIN_WIDTH	30
+#define STRIPE_MCSC_MARGIN_WIDTH	60
 #define STRIPE_WIDTH_ALIGN		64	/* 32x4 sbwc (4bit header) */
 #define STRIPE_RATIO_PRECISION		1000
 #define ENABLE_TNR
@@ -358,7 +358,6 @@
 #define HW_RUNNING_FPS		1
 
 #define CLOGGING		1
-
 /*
  * ======================================================
  * CONFIG - Interface version configs

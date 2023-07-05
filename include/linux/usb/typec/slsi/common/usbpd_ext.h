@@ -18,7 +18,7 @@
 #ifndef __USBPD_EXT_H__
 #define __USBPD_EXT_H__
 
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 extern struct usbpd_data *g_pd_data;
 #endif
 
@@ -83,6 +83,8 @@ extern int typec_port_type_set(struct typec_port *_port, enum typec_port_type po
 extern int typec_port_type_set(const struct typec_capability *cap, enum typec_port_type port_type);
 #endif
 extern int typec_get_pd_support(void *_data);
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 extern int typec_init(struct usbpd_data *_data);
+#endif
 #endif
 #endif

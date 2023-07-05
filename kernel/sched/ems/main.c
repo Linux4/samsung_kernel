@@ -8,6 +8,7 @@
 #include <linux/pm_qos.h>
 #include <linux/platform_device.h>
 #include <linux/miscdevice.h>
+//#include <linux/panic_notifier.h>
 
 #include "../sched.h"
 #include "ems.h"
@@ -99,6 +100,25 @@ static struct notifier_block ems_panic_nb = {
 	.priority = INT_MIN,
 };
 
+struct pe_list *pe_list;
+static int num_of_list;
+
+struct pe_list *get_pe_list(int index)
+{
+	if (unlikely(!pe_list))
+		return NULL;
+
+	if (index >= num_of_list)
+		return NULL;
+
+	return &pe_list[index];
+}
+
+int get_pe_list_size(void)
+{
+	return num_of_list;
+}
+
 /******************************************************************************
  * IOCTL interface                                                            *
  ******************************************************************************/
@@ -164,7 +184,7 @@ ems_fops_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case EMS_IOCTL_R_ECS_DOMAIN_INFO:
 	{
 		struct ems_ioctl_ecs_domain_info __user *user_info;
-		struct ems_ioctl_ecs_domain_info ecs_domain_info;
+		struct ems_ioctl_ecs_domain_info *ecs_domain_info;
 
 		size = sizeof(struct ems_ioctl_ecs_domain_info);
 
@@ -174,17 +194,26 @@ ems_fops_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			break;
 		}
 
+		ecs_domain_info = kzalloc(size, GFP_KERNEL);
+		if (!ecs_domain_info) {
+			pr_err("EMS: EMS_IOCTL_R_ECS_DOMAIN_INFO alloc failed\n");
+			ret = -ENOMEM;
+			break;
+		}
+
 		/*
 		 * Get domain info from ECS.
 		 *
 		 * NOTE: target domain should be delieved before this cmd.
 		 */
-		ecs_ioctl_get_ecs_domain_info(&ecs_domain_info);
+		ecs_ioctl_get_ecs_domain_info(ecs_domain_info);
 
-		if (copy_to_user(user_info, &ecs_domain_info, size)) {
+		if (copy_to_user(user_info, ecs_domain_info, size)) {
 			pr_warn("EMS: EMS_IOCTL_R_ECS_DOMAIN_INFO doesn't work\n");
 			ret = -EFAULT;
 		}
+
+		kfree(ecs_domain_info);
 
 		break;
 	}
@@ -338,6 +367,7 @@ static int ems_cpufreq_policy_notify_callback(struct notifier_block *nb,
 	cpumask_andnot(cpus_to_visit, cpus_to_visit, policy->related_cpus);
 
 	et_init_table(policy);
+	fv_init_table(policy);
 
 	if (cpumask_empty(cpus_to_visit)) {
 		emstune_ontime_init();
@@ -377,9 +407,9 @@ static void ems_init_cpufreq_notifier(void)
  * common function for ems                                                    *
  ******************************************************************************/
 static const struct sched_class *sched_class_begin;
-int get_sched_class_idx(const struct sched_class *class)
+int get_sched_class(struct task_struct *p)
 {
-	const struct sched_class *c;
+	const struct sched_class *class = p->sched_class, *c;
 	int class_idx;
 
 	for (c = sched_class_begin, class_idx = 0;
@@ -455,8 +485,44 @@ static void qjump_rq_list_init(void)
 {
 	int cpu;
 
-	for_each_cpu(cpu, cpu_possible_mask)
+	for_each_cpu(cpu, cpu_possible_mask) {
 		INIT_LIST_HEAD(ems_qjump_list(cpu_rq(cpu)));
+		ems_rq_nr_prio_tex(cpu_rq(cpu)) = 0;
+	}
+}
+
+static void pe_list_init(void)
+{
+	struct device_node *dn, *child;
+	int index = 0;
+
+	dn = of_find_node_by_path("/ems/pe-list");
+	if (!dn) {
+		pr_err("%s: Fail to get pe-list node\n", __func__);
+		return;
+	}
+
+	num_of_list = of_get_child_count(dn);
+	if (num_of_list == 0)
+		return;
+
+	pe_list = kmalloc_array(num_of_list, sizeof(struct pe_list), GFP_KERNEL);
+
+	for_each_child_of_node(dn, child) {
+		struct pe_list *pl = &pe_list[index++];
+		const char *buf[VENDOR_NR_CPUS];
+		int i;
+
+		pl->num_of_cpus = of_property_count_strings(child, "cpus");
+		if (pl->num_of_cpus == 0)
+			continue;
+
+		pl->cpus = kmalloc_array(pl->num_of_cpus, sizeof(struct cpumask), GFP_KERNEL);
+
+		of_property_read_string_array(child, "cpus", buf, pl->num_of_cpus);
+		for (i = 0; i < pl->num_of_cpus; i++)
+			cpulist_parse(buf[i], &pl->cpus[i]);
+	}
 }
 
 static struct kobject *ems_kobj;
@@ -472,18 +538,70 @@ int send_uevent(char *msg)
 	return ret;
 }
 
+void detach_task(struct rq *src_rq, struct rq *dst_rq, struct task_struct *p)
+{
+	deactivate_task(src_rq, p, DEQUEUE_NOCLOCK);
+	set_task_cpu(p, dst_rq->cpu);
+}
+
+int detach_one_task(struct rq *src_rq, struct rq *dst_rq,
+					struct task_struct *target)
+{
+	struct task_struct *p, *n;
+
+	list_for_each_entry_safe(p, n, &src_rq->cfs_tasks, se.group_node) {
+		if (p != target)
+			continue;
+
+		if (!can_migrate(p, dst_rq->cpu))
+			break;
+
+		update_rq_clock(src_rq);
+		detach_task(src_rq, dst_rq, p);
+		return 1;
+	}
+
+	return 0;
+}
+
+void attach_task(struct rq *dst_rq, struct task_struct *p)
+{
+	activate_task(dst_rq, p, ENQUEUE_NOCLOCK);
+	check_preempt_curr(dst_rq, p, 0);
+}
+
+void attach_one_task(struct rq *dst_rq, struct task_struct *p)
+{
+	struct rq_flags rf;
+
+	rq_lock(dst_rq, &rf);
+	update_rq_clock(dst_rq);
+	attach_task(dst_rq, p);
+	rq_unlock(dst_rq, &rf);
+}
+
 /******************************************************************************
  * main function for ems                                                      *
  ******************************************************************************/
 int ems_select_task_rq_rt(struct task_struct *p, int prev_cpu,
-			 int sd_flag, int wake_flag)
+			 int sd_flag, int wake_flags)
 {
-	return frt_select_task_rq_rt(p, prev_cpu, sd_flag);
+	if (!(sd_flag & SD_BALANCE_FORK))
+		mlt_update_task(p, MLT_STATE_NOCHANGE, sched_clock());
+
+	return frt_select_task_rq_rt(p, prev_cpu, sd_flag, wake_flags);
 }
 
 int ems_select_task_rq_fair(struct task_struct *p, int prev_cpu,
 			   int sd_flag, int wake_flag)
 {
+	if (!(sd_flag & SD_BALANCE_FORK))
+		mlt_update_task(p, MLT_STATE_NOCHANGE, sched_clock());
+
+	/* skip calling dynamic_fast_release_cpus from Ontime */
+	if (wake_flag)
+		ecs_enqueue_update(prev_cpu, p);
+
 	return __ems_select_task_rq_fair(p, prev_cpu, sd_flag, wake_flag);
 }
 
@@ -493,39 +611,6 @@ int ems_select_fallback_rq(struct task_struct *p, int target_cpu)
 		return target_cpu;
 
 	return -1;
-}
-
-int ems_can_migrate_task(struct task_struct *p, int dst_cpu)
-{
-	if (!cpu_overutilized(task_cpu(p))) {
-		trace_ems_can_migrate_task(p, dst_cpu, false, "underutilized");
-		return 0;
-	}
-
-	if (!ontime_can_migrate_task(p, dst_cpu)) {
-		trace_ems_can_migrate_task(p, dst_cpu, false, "ontime");
-		return 0;
-	}
-
-	if (!cpumask_test_cpu(dst_cpu, cpus_binding_mask(p))) {
-		trace_ems_can_migrate_task(p, dst_cpu, false, "emstune");
-		return 0;
-	}
-
-	if (tex_task(p)) {
-		trace_ems_can_migrate_task(p, dst_cpu, false, "prio pinning");
-		return 0;
-	}
-
-	if (tex_suppress_task(p) &&
-		cpumask_test_cpu(dst_cpu, cpu_fastest_mask())) {
-		trace_ems_can_migrate_task(p, dst_cpu, false, "suppress task");
-		return 0;
-	}
-
-	trace_ems_can_migrate_task(p, dst_cpu, true, "n/a");
-
-	return 1;
 }
 
 void ems_idle_exit(int cpu, int state)
@@ -538,41 +623,60 @@ void ems_idle_enter(int cpu, int *state)
 	mlt_idle_enter(cpu, *state);
 }
 
+void ems_tick_entry(struct rq *rq)
+{
+	mlt_tick(rq);
+}
+
 void ems_tick(struct rq *rq)
 {
+	mhdvfs();
+
+	halo_tick(rq);
+
 	profile_sched_data();
-
-	mlt_update(cpu_of(rq));
-
-	stt_update(rq, NULL);
 
 	frt_update_available_cpus(rq);
 
-	monitor_sysbusy();
-	somac_tasks();
+	gsc_update_tick();
 
-	ontime_migration();
 	ecs_update();
 
-	gsc_update_tick(rq);
+	monitor_sysbusy();
+
+	somac_tasks();
+
+	tex_update(rq);
+
+	lb_tick(rq);
+
+	ontime_migration();
 }
 
 void ems_enqueue_task(struct rq *rq, struct task_struct *p, int flags)
 {
-	stt_enqueue_task(rq, p);
+	mlt_enqueue_task(rq);
+
+	profile_enqueue_task(rq, p);
 
 	tex_enqueue_task(p, cpu_of(rq));
 
 	freqboost_enqueue_task(p, cpu_of(rq), flags);
+
+	if (ems_task_misfited(p))
+		lb_enqueue_misfit_task(p, rq);
 }
 
 void ems_dequeue_task(struct rq *rq, struct task_struct *p, int flags)
 {
-	stt_dequeue_task(rq, p);
+	mlt_dequeue_task(rq);
 
 	tex_dequeue_task(p, cpu_of(rq));
 
 	freqboost_dequeue_task(p, cpu_of(rq), flags);
+
+	if (ems_task_misfited(p))
+		lb_dequeue_misfit_task(p, rq);
 }
 
 void ems_replace_next_task_fair(struct rq *rq, struct task_struct **p_ptr,
@@ -580,6 +684,21 @@ void ems_replace_next_task_fair(struct rq *rq, struct task_struct **p_ptr,
 				bool simple, struct task_struct *prev)
 {
 	tex_replace_next_task_fair(rq, p_ptr, se_ptr, repick, simple, prev);
+}
+
+void ems_check_preempt_wakeup(struct rq *rq, struct task_struct *p,
+		bool *preempt, bool *ignore)
+{
+	tex_check_preempt_wakeup(rq, p, preempt, ignore);
+}
+
+void ems_do_sched_yield(struct rq *rq)
+{
+	struct task_struct *curr = rq->curr;
+
+	lockdep_assert_held(&rq->lock);
+
+	tex_do_yield(curr);
 }
 
 /* can_attach has non-zero value, it is not allowed to attach */
@@ -601,25 +720,89 @@ int ems_load_balance(struct rq *rq)
 	return 0;
 }
 
+void ems_update_misfit_status(struct task_struct *p,
+			struct rq *rq, bool *need_update)
+{
+	lb_update_misfit_status(p, rq, need_update);
+}
+
+void ems_nohz_balancer_kick(struct rq *rq, unsigned int *flag, int *done)
+{
+	lb_nohz_balancer_kick(rq, flag, done);
+}
+
+void ems_can_migrate_task(struct task_struct *p, int dst_cpu, int *can_migrate)
+{
+	lb_can_migrate_task(p, dst_cpu, can_migrate);
+}
+
+void ems_find_busiest_queue(int dst_cpu, struct sched_group *group,
+		struct cpumask *env_cpus, struct rq **busiest, int *done)
+{
+	lb_find_busiest_queue(dst_cpu, group, env_cpus, busiest, done);
+}
+
+extern void ems_newidle_balance(struct rq *this_rq, struct rq_flags *rf,
+					int *pulled_task, int *done)
+{
+	lb_newidle_balance(this_rq, rf, pulled_task, done);
+}
+
 void ems_post_init_entity_util_avg(struct sched_entity *se)
 {
 	ntu_apply(se);
 }
 
+void ems_sched_fork_init(struct task_struct *p)
+{
+	tex_task_init(p);
+	mlt_task_init(p);
+	ems_task_misfited(p) = 0;
+}
+
 void ems_schedule(struct task_struct *prev,
 		struct task_struct *next, struct rq *rq)
 {
-	int state = RUNNING;
-
 	if (prev == next)
 		return;
 
-	if (get_sched_class_idx(next->sched_class) == EMS_SCHED_IDLE)
-		state = IDLE_START;
-	else if (get_sched_class_idx(prev->sched_class) == EMS_SCHED_IDLE)
-		state = IDLE_END;
+	slack_timer_cpufreq(rq->cpu,
+		get_sched_class(next) == EMS_SCHED_IDLE,
+		get_sched_class(prev) == EMS_SCHED_IDLE);
 
-	mlt_task_switch(rq->cpu, next, state);
+	mlt_task_switch(rq->cpu, prev, next);
+}
+
+void ems_set_task_cpu(struct task_struct *p, unsigned int new_cpu)
+{
+	mlt_task_migration(p, new_cpu);
+}
+
+void ems_set_binder_task(struct task_struct *p, bool sync,
+		struct binder_proc *proc)
+{
+	if (p && current->signal &&
+			(current->signal->oom_score_adj == 0) &&
+			((current->prio < DEFAULT_PRIO) ||
+			 (p->group_leader->prio < MAX_RT_PRIO)))
+		ems_binder_task(p) = 1;
+}
+
+void ems_clear_binder_task(struct task_struct *p)
+{
+	ems_binder_task(p) = 0;
+}
+
+void ems_set_binder_priority(struct binder_transaction *t, struct task_struct *p)
+{
+	if (t && t->need_reply && ems_boosted_tex(current))
+		ems_boosted_tex(p) = 1;
+}
+
+void ems_restore_binder_priority(struct binder_transaction *t, struct task_struct *p)
+{
+	if (t && ems_boosted_tex(p))
+		ems_boosted_tex(p) = 0;
 }
 
 /*
@@ -646,6 +829,12 @@ int ems_find_new_ilb(struct cpumask *nohz_idle_cpus_mask)
 	}
 
 	return nr_cpu_ids;
+}
+
+void ems_arch_set_freq_scale(const struct cpumask *cpus, unsigned long freq,
+				unsigned long max, unsigned long *scale)
+{
+	et_arch_set_freq_scale(cpus, freq, max, scale);
 }
 
 static ssize_t show_sched_topology(struct device *dev,
@@ -685,6 +874,27 @@ static ssize_t show_sched_topology(struct device *dev,
 
 static DEVICE_ATTR(sched_topology, S_IRUGO, show_sched_topology, NULL);
 
+static ssize_t show_pe_list(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int index, i;
+	int ret = 0;
+
+	for (index = 0; index < num_of_list; index++) {
+		struct pe_list *pl = &pe_list[index];
+
+		ret += snprintf(buf + ret, PAGE_SIZE - ret, "pe_list[%d]: ", index);
+		for (i = 0; i < pl->num_of_cpus; i++)
+			ret += snprintf(buf + ret, PAGE_SIZE - ret, "<%*pbl> ",
+					cpumask_pr_args(&pl->cpus[i]));
+		ret += snprintf(buf + ret, PAGE_SIZE - ret, "\n");
+	}
+
+	return ret;
+}
+
+static DEVICE_ATTR(pe_list, S_IRUGO, show_pe_list, NULL);
+
 int busy_cpu_ratio = 150;
 
 static int ems_probe(struct platform_device *pdev)
@@ -696,25 +906,30 @@ static int ems_probe(struct platform_device *pdev)
 
 	cpumask_speed_init();
 	qjump_rq_list_init();
+	pe_list_init();
 
 	ems_kobj = &pdev->dev.kobj;
 
 	core_init(pdev->dev.of_node);
 	et_init(ems_kobj);
-	mlt_init();
+	mlt_init(ems_kobj, pdev->dev.of_node);
 	ntu_init(ems_kobj);
 	profile_sched_init(ems_kobj);
 	ontime_init(ems_kobj);
-	fclamp_init();
-	esgov_pre_init(ems_kobj);
+	cpufreq_init();
 	ego_pre_init(ems_kobj);
 	freqboost_init();
 	frt_init(ems_kobj);
 	ecs_init(ems_kobj);
+	ecs_gov_stage_init(ems_kobj);
+	ecs_gov_dynamic_init(ems_kobj);
 	sysbusy_init(ems_kobj);
-	emstune_init(ems_kobj, pdev->dev.of_node);
-	stt_init(ems_kobj);
 	gsc_init(ems_kobj);
+	emstune_init(ems_kobj, pdev->dev.of_node, &pdev->dev);
+	fv_init(ems_kobj);
+	halo_governor_init(ems_kobj);
+	lb_init();
+	mhdvfs_init(ems_kobj);
 
 	ret = hook_init();
 	if (ret) {
@@ -726,6 +941,9 @@ static int ems_probe(struct platform_device *pdev)
 
 	if (sysfs_create_file(ems_kobj, &dev_attr_sched_topology.attr))
 		pr_warn("failed to create sched_topology\n");
+
+	if (sysfs_create_file(ems_kobj, &dev_attr_pe_list.attr))
+		pr_warn("failed to create pe_list\n");
 
 	if (sysfs_create_link(kernel_kobj, ems_kobj, "ems"))
 		pr_warn("failed to link ems\n");

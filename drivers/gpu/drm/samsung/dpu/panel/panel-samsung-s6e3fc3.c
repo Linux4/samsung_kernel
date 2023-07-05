@@ -52,7 +52,7 @@ static int s6e3fc3_disable(struct drm_panel *panel)
 
 	ctx = container_of(panel, struct exynos_panel, panel);
 	ctx->enabled = false;
-	panel_debug(ctx, "%s +\n", __func__);
+	panel_debug(ctx, "+\n");
 	return 0;
 }
 
@@ -62,9 +62,9 @@ static int s6e3fc3_unprepare(struct drm_panel *panel)
 
 	ctx = container_of(panel, struct exynos_panel, panel);
 
-	panel_debug(ctx, "%s +\n", __func__);
+	panel_debug(ctx, "+\n");
 	exynos_panel_set_power(ctx, false);
-	panel_debug(ctx, "%s -\n", __func__);
+	panel_debug(ctx, "-\n");
 	return 0;
 }
 
@@ -74,9 +74,9 @@ static int s6e3fc3_prepare(struct drm_panel *panel)
 
 	ctx = container_of(panel, struct exynos_panel, panel);
 
-	panel_debug(ctx, "%s +\n", __func__);
+	panel_debug(ctx, "+\n");
 	exynos_panel_set_power(ctx, true);
-	panel_debug(ctx, "%s -\n", __func__);
+	panel_debug(ctx, "-\n");
 
 	return 0;
 }
@@ -92,25 +92,25 @@ static int s6e3fc3_set_brightness(struct exynos_panel *exynos_panel, u16 br)
 static void s6e3fc3_set_resolution(struct exynos_panel *ctx,
 				const struct exynos_panel_mode *pmode)
 {
-	panel_debug(ctx, "%s +\n", __func__);
+	panel_debug(ctx, "+\n");
 
-	panel_debug(ctx, "%s -\n", __func__);
+	panel_debug(ctx, "-\n");
 }
 
 static void s6e3fc3_set_vrefresh(struct exynos_panel *ctx,
 				const struct drm_display_mode *pmode)
 {
-	panel_debug(ctx, "%s +\n", __func__);
+	panel_debug(ctx, "+\n");
 
 	// if needs for lp mode, should put code in this.
 
-	panel_debug(ctx, "%s -\n", __func__);
+	panel_debug(ctx, "-\n");
 }
 
 static void s6e3fc3_mode_set(struct exynos_panel *ctx,
 		const struct exynos_panel_mode *pmode, unsigned int flags)
 {
-	panel_debug(ctx, "%s +\n", __func__);
+	panel_debug(ctx, "+\n");
 
 	if (!ctx->enabled)
 		return;
@@ -120,7 +120,7 @@ static void s6e3fc3_mode_set(struct exynos_panel *ctx,
 	if (SEAMLESS_MODESET_VREF & flags)
 		s6e3fc3_set_vrefresh(ctx, &pmode->mode);
 
-	panel_debug(ctx, "%s -\n", __func__);
+	panel_debug(ctx, "-\n");
 }
 
 static void s6e3fc3_lp_mode_set(struct exynos_panel *ctx,
@@ -146,7 +146,7 @@ static int s6e3fc3_enable(struct drm_panel *panel)
 	}
 	mode = &pmode->mode;
 
-	panel_debug(ctx, "%s +\n", __func__);
+	panel_debug(ctx, "+\n");
 
 	exynos_panel_reset(ctx);
 	msleep(5);
@@ -255,7 +255,7 @@ static int s6e3fc3_enable(struct drm_panel *panel)
 	if (pmode->exynos_mode.is_lp_mode)
 		s6e3fc3_lp_mode_set(ctx, pmode);
 
-	panel_debug(ctx, "%s -\n", __func__);
+	panel_debug(ctx, "-\n");
 
 	return 0;
 }

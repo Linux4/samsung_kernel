@@ -78,6 +78,7 @@ struct dpu_bts_win_config {
 	u32 dst_h;
 	bool is_rot;
 	bool is_comp;
+	bool is_hdr;
 	int dpp_ch;
 	u32 format;
 	u64 comp_src;
@@ -101,6 +102,7 @@ struct bts_dpp_info {
 	bool rotation;
 	bool compression;
 	const char *fmt_name;
+	bool hdr;
 };
 
 struct bts_decon_info {
@@ -108,6 +110,7 @@ struct bts_decon_info {
 	u32 vclk; /* Khz */
 	u32 lcd_w;
 	u32 lcd_h;
+	u32 layer_cnt;
 };
 
 struct dpu_bts {

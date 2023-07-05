@@ -98,8 +98,7 @@ static u32 s6e3hab_find_table_index(const struct exynos_panel *ctx, u32 yres)
 			return i;
 	}
 
-	panel_err(ctx, "%s: no match for yres(%d) -> forcing FHD+ mode\n",
-			__func__, yres);
+	panel_err(ctx, "no match for yres(%d) -> forcing FHD+ mode\n", yres);
 	/* FHD+ mode */
 	return 1;
 }
@@ -110,7 +109,7 @@ static int s6e3hab_disable(struct drm_panel *panel)
 
 	ctx = container_of(panel, struct exynos_panel, panel);
 	ctx->enabled = false;
-	panel_info(ctx, "%s +\n", __func__);
+	panel_info(ctx, "+\n");
 	return 0;
 }
 
@@ -120,9 +119,9 @@ static int s6e3hab_unprepare(struct drm_panel *panel)
 
 	ctx = container_of(panel, struct exynos_panel, panel);
 
-	panel_info(ctx, "%s +\n", __func__);
+	panel_info(ctx, "+\n");
 	exynos_panel_set_power(ctx, false);
-	panel_info(ctx, "%s -\n", __func__);
+	panel_info(ctx, "-\n");
 	return 0;
 }
 
@@ -132,9 +131,9 @@ static int s6e3hab_prepare(struct drm_panel *panel)
 
 	ctx = container_of(panel, struct exynos_panel, panel);
 
-	panel_info(ctx, "%s +\n", __func__);
+	panel_info(ctx, "+\n");
 	exynos_panel_set_power(ctx, true);
-	panel_info(ctx, "%s -\n", __func__);
+	panel_info(ctx, "-\n");
 
 	return 0;
 }
@@ -153,7 +152,7 @@ static void s6e3hab_set_resolution(struct exynos_panel *ctx,
 	const struct exynos_display_mode *exynos_mode = &pmode->exynos_mode;
 	u32 tab_idx = s6e3hab_find_table_index(ctx, pmode->mode.vdisplay);
 
-	panel_info(ctx, "%s +\n", __func__);
+	panel_info(ctx, "+\n");
 
 	EXYNOS_DCS_WRITE_SEQ(ctx, 0x9F, 0xA5, 0xA5);
 	/* DSC related configuration */
@@ -174,7 +173,7 @@ static void s6e3hab_set_resolution(struct exynos_panel *ctx,
 	EXYNOS_DCS_WRITE_TABLE(ctx, SCALER_TABLE[tab_idx]);
 	EXYNOS_DCS_WRITE_SEQ(ctx, 0xF0, 0xA5, 0xA5);
 
-	panel_info(ctx, "%s -\n", __func__);
+	panel_info(ctx, "-\n");
 }
 
 static void s6e3hab_set_vrefresh(struct exynos_panel *ctx,
@@ -182,7 +181,7 @@ static void s6e3hab_set_vrefresh(struct exynos_panel *ctx,
 {
 	int vrefresh = drm_mode_vrefresh(pmode);
 
-	panel_info(ctx, "%s +\n", __func__);
+	panel_info(ctx, "+\n");
 
 	EXYNOS_DCS_WRITE_SEQ(ctx, 0xF0, 0x5A, 0x5A);
 
@@ -223,13 +222,13 @@ static void s6e3hab_set_vrefresh(struct exynos_panel *ctx,
 end:
 	EXYNOS_DCS_WRITE_SEQ(ctx, 0xF0, 0xA5, 0xA5);
 
-	panel_info(ctx, "%s -\n", __func__);
+	panel_info(ctx, "-\n");
 }
 
 static void s6e3hab_mode_set(struct exynos_panel *ctx,
 		const struct exynos_panel_mode *pmode, unsigned int flags)
 {
-	panel_info(ctx, "%s +\n", __func__);
+	panel_info(ctx, "+\n");
 
 	if (!ctx->enabled)
 		return;
@@ -239,7 +238,7 @@ static void s6e3hab_mode_set(struct exynos_panel *ctx,
 	if (SEAMLESS_MODESET_VREF & flags)
 		s6e3hab_set_vrefresh(ctx, &pmode->mode);
 
-	panel_info(ctx, "%s -\n", __func__);
+	panel_info(ctx, "-\n");
 }
 
 static void s6e3hab_lp_mode_set(struct exynos_panel *ctx,
@@ -264,7 +263,7 @@ static int s6e3hab_enable(struct drm_panel *panel)
 	}
 	mode = &pmode->mode;
 
-	panel_info(ctx, "%s +\n", __func__);
+	panel_info(ctx, "+\n");
 
 	exynos_panel_reset(ctx);
 
@@ -310,7 +309,7 @@ static int s6e3hab_enable(struct drm_panel *panel)
 	if (pmode->exynos_mode.is_lp_mode)
 		s6e3hab_lp_mode_set(ctx, pmode);
 
-	panel_info(ctx, "%s -\n", __func__);
+	panel_info(ctx, "-\n");
 
 	return 0;
 }

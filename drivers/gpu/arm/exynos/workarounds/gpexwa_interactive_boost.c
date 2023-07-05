@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0
+
 /*
  * (C) COPYRIGHT 2021 Samsung Electronics Inc. All rights reserved.
  *
@@ -73,7 +75,7 @@ static void work_interactive_boost_unset(struct work_struct *data)
 	spin_unlock_irqrestore(&ib_info.spinlock, flags);
 }
 
-int gpexwa_interactive_boost_init()
+int gpexwa_interactive_boost_init(void)
 {
 	INIT_WORK(&ib_info.set_work, work_interactive_boost_set);
 	INIT_DELAYED_WORK(&ib_info.unset_work, work_interactive_boost_unset);
@@ -83,7 +85,7 @@ int gpexwa_interactive_boost_init()
 	return 0;
 }
 
-void gpexwa_interactive_boost_term()
+void gpexwa_interactive_boost_term(void)
 {
 	cancel_delayed_work_sync(&ib_info.unset_work);
 

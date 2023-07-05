@@ -40,6 +40,8 @@
 #include <linux/usb/typec/slsi/s2mu205/usbpd-s2mu205.h>
 #elif IS_ENABLED(CONFIG_PDIC_S2MU107)
 #include <linux/usb/typec/slsi/s2mu107/usbpd-s2mu107.h>
+#elif IS_ENABLED(CONFIG_PDIC_S2MF301)
+#include <linux/usb/typec/slsi/s2mf301/usbpd-s2mf301.h>
 #endif
 
 #if IS_ENABLED(CONFIG_SUPPORT_USB_TYPEC_OPS)
@@ -99,11 +101,15 @@ void pdic_event_work(void *data, int dest, int id, int attach, int event, int su
 	struct usbpd_data *pd_data = data;
 	struct pdic_state_work *event_work;
 #if IS_ENABLED(CONFIG_TYPEC)
-	struct typec_partner_desc desc;
+	struct typec_partner_desc desc = {0};
 	enum typec_pwr_opmode mode;
 #endif
 
 	event_work = kmalloc(sizeof(struct pdic_state_work), GFP_ATOMIC);
+	if (!event_work) {
+		pr_info("usb: %s,event_work is null", __func__);
+		return;
+	}
 	pr_info("usb: %s,event_work(%p)\n", __func__, event_work);
 	INIT_WORK(&event_work->pdic_work, pdic_event_notifier);
 
@@ -148,9 +154,6 @@ void pdic_event_work(void *data, int dest, int id, int attach, int event, int su
 			desc.usb_pd = mode == TYPEC_PWR_MODE_PD;
 			desc.accessory = TYPEC_ACCESSORY_NONE; /* XXX: handle accessories */
 			desc.identity = NULL;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
-			desc.pd_revision = 0;
-#endif
 			pd_data->typec_data_role = TYPEC_DEVICE;
 			typec_set_data_role(pd_data->port, TYPEC_DEVICE);
 			pd_data->partner = typec_register_partner(pd_data->port, &desc);
@@ -160,9 +163,6 @@ void pdic_event_work(void *data, int dest, int id, int attach, int event, int su
 			desc.usb_pd = mode == TYPEC_PWR_MODE_PD;
 			desc.accessory = TYPEC_ACCESSORY_NONE; /* XXX: handle accessories */
 			desc.identity = NULL;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
-			desc.pd_revision = 0;
-#endif
 			pd_data->typec_data_role = TYPEC_HOST;
 			typec_set_data_role(pd_data->port, TYPEC_HOST);
 			pd_data->partner = typec_register_partner(pd_data->port, &desc);
@@ -501,6 +501,8 @@ int typec_port_type_set(const struct typec_capability *cap, enum typec_port_type
 		struct s2mu205_usbpd_data *usbpd_data = (struct s2mu205_usbpd_data *)pd_data->phy_driver_data;
 #elif IS_ENABLED(CONFIG_PDIC_S2MU107)
 		struct s2mu107_usbpd_data *usbpd_data = (struct s2mu107_usbpd_data *)pd_data->phy_driver_data;
+#elif IS_ENABLED(CONFIG_PDIC_S2MF301)
+		struct s2mf301_usbpd_data *usbpd_data = (struct s2mf301_usbpd_data *)pd_data->phy_driver_data;
 #endif
 		int timeout = 0;
 

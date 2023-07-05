@@ -19,6 +19,7 @@
 #include "scsc_wifilogger_ring_connectivity_api.h"
 #include "log2us.h"
 #include "ba.h"
+#include <scsc/scsc_warn.h>
 
 #ifdef CONFIG_SCSC_WLAN_ANDROID
 #include "scsc_wifilogger_rings.h"
@@ -1388,10 +1389,6 @@ int slsi_connect(struct wiphy *wiphy, struct net_device *dev,
 	struct ieee80211_channel *channel;
 	u8                  peer_address[ETH_ALEN] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 	u16                 center_freq = 0;
-	u16                 center_freq_hint = 0;
-	int                 pairwise = 0;
-	int                 group = 0;
-	int                 akm_suite = 0;
 
 	if (slsi_is_test_mode_enabled()) {
 		SLSI_NET_INFO(dev, "Skip sending signal, WlanLite FW does not support MLME_CONNECT.request\n");
@@ -1552,16 +1549,7 @@ int slsi_connect(struct wiphy *wiphy, struct net_device *dev,
 
 	slsi_config_rsn_ie(dev, sme);
 
-	center_freq_hint = sme->channel_hint ? sme->channel_hint->center_freq : 0;
-	if (sme->crypto.n_ciphers_pairwise)
-		pairwise = sme->crypto.ciphers_pairwise[0];
-	group = sme->crypto.cipher_group;
-	if (sme->crypto.n_akm_suites)
-		akm_suite = sme->crypto.akm_suites[0];
-
-	slsi_conn_log2us_connecting(sdev, dev, sme->ssid, (int)sme->ssid_len, bssid, sme->bssid_hint,
-				    center_freq, center_freq_hint, pairwise, group, akm_suite,
-				    sme->auth_type, sme->ie, sme->ie_len);
+	slsi_conn_log2us_connecting(sdev, dev, sme);
 
 	r = slsi_mlme_connect(sdev, dev, sme, channel, bssid);
 	if (r != 0) {
@@ -1753,33 +1741,60 @@ int slsi_get_channel(struct wiphy *wiphy, struct wireless_dev *wdev,
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	int freq = 0;
 	int width = 0;
-
+	int r = 0;
+	
 	if (ndev_vif->sta.vif_status != SLSI_VIF_STATUS_CONNECTED)
 		return -ENODATA;
 
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 	freq = ndev_vif->sta.bss_cf;
 	width = ndev_vif->sta.ch_width;
-	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 
-	if (width == 20)
+	if (width == 20){
 		width = NL80211_CHAN_WIDTH_20;
-	else if (width == 40)
+		if (freq != ndev_vif->chan->center_freq) {
+			r = -EINVAL;
+			goto exit;
+		}
+	} else if (width == 40){
 		width =  NL80211_CHAN_WIDTH_40;
-	else if (width == 80)
+		if (freq != ndev_vif->chan->center_freq + 10 &&
+		    freq != ndev_vif->chan->center_freq - 10) {
+			r = -EINVAL;
+			goto exit;
+		}
+	} else if (width == 80){
 		width =  NL80211_CHAN_WIDTH_80;
-	else if (width == 160)
+		if (freq != ndev_vif->chan->center_freq + 30 &&
+		    freq != ndev_vif->chan->center_freq + 10 &&
+		    freq != ndev_vif->chan->center_freq - 10 &&
+		    freq != ndev_vif->chan->center_freq - 30) {
+			r = -EINVAL;
+			goto exit;
+		}
+	} else if (width == 160){
 		width =  NL80211_CHAN_WIDTH_160;
+		if (freq != ndev_vif->chan->center_freq + 70 &&
+		    freq != ndev_vif->chan->center_freq + 50 &&
+		    freq != ndev_vif->chan->center_freq + 30 &&
+		    freq != ndev_vif->chan->center_freq + 10 &&
+		    freq != ndev_vif->chan->center_freq - 10 &&
+		    freq != ndev_vif->chan->center_freq - 30 &&
+		    freq != ndev_vif->chan->center_freq - 50 &&
+		    freq != ndev_vif->chan->center_freq - 70) {
+			r  = -EINVAL;
+			goto exit;
+		}
+	}
 
-	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 	if (ndev_vif->chan)
 		chandef->chan = ndev_vif->chan;
-	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	chandef->center_freq1 = freq;
 	chandef->width = width;
 	chandef->center_freq2 = 0;
-
-	return 0;
+exit:
+	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+	return r;
 }
 
 int slsi_get_tx_power(struct wiphy *wiphy, struct wireless_dev *wdev, int *dbm)
@@ -3211,7 +3226,7 @@ static int slsi_p2p_mgmt_tx(const struct ieee80211_mgmt *mgmt, struct wiphy *wip
 			/* Already a frame Tx is in progress, send immediate tx_status as success. Sending immediate tx status should be ok
 			 * as supplicant is in another procedure and so these frames would be mostly only response frames.
 			 */
-			WARN_ON(sdev->p2p_state != P2P_ACTION_FRAME_TX_RX);
+			WLBT_WARN_ON(sdev->p2p_state != P2P_ACTION_FRAME_TX_RX);
 
 			if (!dont_wait_for_ack) {
 				SLSI_NET_DBG1(dev, SLSI_CFG80211, "Send immediate tx_status (cookie = 0x%llx)\n", *cookie);
@@ -3454,6 +3469,11 @@ int slsi_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 			      "offchannel = %d, mgmt->frame_control = %d, vif_type = %d\n", ndev_vif->ifnum, chan->hw_value,
 			      wait, dont_wait_for_ack, offchan, mgmt->frame_control, ndev_vif->vif_type);
 	} else {
+		if (!ndev_vif->activated) {
+			SLSI_NET_ERR(dev, "Drop Auth Frame: VIF not activated\n");
+			r = -EINVAL;
+			goto exit;
+		}
 		SLSI_INFO(sdev, "Send Auth Frame\n");
 	}
 

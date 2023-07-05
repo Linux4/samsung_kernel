@@ -720,7 +720,7 @@ struct s2mu106_usbpd_data {
 	struct mutex plug_mutex;
 #endif
 
-#if IS_ENABLED(CONFIG_ARCH_QCOM)
+#if !defined(CONFIG_ARCH_EXYNOS) && !defined(CONFIG_ARCH_MEDIATEK)
 	struct wakeup_source	*water_wake;
 	struct wakeup_source	*water_irq_wake;
 	struct delayed_work	water_wake_work;

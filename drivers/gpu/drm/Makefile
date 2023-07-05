@@ -126,5 +126,3 @@ obj-$(CONFIG_DRM_ASPEED_GFX) += aspeed/
 obj-$(CONFIG_DRM_MCDE) += mcde/
 obj-$(CONFIG_DRM_TIDSS) += tidss/
 obj-y			+= xlnx/
-
-obj-$(CONFIG_MCD_PANEL) += samsung/panel/

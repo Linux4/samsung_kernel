@@ -463,7 +463,7 @@ static ssize_t fod_pos_show(struct device *dev,
 
 	if (!ts_data->pdata->support_fod) {
 		FTS_ERROR("fod is not supported");
-		return snprintf(buf, SEC_CMD_BUF_SIZE, "NG");
+		return snprintf(buf, SEC_CMD_BUF_SIZE, "NA");
 	}
 
 	if (!ts_data->pdata->fod_data.vi_size) {

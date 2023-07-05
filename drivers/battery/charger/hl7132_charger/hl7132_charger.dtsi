@@ -11,7 +11,7 @@
 		/* Input Current Limit : 2A */
 		hl7132,input-current-limit = <2000000>;
 		/* Topoff Current :: 500mA */
-		hl7132,topoff-current = <1000000>;
+		hl7132,topoff-current = <500000>;
 		/* ts protection Enabled */
 		//hl7132,ts-prot-en;
 		/* All auto recovery Disabled */
@@ -26,5 +26,6 @@
 		hl7132,wd-tmr = <0x3>;
 		/* WDT enabled */
 		//hl7132,wd-dis;
+		hl7132,fsw-set = <0x06>; //1100khz default setting
 	};
 };

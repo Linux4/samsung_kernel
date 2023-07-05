@@ -14,7 +14,7 @@
 
 &sm5451_charger {
 	sm5451,freq_byp = <0x1>; /* 375kHz */
-	sm5451,topoff_current = <1000>; /* DC topoff current 1000mA */
+	sm5451,topoff = <1000>; /* DC topoff current 1000mA */
 };
 
 /* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/sm5451/sm5451_charger.a33x.03.dtsi */

@@ -73,6 +73,8 @@ ssize_t s2mu106_fg_store_attrs(struct device *dev,
 
 #define S2MU106_REG_VM			0x67
 
+#define FG_BATT_DUMP_SIZE 128
+
 enum {
 	CURRENT_MODE = 0,
 	LOW_SOC_VOLTAGE_MODE,
@@ -179,9 +181,15 @@ struct s2mu106_fuelgauge_data {
 	struct wakeup_source *fuel_alert_ws;
 
 	unsigned int ui_soc;
+	unsigned int scaled_soc;
 
 	unsigned int capacity_old;      /* only for atomic calculation */
 	unsigned int capacity_max;      /* only for dynamic calculation */
+#if defined(CONFIG_UI_SOC_PROLONGING)
+	unsigned int g_capacity_max;	/* only for dynamic calculation */
+	bool capacity_max_conv;
+	int prev_raw_soc;
+#endif
 	unsigned int standard_capacity;
 	int raw_capacity;
 	int current_avg;
@@ -251,6 +259,7 @@ struct s2mu106_fuelgauge_data {
 #endif
 	int val_0x5C;
 	int low_voltage_limit_cnt;
+	char d_buf[FG_BATT_DUMP_SIZE];
 };
 
 #if (BATCAP_LEARN)

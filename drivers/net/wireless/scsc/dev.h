@@ -822,6 +822,7 @@ struct slsi_last_disconnected_sta {
 	bool mimo_used;
 	u16 reason;
 	int support_mode;
+	int supported_band;
 };
 
 struct slsi_vif_ap {
@@ -1633,7 +1634,8 @@ void slsi_rx_dbg_sap_work(struct work_struct *work);
 void slsi_rx_netdev_data_work(struct work_struct *work);
 void slsi_rx_netdev_mlme_work(struct work_struct *work);
 int slsi_rx_enqueue_netdev_mlme(struct slsi_dev *sdev, struct sk_buff *skb, u16 vif);
-struct ieee80211_channel *slsi_rx_scan_pass_to_cfg80211(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
+struct ieee80211_channel *slsi_rx_scan_pass_to_cfg80211(struct slsi_dev *sdev, struct net_device *dev,
+							struct sk_buff *skb, bool release_skb);
 void slsi_rx_buffered_frames(struct slsi_dev *sdev, struct net_device *dev, struct slsi_peer *peer);
 int slsi_rx_blocking_signals(struct slsi_dev *sdev, struct sk_buff *skb);
 void slsi_scan_complete(struct slsi_dev *sdev, struct net_device *dev, u16 scan_id, bool aborted,
@@ -1645,7 +1647,6 @@ int slsi_tx_data(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *
 int slsi_tx_data_lower(struct slsi_dev *sdev, struct sk_buff *skb);
 bool slsi_is_test_mode_enabled(void);
 bool slsi_is_rf_test_mode_enabled(void);
-int slsi_check_rf_test_mode(struct slsi_dev *sdev);
 void slsi_init_netdev_mac_addr(struct slsi_dev *sdev);
 bool slsi_dev_lls_supported(void);
 bool slsi_dev_gscan_supported(void);

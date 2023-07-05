@@ -42,7 +42,7 @@ static DECLARE_BITMAP(minors, N_SPI_MINORS);
 static LIST_HEAD(device_list);
 static DEFINE_MUTEX(device_list_lock);
 
-static unsigned int bufsiz = 1024;
+static unsigned int bufsiz = 256 * 1024;
 
 /* spi communication opcode */
 #define OP_REG_R					0x20
@@ -132,7 +132,6 @@ struct el7xx_data {
 	struct mutex buf_lock;
 	unsigned int users;
 	u8 *buf;/* tx buffer for sensor register read/write */
-	unsigned int bufsiz; /* MAX size of tx and rx buffer */
 	unsigned int sleepPin;	/* Sleep GPIO pin number */
 	unsigned int ldo_pin;	/* Ldo GPIO pin number */
 
@@ -159,6 +158,7 @@ struct el7xx_data {
 	struct debug_logger *logger;
 };
 
+#ifndef ENABLE_SENSORS_FPRINT_SECURE
 int el7xx_spi_setup_conf(struct el7xx_data *etspi, u32 bits);
 int el7xx_io_read_register(struct el7xx_data *etspi, u8 *addr, u8 *buf, struct egis_ioc_transfer *ioc);
 int el7xx_io_burst_read_register(struct el7xx_data *etspi, struct egis_ioc_transfer *ioc);
@@ -173,4 +173,8 @@ int el7xx_io_write_frame(struct el7xx_data *etspi, u8 *fr, u32 size);
 int el7xx_io_transfer_command(struct el7xx_data *etspi, u8 *tx, u8 *rx, u32 size);
 int el7xx_read_register(struct el7xx_data *etspi, u8 addr, u8 *buf);
 int el7xx_write_register(struct el7xx_data *etspi, u8 addr, u8 buf);
+int el7xx_init_buffer(struct el7xx_data *etspi);
+int el7xx_free_buffer(struct el7xx_data *etspi);
+#endif
+
 #endif

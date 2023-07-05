@@ -1945,7 +1945,8 @@ static void zram_handle_remain(struct zram *zram, struct page *page,
 				__GFP_KSWAPD_RECLAIM |
 				__GFP_NOWARN |
 				__GFP_HIGHMEM |
-				__GFP_MOVABLE);
+				__GFP_MOVABLE |
+				__GFP_CMA);
 		if (!handle) {
 			zram_slot_unlock(zram, index);
 			break;
@@ -2181,7 +2182,7 @@ static ssize_t read_block_state(struct file *file, char __user *buf,
 			zram_test_flag(zram, index, ZRAM_HUGE) ? 'h' : '.',
 			zram_test_flag(zram, index, ZRAM_IDLE) ? 'i' : '.');
 
-		if (count < copied) {
+		if (count <= copied) {
 			zram_slot_unlock(zram, index);
 			break;
 		}
@@ -2646,7 +2647,7 @@ static int __zram_bvec_read(struct zram *zram, struct page *page, u32 index,
 	}
 
 	/* Should NEVER happen. BUG() if it does. */
-	if (WARN_ON(ret)) {
+	if (unlikely(ret)) {
 		pr_err("%s Decompression failed! err=%d, page=%u, len=%u, vaddr=0x%px\n",
 			zram->compressor, ret, index, size, src);
 		print_hex_dump(KERN_ERR, "", DUMP_PREFIX_OFFSET, 16, 1, src, size, 1);

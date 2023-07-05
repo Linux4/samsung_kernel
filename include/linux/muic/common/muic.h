@@ -30,6 +30,7 @@
 #define MUIC_CORE "MUIC_CORE"
 
 #define SIOP (1 << 0)
+#define AFC_REQUEST_CHARGER SIOP
 #define FLED (1 << 1)
 
 /* Status of IF PMIC chip (suspend and resume) */

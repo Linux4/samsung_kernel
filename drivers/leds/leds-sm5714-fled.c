@@ -405,12 +405,16 @@ int32_t sm5714_fled_mode_ctrl(int state, uint32_t brightness)
 			pr_err("sm5714-fled: %s: SM5714_FLED_MODE_OFF(%d) failed\n", __func__, state);
 		else
 			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_OFF(%d) done\n", __func__, state);
-		sm5714_fled_close_flash();
+		if (preflash_done == false)
+			sm5714_fled_close_flash();
+		if (ret == 0)
+			preflash_done = false;
 		break;
 
 	case SM5714_FLED_MODE_MAIN_FLASH:
-		preflash_done = false;
-		sm5714_fled_prepare_flash();
+		if (preflash_done)
+			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_MAIN_FLASH(%d) skipped as flash/preflash already triggered\n",
+				__func__, state);
 		/* FlashLight Mode Flash */
 		if (iq_cur >= 0)
 			ret = sm5714_fled_flash_on(iq_cur);

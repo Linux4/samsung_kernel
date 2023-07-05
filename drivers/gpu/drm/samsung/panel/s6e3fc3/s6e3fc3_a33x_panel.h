@@ -16,6 +16,7 @@
 #include "../panel.h"
 #include "../panel_drv.h"
 #include "s6e3fc3.h"
+#include "s6e3fc3_a33x.h"
 #include "s6e3fc3_dimming.h"
 #ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
 #include "s6e3fc3_a33x_panel_mdnie.h"
@@ -25,9 +26,6 @@
 #include "s6e3fc3_a33x_panel_aod_dimming.h"
 #endif
 
-#ifdef CONFIG_DYNAMIC_FREQ
-#include "s6e3fc3_a33x_df_tbl.h"
-#endif
 #include "s6e3fc3_a33x_resol.h"
 
 #undef __pn_name__
@@ -209,41 +207,6 @@ static u8 a33x_dimming_speep_table_1[][1] = {
 	[S6E3FC3_SMOOTH_DIMMING_ON] = { 0x60 },
 };
 
-#ifdef CONFIG_DYNAMIC_FREQ
-/* waring dummy */
-static u8 a33x_dyn_ffc_table_1[][4] = {
-	/* A: 1110  B: 1114  C: 1124 */
-	{
-		/* 1110 */
-		0x0D, 0x10, 0x80, 0x45
-	},
-	{
-		/* 1114 */
-		0x0D, 0x10, 0x80, 0x45
-	},
-	{
-		/* 1124 */
-		0x0D, 0x10, 0x80, 0x45
-	},
-};
-
-static u8 a33x_dyn_ffc_table_2[][2] = {
-	/*	A: 1110  B: 1114  C: 1124	*/
-	{
-		/* 1110 */
-		0x53, 0xA0
-	},
-	{
-		/* 1114 */
-		0x53, 0x54
-	},
-	{
-		/* 1124 */
-		0x52, 0x96
-	},
-};
-#endif
-
 static struct maptbl a33x_maptbl[MAX_MAPTBL] = {
 	[GAMMA_MODE2_MAPTBL] = DEFINE_2D_MAPTBL(a33x_brt_table, init_gamma_mode2_brt_table, getidx_gamma_mode2_brt_table, copy_common_maptbl),
 	[HBM_ONOFF_MAPTBL] = DEFINE_3D_MAPTBL(a33x_hbm_transition_table, init_common_table, getidx_hbm_transition_table, copy_common_maptbl),
@@ -257,10 +220,6 @@ static struct maptbl a33x_maptbl[MAX_MAPTBL] = {
 	[LPM_NIT_MAPTBL] = DEFINE_2D_MAPTBL(a33x_lpm_nit_table, init_lpm_brt_table, getidx_lpm_brt_table, copy_common_maptbl),
 #ifdef CONFIG_SUPPORT_XTALK_MODE
 	[VGH_MAPTBL] = DEFINE_2D_MAPTBL(a33x_vgh_table, init_common_table, getidx_vgh_table, copy_common_maptbl),
-#endif
-#ifdef CONFIG_DYNAMIC_FREQ
-	[DYN_FFC_1_MAPTBL] = DEFINE_2D_MAPTBL(a33x_dyn_ffc_table_1, init_common_table, getidx_dyn_ffc_table, copy_common_maptbl),
-	[DYN_FFC_2_MAPTBL] = DEFINE_2D_MAPTBL(a33x_dyn_ffc_table_2, init_common_table, getidx_dyn_ffc_table, copy_common_maptbl),
 #endif
 #if defined(CONFIG_MCD_PANEL_FACTORY) && defined(CONFIG_SUPPORT_FAST_DISCHARGE)
 	[FAST_DISCHARGE_MAPTBL] = DEFINE_2D_MAPTBL(a33x_fast_discharge_table,
@@ -423,40 +382,6 @@ static u8 A33X_PASET[] = { 0x2B, 0x00, 0x00, 0x09, 0x5F };
 static DEFINE_STATIC_PACKET(a33x_caset, DSI_PKT_TYPE_WR, A33X_CASET, 0);
 static DEFINE_STATIC_PACKET(a33x_paset, DSI_PKT_TYPE_WR, A33X_PASET, 0);
 
-#ifdef CONFIG_DYNAMIC_FREQ
-static u8 A33X_FFC_SET_1[] = {
-	0xC5,
-	0x0D, 0x10, 0x80, 0x45
-};
-static DEFINE_PKTUI(a33x_ffc_set_1, &a33x_maptbl[DYN_FFC_1_MAPTBL], 1);
-static DEFINE_VARIABLE_PACKET(a33x_ffc_set_1, DSI_PKT_TYPE_WR, A33X_FFC_SET_1, 0x2A);
-
-static u8 A33X_FFC_SET_2[] = {
-	0xC5,
-	0x53, 0xC7
-};
-static DEFINE_PKTUI(a33x_ffc_set_2, &a33x_maptbl[DYN_FFC_2_MAPTBL], 1);
-static DEFINE_VARIABLE_PACKET(a33x_ffc_set_2, DSI_PKT_TYPE_WR, A33X_FFC_SET_2, 0x2E);
-
-static u8 A33X_FFC_OFF_1[] = {
-	0xC5,
-	0x0D, 0x0C
-};
-static DEFINE_STATIC_PACKET(a33x_ffc_off_1, DSI_PKT_TYPE_WR, A33X_FFC_OFF_1, 0x2A);
-
-static u8 A33X_FFC_OFF_2[] = {
-	0xFE,
-	0xB0,
-};
-static DEFINE_STATIC_PACKET(a33x_ffc_off_2, DSI_PKT_TYPE_WR, A33X_FFC_OFF_2, 0);
-
-static u8 A33X_FFC_OFF_3[] = {
-	0xFE,
-	0x30,
-};
-static DEFINE_STATIC_PACKET(a33x_ffc_off_3, DSI_PKT_TYPE_WR, A33X_FFC_OFF_3, 0);
-
-#else
 static u8 A33X_FFC_DEFAULT_SET_1[] = {
 	0xC5,
 	0x0D, 0x10, 0x80, 0x45
@@ -467,7 +392,6 @@ static u8 A33X_FFC_DEFAULT_SET_2[] = {
 	0x34, 0x40
 };
 static DEFINE_STATIC_PACKET(a33x_ffc_default_set_2, DSI_PKT_TYPE_WR, A33X_FFC_DEFAULT_SET_2, 0x3E);
-#endif
 
 #if defined(CONFIG_MCD_PANEL_FACTORY) && defined(CONFIG_SUPPORT_FAST_DISCHARGE)
 static u8 A33X_FAST_DISCHARGE[] = {
@@ -648,15 +572,8 @@ static void *a33x_init_cmdtbl[] = {
 	&PKTINFO(a33x_caset),
 	&PKTINFO(a33x_paset),
 
-#ifdef CONFIG_DYNAMIC_FREQ
-	&PKTINFO(a33x_ffc_set_1),
-	&PKTINFO(a33x_ffc_set_2),
-	&PKTINFO(a33x_panel_update),
-#else
 	&PKTINFO(a33x_ffc_default_set_1),
 	&PKTINFO(a33x_ffc_default_set_2),
-
-#endif
 
 	&PKTINFO(a33x_err_fg_on),
 	&PKTINFO(a33x_err_fg_setting),
@@ -836,32 +753,6 @@ static void *a33x_dump_cmdtbl[] = {
 	&KEYINFO(a33x_level1_key_disable),
 };
 
-#ifdef CONFIG_DYNAMIC_FREQ
-static void *a33x_dynamic_ffc_cmdtbl[] = {
-	&KEYINFO(a33x_level1_key_enable),
-	&KEYINFO(a33x_level2_key_enable),
-	&KEYINFO(a33x_level3_key_enable),
-	&PKTINFO(a33x_ffc_set_1),
-	&PKTINFO(a33x_ffc_set_2),
-	&KEYINFO(a33x_level3_key_disable),
-	&KEYINFO(a33x_level2_key_disable),
-	&KEYINFO(a33x_level1_key_disable),
-};
-
-static void *a33x_dynamic_ffc_off_cmdtbl[] = {
-	&KEYINFO(a33x_level1_key_enable),
-	&KEYINFO(a33x_level2_key_enable),
-	&KEYINFO(a33x_level3_key_enable),
-	&PKTINFO(a33x_ffc_off_1),
-	&PKTINFO(a33x_ffc_off_2),
-	&PKTINFO(a33x_ffc_off_3),
-	&PKTINFO(a33x_panel_update),
-	&KEYINFO(a33x_level3_key_disable),
-	&KEYINFO(a33x_level2_key_disable),
-	&KEYINFO(a33x_level1_key_disable),
-};
-#endif
-
 #if defined(CONFIG_MCD_PANEL_FACTORY) && defined(CONFIG_SUPPORT_FAST_DISCHARGE)
 static void *a33x_fast_discharge_cmdtbl[] = {
 	&KEYINFO(a33x_level1_key_enable),
@@ -977,10 +868,6 @@ static struct seqinfo a33x_seqtbl[MAX_PANEL_SEQ] = {
 	[PANEL_DISPLAY_MODE_SEQ] = SEQINFO_INIT("fps-seq", a33x_set_fps_cmdtbl),
 	[PANEL_ALPM_ENTER_SEQ] = SEQINFO_INIT("alpm-enter-seq", a33x_alpm_enter_cmdtbl),
 	[PANEL_ALPM_EXIT_SEQ] = SEQINFO_INIT("alpm-exit-seq", a33x_alpm_exit_cmdtbl),
-#ifdef CONFIG_DYNAMIC_FREQ
-	[PANEL_DYNAMIC_FFC_SEQ] = SEQINFO_INIT("dynamic-ffc-seq", a33x_dynamic_ffc_cmdtbl),
-	[PANEL_DYNAMIC_FFC_OFF_SEQ] = SEQINFO_INIT("dynamic-ffc-off-seq", a33x_dynamic_ffc_off_cmdtbl),
-#endif
 #ifdef CONFIG_SUPPORT_MASK_LAYER
 	[PANEL_MASK_LAYER_STOP_DIMMING_SEQ] = SEQINFO_INIT("mask-layer-workaround-seq", a33x_mask_layer_workaround_cmdtbl),
 	[PANEL_MASK_LAYER_BEFORE_SEQ] = SEQINFO_INIT("mask-layer-before-seq", a33x_mask_layer_before_cmdtbl),
@@ -1036,12 +923,6 @@ struct common_panel_info s6e3fc3_a33x_panel_info = {
 		[PANEL_BL_SUBDEV_TYPE_AOD] = &s6e3fc3_a33x_panel_aod_dimming_info,
 #endif
 	},
-#ifdef CONFIG_DYNAMIC_FREQ
-	.df_freq_tbl = a33x_s6e3fc3_dynamic_freq_set,
-#endif
-
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	.profile_tune = NULL,
-#endif
 };
+
 #endif /* __S6E3FC3_A33X_PANEL_H__ */

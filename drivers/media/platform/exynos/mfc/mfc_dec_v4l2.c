@@ -101,9 +101,13 @@ static int __mfc_dec_check_ctrl_val(struct mfc_ctx *ctx, struct v4l2_control *ct
 
 	if (ctrl->value < c->minimum || ctrl->value > c->maximum
 		|| (c->step != 0 && ctrl->value % c->step != 0)) {
-		mfc_ctx_err("[CTRLS] Invalid control id (%#x) value (%d)\n", ctrl->id, ctrl->value);
+		mfc_ctx_err("[CTRLS][%s] id: %#x, invalid value (%d)\n",
+				c->name, ctrl->id, ctrl->value);
 		return -ERANGE;
 	}
+
+	mfc_debug(5, "[CTRLS][%s] id: %#x, value: %d (%#x)\n",
+			c->name, ctrl->id, ctrl->value, ctrl->value);
 
 	return 0;
 }
@@ -1282,9 +1286,6 @@ static int mfc_dec_s_ctrl(struct file *file, void *priv,
 	ret = __mfc_dec_check_ctrl_val(ctx, ctrl);
 	if (ret)
 		return ret;
-
-	mfc_debug(5, "[CTRLS] set id: %#x, value: %d (%#x)\n",
-			ctrl->id, ctrl->value, ctrl->value);
 
 	switch (ctrl->id) {
 	case V4L2_CID_MPEG_VIDEO_DECODER_MPEG4_DEBLOCK_FILTER:

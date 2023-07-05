@@ -355,7 +355,7 @@ policy_state usbpd_policy_src_transition_supply(struct policy_data *policy)
 				if (ms2 > tSrcTransition)
 					break;
 			}
-
+ 
 			pr_info("%s, cur [%d, %s] -> requested [%d, %s]\n", __func__, 
 					policy->selected_pdo_num, pdo_type_to_str[policy->selected_pdo_type],
 					policy->requested_pdo_num, pdo_type_to_str[policy->requested_pdo_type]);
@@ -2459,6 +2459,7 @@ policy_state usbpd_policy_prs_src_snk_wait_source_on(struct policy_data *policy)
 			/* Message ID Clear */
 			usbpd_init_counters(pd_data);
 			pd_data->counter.hard_reset_counter = 0;
+			usleep_range(2000, 2100);
 			PDIC_OPS_FUNC(soft_reset, pd_data);
 
 			ret = PE_SNK_Startup;
@@ -3511,8 +3512,8 @@ policy_state usbpd_policy_ufp_vdm_mode_exit(struct policy_data *policy)
 	mode_pos = policy->rx_data_obj[0].structured_vdm.obj_pos;
 	if (usbpd_manager_exit_mode(pd_data, mode_pos) == 0)
 		ret =  PE_UFP_VDM_Mode_Exit_ACK;
-
-	ret =  PE_UFP_VDM_Mode_Exit_NAK;
+	else
+		ret =  PE_UFP_VDM_Mode_Exit_NAK;
 
 	return ret;
 }
@@ -3876,7 +3877,7 @@ static policy_state usbpd_policy_dfp_vdm_evaluate(struct policy_data *policy)
 	int is_timeout = 0;
 	u8 vdm_command = pd_data->protocol_rx.data_obj[0].structured_vdm.command;
 	u8 vdm_type = pd_data->protocol_rx.data_obj[0].structured_vdm.command_type;
-	int power_role;
+	int power_role = 0;
 	long long ms = 0;
 	int ret = PE_DFP_VDM_EVALUATE;
 	
@@ -3901,8 +3902,10 @@ static policy_state usbpd_policy_dfp_vdm_evaluate(struct policy_data *policy)
 			return PE_DFP_VDM_Identity_ACKed;
 		else {
 			/* IF PD2.0, selfsoft reset for BIST Carrier 2 Test */
-			if(pd_data->specification_revision == USBPD_PD2_0)
+			if(pd_data->specification_revision == USBPD_PD2_0) {
+				usleep_range(2000, 2100);
 				PDIC_OPS_FUNC(soft_reset, pd_data);
+			}
 			return PE_DFP_VDM_Identity_NAKed;
 		}
 	case Discover_SVIDs:
@@ -6240,7 +6243,9 @@ void usbpd_init_policy(struct usbpd_data *pd_data)
 {
 	int i;
 	struct policy_data *policy = &pd_data->policy;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	struct usbpd_manager_data *manager = &pd_data->manager;	
+#endif
 
 	pr_info("%s\n", __func__);
 
@@ -6275,8 +6280,8 @@ void usbpd_init_policy(struct usbpd_data *pd_data)
 	pd_data->pd_noti.sink_status.current_pdo_num = 0;
 	pd_data->pd_noti.sink_status.selected_pdo_num = 0;
 	pd_data->pd_noti.sink_status.available_pdo_num = 0;
-#endif
 	manager->auth_type = AUTH_NONE;
+#endif
 
 	for (i = 0; i < USBPD_MAX_COUNT_MSG_OBJECT; i++) {
 		policy->rx_data_obj[i].object = 0;

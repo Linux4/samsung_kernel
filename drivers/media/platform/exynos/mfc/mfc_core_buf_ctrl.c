@@ -913,13 +913,36 @@ static int mfc_core_recover_buf_ctrls_nal_q(struct mfc_ctx *ctx, struct list_hea
 
 	list_for_each_entry(buf_ctrl, head, list) {
 		if (!(buf_ctrl->type & MFC_CTRL_TYPE_SET)
+				|| !buf_ctrl->is_volatile
+				|| !(buf_ctrl->updated))
+			continue;
+
+		buf_ctrl->updated = 0;
+		mfc_debug(6, "[NALQ][CTRLS] Recover buffer control id: 0x%08x\n", buf_ctrl->id);
+	}
+
+	return 0;
+}
+
+/*
+ * This function is used when you want to restore buffer ctrls.
+ * 1) NAL_Q stop: It is enqueued in the NAL_Q queue,
+ *		but it must be restored because HW is not used.
+ * 2) DRC: The input buffer that caused the DRC was used for HW, but it must be reused.
+ */
+static int mfc_core_restore_buf_ctrls(struct mfc_ctx *ctx, struct list_head *head)
+{
+	struct mfc_buf_ctrl *buf_ctrl;
+
+	list_for_each_entry(buf_ctrl, head, list) {
+		if (!(buf_ctrl->type & MFC_CTRL_TYPE_SET)
 				|| !(buf_ctrl->updated))
 			continue;
 
 		buf_ctrl->has_new = 1;
 		buf_ctrl->updated = 0;
 
-		mfc_debug(6, "[NALQ][CTRLS] Recover buffer control id: 0x%08x, val: %d\n",
+		mfc_debug(6, "[CTRLS] Restore buffer control id: 0x%08x, val: %d\n",
 				buf_ctrl->id, buf_ctrl->val);
 	}
 
@@ -935,4 +958,5 @@ struct mfc_bufs_ops mfc_bufs_ops = {
 	.core_set_buf_ctrls_nal_q_enc	= mfc_core_set_buf_ctrls_nal_q_enc,
 	.core_get_buf_ctrls_nal_q_enc	= mfc_core_get_buf_ctrls_nal_q_enc,
 	.core_recover_buf_ctrls_nal_q	= mfc_core_recover_buf_ctrls_nal_q,
+	.core_restore_buf_ctrls		= mfc_core_restore_buf_ctrls,
 };

@@ -36,6 +36,7 @@
 #include <exynos_drm_freq_hop.h>
 #include <exynos_drm_partial.h>
 #include <exynos_drm_tui.h>
+#include <exynos_drm_recovery.h>
 
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
 #include <mcd_drm_helper.h>
@@ -155,7 +156,7 @@ exynos_drm_crtc_alloc_windows(struct drm_device *dev, struct drm_atomic_state *s
 
 		new_exynos_crtc_state = to_exynos_crtc_state(new_crtc_state);
 
-		if(!new_exynos_crtc_state->win_inserted)
+		if (!new_exynos_crtc_state->win_inserted)
 			continue;
 
 		/* allocate windows after swap state phase */
@@ -166,7 +167,6 @@ exynos_drm_crtc_alloc_windows(struct drm_device *dev, struct drm_atomic_state *s
 		mutex_unlock(&priv->lock);
 	}
 }
-
 
 static int
 exynos_atomic_check_windows(struct drm_device *dev, struct drm_atomic_state *state)
@@ -460,7 +460,8 @@ static int exynos_drm_atomic_helper_wait_for_fences(struct drm_device *dev,
 
 		fence = new_plane_state->fence;
 		exynos_crtc = to_exynos_crtc(new_plane_state->crtc);
-		DPU_FENCE_EVENT_LOG(DPU_FENCE_WAIT_PLANE_IN_FENCE, exynos_crtc, fence);
+		DPU_EVENT_LOG("WAIT_PLANE_IN_FENCE", exynos_crtc, EVENT_FLAG_FENCE,
+				FENCE_FMT, FENCE_ARG(fence));
 
 		new_crtc_state = new_plane_state->crtc->state;
 		fps = drm_mode_vrefresh(&new_crtc_state->adjusted_mode) ? : DFT_FPS;
@@ -470,8 +471,9 @@ static int exynos_drm_atomic_helper_wait_for_fences(struct drm_device *dev,
 		ret = dma_fence_wait_timeout(fence, pre_swap,
 				msecs_to_jiffies(debug_timeout_ms));
 		if (ret <= 0) {
-			DPU_FENCE_EVENT_LOG(DPU_FENCE_TIMEOUT_IN_FENCE,
-					exynos_crtc, &debug_timeout_ms);
+			DPU_EVENT_LOG("TIMEOUT_PLANE_IN_FENCE", exynos_crtc,
+					EVENT_FLAG_FENCE, "in_fence_wait: %lldmsec",
+					debug_timeout_ms);
 			ops = fence->ops;
 			pr_info("[%s] plane-%lu fence waiting timeout(%lldmsec)\n",
 					__func__, plane->index,	debug_timeout_ms);
@@ -486,9 +488,9 @@ static int exynos_drm_atomic_helper_wait_for_fences(struct drm_device *dev,
 			return ret;
 
 		if (fence_wait_ms > FENCE_TIMEOUT_MSEC) {
-			DPU_FENCE_EVENT_LOG(DPU_FENCE_ELAPSED_IN_FENCE,
-					exynos_crtc, &fence_wait_ms);
-			dpu_fence_event_show(exynos_crtc);
+			DPU_EVENT_LOG("ELAPSED_PLANE_IN_FENCE", exynos_crtc,
+					EVENT_FLAG_FENCE, "in_fence_wait: %lldmsec",
+					fence_wait_ms);
 		}
 
 		dma_fence_put(new_plane_state->fence);
@@ -498,12 +500,24 @@ static int exynos_drm_atomic_helper_wait_for_fences(struct drm_device *dev,
 	return 0;
 }
 
+static bool check_recovery_state(const struct drm_crtc* crtc)
+{
+	struct exynos_drm_crtc *exynos_crtc = to_exynos_crtc(crtc);
+
+	if (exynos_crtc->ops->is_recovering &&
+			exynos_crtc->ops->is_recovering(exynos_crtc))
+		return true;
+
+	return false;
+}
+
 static void commit_tail(struct drm_atomic_state *old_state)
 {
 	int i;
 	struct drm_device *dev = old_state->dev;
 	const struct drm_mode_config_helper_funcs *funcs;
 	const struct drm_crtc *crtc;
+	bool recovery = false;
 
 	funcs = dev->mode_config.helper_private;
 
@@ -520,9 +534,14 @@ static void commit_tail(struct drm_atomic_state *old_state)
 
 		if (exynos_crtc->migov)
 			exynos_migov_update_ems_fence_cnt(exynos_crtc->migov);
+
+		recovery = check_recovery_state(crtc);
 	}
 
-	drm_atomic_helper_wait_for_dependencies(old_state);
+	if (unlikely(recovery))
+		pr_info("recovery, skip for all preceding commits\n");
+	else
+		drm_atomic_helper_wait_for_dependencies(old_state);
 
 	if (funcs && funcs->atomic_commit_tail)
 		funcs->atomic_commit_tail(old_state);
@@ -674,41 +693,13 @@ static void exynos_drm_lastclose(struct drm_device *dev)
 	exynos_drm_fbdev_restore_mode(dev);
 }
 
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-atomic_t exynos_drm_ioctl_ref_cnt = ATOMIC_INIT(0);
-
-long exynos_drm_ioctl(struct file *filp,
-	      unsigned int cmd, unsigned long arg)
-{
-	long ret;
-	ktime_t time_start;
-
-	atomic_inc(&exynos_drm_ioctl_ref_cnt);
-
-	time_start = ktime_get();
-	exynos_drm_ioctl_time_start(DRM_IOCTL_NR(cmd), time_start);
-
-	ret = drm_ioctl(filp, cmd, arg);
-
-	exynos_drm_ioctl_time_end(DRM_IOCTL_NR(cmd), time_start, ktime_get());
-
-	atomic_dec(&exynos_drm_ioctl_ref_cnt);
-
-	return ret;
-}
-#endif
-
 static const struct file_operations exynos_drm_driver_fops = {
 	.owner		= THIS_MODULE,
 	.open		= drm_open,
 	.mmap		= exynos_drm_gem_mmap,
 	.poll		= drm_poll,
 	.read		= drm_read,
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-	.unlocked_ioctl = exynos_drm_ioctl,
-#else
 	.unlocked_ioctl = drm_ioctl,
-#endif
 	.compat_ioctl	= drm_compat_ioctl,
 	.release	= drm_release,
 };
@@ -925,10 +916,6 @@ static int exynos_drm_bind(struct device *dev)
 	ret = drm_dev_register(drm, 0);
 	if (ret < 0)
 		goto err_cleanup_fbdev;
-
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-	exynos_drm_ioctl_time_init();
-#endif
 
 	return 0;
 

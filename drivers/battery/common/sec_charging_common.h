@@ -79,6 +79,12 @@ enum battery_thermal_zone {
 	BAT_THERMAL_OVERHEATLIMIT,
 };
 
+enum sb_wireless_mode {
+	SB_WRL_NONE = 0,
+	SB_WRL_RX_MODE = 1,
+	SB_WRL_TX_MODE = 2,
+};
+
 enum rx_device_type {
 	NO_DEV = 0,
 	OTHER_DEV,
@@ -115,6 +121,7 @@ enum sec_battery_voltage_type {
 enum sec_battery_dual_mode {
 	SEC_DUAL_BATTERY_MAIN = 0,
 	SEC_DUAL_BATTERY_SUB,
+	SEC_DUAL_BATTERY_TOTAL,
 };
 #endif
 
@@ -137,6 +144,8 @@ enum sec_battery_capacity_mode {
 	SEC_BATTERY_CAPACITY_QH,
 	/* vfsoc */
 	SEC_BATTERY_CAPACITY_VFSOC,
+	/* rcomp0 */
+	SEC_BATTERY_CAPACITY_RC0,
 };
 
 enum sec_wireless_info_mode {
@@ -442,6 +451,8 @@ enum sec_battery_check {
 
 #define SEC_FUELGAUGE_CAPACITY_TYPE_LOST_SOC	0x40
 
+#define SEC_FUELGAUGE_CAPACITY_TYPE_REPCAP	0x80
+
 /* charger function settings (can be used overlapped) */
 #define sec_charger_functions_t unsigned int
 /* SEC_CHARGER_NO_GRADUAL_CHARGING_CURRENT
@@ -551,15 +562,18 @@ typedef struct {
 
 #define can_usb_suspend_type(cable_type) ( \
 	cable_type == SEC_BATTERY_CABLE_PDIC || \
+	cable_type == SEC_BATTERY_CABLE_FPDO_DC || \
 	cable_type == SEC_BATTERY_CABLE_PDIC_APDO || \
 	cable_type == SEC_BATTERY_CABLE_USB || \
 	cable_type == SEC_BATTERY_CABLE_USB_CDP)
 
 #define is_pd_wire_type(cable_type) ( \
 	cable_type == SEC_BATTERY_CABLE_PDIC || \
+	cable_type == SEC_BATTERY_CABLE_FPDO_DC || \
 	cable_type == SEC_BATTERY_CABLE_PDIC_APDO)
 
 #define is_pd_apdo_wire_type(cable_type) ( \
+	cable_type == SEC_BATTERY_CABLE_FPDO_DC || \
 	cable_type == SEC_BATTERY_CABLE_PDIC_APDO)
 
 #define is_pd_fpdo_wire_type(cable_type) ( \
@@ -567,6 +581,7 @@ typedef struct {
 
 #define is_hv_pdo_wire_type(cable_type, hv_pdo) ( \
 	(cable_type == SEC_BATTERY_CABLE_PDIC || \
+	cable_type == SEC_BATTERY_CABLE_FPDO_DC || \
 	cable_type == SEC_BATTERY_CABLE_PDIC_APDO) && \
 	hv_pdo)
 

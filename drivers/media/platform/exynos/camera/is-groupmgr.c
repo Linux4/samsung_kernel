@@ -3413,8 +3413,7 @@ static bool is_group_throttling_tick_check(struct is_device_ischain *device,
 
 	if (!resourcemgr->limited_fps) {
 		/* throttling release event */
-		mgrinfo("tbl[%d] throttling restore scenario(%d)-[%s]\n", device, group, frame,
-			resourcemgr->dvfs_ctrl.dvfs_table_idx,
+		mgrinfo("throttling restore scenario(%d)-[%s]\n", device, group, frame,
 			static_ctrl->cur_scenario_id,
 			static_ctrl->scenario_nm);
 		return true;
@@ -3430,8 +3429,7 @@ static bool is_group_throttling_tick_check(struct is_device_ischain *device,
 		if (!group->thrott_tick) {
 			set_bit(IS_DVFS_TICK_THROTT, &resourcemgr->dvfs_ctrl.state);
 			ret = true;
-			mgrinfo("tbl[%d] throttling scenario(%d)-[%s]\n", device, group, frame,
-				resourcemgr->dvfs_ctrl.dvfs_table_idx,
+			mgrinfo("throttling scenario(%d)-[%s]\n", device, group, frame,
 				static_ctrl->cur_scenario_id,
 				static_ctrl->scenario_nm);
 		}
@@ -3461,20 +3459,18 @@ static void is_group_update_dvfs(struct is_device_ischain *device,
 		scenario_id = is_dvfs_sel_dynamic(device, group, frame);
 		if (scenario_id > 0) {
 			struct is_dvfs_scenario_ctrl *dynamic_ctrl = resourcemgr->dvfs_ctrl.dynamic_ctrl;
-			mgrinfo("tbl[%d] dynamic scenario(%d)-[%s]\n", device, group, frame,
-				resourcemgr->dvfs_ctrl.dvfs_table_idx,
+			mgrinfo("dynamic scenario(%d)-[%s]\n", device, group, frame,
 				scenario_id,
 				dynamic_ctrl->scenario_nm);
-			is_set_dvfs((struct is_core *)device->interface->core, device, scenario_id);
+			is_set_dvfs_m2m(device, scenario_id);
 		}
 
 		if ((scenario_id < 0) && (resourcemgr->dvfs_ctrl.dynamic_ctrl->cur_frame_tick == 0)) {
 			struct is_dvfs_scenario_ctrl *static_ctrl = resourcemgr->dvfs_ctrl.static_ctrl;
-			mgrinfo("tbl[%d] restore scenario(%d)-[%s]\n", device, group, frame,
-				resourcemgr->dvfs_ctrl.dvfs_table_idx,
+			mgrinfo("restore scenario(%d)-[%s]\n", device, group, frame,
 				static_ctrl->cur_scenario_id,
 				static_ctrl->scenario_nm);
-			is_set_dvfs((struct is_core *)device->interface->core, device, static_ctrl->cur_scenario_id);
+			is_set_dvfs_m2m(device, static_ctrl->cur_scenario_id);
 		}
 
 		if (test_bit(IS_DVFS_TMU_THROTT, &resourcemgr->dvfs_ctrl.state)) {
@@ -3482,8 +3478,7 @@ static void is_group_update_dvfs(struct is_device_ischain *device,
 				struct is_dvfs_scenario_ctrl *static_ctrl =
 					resourcemgr->dvfs_ctrl.static_ctrl;
 				clear_bit(IS_DVFS_TMU_THROTT, &resourcemgr->dvfs_ctrl.state);
-				is_set_dvfs((struct is_core *)device->interface->core,
-					device, static_ctrl->cur_scenario_id);
+				is_set_dvfs_m2m(device, static_ctrl->cur_scenario_id);
 			}
 		} else
 			group->thrott_tick = KEEP_FRAME_TICK_THROTT;
@@ -3620,6 +3615,9 @@ int is_group_shot(struct is_groupmgr *groupmgr,
 		 * for next shot without real frame start
 		 */
 		if (group->init_shots > atomic_read(&group->scount)) {
+			set_bit(IS_SENSOR_START, &device->sensor->state);
+			pablo_set_static_dvfs(device, "", IS_DVFS_SN_END, IS_DVFS_PATH_OTF);
+
 			frame->fcount = atomic_read(&group->sensor_fcount);
 			atomic_set(&group->backup_fcount, frame->fcount);
 			atomic_inc(&group->sensor_fcount);

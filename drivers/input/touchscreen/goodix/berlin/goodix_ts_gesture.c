@@ -98,7 +98,6 @@ int gsx_set_lowpowermode(void *data, u8 mode)
 
 	ts_info("%s[%X]", mode == TO_LOWPOWER_MODE ? "ENTER" : "EXIT", cd->plat_data->lowpower_mode);
 
-	mutex_lock(&cd->modechange_mutex);
 	if (mode) {
 		gsx_set_utc_sponge(cd);
 
@@ -114,7 +113,6 @@ int gsx_set_lowpowermode(void *data, u8 mode)
 			ts_err("failed to switch coor mode");
 		cd->plat_data->power_state = SEC_INPUT_STATE_POWER_ON;
 	}
-	mutex_unlock(&cd->modechange_mutex);
 
 	return ret;
 }
@@ -287,7 +285,14 @@ static int gsx_gesture_ist(struct goodix_ts_core *cd,
 		goto re_send_ges_cmd;
 	}
 
+	if (gs_event->event_type & EVENT_EMPTY) {
+		ts_err("force release all finger because event type is empty");
+		goodix_ts_release_all_finger(cd);
+	}
+
 re_send_ges_cmd:
+	gs_event->event_type = EVENT_INVALID;	// clear event type
+
 	return EVT_CANCEL_IRQEVT;
 }
 

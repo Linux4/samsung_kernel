@@ -391,7 +391,6 @@
 #define HW_RUNNING_FPS		1
 
 #define CLOGGING		1
-
 /*
  * ======================================================
  * CONFIG - Interface version configs

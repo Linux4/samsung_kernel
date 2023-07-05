@@ -19,7 +19,7 @@
 #include <linux/lcd.h>
 #include <linux/fb.h>
 #include <linux/pm_runtime.h>
-#include <kunit/mock.h>
+#include "panel_kunit.h"
 #include "panel_drv.h"
 #include "mdnie.h"
 #include "panel_debug.h"
@@ -28,11 +28,6 @@
 #endif
 #ifdef CONFIG_DISPLAY_USE_INFO
 #include "dpui.h"
-#endif
-
-#ifdef PANEL_PR_TAG
-#undef PANEL_PR_TAG
-#define PANEL_PR_TAG	"mdnie"
 #endif
 
 #ifdef MDNIE_SELF_TEST
@@ -1369,6 +1364,7 @@ int mdnie_enable(struct mdnie_info *mdnie)
 
 	if (IS_MDNIE_ENABLED(mdnie)) {
 		panel_info("mdnie already enabled\n");
+		panel_mdnie_update(panel);
 		return 0;
 	}
 

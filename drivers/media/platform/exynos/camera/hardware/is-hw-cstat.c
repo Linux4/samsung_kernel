@@ -1970,9 +1970,6 @@ static int is_hw_cstat_s_dma(struct is_hw_ip *hw_ip, struct cstat_param_set *p_s
 
 static void is_hw_cstat_s_fro(struct is_hw_ip *hw_ip, u32 instance)
 {
-	struct is_hw_cstat *hw = (struct is_hw_cstat *)hw_ip->priv_info;
-
-	hw->hw_fro_en = (hw_ip->num_buffers & 0xffff) > 1 ? true : false;
 	return cstat_hw_s_fro(hw_ip->regs[REG_SETA], (hw_ip->num_buffers & 0xffff), 1);
 }
 
@@ -2070,6 +2067,7 @@ static int is_hw_cstat_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 
 	/* multi-buffer */
 	hw_ip->num_buffers = frame->num_buffers;
+	hw->hw_fro_en = (hw_ip->num_buffers & 0xffff) > 1 ? true : false;
 	batch_num = hw_ip->framemgr->batch_num;
 
 	/* Update only for SW_FRO scenario */

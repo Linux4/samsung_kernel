@@ -634,8 +634,10 @@ static ssize_t store_en_dvfs(struct device *dev,
 		/* update dvfs lever to max */
 		mutex_lock(&resourcemgr->dvfs_ctrl.lock);
 		for (i = 0; i < IS_STREAM_COUNT; i++) {
-			if (test_bit(IS_ISCHAIN_OPEN, &((core->ischain[i]).state)))
-				is_set_dvfs(core, &(core->ischain[i]), IS_SN_MAX);
+			if (test_bit(IS_ISCHAIN_OPEN, &((core->ischain[i]).state))) {
+				is_set_dvfs_otf(&(core->ischain[i]), IS_SN_MAX);
+				is_set_dvfs_m2m(&(core->ischain[i]), IS_SN_MAX);
+			}
 		}
 		is_dvfs_init(resourcemgr);
 		resourcemgr->dvfs_ctrl.static_ctrl->cur_scenario_id = IS_SN_MAX;

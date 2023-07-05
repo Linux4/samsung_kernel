@@ -28,20 +28,6 @@
 
 static struct _clock_info *clk_info;
 
-GPEX_STATIC int get_valid_gpu_clock(int clock)
-{
-	int i, min, max;
-
-	min = gpex_clock_get_table_idx(gpex_clock_get_min_clock());
-	max = gpex_clock_get_table_idx(gpex_clock_get_max_clock());
-
-	for (i = max; i <= min; i++)
-		if (clock - (int)(clk_info->table[i].clock) >= 0)
-			return clk_info->table[i].clock;
-
-	return -1;
-}
-
 /*************************************
  * sysfs node functions
  *************************************/
@@ -171,7 +157,7 @@ GPEX_STATIC ssize_t set_max_lock_dvfs(const char *buf, size_t count)
 
 		clk_info->user_max_lock_input = clock;
 
-		clock = get_valid_gpu_clock(clock);
+		clock = gpex_get_valid_gpu_clock(clock, false);
 
 		ret = gpex_clock_get_table_idx(clock);
 		if ((ret < gpex_clock_get_table_idx(gpex_clock_get_max_clock())) ||
@@ -265,7 +251,7 @@ GPEX_STATIC ssize_t set_min_lock_dvfs(const char *buf, size_t count)
 
 		clk_info->user_min_lock_input = clock;
 
-		clock = get_valid_gpu_clock(clock);
+		clock = gpex_get_valid_gpu_clock(clock, true);
 
 		ret = gpex_clock_get_table_idx(clock);
 		if ((ret < gpex_clock_get_table_idx(gpex_clock_get_max_clock())) ||
@@ -351,8 +337,7 @@ GPEX_STATIC ssize_t set_mm_min_lock_dvfs(const char *buf, size_t count)
 	int ret, clock = 0;
 
 	if (sysfs_streq("0", buf)) {
-		clk_info->user_min_lock_input = 0;
-		gpex_clock_lock_clock(GPU_CLOCK_MIN_UNLOCK, SYSFS_LOCK, 0);
+		gpex_clock_lock_clock(GPU_CLOCK_MIN_UNLOCK, MM_LOCK, 0);
 	} else {
 		ret = kstrtoint(buf, 0, &clock);
 		if (ret) {
@@ -360,9 +345,7 @@ GPEX_STATIC ssize_t set_mm_min_lock_dvfs(const char *buf, size_t count)
 			return -ENOENT;
 		}
 
-		clk_info->user_min_lock_input = clock;
-
-		clock = get_valid_gpu_clock(clock);
+		clock = gpex_get_valid_gpu_clock(clock, true);
 
 		ret = gpex_clock_get_table_idx(clock);
 		if ((ret < gpex_clock_get_table_idx(gpex_clock_get_max_clock())) ||
@@ -378,9 +361,9 @@ GPEX_STATIC ssize_t set_mm_min_lock_dvfs(const char *buf, size_t count)
 		gpex_clboost_set_state(CLBOOST_DISABLE);
 
 		if (clock == gpex_clock_get_min_clock())
-			gpex_clock_lock_clock(GPU_CLOCK_MIN_UNLOCK, SYSFS_LOCK, 0);
+			gpex_clock_lock_clock(GPU_CLOCK_MIN_UNLOCK, MM_LOCK, 0);
 		else
-			gpex_clock_lock_clock(GPU_CLOCK_MIN_LOCK, SYSFS_LOCK, clock);
+			gpex_clock_lock_clock(GPU_CLOCK_MIN_LOCK, MM_LOCK, clock);
 	}
 
 	return count;

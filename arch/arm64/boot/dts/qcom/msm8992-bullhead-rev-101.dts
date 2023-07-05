@@ -648,7 +648,7 @@
 					vdd_l17_29-supply = <0x2b>;
 					vdd_l20_21-supply = <0x2b>;
 					vdd_l25-supply = <0x2a>;
-					vdd_lvs1_2 = <0x2c>;
+					vdd_lvs1_2-supply = <0x2c>;
 
 					s1 {
 						regulator-min-microvolt = "\0\f5";

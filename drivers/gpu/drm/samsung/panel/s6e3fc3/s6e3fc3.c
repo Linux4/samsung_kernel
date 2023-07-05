@@ -12,10 +12,9 @@
 
 #include <linux/of_gpio.h>
 #include <video/mipi_display.h>
-#include <kunit/mock.h>
+#include "../panel_kunit.h"
 #include "../panel.h"
 #include "s6e3fc3.h"
-#include "s6e3fc3_panel.h"
 #ifdef CONFIG_PANEL_AID_DIMMING
 #include "../dimming.h"
 #include "../panel_dimming.h"
@@ -27,14 +26,13 @@
 #include <linux/sti/abc_common.h>
 #endif
 
-#ifdef PANEL_PR_TAG
-#undef PANEL_PR_TAG
-#define PANEL_PR_TAG	"ddi"
+#if IS_ENABLED(CONFIG_DISPLAY_USE_INFO)
+#include "../dpui.h"
 #endif
 
 #ifdef CONFIG_PANEL_AID_DIMMING
 
-__visible_for_testing int generate_brt_step_table(struct brightness_table *brt_tbl)
+int generate_brt_step_table(struct brightness_table *brt_tbl)
 {
 	int ret = 0;
 	int i = 0, j = 0, k = 0;
@@ -69,7 +67,7 @@ __visible_for_testing int generate_brt_step_table(struct brightness_table *brt_t
 	while (i < brt_tbl->sz_brt_to_step) {
 		for (k = 1; k < brt_tbl->sz_brt; k++) {
 			for (j = 1; j <= brt_tbl->step_cnt[k]; j++, i++) {
-				brt_tbl->brt_to_step[i] = interpolation(brt_tbl->brt[k - 1] * disp_pow(10, 2),
+				brt_tbl->brt_to_step[i] = disp_interpolation64(brt_tbl->brt[k - 1] * disp_pow(10, 2),
 					brt_tbl->brt[k] * disp_pow(10, 2), j, brt_tbl->step_cnt[k]);
 				brt_tbl->brt_to_step[i] = disp_pow_round(brt_tbl->brt_to_step[i], 2);
 				brt_tbl->brt_to_step[i] = disp_div64(brt_tbl->brt_to_step[i], disp_pow(10, 2));
@@ -105,7 +103,7 @@ int init_common_table(struct maptbl *tbl)
 }
 
 #ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
-__visible_for_testing int getidx_common_maptbl(struct maptbl *tbl)
+int getidx_common_maptbl(struct maptbl *tbl)
 {
 	return 0;
 }
@@ -113,7 +111,7 @@ __visible_for_testing int getidx_common_maptbl(struct maptbl *tbl)
 
 #ifdef CONFIG_MCD_PANEL_LPM
 #ifdef CONFIG_SUPPORT_AOD_BL
-__visible_for_testing int init_aod_dimming_table(struct maptbl *tbl)
+int init_aod_dimming_table(struct maptbl *tbl)
 {
 	int id = PANEL_BL_SUBDEV_TYPE_AOD;
 	struct panel_device *panel;
@@ -142,7 +140,7 @@ __visible_for_testing int init_aod_dimming_table(struct maptbl *tbl)
 #endif
 #endif
 
-__visible_for_testing void copy_tset_maptbl(struct maptbl *tbl, u8 *dst)
+void copy_tset_maptbl(struct maptbl *tbl, u8 *dst)
 {
 	struct panel_device *panel;
 	struct panel_info *panel_data;
@@ -162,7 +160,7 @@ __visible_for_testing void copy_tset_maptbl(struct maptbl *tbl, u8 *dst)
 }
 
 #if 0
-__visible_for_testing void copy_grayspot_cal_maptbl(struct maptbl *tbl, u8 *dst)
+void copy_grayspot_cal_maptbl(struct maptbl *tbl, u8 *dst)
 {
 	struct panel_device *panel;
 	struct panel_info *panel_data;
@@ -190,7 +188,7 @@ __visible_for_testing void copy_grayspot_cal_maptbl(struct maptbl *tbl, u8 *dst)
 #endif
 
 #ifdef CONFIG_SUPPORT_XTALK_MODE
-__visible_for_testing int getidx_vgh_table(struct maptbl *tbl)
+int getidx_vgh_table(struct maptbl *tbl)
 {
 	struct panel_device *panel = (struct panel_device *)tbl->pdata;
 	struct panel_info *panel_data;
@@ -210,7 +208,7 @@ __visible_for_testing int getidx_vgh_table(struct maptbl *tbl)
 }
 #endif
 
-__visible_for_testing int getidx_hbm_transition_table(struct maptbl *tbl)
+int getidx_hbm_transition_table(struct maptbl *tbl)
 {
 	int layer, row;
 	struct panel_info *panel_data;
@@ -231,7 +229,7 @@ __visible_for_testing int getidx_hbm_transition_table(struct maptbl *tbl)
 	return maptbl_index(tbl, layer, row, 0);
 }
 
-__visible_for_testing int getidx_smooth_transition_table(struct maptbl *tbl)
+int getidx_smooth_transition_table(struct maptbl *tbl)
 {
 	int row;
 	struct panel_info *panel_data;
@@ -251,7 +249,7 @@ __visible_for_testing int getidx_smooth_transition_table(struct maptbl *tbl)
 	return maptbl_index(tbl, 0, row, 0);
 }
 
-__visible_for_testing int getidx_acl_onoff_table(struct maptbl *tbl)
+int getidx_acl_onoff_table(struct maptbl *tbl)
 {
 	struct panel_device *panel = (struct panel_device *)tbl->pdata;
 
@@ -263,7 +261,7 @@ __visible_for_testing int getidx_acl_onoff_table(struct maptbl *tbl)
 	return maptbl_index(tbl, 0, panel_bl_get_acl_pwrsave(&panel->panel_bl), 0);
 }
 
-__visible_for_testing int getidx_hbm_onoff_table(struct maptbl *tbl)
+int getidx_hbm_onoff_table(struct maptbl *tbl)
 {
 	struct panel_device *panel = (struct panel_device *)tbl->pdata;
 	struct panel_bl_device *panel_bl;
@@ -279,7 +277,7 @@ __visible_for_testing int getidx_hbm_onoff_table(struct maptbl *tbl)
 			is_hbm_brightness(panel_bl, panel_bl->props.brightness), 0);
 }
 
-__visible_for_testing int getidx_acl_dim_onoff_table(struct maptbl *tbl)
+int getidx_acl_dim_onoff_table(struct maptbl *tbl)
 {
 	struct panel_device *panel = (struct panel_device *)tbl->pdata;
 	struct panel_bl_device *panel_bl;
@@ -296,7 +294,7 @@ __visible_for_testing int getidx_acl_dim_onoff_table(struct maptbl *tbl)
 	return maptbl_index(tbl, 0, row, 0);
 }
 
-__visible_for_testing int getidx_acl_opr_table(struct maptbl *tbl)
+int getidx_acl_opr_table(struct maptbl *tbl)
 {
 	struct panel_device *panel = (struct panel_device *)tbl->pdata;
 	int row;
@@ -319,7 +317,7 @@ __visible_for_testing int getidx_acl_opr_table(struct maptbl *tbl)
 	return maptbl_index(tbl, 0, row, 0);
 }
 
-__visible_for_testing int init_lpm_brt_table(struct maptbl *tbl)
+int init_lpm_brt_table(struct maptbl *tbl)
 {
 #ifdef CONFIG_SUPPORT_AOD_BL
 	return init_aod_dimming_table(tbl);
@@ -328,7 +326,7 @@ __visible_for_testing int init_lpm_brt_table(struct maptbl *tbl)
 #endif
 }
 
-__visible_for_testing int getidx_lpm_brt_table(struct maptbl *tbl)
+int getidx_lpm_brt_table(struct maptbl *tbl)
 {
 	int row = 0;
 	struct panel_device *panel;
@@ -371,7 +369,7 @@ __visible_for_testing int getidx_lpm_brt_table(struct maptbl *tbl)
 	return maptbl_index(tbl, 0, row, 0);
 }
 
-__visible_for_testing int getidx_s6e3fc3_vrr_fps(int vrr_fps)
+int getidx_s6e3fc3_vrr_fps(int vrr_fps)
 {
 	int fps_index = S6E3FC3_VRR_FPS_60;
 
@@ -393,7 +391,7 @@ __visible_for_testing int getidx_s6e3fc3_vrr_fps(int vrr_fps)
 	return fps_index;
 }
 
-__visible_for_testing int getidx_s6e3fc3_current_vrr_fps(struct panel_device *panel)
+int getidx_s6e3fc3_current_vrr_fps(struct panel_device *panel)
 {
 	int vrr_fps;
 
@@ -404,7 +402,7 @@ __visible_for_testing int getidx_s6e3fc3_current_vrr_fps(struct panel_device *pa
 	return getidx_s6e3fc3_vrr_fps(vrr_fps);
 }
 
-__visible_for_testing int getidx_vrr_fps_table(struct maptbl *tbl)
+int getidx_vrr_fps_table(struct maptbl *tbl)
 {
 	struct panel_device *panel = (struct panel_device *)tbl->pdata;
 	int row = 0, layer = 0, index;
@@ -419,7 +417,7 @@ __visible_for_testing int getidx_vrr_fps_table(struct maptbl *tbl)
 }
 
 #if defined(__PANEL_NOT_USED_VARIABLE__)
-__visible_for_testing int getidx_vrr_gamma_table(struct maptbl *tbl)
+int getidx_vrr_gamma_table(struct maptbl *tbl)
 {
 	struct panel_device *panel = (struct panel_device *)tbl->pdata;
 	int row = 0, layer = 0, index;
@@ -453,13 +451,13 @@ __visible_for_testing int getidx_vrr_gamma_table(struct maptbl *tbl)
 #endif
 
 #ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
-__visible_for_testing void copy_dummy_maptbl(struct maptbl *tbl, u8 *dst)
+void copy_dummy_maptbl(struct maptbl *tbl, u8 *dst)
 {
 	return;
 }
 #endif
 
-__visible_for_testing void copy_common_maptbl(struct maptbl *tbl, u8 *dst)
+void copy_common_maptbl(struct maptbl *tbl, u8 *dst)
 {
 	int idx;
 
@@ -482,7 +480,7 @@ __visible_for_testing void copy_common_maptbl(struct maptbl *tbl, u8 *dst)
 }
 
 #if defined(CONFIG_MCD_PANEL_FACTORY) && defined(CONFIG_SUPPORT_FAST_DISCHARGE)
-__visible_for_testing int getidx_fast_discharge_table(struct maptbl *tbl)
+int getidx_fast_discharge_table(struct maptbl *tbl)
 {
 	struct panel_device *panel = (struct panel_device *)tbl->pdata;
 	struct panel_info *panel_data;
@@ -503,7 +501,7 @@ __visible_for_testing int getidx_fast_discharge_table(struct maptbl *tbl)
 #endif
 
 #ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
-__visible_for_testing int init_color_blind_table(struct maptbl *tbl)
+int init_color_blind_table(struct maptbl *tbl)
 {
 	struct mdnie_info *mdnie;
 
@@ -535,7 +533,7 @@ __visible_for_testing int init_color_blind_table(struct maptbl *tbl)
 	return 0;
 }
 
-__visible_for_testing int getidx_mdnie_scenario_maptbl(struct maptbl *tbl)
+int getidx_mdnie_scenario_maptbl(struct maptbl *tbl)
 {
 	struct mdnie_info *mdnie;
 
@@ -547,7 +545,7 @@ __visible_for_testing int getidx_mdnie_scenario_maptbl(struct maptbl *tbl)
 	return maptbl_get_indexof_row(tbl, mdnie->props.mode);
 }
 
-__visible_for_testing int getidx_mdnie_hdr_maptbl(struct maptbl *tbl)
+int getidx_mdnie_hdr_maptbl(struct maptbl *tbl)
 {
 	struct mdnie_info *mdnie;
 
@@ -559,7 +557,7 @@ __visible_for_testing int getidx_mdnie_hdr_maptbl(struct maptbl *tbl)
 	return maptbl_get_indexof_row(tbl, mdnie->props.hdr);
 }
 
-__visible_for_testing int getidx_mdnie_night_mode_maptbl(struct maptbl *tbl)
+int getidx_mdnie_night_mode_maptbl(struct maptbl *tbl)
 {
 	struct mdnie_info *mdnie;
 	int mode = NIGHT_MODE_OFF;
@@ -575,7 +573,7 @@ __visible_for_testing int getidx_mdnie_night_mode_maptbl(struct maptbl *tbl)
 	return maptbl_index(tbl, mode, mdnie->props.night_level, 0);
 }
 
-__visible_for_testing int init_mdnie_night_mode_table(struct maptbl *tbl)
+int init_mdnie_night_mode_table(struct maptbl *tbl)
 {
 	struct mdnie_info *mdnie;
 	struct maptbl *night_maptbl;
@@ -603,7 +601,7 @@ __visible_for_testing int init_mdnie_night_mode_table(struct maptbl *tbl)
 	return 0;
 }
 
-__visible_for_testing int init_mdnie_color_lens_table(struct maptbl *tbl)
+int init_mdnie_color_lens_table(struct maptbl *tbl)
 {
 	struct mdnie_info *mdnie;
 	struct maptbl *color_lens_maptbl;
@@ -632,7 +630,7 @@ __visible_for_testing int init_mdnie_color_lens_table(struct maptbl *tbl)
 	return 0;
 }
 
-__visible_for_testing void update_current_scr_white(struct maptbl *tbl, u8 *dst)
+void update_current_scr_white(struct maptbl *tbl, u8 *dst)
 {
 	struct mdnie_info *mdnie;
 
@@ -652,7 +650,7 @@ __visible_for_testing void update_current_scr_white(struct maptbl *tbl, u8 *dst)
 	mdnie->props.cur_wrgb[2] = *(dst + 2);
 }
 
-__visible_for_testing int init_color_coordinate_table(struct maptbl *tbl)
+int init_color_coordinate_table(struct maptbl *tbl)
 {
 	struct mdnie_info *mdnie;
 	struct maptbl_pos pos;
@@ -686,7 +684,7 @@ __visible_for_testing int init_color_coordinate_table(struct maptbl *tbl)
 	return 0;
 }
 
-__visible_for_testing int init_sensor_rgb_table(struct maptbl *tbl)
+int init_sensor_rgb_table(struct maptbl *tbl)
 {
 	struct mdnie_info *mdnie;
 	struct maptbl_pos pos;
@@ -719,7 +717,7 @@ __visible_for_testing int init_sensor_rgb_table(struct maptbl *tbl)
 	return 0;
 }
 
-__visible_for_testing int getidx_color_coordinate_maptbl(struct maptbl *tbl)
+int getidx_color_coordinate_maptbl(struct maptbl *tbl)
 {
 	struct mdnie_info *mdnie;
 	static int wcrd_type[MODE_MAX] = {
@@ -739,7 +737,7 @@ __visible_for_testing int getidx_color_coordinate_maptbl(struct maptbl *tbl)
 	return maptbl_index(tbl, 0, wcrd_type[mdnie->props.mode], 0);
 }
 
-__visible_for_testing int getidx_adjust_ldu_maptbl(struct maptbl *tbl)
+int getidx_adjust_ldu_maptbl(struct maptbl *tbl)
 {
 	struct mdnie_info *mdnie;
 	static int wcrd_type[MODE_MAX] = {
@@ -765,7 +763,7 @@ __visible_for_testing int getidx_adjust_ldu_maptbl(struct maptbl *tbl)
 	return maptbl_index(tbl, wcrd_type[mdnie->props.mode], mdnie->props.ldu, 0);
 }
 
-__visible_for_testing int getidx_color_lens_maptbl(struct maptbl *tbl)
+int getidx_color_lens_maptbl(struct maptbl *tbl)
 {
 	struct mdnie_info *mdnie;
 
@@ -790,7 +788,7 @@ __visible_for_testing int getidx_color_lens_maptbl(struct maptbl *tbl)
 	return maptbl_index(tbl, mdnie->props.color_lens_color, mdnie->props.color_lens_level, 0);
 }
 
-__visible_for_testing void copy_scr_white_maptbl(struct maptbl *tbl, u8 *dst)
+void copy_scr_white_maptbl(struct maptbl *tbl, u8 *dst)
 {
 	struct mdnie_info *mdnie;
 	int idx;
@@ -815,7 +813,7 @@ __visible_for_testing void copy_scr_white_maptbl(struct maptbl *tbl, u8 *dst)
 	mdnie_cur_wrgb_to_byte_array(mdnie, dst, 1);
 }
 
-__visible_for_testing int getidx_mdnie_maptbl(struct pkt_update_info *pktui, int offset)
+int getidx_mdnie_maptbl(struct pkt_update_info *pktui, int offset)
 {
 	struct panel_device *panel;
 	struct mdnie_info *mdnie;
@@ -847,27 +845,27 @@ __visible_for_testing int getidx_mdnie_maptbl(struct pkt_update_info *pktui, int
 	return index;
 }
 
-__visible_for_testing int getidx_mdnie_0_maptbl(struct pkt_update_info *pktui)
+int getidx_mdnie_0_maptbl(struct pkt_update_info *pktui)
 {
 	return getidx_mdnie_maptbl(pktui, 0);
 }
 
-__visible_for_testing int getidx_mdnie_1_maptbl(struct pkt_update_info *pktui)
+int getidx_mdnie_1_maptbl(struct pkt_update_info *pktui)
 {
 	return getidx_mdnie_maptbl(pktui, 1);
 }
 
-__visible_for_testing int getidx_mdnie_2_maptbl(struct pkt_update_info *pktui)
+int getidx_mdnie_2_maptbl(struct pkt_update_info *pktui)
 {
 	return getidx_mdnie_maptbl(pktui, 2);
 }
 
-__visible_for_testing int getidx_mdnie_3_maptbl(struct pkt_update_info *pktui)
+int getidx_mdnie_3_maptbl(struct pkt_update_info *pktui)
 {
 	return getidx_mdnie_maptbl(pktui, 3);
 }
 
-__visible_for_testing int getidx_mdnie_scr_white_maptbl(struct pkt_update_info *pktui)
+int getidx_mdnie_scr_white_maptbl(struct pkt_update_info *pktui)
 {
 	struct panel_device *panel;
 	struct mdnie_info *mdnie;
@@ -904,7 +902,7 @@ __visible_for_testing int getidx_mdnie_scr_white_maptbl(struct pkt_update_info *
 }
 #endif /* CONFIG_EXYNOS_DECON_MDNIE_LITE */
 
-__visible_for_testing int show_rddpm(struct dumpinfo *info)
+int show_rddpm(struct dumpinfo *info)
 {
 	int ret;
 	struct resinfo *res = info->res;
@@ -941,7 +939,7 @@ __visible_for_testing int show_rddpm(struct dumpinfo *info)
 	return 0;
 }
 
-__visible_for_testing int show_rddpm_before_sleep_in(struct dumpinfo *info)
+int show_rddpm_before_sleep_in(struct dumpinfo *info)
 {
 	int ret;
 	struct resinfo *res = info->res;
@@ -972,7 +970,7 @@ __visible_for_testing int show_rddpm_before_sleep_in(struct dumpinfo *info)
 	return 0;
 }
 
-__visible_for_testing int show_rddsm(struct dumpinfo *info)
+int show_rddsm(struct dumpinfo *info)
 {
 	int ret;
 	struct resinfo *res = info->res;
@@ -1004,7 +1002,7 @@ __visible_for_testing int show_rddsm(struct dumpinfo *info)
 	return 0;
 }
 
-__visible_for_testing int show_err(struct dumpinfo *info)
+int show_err(struct dumpinfo *info)
 {
 	int ret;
 	struct resinfo *res = info->res;
@@ -1090,7 +1088,7 @@ __visible_for_testing int show_err(struct dumpinfo *info)
 	return 0;
 }
 
-__visible_for_testing int show_err_fg(struct dumpinfo *info)
+int show_err_fg(struct dumpinfo *info)
 {
 	int ret;
 	u8 err_fg[S6E3FC3_ERR_FG_LEN] = { 0, };
@@ -1140,7 +1138,7 @@ __visible_for_testing int show_err_fg(struct dumpinfo *info)
 	return 0;
 }
 
-__visible_for_testing int show_dsi_err(struct dumpinfo *info)
+int show_dsi_err(struct dumpinfo *info)
 {
 	int ret;
 	struct resinfo *res = info->res;
@@ -1179,7 +1177,7 @@ __visible_for_testing int show_dsi_err(struct dumpinfo *info)
 	return 0;
 }
 
-__visible_for_testing int show_self_diag(struct dumpinfo *info)
+int show_self_diag(struct dumpinfo *info)
 {
 	int ret;
 	struct resinfo *res = info->res;
@@ -1219,7 +1217,7 @@ __visible_for_testing int show_self_diag(struct dumpinfo *info)
  * [0](15h 1st): 0x14 (OK) other (NG)
  * [1](15h 2nd): 0x74 (OK) other (NG)
  */
-__visible_for_testing int s6e3fc3_decoder_test(struct panel_device *panel, void *data, u32 len)
+int s6e3fc3_decoder_test(struct panel_device *panel, void *data, u32 len)
 {
 	struct panel_info *panel_data;
 	int ret = 0;
@@ -1287,7 +1285,7 @@ __visible_for_testing int s6e3fc3_decoder_test(struct panel_device *panel, void 
 #endif
 
 #ifdef CONFIG_SUPPORT_DDI_CMDLOG
-__visible_for_testing int show_cmdlog(struct dumpinfo *info)
+int show_cmdlog(struct dumpinfo *info)
 {
 	int ret;
 	struct resinfo *res = info->res;
@@ -1307,7 +1305,7 @@ __visible_for_testing int show_cmdlog(struct dumpinfo *info)
 }
 #endif
 
-__visible_for_testing int show_self_mask_crc(struct dumpinfo *info)
+int show_self_mask_crc(struct dumpinfo *info)
 {
 	int ret;
 	struct resinfo *res = info->res;
@@ -1332,7 +1330,7 @@ __visible_for_testing int show_self_mask_crc(struct dumpinfo *info)
 	return 0;
 }
 
-__visible_for_testing int init_gamma_mode2_brt_table(struct maptbl *tbl)
+int init_gamma_mode2_brt_table(struct maptbl *tbl)
 {
 	struct panel_info *panel_data;
 	struct panel_device *panel;
@@ -1373,7 +1371,7 @@ __visible_for_testing int init_gamma_mode2_brt_table(struct maptbl *tbl)
 	return 0;
 }
 
-__visible_for_testing int getidx_gamma_mode2_brt_table(struct maptbl *tbl)
+int getidx_gamma_mode2_brt_table(struct maptbl *tbl)
 {
 	int row = 0;
 	struct panel_info *panel_data;
@@ -1392,44 +1390,19 @@ __visible_for_testing int getidx_gamma_mode2_brt_table(struct maptbl *tbl)
 	return maptbl_index(tbl, 0, row, 0);
 }
 
-__visible_for_testing int s6e3fc3_getidx_ffc_table(struct maptbl *tbl)
-{
-	int idx;
-	u32 dsi_clk;
-	struct panel_device *panel = (struct panel_device *)tbl->pdata;
-	struct panel_info *panel_data = &panel->panel_data;
-
-	dsi_clk = panel_data->props.dsi_freq;
-
-	switch (dsi_clk) {
-	case 1108000:
-		idx = S6E3FC3_HS_CLK_1108;
-		break;
-	case 1124000:
-		idx = S6E3FC3_HS_CLK_1124;
-		break;
-	case 1125000:
-		idx = S6E3FC3_HS_CLK_1125;
-		break;
-	default:
-		panel_err("invalid dsi clock: %d\n", dsi_clk);
-		BUG();
-	}
-	return maptbl_index(tbl, 0, idx, 0);
-}
-
-
-__visible_for_testing bool s6e3fc3_is_120hz(struct panel_device *panel)
+#ifdef CONFIG_SUPPORT_MASK_LAYER
+bool s6e3fc3_is_120hz(struct panel_device *panel)
 {
 	return (getidx_s6e3fc3_current_vrr_fps(panel) == S6E3FC3_VRR_FPS_120);
 }
 
-__visible_for_testing bool s6e3fc3_is_60hz(struct panel_device *panel)
+bool s6e3fc3_is_60hz(struct panel_device *panel)
 {
 	return (getidx_s6e3fc3_current_vrr_fps(panel) == S6E3FC3_VRR_FPS_60);
 }
+#endif
 
-__visible_for_testing bool is_panel_state_not_lpm(struct panel_device *panel)
+bool is_panel_state_not_lpm(struct panel_device *panel)
 {
 	if (panel->state.cur_state != PANEL_STATE_ALPM)
 		return true;
@@ -1437,37 +1410,5 @@ __visible_for_testing bool is_panel_state_not_lpm(struct panel_device *panel)
 	return false;
 }
 
-__visible_for_testing bool s6e3fc3_is_a52_panel(struct panel_device *panel)
-{
-	struct panel_info *panel_data;
-
-	if (!panel)
-		return false;
-
-	panel_data = &panel->panel_data;
-
-	if (panel_data->id[0] == 0x90 && panel_data->id[1] == 0x40 && panel_data->id[2] & 0x02)
-		return true;
-
-	return false;
-}
-
-__visible_for_testing int __init s6e3fc3_panel_init(void)
-{
-	register_common_panel(&s6e3fc3_r8s_panel_info);
-	register_common_panel(&s6e3fc3_a53x_panel_info);
-	register_common_panel(&s6e3fc3_a33x_panel_info);
-	return 0;
-}
-
-__visible_for_testing void __exit s6e3fc3_panel_exit(void)
-{
-	deregister_common_panel(&s6e3fc3_r8s_panel_info);
-	deregister_common_panel(&s6e3fc3_a53x_panel_info);
-	deregister_common_panel(&s6e3fc3_a33x_panel_info);
-}
-
-module_init(s6e3fc3_panel_init)
-module_exit(s6e3fc3_panel_exit)
 MODULE_DESCRIPTION("Samsung Mobile Panel Driver");
 MODULE_LICENSE("GPL");

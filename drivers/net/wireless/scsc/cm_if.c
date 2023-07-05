@@ -31,10 +31,6 @@ MODULE_PARM_DESC(EnableTestMode, "Enable WlanLite test mode driver.");
 
 static BLOCKING_NOTIFIER_HEAD(slsi_wlan_notifier);
 
-static bool EnableRfTestMode;
-module_param(EnableRfTestMode, bool, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(EnableRfTestMode, "Enable RF test mode driver.");
-
 static struct mutex slsi_start_mutex;
 static int recovery_in_progress;
 static u16 latest_scsc_panic_code;
@@ -242,58 +238,6 @@ static  bool wlan_stop_on_failure_v2(struct scsc_service_client *client, struct 
 	mutex_unlock(&slsi_start_mutex);
 	SLSI_INFO_NODEV("Done!\n");
 	return true;
-}
-
-int slsi_check_rf_test_mode(struct slsi_dev *sdev)
-{
-#if defined(SCSC_SEP_VERSION)
-	int         ret = 0;
-#if SCSC_SEP_VERSION >= 9
-#if (KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE)
-	char *filepath = "/data/vendor/conn/.psm.info";
-#else
-	char *filepath = "../../data/vendor/conn/.psm.info";
-#endif
-#else
-#if (KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE)
-	char *filepath = "/data/misc/conn/.psm.info";
-#else
-	return -ENOENT;
-#endif
-#endif
-	char power_val = 0;
-	int offset = 0;
-	const struct firmware *firm = NULL;
-
-	/* reading power value from /data/vendor/conn/.psm.info */
-	ret = mx140_request_file(sdev->maxwell_core, filepath, &firm);
-	if (ret) {
-		SLSI_ERR_NODEV("Error Loading %s file %d\n", filepath, ret);
-		return -EINVAL;
-	}
-	ret = firmware_read(firm, &power_val, sizeof(char), &offset);
-	if (ret < 0) {
-		SLSI_ERR_NODEV("failed to read power_val's value\n");
-		goto exit;
-	}
-
-	/* if power_val is 0, it means rf_test mode by rf. */
-	if (power_val == '0') {
-		pr_err("*#rf# is enabled.\n");
-		EnableRfTestMode = 1;
-	} else {
-		pr_err("*#rf# is disabled.\n");
-		EnableRfTestMode = 0;
-	}
-
-	mx140_release_file(sdev->maxwell_core, firm);
-	return 0;
-exit:
-	mx140_release_file(sdev->maxwell_core, firm);
-	return -EINVAL;
-#else
-	return -ENOENT;
-#endif
 }
 
 /* WLAN service driver registration
@@ -589,12 +533,6 @@ void slsi_sm_service_failed(struct slsi_dev *sdev, const char *reason, bool is_w
 bool slsi_is_test_mode_enabled(void)
 {
 	return EnableTestMode;
-}
-
-/* Is production rf test mode enabled? */
-bool slsi_is_rf_test_mode_enabled(void)
-{
-	return EnableRfTestMode;
 }
 
 #define SLSI_SM_WLAN_SERVICE_RECOVERY_COMPLETED_TIMEOUT 20000

@@ -51,7 +51,7 @@ static int contexthub_notifier(struct contexthub_notifier_block *nb)
 	if (nb->state == CHUB_FW_ST_POWERON) { // after power on
 		queue_refresh_task();
 	} else if (nb->state == CHUB_FW_ST_OFF) { // start reset
-
+		sensorhub_stop();
 	} else if (nb->state == CHUB_FW_ST_ON) { // end reset
 		queue_refresh_task();
 	}

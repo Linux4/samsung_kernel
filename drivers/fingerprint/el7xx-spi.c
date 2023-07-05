@@ -384,19 +384,9 @@ static int el7xx_open(struct inode *inode, struct file *filp)
 		}
 	}
 	if (retval == 0) {
-		if (etspi->buf == NULL) {
-			etspi->buf = kmalloc(bufsiz, GFP_KERNEL);
-			if (etspi->buf == NULL) {
-				dev_dbg(&etspi->spi->dev, "open/ENOMEM\n");
-				retval = -ENOMEM;
-			}
-		}
-		if (retval == 0) {
-			etspi->users++;
-			filp->private_data = etspi;
-			nonseekable_open(inode, filp);
-			etspi->bufsiz = bufsiz;
-		}
+		etspi->users++;
+		filp->private_data = etspi;
+		nonseekable_open(inode, filp);
 	} else
 		pr_debug("nothing for minor %d\n", iminor(inode));
 
@@ -419,8 +409,6 @@ static int el7xx_release(struct inode *inode, struct file *filp)
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
 		int dofree;
 #endif
-		kfree(etspi->buf);
-		etspi->buf = NULL;
 
 		/* ... after we unbound from the underlying device? */
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
@@ -575,7 +563,7 @@ static int el7xx_parse_dt(struct device *dev, struct el7xx_data *etspi)
 
 	if (of_property_read_string_index(np, "etspi-chipid", 0,
 			(const char **)&etspi->chipid)) {
-		etspi->chipid = NULL;
+		etspi->chipid = "NULL";
 	}
 	pr_info("chipid: %s\n", etspi->chipid);
 
@@ -668,7 +656,7 @@ static int el7xx_type_check(struct el7xx_data *etspi)
 }
 #endif
 
-static ssize_t el7xx_bfs_values_show(struct device *dev,
+static ssize_t bfs_values_show(struct device *dev,
 				      struct device_attribute *attr, char *buf)
 {
 	struct el7xx_data *data = dev_get_drvdata(dev);
@@ -677,7 +665,7 @@ static ssize_t el7xx_bfs_values_show(struct device *dev,
 			data->clk_setting->spi_speed);
 }
 
-static ssize_t el7xx_type_check_show(struct device *dev,
+static ssize_t type_check_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	struct el7xx_data *data = dev_get_drvdata(dev);
@@ -697,13 +685,13 @@ static ssize_t el7xx_type_check_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", data->sensortype);
 }
 
-static ssize_t el7xx_vendor_show(struct device *dev,
+static ssize_t vendor_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%s\n", VENDOR);
 }
 
-static ssize_t el7xx_name_show(struct device *dev,
+static ssize_t name_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct el7xx_data *etspi = dev_get_drvdata(dev);
@@ -711,13 +699,13 @@ static ssize_t el7xx_name_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%s\n", etspi->chipid);
 }
 
-static ssize_t el7xx_adm_show(struct device *dev,
+static ssize_t adm_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%d\n", DETECT_ADM);
 }
 
-static ssize_t el7xx_position_show(struct device *dev,
+static ssize_t position_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct el7xx_data *etspi = dev_get_drvdata(dev);
@@ -725,7 +713,7 @@ static ssize_t el7xx_position_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%s\n", etspi->sensor_position);
 }
 
-static ssize_t el7xx_rb_show(struct device *dev,
+static ssize_t rb_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct el7xx_data *etspi = dev_get_drvdata(dev);
@@ -733,13 +721,13 @@ static ssize_t el7xx_rb_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%s\n", etspi->rb);
 }
 
-static DEVICE_ATTR(bfs_values, 0444, el7xx_bfs_values_show, NULL);
-static DEVICE_ATTR(type_check, 0444, el7xx_type_check_show, NULL);
-static DEVICE_ATTR(vendor, 0444, el7xx_vendor_show, NULL);
-static DEVICE_ATTR(name, 0444, el7xx_name_show, NULL);
-static DEVICE_ATTR(adm, 0444, el7xx_adm_show, NULL);
-static DEVICE_ATTR(position, 0444, el7xx_position_show, NULL);
-static DEVICE_ATTR(rb, 0444, el7xx_rb_show, NULL);
+static DEVICE_ATTR_RO(bfs_values);
+static DEVICE_ATTR_RO(type_check);
+static DEVICE_ATTR_RO(vendor);
+static DEVICE_ATTR_RO(name);
+static DEVICE_ATTR_RO(adm);
+static DEVICE_ATTR_RO(position);
+static DEVICE_ATTR_RO(rb);
 
 static struct device_attribute *fp_attrs[] = {
 	&dev_attr_bfs_values,
@@ -953,6 +941,13 @@ static int el7xx_probe(struct spi_device *spi)
 		goto el7xx_spi_set_setup_failed;
 	}
 
+	/* init transfer buffer */
+	retval = el7xx_init_buffer(etspi);
+	if (retval < 0) {
+		pr_err("Failed to Init transfer buffer.\n");
+		goto el7xx_spi_init_buffer_failed;
+	}
+
 	retval = el7xx_probe_common(&spi->dev, etspi);
 	if (retval)
 		goto el7xx_spi_probe_failed;
@@ -961,6 +956,8 @@ static int el7xx_probe(struct spi_device *spi)
 	return retval;
 
 el7xx_spi_probe_failed:
+	el7xx_free_buffer(etspi);
+el7xx_spi_init_buffer_failed:
 el7xx_spi_set_setup_failed:
 	etspi = NULL;
 el7xx_spi_alloc_failed:
@@ -997,14 +994,21 @@ static int el7xx_remove_common(struct device *dev)
 }
 
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
-static int el7xx_remove(struct spi_device *spi) {
+static int el7xx_remove(struct spi_device *spi)
+{
+	struct el7xx_data *etspi = spi_get_drvdata(spi);
+
+	el7xx_free_buffer(etspi);
 	el7xx_remove_common(&spi->dev);
-#else
-static int el7xx_remove(struct platform_device *pdev) {
-	el7xx_remove_common(&pdev->dev);
-#endif
 	return 0;
 }
+#else
+static int el7xx_remove(struct platform_device *pdev)
+{
+	el7xx_remove_common(&pdev->dev);
+	return 0;
+}
+#endif
 
 static int el7xx_pm_suspend(struct device *dev)
 {

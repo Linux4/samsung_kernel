@@ -10,9 +10,11 @@
 #include <linux/sched/clock.h>
 #include "sec_debug_internal.h"
 #include <soc/samsung/debug-snapshot-log.h>
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG_EHLD_INFO)
 #include <soc/samsung/exynos-ehld.h>
+#endif
 #include <linux/hashtable.h>
-#include <soc/samsung/exynos-ehld.h>
 
 #define PRINT_LINE_MAX	512
 #define TASK_COMM_LEN 16
@@ -331,6 +333,7 @@ static void secdbg_hardlockup_show_info(struct hardlockup_info *hl_info)
 	secdbg_exin_set_hardlockup_data(buf);
 }
 
+#if IS_ENABLED(CONFIG_SEC_DEBUG_EHLD_INFO)
 static void secdbg_hardlockup_print_ehld_type(void)
 {
 	unsigned int cpu;
@@ -413,6 +416,7 @@ static void secdbg_hardlockup_show_ehld_info(void)
 
 	secdbg_hardlockup_print_ehld_type();
 }
+#endif
 
 static int secdbg_hardlockup_info_handler(struct notifier_block *nb,
 					unsigned long l, void *core)
@@ -430,8 +434,9 @@ static int secdbg_hardlockup_info_handler(struct notifier_block *nb,
 
 	secdbg_hardlockup_show_info(hl_info);
 	secdbg_hardlockup_show_freq(hl_info);
+#if IS_ENABLED(CONFIG_SEC_DEBUG_EHLD_INFO)
 	secdbg_hardlockup_show_ehld_info();
-
+#endif
 out:
 	return NOTIFY_DONE;
 }

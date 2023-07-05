@@ -52,10 +52,6 @@
 #include "./mafpc/mafpc_drv.h"
 #endif
 
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-#include "./display_profiler/display_profiler.h"
-#endif
-
 #ifdef CONFIG_SUPPORT_POC_SPI
 #include "panel_spi.h"
 #endif
@@ -72,8 +68,8 @@
 #include <linux/tdmb_notifier.h>
 #endif
 
-#ifdef CONFIG_DYNAMIC_MIPI
-#include "./dynamic_mipi/band_info.h"
+#if defined(CONFIG_PANEL_FREQ_HOP)
+#include "panel_freq_hop.h"
 #endif
 
 #define PANEL_DEV_NAME ("panel")
@@ -164,7 +160,7 @@ enum ctrl_interface_state {
 #define EVASION_DISP_DET_DELAY_MSEC (600)
 #endif
 
-struct mipi_drv_ops {
+struct panel_adapter_funcs {
 	int (*read)(void *ctx, u8 addr, u32 ofs, u8 *buf, int size, u32 option);
 	int (*write)(void *ctx, u8 cmd_id, const u8 *cmd, u32 ofs, int size, u32 option);
 	int (*write_table)(void *ctx, const struct cmd_set *cmd, int size, u32 option);
@@ -183,15 +179,30 @@ struct mipi_drv_ops {
 	int (*dpu_register_dump)(void *ctx);
 	int (*dpu_event_log_print)(void *ctx);
 	int (*emergency_off)(void *ctx);
+#if defined(CONFIG_PANEL_FREQ_HOP)
+	int (*set_freq_hop)(void *ctx, struct freq_hop_elem *elem);
+#endif
+};
+
+#define call_panel_adapter_func(_p, _func, args...) \
+	(((_p) && (_p)->adapter.ctx && (_p)->adapter.funcs && \
+	  (_p)->adapter.funcs->_func) ? \
+	  (_p)->adapter.funcs->_func(((_p)->adapter.ctx), ##args) : -EINVAL)
+
+#define get_panel_adapter_fifo_size(_p) \
+	((_p) ? ((_p)->adapter.fifo_size) : 0)
+
+struct panel_adapter {
+	void *ctx;
+	unsigned int fifo_size;
+	struct panel_adapter_funcs *funcs;
 };
 
 struct panel_drv_funcs {
-	int (*parse_lcd_info)(struct panel_device *);
-	int (*set_dsi_ops)(struct panel_device *, void *);
 	int (*register_cb)(struct panel_device *, int, void *);
 	int (*register_error_cb)(struct panel_device *, void *);
 	int (*get_panel_state)(struct panel_device *, void *);
-	int (*dsim_probe)(struct panel_device *, void *);
+	int (*attach_adapter)(struct panel_device *, void *);
 
 	/* panel control operation */
 	int (*probe)(struct panel_device *);
@@ -208,6 +219,7 @@ struct panel_drv_funcs {
 	int (*get_mres)(struct panel_device *, void *);
 	int (*set_display_mode)(struct panel_device *, void *);
 	int (*get_display_mode)(struct panel_device *, void *);
+	int (*reset_lp11)(struct panel_device *);
 
 	/* display controller event operation */
 	int (*vsync)(struct panel_device *, void *);
@@ -215,18 +227,12 @@ struct panel_drv_funcs {
 #ifdef CONFIG_SUPPORT_MASK_LAYER
 	int (*set_mask_layer)(struct panel_device *, void *);
 #endif
-#ifdef CONFIG_DYNAMIC_MIPI
-	int (*get_dynamic_mipi_info)(struct panel_device *, void *);
-	int (*ffc_on)(struct panel_device *);
-	int (*ffc_off)(struct panel_device *);
-#endif
 	int (*req_set_clock)(struct panel_device *, void *);
 	int (*get_ddi_props)(struct panel_device *, void *);
+	int (*get_rcd_info)(struct panel_device *, void *);
 };
 
-int panel_drv_dsim_probe_ioctl(struct panel_device *panel, void *arg);
-int panel_drv_parse_lcd_info_ioctl(struct panel_device *panel, void *arg);
-int panel_drv_dsim_put_mipi_ops_ioctl(struct panel_device *panel, void *arg);
+int panel_drv_attach_adapter_ioctl(struct panel_device *panel, void *arg);
 int panel_drv_get_panel_state_ioctl(struct panel_device *panel, void *arg);
 int panel_drv_panel_probe_ioctl(struct panel_device *panel, void *arg);
 int panel_drv_set_power_ioctl(struct panel_device *panel, void *arg);
@@ -249,11 +255,6 @@ int panel_drv_reg_reset_cb_ioctl(struct panel_device *panel, void *arg);
 int panel_drv_reg_vrr_cb_ioctl(struct panel_device *panel, void *arg);
 #ifdef CONFIG_SUPPORT_MASK_LAYER
 int panel_drv_set_mask_layer_ioctl(struct panel_device *panel, void *arg);
-#endif
-#ifdef CONFIG_DYNAMIC_MIPI
-int panel_drv_dm_get_info_ioctl(struct panel_device *panel, void *arg);
-int panel_drv_dm_set_panel_ffc_ioctl(struct panel_device *panel, void *arg);
-int panel_drv_dm_off_panel_ffc_ioctl(struct panel_device *panel, void *arg);
 #endif
 bool panel_is_gpio_valid(struct panel_device *panel, enum panel_gpio_lists panel_gpio_id);
 int panel_enable_gpio_irq(struct panel_device *panel, enum panel_gpio_lists panel_gpio_id);
@@ -447,6 +448,7 @@ struct panel_cmd_queue {
 	int img_payload_size;
 	struct mutex lock;
 };
+
 typedef int (*panel_thread_fn)(void *data);
 
 struct panel_thread {
@@ -459,6 +461,12 @@ struct panel_thread {
 enum {
 	PANEL_DEBUGFS_LOG,
 	PANEL_DEBUGFS_CMD_LOG,
+#if IS_ENABLED(CONFIG_PANEL_NOTIFY)
+	PANEL_DEBUGFS_PANEL_EVENT,
+#endif
+#if defined(CONFIG_PANEL_FREQ_HOP)
+	PANEL_DEBUGFS_FREQ_HOP,
+#endif
 	MAX_PANEL_DEBUGFS,
 };
 
@@ -476,11 +484,14 @@ struct panel_debug {
 
 struct panel_device {
 	int id;
-	void *ctrl_interface;
+	struct panel_adapter adapter;
 
 	const char *of_node_name;
-	struct device_node *ddi_node;
+	struct device_node *ap_vendor_setting_node;
 	struct device_node *power_ctrl_node;
+#if defined(CONFIG_PANEL_FREQ_HOP)
+	struct device_node *freq_hop_node;
+#endif
 #if defined(CONFIG_PANEL_DISPLAY_MODE)
 	struct panel_display_modes *panel_modes;
 #endif
@@ -521,7 +532,6 @@ struct panel_device {
 	struct pinctrl_state *default_gpio_pinctrl;
 
 	struct panel_drv_funcs *funcs;
-	struct mipi_drv_ops mipi_drv;
 	struct panel_cmd_queue cmdq;
 
 	struct panel_state state;
@@ -579,24 +589,19 @@ struct panel_device {
 #endif
 	struct panel_condition_check condition_check;
 
-#ifdef CONFIG_DYNAMIC_MIPI
-	struct dynamic_mipi_info dynamic_mipi;
+#ifdef CONFIG_PANEL_FREQ_HOP
+	struct panel_freq_hop freq_hop;
 #endif
 
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	struct profiler_device profiler;
-#endif
 	struct panel_obj_properties properties;
 	struct panel_debug d;
 
 	struct panel_hdr_info hdr;
 
+	/* for panel_dsi_write_img */
+	unsigned char *cmdbuf;
 };
 
-static inline void *get_ctrl_interface(struct panel_device *panel)
-{
-	return panel ? panel->ctrl_interface : NULL;
-}
 #ifdef CONFIG_SUPPORT_SSR_TEST
 int panel_ssr_test(struct panel_device *panel);
 #endif
@@ -760,6 +765,11 @@ int panel_fast_discharge_set(struct panel_device *panel);
 #ifdef CONFIG_PANEL_NOTIFY
 void panel_send_screen_mode_notify(int display_idx, u32 mode);
 #endif
+#ifdef CONFIG_MCD_PANEL_RCD
+int panel_get_rcd_info(struct panel_device *panel, void *arg);
+#else
+static inline int panel_get_rcd_info(struct panel_device *panel, void *arg) { return -ENODEV; }
+#endif
 
 #define PRINT_PANEL_STATE_BEGIN(_old_state_, _new_state_, _start_) \
 	do { \
@@ -781,10 +791,8 @@ void panel_send_screen_mode_notify(int display_idx, u32 mode);
 
 #define PANEL_IOC_BASE	'P'
 
-#define PANEL_IOC_DSIM_PROBE			_IOW(PANEL_IOC_BASE, 1, void *)
-#define PANEL_IOC_PARSE_LCD_INFO		_IO(PANEL_IOC_BASE, 2)
+#define PANEL_IOC_ATTACH_ADAPTER			_IOW(PANEL_IOC_BASE, 1, void *)
 #define PANEL_IOC_GET_PANEL_STATE		_IOW(PANEL_IOC_BASE, 3, struct panel_state *)
-#define PANEL_IOC_DSIM_PUT_MIPI_OPS		_IOR(PANEL_IOC_BASE, 4, struct mipi_ops *)
 #define PANEL_IOC_PANEL_PROBE			_IO(PANEL_IOC_BASE, 5)
 
 #define PANEL_IOC_SET_POWER				_IOW(PANEL_IOC_BASE, 6, int *)
@@ -816,13 +824,5 @@ void panel_send_screen_mode_notify(int display_idx, u32 mode);
 #define PANEL_IOC_REG_VRR_CB			_IOR(PANEL_IOC_BASE, 52, struct host_cb *)
 #ifdef CONFIG_SUPPORT_MASK_LAYER
 #define PANEL_IOC_SET_MASK_LAYER		_IOW(PANEL_IOC_BASE, 61, struct mask_layer_data *)
-#endif
-
-#ifdef CONFIG_DYNAMIC_MIPI
-#define MAGIC_DF_UPDATED				(0x0A55AA55)
-
-#define PANEL_IOC_DM_GET_INFO			_IOR(PANEL_IOC_BASE, 85, struct dynamic_mipi_info *)
-#define PANEL_IOC_DM_SET_PANEL_FFC			_IOR(PANEL_IOC_BASE, 82, int *)
-#define PANEL_IOC_DM_OFF_PANEL_FFC			_IOR(PANEL_IOC_BASE, 83, int *)
 #endif
 #endif //__PANEL_DRV_H__

@@ -12,15 +12,17 @@
 #include <linux/pm_wakeup.h>
 #include <linux/version.h>
 
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 #if IS_ENABLED(CONFIG_BATTERY_NOTIFIER)
 #include <linux/battery/battery_notifier.h>
 #else
 #include <linux/battery/sec_pd.h>
 #endif
-#include <linux/usb/typec/common/pdic_sysfs.h>
 struct usbpd_data *g_pd_data;
 EXPORT_SYMBOL(g_pd_data);
+#endif
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+#include <linux/usb/typec/common/pdic_sysfs.h>
 #endif
 
 #define MS_TO_NS(msec)		((msec) * 1000 * 1000)
@@ -62,7 +64,7 @@ long long usbpd_check_timer_vdm(struct usbpd_data *pd_data)
 	ktime_get_real_ts64(&time);
 
     sec = time.tv_sec - pd_data->time_vdm.tv_sec;
-    ms = (time.tv_nsec - pd_data->time_vdm.tv_nsec) / 1000000;
+    ms = (uint32_t)((time.tv_nsec - pd_data->time_vdm.tv_nsec) / 1000000);
 
     return (sec * 1000) + ms;
 }
@@ -83,14 +85,14 @@ long long usbpd_check_time1(struct usbpd_data *pd_data)
 	ktime_get_real_ts64(&time);
 
     sec = time.tv_sec - pd_data->time1.tv_sec;
-    ms = (time.tv_nsec - pd_data->time1.tv_nsec) / 1000000;
+    ms = (uint32_t)((time.tv_nsec - pd_data->time1.tv_nsec) / 1000000);
 
     pd_data->check_time.tv_sec = time.tv_sec;
     pd_data->check_time.tv_nsec = time.tv_nsec;
 
 
     /* for demon update after boot */
-    if ((sec > 100) | (sec < 0)) {
+    if ((sec > 100) || (sec < 0)) {
         pr_info("%s, timer changed\n", __func__);
         usbpd_timer1_start(pd_data);
         return 0;
@@ -434,7 +436,8 @@ void usbpd_set_ops(struct device *dev, usbpd_phy_ops_type *ops)
 	pd_data->phy_ops.ops_dry_check			= ops->ops_dry_check;
 	pd_data->phy_ops.water_opmode			= ops->water_opmode;
 #endif
-	pd_data->phy_ops.authentic				= ops->authentic;
+	pd_data->phy_ops.authentic			= ops->authentic;
+	pd_data->phy_ops.energy_now			= ops->energy_now;
 	pd_data->phy_ops.set_usbpd_reset		= ops->set_usbpd_reset;
 	pd_data->phy_ops.ops_get_fsm_state		= ops->ops_get_fsm_state;
 	pd_data->phy_ops.set_is_otg_vboost		= ops->set_is_otg_vboost;
@@ -452,6 +455,7 @@ void usbpd_set_ops(struct device *dev, usbpd_phy_ops_type *ops)
 	pd_data->phy_ops.ops_set_water_threshold	= ops->ops_set_water_threshold;
 #endif
 	pd_data->phy_ops.ops_control_option_command	= ops->ops_control_option_command;
+	pd_data->phy_ops.set_pcp_clk			= ops->set_pcp_clk;
 }
 EXPORT_SYMBOL(usbpd_set_ops);
 
@@ -680,7 +684,7 @@ inline unsigned usbpd_wait_msg(struct usbpd_data *pd_data,
 	ret = wait_for_completion_timeout(&pd_data->msg_arrived,
 			msecs_to_jiffies(ms));
 
-	if (!pd_data->policy.state) {
+	if (pd_data->policy.state == 0) {
 		dev_err(pd_data->dev, "%s : return for policy state error\n", __func__);
 		pd_data->policy.abnormal_state = true;
 		return 0;

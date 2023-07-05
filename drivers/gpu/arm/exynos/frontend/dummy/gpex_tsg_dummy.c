@@ -22,8 +22,6 @@
 #include <gpex_utils.h>
 #include <gpex_tsg.h>
 
-#include <soc/samsung/exynos-profiler.h>
-
 #define DVFS_TABLE_ROW_MAX 9
 
 static ktime_t kt;
@@ -49,7 +47,7 @@ EXPORT_SYMBOL(exynos_stats_get_gpu_table_size);
 /* TODO: so far, this stub function is dependant to product, so needs to be diverged for each product */
 /* or, just return zero value when GPU Profiler is disabled. */
 uint32_t freqs[DVFS_TABLE_ROW_MAX];
-uint32_t *gpu_dvfs_get_freq_table(void)
+uint32_t *exynos_stats_get_gpu_freq_table(void)
 {
 	freqs[0] = 858000;
 	freqs[1] = 767000;
@@ -63,7 +61,7 @@ uint32_t *gpu_dvfs_get_freq_table(void)
 
 	return freqs;
 }
-EXPORT_SYMBOL(gpu_dvfs_get_freq_table);
+EXPORT_SYMBOL(exynos_stats_get_gpu_freq_table);
 
 uint32_t volts[DVFS_TABLE_ROW_MAX];
 uint32_t *exynos_stats_get_gpu_volt_table(void)
@@ -73,30 +71,23 @@ uint32_t *exynos_stats_get_gpu_volt_table(void)
 EXPORT_SYMBOL(exynos_stats_get_gpu_volt_table);
 
 ktime_t time_in_state[DVFS_TABLE_ROW_MAX];
-ktime_t tis_last_update;
-ktime_t *gpu_dvfs_get_time_in_state(void)
+ktime_t *exynos_stats_get_gpu_time_in_state(void)
 {
 	return time_in_state;
 }
-EXPORT_SYMBOL(gpu_dvfs_get_time_in_state);
+EXPORT_SYMBOL(exynos_stats_get_gpu_time_in_state);
 
-ktime_t gpu_dvfs_get_tis_last_update(void)
-{
-	return tis_last_update;
-}
-EXPORT_SYMBOL(gpu_dvfs_get_tis_last_update);
-
-int gpu_dvfs_get_max_freq(void)
+int exynos_stats_get_gpu_max_lock(void)
 {
 	return 0;
 }
-EXPORT_SYMBOL(gpu_dvfs_get_max_freq);
+EXPORT_SYMBOL(exynos_stats_get_gpu_max_lock);
 
-int gpu_dvfs_get_min_freq(void)
+int exynos_stats_get_gpu_min_lock(void)
 {
 	return 0;
 }
-EXPORT_SYMBOL(gpu_dvfs_get_min_freq);
+EXPORT_SYMBOL(exynos_stats_get_gpu_min_lock);
 
 int exynos_stats_set_queued_threshold_0(unsigned int threshold)
 {
@@ -112,17 +103,17 @@ int exynos_stats_set_queued_threshold_1(unsigned int threshold)
 }
 EXPORT_SYMBOL(exynos_stats_set_queued_threshold_1);
 
-ktime_t *gpu_dvfs_get_job_queue_count(void)
+ktime_t *exynos_stats_get_gpu_queued_job_time(void)
 {
 	return NULL;
 }
-EXPORT_SYMBOL(gpu_dvfs_get_job_queue_count);
+EXPORT_SYMBOL(exynos_stats_get_gpu_queued_job_time);
 
-ktime_t gpu_dvfs_get_job_queue_last_updated(void)
+ktime_t exynos_stats_get_gpu_queued_last_updated(void)
 {
-	return 0;
+	return kt;
 }
-EXPORT_SYMBOL(gpu_dvfs_get_job_queue_last_updated);
+EXPORT_SYMBOL(exynos_stats_get_gpu_queued_last_updated);
 
 void exynos_stats_set_gpu_polling_speed(int polling_speed)
 {
@@ -136,108 +127,31 @@ int exynos_stats_get_gpu_polling_speed(void)
 }
 EXPORT_SYMBOL(exynos_stats_get_gpu_polling_speed);
 
-void gpu_dvfs_set_amigo_governor(int mode)
+void exynos_migov_set_mode(int mode)
 {
 	CSTD_UNUSED(mode);
 }
-EXPORT_SYMBOL(gpu_dvfs_set_amigo_governor);
+EXPORT_SYMBOL(exynos_migov_set_mode);
 
-void gpu_dvfs_set_freq_margin(int margin)
+void exynos_migov_set_gpu_margin(int margin)
 {
 	CSTD_UNUSED(margin);
 }
-EXPORT_SYMBOL(gpu_dvfs_set_freq_margin);
+EXPORT_SYMBOL(exynos_migov_set_gpu_margin);
 
-void exynos_stats_get_run_times(u64 *times)
-{
-	CSTD_UNUSED(times);
-}
-EXPORT_SYMBOL(exynos_stats_get_run_times);
-
-void exynos_stats_set_vsync(ktime_t timestamp)
-{
-	CSTD_UNUSED(timestamp);
-}
-EXPORT_SYMBOL(exynos_stats_set_vsync);
-
-void exynos_migov_set_targetframetime(int us)
-{
-	CSTD_UNUSED(us);
-}
-EXPORT_SYMBOL(exynos_migov_set_targetframetime);
-
-void exynos_sdp_set_powertable(int id, int cnt, struct freq_table *table)
-{
-	CSTD_UNUSED(id);
-	CSTD_UNUSED(cnt);
-	CSTD_UNUSED(table);
-}
-EXPORT_SYMBOL(exynos_sdp_set_powertable);
-
-void exynos_sdp_set_busy_domain(int id)
-{
-	CSTD_UNUSED(id);
-}
-EXPORT_SYMBOL(exynos_sdp_set_busy_domain);
-
-void exynos_sdp_set_cur_freqlv(int id, int idx)
-{
-	CSTD_UNUSED(idx);
-}
-EXPORT_SYMBOL(exynos_sdp_set_cur_freqlv);
-
-void exynos_migov_set_targettime_margin(int us)
-{
-	CSTD_UNUSED(us);
-}
-EXPORT_SYMBOL(exynos_migov_set_targettime_margin);
-
-void exynos_migov_set_util_margin(int percentage)
-{
-	CSTD_UNUSED(percentage);
-}
-EXPORT_SYMBOL(exynos_migov_set_util_margin);
-
-void exynos_migov_set_decon_time(int us)
-{
-	CSTD_UNUSED(us);
-}
-EXPORT_SYMBOL(exynos_migov_set_decon_time);
-
-void exynos_migov_set_comb_ctrl(int enable)
-{
-	CSTD_UNUSED(enable);
-}
-EXPORT_SYMBOL(exynos_migov_set_comb_ctrl);
-
-int exynos_gpu_stc_config_show(int page_size, char *buf)
-{
-	CSTD_UNUSED(page_size);
-	CSTD_UNUSED(buf);
-	return 0;
-}
-EXPORT_SYMBOL(exynos_gpu_stc_config_show);
-
-int exynos_gpu_stc_config_store(const char *buf)
-{
-	CSTD_UNUSED(buf);
-	return 0;
-}
-EXPORT_SYMBOL(exynos_gpu_stc_config_store);
-
-int gpu_dvfs_register_utilization_notifier(struct notifier_block *nb)
+int register_frag_utils_change_notifier(struct notifier_block *nb)
 {
 	CSTD_UNUSED(nb);
 	return 0;
 }
-EXPORT_SYMBOL(gpu_dvfs_register_utilization_notifier);
+EXPORT_SYMBOL(register_frag_utils_change_notifier);
 
-int gpu_dvfs_unregister_utilization_notifier(struct notifier_block *nb)
+int unregister_frag_utils_change_notifier(struct notifier_block *nb)
 {
 	CSTD_UNUSED(nb);
 	return 0;
 }
-EXPORT_SYMBOL(gpu_dvfs_unregister_utilization_notifier);
+EXPORT_SYMBOL(unregister_frag_utils_change_notifier);
 
 void gpex_tsg_set_migov_mode(int mode)
 {
@@ -457,6 +371,26 @@ int gpex_tsg_set_count(u32 status, bool stop)
 	return 0;
 }
 
+int gpex_tsg_init(struct device **dev)
+{
+	memset(&kt, 0, sizeof(ktime_t));
+	return 0;
+}
+int gpex_tsg_term(void)
+{
+	return 0;
+}
+
+void gpex_tsg_input_nr_acc_cnt(void)
+{
+	return;
+}
+
+void gpex_tsg_reset_acc_count(void)
+{
+	return;
+}
+
 void gpex_tsg_update_firstjob_time(void)
 {
 }
@@ -483,30 +417,12 @@ int gpex_tsg_amigo_interframe_sw_update(ktime_t start, ktime_t end)
 	return 0;
 }
 
-int gpex_tsg_init(struct device **dev)
-{
-	memset(&kt, 0, sizeof(ktime_t));
-	return 0;
-}
-int gpex_tsg_term(void)
+int gpex_tsg_amigo_interframe_hw_update_eof(void)
 {
 	return 0;
 }
 
-void gpex_tsg_input_nr_acc_cnt(void)
+int gpex_tsg_amigo_interframe_hw_update(void)
 {
-	return;
+	return 0;
 }
-
-void gpex_tsg_reset_acc_count(void)
-{
-	return;
-}
-
-void exynos_stats_get_frame_info(s32 *nrframe, u64 *nrvsync, u64 *delta_ms)
-{
-	CSTD_UNUSED(nrframe);
-	CSTD_UNUSED(nrvsync);
-	CSTD_UNUSED(delta_ms);
-}
-EXPORT_SYMBOL(exynos_stats_get_frame_info);

@@ -267,9 +267,9 @@ __visible_for_testing int panel_i2c_probe(struct i2c_client *client,
 	ret = of_property_read_u32(client->dev.of_node, "len,data", &panel_i2c_dev->data_len);
 
 	panel_i2c_dev->id = panel->nr_i2c_dev;
-	mutex_init(&panel_i2c_dev->lock);
 
 	memcpy(&panel->i2c_dev[panel->nr_i2c_dev], panel_i2c_dev, sizeof(struct panel_i2c_dev));
+	mutex_init(&panel->i2c_dev[panel->nr_i2c_dev].lock);
 	panel->nr_i2c_dev++;
 
 	kfree(panel_i2c_dev);

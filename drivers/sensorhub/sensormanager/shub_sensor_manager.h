@@ -48,6 +48,7 @@ void print_sensor_debug(int type);
 int parsing_bypass_data(char *dataframe, int *index, int frame_len);
 int parsing_meta_data(char *dataframe, int *index, int frame_len);
 int parsing_scontext_data(char *dataframe, int *index, int frame_len);
+int parsing_big_data(char *dataframe, int *index, int frame_len);
 
 int open_sensors_calibration(void);
 int sync_sensors_attribute(void); /* sensor hub is ready or reset*/
@@ -63,6 +64,7 @@ int get_sensors_scontext_probe_state(uint64_t *buf);
 bool get_sensor_probe_state(int type);
 bool get_sensor_enabled(int type);
 unsigned int get_total_sensor_spec(char *buf);
+unsigned int get_bigdata_wakeup_reason(char *buf);
 
 void fs_ready_cb(void);
 

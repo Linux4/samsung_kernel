@@ -332,7 +332,9 @@ static int __dsp_lib_manager_load_kernel_table(struct dsp_lib *lib,
 static void __dsp_lib_manager_load_gpt(struct dsp_lib *lib)
 {
 	DL_DEBUG("load gpt\n");
-	lib->dl_out->gpt_addr = (unsigned int)lib->gpt->addr;
+	if (likely(lib && lib->dl_out)) {
+		lib->dl_out->gpt_addr = (unsigned int)lib->gpt->addr;
+	}
 }
 
 static void __dsp_lib_manager_load_pm(struct dsp_lib *lib)

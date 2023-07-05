@@ -325,8 +325,6 @@ static void reset_control_knob(struct ctrl *kn, int type)
 {
 	int cluster;
 
-	if (kn->boost_cnt >= 0 && kn->boost_step >= 0)
-		stt_release_gmc_flag();
 	if (kn->gpu_maxlock >= 0)
 		exynos_pm_qos_update_request(&gqos[type], FREQ_QOS_MAX_DEFAULT_VALUE);
 
@@ -339,8 +337,6 @@ static void set_control_knob(struct ctrl *kn, int type)
 {
 	int cluster;
 
-	if (kn->boost_cnt >= 0 && kn->boost_step >= 0)
-		stt_acquire_gmc_flag(kn->boost_step, kn->boost_cnt);
 	if (kn->gpu_maxlock >= 0)
 		exynos_pm_qos_update_request(&gqos[type], kn->gpu_maxlock);
 

@@ -1032,8 +1032,7 @@ decon_pll_sleep_mask(struct exynos_drm_crtc *exynos_crtc, bool mask)
 		!__is_recovery_running(decon)) {
 		decon_debug(decon, "%s +\n", __func__);
 		if (decon->state == DECON_STATE_INIT ||
-			decon->state == DECON_STATE_ON ||
-			decon->state == DECON_STATE_DOZE)
+			decon->state == DECON_STATE_ON)
 			decon_state_ok = true;
 		if (decon_state_ok) {
 			decon_debug(decon, "decon_state(%d) mask(%d)\n",

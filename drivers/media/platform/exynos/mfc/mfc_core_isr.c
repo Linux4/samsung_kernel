@@ -919,6 +919,7 @@ static void __mfc_handle_frame(struct mfc_core *core, struct mfc_ctx *ctx,
 	struct mfc_buf *mfc_buf = NULL;
 	int i;
 	bool qos_update = false;
+	int index;
 
 	dst_frame_status = mfc_core_get_disp_status();
 	res_change = mfc_core_get_res_change();
@@ -979,6 +980,11 @@ static void __mfc_handle_frame(struct mfc_core *core, struct mfc_ctx *ctx,
 		}
 		mfc_debug(2, "[DRC] Decoding waiting! : %d\n", ctx->wait_state);
 		mutex_unlock(&ctx->drc_wait_mutex);
+		mfc_buf = mfc_get_buf(ctx, &core_ctx->src_buf_queue, MFC_BUF_NO_TOUCH_USED);
+		if (mfc_buf) {
+			index = mfc_buf->vb.vb2_buf.index;
+			call_bop(ctx, core_restore_buf_ctrls, ctx, &ctx->src_ctrls[index]);
+		}
 		return;
 	}
 

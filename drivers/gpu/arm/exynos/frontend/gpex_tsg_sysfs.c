@@ -93,40 +93,6 @@ static ssize_t show_queued_threshold_1(char *buf)
 }
 CREATE_SYSFS_DEVICE_READ_FUNCTION(show_queued_threshold_1);
 
-static ssize_t show_egp_profile(char *buf)
-{
-	struct amigo_interframe_data *dst;
-	ssize_t count = 0;
-	int id = 0;
-	int target_frametime = gpex_tsg_amigo_get_target_frametime();
-
-	while ((dst = gpex_tsg_amigo_get_next_frameinfo()) != NULL) {
-		if (dst->nrq > 0) {
-			ktime_t avg_pre = dst->sum_pre / dst->nrq;
-			ktime_t avg_cpu = dst->sum_cpu / dst->nrq;
-			ktime_t avg_v2s = dst->sum_v2s / dst->nrq;
-			ktime_t avg_gpu = dst->sum_gpu / dst->nrq;
-			ktime_t avg_v2f = dst->sum_v2f / dst->nrq;
-
-			count += scnprintf(buf + count, PAGE_SIZE - count,
-				"%4d, %6llu, %3u, %6lu,%6lu, %6lu,%6lu, %6lu,%6lu, %6lu,%6lu, %6lu,%6lu, %6lu,%6lu, %6d, %d, %7d,%7d, %7d,%7d\n",
-				id++, dst->vsync_interval, dst->nrq,
-				avg_pre, dst->max_pre,
-				avg_cpu, dst->max_cpu,
-				avg_v2s, dst->max_v2s,
-				avg_gpu, dst->max_gpu,
-				avg_v2f, dst->max_v2f,
-				dst->cputime, dst->gputime,
-				target_frametime, dst->sdp_next_cpuid,
-				dst->sdp_cur_fcpu, dst->sdp_cur_fgpu,
-				dst->sdp_next_fcpu, dst->sdp_next_fgpu);
-		}
-	}
-
-	return count;
-}
-CREATE_SYSFS_DEVICE_READ_FUNCTION(show_egp_profile);
-
 static ssize_t set_weight_table_idx_0(const char *buf, size_t count)
 {
 	int ret, table_idx_0;
@@ -198,12 +164,6 @@ static ssize_t set_queued_threshold_1(const char *buf, size_t count)
 }
 CREATE_SYSFS_DEVICE_WRITE_FUNCTION(set_queued_threshold_1);
 
-static ssize_t set_egp_profile(const char *buf, size_t count)
-{
-	return count;
-}
-CREATE_SYSFS_DEVICE_WRITE_FUNCTION(set_egp_profile);
-
 int gpex_tsg_sysfs_init(struct _tsg_info *_tsg_info)
 {
 	tsg_info = _tsg_info;
@@ -216,8 +176,6 @@ int gpex_tsg_sysfs_init(struct _tsg_info *_tsg_info)
 					 set_queued_threshold_0);
 	GPEX_UTILS_SYSFS_DEVICE_FILE_ADD(queued_threshold_1, show_queued_threshold_1,
 					 set_queued_threshold_1);
-	GPEX_UTILS_SYSFS_DEVICE_FILE_ADD(egp_profile, show_egp_profile,
-					set_egp_profile);
 
 	return 0;
 }

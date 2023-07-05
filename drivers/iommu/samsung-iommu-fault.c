@@ -532,6 +532,8 @@ irqreturn_t samsung_sysmmu_irq_thread(int irq, void *dev_id)
 		.drvdata = drvdata,
 		.event.fault.type = IOMMU_FAULT_DMA_UNRECOV,
 	};
+	const char *port_name = NULL;
+	u32 info;
 
 	sysmmu_get_interrupt_info(drvdata, &itype, &addr, &vmid, is_secure);
 	reason = sysmmu_fault_type[itype];
@@ -556,7 +558,12 @@ irqreturn_t samsung_sysmmu_irq_thread(int irq, void *dev_id)
 		else
 			sysmmu_show_fault_information(drvdata, itype, addr, vmid);
 	}
-	panic("Unrecoverable System MMU Fault!!");
+
+	info = readl_relaxed(MMU_REG(drvdata, IDX_FAULT_TRANS_INFO));
+	of_property_read_string(drvdata->dev->of_node, "port-name", &port_name);
+	panic("(%s) From [%s], SysMMU %s %s at %#010lx\n",
+	      dev_name(drvdata->dev), port_name ? port_name : dev_name(drvdata->dev),
+	      IS_READ_FAULT(info) ? "READ" : "WRITE", sysmmu_fault_name[itype], addr);
 
 	return IRQ_HANDLED;
 }

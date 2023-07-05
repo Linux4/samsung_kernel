@@ -37,7 +37,7 @@
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 #include <linux/muic/common/muic_notifier.h>
 #endif /* CONFIG_MUIC_NOTIFIER */
-#if !defined(CONFIG_BATTERY_GKI)
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && !defined(CONFIG_BATTERY_GKI)
 #include <linux/sec_batt.h>
 #endif
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
@@ -354,26 +354,22 @@ static int s2mu106_usbpd_get_gpadc_volt(struct s2mu106_usbpd_data *pdic_data)
 static int s2mu106_usbpd_check_vbus(struct s2mu106_usbpd_data *pdic_data,
 												int volt, PDIC_VBUS_SEL mode)
 {
-	int retry = 100;
-	int i = 0;
 	int ret = 0;
 
 	if (mode == VBUS_OFF) {
-		for (i = 0; i < retry; i++) {
-			ret = s2mu106_usbpd_get_pmeter_volt(pdic_data);
-			if (ret < 0)
-				return ret;
+		ret = s2mu106_usbpd_get_pmeter_volt(pdic_data);
+		if (ret < 0)
+			return ret;
 
-			if (pdic_data->pm_chgin < volt) {
-				pr_info("%s chgin volt(%d) finish!\n", __func__,
-												pdic_data->pm_chgin);
-				return true;
-			} else {
-				pr_info("%s chgin volt(%d) waiting 730ms!\n",
-										__func__, pdic_data->pm_chgin);
-				msleep(730);
-				return true;
-			}
+		if (pdic_data->pm_chgin < volt) {
+			pr_info("%s chgin volt(%d) finish!\n", __func__,
+											pdic_data->pm_chgin);
+			return true;
+		} else {
+			pr_info("%s chgin volt(%d) waiting 730ms!\n",
+									__func__, pdic_data->pm_chgin);
+			msleep(730);
+			return true;
 		}
 	} else if (mode == VBUS_ON) {
 		ret = s2mu106_usbpd_get_pmeter_volt(pdic_data);
@@ -528,12 +524,12 @@ static int s2mu106_usbpd_bulk_read(struct i2c_client *i2c, u8 reg, int count, u8
 #if IS_ENABLED(CONFIG_USB_HW_PARAM)
 	struct otg_notify *o_notify = get_otg_notify();
 #endif
-#if IS_ENABLED(CONFIG_SEC_FACTORY) || IS_ENABLED(CONFIG_ARCH_QCOM)
+#if IS_ENABLED(CONFIG_SEC_FACTORY) || (!defined(CONFIG_ARCH_EXYNOS) && !defined(CONFIG_ARCH_MEDIATEK))
 	int retry = 0;
 #endif
 
 	ret = i2c_smbus_read_i2c_block_data(i2c, reg, count, buf);
-#if IS_ENABLED(CONFIG_SEC_FACTORY) || IS_ENABLED(CONFIG_ARCH_QCOM)
+#if IS_ENABLED(CONFIG_SEC_FACTORY) || (!defined(CONFIG_ARCH_EXYNOS) && !defined(CONFIG_ARCH_MEDIATEK))
 	for (retry = 0; retry < 5; retry++) {
 		if (ret < 0) {
 			dev_err(dev, "%s reg(0x%x), ret(%d) retry(%d) after now\n",
@@ -1671,13 +1667,14 @@ static int s2mu106_set_power_role(void *_data, int val)
 	struct s2mu106_usbpd_data *pdic_data = data->phy_driver_data;
 
 	pr_info("%s, power_role(%d)\n", __func__, val);
-	pdic_data->power_role = val;
 
 	if (val == USBPD_SINK) {
+		pdic_data->power_role = val;
 		pdic_data->is_pr_swap = true;
 		s2mu106_assert_rd(data);
 		s2mu106_snk(pdic_data->i2c);
 	} else if (val == USBPD_SOURCE) {
+		pdic_data->power_role = val;
 		pdic_data->is_pr_swap = true;
 		s2mu106_assert_rp(data);
 		s2mu106_src(pdic_data->i2c);
@@ -2788,7 +2785,7 @@ static int s2mu106_usbpd_s2m_water_check_otg(struct s2mu106_usbpd_data *pdic_dat
 	union power_supply_propval val;
 	int ret = 0;
 
-#if IS_ENABLED(CONFIG_ARCH_QCOM)
+#if !defined(CONFIG_ARCH_EXYNOS) && !defined(CONFIG_ARCH_MEDIATEK)
 	__pm_stay_awake(pdic_data->water_wake);
 #endif
 
@@ -3000,7 +2997,7 @@ out:
 #if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER) && !IS_ENABLED(CONFIG_SEC_FACTORY)
 	mutex_unlock(&pdic_data->plug_mutex);
 #endif
-#if IS_ENABLED(CONFIG_ARCH_QCOM)
+#if !defined(CONFIG_ARCH_EXYNOS) && !defined(CONFIG_ARCH_MEDIATEK)
 	__pm_relax(pdic_data->water_wake);
 #endif
 	return;
@@ -3664,6 +3661,9 @@ static void s2mu106_usbpd_try_snk(struct s2mu106_usbpd_data *pdic_data)
 					pr_info("%s, goto Attached.SRC\n", __func__);
 					fsm |= S2MU106_REG_PLUG_CTRL_FSM_ATTACHED_SRC;
 					s2mu106_usbpd_write_reg(i2c, S2MU106_REG_PLUG_CTRL_PD12, fsm);
+					s2mu106_usbpd_read_reg(i2c, S2MU106_REG_PLUG_CTRL_RpRd, &manual);
+					manual &= ~S2MU106_REG_PLUG_CTRL_FSM_MANUAL_EN;
+					s2mu106_usbpd_write_reg(i2c, S2MU106_REG_PLUG_CTRL_RpRd, manual);
 					/* Snk Detected for tTryCCDebounce */
 					/* Attached.SRC -> Attach */
 					break;
@@ -3726,13 +3726,13 @@ static void s2mu106_usbpd_check_host(struct s2mu106_usbpd_data *pdic_data,
 			/* muic */
 			pdic_event_work(pd_data, PDIC_NOTIFY_DEV_MUIC,
 				PDIC_NOTIFY_ID_OTG, 1/*attach*/, 0/*rprd*/, 0);
-#if IS_ENABLED(CONFIG_ARCH_QCOM)
+#if !defined(CONFIG_ARCH_EXYNOS) && !defined(CONFIG_ARCH_MEDIATEK)
 			cancel_delayed_work(&pdic_data->water_wake_work);
 			schedule_delayed_work(&pdic_data->water_wake_work, msecs_to_jiffies(1000));
 #endif
 #if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER) && !IS_ENABLED(CONFIG_SEC_FACTORY)
 		} else {
-#if IS_ENABLED(CONFIG_ARCH_QCOM)
+#if !defined(CONFIG_ARCH_EXYNOS) && !defined(CONFIG_ARCH_MEDIATEK)
 			__pm_relax(pdic_data->water_wake);
 #endif
 		}
@@ -3927,7 +3927,7 @@ static irqreturn_t s2mu106_irq_thread(int irq, void *data)
 	int ret = 0;
 	unsigned attach_status = 0, rid_status = 0;
 
-#if IS_ENABLED(CONFIG_ARCH_QCOM)
+#if !defined(CONFIG_ARCH_EXYNOS) && !defined(CONFIG_ARCH_MEDIATEK)
 	__pm_stay_awake(pdic_data->water_irq_wake);
 #endif
 
@@ -4033,7 +4033,7 @@ hard_reset:
 	mutex_unlock(&pdic_data->lpm_mutex);
 out:
 	mutex_unlock(&pdic_data->_mutex);
-#if IS_ENABLED(CONFIG_ARCH_QCOM)
+#if !defined(CONFIG_ARCH_EXYNOS) && !defined(CONFIG_ARCH_MEDIATEK)
 		__pm_relax(pdic_data->water_irq_wake);
 #endif
 
@@ -4048,7 +4048,7 @@ static void s2mu106_usbpd_plug_work(struct work_struct *work)
 	s2mu106_irq_thread(-1, pdic_data);
 }
 
-#if IS_ENABLED(CONFIG_ARCH_QCOM)
+#if !defined(CONFIG_ARCH_EXYNOS) && !defined(CONFIG_ARCH_MEDIATEK)
 static void s2mu106_usbpd_water_wake_work(struct work_struct *work)
 {
 	struct s2mu106_usbpd_data *pdic_data =
@@ -4192,10 +4192,10 @@ static int s2mu106_usbpd_irq_init(struct s2mu106_usbpd_data *_data)
 	if (i2c->irq) {
 		ret = request_threaded_irq(i2c->irq, s2mu106_irq_isr,
 				s2mu106_irq_thread,
-#if IS_ENABLED(CONFIG_ARCH_QCOM)
-				(IRQF_TRIGGER_LOW | IRQF_ONESHOT),
-#else
+#if defined(CONFIG_ARCH_EXYNOS)
 				(IRQF_TRIGGER_LOW | IRQF_ONESHOT | IRQF_NO_SUSPEND),
+#else
+				(IRQF_TRIGGER_LOW | IRQF_ONESHOT),
 #endif
 				"s2mu106-usbpd", _data);
 		if (ret < 0) {
@@ -4455,7 +4455,7 @@ static int s2mu106_usbpd_probe(struct i2c_client *i2c,
 			dev_err(dev, "%s: not found regulator vconn\n", __func__);
 			pdic_data->regulator_en = false;
 		} else
-			ret = regulator_disable(pdic_data->regulator);
+			regulator_disable(pdic_data->regulator);
 	}
 
 	ret = usbpd_init(dev, pdic_data);
@@ -4501,7 +4501,7 @@ static int s2mu106_usbpd_probe(struct i2c_client *i2c,
 		s2mu106_usbpd_check_facwater);
 #endif
 
-#if IS_ENABLED(CONFIG_ARCH_QCOM)
+#if !defined(CONFIG_ARCH_EXYNOS) && !defined(CONFIG_ARCH_MEDIATEK)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 188)
 	wakeup_source_init(pdic_data->water_wake, "water_wake");   // 4.19 R
 	if (!(pdic_data->water_wake)) {
@@ -4604,6 +4604,8 @@ static int s2mu106_usbpd_suspend(struct device *dev)
 	struct usbpd_data *_data = dev_get_drvdata(dev);
 	struct s2mu106_usbpd_data *pdic_data = _data->phy_driver_data;
 
+	pr_info("%s\n", __func__);
+
 	if (device_may_wakeup(dev))
 		enable_irq_wake(pdic_data->i2c->irq);
 
@@ -4617,6 +4619,8 @@ static int s2mu106_usbpd_resume(struct device *dev)
 {
 	struct usbpd_data *_data = dev_get_drvdata(dev);
 	struct s2mu106_usbpd_data *pdic_data = _data->phy_driver_data;
+
+	pr_info("%s\n", __func__);
 
 	if (device_may_wakeup(dev))
 		disable_irq_wake(pdic_data->i2c->irq);
@@ -4656,7 +4660,7 @@ static int s2mu106_usbpd_remove(struct i2c_client *i2c)
 		mutex_destroy(&_data->_mutex);
 		mutex_destroy(&_data->water_mutex);
 		i2c_set_clientdata(_data->i2c, NULL);
-#if IS_ENABLED(CONFIG_ARCH_QCOM)
+#if !defined(CONFIG_ARCH_EXYNOS) && !defined(CONFIG_ARCH_MEDIATEK)
 		wakeup_source_unregister(_data->water_wake);
 #endif
 		kfree(_data);

@@ -397,6 +397,8 @@ static int s2mu106_suspend(struct device *dev)
 	struct i2c_client *i2c = container_of(dev, struct i2c_client, dev);
 	struct s2mu106_dev *s2mu106 = i2c_get_clientdata(i2c);
 
+	pr_info("%s:%s\n", MFD_DEV_NAME, __func__);
+
 	if (device_may_wakeup(dev))
 		enable_irq_wake(s2mu106->irq);
 
@@ -411,7 +413,7 @@ static int s2mu106_resume(struct device *dev)
 	struct i2c_client *i2c = container_of(dev, struct i2c_client, dev);
 	struct s2mu106_dev *s2mu106 = i2c_get_clientdata(i2c);
 
-	pr_debug("%s:%s\n", MFD_DEV_NAME, __func__);
+	pr_info("%s:%s\n", MFD_DEV_NAME, __func__);
 
 	if (device_may_wakeup(dev))
 		disable_irq_wake(s2mu106->irq);

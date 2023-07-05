@@ -32,11 +32,11 @@ static void parse_dt_gyroscope_lsm6dsl(struct device *dev)
 	shub_infof("position[%d]", data->position);
 }
 
-struct gyroscope_chipset_funcs gyro_lsm6dsl_ops = {
+struct sensor_chipset_init_funcs gyro_lsm6dsl_ops = {
 	.parse_dt = parse_dt_gyroscope_lsm6dsl,
 };
 
-struct gyroscope_chipset_funcs *get_gyroscope_lsm6dsl_function_pointer(char *name)
+struct sensor_chipset_init_funcs *get_gyroscope_lsm6dsl_function_pointer(char *name)
 {
 	if (strcmp(name, LSM6DSL_NAME) != 0)
 		return NULL;

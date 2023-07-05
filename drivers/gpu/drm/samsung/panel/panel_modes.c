@@ -13,7 +13,7 @@
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/errno.h>
-#include <kunit/mock.h>
+#include "panel_kunit.h"
 #include "panel_modes.h"
 
 static const char *refresh_mode_names[MAX_REFRESH_MODE] = {
@@ -119,6 +119,7 @@ static int of_parse_panel_display_mode(const struct device_node *np,
 	pdm->panel_video_mode = of_property_read_bool(np, "panel_video_mode");
 	ret |= of_property_read_u32_array(np, "panel_h_porch", pdm->panel_hporch, MAX_PANEL_H_PORCH);
 	ret |= of_property_read_u32_array(np, "panel_v_porch", pdm->panel_vporch, MAX_PANEL_V_PORCH);
+	of_property_read_u32(np, "disp_qos_fps", &pdm->disp_qos_fps);	/* optional */
 
 	if (ret) {
 		pr_err("%pOF: error reading panel_display_mode mode properties\n", np);

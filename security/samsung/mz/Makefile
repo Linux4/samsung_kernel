@@ -20,3 +20,4 @@ ifeq ($(CONFIG_SEC_KUNIT), y)
 	obj-$(CONFIG_MEMORY_ZEROISATION) += test/
 endif
 
+
