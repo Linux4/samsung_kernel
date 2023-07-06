@@ -132,6 +132,8 @@ struct is_pdp {
 	u32				bpc_rod_size;
 
 	u32				cur_frm_time;
+	struct v4l2_subdev		*subdev_cis;
+	struct work_struct		work_fast_vvalid;
 };
 
 

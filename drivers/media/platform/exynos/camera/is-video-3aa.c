@@ -891,11 +891,12 @@ static int is_3aa_video_s_ext_ctrl(struct file *file, void *priv,
 			switch (info.captureIntent) {
 			case AA_CAPTURE_INTENT_STILL_CAPTURE_OIS_MULTI:
 			case AA_CAPTURE_INTENT_STILL_CAPTURE_GALAXY_RAW_DYNAMIC_SHOT:
+			case AA_CAPTURE_INTENT_STILL_CAPTURE_EXECUTOR_NIGHT_SHOT:
 			case AA_CAPTURE_INTENT_STILL_CAPTURE_ASTRO_SHOT:
-				head->remainIntentCount = 2 + INTENT_RETRY_CNT;
+				head->remainIntentCount = 3 + INTENT_RETRY_CNT;
 				break;
 			default:
-				head->remainIntentCount = 0 + INTENT_RETRY_CNT;
+				head->remainIntentCount = 1 + INTENT_RETRY_CNT;
 				break;
 			}
 			mginfo("s_ext_ctrl SET_CAPTURE_INTENT_INFO, intent(%d) count(%d) captureEV(%d) captureIso(%d)"

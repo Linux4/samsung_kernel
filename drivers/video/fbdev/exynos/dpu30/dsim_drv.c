@@ -65,7 +65,9 @@
 #if IS_ENABLED(CONFIG_MCD_PANEL)
 #include "mcd_helper.h"
 #include "mcd_dsim.h"
-#include "../panel/dynamic_mipi/dynamic_mipi.h"
+#ifdef CONFIG_DYNAMIC_MIPI
+#include "dynamic_mipi/dynamic_mipi.h"
+#endif
 #endif
 
 #if defined(CONFIG_EXYNOS_DMA_DSIMFC)
@@ -1592,7 +1594,9 @@ static int _dsim_enable(struct dsim_device *dsim, enum dsim_state state)
 	dsim_reg_start(dsim->id);
 
 #if IS_ENABLED(CONFIG_MCD_PANEL)
+#ifdef CONFIG_DYNAMIC_MIPI
 	mcd_dsim_md_set_default_freq(&dsim->mcd_dsim, DM_REQ_CTX_PWR_ON);
+#endif
 #endif
 	mutex_unlock(&g_dsim_lock);
 
@@ -1868,7 +1872,9 @@ static int dsim_exit_ulps(struct dsim_device *dsim)
 		dsim_dump(dsim);
 
 #if IS_ENABLED(CONFIG_MCD_PANEL)
+#ifdef CONFIG_DYNAMIC_MIPI
 	mcd_dsim_md_set_default_freq(&dsim->mcd_dsim, DM_REQ_CTX_HIBER);
+#endif
 #endif
 	mutex_unlock(&g_dsim_lock);
 
@@ -2033,6 +2039,7 @@ static long dsim_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		dsim_call_panel_ops(dsim, EXYNOS_PANEL_IOC_SET_ERROR_CB, arg);
 		break;
 
+#ifdef CONFIG_DYNAMIC_MIPI
 	case DSIM_IOC_MCD_DM_PRE_CHANGE_FREQ:
 		ret = mcd_dsim_md_set_pre_freq(&dsim->mcd_dsim, (struct dm_param_info *) arg);
 		break;
@@ -2040,6 +2047,7 @@ static long dsim_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	case DSIM_IOC_MCD_DM_POST_CHANGE_FREQ:
 		ret = mcd_dsim_md_set_post_freq(&dsim->mcd_dsim, (struct dm_param_info *)arg);
 		break;
+#endif
 #endif
 
 	default:
@@ -2719,6 +2727,7 @@ static int dsim_probe(struct platform_device *pdev)
 	dsim_call_panel_ops(dsim, EXYNOS_PANEL_IOC_PROBE, NULL);
 	dsim_call_panel_ops(dsim, EXYNOS_PANEL_IOC_SLEEPOUT, NULL);
 
+#ifdef CONFIG_DYNAMIC_MIPI
 	mcd_dsim = &dsim->mcd_dsim;
 	ret = mcd_dsim_get_panel_v4l2_subdev(mcd_dsim);
 	if (ret) {
@@ -2733,6 +2742,7 @@ static int dsim_probe(struct platform_device *pdev)
 			mcd_dsim->dm_info->dm_dt.dm_hs_list[mcd_dsim->dm_info->dm_dt.dm_default].hs_clk);
 	}
 skip_get_dm_info:
+#endif
 #endif
 	
 

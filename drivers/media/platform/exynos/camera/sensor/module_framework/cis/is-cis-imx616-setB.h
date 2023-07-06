@@ -796,6 +796,10 @@ const u32 sensor_imx616_setfile_B_Global[] =
 	0xEA4C, 0x00, 0x01,
 	0xEA4D, 0x00, 0x01,
 	0xEA4E, 0x00, 0x01,
+
+	/* Skew cal Setting */
+	0x0830, 0x01, 0x01, /* Period skew cal on */
+	0x0832, 0x00, 0x01, /* Initial skew cal off */
 };
 
 /* H. 2x2 Binning_crop w/o PDAF, 3264x2448*/

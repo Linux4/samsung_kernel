@@ -9,7 +9,7 @@
  */
 
 #include "mcd_helper.h"
-#include "../panel/panel_drv.h"
+#include "panel_drv.h"
 
 #ifdef CONFIG_DYNAMIC_MIPI
 struct dynamic_mipi_info *mcd_dm_get_info(struct v4l2_subdev *panel_sd)

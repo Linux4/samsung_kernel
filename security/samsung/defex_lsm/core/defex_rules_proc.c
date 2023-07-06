@@ -381,6 +381,10 @@ int load_rules_late(unsigned int is_system)
 				pr_info("[DEFEX] Late load rules file: %s.\n", item->name);
 				break;
 			}
+			else {
+				if (f_index == 3)
+					pr_err("[DEFEX] Failed to open system rules file (%ld)\n", (long)PTR_ERR(f));
+			}
 		}
 	}
 	if (IS_ERR_OR_NULL(f)) {
