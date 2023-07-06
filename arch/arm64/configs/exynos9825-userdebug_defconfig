@@ -1,0 +1,23 @@
+CONFIG_DEBUG_SNAPSHOT_USER_MODE=n
+#
+# ETC (LSI code sync)
+#
+CONFIG_DEBUG_SNAPSHOT_MINIMIZED_MODE=y
+CONFIG_CMUCAL_DEBUG=y
+
+#
+# GPIO verification
+#
+CONFIG_SEC_GPIO_DVS=y
+
+# UH
+# CONFIG_RKP_FIMC_CHECK is not set
+# CONFIG_KDP is not set
+
+# SDP KeyManagement Test for MDFPP evaluation
+CONFIG_SDP_KEY_DUMP=y
+
+#
+# DO NOT REMOVE THE LAST BLANK LINE
+#
+

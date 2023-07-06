@@ -33,6 +33,7 @@
 				charger,dchg_min_current = <2000>;
 				charger,dchg_temp_low_threshold = <150>;
 				charger,dchg_temp_high_threshold = <420>;
+				charger,dchg_min_vbat = <3400>;
 
 				charger,ta_alert_wa;
 			};
