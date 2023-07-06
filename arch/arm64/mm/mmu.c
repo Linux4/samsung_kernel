@@ -165,7 +165,7 @@ void *rkp_ro_alloc(void)
 	spin_lock_irqsave(&ro_rkp_pages_lock,flags);
 	
 	for (i = 0, j = ro_alloc_last; i < (RO_PAGES) ; i++) {
-		j =  (j+i) %(RO_PAGES); 
+		j =  (j+1) %(RO_PAGES); 
 		if (!ro_pages_stat[j]) {
 			ro_pages_stat[j] = 1;
 			ro_alloc_last = j+1;
@@ -502,6 +502,7 @@ void __init paging_init(void)
 #ifdef CONFIG_TIMA_RKP
 	int rkp_do =  0;
 #endif
+	set_memsize_kernel_type(MEMSIZE_KERNEL_PAGING);
 	map_mem();
 
 #if defined(CONFIG_ECT)
@@ -539,6 +540,7 @@ void __init paging_init(void)
 	 */
 	cpu_set_reserved_ttbr0();
 	flush_tlb_all();
+	set_memsize_kernel_type(MEMSIZE_KERNEL_OTHERS);
 }
 
 /*

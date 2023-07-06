@@ -56,6 +56,7 @@
 #include <linux/pipe_fs_i.h>
 #include <linux/oom.h>
 #include <linux/compat.h>
+#include <linux/task_integrity.h>
 
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
@@ -65,6 +66,10 @@
 #include "internal.h"
 
 #include <trace/events/sched.h>
+
+#ifdef CONFIG_SECURITY_DEFEX
+#include <linux/defex.h>
+#endif
 
 int suid_dumpable = 0;
 
@@ -1089,7 +1094,7 @@ EXPORT_SYMBOL(flush_old_exec);
 
 void would_dump(struct linux_binprm *bprm, struct file *file)
 {
-	if (inode_permission(file_inode(file), MAY_READ) < 0)
+	if (inode_permission2(file->f_path.mnt, file_inode(file), MAY_READ) < 0)
 		bprm->interp_flags |= BINPRM_FLAGS_ENFORCE_NONDUMP;
 }
 EXPORT_SYMBOL(would_dump);
@@ -1412,11 +1417,17 @@ int search_binary_handler(struct linux_binprm *bprm)
 		if (printable(bprm->buf[0]) && printable(bprm->buf[1]) &&
 		    printable(bprm->buf[2]) && printable(bprm->buf[3]))
 			return retval;
-		if (request_module("binfmt-%04x", *(ushort *)(bprm->buf + 2)) < 0)
+		if (request_module(
+			      "binfmt-%04x", *(ushort *)(bprm->buf + 2)) < 0) {
+			task_integrity_delayed_reset(current);
 			return retval;
+		}
 		need_retry = false;
 		goto retry;
 	}
+
+	if (retval < 0)
+		task_integrity_delayed_reset(current);
 
 	return retval;
 }
@@ -1622,6 +1633,15 @@ static int do_execve_common(struct filename *filename,
 	if (IS_ERR(file))
 		goto out_unmark;
 
+#ifdef CONFIG_SECURITY_DEFEX
+	retval = task_defex_enforce(current, file, -__NR_execve);
+	if (retval < 0) {
+		bprm->file = file;
+		retval = -EPERM;
+		goto out_unmark;
+	}
+#endif
+
 	sched_exec();
 
 	bprm->file = file;
@@ -1752,9 +1772,6 @@ SYSCALL_DEFINE3(execve,
 		const char __user *const __user *, argv,
 		const char __user *const __user *, envp)
 {
-	struct filename *path = getname(filename);
-	if (!IS_ERR(path)) {
-
 #if defined CONFIG_SEC_RESTRICT_FORK
 		if(CHECK_ROOT_UID(current)){
 			if(sec_restrict_fork()){
@@ -1766,8 +1783,6 @@ SYSCALL_DEFINE3(execve,
 			}
 		}
 #endif	// End of CONFIG_SEC_RESTRICT_FORK
-	}
-
 	return do_execve(getname(filename), argv, envp);
 }
 #ifdef CONFIG_COMPAT

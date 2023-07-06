@@ -847,6 +847,7 @@ struct sec_charger_platform_data {
 	unsigned long chg_irq_attr;
 
 	bool support_slow_charging;
+	unsigned int slow_current_threshold;
 
 	/* otg_en setting */
 	int otg_en;

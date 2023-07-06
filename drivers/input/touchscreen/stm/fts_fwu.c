@@ -390,41 +390,15 @@ void fts_execute_autotune(struct fts_ts_info *info)
 	info->fts_systemreset(info, 30);
 }
 
-void fts_fw_init(struct fts_ts_info *info, bool magic_cal)
+void fts_fw_init(struct fts_ts_info *info, bool boot)
 {
-	input_info(true, info->dev, "%s: magic_cal(%d)\n", __func__,magic_cal);
+	input_info(true, info->dev, "%s: boot(%d)\n", __func__,boot);
 
 	info->fts_command(info, FTS_CMD_TRIM_LOW_POWER_OSCILLATOR);
 	fts_delay(200);
 
 #ifdef PAT_CONTROL
-	/* count the number of calibration */
-	fts_get_calibration_information(info);
-
-	if ((info->cal_count == 0) || (info->cal_count == 0xFF) || (magic_cal == true)) {
-		input_err(true, info->dev, "%s: RUN OFFSET CALIBRATION(0x%02X)\n", __func__, info->cal_count);
-		fts_execute_autotune(info);
-		if (magic_cal) {
-			if (info->cal_count == 0x00 || info->cal_count == 0xFF)
-				info->cal_count = PAT_MAGIC_NUMBER;
-			else if (PAT_MAGIC_NUMBER <= info->cal_count && info->cal_count < PAT_MAX_MAGIC)
-				info->cal_count++;
-			input_info(true, info->dev, "%s: write to nvm %X\n",
-						__func__, info->cal_count);
-		}
-
-		/* get ic information */
-		info->fts_get_version_info(info);
-
-		info->tune_fix_ver = info->fw_main_version_of_ic;
-		fts_set_calibration_information(info, info->cal_count, info->fw_main_version_of_ic);
-
-		fts_get_calibration_information(info);
-
-		input_info(true, info->dev, "%s: tune_fix_ver [0x%4X]\n", __func__, info->tune_fix_ver);
-	} else {
-		input_err(true, info->dev, "%s: DO NOT CALIBRATION(0x%02X)\n", __func__, info->cal_count);
-	}
+	fts_ts_tclm(info, boot, false);
 #endif
 
 	info->fts_command(info, SENSEON);
@@ -442,13 +416,12 @@ void fts_fw_init(struct fts_ts_info *info, bool magic_cal)
 	fts_delay(20);
 }
 
-const int fts_fw_updater(struct fts_ts_info *info, unsigned char *fw_data, int restore_cal)
+const int fts_fw_updater(struct fts_ts_info *info, unsigned char *fw_data, bool boot)
 {
 	const struct fts_header *header;
 	int retval;
 	int retry;
 	unsigned short fw_main_version;
-	bool magic_cal = false;
 
 	if (!fw_data) {
 		input_err(true, info->dev, "%s: Firmware data is NULL\n",
@@ -480,18 +453,7 @@ const int fts_fw_updater(struct fts_ts_info *info, unsigned char *fw_data, int r
 					  "%s: Success Firmware update\n",
 					  __func__);
 
-#ifdef PAT_CONTROL
-				if (restore_cal) {
-					if(info->board->pat_function == PAT_CONTROL_PAT_MAGIC) {
-						/* NOT to control cal count that was marked on external factory ( E0~E5 )*/
-						if ((info->cal_count >= PAT_MAGIC_NUMBER) && (info->cal_count < PAT_MAX_MAGIC))
-							magic_cal = true;
-					}
-				}
-				input_info(true, info->dev, "%s: cal_count(0x%02X) pat_function dt(%d) restore_cal(%d) magic_cal(%d)\n",
-					__func__,info->cal_count,info->board->pat_function,restore_cal,magic_cal);
-#endif
-				fts_fw_init(info, magic_cal);
+				fts_fw_init(info, boot);
 				retval = 0;
 				break;
 			}
@@ -516,8 +478,6 @@ int fts_fw_update_on_probe(struct fts_ts_info *info)
 	unsigned char *fw_data = NULL;
 	char fw_path[FTS_MAX_FW_PATH];
 	const struct fts_header *header;
-	int restore_cal = 0;
-	bool cal_clear = false;
 
 	if (info->board->bringup == 1)
 		return 0;
@@ -586,49 +546,8 @@ int fts_fw_update_on_probe(struct fts_ts_info *info)
 		}
 	}
 
-	/* load  pat information variable from ic */
-	fts_get_calibration_information(info);
-	input_info(true, info->dev, "%s: tune_fix_ver [%04X] afe_base [%04X]\n", __func__, info->tune_fix_ver, info->board->afe_base);
-
-	/* initialize default flash value from 0xff to 0x00  for stm */
-	if (info->cal_count == 0xFF) {
-		cal_clear = true;
-		info->tune_fix_ver = 0x0000;
-	}
-
-	/* check dt to clear pat */
-	if (info->board->pat_function == PAT_CONTROL_CLEAR_NV
-		|| info->board->pat_function == PAT_CONTROL_FORCE_UPDATE) {
-		cal_clear = true;
-	}
-
-	/* mismatch calibration - ic has too old calibration data after pat enabled*/
-	if (info->board->afe_base > info->tune_fix_ver) {
-		restore_cal = 1;
-		cal_clear = true;
-	}
-
-	if (cal_clear) {
-		fts_set_calibration_information(info, PAT_COUNT_ZERO, info->tune_fix_ver);
-		fts_get_calibration_information(info);
-	}
-
-	retval = fts_fw_updater(info, fw_data, restore_cal);
-
-	/* change cal_count from 0 to magic number to make virtual pure auto tune */
-	if ((info->cal_count == 0 && info->board->pat_function == PAT_CONTROL_PAT_MAGIC )||
-			info->board->pat_function == PAT_CONTROL_FORCE_UPDATE) {
-		fts_set_calibration_information(info, PAT_MAGIC_NUMBER, info->tune_fix_ver);
-		fts_get_calibration_information(info);
-	}
-#else
-	if ((info->fw_main_version_of_ic < info->fw_main_version_of_bin)
-		|| ((info->config_version_of_ic < info->config_version_of_bin))
-		|| ((info->fw_version_of_ic < info->fw_version_of_bin))
-		|| (info->boot_crc_check_fail == FTS_BOOT_CRC_FAIL))
-		retval = fts_fw_updater(info, fw_data, restore_cal);
-	else
-		retval = FTS_NOT_ERROR;
+	/* pat_control - boot(true) */
+	retval = fts_fw_updater(info, fw_data, true);
 #endif
 
 done:
@@ -670,8 +589,8 @@ static int fts_load_fw_from_kernel(struct fts_ts_info *info,
 
 	info->fts_systemreset(info, 10);
 
-	/* use virtual pat_control - magic cal 1 */
-	retval = fts_fw_updater(info, fw_data, 1);
+	/* pat_control - boot(false) */
+	retval = fts_fw_updater(info, fw_data, false);
 	if (retval)
 		input_err(true, info->dev, "%s: failed update firmware\n",
 			__func__);
@@ -742,8 +661,8 @@ static int fts_load_fw_from_ums(struct fts_ts_info *info)
 					(header->released_ver[0] << 8) +
 					(header->released_ver[1]));
 
-				/* use virtual pat_control - magic cal 1 */
-				error = fts_fw_updater(info, fw_data, 1);
+				/* pat_control - boot(false) */
+				error = fts_fw_updater(info, fw_data, false);
 
 				enable_irq(info->irq);
 
@@ -820,8 +739,8 @@ static int fts_load_fw_from_ffu(struct fts_ts_info *info)
 
 	info->fts_systemreset(info, 10);
 
-	/* use virtual pat_control - magic cal 0 */
-	retval = fts_fw_updater(info, fw_data, 0);
+	/* pat_control - boot(false) */
+	retval = fts_fw_updater(info, fw_data, false);
 	if (retval)
 		input_err(true, info->dev, "%s: failed update firmware\n", __func__);
 

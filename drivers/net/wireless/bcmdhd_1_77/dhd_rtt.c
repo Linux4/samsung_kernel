@@ -1,7 +1,7 @@
 /*
  * Broadcom Dongle Host Driver (DHD), RTT
  *
- * Copyright (C) 1999-2017, Broadcom Corporation
+ * Copyright (C) 1999-2018, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -1757,20 +1757,13 @@ dhd_rtt_event_handler(dhd_pub_t *dhd, wl_event_msg_t *event, void *event_data)
 	rtt_results_header_t *entry, *rtt_results_header = NULL;
 #endif /* WL_CFG80211 */
 
+	DHD_RTT(("Enter %s \n", __FUNCTION__));
 	NULL_CHECK(dhd, "dhd is NULL", ret);
+
 #ifdef WL_CFG80211
 	rtt_status = GET_RTTSTATE(dhd);
 	NULL_CHECK(rtt_status, "rtt_status is NULL", ret);
-#endif /* WL_CFG80211 */
 
-	event_type = ntoh32_ua((void *)&event->event_type);
-
-	DHD_RTT(("Enter %s \n", __FUNCTION__));
-	if (event_type != WLC_E_PROXD) {
-		DHD_ERROR((" failed event \n"));
-		return ret;
-	}
-#ifdef WL_CFG80211
 	if (RTT_IS_STOPPED(rtt_status)) {
 		/* Ignore the Proxd event */
 		DHD_RTT((" event handler rtt is stopped \n"));
@@ -1781,6 +1774,21 @@ dhd_rtt_event_handler(dhd_pub_t *dhd, wl_event_msg_t *event, void *event_data)
 		}
 	}
 #endif /* WL_CFG80211 */
+	if (ntoh32_ua((void *)&event->datalen) < OFFSETOF(wl_proxd_event_t, tlvs)) {
+		DHD_RTT(("%s: wrong datalen:%d\n", __FUNCTION__,
+			ntoh32_ua((void *)&event->datalen)));
+		return -EINVAL;
+	}
+	event_type = ntoh32_ua((void *)&event->event_type);
+	if (event_type != WLC_E_PROXD) {
+		DHD_ERROR((" failed event \n"));
+		return -EINVAL;
+	}
+
+	if (!event_data) {
+		DHD_ERROR(("%s: event_data:NULL\n", __FUNCTION__));
+		return -EINVAL;
+	}
 	p_event = (wl_proxd_event_t *) event_data;
 	version = ltoh16(p_event->version);
 	if (version < WL_PROXD_API_VERSION) {
@@ -1802,9 +1810,15 @@ dhd_rtt_event_handler(dhd_pub_t *dhd, wl_event_msg_t *event, void *event_data)
 	p_loginfo = ftm_get_event_type_loginfo(event_type);
 	if (p_loginfo == NULL) {
 		DHD_ERROR(("receive an invalid FTM event %d\n", event_type));
+		ret = -EINVAL;
 		goto exit;	/* ignore this event */
 	}
 	/* get TLVs len, skip over event header */
+	if (ltoh16(p_event->len) < OFFSETOF(wl_proxd_event_t, tlvs)) {
+		DHD_ERROR(("invalid FTM event length:%d\n", ltoh16(p_event->len)));
+		ret = -EINVAL;
+		goto exit;
+	}
 	tlvs_len = ltoh16(p_event->len) - OFFSETOF(wl_proxd_event_t, tlvs);
 	DHD_RTT(("receive '%s' event: version=0x%x len=%d method=%d sid=%d tlvs_len=%d\n",
 		p_loginfo->text,

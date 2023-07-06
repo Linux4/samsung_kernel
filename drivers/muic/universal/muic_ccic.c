@@ -33,6 +33,7 @@
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
 #endif
+#include <linux/battery/sec_charging_common.h> 
 
 #include <linux/muic/muic.h>
 #if defined(CONFIG_MUIC_NOTIFIER)
@@ -42,6 +43,7 @@
 #include "muic_apis.h"
 #include "muic_debug.h"
 #include "muic_regmap.h"
+#include "muic_vps.h"
 
 #if defined(CONFIG_MUIC_UNIVERSAL_CCIC)
 #include <linux/ccic/ccic_notifier.h>
@@ -180,6 +182,9 @@ static int mdev_com_to(muic_data_t *pmuic, int path)
 
 	case MUIC_PATH_USB_AP:
 	case MUIC_PATH_USB_CP:
+#ifdef CONFIG_MUIC_USB_ID_CTR
+		gpio_direction_output(pmuic->usb_id_ctr, 1);
+#endif	
 		switch_to_ap_usb(pmuic);
 		break;
 	case MUIC_PATH_UART_AP:
@@ -247,6 +252,9 @@ static void mdev_handle_ccic_detach(muic_data_t *pmuic)
 	else if (pmuic->legacy_dev != ATTACHED_DEV_NONE_MUIC)
 		mdev_noti_detached(pmuic->legacy_dev);
 
+	if (pmuic->pdata->jig_uart_cb)
+		pmuic->pdata->jig_uart_cb(0);
+
 	/* Reset status & flags */
 	pdesc->mdev = 0;
 	pdesc->ccic_evt_rid = 0;
@@ -264,6 +272,7 @@ static void mdev_handle_ccic_detach(muic_data_t *pmuic)
 	pmuic->usb_to_ta_state = false;
 #endif
 	pmuic->is_dcdtmr_intr = false;
+	pmuic->rprd = false;
 
 	return;
 }
@@ -280,9 +289,19 @@ int mdev_continue_for_TA_USB(muic_data_t *pmuic, int mdev)
 	if (pdesc->ccic_evt_attached == MUIC_CCIC_NOTI_ATTACH &&
 				pmuic->is_dcdtmr_intr == true &&
 				vbus && pmuic->is_rescanned == false) {
-		pr_info("%s: Incomplete insertion. Do chgdet again\n", __func__);
-		BCD_rescan_incomplete_insertion(pmuic, pmuic->is_rescanned);
-		pmuic->is_rescanned = true;
+		/* W/A for DEX detected late case */
+		if (pdesc->ccic_evt_rprd) {
+			pr_info("%s: Dex connected. Set path and dev type to USB\n", __func__);
+			pdesc->mdev = ATTACHED_DEV_USB_MUIC;
+			mdev_com_to(pmuic, MUIC_PATH_USB_AP);
+			mdev_noti_attached(pdesc->mdev);
+
+			return 0;
+		} else {
+			pr_info("%s: Incomplete insertion. Do chgdet again\n", __func__);
+			BCD_rescan_incomplete_insertion(pmuic, pmuic->is_rescanned);
+			pmuic->is_rescanned = true;
+		}
 	}
 	if (vbus == 0) {
 		pmuic->is_dcdtmr_intr = false;
@@ -497,6 +516,7 @@ static int muic_handle_ccic_ATTACH(muic_data_t *pmuic, CC_NOTI_ATTACH_TYPEDEF *p
 			set_switch_mode(pmuic,SWMODE_MANUAL);
 #endif
 			pdesc->mdev = ATTACHED_DEV_OTG_MUIC;
+			pmuic->rprd = true;
 			mdev_com_to(pmuic, MUIC_PATH_USB_AP);
 			mdev_noti_attached(pdesc->mdev);
 			return 0;
@@ -548,6 +568,8 @@ static int mdev_handle_factory_jig(muic_data_t *pmuic, int rid, int vbus)
 	switch (rid) {
 	case RID_255K:
 	case RID_301K:
+		if (pmuic->pdata->jig_uart_cb)
+			pmuic->pdata->jig_uart_cb(1);
 		mdev_com_to(pmuic, MUIC_PATH_USB_AP);
 		break;
 	case RID_523K:
@@ -560,6 +582,8 @@ static int mdev_handle_factory_jig(muic_data_t *pmuic, int rid, int vbus)
 #ifdef CONFIG_MUIC_USB_ID_CTR
 		gpio_direction_output(pmuic->usb_id_ctr, 1);
 #endif
+		if (pmuic->pdata->jig_uart_cb)
+			pmuic->pdata->jig_uart_cb(1);
 		mdev_com_to(pmuic, MUIC_PATH_UART_AP);
 		break;
 	default:
@@ -630,14 +654,16 @@ static int muic_handle_ccic_RID(muic_data_t *pmuic, CC_NOTI_RID_TYPEDEF *pnoti)
 	case RID_UNDEFINED:
 		vbus = mdev_get_vbus(pmuic);
 		if (pdesc->ccic_evt_attached == MUIC_CCIC_NOTI_ATTACH &&
-			mdev_is_valid_RID_OPEN(pmuic, vbus)) {
-				/*
-				 * USB team's requirement.
-				 * Set AP USB for enumerations.
-				 */
-				mdev_com_to(pmuic, MUIC_PATH_USB_AP);
+				mdev_is_valid_RID_OPEN(pmuic, vbus)) {
+			if (pmuic->pdata->jig_uart_cb)
+				pmuic->pdata->jig_uart_cb(0);
+			/*
+			 * USB team's requirement.
+			 * Set AP USB for enumerations.
+			 */
+			mdev_com_to(pmuic, MUIC_PATH_USB_AP);
 
-				mdev_handle_legacy_TA_USB(pmuic);
+			mdev_handle_legacy_TA_USB(pmuic);
 		} else {
 			/* RID OPEN + No VBUS = Assume detach */
 			mdev_handle_ccic_detach(pmuic);
@@ -678,9 +704,19 @@ static int muic_handle_ccic_notification(struct notifier_block *nb,
 			container_of(nb, muic_data_t, ccic_nb);
 #endif
 
+	union power_supply_propval wcvalue;
+
+	psy_do_property("pogo", get, POWER_SUPPLY_PROP_ONLINE, wcvalue);
+
 	pr_info("%s: Rcvd Noti=> action: %d src:%d dest:%d id:%d sub[%d %d %d]\n", __func__,
 		(int)action, pnoti->src, pnoti->dest, pnoti->id, pnoti->sub1, pnoti->sub2, pnoti->sub3);
 
+#ifdef CONFIG_MUIC_POGO
+	if (wcvalue.intval) {
+		pr_info("%s: WCIN exists! Ignore ccic noti!\n", __func__);
+		return 0;
+	}
+#endif
 #ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
 	if(pnoti->dest != CCIC_NOTIFY_DEV_MUIC) {
 		pr_info("%s destination id is invalid\n", __func__);

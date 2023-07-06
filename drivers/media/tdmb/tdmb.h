@@ -158,6 +158,11 @@ struct tdmb_dt_platform_data {
 	int tdmb_en;
 	int tdmb_1p2_en;
 	int tdmb_lna_en;
+	int fm_dtv_ctrl1;
+	int fm_dtv_ctrl2;
+	bool tdmb_lna_gpio_req;
+	bool fm_dtv_ctrl1_gpio_req;
+	bool fm_dtv_ctrl2_gpio_req;
 	int tdmb_rst;
 	int tdmb_use_rst;
 	int tdmb_use_irq;

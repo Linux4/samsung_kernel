@@ -102,9 +102,11 @@ config SEC_BOOTSTAT
 	default y
 
 config SEC_INITCALL_DEBUG
-	bool "Enable TN Initcall logging"
-	depends on SEC_EXT
-	default y
+	bool "Enable Initcall Debug Feature"
+	default n
+	depends on SEC_EXT && !SAMSUNG_PRODUCT_SHIP
+	help
+	  Enable Samsung initcall debug support.
 
 config ARGOS
 	bool "Throughput monitoring Feature"
@@ -169,3 +171,26 @@ config SEC_NAD_MANUAL_PARAM_READTIME
 	help
 	  Samsung TN NAD Feature, set param reading time manually.
 
+config SEC_NAD_API
+	bool "Samsung TN NAD API Feature"
+	depends on SEC_NAD
+	default n
+	help
+	  Samsung TN NAD Feature, Support NAD API to check gpio pull-up registance
+
+choice
+	prompt "Version of GAF structure"
+	depends on SEC_DEBUG
+	default SEC_DEBUG_GAF_V4 if FIVE
+	default SEC_DEBUG_GAF_V3
+
+	config SEC_DEBUG_GAF_V3
+		bool "Use GAF structure version 3"
+		help
+		  Default option for FIVE-disabled kernel
+
+	config SEC_DEBUG_GAF_V4
+		bool "Use GAF structure version 4"
+		help
+		  Default option for FIVE-enabled kernel
+endchoice

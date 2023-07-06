@@ -7,17 +7,16 @@
 
 #define EXTEND_BRIGHTNESS	355
 #define UI_MAX_BRIGHTNESS	255
-#define UI_MIN_BRIGHTNESS	0
 #define UI_DEFAULT_BRIGHTNESS	134
 #define NORMAL_TEMPERATURE	25	/* 25 degrees Celsius */
 
 #define GAMMA_CMD_CNT				((u16)ARRAY_SIZE(SEQ_GAMMA_CONDITION_SET))
-#define ACL_CMD_CNT					((u16)ARRAY_SIZE(SEQ_ACL_OFF))
-#define OPR_CMD_CNT					((u16)ARRAY_SIZE(SEQ_ACL_OPR_OFF))
+#define ACL_CMD_CNT				((u16)ARRAY_SIZE(SEQ_ACL_OFF))
+#define OPR_CMD_CNT				((u16)ARRAY_SIZE(SEQ_ACL_OPR_OFF))
 #define ELVSS_CMD_CNT				((u16)ARRAY_SIZE(SEQ_ELVSS_SET))
-#define AID_CMD_CNT					((u16)ARRAY_SIZE(SEQ_AID_SET))
+#define AID_CMD_CNT				((u16)ARRAY_SIZE(SEQ_AID_SET))
 #define TSET_CMD_CNT				((u16)ARRAY_SIZE(SEQ_TSET))
-#define HBM_CMD_CNT					((u16)ARRAY_SIZE(SEQ_HBM_OFF))
+#define HBM_CMD_CNT				((u16)ARRAY_SIZE(SEQ_HBM_OFF))
 
 
 #define LDI_REG_ELVSS				0xB6
@@ -32,6 +31,7 @@
 #define LDI_LEN_DATE				7
 #define LDI_LEN_ID				3
 #define LDI_LEN_MTP				33
+
 /* offset is position including addr, not only para */
 #define LDI_OFFSET_AOR_1	3
 #define LDI_OFFSET_AOR_2	4
@@ -52,6 +52,16 @@ struct lcd_seq_info {
 	unsigned char	*cmd;
 	unsigned int	len;
 	unsigned int	sleep;
+};
+
+static unsigned char SEQ_POWER_SEQ[] = {
+	0xB1,
+	0x3C, 0x89, 0x00, 0x05, 0x33, 0x31, 0x14,
+};
+
+static unsigned char SEQ_AOR_MAX[] = {
+	0xB2,
+	0x00, 0x00, 0x05, 0x10,
 };
 
 static unsigned char SEQ_SLEEP_OUT[] = {
@@ -192,12 +202,6 @@ enum {
 };
 
 enum {
-	CAPS_OFF,
-	CAPS_ON,
-	CAPS_MAX
-};
-
-enum {
 	TEMP_ABOVE_MINUS_00_DEGREE,	/* T > 0 */
 	TEMP_ABOVE_MINUS_15_DEGREE,	/* -15 < T <= 0 */
 	TEMP_BELOW_MINUS_15_DEGREE,	/* T <= -15 */
@@ -297,8 +301,8 @@ struct elvss_otp_info elvss_otp_data[IBRIGHTNESS_MAX] = {
 	[IBRIGHTNESS_014NIT] = {14,	{0x12, 0x18, 0x1F} },
 	[IBRIGHTNESS_015NIT] = {15,	{0x12, 0x18, 0x1F} },
 	[IBRIGHTNESS_016NIT] = {16,	{0x12, 0x18, 0x1F} },
-	[IBRIGHTNESS_017NIT] = {17,	{0x12, 0x08, 0x1F} },
-	[IBRIGHTNESS_019NIT] = {19,	{0x12, 0x08, 0x1F} },
+	[IBRIGHTNESS_017NIT] = {17,	{0x12, 0x18, 0x1F} },
+	[IBRIGHTNESS_019NIT] = {19,	{0x12, 0x18, 0x1F} },
 	[IBRIGHTNESS_020NIT] = {20,	{0x12, 0x18, 0x1F} },
 	[IBRIGHTNESS_021NIT] = {21,	{0x12, 0x14, 0x1B} },
 	[IBRIGHTNESS_022NIT] = {22,	{0x12, 0x14, 0x1A} },
@@ -376,12 +380,12 @@ static unsigned char AOR_TABLE[IBRIGHTNESS_MAX][AID_CMD_CNT] = {
 /* platform brightness <-> acl opr and percent */
 static unsigned int brightness_opr_table[ACL_STATUS_MAX][EXTEND_BRIGHTNESS + 1] = {
 	{
-		[0 ... UI_MAX_BRIGHTNESS - 1]						= OPR_STATUS_15P,
-		[UI_MAX_BRIGHTNESS ... EXTEND_BRIGHTNESS - 1]		= OPR_STATUS_OFF,	/* 420 */
-		[EXTEND_BRIGHTNESS ... EXTEND_BRIGHTNESS]			= OPR_STATUS_08P
+		[0 ... UI_MAX_BRIGHTNESS - 1]				= OPR_STATUS_15P,
+		[UI_MAX_BRIGHTNESS ... EXTEND_BRIGHTNESS - 1]		= OPR_STATUS_OFF,
+		[EXTEND_BRIGHTNESS ... EXTEND_BRIGHTNESS]		= OPR_STATUS_08P
 	}, {
-		[0 ... EXTEND_BRIGHTNESS - 1]						= OPR_STATUS_15P,
-		[EXTEND_BRIGHTNESS ... EXTEND_BRIGHTNESS]			= OPR_STATUS_08P
+		[0 ... EXTEND_BRIGHTNESS - 1]				= OPR_STATUS_15P,
+		[EXTEND_BRIGHTNESS ... EXTEND_BRIGHTNESS]		= OPR_STATUS_08P
 	}
 };
 
@@ -451,4 +455,4 @@ static unsigned int brightness_table[EXTEND_BRIGHTNESS + 1] = {
 	[255 ... EXTEND_BRIGHTNESS] = IBRIGHTNESS_360NIT
 };
 
-#endif /* __S6E3AA2_A3Y17_PARAM_H__ */
+#endif /* __EA8061S_J7LITE_PARAM_H__ */

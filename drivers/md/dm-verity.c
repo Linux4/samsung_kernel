@@ -92,6 +92,9 @@ struct dm_verity {
 
 	/* starting blocks for each tree level. 0 is the lowest level. */
 	sector_t hash_level_block[DM_VERITY_MAX_LEVELS];
+#ifdef DMV_ALTA
+	u8 *verity_bitmap; /* bitmap for skipping verification on blocks */
+#endif
 };
 
 struct dm_verity_io {
@@ -129,7 +132,6 @@ struct dm_verity_io {
  * - Intruding syscalls are called for target device.
  * - Sideband attack detected.
  */
-u8 *verity_bitmap = NULL;
 #ifdef DMV_ALTA_PROF
 static sector_t total_blks = 0, skipped_blks = 0, prev_total_blks = 0;
 #endif
@@ -469,6 +471,13 @@ test_block_hash:
 			if (io->block != 0) {
 #ifdef SEC_HEX_DEBUG
 				u8 *page;
+				char hex_str[65] = {0, };
+
+				for (i = 0; i < v->salt_size; i++) {
+					sprintf(hex_str + (i * 2), "%02x", *(v->salt + i));
+				}
+				DMERR("dm-verity salt : %s", hex_str);
+
 				print_block_data(0, (unsigned char *)(result), 0, v->digest_size);
 				print_block_data(0, (unsigned char *)(io_want_digest(v, io)), 0, v->digest_size);
 				page = kmap_atomic(bv.bv_page);
@@ -478,12 +487,16 @@ test_block_hash:
 				v->hash_failed = 1;
 #if defined(CONFIG_TZ_ICCC)
 				printk(KERN_ERR "ICCC smc ret = %d \n",exynos_smc(SMC_CMD_DMV_WRITE_STATUS, 1, 0, 0));
+#else
+				/* For getting more info when a corruption is detected */
+				panic("dmv corrupt");
 #endif
+
 				return -EIO;
 			}
 		}
 #ifdef DMV_ALTA
-		set_bit(io->block + b, (volatile unsigned long *)verity_bitmap);
+		set_bit(io->block + b, (volatile unsigned long *)io->v->verity_bitmap);
 		continue;
 #endif
 	}
@@ -651,7 +664,7 @@ static int verity_map(struct dm_target *ti, struct bio *bio)
     nblks = bio->bi_iter.bi_size >> v->data_dev_block_bits;
 
     while (nblks) {
-        if (!test_bit(bitpos, (const volatile unsigned long *)verity_bitmap)) {
+        if (!test_bit(bitpos, (const volatile unsigned long *)v->verity_bitmap)) {
             skip = false;
             break;
         }
@@ -663,7 +676,7 @@ static int verity_map(struct dm_target *ti, struct bio *bio)
     total_blks += (bio->bi_iter.bi_size >> v->data_dev_block_bits);
     if ((total_blks - prev_total_blks) > 0x1000) {
         prev_total_blks = total_blks;
-        DMERR_LIMIT("total_blks=%lu skipped_blks=%lu delta=%lu", total_blks, skipped_blks, total_blks-skipped_blks);
+        DMERR_LIMIT("total_blks=%lu skipped_blks=%lu delta=%lu, device=%s", total_blks, skipped_blks, total_blks-skipped_blks, v->data_dev->name);
     } 
 #endif
 
@@ -806,8 +819,8 @@ static void verity_dtr(struct dm_target *ti)
 	struct dm_verity *v = ti->private;
 
 #ifdef DMV_ALTA
-    if (verity_bitmap) {
-        kfree(verity_bitmap);
+    if (v->verity_bitmap) {
+        kfree(v->verity_bitmap);
     }
 #endif
 
@@ -1063,13 +1076,13 @@ static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 	}
 
 #ifdef DMV_ALTA
-    verity_bitmap = kmalloc(round_up(v->data_blocks, 8) >> 3, GFP_KERNEL);
-    if (verity_bitmap == NULL) {
+    v->verity_bitmap = kmalloc(round_up(v->data_blocks, 8) >> 3, GFP_KERNEL);
+    if (v->verity_bitmap == NULL) {
         ti->error = "Cannot allocate verity_bitmap";
         r = -ENOMEM;
         goto bad;
     }
-    memset(verity_bitmap, 0, round_up(v->data_blocks, 8) >> 3);
+    memset(v->verity_bitmap, 0, round_up(v->data_blocks, 8) >> 3);
 #endif
 
 	return 0;

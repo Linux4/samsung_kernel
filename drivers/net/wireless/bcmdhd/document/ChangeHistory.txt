@@ -1,15 +1,36 @@
-BCM43xx DHD 1.141.64.79 for Android
+BCM43xx DHD 1.141.64.80 for Android
+
+DHD 1.141.64.80 - 2017.09.06
+Security Patch
+ - CVE-2017-0706 Added boundary check in wl_cfg80211_mgmt_tx() )
+ - CVE-2017-0786 V2017060101 Added boundary check in wl_escan_handler()
+ - CVE-2017-0791 V2017052302 Added event length check in wl_notify_rx_mgmt_frame()
+ - V2017063001 Removed not required IOVAR for SDIO
+ - Enhanced event length check in is_wlc_event_frame()
+ - Fixed overflow issue in wl_android_set_ibss_beacon_ouidata()
+
+Others
+ - CS2021857 Fixed SSID length check on cfg80211_get_bss()
+ - CS2454145 Makefile code sync up with legacy DHD
+ - CS2472434 Fixed roam failure on PMF required APs
+ - CS2901316 Fixed to send up common error code for Android-O VTS
+ - CS3017966 Fixed WIFI turn on failure issue from Galaxy S4(BCM4335)
+ - CS3247015 Fixed disconnection during roaming on CISCO hidden networks
+ - CS3429070 Fixed SDIO init CLK issue for Exynos 7580 platform
+ - Added P2P IE length check code in wl_find_listen_channel()
+ - SoftAP positive RSSI WAR for 4330
+
 
 DHD 1.141.64.79 - 2017.05.25
 Security Patch
- - CS2642368 Fixed type casting issue in wl_android_send_action_frame()
- - CVE-2017-0633 Enhanced wrong buffer usage in IOCTL path
- - Fixed length overflow issue in dhd_wl_ioctl() function
+ - CVE-2017-0633 V2017022301 Enhanced wrong buffer usage in IOCTL path
+ - CVE-2017-0740 V2017030901 Fixed length overflow issue in dhd_wl_ioctl() function
 
 Others
  - CS1807896(CSP:886357) Added random MAC address scan feature
  - CS2471179 Filter out Event PM wake feature for BCM4334w
  - CS2555123 Fixed page fault issue in dhd_wl_ioctl()
+ - CS2642368 Fixed type casting issue in wl_android_send_action_frame()
  - CS2675989 Fixed reverse-order of EAP-Failure and deauth packet
 
 
@@ -17,6 +38,11 @@ DHD 1.141.64.78 - 2017.04.05
 Kernel Panic
  - CSP:1092776 Replace API for file writing to prevent kernel panic
  - CSP:1094253 Fixed Kernel Panic by registering Invalid netdev interface
+
+Security Patch
+ - CVE-2017-0568 V2017051814 Fixed buffer overrun in wl_run_escan()
+ - CVE-2017-0570 V2017051815 Removed unused file (wl_iw.c/wl_iw.h)
+ - CVE-2017-0573 V2017051816 Fixed size overflow issue in wl_android_set_roampref()
 
 Others
  - CSP:1093614 Fixed host memory leak issue by missing cfg80211_put_bss()
@@ -107,6 +133,9 @@ Others
 
 
 DHD 1.141.64.68.2 - 2017.03.30
+Security Patch
+ - CVE-2017-0570 V2017051815 Removed unused file (wl_iw.c/wl_iw.h)
+
 Others
  - CSP:1084242/1112807/1128495 Fixed vulnerability issues
  - CSP:1118571 Added dump CONFIG_SLEEP_MONITOR information

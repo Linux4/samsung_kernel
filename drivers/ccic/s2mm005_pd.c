@@ -23,6 +23,9 @@
 #if defined(CONFIG_BATTERY_NOTIFIER)
 #include <linux/battery/battery_notifier.h>
 #endif
+#if defined(CONFIG_USB_HOST_NOTIFY)
+#include <linux/usb_notify.h>
+#endif
 
 struct pdic_notifier_struct pd_noti;
 
@@ -192,6 +195,9 @@ void process_pd(void *data, u8 plug_attach_done, u8 *pdic_attach, MSG_IRQ_STATUS
 	uint16_t REG_ADD;
 	uint8_t rp_currentlvl, is_src;
 	REQUEST_FIXED_SUPPLY_STRUCT_Typedef *request_power_number;
+#if defined(CONFIG_USB_HOST_NOTIFY)
+	struct otg_notify *o_notify = get_otg_notify();
+#endif
 
 	printk("%s\n",__func__);
 	rp_currentlvl = (usbpd_data->func_state >> 3) & 0x3;
@@ -208,6 +214,12 @@ void process_pd(void *data, u8 plug_attach_done, u8 *pdic_attach, MSG_IRQ_STATUS
 		vbus_turn_on_ctrl(is_src);
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
 		usbpd_data->power_role = is_src ? DUAL_ROLE_PROP_PR_SRC : DUAL_ROLE_PROP_PR_SNK;
+#if defined(CONFIG_USB_HOST_NOTIFY)
+		if( usbpd_data->power_role == DUAL_ROLE_PROP_PR_SRC)
+			send_otg_notify(o_notify, NOTIFY_EVENT_POWER_SOURCE, 1);
+		else if( usbpd_data->power_role == DUAL_ROLE_PROP_PR_SNK)
+			send_otg_notify(o_notify, NOTIFY_EVENT_POWER_SOURCE, 0);
+#endif
 		ccic_event_work(usbpd_data, CCIC_NOTIFY_DEV_PDIC, CCIC_NOTIFY_ID_ROLE_SWAP, 0, 0, 0);
 #endif
 	}

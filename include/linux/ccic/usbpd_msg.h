@@ -1,3 +1,7 @@
+#if defined(CONFIG_IFPMIC_SUPPORT)
+#include <linux/ifpmic/ccic/usbpd_msg.h>
+#endif
+
 #ifndef __USBPD_MSG_H__
 #define __USBPD_MSG_H__
 
@@ -202,6 +206,11 @@ enum usbpd_port_role {
 	USBPD_Rp	= 0x01,
 	USBPD_Rd	= 0x01 << 1,
 	USBPD_Ra	= 0x01 << 2,
+};
+
+enum {
+	USBPD_CC_OFF,
+	USBPD_CC_ON,
 };
 
 enum vdm_command_type{

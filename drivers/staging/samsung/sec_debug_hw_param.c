@@ -71,6 +71,7 @@ static unsigned int cache_err_cnt;
 static unsigned int codediff_cnt;
 static unsigned long pcb_offset;
 static unsigned long smd_offset;
+static unsigned int lpddr4_size;
 
 static int __init sec_hw_param_get_hw_rev(char *arg)
 {
@@ -78,7 +79,7 @@ static int __init sec_hw_param_get_hw_rev(char *arg)
 	return 0;
 }
 
-early_param("androidboot.hw_rev", sec_hw_param_get_hw_rev);
+early_param("androidboot.revision", sec_hw_param_get_hw_rev);
 
 static int __init sec_hw_param_check_chip_id(char *arg)
 {
@@ -127,6 +128,14 @@ static int __init sec_hw_param_smd_offset(char *arg)
 }
 
 early_param("sec_debug.smd_offset", sec_hw_param_smd_offset);
+
+static int __init sec_hw_param_lpddr4_size(char *arg)
+{
+	get_option(&arg, &lpddr4_size);
+	return 0;
+}
+
+early_param("sec_debug.lpddr4_size", sec_hw_param_lpddr4_size);
 
 static u32 chipid_reverse_value(u32 value, u32 bitcnt)
 {
@@ -214,6 +223,9 @@ static ssize_t sec_hw_param_ddr_info_show(struct kobject *kobj,
 	info_size +=
 	    snprintf((char *)(buf), DATA_SIZE, "\"DDRV\":\"%s\",",
 		     get_dram_manufacturer());
+	info_size +=
+	    snprintf((char *)(buf + info_size), DATA_SIZE - info_size,
+			 "\"LPDDR4\":\"%dGB\",", lpddr4_size);
 	info_size +=
 	    snprintf((char *)(buf + info_size), DATA_SIZE - info_size,
 		     "\"C2D\":\"\",");

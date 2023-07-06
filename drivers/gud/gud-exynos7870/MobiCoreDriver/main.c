@@ -16,6 +16,7 @@
 #include <linux/module.h>
 #include <linux/cdev.h>
 #include <linux/debugfs.h>
+#include <linux/delay.h>
 #include <linux/reboot.h>
 #include <linux/suspend.h>
 
@@ -52,6 +53,11 @@ struct mc_device_ctx g_ctx = {
 };
 
 static struct main_ctx {
+	/* TEE start mutex */
+	struct mutex start_mutex;
+	/* TEE start return code */
+	int start_ret;
+
 #ifdef MC_PM_RUNTIME
 	/* Whether hibernation succeeded */
 	bool did_hibernate;
@@ -106,38 +112,51 @@ int kasnprintf(struct kasnprintf_buf *buf, const char *fmt, ...)
 	return i;
 }
 
+static inline void kasnprintf_buf_reset(struct kasnprintf_buf *buf)
+{
+	kfree(buf->buf);
+	buf->buf = NULL;
+	buf->size = 0;
+	buf->off = 0;
+}
+
 ssize_t debug_generic_read(struct file *file, char __user *user_buf,
 			   size_t count, loff_t *ppos,
 			   int (*function)(struct kasnprintf_buf *buf))
 {
+	struct kasnprintf_buf *buf = file->private_data;
+	int ret = 0;
+
+	mutex_lock(&buf->mutex);
 	/* Add/update buffer */
-	if (!file->private_data || !*ppos) {
-		struct kasnprintf_buf *buf, *old_buf;
-		int ret;
-
-		buf = kzalloc(GFP_KERNEL, sizeof(*buf));
-		if (!buf)
-			return -ENOMEM;
-
-		buf->gfp = GFP_KERNEL;
+	if (!*ppos) {
+		kasnprintf_buf_reset(buf);
 		ret = function(buf);
 		if (ret < 0) {
-			kfree(buf);
-			return ret;
+			kasnprintf_buf_reset(buf);
+			goto end;
+		}
 		}
 
-		old_buf = file->private_data;
-		file->private_data = buf;
-		kfree(old_buf);
+	ret = simple_read_from_buffer(user_buf, count, ppos, buf->buf,
+									buf->off);
+	
+	end:
+		mutex_unlock(&buf->mutex);
+		return ret;
 	}
 
-	if (file->private_data) {
-		struct kasnprintf_buf *buf = file->private_data;
+int debug_generic_open(struct inode *inode, struct file *file)
+{
+	struct kasnprintf_buf *buf;
 
-		return simple_read_from_buffer(user_buf, count, ppos, buf->buf,
-					       buf->off);
-	}
+	file->private_data = kzalloc(sizeof(*buf), GFP_KERNEL);
+	if (!file->private_data)
+		return -ENOMEM;
 
+	buf = file->private_data;
+	mutex_init(&buf->mutex);
+	buf->gfp = GFP_KERNEL;
 	return 0;
 }
 
@@ -145,7 +164,10 @@ int debug_generic_release(struct inode *inode, struct file *file)
 {
 	struct kasnprintf_buf *buf = file->private_data;
 
-	kfree(buf->buf);
+	if (!buf)
+		return 0;
+
+	kasnprintf_buf_reset(buf);
 	kfree(buf);
 	return 0;
 }
@@ -160,6 +182,7 @@ static ssize_t debug_structs_read(struct file *file, char __user *user_buf,
 static const struct file_operations mc_debug_structs_ops = {
 	.read = debug_structs_read,
 	.llseek = default_llseek,
+	.open = debug_generic_open,
 	.release = debug_generic_release,
 };
 
@@ -273,6 +296,7 @@ static int suspend_notifier(struct notifier_block *nb, unsigned long event,
 		if (main_ctx.did_hibernate) {
 			/* Really did hibernate */
 			clients_kill_sessions();
+			main_ctx.start_ret = TEE_START_NOT_TRIGGERED;
 			return mobicore_start();
 		}
 
@@ -291,6 +315,10 @@ static int mobicore_start(void)
 	struct mc_version_info version_info;
 	bool dynamic_lpae = false;
 	int ret;
+
+	mutex_lock(&main_ctx.start_mutex);
+	if (TEE_START_NOT_TRIGGERED != main_ctx.start_ret)
+		goto got_ret;
 
 	ret = mc_logging_start();
 	if (ret) {
@@ -406,7 +434,8 @@ static int mobicore_start(void)
 	if (ret)
 		goto err_create_dev_user;
 
-	return 0;
+	main_ctx.start_ret = 0;
+	goto got_ret;
 
 err_create_dev_user:
 #ifdef MC_PM_RUNTIME
@@ -424,7 +453,10 @@ err_sched:
 err_mcp:
 	mc_logging_stop();
 err_log:
-	return ret;
+	main_ctx.start_ret = ret;
+got_ret:
+	mutex_unlock(&main_ctx.start_mutex);
+	return main_ctx.start_ret;
 }
 
 static void mobicore_stop(void)
@@ -440,6 +472,22 @@ static void mobicore_stop(void)
 	mcp_stop();
 }
 
+int mc_wait_tee_start(void)
+{
+	int ret;
+
+	mutex_lock(&main_ctx.start_mutex);
+	while (TEE_START_NOT_TRIGGERED == main_ctx.start_ret) {
+		mutex_unlock(&main_ctx.start_mutex);
+		ssleep(1);
+		mutex_lock(&main_ctx.start_mutex);
+	}
+
+	ret = main_ctx.start_ret;
+	mutex_unlock(&main_ctx.start_mutex);
+	return ret;
+}
+
 static ssize_t debug_sessions_read(struct file *file, char __user *user_buf,
 				   size_t count, loff_t *ppos)
 {
@@ -450,6 +498,7 @@ static ssize_t debug_sessions_read(struct file *file, char __user *user_buf,
 static const struct file_operations mc_debug_sessions_ops = {
 	.read = debug_sessions_read,
 	.llseek = default_llseek,
+	.open = debug_generic_open,
 	.release = debug_generic_release,
 };
 
@@ -463,6 +512,7 @@ static ssize_t debug_mcpcmds_read(struct file *file, char __user *user_buf,
 static const struct file_operations mc_debug_mcpcmds_ops = {
 	.read = debug_mcpcmds_read,
 	.llseek = default_llseek,
+	.open = debug_generic_open,
 	.release = debug_generic_release,
 };
 
@@ -569,6 +619,8 @@ static int mobicore_probe(struct platform_device *pdev)
 	atomic_set(&g_ctx.c_wsms, 0);
 	atomic_set(&g_ctx.c_mmus, 0);
 	atomic_set(&g_ctx.c_maps, 0);
+	main_ctx.start_ret = TEE_START_NOT_TRIGGERED;
+	mutex_init(&main_ctx.start_mutex);
 	mutex_init(&main_ctx.struct_counters_buf_mutex);
 	/* Create debugfs info entry */
 	debugfs_create_file("structs_counters", 0400, g_ctx.debug_dir, NULL,
@@ -610,6 +662,12 @@ static int mobicore_probe(struct platform_device *pdev)
 	if (err)
 		goto fail_creat_dev_admin;
 
+#ifndef MC_DELAYED_TEE_START
+	err = mobicore_start();
+#endif
+	if (err)
+		goto fail_start;
+
 	/*
 	 * ExySp: for sos performance
 	 * migrate secure OS to a non-booting little core
@@ -618,6 +676,8 @@ static int mobicore_probe(struct platform_device *pdev)
 
 		return 0;
 
+fail_start:
+	device_admin_exit();
 fail_creat_dev_admin:
 	mc_scheduler_exit();
 fail_mc_device_sched_init:

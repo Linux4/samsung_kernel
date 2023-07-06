@@ -45,12 +45,55 @@ config BATTERY_AGE_FORECAST
 	default n
 	depends on BATTERY_SWELLING
 	help
-	Say Y to use calc time to full function.
+	Say Y to use battery age forecast
+
+config BATTERY_AGE_FORECAST_DETACHABLE
+	tristate "battery age forecast for detachable"
+	default n
+	select BATTERY_AGE_FORECAST
+	help
+	Say Y to use battery age forecast for detachable
+
+config BATTERY_AGE_FORECAST_B2B
+	tristate "battery age forecast for B2B"
+	default n
+	select BATTERY_AGE_FORECAST
+	help
+	Say Y to use battery age forecast for B2B
+
+config FUELGAUGE_ASOC_FROM_CYCLES
+	bool "FUELGAUGE ASOC output based on mapping with battery cycles"
+	default n
+	depends on BATTERY_AGE_FORECAST
+	help
+	 Say Y to enable support for the mapping of ASOC with charging cycles.
+	 Support for this feature implies that a mapping table has been shared
+	 from HW team and big data side. This feature is providing
+	 support for platform required battery health monitoring concepts.
+
+config DCM_JPN_CONCEPT_FG_CYCLE_CHECK
+	bool "enable fg_cycle_check_value for dcm jpn"
+	default n
+	help
+	 Say Y to use fg_cycle_check_value.
 
 config MULTI_CHARGING
 	bool "support for multi charger ICs"
 	help
 	Say Y to include support for multi charger ICs
+	
+config BATTERY_AGE_FORECAST
+	bool "battery age forecast"
+	default n
+	help
+	Say Y to use enable age forecast algorithm.
+	
+config BATTERY_AGE_FORECAST_DETACHABLE
+	tristate "battery age forecast for detachable"
+	default n
+	select BATTERY_AGE_FORECAST
+	help
+	Say Y to use battery age forecast for detachable
 
 config STEP_CHARGING
 	bool "support for step charging"
@@ -438,6 +481,14 @@ config CHARGER_S2MU005
 	  S2MU005 incluse pmic, led driver.
 	  You have to define MFD_S2MU005
 
+config S2MU005_INNER_BATTERY
+	tristate "S2MU005 inner battery type"
+	depends on (MFD_S2MU005) && I2C
+	help
+	  Say Y here to enable support marking project using S2MU005
+	  which use internal battery type
+	  You have to define MFD_S2MU005
+
 config CHARGER_SMA7P10
 	tristate "SMA7P01 sub-charger support"
 	depends on I2C
@@ -538,6 +589,19 @@ config THM_MUX_SHARE
 	default n
 	help
 	  Say Y to enable use xadc mux for BAT_THM with AP_THM
+	  
+config S2MU005_EVT4_DISABLE_BUCK_MODE
+	bool "Disable buck only mode in S2MU005X03"
+	default n
+	depends on CHARGER_S2MU005
+	help
+	  Say Y to enable use all-off mode in S2MU005X03
+
+config ENABLE_100MA_CHARGING_BEFORE_USB_CONFIGURED
+	bool "enable 100mA before usb configured"
+	default n
+	help
+	  Say Y to enable 100mA before usb configured
 
 config TYPEB_WATERPROOF_MODEL
 	bool "enable typeb_waterproof_model"

@@ -40,9 +40,9 @@
 
 #define MFC_MAX_DRM_CTX		2
 /* Interrupt timeout */
-#define MFC_INT_TIMEOUT		2000
+#define MFC_INT_TIMEOUT		5000
 /* Interrupt short timeout */
-#define MFC_INT_SHORT_TIMEOUT	800
+#define MFC_INT_SHORT_TIMEOUT	3000
 /* Busy wait timeout */
 #define MFC_BW_TIMEOUT		500
 /* Watchdog interval */
@@ -172,6 +172,8 @@
 #define FW_HAS_ROI_CONTROL(dev)		IS_MFCv10X(dev)
 #define FW_HAS_FIXED_SLICE(dev)		(IS_MFCv10X(dev) &&		\
 					(dev->fw.date >= 0x160202))
+#define FW_HAS_BLACK_BAR_DETECT(dev)	(IS_MFCv10X(dev) &&		\
+					(dev->fw.date >= 0x180413))
 
 #define HW_LOCK_CLEAR_MASK		(0xFFFFFFFF)
 
@@ -187,6 +189,7 @@
 #define under_HD(ctx)		(((ctx)->img_width * (ctx)->img_height) <= MFC_HD_RES)
 #define not_coded_cond(ctx)	is_mpeg4vc1(ctx)
 #define interlaced_cond(ctx)	is_mpeg4vc1(ctx) || is_mpeg2(ctx) || is_h264(ctx)
+#define CODEC_MBAFF(ctx)	is_h264(ctx)
 #define on_res_change(ctx)	((ctx)->state >= MFCINST_RES_CHANGE_INIT &&	\
 				 (ctx)->state <= MFCINST_RES_CHANGE_END)
 #define need_to_wait_frame_start(ctx)		\

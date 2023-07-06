@@ -35,6 +35,7 @@ config ARM64
 	select HANDLE_DOMAIN_IRQ
 	select HARDIRQS_SW_RESEND
 	select HAVE_ARCH_AUDITSYSCALL
+	select HAVE_ARCH_HARDENED_USERCOPY
 	select HAVE_ARCH_JUMP_LABEL
 	select HAVE_ARCH_KGDB
 	select HAVE_ARCH_MMAP_RND_BITS
@@ -55,7 +56,7 @@ config ARM64
 	select HAVE_FUNCTION_TRACER
 	select HAVE_FUNCTION_GRAPH_TRACER
 	select HAVE_GENERIC_DMA_COHERENT
-	select HAVE_HW_BREAKPOINT if PERF_EVENTS
+#	select HAVE_HW_BREAKPOINT if PERF_EVENTS
 	select HAVE_MEMBLOCK
 	select HAVE_PATA_PLATFORM
 	select HAVE_PERF_EVENTS
@@ -860,6 +861,11 @@ config TIMA_LKMAUTH
 config TIMA_RKP
 	bool "Enable RKP (Realtime Kernel Protection) TIMA feature"
 	depends on TIMA
+	default n
+
+config TIMA_RKP_4G
+	bool "Support 4G model"
+	depends on TIMA_RKP
 	default n
 
 config RKP_KDP

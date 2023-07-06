@@ -1668,6 +1668,38 @@ static int __init get_hw_rev(char *arg)
 	return 0;
 }
 
-early_param("androidboot.hw_rev", get_hw_rev);
+early_param("androidboot.revision", get_hw_rev);
 #endif /* SUPPORT_MULTIPLE_BOARD_REV_FROM_HW */
+
+#ifdef BCM4335_XTAL_WAR
+bool
+check_bcm4335_rev(void)
+{
+	int ret = -1;
+	struct file *fp = NULL;
+	char *filepath = "/data/.rev";
+	char chip_rev[10] = {0, };
+	bool is_revb0 = TRUE;
+
+	DHD_ERROR(("check BCM4335, check_bcm4335_rev \n"));
+	fp = filp_open(filepath, O_RDONLY, 0);
+
+	if (IS_ERR(fp)) {
+		DHD_ERROR(("/data/.rev file open error\n"));
+		is_revb0 = TRUE;
+	} else {
+		DHD_ERROR(("/data/.rev file Found\n"));
+		ret = kernel_read(fp, 0, (char *)chip_rev, 9);
+		if (ret != -1 && NULL != strstr(chip_rev, "BCM4335B0")) {
+			DHD_ERROR(("Found BCM4335B0\n"));
+			is_revb0 = TRUE;
+		} else {
+			is_revb0 = FALSE;
+		}
+		filp_close(fp, NULL);
+	}
+	return is_revb0;
+}
+#endif /* BCM4335_XTAL_WAR */
+
 #endif /* CUSTOMER_HW4 */

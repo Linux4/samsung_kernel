@@ -43,6 +43,7 @@ enum {
 struct s2mm005_version {
 	u8 main[3];
 	u8 boot;
+	u8 ver2[4];
 };
 
 struct s2mm005_fw {

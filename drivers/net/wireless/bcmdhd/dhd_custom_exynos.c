@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_custom_exynos.c 692448 2017-03-28 06:06:19Z $
+ * $Id: dhd_custom_exynos.c 716879 2017-08-22 04:16:22Z $
  */
 #include <linux/device.h>
 #include <linux/gpio.h>
@@ -299,12 +299,13 @@ static int wlan_host_wake_irq = 0;
 extern struct device *mmc_dev_for_wlan;
 #endif /* CONFIG_MACH_A7LTE */
 #if (defined(CONFIG_MACH_UNIVERSAL3475) || defined(CONFIG_SOC_EXYNOS7870) || \
-	defined(CONFIG_MACH_UNIVERSAL7420))
+	defined(CONFIG_MACH_UNIVERSAL7420) || defined(CONFIG_MACH_UNIVERSAL7580))
 extern struct mmc_host *wlan_mmc;
 extern void mmc_ctrl_power(struct mmc_host *host, bool onoff);
 #endif /* CONFIG_MACH_UNIVERSAL3475 ||
 	* CONFIG_SOC_EXYNOS7870 ||
-	* CONFIG_MACH_UNIVERSAL7420
+	* CONFIG_MACH_UNIVERSAL7420 ||
+	* CONFIG_MACH_UNIVERSAL7580
 	*/
 static int dhd_wlan_power(int onoff)
 {
@@ -339,12 +340,13 @@ static int dhd_wlan_power(int onoff)
 	}
 #endif /* CONFIG_MACH_A7LTE */
 #if (defined(CONFIG_MACH_UNIVERSAL3475) || defined(CONFIG_SOC_EXYNOS7870) || \
-	defined(CONFIG_MACH_UNIVERSAL7420))
+	defined(CONFIG_MACH_UNIVERSAL7420) || defined(CONFIG_MACH_UNIVERSAL7580))
 	if (wlan_mmc)
 		mmc_ctrl_power(wlan_mmc, onoff);
 #endif /* CONFIG_MACH_UNIVERSAL3475 ||
 	* CONFIG_SOC_EXYNOS7870 ||
-	* CONFIG_MACH_UNIVERSAL7420
+	* CONFIG_MACH_UNIVERSAL7420 ||
+	* CONFIG_MACH_UNIVERSAL7580
 	*/
 	return 0;
 }

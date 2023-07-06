@@ -49,64 +49,22 @@
 #if defined(CONFIG_USB_EXTERNAL_NOTIFY)
 extern void muic_send_dock_intent(int type);
 
-/*
- * status: normal if 1, abnormal if 0
- * return 0 on success, -1 on fail
- */
-static int muic_noti_gamepad_status(int status, const char *sender)
-{
-	uint val;
-
-	if (!sender) {
-		pr_info("%s:%s: Illegal argument!\n", MUIC_DEV_NAME, __func__);
-		return -1;
-	}
-
-	pr_info("%s:%s gamepas_status=[%s] from %s\n", MUIC_DEV_NAME, __func__,
-		status ? "normal" : "abnormal", sender);
-
-	val = status ? COA_STATUS_OK: COA_STATUS_NOK;
-	val <<= COAGENT_PARAM_BITS;
-	val |= COA_GAMEPAD_STATUS;
-	coagent_in(&val);
-
-	return 0;
-}
-
 static int muic_handle_usb_notification(struct notifier_block *nb,
 				unsigned long action, void *data)
 {
+#ifdef CONFIG_MUIC_POGO
 	muic_data_t *pmuic =
 		container_of(nb, muic_data_t, usb_nb);
+#endif
 
 	switch (action) {
 	/* Abnormal device */
 	case EXTERNAL_NOTIFY_3S_NODEVICE:
 		pr_info("%s: 3S_NODEVICE(USB HOST Connection timeout)\n", __func__);
-		if (pmuic->attached_dev == ATTACHED_DEV_HMT_MUIC)
-			muic_set_hmt_status(1);
-		else if ((pmuic->attached_dev == ATTACHED_DEV_GAMEPAD_MUIC) ||
-			(pmuic->attached_dev == ATTACHED_DEV_OTG_MUIC))
-			pr_info("%s: Abnormal Gamepad -> do nothing.\n", __func__);
-		
-		break;
-
-	/* Gamepad device connected */
-	case EXTERNAL_NOTIFY_DEVICE_CONNECT:
-		pr_info("%s: DEVICE_CONNECT(Gamepad)\n", __func__);
-
-
-		if ((pmuic->attached_dev != ATTACHED_DEV_GAMEPAD_MUIC) &&
-			(pmuic->attached_dev != ATTACHED_DEV_OTG_MUIC)) {
-			pr_info("%s: Unexpected scenario.n", __func__);
-			break;
-		}			
-
-		pmuic->is_gamepad = true;
-		if (pmuic->attached_dev == ATTACHED_DEV_OTG_MUIC)
-			muic_send_dock_intent(MUIC_DOCK_GAMEPAD_WITH_EARJACK);
-
-		muic_noti_gamepad_status(1, "USB");
+#ifdef CONFIG_MUIC_POGO
+		if (pmuic->attached_dev == ATTACHED_DEV_POGO_MUIC)
+			muic_set_pogo_status(pmuic, 1);
+#endif
 		break;
 
 	default:

@@ -3,16 +3,6 @@
 
 /* 2016.07.26 */
 
-static struct mdnie_scr_info scr_info = {
-	.index = 1,
-	.cr = 107,		/* ASCR_WIDE_CR[7:0] */
-	.wr = 125,		/* ASCR_WIDE_WR[7:0] */
-	.wg = 127,		/* ASCR_WIDE_WG[7:0] */
-	.wb = 129		/* ASCR_WIDE_WB[7:0] */
-};
-
-static struct mdnie_trans_info trans_info;
-
 static inline int get_hbm_index(int idx)
 {
 	int i = 0;
@@ -30,7 +20,7 @@ static inline int get_hbm_index(int idx)
 	return i;
 }
 
-static unsigned char UI_1[] ={
+static unsigned char UI_1[] = {
 	0xC7,
 	0x00,
 	0x16,
@@ -64,7 +54,7 @@ static unsigned char UI_1[] ={
 	0x7F,
 };
 
-static unsigned char UI_2[] ={
+static unsigned char UI_2[] = {
 	0xC8,
 	0x00,
 	0x00,
@@ -87,12 +77,12 @@ static unsigned char UI_2[] ={
 	0x00,
 };
 
-static unsigned char UI_3[] ={
+static unsigned char UI_3[] = {
 	0x55,
 	0x00,
 };
 
-static unsigned char VIDEO_1[] ={
+static unsigned char VIDEO_1[] = {
 	0xC7,
 	0x00,
 	0x10,
@@ -149,12 +139,12 @@ static unsigned char VIDEO_2[] = {
 	0x00,
 };
 
-static unsigned char VIDEO_3[] ={
+static unsigned char VIDEO_3[] = {
 	0x55,
 	0x83,
 };
 
-static unsigned char CAMERA_1[] ={
+static unsigned char CAMERA_1[] = {
 	0xC7,
 	0x00,
 	0x16,
@@ -188,7 +178,7 @@ static unsigned char CAMERA_1[] ={
 	0x7F,
 };
 
-static unsigned char CAMERA_2[] ={
+static unsigned char CAMERA_2[] = {
 	0xC8,
 	0x00,
 	0x00,
@@ -211,7 +201,7 @@ static unsigned char CAMERA_2[] ={
 	0x00,
 };
 
-static unsigned char CAMERA_3[] ={
+static unsigned char CAMERA_3[] = {
 	0x55,
 	0x83,
 };
@@ -273,12 +263,12 @@ static unsigned char EBOOK_2[] = {
 	0x00,
 };
 
-static unsigned char EBOOK_3[] ={
+static unsigned char EBOOK_3[] = {
 	0x55,
 	0x00,
 };
 
-static unsigned char LOCAL_CE_1[] ={
+static unsigned char LOCAL_CE_1[] = {
 	0xC7,
 	0x00,
 	0x15,
@@ -312,7 +302,7 @@ static unsigned char LOCAL_CE_1[] ={
 	0x7F,
 };
 
-static unsigned char LOCAL_CE_2[] ={
+static unsigned char LOCAL_CE_2[] = {
 	0xC8,
 	0x00,
 	0x00,
@@ -335,77 +325,15 @@ static unsigned char LOCAL_CE_2[] ={
 	0x00,
 };
 
-static unsigned char LOCAL_CE_3[] ={
+static unsigned char LOCAL_CE_3[] = {
 	0x55,
 	0x00,
-};
-
-static unsigned char GAME_1[] ={
-	0xC7,
-	0x00,
-	0x16,
-	0x1D,
-	0x25,
-	0x31,
-	0x3E,
-	0x48,
-	0x57,
-	0x3B,
-	0x42,
-	0x4E,
-	0x5B,
-	0x64,
-	0x6D,
-	0x7F,
-	0x00,
-	0x16,
-	0x1D,
-	0x25,
-	0x31,
-	0x3E,
-	0x48,
-	0x57,
-	0x3B,
-	0x42,
-	0x4E,
-	0x5B,
-	0x64,
-	0x6D,
-	0x7F,
-};
-
-static unsigned char GAME_2[] ={
-	0xC8,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0xFC,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0xFC,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0xFC,
-	0x00,
-};
-
-static unsigned char GAME_3[] ={
-	0x55,
-	0x83,
 };
 
 #define MDNIE_SET(id)	\
 {							\
 	.name		= #id,				\
-	.update_flag	= {1, 2, 3, 0},			\
+	.update_flag	= {1, 2, 3},			\
 	.seq		= {				\
 		{	.cmd = id##_1,		.len = ARRAY_SIZE(id##_1),		.sleep = 0,},	\
 		{	.cmd = id##_2,		.len = ARRAY_SIZE(id##_2),		.sleep = 0,},	\
@@ -498,26 +426,26 @@ static struct mdnie_table main_table[SCENARIO_MAX][MODE_MAX] = {
 		MDNIE_SET(UI),
 		MDNIE_SET(EBOOK),
 	}, {
-		MDNIE_SET(GAME),
-		MDNIE_SET(GAME),
-		MDNIE_SET(GAME),
-		MDNIE_SET(GAME),
-		MDNIE_SET(GAME),
-		MDNIE_SET(GAME)
+		MDNIE_SET(CAMERA),
+		MDNIE_SET(CAMERA),
+		MDNIE_SET(CAMERA),
+		MDNIE_SET(CAMERA),
+		MDNIE_SET(CAMERA),
+		MDNIE_SET(CAMERA),
 	}, {
-		MDNIE_SET(GAME),
-		MDNIE_SET(GAME),
-		MDNIE_SET(GAME),
-		MDNIE_SET(GAME),
-		MDNIE_SET(GAME),
-		MDNIE_SET(GAME)
+		MDNIE_SET(CAMERA),
+		MDNIE_SET(CAMERA),
+		MDNIE_SET(CAMERA),
+		MDNIE_SET(CAMERA),
+		MDNIE_SET(CAMERA),
+		MDNIE_SET(CAMERA),
 	}, {
-		MDNIE_SET(GAME),
-		MDNIE_SET(GAME),
-		MDNIE_SET(GAME),
-		MDNIE_SET(GAME),
-		MDNIE_SET(GAME),
-		MDNIE_SET(GAME)
+		MDNIE_SET(CAMERA),
+		MDNIE_SET(CAMERA),
+		MDNIE_SET(CAMERA),
+		MDNIE_SET(CAMERA),
+		MDNIE_SET(CAMERA),
+		MDNIE_SET(CAMERA),
 	}
 };
 
@@ -526,14 +454,11 @@ static struct mdnie_table main_table[SCENARIO_MAX][MODE_MAX] = {
 static struct mdnie_tune tune_info = {
 	.bypass_table = bypass_table,
 	.accessibility_table = accessibility_table,
-	.light_notification_table = NULL,
 	.hbm_table = hbm_table,
 	.dmb_table = dmb_table,
 	.main_table = main_table,
 
-	.scr_info = &scr_info,
 	.get_hbm_index = get_hbm_index,
-	.trans_info = &trans_info,
 };
 
 #endif

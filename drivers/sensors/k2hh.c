@@ -45,7 +45,7 @@
 #define K2HH_DEFAULT_DELAY            200000000LL
 #define K2HH_MIN_DELAY                5000000LL
 
-#define CHIP_ID_RETRIES               3
+#define CHIP_ID_RETRIES               5
 #define ACCEL_LOG_TIME                15 /* 15 sec */
 
 #define K2HH_TOP_UPPER_RIGHT          0
@@ -470,6 +470,7 @@ static int k2hh_set_mode(struct k2hh_p *data, unsigned char mode)
 		ret = k2hh_i2c_read(data, CTRL1_REG, &temp, 1);
 		buf = ((mask & data->odr) | ((~mask) & temp));
 		buf = data->hr | ((~CTRL1_HR_MASK) & buf);
+		buf = CTRL1_BDU_ENABLE | ((~CTRL1_BDU_MASK) & buf);
 		ret += k2hh_i2c_write(data, CTRL1_REG, buf);
 		break;
 	case K2HH_MODE_SUSPEND:
@@ -735,9 +736,9 @@ static ssize_t k2hh_enable_store(struct device *dev,
 		}
 	} else {
 		if (pre_enable == ON) {
+			k2hh_set_enable(data, OFF);
 			atomic_set(&data->enable, OFF);
 			k2hh_set_mode(data, K2HH_MODE_SUSPEND);
-			k2hh_set_enable(data, OFF);
 		}
 	}
 
@@ -1541,8 +1542,8 @@ static int k2hh_suspend(struct device *dev)
 	SENSOR_INFO("\n");
 
 	if (atomic_read(&data->enable) == ON) {
-		k2hh_set_mode(data, K2HH_MODE_SUSPEND);
 		k2hh_set_enable(data, OFF);
+		k2hh_set_mode(data, K2HH_MODE_SUSPEND);
 	}
 
 	return 0;

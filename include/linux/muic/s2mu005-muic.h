@@ -33,12 +33,14 @@
 #define CTRL_MANUAL_SW_SHIFT	2
 #define CTRL_WAIT_SHIFT			1
 #define CTRL_INT_MASK_SHIFT		0
+#define CTRL_ONE_SHOT_SHIFT		2
 
 #define CTRL_SWITCH_OPEN_MASK	(0x1 << CTRL_SWITCH_OPEN_SHIFT)
 #define CTRL_RAW_DATA_MASK		(0x1 << CTRL_RAW_DATA_SHIFT)
 #define CTRL_MANUAL_SW_MASK		(0x1 << CTRL_MANUAL_SW_SHIFT)
 #define CTRL_WAIT_MASK			(0x1 << CTRL_WAIT_SHIFT)
 #define CTRL_INT_MASK_MASK		(0x1 << CTRL_INT_MASK_SHIFT)
+#define CTRL_ONE_SHOT_MASK		(0x1 << CTRL_ONE_SHOT_SHIFT)
 
 #ifdef CONFIG_MUIC_S2MU005_ENABLE_AUTOSW
 #define CTRL_MASK			(CTRL_SWITCH_OPEN_MASK | \
@@ -147,8 +149,8 @@
 
 /*
  * Manual Switch
- * D- [7:5] / D+ [4:2] / CHARGER[1] / OTGEN[0]
- * 000: Open all / 001: USB / 010: AUDIO / 011: UART / 100: V_AUDIO
+ * D- [7:5] / D+ [4:2] / RSVD[1] / JIG[0]
+ * 000: Open all / 001: USB / 010: UART / 011: UART2 / 100: V_AUDIO
  * 00: Vbus to Open / 01: Vbus to Charger / 10: Vbus to MIC / 11: Vbus to VBout
  */
 #define MANUAL_SW_DM_SHIFT		5
@@ -168,7 +170,7 @@ enum s2mu005_reg_manual_sw_value {
 	MANSW_UART		=	(MANUAL_SW_UART),
 };
 
-#ifndef CONFIG_SEC_FACTORY
+#if !defined (CONFIG_SEC_FACTORY) && !defined (CONFIG_MUIC_S2MU005_WATER_WA_DISABLE)
 /* S2MU005_REG_LDOADC_VSET register */
 #define LDOADC_VSET_MASK        0x1F
 #define LDOADC_VSET_3V          0x1F
@@ -231,7 +233,9 @@ struct s2mu005_muic_data {
 	bool	is_factory_start;
 	bool	is_rustproof;
 	bool	is_otg_test;
-#ifndef CONFIG_SEC_FACTORY
+	bool jigonb_enable;
+	bool jig_disable;
+#if !defined (CONFIG_SEC_FACTORY) && !defined (CONFIG_MUIC_S2MU005_WATER_WA_DISABLE)
 	bool	is_water_wa;
 #endif
 	/* W/A waiting for the charger ic */

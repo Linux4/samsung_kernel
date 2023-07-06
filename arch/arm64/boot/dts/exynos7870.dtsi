@@ -76,6 +76,15 @@
 		tmuctrl0 = &tmuctrl_0;
 		tmuctrl1 = &tmuctrl_1;
 		tmuctrl2 = &tmuctrl_2;
+		ni2c0 = &i2c_0;
+		ni2c1 = &i2c_1;
+		ni2c2 = &i2c_2;
+		ni2c3 = &i2c_3;
+		ni2c4 = &i2c_4;
+		ni2c5 = &i2c_5;
+		ni2c6 = &i2c_6;
+		ni2c7 = &i2c_7;
+		ni2c8 = &i2c_8;
 	};
 
 	chipid@10100000 {
@@ -1268,6 +1277,12 @@
 		#clock-cells = <1>;
 	};
 
+	/* TEEgris */
+	tgris {
+		compatible = "samsung,blowfish";
+		interrupts = <0 468 0>, <0 469 0>;
+	};
+
 	watchdog@10170000 {
 		compatible = "samsung,exynos7-wdt";
 		reg = <0x0 0x10170000 0x100>;
@@ -2022,4 +2037,7 @@
 		/* If you need to add new key type, add it this position */
 	};
 
+	fips-fmp {
+		compatible = "samsung,exynos-fips-fmp";
+	};
 };

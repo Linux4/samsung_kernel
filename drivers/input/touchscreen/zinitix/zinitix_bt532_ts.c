@@ -4591,8 +4591,13 @@ static ssize_t store_cmd(struct device *dev, struct device_attribute
 		goto err_out;
 	}
 
-	if (strlen(buf) >= TSP_CMD_STR_LEN) {		
-		tsp_debug_err(true, &client->dev, "%s: cmd length is over (%s,%d)!!\n", __func__, buf, (int)strlen(buf));
+	if (strlen(buf) >= TSP_CMD_STR_LEN) {
+		tsp_debug_err(true, &client->dev, "%s: cmd length(strlen(buf)) is over (%s,%d)!!\n", __func__, buf, (int)strlen(buf));
+		goto err_out;
+	}
+
+	if (count >= (unsigned int)TSP_CMD_STR_LEN) {
+		tsp_debug_err(true, &client->dev, "%s: cmd length(count) is over (%s,%d)!!\n", __func__, buf, (unsigned int)count);
 		goto err_out;
 	}
 

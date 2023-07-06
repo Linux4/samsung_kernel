@@ -36,6 +36,7 @@ extern struct class *sec_class;
 #define SEC_CMD_BUF_SIZE		(4096 - 1)
 #define SEC_CMD_STR_LEN			256
 #define SEC_CMD_RESULT_STR_LEN		(4096 - 1)
+#define SEC_CMD_RESULT_STR_LEN_EXPAND	SEC_CMD_RESULT_STR_LEN * 2
 #define SEC_CMD_PARAM_NUM		8
 
 struct sec_cmd {
@@ -66,7 +67,7 @@ struct sec_cmd_data {
 	u8			cmd_state;
 	char			cmd[SEC_CMD_STR_LEN];
 	int			cmd_param[SEC_CMD_PARAM_NUM];
-	char			cmd_result[SEC_CMD_RESULT_STR_LEN];
+	char			*cmd_result;
 	int			cmd_buffer_size;
 	bool			cmd_is_running;
 	struct mutex		cmd_lock;
@@ -75,11 +76,16 @@ struct sec_cmd_data {
 	struct mutex		fifo_lock;
 	struct delayed_work	cmd_work;
 #endif
+	int item_count;
+	char cmd_result_all[SEC_CMD_RESULT_STR_LEN];
+	u8 cmd_all_factory_state;
+
 };
 
 extern void sec_cmd_set_cmd_exit(struct sec_cmd_data *data);
 extern void sec_cmd_set_default_result(struct sec_cmd_data *data);
 extern void sec_cmd_set_cmd_result(struct sec_cmd_data *data, char *buff, int len);
+extern void sec_cmd_set_cmd_result_all(struct sec_cmd_data *data, char *buff, int len, char *item);
 extern int sec_cmd_init(struct sec_cmd_data *data,
 				struct sec_cmd *cmds, int len, int devt);
 extern void sec_cmd_exit(struct sec_cmd_data *data, int devt);

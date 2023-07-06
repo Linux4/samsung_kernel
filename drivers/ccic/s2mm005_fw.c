@@ -304,6 +304,7 @@ int s2mm005_flash(struct s2mm005_data *usbpd_data, unsigned int input)
 	mm_segment_t old_fs;
 	long fw_size, nread;
 	int irq_gpio_status;
+	FLASH_STATE_Type Flash_DATA;
 
 	switch (input) {
 	case FLASH_MODE_ENTER: { /* enter flash mode */
@@ -324,6 +325,10 @@ int s2mm005_flash(struct s2mm005_data *usbpd_data, unsigned int input)
 			s2mm005_read_byte_flash(i2c, FLASH_STATUS_0x24, &val, 1);
 			pr_err("flash mode : %s retry %d\n", flashmode_to_string(val), retry);	
 			usleep_range(50 * 1000, 50 * 1000);
+
+			s2mm005_read_byte(i2c, 0x24, Flash_DATA.BYTE, 4);
+			dev_info(&i2c->dev, "Flash_State:0x%02X   Reserved:0x%06X\n",
+				Flash_DATA.BITS.Flash_State, Flash_DATA.BITS.Reserved);
 
 			if(val != FLASH_MODE_FLASH) {
 				retry++;
@@ -450,6 +455,7 @@ void s2mm005_get_chip_hwversion(struct s2mm005_data *usbpd_data,
 
 	s2mm005_read_byte_flash(i2c, 0x0, (u8 *)&version->boot, 1);
 	s2mm005_read_byte_flash(i2c, 0x1, (u8 *)&version->main, 3);
+	s2mm005_read_byte_flash(i2c, 0x4, (u8 *)&version->ver2, 4);
 }
 
 void s2mm005_get_chip_swversion(struct s2mm005_data *usbpd_data,
@@ -468,6 +474,8 @@ void s2mm005_get_chip_swversion(struct s2mm005_data *usbpd_data,
 		if(VALID_FW_MAIN_VERSION(version->main))
 			break;
 	}
+	for (i = 0; i < FW_CHECK_RETRY; i++)
+		s2mm005_read_byte_flash(i2c, 0xc, (u8 *)&version->ver2, 4);
 }
 
 int s2mm005_check_version(struct s2mm005_version *version1,

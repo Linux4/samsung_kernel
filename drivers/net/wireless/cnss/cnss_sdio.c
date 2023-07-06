@@ -418,7 +418,7 @@ uint64_t cnss_get_timestamp(void)
 
 /* thread to handle all the oob interrupts */
 #define CNSS_OOB_MAX_IRQ_PENDING_COUNT 100
-#define CNSS_OOB_PANIC_IRQ_PENDING_COUNT 50000
+#define CNSS_OOB_PANIC_IRQ_PENDING_COUNT 500000
 //#define CNSS_SDIO_OOB_STATS 1
 /* refer to athdefs.h */
 #define CNSS_MAX_ERR      3

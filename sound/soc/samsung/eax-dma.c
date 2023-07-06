@@ -501,6 +501,8 @@ out:
 
 static void eax_adma_trigger(bool on)
 {
+	int ret;
+
 	spin_lock(&di.lock);
 
 	if (on) {
@@ -508,10 +510,11 @@ static void eax_adma_trigger(bool on)
 		lpass_dma_enable(true);
 		di.params->ops->trigger(di.params->ch);
 	} else {
-		di.params->ops->stop(di.params->ch);
+		ret = di.params->ops->stop(di.params->ch);
 		lpass_dma_enable(false);
 		di.prepare_done = false;
 		di.running = on;
+		pr_info("%s:DMA stop retrun value:%d\n", __func__, ret);
 	}
 
 	spin_unlock(&di.lock);

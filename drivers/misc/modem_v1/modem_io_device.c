@@ -512,9 +512,14 @@ static int misc_release(struct inode *inode, struct file *filp)
 	struct io_device *iod = (struct io_device *)filp->private_data;
 	struct modem_shared *msd = iod->msd;
 	struct link_device *ld;
+	int i;
 
-	if (atomic_dec_and_test(&iod->opened))
+	if (atomic_dec_and_test(&iod->opened)) {
 		skb_queue_purge(&iod->sk_rx_q);
+
+		for (i = 0; i < NUM_SIPC_MULTI_FRAME_IDS; i++)
+			skb_queue_purge(&iod->sk_multi_q[i]);
+	}
 
 	list_for_each_entry(ld, &msd->link_dev_list, list) {
 		if (IS_CONNECTED(iod, ld) && ld->terminate_comm)
@@ -1425,9 +1430,9 @@ int sipc5_init_io_device(struct io_device *iod)
 			free_netdev(iod->ndev);
 		}
 
-		mif_debug("iod 0x%p\n", iod);
+		mif_debug("iod 0x%pK\n", iod);
 		vnet = netdev_priv(iod->ndev);
-		mif_debug("vnet 0x%p\n", vnet);
+		mif_debug("vnet 0x%pK\n", vnet);
 		vnet->iod = iod;
 
 		break;
@@ -1437,7 +1442,6 @@ int sipc5_init_io_device(struct io_device *iod)
 
 		iod->miscdev.minor = MISC_DYNAMIC_MINOR;
 		iod->miscdev.name = iod->name;
-		iod->miscdev.fops = &misc_io_fops;
 
 		ret = misc_register(&iod->miscdev);
 		if (ret)

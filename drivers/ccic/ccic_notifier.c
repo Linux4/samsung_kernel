@@ -228,6 +228,9 @@ int ccic_notifier_notify(CC_NOTI_TYPEDEF *p_noti, void *pd, int pdic_attach)
 			((CC_NOTI_ATTACH_TYPEDEF *)p_noti)->id,
 			((CC_NOTI_ATTACH_TYPEDEF *)p_noti)->attach);
 			ccic_uevent_work(CCIC_NOTIFY_ID_WATER, ((CC_NOTI_ATTACH_TYPEDEF *)p_noti)->attach);
+#ifdef CONFIG_SEC_FACTORY
+			return 0;
+#endif
 		break;
 	case CCIC_NOTIFY_ID_VCONN:
 		ccic_uevent_work(CCIC_NOTIFY_ID_VCONN, 0);

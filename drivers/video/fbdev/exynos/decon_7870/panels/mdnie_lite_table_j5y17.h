@@ -12,8 +12,6 @@ static struct mdnie_scr_info scr_info = {
 	.wb = 129		/* ASCR_WIDE_WB[7:0] */
 };
 
-static struct mdnie_trans_info trans_info;
-
 static struct mdnie_night_info night_info = {
 	.max_w = 24,
 	.max_h = 11
@@ -7215,7 +7213,7 @@ static struct mdnie_table bypass_table[BYPASS_MAX] = {
 	[BYPASS_ON] = MDNIE_SET(BYPASS)
 };
 
-struct mdnie_table light_notification_table[LIGHT_NOTIFICATION_MAX] = {
+static struct mdnie_table light_notification_table[LIGHT_NOTIFICATION_MAX] = {
 	[LIGHT_NOTIFICATION_ON] = MDNIE_SET(LIGHT_NOTIFICATION)
 };
 
@@ -7322,7 +7320,6 @@ static struct mdnie_tune tune_info = {
 	.night_mode_table = night_mode_data,
 	.scr_info = &scr_info,
 	.get_hbm_index = get_hbm_index,
-	.trans_info = &trans_info,
 	.night_info = &night_info,
 	.color_offset = {NULL, color_offset_f1, color_offset_f2, color_offset_f3, color_offset_f4}
 };

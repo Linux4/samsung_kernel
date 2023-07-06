@@ -605,18 +605,19 @@ static ssize_t sm5705_rear_flash_store(struct device *dev,
 		assistive_light = true;
 		fimc_is_activated = 0;
 		if (value <= 1001)
-			torch_current = 20;
+			torch_current = g_sm5705_fled->pdata->led[REAR_FLASH_INDEX].torch_table[0];
 		else if (value <= 1002)
-			torch_current = 40;
+			torch_current = g_sm5705_fled->pdata->led[REAR_FLASH_INDEX].torch_table[1];
 		else if (value <= 1004)
-			torch_current = 60;
+			torch_current = g_sm5705_fled->pdata->led[REAR_FLASH_INDEX].torch_table[2];
 		else if (value <= 1006)
-			torch_current = 90;
+			torch_current = g_sm5705_fled->pdata->led[REAR_FLASH_INDEX].torch_table[3];
 		else if (value <= 1009)
-			torch_current = 120;
+			torch_current = g_sm5705_fled->pdata->led[REAR_FLASH_INDEX].torch_table[4];
 		else
-			torch_current = 60;
+			torch_current = g_sm5705_fled->pdata->led[REAR_FLASH_INDEX].torch_table[2];
 
+		dev_info(dev, "%s, torch_current:%d\n", __func__, torch_current);
 		ret = sm5705_fled_turn_on_torch(sm5705_fled, REAR_FLASH_INDEX, torch_current);
 	} else {
 		dev_info(dev, "%s, Invalid value:%d\n", __func__, value);
@@ -722,6 +723,16 @@ static int sm5705_fled_parse_dt(struct device *dev,
 		}
 		pdata->led[index].used_gpio = (bool)(temp & 0x1);
 
+		ret = of_property_read_u32_array(c_np, "torch_table", pdata->led[index].torch_table, TORCH_STEP);
+		if (ret) {
+			pr_info("%s : set a default torch_table\n", __func__);
+			pdata->led[index].torch_table[0] = 20;
+			pdata->led[index].torch_table[1] = 40;
+			pdata->led[index].torch_table[2] = 60;
+			pdata->led[index].torch_table[3] = 90;
+			pdata->led[index].torch_table[4] = 120;
+		}
+
 		if (pdata->led[index].used_gpio) {
 			ret = of_get_named_gpio(c_np, "flash-en-gpio", 0);
 			if (ret < 0) {
@@ -794,7 +805,7 @@ static int sm5705_fled_probe(struct platform_device *pdev)
 	struct sm5705_fled_info *sm5705_fled;
 	struct sm5705_fled_platform_data *sm5705_fled_pdata;
 	struct device *dev = &pdev->dev;
-	int i,ret;
+	int i = 0, ret = 0;
 
 	if (IS_ERR_OR_NULL(camera_class)) {
 		dev_err(dev, "%s: can't find camera_class sysfs object, didn't used rear_flash attribute\n",

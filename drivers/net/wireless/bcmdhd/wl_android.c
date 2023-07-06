@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: wl_android.c 700407 2017-05-19 03:32:21Z $
+ * $Id: wl_android.c 705306 2017-06-16 07:21:39Z $
  */
 
 #include <linux/module.h>
@@ -2753,8 +2753,17 @@ int wl_android_set_ibss_beacon_ouidata(struct net_device *dev, char *command, in
 		return -EINVAL;
 	}
 
+	if (total_len < (strlen(CMD_SETIBSSBEACONOUIDATA) + 1)) {
+		WL_ERR(("error. total_len:%d\n", total_len));
+		return -EINVAL;
+	}
+
 	pcmd = command + strlen(CMD_SETIBSSBEACONOUIDATA) + 1;
 	for (idx = 0; idx < DOT11_OUI_LEN; idx++) {
+		if (*pcmd == '\0') {
+			WL_ERR(("error while parsing OUI.\n"));
+			return -EINVAL;
+		}
 		hex[0] = *pcmd++;
 		hex[1] = *pcmd++;
 		ie_buf[idx] =  (uint8)simple_strtoul(hex, NULL, 16);
@@ -2766,6 +2775,12 @@ int wl_android_set_ibss_beacon_ouidata(struct net_device *dev, char *command, in
 		ie_buf[idx++] =  (uint8)simple_strtoul(hex, NULL, 16);
 		datalen++;
 	}
+
+	if (datalen <= 0) {
+		WL_ERR(("error. vndr ie len:%d\n", datalen));
+		return -EINVAL;
+	}
+
 	tot_len = sizeof(vndr_ie_setbuf_t) + (datalen - 1);
 	vndr_ie = (vndr_ie_setbuf_t *) kzalloc(tot_len, kflags);
 	if (!vndr_ie) {

@@ -205,6 +205,8 @@ int of_muic_dt(struct i2c_client *i2c, struct muic_platform_data *pdata)
 	else
 		pr_info("%s: chip_name is %s\n", __func__, pmuic->chip_name);
 
+	pmuic->undefined_range = of_property_read_bool(np_muic, "muic,undefined_range");
+	pr_info("%s: muic,undefined_range[%s]\n", __func__, pmuic->undefined_range ? "T" : "F");
 
 	pdata->irq_gpio = of_get_named_gpio(np_muic, "muic-universal,irq-gpio", 0);
 	pr_info("%s: irq-gpio: %u\n", __func__, pdata->irq_gpio);

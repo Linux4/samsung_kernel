@@ -54,6 +54,8 @@
 #include "muic_debug.h"
 #include "muic_dt.h"
 #include "muic_regmap.h"
+#include "muic_state.h"
+
 #if defined(CONFIG_MUIC_UNIVERSAL_CCIC)
 #include "muic_ccic.h"
 #endif
@@ -78,6 +80,7 @@
 #define MUIC_REG_INT2	0x04
 #define MUIC_REG_INT3	0x05
 
+static muic_data_t *tmp_pmuic;
 extern struct muic_platform_data muic_pdata;
 #if defined(CONFIG_MUIC_UNIVERSAL_SM5705_AFC)
 /* SM5705 Interrupt 3  AFC register */
@@ -196,7 +199,7 @@ static int muic_irq_handler_afc(muic_data_t *pmuic, int irq)
 static void muic_handle_vbus(muic_data_t *pmuic)
 {
 	vbus_status_t status;
-	
+
 	status = pmuic->vps.s.vbvolt ? STATUS_VBUS_HIGH: STATUS_VBUS_LOW;
 
 	pr_info("%s:%s <%d>\n", MUIC_DEV_NAME, __func__, status);
@@ -462,6 +465,7 @@ static int muic_probe(struct i2c_client *i2c,
 
 	mutex_init(&pmuic->muic_mutex);
 
+	tmp_pmuic = pmuic;
 	pmuic->pdata = pdata;
 	pmuic->i2c = i2c;
 	pmuic->is_factory_start = false;
@@ -470,7 +474,6 @@ static int muic_probe(struct i2c_client *i2c,
 	pmuic->is_usb_ready = false;
 	pmuic->is_dcdtmr_intr = false;
 	pmuic->is_rescanned = false;
-
 	if (!strcmp(pmuic->chip_name, "max,max77849"))
 		pmuic->vps_table = VPS_TYPE_TABLE;
 	else
@@ -512,6 +515,8 @@ static int muic_probe(struct i2c_client *i2c,
 	pmuic->regmapdesc = pdesc;
 
 #if defined(CONFIG_MUIC_UNIVERSAL_CCIC)
+	pmuic->rprd = false;
+
 	pmuic->opmode = get_ccic_info() & 0x0F;
 #endif
 
@@ -585,6 +590,23 @@ err_io:
 	kfree(pmuic);
 err_return:
 	return ret;
+}
+
+void muic_detect_dev_for_wcin(void)
+{
+	pr_info("%s:%s wcin irq\n", MUIC_DEV_NAME, __func__);
+	tmp_pmuic->is_dcdtmr_intr = false;
+	tmp_pmuic->is_rescanned = false;
+	muic_detect_dev(tmp_pmuic);
+}
+
+void muic_detect_dev_for_nobat(void)
+{
+	pr_info("%s:%s nobat irq\n", MUIC_DEV_NAME, __func__);
+	tmp_pmuic->attached_dev = ATTACHED_DEV_NONE_MUIC;
+	detach_ta(tmp_pmuic);
+	muic_notifier_detach_attached_dev(tmp_pmuic->attached_dev);
+	muic_detect_dev(tmp_pmuic);
 }
 
 static int muic_remove(struct i2c_client *i2c)

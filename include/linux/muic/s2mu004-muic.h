@@ -17,6 +17,10 @@
  *
  */
 
+#if defined(CONFIG_IFPMIC_SUPPORT)
+#include <linux/ifpmic/muic/s2mu004-muic.h>
+#endif
+
 #ifndef __S2MU004_MUIC_H__
 #define __S2MU004_MUIC_H__
 
@@ -26,7 +30,11 @@
 #if defined(CONFIG_HV_MUIC_S2MU004_AFC)
 #include <linux/muic/s2mu004-muic-hv-typedef.h>
 #endif /* CONFIG_HV_MUIC_S2MU004_AFC */
-
+#if defined(CONFIG_CCIC_S2MU004)
+#include <linux/time.h>
+#include <linux/ktime.h>
+#include <linux/rtc.h>
+#endif
 #define MUIC_DEV_NAME	"muic-s2mu004"
 
 #define MAX_BCD_RESCAN_CNT 		5
@@ -183,7 +191,10 @@
 
 #define WATER_DET_RETRY_CNT				10
 #define WATER_CCIC_WAIT_DURATION_MS		4000
-#define WATER_DRY_RETRY_INTERVAL_MS		30000
+#define WATER_DRY_RETRY_INTERVAL_SEC	600
+#define WATER_DRY_RETRY_30MIN_SEC		1800
+#define WATER_DRY_RETRY_60MIN_SEC		6000
+#define WATER_DRY_RETRY_INTERVAL_MS		((WATER_DRY_RETRY_30MIN_SEC) * (1000))
 #define WATER_DRY_INTERVAL_MS			10000
 #define WATER_DET_STABLE_DURATION_MS	2000
 #define DRY_DET_RETRY_CNT_MAX			3
@@ -220,6 +231,10 @@ do {									\
 #define IS_ACC_ADC(adc)\
 		( ((adc) >= (ADC_RESERVED_VZW)) \
 		&& ((adc) <= (ADC_AUDIOMODE_W_REMOTE)) \
+		? 1 : 0 )
+#define IS_WATER_STATUS(x)\
+		( ((x) == (S2MU004_WATER_MUIC_CCIC_DET)) \
+		|| ((x) == (S2MU004_WATER_MUIC_CCIC_STABLE)) \
 		? 1 : 0 )
 
 /* end of macros */
@@ -393,13 +408,16 @@ struct s2mu004_muic_data {
 	bool otg_state;
 	t_water_status water_status;
 	t_water_dry_status water_dry_status;
+	long dry_chk_time;
+	int dry_cnt;
+	int dry_duration_sec;
 #else
 #ifndef CONFIG_SEC_FACTORY
 	bool is_water_wa;
 #endif
 	int bcd_rescan_cnt;
 #endif
-	
+
 #if defined(CONFIG_HV_MUIC_S2MU004_AFC)
 	bool				is_afc_muic_ready;
 	bool				is_afc_handshaking;
@@ -420,7 +438,7 @@ struct s2mu004_muic_data {
 	u8				status1;
 	u8				status2;
 	u8				status3;
-	u8				status4;	
+	u8				status4;
 
 	/* muic hvcontrol value */
 	u8				hvcontrol1;

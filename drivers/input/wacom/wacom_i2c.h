@@ -35,6 +35,7 @@ struct wacom_g5_platform_data {
 	bool use_garage;
 	bool support_dex;
 	u32 dex_rate;
+	bool table_swap;
 };
 
 #endif /* _LINUX_WACOM_I2C_H */

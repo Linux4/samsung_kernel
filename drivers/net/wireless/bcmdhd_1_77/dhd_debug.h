@@ -3,7 +3,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * Copyright (C) 1999-2017, Broadcom Corporation
+ * Copyright (C) 1999-2018, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -23,7 +23,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_debug.h 698998 2017-05-11 11:00:28Z $
+ * $Id: dhd_debug.h 705824 2017-06-19 13:58:39Z $
  */
 
 #ifndef _dhd_debug_h_
@@ -395,6 +395,7 @@ struct log_level_table {
 
 #define MD5_PREFIX_LEN				4
 #define MAX_FATE_LOG_LEN			32
+
 #define MAX_FRAME_LEN_ETHERNET		1518
 #define MAX_FRAME_LEN_80211_MGMT	2352 /* 802.11-2012 Fig. 8-34 */
 
@@ -601,7 +602,9 @@ typedef struct compat_wifi_rx_report {
 typedef enum dhd_dbg_pkt_mon_state {
 	PKT_MON_INVALID = 0,
 	PKT_MON_ATTACHED,
+	PKT_MON_STARTING,
 	PKT_MON_STARTED,
+	PKT_MON_STOPPING,
 	PKT_MON_STOPPED,
 	PKT_MON_DETACHED,
 	} dhd_dbg_pkt_mon_state_t;
@@ -706,16 +709,21 @@ typedef struct dhd_dbg {
 	dhd_dbg_ring_t dbg_rings[DEBUG_RING_ID_MAX];
 	void *private;          /* os private_data */
 	dhd_dbg_pkt_mon_t pkt_mon;
+	void *pkt_mon_lock; /* spin lock for packet monitoring */
 	dbg_pullreq_t pullreq;
 	dbg_urgent_noti_t urgent_notifier;
 } dhd_dbg_t;
 
 #define PKT_MON_ATTACHED(state) \
-		(((state) != PKT_MON_INVALID) && ((state) != PKT_MON_DETACHED))
+		(((state) > PKT_MON_INVALID) && ((state) < PKT_MON_DETACHED))
 #define PKT_MON_DETACHED(state) \
 		(((state) == PKT_MON_INVALID) || ((state) == PKT_MON_DETACHED))
 #define PKT_MON_STARTED(state) ((state) == PKT_MON_STARTED)
 #define PKT_MON_STOPPED(state) ((state) == PKT_MON_STOPPED)
+#define PKT_MON_NOT_OPERATIONAL(state) \
+	(((state) != PKT_MON_STARTED) && ((state) != PKT_MON_STOPPED))
+#define PKT_MON_SAFE_TO_FREE(state) \
+	(((state) == PKT_MON_STARTING) || ((state) == PKT_MON_STOPPED))
 #define PKT_MON_PKT_FULL(pkt_count) ((pkt_count) >= MAX_FATE_LOG_LEN)
 #define PKT_MON_STATUS_FULL(pkt_count, status_count) \
 		(((status_count) >= (pkt_count)) || ((status_count) >= MAX_FATE_LOG_LEN))

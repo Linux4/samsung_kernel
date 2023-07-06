@@ -164,10 +164,17 @@ static ssize_t ccic_store_manual_lpm_mode(struct device *dev,
 	pr_info("usb: %s mode=%d\n", __func__, mode);
 
 	mutex_lock(&usbpd_data->lpm_mutex);
+
+#ifdef CONFIG_SEC_FACTORY
+	if (mode != 1 && mode != 2)
+		s2mu004_set_normal_mode(usbpd_data);
+#else
 	if (mode == 1 || mode == 2)
 		s2mu004_set_lpm_mode(usbpd_data);
 	else
 		s2mu004_set_normal_mode(usbpd_data);
+#endif
+
 	mutex_unlock(&usbpd_data->lpm_mutex);
 
 	return size;
@@ -457,6 +464,70 @@ static ssize_t ccic_store_firmware_update(struct device *dev,
 }
 static DEVICE_ATTR(fw_update, 0220, NULL, ccic_store_firmware_update);
 #endif
+
+#ifdef CONFIG_CCIC_S2MM005
+static ssize_t ccic_store_sink_pdo_update(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct s2mm005_data *usbpd_data = dev_get_drvdata(dev);
+	uint32_t data = 0;
+	uint16_t REG_ADD;
+	uint8_t MSG_BUF[32] = {0,};
+	SINK_VAR_SUPPLY_Typedef *pSINK_MSG;
+	MSG_HEADER_Typedef *pMSG_HEADER;
+	uint32_t * MSG_DATA;
+	uint8_t cnt;
+
+	if (!usbpd_data) {
+		pr_err("usbpd_data is NULL\n");
+		return -ENODEV;
+	}
+
+	sscanf(buf, "%x\n", &data);
+	if (data == 0)
+		data = 0x8F019032; // 5V~12V, 500mA
+	pr_info("%s data=0x%x\n", __func__, data);
+
+	/* update Sink PDO */
+	REG_ADD = REG_TX_SINK_CAPA_MSG;
+	s2mm005_read_byte(usbpd_data->i2c, REG_ADD, MSG_BUF, 32);
+
+	MSG_DATA = (uint32_t *)&MSG_BUF[0];
+	pr_err("--- Read Data on TX_SNK_CAPA_MSG(0x220)\n");
+	for(cnt = 0; cnt < 8; cnt++) {
+		pr_err("   0x%08X\n", MSG_DATA[cnt]);
+	}
+
+	pMSG_HEADER = (MSG_HEADER_Typedef *)&MSG_BUF[0];
+	pMSG_HEADER->BITS.Number_of_obj += 1;
+	pSINK_MSG = (SINK_VAR_SUPPLY_Typedef *)&MSG_BUF[8];
+	pSINK_MSG->DATA = data;
+	pr_err("--- Write DATA\n");
+	for (cnt = 0; cnt < 8; cnt++) {
+		pr_err("   0x%08X\n", MSG_DATA[cnt]);
+	}
+
+	s2mm005_write_byte(usbpd_data->i2c, REG_ADD, &MSG_BUF[0], 32);
+
+	for (cnt = 0; cnt < 32; cnt++) {
+		MSG_BUF[cnt] = 0;
+	}
+
+	for (cnt = 0; cnt < 8; cnt++) {
+		pr_err("   0x%08X\n", MSG_DATA[cnt]);
+	}
+	s2mm005_read_byte(usbpd_data->i2c, REG_ADD, MSG_BUF, 32);
+
+	pr_err("--- Read 2 new Data on TX_SNK_CAPA_MSG(0x220)\n");
+	for(cnt = 0; cnt < 8; cnt++) {
+		pr_err("   0x%08X\n", MSG_DATA[cnt]);
+	}
+	
+	return size;
+}
+static DEVICE_ATTR(sink_pdo_update, 0220, NULL, ccic_store_sink_pdo_update);
+#endif
+
 #if defined(CONFIG_CCIC_ALTERNATE_MODE)
 static ssize_t ccic_send_samsung_uVDM_message(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
@@ -633,6 +704,7 @@ static struct attribute *ccic_attributes[] = {
 #ifdef CONFIG_CCIC_S2MM005
 	&dev_attr_fw_update.attr,
 	&dev_attr_fw_update_status.attr,
+	&dev_attr_sink_pdo_update.attr,
 #endif
 #if defined(CONFIG_CCIC_ALTERNATE_MODE)
 	&dev_attr_uvdm.attr,

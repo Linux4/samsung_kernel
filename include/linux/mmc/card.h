@@ -17,6 +17,7 @@
 #define MAX_CNT_U64	0xFFFFFFFFFF
 #define MAX_CNT_U32	0x7FFFFFFF
 #define STATUS_MASK	(R1_ERROR | R1_CC_ERROR | R1_CARD_ECC_FAILED | R1_WP_VIOLATION | R1_OUT_OF_RANGE)
+#define RPMB_SWITCH_ERR		0x00000100
 
 struct mmc_cid {
 	unsigned int		manfid;
@@ -92,6 +93,8 @@ struct mmc_ext_csd {
 	unsigned int            data_tag_unit_size;     /* DATA TAG UNIT size */
 	unsigned int		boot_ro_lock;		/* ro lock support */
 	bool			boot_ro_lockable;
+#define MMC_FIRMWARE_LEN 8
+	u8			fwrev[MMC_FIRMWARE_LEN];  /* FW version */
 	u8			raw_exception_status;	/* 54 */
 	u8			raw_partition_support;	/* 160 */
 	u8			raw_rpmb_size_mult;	/* 168 */
@@ -118,6 +121,8 @@ struct mmc_ext_csd {
 	u8			raw_pwr_cl_ddr_52_195;	/* 238 */
 	u8			raw_pwr_cl_ddr_52_360;	/* 239 */
 	u8			raw_pwr_cl_ddr_200_360;	/* 253 */
+	u8			device_life_time_est_typ_a;	/* 268 */
+	u8			device_life_time_est_typ_b;	/* 269 */
 	u8			raw_bkops_status;	/* 246 */
 	u8			raw_sectors[4];		/* 212 - 4 bytes */
 
@@ -267,11 +272,13 @@ struct mmc_card_error_log {
 	u64     first_issue_time;
 	u64     last_issue_time;
 	u32     count;
-	u32		ge_cnt;			// status[19] : general error or unknown error_count
-	u32		cc_cnt;			// status[20] : internal card controller error_count
-	u32		ecc_cnt;		// status[21] : ecc error_count
-	u32		wp_cnt;			// status[26] : write protection error_count
-	u32		oor_cnt;		// status[31] : out of range error
+	u32	ge_cnt;			// status[19] : general error or unknown error_count
+	u32	cc_cnt;			// status[20] : internal card controller error_count
+	u32	ecc_cnt;		// status[21] : ecc error_count
+	u32	wp_cnt;			// status[26] : write protection error_count
+	u32	oor_cnt;		// status[31] : out of range error
+	u32	noti_cnt;		// uevent notification count
+	u32	rpmb_cnt;		// RPMB switch fail
 };
 
 /*
@@ -345,7 +352,7 @@ struct mmc_card {
 	u8 en_strobe_enhanced;	/*enhanced strobe ctrl */
 
 	struct device_attribute error_count;
-	struct mmc_card_error_log err_log[8];
+	struct mmc_card_error_log err_log[10];
 };
 
 /*

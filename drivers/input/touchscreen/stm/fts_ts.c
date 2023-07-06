@@ -771,7 +771,7 @@ void fts_delay(unsigned int ms)
 		msleep(ms);
 }
 
-void fts_command(struct fts_ts_info *info, unsigned char cmd)
+int fts_command(struct fts_ts_info *info, unsigned char cmd)
 {
 	unsigned char regAdd = 0;
 	int ret = 0;
@@ -779,6 +779,8 @@ void fts_command(struct fts_ts_info *info, unsigned char cmd)
 	regAdd = cmd;
 	ret = fts_write_reg(info, &regAdd, 1);
 	input_info(true, &info->client->dev, "%s: (%02X), ret = %d\n", __func__, cmd, ret);
+
+	return ret;
 }
 
 void fts_enable_feature(struct fts_ts_info *info, unsigned char cmd, int enable)
@@ -923,7 +925,7 @@ int fts_systemreset(struct fts_ts_info *info, unsigned int delay)
 
 }
 
-void fts_interrupt_set(struct fts_ts_info *info, int enable)
+int fts_interrupt_set(struct fts_ts_info *info, int enable)
 {
 	unsigned char regAdd[4] = { 0xB6, 0x00, 0x2C, enable };
 
@@ -935,7 +937,7 @@ void fts_interrupt_set(struct fts_ts_info *info, int enable)
 		input_info(true, &info->client->dev, "%s: Disable\n", __func__);
 	}
 
-	fts_write_reg(info, &regAdd[0], 4);
+	return fts_write_reg(info, &regAdd[0], 4);
 }
 
 static int fts_read_chip_id(struct fts_ts_info *info)
@@ -1157,6 +1159,10 @@ int fts_get_version_info(struct fts_ts_info *info)
 		}
 
 		if (retry++ > FTS_RETRY_COUNT) {
+			info->fw_version_of_ic = 0;
+			info->config_version_of_ic = 0;
+			info->ic_product_id = 0;
+			info->fw_main_version_of_ic = 0;
 			rc = -FTS_ERROR_TIMEOUT;
 			input_err(true, &info->client->dev, "%s: Time Over\n", __func__);
 			break;
@@ -2959,9 +2965,9 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 
 	device_init_wakeup(&client->dev, true);
 	info->probe_done = true;
-
+#ifdef FTS_SUPPORT_STRINGLIB
 	fts_check_custom_library(info);
-
+#endif
 	schedule_delayed_work(&info->work_read_info, msecs_to_jiffies(5 * MSEC_PER_SEC));
 
 #if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
@@ -3476,8 +3482,10 @@ static void fts_read_info_work(struct work_struct *work)
 {
 	struct fts_ts_info *info = container_of(work, struct fts_ts_info,
 						work_read_info.work);
+#ifdef FTS_SUPPORT_PRESSURE_SENSOR
 	unsigned char *data = NULL;
 	unsigned char index = 0;
+#endif
 	short minval = 0x7FFF;
 	short maxval = 0x8000;
 	int ret;
@@ -3500,9 +3508,10 @@ static void fts_read_info_work(struct work_struct *work)
 		input_err(true, &info->client->dev, "%s: failed to get result\n",
 			__func__);
 
-	input_info(true, &info->client->dev, "%s: test result:%02X, cal: %02X, fix ver:%04X\n",
+	input_raw_info(true, &info->client->dev, "%s: test result:%02X, cal: %02X, fix ver:%04X\n",
 		__func__, info->test_result.data[0], info->cal_count, info->tune_fix_ver);
 
+#ifdef FTS_SUPPORT_PRESSURE_SENSOR
 	ret = get_nvm_data(info, GROUP_INDEX, &index);
 
 	/*
@@ -3525,17 +3534,17 @@ static void fts_read_info_work(struct work_struct *work)
 		info->pressure_center = (short)(data[(index - 1) * 8 + 2] | ((data[(index - 1) * 8 + 3] << 8) & 0xFF00));
 		info->pressure_right = (short)(data[(index - 1) * 8 + 4] | ((data[(index - 1) * 8 + 5] << 8) & 0xFF00));
 
-		input_info(true, &info->client->dev, "%s: [pressure][index:%d]: %d, %d, %d\n",
+		input_raw_info(true, &info->client->dev, "%s: [pressure][index:%d]: %d, %d, %d\n",
 			__func__, index, info->pressure_left, info->pressure_center, info->pressure_right);
 	} else if (index == 0) {
-		input_info(true, &info->client->dev, "%s: [pressure] do not calibrated\n", __func__);
+		input_raw_info(true, &info->client->dev, "%s: [pressure] do not calibrated\n", __func__);
 	} else {
-		input_info(true, &info->client->dev, "%s: [pressure]: invalid index: %d\n",
+		input_raw_info(true, &info->client->dev, "%s: [pressure]: invalid index: %d\n",
 			__func__, index);
 	}
 	fts_panel_ito_test(info);
 
-	input_info(true, &info->client->dev, "%s: [ito] %02X, %02X, %02X, %02X\n",
+	input_raw_info(true, &info->client->dev, "%s: [ito] %02X, %02X, %02X, %02X\n",
 		__func__, info->ito_test[0], info->ito_test[1], info->ito_test[2], info->ito_test[3]);
 
 	fts_read_frame(info, TYPE_BASELINE_DATA, &minval, &maxval);
@@ -3553,6 +3562,11 @@ err_no_mem:
 //	input_log_fix();
 
 	return;
+#else
+	fts_read_frame(info, TYPE_BASELINE_DATA, &minval, &maxval);
+
+	return;
+#endif
 }
 
 static int fts_stop_device(struct fts_ts_info *info, bool lpmode)

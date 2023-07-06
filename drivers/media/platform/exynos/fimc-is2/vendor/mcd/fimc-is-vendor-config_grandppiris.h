@@ -1,7 +1,7 @@
 #ifndef FIMC_IS_VENDOR_CONFIG_A3XPREMIUM_H
 #define FIMC_IS_VENDOR_CONFIG_A3XPREMIUM_H
 
-#include "fimc-is-eeprom-rear-4h5yc_v001.h"
+#include "fimc-is-eeprom-rear-4h5yc_v002.h"
 #include "fimc-is-otprom-front-5e3_v001.h"
 
 #define VENDER_PATH

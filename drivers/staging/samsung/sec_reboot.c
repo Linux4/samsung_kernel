@@ -51,6 +51,7 @@ enum sec_reset_reason {
 	SEC_RESET_REASON_FOTA_BL   = (SEC_RESET_REASON_PREFIX | 0x6), /* update bootloader */
 	SEC_RESET_REASON_SECURE    = (SEC_RESET_REASON_PREFIX | 0x7), /* image secure check fail */
 	SEC_RESET_REASON_FWUP      = (SEC_RESET_REASON_PREFIX | 0x9), /* emergency firmware update */
+	SEC_RESET_REASON_BOOTLOADER      = (SEC_RESET_REASON_PREFIX | 0xd),
 	SEC_RESET_REASON_EMERGENCY = 0x0,
 	
 	#ifdef CONFIG_SEC_DEBUG_MDM_SEPERATE_CRASH
@@ -133,6 +134,9 @@ static void sec_power_off(void)
 			/* To enter LP charging */
 			exynos_pmu_write(EXYNOS_PMU_INFORM2, SEC_POWER_OFF);
 
+#ifdef CONFIG_SEC_DEBUG
+			sec_debug_reboot_handler();
+#endif
 			flush_cache_all();
 			mach_restart(REBOOT_SOFT, "sw reset");
 
@@ -144,6 +148,11 @@ static void sec_power_off(void)
 		/* wait for power button release */
 		if (gpio_get_value(powerkey_gpio)) {
 			pr_emerg("%s: set PS_HOLD low\n", __func__);
+
+#ifdef CONFIG_SEC_DEBUG
+			sec_debug_reboot_handler();
+			flush_cache_all();
+#endif
 
 			/* power off code
 			 * PS_HOLD Out/High -->
@@ -182,6 +191,8 @@ static void sec_reboot(enum reboot_mode reboot_mode, const char *cmd)
 			exynos_pmu_write(EXYNOS_PMU_INFORM3, SEC_RESET_REASON_RECOVERY);
 		else if (!strcmp(cmd, "download"))
 			exynos_pmu_write(EXYNOS_PMU_INFORM3, SEC_RESET_REASON_DOWNLOAD);
+		else if (!strcmp(cmd, "bootloader"))
+			exynos_pmu_write(EXYNOS_PMU_INFORM3, SEC_RESET_REASON_BOOTLOADER);
 		else if (!strcmp(cmd, "upload"))
 			exynos_pmu_write(EXYNOS_PMU_INFORM3, SEC_RESET_REASON_UPLOAD);
 		else if (!strcmp(cmd, "secure"))

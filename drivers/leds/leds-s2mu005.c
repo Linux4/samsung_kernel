@@ -31,6 +31,7 @@ bool assistive_light = false;
 bool front_assistive_light = false;
 int fled_selected_ch = S2MU005_FLED_OFF;
 #endif
+bool flash_config_factory;
 struct s2mu005_led_data * g_led_datas[S2MU005_LED_MAX];
 #define LED_TURN_OFF -1
 #define S2MU005_FLED_DEBUG
@@ -574,9 +575,18 @@ int s2mu005_led_mode_ctrl(int state)
 int s2mu005_led_mode_ctrl(int mode)
 {
 	struct s2mu005_led_data *led_data = g_led_datas[S2MU005_TORCH_LED];
+#ifdef CONFIG_S2MU005_LEDS_I2C
 	int value = 0;
 	int brightness = 0;
 	int ret = 0;
+#else
+	int gpio_torch = led_data->torch_pin;
+#endif
+
+	if (assistive_light == true) {
+		pr_info("%s : assistive_light is enabled \n", __func__);
+		return 0;
+	}
 
 	pr_info("%s : fled_selected_ch(%d), mode = %d\n", __func__,fled_selected_ch, mode);
 	if (fled_selected_ch == S2MU005_FLED_CH1) {
@@ -589,6 +599,7 @@ int s2mu005_led_mode_ctrl(int mode)
 		return 0;
 	}
 
+#ifdef CONFIG_S2MU005_LEDS_I2C
 	switch(mode) {
 		case S2MU005_FLED_MODE_OFF:
 			/* Turn off Torch */
@@ -609,20 +620,16 @@ int s2mu005_led_mode_ctrl(int mode)
 		default:
 			break;
 	}
-
+#if defined (CONFIG_CAMERA_J7VE) || defined (CONFIG_CAMERA_J5Y17)
+	//For control brightness of front flash led
 	ret = s2mu005_update_reg(led_data->i2c, S2MU005_REG_FLED_CH2_CTRL1,
 				brightness, S2MU005_TORCH_IOUT_MASK);
 	if (ret < 0)
 		goto error_set_bits;
-
-#ifdef CONFIG_S2MU005_LEDS_I2C
+#endif
 	ret = s2mu005_write_reg(led_data->i2c, CH_FLASH_TORCH_EN, value);
 	if (ret < 0)
 		goto error_set_bits;
-#else
-	value = S2MU005_CH2_TORCH_ON_GPIO;
-	s2mu005_write_reg(led_data->i2c, CH_FLASH_TORCH_EN, value);
-#endif
 
 	if (mode == S2MU005_FLED_MODE_OFF)
 		torch_led_on_off(0);
@@ -632,16 +639,38 @@ int s2mu005_led_mode_ctrl(int mode)
 error_set_bits:
 	pr_err("%s: can't set led level %d\n", __func__, ret);
 	return ret;
+#else
+	devm_gpio_request(led_data->cdev.dev, gpio_torch, "s2mu005_gpio_torch");
+
+	if ( mode == S2MU005_FLED_MODE_MOVIE || mode == S2MU005_FLED_MODE_FLASH) {
+		gpio_direction_output(gpio_torch, 1);
+		torch_led_on_off(1);
+	} else if (mode == S2MU005_FLED_MODE_OFF) {
+		gpio_direction_output(gpio_torch, 0);
+		torch_led_on_off(0);
+	}
+
+	gpio_free(gpio_torch);
+
+	return 0;
+#endif
 }
 #else
 int s2mu005_led_mode_ctrl(int state)
 {
+	struct s2mu005_led_data *led_data = g_led_datas[S2MU005_FLASH_LED];
 
 	pr_info("%s : state = %d\n", __func__, state);
 
 	if (assistive_light == true) {
 		pr_info("%s : assistive_light is enabled \n", __func__);
 		return 0;
+	}
+
+	/* enable safty timer : addr 0x3B, data 0x00 */
+	if (flash_config_factory == true) {
+		s2mu005_write_reg(led_data->i2c, 0x3B, 0x00);
+		flash_config_factory = false;
 	}
 
 	switch(state) {
@@ -664,13 +693,49 @@ int s2mu005_led_mode_ctrl(int state)
 #endif
 
 #ifdef CONFIG_LEDS_SUPPORT_FRONT_FLASH
+int s2mu005_led_set_front_flash_brightness(int brightness)	/*For control brightness of front flash led*/
+{
+	struct s2mu005_led_data *led_data = g_led_datas[S2MU005_TORCH_LED];
+	int ret = 0;
+	pr_emerg("[s]g %s begin\n", __func__);
+
+	//printk("Change Frontflash LED receive br = %d  read data = %d\n", brightness, led_data->front_brightness);
+
+	led_data->front_brightness = brightness;
+
+	if (brightness >= 25) {
+		pr_info("[s]g %s brightness : %d\n", __func__, brightness);
+		ret = s2mu005_update_reg(led_data->i2c, S2MU005_REG_FLED_CH2_CTRL1,
+					S2MU005_TORCH_BRIGHTNESS(brightness), S2MU005_TORCH_IOUT_MASK);
+		if (ret < 0)
+			goto error_set_bits;
+	} else {
+		pr_info("[s]g %s brightness not changed %d\n", __func__, brightness);
+	}
+	pr_info("[s]g %s end %d\n", __func__, S2MU005_TORCH_BRIGHTNESS(brightness));
+	return 0;
+
+error_set_bits:
+	pr_err("%s: can't set led level %d\n", __func__, ret);
+
+	return ret;
+}
+
 int s2mu005_led_select_ctrl(int ch)
 {
 	struct s2mu005_led_data *led_data = g_led_datas[S2MU005_FLASH_LED];
 	int value = 0;
+#ifndef CONFIG_S2MU005_LEDS_I2C
+	int gpio_torch = led_data->torch_pin;
+	int gpio_flash = led_data->flash_pin;
+#endif
 
 	pr_info("%s : selected(%d) %s\n", __func__, ch, ch == S2MU005_FLED_CH1 ? "FLED1" :
 									(ch == S2MU005_FLED_CH2 ?  "FLED2" : "OFF"));
+
+	/* enable safty timer : addr 0x3B, data 0x00 */
+	if (flash_config_factory == true)
+		s2mu005_write_reg(led_data->i2c, 0x3B, 0x00);
 
 	fled_selected_ch = ch;
 	if (assistive_light == true) {
@@ -691,10 +756,32 @@ int s2mu005_led_select_ctrl(int ch)
 		s2mu005_update_reg(led_data->i2c, S2MU005_REG_FLED_CH1_CTRL1,
 			led_data->preflash_brightness, S2MU005_TORCH_IOUT_MASK);
 	} else if (ch == S2MU005_FLED_CH2) {
+#ifndef CONFIG_S2MU005_LEDS_I2C
+		s2mu005_write_reg(led_data->i2c, CH_FLASH_TORCH_EN,
+			S2MU005_CH2_TORCH_ON_GPIO);
+#endif
 		/* brightness set - front torch*/
+#if defined (CONFIG_CAMERA_J7VE) || defined (CONFIG_CAMERA_J5Y17)
 		s2mu005_update_reg(led_data->i2c, S2MU005_REG_FLED_CH2_CTRL1,
 			led_data->front_brightness, S2MU005_TORCH_IOUT_MASK);
+	/*For control brightness of front flash led*/
+#endif
 	} else {
+#ifndef CONFIG_S2MU005_LEDS_I2C
+		devm_gpio_request(led_data->cdev.dev, gpio_flash, "s2mu005_gpio_flash");
+		devm_gpio_request(led_data->cdev.dev, gpio_torch, "s2mu005_gpio_torch");
+
+		pr_info("%s : gpio_flash = %d\n", __func__, gpio_flash);
+		pr_info("%s : gpio_torch = %d\n", __func__, gpio_torch);
+
+		gpio_direction_output(gpio_flash, 0);
+		gpio_direction_output(gpio_torch, 0);
+		torch_led_on_off(0);
+
+		gpio_free(gpio_flash);
+		gpio_free(gpio_torch);
+
+#endif
 		value = S2MU005_FLASH_TORCH_OFF;
 		s2mu005_write_reg(led_data->i2c, CH_FLASH_TORCH_EN, value);
 		/* brightness set - Rear pre-flash(default)*/
@@ -750,15 +837,18 @@ static ssize_t rear_flash_store(struct device *dev,
 	pr_info("[LED]%s , value:%d\n", __func__, value);
 	mutex_lock(&led_data->lock);
 
-	if (led_data->data->id == S2MU005_FLASH_LED) {
-		pr_info("%s : flash is not controlled by sysfs", __func__);
-		goto err;
-	}
-
 	if (value == 0) {
 		/* Turn off Torch */
 		brightness = LED_TURN_OFF;
 		assistive_light = false;
+
+		if (flash_config_factory == true) {
+			/* enable safty timer : addr 0x3B, data 0x00 */
+			led_data = g_led_datas[S2MU005_FLASH_LED];
+			led_cdev = &led_data->cdev;
+			s2mu005_write_reg(led_data->i2c, 0x3B, 0x00);
+			flash_config_factory = false;
+		}
 	} else if (value == 1) {
 		/* Turn on Torch */
 		brightness = led_data->torch_brightness;
@@ -767,6 +857,15 @@ static ssize_t rear_flash_store(struct device *dev,
 		/* Factory mode Turn on Torch */
 		brightness = led_data->factory_brightness;
 		assistive_light = true;
+	} else if (value == 200) {
+		/* Factory mode Turn on Flash */
+		led_data = g_led_datas[S2MU005_FLASH_LED];
+		led_cdev = &led_data->cdev;
+		brightness = led_data->factory_brightness;
+		assistive_light = true;
+		/* disable safty timer : addr 0x3B, data 0xC0 */
+		s2mu005_write_reg(led_data->i2c, 0x3B, 0xC0);
+		flash_config_factory = true;
 	} else if (1001 <= value && value <= 1010) {
 		/* (value) 1001, 1002, 1004, 1006, 1009 */
 		if (value <= 1001)
@@ -778,7 +877,11 @@ static ssize_t rear_flash_store(struct device *dev,
 		else if (value <= 1006)
 			torch_current = 100;
 		else if (value <= 1009)
+#if defined (CONFIG_CAMERA_J6) || defined (CONFIG_CAMERA_J7TOP)
+			torch_current = 125;
+#else
 			torch_current = 150;
+#endif
 		else
 			torch_current = 50;
 
@@ -810,12 +913,14 @@ static ssize_t rear_flash_store(struct device *dev,
 #endif
 	s2mu005_led_set(led_cdev, brightness);
 
+	led_data = g_led_datas[S2MU005_TORCH_LED];
 	mutex_unlock(&led_data->lock);
 	return size;
 
 err:
 	pr_err("%s : led abnormal end\n", __func__);
 
+	led_data = g_led_datas[S2MU005_TORCH_LED];
 	mutex_unlock(&led_data->lock);
 	return size;
 }
@@ -982,7 +1087,12 @@ static int s2mu005_led_dt_parse_pdata(struct device *dev,
 	dev_info(dev, "factory_current = <%d>, brightness = %x\n", temp, pdata->factory_brightness);
 
 #if defined(CONFIG_LEDS_SUPPORT_FRONT_FLASH)
+#if defined(CONFIG_SEC_FACTORY)
+	if (of_property_read_u32(np, "factory_front_torch_current", &temp) < 0)
+		ret = of_property_read_u32(np, "front_torch_current", &temp);
+#else
 	ret = of_property_read_u32(np, "front_torch_current", &temp);
+#endif
 	if (ret < 0)
 		goto dt_err;
 	pdata->front_brightness = S2MU005_TORCH_BRIGHTNESS(temp);

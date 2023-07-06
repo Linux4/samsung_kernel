@@ -24,12 +24,12 @@
 extern struct class *camera_class; /*sys/class/camera*/
 struct device *irled_dev;
 
-struct ktd2692_platform_data *global_ktd2692data;
+static struct ktd2692_platform_data *global_ktd2692data;
 struct device *ktd2692_dev;
 
 int ktd2692_set_current(unsigned int value);
 
-void ktd2692_setGpio(int onoff)
+static void ktd2692_setGpio(int onoff)
 {
 	if (onoff) {
 		__gpio_set_value(global_ktd2692data->flash_control, 1); /* enable IC */
@@ -40,20 +40,20 @@ void ktd2692_setGpio(int onoff)
 	}
 }
 
-void ktd2692_set_low_bit(void)
+static void ktd2692_set_low_bit(void)
 {
 	__gpio_set_value(global_ktd2692data->flash_control, 0);
-	ndelay(T_L_LB*1000);	/* 12ms */
+	udelay(T_L_LB);	/* 12ms */
 	__gpio_set_value(global_ktd2692data->flash_control, 1);
-	ndelay(T_H_LB*1000);	/* 4ms */
+	udelay(T_H_LB);	/* 4ms */
 }
 
-void ktd2692_set_high_bit(void)
+static void ktd2692_set_high_bit(void)
 {
 	__gpio_set_value(global_ktd2692data->flash_control, 0);
-	ndelay(T_L_HB*1000);	/* 4ms */
+	udelay(T_L_HB);	/* 4ms */
 	__gpio_set_value(global_ktd2692data->flash_control, 1);
-	ndelay(T_H_HB*1000);	/* 12ms */
+	udelay(T_H_HB);	/* 12ms */
 }
 
 static int ktd2692_set_bit(unsigned int bit)

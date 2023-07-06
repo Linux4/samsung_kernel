@@ -12,9 +12,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
- *  MA  02110-1301, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 /************************************************************************/
@@ -85,7 +83,7 @@ static inline int amap_remove_from_list(AU_INFO_T *au, struct slist_head *shead)
 }
 
 /* Full-linear serach => Find AU with max. number of fclu */
-static inline AU_INFO_T* amap_find_hot_au_largest(struct slist_head *shead)
+static inline AU_INFO_T *amap_find_hot_au_largest(struct slist_head *shead)
 {
 	struct slist_head *iter;
 	uint16_t max_fclu = 0;
@@ -98,7 +96,7 @@ static inline AU_INFO_T* amap_find_hot_au_largest(struct slist_head *shead)
 
 	while (iter) {
 		entry = list_entry(iter, AU_INFO_T, shead);
-		
+
 		if (entry->free_clusters > max_fclu) {
 			max_fclu = entry->free_clusters;
 			ret = entry;
@@ -111,8 +109,9 @@ static inline AU_INFO_T* amap_find_hot_au_largest(struct slist_head *shead)
 }
 
 /* Find partially used AU with max. number of fclu.
-   If there is no partial AU available, pick a clean one */
-static inline AU_INFO_T* amap_find_hot_au_partial(AMAP_T *amap)
+ * If there is no partial AU available, pick a clean one
+ */
+static inline AU_INFO_T *amap_find_hot_au_partial(AMAP_T *amap)
 {
 	struct slist_head *iter;
 	uint16_t max_fclu = 0;
@@ -126,7 +125,7 @@ static inline AU_INFO_T* amap_find_hot_au_partial(AMAP_T *amap)
 
 	while (iter) {
 		entry = list_entry(iter, AU_INFO_T, shead);
-		
+
 		if (entry->free_clusters > max_fclu) {
 			if (entry->free_clusters < amap->clusters_per_au) {
 				max_fclu = entry->free_clusters;
@@ -147,13 +146,13 @@ static inline AU_INFO_T* amap_find_hot_au_partial(AMAP_T *amap)
 
 
 /*
-	Size-base AU management functions
-*/
+ * Size-base AU management functions
+ */
 
 /*
-	Add au into cold AU MAP
-	au: an isolated (not in a list) AU data structure
-*/
+ * Add au into cold AU MAP
+ * au: an isolated (not in a list) AU data structure
+ */
 int amap_add_cold_au(AMAP_T *amap, AU_INFO_T *au)
 {
 	FCLU_NODE_T *fclu_node = NULL;
@@ -179,9 +178,9 @@ int amap_add_cold_au(AMAP_T *amap, AU_INFO_T *au)
 }
 
 /*
-	Remove an AU from AU MAP
-*/
-int amap_remove_cold_au(AMAP_T *amap, AU_INFO_T* au)
+ * Remove an AU from AU MAP
+ */
+int amap_remove_cold_au(AMAP_T *amap, AU_INFO_T *au)
 {
 	struct list_head *prev = au->head.prev;
 
@@ -198,13 +197,13 @@ int amap_remove_cold_au(AMAP_T *amap, AU_INFO_T* au)
 }
 
 
-/*  "Find" best fit AU
-	returns NULL if there is no AU w/ enough free space.
-
-	This function doesn't change AU status.
-	The caller should call amap_remove_cold_au() if needed.
-*/
-AU_INFO_T* amap_find_cold_au_bestfit(AMAP_T *amap, uint16_t free_clusters)
+/* "Find" best fit AU
+ * returns NULL if there is no AU w/ enough free space.
+ *
+ * This function doesn't change AU status.
+ * The caller should call amap_remove_cold_au() if needed.
+ */
+AU_INFO_T *amap_find_cold_au_bestfit(AMAP_T *amap, uint16_t free_clusters)
 {
 	AU_INFO_T *au = NULL;
 	FCLU_NODE_T *fclu_iter;
@@ -214,7 +213,7 @@ AU_INFO_T* amap_find_cold_au_bestfit(AMAP_T *amap, uint16_t free_clusters)
 				free_clusters);
 		return NULL;
 	}
-	
+
 	fclu_iter = NODE(free_clusters, amap);
 
 	if (amap->fclu_hint < free_clusters) {
@@ -243,14 +242,15 @@ AU_INFO_T* amap_find_cold_au_bestfit(AMAP_T *amap, uint16_t free_clusters)
 }
 
 
-/*  "Pop" best fit AU
-	returns NULL if there is no AU w/ enough free space.
-	The returned AU will not be in the list anymore.
-*/
-AU_INFO_T* amap_pop_cold_au_bestfit(AMAP_T *amap, uint16_t free_clusters)
+/* "Pop" best fit AU
+ *
+ * returns NULL if there is no AU w/ enough free space.
+ * The returned AU will not be in the list anymore.
+ */
+AU_INFO_T *amap_pop_cold_au_bestfit(AMAP_T *amap, uint16_t free_clusters)
 {
 	/* Naive implementation */
-	AU_INFO_T* au;
+	AU_INFO_T *au;
 
 	au = amap_find_cold_au_bestfit(amap, free_clusters);
 	if (au)
@@ -262,15 +262,14 @@ AU_INFO_T* amap_pop_cold_au_bestfit(AMAP_T *amap, uint16_t free_clusters)
 
 
 /* Pop the AU with the largest free space
-
-	search from 'start_fclu' to 0
-	(target freecluster : -1 for each step)
-
-	start_fclu = 0 means to search from the max. value
-*/
-AU_INFO_T* amap_pop_cold_au_largest(AMAP_T *amap, uint16_t start_fclu)
+ *
+ * search from 'start_fclu' to 0
+ * (target freecluster : -1 for each step)
+ * start_fclu = 0 means to search from the max. value
+ */
+AU_INFO_T *amap_pop_cold_au_largest(AMAP_T *amap, uint16_t start_fclu)
 {
-	AU_INFO_T* au = NULL;
+	AU_INFO_T *au = NULL;
 	FCLU_NODE_T *fclu_iter;
 
 	if (!start_fclu)
@@ -283,7 +282,7 @@ AU_INFO_T* amap_pop_cold_au_largest(AMAP_T *amap, uint16_t start_fclu)
 		fclu_iter = NODE(amap->fclu_hint, amap);
 	else
 		fclu_iter = NODE(start_fclu, amap);
-		
+
 	/* Naive Hash management */
 	do {
 		if (!list_empty(&fclu_iter->head)) {
@@ -311,10 +310,10 @@ AU_INFO_T* amap_pop_cold_au_largest(AMAP_T *amap, uint16_t start_fclu)
 
 
 /*
-===============================================
-	Allocation Map related functions
-===============================================
-*/
+ * ===============================================
+ * Allocation Map related functions
+ * ===============================================
+ */
 
 /* Create AMAP related data structure (mount time) */
 int amap_create(struct super_block *sb, u32 pack_ratio, u32 sect_per_au, u32 hidden_sect)
@@ -326,6 +325,7 @@ int amap_create(struct super_block *sb, u32 pack_ratio, u32 sect_per_au, u32 hid
 	int i, i_clu, i_au;
 	int i_au_root = -1, i_au_hot_from = INT_MAX;
 	u32 misaligned_sect = hidden_sect;
+	u64 tmp;
 
 	BUG_ON(!fsi->bd_opened);
 
@@ -350,7 +350,7 @@ int amap_create(struct super_block *sb, u32 pack_ratio, u32 sect_per_au, u32 hid
 		sdfat_msg(sb, KERN_ERR,
 			"invalid AU size (sect_per_au : %u, "
 			"sect_per_clus : %u) "
-			"please re-format for performance.", 
+			"please re-format for performance.",
 			sect_per_au, fsi->sect_per_clus);
 		return -EINVAL;
 	}
@@ -360,7 +360,7 @@ int amap_create(struct super_block *sb, u32 pack_ratio, u32 sect_per_au, u32 hid
 		sdfat_msg(sb, KERN_ERR,
 			"misaligned part (start sect : %u, "
 			"sect_per_clus : %u) "
-			"please re-format for performance.", 
+			"please re-format for performance.",
 			misaligned_sect, fsi->sect_per_clus);
 		return -EINVAL;
 	}
@@ -368,9 +368,9 @@ int amap_create(struct super_block *sb, u32 pack_ratio, u32 sect_per_au, u32 hid
 	/* data start sector must be a multiple of clu_size */
 	if (fsi->data_start_sector & (fsi->sect_per_clus - 1)) {
 		sdfat_msg(sb, KERN_ERR,
-			"misaligned data area (start sect : %u, "
+			"misaligned data area (start sect : %llu, "
 			"sect_per_clus : %u) "
-			"please re-format for performance.", 
+			"please re-format for performance.",
 			fsi->data_start_sector, fsi->sect_per_clus);
 		return -EINVAL;
 	}
@@ -383,22 +383,25 @@ int amap_create(struct super_block *sb, u32 pack_ratio, u32 sect_per_au, u32 hid
 		return -ENOMEM;
 
 	amap->sb = sb;
-	
-	amap->n_au = (fsi->num_sectors + misaligned_sect + sect_per_au - 1) / sect_per_au;
+
+	tmp = fsi->num_sectors + misaligned_sect + sect_per_au - 1;
+	do_div(tmp, sect_per_au);
+	amap->n_au = tmp;
 	amap->n_clean_au = 0;
 	amap->n_full_au = 0;
 
-	/*	Reflect block-partition align first,
-		then partition-data_start align			*/
+	/* Reflect block-partition align first,
+	 * then partition-data_start align
+	 */
 	amap->clu_align_bias = (misaligned_sect / fsi->sect_per_clus);
 	amap->clu_align_bias += (fsi->data_start_sector >> fsi->sect_per_clus_bits) - CLUS_BASE;
 	amap->clusters_per_au = sect_per_au / fsi->sect_per_clus;
 
-	/* That is, 
+	/* That is,
 	 * the size of cluster is at least 4KB if the size of AU is 4MB
 	 */
 	if (amap->clusters_per_au > MAX_CLU_PER_AU) {
-		sdfat_log_msg(sb, KERN_INFO, 
+		sdfat_log_msg(sb, KERN_INFO,
 			"too many clusters per AU (clus/au:%d > %d).",
 		       amap->clusters_per_au,
 		       MAX_CLU_PER_AU);
@@ -417,7 +420,6 @@ int amap_create(struct super_block *sb, u32 pack_ratio, u32 sect_per_au, u32 hid
 	/* Allocate AU info table */
 	n_au_table = (amap->n_au + N_AU_PER_TABLE - 1) / N_AU_PER_TABLE;
 	amap->au_table = kmalloc(sizeof(AU_INFO_T *) * n_au_table, GFP_NOIO);
-
 	if (!amap->au_table) {
 		sdfat_msg(sb, KERN_ERR,
 			"failed to alloc amap->au_table\n");
@@ -439,9 +441,9 @@ int amap_create(struct super_block *sb, u32 pack_ratio, u32 sect_per_au, u32 hid
 			(unsigned long)sizeof(FCLU_NODE_T));
 
 	if (!amap->fclu_order)
-		amap->fclu_nodes = (FCLU_NODE_T*)get_zeroed_page(GFP_NOIO);
-	else 
-		amap->fclu_nodes = (FCLU_NODE_T*)vzalloc(PAGE_SIZE << amap->fclu_order);
+		amap->fclu_nodes = (FCLU_NODE_T *)get_zeroed_page(GFP_NOIO);
+	else
+		amap->fclu_nodes = vzalloc(PAGE_SIZE << amap->fclu_order);
 
 	amap->fclu_hint = amap->clusters_per_au;
 
@@ -468,16 +470,15 @@ int amap_create(struct super_block *sb, u32 pack_ratio, u32 sect_per_au, u32 hid
 	for (i = 0; i < amap->clusters_per_au; i++)
 		INIT_LIST_HEAD(&amap->fclu_nodes[i].head);
 
-
 	/*
-	  Thanks to kzalloc()
-	  amap->entries[i_au].free_clusters = 0;
-	  amap->entries[i_au].head.prev = NULL;
-	  amap->entries[i_au].head.next = NULL;
-	*/
-	
+	 * Thanks to kzalloc()
+	 * amap->entries[i_au].free_clusters = 0;
+	 * amap->entries[i_au].head.prev = NULL;
+	 * amap->entries[i_au].head.next = NULL;
+	 */
+
 	/* Parse FAT table */
-	for (i_clu = CLUS_BASE; i_clu < fsi->num_clusters; i_clu++){
+	for (i_clu = CLUS_BASE; i_clu < fsi->num_clusters; i_clu++) {
 		u32 clu_data;
 		AU_INFO_T *au;
 
@@ -486,7 +487,7 @@ int amap_create(struct super_block *sb, u32 pack_ratio, u32 sect_per_au, u32 hid
 				"failed to read fat entry(%u)\n", i_clu);
 			goto free_and_eio;
 		}
-		
+
 		if (IS_CLUS_FREE(clu_data)) {
 			au = GET_AU(amap, i_AU_of_CLU(amap, i_clu));
 			au->free_clusters++;
@@ -495,7 +496,7 @@ int amap_create(struct super_block *sb, u32 pack_ratio, u32 sect_per_au, u32 hid
 	}
 
 	/* Build AU list */
-	for (i_au = 0; i_au < amap->n_au; i_au++){
+	for (i_au = 0; i_au < amap->n_au; i_au++) {
 		AU_INFO_T *au = GET_AU(amap, i_au);
 
 		au->idx = i_au;
@@ -522,13 +523,12 @@ int amap_create(struct super_block *sb, u32 pack_ratio, u32 sect_per_au, u32 hid
 		amap->total_fclu_hot += GET_AU(amap, i_au_root)->free_clusters;
 	}
 
-	
 	fsi->amap = amap;
 	fsi->used_clusters = total_used_clusters;
 
-	sdfat_msg(sb, KERN_INFO, 
+	sdfat_msg(sb, KERN_INFO,
 			"AMAP: Smart allocation enabled (opt : %u / %u / %u)",
-			amap->option.au_size, amap->option.au_align_factor, 
+			amap->option.au_size, amap->option.au_align_factor,
 			amap->option.packing_ratio);
 
 	/* Debug purpose - check */
@@ -575,6 +575,7 @@ void amap_destroy(struct super_block *sb)
 
 	if (amap->au_table) {
 		int i;
+
 		for (i = 0; i < n_au_table; i++)
 			free_page((unsigned long)amap->au_table[i]);
 
@@ -586,16 +587,14 @@ void amap_destroy(struct super_block *sb)
 		vfree(amap->fclu_nodes);
 	kfree(amap);
 	SDFAT_SB(sb)->fsi.amap = NULL;
-
-	return;
 }
 
 
 /*
-	Check status of FS
-	and change destination if needed to disable AU-aligned alloc.
-	(from ALLOC_COLD_ALIGNED to ALLOC_COLD_SEQ)
-*/
+ * Check status of FS
+ * and change destination if needed to disable AU-aligned alloc.
+ * (from ALLOC_COLD_ALIGNED to ALLOC_COLD_SEQ)
+ */
 static inline int amap_update_dest(AMAP_T *amap, int ori_dest)
 {
 	FS_INFO_T *fsi = &(SDFAT_SB(amap->sb)->fsi);
@@ -609,23 +608,22 @@ static inline int amap_update_dest(AMAP_T *amap, int ori_dest)
 	n_partial_freeclus = fsi->num_clusters - fsi->used_clusters -
 				amap->clusters_per_au * amap->n_clean_au;
 
-	/*	Status of AUs : Full / Partial / Clean
-		If there are many partial (and badly fragmented) AUs,
-		the throughput will decrease extremly.
+	/* Status of AUs : Full / Partial / Clean
+	 * If there are many partial (and badly fragmented) AUs,
+	 * the throughput will decrease extremly.
+	 *
+	 * The follow code will treat those worst cases.
+	 */
 
-		The follow code will treat those worst cases.
-	*/
-	
-	// XXX: AMAP heuristics
+	/* XXX: AMAP heuristics */
 	if ((amap->n_clean_au * 50 <= amap->n_au) &&
 		(n_partial_freeclus*2) < (n_partial_au*amap->clusters_per_au)) {
 		/* If clean AUs are fewer than 2% of n_au (80 AUs per 16GB)
-		   and fragment ratio is more than 2 (AVG free_clusters=half AU)
-
-			disable clean-first allocation
-			enable VFAT-like sequential allocation
-		*/
-		
+		 * and fragment ratio is more than 2 (AVG free_clusters=half AU)
+		 *
+		 * disable clean-first allocation
+		 * enable VFAT-like sequential allocation
+		 */
 		return ALLOC_COLD_SEQ;
 	}
 
@@ -635,39 +633,37 @@ static inline int amap_update_dest(AMAP_T *amap, int ori_dest)
 
 #define PACKING_SOFTLIMIT      (amap->option.packing_ratio)
 #define PACKING_HARDLIMIT      (amap->option.packing_ratio * 4)
-/* 	
-	Pick a packing AU if needed.
-	Otherwise just return NULL
-
-	This function includes some heuristics.
-*/
-static inline AU_INFO_T* amap_get_packing_au(AMAP_T *amap, int dest, int num_to_wb, int *clu_to_skip)
+/*
+ * Pick a packing AU if needed.
+ * Otherwise just return NULL
+ *
+ * This function includes some heuristics.
+ */
+static inline AU_INFO_T *amap_get_packing_au(AMAP_T *amap, int dest, int num_to_wb, int *clu_to_skip)
 {
-	AU_INFO_T* au = NULL;
+	AU_INFO_T *au = NULL;
 
 	if (dest == ALLOC_COLD_PACKING) {
-		/*	ALLOC_COLD_PACKING:
-			Packing-first mode for defrag.
-			Optimized to save clean AU
-
-			1) best-fit AU
-			2) Smallest AU (w/ minimum free clusters)
-		*/
-
+		/* ALLOC_COLD_PACKING:
+		 * Packing-first mode for defrag.
+		 * Optimized to save clean AU
+		 *
+		 * 1) best-fit AU
+		 * 2) Smallest AU (w/ minimum free clusters)
+		 */
 		if (num_to_wb >= amap->clusters_per_au)
-			num_to_wb = num_to_wb % amap->clusters_per_au;			
-		
+			num_to_wb = num_to_wb % amap->clusters_per_au;
+
 		/* 이거 주석처리하면, AU size 딱 맞을때는 clean, 나머지는 작은거부터 */
 		if (num_to_wb == 0)
 			num_to_wb = 1;		// Don't use clean AUs
-		
-		au = amap_find_cold_au_bestfit(amap, num_to_wb);
 
+		au = amap_find_cold_au_bestfit(amap, num_to_wb);
 		if (au && au->free_clusters == amap->clusters_per_au && num_to_wb > 1) {
-			// if au is clean then get a new partial one 
+			/* if au is clean then get a new partial one */
 			au = amap_find_cold_au_bestfit(amap, 1);
 		}
-		
+
 		if (au) {
 			amap->n_need_packing = 0;
 			amap_remove_cold_au(amap, au);
@@ -676,28 +672,27 @@ static inline AU_INFO_T* amap_get_packing_au(AMAP_T *amap, int dest, int num_to_
 	}
 
 
-	/*	Heuristic packing:
-		This will improve QoS greatly.
-
-		Count # of AU_ALLIGNED allocation.
-		If the number exceeds the specific threshold,
-		allocate on a partial AU or generate random I/O.
-	*/
-	if ((PACKING_SOFTLIMIT > 0) && \
-		(amap->n_need_packing >= PACKING_SOFTLIMIT) && \
-		(num_to_wb < (int)amap->clusters_per_au) ){ 
+	/* Heuristic packing:
+	 * This will improve QoS greatly.
+	 *
+	 * Count # of AU_ALIGNED allocation.
+	 * If the number exceeds the specific threshold,
+	 * allocate on a partial AU or generate random I/O.
+	 */
+	if ((PACKING_SOFTLIMIT > 0) &&
+		(amap->n_need_packing >= PACKING_SOFTLIMIT) &&
+		(num_to_wb < (int)amap->clusters_per_au)) {
 		/* Best-fit packing:
-			If num_to_wb (expected number to be allocated) is smaller than AU_SIZE,
-			find a best-fit AU.
-		*/
+		 * If num_to_wb (expected number to be allocated) is smaller
+		 * than AU_SIZE, find a best-fit AU.
+		 */
 
-		// Back margin (heuristics)
+		/* Back margin (heuristics) */
 		if (num_to_wb < amap->clusters_per_au / 4)
 			num_to_wb = amap->clusters_per_au / 4;
 
 		au = amap_find_cold_au_bestfit(amap, num_to_wb);
-
-		if ((au != NULL)) {
+		if (au != NULL) {
 			amap_remove_cold_au(amap, au);
 
 			MMSG("AMAP: packing (cnt: %d) / softlimit, "
@@ -712,16 +707,14 @@ static inline AU_INFO_T* amap_get_packing_au(AMAP_T *amap, int dest, int num_to_
 			return au;
 		}
 	}
-		
-	if (PACKING_HARDLIMIT != 0 && \
-		amap->n_need_packing >= PACKING_HARDLIMIT) {
-		/* Compulsory SLC flushing:
-			If there was no chance to do best-fit packing
-			   and the # of AU-aligned allocation exceeds HARD threshold,
-			then pick a clean AU and generate a compulsory random I/O.
-		*/
-		au = amap_pop_cold_au_largest(amap, amap->clusters_per_au);
 
+	if ((PACKING_HARDLIMIT) && amap->n_need_packing >= PACKING_HARDLIMIT) {
+		/* Compulsory SLC flushing:
+		 * If there was no chance to do best-fit packing
+		 * and the # of AU-aligned allocation exceeds HARD threshold,
+		 * then pick a clean AU and generate a compulsory random I/O.
+		 */
+		au = amap_pop_cold_au_largest(amap, amap->clusters_per_au);
 		if (au) {
 			MMSG("AMAP: packing (cnt: %d) / hard-limit, largest)\n",
 				amap->n_need_packing);
@@ -741,9 +734,10 @@ static inline AU_INFO_T* amap_get_packing_au(AMAP_T *amap, int dest, int num_to_
 }
 
 
-/* Pick a target AU 
-   - This function should be called only if there are one or more free clusters in the bdev.
-*/
+/* Pick a target AU:
+ * This function should be called
+ * only if there are one or more free clusters in the bdev.
+ */
 TARGET_AU_T *amap_get_target_au(AMAP_T *amap, int dest, int num_to_wb)
 {
 	int loop_count = 0;
@@ -751,10 +745,9 @@ TARGET_AU_T *amap_get_target_au(AMAP_T *amap, int dest, int num_to_wb)
 retry:
 	if (++loop_count >= 3) {
 		/* No space available (or AMAP consistency error)
-			This could happen because of the ignored AUs
-			but not likely
-			(because the defrag daemon will not work if there is no enough space)
-		*/
+		 * This could happen because of the ignored AUs but not likely
+		 * (because the defrag daemon will not work if there is no enough space)
+		 */
 		BUG_ON(amap->slist_ignored.next == NULL);
 		return NULL;
 	}
@@ -787,13 +780,12 @@ retry:
 		return &amap->cur_hot;
 	}
 
-	
 	/* Cold allocation:
-		If amap->cur_cold.au has one or more free cluster(s),
-		then just return amap->cur_cold
-	*/
-	if ( (!amap->cur_cold.au)	\
-		|| (amap->cur_cold.idx == amap->clusters_per_au)	\
+	 * If amap->cur_cold.au has one or more free cluster(s),
+	 * then just return amap->cur_cold
+	 */
+	if ((!amap->cur_cold.au)
+		|| (amap->cur_cold.idx == amap->clusters_per_au)
 		|| (amap->cur_cold.au->free_clusters == 0)) {
 
 		AU_INFO_T *au = NULL;
@@ -802,20 +794,21 @@ retry:
 
 		if (old_au) {
 			ASSERT(!IS_AU_WORKING(old_au, amap));
-			// must be NOT WORKING AU. (only for information gathering)
+			/* must be NOT WORKING AU.
+			 * (only for information gathering)
+			 */
 		}
 
 		/* Next target AU is needed:
-			There are 3 possible ALLOC options for cold AU
-			
-			ALLOC_COLD_ALGINED: Clean AU first, but heuristic packing is ON
-			ALLOC_COLD_PACKING: Packing AU first (usually for defrag)
-			ALLOC_COLD_SEQ    : Sequential AU allocation (VFAT-like)
-		*/
-
+		 * There are 3 possible ALLOC options for cold AU
+		 *
+		 * ALLOC_COLD_ALIGNED: Clean AU first, but heuristic packing is ON
+		 * ALLOC_COLD_PACKING: Packing AU first (usually for defrag)
+		 * ALLOC_COLD_SEQ    : Sequential AU allocation (VFAT-like)
+		 */
 
 		/* Experimental: Modify allocation destination if needed (ALIGNED => SEQ) */
-		//	dest = amap_update_dest(amap, dest);
+		// dest = amap_update_dest(amap, dest);
 
 		if ((dest == ALLOC_COLD_SEQ) && old_au) {
 			int i_au = old_au->idx + 1;
@@ -823,10 +816,9 @@ retry:
 			while (i_au != old_au->idx) {
 				au = GET_AU(amap, i_au);
 
-				if ((au->free_clusters > 0) && 
-					!IS_AU_HOT(au, amap) && 
+				if ((au->free_clusters > 0) &&
+					!IS_AU_HOT(au, amap) &&
 					!IS_AU_IGNORED(au, amap)) {
-				
 					MMSG("AMAP: new cold AU(%d) with %d "
 					     "clusters (seq)\n",
 						au->idx, au->free_clusters);
@@ -845,9 +837,9 @@ retry:
 		}
 
 
-		/* 
-		 * Check if packing is needed 
-		 * (ALLOC_COLD_PACKING is treated by this function) 
+		/*
+		 * Check if packing is needed
+		 * (ALLOC_COLD_PACKING is treated by this function)
 		 */
 		au = amap_get_packing_au(amap, dest, num_to_wb, &n_clu_to_skip);
 		if (au) {
@@ -855,14 +847,13 @@ retry:
 				"(packing)\n", au->idx, au->free_clusters);
 			goto ret_new_cold;
 		}
-	
+
 		/* ALLOC_COLD_ALIGNED */
 		/* Check if the adjacent AU is clean */
 		if (old_au && ((old_au->idx + 1) < amap->n_au)) {
 			au = GET_AU(amap, old_au->idx + 1);
-			
-			if ((au->free_clusters == amap->clusters_per_au) && 
-						!IS_AU_HOT(au, amap) && 
+			if ((au->free_clusters == amap->clusters_per_au) &&
+						!IS_AU_HOT(au, amap) &&
 						!IS_AU_IGNORED(au, amap)) {
 				MMSG("AMAP: new cold AU(%d) with %d clusters "
 					"(adjacent)\n", au->idx, au->free_clusters);
@@ -879,7 +870,7 @@ retry:
 			goto retry;
 		}
 
-		MMSG("AMAP: New cold AU (%d) with %d clusters\n", \
+		MMSG("AMAP: New cold AU (%d) with %d clusters\n",
 				au->idx, au->free_clusters);
 
 ret_new_cold:
@@ -894,17 +885,17 @@ ret_new_cold:
 }
 
 /* Put and update target AU */
-void amap_put_target_au(AMAP_T *amap, TARGET_AU_T *cur, int num_allocated)
+void amap_put_target_au(AMAP_T *amap, TARGET_AU_T *cur, unsigned int num_allocated)
 {
 	/* Update AMAP info vars. */
-	if (num_allocated > 0 && \
-		(cur->au->free_clusters + num_allocated) == amap->clusters_per_au)
-		// if the target AU was a clean AU before this allocation ...
+	if (num_allocated > 0 &&
+		(cur->au->free_clusters + num_allocated) == amap->clusters_per_au) {
+		/* if the target AU was a clean AU before this allocation ... */
 		amap->n_clean_au--;
-	if (num_allocated > 0 && \
+	}
+	if (num_allocated > 0 &&
 		cur->au->free_clusters == 0)
 		amap->n_full_au++;
-	
 
 	if (IS_AU_HOT(cur->au, amap)) {
 		/* Hot AU */
@@ -936,11 +927,9 @@ void amap_put_target_au(AMAP_T *amap, TARGET_AU_T *cur, int num_allocated)
 }
 
 
-/* Reposition target->idx for packing
-   (Heuristics)
-
-   Skip (num_to_skip) free clusters in (cur->au)
-*/
+/* Reposition target->idx for packing (Heuristics):
+ * Skip (num_to_skip) free clusters in (cur->au)
+ */
 static inline int amap_skip_cluster(struct super_block *sb, TARGET_AU_T *cur, int num_to_skip)
 {
 	AMAP_T *amap = SDFAT_SB(sb)->fsi.amap;
@@ -953,12 +942,11 @@ static inline int amap_skip_cluster(struct super_block *sb, TARGET_AU_T *cur, in
 	}
 
 	clu = CLU_of_i_AU(amap, cur->au->idx, cur->idx);
-
 	while (num_to_skip > 0) {
 		if (clu >= CLUS_BASE) {
 			/* Cf.
 			 * If AMAP's integrity is okay,
-			 * we don't need to check if (clu < fsi->num_clusters) 
+			 * we don't need to check if (clu < fsi->num_clusters)
 			 */
 
 			if (fat_ent_get(sb, clu, &read_clu))
@@ -980,7 +968,7 @@ static inline int amap_skip_cluster(struct super_block *sb, TARGET_AU_T *cur, in
 		}
 	}
 
-	MMSG("AMAP: Skip_clusters (%d skipped => %d, among %d free clus)\n",\
+	MMSG("AMAP: Skip_clusters (%d skipped => %d, among %d free clus)\n",
 			num_to_skip_orig, cur->idx, cur->au->free_clusters);
 
 	return 0;
@@ -988,36 +976,33 @@ static inline int amap_skip_cluster(struct super_block *sb, TARGET_AU_T *cur, in
 
 
 /* AMAP-based allocation function for FAT32 */
-s32 amap_fat_alloc_cluster(struct super_block *sb, s32 num_alloc, CHAIN_T *p_chain, int dest)
+s32 amap_fat_alloc_cluster(struct super_block *sb, u32 num_alloc, CHAIN_T *p_chain, s32 dest)
 {
 	AMAP_T *amap = SDFAT_SB(sb)->fsi.amap;
 	TARGET_AU_T *cur = NULL;
 	AU_INFO_T *target_au = NULL;				/* Allocation target AU */
+	s32 ret = -ENOSPC;
 	u32 last_clu = CLUS_EOF, read_clu;
-	s32 new_clu; // Max. 2G 개의 clusters
-	s32 num_allocated = 0, num_allocated_each = 0;
+	u32 new_clu, total_cnt;
+	u32 num_allocated = 0, num_allocated_each = 0;
 	FS_INFO_T *fsi = &(SDFAT_SB(sb)->fsi);
 
 	BUG_ON(!amap);
 	BUG_ON(IS_CLUS_EOF(fsi->used_clusters));
 
-	p_chain->dir = CLUS_EOF;
+	total_cnt = fsi->num_clusters - CLUS_BASE;
 
-	if ((fsi->used_clusters + num_alloc) > (fsi->num_clusters - CLUS_BASE)) {
-		/* Reserved count management error
-		   or called by dir. management function on fully filled disk */
-		num_alloc = fsi->num_clusters - fsi->used_clusters - CLUS_BASE;
-
-		if (unlikely(num_alloc < 0)) {
-			sdfat_fs_error_ratelimit(sb, 
+	if (unlikely(total_cnt < fsi->used_clusters)) {
+		sdfat_fs_error_ratelimit(sb,
 				"AMAP(%s): invalid used clusters(t:%u,u:%u)\n",
-				__func__, fsi->num_clusters, fsi->used_clusters);
-			return -EIO;
-		}
-
-		if (!num_alloc)
-			return 0;
+				__func__, total_cnt, fsi->used_clusters);
+		return -EIO;
 	}
+
+	if (num_alloc > total_cnt - fsi->used_clusters)
+		return -ENOSPC;
+
+	p_chain->dir = CLUS_EOF;
 
 	set_sb_dirty(sb);
 
@@ -1029,24 +1014,24 @@ retry_alloc:
 	if (unlikely(!cur)) {
 		// There is no available AU (only ignored-AU are left)
 		sdfat_msg(sb, KERN_ERR, "AMAP Allocator: no avaialble AU.");
-		return 0;
+		goto error;
 	}
 
 	/* If there are clusters to skip */
 	if (cur->clu_to_skip > 0) {
-		if (amap_skip_cluster(sb, &amap->cur_cold, cur->clu_to_skip))
-			return -EIO;
+		if (amap_skip_cluster(sb, &amap->cur_cold, cur->clu_to_skip)) {
+			ret = -EIO;
+			goto error;
+		}
 		cur->clu_to_skip = 0;
 	}
 
 	target_au = cur->au;
-	
 
-	/* 
+	/*
 	 * cur->au  : target AU info pointer
-	 *  cur->idx : the intra-cluster idx in the AU to start from
+	 * cur->idx : the intra-cluster idx in the AU to start from
 	 */
-
 	BUG_ON(!cur->au);
 	BUG_ON(!cur->au->free_clusters);
 	BUG_ON(cur->idx >= amap->clusters_per_au);
@@ -1057,25 +1042,31 @@ retry_alloc:
 	do {
 		/* Allocate at the target AU */
 		if ((new_clu >= CLUS_BASE) && (new_clu < fsi->num_clusters)) {
-			if (fat_ent_get(sb, new_clu, &read_clu))
+			if (fat_ent_get(sb, new_clu, &read_clu)) {
 				// spin_unlock(&amap->amap_lock);
-				return -EIO;	// goto err_and_return
+				ret = -EIO;
+				goto error;
+			}
 
 			if (IS_CLUS_FREE(read_clu)) {
 				BUG_ON(GET_AU(amap, i_AU_of_CLU(amap, new_clu)) != target_au);
 
 				/* Free cluster found */
-				if (fat_ent_set(sb, new_clu, CLUS_EOF))
-					return -EIO;
+				if (fat_ent_set(sb, new_clu, CLUS_EOF)) {
+					ret = -EIO;
+					goto error;
+				}
 
 				num_allocated_each++;
 
-				if (IS_CLUS_EOF(p_chain->dir))
+				if (IS_CLUS_EOF(p_chain->dir)) {
 					p_chain->dir = new_clu;
-				else
-					if (fat_ent_set(sb, last_clu, new_clu))
-						return -EIO;
-				
+				} else {
+					if (fat_ent_set(sb, last_clu, new_clu)) {
+						ret = -EIO;
+						goto error;
+					}
+				}
 				last_clu = new_clu;
 
 				/* Update au info */
@@ -1090,8 +1081,7 @@ retry_alloc:
 		/* End of the AU */
 		if ((cur->idx >= amap->clusters_per_au) || !(target_au->free_clusters))
 			break;
-	} while(num_allocated_each < num_alloc);
-
+	} while (num_allocated_each < num_alloc);
 
 	/* Update strategy info */
 	amap_put_target_au(amap, cur, num_allocated_each);
@@ -1106,7 +1096,11 @@ retry_alloc:
 		goto retry_alloc;
 
 	// spin_unlock(&amap->amap_lock);
-	return num_allocated;
+	return 0;
+error:
+	if (num_allocated)
+		fsi->fs_func->free_cluster(sb, p_chain, 0);
+	return ret;
 }
 
 
@@ -1118,9 +1112,9 @@ s32 amap_free_cluster(struct super_block *sb, CHAIN_T *p_chain, s32 do_relse)
 
 
 /*
-	This is called by fat_free_cluster()
-	to update AMAP info.
-*/
+ * This is called by fat_free_cluster()
+ * to update AMAP info.
+ */
 s32 amap_release_cluster(struct super_block *sb, u32 clu)
 {
 	AMAP_T *amap = SDFAT_SB(sb)->fsi.amap;
@@ -1133,7 +1127,12 @@ s32 amap_release_cluster(struct super_block *sb, u32 clu)
 	i_au = i_AU_of_CLU(amap, clu);
 	BUG_ON(i_au >= amap->n_au);
 	au = GET_AU(amap, i_au);
-	BUG_ON(au->free_clusters >= amap->clusters_per_au);
+	if (au->free_clusters >= amap->clusters_per_au) {
+		sdfat_fs_error(sb, "%s, au->free_clusters(%hd) is "
+			"greater than or equal to amap->clusters_per_au(%hd)",
+			__func__, au->free_clusters, amap->clusters_per_au);
+		return -EIO;
+	}
 
 	if (IS_AU_HOT(au, amap)) {
 		MMSG("AMAP: Hot cluster freed\n");
@@ -1141,7 +1140,7 @@ s32 amap_release_cluster(struct super_block *sb, u32 clu)
 		amap->total_fclu_hot++;
 	} else if (!IS_AU_WORKING(au, amap) && !IS_AU_IGNORED(au, amap)) {
 		/* Ordinary AU - update AU tree */
-		// Can be optimized by implmenting amap_update_au
+		// Can be optimized by implementing amap_update_au
 		amap_remove_cold_au(amap, au);
 		au->free_clusters++;
 		amap_add_cold_au(amap, au);
@@ -1161,57 +1160,51 @@ s32 amap_release_cluster(struct super_block *sb, u32 clu)
 
 
 /*
-	Check if the cluster is in a working AU
-	The caller should hold sb lock.
-	This func. should be used only if smart allocation is on
-*/
+ * Check if the cluster is in a working AU
+ * The caller should hold sb lock.
+ * This func. should be used only if smart allocation is on
+ */
 s32 amap_check_working(struct super_block *sb, u32 clu)
 {
 	AMAP_T *amap = SDFAT_SB(sb)->fsi.amap;
 	AU_INFO_T *au;
 
 	BUG_ON(!amap);
-
 	au = GET_AU(amap, i_AU_of_CLU(amap, clu));
-
-	return (IS_AU_WORKING(au, amap));
+	return IS_AU_WORKING(au, amap);
 }
 
 
 /*
-	Return the # of free clusters in that AU
-*/
+ * Return the # of free clusters in that AU
+ */
 s32 amap_get_freeclus(struct super_block *sb, u32 clu)
 {
 	AMAP_T *amap = SDFAT_SB(sb)->fsi.amap;
 	AU_INFO_T *au;
 
 	BUG_ON(!amap);
-
 	au = GET_AU(amap, i_AU_of_CLU(amap, clu));
-
-	return ((s32)au->free_clusters);
+	return (s32)au->free_clusters;
 }
 
 
 /*
-	Add the AU containing 'clu' to the ignored AU list.
-	The AU will not be used by the allocator. 
-
-	XXX: Ignored counter needed
-*/
+ * Add the AU containing 'clu' to the ignored AU list.
+ * The AU will not be used by the allocator.
+ *
+ * XXX: Ignored counter needed
+ */
 s32 amap_mark_ignore(struct super_block *sb, u32 clu)
 {
 	AMAP_T *amap = SDFAT_SB(sb)->fsi.amap;
 	AU_INFO_T *au;
 
 	BUG_ON(!amap);
-
 	au = GET_AU(amap, i_AU_of_CLU(amap, clu));
 
-
 	if (IS_AU_HOT(au, amap)) {
-		// Doesn't work with hot AUs
+		/* Doesn't work with hot AUs */
 		return -EPERM;
 	} else if (IS_AU_WORKING(au, amap)) {
 		return -EBUSY;
@@ -1227,17 +1220,15 @@ s32 amap_mark_ignore(struct super_block *sb, u32 clu)
 	BUG_ON(!IS_AU_IGNORED(au, amap));
 
 	//INC_IGN_CNT(au);
-
 	MMSG("AMAP: Mark ignored AU (%d)\n", au->idx);
-
 	return 0;
 }
 
 
 /*
-	This function could be used only on IGNORED AUs.
-	The caller should care whether it's ignored or not before using this func.
-*/
+ * This function could be used only on IGNORED AUs.
+ * The caller should care whether it's ignored or not before using this func.
+ */
 s32 amap_unmark_ignore(struct super_block *sb, u32 clu)
 {
 	AMAP_T *amap = SDFAT_SB(sb)->fsi.amap;
@@ -1263,9 +1254,9 @@ s32 amap_unmark_ignore(struct super_block *sb, u32 clu)
 }
 
 /*
-	Unmark all ignored AU
-	This will return # of unmarked AUs
-*/
+ * Unmark all ignored AU
+ * This will return # of unmarked AUs
+ */
 s32 amap_unmark_ignore_all(struct super_block *sb)
 {
 	AMAP_T *amap = SDFAT_SB(sb)->fsi.amap;
@@ -1274,7 +1265,6 @@ s32 amap_unmark_ignore_all(struct super_block *sb)
 	int n = 0;
 
 	BUG_ON(!amap);
-	
 	entry = amap->slist_ignored.next;
 	while (entry) {
 		au = list_entry(entry, AU_INFO_T, shead);
@@ -1283,13 +1273,12 @@ s32 amap_unmark_ignore_all(struct super_block *sb)
 		BUG_ON(!IS_AU_IGNORED(au, amap));
 
 		//CLEAR_IGN_CNT(au);
-		
 		amap_remove_from_list(au, &amap->slist_ignored);
 		amap_add_cold_au(amap, au);
-	
+
 		MMSG("AMAP: Unmark ignored AU (%d)\n", au->idx);
 		n++;
-	
+
 		entry = amap->slist_ignored.next;
 	}
 

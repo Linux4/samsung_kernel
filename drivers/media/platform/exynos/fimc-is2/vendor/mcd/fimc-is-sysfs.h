@@ -68,6 +68,7 @@ enum fimc_is_cam_info_index {
 	CAM_INFO_REAR = 0,
 	CAM_INFO_FRONT,
 	CAM_INFO_IRIS,
+	CAM_INFO_REAR2,
 	CAM_INFO_MAX
 };
 

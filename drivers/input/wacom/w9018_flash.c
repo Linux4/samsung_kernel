@@ -606,6 +606,9 @@ int wacom_i2c_flash(struct wacom_i2c *wac_i2c)
 	msleep(200);
 
 out:
+	wac_i2c->function_result &= ~EPEN_EVENT_SURVEY;
+	wac_i2c->survey_mode = EPEN_SURVEY_MODE_NONE;
+
 	wacom_compulsory_flash_mode(wac_i2c, false);
 	wacom_reset_hw(wac_i2c);
 

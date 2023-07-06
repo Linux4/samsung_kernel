@@ -551,12 +551,20 @@ static int manager_handle_ccic_notification(struct notifier_block *nb,
 			water_dry_time_update((int)p_noti.sub1);
 
 			if (typec_manager.muic_action == MUIC_NOTIFY_CMD_ATTACH) {
+#if defined(CONFIG_USE_POGO)
+				pr_info("%s: CCIC Water event occurred & POGO(MUIC) attached\n", __func__);
+				p_noti.src = CCIC_NOTIFY_DEV_MUIC;
+#endif
 				p_noti.sub3 = ATTACHED_DEV_UNDEFINED_RANGE_MUIC; /* cable_type */
 			} else {
+#if defined(CONFIG_USE_POGO)
+				p_noti.sub3 = ATTACHED_DEV_NONE_MUIC;
 				/* If the cable is not connected, skip the battery event. */
+#else
 				return 0;
+#endif
 			}
-#if defined(CONFIG_CCIC_S2MM005)	
+#if defined(CONFIG_CCIC_S2MM005)
 			}
 			else {
 				/* Ignore duplicate events */
@@ -595,7 +603,9 @@ static int manager_handle_ccic_notification(struct notifier_block *nb,
 
 			/* update run_dry time */
 			water_dry_time_update((int)p_noti.sub1);
+#if !defined(CONFIG_USE_POGO)
 			return 0;
+#endif
 		}
 		break;
 	default:
@@ -826,11 +836,34 @@ int manager_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 		m_noti.sub2 = 0;
 		m_noti.sub3 = 0;
 		m_noti.pd = typec_manager.pd;
-		if(typec_manager.water_det && m_noti.sub1) {
+#if defined(CONFIG_USE_POGO)
+		if (typec_manager.water_det && typec_manager.ccic_attach_state) {
+#else
+		if (typec_manager.water_det && m_noti.sub1) {
+#endif
 			m_noti.id = CCIC_NOTIFY_ID_WATER;
 			m_noti.sub3 = ATTACHED_DEV_UNDEFINED_RANGE_MUIC;
 		} else {
+#if defined(CONFIG_USE_POGO)
+			if (typec_manager.water_det) {
+				m_noti.src = CCIC_NOTIFY_DEV_MUIC;
+				m_noti.id = CCIC_NOTIFY_ID_WATER;
+				m_noti.sub1 = CCIC_NOTIFY_ATTACH;
+				m_noti.sub3 = ATTACHED_DEV_UNDEFINED_RANGE_MUIC;
+
+				pr_info("%s: already water : attached : %d\n", __func__, typec_manager.muic_action);
+			} else {
+				if (typec_manager.muic_cable_type == ATTACHED_DEV_UNDEFINED_RANGE_MUIC) {
+					m_noti.src = CCIC_NOTIFY_DEV_MUIC;
+					pr_info("%s: Change Src to DEV_MUIC\n", __func__);
+				}
+
+				m_noti.id = CCIC_NOTIFY_ID_ATTACH;
+			}
+#else
 			m_noti.id = CCIC_NOTIFY_ID_ATTACH;
+#endif
+
 			if(typec_manager.pd_con_state) {
 				pr_info("usb: [M] %s: PD is attached already\n", __func__);
 				m_noti.id = CCIC_NOTIFY_ID_POWER_STATUS;
@@ -883,7 +916,7 @@ int manager_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 			CCIC_NOTI_USB_STATUS_Print[m_noti.sub2]);
 		nb->notifier_call(nb, m_noti.id, &(m_noti));
 		alternate_mode_start_wait |= 0x1;
-		if(alternate_mode_start_wait == 0x11) {
+		if(alternate_mode_start_wait == 0x1) {
 			pr_info("usb: [M] %s USB & DP driver is registered! Alternate mode Start!\n", __func__);
 #if defined(CONFIG_CCIC_ALTERNATE_MODE)
 			set_enable_alternate_mode(ALTERNATE_MODE_READY | ALTERNATE_MODE_START);

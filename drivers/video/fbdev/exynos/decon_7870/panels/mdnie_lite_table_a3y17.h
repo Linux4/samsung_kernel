@@ -5170,7 +5170,7 @@ static struct mdnie_table bypass_table[BYPASS_MAX] = {
 	[BYPASS_ON] = MDNIE_SET(BYPASS)
 };
 
-struct mdnie_table light_notification_table[LIGHT_NOTIFICATION_MAX] = {
+static struct mdnie_table light_notification_table[LIGHT_NOTIFICATION_MAX] = {
 	[LIGHT_NOTIFICATION_ON] = MDNIE_SET(LIGHT_NOTIFICATION)
 };
 

@@ -702,7 +702,7 @@ int fimc_is_hw_3aa_apply_setfile(struct fimc_is_hw_ip *hw_ip, int index,
 
 	ret = fimc_is_lib_isp_apply_tune_set(&hw_3aa->lib[instance], setfile_index, instance);
 
-	if (hw_ip->hardware->sensor_position[instance] == SENSOR_POSITION_REAR)
+	if (hw_ip->hardware->sensor_position[instance] == SENSOR_POSITION_REAR || hw_ip->hardware->sensor_position[instance] == SENSOR_POSITION_REAR2)
 		cal_addr = hw_3aa->lib_support->minfo->kvaddr_rear_cal;
 #if !defined(CONFIG_CAMERA_OTPROM_SUPPORT_FRONT)
 	else if (hw_ip->hardware->sensor_position[instance] == SENSOR_POSITION_FRONT)

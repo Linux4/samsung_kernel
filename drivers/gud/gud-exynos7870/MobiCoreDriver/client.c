@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2017 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -17,6 +17,14 @@
 #include <linux/mm.h>
 #include <linux/sched.h>
 #include <linux/err.h>
+#include <linux/sched.h>	/* struct task_struct */
+#include <linux/version.h>
+#if KERNEL_VERSION(4, 11, 0) <= LINUX_VERSION_CODE
+#include <linux/sched/mm.h>	/* get_task_mm */
+#include <linux/sched/task.h>	/* put_task_struct */
+#endif
+#include <net/sock.h>		/* sockfd_lookup */
+#include <linux/file.h>		/* fput */
 
 #include "public/mc_user.h"
 #include "public/mc_admin.h"
@@ -434,10 +442,10 @@ int client_add_session(struct tee_client *client, const struct tee_object *obj,
 		goto err;
 
 	mutex_lock(&client->sessions_lock);
-		/* Add session to client */
-		list_add_tail(&session->list, &client->sessions);
-		/* Set sid returned by SWd */
-		*session_id = session->mcp_session.id;
+	/* Add session to client */
+	list_add_tail(&session->list, &client->sessions);
+	/* Set sid returned by SWd */
+	*session_id = session->mcp_session.id;
 	mutex_unlock(&client->sessions_lock);
 
 err:
@@ -630,7 +638,7 @@ static void cbuf_vm_close(struct vm_area_struct *vmarea)
 	cbuf_put(cbuf);
 }
 
-static struct vm_operations_struct cbuf_vm_ops = {
+static const struct vm_operations_struct cbuf_vm_ops = {
 	.open = cbuf_vm_open,
 	.close = cbuf_vm_close,
 };
@@ -829,9 +837,9 @@ void client_init(void)
 static inline int cbuf_debug_structs(struct kasnprintf_buf *buf,
 				     struct cbuf *cbuf)
 {
-	return kasnprintf(buf, "\tcbuf %p [%d]: addr %lx uaddr %lx len %u\n",
-			  cbuf, kref_read(&cbuf->kref), cbuf->addr,
-			  cbuf->uaddr, cbuf->len);
+	return kasnprintf(buf, "\tcbuf %pK [%d]: addr %pK uaddr %pK len %u\n",
+			  cbuf, kref_read(&cbuf->kref), (void *)cbuf->addr,
+			  (void *)cbuf->uaddr, cbuf->len);
 }
 
 static int client_debug_structs(struct kasnprintf_buf *buf,
@@ -842,12 +850,12 @@ static int client_debug_structs(struct kasnprintf_buf *buf,
 	int ret;
 
 	if (client->pid)
-		ret = kasnprintf(buf, "client %p [%d]: %s (%d)%s\n",
+		ret = kasnprintf(buf, "client %pK [%d]: %s (%d)%s\n",
 				 client, kref_read(&client->kref),
 				 client->comm, client->pid,
 				 is_closing ? " <closing>" : "");
 	else
-		ret = kasnprintf(buf, "client %p [%d]: [kernel]%s\n",
+		ret = kasnprintf(buf, "client %pK [%d]: [kernel]%s\n",
 				 client, kref_read(&client->kref),
 				 is_closing ? " <closing>" : "");
 

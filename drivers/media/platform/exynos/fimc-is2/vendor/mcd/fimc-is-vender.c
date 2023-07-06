@@ -145,6 +145,29 @@ void fimc_is_sec_copy_err_cnt_from_file(void)
 		set_fs(old_fs);
 	}
 }
+
+void fimc_is_sec_get_hw_param(struct cam_hw_param **hw_param, u32 position)
+{
+	switch (position) {
+		case SENSOR_POSITION_REAR:
+			*hw_param = &cam_hwparam_collector.rear_hwparam;
+			break;
+		case SENSOR_POSITION_REAR2:
+			*hw_param = &cam_hwparam_collector.rear2_hwparam;
+			break;
+		case SENSOR_POSITION_FRONT:
+			*hw_param = &cam_hwparam_collector.front_hwparam;
+			break;
+		case SENSOR_POSITION_SECURE:
+			*hw_param = &cam_hwparam_collector.iris_hwparam;
+			break;
+		default:
+			need_update_to_file = false;
+			return;
+	}
+	need_update_to_file = true;
+}
+
 int fimc_is_sec_get_rear_hw_param(struct cam_hw_param **hw_param)
 {
 	*hw_param = &cam_hwparam_collector.rear_hwparam;
@@ -229,6 +252,7 @@ void fimc_is_vender_csi_err_handler(struct fimc_is_device_csi *csi)
 int fimc_is_vender_probe(struct fimc_is_vender *vender)
 {
 	int ret = 0;
+	int i = 0;
 	struct fimc_is_core *core;
 	struct fimc_is_vender_specific *specific;
 
@@ -271,8 +295,11 @@ int fimc_is_vender_probe(struct fimc_is_vender *vender)
 	specific->use_ois_hsi2c = use_ois_hsi2c;
 	specific->use_module_check = use_module_check;
 	specific->skip_cal_loading = skip_cal_loading;
-	specific->eeprom_client0 = NULL;
-	specific->eeprom_client1 = NULL;
+
+	for (i = 0; i < SENSOR_POSITION_END; i++) {
+		specific->eeprom_client[i] = NULL;
+	}
+
 	specific->suspend_resume_disable = false;
 	specific->need_cold_reset = false;
 #ifdef CONFIG_SECURE_CAMERA_USE
@@ -1193,6 +1220,10 @@ extern int s2mpb02_set_torch_current(bool movie);
 extern bool flash_control_ready;
 extern int sm5703_led_mode_ctrl(int state);
 #endif
+#ifdef CONFIG_LEDS_KTD2692
+extern int	ktd2692_led_mode_ctrl(int);
+#endif
+
 
 #ifdef CONFIG_LEDS_SUPPORT_FRONT_FLASH_AUTO
 int fimc_is_vender_set_torch(u32 aeflashMode, u32 frontFlashMode)
@@ -1247,6 +1278,8 @@ int fimc_is_vender_set_torch(u32 aeflashMode)
 		}
 #elif defined(CONFIG_LEDS_RT8547)
 		rt8547_led_mode_ctrl(RT8547_ENABLE_MOVIE_MODE);
+#elif defined(CONFIG_LEDS_KTD2692)
+		ktd2692_led_mode_ctrl(3);
 #endif
 		break;
 	case AA_FLASHMODE_START: /*Pre flash mode*/
@@ -1266,6 +1299,8 @@ int fimc_is_vender_set_torch(u32 aeflashMode)
 		}
 #elif defined(CONFIG_LEDS_RT8547)
 		rt8547_led_mode_ctrl(RT8547_ENABLE_PRE_FLASH_MODE);
+#elif defined(CONFIG_LEDS_KTD2692)
+		ktd2692_led_mode_ctrl(4);
 #endif
 		break;
 	case AA_FLASHMODE_CAPTURE: /*Main flash mode*/
@@ -1275,6 +1310,8 @@ int fimc_is_vender_set_torch(u32 aeflashMode)
 		sm5703_led_mode_ctrl(2);
 #elif defined(CONFIG_LEDS_RT8547)
 		rt8547_led_mode_ctrl(RT8547_ENABLE_FLASH_MODE);
+#elif defined(CONFIG_LEDS_KTD2692)
+		ktd2692_led_mode_ctrl(2);
 #endif
 		break;
 	case AA_FLASHMODE_OFF: /*OFF mode*/
@@ -1288,6 +1325,8 @@ int fimc_is_vender_set_torch(u32 aeflashMode)
 		sm5703_led_mode_ctrl(0);
 #elif defined(CONFIG_LEDS_RT8547)
 		rt8547_led_mode_ctrl(RT8547_DISABLES_MOVIE_FLASH_MODE);
+#elif defined(CONFIG_LEDS_KTD2692)
+		ktd2692_led_mode_ctrl(1);
 #endif
 		break;
 	default:

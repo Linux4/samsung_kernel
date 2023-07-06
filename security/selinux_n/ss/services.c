@@ -775,7 +775,9 @@ out:
 
 // [ SEC_SELINUX_PORTING_COMMON
 #ifdef CONFIG_ALWAYS_ENFORCE
+#if !defined(CONFIG_RKP_KDP)
 	selinux_enforcing = 1;
+#endif
 #endif
 // ] SEC_SELINUX_PORTING_COMMON
 	if (!selinux_enforcing)
@@ -1314,7 +1316,7 @@ static int security_context_to_sid_core(const char *scontext, u32 scontext_len,
 				      scontext_len, &context, def_sid);
 	if (rc == -EINVAL && force) {
 		context.str = str;
-		context.len = scontext_len;
+		context.len = strlen(str) + 1;
 		str = NULL;
 	} else if (rc)
 		goto out_unlock;
@@ -1407,7 +1409,9 @@ out:
 
 // [ SEC_SELINUX_PORTING_COMMON
 #ifdef CONFIG_ALWAYS_ENFORCE
+#if !defined(CONFIG_RKP_KDP)
 	selinux_enforcing = 1;
+#endif
 #endif
 // ] SEC_SELINUX_PORTING_COMMON
 	if (!selinux_enforcing)

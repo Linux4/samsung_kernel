@@ -464,6 +464,9 @@ static struct otg_notify dwc_lsi_notify = {
 #endif
 	.device_check_sec = 3,
 	.set_battcall = set_online,
+#if defined(CONFIG_USB_OTG_WHITELIST_FOR_MDM)
+	.sec_whitelist_enable = 0,
+#endif
 };
 
 static int usb_notifier_probe(struct platform_device *pdev)

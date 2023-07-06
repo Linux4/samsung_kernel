@@ -24,6 +24,9 @@
 #include <linux/hall.h>
 #include <linux/notifier.h>
 
+#if defined(CONFIG_HALL_NOTIFIER)
+#include <linux/hall_notifier.h>
+#endif /*CONFIG_HALL_NOTIFIER*/
 
 struct device *sec_device_create(void *drvdata, const char *fmt);
 
@@ -107,6 +110,12 @@ static void flip_cover_work(struct work_struct *work)
 		flip_cover = first;
 		input_report_switch(ddata->input, SW_FLIP, flip_cover);
 		input_sync(ddata->input);
+#if defined(CONFIG_HALL_NOTIFIER)
+		if(flip_cover == HALL_OPEN)
+			hall_notifier_hall_state(HALL_OPEN);
+		else
+			hall_notifier_hall_state(HALL_CLOSE);
+#endif
 	}
 }
 #else
@@ -124,6 +133,12 @@ static void flip_cover_work(struct work_struct *work)
 	flip_cover = first;
 	input_report_switch(ddata->input, SW_FLIP, flip_cover);
 	input_sync(ddata->input);
+#if defined(CONFIG_HALL_NOTIFIER)
+	if(flip_cover == HALL_OPEN)
+		hall_notifier_hall_state(HALL_OPEN);
+	else
+		hall_notifier_hall_state(HALL_CLOSE);
+#endif
 }
 #endif
 

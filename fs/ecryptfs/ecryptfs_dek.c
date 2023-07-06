@@ -203,6 +203,8 @@ int parse_dek_packet(char *data,
 	int rc = 0;
 	char temp_comm[PKG_NAME_SIZE]; //test
 	int temp_euid;
+	int sdp_dek_type;
+	int sdp_dek_len;
 
 	if (crypt_stat->file_version == 0)
 		return -EPERM;
@@ -234,14 +236,19 @@ int parse_dek_packet(char *data,
 	        crypt_stat->engine_id = crypt_stat->mount_crypt_stat->userid;
 	    }
 
-		crypt_stat->sdp_dek.type = get_unaligned_be32(data + *packet_size);
-		(*packet_size) += 4;
-		if(crypt_stat->sdp_dek.type < 0 || crypt_stat->sdp_dek.type > 6)
+		sdp_dek_type = get_unaligned_be32(data + *packet_size);
+		if(sdp_dek_type < 0 || sdp_dek_type > 6)
 			return -EINVAL;
-		crypt_stat->sdp_dek.len = get_unaligned_be32(data + *packet_size);
+		crypt_stat->sdp_dek.type = sdp_dek_type;
 		(*packet_size) += 4;
-		if(crypt_stat->sdp_dek.len <= 0 || crypt_stat->sdp_dek.len > DEK_MAXLEN)
+		
+		sdp_dek_len = get_unaligned_be32(data + *packet_size);
+		if(sdp_dek_len <= 0 || sdp_dek_len > DEK_MAXLEN)
 			return -EFAULT;
+		crypt_stat->sdp_dek.len = sdp_dek_len;
+		(*packet_size) += 4;
+		
+		
 		memcpy(crypt_stat->sdp_dek.buf, &data[*packet_size], crypt_stat->sdp_dek.len);
 		(*packet_size) += crypt_stat->sdp_dek.len;
 	}
@@ -281,55 +288,13 @@ out:
     return rc;
 }
 
-#if defined(CONFIG_MMC_DW_FMP_ECRYPT_FS) || defined(CONFIG_UFS_FMP_ECRYPT_FS)
-static void ecryptfs_propagate_flag(struct file *file, int userid, enum sdp_op operation) {
-    struct file *f = file;
-    do {
-		if(!f)
-			return ;
-
-		DEK_LOGD("%s file: %p [%s]\n",__func__, f, f->f_inode->i_sb->s_type->name);
-        if (operation == TO_SENSITIVE) {
-			mapping_set_sensitive(f->f_mapping);
-		} else {
-			mapping_clear_sensitive(f->f_mapping);
-		}
-		f->f_mapping->userid = userid;
-    } while (f->f_op->get_lower_file && (f = f->f_op->get_lower_file(f)));
-}
-#endif
-
 void ecryptfs_set_mapping_sensitive(struct inode *ecryptfs_inode, int userid, enum sdp_op operation) {
-#if defined(CONFIG_MMC_DW_FMP_ECRYPT_FS) || defined(CONFIG_UFS_FMP_ECRYPT_FS)
-	struct ecryptfs_mount_crypt_stat *mount_crypt_stat = NULL;
-	struct ecryptfs_inode_info *inode_info;
-	
-	inode_info = ecryptfs_inode_to_private(ecryptfs_inode);
-	DEK_LOGD("%s inode: %p lower_file_count: %d\n",__func__, ecryptfs_inode,atomic_read(&inode_info->lower_file_count));
-	mount_crypt_stat = &ecryptfs_superblock_to_private(ecryptfs_inode->i_sb)->mount_crypt_stat;
-	
 	if (operation == TO_SENSITIVE) {
 		mapping_set_sensitive(ecryptfs_inode->i_mapping);
 	} else {
 		mapping_clear_sensitive(ecryptfs_inode->i_mapping);
 	}
 	ecryptfs_inode->i_mapping->userid = userid;
-	/*
-	 * If FMP is in use, need to set flag to lower filesystems too recursively
-	 */
-	if (mount_crypt_stat->flags & ECRYPTFS_USE_FMP) {
-		if(inode_info->lower_file) {
-			ecryptfs_propagate_flag(inode_info->lower_file, userid, operation);
-		}
-	}
-#else
-	if (operation == TO_SENSITIVE) {
-		mapping_set_sensitive(ecryptfs_inode->i_mapping);
-	} else {
-		mapping_clear_sensitive(ecryptfs_inode->i_mapping);
-	}
-	ecryptfs_inode->i_mapping->userid = userid;
-#endif
 }
 
 /*

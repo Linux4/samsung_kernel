@@ -14,8 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef __S2MU004_FUELGAUGE_H
@@ -26,6 +25,8 @@
 #endif
 
 #include "../sec_charging_common.h"
+
+extern unsigned int lpcharge;
 
 /* Slave address should be shifted to the right 1bit.
  * R/W bit should NOT be included.
@@ -71,6 +72,7 @@ struct sec_fg_info {
         /* battery info */
         int soc;
 
+#if !defined(CONFIG_BATTERY_AGE_FORECAST)
         /* copy from platform data /
          * DTS or update by shell script */
         int battery_table1[88]; // evt1
@@ -81,12 +83,36 @@ struct sec_fg_info {
         int ocv_arr_val[22];
         int batcap[4];
         int accum[2];
-
+#endif
         /* miscellaneous */
         unsigned long fullcap_check_interval;
         int full_check_flag;
         bool is_first_check;
 };
+
+#if defined(CONFIG_BATTERY_AGE_FORECAST)
+struct fg_age_data_info {
+        int battery_table3[88]; // evt2
+        int battery_table4[22]; // evt2
+        int batcap[4];
+        int accum[2];
+	int soc_arr_val[22];
+        int ocv_arr_val[22];
+};
+
+#define	fg_age_data_info_t \
+	struct fg_age_data_info
+#endif
+
+#if defined(CONFIG_FUELGAUGE_ASOC_FROM_CYCLES)
+struct sec_cycles_to_asoc {
+	unsigned int cycle;
+	unsigned int asoc;
+};
+
+#define sec_cycles_to_asoc_t \
+	struct sec_cycles_to_asoc
+#endif
 
 typedef struct s2mu004_fuelgauge_platform_data {
 	int capacity_max;
@@ -103,6 +129,11 @@ typedef struct s2mu004_fuelgauge_platform_data {
 	char *fuelgauge_name;
 
 	bool repeated_fuelalert;
+
+#if defined(CONFIG_FUELGAUGE_ASOC_FROM_CYCLES)
+	int fixed_asoc_levels;
+	sec_cycles_to_asoc_t *cycles_to_asoc;
+#endif
 } s2mu004_fuelgauge_platform_data_t;
 
 struct s2mu004_fuelgauge_data {
@@ -124,6 +155,13 @@ struct s2mu004_fuelgauge_data {
          * (ex. dummy_fuelgauge.c)
          */
         struct sec_fg_info      info;
+#if defined(CONFIG_BATTERY_AGE_FORECAST)
+	fg_age_data_info_t*	age_data_info;
+	int fg_num_age_step;
+	int fg_age_step;
+	int age_reset_status;
+        struct mutex fg_reset_lock;
+#endif
         bool is_fuel_alerted;
         struct wake_lock fuel_alert_wake_lock;
 

@@ -202,3 +202,57 @@ config CAMERA_GRANDPPIRIS
         default n
         help
           This camera is grandppiris project.
+config CAMERA_ON7XREF
+        bool "This camera is on7xref project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is on7xref project.
+config CAMERA_J7TOP
+        bool "This camera is j7top project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is j7top project.
+config CAMERA_DEGASY18
+        bool "This camera is degasy18 project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is degasy18 project.
+config CAMERA_J8
+        bool "This camera is j8 project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is j8 project.
+config CAMERA_GTAXLAD
+        bool "This camera is gtaxlad project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is gtaxlad project.
+config CAMERA_J6
+        bool "This camera is j6 project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is j6 project.
+config CAMERA_A6
+        bool "This camera is a6 project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is a6 project.
+config CAMERA_J7VEIRIS
+        bool "This camera is J7veiris project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is J7veiris project.
+config CAMERA_5E6_USE_1P2_POWER
+        bool "5E6 sensor use 1p2 power pin"
+        depends on VENDER_MCD
+        default n
+        help
+          5E6 sensor use 1p2 power pin.

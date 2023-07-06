@@ -104,7 +104,7 @@ config BROADCOM_WIFI_RESERVED_MEM
 
 config WIFI_BROADCOM_COB
         bool "BROADCOM WIFI COB"
-        depends on (BCM43455 || BCM4343 || BCM43454)
+        depends on (BCM43455 || BCM4335 || BCM4339 || BCM4334 || BCM43241 || BCM4354 || BCM4330 || BCM4343)
         ---help---
           This is a configuration for broadcom WIFI COB Type.
 

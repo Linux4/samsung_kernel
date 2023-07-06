@@ -153,6 +153,10 @@ static void s2mu005_charger_otg_control(struct s2mu005_charger_data *charger,
 		s2mu005_update_reg(charger->client, S2MU005_CHG_CTRL0,
 			2 << REG_MODE_SHIFT, REG_MODE_MASK);
 
+		/* OTG OCP debounce time 100usec->1msec, 0x88[3:2]=11 --> 10 */
+		s2mu005_update_reg(charger->client, 0x88,
+			0x8, 0xC);
+
 		/* mask VMID_INT */
 		s2mu005_update_reg(charger->client, S2MU005_REG_SC_INT_MASK,
 			1 << VMID_M_SHIFT, VMID_M_MASK);
@@ -166,6 +170,10 @@ static void s2mu005_charger_otg_control(struct s2mu005_charger_data *charger,
 		/* set mode to OTG */
 		s2mu005_update_reg(charger->client, S2MU005_CHG_CTRL0,
 			4 << REG_MODE_SHIFT, REG_MODE_MASK);
+
+		/* OTG OCP debounce time 100usec->1msec, 0x88[3:2]=10 --> 11 */
+		s2mu005_update_reg(charger->client, 0x88,
+			0xC, 0xC);
 
 		/* set boost frequency to 1MHz */
 		s2mu005_update_reg(charger->client, S2MU005_CHG_CTRL11,
@@ -234,8 +242,8 @@ static void s2mu005_enable_charger_switch(struct s2mu005_charger_data *charger,
 	}
 
 	/* prevent vsys drip, set full current at QBAT */
-		s2mu005_set_fast_charging_current(charger->client, 1700);
-		msleep(20);
+	s2mu005_set_fast_charging_current(charger->client, 1700);
+	msleep(20);
 
 	if (onoff > 0) {
 		pr_info("[DEBUG]%s: turn on charger\n", __func__);
@@ -495,6 +503,10 @@ static bool s2mu005_chg_init(struct s2mu005_charger_data *charger)
 	
 	dev_info(charger->dev, "%s: set float voltage : %d\n", __func__,charger->pdata->chg_float_voltage);
 
+	s2mu005_read_reg(charger->client, 0x29, &temp); //Disable FC_CHG and PRE_CHG Timers
+	temp &= 0x7F;
+	s2mu005_write_reg(charger->client, 0x29, temp);
+
 	return true;
 }
 
@@ -731,7 +743,6 @@ static int sec_chg_get_property(struct power_supply *psy,
 		enum power_supply_property psp,
 		union power_supply_propval *val)
 {
-	int chg_curr, aicr;
 	struct s2mu005_charger_data *charger =
 		container_of(psy, struct s2mu005_charger_data, psy_chg);
 
@@ -749,16 +760,13 @@ static int sec_chg_get_property(struct power_supply *psy,
 #endif
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
-		val->intval = s2mu005_get_input_current_limit(charger->client);
+		val->intval = charger->input_current;
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_AVG:
+		val->intval = s2mu005_get_input_current_limit(charger->client);
+		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
-		if (charger->charging_current) {
-			aicr = s2mu005_get_input_current_limit(charger->client);
-			chg_curr = s2mu005_get_fast_charging_current(charger->client);
-			val->intval = MINVAL(aicr, chg_curr);
-		} else
-			val->intval = 0;
+		val->intval = s2mu005_get_fast_charging_current(charger->client);
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_FULL:
 		val->intval = s2mu005_get_topoff_current(charger);
@@ -766,11 +774,9 @@ static int sec_chg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_TYPE:
 		val->intval = s2mu005_get_charge_type(charger->client);
 		break;
-#if defined(CONFIG_BATTERY_SWELLING) || defined(CONFIG_BATTERY_SWELLING_SELF_DISCHARGING)
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
 		val->intval = charger->pdata->chg_float_voltage;
 		break;
-#endif
 	case POWER_SUPPLY_PROP_PRESENT:
 		val->intval = s2mu005_get_batt_present(charger->client);
 		break;

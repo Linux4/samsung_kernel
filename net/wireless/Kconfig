@@ -183,6 +183,10 @@ config CFG80211_WEXT
 	  Enable this option if you need old userspace for wireless
 	  extensions with cfg80211-based drivers.
 
+config CONFIG_WLAN_SEC_REGULATORY_POLICY
+	bool "whether to use the db.txt_old or not"
+    	default n 
+	  
 config WIRELESS_EXT_SYSFS
 	bool "Wireless extensions sysfs files"
 	depends on WEXT_CORE && SYSFS
@@ -244,3 +248,11 @@ config CFG80211_ALLOW_RECONNECT
 	  Select this option ONLY for wlan drivers that are specifically
 	  built for such purposes.
 
+config CFG80211_REG_NOT_UPDATED
+	bool "Do not update Regulatory configuration"
+	depends on CFG80211
+	default n
+	help
+	  Regulation should not updated even if device found other country
+	  Access Point Beacon once since device should find around other
+	  Access Points.

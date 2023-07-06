@@ -59,8 +59,16 @@
 #define SEC_BAT_CURRENT_EVENT_HIGH_TEMP_SWELLING	0x0020
 #define SEC_BAT_CURRENT_EVENT_BLOCK_CHG_IN_SWELLLING	0x0040
 #define SEC_BAT_CURRENT_EVENT_LOW_TEMP		0x0080
+#define SEC_BAT_CURRENT_EVENT_USB_SUPER			0x0100
+#define SEC_BAT_CURRENT_EVENT_CHG_LIMIT			0x0200
 #define SEC_BAT_CURRENT_EVENT_VBAT_OVP			0x1000
 #define SEC_BAT_CURRENT_EVENT_VSYS_OVP			0x2000
+#if defined(CONFIG_ENABLE_100MA_CHARGING_BEFORE_USB_CONFIGURED)
+#define SEC_BAT_CURRENT_EVENT_USB_100MA			0x0400
+#else
+#define SEC_BAT_CURRENT_EVENT_USB_100MA			0x0000
+#endif
+#define SEC_BAT_CURRENT_EVENT_HV_DISABLE		0x10000
 
 #define SIOP_EVENT_NONE 	0x0000
 #define SIOP_EVENT_WPC_CALL 	0x0001
@@ -98,6 +106,7 @@
 #define BATT_MISC_EVENT_WIRELESS_BACKPACK_TYPE	0x00000002
 #define BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE	0x00000004
 #define BATT_MISC_EVENT_BATT_RESET_SOC		0x00000008
+#define BATT_MISC_EVENT_UNDEFINED_RANGE_POGO    0x00000010
 
 #define SEC_INPUT_VOLTAGE_5V	5
 #define SEC_INPUT_VOLTAGE_9V	9
@@ -144,6 +153,9 @@ struct sec_battery_info {
 	struct power_supply psy_ac;
 	struct power_supply psy_wireless;
 	struct power_supply psy_ps;
+#if defined(CONFIG_USE_POGO)
+	struct power_supply psy_pogo;
+#endif
 	unsigned int irq;
 
 	int pd_usb_attached;
@@ -305,6 +317,7 @@ struct sec_battery_info {
 	struct wake_lock batt_data_wake_lock;
 	char *data_path;
 #endif
+	struct delayed_work init_chg_work;
 
 	char batt_type[48];
 	unsigned int full_check_cnt;
@@ -326,6 +339,9 @@ struct sec_battery_info {
 	bool wc_pack_max_curr;
 
 	int wire_status;
+
+	/* pogo status */
+	int pogo_status;
 
 	/* wearable charging */
 	int ps_status;
@@ -362,8 +378,12 @@ struct sec_battery_info {
 	bool complete_timetofull;
 	struct delayed_work timetofull_work;
 #endif
+	struct delayed_work slowcharging_work;
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
 	int batt_cycle;
+#endif
+#if defined(CONFIG_DCM_JPN_CONCEPT_FG_CYCLE_CHECK)
+	int fg_cycle_check_value;
 #endif
 #if defined(CONFIG_STEP_CHARGING)
 	unsigned int step_charging_type;
@@ -390,6 +410,7 @@ struct sec_battery_info {
 	unsigned long cal_safety_time;
 
 	bool block_water_event;
+	int water_det;
 };
 
 ssize_t sec_bat_show_attrs(struct device *dev,
@@ -510,6 +531,12 @@ enum {
 	FG_FULL_VOLTAGE,
 	FG_FULLCAPNOM,
 	BATTERY_CYCLE,
+#if defined(CONFIG_BATTERY_AGE_FORECAST_DETACHABLE)
+	BATT_AFTER_MANUFACTURED,
+#endif
+#endif
+#if defined(CONFIG_DCM_JPN_CONCEPT_FG_CYCLE_CHECK)
+	FG_CYCLE_CHECK_VALUE,
 #endif
 	BATT_WPC_TEMP,
 	BATT_WPC_TEMP_ADC,
@@ -568,6 +595,8 @@ enum {
 	FACTORY_MODE_BYPASS,
 	NORMAL_MODE_BYPASS,
 	FACTORY_VOLTAGE_REGULATION,
+	FACTORY_MODE_DISABLE,
+	BATT_PRESENT,
 };
 
 enum {

@@ -57,9 +57,7 @@ struct fimc_is_vender_specific {
 #ifdef CONFIG_OIS_USE
 	bool			ois_ver_read;
 #endif /* CONFIG_OIS_USE */
-
-	struct i2c_client	*eeprom_client0;
-	struct i2c_client	*eeprom_client1;
+	struct i2c_client	*eeprom_client[SENSOR_POSITION_END];
 #if defined(CONFIG_USE_DIRECT_IS_CONTROL)\
 	&& (defined(CONFIG_CAMERA_OTPROM_SUPPORT_FRONT) || defined(CONFIG_CAMERA_OTPROM_SUPPORT_REAR))
 	int (*cis_init_reg_write)(void);
@@ -80,6 +78,7 @@ struct fimc_is_vender_specific {
 
 	/* dt */
 	u32			rear_sensor_id;
+	u32			rear_second_sensor_id;
 	u32			front_sensor_id;
 #ifdef CONFIG_SECURE_CAMERA_USE
 	u32			secure_sensor_id;

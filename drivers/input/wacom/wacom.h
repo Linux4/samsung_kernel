@@ -37,6 +37,9 @@
 
 #define COM_CHECKSUM			0x63
 
+#define COM_NORMAL_COMPENSATION		0x80
+#define COM_SPECIAL_COMPENSATION	0x81
+
 #define COM_OPEN_CHECK_START		0xC9
 
 #define COM_OPEN_CHECK_STATUS		0xD8
@@ -80,6 +83,14 @@
 #define WACOM_NOISE_LOW			0x22
 #define AOP_BUTTON_HOVER		0xBB
 #define AOP_DOUBLE_TAB			0xDD
+
+/* skip event for keyboard cover */
+#define KEYBOARD_COVER_BOUNDARY  10400
+enum epen_virtual_event_mode {
+	EPEN_POS_NONE	= 0,
+	EPEN_POS_VIEW	= 1,
+	EPEN_POS_COVER	= 2,
+};
 
 /*--------------------------------------------------
  * event
@@ -150,6 +161,7 @@
 #define HSYNC_COUNTER_UMAGIC		0x96
 #define HSYNC_COUNTER_LMAGIC		0xCA
 
+#define TABLE_SWAP_DATA			0x05
 
 #define FW_UPDATE_RUNNING		1
 #define FW_UPDATE_PASS			2
@@ -218,6 +230,11 @@ struct wacom_i2c {
 	struct mutex irq_lock;
 	struct wake_lock fw_wakelock;
 	struct device *dev;
+	struct notifier_block typec_nb;
+	struct delayed_work typec_nb_reg_work;
+	struct delayed_work usb_typec_work;
+	u8 dp_connect_state;
+	u8 dp_connect_cmd;
 	int irq;
 	int irq_pdct;
 	int pen_pdct;
@@ -252,7 +269,8 @@ struct wacom_i2c {
 	struct epen_pos survey_pos;
 	bool query_status;
 	int wcharging_mode;
-	int reset_count_i2cfail;
+	u32 i2c_fail_count;
+	u32 abnormal_reset_count;
 #ifdef LCD_FREQ_SYNC
 	int lcd_freq;
 	bool lcd_freq_wait;
@@ -273,7 +291,11 @@ struct wacom_i2c {
 	char fw_chksum[5];
 	u8 fw_update_way;
 	bool do_crc_check;
+	bool keyboard_cover_mode;
+	bool keyboard_area;
+	int virtual_tracking;
 	u8 dex_mode;
+	u32 mcount;
 #ifdef CONFIG_SEC_FACTORY
 	volatile bool fac_garage_mode;
 	u32 garage_gain0;

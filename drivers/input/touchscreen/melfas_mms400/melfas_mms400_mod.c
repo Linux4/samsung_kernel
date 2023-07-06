@@ -307,7 +307,12 @@ int mms_parse_devicetree(struct device *dev, struct mms_ts_info *info)
 		tsp_debug_err(true, dev, "Failed to get fw_name property\n");
 		info->dtdata->fw_name = INTERNAL_FW_PATH;
 	}
-
+	
+	if (of_property_read_u32(np, "melfas,factory_item_version", &info->dtdata->item_version) < 0) {
+		tsp_debug_err(true, dev,  "Failed to get factory_item_version property\n");
+		info->dtdata->item_version = 0;
+	}
+	
 	info->dtdata->support_lpm = of_property_read_bool(np, "melfas,support_lpm");
 	
 	tsp_debug_info(true, dev, "%s: fw_name %s max_x:%d max_y:%d int:%d irq:%d sda:%d scl:%d support_LPM:%d\n",
@@ -372,11 +377,6 @@ int mms_vbus_notification(struct notifier_block *nb,
 
 	tsp_debug_info(true, &info->client->dev, "%s cmd=%lu, vbus_type=%d\n", __func__, cmd, vbus_type);
 
-	if (!info->enabled) {
-		tsp_debug_err(true, &info->client->dev, "%s tsp disabled",__func__);
-		return 0;
-	}
-
 	switch (vbus_type) {
 	case STATUS_VBUS_HIGH:
 		tsp_debug_info(true, &info->client->dev, "%s : attach\n",__func__);
@@ -389,6 +389,12 @@ int mms_vbus_notification(struct notifier_block *nb,
 	default:
 		break;
 	}
+
+	if (!info->enabled) {
+		tsp_debug_err(true, &info->client->dev, "%s tsp disabled",__func__);
+		return 0;
+	}
+
 	mms_charger_attached(info, info->ta_stsatus);
 	return 0;
 }

@@ -52,12 +52,10 @@ uint32_t exynos_smc1(uint32_t cmd, uint32_t arg1, uint32_t arg2, uint32_t arg3)
 	register uint32_t reg3 __asm__("x3") = arg3;
 
 	__asm__ volatile (
-	        "dsb    sy\n"
-	        "smc    0\n"
-	        : "+r"(reg0), "+r"(reg1), "+r"(reg2), "+r"(reg3)
-	
+		"dsb	sy\n"
+		"smc	0\n"
+		: "+r"(reg0), "+r"(reg1), "+r"(reg2), "+r"(reg3)
 	);
-
 
 	return reg0;
 }
@@ -70,10 +68,9 @@ uint32_t exynos_smc_new(uint32_t cmd, uint32_t arg1, uint32_t arg2, uint32_t arg
 	register uint32_t reg3 __asm__("x3") = arg3;
 
 	__asm__ volatile (
-	        "dsb    sy\n"
-	        "smc    0\n"
-	        : "+r"(reg0), "+r"(reg1), "+r"(reg2), "+r"(reg3)
-	
+		"dsb	sy\n"
+		"smc	0\n"
+		: "+r"(reg0), "+r"(reg1), "+r"(reg2), "+r"(reg3)
 	);
 
     return reg1;
@@ -96,10 +93,9 @@ int exynos_smc_read_oemflag(uint32_t ctrl_word, uint32_t *val)
 		reg1 = 1;
 		reg2 = idx;
 		__asm__ volatile (
-		        "dsb    sy\n"
-		        "smc    0\n"
-		        : "+r"(reg0), "+r"(reg1), "+r"(reg2), "+r"(reg3)
-		
+			"dsb	sy\n"
+			"smc	0\n"
+			: "+r"(reg0), "+r"(reg1), "+r"(reg2), "+r"(reg3)
 		);
 		if (reg1)
 			return -1;
@@ -110,10 +106,9 @@ int exynos_smc_read_oemflag(uint32_t ctrl_word, uint32_t *val)
 	reg2 = idx;
 
 	__asm__ volatile (
-	        "dsb    sy\n"
-	        "smc    0\n"
-	        : "+r"(reg0), "+r"(reg1), "+r"(reg2), "+r"(reg3)
-	
+		"dsb	sy\n"
+		"smc	0\n"
+		: "+r"(reg0), "+r"(reg1), "+r"(reg2), "+r"(reg3)
 	);
 	if (reg1)
 		return -1;
@@ -133,23 +128,21 @@ int exynos_smc_read_oemflag_new(uint32_t getflag, uint32_t *val)
 	register uint32_t reg1 __asm__("x1") = arg1;
 	register uint32_t reg2 __asm__("x2") = arg2;
 	register uint32_t reg3 __asm__("x3") = arg3;
-  uint32_t idx = 0;
+	uint32_t idx = 0;
 
-   reg0 = 0x83000003;
-   reg1 = 1;
-   reg2 = getflag;
-   reg3 = idx;
+	reg0 = 0x83000003;
+	reg1 = 1;
+	reg2 = getflag;
+	reg3 = idx;
 
 	__asm__ volatile (
-	        "dsb    sy\n"
-	        "smc    0\n"
-	        : "+r"(reg0), "+r"(reg1), "+r"(reg2), "+r"(reg3)
-	
+		"dsb	sy\n"
+		"smc	0\n"
+		: "+r"(reg0), "+r"(reg1), "+r"(reg2), "+r"(reg3)
 	);
 
-	if (reg1 == -1) {
-	   return -1;
-	}
+	if (reg1 == -1)
+		return -1;
 
 	*val = reg1;
 	return 0;
@@ -186,17 +179,17 @@ typedef enum {
     OEMFLAG_FIDD,
     OEMFLAG_CC,
     OEMFLAG_SYSSCOPE,
+    OEMFLAG_CP,
     OEMFLAG_NUM_OF_FLAG,
 } Sec_OemFlagID_t;
 
-typedef struct
-{
+typedef struct {
     uint32_t  name;
     uint32_t  func_cmd;
     uint32_t  value;
-}t_flag;
+} t_flag;
 
-static long tzic_ioctl(struct file *file, unsigned cmd, unsigned long arg)
+static long tzic_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
 	t_flag param = { 0, 0, 0 };
@@ -206,77 +199,115 @@ static long tzic_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 	//struct irs_ctx __user *ioargp = (struct irs_ctx __user *) arg;
 	//struct irs_ctx ctx = {0};
 
-	if ( _IOC_TYPE(cmd) != IOC_MAGIC  && _IOC_TYPE(cmd) != TZIC_IOC_MAGIC ) {
+	if (_IOC_TYPE(cmd) != IOC_MAGIC  && _IOC_TYPE(cmd) != TZIC_IOC_MAGIC) {
 		LOG(KERN_INFO "[oemflag]INVALID CMD = %d\n", cmd);
 		return -ENOTTY;
 	}
 #endif /* CONFIG_TZDEV */
 
 	ret = gotoCpu0();
-	if (0 != ret) {
+	if (ret != 0) {
 		LOG(KERN_INFO "[oemflag]changing core failed!\n");
 		return -1;
 	}
-	LOG(KERN_INFO "[oemflag]CPU 0\n");
-	switch(cmd){
+	switch (cmd) {
 #ifdef CONFIG_TZDEV
-		case IOCTL_IRS_CMD:
-			LOG(KERN_INFO "[oemflag]tzirs cmd\n");
-			/* get flag id */
-			ret=copy_from_user( &param, (void *)arg, sizeof(param) );
-			if (ret != 0) {
-				LOG(KERN_INFO "[oemflag]copy_from_user failed, ret = 0x%08x\n", ret);
-				goto return_new_from;
-			}
+	case IOCTL_IRS_CMD:
+		LOG(KERN_INFO "[oemflag]tzirs cmd\n");
+		/* get flag id */
+		ret = copy_from_user(&param, (void *)arg, sizeof(param));
+		if (ret != 0) {
+			LOG(KERN_INFO "[oemflag]copy_from_user failed, ret = 0x%08x\n", ret);
+			goto return_new_from;
+		}
 
-			p1 = param.name;
-			p2 = param.value;
-			p3 = param.func_cmd;
+		p1 = param.name;
+		p2 = param.value;
+		p3 = param.func_cmd;
 
-			LOG(KERN_INFO "[oemflag]before: id = 0x%lx, value = 0x%lx, cmd = 0x%lx\n", (unsigned long)p1, (unsigned long)p2, (unsigned long)p3);
+		LOG(KERN_INFO "[oemflag]before: id = 0x%lx, value = 0x%lx, cmd = 0x%lx\n", (unsigned long)p1, (unsigned long)p2, (unsigned long)p3);
 
-			ret = tzirs_smc(&p1, &p2, &p3);
+		ret = tzirs_smc(&p1, &p2, &p3);
 
-			LOG(KERN_INFO "[oemflag]after: id = 0x%lx, value = 0x%lx, cmd = 0x%lx\n", (unsigned long)p1, (unsigned long)p2, (unsigned long)p3);
+		LOG(KERN_INFO "[oemflag]after: id = 0x%lx, value = 0x%lx, cmd = 0x%lx\n", (unsigned long)p1, (unsigned long)p2, (unsigned long)p3);
 
-			if (ret) {
-				LOG(KERN_INFO "[oemflag]Unable to send IRS_CMD : id = 0x%lx, ret = %d\n", (unsigned long)p1, ret);
-				return -EFAULT;
-			}
+		if (ret) {
+			LOG(KERN_INFO "[oemflag]Unable to send IRS_CMD : id = 0x%lx, ret = %d\n", (unsigned long)p1, ret);
+			return -EFAULT;
+		}
 
-			param.name = p1;
-			param.value = p2;
-			param.func_cmd = p3;
+		param.name = p1;
+		param.value = p2;
+		param.func_cmd = p3;
 
-			goto return_new_to;
-		break;
+		goto return_new_to;
+	break;
 #endif /* CONFIG_TZDEV */
 
-		case TZIC_IOCTL_SET_FUSE_REQ:
-			LOG(KERN_INFO "[oemflag]set_fuse\n");
-			exynos_smc1(SMC_CMD_STORE_BINFO, 0x80010001, 0, 0);
-			exynos_smc1(SMC_CMD_STORE_BINFO, 0x00000001, 0, 0);
-			goto return_default;
-		break;
+	case TZIC_IOCTL_SET_FUSE_REQ:
+		LOG(KERN_INFO "[oemflag]set_fuse\n");
+		exynos_smc1(SMC_CMD_STORE_BINFO, 0x80010001, 0, 0);
+		exynos_smc1(SMC_CMD_STORE_BINFO, 0x00000001, 0, 0);
+		goto return_default;
+	break;
 
-		case TZIC_IOCTL_GET_FUSE_REQ:
-			LOG(KERN_INFO "[oemflag]get_fuse\n");
-			if(!access_ok(VERIFY_WRITE, (void *)arg, sizeof((void *)arg))) {
-				LOG(KERN_INFO "Address is not in user space");
-				return -1;
-			}
-			exynos_smc_read_oemflag(0x80010001, (uint32_t *) arg);
-			goto return_default;
-		break;
+	case TZIC_IOCTL_GET_FUSE_REQ:
+		LOG(KERN_INFO "[oemflag]get_fuse\n");
+		if (!access_ok(VERIFY_WRITE, (void *)arg, sizeof((void *)arg))) {
+			LOG(KERN_INFO "Address is not in user space");
+			return -1;
+		}
+		exynos_smc_read_oemflag(0x80010001, (uint32_t *) arg);
+		goto return_default;
+	break;
 
-		case TZIC_IOCTL_SET_FUSE_REQ_NEW:
+	case TZIC_IOCTL_SET_FUSE_REQ_NEW:
+		LOG(KERN_INFO "[oemflag]set_fuse_new\n");
+		ret = copy_from_user(&param, (void *)arg, sizeof(param));
+		if (ret) {
+			LOG(KERN_INFO "[oemflag]ERROR copy from user\n");
+			goto return_new_from;
+		}
+		if ((param.name > OEMFLAG_MIN_FLAG) && (param.name < OEMFLAG_NUM_OF_FLAG)) {
+			LOG(KERN_INFO "[oemflag]set_fuse_name : %u\n", param.name);
+			exynos_smc_new(0x83000004, 0, param.name, 0);
+			goto return_new_to;
+		} else {
+			LOG(KERN_INFO "[oemflag]command error\n");
+			param.value = -1;
+			goto return_new_to;
+		}
+	break;
+
+	case TZIC_IOCTL_GET_FUSE_REQ_NEW:
+		LOG(KERN_INFO "[oemflag]get_fuse_new\n");
+		ret = copy_from_user(&param, (void *)arg, sizeof(param));
+		if (ret) {
+			LOG(KERN_INFO "[oemflag]ERROR copy from user\n");
+			goto return_new_from;
+		}
+		if ((param.name > OEMFLAG_MIN_FLAG) && (param.name < OEMFLAG_NUM_OF_FLAG)) {
+			LOG(KERN_INFO "[oemflag]get_fuse_name : %u\n", param.name);
+			exynos_smc_read_oemflag_new(param.name, &param.value);
+			LOG(KERN_INFO "[oemflag]get_oemflag_value : %u\n", param.value);
+			goto return_new_to;
+		} else {
+			LOG(KERN_INFO "[oemflag]command error\n");
+			param.value = -1;
+			goto return_new_to;
+		}
+	break;
+
+	default:
+		LOG(KERN_INFO "[oemflag]default\n");
+		ret = copy_from_user(&param, (void *)arg, sizeof(param));
+		if (param.func_cmd == IRS_SET_FLAG_VALUE_CMD) {
 			LOG(KERN_INFO "[oemflag]set_fuse_new\n");
-			ret=copy_from_user( &param, (void *)arg, sizeof(param) );
-			if(ret) {
+			if (ret) {
 				LOG(KERN_INFO "[oemflag]ERROR copy from user\n");
 				goto return_new_from;
 			}
-			if ((OEMFLAG_MIN_FLAG < param.name) && (param.name < OEMFLAG_NUM_OF_FLAG)){
+			if ((param.name > OEMFLAG_MIN_FLAG) && (param.name < OEMFLAG_NUM_OF_FLAG)) {
 				LOG(KERN_INFO "[oemflag]set_fuse_name : %u\n", param.name);
 				exynos_smc_new(0x83000004, 0, param.name, 0);
 				goto return_new_to;
@@ -285,18 +316,15 @@ static long tzic_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 				param.value = -1;
 				goto return_new_to;
 			}
-		break;
-
-		case TZIC_IOCTL_GET_FUSE_REQ_NEW:
+		} else if (param.func_cmd == IRS_GET_FLAG_VAL_CMD) {
 			LOG(KERN_INFO "[oemflag]get_fuse_new\n");
-			ret=copy_from_user( &param, (void *)arg, sizeof(param) );
-			if(ret) {
+			if (ret) {
 				LOG(KERN_INFO "[oemflag]ERROR copy from user\n");
 				goto return_new_from;
 			}
-			if ((OEMFLAG_MIN_FLAG < param.name) && (param.name < OEMFLAG_NUM_OF_FLAG)){
+			if ((param.name > OEMFLAG_MIN_FLAG) && (param.name < OEMFLAG_NUM_OF_FLAG)) {
 				LOG(KERN_INFO "[oemflag]get_fuse_name : %u\n", param.name);
-				exynos_smc_read_oemflag_new(param.name, &param.value) ;
+				exynos_smc_read_oemflag_new(param.name, &param.value);
 				LOG(KERN_INFO "[oemflag]get_oemflag_value : %u\n", param.value);
 				goto return_new_to;
 			} else {
@@ -304,61 +332,22 @@ static long tzic_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 				param.value = -1;
 				goto return_new_to;
 			}
-		break;
-
-		default:
-			LOG(KERN_INFO "[oemflag]default\n");
-			ret=copy_from_user( &param, (void *)arg, sizeof(param) );
-			if (param.func_cmd == IRS_SET_FLAG_VALUE_CMD) {
-				LOG(KERN_INFO "[oemflag]set_fuse_new\n");
-				if(ret) {
-					LOG(KERN_INFO "[oemflag]ERROR copy from user\n");
-					goto return_new_from;
-				}
-				if ((OEMFLAG_MIN_FLAG < param.name) && (param.name < OEMFLAG_NUM_OF_FLAG)){
-					LOG(KERN_INFO "[oemflag]set_fuse_name : %u\n", param.name);
-					exynos_smc_new(0x83000004, 0, param.name, 0);
-					goto return_new_to;
-				} else {
-					LOG(KERN_INFO "[oemflag]command error\n");
-					param.value = -1;
-					goto return_new_to;
-				}
-			} else if (param.func_cmd == IRS_GET_FLAG_VAL_CMD) {
-				LOG(KERN_INFO "[oemflag]get_fuse_new\n");
-				if(ret) {
-					LOG(KERN_INFO "[oemflag]ERROR copy from user\n");
-					goto return_new_from;
-				}
-				if ((OEMFLAG_MIN_FLAG < param.name) && (param.name < OEMFLAG_NUM_OF_FLAG)){
-					LOG(KERN_INFO "[oemflag]get_fuse_name : %u\n", param.name);
-					exynos_smc_read_oemflag_new(param.name, &param.value) ;
-					LOG(KERN_INFO "[oemflag]get_oemflag_value : %u\n", param.value);
-					goto return_new_to;
-				} else {
-					LOG(KERN_INFO "[oemflag]command error\n");
-					param.value = -1;
-					goto return_new_to;
-				}
-			} else {
-				LOG(KERN_INFO "[oemflag]command error\n");
-				param.value = -1;
-				goto return_new_to;
-			}
+		} else {
+			LOG(KERN_INFO "[oemflag]command error\n");
+			param.value = -1;
+			goto return_new_to;
+		}
 	}
 
  return_default:
 	gotoAllCpu();
-	LOG(KERN_INFO "[oemflag]ALL CPU (default)\n");
 	return 0;
  return_new_from:
 	gotoAllCpu();
-	LOG(KERN_INFO "[oemflag]ALL CPU (new_from)\n");
-	return copy_from_user( &param, (void *)arg, sizeof(param) );
+	return copy_from_user(&param, (void *)arg, sizeof(param));
  return_new_to:
 	gotoAllCpu();
-	LOG(KERN_INFO "[oemflag]ALL CPU (new_to)\n");
-	return copy_to_user( (void *)arg, &param, sizeof(param) );
+	return copy_to_user((void *)arg, &param, sizeof(param));
 }
 
 static const struct file_operations tzic_fops = {
@@ -424,17 +413,9 @@ static int gotoCpu0(void)
 {
 	int ret = 0;
 	struct cpumask mask = CPU_MASK_CPU0;
-
-	LOG(KERN_INFO "System has %d CPU's, we are on CPU #%d\n"
-	    "\tBinding this process to CPU #0.\n"
-	    "\tactive mask is %lx, setting it to mask=%lx\n",
-	    nr_cpu_ids,
-	    raw_smp_processor_id(), cpu_active_mask->bits[0], mask.bits[0]);
 	ret = set_cpus_allowed_ptr(current, &mask);
-	if (0 != ret)
+	if (ret != 0)
 		LOG(KERN_INFO "set_cpus_allowed_ptr=%d.\n", ret);
-	LOG(KERN_INFO "And now we are on CPU #%d\n", raw_smp_processor_id());
-
 	return ret;
 }
 
@@ -442,24 +423,18 @@ static int gotoAllCpu(void)
 {
 	int ret = 0;
 	struct cpumask mask = CPU_MASK_ALL;
-
-	LOG(KERN_INFO "System has %d CPU's, we are on CPU #%d\n"
-	    "\tBinding this process to CPU #0.\n"
-	    "\tactive mask is %lx, setting it to mask=%lx\n",
-	    nr_cpu_ids,
-	    raw_smp_processor_id(), cpu_active_mask->bits[0], mask.bits[0]);
 	ret = set_cpus_allowed_ptr(current, &mask);
-	if (0 != ret)
+	if (ret != 0)
 		LOG(KERN_INFO "set_cpus_allowed_ptr=%d.\n", ret);
-	LOG(KERN_INFO "And now we are on CPU #%d\n", raw_smp_processor_id());
-
 	return ret;
 }
 
 int tzic_get_tamper_flag(void)
 {
 	uint32_t arg;
+
 	exynos_smc_read_oemflag(0x80010001, &arg);
+
 	return arg;
 }
 EXPORT_SYMBOL(tzic_get_tamper_flag);

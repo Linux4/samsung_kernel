@@ -28,9 +28,15 @@
 #if defined (CONFIG_FM_SI47XX)
 #include <linux/i2c/si47xx_common.h>
 #endif
+#ifdef CONFIG_SND_SOC_CS35L40
+#include <linux/mfd/cs35l40/registers.h>
+#include <linux/mfd/cs35l40/calibration.h>
+#include <linux/mfd/cs35l40/big_data.h>
+#endif
 
 #define CODEC_BFS_48KHZ		32
 #define CODEC_RFS_48KHZ		512
+#define CODEC_BFS_48KHZ_24BIT		64
 #define CODEC_SAMPLE_RATE_48KHZ	48000
 
 #define CODEC_BFS_192KHZ		64
@@ -46,6 +52,7 @@
 #endif
 
 static struct snd_soc_card universal7870_cod3025x_card;
+static struct snd_soc_dai_link_component **resized_codecs;
 
 enum {
 	MB_NONE,
@@ -77,10 +84,13 @@ struct universal7870_mic_bias_count {
 struct cod3026x_machine_priv {
 	struct snd_soc_codec *codec;
 	int aifrate;
+	int aifwidth;
 	struct universal7870_mic_bias mic_bias;
 	struct universal7870_mic_bias_count mic_bias_count;
 	bool use_external_jd;
 	bool is_fm_slave_i2s;
+	int amp_num;
+	unsigned int default_num_codecs;
 };
 
 static const struct snd_soc_component_driver universal7870_cmpnt = {
@@ -104,14 +114,20 @@ static int universal7870_aif1_hw_params(struct snd_pcm_substream *substream,
 		 params_buffer_bytes(params));
 
 	priv->aifrate = params_rate(params);
+	priv->aifwidth = params_width(params);
 
 	if (priv->aifrate == CODEC_SAMPLE_RATE_192KHZ) {
 		rfs = CODEC_RFS_192KHZ;
 		bfs = CODEC_BFS_192KHZ;
 	} else {
 		rfs = CODEC_RFS_48KHZ;
-		bfs = CODEC_BFS_48KHZ;
+		if (priv->aifwidth == 16)
+			bfs = CODEC_BFS_48KHZ;
+		else
+			bfs = CODEC_BFS_48KHZ_24BIT;
 	}
+
+	dev_info(card->dev, "rfs:%d, bfs:%d\n", rfs, bfs);
 
 	ret = snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_I2S
 						| SND_SOC_DAIFMT_NB_NF
@@ -550,8 +566,32 @@ static int universal7870_set_bias_level(struct snd_soc_card *card,
 
 static int universal7870_late_probe(struct snd_soc_card *card)
 {
+#ifdef CONFIG_SND_SOC_CS35L40
+	struct cod3026x_machine_priv *priv = snd_soc_card_get_drvdata(card);
+	struct snd_soc_codec *amp = NULL;
+	int ret;
+#endif
 
 	dev_dbg(card->dev, "%s called\n", __func__);
+
+#ifdef CONFIG_SND_SOC_CS35L40
+	if (priv->amp_num) {
+		dev_info(card->dev, "%s: set sysclk for amp\n", __func__);
+		amp = card->rtd[0].codec_dais[priv->default_num_codecs]->codec;
+		ret = snd_soc_codec_set_sysclk(amp, 0, 0, 3072000, SND_SOC_CLOCK_IN);
+		if (ret < 0)
+			dev_err(card->dev, "Failed to set amp sysclk\n");
+
+		snd_soc_dapm_ignore_suspend(&card->dapm, "SPEAKER");
+		snd_soc_dapm_sync(&card->dapm);
+
+		snd_soc_dapm_ignore_suspend(&amp->dapm, "AMP SPK");
+		snd_soc_dapm_ignore_suspend(&amp->dapm, "AMP Playback");
+		snd_soc_dapm_ignore_suspend(&amp->dapm, "AMP Capture");
+		snd_soc_dapm_sync(&amp->dapm);
+	}
+#endif
+
 	return 0;
 }
 
@@ -673,7 +713,6 @@ static int universal7870_linein_bias(struct snd_soc_dapm_widget *w,
 	return universal7870_configure_mic_bias(w->dapm->card, INT_LINEIN, event);
 }
 
-
 static int universal7870_request_ext_mic_bias_en_gpio(struct snd_soc_card *card)
 {
 	struct cod3026x_machine_priv *priv = snd_soc_card_get_drvdata(card);
@@ -707,6 +746,26 @@ static int universal7870_request_ext_mic_bias_en_gpio(struct snd_soc_card *card)
 	return 0;
 }
 
+#ifdef CONFIG_SND_SOC_CS35L40
+static int cs35l40_external_amp(struct snd_soc_dapm_widget *w,
+				struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_card *card = w->dapm->card;
+
+	dev_info(card->dev, "%s event : %d\n", __func__, event);
+
+	switch (event) {
+	case SND_SOC_DAPM_POST_PMU:
+		cs35l40_cal_apply();
+		break;
+	case SND_SOC_DAPM_PRE_PMD:
+		cs35l40_bd_store_values();
+		break;
+	}
+
+	return 0;
+};
+#endif
 
 static int universal7870_init_soundcard(struct snd_soc_card *card)
 {
@@ -738,6 +797,9 @@ const struct snd_soc_dapm_widget universal7870_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("MIC2 Bias", universal7870_mic2_bias),
 	SND_SOC_DAPM_MIC("MIC3 Bias", universal7870_mic3_bias),
 	SND_SOC_DAPM_MIC("LINEIN Bias", universal7870_linein_bias),
+#ifdef CONFIG_SND_SOC_CS35L40
+	SND_SOC_DAPM_SPK("SPEAKER", cs35l40_external_amp),
+#endif
 };
 
 const struct snd_soc_dapm_route universal7870_dapm_routes[] = {
@@ -752,6 +814,10 @@ const struct snd_soc_dapm_route universal7870_dapm_routes[] = {
 
 	{"LINEIN_PGA", NULL, "LINEIN Bias"},
 	{"LINEIN Bias", NULL, "IN4L" },
+
+#ifdef CONFIG_SND_SOC_CS35L40
+	{"SPEAKER", NULL, "AMP SPK" },
+#endif
 };
 
 static struct snd_soc_ops universal7870_aif1_ops = {
@@ -913,6 +979,7 @@ static struct snd_soc_dai_link universal7870_cod3025x_dai[] = {
 		.codecs = codecs_ap0,
 		.num_codecs = ARRAY_SIZE(codecs_ap0),
 		.ops = &universal7870_aif1_ops,
+		.ignore_suspend = 1,
 	},
 	/* Deep buffer playback */
 	{
@@ -923,6 +990,7 @@ static struct snd_soc_dai_link universal7870_cod3025x_dai[] = {
 		.codecs = codecs_ap0,
 		.num_codecs = ARRAY_SIZE(codecs_ap0),
 		.ops = &universal7870_aif1_ops,
+		.ignore_suspend = 1,
 	},
 	/* Voice Call */
 	{
@@ -965,6 +1033,7 @@ static struct snd_soc_dai_link universal7870_cod3025x_dai[] = {
 		.codecs = codecs_ap1,
 		.num_codecs = ARRAY_SIZE(codecs_ap1),
 		.ops = &universal7870_aif5_ops,
+		.ignore_suspend = 1,
 	},
 
 	/* AMP CP Interface */
@@ -1102,13 +1171,56 @@ static void universal7870_mic_bias_parse_dt(struct platform_device *pdev)
 			priv->mic_bias.mode[INT_MIC3], priv->mic_bias.mode[INT_LINEIN]);
 }
 
+static int universal7870_resize_codecs(struct cod3026x_machine_priv *priv)
+{
+	struct snd_soc_dai_link_component *tmp_codecs;
+	unsigned int p_size, size, dai_num, resize_num, i, j;
+
+	p_size = sizeof(struct snd_soc_dai_link_component *);
+	size = sizeof(struct snd_soc_dai_link_component);
+	dai_num = ARRAY_SIZE(universal7870_cod3025x_dai);
+	resize_num = priv->default_num_codecs + priv->amp_num;
+
+	resized_codecs = kmalloc(dai_num * p_size, GFP_KERNEL);
+	if (!resized_codecs)
+		return -ENOMEM;
+
+	for (i = 0; i < dai_num; i++) {
+		resized_codecs[i] = kcalloc(resize_num, size, GFP_KERNEL);
+		if (!resized_codecs[i]) {
+			for (j = 0; j < i; j++)
+				kfree(resized_codecs[j]);
+			kfree(resized_codecs);
+			return -ENOMEM;
+		}
+
+		tmp_codecs = universal7870_cod3025x_dai[i].codecs;
+
+		if (!memcpy(resized_codecs[i], tmp_codecs,
+					priv->default_num_codecs * size)) {
+			for (j = 0; j <= i; j++)
+				kfree(resized_codecs[j]);
+			kfree(resized_codecs);
+			return -ENOMEM;
+		}
+	}
+
+	for (i = 0; i < dai_num; i++)
+		universal7870_cod3025x_dai[i].codecs = resized_codecs[i];
+
+	return 0;
+}
+
 static int universal7870_audio_probe(struct platform_device *pdev)
 {
 	int n, ret;
 	struct device_node *np = pdev->dev.of_node;
-	struct device_node *cpu_np, *codec_np, *auxdev_np;
+	struct device_node *cpu_np, *codec_np, *auxdev_np, *amp_np;
 	struct snd_soc_card *card = &universal7870_cod3025x_card;
 	struct cod3026x_machine_priv *priv;
+	struct snd_soc_dai_link_component *codecs;
+	unsigned int amp_num, default_num_codecs, num_codecs, i;
+	const char *codecs_dai_name;
 
 	if (!np) {
 		dev_err(&pdev->dev, "Failed to get device node\n");
@@ -1129,6 +1241,24 @@ static int universal7870_audio_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Failed to register component: %d\n", ret);
 		return ret;
 	}
+
+	default_num_codecs = universal7870_cod3025x_dai[0].num_codecs;
+	priv->default_num_codecs = default_num_codecs;
+
+	ret = of_property_read_u32(np, "samsung,audio-amp-num", &amp_num);
+	if (!ret) {
+		priv->amp_num = amp_num;
+
+		ret = universal7870_resize_codecs(priv);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "Failed to resize codecs\n");
+			priv->amp_num = 0;
+		}
+	} else {
+		priv->amp_num = 0;
+	}
+
+	dev_info(&pdev->dev, "Property 'samsung,audio_amp_num' %d\n", priv->amp_num);
 
 	for (n = 0; n < ARRAY_SIZE(universal7870_cod3025x_dai); n++) {
 		/* Skip parsing DT for fully formed dai links */
@@ -1160,6 +1290,36 @@ static int universal7870_audio_probe(struct platform_device *pdev)
 			universal7870_cod3025x_dai[n].cpu_of_node = cpu_np;
 		if (!universal7870_cod3025x_dai[n].platform_name)
 			universal7870_cod3025x_dai[n].platform_of_node = cpu_np;
+
+
+		num_codecs = default_num_codecs;
+		codecs = universal7870_cod3025x_dai[n].codecs;
+
+		for (i = 0; i < priv->amp_num; i++) {
+			amp_np = of_parse_phandle(np, "samsung,audio-amp",
+						(n * priv->amp_num) + i);
+			if (amp_np) {
+				codecs[default_num_codecs + i].of_node = amp_np;
+			} else {
+				dev_err(&pdev->dev,
+					"Property 'samsung,audio-amp' missing\n");
+				num_codecs = default_num_codecs;
+				break;
+			}
+
+			ret = of_property_read_string_index(np, "samsung,audio-amp-dai-name",
+					(n * priv->amp_num) + i, &codecs_dai_name);
+			if (ret) {
+				dev_err(&pdev->dev, "fail to get codecs_dai_name\n");
+				num_codecs = default_num_codecs;
+				break;
+			}
+			codecs[default_num_codecs + i].dai_name = codecs_dai_name;
+
+			num_codecs++;
+		}
+
+		universal7870_cod3025x_dai[n].num_codecs = num_codecs;
 
 		card->num_links++;
 	}
@@ -1197,6 +1357,11 @@ static int universal7870_audio_probe(struct platform_device *pdev)
 static int universal7870_audio_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(universal7870_cod3025x_dai); i++)
+		kfree(resized_codecs[i]);
+	kfree(resized_codecs);
 
 	snd_soc_unregister_card(card);
 

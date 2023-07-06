@@ -8,12 +8,14 @@
 #undef CONFIG_EXYNOS_DECON_FB
 
 #undef FTS_SUPPORT_TOUCH_KEY
-#define FTS_SUPPORT_PRESSURE_SENSOR
-#define FTS_SUPPORT_STRINGLIB
+#undef FTS_SUPPORT_PRESSURE_SENSOR
+#undef FTS_SUPPORT_STRINGLIB
 #define USE_OPEN_CLOSE
 #define SEC_TSP_FACTORY_TEST
 #define PAT_CONTROL
 #define USE_POR_AFTER_I2C_RETRY
+/* glove mode */
+#define CONFIG_GLOVE_TOUCH
 
 #define BRUSH_Z_DATA		63	/* for ArtCanvas */
 
@@ -224,6 +226,7 @@
 #define PAT_CONTROL_FORCE_UPDATE	0x05
 
 #define PAT_COUNT_ZERO			0x00
+#define PAT_ONE_LCIA			0x01
 #define PAT_MAX_LCIA			0x80
 #define PAT_MAGIC_NUMBER		0x83
 #define PAT_MAX_MAGIC			0xC5
@@ -658,7 +661,7 @@ struct fts_ts_info {
 	int (*fts_read_reg)(struct fts_ts_info *info, unsigned char *reg, int cnum, unsigned char *buf, int num);
 	int (*fts_systemreset)(struct fts_ts_info *info, unsigned int delay);
 	int (*fts_wait_for_ready)(struct fts_ts_info *info);
-	void (*fts_command)(struct fts_ts_info *info, unsigned char cmd);
+	int (*fts_command)(struct fts_ts_info *info, unsigned char cmd);
 	void (*fts_enable_feature)(struct fts_ts_info *info, unsigned char cmd, int enable);
 	int (*fts_get_version_info)(struct fts_ts_info *info);
 	int (*fts_get_sysinfo_data)(struct fts_ts_info *info, unsigned char sysinfo_addr, unsigned char read_cnt, unsigned char *data);
@@ -671,7 +674,7 @@ struct fts_ts_info {
 
 int fts_fw_update_on_probe(struct fts_ts_info *info);
 int fts_fw_update_on_hidden_menu(struct fts_ts_info *info, int update_type);
-void fts_fw_init(struct fts_ts_info *info, bool magic_cal);
+void fts_fw_init(struct fts_ts_info *info, bool boot);
 void fts_execute_autotune(struct fts_ts_info *info);
 int fts_fw_wait_for_event(struct fts_ts_info *info, unsigned char eid);
 int fts_fw_wait_for_event_D3(struct fts_ts_info *info, unsigned char eid0, unsigned char eid1);
@@ -680,10 +683,11 @@ int fts_irq_enable(struct fts_ts_info *info, bool enable);
 #ifdef PAT_CONTROL
 int fts_set_calibration_information(struct fts_ts_info *info, unsigned char count, unsigned short version);
 int fts_get_calibration_information(struct fts_ts_info *info);
+int fts_ts_tclm(struct fts_ts_info *info, bool boot, bool run_force);
 #endif
 int fts_get_tsp_test_result(struct fts_ts_info *info);
 int fts_read_pressure_data(struct fts_ts_info *info);
-void fts_interrupt_set(struct fts_ts_info *info, int enable);
+int fts_interrupt_set(struct fts_ts_info *info, int enable);
 void fts_release_all_finger(struct fts_ts_info *info);
 void fts_delay(unsigned int ms);
 int fts_read_analog_chip_id(struct fts_ts_info *info, unsigned char id);

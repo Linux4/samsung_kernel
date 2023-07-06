@@ -11,8 +11,6 @@ static struct mdnie_scr_info scr_info = {
 	.wb = 111		/* ASCR_WIDE_WB[7:0] */
 };
 
-static struct mdnie_trans_info trans_info;
-
 static inline int color_offset_f1(int x, int y)
 {
 	return ((y)-((547*(x))/503)+31);
@@ -6606,7 +6604,6 @@ static struct mdnie_tune tune_info = {
 	.coordinate_table = coordinate_data,
 	.scr_info = &scr_info,
 	.get_hbm_index = get_hbm_index,
-	.trans_info = &trans_info,
 	.color_offset = {NULL, color_offset_f1, color_offset_f2, color_offset_f3, color_offset_f4}
 };
 

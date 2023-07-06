@@ -549,6 +549,27 @@ static ssize_t epen_wcharging_mode_store(struct device *dev,
 
 }
 
+static ssize_t epen_keyboard_mode_store(struct device *dev,
+				      struct device_attribute *attr,
+				      const char *buf, size_t count)
+{
+	struct wacom_i2c *wac_i2c = dev_get_drvdata(dev);
+	struct i2c_client *client = wac_i2c->client;
+	int val;
+
+	if (kstrtoint(buf, 0, &val)) {
+		input_err(true, &client->dev, "%s: failed to get param\n",
+			  __func__);
+		return count;
+	}
+
+	wac_i2c->keyboard_cover_mode = !(!val);
+
+	input_info(true, &client->dev, "%s: %d\n", __func__, wac_i2c->keyboard_cover_mode);
+
+	return count;
+}
+
 /* epen_disable_mode : Use in Secure mode(TUI) and Factory mode
  * 0 : enable wacom
  * 1 : disable wacom
@@ -692,6 +713,73 @@ static ssize_t epen_dex_rate_store(struct device *dev,
 
 	return count;
 
+}
+
+static ssize_t epen_abnormal_reset_count_show(struct device *dev,
+					      struct device_attribute *attr,
+					      char *buf)
+{
+	struct wacom_i2c *wac_i2c = dev_get_drvdata(dev);
+	struct i2c_client *client = wac_i2c->client;
+
+	input_info(true, &client->dev, "%s: %u\n", __func__,
+		   wac_i2c->abnormal_reset_count);
+
+	return snprintf(buf, PAGE_SIZE, "%u", wac_i2c->abnormal_reset_count);
+}
+
+static ssize_t epen_clear_abnormal_reset_count_store(struct device *dev,
+						     struct device_attribute *attr,
+						     const char *buf,
+						     size_t count)
+{
+	struct wacom_i2c *wac_i2c = dev_get_drvdata(dev);
+	struct i2c_client *client = wac_i2c->client;
+
+	if (buf[0] != 'c') {
+		input_err(true, &client->dev, "%s: failed to get param\n",
+			  __func__);
+		return count;
+	}
+
+	wac_i2c->abnormal_reset_count = 0;
+
+	input_info(true, &client->dev, "%s: clear\n", __func__);
+
+	return count;
+}
+
+static ssize_t epen_i2c_fail_count_show(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	struct wacom_i2c *wac_i2c = dev_get_drvdata(dev);
+	struct i2c_client *client = wac_i2c->client;
+
+	input_info(true, &client->dev, "%s: %u\n", __func__,
+		   wac_i2c->i2c_fail_count);
+
+	return snprintf(buf, PAGE_SIZE, "%u", wac_i2c->i2c_fail_count);
+}
+
+static ssize_t epen_clear_i2c_fail_count_store(struct device *dev,
+					       struct device_attribute *attr,
+					       const char *buf, size_t count)
+{
+	struct wacom_i2c *wac_i2c = dev_get_drvdata(dev);
+	struct i2c_client *client = wac_i2c->client;
+
+	if (buf[0] != 'c') {
+		input_err(true, &client->dev, "%s: failed to get param\n",
+			  __func__);
+		return count;
+	}
+
+	wac_i2c->i2c_fail_count = 0;
+
+	input_info(true, &client->dev, "%s: clear\n", __func__);
+
+	return count;
 }
 
 #ifdef CONFIG_SEC_FACTORY
@@ -850,6 +938,8 @@ static DEVICE_ATTR(epen_insert, S_IRUGO,
 			epen_insert_show, NULL);
 static DEVICE_ATTR(epen_wcharging_mode, (S_IRUGO | S_IWUSR | S_IWGRP),
 		   epen_wcharging_mode_show, epen_wcharging_mode_store);
+static DEVICE_ATTR(keyboard_mode, (S_IWUSR | S_IWGRP),
+		   NULL, epen_keyboard_mode_store);
 static DEVICE_ATTR(epen_disable_mode, (S_IWUSR | S_IWGRP),
 		   NULL, epen_disable_mode_store);
 static DEVICE_ATTR(screen_off_memo_enable, (S_IWUSR | S_IWGRP),
@@ -862,6 +952,11 @@ static DEVICE_ATTR(dex_enable, (S_IRUGO | S_IWUSR | S_IWGRP),
 		   epen_dex_enable_show, epen_dex_enable_store);
 static DEVICE_ATTR(dex_rate, (S_IRUGO | S_IWUSR | S_IWGRP),
 		   epen_dex_rate_show, epen_dex_rate_store);
+static DEVICE_ATTR(abnormal_reset_count, (S_IRUGO | S_IWUSR | S_IWGRP),
+		   epen_abnormal_reset_count_show,
+		   epen_clear_abnormal_reset_count_store);
+static DEVICE_ATTR(i2c_fail_count, (S_IRUGO | S_IWUSR | S_IWGRP),
+		   epen_i2c_fail_count_show, epen_clear_i2c_fail_count_store);
 #ifdef CONFIG_SEC_FACTORY
 static DEVICE_ATTR(epen_fac_garage_mode, (S_IRUGO | S_IWUSR | S_IWGRP),
 		   epen_fac_garage_mode_show, epen_fac_garage_mode_enable);
@@ -881,12 +976,15 @@ static struct attribute *epen_attributes[] = {
 	&dev_attr_epen_saving_mode.attr,
 	&dev_attr_epen_insert.attr,
 	&dev_attr_epen_wcharging_mode.attr,
+	&dev_attr_keyboard_mode.attr,
 	&dev_attr_epen_disable_mode.attr,
 	&dev_attr_screen_off_memo_enable.attr,
 	&dev_attr_get_epen_pos.attr,
 	&dev_attr_aod_enable.attr,
 	&dev_attr_dex_enable.attr,
 	&dev_attr_dex_rate.attr,
+	&dev_attr_abnormal_reset_count.attr,
+	&dev_attr_i2c_fail_count.attr,
 #ifdef CONFIG_SEC_FACTORY
 	&dev_attr_epen_fac_garage_mode.attr,
 	&dev_attr_epen_fac_garage_rawdata.attr,

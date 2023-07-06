@@ -19,6 +19,10 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
  */
+#if defined(CONFIG_IFPMIC_SUPPORT)
+#include <linux/ifpmic/ccic/ccic_alternate.h>
+#endif
+
 #ifndef __LINUX_CCIC_ALTERNATE_MODE_H__
 #define __LINUX_CCIC_ALTERNATE_MODE_H__
 #if defined(CONFIG_CCIC_ALTERNATE_MODE)

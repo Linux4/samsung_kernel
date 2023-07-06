@@ -3,16 +3,6 @@
 
 /* 2016.08.30 */
 
-static struct mdnie_scr_info scr_info = {
-	.index = 1,
-	.cr = 107,		/* ASCR_WIDE_CR[7:0] */
-	.wr = 125,		/* ASCR_WIDE_WR[7:0] */
-	.wg = 127,		/* ASCR_WIDE_WG[7:0] */
-	.wb = 129		/* ASCR_WIDE_WB[7:0] */
-};
-
-static struct mdnie_trans_info trans_info;
-
 static inline int get_hbm_index(int idx)
 {
 	int i = 0;
@@ -576,115 +566,6 @@ static unsigned char HBM_CE_2[] = {
 	0x00,
 };
 
-static unsigned char GAME_1[] = {
-	0xC7,
-	0x00,
-	0x0A,
-	0x14,
-	0x21,
-	0x2D,
-	0x37,
-	0x4F,
-	0x61,
-	0x71,
-	0x7F,
-	0x33,
-	0x40,
-	0x4E,
-	0x64,
-	0x6E,
-	0x7D,
-	0x90,
-	0xA0,
-	0xB0,
-	0x00,
-	0x0A,
-	0x14,
-	0x21,
-	0x2D,
-	0x37,
-	0x4F,
-	0x61,
-	0x71,
-	0x7F,
-	0x33,
-	0x40,
-	0x4E,
-	0x64,
-	0x6E,
-	0x7D,
-	0x90,
-	0xA0,
-	0xB0,
-	0x00,
-	0x97,
-	0x00,
-	0x97,
-	0x00,
-	0x97,
-	0x00,
-	0x97,
-};
-
-static unsigned char GAME_2[] = {
-	0xC8,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0xFC,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0xFC,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0xFC,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0xFC,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0xFC,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0xFC,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0xFC,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0xFC,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0x00,
-	0xFC,
-	0x00,
-};
-
 static unsigned char CABC_ON[] = {
 	0x55,
 	0x03,
@@ -702,7 +583,7 @@ static unsigned char CE_SLOPE_LONG[] = {
 	0x04, 0x45, 0x00, 0x00,
 };
 
-static unsigned char DSI0_GAMMA_VIDEO[] ={
+static unsigned char DSI0_GAMMA_VIDEO[] = {
 	0xCA,
 	0x1D, 0xFC, 0xA5, 0xFC, 0x00, 0xE6, 0xDB, 0xD8, 0x00, 0xC9,
 	0xEE, 0xF3, 0x00, 0x08, 0x06, 0x00, 0x00, 0x08, 0xF3, 0x05,
@@ -712,7 +593,7 @@ static unsigned char DSI0_GAMMA_VIDEO[] ={
 };
 
 
-static unsigned char DSI0_GAMMA[] ={
+static unsigned char DSI0_GAMMA[] = {
 	0xCA,
 	0x1D, 0xFC, 0xC9, 0xFC, 0x00, 0xE6, 0xDB, 0xD8, 0x00, 0xC9,
 	0xEE, 0xF3, 0x00, 0x08, 0x06, 0x00, 0x00, 0x08, 0xF3, 0x05,
@@ -724,7 +605,7 @@ static unsigned char DSI0_GAMMA[] ={
 #define MDNIE_SET_CABC_ON(id)	\
 {							\
 	.name		= #id,				\
-	.update_flag	= {1, 2, 3, 0, 0},			\
+	.update_flag	= {1, 2, 0, 0, 0},			\
 	.seq		= {				\
 		{	.cmd = id##_1,		.len = ARRAY_SIZE(id##_1),		.sleep = 0,},	\
 		{	.cmd = id##_2,		.len = ARRAY_SIZE(id##_2),		.sleep = 0,},	\
@@ -736,7 +617,7 @@ static unsigned char DSI0_GAMMA[] ={
 #define MDNIE_SET_CABC_OFF(id)	\
 {							\
 	.name		= #id,				\
-	.update_flag	= {1, 2, 3, 0},			\
+	.update_flag	= {1, 2, 0, 0},			\
 	.seq		= {				\
 		{	.cmd = id##_1,		.len = ARRAY_SIZE(id##_1),		.sleep = 0,},	\
 		{	.cmd = id##_2,		.len = ARRAY_SIZE(id##_2),		.sleep = 0,},	\
@@ -747,7 +628,7 @@ static unsigned char DSI0_GAMMA[] ={
 #define MDNIE_SET_VIDEO(id)	\
 {							\
 	.name		= #id,				\
-	.update_flag	= {1, 2, 3, 0, 0},			\
+	.update_flag	= {1, 2, 0, 0, 0},			\
 	.seq		= {				\
 		{	.cmd = id##_1,		.len = ARRAY_SIZE(id##_1),		.sleep = 0,},	\
 		{	.cmd = id##_2,		.len = ARRAY_SIZE(id##_2),		.sleep = 0,},	\
@@ -833,26 +714,26 @@ static struct mdnie_table main_table[SCENARIO_MAX][MODE_MAX] = {
 		MDNIE_SET_CABC_OFF(UI),
 		MDNIE_SET_CABC_OFF(EBOOK),
 	}, {
-		MDNIE_SET_CABC_ON(GAME),
-		MDNIE_SET_CABC_ON(GAME),
-		MDNIE_SET_CABC_ON(GAME),
-		MDNIE_SET_CABC_ON(GAME),
-		MDNIE_SET_CABC_ON(GAME),
-		MDNIE_SET_CABC_ON(GAME)
+		MDNIE_SET_CABC_ON(CAMERA),
+		MDNIE_SET_CABC_ON(CAMERA),
+		MDNIE_SET_CABC_ON(CAMERA),
+		MDNIE_SET_CABC_ON(CAMERA),
+		MDNIE_SET_CABC_ON(CAMERA),
+		MDNIE_SET_CABC_ON(CAMERA)
 	}, {
-		MDNIE_SET_CABC_ON(GAME),
-		MDNIE_SET_CABC_ON(GAME),
-		MDNIE_SET_CABC_ON(GAME),
-		MDNIE_SET_CABC_ON(GAME),
-		MDNIE_SET_CABC_ON(GAME),
-		MDNIE_SET_CABC_ON(GAME)
+		MDNIE_SET_CABC_ON(CAMERA),
+		MDNIE_SET_CABC_ON(CAMERA),
+		MDNIE_SET_CABC_ON(CAMERA),
+		MDNIE_SET_CABC_ON(CAMERA),
+		MDNIE_SET_CABC_ON(CAMERA),
+		MDNIE_SET_CABC_ON(CAMERA)
 	}, {
-		MDNIE_SET_CABC_ON(GAME),
-		MDNIE_SET_CABC_ON(GAME),
-		MDNIE_SET_CABC_ON(GAME),
-		MDNIE_SET_CABC_ON(GAME),
-		MDNIE_SET_CABC_ON(GAME),
-		MDNIE_SET_CABC_ON(GAME)
+		MDNIE_SET_CABC_ON(CAMERA),
+		MDNIE_SET_CABC_ON(CAMERA),
+		MDNIE_SET_CABC_ON(CAMERA),
+		MDNIE_SET_CABC_ON(CAMERA),
+		MDNIE_SET_CABC_ON(CAMERA),
+		MDNIE_SET_CABC_ON(CAMERA)
 	}
 };
 
@@ -861,13 +742,10 @@ static struct mdnie_table main_table[SCENARIO_MAX][MODE_MAX] = {
 static struct mdnie_tune tune_info = {
 	.bypass_table = bypass_table,
 	.accessibility_table = accessibility_table,
-	.light_notification_table = NULL,
 	.hbm_table = hbm_table,
 	.main_table = main_table,
 
-	.scr_info = &scr_info,
 	.get_hbm_index = get_hbm_index,
-	.trans_info = &trans_info,
 };
 
 #endif

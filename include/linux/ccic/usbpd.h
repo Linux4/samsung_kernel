@@ -1,3 +1,7 @@
+#if defined(CONFIG_IFPMIC_SUPPORT)
+#include <linux/ifpmic/ccic/usbpd.h>
+#endif
+
 #ifndef __USBPD_H__
 #define __USBPD_H__
 
@@ -314,6 +318,7 @@ typedef struct usbpd_phy_ops {
 	bool   (*poll_status)(void *);
 	void   (*driver_reset)(void *);
 	int    (*set_otg_control)(void *, int);
+	int    (*set_cc_control)(void *, int);
 } usbpd_phy_ops_type;
 
 struct policy_data {

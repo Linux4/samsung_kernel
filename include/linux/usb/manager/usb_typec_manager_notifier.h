@@ -21,6 +21,9 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
  */
+#if defined(CONFIG_IFPMIC_SUPPORT)
+#include <linux/ifpmic/manager/usb_typec_manager_notifier.h>
+#endif
 
 #ifndef __USB_TYPEC_MANAGER_NOTIFIER_H__
 #define __USB_TYPEC_MANAGER_NOTIFIER_H__

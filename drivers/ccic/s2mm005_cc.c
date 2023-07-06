@@ -27,6 +27,9 @@
 #if defined(CONFIG_CCIC_ALTERNATE_MODE)
 #include <linux/ccic/ccic_alternate.h>
 #endif
+#if defined(CONFIG_USB_HOST_NOTIFY)
+#include <linux/usb_notify.h>
+#endif
 
 #if defined(CONFIG_BATTERY_SAMSUNG)
 extern unsigned int lpcharge;
@@ -386,24 +389,6 @@ void process_cc_water_det(void * data)
 			s2mm005_manual_LPM(usbpd_data, 0x9);
 	}
 }
-#if defined(CONFIG_CCIC_ALTERNATE_MODE)
-void dp_detach(void *data)
-{
-	struct s2mm005_data *usbpd_data = data;
-
-	pr_info("%s: dp_is_connect %d\n",__func__, usbpd_data->dp_is_connect);
-
-	ccic_event_work(usbpd_data, CCIC_NOTIFY_DEV_USB_DP,
-		CCIC_NOTIFY_ID_USB_DP, 0/*attach*/,usbpd_data->dp_hs_connect/*drp*/, 0);
-	ccic_event_work(usbpd_data, CCIC_NOTIFY_DEV_DP,
-		CCIC_NOTIFY_ID_DP_CONNECT, 0/*attach*/, 0/*drp*/, 0);
-
-	usbpd_data->dp_is_connect = 0;
-	usbpd_data->dp_hs_connect = 0;
-	usbpd_data->is_sent_pin_configuration = 0;
-	return;
-}
-#endif
 
 //////////////////////////////////////////// ////////////////////////////////////
 // Moisture detection processing
@@ -474,7 +459,9 @@ void process_cc_attach(void * data,u8 *plug_attach_done)
 	FUNC_STATE_Type Func_DATA;
 	uint32_t R_len;
 	uint16_t REG_ADD;
+#if defined(CONFIG_USB_HOST_NOTIFY)
 	struct otg_notify *o_notify = get_otg_notify();
+#endif
 
 	pr_info("%s\n",__func__);
 
@@ -530,7 +517,7 @@ void process_cc_attach(void * data,u8 *plug_attach_done)
 		
 		if(usbpd_data->pd_state == State_PE_SRC_Wait_New_Capabilities && Lp_DATA.BITS.Sleep_Cable_Detect)
 		{
-			s2mm005_manual_LPM(usbpd_data, 0x0C);	
+			s2mm005_manual_LPM(usbpd_data, 0x0D);	
 			return;
 		}
 		
@@ -566,6 +553,9 @@ void process_cc_attach(void * data,u8 *plug_attach_done)
 					0/*attach*/, 0/*rprd*/,0);
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
 				usbpd_data->power_role = DUAL_ROLE_PROP_PR_NONE;
+#if defined(CONFIG_USB_HOST_NOTIFY)
+				send_otg_notify(o_notify, NOTIFY_EVENT_POWER_SOURCE, 0);
+#endif
 #endif
 				ccic_event_work(usbpd_data,
 					CCIC_NOTIFY_DEV_USB, CCIC_NOTIFY_ID_USB,
@@ -582,15 +572,20 @@ void process_cc_attach(void * data,u8 *plug_attach_done)
 				usbpd_data->is_host = HOST_ON_BY_RD;
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
 				usbpd_data->power_role = DUAL_ROLE_PROP_PR_SRC;
+#if defined(CONFIG_USB_HOST_NOTIFY)
+				send_otg_notify(o_notify, NOTIFY_EVENT_POWER_SOURCE, 1);
+#endif
 #endif
 				ccic_event_work(usbpd_data,
 					CCIC_NOTIFY_DEV_USB, CCIC_NOTIFY_ID_USB,
 					1/*attach*/, USB_STATUS_NOTIFY_ATTACH_DFP/*drp*/, 0);
 				/* add to turn on external 5V */
-				if (!is_blocked(o_notify, NOTIFY_BLOCK_TYPE_HOST))
-					vbus_turn_on_ctrl(1);
-				else
+#if defined(CONFIG_USB_HOST_NOTIFY)
+				if (is_blocked(o_notify, NOTIFY_BLOCK_TYPE_HOST))
 					s2mm005_set_upsm_mode();
+				else
+#endif
+					vbus_turn_on_ctrl(1);
 #if defined(CONFIG_CCIC_ALTERNATE_MODE)
 				// only start alternate mode at DFP state
 //				send_alternate_message(usbpd_data, VDM_DISCOVER_ID);
@@ -611,15 +606,13 @@ void process_cc_attach(void * data,u8 *plug_attach_done)
 			if (usbpd_data->is_host == HOST_ON_BY_RD) {
 				dev_info(&i2c->dev, "%s %d: pd_state:%02d,  turn off host\n",
 						__func__, __LINE__, usbpd_data->pd_state);
-#if defined(CONFIG_CCIC_ALTERNATE_MODE)
-				if (usbpd_data->dp_is_connect == 1) {
-					dp_detach(usbpd_data);
-				}
-#endif
 				ccic_event_work(usbpd_data,
 						CCIC_NOTIFY_DEV_MUIC, CCIC_NOTIFY_ID_ATTACH, 0/*attach*/, 1/*rprd*/, 0);
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
 				usbpd_data->power_role = DUAL_ROLE_PROP_PR_NONE;
+#if defined(CONFIG_USB_HOST_NOTIFY)
+				send_otg_notify(o_notify, NOTIFY_EVENT_POWER_SOURCE, 0);
+#endif
 #endif
 				/* add to turn off external 5V */
 				vbus_turn_on_ctrl(0);
@@ -633,11 +626,18 @@ void process_cc_attach(void * data,u8 *plug_attach_done)
 			ccic_event_work(usbpd_data,
 					CCIC_NOTIFY_DEV_MUIC, CCIC_NOTIFY_ID_ATTACH,
 					1/*attach*/, 0/*rprd*/, Func_DATA.BITS.VBUS_CC_Short? Rp_Abnormal:Func_DATA.BITS.RP_CurrentLvl);
+#if defined(CONFIG_USB_HW_PARAM)
+			if (Func_DATA.BITS.VBUS_CC_Short && (usbpd_data->pd_state == State_ErrorRecovery))
+				inc_hw_param(o_notify, USB_CCIC_VBUS_CC_SHORT_COUNT);
+#endif
 			if (usbpd_data->is_client == CLIENT_OFF && usbpd_data->is_host == HOST_OFF) {
 				/* usb */
 				usbpd_data->is_client = CLIENT_ON;
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
 				usbpd_data->power_role = DUAL_ROLE_PROP_PR_SNK;
+#if defined(CONFIG_USB_HOST_NOTIFY)
+				send_otg_notify(o_notify, NOTIFY_EVENT_POWER_SOURCE, 0);
+#endif
 #endif
 				ccic_event_work(usbpd_data,
 						CCIC_NOTIFY_DEV_USB, CCIC_NOTIFY_ID_USB,
@@ -662,9 +662,6 @@ void process_cc_attach(void * data,u8 *plug_attach_done)
 		usbpd_data->is_dr_swap = 0;
 		usbpd_data->is_pr_swap = 0;
 #if defined(CONFIG_CCIC_ALTERNATE_MODE)
-		if (usbpd_data->dp_is_connect == 1) {
-			dp_detach(usbpd_data);
-		}
 		if ( usbpd_data->acc_type != CCIC_DOCK_DETACHED ) {
 			pr_info("%s: schedule_delayed_work - pd_state : %d\n", __func__, usbpd_data->pd_state);
 			if (usbpd_data->acc_type == CCIC_DOCK_HMT ) {
@@ -689,6 +686,9 @@ void process_cc_attach(void * data,u8 *plug_attach_done)
 			usbpd_data->is_client = CLIENT_OFF;
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
 			usbpd_data->power_role = DUAL_ROLE_PROP_PR_NONE;
+#if defined(CONFIG_USB_HOST_NOTIFY)
+			send_otg_notify(o_notify, NOTIFY_EVENT_POWER_SOURCE, 0);
+#endif
 #endif
 			ccic_event_work(usbpd_data,
 				CCIC_NOTIFY_DEV_USB, CCIC_NOTIFY_ID_USB,
@@ -710,6 +710,10 @@ void process_cc_attach(void * data,u8 *plug_attach_done)
 void process_cc_detach(void * data)
 {
 	struct s2mm005_data *usbpd_data = data;
+#if defined(CONFIG_USB_HOST_NOTIFY)
+	struct otg_notify *o_notify = get_otg_notify();
+#endif
+
 	if (usbpd_data->pd_state) {
 		usbpd_data->pd_state = State_PE_Initial_detach;
 #if defined(CONFIG_CCIC_NOTIFIER)
@@ -722,6 +726,9 @@ void process_cc_detach(void * data)
 		usbpd_data->is_client = CLIENT_OFF;
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
 		usbpd_data->power_role = DUAL_ROLE_PROP_PR_NONE;
+#if defined(CONFIG_USB_HOST_NOTIFY)
+		send_otg_notify(o_notify, NOTIFY_EVENT_POWER_SOURCE, 0);
+#endif
 #endif
 	}
 }
@@ -853,6 +860,9 @@ void process_cc_rid(void *data)
 	struct i2c_client *i2c = usbpd_data->i2c;
 	static int prev_rid = RID_OPEN;
 	u8 rid;
+#if defined(CONFIG_USB_HOST_NOTIFY)
+	struct otg_notify *o_notify = get_otg_notify();
+#endif
 
 	pr_info("%s\n",__func__);
 	s2mm005_read_byte_16(i2c, 0x50, &rid);	// fundtion read , 0x20 , 0x0:detach , not 0x0 attach :  source 3,6,7 / sink 16:17:21:29(decimanl)
@@ -868,15 +878,13 @@ void process_cc_rid(void *data)
 				CCIC_NOTIFY_DEV_MUIC, CCIC_NOTIFY_ID_RID,
 				rid/*rid*/, 0, 0);
 
-			    if(rid == RID_OPEN || rid == RID_UNDEFINED || rid == RID_523K || rid == RID_619K) {
-				if (prev_rid == RID_000K) {
-					/* add to turn off external 5V */
-					vbus_turn_on_ctrl(0);
-				}
-				usbpd_data->is_host = HOST_OFF;
+			    if( rid == RID_523K || rid == RID_619K) {
 				usbpd_data->is_client = CLIENT_OFF;
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
 				usbpd_data->power_role = DUAL_ROLE_PROP_PR_NONE;
+#if defined(CONFIG_USB_HOST_NOTIFY)
+				send_otg_notify(o_notify, NOTIFY_EVENT_POWER_SOURCE, 0);
+#endif
 #endif
 				/* usb or otg */
 				ccic_event_work(usbpd_data,

@@ -2057,6 +2057,8 @@ int fimc_is_group_stop(struct fimc_is_groupmgr *groupmgr,
 		for (entry = ENTRY_3AA; entry < ENTRY_ISCHAIN_END; ++entry) {
 			subdev = child->subdev[entry];
 			if (subdev && subdev->vctx && test_bit(FIMC_IS_SUBDEV_START, &subdev->state)) {
+				wait_subdev_flush_work(device, child, entry);
+
 				framemgr = GET_SUBDEV_FRAMEMGR(subdev);
 				if (!framemgr) {
 					mgerr("framemgr is NULL", group, group);
@@ -2070,7 +2072,6 @@ int fimc_is_group_stop(struct fimc_is_groupmgr *groupmgr,
 				}
 
 				if (!retry) {
-					wait_subdev_flush_work(device, child, entry);
 					mgerr(" waiting(subdev stop) is fail", device, group);
 					errcnt++;
 				}

@@ -477,14 +477,14 @@ static ssize_t sx9306_register_store(struct device *dev,
 	}
 
 	for (idx = 0; idx < (int)(sizeof(setup_reg) >> 1); idx++) {
-		if (setup_reg[idx].reg == regist)
+		if (setup_reg[idx].reg == regist) {
+			sx9306_i2c_write(data, (unsigned char)regist, (unsigned char)val);
+			setup_reg[idx].val = val;
+
+			SENSOR_INFO("Register(0x%4x) data(0x%4x)\n", regist, val);
 			break;
+		}
 	}
-
-	sx9306_i2c_write(data, (unsigned char)regist, (unsigned char)val);
-	setup_reg[idx].val = val;
-
-	SENSOR_INFO("Register(0x%4x) data(0x%4x)\n", regist, val);
 
 	return count;
 }

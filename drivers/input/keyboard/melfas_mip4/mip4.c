@@ -1245,7 +1245,9 @@ static int mip4_tk_probe(struct i2c_client *client, const struct i2c_device_id *
 	info->input_dev->open = mip4_tk_input_open;
 	info->input_dev->close = mip4_tk_input_close;
 #endif
-
+	set_bit(EV_LED, input_dev->evbit);
+	set_bit(LED_MISC, input_dev->ledbit);
+	
 	/* Set info data */
 	input_set_drvdata(input_dev, info);
 	i2c_set_clientdata(client, info);

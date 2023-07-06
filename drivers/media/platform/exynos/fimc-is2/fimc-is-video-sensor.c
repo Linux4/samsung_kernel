@@ -36,6 +36,13 @@
 #include "fimc-is-video.h"
 #include "fimc-is-resourcemgr.h"
 
+/*For control brightness of front flash led*/
+#ifdef CONFIG_LEDS_S2MU005_FLASH
+#ifdef CONFIG_LEDS_SUPPORT_FRONT_FLASH
+extern int s2mu005_led_set_front_flash_brightness(int brightness);
+#endif
+#endif
+
 #ifdef CONFIG_LEDS_IRIS_IRLED_SUPPORT
 #ifdef CONFIG_LEDS_IRIS_IRLED_KTD2692
 extern int ktd2692_set_current(uint32_t current_value);
@@ -543,6 +550,23 @@ static int fimc_is_ssx_video_s_ctrl(struct file *file, void *priv,
 			ret = -EINVAL;
 		}
 		break;
+	case V4L2_CID_CAMERA_BRIGHTNESS:/*For control brightness of front flash led*/
+#ifdef CONFIG_LEDS_S2MU005_FLASH
+#ifdef CONFIG_LEDS_SUPPORT_FRONT_FLASH
+		pr_emerg("[s]g %s begin\n", __func__);
+		if (s2mu005_led_set_front_flash_brightness(ctrl->value) < 0) {
+			err("failed to set front flash brightness : %d - %d\n", ctrl->value, ret);
+			ret = -EINVAL;
+		}
+		pr_emerg("[s]g %s end\n", __func__);
+#else
+		warn("Not Support V4L2_CID_CAMERA_BRIGHTNESS : %d\n",ctrl->value);
+#endif /* CONFIG_LEDS_SUPPORT_FRONT_FLASH */
+#else
+		warn("Not Support V4L2_CID_CAMERA_BRIGHTNESS : %d\n",ctrl->value);
+#endif /* CONFIG_LEDS_S2MU005_FLASH */
+		break;
+
 	case V4L2_CID_SENSOR_SET_GAIN:
 		if (fimc_is_sensor_s_again(device, ctrl->value)) {
 			err("failed to set gain : %d - %d\n", ctrl->value, ret);

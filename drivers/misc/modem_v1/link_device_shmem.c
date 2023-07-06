@@ -1084,21 +1084,17 @@ static int xmit_ipc_to_rb(struct mem_link_device *mld, enum sipc_ch_id ch,
 		skb->len = min_t(int, skb->len, rb->buff_size);
 		ret = skb->len;
 
-		if (hrtimer_is_queued(&mld->sbd_tx_timer)) {
-			skb_queue_tail(skb_txq, skb);
-		} else if (hrtimer_active(&mld->sbd_tx_timer)) {
-			skb_queue_tail(skb_txq, skb);
+		skb_queue_tail(skb_txq, skb);
+
+		if (hrtimer_active(&mld->sbd_tx_timer)) {
 			start_tx_timer(mld, &mld->sbd_tx_timer);
-		} else if (!(spin_trylock_irqsave(&rb->lock, flags))) {
-			skb_queue_tail(skb_txq, skb);
-		} else {
+		} else if (spin_trylock_irqsave(&rb->lock, flags)) {
 			do {
+				skb = skb_dequeue(skb_txq);
+				if (!skb) break;
+
 				ret2 = sbd_tx_func(mld, &mld->sbd_tx_timer, rb, skb);
 				if (ret2 < 0) break;
-				else {
-					skb = skb_dequeue(skb_txq);
-					if (!skb) break;
-				}
 			} while (--quota);
 
 			spin_unlock_irqrestore(&rb->lock, flags);
@@ -1146,21 +1142,17 @@ static int xmit_ipc_to_dev(struct mem_link_device *mld, enum sipc_ch_id ch,
 	} else {
 		ret = skb->len;
 
-		if (hrtimer_is_queued(&mld->tx_timer)) {
-			skb_queue_tail(skb_txq, skb);
-		} else if (hrtimer_active(&mld->tx_timer)) {
-			skb_queue_tail(skb_txq, skb);
+		skb_queue_tail(skb_txq, skb);
+
+		if (hrtimer_active(&mld->tx_timer)) {
 			start_tx_timer(mld, &mld->tx_timer);
-		} else if (!(spin_trylock_irqsave(&dev->tx_lock, flags))) {
-			skb_queue_tail(skb_txq, skb);
-		} else {
+		} else if (spin_trylock_irqsave(&dev->tx_lock, flags)) {
 			do {
+				skb = skb_dequeue(skb_txq);
+				if (!skb) break;
+
 				ret2 = tx_func(mld, &mld->tx_timer, dev, skb);
 				if (ret2 < 0) break;
-				else {
-					skb = skb_dequeue(skb_txq);
-					if (!skb) break;
-				}
 			} while (--quota);
 
 			spin_unlock_irqrestore(&dev->tx_lock, flags);
@@ -1519,7 +1511,7 @@ static void pass_skb_to_net(struct mem_link_device *mld, struct sk_buff *skb)
 
 	priv = skbpriv(skb);
 	if (unlikely(!priv)) {
-		mif_err("%s: ERR! No PRIV in skb@%p\n", ld->name, skb);
+		mif_err("%s: ERR! No PRIV in skb@%pK\n", ld->name, skb);
 		dev_kfree_skb_any(skb);
 		shmem_forced_cp_crash(mld);
 		return;
@@ -1527,7 +1519,7 @@ static void pass_skb_to_net(struct mem_link_device *mld, struct sk_buff *skb)
 
 	iod = priv->iod;
 	if (unlikely(!iod)) {
-		mif_err("%s: ERR! No IOD in skb@%p\n", ld->name, skb);
+		mif_err("%s: ERR! No IOD in skb@%pK\n", ld->name, skb);
 		dev_kfree_skb_any(skb);
 		shmem_forced_cp_crash(mld);
 		return;
@@ -2763,7 +2755,7 @@ struct link_device *shmem_create_link_device(struct platform_device *pdev)
 		mif_err("Failed to vmap boot_region\n");
 		goto error;
 	}
-	mif_info("boot_base=%p, boot_size=%lu\n",
+	mif_info("boot_base=%pK, boot_size=%lu\n",
 		mld->boot_base, (unsigned long)mld->boot_size);
 
 	/**
@@ -2776,7 +2768,7 @@ struct link_device *shmem_create_link_device(struct platform_device *pdev)
 		shm_release_region(mld->boot_base);
 		goto error;
 	}
-	mif_info("ipc_base=%p, ipc_size=%lu\n",
+	mif_info("ipc_base=%pK, ipc_size=%lu\n",
 		mld->base, (unsigned long)mld->size);
 
 	modem->ipc_base = (u8 __iomem *)mld->base;

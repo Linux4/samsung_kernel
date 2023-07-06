@@ -222,6 +222,7 @@ typedef union
 typedef union
 {
 	uint32_t        DATA;
+	uint8_t			BYTE[4];
     struct {
         uint32_t    Flash_State:8,
                     Reserved:24;
@@ -464,7 +465,7 @@ typedef struct
     MSG_IRQ_STATUS_Type		MSG_IRQ_STATUS;		// 0x0040h
     VDM_MSG_IRQ_STATUS_Type	VDM_MSG_IRQ_STATUS;	// 0x0044h
     SSM_MSG_IRQ_STATUS_Type	SSM_MSG_IRQ_STATUS;	// 0x0048h
-    VDM_MSG_IRQ_STATUS_Type	DBG_VDM_MSG_IRQ_STATUS;	// 0x004Ch
+    AP_REQ_GET_STATUS_Type      AP_REQ_GET_STATUS;// 0x004Ch
     SSM_HW_ID_VALUE_Type	SSM_HW_ID_VALUE;	// 0x0050h
     SSM_HW_PID_VALUE_Type	SSM_HW_PID_VALUE;	// 0x0054h
     SSM_HW_USE_MSG_Type		SSM_HW_USE_MSG;		// 0x0058h
@@ -895,6 +896,8 @@ struct s2mm005_data {
 	struct delayed_work ccic_init_work;
 	int ccic_check_at_booting;
 	int vconn_en;
-
+	struct delayed_work usb_external_notifier_register_work;
+	struct notifier_block usb_external_notifier_nb;
+	u8 skip_ccic_fwupdate;
 };
 #endif /* __S2MM005_H */

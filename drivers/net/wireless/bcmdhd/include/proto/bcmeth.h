@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: bcmeth.h 682522 2017-02-02 07:33:46Z $
+ * $Id: bcmeth.h 701992 2017-05-30 08:37:31Z $
  */
 
 /*
@@ -94,6 +94,7 @@
 
 #define BCMILCP_BCM_SUBTYPEHDR_MINLENGTH	8
 #define BCMILCP_BCM_SUBTYPEHDR_VERSION		0
+#define BCMILCP_BCM_SUBTYPE_EVENT_DATA_PAD	2
 
 /* These fields are stored in network order */
 typedef BWL_PRE_PACKED_STRUCT struct bcmeth_hdr

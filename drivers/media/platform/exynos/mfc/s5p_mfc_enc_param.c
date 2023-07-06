@@ -787,6 +787,13 @@ int s5p_mfc_set_enc_params_vp8(struct s5p_mfc_ctx *ctx)
 	reg = MFC_READL(S5P_FIMV_E_VP8_OPTION);
 	reg &= ~(0x1);
 	reg |= (p_vp8->num_refs_for_p - 1) & 0x1;
+	/* vp8 partition is possible as below value: 1/2/4/8 */
+	if (p_vp8->vp8_numberofpartitions & 0x1) {
+		if (p_vp8->vp8_numberofpartitions > 1)
+			mfc_err_ctx("partition should be even num (%d)\n",
+					p_vp8->vp8_numberofpartitions);
+		p_vp8->vp8_numberofpartitions = (p_vp8->vp8_numberofpartitions & ~0x1);
+	}
 	reg &= ~(0xF << 3);
 	reg |= (p_vp8->vp8_numberofpartitions & 0xF) << 3;
 	reg &= ~(0x1 << 10);

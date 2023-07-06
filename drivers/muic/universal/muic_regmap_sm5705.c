@@ -886,7 +886,7 @@ static int sm5705_afc_multi_byte(struct regmap_desc *pdesc)
 	struct i2c_client *i2c = pmuic->i2c;
 	int multi_byte[6] = {0,0,0,0,0,0};
 	int i;
-	int ret, value;
+	int ret, value = 0;
 
 	pr_info("%s:%s AFC_MULTI_BYTE \n",MUIC_DEV_NAME, __func__);
 
