@@ -46,4 +46,5 @@
 	support_open_short_test;
 	sec,firmware_name = "tsp_stm/fts5cu56a_a32.bin";
 	sec,regulator_boot_on;
+	stm,lpmode_change_delay = <50>;
 };

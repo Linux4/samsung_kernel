@@ -108,6 +108,10 @@ enum registers {
 #define ISG5320A_BFCAL_CHK_RDY_TIME       (3 * 60 * 2) // 3min (unit: 500ms)
 #define ISG5320A_BFCAL_CHK_CYCLE_TIME     4   //  2sec (unit: 500ms)
 #define ISG5320A_BFCAL_CHK_DIFF_RATIO     3
+
+#define UNKNOWN_ON  1
+#define UNKNOWN_OFF 2
+
 enum {
 	OFF = 0,
 	ON,
@@ -203,7 +207,7 @@ static const struct isg5320a_reg_data setup_reg[] = {
     {    .addr = 0x9D,    .val = 0x00,    },
     {    .addr = 0x9E,    .val = 0x00,    },
     {    .addr = 0x9F,    .val = 0x00,    },
-    {    .addr = 0xA0,    .val = 0x1E,    },
+    {    .addr = 0xA0,    .val = 0x64,    },
     {    .addr = 0xA1,    .val = 0xD0,    },
     {    .addr = 0xA2,    .val = 0x22,    },
     {    .addr = 0xA3,    .val = 0x00,    },
@@ -224,7 +228,7 @@ static const struct isg5320a_reg_data setup_reg[] = {
     {    .addr = 0xB7,    .val = 0x40,    },
     {    .addr = 0xB8,    .val = 0xFD,    },
     {    .addr = 0xB9,    .val = 0xFE,    },
-    {    .addr = 0xBA,    .val = 0x80,    },
+    {    .addr = 0xBA,    .val = 0xFD,    },
     {    .addr = 0xBB,    .val = 0xF0,    },
     {    .addr = 0xBC,    .val = 0x00,    },
     {    .addr = 0xBD,    .val = 0xFF,    },
@@ -248,7 +252,7 @@ static const struct isg5320a_reg_data setup_reg[] = {
     {    .addr = 0x3E,    .val = 0x60,    },
     {    .addr = 0x94,    .val = 0xA0,    },
     {    .addr = 0x95,    .val = 0xB8,    },
-    {    .addr = 0x96,    .val = 0x03,    },
+    {    .addr = 0x96,    .val = 0x02,    },
     {    .addr = 0x2E,    .val = 0x15,    },
     {    .addr = 0x0E,    .val = 0xE0,    },
     {    .addr = 0x0F,    .val = 0x1E,    },

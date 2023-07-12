@@ -125,6 +125,7 @@ const unsigned char aw8896_reg_access[AW8896_REG_MAX] = {
 #define AW8896_BIT_SYSINTM_ADPM                     (1<<13)
 #define AW8896_BIT_SYSINTM_UVLOM                    (1<<14)
 
+#define AW8896_BIT_SYSINTM_MASK                     (0xffff)
 /* SYSCTRL */
 #define AW8896_BIT_SYSCTRL_PWDN                     (1<<0)
 #define AW8896_BIT_SYSCTRL_BSTPD                    (1<<1)

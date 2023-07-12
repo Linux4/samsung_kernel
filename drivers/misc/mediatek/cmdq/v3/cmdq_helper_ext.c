@@ -4959,7 +4959,7 @@ s32 cmdq_pkt_wait_flush_ex_result(struct cmdqRecStruct *handle)
 			skip = true;
 			break;
 		}
-		CMDQ_LOG("wait before submit handle:%pK pkt:%pK, task_alloc:%d",
+		CMDQ_LOG("wait before submit handle:%p pkt:%p, task_alloc:%d",
 			handle, handle->pkt, handle->pkt->task_alloc);
 	}
 

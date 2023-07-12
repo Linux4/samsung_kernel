@@ -49,6 +49,15 @@ struct sensor_spec_t {
 	float power;
 } __attribute__((__packed__));
 
+
+struct sensor_chipset_init_funcs {
+	int (*init)(void);
+	void (*parse_dt)(struct device *dev);
+	void *(*get_chipset_funcs)(void);
+};
+
+typedef struct sensor_chipset_init_funcs *(*get_init_chipset_funcs_ptr)(char *name);
+
 struct sensor_funcs {
 	int (*sync_status)(void); /* this is called when sensorhub ready to work or reset */
 	int (*enable)(void);
@@ -61,9 +70,12 @@ struct sensor_funcs {
 	int (*set_position)(int);
 	int (*get_position)(void);
 	int (*init_chipset)(void);
+	void (*parse_dt)(struct device *dev);
+	int (*init_variable)(void);
 	int (*open_calibration_file)(void);
 	/* if receive_event_size is 0, you can check parsing error in this func */
 	int (*get_sensor_value)(char *, int *, struct sensor_event *, int);
+	get_init_chipset_funcs_ptr *(*get_init_chipset_funcs)(int *);
 };
 
 struct shub_sensor {
@@ -82,6 +94,8 @@ struct shub_sensor {
 	int receive_event_size;
 	int report_event_size;
 
+	bool hal_sensor;
+
 	u64 enable_timestamp;
 	u64 disable_timestamp;
 	struct rtc_time enable_time;
@@ -91,8 +105,10 @@ struct shub_sensor {
 
 	void *data;
 	struct sensor_funcs *funcs;
+	void *chipset_funcs;
 };
 
 typedef int (*init_sensor)(bool en);
 
+int init_shub_sensor(struct shub_sensor *sensor);
 #endif /* __SHUB_SENSOR_H_ */

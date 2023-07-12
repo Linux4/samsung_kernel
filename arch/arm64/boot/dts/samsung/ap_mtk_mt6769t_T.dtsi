@@ -1,0 +1,4 @@
+#include <dt-bindings/clock/mt6768-clk.h>
+
+#define topckgen_clk topckgen
+#define infracfg_ao_clk infracfg_ao

@@ -84,6 +84,9 @@
 #include "simulator_kernel.h"
 #endif
 
+#if defined(CONFIG_SEC_FACTORY)
+#include <../drivers/battery/common/sec_charging_common.h>
+#endif
 
 
 /* ============================================================ */
@@ -1506,6 +1509,21 @@ void fg_custom_init_from_dts(struct platform_device *dev)
 		&(fg_cust_data.vbat_oldocv_diff), 1);
 	fg_read_dts_val(np, "SWOCV_OLDOCV_DIFF_EMB",
 		&(fg_cust_data.swocv_oldocv_diff_emb), 1);
+
+#if defined(CONFIG_SEC_FACTORY)
+	bm_err("%s oldocv diff set 0 in only factory bin\n", __func__);
+	fg_cust_data.hwocv_oldocv_diff = 0;
+	fg_cust_data.hwocv_oldocv_diff_chr = 0;
+	fg_cust_data.hwocv_swocv_diff = 0;
+	fg_cust_data.hwocv_swocv_diff_lt = 0;
+	fg_cust_data.swocv_oldocv_diff = 0;
+	fg_cust_data.swocv_oldocv_diff_chr = 0;
+	fg_cust_data.vbat_oldocv_diff = 0;
+	fg_cust_data.swocv_oldocv_diff_emb = 0;
+	fg_cust_data.vir_oldocv_diff_emb = 0;
+	fg_cust_data.vir_oldocv_diff_emb_lt = 0;
+	fg_cust_data.tnew_told_pon_diff = -1;
+#endif
 
 	fg_read_dts_val(np, "PMIC_SHUTDOWN_TIME",
 		&(fg_cust_data.pmic_shutdown_time), UNIT_TRANS_60);
@@ -3369,7 +3387,13 @@ void bmd_ctrl_cmd_from_user(void *nl_data, struct fgd_nl_msg_t *ret_msg)
 			int is_bat_exist = 0;
 
 			is_bat_exist = pmic_is_battery_exist();
-
+#if defined(CONFIG_SEC_FACTORY)
+			if (battery_main.f_mode == OB_MODE) {
+				is_bat_exist = 0;
+				bm_err("[fr] FG_DAEMON_CMD_IS_BAT_EXIST = %d\n",
+					is_bat_exist);
+			}
+#endif
 			ret_msg->fgd_data_len += sizeof(is_bat_exist);
 			memcpy(ret_msg->fgd_data,
 				&is_bat_exist, sizeof(is_bat_exist));

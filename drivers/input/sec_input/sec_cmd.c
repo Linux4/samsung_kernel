@@ -199,6 +199,7 @@ __visible_for_testing ssize_t sec_cmd_store(struct device *dev,
 		}
 	}
 
+check_not_support_cmd:
 	/* set not_support_cmd */
 	if (!cmd_found) {
 		list_for_each_entry(sec_cmd_ptr, &data->cmd_list_head, list) {
@@ -219,8 +220,12 @@ __visible_for_testing ssize_t sec_cmd_store(struct device *dev,
 				end = cur;
 				memcpy(buff, start, end - start);
 				*(buff + strnlen(buff, ARRAY_SIZE(buff))) = '\0';
-				if (kstrtoint(buff, 10, data->cmd_param + param_cnt) < 0)
-					goto err_out;
+				if (kstrtoint(buff, 10, data->cmd_param + param_cnt) < 0) {
+					pr_err("%s: %s %s: error to parse parameter\n",
+							dev_name(data->fac_dev), SECLOG, __func__);
+					cmd_found = false;
+					goto check_not_support_cmd;
+				}
 				start = cur + 1;
 				memset(buff, 0x00, ARRAY_SIZE(buff));
 				param_cnt++;
@@ -243,10 +248,11 @@ __visible_for_testing ssize_t sec_cmd_store(struct device *dev,
 
 	sec_cmd_ptr->cmd_func(data);
 
-err_out:
 	return count;
 }
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
 EXPORT_SYMBOL_KUNIT(sec_cmd_store);
+#endif
 
 #else	/* defined USE_SEC_CMD_QUEUE */
 static void sec_cmd_store_function(struct sec_cmd_data *data)
@@ -315,6 +321,7 @@ static void sec_cmd_store_function(struct sec_cmd_data *data)
 		}
 	}
 
+check_not_support_cmd:
 	/* set not_support_cmd */
 	if (!cmd_found) {
 		list_for_each_entry(sec_cmd_ptr, &data->cmd_list_head, list) {
@@ -335,8 +342,12 @@ static void sec_cmd_store_function(struct sec_cmd_data *data)
 				end = cur;
 				memcpy(buff, start, end - start);
 				*(buff + strnlen(buff, ARRAY_SIZE(buff))) = '\0';
-				if (kstrtoint(buff, 10, data->cmd_param + param_cnt) < 0)
-					return;
+				if (kstrtoint(buff, 10, data->cmd_param + param_cnt) < 0) {
+					pr_err("%s: %s %s: error to parse parameter\n",
+							dev_name(data->fac_dev), SECLOG, __func__);
+					cmd_found = false;
+					goto check_not_support_cmd;
+				}
 				start = cur + 1;
 				memset(buff, 0x00, ARRAY_SIZE(buff));
 				param_cnt++;
@@ -483,7 +494,9 @@ __visible_for_testing ssize_t sec_cmd_store(struct device *dev, struct device_at
 	sec_cmd_execution(data, true);
 	return count;
 }
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
 EXPORT_SYMBOL_KUNIT(sec_cmd_store);
+#endif
 #endif
 
 __visible_for_testing ssize_t sec_cmd_show_status(struct device *dev,
@@ -519,7 +532,9 @@ __visible_for_testing ssize_t sec_cmd_show_status(struct device *dev,
 
 	return snprintf(buf, sizeof(buff), "%s\n", buff);
 }
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
 EXPORT_SYMBOL_KUNIT(sec_cmd_show_status);
+#endif
 
 static ssize_t sec_cmd_show_status_all(struct device *dev,
 				 struct device_attribute *devattr, char *buf)
@@ -582,7 +597,9 @@ __visible_for_testing ssize_t sec_cmd_show_result(struct device *dev,
 
 	return size;
 }
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
 EXPORT_SYMBOL_KUNIT(sec_cmd_show_result);
+#endif
 
 static ssize_t sec_cmd_show_result_all(struct device *dev,
 				 struct device_attribute *devattr, char *buf)
@@ -1134,6 +1151,9 @@ main:
 	}
 	if (exit) {
 		input_dbg(true, sec->fac_dev, "%s: set_cmd_exit\n", sec->cmd);
+		sec_cmd_set_cmd_exit(sec);
+	} else if ((main && !main_sec) || (sub && !sub_sec)) {
+		input_err(true, sec->fac_dev, "%s: some device is not registered in virtual tsp.\n", sec->cmd);
 		sec_cmd_set_cmd_exit(sec);
 	}
 

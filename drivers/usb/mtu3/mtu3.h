@@ -336,6 +336,8 @@ struct ssusb_mtk {
 	struct charger_device *chg_dev;
 	void *priv_data;
 	enum fpga_phy_version fpga_phy_ver;
+	/* u2 cdp */
+	struct work_struct dp_work;
 };
 
 /**

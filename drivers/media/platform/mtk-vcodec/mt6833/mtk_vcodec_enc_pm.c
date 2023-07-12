@@ -258,6 +258,9 @@ void mtk_venc_dvfs_begin(struct mtk_vcodec_ctx *ctx)
 		if (target_freq_64 > 458)
 			target_freq_64 = 458;
 
+		if (ctx->enc_params.svp_mode)
+			target_freq_64 = 624;
+
 		if (target_freq > 0) {
 			venc_freq = target_freq;
 			if (venc_freq > target_freq_64)

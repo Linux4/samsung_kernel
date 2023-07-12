@@ -1816,6 +1816,7 @@ static void cal_work_func(struct work_struct *work)
 		force_cal = true;
 	}
 
+#if 0
 	// check bfcal
 	if (data->bfcal_chk_start) {
 		data->bfcal_chk_count++;
@@ -1843,6 +1844,7 @@ static void cal_work_func(struct work_struct *work)
 			}
 		}
 	}
+#endif
 
 	if (force_cal)
 		schedule_delayed_work(&data->cal_work, msecs_to_jiffies(1000));
@@ -2150,6 +2152,7 @@ static int isg5320a_probe(struct i2c_client *client,
 	noti_input_dev = input_allocate_device();
 	if (!noti_input_dev) {
 		pr_err("%s input_allocate_device failed\n", ISG5320A_TAG);
+		input_free_device(input_dev);
 		goto err_noti_input_alloc;
 	}
 
@@ -2165,6 +2168,8 @@ static int isg5320a_probe(struct i2c_client *client,
 	ret = isg5320a_reset(data);
 	if (ret < 0) {
 		pr_err("%s IMAGIS reset failed\n", ISG5320A_TAG);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_soft_reset;
 	}
 
@@ -2200,6 +2205,8 @@ static int isg5320a_probe(struct i2c_client *client,
 				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT, DEVICE_NAME, data);
 	if (ret < 0) {
 		pr_err("%s failed to register interrupt\n", ISG5320A_TAG);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_irq;
 	}
 	disable_irq(client->irq);
@@ -2207,8 +2214,9 @@ static int isg5320a_probe(struct i2c_client *client,
 
 	ret = input_register_device(input_dev);
 	if (ret) {
-		input_free_device(input_dev);
 		pr_err("%s failed to register input dev (%d)\n", ISG5320A_TAG, ret);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_register_input_dev;
 	}
 
@@ -2217,32 +2225,36 @@ static int isg5320a_probe(struct i2c_client *client,
 				     data->input_dev->name);
 	if (ret < 0) {
 		pr_err("%s failed to create symlink (%d)\n", ISG5320A_TAG, ret);
+		input_free_device(noti_input_dev);
 		goto err_create_symlink;
 	}
 
 	ret = sysfs_create_group(&data->input_dev->dev.kobj, &isg5320a_attribute_group);
 	if (ret < 0) {
 		pr_err("%s failed to create sysfs group (%d)\n", ISG5320A_TAG, ret);
+		input_free_device(noti_input_dev);
 		goto err_sysfs_create_group;
 	}
 #else
 	ret = sensors_create_symlink(input_dev);
 	if (ret < 0) {
 		pr_err("%s failed to create symlink (%d)\n", ISG5320A_TAG, ret);
+		input_free_device(noti_input_dev);
 		goto err_create_symlink;
 	}
 
 	ret = sysfs_create_group(&input_dev->dev.kobj, &isg5320a_attribute_group);
 	if (ret < 0) {
 		pr_err("%s failed to create sysfs group (%d)\n", ISG5320A_TAG, ret);
+		input_free_device(noti_input_dev);
 		goto err_sysfs_create_group;
 	}
 #endif
 
 	ret = input_register_device(noti_input_dev);
 	if (ret) {
-		input_free_device(noti_input_dev);
 		pr_err("%s failed to register input dev for noti (%d)\n", ISG5320A_TAG, ret);
+		input_free_device(noti_input_dev);
 		goto err_register_input_dev_noti;
 	}
 
@@ -2297,6 +2309,7 @@ static int isg5320a_probe(struct i2c_client *client,
 	return 0;
 
 err_sensor_register:
+	input_unregister_device(noti_input_dev);
 err_register_input_dev_noti:
 	sysfs_remove_group(&input_dev->dev.kobj, &isg5320a_attribute_group);
 err_sysfs_create_group:

@@ -34,6 +34,9 @@ static void get_panel_lcd_type(void)
 	if (ret < 0) {
 		shub_errf("file read error %d", ret);
 		return;
+	} else if (ret < 2){
+		shub_errf("unexpected type = %s(%d)", lcd_type_data, ret);
+		return;
 	}
 
 	/*
@@ -88,7 +91,7 @@ int save_panel_lcd_type(void)
 	return ret;
 }
 
-inline bool is_lcd_changed(void)
+bool is_lcd_changed(void)
 {
 	int ret = 0;
 	u8 curr_lcd_type_flag = 0;

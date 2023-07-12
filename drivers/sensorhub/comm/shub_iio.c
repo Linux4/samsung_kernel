@@ -23,6 +23,7 @@
 #include <linux/version.h>
 
 #include "../sensorhub/shub_device.h"
+#include "../utility/shub_wakelock.h"
 #include "../utility/shub_utility.h"
 #include "../sensormanager/shub_sensor_type.h"
 #include "../sensormanager/shub_sensor.h"
@@ -106,7 +107,7 @@ static void *init_indio_device(struct device *dev, const struct iio_info *info,
 	indio_dev->name = device_name;
 	indio_dev->dev.parent = dev;
 	indio_dev->info = info;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)) && (LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0))
 	indio_dev->driver_module = THIS_MODULE;
 #endif
 	indio_dev->channels = channels;
@@ -181,7 +182,7 @@ int initialize_indio_dev(struct device *dev)
 
 	for (type = 0 ; type < SENSOR_TYPE_LEGACY_MAX; type++) {
 		sensor = get_sensor(type);
-		if (!sensor || sensor->report_event_size == 0)
+		if (!sensor || !sensor->hal_sensor)
 			continue;
 
 		bytes = (sensor->report_event_size+timestamp_len);
@@ -215,13 +216,8 @@ void shub_report_sensordata(int type, u64 timestamp, char *data, int data_len)
 	struct shub_sensor *sensor = get_sensor(type);
 	char *buf;
 
-	if ((!sensor) || (sensor && sensor->report_event_size == 0))
+	if (!sensor || !indio_dev)
 		return;
-
-	if (!indio_dev || !data || data_len == 0) {
-		shub_errf("type(%d) indio_dev | data | data_len is wrong", type);
-		return;
-	}
 
 	buf = kzalloc(sensor->report_event_size + sizeof(timestamp), GFP_KERNEL);
 	if (!buf) {
@@ -229,7 +225,12 @@ void shub_report_sensordata(int type, u64 timestamp, char *data, int data_len)
 		return;
 	}
 
-	memcpy(buf, data, data_len);
+	if (data && data_len > 0)
+		memcpy(buf, data, data_len);
+
+	if (sensor->spec.is_wake_up)
+		shub_wake_lock_timeout(300);
+
 	memcpy(buf + data_len, &timestamp, sizeof(timestamp));
 	mutex_lock(&indio_dev->mlock);
 	iio_push_to_buffers(indio_dev, buf);

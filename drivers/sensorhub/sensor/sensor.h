@@ -34,6 +34,7 @@ int init_step_counter(bool en);
 int init_scontext(bool en);
 int init_interrupt_gyroscope(bool en);
 int init_vdis_gyroscope(bool en);
+int init_super_steady_gyroscope(bool en);
 int init_step_detector(bool en);
 int init_magnetometer_power(bool en);
 int init_significant_motion(bool en);
@@ -48,5 +49,7 @@ int init_hub_debugger(bool en);
 int init_device_orientation(bool en);
 int init_device_orientation_wu(bool en);
 int init_sar_backoff_motion(bool en);
-
+int init_pogo_request_handler(bool en);
+int init_aois(bool en);
+int init_light_seamless(bool en);
 #endif

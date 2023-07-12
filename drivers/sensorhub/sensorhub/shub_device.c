@@ -32,9 +32,6 @@
 #include "../vendor/shub_vendor.h"
 #include "../others/shub_motor_callback.h"
 #include "../others/shub_panel.h"
-#ifdef CONFIG_SHUB_OIS
-#include "../others/shub_ois.h"
-#endif
 #include "../debug/shub_dump.h"
 #include "../factory/shub_factory.h"
 #include "../sensor/light.h"
@@ -165,9 +162,6 @@ static int init_sensorhub(void)
 void init_others(void)
 {
 	sync_motor_state();
-#ifdef CONFIG_SHUB_OIS
-	notify_ois_reset();
-#endif
 }
 
 struct reset_info_t get_reset_info(void)
@@ -184,6 +178,12 @@ void save_reset_info(void)
 	else
 		shub_data->reset_info.reason = RESET_TYPE_HUB_CRASHED;
 	shub_data->reset_type = RESET_TYPE_MAX;
+}
+
+void sensorhub_stop(void)
+{
+	shub_infof("sensor hub stop");
+	stop_comm_to_hub();
 }
 
 static void refresh_task(struct work_struct *work)
@@ -300,22 +300,35 @@ static int init_sensor_vdd(void)
 	int ret = 0;
 	const char *sensor_vdd;
 	struct device_node *np = shub_data->pdev->dev.of_node;
+	enum of_gpio_flags flags;
 
-	if (of_property_read_string(np, "sensor-vdd-regulator", &sensor_vdd) < 0) {
-		shub_infof("not use sensor_vdd_regulator");
-		sensor_vdd = NULL;
-		return ret;
-	}
-	shub_infof("regulator: %s", sensor_vdd);
+	if (of_property_read_string(np, "sensor-vdd-regulator", &sensor_vdd) >= 0) {
+		shub_infof("regulator: %s", sensor_vdd);
 
-	shub_data->sensor_vdd_regulator = regulator_get(NULL, sensor_vdd);
-	if (IS_ERR(shub_data->sensor_vdd_regulator)) {
-		shub_errf("regulator get failed");
-		shub_data->sensor_vdd_regulator = NULL;
-		ret = -EINVAL;
+		shub_data->sensor_vdd_regulator = regulator_get(NULL, sensor_vdd);
+		if (IS_ERR(shub_data->sensor_vdd_regulator)) {
+			shub_errf("regulator get failed");
+			shub_data->sensor_vdd_regulator = NULL;
+			ret = -EINVAL;
+		} else {
+			regulator_set_load(shub_data->sensor_vdd_regulator, 1800000);
+			shub_infof("sensor_vdd_regulator ok");
+		}
 	} else {
-		regulator_set_load(shub_data->sensor_vdd_regulator, 1800000);
-		shub_infof("sensor_vdd_regulator ok");
+		int sensor_ldo_en = of_get_named_gpio_flags(np, "sensor-ldo-en", 0, &flags);
+
+		if (sensor_ldo_en >= 0) {
+			shub_infof("sensor_ldo_en: %d", sensor_ldo_en);
+			shub_data->sensor_ldo_en = sensor_ldo_en;
+
+			ret = gpio_request(shub_data->sensor_ldo_en, "sensor_ldo_en");
+			if (ret < 0) {
+				shub_errf("gpio %d request failed %d", shub_data->sensor_ldo_en, ret);
+				return ret;
+			}
+			gpio_direction_output(shub_data->sensor_ldo_en, 1);
+			gpio_free(shub_data->sensor_ldo_en);
+		}
 	}
 
 	return 0;
@@ -327,15 +340,22 @@ int enable_sensor_vdd(void)
 
 	shub_infof();
 
-	if (!shub_data->sensor_vdd_regulator)
-		return ret;
-
-	if (regulator_is_enabled(shub_data->sensor_vdd_regulator) == 0) {
-		ret = regulator_enable(shub_data->sensor_vdd_regulator);
-		if (ret)
-			shub_err("sensor vdd regulator enable failed, ret = %d", ret);
-	} else {
-		shub_info("sensor vdd regulator is already enabled");
+	if (shub_data->sensor_vdd_regulator) {
+		if (regulator_is_enabled(shub_data->sensor_vdd_regulator) == 0) {
+			ret = regulator_enable(shub_data->sensor_vdd_regulator);
+			if (ret)
+				shub_err("sensor vdd regulator enable failed, ret = %d", ret);
+		} else {
+			shub_info("sensor vdd regulator is already enabled");
+		}
+	} else if (shub_data->sensor_ldo_en) {
+		ret = gpio_request(shub_data->sensor_ldo_en, "sensor_ldo_en");
+		if (ret < 0) {
+			shub_errf("sensor ldo en gpio %d request failed %d", shub_data->sensor_ldo_en, ret);
+		} else {
+			gpio_set_value(shub_data->sensor_ldo_en, 1);
+			gpio_free(shub_data->sensor_ldo_en);
+		}
 	}
 
 	return ret;
@@ -347,15 +367,22 @@ int disable_sensor_vdd(void)
 
 	shub_infof();
 
-	if (!shub_data->sensor_vdd_regulator)
-		return ret;
-
-	if (regulator_is_enabled(shub_data->sensor_vdd_regulator)) {
-		ret = regulator_disable(shub_data->sensor_vdd_regulator);
-		if (ret)
-			shub_err("sensor vdd regulator disable failed, ret = %d", ret);
-	} else {
-		shub_info("sensor vdd regulator is already disabled");
+	if (shub_data->sensor_vdd_regulator) {
+		if (regulator_is_enabled(shub_data->sensor_vdd_regulator)) {
+			ret = regulator_disable(shub_data->sensor_vdd_regulator);
+			if (ret)
+				shub_err("sensor vdd regulator disable failed, ret = %d", ret);
+		} else {
+			shub_info("sensor vdd regulator is already disabled");
+		}
+	} else if (shub_data->sensor_ldo_en) {
+		ret = gpio_request(shub_data->sensor_ldo_en, "sensor_ldo_en");
+		if (ret < 0) {
+			shub_errf("sensor ldo en gpio %d request failed %d", shub_data->sensor_ldo_en, ret);
+		} else {
+			gpio_set_value(shub_data->sensor_ldo_en, 0);
+			gpio_free(shub_data->sensor_ldo_en);
+		}
 	}
 
 	return ret;

@@ -51,11 +51,6 @@ static ssize_t write_pmsg(struct file *file, const char __user *buf,
 		sec_count = count;
 
 	__copy_from_user(sec_buf, buf, sec_count);
-
-#ifdef CONFIG_SEC_DEVICE_BOOTSTAT
-	if (count > 5 && strncmp(sec_buf, "!@Boot", 6) == 0)
-		sec_boot_stat_add(sec_buf);
-#endif /* CONFIG_SEC_DEVICE_BOOTSTAT */
 #endif /* CONFIG_SEC_EXT */
 	ret = psinfo->write_user(&record, buf);
 	mutex_unlock(&pmsg_lock);

@@ -961,7 +961,7 @@ static int s6e3fc3_read_esderr(struct lcd_info *lcd)
 #endif
 
 /// for debug, it will be removed
-static int s6e3fc3_read_eareg(struct lcd_info *lcd)
+static int s6e3fc3_read_dsierr(struct lcd_info *lcd)
 {
 	int ret = 0;
 
@@ -1114,7 +1114,7 @@ static int s6e3fc3_exit(struct lcd_info *lcd)
 
 	dev_info(&lcd->ld->dev, "%s\n", __func__);
 
-	s6e3fc3_read_eareg(lcd);		// for debug
+	s6e3fc3_read_dsierr(lcd);		// for debug
 	s6e3fc3_read_rddpm(lcd);
 	s6e3fc3_read_rddsm(lcd);
 #if defined(CONFIG_SMCDSD_DPUI)
@@ -1287,8 +1287,8 @@ static int fb_notifier_callback(struct notifier_block *self,
 	int fb_blank;
 
 	switch (event) {
-	case FB_EVENT_BLANK:
-	case FB_EARLY_EVENT_BLANK:
+	case SMCDSD_EVENT_BLANK:
+	case SMCDSD_EARLY_EVENT_BLANK:
 	case SMCDSD_EVENT_DOZE:
 	case SMCDSD_EARLY_EVENT_DOZE:
 		break;
@@ -2564,11 +2564,6 @@ static int smcdsd_panel_set_mask(struct platform_device *p, int on)
 	smcdsd_panel_set_mask_brightness(lcd);
 	lcd->mask_framedone_check_req = true;
 
-	if (on)
-		dbg_info("[SEC_MASK] : mask_brightness");
-	else
-		dbg_info("[SEC_MASK] : prev_brightness");
-
 	return 0;
 }
 
@@ -2607,11 +2602,6 @@ static int smcdsd_panel_framedone_mask(struct platform_device *p)
 		} else {
 			lcd->actual_mask_brightness = lcd->mask_brightness;
 		}
-
-		if (lcd->mask_state)
-			dbg_info("[SEC_MASK] mask_done");
-		else
-			dbg_info("[SEC_MASK] prev_done");
 
 		sysfs_notify(&lcd->ld->dev.kobj, NULL, "actual_mask_brightness");
 

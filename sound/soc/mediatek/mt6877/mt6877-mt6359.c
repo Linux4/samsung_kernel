@@ -209,7 +209,7 @@ static int cs35l41_i2s3_init(struct snd_soc_pcm_runtime *rtd)
 
 	component = codec_dai->component;
 
-	if (component)
+	if (component && strstr(component->name, "speaker_amp"))
 		register_cirrus_bigdata_cb(component);
 
 	return 0;
@@ -1208,6 +1208,20 @@ static struct snd_soc_dai_link mt6877_mt6359_dai_links[] = {
 		.name = "DSP_Playback_A2DP",
 		.stream_name = "DSP_Playback_A2DP",
 		.cpu_dai_name = "audio_task_a2dp_dai",
+		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "snd-soc-dummy-dai",
+	},
+	{
+		.name = "DSP_Capture_Process",
+		.stream_name = "DSP_Capture_Process",
+		.cpu_dai_name = "audio_task_ulproc_dai",
+		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "snd-soc-dummy-dai",
+	},
+	{
+		.name = "DSP_Playback_Echoref",
+		.stream_name = "DSP_Playback_Echoref",
+		.cpu_dai_name = "audio_task_echodl_dai",
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
 	},

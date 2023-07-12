@@ -973,7 +973,7 @@ static int fb_notifier_callback(struct notifier_block *self,
 	int fb_blank;
 
 	switch (event) {
-	case FB_EVENT_BLANK:
+	case SMCDSD_EVENT_BLANK:
 	case SMCDSD_EARLY_EVENT_BLANK:
 		break;
 	default:

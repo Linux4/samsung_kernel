@@ -244,7 +244,9 @@ static int muic_handle_cable_data_notification(struct notifier_block *nb,
 
 static void muic_init_switch_dev_cb(void)
 {
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 	struct muic_platform_data *pdata = &muic_pdata;
+#endif
 #if IS_ENABLED(CONFIG_ANDROID_SWITCH) || IS_ENABLED(CONFIG_SWITCH)
 	int ret;
 
@@ -283,15 +285,19 @@ static void muic_init_switch_dev_cb(void)
 
 static void muic_cleanup_switch_dev_cb(void)
 {
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 	struct muic_platform_data *pdata = &muic_pdata;
+#endif
 
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 	muic_notifier_unregister(&dock_notifier_block);
 	muic_notifier_unregister(&cable_data_notifier_block);
 #endif /* CONFIG_MUIC_NOTIFIER */
 
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 	if (pdata->muic_device)
 		sec_device_destroy(pdata->muic_device->devt);
+#endif
 
 #if IS_ENABLED(CONFIG_ANDROID_SWITCH) || IS_ENABLED(CONFIG_SWITCH)
 	/* for UART event */
@@ -574,6 +580,9 @@ int muic_hv_charger_init(void)
 {
 	struct muic_platform_data *pdata = &muic_pdata;
 
+	if (pdata)
+		set_bit(CHARGER_PROBE_DONE, &pdata->driver_probe_flag);
+
 	if (pdata && pdata->muic_hv_charger_init_cb)
 		return pdata->muic_hv_charger_init_cb();
 
@@ -596,7 +605,7 @@ int muic_set_hiccup_mode(int on_off)
 }
 EXPORT_SYMBOL_GPL(muic_set_hiccup_mode);
 
-#if defined(CONFIG_MUIC_SM5504_POGO)
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
 int muic_set_pogo_adc(int adc)
 {
 	struct muic_platform_data *pdata = &muic_pdata;
@@ -607,6 +616,7 @@ int muic_set_pogo_adc(int adc)
 	pr_err("%s: cannot supported\n", __func__);
 	return -ENODEV;
 }
+EXPORT_SYMBOL_GPL(muic_set_pogo_adc);
 #endif
 
 struct muic_platform_data muic_pdata = {

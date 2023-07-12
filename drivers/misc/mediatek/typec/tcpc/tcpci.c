@@ -507,11 +507,12 @@ void typec_wd_report_usb_port_work(struct work_struct *work)
 static int typec_wd_report_usb_port(struct tcpc_device *tcpc, struct tcp_notify tcp_noti)
 {
 	u32 work_flag;
+
 	noti = tcp_noti;
 
 	work_flag = work_busy(&tcpc->wd_report_usb_port_work);
 	if (work_flag & WORK_BUSY_RUNNING &&
-	    (tcpci_is_in_water_detecting(tcpc) || tcpc->water_state)) {
+		(tcpci_is_in_water_detecting(tcpc) || tcpc->water_state)) {
 		TCPC_INFO("%s: already runnung and wait for handle_wd done\n", __func__);
 		return 0;
 	}

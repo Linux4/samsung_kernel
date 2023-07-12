@@ -3135,15 +3135,9 @@ int do_swap_page(struct vm_fault *vmf)
 				GFP_HIGHUSER_MOVABLE | __GFP_CMA, vmf,
 						&swap_ra);
 		else
-#ifdef CONFIG_CMA_RESTRICT_FOR_WFD
-			page = swapin_readahead(entry,
-				GFP_HIGHUSER_MOVABLE, vma,
-						vmf->address);
-#else
 			page = swapin_readahead(entry,
 				GFP_HIGHUSER_MOVABLE | __GFP_CMA, vma,
 						vmf->address);
-#endif
 		if (!page) {
 			/*
 			 * Back out if the VMA has changed in our back during

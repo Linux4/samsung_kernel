@@ -1428,7 +1428,7 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	status = "okay";
-	samsung,i2c-max-bus-freq = <400000>;
+	clock-frequency = <400000>;
 	sm5714@49{
 		status = "okay";
 		compatible = "siliconmitus,sm5714mfd";
@@ -1445,7 +1445,7 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	status = "okay";
-	samsung,i2c-max-bus-freq = <400000>;
+	clock-frequency = <400000>;
 
 	usbpd-sm5714@33 {
 		status = "okay";
@@ -1822,7 +1822,10 @@
 						compatible = "samsung,dc_vibrator";
 						status = "okay";
 						dc_vib,motor_type = "COINDC";
-						dc_vib,regulator_name = "vibr";
+#if 1
+						dc_vib,regulator_name = "dc_vib";
+						dc_vib-supply = <&mt_pmic_vibr_ldo_reg>;
+#endif
 					};
 				};
 			};
@@ -1948,6 +1951,7 @@
 	support_open_short_test;
 	sec,firmware_name = "tsp_stm/fts5cu56a_a32.bin";
 	sec,regulator_boot_on;
+	stm,lpmode_change_delay = <50>;
 };
 
 /* #include "../nfc_nxp.dtsi" */                     /* From nfc_nxp.py */
@@ -2095,7 +2099,11 @@
 					&nfc_check
 #endif
 					>;
-		pinctrl-1 = <&ven_nc &firm_nc &clk_req_nc &irq_nc &nfc_i2c_off>;
+		pinctrl-1 = <&ven_nc &firm_nc &clk_req_nc &irq_nc
+#if 0
+					&nfc_i2c_off
+#endif
+					>;
 		pinctrl-2 = <&nfc_i2c_off>;
 	};
 };
@@ -2573,7 +2581,7 @@
 		0x9D 0x00
 		0x9E 0x00
 		0x9F 0x00
-		0xA0 0x35
+		0xA0 0xC8
 		0xA1 0xC0
 		0xA2 0x22
 		0xA3 0x00
@@ -2594,7 +2602,7 @@
 		0xB7 0x30
 		0xB8 0xFD
 		0xB9 0xE0
-		0xBA 0x78
+		0xBA 0xF0
 		0xBB 0x80
 		0xBC 0xFF
 		0xBD 0xFF
@@ -2724,11 +2732,11 @@
 		0x99 0x21
 		0x9A 0x3C
 		0x9B 0x01
-		0x9C 0x5E
+		0x9C 0x2C
 		0x9D 0x00
 		0x9E 0x00
 		0x9F 0x00
-		0xA0 0x35
+		0xA0 0x96
 		0xA1 0xD0
 		0xA2 0x22
 		0xA3 0x00
@@ -2749,7 +2757,7 @@
 		0xB7 0x30
 		0xB8 0xFD
 		0xB9 0xE0
-		0xBA 0x78
+		0xBA 0xFD
 		0xBB 0x80
 		0xBC 0xFF
 		0xBD 0xFF
@@ -2824,8 +2832,6 @@
 		charger,direct_charger = "pca9468-charger";
 
 		charger,dchg_min_current = <2000>;
-		charger,dchg_temp_low_threshold = <180>;
-		charger,dchg_temp_high_threshold = <420>;
 	};
 };
 

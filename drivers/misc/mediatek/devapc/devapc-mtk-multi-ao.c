@@ -820,12 +820,18 @@ static void devapc_extra_handler(int slave_type, const char *vio_master,
 	} else if (!strncasecmp(vio_master, "AUDIO", 5)) {
 		id = INFRA_SUBSYS_AUDIO;
 		strncpy(dispatch_key, "AUDIO", sizeof(dispatch_key) - 1);
-
-	} else if (!strncasecmp(vio_master, "APMCU", 5))
+    } else if (!strncasecmp(vio_master, "APMCU", 5)) {
 		if (vio_info->domain_id == 0)
 			id = INFRA_SUBSYS_APMCU;
 		else
 			id = INFRA_SUBSYS_GZ;
+
+        if (!strncasecmp(vio_master, "APMCU_Read", 10)) {
+            /* Ignore KE/DUMB_CB when APMCU to SRAMROM violation */
+            if (vio_index == mtk_devapc_ctx->soc->vio_info->sramrom_vio_idx)
+                return;
+        }
+    }
 	else
 		id = DEVAPC_SUBSYS_RESERVED;
 

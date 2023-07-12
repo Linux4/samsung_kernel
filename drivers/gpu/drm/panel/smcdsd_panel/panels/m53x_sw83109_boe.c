@@ -202,7 +202,7 @@ static int smcdsd_dsi_tx_img_sd(struct lcd_info *lcd, u8 *cmd, u32 size)
 
 static int smcdsd_dsi_tx_package(struct lcd_info *lcd, struct msg_package *package)
 {
-	struct msg_segment *segment[MAX_TX_CMD_NUM] = {0, };
+	struct msg_segment *segment[MAX_TX_CMD_NUM * 2] = {0, };
 
 	return send_msg_package(&package, 1, &segment);
 }
@@ -1099,7 +1099,7 @@ static int panel_after_notifier_callback(struct notifier_block *self,
 	int fb_blank;
 
 	switch (event) {
-	case FB_EVENT_BLANK:
+	case SMCDSD_EVENT_BLANK:
 		break;
 	default:
 		return NOTIFY_DONE;

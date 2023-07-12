@@ -113,6 +113,7 @@ static void fled_set_mled_current(struct sm5714_fled_data *fled, u8 offset)
 {
 	sm5714_update_reg(fled->i2c, SM5714_CHG_REG_FLEDCNTL2, (offset << 4), (0x7 << 4));
 	sm5714_fled_test_read(fled);
+	pr_info("[%s][D/D] torch current: %d mA\n", __func__, 25*offset + 50);
 }
 
 #ifdef CONFIG_CHARGER_SM5714
@@ -507,7 +508,15 @@ static ssize_t sm5714_rear_flash_store(struct device *dev, struct device_attribu
 		if (fled->pdata->led.en_mled == false && fled->pdata->led.en_fled == false)
 			goto out_skip;
 		sm5714_fled_control(FLED_MODE_OFF);
-
+		dev_info(fled->dev, "%s: en_fled=%d flash_on_cnt=%d\n", __func__, fled->pdata->led.en_fled, fled->flash_on_cnt);
+#ifdef CONFIG_CHARGER_SM5714
+		if (fled->pdata->led.en_fled == true && fled->flash_on_cnt == 0) {
+			fled_set_disable_push_event(SM5714_CHARGER_OP_EVENT_TORCH);
+			fled_set_disable_push_event(SM5714_CHARGER_OP_EVENT_FLASH);
+			muic_check_fled_state(0, FLED_MODE_FLASH);
+			sm5714_usbpd_check_fled_state(0, FLED_MODE_FLASH);
+		}
+#endif
 	} else if (store_value == 200) { /* 200 : Flash ON */
 		fled_set_fled_current(fled, fled->pdata->led.factory_current); /* Set fled = 300mA */
 

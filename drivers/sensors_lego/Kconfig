@@ -62,3 +62,11 @@ config SENSORS_ISG5320A_USE_BFCAL
 	  Enable bf calibration for grip test
 	  This option allows some function to use bfcal instead of cfcal.
 
+
+config SENSORS_DUMP_DATA
+	tristate "Grip sensor dump log"
+	default n
+	help
+	  Enable grip dump log data
+	  This option activates log output of grip error data using sensordump_notifier.
+

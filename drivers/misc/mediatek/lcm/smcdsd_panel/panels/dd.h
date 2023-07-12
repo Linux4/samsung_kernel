@@ -16,6 +16,7 @@
 
 #if defined(CONFIG_DEBUG_FS) && !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SMCDSD_LCD_DEBUG)
 #include <linux/ctype.h>
+#include <linux/fs.h>
 #endif
 
 #if defined(CONFIG_DEBUG_FS) && !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SMCDSD_LCD_DEBUG) && defined(CONFIG_SMCDSD_MDNIE)
@@ -25,8 +26,8 @@ extern void mdnie_renew_table(struct mdnie_info *mdnie, struct mdnie_table *org)
 extern int init_debugfs_mdnie(struct mdnie_info *md, unsigned int mdnie_no);
 extern void mdnie_update(struct mdnie_info *mdnie);
 #else
-#define mdnie_renew_table(...)
-#define init_debugfs_mdnie(...)
+#define mdnie_renew_table
+#define init_debugfs_mdnie
 #endif
 
 #if defined(CONFIG_DEBUG_FS) && !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SMCDSD_LCD_DEBUG)
@@ -35,15 +36,17 @@ struct backlight_device;
 extern int init_debugfs_backlight(struct backlight_device *bd, unsigned int *table, struct i2c_client **clients);
 extern void init_debugfs_param(const char *name, void *ptr, u32 ptr_type, u32 sum_size, u32 ptr_unit);
 #else
-static inline void init_debugfs_backlight(struct backlight_device *bd, unsigned int *table, struct i2c_client **clients) {};
-static inline void init_debugfs_param(const char *name, void *ptr, u32 ptr_type, u32 sum_size, u32 ptr_unit) {};
+#define init_debugfs_backlight
+#define init_debugfs_param
 #endif
 
 #if defined(CONFIG_DEBUG_FS) && !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SMCDSD_LCD_DEBUG)
 extern void dsi_write_data_dump(u32 id, unsigned long d0, u32 d1);
+extern void dsi_rx_data_dump(u32 id, u8 cmd, int size, int ret_size, void *data);
 extern int run_cmdlist(u32 index);
 #else
 #define dsi_write_data_dump(...)
+#define dsi_rx_data_dump(...)
 #define run_cmdlist(...)
 #endif
 
