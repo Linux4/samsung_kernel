@@ -1,0 +1,145 @@
+config EXYNOS_DPU30
+	tristate "Samsung Exynos Display Sub-system (DPP, DECON, MIPI, DISPLAYPORT)"
+	select EXYNOS_IOMMU
+	select MEDIA_CAMERA_SUPPORT
+	select PHY_EXYNOS_MIPI_DSIM
+	depends on FB
+
+if EXYNOS_DPU30
+config EXYNOS_DPP
+	bool "Samsung Exynos Display Post Processor driver"
+	depends on EXYNOS_DPU30
+	default y
+
+config EXYNOS_MIPI_DSIM
+	bool "Samsung Exynos MIPI-DSI driver"
+	depends on EXYNOS_DPU30
+	default y
+	help
+	  Enable MIPI-DSI driver.
+
+config EXYNOS_DISPLAYPORT
+	bool "Samsung Exynos DISPLAYPORT driver"
+	depends on EXYNOS_DPU30
+	default n
+	help
+	  Enable DISPLAYPORT driver.
+
+config EXYNOS_WINDOW_UPDATE
+        bool "Support Window Update Mode"
+        depends on EXYNOS_DPU30
+        default n
+
+config EXYNOS_BLOCK_MODE
+	bool "Support Blocking Mode"
+        depends on EXYNOS_DPU30
+        default y
+
+config EXYNOS_HIBERNATION
+	bool "Support Display Hibernation Mode"
+        depends on EXYNOS_DPU30
+        default n
+
+config EXYNOS_CHANGE_HIBER_CNT
+	bool "Change Hibernation Entry Count at Runtime"
+        depends on EXYNOS_DPU30 && EXYNOS_HIBERNATION
+        default n
+
+config EXYNOS_HIBERNATION_EARLY_WAKEUP
+	bool "Support Hibernation Early Wakeup (EXPERIMENTAL)"
+		depends on EXYNOS_DPU30 && EXYNOS_HIBERNATION
+		default n
+
+config EXYNOS_DOZE
+	bool "Support DOZE mode"
+        depends on EXYNOS_DPU30
+        default n
+
+config EXYNOS_AFBC_DEBUG
+	bool "Support AFBC Decoder Debug"
+        depends on EXYNOS_DPU30
+        default n
+
+config EXYNOS_MULTIRESOLUTION
+	bool "Support Multi Resolution LCD"
+	depends on EXYNOS_DPU30 && EXYNOS_WINDOW_UPDATE
+	default n
+
+config EXYNOS_VIRTUAL_DISPLAY
+	bool "Support Virtual Display Mode"
+	depends on EXYNOS_DPU30
+	default n
+	help
+	  If this menu is enabled, you can boot up board without LCD.
+
+config EXYNOS_READ_ESD_SOLUTION
+	bool "Support ESD solution using read DDI power state"
+	depends on EXYNOS_DPU30
+	default n
+	help
+	  If this menu is enabled, you can detect ESD of panel.
+
+config EXYNOS_READ_ESD_SOLUTION_TEST
+	bool "Support ESD solution using read DDI power state"
+	depends on EXYNOS_READ_ESD_SOLUTION
+	default n
+	help
+	  If this menu is enabled, you can test ESD recovery.
+
+config EXYNOS_LOW_PERSISTENCE
+	bool "Support Low Persistence Mode"
+        depends on EXYNOS_DPU30
+	default n
+
+config EXYNOS_CURSOR
+	bool "Support Cursor Async Mode"
+        depends on EXYNOS_DPU30
+	default n
+
+config EXYNOS_DSIM_DITHER
+	bool "DSIM SSCG feature"
+        depends on EXYNOS_MIPI_DSIM
+        default n
+
+config DECON_BTS_LEGACY
+	bool "Legacy BTS scheme of display"
+        depends on EXYNOS_DPU30
+        default n
+
+config FB_TEST
+	bool "Framebuffer test only"
+        depends on EXYNOS_DPU30
+        default n
+
+config DSIM_CMD_TEST
+	bool "DSIM command test only"
+        depends on EXYNOS_DPU30
+        default n
+
+config EXYNOS_FREQ_HOP
+	bool "Support DPHY PLL Frequency Hopping"
+        depends on EXYNOS_DPU30
+        default n
+
+config EXYNOS_PLL_SLEEP
+	bool "Support DPHY PLL Sleep"
+        depends on EXYNOS_DPU30
+        default n
+
+config EXYNOS_EWR
+	bool "Support early wake up"
+        depends on EXYNOS_DPU30
+        default n
+
+config EXYNOS_LIMIT_ROTATION
+	bool "Limit Rotation based on Size and Bit-depth"
+        depends on EXYNOS_DPU30
+        default n
+endif
+
+config EXYNOS_DPU_SYSTRACE
+	bool "Support Systrace for DPU"
+		depends on EXYNOS_DPU30
+		default y
+
+source "drivers/video/fbdev/exynos/dpu30/panels/Kconfig"

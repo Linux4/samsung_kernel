@@ -1,0 +1,15 @@
+#
+# Mobicore Configuration
+#
+if SOC_S5E9935
+source "drivers/gud/gud-s5e9935/Kconfig"
+endif
+if SOC_S5E8535
+source "drivers/gud/gud-s5e8535/Kconfig"
+endif
+if SOC_S5E8835
+source "drivers/gud/gud-s5e8835/Kconfig"
+endif
+if SOC_S5E3830
+source "drivers/gud/gud-s5e3830/Kconfig"
+endif
