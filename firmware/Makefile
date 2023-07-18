@@ -15,8 +15,10 @@ fw-external-$(CONFIG_TOUCHSCREEN_NT36xxx_HOSTDL_SPI) += tsp_novatek/nt36525_a12_
 							tsp_novatek/nt36525_a12_boe.bin tsp_novatek/nt36525_a12_mp_boe.bin \
 							tsp_novatek/nt36675_a12_ltps.bin tsp_novatek/nt36675_a12_mp_ltps.bin
 
+
 fw-external-$(CONFIG_SENSORS_A96T3X6_A12) += abov/a96t356_a12_main.bin abov/a96t356_a12_sub.bin \
-					 abov/a96t356_a12_usa_main.bin abov/a96t356_a12_usa_sub.bin
+					 abov/a96t356_a12_usa_main.bin abov/a96t356_a12_usa_sub.bin \
+					 abov/a96t356_a12_kor_main.bin abov/a96t356_a12_kor_sub.bin
 
 
 quiet_cmd_fwbin = MK_FW   $@

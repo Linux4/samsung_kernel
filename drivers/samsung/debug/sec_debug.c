@@ -446,10 +446,12 @@ static void sec_dump_irq_info(void)
 	pr_info("------------------------------------------------------------------\n");
 }
 
+extern void hard_reset_delay(void);
 void sec_debug_dump_info(void)
 {
 	sec_dump_task_info();
 	sec_dump_irq_info();
+	hard_reset_delay();
 }
 
 #ifdef CONFIG_SEC_DEBUG_EXTRA_INFO

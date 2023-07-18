@@ -7090,7 +7090,9 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 	struct ISP_P2_BUFQUE_STRUCT    p2QueBuf;
 	unsigned int                 regScenInfo_value = 0xa5a5a5a5;
 	/*    signed int                  burstQNum;*/
+#ifdef WAKELOCK_CTRL
 	unsigned int                 wakelock_ctrl;
+#endif
 	unsigned int                 module;
 	unsigned long flags;
 	int userKey =  -1;
@@ -7115,6 +7117,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 	/*  */
 	switch (Cmd) {
 	case ISP_WAKELOCK_CTRL:
+#ifdef WAKELOCK_CTRL
 		if (copy_from_user(&wakelock_ctrl, (void *)Param,
 		    sizeof(unsigned int)) != 0) {
 			pr_err("get ISP_WAKELOCK_CTRL from user fail\n");
@@ -7154,6 +7157,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 			}
 		}
 		break;
+#endif
 	case ISP_GET_DROP_FRAME:
 		if (copy_from_user(&DebugFlag[0], (void *)Param,
 		    sizeof(unsigned int)) != 0) {
@@ -9335,6 +9339,12 @@ static signed int ISP_open(
 		IspInfo.UserCount++;
 		spin_unlock(&(IspInfo.SpinLockIspRef));
 
+#ifdef CONFIG_PM_SLEEP
+		__pm_stay_awake(isp_wake_lock);
+#else
+		wake_lock(&isp_wake_lock);
+#endif
+
 		/* kernel log limit to (current+150) lines per second */
 	#if (_K_LOG_ADJUST == 1)
 		pr_detect_count = get_detect_count();
@@ -9728,6 +9738,7 @@ static signed int ISP_release(
 	 * The driver must releae the wakelock, ozws the system will not enter
 	 */
 	/* the power-saving mode */
+#ifdef WAKELOCK_CTRL
 	if (g_WaitLockCt) {
 		pr_info("wakelock disable!! cnt(%d)\n", g_WaitLockCt);
 #ifdef CONFIG_PM_SLEEP
@@ -9737,6 +9748,7 @@ static signed int ISP_release(
 #endif
 		g_WaitLockCt = 0;
 	}
+#endif
 	/* reset */
 	/*      */
 	for (i = 0; i < IRQ_USER_NUM_MAX; i++) {
@@ -9862,6 +9874,12 @@ static signed int ISP_release(
 		ISP_EnableClock(MFALSE);
 		i--;
 	}
+
+#ifdef CONFIG_PM_SLEEP
+	__pm_relax(isp_wake_lock);
+#else
+	wake_unlock(&isp_wake_lock);
+#endif
 
 EXIT:
 	mutex_unlock(&gDipMutex);
