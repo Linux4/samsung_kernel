@@ -334,7 +334,7 @@ int ttf_display(struct sec_battery_info *battery)
 
 	if (((battery->status == POWER_SUPPLY_STATUS_CHARGING) ||
 		(battery->status == POWER_SUPPLY_STATUS_FULL && battery->capacity != 100)) &&
-		!battery->swelling_mode)
+		!battery->swelling_mode && !(battery->current_event & SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING_2ND))
 		return battery->ttf_d->timetofull;
 	else
 		return 0;

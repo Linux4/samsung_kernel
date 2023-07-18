@@ -109,4 +109,11 @@ config SEC_GTA4XLVEWIFI_CHN_OPEN
 	bool "Samsung GTA4XLVEWIFI CHN OPEN"
 	help
 	  Support for Samsung GTA4XLVEWIFI CHN OPEN device.
+	  
+config SEC_GTA4XLVEWIFI_KOR_OPEN
+	depends on SEC_GTA4XLVE_PROJECT 
+	default n
+	bool "Samsung GTA4XLVEWIFI KOR OPEN"
+	help
+	  Support for Samsung GTA4XLVEWIFI KOR OPEN device.	  
 
