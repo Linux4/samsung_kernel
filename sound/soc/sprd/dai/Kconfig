@@ -1,0 +1,9 @@
+menu "SPRD CPU DAI"
+
+config SND_SOC_SPRD_DAI
+	tristate "sprd dai"
+	default n
+	help
+		Say Y or M here if you want to use sprd dai.
+
+endmenu

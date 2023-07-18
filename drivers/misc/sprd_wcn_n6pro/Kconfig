@@ -1,0 +1,6 @@
+#
+# Misc wcn bsp devices
+#
+
+source "drivers/misc/sprd_wcn_n6pro/wcn_bsp_sdio/Kconfig"
+source "drivers/misc/sprd_wcn_n6pro/wcn_bsp_pcie/Kconfig"

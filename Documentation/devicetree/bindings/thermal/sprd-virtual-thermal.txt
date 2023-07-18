@@ -1,0 +1,15 @@
+Spreadtrum thermal device tree bindings
+
+Required properties:
+- compatible : Should be "sprd,virtual-thermal"
+- sensor-names : Should be thmzone name, such as "soc-thmzone", "cluster0-thmzone".
+- type : temperature type should be "max-temp" and "avg-temp".
+
+Example:
+
+	virtual_cp_max_sensor: virtual-cp-max-sensor@18 {
+		compatible = "sprd,virtual-thermal";
+		#thermal-sensor-cells = <1>;
+		sensor-names ="cluster0-thmzone","cluster1-thmzone","soc-thmzone";
+		type = max-temp;
+	};

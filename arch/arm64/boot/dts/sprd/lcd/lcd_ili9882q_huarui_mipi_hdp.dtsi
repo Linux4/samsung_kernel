@@ -1,0 +1,230 @@
+/ {
+	fragment {
+		target-path = "/";
+		__overlay__ {
+				lcds {
+					lcd_ili9882q_huarui_mipi_hdp: lcd_ili9882q_huarui_mipi_hdp {
+						sprd,dsi-work-mode = <1>; /* video burst mode*/
+						sprd,dsi-lane-number = <4>;
+						sprd,dsi-color-format = "rgb888";
+
+						sprd,phy-bit-clock = <727000>;/* kbps */
+						sprd,phy-escape-clock = <20000>;/* kHz */
+
+						sprd,width-mm = <68>;
+						sprd,height-mm = <151>;
+
+						sprd,esd-check-enable = <1>;    /* 1:enable 0:disable */
+						sprd,esd-check-mode = <1>;      /* 1:te type	0:register type --- default */
+						sprd,esd-check-period = <2000>;
+						sprd,esd-check-register = <0x0A>;
+						sprd,esd-check-value = <0x9C>;
+
+						sprd,reset-on-sequence = <0 10>, <1 5>, <0 5>, <1 30>;
+						sprd,reset-off-sequence = <0 5>;
+
+						sprd,use-dcs-write;
+
+						sprd,initial-command = [
+							29 00 00 04 FF 98 82 01
+							29 00 00 02 00 48	//STVA RISE=STV
+							29 00 00 02 01 33	//STVA Duty 4H
+							29 00 00 02 02 00	//
+							29 00 00 02 03 00
+							29 00 00 02 04 04	//STVB RISE=RST
+							29 00 00 02 05 13	//STVB Duty 4H
+							29 00 00 02 06 00
+							29 00 00 02 07 00
+							29 00 00 02 08 86	//CLKA RISE
+							29 00 00 02 09 02	//CLKA FALL
+							29 00 00 02 0A 73	//CLKA 4H
+							29 00 00 02 0B 00
+							29 00 00 02 0C 06
+							29 00 00 02 0D 06
+							29 00 00 02 0E 00
+							29 00 00 02 0F 00
+							29 00 00 02 1A 00
+							29 00 00 02 1B 00
+							29 00 00 02 1C 00
+							29 00 00 02 1D 00
+							29 00 00 02 28 8A	// STCH1=GLV
+							29 00 00 02 29 49	// STCH1=GLV
+							29 00 00 02 2A 8A	// STCH2=VDD
+							29 00 00 02 2B 49	// STCH2=VDD
+							//FW_R
+							29 00 00 02 31 0C	// RST-L
+							29 00 00 02 32 2A	// VGG-R29 00 00 VGL
+							29 00 00 02 33 2A	// VGG-R29 00 00 VGL
+							29 00 00 02 34 22	// GLV-L
+							29 00 00 02 35 02	// VGL-L
+							29 00 00 02 36 08	// STV1-L
+							29 00 00 02 37 0A	// STV2-L
+							29 00 00 02 38 23	// VDD-L
+							29 00 00 02 39 23	// VDD-L
+							29 00 00 02 3A 10	// CK1-L
+							29 00 00 02 3B 10	// CK1-L
+							29 00 00 02 3C 12	// CK2-L
+							29 00 00 02 3D 12	// CK2-L
+							29 00 00 02 3E 14	// CK1B-L
+							29 00 00 02 3F 14	// CK1B-L
+							29 00 00 02 40 16	// CK2B-L
+							29 00 00 02 41 16	// CK2B-L
+							29 00 00 02 42 07	// Hi-Z
+							29 00 00 02 43 07	// Hi-Z
+							29 00 00 02 44 07	// Hi-Z
+							29 00 00 02 45 07	// Hi-Z
+							29 00 00 02 46 07	// Hi-Z
+
+							//FW_L
+							29 00 00 02 47 0D	// RST-R
+							29 00 00 02 48 2A	// VGG-R29 00 00 VGL
+							29 00 00 02 49 2A	// VGG-R29 00 00 VGL
+							29 00 00 02 4A 22	// GLV-R
+							29 00 00 02 4B 02	// VGL-R
+							29 00 00 02 4C 09	// STV1-R
+							29 00 00 02 4D 0B	// STV2-R
+							29 00 00 02 4E 23	// VDD-R
+							29 00 00 02 4F 23	// VDD-R
+							29 00 00 02 50 11	// CK1-R
+							29 00 00 02 51 11	// CK1-R
+							29 00 00 02 52 13	// CK2-R
+							29 00 00 02 53 13	// CK2-R
+							29 00 00 02 54 15	// CK1B-R
+							29 00 00 02 55 15	// CK1B-R
+							29 00 00 02 56 17	// CK2B-R
+							29 00 00 02 57 17	// CK2B-R
+							29 00 00 02 58 07	// Hi-Z
+							29 00 00 02 59 07	// Hi-Z
+							29 00 00 02 5A 07	// Hi-Z
+							29 00 00 02 5B 07	// Hi-Z
+							29 00 00 02 5C 07	// Hi-Z
+
+							// RTN. Internal VBP Internal VFP
+							29 00 00 04 FF 98 82 02
+							29 00 00 02 F1 1C	// Tcon ESD option
+							29 00 00 02 4B 5A	// line_chopper
+							29 00 00 02 50 CA	// line_chopper
+							29 00 00 02 51 00	// line_chopper
+							29 00 00 02 06 8D	// Internal Line Time 29 00 00 RTN
+							29 00 00 02 0B A0	// Internal VFP[9]
+							29 00 00 02 0C 00	// Internal VFP[8]
+							29 00 00 02 0D 22	// Internal VBP
+							29 00 00 02 0E E6	// Internal VFP
+							29 00 00 02 4E 11	// SRC BIAS
+							29 00 00 02 4D CE	// Power Saving Off
+							29 00 00 02 F2 4A	// Reset Option
+
+							// Power Setting
+							29 00 00 04 FF 98 82 05
+							29 00 00 02 03 01
+							29 00 00 02 04 2B
+							29 00 00 02 58 61	// VGL 2x
+							29 00 00 02 63 9C	// GVDDN = -5.6V
+							29 00 00 02 64 9C	// GVDDP = 5.6V
+							29 00 00 02 68 A1	// VGHO = 15V
+							29 00 00 02 69 A7	// VGH = 16V
+							29 00 00 02 6A 79	// VGLO = -10V
+							29 00 00 02 6B 6B	// VGL = -11V
+							29 00 00 02 85 37	// HW RESET option
+
+							// Resolution
+							29 00 00 04 FF 98 82 06
+							29 00 00 02 D9 1F	// 4Lane
+							29 00 00 02 C0 40	// NL = 
+							29 00 00 02 C1 16	// NL = 1600
+							29 00 00 02 80 09	// mipi_cmd_toggle_en
+
+							29 00 00 02 06 A4
+							29 00 00 04 FF 98 82 03
+							39 00 00 02 B3 F2
+							39 00 00 02 B4 CC
+							29 00 00 02 83 20
+							29 00 00 02 84 00
+
+
+							//Gamma Register
+							29 00 00 04 FF 98 82 08
+							29 00 00 1C E0 00 24 5F 8A C5 54 F8 21 53 7E A5 C2 F8 26 51 AA 7C AC CA F1 FF 13 3F 77 A7 03 EC
+							29 00 00 1C E1 00 24 5F 8A C5 54 F8 21 53 7E A5 C2 F8 26 51 AA 7C AC CA F1 FF 13 3F 77 A7 03 EC
+
+
+							// OSC Auto Trim Setting
+							29 00 00 04 FF 98 82 0B
+							29 00 00 02 9A 88
+							29 00 00 02 9B EE
+							29 00 00 02 9C 06
+							29 00 00 02 9D 06
+							29 00 00 02 9E DF
+							29 00 00 02 9F DF
+							29 00 00 02 AA 22
+							29 00 00 02 AB E0	// AutoTrimType
+							29 00 00 02 AC 7F	// trim_osc_max
+							29 00 00 02 AD 3F	// trim_osc_min
+
+							// TP Setting
+							29 00 00 04 FF 98 82 0E
+							29 00 00 02 11 10	//TSVD Rise Poisition
+							29 00 00 02 12 08	// LV mode TSHD Rise position
+							29 00 00 02 13 10	// LV mode TSHD Rise position
+							29 00 00 02 00 A0	// LV mode
+
+							29 00 00 04 FF 98 82 00
+							29 00 00 02 35 00
+							29 00 00 03 51 00 00
+							29 00 00 03 68 03 00
+							29 00 00 02 53 2C
+							29 00 00 02 55 01
+							05 64 00 01 11
+							05 14 00 01 29
+						];
+
+						sprd,sleep-in-command = [
+							05 14 00 01 28
+							05 64 00 01 10
+						];
+
+						sprd,sleep-out-command = [
+							05 64 00 01 11
+							05 14 00 01 29
+						];
+
+						sprd,cabc-ui-mode = [
+							15 00 00 02 55 01
+						];
+
+						sprd,cabc-mov-mode = [
+							15 00 00 02 55 02
+						];
+
+						sprd,cabc-off-mode = [
+							15 00 00 02 55 00
+						];
+						oled-backlight {
+							default-brightness-level = <101>;
+							sprd,max-level = <4095>;
+							brightness-levels = [
+								39 00 00 03 51 0F FF
+							];
+						};
+
+						display-timings {
+							native-mode = <&ili9882q_huarui_timing0>;
+
+							ili9882q_huarui_timing0: timing0 {
+								clock-frequency = <96000000>;
+								hactive = <720>;
+								vactive = <1600>;
+								hback-porch = <60>;
+								hfront-porch = <60>;
+								vback-porch = <32>;
+								vfront-porch = <230>;
+								hsync-len = <20>;
+								vsync-len = <2>;
+							};
+						};
+					};
+				};
+		};
+	};
+};
+

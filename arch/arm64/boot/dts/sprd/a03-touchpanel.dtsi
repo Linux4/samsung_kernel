@@ -1,0 +1,125 @@
+&spi1 {
+	status = "okay";
+
+	touchpanel@0 {
+		//ts common parameter
+		compatible = "touchpanel";
+		reg = <0>; //Same as CS ID
+		status = "ok";
+
+		spi-max-frequency = <9600000>;	//4800000,9600000,15000000,19200000
+		
+		pinctrl-names = "gpio_144", "gpio_144_slp";
+		pinctrl-0 = <&gpio_144>;
+		pinctrl-1 = <&gpio_144_slp>;
+		ts,rst-gpio = <&ap_gpio 145 GPIO_ACTIVE_HIGH>;
+		ts,irq-gpio = <&ap_gpio 144 0x00>;
+		ges,irq-gpio = <&eic_debounce 0 GPIO_ACTIVE_HIGH>;
+
+        /*GC7202*/
+		gts,test-chip-id;
+		gts,chip-id = [72 02];
+
+		gts,test-open;
+		gts,open-cb = <200>;
+		gts,open-min = <1000>;
+
+		gts,test-short;
+		gts,short-cb = <10>;
+		gts,short-min = <100>;
+
+      /*GC7202H*/
+		gts,test-chip-id-7202H;
+		gts,chip-id-7202H = [72 03];
+
+		gts,test-open-7202H;
+		gts,open-cb-7202H = <30>;
+		gts,open-min-7202H = <500>;
+
+		gts,test-short-7202H;
+		gts,short-cb-7202H = <10>;
+		gts,short-min-7202H = <100>;
+
+		gts,test-rawdata-7202H;
+		gts,rawdata-max-7202H = <90>;
+		gts,rawdata-range-7202H = <100 720>;
+
+		gts,test-noise-7202H;
+		gts,peak_to_peak-7202H = <60>;
+
+		/*icnl9911c ===========start===========*/
+		touch,max-touch-number = <5>;
+		touch,display-coords =  <0 0 720 1600>;
+		cts,x-res = <720>;
+		cts,y-res = <1600>;
+
+ 		/* selftest settings */
+		cts,test-reset-pin;
+		//cts,test-int-pin;
+
+		cts,test-rawdata;
+		cts,test-rawdata-frames = <1>;
+		cts,rawdata-min = <1400>;//base 1100
+		cts,rawdata-max = <2600>;
+
+		cts,test-noise;
+		cts,test-noise-frames = <16>;
+		cts,noise-max = <80>;
+
+		cts,test-open;
+		cts,open-min = <2772>;
+
+		cts,test-short;
+		cts,short-min = <500>;
+
+		//cts,test-compensate-cap;
+		cts,compensate-cap-min = <1>;
+		cts,compensate-cap-max = <126>;
+
+		/* Charger detect */
+		cts,touch-charger-detect-enable;
+		cts,touch-charger-detect-type = "notify"; /* notify, poll */
+		cts,touch-charger-detect-psy-name = "bq2560x_charger";
+		cts,touch-charger-detect-psp = "POWER_SUPPLY_PROP_ONLINE";
+		cts,touch-charger-detect-psp-poll-interval = <1000>;
+
+		/* Earjack detect */
+		cts,touch-earjack-detect-enable;
+		/* MTK:  /sys/bus/platform/drivers/Accdet_Driver/state,
+		Sprd: /sys/kernel/headset/state
+		QCOM: None, and disable it */
+		cts,touch-earjack-state-filepath = "/sys/kernel/headset/state";
+		cts,touch-earjack-poll-interval = <1000>;
+		/*icnl9911c ===========end===========*/
+
+		/*icnl9911c_txd ===========start===========*/
+		cts_txd,test-rawdata-frames = <1>;
+		cts_txd,rawdata-min = <1410>;
+		cts_txd,rawdata-max = <3280>;
+
+		cts_txd,test-noise-frames = <50>;
+		cts_txd,noise-max = <80>;
+
+		cts_txd,open-min = <3119>;
+		cts_txd,short-min = <300>;
+
+		cts_txd,compensate-cap-min = <1>;
+		cts_txd,compensate-cap-max = <126>;
+		/*icnl9911c_txd ===========end===========*/
+
+		/*nt36525B*/
+		/* 672A, 525B, 675, 526, 672C */
+		nvt,swrst-n8-addr = <0x03F0FE>;
+		nvt,spi-rd-fast-addr = <0x03F310>;
+		/* Charger detect */
+		nvt,touch-charger-detect-enable;
+		nvt,touch-charger-detect-type = "notify"; /* notify, poll */
+		nvt,touch-charger-detect-psy-name = "bq2560x_charger";
+		nvt,touch-charger-detect-psp = "POWER_SUPPLY_PROP_ONLINE";
+		nvt,touch-charger-detect-psp-poll-interval = <1000>;
+		/* MP */
+		nvt,mp-support-dt;
+
+		//#include "nvt_mp_pid7234.dtsi"
+	};
+};

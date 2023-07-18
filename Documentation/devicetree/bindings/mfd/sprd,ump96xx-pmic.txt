@@ -1,0 +1,26 @@
+UNISOC SoCs UMP96XX PMIC MFD driver
+
+Required properties:
+- compatible: should be one of following:
+	"sprd,ump9620"
+	"sprd,ump9621"
+	"sprd,ump9622"
+- reg: Specifies PMICs chip select signal for spi framework.
+
+Optional properties:
+- size-cells: size of cells required to define a sys module address size on.
+- address-cells: number of address cells for the PMIC's subnodes.
+- #interrupt-cells: be identical to the that of the parent interrupt.
+- interrupt-controller :be identical to describe the PMIC that have interrupt signal.
+- spi-max-frequency: max frequency of spi/adi bus for pmic.
+
+Example:
+	ump9620_pmic: pmic@0 {
+		compatible = "sprd,ump9620";
+		reg = <0>;
+		spi-max-frequency = <26000000>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
