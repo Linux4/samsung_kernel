@@ -59,6 +59,8 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define fapi_get_u16(mp_skb, mp_name) le16_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name)
 #define fapi_get_u32(mp_skb, mp_name) le32_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name)
 #define fapi_get_u64(mp_skb, mp_name) le64_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name)
+#define fapi_set_u8(mp_skb, mp_name, mp_value) \
+	(((struct fapi_signal *)(mp_skb)->data)->mp_name = mp_value & 0xffu)
 #define fapi_set_u16(mp_skb, mp_name, mp_value) (((struct fapi_signal *)(mp_skb)->data)->mp_name = cpu_to_le16(mp_value))
 #define fapi_set_u32(mp_skb, mp_name, mp_value) (((struct fapi_signal *)(mp_skb)->data)->mp_name = cpu_to_le32(mp_value))
 #define fapi_get_s16(mp_skb, mp_name) ((s16)le16_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name))

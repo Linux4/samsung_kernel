@@ -156,6 +156,7 @@
 #define CMD_SETJOINPREFER "SETJOINPREFER"
 #define CMD_SETSINGLEANT "SETSINGLEANT"
 #define CMD_SET_TX_POWER_CALLING "SET_TX_POWER_CALLING"
+#define CMD_SET_CUSTOM_TX_POWER_CALLING "SET_CUSTOM_TX_POWER_CALLING"
 #define CMD_GET_CU "GET_CU"
 
 #define CMD_DRIVERDEBUGDUMP "DEBUG_DUMP"
@@ -4757,6 +4758,49 @@ int slsi_set_tx_power_calling(struct net_device *dev, char *command, int buf_len
 	return error;
 }
 
+int slsi_set_custom_tx_power_calling(struct net_device *dev, char *command, int buf_len)
+{
+	struct netdev_vif       *ndev_vif = netdev_priv(dev);
+	struct slsi_dev         *sdev = ndev_vif->sdev;
+	struct slsi_ioctl_args  *ioctl_args = NULL;
+	int                     txpwr_limit[MAX_TX_PWR_BACKOFF_ARG_CNT];
+	int                     result = 0, i;
+
+	ioctl_args = slsi_get_private_command_args(command, buf_len, MAX_TX_PWR_BACKOFF_ARG_CNT);
+	result = slsi_verify_ioctl_args(sdev, ioctl_args);
+	if (result)
+		return result;
+
+	if (ioctl_args->arg_count != MAX_TX_PWR_BACKOFF_ARG_CNT) {
+		SLSI_ERR(sdev, "Invalid argument count = %d (should be 12)\n", ioctl_args->arg_count);
+		result = -EINVAL;
+		goto exit;
+	}
+
+	for (i = 0; i < MAX_TX_PWR_BACKOFF_ARG_CNT; i++) {
+		if (!slsi_str_to_int(ioctl_args->args[i], &txpwr_limit[i])) {
+			SLSI_ERR(sdev, "Invalid custom tx power limit: '%s'\n", ioctl_args->args[0]);
+			result = -EINVAL;
+			goto exit;
+		}
+		if (txpwr_limit[i] < -1 || txpwr_limit[i] > 254) {
+			SLSI_ERR(sdev, "Out of max TX power boundary  (-1 to 254): %d\n", txpwr_limit[i]);
+			result = -EINVAL;
+			goto exit;
+		}
+	}
+
+	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+
+	result = slsi_mlme_set_max_tx_power(sdev, dev, txpwr_limit);
+
+	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+
+exit:
+	kfree(ioctl_args);
+	return result;
+}
+
 int slsi_set_tx_power_sub6_band(struct net_device *dev, char *command, int buf_len)
 {
 	struct netdev_vif    *ndev_vif = netdev_priv(dev);
@@ -7407,7 +7451,7 @@ static int slsi_set_ap_tx_power(struct net_device *dev, char *command, int buf_l
 		SLSI_ERR(sdev, "Invalid AP TX power: '%s'\n", ioctl_args->args[0]);
 		goto exit;
 	}
-	if (tx_power < AP_RPS_PHASE_MIN || tx_power > AP_RPS_PHASE_MAX) {
+	if (tx_power < AP_TX_POWER_MIN || tx_power > AP_TX_POWER_MAX) {
 		SLSI_ERR(sdev, "Out of AP TX power boundary  (0~31dBm): %d\n", tx_power);
 		goto exit;
 	}
@@ -7744,6 +7788,7 @@ static const struct slsi_ioctl_fn slsi_ioctl_fn_table[] = {
 	{ CMD_P2PLOSTART,                   slsi_p2p_lo_start },
 	{ CMD_P2PLOSTOP,                    slsi_p2p_lo_stop },
 	{ CMD_SET_TX_POWER_CALLING,         slsi_set_tx_power_calling },
+	{ CMD_SET_CUSTOM_TX_POWER_CALLING,  slsi_set_custom_tx_power_calling },
 	{ CMD_SET_TX_POWER_SUB6_BAND,       slsi_set_tx_power_sub6_band },
 	{ CMD_POWER_MEASUREMENT_START,      slsi_start_power_measurement_detection },
 	{ CMD_GETREGULATORY,                slsi_get_regulatory },

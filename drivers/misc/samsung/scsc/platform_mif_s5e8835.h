@@ -53,6 +53,9 @@ struct platform_mif {
 	void __iomem  *base;
 	void __iomem  *base_wpan;
 	void __iomem  *base_pmu;
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+	void __iomem  *base_apm;
+#endif
 #if IS_ENABLED(CONFIG_SCSC_MEMLOG)
 	size_t        mem_size_region2;
 	void __iomem  *mem_region2;

@@ -150,6 +150,12 @@ static char panic_record_dump[PANIC_RECORD_DUMP_BUFFER_SZ];
 static BLOCKING_NOTIFIER_HEAD(firmware_chain);
 
 /**
+ * This mxman reference is initialized/nullified via mxman_init/deinit
+ * called by scsc_mx_create/destroy on module probe/remove.
+ */
+static struct mxman *active_mxman;
+
+/**
  * This will be returned as fw version ONLY if Maxwell
  * was never found or was unloaded.
  */
@@ -229,6 +235,11 @@ static bool disable_recovery_from_memdump_file = true;
 static int memdump = -1;
 static bool disable_recovery_until_reboot;
 
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+static unsigned int wlbt_dcxo_caldata = 0;
+static int wlbt_temperature_value = 0;
+#endif
+
 static uint scandump_trigger_fw_panic = 0;
 module_param(scandump_trigger_fw_panic, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(scandump_trigger_fw_panic, "Specify fw panic ID");
@@ -267,7 +278,11 @@ static int refcount;
 static ssize_t sysfs_show_memdump(struct kobject *kobj, struct kobj_attribute *attr, char *buf);
 static ssize_t sysfs_store_memdump(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count);
 static struct kobj_attribute memdump_attr = __ATTR(memdump, 0660, sysfs_show_memdump, sysfs_store_memdump);
-
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+static ssize_t sysfs_show_wlbt_dcxo_caldata(struct kobject *kobj, struct kobj_attribute *attr, char *buf);
+static ssize_t sysfs_store_wlbt_dcxo_caldata(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count);
+static struct kobj_attribute dcxocal_attr = __ATTR(wlbt_dcxo_caldata, 0660, sysfs_show_wlbt_dcxo_caldata, sysfs_store_wlbt_dcxo_caldata);
+#endif
 /* Time stamps of last level7 resets in jiffies */
 static unsigned long syserr_level7_history[SYSERR_LEVEL7_HISTORY_SIZE] = { 0 };
 static int syserr_level7_history_index;
@@ -379,6 +394,44 @@ static ssize_t sysfs_store_memdump(struct kobject *kobj, struct kobj_attribute *
 	return (r == 0) ? count : 0;
 }
 
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+/* Retrieve wlbt_dcxo_caldata in sysfs global */
+static ssize_t sysfs_show_wlbt_dcxo_caldata(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%u,%d\n", wlbt_dcxo_caldata, wlbt_temperature_value);
+}
+
+/* Update wlbt_dcxo_caldata in sysfs global */
+static ssize_t sysfs_store_wlbt_dcxo_caldata(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int r;
+	struct scsc_mif_abs *mif_abs;
+
+	if (active_mxman == NULL || active_mxman->mx == NULL) {
+		SCSC_TAG_ERR(MXMAN, "No active MXMAN\n");
+		return 0;
+	}
+
+	/* Extract dcxo cal tune value and temperature from caldata string */
+	r = sscanf(buf, "%u,%d", &wlbt_dcxo_caldata, &wlbt_temperature_value);
+	SCSC_TAG_INFO(MXMAN, "Overrided dcxo_cal: %u, temperature value: %d)\n", wlbt_dcxo_caldata, wlbt_temperature_value);
+
+	if (r > 0) {
+		SCSC_TAG_INFO(MXMAN, "wlbt_dcxo_caldata: %d(hex value:0x%x)\n", wlbt_dcxo_caldata, wlbt_dcxo_caldata);
+
+		mif_abs = scsc_mx_get_mif_abs(active_mxman->mx);
+
+		r = mifmboxman_set_dcxo_tune_value(mif_abs, wlbt_dcxo_caldata);
+	}
+	else {
+		SCSC_TAG_ERR(MXMAN, "Invaild wlbt_dcxo_caldata value\n");
+		return -EINVAL;
+	}
+
+	return (r == 0) ? count : -EINVAL;
+}
+#endif
+
 #if IS_ENABLED(CONFIG_DEBUG_SNAPSHOT)
 void mxman_scan_dump_mode(void)
 {
@@ -467,16 +520,49 @@ void mxman_destroy_sysfs_memdump(void)
 	mxman_wifi_kobject_ref_put();
 }
 
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+/* Register wlbt_dcxo_caldata override */
+void mxman_create_sysfs_wlbt_dcxo_caldata(void)
+{
+	int r;
+	struct kobject *kobj_ref = mxman_wifi_kobject_ref_get();
+
+	SCSC_TAG_INFO(MXMAN, "kobj_ref: 0x%p\n", kobj_ref);
+
+	if (kobj_ref) {
+		/* Create sysfs file /sys/wifi/wlbt_dcxo_caldata */
+		r = sysfs_create_file(kobj_ref, &dcxocal_attr.attr);
+		if (r) {
+			/* Failed, so clean up dir */
+			SCSC_TAG_ERR(MXMAN, "Can't create /sys/wifi/wlbt_dcxo_caldata\n");
+			mxman_wifi_kobject_ref_put();
+			return;
+		}
+	} else {
+		SCSC_TAG_ERR(MXMAN, "failed to create /sys/wifi directory");
+	}
+}
+
+/* Unregister wlbt_dcxo_caldata override */
+void mxman_destroy_sysfs_wlbt_dcxo_caldata(void)
+{
+	if (!wifi_kobj_ref)
+		return;
+
+	/* Destroy /sys/wifi/wlbt_dcxo_caldata file */
+	sysfs_remove_file(wifi_kobj_ref, &dcxocal_attr.attr);
+
+	/* Destroy /sys/wifi virtual dir */
+	mxman_wifi_kobject_ref_put();
+}
+#endif
+
 /* Track when WLBT reset fails to allow debug */
 static u64 reset_failed_time;
 static int firmware_runtime_flags;
 static int firmware_runtime_flags_wpan;
 static int syserr_command;
-/**
- * This mxman reference is initialized/nullified via mxman_init/deinit
- * called by scsc_mx_create/destroy on module probe/remove.
- */
-static struct mxman *active_mxman;
+
 static bool send_fw_config_to_active_mxman(uint32_t fw_runtime_flags, enum scsc_subsystem sub);
 static bool send_syserr_cmd_to_active_mxman(u32 syserr_cmd);
 static void mxman_fail_level8(struct mxman *mxman, u16 scsc_panic_code, const char *reason, enum scsc_subsystem sub);
@@ -1532,10 +1618,7 @@ static void process_panic_record(struct mxman *mxman, bool dump)
 	if (r4_panic_record_ok || wpan_panic_record_ok) {
 		u32 panic_code;
 		if (r4_panic_record_ok)
-			/* WLAN can report 'old' common panics, force to be
-			 * specific to WLAN subsystem to properly handle
-			 * single subsystem recovery */
-			panic_code = full_panic_code  | (SYSERR_SUBSYS_WLAN << SYSERR_SUB_SYSTEM_POSN);
+			panic_code = full_panic_code;
 		else
 			panic_code = full_panic_code_wpan;
 		/* Populate syserr info with panic equivalent, but don't modify level  */
@@ -2887,6 +2970,9 @@ void mxman_init(struct mxman *mxman, struct scsc_mx *mx)
 
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9
 	mxman_create_sysfs_memdump();
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+	mxman_create_sysfs_wlbt_dcxo_caldata();
+#endif
 #endif
 	scsc_lerna_init();
 
@@ -2909,6 +2995,9 @@ void mxman_deinit(struct mxman *mxman)
 	scsc_lerna_deinit();
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9
 	mxman_destroy_sysfs_memdump();
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+	mxman_destroy_sysfs_wlbt_dcxo_caldata();
+#endif
 #endif
 	active_mxman = NULL;
 	mxproc_remove_info_proc_dir(&mxman->mxproc);

@@ -905,6 +905,7 @@ int slsi_nan_disable(struct wiphy *wiphy, struct wireless_dev *wdev, const void 
 				data_ndev_vif = netdev_priv(data_dev);
 				SLSI_MUTEX_LOCK(data_ndev_vif->vif_mutex);
 				slsi_vif_cleanup(sdev, data_dev, true, 0);
+				data_ndev_vif->nan.ndp_count = 0;
 				SLSI_MUTEX_UNLOCK(data_ndev_vif->vif_mutex);
 			}
 		}

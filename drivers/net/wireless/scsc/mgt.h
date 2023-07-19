@@ -311,6 +311,7 @@
 #define TWT_SETUP_EVENT_TIMEOUT               2
 #define TWT_SETUP_EVENT_INVALID_IE            3
 #define TWT_SETUP_EVENT_PARAMS_VALUE_REJECTED 4
+#define TWT_SETUP_EVENT_AP_NO_TWT_INFO        5
 
 #define TWT_TEARDOWN_HOST_INITIATED                      0
 #define TWT_TEARDOWN_PEER_INITIATED                      1
@@ -319,6 +320,7 @@
 #define TWT_TEARDOWN_ROAMING_OR_ECSA                     4
 #define TWT_TEARDOWN_BT_COEX                             5
 #define TWT_TEARDOWN_TIMEOUT                             6
+#define TWT_TEARDOWN_PS_DISABLE                          7
 
 #define TWT_RESULTCODE_UNKNOWN 255
 

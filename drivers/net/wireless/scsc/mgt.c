@@ -87,10 +87,6 @@
 /*Requirement-Used for Fast Recovery */
 #define HOST_REASONCODE_RECOVERY_REASON    111
 
-/* Manually added: To remove after fapi update */
-#define FAPI_SCANMODE_LOW_LATENCY_2   0x0002
-#define FAPI_SCANMODE_LOW_LATENCY_3   0x0003
-
 #define SLSI_ANTENNA_NOT_SET (0xff)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
@@ -1185,10 +1181,6 @@ void slsi_ndl_vif_cleanup(struct slsi_dev *sdev, struct net_device *dev, bool hw
 			peer->ndp_count--;
 			if (peer->ndp_count == 0)
 				slsi_peer_remove(sdev, dev, peer);
-			if (ndev_vif->nan.ndp_count > 0)
-				ndev_vif->nan.ndp_count--;
-			if (nan_mgmt_dev && ndp_instance_id < SLSI_NAN_MAX_NDP_INSTANCES + 1)
-				slsi_nan_ndp_del_entry(sdev, nan_mgmt_dev, ndp_instance_id, true);
 		}
 	}
 
@@ -1351,6 +1343,41 @@ void slsi_scan_cleanup(struct slsi_dev *sdev, struct net_device *dev)
 	SLSI_MUTEX_UNLOCK(ndev_vif->scan_mutex);
 }
 
+static void slsi_clear_host_state(struct net_device *dev)
+{
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	struct slsi_dev   *sdev = ndev_vif->sdev;
+	int               ret = 0;
+	u16               host_state;
+
+	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
+	host_state = sdev->device_config.host_state;
+
+	if (SLSI_IS_VIF_INDEX_WLAN(ndev_vif)) {
+		host_state &= (SLSI_HOSTSTATE_LCD_ACTIVE | SLSI_HOSTSTATE_CELLULAR_ACTIVE);
+		if (sdev->device_config.host_state_sub6_band)
+			sdev->device_config.host_state_sub6_band = false;
+	}
+#if defined(CONFIG_SCSC_WLAN_WIFI_SHARING) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
+	else if (SLSI_IS_VIF_INDEX_MHS(sdev, ndev_vif) || SLSI_IS_VIF_INDEX_MHS_DUALSTA(sdev, ndev_vif)) {
+			host_state &= ~SLSI_HOSTSTATE_MHS_SAR_ACTIVE;
+	}
+#endif
+	else {
+		SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
+		return;
+	}
+
+	ret = slsi_mlme_set_host_state(sdev, dev, host_state);
+	if (ret != 0) {
+		SLSI_NET_ERR(dev, "Error in setting the Host State, ret=%d\n", ret);
+		SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
+		return;
+	}
+	sdev->device_config.host_state = host_state;
+	SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
+}
+
 static void slsi_stop_net_dev_locked(struct slsi_dev *sdev, struct net_device *dev, bool hw_available)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
@@ -1407,6 +1434,7 @@ static void slsi_stop_net_dev_locked(struct slsi_dev *sdev, struct net_device *d
 #endif
 #endif
 
+	slsi_clear_host_state(dev);
 	slsi_scan_cleanup(sdev, dev);
 
 	cancel_work_sync(&ndev_vif->set_multicast_filter_work);
@@ -1426,6 +1454,8 @@ static void slsi_stop_net_dev_locked(struct slsi_dev *sdev, struct net_device *d
 		scsc_wifi_unpause_arp_q_all_vif(sdev);
 	atomic_set(&ndev_vif->arp_tx_count, 0);
 #endif
+	if (!sdev->netdev_up_count)
+		slsi_mlme_set_max_tx_power(sdev, dev, NULL);
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 #ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
 	if (ndev_vif->ifnum >= SLSI_NAN_DATA_IFINDEX_START)
@@ -3246,7 +3276,12 @@ void slsi_vif_deactivated(struct slsi_dev *sdev, struct net_device *dev)
 			WLBT_WARN(ndev_vif->sta.tdls_peer_sta_records, "vif:%d, tdls_peer_sta_records:%d", ndev_vif->ifnum, ndev_vif->sta.tdls_peer_sta_records);
 
 		if (ndev_vif->sta.sta_bss) {
+#ifdef CONFIG_SEC_FACTORY
+			cfg80211_unlink_bss(sdev->wiphy, ndev_vif->sta.sta_bss);
+			cfg80211_bss_flush(sdev->wiphy);
+#else
 			slsi_cfg80211_put_bss(sdev->wiphy, ndev_vif->sta.sta_bss);
+#endif
 			ndev_vif->sta.sta_bss = NULL;
 		}
 		ndev_vif->sta.tdls_enabled = false;
@@ -3328,7 +3363,12 @@ void slsi_vif_deactivated(struct slsi_dev *sdev, struct net_device *dev)
 			     ndev_vif->ifnum, ndev_vif->sta.tdls_peer_sta_records);
 
 		if (ndev_vif->sta.sta_bss) {
+#ifdef CONFIG_SEC_FACTORY
+			cfg80211_unlink_bss(sdev->wiphy, ndev_vif->sta.sta_bss);
+			cfg80211_bss_flush(sdev->wiphy);
+#else
 			slsi_cfg80211_put_bss(sdev->wiphy, ndev_vif->sta.sta_bss);
+#endif
 			ndev_vif->sta.sta_bss = NULL;
 		}
 		ndev_vif->sta.tdls_enabled = false;

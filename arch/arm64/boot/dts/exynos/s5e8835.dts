@@ -9900,10 +9900,10 @@
 		wakeup_int_en = <0x1fff6f 0xe258>;
 		usbl2_wakeup_int_en = <0x00 0x10>;
 		eint_wakeup_mask_offset = <0x60c>;
-		wakeup-stat-eint = <0x0d>;
+		wakeup-stat-eint = <0x0c>;
 		wakeup-stat-rtc = <0x00>;
 		wake_lock = <0x00>;
-		vgpio_wakeup_inten = <0xfc0>;
+		vgpio_wakeup_inten = <0xc0>;
 		vgpio_wakeup_inten_offset = <0x288>;
 		pcieon_suspend_available = <0x01>;
 		pcieon_suspend_mode_idx = <0x0d>;
