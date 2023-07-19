@@ -9,13 +9,17 @@
 #include <linux/highmem.h>
 #include <linux/kernel.h>
 #include <linux/page-isolation.h>
-#include <linux/mz.h>
+#include <linux/workqueue.h>
+#include <trace/hooks/mz.h>
+#include "mz_internal.h"
 #include "mz_log.h"
 #include "mz_page.h"
 
 static DEFINE_MUTEX(pid_list_lock);
 
 struct mztarget_t mz_pt_list[PRLIMIT];
+struct mutex crypto_list_lock;
+struct mutex page_list_lock;
 uint64_t *addr_list;
 static int addr_list_count;
 int addr_list_count_max;
@@ -29,6 +33,14 @@ static struct task_struct *findts(pid_t tgid);
 static void compact_addr_list(void);
 static void update_list(void);
 #endif /* CONFIG_SEC_KUNIT */
+static void unload_trusted_app_wq(struct work_struct *work);
+static DECLARE_WORK(mz_ta_unload_work, unload_trusted_app_wq);
+
+struct tgid_wk_t {
+	pid_t tgid;
+	struct work_struct remove_target_from_all_list_work;
+};
+static void remove_target_from_all_list_wq(struct work_struct *work);
 
 static int add_count;
 
@@ -51,6 +63,55 @@ MzResult mz_exit(void)
 #endif /* MZ_TA */
 
 	return MZ_SUCCESS;
+}
+
+static void vh_mz_exit(void *data, struct task_struct *p)
+{
+	pid_t cur_tgid = p->pid;
+	bool ret;
+	struct tgid_wk_t *wk;
+
+	if (!is_mz_target(cur_tgid)) {
+		mz_pt_list[cur_tgid].is_ta_fail_target = false;
+		return;
+	}
+
+	MZ_LOG(err_level_debug, "[MZ DEBUG] %s %d %d\n", __func__, p->tgid, p->pid);
+
+	mz_pt_list[cur_tgid].target = false;
+
+	wk = kmalloc(sizeof(*wk), GFP_ATOMIC);
+	if (!wk) {
+		MZ_LOG(err_level_error, "%s wk kmalloc fail\n", __func__);
+		return;
+	}
+	wk->tgid = cur_tgid;
+	INIT_WORK(&(wk->remove_target_from_all_list_work), remove_target_from_all_list_wq);
+	ret = schedule_work(&(wk->remove_target_from_all_list_work));
+	if (!ret)
+		MZ_LOG(err_level_error, "%s remove_target_from_all_list workqueue fail %d\n", __func__, ret);
+
+#ifdef MZ_TA
+	ret = queue_work(system_long_wq, &mz_ta_unload_work);
+	if (!ret)
+		MZ_LOG(err_level_error, "%s unload_trusted_app workqueue fail %d\n", __func__, ret);
+#endif /* MZ_TA */
+}
+
+static void unload_trusted_app_wq(struct work_struct *work)
+{
+	unload_trusted_app();
+}
+
+static void remove_target_from_all_list_wq(struct work_struct *work)
+{
+	struct tgid_wk_t *wk = container_of(work, struct tgid_wk_t, remove_target_from_all_list_work);
+
+	MZ_LOG(err_level_debug, "%s start\n", __func__);
+
+	remove_target_from_all_list(wk->tgid);
+	kfree(wk);
+	MZ_LOG(err_level_debug, "%s end\n", __func__);
 }
 
 __visible_for_testing bool is_mz_target(pid_t tgid)
@@ -106,7 +167,7 @@ static void compact_addr_list(void)
 
 			mutex_lock(&pid_list_lock);
 			list_for_each_entry_safe(pid_node, tp, &pid_list, list) {
-				mutex_lock(&(mz_pt_list[pid_node->tgid].crypto_list_lock));
+				mutex_lock(&crypto_list_lock);
 
 				list_for_each_entry_safe(cur_encrypted, t_e,
 				&(mz_pt_list[pid_node->tgid].mz_list_head_crypto), list) {
@@ -114,7 +175,7 @@ static void compact_addr_list(void)
 						cur_encrypted->pa_index = i;
 				}
 
-				mutex_unlock(&(mz_pt_list[pid_node->tgid].crypto_list_lock));
+				mutex_unlock(&crypto_list_lock);
 			}
 			mutex_unlock(&pid_list_lock);
 
@@ -141,23 +202,23 @@ MzResult remove_target_from_all_list(pid_t tgid)
 	if (tgid >= PRLIMIT || tgid <= 0)
 		return MZ_INVALID_INPUT_ERROR;
 
-	mutex_lock( &(mz_pt_list[tgid].crypto_list_lock) );
+	mutex_lock(&crypto_list_lock);
 	list_for_each_entry_safe(cur_encrypted, t_e, &(mz_pt_list[tgid].mz_list_head_crypto), list) {
 		list_del(&(cur_encrypted->list));
 		addr_list[cur_encrypted->pa_index] = 0;
 		kfree(cur_encrypted);
 		cur_encrypted = NULL;
 	}
-	mutex_unlock( &(mz_pt_list[tgid].crypto_list_lock) );
+	mutex_unlock(&crypto_list_lock);
 
-	mutex_lock(&(mz_pt_list[tgid].page_list_lock));
+	mutex_lock(&page_list_lock);
 	list_for_each_entry_safe(cur_page, t_p, &(mz_pt_list[tgid].mz_list_head_page), list) {
 		list_del(&(cur_page->list));
 		kfree(cur_page->mz_page);
 		kfree(cur_page);
 		cur_page = NULL;
 	}
-	mutex_unlock(&(mz_pt_list[tgid].page_list_lock));
+	mutex_unlock(&page_list_lock);
 
 	mutex_lock( &pid_list_lock );
 	list_for_each_entry_safe(curp, tp, &pid_list, list) {
@@ -323,9 +384,9 @@ MzResult mz_add_target_pfn(pid_t tgid, unsigned long pfn, unsigned long offset,
 
 	INIT_LIST_HEAD(&(cur_encrypted->list));
 
-	mutex_lock( &(mz_pt_list[tgid].crypto_list_lock) );
+	mutex_lock(&crypto_list_lock);
 	list_add_tail(&(cur_encrypted->list), &(mz_pt_list[tgid].mz_list_head_crypto));
-	mutex_unlock( &(mz_pt_list[tgid].crypto_list_lock) );
+	mutex_unlock(&crypto_list_lock);
 
 	MZ_LOG(err_level_debug, "%s %d %d %d (0x%llx) (0x%llx) %d\n",
 			__func__, tgid, ++add_count, addr_list_count, (unsigned long long)pa, offset, len);
@@ -345,8 +406,8 @@ MzResult mzinit(void)
 		mz_pt_list[i].is_ta_fail_target = false;
 		INIT_LIST_HEAD(&(mz_pt_list[i].mz_list_head_crypto));
 		INIT_LIST_HEAD(&(mz_pt_list[i].mz_list_head_page));
-		mutex_init(&(mz_pt_list[i].crypto_list_lock));
-		mutex_init(&(mz_pt_list[i].page_list_lock));
+		mutex_init(&crypto_list_lock);
+		mutex_init(&page_list_lock);
 	}
 
 	add_count = 0;
@@ -355,6 +416,8 @@ MzResult mzinit(void)
 
 	if (mz_addr_init())
 		set_mz_mem();
+
+	register_trace_android_vh_mz_exit(vh_mz_exit, NULL);
 
 	return MZ_SUCCESS;
 }
@@ -394,9 +457,8 @@ __visible_for_testing struct task_struct *findts(pid_t tgid)
 	return task;
 }
 
-#ifdef CONFIG_MZ_USE_TZDEV
 MzResult (*load_trusted_app)(void) = NULL;
 EXPORT_SYMBOL(load_trusted_app);
 void (*unload_trusted_app)(void) = NULL;
 EXPORT_SYMBOL(unload_trusted_app);
-#endif
+

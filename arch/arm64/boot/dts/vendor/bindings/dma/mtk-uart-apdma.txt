@@ -1,7 +1,7 @@
 * Mediatek UART APDMA Controller
 
 Required properties:
-- compatible should contain:
+ compatible should contain:
   * "mediatek,mt2712-uart-dma" for MT2712 compatible APDMA
   * "mediatek,mt6577-uart-dma" for MT6577 and all of the above
 

@@ -7,9 +7,10 @@
  */
 
 #include <linux/cdev.h>
+#include <linux/kconfig.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/mz.h>
+#include "mz_internal.h"
 #include "mz_log.h"
 #include "mz_page.h"
 
@@ -51,7 +52,7 @@ __visible_for_testing long mz_ioctl(struct file *file, unsigned int cmd, unsigne
 
 	switch (cmd) {
 	case IOCTL_MZ_SET_CMD:
-#if defined(CONFIG_MEMORY_ZEROISATION)
+#if IS_ENABLED(CONFIG_MEMORY_ZEROISATION)
 #ifndef CONFIG_SEC_KUNIT
 		ret = copy_from_user(&mzvainfo, (void *)arg, sizeof(mzvainfo));
 		if (ret)
@@ -109,12 +110,12 @@ __visible_for_testing long mz_ioctl(struct file *file, unsigned int cmd, unsigne
 		}
 #endif /* CONFIG_SEC_KUNIT */
 out:
-#endif /* defined(CONFIG_MEMORY_ZEROISATION) */
+#endif /* IS_ENABLED(CONFIG_MEMORY_ZEROISATION) */
 		break;
 	case IOCTL_MZ_ALL_SET_CMD:
-#if defined(CONFIG_MEMORY_ZEROISATION)
+#if IS_ENABLED(CONFIG_MEMORY_ZEROISATION)
 		mz_all_zero_set(cur_tid);
-#endif /* defined(CONFIG_MEMORY_ZEROISATION) */
+#endif /* IS_ENABLED(CONFIG_MEMORY_ZEROISATION) */
 		break;
 	default:
 		MZ_LOG(err_level_error, "%s unknown cmd\n", __func__);
@@ -216,4 +217,6 @@ MODULE_VERSION("1.00");
 module_init(mz_ioctl_init);
 module_exit(mz_ioctl_exit);
 #endif /* CONFIG_SEC_KUNIT */
+
+
 

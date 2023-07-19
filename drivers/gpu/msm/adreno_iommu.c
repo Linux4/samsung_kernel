@@ -218,6 +218,7 @@ static unsigned int _adreno_iommu_set_pt_v2_a6xx(struct kgsl_device *device,
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	unsigned int *cmds = cmds_orig;
 	
+
 	/* Clear performance counters during contect switches */
 	if (!adreno_dev->perfcounter) {
 		*cmds++ = cp_type4_packet(A6XX_RBBM_PERFCTR_SRAM_INIT_CMD, 1);

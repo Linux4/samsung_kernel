@@ -146,14 +146,6 @@ struct test_case {
  * run it.
  */
 
-#if !IS_ENABLED(CONFIG_KUNIT_TEST_WRAPPER_TEST)
-struct test_module {
-	const char name[256];
-	int (*init)(struct test *test);
-	void (*exit)(struct test *test);
-	struct test_case *test_cases;
-};
-#else
 struct test_module {
 	const char name[256];
 	char *log;
@@ -161,7 +153,6 @@ struct test_module {
 	void (*exit)(struct test *test);
 	struct test_case *test_cases;
 };
-#endif /* CONFIG_KUNIT_TEST_WRAPPER_TEST */
 
 struct test_initcall {
 	struct list_head node;

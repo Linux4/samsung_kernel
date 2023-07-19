@@ -1088,6 +1088,7 @@ static int ss_gct_write(struct samsung_display_driver_data *vdd)
 	u8 vddm_set[MAX_VDDM] = {0x0, 0x0F, 0x2D};
 	int ret = 0;
 	struct dsi_panel *panel = GET_DSI_PANEL(vdd);
+	struct dsi_display *dsi_display = GET_DSI_DISPLAY(vdd);
 	int wait_cnt = 1000; /* 1000 * 0.5ms = 500ms */
 	struct dsi_panel_cmd_set *set;
 
@@ -1155,6 +1156,13 @@ static int ss_gct_write(struct samsung_display_driver_data *vdd)
 			vdd->gct.checksum[0], vdd->gct.checksum[1],
 			vdd->gct.checksum[2], vdd->gct.checksum[3]);
 
+	if (dsi_display) {
+		if (dsi_display->enabled == false) {
+			LCD_ERR(vdd, "dsi_display is not enabled.. it may be turning off.\n");
+			goto end;
+		}
+	}
+
 	/* exit exclusive mode*/
 	for (i = TX_GCT_ENTER; i <= TX_GCT_EXIT; i++)
 		ss_set_exclusive_tx_packet(vdd, i, 0);
@@ -1205,6 +1213,15 @@ static int ss_gct_write(struct samsung_display_driver_data *vdd)
 
 	if (vdd->esd_recovery.esd_irq_enable)
 		vdd->esd_recovery.esd_irq_enable(true, true, (void *)vdd);
+
+	return ret;
+
+end:
+	vdd->exclusive_tx.enable = 0;
+	wake_up_all(&vdd->exclusive_tx.ex_tx_waitq);
+	mutex_unlock(&vdd->exclusive_tx.ex_tx_lock);
+
+	vdd->gct.is_running = false;
 
 	return ret;
 }

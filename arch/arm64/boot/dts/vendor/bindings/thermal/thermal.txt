@@ -152,7 +152,7 @@ Optional property:
   Elem size: one cell	the sensors listed in the thermal-sensors property.
   Elem type: signed	Coefficients defaults to 1, in case this property
 			is not specified. A simple linear polynomial is used:
-			Z = c0 * x0 + c1 * x1 + ... + c(n-1) * x(n-1) + cn.
+			Z = c0 * x0 + c1 + x1 + ... + c(n-1) * x(n-1) + cn.
 
 			The coefficients are ordered and they match with sensors
 			by means of sensor ID. Additional coefficients are
@@ -164,6 +164,14 @@ Optional property:
 			sustainable power of a 4'' phone is typically
 			2000mW, while on a 10'' tablet is around
 			4500mW.
+
+- tracks-low:		Indicates that the temperature sensor tracks the low
+  Type: bool		thresholds, so the governors may mitigate by ensuring
+			timing closures and other low temperature operating
+			issues.
+- wake-capable-sensor:	Set to true if thermal zone sensor is wake up capable
+  Type: bool		and cooling devices binded to this thermal zone are not
+  Size: none		affected during suspend.
 
 Note: The delay properties are bound to the maximum dT/dt (temperature
 derivative over time) in two situations for a thermal zone:

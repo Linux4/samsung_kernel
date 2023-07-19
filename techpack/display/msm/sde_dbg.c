@@ -124,9 +124,13 @@
 #undef DEFAULT_DBGBUS_SDE
 #undef DEFAULT_DBGBUS_VBIFRT
 
-#define DEFAULT_REGDUMP		SDE_DBG_DUMP_IN_LOG
+/*#define DEFAULT_REGDUMP		SDE_DBG_DUMP_IN_LOG
 #define DEFAULT_DBGBUS_SDE	SDE_DBG_DUMP_IN_LOG
 #define DEFAULT_DBGBUS_VBIFRT	SDE_DBG_DUMP_IN_LOG
+*/
+#define DEFAULT_REGDUMP			SDE_DBG_DUMP_IN_LOG_LIMITED
+#define DEFAULT_DBGBUS_SDE		SDE_DBG_DUMP_IN_LOG_LIMITED
+#define DEFAULT_DBGBUS_VBIFRT	SDE_DBG_DUMP_IN_LOG_LIMITED
 #endif
 
 /**
@@ -1016,8 +1020,10 @@ static void _sde_dbg_dump_sde_dbg_bus(struct sde_dbg_sde_debug_bus *bus)
 		bus->cmn.content_size = list_size / sizeof(u32);
 	}
 
+#ifdef CONFIG_QCOM_VA_MINIDUMP
 	if (sde_mini_dump_add_region(bus->cmn.name, list_size, *dump_mem) < 0)
 		pr_err("minidump add %s failed\n", bus->cmn.name);
+#endif
 
 	dump_addr = *dump_mem;
 	SDE_DBG_LOG_DUMP_ADDR(bus->cmn.name, dump_addr, list_size, 0);
@@ -1064,8 +1070,10 @@ static void _sde_dbg_dump_dsi_dbg_bus(struct sde_dbg_sde_debug_bus *bus)
 		bus->cmn.content_size = list_size / sizeof(u32);
 	}
 
+#ifdef CONFIG_QCOM_VA_MINIDUMP
 	if (sde_mini_dump_add_region(bus->cmn.name, list_size, *dump_mem) < 0)
 		pr_err("minidump add %s failed\n", bus->cmn.name);
+#endif
 
 	dump_addr = *dump_mem;
 
@@ -1115,10 +1123,12 @@ static void _sde_dump_array(struct sde_dbg_reg_base *blk_arr[],
 		pr_err("Failed to allocate memory for reg_dump_addr size:%d\n",
 				reg_dump_size);
 
+#ifdef CONFIG_QCOM_VA_MINIDUMP
 	if (dbg_base->reg_dump_addr &&
 			sde_mini_dump_add_region("reg_dump",
 			reg_dump_size, dbg_base->reg_dump_addr) < 0)
 		pr_err("minidump add regdump failed\n");
+#endif
 
 	if (dump_all)
 		sde_evtlog_dump_all(sde_dbg_base.evtlog);
@@ -1209,6 +1219,13 @@ void sde_dbg_dump(enum sde_dbg_dump_context dump_mode, const char *name, ...)
 	if ((dump_mode == SDE_DBG_DUMP_IRQ_CTX) &&
 		work_pending(&sde_dbg_base.dump_work))
 		return;
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG) && IS_ENABLED(CONFIG_SEC_DEBUG)
+        if (!sec_debug_is_enabled())
+		return;
+#else
+	return;
+#endif
 
 	blk_arr = &sde_dbg_base.req_dump_blks[0];
 	blk_len = ARRAY_SIZE(sde_dbg_base.req_dump_blks);

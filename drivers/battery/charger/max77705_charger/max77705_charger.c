@@ -1376,8 +1376,14 @@ static int max77705_chg_get_property(struct power_supply *psy,
 			break;
 		case POWER_SUPPLY_EXT_PROP_SHIPMODE_TEST:
 #if defined(CONFIG_SUPPORT_SHIP_MODE)
-			val->intval = max77705_get_fw_ship_mode();
-			pr_info("%s: ship mode op is %d\n", __func__, val->intval);
+			if (charger->pdata->disable_ship_mode) {
+				val->intval = 0;
+				pr_info("%s: disable_ship_mode(%d), ship mode is not supported\n",
+						__func__, charger->pdata->disable_ship_mode);
+			} else {
+				val->intval = max77705_get_fw_ship_mode();
+				pr_info("%s: ship mode op is %d\n", __func__, val->intval);
+			}
 #else
 			val->intval = 0;
 			pr_info("%s: ship mode is not supported\n", __func__);
@@ -1698,14 +1704,19 @@ static int max77705_chg_set_property(struct power_supply *psy,
 			break;
 		case POWER_SUPPLY_EXT_PROP_SHIPMODE_TEST:
 #if defined(CONFIG_SUPPORT_SHIP_MODE)
-			if (val->intval == SHIP_MODE_EN) {
-				pr_info("%s: set ship mode enable\n", __func__);
-				max77705_set_ship_mode(charger, 1);
-			} else if (val->intval == SHIP_MODE_EN_OP) {
-				pr_info("%s: set ship mode op enable\n", __func__);
-				max77705_set_fw_ship_mode(1);
+			if (charger->pdata->disable_ship_mode) {
+				pr_info("%s: disable_ship_mode(%d), ship mode(%d) is not supported\n",
+						__func__, charger->pdata->disable_ship_mode,  val->intval);
 			} else {
-				pr_info("%s: ship mode disable is not supported\n", __func__);
+				if (val->intval == SHIP_MODE_EN) {
+					pr_info("%s: set ship mode enable\n", __func__);
+					max77705_set_ship_mode(charger, 1);
+				} else if (val->intval == SHIP_MODE_EN_OP) {
+					pr_info("%s: set ship mode op enable\n", __func__);
+					max77705_set_fw_ship_mode(1);
+				} else {
+					pr_info("%s: ship mode disable is not supported\n", __func__);
+				}
 			}
 #else
 			pr_info("%s: ship mode(%d) is not supported\n", __func__, val->intval);
@@ -2305,6 +2316,14 @@ static int max77705_charger_parse_dt(struct max77705_charger_data *charger)
 
 		pdata->enable_sysovlo_irq =
 		    of_property_read_bool(np, "charger,enable_sysovlo_irq");
+
+#if defined(CONFIG_SUPPORT_SHIP_MODE)
+		/* there is ship_mode config, but no use ship mode */
+		if (of_property_read_u32(np, "charger,disable_ship_mode", &pdata->disable_ship_mode)) {
+			pr_info("%s : disable_ship_mode is Empty\n", __func__);
+			pdata->disable_ship_mode = 0;
+		}
+#endif
 
 		pdata->enable_noise_wa =
 		    of_property_read_bool(np, "charger,enable_noise_wa");

@@ -1,0 +1,11 @@
+#
+# Synaptics TCM touchscreen driver configuration
+#
+menuconfig TOUCHSCREEN_ILI9882N
+	bool "ILITECK touchscreen"
+	default n
+	help
+	  Say Y here if you have a Ilitek touchscreen connected
+	  to your system.
+
+	  If unsure, say N.

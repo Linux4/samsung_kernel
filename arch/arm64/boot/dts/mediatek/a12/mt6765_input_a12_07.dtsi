@@ -1,0 +1,55 @@
+/*
+ * SAMSUNG Input Device Tree Source
+ *
+ * Copyright (c) Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+/* TOUCH start */
+/* touch gpio start */
+&pio {
+	tsp_id1_default: tsp-id1-default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO170__FUNC_GPIO170>;
+			slew-rate = <0>;
+			input-enable;
+			bias-disable;
+		};
+	};
+	tsp_id2_default: tsp-id2-default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO171__FUNC_GPIO171>;
+			slew-rate = <0>;
+			input-enable;
+			bias-disable;
+		};
+	};
+	tsp_id3_default: tsp-id3-default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO57__FUNC_GPIO57>;
+			slew-rate = <0>;
+			input-enable;
+			bias-disable;
+		};
+	};
+};
+/* touch gpio end */
+
+&spi4 {
+	/* Novatek device tree node */
+	novatek@1 {
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&intr_on &reset_on &tsp_on_miso &tsp_on_cs &tsp_on_mosi &tsp_on_clk &tsp_id1_default &tsp_id2_default &tsp_id3_default>;
+		pinctrl-1 = <&intr_off &reset_off &tsp_off_miso &tsp_off_cs &tsp_off_mosi &tsp_off_clk &tsp_id1_default &tsp_id2_default &tsp_id3_default>;
+		novatek,lcdid3-gpio = <&pio 57 0x0>;
+		novatek,lcdid = <1 2 3 5>;	// CSOT, DTC, BOE, LTPS
+		novatek,lcdtype = <0 0x0aa240 0x0a1240 0x2a6240 0 0x1af240>;
+		novatek,fw_name = "", "tsp_novatek/nt36525_a12_csot.bin", "tsp_novatek/nt36525_a12_dtc.bin", "tsp_novatek/nt36525_a12_boe.bin", "", "tsp_novatek/nt36675_a12_ltps.bin";
+		novatek,fw_name_mp = "", "tsp_novatek/nt36525_a12_mp_csot.bin", "tsp_novatek/nt36525_a12_mp_dtc.bin", "tsp_novatek/nt36525_a12_mp_boe.bin", "", "tsp_novatek/nt36675_a12_mp_ltps.bin";
+	};
+
+};
+/* TOUCH end */

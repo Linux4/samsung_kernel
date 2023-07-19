@@ -28,18 +28,18 @@ struct kunit {
 	struct test_try_catch try_catch;
 };
 
-//typedef void (*kunit_try_catch_func_t)(void *);
+typedef void (*kunit_try_catch_func_t)(void *);
 
 // struct test_try_catch
 struct kunit_try_catch {
 	/* private: internal use only. */
-	void (*run)(struct test_try_catch *try_catch);
-	void __noreturn (*throw)(struct test_try_catch *try_catch);
-	struct test *test;
+	void (*run)(struct kunit_try_catch *try_catch);
+	void __noreturn (*throw)(struct kunit_try_catch *try_catch);
+	struct kunit *test;
 	struct completion *try_completion;
 	int try_result;
-	test_try_catch_func_t try;
-	test_try_catch_func_t catch;
+	kunit_try_catch_func_t try;
+	kunit_try_catch_func_t catch;
 	void *context;
 };
 
@@ -322,7 +322,7 @@ static inline void *kunit_alloc_resource(struct kunit *test,
 	return NULL;
 }
 
-#define kunit_info test_info
+#define kunit_info(kunit_test, ...)  test_info((struct test *)kunit_test, ##__VA_ARGS__)
 #define kunit_warn test_warn
 #define kunit_err test_err
 #define kunit_printk test_printk
@@ -393,7 +393,7 @@ static inline struct string_stream *alloc_string_stream(struct kunit *test, gfp_
 		__aligned(8) __attribute__((__section__(".test_modules"))) = \
 			suite_ptr
 
-#define kunit_try_catch_init(try_catch, kunit_test, ...) test_try_catch_init((struct test_try_catch *)try_catch, (struct test *)kunit_test, ##__VA_ARGS__)
+#define kunit_try_catch_init(try_catch, kunit_test, try, catch) test_try_catch_init((struct test_try_catch *)try_catch, (struct test *)kunit_test, (struct test_try_catch_func_t)try, (struct test_try_catch_func_t)catch)
 #define kunit_try_catch_run(try_catch, kunit_test) test_try_catch_run((struct test_try_catch *)try_catch, (struct test *)kunit_test)
 #define kunit_try_catch_throw(try_catch) test_try_catch_throw((struct test_try_catch *)try_catch)
 
@@ -406,6 +406,10 @@ static inline struct string_stream *alloc_string_stream(struct kunit *test, gfp_
 #define KUNIT_EXPECT_TRUE(kunit_test, ...) EXPECT_TRUE((struct test *)kunit_test, ##__VA_ARGS__)
 #define KUNIT_EXPECT_FALSE(kunit_test, ...) EXPECT_FALSE((struct test *)kunit_test, ##__VA_ARGS__)
 
+#define KUNIT_EXPECT_NOT_NULL(kunit_test, ...) EXPECT_NOT_NULL((struct test *)test, ##__VA_ARGS__)
+#define KUNIT_EXPECT_NULL(kunit_test, ...) EXPECT_NULL((struct test *)test, ##__VA_ARGS__)
+#define KUNIT_EXPECT_SUCCESS(kunit_test, ...) EXPECT_SUCCESS((struct test *)test, ##__VA_ARGS__)
+#define KUNIT_EXPECT_ERROR(kunit_test, ...) EXPECT_ERROR((struct test *)test, ##__VA_ARGS__)
 #define KUNIT_EXPECT_BINARY(kunit_test, ...) EXPECT_BINARY((struct test *)kunit_test, ##__VA_ARGS__)
 
 #define KUNIT_EXPECT_EQ(kunit_test, left, right) EXPECT_EQ((struct test *)kunit_test, (left), (right))
@@ -424,6 +428,11 @@ static inline struct string_stream *alloc_string_stream(struct kunit *test, gfp_
 #define KUNIT_ASSERT_TRUE(kunit_test, ...) ASSERT_TRUE((struct test *)kunit_test, ##__VA_ARGS__)
 #define KUNIT_ASSERT_FALSE(kunit_test, ...) ASSERT_FALSE((struct test *)kunit_test, ##__VA_ARGS__)
 
+#define KUNIT_ASSERT_NOT_NULL(test, ...) ASSERT_NOT_NULL((struct test *)test, ##__VA_ARGS__)
+#define KUNIT_ASSERT_NULL(test, ...) ASSERT_NULL((struct test *)test, ##__VA_ARGS__)
+#define KUNIT_ASSERT_SUCCESS(test, ...) ASSERT_SUCCESS((struct test *)test, ##__VA_ARGS__)
+#define KUNIT_ASSERT_ERROR(test, ...) ASSERT_ERROR((struct test *)test, ##__VA_ARGS__)
+#define KUNIT_ASSERT_BINARY(test, ...) ASSERT_BINARY((struct test *)test, ##__VA_ARGS__)
 #define KUNIT_ASSERT_FAILURE(kunit_test, ...) ASSERT_FAILURE((struct test *)kunit_test, ##__VA_ARGS__)
 
 #define KUNIT_ASSERT_EQ(kunit_test, left, right) ASSERT_EQ((struct test *)kunit_test, (left), (right))

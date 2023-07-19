@@ -1,0 +1,6 @@
+#include <dt-bindings/clock/mt6765-clk.h>
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6765/ap_mtk_mt6765.a12.01.dtsi */
+#include "../../mediatek/k65v1_64_bsp_titan_rat-01.dts"
+

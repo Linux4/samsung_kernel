@@ -467,7 +467,7 @@ __visible_for_testing int max77705_fg_read_qh(struct max77705_fuelgauge_data *fu
 }
 
 /* soc should be 0.1% unit */
-static int max77705_fg_read_avsoc(struct max77705_fuelgauge_data *fuelgauge)
+__visible_for_testing int max77705_fg_read_avsoc(struct max77705_fuelgauge_data *fuelgauge)
 {
 	u8 data[2];
 	int soc;
@@ -530,7 +530,7 @@ __visible_for_testing int max77705_fg_read_rawsoc(struct max77705_fuelgauge_data
 	return min(soc, 10000);
 }
 
-static int max77705_fg_read_fullcap(struct max77705_fuelgauge_data *fuelgauge)
+__visible_for_testing int max77705_fg_read_fullcap(struct max77705_fuelgauge_data *fuelgauge)
 {
 	u8 data[2];
 	int ret;
@@ -544,7 +544,7 @@ static int max77705_fg_read_fullcap(struct max77705_fuelgauge_data *fuelgauge)
 	return ret * fuelgauge->fg_resistor / 2;
 }
 
-static int max77705_fg_read_fullcaprep(struct max77705_fuelgauge_data *fuelgauge)
+__visible_for_testing int max77705_fg_read_fullcaprep(struct max77705_fuelgauge_data *fuelgauge)
 {
 	u8 data[2];
 	int ret;
@@ -785,7 +785,7 @@ __visible_for_testing int max77705_fg_read_isys_avg(struct max77705_fuelgauge_da
 	return avg_current;
 }
 
-static int max77705_fg_read_iin(struct max77705_fuelgauge_data *fuelgauge,
+__visible_for_testing int max77705_fg_read_iin(struct max77705_fuelgauge_data *fuelgauge,
 					int unit)
 {
 	u8 data1[2];
@@ -1629,7 +1629,7 @@ __visible_for_testing int max77705_lost_soc_calc_soc(
 }
 EXPORT_SYMBOL_KUNIT(max77705_lost_soc_calc_soc);
 
-static int max77705_lost_soc_get(struct max77705_fuelgauge_data *fuelgauge, int request_soc)
+__visible_for_testing int max77705_lost_soc_get(struct max77705_fuelgauge_data *fuelgauge, int request_soc)
 {
 	int raw_soc, remcap, qh; /* now values */
 	int d_raw_soc, d_remcap, d_qh; /* delta between prev values */
@@ -1676,7 +1676,7 @@ static int max77705_lost_soc_get(struct max77705_fuelgauge_data *fuelgauge, int 
 	return report_soc;
 }
 
-static bool max77705_fg_check_vempty_recover_time(struct max77705_fuelgauge_data *fuelgauge)
+__visible_for_testing bool max77705_fg_check_vempty_recover_time(struct max77705_fuelgauge_data *fuelgauge)
 {
 	struct timespec64 c_ts = {0, };
 	unsigned long vempty_time = 0;

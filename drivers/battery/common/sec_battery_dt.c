@@ -220,88 +220,90 @@ static void sec_bat_parse_dc_thm(struct device_node *np, sec_battery_platform_da
 {
 	int ret = 0, len = 0, i = 0;
 	const u32 *p;
+	int len_step = 4;
+	char str[256] = {0, };
 
 	pdata->dctp_by_cgtp = of_property_read_bool(np, "battery,dctp_by_cgtp");
 
-
 	/* dchg_high_temp */
-		p = of_get_property(np, "battery,dchg_high_temp", &len);
-		if (!p) {
-			pr_info("%s: failed to parse dchg_high_temp!\n", __func__);
-			return;
-		}
-		len = len / sizeof(u32);
-		if (len != 4)
-			goto failed_dchg_high_temp;
-		ret = of_property_read_u32_array(np, "battery,dchg_high_temp",
-				pdata->dchg_high_temp, len);
-		if (ret) {
-			pr_err("%s failed to read dchg_high_temp: %d\n", __func__, ret);
-			goto failed_dchg_high_temp;
-		}
+	p = of_get_property(np, "battery,dchg_high_temp", &len);
+	if (!p) {
+		pr_info("%s: failed to parse dchg_high_temp!\n", __func__);
+		for (i = 0; i < len_step; i++)
+			pdata->dchg_high_temp[i] = 690;
+		return;
+	}
+	len = len / sizeof(u32);
+	ret = of_property_read_u32_array(np, "battery,dchg_high_temp",
+			pdata->dchg_high_temp, len);
+	if (len != len_step) {
+		pr_err("%s not match size of dchg_high_temp: %d\n", __func__, len);
+		for (i = 1; i < len_step; i++)
+			pdata->dchg_high_temp[i] = pdata->dchg_high_temp[0];
+	}
 
-		/* dchg_high_temp_recovery */
-		p = of_get_property(np, "battery,dchg_high_temp_recovery", &len);
-		if (!p) {
-			pr_info("%s: failed to parse dchg_high_temp_recovery!\n", __func__);
-			goto failed_dchg_high_temp;
-		}
-		len = len / sizeof(u32);
-		if (len != 4)
-			goto failed_dchg_high_temp_recovery;
-		ret = of_property_read_u32_array(np, "battery,dchg_high_temp_recovery",
-				pdata->dchg_high_temp_recovery, len);
-		if (ret) {
-			pr_err("%s failed to read dchg_high_temp_recovery: %d\n", __func__, ret);
-			goto failed_dchg_high_temp_recovery;
-		}
+	/* dchg_high_temp_recovery */
+	p = of_get_property(np, "battery,dchg_high_temp_recovery", &len);
+	if (!p) {
+		pr_info("%s: failed to parse dchg_high_temp_recovery!\n", __func__);
+		for (i = 0; i < len_step; i++)
+			pdata->dchg_high_temp_recovery[i] = 630;
+	}
+	len = len / sizeof(u32);
+	ret = of_property_read_u32_array(np, "battery,dchg_high_temp_recovery",
+			pdata->dchg_high_temp_recovery, len);
+	if (len != len_step) {
+		pr_err("%s not match size of dchg_high_temp_recovery: %d\n", __func__, len);
+		for (i = 1; i < len_step; i++)
+			pdata->dchg_high_temp_recovery[i] = pdata->dchg_high_temp_recovery[0];
+	}
 
-		/* dchg_high_batt_temp */
-		p = of_get_property(np, "battery,dchg_high_batt_temp", &len);
-		if (!p) {
-			pr_info("%s: failed to parse dchg_high_batt_temp!\n", __func__);
-			goto failed_dchg_high_temp_recovery;
-		}
-		len = len / sizeof(u32);
-		if (len != 4)
-			goto failed_dchg_high_batt_temp;
-		ret = of_property_read_u32_array(np, "battery,dchg_high_batt_temp",
-				pdata->dchg_high_batt_temp, len);
-		if (ret) {
-			pr_err("%s failed to read dchg_high_batt_temp: %d\n", __func__, ret);
-			goto failed_dchg_high_batt_temp;
-		}
+	/* dchg_high_batt_temp */
+	p = of_get_property(np, "battery,dchg_high_batt_temp", &len);
+	if (!p) {
+		pr_info("%s: failed to parse dchg_high_batt_temp!\n", __func__);
+		for (i = 0; i < len_step; i++)
+			pdata->dchg_high_batt_temp[i] = 400;
+	}
+	len = len / sizeof(u32);
+	ret = of_property_read_u32_array(np, "battery,dchg_high_batt_temp",
+			pdata->dchg_high_batt_temp, len);
+	if (len != len_step) {
+		pr_err("%s not match size of dchg_high_batt_temp: %d\n", __func__, len);
+		for (i = 1; i < len_step; i++)
+			pdata->dchg_high_batt_temp[i] = pdata->dchg_high_batt_temp[0];
+	}
 
-		/* dchg_high_batt_temp_recovery */
-		p = of_get_property(np, "battery,dchg_high_batt_temp_recovery", &len);
-		if (!p) {
-			pr_info("%s: failed to parse dchg_high_batt_temp_recovery!\n", __func__);
-			goto failed_dchg_high_batt_temp;
-		}
-		len = len / sizeof(u32);
-		if (len != 4)
-			goto failed_dchg_high_batt_temp_recovery;
-		ret = of_property_read_u32_array(np, "battery,dchg_high_batt_temp_recovery",
-				pdata->dchg_high_batt_temp_recovery, len);
-		if (ret) {
-			pr_err("%s failed to read dchg_high_batt_temp_recovery: %d\n", __func__, ret);
-			goto failed_dchg_high_batt_temp_recovery;
-		}
+	/* dchg_high_batt_temp_recovery */
+	p = of_get_property(np, "battery,dchg_high_batt_temp_recovery", &len);
+	if (!p) {
+		pr_info("%s: failed to parse dchg_high_batt_temp_recovery!\n", __func__);
+		for (i = 0; i < len_step; i++)
+			pdata->dchg_high_batt_temp_recovery[i] = 380;
+	}
+	len = len / sizeof(u32);
+	ret = of_property_read_u32_array(np, "battery,dchg_high_batt_temp_recovery",
+			pdata->dchg_high_batt_temp_recovery, len);
+	if (len != len_step) {
+		pr_err("%s not match size of dchg_high_batt_temp_recovery: %d\n", __func__, len);
+		for (i = 1; i < len_step; i++)
+			pdata->dchg_high_batt_temp_recovery[i] = pdata->dchg_high_batt_temp_recovery[0];
+	}
 
-	return;
-
-failed_dchg_high_temp:
-	for (i = 0; i < 4; i++)
-		pdata->dchg_high_temp[i] = 690;
-failed_dchg_high_temp_recovery:
-	for (i = 0; i < 4; i++)
-		pdata->dchg_high_temp_recovery[i] = 630;
-failed_dchg_high_batt_temp:
-	for (i = 0; i < 4; i++)
-		pdata->dchg_high_batt_temp[i] = 400;
-failed_dchg_high_batt_temp_recovery:
-	for (i = 0; i < 4; i++)
-		pdata->dchg_high_batt_temp_recovery[i] = 380;
+	sprintf(str, "%s: dchg_htemp: ", __func__);
+	for (i = 0; i < len_step; i++)
+		sprintf(str + strlen(str), "%d ", pdata->dchg_high_temp[i]);
+	sprintf(str + strlen(str), ",dchg_htemp_rec: ");
+	for (i = 0; i < len_step; i++)
+		sprintf(str + strlen(str), "%d ", pdata->dchg_high_temp_recovery[i]);
+	sprintf(str + strlen(str), ",dchg_batt_htemp: ");
+	for (i = 0; i < len_step; i++)
+		sprintf(str + strlen(str), "%d ", pdata->dchg_high_batt_temp[i]);
+	sprintf(str + strlen(str), ",dchg_batt_htemp_rec: ");
+	for (i = 0; i < len_step; i++)
+		sprintf(str + strlen(str), "%d ", pdata->dchg_high_batt_temp_recovery[i]);
+	sprintf(str + strlen(str), "\n");
+	pr_info("%s", str);
 }
 #else
 static void sec_bat_parse_dc_thm(struct device_node *np, sec_battery_platform_data_t *pdata)
