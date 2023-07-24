@@ -507,7 +507,7 @@ out:
  * on !rwc->try_lock case.
  */
 struct anon_vma *page_lock_anon_vma_read(struct page *page,
-					 struct rmap_walk_control *rwc)
+					struct rmap_walk_control *rwc)
 {
 	struct anon_vma *anon_vma = NULL;
 	struct anon_vma *root_anon_vma;
@@ -836,10 +836,9 @@ static bool invalid_page_referenced_vma(struct vm_area_struct *vma, void *arg)
  * @memcg: target memory cgroup
  * @vm_flags: collect encountered vma->vm_flags who actually referenced the page
  *
- * Quick test_and_clear_referenced for all mappings of a page,
- *
- * Return: The number of mappings which referenced the page. Return -1 if
- * the function bailed out due to rmap lock contention.
+ * Quick test_and_clear_referenced for all mappings to a page,
+ * returns the number of ptes which referenced the page. Return -1 if
+ * the function bailed out to rmap lock contention.
  */
 int page_referenced(struct page *page,
 		    int is_locked,
@@ -1612,30 +1611,7 @@ static bool try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 
 			/* MADV_FREE page check */
 			if (!PageSwapBacked(page)) {
-				int ref_count, map_count;
-
-				/*
-				 * Synchronize with gup_pte_range():
-				 * - clear PTE; barrier; read refcount
-				 * - inc refcount; barrier; read PTE
-				 */
-				smp_mb();
-
-				ref_count = page_ref_count(page);
-				map_count = page_mapcount(page);
-
-				/*
-				 * Order reads for page refcount and dirty flag
-				 * (see comments in __remove_mapping()).
-				 */
-				smp_rmb();
-
-				/*
-				 * The only page refs must be one from isolation
-				 * plus the rmap(s) (dropped by discard:).
-				 */
-				if (ref_count == 1 + map_count &&
-				    !PageDirty(page)) {
+				if (!PageDirty(page)) {
 					/* Invalidate as we cleared the pte */
 					mmu_notifier_invalidate_range(mm,
 						address, address + PAGE_SIZE);
@@ -1941,7 +1917,6 @@ static void rmap_walk_file(struct page *page, struct rmap_walk_control *rwc,
 			rwc->contended = true;
 			return;
 		}
-
 		i_mmap_lock_read(mapping);
 	}
 lookup:

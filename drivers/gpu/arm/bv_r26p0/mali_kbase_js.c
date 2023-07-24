@@ -583,8 +583,6 @@ int kbasep_js_kctx_init(struct kbase_context *const kctx)
 	kbdev = kctx->kbdev;
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
 
-	kbase_ctx_sched_init_ctx(kctx);
-
 	for (i = 0; i < BASE_JM_MAX_NR_SLOTS; ++i)
 		INIT_LIST_HEAD(&kctx->jctx.sched_info.ctx.ctx_list_entry[i]);
 

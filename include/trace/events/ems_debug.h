@@ -17,6 +17,8 @@
 struct part;
 struct rq;
 
+#define LABEL_LEN 32
+
 TRACE_EVENT(ems_monitor_sysbusy,
 
 	TP_PROTO(int cpu, unsigned long cpu_util),
@@ -1056,6 +1058,46 @@ TRACE_EVENT(somac,
 	TP_printk("comm=%s pid=%d util_avg=%lu src_cpu=%d dst_cpu=%d",
 		__entry->comm, __entry->pid, __entry->util,
 		__entry->src_cpu, __entry->dst_cpu)
+);
+
+/*
+ * Tracepoint for lb cpu util
+ */
+TRACE_EVENT(lb_cpu_util,
+
+	TP_PROTO(int cpu, char *label),
+
+	TP_ARGS(cpu, label),
+
+	TP_STRUCT__entry(
+		__field(	int,		cpu			)
+		__field(	int,		active_balance		)
+		__field(	int,		idle			)
+		__field(	int,		nr_running		)
+		__field(	int,		cfs_nr_running		)
+		__field(	unsigned long,	misfit_load		)
+		__field(	unsigned long,	cpu_util		)
+		__field(	unsigned long,	capacity_orig		)
+		__array(	char,		label,	LABEL_LEN	)
+		),
+
+	TP_fast_assign(
+		__entry->cpu			= cpu;
+		__entry->active_balance		= cpu_rq(cpu)->active_balance;
+		__entry->idle			= available_idle_cpu(cpu);
+		__entry->nr_running		= cpu_rq(cpu)->nr_running;
+		__entry->cfs_nr_running		= cpu_rq(cpu)->cfs.h_nr_running;
+		__entry->misfit_load		= cpu_rq(cpu)->misfit_task_load;
+		__entry->cpu_util		= ml_cpu_util(cpu);
+		__entry->capacity_orig		= capacity_orig_of(cpu);
+		strncpy(__entry->label, label, LABEL_LEN - 1);
+		),
+
+	TP_printk("cpu=%d, active_balance=%1d, idle=%1d, nr_running=%2d, cfs_nr_running=%2d, "
+		"misfit_load=%4lu, cpu_util=%4lu, capacity=%4lu, reason=%s",
+		__entry->cpu, __entry->active_balance, __entry->idle,
+		__entry->nr_running, __entry->cfs_nr_running, __entry->misfit_load,
+		__entry->cpu_util, __entry->capacity_orig, __entry->label)
 );
 
 #endif /* _TRACE_EMS_DEBUG_H */
