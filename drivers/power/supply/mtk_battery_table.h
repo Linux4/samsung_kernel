@@ -23,6 +23,8 @@
 #define FG_METER_RESISTANCE		100
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 #define CAR_TUNE_VALUE			96 /*1.00 */
+#elif defined (CONFIG_N28_CHARGER_PRIVATE)
+#define CAR_TUNE_VALUE			98 /*1.00 */
 #else
 #define CAR_TUNE_VALUE			100 /*1.00 */
 #endif

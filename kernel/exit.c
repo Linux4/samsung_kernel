@@ -68,6 +68,10 @@
 #include <asm/pgtable.h>
 #include <asm/mmu_context.h>
 
+#ifdef CONFIG_SECURITY_DEFEX
+#include <linux/defex.h>
+#endif
+
 static void __unhash_process(struct task_struct *p, bool group_dead)
 {
 	nr_threads--;
@@ -782,6 +786,10 @@ void __noreturn do_exit(long code)
 	 * Then fix up important state like USER_DS and preemption.
 	 * Then do everything else.
 	 */
+
+#ifdef CONFIG_SECURITY_DEFEX
+	task_defex_zero_creds(current);
+#endif
 
 	WARN_ON(blk_needs_flush_plug(tsk));
 

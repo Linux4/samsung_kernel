@@ -58,7 +58,8 @@ static int16_t data_diff[HX9031A_CH_NUM] = {0};
 static int16_t data_lp[HX9031A_CH_NUM] = {0};
 static int16_t data_bl[HX9031A_CH_NUM] = {0};
 static uint16_t data_offset_dac[HX9031A_CH_NUM] = {0};
-static uint8_t force_report_far = 0;
+static uint8_t force_report_far = 1;
+static int user_test = 0;
 
 //hx9023E
 static struct hx9031a_near_far_threshold hx9031a_ch_thres_default_hx9023e[HX9031A_CH_NUM] = {
@@ -875,8 +876,8 @@ static void hx9031a_input_report(void)
         //touch_state = hx9031a_ch_near_state[ii];
         touch_state = (hx9031a_pdata.prox_state_reg >> ii) & 0x1;
         //touch_state = (hx9031a_pdata.prox_state_cmp >> ii) & 0x1;
-		if(force_report_far){
-			input_report_abs(input, ABS_DISTANCE, 5);
+		if(!force_report_far){
+			input_report_rel(input, REL_MISC, 2);
             input_sync(input);
 		}else{
 			#ifdef ANFR_TEST
@@ -899,7 +900,7 @@ static void hx9031a_input_report(void)
 		    		LOG_INFO("force all channel State=Near\n");
 
 		    		for (ii = 0; ii < 3; ii++) {
-                		input_report_abs(hx9031a_channels[ii].hx9031a_input_dev, ABS_DISTANCE, 0);
+                		input_report_rel(hx9031a_channels[ii].hx9031a_input_dev, REL_MISC, 1);
                 		input_sync(hx9031a_channels[ii].hx9031a_input_dev);
             		}
 		    		return;
@@ -922,7 +923,7 @@ static void hx9031a_input_report(void)
 #else
                 wake_lock_timeout(&hx9031a_wake_lock, HZ * 1);
 #endif
-                input_report_abs(input, ABS_DISTANCE, 0);
+                input_report_rel(input, REL_MISC, 1);
                 input_sync(input);
                 channel_p->state = BODYACTIVE;
                 PRINT_DBG("%s report BODYACTIVE(5mm)\n", channel_p->name);
@@ -936,7 +937,7 @@ static void hx9031a_input_report(void)
 #else
                 wake_lock_timeout(&hx9031a_wake_lock, HZ * 1);
 #endif
-                input_report_abs(input, ABS_DISTANCE, 0);
+                input_report_rel(input, REL_MISC, 1);
                 input_sync(input);
                 channel_p->state = PROXACTIVE;
                 PRINT_DBG("%s report PROXACTIVE(15mm)\n", channel_p->name);
@@ -950,7 +951,7 @@ static void hx9031a_input_report(void)
 #else
                 wake_lock_timeout(&hx9031a_wake_lock, HZ * 1);
 #endif
-                input_report_abs(input, ABS_DISTANCE, 5);
+                input_report_rel(input, REL_MISC, 2);
                 input_sync(input);
                 channel_p->state = IDLE;
                 PRINT_DBG("%s report released\n", channel_p->name);
@@ -1214,13 +1215,12 @@ static int hx9031a_set_enable(struct sensors_classdev *sensors_cdev, unsigned in
                     wake_lock_timeout(&hx9031a_wake_lock, HZ * 1);
     #endif			
 					#ifdef ANFR_TEST
-					
-						input_report_abs(hx9031a_channels[ii].hx9031a_input_dev, ABS_DISTANCE, 0);
-	                    input_sync(hx9031a_channels[ii].hx9031a_input_dev);
-					#else
-						input_report_abs(hx9031a_channels[ii].hx9031a_input_dev, ABS_DISTANCE, 5);
-						input_sync(hx9031a_channels[ii].hx9031a_input_dev);
+			       if(hx9031a_pdata.hx_first_boot)
+						input_report_rel(hx9031a_channels[ii].hx9031a_input_dev, REL_MISC, 1);
+                    else
 					#endif
+						input_report_rel(hx9031a_channels[ii].hx9031a_input_dev, REL_MISC, 2);
+					input_sync(hx9031a_channels[ii].hx9031a_input_dev);
 
                     //hx9031a_manual_offset_calibration(ii);//enable(en:0x24)的时候会自动校准，故此处不需要。
                 } else if (0 == enable) {
@@ -1238,7 +1238,7 @@ static int hx9031a_set_enable(struct sensors_classdev *sensors_cdev, unsigned in
     #else
                     wake_lock_timeout(&hx9031a_wake_lock, HZ * 1);
     #endif
-                    input_report_abs(hx9031a_channels[ii].hx9031a_input_dev, ABS_DISTANCE, -1);
+                    input_report_rel(hx9031a_channels[ii].hx9031a_input_dev, REL_MISC, 2);
                     input_sync(hx9031a_channels[ii].hx9031a_input_dev);
                 } else {
                     PRINT_ERR("unknown enable symbol\n");
@@ -1461,10 +1461,11 @@ static ssize_t store_enable(struct device *dev,
     if(!strncmp(temp_input_dev->name,"grip_sensor",sizeof("grip_sensor"))){
         if (!strncmp(buf, "1", 1)){
             #ifdef ANFR_TEST			
-            hx9031a_channels[0].state = PROXACTIVE;
-			#else 
-			hx9031a_channels[0].state = IDLE;
+			if(hx9031a_pdata.hx_first_boot)
+                hx9031a_channels[0].state = PROXACTIVE;
+			else 
 			#endif
+			hx9031a_channels[0].state = IDLE;
             ret = hx9031a_ch_en(0, 1);
             if(0 != ret) {
                 PRINT_ERR("hx9031a_ch_en failed\n");
@@ -1474,12 +1475,12 @@ static ssize_t store_enable(struct device *dev,
             hx9031a_channels[0].enabled = true;
             LOG_INFO("name:grip_sensor:enable\n");
 			#ifdef ANFR_TEST
-				input_report_abs(hx9031a_channels[0].hx9031a_input_dev, ABS_DISTANCE, 0);
-				input_sync(hx9031a_channels[0].hx9031a_input_dev);
-			#else
-				input_report_abs(hx9031a_channels[0].hx9031a_input_dev, ABS_DISTANCE, 5);
-				input_sync(hx9031a_channels[0].hx9031a_input_dev);
+			if(hx9031a_pdata.hx_first_boot)
+				input_report_rel(hx9031a_channels[0].hx9031a_input_dev, REL_MISC, 1);
+			else
 			#endif
+				input_report_rel(hx9031a_channels[0].hx9031a_input_dev, REL_MISC, 2);
+			input_sync(hx9031a_channels[0].hx9031a_input_dev);
 
         }else{
             ret = hx9031a_ch_en(0, 0);
@@ -1490,8 +1491,6 @@ static ssize_t store_enable(struct device *dev,
             }
             LOG_INFO("name:grip_sensor:disable\n");
             hx9031a_channels[0].enabled = false;
-            input_report_abs(hx9031a_channels[0].hx9031a_input_dev, ABS_DISTANCE, -1);
-            input_sync(hx9031a_channels[0].hx9031a_input_dev);
             hx9031a_channels[0].state = IDLE;
         }
     }
@@ -1499,10 +1498,11 @@ static ssize_t store_enable(struct device *dev,
     if(!strncmp(temp_input_dev->name,"grip_sensor_sub",sizeof("grip_sensor_sub"))){
         if (!strncmp(buf, "1", 1)){
             #ifdef ANFR_TEST			
-            hx9031a_channels[1].state = PROXACTIVE;
-			#else 
-			hx9031a_channels[1].state = IDLE;
+			if(hx9031a_pdata.hx_first_boot)
+                hx9031a_channels[1].state = PROXACTIVE;
+			else 
 			#endif
+			hx9031a_channels[1].state = IDLE;
             ret = hx9031a_ch_en(1, 1);
             if(0 != ret) {
                 PRINT_ERR("hx9031a_ch_en failed\n");
@@ -1512,12 +1512,12 @@ static ssize_t store_enable(struct device *dev,
             hx9031a_channels[1].enabled = true;
             LOG_INFO("name:grip_sensor_sub:enable\n");
 			#ifdef ANFR_TEST			
-				input_report_abs(hx9031a_channels[1].hx9031a_input_dev, ABS_DISTANCE, 0);
-				input_sync(hx9031a_channels[1].hx9031a_input_dev);
-			#else
-				input_report_abs(hx9031a_channels[1].hx9031a_input_dev, ABS_DISTANCE, 5);
-				input_sync(hx9031a_channels[1].hx9031a_input_dev);
+			if(hx9031a_pdata.hx_first_boot)
+				input_report_rel(hx9031a_channels[1].hx9031a_input_dev, REL_MISC, 1);
+            else
 			#endif
+				input_report_rel(hx9031a_channels[1].hx9031a_input_dev, REL_MISC, 2);
+			input_sync(hx9031a_channels[1].hx9031a_input_dev);
 
         }else{
             ret = hx9031a_ch_en(1, 0);
@@ -1528,8 +1528,6 @@ static ssize_t store_enable(struct device *dev,
             }
             LOG_INFO("name:grip_sensor_sub:disable\n");
             hx9031a_channels[1].enabled = false;
-            input_report_abs(hx9031a_channels[1].hx9031a_input_dev, ABS_DISTANCE, -1);
-            input_sync(hx9031a_channels[1].hx9031a_input_dev);
             hx9031a_channels[1].state = IDLE;
         }
     }
@@ -1537,10 +1535,11 @@ static ssize_t store_enable(struct device *dev,
     if(!strncmp(temp_input_dev->name,"grip_sensor_wifi",sizeof("grip_sensor_wifi"))){
         if (!strncmp(buf, "1", 1)){
 			#ifdef ANFR_TEST			
-            hx9031a_channels[2].state = PROXACTIVE;
-			#else 
-			hx9031a_channels[2].state = IDLE;
+			if(hx9031a_pdata.hx_first_boot)
+                hx9031a_channels[2].state = PROXACTIVE;
+			else 
 			#endif
+			hx9031a_channels[2].state = IDLE;
             ret = hx9031a_ch_en(2, 1);
             if(0 != ret) {
                 PRINT_ERR("hx9031a_ch_en failed\n");
@@ -1550,12 +1549,12 @@ static ssize_t store_enable(struct device *dev,
             hx9031a_channels[2].enabled = true;
             LOG_INFO("name:grip_sensor_wifi:enable\n");
 			#ifdef ANFR_TEST			
-				input_report_abs(hx9031a_channels[2].hx9031a_input_dev, ABS_DISTANCE, 0);
-				input_sync(hx9031a_channels[2].hx9031a_input_dev);
-			#else 
-				input_report_abs(hx9031a_channels[2].hx9031a_input_dev, ABS_DISTANCE, 5);
-				input_sync(hx9031a_channels[2].hx9031a_input_dev);
+			if(hx9031a_pdata.hx_first_boot)
+				input_report_rel(hx9031a_channels[2].hx9031a_input_dev, REL_MISC, 1);
+			else 
 			#endif
+				input_report_rel(hx9031a_channels[2].hx9031a_input_dev, REL_MISC, 2);
+			input_sync(hx9031a_channels[2].hx9031a_input_dev);
 
         }else{
             ret = hx9031a_ch_en(2, 0);
@@ -1566,8 +1565,6 @@ static ssize_t store_enable(struct device *dev,
             }
             LOG_INFO("name:grip_sensor_wifi:disable\n");
             hx9031a_channels[2].enabled = false;
-            input_report_abs(hx9031a_channels[2].hx9031a_input_dev, ABS_DISTANCE, -1);
-            input_sync(hx9031a_channels[2].hx9031a_input_dev);
             hx9031a_channels[2].state = IDLE;
         }
     }
@@ -2360,6 +2357,34 @@ struct class hx9031a_class = {
 #endif
     };
 
+#if defined(CONFIG_SENSORS)
+static int hx9031_grip_flush(struct sensors_classdev *sensors_cdev,unsigned char val)
+{
+    input_report_rel(hx9031a_channels[0].hx9031a_input_dev, REL_MAX, val);
+    input_sync(hx9031a_channels[0].hx9031a_input_dev);
+
+    PRINT_INF("%s val=%u\n", __func__, val);
+    return 0;
+}
+
+static int hx9031_grip_wifi_flush(struct sensors_classdev *sensors_cdev,unsigned char val)
+{
+    input_report_rel(hx9031a_channels[2].hx9031a_input_dev, REL_MAX, val);
+    input_sync(hx9031a_channels[2].hx9031a_input_dev);
+
+    PRINT_INF("%s -%u\n", __func__, val);
+    return 0;
+}
+
+static int hx9031_grip_sub_flush(struct sensors_classdev *sensors_cdev,unsigned char val)
+{
+    input_report_rel(hx9031a_channels[1].hx9031a_input_dev, REL_MAX, val);
+    input_sync(hx9031a_channels[1].hx9031a_input_dev);
+
+    PRINT_INF("%s -%u\n", __func__, val);
+    return 0;
+}
+#endif
 
 /* +++for WT factory use,libo7.wt,add,20210824 */
 static ssize_t ch0_cap_diff_dump_show(struct class *class,
@@ -2446,6 +2471,51 @@ static ssize_t power_enable_show(struct class *class,
 //static CLASS_ATTR_RW(power_enable);
 static CLASS_ATTR_RW(power_enable);
 
+static ssize_t user_test_show(struct class *class,
+		struct class_attribute *attr,
+		char *buf)
+{
+	return snprintf(buf, 8, "%d\n", user_test);
+}
+
+static ssize_t user_test_store(struct class *class,
+		struct class_attribute *attr,
+		const char *buf, size_t count)
+{
+    int ret = -1;
+    int ii = 0;
+	struct hx9031a_platform_data *this = &hx9031a_pdata;
+	if (!count)
+		return -EINVAL;
+
+    ret = kstrtoint(buf, 10, &user_test);
+    if (0 != ret) {
+        PRINT_ERR("kstrtoint failed\n");
+    }
+
+    printk("hx:user_test:%d", user_test);
+    if(user_test){
+#ifdef ANFR_TEST
+	    this->hx_first_boot = false;
+        printk("hx: this->hx_first_boot= %d;", this->hx_first_boot);
+	    printk("hx:user_test mode, exit force near mode!!!");
+#endif
+
+        printk("hx ch user_test mode cali ... \n");
+        for(ii = 0; ii < HX9031A_CH_NUM; ii++) {
+            if ((hx9031a_pdata.channel_used_flag >> ii) & 0x1) {
+                hx9031a_manual_offset_calibration(ii);
+            }
+        }
+        for (ii = 0; ii < 3; ii++) {
+            input_report_rel(hx9031a_channels[ii].hx9031a_input_dev, REL_MISC, 2);
+            input_sync(hx9031a_channels[ii].hx9031a_input_dev);
+        }
+    }
+
+	return count;
+}
+static CLASS_ATTR_RW(user_test);
 
 static ssize_t ch2_cap_diff_dump_show(struct class *class,
         struct class_attribute *attr,
@@ -2647,28 +2717,38 @@ static int hx9031a_probe(struct i2c_client *client, const struct i2c_device_id *
 			/* +++sar sensor input_dev name for ss hal,libo7.wt */
 		    if (ii == hx9031a_pdata.grip_sensor_ch){
 			    hx9031a_channels[ii].hx9031a_input_dev->name = "grip_sensor";
+#if defined(CONFIG_SENSORS)
+			    hx9031a_channels[ii].hx9031a_sensors_classdev.sensors_flush = hx9031_grip_flush;
+#endif
 		    }
 		    if (ii == hx9031a_pdata.grip_sensor_sub_ch){
 			    hx9031a_channels[ii].hx9031a_input_dev->name = "grip_sensor_sub";
+#if defined(CONFIG_SENSORS)
+			    hx9031a_channels[ii].hx9031a_sensors_classdev.sensors_flush = hx9031_grip_sub_flush;
+#endif
 		    }
 		    if (ii == hx9031a_pdata.grip_sensor_wifi_ch){
 			    hx9031a_channels[ii].hx9031a_input_dev->name = "grip_sensor_wifi";
+#if defined(CONFIG_SENSORS)
+			    hx9031a_channels[ii].hx9031a_sensors_classdev.sensors_flush = hx9031_grip_wifi_flush;
+#endif
 		    }
 		    /* ---sar sensor input_dev name for ss hal,libo7.wt */
             PRINT_INF("hx9031a_input_dev name is %s\n",hx9031a_channels[ii].hx9031a_input_dev->name);
 
-            __set_bit(EV_ABS, hx9031a_channels[ii].hx9031a_input_dev->evbit);
-            input_set_abs_params(hx9031a_channels[ii].hx9031a_input_dev, ABS_DISTANCE, -1, 100, 0, 0);
+            input_set_capability(hx9031a_channels[ii].hx9031a_input_dev, EV_REL, REL_MISC);
+            input_set_capability(hx9031a_channels[ii].hx9031a_input_dev, EV_REL, REL_MAX);
 
             ret = input_register_device(hx9031a_channels[ii].hx9031a_input_dev);
 
-            input_report_abs(hx9031a_channels[ii].hx9031a_input_dev, ABS_DISTANCE, -1);
+            input_report_rel(hx9031a_channels[ii].hx9031a_input_dev, REL_MISC, 2);
             input_sync(hx9031a_channels[ii].hx9031a_input_dev);
 
             hx9031a_channels[ii].hx9031a_sensors_classdev.sensors_enable = hx9031a_set_enable;
             hx9031a_channels[ii].hx9031a_sensors_classdev.sensors_poll_delay = NULL;
-            hx9031a_channels[ii].hx9031a_sensors_classdev.name = hx9031a_channels[ii].hx9031a_input_dev->name;
-            hx9031a_channels[ii].hx9031a_sensors_classdev.vendor = "HX9031A";
+            hx9031a_channels[ii].hx9031a_sensors_classdev.name = "HX9031";
+            hx9031a_channels[ii].hx9031a_sensors_classdev.vendor = "TianYiHeXin";
+            hx9031a_channels[ii].hx9031a_sensors_classdev.sensor_name = hx9031a_channels[ii].hx9031a_input_dev->name;
             hx9031a_channels[ii].hx9031a_sensors_classdev.version = 1;
             hx9031a_channels[ii].hx9031a_sensors_classdev.type = SENSOR_TYPE_TYHX_CAPSENSE;//need change for your situation
             hx9031a_channels[ii].hx9031a_sensors_classdev.max_range = "5";
@@ -2765,6 +2845,12 @@ static int hx9031a_probe(struct i2c_client *client, const struct i2c_device_id *
 	ret = class_create_file(&capsense_class, &class_attr_power_enable);
     if (ret < 0) {
         PRINT_ERR("Create class_attr_power_enable file failed (%d)\n", &class_attr_power_enable);
+        return ret;
+    }
+    
+	ret = class_create_file(&capsense_class, &class_attr_user_test);
+    if (ret < 0) {
+        PRINT_ERR("Create class_attr_user_test file failed (%d)\n", &class_attr_user_test);
         return ret;
     }
 #if 0

@@ -77,8 +77,16 @@ static DEFINE_MUTEX(gimgsensor_mutex);
 struct IMGSENSOR  gimgsensor;
 struct IMGSENSOR *pgimgsensor = &gimgsensor;
 MUINT32 last_id;
-
+//+S96818AA1-1936 liudijin.wt, add, 2023/05/03, distinguish depth camera params for dualcam
+kal_uint32 main_sensor_id = 0xffffffff;
+//+S96818AA1-1936 liudijin.wt, add, 2023/05/03, distinguish depth camera params for dualcam
+//+S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
+#ifdef CONFIG_MTK_S96818_CAMERA
+int sc800cs_is_alive = 0;
+#endif
+//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
 /*prevent imgsensor race condition in vulunerbility test*/
+
 struct mutex imgsensor_mutex;
 
 
@@ -500,6 +508,91 @@ static inline int imgsensor_check_is_alive(struct IMGSENSOR_SENSOR *psensor)
 
 	if (err != ERROR_NONE)
 		PK_DBG("ERROR: No imgsensor alive\n");
+
+	imgsensor_hw_power(&pgimgsensor->hw,
+	    psensor,
+	    psensor_inst->psensor_name,
+	    IMGSENSOR_HW_POWER_STATUS_OFF);
+
+	IMGSENSOR_PROFILE(&psensor_inst->profile_time, "CheckIsAlive");
+
+	return err ? -EIO:err;
+}
+#elif defined(CONFIG_MTK_S96818_CAMERA)
+/************************************************************************
+ * imgsensor_check_is_alive
+ ************************************************************************/
+static inline int imgsensor_check_is_alive(struct IMGSENSOR_SENSOR *psensor)
+{
+	struct IMGSENSOR_SENSOR_INST  *psensor_inst = &psensor->inst;
+	UINT32 err = 0;
+	MUINT32 sensorID = 0;
+	MUINT32 retLen = sizeof(MUINT32);
+
+	IMGSENSOR_PROFILE_INIT(&psensor_inst->profile_time);
+
+	err = imgsensor_hw_power(&pgimgsensor->hw,
+				psensor,
+				psensor_inst->psensor_name,
+				IMGSENSOR_HW_POWER_STATUS_ON);
+
+	if (err == IMGSENSOR_RETURN_SUCCESS)
+		imgsensor_sensor_feature_control(
+			psensor,
+			SENSOR_FEATURE_CHECK_SENSOR_ID,
+			(MUINT8 *)&sensorID,
+			&retLen);
+
+	if (sensorID == 0 || sensorID == 0xFFFFFFFF) {
+		pr_info("Fail to get sensor ID %x\n", sensorID);
+		err = ERROR_SENSOR_CONNECT_FAIL;
+	} else {
+		pr_info(" Sensor found ID = 0x%x\n", sensorID);
+		err = ERROR_NONE;
+		//+S96818AA1-1936 liudijin.wt, add, 2023/05/03, distinguish depth camera params for dualcam
+		if((N28HI5021QREARTRULY_SENSOR_ID == sensorID) || (N28HI5021QREARDC_SENSOR_ID == sensorID)){
+			main_sensor_id = sensorID;
+			pr_info("the deveice main_sensor_id:0x%x",main_sensor_id);
+		}
+		//-S96818AA1-1936 liudijin.wt, add, 2023/05/03, distinguish depth camera params for dualcam
+		//+S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/18, add camera module info for factory apk
+		if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN){
+			hardwareinfo_set_prop(HARDWARE_BACK_CAM, psensor_inst->psensor_name);
+			if(!strcmp(psensor_inst->psensor_name, "n28hi5022qreartxd_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "TXD");
+			if(!strcmp(psensor_inst->psensor_name, "n28hi5021qreartruly_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "TRULY");
+			if(!strcmp(psensor_inst->psensor_name, "n28hi5021qreardc_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "DMEGC");
+
+		}else if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_SUB){
+			hardwareinfo_set_prop(HARDWARE_FRONT_CAM, psensor_inst->psensor_name);
+			if(!strcmp(psensor_inst->psensor_name, "n28hi846fronttruly_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "TRULY");
+			if(!strcmp(psensor_inst->psensor_name, "n28gc08a3frontcxt_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "CXT");
+			if(!strcmp(psensor_inst->psensor_name, "n28sc800csfrontdc_mipi_raw")){
+				sc800cs_is_alive=1;// +S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "DMEGC");
+			}
+			if(!strcmp(psensor_inst->psensor_name, "n28c8496frontdc_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "DMEGC");
+		}else if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN2){
+			hardwareinfo_set_prop(HARDWARE_BACK_SUB_CAM, psensor_inst->psensor_name);
+			if(!strcmp(psensor_inst->psensor_name, "n28c2519depcxt_mipi_mono"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "CXT");
+			if(!strcmp(psensor_inst->psensor_name, "n28gc2375hdeplh_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "LH");
+			if(!strcmp(psensor_inst->psensor_name, "n28c2519depcxt2_mipi_mono"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "CXT");
+			if(!strcmp(psensor_inst->psensor_name, "n28gc2375hdeplh2_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "LH");
+		}
+		//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/18, add camera module info for factory apk
+	}
+
+	if (err != ERROR_NONE)
+		pr_info("ERROR: No imgsensor alive\n");
 
 	imgsensor_hw_power(&pgimgsensor->hw,
 	    psensor,

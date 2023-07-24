@@ -795,22 +795,13 @@ static void usbnet_terminate_urbs(struct usbnet *dev)
 	/* ensure there are no more active urbs */
 	add_wait_queue(&dev->wait, &wait);
 	set_current_state(TASK_UNINTERRUPTIBLE);
-//+Bug 767787,yangchaojun.wt,modify,Update requirements and incorporate the modifications provided by MTK for improved stability
-#if !defined (CONFIG_N23_CHARGER_PRIVATE) && !defined (CONFIG_N26_CHARGER_PRIVATE)
 	temp = unlink_urbs(dev, &dev->txq) +
 		unlink_urbs(dev, &dev->rxq);
-#endif
 
 	/* maybe wait for deletions to finish. */
 	wait_skb_queue_empty(&dev->rxq);
 	wait_skb_queue_empty(&dev->txq);
 	wait_skb_queue_empty(&dev->done);
-
-//+Bug 767787,yangchaojun.wt,modify,Update requirements and incorporate the modifications provided by MTK for improved stability
-#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N26_CHARGER_PRIVATE)
-	temp = unlink_urbs(dev, &dev->txq) +
-		unlink_urbs(dev, &dev->rxq);
-#endif
 	netif_dbg(dev, ifdown, dev->net,
 		  "waited for %d urb completions\n", temp);
 	set_current_state(TASK_RUNNING);

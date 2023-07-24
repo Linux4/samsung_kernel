@@ -46,7 +46,10 @@
 #include <tcpci_core.h>
 
 #include "mtk_charger_intf.h"
+
+#if defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
 #include <../../../misc/mediatek/leds/leds-mtk-disp.h>
+#endif
 //zhaosidong.wt, power swap without usb disconnect
 bool g_ignore_usb;
 #ifdef CONFIG_MT6360_PMU_CHARGER
@@ -224,7 +227,9 @@ static int mt_charger_online(struct mt_charger *mtk_chg)
 				pr_notice("%s: system_state=%d\n", __func__,
 					system_state);
 				if (system_state != SYSTEM_POWER_OFF) {
+#if defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
 					mt_leds_brightness_set("lcd-backlight", 0);
+#endif
 					msleep(200);
 					kernel_power_off();
 				}
@@ -469,7 +474,11 @@ static int mt_usb_get_property(struct power_supply *psy,
 			val->intval = 6;
 		}
 		else if ((mtk_chg->chg_type == STANDARD_CHARGER) ||(mtk_chg->chg_type == NONSTANDARD_CHARGER ) ){
+			#ifdef CONFIG_AFC_CHARGER
 			if (mtk_is_pep_series_connect(cm) ||mtk_pdc_check_charger(cm) || afc_get_is_connect(cm))
+			#else
+			if (mtk_is_pep_series_connect(cm) ||mtk_pdc_check_charger(cm))
+			#endif
 			//	val->strval = "USB_HVDCP";
 				val->intval = 12;
 			else
@@ -515,7 +524,9 @@ static enum power_supply_property mt_usb_properties[] = {
 static void tcpc_power_off_work_handler(struct work_struct *work)
 {
 	pr_info("%s\n", __func__);
+#if defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
 	mt_leds_brightness_set("lcd-backlight", 0);
+#endif
 	msleep(200);
 	kernel_power_off();
 }

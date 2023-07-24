@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 subdir-ccflags-$(CONFIG_POWER_SUPPLY_DEBUG) := -DDEBUG
 ifeq ($(CONFIG_MACH_MT6768),y)
+subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include
 obj-y += mediatek/
 else ifeq ($(CONFIG_MACH_MT6739),y)
 obj-y += mediatek/
@@ -54,7 +55,6 @@ ifeq ($(WT_COMPILE_FACTORY_VERSION),yes)
 	ccflags-y += -DWT_COMPILE_FACTORY_VERSION
 endif
 endif
-
 
 power_supply-y				:= power_supply_core.o
 power_supply-$(CONFIG_SYSFS)		+= power_supply_sysfs.o
@@ -134,6 +134,12 @@ obj-$(CONFIG_CHARGER_BQ24190)	+= bq24190_charger.o
 obj-$(CONFIG_CHARGER_BQ24257)	+= bq24257_charger.o
 obj-$(CONFIG_CHARGER_BQ24735)	+= bq24735-charger.o
 obj-$(CONFIG_CHARGER_BQ25890)	+= bq25890_charger.o
+obj-$(CONFIG_CHARGER_SD7601)	+= sd7601.o
+obj-$(CONFIG_CHARGER_UPM6910)	+= upm6910.o
+obj-$(CONFIG_CHARGER_PUMP)	+= sp2130_charger.o
+obj-$(CONFIG_CHARGER_PUMP)	+= pd_policy_manager.o
+obj-$(CONFIG_CHARGER_PUMP)	+= upm6720_charger.o
+obj-$(CONFIG_CHARGER_SC89601)	+= sc89601_charger.o
 obj-$(CONFIG_CHARGER_BQ2589X)	+= bq2589x_charger.o
 obj-$(CONFIG_CHARGER_SMB347)	+= smb347-charger.o
 obj-$(CONFIG_CHARGER_TPS65090)	+= tps65090-charger.o
@@ -141,10 +147,12 @@ obj-$(CONFIG_CHARGER_TPS65217)	+= tps65217_charger.o
 obj-$(CONFIG_AXP288_FUEL_GAUGE) += axp288_fuel_gauge.o
 obj-$(CONFIG_AXP288_CHARGER)	+= axp288_charger.o
 
-
 ifeq ($(CONFIG_CUSTOM_BATTERY_EXTERNAL_CHANNEL),y)
 	obj-y += k6885v1_64_alpha/
 endif
 
 obj-$(CONFIG_CHARGER_SM5714) += sm/sm5714/
 
+ifeq ($(WT_COMPILE_FACTORY_VERSION),yes)
+ccflags-y += -DWT_COMPILE_FACTORY_VERSION
+endif

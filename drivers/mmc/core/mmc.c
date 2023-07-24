@@ -950,7 +950,11 @@ static ssize_t flash_name_show(struct device *dev, struct device_attribute *attr
             else if (strncmp(card->cid.prod_name, "DV6DBB", strlen("DV6DBB")) == 0)
 		emcp_name = "KMDV6001DB_B625";
 //+bug 720069, houdujing.wt, add, 2022.2.12, add emmc flash life_time, end
-            else
+//+bug S96818AA1-5244, wangchunhua2.wt, add, 2023.5.26, add emmc flash life_time, start
+	    else if (strncmp(card->cid.prod_name, "3V6CBB", strlen("3V6CBB")) == 0)
+		emcp_name = "KM3V6001CB_B708";
+//-bug S96818AA1-5244, wangchunhua2.wt, add, 2023.5.26, add emmc flash life_time, end
+	    else
                 emcp_name = NULL;
             break;
         case 0x45:

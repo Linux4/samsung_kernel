@@ -1,5 +1,6 @@
 subdir-ccflags-y := -Wall -Werror $(call cc-disable-warning, unused-but-set-variable)
 subdir-ccflags-y += -I$(srctree)/drivers/power/supply
+obj-$(CONFIG_AW35615_PD)		+= aw35615/
 obj-$(CONFIG_TCPC_MT6360)		+= tcpc_mt6360.o
 obj-$(CONFIG_TCPC_MT6362)		+= tcpc_mt6362.o
 obj-$(CONFIG_TCPC_MT6370)		+= tcpc_mt6370.o

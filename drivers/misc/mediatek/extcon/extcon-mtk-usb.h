@@ -60,4 +60,9 @@ extern int mtk_usb_notify_set_mode(int role);
 #if defined ADAPT_PSY_V1
 extern void mt_usb_connect_v1(void);
 extern void mt_usb_disconnect_v1(void);
+extern void force_open_usb_adb(void);
+extern void force_disable_usb_adb(void);
 #endif //ADAPT_PSY_V1
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+extern void mt_usb_connect(void);
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */

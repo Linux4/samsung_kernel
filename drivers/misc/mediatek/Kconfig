@@ -29,6 +29,13 @@ config MTK_96516_CAMERA
         default n
         help
           If 96516 CANERA, say Y
+
+config MTK_S96818_CAMERA
+        bool "MTK 96516 CAMERA"
+        default n
+        help
+          If 96818 CANERA, say Y
+
 config MTK_ENG_BUILD
 	bool "MTK Engineer Build"
 	help

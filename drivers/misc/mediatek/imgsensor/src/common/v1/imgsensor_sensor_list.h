@@ -252,6 +252,31 @@ UINT32 N26_SC201CS_MICRO_LCE_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT *
 UINT32 N26_C2599_MICRO_DELTA_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 //-bug720367,liudijin.wt,ADD,2022/01/27,gc02m2 and sc201cs micro sensor bringup
 
+//+S96818AA1-1936,liudijin.wt,ADD,2023/04/11,hi5022 main sensor bringup
+UINT32 N28HI5021QREARTRULY_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N28HI5021QREARDC_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N28HI5022QREARTXD_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-S96818AA1-1936,liudijin.wt,ADD,2023/04/11,hi5022 main sensor bringup
+//+S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/12,hi846 sub sensor bringup
+UINT32 N28HI846FRONTTRULY_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/12,hi846 sub sensor bringup
+//+S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/12,gc08a3 sub sensor bringup
+UINT32 N28GC08A3FRONTCXT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/12,gc08a3 sub sensor bringup
+//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/19,sc800cs sub sensor bringup
+UINT32 N28SC800CSFRONTDC_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/19,sc800cs sub sensor bringup
+//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/25,c8496 sub sensor bringup
+UINT32 N28C8496FRONTDC_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/25,c8496 sub sensor bringup
+//+S96818AA1-1936,chenming.wt,ADD,2023/04/11,c2519 depth sensor bringup
+UINT32 N28C2519DEPCXT_MIPI_MONO_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N28C2519DEPCXT2_MIPI_MONO_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-S96818AA1-1936,chenming.wt,ADD,2023/04/11,c2519 depth sensor bringup
+//+S96818AA1-1936,chenming.wt,ADD,2023/04/24,gc2375h depth sensor bringup
+UINT32 N28GC2375HDEPLH_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N28GC2375HDEPLH2_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-S96818AA1-1936,chenming.wt,ADD,2023/04/24,gc2375h depth sensor bringup
 extern struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[];
 
 #endif

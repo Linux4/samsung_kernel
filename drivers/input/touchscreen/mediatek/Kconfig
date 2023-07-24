@@ -111,6 +111,34 @@ config TOUCHSCREEN_CHIPONE
 	  To compile this driver as a module, choose M here: the
 	  module will be called chipone-tddi.
 
+config TOUCHSCREEN_NT36528_HOSTDL_SPI
+        bool "NT36528 for Mediatek package"
+        default n
+        help
+          Say Y here if you have NT36672C touch panel.
+
+          If unsure, say N.
+
+          To compile this dirver as a module, choose M here: the
+          module will be called.
+
+source "drivers/input/touchscreen/mediatek/NT36528/Kconfig"
+
+#+S96818AA1-1936,wangtao14.wt,modify,2023/05/16,ft8057s tp bringup
+config TOUCHSCREEN_FTS_FT8057S
+    bool "Focaltech Touchscreen"
+    default n
+    help
+      Say Y here if you have Focaltech touch panel.
+      If unsure, say N.
+
+source "drivers/input/touchscreen/mediatek/FT8057S/Kconfig"
+#-S96818AA1-1936,wangtao14.wt,modify,2023/05/16,ft8057s tp bringup
+
+#+S96818AA1-1936,daijun1.wt,modify,2023/05/16,td4160 tp bringup
+source "drivers/input/touchscreen/mediatek/TD4160/Kconfig"
+#-S96818AA1-1936,daijun1.wt,modify,2023/05/16,td4160 tp bringup
+
 config TOUCHSCREEN_ILI9882Q
 	bool "Ilitek TDDI Touchscreen"
 	default n

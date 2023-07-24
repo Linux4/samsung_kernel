@@ -418,9 +418,11 @@ struct charger_manager {
 	/* High voltage charging */
 	bool enable_hv_charging;
 
+#ifdef CONFIG_AFC_CHARGER
 	/*AFC*/
 	bool enable_afc;
 	struct afc_dev afc;
+#endif
 
 	/* pe */
 	bool enable_pe_plus;

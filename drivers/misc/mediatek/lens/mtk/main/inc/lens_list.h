@@ -487,4 +487,28 @@ extern int DELTA_HI5021Q_GT9778AF_Release(struct inode *a_pstInode, struct file 
 extern int DELTA_HI5021Q_GT9778AF_PowerDown(struct i2c_client *pstAF_I2Cclient, int *pAF_Opened);
 extern int DELTA_HI5021Q_GT9778AF_GetFileName(unsigned char *pFileName);
 //-bug720367,qinduilin.wt,ADD,2022/2/9,n26_hi5021q_rear_truly af bringup
+//+bug S96818AA1-1936, liudijin.wt, Modify, 2023/4/20, hi5021 af bringup
+#define N28TRULYHI5021Q_AW8601WAF_SetI2Cclient N28TRULYHI5021Q_AW8601WAF_SetI2Cclient_Main
+#define N28TRULYHI5021Q_AW8601WAF_Ioctl N28TRULYHI5021Q_AW8601WAF_Ioctl_Main
+#define N28TRULYHI5021Q_AW8601WAF_Release N28TRULYHI5021Q_AW8601WAF_Release_Main
+#define N28TRULYHI5021Q_AW8601WAF_GetFileName N28TRULYHI5021Q_AW8601WAF_GetFileName_Main
+extern int N28TRULYHI5021Q_AW8601WAF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+				 spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long N28TRULYHI5021Q_AW8601WAF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+			   unsigned long a_u4Param);
+extern int N28TRULYHI5021Q_AW8601WAF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int N28TRULYHI5021Q_AW8601WAF_GetFileName(unsigned char *pFileName);
+
+#define N28HI5021QDC_DW9800WAF_SetI2Cclient N28HI5021QDC_DW9800WAF_SetI2Cclient_Main
+#define N28HI5021QDC_DW9800WAF_Ioctl N28HI5021QDC_DW9800WAF_Ioctl_Main
+#define N28HI5021QDC_DW9800WAF_Release N28HI5021QDC_DW9800WAF_Release_Main
+#define N28HI5021QDC_DW9800WAF_GetFileName N28HI5021QDC_DW9800WAF_GetFileName_Main
+extern int N28HI5021QDC_DW9800WAF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+	spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long N28HI5021QDC_DW9800WAF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+	unsigned long a_u4Param);
+extern int N28HI5021QDC_DW9800WAF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int N28HI5021QDC_DW9800WAF_GetFileName(unsigned char *pFileName);
+extern struct regulator *regulator_get_regVCAMAF(void);
+//-bug S96818AA1-1936, liudijin.wt, Modify, 2023/4/20, hi5021 af bringup
 #endif

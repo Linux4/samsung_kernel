@@ -70,4 +70,9 @@ extern struct atomic_notifier_head charger_notifier;
 extern int register_mtk_battery_notifier(struct notifier_block *nb);
 extern void unre_mtk_battery_notifier(struct notifier_block *nb);
 unsigned int battery_get_fg_init_done(void);
+
+#if defined (CONFIG_W2_CHARGER_PRIVATE)
+extern int wt_set_batt_cycle_fv(bool update);
+#endif
+
 #endif /* End of _FUEL_GAUGE_GM_30_H */

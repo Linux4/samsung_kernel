@@ -20,6 +20,13 @@
 
 #include "u_os_desc.h"
 
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#ifdef CONFIG_TCPC_CLASS
+#include "tcpm.h"
+#include "tcpci_core.h"
+#endif
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
+
 /**
  * struct usb_os_string - represents OS String to be reported by a gadget
  * @bLength: total length of the entire descritor, always 0x12
@@ -613,6 +620,39 @@ static u8 encode_bMaxPower(enum usb_device_speed speed,
 		return min(val, 900U) / 8;
 }
 
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#ifdef CONFIG_TCPC_CLASS
+static struct tcpc_device *tcpc_dev;
+
+static int __init usb_pd_init(void)
+{
+	tcpc_dev = tcpc_dev_get_by_name("type_c_port0");
+	if (!tcpc_dev)
+		pr_info("%s get tcpc device type_c_port0 fail\n", __func__);
+
+	return 0;
+}
+late_initcall(usb_pd_init);
+
+static bool is_usb_pd(void)
+{
+	struct pd_port *pd_port;
+
+	if (!tcpc_dev)
+		return false;
+
+	pd_port = &tcpc_dev->pd_port;
+
+       pr_info("test xw %s pe_ready=%d, pd_connected = %d\n", __func__, pd_port->pe_data.pe_ready, pd_port->pe_data.pd_connected);
+
+       if (pd_port->pe_data.pd_connected)
+              return true;
+       else
+              return false;
+}
+#endif
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
+
 static int config_buf(struct usb_configuration *config,
 		enum usb_device_speed speed, void *buf, u8 type)
 {
@@ -633,6 +673,17 @@ static int config_buf(struct usb_configuration *config,
 	c->iConfiguration = config->iConfiguration;
 	c->bmAttributes = USB_CONFIG_ATT_ONE | config->bmAttributes;
 	c->bMaxPower = encode_bMaxPower(speed, config);
+
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#ifdef CONFIG_TCPC_CLASS
+	if (is_usb_pd()) {
+		c->bmAttributes |= USB_CONFIG_ATT_SELFPOWER;
+		c->bMaxPower = 0;
+	} else {
+		c->bmAttributes &= ~USB_CONFIG_ATT_SELFPOWER;
+	}
+#endif
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 
 	/* There may be e.g. OTG descriptors */
 	if (config->descriptors) {

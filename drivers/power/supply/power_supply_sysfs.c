@@ -46,7 +46,12 @@ static const char * const power_supply_type_text[] = {
 	"USB_PD", "USB_PD_DRP", "BrickID",
 	"USB_HVDCP", "USB_HVDCP_3", "USB_HVDCP_3P5", "Wireless", "USB_FLOAT",
 	"BMS", "Parallel", "Main", "USB_C_UFP", "USB_C_DFP",
-	"Charge_Pump","OTG"
+	"Charge_Pump",
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+	"AFC"
+#else
+	"OTG"
+#endif
 };
 
 static const char * const power_supply_usb_type_text[] = {
@@ -485,6 +490,15 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(pd_flag),
 //Bug774038,churui1.wt,add batt_full_capacity node
 	POWER_SUPPLY_ATTR(batt_full_capacity),
+	POWER_SUPPLY_ATTR(batt_temp),
+#endif
+#if defined CONFIG_N28_CHARGER_PRIVATE
+	POWER_SUPPLY_ATTR(upm_bus_voltage),
+	POWER_SUPPLY_ATTR(upm_bus_current),
+	POWER_SUPPLY_ATTR(upm_bat_voltage),
+	POWER_SUPPLY_ATTR(upm_bat_current),
+	POWER_SUPPLY_ATTR(upm_die_temp),
+	POWER_SUPPLY_ATTR(upm_vbus_status),
 #endif
 	/* Local extensions */
 	POWER_SUPPLY_ATTR(usb_hc),

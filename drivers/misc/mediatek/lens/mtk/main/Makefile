@@ -82,3 +82,5 @@ mainaf-y  += common/truly_hi5021q_gt9778af/truly_hi5021q_gt9778af.o
 mainaf-y  += common/st_hi5021q_aw8601waf/st_hi5021q_aw8601waf.o
 mainaf-y  += common/txd_s5kjn1_gt9778af/txd_s5kjn1_gt9778af.o
 mainaf-y  += common/delta_hi5021q_gt9778af/delta_hi5021q_gt9778af.o
+mainaf-y  += common/n28trulyhi5021q_aw8601waf/n28trulyhi5021q_aw8601waf.o
+mainaf-y  += common/n28hi5021qdc_dw9800waf/n28hi5021qdc_dw9800waf.o

@@ -959,38 +959,11 @@ static int chuangwei_remove(struct mipi_dsi_device *dsi)
 
 static void chuangwei_panel_shutdown(struct mipi_dsi_device *dsi)
 {
-	pr_info("ili7807s%s++\n", __func__);
+	pr_info("ili7807s chuangwei%s++\n", __func__);
 
-	struct device *dev = &dsi->dev;
-	struct chuangwei *ctx;
-	ctx = devm_kzalloc(dev, sizeof(struct chuangwei), GFP_KERNEL);
-	if (!ctx)
-		pr_info("%s- wt,chuangwei,ili7807s,cphy,vdo,90hz ,devm_kzalloc space fail\n", __func__);
-
-	mipi_dsi_set_drvdata(dsi, ctx);
-
-	ctx->dev = dev;
-	if((gestrue_status == 1) || (gestrue_spay == 1)) {
-		pr_info("ili7807s-gestrue_status == 1  ||  gestrue_spay == 1-%s++\n", __func__);
-
-		ctx->reset_gpio = devm_gpiod_get(ctx->dev, "reset", GPIOD_OUT_HIGH);
-		gpiod_set_value(ctx->reset_gpio, 0);
-		devm_gpiod_put(ctx->dev, ctx->reset_gpio);
-
-		usleep_range(2000, 2001);
-
-		ctx->bias_neg = devm_gpiod_get_index(ctx->dev, "bias", 1, GPIOD_OUT_HIGH);
-		gpiod_set_value(ctx->bias_neg, 0);
-		devm_gpiod_put(ctx->dev, ctx->bias_neg);
-
-		usleep_range(2000, 2001);
-
-		ctx->bias_pos = devm_gpiod_get_index(ctx->dev, "bias", 0, GPIOD_OUT_HIGH);
-		gpiod_set_value(ctx->bias_pos, 0);
-		devm_gpiod_put(ctx->dev, ctx->bias_pos);
-
-		usleep_range(2000, 2001);
-	}
+	gestrue_status = 0;
+	gestrue_spay = 0;
+	pr_info("optimize shutdown sequence gestrue_status gestrue_spay is 0 %s++\n", __func__);
 }
 
 static const struct of_device_id chuangwei_of_match[] = {

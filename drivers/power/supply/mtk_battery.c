@@ -343,6 +343,31 @@ int Get_get_charger()
 #endif
 //-Bug682591,caoyachun.wt,ADD,20220322,battery misc event
 
+
+//+Bug805088,yangchaojun.wt,add,high temperature charging cannot be fully charged
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+#define jeita_hightemp_cv 4200000
+int get_jeita_cv(void)
+{
+	struct mtk_charger *info;
+	struct power_supply *psy;
+	int ret;
+	psy = power_supply_get_by_name("mtk-master-charger");
+	if (psy == NULL || IS_ERR(psy)) {
+		pr_notice("%s Couldn't get psy\n", __func__);
+		return -1;
+	} else {
+		info = (struct mtk_charger *)power_supply_get_drvdata(psy);
+	}
+	ret = info->sw_jeita.cv;
+	bm_err("jeita_hightemp_cv: %d\n", ret);
+	return ret;
+}
+#endif
+//-Bug805088,yangchaojun.wt,add,high temperature charging cannot be fully charged
+
+
+
 int wakeup_fg_algo_cmd(
 	struct mtk_battery *gm, unsigned int flow_state, int cmd, int para1)
 {
@@ -829,9 +854,22 @@ static void mtk_battery_external_power_changed(struct power_supply *psy)
 
 		if (status.intval == POWER_SUPPLY_STATUS_FULL
 			&& gm->b_EOC != true) {
+//+Bug805088,yangchaojun.wt,add,high temperature charging cannot be fully charged		
+#if defined (CONFIG_N23_CHARGER_PRIVATE)		
+			if(get_jeita_cv() == jeita_hightemp_cv) {
+				gm->b_EOC = false;
+				bm_err("jeita_hightemp_cv\n");
+			} else {
+				bm_err("POWER_SUPPLY_STATUS_FULL\n");
+				gm->b_EOC = true;
+				notify_fg_chr_full(gm);
+			}
+#else
 			bm_err("POWER_SUPPLY_STATUS_FULL\n");
 			gm->b_EOC = true;
 			notify_fg_chr_full(gm);
+#endif
+//-Bug805088,yangchaojun.wt,add,high temperature charging cannot be fully charged
 		} else
 			gm->b_EOC = false;
 
@@ -2673,7 +2711,7 @@ void battery_update(struct mtk_battery *gm)
 {
 	struct battery_data *bat_data = &gm->bs_data;
 	struct power_supply *bat_psy = bat_data->psy;
-#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE) || defined (CONFIG_N26_CHARGER_PRIVATE)
 	struct mtk_charger *info;
 	struct power_supply *psy;
 	psy = power_supply_get_by_name("mtk-master-charger");
@@ -2697,7 +2735,7 @@ void battery_update(struct mtk_battery *gm)
 
 	if (battery_get_int_property(BAT_PROP_DISABLE))
 		bat_data->bat_capacity = 50;
-#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE) || defined (CONFIG_N26_CHARGER_PRIVATE)
 	if((NULL != psy) && (NULL != info)) {
 		if(info->notify_code & CHG_BAT_OT_STATUS) {
 			bat_data->bat_health = POWER_SUPPLY_HEALTH_OVERHEAT;
@@ -3882,10 +3920,16 @@ static int mtk_power_misc_psy_event(
 				nb, struct shutdown_controller, psy_nb);
 			if (gm->cur_bat_temp >= BATTERY_SHUTDOWN_TEMPERATURE) {
 				bm_debug(
-					"%d battery temperature >= %d,shutdown",
-					gm->cur_bat_temp, tmp);
-
+					"%d battery temperature >= %d, bootmode = %d, shutdown",
+					gm->cur_bat_temp, tmp, gm->bootmode);
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+			if (gm->bootmode == 8)
+				bm_debug("power off,not charging!\n");
+			else
 				wake_up_overheat(sdc);
+#else
+				wake_up_overheat(sdc);
+#endif
 			}
 		}
 	}

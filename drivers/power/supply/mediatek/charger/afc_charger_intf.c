@@ -398,6 +398,7 @@ err:
 */
 bool afc_get_is_connect(struct charger_manager *pinfo)
 {
+
 	return pinfo->afc.is_connect;
 }
 

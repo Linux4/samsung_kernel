@@ -856,6 +856,8 @@ int mtk_drm_sec_hnd_to_gem_hnd(struct drm_device *dev, void *data,
 		  mtk_gem_obj->sec_id,
 		  args->gem_hnd);
 
+	drm_gem_object_unreference_unlocked(&mtk_gem_obj->base);
+
 	return 0;
 }
 

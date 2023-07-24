@@ -855,8 +855,12 @@ void do_sw_jeita_state_machine(struct mtk_charger *info)
 
 		sw_jeita->sm = TEMP_ABOVE_T4;
 		sw_jeita->charging = false;
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+	} else if (info->battery_temp >= info->data.temp_t3_thres) {
+#else
 	} else if (info->battery_temp > info->data.temp_t3_thres) {
 		/* control 45 degree to normal behavior */
+#endif
 		if ((sw_jeita->sm == TEMP_ABOVE_T4)
 		    && (info->battery_temp
 			>= info->data.temp_t4_thres_minus_x_degree)) {
@@ -1860,7 +1864,7 @@ static void mtk_chg_get_tchg(struct mtk_charger *info)
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 extern int wt_chg_sw_term;
 #define WT_CHG_TERM_CURRENT (180)
-#define WT_CHG_CV_HYS		(25)
+#define WT_CHG_CV_HYS		(50)
 #define WT_CHG_RECHARGE_HYS		(100)
 
 static int mtk_chg_check_term(struct mtk_charger *info)
@@ -1906,7 +1910,7 @@ static int mtk_chg_check_term(struct mtk_charger *info)
 
 	if ((bat_sta == POWER_SUPPLY_STATUS_CHARGING)
 			&& (wt_chg_sw_term == 0)) {
-		if ((bat_vol > (chg_cv - WT_CHG_CV_HYS))			//vbat > 4385
+		if ((bat_vol > (chg_cv - WT_CHG_CV_HYS))			//vbat > 4350
 			&& (bat_cur < WT_CHG_TERM_CURRENT))
 		{
 			if (check_count > 3) {
@@ -3097,6 +3101,9 @@ static int mtk_charger_probe(struct platform_device *pdev)
 		info->chg_data[i].input_current_limit_by_aicl = -1;
 	}
 	info->enable_hv_charging = true;
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+	info->sw_jeita.sm = TEMP_T2_TO_T3;
+#endif
 
 	info->psy_desc1.name = "mtk-master-charger";
 	info->psy_desc1.type = POWER_SUPPLY_TYPE_UNKNOWN;

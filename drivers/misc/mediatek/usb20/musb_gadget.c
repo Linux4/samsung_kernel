@@ -25,7 +25,9 @@
 
 #include <musb_core.h>
 #include <mtk_musb.h>
-
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#include <linux/power_supply.h>
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 /* GADGET only support all-ep QMU, otherwise downgrade to non-QMU */
 #ifdef MUSB_QMU_LIMIT_SUPPORT
 #undef CONFIG_MTK_MUSB_QMU_SUPPORT
@@ -37,6 +39,30 @@
 #define FIFO_START_ADDR 512
 
 /* #define RX_DMA_MODE1 1 */
+
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+static void musb_vbus_draw_work(struct work_struct *data)
+{
+	struct musb *mtu = container_of(data, struct musb, draw_work);
+	static struct power_supply *chg_psy;
+	union power_supply_propval val;
+
+	pr_err("%s %d mA\n", __func__, mtu->vbus_draw);
+
+	if (chg_psy == NULL)
+		chg_psy = power_supply_get_by_name("mtk-master-charger");
+	if (chg_psy == NULL || IS_ERR(chg_psy)) {
+		pr_err("%s Couldn't get chg_psy\n", __func__);
+		return;
+	}
+
+	val.intval = !(mtu->vbus_draw > USB_SELF_POWER_VBUS_MAX_DRAW);
+	pr_err("%s intval: %d\n", __func__, val.intval);
+	power_supply_set_property(chg_psy,
+		 POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT, &val);
+
+}
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 
 /* MUSB PERIPHERAL status 3-mar-2006:
  *
@@ -2244,8 +2270,20 @@ static int musb_gadget_vbus_draw
 		(struct usb_gadget *gadget, unsigned int mA)
 {
 	struct musb *musb = gadget_to_musb(gadget);
-
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+	if (!musb->xceiv->set_power) {
+#if 0
+ 		return -EOPNOTSUPP;
+#else
+		pr_err("Run into draw_work flow");
+		musb->vbus_draw = mA;
+		schedule_work(&musb->draw_work);
+		return 0;
+#endif
+	}
+#else  /* CONFIG_WT_PROJECT_S96902AA1 */
 	if (!musb->xceiv->set_power)
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 		return -EOPNOTSUPP;
 	return usb_phy_set_power(musb->xceiv, mA);
 }
@@ -2444,7 +2482,9 @@ int musb_gadget_setup(struct musb *musb)
 			musb->controller->archdata.dev_dma_ops;
 	}
 #endif
-
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+	INIT_WORK(&musb->draw_work, musb_vbus_draw_work);
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 	status = usb_add_gadget_udc(musb->controller, &musb->g);
 	if (status)
 		goto err;

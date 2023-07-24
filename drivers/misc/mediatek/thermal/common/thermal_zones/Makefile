@@ -230,7 +230,7 @@ obj-$(CONFIG_THERMAL) += mtk_ts_pa.o
 obj-$(CONFIG_THERMAL) += mtk_ts_pa_thput.o
 
 ifeq ($(CONFIG_MTK_GAUGE_VERSION),30)
-obj-$(CONFIG_THERMAL) += mtk_ts_charger.o
+#obj-$(CONFIG_THERMAL) += mtk_ts_charger.o
 endif
 #obj-$(CONFIG_THERMAL) += mtk_ts_charger2.o
 
@@ -242,7 +242,10 @@ obj-$(CONFIG_THERMAL) += mtk_tsAll.o
 obj-$(CONFIG_THERMAL) += mtk_ts_imgsensor.o
 obj-$(CONFIG_THERMAL) += mtk_ts_dctm.o
 obj-$(CONFIG_THERMAL) += mtk_ts_pmic.o
-
+#[+Chk 127645, zhonghuijie2, add ntc add the thermal to S96818, 20230413]
+obj-$(CONFIG_THERMAL) += wt_mtk_ts_charger.o
+obj-$(CONFIG_THERMAL) += wt_mtk_ts_flash.o
+#[+Chk 127645, zhonghuijie2, add ntc add the thermal to S96818, 20230413]
 ifneq ($(CONFIG_MTK_BIF_SUPPORT),)
 #obj-$(CONFIG_THERMAL) += mtk_ts_bif.o
 endif

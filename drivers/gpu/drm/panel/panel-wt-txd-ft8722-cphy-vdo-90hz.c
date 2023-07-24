@@ -401,9 +401,9 @@ static void txd_panel_init(struct txd *ctx)
 #if defined(CONFIG_WT_PROJECT_S96902AA1)
 	txd_dcs_write_seq_static(ctx,0x00,0x80);
 	txd_dcs_write_seq_static(ctx,0xC5,0x88);
-	pr_info("%sft8722 ic volt 0.825\n");
+	pr_info("S96902AA1 ic volt 0.825v\n");
 #else
-	pr_info("%s ic volt 1.2v\n");
+	pr_info("ic volt 1.2v\n");
 #endif
 	txd_dcs_write_seq_static(ctx,0x00,0x00);
 	txd_dcs_write_seq_static(ctx,0xFF,0xFF,0xFF,0xFF);
@@ -612,9 +612,9 @@ static const struct drm_display_mode performance_mode = {
 };
 #else
 
-#define HFP (252)
+#define HFP (420)
 #define HSA (20)
-#define HBP (22)
+#define HBP (24)
 #define VFP_90HZ (46)
 #define VFP_60HZ (1290)
 #define VSA (2)
@@ -622,7 +622,7 @@ static const struct drm_display_mode performance_mode = {
 #define VAC (2408)
 #define HAC (1080)
 static const struct drm_display_mode default_mode = {
-	.clock = 306512,
+	.clock = 344436,
 	.hdisplay = HAC,
 	.hsync_start = HAC + HFP,
 	.hsync_end = HAC + HFP + HSA,
@@ -635,7 +635,7 @@ static const struct drm_display_mode default_mode = {
 };
 
 static const struct drm_display_mode performance_mode = {
-	.clock = 305935,
+	.clock = 343787,
 	.hdisplay = HAC,
 	.hsync_start = HAC + HFP,
 	.hsync_end = HAC + HFP + HSA,
@@ -703,7 +703,7 @@ static struct mtk_panel_params ext_params_90hz = {
 };
 #else
 static struct mtk_panel_params ext_params = {
-	.pll_clk = 537,
+	.pll_clk = 604,
 	//.vfp_low_power = VFP_45HZ,
 	.physical_width_um = 68430,
 	.physical_height_um = 152570,
@@ -720,8 +720,8 @@ static struct mtk_panel_params ext_params = {
 	.is_cphy = 1,
 	.dyn = {
 		.switch_en = 1,
-		.pll_clk = 533,
-		.hfp = 242,
+		.pll_clk = 545,
+		.hfp = 270,
 		.vfp = VFP_60HZ,
 	},
     .dyn_fps = {
@@ -735,7 +735,7 @@ static struct mtk_panel_params ext_params = {
 };
 
 static struct mtk_panel_params ext_params_90hz = {
-	.pll_clk = 537,
+	.pll_clk = 604,
 	.vfp_low_power = VFP_60HZ,
 	.physical_width_um = 68430,
 	.physical_height_um = 152570,
@@ -752,8 +752,8 @@ static struct mtk_panel_params ext_params_90hz = {
 	.is_cphy = 1,
 	.dyn = {
 		.switch_en = 1,
-		.pll_clk = 533,
-		.hfp = 242,
+		.pll_clk = 545,
+		.hfp = 270,
 		.vfp = VFP_90HZ,
 	},
     .dyn_fps = {
@@ -1038,36 +1038,8 @@ static void txd_panel_shutdown(struct mipi_dsi_device *dsi)
 {
 	pr_info("%s++\n", __func__);
 
-	struct device *dev = &dsi->dev;
-	struct txd *ctx;
-	ctx = devm_kzalloc(dev, sizeof(struct txd), GFP_KERNEL);
-	if (!ctx)
-		pr_info("%s- wt,txd,ft8722,cphy,vdo,90hz ,devm_kzalloc space fail\n", __func__);
-
-	mipi_dsi_set_drvdata(dsi, ctx);
-
-	ctx->dev = dev;
-	if(fts_gestrue_status == 1) {
-		pr_info("gestrue_status == 1  ||  gestrue_spay == 1-%s++\n", __func__);
-
-		ctx->reset_gpio = devm_gpiod_get(ctx->dev, "reset", GPIOD_OUT_HIGH);
-		gpiod_set_value(ctx->reset_gpio, 0);
-		devm_gpiod_put(ctx->dev, ctx->reset_gpio);
-
-		usleep_range(4000, 4001);
-
-		ctx->bias_neg = devm_gpiod_get_index(ctx->dev, "bias", 1, GPIOD_OUT_HIGH);
-		gpiod_set_value(ctx->bias_neg, 0);
-		devm_gpiod_put(ctx->dev, ctx->bias_neg);
-
-		usleep_range(2000, 2001);
-
-		ctx->bias_pos = devm_gpiod_get_index(ctx->dev, "bias", 0, GPIOD_OUT_HIGH);
-		gpiod_set_value(ctx->bias_pos, 0);
-		devm_gpiod_put(ctx->dev, ctx->bias_pos);
-
-		usleep_range(2000, 2001);
-	}
+	fts_gestrue_status = 0;
+	pr_info("optimize shutdown sequence fts_gestrue_status is 0 %s++\n", __func__);
 }
 
 static const struct of_device_id txd_of_match[] = {

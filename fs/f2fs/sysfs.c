@@ -13,11 +13,16 @@
 #include <linux/unicode.h>
 #include <linux/statfs.h>
 #include <linux/nls.h>
-
+#include <linux/string.h>
 #include "f2fs.h"
 #include "segment.h"
 #include "gc.h"
 #include <trace/events/f2fs.h>
+#ifdef CONFIG_PROC_FSLOG
+#include <linux/fslog.h>
+#else
+#define ST_LOG(fmt, ...)
+#endif
 
 #define SEC_BIGDATA_VERSION	(2)
 
@@ -733,11 +738,55 @@ static ssize_t f2fs_sbi_show(struct f2fs_attr *a,
 	}
 #endif
 
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+	if (!strcmp(a->attr.name, "streamid_attr")) {
+		int len = 0;
+
+		len = snprintf(buf, PAGE_SIZE,
+		"\"%s\":\"%lld\",\"%s\":\"%lld\",\"%s\":\"%lld\",\"%s\":\"%lld\",\"%s\":\"%lld\",\"%s\":\"%lld\",\"%s\":\"%lld\",\"%s\":\"%lld\",\"%s\":\"%lld\",\"%s\":\"%lld\",\"%s\":\"%lld\"\n",
+			" dirty count : ", sbi->logistic_scale[0],
+			" file size : ", sbi->logistic_scale[1],
+			" mtime interval : ", sbi->logistic_scale[2],
+			" mtime count : ", sbi->logistic_scale[3],
+			" cache dir : ", sbi->logistic_scale[4],
+			" fuse : ", sbi->logistic_scale[5],
+			" per write_size : ", sbi->logistic_scale[6],
+			" overwrite cnt : ", sbi->logistic_scale[7],
+			" append cnt : ", sbi->logistic_scale[8],
+			" overwrite ratio : ", sbi->logistic_scale[9],
+			" append ratio : ", sbi->logistic_scale[10]);
+		return len;
+	}
+
+	if (!strcmp(a->attr.name, "streamid_threshold"))
+		return sprintf(buf, "%lld\n", sbi->logistic_threshold);
+
+	if (!strcmp(a->attr.name, "streamid_bias"))
+		return sprintf(buf, "%lld\n", sbi->logistic_bias);
+#endif
 	ui = (unsigned int *)(ptr + a->offset);
 
 	return sprintf(buf, "%u\n", *ui);
 }
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+static bool check_streamid_params(struct f2fs_sb_info *sbi)
+{
+	int i;
 
+	if (sbi->logistic_threshold)
+		return true;
+
+	if (sbi->logistic_bias)
+		return true;
+
+	for (i = 0; i < STREAMID_PARAMS; i++) {
+		if (sbi->logistic_scale[i])
+			return true;
+	}
+
+	return false;
+}
+#endif
 static ssize_t __sbi_store(struct f2fs_attr *a,
 			struct f2fs_sb_info *sbi,
 			const char *buf, size_t count)
@@ -806,6 +855,76 @@ out:
 		}
 		return count;
 	}
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+	if (!strcmp(a->attr.name, "streamid_attr")) {
+		char *streamid_buf;
+		char *ptr;
+		long long streamid_attr[STREAMID_PARAMS];
+		long long lt;
+		int i = 0;
+
+		streamid_buf = kstrdup(buf, GFP_KERNEL);
+		if (!streamid_buf)
+			return -ENOMEM;
+
+		while ((ptr = strsep(&streamid_buf, " ")) != NULL) {
+
+			ret = kstrtoll(skip_spaces(ptr), 10, &lt);
+			if (ret < 0 || i >= STREAMID_PARAMS) {
+				kvfree(streamid_buf);
+				return -EINVAL;
+			}
+			streamid_attr[i++] = lt;
+		}
+
+		kvfree(streamid_buf);
+
+		if (i != STREAMID_PARAMS)
+			return -EINVAL;
+
+		ST_LOG("[StreamID] set streamid_attr ");
+
+		for (i = 0; i < STREAMID_PARAMS; i++)
+			sbi->logistic_scale[i] = streamid_attr[i];
+
+		return count;
+	}
+	if (!strcmp(a->attr.name, "streamid_threshold")) {
+		long long lt;
+		char *threshold;
+
+		threshold = kstrdup(buf, GFP_KERNEL);
+		if (!threshold)
+			return -ENOMEM;
+
+
+		if (kstrtoll(skip_spaces(threshold), 0, &lt) < 0) {
+			kvfree(threshold);
+			return -EINVAL;
+		}
+		sbi->logistic_threshold = lt;
+		ST_LOG("[StreamID] set ml_threshold : %lld", sbi->logistic_threshold);
+		kvfree(threshold);
+		return count;
+	}
+	if (!strcmp(a->attr.name, "streamid_bias")) {
+		long long lt;
+		char *bias;
+
+		bias = kstrdup(buf, GFP_KERNEL);
+		if (!bias)
+			return -ENOMEM;
+
+		if (kstrtoll(skip_spaces(bias), 0, &lt) < 0) {
+			kvfree(bias);
+			return -EINVAL;
+		}
+		sbi->logistic_bias = lt;
+		ST_LOG("[StreamID] set ml_threshold : %lld", sbi->logistic_bias);
+		kvfree(bias);
+		return count;
+	}
+#endif
 	ui = (unsigned int *)(ptr + a->offset);
 
 	ret = kstrtoul(skip_spaces(buf), 0, &t);
@@ -898,6 +1017,26 @@ out:
 	if (!strcmp(a->attr.name, "undiscard_thresh_MB")) {
 		SM_I(sbi)->dcc_info->undiscard_thresh_blks =
 			(unsigned int)t << 8;
+		return count;
+	}
+#endif
+
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+	if (!strcmp(a->attr.name, "mp_uid")) {
+		sbi->mp_uid = t%100000;
+		ST_LOG("[StreamID] set mp_uid : %lld", sbi->mp_uid);
+		return count;
+	}
+	if (!strcmp(a->attr.name, "streamid_enable")) {
+		if (check_streamid_params(sbi))
+			sbi->streamid_enable = t;
+		else
+			sbi->streamid_enable = 0;
+
+		ST_LOG("[StreamID] set streamid_enable : %lld", sbi->streamid_enable);
+#ifdef CONFIG_F2FS_ML_STREAMID_FORCE_COLD
+		ST_LOG("[StreamID] FORCE_COLD filter enabled");
+#endif
 		return count;
 	}
 #endif
@@ -1081,6 +1220,13 @@ F2FS_RW_ATTR(FAULT_INFO_TYPE, f2fs_fault_info, inject_type, inject_type);
 #endif
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, data_io_flag, data_io_flag);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, node_io_flag, node_io_flag);
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, mp_uid, mp_uid);
+F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, streamid_attr, logistic_scale);
+F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, streamid_threshold, logistic_threshold);
+F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, streamid_bias, logistic_bias);
+F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, streamid_enable, streamid_enable);
+#endif
 F2FS_RW_ATTR_640(F2FS_SBI, f2fs_sb_info, sec_gc_stat, sec_stat);
 F2FS_RW_ATTR_640(F2FS_SBI, f2fs_sb_info, sec_io_stat, sec_stat);
 #ifdef CONFIG_F2FS_SEC_DEBUG_NODE
@@ -1148,6 +1294,13 @@ static struct attribute *f2fs_attrs[] = {
 	ATTR_LIST(gc_no_gc_sleep_time),
 	ATTR_LIST(gc_idle),
 	ATTR_LIST(gc_urgent),
+#ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
+	ATTR_LIST(mp_uid),
+	ATTR_LIST(streamid_attr),
+	ATTR_LIST(streamid_threshold),
+	ATTR_LIST(streamid_bias),
+	ATTR_LIST(streamid_enable),
+#endif
 	ATTR_LIST(reclaim_segments),
 	ATTR_LIST(main_blkaddr),
 	ATTR_LIST(max_small_discards),

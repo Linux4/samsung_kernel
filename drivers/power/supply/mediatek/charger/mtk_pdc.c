@@ -26,6 +26,10 @@ void pdc_init_table(void)
 {
 	pd->cap.nr = 0;
 	pd->cap.selected_cap_idx = -1;
+#if defined(CONFIG_W2_CHARGER_PRIVATE)
+	pd->vbus_l = pd->data.pd_vbus_low_bound / 1000;
+	pd->vbus_h = pd->data.pd_vbus_upper_bound / 1000;
+#endif
 
 	if (pdc_is_ready()) {
 		adapter_get_cap(&pd->cap);
@@ -294,7 +298,9 @@ int pdc_get_setting(int *newvbus, int *newcur,
 	ret = charger_get_ibus(&ibus);
 	if (ret < 0) {
 		chr_err("[%s] get ibus fail, keep default voltage\n", __func__);
+#ifndef	CONFIG_N28_CHARGER_PRIVATE
 		return -1;
+#endif
 	}
 
 	charger_get_mivr_state(&chg1_mivr);
@@ -302,7 +308,10 @@ int pdc_get_setting(int *newvbus, int *newcur,
 
 	vbus = battery_get_vbus();
 	ibus = ibus / 1000;
-
+#ifdef	CONFIG_N28_CHARGER_PRIVATE
+	if (ibus == 0)
+		ibus = 2000;
+#endif
 	if ((chg1_mivr && (vbus < mivr1 / 1000 - 500)))
 		goto reset;
 

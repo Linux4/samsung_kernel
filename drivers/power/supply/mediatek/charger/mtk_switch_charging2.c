@@ -60,7 +60,14 @@
 #include "mtk_switch_charging.h"
 #include "mtk_intf.h"
 
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#ifndef WT_COMPILE_FACTORY_VERSION
+#define CONFIG_USBIF_COMPLIANCE 1
+#endif /* WT_COMPILE_FACTORY_VERSION */
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
+
 bool g_chg_done = false;
+bool first_enter_pdc = false;
 
 struct tag_bootmode {
 	u32 size;
@@ -108,8 +115,19 @@ static void _disable_all_charging(struct charger_manager *info)
 	if (info->enable_pe_4)
 		pe40_stop();
 
-	if (pdc_is_ready())
+	if (pdc_is_ready()) {
+#if defined(CONFIG_W2_CHARGER_PRIVATE)
+		struct charger_custom_data *pdata = &info->data;
+		struct pdc_data *data = NULL;
+
+		data = pdc_get_data();
+		chr_err("%s: %d,%d,%d,%d\n", __func__,data->pd_vbus_low_bound,data->pd_vbus_upper_bound,
+			pdata->pd_vbus_low_bound,pdata->pd_vbus_upper_bound);
+		data->pd_vbus_low_bound = pdata->pd_vbus_low_bound;
+		data->pd_vbus_upper_bound = pdata->pd_vbus_upper_bound;
+#endif
 		pdc_stop();
+	}
 }
 
 static void swchg_select_charging_current_limit(struct charger_manager *info)
@@ -233,6 +251,40 @@ static void swchg_select_charging_current_limit(struct charger_manager *info)
 				TYPEC_RP_LEVEL));
 	} else if (info->chr_type == STANDARD_HOST) {
 		if (IS_ENABLED(CONFIG_USBIF_COMPLIANCE)) {
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+			if (info->usb_state == USB_SUSPEND) {
+				charger_dev_enable_powerpath(info->chg1_dev,false);
+				pdata->input_current_limit =
+					info->data.usb_charger_current_suspend;
+				chr_err("powerpatch flase input_current_limit =%d,info->usb_state = %d\n",pdata->input_current_limit,info->usb_state);
+			} else if (info->usb_state == USB_UNCONFIGURED) {
+				charger_dev_enable_powerpath(info->chg1_dev,true);
+				pdata->input_current_limit =
+				info->data.usb_charger_current_unconfigured;
+				chr_err("powerpatch en input_current_limit =%d,info->usb_state = %d\n",pdata->input_current_limit,info->usb_state);
+			} else if (info->usb_state == USB_CONFIGURED) {
+				charger_dev_enable_powerpath(info->chg1_dev,true);
+				pdata->input_current_limit =
+				info->data.usb_charger_current_configured;
+				chr_err("powerpatch en input_current_limit =%d,info->usb_state = %d\n",pdata->input_current_limit,info->usb_state);
+			} else {
+				charger_dev_enable_powerpath(info->chg1_dev,true);
+				pdata->input_current_limit =
+				info->data.usb_charger_current_unconfigured;
+				chr_err("powerpatch en input_current_limit =%d,info->usb_state = %d\n",pdata->input_current_limit,info->usb_state);
+			}
+			pdata->charging_current_limit =
+					pdata->input_current_limit;
+		} else {
+			//charger_dev_enable_hz(info->chg1_dev, 0);
+			charger_dev_enable_powerpath(info->chg1_dev,true);
+			pdata->input_current_limit =
+					info->data.usb_charger_current;
+			/* it can be larger */
+			pdata->charging_current_limit =
+					info->data.usb_charger_current;
+		}
+#else  /* CONFIG_WT_PROJECT_S96902AA1 */
 			if (info->usb_state == USB_SUSPEND)
 				pdata->input_current_limit =
 					info->data.usb_charger_current_suspend;
@@ -255,6 +307,7 @@ static void swchg_select_charging_current_limit(struct charger_manager *info)
 			pdata->charging_current_limit =
 					info->data.usb_charger_current;
 		}
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 	} else if (info->chr_type == NONSTANDARD_CHARGER) {
 		pdata->input_current_limit =
 				info->data.non_std_ac_charger_current;
@@ -413,13 +466,13 @@ done:
 	mutex_unlock(&swchgalg->ichg_aicr_access_mutex);
 }
 
+#ifndef CONFIG_N28_CHARGER_PRIVATE
 static void first_select_charging_current_limit(struct charger_manager *info)
 {
 	struct charger_data *pdata = NULL;
 	struct switch_charging_alg_data *swchgalg = info->algorithm_data;
 
-	if (get_boot_mode() == NORMAL_BOOT && mt_get_charger_type() == STANDARD_CHARGER){
-		
+	if (get_boot_mode() == NORMAL_BOOT && mt_get_charger_type() == STANDARD_CHARGER) {
 		pdata = &info->chg1_data;
 		mutex_lock(&swchgalg->ichg_aicr_access_mutex);
 		pdata->input_current_limit = pdata->charging_current_limit = info->sw_jeita.cc;
@@ -438,6 +491,7 @@ static void first_select_charging_current_limit(struct charger_manager *info)
 		mutex_unlock(&swchgalg->ichg_aicr_access_mutex);
       }
 }
+#endif
 
 static void swchg_select_cv(struct charger_manager *info)
 {
@@ -487,11 +541,22 @@ static void swchg_turn_on_charging(struct charger_manager *info)
 		chr_err("[charger]Charger Error, turn OFF charging !\n");
 	} else if ((boot_mode == META_BOOT) ||
 			(boot_mode == ADVMETA_BOOT)) {
+/* +S96818AA1-4520, churui1.wt, MODIFY, 20230529, BT/FT probabilistic test failed ATO mode of sd7601 */
+#ifdef	CONFIG_N28_CHARGER_PRIVATE
+		charging_enable = true;
+		info->chg1_data.input_current_limit = 200000; /* 200mA */
+		charger_dev_set_input_current(info->chg1_dev,
+					info->chg1_data.input_current_limit);
+		chr_err("In meta mode, enable charging and set input current limit to 200mA\n");
+/* -S96818AA1-4520, churui1.wt, MODIFY, 20230529, BT/FT probabilistic test failed ATO mode of sd7601 */
+#else
 		charging_enable = false;
 		info->chg1_data.input_current_limit = 200000; /* 200mA */
-	charger_dev_set_input_current(info->chg1_dev,
+		charger_dev_set_input_current(info->chg1_dev,
 					info->chg1_data.input_current_limit);
 		chr_err("In meta mode, disable charging and set input current limit to 200mA\n");
+#endif
+
 	} else {
 		mtk_pe20_start_algorithm(info);
 		if (mtk_pe20_get_is_connect(info) == false)
@@ -772,7 +837,7 @@ static int select_pdc_charging_current_limit(struct charger_manager *info)
 	pdata = &info->chg1_data;
 
 	//Extb+ P210310-04076,lvyuanchuan.wt,Modify,20210406,config input current for SDP
-	if(info->chr_type == STANDARD_HOST){
+	if((info->chr_type == STANDARD_HOST) || (info->chr_type == CHARGER_UNKNOWN)){
 		// lvyuanchuan.wt, USB Charging current
 		pdata->input_current_limit = 500000;
 		pdata->charging_current_limit = 500000;
@@ -983,6 +1048,13 @@ static int mtk_switch_chr_cc(struct charger_manager *info)
 
 	if (pdc_is_ready() &&
 		!info->leave_pdc) {
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+		if (pe40_is_ready()) {
+			charger_dev_enable(info->chg1_dev, false);
+			g_pd_work_status = 1;
+			return 0;
+		}
+#endif
 		if (info->enable_hv_charging == true) {
 			chr_err("enter PDC!\n");
 			swchgalg->state = CHR_PDC;
@@ -1110,9 +1182,12 @@ static int mtk_switch_charging_run(struct charger_manager *info)
 		info->pd_type,
 		swchgalg->total_charging_time);
 
-	if(swchgalg->total_charging_time == 0 && swchgalg->state == CHR_CC &&swchgalg->disable_charging == false){
+#ifndef CONFIG_N28_CHARGER_PRIVATE
+	if (swchgalg->total_charging_time == 0 && swchgalg->state == CHR_CC && swchgalg->disable_charging == false) {
 		first_select_charging_current_limit(info);
 	}
+#endif
+
 	if (mtk_pdc_check_charger(info) == false &&
 	    mtk_is_TA_support_pd_pps(info) == false) {
 #ifdef CONFIG_AFC_CHARGER
@@ -1131,8 +1206,6 @@ static int mtk_switch_charging_run(struct charger_manager *info)
 	do {
 		chr_err("%s_1 [%d] %d\n", __func__, swchgalg->state,info->pd_type);
 		switch (swchgalg->state) {
-			chr_err("%s_2 [%d] %d\n", __func__, swchgalg->state,
-				info->pd_type);
 		case CHR_CC:
 			ret = mtk_switch_chr_cc(info);
 			break;

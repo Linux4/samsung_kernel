@@ -68,7 +68,9 @@
 #include "mtk_charger_init.h"
 #include <tcpci_config.h>
 #include "mtk_switch_charging.h"
+#if defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
 #include <../../../misc/mediatek/leds/leds-mtk-disp.h>
+#endif
 static struct charger_manager *pinfo;
 static struct list_head consumer_head = LIST_HEAD_INIT(consumer_head);
 static DEFINE_MUTEX(consumer_mutex);
@@ -79,6 +81,13 @@ extern int batt_full_capacity;
 
 bool g_pd_active = 0;
 static void ato_charger_limit_soc(struct charger_manager *info, int min, int max);
+
+/* +churui1.wt, ADD, 20230519, CP stop charging control on ATO version */
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+extern void usbpd_pm_enable_cp_for_ato(bool enable);
+#endif
+/* -churui1.wt, ADD, 20230519, CP stop charging control on ATO version */
+
 static void lcmoff_switch(int onoff);
 struct tag_bootmode {
 	u32 size;
@@ -137,8 +146,18 @@ void BATTERY_SetUSBState(int usb_state_value)
 		} else {
 			chr_err("%s Success! Set %d\n", __func__,
 				usb_state_value);
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+			if (pinfo) {
+				chr_err("%s into pinfo %d\n", __func__,
+				usb_state_value);
+				pinfo->usb_state = usb_state_value;
+
+				_wake_up_charger(pinfo);
+			}
+#else  /* CONFIG_WT_PROJECT_S96902AA1 */
 			if (pinfo)
 				pinfo->usb_state = usb_state_value;
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 		}
 	}
 }
@@ -1060,6 +1079,10 @@ void do_sw_jeita_state_machine(struct charger_manager *info)
 {
 	struct sw_jeita_data *sw_jeita;
 
+#if defined (CONFIG_W2_CHARGER_PRIVATE)
+	int cycle_fv;
+#endif
+
 	sw_jeita = &info->sw_jeita;
 	sw_jeita->pre_sm = sw_jeita->sm;
 	sw_jeita->charging = true;
@@ -1173,6 +1196,13 @@ void do_sw_jeita_state_machine(struct charger_manager *info)
 		sw_jeita->cv = info->data.battery_cv;
 		sw_jeita->cc = info->data.ac_charger_input_current;
 	}
+
+#if defined (CONFIG_W2_CHARGER_PRIVATE)
+	cycle_fv = wt_set_batt_cycle_fv(false);
+	if ((cycle_fv != 0) && (sw_jeita->cv > cycle_fv)) {
+		sw_jeita->cv = cycle_fv;
+	}
+#endif
 
 	chr_err("[SW_JEITA]preState:%d newState:%d tmp:%d cv:%d cc:%d\n",
 		sw_jeita->pre_sm, sw_jeita->sm, info->battery_temp,
@@ -1685,6 +1715,10 @@ static int mtk_charger_plug_out(struct charger_manager *info)
 	charger_dev_set_input_current(info->chg1_dev, 100000);
 	charger_dev_set_mivr(info->chg1_dev, info->data.min_charger_voltage);
 	charger_dev_plug_out(info->chg1_dev);
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+	//charger_dev_enable_hz(info->chg1_dev, 0);
+	charger_dev_enable_powerpath(info->chg1_dev,true);//dis hiz  usb if
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 	return 0;
 }
 
@@ -1915,7 +1949,6 @@ static void check_battery_exist(struct charger_manager *info)
 static void check_dynamic_mivr(struct charger_manager *info)
 {
 	int vbat = 0;
-
 	if (info->enable_dynamic_mivr) {
 		if (!mtk_pe40_get_is_connect(info) &&
 #ifdef CONFIG_AFC_CHARGER
@@ -1950,7 +1983,6 @@ static void mtk_chg_get_tchg(struct charger_manager *info)
 
 	pdata = &info->chg1_data;
 	ret = charger_dev_get_temperature(info->chg1_dev, &tchg_min, &tchg_max);
-
 	if (ret < 0) {
 		pdata->junction_temp_min = -127;
 		pdata->junction_temp_max = -127;
@@ -2146,7 +2178,9 @@ static void kpoc_power_off_check(struct charger_manager *info)
 				if (vbus >= 0 && vbus < 2500 && !mt_charger_plugin()) {
 					chr_err("Unplug Charger/USB in KPOC mode, shutdown\n");
 					if (system_state != SYSTEM_POWER_OFF) {
+#if defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
 						mt_leds_brightness_set("lcd-backlight", 0);
+#endif
 						msleep(200);
 						kernel_power_off();
 					}
@@ -2268,12 +2302,18 @@ static void ato_charger_limit_soc(struct charger_manager *info, int min, int max
 	if(limit_soc >= max) {
 		charger_dev_enable_hz(info->chg1_dev, 1);
 		_mtk_charger_do_charging(info, 0);
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+		usbpd_pm_enable_cp_for_ato(0);
+#endif
 		chr_err("ato_charger_limit_soc:disable charging\n");
 	}
 
     if(limit_soc <= min) {
 		charger_dev_enable_hz(info->chg1_dev, 0);
 		_mtk_charger_do_charging(info, 1);
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+		usbpd_pm_enable_cp_for_ato(1);
+#endif
 		chr_err("ato_charger_limit_soc:enable charging\n");
 	}
 //- Bug653977 lvyuanchuan.wt 2021/05/20 Modify,Low power off and full charge occurred during aging test
@@ -2376,7 +2416,7 @@ static int charger_routine_thread(void *arg)
 #ifdef WT_COMPILE_FACTORY_VERSION
 //+Bug805518,churui1.wt, turn off charging limit during the battery test on ATO version
 		chr_err("ato_soc ctrl=%d\n",ato_soc);
-		if (is_charger_on && (ato_soc == 0)) {
+		if (is_charger_on && (ato_soc == 0) && (battery_capacity_limit == false)) {
 			charging_flag = 0;
 			ato_charger_limit_soc(info, 60, 80);
 			chr_err("ato_soc if limit ato_soc_user_control\n");
@@ -2389,6 +2429,9 @@ static int charger_routine_thread(void *arg)
 			if (charging_flag == 0) {
 				charger_dev_enable_hz(info->chg1_dev, 0);
 				_mtk_charger_do_charging(info, 1);
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+				usbpd_pm_enable_cp_for_ato(1);
+#endif
 				charging_flag = 1;
 			}
 			chr_err("ato_soc else limit ato_soc_user_control=%d\n",ato_soc);
@@ -2419,15 +2462,16 @@ static int charger_routine_thread(void *arg)
 				if (info->do_algorithm)
 					info->do_algorithm(info);
 				wakeup_sc_algo_cmd(&pinfo->sc.data, SC_EVENT_CHARGING, 0);
-			} else
+			} else {
 				wakeup_sc_algo_cmd(&pinfo->sc.data, SC_EVENT_STOP_CHARGING, 0);
+			}
 		} else
-			chr_debug("disable charging\n");
+			chr_err("disable charging\n");
 
 		spin_lock_irqsave(&info->slock, flags);
 		__pm_relax(info->charger_wakelock);
 		spin_unlock_irqrestore(&info->slock, flags);
-		chr_debug("%s end , %d\n",
+		chr_err("%s end , %d\n",
 			__func__, info->charger_thread_timeout);
 		mutex_unlock(&info->charger_lock);
 	}
@@ -2568,7 +2612,11 @@ static int mtk_charger_parse_dt(struct charger_manager *info,
 	}
 
 	if (of_property_read_u32(np, "usb_charger_current", &val) >= 0) {
+#ifdef WT_COMPILE_FACTORY_VERSION //usb if
+		info->data.usb_charger_current = 500000;
+#else
 		info->data.usb_charger_current = val;
+#endif /* WT_COMPILE_FACTORY_VERSION */
 	} else {
 		chr_err("use default USB_CHARGER_CURRENT:%d\n",
 			USB_CHARGER_CURRENT);
@@ -4041,10 +4089,16 @@ void ato_soc_charging_ctrl(struct charger_manager *info, bool en)
 	if (en) {
 		charger_dev_enable_hz(info->chg1_dev, 0);
 		_mtk_charger_do_charging(info, 1);
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+		usbpd_pm_enable_cp_for_ato(1);
+#endif
 		chr_err("ato_soc_charging_ctrl:enable charging\n");
 	} else {
 		charger_dev_enable_hz(info->chg1_dev, 1);
 		_mtk_charger_do_charging(info, 0);
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+		usbpd_pm_enable_cp_for_ato(0);
+#endif
 		chr_err("ato_soc_charging_ctrl:disable charging\n");
 	}
 }
@@ -4883,7 +4937,7 @@ static void mtk_charger_shutdown(struct platform_device *dev)
 #ifdef CONFIG_AFC_CHARGER
  /*yuanjian.wt modify for AFC when shutdown*/
 	if (mtk_pe20_get_is_connect(info) || mtk_pe_get_is_connect(info) || afc_get_is_connect(info)) {
-		if(afc_get_is_connect(info))
+		if (afc_get_is_connect(info))
 			afc_reset_ta_vchr(info);
 #else
 	if (mtk_pe20_get_is_connect(info) || mtk_pe_get_is_connect(info)) {
@@ -4895,12 +4949,16 @@ static void mtk_charger_shutdown(struct platform_device *dev)
 			mtk_pe_reset_ta_vchr(info);
 		pr_debug("%s: reset TA before shutdown\n", __func__);
 	}
-	if (factory_shipmode == true){
+	if (factory_shipmode == true) {
 		printk("##shutdown with entering shipmode!\n");
-		charger_dev_set_shipmode(info->chg1_dev,true);
-		charger_dev_set_shipmode_delay(info->chg1_dev,false);
-
-	}else
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+		charger_dev_set_shipmode(info->chg1_dev, true);
+		charger_dev_set_shipmode_delay(info->chg1_dev, false);
+#else
+		charger_dev_set_shipmode_delay(info->chg1_dev, true); /* churui1.wt 2023.03.18 modify for enter shipmode delay*/
+		charger_dev_set_shipmode(info->chg1_dev, true);
+#endif
+	} else
 		printk("##shutdown only!!\n");
 }
 

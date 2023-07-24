@@ -434,7 +434,7 @@
 #define HX9035_CH_NUM 8
 #define HX9035_MAX_XFER_SIZE 32
 
-#define HX9035_ODR_MS 50
+#define HX9035_ODR_MS 200
 
 #define HX9035_DATA_LOCK 1
 #define HX9035_DATA_UNLOCK 0
@@ -503,9 +503,11 @@ struct hx9035_platform_data {
 #endif
     bool sar_first_boot;
     int interrupt_count;
-    u16 ch0_backgrand_cap;
-    u16 ch1_backgrand_cap;
-    u16 ch2_backgrand_cap;
+    int16_t ch0_backgrand_cap;
+    int16_t ch1_backgrand_cap;
+    int16_t ch2_backgrand_cap;
+    int user_test;
+    bool anfr_export_exit;
 #endif
 #if POWER_ENABLE
     int power_state;

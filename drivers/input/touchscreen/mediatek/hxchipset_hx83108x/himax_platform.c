@@ -732,7 +732,7 @@ int himax_common_remove_spi(struct spi_device *spi)
 	return ret;
 }
 
-static void himax_common_suspend(struct device *dev)
+void himax_common_suspend(struct device *dev)
 {
 	struct himax_ts_data *ts = private_ts;
 
@@ -741,7 +741,7 @@ static void himax_common_suspend(struct device *dev)
 	I("%s: END\n", __func__);
 }
 
-static void himax_common_resume(struct device *dev)
+void himax_common_resume(struct device *dev)
 {
 	struct himax_ts_data *ts = private_ts;
 
@@ -752,6 +752,18 @@ static void himax_common_resume(struct device *dev)
 
 
 #if defined(HX_CONFIG_FB)
+static void himax_common_suspend_tpd(struct device *dev)
+{
+
+	I("%s: only return suspend;\n", __func__);
+
+}
+
+static void himax_common_resume_tpd(struct device *dev)
+{
+	I("%s: only return resume;\n", __func__);
+}
+
 int fb_notifier_callback(struct notifier_block *self,
 		unsigned long event, void *data)
 {
@@ -781,6 +793,11 @@ int fb_notifier_callback(struct notifier_block *self,
 			queue_delayed_work(ts->ts_int_workqueue,
 				&ts->ts_int_work,
 				msecs_to_jiffies(DELAY_TIME));
+#if defined(HX_SMART_WAKEUP)	
+		if (ts->SMWP_enable) {
+			himax_int_enable(0);
+		}
+#endif
 #else
 			himax_common_resume(ts->dev);
 #endif
@@ -846,8 +863,15 @@ static int himax_common_local_init(void)
 static struct tpd_driver_t tpd_device_driver = {
 	.tpd_device_name = HIMAX_common_NAME,
 	.tpd_local_init = himax_common_local_init,
+
+#if defined(HX_CONFIG_FB)
+	.suspend = himax_common_suspend_tpd,
+	.resume = himax_common_resume_tpd,
+#else
 	.suspend = himax_common_suspend,
 	.resume = himax_common_resume,
+#endif
+
 #if defined(TPD_HAVE_BUTTON)
 	.tpd_have_button = 1,
 #else

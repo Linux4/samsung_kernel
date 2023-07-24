@@ -93,7 +93,7 @@
 /*#define HX_STRESS_SELF_TEST*/
 
 /*=============================================*/
-
+#define HX_CONFIG_FB
 /* Enable it if driver go into suspend/resume twice */
 /*#undef HX_CONFIG_FB*/
 
@@ -125,7 +125,7 @@ extern struct drm_panel gNotifier_dummy_panel;
 /* used for 102d overlay */
 /*#define HX_CODE_OVERLAY*/
 /*Independent threads run the notification chain notification function resume*/
-/*#define HX_CONTAINER_SPEED_UP*/
+#define HX_CONTAINER_SPEED_UP
 #else
 #define HX_TP_PROC_GUEST_INFO
 #endif
@@ -133,6 +133,7 @@ extern struct drm_panel gNotifier_dummy_panel;
 #if defined(HX_EXCP_RECOVERY) && defined(HX_ZERO_FLASH)
 /* used for 102e/p zero flash */
 /*#define HW_ED_EXCP_EVENT*/
+#define DD_VSN_RECOV_EXCP
 #endif
 
 #if defined(HX_BOOT_UPGRADE) || defined(HX_ZERO_FLASH)
@@ -168,7 +169,8 @@ extern uint32_t g_proj_id;
 #if defined(HX_CONTAINER_SPEED_UP)
 /*Resume queue delay work time after LCM RST (unit:ms)
  */
-#define DELAY_TIME 40
+
+#define DELAY_TIME 150
 #endif
 
 #if defined(HX_RST_PIN_FUNC)
@@ -250,7 +252,8 @@ enum HX_TS_PATH {
 	HX_REPORT_COORD_RAWDATA,
 };
 #define HX_ALL0_EXCPT_TIMES 2
-#define HX_ALL0_EXCPT_DD_TIMES 3
+#define HX_supend_ALL0_EXCPT_TIMES 5
+//#define HX_ALL0_EXCPT_DD_TIMES 3
 enum HX_TS_STATUS {
 	HX_TS_GET_DATA_FAIL = -4,
 	HX_EXCP_EVENT,
@@ -537,6 +540,12 @@ struct himax_ts_data {
 #if defined(HX_TP_PROC_GUEST_INFO)
 	struct workqueue_struct *guest_info_wq;
 	struct work_struct guest_info_work;
+#endif
+#if defined(DD_VSN_RECOV_EXCP)
+int update_fw_fail;
+int update_fw_flag;
+int vsn_flag;
+bool gesture_fail_flag;
 #endif
 
 

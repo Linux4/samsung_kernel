@@ -761,6 +761,8 @@ int mtkts_flash_get_hw_temp(void)
 
 int mtkts_flash_get_temp_bootstage(void)
 {
+    /*[+Chk 127645, zhonghuijie2, add ntc add the thermal to S96818, 20230413]*/
+    #ifdef CONFIG_WT_FLASH_THERMAL_FEATURE
 	int temp = mtkts_flash_get_hw_temp();
 	if (temp >= threshold_val) {
 		fled_notify_add();
@@ -770,7 +772,8 @@ int mtkts_flash_get_temp_bootstage(void)
 		fled_notify_remove();
 		printk("[EveD][T][%s] FlashLED temp cool down, FLED could be turned on! Temp = %d\n", __func__, temp);
 	}
-	
+	#endif
+    /*[+Chk 127645, zhonghuijie2, add ntc add the thermal to S96818, 20230413]*/
 	return 0;
 }
 

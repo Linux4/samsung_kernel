@@ -61,7 +61,11 @@ static DEFINE_SPINLOCK(cmdq_sec_task_list_lock);
 
 /* secure context list. note each porcess has its own sec context */
 static struct list_head gCmdqSecContextList;
-
+//+S96818AA1-1936,liangyiyi.wt,modify,2023/05/26, mtk patch:cmdq
+#ifdef CONFIG_MTK_S96818_CAMERA
+static int wt_is_secure = 0;
+#endif
+//+S96818AA1-1936,liangyiyi.wt,modify,2023/05/26, mtk patch:cmdq
 #if defined(CMDQ_SECURE_PATH_SUPPORT)
 
 /* sectrace interface */
@@ -564,7 +568,6 @@ s32 cmdq_sec_fill_iwc_command_msg_unlocked(
 	if (task->secData.addrMetadataCount > 0) {
 		struct iwcCmdqAddrMetadata_t *addr;
 		u8 i;
-
 		iwc->command.metadata.addrListLength =
 			task->secData.addrMetadataCount;
 		memcpy((iwc->command.metadata.addrList),
@@ -575,12 +578,26 @@ s32 cmdq_sec_fill_iwc_command_msg_unlocked(
 		/* command copy from user space may insert jump,
 		 * thus adjust index of handle list
 		 */
+		//+S96818AA1-1936,liangyiyi.wt,modify,2023/05/26, mtk patch:cmdq
+		#ifdef CONFIG_MTK_S96818_CAMERA
+		if(wt_is_secure == 0)
+		{
+			addr = iwc->command.metadata.addrList;
+			for (i = 0; i < ARRAY_SIZE(iwc->command.metadata.addrList);
+				i++) {
+				addr[i].instrIndex = addr[i].instrIndex +
+					addr[i].instrIndex / CMDQ_CMD_CNT;
+			}
+		}
+		#else
 		addr = iwc->command.metadata.addrList;
 		for (i = 0; i < ARRAY_SIZE(iwc->command.metadata.addrList);
 			i++) {
 			addr[i].instrIndex = addr[i].instrIndex +
 				addr[i].instrIndex / CMDQ_CMD_CNT;
 		}
+		#endif
+		//-S96818AA1-1936,liangyiyi.wt,modify,2023/05/26, mtk patch:cmdq
 	}
 
 	/* medatada: debug config */
@@ -1938,7 +1955,11 @@ static void cmdq_sec_exec_task_async_impl(struct work_struct *work_item)
 		handle->pkt->cmd_buf_size, handle->pkt->buf_size,
 		handle->scenario, handle->engineFlag);
 	CMDQ_MSG("%s", long_msg);
-
+	//+S96818AA1-1936,liangyiyi.wt,modify,2023/05/26, mtk patch:cmdq
+	#ifdef CONFIG_MTK_S96818_CAMERA
+	wt_is_secure = handle->secData.is_secure;
+	#endif
+	//-S96818AA1-1936,liangyiyi.wt,modify,2023/05/26, mtk patch:cmdq
 	if (!handle->secData.is_secure)
 		CMDQ_ERR("not secure %s", long_msg);
 

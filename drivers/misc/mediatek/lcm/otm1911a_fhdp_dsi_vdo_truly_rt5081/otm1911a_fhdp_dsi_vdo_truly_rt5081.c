@@ -568,11 +568,12 @@ static int lcm_bias_disable(void)
 }
 
 #else
+/*
 static int lcm_bias_regulator_init(void)
 {
 	return 0;
 }
-
+*/
 static int lcm_bias_enable(void)
 {
 	return 0;

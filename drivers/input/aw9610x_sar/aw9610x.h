@@ -454,10 +454,12 @@ uint32_t aw9610x_reg_default[] = {
 };
 
 static struct sensors_classdev sensors_capsensor_ch0_cdev = {
-    .name = "grip_sensor",
-    .vendor = "awinic",
+    .name = "AW9610X",
+    .vendor = "AWINIC",
+    .sensor_name = "grip_sensor",
     .version = 1,
     .type = SENSOR_TYPE_AWINIC_CAPSENSE,
+    .sensor_name = "grip_sensor",
     .max_range = "5",
     .resolution = "5.0",
     .sensor_power = "3",
@@ -471,10 +473,12 @@ static struct sensors_classdev sensors_capsensor_ch0_cdev = {
 };
 
 static struct sensors_classdev sensors_capsensor_ch2_cdev = {
-    .name = "grip_sensor_sub",
-    .vendor = "awinic",
+    .name = "AW9610X",
+    .vendor = "AWINIC",
+    .sensor_name = "grip_sensor_sub",
     .version = 1,
     .type = SENSOR_TYPE_AWINIC_CAPSENSE,
+    .sensor_name = "grip_sensor_sub",
     .max_range = "5",
     .resolution = "5.0",
     .sensor_power = "3",
@@ -488,10 +492,12 @@ static struct sensors_classdev sensors_capsensor_ch2_cdev = {
 };
 
 static struct sensors_classdev sensors_capsensor_ch3_cdev = {
-    .name = "grip_sensor_wifi",
-    .vendor = "awinic",
+    .name = "AW9610X",
+    .vendor = "AWINIC",
+    .sensor_name = "grip_sensor_wifi",
     .version = 1,
     .type = SENSOR_TYPE_AWINIC_CAPSENSE,
+    .sensor_name =  "grip_sensor_wifi",
     .max_range = "5",
     .resolution = "5.0",
     .sensor_power = "3",

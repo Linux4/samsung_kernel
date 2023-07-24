@@ -460,3 +460,8 @@ config MTK_ULTRASND_PROXIMITY
 	  emulate physical proximity sensor. Using
 	  IPI interface to communicate with SCP side and
 	  be controlled by sensor hal.
+
+# +Req S96818AA1-1936 shenwenlei.wt 20230524  audio bringup
+config WT_PROJECT_AUDIO_PA
+	 bool "support audio pa"
+# -Req S96818AA1-1936 shenwenlei.wt 20230524  audio bringup

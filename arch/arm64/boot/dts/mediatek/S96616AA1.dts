@@ -588,7 +588,7 @@
 	
 	min_charge_temp = <0>;
 	min_charge_temp_plus_x_degree = <6>;
-	max_charge_temp = <50>;
+	max_charge_temp = <55>;
 	max_charge_temp_minus_x_degree = <47>;
 
 	/* charging current */

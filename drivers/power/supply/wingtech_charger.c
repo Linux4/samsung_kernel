@@ -2145,7 +2145,7 @@ static ssize_t batt_current_ua_now_show(struct device *dev,
 		printc("Couldn't get mtchg_info\n");
 		return sprintf(buf, "%d\n",ret);
 	}
-	ret = get_battery_current(mtchg_info);
+	ret = get_battery_current(mtchg_info) * 1000;
 	return sprintf(buf, "%d\n",ret);
 }
 static ssize_t hv_disable_show(struct device *dev,

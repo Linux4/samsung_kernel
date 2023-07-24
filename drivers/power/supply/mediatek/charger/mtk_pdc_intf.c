@@ -129,6 +129,11 @@ static bool mtk_is_pdc_ready(struct charger_manager *info)
 
 bool mtk_pdc_check_charger(struct charger_manager *info)
 {
+	if(info == NULL){
+		chr_err("%s [Loren]info is NULL\n",__func__);
+		return false;
+	}
+
 	if (mtk_is_pdc_ready(info) == false)
 		return false;
 

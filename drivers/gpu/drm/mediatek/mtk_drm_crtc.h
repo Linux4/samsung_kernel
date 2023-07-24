@@ -47,6 +47,8 @@
 
 #define pgc	_get_context()
 
+#define DISPON_FRAME 1
+
 /* TODO: BW report module should not hardcode */
 enum DISP_PMQOS_SLOT {
 	DISP_PMQOS_OVL0_BW = 0,
@@ -740,7 +742,11 @@ struct mtk_drm_crtc {
 	int need_lock_tid;
 	int customer_lock_tid;
 
+	enum mtk_set_lcm_sceanario set_lcm_scn;
+
 	int frame_update_cnt;
+
+	bool skip_frame;
 };
 
 struct mtk_crtc_state {
@@ -917,5 +923,5 @@ void mtk_crtc_start_for_pm(struct drm_crtc *crtc);
 void mtk_crtc_stop_for_pm(struct mtk_drm_crtc *mtk_crtc, bool need_wait);
 bool mtk_crtc_frame_buffer_existed(void);
 int m4u_sec_init(void);
-
+void release_fence_frame_skip(struct drm_crtc *crtc);
 #endif /* MTK_DRM_CRTC_H */

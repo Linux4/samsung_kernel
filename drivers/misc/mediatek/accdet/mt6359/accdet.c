@@ -1299,6 +1299,11 @@ static u32 adjust_eint_analog_setting(u32 eintID)
 		/* enable RG_EINT0CONFIGACCDET */
 		pmic_write_set(PMIC_RG_EINT0CONFIGACCDET_ADDR,
 			PMIC_RG_EINT0CONFIGACCDET_SHIFT);
+		/* +bug P230407-00703,shenwenlei.wt 20230421, modify accdet 500k@2v */
+		/*select 500k, use internal resistor */
+		pmic_write_set(PMIC_RG_EINT0HIRENB_ADDR,
+			PMIC_RG_EINT0HIRENB_SHIFT);
+		/* -bug P230407-00703,shenwenlei.wt 20230421, modify accdet 500k@2v */
 #elif defined CONFIG_ACCDET_SUPPORT_EINT1
 		/* enable RG_EINT1CONFIGACCDET */
 		pmic_write_set(PMIC_RG_EINT1CONFIGACCDET_ADDR,
@@ -3136,7 +3141,22 @@ static void config_eint_init_by_mode(void)
 #endif
 		}
 	} else if (accdet_dts.eint_detect_mode == 0x4) {
-		/* do nothing */
+		/* +bug P230407-00703,shenwenlei.wt 20230421, modify accdet 500k@2v */
+		/* setting 500k, VTH 2V, phase out new customized parameter */
+		/* enable RG_EINT0CONFIGACCDET */
+		pmic_write_set(PMIC_RG_EINT0CONFIGACCDET_ADDR,
+			PMIC_RG_EINT0CONFIGACCDET_SHIFT);
+		/*select 500k, use internal resistor */
+		pmic_write_set(PMIC_RG_EINT0HIRENB_ADDR,
+			PMIC_RG_EINT0HIRENB_SHIFT);
+		/* select VTH to 2v */
+		pmic_write_mset(PMIC_RG_EINTCOMPVTH_ADDR,
+			PMIC_RG_EINTCOMPVTH_SHIFT, PMIC_RG_EINTCOMPVTH_MASK, 0x2);
+		pr_info("%s: %x=%x %x=%x", __func__,
+			PMIC_RG_EINT0CONFIGACCDET_ADDR,
+			pmic_read(PMIC_RG_EINT0CONFIGACCDET_ADDR),
+			PMIC_RG_EINTCOMPVTH_ADDR, pmic_read(PMIC_RG_EINTCOMPVTH_ADDR));
+		/* -bug P230407-00703,shenwenlei.wt 20230421, modify accdet 500k@2v */
 	} else if (accdet_dts.eint_detect_mode == 0x5) {
 		/* do nothing */
 	}
@@ -3147,10 +3167,6 @@ static void config_eint_init_by_mode(void)
 			PMIC_RG_ACCDETSPARE_SHIFT,
 			0x3, 0x3);
 	}
-	/* new customized parameter */
-	pmic_write_mset(PMIC_RG_EINTCOMPVTH_ADDR,
-		PMIC_RG_EINTCOMPVTH_SHIFT, PMIC_RG_EINTCOMPVTH_MASK,
-		accdet_dts.eint_comp_vth);
 }
 #endif /* end of CONFIG_ACCDET_EINT_IRQ */
 

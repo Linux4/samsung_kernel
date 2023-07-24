@@ -2944,7 +2944,7 @@
                 mediatek,check_dfd_support = <1>;
 		mediatek,dfd_infra_base = <0x390>;
 		mediatek,dfd_ap_addr_offset = <24>;
-		mediatek,dfd_latch_offset = <0x48>;
+		mediatek,dfd_latch_offset = <0x44>;
 	};
 
 	dfd_cache: dfd_cache {
@@ -6130,7 +6130,9 @@
 		/* enable_pe_4; */
 		enable_type_c;
 		power_path_support;
+#ifndef CONFIG_WT_PROJECT_S96902AA1 //usb if
 		enable_dynamic_mivr;
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 		bootmode = <&chosen>;
 
 		/* common */
@@ -6147,7 +6149,11 @@
 		usb_charger_current_suspend = <0>;
 		usb_charger_current_unconfigured = <70000>;
 		usb_charger_current_configured = <500000>;
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+		usb_charger_current = <100000>;
+#else
 		usb_charger_current = <500000>;
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 		ac_charger_current = <2050000>;
 		ac_charger_input_current = <3200000>;
 		non_std_ac_charger_current = <500000>;

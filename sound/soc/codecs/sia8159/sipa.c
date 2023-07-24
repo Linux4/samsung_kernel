@@ -54,6 +54,12 @@
 #include <linux/module.h>
 #include <linux/version.h>
 
+/* +Req S96818AA1-1936 shenwenlei.wt 20230423 audio bringup */
+#ifdef CONFIG_WT_PROJECT_AUDIO_PA
+#include <linux/hardware_info.h>
+#endif
+/* -Req S96818AA1-1936 shenwenlei.wt 20230423 audio bringup */
+
 #include "sipa_common.h"
 #include "sipa_regmap.h"
 #include "sipa_tuning_if.h"
@@ -132,6 +138,8 @@ static const char *support_chip_type_name_table[] = {
 	[CHIP_TYPE_SIA8152]  = "sia8152",
 	[CHIP_TYPE_SIA8152S] = "sia8152s",
 	[CHIP_TYPE_SIA8100X] = "sia8100x",
+	[CHIP_TYPE_SIA8001] = "sia8001",
+	[CHIP_TYPE_SIA8102] = "sia8102",
 	[CHIP_TYPE_SIA8159]  = "sia8159",
 	[CHIP_TYPE_SIA8159A] = "sia8159a",
 	[CHIP_TYPE_SIA81X9]  = "sia81x9",
@@ -2418,7 +2426,9 @@ static int sipa_probe(struct platform_device *pdev)
 	if (!si_pa->sia91xx_wq)
 		return -ENOMEM;
 
-	if (CHIP_TYPE_SIA8100X == si_pa->chip_type) {
+	if (CHIP_TYPE_SIA8100X == si_pa->chip_type ||
+	    CHIP_TYPE_SIA8001 == si_pa->chip_type ||
+	    CHIP_TYPE_SIA8102 == si_pa->chip_type) {
 		/* load firmware */
 		sipa_param_load_fw(&pdev->dev);
 	}
@@ -2521,7 +2531,20 @@ static struct platform_driver si_sipa_dev_driver = {
 static int __init sipa_pa_init(void)
 {
 	int ret = 0;
+/* +Req S96818AA1-1936 shenwenlei.wt 20230423 audio bringup */
+#ifdef CONFIG_WT_PROJECT_AUDIO_PA
+        char* s1= "";
+        s1 = boardid_get_n28();
+        if((strncmp(s1, "S96818EA1", 9) != 0) && (strncmp(s1, "S96818FA1", 9) != 0)) {
+                pr_info("[  info][%s] %s: get n28 board_id = %s \r\n",
+                        LOG_FLAG, __func__, s1);
+                return 0;
+        }
 
+	pr_info("[  info][%s] %s: get n28 board_id = %s \r\n",
+                        LOG_FLAG, __func__, s1);
+#endif
+/* -Req S96818AA1-1936 shenwenlei.wt 20230423 audio bringup */
 	pr_info("[ info][%s] %s: si_pa driver version : %s \r\n",
 		LOG_FLAG, __func__, SIPA_DRIVER_VERSION);
 

@@ -8,6 +8,11 @@ config WT_FLASH_THERMAL_FEATURE
 	  Say Y here for enable flash thermal feature
 #[-Chk 127645,songyuanqiao@wingtech.com,add the thermal ntc 20220704]
 
+config WT_PROJECT_S96818AA1
+        bool "Define for S96818AA1"
+	help
+	Say Y here for distinguish different projects
+
 config WT_PROJECT_S96901AA1
 	bool "Define for S96901AA1"
 	help
@@ -33,6 +38,14 @@ config WT_PROJECT_S96616AA1
  	help
  	  Say Y here for distinguish different projects
 #-bug549930, yangzheng.wt, add, 20220216, add project macro
+
+#+S96818AA1-2426, wangzhuquan1.wt,add, 20230423,Volume down key + power key enter dump mode for 7 seconds
+config WT_FINAL_RELEASE
+        bool "Define for final release"
+        default n
+        help
+         Say Y here for final release
+#-S96818AA1-2426, wangzhuquan1.wt,add, 20230423,Volume down key + power key enter dump mode for 7 seconds
 
 source "drivers/amba/Kconfig"
 

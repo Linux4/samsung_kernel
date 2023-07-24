@@ -478,6 +478,12 @@ struct tcpc_device {
 	uint8_t pd_wait_bc12_count;
 	struct power_supply *chg_psy;
 #endif /* CONFIG_USB_PD_WAIT_BC12 */
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#ifdef CONFIG_USB_PD_CHECK_RX_PENDING_IF_SRTOUT
+	struct completion alert_done;
+	bool is_rx_event;
+#endif /* CONFIG_USB_PD_CHECK_RX_PENDING_IF_SRTOUT */
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 #endif /* CONFIG_USB_POWER_DELIVERY */
 	u8 vbus_level:2;
 	bool vbus_safe0v;
@@ -490,10 +496,18 @@ struct tcpc_device {
 #ifdef CONFIG_WATER_DETECTION
 	int usbid_calib;
 	struct delayed_work wd_status_work;
+	struct task_struct *wd_task;
+	struct alarm wd_wakeup_timer;
+	atomic_t wd_wakeup;
+	atomic_t wd_thread_stop;
+	wait_queue_head_t wd_wait_queue;
+	struct wakeup_source wd_thread_wlock;
 #ifdef CONFIG_WD_INIT_POWER_OFF_CHARGE
 	bool init_pwroff_check;
 #endif /* CONFIG_WD_INIT_POWER_OFF_CHARGE */
 	bool water_state;
+	bool is_water_checked;
+	bool retry_wd;
 #endif /* CONFIG_WATER_DETECTION */
 #ifdef CONFIG_CABLE_TYPE_DETECTION
 	enum tcpc_cable_type typec_cable_type;

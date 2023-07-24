@@ -142,6 +142,13 @@ static inline struct bio *erofs_read_raw_page(struct bio *bio,
 		err = 0;
 		goto has_updated;
 	}
+	
+	if (cleancache_get_page(page) == 0) {
+		err = 0;
+		SetPageMappedToDisk(page);
+		SetPageUptodate(page);
+		goto has_updated;
+	}
 
 	/* note that for readpage case, bio also equals to NULL */
 	if (bio &&
@@ -162,6 +169,9 @@ submit_bio_retry:
 		err = erofs_map_blocks(inode, &map, EROFS_GET_BLOCKS_RAW);
 		if (err)
 			goto err_out;
+
+		if ((map.m_flags & EROFS_MAP_MAPPED)) 
+			SetPageMappedToDisk(page);
 
 		/* zero out the holed page */
 		if (!(map.m_flags & EROFS_MAP_MAPPED)) {
@@ -227,6 +237,7 @@ submit_bio_retry:
 		bio->bi_opf = REQ_OP_READ;
 	}
 
+	SetPageMappedToDisk(page);
 	err = bio_add_page(bio, page, PAGE_SIZE, 0);
 	/* out of the extent or bio is full */
 	if (err < PAGE_SIZE)

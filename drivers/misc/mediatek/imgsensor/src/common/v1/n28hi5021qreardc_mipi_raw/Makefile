@@ -1,0 +1,1 @@
+obj-y += n28hi5021qreardc_mipiraw_Sensor.o

@@ -670,7 +670,7 @@ struct report_info_block {
 #define GESTURE_O					0x69
 #define GESTURE_S					0x6A
 #define GESTURE_Z					0x6B
-#define GESTURE_DOUBLE_TAP				KEY_HOMEPAGE
+#define GESTURE_DOUBLE_TAP				KEY_WAKEUP
 #define KEY_BLACK_UI_GESTURE				0x1c7
 #define KEY_GESTURE_POWER				KEY_POWER
 #define KEY_GESTURE_UP					KEY_UP

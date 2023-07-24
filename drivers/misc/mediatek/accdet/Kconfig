@@ -29,3 +29,9 @@ config FOUR_KEY_HEADSET
 	  If you want to use MediaTek ACCDET four key headset,
 	  say Y.
 	  If unsure, say N.
+
+# +Req S96818AA1-1936 shenwenlei.wt 20230525  audio bringup
+config WT_PROJECT_HEADPHONE_NODE
+        default y
+        tristate
+# -Req S96818AA1-1936 shenwenlei.wt 20230525  audio bringup

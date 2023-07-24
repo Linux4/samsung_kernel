@@ -500,6 +500,10 @@ struct musb {
 	bool usb_connected;
 
 	struct work_struct dp_work;
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+	struct work_struct draw_work;
+	unsigned vbus_draw;
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 };
 
 static inline struct musb *gadget_to_musb(struct usb_gadget *g)

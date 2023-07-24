@@ -759,6 +759,42 @@
 #define N26_C2519_DEP_DELTA_SENSOR_ID            0x020f
 #define SENSOR_DRVNAME_N26_C2519_DEP_DELTA_MIPI_MONO          "n26_c2519_dep_delta_mipi_mono"
 //-bug720412,lintaicheng.wt,ADD,2022/1/28,n26_c2515_dep_cxt sensor bringup
+//+S96818AA1-1936,liudijin.wt,ADD,2023/04/11,hi5021 hi5022 main sensor bringup
+#define N28HI5021QREARTRULY_SENSOR_ID  0x5021+4
+#define SENSOR_DRVNAME_N28HI5021QREARTRULY_MIPI_RAW "n28hi5021qreartruly_mipi_raw"
+#define N28HI5021QREARDC_SENSOR_ID  0x5021+5
+#define SENSOR_DRVNAME_N28HI5021QREARDC_MIPI_RAW "n28hi5021qreardc_mipi_raw"
+#define N28HI5022QREARTXD_SENSOR_ID  0x5022+1
+#define SENSOR_DRVNAME_N28HI5022QREARTXD_MIPI_RAW "n28hi5022qreartxd_mipi_raw"
+//+S96818AA1-1936,liudijin.wt,ADD,2023/04/11,hi5022 main sensor bringup
+//+S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/12,hi846 sub sensor bringup
+#define N28HI846FRONTTRULY_SENSOR_ID              0x0846
+#define SENSOR_DRVNAME_N28HI846FRONTTRULY_MIPI_RAW "n28hi846fronttruly_mipi_raw"
+//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/12,hi846 sub sensor bringup
+//+S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/12,gc08a3 sub sensor bringup
+#define N28GC08A3FRONTCXT_SENSOR_ID              0x08a3
+#define SENSOR_DRVNAME_N28GC08A3FRONTCXT_MIPI_RAW "n28gc08a3frontcxt_mipi_raw"
+//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/12,gc08a3 sub sensor bringup
+//+S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/19,sc800cs sub sensor bringup
+#define N28SC800CSFRONTDC_SENSOR_ID              0xd126
+#define SENSOR_DRVNAME_N28SC800CSFRONTDC_MIPI_RAW "n28sc800csfrontdc_mipi_raw"
+//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/19,sc800cs sub sensor bringup
+//+S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/25,c8496 sub sensor bringup
+#define N28C8496FRONTDC_SENSOR_ID              0x0803
+#define SENSOR_DRVNAME_N28C8496FRONTDC_MIPI_RAW "n28c8496frontdc_mipi_raw"
+//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/25,c8496 sub sensor bringup
+//+S96818AA1-1936,chenming.wt,ADD,2023/04/11,c2519 depth sensor bringup
+#define N28C2519DEPCXT_SENSOR_ID  0x020f
+#define SENSOR_DRVNAME_N28C2519DEPCXT_MIPI_MONO "n28c2519depcxt_mipi_mono"
+#define N28C2519DEPCXT2_SENSOR_ID  0x020f+1
+#define SENSOR_DRVNAME_N28C2519DEPCXT2_MIPI_MONO "n28c2519depcxt2_mipi_mono"
+//-S96818AA1-1936,chenming.wt,ADD,2023/04/11,c2519 depth sensor bringup
+//+S96818AA1-1936,chenming.wt,ADD,2023/04/24,gc2375h depth sensor bringup
+#define N28GC2375HDEPLH_SENSOR_ID  0x2375
+#define SENSOR_DRVNAME_N28GC2375HDEPLH_MIPI_RAW "n28gc2375hdeplh_mipi_raw"
+#define N28GC2375HDEPLH2_SENSOR_ID  0x2375+1
+#define SENSOR_DRVNAME_N28GC2375HDEPLH2_MIPI_RAW "n28gc2375hdeplh2_mipi_raw"
+//-S96818AA1-1936,chenming.wt,ADD,2023/04/24,gc2375h depth sensor bringup
 #endif
 /******************************************************************************
  *

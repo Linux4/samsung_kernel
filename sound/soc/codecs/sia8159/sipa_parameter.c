@@ -24,7 +24,7 @@
 #include "sipa_parameter.h"
 
 #define LOAD_FW_BY_DELAY_WORK
-#define LOAD_TIME_OUT 	(5000)
+#define LOAD_TIME_OUT 	(8000)
 
 static const char *sipa_fw_name = "sipa.bin";
 static SIPA_PARAM *sipa_parameters = NULL;

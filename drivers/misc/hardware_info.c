@@ -57,6 +57,16 @@ int hardwareinfo_set_prop(int cmd, const char *name)
 	return 0;
 }
 
+//+ bug 828710, liuling 2023.03.13 add get hardwareinfo, start
+char* hardwareinfo_get_prop(int cmd)
+{
+    if(cmd < 0 || cmd >= HARDWARE_MAX_ITEM)
+        return NULL;
+
+    return hardwareinfo_name[cmd];
+}
+//- bug 828710, liuling 2023.03.13 add get hardwareinfo, end
+
 int __weak tid_hardware_info_get(char *buf, int size)
 {
 	snprintf(buf, size, "touch info interface is not ready\n");
@@ -86,6 +96,22 @@ static char* boardid_get(void)
 
 	return s1;
 }
+
+/* +Req S96818AA1-1936,shenwenlei.wt,20230423, audio bringup */
+#ifdef CONFIG_WT_PROJECT_AUDIO_PA
+char* boardid_get_n28(void)
+{
+        char* s1= "";
+
+        s1 = boardid_get();
+
+        printk("board_id found in cmdline : %s\n", board_id);
+
+        return s1;
+}
+EXPORT_SYMBOL_GPL(boardid_get_n28);
+#endif
+/* -Req S96818AA1-1936,shenwenlei.wt,20230423, audio bringup */
 
 //Bug 438050 njm@wt, 20190415 start
 static char* hwid_get(void)
@@ -296,6 +322,16 @@ static long hardwareinfo_ioctl(struct file *file, unsigned int cmd,unsigned long
 		hardwareinfo_set_prop(HARDWARE_LCD_SERIALNUM, lcm_serialnum);
 		hardwareinfo_num = HARDWARE_LCD_SERIALNUM;
 		break;
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+		/* +Req S96818AA1-5169,zhouxiaopeng2.wt,20230519, mode information increased */
+	case HARDWARE_PD_CHARGER_GET:
+		hardwareinfo_num = HARDWARE_PD_CHARGER;
+		break;
+	case HARDWARE_CHARGER_PUMP_GET:
+		hardwareinfo_num = HARDWARE_CHARGER_PUMP;
+		break;
+		/* -Req S96818AA1-5169,zhouxiaopeng2.wt,20230519, mode information increased */
+#endif
 	default:
 		ret = -EINVAL;
 		goto err_out;

@@ -29,7 +29,7 @@
 #endif
 
 
-
+extern char* boardid_get(void);
 /*flashlightbi Equipment description structure */
 struct flashlightbi_dev
 {

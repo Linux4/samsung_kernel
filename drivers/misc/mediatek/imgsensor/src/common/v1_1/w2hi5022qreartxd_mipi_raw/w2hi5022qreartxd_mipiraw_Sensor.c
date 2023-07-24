@@ -104,7 +104,7 @@ static struct imgsensor_info_struct imgsensor_info = {
          .mipi_data_lp2hs_settle_dc = 85,
          /*     following for GetDefaultFramerateByScenario()    */
          .max_framerate = 300,
-         .mipi_pixel_rate =720000000,//1500Mbps*4/10=600 000 000
+         .mipi_pixel_rate =960000000,//1500Mbps*4/10=600 000 000
      },
      .cap = {
          .pclk = 124000000,
@@ -118,7 +118,7 @@ static struct imgsensor_info_struct imgsensor_info = {
          .mipi_data_lp2hs_settle_dc = 85,
          /*     following for GetDefaultFramerateByScenario()    */
          .max_framerate = 300,
-         .mipi_pixel_rate =720000000,//2148Mbps*4/10=859 200 000
+         .mipi_pixel_rate =960000000,//2148Mbps*4/10=859 200 000
      },
      .normal_video = { //4096X2304@30fps
          .pclk = 124000000,
@@ -132,7 +132,7 @@ static struct imgsensor_info_struct imgsensor_info = {
          .mipi_data_lp2hs_settle_dc = 85,
          /*     following for GetDefaultFramerateByScenario()    */
          .max_framerate = 300,
-         .mipi_pixel_rate =720000000,//1040Mbpsx4/10=416 000 000
+         .mipi_pixel_rate =960000000,//1040Mbpsx4/10=416 000 000
      },
      .hs_video = {//2000x1132@120fps
          .pclk = 124000000,
@@ -165,7 +165,7 @@ static struct imgsensor_info_struct imgsensor_info = {
      .custom1 = {//binning 12.5
          .pclk = 124000000,
          .linelength =  1158,
-         .framelength = 4460,
+         .framelength = 4459,
          .startx = 0,
          .starty = 0,
          .grabwindow_width = 4096,

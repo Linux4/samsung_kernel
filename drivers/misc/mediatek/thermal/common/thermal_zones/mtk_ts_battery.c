@@ -123,17 +123,21 @@ static int polling_factor1 = 5000;
 static int polling_factor2 = 10000;
 
 /* static int battery_write_flag=0; */
-//+bug793013 , yexiaojun.wt, modify, 20220829, modify the threshold of thermal shutdownBatteryTemperature to 70 degree for S96901AA1
+//+bug793013 , yexiaojun.wt, modify, 20220829, modify the threshold of thermal shutdownBatteryTemperature to 70 degree for S96901AA1;bug96818AA1-2187 , zhangpei.wt, modify, 20230511, modify the threshold of system shutdownBatteryTemperature to 70 degree for S96818AA1
 #if defined(CONFIG_WT_PROJECT_S96901AA1)
 	#define mtktsbattery_TEMP_CRIT 70000    /* 70.000 degree Celsius */
 #elif defined(CONFIG_WT_PROJECT_S96901WA1)
+	#define mtktsbattery_TEMP_CRIT 70000    /* 70.000 degree Celsius */
+#elif defined(CONFIG_WT_PROJECT_S96818AA1)
+	#define mtktsbattery_TEMP_CRIT 70000    /* 70.000 degree Celsius */
+#elif defined(CONFIG_WT_PROJECT_S96818BA1)
 	#define mtktsbattery_TEMP_CRIT 70000    /* 70.000 degree Celsius */
 #elif defined(CONFIG_WT_PROJECT_S96902AA1)
 	#define mtktsbattery_TEMP_CRIT 90000    /* 90.000 degree Celsius */
 #else
 	#define mtktsbattery_TEMP_CRIT 70000	/* 70.000 degree Celsius */
 #endif
-//-bug793013 , yexiaojun.wt, modify, 20220829, modify the threshold of thermal shutdownBatteryTemperature to 70 degree for S96901AA1
+//-bug793013 , yexiaojun.wt, modify, 20220829, modify the threshold of thermal shutdownBatteryTemperature to 70 degree for S96901AA1;bug96818AA1-2187 , zhangpei.wt, modify, 20230511, modify the threshold of system shutdownBatteryTemperature to 70 degree for S96818AA1
 
 #define mtktsbattery_dprintk(fmt, args...)   \
 do {                                    \

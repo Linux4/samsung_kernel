@@ -989,9 +989,13 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 		}
 	}
 
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+    if (!strncmp(epfile->ffs->dev_name, "mtp", 3) || !strncmp(epfile->ffs->dev_name, "ptp", 3))
+		usb_boost();
+#else
 	if (!strncmp(epfile->ffs->dev_name, "mtp", 3))
 		usb_boost();
-
+#endif
 	spin_lock_irq(&epfile->ffs->eps_lock);
 
 	if (epfile->ep != ep) {
@@ -1119,7 +1123,7 @@ static int
 ffs_epfile_open(struct inode *inode, struct file *file)
 {
 	struct ffs_epfile *epfile = inode->i_private;
-#if defined(CONFIG_MACH_MT6765)
+#if defined(CONFIG_MACH_MT6765) || defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
 	struct cpumask cpu_mask;
 	int i = 1, idx = 0;
 	unsigned int mask = 0x0F;
@@ -1154,6 +1158,21 @@ ffs_epfile_open(struct inode *inode, struct file *file)
 	}
 #endif
 
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+    if (!strncmp(epfile->ffs->dev_name, "mtp", 3) || !strncmp(epfile->ffs->dev_name, "ptp", 3)) {
+		cpumask_clear(&cpu_mask);
+
+		while (i <= mask) {
+			if (i & mask) {
+				cpumask_set_cpu(idx, &cpu_mask);
+				pr_info("Set CPU[%d] On\n", idx);
+			}
+			idx++;
+			i = i << 1;
+		}
+		set_cpus_allowed_ptr(current, &cpu_mask);
+	}
+#endif
 	atomic_set(&epfile->opened, 1);
 	file->private_data = epfile;
 	ffs_data_opened(epfile->ffs);

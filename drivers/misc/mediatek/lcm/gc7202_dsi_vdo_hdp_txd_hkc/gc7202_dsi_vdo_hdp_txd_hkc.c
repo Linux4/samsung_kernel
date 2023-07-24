@@ -124,6 +124,11 @@ static struct LCM_setting_table init_setting_vdo[] = {
 	{0xFB,1,{0x00}},
 	{0xFF,1,{0x10}},
 	{0xFB,1,{0x00}},
+
+	{0xFF,1,{0xC3}},
+	{0xFB,1,{0x00}},
+	{0x13,1,{0x07}},
+
 	{0xFF,1,{0x28}},
 	{0x53,1,{0x44}},
 	{0x50,1,{0x4C}},
@@ -345,7 +350,7 @@ static struct LCM_setting_table init_setting_vdo[] = {
 	{0x32,1,{0x01}},//PWM频率设定为20KHz
 	{0x33,1,{0x08}},//PWM频率设定为20KHz
 	{0xFF,1,{0x22}},
-	{0xEF,1,{0x04}}, //Version_2
+	{0xEF,1,{0x05}}, //Version_5
 	{0xFF,1,{0x10}},
 	{0x51,2,{0x00,0x00}},//PWM 占空比默认0
 	{0x53,1,{0x2c}},//diming
@@ -658,7 +663,7 @@ static unsigned int lcm_ata_check(unsigned char *buffer)
 static void lcm_setbacklight_cmdq(void* handle,unsigned int level)
 {
 	unsigned int bl_lvl;
-	bl_lvl = wingtech_bright_to_bl(level,255,10,4095,48);
+	bl_lvl = wingtech_bright_to_bl(level,255,10,4095,45);
 	pr_debug("%s,gc7202_txd backlight: level = %d,bl_lvl=%d\n", __func__, level,bl_lvl);
 	// set 12bit
 	bl_level[0].para_list[0] = (bl_lvl & 0xF00) >> 8;

@@ -938,13 +938,24 @@ static void pd_report_vbus_present(struct tcpc_device *tcpc)
 void pd_put_vbus_changed_event(struct tcpc_device *tcpc, bool from_ic)
 {
 	int vbus_valid;
+#ifndef CONFIG_WT_PROJECT_S96902AA1 //usb if
 	bool postpone_vbus_present = false;
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 
 	mutex_lock(&tcpc->access_lock);
 	vbus_valid = tcpci_check_vbus_valid(tcpc);
 
 	switch (tcpc->pd_wait_vbus_once) {
 	case PD_WAIT_VBUS_VALID_ONCE:
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+		if (vbus_valid) //{
+//#if CONFIG_USB_PD_VBUS_PRESENT_TOUT
+//			postpone_vbus_present = from_ic;
+//#endif	/* CONFIG_USB_PD_VBUS_PRESENT_TOUT */
+//			if (!postpone_vbus_present)
+				pd_report_vbus_present(tcpc);
+//		}
+#else  /* CONFIG_WT_PROJECT_S96902AA1 */
 		if (vbus_valid) {
 #if CONFIG_USB_PD_VBUS_PRESENT_TOUT
 			postpone_vbus_present = from_ic;
@@ -952,6 +963,7 @@ void pd_put_vbus_changed_event(struct tcpc_device *tcpc, bool from_ic)
 			if (!postpone_vbus_present)
 				pd_report_vbus_present(tcpc);
 		}
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 		break;
 
 	case PD_WAIT_VBUS_INVALID_ONCE:
@@ -962,11 +974,12 @@ void pd_put_vbus_changed_event(struct tcpc_device *tcpc, bool from_ic)
 		break;
 	}
 	mutex_unlock(&tcpc->access_lock);
-
+#ifndef CONFIG_WT_PROJECT_S96902AA1 //usb if
 #if CONFIG_USB_PD_VBUS_PRESENT_TOUT
 	if (postpone_vbus_present)
 		tcpc_enable_timer(tcpc, PD_TIMER_VBUS_PRESENT);
 #endif	/* CONFIG_USB_PD_VBUS_PRESENT_TOUT */
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 }
 
 void pd_put_vbus_safe0v_event(struct tcpc_device *tcpc)

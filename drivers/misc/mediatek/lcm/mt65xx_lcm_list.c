@@ -54,6 +54,26 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 	&hx83108_dsi_vdo_hdp_boe_boe_drv,
 #endif
 
+#if defined(N28_ICNL9911C_DSI_VDO_HDP_TXD_INX)
+	&n28_icnl9911c_dsi_vdo_hdp_txd_inx_drv,
+#endif
+
+#if defined(N28_NT36528_DSI_VDO_HDP_TRULY_TRULY)
+	&n28_nt36528_dsi_vdo_hdp_truly_truly_drv,
+#endif
+
+//+S96818AA1-1936,liuzhizun2.wt,add,2023/05/16,ft8057s lcd bringup
+#if defined(N28_FT8057S_DSI_VDO_HDP_DSBJ_MANTIX)
+	&n28_ft8057s_dsi_vdo_hdp_dsbj_mantix_drv,
+#endif
+//-S96818AA1-1936,liuzhizun2.wt,add,2023/05/16,ft8057s lcd bringup
+
+//+S96818AA1-1936,liuzhizun2.wt,add,2023/05/15,td4160 lcd bringup
+#if defined(N28_TD4160_DSI_VDO_HDP_XINXIAN_INX)
+	&n28_td4160_dsi_vdo_hdp_xinxian_inx_drv,
+#endif
+//-S96818AA1-1936,liuzhizun2.wt,add,2023/05/15,td4160 lcd bringup
+
 #if defined(VIRTUAL_DSI_VDO_DEFAULT)
 	&virtual_dsi_vdo_default_drv,
 #endif

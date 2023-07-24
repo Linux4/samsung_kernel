@@ -15,7 +15,11 @@
 
 
 #include "imgsensor_hw.h"
-
+//+S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
+#ifdef CONFIG_MTK_S96818_CAMERA
+extern int sc800cs_is_alive;
+#endif
+//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
 enum IMGSENSOR_RETURN imgsensor_hw_release_all(struct IMGSENSOR_HW *phw)
 {
 	int i;
@@ -129,7 +133,23 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 		 *  ppwr_info->pin_state_on,
 		 * psensor_pwr->id[ppwr_info->pin]);
 		 */
-
+		//+S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
+		#ifdef CONFIG_MTK_S96818_CAMERA
+		if(sc800cs_is_alive==1
+			&& (!strcmp(pcurr_idx, "n28hi5021qreartruly_mipi_raw") || !strcmp(pcurr_idx, "n28hi5021qreardc_mipi_raw"))
+			&& ppwr_info->pin == IMGSENSOR_HW_PIN_AVDD
+			&& ppwr_info->pin_state_on == IMGSENSOR_HW_PIN_STATE_LEVEL_2800){
+				pr_info("in avdd befor,let sub sc800cs rst high");
+					phw->pdev[1]->set(
+					    phw->pdev[1]->pinstance,
+					    IMGSENSOR_SENSOR_IDX_SUB,
+					    IMGSENSOR_HW_PIN_RST,
+					    IMGSENSOR_HW_PIN_STATE_LEVEL_HIGH);
+				usleep_range(1 * 1000,
+				(1 + 2) * 1000);
+		}
+		#endif
+		//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
 			if (pdev->set != NULL)
 				pdev->set(
 				    pdev->pinstance,
@@ -139,6 +159,23 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 
 			usleep_range(ppwr_info->pin_on_delay * 1000,
 			(ppwr_info->pin_on_delay + 2) * 1000);
+		//+S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
+		#ifdef CONFIG_MTK_S96818_CAMERA
+		if(sc800cs_is_alive==1
+			&& (!strcmp(pcurr_idx, "n28hi5021qreartruly_mipi_raw") || !strcmp(pcurr_idx, "n28hi5021qreardc_mipi_raw"))
+			&& ppwr_info->pin == IMGSENSOR_HW_PIN_AVDD
+			&& ppwr_info->pin_state_on == IMGSENSOR_HW_PIN_STATE_LEVEL_2800){
+				pr_info("in avdd after,let sub sc800cs rst low");
+					phw->pdev[1]->set(
+					    phw->pdev[1]->pinstance,
+					    IMGSENSOR_SENSOR_IDX_SUB,
+					    IMGSENSOR_HW_PIN_RST,
+					    IMGSENSOR_HW_PIN_STATE_LEVEL_0);
+				usleep_range(1 * 1000,
+				(1 + 2) * 1000);
+		}
+		#endif
+		//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
 		}
 
 		ppwr_info++;

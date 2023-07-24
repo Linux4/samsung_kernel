@@ -76,6 +76,11 @@ static int mEnabled;
 static int programming_done;
 pabovXX_t abov_sar_ptr;
 
+#define MAX_INT_COUNT	20
+#define SALE_CODE_STR_LENGTH    3
+static char sales_code_from_cmdline[SALE_CODE_STR_LENGTH + 1];
+static bool is_anfr_sar = false;
+
 #define TEMPORARY_HOLD_TIME	500
 //#ifdef CONFIG_PM_WAKELOCKS
 #if 0
@@ -119,11 +124,14 @@ static void ForcetoTouched(pabovXX_t this)
 		pCurrentButton->state = ACTIVE;
 		if (mEnabled) {
 			input_report_rel(input_ch0, REL_MISC, 1);
+			input_report_rel(input_ch0, REL_X, 2);
 			input_sync(input_ch0);
 			input_report_rel(input_ch1, REL_MISC, 1);
+			input_report_rel(input_ch1, REL_X, 2);
 			input_sync(input_ch1);
 #ifndef CONFIG_INPUT_ABOV_TWO_CHANNEL
 			input_report_rel(input_ch2, REL_MISC, 1);
+			input_report_rel(input_ch2, REL_X, 2);
 			input_sync(input_ch2);
 #endif
 		}
@@ -212,6 +220,8 @@ static int enable_ch0(unsigned int enable)
 	struct _buttonInfo *buttons = NULL;
 	struct _buttonInfo *pCurrentButton  = NULL;
 	u8 i = 0;
+    u8 reg_value = 0;
+	u8 msb, lsb = 0;
 
     pDevice = this->pDevice;
     input_bottom = pDevice->pbuttonInformation->input_ch0;
@@ -254,6 +264,15 @@ static int enable_ch0(unsigned int enable)
         }
         LOG_DBG("this->channel_status = 0x%x \n",this->channel_status);
 
+        
+        //CH0 background cap
+		read_register(this, ABOV_CAP_CH0_MSB, &reg_value);
+		msb = reg_value;
+		read_register(this, ABOV_CAP_CH0_LSB, &reg_value);
+		lsb = reg_value;
+		this->ch0_backgrand_cap = (msb << 8) | lsb;
+		printk("ABOV ch0_background_cap=%d;", this->ch0_backgrand_cap);
+
         read_register(this, ABOV_IRQSTAT_REG, &i);
 
 #if defined(CONFIG_SENSORS)
@@ -263,10 +282,12 @@ static int enable_ch0(unsigned int enable)
 #endif
 			if ((i & pCurrentButton->mask) == (pCurrentButton->mask & ABOV_CAP_BUTTON_MASK)) {
 				input_report_rel(input_bottom, REL_MISC, 1);
+				input_report_rel(input_bottom, REL_X, 2);
 				input_sync(input_bottom);
 				pCurrentButton->state = S_PROX;
 			} else {
 				input_report_rel(input_bottom, REL_MISC, 2);
+				input_report_rel(input_bottom, REL_X, 2);
 				input_sync(input_bottom);
 				pCurrentButton->state = IDLE;
 			}
@@ -274,6 +295,7 @@ static int enable_ch0(unsigned int enable)
 		}
 #endif
 		touchProcess(this);
+        this->interrupt_count--;
 
 		//mEnabled = 1;
 	} else if (enable == 0) {
@@ -320,6 +342,8 @@ static int enable_ch1(unsigned int enable)
 	struct _buttonInfo *buttons = NULL;
 	struct _buttonInfo *pCurrentButton  = NULL;
 	u8 i = 0;
+  	u8 reg_value = 0;
+	u8 msb, lsb = 0;
 
     pDevice = this->pDevice;
     input_top = pDevice->pbuttonInformation->input_ch1;
@@ -361,6 +385,14 @@ static int enable_ch1(unsigned int enable)
         }
         LOG_DBG("this->channel_status = 0x%x \n",this->channel_status);
 
+        //CH1 background cap
+        read_register(this, ABOV_CAP_CH1_MSB, &reg_value);
+        msb = reg_value;
+        read_register(this, ABOV_CAP_CH1_LSB, &reg_value);
+        lsb = reg_value;
+        this->ch1_backgrand_cap = (msb << 8) | lsb;
+        printk("ABOV ch1_background_cap=%d;", this->ch1_backgrand_cap);
+
         read_register(this, ABOV_IRQSTAT_REG, &i);
 
 #if defined(CONFIG_SENSORS)
@@ -370,10 +402,12 @@ static int enable_ch1(unsigned int enable)
 #endif
 			if ((i & pCurrentButton->mask) == (pCurrentButton->mask & ABOV_CAP_BUTTON_MASK)) {
 				input_report_rel(input_top, REL_MISC, 1);
+				input_report_rel(input_top, REL_X, 2);
 				input_sync(input_top);
 				pCurrentButton->state = S_PROX;
 			} else {
 				input_report_rel(input_top, REL_MISC, 2);
+				input_report_rel(input_top, REL_X, 2);
 				input_sync(input_top);
 				pCurrentButton->state = IDLE;
 			}
@@ -381,6 +415,7 @@ static int enable_ch1(unsigned int enable)
 		}
 #endif
 		touchProcess(this);
+        this->interrupt_count--;
 
 	} else if (enable == 0) {
 		LOG_DBG("disable cap sensor top\n");
@@ -418,6 +453,8 @@ static int enable_ch2(unsigned int enable)
     struct _buttonInfo *buttons = NULL;
     struct _buttonInfo *pCurrentButton  = NULL;
     u8 i = 0;
+   	u8 reg_value = 0;
+	u8 msb, lsb = 0;
 
     printk("ABOV enable_ch2 \n");
     pDevice = this->pDevice;
@@ -459,6 +496,14 @@ static int enable_ch2(unsigned int enable)
         }
         LOG_DBG("this->channel_status = 0x%x \n",this->channel_status);
 
+        //CH2 background cap
+		read_register(this, ABOV_CAP_CH2_MSB, &reg_value);
+		msb = reg_value;
+		read_register(this, ABOV_CAP_CH2_LSB, &reg_value);
+		lsb = reg_value;
+		this->ch2_backgrand_cap = (msb << 8) | lsb;
+		printk("ABOV ch2_background_cap=%d;", this->ch2_backgrand_cap);
+
         read_register(this, ABOV_IRQSTAT_REG, &i);
 
 #if defined(CONFIG_SENSORS)
@@ -468,10 +513,12 @@ static int enable_ch2(unsigned int enable)
 #endif
 			if ((i & pCurrentButton->mask) == (pCurrentButton->mask & ABOV_CAP_BUTTON_MASK)) {
 				input_report_rel(input_top, REL_MISC, 1);
+				input_report_rel(input_top, REL_X, 2);
 				input_sync(input_top);
 				pCurrentButton->state = S_PROX;
 			} else {
 				input_report_rel(input_top, REL_MISC, 2);
+				input_report_rel(input_top, REL_X, 2);
 				input_sync(input_top);
 				pCurrentButton->state = IDLE;
 			}
@@ -479,6 +526,7 @@ static int enable_ch2(unsigned int enable)
 		}
 #endif
 		touchProcess(this);
+        this->interrupt_count--;
 
 	} else if (enable == 0) {
 		LOG_DBG("disable cap sensor top\n");
@@ -752,6 +800,13 @@ static int initialize(pabovXX_t this)
 	return -ENOMEM;
 }
 
+static int __init sales_code_setup(char *str)
+{
+    strlcpy(sales_code_from_cmdline, str, ARRAY_SIZE(sales_code_from_cmdline));
+    return 1;
+ }
+__setup("androidboot.sales_code=", sales_code_setup);
+
 /**
  * brief Handle what to do when a touch occurs
  * param this Pointer to main parent struct
@@ -774,6 +829,17 @@ static void touchProcess(pabovXX_t this)
 	pDevice = this->pDevice;
 	board = this->board;
 	printk("ABOV Inside touchProcess() this->channel_status =0x%x\n",this->channel_status);
+
+    u8 reg_value = 0; 
+    u8 msb, lsb = 0; 
+    static u16 ch0_result = 0; 
+    static u16 ch1_result = 0; 
+    static u16 ch2_result = 0; 
+ 
+    this->interrupt_count++;
+	if (this->interrupt_count > MAX_INT_COUNT)
+		this->interrupt_count = MAX_INT_COUNT + 1;
+
 	if (this && pDevice) {
 		LOG_DBG("Inside touchProcess()\n");
 		read_register(this, ABOV_IRQSTAT_REG, &capsense_state);
@@ -796,6 +862,61 @@ static void touchProcess(pabovXX_t this)
 			return;
 		}
 
+        printk("ABOV sales_code_from_cmdline=%s,is_anfr_sar = %d\n",sales_code_from_cmdline,(uint8_t)is_anfr_sar);
+
+        if (this->abov_first_boot)	
+		{
+			if ((this->channel_status & 0x01) == 1) {
+				//CH0 background cap
+				read_register(this, ABOV_CAP_CH0_MSB, &reg_value);
+				msb = reg_value;
+				read_register(this, ABOV_CAP_CH0_LSB, &reg_value);
+				lsb = reg_value;
+				ch0_result = (msb << 8) | lsb;
+				printk("ABOV ch0_result=%d;", ch0_result);
+			}
+	
+			if ((this->channel_status & 0x02) >> 1 == 1)  {
+				//CH1 background cap
+				read_register(this, ABOV_CAP_CH1_MSB, &reg_value);
+				msb = reg_value;
+				read_register(this, ABOV_CAP_CH1_LSB, &reg_value);
+				lsb = reg_value;
+				ch1_result = (msb << 8) | lsb;
+				printk("ABOV ch1_result=%d;", ch1_result);
+			}
+	
+			if ((this->channel_status & 0x04) >> 2 == 1)  {
+				//CH2 background cap
+				read_register(this, ABOV_CAP_CH2_MSB, &reg_value);
+				msb = reg_value;
+				read_register(this, ABOV_CAP_CH2_LSB, &reg_value);
+				lsb = reg_value;
+				ch2_result = (msb << 8) | lsb;
+				printk("ABOV ch2_result=%d;", ch2_result);
+			}	
+		}
+        printk("ABOV ch0_backgrand_cap=%d, ch1_backgrand_cap=%d, ch2_backgrand_cap=%d;", this->ch0_backgrand_cap,this->ch1_backgrand_cap,this->ch2_backgrand_cap);
+		printk("ABOV ch0_result=%d, ch1_result=%d, ch2_result=%d;", ch0_result,ch1_result,ch2_result);
+		printk("ABOV interrupt_count is %d;", this->interrupt_count);
+		if (this->abov_first_boot){
+            if((this->interrupt_count <= MAX_INT_COUNT) && is_anfr_sar && (ch0_result >= this->ch0_backgrand_cap) && (ch1_result >= this->ch1_backgrand_cap) && (ch2_result >= this->ch2_backgrand_cap)){
+		    	printk("ABOV force all channel State=Near\n");
+			    input_report_rel(input_ch0, REL_MISC, 1);
+				input_report_rel(input_ch0, REL_X, 1);
+			    input_sync(input_ch0);
+			    input_report_rel(input_ch1, REL_MISC, 1);
+				input_report_rel(input_ch1, REL_X, 1);
+			    input_sync(input_ch1);
+			    input_report_rel(input_ch2, REL_MISC, 1);
+				input_report_rel(input_ch2, REL_X, 1);
+			    input_sync(input_ch2);
+			    return;
+            }
+		}
+
+		this->abov_first_boot = false;
+
 #if defined(CONFIG_SENSORS)
         if (this->skip_data == true) {
             LOG_INFO("%s - skip grip event\n", __func__);
@@ -815,16 +936,19 @@ static void touchProcess(pabovXX_t this)
             if (this->power_state) {
                 if ((capsense_state & pCurrentButton->mask) == (pCurrentButton->mask & ABOV_CAP_BUTTON_MASK)) {
                     if ((board->cap_channel_ch0 == counter) &&  (this->channel_status & 0x01)) {
-                        input_report_rel(input_ch0, REL_MISC, 5);
+                        input_report_rel(input_ch0, REL_MISC, 2);
+						input_report_rel(input_ch0, REL_X, 2);
                         input_sync(input_ch0);
                     } else if ((board->cap_channel_ch1 == counter) &&  (this->channel_status & 0x02)) {
-                        input_report_rel(input_ch1, REL_MISC, 5);
+                        input_report_rel(input_ch1, REL_MISC, 2);
+						input_report_rel(input_ch1, REL_X, 2);
                         input_sync(input_ch1);
 
                     }
 #ifndef CONFIG_INPUT_ABOV_TWO_CHANNEL
                     else if ((board->cap_channel_ch2 == counter) &&  (this->channel_status & 0x04)) {
-                        input_report_rel(input_ch2, REL_MISC, 5);
+                        input_report_rel(input_ch2, REL_MISC, 2);
+						input_report_rel(input_ch2, REL_X, 2);
                         input_sync(input_ch2);
                     }
 #endif
@@ -838,14 +962,17 @@ static void touchProcess(pabovXX_t this)
 					    printk("ABOV CH%d State=NEAR.\n", counter);
 					    if ((board->cap_channel_ch0 == counter) &&  (this->channel_status & 0x01)) {
 						    input_report_rel(input_ch0, REL_MISC, 1);
+						    input_report_rel(input_ch0, REL_X, 2);
     						input_sync(input_ch0);
 	    				} else if ((board->cap_channel_ch1 == counter) &&  (this->channel_status & 0x02)) {
 						    input_report_rel(input_ch1, REL_MISC, 1);
+						    input_report_rel(input_ch1, REL_X, 2);
 			    			input_sync(input_ch1);
 				    	}
 #ifndef CONFIG_INPUT_ABOV_TWO_CHANNEL
 				    	else if ((board->cap_channel_ch2 == counter) &&  (this->channel_status & 0x04)) {
 						    input_report_rel(input_ch2, REL_MISC, 1);
+						    input_report_rel(input_ch2, REL_X, 2);
 						    input_sync(input_ch2);
 				    	}
 #endif
@@ -861,14 +988,17 @@ static void touchProcess(pabovXX_t this)
 		    			printk("ABOV CH%d State=FAR.\n", counter);
 			    		if ((board->cap_channel_ch0 == counter) &&  (this->channel_status & 0x01)) {
 				    		input_report_rel(input_ch0, REL_MISC, 2);
+						    input_report_rel(input_ch0, REL_X, 2);
 					    	input_sync(input_ch0);
     					} else if ((board->cap_channel_ch1 == counter) &&  (this->channel_status & 0x02)) {
 				    		input_report_rel(input_ch1, REL_MISC, 2);
+						    input_report_rel(input_ch1, REL_X, 2);
 		    				input_sync(input_ch1);
 			    		}
 #ifndef CONFIG_INPUT_ABOV_TWO_CHANNEL
 				    	else if ((board->cap_channel_ch2 == counter) &&  (this->channel_status & 0x04)) {
 				    		input_report_rel(input_ch2, REL_MISC, 2);
+						    input_report_rel(input_ch2, REL_X, 2);
 						    input_sync(input_ch2);
     					}
 #endif
@@ -1189,11 +1319,14 @@ static ssize_t enable_store(struct class *class,
 		initialize(this);
 
 		input_report_rel(input_ch0, REL_MISC, 2);
+		input_report_rel(input_ch0, REL_X, 2);
 		input_sync(input_ch0);
 		input_report_rel(input_ch1, REL_MISC, 2);
+		input_report_rel(input_ch1, REL_X, 2);
 		input_sync(input_ch1);
 #ifndef CONFIG_INPUT_ABOV_TWO_CHANNEL
 		input_report_rel(input_ch2, REL_MISC, 2);
+		input_report_rel(input_ch2, REL_X, 2);
 		input_sync(input_ch2);
 #endif
 
@@ -1412,11 +1545,14 @@ static void ps_notify_callback_work(struct work_struct *work)
 		LOG_ERR(" Usb insert,calibrate cap sensor failed\n");
 
 	input_report_rel(input_ch0, REL_MISC, 2);
+	input_report_rel(input_ch0, REL_X, 2);
 	input_sync(input_ch0);
 	input_report_rel(input_ch1, REL_MISC, 2);
+	input_report_rel(input_ch1, REL_X, 2);
 	input_sync(input_ch1);
 #ifndef CONFIG_INPUT_ABOV_TWO_CHANNEL
 	input_report_rel(input_ch2, REL_MISC, 2);
+	input_report_rel(input_ch2, REL_X, 2);
 	input_sync(input_ch2);
 #endif
 }
@@ -2028,6 +2164,39 @@ static ssize_t power_enable_store(struct class *class, struct class_attribute *a
 }
 #endif
 
+static ssize_t user_test_show(struct class *class,
+                                 struct class_attribute *attr,
+                                 char *buf)
+{
+    pabovXX_t this = abov_sar_ptr;
+    return sprintf(buf, "%d\n", this->user_test);
+}
+static ssize_t user_test_store(struct class *class,
+                                  struct class_attribute *attr,
+                                  const char *buf, size_t count)
+{
+    int ret = -1;
+    pabovXX_t this = abov_sar_ptr;
+
+    ret = kstrtoint(buf, 10, &this->user_test);
+    if (0 != ret) {
+        LOG_ERR("kstrtoint failed\n");
+    }
+
+    printk("ABOV:this->user_test:%d", this->user_test);
+    if(this->user_test){
+        if(is_anfr_sar){
+	    this->abov_first_boot = false;
+            printk("ABOV: this->abov_first_boot = %d;", this->abov_first_boot);
+	    printk("ABOV:user_test mode, exit force near mode!!!");
+	}
+        printk("ABOV ch user_test mode cali ... \n");
+        write_register(this, ABOV_RECALI_REG, 0x01);
+        msleep(500);
+    }
+    return count;
+}
+
 
 static struct class_attribute class_attr_enable = __ATTR(enable, 0644, enable_show, enable_store);
 static struct class_attribute class_attr_reg = __ATTR(reg, 0644, reg_show, reg_store);                                               
@@ -2041,6 +2210,7 @@ static struct class_attribute class_attr_bl = __ATTR(bl, 0444, bl_show, NULL);
 #if POWER_ENABLE
 static struct class_attribute class_attr_power_enable = __ATTR(power_enable, 0664, power_enable_show, power_enable_store);
 #endif
+static struct class_attribute class_attr_user_test = __ATTR(user_test, 0664, user_test_show, user_test_store);
 
 static struct attribute *abov_capsense_attrs[] = {
 	&class_attr_enable.attr,
@@ -2055,6 +2225,7 @@ static struct attribute *abov_capsense_attrs[] = {
 #if POWER_ENABLE
     &class_attr_power_enable.attr,
 #endif
+    &class_attr_user_test.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(abov_capsense); 
@@ -2301,6 +2472,8 @@ static int abov_probe(struct i2c_client *client, const struct i2c_device_id *id)
 			/* Set all the keycodes */
 			input_set_capability(input_ch0, EV_REL, REL_MISC);
 			input_set_capability(input_ch0, EV_REL, REL_MAX);
+			__set_bit(EV_REL, input_ch0->evbit);
+            input_set_capability(input_ch0, EV_REL, REL_X);
 			/* save the input pointer and finish initialization */
 			pDevice->pbuttonInformation->input_ch0 = input_ch0;
 			input_ch0->name = this->board->cap_ch0_name;
@@ -2319,6 +2492,8 @@ static int abov_probe(struct i2c_client *client, const struct i2c_device_id *id)
 			/* Set all the keycodes */
 			input_set_capability(input_ch1, EV_REL, REL_MISC);
 			input_set_capability(input_ch1, EV_REL, REL_MAX);
+			__set_bit(EV_REL, input_ch1->evbit); 
+            input_set_capability(input_ch1, EV_REL, REL_X);
 			/* save the input pointer and finish initialization */
 			pDevice->pbuttonInformation->input_ch1 = input_ch1;
 			/* save the input pointer and finish initialization */
@@ -2340,6 +2515,8 @@ static int abov_probe(struct i2c_client *client, const struct i2c_device_id *id)
 			/* Set all the keycodes */
 			input_set_capability(input_ch2, EV_REL, REL_MISC);
 			input_set_capability(input_ch2, EV_REL, REL_MAX);
+            __set_bit(EV_REL, input_ch2->evbit);
+			input_set_capability(input_ch2, EV_REL, REL_X);
 			/* save the input pointer and finish initialization */
 			pDevice->pbuttonInformation->input_ch2 = input_ch2;
 			/* save the input pointer and finish initialization */
@@ -2402,6 +2579,13 @@ static int abov_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		write_register(this, ABOV_CTRL_MODE_REG, ABOV_CTRL_MODE_STOP);
              this->channel_status = 0;
 		mEnabled = 0;
+
+        this->abov_first_boot = true;
+        this->user_test = 0;
+        if(!strncmp(sales_code_from_cmdline, "XAC",SALE_CODE_STR_LENGTH + 1)){
+            is_anfr_sar = true;
+        }
+        printk("ABOV: is_anfr_sar = %d;", is_anfr_sar);
 
 #ifdef USE_USB_CHANGE_RECAL
 		INIT_WORK(&this->ps_notify_work, ps_notify_callback_work);
@@ -2745,4 +2929,3 @@ MODULE_AUTHOR("ABOV Corp.");
 MODULE_DESCRIPTION("ABOV Capacitive Touch Controller Driver");
 MODULE_LICENSE("GPL");
 MODULE_VERSION("1.0");
-

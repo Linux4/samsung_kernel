@@ -55,6 +55,11 @@ static atomic_t m4u_init = ATOMIC_INIT(0);
 #if defined(MDP_M4U_MTEE_SEC_CAM_SUPPORT)
 static atomic_t m4u_gz_init_sec_cam = ATOMIC_INIT(0);
 #endif
+//+S96818AA1-1936,liangyiyi.wt,modify,2023/05/26, mtk patch:mdp
+#ifdef CONFIG_MTK_S96818_CAMERA
+static int wt_is_secure = 0;
+#endif
+//-S96818AA1-1936,liangyiyi.wt,modify,2023/05/26, mtk patch:mdp
 
 static int mdp_limit_open(struct inode *pInode, struct file *pFile)
 {
@@ -566,7 +571,11 @@ static s32 mdp_init_secure_id(struct cmdqRecStruct *handle)
 	int iommu_sec_id = 0;
 	ion_phys_addr_t sec_handle;
 	struct cmdqSecAddrMetadataStruct *secMetadatas = NULL;
-
+	//+S96818AA1-1936,liangyiyi.wt,modify,2023/05/26, mtk patch:mdp
+	#ifdef CONFIG_MTK_S96818_CAMERA
+	wt_is_secure = handle->secData.is_secure;
+	#endif
+	//-S96818AA1-1936,liangyiyi.wt,modify,2023/05/26, mtk patch:mdp
 	if (!handle->secData.is_secure)
 		return 0;
 	secMetadatas = (struct cmdqSecAddrMetadataStruct *)handle->secData.addrMetadatas;
@@ -769,7 +778,13 @@ s32 mdp_ioctl_async_exec(struct file *pf, unsigned long param)
 	}
 
 #ifdef MDP_M4U_TEE_SUPPORT
+	//+S96818AA1-1936,liangyiyi.wt,modify,2023/05/26, mtk patch:mdp
+	#ifdef CONFIG_MTK_S96818_CAMERA
+	if (atomic_cmpxchg(&m4u_init, 0, 1) == 0 || (wt_is_secure == 1)) {
+	#else
 	if (atomic_cmpxchg(&m4u_init, 0, 1) == 0) {
+	#endif
+	//-S96818AA1-1936,liangyiyi.wt,modify,2023/05/26, mtk patch:mdp
 		m4u_sec_init();
 		CMDQ_LOG("[SEC] m4u_sec_init is called\n");
 	}

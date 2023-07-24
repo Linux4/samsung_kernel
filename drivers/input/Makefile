@@ -38,5 +38,8 @@ obj-$(CONFIG_MTK_FINGERPRINT_SUPPORT)  += fingerprint/
 obj-$(CONFIG_INPUT_ABOV)    += abov/
 obj-$(CONFIG_AW9610X_SAR) += aw9610x_sar/
 obj-$(CONFIG_HX9031A_SAR) += hx9031a_sar/
+obj-$(CONFIG_SX9375_SAR) += sx9375_sar/
+obj-$(CONFIG_HX9023S_SAR) += hx9023_sar/
+obj-$(CONFIG_HX9031AS_SAR) += hx9031as_sar/
 
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/performance/include/

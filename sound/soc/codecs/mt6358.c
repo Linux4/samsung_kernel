@@ -3205,20 +3205,24 @@ static int mt6358_amic_enable(struct mt6358_priv *priv)
 					   0xff00, 0x0000);
 			break;
 		}
-		/* Enable MICBIAS0, MISBIAS0 = 1P9V */
+		/* +Req S96818AA1-2193 shenwenlei.wt 2023.04.17 audio bringup */
+		/* Enable MICBIAS0, MISBIAS0 = 2P5V */
 		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON9,
-				   0xff, 0x21);
+				   0xff, 0x51);
+		/* -Req S96818AA1-2193 shenwenlei.wt 2023.04.17 audio bringup */
 	}
 
 	/* mic bias 1 */
 	if (mux_pga_l == PGA_MUX_AIN1 || mux_pga_r == PGA_MUX_AIN1) {
-		/* Enable MICBIAS1, MISBIAS1 = 2P6V */
+		/* +Req S96818AA1-2193 shenwenlei.wt 2023.04.17 audio bringup */
+		/* Enable MICBIAS1, MISBIAS1 = 2P5V */
 		if (mic_type == MIC_TYPE_MUX_DCC_ECM_SINGLE)
 			regmap_write(priv->regmap,
-				     MT6358_AUDENC_ANA_CON10, 0x0161);
+				     MT6358_AUDENC_ANA_CON10, 0x0151);
 		else
 			regmap_write(priv->regmap,
-				     MT6358_AUDENC_ANA_CON10, 0x0061);
+				     MT6358_AUDENC_ANA_CON10, 0x0051);
+		/* -Req S96818AA1-2193 shenwenlei.wt 2023.04.17 audio bringup */
 	}
 
 	/* set mic pga gain */

@@ -9,6 +9,13 @@
 #include <linux/module.h>
 #include <linux/of_device.h>
 #include <linux/delay.h>
+/*+  bug 828714, shenwenlei.wt, 20230301, add open the receiver and press ANFR */
+#ifndef WT_COMPILE_FACTORY_VERSION
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+#include <linux/hardware_info.h>
+#endif
+#endif
+/*-  bug 828714, shenwenlei.wt, 20230301, add open the receiver and press ANFR */
 #ifdef CONFIG_DEBUG_FS
 #include <linux/debugfs.h>
 #endif
@@ -2201,7 +2208,13 @@ static int mt_rcv_event(struct snd_soc_dapm_widget *w,
 {
 	struct snd_soc_component *cmpnt = snd_soc_dapm_to_component(w->dapm);
 	struct mt6359_priv *priv = snd_soc_component_get_drvdata(cmpnt);
-
+/*+  bug 828714, shenwenlei.wt, 20230301, add open the receiver and press ANFR */
+#ifndef WT_COMPILE_FACTORY_VERSION
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+	char *name = NULL;
+#endif
+#endif
+/*-  bug 828714, shenwenlei.wt, 20230301, add open the receiver and press ANFR */
 	dev_info(priv->dev, "%s(), event 0x%x, mux %u\n",
 		 __func__,
 		 event,
@@ -2249,6 +2262,20 @@ static int mt_rcv_event(struct snd_soc_dapm_widget *w,
 		regmap_write(priv->regmap, MT6359_AUDDEC_ANA_CON9, 0x0001);
 		/* Switch HS MUX to audio DAC */
 		regmap_write(priv->regmap, MT6359_AUDDEC_ANA_CON6, 0x009b);
+		/*+  bug 828714, shenwenlei.wt, 20230301, add open the receiver and press ANFR */
+#ifndef WT_COMPILE_FACTORY_VERSION
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+		name = hardwareinfo_get_prop(HARDWARE_SAR);
+		if (name) {
+			if (!strcmp(name, "hx9036"))
+				exit_anfr_func();
+
+			if (!strcmp(name, "sx9375"))
+				exit_anfr_sx9375();
+		}
+#endif
+#endif
+		/*-  bug 828714, shenwenlei.wt, 20230301, add open the receiver and press ANFR */
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
 		/* HS mux to open */

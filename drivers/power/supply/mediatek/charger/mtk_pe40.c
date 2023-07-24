@@ -283,6 +283,7 @@ int pe40_get_setting_by_watt(int *voltage,
 
 bool pe40_is_ready(void)
 {
+#ifndef CONFIG_N28_CHARGER_PRIVATE
 	int tmp;
 
 	tmp = battery_get_bat_temperature();
@@ -291,6 +292,10 @@ bool pe40_is_ready(void)
 		tmp > pe4->data.high_temp_to_enter_pe40 ||
 		tmp < pe4->data.low_temp_to_enter_pe40)
 		return false;
+#else
+	if (!adapter_is_support_pd_pps())
+		return false;
+#endif
 
 	return true;
 }

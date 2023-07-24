@@ -34,6 +34,9 @@
 #define MT6360_PMU_CHG_DRV_VERSION	"1.0.8_MTK"
 #define PHY_MODE_BC11_SET 1
 #define PHY_MODE_BC11_CLR 2
+#define USB_PD_MI_SVID			0x2717
+#define USB_PD_BR_SVID			0x2C15
+
 
 struct tag_bootmode {
 	u32 size;
@@ -100,6 +103,7 @@ struct mt6360_pmu_chg_info {
 	struct notifier_block pd_nb;
 	bool is_host;
 	bool is_in_hardreset;
+	struct delayed_work hardreset_work;
 #else
 	struct work_struct chgdet_work;
 #endif /* CONFIG_TCPC_CLASS */
@@ -115,6 +119,7 @@ struct mt6360_pmu_chg_info {
 	struct workqueue_struct *pe_wq;
 	struct work_struct pe_work;
 	u8 ctd_dischg_status;
+	bool is_pd;
 };
 
 /* for recive bat oc notify */
@@ -662,6 +667,7 @@ static int mt6360_detect_apple_samsung_ta(struct mt6360_pmu_chg_info *mpci)
 		0x0F,
 		0x03
 	);
+	usleep_range(100, 200);
 
 	ret = mt6360_pmu_reg_test_bit(mpci->mpi, MT6360_PMU_DPDM_CTRL2,
 				      4, &dp_0_9v);
@@ -692,6 +698,7 @@ static int mt6360_detect_apple_samsung_ta(struct mt6360_pmu_chg_info *mpci)
 		0x0F,
 		0x0B
 	);
+	usleep_range(100, 200);
 
 	ret = mt6360_pmu_reg_test_bit(mpci->mpi, MT6360_PMU_DPDM_CTRL2,
 				      5, &dp_2_3v);
@@ -705,6 +712,7 @@ static int mt6360_detect_apple_samsung_ta(struct mt6360_pmu_chg_info *mpci)
 		0x0F,
 		0x0F
 	);
+	usleep_range(100, 200);
 
 	ret = mt6360_pmu_reg_test_bit(mpci->mpi, MT6360_PMU_DPDM_CTRL2,
 				      5, &dm_2_3v);
@@ -734,6 +742,8 @@ out:
 		0x0F,
 		0x00
 	);
+	usleep_range(100, 200);
+
 	mt6360_set_usbsw_state(mpci, MT6360_USBSW_USB);
 	return ret;
 }
@@ -809,6 +819,28 @@ static int mt6360_toggle_usbchgen(struct mt6360_pmu_chg_info *mpci)
 }
 #endif
 
+static void mt6360_in_hardreset_handler(struct work_struct *work)
+{
+	struct mt6360_pmu_chg_info *mpci = container_of(work,
+					struct mt6360_pmu_chg_info, hardreset_work.work);
+
+	dev_info(mpci->dev, "%s\n", __func__);
+	mpci->is_in_hardreset = false;
+}
+
+static void mt6360_set_is_in_hardreset(struct mt6360_pmu_chg_info *mpci, bool in_hardreset)
+{
+	dev_info(mpci->dev, "%s: set %u\n", __func__, in_hardreset);
+
+	if(mpci->is_in_hardreset) {
+		cancel_delayed_work(&mpci->hardreset_work);
+		schedule_delayed_work(&mpci->hardreset_work, msecs_to_jiffies(10000));
+	} else
+		cancel_delayed_work(&mpci->hardreset_work);
+
+	mpci->is_in_hardreset = in_hardreset;
+}
+
 static int mt6360_chgdet_post_process(struct mt6360_pmu_chg_info *mpci)
 {
 	int ret = 0;
@@ -865,10 +897,20 @@ static int mt6360_chgdet_post_process(struct mt6360_pmu_chg_info *mpci)
 		mpci->chg_type = STANDARD_CHARGER;
 		break;
 	}
-
+	if(mpci->is_pd) {
+		dev_info(mpci->dev, "%s: is PD charger\n", __func__);
+		usb_status = MT6360_CHG_TYPE_DCP;
+		mpci->chg_type = STANDARD_CHARGER;
+	}
 #ifdef MT6360_APPLE_SAMSUNG_TA_SUPPORT
 	if (mpci->chg_type == NONSTANDARD_CHARGER) {
 		dev_info(mpci->dev, "%s: call mt6360_detect_apple_samsung_ta()\n", __func__);
+		ret = mt6360_pmu_reg_clr_bits(mpci->mpi, MT6360_PMU_DEVICE_TYPE,
+						MT6360_MASK_USBCHGEN);
+		if (ret < 0)
+			dev_notice(mpci->dev, "%s: disable chgdet fail\n", __func__);
+		usleep_range(1000, 1100);
+
 		ret = mt6360_detect_apple_samsung_ta(mpci);
 		if (ret < 0)
 			dev_notice(mpci->dev,
@@ -1714,6 +1756,9 @@ static int mt6360_enable_otg(struct charger_device *chg_dev, bool en)
 	int ret = 0;
 #if defined(CONFIG_W2_CHARGER_PRIVATE)
 	union power_supply_propval propval;
+	if(en){
+		mt6360_enable_hz(chg_dev,0);
+	}
 
 	if (!mpci->otg_psy)
 		mpci->otg_psy = power_supply_get_by_name("otg");
@@ -1833,7 +1878,8 @@ static int mt6360_enable_chg_type_det(struct charger_device *chg_dev, bool en)
 		    mt6360_chgdet_post_process)(mpci);
 
 	if (!en)
-		mpci->is_in_hardreset = false;
+		mt6360_set_is_in_hardreset(mpci, false);
+
 out:
 	mutex_unlock(&mpci->chgdet_lock);
 #endif /* CONFIG_MT6360_PMU_CHARGER_TYPE_DETECT && CONFIG_TCPC_CLASS */
@@ -3185,6 +3231,61 @@ bool mt6360_get_is_host(void)
 }
 EXPORT_SYMBOL_GPL(mt6360_get_is_host);
 
+static uint32_t mt6360_get_adapter_svid(struct notifier_block *nb)
+{
+	struct mt6360_pmu_chg_info *mpci = container_of(nb,
+		struct mt6360_pmu_chg_info, pd_nb);
+	struct pd_source_cap_ext cap_ext;
+	struct tcpm_svid_list vid_list;
+	uint32_t adapter_svid = 0;
+	uint32_t adapter_id = 0;
+	uint32_t adapter_fw_ver = 0;
+	uint32_t adapter_hw_ver = 0;
+	int ret;
+	int i = 0;
+	uint32_t pd_vdos[8];
+
+	ret = tcpm_inquire_pd_partner_inform(mpci->tcpc, pd_vdos);
+	if (ret == TCPM_SUCCESS) {
+		//pr_err("find adapter id success.\n");
+		for (i = 0; i < 8; i++)
+			dev_err(mpci->dev, "VDO[%d] : %08x\n", i, pd_vdos[i]);
+
+		adapter_svid = pd_vdos[0] & 0x0000FFFF;
+		adapter_id = pd_vdos[2] & 0x0000FFFF;
+		dev_err(mpci->dev, "adapter_svid = %04x adapter_id = %08x\n", adapter_svid,adapter_id);
+
+		ret = tcpm_inquire_pd_partner_svids(mpci->tcpc, &vid_list);
+		//pr_err("[%s] tcpm_inquire_pd_partner_svids, ret=%d!\n", __func__, ret);
+		if (ret == TCPM_SUCCESS) {
+			//pr_err("discover svid number is %d\n", vid_list.cnt);
+			for (i = 0; i < vid_list.cnt; i++) {
+				dev_err(mpci->dev, "SVID[%d] : %04x\n", i, vid_list.svids[i]);
+				if (vid_list.svids[i] == USB_PD_MI_SVID)
+					adapter_svid = USB_PD_MI_SVID;
+				if (vid_list.svids[i] == USB_PD_BR_SVID)
+					adapter_svid = USB_PD_BR_SVID;
+			}
+		}
+	} else {
+		ret = tcpm_dpm_pd_get_source_cap_ext(mpci->tcpc,
+			NULL, &cap_ext);
+		if (ret == TCPM_SUCCESS) {
+			adapter_svid = cap_ext.vid & 0x0000FFFF;
+			adapter_id = cap_ext.pid & 0x0000FFFF;
+			adapter_fw_ver = cap_ext.fw_ver & 0x0000FFFF;
+			adapter_hw_ver = cap_ext.hw_ver & 0x0000FFFF;
+			dev_err(mpci->dev, "adapter_svid=%04x,adapter_id=%08x,adapter_fw_ver=%08x,adapter_hw_ver=%08x\n",
+				adapter_svid, adapter_id, adapter_fw_ver, adapter_hw_ver);
+		} else {
+			dev_err(mpci->dev, "[%s] get adapter message failed!\n", __func__);
+			return 0;
+		}
+	}
+
+	return adapter_svid;
+}
+
 static int pd_tcp_notifier_call(struct notifier_block *nb,
 					unsigned long event, void *data)
 {
@@ -3192,34 +3293,42 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 	struct mt6360_pmu_chg_info *mpci = container_of(nb,
 		struct mt6360_pmu_chg_info, pd_nb);
 	int ret = 0;
+	uint32_t adapter_svid = 0;
 
 	switch (event) {
 	case TCP_NOTIFY_HARD_RESET_STATE:
 		mutex_lock(&mpci->chgdet_lock);
 		if (noti->hreset_state.state >= TCP_HRESET_SIGNAL_SEND) {
-			mpci->is_in_hardreset = true;
+			mt6360_set_is_in_hardreset(mpci, true);
 			mpci->is_host = false;
 		} else
-			mpci->is_in_hardreset = false;
+			mt6360_set_is_in_hardreset(mpci, false);
 		mutex_unlock(&mpci->chgdet_lock);
 
 		break;
 	case TCP_NOTIFY_PD_STATE:
-		dev_info(mpci->dev, "%s pd state = %d\n",
-			__func__, noti->pd_state.connected);
+		dev_info(mpci->dev, "%s pd state = %d, chg_type=%d\n",
+			__func__, noti->pd_state.connected, mpci->chg_type);
 		if ((noti->pd_state.connected == PD_CONNECT_NONE) ||
 			(noti->pd_state.connected == PD_CONNECT_HARD_RESET))
 			mpci->is_in_hardreset = false;
 		if ((noti->pd_state.connected == PD_CONNECT_PE_READY_SNK_APDO) ||
-			(noti->pd_state.connected == PD_CONNECT_PE_READY_SNK_PD30)) {
-			if(mpci->chg_type == STANDARD_HOST) {
-				mpci->chg_type = STANDARD_CHARGER;
-				ret = mt6360_psy_online_changed(mpci);
-				if (ret < 0)
-					dev_err(mpci->dev, "%s: report psy online fail\n", __func__);
-				mt6360_psy_chg_type_changed(mpci);
+			(noti->pd_state.connected == PD_CONNECT_PE_READY_SNK_PD30))  {
+			adapter_svid = mt6360_get_adapter_svid(nb);
+			if((adapter_svid == USB_PD_MI_SVID) || (adapter_svid == USB_PD_BR_SVID)) {
+				if((mpci->chg_type == STANDARD_HOST) ||
+				(mpci->chg_type == NONSTANDARD_CHARGER))  {
+					mpci->chg_type = STANDARD_CHARGER;
+					ret = mt6360_psy_online_changed(mpci);
+					if (ret < 0)
+						dev_err(mpci->dev, "%s: report psy online fail\n", __func__);
+					mt6360_psy_chg_type_changed(mpci);
+				}
+				if(mpci->chg_type == CHARGER_UNKNOWN)
+					mpci->is_pd = true;
 			}
 		}
+			mt6360_set_is_in_hardreset(mpci, false);
 		break;
 	case TCP_NOTIFY_DR_SWAP:
 		if (noti->swap_state.new_role == PD_ROLE_DFP) {
@@ -3256,6 +3365,7 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 		if (noti->typec_state.new_state == TYPEC_UNATTACHED) {
 			pr_info("%s new state to UNATTACHED\n", __func__);
 			mpci->is_host = false;
+			mpci->is_pd = false;
 		}
 		break;
 	default:
@@ -3308,6 +3418,7 @@ static int mt6360_pmu_chg_probe(struct platform_device *pdev)
 	mpci->ichg_dis_chg = 2000000;
 	mpci->attach = false;
 	mpci->chg_type = CHARGER_UNKNOWN;
+	mpci->is_pd = false;
 	g_mpci = mpci;
 #if defined(CONFIG_MT6360_PMU_CHARGER_TYPE_DETECT)\
 && !defined(CONFIG_TCPC_CLASS)
@@ -3319,6 +3430,7 @@ static int mt6360_pmu_chg_probe(struct platform_device *pdev)
 	atomic_set(&mpci->mivr_cnt, 0);
 	init_waitqueue_head(&mpci->waitq);
 	platform_set_drvdata(pdev, mpci);
+	INIT_DELAYED_WORK(&mpci->hardreset_work, mt6360_in_hardreset_handler);
 
 	/* apply platform data */
 	ret = mt6360_chg_apply_pdata(mpci, pdata);

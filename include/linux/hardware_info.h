@@ -26,6 +26,12 @@ enum{
         HARDWARE_NFC,//bug 604665,lulinliang.wt,2020.12.18,add nfc info
 	HARDWARE_BATTERY_ID,
 	HARDWARE_CHARGER_IC_INFO,  //bug 436809  modify getian.wt 20190403 Add charger IC model information in factory mode
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+	/* +Req S96818AA1-5169,zhouxiaopeng2.wt,20230519, mode information increased */
+	HARDWARE_PD_CHARGER,
+	HARDWARE_CHARGER_PUMP,
+	/* -Req S96818AA1-5169,zhouxiaopeng2.wt,20230519, mode information increased */
+#endif
 	//bug 717431, liyiying.wt, add, 2021/2/21, n21s add gauge mmi message
 	HARDWARE_BMS_GAUGE_INFO,
 	HARDWARE_BACK_CAM_MOUDULE_ID,
@@ -101,6 +107,13 @@ enum{
 #define HARDWARE_MACRO_CAM_SENSORID_GET             _IOWR(HARDWARE_ID, 0x3F, char[HARDWARE_MAX_ITEM_LONGTH])      //  微距CAM sensorId
 //+bug604664,liangyiyi.wt,ADD,2022/7/1,add macro info for mmigroup apk
 
+#ifdef CONFIG_N28_CHARGER_PRIVATE
+/* +Req S96818AA1-5169,zhouxiaopeng2.wt,20230519, mode information increased */
+#define HARDWARE_PD_CHARGER_GET              	_IOWR(HARDWARE_ID, 0x47, char[HARDWARE_MAX_ITEM_LONGTH])
+#define HARDWARE_CHARGER_PUMP_GET              	_IOWR(HARDWARE_ID, 0x48, char[HARDWARE_MAX_ITEM_LONGTH])
+/* -Req S96818AA1-5169,zhouxiaopeng2.wt,20230519, mode information increased */
+#endif
+
 // ckl,zhangxingyuan.wt,add,20220722,add hardware info
 #define HARDWARE_SMARTPA_IC_GET                   _IOWR(HARDWARE_ID, 0x40, char[HARDWARE_MAX_ITEM_LONGTH])
 #define HARDWARE_BACK_CAM_MOUDULE_ID_SET          _IOWR(HARDWARE_ID, 0x81, char[HARDWARE_MAX_ITEM_LONGTH])
@@ -124,7 +137,15 @@ enum{
 
 #define HARDWARE_LCD_SERIALNUM_GET                _IOWR(HARDWARE_ID, 0x89, char[HARDWARE_MAX_ITEM_LONGTH]) //get lcm serialnum
 
+//liuling.wt, add, 2023/3/13, add for get hardwareinfo, start
+char* hardwareinfo_get_prop(int cmd);
+//liuling.wt, add, 2023/3/13, add for get hardwareinfo, end
 
+/* +Req S96818AA1-1936,shenwenlei.wt,20230423, audio bringup */
+#ifdef CONFIG_WT_PROJECT_AUDIO_PA
+char* boardid_get_n28(void);
+#endif
+/* -Req S96818AA1-1936,shenwenlei.wt,20230423, audio bringup */
 
 int hardwareinfo_set_prop(int cmd, const char *name);
 

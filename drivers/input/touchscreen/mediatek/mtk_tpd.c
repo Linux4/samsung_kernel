@@ -84,6 +84,13 @@ enum lcm_name{
 	LC_GC7202H_MODULE = 15,
 	TM_ICNL9911C_MODULE = 16,
 	BOE_HIMAX_MODULE = 17,
+	TRULY_NT36528_MODULE =18,
+//+S96818AA1-1936,daijun1.wt,modify,2023/05/16,td4160 tp bringup
+	XINXIAN_TD4160_MODULE = 19,
+//-S96818AA1-1936,daijun1.wt,modify,2023/05/16,td4160 tp bringup
+//+S96818AA1-1936,wangtao14.wt,modify,2023/05/16,ft8057s tp bringup
+	MDT_FT8057S_MODULE = 20,
+//-S96818AA1-1936,wangtao14.wt,modify,2023/05/16,ft8057s tp bringup
 };
 
 enum touch_name{
@@ -198,8 +205,10 @@ void tpd_gpio_as_int(int pin)
 {
 	mutex_lock(&tpd_set_gpio_mutex);
 	TPD_DEBUG("[tpd] %s\n", __func__);
+//+S96818AA1-1936,daijun1.wt,modify,2023/05/19,n28-tp prevent crashes caused by DTS
 	if (pin == 1)
 		pinctrl_select_state(pinctrl1, eint_as_int);
+//-S96818AA1-1936,daijun1.wt,modify,2023/05/19,n28-tp prevent crashes caused by DTS
 	mutex_unlock(&tpd_set_gpio_mutex);
 }
 
@@ -208,10 +217,12 @@ void tpd_gpio_output(int pin, int level)
 	mutex_lock(&tpd_set_gpio_mutex);
 	TPD_DEBUG("%s pin = %d, level = %d\n", __func__, pin, level);
 	if (pin == 1) {
+//+S96818AA1-1936,daijun1.wt,modify,2023/05/19,n28-tp prevent crashes caused by DTS
 		if (level)
 			pinctrl_select_state(pinctrl1, eint_output1);
 		else
 			pinctrl_select_state(pinctrl1, eint_output0);
+//-S96818AA1-1936,daijun1.wt,modify,2023/05/19,n28-tp prevent crashes caused by DTS
 	} else {
 		if (tpd_dts_data.tpd_use_ext_gpio) {
 #ifdef CONFIG_MTK_MT6306_GPIO_SUPPORT
@@ -707,7 +718,7 @@ static int tp_match_lcm_name(void)
 	} else if (strstr(saved_command_line,"ft8006s_dsi_vdo_hdp_skyworth_shenchao")){
 		g_lcm_name = TM_FT_MODULE;   //ili9881h_hd_plus_vdo_txd
 		strcpy((char *)tp_name, "focaltech,fts");
-	} else if (strstr(saved_command_line,"icnl9911c_dsi_vdo_hdp_txd_inx")){
+	} else if (strstr(saved_command_line,"icnl9911c_dsi_vdo_hdp_txd_inx") || strstr(saved_command_line,"n28_icnl9911c_dsi_vdo_hdp_txd_inx")){
 		g_lcm_name = TXD_ICNL9911C_MODULE;    //icnl9911c_hd_plus_vdo_txd
 		strcpy((char *)tp_name, "chipone-tddi");
 	} else if (strstr(saved_command_line,"icnl9911c_dsi_vdo_hdp_lead_hsd")){
@@ -728,6 +739,19 @@ static int tp_match_lcm_name(void)
 	} else if (strstr(saved_command_line,"hx83108_dsi_vdo_hdp_boe_boe")) {
 		g_lcm_name = BOE_HIMAX_MODULE;
 		strcpy((char *)tp_name, "himax");
+	} else if (strstr(saved_command_line,"n28_nt36528_dsi_vdo_hdp_truly_truly")) {
+		g_lcm_name = TRULY_NT36528_MODULE;
+		strcpy((char *)tp_name, "NVT-ts");
+//+S96818AA1-1936,daijun1.wt,modify,2023/05/16,td4160 tp bringup
+	} else if (strstr(saved_command_line,"n28_td4160_dsi_vdo_hdp_xinxian_inx")) {
+		g_lcm_name = XINXIAN_TD4160_MODULE;
+		strcpy((char *)tp_name, "omnivision_tcm");
+//-S96818AA1-1936,daijun1.wt,modify,2023/05/16,td4160 tp bringup
+//-S96818AA1-1936,wangtao14.wt,modify,2023/05/16,ft8057s tp bringup
+	} else if (strstr(saved_command_line,"n28_ft8057s_dsi_vdo_hdp_dsbj_mantix")) {
+		g_lcm_name = MDT_FT8057S_MODULE;
+		strcpy((char *)tp_name, "fts_ts");
+//-S96818AA1-1936,wangtao14.wt,modify,2023/05/16,ft8057s tp bringup
 	} else {
 		TPD_DMESG("lcm name not match!");
 		return  -1;

@@ -19,6 +19,10 @@
 #include "ccci_swtp.h"
 #define MAX_QUEUE_LENGTH 16
 
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+extern char *saved_command_line;
+#endif
+
 struct md_rf_notify_struct {
 	unsigned int bit;
 	void (*notify_func)(unsigned int para0, unsigned int para1);
@@ -47,6 +51,35 @@ static void sys_msg_MD_RF_Notify(int md_id, unsigned int bit_value,
 {
 	int i;
 	unsigned int data_send;
+
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+	pr_info("bit_value before select: %X,data_1:%X :\n",bit_value,data_1);
+
+	if (strstr(saved_command_line, "ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd")) {
+		bit_value = bit_value & 1;
+		pr_info("ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd bit_value: %X,data_1:%X :\n",bit_value,data_1);
+	} else if (strstr(saved_command_line, "ili7807s_fhdp_wt_dsi_vdo_cphy_90hz_tianma")) {
+		bit_value = bit_value & 4;
+		pr_info("ili7807s_fhdp_wt_dsi_vdo_cphy_90hz_tianma bit_value: %X,data_1:%X :\n",bit_value,data_1);
+	} else if (strstr(saved_command_line, "hx83112f_fhdp_wt_dsi_vdo_cphy_90hz_dsbj")) {
+		bit_value = bit_value & 8;
+		pr_info("hx83112f_fhdp_wt_dsi_vdo_cphy_90hz_dsbj bit_value: %X,data_1:%X :\n",bit_value,data_1);
+	} else if (strstr(saved_command_line, "hx83112f_fhdp_wt_dsi_vdo_cphy_90hz_djn")) {
+		bit_value = bit_value & 16;
+		pr_info("hx83112f_fhdp_wt_dsi_vdo_cphy_90hz_djn bit_value: %X,data_1:%X :\n",bit_value,data_1);
+	} else {
+		bit_value = bit_value & 32;
+		pr_info("ili7807s_fhdp_wt_dsi_vdo_cphy_90hz_chuangwei bit_value: %X,data_1:%X :\n",bit_value,data_1);
+	}
+
+	if (bit_value>= 1) {
+		bit_value = 1;
+	} else {
+		bit_value = 0;
+	}
+
+	pr_info("bit_value after select: %X,data_1:%X :\n",bit_value,data_1);
+#endif
 
 	for (i = 0; i < NOTIFY_LIST_ITM_NUM; i++) {
 		data_send = (bit_value&(1<<notify_members[i].bit))

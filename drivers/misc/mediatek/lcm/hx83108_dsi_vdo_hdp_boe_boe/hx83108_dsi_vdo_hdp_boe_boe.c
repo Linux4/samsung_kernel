@@ -3,7 +3,6 @@
 /*
  * Copyright (c) 2019 MediaTek Inc.
  */
-
 #define LOG_TAG "LCM"
 
 #ifndef BUILD_LK
@@ -117,10 +116,15 @@ static struct LCM_setting_table lcm_suspend_setting2[] = {
 	{REGFLAG_DELAY, 20, {} },
 	{0x10, 0, {} },
 	{REGFLAG_DELAY, 120, {} },
-	{0xB9, 3, {0x83, 0x10, 0x84} },
+	{0xB9, 3, {0x83, 0x10, 0x8A} },
 	{0xBD, 1, {0x00} },
 	{0xB1, 1, {0x2D} },
 	{REGFLAG_DELAY, 50, {} },
+};
+
+static struct LCM_setting_table r4f_setting_vdo[] = {
+	{0x4f, 0, {}},
+	{REGFLAG_DELAY, 30, {} },
 };
 
 static struct LCM_setting_table init_setting_vdo[] = {
@@ -300,11 +304,12 @@ static void lcm_init_power(void)
 	MDELAY(5);
 }
 
+extern int wt_display_recover_flag;
 extern bool himax_gesture_status;
 static void lcm_suspend_power(void)
 {
-	if (himax_gesture_status == 1) {
-		pr_debug("[LCM] hx83108 boe lcd lcm_suspend_power himax_gesture_status = 1!\n");
+	if (himax_gesture_status == 1 && wt_display_recover_flag == 0) {
+		pr_debug("[LCM] hx83108 boe lcd lcm_suspend_power himax_gesture_status = 1 wt_display_recover_flag=0!\n");
 	} else {
 		int ret  = 0;
 		pr_debug("[LCM] hx83108 boe lcd lcm_suspend_power himax_gestrue_status = 0!\n");
@@ -321,27 +326,47 @@ static void lcm_resume_power(void)
 	lcm_init_power();
 }
 
+extern void himax_common_resume(struct device *dev);
 static void lcm_init(void)
 {
 	pr_debug("[LCM]hx83108 boe lcm_init\n");
 	lcm_reset_pin(HIGH);
 	MDELAY(6);
 	lcm_reset_pin(LOW);
-	MDELAY(2);
+	MDELAY(3);
 	tddi_lcm_tp_reset_output(HIGH);
 	MDELAY(1);
 	lcm_reset_pin(HIGH);
+	MDELAY(50);
+	push_table(NULL, r4f_setting_vdo, sizeof(r4f_setting_vdo) / sizeof(struct LCM_setting_table), 1);
+
+	lcm_reset_pin(HIGH);
+	MDELAY(6);
+	lcm_reset_pin(LOW);
+	MDELAY(3);
+	lcm_reset_pin(HIGH);
 	MDELAY(20);
+
 	push_table(NULL, init_setting_vdo, sizeof(init_setting_vdo) / sizeof(struct LCM_setting_table), 1);
 	pr_debug("[LCM] hx83108 boe--init success ----\n");
+
+	if(wt_display_recover_flag == 1){
+		pr_debug("wt_display_recover_flag == 1 ;do himax_common_resume");
+		himax_common_resume(NULL);
+	}
 }
 
+
+extern void himax_common_suspend(struct device *dev);
 static void lcm_suspend(void)
 {
 	pr_debug("[LCM] lcm_suspend\n");
-	panel_notifier_call_chain(PANEL_UNPREPARE, NULL);
+	if(wt_display_recover_flag == 1){
+		pr_debug("wt_display_recover_flag == 1 ;do himax_common_suspend");
+		himax_common_suspend(NULL);
+	}
 	pr_debug("[FTS]tpd_ilitek_notifier_callback in lcm_suspend\n ");
-	if (himax_gesture_status == 1) {
+	if (himax_gesture_status == 1 && wt_display_recover_flag == 0) {
 		pr_debug("open gesture : lcm_suspend_setting1\n ");
 		push_table(NULL, lcm_suspend_setting1, sizeof(lcm_suspend_setting1) / sizeof(struct LCM_setting_table), 1);
 	} else {

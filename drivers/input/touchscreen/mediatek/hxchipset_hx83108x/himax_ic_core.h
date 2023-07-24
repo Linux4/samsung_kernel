@@ -840,7 +840,7 @@ struct himax_core_fp {
 	void (*fp_init_psl)(void);
 	void (*fp_resume_ic_action)(void);
 	void (*fp_suspend_ic_action)(void);
-	void (*fp_power_on_init)(void);
+	int (*fp_power_on_init)(void);
 	bool (*fp_slave_tcon_reset)(void);
 	bool (*fp_slave_adc_reset_slave)(void);
 	bool (*fp_slave_wdt_off_slave)(void);

@@ -41,7 +41,8 @@
 
 #define LOG_TAG "<AW_LOG>"
 #define LOG_INFO(fmt, args...)  pr_info(LOG_TAG "[INFO]" "<%s><%d>"fmt, __func__, __LINE__, ##args)
-static uint8_t force_report_far = 0;
+static int user_test = 0;
+static uint8_t force_report_far = 1;
 static int mEnabled;
 aw9610x_t aw9610x_ptr;
 #ifdef ANFR_TEST
@@ -1353,6 +1354,41 @@ static struct attribute_group aw9610x_sar_attribute_group = {
 	.attrs = aw9610x_sar_attributes
 };
 
+#if defined(CONFIG_SENSORS)
+static int aw9610x_grip_flush(struct sensors_classdev *sensors_cdev,unsigned char val)
+{
+    aw9610x_t this = aw9610x_ptr;
+
+    input_report_rel(this->aw_pad[0].input, REL_MAX, val);
+    input_sync(this->aw_pad[0].input);
+
+    AWLOGI(this->dev, "%s val=%u\n", __func__, val);
+    return 0;
+}
+
+static int aw9610x_grip_wifi_flush(struct sensors_classdev *sensors_cdev,unsigned char val)
+{
+    aw9610x_t this = aw9610x_ptr;
+
+    input_report_rel(this->aw_pad[3].input, REL_MAX, val);
+    input_sync(this->aw_pad[3].input);
+
+    AWLOGI(this->dev, "%s -%u\n", __func__, val);
+    return 0;
+}
+
+static int aw9610x_grip_sub_flush(struct sensors_classdev *sensors_cdev,unsigned char val)
+{
+    aw9610x_t this = aw9610x_ptr;
+
+    input_report_rel(this->aw_pad[2].input, REL_MAX, val);
+    input_sync(this->aw_pad[2].input);
+
+    AWLOGI(this->dev, "%s -%u\n", __func__, val);
+    return 0;
+}
+#endif
+
 /*****************************************************
 *
 * irq init
@@ -1373,15 +1409,15 @@ static void aw9610x_irq_handle(struct aw9610x *aw9610x)
 	aw9610x_i2c_read(aw9610x, REG_STAT0, &curr_status);
 	j = aw9610x->sar_num;
 	AWLOGD(aw9610x->dev, "pad = 0x%08x", curr_status);
-	if(force_report_far)
+	if(!force_report_far)
 	{
 		for (i = 0; i < AW_CHANNEL_MAX; i++)
 		{
 			if(aw9610x->channel_func & (1 << i))
 			{
-				input_report_abs(
+				input_report_rel(
 				aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input,
-							ABS_DISTANCE, 5);
+							REL_MISC, 2);
 				input_sync(aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input);
 			}
 		}
@@ -1423,9 +1459,9 @@ static void aw9610x_irq_handle(struct aw9610x *aw9610x)
 		(ch_result[0] >= aw9610x->back_cap[0]) && (ch_result[1] >= aw9610x->back_cap[1]) && (ch_result[2] >= aw9610x->back_cap[2]))
 		{
 			LOG_INFO("force all channel State=Near\n");
-		
-			input_report_abs(aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input,
-										ABS_DISTANCE, 0);
+
+			input_report_rel(aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input,
+										 REL_MISC, 1);
 			input_sync(aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input);
 			aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].last_state = 1;
 			continue;
@@ -1437,14 +1473,14 @@ static void aw9610x_irq_handle(struct aw9610x *aw9610x)
                     (aw9610x->enable_flag & (1 << i))) {
 			switch (aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].curr_state) {
 			case FAR:
-				input_report_abs(
+				input_report_rel(
 				aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input,
-							ABS_DISTANCE, 5);
+							REL_MISC, 2);
 				break;
 			case TRIGGER_TH0:
-				input_report_abs(
+				input_report_rel(
 					aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input,
-							ABS_DISTANCE, 0);
+							REL_MISC, 1);
 				break;
 			case TRIGGER_TH1:
 				input_report_abs(
@@ -1864,10 +1900,13 @@ static ssize_t store_enable(struct device *dev,
 			#ifdef ANFR_TEST
 			this->back_cap[0] = read_ch0_offset();
 			AWLOGE(this->dev, "this->back_cap[0] = %d\n",this->back_cap[0]);
-			input_report_abs(this->aw_pad[0].input, ABS_DISTANCE, 0);
+		    if(this->aw_first_boot)
+			    input_report_rel(this->aw_pad[0].input, REL_MISC, 1);
+            else
+			    input_report_rel(this->aw_pad[0].input, REL_MISC, 2);
             input_sync(this->aw_pad[0].input);
 			#else
-			input_report_abs(this->aw_pad[0].input, ABS_DISTANCE, 5);
+			input_report_rel(this->aw_pad[0].input, REL_MISC, 2);
             input_sync(this->aw_pad[0].input);
 			#endif					
 
@@ -1876,8 +1915,6 @@ static ssize_t store_enable(struct device *dev,
         }else{
             LOG_INFO("name:grip_sensor:disable\n");
 			// disable aw96105 channel0,libo7.wt
-            input_report_abs(this->aw_pad[0].input, ABS_DISTANCE, -1);
-            input_sync(this->aw_pad[0].input);
             this->enable_flag &= ~CAPSENSOR_ENABLE_FLAG_CH0;
         }
     }
@@ -1896,11 +1933,14 @@ static ssize_t store_enable(struct device *dev,
             aw9610x_i2c_write_bits(this, REG_SCANCTRL0, ~(0x3f << 8), (data_en & 0x3f) << 8);
 			#ifdef ANFR_TEST
 			this->back_cap[1] = read_ch2_offset();
-			AWLOGE(this->dev, "this->back_cap[1] = %d\n",this->back_cap[1]);			
-			input_report_abs(this->aw_pad[2].input, ABS_DISTANCE, 0);
+			AWLOGE(this->dev, "this->back_cap[1] = %d\n",this->back_cap[1]);
+		    if(this->aw_first_boot)
+			    input_report_rel(this->aw_pad[2].input, REL_MISC, 1);
+            else
+			    input_report_rel(this->aw_pad[2].input, REL_MISC, 2);			
             input_sync(this->aw_pad[2].input);
 			#else
-			input_report_abs(this->aw_pad[2].input, ABS_DISTANCE, 5);
+			input_report_rel(this->aw_pad[2].input, REL_MISC, 2);
             input_sync(this->aw_pad[2].input);
 			#endif
 
@@ -1909,8 +1949,6 @@ static ssize_t store_enable(struct device *dev,
         }else{
             LOG_INFO("name:grip_sensor_sub:disable\n");
 			// disable aw96105 channel2,libo7.wt
-            input_report_abs(this->aw_pad[2].input, ABS_DISTANCE, -1);
-            input_sync(this->aw_pad[2].input);
             this->enable_flag &= ~CAPSENSOR_ENABLE_FLAG_CH2;
         }
     }
@@ -1931,10 +1969,13 @@ static ssize_t store_enable(struct device *dev,
 			#ifdef ANFR_TEST
 			this->back_cap[2] = read_ch3_offset();
 			AWLOGE(this->dev, "this->back_cap[2] = %d\n",this->back_cap[2]);
-			input_report_abs(this->aw_pad[3].input, ABS_DISTANCE, 0);
+		    if(this->aw_first_boot)
+			    input_report_rel(this->aw_pad[3].input, REL_MISC, 1);
+            else
+			    input_report_rel(this->aw_pad[3].input, REL_MISC, 2);
             input_sync(this->aw_pad[3].input);
 			#else
-			input_report_abs(this->aw_pad[3].input, ABS_DISTANCE, 5);
+			input_report_rel(this->aw_pad[3].input, REL_MISC, 2);
             input_sync(this->aw_pad[3].input);
 			#endif
 
@@ -1942,8 +1983,6 @@ static ssize_t store_enable(struct device *dev,
         }else{
             LOG_INFO("name:grip_sensor_wifi:disable\n");
 			// disable aw96105 channel2,libo7.wt
-            input_report_abs(this->aw_pad[3].input, ABS_DISTANCE, -1);
-            input_sync(this->aw_pad[3].input);
             this->enable_flag &= ~CAPSENSOR_ENABLE_FLAG_CH3;
         }
     }
@@ -1974,30 +2013,24 @@ static int capsensor_set_enable(struct sensors_classdev *sensors_cdev, unsigned 
         }
 
         if(!strcmp(sensors_cdev->name, "grip_sensor")){
-            input_report_abs(this->aw_pad[0].input, ABS_DISTANCE, 5);
+            input_report_rel(this->aw_pad[0].input, REL_MISC, 2);
             input_sync(this->aw_pad[0].input);
             this->enable_flag |= CAPSENSOR_ENABLE_FLAG_CH0;
         }else if(!strcmp(sensors_cdev->name, "grip_sensor_sub")){
-            input_report_abs(this->aw_pad[2].input, ABS_DISTANCE, 5);
+            input_report_rel(this->aw_pad[2].input, REL_MISC, 2);
             input_sync(this->aw_pad[2].input);
             this->enable_flag |= CAPSENSOR_ENABLE_FLAG_CH2;
         }else if(!strcmp(sensors_cdev->name, "grip_sensor_wifi")){
-            input_report_abs(this->aw_pad[3].input, ABS_DISTANCE, 5);
+            input_report_rel(this->aw_pad[3].input, REL_MISC, 2);
             input_sync(this->aw_pad[3].input);
             this->enable_flag |= CAPSENSOR_ENABLE_FLAG_CH3;
         }
     } else if (enable == 0) {
         if(!strcmp(sensors_cdev->name, "grip_sensor")){
-            input_report_abs(this->aw_pad[0].input, ABS_DISTANCE, -1);
-            input_sync(this->aw_pad[0].input);
             this->enable_flag &= ~CAPSENSOR_ENABLE_FLAG_CH0;
         }else if(!strcmp(sensors_cdev->name, "grip_sensor_sub")){
-            input_report_abs(this->aw_pad[2].input, ABS_DISTANCE, -1);
-            input_sync(this->aw_pad[2].input);
             this->enable_flag &= ~CAPSENSOR_ENABLE_FLAG_CH2;
         }else if(!strcmp(sensors_cdev->name, "grip_sensor_wifi")){
-            input_report_abs(this->aw_pad[3].input, ABS_DISTANCE, -1);
-            input_sync(this->aw_pad[3].input);
             this->enable_flag &= ~CAPSENSOR_ENABLE_FLAG_CH3;
         }
     }
@@ -2050,7 +2083,58 @@ static ssize_t power_enable_show(struct class *class,
 static CLASS_ATTR_RW(power_enable);
 
 //static DEVICE_ATTR(power_enable, 0644, power_enable_show, power_enable_store);
+static ssize_t user_test_show(struct class *class,
+		struct class_attribute *attr,
+		char *buf)
+{
+	return snprintf(buf, 8, "%d\n", user_test);
+}
 
+static ssize_t user_test_store(struct class *class,
+		struct class_attribute *attr,
+		const char *buf, size_t count)
+{
+    int i, j;
+    int ret = -1;
+	uint32_t data_en = 0;
+	aw9610x_t this = aw9610x_ptr;
+
+	if (!count)
+		return -EINVAL;
+
+    ret = kstrtoint(buf, 10, &user_test);
+    if (0 != ret) {
+        AWLOGE(this->dev,"kstrtoint failed\n");
+    }
+
+    printk("aw:user_test:%d", user_test);
+    if(user_test){
+#ifdef ANFR_TEST
+	    this->aw_first_boot = false;
+        printk("aw: this->aw_first_boot= %d;", this->aw_first_boot);
+	    printk("aw:user_test mode, exit force near mode!!!");
+#endif
+
+        printk("aw ch user_test mode cali ... \n");
+	    aw9610x_i2c_read(this, REG_SCANCTRL0, &data_en);
+		aw9610x_i2c_write_bits(this, REG_SCANCTRL0, ~(0x3f << 8),
+							(data_en & 0x3f) << 8);
+
+        j = this->sar_num;
+        for (i = 0; i < AW_CHANNEL_MAX; i++)
+        {
+            if(this->channel_func & (1 << i))
+            {
+                input_report_rel(this->aw_pad[j * AW_CHANNEL_MAX + i].input,
+							REL_MISC, 2);
+                input_sync(this->aw_pad[j * AW_CHANNEL_MAX + i].input);
+            }
+        }
+    }
+
+	return count;
+}
+static CLASS_ATTR_RW(user_test);
 
 /* +++for factory mode use,libo7.wt */
 static ssize_t ch0_cap_diff_dump_show(struct class *class,
@@ -2310,11 +2394,8 @@ aw9610x_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 		}
 		aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input->name =
 						pad_event[j * AW_CHANNEL_MAX + i].name;
-		__set_bit(EV_KEY, aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input->evbit);
-		__set_bit(EV_SYN, aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input->evbit);
-		__set_bit(KEY_F1, aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input->keybit);
-		input_set_abs_params(aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input,
-						ABS_DISTANCE, -1, 100, 0, 0);
+		input_set_capability(aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input, EV_REL, REL_MISC);
+		input_set_capability(aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input, EV_REL, REL_MAX);
 		/* +++sar sensor input_dev name for ss hal,libo7.wt */				
 		if (i == aw9610x->grip_sensor_ch){
 			aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input->name = "grip_sensor";
@@ -2334,25 +2415,34 @@ aw9610x_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 			err_num = i;
 			goto exit_input_register_device_failed;
 		}
-            input_report_abs(aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input, ABS_DISTANCE, -1);
+            input_report_rel(aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input, REL_MISC, 2);
             input_sync(aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input);
 	}
 
 	// for factory mode,libo7.wt
 	sensors_capsensor_ch0_cdev.sensors_enable = capsensor_set_enable;
     sensors_capsensor_ch0_cdev.sensors_poll_delay = NULL;
+#if defined(CONFIG_SENSORS)
+    sensors_capsensor_ch0_cdev.sensors_flush = aw9610x_grip_flush;
+#endif
     ret = sensors_classdev_register(&aw9610x->aw_pad[0].input->dev, &sensors_capsensor_ch0_cdev);
     if (ret < 0)
 		AWLOGE(aw9610x->dev, "failed to register ch0 sensors capsense device");
 
     sensors_capsensor_ch2_cdev.sensors_enable = capsensor_set_enable;
     sensors_capsensor_ch2_cdev.sensors_poll_delay = NULL;
+#if defined(CONFIG_SENSORS)
+    sensors_capsensor_ch2_cdev.sensors_flush = aw9610x_grip_sub_flush;
+#endif
     ret = sensors_classdev_register(&aw9610x->aw_pad[2].input->dev, &sensors_capsensor_ch2_cdev);
     if (ret < 0)
 		AWLOGE(aw9610x->dev, "failed to register ch2 sensors capsense device");
 
     sensors_capsensor_ch3_cdev.sensors_enable = capsensor_set_enable;
     sensors_capsensor_ch3_cdev.sensors_poll_delay = NULL;
+#if defined(CONFIG_SENSORS)
+    sensors_capsensor_ch3_cdev.sensors_flush = aw9610x_grip_wifi_flush;
+#endif
     ret = sensors_classdev_register(&aw9610x->aw_pad[3].input->dev, &sensors_capsensor_ch3_cdev);
     if (ret < 0)
 		AWLOGE(aw9610x->dev, "failed to register ch3 sensors capsense device");
@@ -2386,6 +2476,12 @@ aw9610x_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
     ret = class_create_file(&capsense_class, &class_attr_power_enable);
     if (ret < 0) {
         AWLOGE(aw9610x->dev, "Create ch3_cap_diff_dump file failed (%d)\n", ret);
+        return ret;
+    }
+    
+    ret = class_create_file(&capsense_class, &class_attr_user_test);
+    if (ret < 0) {
+        AWLOGE(aw9610x->dev, "Create user_test file failed (%d)\n", ret);
         return ret;
     }
 

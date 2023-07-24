@@ -65,7 +65,7 @@
 #define PMIC_MIN_VOL 33500
 
 /*ui_soc related */
-#define DIFFERENCE_FULL_CV 0 /*0.01%*/
+#define DIFFERENCE_FULL_CV 1000 /*0.01%*/
 #define PSEUDO1_EN 1
 #define PSEUDO100_EN 1
 #define PSEUDO100_EN_DIS 0

@@ -132,6 +132,7 @@ static volatile uint8_t hx9035_data_accuracy = 16;
 #define MAX_INT_COUNT   20
 static int32_t enable_data[HX9035_CH_NUM] = {1, 1, 1};
 #define PDATA_GET(index)  hx9035_pdata.ch##index##_backgrand_cap
+static int cali_test_index = 1;
 #endif
 
 static DEFINE_MUTEX(hx9035_i2c_rw_mutex);
@@ -144,6 +145,8 @@ static struct wakeup_source hx9035_wake_lock;
 #else
 static struct wake_lock hx9035_wake_lock;
 #endif
+
+static void hx9035_manual_offset_calibration_1_ch(uint8_t ch_id);
 
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^通用读写 START
 //从指定起始寄存器开始，连续写入count个值
@@ -881,9 +884,9 @@ static void hx9035_input_report(void)
     struct input_dev *input = NULL;
     struct hx9035_channel_info *channel_p  = NULL;
 #if SAR_IN_FRANCE
-    u16 ch0_result = 0;
-    u16 ch1_result = 0;
-    u16 ch2_result = 0;
+    int16_t ch0_result = 0;
+    int16_t ch1_result = 0;
+    int16_t ch2_result = 0;
 #endif
 
     num_channels = ARRAY_SIZE(hx9035_channels);
@@ -945,9 +948,23 @@ static void hx9035_input_report(void)
         }
         PRINT_INF("SAR hx9035_pdata.interrupt_count=%d\n",hx9035_pdata.interrupt_count);
         if (hx9035_pdata.sar_first_boot) {
+            if (hx9035_pdata.interrupt_count >= 5 && hx9035_pdata.interrupt_count < 15) {
+                PRINT_INF("hx9035_ch_near_state[2] = %d", hx9035_ch_near_state[2]);
+                if (hx9035_ch_near_state[2] == IDLE && cali_test_index == 1) {
+                    hx9035_manual_offset_calibration_1_ch(2);
+                    PRINT_INF("hx9035:interrupt_count:%d, wifi sar cali", hx9035_pdata.interrupt_count);
+                    cali_test_index = 0;
+                    PRINT_INF("hx9035:interrupt_count:%d", hx9035_pdata.interrupt_count);
+                }
+            } else if(hx9035_pdata.interrupt_count == 15 && cali_test_index == 1) {
+                    PRINT_INF("hx9035:interrupt_count:15, wifi sar cali");
+                    hx9035_manual_offset_calibration_1_ch(2);
+                    PRINT_INF("hx9035:interrupt_count:%d", hx9035_pdata.interrupt_count);
+            }
             if (hx9035_pdata.sar_first_boot && (hx9035_pdata.interrupt_count < MAX_INT_COUNT) &&   \
-                    (ch0_result >= hx9035_pdata.ch0_backgrand_cap &&   \
-                    (ch1_result >= hx9035_pdata.ch1_backgrand_cap) && ch2_result >= hx9035_pdata.ch2_backgrand_cap)) {
+                   ((ch0_result - hx9035_pdata.ch0_backgrand_cap) >= -7) &&   \
+                   ((ch1_result - hx9035_pdata.ch1_backgrand_cap) >= -7) &&   \
+                   ((ch2_result - hx9035_pdata.ch2_backgrand_cap) >= -5)) {
                 PRINT_INF("force %s State=Near\n", hx9035_channels[ii].name);
                 input_report_rel(input, REL_MISC, 1);
                 input_report_rel(input, REL_X, 1);
@@ -978,7 +995,11 @@ static void hx9035_input_report(void)
             touch_state = hx9035_ch_near_state[ii];
 
             if (PROXACTIVE == touch_state) {
+#if SAR_IN_FRANCE
+                if (channel_p->state == PROXACTIVE && hx9035_pdata.anfr_export_exit == false)
+#else
                 if (channel_p->state == PROXACTIVE)
+#endif
                     PRINT_DBG("%s already PROXACTIVE, nothing report\n", channel_p->name);
                 else {
 //#ifdef CONFIG_PM_WAKELOCKS
@@ -1002,7 +1023,11 @@ static void hx9035_input_report(void)
                 PRINT_DBG("%s report PROXACTIVE(15mm)\n", channel_p->name);
             }
         } else if (IDLE == touch_state) {
+#if SAR_IN_FRANCE
+            if (channel_p->state == IDLE && hx9035_pdata.anfr_export_exit == false)
+#else
             if (channel_p->state == IDLE)
+#endif
                 PRINT_DBG("%s already released, nothing report\n", channel_p->name);
             else {
 //#ifdef CONFIG_PM_WAKELOCKS
@@ -1380,15 +1405,14 @@ static ssize_t store_enable(struct device *dev,
                 input_sync(hx9035_channels[i].hx9035_input_dev);
 #if SAR_IN_FRANCE
                 if (hx9035_pdata.sar_first_boot && enable_data[i]) {
-                    mdelay(10);
+                    mdelay(20);
                     hx9035_read_offset_dac();
-                    switch (i) {
-                        case 0: PDATA_GET(0) = data_offset_dac[i]; enable_data[0] = 0; break;
-                        case 1: PDATA_GET(1) = data_offset_dac[i]; enable_data[1] = 0; break;
-                        case 2: PDATA_GET(2) = data_offset_dac[i]; enable_data[2] = 0; break;
-                        default: break;
-                    }
-                    PRINT_INF("ch%dbackgrand_cap: %d\n", i, data_offset_dac[i]);
+                    PDATA_GET(0) = data_offset_dac[0]; enable_data[0] = 0;
+                    PDATA_GET(1) = data_offset_dac[1]; enable_data[1] = 0;
+                    PDATA_GET(2) = data_offset_dac[2]; enable_data[2] = 0;
+                    PRINT_INF("ch0:backgrand_cap%d", data_offset_dac[0]);
+                    PRINT_INF("ch1:backgrand_cap%d", data_offset_dac[1]);
+                    PRINT_INF("ch2:backgrand_cap%d", data_offset_dac[2]);
                 }
 #endif
             } else {
@@ -1626,6 +1650,7 @@ static ssize_t hx9035_manual_offset_calibration_store(struct class *class, struc
         PRINT_INF("you are enter the calibration test mode, all channels will be calibrated\n");
         for(ii = 0; ii < HX9035_CH_NUM; ii++) {
             if ((hx9035_pdata.channel_used_flag >> ii) & 0x1) {
+                mdelay(20);
                 hx9035_manual_offset_calibration_1_ch(ii);
             }
         }
@@ -2231,11 +2256,65 @@ static ssize_t power_enable_store(struct class *class,
 }
 #endif
 
+#if SAR_IN_FRANCE
+void exit_anfr_func(void )
+{
+    if (hx9035_pdata.sar_first_boot) {
+        hx9035_pdata.sar_first_boot = false;
+        hx9035_pdata.anfr_export_exit = true;
+        mutex_lock(&hx9035_ch_en_mutex);
+        hx9035_state_monitoring(hx9035_monitor_addr, hx9035_monitor_val);
+        hx9035_sample();
+        hx9035_get_prox_state();
+        hx9035_input_report();
+        mutex_unlock(&hx9035_ch_en_mutex);
+        hx9035_pdata.anfr_export_exit = false;
+        PRINT_INF("hx9035:exit force input near mode, report sar state once!\n");
+    }
+}
+EXPORT_SYMBOL(exit_anfr_func);
+
+
+static ssize_t user_test_show(struct class *class,
+                                 struct class_attribute *attr,
+                                 char *buf)
+{
+    return sprintf(buf, "%d\n", hx9035_pdata.user_test);
+}
+static ssize_t user_test_store(struct class *class,
+                                  struct class_attribute *attr,
+                                  const char *buf, size_t count)
+{
+    int ret = -1;
+ 
+    ret = kstrtoint(buf, 10, &hx9035_pdata.user_test);
+    if (0 != ret) {
+        PRINT_ERR("kstrtoint failed\n");
+    }
+	PRINT_INF("hx9035_pdata.user_test:%d", hx9035_pdata.user_test);
+    if (hx9035_pdata.user_test) {
+	    hx9035_pdata.sar_first_boot = false;
+        PRINT_INF("hx9035_pdata.sar_first_boot:%d", hx9035_pdata.sar_first_boot);
+        PRINT_INF("hx9035:user_test:%d, exit force input near mode!!!\n", hx9035_pdata.user_test);
+        for(size_t ii = 0; ii < HX9035_CH_NUM; ii++) {
+            if ((hx9035_pdata.channel_used_flag >> ii) & 0x1) {
+                //mdelay(20);
+                hx9035_manual_offset_calibration_1_ch(ii);
+            }
+        }
+    }
+    return count;
+}
+#endif
+
 static struct class_attribute class_attr_ch0_cap_diff_dump = __ATTR(ch0_cap_diff_dump, 0664, ch0_cap_diff_dump_show, NULL);
 static struct class_attribute class_attr_ch2_cap_diff_dump = __ATTR(ch2_cap_diff_dump, 0664, ch2_cap_diff_dump_show, NULL);
 static struct class_attribute class_attr_ch3_cap_diff_dump = __ATTR(ch3_cap_diff_dump, 0664, ch3_cap_diff_dump_show, NULL);
 #if POWER_ENABLE
 static struct class_attribute class_attr_power_enable = __ATTR(power_enable, 0664, power_enable_show, power_enable_store);
+#endif
+#if SAR_IN_FRANCE
+static struct class_attribute class_attr_user_test = __ATTR(user_test, 0664, user_test_show, user_test_store);
 #endif
 
 static struct attribute *hx9035_capsense_attrs[] = {
@@ -2244,6 +2323,9 @@ static struct attribute *hx9035_capsense_attrs[] = {
     &class_attr_ch3_cap_diff_dump.attr,
 #if POWER_ENABLE
     &class_attr_power_enable.attr,
+#endif
+#if SAR_IN_FRANCE
+    &class_attr_user_test.attr,
 #endif
     NULL,
 };
@@ -2433,6 +2515,7 @@ static int hx9035_probe(struct i2c_client *client, const struct i2c_device_id *i
 
 #if SAR_IN_FRANCE
     hx9035_pdata.sar_first_boot = true;
+    hx9035_pdata.user_test  = 0;
 #if USE_USB
     hx9035_pdata.ps_notif.notifier_call = ps_notify_callback;
     ret = power_supply_reg_notifier(&hx9035_pdata.ps_notif);
@@ -2583,7 +2666,7 @@ static void __exit hx9035_module_exit(void)
     i2c_del_driver(&hx9035_i2c_driver);
 }
 
-module_init(hx9035_module_init);
+rootfs_initcall(hx9035_module_init);
 module_exit(hx9035_module_exit);
 
 MODULE_AUTHOR("Yasin Lee <yasin.lee.x@gmail.com><yasin.lee@tianyihexin.com>");

@@ -18,8 +18,8 @@
 #endif
 
 #if defined(CONFIG_MACH_MT6768)
-#include <mach/upmu_sw.h>
-#include <mach/upmu_hw.h>
+#include "mt6768/include/mach/upmu_sw.h"
+#include "mt6768/include/mach/upmu_hw.h"
 #endif
 
 #if defined(CONFIG_MACH_MT6771)

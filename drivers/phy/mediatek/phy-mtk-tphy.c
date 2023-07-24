@@ -1563,7 +1563,7 @@ static void u2_phy_instance_power_on(struct mtk_tphy *tphy,
 	tmp &= ~P2C_RG_SESSEND;
 	writel(tmp, com + U3P_U2PHYDTM1);
 //Bug+715587 houdujing.wt,20220506,deleted,change the usb eye parameter
-#if !defined(CONFIG_WT_PROJECT_S96901AA1) && !defined(CONFIG_WT_PROJECT_S96902AA1) && !defined(CONFIG_WT_PROJECT_S96901WA1) && !defined(CONFIG_WT_PROJECT_S96616AA1)
+#if !defined(CONFIG_WT_PROJECT_S96901AA1) && !defined(CONFIG_WT_PROJECT_S96902AA1) && !defined(CONFIG_WT_PROJECT_S96901WA1) && !defined(CONFIG_WT_PROJECT_S96616AA1) && !defined(CONFIG_WT_PROJECT_S96818AA1) && !defined(CONFIG_WT_PROJECT_S96818BA1)
 	tmp = readl(com + U3P_USBPHYACR6);
 	tmp &= ~PA6_RG_U2_PHY_REV6;
 	tmp |= PA6_RG_U2_PHY_REV6_VAL(1);
@@ -1814,7 +1814,19 @@ static void u2_phy_instance_set_mode(struct mtk_tphy *tphy,
         instance->eye_vrt = 0x7;
         instance->eye_term = 0x5;
         instance->eye_rev6 = 0x3;
+//Bug+ S96818AA1-4552 wangchunhua2.wt,20220519,change the usb eye parameter
+#elif defined(CONFIG_WT_PROJECT_S96818AA1)
+	instance->eye_vrt = 0x7;
+        instance->eye_term = 0x3;
+        instance->eye_rev6 = 0x3;
+//Bug- S96818AA1-4552 wangchunhua2.wt,20230519,change the usb eye parameter
+//Bug+ S96818AA1-4552 wangchunhua2.wt,20220524,compatible the usb eye parameter
+#elif defined(CONFIG_WT_PROJECT_S96818BA1)
+	instance->eye_vrt = 0x7;
+        instance->eye_term = 0x3;
+        instance->eye_rev6 = 0x3;
 #else
+//Bug- S96818AA1-4552 wangchunhua2.wt,20230524,compatible the usb eye parameter
         instance->eye_vrt = 0x5;
         instance->eye_term = 0x5;
         instance->eye_rev6 = 0x1;
@@ -1854,7 +1866,7 @@ static void u2_phy_instance_set_mode(struct mtk_tphy *tphy,
         instance->eye_vrt = 0x7;
         instance->eye_term = 0x5;
         instance->eye_rev6 = 0x3;
-        instance->eye_disc = 0x7;
+        instance->eye_disc = 0xf;
 #elif defined(CONFIG_WT_PROJECT_S96516SA1)
         instance->eye_vrt = 0x6;
         instance->eye_term = 0x6;
@@ -1864,7 +1876,19 @@ static void u2_phy_instance_set_mode(struct mtk_tphy *tphy,
         instance->eye_term = 0x3;
         instance->eye_rev6 = 0x3;
         instance->eye_disc = 0xF;
+//Bug+ S96818AA1-4552 wangchunhua2.wt,20220519,change the usb eye parameter
+#elif defined(CONFIG_WT_PROJECT_S96818AA1)
+	instance->eye_vrt = 0x7;
+        instance->eye_term = 0x3;
+        instance->eye_rev6 = 0x3;
+//Bug- S96818AA1-4552 wangchunhua2.wt,20220519,change the usb eye parameter
+//Bug+ S96818BA1-4552 wangchunhua2.wt,20220524,compatible S96818BA1
+#elif defined(CONFIG_WT_PROJECT_S96818BA1)
+	instance->eye_vrt = 0x7;
+        instance->eye_term = 0x3;
+        instance->eye_rev6 = 0x3;
 #else
+//Bug- S96818BA1-4552 wangchunhua2.wt,20220524,compatible S96818BA1
         instance->eye_vrt = 0x5;
         instance->eye_term = 0x5;
         instance->eye_rev6 = 0x1;
@@ -2467,7 +2491,7 @@ static int mtk_phy_set_mode(struct phy *phy, enum phy_mode mode, int submode)
 {
 	struct mtk_phy_instance *instance = phy_get_drvdata(phy);
 	struct mtk_tphy *tphy = dev_get_drvdata(phy->dev.parent);
-#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1) || defined(CONFIG_WT_PROJECT_S96516SA1) || defined(CONFIG_WT_PROJECT_S96616AA1)
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1) || defined(CONFIG_WT_PROJECT_S96516SA1) || defined(CONFIG_WT_PROJECT_S96616AA1) || defined(CONFIG_WT_PROJECT_S96818AA1) || defined(CONFIG_WT_PROJECT_S96818BA1)
     u32 tmp;
     struct u2phy_banks *u2_banks = &instance->u2_banks;
     void __iomem *com = u2_banks->com;

@@ -188,6 +188,7 @@ static int mtk_usb_extcon_set_role(struct mtk_extcon_info *extcon,
 	return 0;
 }
 
+#ifndef CONFIG_WT_PROJECT_S96902AA1 //usb if
 #if !defined(CONFIG_USB_MTK_HDRC)
 void mt_usb_connect()
 {
@@ -203,6 +204,7 @@ void mt_usb_disconnect()
 }
 EXPORT_SYMBOL(mt_usb_disconnect);
 #endif
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 
 static int mtk_usb_extcon_psy_notifier(struct notifier_block *nb,
 				unsigned long event, void *data)
@@ -332,13 +334,8 @@ static int mtk_usb_extcon_set_vbus_v1(bool is_on) {
 	pr_info("%s: is_on=%d\n", __func__, is_on);
 	if (is_on) {
 		charger_dev_enable_otg(primary_charger, true);
-#if defined (CONFIG_N26_CHARGER_PRIVATE)
 		charger_dev_set_boost_current_limit(primary_charger,
-			1500000); 
-#else
-		charger_dev_set_boost_current_limit(primary_charger,
-			1100000);  //churui1.wt, decrease the OTG current limit
-#endif			
+			1500000);
 		#if 0
 		{// # workaround
 			charger_dev_kick_wdt(primary_charger);
@@ -701,6 +698,28 @@ void mt_usb_connect_v1(void)
 #endif
 }
 EXPORT_SYMBOL_GPL(mt_usb_connect_v1);
+
+void force_open_usb_adb(void)
+{	
+	if (!g_extcon) {
+		pr_info("g_extcon = NULL\n");
+		return;
+	}
+	pr_info("%s [Loren]force_open_usb_adb\n", __func__);
+	 mtk_usb_extcon_set_role(g_extcon, DUAL_PROP_DR_DEVICE);
+}
+EXPORT_SYMBOL_GPL(force_open_usb_adb);
+
+void force_disable_usb_adb(void)
+{
+	if (!g_extcon) {
+		pr_info("g_extcon = NULL\n");
+		return;
+	}
+	pr_info("%s [Loren]force_disable_usb_adb\n", __func__);
+	 mtk_usb_extcon_set_role(g_extcon, DUAL_PROP_DR_NONE);
+}
+EXPORT_SYMBOL_GPL(force_disable_usb_adb);
 
 void mt_usb_disconnect_v1(void)
 {

@@ -304,3 +304,20 @@ config MTK_LENS_TXD_HI5022Q_GT9778AF_SUPPORT
 	  lens driver for the camera sensor module
 	  Set as y if the driver is used in this project
 #-bug767771,liudijin.wt,ADD,2022/07/14,add truly s5kjn1 gt9778 bringup code.
+config MTK_LENS_N28TRULYHI5021Q_AW8601WAF_SUPPORT
+	tristate "N28TRULYHI5021Q_AW8601WAF Lens Driver"
+		depends on MTK_LENS
+	help
+	  N28TRULYHI5021Q_AW8601WAF Lens Driver
+	  This config is used to enable the corresponding
+	  lens driver for the camera sensor module
+	  Set as y if the driver is used in this project
+
+config MTK_LENS_N28HI5021QDC_DW9800WAF_SUPPORT
+	tristate "N28HI5021QDC_DW9800WAF Lens Driver"
+		depends on MTK_LENS
+	help
+	  N28HI5021QDC_DW9800WAF Lens Driver
+	  This config is used to enable the corresponding
+	  lens driver for the camera sensor module
+	  Set as y if the driver is used in this project

@@ -401,7 +401,12 @@ struct tcpc_device *tcpc_device_register(struct device *parent,
 	tcpc->evt_wq = alloc_ordered_workqueue("%s", 0, tcpc_desc->name);
 	for (i = 0; i < TCP_NOTIFY_IDX_NR; i++)
 		srcu_init_notifier_head(&tcpc->evt_nh[i]);
-
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#ifdef CONFIG_USB_PD_CHECK_RX_PENDING_IF_SRTOUT
+	init_completion(&tcpc->alert_done);
+	tcpc->is_rx_event = false;
+#endif /* CONFIG_USB_PD_CHECK_RX_PENDING_IF_SRTOUT */
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 	mutex_init(&tcpc->access_lock);
 	mutex_init(&tcpc->typec_lock);
 	mutex_init(&tcpc->timer_lock);
