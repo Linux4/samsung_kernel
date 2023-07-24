@@ -17025,6 +17025,21 @@
 		compatible = "samsung,ems";
 		status = "okay";
 
+		pe-list {
+
+			list@0 {
+				cpus = "0-3\04-6\07";
+			};
+
+			list@1 {
+				cpus = "4-6\07\00-3";
+			};
+
+			list@2 {
+				cpus = "7\04-6\00-3";
+			};
+		};
+
 		frt {
 
 			coregroup0 {

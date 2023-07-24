@@ -4513,8 +4513,8 @@ static int tg_unthrottle_up(struct task_group *tg, void *data)
 
 	cfs_rq->throttle_count--;
 	if (!cfs_rq->throttle_count) {
-		cfs_rq->throttled_clock_pelt_time += rq_clock_pelt(rq) -
-					     cfs_rq->throttled_clock_pelt;
+		cfs_rq->throttled_clock_task_time += rq_clock_task(rq) -
+					     cfs_rq->throttled_clock_task;
 
 		/* Add cfs_rq with already running entity in the list */
 		if (cfs_rq->nr_running >= 1)
@@ -4531,7 +4531,7 @@ static int tg_throttle_down(struct task_group *tg, void *data)
 
 	/* group is entering throttled state, stop time */
 	if (!cfs_rq->throttle_count) {
-		cfs_rq->throttled_clock_pelt = rq_clock_pelt(rq);
+		cfs_rq->throttled_clock_task = rq_clock_task(rq);
 		list_del_leaf_cfs_rq(cfs_rq);
 	}
 	cfs_rq->throttle_count++;
@@ -4960,7 +4960,7 @@ static void sync_throttle(struct task_group *tg, int cpu)
 	pcfs_rq = tg->parent->cfs_rq[cpu];
 
 	cfs_rq->throttle_count = pcfs_rq->throttle_count;
-	cfs_rq->throttled_clock_pelt = rq_clock_pelt(cpu_rq(cpu));
+	cfs_rq->throttled_clock_task = rq_clock_task(cpu_rq(cpu));
 }
 
 /* conditionally throttle active cfs_rq's from put_prev_entity() */
@@ -10097,6 +10097,11 @@ int newidle_balance(struct rq *this_rq, struct rq_flags *rf)
 	struct sched_domain *sd;
 	int pulled_task = 0;
 	u64 curr_cost = 0;
+	int done = 0;
+
+	lb_newidle_balance(this_rq, rf, &pulled_task, &done);
+	if (done)
+		return pulled_task;
 
 	update_misfit_status(NULL, this_rq);
 	/*

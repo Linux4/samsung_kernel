@@ -433,6 +433,47 @@ TRACE_EVENT(frt_select_task_rq,
 		  __entry->bestcpu,
  		  __entry->selectby)
  );
+
+/*
+ * Tracepoint for ems newidle balance
+ */
+TRACE_EVENT(lb_newidle_balance,
+
+	TP_PROTO(int this_cpu, int busy_cpu, int pulled, bool short_idle),
+
+	TP_ARGS(this_cpu, busy_cpu, pulled, short_idle),
+
+	TP_STRUCT__entry(
+		__field(	int,		cpu			)
+		__field(	int,		busy_cpu		)
+		__field(	int,		pulled			)
+		__field(	unsigned int,	nr_running		)
+		__field(	unsigned int,	rt_nr_running		)
+		__field(	int,		nr_iowait		)
+		__field(	u64,		avg_idle		)
+		__field(        bool,		short_idle		)
+		__field(	int,		overload		)
+	),
+
+	TP_fast_assign(
+		__entry->cpu			= this_cpu;
+		__entry->busy_cpu		= busy_cpu;
+		__entry->pulled			= pulled;
+		__entry->nr_running		= cpu_rq(this_cpu)->nr_running;
+		__entry->rt_nr_running		= cpu_rq(this_cpu)->rt.rt_nr_running;
+		__entry->nr_iowait		= atomic_read(&(cpu_rq(this_cpu)->nr_iowait));
+		__entry->avg_idle		= cpu_rq(this_cpu)->avg_idle;
+		__entry->short_idle		= short_idle;
+		__entry->overload		= cpu_rq(this_cpu)->rd->overload;
+	),
+
+	TP_printk("cpu=%1d, busy_cpu=%2d, pulled=%1d, nr_running=%2u, rt_nr_running=%2u, "
+		"nr_iowait=%1d, avg_idle=%7llu, short_idle=%1d, overload=%1d",
+		__entry->cpu, __entry->busy_cpu, __entry->pulled,
+		__entry->nr_running, __entry->rt_nr_running, __entry->nr_iowait,
+		__entry->avg_idle, __entry->short_idle, __entry->overload)
+);
+
 #endif /* _TRACE_EMS_H */
 
 /* This part must be outside protection */

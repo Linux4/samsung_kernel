@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2017-2018, 2020 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2017-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -66,8 +66,10 @@ void kbase_ctx_sched_term(struct kbase_device *kbdev);
  *
  * This must be called during context initialization before any other context
  * scheduling functions are called on @kctx
+ *
+ * Return: 0
  */
-void kbase_ctx_sched_init_ctx(struct kbase_context *kctx);
+int kbase_ctx_sched_init_ctx(struct kbase_context *kctx);
 
 /**
  * kbase_ctx_sched_retain_ctx - Retain a reference to the @ref kbase_context
