@@ -45,6 +45,7 @@
 #define pr_fmt(fmt) "sprd-jpg: " fmt
 
 static struct jpg_dev_t jpg_hw_dev;
+static struct wakeup_source jpg_wakelock;
 static char *jpg_clk_src[] = {
 	"clk_src_76m8",
 	"clk_src_96m",
@@ -67,11 +68,17 @@ static struct jpg_qos_cfg qos_cfg;
 static struct register_gpr regs[ARRAY_SIZE(syscon_name)];
 
 static irqreturn_t jpg_isr(int irq, void *data);
-
+static irqreturn_t jpg_isr_thread(int irq, void *data);
 
 static irqreturn_t jpg_isr(int irq, void *data)
 {
 	int int_status;
+	struct jpg_fh *jpg_fp = jpg_hw_dev.jpg_fp;
+
+	if (jpg_fp->is_clock_enabled == 0) {
+		__pm_stay_awake(&jpg_wakelock);
+		return IRQ_WAKE_THREAD;
+	}
 
 	int_status =
 		readl_relaxed((void __iomem *)(jpg_hw_dev.sprd_jpg_virt +
@@ -113,6 +120,52 @@ static irqreturn_t jpg_isr(int irq, void *data)
 
 	}
 
+	if (jpg_hw_dev.version >= SHARKL5PRO) {
+		int_status =
+			readl_relaxed((void __iomem *)(jpg_hw_dev.sprd_jpg_virt +
+				IOMMU_INT_RAW_OFFSET));
+		if (int_status) {
+			writel_relaxed((int_status),
+				(void __iomem *)(jpg_hw_dev.sprd_jpg_virt +
+				IOMMU_INT_CLR_OFFSET));
+		}
+		pr_info("%s iommu status 0x%lx\n", __func__, int_status);
+	}
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t jpg_isr_thread(int irq, void *data)
+{
+	int ret;
+	int int_status;
+
+	sprd_jpg_domain_eb();
+	ret = jpg_clk_enable(&jpg_hw_dev);
+	if (ret == 0) {
+		int_status =
+		readl_relaxed((void __iomem *)(jpg_hw_dev.sprd_jpg_virt +
+			GLB_INT_RAW_OFFSET));
+		if (int_status) {
+			writel_relaxed((int_status),
+				(void __iomem *)(jpg_hw_dev.sprd_jpg_virt +
+				GLB_INT_CLR_OFFSET));
+		}
+		if (jpg_hw_dev.version >= SHARKL5PRO) {
+			int_status =
+			readl_relaxed((void __iomem *)(jpg_hw_dev.sprd_jpg_virt +
+				IOMMU_INT_RAW_OFFSET));
+			pr_info("jpg_iommu_int raw 0x%x\n", int_status);
+			if (int_status) {
+				writel_relaxed((int_status),
+					(void __iomem *)(jpg_hw_dev.sprd_jpg_virt +
+					IOMMU_INT_CLR_OFFSET));
+			}
+		}
+		jpg_clk_disable(&jpg_hw_dev);
+		sprd_jpg_domain_disable();
+	}
+	__pm_relax(&jpg_wakelock);
 	return IRQ_HANDLED;
 }
 
@@ -640,8 +693,8 @@ static int jpg_probe(struct platform_device *pdev)
 
 	/* register isr */
 	ret =
-	    devm_request_irq(&pdev->dev, jpg_hw_dev.irq, jpg_isr, 0, "JPG",
-			     &jpg_hw_dev);
+	    devm_request_threaded_irq(&pdev->dev, jpg_hw_dev.irq, jpg_isr,
+				jpg_isr_thread, 0, "JPG", &jpg_hw_dev);
 	if (ret) {
 		dev_err(dev, "jpg: failed to request irq!\n");
 		ret = -EINVAL;

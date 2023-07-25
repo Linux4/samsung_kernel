@@ -35,5 +35,6 @@ extern int get_scene_info(char **name, unsigned int *freq,
 extern int set_backdoor(void);
 extern int reset_backdoor(void);
 extern int dfs_ext_vote(unsigned int freq, unsigned int magic);
+extern void dfs_register_save(void);
 extern void dfs_ext_vote_resume(void);
 #endif

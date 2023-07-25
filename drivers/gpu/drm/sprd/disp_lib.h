@@ -33,13 +33,8 @@ struct ops_list {
 	struct ops_entry *entry;
 };
 
-/*
-* Modify for Bug 1723972 - SI-23255: Stack buffer overflow in str_to_u32_array function, used in few store system calls.
-* Jira:KSG_M168_A01-2995
-* int str_to_u32_array(const char *p, u32 base, u32 array[])
-*/
-int str_to_u32_array(const char *p, u32 base, u32 array[], ssize_t size);
-int str_to_u8_array(const char *p, u32 base, u8 array[]);
+int str_to_u32_array(const char *p, u32 base, u32 array[], u8 size);
+int str_to_u8_array(const char *p, u32 base, u8 array[], u8 size);
 int dump_bmp32(const char *p, u32 width, u32 height,
 		bool bgra, const char *filename);
 int load_dtb_to_mem(const char *name, void **blob);

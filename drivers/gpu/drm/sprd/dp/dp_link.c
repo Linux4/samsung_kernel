@@ -689,7 +689,7 @@ int dptx_link_check_status(struct dptx *dptx)
 	if (dptx->link.trained &&
 	    (!drm_dp_channel_eq_ok(dptx->link.status, dptx->link.lanes) ||
 	     !drm_dp_clock_recovery_ok(dptx->link.status, dptx->link.lanes))) {
-		DRM_INFO("%s: Retraining link\n", __func__);
+		DRM_DEBUG("%s: Retraining link\n", __func__);
 
 		return dptx_link_training(dptx,
 					  DPTX_MAX_LINK_RATE,

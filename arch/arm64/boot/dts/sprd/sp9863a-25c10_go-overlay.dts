@@ -14,7 +14,7 @@
 	model = "Spreadtrum SC9863A-25C10-GO Board";
 	compatible = "sprd,sp9863a-25c10-go", "sprd,sc9863a";
 	sprd,sc-id = "sp9863a 25c10 go";
-	//sprd,board_id = <0x2900>; //XX00:base board,XX00~XXFF:customize board
+	//sprd,board_id = <0x1900>; //XX00:base board,XX00~XXFF:customize board
 
 	fragment {
 		target-path = "/";
@@ -175,7 +175,7 @@
 					cm-regulator-name = "vddgen0";
 					cable@0 {
 						cm-cable-name = "USB";
-						extcon = <&pmic_typec>;
+						extcon = <&extcon_gpio>;
 					};
 				};
 			};
@@ -194,7 +194,7 @@
 				key-volumeup {
 					label = "Volume Up Key";
 					linux,code = <KEY_VOLUMEUP>;
-					gpios = <&ap_gpio 124 GPIO_ACTIVE_LOW>;
+					gpios = <&eic_debounce 2 GPIO_ACTIVE_LOW>;
 					debounce-interval = <2>;
 					wakeup-source;
 				};
@@ -688,10 +688,6 @@
 		reg = <0x0 0x9e000000 0x0 0x007e9000>;
 	};
 
-	fd_reserved: faceid-mem@fefee000 {
-		reg = <0x0 0xfefee000 0x0 0x00500000>;
-	};
-
 	fb_reserved: framebuffer@ff4ee000 {
 		reg = <0x0 0xff4ee000 0x0 0x00a92000>;
 	};
@@ -715,13 +711,6 @@
 		label = "carveout_fb";
 		type = <2>;
 		memory-region = <&fb_reserved>;
-	};
-
-	heap@4 {
-		reg = <4>;
-		label = "carveout_fd";
-		type = <2>;
-		memory-region = <&fd_reserved>;
 	};
 };
 

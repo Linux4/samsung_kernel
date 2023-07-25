@@ -708,14 +708,14 @@ static void imsbr_test_cptuple_reset(unsigned long unused)
 
 static void imsbr_test_cp_reset(unsigned long unused)
 {
-	struct imsbr_msghdr msg = {};
-	struct call_c_function ccf = { };
+    struct imsbr_msghdr msg = {};
+    struct call_c_function ccf = { };
 
-	g_test_result = IMSBR_TEST_INPROGRESS;
-	call_core_function(&ccf);
+    g_test_result = IMSBR_TEST_INPROGRESS;
+    call_core_function(&ccf);
 
-	ccf.cp_reset(&msg, 0);
-	g_test_result = IMSBR_TEST_PASS;
+    ccf.cp_reset(&msg, 0);
+    g_test_result = IMSBR_TEST_PASS;
 }
 
 static void imsbr_test_echo_ping(unsigned long unused)

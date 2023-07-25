@@ -8,12 +8,19 @@
 #include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/of_address.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/sprd_map.h>
 #include <linux/uaccess.h>
 
 #define MAP_USER_MINOR MISC_DYNAMIC_MINOR
+struct reserved_mem_cfg {
+	bool no_reserved;
+	unsigned long reserved_mem_addr;
+	size_t reserved_mem_size;
+};
+static struct reserved_mem_cfg mem_cfg;
 
 static int map_user_open(struct inode *inode, struct file *file)
 {
@@ -67,6 +74,9 @@ static long map_user_ioctl(struct file *file,
 	if (!mem_info)
 		return -ENODEV;
 
+	if (mem_cfg.no_reserved)
+		return -ENOMEM;
+
 	arg_user = (void __user *)arg;
 	switch (cmd) {
 	case MAP_USER_VIR:
@@ -75,6 +85,13 @@ static long map_user_ioctl(struct file *file,
 
 		if (copy_from_user(&data, arg_user, sizeof(data))) {
 			pr_err("%s, PHYS copy_from_user error!\n", __func__);
+			return -EFAULT;
+		}
+
+		if ((data.phy_addr < mem_cfg.reserved_mem_addr) ||
+				((data.phy_addr + data.size) > (mem_cfg.reserved_mem_addr +
+								mem_cfg.reserved_mem_size))) {
+			pr_err("%s, user use mem out of reserved memory size!\n", __func__);
 			return -EFAULT;
 		}
 
@@ -159,6 +176,30 @@ static struct miscdevice map_user_dev = {
 static int map_user_probe(struct platform_device *pdev)
 {
 	int ret;
+	struct device_node *reserved_mem_node;
+	struct device_node *fd_reserved_node;
+	struct resource r;
+
+	reserved_mem_node = of_find_node_by_name(NULL, "reserved-memory");
+	if (reserved_mem_node == 0) {
+		mem_cfg.no_reserved = true;
+		dev_err(&pdev->dev, "find reserved memory node failed\n");
+	} else {
+		fd_reserved_node = of_get_child_by_name(reserved_mem_node, "faceid-mem");
+		if (fd_reserved_node == 0) {
+			mem_cfg.no_reserved = true;
+			dev_err(&pdev->dev, "find reserved memory node failed\n");
+		} else {
+			if (of_address_to_resource(fd_reserved_node, 0, &r)) {
+				mem_cfg.no_reserved = true;
+				dev_err(&pdev->dev, "invalid fd reserved memory node!\n");
+			} else {
+				mem_cfg.reserved_mem_addr = r.start;
+				mem_cfg.reserved_mem_size = resource_size(&r);
+				mem_cfg.no_reserved = false;
+			}
+		}
+	}
 
 	ret = misc_register(&map_user_dev);
 	if (ret)

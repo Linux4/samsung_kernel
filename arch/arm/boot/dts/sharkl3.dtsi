@@ -819,7 +819,7 @@
 						"version_id";
 			};
 
-			_thm: -thm@402f0000 {
+			gpu_thm: gpu-thm@402f0000 {
 				compatible = "sprd,sharkl3-thermal";
 				reg = <0x402f0000 0x10000>;
 				clock-names = "enable";

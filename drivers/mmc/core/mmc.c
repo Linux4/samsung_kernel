@@ -1551,7 +1551,7 @@ bus_speed:
 }
 
 #if defined(CONFIG_EMMC_SOFTWARE_CQ_SUPPORT)
-int mmc_select_cmdq(struct mmc_card *card)
+static int mmc_select_cmdq(struct mmc_card *card)
 {
 	struct mmc_host *host = card->host;
 	int ret = 0;
@@ -1567,27 +1567,6 @@ int mmc_select_cmdq(struct mmc_card *card)
 
 out:
 	pr_notice("%s: CMDQ enable %s\n",
-		mmc_hostname(host), ret ? "fail":"done");
-
-	return ret;
-}
-
-int mmc_deselect_cmdq(struct mmc_card *card)
-{
-	struct mmc_host *host = card->host;
-	int ret = 0;
-
-	ret = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
-			EXT_CSD_CMDQ_MODE_EN, 0,
-			card->ext_csd.generic_cmd6_time);
-	if (ret)
-		goto out;
-
-	mmc_card_clear_cmdq(card);
-	card->ext_csd.cmdq_en = false;
-
-out:
-	pr_notice("%s: CMDQ disable %s\n",
 		mmc_hostname(host), ret ? "fail":"done");
 
 	return ret;

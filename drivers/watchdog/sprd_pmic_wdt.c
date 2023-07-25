@@ -20,12 +20,15 @@
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
+#include <linux/kthread.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/rtc.h>
 #include <linux/sipc.h>
+#include <uapi/linux/sched/types.h>
+
 
 #define SPRD_PMIC_WDT_LOAD_LOW		0x0
 #define SPRD_PMIC_WDT_LOAD_HIGH		0x4
@@ -73,6 +76,7 @@
 #define SPRD_PMIC_WDTEN_MAGIC "e551"
 #define SPRD_PMIC_WDTEN_MAGIC_LEN_MAX  10
 
+#define PMIC_WDT_WAKE_UP_MS 2000
 
 struct sprd_pmic_wdt {
 	struct regmap		*regmap;
@@ -80,6 +84,10 @@ struct sprd_pmic_wdt {
 	u32			base;
 	bool wdten;
 	struct alarm wdt_timer;
+	struct kthread_worker wdt_kworker;
+	struct kthread_work wdt_kwork;
+	struct task_struct *wdt_thread;
+
 };
 
 static int sprd_pmic_wdt_enable(struct sprd_pmic_wdt *wdt, bool en)
@@ -108,14 +116,28 @@ static int sprd_pmic_wdt_enable(struct sprd_pmic_wdt *wdt, bool en)
 
 static enum alarmtimer_restart sprd_pimc_wdt_init_by_alarm(struct alarm *p, ktime_t t)
 {
-	struct sprd_pmic_wdt *wdt = container_of(p,
+	struct sprd_pmic_wdt *pmic_wdt = container_of(p,
 						 struct sprd_pmic_wdt,
 						 wdt_timer);
 
-	if (sprd_pmic_wdt_enable(wdt, wdt->wdten))
-		dev_err(wdt->dev, "failed to set pmic wdt %d!\n", wdt->wdten);
+	dev_info(pmic_wdt->dev, "sprd_pimc_wdt_init_by_alarm enter!\n");
+
+	pm_wakeup_event(pmic_wdt->dev, PMIC_WDT_WAKE_UP_MS);
+	kthread_queue_work(&pmic_wdt->wdt_kworker, &pmic_wdt->wdt_kwork);
 
 	return ALARMTIMER_NORESTART;
+}
+
+static void sprd_pimc_wdt_work(struct kthread_work *work)
+{
+	struct sprd_pmic_wdt *pmic_wdt = container_of(work,
+						 struct sprd_pmic_wdt,
+						 wdt_kwork);
+
+	dev_info(pmic_wdt->dev, "sprd_pimc_wdt_work enter!\n");
+
+	if (sprd_pmic_wdt_enable(pmic_wdt, pmic_wdt->wdten))
+		dev_err(pmic_wdt->dev, "failed to set pmic wdt %d!\n", pmic_wdt->wdten);
 }
 
 static bool sprd_pimc_wdt_en(void)
@@ -163,6 +185,7 @@ static int sprd_pmic_wdt_probe(struct platform_device *pdev)
 	struct device_node *node = pdev->dev.of_node;
 	struct sprd_pmic_wdt *pmic_wdt;
 	ktime_t now, add;
+	struct sched_param param = { .sched_priority = 1 };
 
 	pmic_wdt = devm_kzalloc(&pdev->dev, sizeof(*pmic_wdt), GFP_KERNEL);
 	if (!pmic_wdt)
@@ -185,6 +208,19 @@ static int sprd_pmic_wdt_probe(struct platform_device *pdev)
 	add = ktime_set(SPRD_PMIC_WDT_CHECKTIME, 0);
 	alarm_start(&pmic_wdt->wdt_timer, ktime_add(now, add));
 
+	device_init_wakeup(pmic_wdt->dev, true);
+
+	kthread_init_worker(&pmic_wdt->wdt_kworker);
+	kthread_init_work(&pmic_wdt->wdt_kwork, sprd_pimc_wdt_work);
+	pmic_wdt->wdt_thread = kthread_run(kthread_worker_fn, &pmic_wdt->wdt_kworker,
+					   "pmic_wdt_worker");
+	if (IS_ERR(pmic_wdt->wdt_thread)) {
+		pmic_wdt->wdt_thread = NULL;
+		dev_err(&pdev->dev, "failed to run pmic_wdt_thread:\n");
+	} else {
+		sched_setscheduler(pmic_wdt->wdt_thread, SCHED_FIFO, &param);
+	}
+
 	pmic_wdt->wdten = sprd_pimc_wdt_en();
 	pmic_wdt->dev = &pdev->dev;
 	platform_set_drvdata(pdev, pmic_wdt);
@@ -192,8 +228,19 @@ static int sprd_pmic_wdt_probe(struct platform_device *pdev)
 	return ret;
 }
 
+static int sprd_pmic_wdt_remove(struct platform_device *pdev)
+{
+	struct sprd_pmic_wdt *pmic_wdt = dev_get_drvdata(&pdev->dev);
+
+	kthread_flush_worker(&pmic_wdt->wdt_kworker);
+	kthread_stop(pmic_wdt->wdt_thread);
+
+	return 0;
+}
+
 static struct platform_driver sprd_pmic_wdt_driver = {
 	.probe = sprd_pmic_wdt_probe,
+	.remove = sprd_pmic_wdt_remove,
 	.driver = {
 		.name = "sprd-pmic-wdt",
 		.of_match_table = sprd_pmic_wdt_of_match,

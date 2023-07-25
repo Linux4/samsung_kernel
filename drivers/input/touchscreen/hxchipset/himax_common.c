@@ -3284,6 +3284,8 @@ int himax_chip_common_init(void)
 
 	spin_lock_init(&ts->irq_lock);
 
+	g_core_fp.fp_calc_touch_data_size();
+
 	if (himax_ts_register_interrupt()) {
 		E("%s: register interrupt failed\n", __func__);
 		goto err_register_interrupt_failed;
@@ -3301,8 +3303,6 @@ int himax_chip_common_init(void)
 	INIT_DELAYED_WORK(&ts->work_boot_upgrade, himax_boot_upgrade);
 	queue_delayed_work(ts->himax_boot_upgrade_wq, &ts->work_boot_upgrade,
 			msecs_to_jiffies(200));
-
-	g_core_fp.fp_calc_touch_data_size();
 
 	/*Himax Power On and Load Config*/
 /*	if (himax_loadSensorConfig(pdata)) {

@@ -696,6 +696,7 @@ struct charger_desc {
 	struct cm_thermal_info thm_info;
 
 	struct mutex charger_type_mtx;
+	u32 pd_port_partner;
 };
 
 #define PSY_NAME_MAX	30
@@ -765,8 +766,10 @@ struct charger_manager {
 #ifdef CONFIG_CHARGER_MANAGER
 extern void cm_notify_event(struct power_supply *psy,
 				enum cm_event_types type, char *msg);
+extern void cm_check_pd_port_partner(bool is_pd_hub);
 #else
 static inline void cm_notify_event(struct power_supply *psy,
 				enum cm_event_types type, char *msg) { }
+void cm_check_pd_port_partner(bool is_pd_hub) { }
 #endif
 #endif /* _CHARGER_MANAGER_H */

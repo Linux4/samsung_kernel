@@ -328,10 +328,9 @@ static int sipa_fill_free_fifo(struct sipa_skb_receiver *receiver,
 	}
 
 	if (!success_cnt) {
-		if (atomic_read(&fill_array->need_fill_cnt) > 1024)
-			dev_err(receiver->dev,
-				"sipa memory reclamation failed need_fill_cnt = %d\n",
-				atomic_read(&fill_array->need_fill_cnt));
+		dev_err(receiver->dev,
+			"sipa memory reclamation failed need_fill_cnt = %d\n",
+			atomic_read(&fill_array->need_fill_cnt));
 		atomic_dec(&receiver->check_flag);
 		return -EAGAIN;
 	}

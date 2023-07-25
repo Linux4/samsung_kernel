@@ -375,6 +375,9 @@ struct printk_log {
 #else
 	u32 cpu;		/* the print cpu */
 #endif
+#ifdef CONFIG_PRINTK_CALLER
+	u32 caller_id;            /* thread id or processor id */
+#endif
 }
 #ifdef CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS
 __packed __aligned(4)
@@ -471,11 +474,15 @@ static u32 console_idx;
 static u64 clear_seq;
 static u32 clear_idx;
 
-#if IS_ENABLED(CONFIG_SEC_LOG_BUF)
+#if IS_ENABLED(CONFIG_SEC_LOG_BUF) 
 #define PREFIX_MAX		48
 #define LOG_LINE_MAX		(2048 - PREFIX_MAX)
 #else
+#ifdef CONFIG_PRINTK_CALLER
+#define PREFIX_MAX		48
+#else
 #define PREFIX_MAX		32
+#endif
 #define LOG_LINE_MAX		(1024 - PREFIX_MAX)
 #endif
 
@@ -636,7 +643,7 @@ static u64 printk_get_first_ts(void);
 static u64 (*printk_get_ts)(void) = printk_get_first_ts;
 
 /* insert record into the buffer, discard old ones, update heads */
-static int log_store(int facility, int level,
+static int log_store(u32 caller_id, int facility, int level,
 		     enum log_flags flags, u64 ts_nsec,
 		     const char *dict, u16 dict_len,
 		     const char *text, u16 text_len, int cpu)
@@ -685,6 +692,9 @@ static int log_store(int facility, int level,
 		msg->ts_nsec = ts_nsec;
 	else
 		msg->ts_nsec = printk_get_ts();
+#ifdef CONFIG_PRINTK_CALLER
+	msg->caller_id = caller_id;
+#endif
 	memset(log_dict(msg) + dict_len, 0, pad_len);
 	msg->len = size;
 
@@ -755,12 +765,21 @@ static ssize_t msg_print_ext_header(char *buf, size_t size,
 				    struct printk_log *msg, u64 seq)
 {
 	u64 ts_usec = msg->ts_nsec;
+	char caller[20];
+#ifdef CONFIG_PRINTK_CALLER
+	u32 id = msg->caller_id;
+
+	snprintf(caller, sizeof(caller), ",caller=%c%u",
+		 id & 0x80000000 ? 'C' : 'T', id & ~0x80000000);
+#else
+	caller[0] = '\0';
+#endif
 
 	do_div(ts_usec, 1000);
 
-	return scnprintf(buf, size, "%u,%llu,%llu, c%d ,%c;",
-		       (msg->facility << 3) | msg->level, seq, ts_usec, msg->cpu,
-		       msg->flags & LOG_CONT ? 'c' : '-');
+	return scnprintf(buf, size, "%u,%llu,%llu, c%d ,%c%s;",
+			 (msg->facility << 3) | msg->level, seq, ts_usec, msg->cpu,
+			 msg->flags & LOG_CONT ? 'c' : '-', caller);
 }
 
 static ssize_t msg_print_ext_body(char *buf, size_t size,
@@ -1092,6 +1111,9 @@ void log_buf_vmcoreinfo_setup(void)
 	VMCOREINFO_OFFSET(printk_log, len);
 	VMCOREINFO_OFFSET(printk_log, text_len);
 	VMCOREINFO_OFFSET(printk_log, dict_len);
+#ifdef CONFIG_PRINTK_CALLER
+	VMCOREINFO_OFFSET(printk_log, caller_id);
+#endif
 }
 #endif
 
@@ -1409,7 +1431,7 @@ static size_t print_time(u64 ts, char *buf)
 	if (!buf)
 		return snprintf(NULL, 0, "[%5lu.000000] ", (unsigned long)ts);
 
-	return sprintf(buf, "[%5lu.%06lu] ",
+	return sprintf(buf, "[%5lu.%06lu]",
 		       (unsigned long)ts, rem_nsec / 1000);
 }
 
@@ -1428,6 +1450,23 @@ static size_t print_cpu(u32 cpu, char *buf)
 		return snprintf(NULL, 0, "c%d ", cpu);
 	return sprintf(buf, "c%d ", cpu);
 }
+#endif
+
+#ifdef CONFIG_PRINTK_CALLER
+static size_t print_caller(u32 id, char *buf)
+{
+	char caller[12];
+
+	snprintf(caller, sizeof(caller), "%c%u",
+		 id & 0x80000000 ? 'C' : 'T', id & ~0x80000000);
+
+	if(!buf)
+		return snprintf(NULL, 0, "[%6s]", caller);
+
+	return sprintf(buf, "[%6s]", caller);
+}
+#else
+#define print_caller(id, buf) 0
 #endif
 
 static size_t print_prefix(const struct printk_log *msg, bool syslog, char *buf)
@@ -1451,8 +1490,14 @@ static size_t print_prefix(const struct printk_log *msg, bool syslog, char *buf)
 
 	len += print_time(msg->ts_nsec, buf ? buf + len : NULL);
 	len += print_process(msg, buf ? buf + len : NULL);
-	len += print_cpu(msg->cpu, buf? buf+len:NULL);
-	
+	len += print_cpu(msg->cpu, buf? buf + len : NULL);
+	len += print_caller(msg->caller_id, buf? buf + len : NULL);
+
+	if (IS_ENABLED(CONFIG_PRINTK_CALLER) && buf) {
+		buf[len++] = ' ';
+		buf[len] = '\0';
+	}
+
 	return len;
 }
 
@@ -1942,6 +1987,12 @@ static inline void printk_delay(void)
 	}
 }
 
+static inline u32 printk_caller_id(void)
+{
+	return in_task() ? task_pid_nr(current) :
+		0x80000000 + raw_smp_processor_id();
+}
+
 /*
  * Continuation lines are buffered, and not committed to the record buffer
  * until the line is complete, or a race forces it. The line fragments
@@ -1951,7 +2002,7 @@ static inline void printk_delay(void)
 static struct cont {
 	char buf[LOG_LINE_MAX];
 	size_t len;			/* length == 0 means unused buffer */
-	struct task_struct *owner;	/* task of first print*/
+	u32 caller_id;			/* printk_caller_id() of first print */
 	u64 ts_nsec;			/* time of first print */
 	u8 level;			/* log level of first message */
 	u8 facility;			/* log facility of first message */
@@ -1964,12 +2015,13 @@ static void cont_flush(void)
 	if (cont.len == 0)
 		return;
 
-	log_store(cont.facility, cont.level, cont.flags, cont.ts_nsec,
-		  NULL, 0, cont.buf, cont.len, cont.cpu);
+	log_store(cont.caller_id, cont.facility, cont.level, cont.flags,
+		  cont.ts_nsec, NULL, 0, cont.buf, cont.len, cont.cpu);
 	cont.len = 0;
 }
 
-static bool cont_add(int facility, int level, enum log_flags flags, const char *text, size_t len)
+static bool cont_add(u32 caller_id, int facility, int level,
+		     enum log_flags flags, const char *text, size_t len)
 {
 	/*
 	 * If ext consoles are present, flush and skip in-kernel
@@ -1984,7 +2036,7 @@ static bool cont_add(int facility, int level, enum log_flags flags, const char *
 	if (!cont.len) {
 		cont.facility = facility;
 		cont.level = level;
-		cont.owner = current;
+		cont.caller_id = caller_id;
 		cont.ts_nsec = printk_get_ts();
 		cont.flags = flags;
 		cont.cpu = smp_processor_id();
@@ -2008,13 +2060,15 @@ static bool cont_add(int facility, int level, enum log_flags flags, const char *
 
 static size_t log_output(int facility, int level, enum log_flags lflags, const char *dict, size_t dictlen, char *text, size_t text_len)
 {
+	const u32 caller_id = printk_caller_id();
+
 	/*
 	 * If an earlier line was buffered, and we're a continuation
-	 * write from the same process, try to add it to the buffer.
+	 * write from the same context, try to add it to the buffer.
 	 */
 	if (cont.len) {
-		if (cont.owner == current && (lflags & LOG_CONT)) {
-			if (cont_add(facility, level, lflags, text, text_len))
+		if (cont.caller_id == caller_id && (lflags & LOG_CONT)) {
+			if (cont_add(caller_id, facility, level, lflags, text, text_len))
 				return text_len;
 		}
 		/* Otherwise, make sure it's flushed */
@@ -2027,12 +2081,13 @@ static size_t log_output(int facility, int level, enum log_flags lflags, const c
 
 	/* If it doesn't end in a newline, try to buffer the current line */
 	if (!(lflags & LOG_NEWLINE)) {
-		if (cont_add(facility, level, lflags, text, text_len))
+		if (cont_add(caller_id, facility, level, lflags, text, text_len))
 			return text_len;
 	}
 
 	/* Store it in the record log */
-	return log_store(facility, level, lflags, 0, dict, dictlen, text, text_len, smp_processor_id());
+	return log_store(caller_id, facility, level, lflags, 0,
+			 dict, dictlen, text, text_len, smp_processor_id());
 }
 
 /* Must be called under logbuf_lock. */

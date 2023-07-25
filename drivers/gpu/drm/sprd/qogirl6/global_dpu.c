@@ -18,6 +18,7 @@
 #include <linux/regmap.h>
 
 #include "sprd_dpu.h"
+#include "sprd_drm.h"
 
 enum {
 	CLK_DPI_DIV6 = 6,
@@ -349,29 +350,41 @@ static void dpu_glb_disable(struct dpu_context *ctx)
 
 static void dpu_reset(struct dpu_context *ctx)
 {
-	/* soft reset iommu */
-	regmap_update_bits(mmu_reset.regmap,
-		    mmu_reset.enable_reg,
-		    mmu_reset.mask_bit,
-		    mmu_reset.mask_bit);
-	udelay(10);
-	regmap_update_bits(mmu_reset.regmap,
-		    mmu_reset.enable_reg,
-		    mmu_reset.mask_bit,
-		    (unsigned int)(~mmu_reset.mask_bit));
+	u32 val;
 
-	udelay(10);
+	mutex_lock(&dpu_gsp_lock);
 
-	/* soft reset dpu */
-	regmap_update_bits(disp_reset.regmap,
-		    disp_reset.enable_reg,
-		    disp_reset.mask_bit,
-		    disp_reset.mask_bit);
-	udelay(10);
-	regmap_update_bits(disp_reset.regmap,
-		    disp_reset.enable_reg,
-		    disp_reset.mask_bit,
-		    (unsigned int)(~disp_reset.mask_bit));
+	do {
+		val = readl(ctx->gsp_base);
+	} while (val & BIT(2));
+
+	if (!(val & BIT(2))) {
+		/* soft reset iommu */
+		regmap_update_bits(mmu_reset.regmap,
+				mmu_reset.enable_reg,
+				mmu_reset.mask_bit,
+				mmu_reset.mask_bit);
+		udelay(10);
+		regmap_update_bits(mmu_reset.regmap,
+				mmu_reset.enable_reg,
+				mmu_reset.mask_bit,
+				(unsigned int)(~mmu_reset.mask_bit));
+
+		udelay(10);
+
+		/* soft reset dpu */
+		regmap_update_bits(disp_reset.regmap,
+				disp_reset.enable_reg,
+				disp_reset.mask_bit,
+				disp_reset.mask_bit);
+		udelay(10);
+		regmap_update_bits(disp_reset.regmap,
+				disp_reset.enable_reg,
+				disp_reset.mask_bit,
+				(unsigned int)(~disp_reset.mask_bit));
+	}
+
+	mutex_unlock(&dpu_gsp_lock);
 }
 
 static void dpu_power_domain(struct dpu_context *ctx, int enable)

@@ -6,8 +6,6 @@
 #include <dt-bindings/clock/sprd,ums9620-clk.h>
 #include <dt-bindings/usb/pd.h>
 #include "lcd/lcd_g40396_truly_mipi_fhd.dtsi"
-#include "lcd/lcd_td4375_dijin_mipi_fhd.dtsi"
-#include "lcd/lcd_td4375_truly_mipi_fhd.dtsi"
 #include "lcd/lcd_dummy_mipi.dtsi"
 #include <dt-bindings/mfd/sprd,ump9620-regs.h>
 #include <dt-bindings/mfd/sprd,ump9620-mask.h>
@@ -525,7 +523,7 @@
 	sprd,hw-channels = <2 0x20cc>, <9 0x2074>, <11 0x2054>, <13 0xa180>,
 			<15 0xa054>, <17 0xa1a0>, <19 0xa044>, <21 0xa0e8>,
 			<23 0x244c>, <25 0xa074>, <27 0x2044>, <30 0x2020>,
-			<34 0x21b8>, <35 0x21ac>;
+			<34 0x21b8>, <35 0x21ac>, <32 0x217c>, <33 0x2188>;
 };
 
 &sdio0 {

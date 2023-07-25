@@ -214,32 +214,6 @@ static ssize_t brightness_store(struct device *dev,
 }
 static DEVICE_ATTR_RW(brightness);
 
-
-int brightness_hbm_status = 2;
-static ssize_t brightness_hbm_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	int rc;
-	struct backlight_device *bd = to_backlight_device(dev);
-
-	sscanf(buf, "%d", &brightness_hbm_status);
-	pr_debug(" the brightness_hbm_status:%d !\n", brightness_hbm_status);
-
-	if (1 == brightness_hbm_status) {
-		rc = backlight_device_set_brightness(bd, 255);
-	} else {
-		rc = backlight_device_set_brightness(bd, 255);
-	}
-	return rc ? rc : count;
-}
-static ssize_t brightness_hbm_show(struct device *dev, struct device_attribute *attr,
-		char *buf)
-{
-	return sprintf(buf, "%d\n", brightness_hbm_status);
-}
-static DEVICE_ATTR(brightness_hbm, 0644, brightness_hbm_show, brightness_hbm_store);
-
-
 static ssize_t type_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
@@ -266,7 +240,7 @@ static ssize_t max_brightness_store(struct device *dev,
 		bd->props.max_brightness = maxbrightness;
 		if (bd->props.brightness > maxbrightness) {
 			bd->props.brightness = maxbrightness;
-			// backlight_update_status(bd);
+			backlight_update_status(bd);
 		}
 	}
 	mutex_unlock(&bd->ops_lock);
@@ -344,7 +318,6 @@ static void bl_device_release(struct device *dev)
 static struct attribute *bl_device_attrs[] = {
 	&dev_attr_bl_power.attr,
 	&dev_attr_brightness.attr,
-	&dev_attr_brightness_hbm.attr,
 	&dev_attr_actual_brightness.attr,
 	&dev_attr_max_brightness.attr,
 	&dev_attr_type.attr,

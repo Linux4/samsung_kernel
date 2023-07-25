@@ -59,7 +59,7 @@
 			"Ext Ear", "HP Pin";
 		sprd-audio-card,headset = <&sprd_headset>;
 		sprd,syscon-agcp-ahb = <&audcp_ahb_regs>;
-		 /* fe dai-links */
+		/* fe dai-links */
 
 		/* fe normal ap01 */
 		sprd-audio-card,dai-link@0 {
@@ -1150,6 +1150,43 @@
 			};
 			codec {
 				sound-dai = <0 0>;
+			};
+		};
+		/* 52: fe multimedia*/
+		sprd-audio-card,dai-link@90 {
+			link-name = "FE_MM_P";
+			stream-name = "FE_ST_MM_P";
+			be-id = <0>;
+			trigger = <1 1>;
+			ignore-suspend = <1>;
+			dynamic = <1>;
+			dpcm-playback = <1>;
+			plat {
+				sound-dai = <&sprd_pcm>;
+			};
+			cpu {
+				sound-dai = <&sprd_fe_dai 25>;
+			};
+			codec {
+				sound-dai = <0 0>;
+			};
+		};
+		/* 53: be multimedia */
+		sprd-audio-card,dai-link@91 {
+			link-name = "BE_FAST_P_SMART_AMP";
+			stream-name = "BE_ST_FAST_P_SMART_AMP";
+			be-id = <0>;
+			ignore-suspend = <0>;
+			no-pcm = <1>;
+			dpcm-playback = <1>;
+			plat {
+				sound-dai = <&sprd_route_pcm>;
+			};
+			cpu {
+				sound-dai = <&vbc_v4 57>;
+			};
+			codec {
+				sound-dai = <&sprd_audio_codec_ana 3>;
 			};
 		};
 	};

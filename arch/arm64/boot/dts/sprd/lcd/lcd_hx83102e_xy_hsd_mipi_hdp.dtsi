@@ -18,8 +18,8 @@
 					sprd,width-mm = <68>;
 					sprd,height-mm = <151>;
 
-					sprd,reset-on-sequence = <1 5>, <0 5>, <1 50>;
-					sprd,reset-off-sequence = <0 5>;
+					sprd,reset-on-sequence = <1 5>, <0 5>, <1 60>;
+					sprd,reset-off-sequence = <1 5>;
 
 					sprd,esd-check-enable = <1>;
 					sprd,esd-check-mode = <0>;
@@ -104,7 +104,7 @@
 						default-brightness = <33>;
 						sprd,max-level = <255>;
 						brightness-levels = [
-							39 00 00 03 51 00 10
+							39 00 00 03 51 00 00
 							39 00 00 03 51 00 20
 							39 00 00 03 51 00 30
 							39 00 00 03 51 00 40

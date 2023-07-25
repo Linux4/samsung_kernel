@@ -34,6 +34,8 @@
 #include <linux/workqueue.h>
 #include <linux/init.h>
 #include <linux/string.h>
+#include <linux/usb/tcpm.h>
+#include <linux/usb/pd.h>
 
 /*
  * Default termperature threshold for charging.
@@ -173,6 +175,7 @@ static bool cm_timer_set;
 static unsigned long cm_suspend_duration_ms;
 static enum cm_event_types cm_event_type;
 static char *cm_event_msg;
+static struct charger_manager *global_cm;
 
 /* About normal (not suspended) monitoring */
 static unsigned long polling_jiffy = ULONG_MAX; /* ULONG_MAX: no polling */
@@ -474,6 +477,9 @@ static int get_cp_ibat_uA(struct charger_manager *cm, int *uA)
 	struct power_supply *cp_psy;
 	int i, ret = -ENODEV;
 
+	if (!cm || !cm->desc || !cm->desc->psy_cp_stat)
+		return ret;
+
 	for (i = 0; cm->desc->psy_cp_stat[i]; i++) {
 		cp_psy = power_supply_get_by_name(cm->desc->psy_cp_stat[i]);
 		if (!cp_psy) {
@@ -504,6 +510,9 @@ static int get_cp_vbat_uV(struct charger_manager *cm, int *uV)
 	union power_supply_propval val;
 	struct power_supply *cp_psy;
 	int i, ret = -ENODEV;
+
+	if (!cm || !cm->desc || !cm->desc->psy_cp_stat)
+		return ret;
 
 	/* If at least one of them has one, it's yes. */
 	for (i = 0; cm->desc->psy_cp_stat[i]; i++) {
@@ -538,6 +547,9 @@ static int get_cp_vbus_uV(struct charger_manager *cm, int *uV)
 	union power_supply_propval val;
 	struct power_supply *cp_psy;
 	int i, ret = -ENODEV;
+
+	if (!cm || !cm->desc || !cm->desc->psy_cp_stat)
+		return ret;
 
 	/* If at least one of them has one, it's yes. */
 	for (i = 0; cm->desc->psy_cp_stat[i]; i++) {
@@ -1556,11 +1568,9 @@ static void cm_vote_property(struct charger_manager *cm, int target_val,
 		val.intval = target_val;
 		ret = power_supply_set_property(psy, psp, &val);
 		power_supply_put(psy);
-		if (ret) {
+		if (ret)
 			dev_err(cm->dev, "failed to %s set power_supply_property[%d], ret = %d\n",
-				name[i], ret, psp);
-			continue;
-		}
+				name[i], psp, ret);
 	}
 }
 
@@ -1872,6 +1882,17 @@ static int cm_fast_charge_enable_check(struct charger_manager *cm)
 	if (!cm_is_reach_fchg_threshold(cm))
 		return 0;
 
+	ret = cm_get_adapter_max_voltage(cm, &adapter_max_vbus);
+	if (ret) {
+		dev_err(cm->dev, "failed to obtain the adapter max voltage\n");
+		return ret;
+	}
+
+	if (adapter_max_vbus <= CM_FAST_CHARGE_VOLTAGE_5V) {
+		dev_info(cm->dev, "the adapter max vbus : %d\n", adapter_max_vbus);
+		return 0;
+	}
+
 	ret = cm_set_main_charger_current(cm, CM_FAST_CHARGE_ENABLE_CMD);
 	if (ret) {
 		/*
@@ -1893,11 +1914,6 @@ static int cm_fast_charge_enable_check(struct charger_manager *cm)
 	/*
 	 * adjust fast charger output voltage from 5V to 9V
 	 */
-	ret = cm_get_adapter_max_voltage(cm, &adapter_max_vbus);
-	if (ret) {
-		dev_err(cm->dev, "failed to obtain the adapter max voltage\n");
-		return ret;
-	}
 
 	if (adapter_max_vbus > CM_FAST_CHARGE_VOLTAGE_9V)
 		adapter_max_vbus = CM_FAST_CHARGE_VOLTAGE_9V;
@@ -2214,6 +2230,9 @@ static void cm_init_cp(struct charger_manager *cm)
 	union power_supply_propval val;
 	struct power_supply *cp_psy;
 	int i, ret = -ENODEV;
+
+	if (!cm->desc->psy_cp_stat)
+		return;
 
 	for (i = 0; cm->desc->psy_cp_stat[i]; i++) {
 		cp_psy = power_supply_get_by_name(cm->desc->psy_cp_stat[i]);
@@ -4193,6 +4212,7 @@ static void misc_event_handler(struct charger_manager *cm, enum cm_event_types t
 		cm->desc->thm_info.adapter_default_charge_vol = 5;
 		cm->desc->wl_charge_en = 0;
 		cm->desc->usb_charge_en = 0;
+		cm->desc->pd_port_partner = 0;
 		cm->cm_charge_vote->vote(cm->cm_charge_vote, false,
 					 SPRD_VOTE_TYPE_ALL, 0, 0, 0, cm);
 	}
@@ -4296,6 +4316,21 @@ static int usb_get_property(struct power_supply *psy, enum power_supply_property
 	}
 
 	return ret;
+}
+
+static bool cm_add_battery_psy_property(struct charger_manager *cm, enum power_supply_property psp)
+{
+	u32 i;
+
+	for (i = 0; i < cm->charger_psy_desc.num_properties; i++)
+		if (cm->charger_psy_desc.properties[i] == psp)
+			break;
+
+	if (i == cm->charger_psy_desc.num_properties) {
+		cm->charger_psy_desc.properties[cm->charger_psy_desc.num_properties++] = psp;
+		return true;
+	}
+	return false;
 }
 
 static int charger_get_property(struct power_supply *psy,
@@ -5021,6 +5056,48 @@ cm_charger_register_vbus_regulator(struct charger_manager *cm)
 	return ret;
 }
 
+#ifdef CONFIG_TYPEC_TCPM
+static bool cm_pd_is_ac_online(struct charger_manager *cm)
+{
+	struct adapter_power_cap pd_source_cap;
+	struct tcpm_port *port;
+	struct power_supply *psy;
+	int i, index = 0;
+
+	psy = power_supply_get_by_name("tcpm-source-psy-sc27xx-pd");
+	if (!psy) {
+		dev_err(cm->dev, "failed to get tcpm psy!\n");
+		return true;
+	}
+
+	port = power_supply_get_drvdata(psy);
+	if (!port) {
+		dev_err(cm->dev, "failed to get tcpm port!\n");
+		return true;
+	}
+
+	tcpm_get_source_capabilities(port, &pd_source_cap);
+
+	for (i = 0; i < pd_source_cap.nr_source_caps; i++) {
+		if ((pd_source_cap.max_mv[i] <= 5000) &&
+		    (pd_source_cap.type[i] == PDO_TYPE_FIXED))
+			index++;
+	}
+
+	if (pd_source_cap.nr_source_caps == index) {
+		dev_info(cm->dev, "pd type ac online is false\n");
+		return false;
+	}
+
+	return true;
+}
+#else
+static bool cm_pd_is_ac_online(struct charger_manager *cm)
+{
+	return true;
+}
+#endif
+
 static void cm_update_charger_type_status(struct charger_manager *cm)
 {
 
@@ -5031,9 +5108,24 @@ static void cm_update_charger_type_status(struct charger_manager *cm)
 		case POWER_SUPPLY_USB_CHARGER_TYPE_PD_PPS:
 		case POWER_SUPPLY_USB_CHARGER_TYPE_SFCP_1P0:
 		case POWER_SUPPLY_USB_CHARGER_TYPE_SFCP_2P0:
-			wireless_main.WIRELESS_ONLINE = 0;
-			usb_main.USB_ONLINE = 0;
-			ac_main.AC_ONLINE = 1;
+			if (cm->desc->charger_type == POWER_SUPPLY_USB_CHARGER_TYPE_PD &&
+				!cm_pd_is_ac_online(cm) && !cm->desc->pd_port_partner) {
+				wireless_main.WIRELESS_ONLINE = 0;
+				ac_main.AC_ONLINE = 0;
+				usb_main.USB_ONLINE = 1;
+				dev_info(cm->dev, "usb online--pd type 5V\n");
+			} else if (cm->desc->pd_port_partner) {
+				wireless_main.WIRELESS_ONLINE = 0;
+				usb_main.USB_ONLINE = 0;
+				ac_main.AC_ONLINE = 1;
+				cm->desc->pd_port_partner = 0;
+				dev_info(cm->dev, "pd_port_partner ac online\n");
+			} else {
+				wireless_main.WIRELESS_ONLINE = 0;
+				usb_main.USB_ONLINE = 0;
+				ac_main.AC_ONLINE = 1;
+				dev_info(cm->dev, "ac online\n");
+			}
 			break;
 		default:
 			wireless_main.WIRELESS_ONLINE = 0;
@@ -5049,6 +5141,35 @@ static void cm_update_charger_type_status(struct charger_manager *cm)
 		wireless_main.WIRELESS_ONLINE = 0;
 		ac_main.AC_ONLINE = 0;
 		usb_main.USB_ONLINE = 0;
+	}
+}
+
+void cm_check_pd_port_partner(bool is_pd_hub)
+{
+	struct charger_manager *cm = global_cm;
+
+	if (!cm) {
+		pr_err("%s:line%d NULL pointer!!!\n", __func__, __LINE__);
+		return;
+	}
+
+	dev_info(cm->dev, "%s is_pd_hub = %d\n", __func__, is_pd_hub);
+
+	if (!is_ext_usb_pwr_online(cm)) {
+		dev_info(cm->dev, "%s offline = %d\n", __func__);
+	}
+
+	dev_info(cm->dev, "%s is_pd_hub = %d\n", __func__, is_pd_hub);
+
+	cm->desc->pd_port_partner = is_pd_hub;
+
+	if (usb_main.USB_ONLINE && cm->desc->pd_port_partner) {
+		wireless_main.WIRELESS_ONLINE = 0;
+		usb_main.USB_ONLINE = 0;
+		ac_main.AC_ONLINE = 1;
+		cm->desc->pd_port_partner = 0;
+		power_supply_changed(cm->charger_psy);
+		dev_info(cm->dev, "%s ac online\n", __func__);
 	}
 }
 
@@ -5310,6 +5431,9 @@ static ssize_t charge_pump_present_store(struct device *dev,
 			     attr_charge_pump_present);
 	struct charger_manager *cm = charger->cm;
 	bool enabled;
+
+	if (!cm || !cm->desc || !cm->desc->psy_cp_stat)
+		return count;
 
 	ret =  kstrtobool(buf, &enabled);
 	if (ret)
@@ -5635,9 +5759,8 @@ static int cm_init_thermal_data(struct charger_manager *cm, struct power_supply 
 	ret = power_supply_get_property(fuel_gauge, POWER_SUPPLY_PROP_TEMP, &val);
 
 	if (!ret) {
-		cm->charger_psy_desc.properties[cm->charger_psy_desc.num_properties] =
-				POWER_SUPPLY_PROP_TEMP;
-		cm->charger_psy_desc.num_properties++;
+		if (!cm_add_battery_psy_property(cm, POWER_SUPPLY_PROP_TEMP))
+			dev_warn(cm->dev, "POWER_SUPPLY_PROP_TEMP is present\n");
 		cm->desc->measure_battery_temp = true;
 	}
 #ifdef CONFIG_THERMAL
@@ -5648,9 +5771,8 @@ static int cm_init_thermal_data(struct charger_manager *cm, struct power_supply 
 			return PTR_ERR(cm->tzd_batt);
 
 		/* Use external thermometer */
-		cm->charger_psy_desc.properties[cm->charger_psy_desc.num_properties] =
-				POWER_SUPPLY_PROP_TEMP_AMBIENT;
-		cm->charger_psy_desc.num_properties++;
+		if (!cm_add_battery_psy_property(cm, POWER_SUPPLY_PROP_TEMP_AMBIENT))
+			dev_warn(cm->dev, "POWER_SUPPLY_PROP_TEMP_AMBIENT is present\n");
 		cm->desc->measure_battery_temp = true;
 		ret = 0;
 	}
@@ -5730,7 +5852,6 @@ static struct charger_desc *of_cm_parse_desc(struct device *dev)
 	struct device_node *np = dev->of_node;
 	u32 poll_mode = CM_POLL_DISABLE;
 	u32 battery_stat = CM_NO_BATTERY;
-	int  real_num_chgs = 0;
 	int ret, i = 0, num_chgs = 0;
 	int num_psys = 0;
 
@@ -5785,7 +5906,6 @@ static struct charger_desc *of_cm_parse_desc(struct device *dev)
 
 	/* chargers */
 	num_chgs = of_property_count_strings(np, "cm-chargers");
-	of_property_read_u32(np, "cm-num-chargers", &real_num_chgs);
 	if (num_chgs > 0) {
 		desc->buck_nums = num_chgs;
 		/* Allocate empty bin at the tail of array */
@@ -5793,17 +5913,8 @@ static struct charger_desc *of_cm_parse_desc(struct device *dev)
 						* (num_chgs + 1), GFP_KERNEL);
 		if (desc->psy_charger_stat) {
 			for (i = 0; i < num_chgs; i++)
-			{
-				if ((chg_ic != NULL) && strncmp("0", chg_ic, 1) == 0)
-					of_property_read_string_index(np, "cm-chargers",
-						0, &desc->psy_charger_stat[i]);
-				else
-					of_property_read_string_index(np, "cm-chargers",
-						1, &desc->psy_charger_stat[i]);
-				if((real_num_chgs >= 1) && (real_num_chgs < num_chgs) && ((real_num_chgs - 1) == i ))
-					break;
-			}
-
+				of_property_read_string_index(np, "cm-chargers",
+						i, &desc->psy_charger_stat[i]);
 		} else {
 			return ERR_PTR(-ENOMEM);
 		}
@@ -6229,7 +6340,7 @@ static void cm_batt_works(struct work_struct *work)
 	else
 		cm->desc->charger_status = cm->battery_status;
 
-	dev_err(cm->dev, "vbat: %d, vbat_avg: %d, OCV: %d, ibat: %d, ibat_avg: %d, ibus: %d,"
+	dev_info(cm->dev, "vbat: %d, vbat_avg: %d, OCV: %d, ibat: %d, ibat_avg: %d, ibus: %d,"
 		 " vbus: %d, msoc: %d, chg_sts: %d, frce_full: %d, chg_lmt_cur: %d,"
 		 " inpt_lmt_cur: %d, chgr_type: %d, Tboard: %d, Tbatt: %d, thm_cur: %d,"
 		 " thm_pwr: %d, is_fchg: %d, fchg_en: %d, tflush: %d, tperiod: %d\n",
@@ -6565,15 +6676,13 @@ static int charger_manager_probe(struct platform_device *pdev)
 		return -EPROBE_DEFER;
 	}
 	if (!power_supply_get_property(fuel_gauge, POWER_SUPPLY_PROP_CHARGE_NOW, &val)) {
-		cm->charger_psy_desc.properties[cm->charger_psy_desc.num_properties] =
-				POWER_SUPPLY_PROP_CHARGE_NOW;
-		cm->charger_psy_desc.num_properties++;
+		if (!cm_add_battery_psy_property(cm, POWER_SUPPLY_PROP_CHARGE_NOW))
+			dev_warn(&pdev->dev, "POWER_SUPPLY_PROP_CHARGE_NOW is present\n");
 	}
 
 	if (!power_supply_get_property(fuel_gauge, POWER_SUPPLY_PROP_CURRENT_NOW, &val)) {
-		cm->charger_psy_desc.properties[cm->charger_psy_desc.num_properties] =
-				POWER_SUPPLY_PROP_CURRENT_NOW;
-		cm->charger_psy_desc.num_properties++;
+		if (!cm_add_battery_psy_property(cm, POWER_SUPPLY_PROP_CURRENT_NOW))
+			dev_warn(&pdev->dev, "POWER_SUPPLY_PROP_CURRENT_NOW is present\n");
 	}
 
 	ret = get_boot_cap(cm, &cm->desc->cap);
@@ -6698,6 +6807,7 @@ static int charger_manager_probe(struct platform_device *pdev)
 		goto err_reg_sysfs;
 	}
 
+	global_cm = cm;
 	if (cm_event_type)
 		cm_notify_type_handle(cm, cm_event_type, cm_event_msg);
 

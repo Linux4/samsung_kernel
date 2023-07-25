@@ -230,8 +230,6 @@
 					     "sprd,sc9836-uart";
 				reg = <0x70100000 0x100>;
 				interrupts = <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>;
-				dma-names = "rx", "tx";
-				dmas = <&ap_dma 19 &ap_dma 20>;
 				clock-names = "enable", "uart", "source";
 				clocks = <&apapb_gate CLK_UART1_EB>,
 					 <&ap_clk CLK_AP_UART1>,
@@ -996,7 +994,7 @@
 					"init_dis_bits";
 			};
 
-			gpu: 60000000 {
+			gpu: gpu@60000000 {
 			compatible = "sprd,rogue";
 			reg = <0x60000000 0x100000>;
 			syscons = <&pmu_apb_regs REG_PMU_APB_PD_GPU_TOP_CFG

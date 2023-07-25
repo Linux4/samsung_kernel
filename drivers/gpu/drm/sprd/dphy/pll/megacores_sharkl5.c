@@ -213,58 +213,12 @@ struct dphy_pll {
 static struct pll_regs regs;
 static struct dphy_pll pll;
 
-static char *lcd_name;
-static char *special_lcds[] = {
-	"lcd_ili7806s_truly_mipi_hdplus",
-	"lcd_td4375_truly_mipi_fhd",
-	"lcd_td4375_dijin_mipi_fhd",
-	"end"
-};
-
 /* sharkl5 */
 #define VCO_BAND_LOW	1250
 #define VCO_BAND_MID	1800
 #define VCO_BAND_HIGH	2500
 #define PHY_REF_CLK	26000
 
-static int __init lcd_name_get(char *str)
-{
-	if (str != NULL)
-		lcd_name = str;
-	return 0;
-}
-__setup("lcd_name=", lcd_name_get);
-
-static int match_lcds(void)
-{
-	int i;
-
-	for (i = 0; ; i++) {
-		if (!strcmp(lcd_name, special_lcds[i]))
-			break;
-		if (!strcmp(special_lcds[i], "end"))
-			return -1;
-	}
-
-	return i;
-}
-
-/*
- * This function sets extra dphy regs for some LCD
- * HW interface design such as dsi lanes switch.
- */
-static void lcd_need_more_configs(struct regmap *regmap, int index)
-{
-	switch (index) {
-	case 0:
-	case 1:
-	case 2:
-		regmap_write(regmap, 0xf1, 0x27);
-		regmap_write(regmap, 0x4d, 0x60);
-		regmap_write(regmap, 0x7d, 0x00);
-		break;
-	}
-}
 static int dphy_calc_pll_param(struct dphy_pll *pll)
 {
 	int i;
@@ -353,9 +307,6 @@ FAIL:
 
 static int dphy_set_pll_reg(struct regmap *regmap, struct dphy_pll *pll)
 {
-
-	int ret;
-
 	if (!pll || !pll->fvco)
 		goto FAIL;
 
@@ -405,10 +356,6 @@ static int dphy_set_pll_reg(struct regmap *regmap, struct dphy_pll *pll)
 	regmap_write(regmap, 0x0e, regs._0e.val);
 	regmap_write(regmap, 0x0f, regs._0f.val);
 	regmap_write(regmap, 0x06, regs._06.val);
-
-	ret = match_lcds();
-	if (ret >= 0)
-		lcd_need_more_configs(regmap, ret);
 
 	return 0;
 

@@ -299,28 +299,6 @@ static void mmc_exit_request(struct request_queue *q, struct request *req)
 	mq_rq->sg = NULL;
 }
 
-#ifdef CONFIG_EMMC_SOFTWARE_CQ_SUPPORT
-void mmc_cmdq_enable_work(struct work_struct *work)
-{
-	struct mmc_host *host =
-		container_of(work, struct mmc_host, cmdq_enable_work.work);
-	struct mmc_card *card = host->card;
-	/**
-	 * make sure no owner claimed the host. if not, the owner may
-	 * claim the host many times. It should be safe when claim_cnt
-	 * is zero before cmdq switching.
-	 */
-	while (host->claim_cnt)
-		usleep_range(1000, 2000);
-	mmc_get_card(card);
-	card->ext_csd.cmdq_support = true;
-	mmc_select_cmdq(card);
-	host->cmdq_enable_delay = false;
-	mmc_put_card(card);
-	pr_info("%s: cmdq delay enabled success\n",
-					mmc_hostname(host));
-}
-#endif
 /**
  * mmc_init_queue - initialise a queue structure.
  * @mq: mmc queue
@@ -367,18 +345,7 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
 				host->data_mrq_queued[i] = false;
 				atomic_set(&mq->mqrq[i].index, 0);
 			}
-			/*enable cmdq after 30s*/
-#ifdef CONFIG_EMMC_CMDQ_ENABLE_DELAY_SUPPORT
-			mmc_get_card(card);
-			card->ext_csd.cmdq_support = false;
-			mmc_deselect_cmdq(card);
-			mmc_put_card(card);
-			INIT_DELAYED_WORK(&host->cmdq_enable_work,
-						mmc_cmdq_enable_work);
-			queue_delayed_work(system_wq,
-						&host->cmdq_enable_work, 30*HZ);
-			host->cmdq_enable_delay = true;
-#endif
+
 			host->cmdq_thread = kthread_run(mmc_cmd_queue_thread,
 				host,
 				"mmc_cq/%d", host->index);
@@ -489,10 +456,6 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
 
 cleanup_queue:
 	blk_cleanup_queue(mq->queue);
-#ifdef CONFIG_EMMC_CMDQ_ENABLE_DELAY_SUPPORT
-	if (host->cmdq_enable_delay)
-		cancel_delayed_work(&host->cmdq_enable_work);
-#endif
 	return ret;
 }
 

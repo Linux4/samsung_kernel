@@ -382,7 +382,6 @@ static int sprd_efuse_read(void *context, u32 offset, void *val, size_t bytes)
 	 */
 	index += efuse->var_data->blk_start;
 
-	/** SI-23374 Kernel memory disclosure (stack overread) in bin_attr_nvmem_read due to using wrong size in memcpy */
 	if (bytes > SPRD_EFUSE_BLOCK_WIDTH) {
 		dev_err(efuse->dev, "read efuse value overflowed, bytes: %d\n", bytes);
 		bytes = SPRD_EFUSE_BLOCK_WIDTH;

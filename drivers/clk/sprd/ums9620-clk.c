@@ -542,7 +542,7 @@ static struct clk_bit_field f_mpllb[PLL_FACT_MAX] = {
 	{ .shift = 0,	.width = 0 },	/* nint		*/
 	{ .shift = 0,	.width = 0},	/* kint		*/
 	{ .shift = 0,	.width = 0 },	/* prediv	*/
-	{ .shift = 67,	.width = 1 },	/* postdiv	*/
+	{ .shift = 67,	.width = 4 },	/* postdiv	*/
 };
 
 static SPRD_PLL_WITH_ITABLE_K_FVCO(mpllb, "mpllb", "ext-26m", 0x0,
@@ -616,7 +616,7 @@ static SPRD_PLL_WITH_ITABLE_K_FVCO(mplll, "mplll", "ext-26m", 0x0,
 #define f_mplls f_mpllb
 static SPRD_PLL_WITH_ITABLE_K_FVCO(mplls, "mplls", "ext-26m", 0x20,
 				   3, mplls_ftable, f_mplls, 240,
-				   1000, 1000, 1, 2000000000);
+				   1000, 1000, 1, 1000000000);
 
 static struct sprd_clk_common *ums9620_g10_pll_clks[] = {
 	/* address base is 0x64334000 */

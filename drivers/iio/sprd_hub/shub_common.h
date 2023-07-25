@@ -29,7 +29,7 @@
 
 #define READ_BUFF_SIZE				128
 #define SERIAL_READ_BUFFER_MAX	128
-#define SERIAL_WRITE_BUFFER_MAX	1024
+
 
 /* MUST equal to the iio total channel bytes size */
 #define MAX_CM4_MSG_SIZE			40

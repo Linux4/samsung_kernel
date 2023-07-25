@@ -11,7 +11,6 @@
 #include <linux/mfd/syscon.h>
 #include <linux/of_gpio.h>
 #include <linux/regmap.h>
-#include <linux/usb/typec_dp.h>
 #include <dt-bindings/soc/sprd,qogirn6pro-mask.h>
 #include <dt-bindings/soc/sprd,qogirn6pro-regs.h>
 
@@ -139,12 +138,12 @@ static void dp_reset(struct dp_context *ctx)
 {
 }
 
-static void dp_detect(struct dp_context *ctx, int hpd_status)
+static void dp_detect(struct dp_context *ctx, int enable)
 {
 	u32 reg = 0, mask;
 	struct sprd_dp *dp = container_of(ctx, struct sprd_dp, ctx);
 
-	if (hpd_status == DP_HOT_PLUG) {
+	if (enable) {
 		mask = MASK_PMU_APB_PD_DPU_DP_FORCE_SHUTDOWN;
 		regmap_update_bits(ctx->force_shutdown, REG_PMU_APB_PD_DPU_DP_CFG_0, mask, 0);
 
@@ -223,17 +222,9 @@ static void dp_detect(struct dp_context *ctx, int hpd_status)
 		regmap_write(ctx->ipa_dispc1_glb_apb, REG_DISPC1_GLB_APB_HPD_UPDATE, mask);
 		mask |= MASK_DISPC1_GLB_APB_HPD_UPDATE;
 		regmap_write(ctx->ipa_dispc1_glb_apb, REG_DISPC1_GLB_APB_HPD_UPDATE, mask);
-	} else if (hpd_status == DP_HOT_UNPLUG) {
+	} else {
 		/* generate HOT_UNPLUG interrupt */
 		mask = MASK_DISPC1_GLB_APB_DPTX_CONFIG_EN;
-		regmap_write(ctx->ipa_dispc1_glb_apb, REG_DISPC1_GLB_APB_HPD_UPDATE, mask);
-
-		mask |= MASK_DISPC1_GLB_APB_HPD_UPDATE;
-		regmap_write(ctx->ipa_dispc1_glb_apb, REG_DISPC1_GLB_APB_HPD_UPDATE, mask);
-	} else if (hpd_status == DP_HPD_IRQ) {
-		/* generate HOT_UNPLUG interrupt */
-		mask = MASK_DISPC1_GLB_APB_DPTX_CONFIG_EN | MASK_DISPC1_GLB_APB_HPD_STATE |
-				MASK_DISPC1_GLB_APB_HPD_IRQ;
 		regmap_write(ctx->ipa_dispc1_glb_apb, REG_DISPC1_GLB_APB_HPD_UPDATE, mask);
 
 		mask |= MASK_DISPC1_GLB_APB_HPD_UPDATE;

@@ -97,6 +97,8 @@ static ssize_t scaling_force_ddr_freq_store(struct device *dev,
 		dev_warn(dev, "force freq para err: %d", err);
 		return count;
 	}
+	if (force_freq == 0)
+		return -EINVAL;
 	err = force_freq_request(force_freq);
 	if (err)
 		dev_err(dev, "force freq fail: %d", err);

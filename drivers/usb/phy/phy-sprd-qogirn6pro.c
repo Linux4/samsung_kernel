@@ -118,7 +118,7 @@ struct sprd_hsphy {
 #define DEFAULT_DEVICE_EYE_PATTERN			0x067bd1c0
 #define DEFAULT_HOST_EYE_PATTERN			0x067bd1c0
 
-#define FULLSPEED_USB33_TUNE		2700000
+#define FULLSPEED_USB33_TUNE		3300000
 
 static int boot_cali;
 static __init int sprd_hsphy_cali_mode(char *str)

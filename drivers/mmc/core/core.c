@@ -3279,7 +3279,6 @@ unsigned int mmc_calc_max_discard(struct mmc_card *card)
 	pr_debug("%s: calculated max. discard sectors %u for timeout %u ms\n",
 		mmc_hostname(host), max_discard, host->max_busy_timeout ?
 		host->max_busy_timeout : MMC_ERASE_TIMEOUT_MS);
-
 	return max_discard;
 }
 EXPORT_SYMBOL(mmc_calc_max_discard);

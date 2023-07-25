@@ -29,7 +29,7 @@
 #include <linux/pinctrl/consumer.h>
 
 #define USB_GPIO_DEBOUNCE_MS	520	/* ms */
-#define USB_ID_GPIO_DEBOUNCE_MS	350	/* ms */
+#define USB_ID_GPIO_DEBOUNCE_MS	20	/* ms */
 
 struct usb_extcon_info {
 	struct device *dev;
@@ -67,6 +67,8 @@ static const unsigned int usb_extcon_cable[] = {
  * - VBUS only - we want to distinguish between [1] and [2], so ID is always 1.
  * - ID only - we want to distinguish between [1] and [4], so VBUS = ID.
 */
+
+int extcon_gpio_id = 0;
 static void usb_extcon_detect_cable(struct work_struct *work)
 {
 	int id, vbus;
@@ -80,33 +82,18 @@ static void usb_extcon_detect_cable(struct work_struct *work)
 	vbus = info->vbus_gpiod ?
 		gpiod_get_value_cansleep(info->vbus_gpiod) : id;
 
-	if (!info->id_gpiod) {
-		printk("##%s## -typec-: id=%d, vbus=%d\n", __func__, id, vbus);
-		/* at first we clean states which are no longer active */
-		if (id)
-			extcon_set_state_sync(info->edev, EXTCON_USB_HOST, false);
-		if (!vbus)
-			extcon_set_state_sync(info->edev, EXTCON_USB, false);
+	extcon_gpio_id = id;
+    printk("##%s## -typec-: id=%d, vbus=%d\n", __func__, id, vbus);
+	/* at first we clean states which are no longer active */
+	if (id)
+		extcon_set_state_sync(info->edev, EXTCON_USB_HOST, false);
+	if (!vbus)
+		extcon_set_state_sync(info->edev, EXTCON_USB, false);
 
-		if (!id) {
-			extcon_set_state_sync(info->edev, EXTCON_USB_HOST, true);
-		} else {
-			if (vbus)
-				extcon_set_state_sync(info->edev, EXTCON_USB, true);
-		}
-	}
-	else {
-		printk("##%s## -Micro B-: id=%d, vbus=%d\n", __func__, id, vbus);
-		/* at first we clean states which are no longer active */
-		if (id)
-			extcon_set_state_sync(info->edev, EXTCON_USB_HOST, false);
-		if (!vbus)
-			extcon_set_state_sync(info->edev, EXTCON_USB, false);
-		if (!id)
-			extcon_set_state_sync(info->edev, EXTCON_USB_HOST, true);
-		if (vbus)
-			extcon_set_state_sync(info->edev, EXTCON_USB, true);
-	}
+	if (!id)
+		extcon_set_state_sync(info->edev, EXTCON_USB_HOST, true);
+	if (vbus)
+		extcon_set_state_sync(info->edev, EXTCON_USB, true);
 }
 
 static irqreturn_t usb_irq_handler(int irq, void *dev_id)

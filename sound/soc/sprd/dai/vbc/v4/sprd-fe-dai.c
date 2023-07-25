@@ -99,6 +99,7 @@ static char *fe_dai_id_str[FE_DAI_ID_MAX] = {
 	[FE_DAI_ID_VOICE_PCM_P] = TO_STRING(FE_DAI_ID_VOICE_PCM_P),
 	[FE_DAI_ID_HIFI_P] = TO_STRING(FE_DAI_ID_HIFI_P),
 	[FE_DAI_ID_HIFI_FAST_P] = TO_STRING(FE_DAI_ID_HIFI_FAST_P),
+	[FE_DAI_ID_MM_P] = TO_STRING(FE_DAI_ID_MM_P),
 };
 
 static const char *fe_dai_id_to_str(int fe_dai_id)
@@ -168,6 +169,7 @@ static void mcdt_dma_deinit(struct snd_soc_dai *fe_dai, int stream)
 		mcdt_dac_dma_disable(MCDT_CHAN_VOICE_PCM_P);
 		break;
 	case FE_DAI_ID_HIFI_P:
+	case FE_DAI_ID_MM_P:
 		mcdt_dac_dma_disable(MCDT_CHAN_HIFI_PLAY);
 		break;
 	}
@@ -256,6 +258,7 @@ static int mcdt_dma_config_init(struct snd_soc_dai *fe_dai, int stream)
 		pcm_voice_play_mcdt.channels[0] = uid;
 		break;
 	case FE_DAI_ID_HIFI_P:
+	case FE_DAI_ID_MM_P:
 		uid = mcdt_dac_dma_enable(MCDT_CHAN_HIFI_PLAY,
 			MCDT_EMPTY_WMK_HIFI_PLAY);
 		pcm_hifi_play_mcdt.channels[0] = uid;
@@ -647,6 +650,7 @@ static void sprd_dma_config(struct snd_pcm_substream *substream,
 			"voice_pcm_p";
 		break;
 	case FE_DAI_ID_HIFI_P:
+	case FE_DAI_ID_MM_P:
 		/*hifi playback*/
 		pcm_hifi_play_mcdt.name = "DSP IIS HIFI P";
 		pcm_hifi_play_mcdt.irq_type = SPRD_DMA_BLK_INT;
@@ -730,6 +734,7 @@ struct sprd_pcm_dma_params *get_dma_data_params(struct snd_soc_dai *fe_dai,
 		dma_data = &pcm_voice_play_mcdt;
 		break;
 	case FE_DAI_ID_HIFI_P:
+	case FE_DAI_ID_MM_P:
 		dma_data = &pcm_hifi_play_mcdt;
 		break;
 	}
@@ -1383,6 +1388,25 @@ static struct snd_soc_dai_driver sprd_fe_dais[FE_DAI_ID_MAX] = {
 			.rate_min = 8000,
 			.rate_max = 192000,
 		},
+	},
+	/* 25: FE_DAI_ID_MM_P */
+	{
+		.id = FE_DAI_ID_MM_P,
+		.name = TO_STRING(FE_DAI_ID_MM_P),
+		.probe = fe_dai_probe,
+		.playback = {
+			.stream_name = "FE_DAI_MM_P",
+			.aif_name = "FE_IF_MM_P",
+			.rates = SNDRV_PCM_RATE_CONTINUOUS,
+			.formats = (SNDRV_PCM_FMTBIT_S16_LE |
+						SNDRV_PCM_FMTBIT_S24_LE |
+						SNDRV_PCM_FMTBIT_S32_LE),
+			.channels_min = 1,
+			.channels_max = 2,
+			.rate_min = 8000,
+			.rate_max = 192000,
+		},
+		.ops = &sprd_fe_dai_ops,
 	},
 };
 

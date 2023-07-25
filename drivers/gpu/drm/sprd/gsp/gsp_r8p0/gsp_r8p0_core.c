@@ -39,6 +39,7 @@
 #include "gsp_r8p0_coef_cal.h"
 #include "../gsp_interface.h"
 #include "gsp_ipc_trusty.h"
+#include  "../../sprd_drm.h"
 
 static bool tipc_init;
 static int zorder_used[R8P0_IMGL_NUM + R8P0_OSDL_NUM] = {0};
@@ -595,6 +596,8 @@ int gsp_r8p0_core_init(struct gsp_core *core)
 		ret = -1;
 		return ret;
 	}
+
+	core->secure_init = false;
 
 	gsp_r8p0_core_capa_init(core);
 
@@ -1521,14 +1524,18 @@ int gsp_r8p0_core_trigger(struct gsp_core *c)
 	struct gsp_message in_buf;
 	struct gsp_message out_buf;
 
+	mutex_lock(&dpu_gsp_lock);
+
 	if (gsp_core_verify(c)) {
 		GSP_ERR("gsp_r8p0 core trigger params error\n");
+		mutex_unlock(&dpu_gsp_lock);
 		return ret;
 	}
 
 	kcfg = c->current_kcfg;
 	if (gsp_kcfg_verify(kcfg)) {
 		GSP_ERR("gsp_r8p0 trigger invalidate kcfg\n");
+		mutex_unlock(&dpu_gsp_lock);
 		return ret;
 	}
 
@@ -1537,6 +1544,7 @@ int gsp_r8p0_core_trigger(struct gsp_core *c)
 		gsp_core_reg_read(R8P0_GSP_GLB_CFG(c->base));
 	if (gsp_mod1_cfg_value.GSP_BUSY0) {
 		GSP_ERR("core is still busy, can't trigger\n");
+		mutex_unlock(&dpu_gsp_lock);
 		return GSP_K_HW_BUSY_ERR;
 	}
 	memset(zorder_used, 0, sizeof(zorder_used));
@@ -1564,19 +1572,31 @@ int gsp_r8p0_core_trigger(struct gsp_core *c)
 
 	if (gsp_r8p0_core_run_precheck(c)) {
 		GSP_ERR("r8p0 core run precheck fail !\n");
+		mutex_unlock(&dpu_gsp_lock);
 		return GSP_K_CLK_CHK_ERR;
 	}
 
 	if (cfg->misc.secure_en == 1) {
-		in_buf.cmd = TA_SET_SECURE;
+		if (c->secure_init == false) {
+			in_buf.cmd = TA_SET_SECURE;
+			gsp_tipc_write(&in_buf, sizeof(in_buf));
+			gsp_tipc_read(&out_buf, sizeof(out_buf));
+			if ((out_buf.cmd == TA_SET_SECURE) && (out_buf.payload[0] == 1))
+				GSP_DEBUG("TA_SET_SECURE success\n");
+		}
+		c->secure_init = true;
+	} else if (c->secure_init == true) {
+		in_buf.cmd = TA_SET_UNSECURE;
 		gsp_tipc_write(&in_buf, sizeof(in_buf));
 		gsp_tipc_read(&out_buf, sizeof(out_buf));
-		if ((out_buf.cmd == TA_SET_SECURE) &&
-			(out_buf.payload[0] == 1))
-			GSP_DEBUG("TA_SET_SECURE success\n");
+		if ((out_buf.cmd == TA_SET_UNSECURE) && (out_buf.payload[0] == 1))
+			GSP_DEBUG("TA_SET_UNSECURE success\n");
+		c->secure_init = false;
 	}
 
 	gsp_r8p0_core_run(c);
+
+	mutex_unlock(&dpu_gsp_lock);
 
 	return 0;
 };
@@ -1586,8 +1606,6 @@ int gsp_r8p0_core_release(struct gsp_core *c)
 	struct gsp_r8p0_core *core = NULL;
 	struct gsp_kcfg *kcfg = NULL;
 	struct gsp_r8p0_cfg *cfg = NULL;
-	struct gsp_message in_buf;
-	struct gsp_message out_buf;
 
 	core = (struct gsp_r8p0_core *)c;
 
@@ -1603,15 +1621,6 @@ int gsp_r8p0_core_release(struct gsp_core *c)
 	}
 
 	cfg = (struct gsp_r8p0_cfg *)kcfg->cfg;
-
-	if (cfg->misc.secure_en == 1) {
-		in_buf.cmd = TA_SET_UNSECURE;
-		gsp_tipc_write(&in_buf, sizeof(in_buf));
-		gsp_tipc_read(&out_buf, sizeof(out_buf));
-		if ((out_buf.cmd == TA_SET_UNSECURE)
-			&& (out_buf.payload[0] == 1))
-			GSP_DEBUG("TA_SET_UNSECURE success\n");
-	}
 
 	return 0;
 }

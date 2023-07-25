@@ -343,7 +343,7 @@
 		};
 	};
 
-	sensorhub: sprd-sensorhub {
+	sprd-sensorhub {
 		compatible = "sprd,sharkl3-sensorhub", "sprd,sensor-hub";
 	};
 

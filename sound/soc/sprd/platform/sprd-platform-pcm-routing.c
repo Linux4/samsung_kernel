@@ -106,6 +106,7 @@ enum SPRD_BE_SWITCH {
 	S_NORMAL_AP01_P_SMTPA,
 	S_NORMAL_AP23_P_SMTPA,
 	S_FAST_P_SMTPA,
+	S_FAST_P_SMART_AMP,
 	S_OFFLOAD_SMTPA,
 	S_VOICE_P_SMTPA,
 	S_VOIP_P_SMTPA,
@@ -239,6 +240,7 @@ static const struct snd_kcontrol_new sprd_audio_be_switch[S_SWITCH_CASE_MAX] = {
 	[S_NORMAL_AP23_P_SMTPA] = SOC_DAPM_SINGLE("SWITCH", SND_SOC_NOPM,
 						  0, 1, 0),
 	[S_FAST_P_SMTPA] = SOC_DAPM_SINGLE("SWITCH", SND_SOC_NOPM, 0, 1, 0),
+	[S_FAST_P_SMART_AMP] = SOC_DAPM_SINGLE("SWITCH", SND_SOC_NOPM, 0, 1, 0),
 	[S_OFFLOAD_SMTPA] = SOC_DAPM_SINGLE("SWITCH", SND_SOC_NOPM, 0, 1, 0),
 	[S_VOICE_P_SMTPA] = SOC_DAPM_SINGLE("SWITCH", SND_SOC_NOPM, 0, 1, 0),
 	[S_VOIP_P_SMTPA] = SOC_DAPM_SINGLE("SWITCH", SND_SOC_NOPM, 0, 1, 0),
@@ -343,6 +345,7 @@ static const struct snd_soc_dapm_widget sprd_pcm_routing_widgets[] = {
 	SND_SOC_DAPM_AIF_IN("FE_IF_VOICE_PCM_P", "FE_DAI_VOICE_PCM_P",
 		0, 0, 0, 0),
 	SND_SOC_DAPM_AIF_IN("FE_IF_HIFI_P", "FE_DAI_HIFI_P", 0, 0, 0, 0),
+	SND_SOC_DAPM_AIF_IN("FE_IF_MM_P", "FE_DAI_MM_P", 0, 0, 0, 0),
 	SND_SOC_DAPM_AIF_IN("DP_DL",
 			"DisplayPort MultiMedia Playback", 0, 0, 0, 0),
 
@@ -470,6 +473,8 @@ static const struct snd_soc_dapm_widget sprd_pcm_routing_widgets[] = {
 			    "BE_DAI_ID_NORMAL_AP23_SMTPA",
 			    0, 0, 0, 0),
 	SND_SOC_DAPM_AIF_IN("BE_IF_ID_FAST_P_SMTPA", "BE_DAI_ID_FAST_P_SMTPA",
+			    0, 0, 0, 0),
+	SND_SOC_DAPM_AIF_IN("BE_IF_ID_FAST_P_SMART_AMP", "BE_DAI_ID_FAST_P_SMART_AMP",
 			    0, 0, 0, 0),
 	SND_SOC_DAPM_AIF_IN("BE_IF_ID_OFFLOAD_SMTPA", "BE_DAI_ID_OFFLOAD_SMTPA",
 			    0, 0, 0, 0),
@@ -642,6 +647,10 @@ static const struct snd_soc_dapm_widget sprd_pcm_routing_widgets[] = {
 			      SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
 	SND_SOC_DAPM_SWITCH_E("S_FAST_P_SMTPA", SND_SOC_NOPM, 0, 0,
 			      &sprd_audio_be_switch[S_FAST_P_SMTPA],
+			      be_switch_evt,
+			      SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
+	SND_SOC_DAPM_SWITCH_E("S_FAST_P_SMART_AMP", SND_SOC_NOPM, 0, 0,
+			      &sprd_audio_be_switch[S_FAST_P_SMART_AMP],
 			      be_switch_evt,
 			      SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
 	SND_SOC_DAPM_SWITCH_E("S_OFFLOAD_SMTPA", SND_SOC_NOPM, 0, 0,
@@ -881,6 +890,9 @@ static const struct snd_soc_dapm_route sprd_pcm_routing_intercon[] = {
 	/* S_FAST_P_SMTPA */
 	{"S_FAST_P_SMTPA", "SWITCH", "FE_IF_FAST_P"},
 	{"BE_IF_ID_FAST_P_SMTPA", NULL, "S_FAST_P_SMTPA"},
+	/* S_FAST_P_SMART_AMP */
+	{"S_FAST_P_SMART_AMP", "SWITCH", "FE_IF_MM_P"},
+	{"BE_IF_ID_FAST_P_SMART_AMP", NULL, "S_FAST_P_SMART_AMP"},
 	/* S_OFFLOAD_SMTPA */
 	{"S_OFFLOAD_SMTPA", "SWITCH", "FE_IF_OFFLOAD_P"},
 	{"BE_IF_ID_OFFLOAD_SMTPA", NULL, "S_OFFLOAD_SMTPA"},

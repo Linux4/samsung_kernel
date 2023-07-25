@@ -225,7 +225,7 @@ static const struct of_device_id sprd_dvfs_of_match[] = {
 
 int dpu_vsp_dvfs_check_clkeb(void)
 {
-	u32  dpu_vsp_dvfs_eb_reg;
+	u32  dpu_vsp_dvfs_eb_reg = 0;
 
 	regmap_read(regmap_ctx.aon_base, 0x0, &dpu_vsp_dvfs_eb_reg);
 

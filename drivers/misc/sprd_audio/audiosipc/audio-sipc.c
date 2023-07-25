@@ -648,7 +648,7 @@ int aud_send_cmd(u16 channel, int id, int stream,
 		 u32 cmd, void *para, size_t n, int32_t timeout)
 {
 	int ret;
-	struct aud_smsg value;
+	struct aud_smsg value = {0};
 	int repeat_count = 0;
 	struct audio_ipc *aud_ipc = aud_ipc_get();
 

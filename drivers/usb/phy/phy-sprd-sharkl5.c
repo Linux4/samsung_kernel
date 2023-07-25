@@ -369,6 +369,13 @@ static enum usb_charger_type sprd_hsphy_charger_detect(struct usb_phy *x)
 	return sc27xx_charger_detect(phy->pmic);
 }
 
+static void sprd_hsphy_dpdm_switch_to_phy(struct usb_phy *x, bool enable)
+{
+	struct sprd_hsphy *phy = container_of(x, struct sprd_hsphy, phy);
+
+	sc27xx_dpdm_switch_to_phy(phy->pmic, enable);
+}
+
 static int sc2730_voltage_cali(int voltage)
 {
 	return voltage*3/2;
@@ -382,9 +389,13 @@ static enum usb_charger_type sprd_hsphy_retry_charger_detect(struct usb_phy *x)
 	int cnt = 20;
 
 	if (!phy->dm || !phy->dp) {
-		dev_err(x->dev, " phy->dp:%p, phy->dm:%p\n",
-			phy->dp, phy->dm);
-		return UNKNOWN_TYPE;
+		dev_info(x->dev, "iio resource is not ready, try again\n");
+		phy->dp = devm_iio_channel_get(x->dev, "dp");
+		phy->dm = devm_iio_channel_get(x->dev, "dm");
+		if (!phy->dm || !phy->dp) {
+			dev_err(x->dev, "phy->dp:%p, phy->dm:%p\n", phy->dp, phy->dm);
+			return UNKNOWN_TYPE;
+		}
 	}
 
 	regmap_update_bits(phy->pmic,
@@ -538,6 +549,7 @@ static int sprd_hsphy_probe(struct platform_device *pdev)
 	phy->phy.type = USB_PHY_TYPE_USB2;
 	phy->phy.vbus_nb.notifier_call = sprd_hsphy_vbus_notify;
 	phy->phy.charger_detect = sprd_hsphy_charger_detect;
+	phy->phy.dpdm_switch_to_phy = sprd_hsphy_dpdm_switch_to_phy;
 	phy->phy.retry_charger_detect = sprd_hsphy_retry_charger_detect;
 	otg->usb_phy = &phy->phy;
 

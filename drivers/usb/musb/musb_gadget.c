@@ -112,8 +112,11 @@ static inline void unmap_dma_buffer(struct musb_request *request,
 {
 	struct musb_ep *musb_ep = request->ep;
 
-	if (!is_buffer_mapped(request) || !musb_ep->dma)
+	if (!is_buffer_mapped(request) || !musb_ep->dma) {
+		dev_vdbg(musb->controller,
+				"not unmapping non-exit mapped buffer\n");
 		return;
+	}
 
 	if (request->request.dma == DMA_ADDR_INVALID) {
 		dev_vdbg(musb->controller,
@@ -214,13 +217,15 @@ static void nuke(struct musb_ep *ep, const int status)
 		value = c->channel_abort(ep->dma);
 		musb_dbg(musb, "%s: abort DMA --> %d", ep->name, value);
 		c->channel_release(ep->dma);
-		ep->dma = NULL;
 	}
 
 	while (!list_empty(&ep->req_list)) {
 		req = list_first_entry(&ep->req_list, struct musb_request, list);
 		musb_g_giveback(ep, &req->request, status);
 	}
+
+	if (is_dma_capable() && ep->dma)
+		ep->dma = NULL;
 }
 
 /* ----------------------------------------------------------------------- */

@@ -240,7 +240,7 @@ struct shub_data {
 	struct file *filep;/* R/W interface */
 	unsigned char readbuff[SERIAL_READ_BUFFER_MAX];
 	unsigned char readbuff_nwu[SERIAL_READ_BUFFER_MAX];
-	unsigned char writebuff[SERIAL_WRITE_BUFFER_MAX];
+	unsigned char writebuff[MAX_MSG_BUFF_SIZE];
 	void (*save_mag_offset)(struct shub_data *sensor, u8 *buff, u32 len);
 	void (*data_callback)(struct shub_data *sensor, u8 *buff, u32 len);
 	void (*readcmd_callback)(struct shub_data *sensor, u8 *buff, u32 len);

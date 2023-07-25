@@ -33,6 +33,8 @@
 #define GLB_INT_EN_OFFSET	0x24
 #define GLB_INT_CLR_OFFSET	0x28
 #define GLB_INT_RAW_OFFSET	0x2C
+#define IOMMU_INT_CLR_OFFSET      0x3A4
+#define IOMMU_INT_RAW_OFFSET      0x3AC
 #define SPRD_JPG_CLK_LEVEL_NUM 4
 
 struct jpg_fh {

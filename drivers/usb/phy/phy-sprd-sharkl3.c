@@ -59,7 +59,6 @@ static unsigned int usb20_tuneotg_host = 0x1;
 module_param(usb20_tuneotg_host, int, S_IRUGO | S_IWUSR);
 
 
-
 struct sprd_hsphy {
 	struct device		*dev;
 	struct usb_phy		phy;
@@ -78,12 +77,24 @@ struct sprd_hsphy {
 	struct iio_channel	*dm;
 };
 
+#define FULLSPEED_USB33_TUNE		3300000
 #define SC2721_CHARGE_DET_FGU_CTRL      0xecc
 #define BIT_DP_DM_AUX_EN                BIT(1)
 #define BIT_DP_DM_BC_ENB                BIT(0)
 #define VOLT_LO_LIMIT                   1200
 #define VOLT_HI_LIMIT                   600
 
+static int boot_cali;
+static __init int sprd_hsphy_cali_mode(char *str)
+{
+	if (strcmp(str, "cali"))
+		boot_cali = 0;
+	else
+		boot_cali = 1;
+
+	return 0;
+}
+__setup("androidboot.mode=", sprd_hsphy_cali_mode);
 
 static inline void sprd_hsphy_reset_core(struct sprd_hsphy *phy)
 {
@@ -421,7 +432,7 @@ static int sprd_hsphy_vbus_notify(struct notifier_block *nb,
 	struct sprd_hsphy *phy = container_of(usb_phy, struct sprd_hsphy, phy);
 	u32 value, reg, msk;
 
-	if (phy->is_host) {
+	if (phy->is_host || usb_phy->last_event == USB_EVENT_ID) {
 		dev_info(phy->dev, "USB PHY is host mode\n");
 		return 0;
 	}
@@ -470,9 +481,13 @@ static enum usb_charger_type sprd_hsphy_retry_charger_detect(struct usb_phy *x)
 	int cnt = 20;
 
 	if (!phy->dm || !phy->dp) {
-		dev_err(x->dev, " phy->dp:%p, phy->dm:%p\n",
-			phy->dp, phy->dm);
-		return UNKNOWN_TYPE;
+		dev_info(x->dev, "iio resource is not ready, try again\n");
+		phy->dp = devm_iio_channel_get(x->dev, "dp");
+		phy->dm = devm_iio_channel_get(x->dev, "dm");
+		if (!phy->dm || !phy->dp) {
+			dev_err(x->dev, "phy->dp:%p, phy->dm:%p\n", phy->dp, phy->dm);
+			return UNKNOWN_TYPE;
+		}
 	}
 
 	regmap_update_bits(phy->pmic, SC2721_CHARGE_DET_FGU_CTRL,
@@ -554,6 +569,11 @@ static int sprd_hsphy_probe(struct platform_device *pdev)
 	if (ret < 0) {
 		dev_err(dev, "unable to read ssphy vdd voltage\n");
 		return ret;
+	}
+
+	if (boot_cali) {
+		phy->vdd_vol = FULLSPEED_USB33_TUNE;
+		dev_info(dev, "calimode vdd_vol:%d\n", phy->vdd_vol);
 	}
 
 	phy->vdd = devm_regulator_get(dev, "vdd");

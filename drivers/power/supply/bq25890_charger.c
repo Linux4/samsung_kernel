@@ -488,6 +488,8 @@ struct bq25890_charger_info {
 	struct device *dev;
 	struct usb_phy *usb_phy;
 	struct notifier_block usb_notify;
+	struct notifier_block pd_swap_notify;
+	struct notifier_block extcon_nb;
 	struct power_supply *psy_usb;
 	struct power_supply_charge_current cur;
 	struct work_struct work;
@@ -512,6 +514,8 @@ struct bq25890_charger_info {
 	struct alarm otg_timer;
 	struct bq25890_charger_sysfs *sysfs;
 	int reg_id;
+	bool is_sink;
+	bool use_typec_extcon;
 };
 
 struct bq25890_charger_reg_tab {
@@ -1082,8 +1086,22 @@ static void bq25890_charger_work(struct work_struct *data)
 	struct bq25890_charger_info *info =
 		container_of(data, struct bq25890_charger_info, work);
 	bool present;
+	int retry_cnt = 12;
 
 	present = bq25890_charger_is_bat_present(info);
+
+	if (info->use_typec_extcon && info->limit) {
+		/* if use typec extcon notify charger,
+		 * wait for BC1.2 detect charger type.
+		 */
+		while (retry_cnt > 0) {
+			if (info->usb_phy->chg_type != UNKNOWN_TYPE)
+				break;
+			retry_cnt--;
+			msleep(50);
+		}
+		dev_info(info->dev, "retry_cnt = %d\n", retry_cnt);
+	}
 
 	dev_info(info->dev, "battery present = %d, charger type = %d\n",
 		 present, info->usb_phy->chg_type);
@@ -1300,6 +1318,38 @@ static int bq25890_charger_usb_change(struct notifier_block *nb,
 		container_of(nb, struct bq25890_charger_info, usb_notify);
 
 	info->limit = limit;
+
+	pm_wakeup_event(info->dev, BQ25890_WAKE_UP_MS);
+
+	schedule_work(&info->work);
+	return NOTIFY_OK;
+}
+
+static int bq25890_charger_extcon_event(struct notifier_block *nb,
+				  unsigned long event, void *param)
+{
+	struct bq25890_charger_info *info =
+		container_of(nb, struct bq25890_charger_info, extcon_nb);
+	int state = 0;
+
+	if (!info) {
+		pr_err("%s:line%d: NULL pointer!!!\n", __func__, __LINE__);
+		return NOTIFY_OK;
+	}
+
+	state = extcon_get_state(info->edev, EXTCON_SINK);
+	if (state < 0)
+		return NOTIFY_OK;
+
+	if (info->is_sink == state)
+		return NOTIFY_OK;
+
+	info->is_sink = state;
+
+	if (info->is_sink)
+		info->limit = 500;
+	else
+		info->limit = 0;
 
 	pm_wakeup_event(info->dev, BQ25890_WAKE_UP_MS);
 
@@ -1528,25 +1578,43 @@ static const struct power_supply_desc bq25890_charger_desc = {
 
 static void bq25890_charger_detect_status(struct bq25890_charger_info *info)
 {
-	unsigned int min, max;
+	int state = 0;
 
-	/*
-	 * If the USB charger status has been USB_CHARGER_PRESENT before
-	 * registering the notifier, we should start to charge with getting
-	 * the charge current.
-	 */
-	if (info->usb_phy->chg_state != USB_CHARGER_PRESENT)
-		return;
+	if (info->use_typec_extcon) {
+		state = extcon_get_state(info->edev, EXTCON_SINK);
+		if (state < 0)
+			return;
 
-	usb_phy_get_charger_current(info->usb_phy, &min, &max);
-	info->limit = min;
+		if (state == 0)
+			return;
 
-	/*
-	 * slave no need to start charge when vbus change.
-	 * due to charging in shut down will check each psy
-	 * whether online or not, so let info->limit = min.
-	 */
-	schedule_work(&info->work);
+		info->is_sink = state;
+
+		if (info->is_sink)
+			info->limit = 500;
+
+		schedule_work(&info->work);
+	} else {
+		unsigned int min, max;
+
+		/*
+		 * If the USB charger status has been USB_CHARGER_PRESENT before
+		 * registering the notifier, we should start to charge with getting
+		 * the charge current.
+		 */
+		if (info->usb_phy->chg_state != USB_CHARGER_PRESENT)
+			return;
+
+		usb_phy_get_charger_current(info->usb_phy, &min, &max);
+		info->limit = min;
+
+		/*
+		 * slave no need to start charge when vbus change.
+		 * due to charging in shut down will check each psy
+		 * whether online or not, so let info->limit = min.
+		 */
+		schedule_work(&info->work);
+	}
 }
 
 static void bq25890_charger_feed_watchdog_work(struct work_struct *work)
@@ -1651,11 +1719,13 @@ static int bq25890_charger_enable_otg(struct regulator_dev *dev)
 	 * Disable charger detection function in case
 	 * affecting the OTG timing sequence.
 	 */
-	ret = regmap_update_bits(info->pmic, info->charger_detect,
-				 BIT_DP_DM_BC_ENB, BIT_DP_DM_BC_ENB);
-	if (ret) {
-		dev_err(info->dev, "failed to disable bc1.2 detect function.\n");
-		return ret;
+	if (!info->use_typec_extcon) {
+		ret = regmap_update_bits(info->pmic, info->charger_detect,
+					 BIT_DP_DM_BC_ENB, BIT_DP_DM_BC_ENB);
+		if (ret) {
+			dev_err(info->dev, "failed to disable bc1.2 detect function.\n");
+			return ret;
+		}
 	}
 
 	ret = bq25890_update_bits(info, BQ25890_REG_03, REG03_OTG_CONFIG_MASK,
@@ -1693,18 +1763,33 @@ static int bq25890_charger_disable_otg(struct regulator_dev *dev)
 	}
 
 	/* Enable charger detection function to identify the charger type */
-	return regmap_update_bits(info->pmic, info->charger_detect,
-				  BIT_DP_DM_BC_ENB, 0);
+	if (!info->use_typec_extcon) {
+		ret = regmap_update_bits(info->pmic, info->charger_detect,
+					  BIT_DP_DM_BC_ENB, 0);
+		if (ret)
+			dev_err(info->dev, "enable BC1.2 failed\n");
+	}
+
+	return ret;
 }
 
 static int bq25890_charger_vbus_is_enabled(struct regulator_dev *dev)
 {
 	struct bq25890_charger_info *info = rdev_get_drvdata(dev);
-	int ret;
+	int ret, retry_cnt = 10;
 	u8 val;
 
+/*
+ * After i2c enters sleep, it cannot waker up for the first time and
+ * needs to retry.
+ */
+retry:
 	ret = bq25890_read(info, BQ25890_REG_03, &val);
-	if (ret) {
+	if (ret < 0 && retry_cnt > 0) {
+		retry_cnt--;
+		msleep(20);
+		goto retry;
+	} else if (ret) {
 		dev_err(info->dev, "failed to get bq25890 otg status\n");
 		return ret;
 	}
@@ -1777,6 +1862,9 @@ static int bq25890_charger_probe(struct i2c_client *client,
 	info->client = client;
 	info->dev = dev;
 
+	info->use_typec_extcon =
+		device_property_read_bool(dev, "use-typec-extcon");
+
 	alarm_init(&info->otg_timer, ALARM_BOOTTIME, NULL);
 
 	mutex_init(&info->lock);
@@ -1800,6 +1888,17 @@ static int bq25890_charger_probe(struct i2c_client *client,
 	if (ret) {
 		dev_err(dev, "sc27xx_fgu not ready.\n");
 		return -EPROBE_DEFER;
+	}
+
+	if (info->use_typec_extcon) {
+		info->extcon_nb.notifier_call = bq25890_charger_extcon_event;
+		ret = devm_extcon_register_notifier_all(dev,
+							info->edev,
+							&info->extcon_nb);
+		if (ret) {
+			dev_err(dev, "Can't register extcon\n");
+			return ret;
+		}
 	}
 
 	ret = bq25890_charger_register_vbus_regulator(info);
@@ -1871,11 +1970,13 @@ static int bq25890_charger_probe(struct i2c_client *client,
 	bq25890_charger_stop_charge(info);
 
 	device_init_wakeup(info->dev, true);
-	info->usb_notify.notifier_call = bq25890_charger_usb_change;
-	ret = usb_register_notifier(info->usb_phy, &info->usb_notify);
-	if (ret) {
-		dev_err(dev, "failed to register notifier:%d\n", ret);
-		goto err_psy_usb;
+	if (!info->use_typec_extcon) {
+		info->usb_notify.notifier_call = bq25890_charger_usb_change;
+		ret = usb_register_notifier(info->usb_phy, &info->usb_notify);
+		if (ret) {
+			dev_err(dev, "failed to register notifier:%d\n", ret);
+			goto err_psy_usb;
+		}
 	}
 
 	ret = bq25890_register_sysfs(info);

@@ -16,6 +16,7 @@
 #include <linux/reboot.h>
 #include <linux/spi/spi.h>
 #include <linux/sizes.h>
+#include <linux/sprd_dfs_drv.h>
 
 /* Registers definitions for ADI controller */
 #define REG_ADI_CTRL0			0x4
@@ -431,8 +432,10 @@ static int sprd_adi_restart_handler(struct notifier_block *this,
 		reboot_mode = HWRST_STATUS_FASTBOOT;
 	else if (!strncmp(cmd, "download", 8))
 		reboot_mode = HWRST_STATUS_FASTBOOT;
-	else if (!strncmp(cmd, "panic", 5))
+	else if (!strncmp(cmd, "panic", 5)) {
+		dfs_register_save();
 		reboot_mode = HWRST_STATUS_PANIC;
+	}
 	else if (!strncmp(cmd, "special", 7))
 		reboot_mode = HWRST_STATUS_SPECIAL;
 	else if (!strncmp(cmd, "cftreboot", 9))

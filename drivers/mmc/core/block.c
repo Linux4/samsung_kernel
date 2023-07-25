@@ -2009,6 +2009,7 @@ static enum mmc_blk_status mmc_blk_err_check(struct mmc_card *card,
 	if (brq->cmd.resp[0] & CMD_ERRORS) {
 		pr_err("%s: r/w command failed, status = %#x\n",
 		       req->rq_disk->disk_name, brq->cmd.resp[0]);
+		mmc_card_error_logging(card, brq, brq->cmd.resp[0]);
 		return MMC_BLK_ABORT;
 	}
 
@@ -2774,11 +2775,7 @@ void mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 		 * cq: claim host for per request
 		 */
 		mmc_get_card(card);
-#ifdef CONFIG_EMMC_CMDQ_ENABLE_DELAY_SUPPORT
-	part_cmdq_en = mmc_blk_part_cmdq_en(mq);
-	if (part_cmdq_en && !req)
-		put_card = true;
-#endif
+
 	ret = mmc_blk_part_switch(card, md->part_type);
 	if (ret) {
 		if (req) {

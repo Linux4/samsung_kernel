@@ -1944,7 +1944,7 @@ static int sprd_hwdvfs_l3_probe(struct platform_device *pdev)
 		syscon_regmap_lookup_by_phandle(np, "sprd,syscon-pmu-apb");
 	if (IS_ERR(pmu_apb_base)) {
 		dev_err(&pdev->dev, "get pmu_apb_base failed!\n");
-		return PTR_ERR(anlg_phy_g4_ctrl_base);
+		return PTR_ERR(pmu_apb_base);
 	}
 
 	hwdvfs_l3 =

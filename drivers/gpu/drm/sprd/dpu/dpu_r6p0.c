@@ -80,7 +80,6 @@
 #define DSC_1440_2560_720_2560	0
 #define DSC_1080_2408_540_8	1
 #define DSC_720_2560_720_8	2
-#define DSC_1080_2400_540_2400	3
 
 static u32 dpu_luts_paddr;
 static u8 *dpu_luts_vaddr;
@@ -565,12 +564,6 @@ static struct dpu_dsc_cfg dsc_cfg[] = {
 		.dual_dsi_en = 0,
 		.dsc_en = 1,
 		.dsc_mode = 1,
-	},
-	{
-		.name = "lcd_td4375_dijin_mipi_fhd",
-		.dual_dsi_en = 0,
-		.dsc_en = 1,
-		.dsc_mode = 3,
 	},
 };
 
@@ -1359,15 +1352,6 @@ static int dpu_config_dsc_param(struct dpu_context *ctx)
 		}
 
 		break;
-	case DSC_1080_2400_540_2400:
-		reg->dsc_grp_size = 0x000000b4;
-		reg->dsc_slice_size = 0x04069780;
-		reg->dsc_cfg0 = 0x306c8200;
-		reg->dsc_cfg1 = 0x0007e13f;
-		reg->dsc_cfg2 = 0x000b000b;
-		reg->dsc_cfg3 = 0x10f01800;
-		break;
-
 	default:
 		reg->dsc_grp_size = 0x000000f0;
 		reg->dsc_slice_size = 0x04096000;
@@ -1443,6 +1427,9 @@ static int dpu_init(struct dpu_context *ctx)
 	INIT_WORK(&ctx->cabc_bl_update, dpu_cabc_bl_update_func);
 
 	frame_no = 0;
+
+	ctx->base_offset[0] = 0x0;
+	ctx->base_offset[1] = sizeof(struct dpu_reg) / 4;
 
 	/* Allocate memory for trusty */
 	if(!tos_msg_alloc){

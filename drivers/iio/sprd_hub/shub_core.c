@@ -257,6 +257,12 @@ static int shub_send_command(struct shub_data *sensor, int sensor_ID,
 	int nwrite = 0;
 	int ret = 0;
 
+	if (len > (MAX_MSG_BUFF_SIZE - SHUB_MAX_HEAD_LEN - SHUB_MAX_DATA_CRC)) {
+		dev_err(&sensor->sensor_pdev->dev, "shub send data %d over size (%d)",
+			len, (MAX_MSG_BUFF_SIZE - SHUB_MAX_HEAD_LEN - SHUB_MAX_DATA_CRC));
+		return -EBADMSG;
+	}
+
 	mutex_lock(&sensor->send_command_mutex);
 
 	if (opcode == SHUB_DOWNLOAD_OPCODE_SUBTYPE) {
@@ -279,7 +285,7 @@ static int shub_send_command(struct shub_data *sensor, int sensor_ID,
 	}
 	encode_len =
 	    shub_encode_one_packet(&cmddata, sensor->writebuff,
-				   SERIAL_WRITE_BUFFER_MAX);
+				   MAX_MSG_BUFF_SIZE);
 
 	if (encode_len > SHUB_MAX_HEAD_LEN + SHUB_MAX_DATA_CRC) {
 		nwrite =

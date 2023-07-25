@@ -58,10 +58,10 @@ static int sprd_dp_suspend(struct sprd_dp *dp)
 	return 0;
 }
 
-static int sprd_dp_detect(struct sprd_dp *dp, int hpd_status)
+static int sprd_dp_detect(struct sprd_dp *dp, int enable)
 {
 	if (dp->glb && dp->glb->detect)
-		dp->glb->detect(&dp->ctx, hpd_status);
+		dp->glb->detect(&dp->ctx, enable);
 
 	DRM_INFO("dp detect\n");
 	return 0;
@@ -77,18 +77,15 @@ static int sprd_dp_notify_callback(struct notifier_block *nb,
 		dp->hpd_status == false) {
 		pm_runtime_get_sync(dp->dev.parent);
 		sprd_dp_resume(dp);
-		sprd_dp_detect(dp, DP_HOT_PLUG);
+		sprd_dp_detect(dp, 1);
 		dp->hpd_status = true;
 	} else if (dp->hpd_status == true &&
 		(*hpd_status ==  DP_HOT_UNPLUG ||
 		*hpd_status == DP_TYPE_DISCONNECT)) {
-		sprd_dp_detect(dp, DP_HOT_UNPLUG);
+		sprd_dp_detect(dp, 0);
 		sprd_dp_suspend(dp);
 		pm_runtime_put(dp->dev.parent);
 		dp->hpd_status = false;
-	} else if (dp->hpd_status == true &&
-		*hpd_status ==  DP_HPD_IRQ) {
-		sprd_dp_detect(dp, DP_HPD_IRQ);
 	}
 
 	DRM_INFO("%s() hpd_status:%d\n", __func__, *hpd_status);
@@ -153,8 +150,6 @@ static void sprd_dp_encoder_disable(struct drm_encoder *encoder)
 	}
 
 	sprd_dpu1_stop(dpu);
-
-	dptx_disable_default_video_stream(dp->snps_dptx, 0);
 
 	sprd_dp_suspend(dp);
 

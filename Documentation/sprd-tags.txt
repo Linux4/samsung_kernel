@@ -107,8 +107,6 @@ input:sprd:
 input:touchscreen:
 irqchip:
 
-kernel:
-
 leds:sc27xx:
 leds:trigger:
 lib:e_show_mem:

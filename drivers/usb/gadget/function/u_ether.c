@@ -55,7 +55,7 @@
  * frame sizes. Set the max size to 15k+52 to prevent allocating 32k
  * blocks and still have efficient handling. */
 #define GETHER_MAX_ETH_FRAME_LEN 15412
-#define UETHER_TASK_PRIO 80
+#define UETHER_TASK_PRIO 90
 
 static struct workqueue_struct	*uether_tx_wq;
 static int tx_start_threshold = 1500;
@@ -403,7 +403,6 @@ static int prealloc_sg(struct list_head *list, struct usb_ep *ep, u32 n,
 {
 	u32			i;
 	struct usb_request	*req;
-	struct sg_ctx		*sg_ctx;
 
 	if (!n)
 		return -ENOMEM;
@@ -429,10 +428,11 @@ static int prealloc_sg(struct list_head *list, struct usb_ep *ep, u32 n,
 				GFP_ATOMIC);
 		if (!req->sg)
 			goto extra;
-		sg_ctx = kmalloc(sizeof(*sg_ctx), GFP_ATOMIC);
-		if (!sg_ctx)
+
+		req->context = kmalloc(sizeof(struct sg_ctx), GFP_ATOMIC);
+		if (!req->context)
 			goto extra;
-		req->context = sg_ctx;
+
 		req->buf = kzalloc(DL_MAX_PKTS_PER_XFER * hlen,
 					GFP_ATOMIC);
 		if (!req->buf)
@@ -447,21 +447,21 @@ extra:
 
 		next = req->list.next;
 		list_del(&req->list);
+
+		if (sg_supported)
+			continue;
+		if (req->sg)
+			kfree(req->sg);
+		if (req->context)
+			kfree(req->context);
+		if (req->buf)
+			kfree(req->buf);
+
 		usb_ep_free_request(ep, req);
 
 		if (next == list)
 			break;
-
 		req = container_of(next, struct usb_request, list);
-
-		if (!sg_supported)
-			continue;
-		if (!req->sg)
-			kfree(req->sg);
-		if (!req->context)
-			kfree(req->context);
-		if (!req->buf)
-			kfree(req->buf);
 	}
 	return -ENOMEM;
 }

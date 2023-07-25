@@ -15,6 +15,7 @@
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/io.h>
+#include <linux/iio/consumer.h>
 #include <linux/mfd/syscon.h>
 #include <linux/module.h>
 #include <linux/of.h>
@@ -62,6 +63,14 @@
 #define TFREGRES_TUNE_VALUE		(0xe << 19)
 #define DEFAULT_HOST_EYE_PATTERN					0x04f3d1c0
 #define DEFAULT_DEVICE_EYE_PATTERN					0x04f3d1c0
+
+#define SC2730_CHARGE_DET_FGU_CTRL	0x3A0
+#define SC2730_ADC_OFFSET		0x1800
+#define BIT_DP_DM_AUX_EN		BIT(1)
+#define BIT_DP_DM_BC_ENB		BIT(0)
+#define VOLT_LO_LIMIT			1200
+#define VOLT_HI_LIMIT			600
+
 struct sprd_hsphy {
 	struct device		*dev;
 	struct usb_phy		phy;
@@ -75,9 +84,11 @@ struct sprd_hsphy {
 	atomic_t		reset;
 	atomic_t		inited;
 	bool			is_host;
+	struct iio_channel	*dp;
+	struct iio_channel	*dm;
 };
 
-#define FULLSPEED_USB33_TUNE		2700000
+#define FULLSPEED_USB33_TUNE		3300000
 
 static int boot_cali;
 static __init int sprd_hsphy_cali_mode(char *str)
@@ -451,7 +462,7 @@ static int sprd_hsphy_vbus_notify(struct notifier_block *nb,
 	u32 reg, msk;
 	u32 ret = 0;
 
-	if (phy->is_host) {
+	if (phy->is_host || usb_phy->last_event == USB_EVENT_ID) {
 		dev_info(phy->dev, "USB PHY is host mode\n");
 		return 0;
 	}
@@ -491,6 +502,67 @@ static enum usb_charger_type sprd_hsphy_charger_detect(struct usb_phy *x)
 	struct sprd_hsphy *phy = container_of(x, struct sprd_hsphy, phy);
 
 	return sc27xx_charger_detect(phy->pmic);
+}
+
+static int sc2730_voltage_cali(int voltage)
+{
+	return voltage*3/2;
+}
+
+static enum usb_charger_type sprd_hsphy_retry_charger_detect(struct usb_phy *x)
+{
+	struct sprd_hsphy *phy = container_of(x, struct sprd_hsphy, phy);
+	enum usb_charger_type type = UNKNOWN_TYPE;
+	int dm_voltage, dp_voltage;
+	int cnt = 20;
+
+	if (!phy->dm || !phy->dp) {
+		dev_info(x->dev, "iio resource is not ready, try again\n");
+		phy->dp = devm_iio_channel_get(x->dev, "dp");
+		phy->dm = devm_iio_channel_get(x->dev, "dm");
+		if (!phy->dm || !phy->dp) {
+			dev_err(x->dev, "phy->dp:%p, phy->dm:%p\n", phy->dp, phy->dm);
+			return UNKNOWN_TYPE;
+		}
+	}
+
+	regmap_update_bits(phy->pmic,
+		SC2730_ADC_OFFSET | SC2730_CHARGE_DET_FGU_CTRL,
+		BIT_DP_DM_AUX_EN | BIT_DP_DM_BC_ENB,
+		BIT_DP_DM_AUX_EN);
+
+	msleep(300);
+	iio_read_channel_processed(phy->dp, &dp_voltage);
+	dp_voltage = sc2730_voltage_cali(dp_voltage);
+	if (dp_voltage > VOLT_LO_LIMIT) {
+		do {
+			iio_read_channel_processed(phy->dm, &dm_voltage);
+			dm_voltage = sc2730_voltage_cali(dm_voltage);
+			if (dm_voltage > VOLT_LO_LIMIT) {
+				type = DCP_TYPE;
+				break;
+			}
+			msleep(100);
+			cnt--;
+			iio_read_channel_processed(phy->dp, &dp_voltage);
+			dp_voltage = sc2730_voltage_cali(dp_voltage);
+			if (dp_voltage  < VOLT_HI_LIMIT) {
+				type = SDP_TYPE;
+				break;
+			}
+		} while ((x->chg_state == USB_CHARGER_PRESENT) && cnt > 0);
+	}
+
+	regmap_update_bits(phy->pmic,
+		SC2730_ADC_OFFSET | SC2730_CHARGE_DET_FGU_CTRL,
+		BIT_DP_DM_AUX_EN | BIT_DP_DM_BC_ENB, 0);
+
+	dev_dbg(x->dev, "correct type is %x\n", type);
+	if (type != UNKNOWN_TYPE) {
+		x->chg_type = type;
+		schedule_work(&x->chg_work);
+	}
+	return type;
 }
 
 static int sprd_hsphy_probe(struct platform_device *pdev)
@@ -583,6 +655,17 @@ static int sprd_hsphy_probe(struct platform_device *pdev)
 		phy->host_eye_pattern = DEFAULT_HOST_EYE_PATTERN;
 	}
 
+	phy->dp = devm_iio_channel_get(dev, "dp");
+	phy->dm = devm_iio_channel_get(dev, "dm");
+	if (IS_ERR(phy->dp)) {
+		phy->dp = NULL;
+		dev_warn(dev, "failed to get dp or dm channel\n");
+	}
+	if (IS_ERR(phy->dm)) {
+		phy->dm = NULL;
+		dev_warn(dev, "failed to get dp or dm channel\n");
+	}
+
 	/* enable usb module */
 	reg = msk = (MASK_AON_APB_OTG_UTMI_EB | MASK_AON_APB_ANA_EB);
 	regmap_update_bits(phy->hsphy_glb, REG_AON_APB_APB_EB1, msk, reg);
@@ -611,6 +694,7 @@ static int sprd_hsphy_probe(struct platform_device *pdev)
 	phy->phy.type = USB_PHY_TYPE_USB2;
 	phy->phy.vbus_nb.notifier_call = sprd_hsphy_vbus_notify;
 	phy->phy.charger_detect = sprd_hsphy_charger_detect;
+	phy->phy.retry_charger_detect = sprd_hsphy_retry_charger_detect;
 	otg->usb_phy = &phy->phy;
 
 	platform_set_drvdata(pdev, phy);

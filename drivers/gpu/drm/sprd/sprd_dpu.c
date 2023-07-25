@@ -1183,6 +1183,7 @@ static int sprd_dpu_context_init(struct sprd_dpu *dpu,
 {
 	u32 temp;
 	struct resource r;
+	struct resource r_gsp;
 	struct dpu_context *ctx = &dpu->ctx;
 
 	if (dpu->core && dpu->core->parse_dt)
@@ -1210,6 +1211,13 @@ static int sprd_dpu_context_init(struct sprd_dpu *dpu,
 		DRM_ERROR("ioremap base address failed\n");
 		return -EFAULT;
 	}
+
+	if (of_address_to_resource(np, 1, &r_gsp))
+		DRM_ERROR("parse dt gsp base address failed\n");
+
+	ctx->gsp_base = ioremap_nocache(r_gsp.start, resource_size(&r_gsp));
+	if (!ctx->gsp_base)
+		DRM_ERROR("ioremap gsp base address failed\n");
 
 	of_get_logo_memory_info(dpu, np);
 

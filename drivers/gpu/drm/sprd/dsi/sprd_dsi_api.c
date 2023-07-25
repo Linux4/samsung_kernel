@@ -486,7 +486,7 @@ int sprd_dsi_rd_pkt(struct sprd_dsi *dsi, u8 vc, u8 type,
 	if (dsi_hal_is_rx_payload_fifo_empty(dsi)) {
 		/*reason: gc7202 add bta, this err log will print every time*/
 		if (strncmp("lcd_gc7202_hlt_mipi_hdp", lcd_name, 28) != 0)
-			pr_err("rx payload fifo empty\n");
+		pr_err("rx payload fifo empty\n");
 		return -EINVAL;
 	}
 

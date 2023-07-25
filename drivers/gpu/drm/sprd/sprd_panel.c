@@ -29,8 +29,6 @@
 
 #define SPRD_MIPI_DSI_FMT_DSC 0xff
 #define SPRD_OLED_DEFAULT_BRIGHTNESS 25
-
-
 static DEFINE_MUTEX(panel_lock);
 
 static bool shutdown_rst_flag = false;
@@ -112,8 +110,6 @@ static int sprd_panel_unprepare(struct drm_panel *p)
 		gpiod_direction_output(panel->info.avdd_gpio, 0);
 		mdelay(5);
 	}
-
-
 
 	regulator_disable(panel->supply);
 
@@ -421,7 +417,6 @@ static int sprd_panel_esd_check(struct sprd_panel *panel)
                                                         info->esd_conf.val_len_array[i]);
 		mipi_dsi_dcs_read(panel->slave, info->esd_conf.reg_seq[i],
 			  &read_val, info->esd_conf.val_len_array[i]);
-		//DRM_INFO("---: sprd_panel_esd_check reg_seq[%d] 0x%x = 0x%x\n", i,info->esd_conf.reg_seq[i], read_val[i]);
 		for (j = 0; j < info->esd_conf.val_len_array[i]; j++) {
 			if (read_val[j] != info->esd_conf.val_seq[j + last_rd_count]) {
 				DRM_ERROR("esd check failed, read value = 0x%02x\n",
@@ -448,7 +443,6 @@ void enable_lcd_bta_check(void){
 }
 EXPORT_SYMBOL(enable_lcd_bta_check);
 #endif
-
 static int sprd_panel_bta_check(struct sprd_panel *panel)
 {
 	struct panel_info *info = &panel->info;
@@ -553,7 +547,7 @@ static int sprd_panel_te_check(struct sprd_panel *panel)
 
 static bool esd_trriger = false;
 void trriger_lcd_esd(void){
-	esd_trriger = true;
+        esd_trriger = true;
 }
 EXPORT_SYMBOL(trriger_lcd_esd);
 
@@ -594,7 +588,7 @@ static void sprd_panel_esd_work_func(struct work_struct *work)
 		return;
 	}
 
-	if ((esd_trriger || ret) && panel->base.connector && panel->base.connector->encoder) {
+	if (ret && panel->base.connector && panel->base.connector->encoder) {
 		const struct drm_encoder_helper_funcs *funcs;
 		struct drm_encoder *encoder;
 
@@ -635,8 +629,7 @@ static void sprd_panel_esd_work_func(struct work_struct *work)
 static void sprd_panel_esd_new_work_func(struct work_struct *work)
 {
 	struct sprd_panel *panel = container_of(work, struct sprd_panel,esd_work_new.work);
-
-	sprd_panel_bta_check(panel);
+		sprd_panel_bta_check(panel);
 	schedule_delayed_work(&panel->esd_work_new, msecs_to_jiffies(16));
 }
 static int sprd_panel_gpio_request(struct device *dev,
@@ -797,7 +790,6 @@ static int of_parse_oled_cmds(struct sprd_oled *oled,
 	return 0;
 }
 
-extern brightness_hbm_status;
 static int sprd_oled_set_brightness(struct backlight_device *bdev)
 {
 	int brightness;
@@ -822,15 +814,9 @@ static int sprd_oled_set_brightness(struct backlight_device *bdev)
 
 	brightness = bdev->props.brightness;
 
-	DRM_INFO("%s brightness: %d\n", __func__, brightness);
-
-	if (1 == brightness_hbm_status) {
-		brightness = bdev->props.max_brightness;
-		DRM_INFO("hbm %s brightness: %d\n", __func__, brightness);
-	} else {
-		brightness = ((brightness * 4095 * 92 / 100) / 255);
-		DRM_INFO("%s brightness: %d\n", __func__, brightness);
-	}
+	DRM_INFO("%s brightness: %d", __func__, brightness);
+	brightness = ((brightness * 4095 * 92 / 100) / 255);
+	DRM_INFO("%s brightness: %d", __func__, brightness);
 
 	sprd_panel_send_cmds(panel->slave,
 			     panel->info.cmds[CMD_OLED_REG_LOCK],
@@ -1150,7 +1136,7 @@ int sprd_panel_parse_lcddtb(struct device_node *lcd_node,
 		if (rc)
 			ret = -EINVAL;
 
-		info->esd_conf.val_len_array = kzalloc(info->esd_conf.esd_check_reg_count,
+		info->esd_conf.val_len_array = kzalloc(sizeof(uint32_t) * info->esd_conf.esd_check_reg_count,
                                                        GFP_KERNEL);
 		rc = of_property_read_u32_array(lcd_node, "sprd,esd-check-value-len",
 				info->esd_conf.val_len_array, info->esd_conf.esd_check_reg_count);
@@ -1159,7 +1145,7 @@ int sprd_panel_parse_lcddtb(struct device_node *lcd_node,
 		if (rc)
 			ret = -EINVAL;
 
-		info->esd_conf.val_seq = kzalloc(info->esd_conf.total_esd_val_count, GFP_KERNEL);
+		info->esd_conf.val_seq = kzalloc(sizeof(uint8_t) * info->esd_conf.total_esd_val_count, GFP_KERNEL);
 		rc = of_property_read_u8_array(lcd_node, "sprd,esd-check-value",
 				info->esd_conf.val_seq, info->esd_conf.total_esd_val_count);
 		if (rc)
@@ -1172,7 +1158,6 @@ int sprd_panel_parse_lcddtb(struct device_node *lcd_node,
 			info->esd_conf.total_esd_val_count = 1;
 		}
 	}
-
 
 	rc = of_property_read_u32(lcd_node, "sprd,power-gpio-delay", &val);
 	if (!rc)

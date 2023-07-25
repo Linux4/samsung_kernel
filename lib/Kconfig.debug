@@ -61,6 +61,23 @@ config PRINTK_TIME_TYPE
 	default 4 if PRINTK_TIME_REAL
 
 
+config PRINTK_CALLER
+	bool "Show caller information on printks"
+	depends on PRINTK
+	help
+	  Selecting this option causes printk() to add a caller "thread id" (if
+	  in task context) or a caller "processor id" (if not in task context)
+	  to every message.
+
+	  This option is intended for environments where multiple threads
+	  concurrently call printk() for many times, for it is difficult to
+	  interpret without knowing where these lines (or sometimes individual
+	  line which was divided into multiple lines due to race) came from.
+
+	  Since toggling after boot makes the code racy, currently there is
+	  no option to enable/disable at the kernel command line parameter or
+	  sysfs interface.
+
 config CONSOLE_LOGLEVEL_DEFAULT
 	int "Default console loglevel (1-15)"
 	range 1 15

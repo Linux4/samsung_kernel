@@ -1254,7 +1254,10 @@ static ssize_t himax_ts_suspend_store(struct device *dev,
 				     const char *buf,
 				     size_t count)
 {
-	//himax_common_pm_ops.suspend(dev);
+	if (buf[0] == '1')
+		himax_common_suspend(dev);
+	else if(buf[0] == '0')
+		himax_common_resume(dev);
 
 	return count;
 }
@@ -1276,7 +1279,7 @@ static ssize_t himax_ts_resume_store(struct device *dev,
 				     const char *buf,
 				     size_t count)
 {
-	//himax_common_pm_ops.resume(dev);
+		//himax_common_pm_ops.resume(dev);
 
 	return count;
 }

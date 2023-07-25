@@ -482,8 +482,6 @@ struct mmc_host {
 	atomic_t		cq_rdy_cnt;
 	unsigned long		task_id_index;
 	int			cur_rw_task;
-	struct delayed_work	cmdq_enable_work;
-	bool cmdq_enable_delay;
 #define CQ_TASK_IDLE 99
 
 	atomic_t		is_data_dma;

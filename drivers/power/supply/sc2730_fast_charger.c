@@ -555,6 +555,7 @@ static int sc2730_fchg_pd_adjust_voltage(struct sc2730_fchg_info *info,
 	if (!info->pd_source_cap.nr_source_caps) {
 		pdo[0] = PDO_FIXED(5000, 2000, 0);
 		snk_uw = SC2730_PD_DEFAULT_POWER_UW;
+		index = 0;
 		goto done;
 	}
 

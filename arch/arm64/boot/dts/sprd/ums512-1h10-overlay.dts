@@ -3,6 +3,7 @@
 
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/usb/pd.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/clock/sprd,sharkl5pro-clk.h>
 #include <dt-bindings/mfd/sprd,sc2730-regs.h>
@@ -568,6 +569,7 @@
 		phys = <&hsphy>;
 		monitored-battery = <&bat>;
 		extcon = <&pmic_typec>;
+		use-typec-extcon;
 		vddvbus:otg-vbus {
 			regulator-name = "vddvbus";
 		};
@@ -703,10 +705,30 @@
 	phys = <&hsphy>;
 };
 
+&pmic_pd {
+	status = "okay";
+	vbus-supply = <&vddvbus>;
+	usb_con: connector {
+		compatible = "usb-c-connector";
+		label = "USB-C";
+		data-role = "dual";
+		power-role = "dual";
+		try-power-role = "sink";
+		source-pdos = <PDO_FIXED(5000, 400, PDO_FIXED_USB_COMM)>;
+		sink-pdos = <PDO_FIXED(5000, 2000, PDO_FIXED_USB_COMM)>;
+		op-sink-microwatt = <10000000>;
+	};
+};
+
 &usb {
 	extcon = <&pmic_typec>, <&pmic_typec>;
 	vbus-supply = <&vddvbus>;
+	use_pdhub_c2c;
 	use_second_charger_detct;
+};
+
+&pmic_typec {
+	use_pdhub_c2c;
 };
 
 &vddldo0 {
@@ -716,7 +738,7 @@
 &adi_bus {
 	sprd,hw-channels = <2 0x18cc>, <3 0x18cc>, <13 0x1854>, <15 0x1874>,
 			 <17 0x1844>,<19 0x1844>, <21 0x1864>, <30 0x1820>,
-			 <35 0x19b8>, <39 0x19ac>;
+			 <35 0x19b8>, <39 0x19ac>, <32 0x197c>, <33 0x1988>;
 };
 
 &sprd_headset {

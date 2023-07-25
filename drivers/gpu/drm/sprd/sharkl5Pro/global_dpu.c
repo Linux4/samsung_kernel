@@ -18,6 +18,7 @@
 #include <linux/regmap.h>
 
 #include "sprd_dpu.h"
+#include "sprd_drm.h"
 
 enum {
 	CLK_DPI_DIV6 = 6,
@@ -363,15 +364,27 @@ static void dpu_glb_disable(struct dpu_context *ctx)
 
 static void dpu_reset(struct dpu_context *ctx)
 {
-	regmap_update_bits(ctx_reset.regmap,
-		    ctx_reset.enable_reg,
-		    ctx_reset.mask_bit,
-		    ctx_reset.mask_bit);
-	udelay(10);
-	regmap_update_bits(ctx_reset.regmap,
-		    ctx_reset.enable_reg,
-		    ctx_reset.mask_bit,
-		    (unsigned int)(~ctx_reset.mask_bit));
+	u32 val;
+
+	mutex_lock(&dpu_gsp_lock);
+
+	do {
+		val = readl(ctx->gsp_base);
+	} while (val & BIT(2));
+
+	if (!(val & BIT(2))) {
+		regmap_update_bits(ctx_reset.regmap,
+				ctx_reset.enable_reg,
+				ctx_reset.mask_bit,
+				ctx_reset.mask_bit);
+		udelay(10);
+		regmap_update_bits(ctx_reset.regmap,
+				ctx_reset.enable_reg,
+				ctx_reset.mask_bit,
+				(unsigned int)(~ctx_reset.mask_bit));
+	}
+
+	mutex_unlock(&dpu_gsp_lock);
 }
 
 static void dpu_power_domain(struct dpu_context *ctx, int enable)

@@ -624,7 +624,7 @@ static void musb_recover_from_babble(struct musb *musb);
  * @param devctl
  * @param power
  */
-
+int babble_flag = 0;
 static irqreturn_t musb_stage0_irq(struct musb *musb, u8 int_usb,
 				u8 devctl)
 {
@@ -971,6 +971,8 @@ b_host:
 			 * most cases, however, the only thing we can do is
 			 * drop the session.
 			 */
+			babble_flag =1;
+			dev_err(musb->controller, "babble_flag=1\n");
 			dev_err(musb->controller, "Babble\n");
 			if (is_host_active(musb))
 				musb_recover_from_babble(musb);

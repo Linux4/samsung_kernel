@@ -187,9 +187,9 @@ struct log_buf_info {
 	uint64_t vmcoreinfo_size;
 };
 struct mmu_regs_info {
-	int sprd_pcpu_offset;
-	int cpu_id;
-	int cpu_numbers;
+	uint32_t sprd_pcpu_offset;
+	uint32_t cpu_id;
+	uint32_t cpu_numbers;
 	uint64_t paddr_mmu_regs_t;
 };
 struct sysdump_info {

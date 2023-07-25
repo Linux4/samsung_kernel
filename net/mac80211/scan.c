@@ -179,7 +179,7 @@ ieee80211_bss_info_update(struct ieee80211_local *local,
 			bss->beacon_rate =
 				&sband->bitrates[rx_status->rate_idx];
 	}
-
+	kfree(elems.nontx_profile);
 	return bss;
 }
 

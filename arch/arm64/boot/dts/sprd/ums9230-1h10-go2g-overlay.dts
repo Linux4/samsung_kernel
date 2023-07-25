@@ -17,7 +17,7 @@
 	compatible = "sprd,ums9230-1h10";
 
 	sprd,sc-id = "ums9230 1h10 go";
-	//sprd,board_id = <0x9900>; //XX00:base board,XX00~XXFF:customize board
+	//sprd,board_id = <0x1900>; //XX00:base board,XX00~XXFF:customize board
 
 	fragment {
 		target-path = "/";
@@ -835,7 +835,7 @@
 &adi_bus {
 	sprd,hw-channels = <2 0x18cc>, <3 0x18cc>, <13 0x1854>, <15 0x1874>,
 			<17 0x1844>,<19 0x1844>, <21 0x1864>, <30 0x1820>,
-			<35 0x19b8>, <39 0x19ac>;
+			<35 0x19b8>, <39 0x19ac>, <32 0x197c>, <33 0x1988>;
 };
 
 &pin_controller {

@@ -213,7 +213,6 @@ static int gnss_ring_write(struct gnss_ring_t *pring, char *buf, int len)
 		     buf, pring, len);
 		return -GNSS_ERR_BAD_PARAM;
 	}
-
 	pstart = gnss_ring_start(pring);
 	pend = gnss_ring_end(pring);
 	GNSS_DEBUG("pstart = %p, pend = %p, buf = %p, len = %d, pring->wp = %p",
@@ -223,6 +222,8 @@ static int gnss_ring_write(struct gnss_ring_t *pring, char *buf, int len)
 		GNSS_DEBUG("Ring overloop.");
 		len1 = pend - pring->wp + 1;
 		len2 = len - len1;
+		if (len2 > pring->size)
+			len2 = pring->size;
 		pring->memcpy_wr(pring->wp, buf, len1);
 		pring->memcpy_wr(pstart, (buf + len1), len2);
 		pring->wp = (char *)((u_long)pstart + len2);
@@ -273,14 +274,12 @@ static int gnss_device_destroy(void)
 static int gnss_dbg_open(struct inode *inode, struct file *filp)
 {
 	GNSS_ERR();
-
 	return 0;
 }
 
 static int gnss_dbg_release(struct inode *inode, struct file *filp)
 {
 	GNSS_ERR();
-
 	return 0;
 }
 

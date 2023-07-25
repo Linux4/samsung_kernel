@@ -184,6 +184,7 @@ struct dpu_glb_ops {
 
 struct dpu_context {
 	unsigned long base;
+	void __iomem *gsp_base;
 	u32 base_offset[2];
 	const char *version;
 	u32 corner_size;

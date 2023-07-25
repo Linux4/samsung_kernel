@@ -34,7 +34,7 @@ enum typec_cc_polarity {
 };
 
 /* Time to wait for TCPC to complete transmit */
-#define PD_T_TCPC_TX_TIMEOUT	100		/* in ms	*/
+#define PD_T_TCPC_TX_TIMEOUT	200		/* in ms	*/
 #define PD_ROLE_SWAP_TIMEOUT	(MSEC_PER_SEC * 10)
 #define PD_PPS_CTRL_TIMEOUT	(MSEC_PER_SEC * 10)
 
@@ -139,6 +139,10 @@ struct tcpc_dev {
 	int (*set_cc)(struct tcpc_dev *dev, enum typec_cc_status cc);
 	int (*get_cc)(struct tcpc_dev *dev, enum typec_cc_status *cc1,
 		      enum typec_cc_status *cc2);
+	int (*set_swap)(struct tcpc_dev *dev, bool en, bool role);
+	int (*set_typec_role)(struct tcpc_dev *tcpc,
+			      enum typec_port_type role,
+			      enum typec_data_role data);
 	int (*set_polarity)(struct tcpc_dev *dev,
 			    enum typec_cc_polarity polarity);
 	int (*set_vconn)(struct tcpc_dev *dev, bool on);

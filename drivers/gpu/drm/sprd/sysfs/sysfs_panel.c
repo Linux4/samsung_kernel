@@ -124,11 +124,6 @@ static ssize_t hporch_store(struct device *dev,
 	u32 val[4] = {0};
 	int len;
 
-/*
-* Modify for Bug 1723972 - SI-23255: Stack buffer overflow in str_to_u32_array function, used in few store system calls.
-* Jira:KSG_M168_A01-2995
-*	len = str_to_u32_array(buf, 0, val);
-*/
 	len = str_to_u32_array(buf, 0, val, 4);
 	drm_display_mode_to_videomode(&panel->info.mode, &vm);
 
@@ -184,11 +179,6 @@ static ssize_t vporch_store(struct device *dev,
 	u32 val[4] = {0};
 	int len;
 
-/*
-* Modify for Bug 1723972 - SI-23255: Stack buffer overflow in str_to_u32_array function, used in few store system calls.
-* Jira:KSG_M168_A01-2995
-*	len = str_to_u32_array(buf, 0, val);
-*/
 	len = str_to_u32_array(buf, 0, val, 4);
 	drm_display_mode_to_videomode(&panel->info.mode, &vm);
 
@@ -317,29 +307,6 @@ static ssize_t esd_check_period_store(struct device *dev,
 }
 static DEVICE_ATTR_RW(esd_check_period);
 
-
-static ssize_t esd_trriger_store(struct device *dev,
-				struct device_attribute *attr,
-				const char *buf, size_t count)
-{
-	extern void trriger_lcd_esd(void);
-	u32 period;
-
-	if (kstrtouint(buf, 10, &period)) {
-		pr_err("invalid input for esd check period\n");
-		return -EINVAL;
-	}
-
-	if(period){
-		trriger_lcd_esd();
-	}
-
-	return count;
-
-}
-static DEVICE_ATTR_WO(esd_trriger);
-
-
 static ssize_t esd_check_register_show(struct device *dev,
 			       struct device_attribute *attr,
 			       char *buf)
@@ -366,7 +333,7 @@ static ssize_t esd_check_register_store(struct device *dev,
 	int reg_index;
 	int len;
 
-	len = str_to_u8_array(buf, 16, input_param);
+	len = str_to_u8_array(buf, 16, input_param, 2);
 	if (len != 2) {
 		pr_err("invalid input for esd check register, need 2 parameters\n");
 		return -EINVAL;
@@ -415,7 +382,7 @@ static ssize_t esd_check_value_store(struct device *dev,
 	uint8_t *tmp_val_seq;
 	int len, reg_index, i, j, k, current_index, val_size, new_total_val_count, pre_reg_len = 0;
 
-	len = str_to_u8_array(buf, 16, input_param);
+	len = str_to_u8_array(buf, 16, input_param, 6);
 	if (len < 3 || len > 6) {
 		pr_err("invalid input for esd check value, need 2 parameters\n");
 		return -EINVAL;
@@ -620,7 +587,6 @@ static struct attribute *panel_attrs[] = {
 	&dev_attr_resume.attr,
 	&dev_attr_load_lcddtb.attr,
 	&dev_attr_panel_cabc_mode.attr,
-	&dev_attr_esd_trriger.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(panel);

@@ -30,4 +30,4 @@ config LCD_I2C_BACKLIGHT_SUPPORT
 config TP_ENABLE_LCD_BTA
 	bool "tp contrl lcd bta enable or not"
 	help
-	 Choose this option when you need enable lcd bta by tp.
+	Choose this option when you need enable lcd bta by tp.

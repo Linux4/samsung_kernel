@@ -662,7 +662,6 @@ out:
 }
 EXPORT_SYMBOL_GPL(mmc_send_tuning_read);
 
-
 int mmc_send_tuning(struct mmc_host *host, u32 opcode, int *cmd_error)
 {
 	struct mmc_request mrq = {};

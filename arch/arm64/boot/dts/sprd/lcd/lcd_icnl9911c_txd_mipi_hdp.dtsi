@@ -1,0 +1,139 @@
+/ {
+	fragment {
+		target-path = "/";
+		__overlay__ {
+				lcds {
+					lcd_icnl9911c_txd_mipi_hdp: lcd_icnl9911c_txd_mipi_hdp {
+
+						sprd,dsi-work-mode = <1>; /* video burst mode*/
+						sprd,dsi-lane-number = <4>;
+						sprd,dsi-color-format = "rgb888";
+
+						sprd,phy-bit-clock = <660000>;	/* kbps */
+						sprd,phy-escape-clock = <20000>;/* kHz */
+
+						sprd,width-mm = <68>;
+						sprd,height-mm = <151>;
+
+						sprd,esd-check-enable = <1>;    /* 1:enable		0:disable */
+						sprd,esd-check-mode = <1>;      /* 1:te type	0:register type --- default */
+						sprd,esd-check-period = <2000>;
+
+						sprd,reset-on-sequence = <0 5>, <1 5>, <0 5>, <1 30>;
+						sprd,reset-off-sequence = <0 5>;
+
+						sprd,use-dcs-write;
+
+						sprd,pre-write = [
+							29 00 00 03 F0 5A 59
+							29 00 00 03 F1 A5 A6
+						];
+
+						sprd,initial-command = [
+							39 00 00 03 F0 5A 59
+							39 00 00 03 F1 A5 A6
+							39 00 00 1F B0 87 86 05 04 8A 8B 04 05 55 55 55 55 0A 00 00 64 00 00 0F 05 04 03 02 01 02 03 04 00 00 00
+							39 00 00 1E B1 53 42 85 00 0A 00 00 64 00 00 04 08 54 00 00 00 44 40 02 01 40 02 01 40 02 01 40 02 01
+							39 00 00 12 B2 54 84 85 05 40 02 01 40 02 01 05 05 54 0C 0C 0D 0B
+							39 00 00 20 B3 02 0E 0B 0E 0B 26 26 91 A2 33 44 00 26 00 18 01 02 08 20 30 08 09 44 20 40 20 40 08 09 22 33
+							39 00 00 1D B4 02 02 00 00 E3 09 22 00 22 0D 0F 11 13 05 02 02 02 02 02 02 02 02 FF FF FC 00 00 00
+							39 00 00 1D B5 00 00 00 00 E3 08 22 00 22 0C 0E 10 12 04 02 02 02 02 02 02 02 02 FF FF FC 00 00 00
+							39 00 00 19 B8 00 00 00 00 00 00 00 00 00 00 00 00 AA AA AA AA AA A0 AA AA AA AA AA A0
+							39 00 00 0E BB 01 05 09 11 0D 19 1D 55 25 69 00 21 25
+							39 00 00 0F BC 00 00 00 00 02 20 FF 00 03 33 01 73 33 00
+							39 00 00 0B BD E9 02 4E CF 72 A4 08 44 AE 15
+							39 00 00 0B BE 77 77 3D 51 0C 77 43 07 0E 0E	//VOP5.6/VGH13/VGL-13
+							39 00 00 09 BF 07 25 07 25 7F 00 11 04
+							39 00 00 0A C0 10 00 1F FF FF FF 00 FF 00
+							39 00 00 14 C1 C0 24 20 96 04 54 54 04 2A 40 36 00 07 C0 10 FF 94 01 C0		//LONGV
+							15 00 00 02 C2 00
+							39 00 00 0A C3 06 00 FF 00 FF 00 00 81 01
+							39 00 00 0B C4 84 01 2B 41 00 3C 00 03 03 2E
+							39 00 00 0C C5 03 1C C0 C0 40 10 42 44 0F 0F 14
+							39 00 00 0B C6 87 96 2A 29 29 33 7F 34 08 04
+							39 00 00 17 C7 D3 B0 90 77 4B 2B FB 4F 17 EB BF 8F E8 BD A1 7A 64 46 1A 7E C0 00
+							39 00 00 17 C8 FC B1 90 77 4B 2B FB 4F 17 EB BF 8F E8 BD A1 7A 64 46 3A 7E C0 00
+							15 00 00 02 CB 00
+							39 00 00 06 D0 80 0D FF 0F 61
+							15 00 00 02 D2 42
+							39 00 00 04 FA 45 93 01
+							39 00 00 05 FE FF FF FF 40
+							39 00 00 1B E0 30 00 80 88 11 3F 22 62 DF A0 04 CC 01 FF F6 FF F0 FD FF FD F8 F5 FC FC FD FF
+							39 00 00 18 E1 EF FE FE FE FE EE F0 20 33 FF 00 00 6A 90 C0 0D 6A F0 3E FF 00 06 40//20KHZ
+							39 00 00 03 F1 5A 59
+							39 00 00 03 F0 A5 A6
+							39 00 00 03 51 00 00
+							15 00 00 02 53 2C
+							15 00 00 02 55 01
+							15 00 00 02 35 00
+							05 78 00 01 11
+							05 14 00 01 29
+							39 00 00 02 26 01
+						];
+
+						sprd,sleep-in-command = [
+							15 00 00 02 26 08
+							05 14 00 01 28
+							05 64 00 01 10
+						];
+
+						sprd,sleep-out-command = [
+							05 64 00 01 11
+							05 14 00 01 29
+							15 00 00 02 26 01
+						];
+
+						sprd,cabc-ui-mode = [
+							39 00 00 03 F0 5A 59
+							39 00 00 03 F1 A5 A6
+							39 00 00 1B E0 30 01 A0 98 01 1F 22 62 DF A0 04 CC 01 FF F8 F8 FA FD F9 F8 F8 F8 FC FC F0 FF
+							39 00 00 18 E1 DF FF EF FE FF FF F0 AE 35 35 35 51 35 35 F4 35 32 5B 84 AE 00 0B E4//PWM=20K
+							39 00 00 03 EA 46 50
+							39 00 00 03 F1 5A 59
+							39 00 00 03 F0 A5 A6
+							15 00 00 02 55 01
+						];
+
+						sprd,cabc-mov-mode = [
+							39 00 00 03 F0 5A 59
+							39 00 00 03 F1 A5 A6
+							39 00 00 1B E0 30 01 A0 98 01 1F 22 62 DF A0 04 CC 01 FF FC FC F0 FD FF FC F8 FC F2 FC F0 FF
+							39 00 00 18 E1 CC CC CC CC CD DE E0 CC D0 D0 D0 D0 D0 D0 D0 D0 73 EE 6D EE 00 0B E4//PWM=20K
+							39 00 00 03 EA 46 50
+							39 00 00 03 F1 5A 59
+							39 00 00 03 F0 A5 A6
+							15 00 00 02 55 03
+						];
+
+						sprd,cabc-off-mode = [
+							15 00 00 02 55 00
+						];
+						oled-backlight {
+							default-brightness-level = <101>;
+							sprd,max-level = <4095>;
+							brightness-levels = [
+								39 00 00 03 51 0F FF
+							];
+						};
+
+						display-timings {
+							native-mode = <&icnl9911c_txd_timing0>;
+
+							icnl9911c_txd_timing0: timing0 {
+								clock-frequency = <96000000>;
+								hactive = <720>;
+								vactive = <1600>;
+								hback-porch = <84>;
+								hfront-porch = <84>;
+								vback-porch = <36>;
+								vfront-porch = <150>;
+								hsync-len = <4>;
+								vsync-len = <4>;
+							};
+						};
+					};
+				};
+		};
+	};
+};
+

@@ -638,11 +638,6 @@ config CHARGER_FAN54015
 	help
 	  Say Y to include support for Fairchild FAN54015 Battery Charger.
 
-config CHARGER_AW32207
-	tristate "Awinic AW32207 Charger"
-	depends on I2C || COMPILE_TEST
-	help
-	  Say Y to include support for Awinic AW32207 Battery Charger.
 config CHARGER_ETA6937
 	tristate "ETA solutions ETA6937CSU  Charger"
 	depends on I2C || COMPILE_TEST

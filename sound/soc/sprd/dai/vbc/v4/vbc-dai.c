@@ -156,6 +156,7 @@ static const char *dai_id_to_str(int dai_id)
 		[BE_DAI_ID_NORMAL_AP23_SMTPA] =
 			TO_STRING(BE_DAI_ID_NORMAL_AP23_SMTPA),
 		[BE_DAI_ID_FAST_P_SMTPA] = TO_STRING(BE_DAI_ID_FAST_P_SMTPA),
+		[BE_DAI_ID_FAST_P_SMART_AMP] = TO_STRING(BE_DAI_ID_FAST_P_SMART_AMP),
 		[BE_DAI_ID_OFFLOAD_SMTPA] = TO_STRING(BE_DAI_ID_OFFLOAD_SMTPA),
 		[BE_DAI_ID_VOICE_SMTPA] = TO_STRING(BE_DAI_ID_VOICE_SMTPA),
 		[BE_DAI_ID_VOIP_SMTPA] = TO_STRING(BE_DAI_ID_VOIP_SMTPA),
@@ -185,6 +186,7 @@ static const char *scene_id_to_str(int scene_id)
 		[VBC_DAI_ID_NORMAL_AP23] = TO_STRING(VBC_DAI_ID_NORMAL_AP23),
 		[VBC_DAI_ID_CAPTURE_DSP] = TO_STRING(VBC_DAI_ID_CAPTURE_DSP),
 		[VBC_DAI_ID_FAST_P] = TO_STRING(VBC_DAI_ID_FAST_P),
+		[VBC_DAI_ID_FAST_P_SMART_AMP] = TO_STRING(VBC_DAI_ID_FAST_P_SMART_AMP),
 		[VBC_DAI_ID_OFFLOAD] = TO_STRING(VBC_DAI_ID_OFFLOAD),
 		[VBC_DAI_ID_VOICE] = TO_STRING(VBC_DAI_ID_VOICE),
 		[VBC_DAI_ID_VOIP] = TO_STRING(VBC_DAI_ID_VOIP),
@@ -242,9 +244,10 @@ static int check_enable_ivs_smtpa(int scene_id, int stream,
 
 	switch (scene_id) {
 	case VBC_DAI_ID_FAST_P:
+	case VBC_DAI_ID_FAST_P_SMART_AMP:
 	case VBC_DAI_ID_OFFLOAD:
 		enable = 1;
-		pr_info("scene %s enabled ivsense smartpa\n",
+		pr_info("scene %s enable:d ivsense smartpa\n",
 			scene_id_to_str(scene_id));
 		break;
 	default:
@@ -315,6 +318,9 @@ static int check_be_dai_id(int be_dai_id)
 	case BE_DAI_ID_FAST_P_HIFI:
 	case BE_DAI_ID_FAST_P_SMTPA:
 		scene_id = VBC_DAI_ID_FAST_P;
+		break;
+	case BE_DAI_ID_FAST_P_SMART_AMP:
+		scene_id = VBC_DAI_ID_FAST_P_SMART_AMP;
 		break;
 	case BE_DAI_ID_OFFLOAD_CODEC:
 	case BE_DAI_ID_OFFLOAD_USB:
@@ -634,6 +640,7 @@ static int get_startup_scene_dac_id(int scene_id)
 		dac_id = 0;
 		break;
 	case VBC_DAI_ID_FAST_P:
+	case VBC_DAI_ID_FAST_P_SMART_AMP:
 		dac_id = VBC_DA0;
 		break;
 	case VBC_DAI_ID_OFFLOAD:
@@ -714,6 +721,7 @@ static int get_startup_scene_adc_id(int scene_id)
 		adc_id = VBC_AD0;
 		break;
 	case VBC_DAI_ID_FAST_P:
+	case VBC_DAI_ID_FAST_P_SMART_AMP:
 		/* not used */
 		adc_id = 0;
 		break;
@@ -6140,6 +6148,186 @@ static struct snd_soc_dai_ops hifi_fast_ops = {
 	.hw_free = scene_hifi_fast_hw_free,
 };
 
+/* smtpa fast */
+static int scene_smtpa_fast_startup(struct snd_pcm_substream *substream,
+			      struct snd_soc_dai *dai)
+{
+	int stream = substream->stream;
+	int scene_id = VBC_DAI_ID_FAST_P_SMART_AMP;
+	int be_dai_id = dai->id;
+	int ret = 0;
+	struct vbc_codec_priv *vbc_codec = dev_get_drvdata(dai->dev);
+
+	pr_info("%s dai:%s(%d) scene:%s %s\n", __func__,
+		dai_id_to_str(be_dai_id),
+		be_dai_id, scene_id_to_str(scene_id), stream_to_str(stream));
+	if (scene_id != check_be_dai_id(be_dai_id)) {
+		pr_err("%s check_be_dai_id failed\n", __func__);
+		return -EINVAL;
+	}
+
+	if (!vbc_codec)
+		return 0;
+	startup_lock_mtx(scene_id, stream);
+	startup_add_ref(scene_id, stream);
+	if (startup_get_ref(scene_id, stream) == 1) {
+		ret = dsp_startup(vbc_codec, scene_id, stream);
+		if (ret)
+			startup_dec_ref(scene_id, stream);
+		else
+			set_scene_flag(scene_id, stream);
+	}
+	startup_unlock_mtx(scene_id, stream);
+
+	return ret;
+}
+
+static void scene_smtpa_fast_shutdown(struct snd_pcm_substream *substream,
+				struct snd_soc_dai *dai)
+{
+	int stream = substream->stream;
+	int scene_id = VBC_DAI_ID_FAST_P_SMART_AMP;
+	int be_dai_id = dai->id;
+	struct vbc_codec_priv *vbc_codec = dev_get_drvdata(dai->dev);
+
+	pr_info("%s dai:%s(%d) scene:%s %s\n", __func__,
+		dai_id_to_str(be_dai_id),
+		be_dai_id, scene_id_to_str(scene_id), stream_to_str(stream));
+	if (scene_id != check_be_dai_id(be_dai_id)) {
+		pr_err("%s check_be_dai_id failed\n", __func__);
+		return;
+	}
+
+	if (!vbc_codec)
+		return;
+	startup_lock_mtx(scene_id, stream);
+	startup_dec_ref(scene_id, stream);
+	if (startup_get_ref(scene_id, stream) == 0) {
+		clr_scene_flag(scene_id, stream);
+		dsp_shutdown(vbc_codec, scene_id, stream);
+	}
+	startup_unlock_mtx(scene_id, stream);
+}
+
+static int scene_smtpa_fast_hw_params(struct snd_pcm_substream *substream,
+	struct snd_pcm_hw_params *params, struct snd_soc_dai *dai)
+{
+	unsigned int rate;
+	int data_fmt = VBC_DAT_L16;
+	int stream = substream->stream;
+	int scene_id = VBC_DAI_ID_FAST_P_SMART_AMP;
+	struct vbc_codec_priv *vbc_codec = dev_get_drvdata(dai->dev);
+	int chan_cnt;
+
+	pr_info("%s dai:%s(%d) scene:%s %s\n", __func__, dai_id_to_str(dai->id),
+		dai->id, scene_id_to_str(scene_id), stream_to_str(stream));
+	if (scene_id != check_be_dai_id(dai->id)) {
+		pr_err("%s check_be_dai_id failed\n", __func__);
+		return -EINVAL;
+	}
+
+	if (!vbc_codec)
+		return 0;
+	switch (params_format(params)) {
+	case SNDRV_PCM_FORMAT_S16_LE:
+		data_fmt = VBC_DAT_L16;
+		break;
+	case SNDRV_PCM_FORMAT_S24_LE:
+		data_fmt = VBC_DAT_L24;
+		break;
+	default:
+		pr_err("%s, ERR:VBC not support data fmt =%d", __func__,
+		       data_fmt);
+		break;
+	}
+	chan_cnt = params_channels(params);
+	rate = params_rate(params);
+	pr_info("%s data_fmt=%s, chan=%u, rate =%u\n", __func__,
+		vbc_data_fmt_to_str(data_fmt), chan_cnt, rate);
+
+	if (chan_cnt > 2)
+		pr_warn("%s channel count invalid\n", __func__);
+
+	hw_param_lock_mtx(scene_id, stream);
+	hw_param_add_ref(scene_id, stream);
+	if (hw_param_get_ref(scene_id, stream) == 1) {
+		dsp_hw_params(vbc_codec, scene_id, stream,
+			      chan_cnt, rate, data_fmt);
+	}
+	hw_param_unlock_mtx(scene_id, stream);
+
+	return 0;
+}
+
+static int scene_smtpa_fast_hw_free(struct snd_pcm_substream *substream,
+			      struct snd_soc_dai *dai)
+{
+	int stream = substream->stream;
+	int scene_id = VBC_DAI_ID_FAST_P_SMART_AMP;
+	struct vbc_codec_priv *vbc_codec = dev_get_drvdata(dai->dev);
+
+	pr_info("%s dai:%s(%d) scene:%s %s\n", __func__, dai_id_to_str(dai->id),
+		dai->id, scene_id_to_str(scene_id), stream_to_str(stream));
+	if (scene_id != check_be_dai_id(dai->id)) {
+		pr_err("%s check_be_dai_id failed\n", __func__);
+		return -EINVAL;
+	}
+
+	if (!vbc_codec)
+		return 0;
+	hw_param_lock_mtx(scene_id, stream);
+	hw_param_dec_ref(scene_id, stream);
+	hw_param_unlock_mtx(scene_id, stream);
+
+	return 0;
+}
+
+static int scene_smtpa_fast_trigger(struct snd_pcm_substream *substream, int cmd,
+			      struct snd_soc_dai *dai)
+{
+	int up_down;
+	int stream = substream->stream;
+	int scene_id = VBC_DAI_ID_FAST_P_SMART_AMP;
+	int ret;
+	struct vbc_codec_priv *vbc_codec = dev_get_drvdata(dai->dev);
+
+	pr_info("%s dai:%s(%d) scene:%s %s, cmd=%d\n", __func__,
+		dai_id_to_str(dai->id),
+		dai->id, scene_id_to_str(scene_id), stream_to_str(stream), cmd);
+	if (scene_id != check_be_dai_id(dai->id)) {
+		pr_err("%s check_be_dai_id failed\n", __func__);
+		return -EINVAL;
+	}
+
+	if (!vbc_codec)
+		return 0;
+	up_down = triggered_flag(cmd);
+	/* default ret is 0 */
+	ret = 0;
+	if (up_down == 1) {
+		trigger_lock_spin(scene_id, stream);
+		trigger_add_ref(scene_id, stream);
+		if (trigger_get_ref(scene_id, stream) == 1)
+			ret = dsp_trigger(vbc_codec, scene_id, stream, up_down);
+
+		trigger_unlock_spin(scene_id, stream);
+	} else {
+		trigger_lock_spin(scene_id, stream);
+		trigger_dec_ref(scene_id, stream);
+		trigger_unlock_spin(scene_id, stream);
+	}
+
+	return ret;
+}
+
+static struct snd_soc_dai_ops smtpa_fast_ops = {
+	.startup = scene_smtpa_fast_startup,
+	.shutdown = scene_smtpa_fast_shutdown,
+	.hw_params = scene_smtpa_fast_hw_params,
+	.trigger = scene_smtpa_fast_trigger,
+	.hw_free = scene_smtpa_fast_hw_free,
+};
+
 static struct snd_soc_dai_driver vbc_dais[BE_DAI_ID_MAX] = {
 	/* 0: BE_DAI_ID_NORMAL_AP01_CODEC */
 	{
@@ -7200,6 +7388,23 @@ static struct snd_soc_dai_driver vbc_dais[BE_DAI_ID_MAX] = {
 		},
 		.probe = sprd_dai_vbc_probe,
 		.ops = &hifi_fast_ops,
+	},
+
+	/* 57: BE_DAI_ID_FAST_P_SMART_AMP */
+	{
+		.name = TO_STRING(BE_DAI_ID_FAST_P_SMART_AMP),
+		.id = BE_DAI_ID_FAST_P_SMART_AMP,
+		.playback = {
+			.stream_name = "BE_DAI_ID_FAST_P_SMART_AMP",
+			.aif_name = "BE_IF_ID_FAST_P_SMART_AMP",
+			.channels_min = 1,
+			.channels_max = 2,
+			.rates = SNDRV_PCM_RATE_CONTINUOUS,
+			.rate_max = 192000,
+			.formats = SPRD_VBC_DAI_PCM_FORMATS,
+		},
+		.probe = sprd_dai_vbc_probe,
+		.ops = &smtpa_fast_ops,
 	},
 };
 

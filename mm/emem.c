@@ -37,6 +37,10 @@
 #include <linux/fs.h>
 #include <linux/delay.h>
 #include <linux/workqueue.h>
+#include <linux/mm_inline.h>
+#include <linux/proc_fs.h>
+
+#include "internal.h"
 
 #define  DEFAULT_PROC_ADJ    900
 #ifdef CONFIG_SPRD_DEBUG
@@ -166,10 +170,41 @@ static struct notifier_block tasks_e_show_mem_notifier = {
 	.notifier_call = tasks_e_show_mem_handler,
 };
 
+static ssize_t emem_trigger_write(struct file *file, const char __user *buf,
+				size_t count, loff_t *ppos)
+{
+	char buffer[12];
+	int trigger_adj;
+
+	memset(buffer, 0, sizeof(buffer));
+	if (count > sizeof(buffer) - 1)
+		count = sizeof(buffer) - 1;
+
+	if (copy_from_user(buffer, buf, count))
+		return -EFAULT;
+
+	if (kstrtoint(buffer, 0, &trigger_adj))
+		pr_info("kstrtoint ERROR in trigger_adj\n");
+
+	sysctl_emem_trigger = trigger_adj;
+
+	if (sysctl_emem_trigger <= DEFAULT_PROC_ADJ) {
+		spin_lock(&emem_lock);
+		queue_work(system_power_efficient_wq, &emem_work);
+		spin_unlock(&emem_lock);
+	}
+	return count;
+}
+
+const struct file_operations proc_emem_trigger_operations = {
+	.write		= emem_trigger_write,
+};
+
 static int __init emem_init(void)
 {
 	INIT_WORK(&emem_work, emem_workfn);
 	register_e_show_mem_notifier(&tasks_e_show_mem_notifier);
+	proc_create("emem_trigger", S_IWUSR, NULL, &proc_emem_trigger_operations);
 	return 0;
 }
 

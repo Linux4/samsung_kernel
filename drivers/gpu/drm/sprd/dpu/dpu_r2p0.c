@@ -691,10 +691,6 @@ static int dpu_init(struct dpu_context *ctx)
 
 	dump_layer_task_init();
 
-/*
-* Modify for Bug 1727683 - SI-23330.
-* Jira:KSG_M168_A01-2995
-*/
 	ctx->base_offset[0] = 0x0;
 	ctx->base_offset[1] = sizeof(struct dpu_reg) / 4;
 

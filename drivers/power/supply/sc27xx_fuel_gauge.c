@@ -304,8 +304,8 @@ static const char * const sc27xx_charger_supply_name[] = {
 	"sc2731_charger",
 	"eta6937_charger",
 	"sc2723_charger",
-	"aw32207_charger",
 	"aw32257",
+	"rt9471_charger",
 };
 
 static int sc27xx_fgu_adc_to_current(struct sc27xx_fgu_data *data, int adc)
@@ -2121,11 +2121,6 @@ static void sc27xx_fgu_monitor(struct work_struct *work)
 
 static void sc27xx_fgu_track_capacity_init(struct sc27xx_fgu_data *data)
 {
-	INIT_DELAYED_WORK(&data->track.track_capacity_work,
-			  sc27xx_fgu_track_capacity_work);
-	INIT_DELAYED_WORK(&data->track.fgu_update_work, sc27xx_fgu_monitor);
-	INIT_DELAYED_WORK(&data->track.track_check_work, sc27xx_fgu_track_check_work);
-
 	if (!data->track.end_vol || !data->track.end_cur)
 		return;
 
@@ -2593,6 +2588,11 @@ static int sc27xx_fgu_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "failed to register notifier:%d\n", ret);
 			goto err;
 		}
+
+		INIT_DELAYED_WORK(&data->track.track_capacity_work,
+				  sc27xx_fgu_track_capacity_work);
+		INIT_DELAYED_WORK(&data->track.fgu_update_work, sc27xx_fgu_monitor);
+		INIT_DELAYED_WORK(&data->track.track_check_work, sc27xx_fgu_track_check_work);
 		sc27xx_fgu_track_capacity_init(data);
 	}
 

@@ -49,6 +49,7 @@ struct sugov_policy {
 	unsigned int cached_raw_freq;
 	struct timer_list freq_margin_timer;
 	struct timer_list slack_timer;
+	bool slack_timer_flag;
 	struct hrtimer performance_htimer;
 	/* The next fields are only needed if fast switch cannot be used. */
 	struct irq_work irq_work;
@@ -168,7 +169,7 @@ static void sugov_slack_timer_setup(struct sugov_policy *sg_policy,
 	if (!slack_timer_setup)
 		return;
 
-	if (next_freq > policy->cpuinfo.min_freq) {
+	if (next_freq > policy->min) {
 		unsigned int slack_us;
 
 		slack_us = sg_policy->tunables->timer_slack_val_us;
@@ -566,10 +567,13 @@ static void sugov_work(struct kthread_work *work)
 	mutex_lock(&sg_policy->work_lock);
 
 	next_freq = sugov_next_freq_policy(sg_policy);
-	if (sg_policy->next_freq != next_freq) {
-		sg_policy->next_freq = next_freq;
+	if (sg_policy->next_freq != next_freq || sg_policy->slack_timer_flag) {
+		if (!sg_policy->slack_timer_flag)
+			sg_policy->next_freq = next_freq;
+		else
+			sg_policy->slack_timer_flag = false;
 		sg_policy->last_freq_update_time = sg_policy->commit_time;
-		__cpufreq_driver_target(sg_policy->policy, next_freq,
+		__cpufreq_driver_target(sg_policy->policy, sg_policy->next_freq,
 					CPUFREQ_RELATION_L);
 	}
 
@@ -895,8 +899,8 @@ static void sugov_slack_timer(unsigned long data)
 	}
 
 	sg_policy->cached_raw_freq = UINT_MAX;
-	sg_policy->next_freq = policy->cpuinfo.min_freq;
-
+	sg_policy->next_freq = policy->min;
+	sg_policy->slack_timer_flag = true;
 	if (policy->fast_switch_enabled) {
 		if (!cpufreq_driver_fast_switch(policy, sg_policy->next_freq))
 			return;
@@ -1065,7 +1069,7 @@ static int sugov_start(struct cpufreq_policy *policy)
 	sg_policy->work_in_progress = false;
 	sg_policy->need_freq_update = false;
 	sg_policy->cached_raw_freq = UINT_MAX;
-
+	sg_policy->slack_timer_flag = false;
 	for_each_cpu(cpu, policy->cpus) {
 		struct sugov_cpu *sg_cpu = &per_cpu(sugov_cpu, cpu);
 

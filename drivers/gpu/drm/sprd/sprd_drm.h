@@ -27,6 +27,8 @@ struct sprd_drm {
 	struct task_struct *commit_thread;
 };
 
+extern struct mutex dpu_gsp_lock;
+
 int sprd_atomic_wait_for_fences(struct drm_device *dev,
 				      struct drm_atomic_state *state,
 				      bool pre_swap);

@@ -5,6 +5,10 @@
 #include <linux/regmap.h>
 #include <uapi/linux/usb/charger.h>
 
+#define CHGR_DET_FGU_CTRL		0x1ba0
+#define DP_DM_FS_ENB			BIT(14)
+#define DP_DM_BC_ENB			BIT(0)
+
 #define SC2730_CHARGE_STATUS		0x1b9c
 #define BIT_CHG_DET_DONE		BIT(11)
 #define BIT_SDP_INT			BIT(7)
@@ -45,6 +49,34 @@ static enum usb_charger_type sc27xx_charger_detect(struct regmap *regmap)
 	}
 
 	return type;
+}
+
+static void sc27xx_dpdm_switch_to_phy(struct regmap *regmap, bool enable)
+{
+	int ret;
+	u32 val;
+
+	pr_info(" %s enter\n", __func__);
+	ret = regmap_read(regmap, CHGR_DET_FGU_CTRL, &val);
+	if (ret) {
+		pr_err("%s, dp/dm switch reg read failed:%d\n",
+				__func__, ret);
+		return;
+	}
+
+	/*
+	 * bit14: 1 switch to USB phy, 0 switch to fast charger
+	 * bit0 : 1 switch to USB phy, 0 switch to BC1P2
+	 */
+	if (enable)
+		val = val | DP_DM_FS_ENB | DP_DM_BC_ENB;
+	else
+		val = val & ~(DP_DM_FS_ENB | DP_DM_BC_ENB);
+
+	ret = regmap_write(regmap, CHGR_DET_FGU_CTRL, val);
+	if (ret)
+		pr_err("%s, dp/dm switch reg write failed:%d\n",
+				__func__, ret);
 }
 
 #endif

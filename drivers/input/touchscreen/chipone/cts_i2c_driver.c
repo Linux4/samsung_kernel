@@ -804,7 +804,7 @@ static int __init cts_driver_init(void)
 {
     cts_info("Init");
 	get_lcd_name(lcd_name);
-    if (strncmp("lcd_nl9911c_truly_mipi_hdp", lcd_name, 28) == 0) {
+    if (strncmp("lcd_nl9911c_truly_6mask_mipi_hdp", lcd_name, 34) == 0) {
 #ifdef CONFIG_CTS_I2C_HOST
         cts_info(" start cts_i2c_driver");
         return i2c_add_driver(&cts_i2c_driver);
@@ -822,7 +822,7 @@ static void __exit cts_driver_exit(void)
 {
     cts_info("Exit");
 
-    if (strncmp("lcd_nl9911c_truly_mipi_hdp", lcd_name, 28) == 0) {
+    if (strncmp("lcd_nl9911c_truly_6mask_mipi_hdp", lcd_name, 34) == 0) {
 #ifdef CONFIG_CTS_I2C_HOST
     i2c_del_driver(&cts_i2c_driver);
 #else

@@ -77,6 +77,12 @@
 
 #define BQ2560X_REG_LIMIT_CURRENT_MASK		GENMASK(4, 0)
 
+#define BQ2560X_REG_VENDOR_ID_MASK		GENMASK(6, 3)
+#define BQ2560X_REG_VENDOR_ID_SHIFT		3
+#define BQ2560X_VENDOR_ID			0x2
+#define SD7601_VENDOR_ID			0x7
+#define SC89601D_VENDOR_ID			0x3
+
 #define BQ2560X_DISABLE_PIN_MASK		BIT(0)
 #define BQ2560X_DISABLE_PIN_MASK_2721		BIT(15)
 
@@ -102,12 +108,16 @@
 #define BQ2560X_WAKE_UP_MS			1000
 #define BQ2560X_CURRENT_WORK_MS			msecs_to_jiffies(100)
 
+#define SC89601D_1P0
+
 enum charge_ic_id {
 	VENDOR_NONE = 0,
 	VENDOR_BQ25601,
 	VENDOR_SD155,
 	VENDOR_SC89601,
 	VENDOR_SD7601,
+	VENDOR_ETA6963,
+	VENDOR_SC89601D,
 	VENDOR_MAX
 };
 
@@ -161,8 +171,12 @@ struct bq2560x_charger_info {
 
 	int reg_id;
 	bool disable_power_path;
+
 	int version_id;
 	bool is_charge_enabled;
+
+	bool enable_multi_charger_adapt;
+
 };
 extern char *chg_ic;
 
@@ -174,7 +188,7 @@ struct bq2560x_charger_reg_tab {
 
 static struct bq2560x_charger_reg_tab reg_tab[BQ2560X_REG_NUM + 1] = {
 	{0, BQ2560X_REG_0, "EN_HIZ/EN_ICHG_MON/IINDPM"},
-	{1, BQ2560X_REG_1, "PFM _DIS/WD_RST/OTG_CONFIG/CHG_CONFIG/SYS_Min/Min_VBAT_SEL"},
+	{1, BQ2560X_REG_1, "PFM_DIS/WD_RST/OTG_CONFIG/CHG_CONFIG/SYS_Min/Min_VBAT_SEL"},
 	{2, BQ2560X_REG_2, "BOOST_LIM/Q1_FULLON/ICHG"},
 	{3, BQ2560X_REG_3, "IPRECHG/ITERM"},
 	{4, BQ2560X_REG_4, "VREG/TOPOFF_TIMER/VRECHG"},
@@ -294,17 +308,53 @@ static int bq2560x_update_bits(struct bq2560x_charger_info *info, u8 reg,
 	return bq2560x_write(info, reg, v);
 }
 
+static int bq2560x_charger_get_vendor_id(struct bq2560x_charger_info *info)
+{
+	u8 reg_val;
+	int ret;
+
+	ret = bq2560x_read(info, BQ2560X_REG_B, &reg_val);
+	if (ret < 0) {
+		dev_err(info->dev, "Failed to get vendor id, ret = %d\n", ret);
+		return ret;
+	}
+
+	reg_val &= BQ2560X_REG_VENDOR_ID_MASK;
+	reg_val >>= BQ2560X_REG_VENDOR_ID_SHIFT;
+
+	if ((reg_val == BQ2560X_VENDOR_ID) || (reg_val == SD7601_VENDOR_ID)
+		|| (reg_val == SC89601D_VENDOR_ID)) {
+		dev_err(info->dev, "The probe vendor id is 0x%x\n", reg_val);
+	} else {
+		dev_err(info->dev, "The unknow vendor id is 0x%x\n", reg_val);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int
 bq2560x_charger_set_vindpm(struct bq2560x_charger_info *info, u32 vol)
 {
 	u8 reg_val;
 
-	if (vol < 3900)
-		reg_val = 0x0;
-	else if (vol > 5400)
-		reg_val = 0x0f;
-	else
-		reg_val = (vol - 3900) / 100;
+    if (info->version_id == VENDOR_SC89601D) {
+        if (vol < 3900)
+            reg_val = 0x0;
+        else if (vol <= 4900)
+            reg_val = (vol - 3900) / 100;
+        else if (vol > 4900 && vol < 7800)
+            reg_val = 0x0a;
+        else
+            reg_val = (vol - 7800) / 200 + 0x0C;
+    } else {
+        if (vol < 3900)
+            reg_val = 0x0;
+        else if (vol > 5400)
+            reg_val = 0x0f;
+        else
+            reg_val = (vol - 3900) / 100;
+    }
 
 	return bq2560x_update_bits(info, BQ2560X_REG_6,
 				   BQ2560X_REG_VINDPM_VOLTAGE_MASK, reg_val);
@@ -462,6 +512,20 @@ static int bq2560x_charger_hw_init(struct bq2560x_charger_info *info)
 	info->current_charge_limit_cur = BQ2560X_REG_ICHG_LSB * 1000;
 	info->current_input_limit_cur = BQ2560X_REG_IINDPM_LSB * 1000;
 
+#ifdef SC89601D_1P0
+    bq2560x_write(info, 0x7E, 0x48);
+    bq2560x_write(info, 0x7E, 0x54);
+    bq2560x_write(info, 0x7E, 0x30);
+    bq2560x_write(info, 0x7E, 0x4C);
+    bq2560x_write(info, 0x94, 0x10);
+    bq2560x_write(info, 0x96, 0x09);
+    bq2560x_write(info, 0x92, 0x71);
+    bq2560x_write(info, 0x7E, 0x48);
+    bq2560x_write(info, 0x7E, 0x54);
+    bq2560x_write(info, 0x7E, 0x30);
+    bq2560x_write(info, 0x7E, 0x4C);
+#endif
+
 	return ret;
 }
 
@@ -539,8 +603,6 @@ static int bq2560x_charger_start_charge(struct bq2560x_charger_info *info)
 		dev_err(info->dev, "failed to set limit current\n");
 		return ret;
 	}
-
-	bq2560x_charger_set_current(info, charger_current);
 
 	ret = bq2560x_charger_set_termina_cur(info, info->termination_cur);
 	if (ret)
@@ -726,15 +788,20 @@ static int bq2560x_charger_get_version_id(struct bq2560x_charger_info *info)
 	if (ret < 0)
 		return ret;
 
-	//pr_err("%s:bq2560x_id=%x\n",__func__,reg_val);
+	pr_err("%s:bq2560x_id=%x\n",__func__,reg_val);
 
 	info->version_id = (reg_val & 0x04) >>2;
 	bq2560x_id = (reg_val & 0x78) >>3;
 
-	if(bq2560x_id == 0x08)
-		info->version_id = VENDOR_SC89601;
-	else if(bq2560x_id == 0x07)
-		info->version_id = VENDOR_SD7601;
+	if(bq2560x_id == 0x03)
+		info->version_id = VENDOR_SC89601D;
+	else if(bq2560x_id == 0x07) {
+		if (info->version_id == 0x1) {
+			info->version_id = VENDOR_ETA6963;
+		} else {
+			info->version_id = VENDOR_SD7601;
+		}
+	}
 	else if((bq2560x_id == 0x02) && (info->version_id ==1))
 		info->version_id = VENDOR_SD155;
 	else
@@ -1660,6 +1727,11 @@ static void bq2560x_charger_otg_work(struct work_struct *work)
 	do {
 		otg_fault = bq2560x_charger_check_otg_fault(info);
 		if (!otg_fault) {
+			if (info->version_id == VENDOR_SC89601D) { //disable charger
+				ret = bq2560x_update_bits(info, BQ2560X_REG_1,
+					BQ2560X_REG_CHG_MASK,
+					0x0 << BQ2560X_REG_CHG_SHIFT);
+            }
 			ret = bq2560x_update_bits(info, BQ2560X_REG_1,
 						  BQ2560X_REG_OTG_MASK,
 						  BQ2560X_REG_OTG_MASK);
@@ -1710,6 +1782,12 @@ static int bq2560x_charger_enable_otg(struct regulator_dev *dev)
 		goto out;
 	}
 
+	if (info->version_id == VENDOR_SC89601D) { //disable charger
+        	ret = bq2560x_update_bits(info, BQ2560X_REG_1,
+        				  BQ2560X_REG_CHG_MASK,
+        				  0x0 << BQ2560X_REG_CHG_SHIFT);
+	}
+
 	ret = bq2560x_update_bits(info, BQ2560X_REG_1,
 				  BQ2560X_REG_OTG_MASK,
 				  BQ2560X_REG_OTG_MASK);
@@ -1750,6 +1828,11 @@ static int bq2560x_charger_disable_otg(struct regulator_dev *dev)
 	ret = bq2560x_update_bits(info, BQ2560X_REG_1,
 				  BQ2560X_REG_OTG_MASK,
 				  0);
+	if (info->version_id == VENDOR_SC89601D) { //enable charger
+        ret = bq2560x_update_bits(info, BQ2560X_REG_1,
+            BQ2560X_REG_CHG_MASK,
+            0x1 << BQ2560X_REG_CHG_SHIFT);
+	}
 	if (ret) {
 		dev_err(info->dev, "disable bq2560x otg failed\n");
 		goto out;
@@ -1812,6 +1895,16 @@ static const struct regulator_desc bq2560x_charger_vbus_desc = {
 	.n_voltages = 1,
 };
 
+static const struct regulator_desc bq2560x_charger_multi_vbus_desc = {
+	.name = "bq2560x_otg_vbus",
+	.of_match = "bq2560x_otg_vbus",
+	.type = REGULATOR_VOLTAGE,
+	.owner = THIS_MODULE,
+	.ops = &bq2560x_charger_vbus_ops,
+	.fixed_uV = 5000000,
+	.n_voltages = 1,
+};
+
 static int
 bq2560x_charger_register_vbus_regulator(struct bq2560x_charger_info *info)
 {
@@ -1821,8 +1914,15 @@ bq2560x_charger_register_vbus_regulator(struct bq2560x_charger_info *info)
 
 	cfg.dev = info->dev;
 	cfg.driver_data = info;
-	reg = devm_regulator_register(info->dev,
-				      &bq2560x_charger_vbus_desc, &cfg);
+	if (!info->enable_multi_charger_adapt) {
+		reg = devm_regulator_register(info->dev,
+					      &bq2560x_charger_vbus_desc, &cfg);
+		dev_info(info->dev, "use bq2560x_charger_vbus_desc\n");
+	} else {
+		reg = devm_regulator_register(info->dev,
+					      &bq2560x_charger_multi_vbus_desc, &cfg);
+		dev_info(info->dev, "use bq2560x_charger_multi_vbus_desc\n");
+	}
 	if (IS_ERR(reg)) {
 		ret = PTR_ERR(reg);
 		dev_err(info->dev, "Can't register regulator:%d\n", ret);
@@ -1967,22 +2067,32 @@ static int bq2560x_charger_probe(struct i2c_client *client,
 	pr_err("%s:bq2560x_id=%x\n",__func__,bq2560x_id);
 	info->version_id = (bq2560x_id & 0x04) >>2;
 	bq2560x_id = (bq2560x_id & 0x78) >>3;
-	if((bq2560x_id != 0x02) && (bq2560x_id != 0x08) && (bq2560x_id != 0x07))
+	if((bq2560x_id != 0x02) && (bq2560x_id != 0x03) && (bq2560x_id != 0x07))
 	{
 		printk("dont one supplier charger ic,bq2560x_id=%d\n",bq2560x_id);
 		devm_kfree(dev, info);
 		return -ENODEV;
 	}
 
-	if(bq2560x_id == 0x08)
-		info->version_id = VENDOR_SC89601;
+	if(bq2560x_id == 0x03)
+		info->version_id = VENDOR_SC89601D;
 	else if(bq2560x_id == 0x07) {
-		info->version_id = VENDOR_SD7601;
-		sd7601_charge_enable_func(info);
+		if (info->version_id == 0x1) {
+			info->version_id = VENDOR_ETA6963;
+		} else {
+			info->version_id = VENDOR_SD7601;
+			sd7601_charge_enable_func(info);
+		}
 	} else if((bq2560x_id == 0x02) && (info->version_id ==1))
 		info->version_id = VENDOR_SD155;
 	else
 		info->version_id = VENDOR_BQ25601;
+
+	ret = bq2560x_charger_get_vendor_id(info);
+	if (ret) {
+		dev_err(dev, "failed to get vendor id\n");
+		return ret;
+	}
 
 	i2c_set_clientdata(client, info);
 	power_path_control(info);
@@ -2004,6 +2114,11 @@ static int bq2560x_charger_probe(struct i2c_client *client,
 		dev_err(dev, "sc27xx_fgu not ready.\n");
 		return -EPROBE_DEFER;
 	}
+
+	info->enable_multi_charger_adapt =
+		device_property_read_bool(dev, "multi-charger-adapt-enable");
+	dev_info(dev, "enable_multi_charger_adapt = %d.\n",
+		 info->enable_multi_charger_adapt);
 
 	ret = device_property_read_bool(dev, "role-slave");
 	if (ret)
@@ -2162,7 +2277,6 @@ err_psy_usb:
 	if (info->irq_gpio)
 		gpio_free(info->irq_gpio);
 err_regmap_exit:
-	regmap_exit(info->pmic);
 	mutex_unlock(&info->lock);
 	mutex_destroy(&info->lock);
 	return ret;
@@ -2311,7 +2425,6 @@ static struct i2c_driver bq2560x_slave_charger_driver = {
 		.pm = &bq2560x_charger_pm_ops,
 	},
 	.probe = bq2560x_charger_probe,
-	.shutdown = bq2560x_charger_shutdown,
 	.remove = bq2560x_charger_remove,
 	.id_table = bq2560x_slave_i2c_id,
 };

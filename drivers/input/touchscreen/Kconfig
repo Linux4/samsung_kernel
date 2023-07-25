@@ -1295,14 +1295,14 @@ config TOUCHSCREEN_GESTURE_WAKEUP
 	  Say Y here if you have a touchscreen and want to enable support for the built-in touchscreen.
 
 config TOUCHSCREEN_HIMAX_CHIPSET
-	bool "Himax touchpanel CHIPSET"
-	depends on SPI
-	help
-	  Say Y here if you have a Himax CHIPSET touchscreen.
-	  HIMAX controllers are multi touch controllers which can
-	  report 10 touches at a time.
+        bool "Himax touchpanel CHIPSET"
+        depends on SPI
+        help
+          Say Y here if you have a Himax CHIPSET touchscreen.
+          HIMAX controllers are multi touch controllers which can
+          report 10 touches at a time.
 
-	  If unsure, say N.
+          If unsure, say N.
 
 config TOUCHSCREEN_SS_ENABLED
 	bool "Samsung ts enabled node"

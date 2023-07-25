@@ -45,6 +45,9 @@
 #define EXTCON_USB		1
 #define EXTCON_USB_HOST		2
 
+#define EXTCON_SINK		3
+#define EXTCON_SOURCE		4
+
 /*
  * Charging external connector
  *

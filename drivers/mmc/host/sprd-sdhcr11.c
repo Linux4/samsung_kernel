@@ -2047,13 +2047,16 @@ static int sprd_sdhc_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	dll_cfg = sprd_sdhc_readl(host, SPRD_SDHC_REG_32_DLL_CFG);
 	dll_cfg &= ~(0xf << 24);
 	sprd_sdhc_writel(host, dll_cfg, SPRD_SDHC_REG_32_DLL_CFG);
-	//dll_cnt = sprd_sdhc_readl(host, SPRD_SDHC_REG_32_DLL_STS0) & 0xff;
-	if ((host->ios.timing == MMC_TIMING_SD_HS) && (strcmp(host->device_name, "sdio_sd") == 0))
+
+	if ((host->ios.timing == MMC_TIMING_SD_HS) &&
+			(strcmp(host->device_name, "sdio_sd") == 0))
 		dll_cnt = 128;
 	else
 		dll_cnt = sprd_sdhc_readl(host, SPRD_SDHC_REG_32_DLL_STS0) & 0xff;
+
 	dll_cnt = dll_cnt << 1;
 	length = (dll_cnt * 150) / 100;
+
 	dev_info(dev, "dll config 0x%08x, dll count %d, tuning length: %d\n",
 		 dll_cfg, dll_cnt, length);
 
@@ -2075,15 +2078,17 @@ static int sprd_sdhc_execute_tuning(struct mmc_host *mmc, u32 opcode)
 		if (host->flags & SPRD_HS400_TUNING) {
 			dll_dly &= ~SPRD_CMD_DLY_MASK;
 			dll_dly |= (i << 8);
-		} else if ((host->ios.timing == MMC_TIMING_SD_HS) && (strcmp(host->device_name, "sdio_sd") == 0)) {
+		} else if ((host->ios.timing == MMC_TIMING_SD_HS) &&
+				(strcmp(host->device_name, "sdio_sd") == 0)) {
 			if (opcode == MMC_SET_BLOCKLEN) {
 				dll_dly &= ~(SPRD_CMD_DLY_MASK);
 				dll_dly |= ((i << 8) & SPRD_CMD_DLY_MASK);
 			} else {
-				dll_dly &= ~(SPRD_POSRD_DLY_MASK | SPRD_NEGRD_DLY_MASK | SPRD_CMD_DLY_MASK);
+				dll_dly &= ~(SPRD_POSRD_DLY_MASK | SPRD_NEGRD_DLY_MASK |
+						SPRD_CMD_DLY_MASK);
 				dll_dly |= (((i << 16) & SPRD_POSRD_DLY_MASK) |
-								((i << 24) & SPRD_NEGRD_DLY_MASK) |
-								((i << 8) & SPRD_CMD_DLY_MASK));
+						((i << 24) & SPRD_NEGRD_DLY_MASK) |
+						((i << 8) & SPRD_CMD_DLY_MASK));
 			}
 		} else {
 			dll_dly &= ~(SPRD_CMD_DLY_MASK | SPRD_POSRD_DLY_MASK);
@@ -2094,8 +2099,8 @@ static int sprd_sdhc_execute_tuning(struct mmc_host *mmc, u32 opcode)
 
 		mmiowb();
 		spin_unlock_irqrestore(&host->lock, flags);
-		//value = !mmc_send_tuning(mmc, opcode, NULL);
-		if ((host->ios.timing == MMC_TIMING_SD_HS) && (strcmp(host->device_name, "sdio_sd") == 0)) {
+		if ((host->ios.timing == MMC_TIMING_SD_HS) &&
+				(strcmp(host->device_name, "sdio_sd") == 0)) {
 			host->tuning_flag = 1;
 			if (opcode == MMC_SET_BLOCKLEN)
 				value = !mmc_send_tuning_cmd(mmc);
@@ -2129,8 +2134,8 @@ static int sprd_sdhc_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	host->ranges = ranges;
 
 	first_vl = (value_t[0] && value_t[dll_cnt]);
-	//range_count = sprd_calc_tuning_range(host, value_t);
-	if ((host->ios.timing == MMC_TIMING_SD_HS) && (strcmp(host->device_name, "sdio_sd") == 0))
+	if ((host->ios.timing == MMC_TIMING_SD_HS) &&
+			(strcmp(host->device_name, "sdio_sd") == 0))
 		range_count = sprd_calc_hs_mode_tuning_range(host, value_t);
 	else
 		range_count = sprd_calc_tuning_range(host, value_t);
@@ -2141,21 +2146,36 @@ static int sprd_sdhc_execute_tuning(struct mmc_host *mmc, u32 opcode)
 		goto out;
 	}
 
-	if (!((host->ios.timing == MMC_TIMING_SD_HS) && (strcmp(host->device_name, "sdio_sd") == 0))) {
+	if ((host->ios.timing == MMC_TIMING_SD_HS) &&
+			(strcmp(host->device_name, "sdio_sd") == 0)) {
+		if ((range_count > 1) && (ranges[range_count - 1].end == 127)
+				&& (ranges[0].start == 0)) {
+			ranges[0].start = ranges[range_count - 1].start;
+			range_count--;
+
+			if (ranges[0].end >= mid_dll_cnt)
+				ranges[0].end = mid_dll_cnt;
+		}
+	} else {
 		if ((range_count > 1) && first_vl && value) {
 			ranges[0].start = ranges[range_count - 1].start;
 			range_count--;
 
-		if (ranges[0].end >= mid_dll_cnt)
-			ranges[0].end = mid_dll_cnt;
+			if (ranges[0].end >= mid_dll_cnt)
+				ranges[0].end = mid_dll_cnt;
 		}
 	}
 
 	for (i = 0; i < range_count; i++) {
 		int len = (ranges[i].end - ranges[i].start + 1);
 
-		if (len < 0)
-			len += dll_cnt;
+		if (len < 0) {
+			if ((host->ios.timing == MMC_TIMING_SD_HS) &&
+					(strcmp(host->device_name, "sdio_sd") == 0))
+				len += mid_dll_cnt;
+			else
+				len += dll_cnt;
+		}
 
 		dev_info(dev, "good tuning phase range %d ~ %d\n",
 			 ranges[i].start, ranges[i].end);
@@ -2173,7 +2193,8 @@ static int sprd_sdhc_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	mid_step = ranges[longest_range].start + longest_range_len / 2;
 	mid_step %= dll_cnt;
 
-	if ((host->ios.timing == MMC_TIMING_SD_HS) && (strcmp(host->device_name, "sdio_sd") == 0)) {
+	if ((host->ios.timing == MMC_TIMING_SD_HS) &&
+			(strcmp(host->device_name, "sdio_sd") == 0)) {
 		dll_cfg &= ~(0xf << 24);
 		sprd_sdhc_writel(host, dll_cfg, SPRD_SDHC_REG_32_DLL_CFG);
 	} else {
@@ -2190,16 +2211,18 @@ static int sprd_sdhc_execute_tuning(struct mmc_host *mmc, u32 opcode)
 		host->timing_dly->hs400_dly &= ~SPRD_CMD_DLY_MASK;
 		host->timing_dly->hs400_dly |= (final_phase << 8);
 		host->dll_dly = host->timing_dly->hs400_dly;
-	} else if ((host->ios.timing == MMC_TIMING_SD_HS) && (strcmp(host->device_name, "sdio_sd") == 0)) {
+	} else if ((host->ios.timing == MMC_TIMING_SD_HS) &&
+			(strcmp(host->device_name, "sdio_sd") == 0)) {
 		if (opcode == MMC_SET_BLOCKLEN) {
 			host->dll_dly &= ~(SPRD_CMD_DLY_MASK);
 			host->dll_dly |= ((final_phase << 8) & SPRD_CMD_DLY_MASK);
 			host->timing_dly->sdhs_dly = host->dll_dly;
 		} else {
-			host->dll_dly &= ~(SPRD_POSRD_DLY_MASK | SPRD_NEGRD_DLY_MASK | SPRD_CMD_DLY_MASK);
+			host->dll_dly &= ~(SPRD_POSRD_DLY_MASK | SPRD_NEGRD_DLY_MASK |
+					SPRD_CMD_DLY_MASK);
 			host->dll_dly |= (((final_phase << 16) & SPRD_POSRD_DLY_MASK) |
-								((final_phase << 24) & SPRD_NEGRD_DLY_MASK) |
-								((final_phase << 8) & SPRD_CMD_DLY_MASK));
+					((final_phase << 24) & SPRD_NEGRD_DLY_MASK) |
+					((final_phase << 8) & SPRD_CMD_DLY_MASK));
 		}
 	} else {
 		host->dll_dly &= ~(SPRD_CMD_DLY_MASK | SPRD_POSRD_DLY_MASK);

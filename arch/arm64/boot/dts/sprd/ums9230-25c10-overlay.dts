@@ -147,11 +147,14 @@
 				/*Charge pump target charge current*/
 				cm-cp-taper-current = <1000000>;
 
+				cm-num-power-supplys = <2>;
+				cm-multi-charger-adapt-enable;
 				cm-chargers = "bq2560x_charger";
 				cm-charge-pumps = "bq2597x-standalone";
 				cm-fast-chargers = "sc2730_fast_charger";
 				cm-wireless-chargers = "nu1619_wireless_charger";
 				cm-wireless-charge-pump-converters = "hl1506_cp_converter";
+				cm-power-supplys = "bq2560x_charger", "rt9471_charger";
 				cm-fuel-gauge = "sc27xx-fgu";
 
 				/* in deci centigrade */
@@ -219,8 +222,12 @@
 					cm-regulator-name = "vddgen0";
 					cable@0 {
 						cm-cable-name = "USB";
-						extcon = <&pmic_typec>;
+						extcon = <&extcon_gpio>;
 					};
+				};
+
+				vddvbus: cm_otg_vbus {
+					regulator-name = "vddvbus";
 				};
 			};
 
@@ -560,9 +567,51 @@
 		monitored-battery = <&bat>;
 		extcon = <&extcon_gpio>, <&pmic_pd>;
 		pd-extcon-enable;
+		multi-charger-adapt-enable;
 		irq-gpio = <&ap_gpio 115 GPIO_ACTIVE_LOW>;
-		vddvbus:otg-vbus {
-			regulator-name = "vddvbus";
+		bq2560x_otg_vbus: bq2560x_otg_vbus {
+			regulator-name = "bq2560x_otg_vbus";
+		};
+	};
+
+	rt9471_chg: rt_charger@53 {
+		compatible = "richtek,rt9471";
+		reg = <0x53>;
+		phys = <&hsphy>;
+		 monitored-battery = <&bat>;
+		extcon = <&extcon_gpio>;
+		rt,intr_gpio = <&ap_gpio 115 GPIO_ACTIVE_LOW>;
+		multi-charger-adapt-enable;
+		rt9471_otg_vbus: rt9471_otg_vbus {
+			regulator-name = "rt9471_otg_vbus";
+		};
+
+		rt9471 {
+			charger_name = "rt9471_charger";
+			interrupt-names = "wdt", "chg_mivr", "vbus_gd",
+					  "bc12_done", "detach", "vac_ov",
+					  "otg_fault", "chg_rdy", "chg_done";
+			ichg = <2000000>;		/* uA */
+			aicr = <500000>;		/* uA */
+			mivr = <4400000>;		/* uV */
+			cv = <4350000>;			/* uV */
+			ieoc = <200000>;		/* uA */
+			safe-tmr = <10>;		/* hour */
+			wdt = <40>;			/* sec */
+			/*
+			 * 0: MIVR register
+			 * 1: MIVR = VBAT + 200mV
+			 * 2: MIVR = VBAT + 250mV
+			 * >= 3: MIVR = VBAT + 300mV
+			 */
+			mivr-track = <0>;
+			en-safe-tmr;
+			en-te;
+			/* en-jeita; */
+			/* ceb-invert; */
+			/* dis-i2c-tout; */
+			en-qon-rst;
+			/* auto-aicr; */
 		};
 	};
 
@@ -1052,5 +1101,5 @@
 &adi_bus {
 	sprd,hw-channels = <2 0x18cc>, <3 0x18cc>, <13 0x1854>, <15 0x1874>,
 			<17 0x1844>,<19 0x1844>, <21 0x1864>, <30 0x1820>,
-			<35 0x19b8>, <39 0x19ac>;
+			<35 0x19b8>, <39 0x19ac>, <32 0x197c>, <33 0x1988>;
 };

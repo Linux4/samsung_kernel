@@ -3126,10 +3126,7 @@ int do_swap_page(struct vm_fault *vmf)
 		page = lookup_swap_cache(entry, vma_readahead ? vma : NULL,
 					 vmf->address);
 	if (!page) {
-		if (vma_readahead)
-			page = do_swap_page_readahead(entry,
-				GFP_HIGHUSER_MOVABLE, vmf, &swap_ra);
-		else if (vmf->flags & FAULT_FLAG_SPECULATIVE) {
+		if (vmf->flags & FAULT_FLAG_SPECULATIVE) {
 			/*
 			 * Don't try readahead during a speculative page fault
 			 * as the VMA's boundaries may change in our back.
@@ -3140,9 +3137,14 @@ int do_swap_page(struct vm_fault *vmf)
 			delayacct_clear_flag(DELAYACCT_PF_SWAPIN);
 			ret = VM_FAULT_RETRY;
 			goto out;
-		} else
-			page = swapin_readahead(entry,
-				GFP_HIGHUSER_MOVABLE, vma, vmf->address);
+		} else {
+			if (vma_readahead)
+				page = do_swap_page_readahead(entry,
+					GFP_HIGHUSER_MOVABLE, vmf, &swap_ra);
+			else
+				page = swapin_readahead(entry,
+					GFP_HIGHUSER_MOVABLE, vma, vmf->address);
+		}
 		if (!page) {
 			/*
 			 * Back out if the VMA has changed in our back during

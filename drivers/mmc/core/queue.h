@@ -104,10 +104,7 @@ extern unsigned int mmc_queue_map_sg(struct mmc_queue *,
 				     struct mmc_queue_req *);
 
 #ifdef CONFIG_EMMC_SOFTWARE_CQ_SUPPORT
-#define CONFIG_EMMC_CMDQ_ENABLE_DELAY_SUPPORT
 extern void mmc_wait_cmdq_empty(struct mmc_host *host);
 extern bool mmc_blk_part_cmdq_en(struct mmc_queue *mq);
-extern int mmc_select_cmdq(struct mmc_card *card);
-extern int mmc_deselect_cmdq(struct mmc_card *card);
 #endif
 #endif

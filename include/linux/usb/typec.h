@@ -18,6 +18,14 @@ struct typec_port;
 struct fwnode_handle;
 struct device;
 
+enum typec_pd_swap {
+	TYPEC_NO_SWAP,
+	TYPEC_SOURCE_TO_SINK,
+	TYPEC_SINK_TO_SOURCE,
+	TYPEC_HOST_TO_DEVICE,
+	TYPEC_DEVICE_TO_HOST,
+};
+
 enum typec_port_type {
 	TYPEC_PORT_SRC,
 	TYPEC_PORT_SNK,
@@ -244,4 +252,48 @@ int typec_set_mode(struct typec_port *port, int mode);
 int typec_find_port_power_role(const char *name);
 int typec_find_power_role(const char *name);
 int typec_find_port_data_role(const char *name);
+
+#ifdef CONFIG_USB_SC27XX_TYPEC
+int sc27xx_set_typec_int_clear(void);
+
+int sc27xx_set_typec_int_disable(void);
+
+int sc27xx_set_typec_int_enable(void);
+
+int sc27xx_typec_set_pd_dr_swap_flag(u8 flag);
+
+int sc27xx_typec_set_pr_swap_flag(u8 flag);
+
+int sc27xx_typec_set_pd_swap_event(u8 pd_swap_flag);
+#else
+static inline int sc27xx_set_typec_int_clear(void)
+{
+	return 0;
+}
+static inline int sc27xx_set_typec_int_disable(void)
+{
+	return 0;
+}
+static inline int sc27xx_set_typec_int_enable(void)
+{
+	return 0;
+}
+static inline int sc27xx_typec_set_pd_dr_swap_flag(u8 flag)
+{
+	return 0;
+}
+static inline int sc27xx_typec_set_pr_swap_flag(u8 flag)
+{
+	return 0;
+}
+static inline int sc27xx_typec_set_pd_swap_event(u8 pd_swap_flag)
+{
+	return 0;
+}
+static inline bool sc27xx_get_dr_swap_flag(void)
+{
+	return 0;
+}
+#endif
+
 #endif /* __LINUX_USB_TYPEC_H */

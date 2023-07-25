@@ -43,7 +43,7 @@ static int handle_sink_request(struct dptx *dptx)
 	if (ret_dpcd < 0)
 		return ret_dpcd;
 
-	DRM_INFO("%s: IRQ_VECTOR: 0x%02x\n", __func__, vector);
+	DRM_DEBUG("%s: IRQ_VECTOR: 0x%02x\n", __func__, vector);
 
 	/* TODO handle sink interrupts */
 	if (!vector)
@@ -56,7 +56,7 @@ static int handle_sink_request(struct dptx *dptx)
 	}
 
 	if (vector & DP_AUTOMATED_TEST_REQUEST) {
-		DRM_INFO("%s: DP_AUTOMATED_TEST_REQUEST", __func__);
+		DRM_DEBUG("%s: DP_AUTOMATED_TEST_REQUEST", __func__);
 		retval = handle_automated_test_request(dptx);
 		if (retval) {
 			DRM_ERROR("Automated test request failed\n");
