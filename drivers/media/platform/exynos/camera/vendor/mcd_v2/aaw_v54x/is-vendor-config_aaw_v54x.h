@@ -50,6 +50,7 @@
 #define CONFIG_SECURE_CAMERA_USE 0
 
 #define CAMERA_EEPROM_SUPPORT_FRONT
+
 /* For Dualization sensor check */
 #define USE_CAMERA_CHECK_SENSOR_REV
 

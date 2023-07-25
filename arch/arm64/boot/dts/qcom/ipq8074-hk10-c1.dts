@@ -11,7 +11,7 @@
 
 		sleep_clk {
 			compatible = "fixed-clock";
-			clock-frequency = <0x7d00>;
+			clock-frequency = <0x8000>;
 			#clock-cells = <0x00>;
 			phandle = <0x12>;
 		};
@@ -432,7 +432,7 @@
 			phandle = <0x0c>;
 		};
 
-		nand@79b0000 {
+		nand-controller@79b0000 {
 			compatible = "qcom,ipq8074-nand";
 			reg = <0x79b0000 0x10000>;
 			#address-cells = <0x01>;
@@ -696,7 +696,7 @@
 		blsp1_i2c3 = "/soc/i2c@78b7000";
 		blsp1_i2c6 = "/soc/i2c@78ba000";
 		qpic_bam = "/soc/dma-controller@7984000";
-		qpic_nand = "/soc/nand@79b0000";
+		qpic_nand = "/soc/nand-controller@79b0000";
 		usb_0 = "/soc/usb@8af8800";
 		dwc_0 = "/soc/usb@8af8800/dwc3@8a00000";
 		usb_1 = "/soc/usb@8cf8800";

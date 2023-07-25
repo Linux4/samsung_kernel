@@ -88,6 +88,8 @@ struct s2mpu15_platform_data {
 	int num_rdata;
 	int num_subdevs;
 	bool wakeup;
+	int jig_reboot_en;
+	int inst_acok_en;
 
 	/* IRQ */
 	int irq_base;

@@ -123,6 +123,7 @@
 #define SLSI_FW_API_RATE_11AX_GI            (0x3 << SLSI_FW_API_RATE_11AX_GI_POSN)
 #define SLSI_FW_API_GET_11AX_GI(val)        ((val & SLSI_FW_API_RATE_11AX_GI) >> SLSI_FW_API_RATE_11AX_GI_POSN)
 
+#define MAX_TX_PWR_BACKOFF_ARG_CNT          12
 #define HEAD_SAR_BACKOFF_DISABLED           -1
 #define HEAD_SAR_BACKOFF_ENABLED            0
 #define BODY_SAR_BACKOFF_DISABLED           1

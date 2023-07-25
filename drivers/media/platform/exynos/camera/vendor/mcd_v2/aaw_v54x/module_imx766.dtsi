@@ -63,16 +63,16 @@
 							common = <4080 3060 30 0 0 CSI_DATA_LANES_3 2296 CSI_MODE_VC_DT LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
 							vc0 = </* in */ 0 HW_FORMAT_RAW10 4080 3060    /* out */ HW_FORMAT_RAW10 VC_NOTHING 4080 3060>;
 							vc1 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-							vc2 = </* in */ 1 HW_FORMAT_RAW10_POTF 4080 765    /* out */ HW_FORMAT_RAW10 VC_TAILPDAF 4080 765>;
-							vc3 = </* in */ 2 HW_FORMAT_RAW10_POTF 4080 765        /* out */ HW_FORMAT_RAW10 VC_VPDAF 4080 765>;
+							vc2 = </* in */ 1 HW_FORMAT_RAW10_POTF 4080 765    /* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+							vc3 = </* in */ 2 HW_FORMAT_RAW10_POTF 4080 765        /* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 							option { stat_sensor_mode = <507>; };
 						};
 						mode1 {
 							common = <4080 2296 30 0 1 CSI_DATA_LANES_3 2296 CSI_MODE_VC_DT LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
 							vc0 = </* in */ 0 HW_FORMAT_RAW10 4080 2296    /* out */ HW_FORMAT_RAW10 VC_NOTHING 4080 2296>;
 							vc1 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-							vc2 = </* in */ 1 HW_FORMAT_RAW10_POTF 4080 574        /* out */ HW_FORMAT_RAW10 VC_TAILPDAF 4080 574>;
-							vc3 = </* in */ 2 HW_FORMAT_RAW10_POTF 4080 574        /* out */ HW_FORMAT_RAW10 VC_VPDAF 4080 574>;
+							vc2 = </* in */ 1 HW_FORMAT_RAW10_POTF 4080 574        /* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+							vc3 = </* in */ 2 HW_FORMAT_RAW10_POTF 4080 574        /* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 							option { stat_sensor_mode = <507>; };
 						};
 						mode2 {
@@ -87,8 +87,8 @@
 							common = <3840 2160 60 0 3 CSI_DATA_LANES_3 2296 CSI_MODE_VC_DT LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
 							vc0 = </* in */ 0 HW_FORMAT_RAW10 3840 2160    /* out */ HW_FORMAT_RAW10 VC_NOTHING 3840 2160>;
 							vc1 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0        /* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-							vc2 = </* in */ 1 HW_FORMAT_RAW10_POTF 3840 540        /* out */ HW_FORMAT_RAW10 VC_TAILPDAF 3840 540>;
-							vc3 = </* in */ 2 HW_FORMAT_RAW10_POTF 3840 540        /* out */ HW_FORMAT_RAW10 VC_VPDAF 3840 540>;
+							vc2 = </* in */ 1 HW_FORMAT_RAW10_POTF 3840 540        /* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+							vc3 = </* in */ 2 HW_FORMAT_RAW10_POTF 3840 540        /* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 							option { stat_sensor_mode = <507>; };
 						};
 						mode4 {

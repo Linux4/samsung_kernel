@@ -304,10 +304,15 @@ static int parse_dataframe(char *dataframe, int frame_len)
 			if (index + 2 <= frame_len) {
 				reset_type = dataframe[index++];
 				no_event_type = dataframe[index++];
-				// if (reset_type == HUB_RESET_REQ_NO_EVENT) {
-				shub_infof("Hub request reset[0x%x] No Event type %d", reset_type, no_event_type);
-				reset_mcu(RESET_TYPE_HUB_NO_EVENT);
-				//}
+				if (reset_type == HUB_RESET_REQ_NO_EVENT) {
+					shub_infof("Hub request reset[0x%x] No Event type %d", reset_type, no_event_type);
+					reset_mcu(RESET_TYPE_HUB_NO_EVENT);
+				} else if (reset_type == HUB_RESET_REQ_TASK_FAILURE) {
+					shub_infof("Hub request reset[0x%x] request task failure", reset_type);
+					reset_mcu(RESET_TYPE_HUB_REQ_TASK_FAILURE);
+				} else {
+					shub_infof("Hub request rest[0x%x] invalid request", reset_type);
+				}
 			} else {
 				shub_errf("parsing error");
 				ret = -EINVAL;

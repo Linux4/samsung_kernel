@@ -505,11 +505,8 @@ int slsi_tx_data(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *
 						continue;
 					}
 					fapi_set_u16(duplicate_skb, u.ma_unitdata_req.vif, ndev_vif->peer_sta_record[i]->ndl_vif);
-					/* TODO: group option will be added to next fapi.xml.
-					 * Until then, set configuration_option for NAN multicast with 0x0010
-					 */
 					fapi_set_u16(skb, u.ma_unitdata_req.configuration_option,
-						     FAPI_OPTION_INLINE | 0x0010);
+						     FAPI_OPTION_INLINE | FAPI_OPTION_GROUP);
 
 					if (!ndev_vif->peer_sta_record[i]->qos_enabled)
 						fapi_set_u16(duplicate_skb, u.ma_unitdata_req.flow_id,

@@ -389,6 +389,8 @@ int mxman_res_fw_init(struct mxman *mxman, struct fwhdr_if **fw_wlan, struct fwh
 	uint32_t bt_fw_runtime_size_val;
 	uint32_t bt_fw_offset_val;
 
+	*fw_wlan = *fw_wpan = NULL;
+
 	whdr_if = whdr_create();
 	if (!whdr_if) {
 		SCSC_TAG_ERR(MXMAN, "fwhdr_create() failed\n");

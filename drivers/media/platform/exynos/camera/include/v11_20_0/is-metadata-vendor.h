@@ -1135,6 +1135,12 @@ enum aa_ae_extra_mode {
 	AA_AE_EXTRA_MODE_ISO_PRIORITY     = 2,
 };
 
+enum aa_transient_action {
+	AA_TRANSIENT_ACTION_NONE = 0,
+	AA_TRANSIENT_ACTION_ZOOMING,
+	AA_TRANSIENT_ACTION_MANUAL_FOCUSING,
+};
+
 enum aa_transient_capture_action {
 	AA_TRANSIENT_CAPTURE_ACTION_OFF = 0,
 	AA_TRANSIENT_CAPTURE_ACTION_FAST_CAPTURE = 1,
@@ -1242,7 +1248,8 @@ struct camera2_aa_ctl {
 
 	// static info for remosaic preview crop zoom ratio (0:invalid)
 	uint32_t			vendor_remosaicCropZoomRatio;
-	uint32_t			vendor_reserved[8];
+	enum aa_transient_action	vendor_transientAction;
+	uint32_t			vendor_reserved[25];
 };
 
 struct aa_apexInfo {
@@ -1551,6 +1558,7 @@ struct camera2_lens_uctl {
 	uint32_t	direction;
 	uint32_t	slewRate;
 	uint32_t	oisCoefVal;
+	int32_t		ndFilter;
 };
 
 struct camera2_lens_udm {

@@ -713,13 +713,13 @@ static void *m54x_set_bl_param_cmdtbl[] = {
 	&PKTINFO(m54x_level3),
 	&PKTINFO(m54x_dimming_frame),
 	&PKTINFO(m54x_wrdisbv),
-	&PKTINFO(m54x_acl_control),
 	&CONDINFO_IF(m54x_cond_is_panel_state_acl),
 		&PKTINFO(m54x_level5),
 		&PKTINFO(m54x_acl_dim_frame),
 		&PKTINFO(m54x_acl_min),
 		&PKTINFO(m54x_acl_max),
 	&CONDINFO_FI(m54x_cond_is_panel_state_acl),
+	&PKTINFO(m54x_acl_control),
 };
 
 static DEFINE_SEQINFO(m54x_set_bl_param_seq, m54x_set_bl_param_cmdtbl);

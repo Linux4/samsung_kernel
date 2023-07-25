@@ -277,6 +277,18 @@ static int of_s2mpu15_dt(struct device *dev,
 	else
 		pdata->osc_xout = -1;
 
+	ret = of_property_read_u32(np, "inst_acok_en", &val);
+	if (!ret)
+		pdata->inst_acok_en = val;
+	else
+		pdata->inst_acok_en = -1;
+
+	ret = of_property_read_u32(np, "jig_reboot_en", &val);
+	if (!ret)
+		pdata->jig_reboot_en = val;
+	else
+		pdata->jig_reboot_en = -1;
+
 	return 0;
 }
 #else
@@ -348,6 +360,8 @@ static int s2mpu15_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id 
 	s2mpu15->irq = i2c->irq;
 	s2mpu15->pdata = pdata;
 	s2mpu15->wakeup = pdata->wakeup;
+	s2mpu15->inst_acok_en = pdata->inst_acok_en;
+	s2mpu15->jig_reboot_en = pdata->jig_reboot_en;
 	s2mpu15->irq_base = pdata->irq_base;
 
 	s2mpu15_set_new_i2c_device(s2mpu15);

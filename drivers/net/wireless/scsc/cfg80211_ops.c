@@ -1391,23 +1391,6 @@ int slsi_set_sta_bss_info(struct wiphy *wiphy, struct net_device *dev, struct sl
 			*bssid = ndev_vif->sta.sta_bss->bssid;
 		}
 	} else {
-#ifdef CONFIG_SEC_FACTORY
-		if (sdev->device_config.supported_band != SLSI_FREQ_BAND_AUTO) {
-			int supported_band = sdev->device_config.supported_band;
-			int bss_band = ndev_vif->sta.sta_bss->channel->band;
-
-			SLSI_NET_DBG3(dev, SLSI_CFG80211, "sup_band %d, bss_band %d\n", supported_band, bss_band);
-			if (supported_band == SLSI_FREQ_BAND_2GHZ && bss_band != NL80211_BAND_2GHZ)
-				return -EPERM;
-			if (supported_band == SLSI_FREQ_BAND_5GHZ && bss_band != NL80211_BAND_5GHZ)
-				return -EPERM;
-#ifdef CONFIG_SCSC_WLAN_SUPPORT_6G
-			if (supported_band == SLSI_FREQ_BAND_6GHZ && bss_band != NL80211_BAND_6GHZ)
-				return -EPERM;
-#endif
-		}
-#endif
-
 		*channel = ndev_vif->sta.sta_bss->channel;
 		*bssid = ndev_vif->sta.sta_bss->bssid;
 	}

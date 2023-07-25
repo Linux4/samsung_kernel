@@ -560,7 +560,7 @@
 					regulator-enable-ramp-delay = <0xfa>;
 					regulator-ramp-delay = <0x00>;
 					regulator-allow-set-load;
-					phandle = <0x33>;
+					phandle = <0x32>;
 				};
 
 				l2 {
@@ -619,7 +619,7 @@
 					regulator-max-microvolt = <0x2fbac0>;
 					regulator-enable-ramp-delay = <0xfa>;
 					regulator-ramp-delay = <0x00>;
-					phandle = <0x35>;
+					phandle = <0x34>;
 				};
 
 				l8 {
@@ -753,7 +753,7 @@
 					regulator-enable-ramp-delay = <0xfa>;
 					regulator-ramp-delay = <0x00>;
 					regulator-allow-set-load;
-					phandle = <0x34>;
+					phandle = <0x33>;
 				};
 
 				l11 {
@@ -902,7 +902,7 @@
 			hstx-trim@240 {
 				reg = <0x240 0x01>;
 				bits = <0x19 0x03>;
-				phandle = <0x32>;
+				phandle = <0x31>;
 			};
 
 			gpu-speed-bin@41a0 {
@@ -926,7 +926,7 @@
 			#interconnect-cells = <0x01>;
 			clock-names = "bus\0bus_a";
 			clocks = <0x23 0x06 0x23 0x07>;
-			phandle = <0x2b>;
+			phandle = <0x2a>;
 		};
 
 		restart@10ac000 {
@@ -972,7 +972,7 @@
 			#interconnect-cells = <0x01>;
 			clock-names = "bus\0bus_a\0ipa\0ufs_axi\0aggre2_ufs_axi\0aggre2_usb3_axi\0cfg_noc_usb2_axi";
 			clocks = <0x23 0x40 0x23 0x41 0x23 0x44 0x22 0x50 0x22 0x14 0x22 0x15 0x22 0x30>;
-			phandle = <0x36>;
+			phandle = <0x35>;
 		};
 
 		interconnect@1745000 {
@@ -1295,7 +1295,7 @@
 				clk {
 					pins = "sdc2_clk";
 					bias-disable;
-					drive-strength = <0x10>;
+					drive-strength = <0x0e>;
 				};
 
 				cmd {
@@ -1314,10 +1314,6 @@
 					pins = "gpio54";
 					bias-pull-up;
 					drive-strength = <0x02>;
-				};
-
-				pinconf-clk {
-					drive-strength = <0x0e>;
 				};
 			};
 
@@ -1400,14 +1396,15 @@
 			iommus = <0x28 0x00>;
 			nvmem-cells = <0x29>;
 			nvmem-cell-names = "speed_bin";
-			interconnects = <0x2a 0x01 0x2b 0x05>;
+			interconnects = <0x2a 0x01 0x2a 0x05>;
 			interconnect-names = "gfx-mem";
-			operating-points-v2 = <0x2c>;
+			operating-points-v2 = <0x2b>;
+			status = "disabled";
 			phandle = <0xa4>;
 
 			opp-table {
 				compatible = "operating-points-v2";
-				phandle = <0x2c>;
+				phandle = <0x2b>;
 
 				opp-775000000 {
 					opp-hz = <0x00 0x2e318fc0>;
@@ -1556,7 +1553,7 @@
 					compatible = "qcom,spmi-temp-alarm";
 					reg = <0x2400>;
 					interrupts = <0x00 0x24 0x00 0x01>;
-					io-channels = <0x2d 0x06>;
+					io-channels = <0x2c 0x06>;
 					io-channel-names = "thermal";
 					#thermal-sensor-cells = <0x00>;
 					phandle = <0x71>;
@@ -1569,7 +1566,7 @@
 					#address-cells = <0x01>;
 					#size-cells = <0x00>;
 					#io-channel-cells = <0x01>;
-					phandle = <0x2d>;
+					phandle = <0x2c>;
 
 					ref_gnd@0 {
 						reg = <0x00>;
@@ -1665,11 +1662,11 @@
 					compatible = "qcom,pm660-gpio";
 					reg = <0xc000>;
 					gpio-controller;
-					gpio-ranges = <0x2e 0x00 0x00 0x0d>;
+					gpio-ranges = <0x2d 0x00 0x00 0x0d>;
 					#gpio-cells = <0x02>;
 					interrupt-controller;
 					#interrupt-cells = <0x02>;
-					phandle = <0x2e>;
+					phandle = <0x2d>;
 				};
 			};
 
@@ -1703,11 +1700,11 @@
 					compatible = "qcom,pm660l-gpio\0qcom,spmi-gpio";
 					reg = <0xc000>;
 					gpio-controller;
-					gpio-ranges = <0x2f 0x00 0x00 0x0c>;
+					gpio-ranges = <0x2e 0x00 0x00 0x0c>;
 					#gpio-cells = <0x02>;
 					interrupt-controller;
 					#interrupt-cells = <0x02>;
-					phandle = <0x2f>;
+					phandle = <0x2e>;
 				};
 			};
 
@@ -1765,11 +1762,11 @@
 				snps,dis_u2_susphy_quirk;
 				snps,dis_enblslpm_quirk;
 				maximum-speed = "high-speed";
-				phys = <0x30>;
+				phys = <0x2f>;
 				phy-names = "usb2-phy";
 				snps,hird-threshold = [00];
 				dr_mode = "peripheral";
-				extcon = <0x31>;
+				extcon = <0x30>;
 				phandle = <0xb6>;
 			};
 		};
@@ -1778,15 +1775,15 @@
 			compatible = "qcom,sdm660-qusb2-phy";
 			reg = <0xc012000 0x180>;
 			#phy-cells = <0x00>;
-			clocks = <0x22 0x61 0x22 0x82>;
+			clocks = <0x22 0x61 0x22 0x81>;
 			clock-names = "cfg_ahb\0ref";
 			resets = <0x22 0x00>;
-			nvmem-cells = <0x32>;
+			nvmem-cells = <0x31>;
 			status = "disabled";
-			vdd-supply = <0x33>;
-			vdda-pll-supply = <0x34>;
-			vdda-phy-dpdm-supply = <0x35>;
-			phandle = <0x30>;
+			vdd-supply = <0x32>;
+			vdda-pll-supply = <0x33>;
+			vdda-phy-dpdm-supply = <0x34>;
+			phandle = <0x2f>;
 		};
 
 		sdhci@c084000 {
@@ -1798,7 +1795,7 @@
 			bus-width = <0x04>;
 			clocks = <0x22 0x4e 0x22 0x4d 0x20>;
 			clock-names = "core\0iface\0xo";
-			interconnects = <0x36 0x03 0x36 0x0a 0x2a 0x00 0x37 0x1c>;
+			interconnects = <0x35 0x03 0x35 0x0a 0x36 0x00 0x37 0x1c>;
 			operating-points-v2 = <0x38>;
 			pinctrl-names = "default\0sleep";
 			pinctrl-0 = <0x39>;
@@ -1844,7 +1841,7 @@
 			interrupt-names = "hc_irq\0pwr_irq";
 			clocks = <0x22 0x4b 0x22 0x4a 0x20 0x22 0x4c>;
 			clock-names = "core\0iface\0xo\0ice";
-			interconnects = <0x36 0x02 0x36 0x0a 0x2a 0x00 0x37 0x1b>;
+			interconnects = <0x35 0x02 0x35 0x0a 0x36 0x00 0x37 0x1b>;
 			interconnect-names = "sdhc1-ddr\0cpu-sdhc1";
 			operating-points-v2 = <0x40>;
 			pinctrl-names = "default\0sleep";
@@ -1946,7 +1943,7 @@
 				assigned-clock-rates = <0x11e1a300 0x124f800>;
 				clocks = <0x24 0x60 0x24 0x61 0x24 0x70 0x24 0x74>;
 				clock-names = "iface\0bus\0core\0vsync";
-				interconnects = <0x49 0x02 0x2b 0x05 0x49 0x03 0x2b 0x05 0x2a 0x00 0x49 0x11>;
+				interconnects = <0x49 0x02 0x2a 0x05 0x49 0x03 0x2a 0x05 0x36 0x00 0x49 0x11>;
 				interconnect-names = "mdp0-mem\0mdp1-mem\0rotator-mem";
 				iommus = <0x4a 0x00>;
 				operating-points-v2 = <0x4b>;
@@ -2350,7 +2347,7 @@
 			interrupt-names = "csiphy0\0csiphy1\0csiphy2\0csid0\0csid1\0csid2\0csid3\0ispif\0vfe0\0vfe1";
 			clocks = <0x24 0x55 0x24 0x7a 0x24 0x4c 0x24 0x34 0x24 0x39 0x24 0x3e 0x24 0x32 0x24 0x33 0x24 0x2a 0x24 0x35 0x24 0x36 0x24 0x37 0x24 0x38 0x24 0x2b 0x24 0x3a 0x24 0x3b 0x24 0x3c 0x24 0x3d 0x24 0x2c 0x24 0x3f 0x24 0x40 0x24 0x41 0x24 0x42 0x24 0x2d 0x24 0x43 0x24 0x44 0x24 0x27 0x24 0x57 0x24 0x45 0x24 0x56 0x24 0x58 0x24 0x5a 0x24 0x46 0x24 0x59 0x24 0x5b 0x24 0x5c 0x24 0x5d 0x24 0x5e 0x24 0x2a 0x24 0x2b 0x24 0x2c 0x24 0x2d>;
 			clock-names = "top_ahb\0throttle_axi\0ispif_ahb\0csiphy0_timer\0csiphy1_timer\0csiphy2_timer\0csi0_ahb\0csi0\0csi0_phy\0csi0_pix\0csi0_rdi\0csi1_ahb\0csi1\0csi1_phy\0csi1_pix\0csi1_rdi\0csi2_ahb\0csi2\0csi2_phy\0csi2_pix\0csi2_rdi\0csi3_ahb\0csi3\0csi3_phy\0csi3_pix\0csi3_rdi\0ahb\0vfe0\0csi_vfe0\0vfe0_ahb\0vfe0_stream\0vfe1\0csi_vfe1\0vfe1_ahb\0vfe1_stream\0vfe_ahb\0vfe_axi\0csiphy_ahb2crif\0cphy_csid0\0cphy_csid1\0cphy_csid2\0cphy_csid3";
-			interconnects = <0x49 0x05 0x2b 0x05>;
+			interconnects = <0x49 0x05 0x2a 0x05>;
 			interconnect-names = "vfe-mem";
 			iommus = <0x4a 0xc00 0x4a 0xc01 0x4a 0xc02 0x4a 0xc03>;
 			power-domains = <0x24 0x04 0x24 0x05>;
@@ -2493,7 +2490,7 @@
 			#interconnect-cells = <0x01>;
 			clock-names = "bus\0bus_a";
 			clocks = <0x20 0x20>;
-			phandle = <0x2a>;
+			phandle = <0x36>;
 		};
 
 		mailbox@17911000 {
@@ -2896,7 +2893,7 @@
 
 		vol_down {
 			label = "Volume Down";
-			gpios = <0x2f 0x07 0x01>;
+			gpios = <0x2e 0x07 0x01>;
 			linux,input-type = <0x01>;
 			linux,code = <0x72>;
 			gpio-key,wakeup;
@@ -2907,7 +2904,7 @@
 	extcon-usb {
 		compatible = "linux,extcon-usb-gpio";
 		id-gpio = <0x25 0x3a 0x00>;
-		phandle = <0x31>;
+		phandle = <0x30>;
 	};
 
 	__symbols__ {

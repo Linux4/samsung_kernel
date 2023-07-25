@@ -71,6 +71,8 @@
 /* Maximum packets per transfer for UL aggregation */
 #define RNDIS_UL_MAX_PKT_PER_XFER 3
 
+extern struct rndis_multipacket g_rndis_mp;
+
 struct f_rndis {
 	struct gether			port;
 	u8				ctrl_id, data_id;
@@ -471,15 +473,15 @@ static void rndis_command_complete(struct usb_ep *ep, struct usb_request *req)
 
 	if (buf->MessageType == RNDIS_MSG_INIT) {
 		if (buf->MaxTransferSize > 2048)
-			rndis->port.multi_pkt_xfer = 1;
+			g_rndis_mp.multi_pkt_xfer = 1;
 		else
-			rndis->port.multi_pkt_xfer = 0;
+			g_rndis_mp.multi_pkt_xfer = 0;
 		pr_debug("%s: MaxTransferSize: %d : Multi_pkt_txr: %s\n",
 				__func__, buf->MaxTransferSize,
-				rndis->port.multi_pkt_xfer ? "enabled" :
+				g_rndis_mp.multi_pkt_xfer ? "enabled" :
 							    "disabled");
 		if (rndis->rndis_dl_max_pkt_per_xfer <= 1)
-			rndis->port.multi_pkt_xfer = 0;
+			g_rndis_mp.multi_pkt_xfer = 0;
 	}
 //	spin_unlock(&dev->lock);
 }
@@ -1033,8 +1035,8 @@ static struct usb_function *rndis_alloc(struct usb_function_instance *fi)
 	rndis->port.header_len = sizeof(struct rndis_packet_msg_type);
 	rndis->port.wrap = rndis_add_header;
 	rndis->port.unwrap = rndis_rm_hdr;
-	rndis->port.ul_max_pkts_per_xfer = RNDIS_UL_MAX_PKT_PER_XFER;
-	rndis->port.dl_max_pkts_per_xfer = RNDIS_DL_MAX_PKT_PER_XFER;
+	g_rndis_mp.link_ul_max_pkts_per_xfer = RNDIS_UL_MAX_PKT_PER_XFER;
+	g_rndis_mp.link_dl_max_pkts_per_xfer = RNDIS_DL_MAX_PKT_PER_XFER;
 
 	rndis->port.func.name = "rndis";
 	/* descriptors are per-instance copies */

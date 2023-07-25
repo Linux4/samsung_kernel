@@ -332,6 +332,7 @@ int slsi_mlme_set_ap_tx_power(struct slsi_dev *sdev, struct net_device *dev, u16
 int slsi_mlme_get_ap_tx_power(struct slsi_dev *sdev, struct net_device *dev, char *command,
 			      int buf_len, u16 ifnum);
 #endif
+int slsi_mlme_set_max_tx_power(struct slsi_dev *sdev, struct net_device *dev, int *pwr_limit);
 
 int slsi_mlme_scheduled_pm_leaky_ap_detect(struct slsi_dev *sdev, struct net_device *dev, struct slsi_sched_pm_leaky_ap *leaky_ap);
 

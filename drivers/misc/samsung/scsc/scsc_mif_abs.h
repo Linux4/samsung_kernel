@@ -308,6 +308,19 @@ address (provided it is within a permissible BAAW range).*/
 	int (*set_mbox_pmu)(struct scsc_mif_abs *interface, u32 val);
 	int (*load_pmu_fw)(struct scsc_mif_abs *interface, u32 *ka_patch, size_t ka_patch_len);
 	void (*irq_reg_pmu_handler)(struct scsc_mif_abs *interface, void (*handler)(int irq, void *data), void *dev);
+
+#if defined(CONFIG_SCSC_PCIE_CHIP)
+	void (*irq_reg_pmu_error_handler)(struct scsc_mif_abs *interface, void (*handler)(int irq, void *data), void *dev);
+	int (*get_mbox_pmu_pcie_off)(struct scsc_mif_abs *interface);
+	int (*set_mbox_pmu_pcie_off)(struct scsc_mif_abs *interface, u32 val);
+	int (*get_mbox_pmu_error)(struct scsc_mif_abs *interface);
+#endif
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+	void (*send_dcxo_cmd)(struct scsc_mif_abs *interface, u8 opcode, u32 val);
+	int (*check_dcxo_ack)(struct scsc_mif_abs *interface, u8 opcode, u32* val);
+	int (*irq_register_mbox_apm)(struct scsc_mif_abs *interface);
+	void (*irq_unregister_mbox_apm)(struct scsc_mif_abs *interface);
+#endif
 #endif
 	bool (*wlbt_property_read_bool)(struct scsc_mif_abs *interface, const char *propname);
 	int (*wlbt_property_read_u8)(struct scsc_mif_abs *interface,

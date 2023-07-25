@@ -414,14 +414,11 @@ void update_sched_domain_debugfs(void)
 
 	for_each_cpu(cpu, sd_sysctl_cpus) {
 		struct sched_domain *sd;
-		struct dentry *d_cpu,*d_lookup;
+		struct dentry *d_cpu;
 		char buf[32];
 
 		snprintf(buf, sizeof(buf), "cpu%d", cpu);
-		d_lookup = debugfs_lookup(buf, sd_dentry);
-		debugfs_remove(d_lookup);
-		if(!IS_ERR_OR_NULL(d_lookup))
-			dput(d_lookup);
+		debugfs_lookup_and_remove(buf, sd_dentry);
 		d_cpu = debugfs_create_dir(buf, sd_dentry);
 
 		i = 0;

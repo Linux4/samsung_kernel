@@ -251,9 +251,13 @@ struct fwhdr_if *bhdr_create(void)
 /* Implementation destroy */
 void bhdr_destroy(struct fwhdr_if *interface)
 {
-	struct bhdr *bhdr = bhdr_from_fwhdr_if(interface);
+	struct bhdr *bhdr;
 	struct fwhdr_if *fw_if;
 
+	if (!interface)
+		return;
+
+	bhdr = bhdr_from_fwhdr_if(interface);
 	if (!bhdr)
 		return;
 

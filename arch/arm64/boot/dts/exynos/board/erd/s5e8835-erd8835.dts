@@ -2601,6 +2601,8 @@
 
 			s2mpu15mfd@1f {
 				compatible = "samsung,s2mpu15mfd";
+				inst_acok_en = <0x01>;
+				jig_reboot_en = <0x01>;
 				acpm-ipc-channel = <0x02>;
 				s2mpu15,wakeup = "enabled";
 				reg = <0x1f>;
