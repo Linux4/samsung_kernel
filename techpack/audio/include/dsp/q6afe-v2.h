@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __Q6AFE_V2_H__
 #define __Q6AFE_V2_H__
@@ -65,6 +66,13 @@
 #define BAP_BROADCAST        2
 #define BAP_BA_SIMULCAST     3
 
+#define AFE_TDM_INTERFACE_MAX 10
+#define AFE_ID_MASK 0xFF
+#define AFE_ID_SHIFT 4
+#define PORT_ID_TO_INTF_IDX(b) ((b & AFE_ID_MASK) >> AFE_ID_SHIFT)
+#define AFE_TDM_RX_GET_GROUP_IDX(b) ((PORT_ID_TO_INTF_IDX(b)) * 2)
+#define AFE_TDM_TX_GET_GROUP_IDX(b) ((PORT_ID_TO_INTF_IDX(b)) * 2 + 1)
+#define MAX_PORTS_PER_INTF 8
 #if defined(CONFIG_SND_SOC_TFA9878)
 /*Module ID*/
 #define AFE_MODULE_ID_TFADSP          0x1000B910
@@ -95,6 +103,7 @@
 #endif // CONFIG_SND_SOC_TFA9878
 
 typedef int (*routing_cb)(int port);
+u16 num_of_bits_set(u16 sd_line_mask);
 
 enum {
 	/* IDX 0->4 */
@@ -636,8 +645,12 @@ int afe_tdm_port_start(u16 port_id, struct afe_tdm_port_config *tdm_port,
 void afe_set_routing_callback(routing_cb cb);
 int afe_port_send_logging_cfg(u16 port_id,
 	struct afe_param_id_port_data_log_disable_t *log_disable);
+int afe_port_send_afe_limiter_param(u16 port_id,
+	struct afe_param_id_port_afe_limiter_disable_t *disable_limiter);
 int afe_get_av_dev_drift(struct afe_param_id_dev_timing_stats *timing_stats,
 		u16 port);
+int afe_set_lpass_clk_cfg_ext_mclk_v2(int index,
+	struct afe_param_id_clock_set_v2_t *dyn_mclk_cfg, uint32_t mclk_freq);
 #if defined(CONFIG_SND_SOC_TFA9878)
 int afe_tfadsp_read(void *dev, int buf_size, unsigned char *buf);
 int afe_tfadsp_write(void *dev, int buf_size, const char *buf);
@@ -724,4 +737,15 @@ int afe_get_spk_v_vali_flag(void);
 void afe_get_spk_v_vali_sts(int *spk_v_vali_sts);
 void afe_set_spk_initial_cal(int initial_cal);
 void afe_set_spk_v_vali_flag(int v_vali_flag);
+struct afe_tdm_intf_paired_rx_cfg {
+	int afe_port_id;
+	union afe_port_group_config tdm_group; /* hold tdm group config */
+	struct afe_tdm_port_config tdm_port; /* hold tdm config */
+	struct afe_param_id_tdm_lane_cfg tdm_lane; /* hold tdm lane config */
+};
+void afe_tdm_paired_rx_cfg_val(int intf_idx, int afe_port_id,
+	union afe_port_group_config tdm_group, struct afe_tdm_port_config tdm_port,
+	struct afe_param_id_tdm_lane_cfg tdm_lane);
+int afe_paired_rx_tdm_port_ops(int intf_idx, bool enable, atomic_t *dai_group_ref);
+
 #endif /* __Q6AFE_V2_H__ */

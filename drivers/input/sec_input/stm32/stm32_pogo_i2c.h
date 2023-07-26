@@ -381,6 +381,7 @@ struct stm32_dev {
 	int					debug_flag;
 	bool					hall_flag;
 	struct completion			i2c_done;
+	bool					pogo_enable;
 	bool					firm_state;
 #if IS_ENABLED(CONFIG_QCOM_BUS_SCALING)
 	u32					stm32_bus_perf_client;

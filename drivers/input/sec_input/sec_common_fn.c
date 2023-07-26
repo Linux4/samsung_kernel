@@ -1299,11 +1299,10 @@ void sec_input_unregister_vbus_notifier(struct device *dev)
 #if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	manager_notifier_unregister(&pdata->ccic_nb);
 #endif
+	vbus_notifier_unregister(&pdata->vbus_nb);
 	cancel_work_sync(&pdata->vbus_notifier_work);
 	flush_workqueue(pdata->vbus_notifier_workqueue);
 	destroy_workqueue(pdata->vbus_notifier_workqueue);
-
-	vbus_notifier_unregister(&pdata->vbus_nb);
 #endif
 }
 EXPORT_SYMBOL(sec_input_unregister_vbus_notifier);

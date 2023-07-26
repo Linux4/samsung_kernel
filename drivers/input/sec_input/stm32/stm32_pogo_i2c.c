@@ -1860,6 +1860,35 @@ static ssize_t pogo_get_tc_crc(struct device *dev,
 	return snprintf(buf, sizeof(buff), "%s", buff);
 }
 
+static ssize_t pogo_enable_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct stm32_dev *stm32 = dev_get_drvdata(dev);
+
+	input_info(true, dev, "%s: %d\n", __func__, stm32->pogo_enable);
+
+	return snprintf(buf, 5, "%d\n", stm32->pogo_enable);
+}
+
+static ssize_t pogo_enable_store(struct device *dev,
+		struct device_attribute *attr, const char *buf,
+		size_t size)
+{
+	struct stm32_dev *stm32 = dev_get_drvdata(dev);
+	int ret, param;
+
+	ret = kstrtoint(buf, 10, &param);
+	if (ret)
+		return ret;
+
+	stm32->pogo_enable = !!param;
+
+	gpio_direction_output(stm32->dtdata->mcu_nrst, stm32->pogo_enable);
+	stm32_delay(3);
+
+	return size;
+}
+
 static int stm32_tc_fw_update(struct stm32_dev *stm32)
 {
 	int ret;
@@ -2078,6 +2107,7 @@ static DEVICE_ATTR(read_cmd, 0200, NULL, pogo_i2c_read);
 static DEVICE_ATTR(get_tc_fw_ver_bin, 0444, pogo_get_tc_fw_ver_bin, NULL);
 static DEVICE_ATTR(get_tc_fw_ver_ic, 0444, pogo_get_tc_fw_ver_ic, NULL);
 static DEVICE_ATTR(get_tc_crc, 0444, pogo_get_tc_crc, NULL);
+static DEVICE_ATTR(block_pogo_keyboard, 0644, pogo_enable_show, pogo_enable_store);
 static DEVICE_ATTR(get_mcu_fw_ver, 0444, get_mcu_fw_ver, NULL);
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 static DEVICE_ATTR(enabled, 0664, enabled_show, enabled_store);
@@ -2101,6 +2131,7 @@ static struct attribute *key_attributes[] = {
 	&dev_attr_get_tc_fw_ver_bin.attr,
 	&dev_attr_get_tc_fw_ver_ic.attr,
 	&dev_attr_get_tc_crc.attr,
+	&dev_attr_block_pogo_keyboard.attr,
 	&dev_attr_get_mcu_fw_ver.attr,
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 	&dev_attr_enabled.attr,
@@ -2276,6 +2307,7 @@ static int stm32_dev_probe(struct i2c_client *client,
 		INIT_DELAYED_WORK(&device_data->bus_voting_work, stm32_bus_voting_work);
 	
 #endif
+	device_data->pogo_enable = true;
 
 	BLOCKING_INIT_NOTIFIER_HEAD(&pogo_notifier.pogo_notifier_call_chain);
 

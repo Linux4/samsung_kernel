@@ -1715,9 +1715,12 @@ static int sx938x_pdic_handle_notification(struct notifier_block *nb,
 	PD_NOTI_ATTACH_TYPEDEF usb_typec_info = *(PD_NOTI_ATTACH_TYPEDEF *)pdic_data;
 	struct sx938x_p *data = container_of(nb, struct sx938x_p, pdic_nb);
 
-	if (usb_typec_info.id != PDIC_NOTIFY_ID_ATTACH &&
-		usb_typec_info.id != PDIC_NOTIFY_ID_OTG)
-		return 0;
+	if (usb_typec_info.id != PDIC_NOTIFY_ID_ATTACH) {
+#if (!IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT))
+		if (usb_typec_info.id != PDIC_NOTIFY_ID_OTG)
+#endif
+			return 0;
+	}
 
 	if (data->pre_attach == usb_typec_info.attach)
 		return 0;

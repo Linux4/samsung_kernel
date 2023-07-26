@@ -3508,7 +3508,7 @@ static void sde_crtc_destroy_state(struct drm_crtc *crtc,
 	}
 
 	encoder_mask = state->encoder_mask ? state->encoder_mask :
-	crtc->state->encoder_mask;
+				crtc->state->encoder_mask;
 	SDE_DEBUG("crtc%d\n, encoder_mask=%d", crtc->base.id, encoder_mask);
 
 	drm_for_each_encoder_mask(enc, crtc->dev, encoder_mask)

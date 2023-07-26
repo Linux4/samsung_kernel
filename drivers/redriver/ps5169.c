@@ -50,19 +50,19 @@ int ps5169_i2c_check(void)
 
 void ps5169_notify_dplink(u8 eq0, u8 eq1)
 {
-    pr_info("%s: %d,%d\n", __func__, eq0, eq1);
-    if (!redrv_data) {
-        pr_err("%s: Invalid redrv_data\n", __func__);
-        return;
-    }
+	pr_info("%s: %d,%d\n", __func__, eq0, eq1);
+	if (!redrv_data) {
+		pr_err("%s: Invalid redrv_data\n", __func__);
+		return;
+	}
 
-    if (!redrv_data->i2c) {
-        pr_err("%s: Invalid redrv_data->i2c\n", __func__);
-        return;
-    }
+	if (!redrv_data->i2c) {
+		pr_err("%s: Invalid redrv_data->i2c\n", __func__);
+		return;
+	}
 
-    i2c_smbus_write_byte_data(redrv_data->i2c, 0x52, eq0);
-    i2c_smbus_write_byte_data(redrv_data->i2c, 0x5e, eq1);
+	i2c_smbus_write_byte_data(redrv_data->i2c, 0x52, eq0);
+	i2c_smbus_write_byte_data(redrv_data->i2c, 0x5e, eq1);
 }
 EXPORT_SYMBOL(ps5169_notify_dplink);
 
@@ -87,10 +87,9 @@ int ps5169_config(int config, int is_DFP)
 	if (is_DFP == redrv_data->is_DFP && is_DFP == 1 && config == USB_ONLY_MODE) {
 		pr_err("%s: already dfp, just return\n", __func__);
 		return 0;
-	}
-	else {
-		pr_err("%s: state chagned(%d) -> (%d)\n", __func__,redrv_data->is_DFP, is_DFP);
-	}
+	} else
+		pr_err("%s: state chagned(%d) -> (%d)\n", __func__, redrv_data->is_DFP, is_DFP);
+
 	redrv_data->is_DFP = is_DFP;
 
 	switch (config) {
@@ -122,6 +121,7 @@ int ps5169_config(int config, int is_DFP)
 		i2c_smbus_write_byte_data(redrv_data->i2c, 0x67, 0x03);
 		i2c_smbus_write_byte_data(redrv_data->i2c, 0x52, EQ0);
 		i2c_smbus_write_byte_data(redrv_data->i2c, 0x5e, EQ1);
+		i2c_smbus_write_byte_data(redrv_data->i2c, 0x04, 0x00);
 		break;
 
 	case USB_ONLY_MODE:
@@ -131,6 +131,11 @@ int ps5169_config(int config, int is_DFP)
 			i2c_smbus_write_byte_data(redrv_data->i2c, 0x40, 0xd0);
 
 		i2c_smbus_write_byte_data(redrv_data->i2c, 0xa0, 0x02);
+
+		if (is_DFP)
+			i2c_smbus_write_byte_data(redrv_data->i2c, 0x04, 0x00);
+		else
+			i2c_smbus_write_byte_data(redrv_data->i2c, 0x04, 0x44);
 
 		value = i2c_smbus_read_byte_data(redrv_data->i2c, 0x40);
 		pr_info("%s: USB3_ONLY_MODE read 0x40 (%x) (%s)\n",
@@ -159,6 +164,7 @@ int ps5169_config(int config, int is_DFP)
 
 		i2c_smbus_write_byte_data(redrv_data->i2c, 0xa0, 0x00);
 		i2c_smbus_write_byte_data(redrv_data->i2c, 0xa1, 0x04);
+		i2c_smbus_write_byte_data(redrv_data->i2c, 0x04, 0x00);
 
 		value = i2c_smbus_read_byte_data(redrv_data->i2c, 0x40);
 		pr_info("%s: DP2_LANE_USB3_MODE read 0x40 (%x) (%s)\n",
@@ -171,6 +177,7 @@ int ps5169_config(int config, int is_DFP)
 		i2c_smbus_write_byte_data(redrv_data->i2c, 0x40, 0x80);
 		i2c_smbus_write_byte_data(redrv_data->i2c, 0xa0, 0x02);
 		i2c_smbus_write_byte_data(redrv_data->i2c, 0xa1, 0x00);
+		i2c_smbus_write_byte_data(redrv_data->i2c, 0x04, 0x00);
 
 		value = i2c_smbus_read_byte_data(redrv_data->i2c, 0x40);
 		pr_info("%s: CLEAR_STATE read 0x40 (%x) (%s)\n",

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2008-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __ADRENO_H
 #define __ADRENO_H
@@ -15,9 +15,6 @@
 #include "adreno_profile.h"
 #include "adreno_ringbuffer.h"
 #include "kgsl_sharedmem.h"
-
-/* Index to preemption scratch buffer to store KMD postamble */
-#define KMD_POSTAMBLE_IDX 100
 
 /* ADRENO_DEVICE - Given a kgsl_device return the adreno device struct */
 #define ADRENO_DEVICE(device) \
@@ -267,7 +264,7 @@ enum adreno_preempt_states {
  * skipsaverestore: To skip saverestore during L1 preemption (for 6XX)
  * usesgmem: enable GMEM save/restore across preemption (for 6XX)
  * count: Track the number of preemptions triggered
- * @postamble_len: Number of dwords in KMD postamble pm4 packet 
+ * @postamble_len: Number of dwords in KMD postamble pm4 packet
  */
 struct adreno_preemption {
 	atomic_t state;
@@ -589,7 +586,7 @@ struct adreno_device {
 	 * @perfcounter: Flag to clear perfcounters across contexts and
 	 * controls perfcounter ioctl read
 	 */
-	bool perfcounter;	
+	bool perfcounter;
 };
 
 /**
