@@ -233,6 +233,11 @@ struct rt9471_chip {
 	struct extcon_dev *edev;
 	struct regmap *pmic;
 	u32 charger_detect;
+	/* HS03 code for SL6215DEV-3879 by Ditong at 20211221 start */
+	u32 actual_limit_voltage;
+	u32 limit_cur;
+	u32 limit_voltage;
+	/* HS03 code for SL6215DEV-3879 by Ditong at 20211221 end */
 	bool otg_enable;
 	bool otg_fault;
 };
@@ -930,6 +935,9 @@ static int __rt9471_set_cv(struct rt9471_chip *chip, u32 cv)
 				    RT9471_CV_STEP, cv);
 
 	dev_info(chip->dev, "%s cv = %d(0x%02X)\n", __func__, cv, regval);
+	/* HS03 code for SL6215DEV-3879 by Ditong at 20211221 start */
+	chip->actual_limit_voltage = cv;
+	/* HS03 code for SL6215DEV-3879 by Ditong at 20211221 end */
 
 	return rt9471_i2c_update_bits(chip, RT9471_REG_VCHG,
 				      regval << RT9471_CV_SHIFT,
@@ -939,6 +947,10 @@ static int __rt9471_set_cv(struct rt9471_chip *chip, u32 cv)
 static int __rt9471_set_ieoc(struct rt9471_chip *chip, u32 ieoc)
 {
 	u8 regval = 0;
+
+	/* HS03 code for SL6215DEV-3640 by ditong at 20211117 start */
+	ieoc = RT9471_IEOC_MIN;
+	/* HS03 code for SL6215DEV-3640 by ditong at 20211117 end */
 
 	regval = rt9471_closest_reg(RT9471_IEOC_MIN, RT9471_IEOC_MAX,
 				    RT9471_IEOC_STEP, ieoc);
@@ -975,6 +987,74 @@ static int __rt9471_set_mivrtrack(struct rt9471_chip *chip, u32 mivr_track)
 				      mivr_track << RT9471_MIVRTRACK_SHIFT,
 				      RT9471_MIVRTRACK_MASK);
 }
+
+/* HS03 code for SL6215DEV-3879 by Ditong at 20211221 start */
+static int rt9471_charger_get_limit_voltage(struct rt9471_chip *chip,
+					     u32 *val)
+{
+
+	int ret = 0;
+	u8 regval = 0;
+
+	ret = rt9471_i2c_read_byte(chip, RT9471_REG_VCHG, &regval);
+	if (ret < 0) {
+		return ret;
+	}
+
+	regval = (regval & RT9471_CV_MASK) >> RT9471_CV_SHIFT;
+	*val = rt9471_closest_value(RT9471_CV_MIN, RT9471_CV_MAX, RT9471_CV_STEP,
+				   regval);
+
+	dev_err(chip->dev, "limit voltage is %d, actual_limt is %d\n", *val, chip->actual_limit_voltage);
+
+	return 0;
+}
+
+static int __rt9471_set_termina_vol(struct rt9471_chip *chip, u32 cv)
+{
+	u8 regval = 0;
+
+	regval = rt9471_closest_reg(RT9471_CV_MIN, RT9471_CV_MAX,
+				    RT9471_CV_STEP, cv);
+
+	dev_info(chip->dev, "%s terminal voltage = %d(0x%02X)\n", __func__, cv, regval);
+	chip->actual_limit_voltage = cv;
+
+	return rt9471_i2c_update_bits(chip, RT9471_REG_VCHG,
+				      regval << RT9471_CV_SHIFT,
+				      RT9471_CV_MASK);
+}
+
+static int rt9471_charger_feed_watchdog(struct rt9471_chip *chip,
+					bool en)
+{
+	int ret;
+	u32 limit_voltage = 4200;
+
+	ret = rt9471_i2c_update_bits(chip, RT9471_REG_TOP,
+					RT9471_WDTCNTRST_MASK,
+					RT9471_WDTCNTRST_MASK);
+	if (ret) {
+		dev_err(chip->dev, "reset rt9471 failed\n");
+		return ret;
+	}
+
+	ret = rt9471_charger_get_limit_voltage(chip, &limit_voltage);
+	if (ret) {
+		dev_err(chip->dev, "get limit voltage failed\n");
+		return ret;
+	}
+
+	if (chip->actual_limit_voltage != limit_voltage) {
+		ret = __rt9471_set_termina_vol(chip, chip->actual_limit_voltage);
+		if (ret) {
+			dev_err(chip->dev, "set terminal voltage failed\n");
+			return ret;
+		}
+	}
+	return 0;
+}
+/* HS03 code for SL6215DEV-3879 by Ditong at 20211221 end */
 
 static int __rt9471_kick_wdt(struct rt9471_chip *chip)
 {
@@ -2264,7 +2344,13 @@ static int rt9471_psy_set_property(struct power_supply *psy,
 		break;
 #endif
 	case POWER_SUPPLY_PROP_FEED_WATCHDOG:
+	/* HS03 code for SL6215DEV-3879 by Ditong at 20211221 start */
+		ret = rt9471_charger_feed_watchdog(chip, val->intval);
+		if (ret < 0) {
+			dev_err(chip->dev, "feed charger watchdog failed\n");
+		}
 		break;
+	/* HS03 code for SL6215DEV-3879 by Ditong at 20211221 end */
 	case POWER_SUPPLY_PROP_DUMP_CHARGER_IC:
 		rt9471_dump_register(chip);
 		break;

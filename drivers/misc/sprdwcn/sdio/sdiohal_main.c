@@ -325,7 +325,7 @@ int sdiohal_adma_pt_write(struct sdiohal_list_t *data_list)
 	struct timespec tm_begin, tm_end;
 	static long time_total_ns;
 	static int times_count;
-	struct bus_puh_t *puh_buf = NULL;
+
 
 	getnstimeofday(&tm_begin);
 
@@ -346,9 +346,7 @@ int sdiohal_adma_pt_write(struct sdiohal_list_t *data_list)
 					  SDIOHAL_DATA_FIX, SDIOHAL_WRITE,
 					  SDIOHAL_PK_MODE_ADDR);
 	if (ret != 0) {
-		puh_buf = (struct bus_puh_t *)data_list->mbuf_head->buf;
-		pr_err("sdio write fail,channel is %u, length is %u\n",
-                       puh_buf->subtype, puh_buf->len);
+
 		sdiohal_success_trans_pac_num();
 		sdiohal_abort();
 	}
@@ -936,12 +934,21 @@ static int sdiohal_parse_dt(void)
 	struct sdiohal_data_t *p_data = sdiohal_get_data();
 	struct device_node *np;
 	struct device_node *sdio_node;
+	struct platform_device *pdev;
 
 	np = of_find_node_by_name(NULL, "sprd-marlin3");
 	if (!np) {
 		pr_err("dts node not found");
 		return -1;
 	}
+
+	pdev = of_find_device_by_node(np);
+	if (pdev == NULL) {
+		pr_err("%s get platform device failed!!!", __func__);
+		return -1;
+	}
+
+	p_data->dev = &pdev->dev;
 
 	if (of_get_property(np, "adma-tx", NULL))
 		p_data->adma_tx_enable = true;
@@ -1016,6 +1023,7 @@ static int sdiohal_suspend(struct device *dev)
 		func = container_of(dev, struct sdio_func, dev);
 		func->card->host->pm_flags |= MMC_PM_KEEP_POWER;
 	}
+	enable_irq_wake(p_data->irq_num);
 
 	return 0;
 }
@@ -1030,6 +1038,7 @@ static int sdiohal_resume(struct device *dev)
 
 	pr_debug("[%s]enter\n", __func__);
 
+	disable_irq_wake(p_data->irq_num);
 	if (WCN_CARD_EXIST(&p_data->xmit_cnt)) {
 		func = container_of(dev, struct sdio_func, dev);
 		func->card->host->pm_flags &= ~MMC_PM_KEEP_POWER;
@@ -1351,6 +1360,7 @@ int sdiohal_init(void)
 	sdiohal_debug_init();
 #endif
 
+	device_init_wakeup(sdiohal_data->dev, true);
 	pr_info("%s sdiohal driver init successful\n", __func__);
 
 	return 0;
@@ -1359,6 +1369,8 @@ int sdiohal_init(void)
 void sdiohal_exit(void)
 {
 	sdio_unregister_driver(&sdiohal_driver);
+	device_init_wakeup(sdiohal_data->dev, false);
+
 
 #ifdef CONFIG_DEBUG_FS
 	sdiohal_debug_deinit();

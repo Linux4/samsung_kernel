@@ -350,6 +350,7 @@ out:
 		if (!fatal)
 			fatal = err;
 	} else {
+		print_bh(sb, bitmap_bh, 0, EXT4_BLOCK_SIZE(sb));
 		ext4_error(sb, "bit already cleared for inode %lu", ino);
 		if (gdp && !EXT4_MB_GRP_IBITMAP_CORRUPT(grp)) {
 			int count;

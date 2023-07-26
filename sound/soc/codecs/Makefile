@@ -237,6 +237,10 @@ snd-soc-wm9712-objs := wm9712.o
 snd-soc-wm9713-objs := wm9713.o
 snd-soc-wm-hubs-objs := wm_hubs.o
 snd-soc-zx-aud96p22-objs := zx_aud96p22.o
+# Tab A7 T618 code for SR-AX6189A-01-187 by yuyongxiang at 20211220 start
+snd-soc-aw87xxx-objs += aw87xxx/aw87xxx.o aw87xxx/aw_device.o aw87xxx/aw_monitor.o \
+                        aw87xxx/aw_bin_parse.o aw87xxx/aw_dsp.o aw87xxx/aw_acf_bin.o
+# Tab A7 T618 code for SR-AX6189A-01-187 by yuyongxiang at 20211220 end
 # Amp
 snd-soc-dio2125-objs := dio2125.o
 snd-soc-max9877-objs := max9877.o
@@ -244,6 +248,10 @@ snd-soc-max98504-objs := max98504.o
 snd-soc-tpa6130a2-objs := tpa6130a2.o
 snd-soc-tas2552-objs := tas2552.o
 
+# Tab A7 T618 code for SR-AX6189A-01-187 by yuyongxiang at 20211220 start
+#for AWINIC AW87XXX Smart K PA
+obj-$(CONFIG_SND_SOC_AW87XXX) += snd-soc-aw87xxx.o
+# Tab A7 T618 code for SR-AX6189A-01-187 by yuyongxiang at 20211220 end
 obj-$(CONFIG_SND_SOC_88PM860X)	+= snd-soc-88pm860x.o
 obj-$(CONFIG_SND_SOC_AB8500_CODEC)	+= snd-soc-ab8500-codec.o
 obj-$(CONFIG_SND_SOC_AC97_CODEC)	+= snd-soc-ac97.o

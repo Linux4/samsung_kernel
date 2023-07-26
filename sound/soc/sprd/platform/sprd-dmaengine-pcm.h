@@ -20,9 +20,9 @@
 #include <linux/dmaengine.h>
 #include <linux/dma/sprd-dma.h>
 #include "sprd_audio_dma.h"
-
-#define VBC_FIFO_FRAME_NUM		(512)
-
+/* Tab A8 code for P211105-01770 by yingboyang at 20211215 start */
+#define VBC_FIFO_FRAME_NUM		(80)
+/* Tab A8 code for P211105-01770 by yingboyang at 20211215 end */
 #define VBC_BUFFER_BYTES_MAX		(64 * 1024)
 
 #define I2S_BUFFER_BYTES_MAX	(64 * 1024)

@@ -98,7 +98,9 @@ struct sprd_hsphy {
 	/* HS03 code for P211026-03673 by gaochao at 20211028 end */
 };
 
-#define FULLSPEED_USB33_TUNE		2700000
+/* HS03_s code(Unisoc Patch) for SSL6215DEV-6 by lina at 20220228 start */
+#define FULLSPEED_USB33_TUNE		3300000
+/* HS03_s code(Unisoc Patch) for SSL6215DEV-6 by lina at 20220228 end */
 
 static int boot_cali;
 static __init int sprd_hsphy_cali_mode(char *str)
@@ -517,7 +519,7 @@ static int sprd_hsphy_vbus_notify(struct notifier_block *nb,
 	u32 reg, msk;
 	u32 ret = 0;
 
-	if (phy->is_host) {
+	if (phy->is_host || usb_phy->last_event == USB_EVENT_ID) {
 		dev_info(phy->dev, "USB PHY is host mode\n");
 		return 0;
 	}

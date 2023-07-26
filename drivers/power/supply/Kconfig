@@ -581,6 +581,16 @@ config CHARGER_SY6970
 	  Say Y to include support for SY SY6970 Battery Charger.
 # Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 end
 
+# Tab A7 Lite code T618 for SR-AX6189A-01-103 by shixuanxuan at 20220105 start
+config CHARGER_SC89890H
+	tristate "SC SC89890H Charger"
+	depends on I2C
+	depends on GPIOLIB || COMPILE_TEST
+	select REGMAP_I2C
+	help
+	  Say Y to include support for SC SC89890H Battery Charger.
+# Tab A7 Lite T618 code for SR-AX6189A-01-103 by shixuanxuan at 20220105 end
+
 config CHARGER_SMB347
 	tristate "Summit Microelectronics SMB347 Battery Charger"
 	depends on I2C
@@ -689,6 +699,14 @@ config CHARGER_RT9471
 	help
 	  Say Y to include support for RT9471 Battery Charger.
 # HS03 code for SR-SL6215-01-177 by jiahao at 20210810 end
+
+# HS03 code for SL6215DEV-4004 by lina at 20220119 start
+config CHARGER_SGM41513
+	tristate "TI SGM41513 Charger"
+	depends on I2C || COMPILE_TEST
+	help
+	  Say Y to include support for SGM SGM41513 Battery Charger.
+# HS03 code for SL6215DEV-4004 by lina at 20220119 end
 
 config CHARGER_BQ2597X
 	tristate "TI BQ2597X Charger"

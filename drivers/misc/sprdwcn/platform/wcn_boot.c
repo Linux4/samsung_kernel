@@ -81,6 +81,10 @@ static unsigned int cp_clk_wait_val;
 static unsigned int marlin2_clk_wait_reg;
 static char *fstab_ab;
 
+/* Tab A8 code for P211110-02599 by wangyanjie at 20211213 start */
+unsigned int sdio_pin;
+
+/* Tab A8 code for P211110-02599 by wangyanjie at 20211213 end */
 /* temp for rf pwm mode */
 /* static struct regmap *pwm_regmap; */
 
@@ -357,7 +361,31 @@ static struct imageinfo *marlin_judge_images(char *buffer)
 
 	return  NULL;
 }
+#define WCN_XPE_EFUSE_DDR 0x40859060
+unsigned int marlin_get_wcn_xpe_efuse_data(void)
+{
+        static unsigned int efuse_data;
+        int ret;
+        pr_info("marlin: efuse ddr=%x, data=%x, %s\n",
+		WCN_XPE_EFUSE_DDR, efuse_data, __func__);
 
+        if (unlikely(efuse_data != 0))
+                return efuse_data;
+
+        ret = sprdwcn_bus_reg_read(WCN_XPE_EFUSE_DDR, &efuse_data, 4);
+        if (ret < 0) {
+                pr_err("marlin read efuse data fail\n");
+                return 0;
+        }
+	efuse_data = efuse_data & (0x6);
+        pr_info("marlin: efuse ddr=%x, data=%x, %s\n",
+		WCN_XPE_EFUSE_DDR, efuse_data, __func__);
+
+        return efuse_data;
+}
+EXPORT_SYMBOL_GPL(marlin_get_wcn_xpe_efuse_data);
+
+#define WCN_WFBT_LOAD_FIRMWARE_OFFSET 0x180000
 static char *btwf_load_firmware_data(loff_t off, unsigned long int imag_size)
 {
 	int read_len, size, i, opn_num_max = 15;
@@ -401,7 +429,12 @@ static char *btwf_load_firmware_data(loff_t off, unsigned long int imag_size)
 		functionmask[7] = 0;
 
 	data = buffer;
+	if ((marlin_get_wcn_xpe_efuse_data() == WCN_XPE_EFUSE_DATA)) {
+			off = WCN_WFBT_LOAD_FIRMWARE_OFFSET;
+			WCN_INFO("btwf bin --------\r\n");
+	}
 	offset += off;
+	pr_info("btwf bin off =%x, offset =%x \n", off, offset);
 	do {
 		read_len = kernel_read(file, buffer, size, &offset);
 		if (read_len > 0) {
@@ -1102,6 +1135,18 @@ static int marlin_parse_dt(struct platform_device *pdev)
 		marlin_dev->bound_dcxo18 = false;
 	}
 
+	/* Tab A8 code for P211110-02599 by wangyanjie at 20211213 start */
+        /* get the sdio func def */
+        ret = of_property_read_u32(np, "sdio-func-def", &sdio_pin);
+        if (ret) {
+                pr_info("no find sdio-func-def is:%d\n",ret);
+                sdio_pin=10;
+        } else {
+                pr_info("find sdio-func-def is:%d\n",ret);
+                pr_info("sdio_pin is:%d\n",sdio_pin);
+        }
+
+	/* Tab A8 code for P211110-02599 by wangyanjie at 20211213 end */
 	marlin_dev->clk_32k = devm_clk_get(&pdev->dev, "clk_32k");
 	if (IS_ERR(marlin_dev->clk_32k)) {
 		pr_err("can't get wcn clock dts config: clk_32k\n");

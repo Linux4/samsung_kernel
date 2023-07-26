@@ -126,7 +126,6 @@ int cts_plat_is_i2c_online(struct cts_platform_data *pdata, u8 i2c_addr)
 #else
 int cts_spi_send_recv(struct cts_platform_data *pdata, size_t len , u8 *tx_buffer, u8 *rx_buffer)
 {
-    extern u16 cts_spi_speed;
 
     struct chipone_ts_data *cts_data;
     struct spi_message msg;

@@ -2301,7 +2301,13 @@ musb_init_controller(struct device *dev, int nIrq, void __iomem *ctrl)
 	 * 500 ms for some margin.
 	 */
 	pm_runtime_use_autosuspend(musb->controller);
+/* HS03 code for P211127-01004|SL6215DEV-3943 by lina at 20220108 start */
+#ifdef HQ_FACTORY_BUILD
 	pm_runtime_set_autosuspend_delay(musb->controller, 500);
+#else
+	pm_runtime_set_autosuspend_delay(musb->controller, 10);
+#endif
+/* HS03 code for P211127-01004|SL6215DEV-3943 by lina at 20220108 end */
 	pm_runtime_enable(musb->controller);
 	pm_runtime_get_sync(musb->controller);
 

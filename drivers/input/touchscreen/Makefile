@@ -105,6 +105,7 @@ obj-$(CONFIG_TOUCHSCREEN_ZFORCE)	+= zforce_ts.o
 obj-$(CONFIG_TOUCHSCREEN_COLIBRI_VF50)	+= colibri-vf50-ts.o
 obj-$(CONFIG_TOUCHSCREEN_ROHM_BU21023)	+= rohm_bu21023.o
 obj-$(CONFIG_TOUCHSCREEN_ADAPTIVE)      += adaptive-ts/
+# HS03 start
 # HS03 code for SL6215DEV-10 by yuanliding at 20210728 start
 obj-$(CONFIG_TOUCHSCREEN_CHIPONE) 	+= HS03/chipone/
 # HS03 code for SL6215DEV-10 by yuanliding at 20210728 end
@@ -114,12 +115,28 @@ obj-$(CONFIG_TOUCHSCREEN_JADARD_CHIPSET) += HS03/jdchipset/
 # HS03 code for SR-SL6215-01-102 by zhoulingyun at 20210730 start
 obj-$(CONFIG_TOUCHSCREEN_NT36xxx_HOSTDL_SPI) += HS03/nvt_touch/
 # HS03 code for SR-SL6215-01-102 by zhoulingyun at 20210730 end
-#Tab A8 code for SR-AX6300-01-23 by chenpengbo at 2021/08/05 start
-obj-$(CONFIG_TOUCHSCREEN_HIMAX_CHIPSET) += Tab_A8/hxchipset/
-#Tab A8 code for SR-AX6300-01-23 by chenpengbo at 2021/08/05 end
 # HS03 code for SR-SL6215-01-90 by wangjianqiu at 20210810 start
 obj-$(CONFIG_TOUCHSCREEN_GALAXYCORE) += HS03/galaxycore/
 # HS03 code for SR-SL6215-01-90 by wangjianqiu at 20210810 end
+# HS03 end
+
+# Tab A8 start
+#Tab A8 code for SR-AX6300-01-23 by chenpengbo at 2021/08/05 start
+obj-$(CONFIG_TOUCHSCREEN_HIMAX_CHIPSET) += Tab_A8/hxchipset/
+#Tab A8 code for SR-AX6300-01-23 by chenpengbo at 2021/08/05 end
 # Tab A8 code for SR-AX6300-01-405 by luxinjun at 20210905 start
-obj-$(CONFIG_TOUCHSCREEN_NT36xxx_HOSTDL_SPI_A8) += Tab_A8/NVT_Touch_HostDL/
+obj-$(CONFIG_TOUCHSCREEN_NT36XXX_HOSTDL_SPI_A8) += Tab_A8/NVT_Touch_HostDL/
 # Tab A8 code for SR-AX6300-01-405 by luxinjun at 20210905 end
+# Tab A8 code for SR-AX6300-01-448 by yuli at 2021/11/19 start
+obj-$(CONFIG_TOUCHSCREEN_FTS) += Tab_A8/focaltech_touch/
+# Tab A8 code for SR-AX6300-01-448 by yuli at 2021/11/19 end
+# Tab A8 end
+
+# Tab A7 T618 start
+# Tab A7 T618 code for AX6189DEV-20|AX6189DEV-26 by suyurui at 2021/12/21 start
+obj-$(CONFIG_TOUCHSCREEN_HIMAX_CHIPSET_OT9) += Tab_A7_Unisoc/hxchipset/
+# Tab A7 T618 code for AX6189DEV-20|AX6189DEV-26 by suyurui at 2021/12/21 end
+# Tab A7 T618 code for SR-AX6189A-01-148 by suyurui at 2021/12/22 start
+obj-$(CONFIG_TOUCHSCREEN_NT36XXX_HOSTDL_SPI_OT9) += Tab_A7_Unisoc/NVT_Touch/
+# Tab A7 T618 code for SR-AX6189A-01-148 by suyurui at 2021/12/22 end
+# Tab A7 T618 end

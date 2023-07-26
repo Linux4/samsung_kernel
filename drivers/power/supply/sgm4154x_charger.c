@@ -376,6 +376,9 @@
 /* Tab A8 code for AX6300DEV-103 by qiaodan at 20210827 start */
 #define SGM4154X_CURRENT_WORK_MS		msecs_to_jiffies(100)
 /* Tab A8 code for AX6300DEV-103 by qiaodan at 20210827 end*/
+/* Tab A7 Lite T618 code for AX6189DEV-78 by shixuanxuan at 20220106 start */
+#define RETRYCOUNT				3
+/* Tab A7 Lite T618 code for AX6189DEV-78 by shixuanxuan at 20220106 end */
 
 struct sgm4154x_charger_sysfs {
 	char *name;
@@ -421,6 +424,9 @@ struct sgm4154x_charger_info {
 	int termination_cur;
 	int vol_max_mv;
 	u32 actual_limit_current;
+	/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 start */
+	u32 actual_limit_voltage;
+	/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 end */
 	bool otg_enable;
 	struct alarm otg_timer;
 	struct sgm4154x_charger_sysfs *sysfs;
@@ -464,8 +470,15 @@ static int sgm4154x_charger_set_limit_current(struct sgm4154x_charger_info *info
 static int sgm4154x_read(struct sgm4154x_charger_info *info, u8 reg, u8 *data)
 {
 	int ret;
+	/* Tab A7 Lite T618 code for AX6189DEV-78 by shixuanxuan at 20220106 start */
+	int re_try = RETRYCOUNT;
 
 	ret = i2c_smbus_read_byte_data(info->client, reg);
+	while ((ret < 0) && (re_try != 0)) {
+		ret = i2c_smbus_read_byte_data(info->client, reg);
+		re_try--;
+	}
+	/* Tab A7 Lite T618 code for AX6189DEV-78 by shixuanxuan at 20220106 end */
 	if (ret < 0)
 		return ret;
 
@@ -625,16 +638,36 @@ static int sgm4154x_charger_set_vindpm(struct sgm4154x_charger_info *info, u32 v
 static int sgm4154x_charger_set_termina_vol(struct sgm4154x_charger_info *info, u32 vol)
 {
 	int reg_val;
+	/* Tab A8 code for P211125-06231 by zhaichao at 20211126 start */
+	int ret;
+	int retry_cnt = 3;
+	/* Tab A8 code for P211125-06231 by zhaichao at 20211126 end */
 
 	if (vol < SGM4154X_VREG_V_MIN_uV)
 		vol = SGM4154X_VREG_V_MIN_uV;
 	else if (vol > SGM4154X_VREG_V_MAX_uV)
 		vol = SGM4154X_VREG_V_MAX_uV;
-	
-	
+
+
 	reg_val = (vol-SGM4154X_VREG_V_MIN_uV) / SGM4154X_VREG_V_STEP_uV;
-	return sgm4154x_update_bits(info, SGM4154X_REG_04, REG04_VREG_MASK,
-				   reg_val << REG04_VREG_SHIFT);
+
+	/* Tab A8 code for P211125-06231 by zhaichao at 20211126 start */
+	do {
+		ret = sgm4154x_update_bits(info, SGM4154X_REG_04, REG04_VREG_MASK,
+				reg_val << REG04_VREG_SHIFT);
+		retry_cnt--;
+		usleep_range(30, 40);
+	} while ((retry_cnt != 0) && (ret != 0));
+	/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 start */
+	if (ret != 0) {
+		dev_err(info->dev, "sgm4154x set terminal voltage failed\n");
+	} else {
+		info->actual_limit_voltage = (reg_val * SGM4154X_VREG_V_STEP_uV) + SGM4154X_VREG_V_MIN_uV;
+		dev_err(info->dev, "sgm4154x set terminal voltage success, the value is %d\n" ,info->actual_limit_voltage);
+	}
+	/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 end */
+	return ret;
+	/* Tab A8 code for P211125-06231 by zhaichao at 20211126 end */
 }
 
 static int sgm4154x_charger_set_termina_cur(struct sgm4154x_charger_info *info, u32 cur)
@@ -714,8 +747,13 @@ static int sgm4154x_charger_hw_init(struct sgm4154x_charger_info *info)
 		info->cur.unknown_cur = bat_info.cur.unknown_cur;
 		info->cur.fchg_limit = bat_info.cur.fchg_limit;
 		info->cur.fchg_cur = bat_info.cur.fchg_cur;
-
+/* Tab A8 code for AX6300DEV-3907 by qiaodan at 20220104 start */
+#ifdef HQ_D85_BUILD
+		info->vol_max_mv = 4000;
+#else
 		info->vol_max_mv = bat_info.constant_charge_voltage_max_uv / 1000;
+#endif
+/* Tab A8 code for AX6300DEV-3907 by qiaodan at 20220104 end */
 		info->termination_cur = bat_info.charge_term_current_ua / 1000;
 		power_supply_put_battery_info(info->psy_usb, &bat_info);
 
@@ -954,7 +992,32 @@ static int sgm4154x_charger_set_limit_current(struct sgm4154x_charger_info *info
 	info->actual_limit_current = iindpm * 1000;
 	return ret;
 }
+/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 start */
+static u32 sgm4154x_charger_get_limit_voltage(struct sgm4154x_charger_info *info,
+					     u32 *limit_vol)
+{
+	u8 reg_val;
+	int ret;
 
+	ret = sgm4154x_read(info, SGM4154X_REG_04, &reg_val);
+	if (ret < 0) {
+		return ret;
+	}
+
+	reg_val &= REG04_VREG_MASK;
+	*limit_vol = ((reg_val >> REG04_VREG_SHIFT) * SGM4154X_VREG_V_STEP_uV) + SGM4154X_VREG_V_MIN_uV;
+
+	if (*limit_vol < SGM4154X_VREG_V_MIN_uV) {
+		*limit_vol = SGM4154X_VREG_V_MIN_uV;
+	} else if (*limit_vol >= SGM4154X_VREG_V_MAX_uV) {
+		*limit_vol = SGM4154X_VREG_V_MAX_uV;
+	}
+
+	dev_err(info->dev, "limit voltage is %d, actual_limt is %d\n", *limit_vol, info->actual_limit_voltage);
+
+	return 0;
+}
+/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 end */
 static u32 sgm4154x_charger_get_limit_current(struct sgm4154x_charger_info *info,
 					     u32 *limit_cur)
 {
@@ -993,18 +1056,39 @@ static inline int sgm4154x_charger_get_online(struct sgm4154x_charger_info *info
 
 	return 0;
 }
-
+/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 start */
 static int sgm4154x_charger_feed_watchdog(struct sgm4154x_charger_info *info,
 					 u32 val)
 {
 	int ret;
 	u32 limit_cur = 0;
+	u32 limit_voltage = 4200;
 
 	ret = sgm4154x_update_bits(info, SGM4154X_REG_01, REG01_WDT_MASK,
 				  WDT_RESET << REG01_WDT_SHIFT);
 	if (ret) {
 		dev_err(info->dev, "reset SGM4154X failed\n");
 		return ret;
+	}
+
+	ret = sgm4154x_charger_get_limit_voltage(info, &limit_voltage);
+	if (ret) {
+		dev_err(info->dev, "get limit voltage failed\n");
+		return ret;
+	}
+
+	if (info->actual_limit_voltage != limit_voltage) {
+		ret = sgm4154x_charger_set_termina_vol(info, info->actual_limit_voltage);
+		if (ret) {
+			dev_err(info->dev, "set terminal voltage failed\n");
+			return ret;
+		}
+
+		ret = sgm4154x_charger_set_recharge(info);
+		if (ret) {
+			dev_err(info->dev, "set sgm4154x recharge failed\n");
+			return ret;
+		}
 	}
 
 	ret = sgm4154x_charger_get_limit_current(info, &limit_cur);
@@ -1024,7 +1108,7 @@ static int sgm4154x_charger_feed_watchdog(struct sgm4154x_charger_info *info,
 
 	return 0;
 }
-
+/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 end */
 static int sgm4154x_charger_set_fchg_current(struct sgm4154x_charger_info *info,
 					    u32 val)
 {
@@ -1528,6 +1612,14 @@ static int sgm4154x_charger_usb_get_property(struct power_supply *psy,
 			val->intval = POWER_SUPPLY_USB_TYPE_CDP;
 			break;
 
+/* Tab A7 Lite T618 code for SR-AX6189A-01-279 by shixuanxuan at 20211231 start */
+#if !defined(HQ_FACTORY_BUILD)
+		case FLOAT_TYPE:
+			val->intval = POWER_SUPPLY_USB_TYPE_FLOAT;
+			break;
+#endif
+/* Tab A7 Lite T618 code for SR-AX6189A-01-279 by shixuanxuan at 20211231 end */
+
 		default:
 			val->intval = POWER_SUPPLY_USB_TYPE_UNKNOWN;
 		}
@@ -1687,7 +1779,12 @@ static enum power_supply_usb_type sgm4154x_charger_usb_types[] = {
 	POWER_SUPPLY_USB_TYPE_C,
 	POWER_SUPPLY_USB_TYPE_PD,
 	POWER_SUPPLY_USB_TYPE_PD_DRP,
-	POWER_SUPPLY_USB_TYPE_APPLE_BRICK_ID
+	POWER_SUPPLY_USB_TYPE_APPLE_BRICK_ID,
+/* Tab A7 Lite T618 code for SR-AX6189A-01-279 by shixuanxuan at 20211231 start */
+#if !defined(HQ_FACTORY_BUILD)
+	POWER_SUPPLY_USB_TYPE_FLOAT,
+#endif
+/* Tab A7 Lite T618 code for SR-AX6189A-01-279 by shixuanxuan at 20211231 end */
 };
 
 static enum power_supply_property sgm4154x_usb_props[] = {
@@ -1869,18 +1966,18 @@ static int sgm4154x_charger_enable_otg(struct regulator_dev *dev)
 
 	mutex_lock(&info->lock);
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
-#if 0
 	/*
 	 * Disable charger detection function in case
 	 * affecting the OTG timing sequence.
 	 */
-	ret = regmap_update_bits(info->pmic, info->charger_detect,
-				 BIT_DP_DM_BC_ENB, BIT_DP_DM_BC_ENB);
-	if (ret) {
-		dev_err(info->dev, "failed to disable bc1.2 detect function.\n");
-		goto out ;
+	if (!info->use_typec_extcon) {
+		ret = regmap_update_bits(info->pmic, info->charger_detect,
+					BIT_DP_DM_BC_ENB, BIT_DP_DM_BC_ENB);
+		if (ret) {
+			dev_err(info->dev, "failed to disable bc1.2 detect function.\n");
+			goto out ;
+		}
 	}
-#endif
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 	ret = sgm4154x_update_bits(info, SGM4154X_REG_01, REG01_OTG_CONFIG_MASK,
 				  OTG_ENABLE << REG01_OTG_CONFIG_SHIFT);
@@ -1927,12 +2024,15 @@ static int sgm4154x_charger_disable_otg(struct regulator_dev *dev)
  	}
 
  	/* Enable charger detection function to identify the charger type */
-	/* Tab A8 code for AX6300DEV-109 by qiaodan at 20210830 start */
- 	ret =  regmap_update_bits(info->pmic, info->charger_detect,
- 				  BIT_DP_DM_BC_ENB, 0);
-	/* Tab A8 code for AX6300DEV-109 by qiaodan at 20210830 end */
-	if(ret)
-		dev_err(info->dev, "enable BC1.2 failed\n");
+	/* Tab A7 Lite T618 code for AX6300DEV-109|AX6189DEV-126 by shixuanxuan at 20220113 start */
+	if (!info->use_typec_extcon) {
+		ret =  regmap_update_bits(info->pmic, info->charger_detect,
+					BIT_DP_DM_BC_ENB, 0);
+		if (ret) {
+			dev_err(info->dev, "enable BC1.2 failed\n");
+		}
+	}
+	/* Tab A7 Lite T618 code for AX6300DEV-109|AX6189DEV-126 by shixuanxuan at 20220113 end */
 
 out:
 	mutex_unlock(&info->lock);
@@ -2020,7 +2120,9 @@ static int sgm4154x_charger_probe(struct i2c_client *client,
 	struct device_node *regmap_np;
 	struct platform_device *regmap_pdev;
 	int ret;
-
+	/* Tab A8 code for AX6300DEV-3409 by qiaodan at 20211124 start */
+	int retry_cnt = 3;
+	/* Tab A8 code for AX6300DEV-3409 by qiaodan at 20211124 end */
 	if (!adapter) {
 		pr_err("%s:line%d: NULL pointer!!!\n", __func__, __LINE__);
 		return -EINVAL;
@@ -2149,8 +2251,15 @@ static int sgm4154x_charger_probe(struct i2c_client *client,
 		ret = PTR_ERR(info->psy_usb);
 		goto err_mutex_lock;
 	}
-
-	ret = sgm4154x_charger_hw_init(info);
+	/* Tab A8 code for AX6300DEV-3409 by qiaodan at 20211124 start */
+	do {
+		ret = sgm4154x_charger_hw_init(info);
+		if (ret) {
+			dev_err(dev, "try to sgm4154x_charger_hw_init fail:%d ,ret = %d\n" ,retry_cnt ,ret);
+		}
+		retry_cnt--;
+	} while ((retry_cnt != 0) && (ret != 0));
+	/* Tab A8 code for AX6300DEV-3409 by qiaodan at 20211124 end */
 	if (ret) {
 		dev_err(dev, "failed to sgm4154x_charger_hw_init\n");
 		goto err_mutex_lock;
@@ -2185,15 +2294,6 @@ static int sgm4154x_charger_probe(struct i2c_client *client,
 	}
 
 	sgm4154x_charger_detect_status(info);
-
-	ret = sgm4154x_update_bits(info, SGM4154X_REG_05, REG05_WDT_TIMER_MASK,
-				  SGM4154X_WDT_TIMER_40S << REG05_WDT_TIMER_SHIFT);
-	if (ret) {
-		dev_err(info->dev, "Failed to enable sgm4154x watchdog\n");
-		/* Tab A8 code for AX6300DEV-157 by zhangyanlong at 20210910 start */
-		goto err_mutex_lock;
-                /* Tab A8 code for AX6300DEV-157 by zhangyanlong at 20210910 end */
-	}
 
 	INIT_DELAYED_WORK(&info->otg_work, sgm4154x_charger_otg_work);
 	INIT_DELAYED_WORK(&info->wdt_work,sgm4154x_charger_feed_watchdog_work);
@@ -2234,14 +2334,15 @@ static void sgm4154x_charger_shutdown(struct i2c_client *client)
 		if (ret)
 			dev_err(info->dev, "disable sgm4154x otg failed ret = %d\n", ret);
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
-#if 0
 		/* Enable charger detection function to identify the charger type */
-		ret = regmap_update_bits(info->pmic, info->charger_detect,
-					 BIT_DP_DM_BC_ENB, 0);
-		if (ret)
-			dev_err(info->dev,
-				"enable charger detection function failed ret = %d\n", ret);
-#endif
+		if (!info->use_typec_extcon) {
+			ret = regmap_update_bits(info->pmic, info->charger_detect,
+						BIT_DP_DM_BC_ENB, 0);
+			if (ret) {
+				dev_err(info->dev,
+					"enable charger detection function failed ret = %d\n", ret);
+			}
+		}
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 	}
 }

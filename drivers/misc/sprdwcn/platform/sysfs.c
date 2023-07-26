@@ -55,6 +55,7 @@ int wcn_send_atcmd(void *cmd, unsigned char cmd_len,
 	int num = 1;
 	int ret;
 	unsigned long timeleft;
+	int ret_len = strlen((char *)cmd);
 #ifdef CONFIG_WCN_PCIE
 	/* dma_buf for dma */
 	static struct dma_buf dma_buf;
@@ -91,7 +92,7 @@ int wcn_send_atcmd(void *cmd, unsigned char cmd_len,
 
 #ifdef CONFIG_WCN_PCIE
 	if (at_buf_flag == 0) {
-		ret = dmalloc(pcie_dev, &dma_buf, 128);
+		ret = dmalloc(pcie_dev, &dma_buf, ret_len);
 		if (ret != 0) {
 			mutex_unlock(&sysfs_info.mutex);
 			return -1;
@@ -102,15 +103,15 @@ int wcn_send_atcmd(void *cmd, unsigned char cmd_len,
 	head->phy = (unsigned long)(dma_buf.phy);
 	head->len = cmd_len;
 	memset(head->buf, 0x0, head->len);
-	memcpy(head->buf, cmd, cmd_len);
+	memcpy(head->buf, cmd, ret_len);
 	head->next = NULL;
 #else
-	com_buf = kzalloc(128 + PUB_HEAD_RSV + 1, GFP_KERNEL);
+	com_buf = kzalloc(ret_len + PUB_HEAD_RSV + 1, GFP_KERNEL);
 	if (!com_buf) {
 		mutex_unlock(&sysfs_info.mutex);
 		return -ENOMEM;
 	}
-	memcpy(com_buf + PUB_HEAD_RSV, cmd, cmd_len);
+	memcpy(com_buf + PUB_HEAD_RSV, cmd, ret_len);
 	head->buf = com_buf;
 	head->len = cmd_len;
 	head->next = NULL;
@@ -215,12 +216,32 @@ static int wcn_get_loglevel(void)
 	return 0;
 }
 
+/* Tab A8 code for P211110-02599 by wangyanjie at 20211213 start */
+static int wcn_set_sdio_pin(unsigned int sdio_pin)
+{
+        char a[64];
+        int i=40;
+        scnprintf(a, (size_t)sizeof(a), "%s%d%s", "at+debug=", sdio_pin+i,"\r\n");
+        WCN_INFO("at+debug=%d\n", sdio_pin+i);
+        wcn_send_atcmd(a, strlen(a), NULL, NULL);
+        WCN_INFO("%s successful\n", __func__);
+        return 0;
+}
+
+/* Tab A8 code for P211110-02599 by wangyanjie at 20211213 end */
 void wcn_firmware_init(void)
 {
 	wcn_get_sw_ver();
 	wcn_set_armlog_status();
 	wcn_set_loglevel();
 	wcn_get_loglevel();
+
+	/* Tab A8 code for P211110-02599 by wangyanjie at 20211213 start */
+        if (sdio_pin >= 0 && sdio_pin <= 7) {
+                wcn_set_sdio_pin(sdio_pin);
+        }
+
+	/* Tab A8 code for P211110-02599 by wangyanjie at 20211213 end */
 	/* TODO: set can pass functionmask */
 	/* wcn_set_loglevel, etc */
 }
@@ -865,4 +886,3 @@ MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_LICENSE("GPL");
 MODULE_VERSION(WCN_SYSFS_VERSION);
-

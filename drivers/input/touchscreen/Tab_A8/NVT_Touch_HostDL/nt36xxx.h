@@ -200,8 +200,11 @@ struct nvt_ts_platdata {
 	bool support_ear_detect;	// if support proximity mode feature
 #endif
 	bool enable_settings_aot;	// if support aot feature
-	const char *firmware_name;
-	const char *firmware_name_mp;
+/*#Tab A8 code for AX6300DEV-3657 by fengzhigang at 2021/12/09 start*/
+	char *md_name;
+	char *firmware_name;
+	char *firmware_name_mp;
+/*#Tab A8 code for AX6300DEV-3657 by fengzhigang at 2021/12/09 end*/
 	u32 open_test_spec[2];
 	u32 short_test_spec[2];
 	u32 diff_test_frame;
@@ -316,6 +319,9 @@ struct nvt_ts_data {
 	int usb_plug_status;
 	int fw_update_stat;
 	/*Tab A8 code for SR-AX6300-01-376 by luxinjun at 2021/09/10 end*/
+	/*#Tab A8 code for SR-AX6300-01-128 by luxinjun at 2021/11/18 start*/
+	bool tp_is_enabled;
+	/*#Tab A8 code for SR-AX6300-01-128 by luxinjun at 2021/11/18 end*/
 };
 
 #if NVT_TOUCH_PROC
@@ -360,6 +366,20 @@ enum {
 #endif
 	POWER_ON_STATUS
 };
+
+/*#Tab A8 code for AX6300DEV-3657 by fengzhigang at 2021/12/09 start*/
+typedef struct
+{
+	const char *lcd_name;
+	int fw_num;
+}nvt_upgrade_module;
+
+enum NVT_TP_MODEL {
+	MODEL_DEFAULT = 0,
+	MODEL_QC_INX,
+	MODEL_QC_INX_SWID45,
+};
+/*#Tab A8 code for AX6300DEV-3657 by fengzhigang at 2021/12/09 end*/
 
 //u8 aot_enable;
 //bit control
@@ -417,6 +437,9 @@ int32_t nvt_set_page(uint32_t addr);
 int32_t nvt_write_addr(uint32_t addr, uint8_t data);
 #if NVT_TOUCH_ESD_PROTECT
 extern void nvt_esd_check_enable(uint8_t enable);
+/*Tab A8 code for AX6300DEV-3858 by yuli at 2022/1/6 start*/
+void nvt_stop_crc_reboot(void);
+/*Tab A8 code for AX6300DEV-3858 by yuli at 2022/1/6 end*/
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
 
 extern enum tp_module_used tp_is_used;

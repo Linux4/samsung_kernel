@@ -46,7 +46,7 @@ struct sprd_hsphy {
 	struct iio_channel	*dm;
 };
 
-#define FULLSPEED_USB33_TUNE		2700000
+#define FULLSPEED_USB33_TUNE		3300000
 #define SC2721_CHARGE_DET_FGU_CTRL      0xecc
 #define BIT_DP_DM_AUX_EN                BIT(1)
 #define BIT_DP_DM_BC_ENB                BIT(0)

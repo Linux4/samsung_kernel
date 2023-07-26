@@ -11,6 +11,8 @@
 #include <linux/slab.h>
 #include <misc/wcn_bus.h>
 #include <uapi/linux/sched/types.h>
+#include <linux/pm_wakeup.h>
+
 
 #include "bus_common.h"
 
@@ -266,6 +268,8 @@ struct sdiohal_data_t {
 	struct wakeup_source scan_ws;
 	struct completion scan_done;
 	struct completion remove_done;
+	struct device *dev;
+
 };
 
 struct sdiohal_data_t *sdiohal_get_data(void);

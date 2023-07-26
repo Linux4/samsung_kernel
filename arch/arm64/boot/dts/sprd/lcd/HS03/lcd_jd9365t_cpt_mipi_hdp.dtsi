@@ -145,10 +145,8 @@
 
 					sprd,deep-sleep-in-command = [
 						05 02 00 01 00
-						39 20 00 01 28
+						39 38 00 01 28
 						39 80 00 01 10
-						39 00 00 02 DE 00
-						39 00 00 02 BA 01
 					];
 
 					sprd,sleep-out-command = [

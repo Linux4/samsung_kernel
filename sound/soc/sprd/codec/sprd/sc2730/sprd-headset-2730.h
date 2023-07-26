@@ -219,6 +219,11 @@ struct sprd_headset {
 	struct delayed_work btn_work;
 	enum headset_hw_status hdst_hw_status;
 	enum snd_jack_types hdst_type_status;
+/* Tab A7 Lite T618 code for AX6189DEV-1065 by hujincan at 20220127 start */
+#ifdef CONFIG_TARGET_UMS512_25C10
+	struct wakeup_source hdst_plug_wakelock;
+#endif
+/* Tab A7 Lite T618 code for AX6189DEV-1065 by hujincan at 20220127 end */
 	struct wakeup_source hdst_detect_wakelock;
 	enum headset_eic_type eic_type;
 	bool audio_on;

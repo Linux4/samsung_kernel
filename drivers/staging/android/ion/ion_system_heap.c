@@ -477,6 +477,81 @@ err_create_pool:
 	return -ENOMEM;
 }
 
+static struct ion_system_heap *system_heap;
+
+void show_ion_system_heap_pool_size(struct seq_file *s)
+{
+	unsigned long uncached = 0;
+	unsigned long cached = 0;
+	struct ion_page_pool *pool;
+	int i;
+
+	if (!system_heap) {
+		pr_err("system_heap_pool is not ready\n");
+		return;
+	}
+
+	for (i = 0; i < NUM_ORDERS; i++) {
+		pool = system_heap->uncached_pools[i];
+		uncached += (1 << pool->order) * pool->high_count;
+		uncached += (1 << pool->order) * pool->low_count;
+	}
+
+	for (i = 0; i < NUM_ORDERS; i++) {
+		pool = system_heap->cached_pools[i];
+		cached += (1 << pool->order) * pool->high_count;
+		cached += (1 << pool->order) * pool->low_count;
+	}
+
+	if (s)
+		seq_printf(s, "SystemHeapPool: %8lu kB\n",
+			   (uncached + cached) << (PAGE_SHIFT - 10));
+	else
+		pr_cont("SystemHeapPool:%lukB ",
+			(uncached + cached) << (PAGE_SHIFT - 10));
+}
+
+void show_ion_system_heap_size(struct seq_file *s)
+{
+	struct ion_heap *heap;
+	unsigned long system_byte = 0;
+
+	if (!system_heap) {
+		pr_err("system_heap is not ready\n");
+		return;
+	}
+
+	heap = &system_heap->heap;
+	system_byte = (unsigned long)atomic_long_read(&heap->total_allocated);
+	if (s)
+		seq_printf(s, "SystemHeap:     %8lu kB\n", system_byte >> 10);
+	else
+		pr_cont("SystemHeap:%lukB ", system_byte >> 10);
+}
+
+
+static int ion_system_heap_size_notifier(struct notifier_block *nb,
+					 unsigned long action, void *data)
+{
+	show_ion_system_heap_size((struct seq_file *)data);
+	return 0;
+}
+
+static struct notifier_block ion_system_heap_nb = {
+	.notifier_call = ion_system_heap_size_notifier,
+};
+
+static int ion_system_heap_pool_size_notifier(struct notifier_block *nb,
+					      unsigned long action, void *data)
+{
+	show_ion_system_heap_pool_size((struct seq_file *)data);
+	return 0;
+}
+
+static struct notifier_block ion_system_heap_pool_nb = {
+	.notifier_call = ion_system_heap_pool_size_notifier,
+};
+
 static struct ion_heap *__ion_system_heap_create(void)
 {
 	struct ion_system_heap *heap;
@@ -496,6 +571,14 @@ static struct ion_heap *__ion_system_heap_create(void)
 		goto destroy_uncached_pools;
 
 	heap->heap.debug_show = ion_system_heap_debug_show;
+
+	if (!system_heap) {
+		system_heap = heap;
+		show_mem_extra_notifier_register(&ion_system_heap_nb);
+		show_mem_extra_notifier_register(&ion_system_heap_pool_nb);
+	}
+	else
+		pr_err("system_heap had been already created\n");
 	return &heap->heap;
 
 destroy_uncached_pools:

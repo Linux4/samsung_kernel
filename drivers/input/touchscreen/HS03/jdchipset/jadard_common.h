@@ -48,6 +48,9 @@
 
 #define JADARD_DRIVER_VER        "01.08" /* MAJOR_VER.MINOR_VER */
 #define JADARD_PROC_TOUCH_FOLDER "jadard_touch"
+/* HS03 code for SL6215DEV-4194 by duanyaoming at 20220411 start */
+#define TOUCH_DATA_LEN           (60)
+/* HS03 code for SL6215DEV-4194 by duanyaoming at 20220411 end */
 #ifdef WAKE_LOCK
 #define JD_TS_WAKE_LOCK_TIMEOUT  (2 * HZ)
 #endif

@@ -1,0 +1,300 @@
+
+/* Tab A8 code for AX6300DEV-60/AX6300DEV-133/AX6300DEV-2526 by maoruiqian at 20210820 start */
+&i2c3 {
+    aw882xx_smartpa_left_up: aw88266a_1@34 {
+        compatible = "awinic,aw882xx_smartpa";
+        #sound-dai-cells = <0>;
+        reg = <0x34>;
+        reset-gpio = <&ap_gpio 51 0>;
+        dc-flag = <0>;
+        sync-flag = <0>;
+        aw-cali-mode = "aw_attr";
+        sound-channel = <0>;
+        status = "okay";
+        spin-data = "l l r r";
+        spin-mode = "reg_spin";
+    };
+    aw882xx_smartpa_right_down: aw88266a_2@35 {
+        compatible = "awinic,aw882xx_smartpa";
+        #sound-dai-cells = <0>;
+        reg = <0x35>;
+        reset-gpio = <&ap_gpio 51 0>;
+        dc-flag = <0>;
+        sync-flag = <0>;
+        aw-cali-mode = "aw_attr";
+        sound-channel = <1>;
+        status = "okay";
+        spin-data = "r r l l";
+        spin-mode = "reg_spin";
+    };
+    aw882xx_smartpa_right_up: aw88266a_3@36 {
+        compatible = "awinic,aw882xx_smartpa";
+        #sound-dai-cells = <0>;
+        reg = <0x36>;
+        reset-gpio = <&ap_gpio 51 0>;
+        dc-flag = <0>;
+        sync-flag = <0>;
+        aw-cali-mode = "aw_attr";
+        sound-channel = <1>;
+        status = "okay";
+        spin-data = "r l l r";
+        spin-mode = "reg_spin";
+    };
+    aw882xx_smartpa_left_down: aw88266a_4@37 {
+        compatible = "awinic,aw882xx_smartpa";
+        #sound-dai-cells = <0>;
+        reg = <0x37>;
+        reset-gpio = <&ap_gpio 51 0>;
+        dc-flag = <0>;
+        sync-flag = <0>;
+        aw-cali-mode = "aw_attr";
+        sound-channel = <0>;
+        status = "okay";
+        spin-data = "l r r l";
+        spin-mode = "reg_spin";
+    };
+};
+
+&ucp1301_spk {
+    status = "disabled";
+};
+/* Tab A8 code for AX6300DEV-60/AX6300DEV-133/AX6300DEV-2526 by maoruiqian at 20210820 end */
+
+/* Tab A8 code for SR-AX6300-01-92 by maoruiqian at 20210808 start */
+&sprd_headset {
+    sprd,jack-type = <0>;
+};
+/* Tab A8 code for SR-AX6300-01-92 by maoruiqian at 20210808 end */
+
+/* Tab A8 code for AX6300DEV-1502 by yingboyang at 20211013 start */
+&sound_vbc_v4_sprd_codec {
+    status = "okay";
+    sprd-audio-card,routing =
+        "HPMIC Pin", "HP Mic Jack",
+        "MIC Pin", "Mic Jack",
+        "MIC2 Pin", "Aux Mic Jack",
+        "HeadPhone Jack", "HP Pin",
+        "Ext Spk", "SPK Pin",
+        "UCP1301 SPK ON", "SPK Pin",
+        "Ext Spk", "UCP1301 SPK",
+        "DMIC Pin", "DMic Jack",
+        "DMIC1 Pin", "DMic1 Jack",
+        "Ext Ear", "EAR Pin";
+
+    /* 35: smart pa normal ap01 */
+    sprd-audio-card,dai-link@53 {
+        ignore-suspend = <1>;
+        link-name = "BE_NORMAL_AP01_SMTPA";
+        stream-name = "BE_ST_NORMAL_AP01_SMTPA";
+        no-pcm = <1>;
+        dpcm-playback = <1>;
+        be-id = <0>;
+        dai-format = "i2s";
+        multi-codecs = <4>;
+        plat {
+            sound-dai = <&sprd_route_pcm>;
+        };
+        cpu {
+            sound-dai = <&vbc_v4 34>;
+        };
+        codec {
+            sound-dai = <&aw882xx_smartpa_left_up>,
+                <&aw882xx_smartpa_right_down>,
+                <&aw882xx_smartpa_right_up>,
+                <&aw882xx_smartpa_left_down>;
+        };
+    };
+
+    /* 36: smart pa normal ap23 */
+    sprd-audio-card,dai-link@54 {
+        ignore-suspend = <1>;
+        link-name = "BE_NORMAL_AP23_SMTPA";
+        stream-name = "BE_ST_NORMAL_AP23_SMTPA";
+        no-pcm = <1>;
+        dpcm-playback = <1>;
+        be-id = <0>;
+        dai-format = "i2s";
+        multi-codecs = <4>;
+        plat {
+            sound-dai = <&sprd_route_pcm>;
+        };
+        cpu {
+            sound-dai = <&vbc_v4 35>;
+        };
+        codec {
+            sound-dai = <&aw882xx_smartpa_left_up>,
+                <&aw882xx_smartpa_right_down>,
+                <&aw882xx_smartpa_right_up>,
+                <&aw882xx_smartpa_left_down>;
+        };
+    };
+
+    /* 37: smart pa fast playback */
+    sprd-audio-card,dai-link@55 {
+        ignore-suspend = <1>;
+        link-name = "BE_FAST_P_SMTPA";
+        stream-name = "BE_ST_FAST_P_SMTPA";
+        no-pcm = <1>;
+        dpcm-playback = <1>;
+        be-id = <0>;
+        dai-format = "i2s";
+        multi-codecs = <4>;
+        plat {
+            sound-dai = <&sprd_route_pcm>;
+        };
+        cpu {
+            sound-dai = <&vbc_v4 36>;
+        };
+        codec {
+            sound-dai = <&aw882xx_smartpa_left_up>,
+                <&aw882xx_smartpa_right_down>,
+                <&aw882xx_smartpa_right_up>,
+                <&aw882xx_smartpa_left_down>;
+        };
+    };
+
+    /* 38: smart pa offload */
+    sprd-audio-card,dai-link@56 {
+        ignore-suspend = <1>;
+        link-name = "BE_OFFLOAD_SMTPA";
+        stream-name = "BE_ST_OFFLOAD_SMTPA";
+        no-pcm = <1>;
+        dpcm-playback = <1>;
+        be-id = <0>;
+        dai-format = "i2s";
+        multi-codecs = <4>;
+        plat {
+            sound-dai = <&sprd_route_pcm>;
+        };
+        cpu {
+            sound-dai = <&vbc_v4 37>;
+        };
+        codec {
+            sound-dai = <&aw882xx_smartpa_left_up>,
+                <&aw882xx_smartpa_right_down>,
+                <&aw882xx_smartpa_right_up>,
+                <&aw882xx_smartpa_left_down>;
+        };
+    };
+
+    /* 39: smart pa voice */
+    sprd-audio-card,dai-link@57 {
+        ignore-suspend = <1>;
+        link-name = "BE_VOICE_SMTPA";
+        stream-name = "BE_ST_VOICE_SMTPA";
+        no-pcm = <1>;
+        dpcm-playback = <1>;
+        be-id = <0>;
+        dai-format = "i2s";
+        multi-codecs = <4>;
+        plat {
+            sound-dai = <&sprd_route_pcm>;
+        };
+        cpu {
+            sound-dai = <&vbc_v4 38>;
+        };
+        codec {
+            sound-dai = <&aw882xx_smartpa_left_up>,
+                <&aw882xx_smartpa_right_down>,
+                <&aw882xx_smartpa_right_up>,
+                <&aw882xx_smartpa_left_down>;
+        };
+    };
+
+    /* 40: smart pa voip */
+    sprd-audio-card,dai-link@58 {
+        ignore-suspend = <1>;
+        link-name = "BE_VOIP_SMTPA";
+        stream-name = "BE_DAI_ID_VOIP_SMTPA";
+        no-pcm = <1>;
+        dpcm-playback = <1>;
+        be-id = <0>;
+        dai-format = "i2s";
+        multi-codecs = <4>;
+        plat {
+            sound-dai = <&sprd_route_pcm>;
+        };
+        cpu {
+            sound-dai = <&vbc_v4 39>;
+        };
+        codec {
+            sound-dai = <&aw882xx_smartpa_left_up>,
+                <&aw882xx_smartpa_right_down>,
+                <&aw882xx_smartpa_right_up>,
+                <&aw882xx_smartpa_left_down>;
+        };
+    };
+
+    /* 41: smart pa fm */
+    sprd-audio-card,dai-link@59 {
+        ignore-suspend = <1>;
+        link-name = "BE_FM_SMTPA";
+        stream-name = "BE_ST_FM_SMTPA";
+        no-pcm = <1>;
+        dpcm-playback = <1>;
+        be-id = <0>;
+        dai-format = "i2s";
+        multi-codecs = <4>;
+        plat {
+            sound-dai = <&sprd_route_pcm>;
+        };
+        cpu {
+            sound-dai = <&vbc_v4 40>;
+        };
+        codec {
+            sound-dai = <&aw882xx_smartpa_left_up>,
+                <&aw882xx_smartpa_right_down>,
+                <&aw882xx_smartpa_right_up>,
+                <&aw882xx_smartpa_left_down>;
+        };
+    };
+
+    /* 42: smart pa loopback */
+    sprd-audio-card,dai-link@60 {
+        ignore-suspend = <1>;
+        link-name = "BE_LOOPBACK_SMTPA";
+        stream-name = "BE_ST_LOOP_SMTPA";
+        no-pcm = <1>;
+        dpcm-playback = <1>;
+        be-id = <0>;
+        dai-format = "i2s";
+        multi-codecs = <4>;
+        plat {
+            sound-dai = <&sprd_route_pcm>;
+        };
+        cpu {
+            sound-dai = <&vbc_v4 41>;
+        };
+        codec {
+            sound-dai = <&aw882xx_smartpa_left_up>,
+                <&aw882xx_smartpa_right_down>,
+                <&aw882xx_smartpa_right_up>,
+                <&aw882xx_smartpa_left_down>;
+        };
+    };
+
+    /* 43: smart pa fm dsp */
+    sprd-audio-card,dai-link@61 {
+        ignore-suspend = <1>;
+        link-name = "BE_FM_DSP_SMTPA";
+        stream-name = "BE_ST_FM_DSP_SMTPA";
+        no-pcm = <1>;
+        dpcm-playback = <1>;
+        be-id = <0>;
+        dai-format = "i2s";
+        multi-codecs = <4>;
+        plat {
+            sound-dai = <&sprd_route_pcm>;
+        };
+        cpu {
+            sound-dai = <&vbc_v4 42>;
+        };
+        codec {
+            sound-dai = <&aw882xx_smartpa_left_up>,
+                <&aw882xx_smartpa_right_down>,
+                <&aw882xx_smartpa_right_up>,
+                <&aw882xx_smartpa_left_down>;
+        };
+    };
+};
+/* Tab A8 code for AX6300DEV-1502 by yingboyang at 20211013 end */

@@ -51,17 +51,30 @@
 
 			/*TODO: ranges use to limit pm-sys & cali_lib memory region. it's not
 				standard use, need modify if possible*/
+/* Tab A7 T618 code for SR-AX6189A-01-480 by xiongxiaoliang at 2021/12/23 start */
+#ifndef CONFIG_SENSOR_DYNAMIC_MEMORY
 			ranges = <0x88040000 0x0 0x88040000 0x200000>,/* ddr */
 				<0x49000 0x0 0x849000 0x5000>; /* iram */
+#else
+			ranges = <0x88040000 0x0 0x88040000 0x200000>,/* ddr */
+				<0x47C00 0x0 0x847C00 0x6400>; /* iram */
+#endif
 			pm-sys@88040000 {
 				cproc,name = "pm_sys";
 				reg = <0x88040000 0x200000>;
 			};
-
+#ifndef CONFIG_SENSOR_DYNAMIC_MEMORY
 			cali_lib@49000 {
 				cproc,name = "cali_lib";
 				reg = <0x49000 0x5000>; /*<cali_lib_addr size>*/
 			};
+#else
+			cali_lib@47C00 {
+				cproc,name = "cali_lib";
+				reg = <0x47C00 0x6400>; /* <cali_lib_addr size> */
+			};
+#endif
+/* Tab A7 T618 code for SR-AX6189A-01-480 by xiongxiaoliang at 2021/12/23 end */
 		};
 
 		scproc_pubcp: scproc@4400 {

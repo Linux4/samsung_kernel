@@ -175,7 +175,7 @@
 					cm-regulator-name = "vddgen0";
 					cable@0 {
 						cm-cable-name = "USB";
-						extcon = <&pmic_typec>;
+						extcon = <&extcon_gpio>;
 					};
 				};
 			};
@@ -717,8 +717,8 @@
 		memory-region = <&fb_reserved>;
 	};
 
-	heap@4 {
-		reg = <4>;
+	heap@2 {
+		reg = <2>;
 		label = "carveout_fd";
 		type = <2>;
 		memory-region = <&fd_reserved>;

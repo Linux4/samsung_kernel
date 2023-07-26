@@ -44,6 +44,8 @@
 #include <linux/pm_wakeup.h>
 
 #define MAX_SENSOR_HANDLE 200
+/*HS03_s code for SL6215SDEV-366 by zhangziyi at 2022/05/17 start*/
+#define MAX_SENSOR_TYPE   9
 static u8 sensor_status[MAX_SENSOR_HANDLE];
 
 static struct task_struct *thread;
@@ -104,6 +106,7 @@ static int shub_download_all_calibration_data(struct shub_data *sensor);
 static void shub_save_calibration_data(struct work_struct *work);
 static void shub_synctimestamp(struct shub_data *sensor);
 static int send_lcd_info(struct shub_data *sensor);
+static void lcd_info_judge(struct shub_data *sensor, int *data);
 
 #define MAX_COMPATIBLE_SENSORS 6
 static unsigned int sensor_fusion_mode;
@@ -118,7 +121,7 @@ static char *color_temp_firms[MAX_COMPATIBLE_SENSORS];
 static char *light_first_firms[MAX_COMPATIBLE_SENSORS];
 static char *light_second_firms[MAX_COMPATIBLE_SENSORS];
 
-static char *sensor_names[9] = {"null", "null", "null", "null", "null", "null", "null", "null", "null"};
+static char *sensor_names[MAX_SENSOR_TYPE] = {"null", "null", "null", "null", "null", "null", "null", "null", "null"};
 module_param(sensor_fusion_mode, uint, 0644);
 module_param_array(acc_firms, charp, 0, 0644);
 module_param_array(gryo_firms, charp, 0, 0644);
@@ -132,6 +135,7 @@ module_param_array(light_second_firms, charp, 0, 0644);
 
 module_param_array(sensor_names, charp, 0, 0644);
 /*Tab A8 code for AX6300DEV-43|P211028-01737 by hujincan at 2021/10/29 end*/
+/*HS03_s code for SL6215SDEV-366 by zhangziyi at 2022/05/17 end*/
 struct sensor_cali_info {
 	unsigned char size;
 	void *data;
@@ -607,9 +611,13 @@ static void request_send_firmware(struct shub_data *sensor,
 		}
 		kfree(fw_data);
 		set_sensor_info(sensor_firms, sensor_type, i);
-		/*Tab A8 code for AX6300DEV-43|P211028-01737 by hujincan at 2021/10/29 start*/
-		sensor_names[sensor_type - 1] = *(sensor_firms + i);
-		/*Tab A8 code for AX6300DEV-43|P211028-01737 by hujincan at 2021/10/29 end*/
+		/*HS03_s code for SL6215SDEV-366 by zhangziyi at 2022/05/17 start*/
+		if (sensor_type < MAX_SENSOR_TYPE + 1) {
+			/*Tab A8 code for AX6300DEV-43|P211028-01737 by hujincan at 2021/10/29 start*/
+			sensor_names[sensor_type - 1] = *(sensor_firms + i);
+			/*Tab A8 code for AX6300DEV-43|P211028-01737 by hujincan at 2021/10/29 end*/
+		}
+		/*HS03_s code for SL6215SDEV-366 by zhangziyi at 2022/05/17 end*/
 		dev_info(&sensor->sensor_pdev->dev, "init sensor success\n");
 		success = 1;
 		break;
@@ -944,44 +952,88 @@ static ssize_t reader_enable_store(struct device *dev,
 	return count;
 }
 static DEVICE_ATTR_RW(reader_enable);
-
-/* HS03 code for SL6215DEV-3549 by liuguangqiang at 20211109 start */
-static int send_lcd_info(struct shub_data *sensor)
+/* Tab A7 Lite T618 code for AX6189DEV-849|AX6189DEV-953 by duxinqi at 2022/01/24 start */
+/* HS03 code for SL6215DEV-3827 by liuguangqiang at 2021/12/15 start */
+/* HS03_s code for SL6215SDEV-129|SL6215SDEV-366 by zhangziyi at 2022/05/17 start */
+#ifndef CONFIG_TARGET_UMS512_25C10
+static void lcd_info_judge(struct shub_data *sensor, int *data)
 {
-	int err = 0, data = 0;
-	char lcd_info[30] = {0};
+	int i = 0;
 	char *command_line = saved_command_line;
+	struct lcd_vendor_info lcd_info[] = {
+		{LCD_JD9365T_CPT, "lcd_jd9365t_cpt_mipi_hdp"},
+		{LCD_NT36525B_TXD, "lcd_nt36525b_txd_mipi_hdp"},
+		{LCD_NL9911C_TRULY, "lcd_nl9911c_truly_mipi_hdp"},
+		{LCD_NL9911C_TRULY, "lcd_nl9911c_truly_6mask_mipi_hdp"},
+		{LCD_JD9365T_HOLITECH, "lcd_jd9365t_holitech_mipi_hdp"},
+		{LCD_GC7202H_GENRPRO, "lcd_gc7202h_genrpro_mipi_hdp"},
+		{LCD_GC7202H_GENRPRO, "lcd_nl9911c_genrpro_mipi_hdp"},
+		{LCD_NL9911C_TM, "lcd_nl9911c_tm_mipi_hdp"},
+		{LCD_JD9365T_HOLITECH, "lcd_gc7202h_hlt_ctc_mipi_hdp"},
+		{LCD_JD9365T_HOLITECH, "lcd_nl9911c_hlt_hsd_mipi_hdp_video"},
+	};
+	dev_info(&sensor->sensor_pdev->dev, "command_line = %s\n", command_line);
+
+	for (i = 0; i < sizeof(lcd_info)/sizeof(lcd_info[0]); i++) {
+		if (NULL != strstr(command_line, lcd_info[i].lcd_strdata)) {
+			*data = lcd_info[i].lcd_name;
+			dev_info(&sensor->sensor_pdev->dev, "find lcd:%d\n", *data);
+			break;
+		}
+	}
+
+	if (*data == LCD_NONE) {
+		dev_info(&sensor->sensor_pdev->dev, "can't find lcd\n");
+	}
+
+}
+#else
+static void lcd_info_judge(struct shub_data *sensor, int *data)
+{
+	int i = 0;
+	char *command_line = saved_command_line;
+	struct lcd_vendor_info lcd_info[] = {
+		{LCD_HX83102E_GX_WHITE, LCD_HX83102E_GX_BLACK, "lcd_hx83102e_gx_hsd_mipi_hdp", "ID26", "ID25"},
+		{LCD_NT36525B_TXD_WHITE, LCD_NT36525B_TXD_BLACK, "lcd_nt36523b_txd_mdt_mipi_hdp", "ID36", "ID35"},
+		{LCD_HX83102E_HY_WHITE, LCD_HX83102E_HY_BLACK, "lcd_hx83102e_hy_mdt_mipi_hdp", "ID56", "ID55"},
+		{LCD_NT36523B_LS_WHITE, LCD_NT36523B_LS_BLACK, "lcd_nt36523b_ls_hsd_mipi_hdp", "ID66", "ID65"},
+	};
+
 #ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 	dev_info(&sensor->sensor_pdev->dev, "command_line = %s\n", command_line);
 #endif
 
-	if (NULL != strstr(command_line, "lcd_jd9365t_cpt_mipi_hdp")) {
-		dev_info(&sensor->sensor_pdev->dev, "lcd first\n");
-		data = LCD_JD9365T_CPT;
+	for (i = 0; i < sizeof(lcd_info)/sizeof(lcd_info[0]); i++) {
+		if (NULL != strstr(command_line, lcd_info[i].lcd_strdata)) {
+			if (NULL != strstr(command_line, lcd_info[i].lcd_color_white)) {
+				*data = lcd_info[i].lcd_name_white;
+			} else if (NULL != strstr(command_line, lcd_info[i].lcd_color_black)) {
+				*data = lcd_info[i].lcd_name_black;
+			} else {
+				*data = LCD_NO_WHITE_AND_BLACK;
+				dev_info(&sensor->sensor_pdev->dev, "can't find lcd color white and black\n");
+			}
 
-	} else if (NULL != strstr(command_line, "lcd_nt36525b_txd_mipi_hdp")) {
-		dev_info(&sensor->sensor_pdev->dev, "lcd second\n");
-		data = LCD_NT36525B_TXD;
-
-	} else if (NULL != strstr(command_line, "lcd_nl9911c_truly_mipi_hdp") ||
-		   NULL != strstr(command_line, "lcd_nl9911c_truly_6mask_mipi_hdp")) {
-		dev_info(&sensor->sensor_pdev->dev, "lcd third\n");
-		data = LCD_NL9911C_TRULY;
-
-	} else if (NULL != strstr(command_line, "lcd_jd9365t_holitech_mipi_hdp")) {
-		dev_info(&sensor->sensor_pdev->dev, "lcd forth\n");
-		data = LCD_JD9365T_HOLITECH;
-
-	} else if (NULL != strstr(command_line, "lcd_gc7202h_genrpro_mipi_hdp") ||
-		   NULL != strstr(command_line, "lcd_nl9911c_genrpro_mipi_hdp")) {
-		dev_info(&sensor->sensor_pdev->dev, "lcd fifth\n");
-		data = LCD_GC7202H_GENRPRO;
-
-	} else {
-		dev_info(&sensor->sensor_pdev->dev, "can't find lcd\n");
-		data = LCD_NONE;
-
+			dev_info(&sensor->sensor_pdev->dev, "find lcd :0x%x\n", *data);
+			break;
+		}
 	}
+
+	if (!(*data)) {
+		dev_info(&sensor->sensor_pdev->dev, "can't find lcd\n");
+	}
+
+}
+#endif
+/* HS03_s code for SL6215SDEV-129|SL6215SDEV-366 by zhangziyi at 2022/05/17 end */
+/* Tab A7 Lite T618 code for AX6189DEV-849|AX6189DEV-953 by duxinqi at 2022/01/24 end */
+static int send_lcd_info(struct shub_data *sensor)
+{
+	int err = 0, data = 0;
+	char lcd_info[30] = {0};
+
+	lcd_info_judge(sensor, &data);
+	dev_info(&sensor->sensor_pdev->dev, "lcd_info_judge data = %d\n", data);
 
 	memcpy(lcd_info, &data, sizeof(data));
 	err = shub_send_command(sensor, SENSOR_LIGHT, AP_SEND_DATA_TO_DYNAMIC_SUBTYPE,
@@ -991,7 +1043,7 @@ static int send_lcd_info(struct shub_data *sensor)
 
 	return err;
 }
-/* HS03 code for SL6215DEV-3549 by liuguangqiang at 20211109 end */
+/* HS03 code for SL6215DEV-3827 by liuguangqiang at 2021/12/15 end */
 /*Tab A8 code for SR-AX6300-01-65 by xiongxiaoliang at 2021/08/25 start*/
 static first_light_calibration_data_send(struct shub_data *sensor);
 static second_light_calibration_data_send(struct shub_data *sensor);

@@ -368,17 +368,29 @@ void sdiohal_resume_check(void)
 		}
 		usleep_range(4000, 6000);
 		cnt++;
+		if (cnt == 10) {
+			pr_info("%s %s %u wakeup.\n", current->comm, __func__, cnt);
+			pm_wakeup_hard_event(p_data->dev);
+		}
 	}
 }
 
 void sdiohal_resume_wait(void)
 {
 	struct sdiohal_data_t *p_data = sdiohal_get_data();
+	unsigned int cnt = 0;
+
 
 	while (!atomic_read(&p_data->flag_resume)) {
 		printk_ratelimited(KERN_ERR
-				   "WCN SDIO 5ms wait for sdio resume\n");
-		usleep_range(4000, 6000);
+		   "WCN SDIO 5ms wait %u for sdio resume in %s.\n",
+			cnt, current->comm);
+ 		usleep_range(4000, 6000);
+		cnt++;
+		if (cnt == 10) {
+			pr_info("%s %s %u wakeup.\n", current->comm, __func__, cnt);
+			pm_wakeup_hard_event(p_data->dev);
+		}
 	}
 }
 

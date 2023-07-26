@@ -1,0 +1,37 @@
+/*Tab A7 T618 code for SR-AX6189A-01-187 by yuyongxiang at 20211220 start*/
+&ucp1301_spk {
+    status = "disabled";
+};
+
+&i2c3 {
+    status = "okay";
+    /* AWINIC AW87XXX Smart K PA */
+    aw87xxx_pa_left: aw87xxx_pa@58 {
+        compatible = "awinic,aw87xxx_pa";
+        reg = <0x58>;
+        dev_index = < 0 >;
+        status = "okay";
+    };
+
+    aw87xxx_pa_right: aw87xxx_pa@59 {
+        compatible = "awinic,aw87xxx_pa";
+        reg = <0x59>;
+        dev_index = < 1 >;
+        status = "okay";
+    };
+};
+
+&sound_vbc_v4_sprd_codec {
+    status = "okay";
+    /*ext_control_type, hook selection, mode, gpio share*/
+    sprd,spk-ext-pa-info = <0 0 1 0>,<1 1 1 0>;
+    sprd,spk-ext-pa-gpio = <&ap_gpio 86 0>,<&ap_gpio 88 0>;
+    /* Tab A7 T618 code for AX6189DEV-666 by yuyongxiang at 20220118 start */
+    /*  fsm  PA  */
+    sprd,spk-ext-pa-fsm-info = < 0 2 4 0 >,< 1 3 4 0 >;
+    /* Tab A7 T618 code for AX6189DEV-666 by yuyongxiang at 20220118 end */
+    sprd,spk-ext-pa-fsm-gpio = <&ap_gpio 132 0>,<&ap_gpio 130 0>;
+    sprd,spk-ext-pa-adp1-pin = <&ap_gpio 131 0>;
+    sprd,spk-ext-pa-adp2-pin = <&ap_gpio 133 0>;
+};
+/*Tab A7 T618 code for SR-AX6189A-01-187 by yuyongxiang at 20211220 end*/

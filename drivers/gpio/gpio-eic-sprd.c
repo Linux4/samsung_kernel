@@ -26,6 +26,7 @@
 #define SPRD_EIC_DBNC_IC		0x24
 #define SPRD_EIC_DBNC_TRIG		0x28
 #define SPRD_EIC_DBNC_CTRL0		0x40
+#define SPRD_EIC_DBNC_FORCE_CLK		0x8000
 
 #define SPRD_EIC_LATCH_INTEN		0x0
 #define SPRD_EIC_LATCH_INTRAW		0x4
@@ -228,6 +229,7 @@ static int sprd_eic_set_debounce(struct gpio_chip *chip, unsigned int offset,
 	u32 value = readl_relaxed(base + reg) & ~SPRD_EIC_DBNC_MASK;
 
 	value |= (debounce / 1000) & SPRD_EIC_DBNC_MASK;
+	value |= SPRD_EIC_DBNC_FORCE_CLK;
 	writel_relaxed(value, base + reg);
 
 	return 0;

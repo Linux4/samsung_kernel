@@ -18,6 +18,7 @@
 #include <linux/regmap.h>
 
 #include "sprd_dpu.h"
+#include "sprd_drm.h"
 
 enum {
 	CLK_DPI_DIV6 = 6,
@@ -287,23 +288,6 @@ static int dpu_clk_disable(struct dpu_context *ctx)
 	return 0;
 }
 
-static int cali_dpu_clk_disable(struct dpu_context *ctx)
-{
-	struct dpu_clk_context *clk_ctx = &dpu_clk_ctx;
-
-	clk_prepare_enable(clk_ctx->clk_dpu_core);
-
-	clk_prepare_enable(clk_ctx->clk_dpu_dpi);
-
-	clk_disable_unprepare(clk_ctx->clk_dpu_dpi);
-	clk_disable_unprepare(clk_ctx->clk_dpu_core);
-
-	clk_set_parent(clk_ctx->clk_dpu_dpi, clk_ctx->clk_src_96m);
-	clk_set_parent(clk_ctx->clk_dpu_core, clk_ctx->clk_src_153m6);
-
-	return 0;
-}
-
 static int dpu_glb_parse_dt(struct dpu_context *ctx,
 				struct device_node *np)
 {
@@ -364,39 +348,43 @@ static void dpu_glb_disable(struct dpu_context *ctx)
 	clk_disable_unprepare(clk_ap_ahb_disp_eb);
 }
 
-static void cali_dpu_glb_disable(struct dpu_context *ctx)
-{
-	clk_prepare_enable(clk_ap_ahb_disp_eb);
-	clk_disable_unprepare(clk_ap_ahb_disp_eb);
-}
-
-
-
 static void dpu_reset(struct dpu_context *ctx)
 {
-	/* soft reset iommu */
-	regmap_update_bits(mmu_reset.regmap,
-		    mmu_reset.enable_reg,
-		    mmu_reset.mask_bit,
-		    mmu_reset.mask_bit);
-	udelay(10);
-	regmap_update_bits(mmu_reset.regmap,
-		    mmu_reset.enable_reg,
-		    mmu_reset.mask_bit,
-		    (unsigned int)(~mmu_reset.mask_bit));
+	u32 val;
 
-	udelay(10);
+	mutex_lock(&dpu_gsp_lock);
 
-	/* soft reset dpu */
-	regmap_update_bits(disp_reset.regmap,
-		    disp_reset.enable_reg,
-		    disp_reset.mask_bit,
-		    disp_reset.mask_bit);
-	udelay(10);
-	regmap_update_bits(disp_reset.regmap,
-		    disp_reset.enable_reg,
-		    disp_reset.mask_bit,
-		    (unsigned int)(~disp_reset.mask_bit));
+	do {
+		val = readl(ctx->gsp_base);
+	} while (val & BIT(2));
+
+	if (!(val & BIT(2))) {
+		/* soft reset iommu */
+		regmap_update_bits(mmu_reset.regmap,
+				mmu_reset.enable_reg,
+				mmu_reset.mask_bit,
+				mmu_reset.mask_bit);
+		udelay(10);
+		regmap_update_bits(mmu_reset.regmap,
+				mmu_reset.enable_reg,
+				mmu_reset.mask_bit,
+				(unsigned int)(~mmu_reset.mask_bit));
+
+		udelay(10);
+
+		/* soft reset dpu */
+		regmap_update_bits(disp_reset.regmap,
+				disp_reset.enable_reg,
+				disp_reset.mask_bit,
+				disp_reset.mask_bit);
+		udelay(10);
+		regmap_update_bits(disp_reset.regmap,
+				disp_reset.enable_reg,
+				disp_reset.mask_bit,
+				(unsigned int)(~disp_reset.mask_bit));
+	}
+
+	mutex_unlock(&dpu_gsp_lock);
 }
 
 static void dpu_power_domain(struct dpu_context *ctx, int enable)
@@ -409,7 +397,6 @@ static struct dpu_clk_ops dpu_clk_ops = {
 	.init = dpu_clk_init,
 	.enable = dpu_clk_enable,
 	.disable = dpu_clk_disable,
-	.dpu_clk_disable = cali_dpu_clk_disable,
 };
 
 static struct dpu_glb_ops dpu_glb_ops = {
@@ -418,7 +405,6 @@ static struct dpu_glb_ops dpu_glb_ops = {
 	.enable = dpu_glb_enable,
 	.disable = dpu_glb_disable,
 	.power = dpu_power_domain,
-	.dpu_global_disable = cali_dpu_glb_disable,
 };
 
 static struct ops_entry clk_entry = {

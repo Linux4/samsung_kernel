@@ -17,9 +17,11 @@
 #define AW882XX_LOAD_FW_DELAY_TIME	(0)
 #define AW_START_RETRIES	(5)
 
-/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211122start */
 #define AW_PID_2055_VERSION_DIFF_REG    (0x23)
-/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
+#define AW_RELIABILITY_ENHANCE_REG      (0x73)
+#define AW_RELIABILITY_ENHANCE_VALUE    (0x1D40)
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211122 end */
 
 #define AW_I2C_RETRIES			5	/* 5 times */
 #define AW_I2C_RETRY_DELAY		5	/* 5 ms */
@@ -56,6 +58,16 @@ enum aw882xx_int_type {
 	INT_TYPE_OCDI = 0x4,
 	INT_TYPE_OTHI = 0x8,
 };
+
+/* Tab A8 code for AX6300DEV-3890 by maoruiqian at 2021229 start */
+enum aw882xx_device_index {
+        DEVICE_INDEX_34,
+        DEVICE_INDEX_35,
+        DEVICE_INDEX_36,
+        DEVICE_INDEX_37,
+        DEVICE_MAX,
+};
+/* Tab A8 code for AX6300DEV-3890 by maoruiqian at 2021229 end */
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 1)
 #define AW_KERNEL_VER_OVER_4_19_1

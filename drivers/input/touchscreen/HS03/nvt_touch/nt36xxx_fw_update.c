@@ -283,10 +283,11 @@ static int32_t nvt_bin_header_parser(const u8 *fwdata, size_t fwsize)
 					__func__, bin_map[list].BIN_addr, bin_map[list].BIN_addr + bin_map[list].size);
 			return -EINVAL;
 		}
-
+/*
 		input_err(true, &ts->client->dev, "%s: [%d][%s] SRAM (0x%08X), SIZE (0x%08X), BIN (0x%08X), CRC (0x%08X)\n",
 				__func__, list, bin_map[list].name,
 				bin_map[list].SRAM_addr, bin_map[list].size,  bin_map[list].BIN_addr, bin_map[list].crc);
+*/
 	}
 
 	return 0;
@@ -597,6 +598,7 @@ static int32_t nvt_write_sram(const u8 *fwdata,
 	return ret;
 }
 
+/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 start*/
 /*******************************************************
 Description:
 	Novatek touchscreen nvt_write_firmware function to write
@@ -605,7 +607,7 @@ firmware into each partition.
 return:
 	n.a.
 *******************************************************/
-static int32_t nvt_write_firmware(const u8 *fwdata, size_t fwsize)
+static int32_t nvt_write_firmware(const u8 *fwdata, size_t fwsize, uint8_t full)
 {
 	uint32_t list = 0;
 	char *name;
@@ -613,6 +615,7 @@ static int32_t nvt_write_firmware(const u8 *fwdata, size_t fwsize)
 	int32_t ret = 0;
 
 	memset(fwbuf, 0, (NVT_TRANSFER_LEN+1));
+	input_err(true, &ts->client->dev, "full download = %d\n", full);
 
 	for (list = 0; list < partition; list++) {
 		/* initialize variable */
@@ -620,6 +623,10 @@ static int32_t nvt_write_firmware(const u8 *fwdata, size_t fwsize)
 		size = bin_map[list].size;
 		BIN_addr = bin_map[list].BIN_addr;
 		name = bin_map[list].name;
+
+		/* ignore ilm (list-0) if not full download*/
+		if ((full == false) && (list == 0))
+			continue;
 
 //		input_info(true, &ts->client->dev, "[%d][%s] SRAM (0x%08X), SIZE (0x%08X), BIN (0x%08X)\n",
 //				list, name, SRAM_addr, size, BIN_addr);
@@ -649,6 +656,7 @@ static int32_t nvt_write_firmware(const u8 *fwdata, size_t fwsize)
 out:
 	return ret;
 }
+/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 end*/
 
 /*******************************************************
 Description:
@@ -891,6 +899,67 @@ static void nvt_read_bld_hw_crc(void)
 	return;
 }
 
+/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 start*/
+/*******************************************************
+ Description:
+	Novatek touchscreen check DMA hw crc function.
+This function will check hw crc result is pass or not.
+
+return:
+	n.a.
+*******************************************************/
+static int32_t nvt_check_dma_hw_crc(void)
+{
+	uint8_t retry = 0, crc_flag = 0, retry_max = 20;
+	int32_t ret = 0;
+
+	/* write register bank */
+	nvt_set_bld_crc_bank(ts->mmap->BLD_DES_ADDR, bin_map[0].SRAM_addr,
+			ts->mmap->BLD_LENGTH_ADDR, bin_map[0].size,
+			ts->mmap->G_DLM_CHECKSUM_ADDR, bin_map[0].crc);
+
+	/* bld dma crc enable */
+	nvt_set_page(ts->mmap->DMA_CRC_EN_ADDR);
+	fwbuf[0] = ts->mmap->DMA_CRC_EN_ADDR & 0x7F;
+	fwbuf[1] = 0x01;	//enable
+	CTP_SPI_WRITE(ts->client, fwbuf, 2);
+
+	/* polling for dma crc check finish */
+	while (1) {
+		nvt_set_page(ts->mmap->DMA_CRC_FLAG_ADDR);
+		fwbuf[0] = ts->mmap->DMA_CRC_FLAG_ADDR & 0x7F;
+		fwbuf[1] = 0xFF;
+		ret = CTP_SPI_READ(ts->client, fwbuf, 2);
+		if (ret) {
+			input_err(true, &ts->client->dev, "Read dma crc flag failed\n");
+			return ret;
+		}
+
+		mdelay(1);
+
+		/*
+		 * [Bit-0] DMA_CRC_FLAG: 0-DMA CRC pass, 1-DMA CRC error
+		 * [Bit-1] DMA_CRC_DONE: 0-CRC checking, 1-finish
+		 */
+		crc_flag = (fwbuf[1] & 0x03);
+		if ((crc_flag == 0x02) || (crc_flag == 0x03))
+			break;
+
+		retry++;
+		if (retry > retry_max) {
+			break;
+		}
+	}
+
+	if (crc_flag != 0x02) {
+		input_err(true, &ts->client->dev, "[0][%s] dma crc error 0x%02X, retry %d\n",
+				bin_map[0].name, crc_flag, retry);
+		ret = -EIO;
+	}
+
+	return ret;
+}
+
 /*******************************************************
 Description:
 	Novatek touchscreen Download_Firmware with HW CRC
@@ -899,7 +968,7 @@ function. It's complete download firmware flow.
 return:
 	Executive outcomes. 0---succeed. else---fail.
 *******************************************************/
-static int32_t nvt_download_firmware_hw_crc(void)
+static int32_t nvt_download_firmware_hw_crc(uint8_t full)
 {
 	uint8_t retry = 0;
 	int32_t ret = 0;
@@ -910,8 +979,16 @@ static int32_t nvt_download_firmware_hw_crc(void)
 		/* bootloader reset to reset MCU */
 		nvt_bootloader_reset();
 
+		/* check ilm crc if not doing full download */
+		if (!full) {
+			if (nvt_check_dma_hw_crc()) {
+				input_err(true, &ts->client->dev, "ILM crc is not corrent. Enable full download\n");
+				full = true;
+			}
+		}
+
 		/* Start to write firmware process */
-		ret = nvt_write_firmware(fw_entry->data, fw_entry->size);
+		ret = nvt_write_firmware(fw_entry->data, fw_entry->size, full);
 		if (ret) {
 			input_err(true, &ts->client->dev, "%s: Write_Firmware failed. (%d)\n", __func__, ret);
 			goto fail;
@@ -945,6 +1022,7 @@ static int32_t nvt_download_firmware_hw_crc(void)
 		}
 
 fail:
+		full = true;
 		retry++;
 		if(unlikely(retry > 2)) {
 			input_err(true, &ts->client->dev, "%s: error, retry=%d\n", __func__, retry);
@@ -966,7 +1044,7 @@ complete download firmware flow.
 return:
 	n.a.
 *******************************************************/
-static int32_t nvt_download_firmware(void)
+static int32_t nvt_download_firmware(uint8_t full)
 {
 	uint8_t retry = 0;
 	int32_t ret = 0;
@@ -993,7 +1071,7 @@ static int32_t nvt_download_firmware(void)
 		nvt_write_addr(ts->mmap->EVENT_BUF_ADDR | EVENT_MAP_RESET_COMPLETE, 0x00);
 
 		/* Start to write firmware process */
-		ret = nvt_write_firmware(fw_entry->data, fw_entry->size);
+		ret = nvt_write_firmware(fw_entry->data, fw_entry->size, full);
 		if (ret) {
 			input_err(true, &ts->client->dev, "Write_Firmware failed. (%d)\n", ret);
 			goto fail;
@@ -1044,7 +1122,7 @@ Description:
 return:
 	n.a.
 *******************************************************/
-int32_t nvt_update_firmware(const char *firmware_name)
+int32_t nvt_update_firmware(const char *firmware_name, uint8_t full)
 {
 	int32_t ret = 0;
 
@@ -1070,9 +1148,9 @@ int32_t nvt_update_firmware(const char *firmware_name)
 
 	/* download firmware process */
 	if (ts->hw_crc)
-		ret = nvt_download_firmware_hw_crc();
+		ret = nvt_download_firmware_hw_crc(full);
 	else
-		ret = nvt_download_firmware();
+		ret = nvt_download_firmware(full);
 	if (ret) {
 		input_err(true, &ts->client->dev, "Download Firmware failed. (%d)\n", ret);
 		goto download_fail;
@@ -1110,6 +1188,7 @@ request_firmware_fail:
 
 	return ret;
 }
+/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 end*/
 
 int nvt_ts_fw_update_from_ums(struct nvt_ts_data *ts)
 {
@@ -1216,15 +1295,17 @@ int nvt_ts_fw_update_from_ums(struct nvt_ts_data *ts)
 				goto download_fail;
 			}
 
+			/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211129 start*/
 			/* download firmware process */
 			if (ts->hw_crc)
-				ret = nvt_download_firmware_hw_crc();
+				ret = nvt_download_firmware_hw_crc(1);
 			else
-				ret = nvt_download_firmware();
+				ret = nvt_download_firmware(1);
 			if (ret) {
 				input_err(true, &ts->client->dev, "Download Firmware failed. (%d)\n", ret);
 				goto download_fail;
 			}
+			/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211129 end*/
 
 			input_info(true, &ts->client->dev, "Update firmware success! <%ld us>\n",
 					(end.tv_sec - start.tv_sec)*1000000L + (end.tv_usec - start.tv_usec));
@@ -1260,7 +1341,9 @@ int nvt_ts_fw_update_from_bin(struct nvt_ts_data *ts)
 {
 	int ret = 0;
 	mutex_lock(&ts->lock);
-	ret = nvt_update_firmware(ts->platdata->firmware_name);
+	/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 start*/
+	ret = nvt_update_firmware(ts->platdata->firmware_name, 1);
+	/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 end*/
 	mutex_unlock(&ts->lock);
 
 	return ret;
@@ -1271,15 +1354,17 @@ int nvt_ts_fw_update_from_mp_bin(struct nvt_ts_data *ts, bool is_start)
 	int ret = 0;
 	bool saveIsUMS;
 
+	/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 start*/
 	if (is_start) {
 		input_info(true, &ts->client->dev, "isUMS = %s\n", ts->isUMS ? "true but load mp fw" : "false");
 		saveIsUMS = ts->isUMS ? true : false;	//save isUMS status
 		ts->isUMS = false;
-		ret = nvt_update_firmware(ts->platdata->firmware_name_mp);
+		ret = nvt_update_firmware(ts->platdata->firmware_name_mp, 1);
 		ts->isUMS = saveIsUMS ? true : false;	//restore isUMS status
 	} else {
-		ret = nvt_update_firmware(ts->platdata->firmware_name);
+		ret = nvt_update_firmware(ts->platdata->firmware_name, 1);
 	}
+	/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 end*/
 	return ret;
 }
 
@@ -1299,7 +1384,9 @@ void Boot_Update_Firmware(struct work_struct *work)
 	ts->isUMS = false;
 
 	mutex_lock(&ts->lock);
-	nvt_update_firmware(ts->platdata->firmware_name);
+	/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 start*/
+	nvt_update_firmware(ts->platdata->firmware_name, 1);
+	/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 end*/
 	mutex_unlock(&ts->lock);
 #if SEC_TOUCH_CMD
 	/* Parsing criteria from dts */

@@ -47,18 +47,47 @@
 /* ms,-1 is wait  forever */
 #define SIPC_WRITE_TIMEOUT             -1
 
-/* HS03 code for SL6215DEV-1167 by liuguangqiang at 20210914 start */
+/* Tab A7 Lite T618 code for AX6189DEV-849 by duxinqi|AX6189DEV-953 at 2022/01/24 start*/
+/* HS03 code for SL6215DEV-3827 by liuguangqiang at 2021/12/15 start */
+#ifndef CONFIG_TARGET_UMS512_25C10
 enum lcd_vendor {
-    LCD_NONE = 0,
-    LCD_JD9365T_CPT,
-    LCD_NT36525B_TXD,
-    LCD_NL9911C_TRULY,
-    LCD_JD9365T_HOLITECH,
-    LCD_GC7202H_GENRPRO,
-    LCD_JD9365T_HOLITECH_BK,
-    LCD_GC7202H_GENRPRO_BK
+	LCD_NONE = 0,
+	LCD_JD9365T_CPT,
+	LCD_NT36525B_TXD,
+	LCD_NL9911C_TRULY,
+	LCD_JD9365T_HOLITECH,
+	LCD_GC7202H_GENRPRO,
+	LCD_JD9365T_HOLITECH_BK,
+	LCD_GC7202H_GENRPRO_BK,
+	LCD_NL9911C_TM,
 };
-/* HS03 code for SL6215DEV-1167 by liuguangqiang at 20210914 end */
+struct lcd_vendor_info {
+	enum lcd_vendor lcd_name;
+	char *lcd_strdata;
+};
+#else
+struct lcd_vendor_info {
+	int  lcd_name_white;
+	int  lcd_name_black;
+	char *lcd_strdata;
+	char *lcd_color_white;
+	char *lcd_color_black;
+};
+#define LCD_NO_WHITE_AND_BLACK 0Xff
+
+#define LCD_HX83102E_GX_WHITE  0X26
+#define LCD_NT36525B_TXD_WHITE  0X36
+#define LCD_HX83102E_HY_WHITE  0X56
+#define LCD_NT36523B_LS_WHITE  0X66
+
+#define LCD_HX83102E_GX_BLACK  0X25
+#define LCD_NT36525B_TXD_BLACK  0X35
+#define LCD_HX83102E_HY_BLACK  0X55
+#define LCD_NT36523B_LS_BLACK  0X65
+
+#endif
+/* HS03 code for SL6215DEV-3827 by liuguangqiang at 2021/12/15 end */
+/* Tab A7 Lite T618 code for AX6189DEV-849|AX6189DEV-953 by duxinqi at 2022/01/24 end*/
 
 enum calib_cmd {
 	CALIB_EN,

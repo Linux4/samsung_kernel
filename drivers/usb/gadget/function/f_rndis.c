@@ -71,7 +71,7 @@
  */
 
 static unsigned int rndis_dl_max_pkt_per_xfer = 10;
-static unsigned int rndis_ul_max_pkt_per_xfer = 3;
+static unsigned int rndis_ul_max_pkt_per_xfer = 10;
 
 struct f_rndis {
 	struct gether			port;
@@ -439,6 +439,12 @@ static void rndis_response_available(void *_rndis)
 	struct usb_composite_dev	*cdev = rndis->port.func.config->cdev;
 	__le32				*data = req->buf;
 	int				status;
+
+	/* HS03 code for P211209-00284 by ditong at 20211210 start */
+	if (!rndis->notify_req) {
+		return;
+	}
+	/* HS03 code for P211209-00284 by ditong at 20211210 end */
 
 	if (atomic_inc_return(&rndis->notify_count) != 1)
 		return;

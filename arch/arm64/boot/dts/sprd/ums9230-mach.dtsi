@@ -457,6 +457,14 @@
 			sprd,dynamic-cluster =
 			/*Pdynperghz*10    Freq     Vbase  */
 			< 322           1000     1000>;
+			/* HS03 code(Unisoc Patch) for SL6215SDEV-358 by lina at 20220509 start */
+			sprd,sensor-names = "ank0-tzone1",
+			"ank1-thmzone",
+			"ank2-thmzone",
+			"ank3-thmzone",
+			"ank4-thmzone",
+			"ank5-thmzone";
+			/* HS03 code(Unisoc Patch) for SL6215SDEV-358 by lina at 20220509 end */
 		};
 
 		cluster1_cooling: cluster1-cooling {
@@ -498,6 +506,10 @@
 			sprd,dynamic-cluster =
 			/* Pdynperghz*10    Freq     Vbase */
 			<  322           1000     1000>;
+			/* HS03 code(Unisoc Patch) for SL6215SDEV-358 by lina at 20220509 start */
+			sprd,sensor-names = "prometheus6-thmzone",
+			"prometheus7-thmzone";
+			/* HS03 code(Unisoc Patch) for SL6215SDEV-358 by lina at 20220509 end */
 		};
 	};
 
@@ -626,3 +638,6 @@
 	mipi-switch-mode-gpios = <&ap_gpio 8 GPIO_ACTIVE_HIGH>;
 };
 
+/* HS03 code for SL6215SDEV-358 by lina at 20220509 start */
+#include "HS03/hs03_thermal.dtsi"
+/* HS03 code for SL6215SDEV-358 by lina at 20220509 end */

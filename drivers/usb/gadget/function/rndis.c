@@ -641,13 +641,16 @@ static int rndis_set_response(struct rndis_params *params,
 	rndis_set_cmplt_type *resp;
 	rndis_resp_t *r;
 
+	BufLength = le32_to_cpu(buf->InformationBufferLength);
+	BufOffset = le32_to_cpu(buf->InformationBufferOffset);
+	if ((BufLength > RNDIS_MAX_TOTAL_SIZE) ||
+	    (BufOffset + 8 >= RNDIS_MAX_TOTAL_SIZE))
+		    return -EINVAL;
+
 	r = rndis_add_response(params, sizeof(rndis_set_cmplt_type));
 	if (!r)
 		return -ENOMEM;
 	resp = (rndis_set_cmplt_type *)r->buf;
-
-	BufLength = le32_to_cpu(buf->InformationBufferLength);
-	BufOffset = le32_to_cpu(buf->InformationBufferOffset);
 
 #ifdef	VERBOSE_DEBUG
 	pr_debug("%s: Length: %d\n", __func__, BufLength);
@@ -1048,7 +1051,7 @@ u8 *rndis_get_next_response(struct rndis_params *params, u32 *length)
 
 	list_for_each_safe(act, tmp, &(params->resp_queue)) {
 		r = list_entry(act, rndis_resp_t, list);
-		if (!r->send) {
+		if (r && !r->send) {
 			r->send = 1;
 			*length = r->length;
 			return r->buf;

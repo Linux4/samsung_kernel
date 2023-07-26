@@ -2214,6 +2214,10 @@ static int musb_schedule(
 	struct urb		*urb = next_urb(qh);
 	u8			epno = usb_pipeendpoint(urb->pipe);
 	u8			last_addr;
+	/* Tab A8 code for P211103-03206 by wangjian at 20211221 start */
+	u8			last_epno;
+	struct usb_host_endpoint    *last_hep = NULL;
+	/* Tab A8 code for P211103-03206 by wangjian at 20211221 end */
 	struct usb_host_endpoint	*hep = qh->hep;
 
 	/* use fixed hardware for control and bulk */
@@ -2249,23 +2253,45 @@ static int musb_schedule(
 		if (epnum < 2 + epno)
 			continue;
 
-		if (musb_dma_sprd(musb) && (musb->is_multipoint)) {
-			if (is_in)
-				last_addr = musb_readb(musb->mregs,
-						       musb->io.busctl_offset
-						       (epnum,
-							MUSB_RXFUNCADDR));
-			else
-				last_addr = musb_readb(musb->mregs,
-						       musb->io.busctl_offset
-						       (epnum,
-							MUSB_TXFUNCADDR));
+		if (musb_dma_sprd(musb)) {
+			if (musb->is_multipoint) {
+				if (is_in)
+					last_addr = musb_readb(musb->mregs,
+								musb->io.busctl_offset
+								(epnum,
+								MUSB_RXFUNCADDR));
+				else
+					last_addr = musb_readb(musb->mregs,
+								musb->io.busctl_offset
+								(epnum,
+								MUSB_TXFUNCADDR));
+			} else
+					last_addr = qh->addr_reg;
+
 			if (last_addr != 0) {
 				if (last_addr != qh->addr_reg)
 					continue;
+				else {	/* last_addr == qh->addr_reg */
+					/* Get and chedck the corresponding hep no. */
+					last_epno = 0;
+					if (musb_dma_sprd(musb) && hw_ep->hep[!is_in]) {
+						last_hep = hw_ep->hep[!is_in];
+						last_epno = last_hep->desc.bEndpointAddress
+						            & USB_ENDPOINT_NUMBER_MASK;
+					}
+					musb_dbg(musb, "last_epno(%d) epno(%d)\n",
+							last_epno, epno);
 
-				best_end = epnum;
-				break;
+					if (last_epno != 0) {
+						/*hw_ep->hep has already assignment*/
+						if (last_epno != epno)
+							continue;
+						else {
+							best_end = epnum;
+							break;
+						}
+					}
+				}
 			}
 		}
 
@@ -2335,7 +2361,7 @@ static int musb_schedule(
 	idle = 1;
 	qh->mux = 0;
 	hw_ep = musb->endpoints + best_end;
-	if (musb_dma_sprd(musb) && (musb->is_multipoint))
+	if (musb_dma_sprd(musb))
 		hw_ep->hep[!is_in] = hep;
 	musb_dbg(musb, "qh %p periodic slot %d", qh, best_end);
 success:
@@ -3036,14 +3062,19 @@ static void musb_clear_epinfo_sprd(struct usb_hcd *hcd,
 	if (epnum > USB_ENDPOINT_NUMBER_MASK)
 		return;
 
+	if (musb->is_multipoint) {
+		if (is_in)
+			musb_write_rxfunaddr(musb, epnum, 0x0);
+		else
+			musb_write_txfunaddr(musb, epnum, 0x0);
+	}
+
 	if (is_in) {
-		musb_write_rxfunaddr(musb, epnum, 0x0);
 		csr = musb_readw(hw_ep->regs, MUSB_RXCSR);
 		csr |= MUSB_RXCSR_CLRDATATOG;
 		musb_writew(hw_ep->regs, MUSB_RXCSR, csr);
 		musb_writew(hw_ep->regs, MUSB_RXCSR, 0x0);
 	} else {
-		musb_write_txfunaddr(musb, epnum, 0x0);
 		csr = musb_readw(hw_ep->regs, MUSB_TXCSR);
 		csr |= MUSB_TXCSR_CLRDATATOG;
 		musb_writew(hw_ep->regs, MUSB_TXCSR, csr);
@@ -3063,7 +3094,7 @@ musb_h_disable(struct usb_hcd *hcd, struct usb_host_endpoint *hep)
 
 	spin_lock_irqsave(&musb->lock, flags);
 
-	if (musb_dma_sprd(musb) && (musb->is_multipoint))
+	if (musb_dma_sprd(musb))
 		musb_clear_epinfo_sprd(hcd, hep);
 
 	qh = hep->hcpriv;

@@ -192,7 +192,7 @@ static const char *scene_id_to_str(int scene_id)
 		[VBC_DAI_ID_FAST_P] = TO_STRING(VBC_DAI_ID_FAST_P),
 		/* HS03 code for P210923-06623 by LiangWenye at 20211106 start */
 #ifdef CONFIG_TARGET_UMS9230_4H10
-		[VBC_DAI_ID_SMTPA_FAST_P] = TO_STRING(VBC_DAI_ID_SMTPA_FAST_P),
+		[VBC_DAI_ID_FAST_P_SMART_AMP] = TO_STRING(VBC_DAI_ID_FAST_P_SMART_AMP),
 #endif
 		/* HS03 code for P210923-06623 by LiangWenye at 20211106 end */
 		[VBC_DAI_ID_OFFLOAD] = TO_STRING(VBC_DAI_ID_OFFLOAD),
@@ -254,11 +254,11 @@ static int check_enable_ivs_smtpa(int scene_id, int stream,
 	/* HS03 code for P210923-06623 by LiangWenye at 20211106 start */
 	case VBC_DAI_ID_FAST_P:
 #ifdef CONFIG_TARGET_UMS9230_4H10
-	case VBC_DAI_ID_SMTPA_FAST_P:
+	case VBC_DAI_ID_FAST_P_SMART_AMP:
 #endif
 	case VBC_DAI_ID_OFFLOAD:
 		enable = 1;
-		pr_info("scene %s enabled ivsense smartpa\n",
+		pr_info("scene %s enable:d ivsense smartpa\n",
 			scene_id_to_str(scene_id));
 		break;
 	/* HS03 code for P210923-06623 by LiangWenye at 20211106 end */
@@ -333,7 +333,7 @@ static int check_be_dai_id(int be_dai_id)
 		scene_id = VBC_DAI_ID_FAST_P;
 		break;
 	case BE_DAI_ID_FAST_P_SMART_AMP:
-		scene_id = VBC_DAI_ID_SMTPA_FAST_P;
+		scene_id = VBC_DAI_ID_FAST_P_SMART_AMP;
 		break;
 #else
 	case BE_DAI_ID_FAST_P_CODEC:
@@ -665,7 +665,7 @@ static int get_startup_scene_dac_id(int scene_id)
 	/* HS03 code for P210923-06623 by LiangWenye at 20211106 start */
 	case VBC_DAI_ID_FAST_P:
 #ifdef CONFIG_TARGET_UMS9230_4H10
-	case VBC_DAI_ID_SMTPA_FAST_P:
+	case VBC_DAI_ID_FAST_P_SMART_AMP:
 #endif
 		dac_id = VBC_DA0;
 		break;
@@ -750,7 +750,7 @@ static int get_startup_scene_adc_id(int scene_id)
 	/* HS03 code for P210923-06623 by LiangWenye at 20211106 start */
 	case VBC_DAI_ID_FAST_P:
 #ifdef CONFIG_TARGET_UMS9230_4H10
-	case VBC_DAI_ID_SMTPA_FAST_P:
+	case VBC_DAI_ID_FAST_P_SMART_AMP:
 #endif
 		/* not used */
 		adc_id = 0;
@@ -6186,7 +6186,7 @@ static int scene_smtpa_fast_startup(struct snd_pcm_substream *substream,
 			      struct snd_soc_dai *dai)
 {
 	int stream = substream->stream;
-	int scene_id = VBC_DAI_ID_SMTPA_FAST_P;
+	int scene_id = VBC_DAI_ID_FAST_P_SMART_AMP;
 	int be_dai_id = dai->id;
 	int ret = 0;
 	struct vbc_codec_priv *vbc_codec = dev_get_drvdata(dai->dev);
@@ -6219,7 +6219,7 @@ static void scene_smtpa_fast_shutdown(struct snd_pcm_substream *substream,
 				struct snd_soc_dai *dai)
 {
 	int stream = substream->stream;
-	int scene_id = VBC_DAI_ID_SMTPA_FAST_P;
+	int scene_id = VBC_DAI_ID_FAST_P_SMART_AMP;
 	int be_dai_id = dai->id;
 	struct vbc_codec_priv *vbc_codec = dev_get_drvdata(dai->dev);
 
@@ -6248,7 +6248,7 @@ static int scene_smtpa_fast_hw_params(struct snd_pcm_substream *substream,
 	unsigned int rate;
 	int data_fmt = VBC_DAT_L16;
 	int stream = substream->stream;
-	int scene_id = VBC_DAI_ID_SMTPA_FAST_P;
+	int scene_id = VBC_DAI_ID_FAST_P_SMART_AMP;
 	struct vbc_codec_priv *vbc_codec = dev_get_drvdata(dai->dev);
 	int chan_cnt;
 
@@ -6296,7 +6296,7 @@ static int scene_smtpa_fast_hw_free(struct snd_pcm_substream *substream,
 			      struct snd_soc_dai *dai)
 {
 	int stream = substream->stream;
-	int scene_id = VBC_DAI_ID_SMTPA_FAST_P;
+	int scene_id = VBC_DAI_ID_FAST_P_SMART_AMP;
 	struct vbc_codec_priv *vbc_codec = dev_get_drvdata(dai->dev);
 
 	pr_info("%s dai:%s(%d) scene:%s %s\n", __func__, dai_id_to_str(dai->id),
@@ -6320,7 +6320,7 @@ static int scene_smtpa_fast_trigger(struct snd_pcm_substream *substream, int cmd
 {
 	int up_down;
 	int stream = substream->stream;
-	int scene_id = VBC_DAI_ID_SMTPA_FAST_P;
+	int scene_id = VBC_DAI_ID_FAST_P_SMART_AMP;
 	int ret;
 	struct vbc_codec_priv *vbc_codec = dev_get_drvdata(dai->dev);
 

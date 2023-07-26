@@ -691,6 +691,9 @@ static int dpu_init(struct dpu_context *ctx)
 
 	dump_layer_task_init();
 
+	ctx->base_offset[0] = 0x0;
+	ctx->base_offset[1] = sizeof(struct dpu_reg) / 4;
+
 	return 0;
 }
 

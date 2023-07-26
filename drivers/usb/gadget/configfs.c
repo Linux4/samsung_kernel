@@ -307,20 +307,25 @@ static ssize_t gadget_dev_desc_UDC_store(struct config_item *item,
 	if (name[len - 1] == '\n')
 		name[len - 1] = '\0';
 
+	pr_err("%s, name:%s\n", __func__, name);
+
 	mutex_lock(&gi->lock);
 
 	if (!strlen(name) || strcmp(name, "none") == 0) {
 		ret = unregister_gadget(gi);
 		if (ret)
 			goto err;
+		pr_err("%s, name is none or null\n", __func__);
 		kfree(name);
 	} else {
 		if (gi->composite.gadget_driver.udc_name) {
 			ret = -EBUSY;
+			pr_err("%s, udc name is exist, return busy\n", __func__);
 			goto err;
 		}
 		gi->composite.gadget_driver.udc_name = name;
 		ret = usb_gadget_probe_driver(&gi->composite.gadget_driver);
+		pr_err("%s, udc_name:%s, ret:%d\n", __func__, name, ret);
 		if (ret) {
 			gi->composite.gadget_driver.udc_name = NULL;
 			goto err;

@@ -29,6 +29,13 @@ enum {
 	CMD_CODE_INIT = 0,
 	CMD_CODE_SLEEP_IN,
 	CMD_CODE_SLEEP_OUT,
+
+	/*Tab A8 code for AX6300DEV-3466 by huangzhongjie at 20211126 start*/
+	CMD_CODE_ESD_CHECK_ENABLE_CMD,
+	CMD_CODE_ESD_CHECK_READ_MASTER_CMD,
+	CMD_CODE_ESD_CHECK_READ_SLAVE_CMD,
+	CMD_CODE_ESD_CHECK_RETURN_TO_NORMAL,
+	/*Tab A8 code for AX6300DEV-3466 by huangzhongjie at 20211126 end*/
 	/*Tab A8 code for SR-AX6300-01-1079 by hehaoran at 20211001 start*/
 	CMD_CODE_PWM_DIMING_OFF,
 	/*Tab A8 code for SR-AX6300-01-1079 by hehaoran at 20211001 end*/
@@ -127,6 +134,10 @@ struct panel_info {
 	u32 lanes;
 	u32 mode_flags;
 	bool use_dcs;
+
+	/*Tab A8 code for AX6300DEV-3466 by huangzhongjie at 20211126 start*/
+	int esd_check_double_reg_mode;
+	/*Tab A8 code for AX6300DEV-3466 by huangzhongjie at 20211126 end*/
 	/*Tab A8 code for SR-AX6300-01-32 by fengzhigang at 20210907 start*/
 	int deep_sleep_flag;
 	/*Tab A8 code for SR-AX6300-01-32 by fengzhigang at 20210907 end*/
@@ -135,6 +146,12 @@ struct panel_info {
 	int reset_delay_vspn_ms;
 	/*Tab A8 code for AX6300DEV-787 by fengzhigang at 20211020 end*/
 
+	/* HS03 code for P220718-03172 by wenghailong at 20220722 start */
+	u32 power_vsp_out;
+	/* HS03 code for P220718-03172 by wenghailong at 20220722 end */
+	/*Tab A8 code for SR-AX6300-01-441 by huangzhongjie at 20211129 start*/
+	u32 reset_low_before_power_delay;
+	/*Tab A8 code for SR-AX6300-01-441 by huangzhongjie at 20211129 end*/
 	/* delay time between set lcd avdd and avee */
 	u32 power_gpio_delay;
 	/* HS03 code for SR-SL6215-01-118 by LiChao at 20210830 start */
@@ -186,11 +203,20 @@ void  sprd_panel_exit_doze(struct drm_panel *p);
 int sprd_oled_set_brightness(struct backlight_device *bdev);
 /*Tab A8 code for AX6300DEV-1494 by luxinjun at 2021/11/03 start*/
 /*Tab A8 code for AX6300DEV-805 by suyurui at 2021/10/9 start*/
-#ifdef CONFIG_TARGET_UMS512_1H10
+#if defined (CONFIG_TARGET_UMS512_1H10) || defined (CONFIG_TARGET_UMS512_25C10)
 extern enum tp_module_used tp_is_used;
 extern void himax_resume_by_ddi(void);
 extern void nvt_resume_for_earlier(void);
 #endif
 /*Tab A8 code for AX6300DEV-805 by suyurui at 2021/10/9 end*/
 /*Tab A8 code for AX6300DEV-1494 by luxinjun at 2021/11/03 end*/
+/*HS03 code for SR-SL6215-01-1148 by wenghailong at 20220421 start */
+/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 start*/
+#ifdef CONFIG_TARGET_UMS9230_4H10
+extern enum tp_module_used tp_is_used;
+extern void nvt_resume_for_earlier(void);
+extern int gcore_tp_esd_fail;
+#endif
+/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 end*/
+/*HS03 code for SR-SL6215-01-1148 by wenghailong at 20220421 end */
 #endif

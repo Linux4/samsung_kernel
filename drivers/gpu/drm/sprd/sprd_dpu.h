@@ -171,7 +171,6 @@ struct dpu_clk_ops {
 	int (*enable)(struct dpu_context *ctx);
 	int (*disable)(struct dpu_context *ctx);
 	int (*update)(struct dpu_context *ctx, int clk_id, int val);
-	int (*dpu_clk_disable)(struct dpu_context *ctx);
 };
 
 struct dpu_glb_ops {
@@ -181,11 +180,11 @@ struct dpu_glb_ops {
 	void (*disable)(struct dpu_context *ctx);
 	void (*reset)(struct dpu_context *ctx);
 	void (*power)(struct dpu_context *ctx, int enable);
-	void (*dpu_global_disable)(struct dpu_context *ctx);
 };
 
 struct dpu_context {
 	unsigned long base;
+	void __iomem *gsp_base;
 	u32 base_offset[2];
 	const char *version;
 	u32 corner_size;
@@ -228,7 +227,6 @@ struct sprd_dpu {
 	struct drm_display_mode *mode;
 	struct sprd_dpu_layer *layers;
 	struct sprd_dsi *dsi;
-	struct drm_device *drm;
 	u8 pending_planes;
 };
 
@@ -259,9 +257,5 @@ static inline struct sprd_dpu *crtc_to_dpu(struct drm_crtc *crtc)
 int sprd_dpu_run(struct sprd_dpu *dpu);
 int sprd_dpu_stop(struct sprd_dpu *dpu);
 void sprd_dpu_resume(struct sprd_dpu *dpu);
-
-int cali_sprd_dpu_stop(struct sprd_dpu *dpu);
-// int cali_dpu_clk_disable(struct dpu_context *ctx);
-//void cali_dpu_glb_disable(struct dpu_context *ctx);
 
 #endif

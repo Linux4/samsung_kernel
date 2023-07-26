@@ -20,9 +20,14 @@
 #include <linux/string.h>
 #include <linux/wakelock.h>
 
+struct alarm_timespec {
+	char alarm[14];
+};
+
 #define ALARM_STR_SIZE                0x0e
 #define ANDROID_ALARM_BASE_CMD(cmd)   (cmd & ~(_IOC(0, 0, 0xf0, 0)))
 #define ANDROID_ALARM_SET_ALARM_BOOT  _IOW('a', 7, struct timespec)
+#define ANDROID_ALARM_SET_ALARM_BOOT_NEW    _IOW('a', 7, struct alarm_timespec)
 #define SAPA_START_POLL_TIME          (10LL * NSEC_PER_SEC) /* 10 sec */
 #define SAPA_BOOTING_TIME             (5*60)
 #define SAPA_POLL_TIME                (15*60)
@@ -300,6 +305,7 @@ static long alarm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
     switch (ANDROID_ALARM_BASE_CMD(cmd)) {
         case ANDROID_ALARM_SET_ALARM_BOOT:
+        case ANDROID_ALARM_SET_ALARM_BOOT_NEW:
             if (copy_from_user(bootalarm_data, (void __user *)arg, 14)) {
                 rv = -EFAULT;
                 return rv;

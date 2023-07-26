@@ -1229,6 +1229,12 @@ const char * const vmstat_text[] = {
 #ifdef CONFIG_SPECULATIVE_PAGE_FAULT
 	"speculative_pgfault",
 #endif
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
+	"sqzr_objcnt",
+	"sqzr_count",
+	"sqzr_read",
+	"sqzr_write",
+#endif
 #ifdef CONFIG_PROTECT_LRU
 	"ppgfree",
 	"ppgactivate",

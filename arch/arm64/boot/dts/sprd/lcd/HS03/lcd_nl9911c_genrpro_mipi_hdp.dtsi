@@ -38,9 +38,12 @@
                     sprd,esd-check-enable = <1>;
                     sprd,esd-check-mode = <1>;
                     sprd,esd-check-period = <2000>;
-
+                    /* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 start */
+                    sprd,dphy-taget-val = <5>; /*only nl9911c modify TA-GET value*/
+                    /* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 end */
                     sprd,reset-on-sequence = <1 5>, <0 5>, <1 15>;
                     sprd,reset-off-sequence = <1 5>;
+                    sprd,deep-sleep-in = <1>;
 
                     sprd,use-dcs-write;
                     sprd,initial-command = [
@@ -61,7 +64,7 @@
                         39 00 00 0B BE 68 7C 32 5A 0C 77 43 07 0E 0E
                         39 00 00 09 BF 07 25 07 25 7F 00 11 04
                         39 00 00 0A C0 10 FF FF FF FF FF 00 FF 00
-                        39 00 00 14 C1 C0 20 20 96 04 54 54 04 2A 40 36 00 07 CF FF FF 95 01 C0
+                        39 00 00 14 C1 C0 20 20 96 04 54 54 04 2A 40 36 00 07 C0 10 FF 95 01 C0
                         39 00 00 07 C2 CC 01 10 00 01 30
                         39 00 00 0A C3 06 00 FF 00 FF 00 00 81 01
                         39 00 00 0B C4 84 01 2B 41 00 3C 00 03 03 2E
@@ -76,6 +79,7 @@
                         39 00 00 05 FE FF FF FF 40
                         39 00 00 1B E0 30 00 00 08 11 3F 22 62 DF A0 04 CC 01 FF F6 FF F0 FD FF FD F8 F5 FC FC FD FF
                         39 00 00 18 E1 EF FE FE FE FE EE F0 20 33 FF 00 00 6A 90 C0 0D 6A F0 3E FF 00 06 40
+                        39 00 00 02 F6 3F
                         39 00 00 04 FA 45 93 01
                         39 00 00 03 F1 5A 59
                         39 00 00 03 F0 A5 A6
@@ -101,6 +105,15 @@
                         39 32 00 01 29
                         39 00 00 02 26 01
                         ];
+
+                    sprd,deep-sleep-in-command = [
+                        39 00 00 03 F0 5A 59
+                        39 00 00 03 F1 A5 A6
+                        39 01 00 02 26 08
+                        39 14 00 01 28
+                        39 6E 00 01 10
+                        39 00 00 02 CC 01
+                    ];
 
                     display-timings {
                         native-mode = <&nl9911c_genrpro_timing0>;

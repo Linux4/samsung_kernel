@@ -758,6 +758,9 @@ struct charger_desc {
 	struct cm_thermal_info thm_info;
 
 	struct mutex charger_type_mtx;
+	/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 start */
+	u32 pd_port_partner;
+	/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 end */
 	/* HS03 code for SR-SL6215-01-238 by qiaodan at 20210802 start */
 	#ifdef HQ_FACTORY_BUILD
 	bool batt_cap_control;
@@ -897,22 +900,30 @@ enum battery_full_recharge_voltage {
 	#ifdef  CONFIG_TARGET_UMS9230_4H10
 	CM_FULL_VOLTAGE_HEALTH_WARM = 4175000,
 	#elif  CONFIG_TARGET_UMS512_1H10
-        CM_FULL_VOLTAGE_HEALTH_WARM = 4180000,
+	/* Tab A8 code for AX6300DEV-3563 by zhaichao at 20211206 start */
+	CM_FULL_VOLTAGE_HEALTH_WARM = 4160000,
+	/* Tab A8 code for AX6300DEV-3563 by zhaichao at 20211206 start */
 	#endif
 	/* Tab A8 code for AX6300DEV-2798 by zhaichao at 2021/11/11 end */
 	/* Tab A8 code for SR-AX6300-01-3 by qiaodan at 20210906 start */
 	#ifdef CONFIG_TARGET_UMS512_1H10
-	CM_FULL_VOLTAGE_HEALTH_COOLL = 4130000,
+	/* Tab A8 code for AX6300DEV-3574 by zhaichao at 20211209 start */
+	CM_FULL_VOLTAGE_HEALTH_COOLL = 4100000,
+	/* Tab A8 code for AX6300DEV-3574 by zhaichao at 20211209 end */
 	#endif
 	/* Tab A8 code for SR-AX6300-01-3 by qiaodan at 20210906 end */
 /* HS03 code for SL6215DEV-3535 by lina at 20211116 start */
 #ifdef  CONFIG_TARGET_UMS9230_4H10
 	CM_FULL_VOLTAGE_HEALTH_COOL = 4160000,
 #elif  CONFIG_TARGET_UMS512_1H10
-	CM_FULL_VOLTAGE_HEALTH_COOL = 4330000,
+	/* Tab A8 code for AX6300DEV-3574 by zhaichao at 20211217 start */
+	CM_FULL_VOLTAGE_HEALTH_COOL = 4300000,
+	/* Tab A8 code for AX6300DEV-3574 by zhaichao at 20211217 end */
 #endif
 /* HS03 code for SL6215DEV-3535 by lina at 20211116 end */
-	CM_FULL_VOLTAGE_HEALTH_GOOD = 4375000,
+	/* Tab A8 code for AX6300DEV-3562 by zhaichao at 20211206 start */
+	CM_FULL_VOLTAGE_HEALTH_GOOD = 4360000,
+	/* Tab A8 code for AX6300DEV-3562 by zhaichao at 20211206 end */
 };
 /* HS03 code for SL6215DEV-729 by lina at 20210903 end */
 /* HS03 code for SR-SL6215-01-607 by gaochao at 20210825 end */
@@ -959,8 +970,14 @@ struct sc2730_fchg_info {
 #ifdef CONFIG_CHARGER_MANAGER
 extern void cm_notify_event(struct power_supply *psy,
 				enum cm_event_types type, char *msg);
+/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 start */
+extern void cm_check_pd_port_partner(bool is_pd_hub);
+/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 end */
 #else
 static inline void cm_notify_event(struct power_supply *psy,
 				enum cm_event_types type, char *msg) { }
+/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 start */
+void cm_check_pd_port_partner(bool is_pd_hub) { }
+/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 end */
 #endif
 #endif /* _CHARGER_MANAGER_H */

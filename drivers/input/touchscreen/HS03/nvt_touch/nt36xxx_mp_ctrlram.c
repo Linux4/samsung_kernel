@@ -1606,8 +1606,9 @@ static int32_t nvt_selftest_open(struct inode *inode, struct file *file)
 	nvt_esd_check_enable(false);
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
 
+	/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 start*/
 	//---Download MP FW---
-	nvt_update_firmware(ts->platdata->firmware_name_mp);
+	nvt_update_firmware(ts->platdata->firmware_name_mp, 1);
 
 	if (nvt_get_fw_info()) {
 		mutex_unlock(&ts->lock);
@@ -1631,7 +1632,7 @@ static int32_t nvt_selftest_open(struct inode *inode, struct file *file)
 
 		if (nvt_mp_parse_dt(np, mpcriteria)) {
 			//---Download Normal FW---
-			nvt_update_firmware(ts->platdata->firmware_name);
+			nvt_update_firmware(ts->platdata->firmware_name, 1);
 			mutex_unlock(&ts->lock);
 			input_err(true, &ts->client->dev, "mp parse device tree failed!\n");
 			return -EINVAL;
@@ -1641,6 +1642,7 @@ static int32_t nvt_selftest_open(struct inode *inode, struct file *file)
 		//---Print Test Criteria---
 		nvt_print_criteria();
 	}
+	/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 end*/
 
 	if (nvt_switch_FreqHopEnDis(FREQ_HOP_DISABLE)) {
 		mutex_unlock(&ts->lock);
@@ -1733,8 +1735,10 @@ static int32_t nvt_selftest_open(struct inode *inode, struct file *file)
 											PS_Config_Lmt_Open_Rawdata_P, PS_Config_Lmt_Open_Rawdata_N);
 	}
 
+	/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 start*/
 	//---Download Normal FW---
-	nvt_update_firmware(ts->platdata->firmware_name);
+	nvt_update_firmware(ts->platdata->firmware_name, 1);
+	/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 end*/
 
 	mutex_unlock(&ts->lock);
 
@@ -1868,6 +1872,7 @@ static void nvt_ddic_hw_resx(void)
 	input_info(true, &ts->client->dev, "%s: --\n", __func__);
 };
 */
+/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 start*/
 /*******************************************************
 Description:
 	Novatek touchscreen /proc/nvt_lpwg_selftest open function.
@@ -1905,7 +1910,7 @@ static int32_t nvt_lpwg_selftest_open(struct inode *inode, struct file *file)
 //	nvt_ddic_hw_resx();
 
 	//---Download MP FW---
-	nvt_update_firmware(ts->platdata->firmware_name_mp);
+	nvt_update_firmware(ts->platdata->firmware_name_mp, 1);
 
 	if (nvt_get_fw_info()) {
 		mutex_unlock(&ts->lock);
@@ -1931,7 +1936,7 @@ static int32_t nvt_lpwg_selftest_open(struct inode *inode, struct file *file)
 		if (nvt_mp_parse_lpwg_dt(np, mpcriteria)) {
 			//---Download Normal FW---
 			// comment below, left host to do a complete reset
-			//nvt_update_firmware(ts->platdata->firmware_name);
+			//nvt_update_firmware(ts->platdata->firmware_name, 1);
 			mutex_unlock(&ts->lock);
 			input_err(true, &ts->client->dev, "%s: mp parse device tree failed!\n", __func__);
 			return -EINVAL;
@@ -2052,7 +2057,7 @@ static int32_t nvt_lpwg_selftest_open(struct inode *inode, struct file *file)
 	//---Download Normal FW---
 	// comment below, left host to do a complete reset
 //	nvt_ddic_hw_resx();
-//	nvt_update_firmware(ts->platdata->firmware_name);
+//	nvt_update_firmware(ts->platdata->firmware_name, 1);
 //	nvt_write_addr(ts->mmap->EVENT_BUF_ADDR | EVENT_MAP_HOST_CMD, 0x13);
 
 	mutex_unlock(&ts->lock);
@@ -2063,6 +2068,7 @@ static int32_t nvt_lpwg_selftest_open(struct inode *inode, struct file *file)
 
 	return seq_open(file, &nvt_lpwg_selftest_seq_ops);
 }
+/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 end*/
 
 static const struct file_operations nvt_lpwg_selftest_fops = {
 	.owner = THIS_MODULE,
@@ -2429,8 +2435,10 @@ static int32_t nvt_selftest_for_hq(void)
 	nvt_esd_check_enable(false);
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
 
+	/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 start*/
 	//---Download MP FW---
-	nvt_update_firmware(ts->platdata->firmware_name_mp);
+	nvt_update_firmware(ts->platdata->firmware_name_mp, 1);
+	/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 end*/
 
 	if (nvt_get_fw_info()) {
 		mutex_unlock(&ts->lock);
@@ -2454,7 +2462,9 @@ static int32_t nvt_selftest_for_hq(void)
 
 		if (nvt_mp_parse_dt(np, mpcriteria)) {
 			//---Download Normal FW---
-			nvt_update_firmware(ts->platdata->firmware_name);
+			/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 start*/
+			nvt_update_firmware(ts->platdata->firmware_name, 1);
+			/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 end*/
 			mutex_unlock(&ts->lock);
 			input_err(true, &ts->client->dev, "mp parse device tree failed!\n");
 			return -EINVAL;
@@ -2627,8 +2637,10 @@ static int32_t nvt_selftest_for_hq(void)
 	}
 	/*HS03 code for SL6215DEV-964 by zhoulingyun at 20210908 end*/
 
+	/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 start*/
 	//---Download Normal FW---
-	nvt_update_firmware(ts->platdata->firmware_name);
+	nvt_update_firmware(ts->platdata->firmware_name, 1);
+	/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 end*/
 
 	mutex_unlock(&ts->lock);
 

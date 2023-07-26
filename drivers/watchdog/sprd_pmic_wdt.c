@@ -29,6 +29,7 @@
 #include <linux/sipc.h>
 #include <uapi/linux/sched/types.h>
 
+
 #define SPRD_PMIC_WDT_LOAD_LOW		0x0
 #define SPRD_PMIC_WDT_LOAD_HIGH		0x4
 #define SPRD_PMIC_WDT_CTRL		0x8

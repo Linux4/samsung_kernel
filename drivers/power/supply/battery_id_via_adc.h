@@ -24,9 +24,27 @@ enum multiBatteryID {
 #define BATTERY_ATL_NVT_ID_VOLTAGE_LOW     600     // ID: 47K
 #define BATTERY_SCUD_SDI_ID_VOLTAGE_UP     1009
 #define BATTERY_SCUD_SDI_ID_VOLTAGE_LOW    903     // ID: 100K
+/* Tab A7 T618 code for SR-AX6189A-01-108 by shixuanxuan at 20211223 start */
+#endif
 
+#if defined(CONFIG_UMS512_25C10_CHARGER)
+enum multiBatteryID {
+    BATTERY_SCUD_BYD = 0,
+    BATTERY_ATL_NVT,
+    BATTERY_SCUD_ATL,
+    BATTERY_UNKNOWN,
+};
+
+#define BATTERY_SCUD_BYD_ID_VOLTAGE_UP    691    // ID: 30K
+#define BATTERY_SCUD_BYD_ID_VOLTAGE_LOW   498
+#define BATTERY_ATL_NVT_ID_VOLTAGE_UP     364     // ID: 10K
+#define BATTERY_ATL_NVT_ID_VOLTAGE_LOW    226
+#define BATTERY_SCUD_ATL_ID_VOLTAGE_UP    1009    // ID: 1000k
+#define BATTERY_SCUD_ATL_ID_VOLTAGE_LOW   903
 /* Tab A8 code for SR-AX6300-01-181 by zhangyanlong at 20210817 start */
-#elif  CONFIG_TARGET_UMS512_1H10
+#elif defined(CONFIG_TARGET_UMS512_1H10)
+/* Tab A8 code for SR-AX6300-01-181 by zhangyanlong at 20210817 start */
+/* Tab A7 T618 code for SR-AX6189A-01-108 by shixuanxuan at 20211223 end */
 enum multiBatteryID {
     BATTERY_ATL_NVT = 0,
     BATTERY_SCUD_BYD,

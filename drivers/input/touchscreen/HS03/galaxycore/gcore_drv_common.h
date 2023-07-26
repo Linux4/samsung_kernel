@@ -27,10 +27,15 @@
 #include <linux/delay.h>
 #include <linux/i2c.h>
 #include <linux/spi/spi.h>
+/*HS03 code for SR-SL6215-01-577 by duanyaoming at 20220304 start*/
 #include <linux/platform_device.h>
-#include <linux/syscalls.h>
-#include <linux/rtc.h>
-
+/*HS03 code for SR-SL6215-01-577 by duanyaoming at 20220304 end*/
+/*HS03 code for SL6215DEV-571 by duanyaoming at 20220301  start*/
+#include <linux/input/sec_cmd.h>
+/*HS03 code for SL6215DEV-571  by duanyaoming at 20220301  end*/
+/*HS03 code for SL6215DEV-4128 by duanyaoming at 20220308 start*/
+#include <linux/power_supply.h>
+/*HS03 code for SL6215DEV-4128 by duanyaoming at 20220308 end*/
 #include <linux/cdev.h>
 #include <linux/fs.h>
 #include <asm/uaccess.h>
@@ -39,18 +44,19 @@
 #include <linux/uaccess.h>
 #include <uapi/linux/sched/types.h>
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0)) \
-	|| (LINUX_VERSION_CODE > KERNEL_VERSION(4, 10, 0))
+    || (LINUX_VERSION_CODE > KERNEL_VERSION(4, 10, 0))
 #include <uapi/linux/sched/types.h>
 #endif
-
-/* HS03 code for SL6215DEV-100 by yuanliding at 20210813 start */
 #include <linux/touchscreen_info.h>
-/* HS03 code for SL6215DEV-100 by yuanliding at 20210813 end */
-
 /*----------------------------------------------------------*/
 /* GALAXYCORE TOUCH DEVICE DRIVER RELEASE VERSION           */
+/* Driver version: x.x.x (platform.ic_type.version)         */
+/* platform  MTK:1  SPRD:2   QCOM:3                         */
+/* ic type  7371:1  7271:2  7202:3  7302:4  7372:5  7202H:6 */
 /*----------------------------------------------------------*/
-#define TOUCH_DRIVER_RELEASE_VERISON   ("1.0.0.0")
+/*HS03 code for SR-SL6215-01-1192 by duanyaoming at 20220420 start*/
+#define TOUCH_DRIVER_RELEASE_VERISON   ("2.6.5")
+/*HS03 code for SR-SL6215-01-1192 by duanyaoming at 20220420 end*/
 
 /*----------------------------------------------------------*/
 /* COMPILE OPTION DEFINITION                                */
@@ -71,21 +77,22 @@
  */
 /* #define CONFIG_ENABLE_CHIP_TYPE_GC7371 */
 /* #define CONFIG_ENABLE_CHIP_TYPE_GC7271 */
-#define CONFIG_ENABLE_CHIP_TYPE_GC7202
+/* #define CONFIG_ENABLE_CHIP_TYPE_GC7202 */
 /* #define CONFIG_ENABLE_CHIP_TYPE_GC7372 */
+/* #define CONFIG_ENABLE_CHIP_TYPE_GC7302 */
+ #define CONFIG_ENABLE_CHIP_TYPE_GC7202H
 
 /*
  * Note.
  * The below compile option is used to enable the IC interface used
  */
 /* #define CONFIG_TOUCH_DRIVER_INTERFACE_I2C */
-#define CONFIG_TOUCH_DRIVER_INTERFACE_SPI 
+#define CONFIG_TOUCH_DRIVER_INTERFACE_SPI
 
 /*
  * Note.
  * The below compile option is used to enable the fw download type
  * Hostdownload for 0 flash,flashdownload for 1 flash
- * FW download function need another fw_update module, if needed, contact to our colleague
  */
 #define CONFIG_GCORE_AUTO_UPDATE_FW_HOSTDOWNLOAD
 /* #define CONFIG_GCORE_AUTO_UPDATE_FW_FLASHDOWNLOAD */
@@ -113,20 +120,14 @@
  * If is set as 1, the log output is enabled
  * By default, the debug log is set as 0
  */
-#define CONFIG_ENABLE_DEBUG_LOG  (1)
-
+/*HS03 code for SR-SL6215-01-577 by duanyaoming at 20220304 start*/
+#define CONFIG_ENABLE_REPORT_LOG  (0)
+/*HS03 code for SR-SL6215-01-577 by duanyaoming at 20220304 end*/
 /*
  * Note.
  * The below compile option is used to enable GESTURE WAKEUP function
  */
 #define CONFIG_ENABLE_GESTURE_WAKEUP
-
-/*
- * Note.
- * The below compile option is used for GESTURE WAKEUP special int,
- * Only for sprd platform
- */
-/* #define CONFIG_GESTURE_SPECIAL_INT */
 
 /*
  * Note.
@@ -140,17 +141,29 @@
  * This compile option is used for MTK platform only
  * This compile option is used for MTK legacy platform different
  */
-#define CONFIG_MTK_LEGACY_PLATFORM
+/* #define CONFIG_MTK_LEGACY_PLATFORM */
 
 #define CONFIG_GCORE_HOSTDOWNLOAD_ESD_PROTECT
 
 #define CONFIG_MTK_SPI_MULTUPLE_1024
 
+/* HS03 code for SR-SL6215-01-1148 by wenghailong at 20220421 start */
+#define GCORE_WDT_RECOVERY_ENABLE  1
+/* HS03 code for SR-SL6215-01-1148 by wenghailong at 20220421 end */
+#define GCORE_WDT_TIMEOUT_PERIOD   2500
+#define MAX_FW_RETRY_NUM          2
+/* HS03 code for SR-SL6215DEV-4294 by duanyaoming at 20220517 start */
+#define EARPHONE_PLUGOUT_STATE      0
+#define EARPHONE_PLUGIN_STATE       1
+extern int headset_notifier_register(struct notifier_block *nb);
+extern int headset_notifier_unregister(struct notifier_block *nb);
+/* HS03 code for SR-SL6215DEV-4294 by duanyaoming at 20220517 end */
 /*
  * Note.
  * Misc Debug Option
  */
 /* #define CONFIG_DEBUG_SPI_SPEED */
+
 
 #ifdef CONFIG_TOUCH_DRIVER_RUN_ON_MTK_PLATFORM
 #include "tpd.h"
@@ -162,20 +175,25 @@
 /*
  * Log define
  */
-#define GTP_ERROR(fmt, arg...)          pr_err("<GTP-ERR>[%s:%d] "fmt"\n", __func__, __LINE__, ##arg)
+#define GTP_ERROR(fmt, arg...)          pr_err("<GTP-ERR>[%s:%d] "fmt"\n", \
+                                                    __func__, __LINE__, ##arg)
 #define GTP_DEBUG(fmt, arg...)				\
-	do {									\
-		if (CONFIG_ENABLE_DEBUG_LOG)						\
-			pr_err("<GTP-DBG>[%s:%d]"fmt"\n", __func__, __LINE__, ##arg);\
-	} while (0)
+    do {									\
+        pr_err("<GTP-DBG>[%s:%d]"fmt"\n", __func__, __LINE__, ##arg);\
+    } while (0)
+#define GTP_REPORT(fmt, arg...)				\
+    do {									\
+        if (CONFIG_ENABLE_REPORT_LOG)						\
+            pr_err("<GTP-REP>[%s:%d]"fmt"\n", __func__, __LINE__, ##arg);\
+    } while (0)
 
 #define GTP_DRIVER_NAME               "gcore"
 #define GTP_MAX_TOUCH                 10
 #define DEMO_DATA_SIZE                (6 * GTP_MAX_TOUCH + 1 + 2 + 2)
 
 static const struct of_device_id tpd_of_match[] = {
-	{.compatible = "gcore,touchscreen"},
-	{},
+    {.compatible = "gcore,touchscreen"},
+    {},
 };
 
 /*
@@ -186,8 +204,6 @@ static const struct of_device_id tpd_of_match[] = {
 /* #define TOUCH_SCREEN_Y_MAX          (1560)    //(2340) */
 #define TOUCH_SCREEN_X_MAX            (720)
 #define TOUCH_SCREEN_Y_MAX            (1600)
-#define TOUCH_REPORT_X_MAX            (1080)
-#define TOUCH_REPORT_Y_MAX            (2460) 
 
 /*
  * Raw Data
@@ -209,14 +225,27 @@ static const struct of_device_id tpd_of_match[] = {
 #define RAW_DATA_SIZE               (1296)
 #define RAWDATA_ROW					(36)
 #define RAWDATA_COLUMN				(18)
+#elif defined(CONFIG_ENABLE_CHIP_TYPE_GC7302)
+#define RAW_DATA_SIZE               (1296)
+#define RAWDATA_ROW					(36)
+#define RAWDATA_COLUMN				(18)
+#elif defined(CONFIG_ENABLE_CHIP_TYPE_GC7202H)
+#define RAW_DATA_SIZE               (1152)
+#define RAWDATA_ROW					(32)
+#define RAWDATA_COLUMN				(18)
 #endif
 
 #define DEMO_RAWDATA_SIZE           (DEMO_DATA_SIZE + RAW_DATA_SIZE)
 #define FW_SIZE                     (64 * 1024)
-
+/*HS03 code for SR-SL6215-01-1189 by duanyaoming at 20220407 start*/
+#define FW_VERSION_ADDR               0xFFF4
+/*HS03 code for SR-SL6215-01-1189 by duanyaoming at 20220407 end*/
+#define DEMO_RAWDATA_MAX_SIZE       (2048)
 extern int g_rawdata_row;
 extern int g_rawdata_col;
-
+/*HS03 code for SR-SL6215-01-1189 by duanyaoming at 20220407 start*/
+extern const char *lcd_name;
+/*HS03 code for SR-SL6215-01-1189 by duanyaoming at 20220407 end*/
 #define BIT0   (1<<0)		/* 0x01 */
 #define BIT1   (1<<1)		/* 0x02 */
 #define BIT2   (1<<2)		/* 0x04 */
@@ -245,125 +274,189 @@ extern int g_rawdata_col;
 #define GESTURE_V                  12
 #define GESTURE_W                  13
 #define GESTURE_Z                  14
+#define GESTURE_PALM               15
 
-#define GESTURE_MAX                15
-
-#define GESTURE_KEY   KEY_POWER
+#define GESTURE_MAX                16
+/*HS03 code for SL6215DEV-4130 by duanyaoming at 20220317 start*/
+#define GESTURE_KEY   KEY_WAKEUP
+/*HS03 code for SL6215DEV-4130 by duanyaoming at 20220317 end*/
 #endif
-
-#define TP_INFO 1
 
 #ifdef CONFIG_ENABLE_FW_RAWDATA
 enum FW_MODE {
-	DEMO,
-	RAWDATA,
-	DEMO_RAWDATA
+    DEMO,
+    RAWDATA,
+    DEMO_RAWDATA
 };
 #endif
 
 enum fw_event_type {
-	FW_UPDATE = 0,
-	FW_READ_REG,
-	FW_WRITE_REG,
-	FW_READ_OPEN,
-	FW_READ_SHORT,
-	FW_EDGE_0,
-	FW_EDGE_90,
-	FW_CHARGER_PLUG,
-	FW_CHARGER_UNPLUG,
-	FW_HEADSET_PLUG,
-	FW_HEADSET_UNPLUG,
-	FW_READ_RAWDATA,
-	FW_READ_DIFFDATA,
+    FW_UPDATE = 0,
+    FW_READ_REG,
+    FW_WRITE_REG,
+    FW_READ_OPEN,
+    FW_READ_SHORT,
+    FW_EDGE_0,
+    FW_EDGE_90,
+    FW_CHARGER_PLUG,
+    FW_CHARGER_UNPLUG,
+    FW_HEADSET_PLUG,
+    FW_HEADSET_UNPLUG,
+    FW_READ_RAWDATA,
+    FW_READ_DIFFDATA,
+    FW_READ_NOISE,
+    FW_GESTURE_ENABLE,
+    FW_GESTURE_DISABLE,
+    FW_GLOVE_ENABLE,
+    FW_GLOVE_DISABLE,
+    FW_REPORT_RATE_120,
+    FW_REPORT_RATE_180,
+    /*HS03 code for SR-SL6215-01-589 by duanyaoming at 20220304 start*/
+    FW_REPORT_HIGH_SENSITIVITY,
+    FW_REPORT_NORMAL_SENSITIVITY,
+    /*HS03 code for SR-SL6215-01-589 by duanyaoming at 20220304 end*/
+    /*HS03 code for SR-SL6215-01-1189 by duanyaoming at 20220410 start*/
+    FW_REPORT_MP_TEST,
+    /*HS03 code for SR-SL6215-01-1189 by duanyaoming at 20220410 end*/
+};
+
+enum GCORE_TS_STAT {
+    TS_NORMAL = 0,
+    TS_SUSPEND,
+    /*HS03 code for SR-SL6215-01-586 by duanyaoming at 20220304 start*/
+    TS_MPTEST,
+    /*HS03 code for SR-SL6215-01-586 by duanyaoming at 20220304 end*/
 };
 
 struct gcore_dev {
-	struct input_dev *input_device;
-	struct task_struct *thread;
-	u8 *touch_data;
+    struct input_dev *input_device;
+    struct task_struct *thread;
+    u8 *touch_data;
 
 #if defined(CONFIG_TOUCH_DRIVER_INTERFACE_I2C)
-	struct i2c_client *bus_device;
+    struct i2c_client *bus_device;
 #elif defined(CONFIG_TOUCH_DRIVER_INTERFACE_SPI)
-	struct spi_device *bus_device;
+    struct spi_device *bus_device;
 #endif
 
-	unsigned int touch_irq;
-	spinlock_t irq_flag_lock;
-	int irq_flag;
-	int tpd_flag;
+    unsigned int touch_irq;
+    spinlock_t irq_flag_lock;
+    int irq_flag;
+    int tpd_flag;
 
-	struct mutex transfer_lock;
-	wait_queue_head_t wait;
+    struct mutex transfer_lock;
+    wait_queue_head_t wait;
 
-	int irq_gpio;
-	int rst_gpio;
-	void (*rst_output) (int rst, int level);
-	void (*irq_enable) (struct gcore_dev *gdev);
-	void (*irq_disable) (struct gcore_dev *gdev);
+    int irq_gpio;
+    int rst_gpio;
+    void (*rst_output) (int rst, int level);
+    void (*irq_enable) (struct gcore_dev *gdev);
+    void (*irq_disable) (struct gcore_dev *gdev);
 
 #ifdef CONFIG_ENABLE_FW_RAWDATA
-	enum FW_MODE fw_mode;
-	wait_queue_head_t usr_wait;
-	bool usr_read;
-	bool data_ready;
+    enum FW_MODE fw_mode;
+    wait_queue_head_t usr_wait;
+    bool usr_read;
+    bool data_ready;
 #endif
 
-	/* for driver request event and fw reply with interrupt */
-	enum fw_event_type fw_event;
-	u8 *firmware;
-	int fw_xfer;
+    /* for driver request event and fw reply with interrupt */
+    enum fw_event_type fw_event;
+    u8 *firmware;
+    int fw_xfer;
 
-	struct workqueue_struct *fwu_workqueue;
-	struct delayed_work fwu_work;
-
-	bool tp_suspend;
-#if TP_INFO
-	struct platform_device platform_device;
+    struct workqueue_struct *fwu_workqueue;
+    struct delayed_work fwu_work;
+#if GCORE_WDT_RECOVERY_ENABLE
+    struct delayed_work wdt_work;
 #endif
+
+    bool tp_suspend;
+    int ts_stat;
 #ifdef CONFIG_ENABLE_GESTURE_WAKEUP
-	bool gesture_wakeup_en;
-#endif
-#ifdef CONFIG_GESTURE_SPECIAL_INT
-	int ges_irq_gpio;
-	unsigned int ges_irq;
-	bool ges_irq_en;
+    bool gesture_wakeup_en;
 #endif
 
 #ifdef CONFIG_DRM
-	struct notifier_block drm_notifier;
+    struct notifier_block drm_notifier;
 #endif
+    uint32_t fw_ver;
+    struct workqueue_struct *resume_workqueue;
+    struct work_struct resume_work;
+    /* HS03 code for SL6215DEV-01-589 by duanyaoming at 20220304 start */
+    bool glove_mode_enable;
+    struct sec_cmd_data sec;
+    /* HS03 code for SL6215DEV-01-589 by duanyaoming at 20220304 end */
+    /* HS03 code for SL6215DEV-4128 by duanyaoming at 20220308 start */
+    struct notifier_block charger_notif;
+    /* HS03 code for SL6215DEV-4128 by duanyaoming at 20220308 end */
+    /* HS03 code for SL6215DEV-4294 by duanyaoming at 20220517 start */
+    struct notifier_block earphone_notif;
+    int earphone_status;
+    int usb_detect_status;
+    /* HS03 code for SL6215DEV-4294 by duanyaoming at 20220517 end */
+    /* HS03 code for SL6215DEV-4129 by duanyaoming at 20220309 start */
+    bool tp_is_enabled;
+    /* HS03 code for SL6215DEV-4129 by duanyaoming at 20220309 end */
 
+    /*HS03 code for SL6215DEV-4130 by duanyaoming at 20220317 start*/
+    bool dev_pm_suspend;
+    struct completion dev_pm_resume_completion;
+    /*HS03 code for SL6215DEV-4130 by duanyaoming at 20220317 end*/
+    /*HS03 code for SR-SL6215-01-1189 by duanyaoming at 20220407 start*/
+    int ic_type;
+    const char *gc_all_lcdname;
+    const char *gc_fw_name;
+    const char *gc_mp_ini_name;
+    const char *gc_mp_name;
+    const char *gc_module_name;
+    const char *gc_ic_name;
+    /*HS03 code for SR-SL6215-01-1189 by duanyaoming at 20220407 end*/
 };
+
+/*HS03 code for SR-SL6215-01-1189 by duanyaoming at 20220407 start*/
+enum ic_types {
+    IC_GC7202H = 0,
+    IC_GC7202,
+};
+/*HS03 code for SR-SL6215-01-1189 by duanyaoming at 20220407 end*/
 
 enum exp_fn {
-	GCORE_FW_UPDATE = 0,
-	GCORE_FS_INTERFACE,
-	GCORE_MP_TEST,
+    GCORE_FW_UPDATE = 0,
+    GCORE_FS_INTERFACE,
+    GCORE_MP_TEST,
 };
-
 struct gcore_exp_fn {
-	enum exp_fn fn_type;
-	bool wait_int;
-	bool event_flag;
-	int (*init) (struct gcore_dev *);
-	void (*remove) (struct gcore_dev *);
-	struct list_head link;
+    enum exp_fn fn_type;
+    bool wait_int;
+    bool event_flag;
+    int (*init) (struct gcore_dev *);
+    void (*remove) (struct gcore_dev *);
+    struct list_head link;
 };
 
 struct gcore_exp_fn_data {
-	bool initialized;
-	bool fn_inited;
-	struct list_head list;
-	struct gcore_dev *gdev;
+    bool initialized;
+    bool fn_inited;
+    struct list_head list;
+    struct gcore_dev *gdev;
 };
+/*HS03 code for SR-SL6215-01-1189 by duanyaoming at 20220407 start*/
+typedef struct
+{
+    const char *gc_all_lcdname_data;
+    const char *gc_fw_name_data;
+    const char *gc_mp_ini_name_data;
+    const char *gc_mp_name_data;
+    const char *gc_module_name_data;
+    const char *gc_ic_name_data;
 
+}gc_module_struct;
+/*HS03 code for SR-SL6215-01-1189 by duanyaoming at 20220407 end*/
 /*
  * Declaration
  */
-/* HS03 code for SL6215DEV-100 by yuanliding at 20210813 start */
 extern enum tp_module_used tp_is_used;
-/* HS03 code for SL6215DEV-100 by yuanliding at 20210813 end */
 extern s32 gcore_bus_read(u8 *buffer, s32 len);
 extern s32 gcore_bus_write(const u8 *buffer, s32 len);
 extern int gcore_touch_bus_init(void);
@@ -383,11 +476,16 @@ extern int gcore_create_attribute(struct device *dev);
 extern int gcore_idm_read_id(u8 *id, int length);
 extern int gcore_update_hostdownload_idm2(u8 *fw_buf);
 extern int gcore_upgrade_soft_reset(void);
-
+extern int gcore_idm_tddi_reset(void);
 extern int gcore_enter_idm_mode(void);
 extern int gcore_exit_idm_mode(void);
 extern s32 gcore_idm_read_reg(u32 addr, u8 *buffer, s32 len);
 extern s32 gcore_idm_write_reg(u32 addr, u8 *buffer, s32 len);
+extern s32 gcore_fw_read_rawdata(u8 *buffer, s32 len);
+extern s32 gcore_fw_read_diffdata(u8 *buffer, s32 len);
+extern void gcore_trigger_esd_recovery(void);
+extern void add_CRC (u8 *fw_buf);
+
 
 extern struct gcore_exp_fn fw_update_fn;
 extern struct gcore_exp_fn fs_interf_fn;
@@ -408,9 +506,9 @@ extern int gcore_ts_drm_notifier_callback(struct notifier_block *self, unsigned 
 
 extern int gcore_start_mp_test(void);
 
-/*HS03 code for SL6215DEV-872 by zhoulingyun at 20210909 start*/
+#endif /* GCORE_TPD_COMMON_H_  */
 extern void gcore_suspend(void);
 extern void gcore_resume(void);
-/*HS03 code for SL6215DEV-872 by zhoulingyun at 20210909 end*/
-
-#endif /* GCORE_TPD_COMMON_H_  */
+/*HS03 code for SR-SL6215-4128 by duanyaoming at 20220308 start*/
+extern int gcore_fw_event_notify(enum fw_event_type event);
+/*HS03 code for SR-SL6215-4128 by duanyaoming at 20220308 end*/

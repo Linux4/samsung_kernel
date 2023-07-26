@@ -26,6 +26,9 @@ struct dphy_context {
 	/*Tab A8 code for SR-AX6300-01-23 by fengzhigang at 2021/08/16 start*/
 	int dpi_clk_div;
 	/*Tab A8 code for SR-AX6300-01-23 by fengzhigang at 2021/08/16 end*/
+	/* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 start */
+	u8 dphy_ta_get_val;
+	/* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 end */
 };
 
 struct dphy_pll_ops {

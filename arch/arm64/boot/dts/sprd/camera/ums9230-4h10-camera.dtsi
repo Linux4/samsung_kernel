@@ -136,6 +136,25 @@
         flash-en-gpios = <&ap_gpio 139 0>;
         flash-sync-gpios = <&ap_gpio 165 0>;
     };
+
+/* HS03 code for SL6215DEV-4172 by lisizhou at 2021/03/30 start */
+    flash_ic_o704_formal: flash-ic@60 {
+        compatible = "sprd,flash-o704_aw36518_formal";
+        reg = <0x60>;
+        sprd,flash-ic = <36518>;
+        sprd,torch = <1>;
+        sprd,preflash = <1>;
+        sprd,highlight = <1>;
+        sprd,torch-level = <128>;
+        sprd,preflash-level = <128>;
+        sprd,highlight-level = <128>;
+        sprd,lvfm-enable = <1>;
+        flash-torch-en-gpios = <&ap_gpio 32 0>;
+        flash-chip-en-gpios = <&ap_gpio 156 0>;
+        flash-en-gpios = <&ap_gpio 139 0>;
+        flash-sync-gpios = <&ap_gpio 165 0>;
+    };
+/* HS03 code for SL6215DEV-4172 by lisizhou at 2021/03/30 end */
 };
 /* HS03 code for SL6215DEV-283 by lisizhou at 2021/08/20 end */
 
@@ -191,5 +210,23 @@
         flash-en-gpios = <&ap_gpio 139 0>;
         flash-sync-gpios = <&ap_gpio 165 0>;
     };
+/* HS03 code for SL6215DEV-4172 by lisizhou at 2021/03/30 start */
+    flash_ic_o704: flash-ic@60 {
+        compatible = "sprd,flash-o704_aw36518";
+        reg = <0x60>;
+        sprd,flash-ic = <36518>;
+        sprd,torch = <1>;
+        sprd,preflash = <1>;
+        sprd,highlight = <1>;
+        sprd,torch-level = <128>;
+        sprd,preflash-level = <128>;
+        sprd,highlight-level = <128>;
+        sprd,lvfm-enable = <1>;
+        flash-torch-en-gpios = <&ap_gpio 32 0>;
+        flash-chip-en-gpios = <&ap_gpio 156 0>;
+        flash-en-gpios = <&ap_gpio 139 0>;
+        flash-sync-gpios = <&ap_gpio 165 0>;
+    };
+/* HS03 code for SL6215DEV-4172 by lisizhou at 2021/03/30 end */
 	/*hs03 code modify for SR-SL6215-01-471 flash bringup at 2021.08.07 end*/
 };

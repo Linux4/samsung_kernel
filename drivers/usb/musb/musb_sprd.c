@@ -36,6 +36,9 @@
 #include <linux/mfd/syscon.h>
 #include <linux/regmap.h>
 #include <linux/usb/sprd_usbm.h>
+/* HS03 code for SL6215DEV-3873 by lina at 20211220 start */
+#include <linux/usb/typec.h>
+/* HS03 code for SL6215DEV-3873 by lina at 20211220 end */
 
 #include "musb_core.h"
 #include "sprd_musbhsdma.h"
@@ -69,9 +72,6 @@ struct sprd_glue {
 	struct wakeup_source	pd_wake_lock;
 	struct regmap		*pmu;
 	struct regmap		*aon_apb;
-	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
-	struct regmap		*pmic;
-	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 	enum usb_dr_mode		dr_mode;
 	enum usb_dr_mode		wq_mode;
 	enum usb_dr_mode		pre_mode;
@@ -102,7 +102,14 @@ struct sprd_glue {
 	bool		retry_charger_detect;
 	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
 	bool		use_pdhub_c2c;
+	bool		dr_swap_dev_to_host;
+	bool		dr_swap_host_to_dev;
 	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
+	bool		is_audiooffload;
+	/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 start */
+	bool		is_data_disabled;
+	enum usb_dr_mode		last_mode;
+	/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 end */
 };
 
 static int boot_charging;
@@ -113,9 +120,10 @@ static const bool is_slave = true;
 static const bool is_slave;
 #endif
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
+/* HS03 code for P211124-03146 by gaochao at 20211202 start */
+// extern bool sc27xx_get_dr_swap_flag(void);
 extern bool sc27xx_get_dr_swap_flag(void);
-//when bit0/bit14=1,switch pmic dpdm to usb
-#define BIT_DP_DM_BC_ENB	0x1ba0
+/* HS03 code for P211124-03146 by gaochao at 20211202 end */
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 static void sprd_musb_enable(struct musb *musb)
 {
@@ -561,6 +569,27 @@ static struct musb_hdrc_config sprd_musb_hdrc_config_single = {
 };
 #pragma GCC diagnostic pop
 
+static void musb_sprd_pdhubc2c_vbus_plugin(struct sprd_glue *glue,
+							unsigned long flags)
+{
+	if (sc27xx_get_dr_swap_flag()) {
+		int cnt = 50;
+
+		while (glue->dr_swap_host_to_dev && cnt-- > 0)
+			msleep(20);
+
+		if (cnt == 0)
+			dev_warn(glue->dev,
+			"dr swap host to device disconnect timeout.\n");
+	}
+}
+
+static void musb_sprd_pdhubc2c_vbus_plugout(struct sprd_glue *glue)
+{
+	if (sc27xx_get_dr_swap_flag())
+		glue->dr_swap_dev_to_host = true;
+}
+
 /*HS03 code for SL6215DEV-292 by chenyihong at 20210820 start*/
 static int touchscreen_usb_plug_status = 0;
 int sprd_touch_get_usb_status(void)
@@ -574,14 +603,18 @@ static int musb_sprd_vbus_notifier(struct notifier_block *nb,
 				unsigned long event, void *data)
 {
 	struct sprd_glue *glue = container_of(nb, struct sprd_glue, vbus_nb);
-	unsigned long flags;
+	unsigned long flags = 0;
 
 	if (is_slave) {
 		dev_info(glue->dev, "%s, event(%ld) ignored in slave mode\n", __func__, event);
 		return 0;
 	}
 	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
+	dev_info(glue->dev, "%s event:%d!\n", __func__, event);
 	if (event) {
+		if (glue->use_pdhub_c2c)
+			musb_sprd_pdhubc2c_vbus_plugin(glue, flags);
+
 		spin_lock_irqsave(&glue->lock, flags);
 		if (glue->use_pdhub_c2c) {
 			if (glue->vbus_active == VBUS_ACTIVE) {
@@ -604,6 +637,8 @@ static int musb_sprd_vbus_notifier(struct notifier_block *nb,
 		/*HS03 code for SL6215DEV-292 by chenyihong at 20210820 start*/
 		touchscreen_usb_plug_status = 1;
 		/*HS03 code for SL6215DEV-292 by chenyihong at 20210820 end*/
+
+		usb_phy_set_event(glue->xceiv, USB_EVENT_VBUS);
 
 		glue->vbus_active = VBUS_ACTIVE;
 		glue->wq_mode = USB_DR_MODE_PERIPHERAL;
@@ -630,6 +665,10 @@ static int musb_sprd_vbus_notifier(struct notifier_block *nb,
 				return 0;
 			}
 		}
+		if (glue->use_pdhub_c2c)
+			musb_sprd_pdhubc2c_vbus_plugout(glue);
+
+		usb_phy_set_event(glue->xceiv, USB_EVENT_NONE);
 		/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 		/*HS03 code for SL6215DEV-292 by chenyihong at 20210820 start*/
 		touchscreen_usb_plug_status = 0;
@@ -645,18 +684,56 @@ static int musb_sprd_vbus_notifier(struct notifier_block *nb,
 	return 0;
 }
 
+static void musb_sprd_pdhubc2c_id_plugin(struct sprd_glue *glue,
+						unsigned long flags)
+{
+	if (sc27xx_get_dr_swap_flag()) {
+		int cnt = 50;
+
+		while (glue->dr_swap_dev_to_host && cnt-- > 0)
+			msleep(20);
+
+		if (cnt == 0)
+			dev_info(glue->dev,
+			"dr swap device to host disconnect timeout.\n");
+	}
+
+}
+
+static void musb_sprd_pdhubc2c_id_plugout(struct sprd_glue *glue)
+{
+	/* Tab A7 Lite T618 code for AX6189DEV-126 by shixuanxuan at 20220129 start */
+	struct usb_phy *usb_phy = glue->xceiv;
+
+	if (!glue || !glue->xceiv) {
+		return;
+	}
+	/* Tab A7 Lite T618 code for AX6189DEV-126 by shixuanxuan at 20220129 end */
+
+	if (sc27xx_get_dr_swap_flag())
+		glue->dr_swap_host_to_dev = true;
+
+	/* Tab A7 Lite T618 code for AX6189DEV-126 by shixuanxuan at 20220129 start */
+	usb_phy->chg_type = UNKNOWN_TYPE;
+	/* Tab A7 Lite T618 code for AX6189DEV-126 by shixuanxuan at 20220129 end */
+}
+
 static int musb_sprd_id_notifier(struct notifier_block *nb,
 				unsigned long event, void *data)
 {
 	struct sprd_glue *glue = container_of(nb, struct sprd_glue, id_nb);
-	unsigned long flags;
+	unsigned long flags = 0;
 
 	if (is_slave) {
 		dev_info(glue->dev, "%s, event(%ld) ignored in slave mode\n", __func__, event);
 		return 0;
 	}
 
+	dev_info(glue->dev, "%s event:%d!\n", __func__, event);
 	if (event) {
+		if (glue->use_pdhub_c2c)
+			musb_sprd_pdhubc2c_id_plugin(glue, flags);
+
 		spin_lock_irqsave(&glue->lock, flags);
 		/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
 		if (glue->use_pdhub_c2c) {
@@ -676,6 +753,8 @@ static int musb_sprd_id_notifier(struct notifier_block *nb,
 			}
 		}
 		/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
+		usb_phy_set_event(glue->xceiv, USB_EVENT_ID);
+
 		glue->vbus_active = VBUS_ACTIVE;
 		glue->wq_mode = USB_DR_MODE_HOST;
 		queue_work(system_unbound_wq, &glue->work);
@@ -701,6 +780,10 @@ static int musb_sprd_id_notifier(struct notifier_block *nb,
 				return 0;
 			}
 		}
+		if (glue->use_pdhub_c2c)
+			musb_sprd_pdhubc2c_id_plugout(glue);
+
+		usb_phy_set_event(glue->xceiv, USB_EVENT_NONE);
 		/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 		glue->vbus_active = VBUS_INACTIVE;
 		glue->wq_mode = USB_DR_MODE_HOST;
@@ -718,7 +801,7 @@ static int musb_sprd_audio_notifier(struct notifier_block *nb,
 
 {
 	struct sprd_glue *glue = container_of(nb, struct sprd_glue, audio_nb);
-	unsigned long flags;
+	unsigned long flags = 0;
 
 	dev_dbg(glue->dev, "[%s]event(%ld)\n", __func__, event);
 
@@ -759,7 +842,7 @@ static int musb_sprd_audio_notifier(struct notifier_block *nb,
 
 static void musb_sprd_detect_cable(struct sprd_glue *glue)
 {
-	unsigned long flags;
+	unsigned long flags = 0;
 	struct extcon_dev *id_ext = glue->id_edev ? glue->id_edev : glue->edev;
 
 	spin_lock_irqsave(&glue->lock, flags);
@@ -775,6 +858,7 @@ static void musb_sprd_detect_cable(struct sprd_glue *glue)
 		glue->wq_mode = USB_DR_MODE_HOST;
 		is_boot_detect_cable = 1;
 		queue_work(system_unbound_wq, &glue->work);
+		dev_info(glue->dev, "%s, host connection detected from gpio.\n", __func__);
 	} else if (extcon_get_state(glue->edev, EXTCON_USB) == true) {
 		if (glue->vbus_active == VBUS_ACTIVE) {
 			spin_unlock_irqrestore(&glue->lock, flags);
@@ -786,6 +870,7 @@ static void musb_sprd_detect_cable(struct sprd_glue *glue)
 		glue->vbus_active = VBUS_ACTIVE;
 		glue->wq_mode = USB_DR_MODE_PERIPHERAL;
 		queue_work(system_unbound_wq, &glue->work);
+		dev_info(glue->dev, "%s, device connection detected from gpio.\n", __func__);
 	}
 	spin_unlock_irqrestore(&glue->lock, flags);
 }
@@ -796,7 +881,7 @@ musb_sprd_retry_charger_detect(struct sprd_glue *glue)
 	enum usb_charger_type type = UNKNOWN_TYPE;
 	struct usb_phy *usb_phy = glue->xceiv;
 	struct musb *musb = platform_get_drvdata(glue->musb);
-	unsigned long flags;
+	unsigned long flags = 0;
 	u8 pwr;
 
 	dev_info(glue->dev, "%s enter\n", __func__);
@@ -868,7 +953,7 @@ static void sprd_musb_recover_work(struct work_struct *work)
 	struct musb *musb = platform_get_drvdata(glue->musb);
 
 	dev_info(glue->dev, "try to recover musb controller\n");
-	if (!glue->vbus_active || !is_host_active(musb))
+	if (glue->vbus_active == VBUS_INACTIVE || !is_host_active(musb))
 		return;
 	glue->vbus_active = VBUS_INACTIVE;
 	glue->wq_mode = USB_DR_MODE_HOST;
@@ -893,40 +978,21 @@ static void sprd_musb_reset_context(struct musb *musb)
 }
 
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
-void sc27xx_bc1p2_enable(struct regmap *regmap, bool enable)
+void sprd_musb_switch_dpdm_to_usb(struct sprd_glue *glue, bool enable)
 {
-	int ret;
-	u32 val;
+	struct usb_phy *usb_phy = glue->xceiv;
 
-	printk(KERN_ERR "peak %s enter\n", __func__);
-	ret = regmap_read(regmap, BIT_DP_DM_BC_ENB, &val);
-	if (ret) {
-		pr_err("%s, read failed:%d\n", __func__, ret);
-		return;
-	}
-	pr_err("%s, read val:0x%x\n", __func__, val);
-
-	if (!enable) {
-		val = val & 0xbffe;
-	} else {
-		val = val | 0x4001;
-	}
-
-	ret = regmap_write(regmap, BIT_DP_DM_BC_ENB, val);
-	if (ret) {
-		pr_err("%s, write failed:%d\n", __func__, ret);
-	}
-
-	return;
+	usb_phy->dpdm_switch_to_phy(usb_phy, enable);
 }
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
+
 static void sprd_musb_work(struct work_struct *work)
 {
 	struct sprd_glue *glue = container_of(work, struct sprd_glue, work);
 	struct musb *musb = platform_get_drvdata(glue->musb);
 	enum vbus_state current_state;
 	enum usb_dr_mode current_mode;
-	unsigned long flags;
+	unsigned long flags = 0;
 	bool charging_only = false;
 	int ret;
 	int cnt = 100;
@@ -934,9 +1000,12 @@ static void sprd_musb_work(struct work_struct *work)
 	struct otg_notify *o_notify = get_otg_notify();
 #endif
 
+	dev_info(glue->dev, "%s enter!\n", __func__);
 	spin_lock_irqsave(&glue->lock, flags);
 	current_mode = glue->wq_mode;
-	current_state = glue->vbus_active;
+	/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 start */
+	current_state = (glue->vbus_active && (!glue->is_data_disabled));
+	/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 end */
 	glue->wq_mode = USB_DR_MODE_UNKNOWN;
 	spin_unlock_irqrestore(&glue->lock, flags);
 	/* Tab A8 code for P211006-07417 by wangjian at 20211014 start */
@@ -983,6 +1052,9 @@ static void sprd_musb_work(struct work_struct *work)
 		musb_host_start(musb);
 
 	glue->dr_mode = current_mode;
+	/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 start */
+	glue->last_mode = glue->dr_mode;
+	/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 end */
 	/* Tab A8 code for P211006-07417 by wangjian at 20211014 start */
 	dev_err(musb->controller, "%s enter: vbus = %d mode = %d\n",
 			__func__, current_state, current_mode);
@@ -994,7 +1066,7 @@ static void sprd_musb_work(struct work_struct *work)
 	/* Tab A8 code for P211006-07417 by wangjian at 20211014 end */
 	if (current_state) {
 		if ((musb->g.state != USB_STATE_NOTATTACHED) &&
-		    pm_runtime_active(glue->dev)) {
+		    pm_runtime_active(musb->controller)) {
 			dev_info(glue->dev, "musb device is resumed!\n");
 			goto end;
 		}
@@ -1003,21 +1075,40 @@ static void sprd_musb_work(struct work_struct *work)
 			usb_gadget_set_state(&musb->g, USB_STATE_ATTACHED);
 		/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
 		sprd_musb_reset_context(musb);
+		dev_info(glue->dev, "sc27xx_get_dr_swap_flag:%d\n", sc27xx_get_dr_swap_flag());
 		/*
 		 * If the charger type is not SDP or CDP type, it does
 		 * not need to resume the device, just charging.
 		 */
-		if ((glue->dr_mode == USB_DR_MODE_PERIPHERAL &&
-			!sc27xx_get_dr_swap_flag() &&
-			!musb_sprd_is_connect_host(glue)) || boot_charging) {
-			spin_lock_irqsave(&glue->lock, flags);
-			glue->charging_mode = true;
-			spin_unlock_irqrestore(&glue->lock, flags);
+		if (glue->use_pdhub_c2c) {
+			if ((glue->dr_mode == USB_DR_MODE_PERIPHERAL &&
+				!sc27xx_get_dr_swap_flag() &&
+				!musb_sprd_is_connect_host(glue)) || boot_charging) {
+				spin_lock_irqsave(&glue->lock, flags);
+				glue->charging_mode = true;
+				spin_unlock_irqrestore(&glue->lock, flags);
 
-			dev_info(glue->dev,
-			 "Don't need resume musb device in charging mode!\n");
-			goto end;
+				dev_info(glue->dev,
+				 "Don't need resume musb device in charging mode!\n");
+				goto end;
+			}
+		} else {
+			if ((glue->dr_mode == USB_DR_MODE_PERIPHERAL &&
+				!musb_sprd_is_connect_host(glue)) || boot_charging) {
+				spin_lock_irqsave(&glue->lock, flags);
+				glue->charging_mode = true;
+				spin_unlock_irqrestore(&glue->lock, flags);
+
+				dev_info(glue->dev,
+				 "Don't need resume musb device in charging mode!\n");
+				goto end;
+			}
+
 		}
+
+		if (glue->use_pdhub_c2c)
+			sprd_musb_switch_dpdm_to_usb(glue, 1);
+
 		cnt = 100;
 		while (!pm_runtime_suspended(musb->controller)
 			&& (--cnt > 0))
@@ -1044,13 +1135,6 @@ static void sprd_musb_work(struct work_struct *work)
 					goto end;
 				}
 			}
-			if (glue->use_pdhub_c2c) {
-				sc27xx_bc1p2_enable(glue->pmic, 1);
-				//msleep(3000);
-				if (!regulator_is_enabled(glue->vbus)) {
-					printk("%s vbus is not ok", __func__);
-				}
-			}
 
 			if (!glue->use_pdhub_c2c) {
 				if (is_boot_detect_cable) {
@@ -1062,6 +1146,7 @@ static void sprd_musb_work(struct work_struct *work)
 						 ret);
 						goto end;
 					}
+					pr_err("%s, regulator enable after boot\n", __func__);
 				} else if (!regulator_is_enabled(glue->vbus)) {
 					ret = regulator_enable(glue->vbus);
 					if (ret) {
@@ -1070,6 +1155,7 @@ static void sprd_musb_work(struct work_struct *work)
 						 ret);
 						goto end;
 					}
+					pr_err("%s, regulator enable after plug in and out\n", __func__);
  				}
 			}
 #ifdef CONFIG_USB_NOTIFY_LAYER
@@ -1144,9 +1230,9 @@ static void sprd_musb_work(struct work_struct *work)
 
 		/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
 		if (glue->use_pdhub_c2c) {
-			sc27xx_bc1p2_enable(glue->pmic, 0);
-		}
-		if (!glue->use_pdhub_c2c) {
+			if (!sc27xx_get_dr_swap_flag())
+				sprd_musb_switch_dpdm_to_usb(glue, 0);
+		} else {
 			if (glue->dr_mode == USB_DR_MODE_HOST && glue->vbus) {
 				if (regulator_is_enabled(glue->vbus)) {
 					ret = regulator_disable(glue->vbus);
@@ -1158,20 +1244,27 @@ static void sprd_musb_work(struct work_struct *work)
 					}
 				}
 			}
-#ifdef CONFIG_USB_NOTIFY_LAYER
-			send_otg_notify(o_notify, NOTIFY_EVENT_HOST, 0);
-#endif
 		}
 		/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
+		
+#ifdef CONFIG_USB_NOTIFY_LAYER
+		if (glue->dr_mode == USB_DR_MODE_HOST)
+			send_otg_notify(o_notify, NOTIFY_EVENT_HOST, 0);
+#endif
 
 		musb->shutdowning = 0;
 		musb->offload_used = 0;
 
-		/* Tab A8 code for AX6300DEV-3163 by wangjian at 20211119 start */
-		//MUSB_DEV_MODE(musb);
-		/* Tab A8 code for AX6300DEV-3163 by wangjian at 20211119 end */
 		pm_runtime_mark_last_busy(musb->controller);
 		pm_runtime_put_autosuspend(musb->controller);
+
+		cnt = 250;
+		while (!pm_runtime_suspended(musb->controller) && --cnt > 0)
+			msleep(20);
+		if (cnt <= 0) {
+			dev_err(musb->controller, "musb child device enters suspend failed!!!\n");
+			goto end;
+		}
 
 		/* Tab A8 code for P211015-04915 by wangjian at 20211103 start */
 		/* if (!charging_only && !(glue->power_always_on
@@ -1183,11 +1276,22 @@ static void sprd_musb_work(struct work_struct *work)
 		spin_lock_irqsave(&glue->lock, flags);
 		glue->charging_mode = false;
 		musb->xceiv->otg->default_a = 0;
-		/* Tab A8 code for AX6300DEV-3163 by wangjian at 20211119 start */
-		//musb->xceiv->otg->state = OTG_STATE_B_IDLE;
-		/* Tab A8 code for AX6300DEV-3163 by wangjian at 20211119 end */
+		/* Tab A8 code for AX6300DEV-3812 by wangjian at 20211217 start */
+		musb->xceiv->otg->state = OTG_STATE_B_IDLE;
+		/* Tab A8 code for AX6300DEV-3812 by wangjian at 20211217 end */
+		/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 start */
+		glue->last_mode = glue->dr_mode;
+		/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 end */
 		glue->dr_mode = USB_DR_MODE_UNKNOWN;
+		if (glue->use_pdhub_c2c) {
+			if (glue->dr_swap_dev_to_host)
+				glue->dr_swap_dev_to_host = false;
+			if (glue->dr_swap_host_to_dev)
+				glue->dr_swap_host_to_dev = false;
+		}
 		spin_unlock_irqrestore(&glue->lock, flags);
+
+		MUSB_DEV_MODE(musb);
 
 		dev_info(glue->dev, "is shut down\n");
 		goto end;
@@ -1234,6 +1338,45 @@ static ssize_t musb_hostenable_store(struct device *dev,
 	return count;
 }
 DEVICE_ATTR_RW(musb_hostenable);
+
+static ssize_t musb_audiooffload_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sprd_glue *glue = dev_get_drvdata(dev);
+	bool offload_value;
+	unsigned long flags = 0;
+
+	spin_lock_irqsave(&glue->lock, flags);
+	offload_value = glue->is_audiooffload;
+	spin_unlock_irqrestore(&glue->lock, flags);
+	return sprintf(buf, "%s\n",
+		offload_value ? "enabled":"disabled");
+}
+
+static ssize_t musb_audiooffload_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	struct sprd_glue *glue = dev_get_drvdata(dev);
+	unsigned long flags = 0;
+
+	if (strncmp(buf, "enable", 6) == 0) {
+		spin_lock_irqsave(&glue->lock, flags);
+		glue->is_audiooffload = true;
+		spin_unlock_irqrestore(&glue->lock, flags);
+		__pm_relax(&glue->wake_lock);
+	} else if (strncmp(buf, "disable", 7) == 0) {
+		spin_lock_irqsave(&glue->lock, flags);
+		glue->is_audiooffload = false;
+		spin_unlock_irqrestore(&glue->lock, flags);
+		__pm_stay_awake(&glue->wake_lock);
+	} else {
+		return 0;
+	}
+
+	return count;
+}
+DEVICE_ATTR_RW(musb_audiooffload);
 
 static ssize_t maximum_speed_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
@@ -1300,6 +1443,7 @@ static struct attribute *musb_sprd_attrs[] = {
 	&dev_attr_maximum_speed.attr,
 	&dev_attr_current_speed.attr,
 	&dev_attr_musb_hostenable.attr,
+	&dev_attr_musb_audiooffload.attr,
 	NULL
 };
 ATTRIBUTE_GROUPS(musb_sprd);
@@ -1354,6 +1498,45 @@ end:
 	return false;
 }
 
+/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 start */
+static struct sprd_glue *usb_sprd_glue;
+bool usb_data_enabled = true;
+EXPORT_SYMBOL(usb_data_enabled);
+
+void usb_notify_control(bool data_enabled)
+{
+	struct sprd_glue *glue = NULL;
+	unsigned long flags = 0;
+
+	if (!usb_sprd_glue) {
+		dev_err(NULL, "glue null.\n");
+		return;
+	}
+
+	glue = usb_sprd_glue;
+
+	spin_lock_irqsave(&glue->lock, flags);
+	dev_info(NULL, "input data_enabled:%d\n", data_enabled);
+	if (glue->is_data_disabled == data_enabled) {
+		if (glue->last_mode == USB_DR_MODE_UNKNOWN) {
+			dev_warn(NULL, "last_mode=:%d to %d\n",
+						glue->last_mode, glue->dr_mode);
+			glue->last_mode = glue->dr_mode;
+		}
+		glue->is_data_disabled = !data_enabled;
+		glue->wq_mode = glue->last_mode;
+		queue_work(system_unbound_wq, &glue->work);
+	} else {
+		dev_info(NULL, "ingnored. %d %d\n", glue->is_data_disabled, data_enabled);
+	}
+	dev_dbg(NULL, "disable:%d mode:%d vbus:%d\n",
+				glue->is_data_disabled, glue->wq_mode, glue->vbus_active);
+	spin_unlock_irqrestore(&glue->lock, flags);
+	usb_data_enabled = data_enabled;
+}
+EXPORT_SYMBOL(usb_notify_control);
+/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 end */
+
 static int musb_sprd_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -1363,10 +1546,6 @@ static int musb_sprd_probe(struct platform_device *pdev)
 	struct sprd_glue *glue;
 	u32 buf[2];
 	int ret;
-	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
-	struct device_node *regmap_np;
-	struct platform_device *regmap_pdev;
-	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 	if (sprd_usbmux_check_mode() == MUX_MODE) {
 		dev_info(&pdev->dev, "musb driver stop probe since usb mux jtag\n");
 		return -ENODEV;
@@ -1403,26 +1582,7 @@ static int musb_sprd_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Error getting usb-phy %d\n", ret);
 		goto err_core_clk;
 	}
-	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
-	regmap_np = of_find_compatible_node(NULL, NULL, "sprd,sc27xx-syscon");
-	if (!regmap_np) {
-		dev_err(dev, "unable to get syscon node\n");
-		return -ENODEV;
-	}
 
-	regmap_pdev = of_find_device_by_node(regmap_np);
-	if (!regmap_pdev) {
-		of_node_put(regmap_np);
-		dev_err(dev, "unable to get syscon platform device\n");
-		return -ENODEV;
-	}
-
-	glue->pmic = dev_get_regmap(regmap_pdev->dev.parent, NULL);
-	if (!glue->pmic) {
-		dev_err(dev, "unable to get pmic regmap device\n");
-		return -ENODEV;
- 	}
-	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 	if (pdata.mode == MUSB_PORT_MODE_HOST ||
 		pdata.mode == MUSB_PORT_MODE_DUAL_ROLE) {
 		glue->vbus = devm_regulator_get(dev, "vbus");
@@ -1430,6 +1590,10 @@ static int musb_sprd_probe(struct platform_device *pdev)
 			ret = PTR_ERR(glue->vbus);
 			dev_warn(dev, "unable to get vbus supply %d\n", ret);
 			glue->vbus = NULL;
+			/* Tab A8 code for P211127-01004 by wenyaqi at 20211129 start */
+			ret = -EPROBE_DEFER;
+			goto err_core_clk;
+			/* Tab A8 code for P211127-01004 by wenyaqi at 20211129 end */
 		}
 	}
 	glue->pmu = syscon_regmap_lookup_by_name(dev->of_node,
@@ -1497,6 +1661,7 @@ static int musb_sprd_probe(struct platform_device *pdev)
 	glue->pre_mode = USB_DR_MODE_UNKNOWN;
 	glue->pre_vbus_active = VBUS_UNKNOWN;
 
+	glue->is_audiooffload = false;
 	/* get vbus/id gpios extcon device */
 	if (of_property_read_bool(node, "extcon")) {
 		glue->edev = extcon_get_edev_by_phandle(glue->dev, 0);
@@ -1561,6 +1726,13 @@ static int musb_sprd_probe(struct platform_device *pdev)
 	if (!is_slave)
 		musb_sprd_detect_cable(glue);
 
+	/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 start */
+	usb_sprd_glue = glue;
+	glue->is_data_disabled = false;
+	glue->last_mode = USB_DR_MODE_UNKNOWN;
+	/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 end */
+
+	pr_err("%s probe finish\n", __func__);
 	return 0;
 
 err_extcon_vbus:
@@ -1581,6 +1753,10 @@ static int musb_sprd_remove(struct platform_device *pdev)
 {
 	struct sprd_glue *glue = platform_get_drvdata(pdev);
 	struct musb *musb = platform_get_drvdata(glue->musb);
+
+	/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 start */
+	usb_sprd_glue = NULL;
+	/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 end */
 
 	/* this gets called on rmmod.
 	 *  - Host mode: host may still be active
@@ -1742,7 +1918,7 @@ static int musb_sprd_runtime_suspend(struct device *dev)
 	struct dma_controller *c = musb->dma_controller;
 	struct sprd_musb_dma_controller *controller = container_of(c,
 			struct sprd_musb_dma_controller, controller);
-	unsigned long flags;
+	unsigned long flags = 0;
 	int ret;
 
 	usb_phy_vbus_off(glue->xceiv);
@@ -1756,15 +1932,9 @@ static int musb_sprd_runtime_suspend(struct device *dev)
 		if (ret == 0)
 			dev_err(glue->dev, "wait for port suspend timeout!\n");
 	}
-	/* Tab A8 code for AX6300DEV-3163 by wangjian at 20211119 start */
-	MUSB_DEV_MODE(musb);
-	/* Tab A8 code for AX6300DEV-3163 by wangjian at 20211119 end */
 	spin_lock_irqsave(&glue->lock, flags);
 	musb_sprd_disable_all_interrupts(musb);
 	glue->suspending = true;
-	/* Tab A8 code for AX6300DEV-3163 by wangjian at 20211119 start */
-	musb->xceiv->otg->state = OTG_STATE_B_IDLE;
-	/* Tab A8 code for AX6300DEV-3163 by wangjian at 20211119 end */
 	spin_unlock_irqrestore(&glue->lock, flags);
 
 	clk_disable_unprepare(glue->clk);
@@ -1864,3 +2034,4 @@ static void __exit musb_sprd_driver_exit(void)
 
 late_initcall(musb_sprd_driver_init);
 module_exit(musb_sprd_driver_exit);
+

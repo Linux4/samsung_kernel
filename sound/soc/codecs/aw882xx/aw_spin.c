@@ -38,7 +38,8 @@ int aw_dev_set_channal_mode(struct aw_device *aw_dev,
 {
     int ret;
     struct aw_reg_ch *rx_desc = &spin_desc.rx_desc;
-    struct aw_reg_ch *tx_desc = &spin_desc.tx_desc;
+    /* Tab A8 code for AX6300DEV-3610 by dongtianbao at 20211208 start */
+    //struct aw_reg_ch *tx_desc = &spin_desc.tx_desc;
 
     ret = aw_dev->ops.aw_i2c_write_bits(aw_dev, rx_desc->reg, rx_desc->mask,
                     spin_desc.spin_table[spin_val].rx_val);
@@ -47,8 +48,9 @@ int aw_dev_set_channal_mode(struct aw_device *aw_dev,
         return ret;
     }
 
-    ret = aw_dev->ops.aw_i2c_write_bits(aw_dev, tx_desc->reg, tx_desc->mask,
-                    spin_desc.spin_table[spin_val].tx_val);
+    //ret = aw_dev->ops.aw_i2c_write_bits(aw_dev, tx_desc->reg, tx_desc->mask,
+                    //spin_desc.spin_table[spin_val].tx_val);
+    /* Tab A8 code for AX6300DEV-3610 by dongtianbao at 20211208 end */
     if (ret < 0) {
         aw_dev_err(aw_dev->dev, "set tx failed");
         return ret;

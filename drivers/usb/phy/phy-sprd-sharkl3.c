@@ -49,7 +49,7 @@ struct sprd_hsphy {
 	struct iio_channel	*dm;
 };
 
-#define FULLSPEED_USB33_TUNE		2700000
+#define FULLSPEED_USB33_TUNE		3300000
 #define SC2721_CHARGE_DET_FGU_CTRL      0xecc
 #define BIT_DP_DM_AUX_EN                BIT(1)
 #define BIT_DP_DM_BC_ENB                BIT(0)
@@ -318,7 +318,7 @@ static int sprd_hsphy_vbus_notify(struct notifier_block *nb,
 	struct sprd_hsphy *phy = container_of(usb_phy, struct sprd_hsphy, phy);
 	u32 value, reg, msk;
 
-	if (phy->is_host) {
+	if (phy->is_host || usb_phy->last_event == USB_EVENT_ID) {
 		dev_info(phy->dev, "USB PHY is host mode\n");
 		return 0;
 	}

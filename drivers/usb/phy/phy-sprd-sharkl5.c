@@ -56,6 +56,11 @@ struct sprd_hsphy {
 #define BIT_DP_DM_BC_ENB                BIT(0)
 #define VOLT_LO_LIMIT                   1200
 #define VOLT_HI_LIMIT                   600
+/* Tab A7 Lite T618 code for AX6189DEV-69 by shixuanxuan at 20220128 start */
+#if defined (CONFIG_TARGET_UMS512_25C10)
+#define USB_EYE_CC_SIGINAL_MASK         0x00000f00
+#endif
+/* Tab A7 Lite T618 code for AX6189DEV-69 by shixuanxuan at 20220128 end */
 
 
 static int boot_cali;
@@ -235,6 +240,11 @@ static int sprd_hsphy_init(struct usb_phy *x)
 	reg = phy->tfregres_value;
 	/* Tab A8 code for AX6300DEV-34 by wangjian at 20210813 end */
 	msk = MASK_ANLG_PHY_G2_ANALOG_USB20_USB20_TFREGRES;
+/* Tab A7 Lite T618 code for AX6189DEV-69 by shixuanxuan at 20220128 start */
+#if defined (CONFIG_TARGET_UMS512_25C10)
+	msk = MASK_ANLG_PHY_G2_ANALOG_USB20_USB20_TFREGRES | USB_EYE_CC_SIGINAL_MASK;
+#endif
+/* Tab A7 Lite T618 code for AX6189DEV-69 by shixuanxuan at 20220128 end */
 	ret |= regmap_update_bits(phy->ana_g2,
 		REG_ANLG_PHY_G2_ANALOG_USB20_USB20_TRIMMING,
 		msk, reg);
@@ -377,6 +387,13 @@ static enum usb_charger_type sprd_hsphy_charger_detect(struct usb_phy *x)
 	return sc27xx_charger_detect(phy->pmic);
 }
 
+static void sprd_hsphy_dpdm_switch_to_phy(struct usb_phy *x, bool enable)
+{
+	struct sprd_hsphy *phy = container_of(x, struct sprd_hsphy, phy);
+
+	sc27xx_dpdm_switch_to_phy(phy->pmic, enable);
+}
+
 /* Tab A8 code for AX6300DEV-1831 by zhaichao at 20211029 start */
 static struct device *second_detect_dev = NULL;
 /* Tab A8 code for AX6300DEV-1831 by zhaichao at 20211029 end */
@@ -413,10 +430,18 @@ static enum usb_charger_type sprd_hsphy_retry_charger_detect(struct usb_phy *x)
 	msleep(300);
 	iio_read_channel_processed(phy->dp, &dp_voltage);
 	dp_voltage = sc2730_voltage_cali(dp_voltage);
+	/* Tab A7 Lite T618 code for AX6189DEV-126 by shixuanxuan at 20220113 start */
+	pr_err("[%s]: dp_voltage = %d\n", __func__, dp_voltage);
+	/* Tab A7 Lite T618 code for AX6189DEV-126 by shixuanxuan at 20220113 end */
+
 	if (dp_voltage > VOLT_LO_LIMIT) {
 		do {
 			iio_read_channel_processed(phy->dm, &dm_voltage);
 			dm_voltage = sc2730_voltage_cali(dm_voltage);
+			/* Tab A7 Lite T618 code for AX6189DEV-126 by shixuanxuan at 20220113 start */
+			pr_err("[%s]: dm_voltage = %d, cnt = %d\n", __func__, dm_voltage, cnt);
+			/* Tab A7 Lite T618 code for AX6189DEV-126 by shixuanxuan at 20220113 end */
+
 			if (dm_voltage > VOLT_LO_LIMIT) {
 				type = DCP_TYPE;
 				break;
@@ -425,12 +450,23 @@ static enum usb_charger_type sprd_hsphy_retry_charger_detect(struct usb_phy *x)
 			cnt--;
 			iio_read_channel_processed(phy->dp, &dp_voltage);
 			dp_voltage = sc2730_voltage_cali(dp_voltage);
+			/* Tab A7 Lite T618 code for AX6189DEV-126 by shixuanxuan at 20220113 start */
+			pr_err("[%s]: dp_voltage = %d, cnt = %d\n", __func__, dp_voltage, cnt);
+			/* Tab A7 Lite T618 code for AX6189DEV-126 by shixuanxuan at 20220113 end */
+
 			if (dp_voltage  < VOLT_HI_LIMIT) {
 				type = SDP_TYPE;
 				break;
 			}
 		} while ((x->chg_state == USB_CHARGER_PRESENT) && cnt > 0);
 	}
+/* Tab A7 Lite T618 code for SR-AX6189A-01-279 by shixuanxuan at 20211231 start */
+#if !defined(HQ_FACTORY_BUILD)
+	if ((x->chg_state == USB_CHARGER_PRESENT) && (type == UNKNOWN_TYPE)) {
+		type = FLOAT_TYPE;
+	}
+#endif
+/* Tab A7 Lite T618 code for SR-AX6189A-01-279 by shixuanxuan at 20211231 end */
 
 	regmap_update_bits(phy->pmic,
 		SC2730_ADC_OFFSET | SC2730_CHARGE_DET_FGU_CTRL,
@@ -568,6 +604,7 @@ static int sprd_hsphy_probe(struct platform_device *pdev)
 	phy->phy.type = USB_PHY_TYPE_USB2;
 	phy->phy.vbus_nb.notifier_call = sprd_hsphy_vbus_notify;
 	phy->phy.charger_detect = sprd_hsphy_charger_detect;
+	phy->phy.dpdm_switch_to_phy = sprd_hsphy_dpdm_switch_to_phy;
 	phy->phy.retry_charger_detect = sprd_hsphy_retry_charger_detect;
 	otg->usb_phy = &phy->phy;
 

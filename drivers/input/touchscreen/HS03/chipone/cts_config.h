@@ -56,12 +56,12 @@
 
 #ifdef CONFIG_PROC_FS
     /* Proc FS for backward compatibility for APK tool com.ICN85xx */
-    #define CONFIG_CTS_LEGACY_TOOL
+    //#define CONFIG_CTS_LEGACY_TOOL
 #endif /* CONFIG_PROC_FS */
 
 #ifdef CONFIG_SYSFS
     /* Sys FS for gesture report, debug feature etc. */
-    #define CONFIG_CTS_SYSFS
+    //#define CONFIG_CTS_SYSFS
 #endif /* CONFIG_SYSFS */
 
 #define CFG_CTS_MAX_TOUCH_NUM               (10)

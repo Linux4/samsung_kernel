@@ -313,10 +313,10 @@ struct nvt_ts_data {
 	bool nvt_tp_on_off;
 	/* HS03 code for SL6215DEV-1398 by zhoulingyun at 20210918 end */
 
-	/* HS03 code for P210924-02812 by zhoulingyun at 20211009 start */
+	/* HS03 code for P210924-02812|SL6215DEV-3850 by zhoulingyun at 202111216 start */
 	struct workqueue_struct *nvt_resume_wq;
-	struct work_struct nvt_resume_work_struct;
-	/* HS03 code for P210924-02812 by zhoulingyun at 20211009 end */
+	struct delayed_work nvt_resume_work_struct;
+	/* HS03 code for P210924-02812|SL6215DEV-3850 by zhoulingyun at 20211216 end */
 };
 
 #if NVT_TOUCH_PROC
@@ -404,7 +404,9 @@ void nvt_sw_reset_idle(void);
 void nvt_boot_ready(void);
 void nvt_bld_crc_enable(void);
 void nvt_fw_crc_enable(void);
-int32_t nvt_update_firmware(const char *firmware_name);
+/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 start*/
+int32_t nvt_update_firmware(const char *firmware_name, uint8_t full);
+/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 end*/
 int32_t nvt_check_fw_reset_state(RST_COMPLETE_STATE check_reset_state);
 int32_t nvt_get_fw_info(void);
 int32_t nvt_clear_fw_status(void);

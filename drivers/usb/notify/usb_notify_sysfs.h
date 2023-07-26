@@ -52,6 +52,7 @@ struct usb_notify_dev {
 	struct otg_notify *o_notify;
 	int index;
 	unsigned long disable_state;
+	unsigned long usb_data_enabled;
 	int (*set_disable)(struct usb_notify_dev *udev, int param);
 	void (*set_mdm)(struct usb_notify_dev *udev, int mdm_disable);
 	int (*control_usb_max_speed)(struct usb_notify_dev *, int speed);

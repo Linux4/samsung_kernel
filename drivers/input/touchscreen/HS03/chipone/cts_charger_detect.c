@@ -3,7 +3,9 @@
 #include "cts_config.h"
 #include "cts_platform.h"
 #include "cts_core.h"
+#ifdef CONFIG_CTS_SYSFS
 #include "cts_sysfs.h"
+#endif /* CONFIG_CTS_SYSFS */
 #include "cts_strerror.h"
 
 #ifdef CONFIG_CTS_CHARGER_DETECT

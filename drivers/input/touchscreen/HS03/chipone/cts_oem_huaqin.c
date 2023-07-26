@@ -1149,7 +1149,7 @@ int cts_gesture_switch(struct input_dev *dev, unsigned int type, unsigned int co
 
 #endif
 
-/*HS03 code for SR-SL6215-01-96 by lishuai at 20210926 start*/
+/*HS03 code for SR-SL6215-01-96|SR-SL6215-01-761|SR-SL6215-01-787 by zhoulingyun at 20211213 start*/
 cts_multi_module_compatible_struct cts_multi_module_compatible_list[] = {
     {
         .cts_all_lcdname = "lcd_nl9911c_truly_6mask_mipi_hdp",
@@ -1163,6 +1163,20 @@ cts_multi_module_compatible_struct cts_multi_module_compatible_list[] = {
         .cts_all_lcdname = "lcd_nl9911c_truly_mipi_hdp",
         .cts_name_data = "chipone_truly_7mask",
     },
+    {
+        .cts_all_lcdname = "lcd_nl9911c_tm_mipi_hdp",
+        .cts_name_data = "chipone_tm",
+    },
+    {
+        .cts_all_lcdname = "lcd_nl9911c_genrpro_inx_mipi_hdp",
+        .cts_name_data = "chipone_genrpro_inx",
+    },
+    /*HS03 code for SR-SL6215-01-1213 by duanyaoming at 20220503 start*/
+    {
+        .cts_all_lcdname = "lcd_nl9911c_hlt_hsd_mipi_hdp_video",
+        .cts_name_data = "chipone_hlt_hsd",
+    },
+    /*HS03 code for SR-SL6215-01-1213 by duanyaoming at 20220503 end*/
 };
 /* HS03 code for SL6215DEV-969 by yuanliding at 20210908 start */
 static void cts_multi_module_compatible_init(struct chipone_ts_data *cts_data)
@@ -1185,7 +1199,7 @@ static void cts_multi_module_compatible_init(struct chipone_ts_data *cts_data)
     return;
 }
 /* HS03 code for SL6215DEV-969 by yuanliding at 20210908 end */
-/*HS03 code for SR-SL6215-01-96 by lishuai at 20210926 end*/
+/*HS03 code for SR-SL6215-01-96|SR-SL6215-01-761|SR-SL6215-01-787 by zhoulingyun at 20211213 end*/
 
 int cts_oem_init(struct chipone_ts_data *cts_data)
 {

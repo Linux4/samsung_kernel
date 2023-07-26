@@ -1277,7 +1277,7 @@ source "drivers/input/touchscreen/HS03/nvt_touch/Kconfig"
 # HS03 code for SR-SL6215-01-102 by zhoulingyun at 20210730 end
 
 #Tab A8 code for SR-AX6300-01-405 by luxinjun at 2021/09/05 start
-config TOUCHSCREEN_NT36xxx_HOSTDL_SPI_A8
+config TOUCHSCREEN_NT36XXX_HOSTDL_SPI_A8
 	bool "Novatek NT36xxx host download SPI driver"
 	depends on SPI
 	help
@@ -1294,7 +1294,7 @@ config TOUCHSCREEN_GALAXYCORE
 	bool "GALAXYCORE host download SPI driver"
 	depends on SPI
 	help
-	  Say Y here if you have a Novatek NT36xxx no flash touchscreen connected
+	  Say Y here if you have Galaxycore no flash touchscreen connected
 	  to your system by SPI bus.
 
 	  If unsure, say N.
@@ -1313,5 +1313,34 @@ config TOUCHSCREEN_HIMAX_CHIPSET
           If unsure, say N.
 source "drivers/input/touchscreen/Tab_A8/hxchipset/Kconfig"
 # Tab A8 code for SR-AX6300-01-23 by fengzhigang at 2021/08/04 end
+# Tab A8 code for SR-AX6300-01-448 by yuli at 2021/11/19 start
+source "drivers/input/touchscreen/Tab_A8/focaltech_touch/Kconfig"
+# Tab A8 code for SR-AX6300-01-448 by yuli at 2021/11/19 end
+
+# Tab A7 T618 code for AX6189DEV-20|AX6189DEV-26 by suyurui at 2021/12/21 start
+config TOUCHSCREEN_HIMAX_CHIPSET_OT9
+        bool "Himax touchpanel CHIPSET OT9"
+        depends on SPI
+        help
+          Say Y here if you have a Himax CHIPSET touchscreen.
+          HIMAX controllers are multi touch controllers which can
+          report 10 touches at a time.
+
+          If unsure, say N.
+source "drivers/input/touchscreen/Tab_A7_Unisoc/hxchipset/Kconfig"
+# Tab A7 T618 code for AX6189DEV-20|AX6189DEV-26 by suyurui at 2021/12/21 end
+
+# Tab A7 T618 code for SR-AX6189A-01-148 by suyurui at 2021/12/22 start
+config TOUCHSCREEN_NT36XXX_HOSTDL_SPI_OT9
+	bool "Novatek NT36xxx host download SPI driver"
+	depends on SPI
+	help
+	  Say Y here if you have a Novatek NT36xxx no flash touchscreen connected
+	  to your system by SPI bus.
+
+	  If unsure, say N.
+
+source "drivers/input/touchscreen/Tab_A7_Unisoc/NVT_Touch/Kconfig"
+# Tab A7 T618 code for SR-AX6189A-01-148 by suyurui at 2021/12/22 end
 
 endif

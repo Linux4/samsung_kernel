@@ -31,7 +31,9 @@
 					sprd,esd-check-enable = <1>;
 					sprd,esd-check-mode = <1>;
 					sprd,esd-check-period = <2000>;
-
+					/* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 start */
+					sprd,dphy-taget-val = <5>; /*only nl9911c modify TA-GET value*/
+					/* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 end */
 					sprd,reset-on-sequence = <1 5>, <0 5>, <1 15>;
 					sprd,reset-off-sequence = <1 5>;
 
@@ -46,11 +48,11 @@
 						39 00 00 19 B8 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 						39 00 00 0E BB 01 05 09 11 0D 19 1D 55 25 69 00 21 25
 						39 00 00 0F BC 00 00 00 00 02 20 FF 00 03 13 01 73 33 00
-						39 00 00 0B BD E9 02 4F CF 72 A4 08 44 AE 15
-						39 00 00 0B BE 7D 7D 50 32 0C 77 43 07 0E 0E
+						39 00 00 0B BD E9 02 4E CF 72 A4 08 44 AE 15
+						39 00 00 0B BE 72 72 50 32 0C 77 43 07 0E 0E
 						39 00 00 09 BF 07 25 07 25 7F 00 11 04
 						39 00 00 0A C0 10 FF FF FF FF FF 00 FF 00
-						39 00 00 14 C1 C0 20 20 7C 04 32 32 04 2A 40 36 00 07 CF FF FF C0 00 C0
+						39 00 00 14 C1 C0 20 20 7C 04 58 5C 04 2A 40 36 00 07 C0 10 FF 97 01 C0
 						39 00 00 07 C2 CC 01 10 00 01 30
 						39 00 00 0B C3 06 00 FF 00 FF 00 00 81 01 00
 						39 00 00 0B C4 84 01 2B 41 00 3C 00 03 03 2E
@@ -62,6 +64,8 @@
 						39 00 00 02 D7 DE
 						39 00 00 18 E1 EF FE FE FE FE EE F0 20 33 FF 00 00 6A 90 C0 0D 6A F0 3E FF 00 06 40
 						39 00 00 1B E0 30 00 80 88 11 3F 22 62 DF A0 04 CC 01 FF F6 FF F0 FD FF FD F8 F5 FC FC FD FF
+						39 00 00 04 FA 45 93 01
+						39 00 00 02 F6 3F
 						39 00 00 03 F1 5A 59
 						39 00 00 03 F0 A5 A6
 						39 00 00 02 35 00

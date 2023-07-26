@@ -531,6 +531,9 @@ struct sy6970_charger_info {
 	int termination_cur;
 	int vol_max_mv;
 	u32 actual_limit_current;
+	/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 start */
+	u32 actual_limit_voltage;
+	/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 end */
 	bool otg_enable;
 	struct alarm otg_timer;
 	struct sy6970_charger_sysfs *sysfs;
@@ -726,6 +729,10 @@ static int sy6970_charger_set_vindpm(struct sy6970_charger_info *info, u32 vol)
 static int sy6970_charger_set_termina_vol(struct sy6970_charger_info *info, u32 vol)
 {
 	u8 reg_val;
+	/* Tab A8 code for P211125-06231 by zhaichao at 20211126 start */
+	int ret;
+	int retry_cnt = 3;
+	/* Tab A8 code for P211125-06231 by zhaichao at 20211126 end */
 
 	if (vol < REG06_VREG_MIN)
 		vol = REG06_VREG_MIN;
@@ -733,8 +740,23 @@ static int sy6970_charger_set_termina_vol(struct sy6970_charger_info *info, u32 
 		vol = REG06_VREG_MAX;
 	reg_val = (vol - REG06_VREG_OFFSET) / REG06_VREG_STEP;
 
-	return sy6970_update_bits(info, SY6970_REG_06, REG06_VREG_MASK,
+	/* Tab A8 code for P211125-06231 by zhaichao at 20211126 start */
+	do {
+		ret = sy6970_update_bits(info, SY6970_REG_06, REG06_VREG_MASK,
 				   reg_val << REG06_VREG_SHIFT);
+		retry_cnt--;
+		usleep_range(30, 40);
+	} while ((retry_cnt != 0) && (ret != 0));
+	/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 start */
+	if (ret != 0) {
+		dev_err(info->dev, "sy6970 set terminal voltage failed\n");
+	} else {
+		info->actual_limit_voltage = (reg_val * REG06_VREG_STEP) + REG06_VREG_OFFSET;
+		dev_err(info->dev, "sy6970 set terminal voltage success, the value is %d\n" ,info->actual_limit_voltage);
+	}
+	/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 end */
+	return ret;
+	/* Tab A8 code for P211125-06231 by zhaichao at 20211126 end */
 }
 
 static int sy6970_charger_set_termina_cur(struct sy6970_charger_info *info, u32 cur)
@@ -814,18 +836,24 @@ static int sy6970_charger_hw_init(struct sy6970_charger_info *info)
 		info->cur.unknown_cur = bat_info.cur.unknown_cur;
 		info->cur.fchg_limit = bat_info.cur.fchg_limit;
 		info->cur.fchg_cur = bat_info.cur.fchg_cur;
-
+/* Tab A8 code for AX6300DEV-3907 by qiaodan at 20220104 start */
+#ifdef HQ_D85_BUILD
+		info->vol_max_mv = 4000;
+#else
 		info->vol_max_mv = bat_info.constant_charge_voltage_max_uv / 1000;
+#endif
+/* Tab A8 code for AX6300DEV-3907 by qiaodan at 20220104 end */
 		info->termination_cur = bat_info.charge_term_current_ua / 1000;
 		power_supply_put_battery_info(info->psy_usb, &bat_info);
 
-		ret = sy6970_update_bits(info, SY6970_REG_14, REG14_REG_RESET_MASK,
+		/* Tab A8 code for  AX6300DEV-3566 by qiaodan at 20211201 start */
+		/* ret = sy6970_update_bits(info, SY6970_REG_14, REG14_REG_RESET_MASK,
 					  REG14_REG_RESET << REG14_REG_RESET_SHIFT);
 		if (ret) {
 			dev_err(info->dev, "reset sy6970 failed\n");
 			return ret;
-		}
-
+		} */
+		/* Tab A8 code for  AX6300DEV-3566 by qiaodan at 20211201 end */
 		ret = sy6970_charger_set_vindpm(info, info->vol_max_mv);
 		if (ret) {
 			dev_err(info->dev, "set sy6970 vindpm vol failed\n");
@@ -1066,7 +1094,32 @@ static int sy6970_charger_set_limit_current(struct sy6970_charger_info *info,
 
 	return ret;
 }
+/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 start */
+static u32 sy6970_charger_get_limit_voltage(struct sy6970_charger_info *info,
+					     u32 *limit_vol)
+{
+	u8 reg_val;
+	int ret;
 
+	ret = sy6970_read(info, SY6970_REG_06, &reg_val);
+	if (ret < 0) {
+		return ret;
+	}
+
+	reg_val &= REG06_VREG_MASK;
+	*limit_vol = ((reg_val >> REG06_VREG_SHIFT) * REG06_VREG_STEP) + REG06_VREG_OFFSET;
+
+	if (*limit_vol < REG06_VREG_MIN) {
+		*limit_vol = REG06_VREG_MIN;
+	} else if (*limit_vol >= REG06_VREG_MAX) {
+		*limit_vol = REG06_VREG_MAX;
+	}
+
+	dev_err(info->dev, "limit voltage is %d, actual_limt is %d\n", *limit_vol, info->actual_limit_voltage);
+
+	return 0;
+}
+/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 end */
 static u32 sy6970_charger_get_limit_current(struct sy6970_charger_info *info,
 					     u32 *limit_cur)
 {
@@ -1105,18 +1158,39 @@ static inline int sy6970_charger_get_online(struct sy6970_charger_info *info,
 
 	return 0;
 }
-
+/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 start */
 static int sy6970_charger_feed_watchdog(struct sy6970_charger_info *info,
 					 u32 val)
 {
 	int ret;
 	u32 limit_cur = 0;
+	u32 limit_voltage = 4200;
 
 	ret = sy6970_update_bits(info, SY6970_REG_03, REG03_WDT_RESET_MASK,
 				  REG03_WDT_RESET << REG03_WDT_RESET_SHIFT);
 	if (ret) {
 		dev_err(info->dev, "reset sy6970 failed\n");
 		return ret;
+	}
+
+	ret = sy6970_charger_get_limit_voltage(info, &limit_voltage);
+	if (ret) {
+		dev_err(info->dev, "get limit voltage failed\n");
+		return ret;
+	}
+
+	if (info->actual_limit_voltage != limit_voltage) {
+		ret = sy6970_charger_set_termina_vol(info, info->actual_limit_voltage);
+		if (ret) {
+			dev_err(info->dev, "set terminal voltage failed\n");
+			return ret;
+		}
+
+		ret = sy6970_charger_set_recharge(info);
+		if (ret) {
+			dev_err(info->dev, "set sy6970 recharge failed\n");
+			return ret;
+		}
 	}
 
 	ret = sy6970_charger_get_limit_current(info, &limit_cur);
@@ -1136,7 +1210,7 @@ static int sy6970_charger_feed_watchdog(struct sy6970_charger_info *info,
 
 	return 0;
 }
-
+/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 end */
 static int sy6970_charger_set_fchg_current(struct sy6970_charger_info *info,
 					    u32 val)
 {
@@ -1639,6 +1713,13 @@ static int sy6970_charger_usb_get_property(struct power_supply *psy,
 		case CDP_TYPE:
 			val->intval = POWER_SUPPLY_USB_TYPE_CDP;
 			break;
+/* Tab A7 Lite T618 code for SR-AX6189A-01-279 by shixuanxuan at 20211231 start */
+#if !defined(HQ_FACTORY_BUILD)
+		case FLOAT_TYPE:
+			val->intval = POWER_SUPPLY_USB_TYPE_FLOAT;
+			break;
+#endif
+/* Tab A7 Lite T618 code for SR-AX6189A-01-279 by shixuanxuan at 20211231 end */
 
 		default:
 			val->intval = POWER_SUPPLY_USB_TYPE_UNKNOWN;
@@ -1803,7 +1884,12 @@ static enum power_supply_usb_type sy6970_charger_usb_types[] = {
 	POWER_SUPPLY_USB_TYPE_C,
 	POWER_SUPPLY_USB_TYPE_PD,
 	POWER_SUPPLY_USB_TYPE_PD_DRP,
-	POWER_SUPPLY_USB_TYPE_APPLE_BRICK_ID
+	POWER_SUPPLY_USB_TYPE_APPLE_BRICK_ID,
+/* Tab A7 Lite T618 code for SR-AX6189A-01-279 by shixuanxuan at 20211231 start */
+#if !defined(HQ_FACTORY_BUILD)
+	POWER_SUPPLY_USB_TYPE_FLOAT,
+#endif
+/* Tab A7 Lite T618 code for SR-AX6189A-01-279 by shixuanxuan at 20211231 end */
 };
 
 static enum power_supply_property sy6970_usb_props[] = {
@@ -1988,18 +2074,18 @@ static int sy6970_charger_enable_otg(struct regulator_dev *dev)
 
 	mutex_lock(&info->lock);
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
-#if 0
 	/*
 	 * Disable charger detection function in case
 	 * affecting the OTG timing sequence.
 	 */
-	ret = regmap_update_bits(info->pmic, info->charger_detect,
-				 BIT_DP_DM_BC_ENB, BIT_DP_DM_BC_ENB);
-	if (ret) {
-		dev_err(info->dev, "failed to disable bc1.2 detect function.\n");
-		goto out;
+	if (!info->use_typec_extcon) {
+		ret = regmap_update_bits(info->pmic, info->charger_detect,
+					BIT_DP_DM_BC_ENB, BIT_DP_DM_BC_ENB);
+		if (ret) {
+			dev_err(info->dev, "failed to disable bc1.2 detect function.\n");
+			goto out;
+		}
 	}
-#endif
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 	ret = sy6970_update_bits(info, SY6970_REG_03, REG03_OTG_CONFIG_MASK,
 				  REG03_OTG_ENABLE << REG03_OTG_CONFIG_SHIFT);
@@ -2046,13 +2132,14 @@ static int sy6970_charger_disable_otg(struct regulator_dev *dev)
 		goto out;
 	}
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
-#if 0
 	/* Enable charger detection function to identify the charger type */
-	ret = regmap_update_bits(info->pmic, info->charger_detect,
-				  BIT_DP_DM_BC_ENB, 0);
-	if (ret)
-		dev_err(info->dev, "enable BC1.2 failed\n");
-#endif
+	if (!info->use_typec_extcon) {
+		ret = regmap_update_bits(info->pmic, info->charger_detect,
+					BIT_DP_DM_BC_ENB, 0);
+		if (ret) {
+			dev_err(info->dev, "enable BC1.2 failed\n");
+		}
+	}
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 out:
 	mutex_unlock(&info->lock);
@@ -2140,6 +2227,9 @@ static int sy6970_charger_probe(struct i2c_client *client,
 	struct device_node *regmap_np;
 	struct platform_device *regmap_pdev;
 	int ret;
+	/* Tab A8 code for AX6300DEV-3409 by qiaodan at 20211124 start */
+	int retry_cnt = 3;
+	/* Tab A8 code for AX6300DEV-3409 by qiaodan at 20211124 end */
 
 	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE_DATA)) {
 		dev_err(dev, "No support for SMBUS_BYTE_DATA\n");
@@ -2262,8 +2352,15 @@ static int sy6970_charger_probe(struct i2c_client *client,
 		ret = PTR_ERR(info->psy_usb);
 		goto err_mutex_lock;
 	}
-
-	ret = sy6970_charger_hw_init(info);
+	/* Tab A8 code for AX6300DEV-3409 by qiaodan at 20211124 start */
+	do {
+		ret = sy6970_charger_hw_init(info);
+		if (ret) {
+			dev_err(dev, "try to sy6970_charger_hw_init fail:%d ,ret = %d\n" ,retry_cnt ,ret);
+		}
+		retry_cnt--;
+	} while ((retry_cnt != 0) && (ret != 0));
+	/* Tab A8 code for AX6300DEV-3409 by qiaodan at 20211124 end */
 	if (ret) {
 		dev_err(dev, "failed to sy6970_charger_hw_init\n");
 		goto err_mutex_lock;
@@ -2298,15 +2395,6 @@ static int sy6970_charger_probe(struct i2c_client *client,
 	}
 
 	sy6970_charger_detect_status(info);
-
-	ret = sy6970_update_bits(info, SY6970_REG_07, REG07_WDT_MASK,
-				  REG07_WDT_40S << REG07_WDT_SHIFT);
-	if (ret) {
-		dev_err(info->dev, "Failed to enable sy6970 watchdog\n");
-		/* Tab A8 code for AX6300DEV-157 by zhangyanlong at 20210910 start */
-		goto err_mutex_lock;
-                /* Tab A8 code for AX6300DEV-157 by zhangyanlong at 20210910 end */
-	}
 
 	INIT_DELAYED_WORK(&info->otg_work, sy6970_charger_otg_work);
 	INIT_DELAYED_WORK(&info->wdt_work,

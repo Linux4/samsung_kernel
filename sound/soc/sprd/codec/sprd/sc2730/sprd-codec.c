@@ -1465,7 +1465,7 @@ static void sprd_codec_power_disable(struct snd_soc_codec *codec)
 	struct sprd_codec_priv *sprd_codec = snd_soc_codec_get_drvdata(codec);
 
 	ADEBUG();
-
+	
 	arch_audio_codec_analog_disable();
 	sprd_codec_audif_clk_enable(codec, 0);
 	regulator_set_mode(sprd_codec->vb, REGULATOR_MODE_STANDBY);
@@ -1475,12 +1475,27 @@ static void sprd_codec_power_enable(struct snd_soc_codec *codec)
 {
 
 	struct sprd_codec_priv *sprd_codec = snd_soc_codec_get_drvdata(codec);
+/* Tab A8_S code for AX6300SDEV-674 by fengzhigang at 20220815  start*/
+
+	u32 pmureg = 0;
+
+/* Tab A8_S code for AX6300SDEV-674 by fengzhigang at 20220815  end*/
 
 	ADEBUG();
-
+	
 	arch_audio_codec_analog_enable();
 	sprd_codec_audif_clk_enable(codec, 1);
 	regulator_set_mode(sprd_codec->vb, REGULATOR_MODE_NORMAL);
+/* Tab A8_S code for AX6300SDEV-674 by fengzhigang at 20220815  start*/
+
+	pmureg = snd_soc_read(codec, SOC_REG(ANA_PMU0));
+	pr_info("sprd_codec_power_enable 0x%x", pmureg);
+	if(!(pmureg & (1<<13))) {
+		pr_info("sprd_codec_power_enable force ANA_PMU0 !!!!");
+		snd_soc_update_bits(codec, SOC_REG(ANA_PMU0), VB_EN, VB_EN);
+	}
+
+/* Tab A8_S code for AX6300SDEV-674 by fengzhigang at 20220815  end*/
 }
 
 static int sprd_codec_digital_open(struct snd_soc_codec *codec)

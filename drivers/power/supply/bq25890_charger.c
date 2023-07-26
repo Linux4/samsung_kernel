@@ -487,6 +487,9 @@
 /* Tab A8 code for AX6300DEV-103 by qiaodan at 20210827 start */
 #define BQ25890_CURRENT_WORK_MS			msecs_to_jiffies(100)
 /* Tab A8 code for AX6300DEV-103 by qiaodan at 20210827 end*/
+/* Tab A7 Lite T618 code for AX6189DEV-78 by shixuanxuan at 20220106 start */
+#define RETRYCOUNT 				3
+/* Tab A7 Lite T618 code for AX6189DEV-78 by shixuanxuan at 20220106 end */
 
 struct bq25890_charger_sysfs {
 	char *name;
@@ -532,6 +535,9 @@ struct bq25890_charger_info {
 	int termination_cur;
 	int vol_max_mv;
 	u32 actual_limit_current;
+	/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 start */
+	u32 actual_limit_voltage;
+	/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 end */
 	bool otg_enable;
 	struct alarm otg_timer;
 	struct bq25890_charger_sysfs *sysfs;
@@ -579,8 +585,15 @@ static int bq25890_charger_set_limit_current(struct bq25890_charger_info *info,
 static int bq25890_read(struct bq25890_charger_info *info, u8 reg, u8 *data)
 {
 	int ret;
+	/* Tab A7 Lite T618 code for AX6189DEV-78 by shixuanxuan at 20220106 start */
+	int re_try = RETRYCOUNT;
 
 	ret = i2c_smbus_read_byte_data(info->client, reg);
+	while ((ret < 0) && (re_try != 0)) {
+		ret = i2c_smbus_read_byte_data(info->client, reg);
+		re_try--;
+	}
+	/* Tab A7 Lite T618 code for AX6189DEV-78 by shixuanxuan at 20220106 end */
 	if (ret < 0)
 		return ret;
 
@@ -727,6 +740,10 @@ static int bq25890_charger_set_vindpm(struct bq25890_charger_info *info, u32 vol
 static int bq25890_charger_set_termina_vol(struct bq25890_charger_info *info, u32 vol)
 {
 	u8 reg_val;
+	/* Tab A8 code for P211125-06231 by zhaichao at 20211126 start */
+	int ret;
+	int retry_cnt = 3;
+	/* Tab A8 code for P211125-06231 by zhaichao at 20211126 end */
 
 	if (vol < REG06_VREG_MIN)
 		vol = REG06_VREG_MIN;
@@ -734,8 +751,23 @@ static int bq25890_charger_set_termina_vol(struct bq25890_charger_info *info, u3
 		vol = REG06_VREG_MAX;
 	reg_val = (vol - REG06_VREG_OFFSET) / REG06_VREG_STEP;
 
-	return bq25890_update_bits(info, BQ25890_REG_06, REG06_VREG_MASK,
+	/* Tab A8 code for P211125-06231 by zhaichao at 20211126 start */
+	do {
+		ret = bq25890_update_bits(info, BQ25890_REG_06, REG06_VREG_MASK,
 				   reg_val << REG06_VREG_SHIFT);
+		retry_cnt--;
+		usleep_range(30, 40);
+	} while ((retry_cnt != 0) && (ret != 0));
+	/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 start */
+	if (ret != 0) {
+		dev_err(info->dev, "bq25890 set terminal voltage failed\n");
+	} else {
+		info->actual_limit_voltage = (reg_val * REG06_VREG_STEP) + REG06_VREG_OFFSET;
+		dev_err(info->dev, "bq25890 set terminal voltage success, the value is %d\n" ,info->actual_limit_voltage);
+	}
+	/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 end */
+	return ret;
+	/* Tab A8 code for P211125-06231 by zhaichao at 20211126 end */
 }
 
 static int bq25890_charger_set_termina_cur(struct bq25890_charger_info *info, u32 cur)
@@ -815,8 +847,13 @@ static int bq25890_charger_hw_init(struct bq25890_charger_info *info)
 		info->cur.unknown_cur = bat_info.cur.unknown_cur;
 		info->cur.fchg_limit = bat_info.cur.fchg_limit;
 		info->cur.fchg_cur = bat_info.cur.fchg_cur;
-
+/* Tab A8 code for AX6300DEV-3907 by qiaodan at 20220104 start */
+#ifdef HQ_D85_BUILD
+		info->vol_max_mv = 4000;
+#else
 		info->vol_max_mv = bat_info.constant_charge_voltage_max_uv / 1000;
+#endif
+/* Tab A8 code for AX6300DEV-3907 by qiaodan at 20220104 end */
 		info->termination_cur = bat_info.charge_term_current_ua / 1000;
 		power_supply_put_battery_info(info->psy_usb, &bat_info);
 
@@ -1091,6 +1128,32 @@ static int bq25890_charger_set_sleep_limit_current(struct bq25890_charger_info *
 	return ret;
 }
 /* Tab A8 code for P211025-01162  by qiaodan at 20211111 end */
+/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 start */
+static u32 bq25890_charger_get_limit_voltage(struct bq25890_charger_info *info,
+					     u32 *limit_vol)
+{
+	u8 reg_val;
+	int ret;
+
+	ret = bq25890_read(info, BQ25890_REG_06, &reg_val);
+	if (ret < 0) {
+		return ret;
+	}
+
+	reg_val &= REG06_VREG_MASK;
+	*limit_vol = ((reg_val >> REG06_VREG_SHIFT) * REG06_VREG_STEP) + REG06_VREG_OFFSET;
+
+	if (*limit_vol < REG06_VREG_MIN) {
+		*limit_vol = REG06_VREG_MIN;
+	} else if (*limit_vol >= REG06_VREG_MAX) {
+		*limit_vol = REG06_VREG_MAX;
+	}
+
+	dev_err(info->dev, "limit voltage is %d, actual_limt is %d\n", *limit_vol, info->actual_limit_voltage);
+
+	return 0;
+}
+/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 end */
 static u32 bq25890_charger_get_limit_current(struct bq25890_charger_info *info,
 					     u32 *limit_cur)
 {
@@ -1129,18 +1192,39 @@ static inline int bq25890_charger_get_online(struct bq25890_charger_info *info,
 
 	return 0;
 }
-
+/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 start */
 static int bq25890_charger_feed_watchdog(struct bq25890_charger_info *info,
 					 u32 val)
 {
 	int ret;
 	u32 limit_cur = 0;
+	u32 limit_voltage = 4200;
 
 	ret = bq25890_update_bits(info, BQ25890_REG_03, REG03_WDT_RESET_MASK,
 				  REG03_WDT_RESET << REG03_WDT_RESET_SHIFT);
 	if (ret) {
 		dev_err(info->dev, "reset bq25890 failed\n");
 		return ret;
+	}
+
+	ret = bq25890_charger_get_limit_voltage(info, &limit_voltage);
+	if (ret) {
+		dev_err(info->dev, "get limit voltage failed\n");
+		return ret;
+	}
+
+	if (info->actual_limit_voltage != limit_voltage) {
+		ret = bq25890_charger_set_termina_vol(info, info->actual_limit_voltage);
+		if (ret) {
+			dev_err(info->dev, "set terminal voltage failed\n");
+			return ret;
+		}
+
+		ret = bq25890_charger_set_recharge(info);
+		if (ret) {
+			dev_err(info->dev, "set bq25890 recharge failed\n");
+			return ret;
+		}
 	}
 
 	ret = bq25890_charger_get_limit_current(info, &limit_cur);
@@ -1160,7 +1244,7 @@ static int bq25890_charger_feed_watchdog(struct bq25890_charger_info *info,
 
 	return 0;
 }
-
+/* Tab A8 code for AX6300DEV-3825 by qiaodan at 20211220 end */
 static int bq25890_charger_set_fchg_current(struct bq25890_charger_info *info,
 					    u32 val)
 {
@@ -1663,6 +1747,13 @@ static int bq25890_charger_usb_get_property(struct power_supply *psy,
 		case CDP_TYPE:
 			val->intval = POWER_SUPPLY_USB_TYPE_CDP;
 			break;
+/* Tab A7 Lite T618 code for SR-AX6189A-01-279 by shixuanxuan at 20211231 start */
+#if !defined(HQ_FACTORY_BUILD)
+		case FLOAT_TYPE:
+			val->intval = POWER_SUPPLY_USB_TYPE_FLOAT;
+			break;
+#endif
+/* Tab A7 Lite T618 code for SR-AX6189A-01-279 by shixuanxuan at 20211231 end */
 
 		default:
 			val->intval = POWER_SUPPLY_USB_TYPE_UNKNOWN;
@@ -1830,7 +1921,12 @@ static enum power_supply_usb_type bq25890_charger_usb_types[] = {
 	POWER_SUPPLY_USB_TYPE_C,
 	POWER_SUPPLY_USB_TYPE_PD,
 	POWER_SUPPLY_USB_TYPE_PD_DRP,
-	POWER_SUPPLY_USB_TYPE_APPLE_BRICK_ID
+	POWER_SUPPLY_USB_TYPE_APPLE_BRICK_ID,
+/* Tab A7 Lite T618 code for SR-AX6189A-01-279 by shixuanxuan at 20211231 start */
+#if !defined(HQ_FACTORY_BUILD)
+	POWER_SUPPLY_USB_TYPE_FLOAT,
+#endif
+/* Tab A7 Lite T618 code for SR-AX6189A-01-279 by shixuanxuan at 20211231 end */
 };
 
 static enum power_supply_property bq25890_usb_props[] = {
@@ -2016,18 +2112,18 @@ static int bq25890_charger_enable_otg(struct regulator_dev *dev)
 
 	mutex_lock(&info->lock);
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
-#if 0
 	/*
 	 * Disable charger detection function in case
 	 * affecting the OTG timing sequence.
 	 */
-	ret = regmap_update_bits(info->pmic, info->charger_detect,
-				 BIT_DP_DM_BC_ENB, BIT_DP_DM_BC_ENB);
-	if (ret) {
-		dev_err(info->dev, "failed to disable bc1.2 detect function.\n");
-		goto out;
+	if (!info->use_typec_extcon) {
+		ret = regmap_update_bits(info->pmic, info->charger_detect,
+					BIT_DP_DM_BC_ENB, BIT_DP_DM_BC_ENB);
+		if (ret) {
+			dev_err(info->dev, "failed to disable bc1.2 detect function.\n");
+			goto out;
+		}
 	}
-#endif
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 	ret = bq25890_update_bits(info, BQ25890_REG_03, REG03_OTG_CONFIG_MASK,
 				  REG03_OTG_ENABLE << REG03_OTG_CONFIG_SHIFT);
@@ -2046,7 +2142,7 @@ static int bq25890_charger_enable_otg(struct regulator_dev *dev)
 			      msecs_to_jiffies(BQ25890_OTG_VALID_MS));
 out:
 	mutex_unlock(&info->lock);
-	return 0;
+	return ret;
 	/* Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 end */
 }
 
@@ -2074,13 +2170,14 @@ static int bq25890_charger_disable_otg(struct regulator_dev *dev)
 		goto out;
 	}
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
-#if 0
 	/* Enable charger detection function to identify the charger type */
-	ret = regmap_update_bits(info->pmic, info->charger_detect,
-				  BIT_DP_DM_BC_ENB, 0);
-	if (ret)
-		dev_err(info->dev, "enable BC1.2 failed\n");
-#endif
+	if (!info->use_typec_extcon) {
+		ret = regmap_update_bits(info->pmic, info->charger_detect,
+					BIT_DP_DM_BC_ENB, 0);
+		if (ret) {
+			dev_err(info->dev, "enable BC1.2 failed\n");
+		}
+	}
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 out:
 	mutex_unlock(&info->lock);
@@ -2091,13 +2188,21 @@ out:
 static int bq25890_charger_vbus_is_enabled(struct regulator_dev *dev)
 {
 	struct bq25890_charger_info *info = rdev_get_drvdata(dev);
-	int ret;
+	int ret, retry_cnt = 10;
 	u8 val;
 
-	/* Tab A8 code for AX6300DEV-157 by zhangyanlong at 20210910 start */
 	mutex_lock(&info->lock);
+/*
+ * After i2c enters sleep, it cannot waker up for the first time and
+ * needs to retry.
+ */
+retry:
 	ret = bq25890_read(info, BQ25890_REG_03, &val);
-	if (ret) {
+	if (ret < 0 && retry_cnt > 0) {
+		retry_cnt--;
+		msleep(20);
+		goto retry;
+	} else if (ret) {
 		dev_err(info->dev, "failed to get bq25890 otg status\n");
 		mutex_unlock(&info->lock);
 		return ret;
@@ -2168,7 +2273,9 @@ static int bq25890_charger_probe(struct i2c_client *client,
 	struct device_node *regmap_np;
 	struct platform_device *regmap_pdev;
 	int ret;
-
+	/* Tab A8 code for AX6300DEV-3409 by qiaodan at 20211124 start */
+	int retry_cnt = 3;
+	/* Tab A8 code for AX6300DEV-3409 by qiaodan at 20211124 end */
 	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE_DATA)) {
 		dev_err(dev, "No support for SMBUS_BYTE_DATA\n");
 		return -ENODEV;
@@ -2287,8 +2394,15 @@ static int bq25890_charger_probe(struct i2c_client *client,
 		ret = PTR_ERR(info->psy_usb);
 		goto err_mutex_lock;
 	}
-
-	ret = bq25890_charger_hw_init(info);
+	/* Tab A8 code for AX6300DEV-3409 by qiaodan at 20211124 start */
+	do {
+		ret = bq25890_charger_hw_init(info);
+		if (ret) {
+			dev_err(dev, "try to bq25890_charger_hw_init fail:%d ,ret = %d\n" ,retry_cnt ,ret);
+		}
+		retry_cnt--;
+	} while ((retry_cnt != 0) && (ret != 0));
+	/* Tab A8 code for AX6300DEV-3409 by qiaodan at 20211124 end */
 	if (ret) {
 		dev_err(dev, "failed to bq25890_charger_hw_init\n");
 		goto err_mutex_lock;
@@ -2323,15 +2437,6 @@ static int bq25890_charger_probe(struct i2c_client *client,
 	}
 
 	bq25890_charger_detect_status(info);
-
-	ret = bq25890_update_bits(info, BQ25890_REG_07, REG07_WDT_MASK,
-				  REG07_WDT_40S << REG07_WDT_SHIFT);
-	if (ret) {
-		dev_err(info->dev, "Failed to enable bq25890 watchdog\n");
-		/* Tab A8 code for AX6300DEV-157 by zhangyanlong at 20210910 start */
-		goto err_mutex_lock;
-		/* Tab A8 code for AX6300DEV-157 by zhangyanlong at 20210910 end */
-	}
 
 	INIT_DELAYED_WORK(&info->otg_work, bq25890_charger_otg_work);
 	INIT_DELAYED_WORK(&info->wdt_work,

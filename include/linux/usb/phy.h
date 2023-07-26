@@ -164,6 +164,12 @@ struct usb_phy {
 	 */
 	enum usb_charger_type (*retry_charger_detect)(struct usb_phy *x);
 
+	/*
+	 * true : dpdm switch to usb phy
+	 * false: dpdm can controlled by pmic
+	 */
+	void	(*dpdm_switch_to_phy)(struct usb_phy *x, bool enable);
+
 	/* reset the PHY */
 	int	(*reset_phy)(struct usb_phy *x);
 

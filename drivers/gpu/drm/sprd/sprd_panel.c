@@ -30,10 +30,20 @@
 
 #define SPRD_MIPI_DSI_FMT_DSC 0xff
 #define SPRD_OLED_DEFAULT_BRIGHTNESS 25
+/* HS03 code for SL6215DEV-3752 by LiChao at 20211127 start */
+#define CUSTOM_CMD_PAYLOAD_SIZE 2
+/* HS03 code for SL6215DEV-3752 by LiChao at 20211127 end */
 
 static DEFINE_MUTEX(panel_lock);
 
 const char *lcd_name;
+
+/* HS03 code for SL6215DEV-3752 by LiChao at 20211127 start */
+const char *lcd_noise;
+char noise_val;
+static char is_init_code = 0;
+/* HS03 code for SL6215DEV-3752 by LiChao at 20211127 end */
+
 /*HS03 code for SR-SL6215-01-82 by LiChao at 20210809 start*/
 unsigned int tp_gesture = 0;
 EXPORT_SYMBOL(tp_gesture);
@@ -47,6 +57,19 @@ static int __init lcd_name_get(char *str)
 }
 __setup("lcd_name=", lcd_name_get);
 
+/* HS03 code for SL6215DEV-3752 by LiChao at 20211127 start */
+static int __init lcd_noise_get(char *str)
+{
+	if (str != NULL){
+		lcd_noise = str;
+		sscanf(lcd_noise, "%x", &noise_val);
+	}
+	DRM_INFO("lcd noise from LK cmdline: %s, %x \n", lcd_noise, noise_val);
+	return 0;
+}
+__setup("panel_noise=", lcd_noise_get);
+/* HS03 code for SL6215DEV-3752 by LiChao at 20211127 end */
+
 static inline struct sprd_panel *to_sprd_panel(struct drm_panel *panel)
 {
 	return container_of(panel, struct sprd_panel, base);
@@ -58,6 +81,9 @@ static int sprd_panel_send_cmds(struct mipi_dsi_device *dsi,
 	struct sprd_panel *panel;
 	const struct dsi_cmd_desc *cmds = data;
 	u16 len;
+	/* HS03 code for SL6215DEV-3752 by LiChao at 20211127 start */
+	u8 noise_payload[CUSTOM_CMD_PAYLOAD_SIZE] = {0xF6, 0x3E};
+	/* HS03 code for SL6215DEV-3752 by LiChao at 20211127 end */
 
 	if ((cmds == NULL) || (dsi == NULL))
 		return -EINVAL;
@@ -78,11 +104,23 @@ static int sprd_panel_send_cmds(struct mipi_dsi_device *dsi,
 		}
 		/*HS03 code for SR-SL6215-01-118 by LiChao at 20210830 end*/
 
-		if (panel->info.use_dcs)
-			mipi_dsi_dcs_write_buffer(dsi, cmds->payload, len);
-		else
-			mipi_dsi_generic_write(dsi, cmds->payload, len);
-
+		/* HS03 code for SL6215DEV-3752 by LiChao at 20211127 start */
+		if((noise_val != 0) && (is_init_code == 1) && (cmds->payload[0] == 0xF6)) {
+			DRM_INFO("LCM Set REG %x from %x to %x\n", cmds->payload[0], cmds->payload[1], noise_val);
+			noise_payload[1] = noise_val;
+			if (panel->info.use_dcs) {
+				mipi_dsi_dcs_write_buffer(dsi, (const u8 *)noise_payload, len);
+			} else {
+				mipi_dsi_generic_write(dsi, (const u8 *)noise_payload, len);
+			}
+		} else {
+			if (panel->info.use_dcs) {
+				mipi_dsi_dcs_write_buffer(dsi, cmds->payload, len);
+			} else {
+				mipi_dsi_generic_write(dsi, cmds->payload, len);
+			}
+		}
+		/* HS03 code for SL6215DEV-3752 by LiChao at 20211127 end */
 		if (cmds->wait)
 			mdelay(cmds->wait);
 		cmds = (const struct dsi_cmd_desc *)(cmds->payload + len);
@@ -163,12 +201,21 @@ static int sprd_panel_prepare(struct drm_panel *p)
 
 	DRM_INFO("HS03 set panel power enter\n");
 
+	/*Tab A8 code for SR-AX6300-01-441 by huangzhongjie at 20211129 start*/
+	if (panel->info.reset_low_before_power_delay) {
+		gpiod_direction_output(panel->info.reset_gpio, 0);
+		mdelay(panel->info.reset_low_before_power_delay);
+	}
+	/*Tab A8 code for SR-AX6300-01-441 by huangzhongjie at 20211129 end*/
+
 	ret = regulator_enable(panel->supply);
 	if (ret < 0)
 		DRM_ERROR("enable lcd regulator failed\n");
 	/* HS03 code for SL6215DEV-1777 by LiChao at 20210916 start */
 	/*Tab A8 code for AX6300DEV-3002 by huangzhongjie at 20211111 start*/
-	if(tp_gesture == 0 || panel->esd_flag) {
+	/* HS03 code for P220718-03172 by wenghailong at 20220722 start */
+	if (tp_gesture == 0 || panel->esd_flag || panel->info.power_vsp_out) {
+	/* HS03 code for P220718-03172 by wenghailong at 20220722 start */
 	/*Tab A8 code for AX6300DEV-3002 by huangzhongjie at 20211111 end*/
 		if (panel->info.avdd_gpio) {
 			gpiod_direction_output(panel->info.avdd_gpio, 1);
@@ -198,13 +245,13 @@ static int sprd_panel_prepare(struct drm_panel *p)
 			gpiod_direction_output(panel->info.reset_gpio,
 						timing[i].level);
 			/*Tab A8 code for AX6300DEV-1778 by suyurui at 2021/10/22 start*/
-			#ifdef CONFIG_TARGET_UMS512_1H10
+#if defined (CONFIG_TARGET_UMS512_1H10) || defined (CONFIG_TARGET_UMS512_25C10)
 			if (i == 2) {
 				if (tp_is_used == HXCHIPSET) {
 					himax_resume_by_ddi();
 				}
 			}
-			#endif
+#endif
 			/*Tab A8 code for AX6300DEV-1778 by suyurui at 2021/10/22 end*/
 			mdelay(timing[i].delay);
 
@@ -218,13 +265,16 @@ static int sprd_panel_prepare(struct drm_panel *p)
 		}
 	}
 	/*HS03 code for SR-SL6215-01-118 by LiChao at 20210830 end*/
-	/*Tab A8 code for AX6300DEV-1494 by luxinjun at 2021/11/03 start*/
-	#ifdef CONFIG_TARGET_UMS512_1H10
+	/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 start*/
+	/*Tab A7 T618 code for SR-AX6189A-01-148 by suyurui at 2021/12/22 start*/
+#if defined (CONFIG_TARGET_UMS9230_4H10) || defined (CONFIG_TARGET_UMS512_1H10) || defined (CONFIG_TARGET_UMS512_25C10)
 	if (tp_is_used == NVT_TOUCH) {
 		nvt_resume_for_earlier();
 	}
-	#endif
-	/*Tab A8 code for AX6300DEV-1494 by luxinjun at 2021/11/03 end*/
+#endif
+	/*Tab A7 T618 code for SR-AX6189A-01-148 by suyurui at 2021/12/22 end*/
+	/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 end*/
+
 	DRM_INFO("HS03 set panel power exit\n");
 	return 0;
 }
@@ -330,9 +380,14 @@ static int sprd_panel_enable(struct drm_panel *p)
 	DRM_INFO("HS03 set init code enter\n");
 
 	mutex_lock(&panel_lock);
+
+	/* HS03 code for SL6215DEV-3752 by LiChao at 20211127 start */
+	is_init_code = 1;
 	sprd_panel_send_cmds(panel->slave,
 			     panel->info.cmds[CMD_CODE_INIT],
 			     panel->info.cmds_len[CMD_CODE_INIT]);
+	is_init_code = 0;
+	/* HS03 code for SL6215DEV-3752 by LiChao at 20211127 end */
 
 	if (panel->backlight) {
 		panel->backlight->props.power = FB_BLANK_UNBLANK;
@@ -458,19 +513,70 @@ static int sprd_panel_esd_check(struct sprd_panel *panel)
 
 	/* FIXME: we should enable HS cmd tx here */
 	for (i = 0; i < info->esd_conf.esd_check_reg_count; i++) {
-		mipi_dsi_set_maximum_return_packet_size(panel->slave,
-                                                        info->esd_conf.val_len_array[i]);
-		mipi_dsi_dcs_read(panel->slave, info->esd_conf.reg_seq[i],
-			  &read_val, info->esd_conf.val_len_array[i]);
-		for (j = 0; j < info->esd_conf.val_len_array[i]; j++) {
-			if (read_val[j] != info->esd_conf.val_seq[j + last_rd_count]) {
-				DRM_ERROR("esd check failed, read value 0x%02x != reg value 0x%02x\n",
+		/*Tab A8 code for AX6300DEV-3466 by huangzhongjie at 20211126 start*/
+		if (panel->info.esd_check_double_reg_mode == 1) {
+			sprd_panel_send_cmds(panel->slave,
+				panel->info.cmds[CMD_CODE_ESD_CHECK_ENABLE_CMD],
+				panel->info.cmds_len[CMD_CODE_ESD_CHECK_ENABLE_CMD]);
+			sprd_panel_send_cmds(panel->slave,
+				panel->info.cmds[CMD_CODE_ESD_CHECK_READ_MASTER_CMD],
+				panel->info.cmds_len[CMD_CODE_ESD_CHECK_READ_MASTER_CMD]);
+
+			mipi_dsi_set_maximum_return_packet_size(panel->slave,
+				info->esd_conf.val_len_array[i]);
+			mipi_dsi_dcs_read(panel->slave, info->esd_conf.reg_seq[i],
+				&read_val, info->esd_conf.val_len_array[i]);
+
+			sprd_panel_send_cmds(panel->slave,
+				panel->info.cmds[CMD_CODE_ESD_CHECK_RETURN_TO_NORMAL],
+				panel->info.cmds_len[CMD_CODE_ESD_CHECK_RETURN_TO_NORMAL]);
+
+			for (j = 0; j < info->esd_conf.val_len_array[i]; j++) {
+				if (read_val[j] != info->esd_conf.val_seq[j + last_rd_count]) {
+					DRM_ERROR("esd check failed, read master value 0x%02x != reg value 0x%02x\n",
 						read_val[j], info->esd_conf.val_seq[j + last_rd_count]);
-				mutex_unlock(&panel_lock);
-				return -EINVAL;
+					mutex_unlock(&panel_lock);
+					return -EINVAL;
+				}
 			}
+
+			sprd_panel_send_cmds(panel->slave,
+				panel->info.cmds[CMD_CODE_ESD_CHECK_READ_SLAVE_CMD],
+				panel->info.cmds_len[CMD_CODE_ESD_CHECK_READ_SLAVE_CMD]);
+
+			mipi_dsi_set_maximum_return_packet_size(panel->slave,
+				info->esd_conf.val_len_array[i]);
+			mipi_dsi_dcs_read(panel->slave, info->esd_conf.reg_seq[i],
+				&read_val, info->esd_conf.val_len_array[i]);
+
+			sprd_panel_send_cmds(panel->slave,
+				panel->info.cmds[CMD_CODE_ESD_CHECK_RETURN_TO_NORMAL],
+				panel->info.cmds_len[CMD_CODE_ESD_CHECK_RETURN_TO_NORMAL]);
+			for (j = 0; j < info->esd_conf.val_len_array[i]; j++) {
+				if (read_val[j] != info->esd_conf.val_seq[j + last_rd_count]) {
+					DRM_ERROR("esd check failed, read slave value 0x%02x != reg value 0x%02x\n",
+						read_val[j], info->esd_conf.val_seq[j + last_rd_count]);
+					mutex_unlock(&panel_lock);
+					return -EINVAL;
+				}
+			}
+			last_rd_count += info->esd_conf.val_len_array[i];
+		} else {
+			mipi_dsi_set_maximum_return_packet_size(panel->slave,
+				info->esd_conf.val_len_array[i]);
+			mipi_dsi_dcs_read(panel->slave, info->esd_conf.reg_seq[i],
+				&read_val, info->esd_conf.val_len_array[i]);
+			for (j = 0; j < info->esd_conf.val_len_array[i]; j++) {
+				if (read_val[j] != info->esd_conf.val_seq[j + last_rd_count]) {
+					DRM_ERROR("esd check failed, read value 0x%02x != reg value 0x%02x\n",
+						read_val[j], info->esd_conf.val_seq[j + last_rd_count]);
+					mutex_unlock(&panel_lock);
+					return -EINVAL;
+				}
+			}
+			last_rd_count += info->esd_conf.val_len_array[i];
 		}
-		last_rd_count += info->esd_conf.val_len_array[i];
+		/*Tab A8 code for AX6300DEV-3466 by huangzhongjie at 20211126 end*/
 	}
 	/*Tab A8 code for AX6300DEV-875 by fengzhigang at 20210926 end*/
 
@@ -586,6 +692,13 @@ static void sprd_panel_esd_work_func(struct work_struct *work)
 		ret = sprd_panel_esd_check(panel);
 	} else if (info->esd_conf.esd_check_mode == ESD_MODE_TE_CHECK) {
 		ret = sprd_panel_te_check(panel);
+/* HS03 code for SR-SL6215-01-1148 by wenghailong at 20220421 start */
+#ifdef CONFIG_TARGET_UMS9230_4H10
+		if (gcore_tp_esd_fail) {
+			ret = -1;
+		}
+#endif
+/* HS03 code for SR-SL6215-01-1148 by wenghailong at 20220421 end */
 	} else if (info->esd_conf.esd_check_mode == ESD_MODE_MIX_CHECK) {
 		ret = sprd_panel_mix_check(panel);
 	} else {
@@ -601,9 +714,6 @@ static void sprd_panel_esd_work_func(struct work_struct *work)
 		encoder = panel->base.connector->encoder;
 		funcs = encoder->helper_private;
 		panel->esd_work_pending = false;
-		/*Tab A8 code for AX6300DEV-3002 by huangzhongjie at 20211111 start*/
-		panel->esd_flag = true;
-		/*Tab A8 code for AX6300DEV-3002 by huangzhongjie at 20211111 start*/
 
 		if (!encoder->crtc || (encoder->crtc->state &&
 		    !encoder->crtc->state->active)) {
@@ -614,6 +724,9 @@ static void sprd_panel_esd_work_func(struct work_struct *work)
 			return;
 		}
 		DRM_INFO("====== esd recovery start ========\n");
+		/*Tab A8 code for AX6300DEV-3529 by chenpengbo at 20211204 start*/
+		panel->esd_flag = true;
+		/*Tab A8 code for AX6300DEV-3529 by chenpengbo at 20211204 end*/
 		funcs->disable(encoder);
 		/*Tab A8 code for AX6300DEV-3002 by huangzhongjie at 20211110 start*/
 		mdelay(100);
@@ -1082,6 +1195,49 @@ int sprd_panel_parse_lcddtb(struct device_node *lcd_node,
 		info->esd_conf.esd_check_reg_count = 1;
 	}
 
+	/*Tab A8 code for by huangzhongjie at 20211126 start*/
+	rc = of_property_read_u32(lcd_node, "sprd,esd-check-double-reg-mode", &val);
+	if (!rc) {
+		info->esd_check_double_reg_mode = val;
+	} else {
+		info->esd_check_double_reg_mode = 0;
+	}
+
+	if (panel->info.esd_check_double_reg_mode) {
+		p = of_get_property(lcd_node, "sprd,esd-check-enable-cmd", &bytes);
+		if (p) {
+			info->cmds[CMD_CODE_ESD_CHECK_ENABLE_CMD] = p;
+			info->cmds_len[CMD_CODE_ESD_CHECK_ENABLE_CMD] = bytes;
+		} else {
+			DRM_ERROR("can't find sprd,esd-check-enable-cmd property\n");
+		}
+
+		p = of_get_property(lcd_node, "sprd,esd-check-read-master-cmd", &bytes);
+		if (p) {
+			info->cmds[CMD_CODE_ESD_CHECK_READ_MASTER_CMD] = p;
+			info->cmds_len[CMD_CODE_ESD_CHECK_READ_MASTER_CMD] = bytes;
+		} else {
+			DRM_ERROR("can't find sprd,esd-check-read-master-cmd property\n");
+		}
+
+		p = of_get_property(lcd_node, "sprd,esd-check-read-salve-cmd", &bytes);
+		if (p) {
+			info->cmds[CMD_CODE_ESD_CHECK_READ_SLAVE_CMD] = p;
+			info->cmds_len[CMD_CODE_ESD_CHECK_READ_SLAVE_CMD] = bytes;
+		} else {
+			DRM_ERROR("can't find sprd,esd-check-read-salve-cmd property\n");
+		}
+
+		p = of_get_property(lcd_node, "sprd,esd-check-return-to-normal-cmd", &bytes);
+		if (p) {
+			info->cmds[CMD_CODE_ESD_CHECK_RETURN_TO_NORMAL] = p;
+			info->cmds_len[CMD_CODE_ESD_CHECK_RETURN_TO_NORMAL] = bytes;
+		} else {
+			DRM_ERROR("can't find sprd,esd-check-return-to-normal-cmd property\n");
+		}
+	}
+	/*Tab A8 code for by huangzhongjie at 20211126 end*/
+
 	/* HS03 code for SR-SL6215-01-124 by LiChao at 20210907 start */
 	if (info->esd_conf.esd_check_reg_count) {
 		info->esd_conf.reg_seq = kzalloc(((info->esd_conf.esd_check_reg_count + 1) * 4), GFP_KERNEL);
@@ -1118,6 +1274,25 @@ int sprd_panel_parse_lcddtb(struct device_node *lcd_node,
 	}
 	/*Tab A8 code for AX6300DEV-875 by fengzhigang at 20210926 end*/
 	/* HS03 code for SR-SL6215-01-124 by LiChao at 20210907 end */
+
+	/*Tab A8 code for SR-AX6300-01-441 by huangzhongjie at 20211129 start*/
+	rc = of_property_read_u32(lcd_node, "sprd,reset-low-before-power-delay", &val);
+	if (!rc) {
+		info->reset_low_before_power_delay = val;
+	} else {
+		info->reset_low_before_power_delay = 0;
+	}
+	/*Tab A8 code for SR-AX6300-01-441 by huangzhongjie at 20211129 end*/
+
+	/* HS03 code for P220718-03172 by wenghailong at 20220722 start */
+	rc = of_property_read_u32(lcd_node, "sprd,power-vsp-out", &val);
+	if (!rc) {
+		info->power_vsp_out = val;
+		DRM_INFO("HS03 get power_vsp_out%d\n", info->power_vsp_out);
+	} else {
+		info->power_vsp_out = 0;
+	}
+	/* HS03 code for P220718-03172 by wenghailong at 20220722 end */
 
 	/* HS03 code for SL6215DEV-1777 by LiChao at 20210916 start */
 	rc = of_property_read_u32(lcd_node, "sprd,power-vsp-on-delay", &val);

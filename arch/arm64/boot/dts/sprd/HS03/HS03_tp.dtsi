@@ -2,7 +2,7 @@
 	status = "okay";
 	cs-gpios = <0>, <0>, <0>, <0>;
 
-	/*HS03 code for SR-SL6215-01-98  by lishuai at 20210926 start*/
+	/*HS03 code for SR-SL6215-01-98|SR-SL6215-01-761|SR-SL6215-01-787  by zhoulingyun at 20211213 start*/
 	/* chipone device tree node */
 	chipone@0 {
 		compatible = "chipone-tddi";
@@ -22,6 +22,76 @@
 		touch,display-coords =  <0 0 720 1600>;
 		chipone,x-res = <720>;
 		chipone,y-res = <1600>;
+
+		/* selftest settings */
+		//selftest start
+		chipone_hlt_hsd,test-reset-pin;
+		//chipone_hlt_hsd,test-int-pin;
+		chipone_hlt_hsd,test-rawdata;
+		chipone_hlt_hsd,test-rawdata-frames = <1>;
+		chipone_hlt_hsd,rawdata-min = <1430>;
+		chipone_hlt_hsd,rawdata-max = <2970>;
+		chipone_hlt_hsd,test-noise;
+		chipone_hlt_hsd,test-noise-frames = <50>;
+		chipone_hlt_hsd,noise-max = <76>;
+		chipone_hlt_hsd,test-open;
+		chipone_hlt_hsd,open-min = <3120>;
+		chipone_hlt_hsd,test-short;
+		chipone_hlt_hsd,short-min = <500>;
+		chipone_hlt_hsd,test-compensate-cap;
+		chipone_hlt_hsd,compensate-cap-min = <1>;
+		chipone_hlt_hsd,compensate-cap-max = <126>;
+		//selftest end
+
+		/* selftest settings */
+		//selftest start
+		chipone_genrpro_inx,test-reset-pin;
+		//chipone_genrpro_inx,test-int-pin;
+
+		chipone_genrpro_inx,test-rawdata;
+		chipone_genrpro_inx,test-rawdata-frames = <1>;
+		chipone_genrpro_inx,rawdata-min = <1610>;//RAW_DEST_VALUE 2300*70%
+		chipone_genrpro_inx,rawdata-max = <2990>;//RAW_DEST_VALUE 2300*130%
+
+		chipone_genrpro_inx,test-noise;
+		chipone_genrpro_inx,test-noise-frames = <50>;
+		chipone_genrpro_inx,noise-max = <59>;//TCH_DOWN_TH_5PT 65*90% 
+
+		chipone_genrpro_inx,test-open;
+		chipone_genrpro_inx,open-min = <3466>;//SCAN_FREQ 97 /CYCLE_NUM 10 /SHIFT_NUM 7
+
+		chipone_genrpro_inx,test-short;
+		chipone_genrpro_inx,short-min = <500>;//default
+
+		chipone_genrpro_inx,test-compensate-cap;
+		chipone_genrpro_inx,compensate-cap-min = <1>;
+		chipone_genrpro_inx,compensate-cap-max = <126>;
+		//selftest end
+
+		/* selftest settings */
+		//selftest start
+		chipone_tm,test-reset-pin;
+		//chipone_tm,test-int-pin;
+
+		chipone_tm,test-rawdata;
+		chipone_tm,test-rawdata-frames = <1>;
+		chipone_tm,rawdata-min = <1540>;
+		chipone_tm,rawdata-max = <2860>;
+
+		chipone_tm,test-noise;
+		chipone_tm,test-noise-frames = <50>;
+		chipone_tm,noise-max = <60>;
+
+		chipone_tm,test-open;
+		chipone_tm,open-min = <3100>;
+
+		chipone_tm,test-short;
+		chipone_tm,short-min = <500>;
+
+		chipone_tm,test-compensate-cap;
+		chipone_tm,compensate-cap-min = <1>;
+		chipone_tm,compensate-cap-max = <126>;
+		//selftest end
 
 		/* selftest settings */
 		//selftest start
@@ -114,7 +184,7 @@
 		chipone,touch-earjack-poll-interval = <1000>;
 		/*icnl9911c ===========end===========*/
 	};
-	/*HS03 code for SR-SL6215-01-98  by lishuai at 20210926 end*/
+	/*HS03 code for SR-SL6215-01-98|SR-SL6215-01-761|SR-SL6215-01-787  by zhoulingyun at 20211213 end*/
 
 	/*HS03 code for SR-SL6215-01-108 by chenyihong at 20210729 start*/
 	jadard@1 {

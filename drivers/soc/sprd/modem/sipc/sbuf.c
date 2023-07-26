@@ -576,7 +576,7 @@ int sbuf_write(u8 dst, u8 channel, u32 bufid,
 		return -ENODEV;
 	}
 
-	pr_info("sbuf_write: dst=%d, channel=%d, bufid=%d, len=%d, timeout=%d\n",
+	pr_debug("sbuf_write: dst=%d, channel=%d, bufid=%d, len=%d, timeout=%d\n",
 		 dst,
 		 channel,
 		 bufid,
@@ -719,7 +719,7 @@ int sbuf_write(u8 dst, u8 channel, u32 bufid,
 
 	mutex_unlock(&ring->txlock);
 
-	pr_info("sbuf_write done: channel=%d, len=%d\n", channel, len - left);
+	pr_debug("sbuf_write done: channel=%d, len=%d\n", channel, len - left);
 
 	if (len == left)
 		return rval;

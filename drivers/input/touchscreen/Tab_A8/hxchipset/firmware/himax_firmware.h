@@ -37,15 +37,15 @@ static const uint8_t CTPM_FW_INX[] = {
 };
 
 static const uint8_t CTPM_FW_XY_HSD[] = {
-    #include "A8_HQ_SEC_LV_XingYuan_CID420C_D00_C0E_20211115.i"
+    #include "A8_HQ_SEC_LV_XingYuan_CID4211_D00_C12_20211216.i"
 };
 
 static const uint8_t CTPM_FW_LS_HSD[] = {
-    #include "A8_HQ_SEC_LV_LCE_CID4307_D01_C09_20211115.i"
+    #include "A8_HQ_SEC_LV_LCE_CID430A_D01_C0B_20211216.i"
 };
 
 static const uint8_t CTPM_FW_XY_INX[] = {
-    #include "A8_HQ_SEC_LV_XingY_INX_CID4503_D02_C08_20211116.i"
+    #include "A8_HQ_SEC_LV_XingY_INX_CID4506_D02_C0B_20211217.i"
 };
 
 #endif

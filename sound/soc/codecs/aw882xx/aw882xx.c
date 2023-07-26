@@ -1635,6 +1635,25 @@ int aw882xx_hw_reset(struct aw882xx *aw882xx)
 	return 0;
 }
 
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211122 start */
+/**
+*Name：<aw882xx_relibility_enhance>
+*Author：<wanghao>
+*Date：<20211122>
+*Param：<struct aw882xx>
+*Return：<void>
+*Purpose：<Optimize the stability of PA in low battery state>
+*/
+static void aw882xx_relibility_enhance(struct aw882xx *aw882xx)
+{
+	aw_dev_dbg(aw882xx->dev, "enter");
+	usleep_range(AW_2000_US, AW_2000_US + 10);
+	aw882xx_i2c_write(aw882xx, AW_RELIABILITY_ENHANCE_REG, AW_RELIABILITY_ENHANCE_VALUE);
+	usleep_range(AW_3000_US, AW_3000_US + 10);
+	aw_dev_dbg(aw882xx->dev, "done");
+}
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211122 end */
+
 static int aw882xx_read_chipid(struct aw882xx *aw882xx)
 {
 	int ret = -1;
@@ -1663,9 +1682,11 @@ static int aw882xx_read_chipid(struct aw882xx *aw882xx)
 			aw882xx->chip_id = reg_value;
 			return 0;
 		}
+                /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211122 start */
 		case PID_2055_ID: {
 			aw_dev_info(aw882xx->dev, "aw882xx 2055 detected");
 			aw882xx->chip_id = reg_value;
+			aw882xx_relibility_enhance(aw882xx);
 			return 0;
 		}
 		case PID_2071_ID: {
@@ -1673,13 +1694,13 @@ static int aw882xx_read_chipid(struct aw882xx *aw882xx)
 			aw882xx->chip_id = reg_value;
 			return 0;
 		}
-                /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
                 case PID_2113_ID: {
                         aw_dev_info(aw882xx->dev, "aw882xx 2113 detected");
                         aw882xx->chip_id = reg_value;
+                        aw882xx_relibility_enhance(aw882xx);
                         return 0;
                 }
-                /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
+                /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211122 end */
 		default:
 			aw_dev_info(aw882xx->dev, "unsupported device revision (0x%x)",
 							reg_value);
@@ -2247,10 +2268,31 @@ static int aw882xx_i2c_probe(struct i2c_client *i2c,
 		return ret;
 	}
 
+	/* Tab A8 code for AX6300DEV-3890 by maoruiqian at 2021229 start */
+	switch(i2c->addr) {
+	case 0x34:
+		aw882xx->index = DEVICE_INDEX_34;
+		break;
+	case 0x35:
+		aw882xx->index = DEVICE_INDEX_35;
+		break;
+	case 0x36:
+		aw882xx->index = DEVICE_INDEX_36;
+		break;
+	case 0x37:
+		aw882xx->index = DEVICE_INDEX_37;
+		break;
+	default:
+		aw_dev_err(&i2c->dev, "no dev attached");
+		break;
+	}
+	aw_dev_info(&i2c->dev, "dev index %d", aw882xx->index);
+
 	/*aw pa init*/
-	ret = aw882xx_init(aw882xx, g_aw882xx_dev_cnt);
+	ret = aw882xx_init(aw882xx, aw882xx->index);
 	if (ret)
 		return ret;
+	/* Tab A8 code for AX6300DEV-3890 by maoruiqian at 2021229 end */
 
 	/*aw882xx irq*/
 	aw882xx_interrupt_init(aw882xx);
@@ -2278,7 +2320,6 @@ static int aw882xx_i2c_probe(struct i2c_client *i2c,
 	aw882xx->i2c_packet.reg_addr = 0xff;
 	aw882xx->i2c_packet.reg_data = NULL;
 
-	aw882xx->index = g_aw882xx_dev_cnt;
 	/*add device to total list*/
 	mutex_lock(&g_aw882xx_lock);
 	g_aw882xx_dev_cnt++;

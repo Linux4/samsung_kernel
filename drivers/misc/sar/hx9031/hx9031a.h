@@ -26,6 +26,19 @@
 #define PROXACTIVE 1 //较近
 #define BODYACTIVE 2 //更近
 
+/*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 start*/
+#define IRQ_EXIT_NUM 14
+
+#define SELF_CALI_NUM 1
+
+#define SELF_CALI_BL_0x00 -2048
+#define SELF_CALI_BL_0x01 -4096
+#define SELF_CALI_BL_0x03 -8192
+#define SELF_CALI_BL_0x04 -10240
+#define SELF_CALI_BL_0x07 -16384
+#define SELF_CALI_BL_0x0F -32768
+/*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 end*/
+
 //寄存器列表
 #define RA_GLOBAL_CTRL0_0x00              0x00
 #define RA_GLOBAL_CTRL1_0x01              0x01
@@ -268,18 +281,24 @@ static struct hx9031a_addr_val_pair hx9031a_reg_init_list[] = {
     {RA_PRF_CFG_0x02,                  0x16}, //odr 0x0B: 33ms 0x03: 6ms  0x13:74ms
     {RA_RANGE_7_0_0x0D,                0x01}, //range ch1 1.25p ch0 2.5pf
     {RA_RANGE_9_8_0x0E,                0x00}, //range ch3 1.25p ch2 1.25pf
-    {RA_AVG0_NOSR0_CFG_0x10,           0x11}, //ch0 osr 256 avg 1 warm 16.
-    {RA_NOSR12_CFG_0x11,               0x55}, //ch2 osr 256; ch1 osr 256
+    /*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 start*/
+    {RA_AVG0_NOSR0_CFG_0x10,           0x15}, //ch0 osr 256 avg 1 warm 16.
+    {RA_NOSR12_CFG_0x11,               0x66}, //ch2 osr 256; ch1 osr 256
+    /*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 end*/
     {RA_NOSR43_CFG_0x12,               0x11}, //ch3 osr 32
     {RA_AVG12_CFG_0x13,                0x00}, //ch1 and ch2 avg 1
     {RA_AVG34_CFG_0x14,                0x00}, //ch3 avg 1
-    {RA_SAMPLE_NUM_7_0_0x1f,           0x69}, //sample frequency 0x69 47k
-    {RA_INTEGRATION_NUM_7_0_0x21,      0x69}, //sample frequency 0x69 47k
+    /*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 start*/
+    {RA_SAMPLE_NUM_7_0_0x1f,           0x2C}, //sample frequency 0x69 47k
+    {RA_INTEGRATION_NUM_7_0_0x21,      0x2C}, //sample frequency 0x69 47k
+    /*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 end*/
     {RA_MOD_RST_CFG_0x28,              0xF5}, //change offset cali delay = 10
     {RA_LP_ALP_1_0_CFG_0x2a,           0x22}, //ch1 LP alpha 4. ch0 LP alpha 4
     {RA_LP_ALP_3_2_CFG_0x2b,           0x22}, //ch3 LP alpha 4. ch2 LP alpha 4.
-    {RA_UP_ALP_1_0_CFG_0x2c,           0x99}, //ch1 ch0 UP alpha 64
-    {RA_UP_ALP_3_2_CFG_0x2d,           0x09}, //ch2 UP alpha 64  CH3 up alpha 0
+    /*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/16 start*/
+    {RA_UP_ALP_1_0_CFG_0x2c,           0x89}, //ch1 ch0 UP alpha 64
+    {RA_UP_ALP_3_2_CFG_0x2d,           0x08}, //ch2 UP alpha 64  CH3 up alpha 0
+    /*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/16 end*/
     {RA_DN_UP_ALP_0_4_CFG_0x2e,        0x10}, //ch0 DN alpha 1
     {RA_DN_ALP_2_1_CFG_0x2f,           0x11}, //ch2 ch1 DN alpha 1
     {RA_DN_ALP_4_3_CFG_0x30,           0x00}, //ch3 DN alpha 0
@@ -289,7 +308,9 @@ static struct hx9031a_addr_val_pair hx9031a_reg_init_list[] = {
     {RA_CALI_DIFF_CFG_0x3b,            0x07}, //cali diff 16384 bit7:4 int_conversion_ready
     {RA_ANALOG_MOD_AMP_COMP_0x50,      0xB5}, //increase amp current
     {RA_PROX_INT_HIGH_CFG_0x6c,        0x02}, //prox int high count.  接近中断防抖
-    {RA_PROX_INT_LOW_CFG_0x6d,         0x05}, //prox int low count.  远离中断防抖
+    /*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/16 start*/
+    {RA_PROX_INT_LOW_CFG_0x6d,         0x02}, //prox int low count.  远离中断防抖
+    /*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/16 end*/
     {RA_CAP_INI_CFG_0x6e,              0x00}, //close cap ini
 
     {RA_PROX_HIGH_DIFF_CFG_CH0_0_0x80, 0x09}, //high int 0x3FF*32  256

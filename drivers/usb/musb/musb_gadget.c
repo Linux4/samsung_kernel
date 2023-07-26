@@ -1365,6 +1365,13 @@ static int musb_gadget_dequeue(struct usb_ep *ep, struct usb_request *request)
 
 	trace_musb_req_deq(req);
 
+	/* Tab A8 code for AX6300DEV-3564 by wenyaqi at 20211129 start */
+#ifdef CONFIG_TARGET_UMS512_1H10
+	if (pm_runtime_suspended(musb->controller))
+		return 0;
+#endif
+	/* Tab A8 code for AX6300DEV-3564 by wenyaqi at 20211129 end */
+
 	spin_lock_irqsave(&musb->lock, flags);
 
 	if (list_empty(&musb_ep->req_list) && musb_ep->dma) {
@@ -1716,7 +1723,7 @@ static void musb_pullup(struct musb *musb, int is_on)
 
 	/* FIXME if on, HdrcStart; if off, HdrcStop */
 
-	musb_dbg(musb, "gadget D+ pullup %s",
+	dev_err(musb->controller, "gadget D+ pullup %s",
 		is_on ? "on" : "off");
 	musb_writeb(musb->mregs, MUSB_POWER, power);
 
@@ -2091,6 +2098,8 @@ static int musb_gadget_start(struct usb_gadget *g,
 		goto err;
 	}
 
+	pr_err("enter %s\n", __func__);
+
 	pm_runtime_get_sync(musb->controller);
 
 	spin_lock_irqsave(&musb->lock, flags);
@@ -2112,6 +2121,7 @@ static int musb_gadget_start(struct usb_gadget *g,
 	pm_runtime_mark_last_busy(musb->controller);
 	pm_runtime_put_autosuspend(musb->controller);
 
+	pr_err("end %s\n", __func__);
 	return 0;
 
 err:

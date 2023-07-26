@@ -80,6 +80,11 @@
 #define FCHG_VOLTAGE_9V				9000000
 #define FCHG_VOLTAGE_12V			12000000
 #define FCHG_VOLTAGE_20V			20000000
+/* Tab A8_S code for AX6300SDEV-324 by wenyaqi at 20220613 start */
+#ifdef CONFIG_AFC
+#define AFC_VOLTAGE_9V				9000000
+#endif
+/* Tab A8_S code for AX6300SDEV-324 by wenyaqi at 20220613 end */
 
 #define SC2730_FCHG_TIMEOUT			msecs_to_jiffies(5000)
 #define SC2730_FAST_CHARGER_DETECT_MS		msecs_to_jiffies(1000)
@@ -772,7 +777,9 @@ static void sc2730_fchg_pd_change_work(struct work_struct *data)
 		container_of(data, struct sc2730_fchg_info, pd_change_work);
 	union power_supply_propval val;
 	struct tcpm_port *port;
+	/* Tab A8 code for AX6300DEV-3976 by zhaichao at 20220118 start */
 	int pd_type, ret;
+	/* Tab A8 code for AX6300DEV-3976 by zhaichao at 20220118 end */
 
 	mutex_lock(&info->lock);
 
@@ -795,9 +802,12 @@ static void sc2730_fchg_pd_change_work(struct work_struct *data)
 		goto out;
 	}
 
+	/* Tab A8 code for AX6300DEV-3976 by zhaichao at 20220118 start */
 	pd_type = val.intval;
+
 	if (pd_type == POWER_SUPPLY_USB_TYPE_PD ||
-	    (!info->support_pd_pps && pd_type == POWER_SUPPLY_USB_TYPE_PD_PPS)) {
+           (!info->support_pd_pps && pd_type == POWER_SUPPLY_USB_TYPE_PD_PPS)) {
+	/* Tab A8 code for AX6300DEV-3976 by zhaichao at 20220118 end */
 		info->pd_enable = true;
 		info->pps_enable = false;
 		info->pps_active = false;
@@ -805,7 +815,9 @@ static void sc2730_fchg_pd_change_work(struct work_struct *data)
 		mutex_unlock(&info->lock);
 		cm_notify_event(info->psy_usb, CM_EVENT_FAST_CHARGE, NULL);
 		goto out1;
+	/* Tab A8 code for AX6300DEV-3976 by zhaichao at 20220118 start */
 	} else if (pd_type == POWER_SUPPLY_USB_TYPE_PD_PPS) {
+	/* Tab A8 code for AX6300DEV-3976 by zhaichao at 20220118 end */
 		info->pps_enable = true;
 		info->pd_enable = false;
 		info->state = POWER_SUPPLY_USB_TYPE_PD_PPS;
@@ -903,6 +915,12 @@ static int sc2730_fchg_usb_get_property(struct power_supply *psy,
 			sc2730_get_pps_voltage_max(info, &val->intval);
 		else if (info->sfcp_enable)
 			val->intval = FCHG_VOLTAGE_9V;
+		/* Tab A8_S code for AX6300SDEV-324 by wenyaqi at 20220613 start */
+		#ifdef CONFIG_AFC
+		else if (info->afc_enable)
+			val->intval = AFC_VOLTAGE_9V;
+		#endif
+		/* Tab A8_S code for AX6300SDEV-324 by wenyaqi at 20220613 end */
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
 		if (info->pps_enable)

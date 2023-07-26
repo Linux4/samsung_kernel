@@ -35,6 +35,9 @@
 					sprd,reset-on-sequence = <1 5>, <0 10>, <1 10>;
 					sprd,reset-off-sequence = <0 5>;
 
+					sprd,ddi-need-tp-reset = <1>;
+					sprd,ddi-tp-reset-gpio = <209>;
+
 					sprd,deep-sleep-in = <1>;
 
 					sprd,use-dcs-write;
@@ -86,13 +89,14 @@
 						39 00 00 02 55 00
 						39 03 00 02 53 2C
 						FF 00 00 01 00
-						39 78 00 02 11 00
-						39 0A 00 02 29 00
+						05 78 00 01 11
+						//Display On
+						05 14 00 01 29
 						];
 
 					sprd,sleep-in-command = [
 						05 02 00 01 00
-						39 20 00 01 28
+						39 38 00 01 28
 						39 80 00 01 10
 						];
 
@@ -103,10 +107,8 @@
 
 					sprd,deep-sleep-in-command = [
 						05 02 00 01 00
-						39 20 00 01 28
+						39 38 00 01 28
 						39 80 00 01 10
-						39 00 00 02 DE 00
-						39 00 00 02 BA 01
 					];
 
 					display-timings {

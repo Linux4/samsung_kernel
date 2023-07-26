@@ -1,0 +1,9 @@
+/* Tab A7 Unisoc code for SR-AX6189A-01-194 by sunxunou at 2021/12/19 start */
+&soc {
+	sdcard-det-pin {
+                compatible = "sprd,sdcard-detect-pin";
+                sprd,sdcard-detect-pin-no = <&eic_sync 19 GPIO_ACTIVE_HIGH>;
+        };
+};
+/* Tab A7 Unisoc code for SR-AX6189A-01-194 by sunxunou at 2021/12/19 end */
+
