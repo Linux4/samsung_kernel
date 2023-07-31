@@ -100,7 +100,24 @@ void ilitek_plat_charger_init(void)
 #if RESUME_BY_DDI
 static struct workqueue_struct	*resume_by_ddi_wq;
 static struct work_struct	resume_by_ddi_work;
+extern void tpd_resume(struct device *h);
 
+static void ilitek_resume_work(struct work_struct *work)
+{
+	ILI_ERR("ili ilitek_resume_work start \n");
+	tpd_resume(&ilits->spi->dev);
+	ILI_ERR("ili ilitek_resume_work end \n");
+}
+
+void tpd_ili_resume(void)
+{
+	if (!tpd_resume_wq) {
+		ILI_INFO("resume_by_ddi_wq is null\n");
+		return;
+	}
+
+	queue_work(tpd_resume_wq, &(tpd_resume_work));
+}
 static void ilitek_resume_by_ddi_work(struct work_struct *work)
 {
 	mutex_lock(&ilits->touch_mutex);
@@ -513,6 +530,10 @@ static void ilitek_tddi_wq_init(void)
 	WARN_ON(!resume_by_ddi_wq);
 	INIT_WORK(&resume_by_ddi_work, ilitek_resume_by_ddi_work);
 #endif
+
+	tpd_resume_wq = create_singlethread_workqueue("tpd_resume_wq");
+	WARN_ON(!tpd_resume_wq);
+	INIT_WORK(&tpd_resume_work, ilitek_resume_work);
 }
 
 int ili_sleep_handler(int mode)
@@ -1077,6 +1098,7 @@ int ili_reset_ctrl(int mode)
 	return ret;
 }
 
+extern uint32_t g_lcm_name;
 static int ilitek_get_tp_module(void)
 {
 	/*
@@ -1084,9 +1106,10 @@ static int ilitek_get_tp_module(void)
 	 * if there are various tp modules been used in projects.
 	 */
 	 int ret = 0;
-	 if(g_lcm_name == 3)
+	 if(g_lcm_name == 8)
 	 	ret = MODEL_TXD;
-
+	 if(g_lcm_name == 13)
+		ret = MODEL_TRULY;
 	return ret;
 }
 
@@ -1159,6 +1182,15 @@ static void ili_update_tp_module_info(void)
 		ilits->md_ini_rq_path = TM_INI_REQUEST_PATH;
 		ilits->md_fw_ili = CTPM_FW_TM;
 		ilits->md_fw_ili_size = sizeof(CTPM_FW_TM);
+		break;
+	case MODEL_TRULY:
+		ilits->md_name = "TRULY";
+		ilits->md_fw_filp_path = TRULY_FW_FILP_PATH;
+		ilits->md_fw_rq_path = TRULY_FW_REQUEST_PATH;
+		ilits->md_ini_path = TRULY_INI_NAME_PATH;
+		ilits->md_ini_rq_path = TRULY_INI_REQUEST_PATH;
+		ilits->md_fw_ili = CTPM_FW_TRULY;
+		ilits->md_fw_ili_size = sizeof(CTPM_FW_TRULY);
 		break;
 	default:
 		break;

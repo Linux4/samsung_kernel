@@ -210,6 +210,8 @@ void prepare_pll_addr(enum mt_cpu_dvfs_pll_id pll_id)
 {
 	struct pll_ctrl_t *pll_p = id_to_pll_ctrl(pll_id);
 
+	if (pll_p == NULL)
+		return;
 	pll_p->armpll_addr =
 	(unsigned int *)(pll_id == PLL_L_CLUSTER ? ARMPLL_L_CON1 :
 	pll_id == PLL_LL_CLUSTER ? ARMPLL_LL_CON1 : CCIPLL_CON1);
@@ -556,11 +558,13 @@ unsigned int _mt_cpufreq_get_cpu_level(void)
 {
 	unsigned int lv = CPU_LEVEL_3;
 	unsigned int efuse_seg;
+	unsigned int efuse_ly;
 	struct platform_device *pdev;
 	struct device_node *node;
 	struct nvmem_cell *efuse_cell;
 	size_t efuse_len;
 	unsigned int *efuse_buf;
+	unsigned int *efuse_ly_buf;
 	int val = 0;
 	int val_ly = 0;
 
@@ -571,6 +575,10 @@ unsigned int _mt_cpufreq_get_cpu_level(void)
 		return 0;
 	}
 	pdev = of_device_alloc(node, NULL, NULL);
+	if (!pdev) {
+		tag_pr_info("%s fail to create device node\n", __func__);
+		return 0;
+	}
 	efuse_cell = nvmem_cell_get(&pdev->dev, "efuse_segment_cell");
 	if (IS_ERR(efuse_cell)) {
 		tag_pr_info("@%s: cannot get efuse_cell, errno %ld\n",
@@ -582,6 +590,7 @@ unsigned int _mt_cpufreq_get_cpu_level(void)
 	nvmem_cell_put(efuse_cell);
 	efuse_seg = *efuse_buf;
 	val = efuse_seg;
+	kfree(efuse_buf);
 
 	/* get efuse ly */
 	efuse_cell = nvmem_cell_get(&pdev->dev, "efuse_ly_cell");
@@ -591,32 +600,45 @@ unsigned int _mt_cpufreq_get_cpu_level(void)
 		return 0;
 	}
 
-	efuse_buf = (unsigned int *)nvmem_cell_read(efuse_cell, &efuse_len);
+	efuse_ly_buf = (unsigned int *)nvmem_cell_read(efuse_cell, &efuse_len);
 	nvmem_cell_put(efuse_cell);
-	efuse_seg = *efuse_buf;
-	val_ly = (efuse_seg >> 1) & 0x1;
-	kfree(efuse_buf);
+	efuse_ly = *efuse_ly_buf;
+	val_ly = (efuse_ly >> 1) & 0x1;
+	kfree(efuse_ly_buf);
 
 	if ((val == 0x2) || (val == 0x5))
 		lv = CPU_LEVEL_2;
 	else if ((val == 0x4) || (val == 0x3))
 		lv = CPU_LEVEL_3;
-	else if ((val == 0x1) || (val == 0x7))
+	else if ((val == 0x1) || (val == 0x7) || (val == 0x19))
 		lv = CPU_LEVEL_4;
 	else if ((val == 0x8) || (val == 0x9) || (val == 0xF))
 		lv = CPU_LEVEL_4;
+	else if (val == 0x14)
+		lv = CPU_LEVEL_6;
+	else if (val == 0x20)
+		lv = CPU_LEVEL_7;
 	else
 		lv = CPU_LEVEL_3;
 
-	if (val_ly == 0x1)
-		lv = CPU_LEVEL_5;
+	if (val_ly == 0x1) {
+		if (val == 0x20)
+			lv = CPU_LEVEL_8;
+		else
+			lv = CPU_LEVEL_5;
 
+	}
 
 	turbo_flag = 0;
 	tag_pr_info("%d,%d,%d,%d,%d,%d,%d,%d\n",
 		lv, turbo_flag, val, val_ly,
 		UP_VPROC_ST, DOWN_VPROC_ST,
 		UP_VSRAM_ST, DOWN_VSRAM_ST);
+	/* free pdev */
+	if (pdev != NULL) {
+		of_platform_device_destroy(&pdev->dev, NULL);
+		of_dev_put(pdev);
+	}
 
 	return lv;
 }

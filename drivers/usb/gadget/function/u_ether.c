@@ -23,7 +23,7 @@
 
 #include "u_ether.h"
 #include "rndis.h"
-/* #include "rps_perf.h" */
+#include "rps_perf.h"
 #ifdef CONFIG_MEDIATEK_SOLUTION
 #include "usb_boost.h"
 #endif
@@ -52,9 +52,10 @@
 #define UETH__VERSION	"29-May-2008"
 
 /* Experiments show that both Linux and Windows hosts allow up to 16k
- * frame sizes. Set the max size to 15k+52 to prevent allocating 32k
+ * frame sizes. Set the max MTU size to 15k+52 to prevent allocating 32k
  * blocks and still have efficient handling. */
-#define GETHER_MAX_ETH_FRAME_LEN 15412
+#define GETHER_MAX_MTU_SIZE 15412
+#define GETHER_MAX_ETH_FRAME_LEN (GETHER_MAX_MTU_SIZE + ETH_HLEN)
 
 static struct workqueue_struct	*uether_wq;
 static struct workqueue_struct	*uether_wq1;
@@ -76,7 +77,7 @@ module_param(u_ether_rx_pending_thld, uint, 0644);
 static inline int qlen(struct usb_gadget *gadget, unsigned qmult)
 {
 	if (gadget_is_dualspeed(gadget) && (gadget->speed == USB_SPEED_HIGH ||
-					    gadget->speed == USB_SPEED_SUPER))
+					    gadget->speed >= USB_SPEED_SUPER))
 		return qmult * DEFAULT_QLEN;
 	else
 		return DEFAULT_QLEN;
@@ -534,9 +535,8 @@ static void set_rps_map_work(struct work_struct *work)
 	if (!dev->port_usb)
 		return;
 
-	/* pr_info("%s - set rps to 0xff\n", __func__); */
-	/* set_rps_map(dev->net->_rx, 0xff); */
-	pr_info("%s - NOT implement RPS patch yet\n", __func__);
+	pr_info("%s - set rps to 0xff\n", __func__);
+	set_rps_map(dev->net->_rx, 0xff);
 }
 
 static void tx_complete(struct usb_ep *ep, struct usb_request *req)
@@ -711,7 +711,7 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 	u16			cdc_filter = 0;
 	bool			multi_pkt_xfer = false;
 	uint32_t		max_size = 0;
-	struct skb_shared_info	*pinfo = skb_shinfo(skb);
+	struct skb_shared_info	*pinfo;
 	skb_frag_t		*frag;
 	unsigned int		frag_cnt = 0;
 	unsigned int		frag_idx = 0;
@@ -721,6 +721,11 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 	static unsigned long	okCnt, busyCnt;
 	static DEFINE_RATELIMIT_STATE(ratelimit1, 1 * HZ, 2);
 	static DEFINE_RATELIMIT_STATE(ratelimit2, 1 * HZ, 2);
+
+	if (!skb)
+		return -EINVAL;
+
+	pinfo = skb_shinfo(skb);
 
 	spin_lock_irqsave(&dev->lock, flags);
 	if (dev->port_usb) {
@@ -1152,6 +1157,8 @@ struct eth_dev *gether_setup_name(struct usb_gadget *g,
 	net->ethtool_ops = &ops;
 
 	/* MTU range: 14 - 15412 */
+	net->min_mtu = ETH_HLEN;
+	net->max_mtu = GETHER_MAX_MTU_SIZE;
 
 	dev->gadget = g;
 	SET_NETDEV_DEV(net, &g->dev);
@@ -1219,7 +1226,7 @@ struct net_device *gether_setup_name_default(const char *netname)
 
 	/* MTU range: 14 - 15412 */
 	net->min_mtu = ETH_HLEN;
-	net->max_mtu = GETHER_MAX_ETH_FRAME_LEN;
+	net->max_mtu = GETHER_MAX_MTU_SIZE;
 
 	return net;
 }

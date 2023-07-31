@@ -50,6 +50,13 @@
 #include "mt_spi.h"
 #endif
 
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+#include "../../../../misc/mediatek/lcm/inc/panel_notifier.h"
+static struct notifier_block focal_headset_notifier;
+#define FTS_HEADSET_PLUG 9
+#define FTS_HEADSET_UNPLUG 10
+#endif
+
 /*****************************************************************************
 * Private constant and macro definitions using #define
 *****************************************************************************/
@@ -850,7 +857,10 @@ static void fts_irq_read_report(void)
 static int touch_event_handler(void *unused)
 {
     struct sched_param param = { .sched_priority = RTPM_PRIO_TPD };
-
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+    struct spi_controller *ctlr = fts_data->spi->controller;
+    int i = 0;
+#endif
     sched_setscheduler(current, SCHED_RR, &param);
     do {
         set_current_state(TASK_INTERRUPTIBLE);
@@ -863,7 +873,17 @@ static int touch_event_handler(void *unused)
         if (fts_proximity_readdata(fts_data) == 0)
             continue;
 #endif
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+        if (fts_data->suspended == true && fts_data->gesture_mode == 1 && ctlr->running == 0) {
+            for (i = 0; i < 10; i++) {
+                FTS_ERROR("touch_event_handler ctlr->running == %d\n",ctlr->running);
+                msleep(10);
 
+                if (ctlr->running == 1)
+                    break;
+            }
+        }
+#endif
         fts_irq_read_report();
     } while (!kthread_should_stop());
 
@@ -1323,6 +1343,12 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
         FTS_ERROR("init fw upgrade fail");
     }
 
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+    focal_headset_notifier.notifier_call = focal_headset_notifier_callback;
+    if(panel_register_client(&focal_headset_notifier))
+        FTS_ERROR("gcore_headset_nodifier register notifier failed!");
+#endif
+
     tpd_load_status = 1;
     FTS_FUNC_EXIT();
     return 0;
@@ -1601,7 +1627,7 @@ static int tpd_local_init(void)
     return 0;
 }
 
-static void tpd_suspend(struct device *dev)
+void tpd_focal_suspend(struct device *dev)
 {
     int ret = 0;
     struct fts_ts_data *ts_data = fts_data;
@@ -1653,7 +1679,30 @@ static void tpd_suspend(struct device *dev)
     FTS_FUNC_EXIT();
 }
 
-static void tpd_resume(struct device *dev)
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+int focal_headset_notifier_callback(struct notifier_block *self, unsigned long event, void *data){
+    struct fts_ts_data *ts_data = fts_data;
+
+    FTS_ERROR("focal_headset_nodifier_callback start event = %d\n",event);
+
+    if (event == FTS_HEADSET_PLUG) {
+        ts_data->fts_head_set = 1;
+        if(ts_data->suspended == false) {
+            fts_write_reg(0x9E, 0x01);
+            FTS_ERROR("focal headset plug");
+        }
+    }else if(event == FTS_HEADSET_UNPLUG) {
+        ts_data->fts_head_set = 0;
+        if(ts_data->suspended == false){
+            fts_write_reg(0x9E, 0x00);
+            FTS_ERROR("focal headset unplug");
+        }
+    }
+    return 0;
+}
+#endif
+
+void tpd_focal_resume(struct device *dev)
 {
     struct fts_ts_data *ts_data = fts_data;
 
@@ -1691,6 +1740,16 @@ static void tpd_resume(struct device *dev)
     } else {
     }
 
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+    if(ts_data->fts_head_set) {
+        fts_write_reg(0x9E, 0x01);
+        FTS_ERROR("focal headset plug");
+    }else {
+        fts_write_reg(0x9E, 0x00);
+        FTS_ERROR("focal headset unplug");
+    }
+#endif
+
     ts_data->suspended = false;
     FTS_FUNC_EXIT();
 }
@@ -1701,8 +1760,8 @@ static void tpd_resume(struct device *dev)
 static struct tpd_driver_t tpd_device_driver = {
     .tpd_device_name = FTS_DRIVER_NAME,
     .tpd_local_init = tpd_local_init,
-    .suspend = tpd_suspend,
-    .resume = tpd_resume,
+    .suspend = tpd_focal_suspend,
+    .resume = tpd_focal_resume,
 };
 
 /*****************************************************************************
@@ -1716,10 +1775,6 @@ static struct tpd_driver_t tpd_device_driver = {
 extern char *saved_command_line;
 static int __init tpd_driver_init(void)
 {
-
-    if (!strstr(saved_command_line,"ft8006s_dsi_vdo_hdp_boe_skyworth"))
-        return  -1;
-
     FTS_FUNC_ENTER();
     FTS_INFO("Driver version: %s", FTS_DRIVER_VERSION);
     tpd_get_dts_info();

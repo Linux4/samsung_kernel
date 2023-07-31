@@ -85,7 +85,7 @@ static struct boot_event boot_events[] = {
 
 #define MAX_LENGTH_OF_BOOTING_LOG 90
 #define DELAY_TIME_EBS 10000
-#define MAX_EVENTS_EBS 100
+#define MAX_EVENTS_EBS 130
 
 struct enhanced_boot_time {
 	struct list_head next;
@@ -145,9 +145,19 @@ static int __init boottime_lk_setup(char *str)
 }
 early_param("bootprof.lk_t", boottime_lk_setup);
 
+void sec_boot_stat_set_bl_boot_time(int pl_t, int lk_t)
+{
+	bootingtime_preloader = pl_t;
+	bootingtime_lk = lk_t;
+	mct_start_kernel = bootingtime_preloader + bootingtime_lk;	
+
+	pr_info("bootingtime_preloader=%d, bootingtime_lk=%d, mct_start_kernel=%d\n", bootingtime_preloader, bootingtime_lk, mct_start_kernel);
+}
+
 void sec_boot_stat_get_start_kernel(void)
 {
 	mct_start_kernel = bootingtime_preloader + bootingtime_lk;
+	pr_info("mct_start_kernel=%d\n", mct_start_kernel);
 }
 
 void sec_boot_stat_add_initcall(const char *s)
@@ -332,6 +342,9 @@ static int sec_enhanced_boot_stat_proc_show(struct seq_file *m, void *v)
 	seq_puts(m, "---------------------------------------------------------------------------------------------------------------\n");
 	seq_puts(m, "BOOTLOADER - KERNEL\n");
 	seq_puts(m, "---------------------------------------------------------------------------------------------------------------\n");
+	seq_printf(m, "%-90s %6u %6u %6u %4d %4d %4d\n", "!@Boot_EBS_B: boot_time_pl_t", bootingtime_preloader, 0, bootingtime_preloader, 0, 0, 0);
+	seq_printf(m, "%-90s %6u %6u %6u %4d %4d %4d\n", "!@Boot_EBS_B: boot_time_lk", bootingtime_lk, 0, bootingtime_lk, 0, 0, 0);
+	seq_printf(m, "%-90s %6u %6u %6u %4d %4d %4d\n", "!@Boot_EBS_B: boot_time_kernel", mct_start_kernel, 0, mct_start_kernel, 0, 0, 0);
 	seq_printf(m, "%-90s %6u %6u %6u\n", "start booting on bootloader", 0, 0, 0);
 	seq_printf(m, "%-90s %6u %6u %6u\n", "start booting on kernel", mct_start_kernel, 0, mct_start_kernel);
 

@@ -988,7 +988,7 @@ done:
 	dprec_logger_done(DPREC_LOGGER_ESD_CHECK, 0, 0);
 	return ret;
 }
-
+int wt_display_recover_flag = 0;
 static int primary_display_check_recovery_worker_kthread(void *data)
 {
 	struct sched_param param = {.sched_priority = 87 };
@@ -1033,11 +1033,12 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 			ret = primary_display_esd_check();
 			if (!ret) /* success */
 				break;
-
+			wt_display_recover_flag = 1;
 			DISPERR(
-				"[ESD]esd check fail, will do esd recovery. try=%d\n",
-				i);
+				"[ESD]esd check fail, will do esd recovery. wt_display_recover_flag=%d,try=%d\n",
+				wt_display_recover_flag,i);
 			primary_display_esd_recovery();
+			wt_display_recover_flag = 0;
 			recovery_done = 1;
 		} while (++i < esd_try_cnt);
 

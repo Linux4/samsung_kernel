@@ -11,8 +11,10 @@
 #include <linux/string.h>
 
 #define ACCDET_DEVNAME "accdet"
-#define ACCDET_AUDIO_DEVNAME "audio" //add by wangxin2 20211013
-#define ACCDET_AUDIO_EARJACK_DEVNAME "earjack" //add by wangxin2 20211013
+
+#define ACCDET_AUDIO_DEVNAME "audio"
+#define ACCDET_AUDIO_EARJACK_DEVNAME "earjack"
+
 /* SW ENV define */
 #define NO_KEY			(0x0)
 #define UP_KEY			(0x01)

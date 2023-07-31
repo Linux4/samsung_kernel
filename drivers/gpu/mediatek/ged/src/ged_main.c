@@ -177,40 +177,42 @@ static long ged_dispatch(struct file *pFile,
 
 	/* We make sure the both size are GE 0 integer.
 	 */
-	if (psBridgePackageKM->i32InBufferSize > 0
-		&& psBridgePackageKM->i32OutBufferSize > 0) {
+	if (psBridgePackageKM->i32InBufferSize > 0 &&
+		psBridgePackageKM->i32OutBufferSize > 0) {
+		int32_t inputBufferSize =
+				psBridgePackageKM->i32InBufferSize;
 
-		if (psBridgePackageKM->i32InBufferSize > 0) {
-			int32_t inputBufferSize =
-					psBridgePackageKM->i32InBufferSize;
-
-			if (GED_BRIDGE_COMMAND_GE_ALLOC ==
-					GED_GET_BRIDGE_ID(
-					psBridgePackageKM->ui32FunctionID)) {
-				inputBufferSize = sizeof(int) +
-				sizeof(uint32_t) * GE_ALLOC_STRUCT_NUM;
+		if (GED_BRIDGE_COMMAND_GE_ALLOC ==
+				GED_GET_BRIDGE_ID(
+				psBridgePackageKM->ui32FunctionID)) {
+			inputBufferSize = sizeof(int) +
+			sizeof(uint32_t) * GE_ALLOC_STRUCT_NUM;
+			// hardcode region_num = GE_ALLOC_STRUCT_NUM,
+			// need check input buffer size
+			if (psBridgePackageKM->i32InBufferSize <
+				inputBufferSize) {
+				GED_LOGE("Failed to region_num, it must be %d\n",
+					GE_ALLOC_STRUCT_NUM);
+				goto dispatch_exit;
 			}
+		}
 
+		if (inputBufferSize <= KMALLOC_MAX_SIZE)
 			pvIn = kmalloc(inputBufferSize, GFP_KERNEL);
+		if (pvIn == NULL)
+			goto dispatch_exit;
 
-			if (pvIn == NULL)
-				goto dispatch_exit;
-
-			if (ged_copy_from_user(pvIn,
-				psBridgePackageKM->pvParamIn,
-				inputBufferSize) != 0) {
-				GED_LOGE("Failed to ged_copy_from_user\n");
-				goto dispatch_exit;
-			}
+		if (ged_copy_from_user(pvIn,
+			psBridgePackageKM->pvParamIn,
+			inputBufferSize) != 0) {
+			GED_LOGE("Failed to ged_copy_from_user\n");
+			goto dispatch_exit;
 		}
 
-		if (psBridgePackageKM->i32OutBufferSize > 0) {
-			pvOut = kzalloc(psBridgePackageKM->i32OutBufferSize,
-				GFP_KERNEL);
-
-			if (pvOut == NULL)
-				goto dispatch_exit;
-		}
+		pvOut = kzalloc(psBridgePackageKM->i32OutBufferSize,
+			GFP_KERNEL);
+		if (pvOut == NULL)
+			goto dispatch_exit;
 
 		/* Make sure that the UM will never break the KM.
 		 * Check IO size are both matched the size of IO sturct.
@@ -281,6 +283,14 @@ static long ged_dispatch(struct file *pFile,
 			VALIDATE_ARG(HINT_FORCE_MDP);
 			ret = ged_bridge_hint_force_mdp(pvIn, pvOut);
 			break;
+		case GED_BRIDGE_COMMAND_QUERY_DVFS_FREQ_PRED:
+			VALIDATE_ARG(QUERY_DVFS_FREQ_PRED);
+			ret = ged_bridge_query_dvfs_freq_pred(pvIn, pvOut);
+			break;
+		case GED_BRIDGE_COMMAND_QUERY_GPU_DVFS_INFO:
+			VALIDATE_ARG(QUERY_GPU_DVFS_INFO);
+			ret = ged_bridge_query_gpu_dvfs_info(pvIn, pvOut);
+			break;
 		case GED_BRIDGE_COMMAND_GE_ALLOC:
 			VALIDATE_ARG(GE_ALLOC);
 			ret = ged_bridge_ge_alloc(pvIn, pvOut);
@@ -311,11 +321,9 @@ static long ged_dispatch(struct file *pFile,
 			break;
 		}
 
-		if (psBridgePackageKM->i32OutBufferSize > 0) {
-			if (ged_copy_to_user(psBridgePackageKM->pvParamOut,
+		if (ged_copy_to_user(psBridgePackageKM->pvParamOut,
 			pvOut, psBridgePackageKM->i32OutBufferSize) != 0) {
-				goto dispatch_exit;
-			}
+			goto dispatch_exit;
 		}
 	}
 
@@ -404,87 +412,10 @@ unlock_and_return:
  */
 static int ged_pdrv_probe(struct platform_device *pdev)
 {
-	int ret;
+	int err;
 
-	ret = ged_dvfs_init_opp_cost();
-	if (ret) {
-		GED_LOGE("@%s: failed to probe ged driver (%d)\n",
-		__func__, ret);
-	}
+	GED_LOGI("@%s: start to probe ged driver\n", __func__);
 
-	return ret;
-}
-/*
- * unregister the gpufreq driver, remove fs node
- */
-static void ged_exit(void)
-{
-#ifndef GED_BUFFER_LOG_DISABLE
-	ged_log_buf_free(gpufreq_ged_log);
-	gpufreq_ged_log = 0;
-
-#ifdef GED_DVFS_DEBUG_BUF
-	ged_log_buf_free(ghLogBuf_DVFS);
-	ghLogBuf_DVFS = 0;
-#endif
-
-	ged_log_buf_free(ghLogBuf_ftrace);
-	ghLogBuf_ftrace = 0;
-	ged_log_buf_free(ghLogBuf_FENCE);
-	ghLogBuf_FENCE = 0;
-	ged_log_buf_free(ghLogBuf_HWC);
-	ghLogBuf_HWC = 0;
-	ged_log_buf_free(ghLogBuf_HWC_ERR);
-	ghLogBuf_HWC_ERR = 0;
-
-#ifdef GED_DEBUG
-	ged_log_buf_free(ghLogBuf_GED);
-	ghLogBuf_GED = 0;
-	ged_log_buf_free(ghLogBuf_GLES);
-	ghLogBuf_GLES = 0;
-#endif
-
-	ged_log_buf_free(ghLogBuf_GPU);
-	ghLogBuf_GPU = 0;
-#endif /* GED_BUFFER_LOG_DISABLE */
-
-#ifdef GED_SKI_SUPPORT
-	ged_ski_exit();
-#endif
-
-	ged_gpu_tuner_exit();
-
-	ged_kpi_system_exit();
-
-	ged_ge_exit();
-
-	ged_dvfs_system_exit();
-
-	ged_notify_sw_vsync_system_exit();
-
-	ged_hal_exit();
-
-	ged_log_system_exit();
-
-#ifdef GED_DEBUG_FS
-	ged_debugFS_exit();
-#endif
-
-	ged_sysfs_exit();
-
-	remove_proc_entry(GED_DRIVER_DEVICE_NAME, NULL);
-
-	platform_driver_unregister(&g_ged_pdrv);
-}
-
-/*
- * register the ged driver, create fs node
- */
-static int ged_init(void)
-{
-	GED_ERROR err = GED_ERROR_FAIL;
-
-	GED_LOGI("@%s: start to initialize ged driver\n", __func__);
 	if (proc_create(GED_DRIVER_DEVICE_NAME, 0644, NULL, &ged_fops)
 		== NULL) {
 		err = GED_ERROR_FAIL;
@@ -605,20 +536,101 @@ static int ged_init(void)
 	gpufreq_ged_log = 0;
 #endif /* GED_BUFFER_LOG_DISABLE */
 
+#ifdef CONFIG_MTK_GPU_OPP_STATS_SUPPORT
+	err = ged_dvfs_init_opp_cost();
+	if (err) {
+		GED_LOGE("@%s: failed to probe ged driver (%d)\n", __func__, err);
+	}
+#endif /* CONFIG_MTK_GPU_OPP_STATS_SUPPORT */
+
+	GED_LOGI("@%s: ged driver probe done\n", __func__);
+
+ERROR:
+	return err;
+}
+/*
+ * unregister the gpufreq driver, remove fs node
+ */
+static void ged_exit(void)
+{
+#ifndef GED_BUFFER_LOG_DISABLE
+	ged_log_buf_free(gpufreq_ged_log);
+	gpufreq_ged_log = 0;
+
+#ifdef GED_DVFS_DEBUG_BUF
+	ged_log_buf_free(ghLogBuf_DVFS);
+	ghLogBuf_DVFS = 0;
+#endif
+
+	ged_log_buf_free(ghLogBuf_ftrace);
+	ghLogBuf_ftrace = 0;
+	ged_log_buf_free(ghLogBuf_FENCE);
+	ghLogBuf_FENCE = 0;
+	ged_log_buf_free(ghLogBuf_HWC);
+	ghLogBuf_HWC = 0;
+	ged_log_buf_free(ghLogBuf_HWC_ERR);
+	ghLogBuf_HWC_ERR = 0;
+
+#ifdef GED_DEBUG
+	ged_log_buf_free(ghLogBuf_GED);
+	ghLogBuf_GED = 0;
+	ged_log_buf_free(ghLogBuf_GLES);
+	ghLogBuf_GLES = 0;
+#endif
+
+	ged_log_buf_free(ghLogBuf_GPU);
+	ghLogBuf_GPU = 0;
+#endif /* GED_BUFFER_LOG_DISABLE */
+
+#ifdef GED_SKI_SUPPORT
+	ged_ski_exit();
+#endif
+
+	ged_gpu_tuner_exit();
+
+	ged_kpi_system_exit();
+
+	ged_ge_exit();
+
+	ged_dvfs_system_exit();
+
+	ged_notify_sw_vsync_system_exit();
+
+	ged_hal_exit();
+
+	ged_log_system_exit();
+
+#ifdef GED_DEBUG_FS
+	ged_debugFS_exit();
+#endif
+
+	ged_sysfs_exit();
+
+	remove_proc_entry(GED_DRIVER_DEVICE_NAME, NULL);
+
+	platform_driver_unregister(&g_ged_pdrv);
+}
+
+/*
+ * register the ged driver, create fs node
+ */
+static int ged_init(void)
+{
+	GED_ERROR err = GED_ERROR_FAIL;
+
+	GED_LOGI("@%s: start to initialize ged driver\n", __func__);
+
 	/* register platform driver */
 	err = platform_driver_register(&g_ged_pdrv);
 	if (err) {
-		GED_LOGE("@%s: failed to register ged driver\n",
-		__func__);
-		/* fall through as no impact */
+		GED_LOGE("@%s: failed to register ged driver\n", __func__);
+		goto ERROR;
 	}
 
-	return 0;
+	GED_LOGI("@%s: ged driver init done\n", __func__);
 
 ERROR:
-	ged_exit();
-
-	return -EFAULT;
+	return err;
 }
 #ifdef GED_MODULE_LATE_INIT
 late_initcall(ged_init);

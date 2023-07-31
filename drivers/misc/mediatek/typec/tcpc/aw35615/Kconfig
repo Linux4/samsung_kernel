@@ -1,0 +1,10 @@
+#
+# awinic driver configuration
+#
+
+config AW35615_PD
+	tristate "Awinic Pd"
+	depends on I2C
+	help
+		this option enables support for the AW35615 PD connected
+		through I2C. Say Y to enable support for the AW35615 PD

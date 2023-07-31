@@ -470,7 +470,8 @@ struct ISP_CLK_STRUCT {
 	struct clk *ISP_IMG_DIP;
 	struct clk *ISP_CAM_CAMSYS;
 	struct clk *ISP_CAM_CAMTG;
-	struct clk *ISP_CAM_SENINF;
+	/*No need to control this any more , seninf will handle this CLK*/
+	//struct clk *ISP_CAM_SENINF;
 	struct clk *ISP_CAM_CAMSV0;
 	struct clk *ISP_CAM_CAMSV1;
 	struct clk *ISP_CAM_CAMSV2;
@@ -633,6 +634,10 @@ struct S_START_T {
  */
 static unsigned int g_regScen = 0xa5a5a5a5; /* remove later */
 
+static unsigned int g_virtual_cq_cnt[2] = {0, 0};
+static unsigned int g_virtual_cq_cnt_a;
+static unsigned int g_virtual_cq_cnt_b;
+static  spinlock_t  virtual_cqcnt_lock;
 
 static /*volatile*/ wait_queue_head_t P2WaitQueueHead_WaitDeque;
 static /*volatile*/ wait_queue_head_t P2WaitQueueHead_WaitFrame;
@@ -825,7 +830,6 @@ struct ISP_IRQ_ERR_WAN_CNT_STRUCT {
 };
 
 static signed int FirstUnusedIrqUserKey = 1;
-#define USERKEY_STR_LEN 128
 
 struct UserKeyInfo {
 	/* for the user that register a userKey */
@@ -999,10 +1003,13 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 }
 
 #if 1
-#define IRQ_LOG_KEEPER(irq, ppb, logT, fmt, ...) do {\
+#define IRQ_LOG_KEEPER(irq_in, ppb_in, logT_in, fmt, ...) do {\
 	char *ptr; \
 	char *pDes;\
 	signed int avaLen;\
+	unsigned int irq = irq_in;\
+	unsigned int ppb = ppb_in;\
+	unsigned int logT = logT_in;\
 	unsigned int *ptr2 = &gSvLog[irq]._cnt[ppb][logT];\
 	unsigned int str_leng;\
 	unsigned int i;\
@@ -1020,10 +1027,12 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 		&(gSvLog[irq]._str[ppb][logT][gSvLog[irq]._cnt[ppb][logT]]);  \
 	avaLen = str_leng - 1 - gSvLog[irq]._cnt[ppb][logT];\
 	if (avaLen > 1) {\
-		snprintf((char *)(pDes), avaLen, "[%d.%06d]" fmt,\
+		if (snprintf((char *)(pDes), avaLen, "[%d.%06d]" fmt,\
 			gSvLog[irq]._lastIrqTime.sec, \
 			gSvLog[irq]._lastIrqTime.usec,\
-			##__VA_ARGS__);   \
+			##__VA_ARGS__) < 0) { \
+			pr_info("[Error] snprintf failed\n");\
+		} \
 		if ('\0' != gSvLog[irq]._str[ppb][logT][str_leng - 1]) {\
 			pr_info("log str over flow(%d)", irq);\
 		} \
@@ -1073,7 +1082,10 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 			ptr = pDes = (char *)\
 			    &(pSrc->_str[ppb][logT][pSrc->_cnt[ppb][logT]]);\
 			ptr2 = &(pSrc->_cnt[ppb][logT]);\
-			snprintf((char *)(pDes), avaLen, fmt, ##__VA_ARGS__);  \
+			if (snprintf((char *)(pDes), avaLen,\
+					fmt, ##__VA_ARGS__) < 0) { \
+				pr_info("[Error] snprintf failed\n");\
+			} \
 			while (*ptr++ != '\0') {\
 				(*ptr2)++;\
 			} \
@@ -1081,10 +1093,13 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 	} \
 } while (0)
 /*for keep IRQ err log*/
-#define IRQ_LOG_KEEPER_PR_ERR(irq, ppb, logT, fmt, ...) do {\
+#define IRQ_LOG_KEEPER_PR_ERR(irq_in, ppb_in, logT_in, fmt, ...) do {\
 	char *ptr; \
 	char *pDes;\
 	signed int avaLen;\
+	unsigned int irq = irq_in;\
+	unsigned int ppb = ppb_in;\
+	unsigned int logT = logT_in;\
 	unsigned int *ptr2 = &gSvLog[irq]._cnt[ppb][logT];\
 	unsigned int str_leng;\
 	unsigned int i;\
@@ -1098,9 +1113,11 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 		&(gSvLog[irq]._str[ppb][logT][gSvLog[irq]._cnt[ppb][logT]]);\
 	avaLen = str_leng - 1 - gSvLog[irq]._cnt[ppb][logT];\
 	if (avaLen > 1) {\
-		snprintf((char *)(pDes), avaLen, "[%d.%06d]" fmt,\
-		gSvLog[irq]._lastIrqTime.sec, gSvLog[irq]._lastIrqTime.usec,\
-		##__VA_ARGS__);   \
+		if (snprintf((char *)(pDes), avaLen, "[%d.%06d]" fmt,\
+			gSvLog[irq]._lastIrqTime.sec, gSvLog[irq]._lastIrqTime.usec,\
+			##__VA_ARGS__) < 0) { \
+			pr_info("[Error] snprintf failed\n");\
+		} \
 		if ('\0' != gSvLog[irq]._str[ppb][logT][str_leng - 1]) {\
 			pr_notice("error:log str over flow(%d)", irq);\
 		} \
@@ -1135,7 +1152,10 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 			ptr = pDes = (char *)\
 			  &(pSrc->_str[ppb][logT][pSrc->_cnt[ppb][logT]]);\
 			ptr2 = &(pSrc->_cnt[ppb][logT]);\
-			snprintf((char *)(pDes), avaLen, fmt, ##__VA_ARGS__);  \
+			if (snprintf((char *)(pDes), avaLen,\
+					fmt, ##__VA_ARGS__) < 0) { \
+				pr_info("[Error] snprintf failed\n");\
+			} \
 			while (*ptr++ != '\0') {\
 				(*ptr2)++;\
 			} \
@@ -1154,8 +1174,8 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 	struct SV_LOG_STR *pSrc = &gSvLog[irq];\
 	char *ptr;\
 	unsigned int i;\
-	signed int ppb = 0;\
-	signed int logT = 0;\
+	unsigned int ppb = 0;\
+	unsigned int logT = 0;\
 	if (ppb_in > 1) {\
 		ppb = 1;\
 	} else {\
@@ -1202,8 +1222,8 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 	struct SV_LOG_STR *pSrc = &gSvLog[irq];\
 	char *ptr;\
 	unsigned int i;\
-	signed int ppb = 0;\
-	signed int logT = 0;\
+	unsigned int ppb = 0;\
+	unsigned int logT = 0;\
 	if (ppb_in > 1) {\
 		ppb = 1;\
 	} else {\
@@ -3863,9 +3883,7 @@ static inline void Prepare_Enable_ccf_clock(void)
 	if (ret)
 		pr_err("cannot pre-en ISP_CAM_CAMTG clock\n");
 
-	ret = clk_prepare_enable(isp_clk.ISP_CAM_SENINF);
-	if (ret)
-		pr_err("cannot pre-en ISP_CAM_SENINF clock\n");
+	/*No need to control this any more , seninf will handle this CLK*/
 
 	ret = clk_prepare_enable(isp_clk.ISP_CAM_CAMSV0);
 	if (ret)
@@ -3888,7 +3906,8 @@ static inline void Disable_Unprepare_ccf_clock(void)
 	clk_disable_unprepare(isp_clk.ISP_CAM_CAMSV2);
 	clk_disable_unprepare(isp_clk.ISP_CAM_CAMSV1);
 	clk_disable_unprepare(isp_clk.ISP_CAM_CAMSV0);
-	clk_disable_unprepare(isp_clk.ISP_CAM_SENINF);
+	/*No need to control this any more , seninf will handle this CLK*/
+	//clk_disable_unprepare(isp_clk.ISP_CAM_SENINF);
 	clk_disable_unprepare(isp_clk.ISP_CAM_CAMTG);
 	clk_disable_unprepare(isp_clk.ISP_CAM_CAMSYS);
 	clk_disable_unprepare(isp_clk.ISP_IMG_DIP);
@@ -4191,11 +4210,20 @@ static signed int ISP_ReadReg(struct ISP_REG_IO_STRUCT *pRegIo)
 	unsigned int module;
 	void __iomem *regBase;
 
-
 	/*  */
 	struct ISP_REG_STRUCT reg;
 	/* unsigned int* pData = (unsigned int*)pRegIo->Data; */
 	struct ISP_REG_STRUCT *pData = (struct ISP_REG_STRUCT *)pRegIo->pData;
+
+	if ((pRegIo->pData == NULL) ||
+			(pRegIo->Count == 0) ||
+			(pRegIo->Count > ISP_REG_RANGE)) {
+		pr_err(
+			"pRegIo->pData is NULL, Count:%d!!\n",
+			pRegIo->Count);
+		Ret = -EFAULT;
+		goto EXIT;
+	}
 
 	if (get_user(module, (unsigned int *)&pData->module) != 0) {
 		pr_err("get_user failed\n");
@@ -4390,7 +4418,7 @@ static signed int ISP_WriteReg(struct ISP_REG_IO_STRUCT *pRegIo)
 	/* unsigned char* pData = NULL; */
 	struct ISP_REG_STRUCT *pData = NULL;
 
-	if ((pRegIo->Count * sizeof(struct ISP_REG_STRUCT)) > 0xFFFFF000) {
+	if (pRegIo->Count > 0xFFFFFFFF) {
 		pr_err("pRegIo->Count error");
 		Ret = -EFAULT;
 		goto EXIT;
@@ -4931,7 +4959,8 @@ static long ISP_REF_CNT_CTRL_FUNC(unsigned long Param)
 				ref_cnt_ctrl.ctrl, ref_cnt_ctrl.id);
 
 		/*  */
-		if (ref_cnt_ctrl.id < ISP_REF_CNT_ID_MAX) {
+		if (ref_cnt_ctrl.id < ISP_REF_CNT_ID_MAX &&
+		    ref_cnt_ctrl.id >= 0) {
 			/* //////////////////---add lock here */
 			spin_lock(&(IspInfo.SpinLockIspRef));
 			/* ////////////////// */
@@ -5075,7 +5104,8 @@ static long ISP_Buf_CTRL_FUNC(unsigned long Param)
 	/*  */
 	if (copy_from_user(&rt_buf_ctrl, (void __user *)Param,
 	    sizeof(struct ISP_BUFFER_CTRL_STRUCT)) == 0) {
-		if (rt_buf_ctrl.module >= ISP_IRQ_TYPE_AMOUNT) {
+		if (rt_buf_ctrl.module >= ISP_IRQ_TYPE_AMOUNT ||
+		    rt_buf_ctrl.module < 0) {
 			pr_err("[rtbc]not supported module:0x%x\n",
 				rt_buf_ctrl.module);
 			return -EFAULT;
@@ -5088,7 +5118,8 @@ static long ISP_Buf_CTRL_FUNC(unsigned long Param)
 		}
 
 		rt_dma = rt_buf_ctrl.buf_id;
-		if (rt_dma >= _cam_max_) {
+		if (rt_dma >= _cam_max_ ||
+		    rt_dma < 0) {
 			pr_err("[rtbc]buf_id error:0x%x\n", rt_dma);
 			return -EFAULT;
 		}
@@ -5281,7 +5312,7 @@ static int ISP_SetPMQOS(unsigned int cmd, unsigned int module)
  * update current idnex to working frame
  *****************************************************************************/
 static signed int ISP_P2_BufQue_Update_ListCIdx(
-	enum ISP_P2_BUFQUE_PROPERTY property,
+	enum ISP_P2_BUFQUE_PROPERTY propertyU,
 	enum ISP_P2_BUFQUE_LIST_TAG listTag)
 {
 	signed int ret = 0;
@@ -5289,7 +5320,9 @@ static signed int ISP_P2_BufQue_Update_ListCIdx(
 	signed int cnt = 0;
 	bool stop = false;
 	int i = 0;
+	unsigned int property = 0;
 	enum ISP_P2_BUF_STATE_ENUM cIdxSts = ISP_P2_BUF_STATE_NONE;
+	property = propertyU;
 
 	switch (listTag) {
 	case ISP_P2_BUFQUE_LIST_TAG_UNIT:
@@ -5390,14 +5423,23 @@ static signed int ISP_P2_BufQue_Update_ListCIdx(
 /******************************************************************************
  *
  *****************************************************************************/
-static signed int ISP_P2_BufQue_Erase(enum ISP_P2_BUFQUE_PROPERTY property,
-enum ISP_P2_BUFQUE_LIST_TAG listTag, signed int idx)
+static signed int ISP_P2_BufQue_Erase(enum ISP_P2_BUFQUE_PROPERTY propertyU,
+enum ISP_P2_BUFQUE_LIST_TAG listTag, signed int idxU)
 {
 	signed int ret =  -1;
 	bool stop = false;
 	int i = 0;
 	signed int cnt = 0;
 	int tmpIdx = 0;
+	unsigned int property = 0;
+	unsigned int idx = 0;
+
+	if (idxU < 0) {
+		pr_info("idxU abnormal error(%d)\n", idxU);
+		return ret;
+	}
+	idx = idxU;
+	property = propertyU;
 
 	switch (listTag) {
 	case ISP_P2_BUFQUE_LIST_TAG_PACKAGE:
@@ -5409,43 +5451,44 @@ enum ISP_P2_BUFQUE_LIST_TAG listTag, signed int idx)
 		P2_FramePackage_List[property][idx].frameNum = 0;
 		P2_FramePackage_List[property][idx].dequedNum = 0;
 		/* [2] update first index */
-		if (P2_FramePackage_List[property][tmpIdx].dupCQIdx == -1) {
-			/* traverse count needed, cuz user may erase the */
-			/* element but not the one at first idx */
-			/* (pip or vss scenario) */
-			if (P2_FramePack_List_Idx[property].start <=
-			P2_FramePack_List_Idx[property].end) {
-				cnt = P2_FramePack_List_Idx[property].end -
-					P2_FramePack_List_Idx[property].start;
-			} else {
-				cnt = _MAX_SUPPORT_P2_PACKAGE_NUM_ -
-					P2_FramePack_List_Idx[property].start;
-				cnt += P2_FramePack_List_Idx[property].end;
-			}
-			do { /* to find the newest first lindex */
-				tmpIdx = (tmpIdx + 1) %
-					_MAX_SUPPORT_P2_PACKAGE_NUM_;
-				switch (
-				P2_FramePackage_List[property][tmpIdx].
-				dupCQIdx){
-				case (-1):
-					break;
-				default:
-					stop = true;
-					P2_FramePack_List_Idx[property].start =
-						tmpIdx;
-					break;
+		if (tmpIdx >= 0) {
+			if (P2_FramePackage_List[property][tmpIdx].dupCQIdx == -1) {
+				/* traverse count needed, cuz user may erase the */
+				/* element but not the one at first idx */
+				/* (pip or vss scenario) */
+				if (P2_FramePack_List_Idx[property].start <=
+				P2_FramePack_List_Idx[property].end) {
+					cnt = P2_FramePack_List_Idx[property].end -
+						P2_FramePack_List_Idx[property].start;
+				} else {
+					cnt = _MAX_SUPPORT_P2_PACKAGE_NUM_ -
+						P2_FramePack_List_Idx[property].start;
+					cnt += P2_FramePack_List_Idx[property].end;
 				}
-				i++;
-			} while ((i < cnt) && (!stop));
-			/* current last erased element in list is the one */
-			/* firstBufindex point at and all the buffer node */
-			/* are deque done in the current moment, should */
-			/* update first index to the last node */
-			if ((!stop) && (i == cnt))
-				P2_FramePack_List_Idx[property].start =
-					P2_FramePack_List_Idx[property].end;
+				do { /* to find the newest first lindex */
+					tmpIdx = (tmpIdx + 1) %
+						_MAX_SUPPORT_P2_PACKAGE_NUM_;
+					switch (
+					P2_FramePackage_List[property][tmpIdx].dupCQIdx){
+					case (-1):
+						break;
+					default:
+						stop = true;
+						P2_FramePack_List_Idx[property].start =
+							tmpIdx;
+						break;
+					}
+					i++;
+				} while ((i < cnt) && (!stop));
+				/* current last erased element in list is the one */
+				/* firstBufindex point at and all the buffer node */
+				/* are deque done in the current moment, should */
+				/* update first index to the last node */
+				if ((!stop) && (i == cnt))
+					P2_FramePack_List_Idx[property].start =
+						P2_FramePack_List_Idx[property].end;
 
+			}
 		}
 		break;
 	case ISP_P2_BUFQUE_LIST_TAG_UNIT:
@@ -5456,50 +5499,51 @@ enum ISP_P2_BUFQUE_LIST_TAG listTag, signed int idx)
 		P2_FrameUnit_List[property][idx].cqMask =  0x0;
 		P2_FrameUnit_List[property][idx].bufSts = ISP_P2_BUF_STATE_NONE;
 		/* [2]update first index */
-		if (P2_FrameUnit_List[property][tmpIdx].bufSts ==
-		ISP_P2_BUF_STATE_NONE) {
-			/* traverse count needed, cuz user may erase the */
-			/* element but not the one at first idx */
-			if (P2_FrameUnit_List_Idx[property].start <=
-			P2_FrameUnit_List_Idx[property].end) {
-				cnt = P2_FrameUnit_List_Idx[property].end -
-					P2_FrameUnit_List_Idx[property].start;
-			} else {
-				cnt = _MAX_SUPPORT_P2_FRAME_NUM_ -
-					P2_FrameUnit_List_Idx[property].start;
-				cnt += P2_FrameUnit_List_Idx[property].end;
-			}
-			/* to find the newest first lindex */
-			do {
-				tmpIdx = (tmpIdx + 1) %
-					_MAX_SUPPORT_P2_FRAME_NUM_;
-				switch (
-				P2_FrameUnit_List[property][tmpIdx].bufSts) {
-				case ISP_P2_BUF_STATE_ENQUE:
-				case ISP_P2_BUF_STATE_RUNNING:
-				case ISP_P2_BUF_STATE_DEQUE_SUCCESS:
-					stop = true;
-					P2_FrameUnit_List_Idx[property].start =
-						tmpIdx;
-					break;
-				case ISP_P2_BUF_STATE_WAIT_DEQUE_FAIL:
-				case ISP_P2_BUF_STATE_DEQUE_FAIL:
-					/* ASSERT */
-					break;
-				case ISP_P2_BUF_STATE_NONE:
-				default:
-					break;
+		if (tmpIdx >= 0) {
+			if (P2_FrameUnit_List[property][tmpIdx].bufSts ==
+			ISP_P2_BUF_STATE_NONE) {
+				/* traverse count needed, cuz user may erase the */
+				/* element but not the one at first idx */
+				if (P2_FrameUnit_List_Idx[property].start <=
+				P2_FrameUnit_List_Idx[property].end) {
+					cnt = P2_FrameUnit_List_Idx[property].end -
+						P2_FrameUnit_List_Idx[property].start;
+				} else {
+					cnt = _MAX_SUPPORT_P2_FRAME_NUM_ -
+						P2_FrameUnit_List_Idx[property].start;
+					cnt += P2_FrameUnit_List_Idx[property].end;
 				}
-				i++;
-			} while ((i < cnt) && (!stop));
-			/* current last erased element in list is the one */
-			/* firstBufindex point at and all the buffer node are */
-			/* deque done in the current moment, should */
-			/* update first index to the last node */
-			if ((!stop) && (i == (cnt)))
-				P2_FrameUnit_List_Idx[property].start =
-					P2_FrameUnit_List_Idx[property].end;
-
+				/* to find the newest first lindex */
+				do {
+					tmpIdx = (tmpIdx + 1) %
+						_MAX_SUPPORT_P2_FRAME_NUM_;
+					switch (
+					P2_FrameUnit_List[property][tmpIdx].bufSts) {
+					case ISP_P2_BUF_STATE_ENQUE:
+					case ISP_P2_BUF_STATE_RUNNING:
+					case ISP_P2_BUF_STATE_DEQUE_SUCCESS:
+						stop = true;
+						P2_FrameUnit_List_Idx[property].start =
+							tmpIdx;
+						break;
+					case ISP_P2_BUF_STATE_WAIT_DEQUE_FAIL:
+					case ISP_P2_BUF_STATE_DEQUE_FAIL:
+						/* ASSERT */
+						break;
+					case ISP_P2_BUF_STATE_NONE:
+					default:
+						break;
+					}
+					i++;
+				} while ((i < cnt) && (!stop));
+				/* current last erased element in list is the one */
+				/* firstBufindex point at and all the buffer node are */
+				/* deque done in the current moment, should */
+				/* update first index to the last node */
+				if ((!stop) && (i == (cnt)))
+					P2_FrameUnit_List_Idx[property].start =
+						P2_FrameUnit_List_Idx[property].end;
+			}
 		}
 		break;
 	default:
@@ -5517,7 +5561,7 @@ static signed int ISP_P2_BufQue_GetMatchIdx(struct ISP_P2_BUFQUE_STRUCT param,
 {
 	int idx = -1;
 	int i = 0;
-	int property;
+	unsigned int property;
 
 	if (param.property >= ISP_P2_BUFQUE_PROPERTY_NUM) {
 		pr_err("property err(%d)\n", param.property);
@@ -5734,29 +5778,42 @@ static inline unsigned int ISP_P2_BufQue_WaitEventState(
 {
 	unsigned int ret = MFALSE;
 	signed int index = -1;
-	enum ISP_P2_BUFQUE_PROPERTY property;
+	unsigned int local_idx = 0;
+	unsigned int property;
 
 	if (param.property >= ISP_P2_BUFQUE_PROPERTY_NUM) {
 		pr_err("property err(%d)\n", param.property);
 		return ret;
 	}
+
 	property = param.property;
+
 	/*  */
 	switch (type) {
 	case ISP_P2_BUFQUE_MATCH_TYPE_WAITDQ:
-		spin_lock(&(SpinLock_P2FrameList));
 		index = *idx;
-		if (P2_FrameUnit_List[property][index].bufSts ==
+		if (index < 0) {
+			pr_info("index abnormal error(%d) 1\n", index);
+			return ret;
+		}
+		spin_lock(&(SpinLock_P2FrameList));
+		local_idx = index;
+		if (P2_FrameUnit_List[property][local_idx].bufSts ==
 		    ISP_P2_BUF_STATE_RUNNING)
 			ret = MTRUE;
 
 		spin_unlock(&(SpinLock_P2FrameList));
 		break;
 	case ISP_P2_BUFQUE_MATCH_TYPE_WAITFM:
-		spin_lock(&(SpinLock_P2FrameList));
 		index = *idx;
-		if (P2_FramePackage_List[property][index].dequedNum ==
-		    P2_FramePackage_List[property][index].frameNum)
+		if (index < 0) {
+			pr_info("index abnormal error(%d) 2\n", index);
+			return ret;
+		}
+		spin_lock(&(SpinLock_P2FrameList));
+		local_idx = index;
+		if (P2_FramePackage_List[property][local_idx].dequedNum ==
+		    P2_FramePackage_List[property][local_idx].frameNum)
 			ret = MTRUE;
 
 		spin_unlock(&(SpinLock_P2FrameList));
@@ -5803,7 +5860,7 @@ static signed int ISP_P2_BufQue_CTRL_FUNC(struct ISP_P2_BUFQUE_STRUCT param)
 	int i = 0, q = 0;
 	int idx =  -1, idx2 =  -1;
 	signed int restTime = 0;
-	int property;
+	unsigned int property;
 
 	if (param.property >= ISP_P2_BUFQUE_PROPERTY_NUM) {
 		pr_err("property err(%d)\n", param.property);
@@ -6294,13 +6351,21 @@ static signed int ISP_REGISTER_IRQ_USERKEY(char *userName)
 static signed int ISP_MARK_IRQ(struct ISP_WAIT_IRQ_STRUCT *irqinfo)
 {
 	unsigned long flags;
-	int idx = my_get_pow_idx(irqinfo->EventInfo.Status);
+	unsigned int idx = my_get_pow_idx(irqinfo->EventInfo.Status);
 
 	unsigned long long  sec = 0;
 	unsigned long       usec = 0;
 
-	if (irqinfo->Type >= ISP_IRQ_TYPE_AMOUNT) {
+	if (irqinfo->Type >= ISP_IRQ_TYPE_AMOUNT ||
+	    irqinfo->Type < 0) {
 		pr_err("MARK_IRQ: type error(%d)", irqinfo->Type);
+		return -EFAULT;
+	}
+
+	if (irqinfo->EventInfo.St_type >= ISP_IRQ_ST_AMOUNT ||
+	    irqinfo->EventInfo.St_type < 0) {
+		pr_err("MARK_IRQ: st_type error(%d)",
+			irqinfo->EventInfo.St_type);
 		return -EFAULT;
 	}
 
@@ -6378,7 +6443,7 @@ static signed int ISP_GET_MARKtoQEURY_TIME(struct ISP_WAIT_IRQ_STRUCT *irqinfo)
 		time_ready2return.tv_usec = usec;
 		time_ready2return.tv_sec = sec;
 
-		int idx = my_get_pow_idx(irqinfo->EventInfo.Status);
+		unsigned int idx = my_get_pow_idx(irqinfo->EventInfo.Status);
 
 
 		spin_lock_irqsave(&(IspInfo.SpinLockIrq[irqinfo->Type]), flags);
@@ -6491,12 +6556,14 @@ static signed int ISP_FLUSH_IRQ(struct ISP_WAIT_IRQ_STRUCT *irqinfo)
 		irqinfo->Type, irqinfo->EventInfo.UserKey,
 		irqinfo->EventInfo.St_type, irqinfo->EventInfo.Status);
 
-	if (irqinfo->Type >= ISP_IRQ_TYPE_AMOUNT) {
+	if (irqinfo->Type >= ISP_IRQ_TYPE_AMOUNT ||
+	    irqinfo->Type < 0) {
 		pr_err("FLUSH_IRQ: type error(%d)", irqinfo->Type);
 		return -EFAULT;
 	}
 
-	if (irqinfo->EventInfo.St_type >= ISP_IRQ_ST_AMOUNT) {
+	if (irqinfo->EventInfo.St_type >= ISP_IRQ_ST_AMOUNT ||
+	    irqinfo->EventInfo.St_type < 0) {
 		pr_err("FLUSH_IRQ: st_type error(%d)",
 			irqinfo->EventInfo.St_type);
 		return -EFAULT;
@@ -6552,8 +6619,15 @@ static signed int ISP_WaitIrq(struct ISP_WAIT_IRQ_STRUCT *WaitIrq)
 	signed int Ret = 0, Timeout = WaitIrq->EventInfo.Timeout;
 	unsigned long flags;
 	unsigned int irqStatus;
-	int idx;
+	unsigned int idx;
 	bool freeze_passbysigcnt = false;
+
+	if ((WaitIrq->Type >= ISP_IRQ_TYPE_AMOUNT) ||
+	    (WaitIrq->Type < 0)) {
+		pr_info("invalid Type(%d), max(%d)\n",
+			WaitIrq->Type, ISP_IRQ_TYPE_AMOUNT);
+		return -EINVAL;
+	}
 
 	if ((WaitIrq->EventInfo.St_type >= ISP_IRQ_ST_AMOUNT) ||
 	    (WaitIrq->EventInfo.St_type < 0)) {
@@ -7345,6 +7419,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 
 		if (copy_from_user(&RegUserKey, (void *)Param,
 		    sizeof(struct ISP_REGISTER_USERKEY_STRUCT)) == 0) {
+			RegUserKey.userName[sizeof(RegUserKey.userName) - 1] = '\0';
 			userKey = ISP_REGISTER_IRQ_USERKEY(RegUserKey.userName);
 			RegUserKey.userKey = userKey;
 			if (copy_to_user((void *)Param, &RegUserKey,
@@ -7550,6 +7625,11 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 		    sizeof(unsigned int)) == 0) {
 			unsigned int currentPPB = m_CurrentPPB;
 			unsigned int lock_key = ISP_IRQ_TYPE_AMOUNT;
+
+			if (currentPPB < 0) {
+				Ret = -EFAULT;
+				break;
+			}
 
 			if (DebugFlag[0] >= ISP_IRQ_TYPE_AMOUNT) {
 				pr_err("unsupported module:0x%x\n",
@@ -8716,6 +8796,25 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 			}
 		}
 		break;
+	case ISP_SET_VIR_CQCNT:
+		spin_lock((spinlock_t *)(&virtual_cqcnt_lock));
+		if (copy_from_user(&g_virtual_cq_cnt, (void *)Param,
+			sizeof(unsigned int)*2) == 0) {
+			pr_info("From hw_module:%d Virtual CQ count from user land : %d\n",
+			g_virtual_cq_cnt[0], g_virtual_cq_cnt[1]);
+		} else {
+			pr_info(
+				"Virtual CQ count copy_from_user failed\n");
+			Ret = -EFAULT;
+		}
+
+		if (g_virtual_cq_cnt[0] == 0)
+			g_virtual_cq_cnt_a = g_virtual_cq_cnt[1];
+		else if (g_virtual_cq_cnt[0] == 1)
+			g_virtual_cq_cnt_b = g_virtual_cq_cnt[1];
+
+		spin_unlock((spinlock_t *)(&virtual_cqcnt_lock));
+		break;
 	default:
 	{
 		pr_err("Unknown Cmd(%d)\n", Cmd);
@@ -9202,6 +9301,7 @@ static long ISP_ioctl_compat(struct file *filp, unsigned int cmd,
 	case ISP_SET_PM_QOS_INFO:
 	case ISP_SET_PM_QOS:
 	case ISP_SET_SEC_DAPC_REG:
+	case ISP_SET_VIR_CQCNT:
 		return filp->f_op->unlocked_ioctl(filp, cmd, arg);
 	default:
 		return -ENOIOCTLCMD;
@@ -9442,6 +9542,20 @@ EXIT:
 		/* Enable clock */
 		ISP_EnableClock(MTRUE);
 	}
+	/*  */
+	if (g_WaitLockCt) {
+		g_WaitLockCt++;
+		pr_info("add wakelock cnt(%d)\n", g_WaitLockCt);
+	} else {
+#ifdef CONFIG_PM_WAKELOCKS
+		__pm_stay_awake(isp_wake_lock);
+#else
+		wake_lock(&isp_wake_lock);
+#endif
+		g_WaitLockCt++;
+		pr_info("wakelock enable!! cnt(%d)\n", g_WaitLockCt);
+	}
+	/*  */
 	mutex_unlock(&gDipMutex);
 
 	pr_info("- X. Ret: %d. UserCount: %d. G_u4EnableClockCount:%d\n", Ret,
@@ -9481,7 +9595,7 @@ static inline void ISP_StopHW(signed int module)
 	do {
 		regTGSt = (ISP_RD32(CAM_REG_TG_INTER_ST(module)) & 0x00003F00)
 			   >> 8;
-		if (regTGSt == 1)
+		if (regTGSt == 1 || regTGSt == 0)
 			break;
 
 		pr_info("%s: wait 1VD (%d)\n", moduleName, loopCnt);
@@ -9498,19 +9612,10 @@ static inline void ISP_StopHW(signed int module)
 		do_div(m_sec, 1000); /* usec */
 		m_usec = do_div(m_sec, 1000000); /* sec and usec */
 
-		while (regTGSt != 1) {
-			regTGSt = (ISP_RD32(CAM_REG_TG_INTER_ST(module))
-				   & 0x00003F00) >> 8;
-			/*timer*/
-			sec = ktime_get(); /* ns */
-			do_div(sec, 1000); /* sec */
-			usec = do_div(sec, 1000000); /* sec and usec */
-			/* wait time>timeoutMs, break */
-			if ((sec - m_sec) > timeoutMs)
-				break;
-		}
 		if (regTGSt == 1)
 			pr_info("%s: wait idle done\n", moduleName);
+		else if (regTGSt == 0)
+			pr_info("plz check regTGSt value");
 		else
 			pr_info("%s: wait idle timeout(%lld)\n", moduleName,
 				(sec - m_sec));
@@ -10120,6 +10225,7 @@ static signed int ISP_probe(struct platform_device *pDev)
 		spin_lock_init(&(SpinLock_P2FrameList));
 		spin_lock_init(&(SpinLockRegScen));
 		spin_lock_init(&(SpinLock_UserKey));
+		spin_lock_init(&(virtual_cqcnt_lock));
 		#ifdef ENABLE_KEEP_ION_HANDLE
 		for (i = 0; i < ISP_DEV_NODE_NUM; i++) {
 			if (gION_TBL[i].node != ISP_DEV_NODE_NUM) {
@@ -10147,8 +10253,7 @@ pr_info("CONFIG_MTK_CLKMGR get clock pointer \n");
 			devm_clk_get(&pDev->dev, "ISP_CLK_CAM");
 		isp_clk.ISP_CAM_CAMTG =
 			devm_clk_get(&pDev->dev, "ISP_CLK_CAMTG");
-		isp_clk.ISP_CAM_SENINF =
-			devm_clk_get(&pDev->dev, "ISP_CLK_CAM_SENINF");
+		/*No need to control this any more , seninf will handle this CLK*/
 		isp_clk.ISP_CAM_CAMSV0 =
 			devm_clk_get(&pDev->dev, "ISP_CLK_CAMSV0");
 		isp_clk.ISP_CAM_CAMSV1 =
@@ -10180,10 +10285,7 @@ pr_info("CONFIG_MTK_CLKMGR get clock pointer \n");
 			pr_err("cannot get ISP_CLK_CAMTG clock\n");
 			return PTR_ERR(isp_clk.ISP_CAM_CAMTG);
 		}
-		if (IS_ERR(isp_clk.ISP_CAM_SENINF)) {
-			pr_err("cannot get ISP_CLK_CAM_SENINF clock\n");
-			return PTR_ERR(isp_clk.ISP_CAM_SENINF);
-		}
+		/*No need to control this any more , seninf will handle this CLK*/
 		if (IS_ERR(isp_clk.ISP_CAM_CAMSV0)) {
 			pr_err("cannot get ISP_CLK_CAMSV0 clock\n");
 			return PTR_ERR(isp_clk.ISP_CAM_CAMSV0);
@@ -10375,9 +10477,9 @@ static signed int ISP_suspend(
 	pm_message_t            Mesg
 )
 {
-	unsigned int regVal;
-	signed int IrqType, ret, module;
-	char moduleName[128];
+	unsigned int regVal, IrqType;
+	signed int ret, module;
+	char moduleName[128] = {'\0'};
 
 	unsigned int regTGSt, loopCnt;
 	struct ISP_WAIT_IRQ_STRUCT waitirq;
@@ -10387,7 +10489,8 @@ static signed int ISP_suspend(
 
 	ret = 0;
 	module = -1;
-	strncpy(moduleName, pDev->dev.of_node->name, 127);
+	strncpy(moduleName, pDev->dev.of_node->name, sizeof(moduleName)-1);
+	moduleName[sizeof(moduleName)-1] = '\0';
 
 	/* update device node count*/
 	atomic_dec(&G_u4DevNodeCt);
@@ -10557,13 +10660,14 @@ EXIT:
  *****************************************************************************/
 static int ISP_resume(struct platform_device *pDev)
 {
-	unsigned int regVal;
-	signed int IrqType, ret, module;
-	char moduleName[128];
+	unsigned int regVal, IrqType;
+	signed int ret, module;
+	char moduleName[128] = {'\0'};
 
 	ret = 0;
 	module = -1;
-	strncpy(moduleName, pDev->dev.of_node->name, 127);
+	strncpy(moduleName, pDev->dev.of_node->name, sizeof(moduleName)-1);
+	moduleName[sizeof(moduleName)-1] = '\0';
 
 	/* update device node count*/
 	atomic_inc(&G_u4DevNodeCt);
@@ -11145,7 +11249,10 @@ static signed int __init ISP_Init(void)
 
 		for (i = 0; i < ARRAY_SIZE(SMI_LARB_BASE); i++) {
 
-			snprintf(comp_str, 64, "mediatek,smi_larb%d", i);
+			if (snprintf(comp_str, 64,
+				     "mediatek,smi_larb%d", i) < 0) {
+				pr_info("[Error] snprintf failed\n");
+			}
 			pr_info("Finding SMI_LARB compatible: %s\n", comp_str);
 
 			node = of_find_compatible_node(NULL, NULL, comp_str);
@@ -11745,25 +11852,25 @@ void IRQ_INT_ERR_CHECK_CAM(unsigned int WarnStatus, unsigned int ErrStatus,
 enum CAM_FrameST Irq_CAM_FrameStatus(enum ISP_DEV_NODE_ENUM module,
 	enum ISP_IRQ_TYPE_ENUM irq_mod, unsigned int delayCheck)
 {
-	signed int dma_arry_map[_cam_max_] = {
+	unsigned int dma_arry_map[_cam_max_] = {
 		/*      0,  1,  2,  3,  4,  5,  6,  7,  8,  9,*/
 		 0, /* _imgo_*/
 		 1, /* _rrzo_ */
 		 2, /* _ufeo_ */
-		-1, /* _aao_ */
-		-1, /* _afo_ */
+	 _cam_max_, /* _aao_ */
+	 _cam_max_, /* _afo_ */
 		 3, /* _lcso_ */
-		-1, /* _pdo_ */
+	 _cam_max_, /* _pdo_ */
 		 4, /* _eiso_ */
-		-1, /* _flko_ */
+	 _cam_max_, /* _flko_ */
 		 5, /* _rsso_ */
-		-1  /* _pso_ */
+	 _cam_max_  /* _pso_ */
 	};
 
 	unsigned int dma_en;
 	unsigned int uni_dma_en;
-	union FBC_CTRL_1 fbc_ctrl1[6];
-	union FBC_CTRL_2 fbc_ctrl2[6];
+	union FBC_CTRL_1 fbc_ctrl1[_cam_max_ + 1];
+	union FBC_CTRL_2 fbc_ctrl2[_cam_max_ + 1];
 	unsigned int hds2_sel;
 	bool bQueMode = MFALSE;
 	unsigned int product = 1;
@@ -11879,7 +11986,7 @@ enum CAM_FrameST Irq_CAM_FrameStatus(enum ISP_DEV_NODE_ENUM module,
 	}
 
 	for (i = 0; i < _cam_max_; i++) {
-		if (dma_arry_map[i] >= 0) {
+		if (dma_arry_map[i] != _cam_max_) {
 			if (fbc_ctrl1[dma_arry_map[i]].Raw != 0) {
 				bQueMode =
 				    fbc_ctrl1[dma_arry_map[i]].Bits.FBC_MODE;
@@ -11890,7 +11997,7 @@ enum CAM_FrameST Irq_CAM_FrameStatus(enum ISP_DEV_NODE_ENUM module,
 
 	if (bQueMode) {
 		for (i = 0; i < _cam_max_; i++) {
-			if (dma_arry_map[i] < 0)
+			if (dma_arry_map[i] == _cam_max_)
 				continue;
 
 			if (fbc_ctrl1[dma_arry_map[i]].Raw != 0) {
@@ -11903,7 +12010,7 @@ enum CAM_FrameST Irq_CAM_FrameStatus(enum ISP_DEV_NODE_ENUM module,
 		}
 	} else {
 		for (i = 0; i < _cam_max_; i++) {
-			if (dma_arry_map[i] < 0)
+			if (dma_arry_map[i] == _cam_max_)
 				continue;
 
 			if (fbc_ctrl1[dma_arry_map[i]].Raw != 0) {
@@ -14628,9 +14735,21 @@ LB_CAMA_SOF_IGNORE:
 	spin_unlock(&(IspInfo.SpinLockIrq[module]));
 	/*  */
 	if (IrqStatus & SOF_INT_ST) {
-		wake_up_interruptible(&IspInfo.WaitQHeadCam
+		if ((ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100) !=
+			g_virtual_cq_cnt_a) {
+			IRQ_LOG_KEEPER(module, m_CurrentPPB, _LOG_INF,
+			"CAMA PHY cqcnt:%d != VIR cqcnt:%d\n",
+			(ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100),
+			g_virtual_cq_cnt_a);
+		} else {
+			IRQ_LOG_KEEPER(module, m_CurrentPPB, _LOG_INF,
+			"CAMA PHY cqcnt:%d VIR cqcnt:%d\n",
+			(ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100),
+			g_virtual_cq_cnt_a);
+			wake_up_interruptible(&IspInfo.WaitQHeadCam
 			[ISP_GetWaitQCamIndex(module)]
 			[ISP_WAITQ_HEAD_IRQ_SOF]);
+		}
 	}
 	if (IrqStatus & SW_PASS1_DON_ST) {
 		wake_up_interruptible(&IspInfo.WaitQHeadCam
@@ -15252,9 +15371,21 @@ LB_CAMB_SOF_IGNORE:
 	spin_unlock(&(IspInfo.SpinLockIrq[module]));
 	/*  */
 	if (IrqStatus & SOF_INT_ST) {
-		wake_up_interruptible(&IspInfo.WaitQHeadCam
+		if ((ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100) !=
+			g_virtual_cq_cnt_b) {
+			IRQ_LOG_KEEPER(module, m_CurrentPPB, _LOG_INF,
+			"CAMB PHY cqcnt:%d != VIR cqcnt:%d\n",
+			(ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100),
+			g_virtual_cq_cnt_b);
+		} else {
+			IRQ_LOG_KEEPER(module, m_CurrentPPB, _LOG_INF,
+			"CAMB PHY cqcnt:%d VIR cqcnt:%d\n",
+			(ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100),
+			g_virtual_cq_cnt_b);
+			wake_up_interruptible(&IspInfo.WaitQHeadCam
 			[ISP_GetWaitQCamIndex(module)]
 			[ISP_WAITQ_HEAD_IRQ_SOF]);
+		}
 	}
 	if (IrqStatus & SW_PASS1_DON_ST) {
 		wake_up_interruptible(&IspInfo.WaitQHeadCam

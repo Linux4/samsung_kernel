@@ -44,6 +44,7 @@ struct mboot_params_buffer {
 	uint32_t filling[4];
 };
 
+#define CPU_NUMS 8
 /*
  *  This group of API call by sub-driver module to report reboot reasons
  *  aee_rr_* stand for previous reboot reason
@@ -55,13 +56,18 @@ struct last_reboot_reason {
 	uint64_t kaslr_offset;
 	uint64_t oops_in_progress_addr;
 
-	uint32_t last_irq_enter[AEE_MTK_CPU_NUMS];
-	uint64_t jiffies_last_irq_enter[AEE_MTK_CPU_NUMS];
+	uint32_t kick;
+	uint32_t check;
+	uint64_t wdk_ktime;
+	uint64_t wdk_systimer_cnt;
 
-	uint32_t last_irq_exit[AEE_MTK_CPU_NUMS];
-	uint64_t jiffies_last_irq_exit[AEE_MTK_CPU_NUMS];
+	uint32_t last_irq_enter[CPU_NUMS];
+	uint64_t jiffies_last_irq_enter[CPU_NUMS];
 
-	uint8_t hotplug_footprint[AEE_MTK_CPU_NUMS];
+	uint32_t last_irq_exit[CPU_NUMS];
+	uint64_t jiffies_last_irq_exit[CPU_NUMS];
+
+	uint8_t hotplug_footprint[CPU_NUMS];
 	uint8_t hotplug_cpu_event;
 	uint8_t hotplug_cb_index;
 	uint64_t hotplug_cb_fp;
@@ -88,8 +94,8 @@ struct last_reboot_reason {
 	uint32_t mcsodi_data;
 	uint32_t spm_suspend_data;
 	uint32_t spm_common_scenario_data;
-	uint32_t mtk_cpuidle_footprint[AEE_MTK_CPU_NUMS];
-	uint32_t mcdi_footprint[AEE_MTK_CPU_NUMS];
+	uint32_t mtk_cpuidle_footprint[CPU_NUMS];
+	uint32_t mcdi_footprint[CPU_NUMS];
 	uint32_t clk_data[8];
 	uint32_t suspend_debug_flag;
 	uint32_t fiq_cache_step;
@@ -419,9 +425,6 @@ enum sec_debug_extra_buf_type {
 	INFO_SMPL,
 	INFO_ETC,
 	INFO_ESR,
-	INFO_PCB,
-	INFO_SMD,
-	INFO_CHI,
 	INFO_KLG,
 	INFO_LEVEL,
 	INFO_MAX_A,
@@ -586,7 +589,6 @@ extern void sec_debug_set_extra_info_bug_verbose(unsigned long addr);
 extern void sec_debug_set_extra_info_panic(char *str);
 extern void sec_debug_set_extra_info_backtrace(struct pt_regs *regs);
 extern void sec_debug_set_extra_info_wdt_lastpc(unsigned long stackframe[][WDT_FRAME], unsigned int kick, unsigned int check);
-extern void sec_debug_set_extra_info_dpm_timeout(char *devname);
 extern void sec_debug_set_extra_info_smpl(unsigned int count);
 extern void sec_debug_set_extra_info_esr(unsigned int esr);
 extern void sec_debug_set_extra_info_zswap(char *str);
@@ -648,12 +650,6 @@ extern int  sec_debug_is_enabled_for_ssr(void);
 extern void sec_debug_avc_log(char *fmt, ...);
 #else
 #define sec_debug_avc_log(a, ...)		do { } while(0)
-#endif
-
-#ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
-struct tsp_dump_callbacks {
-	void (*inform_dump)(void);
-};
 #endif
 
 #ifdef CONFIG_SEC_DEBUG_LAST_KMSG

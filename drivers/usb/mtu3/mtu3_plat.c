@@ -18,6 +18,77 @@
 #include "mtu3_dr.h"
 #include "mtu3_debug.h"
 
+#define PHY_MODE_DPPULLUP_SET 5
+#define PHY_MODE_DPPULLUP_CLR 6
+
+#ifdef MTU3_USE_SPM_API
+void ssusb_spm_request(struct ssusb_mtk *ssusb, int mode)
+{
+        switch (mode) {
+        case MTU3_RESOURCE_ALL:
+        case MTU3_RESOURCE_RESUME:
+                dev_info(ssusb->dev, "RESOURCE_ALL\n");
+                spm_resource_req(SPM_RESOURCE_USER_SSUSB, SPM_RESOURCE_ALL);
+                break;
+        case MTU3_RESOURCE_NONE:
+                dev_info(ssusb->dev, "RESOURCE_NONE\n");
+                spm_resource_req(SPM_RESOURCE_USER_SSUSB,
+                        SPM_RESOURCE_RELEASE);
+                break;
+        case MTU3_RESOURCE_SUSPEND:
+                dev_info(ssusb->dev, "RESOURCE_SUSPEND\n");
+                spm_resource_req(SPM_RESOURCE_USER_SSUSB,
+                        SPM_RESOURCE_MAINPLL | SPM_RESOURCE_CK_26M |
+                        SPM_RESOURCE_AXI_BUS);
+                break;
+        default:
+                dev_info(ssusb->dev, "%s not support mode\n", __func__);
+                break;
+        }
+
+}
+
+#else
+
+void ssusb_smc_request(struct ssusb_mtk *ssusb, int mode)
+{
+	struct arm_smccc_res res;
+	int op;
+
+	switch (mode) {
+	case MTU3_RESOURCE_SUSPEND:
+		op = MTK_USB_SMC_INFRA_REQUEST;
+		break;
+	case MTU3_RESOURCE_RESUME:
+		op = MTK_USB_SMC_INFRA_RELEASE;
+		break;
+	default:
+		dev_info(ssusb->dev, "%s not support mode\n", __func__);
+		return;
+	}
+	dev_info(ssusb->dev, "%s operation = %d\n", __func__, op);
+	arm_smccc_smc(MTK_SIP_KERNEL_USB_CONTROL, op, 0, 0, 0, 0, 0, 0, &res);
+}
+#endif
+
+int ssusb_set_power_resource(struct ssusb_mtk *ssusb, int mode)
+{
+#if defined MTU3_USE_SPM_API
+	ssusb_spm_request(ssusb, mode);
+#else
+	ssusb_smc_request(ssusb, mode);
+#endif
+	return 0;
+}
+
+void ssusb_set_noise_still_tr(struct ssusb_mtk *ssusb)
+{
+	/* set noise still transfer */
+	if (ssusb->noise_still_tr)
+		mtu3_setbits(ssusb->mac_base, U3D_USB_BUS_PERFORMANCE,
+			NOISE_STILL_TRANSFER);
+}
+
 /* u2-port0 should be powered on and enabled; */
 int ssusb_check_clocks(struct ssusb_mtk *ssusb, u32 ex_clks)
 {
@@ -124,6 +195,23 @@ void ssusb_phy_power_off(struct ssusb_mtk *ssusb)
 		phy_power_off(ssusb->phys[i]);
 }
 
+static void ssusb_dp_pullup_work(struct work_struct *w)
+{
+	struct ssusb_mtk *ssusb = container_of(w, struct ssusb_mtk, dp_work);
+
+	phy_set_mode_ext(ssusb->phys[0], PHY_MODE_USB_DEVICE,
+		PHY_MODE_DPPULLUP_SET);
+	mdelay(50);
+	phy_set_mode_ext(ssusb->phys[0], PHY_MODE_USB_DEVICE,
+		PHY_MODE_DPPULLUP_CLR);
+}
+
+void ssusb_phy_dp_pullup(struct ssusb_mtk *ssusb)
+{
+	dev_info(ssusb->dev, "%s\n", __func__);
+	queue_work(system_power_efficient_wq, &ssusb->dp_work);
+}
+
 int ssusb_clks_enable(struct ssusb_mtk *ssusb)
 {
 	int ret;
@@ -157,10 +245,17 @@ int ssusb_clks_enable(struct ssusb_mtk *ssusb)
 		goto dma_clk_err;
 	}
 
+	ret = clk_prepare_enable(ssusb->host_clk);
+	if (ret) {
+		dev_info(ssusb->dev, "failed to enable host_clk\n");
+		goto host_clk_err;
+	}
+
 	ssusb->clk_on = true;
 
 	return 0;
-
+host_clk_err:
+	clk_disable_unprepare(ssusb->dma_clk);
 dma_clk_err:
 	clk_disable_unprepare(ssusb->mcu_clk);
 mcu_clk_err:
@@ -173,6 +268,7 @@ sys_clk_err:
 
 void ssusb_clks_disable(struct ssusb_mtk *ssusb)
 {
+	clk_disable_unprepare(ssusb->host_clk);
 	clk_disable_unprepare(ssusb->dma_clk);
 	clk_disable_unprepare(ssusb->mcu_clk);
 	clk_disable_unprepare(ssusb->ref_clk);
@@ -275,6 +371,10 @@ static int get_ssusb_rscs(struct platform_device *pdev, struct ssusb_mtk *ssusb)
 	if (IS_ERR(ssusb->dma_clk))
 		return PTR_ERR(ssusb->dma_clk);
 
+	ssusb->host_clk = devm_clk_get_optional(dev, "host_ck");
+	if (IS_ERR(ssusb->host_clk))
+		return PTR_ERR(ssusb->host_clk);
+
 	ssusb->num_phys = of_count_phandle_with_args(node,
 			"phys", "#phy-cells");
 	if (ssusb->num_phys > 0) {
@@ -302,6 +402,8 @@ static int get_ssusb_rscs(struct platform_device *pdev, struct ssusb_mtk *ssusb)
 	ssusb->force_vbus = of_property_read_bool(node, "mediatek,force-vbus");
 	ssusb->clk_mgr = of_property_read_bool(node, "mediatek,clk-mgr");
 	ssusb->spm_mgr = of_property_read_bool(node, "mediatek,spm-mgr");
+	ssusb->noise_still_tr =
+		of_property_read_bool(node, "mediatek,noise-still-tr");
 
 	ssusb->dr_mode = usb_get_dr_mode(dev);
 	if (ssusb->dr_mode == USB_DR_MODE_UNKNOWN)
@@ -396,12 +498,12 @@ static int mtu3_probe(struct platform_device *pdev)
 	if (ret)
 		goto comm_init_err;
 
-	ssusb_ip_sw_reset(ssusb);
-
 	if (IS_ENABLED(CONFIG_USB_MTU3_HOST))
 		ssusb->dr_mode = USB_DR_MODE_HOST;
 	else if (IS_ENABLED(CONFIG_USB_MTU3_GADGET))
 		ssusb->dr_mode = USB_DR_MODE_PERIPHERAL;
+
+	ssusb_ip_sw_reset(ssusb);
 
 	/* default as host */
 	ssusb->is_host = !(ssusb->dr_mode == USB_DR_MODE_PERIPHERAL);
@@ -445,6 +547,8 @@ static int mtu3_probe(struct platform_device *pdev)
 		ret = -EINVAL;
 		goto comm_exit;
 	}
+
+	INIT_WORK(&ssusb->dp_work, ssusb_dp_pullup_work);
 
 	return 0;
 
@@ -509,6 +613,8 @@ static int __maybe_unused mtu3_suspend(struct device *dev)
 	ssusb_clks_disable(ssusb);
 	ssusb_wakeup_set(ssusb, true);
 
+	ssusb_set_power_resource(ssusb, MTU3_RESOURCE_SUSPEND);
+
 	return 0;
 }
 
@@ -522,6 +628,7 @@ static int __maybe_unused mtu3_resume(struct device *dev)
 	if (!ssusb->is_host)
 		return 0;
 
+	ssusb_set_power_resource(ssusb, MTU3_RESOURCE_RESUME);
 	ssusb_wakeup_set(ssusb, false);
 	ret = ssusb_clks_enable(ssusb);
 	if (ret)

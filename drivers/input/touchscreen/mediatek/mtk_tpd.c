@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 #include "tpd.h"
 #include <linux/slab.h>
 #include <linux/device.h>
@@ -26,9 +18,23 @@
 #include <linux/compat.h>
 #endif
 
-#ifdef CONFIG_PANEL_NOTIFIER
-#include <panel_notifier.h>
-#include<ilitek_v3.h>
+//+bug782967,wanwen2.wt,add,20220827,tp modify resume and suspend
+#if defined (CONFIG_WT_PROJECT_S96516SA1) || defined (CONFIG_WT_PROJECT_S96616AA1)
+#include "panel_notifier.h"
+#include "./focaltech_touch/focaltech_core.h"
+#include "./ILI9882Q/ilitek_v3.h"
+extern void tpd_resume(struct device *h);
+extern void tpd_suspend(struct device *h);
+extern void tpd_focal_resume(struct device *h);
+extern void tpd_focal_suspend(struct device *h);
+extern void tpd_ili_resume(void);
+#endif
+//-bug782967,wanwen2.wt,add,20220827,tp modify resume and suspend
+
+#ifdef CONFIG_PANEL_NOTIFIER_W2 //CONFIG_WT_PROJECT_S96901
+#include "panel_notifier.h"
+#include <ILI7807S/ilitek_v3.h>
+#include <FT8722/focaltech_core.h>
 #endif
 
 #if defined(CONFIG_MTK_S3320) || defined(CONFIG_MTK_S3320_50) \
@@ -59,18 +65,49 @@ const struct of_device_id touch_of_match[] = {
 	{},
 };
 
+enum lcm_name{
+	TRULY_FT8722_MODULE = 0,
+	TXD_FT8722_MODULE = 1,
+	TM_ILI7807S_MODULE = 2,
+	DSBJ_HX83112F_MODULE = 3,
+	DJN_HX83112F_MODULE = 4,
+	TXD_ILI9882Q_MODULE = 5,
+	DJN_ICNL9911C_MODULE = 6,
+	SKY_FT8006S_MODULE = 7,
+	TXD_ILI9882Q10_MODULE = 8,
+	CW_ILI7807S_MODULE = 9,
+	TM_FT_MODULE = 10,
+	TXD_ICNL9911C_MODULE = 11,
+	LEAD_ICNL9911C_MODULE = 12,
+	TRULY_ILI9882Q_MODULE = 13,
+	TXD_GC7202H_MODULE = 14,
+	LC_GC7202H_MODULE = 15,
+	TM_ICNL9911C_MODULE = 16,
+	BOE_HIMAX_MODULE = 17,
+	TRULY_NT36528_MODULE =18,
+//+S96818AA1-1936,daijun1.wt,modify,2023/05/16,td4160 tp bringup
+	XINXIAN_TD4160_MODULE = 19,
+//-S96818AA1-1936,daijun1.wt,modify,2023/05/16,td4160 tp bringup
+//+S96818AA1-1936,wangtao14.wt,modify,2023/05/16,ft8057s tp bringup
+	MDT_FT8057S_MODULE = 20,
+//-S96818AA1-1936,wangtao14.wt,modify,2023/05/16,ft8057s tp bringup
+};
+
 enum touch_name{
-	TXD_ILI7807S = 0,
+	TRULY_FT8722 = 0,
 };
 
 int g_lcm_name;
+//extern int g_touch_name;
 extern char *saved_command_line;
 char tp_name[20] = { 0 };
 
-#ifdef CONFIG_PANEL_NOTIFIER
+#ifdef CONFIG_PANEL_NOTIFIER_W2 //CONFIG_WT_PROJECT_S96901
 extern int panel_register_client(struct notifier_block *nb);
 extern void tpd_resume(struct device *h);
 extern void tpd_suspend(struct device *h);
+extern void tpd_fts_resume(struct device *dev);
+extern void tpd_fts_suspend(struct device *dev);
 #endif
 
 void tpd_get_dts_info(void)
@@ -168,8 +205,10 @@ void tpd_gpio_as_int(int pin)
 {
 	mutex_lock(&tpd_set_gpio_mutex);
 	TPD_DEBUG("[tpd] %s\n", __func__);
+#ifndef CONFIG_WT_PROJECT_S96818AA1
 	if (pin == 1)
 		pinctrl_select_state(pinctrl1, eint_as_int);
+#endif
 	mutex_unlock(&tpd_set_gpio_mutex);
 }
 
@@ -178,10 +217,12 @@ void tpd_gpio_output(int pin, int level)
 	mutex_lock(&tpd_set_gpio_mutex);
 	TPD_DEBUG("%s pin = %d, level = %d\n", __func__, pin, level);
 	if (pin == 1) {
+#ifndef CONFIG_WT_PROJECT_S96818AA1
 		if (level)
 			pinctrl_select_state(pinctrl1, eint_output1);
 		else
 			pinctrl_select_state(pinctrl1, eint_output0);
+#endif
 	} else {
 		if (tpd_dts_data.tpd_use_ext_gpio) {
 #ifdef CONFIG_MTK_MT6306_GPIO_SUPPORT
@@ -203,7 +244,7 @@ void tpd_gpio_output(int pin, int level)
 void tddi_lcm_tp_reset_output(int level)
 {
 	mutex_lock(&tpd_set_gpio_mutex);
-	TPD_DEBUG("%s tp reset, level = %d\n", __func__,level);
+	TPD_DMESG("%s tp reset, level = %d\n", __func__,level);
     if (level)
 		pinctrl_select_state(pinctrl1, rst_output1);
 	else
@@ -449,7 +490,42 @@ static void touch_resume_workqueue_callback(struct work_struct *work)
 	g_tpd_drv->resume(NULL);
 	tpd_suspend_flag = 0;
 }
+#ifdef CONFIG_PANEL_NOTIFIER_W2 //CONFIG_WT_PROJECT_S96901
+static int tpd_ilitek_notifier_callback(
+			struct notifier_block *self,
+			unsigned long event, void *data)
+{
+//struct ilitek_ts_data *ts = ilits;
 
+	printk("[ILITEK]tpd_ilitek_notifier_callback in\n ");
+	if (event == PANEL_UNPREPARE) {
+		TPD_DMESG("event=%lu\n", event);
+	//	tpd_suspend(&ts->spi->dev);
+	} else if (event == PANEL_PREPARE) {
+		TPD_DMESG("event=%lu\n", event);
+	//	tpd_resume(&ts->spi->dev);
+	}
+	return 0;
+}
+static int tpd_fts_notifier_callback(
+	struct notifier_block *self,
+	unsigned long event,
+	void *data)
+{
+	struct fts_ts_data *ts = fts_data;
+
+
+	printk("[FTS]tpd_focaltech_notifier_callback in\n ");
+	if (event == PANEL_UNPREPARE) {
+		TPD_DMESG("event=%lu\n", event);
+		tpd_fts_suspend(ts->dev);
+	} else if (event == PANEL_PREPARE) {
+		TPD_DMESG("event=%lu\n", event);
+		tpd_fts_resume(ts->dev);
+	}
+	return 0;
+}
+#elif defined (CONFIG_WT_PROJECT_S96516SA1) || defined (CONFIG_WT_PROJECT_S96616AA1)
 static int tpd_ilitek_notifier_callback(
 	struct notifier_block *self,
 	unsigned long event,
@@ -463,10 +539,31 @@ static int tpd_ilitek_notifier_callback(
 		tpd_suspend(&ts->spi->dev);
 	} else if (event == PANEL_PREPARE) {
 			TPD_DMESG("event=%lu\n", event);
-			tpd_resume(&ts->spi->dev);
+			tpd_ili_resume();
+			//tpd_resume(&ts->spi->dev);
 	}
 	return 0;
 }
+
+static int tpd_focal_notifier_callback(
+	struct notifier_block *self,
+	unsigned long event,
+	void *data)
+{
+	struct fts_ts_data *ts = fts_data;
+
+	printk("[FTS]tpd_focal_notifier_callback in\n ");
+	if (event == PANEL_UNPREPARE) {
+		TPD_DMESG("event=%lu\n", event);
+		tpd_focal_suspend(&ts->spi->dev);
+	} else if (event == PANEL_PREPARE) {
+		TPD_DMESG("event=%lu\n", event);
+		tpd_focal_resume(&ts->spi->dev);
+	}
+	return 0;
+}
+#endif
+
 static int tpd_fb_notifier_callback(
 			struct notifier_block *self,
 			unsigned long event, void *data)
@@ -479,39 +576,38 @@ static int tpd_fb_notifier_callback(
 
 	evdata = data;
 	/* If we aren't interested in this event, skip it immediately ... */
-	if (event != FB_EVENT_BLANK)
-		return 0;
+	if ((event == FB_EVENT_BLANK) || (event == FB_EARLY_EVENT_BLANK)) {
 
-	blank = *(int *)evdata->data;
-	TPD_DMESG("fb_notify(blank=%d)\n", blank);
-	switch (blank) {
-	case FB_BLANK_UNBLANK:
-		TPD_DMESG("LCD ON Notify\n");
-		if (g_tpd_drv && tpd_suspend_flag) {
-			err = queue_work(touch_resume_workqueue,
-						&touch_resume_work);
-			if (!err) {
-				TPD_DMESG("start resume_workqueue failed\n");
-				return err;
-			}
-		}
-		break;
-	case FB_BLANK_POWERDOWN:
-		TPD_DMESG("LCD OFF Notify\n");
-		if (g_tpd_drv && !tpd_suspend_flag) {
-			err = cancel_work_sync(&touch_resume_work);
-			if (!err)
-				TPD_DMESG("cancel resume_workqueue failed\n");
-			g_tpd_drv->suspend(NULL);
-		}
-		tpd_suspend_flag = 1;
-		break;
-	default:
-		break;
-	}
+	    blank = *(int *)evdata->data;
+	    TPD_DMESG("fb_notify(blank=%d, event=%d)\n", blank, event);
+
+        if(event == FB_EVENT_BLANK) {
+		    if(blank == FB_BLANK_UNBLANK) {
+			    TPD_DMESG("LCD ON Notify\n");
+			    if (g_tpd_drv && tpd_suspend_flag) {
+			    err = queue_work(touch_resume_workqueue,
+							     &touch_resume_work);
+			        if (!err) {
+				        TPD_DMESG("start resume_workqueue failed\n");
+				        return err;
+			        }
+                }
+		    }
+	    } else {
+            if(blank == FB_BLANK_POWERDOWN) {
+			    TPD_DMESG("LCD OFF Notify, tpd_suspend_flag = %d\n", tpd_suspend_flag);
+			    if (g_tpd_drv && !tpd_suspend_flag) {
+				    err = cancel_work_sync(&touch_resume_work);
+				    if (!err)
+					    TPD_DMESG("cancel resume_workqueue failed\n");
+				    g_tpd_drv->suspend(NULL);
+			    }
+			    tpd_suspend_flag = 1;
+		    }
+        }
+    }
 	return 0;
 }
-
 /* Add driver: if find TPD_TYPE_CAPACITIVE driver successfully, loading it */
 int tpd_driver_add(struct tpd_driver_t *tpd_drv)
 {
@@ -588,30 +684,83 @@ static int tp_match_lcm_name(void)
 {
 	TPD_DMESG("saved_command_line is %s \t%s, %d\n", saved_command_line,__func__, __LINE__);
 
-	if (strstr(saved_command_line,"incl9911c_dsi_vdo_hdp_tianma_tianma")) {
-		g_lcm_name = TM_ICNL9911C_MODULE;
-		strcpy((char *)tp_name, "chipone-tddi");
+	printk("[mtk-tpd] tp_match_lcm_name  saved_command_line is %s \n", saved_command_line);
+	if (strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd")) {
+		g_lcm_name = TXD_FT8722_MODULE;
+		strcpy((char *)tp_name, "fts_ts");
+	} else if (strstr(saved_command_line,"ili7807s_fhdp_wt_dsi_vdo_cphy_90hz_tianma")){
+		g_lcm_name = TM_ILI7807S_MODULE;
+		strcpy((char *)tp_name, "ILITEK_TDDI_7807S");
+	} else if (strstr(saved_command_line,"ft8722_fhdp_wt_dsi_vdo_cphy_90hz_truly")){
+		g_lcm_name = TRULY_FT8722_MODULE;
+		strcpy((char *)tp_name, "fts_ts");
+	} else if (strstr(saved_command_line,"hx83112f_fhdp_wt_dsi_vdo_cphy_90hz_dsbj")) {
+		g_lcm_name = DSBJ_HX83112F_MODULE;
+		strcpy((char *)tp_name, "himax_generic");
+	} else if (strstr(saved_command_line,"hx83112f_fhdp_wt_dsi_vdo_cphy_90hz_djn")) {
+		g_lcm_name = DJN_HX83112F_MODULE;
+		strcpy((char *)tp_name, "himax_generic");
+	}  else if (strstr(saved_command_line,"ili7807s_fhdp_wt_dsi_vdo_cphy_90hz_chuangwei")){
+		g_lcm_name = CW_ILI7807S_MODULE;
+		strcpy((char *)tp_name, "ILITEK_TDDI_7807S");
 	} else if (strstr(saved_command_line,"ili9882q_dsi_vdo_hdp_ctc_txd")) {
 		g_lcm_name = TXD_ILI9882Q_MODULE;
 		strcpy((char *)tp_name, "mediatek,ili9882q");
 	} else if (strstr(saved_command_line,"incl9911c_dsi_vdo_hdp_huajiacai_dijing")) {
 		g_lcm_name = DJN_ICNL9911C_MODULE;
 		strcpy((char *)tp_name, "chipone-tddi");
-	} else if (strstr(saved_command_line,"ili9882q10_dsi_vdo_hdp_ctc_txd")) {
-		g_lcm_name = TXD_ILI9882Q10_MODULE;
-		strcpy((char *)tp_name, "mediatek,ili9882q");
 	} else if (strstr(saved_command_line,"ft8006s_dsi_vdo_hdp_boe_skyworth")) {
 		g_lcm_name = SKY_FT8006S_MODULE;
 		strcpy((char *)tp_name, "focaltech,fts");
+	} else if (strstr(saved_command_line,"ili9882q10_dsi_vdo_hdp_ctc_txd")) {
+		g_lcm_name = TXD_ILI9882Q10_MODULE;
+		strcpy((char *)tp_name, "mediatek,ili9882q");
+	} else if (strstr(saved_command_line,"ft8006s_dsi_vdo_hdp_skyworth_shenchao")){
+		g_lcm_name = TM_FT_MODULE;   //ili9881h_hd_plus_vdo_txd
+		strcpy((char *)tp_name, "focaltech,fts");
+	} else if (strstr(saved_command_line,"icnl9911c_dsi_vdo_hdp_txd_inx") || strstr(saved_command_line,"n28_icnl9911c_dsi_vdo_hdp_txd_inx")){
+		g_lcm_name = TXD_ICNL9911C_MODULE;    //icnl9911c_hd_plus_vdo_txd
+		strcpy((char *)tp_name, "chipone-tddi");
+	} else if (strstr(saved_command_line,"icnl9911c_dsi_vdo_hdp_lead_hsd")){
+		g_lcm_name = LEAD_ICNL9911C_MODULE;    //icnl9911c_hd_plus_vdo_txd
+		strcpy((char *)tp_name, "chipone-tddi");
+	} else if (strstr(saved_command_line,"ili9882q_dsi_vdo_hdp_truly_truly")) {
+		g_lcm_name = TRULY_ILI9882Q_MODULE;
+		strcpy((char *)tp_name, "mediatek,ili9882q");
+	} else if (strstr(saved_command_line,"gc7202_dsi_vdo_hdp_txd_hkc")) {
+		g_lcm_name = TXD_GC7202H_MODULE;
+		strcpy((char *)tp_name, "gcore,touchscreen");
+	} else if (strstr(saved_command_line,"gc7202_dsi_vdo_hdp_ice_panda")) {
+		g_lcm_name = LC_GC7202H_MODULE;
+		strcpy((char *)tp_name, "gcore,touchscreen");
+	} else if (strstr(saved_command_line,"icnl9911c_dsi_vdo_hdp_tianma_hkc")) {
+		g_lcm_name = TM_ICNL9911C_MODULE;
+		strcpy((char *)tp_name, "chipone-tddi");
+	} else if (strstr(saved_command_line,"hx83108_dsi_vdo_hdp_boe_boe")) {
+		g_lcm_name = BOE_HIMAX_MODULE;
+		strcpy((char *)tp_name, "himax");
+	} else if (strstr(saved_command_line,"n28_nt36528_dsi_vdo_hdp_truly_truly")) {
+		g_lcm_name = TRULY_NT36528_MODULE;
+		strcpy((char *)tp_name, "NVT-ts");
+//+S96818AA1-1936,daijun1.wt,modify,2023/05/16,td4160 tp bringup
+	} else if (strstr(saved_command_line,"n28_td4160_dsi_vdo_hdp_xinxian_inx")) {
+		g_lcm_name = XINXIAN_TD4160_MODULE;
+		strcpy((char *)tp_name, "omnivision_tcm");
+//-S96818AA1-1936,daijun1.wt,modify,2023/05/16,td4160 tp bringup
+//-S96818AA1-1936,wangtao14.wt,modify,2023/05/16,ft8057s tp bringup
+	} else if (strstr(saved_command_line,"n28_ft8057s_dsi_vdo_hdp_dsbj_mantix")) {
+		g_lcm_name = MDT_FT8057S_MODULE;
+		strcpy((char *)tp_name, "fts_ts");
+//-S96818AA1-1936,wangtao14.wt,modify,2023/05/16,ft8057s tp bringup
 	} else {
 		TPD_DMESG("lcm name not match!");
 		return  -1;
 	}
-	TPD_DMESG("lcm_name=%d, tp name is %s\n", g_lcm_name, tp_name);
+
+	printk("[mtk-tpd]   lcm_name=%d, tp name is %s\n",g_lcm_name,tp_name);
 
 	return 0;
 }
-
 
 /* touch panel probe */
 static int tpd_probe(struct platform_device *pdev)
@@ -624,9 +773,9 @@ static int tpd_probe(struct platform_device *pdev)
 	int ret = 0;
 #endif
 #endif
-
 	tp_match_lcm_name();
 	TPD_DMESG("enter %s, %d\n", __func__, __LINE__);
+	pr_info("enter %s, %d\n", __func__, __LINE__);
 
 	if (misc_register(&tpd_misc_device))
 		pr_info("mtk_tpd: tpd_misc_device register failed\n");
@@ -686,6 +835,17 @@ static int tpd_probe(struct platform_device *pdev)
 #endif
 	}
 
+//+bug 782967,wanwen.wt,add,20220728,lcd bringup
+/*
+	if (2560 == TPD_RES_X)
+		TPD_RES_X = 2048;
+	if (1600 == TPD_RES_Y)
+		TPD_RES_Y = 1536;
+	pr_debug("mtk_tpd: TPD_RES_X = %lu, TPD_RES_Y = %lu\n",
+		TPD_RES_X, TPD_RES_Y);
+*/
+//+bug 782967,wanwen.wt,add,20220728,lcd bringup
+
 	tpd_mode = TPD_MODE_NORMAL;
 	tpd_mode_axis = 0;
 	tpd_mode_min = TPD_RES_Y / 2;
@@ -712,7 +872,7 @@ static int tpd_probe(struct platform_device *pdev)
 	for (i = 1; i < TP_DRV_MAX_COUNT; i++) {
 		/* add tpd driver into list */
 		if (tpd_driver_list[i].tpd_device_name != NULL) {
-			TPD_DMESG("tpd_driver_list[%d].tpd_device_name is %s, tp_name is %s\n", i, tpd_driver_list[i].tpd_device_name, tp_name);
+			printk("[mtk_tpd] tpd_driver_list[%d].tpd_device_name is %s, tp_name is %s\n", i, tpd_driver_list[i].tpd_device_name, tp_name);
 			if(strcmp(tpd_driver_list[i].tpd_device_name, tp_name)) 
 				continue;
 			tpd_driver_list[i].tpd_local_init();
@@ -741,15 +901,39 @@ static int tpd_probe(struct platform_device *pdev)
 	INIT_WORK(&touch_resume_work, touch_resume_workqueue_callback);
 	/* use fb_notifier */
 
-	if (strstr(saved_command_line,"ili9882q_dsi_vdo_hdp_ctc_txd") || strstr(saved_command_line,"ili9882q10_dsi_vdo_hdp_ctc_txd")){
-		tpd_fb_notifier.notifier_call = tpd_ilitek_notifier_callback;
-		if(panel_register_client(&tpd_fb_notifier))
-			TPD_DMESG("[ILITEK] ilitek register fb_notifier fail!\n");
-	}else{
+#ifdef CONFIG_PANEL_NOTIFIER_W2 //CONFIG_WT_PROJECT_S96901
+	if((g_lcm_name == TM_ILI7807S_MODULE) || (g_lcm_name == CW_ILI7807S_MODULE)) {
+  		tpd_fb_notifier.notifier_call = tpd_ilitek_notifier_callback;
+		if (panel_register_client(&tpd_fb_notifier))
+  			TPD_DMESG("[ILITEK] ilitek register fb_notifier fail!\n");
+  	} else if (g_lcm_name == TXD_FT8722_MODULE){
+		tpd_fb_notifier.notifier_call = tpd_fts_notifier_callback;
+                if (panel_register_client(&tpd_fb_notifier))
+                        TPD_DMESG("[FTS] focaltech_register fb_notifier fail!\n");
+	} else {
 		tpd_fb_notifier.notifier_call = tpd_fb_notifier_callback;
 		if (fb_register_client(&tpd_fb_notifier))
 			TPD_DMESG("register fb_notifier fail!\n");
 	}
+#elif defined (CONFIG_WT_PROJECT_S96516SA1) || defined (CONFIG_WT_PROJECT_S96616AA1)	
+	if(g_lcm_name == TRULY_ILI9882Q_MODULE) {
+		tpd_fb_notifier.notifier_call = tpd_ilitek_notifier_callback;
+		if (panel_register_client(&tpd_fb_notifier))
+			TPD_DMESG("[ILITEK] ilitek register fb_notifier fail!\n");
+	} else if (g_lcm_name == TM_FT_MODULE){
+		tpd_fb_notifier.notifier_call = tpd_focal_notifier_callback;
+                if (panel_register_client(&tpd_fb_notifier))
+                        TPD_DMESG("[FTS] focaltech_register fb_notifier fail!\n");
+	} else {
+		tpd_fb_notifier.notifier_call = tpd_fb_notifier_callback;
+		if (fb_register_client(&tpd_fb_notifier))
+			TPD_DMESG("register fb_notifier fail!\n");
+	}
+#else
+	 tpd_fb_notifier.notifier_call = tpd_fb_notifier_callback;
+                if (fb_register_client(&tpd_fb_notifier))
+                        TPD_DMESG("register fb_notifier fail!\n");
+#endif	
 	/* TPD_TYPE_CAPACITIVE handle */
 	if (touch_type == 1) {
 
@@ -816,7 +1000,7 @@ static void tpd_init_work_callback(struct work_struct *work)
 static int __init tpd_device_init(void)
 {
 	int res = 0;
-
+	pr_info("[%s-%s-%d]\n", __FILE__, __func__, __LINE__);
 	tpd_init_workqueue = create_singlethread_workqueue("mtk-tpd");
 	INIT_WORK(&tpd_init_work, tpd_init_work_callback);
 

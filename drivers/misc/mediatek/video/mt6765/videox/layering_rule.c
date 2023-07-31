@@ -16,7 +16,7 @@
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
 
-#if defined(CONFIG_MTK_DRAMC) && 0
+#if defined(CONFIG_MTK_DRAMC)
 #include "mtk_dramc.h"
 #endif
 #include "mmdvfs_pmqos.h"
@@ -30,7 +30,6 @@
 
 static struct layering_rule_ops l_rule_ops;
 static struct layering_rule_info_t l_rule_info;
-static DEFINE_SPINLOCK(hrt_table_lock);
 
 int emi_bound_table[HRT_BOUND_NUM][HRT_LEVEL_NUM] = {
 	/* HRT_BOUND_TYPE_LP4 */
@@ -402,7 +401,7 @@ static void layering_rule_senario_decision(struct disp_layer_info *disp_info)
 
 	l_rule_info.primary_fps = 60;
 
-#if defined(CONFIG_MTK_DRAMC) && 0
+#if defined(CONFIG_MTK_DRAMC)
 	if (get_ddr_type() == TYPE_LPDDR3) {
 		if (primary_display_get_width() < 800) {
 			if (primary_display_get_height() < 1500)
@@ -470,54 +469,68 @@ static void layering_rule_senario_decision(struct disp_layer_info *disp_info)
 		l_rule_info.layer_tb_idx | (l_rule_info.bound_tb_idx << 16));
 }
 
-static bool filter_by_hw_limitation(struct disp_layer_info *disp_info)
+static bool filter_by_yuv_layers(struct disp_layer_info *disp_info)
 {
 	bool flag = false;
-	unsigned int i = 0;
+	unsigned int disp_idx = 0, i = 0;
 	struct layer_config *info;
-	unsigned int disp_idx = 0;
-	unsigned int layer_cnt = 0;
+	unsigned int yuv_cnt = 0;
 
-	for (disp_idx = 0 ; disp_idx < 2; ++disp_idx) {
-		if (disp_info->layer_num[disp_idx] < 1)
-			continue;
-
-		/* display not support RGBA1010102 & RGBA_FP16 */
+	for (disp_idx = 0; disp_idx < 2; disp_idx++) {
+		yuv_cnt = 0;
 		for (i = 0; i < disp_info->layer_num[disp_idx]; i++) {
 			info = &(disp_info->input_config[disp_idx][i]);
-			if (info->src_fmt != DISP_FORMAT_RGBA1010102 &&
-					info->src_fmt != DISP_FORMAT_RGBA_FP16)
+
+			if (is_gles_layer(disp_info, disp_idx, i))
 				continue;
 
-			/* push to GPU */
-			if (disp_info->gles_head[disp_idx] == -1 ||
-					i < disp_info->gles_head[disp_idx])
-				disp_info->gles_head[disp_idx] = i;
-			if (disp_info->gles_tail[disp_idx] == -1 ||
-					i > disp_info->gles_tail[disp_idx])
-				disp_info->gles_tail[disp_idx] = i;
+			/* display not support RGBA1010102 & RGBA_FP16 */
+			if (info->src_fmt == DISP_FORMAT_RGBA1010102 ||
+				info->src_fmt == DISP_FORMAT_RGBA_FP16) {
+				rollback_layer_to_GPU(disp_info, disp_idx, i);
+				flag = true;
+				continue;
+			}
+
+			/* ovl support total 1 yuv layer ,align to mt6853*/
+			if (is_yuv(info->src_fmt)) {
+				yuv_cnt++;
+				if (yuv_cnt > 1) {
+					rollback_layer_to_GPU(disp_info, disp_idx, i);
+					flag = true;
+				}
+			}
 		}
 	}
 
-	disp_idx = 1;
-	for (i = 0; i < disp_info->layer_num[disp_idx]; i++) {
-		info = &(disp_info->input_config[disp_idx][i]);
-		if (is_gles_layer(disp_info, disp_idx, i))
+	return flag;
+}
+
+static bool filter_by_sec_display(struct disp_layer_info *disp_info)
+{
+	bool flag = false;
+	unsigned int i, layer_cnt = 0;
+
+	for (i = 0; i < disp_info->layer_num[HRT_SECONDARY]; i++) {
+		if (is_gles_layer(disp_info, HRT_SECONDARY, i))
 			continue;
 
 		layer_cnt++;
 		if (layer_cnt > SECONDARY_OVL_LAYER_NUM) {
-			/* push to GPU */
-			if (disp_info->gles_head[disp_idx] == -1 ||
-				i < disp_info->gles_head[disp_idx])
-				disp_info->gles_head[disp_idx] = i;
-			if (disp_info->gles_tail[disp_idx] == -1 ||
-				i > disp_info->gles_tail[disp_idx])
-				disp_info->gles_tail[disp_idx] = i;
-
-			flag = false;
+			rollback_layer_to_GPU(disp_info, HRT_SECONDARY, i);
+			flag = true;
 		}
 	}
+
+	return flag;
+}
+
+static bool filter_by_hw_limitation(struct disp_layer_info *disp_info)
+{
+	bool flag = false;
+
+	flag |= filter_by_yuv_layers(disp_info);
+	flag |= filter_by_sec_display(disp_info);
 
 	return flag;
 }
@@ -526,6 +539,7 @@ unsigned int layering_rule_get_hrt_idx(void)
 {
 	return l_rule_info.hrt_idx;
 }
+
 static void clear_layer(struct disp_layer_info *disp_info)
 {
 	int di = 0;
@@ -652,42 +666,6 @@ done:
 }
 #endif
 
-void copy_hrt_bound_table(int is_larb, int *hrt_table,
-	int active_config_id)
-{
-	unsigned long flags = 0;
-	int valid_num, ovl_bound;
-	int i;
-
-	/* Not used in 6779 */
-	if (is_larb)
-		return;
-
-	/* update table if hrt bw is enabled */
-	spin_lock_irqsave(&hrt_table_lock, flags);
-#ifdef MTK_FB_MMDVFS_SUPPORT
-	valid_num = layering_get_valid_hrt(active_config_id);
-#else
-	valid_num = 200;
-#endif
-	ovl_bound = get_phy_layer_limit(
-		get_mapping_table(
-		DISP_HW_LAYER_TB,
-		MAX_PHY_OVL_CNT - 1), 0);
-	valid_num = min(valid_num, ovl_bound * 100);
-	DISPINFO("%s:valid_num:%d,ovl_bound:%d\n",
-		__func__, valid_num, ovl_bound);
-
-	for (i = 0; i < HRT_LEVEL_NUM; i++) {
-		emi_bound_table[l_rule_info.bound_tb_idx][i] =
-			valid_num;
-	}
-	spin_unlock_irqrestore(&hrt_table_lock, flags);
-
-	for (i = 0; i < HRT_LEVEL_NUM; i++)
-		hrt_table[i] = emi_bound_table[l_rule_info.bound_tb_idx][i];
-}
-
 unsigned long long layering_get_frame_bw(int active_cfg_id)
 {
 #ifdef CONFIG_ARM64
@@ -761,7 +739,7 @@ int layering_rule_get_mm_freq_table(enum HRT_OPP_LEVEL opp_level)
 		return 0;
 	}
 
-#if defined(CONFIG_MTK_DRAMC) && 0
+#if defined(CONFIG_MTK_DRAMC)
 	if (get_ddr_type() == TYPE_LPDDR3)
 		dramc_type = HRT_DRAMC_TYPE_LP3;
 	else {

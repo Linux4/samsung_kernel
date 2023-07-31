@@ -142,6 +142,10 @@ out:
 }
 EXPORT_SYMBOL_GPL(bootprof_log_boot);
 
+#ifdef CONFIG_SEC_BOOTSTAT
+extern void sec_boot_stat_set_bl_boot_time(int pl_t, int lk_t);
+#endif
+
 static void bootprof_bootloader(void)
 {
 	struct device_node *node;
@@ -156,6 +160,10 @@ static void bootprof_bootloader(void)
 
 		pr_info("BOOTPROF: DT(Err:0x%x) pl_t=%d, lk_t=%d, lk_logo_t=%d\n",
 			err, bootprof_pl_t, bootprof_lk_t, bootprof_logo_t);
+
+#ifdef CONFIG_SEC_BOOTSTAT
+		sec_boot_stat_set_bl_boot_time(bootprof_pl_t, bootprof_lk_t);
+#endif			
 	}
 }
 

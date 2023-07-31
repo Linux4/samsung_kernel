@@ -10,7 +10,10 @@
  * #define pr_debug pr_info
  */
 
-struct mtk_vcu_queue *mtk_vcu_mem_init(struct device *dev)
+static uint64_t mtk_vcu_va_cnt;
+
+struct mtk_vcu_queue *mtk_vcu_mem_init(struct device *dev,
+	struct device *cmdq_dev)
 {
 	struct mtk_vcu_queue *vcu_queue;
 
@@ -20,12 +23,14 @@ struct mtk_vcu_queue *mtk_vcu_mem_init(struct device *dev)
 		pr_info("Allocate new vcu queue fail!\n");
 		return NULL;
 	}
-
+	INIT_LIST_HEAD(&vcu_queue->pa_pages.list);
 	vcu_queue->mem_ops = &vb2_dma_contig_memops;
 	vcu_queue->dev = dev;
+	vcu_queue->cmdq_dev = cmdq_dev;
 	vcu_queue->num_buffers = 0;
 	vcu_queue->map_buf_pa = 0;
 	mutex_init(&vcu_queue->mmap_lock);
+	mutex_init(&vcu_queue->dev_lock);
 
 	return vcu_queue;
 }
@@ -34,6 +39,8 @@ void mtk_vcu_mem_release(struct mtk_vcu_queue *vcu_queue)
 {
 	struct mtk_vcu_mem *vcu_buffer;
 	unsigned int buffer;
+	struct vcu_pa_pages *tmp;
+	struct list_head *p, *q;
 
 	mutex_lock(&vcu_queue->mmap_lock);
 	pr_debug("Release vcu queue !\n");
@@ -45,11 +52,24 @@ void mtk_vcu_mem_release(struct mtk_vcu_queue *vcu_queue)
 			else
 				fput(vcu_buffer->dbuf->file);
 
-			pr_debug("Free %d dbuf = %p size = %d mem_priv = %lx\n",
+			pr_debug("Free %d dbuf = %p size = %d mem_priv = %lx ref_cnt = %d\n",
 				 buffer, vcu_buffer->dbuf,
 				 (unsigned int)vcu_buffer->size,
-				 (unsigned long)vcu_buffer->mem_priv);
+				 (unsigned long)vcu_buffer->mem_priv,
+				 atomic_read(&vcu_buffer->ref_cnt));
 		}
+	}
+
+	list_for_each_safe(p, q, &vcu_queue->pa_pages.list) {
+		tmp = list_entry(p, struct vcu_pa_pages, list);
+		cmdq_mbox_buf_free(
+			vcu_queue->cmdq_dev,
+			(void *)(unsigned long)tmp->kva,
+			(dma_addr_t)tmp->pa);
+		pr_info("Free cmdq pa %llx ref_cnt = %d\n", tmp->pa,
+			atomic_read(&tmp->ref_cnt));
+		list_del(p);
+		kfree(tmp);
 	}
 	mutex_unlock(&vcu_queue->mmap_lock);
 	kfree(vcu_queue);
@@ -67,6 +87,7 @@ void *mtk_vcu_set_buffer(struct mtk_vcu_queue *vcu_queue,
 	struct dma_buf *dbuf = NULL;
 	int op;
 
+	mutex_lock(&vcu_queue->mmap_lock);
 	pr_debug("[%s] %d iova = %llx src_vb = %p dst_vb = %p\n",
 		__func__, vcu_queue->num_buffers, mem_buff_data->iova,
 		src_vb, dst_vb);
@@ -76,13 +97,14 @@ void *mtk_vcu_set_buffer(struct mtk_vcu_queue *vcu_queue,
 		mem_buff_data->len == 0U || num_buffers >= CODEC_MAX_BUFFER) {
 		pr_info("Set buffer fail: buffer len = %u num_buffers = %d !!\n",
 			   mem_buff_data->len, num_buffers);
+		mutex_unlock(&vcu_queue->mmap_lock);
 		return ERR_PTR(-EINVAL);
 	}
 
-	mutex_lock(&vcu_queue->mmap_lock);
 	for (buffer = 0; buffer < num_buffers; buffer++) {
 		vcu_buffer = &vcu_queue->bufs[buffer];
 		if (mem_buff_data->iova == (u64)vcu_buffer->iova) {
+			atomic_inc(&vcu_buffer->ref_cnt);
 			mutex_unlock(&vcu_queue->mmap_lock);
 			return vcu_buffer->mem_priv;
 		}
@@ -96,6 +118,7 @@ void *mtk_vcu_set_buffer(struct mtk_vcu_queue *vcu_queue,
 			if (*dma_addr == mem_buff_data->iova) {
 				dbuf = src_vb->planes[plane].dbuf;
 				vcu_buffer->size = src_vb->planes[plane].length;
+				vcu_buffer->mem_priv = src_vb->planes[plane].mem_priv;
 				op = DMA_TO_DEVICE;
 				pr_debug("src size = %d mem_buff_data len = %d\n",
 					(unsigned int)vcu_buffer->size,
@@ -109,6 +132,7 @@ void *mtk_vcu_set_buffer(struct mtk_vcu_queue *vcu_queue,
 			if (*dma_addr == mem_buff_data->iova) {
 				dbuf = dst_vb->planes[plane].dbuf;
 				vcu_buffer->size = dst_vb->planes[plane].length;
+				vcu_buffer->mem_priv = dst_vb->planes[plane].mem_priv;
 				op = DMA_FROM_DEVICE;
 				pr_debug("dst size = %d mem_buff_data len = %d\n",
 					(unsigned int)vcu_buffer->size,
@@ -126,6 +150,7 @@ void *mtk_vcu_set_buffer(struct mtk_vcu_queue *vcu_queue,
 	vcu_buffer->iova = *dma_addr;
 	get_file(dbuf->file);
 	vcu_queue->num_buffers++;
+	atomic_set(&vcu_buffer->ref_cnt, 1);
 	mutex_unlock(&vcu_queue->mmap_lock);
 
 	pr_debug("[%s] Num_buffers = %d iova = %llx dbuf = %p size = %d mem_priv = %lx\n",
@@ -143,15 +168,16 @@ void *mtk_vcu_get_buffer(struct mtk_vcu_queue *vcu_queue,
 	struct mtk_vcu_mem *vcu_buffer;
 	unsigned int buffers;
 
+	mutex_lock(&vcu_queue->mmap_lock);
 	buffers = vcu_queue->num_buffers;
 	if (mem_buff_data->len > CODEC_ALLOCATE_MAX_BUFFER_SIZE ||
 		mem_buff_data->len == 0U || buffers >= CODEC_MAX_BUFFER) {
 		pr_info("Get buffer fail: buffer len = %u num_buffers = %d !!\n",
 			   mem_buff_data->len, buffers);
+		mutex_unlock(&vcu_queue->mmap_lock);
 		return ERR_PTR(-EINVAL);
 	}
 
-	mutex_lock(&vcu_queue->mmap_lock);
 	vcu_buffer = &vcu_queue->bufs[buffers];
 	vcu_buffer->mem_priv = vcu_queue->mem_ops->alloc(vcu_queue->dev, 0,
 		mem_buff_data->len, 0, 0);
@@ -167,15 +193,48 @@ void *mtk_vcu_get_buffer(struct mtk_vcu_queue *vcu_queue,
 
 	mem_buff_data->iova = *(dma_addr_t *)dma_addr;
 	vcu_buffer->iova = *(dma_addr_t *)dma_addr;
-	mem_buff_data->va = (unsigned long)cook;
+	mtk_vcu_va_cnt++;
+	if (mtk_vcu_va_cnt == 0)
+		mtk_vcu_va_cnt++;
+	vcu_buffer->va_id = mtk_vcu_va_cnt;
+	mem_buff_data->va = vcu_buffer->va_id;
+	mem_buff_data->pa = 0;
 	vcu_queue->num_buffers++;
 	mutex_unlock(&vcu_queue->mmap_lock);
+	atomic_set(&vcu_buffer->ref_cnt, 1);
 
-	pr_debug("[%s] Num_buffers = %d iova = %llx va = %llx size = %d mem_priv = %lx\n",
+	pr_debug("[%s] Num_buffers = %d iova = %llx va = %llx va_id = %lld size = %d mem_priv = %lx\n",
 		__func__, vcu_queue->num_buffers, mem_buff_data->iova,
-		mem_buff_data->va, (unsigned int)vcu_buffer->size,
+		cook, vcu_buffer->va_id, (unsigned int)vcu_buffer->size,
 		(unsigned long)vcu_buffer->mem_priv);
+
 	return vcu_buffer->mem_priv;
+}
+
+void *mtk_vcu_get_page(struct mtk_vcu_queue *vcu_queue,
+						 struct mem_obj *mem_buff_data)
+{
+	dma_addr_t temp_pa = 0;
+	void *mem_priv;
+	struct vcu_pa_pages *tmp;
+
+	mem_priv =
+		cmdq_mbox_buf_alloc(vcu_queue->cmdq_dev, &temp_pa);
+	tmp = kmalloc(sizeof(struct vcu_pa_pages), GFP_KERNEL);
+	if (!tmp)
+		return ERR_PTR(-ENOMEM);
+
+	mutex_lock(&vcu_queue->mmap_lock);
+	tmp->pa = temp_pa;
+	mem_buff_data->pa = temp_pa;
+	tmp->kva = (unsigned long)mem_priv;
+	mem_buff_data->va = CODEC_MSK((unsigned long)mem_priv);
+	mem_buff_data->iova = 0;
+	atomic_set(&tmp->ref_cnt, 1);
+	list_add_tail(&tmp->list, &vcu_queue->pa_pages.list);
+	mutex_unlock(&vcu_queue->mmap_lock);
+
+	return mem_priv;
 }
 
 int mtk_vcu_free_buffer(struct mtk_vcu_queue *vcu_queue,
@@ -198,14 +257,17 @@ int mtk_vcu_free_buffer(struct mtk_vcu_queue *vcu_queue,
 				vcu_queue->mem_ops->cookie(
 				    vcu_buffer->mem_priv);
 
-			if (mem_buff_data->va == (unsigned long)cook &&
-			mem_buff_data->iova == *(dma_addr_t *)dma_addr &&
-				mem_buff_data->len == vcu_buffer->size) {
-				pr_debug("Free buff = %d iova = %llx va = %llx, queue_num = %d\n",
-						 buffer, mem_buff_data->iova,
-						 mem_buff_data->va,
-						 num_buffers);
+			if (mem_buff_data->va == vcu_buffer->va_id &&
+			    mem_buff_data->iova == *(dma_addr_t *)dma_addr &&
+			    mem_buff_data->len == vcu_buffer->size &&
+			    atomic_read(&vcu_buffer->ref_cnt) == 1) {
+				pr_debug("Free buff = %d iova = %llx va = %llx va_id = %llx, queue_num = %d\n",
+						buffer, mem_buff_data->iova,
+						cook, mem_buff_data->va,
+						num_buffers);
 				vcu_queue->mem_ops->put(vcu_buffer->mem_priv);
+				atomic_dec(&vcu_buffer->ref_cnt);
+
 				last_buffer = num_buffers - 1U;
 				if (last_buffer != buffer)
 					vcu_queue->bufs[buffer] =
@@ -229,6 +291,61 @@ int mtk_vcu_free_buffer(struct mtk_vcu_queue *vcu_queue,
 	return ret;
 }
 
+int mtk_vcu_free_page(struct mtk_vcu_queue *vcu_queue,
+						struct mem_obj *mem_buff_data)
+{
+	int ret = -EINVAL;
+	struct vcu_pa_pages *tmp;
+	struct list_head *p, *q;
+
+	mutex_lock(&vcu_queue->mmap_lock);
+	list_for_each_safe(p, q, &vcu_queue->pa_pages.list) {
+		tmp = list_entry(p, struct vcu_pa_pages, list);
+		if (tmp->pa == mem_buff_data->pa &&
+			CODEC_MSK(tmp->kva) == mem_buff_data->va &&
+			atomic_read(&tmp->ref_cnt) == 1) {
+			ret = 0;
+			cmdq_mbox_buf_free(
+				vcu_queue->cmdq_dev,
+				(void *)(unsigned long)
+				tmp->kva,
+				(dma_addr_t)mem_buff_data->pa);
+			atomic_dec(&tmp->ref_cnt);
+			list_del(p);
+			kfree(tmp);
+			break;
+		}
+	}
+	mutex_unlock(&vcu_queue->mmap_lock);
+
+	if (ret != 0)
+		pr_info("Can not free memory va %llx pa %llx len %u!\n",
+			   mem_buff_data->va, mem_buff_data->pa,
+			   mem_buff_data->len);
+
+	return ret;
+}
+
+void mtk_vcu_buffer_ref_dec(struct mtk_vcu_queue *vcu_queue,
+	void *mem_priv)
+{
+	struct mtk_vcu_mem *vcu_buffer;
+	unsigned int buffer, num_buffers;
+
+	mutex_lock(&vcu_queue->mmap_lock);
+	num_buffers = vcu_queue->num_buffers;
+	for (buffer = 0; buffer < num_buffers; buffer++) {
+		vcu_buffer = &vcu_queue->bufs[buffer];
+		if (vcu_buffer->mem_priv == mem_priv) {
+			if (atomic_read(&vcu_buffer->ref_cnt) > 0)
+				atomic_dec(&vcu_buffer->ref_cnt);
+			else
+				pr_info("[VCU][Error] %s fail\n", __func__);
+		}
+	}
+	mutex_unlock(&vcu_queue->mmap_lock);
+}
+
 void vcu_io_buffer_cache_sync(struct device *dev,
 	struct dma_buf *dbuf, int op)
 {
@@ -237,6 +354,11 @@ void vcu_io_buffer_cache_sync(struct device *dev,
 
 	buf_att = dma_buf_attach(dbuf, dev);
 	sgt = dma_buf_map_attachment(buf_att, op);
+	if (IS_ERR_OR_NULL(sgt)) {
+		pr_info("%s dma_buf_map_attachment fail %p.\n", __func__, sgt);
+		dma_buf_detach(dbuf, buf_att);
+		return;
+	}
 	dma_sync_sg_for_device(dev, sgt->sgl, sgt->orig_nents, op);
 	dma_buf_unmap_attachment(buf_att, sgt, op);
 	dma_buf_detach(dbuf, buf_att);
@@ -248,9 +370,14 @@ int vcu_buffer_flush_all(struct device *dev, struct mtk_vcu_queue *vcu_queue)
 	unsigned int buffer, num_buffers;
 	void *cook = NULL;
 
+	mutex_lock(&vcu_queue->mmap_lock);
+
 	num_buffers = vcu_queue->num_buffers;
-	if (num_buffers == 0U)
+	if (num_buffers == 0U) {
+		mutex_unlock(&vcu_queue->mmap_lock);
 		return 0;
+	}
+
 	for (buffer = 0; buffer < num_buffers; buffer++) {
 		vcu_buffer = &vcu_queue->bufs[buffer];
 		pr_debug("Cache clean %s buffer=%d iova=%lx size=%d num=%d\n",
@@ -268,6 +395,8 @@ int vcu_buffer_flush_all(struct device *dev, struct mtk_vcu_queue *vcu_queue)
 				vcu_buffer->dbuf, DMA_TO_DEVICE);
 	}
 
+	mutex_unlock(&vcu_queue->mmap_lock);
+
 	return 0;
 }
 
@@ -279,11 +408,14 @@ int vcu_buffer_cache_sync(struct device *dev, struct mtk_vcu_queue *vcu_queue,
 	unsigned int buffer = 0;
 	void *cook = NULL;
 
+	mutex_lock(&vcu_queue->mmap_lock);
+
 	num_buffers = vcu_queue->num_buffers;
 	if (num_buffers == 0U) {
 		pr_info("Cache %s buffer fail, iova = %lx, size = %d, vcu no buffers\n",
 			(op == DMA_TO_DEVICE) ? "flush" : "invalidate",
 			(unsigned long)dma_addr, (unsigned int)size);
+		mutex_unlock(&vcu_queue->mmap_lock);
 		return -1;
 	}
 
@@ -311,6 +443,8 @@ int vcu_buffer_cache_sync(struct device *dev, struct mtk_vcu_queue *vcu_queue,
 			} else
 				vcu_io_buffer_cache_sync(dev,
 					vcu_buffer->dbuf, op);
+
+			mutex_unlock(&vcu_queue->mmap_lock);
 			return 0;
 		}
 	}
@@ -318,6 +452,7 @@ int vcu_buffer_cache_sync(struct device *dev, struct mtk_vcu_queue *vcu_queue,
 	pr_info("Cache %s buffer fail, iova = %lx, size = %d\n",
 		(op == DMA_TO_DEVICE) ? "flush" : "invalidate",
 		(unsigned long)dma_addr, (unsigned int)size);
+	mutex_unlock(&vcu_queue->mmap_lock);
 
 	return -1;
 }

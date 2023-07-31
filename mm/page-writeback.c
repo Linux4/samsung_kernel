@@ -1853,7 +1853,6 @@ pause:
 					  period,
 					  pause,
 					  start_time);
-
 		if (bdi->capabilities & BDI_CAP_SEC_DEBUG && pause == max_pause) {
 			unsigned long nr_dirty_inodes_in_timelist = 0; /* # of dirty inodes in b_dirty_time list */
 			struct inode *inode;
@@ -1881,6 +1880,7 @@ pause:
 				(unsigned long) sdtc->wb->avg_write_bandwidth,
 				(unsigned long) nr_dirty_inodes_in_timelist);
 		}
+
 
 		/* IOPP-prevent_infinite_writeback-v1.1.4.4 */
 		/* Do not sleep if the backing device is removed */
@@ -2545,13 +2545,6 @@ void account_page_dirtied(struct page *page, struct address_space *mapping)
 		task_io_account_write(PAGE_SIZE);
 		current->nr_dirtied++;
 		this_cpu_inc(bdp_ratelimits);
-
-		/*
-		 * Dirty pages may be written by writeback thread later.
-		 * To get real i/o owner of this page, we shall keep it
-		 * before writeback takes over.
-		 */
-		mtk_btag_pidlog_set_pid(page);
 	}
 }
 EXPORT_SYMBOL(account_page_dirtied);

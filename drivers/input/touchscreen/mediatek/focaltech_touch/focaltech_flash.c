@@ -53,11 +53,17 @@ extern char Ctp_name[64];
 /*****************************************************************************
 * Global variable or extern global variabls/functions
 *****************************************************************************/
-u8 fw_file[] = {0};//#include FTS_UPGRADE_FW_FILE
+u8 fw_file[] = {
+//#include FTS_UPGRADE_FW_FILE
+};
 
-u8 fw_file2[] = {0};//#include FTS_UPGRADE_FW2_FILE
+u8 fw_file2[] = {
+//#include FTS_UPGRADE_FW2_FILE
+};
 
-u8 fw_file3[] = {0};//#include FTS_UPGRADE_FW3_FILE
+u8 fw_file3[] = {
+//#include FTS_UPGRADE_FW3_FILE
+};
 
 struct upgrade_module module_list[] = {
     {FTS_MODULE_ID, FTS_MODULE_NAME, fw_file, sizeof(fw_file)},
@@ -1043,13 +1049,13 @@ static int fts_get_fw_file_via_request_firmware(struct fts_upgrade *upg)
 
     return ret;
 }
-#if 0
+#ifdef CONFIG_WT_PROJECT_S96616AA1
 static int fts_get_fw_file_via_i(struct fts_upgrade *upg)
 {
     upg->fw = upg->module_info->fw_file;
     upg->fw_length = upg->module_info->fw_len;
     upg->fw_from_request = 0;
-
+    FTS_ERROR("upload i file, upg->fw_length = %d\n",upg->fw,upg->fw_length);
     return 0;
 }
 #endif
@@ -1096,10 +1102,11 @@ static int fts_fwupg_get_fw_file(struct fts_upgrade *upg)
     } else {
         get_fw_i_flag = true;
     }
-
-    /*if (get_fw_i_flag) {
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+    if (get_fw_i_flag) {
         ret = fts_get_fw_file_via_i(upg);
-    }*/
+    }
+#endif
 
     FTS_INFO("upgrade fw file len:%d", upg->fw_length);
     if (upg->fw_length < FTS_MIN_LEN) {
@@ -1113,6 +1120,9 @@ static int fts_fwupg_get_fw_file(struct fts_upgrade *upg)
 static void fts_fwupg_work(struct work_struct *work)
 {
     int ret = 0;
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+    int i = 0;
+#endif
     u8 chip_id = 0;
     struct fts_upgrade *upg = fwupgrade;
 
@@ -1128,12 +1138,23 @@ static void fts_fwupg_work(struct work_struct *work)
     }
 
     /* get fw */
+#ifndef CONFIG_WT_PROJECT_S96616AA1
     ret = fts_fwupg_get_fw_file(upg);
+#endif
+
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+    for(i = 0; i < 3;i++){
+        ret = fts_fwupg_get_fw_file(upg);
+        if(ret == 0)
+            break;
+        else
+            msleep(1000);
+    }
+#endif
     if (ret < 0) {
         FTS_ERROR("get file fail, can't upgrade");
         return ;
     }
-
     if (upg->ts_data->fw_loading) {
         FTS_INFO("fw is loading, not download again");
         return ;

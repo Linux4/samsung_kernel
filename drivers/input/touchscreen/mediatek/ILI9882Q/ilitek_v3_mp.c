@@ -4050,7 +4050,7 @@ static const struct file_operations proc_ctp_openshort_test_fops = {
 /*proc init part*/
 static int __init proc_node_init(void)
 {
-    if (!strstr(saved_command_line,"ili9882q_dsi_vdo_hdp_ctc_txd") && !strstr(saved_command_line,"ili9882q10_dsi_vdo_hdp_ctc_txd"))
+    if (!strstr(saved_command_line,"ili9882q_dsi_vdo_hdp_ctc_txd") && !strstr(saved_command_line,"ili9882q10_dsi_vdo_hdp_ctc_txd") && !strstr(saved_command_line,"ili9882q_dsi_vdo_hdp_truly_truly"))
         return  -1;
 
     ilitek_proc_touchscreen_dir = proc_mkdir(ILITEK_PROC_TOUCHSCREEN_FOLDER , NULL);

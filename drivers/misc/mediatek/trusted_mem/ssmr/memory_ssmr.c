@@ -49,7 +49,11 @@ struct page_change_data {
 	pgprot_t clear_mask;
 };
 
+#ifdef CONFIG_MTK_ENG_BUILD
+#if IS_ENABLED(CONFIG_SYSFS)
 static u64 ssmr_upper_limit = UPPER_LIMIT64;
+#endif
+#endif
 
 static struct device *ssmr_dev;
 
@@ -65,13 +69,15 @@ const char *const ssmr_state_text[NR_STATES] = {
 
 static struct SSMR_Feature _ssmr_feats[__MAX_NR_SSMR_FEATURES] = {
 	[SSMR_FEAT_SVP] = {
-		.dt_prop_name = "svp-size",
+		.dt_prop_name = "svp-region-based-size",
 		.feat_name = "svp",
 		.cmd_online = "svp=on",
 		.cmd_offline = "svp=off",
 #if IS_ENABLED(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) ||\
+	IS_ENABLED(CONFIG_MTK_TEE_GP_SUPPORT) ||\
+	IS_ENABLED(CONFIG_MTK_SVP_ON_MTEE_SUPPORT) ||\
 	IS_ENABLED(CONFIG_TRUSTONIC_TEE_SUPPORT) ||\
-	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) || \
+	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) ||\
 	IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
 		.enable = "on",
 #else
@@ -80,7 +86,7 @@ static struct SSMR_Feature _ssmr_feats[__MAX_NR_SSMR_FEATURES] = {
 		.scheme_flag = SVP_FLAGS
 	},
 	[SSMR_FEAT_PROT_SHAREDMEM] = {
-		.dt_prop_name = "prot-sharedmem-size",
+		.dt_prop_name = "prot-region-based-size",
 		.feat_name = "prot-sharedmem",
 		.cmd_online = "prot_sharedmem=on",
 		.cmd_offline = "prot_sharedmem=off",
@@ -174,7 +180,8 @@ static struct SSMR_Feature _ssmr_feats[__MAX_NR_SSMR_FEATURES] = {
 		.cmd_online = "tui=on",
 		.cmd_offline = "tui=off",
 #if IS_ENABLED(CONFIG_TRUSTONIC_TRUSTED_UI) ||\
-	IS_ENABLED(CONFIG_BLOWFISH_TUI_SUPPORT)
+	IS_ENABLED(CONFIG_BLOWFISH_TUI_SUPPORT) ||\
+	IS_ENABLED(CONFIG_TEEGRIS_TUI)
 		.enable = "on",
 #else
 		.enable = "off",
@@ -187,8 +194,9 @@ static struct SSMR_Feature _ssmr_feats[__MAX_NR_SSMR_FEATURES] = {
 struct SSMR_HEAP_INFO _ssmr_heap_info[__MAX_NR_SSMR_FEATURES];
 
 #if IS_ENABLED(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) ||\
+	IS_ENABLED(CONFIG_MTK_TEE_GP_SUPPORT) ||\
 	IS_ENABLED(CONFIG_TRUSTONIC_TEE_SUPPORT) ||\
-	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) || \
+	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) ||\
 	IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
 static int __init dedicate_svp_memory(struct reserved_mem *rmem)
 {
@@ -595,7 +603,7 @@ static int memory_region_offline(struct SSMR_Feature *feature, phys_addr_t *pa,
 	do {
 		pr_info("[SSMR-ALLOCATION]: retry: %d\n", offline_retry);
 		feature->virt_addr = dma_alloc_attrs(ssmr_dev, alloc_size,
-					&feature->phy_addr, GFP_KERNEL, 0);
+					&feature->phy_addr, GFP_KERNEL, DMA_ATTR_FORCE_CONTIGUOUS);
 		if (!feature->phy_addr) {
 			offline_retry++;
 			msleep(100);
@@ -765,6 +773,7 @@ int ssmr_online(unsigned int feat)
 }
 EXPORT_SYMBOL(ssmr_online);
 
+#ifdef CONFIG_MTK_ENG_BUILD
 #if IS_ENABLED(CONFIG_SYSFS)
 static ssize_t ssmr_show(struct kobject *kobj, struct kobj_attribute *attr,
 			char *buf)
@@ -808,6 +817,12 @@ static ssize_t ssmr_store(struct kobject *kobj, struct kobj_attribute *attr,
 	char buf[64];
 	int buf_size;
 	int feat = 0, ret;
+
+
+	if (count >= 64) {
+		pr_info("copy size too long.\n");
+		return -EINVAL;
+	}
 
 	ret = sscanf(cmd, "%s", buf);
 	if (ret) {
@@ -872,6 +887,7 @@ static int memory_ssmr_sysfs_init(void)
 	return 0;
 }
 #endif /* end of CONFIG_SYSFS */
+#endif
 
 int ssmr_probe(struct platform_device *pdev)
 {
@@ -889,8 +905,9 @@ int ssmr_probe(struct platform_device *pdev)
 	finalize_scenario_size();
 
 #if IS_ENABLED(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) ||\
+	IS_ENABLED(CONFIG_MTK_TEE_GP_SUPPORT) ||\
 	IS_ENABLED(CONFIG_TRUSTONIC_TEE_SUPPORT) ||\
-	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) || \
+	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) ||\
 	IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
 	/* check svp statis reserved status */
 	get_svp_memory_info();
@@ -904,8 +921,10 @@ int ssmr_probe(struct platform_device *pdev)
 	}
 
 	/* ssmr sys file init */
+#ifdef CONFIG_MTK_ENG_BUILD
 #if IS_ENABLED(CONFIG_SYSFS)
 	memory_ssmr_sysfs_init();
+#endif
 #endif
 
 	get_reserved_cma_memory(&pdev->dev);

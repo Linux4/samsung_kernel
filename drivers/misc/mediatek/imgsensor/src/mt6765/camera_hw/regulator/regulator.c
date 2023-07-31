@@ -14,7 +14,12 @@
 #include <linux/sched.h>
 #include <linux/notifier.h>
 #include <linux/regulator/consumer.h>
+//+ExtB P220415-05397 ,zhanghao2.wt,add,2022/05/30, fix switching cameras plug charger and the camera crashes
 #include <linux/sched/signal.h>
+#include <linux/regmap.h>
+#include <linux/mfd/mt6358/core.h>
+#include <linux/of_platform.h>
+//+ExtB P220415-05397 ,zhanghao2.wt,add,2022/05/30, fix switching cameras plug charger and the camera crashes
 
 static struct REGULATOR *preg_own;
 static bool Is_Notify_call[IMGSENSOR_SENSOR_IDX_MAX_NUM][REGULATOR_TYPE_MAX_NUM];
@@ -59,6 +64,7 @@ struct REGULATOR_CTRL regulator_control[REGULATOR_TYPE_MAX_NUM] = {
 	{"vcama"},
 	{"vcamd"},
 	{"vcamio"},
+	{"vcamaf"},//bug 612420,huangguoyong.wt,add,2021/01/04,add for s5k3l6 camera afvdd
 };
 
 static struct REGULATOR reg_instance;
@@ -89,14 +95,46 @@ static int regulator_oc_notify(
 
 #define OC_MODULE "camera"
 enum IMGSENSOR_RETURN imgsensor_oc_interrupt(
-	enum IMGSENSOR_SENSOR_IDX sensor_idx, bool enable)
+	enum IMGSENSOR_SENSOR_IDX sensor_idxU, bool enable)
 {
 	int i = 0;
 	int ret = 0;
+	unsigned int sensor_idx = 0;
+
+	//+ExtB P220415-05397 ,zhanghao2.wt,add,2022/05/30, fix switching cameras plug charger and the camera crashes
+	struct device_node *pmic_node;
+	struct platform_device *pmic_pdev;
+	struct mt6358_chip *chip;
+	struct regmap *regmap;
+
+	pmic_node = of_parse_phandle(gimgsensor_device->of_node, "pmic", 0);
+	if (!pmic_node) {
+		pr_err("get pmic_node fail\n");
+		return -1;
+	}
+
+	pmic_pdev = of_find_device_by_node(pmic_node);
+	if (!pmic_pdev) {
+		pr_err("get pmic_pdev fail\n");
+		return -1;
+	}
+	chip = dev_get_drvdata(&(pmic_pdev->dev));
+
+	if (!chip) {
+		pr_err("get chip fail\n");
+		return -1;
+	}
+
+	regmap = chip->regmap;
+
+	sensor_idx = sensor_idxU;
 
 	mutex_lock(&oc_mutex);
 	if (enable) {
 		mdelay(5);
+		regmap_update_bits(chip->regmap, 0x1a7c, 1<< 9, 0<< 9);//
+		regmap_update_bits(chip->regmap, 0x1a7a, 1<< 10, 0<< 10);//
+		regmap_update_bits(chip->regmap, 0x18ec, 1<< 15, 0<< 15);//
 		for (i = 0; i < REGULATOR_TYPE_MAX_NUM; i++) {
 			if (preg_own->pregulator[sensor_idx][i] &&
 					regulator_is_enabled(preg_own->pregulator[sensor_idx][i]) &&
@@ -132,6 +170,10 @@ enum IMGSENSOR_RETURN imgsensor_oc_interrupt(
 	} else {
 		reg_instance.pid = -1;
 		/* Disable interrupt before power off */
+		regmap_update_bits(chip->regmap, 0x1a7c, 1<< 9,	1<< 9); // ocfb enable
+		regmap_update_bits(chip->regmap, 0x1a7a, 1<< 10, 1<< 10); //ldo vcama stbtd 264us -> 312us
+		regmap_update_bits(chip->regmap, 0x18ec, 1<< 15, 1<< 15); // ldo ocfb degtd 10us ->100us
+		//-ExtB P220415-05397 ,zhanghao2.wt,add,2022/05/30, fix switching cameras plug charger and the camera crashes
 
 		for (i = 0; i < REGULATOR_TYPE_MAX_NUM; i++) {
 			if (preg_own->pregulator[sensor_idx][i] &&
@@ -249,7 +291,7 @@ static enum IMGSENSOR_RETURN regulator_set(
 	int reg_type_offset;
 	atomic_t             *enable_cnt;
 
-	if (pin > IMGSENSOR_HW_PIN_DOVDD   ||
+	if (pin > IMGSENSOR_HW_PIN_AFVDD   ||//bug 612420,huangguoyong.wt,add,2020/12/23,add for n6 camera bring up
 	    pin < IMGSENSOR_HW_PIN_AVDD    ||
 	    pin_state < IMGSENSOR_HW_PIN_STATE_LEVEL_0 ||
 	    pin_state >= IMGSENSOR_HW_PIN_STATE_LEVEL_HIGH ||

@@ -1,3 +1,4 @@
+
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2019 MediaTek Inc.
@@ -24,13 +25,11 @@
 #include <linux/uidgid.h>
 #include <tmp_bts.h>
 #include <linux/slab.h>
-
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
 #include <linux/of.h>
 #include <linux/iio/consumer.h>
 #include <linux/iio/iio.h>
 #endif
-
 int __attribute__ ((weak))
 IMM_IsAdcInitReady(void)
 {
@@ -43,36 +42,27 @@ IMM_GetOneChannelValue(int dwChannel, int data[4], int *rawdata)
 	pr_notice("E_WF: %s doesn't exist\n", __func__);
 	return -1;
 }
-
-
 #define mtktsfled_TEMP_CRIT (150000) /* 150.000 degree Celsius */
-
 #define mtktsfled_dprintk(fmt, args...) \
 do { \
 	if (mtktsfled_debug_log) \
 		pr_debug("[Thermal/tzfled]" fmt, ##args); \
 } while (0)
-
 #define mtktsfled_dprintk_always(fmt, args...) \
 	pr_notice("[Thermal/tzfled]" fmt, ##args)
-
 #define mtktsfled_pr_notice(fmt, args...) \
 	pr_notice("[Thermal/tzfled]" fmt, ##args)
-
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
 struct iio_channel *thermistor_ch2;
 #endif
-
 static kuid_t uid = KUIDT_INIT(0);
 static kgid_t gid = KGIDT_INIT(1000);
 static DEFINE_SEMAPHORE(sem_mutex);
-
 static int kernelmode;
 static unsigned int interval; /* seconds, 0 : no auto polling */
 static int num_trip = 1;
 static int trip_temp[10] = { 120000, 110000, 100000, 90000, 80000,
 				70000, 65000, 60000, 55000, 50000 };
-
 static int g_THERMAL_TRIP[10] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 static char g_bind0[20] = "mtktsfled-sysrst";
 static char g_bind1[20] = "";
@@ -88,12 +78,9 @@ static char *g_bind_a[10] = {&g_bind0[0], &g_bind1[0], &g_bind2[0]
 	, &g_bind3[0], &g_bind4[0], &g_bind5[0], &g_bind6[0], &g_bind7[0]
 	, &g_bind8[0], &g_bind9[0]};
 static struct thermal_zone_device *thz_dev;
-
 static unsigned int cl_dev_sysrst_state;
 static struct thermal_cooling_device *cl_dev_sysrst;
-
 static int mtktsfled_debug_log;
-
 /* This is to preserve last temperature readings from charger driver.
  * In case mtk_ts_charger.c fails to read temperature.
  */
@@ -107,24 +94,19 @@ static int polling_trip_temp1 = 40000;
 static int polling_trip_temp2 = 20000;
 static int polling_factor1 = 5000;
 static int polling_factor2 = 10000;
-
 struct BTSFLED_TEMPERATURE {
 	__s32 BTSFLED_Temp;
 	__s32 TemperatureR;
 };
-
 static int g_RAP_pull_up_R = BTSFLED_EXT_RAP_PULL_UP_R;
 static int g_TAP_over_critical_low = BTSFLED_EXT_TAP_OVER_CRITICAL_LOW;
 static int g_RAP_pull_up_voltage = BTSFLED_EXT_RAP_PULL_UP_VOLTAGE;
 static int g_RAP_ntc_table = BTSFLED_EXT_RAP_NTC_TABLE;
 static int g_RAP_ADC_channel = BTSFLED_EXT_RAP_ADC_CHANNEL;
-
 static int g_btsfled_TemperatureR;
 /* struct BTSFLED_TEMPERATURE BTSFLED_Temperature_Table[] = {0}; */
-
 static struct BTSFLED_TEMPERATURE *BTSFLED_Temperature_Table;
 static int ntc_tbl_size;
-
 /* AP_NTC_BL197 */
 static struct BTSFLED_TEMPERATURE BTSFLED_Temperature_Table1[] = {
 	{-40, 74354},		/* FIX_ME */
@@ -162,7 +144,6 @@ static struct BTSFLED_TEMPERATURE BTSFLED_Temperature_Table1[] = {
 	{60, 2970},		/* FIX_ME */
 	{60, 2970}		/* FIX_ME */
 };
-
 /* AP_NTC_TSM_1 */
 static struct BTSFLED_TEMPERATURE BTSFLED_Temperature_Table2[] = {
 	{-40, 70603},		/* FIX_ME */
@@ -200,7 +181,6 @@ static struct BTSFLED_TEMPERATURE BTSFLED_Temperature_Table2[] = {
 	{60, 3004},		/* FIX_ME */
 	{60, 3004}		/* FIX_ME */
 };
-
 /* AP_NTC_10_SEN_1 */
 static struct BTSFLED_TEMPERATURE BTSFLED_Temperature_Table3[] = {
 	{-40, 74354},		/* FIX_ME */
@@ -238,7 +218,6 @@ static struct BTSFLED_TEMPERATURE BTSFLED_Temperature_Table3[] = {
 	{60, 2970},		/* FIX_ME */
 	{60, 2970}		/* FIX_ME */
 };
-
 #if 0
 /* AP_NTC_10 */
 static struct BTSFLED_TEMPERATURE BTSFLED_Temperature_Table4[] = {
@@ -299,7 +278,6 @@ static struct BTSFLED_TEMPERATURE BTSFLED_Temperature_Table4[] = {
 	{125, 534}
 };
 #endif
-
 /* AP_NTC_47 */
 static struct BTSFLED_TEMPERATURE BTSFLED_Temperature_Table5[] = {
 	{-40, 483954},		/* FIX_ME */
@@ -337,8 +315,6 @@ static struct BTSFLED_TEMPERATURE BTSFLED_Temperature_Table5[] = {
 	{60, 11210},		/* FIX_ME */
 	{60, 11210}		/* FIX_ME */
 };
-
-
 /* NTCG104EF104F(100K) */
 static struct BTSFLED_TEMPERATURE BTSFLED_Temperature_Table6[] = {
 	{-40, 4251000},
@@ -376,7 +352,6 @@ static struct BTSFLED_TEMPERATURE BTSFLED_Temperature_Table6[] = {
 	{120, 2951},
 	{125, 2560}
 };
-
 /* NCP15WF104F03RC(100K) */
 static struct BTSFLED_TEMPERATURE BTSFLED_Temperature_Table7[] = {
 	{-40, 4397119},
@@ -468,8 +443,6 @@ static struct BTSFLED_TEMPERATURE BTSFLED_Temperature_Table7[] = {
 	{120, 2916},
 	{125, 2522}
 };
-
-
 /* convert register to temperature  */
 static __s32 mtkts_btsfled_thermistor_conver_temp(__s32 Res)
 {
@@ -477,7 +450,6 @@ static __s32 mtkts_btsfled_thermistor_conver_temp(__s32 Res)
 	int asize = 0;
 	__s32 RES1 = 0, RES2 = 0;
 	__s32 TAP_Value = -200, TMP1 = 0, TMP2 = 0;
-
 	asize = (ntc_tbl_size / sizeof(struct BTSFLED_TEMPERATURE));
 	/* mtktsfled_dprintk("btsfled() :
 	 * asize = %d, Res = %d\n",asize,Res);
@@ -493,16 +465,13 @@ static __s32 mtkts_btsfled_thermistor_conver_temp(__s32 Res)
 		/* mtktsfled_dprintk("%d : RES1 = %d,TMP1 = %d\n",__LINE__,
 		 * RES1,TMP1);
 		 */
-
 		for (i = 0; i < asize; i++) {
 			if (Res >=
 				BTSFLED_Temperature_Table[i].TemperatureR) {
 				RES2 =
 				 BTSFLED_Temperature_Table[i].TemperatureR;
-
 				TMP2 =
 				BTSFLED_Temperature_Table[i].BTSFLED_Temp;
-
 				/* mtktsfled_dprintk("%d :i=%d, RES2 = %d,
 				 * TMP2 = %d\n",__LINE__,i,RES2,TMP2);
 				 */
@@ -514,15 +483,11 @@ static __s32 mtkts_btsfled_thermistor_conver_temp(__s32 Res)
 			 * TMP1 = %d\n",__LINE__,i,RES1,TMP1);
 			 */
 		}
-
 		TAP_Value = (((Res - RES2) * TMP1) + ((RES1 - Res) * TMP2))
 								/ (RES1 - RES2);
 	}
-
-
 	return TAP_Value;
 }
-
 /* convert ADC_AP_temp_volt to register */
 /*Volt to Temp formula same with 6589*/
 static __s32 mtk_ts_btsfled_volt_to_temp(__u32 dwVolt)
@@ -531,20 +496,16 @@ static __s32 mtk_ts_btsfled_volt_to_temp(__u32 dwVolt)
 	__u64 dwVCriAP = 0;
 	__u64 dwVCriAP2 = 0;
 	__s32 BTSFLED_TMP = -100;
-
 	/* SW workaround-----------------------------------------------------
 	 * dwVCriAP = (TAP_OVER_CRITICAL_LOW * 1800) /
 	 * (TAP_OVER_CRITICAL_LOW + 39000);
 	 * dwVCriAP = (TAP_OVER_CRITICAL_LOW * RAP_PULL_UP_VOLT) /
 	 * (TAP_OVER_CRITICAL_LOW + RAP_PULL_UP_R);
 	 */
-
 	dwVCriAP = ((__u64)g_TAP_over_critical_low *
 		(__u64)g_RAP_pull_up_voltage);
 	dwVCriAP2 = (g_TAP_over_critical_low + g_RAP_pull_up_R);
 	do_div(dwVCriAP, dwVCriAP2);
-
-
 	if (dwVolt > ((__u32)dwVCriAP)) {
 		TRes = g_TAP_over_critical_low;
 	} else {
@@ -555,15 +516,11 @@ static __s32 mtk_ts_btsfled_volt_to_temp(__u32 dwVolt)
 				/ (g_RAP_pull_up_voltage - dwVolt);
 	}
 	/* ------------------------------------------------------------------ */
-
 	g_btsfled_TemperatureR = TRes;
-
 	/* convert register to temperature */
 	BTSFLED_TMP = mtkts_btsfled_thermistor_conver_temp(TRes);
-
 	return BTSFLED_TMP;
 }
-
 static int mtktsfled_get_hw_temp(void)
 {
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
@@ -577,7 +534,6 @@ static int mtktsfled_get_hw_temp(void)
 		int auxadc_cali_temp;
 	#endif
 #endif
-
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
 	ret = iio_read_channel_processed(thermistor_ch2, &val);
 	if (ret < 0) {
@@ -585,7 +541,6 @@ static int mtktsfled_get_hw_temp(void)
 			"Busy/Timeout, IIO ch read failed %d\n", ret);
 		return ret;
 	}
-
 	/* NOT need to do the conversion "val * 1500 / 4096" */
 	/* iio_read_channel_processed can get mV immediately */
 	ret = val;
@@ -595,7 +550,6 @@ static int mtktsfled_get_hw_temp(void)
 				"[thermal_auxadc_get_data]: AUXADC is not ready\n");
 		return 0;
 	}
-
 	i = times;
 	while (i--) {
 		ret_value = IMM_GetOneChannelValue(Channel, data, &ret_temp);
@@ -628,7 +582,6 @@ static int mtktsfled_get_hw_temp(void)
 			valid_temp = ret_temp;
 #endif
 		}
-
 #if defined(APPLY_AUXADC_CALI_DATA)
 		ret += auxadc_cali_temp;
 		mtktsfled_dprintk(
@@ -641,45 +594,35 @@ static int mtktsfled_get_hw_temp(void)
 			ret_temp);
 #endif
 	}
-
-
 #if defined(APPLY_AUXADC_CALI_DATA)
 #else
 	ret = ret * 1500 / 4096;
 #endif
 	/* ret = ret*1800/4096;//82's ADC power */
-
 #endif
-
 	output = mtk_ts_btsfled_volt_to_temp(ret);
 	mtktsfled_dprintk_always("BTSFLED ret = %d, temperature = %d\n",
 								ret, output);
 	return output;
 }
-
 static int mtktsfled_get_temp(struct thermal_zone_device *thermal, int *t)
 {
 	*t = mtktsfled_get_hw_temp() * 1000;
 	mtktsfled_dprintk("%s %d\n", __func__, *t);
-
 	if (*t >= 85000)
 		mtktsfled_dprintk_always("HT %d\n", *t);
-
 	if ((int)*t >= polling_trip_temp1)
 		thermal->polling_delay = interval * 1000;
 	else if ((int)*t < polling_trip_temp2)
 		thermal->polling_delay = interval * polling_factor2;
 	else
 		thermal->polling_delay = interval * polling_factor1;
-
 	return 0;
 }
-
 static int mtktsfled_bind(
 struct thermal_zone_device *thermal, struct thermal_cooling_device *cdev)
 {
 	int table_val = 0;
-
 	if (!strcmp(cdev->type, g_bind0))
 		table_val = 0;
 	else if (!strcmp(cdev->type, g_bind1))
@@ -702,23 +645,19 @@ struct thermal_zone_device *thermal, struct thermal_cooling_device *cdev)
 		table_val = 9;
 	else
 		return 0;
-
 	if (mtk_thermal_zone_bind_cooling_device(thermal, table_val, cdev)) {
 		mtktsfled_dprintk("%s error binding %s\n", __func__,
 								cdev->type);
 		return -EINVAL;
 	}
-
 	mtktsfled_dprintk("%s binding %s at %d\n", __func__, cdev->type,
 								table_val);
 	return 0;
 }
-
 static int mtktsfled_unbind(struct thermal_zone_device *thermal,
 			    struct thermal_cooling_device *cdev)
 {
 	int table_val = 0;
-
 	if (!strcmp(cdev->type, g_bind0))
 		table_val = 0;
 	else if (!strcmp(cdev->type, g_bind1))
@@ -741,52 +680,44 @@ static int mtktsfled_unbind(struct thermal_zone_device *thermal,
 		table_val = 9;
 	else
 		return 0;
-
 	if (thermal_zone_unbind_cooling_device(thermal, table_val, cdev)) {
 		mtktsfled_dprintk("%s error unbinding %s\n", __func__,
 								cdev->type);
 		return -EINVAL;
 	}
-
 	mtktsfled_dprintk("%s unbinding OK\n", __func__);
 	return 0;
 }
-
 static int mtktsfled_get_mode(
 struct thermal_zone_device *thermal, enum thermal_device_mode *mode)
 {
 	*mode = (kernelmode) ? THERMAL_DEVICE_ENABLED : THERMAL_DEVICE_DISABLED;
 	return 0;
 }
-
 static int mtktsfled_set_mode(
 struct thermal_zone_device *thermal, enum thermal_device_mode mode)
 {
 	kernelmode = mode;
 	return 0;
 }
-
 static int mtktsfled_get_trip_type(
 struct thermal_zone_device *thermal, int trip, enum thermal_trip_type *type)
 {
 	*type = g_THERMAL_TRIP[trip];
 	return 0;
 }
-
 static int mtktsfled_get_trip_temp(
 struct thermal_zone_device *thermal, int trip, int *temp)
 {
 	*temp = trip_temp[trip];
 	return 0;
 }
-
 static int mtktsfled_get_crit_temp(
 struct thermal_zone_device *thermal, int *temperature)
 {
 	*temperature = mtktsfled_TEMP_CRIT;
 	return 0;
 }
-
 /* bind callback functions to thermalzone */
 static struct thermal_zone_device_ops mtktsfled_dev_ops = {
 	.bind = mtktsfled_bind,
@@ -798,44 +729,36 @@ static struct thermal_zone_device_ops mtktsfled_dev_ops = {
 	.get_trip_temp = mtktsfled_get_trip_temp,
 	.get_crit_temp = mtktsfled_get_crit_temp,
 };
-
 static int mtktsfled_register_thermal(void)
 {
 	mtktsfled_dprintk("%s\n", __func__);
-
 	/* trips : trip 0~2 */
 	thz_dev = mtk_thermal_zone_device_register("mtktsfled", num_trip,
 					NULL, 
 					&mtktsfled_dev_ops, 0, 0, 0,
 					interval * 1000);
-
 	return 0;
 }
-
 static void mtktsfled_unregister_thermal(void)
 {
 	mtktsfled_dprintk("%s\n", __func__);
-
 	if (thz_dev) {
 		mtk_thermal_zone_device_unregister(thz_dev);
 		thz_dev = NULL;
 	}
 }
-
 static int mtktsfled_sysrst_get_max_state(
 struct thermal_cooling_device *cdev, unsigned long *state)
 {
 	*state = 1;
 	return 0;
 }
-
 static int mtktsfled_sysrst_get_cur_state(
 struct thermal_cooling_device *cdev, unsigned long *state)
 {
 	*state = cl_dev_sysrst_state;
 	return 0;
 }
-
 static int mtktsfled_sysrst_set_cur_state(
 struct thermal_cooling_device *cdev, unsigned long state)
 {
@@ -845,22 +768,18 @@ struct thermal_cooling_device *cdev, unsigned long state)
 		pr_notice("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
 		pr_notice("*****************************************\n");
 		pr_notice("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
-
 		/* To trigger data abort to reset the system
 		 * for thermal protection.
 		 */
 		BUG();
 	}
-
 	return 0;
 }
-
 static struct thermal_cooling_device_ops mtktsfled_cooling_sysrst_ops = {
 	.get_max_state = mtktsfled_sysrst_get_max_state,
 	.get_cur_state = mtktsfled_sysrst_get_cur_state,
 	.set_cur_state = mtktsfled_sysrst_set_cur_state,
 };
-
 int mtktsfled_register_cooler(void)
 {
 	cl_dev_sysrst = mtk_thermal_cooling_device_register(
@@ -868,7 +787,6 @@ int mtktsfled_register_cooler(void)
 					&mtktsfled_cooling_sysrst_ops);
 	return 0;
 }
-
 void mtktsfled_unregister_cooler(void)
 {
 	if (cl_dev_sysrst) {
@@ -878,7 +796,6 @@ void mtktsfled_unregister_cooler(void)
 }
 void mtkts_btsfled_prepare_table(int table_num)
 {
-
 	switch (table_num) {
 	case 1:		/* AP_NTC_BL197 */
 		BTSFLED_Temperature_Table = BTSFLED_Temperature_Table1;
@@ -913,7 +830,6 @@ void mtkts_btsfled_prepare_table(int table_num)
 		ntc_tbl_size = sizeof(BTSFLED_Temperature_Table4);
 		break;
 	}
-
 	pr_notice("[Thermal/TZ/BTSFLED] %s table_num=%d\n",
 						__func__, table_num);
 }
@@ -924,15 +840,12 @@ static int mtktsfled_read(struct seq_file *m, void *v)
 	seq_printf(m, "no of trips=%d\n", num_trip);
 	{
 		int i = 0;
-
 		for (; i < 10; i++)
 			seq_printf(m, "%02d\t%d\t%d\t%s\n", i, trip_temp[i],
 						g_THERMAL_TRIP[i], g_bind_a[i]);
 	}
-
 	return 0;
 }
-
 static ssize_t mtktsfled_write(
 struct file *file, const char __user *buffer, size_t count, loff_t *data)
 {
@@ -945,25 +858,17 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 		int time_msec;
 		char desc[512];
 	};
-
 	struct mtktsfled_data *ptr_mtktsfled_data = kmalloc(
 				sizeof(*ptr_mtktsfled_data), GFP_KERNEL);
-
 	if (ptr_mtktsfled_data == NULL)
 		return -ENOMEM;
-
 	len = (count < (sizeof(ptr_mtktsfled_data->desc) - 1)) ?
 			count : (sizeof(ptr_mtktsfled_data->desc) - 1);
-
 	if (copy_from_user(ptr_mtktsfled_data->desc, buffer, len)) {
 		kfree(ptr_mtktsfled_data);
 		return 0;
 	}
-
 	ptr_mtktsfled_data->desc[len] = '\0';
-
-
-
 	if (sscanf(ptr_mtktsfled_data->desc,
 		"%d %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d",
 		&num_trip,
@@ -991,27 +896,23 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 		down(&sem_mutex);
 		mtktsfled_dprintk("mtktsfled_unregister_thermal\n");
 		mtktsfled_unregister_thermal();
-
 		if (num_trip < 0 || num_trip > 10) {
 			mtktsfled_dprintk_always("%s bad argument\n",
 								__func__);
 #ifdef CONFIG_MTK_AEE_FEATURE
 			aee_kernel_warning_api(__FILE__, __LINE__,
-					DB_OPT_DEFAULT, "mtkts_btsfled_write",
-					"Bad argument");
+					DB_OPT_DEFAULT, "%s",
+					"Bad argument", __func__);
 #endif
 			kfree(ptr_mtktsfled_data);
 			up(&sem_mutex);
 			return -EINVAL;
 		}
-
 		for (i = 0; i < num_trip; i++)
 			g_THERMAL_TRIP[i] = ptr_mtktsfled_data->t_type[i];
-
 		g_bind0[0] = g_bind1[0] = g_bind2[0] = g_bind3[0]
 			= g_bind4[0] = g_bind5[0] = g_bind6[0]
 			= g_bind7[0] = g_bind8[0] = g_bind9[0] = '\0';
-
 		for (i = 0; i < 20; i++) {
 			g_bind0[i] = ptr_mtktsfled_data->bind0[i];
 			g_bind1[i] = ptr_mtktsfled_data->bind1[i];
@@ -1024,7 +925,6 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 			g_bind8[i] = ptr_mtktsfled_data->bind8[i];
 			g_bind9[i] = ptr_mtktsfled_data->bind9[i];
 		}
-
 		mtktsfled_dprintk("%s g_THERMAL_TRIP_0=%d,", __func__,
 			g_THERMAL_TRIP[0]);
 		mtktsfled_dprintk("g_THERMAL_TRIP_1=%d g_THERMAL_TRIP_2=%d ",
@@ -1033,62 +933,45 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 			g_THERMAL_TRIP[3], g_THERMAL_TRIP[4]);
 		mtktsfled_dprintk("g_THERMAL_TRIP_5=%d g_THERMAL_TRIP_6=%d ",
 			g_THERMAL_TRIP[5], g_THERMAL_TRIP[6]);
-
 		mtktsfled_dprintk(
 			"g_THERMAL_TRIP_7=%d g_THERMAL_TRIP_8=%d g_THERMAL_TRIP_9=%d\n",
 			g_THERMAL_TRIP[7], g_THERMAL_TRIP[8],
 			g_THERMAL_TRIP[9]);
-
 		mtktsfled_dprintk("cooldev0=%s cooldev1=%s cooldev2=%s ",
 			g_bind0, g_bind1, g_bind2);
-
 		mtktsfled_dprintk("cooldev3=%s cooldev4=%s ",
 			g_bind3, g_bind4);
-
 		mtktsfled_dprintk(
 			"cooldev5=%s cooldev6=%s cooldev7=%s cooldev8=%s cooldev9=%s\n",
 			g_bind5, g_bind6, g_bind7, g_bind8, g_bind9);
-
 		for (i = 0; i < num_trip; i++)
 			trip_temp[i] = ptr_mtktsfled_data->trip[i];
-
 		interval = ptr_mtktsfled_data->time_msec / 1000;
-
 		mtktsfled_dprintk("%s trip_0_temp=%d trip_1_temp=%d ",
 					__func__, trip_temp[0], trip_temp[1]);
-
 		mtktsfled_dprintk("trip_2_temp=%d trip_3_temp=%d ",
 						trip_temp[2], trip_temp[3]);
-
 		mtktsfled_dprintk(
 				"trip_4_temp=%d trip_5_temp=%d trip_6_temp=%d ",
 				trip_temp[4], trip_temp[5], trip_temp[6]);
-
 		mtktsfled_dprintk("trip_7_temp=%d trip_8_temp=%d ",
 						trip_temp[7], trip_temp[8]);
-
 		mtktsfled_dprintk("trip_9_temp=%d time_ms=%d\n",
 						trip_temp[9], interval * 1000);
-
 		mtktsfled_dprintk("mtktsfled_register_thermal\n");
 		mtktsfled_register_thermal();
 		up(&sem_mutex);
-
 		kfree(ptr_mtktsfled_data);
 		return count;
 	}
-
 	mtktsfled_dprintk("%s bad argument\n", __func__);
 	kfree(ptr_mtktsfled_data);
-
 	return -EINVAL;
 }
-
 static int mtktsfled_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, mtktsfled_read, NULL);
 }
-
 static ssize_t mtkts_btsfled_param_write(
 struct file *file, const char __user *buffer, size_t count, loff_t *data)
 {
@@ -1101,34 +984,25 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 		unsigned int valR, valV, over_cri_low, ntc_table;
 		unsigned int adc_channel;
 	};
-
 	struct mtktsbtsfled_param_data *ptr_mtktsbtsfled_parm_data;
-
 	ptr_mtktsbtsfled_parm_data = kmalloc(
 				sizeof(*ptr_mtktsbtsfled_parm_data),
 					GFP_KERNEL);
-
 	if (ptr_mtktsbtsfled_parm_data == NULL)
 		return -ENOMEM;
-
 	/* external pin: 0/1/12/13/14/15, can't use pin:2/3/4/5/6/7/8/9/10/11,
 	 *choose "adc_channel=11" to check if there is any param input
 	 */
 	ptr_mtktsbtsfled_parm_data->adc_channel = 11;
-
 	len = (count < (sizeof(ptr_mtktsbtsfled_parm_data->desc) - 1)) ?
 			count :
 			(sizeof(ptr_mtktsbtsfled_parm_data->desc) - 1);
-
 	if (copy_from_user(ptr_mtktsbtsfled_parm_data->desc, buffer, len)) {
 		kfree(ptr_mtktsbtsfled_parm_data);
 		return 0;
 	}
-
 	ptr_mtktsbtsfled_parm_data->desc[len] = '\0';
-
 	mtktsfled_dprintk("[%s]\n", __func__);
-
 	if (sscanf
 	    (ptr_mtktsbtsfled_parm_data->desc,
 		"%9s %d %9s %d %15s %d %9s %d %d",
@@ -1141,7 +1015,6 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 		ptr_mtktsbtsfled_parm_data->NTC_TABLE,
 		&ptr_mtktsbtsfled_parm_data->ntc_table,
 		&ptr_mtktsbtsfled_parm_data->adc_channel) >= 8) {
-
 		if (!strcmp(ptr_mtktsbtsfled_parm_data->pull_R, "PUP_R")) {
 			g_RAP_pull_up_R = ptr_mtktsbtsfled_parm_data->valR;
 			mtktsfled_dprintk("g_RAP_pull_up_R=%d\n",
@@ -1152,7 +1025,6 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 			kfree(ptr_mtktsbtsfled_parm_data);
 			return -EINVAL;
 		}
-
 		if (!strcmp(ptr_mtktsbtsfled_parm_data->pull_V,
 			"PUP_VOLT")) {
 			g_RAP_pull_up_voltage =
@@ -1165,7 +1037,6 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 			kfree(ptr_mtktsbtsfled_parm_data);
 			return -EINVAL;
 		}
-
 		if (!strcmp(ptr_mtktsbtsfled_parm_data->overcrilow,
 			"OVER_CRITICAL_L")) {
 			g_TAP_over_critical_low =
@@ -1178,7 +1049,6 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 			kfree(ptr_mtktsbtsfled_parm_data);
 			return -EINVAL;
 		}
-
 		if (!strcmp(ptr_mtktsbtsfled_parm_data->NTC_TABLE,
 			"NTC_TABLE")) {
 			g_RAP_ntc_table =
@@ -1191,7 +1061,6 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 			kfree(ptr_mtktsbtsfled_parm_data);
 			return -EINVAL;
 		}
-
 		/* external pin: 0/1/12/13/14/15,
 		 * can't use pin:2/3/4/5/6/7/8/9/10/11,
 		 * choose "adc_channel=11" to check if there is any param input
@@ -1216,19 +1085,14 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 				ptr_mtktsbtsfled_parm_data->adc_channel);
 		mtktsfled_dprintk("g_RAP_ADC_channel=%d\n",
 						g_RAP_ADC_channel);
-
 		mtkts_btsfled_prepare_table(g_RAP_ntc_table);
-
 		kfree(ptr_mtktsbtsfled_parm_data);
 		return count;
 	}
-
 	mtktsfled_dprintk("[%s] bad argument\n", __func__);
 	kfree(ptr_mtktsbtsfled_parm_data);
 	return -EINVAL;
 }
-
-
 static int mtkts_btsfled_param_read(struct seq_file *m, void *v)
 {
 	seq_printf(m, "%d\n", g_RAP_pull_up_R);
@@ -1236,16 +1100,12 @@ static int mtkts_btsfled_param_read(struct seq_file *m, void *v)
 	seq_printf(m, "%d\n", g_TAP_over_critical_low);
 	seq_printf(m, "%d\n", g_RAP_ntc_table);
 	seq_printf(m, "%d\n", g_RAP_ADC_channel);
-
 	return 0;
 }
-
 static int mtkts_btsfled_param_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, mtkts_btsfled_param_read, NULL);
 }
-
-
 static const struct file_operations mtktsfled_fops = {
 	.owner = THIS_MODULE,
 	.open = mtktsfled_open,
@@ -1254,7 +1114,6 @@ static const struct file_operations mtktsfled_fops = {
 	.write = mtktsfled_write,
 	.release = single_release,
 };
-
 static const struct file_operations mtkts_btsfled_param_fops = {
 	.owner = THIS_MODULE,
 	.open = mtkts_btsfled_param_open,
@@ -1263,8 +1122,6 @@ static const struct file_operations mtkts_btsfled_param_fops = {
 	.write = mtkts_btsfled_param_write,
 	.release = single_release,
 };
-
-
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
 static int mtktsfled_pdrv_probe(struct platform_device *pdev)
 {
@@ -1272,21 +1129,16 @@ static int mtktsfled_pdrv_probe(struct platform_device *pdev)
 	int ret = 0;
 	struct proc_dir_entry *entry = NULL;
 	struct proc_dir_entry *mtktsfled_dir = NULL;
-
 	mtktsfled_dprintk_always("%s\n", __func__);
-
 	if (!pdev->dev.of_node) {
 		mtktsfled_dprintk_always("[%s] Only DT based supported\n",
 			__func__);
 		return -ENODEV;
 	}
-
 	thermistor_ch2 = devm_kzalloc(&pdev->dev, sizeof(*thermistor_ch2),
 		GFP_KERNEL);
 	if (!thermistor_ch2)
 		return -ENOMEM;
-
-
 	thermistor_ch2 = iio_channel_get(&pdev->dev, "thermistor-ch2");
 	ret = IS_ERR(thermistor_ch2);
 	if (ret) {
@@ -1295,11 +1147,9 @@ static int mtktsfled_pdrv_probe(struct platform_device *pdev)
 			__func__, ret);
 		return ret;
 	}
-
 	err = mtktsfled_register_thermal();
 	if (err)
 		goto err_unreg;
-
 	mtktsfled_dir = mtk_thermal_get_proc_drv_therm_dir_entry();
 	if (!mtktsfled_dir) {
 		mtktsfled_pr_notice("%s get /proc/driver/thermal failed\n",
@@ -1309,34 +1159,26 @@ static int mtktsfled_pdrv_probe(struct platform_device *pdev)
 							&mtktsfled_fops);
 		if (entry)
 			proc_set_user(entry, uid, gid);
-
 		entry = proc_create("tzfled_param", 0664, mtktsfled_dir,
 					&mtkts_btsfled_param_fops);
 		if (entry)
 			proc_set_user(entry, uid, gid);
 	}
-
 	return 0;
-
 err_unreg:
 	mtktsfled_unregister_cooler();
-
 	return 0;
 }
-
 static int mtktsfled_pdrv_remove(struct platform_device *pdev)
 {
 	return 0;
 }
-
-
 #ifdef CONFIG_OF
 const struct of_device_id mt_thermistor_of_match3[2] = {
 	{.compatible = "mediatek,mtboard-thermistor3",},
 	{},
 };
 #endif
-
 #define THERMAL_THERMISTOR_NAME    "mtboard-thermistor3"
 static struct platform_driver mtktsfled_driver = {
 	.probe = mtktsfled_pdrv_probe,
@@ -1348,9 +1190,7 @@ static struct platform_driver mtktsfled_driver = {
 #endif
 	},
 };
-
 #endif /*CONFIG_MEDIATEK_MT6577_AUXADC*/
-
 static int __init mtktsfled_init(void)
 {
 	int err = 0;
@@ -1363,12 +1203,10 @@ static int __init mtktsfled_init(void)
 	struct proc_dir_entry *entry = NULL;
 	struct proc_dir_entry *mtktsfled_dir = NULL;
 #endif
-
 	mtkts_btsfled_prepare_table(g_RAP_ntc_table);
 	err = mtktsfled_register_cooler();
 	if (err)
 		return err;
-
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
 	err = platform_driver_register(&mtktsfled_driver);
 	if (err) {
@@ -1379,7 +1217,6 @@ static int __init mtktsfled_init(void)
 	err = mtktsfled_register_thermal();
 	if (err)
 		goto err_unreg;
-
 	mtktsfled_dir = mtk_thermal_get_proc_drv_therm_dir_entry();
 	if (!mtktsfled_dir) {
 		mtktsfled_dprintk("%s get /proc/driver/thermal failed\n",
@@ -1389,31 +1226,22 @@ static int __init mtktsfled_init(void)
 							&mtktsfled_fops);
 		if (entry)
 			proc_set_user(entry, uid, gid);
-
 		entry = proc_create("tzfled_param", 0664, mtktsfled_dir,
 					&mtkts_btsfled_param_fops);
 		if (entry)
 			proc_set_user(entry, uid, gid);
 	}
 #endif
-
 	return 0;
-
 err_unreg:
-
 	mtktsfled_unregister_cooler();
-
 	return err;
 }
-
-
 static void __exit mtktsfled_exit(void)
 {
 	mtktsfled_dprintk("%s\n", __func__);
 	mtktsfled_unregister_thermal();
 	mtktsfled_unregister_cooler();
 }
-
 late_initcall(mtktsfled_init);
 module_exit(mtktsfled_exit);
-

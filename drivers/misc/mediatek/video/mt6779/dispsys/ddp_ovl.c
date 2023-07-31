@@ -19,6 +19,8 @@
 #include "debug.h"
 #include "disp_drv_platform.h"
 #include "ddp_ovl_wcg.h"
+#include <ion.h>
+#include <ion_sec_heap.h>
 
 #define OVL_REG_BACK_MAX	(40)
 #define OVL_LAYER_OFFSET	(0x20)
@@ -183,6 +185,7 @@ static inline enum DISP_MODULE_ENUM ovl_index_to_module(int index)
 	if (index >= OVL_NUM) {
 		DDP_PR_ERR("invalid ovl index=%d\n", index);
 		ASSERT(0);
+		return DISP_MODULE_UNKNOWN;
 	}
 
 	return ovl_index_module[index];
@@ -541,18 +544,14 @@ ovl_layer_config(enum DISP_MODULE_ENUM module, unsigned int phy_layer,
 		src_y = cfg->src_y + layer_partial_roi->y - cfg->dst_y;
 
 		n = 0;
-		n = snprintf(msg, len,
+		n = scnprintf(msg, len,
 			     "layer partial (%d,%d)(%d,%d,%dx%d) to (%d,%d)(%d,%d,%dx%d)\n",
 			     cfg->src_x, cfg->src_y,
 			     cfg->dst_x, cfg->dst_y,
 			     cfg->dst_w, cfg->dst_h,
 			     src_x, src_y, dst_x,
 			     dst_y, dst_w, dst_h);
-		if (n < 0)
-			DISP_LOG_E("[%s %d]snprintf err:%d\n",
-				   __func__, __LINE__, n);
-		else
-			DDPDBG("%s", msg);
+		DDPDBG("%s", msg);
 	}
 
 	/* sbch can use the variable */
@@ -699,6 +698,7 @@ ovl_layer_config(enum DISP_MODULE_ENUM module, unsigned int phy_layer,
 
 		size = (dst_h - 1) * cfg->src_pitch + dst_w * Bpp;
 		m4u_port = module_to_m4u_port(module);
+
 		if (cfg->security != DISP_SECURE_BUFFER) {
 			/* use layer secure bit */
 			DISP_REG_SET(handle, DISP_REG_OVL_L0_ADDR +
@@ -719,11 +719,28 @@ ovl_layer_config(enum DISP_MODULE_ENUM module, unsigned int phy_layer,
 			 * cmdq sec driver will help to convert handle to
 			 * correct address
 			 */
-			cmdqRecWriteSecure(handle,
-					disp_addr_convert(DISP_REG_OVL_L0_ADDR +
-							  Lx_addr_base),
-					CMDQ_SAM_H_2_MVA, cfg->addr, offset,
-					size, m4u_port);
+			enum TRUSTED_MEM_REQ_TYPE mem_type;
+			int sec = -1, sec_id = -1;
+			ion_phys_addr_t sec_hdl = 0;
+
+			if (unlikely(!cfg->hnd)) {
+				DISP_LOG_E("NULL handle for secure layer, L%u/idx%u\n",
+					   cfg->layer, cfg->buff_idx);
+				return 0;
+			}
+
+			mem_type = ion_hdl2sec_type(cfg->hnd, &sec, &sec_id, &sec_hdl);
+			if (unlikely(mem_type < 0)) {
+				DISP_LOG_E("normal memory set as secure, L%u/idx%u\n",
+					   cfg->layer, cfg->buff_idx);
+				return 0;
+			}
+
+			cmdqRecWriteSecureMetaData(handle,
+						   disp_addr_convert(DISP_REG_OVL_L0_ADDR +
+							Lx_addr_base),
+						   CMDQ_SAM_H_2_MVA, cfg->addr, offset,
+						   size, m4u_port, mem_type);
 			if (is_ext_layer)
 				DISP_REG_SET_FIELD(handle,
 					REG_FLD_MSB_LSB(cfg->ext_layer + 4,
@@ -1025,12 +1042,29 @@ static int ovl_layer_config_compress(enum DISP_MODULE_ENUM module,
 			 * cmdq sec driver will help to convert handle to
 			 * correct address
 			 */
-			cmdqRecWriteSecure(handle,
+			enum TRUSTED_MEM_REQ_TYPE mem_type;
+			int sec = -1, sec_id = -1;
+			ion_phys_addr_t sec_hdl = 0;
+
+			if (unlikely(!cfg->hnd)) {
+				DISP_LOG_E("NULL handle for secure layer, L%u/idx%u\n",
+					   cfg->layer, cfg->buff_idx);
+				return 0;
+			}
+
+			mem_type = ion_hdl2sec_type(cfg->hnd, &sec, &sec_id, &sec_hdl);
+			if (unlikely(mem_type < 0)) {
+				DISP_LOG_E("normal memory set as secure, L%u/idx%u\n",
+					   cfg->layer, cfg->buff_idx);
+				return 0;
+			}
+
+			cmdqRecWriteSecureMetaData(handle,
 				disp_addr_convert(DISP_REG_OVL_L0_ADDR +
 						  Lx_addr_base),
 				CMDQ_SAM_H_2_MVA,
 				buf_addr + tile_offset * 256,
-				0, size, m4u_port);
+				0, size, m4u_port, mem_type);
 			if (is_ext_layer)
 				DISP_REG_SET_FIELD(handle,
 					REG_FLD_MSB_LSB(cfg->ext_layer + 4,
@@ -1398,15 +1432,11 @@ static int ovl_layer_layout(enum DISP_MODULE_ENUM module,
 			int n = 0;
 
 			if (phy_layer != cfg->ext_sel_layer) {
-				n = snprintf(msg, len,
+				n = scnprintf(msg, len,
 					     "L%d layout not match: cur_phy=%d, ext_sel=%d\n",
 					     global_layer, phy_layer,
 					     cfg->ext_sel_layer);
-				if (n < 0) {
-					DISP_LOG_E("[%s %d]snprintf err:%d\n",
-						   __func__, __LINE__, n);
-				} else
-					DISP_LOG_E("%s", msg);
+				DISP_LOG_E("%s", msg);
 				phy_layer++;
 				ext_layer = -1;
 			} else {
@@ -2217,18 +2247,14 @@ void ovl_dump_golden_setting(enum DISP_MODULE_ENUM module)
 		rg3 = DISP_REG_OVL_RDMAn_BUF_LOW(i);
 		rg4 = DISP_REG_OVL_RDMAn_BUF_HIGH(i);
 		n = 0;
-		n = snprintf(msg, len,
+		n = scnprintf(msg, len,
 			     "0x%03lx:0x%08x 0x%03lx:0x%08x 0x%03lx:0x%08x 0x%03lx:0x%08x 0x%03lx:0x%08x\n",
 			     rg0, DISP_REG_GET(rg0 + base),
 			     rg1, DISP_REG_GET(rg1 + base),
 			     rg2, DISP_REG_GET(rg2 + base),
 			     rg3, DISP_REG_GET(rg3 + base),
 			     rg4, DISP_REG_GET(rg4 + base));
-		if (n < 0) {
-			DISP_LOG_E("[%s %d]snprintf err:%d\n",
-				   __func__, __LINE__, n);
-		} else
-			DDPDUMP("%s", msg);
+		DDPDUMP("%s", msg);
 	}
 
 	rg0 = DISP_REG_OVL_RDMA_BURST_CON1;
@@ -2461,28 +2487,19 @@ void ovl_dump_reg(enum DISP_MODULE_ENUM module)
 		DDPDUMP("== START: DISP %s REGS ==\n",
 			ddp_get_module_name(module));
 		for (i = 0; i < ARRAY_SIZE(raw_dump_reg); i++) {
-			ret = snprintf(msg, len, dump_format,
-				       /* 1st reg */
-				       raw_dump_reg[i][0],
-				       INREG32(module_base +
-				       raw_dump_reg[i][0]),
-				       /* 2nd reg */
-				       raw_dump_reg[i][1],
-				       INREG32(module_base +
-				       raw_dump_reg[i][1]),
-				       /* 3rd reg */
-				       raw_dump_reg[i][2],
-				       INREG32(module_base +
-				       raw_dump_reg[i][2]),
-				       /* 4th reg */
-				       raw_dump_reg[i][3],
-				       INREG32(module_base +
-				       raw_dump_reg[i][3]));
-			if (ret < 0) {
-				DISP_LOG_E("[%s %d]snprintf err:%d, i:%d\n",
-					   __func__, __LINE__, ret, i);
-				ret = 0;
-			}
+			ret = scnprintf(msg, len, dump_format,
+				/* 1st reg */
+				raw_dump_reg[i][0],
+				INREG32(module_base + raw_dump_reg[i][0]),
+				/* 2nd reg */
+				raw_dump_reg[i][1],
+				INREG32(module_base + raw_dump_reg[i][1]),
+				/* 3rd reg */
+				raw_dump_reg[i][2],
+				INREG32(module_base + raw_dump_reg[i][2]),
+				/* 4th reg */
+				raw_dump_reg[i][3],
+				INREG32(module_base + raw_dump_reg[i][3]));
 
 			DDPDUMP("%s", msg);
 		}
@@ -2544,19 +2561,15 @@ void ovl_dump_reg(enum DISP_MODULE_ENUM module)
 			DISP_REG_GET(DISP_REG_OVL_DUMMY_REG + base),
 			DISP_REG_GET(DISP_REG_OVL_GDRDY_PRD + base));
 
-		n = snprintf(msg, len,
+		n = scnprintf(msg, len,
 			"0x230:0x%08x 0x%08x 0x240:0x%08x 0x%08x 0x2a0:0x%08x 0x%08x\n",
-			     DISP_REG_GET(DISP_REG_OVL_SMI_DBG + base),
-			     DISP_REG_GET(DISP_REG_OVL_GREQ_LAYER_CNT + base),
-			     DISP_REG_GET(DISP_REG_OVL_FLOW_CTRL_DBG + base),
-			      DISP_REG_GET(DISP_REG_OVL_ADDCON_DBG + base),
-			      DISP_REG_GET(DISP_REG_OVL_FUNC_DCM0 + base),
-			      DISP_REG_GET(DISP_REG_OVL_FUNC_DCM1 + base));
-		if (n < 0) {
-			DISP_LOG_E("[%s %d]snprintf err:%d\n",
-				   __func__, __LINE__, n);
-		} else
-			DDPDUMP("%s", msg);
+			DISP_REG_GET(DISP_REG_OVL_SMI_DBG + base),
+			DISP_REG_GET(DISP_REG_OVL_GREQ_LAYER_CNT + base),
+			DISP_REG_GET(DISP_REG_OVL_FLOW_CTRL_DBG + base),
+			DISP_REG_GET(DISP_REG_OVL_ADDCON_DBG + base),
+			DISP_REG_GET(DISP_REG_OVL_FUNC_DCM0 + base),
+			DISP_REG_GET(DISP_REG_OVL_FUNC_DCM1 + base));
+		DDPDUMP("%s", msg);
 
 		DDPDUMP("0x3A0: 0x%08x, 0x3A4: 0x%08x, 0x3A8: 0x%08x\n",
 			DISP_REG_GET(DISP_REG_OVL_SBCH + base),
@@ -2573,46 +2586,32 @@ static void ovl_printf_status(unsigned int status)
 	int n = 0;
 
 	DDPDUMP("- OVL_FLOW_CONTROL_DEBUG -\n");
-	n = snprintf(msg, len,
+	n = scnprintf(msg, len,
 		     "addcon_idle:%d,blend_idle:%d,out_valid:%d, out_ready:%d,out_idle:%d\n",
 		     (status >> 10) & (0x1),
 		     (status >> 11) & (0x1),
 		     (status >> 12) & (0x1),
 		     (status >> 13) & (0x1),
 		     (status >> 15) & (0x1));
-
-	if (n < 0) {
-		DISP_LOG_E("[%s %d]snprintf err:%d\n",
-			   __func__, __LINE__, n);
-		n = 0;
-	} else
-		DDPDUMP("%s", msg);
+	DDPDUMP("%s", msg);
 
 	DDPDUMP("rdma_idle3-0:(%d,%d,%d,%d),rst:%d\n",
 		(status >> 16) & (0x1), (status >> 17) & (0x1),
 		(status >> 18) & (0x1), (status >> 19) & (0x1),
 		(status >> 20) & (0x1));
-	n = snprintf(msg, len,
+	n = scnprintf(msg, len,
 		     "trig:%d,frame_hwrst_done:%d,frame_swrst_done:%d,frame_underrun:%d,frame_done:%d\n",
 		     (status >> 21) & (0x1), (status >> 23) & (0x1),
 		     (status >> 24) & (0x1), (status >> 25) & (0x1),
 		     (status >> 26) & (0x1));
-	if (n < 0) {
-		DISP_LOG_E("[%s %d]snprintf err:%d\n",
-			   __func__, __LINE__, n);
-	} else
-		DDPDUMP("%s", msg);
+	DDPDUMP("%s", msg);
 
-	n = snprintf(msg, len,
+	n = scnprintf(msg, len,
 		     "ovl_running:%d,ovl_start:%d,ovl_clr:%d,reg_update:%d,ovl_upd_reg:%d\n",
 		     (status >> 27) & (0x1), (status >> 28) & (0x1),
 		     (status >> 29) & (0x1), (status >> 30) & (0x1),
 		     (status >> 31) & (0x1));
-	if (n < 0)
-		DISP_LOG_E("[%s %d]snprintf err:%d\n",
-			   __func__, __LINE__, n);
-	else
-		DDPDUMP("%s", msg);
+	DDPDUMP("%s", msg);
 
 	DDPDUMP("ovl_fms_state:\n");
 	switch (status & 0x3ff) {
@@ -2727,7 +2726,7 @@ static void ovl_dump_layer_info(enum DISP_MODULE_ENUM module, int layer,
 			REG_FLD_VAL_GET(L_CON_FLD_BTSW, con),
 			REG_FLD_VAL_GET(L_CON_FLD_RGB_SWAP, con));
 
-	n = snprintf(msg, len,
+	n = scnprintf(msg, len,
 		     "%s_L%d:(%u,%u,%ux%u),pitch=%u,addr=0x%08x,fmt=%s,source=%s,aen=%u,alpha=%u\n",
 		     is_ext_layer ? "ext" : "phy", layer,
 		     offset & 0xfff, (offset >> 16) & 0xfff,
@@ -2738,11 +2737,7 @@ static void ovl_dump_layer_info(enum DISP_MODULE_ENUM module, int layer,
 		     "mem" : "constant_color",
 		     REG_FLD_VAL_GET(L_CON_FLD_AEN, con),
 		     REG_FLD_VAL_GET(L_CON_FLD_APHA, con));
-	if (n < 0) {
-		DISP_LOG_E("[%s %d]snprintf err:%d\n",
-			   __func__, __LINE__, n);
-	} else
-		DDPDUMP("%s", msg);
+	DDPDUMP("%s", msg);
 
 	ovl_dump_layer_info_compress(module, layer, is_ext_layer);
 }

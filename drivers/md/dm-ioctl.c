@@ -529,7 +529,7 @@ static int list_devices(struct file *filp, struct dm_ioctl *param, size_t param_
 	 * Grab our output buffer.
 	 */
 	nl = orig_nl = get_result_buffer(param, param_size, &len);
-	if (len < needed) {
+	if (len < needed || len < sizeof(nl->dev)) {
 		param->flags |= DM_BUFFER_FULL_FLAG;
 		goto out;
 	}
@@ -1575,6 +1575,7 @@ static int target_message(struct file *filp, struct dm_ioctl *param, size_t para
 
 	if (!argc) {
 		DMWARN("Empty message received.");
+		r = -EINVAL;
 		goto out_argv;
 	}
 
@@ -1987,45 +1988,6 @@ void dm_interface_exit(void)
 	dm_hash_exit();
 }
 
-
-/**
- * dm_ioctl_export - Permanently export a mapped device via the ioctl interface
- * @md: Pointer to mapped_device
- * @name: Buffer (size DM_NAME_LEN) for name
- * @uuid: Buffer (size DM_UUID_LEN) for uuid or NULL if not desired
- */
-int dm_ioctl_export(struct mapped_device *md, const char *name,
-		    const char *uuid)
-{
-	int r = 0;
-	struct hash_cell *hc;
-
-	if (!md) {
-		r = -ENXIO;
-		goto out;
-	}
-
-	/* The name and uuid can only be set once. */
-	mutex_lock(&dm_hash_cells_mutex);
-	hc = dm_get_mdptr(md);
-	mutex_unlock(&dm_hash_cells_mutex);
-	if (hc) {
-		DMERR("%s: already exported", dm_device_name(md));
-		r = -ENXIO;
-		goto out;
-	}
-
-	r = dm_hash_insert(name, uuid, md);
-	if (r) {
-		DMERR("%s: could not bind to '%s'", dm_device_name(md), name);
-		goto out;
-	}
-
-	/* Let udev know we've changed. */
-	dm_kobject_uevent(md, KOBJ_CHANGE, dm_get_event_nr(md));
-out:
-	return r;
-}
 /**
  * dm_copy_name_and_uuid - Copy mapped device name & uuid into supplied buffers
  * @md: Pointer to mapped_device

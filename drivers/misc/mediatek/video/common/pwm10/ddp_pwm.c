@@ -20,14 +20,17 @@
 	defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6763) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
-	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) || \
+	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT6768) || \
+	defined(CONFIG_MACH_MT6785)
 #include <ddp_clkmgr.h>
 #endif
 #endif
 #include <ddp_pwm_mux.h>
 /* #include <mach/mt_gpio.h> */
 #include <disp_dts_gpio.h> /* DTS GPIO */
-#if defined(LED_READY)
+#if defined(LED_READY) || defined(CONFIG_MACH_MT6768) || \
+	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT6785)
 #include <mtk_leds_drv.h>
 #include <mtk_leds_sw.h>
 #else
@@ -141,6 +144,9 @@ int disp_pwm_get_cust_led(unsigned int *clocksource, unsigned int *clockdiv)
 	int led_mode;
 	int pwm_config[5] = { 0 };
 
+	if (pled_dtsi)
+		return ret;
+
 	led_node = of_find_compatible_node(NULL, NULL,
 		"mediatek,lcd-backlight");
 	if (!led_node) {
@@ -241,11 +247,11 @@ static void disp_pwm_query_backlight(char *debug_output)
 
 	if (high_width > 0) {
 		/* print backlight status */
-		snprintf(temp_buf, buf_max_len,
+		scnprintf(temp_buf, buf_max_len,
 			"backlight is on (%d), ddp_pwm power:(%d)",
 			high_width, atomic_read(&g_pwm_is_power_on[index]));
 	} else {
-		snprintf(temp_buf, buf_max_len,
+		scnprintf(temp_buf, buf_max_len,
 			"backlight is off, ddp_pwm power:(%d)",
 			atomic_read(&g_pwm_is_power_on[index]));
 	}
@@ -456,10 +462,14 @@ static void disp_pwm_log(int level_1024, int log_type)
 	print_log = 0;
 
 	if (g_pwm_log_index >= g_pwm_log_num || level_1024 == 0) {
-		sprintf(buffer + strlen(buffer), "(latest=%2u): ",
+		scnprintf(buffer + strlen(buffer),
+			sizeof(buffer) - strlen(buffer),
+			"(latest=%2u): ",
 			g_pwm_log_index);
 		for (i = 0; i < g_pwm_log_index; i += 1) {
-			sprintf(buffer + strlen(buffer), "%5d(%4lu,%4lu)",
+			scnprintf(buffer + strlen(buffer),
+				sizeof(buffer) - strlen(buffer),
+				"%5d(%4lu,%4lu)",
 				g_pwm_log_buffer[i].value,
 				g_pwm_log_buffer[i].tsec,
 				g_pwm_log_buffer[i].tusec);
@@ -632,13 +642,14 @@ static int ddp_pwm_power_on(enum DISP_MODULE_ENUM module, void *handle)
 
 #if defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
-	defined(CONFIG_MACH_MT6761)
+	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6768)
 	/* pwm ccf api */
 	ddp_clk_prepare_enable(ddp_get_module_clk_id(module));
-#elif defined(CONFIG_MACH_MT6763)
+#elif defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6771)
 	ddp_clk_prepare_enable(ddp_get_module_clk_id(module));
 	ddp_clk_prepare_enable(TOP_MUX_DISP_PWM);
-#elif defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
+#elif defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) || \
+	defined(CONFIG_MACH_MT6785)
 	ddp_clk_prepare_enable(ddp_get_module_clk_id(module));
 	ddp_clk_prepare_enable(CLK_MUX_DISP_PWM);
 #else
@@ -690,13 +701,14 @@ static int ddp_pwm_power_off(enum DISP_MODULE_ENUM module, void *handle)
 
 #if defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
-	defined(CONFIG_MACH_MT6761)
+	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6768)
 	/* pwm ccf api */
 	ddp_clk_disable_unprepare(ddp_get_module_clk_id(module));
-#elif defined(CONFIG_MACH_MT6763)
+#elif defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6771)
 	ddp_clk_disable_unprepare(ddp_get_module_clk_id(module));
 	ddp_clk_disable_unprepare(TOP_MUX_DISP_PWM);
-#elif defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
+#elif defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) || \
+	defined(CONFIG_MACH_MT6785)
 	ddp_clk_disable_unprepare(ddp_get_module_clk_id(module));
 	ddp_clk_disable_unprepare(CLK_MUX_DISP_PWM);
 #else
@@ -771,7 +783,8 @@ bool disp_pwm_is_osc(void)
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
 	defined(CONFIG_MACH_MT6758) || defined(CONFIG_MACH_MT6765) || \
 	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT3967) || \
-	defined(CONFIG_MACH_MT6779)
+	defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6768) || \
+	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT6785)
 
 	is_osc = disp_pwm_mux_is_osc();
 #endif

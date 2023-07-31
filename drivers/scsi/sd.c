@@ -134,6 +134,10 @@ static DEFINE_MUTEX(sd_ref_mutex);
 static struct kmem_cache *sd_cdb_cache;
 static mempool_t *sd_cdb_pool;
 static mempool_t *sd_page_pool;
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+#define SD_NUM 3
+extern struct gendisk *ufs_disk[];
+#endif
 
 static const char *sd_cache_types[] = {
 	"write through", "none", "write back",
@@ -1579,8 +1583,20 @@ static unsigned int sd_check_events(struct gendisk *disk, unsigned int clearing)
 	if (scsi_block_when_processing_errors(sdp)) {
 		struct scsi_sense_hdr sshdr = { 0, };
 
+		/*
+		 * It may cause some issue when sending test unit ready
+		 * while suspending. So get and put pm_runtime before
+		 * and after call scsi_test_unit_ready().
+		 *
+		 */
+		retval = scsi_autopm_get_device(sdp);
+		if (retval)
+			goto out;
+
 		retval = scsi_test_unit_ready(sdp, SD_TIMEOUT, SD_MAX_RETRIES,
 					      &sshdr);
+
+		scsi_autopm_put_device(sdp);
 
 		/* failed to execute TUR, assume media not present */
 		if (host_byte(retval)) {
@@ -1643,6 +1659,14 @@ static int sd_sync_cache(struct scsi_disk *sdkp, struct scsi_sense_hdr *sshdr)
 
 	if (res) {
 		sd_print_result(sdkp, "Synchronize Cache(10) failed", res);
+
+		/*
+		 * MTK PATCH
+		 * pass the error code to the
+		 * generic layer
+		 */
+		if (res == -EAGAIN)
+			return res;
 
 		if (driver_byte(res) == DRIVER_SENSE)
 			sd_print_sense_hdr(sdkp, sshdr);
@@ -3217,7 +3241,8 @@ static int sd_revalidate_disk(struct gendisk *disk)
 
 	if (sd_validate_opt_xfer_size(sdkp, dev_max)) {
 		q->limits.io_opt = logical_to_bytes(sdp, sdkp->opt_xfer_blocks);
-		rw_max = logical_to_sectors(sdp, sdkp->opt_xfer_blocks);
+		rw_max = q->limits.io_opt =
+			sdkp->opt_xfer_blocks * sdp->sector_size;
 	} else {
 		q->limits.io_opt = 0;
 		rw_max = min_not_zero(logical_to_sectors(sdp, dev_max),
@@ -3407,7 +3432,9 @@ static int sd_probe(struct device *dev)
 	struct gendisk *gd;
 	int index;
 	int error;
-
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+	static int num = 0;
+#endif
 	scsi_autopm_get_device(sdp);
 	error = -ENODEV;
 	if (sdp->type != TYPE_DISK &&
@@ -3443,7 +3470,10 @@ static int sd_probe(struct device *dev)
 		sdev_printk(KERN_WARNING, sdp, "SCSI disk (sd) name length exceeded.\n");
 		goto out_free_index;
 	}
-
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+	if(num < SD_NUM)
+		ufs_disk[num++] = gd;
+#endif
 	sdkp->device = sdp;
 	sdkp->driver = &sd_template;
 	sdkp->disk = gd;
@@ -3619,6 +3649,15 @@ static int sd_start_stop_device(struct scsi_disk *sdkp, int start)
 			SD_TIMEOUT, SD_MAX_RETRIES, 0, RQF_PM, NULL);
 	if (res) {
 		sd_print_result(sdkp, "Start/Stop Unit failed", res);
+
+		/*
+		 * MTK PATCH
+		 * scsi_execute() will return -EAGAIN if failed to
+		 * alloc request form get_request()
+		 */
+		if (res == -EAGAIN)
+			return res;
+
 		if (driver_byte(res) == DRIVER_SENSE)
 			sd_print_sense_hdr(sdkp, &sshdr);
 		if (scsi_sense_valid(&sshdr) &&
@@ -3663,7 +3702,7 @@ static void sd_shutdown(struct device *dev)
 static int sd_suspend_common(struct device *dev, bool ignore_stop_errors)
 {
 	struct scsi_disk *sdkp = dev_get_drvdata(dev);
-	struct scsi_sense_hdr sshdr;
+	struct scsi_sense_hdr sshdr = {0};
 	int ret = 0;
 
 	if (!sdkp)	/* E.g.: runtime suspend following sd_remove() */

@@ -27,6 +27,7 @@
 #include <linux/interrupt.h>
 #include <linux/kthread.h>
 #include <linux/freezer.h>
+#include <linux/kref.h>
 
 #include <linux/types.h>
 #include <linux/file.h>
@@ -41,10 +42,6 @@
 
 #include <linux/configfs.h>
 #include <linux/usb/composite.h>
-
-#ifdef CONFIG_USB_NOTIFY_PROC_LOG
-#include <linux/usblog_proc_notify.h>
-#endif
 
 #define MAX_INST_NAME_LEN        40
 #define BULK_BUFFER_SIZE    16384
@@ -77,6 +74,7 @@ struct acc_dev {
 	struct usb_function function;
 	struct usb_composite_dev *cdev;
 	spinlock_t lock;
+	struct acc_dev_ref *ref;
 
 	struct usb_ep *ep_in;
 	struct usb_ep *ep_out;
@@ -84,13 +82,13 @@ struct acc_dev {
 	/* online indicates state of function_set_alt & function_unbind
 	 * set to 1 when we connect
 	 */
-	int online:1;
+	int online;
 
 	/* disconnected indicates state of open & release
 	 * Set to 1 when we disconnect.
 	 * Not cleared until our file is closed.
 	 */
-	int disconnected:1;
+	int disconnected;
 
 	/* strings sent by the host */
 	char manufacturer[ACC_STRING_SIZE];
@@ -203,13 +201,47 @@ static struct usb_gadget_strings *acc_strings[] = {
 	NULL,
 };
 
-/* temporary variable used between acc_open() and acc_gadget_bind() */
-static struct acc_dev *_acc_dev;
+struct acc_dev_ref {
+	struct kref	kref;
+	struct acc_dev	*acc_dev;
+};
+
+static struct acc_dev_ref _acc_dev_ref = {
+	.kref = KREF_INIT(0),
+};
 
 struct acc_instance {
 	struct usb_function_instance func_inst;
 	const char *name;
 };
+
+static struct acc_dev *get_acc_dev(void)
+{
+	struct acc_dev_ref *ref = &_acc_dev_ref;
+
+	return kref_get_unless_zero(&ref->kref) ? ref->acc_dev : NULL;
+}
+
+static void __put_acc_dev(struct kref *kref)
+{
+	struct acc_dev_ref *ref = container_of(kref, struct acc_dev_ref, kref);
+	struct acc_dev *dev = ref->acc_dev;
+
+	/* Cancel any async work */
+	cancel_delayed_work_sync(&dev->start_work);
+	cancel_work_sync(&dev->hid_work);
+
+	ref->acc_dev = NULL;
+	kfree(dev);
+}
+
+static void put_acc_dev(struct acc_dev *dev)
+{
+	struct acc_dev_ref *ref = dev->ref;
+
+	WARN_ON(ref->acc_dev != dev);
+	kref_put(&ref->kref, __put_acc_dev);
+}
 
 static inline struct acc_dev *func_to_dev(struct usb_function *f)
 {
@@ -276,7 +308,10 @@ static void acc_set_disconnected(struct acc_dev *dev)
 
 static void acc_complete_in(struct usb_ep *ep, struct usb_request *req)
 {
-	struct acc_dev *dev = _acc_dev;
+	struct acc_dev *dev = get_acc_dev();
+
+	if (!dev)
+		return;
 
 	if (req->status == -ESHUTDOWN) {
 		pr_debug("acc_complete_in set disconnected");
@@ -286,11 +321,15 @@ static void acc_complete_in(struct usb_ep *ep, struct usb_request *req)
 	req_put(dev, &dev->tx_idle, req);
 
 	wake_up(&dev->write_wq);
+	put_acc_dev(dev);
 }
 
 static void acc_complete_out(struct usb_ep *ep, struct usb_request *req)
 {
-	struct acc_dev *dev = _acc_dev;
+	struct acc_dev *dev = get_acc_dev();
+
+	if (!dev)
+		return;
 
 	dev->rx_done = 1;
 	if (req->status == -ESHUTDOWN) {
@@ -299,16 +338,8 @@ static void acc_complete_out(struct usb_ep *ep, struct usb_request *req)
 	}
 
 	wake_up(&dev->read_wq);
+	put_acc_dev(dev);
 }
-
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-static void acc_ctrlrequest_complete(struct usb_ep *ep, struct usb_request *req)
-{
-	if (req->status != 0) {
-		pr_err("acc_ctrlrequest_complete, err %d\n", req->status);
-	}
-}
-#endif
 
 static void acc_complete_set_string(struct usb_ep *ep, struct usb_request *req)
 {
@@ -580,7 +611,9 @@ static ssize_t acc_read(struct file *fp, char __user *buf,
 {
 	struct acc_dev *dev = fp->private_data;
 	struct usb_request *req;
-	ssize_t r = count, xfer, len;
+	ssize_t r = count;
+	ssize_t data_length;
+	unsigned xfer;
 	int ret = 0;
 
 	pr_debug("acc_read(%zu)\n", count);
@@ -601,7 +634,14 @@ static ssize_t acc_read(struct file *fp, char __user *buf,
 		goto done;
 	}
 
-	len = ALIGN(count, dev->ep_out->maxpacket);
+	/*
+	 * Calculate the data length by considering termination character.
+	 * Then compansite the difference of rounding up to
+	 * integer multiple of maxpacket size.
+	 */
+	data_length = count;
+	data_length += dev->ep_out->maxpacket - 1;
+	data_length -= data_length % dev->ep_out->maxpacket;
 
 	if (dev->rx_done) {
 		// last req cancelled. try to get it.
@@ -612,14 +652,14 @@ static ssize_t acc_read(struct file *fp, char __user *buf,
 requeue_req:
 	/* queue a request */
 	req = dev->rx_req[0];
-	req->length = len;
+	req->length = data_length;
 	dev->rx_done = 0;
 	ret = usb_ep_queue(dev->ep_out, req, GFP_KERNEL);
 	if (ret < 0) {
 		r = -EIO;
 		goto done;
 	} else {
-		pr_debug("rx %pK queue\n", req);
+		pr_debug("rx %p queue\n", req);
 	}
 
 	/* wait for a request to complete */
@@ -642,7 +682,7 @@ copy_data:
 		if (req->actual == 0)
 			goto requeue_req;
 
-		pr_debug("rx %pK %u\n", req, req->actual);
+		pr_debug("rx %p %u\n", req, req->actual);
 		xfer = (req->actual < count) ? req->actual : count;
 		r = xfer;
 		if (copy_to_user(buf, req->buf, xfer))
@@ -766,25 +806,36 @@ static long acc_ioctl(struct file *fp, unsigned code, unsigned long value)
 
 static int acc_open(struct inode *ip, struct file *fp)
 {
-	if (atomic_xchg(&_acc_dev->open_excl, 1)) {
-		printk(KERN_INFO "usb: acc_open_EBUSY\n");
+	struct acc_dev *dev = get_acc_dev();
+
+	if (!dev)
+		return -ENODEV;
+
+	if (atomic_xchg(&dev->open_excl, 1)) {
+		put_acc_dev(dev);
 		return -EBUSY;
 	}
-	printk(KERN_INFO "usb: acc_open\n");
-	_acc_dev->disconnected = 0;
-	fp->private_data = _acc_dev;
+
+	dev->disconnected = 0;
+	fp->private_data = dev;
 	return 0;
 }
 
 static int acc_release(struct inode *ip, struct file *fp)
 {
-	printk(KERN_INFO "acc_release\n");
+	struct acc_dev *dev = fp->private_data;
 
-	WARN_ON(!atomic_xchg(&_acc_dev->open_excl, 0));
+	if (!dev)
+		return -ENOENT;
+
 	/* indicate that we are disconnected
 	 * still could be online so don't touch online flag
 	 */
-	_acc_dev->disconnected = 1;
+	dev->disconnected = 1;
+
+	fp->private_data = NULL;
+	WARN_ON(!atomic_xchg(&dev->open_excl, 0));
+	put_acc_dev(dev);
 	return 0;
 }
 
@@ -840,7 +891,7 @@ static void acc_complete_setup_noop(struct usb_ep *ep, struct usb_request *req)
 int acc_ctrlrequest(struct usb_composite_dev *cdev,
 				const struct usb_ctrlrequest *ctrl)
 {
-	struct acc_dev	*dev = _acc_dev;
+	struct acc_dev	*dev = get_acc_dev();
 	int	value = -EOPNOTSUPP;
 	struct acc_hid_dev *hid;
 	int offset;
@@ -851,15 +902,12 @@ int acc_ctrlrequest(struct usb_composite_dev *cdev,
 	u16	w_length = le16_to_cpu(ctrl->wLength);
 	unsigned long flags;
 
-/*
-	printk(KERN_INFO "acc_ctrlrequest "
-			"%02x.%02x v%04x i%04x l%u\n",
-			b_requestType, b_request,
-			w_value, w_index, w_length);
-*/
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	cdev->req->complete = acc_ctrlrequest_complete;
-#endif
+	/*
+	 * If instance is not created which is the case in power off charging
+	 * mode, dev will be NULL. Hence return error if it is the case.
+	 */
+	if (!dev)
+		return -ENODEV;
 
 	if (b_requestType == (USB_DIR_OUT | USB_TYPE_VENDOR)) {
 		if (b_request == ACCESSORY_START) {
@@ -948,9 +996,30 @@ err:
 			"%02x.%02x v%04x i%04x l%u\n",
 			ctrl->bRequestType, ctrl->bRequest,
 			w_value, w_index, w_length);
+	put_acc_dev(dev);
 	return value;
 }
 EXPORT_SYMBOL_GPL(acc_ctrlrequest);
+
+int acc_ctrlrequest_composite(struct usb_composite_dev *cdev,
+			      const struct usb_ctrlrequest *ctrl)
+{
+	u16 w_length = le16_to_cpu(ctrl->wLength);
+
+	if (w_length > USB_COMP_EP0_BUFSIZ) {
+		if (ctrl->bRequestType & USB_DIR_IN) {
+			/* Cast away the const, we are going to overwrite on purpose. */
+			__le16 *temp = (__le16 *)&ctrl->wLength;
+
+			*temp = cpu_to_le16(USB_COMP_EP0_BUFSIZ);
+			w_length = USB_COMP_EP0_BUFSIZ;
+		} else {
+			return -EINVAL;
+		}
+	}
+	return acc_ctrlrequest(cdev, ctrl);
+}
+EXPORT_SYMBOL_GPL(acc_ctrlrequest_composite);
 
 static int
 __acc_function_bind(struct usb_configuration *c,
@@ -961,7 +1030,7 @@ __acc_function_bind(struct usb_configuration *c,
 	int			id;
 	int			ret;
 
-	DBG(cdev, "acc_function_bind dev: %pK\n", dev);
+	DBG(cdev, "acc_function_bind dev: %p\n", dev);
 
 	if (configfs) {
 		if (acc_string_defs[INTERFACE_STRING_INDEX].id == 0) {
@@ -1018,10 +1087,6 @@ kill_all_hid_devices(struct acc_dev *dev)
 	struct list_head *entry, *temp;
 	unsigned long flags;
 
-	/* do nothing if usb accessory device doesn't exist */
-	if (!dev)
-		return;
-
 	spin_lock_irqsave(&dev->lock, flags);
 	list_for_each_safe(entry, temp, &dev->hid_list) {
 		hid = list_entry(entry, struct acc_hid_dev, list);
@@ -1067,11 +1132,8 @@ acc_function_unbind(struct usb_configuration *c, struct usb_function *f)
 static void acc_start_work(struct work_struct *data)
 {
 	char *envp[2] = { "ACCESSORY=START", NULL };
-	printk(KERN_INFO "usb: Send uevent, ACCESSORY=START\n");
+
 	kobject_uevent_env(&acc_device.this_device->kobj, KOBJ_CHANGE, envp);
-#ifdef CONFIG_USB_NOTIFY_PROC_LOG
-	store_usblog_notify(NOTIFY_USBSTATE, (void *)envp[0], NULL);
-#endif
 }
 
 static int acc_hid_init(struct acc_hid_dev *hdev)
@@ -1109,11 +1171,14 @@ static void acc_hid_delete(struct acc_hid_dev *hid)
 
 static void acc_hid_work(struct work_struct *data)
 {
-	struct acc_dev *dev = _acc_dev;
+	struct acc_dev *dev = get_acc_dev();
 	struct list_head	*entry, *temp;
 	struct acc_hid_dev *hid;
 	struct list_head	new_list, dead_list;
 	unsigned long flags;
+
+	if (!dev)
+		return;
 
 	INIT_LIST_HEAD(&new_list);
 
@@ -1160,6 +1225,8 @@ static void acc_hid_work(struct work_struct *data)
 			hid_destroy_device(hid->hid);
 		acc_hid_delete(hid);
 	}
+
+	put_acc_dev(dev);
 }
 
 static int acc_function_set_alt(struct usb_function *f,
@@ -1216,8 +1283,12 @@ static void acc_function_disable(struct usb_function *f)
 
 static int acc_setup(void)
 {
+	struct acc_dev_ref *ref = &_acc_dev_ref;
 	struct acc_dev *dev;
 	int ret;
+
+	if (kref_read(&ref->kref))
+		return -EBUSY;
 
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
 	if (!dev)
@@ -1234,16 +1305,22 @@ static int acc_setup(void)
 	INIT_DELAYED_WORK(&dev->start_work, acc_start_work);
 	INIT_WORK(&dev->hid_work, acc_hid_work);
 
+	dev->ref = ref;
+	if (cmpxchg_relaxed(&ref->acc_dev, NULL, dev)) {
+		ret = -EBUSY;
+		goto err_free_dev;
+	}
+
 	ret = misc_register(&acc_device);
 	if (ret)
-		goto err;
+		goto err_zap_ptr;
 
-	/* _acc_dev must be set before calling usb_gadget_register_driver */
-	_acc_dev = dev;
-
+	kref_init(&ref->kref);
 	return 0;
 
-err:
+err_zap_ptr:
+	ref->acc_dev = NULL;
+err_free_dev:
 	kfree(dev);
 	pr_err("USB accessory gadget driver failed to initialize\n");
 	return ret;
@@ -1251,16 +1328,24 @@ err:
 
 void acc_disconnect(void)
 {
+	struct acc_dev *dev = get_acc_dev();
+
+	if (!dev)
+		return;
+
 	/* unregister all HID devices if USB is disconnected */
-	kill_all_hid_devices(_acc_dev);
+	kill_all_hid_devices(dev);
+	put_acc_dev(dev);
 }
 EXPORT_SYMBOL_GPL(acc_disconnect);
 
 static void acc_cleanup(void)
 {
+	struct acc_dev *dev = get_acc_dev();
+
 	misc_deregister(&acc_device);
-	kfree(_acc_dev);
-	_acc_dev = NULL;
+	put_acc_dev(dev);
+	put_acc_dev(dev); /* Pairs with kref_init() in acc_setup() */
 }
 static struct acc_instance *to_acc_instance(struct config_item *item)
 {
@@ -1320,7 +1405,6 @@ static void acc_free_inst(struct usb_function_instance *fi)
 static struct usb_function_instance *acc_alloc_inst(void)
 {
 	struct acc_instance *fi_acc;
-	struct acc_dev *dev;
 	int err;
 
 	fi_acc = kzalloc(sizeof(*fi_acc), GFP_KERNEL);
@@ -1332,19 +1416,19 @@ static struct usb_function_instance *acc_alloc_inst(void)
 	err = acc_setup();
 	if (err) {
 		kfree(fi_acc);
-		pr_err("Error setting ACCESSORY\n");
 		return ERR_PTR(err);
 	}
 
 	config_group_init_type_name(&fi_acc->func_inst.group,
 					"", &acc_func_type);
-	dev = _acc_dev;
 	return  &fi_acc->func_inst;
 }
 
 static void acc_free(struct usb_function *f)
 {
-/*NO-OP: no function specific resource allocation in mtp_alloc*/
+	struct acc_dev *dev = func_to_dev(f);
+
+	put_acc_dev(dev);
 }
 
 int acc_ctrlrequest_configfs(struct usb_function *f,
@@ -1357,9 +1441,7 @@ int acc_ctrlrequest_configfs(struct usb_function *f,
 
 static struct usb_function *acc_alloc(struct usb_function_instance *fi)
 {
-	struct acc_dev *dev = _acc_dev;
-
-	pr_info("acc_alloc\n");
+	struct acc_dev *dev = get_acc_dev();
 
 	dev->function.name = "accessory";
 	dev->function.strings = acc_strings,

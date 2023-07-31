@@ -1675,6 +1675,7 @@ static kal_uint32 set_test_pattern_mode(kal_bool enable)
 
 	return ERROR_NONE;
 }
+
 //+bug682590 liudijin.wt, add, 2021/8/26, gc5035 otp porting
 #include "cam_cal_define.h"
 #include <linux/slab.h>
@@ -1689,7 +1690,7 @@ static struct stCAM_CAL_DATAINFO_STRUCT n23_gc5035_front_ly_eeprom_data ={
 static struct stCAM_CAL_CHECKSUM_STRUCT n23_gc5035_front_ly_checksum[8] =
 {
 	{MODULE_ITEM,0x0000,0x0000,0x0007,0x0008,0x55},
-       {SN_DATA,0x0009,0x0009,0x0015,0x0016,0x55},
+	{SN_DATA,0x0009,0x0009,0x0015,0x0016,0x55},
 	{AWB_ITEM,0x0017,0x0017,0x0027,0x0028,0x55},
 	{LSC_ITEM,0x0029,0x0029,0x0775,0x0776,0x55},
 	{TOTAL_ITEM,0x0000,0x0000,0x0776,0x0777,0x55},
@@ -1714,8 +1715,8 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 		do {
 			*sensor_id = return_sensor_id();
 			if (*sensor_id == imgsensor_info.sensor_id) {
-		                gc5035_otp_identify();
-                               //+bug682590 liudijin.wt, add, 2021/8/26, gc5035 otp porting
+				gc5035_otp_identify();
+				//+bug682590 liudijin.wt, add, 2021/8/26, gc5035 otp porting
 				size = imgSensorReadEepromData(&n23_gc5035_front_ly_eeprom_data,n23_gc5035_front_ly_checksum);
 				if(size != n23_gc5035_front_ly_eeprom_data.dataLength || (n23_gc5035_front_ly_eeprom_data.sensorVendorid >> 24)!= read_eeprom(0x0001)) {
 					pr_err("get eeprom data failed\n");

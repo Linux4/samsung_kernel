@@ -111,6 +111,9 @@
 #endif
 #define DRIVER_VERSION			"3.0.7.0.210618"
 
+static struct workqueue_struct	*tpd_resume_wq;
+static struct work_struct	tpd_resume_work;
+
 /* Options */
 #define TDDI_INTERFACE			BUS_SPI /* BUS_I2C(0x18) or BUS_SPI(0x1C) */
 #define VDD_VOLTAGE			1800000
@@ -354,7 +357,8 @@ enum TP_MODEL {
 	MODEL_INX,
 	MODEL_DJ,
 	MODEL_TXD,
-	MODEL_TM
+	MODEL_TM,
+	MODEL_TRULY
 };
 
 enum TP_ERR_CODE {
@@ -856,7 +860,7 @@ struct report_info_block {
 #define POSITION_HIGH_RESOLUTION	0x01
 #define POSITION_CUSTOMER_TYPE_ON	0x00
 #define POSITION_CUSTOMER_TYPE_OFF	0x1F
-
+extern struct ilitek_ts_data *ilits;
 struct ilitek_ts_data {
 	struct i2c_client *i2c;
 	struct spi_device *spi;

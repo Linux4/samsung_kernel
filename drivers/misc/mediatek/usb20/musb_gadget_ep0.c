@@ -10,6 +10,14 @@
 #include <linux/device.h>
 #include <linux/interrupt.h>
 
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#if IS_ENABLED( CONFIG_TCPC_CLASS)
+#include <linux/usb/composite.h>
+#include "tcpm.h"
+#include "tcpci_core.h"
+#endif
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
+
 #include "musb_core.h"
 
 /* ep0 is always musb->endpoints[0].ep_in */
@@ -137,6 +145,99 @@ static int service_tx_status_request(
 	return handled;
 }
 
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#if IS_ENABLED(CONFIG_TCPC_CLASS)
+static bool is_usb_pd(void)
+{
+	struct tcpc_device *tcpc_dev;
+	struct pd_port *pd_port;
+	tcpc_dev = tcpc_dev_get_by_name("type_c_port0");
+	if (!tcpc_dev) {
+		pr_err("%s: get tcpc_dev failed\n", __func__);
+		return false;
+	}
+	pd_port = &tcpc_dev->pd_port;
+	pr_err("%s pe_ready=%d,pd_port=%d\n", __func__, pd_port->pe_data.pe_ready, pd_port->pe_data.pd_connected);
+
+	if (pd_port->pe_data.pd_connected)
+		return true;
+	else
+		return false;
+}
+
+static void config_desc(struct usb_composite_dev *cdev, unsigned w_value)
+{
+        struct usb_gadget               *gadget = cdev->gadget;
+        struct usb_configuration        *c;
+        struct list_head                *pos;
+        u8                              type = w_value >> 8;
+        enum usb_device_speed           speed = USB_SPEED_UNKNOWN;
+
+        if (gadget->speed >= USB_SPEED_SUPER)
+                speed = gadget->speed;
+        else if (gadget_is_dualspeed(gadget)) {
+                int     hs = 0;
+                if (gadget->speed == USB_SPEED_HIGH)
+                        hs = 1;
+                if (type == USB_DT_OTHER_SPEED_CONFIG)
+                        hs = !hs;
+                if (hs)
+                        speed = USB_SPEED_HIGH;
+
+        }
+
+        /* This is a lookup by config *INDEX* */
+        w_value &= 0xff;
+
+        pos = &cdev->configs;
+        c = cdev->os_desc_config;
+        if (c)
+                goto check_config;
+
+        while ((pos = pos->next) !=  &cdev->configs) {
+                c = list_entry(pos, typeof(*c), list);
+
+                /* skip OS Descriptors config which is handled separately */
+                if (c == cdev->os_desc_config)
+                        continue;
+
+check_config:
+                /* ignore configs that won't work at this speed */
+                switch (speed) {
+                case USB_SPEED_SUPER_PLUS:
+                        if (!c->superspeed_plus)
+                                continue;
+                        break;
+                case USB_SPEED_SUPER:
+                        if (!c->superspeed)
+                                continue;
+                        break;
+                case USB_SPEED_HIGH:
+                        if (!c->highspeed)
+                                continue;
+                        break;
+                default:
+                        if (!c->fullspeed)
+                                continue;
+                }
+
+                if (w_value == 0) {
+			if (is_usb_pd()) {
+				c->bmAttributes |= USB_CONFIG_ATT_SELFPOWER;
+				c->MaxPower = 0;
+			} else {
+				c->bmAttributes &= ~USB_CONFIG_ATT_SELFPOWER;
+				c->MaxPower = 500;
+			}
+			return;
+		}
+                w_value--;
+        }
+        return;
+}
+#endif
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
+
 /*
  * handle a control-IN request, the end0 buffer contains the current request
  * that is supposed to be a standard control request. Assumes the fifo to
@@ -153,6 +254,14 @@ service_in_request(struct musb *musb, const struct usb_ctrlrequest *ctrlrequest)
 {
 	int handled = 0;	/* not handled */
 
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#if IS_ENABLED(CONFIG_TCPC_CLASS)
+	struct usb_composite_dev *cdev = (musb->g).ep0->driver_data;
+	u16 w_value = le16_to_cpu(ctrlrequest->wValue);
+#else
+#endif
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
+
 	if ((ctrlrequest->bRequestType & USB_TYPE_MASK)
 			== USB_TYPE_STANDARD) {
 		switch (ctrlrequest->bRequest) {
@@ -162,6 +271,17 @@ service_in_request(struct musb *musb, const struct usb_ctrlrequest *ctrlrequest)
 			break;
 
 		/* case USB_REQ_SYNC_FRAME: */
+
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#if IS_ENABLED(CONFIG_TCPC_CLASS)
+		case USB_REQ_GET_DESCRIPTOR:
+			if ((w_value >> 8) == USB_DT_CONFIG) {
+				config_desc(cdev, w_value);
+			}
+			break;
+#endif
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
+
 
 		default:
 			break;
@@ -415,13 +535,14 @@ __acquires(musb->lock)
 						goto stall;
 					}
 
+#ifdef CONFIG_MTK_MUSB_PHY
 					if (musb->usb_rev6_setting &&
 						(musb->test_mode_nr ==
 						MUSB_TEST_K ||
 						musb->test_mode_nr ==
 						MUSB_TEST_J))
 						musb->usb_rev6_setting(0x0);
-
+#endif
 					/* enter test mode after irq */
 #if defined(CONFIG_USBIF_COMPLIANCE)
 					if (handled > 0 &&
@@ -730,6 +851,19 @@ __acquires(musb->lock)
  *
  * Context: irq handler; we won't re-enter the driver that way.
  */
+
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+extern struct musb *mtk_musb;
+
+#define USBPHY_WRITE32(offset, value) \
+	writel(value, (void __iomem *)\
+		(((unsigned long)mtk_musb->xceiv->io_priv)+USB_PHY_OFFSET+offset))
+#define USBPHY_SET32(offset, mask) \
+	USBPHY_WRITE32(offset, (USBPHY_READ32(offset)) | (mask))
+#define USBPHY_CLR32(offset, mask) \
+	USBPHY_WRITE32(offset, (USBPHY_READ32(offset)) & (~(mask)))
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
+
 irqreturn_t musb_g_ep0_irq(struct musb *musb)
 {
 	u16		csr;
@@ -826,6 +960,15 @@ irqreturn_t musb_g_ep0_irq(struct musb *musb)
 		else if (musb->test_mode) {
 			DBG(0, "entering TESTMODE\n");
 			musb_sync_with_bat(musb, USB_SUSPEND);
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+			if (musb->test_mode_nr == MUSB_TEST_PACKET) {
+				USBPHY_CLR32(0x18, 0x3 << 30);
+				USBPHY_SET32(0x18, 0x3 << 30);
+			} else {
+				USBPHY_CLR32(0x18, 0x3 << 30);
+				USBPHY_SET32(0x18, 0x0 << 30);
+			}
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 			if (musb->test_mode_nr == MUSB_TEST_PACKET)
 				musb_load_testpacket(musb);
 
@@ -1043,13 +1186,23 @@ musb_g_ep0_queue(struct usb_ep *e, struct usb_request *r, gfp_t gfp_flags)
 	req->tx = ep->is_in;
 
 	spin_lock_irqsave(&musb->lock, lockflags);
-
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_WT_PROJECT_S96902AA1)
 	// if (!musb->is_active) {
 	// 	DBG(0, "ep0 request queued when usb not active\n");
 	// 	status = -EINVAL;
 	// 	goto cleanup;
 	// }
-
+#else
+//Bug+715587,houdujing.wt,add 2022.5.11,modify for usb connect with iMAC by smart switch
+#ifndef CONFIG_WT_PROJECT_S96616AA1
+	if (!musb->is_active) {
+		DBG(0, "ep0 request queued when usb not active\n");
+		status = -EINVAL;
+		goto cleanup;
+	}
+//Bug-715587,houdujing.wt,add 2022.5.11,modify for usb connect with iMAC by smart switch
+#endif
+#endif
 	if (!list_empty(&ep->req_list)) {
 		status = -EBUSY;
 		goto cleanup;

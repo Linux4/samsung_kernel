@@ -41,9 +41,13 @@
 
 #define LOG_TAG "<AW_LOG>"
 #define LOG_INFO(fmt, args...)  pr_info(LOG_TAG "[INFO]" "<%s><%d>"fmt, __func__, __LINE__, ##args)
-
+static int user_test = 0;
+static uint8_t force_report_far = 1;
 static int mEnabled;
 aw9610x_t aw9610x_ptr;
+#ifdef ANFR_TEST
+#define MAX_INT_COUNT 20
+#endif
 /******************************************************
 *
 * aw9610x i2c write/read
@@ -541,7 +545,38 @@ static void aw9610x_datablock_load(struct device *dev, const char *buf)
 	aw9610x->aw_i2c_package.p_reg_data = reg_data;
 	i2c_write_seq(aw9610x);
 }
-
+#ifdef ANFR_TEST
+static uint32_t read_ch0_offset(void)
+{
+	uint32_t coff_data = 0;
+	aw9610x_t this = aw9610x_ptr;
+	uint32_t reg_val = 0;
+	aw9610x_i2c_read(this, REG_AFECFG1_CH0, &reg_val);
+	coff_data = (reg_val >> 24) * 900 +
+					((reg_val >> 16) & 0xff) * 13;
+	return coff_data/1000;
+}
+static uint32_t read_ch2_offset(void)
+{
+	uint32_t coff_data = 0;
+	aw9610x_t this = aw9610x_ptr;
+	uint32_t reg_val = 0;
+	aw9610x_i2c_read(this, REG_AFECFG1_CH0 + 40, &reg_val);
+	coff_data = (reg_val >> 24) * 900 +
+					((reg_val >> 16) & 0xff) * 13;
+	return coff_data/1000;
+}
+static uint32_t read_ch3_offset(void)
+{
+	uint32_t coff_data = 0;
+	aw9610x_t this = aw9610x_ptr;
+	uint32_t reg_val = 0;
+	aw9610x_i2c_read(this, REG_AFECFG1_CH0 + 60, &reg_val);
+	coff_data = (reg_val >> 24) * 900 +
+					((reg_val >> 16) & 0xff) * 13;
+	return coff_data/1000;
+}
+#endif
 static void aw9610x_power_on_prox_detection(struct aw9610x *aw9610x)
 {
 	int32_t ret = 0;
@@ -1320,45 +1355,6 @@ static struct attribute_group aw9610x_sar_attribute_group = {
 };
 
 #if defined(CONFIG_SENSORS)
-static ssize_t aw9610x_onoff_show(struct device *dev,
-        struct device_attribute *attr, char *buf)
-{
-    aw9610x_t this = aw9610x_ptr;
-
-    return snprintf(buf, PAGE_SIZE, "%u\n", !this->skip_data);
-}
-
-static ssize_t aw9610x_onoff_store(struct device *dev,
-        struct device_attribute *attr, const char *buf, size_t count)
-{
-    u8 val;
-    int ret;
-    aw9610x_t this = aw9610x_ptr;
-
-    ret = kstrtou8(buf, 2, &val);
-    if (ret) {
-        AWLOGE(this->dev, "%s - Invalid Argument\n", __func__);
-        return ret;
-    }
-
-    if (val == 0) {
-        this->skip_data = true;
-        if (mEnabled) {
-            input_report_rel(this->aw_pad[0].input, REL_MISC, 2);
-            input_sync(this->aw_pad[0].input);
-            input_report_rel(this->aw_pad[2].input, REL_MISC, 2);
-            input_sync(this->aw_pad[2].input);
-            input_report_rel(this->aw_pad[3].input, REL_MISC, 2);
-            input_sync(this->aw_pad[3].input);
-        }
-    } else {
-        this->skip_data = false;
-    }
-
-    AWLOGI(this->dev, "%s -%u\n", __func__, val);
-    return count;
-}
-
 static int aw9610x_grip_flush(struct sensors_classdev *sensors_cdev,unsigned char val)
 {
     aw9610x_t this = aw9610x_ptr;
@@ -1391,9 +1387,6 @@ static int aw9610x_grip_sub_flush(struct sensors_classdev *sensors_cdev,unsigned
     AWLOGI(this->dev, "%s -%u\n", __func__, val);
     return 0;
 }
-
-static DEVICE_ATTR(onoff, S_IRUGO | S_IWUSR | S_IWGRP,
-        aw9610x_onoff_show, aw9610x_onoff_store);
 #endif
 
 /*****************************************************
@@ -1406,19 +1399,47 @@ static void aw9610x_irq_handle(struct aw9610x *aw9610x)
 	uint32_t curr_status = 0;
 	uint8_t i = 0;
 	uint8_t j = 0;
-
+	#ifdef ANFR_TEST
+	uint32_t ch_result[3] = {0};
+	uint32_t data_en = 0;
+	#endif
 	AWLOGD(aw9610x->dev, "enter");
-
-#if defined(CONFIG_SENSORS)
-	if (aw9610x->skip_data == true) {
-	    AWLOGI(aw9610x->dev, "%s - skip grip event\n", __func__);
-	    return;
-	}
-#endif
-
+	
+	
 	aw9610x_i2c_read(aw9610x, REG_STAT0, &curr_status);
 	j = aw9610x->sar_num;
 	AWLOGD(aw9610x->dev, "pad = 0x%08x", curr_status);
+	if(!force_report_far)
+	{
+		for (i = 0; i < AW_CHANNEL_MAX; i++)
+		{
+			if(aw9610x->channel_func & (1 << i))
+			{
+				input_report_rel(
+				aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input,
+							REL_MISC, 2);
+				input_sync(aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input);
+			}
+		}
+	}
+	else
+	{
+#ifdef ANFR_TEST
+		if(aw9610x->aw_first_boot)
+		{
+			aw9610x_i2c_read(aw9610x, REG_SCANCTRL0, &data_en);
+			AWLOGE(aw9610x->dev, "sar_test aw9610x_irq_handle REG_SCANCTRL0 = %02x\n",data_en);
+			data_en |= (0x3f << 8);
+        	aw9610x_i2c_write_bits(aw9610x, REG_SCANCTRL0, ~(0x3f << 8), data_en);
+			aw9610x_i2c_read(aw9610x, REG_SCANCTRL0, &data_en);
+			AWLOGE(aw9610x->dev, "sar_test2 aw9610x_irq_handle REG_SCANCTRL0 = %02x\n",data_en);
+		}
+
+			ch_result[0] = read_ch0_offset();
+			ch_result[1] = read_ch2_offset();
+			ch_result[2] = read_ch3_offset();			
+	AWLOGE(aw9610x->dev, "ch0_back= %d ,%d, %d, ch_result[0] = %d, %d ,%d \n", aw9610x->back_cap[0],aw9610x->back_cap[1],aw9610x->back_cap[2], ch_result[0],ch_result[1],ch_result[2]);
+#endif	
 	for (i = 0; i < AW_CHANNEL_MAX; i++) {
         if(aw9610x->channel_func & (1 << i)){
 		aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].curr_state =
@@ -1428,16 +1449,38 @@ static void aw9610x_irq_handle(struct aw9610x *aw9610x)
 			(((uint8_t)(curr_status >> (i)) & 0x1) << 3);
 		AWLOGI(aw9610x->dev, "curr_state[%d] = 0x%x", j * AW_CHANNEL_MAX + i,
 					aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].curr_state);
+		#ifdef ANFR_TEST
+		if(((aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].curr_state !=aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].last_state) &&(aw9610x->enable_flag & (1 << i))))
+			aw9610x->interrupt_count++;
+		if(aw9610x->interrupt_count > MAX_INT_COUNT)
+			aw9610x->interrupt_count = MAX_INT_COUNT + 1;		
+		AWLOGE(aw9610x->dev, "aw9610x->interrupt_count = %d \n", aw9610x->interrupt_count);		
+		if ((aw9610x->aw_first_boot&&aw9610x->interrupt_count <= MAX_INT_COUNT)  && 
+		(ch_result[0] >= aw9610x->back_cap[0]) && (ch_result[1] >= aw9610x->back_cap[1]) && (ch_result[2] >= aw9610x->back_cap[2]))
+		{
+			LOG_INFO("force all channel State=Near\n");
 
+			input_report_rel(aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input,
+										 REL_MISC, 1);
+			input_sync(aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input);
+			aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].last_state = 1;
+			continue;
+		}
+		aw9610x->aw_first_boot = false;
+		#endif
 		    if ((aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].curr_state !=
 					aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].last_state) &&
                     (aw9610x->enable_flag & (1 << i))) {
 			switch (aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].curr_state) {
 			case FAR:
-				input_report_rel(aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input, REL_MISC, 2);
+				input_report_rel(
+				aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input,
+							REL_MISC, 2);
 				break;
 			case TRIGGER_TH0:
-				input_report_rel(aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input, REL_MISC, 1);
+				input_report_rel(
+					aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input,
+							REL_MISC, 1);
 				break;
 			case TRIGGER_TH1:
 				input_report_abs(
@@ -1463,6 +1506,7 @@ static void aw9610x_irq_handle(struct aw9610x *aw9610x)
 		aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].last_state =
 				aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].curr_state;
         }
+		}
 	}
 }
 
@@ -1851,19 +1895,21 @@ static ssize_t store_enable(struct device *dev,
             enable_irq(this->to_irq);
 	        AWLOGE(this->dev, "cap sensor enable,change to ACTIVE mode.");
             aw9610x_i2c_read(this, REG_SCANCTRL0, &data_en);
+			AWLOGE(this->dev, "REG_SCANCTRL0 = %02x\n",data_en);
             aw9610x_i2c_write_bits(this, REG_SCANCTRL0, ~(0x3f << 8), (data_en & 0x3f) << 8);
-#if defined(CONFIG_SENSORS)
-            if (this->skip_data == true) {
-                LOG_INFO("%s - skip grip event\n", __func__);
-            }
+			#ifdef ANFR_TEST
+			this->back_cap[0] = read_ch0_offset();
+			AWLOGE(this->dev, "this->back_cap[0] = %d\n",this->back_cap[0]);
+		    if(this->aw_first_boot)
+			    input_report_rel(this->aw_pad[0].input, REL_MISC, 1);
             else
-            {
-#endif
-                input_report_rel(this->aw_pad[0].input, REL_MISC, 2);
-                input_sync(this->aw_pad[0].input);
-#if defined(CONFIG_SENSORS)
-            }
-#endif
+			    input_report_rel(this->aw_pad[0].input, REL_MISC, 2);
+            input_sync(this->aw_pad[0].input);
+			#else
+			input_report_rel(this->aw_pad[0].input, REL_MISC, 2);
+            input_sync(this->aw_pad[0].input);
+			#endif					
+
             this->enable_flag |= CAPSENSOR_ENABLE_FLAG_CH0;
 
         }else{
@@ -1883,19 +1929,21 @@ static ssize_t store_enable(struct device *dev,
             enable_irq(this->to_irq);
 	        AWLOGE(this->dev, "cap sensor enable,change to ACTIVE mode.");
             aw9610x_i2c_read(this, REG_SCANCTRL0, &data_en);
+			AWLOGE(this->dev, "REG_SCANCTRL0 = %02x\n",data_en);
             aw9610x_i2c_write_bits(this, REG_SCANCTRL0, ~(0x3f << 8), (data_en & 0x3f) << 8);
-#if defined(CONFIG_SENSORS)
-            if (this->skip_data == true) {
-                LOG_INFO("%s - skip grip event\n", __func__);
-            }
+			#ifdef ANFR_TEST
+			this->back_cap[1] = read_ch2_offset();
+			AWLOGE(this->dev, "this->back_cap[1] = %d\n",this->back_cap[1]);
+		    if(this->aw_first_boot)
+			    input_report_rel(this->aw_pad[2].input, REL_MISC, 1);
             else
-            {
-#endif
-                input_report_rel(this->aw_pad[2].input, REL_MISC, 2);
-                input_sync(this->aw_pad[2].input);
-#if defined(CONFIG_SENSORS)
-            }
-#endif
+			    input_report_rel(this->aw_pad[2].input, REL_MISC, 2);			
+            input_sync(this->aw_pad[2].input);
+			#else
+			input_report_rel(this->aw_pad[2].input, REL_MISC, 2);
+            input_sync(this->aw_pad[2].input);
+			#endif
+
             this->enable_flag |= CAPSENSOR_ENABLE_FLAG_CH2;
 
         }else{
@@ -1916,19 +1964,21 @@ static ssize_t store_enable(struct device *dev,
             enable_irq(this->to_irq);
 	        AWLOGE(this->dev, "cap sensor enable,change to ACTIVE mode.");
             aw9610x_i2c_read(this, REG_SCANCTRL0, &data_en);
+			AWLOGE(this->dev, "sar_test REG_SCANCTRL0 = %02x\n",data_en);
             aw9610x_i2c_write_bits(this, REG_SCANCTRL0, ~(0x3f << 8), (data_en & 0x3f) << 8);
-#if defined(CONFIG_SENSORS)
-            if (this->skip_data == true) {
-                LOG_INFO("%s - skip grip event\n", __func__);
-            }
+			#ifdef ANFR_TEST
+			this->back_cap[2] = read_ch3_offset();
+			AWLOGE(this->dev, "this->back_cap[2] = %d\n",this->back_cap[2]);
+		    if(this->aw_first_boot)
+			    input_report_rel(this->aw_pad[3].input, REL_MISC, 1);
             else
-            {
-#endif
-                input_report_rel(this->aw_pad[3].input, REL_MISC, 2);
-                input_sync(this->aw_pad[3].input);
-#if defined(CONFIG_SENSORS)
-            }
-#endif
+			    input_report_rel(this->aw_pad[3].input, REL_MISC, 2);
+            input_sync(this->aw_pad[3].input);
+			#else
+			input_report_rel(this->aw_pad[3].input, REL_MISC, 2);
+            input_sync(this->aw_pad[3].input);
+			#endif
+
             this->enable_flag |= CAPSENSOR_ENABLE_FLAG_CH3;
         }else{
             LOG_INFO("name:grip_sensor_wifi:disable\n");
@@ -1971,8 +2021,8 @@ static int capsensor_set_enable(struct sensors_classdev *sensors_cdev, unsigned 
             input_sync(this->aw_pad[2].input);
             this->enable_flag |= CAPSENSOR_ENABLE_FLAG_CH2;
         }else if(!strcmp(sensors_cdev->name, "grip_sensor_wifi")){
-            input_report_rel(this->aw_pad[4].input, REL_MISC, 2);
-            input_sync(this->aw_pad[4].input);
+            input_report_rel(this->aw_pad[3].input, REL_MISC, 2);
+            input_sync(this->aw_pad[3].input);
             this->enable_flag |= CAPSENSOR_ENABLE_FLAG_CH3;
         }
     } else if (enable == 0) {
@@ -1994,7 +2044,97 @@ static int capsensor_set_enable(struct sensors_classdev *sensors_cdev, unsigned 
     return 0;
 }
 
+static ssize_t power_enable_store(struct class *class,
+        struct class_attribute *attr,
+        const char *buf, size_t count)
+{
+	aw9610x_t this = aw9610x_ptr;
+	AWLOGE(this->dev, "power_enable_store=%c\n", *buf);
+	if(!strncmp(buf,"1",1))
+	{
+		force_report_far = 1;
+	}
+	else if(!strncmp(buf,"0",1))
+	{
+		force_report_far = 0;
+	}
+	return count;
+}
 
+
+static ssize_t power_enable_show(struct class *class,
+        struct class_attribute *attr,
+        char *buf)
+{
+	
+
+	if(force_report_far == 1)
+    {
+		return sprintf(buf,"%s\n","1");
+	}
+	else if(force_report_far == 0)
+	{
+		return sprintf(buf,"%s\n","0");
+	}
+
+    return 0;
+}
+//static CLASS_ATTR_RW(power_enable);
+static CLASS_ATTR_RW(power_enable);
+
+//static DEVICE_ATTR(power_enable, 0644, power_enable_show, power_enable_store);
+static ssize_t user_test_show(struct class *class,
+		struct class_attribute *attr,
+		char *buf)
+{
+	return snprintf(buf, 8, "%d\n", user_test);
+}
+
+static ssize_t user_test_store(struct class *class,
+		struct class_attribute *attr,
+		const char *buf, size_t count)
+{
+    int i, j;
+    int ret = -1;
+	uint32_t data_en = 0;
+	aw9610x_t this = aw9610x_ptr;
+
+	if (!count)
+		return -EINVAL;
+
+    ret = kstrtoint(buf, 10, &user_test);
+    if (0 != ret) {
+        AWLOGE(this->dev,"kstrtoint failed\n");
+    }
+
+    printk("aw:user_test:%d", user_test);
+    if(user_test){
+#ifdef ANFR_TEST
+	    this->aw_first_boot = false;
+        printk("aw: this->aw_first_boot= %d;", this->aw_first_boot);
+	    printk("aw:user_test mode, exit force near mode!!!");
+#endif
+
+        printk("aw ch user_test mode cali ... \n");
+	    aw9610x_i2c_read(this, REG_SCANCTRL0, &data_en);
+		aw9610x_i2c_write_bits(this, REG_SCANCTRL0, ~(0x3f << 8),
+							(data_en & 0x3f) << 8);
+
+        j = this->sar_num;
+        for (i = 0; i < AW_CHANNEL_MAX; i++)
+        {
+            if(this->channel_func & (1 << i))
+            {
+                input_report_rel(this->aw_pad[j * AW_CHANNEL_MAX + i].input,
+							REL_MISC, 2);
+                input_sync(this->aw_pad[j * AW_CHANNEL_MAX + i].input);
+            }
+        }
+    }
+
+	return count;
+}
+static CLASS_ATTR_RW(user_test);
 
 /* +++for factory mode use,libo7.wt */
 static ssize_t ch0_cap_diff_dump_show(struct class *class,
@@ -2168,6 +2308,8 @@ static struct class capsense_class = {
 };
 /* ---for factory mode use,libo7.wt */
 
+
+
 static int32_t
 aw9610x_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 {
@@ -2233,8 +2375,14 @@ aw9610x_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 		AWLOGE(aw9610x->dev, "request irq failed ret = %d", ret);
 		goto err_requst_irq;
 	}
-
+	
 	aw9610x->aw_pad = pad_event;
+	#ifdef ANFR_TEST
+	aw9610x->aw_first_boot = true;
+	aw9610x->back_cap[0] = 0;
+	aw9610x->back_cap[1] = 0;
+	aw9610x->back_cap[2] = 0;
+	#endif
 	aw9610x_ptr = aw9610x;
 	/* input device */
 	j = aw9610x->sar_num;
@@ -2267,9 +2415,8 @@ aw9610x_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 			err_num = i;
 			goto exit_input_register_device_failed;
 		}
-
-		input_report_rel(aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input, REL_MISC, 2);
-		input_sync(aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input);
+            input_report_rel(aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input, REL_MISC, 2);
+            input_sync(aw9610x->aw_pad[j * AW_CHANNEL_MAX + i].input);
 	}
 
 	// for factory mode,libo7.wt
@@ -2300,10 +2447,6 @@ aw9610x_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
     if (ret < 0)
 		AWLOGE(aw9610x->dev, "failed to register ch3 sensors capsense device");
 
-#if defined(CONFIG_SENSORS)
-    device_create_file(sensors_capsensor_ch0_cdev.dev, &dev_attr_onoff);
-#endif
-
 	// for factory mode,libo7.wt
     ret = class_register(&capsense_class);
     if (ret < 0) {
@@ -2329,6 +2472,18 @@ aw9610x_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
         return ret;
     }
 
+	
+    ret = class_create_file(&capsense_class, &class_attr_power_enable);
+    if (ret < 0) {
+        AWLOGE(aw9610x->dev, "Create ch3_cap_diff_dump file failed (%d)\n", ret);
+        return ret;
+    }
+    
+    ret = class_create_file(&capsense_class, &class_attr_user_test);
+    if (ret < 0) {
+        AWLOGE(aw9610x->dev, "Create user_test file failed (%d)\n", ret);
+        return ret;
+    }
 
 	/* attribute */
 	ret = sysfs_create_group(&i2c->dev.kobj, &aw9610x_sar_attribute_group);

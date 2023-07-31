@@ -32,6 +32,10 @@
 #include <asm/sections.h>
 #ifdef CONFIG_SEC_DEBUG
 #include <linux/sec_debug.h>
+
+DECLARE_PER_CPU(unsigned char, coreregs_stored);
+DECLARE_PER_CPU(struct pt_regs, sec_aarch64_core_reg);
+DECLARE_PER_CPU(sec_debug_mmu_reg_t, sec_aarch64_mmu_reg);
 #endif
 
 #define PANIC_TIMER_STEP 100
@@ -240,6 +244,15 @@ void panic(const char *fmt, ...)
 		 */
 		crash_smp_send_stop();
 	}
+
+#ifdef CONFIG_SEC_DEBUG
+	if (!__this_cpu_read(coreregs_stored)) {
+		sec_debug_save_mmu_reg(&per_cpu(sec_aarch64_mmu_reg, smp_processor_id()));
+		sec_debug_save_core_reg(NULL);
+		__this_cpu_inc(coreregs_stored);
+		pr_emerg("context saved(CPU:%d)[%s,%d]\n", smp_processor_id(), __func__, __LINE__);
+	}
+#endif
 
 	/*
 	 * Run any panic handlers, including those that might need to

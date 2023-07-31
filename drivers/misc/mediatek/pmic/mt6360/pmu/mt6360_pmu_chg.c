@@ -26,12 +26,13 @@
 #include <mt-plat/mtk_boot.h>
 #include <linux/phy/phy.h>
 #include <mtk_charger.h>
+#include <linux/hardware_info.h>
 
 #ifdef CONFIG_TCPC_CLASS
 #include <tcpm.h>
 #endif
 
-#define MT6360_PMU_CHG_DRV_VERSION	"1.0.7_MTK"
+#define MT6360_PMU_CHG_DRV_VERSION	"1.0.8_MTK"
 
 #define PHY_MODE_BC11_SET 1
 #define PHY_MODE_BC11_CLR 2
@@ -73,7 +74,6 @@ struct mt6360_pmu_chg_info {
 	struct device *dev;
 	struct mt6360_pmu_info *mpi;
 	struct iio_channel *channels[MT6360_ADC_MAX];
-	struct power_supply *psy;	/*for old framework work "charger"*/
 	struct charger_device *chg_dev;
 	int hidden_mode_cnt;
 	struct mutex hidden_mode_lock;
@@ -86,9 +86,7 @@ struct mt6360_pmu_chg_info {
 	u32 ichg;
 	u32 ichg_dis_chg;
 
-	/*boot_mode*/
 	u32 bootmode;
-	u32 boottype;
 
 	/* Charger type detection */
 	struct mutex chgdet_lock;
@@ -104,7 +102,7 @@ struct mt6360_pmu_chg_info {
 	struct power_supply *chg_psy;
 
 	/*type_c_port0*/
-	struct tcpc_device *tcpc_dev;
+	struct tcpc_device *tcpc;
 	struct notifier_block pd_nb;
 	/*chg_det*/
 	wait_queue_head_t attach_wq;
@@ -112,14 +110,14 @@ struct mt6360_pmu_chg_info {
 	struct task_struct *attach_task;
 	struct mutex attach_lock;
 	bool typec_attach;
-	bool tcpc_kpoc;
+	bool ignore_usb;
+	bool bypass_chgdet;
 #else
 	struct work_struct chgdet_work;
 #endif /* CONFIG_TCPC_CLASS */
 	/*power supply*/
 	struct power_supply_desc psy_desc;
-	/*for new framework get seft-power_supply*/
-	struct power_supply *psy_self;
+	struct power_supply *psy;
 
 	struct completion aicc_done;
 	struct completion pumpx_done;
@@ -132,7 +130,11 @@ struct mt6360_pmu_chg_info {
 	struct workqueue_struct *pe_wq;
 	struct work_struct pe_work;
 	u8 ctd_dischg_status;
+//Extb P210312-00394,zhaosidong.wt,ADD,20210325,make sure EE-P3200 have a right type detection
+	ktime_t boot_time;
 	struct regulator_dev *otg_rdev;	//otg_vbus
+
+	union power_supply_propval *old_propval;
 };
 
 /* for recive bat oc notify */
@@ -141,6 +143,12 @@ struct mt6360_pmu_chg_info *g_mpci;
 static const u32 mt6360_otg_oc_threshold[] = {
 	500000, 700000, 1100000, 1300000, 1800000, 2100000, 2400000, 3000000,
 }; /* uA */
+//zhaosidong.wt, charger type detection
+static struct delayed_work charger_secdet_work;
+static bool need_rerun_det = false;
+//Extb P210312-00394,lvyuanchuan.wt,ADD,20210325,make sure EE-P3200 have a right type detection
+#define SECOND_DETECT_DELAY_TIME	1700
+#define SECOND_DETECT_DELAY_TIME_KPOC    5000
 
 enum mt6360_iinlmtsel {
 	MT6360_IINLMTSEL_AICR_3250 = 0,
@@ -172,8 +180,7 @@ enum mt6360_pmu_chg_type {
 	MT6360_CHG_TYPE_MAX,
 };
 
-/*power supply enum*/
-static enum power_supply_usb_type mt6360_charger_usb_types[] = {
+static enum power_supply_usb_type mt6360_pmu_chg_usb_types[] = {
 	POWER_SUPPLY_USB_TYPE_UNKNOWN,
 	POWER_SUPPLY_USB_TYPE_SDP,
 	POWER_SUPPLY_USB_TYPE_DCP,
@@ -400,6 +407,19 @@ static int mt6360_enable_wdt(struct mt6360_pmu_chg_info *mpci, bool en)
 					  en ? 0xff : 0);
 }
 
+static int mt6360_enable_otg_wdt(struct mt6360_pmu_chg_info *mpci, bool en)
+{
+	struct mt6360_chg_platform_data *pdata = dev_get_platdata(mpci->dev);
+
+	dev_dbg(mpci->dev, "%s enable otg wdt, en = %d\n", __func__, en);
+	if (!pdata->en_otg_wdt)
+		return 0;
+	return mt6360_pmu_reg_update_bits(mpci->mpi,
+					  MT6360_PMU_CHG_CTRL13,
+					  MT6360_MASK_CHG_WDT_EN,
+					  en ? 0xff : 0);
+}
+
 static inline int mt6360_get_chrdet_ext_stat(struct mt6360_pmu_chg_info *mpci,
 					  bool *pwr_rdy)
 {
@@ -408,70 +428,12 @@ static inline int mt6360_get_chrdet_ext_stat(struct mt6360_pmu_chg_info *mpci,
 	ret = mt6360_pmu_reg_read(mpci->mpi, MT6360_PMU_CHRDET_STAT);
 	if (ret < 0)
 		return ret;
-	*pwr_rdy = (ret & BIT(4)) ? true : false;
+	*pwr_rdy = !!(ret & BIT(4));
 	return 0;
 }
 
-#ifdef CONFIG_MT6360_PMU_CHARGER_TYPE_DETECT
-
-
-#ifdef DELECHECK
-// online &change replace by power_supply_changed
-static int mt6360_psy_online_changed(struct mt6360_pmu_chg_info *mpci)
-{
-	int ret = 0;
-	union power_supply_propval propval;
-
-	/* Get chg type det power supply */
-	if (!mpci->psy)
-		mpci->psy = power_supply_get_by_name("charger");
-	if (!mpci->psy) {
-		dev_notice(mpci->dev,
-			"%s: get power supply failed\n", __func__);
-		return -EINVAL;
-	}
-
-	propval.intval = mpci->attach;
-	ret = power_supply_set_property(mpci->psy, POWER_SUPPLY_PROP_ONLINE,
-					&propval);
-	if (ret < 0)
-		dev_err(mpci->dev, "%s: psy online fail(%d)\n", __func__, ret);
-	else
-		dev_info(mpci->dev,
-			 "%s: pwr_rdy = %d\n",  __func__, mpci->attach);
-	return ret;
-}
-
-
-static int mt6360_psy_chg_type_changed(struct mt6360_pmu_chg_info *mpci)
-{
-	int ret = 0;
-	union power_supply_propval propval;
-
-	/* Get chg type det power supply*/
-	if (!mpci->psy)
-		mpci->psy = power_supply_get_by_name("charger");
-	if (!mpci->psy) {
-		dev_notice(mpci->dev,
-			"%s: get power supply failed\n", __func__);
-		return -EINVAL;
-	}
-
-	propval.intval = mpci->chg_type;
-	ret = power_supply_set_property(mpci->psy,
-					POWER_SUPPLY_PROP_CHARGE_TYPE,
-					&propval);
-	if (ret < 0)
-		dev_err(mpci->dev,
-			"%s: psy type failed, ret = %d\n", __func__, ret);
-	else
-		dev_info(mpci->dev,
-			 "%s: chg_type = %d\n", __func__, mpci->chg_type);
-	return ret;
-}
-#endif
-
-#endif /* CONFIG_MT6360_PMU_CHARGER_TYPE_DETECT */
+static inline bool mt6360_is_meta_mode(struct mt6360_pmu_chg_info *mpci);
+static void mt6360_power_supply_changed(struct mt6360_pmu_chg_info *mpci);
 
 static int DPDM_Switch_TO_CHG_upstream(struct mt6360_pmu_chg_info *mpci,
 						bool switch_to_chg)
@@ -533,7 +495,7 @@ static int __maybe_unused mt6360_is_dcd_tout_enable(
 }
 #endif
 
-static bool is_usb_rdy(struct device *dev)
+bool is_usb_rdy(struct device *dev)
 {
 	struct device_node *node;
 	bool ready = false;
@@ -574,7 +536,12 @@ static int __mt6360_enable_usbchgen(struct mt6360_pmu_chg_info *mpci, bool en)
 				dev_info(mpci->dev, "%s: USB ready\n",
 					__func__);
 				break;
+
+			if(get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT || get_boot_mode() == LOW_POWER_OFF_CHARGING_BOOT){
+				pr_info("boot mode is %d,skip waiting!\n",get_boot_mode());
+				break;
 			}
+
 			dev_info(mpci->dev, "%s: CDP block\n", __func__);
 #ifndef CONFIG_TCPC_CLASS
 			/* Check vbus */
@@ -621,6 +588,8 @@ static int mt6360_enable_usbchgen(struct mt6360_pmu_chg_info *mpci, bool en)
 	mutex_unlock(&mpci->chgdet_lock);
 	return ret;
 }
+//zhaosidong.wt, charger type detection
+extern bool is_pd_active(void);
 
 #ifdef CONFIG_MT6360_PMU_CHARGER_TYPE_DETECT
 static int mt6360_chgdet_pre_process(struct mt6360_pmu_chg_info *mpci)
@@ -632,15 +601,36 @@ static int mt6360_chgdet_pre_process(struct mt6360_pmu_chg_info *mpci)
 #else
 	attach = mpci->pwr_rdy;
 #endif /* CONFIG_TCPC_CLASS */
-	if (attach && (mpci->bootmode == 5)) {
+	if (attach && mt6360_is_meta_mode(mpci)) {
 		/* Skip charger type detection to speed up meta boot.*/
 		dev_notice(mpci->dev, "%s: force Standard USB Host in meta\n",
 			   __func__);
 		mpci->attach = attach;
 		mpci->psy_desc.type = POWER_SUPPLY_TYPE_USB;
 		mpci->psy_usb_type = POWER_SUPPLY_USB_TYPE_SDP;
-		power_supply_changed(mpci->psy_self);
+		mt6360_power_supply_changed(mpci);
 		return 0;
+	} else if (attach) {
+		if (is_pd_active() && need_rerun_det) {
+			pr_info("force charger type: STANDARD_HOST\n");
+			mpci->attach = attach;
+			mpci->chg_type = STANDARD_HOST;
+			ret = mt6360_psy_online_changed(mpci);
+			if (ret < 0)
+				dev_notice(mpci->dev,
+				   "%s: set psy online fail\n", __func__);
+			return mt6360_psy_chg_type_changed(mpci);
+		} else if (g_ignore_usb) {
+			/* Skip charger type detection for pr_swap */
+			pr_notice("charger type: force Standard USB Host for pr_swap\n");
+                        mpci->attach = attach;
+                        mpci->chg_type = STANDARD_HOST;
+                        ret = mt6360_psy_online_changed(mpci);
+                        if (ret < 0)
+                                dev_notice(mpci->dev,
+                                   "%s: set psy online fail\n", __func__);
+                        return mt6360_psy_chg_type_changed(mpci);
+		}
 	}
 	return __mt6360_enable_usbchgen(mpci, attach);
 }
@@ -650,6 +640,10 @@ static int mt6360_chgdet_post_process(struct mt6360_pmu_chg_info *mpci)
 	int ret = 0;
 	bool attach = false, inform_psy = true;
 	u8 usb_status = MT6360_CHG_TYPE_NOVBUS;
+//Extb P210312-00394,zhaosidong.wt,ADD,20210325,make sure EE-P3200 have a right type detection
+	unsigned long long delta;
+
+	delta = ktime_to_ms(ktime_sub(ktime_get(), mpci->boot_time));
 
 #ifdef CONFIG_TCPC_CLASS
 	attach = mpci->tcpc_attach;
@@ -660,6 +654,10 @@ static int mt6360_chgdet_post_process(struct mt6360_pmu_chg_info *mpci)
 		dev_info(mpci->dev, "%s: attach(%d) is the same\n",
 				    __func__, attach);
 		inform_psy = !attach;
+		//Extb P210312-00394,lvyuanchuan.wt,ADD,20210325,make sure EE-P3200 have a right type detection
+		if(!attach){
+			mpci->chg_type = CHARGER_UNKNOWN;
+		}
 		goto out;
 	}
 	mpci->attach = attach;
@@ -705,17 +703,39 @@ static int mt6360_chgdet_post_process(struct mt6360_pmu_chg_info *mpci)
 		mpci->psy_usb_type = POWER_SUPPLY_USB_TYPE_DCP;
 		break;
 	}
+
+	if((!g_ignore_usb) && (NONSTANDARD_CHARGER == mpci->chg_type)
+		&& (!need_rerun_det)) {
+		need_rerun_det = true;
+		if((KERNEL_POWER_OFF_CHARGING_BOOT != get_boot_mode()) &&
+			(LOW_POWER_OFF_CHARGING_BOOT != get_boot_mode())) {
+//Extb P210312-00394,zhaosidong.wt,ADD,20210325,make sure EE-P3200 have a right type detection
+			if (delta > 30000)
+				schedule_delayed_work(&charger_secdet_work, msecs_to_jiffies(SECOND_DETECT_DELAY_TIME));
+			else
+				schedule_delayed_work(&charger_secdet_work, msecs_to_jiffies(SECOND_DETECT_DELAY_TIME_KPOC));
+		} else {
+			schedule_delayed_work(&charger_secdet_work, msecs_to_jiffies(SECOND_DETECT_DELAY_TIME_KPOC));
+		}
+
+		mpci->attach = !attach;
+		pr_info("ignore chrdet changed,start second check\n");
+		return ret;
+	}
 out:
 	if (!attach) {
 		ret = __mt6360_enable_usbchgen(mpci, false);
 		if (ret < 0)
 			dev_notice(mpci->dev, "%s: disable chgdet fail\n",
 				   __func__);
+//zhaosidong.wt, charger type detection
+		need_rerun_det = false;
+		cancel_delayed_work(&charger_secdet_work);
 	} else if (mpci->psy_desc.type != POWER_SUPPLY_TYPE_USB_DCP)
 		mt6360_set_usbsw_state(mpci, MT6360_USBSW_USB);
 	if (!inform_psy)
 		return ret;
-	power_supply_changed(mpci->psy_self);
+	mt6360_power_supply_changed(mpci);
 	return ret;
 }
 #endif /* CONFIG_MT6360_PMU_CHARGER_TYPE_DETECT */
@@ -723,6 +743,16 @@ out:
 static const u32 mt6360_vinovp_list[] = {
 	5500000, 6500000, 10500000, 14500000,
 };
+
+static void do_charger_secdet_work(struct work_struct *work)
+{
+#ifdef CONFIG_TCPC_CLASS
+	if (g_mpci->tcpc_attach)
+#else
+	if (g_mpci->pwr_rdy)
+#endif /* CONFIG_TCPC_CLASS */
+		mt6360_chgdet_pre_process(g_mpci);
+}
 
 static int mt6360_select_vinovp(struct mt6360_pmu_chg_info *mpci, u32 uV)
 {
@@ -739,6 +769,29 @@ static int mt6360_select_vinovp(struct mt6360_pmu_chg_info *mpci, u32 uV)
 					  MT6360_PMU_CHG_CTRL19,
 					  MT6360_MASK_CHG_VIN_OVP_VTHSEL,
 					  i << MT6360_SHFT_CHG_VIN_OVP_VTHSEL);
+}
+
+static const u32 mt6360_chrdetovp_list[] = {
+	600000, 6500000, 7000000, 7500000,
+	8500000, 9500000, 10500000, 11500000,
+	12500000, 14500000,
+};
+
+static int mt6360_select_chrdetovp(struct mt6360_pmu_chg_info *mpci, u32 uV)
+{
+	int i;
+
+	if (uV < mt6360_chrdetovp_list[0])
+		return -EINVAL;
+	for (i = 1; i < ARRAY_SIZE(mt6360_chrdetovp_list); i++) {
+		if (uV < mt6360_chrdetovp_list[i])
+			break;
+	}
+	i--;
+	return mt6360_pmu_reg_update_bits(mpci->mpi,
+					  MT6360_PMU_CHRDET_CTRL1,
+					  MT6360_MASK_CHRDETB_VIN_OVP_VTHSEL,
+					  i << MT6360_SHFT_CHRDETB_VIN_OVP_VTHSEL);
 }
 
 static inline int mt6360_read_zcv(struct mt6360_pmu_chg_info *mpci)
@@ -870,7 +923,7 @@ static int mt6360_enable(struct charger_device *chg_dev, bool en)
 				   "%s: set ichg fail\n", __func__);
 			goto vsys_wkard_fail;
 		}
-		mdelay(ichg_ramp_t);
+		msleep(ichg_ramp_t);
 	} else {
 		if (mpci->ichg == mpci->ichg_dis_chg) {
 			ret = __mt6360_set_ichg(mpci, mpci->ichg);
@@ -890,6 +943,7 @@ out:
 		dev_notice(mpci->dev, "%s: fail, en = %d\n", __func__, en);
 vsys_wkard_fail:
 	mutex_unlock(&mpci->ichg_lock);
+	mt6360_power_supply_changed(mpci);
 	return ret;
 }
 
@@ -1167,24 +1221,6 @@ out:
 
 static int mt6360_set_pep20_efficiency_table(struct charger_device *chg_dev)
 {
-#ifdef FIXME /* TODO: without charger manager */
-	struct charger_manager *chg_mgr = NULL;
-
-	chg_mgr = charger_dev_get_drvdata(chg_dev);
-	if (!chg_mgr)
-		return -EINVAL;
-
-	chg_mgr->pe2.profile[0].vchr = 8000000;
-	chg_mgr->pe2.profile[1].vchr = 8000000;
-	chg_mgr->pe2.profile[2].vchr = 8000000;
-	chg_mgr->pe2.profile[3].vchr = 8500000;
-	chg_mgr->pe2.profile[4].vchr = 8500000;
-	chg_mgr->pe2.profile[5].vchr = 8500000;
-	chg_mgr->pe2.profile[6].vchr = 9000000;
-	chg_mgr->pe2.profile[7].vchr = 9000000;
-	chg_mgr->pe2.profile[8].vchr = 9500000;
-	chg_mgr->pe2.profile[9].vchr = 9500000;
-#endif
 	return 0;
 }
 
@@ -1519,11 +1555,18 @@ static int mt6360_enable_otg(struct charger_device *chg_dev, bool en)
 	int ret = 0;
 
 	dev_dbg(mpci->dev, "%s: en = %d\n", __func__, en);
-	ret = mt6360_enable_wdt(mpci, en ? true : false);
+	ret = mt6360_enable_otg_wdt(mpci, en ? true : false);
 	if (ret < 0) {
 		dev_err(mpci->dev, "%s: set wdt fail, en = %d\n", __func__, en);
 		return ret;
 	}
+//+bug680167, lvyuanchuan.wt modify ,20200803,Unable to recognize OTG device after stablility test
+#ifdef WT_COMPILE_FACTORY_VERSION
+	if(en){
+		mt6360_pmu_reg_update_bits(mpci->mpi, MT6360_PMU_CHG_CTRL1,MT6360_MASK_HZ_EN,0);
+	}
+#endif
+//-bug680167, lvyuanchuan.wt modify ,20200803,Unable to recognize OTG device after stablility test
 	return mt6360_pmu_reg_update_bits(mpci->mpi, MT6360_PMU_CHG_CTRL1,
 					  MT6360_MASK_OPA_MODE, en ? 0xff : 0);
 }
@@ -1855,7 +1898,7 @@ static int mt6360_do_event(struct charger_device *chg_dev, u32 event,
 
 	mt_dbg(mpci->dev, "%s\n", __func__);
 
-	if (!mpci->psy_self) {
+	if (!mpci->psy) {
 		dev_notice(mpci->dev, "%s: cannot get psy\n", __func__);
 		return -ENODEV;
 	}
@@ -1864,7 +1907,7 @@ static int mt6360_do_event(struct charger_device *chg_dev, u32 event,
 	case EVENT_FULL:
 	case EVENT_RECHARGE:
 	case EVENT_DISCHARGE:
-		power_supply_changed(mpci->psy_self);
+		mt6360_power_supply_changed(mpci);
 		break;
 	default:
 		break;
@@ -1876,7 +1919,6 @@ static int mt6360_do_event(struct charger_device *chg_dev, u32 event,
 static int mt6360_plug_in(struct charger_device *chg_dev)
 {
 	struct mt6360_pmu_chg_info *mpci = charger_get_data(chg_dev);
-	union power_supply_propval propval;
 	int ret = 0;
 
 	dev_dbg(mpci->dev, "%s\n", __func__);
@@ -1889,27 +1931,9 @@ static int mt6360_plug_in(struct charger_device *chg_dev)
 	/* Replace CHG_EN by TE for avoid CV level too low trigger ieoc */
 	/* TODO: First select cv, then chg_en, no need ? */
 	ret = mt6360_enable_te(chg_dev, true);
-	if (ret < 0) {
+	if (ret < 0)
 		dev_err(mpci->dev, "%s: en te failed\n", __func__);
-		return ret;
-	}
 
-	/* Workaround for ibus stuck in pe/pe20 pattern */
-	if (!mpci->psy)
-		mpci->psy = power_supply_get_by_name("charger");
-	if (!mpci->psy) {
-		dev_notice(mpci->dev,
-			"%s: get power supply failed\n", __func__);
-		return -EINVAL;
-	}
-
-	ret = power_supply_get_property(mpci->psy,
-					POWER_SUPPLY_PROP_CHARGE_TYPE,
-					&propval);
-	if (ret < 0) {
-		dev_err(mpci->dev, "%s: get chg_type fail\n", __func__);
-		return ret;
-	}
 	return ret;
 }
 
@@ -1919,6 +1943,7 @@ static int mt6360_plug_out(struct charger_device *chg_dev)
 	int ret = 0;
 
 	dev_dbg(mpci->dev, "%s\n", __func__);
+
 	ret = mt6360_enable_wdt(mpci, false);
 	if (ret < 0) {
 		dev_err(mpci->dev, "%s: disable wdt failed\n", __func__);
@@ -1927,6 +1952,7 @@ static int mt6360_plug_out(struct charger_device *chg_dev)
 	ret = mt6360_enable_te(chg_dev, false);
 	if (ret < 0)
 		dev_err(mpci->dev, "%s: disable te failed\n", __func__);
+
 	return ret;
 }
 
@@ -2153,7 +2179,7 @@ static irqreturn_t mt6360_pmu_chg_vbusov_evt_handler(int irq, void *data)
 	ret = mt6360_pmu_reg_read(mpci->mpi, MT6360_PMU_CHG_STAT2);
 	if (ret < 0)
 		goto out;
-	vbusov_stat = (ret & BIT(7));
+	vbusov_stat = !!(ret & BIT(7));
 	noti->vbusov_stat = vbusov_stat;
 	dev_info(mpci->dev, "%s: stat = %d\n", __func__, vbusov_stat);
 out:
@@ -2260,7 +2286,6 @@ static irqreturn_t mt6360_pmu_chg_rechgi_handler(int irq, void *data)
 	struct mt6360_pmu_chg_info *mpci = data;
 
 	dev_dbg(mpci->dev, "%s\n", __func__);
-	power_supply_changed(mpci->psy);
 	return IRQ_HANDLED;
 }
 
@@ -2279,13 +2304,12 @@ static irqreturn_t mt6360_pmu_chg_ieoci_handler(int irq, void *data)
 	int ret = 0;
 
 	dev_dbg(mpci->dev, "%s\n", __func__);
-	ret = mt6360_pmu_reg_read(mpci->mpi, MT6360_PMU_CHG_STAT4);
+	ret = mt6360_pmu_reg_read(mpci->mpi, MT6360_PMU_CHG_STAT5);
 	if (ret < 0)
 		goto out;
-	ieoc_stat = (ret & BIT(7));
+	ieoc_stat = !!(ret & BIT(7));
 	if (!ieoc_stat)
 		goto out;
-	power_supply_changed(mpci->psy);
 out:
 	return IRQ_HANDLED;
 }
@@ -2670,6 +2694,7 @@ static const struct mt6360_val_prop mt6360_val_props[] = {
 	MT6360_DT_VALPROP(ircmp_vclamp, struct mt6360_chg_platform_data),
 	MT6360_DT_VALPROP(en_te, struct mt6360_chg_platform_data),
 	MT6360_DT_VALPROP(en_wdt, struct mt6360_chg_platform_data),
+	MT6360_DT_VALPROP(en_otg_wdt, struct mt6360_chg_platform_data),
 	MT6360_DT_VALPROP(aicc_once, struct mt6360_chg_platform_data),
 	MT6360_DT_VALPROP(post_aicc, struct mt6360_chg_platform_data),
 	MT6360_DT_VALPROP(batoc_notify, struct mt6360_chg_platform_data),
@@ -2695,32 +2720,35 @@ static int mt6360_enable_ilim(struct mt6360_pmu_chg_info *mpci, bool en)
 		(mpci->mpi, MT6360_PMU_CHG_CTRL3, MT6360_MASK_ILIM_EN);
 }
 
-static void mt6360_get_boot_mode(struct mt6360_pmu_chg_info *mpci)
+static inline bool mt6360_is_meta_mode(struct mt6360_pmu_chg_info *mpci)
 {
-	struct device_node *boot_node = NULL;
-	struct tag_bootmode *tag = NULL;
-
-	boot_node = of_parse_phandle(mpci->dev->of_node, "bootmode", 0);
-	if (!boot_node)
-		dev_info(mpci->dev, "%s: failed to get boot mode phandle\n",
-			 __func__);
-	else {
-		tag = (struct tag_bootmode *)of_get_property(boot_node,
-							"atag,boot", NULL);
-		if (!tag)
-			dev_info(mpci->dev, "%s: failed to get atag,boot\n",
-				 __func__);
-		else {
-			dev_info(mpci->dev,
-			"%s: size:0x%x tag:0x%x bootmode:0x%x boottype:0x%x\n",
-				__func__, tag->size, tag->tag,
-				tag->bootmode, tag->boottype);
-			mpci->bootmode = tag->bootmode;
-			mpci->boottype = tag->boottype;
-		}
-	}
+	return (mpci->bootmode == META_BOOT || mpci->bootmode == ADVMETA_BOOT);
 }
 
+static void mt6360_get_bootmode(struct mt6360_pmu_chg_info *mpci)
+{
+	struct device_node *boot_node = NULL;
+	const struct tag_bootmode *tag = NULL;
+
+	boot_node = of_parse_phandle(mpci->dev->of_node, "bootmode", 0);
+	if (!boot_node) {
+		dev_notice(mpci->dev, "%s: get bootmode phandle fail\n",
+				      __func__);
+		return;
+	}
+
+	tag = of_get_property(boot_node, "atag,boot", NULL);
+	if (!tag) {
+		dev_notice(mpci->dev, "%s: get property atag,boot fail\n",
+				      __func__);
+		return;
+	}
+
+	dev_info(mpci->dev, "%s: size:%d tag:0x%X mode:%d type:%d\n",
+			    __func__, tag->size, tag->tag,
+			    tag->bootmode, tag->boottype);
+	mpci->bootmode = tag->bootmode;
+}
 
 static int mt6360_chg_init_setting(struct mt6360_pmu_chg_info *mpci)
 {
@@ -2728,8 +2756,9 @@ static int mt6360_chg_init_setting(struct mt6360_pmu_chg_info *mpci)
 	int ret = 0;
 
 	dev_info(mpci->dev, "%s\n", __func__);
-	/*get boot mode*/
-	mt6360_get_boot_mode(mpci);
+
+	mt6360_get_bootmode(mpci);
+
 	ret = mt6360_pmu_reg_read(mpci->mpi, MT6360_PMU_CHRDET_STAT);
 	if (ret >= 0)
 		mpci->ctd_dischg_status = ret & 0xE3;
@@ -2748,8 +2777,7 @@ static int mt6360_chg_init_setting(struct mt6360_pmu_chg_info *mpci)
 		dev_err(mpci->dev, "%s: disable ilim fail\n", __func__);
 		return ret;
 	}
-	if (mpci->bootmode == 1 || mpci->bootmode == 5) {
-		/*1:META_BOOT 5:ADVMETA_BOOT*/
+	if (mt6360_is_meta_mode(mpci)) {
 		ret = mt6360_pmu_reg_update_bits(mpci->mpi,
 						 MT6360_PMU_CHG_CTRL3,
 						 MT6360_MASK_AICR,
@@ -2775,6 +2803,13 @@ static int mt6360_chg_init_setting(struct mt6360_pmu_chg_info *mpci)
 	ret = mt6360_select_vinovp(mpci, 14500000);
 	if (ret < 0) {
 		dev_err(mpci->dev, "%s: unlimit vin for pump express\n",
+			__func__);
+		return ret;
+	}
+	/* chrdet ovp limit for pump express, can be replaced by option */
+	ret = mt6360_select_chrdetovp(mpci, 12500000);
+	if (ret < 0) {
+		dev_notice(mpci->dev, "%s: unlimit chrdet for pump express\n",
 			__func__);
 		return ret;
 	}
@@ -2862,7 +2897,6 @@ static int mt6360_set_shipping_mode(struct mt6360_pmu_chg_info *mpci)
 	if (ret < 0)
 		dev_err(mpci->dev,
 			"%s: fail to enter shipping mode\n", __func__);
-	return 0;
 out:
 	mutex_unlock(&mpi->io_lock);
 	return ret;
@@ -2908,7 +2942,6 @@ void mt6360_recv_batoc_callback(BATTERY_OC_LEVEL tag)
 					 "%s: set shipping mode done\n",
 					 __func__);
 		}
-		mdelay(8);
 		cnt++;
 	}
 	dev_info(g_mpci->dev, "%s exit, cnt = %d, FG_CUR_H = %d\n",
@@ -2919,51 +2952,54 @@ void mt6360_recv_batoc_callback(BATTERY_OC_LEVEL tag)
 /* ======================= */
 /* MT6360 Power Supply Ops */
 /* ======================= */
-static int mt6360_charger_get_online(struct mt6360_pmu_chg_info *mpci,
+static int mt6360_pmu_chg_get_online(struct mt6360_pmu_chg_info *mpci,
 				     union power_supply_propval *val)
 {
-#ifndef CONFIG_TCPC_CLASS
-	int ret;
-#endif
-	bool uvp_d_stat;
+	bool online = false;
 
 #ifdef CONFIG_TCPC_CLASS
 	mutex_lock(&mpci->attach_lock);
-	uvp_d_stat = mpci->attach;
+	online = mpci->typec_attach;
 	mutex_unlock(&mpci->attach_lock);
 #else
-	/*uvp_d_stat=true => vbus_on=1*/
-	ret = mt6360_get_chrdet_ext_stat(mpci, &uvp_d_stat);
+	int ret = 0;
+
+	ret = mt6360_get_chrdet_ext_stat(mpci, &online);
 	if (ret < 0) {
 		dev_notice(mpci->dev,
-			"%s: read uvp_d_stat fail\n", __func__);
+			   "%s: read chrdet_ext_stat fail\n", __func__);
 		return ret;
 	}
 #endif
-	dev_info(mpci->dev, "%s: online = %d\n", __func__, uvp_d_stat);
-	val->intval = uvp_d_stat;
+	dev_info(mpci->dev, "%s: online = %d\n", __func__, online);
+	val->intval = online;
 
 	return 0;
 }
 
-static int mt6360_charger_set_online(struct mt6360_pmu_chg_info *chg_data,
+static int mt6360_pmu_chg_set_online(struct mt6360_pmu_chg_info *mpci,
 				     const union power_supply_propval *val)
 {
-	return mt6360_enable_chg_type_det(chg_data->chg_dev, val->intval);
+	return mt6360_enable_chg_type_det(mpci->chg_dev, val->intval);
 }
 
-static int mt6360_charger_get_property(struct power_supply *psy,
+static int mt6360_pmu_chg_get_property(struct power_supply *psy,
 				       enum power_supply_property psp,
 				       union power_supply_propval *val)
 {
 	struct mt6360_pmu_chg_info *mpci = power_supply_get_drvdata(psy);
-	enum mt6360_charging_status chg_stat = MT6360_CHG_STATUS_MAX;
+	enum mt6360_charging_status chg_stat = MT6360_CHG_STATUS_READY;
 	int ret = 0;
+
+	val->intval = 0;
 
 	dev_dbg(mpci->dev, "%s: prop = %d\n", __func__, psp);
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
-		ret = mt6360_charger_get_online(mpci, val);
+		ret = mt6360_pmu_chg_get_online(mpci, val);
+		break;
+	case POWER_SUPPLY_PROP_AUTHENTIC:
+		val->intval = mpci->ignore_usb;
 		break;
 	case POWER_SUPPLY_PROP_TYPE:
 		val->intval = mpci->psy_desc.type;
@@ -2972,12 +3008,15 @@ static int mt6360_charger_get_property(struct power_supply *psy,
 		val->intval = mpci->psy_usb_type;
 		break;
 	case POWER_SUPPLY_PROP_STATUS:
+		ret = mt6360_pmu_chg_get_online(mpci, val);
+		if (!val->intval) {
+			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+			break;
+		}
 		ret = mt6360_get_charging_status(mpci, &chg_stat);
-		if (ret < 0)
-			dev_info(mpci->dev,
-				"%s: get mt6360 chg_status failed\n", __func__);
 		switch (chg_stat) {
 		case MT6360_CHG_STATUS_READY:
+		case MT6360_CHG_STATUS_FAULT:
 			val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
 			break;
 		case MT6360_CHG_STATUS_PROGRESS:
@@ -2986,11 +3025,8 @@ static int mt6360_charger_get_property(struct power_supply *psy,
 		case MT6360_CHG_STATUS_DONE:
 			val->intval = POWER_SUPPLY_STATUS_FULL;
 			break;
-		case MT6360_CHG_STATUS_FAULT:
-			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
-			break;
 		default:
-			ret = -ENODATA;
+			val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
 			break;
 		}
 		break;
@@ -3004,29 +3040,33 @@ static int mt6360_charger_get_property(struct power_supply *psy,
 		break;
 	default:
 		ret = -ENODATA;
+		break;
 	}
+
 	return ret;
 }
 
-static int mt6360_charger_set_property(struct power_supply *psy,
+static int mt6360_pmu_chg_set_property(struct power_supply *psy,
 				       enum power_supply_property psp,
 				       const union power_supply_propval *val)
 {
-	struct mt6360_pmu_chg_info *chg_data = power_supply_get_drvdata(psy);
-	int ret;
+	struct mt6360_pmu_chg_info *mpci = power_supply_get_drvdata(psy);
+	int ret = 0;
 
-	dev_dbg(chg_data->dev, "%s: prop = %d\n", __func__, psp);
+	dev_dbg(mpci->dev, "%s: prop = %d\n", __func__, psp);
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
-		ret = mt6360_charger_set_online(chg_data, val);
+		ret = mt6360_pmu_chg_set_online(mpci, val);
 		break;
 	default:
 		ret = -EINVAL;
+		break;
 	}
+
 	return ret;
 }
 
-static int mt6360_charger_property_is_writeable(struct power_supply *psy,
+static int mt6360_pmu_chg_property_is_writeable(struct power_supply *psy,
 						enum power_supply_property psp)
 {
 	switch (psp) {
@@ -3037,30 +3077,54 @@ static int mt6360_charger_property_is_writeable(struct power_supply *psy,
 	}
 }
 
-static enum power_supply_property mt6360_charger_properties[] = {
-	POWER_SUPPLY_PROP_STATUS,
+static enum power_supply_property mt6360_pmu_chg_properties[] = {
 	POWER_SUPPLY_PROP_ONLINE,
+	POWER_SUPPLY_PROP_AUTHENTIC,
 	POWER_SUPPLY_PROP_TYPE,
 	POWER_SUPPLY_PROP_USB_TYPE,
+	POWER_SUPPLY_PROP_STATUS,
 	POWER_SUPPLY_PROP_CURRENT_MAX,
 	POWER_SUPPLY_PROP_VOLTAGE_MAX,
 };
 
-static const struct power_supply_desc mt6360_charger_desc = {
+static const struct power_supply_desc mt6360_pmu_chg_desc = {
 	.type			= POWER_SUPPLY_TYPE_USB,
-	.properties		= mt6360_charger_properties,
-	.num_properties		= ARRAY_SIZE(mt6360_charger_properties),
-	.get_property		= mt6360_charger_get_property,
-	.set_property		= mt6360_charger_set_property,
-	.property_is_writeable	= mt6360_charger_property_is_writeable,
-	.usb_types		= mt6360_charger_usb_types,
-	.num_usb_types		= ARRAY_SIZE(mt6360_charger_usb_types),
+	.properties		= mt6360_pmu_chg_properties,
+	.num_properties		= ARRAY_SIZE(mt6360_pmu_chg_properties),
+	.get_property		= mt6360_pmu_chg_get_property,
+	.set_property		= mt6360_pmu_chg_set_property,
+	.property_is_writeable	= mt6360_pmu_chg_property_is_writeable,
+	.usb_types		= mt6360_pmu_chg_usb_types,
+	.num_usb_types		= ARRAY_SIZE(mt6360_pmu_chg_usb_types),
 };
 
-static char *mt6360_charger_supplied_to[] = {
+static char *mt6360_pmu_chg_supplied_to[] = {
 	"battery",
 	"mtk-master-charger"
 };
+
+static void mt6360_power_supply_changed(struct mt6360_pmu_chg_info *mpci)
+{
+	int ret = 0, i = 0;
+	union power_supply_propval propval[mt6360_pmu_chg_desc.num_properties];
+
+	memset(propval, 0, sizeof(propval));
+
+	for (i = 0; i < ARRAY_SIZE(propval); i++) {
+		ret = mt6360_pmu_chg_get_property(mpci->psy,
+						  mt6360_pmu_chg_properties[i],
+						  &propval[i]);
+		if (ret < 0)
+			dev_notice(mpci->dev,
+				   "%s: get prop fail(%d), i = %d\n",
+				   __func__, ret, i);
+	}
+
+	if (memcmp(mpci->old_propval, propval, sizeof(propval))) {
+		memcpy(mpci->old_propval, propval, sizeof(propval));
+		power_supply_changed(mpci->psy);
+	}
+}
 
 /*otg_vbus*/
 static int mt6360_boost_enable(struct regulator_dev *rdev)
@@ -3187,53 +3251,48 @@ static const struct regulator_desc mt6360_otg_rdesc = {
 static int mt6360_get_charger_type(struct mt6360_pmu_chg_info *mpci,
 	bool attach)
 {
-	struct mt6360_chg_platform_data *pdata = dev_get_platdata(mpci->dev);
-	union power_supply_propval prop, prop2;
 	static struct power_supply *chg_psy;
 	int ret = 0;
+	union power_supply_propval val = {.intval = 0};
+	struct mt6360_chg_platform_data *pdata = dev_get_platdata(mpci->dev);
 
-	if (chg_psy == NULL) {
+	if (!chg_psy) {
 		if (pdata->bc12_sel == 1)
 			chg_psy = power_supply_get_by_name("mtk_charger_type");
 		else if (pdata->bc12_sel == 2)
 			chg_psy = power_supply_get_by_name("ext_charger_type");
 	}
 
-	if (IS_ERR_OR_NULL(chg_psy))
+	if (!chg_psy) {
 		pr_notice("%s Couldn't get chg_psy\n", __func__);
-	else {
-		prop.intval = attach;
-		if (attach) {
-			ret = power_supply_set_property(chg_psy,
-					POWER_SUPPLY_PROP_ONLINE, &prop);
-			ret = power_supply_get_property(chg_psy,
-					POWER_SUPPLY_PROP_USB_TYPE, &prop2);
-		} else
-			prop2.intval = POWER_SUPPLY_USB_TYPE_UNKNOWN;
-
-		pr_notice("%s type:%d\n", __func__, prop2.intval);
-
-		switch (prop2.intval) {
-		case POWER_SUPPLY_USB_TYPE_UNKNOWN:
-			mpci->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
-			mpci->psy_usb_type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
-			break;
-		case POWER_SUPPLY_USB_TYPE_SDP:
-			mpci->psy_desc.type = POWER_SUPPLY_TYPE_USB;
-			mpci->psy_usb_type = POWER_SUPPLY_USB_TYPE_SDP;
-			break;
-		case POWER_SUPPLY_USB_TYPE_CDP:
-			mpci->psy_desc.type = POWER_SUPPLY_TYPE_USB_CDP;
-			mpci->psy_usb_type = POWER_SUPPLY_USB_TYPE_CDP;
-			break;
-		case POWER_SUPPLY_USB_TYPE_DCP:
-			mpci->psy_desc.type = POWER_SUPPLY_TYPE_USB_DCP;
-			mpci->psy_usb_type = POWER_SUPPLY_USB_TYPE_DCP;
-			break;
-		}
-		power_supply_changed(mpci->psy);
+		mpci->psy_desc.type = attach ? POWER_SUPPLY_TYPE_USB :
+					       POWER_SUPPLY_TYPE_UNKNOWN;
+		mpci->psy_usb_type = attach ? POWER_SUPPLY_USB_TYPE_DCP :
+					      POWER_SUPPLY_USB_TYPE_UNKNOWN;
+		goto out;
 	}
-	return prop2.intval;
+
+	if (attach) {
+		val.intval = true;
+		ret = power_supply_set_property(chg_psy,
+						POWER_SUPPLY_PROP_ONLINE, &val);
+		ret = power_supply_get_property(chg_psy,
+						POWER_SUPPLY_PROP_TYPE, &val);
+		mpci->psy_desc.type = val.intval;
+		pr_notice("%s type:%d\n", __func__, val.intval);
+		ret = power_supply_get_property(chg_psy,
+						POWER_SUPPLY_PROP_USB_TYPE,
+						&val);
+		mpci->psy_usb_type = val.intval;
+		pr_notice("%s usb_type:%d\n", __func__, val.intval);
+	} else {
+		mpci->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
+		mpci->psy_usb_type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
+	}
+out:
+	mt6360_power_supply_changed(mpci);
+
+	return mpci->psy_usb_type;
 }
 
 static int typec_attach_thread(void *data)
@@ -3241,8 +3300,8 @@ static int typec_attach_thread(void *data)
 	struct mt6360_pmu_chg_info *mpci = data;
 	struct mt6360_chg_platform_data *pdata = dev_get_platdata(mpci->dev);
 	int ret = 0;
-	bool attach;
-	union power_supply_propval val;
+	bool typec_attach = false, ignore_usb = false;
+	union power_supply_propval val = {.intval = 0};
 
 	pr_info("%s: ++\n", __func__);
 	while (!kthread_should_stop()) {
@@ -3252,11 +3311,23 @@ static int typec_attach_thread(void *data)
 		if (kthread_should_stop())
 			break;
 		mutex_lock(&mpci->attach_lock);
-		attach = mpci->typec_attach;
+		typec_attach = mpci->typec_attach;
+		ignore_usb = mpci->ignore_usb;
+		atomic_set(&mpci->chrdet_start, 0);
 		mutex_unlock(&mpci->attach_lock);
-		val.intval = attach;
-		pr_notice("%s bc12_sel:%d attach:%d\n", __func__,
-				pdata->bc12_sel, attach);
+
+		pr_notice("%s bc12_sel:%d typec_attach:%d ignore_usb:%d\n",
+			  __func__, pdata->bc12_sel, typec_attach, ignore_usb);
+
+		if (typec_attach && ignore_usb) {
+			mpci->bypass_chgdet = true;
+			goto bypass_chgdet;
+		} else if (!typec_attach && mpci->bypass_chgdet) {
+			mpci->bypass_chgdet = false;
+			goto bypass_chgdet;
+		}
+
+		val.intval = typec_attach;
 		if (pdata->bc12_sel == 0) {
 			ret = power_supply_set_property(mpci->chg_psy,
 						POWER_SUPPLY_PROP_ONLINE, &val);
@@ -3264,65 +3335,90 @@ static int typec_attach_thread(void *data)
 				dev_info(mpci->dev, "%s: set online fail(%d)\n",
 					__func__, ret);
 		} else
-			mt6360_get_charger_type(mpci, attach);
-		atomic_set(&mpci->chrdet_start, 0);
+			mt6360_get_charger_type(mpci, typec_attach);
+		continue;
+bypass_chgdet:
+		mutex_lock(&mpci->chgdet_lock);
+		if (typec_attach) {
+			mpci->psy_desc.type = POWER_SUPPLY_TYPE_USB;
+			if (tcpm_inquire_typec_attach_state(mpci->tcpc) ==
+						   TYPEC_ATTACHED_AUDIO)
+				mpci->psy_usb_type = POWER_SUPPLY_USB_TYPE_DCP;
+			else
+				mpci->psy_usb_type = POWER_SUPPLY_USB_TYPE_SDP;
+		} else {
+			mpci->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
+			mpci->psy_usb_type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
+		}
+		mutex_unlock(&mpci->chgdet_lock);
+		mt6360_power_supply_changed(mpci);
 	}
 	return ret;
 }
 
 static void handle_typec_attach(struct mt6360_pmu_chg_info *mpci,
-				bool en)
+				bool attach, bool ignore)
 {
 	mutex_lock(&mpci->attach_lock);
-	mpci->typec_attach = en;
+	if (mpci->typec_attach == attach) {
+		mutex_unlock(&mpci->attach_lock);
+		return;
+	}
+	mpci->typec_attach = attach;
+	mpci->ignore_usb = ignore;
 	atomic_inc(&mpci->chrdet_start);
-	wake_up(&mpci->attach_wq);
 	mutex_unlock(&mpci->attach_lock);
+	wake_up(&mpci->attach_wq);
 }
 
 static int pd_tcp_notifier_call(struct notifier_block *nb,
 				unsigned long event, void *data)
 {
 	struct tcp_notify *noti = data;
-	struct mt6360_pmu_chg_info *chg_data =
-		(struct mt6360_pmu_chg_info *)container_of(nb,
-		struct mt6360_pmu_chg_info, pd_nb);
+	struct mt6360_pmu_chg_info *mpci =
+		container_of(nb, struct mt6360_pmu_chg_info, pd_nb);
+	uint8_t old_state = TYPEC_UNATTACHED, new_state = TYPEC_UNATTACHED;
 
 	switch (event) {
+	case TCP_NOTIFY_SINK_VBUS:
+		if (tcpm_inquire_typec_attach_state(mpci->tcpc) ==
+						   TYPEC_ATTACHED_AUDIO)
+			handle_typec_attach(mpci, !!noti->vbus_state.mv, true);
+		break;
 	case TCP_NOTIFY_TYPEC_STATE:
-		if (noti->typec_state.old_state == TYPEC_UNATTACHED &&
-		    (noti->typec_state.new_state == TYPEC_ATTACHED_SNK ||
-		    noti->typec_state.new_state == TYPEC_ATTACHED_CUSTOM_SRC ||
-		    noti->typec_state.new_state == TYPEC_ATTACHED_NORP_SRC)) {
-			pr_info("%s USB Plug in, pol = %d\n", __func__,
-					noti->typec_state.polarity);
-			handle_typec_attach(chg_data, true);
-		} else if ((noti->typec_state.old_state == TYPEC_ATTACHED_SNK ||
-		    noti->typec_state.old_state == TYPEC_ATTACHED_CUSTOM_SRC ||
-			noti->typec_state.old_state == TYPEC_ATTACHED_NORP_SRC)
-			&& noti->typec_state.new_state == TYPEC_UNATTACHED) {
-			pr_info("%s USB Plug out\n", __func__);
-			if (chg_data->tcpc_kpoc) {
-				pr_info("%s: typec unattached, power off\n",
-					__func__);
-#ifdef FIXME
-				kernel_power_off();
-#endif
-			}
-			handle_typec_attach(chg_data, false);
-		} else if (noti->typec_state.old_state == TYPEC_ATTACHED_SRC &&
-			noti->typec_state.new_state == TYPEC_ATTACHED_SNK) {
-			pr_info("%s Source_to_Sink\n", __func__);
-			handle_typec_attach(chg_data, true);
-		}  else if (noti->typec_state.old_state == TYPEC_ATTACHED_SNK &&
-			noti->typec_state.new_state == TYPEC_ATTACHED_SRC) {
-			pr_info("%s Sink_to_Source\n", __func__);
-			handle_typec_attach(chg_data, false);
+		old_state = noti->typec_state.old_state;
+		new_state = noti->typec_state.new_state;
+		if (old_state == TYPEC_UNATTACHED &&
+		    (new_state == TYPEC_ATTACHED_SNK ||
+		     new_state == TYPEC_ATTACHED_NORP_SRC ||
+		     new_state == TYPEC_ATTACHED_CUSTOM_SRC ||
+		     new_state == TYPEC_ATTACHED_DBGACC_SNK)) {
+			dev_info(mpci->dev,
+				 "%s Charger plug in, polarity = %d\n",
+				 __func__, noti->typec_state.polarity);
+			handle_typec_attach(mpci, true, false);
+		} else if ((old_state == TYPEC_ATTACHED_SNK ||
+			    old_state == TYPEC_ATTACHED_NORP_SRC ||
+			    old_state == TYPEC_ATTACHED_CUSTOM_SRC ||
+			    old_state == TYPEC_ATTACHED_DBGACC_SNK ||
+			    old_state == TYPEC_ATTACHED_AUDIO) &&
+			    new_state == TYPEC_UNATTACHED) {
+			dev_info(mpci->dev, "%s Charger plug out\n", __func__);
+			handle_typec_attach(mpci, false, false);
+		} else if (old_state == TYPEC_ATTACHED_SRC &&
+			   new_state == TYPEC_ATTACHED_SNK) {
+			dev_info(mpci->dev, "%s Source_to_Sink\n", __func__);
+			handle_typec_attach(mpci, true, true);
+		}  else if (old_state == TYPEC_ATTACHED_SNK &&
+			    new_state == TYPEC_ATTACHED_SRC) {
+			dev_info(mpci->dev, "%s Sink_to_Source\n", __func__);
+			handle_typec_attach(mpci, false, true);
 		}
 		break;
 	default:
 		break;
 	};
+
 	return NOTIFY_OK;
 }
 #endif
@@ -3371,6 +3467,10 @@ static int mt6360_pmu_chg_probe(struct platform_device *pdev)
 	mpci->ichg = 2000000;
 	mpci->ichg_dis_chg = 2000000;
 	mpci->attach = false;
+//Extb P210312-00394,zhaosidong.wt,ADD,20210325,make sure EE-P3200 have a right type detection
+	mpci->boot_time = ktime_get();
+//zhaosidong.wt, charger type detection
+	need_rerun_det = false;
 	g_mpci = mpci;
 #if defined(CONFIG_MT6360_PMU_CHARGER_TYPE_DETECT)\
 && !defined(CONFIG_TCPC_CLASS)
@@ -3386,6 +3486,11 @@ static int mt6360_pmu_chg_probe(struct platform_device *pdev)
 	atomic_set(&mpci->chrdet_start, 0);
 	mutex_init(&mpci->attach_lock);
 #endif
+	mpci->old_propval =
+		devm_kcalloc(mpci->dev, mt6360_pmu_chg_desc.num_properties,
+			     sizeof(*mpci->old_propval), GFP_KERNEL);
+	if (!mpci->old_propval)
+		return -ENOMEM;
 	platform_set_drvdata(pdev, mpci);
 
 	/* apply platform data */
@@ -3452,7 +3557,8 @@ static int mt6360_pmu_chg_probe(struct platform_device *pdev)
 		goto err_shipping_mode_attr;
 	}
 	INIT_WORK(&mpci->pe_work, mt6360_trigger_pep_work_handler);
-
+//zhaosidong.wt,PD HUB charger type detection
+	INIT_DELAYED_WORK(&charger_secdet_work, do_charger_secdet_work);
 	/* register fg bat oc notify */
 #ifdef FIXME	//without mtk_charger_intf  BATTERY_OC_LEVEL
 	if (pdata->batoc_notify)
@@ -3473,19 +3579,18 @@ static int mt6360_pmu_chg_probe(struct platform_device *pdev)
 
 
 	/* power supply register */
-	memcpy(&mpci->psy_desc,
-		&mt6360_charger_desc, sizeof(mpci->psy_desc));
+	memcpy(&mpci->psy_desc, &mt6360_pmu_chg_desc, sizeof(mpci->psy_desc));
 	mpci->psy_desc.name = dev_name(&pdev->dev);
 
 	charger_cfg.drv_data = mpci;
 	charger_cfg.of_node = pdev->dev.of_node;
-	charger_cfg.supplied_to = mt6360_charger_supplied_to;
-	charger_cfg.num_supplicants = ARRAY_SIZE(mt6360_charger_supplied_to);
-	mpci->psy_self = devm_power_supply_register(&pdev->dev,
+	charger_cfg.supplied_to = mt6360_pmu_chg_supplied_to;
+	charger_cfg.num_supplicants = ARRAY_SIZE(mt6360_pmu_chg_supplied_to);
+	mpci->psy = devm_power_supply_register(&pdev->dev,
 					&mpci->psy_desc, &charger_cfg);
 	if (IS_ERR(mpci->psy)) {
 		dev_notice(&pdev->dev, "Fail to register power supply dev\n");
-		ret = PTR_ERR(mpci->psy_self);
+		ret = PTR_ERR(mpci->psy);
 		goto err_register_psy;
 	}
 
@@ -3506,15 +3611,15 @@ static int mt6360_pmu_chg_probe(struct platform_device *pdev)
 		goto err_attach_task;
 	}
 
-	mpci->tcpc_dev = tcpc_dev_get_by_name("type_c_port0");
-	if (!mpci->tcpc_dev) {
+	mpci->tcpc = tcpc_dev_get_by_name("type_c_port0");
+	if (!mpci->tcpc) {
 		pr_notice("%s get tcpc device type_c_port0 fail\n", __func__);
 		ret = -ENODEV;
 		goto err_get_tcpcdev;
 	}
 
 	mpci->pd_nb.notifier_call = pd_tcp_notifier_call;
-	ret = register_tcp_dev_notifier(mpci->tcpc_dev, &mpci->pd_nb,
+	ret = register_tcp_dev_notifier(mpci->tcpc, &mpci->pd_nb,
 					TCP_NOTIFY_TYPE_ALL);
 	if (ret < 0) {
 		pr_notice("%s: register tcpc notifer fail\n", __func__);
@@ -3528,6 +3633,15 @@ static int mt6360_pmu_chg_probe(struct platform_device *pdev)
 && !defined(CONFIG_TCPC_CLASS)
 	schedule_work(&mpci->chgdet_work);
 #endif /* CONFIG_MT6360_PMU_CHARGER_TYPE_DETECT && !CONFIG_TCPC_CLASS */
+	
+    //Bug 674971,baidabin.wt,ADD,20210708,disble pmu reset start
+    ret = mt6360_pmu_reg_set_bits(mpci->mpi, MT6360_PMU_CHG_PUMP,
+					      0x80);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "%s: PP_OFF_RST set 1 failed\n", __func__);
+	}	
+	//Bug 674971,baidabin.wt,ADD,20210708,disble pmu reset end
+ 
 	dev_info(&pdev->dev, "%s: successfully probed\n", __func__);
 	return 0;
 #ifdef CONFIG_TCPC_CLASS
@@ -3639,6 +3753,10 @@ MODULE_VERSION(MT6360_PMU_CHG_DRV_VERSION);
 
 /*
  * Version Note
+ * 1.0.8_MTK
+ * (1) Fix no charging icon when power role swap to sink on kernel-4.19
+ * (2) Fix mt6360_pmu_chg_ieoci_handler()
+ *
  * 1.0.7_MTK
  * (1) Fix Unbalanced enable for MIVR IRQ
  * (2) Sleep 200ms before do another iteration in mt6360_chg_mivr_task_threadfn

@@ -77,12 +77,12 @@ struct bq2560x_platform_data {
 	struct bq2560x_charge_param usb;
 	int iprechg;
 	int iterm;
-	
+
 	enum stat_ctrl statctrl;
 	enum vboost boostv;	// options are 4850,
 	enum iboost boosti; // options are 500mA, 1200mA
 	enum vac_ovp vac_ovp;
-	
+
 };
 
 enum {
@@ -94,6 +94,7 @@ enum {
 
 enum bq2560x_part_no {
 	SGM41511 = 0x02,
+	SGM41512 = 0x05,
 	SY6974 = 0x09,
 };
 
@@ -124,6 +125,7 @@ struct bq2560x {
 	bool chg_det_enable;
 
 	int  chg_type;
+
 	bool hz_mode;
 
 	int status;
@@ -417,11 +419,13 @@ int bq2560x_hz_mode(struct charger_device *chg_dev, bool en)
 	pr_err("%s en = %d\n", __func__, en);
 	bq->hz_mode = en;
 
+#ifndef WT_COMPILE_FACTORY_VERSION
 	if(en) {
 		bq2560x_enter_hiz_mode(bq);
 	} else {
 		bq2560x_exit_hiz_mode(bq);
 	}
+#endif
 
 	return 0;
 }
@@ -655,16 +659,14 @@ static struct bq2560x_platform_data *bq2560x_parse_dt(struct device_node *np,
 		    ("Failed to read node of ti,bq2560x,termination-current\n");
 	}
 
-	ret =
-	    of_property_read_u32(np, "ti,bq2560x,boost-voltage",
+	ret = of_property_read_u32(np, "ti,bq2560x,boost-voltage",
 				 &pdata->boostv);
 	if (ret) {
 		pdata->boostv = 5000;
 		pr_err("Failed to read node of ti,bq2560x,boost-voltage\n");
 	}
 
-	ret =
-	    of_property_read_u32(np, "ti,bq2560x,boost-current",
+	ret = of_property_read_u32(np, "ti,bq2560x,boost-current",
 				 &pdata->boosti);
 	if (ret) {
 		pdata->boosti = 1200;
@@ -785,7 +787,11 @@ static int bq2560x_register_interrupt(struct bq2560x *bq)
 		return ret;
 	}
 
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+	disable_irq_wake(bq->irq);
+#else
 	enable_irq_wake(bq->irq);
+#endif
 
 	return 0;
 }
@@ -862,6 +868,9 @@ static int bq2560x_detect_device(struct bq2560x *bq)
 	}else if(bq->part_no == SGM41511){
 		pr_notice("/******************charger ic is SGM41511***************/\n");
 		hardwareinfo_set_prop(HARDWARE_CHARGER_IC_INFO, "SGM41511");
+	} else if(bq->part_no == SGM41512){
+		pr_notice("/******************charger ic is SGM41512***************/\n");
+		hardwareinfo_set_prop(HARDWARE_CHARGER_IC_INFO, "SGM41512");
 	}
 
 	return ret;
@@ -952,7 +961,6 @@ static int bq2560x_charging(struct charger_device *chg_dev, bool enable)
 	pr_err("%s charger %s\n", enable ? "enable" : "disable",
 	       !ret ? "successfully" : "failed");
 
-	/* still in hz mode, keep discharging */
 	if(enable && bq->hz_mode)
 		ret = bq2560x_hz_mode(chg_dev, true);
 	if (ret)
@@ -1009,7 +1017,7 @@ static int bq2560x_is_charging_enable(struct charger_device *chg_dev, bool *en)
 	return 0;
 }
 
-extern int wt_chg_sw_term;
+int wt_chg_sw_term = 0;
 static int bq2560x_is_charging_done(struct charger_device *chg_dev, bool *done)
 {
 	struct bq2560x *bq = dev_get_drvdata(&chg_dev->dev);
@@ -1144,6 +1152,12 @@ static int bq2560x_set_icl(struct charger_device *chg_dev, u32 curr)
 {
 	struct bq2560x *bq = dev_get_drvdata(&chg_dev->dev);
 
+#ifdef WT_COMPILE_FACTORY_VERSION
+	if (bq->hz_mode) {
+		curr = 100000;
+	}
+#endif
+
 	pr_err("indpm curr = %d\n", curr);
 
 	return bq2560x_set_input_current_limit(bq, curr / 1000);
@@ -1174,7 +1188,7 @@ static int bq2560x_kick_wdt(struct charger_device *chg_dev)
 	return bq2560x_reset_watchdog_timer(bq);
 }
 
-#if defined (CONFIG_CHARGER_BQ2560X) ||  defined (CONFIG_CHARGER_bq2560x)
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 extern bool otg_enabled;
 #endif
 
@@ -1182,7 +1196,7 @@ static int bq2560x_set_otg(struct charger_device *chg_dev, bool en)
 {
 	int ret;
 	struct bq2560x *bq = dev_get_drvdata(&chg_dev->dev);
-	
+
 	bq2560x_dump_regs(bq);
 
 	if (en)
@@ -1193,14 +1207,13 @@ static int bq2560x_set_otg(struct charger_device *chg_dev, bool en)
 	pr_err("%s OTG %s\n", en ? "enable" : "disable",
 	       !ret ? "successfully" : "failed");
 
-#if defined (CONFIG_CHARGER_BQ2560X) ||  defined (CONFIG_CHARGER_bq2560x)
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 	otg_enabled = en;
 	if (en)
 		schedule_delayed_work(&bq->otg_detect_work, 500);
 	else
 		cancel_delayed_work_sync(&bq->otg_detect_work);
 #endif
-
 	bq2560x_dump_regs(bq);
 
 	return ret;
@@ -1320,7 +1333,6 @@ static struct charger_ops bq2560x_chg_ops = {
 
 	/* ADC */
 	.get_tchg_adc = NULL,
-
 	.hz_mode = bq2560x_hz_mode,
 	.is_hz_mode = bq2560x_is_hz_mode,
 
@@ -1772,6 +1784,9 @@ static int bq2560x_charger_probe(struct i2c_client *client,
 	if (ret)
 		dev_err(bq->dev, "failed to register sysfs. err: %d\n", ret);
 
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+	enable_irq_wake(bq->irq);
+#endif
 	determine_initial_status(bq);
 
 	pr_err("bq2560x probe successfully, Part Num:%d, Revision:%d\n",

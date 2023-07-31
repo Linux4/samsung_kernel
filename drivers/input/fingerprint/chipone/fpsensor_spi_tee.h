@@ -6,7 +6,8 @@
 #include <linux/wait.h>
 #include <linux/fb.h>
 #include <linux/notifier.h>
-//#include <linux/regulator/consumer.h>
+#include <linux/regulator/consumer.h>
+#include <linux/wakelock.h>
 
 #define FPSENSOR_DEV_NAME           "fpsensor"
 #define FPSENSOR_CLASS_NAME         "fpsensor"
@@ -18,7 +19,7 @@
 #define INFO_LOG    (1)
 #define DEBUG_LOG   (2)
 /* debug log setting */
-static u8 fpsensor_debug_level = ERR_LOG;
+static u8 fpsensor_debug_level = DEBUG_LOG;
 #define fpsensor_debug(level, fmt, args...) do { \
         if (fpsensor_debug_level >= level) {\
             printk("[fpsensor][SN=%d] " fmt, g_cmd_sn, ##args); \
@@ -72,17 +73,17 @@ typedef struct {
     volatile unsigned int RcvIRQ;
     int irq;
     int irq_gpio;
-    struct wakeup_source *ttw_wl;
+    struct wake_lock ttw_wl;
     wait_queue_head_t wq_irq_return;
     int cancel;
     struct pinctrl *pinctrl1;
     struct pinctrl_state  *eint_as_int, *fp_rst_low, *fp_rst_high, *fp_cs_low, *fp_mo_low,
-            *fp_mi_low,  *fp_ck_low, *fp_ldo_en;
+            *fp_mi_low,  *fp_ck_low;
     struct notifier_block notifier;
     u8 fb_status;
     int enable_report_blankon;
     int free_flag;
-//	struct regulator *fp_regulator;
+	struct regulator *fp_regulator;
 } fpsensor_data_t;
 #define     FPSENSOR_RST_PIN      1  // not gpio, only macro,not need modified!!
 #define     FPSENSOR_SPI_CS_PIN   2  // not gpio, only macro,not need modified!!     

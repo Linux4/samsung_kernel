@@ -1,0 +1,46 @@
+/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&pio {
+	sia81xx_gpio_L_One: sia81xx_gpio_L_One {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO107__FUNC_GPIO107>;
+
+			slew-rate = <1>;  	//direction: 0--in,1--out
+			bias-disable;		//bias-pull-up,bias-pull-down,bias-disable: no-pull
+		};
+	};
+};
+
+&odm {
+	si_pa_L_One: si_pa@L_One{
+		compatible = "si,sia81xx";
+		si,si_pa_type = "sia8001";
+		si,si_pa_reset = <&pio 107 0>;
+		si,si_pa_owi = <&pio 107 0>;
+		pinctrl-names = "si_pa_gpio";
+		pinctrl-0 = <&sia81xx_gpio_L_One>;
+		si,si_pa_disable_pin = <0>;
+
+		en_dynamic_id = <0>;
+		channel_num = <0>;
+		owi_mode = <10>;
+	};
+};
+
+&sound {
+	si,sia81xx-max-num = <1>;
+	si,sia81xx-aux-devs = <&si_pa_L_One>;
+	si,sia81xx-aux-devs-prefix = "SpkrLeft_One";
+};
+
+

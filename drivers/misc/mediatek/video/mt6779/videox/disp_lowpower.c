@@ -1253,7 +1253,6 @@ static int hrt_bw_cond_change_cb(struct notifier_block *nb,
 	int ret, i;
 	unsigned int hrt_idx;
 
-
 	primary_display_manual_lock();
 
 	switch (value) {
@@ -1265,11 +1264,17 @@ static int hrt_bw_cond_change_cb(struct notifier_block *nb,
 			break;
 		}
 
-		/* switch to decouple mode */
+		/*
+		 * switch to decouple mode for normal case,
+		 * secure case do repaint to prevent DC mode issue.
+		 */
 		if (disp_mgr_has_mem_session() ||
-				layering_get_valid_hrt() >= 400) {
+		    primary_is_sec() ||
+		    layering_get_valid_hrt() >= 400) {
 			/* enable HRT throttle */
 			DISPINFO("Cam trigger repain\n");
+			if (primary_is_sec())
+				DISPINFO("trigger reason: secure mode!\n");
 			hrt_idx = layering_rule_get_hrt_idx();
 			hrt_idx++;
 			trigger_repaint(REFRESH_FOR_IDLE);
@@ -1346,7 +1351,25 @@ int primary_display_lowpower_init(void)
 		; /* enter_share_sram(CMDQ_SYNC_RESOURCE_WROT0); */
 
 #ifdef MTK_FB_MMDVFS_SUPPORT
+	/****             LockProve issue               ****
+	 *  register			called
+	 *				rwsem(notifier head)
+	 *  pgc->lock
+	 *  rwsem(notifier head)
+	 *				pgc->lock
+	 *-------------------------------------------------
+	 * Reason: For this case, lockdep tool use lock sequence to
+	 *     detect lock flow, so, even deadlock won't
+	 *     happens, and actually it is,
+	 *     we still need to resolve it by unlock and lock.
+	 * Flow: __func__(primary_display_lowpower_init) is called in
+	 *     primary_display_init, and before call __func__, already
+	 *     called _primary_path_lock(), so, here need unlock tempoarily.
+	 */
+	_primary_path_unlock(__func__);
 	mm_hrt_add_bw_throttle_notifier(&pmqos_hrt_notifier);
+	_primary_path_lock(__func__);
+
 #endif
 
 	return 0;
@@ -1364,8 +1387,8 @@ void primary_display_idlemgr_kick(const char *source, int need_lock)
 	mmprofile_log_ex(ddp_mmp_get_events()->idlemgr, MMPROFILE_FLAG_PULSE,
 			 1, 0);
 
-	snprintf(log, sizeof(log), "[kick]%s kick at %lld\n",
-		 source, sched_clock());
+	scnprintf(log, sizeof(log), "[kick]%s kick at %lld\n",
+		  source, sched_clock());
 	kick_logger_dump(log);
 
 	/*
@@ -1777,8 +1800,8 @@ void external_display_idlemgr_kick(const char *source, int need_lock)
 	char log[128] = "";
 
 	/* DISP_SYSTRACE_BEGIN("%s\n", __func__); */
-	snprintf(log, sizeof(log), "[kick]%s kick at %lld\n",
-		 source, sched_clock());
+	scnprintf(log, sizeof(log), "[kick]%s kick at %lld\n",
+		  source, sched_clock());
 	kick_logger_dump(log);
 	/*
 	 * get primary lock to protect idlemgr_last_kick_time and

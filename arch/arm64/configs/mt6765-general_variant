@@ -4,7 +4,15 @@
 
 # *** WARNING: Add enable/disable configs as newline ***
 
+a04_00="
+CONFIG_ZRAM_LRU_WRITEBACK_LIMIT=1024
+"
+
 a03su_00="
 CONFIG_PAGE_BOOST=y
+"
+
+a21_00="
+CONFIG_ZRAM_LRU_WRITEBACK_LIMIT=1024
 "
 

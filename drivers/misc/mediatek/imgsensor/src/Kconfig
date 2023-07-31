@@ -52,3 +52,8 @@ config IMGSENSOR_MAIN3
 	  This config is mainly mapping to userspace.
 	  Consider the numbers of sensors and usage on the phone.
 	  Compare the custom usage defined in user-custom folder.
+
+config N26_VCAMIO_NOT_ALWAYS_ON
+	bool N26_VCAMIO_NOT_ALWAYS_ON
+	help
+	  Turn off the function of IOVDD constant supply

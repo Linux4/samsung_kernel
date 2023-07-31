@@ -89,7 +89,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.grabwindow_width = 3264,
 		.grabwindow_height = 2448,
 		.mipi_data_lp2hs_settle_dc = 85, /*unit, ns*/
-		.mipi_pixel_rate = 480000000,
+		.mipi_pixel_rate = 257200000,
 		.max_framerate = 300,
 	},
 	.cap1 = {
@@ -1172,10 +1172,10 @@ static void sensor_init(void)
 	write_cmos_sensor(0x90, 0x01);
 	write_cmos_sensor(0x92, GC8034_BinStartY);
 	write_cmos_sensor(0x94, GC8034_BinStartX);
-	write_cmos_sensor(0x95, 0x04);
-	write_cmos_sensor(0x96, 0xc8);
-	write_cmos_sensor(0x97, 0x06);
-	write_cmos_sensor(0x98, 0x60);
+	write_cmos_sensor(0x95, 0x09);
+	write_cmos_sensor(0x96, 0x90);
+	write_cmos_sensor(0x97, 0x0c);
+	write_cmos_sensor(0x98, 0xc0);
 
 	/* Gain */
 	write_cmos_sensor(0xb0, 0x90);
@@ -1390,7 +1390,7 @@ static void fullsize_setting(void)
 	/* MIPI */
 	write_cmos_sensor(0xfe, 0x03);
 	write_cmos_sensor(0x01, 0x07);
-	write_cmos_sensor(0x02, 0x04);
+	write_cmos_sensor(0x02, 0x07);
 	write_cmos_sensor(0x04, 0x80);
 	write_cmos_sensor(0x11, 0x2b);
 	write_cmos_sensor(0x12, 0xf0);
@@ -2230,7 +2230,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM
 		switch (*feature_data) {
 		case MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG:
 			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) =
-				(imgsensor_info.cap.pclk*2 /
+				(imgsensor_info.cap.pclk /
 				 (imgsensor_info.cap.linelength - 80)) *
 				imgsensor_info.cap.grabwindow_width;
 

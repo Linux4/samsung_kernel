@@ -87,7 +87,8 @@ static int get_fp_id_from_gpio(void);
 
 /* Define pinctrl state types. */
 typedef enum {
-    FF_PINCTRL_DEFAULT,
+    FF_PINCTRL_STATE_PWR_ON,
+	FF_PINCTRL_STATE_PWR_OFF,
     FF_PINCTRL_STATE_RST_ACT,
     FF_PINCTRL_STATE_RST_CLR,
     FF_PINCTRL_STATE_INT_ACT,
@@ -97,7 +98,7 @@ typedef enum {
 
 /* Define pinctrl state names. */
 static const char *g_pinctrl_state_names[FF_PINCTRL_STATE_MAXIMUM] = {
-	"ldo-en", "reset-low", "reset-high" ,"irq-init", "spi-default",
+	"ldo-en", "ldo-disable", "reset-low", "reset-high" ,"irq-init", "spi-default",
 };
 
 /*
@@ -146,6 +147,8 @@ struct workqueue_struct* ff_core_queue = NULL;
  */
 extern int  ff_spi_register_device(int bus, int cs);
 extern void ff_spi_unregister_device(void);
+
+int ff_ctl_enable_power(bool on);
 
 extern void mt_spi_enable_master_clk(struct spi_device *ms);
 extern void mt_spi_disable_master_clk(struct spi_device *ms);
@@ -270,6 +273,7 @@ int ff_ctl_init_pins(int *irq_num)
 	//if (err < 0) {
 	//	FF_LOGE("Can't enable voltage\n");
 	//}
+    ff_ctl_enable_power(1);
 	usleep_range(10000, 10000);
 	err = pinctrl_select_state(g_context->pinctrl, g_context->pin_states[FF_PINCTRL_STATE_RST_CLR]);
 
@@ -328,6 +332,7 @@ int ff_ctl_free_pins(void)
 #endif
 	if (g_context->pinctrl != NULL )
 	{
+        pinctrl_select_state(g_context->pinctrl, g_context->pin_states[FF_PINCTRL_STATE_PWR_OFF]);
 		devm_pinctrl_put(g_context->pinctrl);
 		g_context->pinctrl = NULL;
 	}
@@ -365,37 +370,26 @@ int ff_ctl_enable_spiclk(bool on)
 int ff_ctl_enable_power(bool on)
 {
 	int err = 0;
-	FF_LOGV("'%s' enter.", __func__);
-#if 0
+	FF_LOGV("'%s' enter. %d", __func__,on);
+
+
 	if(on)
 	{
-	   err = regulator_set_voltage(g_context->ff_vdd, 2800000, 2800000);
-		if (err < 0)
-		{
-		   FF_LOGE("Can't set voltage.");
-		   return err;
-		}
-		err = regulator_enable(g_context->ff_vdd);
+        if((g_context->pinctrl == NULL) || (g_context->pin_states[FF_PINCTRL_STATE_PWR_ON] == NULL))
+	    {
+		    FF_LOGE("'%s' not get pinctrl.", __func__);
+		    return -1;
+	    }
+		err = pinctrl_select_state(g_context->pinctrl, g_context->pin_states[FF_PINCTRL_STATE_PWR_ON]);
 	}else{
-		err = regulator_set_voltage(g_context->ff_vdd, 0, 0);
-		if (err < 0)
-		{
-			FF_LOGE("Can't set voltage.");
-			return err;
-		}
-		err = regulator_enable(g_context->ff_vdd);
+        if((g_context->pinctrl == NULL) || (g_context->pin_states[FF_PINCTRL_STATE_PWR_OFF] == NULL))
+	    {
+		    FF_LOGE("'%s' not get pinctrl.", __func__);
+		    return -1;
+	    }
+		err = pinctrl_select_state(g_context->pinctrl, g_context->pin_states[FF_PINCTRL_STATE_PWR_OFF]);
 	}
-
-	if (on)
-	{
-		err = regulator_enable(g_context->ff_vdd);
-		if (err < 0) {
-			FF_LOGE("Can't enable voltage\n");
-		}
-	}else{
-		/* TODO */
-	}
-#endif
+	FF_LOGD("power is (%s) .", on ? "on" : "off");
 	FF_LOGV("'%s' leave.", __func__);
 	return err;
 }
@@ -524,7 +518,7 @@ static const char *ff_ctl_get_version(void)
 	strcat(version, FF_DRV_VERSION);
 #ifdef __FF_SVN_REV
 	if (strlen(__FF_SVN_REV) > 0) {
-		//sprintf(version, "%s-r%s", version, __FF_SVN_REV);
+		sprintf(version, "%s-r%s", version, __FF_SVN_REV);
 	}
 #endif
 #ifdef __FF_BUILD_DATE

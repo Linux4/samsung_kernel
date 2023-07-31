@@ -1193,7 +1193,14 @@ static int usbhid_start(struct hid_device *hid)
 		usbhid_set_leds(hid);
 		device_set_wakeup_enable(&dev->dev, 1);
 	}
-
+//+Bug 715587 houdujing.wt,add,20220429,mouse wakelock hold by OTG driver
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+	else if(interface->desc.bInterfaceSubClass == USB_INTERFACE_SUBCLASS_BOOT &&
+		interface->desc.bInterfaceProtocol ==
+			USB_INTERFACE_PROTOCOL_MOUSE)
+	device_set_wakeup_enable(&dev->dev, 1);
+#endif
+//-Bug 715587 houdujing.wt,add,20220429,mouse wakelock hold by OTG drive
 	mutex_unlock(&usbhid->mutex);
 	return 0;
 

@@ -54,9 +54,9 @@ struct mem_cache_list {
 
 #ifdef DEFEX_PED_ENABLE
 DECLARE_HASHTABLE(creds_hash, 15);
-static DEFINE_SPINLOCK(creds_hash_update_lock);
+__visible_for_testing DEFINE_SPINLOCK(creds_hash_update_lock);
 static struct proc_cred_data *creds_fast_hash[MAX_PID_32 + 1];
-static struct mem_cache_list mem_cache[DEFEX_MEM_CACHE_COUNT];
+__visible_for_testing struct mem_cache_list mem_cache[DEFEX_MEM_CACHE_COUNT];
 static int creds_fast_hash_ready __ro_after_init;
 __visible_for_testing void mem_cache_alloc(void);
 
@@ -344,8 +344,8 @@ void set_task_creds_tcnt(struct task_struct *p, int addition)
 	tgid_cred_data = (cred_ptr) ? (*cred_ptr) : NULL;
 	if (tgid_cred_data) {
 		tgid_cred_data->tcnt += addition;
-		/* No threads, remove process data */
-		if (!tgid_cred_data->tcnt) {
+		/* Remove main process data */
+		if (tgid == pid && addition == -1) {
 			*cred_ptr = NULL;
 			/* Return to pre-allocated pool, if possible */
 			free_buff2 = mem_cache_reclaim((tgid_cred_data->cred_flags & CRED_FLAGS_MAIN_UPDATED) ? \

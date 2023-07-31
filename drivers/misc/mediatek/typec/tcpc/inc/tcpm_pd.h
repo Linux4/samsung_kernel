@@ -126,9 +126,11 @@ enum pd_battery_reference {
 
 
 /* SCEDB, Source_Capabilities_Extended */
-
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#define PD_SCEDB_SIZE	25
+#else
 #define PD_SCEDB_SIZE	24
-
+#endif
 #define PD_SCEDB_VR(load_step, ioc)	\
 	((load_step) | (ioc << 2))
 
@@ -179,6 +181,9 @@ struct pd_source_cap_ext {
 	uint8_t	source_inputs;	/* bit field */
 	uint8_t	batteries;
 	uint8_t	source_pdp;
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+	uint8_t	epr_source_pdp;
+#endif
 };
 
 /* GBSDB, Get_Battery_Status */
@@ -266,8 +271,6 @@ struct pd_country_info {
 
 /* SDB, Status */
 
-#define PD_SDB_SIZE	6
-
 #define PD_STATUS_INPUT_EXT_POWER	(1<<1)
 #define PD_STATUS_INPUT_EXT_POWER_FROM_AC	(1<<2)
 #define PD_STATUS_INPUT_INT_POWER_BAT		(1<<3)
@@ -291,11 +294,14 @@ struct pd_country_info {
 struct pd_status {
 	uint8_t internal_temp;	/* 0 means no support */
 	uint8_t present_input;	/* bit filed */
-	uint8_t present_battey_input; /* bit filed */
+	uint8_t present_battery_input;
 	uint8_t event_flags;	/* bit filed */
 	uint8_t temp_status;	/* bit filed */
 	uint8_t power_status;	/* bit filed */
+	uint8_t power_state_change;
 };
+
+#define PD_SDB_SIZE	sizeof(struct pd_status)
 
 /* PPSSDB, PPSStatus */
 

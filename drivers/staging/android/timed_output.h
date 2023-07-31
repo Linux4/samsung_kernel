@@ -30,7 +30,6 @@ struct timed_output_dev {
 	int		index;
 	int		state;
 };
-
 int timed_output_dev_register(struct device *parent,
 		struct timed_output_dev *dev);
 void timed_output_dev_unregister(struct timed_output_dev *dev);

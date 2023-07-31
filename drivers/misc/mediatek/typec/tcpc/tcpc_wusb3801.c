@@ -952,7 +952,7 @@ static int wusb3801_tcpcdev_init(struct wusb3801_chip *chip, struct device *dev)
 	}
 	desc->rp_lvl = TYPEC_CC_RP_1_5;
 
-	if (of_property_read_string(np, "wusb3801-tcpc,name", 
+	if (of_property_read_string(np, "wusb3801-tcpc,name",
 			(char const **)&name) < 0) {
 		dev_info(dev, "use default name\n");
 	}

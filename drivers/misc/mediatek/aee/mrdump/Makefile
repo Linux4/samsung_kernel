@@ -16,6 +16,8 @@ GCOV_PROFILE := y
 endif
 
 subdir-ccflags-y += -Idrivers/misc/mediatek/mtprof/
+subdir-ccflags-y += -Idrivers/misc/mediatek/
+subdir-ccflags-y += -Idrivers/misc/mediatek/dbgtop/
 
 ccflags-y += -DTEXT_OFFSET=$(TEXT_OFFSET)
 obj-$(CONFIG_MTK_AEE_IPANIC)	+= mrdump.o
@@ -30,10 +32,6 @@ mrdump-y := \
 	mrdump_helper.o
 
 mrdump-$(CONFIG_ARM) += mrdump_arm.o
-mrdump-$(CONFIG_ARM_PSCI) += mrdump_panic_wdt.o
-
-mrdump-$(CONFIG_ARM64) += \
-	mrdump_arm64.o \
-	mrdump_panic_wdt.o
+mrdump-$(CONFIG_ARM64) += mrdump_arm64.o
 
 KASAN_SANITIZE := n

@@ -10,7 +10,16 @@ unsigned int Common_read_region(struct i2c_client *client,
 				unsigned int addr,
 				unsigned char *data,
 				unsigned int size);
+unsigned int Otp_read_region_GC5035_A01(struct i2c_client *client,
+				unsigned int addr,
+				unsigned char *data,
+				unsigned int size);
+
 unsigned int Otp_read_region_SR846(struct i2c_client *client,
+				unsigned int addr,
+				unsigned char *data,
+				unsigned int size);
+unsigned int Otp_read_region_SR846D(struct i2c_client *client,
 				unsigned int addr,
 				unsigned char *data,
 				unsigned int size);

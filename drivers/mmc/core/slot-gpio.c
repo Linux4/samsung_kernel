@@ -19,8 +19,9 @@
 #include <linux/slab.h>
 
 #include "slot-gpio.h"
-
+#if defined(CONFIG_WT_PROJECT_S96516SA1) || defined(CONFIG_WT_PROJECT_S96616AA1)
 extern void msdc_sd_power_off_quick(void);
+#endif
 struct mmc_gpio {
 	struct gpio_desc *ro_gpio;
 	struct gpio_desc *cd_gpio;
@@ -38,7 +39,9 @@ static irqreturn_t mmc_gpio_cd_irqt(int irq, void *dev_id)
 	struct mmc_host *host = dev_id;
 	struct mmc_gpio *ctx = host->slot.handler_priv;
 
+#if defined(CONFIG_WT_PROJECT_S96516SA1) || defined(CONFIG_WT_PROJECT_S96616AA1)
 	msdc_sd_power_off_quick();
+#endif
 
 	host->trigger_card_event = true;
 	mmc_detect_change(host, msecs_to_jiffies(ctx->cd_debounce_delay_ms));
@@ -79,6 +82,8 @@ int mmc_gpio_get_ro(struct mmc_host *host)
 }
 EXPORT_SYMBOL(mmc_gpio_get_ro);
 
+int gpio_value = 0;
+
 int mmc_gpio_get_cd(struct mmc_host *host)
 {
 	struct mmc_gpio *ctx = host->slot.handler_priv;
@@ -88,6 +93,9 @@ int mmc_gpio_get_cd(struct mmc_host *host)
 		return -ENOSYS;
 
 	cansleep = gpiod_cansleep(ctx->cd_gpio);
+	pr_debug("Slot-gpio mmc_gpio_get_cd = %d\n", gpiod_get_value(ctx->cd_gpio));
+	gpio_value = gpiod_get_value(ctx->cd_gpio);
+
 	if (ctx->override_cd_active_level) {
 		int value = cansleep ?
 				gpiod_get_raw_value_cansleep(ctx->cd_gpio) :
@@ -147,7 +155,9 @@ void mmc_gpiod_request_cd_irq(struct mmc_host *host)
 	if (!(host->caps & MMC_CAP_NEEDS_POLL))
 		irq = gpiod_to_irq(ctx->cd_gpio);
 
+#if defined(CONFIG_WT_PROJECT_S96516SA1) || defined(CONFIG_WT_PROJECT_S96616AA1)
 	gpiod_set_debounce(ctx->cd_gpio,32000);
+#endif
 
 	if (irq >= 0) {
 		if (!ctx->cd_gpio_isr)

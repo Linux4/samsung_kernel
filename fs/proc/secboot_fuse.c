@@ -17,7 +17,7 @@ static char * secboot_fuse_get(void)
 		printk("secboot_fuse not found in cmdline\n");
 		return s2;
 	}
-	s1 += strlen("secboot_fuse="); 
+	s1 += strlen("secboot_fuse=");
 	strncpy(secfuse_v,s1,5);
         if(secfuse_v[0]=='0'){
 	        secfuse_v[1]='\0';
@@ -54,5 +54,3 @@ static int __init proc_secboot_init(void)
         return 0;
 }
 fs_initcall(proc_secboot_init);
-
-

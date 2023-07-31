@@ -25,7 +25,7 @@ static int baro_factory_release(struct inode *inode, struct file *file)
 	file->private_data = NULL;
 	return 0;
 }
-//+Bug682590,libo7.wt,MOD,20210814,S96516AA1 add baro sensor cali function
+
 static long baro_factory_unlocked_ioctl(struct file *file, unsigned int cmd,
 					unsigned long arg)
 {
@@ -33,8 +33,8 @@ static long baro_factory_unlocked_ioctl(struct file *file, unsigned int cmd,
 	void __user *ptr = (void __user *)arg;
 	int data = 0;
 	uint32_t flag = 0;
-	int32_t caliData[2] = {0};
 
+	int32_t caliData[2] = {0};
 	if (_IOC_DIR(cmd) & _IOC_READ)
 		err = !access_ok(VERIFY_WRITE, (void __user *)arg,
 				 _IOC_SIZE(cmd));
@@ -120,7 +120,7 @@ static long baro_factory_unlocked_ioctl(struct file *file, unsigned int cmd,
 	}
 	return 0;
 }
-//-Bug682590,libo7.wt,MOD,20210814,S96516AA1 add baro sensor cali function
+
 #if IS_ENABLED(CONFIG_COMPAT)
 static long compat_baro_factory_unlocked_ioctl(struct file *filp,
 					       unsigned int cmd,

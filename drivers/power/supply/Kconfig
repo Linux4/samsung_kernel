@@ -555,7 +555,7 @@ config CHARGER_BQ24257
 	tristate "TI BQ24250/24251/24257 battery charger driver"
 	depends on I2C
 	depends on GPIOLIB || COMPILE_TEST
-	depends on REGMAP_I2C
+	select REGMAP_I2C
 	help
 	  Say Y to enable support for the TI BQ24250, BQ24251, and BQ24257 battery
 	  chargers.
@@ -582,6 +582,38 @@ config CHARGER_BQ2589X
 	select REGMAP_I2C
 	help
 	  Say Y to enable support for the TI BQ2589X battery charger.
+
+config CHARGER_SD7601
+	tristate "SD7601 battery charger driver"
+	depends on I2C
+	depends on GPIOLIB || COMPILE_TEST
+	select REGMAP_I2C
+	help
+	  Say Y to enable support for the SD7601 battery charger.
+
+config CHARGER_UPM6910
+	tristate "UPM6910 battery charger driver"
+	depends on I2C
+	depends on GPIOLIB || COMPILE_TEST
+	select REGMAP_I2C
+	help
+	  Say Y to enable support for the UPM6910 battery charger.
+
+config CHARGER_SC89601
+	tristate "SC89601 battery charger driver"
+	depends on I2C
+	depends on GPIOLIB || COMPILE_TEST
+	select REGMAP_I2C
+	help
+	  Say Y to enable support for the SC89601 battery charger.
+
+config CHARGER_PUMP
+	tristate "PUMP battery charger driver"
+	depends on I2C
+	depends on GPIOLIB || COMPILE_TEST
+	select REGMAP_I2C
+	help
+	  Say Y to enable support for the PUMP battery charger.
 
 config CHARGER_SMB347
 	tristate "Summit Microelectronics SMB347 Battery Charger"
@@ -815,13 +847,6 @@ config CHARGER_BQ25601
 	  It depends on
 	  the config MTK_CHARGER.
 
-config MTK_DISABLE_TEMP_PROTECT
-	bool "Charger Driver for MTK_DISABLE_TEMP_PROTECT"
-	depends on MTK_CHARGER
-	help
-	  Say Yes to enable MTK_DISABLE_TEMP_PROTECT.
-	  It depends on config MTK_CHARGER.
-
 config CHARGER_BQ2560X
 	bool "CHARGER_BQ2560X"
 	depends on MTK_CHARGER
@@ -831,6 +856,138 @@ config CHARGER_BQ2560X
 	  It depends on
 	  the config MTK_CHARGER.
 
+config CHARGER_WINGTECH
+    bool "CHARGER_WT"
+	depends on MTK_CHARGER
+	default n
+	help
+	  Say Yes to enable
+	  WT driver.
+	  It depends on
+	  the config MTK_CHARGER.
+	  
+config N23_CHARGER_PRIVATE
+    bool "N23_CHARGER_PRIVATE"
+	depends on MTK_CHARGER
+	default n
+	help
+	  Say Yes to enable
+	  WT driver.
+	  It depends on
+	  the config MTK_CHARGER.
+
+config AFC_CHARGER
+	bool "Using AFC charger driver"
+	depends on MTK_CHARGER
+	default n
+	help
+	  If you say yes here you will get support for
+	  the AFC charger driver.
+	  
+config N26_CHARGER_PRIVATE
+    bool "N26_CHARGER_PRIVATE"
+	depends on MTK_CHARGER
+	default n
+	help
+	  Say Yes to enable
+	  WT driver.
+	  It depends on
+	  the config MTK_CHARGER.
+
+config W2_CHARGER_PRIVATE
+    bool "W2_CHARGER_PRIVATE"
+	depends on MTK_CHARGER
+	default n
+	help
+	  Say Yes to enable
+	  WT driver.
+	  It depends on
+	  the config MTK_CHARGER.
+
+config N28_CHARGER_PRIVATE
+    bool "N28_CHARGER_PRIVATE"
+	depends on MTK_CHARGER
+	default n
+	help
+	  Say Yes to enable
+	  WT driver.
+	  It depends on
+	  the config MTK_CHARGER.
+
+config MTK_DISABLE_TEMP_PROTECT
+    bool "MTK_DISABLE_TEMP_PROTECT"
+	depends on MTK_CHARGER
+	default n
+	help
+	  Say Yes to enable
+	  WT driver.
+	  It depends on
+	  the config MTK_CHARGER.
+	  
+config CUSTOM_BATTERY_EXTERNAL_CHANNEL
+	bool "customer external gauge test"
+	depends on MTK_PMIC_CHIP_MT6359P
+	default n
+	help
+	  This config is for internal testing only.
+	  Say Yes to enable support for Customer external gauge.
+          It depends on MTK_PMIC_CHIP_MT6359P
+          Added for Battery System test
+
+if MACH_MT6768
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+if MACH_MT6739
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+if MACH_MT6771
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+if MACH_MT6877
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+if MACH_MT6781
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+if MACH_MT6833
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+if MACH_MT6893
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+if MACH_MT6885
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+if MACH_MT6853
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+if MACH_MT6873
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+if MACH_MT6785
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
 endif # POWER_SUPPLY
 
-source "drivers/power/supply/sm/sm5714/Kconfig"

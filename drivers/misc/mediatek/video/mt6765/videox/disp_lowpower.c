@@ -61,7 +61,7 @@
 #include "mmdvfs_mgr.h"
 #endif
 #endif
-#include "disp_pm_qos.h"
+
 #include "mtk_disp_mgr.h"
 /* device tree */
 #include <linux/of.h>
@@ -308,8 +308,10 @@ int primary_display_dsi_vfp_change(int state)
 	struct cmdqRecStruct *handle = NULL;
 	struct LCM_PARAMS *params;
 	unsigned int apply_vfp = 0;
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
 	unsigned int last_req_dfps;
 	unsigned int min_dfps;
+#endif
 
 	cmdqRecCreate(CMDQ_SCENARIO_PRIMARY_DISP, &handle);
 	cmdqRecReset(handle);
@@ -775,7 +777,9 @@ void _vdo_mode_enter_idle(void)
 #ifdef MTK_FB_MMDVFS_SUPPORT
 	unsigned long long bandwidth;
 	unsigned int out_fps = 60;
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
 	unsigned int in_fps = 0;
+#endif
 #endif
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
 	uint cur_disp_fps = 60;
@@ -850,11 +854,6 @@ void _vdo_mode_enter_idle(void)
 
 #ifdef MTK_FB_MMDVFS_SUPPORT
 	/* update bandwidth */
-#ifdef CONFIG_MTK_HIGH_FRAME_RATE
-	in_fps = primary_display_is_directlink_mode() ? out_fps : 0;
-	disp_pm_qos_set_ovl_bw(in_fps, out_fps, &bandwidth);
-	disp_pm_qos_update_bw(bandwidth);
-#else
 	disp_get_rdma_bandwidth(out_fps, &bandwidth);
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_pm_qos,
 			MMPROFILE_FLAG_START,
@@ -863,7 +862,6 @@ void _vdo_mode_enter_idle(void)
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_pm_qos,
 			MMPROFILE_FLAG_END,
 			!primary_display_is_decouple_mode(), bandwidth);
-#endif
 #endif
 }
 
@@ -895,7 +893,6 @@ void _vdo_mode_leave_idle(void)
 	/* Enable irq & restore vfp */
 	if (!primary_is_sec()) {
 		if (idlemgr_pgc->cur_lp_cust_mode != 0) {
-			primary_display_dsi_vfp_change(0);
 			idlemgr_pgc->cur_lp_cust_mode = 0;
 			if (disp_helper_get_option(
 				DISP_OPT_DYNAMIC_RDMA_GOLDEN_SETTING))
@@ -927,10 +924,6 @@ void _vdo_mode_leave_idle(void)
 
 #ifdef MTK_FB_MMDVFS_SUPPORT
 	/* update bandwidth */
-#ifdef CONFIG_MTK_HIGH_FRAME_RATE
-	disp_pm_qos_set_ovl_bw(in_fps, out_fps, &bandwidth);
-	disp_pm_qos_update_bw(bandwidth);
-#else
 	disp_get_ovl_bandwidth(in_fps, out_fps, &bandwidth);
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_pm_qos,
 			MMPROFILE_FLAG_START,
@@ -940,14 +933,17 @@ void _vdo_mode_leave_idle(void)
 			MMPROFILE_FLAG_END,
 			!primary_display_is_decouple_mode(), bandwidth);
 #endif
-#endif
 }
 
 void _cmd_mode_enter_idle(void)
 {
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
 	unsigned int cfg_id;
+#endif
 #ifdef MTK_FB_MMDVFS_SUPPORT
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
 	unsigned long long bandwidth;
+#endif
 #endif
 
 	DISPINFO("[disp_lowpower]%s\n", __func__);
@@ -968,12 +964,6 @@ void _cmd_mode_enter_idle(void)
 
 #ifdef MTK_FB_MMDVFS_SUPPORT
 	/* update bandwidth */
-#ifdef CONFIG_MTK_HIGH_FRAME_RATE
-	disp_pm_qos_set_default_bw(&bandwidth);
-	disp_pm_qos_update_bw(bandwidth);
-	prim_disp_request_hrt_bw(HRT_BW_UNREQ,
-			DDP_SCENARIO_PRIMARY_DISP, __func__, cfg_id);
-#else
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_pm_qos,
 			MMPROFILE_FLAG_START,
 			!primary_display_is_decouple_mode(), 0);
@@ -982,31 +972,31 @@ void _cmd_mode_enter_idle(void)
 			MMPROFILE_FLAG_END,
 			!primary_display_is_decouple_mode(), 0);
 #endif
-#endif
 }
 
 void _cmd_mode_leave_idle(void)
 {
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
 	unsigned int cfg_id;
+#endif
 #ifdef MTK_FB_MMDVFS_SUPPORT
 	unsigned long long bandwidth;
 	unsigned int in_fps = 60;
 	unsigned int out_fps = 60;
 	int stable = 0;
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
 	enum DDP_SCENARIO_ENUM scen =
 	    (primary_display_is_decouple_mode()) ?
 	    DDP_SCENARIO_PRIMARY_RDMA0_COLOR0_DISP :
 	    DDP_SCENARIO_PRIMARY_DISP;
+
 	int overlap_num = (primary_display_is_decouple_mode()) ? 2 :
 	    primary_display_get_dvfs_last_req();
 #endif
+#endif
 
 	DISPMSG("[disp_lowpower]%s\n", __func__);
-	/*DynFPS*/
-#ifdef CONFIG_MTK_HIGH_FRAME_RATE
-	cfg_id = primary_display_get_current_cfg_id();
-	prim_disp_request_hrt_bw(overlap_num, scen, __func__, cfg_id);
-#endif
+
 	if (disp_helper_get_option(DISP_OPT_IDLEMGR_ENTER_ULPS))
 		_primary_display_enable_mmsys_clk();
 
@@ -1019,12 +1009,6 @@ void _cmd_mode_leave_idle(void)
 
 #ifdef MTK_FB_MMDVFS_SUPPORT
 	/* update bandwidth */
-#ifdef CONFIG_MTK_HIGH_FRAME_RATE
-	primary_fps_ctx_get_fps(&in_fps, &stable);
-	out_fps = in_fps;
-	disp_pm_qos_set_ovl_bw(in_fps, out_fps, &bandwidth);
-	disp_pm_qos_update_bw(bandwidth);
-#else
 	primary_fps_ctx_get_fps(&in_fps, &stable);
 	out_fps = in_fps;
 	disp_get_ovl_bandwidth(in_fps, out_fps, &bandwidth);
@@ -1037,7 +1021,6 @@ void _cmd_mode_leave_idle(void)
 			!primary_display_is_decouple_mode(), bandwidth);
 	primary_display_request_dvfs_perf(MMDVFS_SCEN_DISP,
 		dvfs_before_idle, 0);
-#endif
 #endif
 }
 
@@ -1064,6 +1047,29 @@ int primary_display_request_dvfs_perf(
 	enum HRT_OPP_LEVEL opp_level = HRT_OPP_LEVEL_DEFAULT;
 	unsigned int emi_opp, mm_freq;
 
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
+	if (atomic_read(&dvfs_ovl_req_status) != req) {
+		switch (req) {
+		case HRT_LEVEL_LEVEL3:
+			opp_level = HRT_OPP_LEVEL_LEVEL0;
+			break;
+		case HRT_LEVEL_LEVEL2:
+			opp_level = HRT_OPP_LEVEL_LEVEL0;
+			break;
+		case HRT_LEVEL_LEVEL1:
+			opp_level = HRT_OPP_LEVEL_LEVEL1;
+			break;
+		case HRT_LEVEL_LEVEL0:
+			opp_level = HRT_OPP_LEVEL_LEVEL1;
+			break;
+		case HRT_LEVEL_DEFAULT:
+			opp_level = HRT_OPP_LEVEL_LEVEL1;
+			break;
+		default:
+			opp_level = HRT_OPP_LEVEL_LEVEL1;
+			break;
+		}
+#else
 	if (atomic_read(&dvfs_ovl_req_status) != req) {
 		switch (req) {
 		case HRT_LEVEL_LEVEL3:
@@ -1085,7 +1091,7 @@ int primary_display_request_dvfs_perf(
 			opp_level = HRT_OPP_LEVEL_DEFAULT;
 			break;
 		}
-
+#endif
 		emi_opp =
 			(opp_level >= HRT_OPP_LEVEL_DEFAULT) ?
 				MTK_PM_QOS_DDR_OPP_DEFAULT_VALUE : opp_level;
@@ -1344,9 +1350,14 @@ bool pri_disp_leave_privilege(bool need_lock)
 static int hrt_bw_cond_change_cb(struct notifier_block *nb,
 		unsigned long value, void *v)
 {
+#ifdef THROT
 	int ret, i;
 	unsigned int hrt_idx;
+#endif
+
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
 	int active_cfg_id = 0;
+#endif
 
 	primary_display_manual_lock();
 
@@ -1410,10 +1421,6 @@ static int hrt_bw_cond_change_cb(struct notifier_block *nb,
 	return 0;
 }
 
-static struct notifier_block pmqos_hrt_notifier = {
-	.notifier_call = hrt_bw_cond_change_cb,
-};
-
 void hrt_bw_debug(unsigned int v)
 {
 	hrt_bw_cond_change_cb(NULL, v, NULL);
@@ -1441,11 +1448,7 @@ int primary_display_lowpower_init(void)
 	/* cmd mode always enable share sram */
 	if (disp_helper_get_option(DISP_OPT_SHARE_SRAM))
 		enter_share_sram(CMDQ_SYNC_RESOURCE_WROT0);
-#ifdef MTK_FB_MMDVFS_SUPPORT
-	primary_display_manual_unlock();
-	//mm_hrt_add_bw_throttle_notifier(&pmqos_hrt_notifier);
-	primary_display_manual_lock();
-#endif
+
 	return 0;
 }
 

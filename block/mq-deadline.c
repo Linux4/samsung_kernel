@@ -30,7 +30,7 @@ static const int read_expire = HZ / 2;  /* max time before a read is submitted. 
 static const int write_expire = 5 * HZ; /* ditto for writes, these limits are SOFT! */
 static const int writes_starved = 2;    /* max times reads can starve a write */
 /* IOPP-mq_dd_max_async_dispatch-v2.0.k5.4 */
-static const int fifo_batch;       /* # of sequential requests treated as one
+static const int fifo_batch;		/* # of sequential requests treated as one
 				     by the above parameters. For throughput. */
 static const int async_write_percent = 25;     /* max tags percentige for async write */
 static const unsigned int max_async_write_tags = 8;    /* max tags for async write. */

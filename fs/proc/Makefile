@@ -20,13 +20,6 @@ proc-y	+= devices.o
 proc-y	+= interrupts.o
 proc-y	+= loadavg.o
 proc-y	+= meminfo.o
-#Bug 682954,songhaiyang.wt,add,20210812,add serial_num/cpuid/chipid
-proc-y  += serial_num.o
-
-#Bug 685841,songhaiyang.wt,add,20210819,add wt_rp
-proc-y  += wt_rp.o
-#Bug 685842,songhaiyang.wt,add,20210819,add wt_em
-proc-y  += wt_em.o
 proc-y	+= stat.o
 proc-y	+= uptime.o
 proc-y	+= util.o
@@ -36,7 +29,13 @@ proc-y	+= namespaces.o
 proc-y	+= self.o
 proc-y	+= thread_self.o
 proc-$(CONFIG_PROC_FSLOG)	+= fslog.o
+#bug 770489,liangjierong.wt,add,20200713,add serial_num/cpuid/chipid
+proc-y  += serial_num.o
 proc-y  += secboot_fuse.o
+#bug 774006, wt.zhaocong, add, 20220630, add wt_em
+proc-y  += wt_em.o
+#bug 774005, wt.zhaocong, add, 20220704, add wt_rp
+proc-y  += wt_rp.o
 proc-$(CONFIG_PROC_UID)  += uid.o
 proc-$(CONFIG_PROC_SYSCTL)	+= proc_sysctl.o
 proc-$(CONFIG_NET)		+= proc_net.o

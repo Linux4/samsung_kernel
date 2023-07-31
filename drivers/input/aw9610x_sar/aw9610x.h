@@ -222,9 +222,11 @@ struct aw9610x {
 	uint8_t cfg_name[20];
 	uint8_t cfg_vers[2];
 	capsensor_enable_flag_t enable_flag;
-#if defined(CONFIG_SENSORS)
-	bool skip_data;
-#endif
+	#ifdef ANFR_TEST
+	uint32_t back_cap[3];
+	bool aw_first_boot;
+	int interrupt_count;
+	#endif
 };
 
 struct aw9610x_cfg {
@@ -452,11 +454,12 @@ uint32_t aw9610x_reg_default[] = {
 };
 
 static struct sensors_classdev sensors_capsensor_ch0_cdev = {
-    .name = "grip_sensor",
+    .name = "AW9610X",
     .vendor = "AWINIC",
-    .sensor_name = "AW9610X",
+    .sensor_name = "grip_sensor",
     .version = 1,
     .type = SENSOR_TYPE_AWINIC_CAPSENSE,
+    .sensor_name = "grip_sensor",
     .max_range = "5",
     .resolution = "5.0",
     .sensor_power = "3",
@@ -470,11 +473,12 @@ static struct sensors_classdev sensors_capsensor_ch0_cdev = {
 };
 
 static struct sensors_classdev sensors_capsensor_ch2_cdev = {
-    .name = "grip_sensor_sub",
+    .name = "AW9610X",
     .vendor = "AWINIC",
-    .sensor_name = "AW9610X",
+    .sensor_name = "grip_sensor_sub",
     .version = 1,
     .type = SENSOR_TYPE_AWINIC_CAPSENSE,
+    .sensor_name = "grip_sensor_sub",
     .max_range = "5",
     .resolution = "5.0",
     .sensor_power = "3",
@@ -488,11 +492,12 @@ static struct sensors_classdev sensors_capsensor_ch2_cdev = {
 };
 
 static struct sensors_classdev sensors_capsensor_ch3_cdev = {
-    .name = "grip_sensor_wifi",
+    .name = "AW9610X",
     .vendor = "AWINIC",
-    .sensor_name = "AW9610X",
+    .sensor_name = "grip_sensor_wifi",
     .version = 1,
     .type = SENSOR_TYPE_AWINIC_CAPSENSE,
+    .sensor_name =  "grip_sensor_wifi",
     .max_range = "5",
     .resolution = "5.0",
     .sensor_power = "3",

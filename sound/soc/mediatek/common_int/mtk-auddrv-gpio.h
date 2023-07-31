@@ -68,6 +68,8 @@ int AudDrv_GPIO_RCVSPK_Select(int bEnable);
 int AudDrv_GPIO_HPDEPOP_Select(int bEnable);
 
 int audio_drv_gpio_aud_clk_pull(bool high);
-//Bug 621775 xiexiaoping.wt,add,20210806,add hac support
+//ckl, zhangxingyuan.wt, add, 20220725, audio bringup for hac
+#ifdef CONFIG_SND_SOC_HAC_SUPPORT
 int HAC_Amp_Change(int bEnable);
+#endif
 #endif

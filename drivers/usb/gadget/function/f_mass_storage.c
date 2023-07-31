@@ -221,6 +221,8 @@
 #include <linux/usb/gadget.h>
 #include <linux/usb/composite.h>
 
+#include <linux/nospec.h>
+
 #include "configfs.h"
 #include "usb_boost.h"
 
@@ -460,6 +462,10 @@ static void set_bulk_out_req_length(struct fsg_common *common,
 	if (rem > 0)
 		length += common->bulk_out_maxpacket - rem;
 	bh->outreq->length = length;
+
+	/* some USB 2.0 hardware requires this setting */
+	if (common->bicr)
+		bh->outreq->short_not_ok = 1;
 }
 
 
@@ -618,7 +624,16 @@ static int fsg_setup(struct usb_function *f,
 				w_length != 1)
 			return -EDOM;
 		VDBG(fsg, "get max LUN\n");
-		*(u8 *)req->buf = _fsg_common_get_max_lun(fsg->common);
+		if (IS_ENABLED(USB_CONFIGFS_BICR) && fsg->common->bicr) {
+			/*
+			 * When Built-In CDROM is enabled,
+			 * we share only one LUN.
+			 */
+			*(u8 *)req->buf = 0;
+		} else {
+			*(u8 *)req->buf = _fsg_common_get_max_lun(fsg->common);
+		}
+		INFO(fsg, "get max LUN = %d\n", *(u8 *)req->buf);
 
 		/* Respond with data/status */
 		req->length = min((u16)1, w_length);
@@ -3105,6 +3120,7 @@ int fsg_common_set_cdev(struct fsg_common *common,
 	common->ep0 = cdev->gadget->ep0;
 	common->ep0req = cdev->req;
 	common->cdev = cdev;
+	common->bicr = 0;
 
 	us = usb_gstrings_attach(cdev, fsg_strings_array,
 				 ARRAY_SIZE(fsg_strings));
@@ -3320,6 +3336,7 @@ static void fsg_common_release(struct fsg_common *common)
 	if (common->free_storage_on_release)
 		kfree(common);
 }
+
 #ifdef CONFIG_USB_CONFIGFS_BICR
 ssize_t fsg_bicr_show(struct fsg_common *common, char *buf)
 {
@@ -3678,6 +3695,7 @@ static struct config_group *fsg_lun_make(struct config_group *group,
 	fsg_opts = to_fsg_opts(&group->cg_item);
 	if (num >= FSG_MAX_LUNS)
 		return ERR_PTR(-ERANGE);
+	num = array_index_nospec(num, FSG_MAX_LUNS);
 
 	mutex_lock(&fsg_opts->lock);
 	if (fsg_opts->refcnt || fsg_opts->common->luns[num]) {
@@ -3850,6 +3868,7 @@ static const struct config_item_type fsg_func_type = {
 
 #ifdef CONFIG_USB_CONFIGFS_UEVENT
 extern struct device *create_function_device(char *name);
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 static ssize_t mass_storage_inquiry_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -3879,7 +3898,6 @@ static DEVICE_ATTR(inquiry_string, S_IRUGO | S_IWUSR,
 					mass_storage_inquiry_show,
 					mass_storage_inquiry_store);
 
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 static ssize_t mass_storage_vendor_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -3979,15 +3997,12 @@ static ssize_t sua_version_info_store(struct device *dev,
 
 static DEVICE_ATTR(sua_version_info,  S_IRUGO | S_IWUSR,
 		sua_version_info_show, sua_version_info_store);
-#endif
 
 static struct device_attribute *mass_storage_function_attributes[] = {
 	&dev_attr_inquiry_string,
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 	&dev_attr_vendor_string,
 	&dev_attr_product_string,
 	&dev_attr_sua_version_info,
-#endif
 	NULL
 };
 
@@ -4015,6 +4030,7 @@ static int create_mass_storage_device(struct usb_function_instance *fi)
 	dev_set_drvdata(dev, fi);
 	return 0;
 }
+#endif
 #endif
 
 static void fsg_free_inst(struct usb_function_instance *fi)

@@ -10,6 +10,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/ratelimit.h>
 #include<linux/ktime.h>
+#include <linux/irq.h>
 
 #include "../inc/mt6360_pmu.h"
 
@@ -30,7 +31,6 @@ static irqreturn_t mt6360_pmu_irq_handler(int irq, void *data)
 #endif
 
 	mt_dbg(mpi->dev, "%s ++\n", __func__);
-	dev_info(mpi->dev, "%s\n", __func__);
 	pm_runtime_get_sync(mpi->dev);
 	ret = mt6360_pmu_reg_block_read(mpi, MT6360_PMU_CHG_IRQ1,
 					MT6360_PMU_IRQ_REGNUM, irq_events);
@@ -47,8 +47,6 @@ static irqreturn_t mt6360_pmu_irq_handler(int irq, void *data)
 		for (j = 0; j < 8; j++) {
 			if (!(irq_events[i] & (1 << j)))
 				continue;
-			dev_info(mpi->dev, "%s: (%d , %d)\n",
-						__func__, i, j);
 			ret = irq_find_mapping(mpi->irq_domain, i * 8 + j);
 			if (ret) {
 #ifdef CONFIG_MT6360_PMU_DEBUG
@@ -119,10 +117,11 @@ static void mt6360_pmu_irq_bus_sync_unlock(struct irq_data *data)
 	struct mt6360_pmu_info *mpi = data->chip_data;
 	int ret;
 	unsigned long offset = data->hwirq;
+	u8 clr_curr_irq_evt = 1 << (offset % 8);
 
 	/* force clear current irq event */
-	ret = mt6360_pmu_reg_write(mpi, MT6360_PMU_CHG_IRQ1 + offset / 8,
-				   1 << (offset % 8));
+	ret = mt6360_pmu_reg_block_write(mpi, MT6360_PMU_CHG_IRQ1 + offset / 8,
+						1, &clr_curr_irq_evt);
 	if (ret < 0)
 		dev_err(mpi->dev, "%s: fail to write clr irq\n", __func__);
 	/* unmask current irq */

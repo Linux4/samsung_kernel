@@ -13,10 +13,6 @@
 #include <linux/sched.h>
 #include <linux/device.h>
 #include <linux/fault-inject.h>
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-#include <linux/device.h>
-#include <linux/pm_wakeup.h>
-#endif
 
 #include <linux/mmc/core.h>
 #include <linux/mmc/card.h>
@@ -150,6 +146,9 @@ struct mmc_host_ops {
 
 	/* Prepare HS400 target operating frequency depending host driver */
 	int	(*prepare_hs400_tuning)(struct mmc_host *host, struct mmc_ios *ios);
+
+	/* Execute HS400 tuning depending host driver */
+	int (*execute_hs400_tuning)(struct mmc_host *host, struct mmc_card *card);
 
 	/* Prepare for switching from HS400 to HS200 */
 	void	(*hs400_downgrade)(struct mmc_host *host);
@@ -351,7 +350,8 @@ union swcqhci_crypto_cfg_entry {
 struct mmc_host {
 	struct device		*parent;
 	struct device		class_dev;
-	int			index;
+	int index;
+	int host_function;	/* define host function */
 	const struct mmc_host_ops *ops;
 	struct mmc_pwrseq	*pwrseq;
 	unsigned int		f_min;
@@ -385,6 +385,12 @@ struct mmc_host {
 #define MMC_VDD_33_34		0x00200000	/* VDD voltage 3.3 ~ 3.4 */
 #define MMC_VDD_34_35		0x00400000	/* VDD voltage 3.4 ~ 3.5 */
 #define MMC_VDD_35_36		0x00800000	/* VDD voltage 3.5 ~ 3.6 */
+
+#define MMC_VDD_EMMC		(MMC_VDD_165_195 |MMC_VDD_20_21| \
+	MMC_VDD_21_22|MMC_VDD_22_23|MMC_VDD_23_24|MMC_VDD_24_25| \
+	MMC_VDD_25_26|MMC_VDD_26_27|MMC_VDD_27_28| \
+	MMC_VDD_28_29 | MMC_VDD_29_30)
+#define MMC_VDD_SD		(MMC_VDD_28_29 | MMC_VDD_29_30)
 
 	u32			caps;		/* Host capabilities */
 
@@ -499,22 +505,11 @@ struct mmc_host {
 	struct mmc_ctx		default_ctx;	/* default context */
 
 	struct delayed_work	detect;
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-	struct wakeup_source	*detect_wake_lock;
-	const char              *wlock_name;
-#endif
 	int			detect_change;	/* card detect flag */
 	struct mmc_slot		slot;
 
 	const struct mmc_bus_ops *bus_ops;	/* current bus driver */
 	unsigned int		bus_refs;	/* reference counter */
-
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-	unsigned int		bus_resume_flags;
-#define MMC_BUSRESUME_MANUAL_RESUME (1 << 0)
-#define MMC_BUSRESUME_NEEDS_RESUME  (1 << 1)
-#define MMC_BUSRESUME_ENTER_IO      (1 << 2)
-#endif
 
 	unsigned int		sdio_irqs;
 	struct task_struct	*sdio_irq_thread;
@@ -626,21 +621,6 @@ static inline void *mmc_priv(struct mmc_host *host)
 #define mmc_dev(x)	((x)->parent)
 #define mmc_classdev(x)	(&(x)->class_dev)
 #define mmc_hostname(x)	(dev_name(&(x)->class_dev))
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-#define mmc_bus_needs_resume(host) ((host)->bus_resume_flags & \
-	MMC_BUSRESUME_NEEDS_RESUME)
-#define mmc_bus_manual_resume(host) ((host)->bus_resume_flags & \
-	MMC_BUSRESUME_MANUAL_RESUME)
-static inline void mmc_set_bus_resume_policy(struct mmc_host *host, int manual)
-{
-	if (manual)
-		host->bus_resume_flags |= MMC_BUSRESUME_MANUAL_RESUME;
-	else
-		host->bus_resume_flags &= ~MMC_BUSRESUME_MANUAL_RESUME;
-}
-
-extern int mmc_resume_bus(struct mmc_host *host);
-#endif
 
 void mmc_detect_change(struct mmc_host *, unsigned long delay);
 void mmc_request_done(struct mmc_host *, struct mmc_request *);
@@ -752,5 +732,6 @@ static inline enum dma_data_direction mmc_get_dma_dir(struct mmc_data *data)
 
 int mmc_send_tuning(struct mmc_host *host, u32 opcode, int *cmd_error);
 int mmc_abort_tuning(struct mmc_host *host, u32 opcode);
+int mmc_get_ext_csd(struct mmc_card *card, u8 **new_ext_csd);
 
 #endif /* LINUX_MMC_HOST_H */

@@ -72,7 +72,6 @@ static int create_timed_output_class(void)
 
 	return 0;
 }
-
 int timed_output_dev_register(struct device *parent,
 		struct timed_output_dev *tdev)
 {

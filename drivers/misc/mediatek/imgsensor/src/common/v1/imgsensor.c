@@ -47,8 +47,8 @@
 #include "imgsensor_proc.h"
 #include "imgsensor_clk.h"
 #include "imgsensor.h"
-//bug682590,zhoumin.wt,ADD,2021/8/16, add camera module info for factory apk
-#include <linux/hardware_info.h>
+
+#include <linux/hardware_info.h> //bug720062, qinduilin.wt, ADD, 2022/2/7, add camera module info for factory apk
 
 #define PDAF_DATA_SIZE 4096
 
@@ -76,8 +76,17 @@ static DEFINE_MUTEX(gimgsensor_mutex);
 
 struct IMGSENSOR  gimgsensor;
 struct IMGSENSOR *pgimgsensor = &gimgsensor;
-
+MUINT32 last_id;
+//+S96818AA1-1936 liudijin.wt, add, 2023/05/03, distinguish depth camera params for dualcam
+kal_uint32 main_sensor_id = 0xffffffff;
+//+S96818AA1-1936 liudijin.wt, add, 2023/05/03, distinguish depth camera params for dualcam
+//+S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
+#ifdef CONFIG_MTK_S96818_CAMERA
+int sc800cs_is_alive = 0;
+#endif
+//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
 /*prevent imgsensor race condition in vulunerbility test*/
+
 struct mutex imgsensor_mutex;
 
 
@@ -104,7 +113,7 @@ void IMGSENSOR_PROFILE(struct timeval *ptv, char *tag)
 	time_interval =
 	    (tv.tv_sec - ptv->tv_sec) * 1000000 + (tv.tv_usec - ptv->tv_usec);
 
-	PK_DBG("[%s]Profile = %lu us\n", tag, time_interval);
+	pr_info("[%s]Profile = %lu us\n", tag, time_interval);
 }
 
 #else
@@ -120,8 +129,7 @@ void IMGSENSOR_PROFILE(struct timeval *ptv, char *tag) {}
 struct IMGSENSOR_SENSOR *
 imgsensor_sensor_get_inst(enum IMGSENSOR_SENSOR_IDX idx)
 {
-	if (idx < IMGSENSOR_SENSOR_IDX_MIN_NUM ||
-	    idx >= IMGSENSOR_SENSOR_IDX_MAX_NUM)
+	if (idx >= IMGSENSOR_SENSOR_IDX_MAX_NUM)
 		return NULL;
 	else
 		return &pgimgsensor->sensor[idx];
@@ -194,7 +202,7 @@ imgsensor_sensor_open(struct IMGSENSOR_SENSOR *psensor)
 			return -EIO;
 		}
 		/* wait for power stable */
-		mDELAY(5);
+		usleep_range(5000, 7000);
 
 		IMGSENSOR_PROFILE(&psensor_inst->profile_time,
 		    "kdCISModulePowerOn");
@@ -436,6 +444,7 @@ imgsensor_sensor_close(struct IMGSENSOR_SENSOR *psensor)
 	return ret ? -EIO : ret;
 }
 
+#ifdef CONFIG_MTK_96516_CAMERA
 /************************************************************************
  * imgsensor_check_is_alive
  ************************************************************************/
@@ -470,29 +479,29 @@ static inline int imgsensor_check_is_alive(struct IMGSENSOR_SENSOR *psensor)
 		if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN){
 			hardwareinfo_set_prop(HARDWARE_BACK_CAM, psensor_inst->psensor_name);
 			if(!strcmp(psensor_inst->psensor_name, "n23_hi1336_rear_txd_mipi_raw"))
-				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MODULE_ID, "TXD");
+				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "TXD");
 			else if(!strcmp(psensor_inst->psensor_name, "n23_hi1336_rear_st_mipi_raw"))
-				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MODULE_ID, "SHENGTAI");
+				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "SHENGTAI");
 		}else if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_SUB){
 			hardwareinfo_set_prop(HARDWARE_FRONT_CAM, psensor_inst->psensor_name);
 			if(!strcmp(psensor_inst->psensor_name, "n23_sc500cs_front_txd_mipi_raw"))
-				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MODULE_ID, "TXD");
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "TXD");
 			else if(!strcmp(psensor_inst->psensor_name, "n23_gc5035_front_ly_mipi_raw"))
-				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MODULE_ID, "LIANYI");
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "LIANYI");
 		}else if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN2){
 			hardwareinfo_set_prop(HARDWARE_BACK_SUB_CAM, psensor_inst->psensor_name);
 			if(!strcmp(psensor_inst->psensor_name, "n23_sc201cs_dep_cxt_mipi_mono"))
-				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MODULE_ID, "CXT");
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "CXT");
 			else if(!strcmp(psensor_inst->psensor_name, "n23_bf2253_dep_lh_mipi_raw"))
-				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MODULE_ID, "LHYX");
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "LHYX");
 			else if(!strcmp(psensor_inst->psensor_name, "n23_c2515_dep_sj_mipi_mono"))
-				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MODULE_ID, "SHIJIA");
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "SHIJIA");
 		}else if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_SUB2){
-			hardwareinfo_set_prop(HARDWARE_MACRO_CAM, psensor_inst->psensor_name);
+			hardwareinfo_set_prop(HARDWARE_MICRO_CAM, psensor_inst->psensor_name);
 			if(!strcmp(psensor_inst->psensor_name, "n23_bf2253_micro_cxt_mipi_raw"))
-				hardwareinfo_set_prop(HARDWARE_MACRO_CAM_MODULE_ID, "CXT");
+				hardwareinfo_set_prop(HARDWARE_MICRO_CAM_MOUDULE_ID, "CXT");
 			else if(!strcmp(psensor_inst->psensor_name, "n23_sc201cs_micro_lhyx_mipi_raw"))
-				hardwareinfo_set_prop(HARDWARE_MACRO_CAM_MODULE_ID, "LHYX");
+				hardwareinfo_set_prop(HARDWARE_MICRO_CAM_MOUDULE_ID, "LHYX");
 		}
 		//-bug682590, zhoumin.wt, ADD, 2021/8/16, add camera module info for factory apk
 	}
@@ -509,7 +518,180 @@ static inline int imgsensor_check_is_alive(struct IMGSENSOR_SENSOR *psensor)
 
 	return err ? -EIO:err;
 }
+#elif defined(CONFIG_MTK_S96818_CAMERA)
+/************************************************************************
+ * imgsensor_check_is_alive
+ ************************************************************************/
+static inline int imgsensor_check_is_alive(struct IMGSENSOR_SENSOR *psensor)
+{
+	struct IMGSENSOR_SENSOR_INST  *psensor_inst = &psensor->inst;
+	UINT32 err = 0;
+	MUINT32 sensorID = 0;
+	MUINT32 retLen = sizeof(MUINT32);
 
+	IMGSENSOR_PROFILE_INIT(&psensor_inst->profile_time);
+
+	err = imgsensor_hw_power(&pgimgsensor->hw,
+				psensor,
+				psensor_inst->psensor_name,
+				IMGSENSOR_HW_POWER_STATUS_ON);
+
+	if (err == IMGSENSOR_RETURN_SUCCESS)
+		imgsensor_sensor_feature_control(
+			psensor,
+			SENSOR_FEATURE_CHECK_SENSOR_ID,
+			(MUINT8 *)&sensorID,
+			&retLen);
+
+	if (sensorID == 0 || sensorID == 0xFFFFFFFF) {
+		pr_info("Fail to get sensor ID %x\n", sensorID);
+		err = ERROR_SENSOR_CONNECT_FAIL;
+	} else {
+		pr_info(" Sensor found ID = 0x%x\n", sensorID);
+		err = ERROR_NONE;
+		//+S96818AA1-1936 liudijin.wt, add, 2023/05/03, distinguish depth camera params for dualcam
+		if((N28HI5021QREARTRULY_SENSOR_ID == sensorID) || (N28HI5021QREARDC_SENSOR_ID == sensorID)){
+			main_sensor_id = sensorID;
+			pr_info("the deveice main_sensor_id:0x%x",main_sensor_id);
+		}
+		//-S96818AA1-1936 liudijin.wt, add, 2023/05/03, distinguish depth camera params for dualcam
+		//+S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/18, add camera module info for factory apk
+		if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN){
+			hardwareinfo_set_prop(HARDWARE_BACK_CAM, psensor_inst->psensor_name);
+			if(!strcmp(psensor_inst->psensor_name, "n28hi5022qreartxd_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "TXD");
+			if(!strcmp(psensor_inst->psensor_name, "n28hi5021qreartruly_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "TRULY");
+			if(!strcmp(psensor_inst->psensor_name, "n28hi5021qreardc_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "DMEGC");
+
+		}else if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_SUB){
+			hardwareinfo_set_prop(HARDWARE_FRONT_CAM, psensor_inst->psensor_name);
+			if(!strcmp(psensor_inst->psensor_name, "n28hi846fronttruly_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "TRULY");
+			if(!strcmp(psensor_inst->psensor_name, "n28gc08a3frontcxt_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "CXT");
+			if(!strcmp(psensor_inst->psensor_name, "n28sc800csfrontdc_mipi_raw")){
+				sc800cs_is_alive=1;// +S96818AA1-1936,wuwenhao2.wt,ADD,2023/05/09, sc800cs leaks electricity
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "DMEGC");
+			}
+			if(!strcmp(psensor_inst->psensor_name, "n28c8496frontdc_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "DMEGC");
+		}else if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN2){
+			hardwareinfo_set_prop(HARDWARE_BACK_SUB_CAM, psensor_inst->psensor_name);
+			if(!strcmp(psensor_inst->psensor_name, "n28c2519depcxt_mipi_mono"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "CXT");
+			if(!strcmp(psensor_inst->psensor_name, "n28gc2375hdeplh_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "LH");
+			if(!strcmp(psensor_inst->psensor_name, "n28c2519depcxt2_mipi_mono"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "CXT");
+			if(!strcmp(psensor_inst->psensor_name, "n28gc2375hdeplh2_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "LH");
+		}
+		//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/18, add camera module info for factory apk
+	}
+
+	if (err != ERROR_NONE)
+		pr_info("ERROR: No imgsensor alive\n");
+
+	imgsensor_hw_power(&pgimgsensor->hw,
+	    psensor,
+	    psensor_inst->psensor_name,
+	    IMGSENSOR_HW_POWER_STATUS_OFF);
+
+	IMGSENSOR_PROFILE(&psensor_inst->profile_time, "CheckIsAlive");
+
+	return err ? -EIO:err;
+}
+#else
+/************************************************************************
+ * imgsensor_check_is_alive
+ ************************************************************************/
+static inline int imgsensor_check_is_alive(struct IMGSENSOR_SENSOR *psensor)
+{
+	struct IMGSENSOR_SENSOR_INST  *psensor_inst = &psensor->inst;
+	UINT32 err = 0;
+	MUINT32 sensorID = 0;
+	MUINT32 retLen = sizeof(MUINT32);
+
+	IMGSENSOR_PROFILE_INIT(&psensor_inst->profile_time);
+
+	err = imgsensor_hw_power(&pgimgsensor->hw,
+				psensor,
+				psensor_inst->psensor_name,
+				IMGSENSOR_HW_POWER_STATUS_ON);
+
+	if (err == IMGSENSOR_RETURN_SUCCESS)
+		imgsensor_sensor_feature_control(
+			psensor,
+			SENSOR_FEATURE_CHECK_SENSOR_ID,
+			(MUINT8 *)&sensorID,
+			&retLen);
+
+	if (sensorID == 0 || sensorID == 0xFFFFFFFF) {
+		pr_info("Fail to get sensor ID %x\n", sensorID);
+		err = ERROR_SENSOR_CONNECT_FAIL;
+	} else {
+		pr_info(" Sensor found ID = 0x%x\n", sensorID);
+		err = ERROR_NONE;
+		//+bug720062, qinduilin.wt, ADD, 2022/2/7, add camera module info for factory apk
+		if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN){
+			hardwareinfo_set_prop(HARDWARE_BACK_CAM, psensor_inst->psensor_name);
+			if(!strcmp(psensor_inst->psensor_name, "n26_hi5021q_rear_truly_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "TRULY");
+			if(!strcmp(psensor_inst->psensor_name, "n26_hi5021q_rear_st_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "SHENGTAI");
+			if(!strcmp(psensor_inst->psensor_name, "n26_s5kjn1_rear_txd_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "TXD");
+			if(!strcmp(psensor_inst->psensor_name, "n26_hi5021q_rear_delta_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "DELTA");
+		}else if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_SUB){
+			hardwareinfo_set_prop(HARDWARE_FRONT_CAM, psensor_inst->psensor_name);
+			//+bug720062, liangyiyi.wt, MEDIFY, 2022/2/24, add 4st front camera module info for factory apk
+			if(!strcmp(psensor_inst->psensor_name, "n26_sc501cs_front_ly_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "LCE");
+			else if(!strcmp(psensor_inst->psensor_name, "n26_hi556_front_xl_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "TRULY");
+			else if(!strcmp(psensor_inst->psensor_name, "n26_s5k5e9_front_txd_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "TXD");
+			else if(!strcmp(psensor_inst->psensor_name, "n26_hi556_front_delta_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "DELTA");
+			//-bug720062, liangyiyi.wt, MEDIFY, 2022/2/24, add 4st front camera module info for factory apk
+		}else if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN2){
+			hardwareinfo_set_prop(HARDWARE_BACK_SUB_CAM, psensor_inst->psensor_name);
+			if(!strcmp(psensor_inst->psensor_name, "n26_c2515_dep_cxt_mipi_mono"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "CXT");
+			else if(!strcmp(psensor_inst->psensor_name, "n26_sc201cs_dep_lh_mipi_mono"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "LH");
+			else if(!strcmp(psensor_inst->psensor_name, "n26_gc02m1_dep_cxt_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "CXT");
+			else if(!strcmp(psensor_inst->psensor_name, "n26_c2519_dep_delta_mipi_mono"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "DELTA");
+		}else if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_SUB2){
+			hardwareinfo_set_prop(HARDWARE_MICRO_CAM, psensor_inst->psensor_name);
+			if(!strcmp(psensor_inst->psensor_name, "n26_gc02m2_micro_cxt_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_MICRO_CAM_MOUDULE_ID, "CXT");
+			else if(!strcmp(psensor_inst->psensor_name, "n26_sc201cs_micro_lce_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_MICRO_CAM_MOUDULE_ID, "LCE");
+			else if(!strcmp(psensor_inst->psensor_name, "n26_c2599_micro_delta_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_MICRO_CAM_MOUDULE_ID, "DELTA");
+		}
+		//-bug720062, qinduilin.wt, ADD, 2022/2/7, add camera module info for factory apk
+	}
+
+	if (err != ERROR_NONE)
+		pr_info("ERROR: No imgsensor alive\n");
+
+	imgsensor_hw_power(&pgimgsensor->hw,
+	    psensor,
+	    psensor_inst->psensor_name,
+	    IMGSENSOR_HW_POWER_STATUS_OFF);
+
+	IMGSENSOR_PROFILE(&psensor_inst->profile_time, "CheckIsAlive");
+
+	return err ? -EIO:err;
+}
+#endif
 /************************************************************************
  * imgsensor_set_driver
  ************************************************************************/
@@ -528,8 +710,8 @@ int imgsensor_set_driver(struct IMGSENSOR_SENSOR *psensor)
 
 	static int orderedSearchList[MAX_NUM_OF_SUPPORT_SENSOR] = {-1};
 	static bool get_search_list = true;
-	int i = 0;
-	int j = 0;
+	unsigned int i = 0;
+	unsigned int j = 0;
 	char *driver_name = NULL;
 
 	imgsensor_mutex_init(psensor_inst);
@@ -552,7 +734,7 @@ int imgsensor_set_driver(struct IMGSENSOR_SENSOR *psensor)
 
 			*(psensor_list_config+strlen(sensor_configs)-2) = '\0';
 
-			PK_DBG("sensor_list %s\n", psensor_list_config);
+			pr_info("sensor_list %s\n", psensor_list_config);
 			driver_name = strsep(&psensor_list_config, " \0");
 
 			while (driver_name != NULL) {
@@ -619,7 +801,7 @@ int imgsensor_set_driver(struct IMGSENSOR_SENSOR *psensor)
 				    psensor->pfunc->arch;
 #endif
 				if (!imgsensor_check_is_alive(psensor)) {
-					PK_DBG(
+					pr_info(
 					    "[%s]:[%d][%d][%s]\n",
 					    __func__,
 					    psensor->inst.sensor_idx,
@@ -782,7 +964,7 @@ static void cam_temperature_report_wq_routine(
 	    &valid[0],
 	    &temp[0]);
 
-	PK_DBG("senDevId(%d), valid(%d), temperature(%d)\n",
+	pr_info("senDevId(%d), valid(%d), temperature(%d)\n",
 				DUAL_CAMERA_MAIN_SENSOR, valid[0], temp[0]);
 
 	if (ret != ERROR_NONE)
@@ -794,7 +976,7 @@ static void cam_temperature_report_wq_routine(
 	    &valid[1],
 	    &temp[1]);
 
-	PK_DBG("senDevId(%d), valid(%d), temperature(%d)\n",
+	pr_info("senDevId(%d), valid(%d), temperature(%d)\n",
 				DUAL_CAMERA_SUB_SENSOR, valid[1], temp[1]);
 
 	if (ret != ERROR_NONE)
@@ -806,7 +988,7 @@ static void cam_temperature_report_wq_routine(
 	    &valid[2],
 	    &temp[2]);
 
-	PK_DBG("senDevId(%d), valid(%d), temperature(%d)\n",
+	pr_info("senDevId(%d), valid(%d), temperature(%d)\n",
 				DUAL_CAMERA_MAIN_2_SENSOR, valid[2], temp[2]);
 
 	if (ret != ERROR_NONE)
@@ -817,7 +999,7 @@ static void cam_temperature_report_wq_routine(
 	    &valid[3],
 	    &temp[3]);
 
-	PK_DBG("senDevId(%d), valid(%d), temperature(%d)\n",
+	pr_info("senDevId(%d), valid(%d), temperature(%d)\n",
 				DUAL_CAMERA_SUB_2_SENSOR, valid[3], temp[3]);
 
 	if (ret != ERROR_NONE)
@@ -851,13 +1033,13 @@ static inline int adopt_CAMERA_HW_GetInfo2(void *pBuf)
 	if (pSensorGetInfo == NULL ||
 	    pSensorGetInfo->pInfo == NULL ||
 	    pSensorGetInfo->pSensorResolution == NULL) {
-		PK_DBG("[%s] NULL arg.\n", __func__);
+		pr_info("[%s] NULL arg.\n", __func__);
 		return -EFAULT;
 	}
 
 	psensor = imgsensor_sensor_get_inst(pSensorGetInfo->SensorId);
 	if (psensor == NULL) {
-		PK_DBG("[%s] NULL psensor.\n", __func__);
+		pr_info("[%s] NULL psensor.\n", __func__);
 		return -EFAULT;
 	}
 
@@ -1105,6 +1287,12 @@ static inline int adopt_CAMERA_HW_GetInfo2(void *pBuf)
 				psensorResolution->SensorVideoWidth,
 				psensorResolution->SensorVideoHeight);
 
+	if (pSensorGetInfo->SensorId <= last_id) {
+		memset(mtk_ccm_name, 0, camera_info_size);
+		PK_DBG("memset ok");
+	}
+	last_id = pSensorGetInfo->SensorId;
+
 	/* Add info to proc: camera_info */
 	pmtk_ccm_name = strchr(mtk_ccm_name, '\0');
 	snprintf(pmtk_ccm_name,
@@ -1277,7 +1465,6 @@ static inline int check_length_of_para(
 	case SENSOR_FEATURE_GET_SHUTTER_GAIN_AWB_GAIN:
 	case SENSOR_FEATURE_GET_EXIF_INFO:
 	case SENSOR_FEATURE_GET_DELAY_INFO:
-	case SENSOR_FEATURE_SET_TEST_PATTERN:
 	case SENSOR_FEATURE_GET_TEST_PATTERN_CHECKSUM_VALUE:
 	case SENSOR_FEATURE_SET_OB_LOCK:
 	case SENSOR_FEATURE_SET_SENSOR_OTP_AWB_CMD:
@@ -1397,6 +1584,14 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 	void *pFeaturePara = NULL;
 	struct ACDK_KD_SENSOR_SYNC_STRUCT *pSensorSyncInfo = NULL;
 	signed int ret = 0;
+	struct SET_SENSOR_PATTERN_SOLID_COLOR *pData = NULL;
+	unsigned long long *pFeaturePara_64 = NULL;
+	void *usr_ptr = NULL;
+	kal_uint32 u4RegLen = 0;
+	char *pPdaf_data = NULL;
+	void *usr_ptr_Reg = NULL;
+	kal_uint32 buf_size = 0;
+	kal_uint32 *pReg = NULL;
 
 	pFeatureCtrl = (struct ACDK_SENSOR_FEATURECONTROL_STRUCT *)pBuf;
 	if (pFeatureCtrl  == NULL) {
@@ -1522,6 +1717,7 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 	case SENSOR_FEATURE_GET_SENSOR_PDAF_CAPACITY:
 	case SENSOR_FEATURE_GET_SENSOR_HDR_CAPACITY:
 	case SENSOR_FEATURE_GET_MIPI_PIXEL_RATE:
+	case SENSOR_FEATURE_GET_AWB_REQ_BY_SCENARIO:
 	case SENSOR_FEATURE_GET_OFFSET_TO_START_OF_EXPOSURE:
 	case SENSOR_FEATURE_GET_PIXEL_RATE:
 	case SENSOR_FEATURE_SET_PDAF:
@@ -1606,11 +1802,18 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 	case SENSOR_FEATURE_GET_SENSOR_PDAF_CAPACITY:
 	case SENSOR_FEATURE_GET_SENSOR_HDR_CAPACITY:
 	case SENSOR_FEATURE_GET_MIPI_PIXEL_RATE:
+	case SENSOR_FEATURE_GET_AWB_REQ_BY_SCENARIO:
 	case SENSOR_FEATURE_GET_PIXEL_RATE:
 	{
 		MUINT32 *pValue = NULL;
-		unsigned long long *pFeaturePara_64 =
+		pFeaturePara_64 =
 		    (unsigned long long *)pFeaturePara;
+
+		if (FeatureParaLen < 2 * sizeof(unsigned long long)) {
+			PK_DBG("FeatureParaLen is too small %d\n", FeatureParaLen);
+			kfree(pFeaturePara);
+			return -EINVAL;
+		}
 
 		pValue = kmalloc(sizeof(MUINT32), GFP_KERNEL);
 		if (pValue == NULL) {
@@ -1662,8 +1865,14 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 	{
 		MUINT32 *pValue0 = NULL;
 		MUINT32 *pValue1 = NULL;
-		unsigned long long *pFeaturePara_64 =
+		pFeaturePara_64 =
 		    (unsigned long long *)pFeaturePara;
+
+		if (FeatureParaLen < 2 * sizeof(unsigned long long)) {
+			PK_DBG("FeatureParaLen is too small %d\n", FeatureParaLen);
+			kfree(pFeaturePara);
+			return -EINVAL;
+		}
 
 		pValue0 = kmalloc(sizeof(MUINT32), GFP_KERNEL);
 		pValue1 = kmalloc(sizeof(MUINT32), GFP_KERNEL);
@@ -1696,10 +1905,16 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 	case SENSOR_FEATURE_GET_EV_AWB_REF:
 	{
 		struct SENSOR_AE_AWB_REF_STRUCT *pAeAwbRef = NULL;
-		unsigned long long *pFeaturePara_64 =
+		pFeaturePara_64 =
 		    (unsigned long long *)pFeaturePara;
 
-		void *usr_ptr = (void *)(uintptr_t)(*(pFeaturePara_64));
+		usr_ptr = (void *)(uintptr_t)(*(pFeaturePara_64));
+
+		if (FeatureParaLen < 1 * sizeof(unsigned long long)) {
+			PK_DBG("FeatureParaLen is too small %d\n", FeatureParaLen);
+			kfree(pFeaturePara);
+			return -EINVAL;
+		}
 
 		pAeAwbRef = kmalloc(
 		    sizeof(struct SENSOR_AE_AWB_REF_STRUCT),
@@ -1737,10 +1952,16 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 	case SENSOR_FEATURE_GET_CROP_INFO:
 	{
 		struct SENSOR_WINSIZE_INFO_STRUCT *pCrop = NULL;
-		unsigned long long *pFeaturePara_64 =
+		pFeaturePara_64 =
 		    (unsigned long long *)pFeaturePara;
 
-		void *usr_ptr = (void *)(uintptr_t) (*(pFeaturePara_64 + 1));
+		usr_ptr = (void *)(uintptr_t) (*(pFeaturePara_64 + 1));
+
+		if (FeatureParaLen < 2 * sizeof(unsigned long long)) {
+			PK_DBG("FeatureParaLen is too small %d\n", FeatureParaLen);
+			kfree(pFeaturePara);
+			return -EINVAL;
+		}
 
 		pCrop = kmalloc(
 		    sizeof(struct SENSOR_WINSIZE_INFO_STRUCT),
@@ -1775,10 +1996,16 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 	case SENSOR_FEATURE_GET_VC_INFO:
 	{
 		struct SENSOR_VC_INFO_STRUCT *pVcInfo = NULL;
-		unsigned long long *pFeaturePara_64 =
+		pFeaturePara_64 =
 		    (unsigned long long *)pFeaturePara;
 
-		void *usr_ptr = (void *)(uintptr_t) (*(pFeaturePara_64 + 1));
+		usr_ptr = (void *)(uintptr_t) (*(pFeaturePara_64 + 1));
+
+		if (FeatureParaLen < 2 * sizeof(unsigned long long)) {
+			PK_DBG("FeatureParaLen is too small %d\n", FeatureParaLen);
+			kfree(pFeaturePara);
+			return -EINVAL;
+		}
 
 		pVcInfo = kmalloc(
 		    sizeof(struct SENSOR_VC_INFO_STRUCT),
@@ -1812,10 +2039,16 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 	case SENSOR_FEATURE_GET_PDAF_INFO:
 	{
 		struct SET_PD_BLOCK_INFO_T *pPdInfo = NULL;
-		unsigned long long *pFeaturePara_64 =
+		pFeaturePara_64 =
 		    (unsigned long long *)pFeaturePara;
 
-		void *usr_ptr = (void *)(uintptr_t) (*(pFeaturePara_64 + 1));
+		usr_ptr = (void *)(uintptr_t) (*(pFeaturePara_64 + 1));
+
+		if (FeatureParaLen < 2 * sizeof(unsigned long long)) {
+			PK_DBG("FeatureParaLen is too small %d\n", FeatureParaLen);
+			kfree(pFeaturePara);
+			return -EINVAL;
+		}
 
 		pPdInfo = kmalloc(
 		    sizeof(struct SET_PD_BLOCK_INFO_T),
@@ -1849,13 +2082,18 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 	case SENSOR_FEATURE_GET_PDAF_REG_SETTING:
 	case SENSOR_FEATURE_SET_PDAF_REG_SETTING:
 	{
-		unsigned long long *pFeaturePara_64 =
+		pFeaturePara_64 =
 		    (unsigned long long *)pFeaturePara;
 
-		kal_uint32 u4RegLen = (*pFeaturePara_64);
-		void *usr_ptr_Reg =
+		u4RegLen = (*pFeaturePara_64);
+		usr_ptr_Reg =
 		    (void *)(uintptr_t) (*(pFeaturePara_64 + 1));
-		kal_uint32 *pReg = NULL;
+
+		if (FeatureParaLen < 2 * sizeof(unsigned long long)) {
+			PK_DBG("FeatureParaLen is too small %d\n", FeatureParaLen);
+			kfree(pFeaturePara);
+			return -EINVAL;
+		}
 
 		if (u4RegLen > PDAF_DATA_SIZE) {
 			kfree(pFeaturePara);
@@ -1894,7 +2132,6 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 	}
 
 	break;
-
 	case SENSOR_FEATURE_SET_AF_WINDOW:
 	case SENSOR_FEATURE_SET_AE_WINDOW:
 	{
@@ -1902,7 +2139,7 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 		unsigned long long *pFeaturePara_64 =
 		    (unsigned long long *)pFeaturePara;
 
-		void *usr_ptr = (void *)(uintptr_t) (*(pFeaturePara_64));
+		usr_ptr = (void *)(uintptr_t) (*(pFeaturePara_64));
 
 		pApWindows = kmalloc(sizeof(MUINT32) * 6, GFP_KERNEL);
 		if (pApWindows == NULL) {
@@ -1937,7 +2174,13 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 		unsigned long long *pFeaturePara_64 =
 		    (unsigned long long *)pFeaturePara;
 
-		void *usr_ptr =  (void *)(uintptr_t) (*(pFeaturePara_64));
+		usr_ptr =  (void *)(uintptr_t) (*(pFeaturePara_64));
+
+		if (FeatureParaLen < 1 * sizeof(unsigned long long)) {
+			PK_DBG("FeatureParaLen is too small %d\n", FeatureParaLen);
+			kfree(pFeaturePara);
+			return -EINVAL;
+		}
 
 		pExif = kmalloc(
 		    sizeof(struct SENSOR_EXIF_INFO_STRUCT),
@@ -1972,10 +2215,16 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 	{
 
 		struct SENSOR_AE_AWB_CUR_STRUCT *pCurAEAWB = NULL;
-		unsigned long long *pFeaturePara_64 =
+		pFeaturePara_64 =
 		    (unsigned long long *)pFeaturePara;
 
-		void *usr_ptr = (void *)(uintptr_t) (*(pFeaturePara_64));
+		usr_ptr = (void *)(uintptr_t) (*(pFeaturePara_64));
+
+			if (FeatureParaLen < 1 * sizeof(unsigned long long)) {
+				PK_DBG("FeatureParaLen is too small %d\n", FeatureParaLen);
+				kfree(pFeaturePara);
+				return -EINVAL;
+			}
 
 		pCurAEAWB = kmalloc(
 		    sizeof(struct SENSOR_AE_AWB_CUR_STRUCT),
@@ -2018,7 +2267,13 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 		unsigned long long *pFeaturePara_64 =
 		    (unsigned long long *)pFeaturePara;
 
-		void *usr_ptr = (void *)(uintptr_t) (*(pFeaturePara_64));
+		usr_ptr = (void *)(uintptr_t) (*(pFeaturePara_64));
+
+			if (FeatureParaLen < 1 * sizeof(unsigned long long)) {
+				PK_DBG("FeatureParaLen is too small %d\n", FeatureParaLen);
+				kfree(pFeaturePara);
+				return -EINVAL;
+			}
 
 		pDelayInfo = kmalloc(
 		    sizeof(struct SENSOR_DELAY_INFO_STRUCT),
@@ -2057,10 +2312,16 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 	case SENSOR_FEATURE_GET_AE_FLASHLIGHT_INFO:
 	{
 		struct SENSOR_FLASHLIGHT_AE_INFO_STRUCT *pFlashInfo = NULL;
-		unsigned long long *pFeaturePara_64 =
+		pFeaturePara_64 =
 		    (unsigned long long *)pFeaturePara;
 
-		void *usr_ptr = (void *)(uintptr_t) (*(pFeaturePara_64));
+		usr_ptr = (void *)(uintptr_t) (*(pFeaturePara_64));
+
+			if (FeatureParaLen < 1 * sizeof(unsigned long long)) {
+				PK_DBG("FeatureParaLen is too small %d\n", FeatureParaLen);
+				kfree(pFeaturePara);
+				return -EINVAL;
+			}
 
 		pFlashInfo = kmalloc(
 		    sizeof(struct SENSOR_FLASHLIGHT_AE_INFO_STRUCT),
@@ -2099,11 +2360,16 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 	case SENSOR_FEATURE_GET_PDAF_DATA:
 	case SENSOR_FEATURE_GET_4CELL_DATA:
 	{
-		char *pPdaf_data = NULL;
-		unsigned long long *pFeaturePara_64 =
+		pFeaturePara_64 =
 		    (unsigned long long *) pFeaturePara;
-		void *usr_ptr = (void *)(uintptr_t)(*(pFeaturePara_64 + 1));
-		kal_uint32 buf_size = (kal_uint32) (*(pFeaturePara_64 + 2));
+		usr_ptr = (void *)(uintptr_t)(*(pFeaturePara_64 + 1));
+		buf_size = (kal_uint32) (*(pFeaturePara_64 + 2));
+
+			if (FeatureParaLen < 3 * sizeof(unsigned long long)) {
+				PK_DBG("FeatureParaLen is too small %d\n", FeatureParaLen);
+				kfree(pFeaturePara);
+				return -EINVAL;
+			}
 
 		if (buf_size > PDAF_DATA_SIZE) {
 			kfree(pFeaturePara);
@@ -2141,6 +2407,50 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 		*(pFeaturePara_64 + 1) = (uintptr_t) usr_ptr;
 	}
 	break;
+	case SENSOR_FEATURE_SET_TEST_PATTERN:
+		{
+			pr_debug("SENSOR_FEATURE_SET_TEST_PATTERN");
+			pFeaturePara_64 = (unsigned long long *)pFeaturePara;
+			usr_ptr =
+				(void *)(uintptr_t)(*(pFeaturePara_64 + 1));
+			if (usr_ptr) {
+				if (FeatureParaLen < 2 * sizeof(unsigned long long)) {
+					pr_debug("FeatureParaLen is too small %d\n",
+					FeatureParaLen);
+					kfree(pFeaturePara);
+					return -EINVAL;
+				}
+				pData = kmalloc(sizeof(struct SET_SENSOR_PATTERN_SOLID_COLOR),
+					GFP_KERNEL);
+
+				if (pData == NULL) {
+					kfree(pFeaturePara);
+					pr_debug("No color data %d\n");
+					return -ENOMEM;
+				}
+				memset(pData, 0x0,
+					sizeof(struct SET_SENSOR_PATTERN_SOLID_COLOR));
+
+				if (copy_from_user
+					((void *)pData, (void __user *)usr_ptr,
+					sizeof(struct SET_SENSOR_PATTERN_SOLID_COLOR))) {
+					kfree(pData);
+					pr_debug("[CAMERA_HW]ERROR: copy_from_user fail\n");
+				}
+				//pr_debug("%x %x %x %x",
+				//pData->COLOR_R, pData->COLOR_Gr,
+				//pData->COLOR_Gb, pData->COLOR_B);
+				if (pFeaturePara_64 != NULL)
+					*(pFeaturePara_64 + 1) = (uintptr_t)pData;
+			}
+			ret = imgsensor_sensor_feature_control(psensor,
+					pFeatureCtrl->FeatureId,
+					(unsigned char *)pFeaturePara,
+					(unsigned int *)&FeatureParaLen);
+
+			kfree(pData);
+		}
+		break;
 
 	default:
 		ret = imgsensor_sensor_feature_control(
@@ -2247,6 +2557,7 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 	case SENSOR_FEATURE_GET_SENSOR_PDAF_CAPACITY:
 	case SENSOR_FEATURE_GET_SENSOR_HDR_CAPACITY:
 	case SENSOR_FEATURE_GET_MIPI_PIXEL_RATE:
+	case SENSOR_FEATURE_GET_AWB_REQ_BY_SCENARIO:
 	case SENSOR_FEATURE_GET_OFFSET_TO_START_OF_EXPOSURE:
 	case SENSOR_FEATURE_GET_PIXEL_RATE:
 	case SENSOR_FEATURE_SET_ISO:
@@ -2689,6 +3000,7 @@ static long imgsensor_ioctl(
 	default:
 		PK_DBG("No such command %d\n", a_u4Command);
 		i4RetValue = -EPERM;
+		goto CAMERA_HW_Ioctl_EXIT;
 		break;
 	}
 
@@ -2702,8 +3014,11 @@ static long imgsensor_ioctl(
 		goto CAMERA_HW_Ioctl_EXIT;
 	}
 
-	kfree(pBuff);
 CAMERA_HW_Ioctl_EXIT:
+	if (pBuff != NULL) {
+		kfree(pBuff);
+		pBuff = NULL;
+	}
 	return i4RetValue;
 }
 
@@ -2919,7 +3234,7 @@ static struct platform_driver gimgsensor_platform_driver = {
  */
 static int __init imgsensor_init(void)
 {
-	PK_DBG("[camerahw_probe] start\n");
+	pr_info("[camerahw_probe] start\n");
 
 	if (platform_driver_register(&gimgsensor_platform_driver)) {
 		PK_DBG("failed to register CAMERA_HW driver\n");

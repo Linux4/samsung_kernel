@@ -48,11 +48,11 @@
 #define SENSOR_TYPE_STEP_DETECTOR		18
 #define SENSOR_TYPE_STEP_COUNTER		19
 #define SENSOR_TYPE_GEOMAGNETIC_ROTATION_VECTOR	20
-//+Bug 445219 huangcunzhu_wt,20190513,MODIFY,change sar type ID
+#define SENSOR_TYPE_SAR_MIAN (SENSOR_TYPE_DEVICE_PRIVATE_BASE + 24)
+#define SENSOR_TYPE_SAR_SUB  (SENSOR_TYPE_DEVICE_PRIVATE_BASE + 100)
+#define SENSOR_TYPE_SAR_WCN  (SENSOR_TYPE_DEVICE_PRIVATE_BASE + 39)
 #define SENSOR_TYPE_AWINIC_CAPSENSE (SENSOR_TYPE_DEVICE_PRIVATE_BASE + 24)
-//-Bug 445219 huangcunzhu_wt,20190513,MODIFY,change sar type ID
 #define SENSOR_TYPE_TYHX_CAPSENSE	(SENSOR_TYPE_DEVICE_PRIVATE_BASE + 25)
-
 enum LIS3DH_AXIS {
 	AXIS_X = 0,
 	AXIS_Y,
@@ -132,7 +132,7 @@ struct sensors_classdev {
 	struct list_head	node;
 	const char		*name;
 	const char		*vendor;
-	const char		*sensor_name;
+       const char      *sensor_name; //bug 492320,20191119,gaojingxuan.wt,add,use SS hal
 	int			version;
 	int			handle;
 	int			type;
@@ -174,4 +174,3 @@ extern int sensors_classdev_register(struct device *parent,
 extern void sensors_classdev_unregister(struct sensors_classdev *sensors_cdev);
 
 #endif		/* __LINUX_SENSORS_H_INCLUDED */
-

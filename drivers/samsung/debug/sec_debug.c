@@ -33,6 +33,7 @@
 #include <linux/sched/mm.h>
 #include <linux/sched/debug.h>
 #include <linux/nmi.h>
+#include <linux/sec_hard_reset_hook.h>
 
 /* get time function to log */
 #ifndef arch_irq_stat_cpu
@@ -42,8 +43,10 @@
 #define arch_irq_stat() 0
 #endif
 
+#ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
 static u32 __initdata sec_extra_info_base = SEC_EXTRA_INFO_BASE;
 static u32 __initdata sec_extra_info_size = SZ_64K;
+#endif
 
 DEFINE_PER_CPU(unsigned char, coreregs_stored);
 DEFINE_PER_CPU(struct pt_regs, sec_aarch64_core_reg);
@@ -240,24 +243,11 @@ static int __init sec_debug_user_fault_init(void)
 }
 device_initcall(sec_debug_user_fault_init);
 
-#if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
-struct tsp_dump_callbacks dump_callbacks;
-static inline void tsp_dump(void)
-{
-	pr_err("[TSP] dump_tsp_log : %d\n", __LINE__);
-	if (dump_callbacks.inform_dump)
-		dump_callbacks.inform_dump();
-}
-#endif
-
 void sec_debug_check_crash_key(unsigned int code, int value)
 {
 	static bool volup_p;
 	static bool voldown_p;
 	static int loopcount;
-#if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
-	static int tsp_dump_count;
-#endif
 
 	if (!SEC_DEBUG_LEVEL(kernel))
 		return;
@@ -283,30 +273,9 @@ void sec_debug_check_crash_key(unsigned int code, int value)
 					panic("Crash Key");
 			}
 		}
-
-#if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
-		/* dump TSP rawdata
-		 *	Hold volume up key first
-		 *	and then press home key twice
-		 *	and volume down key should not be pressed
-		 */
-		if (volup_p && !voldown_p) {
-			if (code == KEY_HOMEPAGE) {
-				pr_info("%s: count to dump tsp rawdata : %d\n",
-					 __func__, ++tsp_dump_count);
-				if (tsp_dump_count == 2) {
-					tsp_dump();
-					tsp_dump_count = 0;
-				}
-			}
-		}
-#endif
 	} else {
 		if (code == KEY_VOLUMEUP) {
 			volup_p = false;
-#if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
-			tsp_dump_count = 0;
-#endif
 		}
 		if (code == KEY_VOLUMEDOWN) {
 			loopcount = 0;
@@ -335,6 +304,8 @@ void sec_upload_cause(void *buf)
 
 	if (!strncmp(buf, "User Fault", 10))
 		LAST_RR_SET(upload_reason, UPLOAD_CAUSE_USER_FAULT);
+	else if (is_hard_reset_occurred())
+		LAST_RR_SET(upload_reason, UPLOAD_CAUSE_FORCED_UPLOAD);		
 	else if (!strncmp(buf, "Crash Key", 9))
 		LAST_RR_SET(upload_reason, UPLOAD_CAUSE_FORCED_UPLOAD);
 	else if (!strncmp(buf, "User Crash Key", 14))
@@ -383,12 +354,12 @@ static void sec_dump_one_task_info(struct task_struct *tsk, bool is_main)
 			is_main ? '*' : ' ', tsk->comm, symname);
 
 	if (tsk->state == TASK_RUNNING ||
-		tsk->state == TASK_WAKING ||
-		task_contributes_to_load(tsk)) {
+	    tsk->state == TASK_WAKING ||
+	    task_contributes_to_load(tsk)) {
 			print_worker_info(KERN_INFO, tsk);
 
 			if (tsk->on_cpu && tsk->on_rq &&
-				tsk->cpu != smp_processor_id())
+		    	tsk->cpu != smp_processor_id())
 				return;
 
 			show_stack(tsk, NULL);
@@ -475,12 +446,15 @@ static void sec_dump_irq_info(void)
 	pr_info("------------------------------------------------------------------\n");
 }
 
+extern void hard_reset_delay(void);
 void sec_debug_dump_info(void)
 {
 	sec_dump_task_info();
 	sec_dump_irq_info();
+	hard_reset_delay();
 }
 
+#ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
 static int sec_debug_check_magic(struct sec_debug_shared_info *sdi)
 {
 	if (sdi->magic[0] != SEC_DEBUG_SHARED_MAGIC0) {
@@ -528,13 +502,12 @@ static void sec_debug_init_base_buffer(void)
 		sec_debug_info->magic[3] = SEC_DEBUG_SHARED_MAGIC3;
 
 		//sec_debug_set_kallsyms_info(sec_debug_info);
-#ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
 		sec_debug_init_extra_info(sec_debug_info, sec_extra_info_size, magic_status);
-#endif
 	}
 
 	pr_info("%s, base(virt):0x%lx size:0x%x\n", __func__, (unsigned long)sec_debug_info, sec_extra_info_size);
 }
+#endif
 
 #if 0
 static void sec_free_dbg_mem(phys_addr_t base, phys_addr_t size)
@@ -547,7 +520,9 @@ static void sec_free_dbg_mem(phys_addr_t base, phys_addr_t size)
 
 static int __init sec_debug_init(void)
 {
+#ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
 	sec_debug_init_base_buffer();
+#endif
 
 	smp_call_function(sec_debug_init_mmu, NULL, 1);
 	sec_debug_init_mmu(NULL);

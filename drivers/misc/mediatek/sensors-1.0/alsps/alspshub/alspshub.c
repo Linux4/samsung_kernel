@@ -686,7 +686,6 @@ static int als_set_cali(uint8_t *data, uint8_t count)
 	spin_unlock(&calibration_lock);
 	return sensor_cfg_to_hub(ID_LIGHT, data, count);
 }
-
 static int als_set_lcdinfo(uint8_t *data, uint8_t count)
 {
 	int res = 0;
@@ -697,7 +696,6 @@ static int als_set_lcdinfo(uint8_t *data, uint8_t count)
 	}
 	return 0;
 }
-
 static int rgbw_enable(int en)
 {
 	int res = 0;
@@ -946,7 +944,7 @@ static int alspshub_probe(struct platform_device *pdev)
 	als_ctl.batch = als_batch;
 	als_ctl.flush = als_flush;
 	als_ctl.set_cali = als_set_cali;
-	als_ctl.als_set_lcdinfo = als_set_lcdinfo;
+	als_ctl.als_set_lcdinfo = als_set_lcdinfo;//Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 	als_ctl.rgbw_enable = rgbw_enable;
 	als_ctl.rgbw_batch = rgbw_batch;
 	als_ctl.rgbw_flush = rgbw_flush;

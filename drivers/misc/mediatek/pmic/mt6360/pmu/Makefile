@@ -1,6 +1,10 @@
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/typec/tcpc/inc
 subdir-ccflags-y += -I$(srctree)/drivers/power/supply/
 
+ifeq ($(WT_COMPILE_FACTORY_VERSION),yes)
+	 ccflags-y += -DWT_COMPILE_FACTORY_VERSION
+endif
+
 obj-$(CONFIG_MFD_MT6360_PMU)		+= mt6360_pmu_i2c.o mt6360_pmu_regmap.o\
 					mt6360_pmu_irq.o mt6360_pmu_subdev.o\
 					mt6360_pmu_core.o mt6360_pmu_adc.o

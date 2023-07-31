@@ -21,7 +21,13 @@
 #define EMBEDDED_SEL			0
 #define PMIC_SHUTDOWN_CURRENT	20	/* 0.01 mA */
 #define FG_METER_RESISTANCE		100
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 #define CAR_TUNE_VALUE			96 /*1.00 */
+#elif defined (CONFIG_N28_CHARGER_PRIVATE)
+#define CAR_TUNE_VALUE			98 /*1.00 */
+#else
+#define CAR_TUNE_VALUE			100 /*1.00 */
+#endif
 #define NO_BAT_TEMP_COMPENSATE	0
 /* NO_BAT_TEMP_COMPENSATE 1 = don't need bat_temper compensate, */
 /* but fg_meter_resistance still use for SWOCV */
@@ -75,7 +81,11 @@
 #define PSEUDO100_EN			1
 #define PSEUDO100_EN_DIS		1
 
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 #define DIFF_SOC_SETTING				50	/* 0.01% */
+#else
+#define DIFF_SOC_SETTING				100	/* 0.01% */
+#endif
 #define DIFF_BAT_TEMP_SETTING			1
 #define DIFF_BAT_TEMP_SETTING_C			10
 #define DISCHARGE_TRACKING_TIME			10
@@ -128,30 +138,15 @@
 #define HWOCV_SWOCV_DIFF			300
 #define HWOCV_SWOCV_DIFF_LT			1500
 #define HWOCV_SWOCV_DIFF_LT_TEMP	5
-
-#ifdef WT_COMPILE_FACTORY_VERSION
-#define HWOCV_OLDOCV_DIFF			0
-#define HWOCV_OLDOCV_DIFF_CHR		0
-#define SWOCV_OLDOCV_DIFF			0
-#define SWOCV_OLDOCV_DIFF_CHR		0
-#else
-#define HWOCV_OLDOCV_DIFF           300
-#define HWOCV_OLDOCV_DIFF_CHR       800
-#define SWOCV_OLDOCV_DIFF           300
-#define SWOCV_OLDOCV_DIFF_CHR       800
-#endif
-
+#define HWOCV_OLDOCV_DIFF			300
+#define HWOCV_OLDOCV_DIFF_CHR		800
+#define SWOCV_OLDOCV_DIFF			300
+#define SWOCV_OLDOCV_DIFF_CHR		800
 #define VBAT_OLDOCV_DIFF			1000
 #define SWOCV_OLDOCV_DIFF_EMB		1000	/* 100mV */
 
-#ifdef WT_COMPILE_FACTORY_VERSION
-#define VIR_OLDOCV_DIFF_EMB			0	/* 1000mV */
-#define VIR_OLDOCV_DIFF_EMB_LT		0	/* 1000mV */
-#else
-#define VIR_OLDOCV_DIFF_EMB         10000   /* 1000mV */
-#define VIR_OLDOCV_DIFF_EMB_LT      10000   /* 1000mV */
-#endif
-
+#define VIR_OLDOCV_DIFF_EMB			10000	/* 1000mV */
+#define VIR_OLDOCV_DIFF_EMB_LT		10000	/* 1000mV */
 #define VIR_OLDOCV_DIFF_EMB_TMP		5
 
 #define TNEW_TOLD_PON_DIFF			5
@@ -268,6 +263,9 @@
 #define UI_LOW_LIMIT_SOC4	200
 #define UI_LOW_LIMIT_VTH4	34500
 #define UI_LOW_LIMIT_TIME	99999
+
+#define MOVING_BATTEMP_EN	1
+#define MOVING_BATTEMP_THR	20
 
 /* Qmax for battery  */
 #define Q_MAX_L_CURRENT		0
@@ -443,7 +441,11 @@ int g_temperature[MAX_TABLE] = {
 #define BAT_NTC_47 0
 
 #if (BAT_NTC_10 == 1)
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 #define RBAT_PULL_UP_R             16900
+#else
+#define RBAT_PULL_UP_R             24000
+#endif
 #endif
 
 #if (BAT_NTC_47 == 1)
@@ -455,7 +457,8 @@ int g_temperature[MAX_TABLE] = {
 #define BIF_NTC_R 16000
 
 #if (BAT_NTC_10 == 1)
-// Bug 682591,yangyuhang.wt,MODIFY,20210806,SW JEITA configuration
+
+#if defined (CONFIG_N26_CHARGER_PRIVATE) || defined (CONFIG_N23_CHARGER_PRIVATE)
 struct fuelgauge_temperature Fg_Temperature_Table[29] = {
 		{-40, 205200},
 		{-35, 154800},
@@ -487,6 +490,32 @@ struct fuelgauge_temperature Fg_Temperature_Table[29] = {
 		{95, 1097},
 		{100, 956}
 };
+#else
+struct fuelgauge_temperature Fg_Temperature_Table[21] = {
+		{-40, 195652},
+		{-35, 148171},
+		{-30, 113347},
+		{-25, 87559},
+		{-20, 68237},
+		{-15, 53650},
+		{-10, 42506},
+		{-5, 33892},
+		{0, 27219},
+		{5, 22021},
+		{10, 17926},
+		{15, 14674},
+		{20, 12081},
+		{25, 10000},
+		{30, 8315},
+		{35, 6948},
+		{40, 5834},
+		{45, 4917},
+		{50, 4161},
+		{55, 3535},
+		{60, 3014}
+};
+#endif
+
 #endif
 
 #if (BAT_NTC_47 == 1)

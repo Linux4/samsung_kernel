@@ -18,9 +18,19 @@
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+#include <linux/of_device.h>
+#include <linux/usb.h>
+#endif
 
 #include "xhci.h"
 #include "xhci-mtk.h"
+
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+#include "usb_offload.h"
+#endif
 
 /* ip_pw_ctrl0 register */
 #define CTRL0_IP_SW_RST	BIT(0)
@@ -68,10 +78,168 @@
 #define SSC_IP_SLEEP_EN	BIT(4)
 #define SSC_SPM_INT_EN		BIT(1)
 
+/*testmode*/
+#define HOST_CMD_STOP				0x0
+#define HOST_CMD_TEST_J             0x1
+#define HOST_CMD_TEST_K             0x2
+#define HOST_CMD_TEST_SE0_NAK       0x3
+#define HOST_CMD_TEST_PACKET        0x4
+#define PMSC_PORT_TEST_CTRL_OFFSET  28
+
+/*procfs node*/
+#define PROC_FILES_NUM 1
+static struct proc_dir_entry *proc_files[PROC_FILES_NUM] = {
+	NULL};
+
 enum ssusb_uwk_vers {
 	SSUSB_UWK_V1 = 1,
 	SSUSB_UWK_V2,
 };
+
+static int xhci_testmode_show(struct seq_file *s, void *unused)
+{
+	struct xhci_hcd_mtk *mtk = s->private;
+	struct xhci_hcd	*xhci = hcd_to_xhci(mtk->hcd);
+
+	switch (xhci->test_mode) {
+	case HOST_CMD_STOP:
+		seq_puts(s, "0\n");
+		break;
+	case HOST_CMD_TEST_J:
+		seq_puts(s, "test J\n");
+		break;
+	case HOST_CMD_TEST_K:
+		seq_puts(s, "test K\n");
+		break;
+	case HOST_CMD_TEST_SE0_NAK:
+		seq_puts(s, "test SE0 NAK\n");
+		break;
+	case HOST_CMD_TEST_PACKET:
+		seq_puts(s, "test packet\n");
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int xhci_testmode_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, xhci_testmode_show, PDE_DATA(inode));
+}
+
+static ssize_t xhci_testmode_write(struct file *file,  const char __user *ubuf,
+			       size_t count, loff_t *ppos)
+{
+	struct seq_file *s = file->private_data;
+	struct xhci_hcd_mtk *mtk = s->private;
+	struct xhci_hcd	*xhci = hcd_to_xhci(mtk->hcd);
+	int ports = HCS_MAX_PORTS(xhci->hcs_params1);
+	char buf[32];
+	unsigned long flags;
+	u8 testmode = HOST_CMD_STOP;
+	u32 temp;
+	u32 __iomem *addr;
+	int i;
+
+	if (copy_from_user(&buf, ubuf, min_t(size_t, sizeof(buf) - 1, count)))
+		return -EFAULT;
+
+	if (!strncmp(buf, "test packet", 10))
+		testmode = HOST_CMD_TEST_PACKET;
+	else if (!strncmp(buf, "test K", 6))
+		testmode = HOST_CMD_TEST_K;
+	else if (!strncmp(buf, "test J", 6))
+		testmode = HOST_CMD_TEST_J;
+	else if (!strncmp(buf, "test SE0 NAK", 12))
+		testmode = HOST_CMD_TEST_SE0_NAK;
+
+	if (testmode >= HOST_CMD_STOP && testmode <= HOST_CMD_TEST_PACKET) {
+		xhci_info(xhci, "set test mode %d\n", testmode);
+
+		spin_lock_irqsave(&xhci->lock, flags);
+
+		/* set the Run/Stop in USBCMD to 0 */
+		addr = &xhci->op_regs->command;
+		temp = readl(addr);
+		temp &= ~CMD_RUN;
+		writel(temp, addr);
+
+		/*  wait for HCHalted */
+		xhci_halt(xhci);
+
+		/* test mode */
+		for (i = 0; i < ports; i++) {
+			addr = &xhci->op_regs->port_power_base +
+				NUM_PORT_REGS * (i & 0xff);
+			temp = readl(addr);
+			temp &= ~(0xf << PMSC_PORT_TEST_CTRL_OFFSET);
+			temp |= (testmode << PMSC_PORT_TEST_CTRL_OFFSET);
+			writel(temp, addr);
+		}
+
+		xhci->test_mode = testmode;
+		spin_unlock_irqrestore(&xhci->lock, flags);
+	} else {
+		pr_info("%s: invalid value\n", __func__);
+		return -EINVAL;
+	}
+
+	return count;
+}
+
+static const struct file_operations testmode_fops = {
+	.open			= xhci_testmode_open,
+	.write			= xhci_testmode_write,
+	.read			= seq_read,
+	.llseek			= seq_lseek,
+	.release		= single_release,
+};
+
+static void xhci_mtk_dbg_init(struct xhci_hcd_mtk *mtk)
+{
+	u8 idx = 0;
+
+	proc_mkdir("mtk_usb", NULL);
+
+	proc_files[idx] = proc_create_data("mtk_usb/testmode", 0644, NULL, &testmode_fops, mtk);
+	if (!proc_files[idx])
+		pr_info("%s: fail to create testmode node in procfs\n", __func__);
+	idx++;
+}
+
+static void xhci_mtk_dbg_exit(struct xhci_hcd_mtk *mtk)
+{
+	u8 idx = 0;
+
+	for (; idx < PROC_FILES_NUM; idx++) {
+		if (proc_files[idx])
+			proc_remove(proc_files[idx]);
+	}
+}
+
+int mtk_xhci_wakelock_lock(struct xhci_hcd_mtk *mtk)
+{
+	struct xhci_hcd *xhci = hcd_to_xhci(mtk->hcd);
+
+	pm_stay_awake(mtk->dev);
+	xhci_info(xhci, "wakelock_lock\n");
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(mtk_xhci_wakelock_lock);
+
+int mtk_xhci_wakelock_unlock(struct xhci_hcd_mtk *mtk)
+{
+	struct xhci_hcd *xhci = hcd_to_xhci(mtk->hcd);
+
+	pm_relax(mtk->dev);
+	xhci_info(xhci, "wakelock_unlock\n");
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(mtk_xhci_wakelock_unlock);
 
 static int xhci_mtk_host_enable(struct xhci_hcd_mtk *mtk)
 {
@@ -331,9 +499,52 @@ static void usb_wakeup_set(struct xhci_hcd_mtk *mtk, bool enable)
 		usb_wakeup_ip_sleep_set(mtk, enable);
 }
 
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+bool xhci_vendor_is_streaming(struct xhci_hcd *xhci)
+{
+	struct xhci_vendor_ops *ops = xhci_vendor_get_ops(xhci);
+
+	if (ops && ops->is_streaming)
+		return ops->is_streaming(xhci);
+	return 0;
+}
+
+static int xhci_mtk_bus_suspend(struct usb_hcd *hcd)
+{
+	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
+	int ret;
+
+	if (xhci_vendor_is_streaming(xhci)) {
+		pr_info("%s - USB_OFFLOAD bypass\n", __func__);
+		return 0;
+	}
+	ret = xhci_bus_suspend(hcd);
+
+	return ret;
+}
+
+static int xhci_mtk_bus_resume(struct usb_hcd *hcd)
+{
+	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
+	int ret;
+
+	if (xhci_vendor_is_streaming(xhci)) {
+		pr_info("%s - USB_OFFLOAD bypass\n", __func__);
+		return 0;
+	}
+	ret = xhci_bus_resume(hcd);
+
+	return ret;
+}
+#endif
+
 static int xhci_mtk_setup(struct usb_hcd *hcd);
 static const struct xhci_driver_overrides xhci_mtk_overrides __initconst = {
 	.reset = xhci_mtk_setup,
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	.bus_suspend = xhci_mtk_bus_suspend,
+	.bus_resume = xhci_mtk_bus_resume,
+#endif
 };
 
 static struct hc_driver __read_mostly xhci_mtk_hc_driver;
@@ -382,6 +593,15 @@ static void xhci_mtk_quirks(struct device *dev, struct xhci_hcd *xhci)
 	xhci->quirks |= XHCI_SPURIOUS_SUCCESS;
 	if (mtk->lpm_support)
 		xhci->quirks |= XHCI_LPM_SUPPORT;
+	if (mtk->u2_lpm_disable)
+		xhci->quirks |= XHCI_HW_LPM_DISABLE;
+
+	/*
+	 * MTK xHCI 0.96: PSA is 1 by default even if doesn't support stream,
+	 * and it's 3 when support it.
+	 */
+	if (xhci->hci_version < 0x100 && HCC_MAX_PSA(xhci->hcc_params) == 4)
+		xhci->quirks |= XHCI_BROKEN_STREAMS;
 }
 
 /* called during probe() after chip reset completes */
@@ -418,6 +638,11 @@ static int xhci_mtk_probe(struct platform_device *pdev)
 	struct xhci_hcd *xhci;
 	struct resource *res;
 	struct usb_hcd *hcd;
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	struct platform_device *offload_pdev;
+	struct device_node *offload_node;
+	struct xhci_vendor_ops *ops;
+#endif
 	int ret = -ENODEV;
 	int irq;
 
@@ -447,6 +672,7 @@ static int xhci_mtk_probe(struct platform_device *pdev)
 		return ret;
 
 	mtk->lpm_support = of_property_read_bool(node, "usb3-lpm-capable");
+	mtk->u2_lpm_disable = of_property_read_bool(node, "usb2-lpm-disable");
 	/* optional property, ignore the error if it does not exist */
 	of_property_read_u32(node, "mediatek,u3p-dis-msk",
 			     &mtk->u3p_dis_msk);
@@ -504,7 +730,7 @@ static int xhci_mtk_probe(struct platform_device *pdev)
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "ippc");
 	if (res) {	/* ippc register is optional */
-		mtk->ippc_regs = devm_ioremap_resource(dev, res);
+		mtk->ippc_regs = devm_ioremap(dev, res->start, resource_size(res));
 		if (IS_ERR(mtk->ippc_regs)) {
 			ret = PTR_ERR(mtk->ippc_regs);
 			goto put_usb2_hcd;
@@ -518,6 +744,25 @@ static int xhci_mtk_probe(struct platform_device *pdev)
 
 	xhci = hcd_to_xhci(hcd);
 	xhci->main_hcd = hcd;
+
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	/* get vendor_ops data */
+	offload_node = of_parse_phandle(node, "mediatek,usb-offload", 0);
+	if (offload_node) {
+		pr_info("%s %d\n", __func__, __LINE__);
+		offload_pdev = of_find_device_by_node(offload_node);
+		of_node_put(offload_node);
+		if (offload_pdev) {
+			ops = dev_get_drvdata(&offload_pdev->dev);
+			if (ops) {
+				dev_info(dev, "set offload vendor_ops data\n");
+				xhci->vendor_ops = ops;
+			} else
+				dev_info(dev, "failed to get offload data\n");
+		} else
+			dev_info(dev, "failed to get offload platform device\n");
+	}
+#endif
 
 	/*
 	 * imod_interval is the interrupt moderation value in nanoseconds.
@@ -538,12 +783,19 @@ static int xhci_mtk_probe(struct platform_device *pdev)
 	if (ret)
 		goto put_usb3_hcd;
 
-	if (HCC_MAX_PSA(xhci->hcc_params) >= 4)
+	if (HCC_MAX_PSA(xhci->hcc_params) >= 4 &&
+	    !(xhci->quirks & XHCI_BROKEN_STREAMS))
 		xhci->shared_hcd->can_do_streams = 1;
 
 	ret = usb_add_hcd(xhci->shared_hcd, irq, IRQF_SHARED);
 	if (ret)
 		goto dealloc_usb2_hcd;
+
+	xhci_mtk_dbg_init(mtk);
+
+	device_set_wakeup_enable(&hcd->self.root_hub->dev, 1);
+	device_set_wakeup_enable(&xhci->shared_hcd->self.root_hub->dev, 1);
+	mtk_xhci_wakelock_lock(mtk);
 
 	return 0;
 
@@ -588,12 +840,15 @@ static int xhci_mtk_remove(struct platform_device *dev)
 	xhci->shared_hcd = NULL;
 	device_init_wakeup(&dev->dev, false);
 
+	mtk_xhci_wakelock_unlock(mtk);
+
 	usb_remove_hcd(hcd);
 	usb_put_hcd(shared_hcd);
 	usb_put_hcd(hcd);
 	xhci_mtk_sch_exit(mtk);
 	xhci_mtk_clks_disable(mtk);
 	xhci_mtk_ldos_disable(mtk);
+	xhci_mtk_dbg_exit(mtk);
 
 	return 0;
 }
@@ -610,6 +865,13 @@ static int __maybe_unused xhci_mtk_suspend(struct device *dev)
 	struct xhci_hcd_mtk *mtk = dev_get_drvdata(dev);
 	struct usb_hcd *hcd = mtk->hcd;
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
+
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	if (xhci_vendor_is_streaming(xhci)) {
+		pr_info("%s - USB_OFFLOAD bypass\n", __func__);
+		return 0;
+	}
+#endif
 
 	xhci_dbg(xhci, "%s: stop port polling\n", __func__);
 	clear_bit(HCD_FLAG_POLL_RH, &hcd->flags);
@@ -628,6 +890,13 @@ static int __maybe_unused xhci_mtk_resume(struct device *dev)
 	struct xhci_hcd_mtk *mtk = dev_get_drvdata(dev);
 	struct usb_hcd *hcd = mtk->hcd;
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
+
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	if (xhci_vendor_is_streaming(xhci)) {
+		pr_info("%s - USB_OFFLOAD bypass\n", __func__);
+		return 0;
+	}
+#endif
 
 	usb_wakeup_set(mtk, false);
 	xhci_mtk_clks_enable(mtk);

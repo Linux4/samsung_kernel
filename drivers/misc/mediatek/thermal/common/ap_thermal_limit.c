@@ -27,12 +27,17 @@
 #include "mt_cpufreq.h"
 #endif
 #if defined(THERMAL_VPU_SUPPORT)
-#if defined(CONFIG_MTK_VPU_SUPPORT)
+#if defined(CONFIG_MTK_APUSYS_SUPPORT)
+#include "apu_power_table.h"
+#else
 #include "vpu_dvfs.h"
 #endif
 #endif
+
 #if defined(THERMAL_MDLA_SUPPORT)
-#if defined(CONFIG_MTK_MDLA_SUPPORT)
+#if defined(CONFIG_MTK_APUSYS_SUPPORT)
+#include "apu_power_table.h"
+#else
 #include "mdla_dvfs.h"
 #endif
 #endif
@@ -41,7 +46,7 @@
  * Local variable definition
  *=============================================================
  */
-#define AP_THERMO_LMT_MAX_USERS				(4)
+#define AP_THERMO_LMT_MAX_USERS				(5)
 
 /*=============================================================
  * Local variable definition
@@ -78,7 +83,7 @@ static struct apthermolmt_user _gp = {
 	.ptr = &_gp
 };
 static struct apthermolmt_user *_users[AP_THERMO_LMT_MAX_USERS] = {
-			&_gp, &_dummy, &_dummy, &_dummy};
+			&_gp, &_dummy, &_dummy, &_dummy, &_dummy};
 
 static unsigned int gp_prev_cpu_pwr_limit;
 static unsigned int gp_curr_cpu_pwr_limit;
@@ -178,10 +183,11 @@ struct apthermolmt_user *handle, unsigned int limit)
 
 	mutex_lock(&apthermolmt_cpu_mutex);
 
-#if AP_THERMO_LMT_MAX_USERS == 4
+#if AP_THERMO_LMT_MAX_USERS == 5
 	final_limit = MIN(_users[0]->cpu_limit, _users[1]->cpu_limit);
 	final_limit = MIN(final_limit, _users[2]->cpu_limit);
 	final_limit = MIN(final_limit, _users[3]->cpu_limit);
+	final_limit = MIN(final_limit, _users[4]->cpu_limit);
 #else
 #error "handle this!"
 #endif
@@ -225,10 +231,11 @@ struct apthermolmt_user *handle, unsigned int limit)
 	/* decide min VPU limit */
 	handle->vpu_limit = limit;
 
-#if AP_THERMO_LMT_MAX_USERS == 4
+#if AP_THERMO_LMT_MAX_USERS == 5
 	final_limit = MIN(_users[0]->vpu_limit, _users[1]->vpu_limit);
 	final_limit = MIN(final_limit, _users[2]->vpu_limit);
 	final_limit = MIN(final_limit, _users[3]->vpu_limit);
+	final_limit = MIN(final_limit, _users[4]->vpu_limit);
 #else
 #error "handle this!"
 #endif
@@ -237,10 +244,18 @@ struct apthermolmt_user *handle, unsigned int limit)
 	apthermolmt_curr_vpu_pwr_lim = final_limit;
 
 	if (apthermolmt_prev_vpu_pwr_lim != apthermolmt_curr_vpu_pwr_lim) {
-#if defined(CONFIG_MTK_VPU_SUPPORT)
 		int opp = 0;
 
 		if (final_limit != 0x7FFFFFFF) {
+#ifdef CONFIG_MTK_APUSYS_SUPPORT
+			for (opp = 0; opp < APU_OPP_NUM - 1; opp++) {
+				if (final_limit >= vpu_power_table[opp].power)
+					break;
+			}
+			apusys_thermal_en_throttle_cb(VPU0, opp);
+		} else
+			apusys_thermal_dis_throttle_cb(VPU0);
+#else
 			for (opp = 0; opp < VPU_OPP_NUM - 1; opp++) {
 				if (final_limit >= vpu_power_table[opp].power)
 					break;
@@ -267,10 +282,11 @@ struct apthermolmt_user *handle, unsigned int limit)
 	/* decide min MDLA limit */
 	handle->mdla_limit = limit;
 
-#if AP_THERMO_LMT_MAX_USERS == 4
+#if AP_THERMO_LMT_MAX_USERS == 5
 	final_limit = MIN(_users[0]->mdla_limit, _users[1]->mdla_limit);
 	final_limit = MIN(final_limit, _users[2]->mdla_limit);
 	final_limit = MIN(final_limit, _users[3]->mdla_limit);
+	final_limit = MIN(final_limit, _users[4]->mdla_limit);
 #else
 #error "handle this!"
 #endif
@@ -279,10 +295,17 @@ struct apthermolmt_user *handle, unsigned int limit)
 	apthermolmt_curr_mdla_pwr_lim = final_limit;
 
 	if (apthermolmt_prev_mdla_pwr_lim != apthermolmt_curr_mdla_pwr_lim) {
-#if defined(CONFIG_MTK_MDLA_SUPPORT)
 		int opp = 0;
-
 		if (final_limit != 0x7FFFFFFF) {
+#ifdef CONFIG_MTK_APUSYS_SUPPORT
+			for (opp = 0; opp < APU_OPP_NUM - 1; opp++) {
+				if (final_limit >= mdla_power_table[opp].power)
+					break;
+			}
+			apusys_thermal_en_throttle_cb(MDLA0, opp);
+		} else
+			apusys_thermal_dis_throttle_cb(MDLA0);
+#else
 			for (opp = 0; opp < MDLA_OPP_NUM - 1; opp++) {
 				if (final_limit >= mdla_power_table[opp].power)
 					break;
@@ -308,10 +331,11 @@ struct apthermolmt_user *handle, unsigned int limit)
 	/* decide min GPU limit */
 	handle->gpu_limit = limit;
 
-#if AP_THERMO_LMT_MAX_USERS == 4
+#if AP_THERMO_LMT_MAX_USERS == 5
 	final_limit = MIN(_users[0]->gpu_limit, _users[1]->gpu_limit);
 	final_limit = MIN(final_limit, _users[2]->gpu_limit);
 	final_limit = MIN(final_limit, _users[3]->gpu_limit);
+	final_limit = MIN(final_limit, _users[4]->gpu_limit);
 #else
 #error "handle this!"
 #endif

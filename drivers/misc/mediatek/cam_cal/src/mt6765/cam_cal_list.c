@@ -11,6 +11,7 @@
 #define MAX_EEPROM_SIZE_16K 0x4000
 
 struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
+#ifdef CONFIG_MTK_96516_CAMERA
 	{N23_HI1336_REAR_TXD_SENSOR_ID, 0xA0, Common_read_region},   //+bug682590,zhanghengyuan.wt,ADD,2021/8/25,add n23_hi1336_rear_txd OTP
 	{N23_HI1336_REAR_ST_SENSOR_ID, 0xA0, Common_read_region},   //+bug682590,zhanghengyuan.wt,ADD,2021/8/27,add n23_hi1336_rear_st OTP
 	{N23_BF2253_MICRO_CXT_SENSOR_ID, 0xA4, Common_read_region},
@@ -21,7 +22,19 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	//+bug682590 liudijin.wt, add, 2021/8/26, gc5035 otp porting
 	{N23_GC5035_FRONT_LY_SENSOR_ID, 0xA0, Common_read_region},
 	//+bug682590 liudijin.wt, add, 2021/8/26, gc5035 otp porting
-#if 0	
+#else
+        {N26_HI5021Q_REAR_TRULY_SENSOR_ID,	0xA0, Common_read_region},
+        {N26_HI5021Q_REAR_ST_SENSOR_ID, 0xA0, Common_read_region},
+        {N26_S5KJN1_REAR_TXD_SENSOR_ID, 0xA0, Common_read_region},
+        {N26_HI5021Q_REAR_DELTA_SENSOR_ID, 0xA0, Common_read_region},
+        {N26_S5K5E9_FRONT_TXD_SENSOR_ID, 0xA0, Common_read_region},
+        //+Bug 720367, liudijin.wt, add, 2022.03.02, bring-up OTP for n26 micro camera
+        {N26_GC02M2_MICRO_CXT_SENSOR_ID, 0xA4, Common_read_region},
+        {N26_SC201CS_MICRO_LCE_SENSOR_ID, 0xA4, Common_read_region},
+        {N26_C2599_MICRO_DELTA_SENSOR_ID, 0xA4, Common_read_region},
+        //-Bug 720367, liudijin.wt, add, 2022.03.02, bring-up OTP for n26 micro camera
+#endif
+	#if 0
 	/*Below is commom sensor */
 	{IMX230_SENSOR_ID, 0xA0, Common_read_region},
 	{S5K2T7SP_SENSOR_ID, 0xA4, Common_read_region},
@@ -66,14 +79,16 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{S5K5E8YXREAR2_SENSOR_ID, 0x5a, Common_read_region},
 	{S5KGM2_SENSOR_ID, 0xB0, Common_read_region, MAX_EEPROM_SIZE_16K},
 	{S5K2P6_SENSOR_ID, 0xB0, Common_read_region, MAX_EEPROM_SIZE_16K},
-	//{GC5035_SENSOR_ID, 0x7E, Otp_read_region_GC5035,
-	//	DEFAULT_MAX_EEPROM_SIZE_8K},
+	{GC5035_SENSOR_ID, 0x7E, Otp_read_region_GC5035,
+		DEFAULT_MAX_EEPROM_SIZE_8K},
 	{GC02M1_SENSOR_ID, 0xA4, Common_read_region},
 	{GC02M1_SENSOR_ID1, 0x6E, Otp_read_region_GC02M1B,
 		DEFAULT_MAX_EEPROM_SIZE_8K},
 	{SR846_SENSOR_ID, 0x40, Otp_read_region_SR846,
 		DEFAULT_MAX_EEPROM_SIZE_8K},
-#endif
+	{SR846D_SENSOR_ID, 0x40, Otp_read_region_SR846D,
+		DEFAULT_MAX_EEPROM_SIZE_8K},
+	#endif
 	/*  ADD before this line */
 	{0, 0, 0}       /*end of list */
 };

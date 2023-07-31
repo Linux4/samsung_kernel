@@ -13,16 +13,22 @@
 #include <linux/device.h>
 #include <linux/mod_devicetable.h>
 
-#define MAX_CNT_U64     0xFFFFFFFFFF
-#define MAX_CNT_U32     0x7FFFFFFF
-#define STATUS_MASK     (R1_ERROR | R1_CC_ERROR | R1_CARD_ECC_FAILED | R1_WP_VIOLATION | R1_OUT_OF_RANGE)
+#define MAX_CNT_U64		0xFFFFFFFFFF
+#define MAX_CNT_U32		0x7FFFFFFF
+#define STATUS_MASK		(R1_ERROR | R1_CC_ERROR | R1_CARD_ECC_FAILED |\
+						R1_WP_VIOLATION | R1_OUT_OF_RANGE)
 
 /* Only [0:4] bits in response are reserved. The other bits shouldn't be used */
 #define HALT_UNHALT_ERR         0x00000001
 #define CQ_EN_DIS_ERR           0x00000002
 #define RPMB_SWITCH_ERR         0x00000004
 #define HW_RST			0x00000008
-#define STATUS_ERR_MASK		(HALT_UNHALT_ERR | CQ_EN_DIS_ERR | RPMB_SWITCH_ERR | HW_RST)
+#define STATUS_ERR_MASK		(HALT_UNHALT_ERR | CQ_EN_DIS_ERR |\
+							RPMB_SWITCH_ERR | HW_RST)
+
+#define MAX_REQ_TYPE_INDEX	5		// sbc, cmd, data, stop, busy
+#define MAX_ERR_TYPE_INDEX	2		// timeout, crc
+#define MAX_ERR_LOG_INDEX	(MAX_REQ_TYPE_INDEX * MAX_ERR_TYPE_INDEX)
 
 struct mmc_blk_request;
 
@@ -241,7 +247,7 @@ struct mmc_queue_req;
  * MMC Physical partitions
  */
 struct mmc_part {
-	unsigned int	size;	/* partition size (in bytes) */
+	u64		size;	/* partition size (in bytes) */
 	unsigned int	part_cfg;	/* partition type */
 	char	name[MAX_MMC_PART_NAME_LEN];
 	bool	force_ro;	/* to make boot parts RO by default */
@@ -253,22 +259,22 @@ struct mmc_part {
 };
 
 struct mmc_card_error_log {
-	char    type[5];        // sbc, cmd, data, stop, busy
-	int     err_type;
-	u32     status;
-	u64     first_issue_time;
-	u64     last_issue_time;
-	u32     count;
-	u32     ge_cnt;         // status[19] : general error or unknown error
-	u32     cc_cnt;         // status[20] : internal card controller error
-	u32     ecc_cnt;        // status[21] : ecc error
-	u32     wp_cnt;         // status[26] : write protection error
-	u32     oor_cnt;        // status[31] : out of range error
-	u32     halt_cnt;       // cq halt / unhalt fail
-	u32     cq_cnt;         // cq enable / disable fail
-	u32     rpmb_cnt;       // RPMB switch fail
-	u32     noti_cnt;       // uevent notification count
-	u32	hw_rst_cnt;     // reset count
+	char type[MAX_REQ_TYPE_INDEX];
+	int err_type;
+	u32	status;
+	u64	first_issue_time;
+	u64	last_issue_time;
+	u32	count;
+	u32	ge_cnt;			// status[19] : general error or unknown error_count
+	u32	cc_cnt;			// status[20] : internal card controller error_count
+	u32	ecc_cnt;		// status[21] : ecc error_count
+	u32	wp_cnt;			// status[26] : write protection error_count
+	u32	oor_cnt;		// status[31] : out of range error
+	u32	noti_cnt;		// uevent notification count
+	u32	halt_cnt;	// cq halt / unhalt fail
+	u32	cq_cnt;		// cq enable / disable fail
+	u32	rpmb_cnt;	// RPMB switch fail
+	u32	hw_rst_cnt;	// reset count
 };
 
 /*
@@ -340,12 +346,14 @@ struct mmc_card {
 	struct dentry		*debugfs_root;
 	struct mmc_part	part[MMC_NUM_PHY_PARTITION]; /* physical partitions */
 	unsigned int    nr_parts;
+#ifdef CONFIG_MTK_EMMC_HW_CQ
+	unsigned int	part_curr;
+	bool cqe_init;
+#endif
 
 	unsigned int		bouncesz;	/* Bounce buffer size */
 	struct workqueue_struct *complete_wq;	/* Private workqueue */
-
-	struct device_attribute error_count;
-	struct mmc_card_error_log err_log[10];
+	struct mmc_card_error_log err_log[MAX_ERR_LOG_INDEX];
 };
 
 static inline bool mmc_large_sector(struct mmc_card *card)

@@ -1062,7 +1062,7 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd,
 
 		aod_pm = (enum mtkfb_aod_power_mode)arg;
 		DISPCHECK("AOD: ioctl: %s\n",
-			aod_pm ? "AOD_DOZE_SUSPEND" : "AOD_DOZE");
+			aod_pm != MTKFB_AOD_DOZE ? "AOD_DOZE_SUSPEND" : "AOD_DOZE");
 
 		if (!primary_is_aod_supported()) {
 			DISPCHECK("AOD: feature not support\n");
@@ -1098,7 +1098,8 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd,
 		}
 		if (ret < 0)
 			DISPERR("AOD: set %s failed\n",
-				aod_pm ? "AOD_SUSPEND" : "AOD_RESUME");
+				(aod_pm == MTKFB_AOD_DOZE_SUSPEND) ?
+					"AOD_SUSPEND" : "AOD_RESUME");
 
 		break;
 	}
@@ -2367,6 +2368,15 @@ static struct fb_info *allocate_fb_by_index(struct device *dev)
 }
 #endif
 
+//+bug782967,wanwen2.wt,add,20220827,add display mipi frequency hopping funtion
+static int mipi_clk_hopping(int msg, int en)
+{
+	DISPMSG("%s,msg=%d,en=%d\n", __func__, msg, en);
+	mipi_clk_change(DISP_MODULE_DSI0,en);
+	return 0;
+}
+//-bug782967,wanwen2.wt,add,20220827,add display mipi frequency hopping funtion
+
 static int mtkfb_probe(struct platform_device *pdev)
 {
 	struct mtkfb_device *fbdev = NULL;
@@ -2514,18 +2524,18 @@ static int mtkfb_probe(struct platform_device *pdev)
 		primary_display_diagnose();
 
 
-	/* this function will get fb_heap base address to ion
-	 * for management frame buffer
-	 */
-#ifdef MTK_FB_ION_SUPPORT
-	ion_drv_create_FB_heap(mtkfb_get_fb_base(), mtkfb_get_fb_size());
-#endif
 	fbdev->state = MTKFB_ACTIVE;
-
+//+bug782967,wanwen2.wt,add,20220827,add display mipi frequency hopping funtion
+	if (!strcmp(mtkfb_find_lcm_driver(),"ft8006s_dsi_vdo_hdp_skyworth_shenchao") || !strcmp(mtkfb_find_lcm_driver(),"icnl9911c_dsi_vdo_hdp_txd_inx") || !strcmp(mtkfb_find_lcm_driver(),"gc7202_dsi_vdo_hdp_ice_panda") || \
+		!strcmp(mtkfb_find_lcm_driver(),"gc7202_dsi_vdo_hdp_txd_hkc") || !strcmp(mtkfb_find_lcm_driver(),"icnl9911c_dsi_vdo_hdp_tianma_hkc") || !strcmp(mtkfb_find_lcm_driver(),"icnl9911c_dsi_vdo_hdp_lead_hsd") || \
+		!strcmp(mtkfb_find_lcm_driver(),"hx83108_dsi_vdo_hdp_boe_boe")) {
+		DISPMSG("register_ccci_sys_call_back : mipi_clk_hopping\n");
+		register_ccci_sys_call_back(MD_SYS1, MD_DISPLAY_DYNAMIC_MIPI, mipi_clk_hopping);
+	}
+//-bug782967,wanwen2.wt,add,20220827,add display mipi frequency hopping funtion
 	MSG_FUNC_LEAVE();
 	pr_info("disp driver(2) mtkfb_probe end\n");
 	return 0;
-
 cleanup:
 	mtkfb_free_resources(fbdev, init_state);
 
@@ -2633,14 +2643,15 @@ void mtkfb_clear_lcm(void)
 static void mtkfb_early_suspend(void)
 {
 	int ret = 0;
-
+	ktime_t ktime;
 	if (disp_helper_get_stage() != DISP_HELPER_STAGE_NORMAL)
 		return;
 
 	DISPMSG("[FB Driver] enter early_suspend\n");
-
+	ktime = ktime_get();
 	ret = primary_display_suspend();
-
+	ktime = ktime_sub(ktime_get(),ktime);
+	DISPMSG("primary display suspend :time=%lld ms\n",ktime_to_ms(ktime));
 	if (ret < 0) {
 		DISPERR("primary display suspend failed\n");
 		return;
@@ -2653,14 +2664,16 @@ static void mtkfb_early_suspend(void)
 static void mtkfb_late_resume(void)
 {
 	int ret = 0;
+	ktime_t ktime;
 
 	if (disp_helper_get_stage() != DISP_HELPER_STAGE_NORMAL)
 		return;
 
 	DISPMSG("[FB Driver] enter late_resume\n");
-
+	ktime = ktime_get();
 	ret = primary_display_resume();
-
+	ktime = ktime_sub(ktime_get(),ktime);
+	DISPMSG("primary display resume :time=%lld ms\n",ktime_to_ms(ktime));
 	if (ret) {
 		DISPERR("primary display resume failed\n");
 		return;

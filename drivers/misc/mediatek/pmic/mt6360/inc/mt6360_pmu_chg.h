@@ -20,6 +20,7 @@ struct mt6360_chg_platform_data {
 	u32 ircmp_vclamp;
 	u32 en_te;
 	u32 en_wdt;
+	u32 en_otg_wdt;
 	u32 aicc_once;
 	u32 post_aicc;
 	u32 batoc_notify;
@@ -150,6 +151,10 @@ struct mt6360_chg_platform_data {
 /* MT6360_PMU_CHG_CTRL19 : 0x61 */
 #define MT6360_MASK_CHG_VIN_OVP_VTHSEL	(0x60)
 #define MT6360_SHFT_CHG_VIN_OVP_VTHSEL	(5)
+
+/* MT6360_PMU_CHRDET_CTRL1 : 0x2D */
+#define MT6360_MASK_CHRDETB_VIN_OVP_VTHSEL	(0xF)
+#define MT6360_SHFT_CHRDETB_VIN_OVP_VTHSEL	(0)
 
 /* MT6360_PMU_FOD_CTRL : 0x65 */
 #define MT6360_MASK_FOD_SWEN	BIT(7)

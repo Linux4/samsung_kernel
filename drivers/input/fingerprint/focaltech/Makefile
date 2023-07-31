@@ -5,7 +5,8 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include
 
 # SVN revision and build date for driver version.
-ccflags-y += -D__FF_SVN_REV=\"$(strip $(shell svn info --show-item last-changed-revision $(PWD) 2>/dev/null))\"
+#ccflags-y += -D__FF_SVN_REV=\"$(strip $(shell svn info --show-item last-changed-revision $(PWD) 2>/dev/null))\"
+ccflags-y += -D__FF_SVN_REV=\"7111\"
 ccflags-y += -D__FF_BUILD_DATE=\"$(shell date +%Y%m%d)\"
 
 ccflags-$(CONFIG_FINGERPRINT_ID_HI_FOCALTECH) += -DUSE_FP_ID_DUAL -DFP_ID_VALUE=1

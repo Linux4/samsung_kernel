@@ -8,18 +8,14 @@
 * (at your option) any later version.
 */
 
-#ifndef SEC_CLASS_H
-#define SEC_CLASS_H
-
 #ifdef CONFIG_DRV_SAMSUNG
+extern struct device *sec_dev_get_by_name(char *name);
 extern struct device *sec_device_create(void *drvdata, const char *fmt);
 extern void sec_device_destroy(dev_t devt);
 extern struct device *sec_device_find(const char *name);
 
 #else
-#define sec_device_create(a, b)		(-1)
-#define sec_device_destroy(a)		do { } while (0)
-#endif
-
-#endif /* SEC_CLASS_H */
-
+#define sec_dev_get_by_name(name)		NULL
+#define sec_device_create(drvdata, fmt)	NULL
+#define sec_device_destroy(devt)		NULL
+#endif /* CONFIG_DRV_SAMSUNG */

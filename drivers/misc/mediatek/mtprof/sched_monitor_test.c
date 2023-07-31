@@ -146,7 +146,7 @@ static ssize_t
 sched_mon_test_write(struct file *file, const char *ubuf,
 		     size_t count, loff_t *ppos)
 {
-	int i;
+	size_t  i;
 	char buf[32];
 
 	if (count >= sizeof(buf) || count == 0)

@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __TPD_H
 #define __TPD_H
@@ -145,15 +137,6 @@ struct tpd_driver_t {
 	struct tpd_attrs attrs;
 };
 
-enum lcm_name{
-	TM_ICNL9911C_MODULE = 0,
-	TXD_ILI9882Q_MODULE = 1,
-	DJN_ICNL9911C_MODULE = 2,
-	TXD_ILI9882Q10_MODULE = 3,
-	SKY_FT8006S_MODULE = 4,
-};
-extern int g_lcm_name;
-extern char *saved_command_line;
 
 #if 1				/* #ifdef TPD_HAVE_BUTTON */
 void tpd_button(unsigned int x, unsigned int y, unsigned int down);

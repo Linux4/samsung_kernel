@@ -32,39 +32,37 @@
  * NAPI with GRO:      MODEM_CAP_NAPI=1, ENABLE_NAPI_GRO=1, ENABLE_WQ_GRO=0
  */
 /* #define ENABLE_NAPI_GRO */
-#ifdef CONFIG_MTK_ECCCI_C2K
 #define ENABLE_WQ_GRO
-#endif
 
-#define  CCMNI_MTU              1500
-#define  CCMNI_TX_QUEUE         1000
-#define  CCMNI_NETDEV_WDT_TO    (1*HZ)
+#define  CCMNI_MTU		1500
+#define  CCMNI_TX_QUEUE		1000
+#define  CCMNI_NETDEV_WDT_TO	(1*HZ)
 
-#define  IPV4_VERSION           0x40
-#define  IPV6_VERSION           0x60
+#define  IPV4_VERSION		0x40
+#define  IPV6_VERSION		0x60
+
 
 /* stop/start tx queue */
-#define  SIOCSTXQSTATE          (SIOCDEVPRIVATE + 0)
+#define  SIOCSTXQSTATE		(SIOCDEVPRIVATE + 0)
 /* configure ccmni/md remapping */
-#define  SIOCCCMNICFG           (SIOCDEVPRIVATE + 1)
+#define  SIOCCCMNICFG		(SIOCDEVPRIVATE + 1)
 /* forward filter for ccmni tx packet */
-#define  SIOCFWDFILTER          (SIOCDEVPRIVATE + 2)
+#define  SIOCFWDFILTER		(SIOCDEVPRIVATE + 2)
 /* disable ack first mechanism */
-#define  SIOCACKPRIO          (SIOCDEVPRIVATE + 3)
+#define  SIOCACKPRIO		(SIOCDEVPRIVATE + 3)
+/* push the queued packet to stack */
+#define  SIOPUSHPENDING		(SIOCDEVPRIVATE + 4)
 
 
 
-#define  IS_CCMNI_LAN(dev)      \
-	(strncmp(dev->name, "ccmni-lan", 9) == 0)
 #define  CCMNI_TX_PRINT_F	(0x1 << 0)
-#define MDT_TAG_PATTERN         0x46464646
-#define  CCMNI_FLT_NUM          32
-
+#define MDT_TAG_PATTERN		0x46464646
+#define  CCMNI_FLT_NUM		32
 /* #define CCMNI_MET_DEBUG */
 #if defined(CCMNI_MET_DEBUG)
-#define MET_LOG_TIMER           20 /*20ms*/
-#define CCMNI_RX_MET_ID         0xF0000
-#define CCMNI_TX_MET_ID         0xF1000
+#define MET_LOG_TIMER		20 /*20ms*/
+#define CCMNI_RX_MET_ID		0xF0000
+#define CCMNI_TX_MET_ID		0xF1000
 #endif
 
 
@@ -138,6 +136,10 @@ struct ccmni_instance {
 #endif
 	struct timespec    flush_time;
 	void               *priv_data;
+
+	/* For queue packet before ready */
+	struct workqueue_struct *worker;
+	struct delayed_work pkt_queue_work;
 };
 
 struct ccmni_ccci_ops {
@@ -153,6 +155,8 @@ struct ccmni_ccci_ops {
 	int (*napi_poll)(int md_id, int ccmni_idx,
 			struct napi_struct *napi, int weight);
 	int (*get_ccmni_ch)(int md_id, int ccmni_idx, struct ccmni_ch *channel);
+	void (*ccci_net_init)(char *name);
+	int (*ccci_handle_port_list)(int status, char *name);
 };
 
 struct ccmni_ctl_block {

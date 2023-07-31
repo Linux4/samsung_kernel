@@ -31,13 +31,11 @@
 #define SMC(x)				"smc " SMC_NO(x)
 
 #if defined(CONFIG_ARM)
-#define REGISTERS_NAME		"r"
-#define ARCH_EXTENSION		".arch_extension sec\n"
-#define SMC_CLOBBERED_REGISTERS	"r7"
+#define REGISTERS_NAME	"r"
+#define ARCH_EXTENSION	".arch_extension sec\n"
 #elif defined(CONFIG_ARM64)
-#define REGISTERS_NAME		"x"
-#define ARCH_EXTENSION		""
-#define SMC_CLOBBERED_REGISTERS	"x7","x8","x9","x10","x11","x12","x13","x14","x15","x16","x17"
+#define REGISTERS_NAME	"x"
+#define ARCH_EXTENSION	""
 #endif /* CONFIG_ARM */
 
 #if defined(CONFIG_TZDEV_USE_ARM_CALLING_CONVENTION)

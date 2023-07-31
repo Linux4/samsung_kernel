@@ -1,4 +1,4 @@
-//add serial_num	Bug 682954,songhaiyang.wt,add,20210812,add serial_num/cpuid/chipid
+//add serial_num
 #include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/proc_fs.h>
@@ -48,6 +48,3 @@ static int __init proc_serialno_init(void)
 	return 0;
 }
 fs_initcall(proc_serialno_init);
-
-
-

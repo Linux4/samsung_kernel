@@ -53,13 +53,20 @@ static int mtk_pinmux_gpio_request_enable(struct pinctrl_dev *pctldev,
 					  struct pinctrl_gpio_range *range,
 					  unsigned int pin)
 {
+	int err;
 	struct mtk_pinctrl *hw = pinctrl_dev_get_drvdata(pctldev);
 	const struct mtk_pin_desc *desc;
 
 	desc = (const struct mtk_pin_desc *)&hw->soc->pins[pin];
-
-	return mtk_hw_set_value(hw, desc, PINCTRL_PIN_REG_MODE,
+	err = mtk_hw_set_value(hw, desc, PINCTRL_PIN_REG_MODE,
 				hw->soc->gpio_m);
+	if (err)
+		return err;
+
+	if (hw->soc->eh_pin_pinmux)
+		mtk_eh_ctrl(hw, desc, hw->soc->gpio_m);
+
+	return 0;
 }
 
 static int mtk_pinmux_gpio_set_direction(struct pinctrl_dev *pctldev,
@@ -586,12 +593,17 @@ ssize_t mtk_pctrl_show_one_pin(struct mtk_pinctrl *hw,
 	unsigned int gpio, char *buf, unsigned int bufLen)
 {
 	const struct mtk_pin_desc *desc;
-	int pinmux, pullup = 0, pullen = 0, len = 0, r1 = -1, r0 = -1;
+	int pinmux, pullup = 0, pullen = 0, r1 = -1, r0 = -1, len = 0, val;
 
 	if (gpio > hw->soc->npins)
 		return -EINVAL;
 
 	desc = (const struct mtk_pin_desc *)&hw->soc->pins[gpio];
+
+	if (desc->eint.eint_m != NO_EINT_SUPPORT
+	 && desc->funcs[desc->eint.eint_m].name == 0)
+		return 0;
+
 	pinmux = mtk_pctrl_get_pinmux(hw, gpio);
 	if (pinmux >= hw->soc->nfuncs)
 		pinmux -= hw->soc->nfuncs;
@@ -616,25 +628,39 @@ ssize_t mtk_pctrl_show_one_pin(struct mtk_pinctrl *hw,
 	} else if (pullen != MTK_DISABLE && pullen != MTK_ENABLE) {
 		pullen = 0;
 	}
+
 	len += snprintf(buf + len, bufLen - len,
-			"%03d: %1d%1d%1d%1d%02d%1d%1d%1d%1d",
+			"%03d: %1d%1d%1d%1d",
 			gpio,
 			pinmux,
 			mtk_pctrl_get_direction(hw, gpio),
 			mtk_pctrl_get_out(hw, gpio),
-			mtk_pctrl_get_in(hw, gpio),
-			mtk_pctrl_get_driving(hw, gpio),
-			mtk_pctrl_get_smt(hw, gpio),
-			mtk_pctrl_get_ies(hw, gpio),
-			pullen,
-			pullup);
+			mtk_pctrl_get_in(hw, gpio));
 
-	if (r1 != -1) {
-		len += snprintf(buf + len, bufLen - len, " (%1d %1d)\n",
-			r1, r0);
-	} else {
-		len += snprintf(buf + len, bufLen - len, "\n");
-	}
+	val = mtk_pctrl_get_driving(hw, gpio);
+	if (val >= 0)
+		len += snprintf(buf + len, bufLen - len, "%02d", val);
+	else
+		len += snprintf(buf + len, bufLen - len, "XX");
+
+	val = mtk_pctrl_get_smt(hw, gpio);
+	if (val >= 0)
+		len += snprintf(buf + len, bufLen - len, "%1d", val);
+	else
+		len += snprintf(buf + len, bufLen - len, "X");
+
+	val = mtk_pctrl_get_ies(hw, gpio);
+	if (val >= 0)
+		len += snprintf(buf + len, bufLen - len, "%1d", val);
+	else
+		len += snprintf(buf + len, bufLen - len, "X");
+
+	if (r1 != -1)
+		len += snprintf(buf + len, bufLen - len, "%1d%1d (%1d %1d)\n",
+			pullen, pullup, r1, r0);
+	else
+		len += snprintf(buf + len, bufLen - len, "%1d%1d\n",
+			pullen, pullup);
 
 	return len;
 }
@@ -663,6 +689,10 @@ static const struct pinctrl_ops mtk_pctlops = {
 
 static int mtk_pmx_get_funcs_cnt(struct pinctrl_dev *pctldev)
 {
+	struct mtk_pinctrl *hw = pinctrl_dev_get_drvdata(pctldev);
+
+	if (hw->soc->nfuncs)
+		return (int)hw->soc->nfuncs;
 	return ARRAY_SIZE(mtk_gpio_functions);
 }
 

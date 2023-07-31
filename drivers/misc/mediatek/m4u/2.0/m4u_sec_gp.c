@@ -13,7 +13,12 @@
 #include "m4u_sec_gp.h"
 
 static struct m4u_sec_gp_context m4u_gp_ta_ctx = {
-	.uuid = (TYPE_STRUCT TEEC_UUID)M4U_TA_UUID,
+#if defined(CONFIG_MICROTRUST_TEE_SUPPORT) || \
+			defined(CONFIG_TRUSTONIC_TEE_SUPPORT)
+		.uuid = (struct TEEC_UUID)M4U_TA_UUID,
+#else
+		.uuid = (TEEC_UUID)M4U_TA_UUID,
+#endif
 	.ctx_lock = __MUTEX_INITIALIZER(m4u_gp_ta_ctx.ctx_lock),
 	.ctx_type = CTX_TYPE_TA,
 };
@@ -28,7 +33,7 @@ void m4u_sec_set_context(void)
 static int m4u_exec_session(struct m4u_sec_context *ctx)
 {
 	int ret;
-	TYPE_STRUCT TEEC_Operation m4u_operation;
+	struct TEEC_Operation m4u_operation;
 	struct m4u_sec_gp_context *gp_ctx = ctx->imp;
 
 	if (!ctx->m4u_msg) {
@@ -38,7 +43,7 @@ static int m4u_exec_session(struct m4u_sec_context *ctx)
 
 	m4u_high_info("%s, Notify 0x%x\n", __func__, ctx->m4u_msg->cmd);
 
-	memset(&m4u_operation, 0, sizeof(TYPE_STRUCT TEEC_Operation));
+	memset(&m4u_operation, 0, sizeof(struct TEEC_Operation));
 
 #if defined(CONFIG_MICROTRUST_TEE_SUPPORT) || \
 	defined(CONFIG_TRUSTONIC_TEE_SUPPORT) || \
@@ -78,7 +83,7 @@ static int m4u_sec_gp_init(struct m4u_sec_context *ctx)
 	m4u_high_info("%s, ta teec_initialize_context\n", __func__);
 
 
-	memset(&gp_ctx->shared_mem, 0, sizeof(TYPE_STRUCT TEEC_SharedMemory));
+	memset(&gp_ctx->shared_mem, 0, sizeof(struct TEEC_SharedMemory));
 
 	gp_ctx->shared_mem.size = sizeof(struct m4u_msg);
 	gp_ctx->shared_mem.flags = TEEC_MEM_INPUT;

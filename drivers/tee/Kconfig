@@ -16,20 +16,7 @@ source "drivers/tee/optee/Kconfig"
 source "drivers/tee/gud/Kconfig"
 source "drivers/tee/teei/Kconfig"
 source "drivers/tee/tkcore/Kconfig"
-#source "drivers/tee/tzdev/Kconfig"
 
 endmenu
-
-#
-# TEEGRIS configuration
-#
-config TEEGRIS_TEE_SUPPORT
-       bool "Enable TEEGRIS TEE Support"
-       default n
-       ---help---
-         Enable TEEGRIS TEE Support,
-         mainly for all kernel drivers
-         that are built for TEEGRIS TEE,
-         such as SVP and TZDEV.
 
 endif

@@ -185,17 +185,6 @@ unsigned long aee_get_text(void)
 	return p_text;
 }
 
-/* _sdata, _edata is in *ABS* section and kallsyms API can not find it */
-unsigned long aee_get_sdata(void)
-{
-	return 0;
-}
-
-unsigned long aee_get_edata(void)
-{
-	return 0;
-}
-
 #if defined(CONFIG_ARM64)
 static unsigned long *p_kimage_vaddr;
 unsigned long aee_get_kimage_vaddr(void)
@@ -209,22 +198,6 @@ unsigned long aee_get_kimage_vaddr(void)
 		return 0;
 	}
 	return *p_kimage_vaddr;
-}
-#endif
-
-#ifdef CONFIG_SYSFS
-static struct kset **p_module_kset;
-struct kset *aee_get_module_kset(void)
-{
-	if (p_module_kset)
-		return *p_module_kset;
-
-	p_module_kset = (void *)aee_addr_find("module_kset");
-	if (!p_module_kset) {
-		pr_info("%s failed", __func__);
-		return NULL;
-	}
-	return *p_module_kset;
 }
 #endif
 
@@ -623,27 +596,10 @@ unsigned long aee_get_text(void)
 	return (unsigned long)_text;
 }
 
-unsigned long aee_get_sdata(void)
-{
-	return (unsigned long)_sdata;
-}
-
-unsigned long aee_get_edata(void)
-{
-	return (unsigned long)_edata;
-}
-
 #if defined(CONFIG_ARM64)
 unsigned long aee_get_kimage_vaddr(void)
 {
 	return (unsigned long)kimage_vaddr;
-}
-#endif
-
-#ifdef CONFIG_SYSFS
-struct kset *aee_get_module_kset(void)
-{
-	return module_kset;
 }
 #endif
 

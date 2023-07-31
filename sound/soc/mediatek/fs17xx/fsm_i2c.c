@@ -29,6 +29,11 @@ static struct device *g_fsm_pdev = NULL;
 #include "fsm_codec.c"
 #include "fsm_class.c"
 
+// +Bug 631211,fujiawen.wt,add,20210310,add hardware info
+#include <linux/hardware_info.h>
+extern char smart_pa_name[HARDWARE_MAX_ITEM_LONGTH];
+// -Bug 631211,fujiawen.wt,add,20210310,add hardware info
+
 void fsm_mutex_lock()
 {
 	mutex_lock(&g_fsm_mutex);
@@ -504,7 +509,12 @@ static int fsm_i2c_probe(struct i2c_client *i2c,
 #endif
 		devm_kfree(&i2c->dev, fsm_dev);
 		return ret;
+	// +Bug 682591,fujiawen.wt,add,20210310,add hardware info
+	}else{
+	strcpy(smart_pa_name, "FS1794");
 	}
+	// -Bug 682591,fujiawen.wt,add,20210310,add hardware info
+
 	fsm_dev->id = cfg->dev_count - 1;
 	i2c_set_clientdata(i2c, fsm_dev);
 	pr_addr(info, "index:%d", fsm_dev->id);

@@ -18,7 +18,7 @@
 #include <net/sock.h>
 #include "mtk_battery.h"
 #include "mtk_gauge.h"
-
+#include <linux/hardware_info.h>
 
 /* ============================================================ */
 /* pmic control start*/
@@ -133,9 +133,9 @@
 #define PMIC_AUXADC_NAG_VBAT1_SEL_MASK			0x1
 #define PMIC_AUXADC_NAG_VBAT1_SEL_SHIFT			2
 
-#define PMIC_FG_ZCV_DET_TIME_ADDR               0xd2e
-#define PMIC_FG_ZCV_DET_TIME_MASK               0x3F
-#define PMIC_FG_ZCV_DET_TIME_SHIFT              8
+#define PMIC_FG_ZCV_DET_TIME_ADDR                       0xd2e
+#define PMIC_FG_ZCV_DET_TIME_MASK                       0x3F
+#define PMIC_FG_ZCV_DET_TIME_SHIFT                      8
 
 #define PMIC_FG_ZCV_CAR_TH_15_00_ADDR			0xd38
 #define PMIC_FG_ZCV_CAR_TH_15_00_MASK			0xFFFF
@@ -622,11 +622,14 @@ static int fgauge_get_info(struct mtk_gauge *gauge,
 			*value = 0 - tmp_val;
 			bm_err("[%s]:GAUGE_PROP_SHUTDOWN_CAR: sign:%d, tmp_val:%d\n",
 			__func__, sign_bit, tmp_val);
-		} else if (sign_bit == 0)
+		}
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
+		else if (sign_bit == 0)
 			*value = tmp_val;
 
 		bm_err("[%s]:GAUGE_PROP_SHUTDOWN_CAR: sign:%d, tmp_val:%d\n",
 		__func__, sign_bit, tmp_val);
+#endif
 	}
 
 	bm_debug("[%s]info:%d v:%d\n", __func__, ginfo, *value);
@@ -1929,6 +1932,27 @@ static int zcv_get(struct mtk_gauge *gauge_dev,
 	return 0;
 }
 
+static int get_charger_zcv(struct mtk_gauge *gauge_dev)
+{
+	struct power_supply *chg_psy;
+	union power_supply_propval val;
+	int ret = 0;
+
+	chg_psy = power_supply_get_by_name("mtk-master-charger");
+
+	if (chg_psy == NULL) {
+		bm_err("[%s] can get charger psy\n", __func__);
+		return -ENODEV;
+	}
+
+	ret = power_supply_get_property(chg_psy,
+		POWER_SUPPLY_PROP_VOLTAGE_BOOT, &val);
+
+	bm_err("[%s]_hw_ocv_chgin=%d, ret=%d\n", __func__, val.intval, ret);
+
+	return val.intval;
+}
+
 static int boot_zcv_get(struct mtk_gauge *gauge_dev,
 	struct mtk_gauge_sysfs_field_info *attr, int *val)
 {
@@ -1944,6 +1968,7 @@ static int boot_zcv_get(struct mtk_gauge *gauge_dev,
 	int _hw_ocv_chgin_rdy;
 	int now_temp;
 	int now_thr;
+	int tmp_hwocv_chgin = 0;
 	bool fg_is_charger_exist;
 	struct mtk_battery *gm;
 	struct zcv_data *zcvinfo;
@@ -1956,9 +1981,12 @@ static int boot_zcv_get(struct mtk_gauge *gauge_dev,
 	_hw_ocv_57_pon = read_hw_ocv_6357_power_on(gauge_dev);
 	_hw_ocv_57_plugin = read_hw_ocv_6357_plug_in(gauge_dev);
 
-	/* todo:charger function is not ready to access charger zcv */
-	/* _hw_ocv_chgin = battery_get_charger_zcv() / 100; */
-	_hw_ocv_chgin = 0;
+	tmp_hwocv_chgin = get_charger_zcv(gauge_dev);
+	if (tmp_hwocv_chgin != -ENODEV)
+		_hw_ocv_chgin = tmp_hwocv_chgin / 100;
+	else
+		_hw_ocv_chgin = 0;
+
 	now_temp = gm->bs_data.bat_batt_temp;
 
 	if (gm == NULL)
@@ -2091,6 +2119,13 @@ static int boot_zcv_get(struct mtk_gauge *gauge_dev,
 		_hw_ocv_57_plugin, _hw_ocv_chgin, _sw_ocv,
 		now_temp, now_thr);
 
+	return 0;
+}
+
+static int bat_temp_froze_en_set(struct mtk_gauge *gauge,
+	struct mtk_gauge_sysfs_field_info *attr, int val)
+{
+	/*NO need to do*/
 	return 0;
 }
 
@@ -2695,7 +2730,7 @@ static struct mtk_gauge_sysfs_field_info mt6357_sysfs_field_tbl[] = {
 		GAUGE_PROP_VBAT_HT_INTR_THRESHOLD),
 	GAUGE_SYSFS_FIELD_WO(vbat_lt_set,
 		GAUGE_PROP_VBAT_LT_INTR_THRESHOLD),
-	GAUGE_SYSFS_FIELD_RW(rtc_ui_soc_set, rtc_ui_soc_get,
+	GAUGE_SYSFS_FIELD_RW(rtc_ui_soc, rtc_ui_soc_set, rtc_ui_soc_get,
 		GAUGE_PROP_RTC_UI_SOC),
 	GAUGE_SYSFS_FIELD_RO(ptim_battery_voltage_get,
 		GAUGE_PROP_PTIM_BATTERY_VOLTAGE),
@@ -2713,7 +2748,7 @@ static struct mtk_gauge_sysfs_field_info mt6357_sysfs_field_tbl[] = {
 		GAUGE_PROP_NAFG_CNT),
 	GAUGE_SYSFS_FIELD_RO(nafg_dltv_get,
 		GAUGE_PROP_NAFG_DLTV),
-	GAUGE_SYSFS_FIELD_RW(nafg_c_dltv_set, nafg_c_dltv_get,
+	GAUGE_SYSFS_FIELD_RW(nafg_c_dltv, nafg_c_dltv_set, nafg_c_dltv_get,
 		GAUGE_PROP_NAFG_C_DLTV),
 	GAUGE_SYSFS_FIELD_WO(nafg_en_set,
 		GAUGE_PROP_NAFG_EN),
@@ -2723,7 +2758,7 @@ static struct mtk_gauge_sysfs_field_info mt6357_sysfs_field_tbl[] = {
 		GAUGE_PROP_NAFG_VBAT),
 	GAUGE_SYSFS_FIELD_WO(reset_fg_rtc_set,
 		GAUGE_PROP_RESET_FG_RTC),
-	GAUGE_SYSFS_FIELD_RW(gauge_initialized_set, gauge_initialized_get,
+	GAUGE_SYSFS_FIELD_RW(gauge_initialized, gauge_initialized_set, gauge_initialized_get,
 		GAUGE_PROP_GAUGE_INITIALIZED),
 	GAUGE_SYSFS_FIELD_RO(average_current_get,
 		GAUGE_PROP_AVERAGE_CURRENT),
@@ -2781,6 +2816,8 @@ static struct mtk_gauge_sysfs_field_info mt6357_sysfs_field_tbl[] = {
 		vbat2_detect_time, GAUGE_PROP_VBAT2_DETECT_TIME),
 	GAUGE_SYSFS_INFO_FIELD_RW(
 		vbat2_detect_counter, GAUGE_PROP_VBAT2_DETECT_COUNTER),
+	GAUGE_SYSFS_FIELD_WO(
+		bat_temp_froze_en_set, GAUGE_PROP_BAT_TEMP_FROZE_EN),
 };
 
 static struct attribute *
@@ -3096,7 +3133,6 @@ static int adc_cali_cdev_init(struct platform_device *pdev)
 	return 0;
 }
 
-
 static void mtk_gauge_netlink_handler(struct sk_buff *skb)
 {
 	mtk_battery_netlink_handler(skb);
@@ -3220,6 +3256,10 @@ static int mt6357_gauge_probe(struct platform_device *pdev)
 
 	bm_err("%s: done\n", __func__);
 
+//-bug 717431, liyiying.wt, add, 2021/2/21, n21s add gauge mmi messages
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+	hardwareinfo_set_prop(HARDWARE_BMS_GAUGE_INFO, "MT6357");
+#endif
 	return 0;
 }
 

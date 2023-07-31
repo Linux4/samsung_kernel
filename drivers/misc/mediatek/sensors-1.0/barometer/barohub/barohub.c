@@ -255,7 +255,6 @@ static int barohub_factory_clear_cali(void)
 {
 	return 0;
 }
-//+Bug682590,libo7.wt,MOD,20210814,S96516AA1 add baro sensor cali function
 static int barohub_factory_set_cali(int32_t refvalue, int32_t offset)
 {
 	int32_t cali[2] = {0};
@@ -264,7 +263,6 @@ static int barohub_factory_set_cali(int32_t refvalue, int32_t offset)
 	printk("%s:offset:%ld, refvaule:%ld\n", __func__, offset, refvalue);
 	return sensor_set_cmd_to_hub(ID_PRESSURE, CUST_ACTION_SET_CALI, (void *)&cali);
 }
-//-Bug682590,libo7.wt,MOD,20210814,S96516AA1 add baro sensor cali function
 static int barohub_factory_get_cali(int32_t *offset)
 {
 	return 0;
@@ -355,16 +353,12 @@ static int barohub_flush(void)
 {
 	return sensor_flush_to_hub(ID_PRESSURE);
 }
-
-//+Bug682590,libo7.wt,MOD,20210814,S96516AA1 add baro sensor cali function
 static int baro_cfg_cali(uint8_t *data, uint8_t count)
 {
 	int32_t *buf = (int32_t *)data;
 	pr_err("%s:enter,ref:%ld, offset:%ld\n", __func__, buf[0], buf[1]);
 	return sensor_cfg_to_hub(ID_PRESSURE, data, count);
 }
-//-Bug682590,libo7.wt,MOD,20210814,S96516AA1 add baro sensor cali function
-
 static int barohub_get_data(int *value, int *status)
 {
 	char buff[BAROHUB_BUFSIZE] = {0};
@@ -455,7 +449,6 @@ static int barohub_probe(struct platform_device *pdev)
 	ctl.set_delay = barohub_set_delay;
 	ctl.batch = barohub_batch;
 	ctl.flush = barohub_flush;
-	//Bug682590,libo7.wt,MOD,20210814,S96516AA1 add baro sensor cali function
 	ctl.cfg_cali = baro_cfg_cali;
 #if defined CONFIG_MTK_SCP_SENSORHUB_V1
 	ctl.is_report_input_direct = false;

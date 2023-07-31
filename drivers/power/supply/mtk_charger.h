@@ -10,6 +10,9 @@
 #include "charger_class.h"
 #include "adapter_class.h"
 #include "mtk_charger_algorithm_class.h"
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+#include "wingtech_charger.h"
+#endif
 
 #define CHARGING_INTERVAL 10
 #define CHARGING_FULL_INTERVAL 20
@@ -45,7 +48,20 @@ struct mtk_charger;
 #define BATTERY_CV 4350000
 #define V_CHARGER_MAX 6500000 /* 6.5 V */
 #define V_CHARGER_MIN 4600000 /* 4.6 V */
-
+#if defined (CONFIG_N26_CHARGER_PRIVATE) 
+#define USB_CHARGER_CURRENT_SUSPEND		0 /* def CONFIG_USB_IF */
+#define USB_CHARGER_CURRENT_UNCONFIGURED	70000 /* 70mA */
+#define USB_CHARGER_CURRENT_CONFIGURED		500000 /* 500mA */
+#define USB_CHARGER_CURRENT			500000 /* 500mA */
+#define AC_CHARGER_CURRENT			2000000
+#define AC_CHARGER_INPUT_CURRENT		2000000
+#define FAST_CHARGER_CURRENT			3000000
+#define FAST_CHARGER_INPUT_CURRENT		1670000
+#define NON_STD_AC_CHARGER_CURRENT		500000
+#define CHARGING_HOST_CHARGER_CURRENT		650000
+#define LCMON_CHARGING_CURRENT		700000
+#define LCMON_CHARGING_LIMIT_CURRENT		500000
+#elif defined (CONFIG_N23_CHARGER_PRIVATE)
 #define USB_CHARGER_CURRENT_SUSPEND		0 /* def CONFIG_USB_IF */
 #define USB_CHARGER_CURRENT_UNCONFIGURED	100000 /* 100mA */
 #define USB_CHARGER_CURRENT_CONFIGURED		500000 /* 500mA */
@@ -54,7 +70,16 @@ struct mtk_charger;
 #define AC_CHARGER_INPUT_CURRENT		3200000
 #define NON_STD_AC_CHARGER_CURRENT		500000
 #define CHARGING_HOST_CHARGER_CURRENT		650000
-
+#else
+#define USB_CHARGER_CURRENT_SUSPEND		0 /* def CONFIG_USB_IF */
+#define USB_CHARGER_CURRENT_UNCONFIGURED	70000 /* 70mA */
+#define USB_CHARGER_CURRENT_CONFIGURED		500000 /* 500mA */
+#define USB_CHARGER_CURRENT			500000 /* 500mA */
+#define AC_CHARGER_CURRENT			2050000
+#define AC_CHARGER_INPUT_CURRENT		3200000
+#define NON_STD_AC_CHARGER_CURRENT		500000
+#define CHARGING_HOST_CHARGER_CURRENT		650000
+#endif
 /* dynamic mivr */
 #define V_CHARGER_MIN_1 4400000 /* 4.4 V */
 #define V_CHARGER_MIN_2 4200000 /* 4.2 V */
@@ -72,17 +97,13 @@ struct mtk_charger;
 #define CHG_ST_TMO_STATUS	(1 << 4)
 #define CHG_BAT_LT_STATUS	(1 << 5)
 #define CHG_TYPEC_WD_STATUS	(1 << 6)
-//+chk 80459,xuejizhou.wt,ADD,20210201,SW JEITA configuration
-#ifndef CONFIG_CHARGER_BQ2589X
-#ifndef CONFIG_CHARGER_BQ2560X
+
 /* Battery Temperature Protection */
 #define MIN_CHARGE_TEMP  0
 #define MIN_CHARGE_TEMP_PLUS_X_DEGREE	6
 #define MAX_CHARGE_TEMP  50
 #define MAX_CHARGE_TEMP_MINUS_X_DEGREE	47
-#endif
-#endif
-//+chk 80459,xuejizhou.wt,ADD,20210201,SW JEITA configuration
+
 #define MAX_ALG_NO 10
 
 enum bat_temp_state_enum {
@@ -105,33 +126,29 @@ struct battery_thermal_protection_data {
 	int max_charge_temp;
 	int max_charge_temp_minus_x_degree;
 };
-//+chk 80459,xuejizhou.wt,ADD,20210201,SW JEITA configuration
-#if defined CONFIG_CHARGER_BQ2589X || defined CONFIG_CHARGER_BQ2560X
-#define JEITA_TEMP_ABOVE_T4_CV	4100000
-#define JEITA_TEMP_T3_TO_T4_CV	4100000
-#define JEITA_TEMP_T2_TO_T3_CV	4400000
-#define JEITA_TEMP_T1_TO_T2_CV	4400000
-#define JEITA_TEMP_T0_TO_T1_CV	4400000
-#define JEITA_TEMP_BELOW_T0_CV	4400000
+
+/* sw jeita */
+#define JEITA_TEMP_ABOVE_T4_CV	4240000
+#define JEITA_TEMP_T3_TO_T4_CV	4240000
+#define JEITA_TEMP_T2_TO_T3_CV	4340000
+#define JEITA_TEMP_T1_TO_T2_CV	4240000
+#define JEITA_TEMP_T0_TO_T1_CV	4040000
+#define JEITA_TEMP_BELOW_T0_CV	4040000
+#if defined (CONFIG_N26_CHARGER_PRIVATE) || defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
 #define JEITA_TEMP_ABOVE_T4_CC	0
 #define JEITA_TEMP_T3_TO_T4_CC	1400000
 #define JEITA_TEMP_T2_TO_T3_CC	2000000
 #define JEITA_TEMP_T1_TO_T2_CC	1200000
 #define JEITA_TEMP_T0_TO_T1_CC	400000
 #define JEITA_TEMP_BELOW_T0_CC	0
-#define TEMP_T4_THRES  60
-#define TEMP_T4_THRES_MINUS_X_DEGREE 59
-#define TEMP_T3_THRES  45
-#define TEMP_T3_THRES_MINUS_X_DEGREE 44
-#define TEMP_T2_THRES  10
-#define TEMP_T2_THRES_PLUS_X_DEGREE 11
-#define TEMP_T1_THRES  5
-#define TEMP_T1_THRES_PLUS_X_DEGREE 6
-#define TEMP_T0_THRES  0
-#define TEMP_T0_THRES_PLUS_X_DEGREE  0
-#define TEMP_NEG_10_THRES 0
+#define JEITA_TEMP_ABOVE_T4_FAST_CC	0
+#define JEITA_TEMP_T3_TO_T4_FAST_CC	2800000
+#define JEITA_TEMP_T2_TO_T3_FAST_CC	3000000
+#define JEITA_TEMP_T1_TO_T2_FAST_CC	2400000
+#define JEITA_TEMP_T0_TO_T1_FAST_CC	400000
+#define JEITA_TEMP_BELOW_T0_FAST_CC	0
 
-//+bug  612420,xuejizhou.wt,mod,20210807,charge current limit for AP overheat
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 #define AP_TEMP_ABOVE_T2_CC	500000
 #define AP_TEMP_T1_TO_T2_CC	2000000
 #define AP_TEMP_T0_TO_T1_CC	2500000
@@ -147,22 +164,27 @@ struct battery_thermal_protection_data {
 #define AP_TEMP_T0_THRES_MINUS_X_DEGREE 23
 #define AP_TEMP_THRES_LCMON 45
 #define AP_TEMP_THRES_MINUS_X_DEGREE_LCMON 44
-//-bug  612420,xuejizhou.wt,mod,20210807,charge current limit for AP overheat
+#elif defined (CONFIG_N21_CHARGER_PRIVATE)
+#define AP_TEMP_ABOVE_T2_CC	500000
+#define AP_TEMP_T1_TO_T2_CC	1500000
+#define AP_TEMP_T0_TO_T1_CC	2350000
+#define AP_TEMP_BELOW_T0_CC	2800000
+#define AP_TEMP_HIGH_CC_LCMON 500000
+#define AP_TEMP_LOW_CC_LCMON 800000
 
-/* Battery Temperature Protection */
-#define MIN_CHARGE_TEMP  0
-#define MIN_CHARGE_TEMP_PLUS_X_DEGREE	0
-#define MAX_CHARGE_TEMP  60
-#define MAX_CHARGE_TEMP_MINUS_X_DEGREE	60
+#define AP_TEMP_T2_THRES  48
+#define AP_TEMP_T2_THRES_MINUS_X_DEGREE 47
+#define AP_TEMP_T1_THRES  45
+#define AP_TEMP_T1_THRES_MINUS_X_DEGREE 44
+#define AP_TEMP_T0_THRES  40
+#define AP_TEMP_T0_THRES_MINUS_X_DEGREE 39
+#define AP_TEMP_THRES_LCMON 44
+#define AP_TEMP_THRES_MINUS_X_DEGREE_LCMON 43
 #else
-//-chk 80459,xuejizhou.wt,ADD,20210201,SW JEITA configuration
-/* sw jeita */
-#define JEITA_TEMP_ABOVE_T4_CV	4240000
-#define JEITA_TEMP_T3_TO_T4_CV	4240000
-#define JEITA_TEMP_T2_TO_T3_CV	4340000
-#define JEITA_TEMP_T1_TO_T2_CV	4240000
-#define JEITA_TEMP_T0_TO_T1_CV	4040000
-#define JEITA_TEMP_BELOW_T0_CV	4040000
+#define AP_TEMP_THRES_LCMON 45
+#define AP_TEMP_THRES_MINUS_X_DEGREE_LCMON 44
+#endif
+#endif
 #define TEMP_T4_THRES  50
 #define TEMP_T4_THRES_MINUS_X_DEGREE 47
 #define TEMP_T3_THRES  45
@@ -174,7 +196,7 @@ struct battery_thermal_protection_data {
 #define TEMP_T0_THRES  0
 #define TEMP_T0_THRES_PLUS_X_DEGREE  0
 #define TEMP_NEG_10_THRES 0
-#endif
+
 /*
  * Software JEITA
  * T0: -10 degree Celsius
@@ -191,12 +213,18 @@ enum sw_jeita_state_enum {
 	TEMP_T3_TO_T4,
 	TEMP_ABOVE_T4
 };
+enum sw_ap_state_enum {
+	AP_BELOW_T0 = 0,
+	AP_T0_TO_T1,
+	AP_T1_TO_T2,
+	AP_ABOVE_T2
+};
 
 struct sw_jeita_data {
 	int sm;
 	int pre_sm;
 	int cv;
-	int cc;//Bug 682591,yangyuhang.wt,mod,20210817,mod for n21 jeita config
+	int cc;
 	bool charging;
 	bool error_recovery_flag;
 };
@@ -220,6 +248,8 @@ struct charger_custom_data {
 	int ac_charger_current;
 	int ac_charger_input_current;
 	int charging_host_charger_current;
+	int fast_charger_current;
+	int fast_charger_input_current;
 
 	/* sw jeita */
 	int jeita_temp_above_t4_cv;
@@ -228,16 +258,34 @@ struct charger_custom_data {
 	int jeita_temp_t1_to_t2_cv;
 	int jeita_temp_t0_to_t1_cv;
 	int jeita_temp_below_t0_cv;
-//+chk 80459,xuejizhou.wt,ADD,20210201,SW JEITA configuration
-#if defined CONFIG_CHARGER_BQ2589X || defined CONFIG_CHARGER_BQ2560X
 	int jeita_temp_above_t4_cc;
 	int jeita_temp_t3_to_t4_cc;
 	int jeita_temp_t2_to_t3_cc;
 	int jeita_temp_t1_to_t2_cc;
 	int jeita_temp_t0_to_t1_cc;
 	int jeita_temp_below_t0_cc;
-//+bug  612420,xuejizhou.wt,mod,20210807,charge current limit for AP overheat
-	int ap_temp_above_t2_cc;;
+	int jeita_temp_above_t4_fast_cc;
+	int jeita_temp_t3_to_t4_fast_cc;
+	int jeita_temp_t2_to_t3_fast_cc;
+	int jeita_temp_t1_to_t2_fast_cc;
+	int jeita_temp_t0_to_t1_fast_cc;
+	int jeita_temp_below_t0_fast_cc;
+	int ap_temp_lcmoff_above_t2_cc;
+	int ap_temp_lcmoff_t1_to_t2_cc;
+	int ap_temp_lcmoff_t0_to_t1_cc;
+	int ap_temp_lcmoff_below_t0_cc;
+	int ap_temp_lcmon_above_t0_cc;
+	int ap_temp_lcmon_below_t0_cc;
+	int ap_lcmoff_t2_thres;
+	int ap_lcmoff_t2_thres_plus_x_degree;
+	int ap_lcmoff_t1_thres;
+	int ap_lcmoff_t1_thres_plus_x_degree;
+	int ap_lcmoff_t0_thres;
+	int ap_lcmoff_t0_thres_plus_x_degree;
+	int ap_lcmon_t0_thres;
+	int ap_lcmon_t0_thres_plus_x_degree;
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
+	int ap_temp_above_t2_cc;
 	int ap_temp_t1_to_t2_cc;
 	int ap_temp_t0_to_t1_cc;
 	int ap_temp_below_t0_cc;
@@ -252,9 +300,7 @@ struct charger_custom_data {
 	int ap_temp_t0_thres_minus_x_degree;
 	int ap_temp_thres_lcmon;
 	int ap_temp_thres_minus_x_degree_lcmon;
-//-bug  612420,xuejizhou.wt,mod,20210807,charge current limit for AP overheat
 #endif
-//-chk 80459,xuejizhou.wt,ADD,20210201,SW JEITA configuration
 
 	int temp_t4_thres;
 	int temp_t4_thres_minus_x_degree;
@@ -319,6 +365,9 @@ struct mtk_charger {
 	struct power_supply_config psy_cfg2;
 	struct power_supply *psy2;
 
+	struct power_supply  *chg_psy;
+	struct power_supply  *bat_psy;
+
 	struct adapter_device *pd_adapter;
 	struct notifier_block pd_nb;
 	struct mutex pd_lock;
@@ -381,14 +430,12 @@ struct mtk_charger {
 	bool enable_sw_safety_timer;
 	bool sw_safety_timer_setting;
 	struct timespec charging_begin_time;
-//+bug  612420,xuejizhou.wt,mod,20210807,charge current limit for AP overheat
-#if defined CONFIG_CHARGER_BQ2589X || defined CONFIG_CHARGER_BQ2560X
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
 	int ap_temp;
 	bool lcmoff;
 	struct sw_jeita_data ap_thermal_lcmoff;
 	struct sw_jeita_data ap_thermal_lcmon;
 #endif
-//-bug  612420,xuejizhou.wt,mod,20210807,charge current limit for AP overheat
 	/* sw jeita */
 	bool enable_sw_jeita;
 	struct sw_jeita_data sw_jeita;
@@ -404,6 +451,7 @@ struct mtk_charger {
 	bool water_detected;
 
 	bool enable_dynamic_mivr;
+	struct wtchg_info *wtchg_info;
 };
 
 /* functions which framework needs*/
@@ -431,8 +479,7 @@ extern void _wake_up_charger(struct mtk_charger *info);
 
 /* functions for other */
 extern int mtk_chg_enable_vbus_ovp(bool enable);
-//+Bug 80512,xuejizhou.wt,ADD,20210801,add show_StartCharging_Test/show_StopCharging_Test
-#if defined CONFIG_CHARGER_BQ2589X || defined CONFIG_CHARGER_BQ2560X
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
 extern int charger_manager_disable_charging_new(
 	struct mtk_charger *info, bool en);
 #endif

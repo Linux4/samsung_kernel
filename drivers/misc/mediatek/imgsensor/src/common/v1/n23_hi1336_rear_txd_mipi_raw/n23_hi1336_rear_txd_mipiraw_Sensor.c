@@ -3308,7 +3308,6 @@ static int read_hi1336_otp_moudle(void){
 }
 //-bug682590,zhanghengyuan.wt,ADD,2021/8/24,diff txd and st hi1336
 
-
 //+bug682590,zhanghengyuan.wt,ADD,2021/8/25,add n23_hi1336_rear_txd OTP
 #include "cam_cal_define.h"
 #include <linux/slab.h>

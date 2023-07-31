@@ -20,6 +20,7 @@
 #include <linux/power_supply.h>
 
 #include "richtek/rt-flashlight.h"
+#include "v1/mtk_charger.h"
 
 #include "flashlight-core.h"
 #include "flashlight-dt.h"
@@ -76,6 +77,12 @@ struct mt6360_platform_data {
 	struct flashlight_device_id *dev_id;
 };
 
+#if defined(CONFIG_MACH_MT6877) || defined(CONFIG_MACH_MT6833) \
+|| defined(CONFIG_MACH_MT6893)
+/* define charger consumer */
+static struct charger_consumer *flashlight_charger_consumer;
+#define CHARGER_SUPPLY_NAME "charger_port1"
+#else
 /******************************************************************************
  * Charger power supply class
  *****************************************************************************/
@@ -100,6 +107,7 @@ static int mt6360_high_voltage_supply(int enable)
 
 	return ret;
 }
+#endif
 
 /******************************************************************************
  * mt6360 operations
@@ -349,13 +357,25 @@ static int mt6360_set_scenario(int scenario)
 	if (scenario & FLASHLIGHT_SCENARIO_CAMERA_MASK) {
 		if (!is_decrease_voltage) {
 			pr_info("Decrease voltage level.\n");
+#if defined(CONFIG_MACH_MT6877) || defined(CONFIG_MACH_MT6833) \
+|| defined(CONFIG_MACH_MT6893)
+			charger_manager_enable_high_voltage_charging(
+				flashlight_charger_consumer, false);
+#else
 			mt6360_high_voltage_supply(0);
+#endif
 			is_decrease_voltage = 1;
 		}
 	} else {
 		if (is_decrease_voltage) {
 			pr_info("Increase voltage level.\n");
+#if defined(CONFIG_MACH_MT6877) || defined(CONFIG_MACH_MT6833) \
+|| defined(CONFIG_MACH_MT6893)
+			charger_manager_enable_high_voltage_charging(
+				flashlight_charger_consumer, true);
+#else
 			mt6360_high_voltage_supply(1);
+#endif
 			is_decrease_voltage = 0;
 		}
 	}
@@ -542,6 +562,42 @@ static int mt6360_operate(int channel, int enable)
 	return 0;
 }
 
+//+bug584789,zhanghengyuan.wt,MODIFY,2020/12/19,Add permission for factory flashlight test
+ssize_t flashlight_store_enable_flashlight(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+
+	if(!strncmp("1",buf,1))
+	{
+		pr_info("enable_torch: torch on");
+		mt6360_operate(MT6360_CHANNEL_CH1, 0);
+		mt6360_operate(MT6360_CHANNEL_CH2, 0);
+		mt6360_set_level(MT6360_CHANNEL_CH1, 0x06);
+		mt6360_set_level(MT6360_CHANNEL_CH2, 0x0);
+		mt6360_timeout_ms[0] = 0;
+		mt6360_operate(MT6360_CHANNEL_CH1, 1);
+		mt6360_timeout_ms[1] = 0;
+		mt6360_operate(MT6360_CHANNEL_CH2, 1);
+	}
+	else if(!strncmp("0",buf,1))
+	{
+		pr_info("enable_torch: torch off");
+		mt6360_operate(MT6360_CHANNEL_CH1, 0);
+		mt6360_operate(MT6360_CHANNEL_CH2, 0);
+	}
+
+	return 1;
+}
+
+ ssize_t flashlight_show_enable_flashlight(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+
+	pr_info("flashlight_show_enable_flashlight\n");
+	return 1;
+}
+//-bug584789,zhanghengyuan.wt,MODIFY,2020/12/19,Add permission for factory flashlight test
+
 /******************************************************************************
  * Flashlight operations
  *****************************************************************************/
@@ -640,7 +696,13 @@ static int mt6360_release(void)
 	/* If camera NE, we need to enable pe by ourselves*/
 	if (fd_use_count == 0 && is_decrease_voltage) {
 		pr_info("Increase voltage level.\n");
-		mt6360_high_voltage_supply(1);
+#if defined(CONFIG_MACH_MT6877) || defined(CONFIG_MACH_MT6833) \
+|| defined(CONFIG_MACH_MT6893)
+			charger_manager_enable_high_voltage_charging(
+				flashlight_charger_consumer, true);
+#else
+			mt6360_high_voltage_supply(1);
+#endif
 		is_decrease_voltage = 0;
 	}
 	mutex_unlock(&mt6360_mutex);
@@ -773,6 +835,12 @@ err_node_put:
 	return -EINVAL;
 }
 
+//+bug584789,zhanghengyuan.wt,MODIFY,2020/12/19,Add permission for factory flashlight test
+static DEVICE_ATTR(enable_flashlight, 0664,
+	flashlight_show_enable_flashlight,
+	flashlight_store_enable_flashlight);
+//-bug584789,zhanghengyuan.wt,MODIFY,2020/12/19,Add permission for factory flashlight test
+
 static int mt6360_probe(struct platform_device *pdev)
 {
 	struct mt6360_platform_data *pdata = dev_get_platdata(&pdev->dev);
@@ -825,7 +893,16 @@ static int mt6360_probe(struct platform_device *pdev)
 	if (flashlight_set_strobe_timeout(flashlight_dev_ch1,
 				MT6360_HW_TIMEOUT, MT6360_HW_TIMEOUT + 200) < 0)
 		pr_info("Failed to set strobe timeout.\n");
-
+#if defined(CONFIG_MACH_MT6877) || defined(CONFIG_MACH_MT6833) \
+|| defined(CONFIG_MACH_MT6893)
+	/* get charger consumer manager */
+	flashlight_charger_consumer = charger_manager_get_by_name(
+			&flashlight_dev_ch1->dev, CHARGER_SUPPLY_NAME);
+	if (!flashlight_charger_consumer) {
+		pr_info("Failed to get charger manager.\n");
+		return -EFAULT;
+	}
+#endif
 	/* register flashlight device */
 	if (pdata->channel_num) {
 		for (i = 0; i < pdata->channel_num; i++)
@@ -837,6 +914,8 @@ static int mt6360_probe(struct platform_device *pdev)
 		if (flashlight_dev_register(MT6360_NAME, &mt6360_ops))
 			return -EFAULT;
 	}
+
+	ret = device_create_file(&pdev->dev, &dev_attr_enable_flashlight);//+bug584789,zhanghengyuan.wt,MODIFY,2020/12/23,Add permission for factory flashlight test
 
 	pr_debug("Probe done.\n");
 

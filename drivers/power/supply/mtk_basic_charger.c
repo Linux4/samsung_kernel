@@ -56,11 +56,15 @@
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
 #include <linux/reboot.h>
-#include <mt-plat/mtk_boot_common.h>
-#include "mtk_charger.h"
-#include <mtk_musb.h>
 
-extern bool is_nonstd_chg;
+#include "mtk_charger.h"
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+#include <mt-plat/mtk_boot_common.h>
+#include <mtk_musb.h>
+#endif
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+#include <wingtech_charger.h>
+#endif
 
 static int _uA_to_mA(int uA)
 {
@@ -122,8 +126,6 @@ static bool support_fast_charging(struct mtk_charger *info)
 	return ret;
 }
 
-extern int g_bootmode;
-extern int mtk_chg_status;
 static bool select_charging_current_limit(struct mtk_charger *info,
 	struct chg_limit_setting *setting)
 {
@@ -131,7 +133,6 @@ static bool select_charging_current_limit(struct mtk_charger *info,
 	bool is_basic = false;
 	u32 ichg1_min = 0, aicr1_min = 0;
 	int ret;
-	bool is_hz_mode = false;
 
 	select_cv(info);
 
@@ -170,47 +171,11 @@ static bool select_charging_current_limit(struct mtk_charger *info,
 	}
 
 	if (info->chr_type == POWER_SUPPLY_TYPE_USB) {
-		if (g_bootmode == KERNEL_POWER_OFF_CHARGING_BOOT ||
-				g_bootmode == LOW_POWER_OFF_CHARGING_BOOT) {
-			charger_dev_is_hz_mode(info->chg1_dev, &is_hz_mode);
-			if (is_hz_mode && mtk_chg_status == 0)
-				charger_dev_hz_mode(info->chg1_dev, false);
-			pdata->input_current_limit =
-					info->data.usb_charger_current;
-			pdata->charging_current_limit =
-					info->data.usb_charger_current;
-		} else {
-			if (is_nonstd_chg == true) {
-				charger_dev_is_hz_mode(info->chg1_dev, &is_hz_mode);
-				if (is_hz_mode && mtk_chg_status == 0)
-					charger_dev_hz_mode(info->chg1_dev, false);
-				pdata->input_current_limit =
-						info->data.usb_charger_current;
-				pdata->charging_current_limit =
-						info->data.usb_charger_current;
-			} else if (info->usb_state == USB_SUSPEND) {
-				charger_dev_hz_mode(info->chg1_dev, true);
-				pdata->input_current_limit =
-						USB_CHARGER_CURRENT_SUSPEND;
-				pdata->charging_current_limit =
-						USB_CHARGER_CURRENT_SUSPEND;
-			} else {
-				charger_dev_is_hz_mode(info->chg1_dev, &is_hz_mode);
-				if (is_hz_mode && mtk_chg_status == 0)
-					charger_dev_hz_mode(info->chg1_dev, false);
-				if (info->usb_state == USB_CONFIGURED) {
-					pdata->input_current_limit =
-						info->data.usb_charger_current;
-					pdata->charging_current_limit =
-						info->data.usb_charger_current;
-				} else {
-					pdata->input_current_limit =
-						USB_CHARGER_CURRENT_UNCONFIGURED;
-					pdata->charging_current_limit = USB_CHARGER_CURRENT_UNCONFIGURED;
-				}
-			}
-		}
+		pdata->input_current_limit =
+				info->data.usb_charger_current;
 		/* it can be larger */
+		pdata->charging_current_limit =
+				info->data.usb_charger_current;
 		is_basic = true;
 	} else if (info->chr_type == POWER_SUPPLY_TYPE_USB_CDP) {
 		pdata->input_current_limit =
@@ -237,104 +202,7 @@ static bool select_charging_current_limit(struct mtk_charger *info,
 			info->data.usb_charger_current;
 		is_basic = true;
 	}
-#ifndef CONFIG_MTK_DISABLE_TEMP_PROTECT
-	if (info->enable_sw_jeita) {
-		if (IS_ENABLED(CONFIG_USBIF_COMPLIANCE)
-			&& info->chr_type == POWER_SUPPLY_TYPE_USB)
-			chr_debug("USBIF & STAND_HOST skip current check\n");
-		else {
-//+Bug 682591,xuejizhou.wt,ADD,20210817,SW JEITA configuration
-#if defined CONFIG_CHARGER_BQ2589X || defined CONFIG_CHARGER_BQ2560X
-			if (info->sw_jeita.cc != 0) {
-				if (pdata->charging_current_limit > info->sw_jeita.cc) {
-					pdata->charging_current_limit = info->sw_jeita.cc;
-				}
-			}
-#else
-			if (info->sw_jeita.sm == TEMP_T0_TO_T1) {
-				pdata->input_current_limit = 500000;
-				pdata->charging_current_limit = 350000;
-			}
-#endif
-//-Bug 682591,xuejizhou.wt,ADD,20210817,SW JEITA configuration
-		}
-	}
 
-	if (pdata->thermal_charging_current_limit != -1) {
-		if (pdata->thermal_charging_current_limit <
-			pdata->charging_current_limit) {
-			pdata->charging_current_limit =
-					pdata->thermal_charging_current_limit;
-			info->setting.charging_current_limit1 =
-					pdata->thermal_charging_current_limit;
-		}
-	} else
-//+bug  612420,xuejizhou.wt,mod,20210804,charge current limit for AP overheat
-#if defined CONFIG_CHARGER_BQ2589X || defined CONFIG_CHARGER_BQ2560X
-{
-		if ((!info->enable_sw_jeita) || (IS_ENABLED(CONFIG_USBIF_COMPLIANCE))) {
-			info->setting.charging_current_limit1 = -1;
-		}
-	}
-
-	if((8 != info->bootmode ) &&  //KERNEL_POWER_OFF_CHARGING_BOOT
-               (9 != info->bootmode )) { //LOW_POWER_OFF_CHARGING_BOOT
-		if(info->lcmoff) {
-			if(info->ap_thermal_lcmoff.cc < pdata->charging_current_limit)
-			{
-				pdata->charging_current_limit = info->ap_thermal_lcmoff.cc;
-			}
-
-		} else {
-			if(info->ap_thermal_lcmon.cc < pdata->charging_current_limit)
-			{
-				pdata->charging_current_limit = info->ap_thermal_lcmon.cc;
-			}
-		}
-	}
-#else
-//-bug  612420,xuejizhou.wt,mod,20210804,charge current limit for AP overheat
-		info->setting.charging_current_limit1 = -1;
-#endif // #if defined CONFIG_CHARGER_BQ2589X || defined CONFIG_CHARGER_BQ2560X
-	if (pdata->thermal_input_current_limit != -1) {
-		if (pdata->thermal_input_current_limit <
-			pdata->input_current_limit) {
-			pdata->input_current_limit =
-					pdata->thermal_input_current_limit;
-			info->setting.input_current_limit1 =
-					pdata->input_current_limit;
-		}
-	} else
-		info->setting.input_current_limit1 = -1;
-
-	if (pdata2->thermal_charging_current_limit != -1) {
-		if (pdata2->thermal_charging_current_limit <
-			pdata2->charging_current_limit) {
-			pdata2->charging_current_limit =
-					pdata2->thermal_charging_current_limit;
-			info->setting.charging_current_limit2 =
-					pdata2->charging_current_limit;
-		}
-	} else
-		info->setting.charging_current_limit2 = -1;
-
-	if (pdata2->thermal_input_current_limit != -1) {
-		if (pdata2->thermal_input_current_limit <
-			pdata2->input_current_limit) {
-			pdata2->input_current_limit =
-					pdata2->thermal_input_current_limit;
-			info->setting.input_current_limit2 =
-					pdata2->input_current_limit;
-		}
-	} else
-		info->setting.input_current_limit2 = -1;
-
-	if (info->setting.input_current_limit1 == -1 &&
-		info->setting.input_current_limit2 == -1 &&
-		info->setting.charging_current_limit1 == -1 &&
-		info->setting.charging_current_limit2 == -1)
-		info->enable_hv_charging = true;
-#endif
 	if (support_fast_charging(info))
 		is_basic = false;
 	else {
@@ -370,6 +238,147 @@ static bool select_charging_current_limit(struct mtk_charger *info,
 		}
 	}
 
+	if (info->enable_sw_jeita) {
+		if (IS_ENABLED(CONFIG_USBIF_COMPLIANCE)
+			&& info->chr_type == POWER_SUPPLY_TYPE_USB)
+			chr_debug("USBIF & STAND_HOST skip current check\n");
+		else {
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+			if (info->sw_jeita.cc != 0) {
+				if (pdata->charging_current_limit > info->sw_jeita.cc) {
+					pdata->charging_current_limit = info->sw_jeita.cc;
+				}
+			}
+#elif defined (CONFIG_N21_CHARGER_PRIVATE)
+			if (info->sw_jeita.sm != TEMP_T2_TO_T3) {
+				//info->setting only use for hvdcp charger
+				//pdata->charging_current_limit only use for normal dcp and must lower than dcp
+				if (pdata->charging_current_limit > info->sw_jeita.cc)
+				{
+					pdata->charging_current_limit = info->sw_jeita.cc;
+				}
+				info->setting.charging_current_limit1 = info->sw_jeita.cc;
+			}else{
+				info->setting.charging_current_limit1 = -1;
+			}
+			info->enable_hv_charging = true;
+#else
+			if (info->sw_jeita.sm == TEMP_T0_TO_T1) {
+				pdata->input_current_limit = 500000;
+				pdata->charging_current_limit = 350000;
+			}
+#endif
+		}
+	}
+#ifndef CONFIG_MTK_DISABLE_TEMP_PROTECT
+#ifndef CONFIG_N26_CHARGER_PRIVATE
+	if (pdata->thermal_charging_current_limit != -1) {
+		if (pdata->thermal_charging_current_limit <
+			pdata->charging_current_limit) {
+			pdata->charging_current_limit =
+					pdata->thermal_charging_current_limit;
+			info->setting.charging_current_limit1 =
+					pdata->thermal_charging_current_limit;
+		}
+		chr_err("thermal ctrl: set chg current = %d\n",pdata->charging_current_limit);
+	} else
+#ifdef CONFIG_N21_CHARGER_PRIVATE
+	{
+		if ((!info->enable_sw_jeita) || (IS_ENABLED(CONFIG_USBIF_COMPLIANCE))) {
+			info->setting.charging_current_limit1 = -1;
+		}
+	}
+	if((info->bootmode != 8) &&  //KERNEL_POWER_OFF_CHARGING_BOOT
+		(info->bootmode != 9)) {    //LOW_POWER_OFF_CHARGING_BOOT
+		if(info->lcmoff) {
+			if(info->ap_thermal_lcmoff.cc < pdata->charging_current_limit)
+			{
+				pdata->charging_current_limit = info->ap_thermal_lcmoff.cc;
+			}
+
+			if(info->setting.charging_current_limit1 == -1)		//battery temp normal
+			{
+				info->setting.charging_current_limit1 = info->ap_thermal_lcmoff.cc;
+			}else if(info->setting.charging_current_limit1 > info->ap_thermal_lcmoff.cc)
+			{
+				info->setting.charging_current_limit1 = info->ap_thermal_lcmoff.cc;
+			}
+
+		} else {
+			if(info->ap_thermal_lcmon.cc < pdata->charging_current_limit)
+			{
+				pdata->charging_current_limit = info->ap_thermal_lcmon.cc;
+			}
+
+			if(info->setting.charging_current_limit1 == -1)		//battery temp normal
+			{
+				info->setting.charging_current_limit1 = info->ap_thermal_lcmon.cc;
+			}else if(info->setting.charging_current_limit1 > info->ap_thermal_lcmon.cc)
+			{
+				info->setting.charging_current_limit1 = info->ap_thermal_lcmon.cc;
+			}
+		}
+	}
+#elif defined (CONFIG_N23_CHARGER_PRIVATE)
+  	{
+		if ((!info->enable_sw_jeita) || (IS_ENABLED(CONFIG_USBIF_COMPLIANCE))) {
+			info->setting.charging_current_limit1 = -1;
+		}
+	}
+
+	if((8 != info->bootmode ) &&  //KERNEL_POWER_OFF_CHARGING_BOOT
+               (9 != info->bootmode )) { //LOW_POWER_OFF_CHARGING_BOOT
+		if(info->lcmoff) {
+			if(info->ap_thermal_lcmoff.cc < pdata->charging_current_limit)
+			{
+				pdata->charging_current_limit = info->ap_thermal_lcmoff.cc;
+			}
+
+		} else {
+			if(info->ap_thermal_lcmon.cc < pdata->charging_current_limit)
+			{
+				pdata->charging_current_limit = info->ap_thermal_lcmon.cc;
+			}
+		}
+	}
+#else
+		info->setting.charging_current_limit1 = -1;
+#endif
+	if (pdata->thermal_input_current_limit != -1) {
+		if (pdata->thermal_input_current_limit <
+			pdata->input_current_limit) {
+			pdata->input_current_limit =
+					pdata->thermal_input_current_limit;
+			info->setting.input_current_limit1 =
+					pdata->input_current_limit;
+			chr_err("thermal ctrl: set input current = %d\n",pdata->input_current_limit);
+		}
+	} else
+		info->setting.input_current_limit1 = -1;
+
+	if (pdata2->thermal_charging_current_limit != -1) {
+		if (pdata2->thermal_charging_current_limit <
+			pdata2->charging_current_limit) {
+			pdata2->charging_current_limit =
+					pdata2->thermal_charging_current_limit;
+			info->setting.charging_current_limit2 =
+					pdata2->charging_current_limit;
+		}
+	} else
+		info->setting.charging_current_limit2 = -1;
+
+	if (pdata2->thermal_input_current_limit != -1) {
+		if (pdata2->thermal_input_current_limit <
+			pdata2->input_current_limit) {
+			pdata2->input_current_limit =
+					pdata2->thermal_input_current_limit;
+			info->setting.input_current_limit2 =
+					pdata2->input_current_limit;
+		}
+	} else
+		info->setting.input_current_limit2 = -1;
+#endif
+#endif
 	if (is_basic == true && pdata->input_current_limit_by_aicl != -1) {
 		if (pdata->input_current_limit_by_aicl <
 		    pdata->input_current_limit)
@@ -381,7 +390,7 @@ done:
 	ret = charger_dev_get_min_charging_current(info->chg1_dev, &ichg1_min);
 	if (ret != -ENOTSUPP && pdata->charging_current_limit < ichg1_min) {
 //+Bug 682591,xuejizhou.wt,ADD,20210817,SW JEITA configuration
-#if defined CONFIG_CHARGER_BQ2589X || defined CONFIG_CHARGER_BQ2560X
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
 		chr_err("min_charging_current is too low %d %d\n",
 		pdata->charging_current_limit, ichg1_min);
 		pdata->charging_current_limit = ichg1_min;
@@ -392,7 +401,6 @@ done:
 		chr_err("min_charging_current is too low %d %d\n",
 			pdata->charging_current_limit, ichg1_min);
 		is_basic = true;
-		info->enable_hv_charging = false;
 #endif
 //-Bug 682591,xuejizhou.wt,ADD,20210817,SW JEITA configuration
 	}
@@ -400,7 +408,7 @@ done:
 	ret = charger_dev_get_min_input_current(info->chg1_dev, &aicr1_min);
 	if (ret != -ENOTSUPP && pdata->input_current_limit < aicr1_min) {
 //+Bug 682591,xuejizhou.wt,ADD,20210817,SW JEITA configuration
-#if defined CONFIG_CHARGER_BQ2589X || defined CONFIG_CHARGER_BQ2560X
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
 		chr_err("min_input_current is too low %d ,limit at %d\n",
 			pdata->input_current_limit, aicr1_min);
 		pdata->input_current_limit = aicr1_min;
@@ -411,10 +419,59 @@ done:
 		chr_err("min_input_current is too low %d %d\n",
 			pdata->input_current_limit, aicr1_min);
 		is_basic = true;
-		info->enable_hv_charging = false;
 #endif
 //-Bug 682591,xuejizhou.wt,ADD,20210817,SW JEITA configuration
 	}
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+	switch(info->chr_type){
+		case POWER_SUPPLY_TYPE_USB:
+			pdata->input_current_limit = info->data.usb_charger_current;
+			pdata->charging_current_limit =	info->data.usb_charger_current;
+			if(info->pd_type == MTK_PD_CONNECT_PE_READY_SNK || 
+			   info->pd_type == MTK_PD_CONNECT_PE_READY_SNK_PD30 ||
+			   info->pd_type == MTK_PD_CONNECT_PE_READY_SNK_APDO){
+			   	if(get_vbus(info) > 8000){
+					chr_err("[wtchg]: pd type is %d(9000mv), fast charging!\n",info->pd_type);
+					pdata->input_current_limit = info->data.fast_charger_input_current;
+					pdata->charging_current_limit =	info->data.fast_charger_current;
+			   	}
+			}
+			break;
+		case POWER_SUPPLY_TYPE_USB_CDP:
+			pdata->input_current_limit = info->data.charging_host_charger_current;
+			pdata->charging_current_limit =	info->data.charging_host_charger_current;
+			break;
+		case POWER_SUPPLY_TYPE_USB_DCP:
+			pdata->input_current_limit = info->data.ac_charger_input_current;
+			pdata->charging_current_limit =	info->data.ac_charger_current;
+			if(info->pd_type == MTK_PD_CONNECT_PE_READY_SNK || 
+			   info->pd_type == MTK_PD_CONNECT_PE_READY_SNK_PD30 ||
+			   info->pd_type == MTK_PD_CONNECT_PE_READY_SNK_APDO){
+				chr_err("[wtchg]: pd type is %d, fast charging!\n",info->pd_type);
+				pdata->input_current_limit = info->data.fast_charger_input_current;
+				pdata->charging_current_limit =	info->data.fast_charger_current;
+			}
+			break;
+		case POWER_SUPPLY_TYPE_USB_FLOAT:
+			pdata->input_current_limit = info->data.usb_charger_current;
+			pdata->charging_current_limit =	info->data.usb_charger_current;
+			break;
+		case POWER_SUPPLY_TYPE_USB_AFC:
+			pdata->input_current_limit = info->data.fast_charger_input_current;
+			pdata->charging_current_limit =	info->data.fast_charger_current;
+			break;
+		default:
+			pdata->input_current_limit = info->data.usb_charger_current;
+			pdata->charging_current_limit =	info->data.usb_charger_current;
+	}
+	chr_err("[wtchg]: type=%d, input_current_limit=%d,charging_current_limit=%d,sw_jeita.cc=%d\n",
+		info->chr_type,pdata->input_current_limit,pdata->charging_current_limit,info->sw_jeita.cc);
+#ifndef CONFIG_MTK_DISABLE_TEMP_PROTECT
+	if(pdata->charging_current_limit > info->sw_jeita.cc)
+		pdata->charging_current_limit = info->sw_jeita.cc;
+#endif
+	chr_err("[wtchg]: charging_current_limit=%d\n",pdata->charging_current_limit);
+#endif
 
 	chr_err("m:%d chg1:%d,%d,%d,%d chg2:%d,%d,%d,%d type:%d:%d usb_unlimited:%d usbif:%d usbsm:%d aicl:%d atm:%d bm:%d b:%d\n",
 		info->config,
@@ -445,10 +502,6 @@ static int do_algorithm(struct mtk_charger *info)
 	int i;
 	int ret;
 	int val = 0;
-	struct power_supply *chg_psy = NULL;
-	union power_supply_propval status;
-
-	chg_psy = power_supply_get_by_name("bq2560x");
 
 	pdata = &info->chg_data[CHG1_SETTING];
 	charger_dev_is_charging_done(info->chg1_dev, &chg_done);
@@ -459,13 +512,6 @@ static int do_algorithm(struct mtk_charger *info)
 			charger_dev_do_event(info->chg1_dev, EVENT_FULL, 0);
 			chr_err("%s battery full\n", __func__);
 		} else {
-			if (!IS_ERR_OR_NULL(chg_psy)) {
-				power_supply_get_property(chg_psy, POWER_SUPPLY_PROP_STATUS, &status);
-				if (status.intval != POWER_SUPPLY_STATUS_CHARGING) {
-					chg_done = info->is_chg_done;
-					pr_err("%s rechg error! info->is_chg_done:%d chg_done:%d\n", __func__, info->is_chg_done, chg_done);
-				}
-			}
 			charger_dev_do_event(info->chg1_dev, EVENT_RECHARGE, 0);
 			chr_err("%s battery recharge\n", __func__);
 		}
@@ -479,7 +525,9 @@ static int do_algorithm(struct mtk_charger *info)
 			if (alg == NULL)
 				continue;
 
-			if (!info->enable_hv_charging) {
+			if (!info->enable_hv_charging ||
+			    pdata->charging_current_limit == 0 ||
+			    pdata->input_current_limit == 0) {
 				chg_alg_get_prop(alg, ALG_MAX_VBUS, &val);
 				if (val > 5000)
 					chg_alg_stop_algo(alg);
@@ -526,7 +574,9 @@ static int do_algorithm(struct mtk_charger *info)
 			}
 		}
 	} else {
-		if (info->enable_hv_charging != true) {
+		if (info->enable_hv_charging != true ||
+		    pdata->charging_current_limit == 0 ||
+		    pdata->input_current_limit == 0) {
 			for (i = 0; i < MAX_ALG_NO; i++) {
 				alg = info->alg[i];
 				if (alg == NULL)
@@ -543,21 +593,37 @@ static int do_algorithm(struct mtk_charger *info)
 		}
 	}
 	info->is_chg_done = chg_done;
-
+#ifdef CONFIG_MTK_DISABLE_TEMP_PROTECT	
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+	if(1){
+		struct wtchg_info *wt_info = wt_get_wtchg_info();
+		if (!IS_ERR_OR_NULL(wt_info)){
+			if(wt_info->bat_temp > 45)
+				info->setting.cv = info->data.jeita_temp_t3_to_t4_cv;
+			else
+				info->setting.cv = info->data.jeita_temp_t2_to_t3_cv;
+		}
+	}
+	chr_err("## cv = %d\n",info->setting.cv);
+#endif			
+#endif
 	if (is_basic == true) {
 		charger_dev_set_input_current(info->chg1_dev,
 			pdata->input_current_limit);
 		charger_dev_set_charging_current(info->chg1_dev,
 			pdata->charging_current_limit);
-		charger_dev_set_constant_voltage(info->chg1_dev,
-			info->setting.cv);
-
-		if (pdata->input_current_limit == 0 ||
-		    pdata->charging_current_limit == 0)
-			charger_dev_enable(info->chg1_dev, false);
+		if(get_battery_voltage(info)*1000 < info->setting.cv)
+			charger_dev_set_constant_voltage(info->chg1_dev,
+				info->setting.cv);
 		else
-			charger_dev_enable(info->chg1_dev, true);
+			chr_err("%s: cv < vbat!, hold back set cv !!!\n",__func__);
 	}
+
+	if (pdata->input_current_limit == 0 ||
+	    pdata->charging_current_limit == 0)
+		charger_dev_enable(info->chg1_dev, false);
+	else
+		charger_dev_enable(info->chg1_dev, true);
 
 	if (info->chg1_dev != NULL)
 		charger_dev_dump_registers(info->chg1_dev);

@@ -8,7 +8,7 @@
 #include <linux/sched/clock.h> /* local_clock() */
 #include <linux/kthread.h>
 #include <linux/kernel.h>
-
+//#include <mt-plat/mtk_battery.h> fixme
 #include "ccci_auxadc.h"
 
 #include "ccci_config.h"
@@ -18,6 +18,10 @@
 #include "port_sysmsg.h"
 #include "ccci_swtp.h"
 #define MAX_QUEUE_LENGTH 16
+
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+extern char *saved_command_line;
+#endif
 
 struct md_rf_notify_struct {
 	unsigned int bit;
@@ -47,6 +51,35 @@ static void sys_msg_MD_RF_Notify(int md_id, unsigned int bit_value,
 {
 	int i;
 	unsigned int data_send;
+
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+	pr_info("bit_value before select: %X,data_1:%X :\n",bit_value,data_1);
+
+	if (strstr(saved_command_line, "ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd")) {
+		bit_value = bit_value & 1;
+		pr_info("ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd bit_value: %X,data_1:%X :\n",bit_value,data_1);
+	} else if (strstr(saved_command_line, "ili7807s_fhdp_wt_dsi_vdo_cphy_90hz_tianma")) {
+		bit_value = bit_value & 4;
+		pr_info("ili7807s_fhdp_wt_dsi_vdo_cphy_90hz_tianma bit_value: %X,data_1:%X :\n",bit_value,data_1);
+	} else if (strstr(saved_command_line, "hx83112f_fhdp_wt_dsi_vdo_cphy_90hz_dsbj")) {
+		bit_value = bit_value & 8;
+		pr_info("hx83112f_fhdp_wt_dsi_vdo_cphy_90hz_dsbj bit_value: %X,data_1:%X :\n",bit_value,data_1);
+	} else if (strstr(saved_command_line, "hx83112f_fhdp_wt_dsi_vdo_cphy_90hz_djn")) {
+		bit_value = bit_value & 16;
+		pr_info("hx83112f_fhdp_wt_dsi_vdo_cphy_90hz_djn bit_value: %X,data_1:%X :\n",bit_value,data_1);
+	} else {
+		bit_value = bit_value & 32;
+		pr_info("ili7807s_fhdp_wt_dsi_vdo_cphy_90hz_chuangwei bit_value: %X,data_1:%X :\n",bit_value,data_1);
+	}
+
+	if (bit_value>= 1) {
+		bit_value = 1;
+	} else {
+		bit_value = 0;
+	}
+
+	pr_info("bit_value after select: %X,data_1:%X :\n",bit_value,data_1);
+#endif
 
 	for (i = 0; i < NOTIFY_LIST_ITM_NUM; i++) {
 		data_send = (bit_value&(1<<notify_members[i].bit))
@@ -96,7 +129,7 @@ int register_ccci_sys_call_back(int md_id, unsigned int id,
 	ccci_sys_cb_func_t func)
 {
 	int ret = 0;
-	struct ccci_sys_cb_func_info *info_ptr;
+	struct ccci_sys_cb_func_info *info_ptr = NULL;
 
 	if (md_id >= MAX_MD_NUM) {
 		CCCI_ERROR_LOG(md_id, SYS,
@@ -131,7 +164,7 @@ void exec_ccci_sys_call_back(int md_id, int cb_id, int data)
 {
 	ccci_sys_cb_func_t func;
 	int id;
-	struct ccci_sys_cb_func_info *curr_table;
+	struct ccci_sys_cb_func_info *curr_table = NULL;
 
 	if (md_id >= MAX_MD_NUM) {
 		CCCI_ERROR_LOG(md_id, SYS,
@@ -185,10 +218,20 @@ static void sys_msg_handler(struct port_t *port, struct sk_buff *skb)
 {
 	struct ccci_header *ccci_h = (struct ccci_header *)skb->data;
 	int md_id = port->md_id;
+	unsigned long rem_nsec;
+	u64 ts_nsec, ref;
 
 	CCCI_NORMAL_LOG(md_id, SYS, "system message (%x %x %x %x)\n",
 		ccci_h->data[0], ccci_h->data[1],
 		ccci_h->channel, ccci_h->reserved);
+
+	ts_nsec = sched_clock();
+	ref = ts_nsec;
+	rem_nsec = do_div(ts_nsec, 1000000000);
+	CCCI_HISTORY_LOG(md_id, SYS, "[%5lu.%06lu]sysmsg-%08x %08x %04x\n",
+			(unsigned long)ts_nsec, rem_nsec / 1000,
+			ccci_h->data[1], ccci_h->reserved, ccci_h->seq_num);
+
 	switch (ccci_h->data[1]) {
 	case MD_WDT_MONITOR:
 		/* abandoned */
@@ -203,7 +246,8 @@ static void sys_msg_handler(struct port_t *port, struct sk_buff *skb)
 #endif
 #ifdef CONFIG_MTK_SIM_LOCK_POWER_ON_WRITE_PROTECT
 	case SIM_LOCK_RANDOM_PATTERN:
-		/* Fall through */
+		fsm_monitor_send_message(md_id, CCCI_MD_MSG_RANDOM_PATTERN, 0);
+		break;
 #endif
 #ifdef FEATURE_SCP_CCCI_SUPPORT
 	case CCISM_SHM_INIT_ACK:
@@ -233,6 +277,16 @@ static void sys_msg_handler(struct port_t *port, struct sk_buff *skb)
 		break;
 	};
 	ccci_free_skb(skb);
+
+	ts_nsec = sched_clock();
+#ifdef __LP64__
+	rem_nsec = (unsigned long)((ts_nsec - ref) / 1000);
+#else
+	ts_nsec = ts_nsec - ref;
+	rem_nsec = do_div(ts_nsec, 1000LL);
+#endif
+
+	CCCI_HISTORY_LOG(md_id, SYS, "cost: %lu us\n", rem_nsec);
 }
 
 static int port_sys_init(struct port_t *port)

@@ -459,15 +459,16 @@ int primary_display_get_lcm_refresh_rate(void);
 int _display_set_lcm_refresh_rate(int fps);
 void primary_display_idlemgr_kick(const char *source, int need_lock);
 void primary_display_idlemgr_enter_idle(int need_lock);
+void primary_display_update_present_fence(struct cmdqRecStruct *cmdq_handle,
+	unsigned int fence_idx);
+void primary_display_wakeup_pf_thread(void);
 void primary_display_switch_esd_mode(int mode);
 int primary_display_cmdq_set_reg(unsigned int addr, unsigned int val);
 int primary_display_vsync_switch(int method);
 int primary_display_setlcm_cmd(unsigned int *lcm_cmd, unsigned int *lcm_count,
 	unsigned int *lcm_value);
 int primary_display_mipi_clk_change(unsigned int clk_value);
-void primary_display_wakeup_pf_thread(void);
-void primary_display_update_present_fence(struct cmdqRecStruct *cmdq_handle,
-	unsigned int fence_idx);
+
 void _cmdq_insert_wait_frame_done_token_mira(void *handle);
 int primary_display_get_max_layer(void);
 long primary_display_wait_state(enum DISP_POWER_STATE state, long timeout);

@@ -17,8 +17,11 @@
 #include <linux/of.h>
 #endif
 
+//+bug 782967,wanwen.wt,add,20220728,lcd bringup
+/* liutongxing.wt 20201216 add for hardware info */
 #include <linux/hardware_info.h>
 extern char Lcm_name[HARDWARE_MAX_ITEM_LONGTH];
+//-bug 782967,wanwen.wt,add,20220728,lcd bringup
 
 /* This macro and arrya is designed for multiple LCM support */
 /* for multiple LCM, we should assign I/F Port id in lcm driver, */
@@ -1040,10 +1043,12 @@ struct disp_lcm_handle *disp_lcm_probe(char *plcm_name,
 
 	DISPFUNC();
 	DISPCHECK("plcm_name=%s is_lcm_inited %d\n", plcm_name, is_lcm_inited);
-    if(is_lcm_inited == 1){
-        strncpy(Lcm_name,plcm_name,strlen(plcm_name)+1);
-    }
 
+	//+bug 782967,wanwen.wt,add,20220728,lcd bringup
+	if(is_lcm_inited == 1) {
+		strncpy(Lcm_name, plcm_name, strlen(plcm_name)+1);
+	}
+	//-bug 782967,wanwen.wt,add,20220728,lcd bringup
 #if defined(MTK_LCM_DEVICE_TREE_SUPPORT)
 	if (check_lcm_node_from_DT() == 0) {
 		lcm_drv = &lcm_common_drv;
@@ -1472,26 +1477,6 @@ int disp_lcm_aod(struct disp_lcm_handle *plcm, int enter)
 	return -1;
 }
 
-int disp_lcm_disable(struct disp_lcm_handle *plcm)
-{
-	struct LCM_DRIVER *lcm_drv = NULL;
-
-	DISPMSG("%s+\n", __func__);
-	if (_is_lcm_inited(plcm)) {
-		lcm_drv = plcm->drv;
-		if (lcm_drv->disable) {
-			lcm_drv->disable();
-		} else {
-			DISPERR("FATAL ERROR, lcm_drv->disable is null\n");
-			return -1;
-		}
-		return 0;
-	}
-
-	DISPERR("lcm_drv is null\n");
-	return -1;
-}
-
 int disp_lcm_is_support_adjust_fps(struct disp_lcm_handle *plcm)
 {
 	struct LCM_DRIVER *lcm_drv = NULL;
@@ -1521,10 +1506,12 @@ int disp_lcm_adjust_fps(void *cmdq, struct disp_lcm_handle *plcm, int fps)
 	DISPERR("lcm not initialied\n");
 	return -1;
 }
+
 unsigned int g_last_level;
 int get_lcm_backlight_level(void){
 	return g_last_level;
 }
+
 int disp_lcm_set_backlight(struct disp_lcm_handle *plcm,
 	void *handle, int level)
 {
@@ -1860,7 +1847,7 @@ bool disp_lcm_need_send_cmd(
 	if (from_level < 0 ||
 		to_level < 0)
 		return false;
-	return	lcm_drv->dfps_need_send_cmd(from_level, to_level);
+	return	lcm_drv->dfps_need_send_cmd(from_level, to_level, lcm_param);
 }
 
 void disp_lcm_dynfps_send_cmd(
@@ -1898,7 +1885,7 @@ void disp_lcm_dynfps_send_cmd(
 			to_level = (dfps_params[j]).level;
 	}
 	lcm_drv->dfps_send_lcm_cmd(cmdq_handle,
-		from_level, to_level);
+		from_level, to_level, lcm_param);
 done:
 	DISPCHECK("%s,add done\n", __func__);
 }

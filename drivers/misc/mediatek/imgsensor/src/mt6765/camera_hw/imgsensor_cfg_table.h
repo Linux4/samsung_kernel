@@ -12,9 +12,9 @@
 
 #define IMGSENSOR_DEV_NAME "kd_camera_hw"
 
-
-#define IMGSENSOR_HW_POWER_INFO_MAX	12
-#define IMGSENSOR_HW_SENSOR_MAX_NUM	8
+//bug727089 liangyiyi.wt,MODIFY,2022/3/29,modify for fix front camera have loss power when open rear camera
+#define IMGSENSOR_HW_POWER_INFO_MAX	15
+#define IMGSENSOR_HW_SENSOR_MAX_NUM	23//bug 612420,huangguoyong.wt,add,2020/12/23,add for n6 camera bring up
 
 enum IMGSENSOR_HW_PIN {
 	IMGSENSOR_HW_PIN_NONE = 0,
@@ -24,6 +24,18 @@ enum IMGSENSOR_HW_PIN {
 	IMGSENSOR_HW_PIN_DVDD,
 	IMGSENSOR_HW_PIN_DOVDD,
 	IMGSENSOR_HW_PIN_AFVDD,
+#ifndef CONFIG_MTK_96516_CAMERA
+#ifndef CONFIG_MTK_96717_CAMERA
+	//+bug720412,qinduilin.wt,ADD,2022/1/27,n26_hi5021q_rear_truly sensor bringup
+	IMGSENSOR_HW_PIN_DVDD_1V1,
+	IMGSENSOR_HW_PIN_DVDD_1V2,
+	//-bug720412,qinduilin.wt,ADD,2022/1/27,n26_hi5021q_rear_truly sensor bringup
+	//+bug727089 liangyiyi.wt,MODIFY,2022/3/29,modify for fix front camera have loss power when open rear camera
+	IMGSENSOR_HW_PIN_DVDD_EN,
+	IMGSENSOR_HW_PIN_RST_SUB,
+	//-bug727089 liangyiyi.wt,MODIFY,2022/3/29,modify for fix front camera have loss power when open rear camera
+#endif
+#endif
 #ifdef MIPI_SWITCH
 	IMGSENSOR_HW_PIN_MIPI_SWITCH_EN,
 	IMGSENSOR_HW_PIN_MIPI_SWITCH_SEL,
@@ -57,6 +69,14 @@ enum IMGSENSOR_HW_PIN_STATE {
 #define	DVDD   IMGSENSOR_HW_PIN_DVDD
 #define	DOVDD  IMGSENSOR_HW_PIN_DOVDD
 #define	AFVDD  IMGSENSOR_HW_PIN_AFVDD
+//+bug720412,qinduilin.wt,ADD,2022/1/27,n26_hi5021q_rear_truly sensor bringup
+#define	DVDD_1V1 IMGSENSOR_HW_PIN_DVDD_1V1
+#define	DVDD_1V2 IMGSENSOR_HW_PIN_DVDD_1V2
+//-bug720412,qinduilin.wt,ADD,2022/1/27,n26_hi5021q_rear_truly sensor bringup
+//+bug727089 liangyiyi.wt,MODIFY,2022/3/29,modify for fix front camera have loss power when open rear camera
+#define	DVDD_EN IMGSENSOR_HW_PIN_DVDD_EN
+#define	RST_SUB IMGSENSOR_HW_PIN_RST_SUB
+//-bug727089 liangyiyi.wt,MODIFY,2022/3/29,modify for fix front camera have loss power when open rear camera
 #define	VDD_None  IMGSENSOR_HW_PIN_NONE
 
 	/* For backward compatible */

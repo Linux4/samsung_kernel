@@ -124,11 +124,6 @@ static struct mmprofile_event_t *p_mmprofile_ring_buffer;
 static unsigned char *p_mmprofile_meta_buffer;
 #endif
 
-static struct mmp_static_event_t mmprofile_static_events[] = {
-	{MMP_ROOT_EVENT, "Root_Event", MMP_INVALID_EVENT},
-	{MMP_TOUCH_PANEL_EVENT, "TouchPanel_Event", MMP_ROOT_EVENT},
-};
-
 static struct mmprofile_global_t mmprofile_globals
 __aligned(PAGE_SIZE) = {
 	.buffer_size_record = MMPROFILE_DEFAULT_BUFFER_SIZE,
@@ -566,7 +561,7 @@ static int mmprofile_get_event_name(mmp_event event, char *name, size_t *size)
 	mmp_event curr_event = event;
 	/* event info for all level of the event */
 	struct mmprofile_eventinfo_t *event_info[32];
-	int info_cnt = 0;
+	unsigned int info_cnt = 0;
 	int found = 0;
 	int ret = -1;
 
@@ -1467,6 +1462,9 @@ static ssize_t mmprofile_dbgfs_start_read(struct file *file, char __user *buf,
 
 	MMP_LOG(ANDROID_LOG_DEBUG, "start=%d", mmprofile_globals.start);
 	r = sprintf(str, "start = %d\n", mmprofile_globals.start);
+	if (r < 0)
+		pr_debug("sprintf error\n");
+
 	return simple_read_from_buffer(buf, size, ppos, str, r);
 }
 
@@ -1495,6 +1493,9 @@ static ssize_t mmprofile_dbgfs_enable_read(struct file *file, char __user *buf,
 
 	MMP_LOG(ANDROID_LOG_DEBUG, "enable=%d", mmprofile_globals.enable);
 	r = sprintf(str, "enable = %d\n", mmprofile_globals.enable);
+	if (r < 0)
+		pr_debug("sprintf error\n");
+
 	return simple_read_from_buffer(buf, size, ppos, str, r);
 }
 
@@ -2262,12 +2263,12 @@ static int mmprofile_mmap(struct file *file, struct vm_area_struct *vma)
 	} else if (mmprofile_globals.selected_buffer ==
 		MMPROFILE_PRIMARY_BUFFER) {
 
+		mmprofile_init_buffer();
+
 		/* check user space buffer length */
 		if ((vma->vm_end - vma->vm_start) !=
 			mmprofile_globals.buffer_size_bytes)
 			return -EINVAL;
-
-		mmprofile_init_buffer();
 
 		if (!bmmprofile_init_buffer)
 			return -EAGAIN;

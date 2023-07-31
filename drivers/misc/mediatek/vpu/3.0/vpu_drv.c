@@ -1008,6 +1008,8 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 		struct vpu_request *req;
 		struct vpu_request *u_req;
 		unsigned int req_core;
+		int i;
+		uint8_t plane_count;
 
 		u_req = (struct vpu_request *) arg;
 
@@ -1107,18 +1109,43 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 			goto out;
 		}
 
-		if (ret)
+		if (ret) {
 			LOG_ERR("[ENQUE] get params failed, ret=%d\n", ret);
-		else if (req->buffer_count > VPU_MAX_NUM_PORTS) {
+			vpu_free_request(req);
+			ret = -EINVAL;
+			goto out;
+		} else if (req->buffer_count > VPU_MAX_NUM_PORTS) {
 			LOG_ERR("[ENQUE] %s, count=%d\n",
 				"wrong buffer count", req->buffer_count);
+			vpu_free_request(req);
+			ret = -EINVAL;
+			goto out;
 		} else if (copy_from_user(req->buffers, u_req->buffers,
 			    req->buffer_count * sizeof(struct vpu_buffer))) {
 			LOG_ERR("[ENQUE] %s, ret=%d\n",
 				"copy 'struct buffer' failed", ret);
-		} else if (copy_from_user(req->buf_ion_infos,
+			vpu_free_request(req);
+			ret = -EINVAL;
+			goto out;
+		}
+
+		/* Check if user plane_count is valid */
+		for (i = 0 ; i < req->buffer_count; i++) {
+			plane_count = req->buffers[i].plane_count;
+			if ((plane_count > VPU_MAX_NUM_PLANE) ||
+				(plane_count == 0)) {
+				vpu_free_request(req);
+				ret = -EINVAL;
+		LOG_ERR("[ENQUE] Buffer#%d plane_count:%d is invalid!\n",
+					i, plane_count);
+				goto out;
+			}
+		}
+
+		if (copy_from_user(req->buf_ion_infos,
 				u_req->buf_ion_infos,
-				req->buffer_count * 3 * sizeof(uint64_t))) {
+				req->buffer_count * VPU_MAX_NUM_PLANE
+				* sizeof(uint64_t))) {
 			LOG_ERR("[ENQUE] %s, ret=%d\n",
 				"copy 'buf_share_fds' failed", ret);
 		} else if (vpu_put_request_to_pool(user, req)) {
@@ -1740,8 +1767,8 @@ static int vpu_probe(struct platform_device *pdev)
 	vpu_device->vpu_base[core] = (unsigned long) of_iomap(node, 0);
 	/* get physical address of binary data loaded by LK */
 	if (vpu_num_devs == 0) {
-		uint32_t phy_addr;
-		uint32_t phy_size;
+		uint32_t phy_addr = 0;
+		uint32_t phy_size = 0;
 
 		if (of_property_read_u32(node, "bin-phy-addr", &phy_addr) ||
 			of_property_read_u32(node, "bin-size", &phy_size)) {

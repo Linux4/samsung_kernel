@@ -45,6 +45,7 @@ UINT32 OV16880MIPISensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 OV16825MIPISensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 OV13870_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 OV13855_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 OV13855SUB_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 OV13850_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 OV12A10_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 OV12830_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
@@ -67,6 +68,7 @@ UINT32 OV5648MIPISensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 OV5647MIPISensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 OV5647SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 OV5645_MIPI_YUV_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 OV5645_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 OV5642_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 OV5642_MIPI_YUV_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 OV5642_MIPI_RGB_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
@@ -114,6 +116,8 @@ UINT32 S5K8AAYX_PVI_YUV_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 S5K5E8YX_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 S5K5E8YXREAR2_MIPI_RAW_SensorInit
 	(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 S5K4HAYX_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 S5K5E9YX_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 S5KGM2_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 /*HI*/
 UINT32 HI841_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
@@ -127,6 +131,7 @@ UINT32 HI542_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 HI542_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 HI253_YUV_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 HI191MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 HI2021Q_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 /*MT*/
 UINT32 MT9P012SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 MT9P015SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
@@ -142,6 +147,7 @@ UINT32 MT9V115_YUV_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC5035MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC5035_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC2375H_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 GC2375_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC2365_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC2366_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC2355_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
@@ -151,6 +157,10 @@ UINT32 GC0330_YUV_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC0329_YUV_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC0313MIPI_YUV_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC0310_YUV_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 GC5035_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 GC5035_MACRO_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 GC8034_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 GC02M1_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 IMX215_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC02M1_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC02M1B_MIPI_MONO_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
@@ -158,6 +168,7 @@ UINT32 GC8C34_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC8034_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC8054_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 /*SP*/
+UINT32 SP2509_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 SP0A19_YUV_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 SP250A_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 /*A*/
@@ -182,6 +193,11 @@ UINT32 ISX012_MIPI_YUV_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 T8EV5_YUV_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 SR846_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 SR846D_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 IMX214_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 GC8034MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 AR0543MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 GC5025MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 S5KGW3MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 
 //+bug682590,zhanghengyuan.wt,ADD,2021/8/12,n23_hi1336_rear_txd sensor bringup
 UINT32 N23_HI1336_REAR_TXD_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
@@ -194,28 +210,73 @@ UINT32 N23_HI1336_REAR_ST_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pf
 //+bug682590, zhoumin.wt, ADD, 2021/8/16, first supply front camera bringup
 UINT32 N23_SC500CS_FRONT_TXD_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 //-bug682590, zhoumin.wt, ADD, 2021/8/16, first supply front camera bringup
-
 //+bug682590,liudijin.wt,ADD,2021/8/12,n23_gc5035_front_ly sensor bringup
 UINT32 N23_GC5035_FRONT_LY_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 //-bug682590,liudijin.wt,ADD,2021/8/12,n23_gc5035_front_ly sensor bringup
-
 //+bug682590,zhanghengyuan.wt,ADD,2021/8/12,n23_sc201cs_dep_cxt sensor bringup
 UINT32 N23_SC201CS_DEP_CXT_MIPI_MONO_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 //-bug682590,zhanghengyuan.wt,ADD,2021/8/12,n23_sc201cs_dep_cxt sensor bringup
+
 //+bug682590, huangzheng1.wt, ADD, 2021/8/13, n23_bf2253_dep_lh sensor bringup
 UINT32 N23_BF2253_DEP_LH_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 //-bug682590, huangzheng1.wt, ADD, 2021/8/13, n23_bf2253_dep_lh sensor bringup
+
 //+bug682590, liuxiangyin.wt, ADD, 2021/8/14, n23_c2515_dep_sj sensor bringup
 UINT32 N23_C2515_DEP_SJ_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 //-bug682590, liuxiangyin.wt, ADD, 2021/8/14, n23_c2515_dep_sj sensor bringup
-
-//+bug682590, zhanghao2.wt, ADD, 2021/8/12, n23_bf2253_micro_cxt sensor bringup
 UINT32 N23_BF2253_MICRO_CXT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 //-bug682590, zhanghao2.wt, ADD, 2021/8/12, n23_bf2253_micro_cxt sensor bringup
 //+bug682590, zhoumin.wt, ADD, 2021/8/14, second supply micro camera bringup
 UINT32 N23_SC201CS_MICRO_LHYX_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-//-bug682590, zhoumin.wt, ADD, 2021/8/14, second supply micro camera bringup
+//+bug720412,qinduilin.wt,ADD,2022/1/27,n26_hi5021q_rear_truly sensor bringup
+UINT32 N26_HI5021Q_REAR_TRULY_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_HI5021Q_REAR_ST_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_S5KJN1_REAR_TXD_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_HI5021Q_REAR_DELTA_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-bug720412,qinduilin.wt,ADD,2022/1/27,n26_hi5021q_rear_truly sensor bringup
+//+bug682590,zhanghengyuan.wt,ADD,2022/1/24,n26 front camera bringup
+UINT32 N26_SC501CS_FRONT_LY_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_HI556_FRONT_XL_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_S5K5E9_FRONT_TXD_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_HI556_FRONT_DELTA_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-bug682590,zhanghengyuan.wt,ADD,2021/1/24,n26 front camera bringup
+//+bug720412,lintaicheng.wt,ADD,2022/1/28,n26_c2515_dep_cxt sensor bringup
+UINT32 N26_C2515_DEP_CXT_MIPI_MONO_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_SC201CS_DEP_LH_MIPI_MONO_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_GC02M1_DEP_CXT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_C2519_DEP_DELTA_MIPI_MONO_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-bug720412,lintaicheng.wt,ADD,2022/1/28,n26_c2515_dep_cxt sensor bringup
+//+bug720367,liudijin.wt,ADD,2022/01/27,gc02m2 and sc201cs micro sensor bringup
+UINT32 N26_GC02M2_MICRO_CXT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_SC201CS_MICRO_LCE_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_C2599_MICRO_DELTA_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-bug720367,liudijin.wt,ADD,2022/01/27,gc02m2 and sc201cs micro sensor bringup
 
+//+S96818AA1-1936,liudijin.wt,ADD,2023/04/11,hi5022 main sensor bringup
+UINT32 N28HI5021QREARTRULY_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N28HI5021QREARDC_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N28HI5022QREARTXD_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-S96818AA1-1936,liudijin.wt,ADD,2023/04/11,hi5022 main sensor bringup
+//+S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/12,hi846 sub sensor bringup
+UINT32 N28HI846FRONTTRULY_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/12,hi846 sub sensor bringup
+//+S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/12,gc08a3 sub sensor bringup
+UINT32 N28GC08A3FRONTCXT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/12,gc08a3 sub sensor bringup
+//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/19,sc800cs sub sensor bringup
+UINT32 N28SC800CSFRONTDC_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/19,sc800cs sub sensor bringup
+//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/25,c8496 sub sensor bringup
+UINT32 N28C8496FRONTDC_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-S96818AA1-1936,wuwenhao2.wt,ADD,2023/04/25,c8496 sub sensor bringup
+//+S96818AA1-1936,chenming.wt,ADD,2023/04/11,c2519 depth sensor bringup
+UINT32 N28C2519DEPCXT_MIPI_MONO_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N28C2519DEPCXT2_MIPI_MONO_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-S96818AA1-1936,chenming.wt,ADD,2023/04/11,c2519 depth sensor bringup
+//+S96818AA1-1936,chenming.wt,ADD,2023/04/24,gc2375h depth sensor bringup
+UINT32 N28GC2375HDEPLH_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N28GC2375HDEPLH2_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-S96818AA1-1936,chenming.wt,ADD,2023/04/24,gc2375h depth sensor bringup
 extern struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[];
 
 #endif

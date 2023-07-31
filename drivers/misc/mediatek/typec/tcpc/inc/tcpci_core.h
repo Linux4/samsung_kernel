@@ -14,7 +14,6 @@
 #include <linux/notifier.h>
 #include <linux/semaphore.h>
 #include <linux/spinlock.h>
-#include <linux/usb/typec.h>
 
 #include "tcpm.h"
 #include "tcpci_timer.h"
@@ -22,9 +21,9 @@
 
 #ifdef CONFIG_USB_POWER_DELIVERY
 #include "pd_core.h"
-#ifdef CONFIG_TYPEC_WAIT_BC12
+#ifdef CONFIG_USB_PD_WAIT_BC12
 #include <linux/power_supply.h>
-#endif /* CONFIG_TYPEC_WAIT_BC12 */
+#endif /* CONFIG_USB_PD_WAIT_BC12 */
 #endif
 
 /* The switch of log message */
@@ -49,12 +48,12 @@
 #define DP_INFO_ENABLE		1
 #define DP_DBG_ENABLE		1
 
-#define UVDM_INFO_ENABLE		1
+#define UVDM_INFO_ENABLE	1
 #define TCPM_DBG_ENABLE		1
 
 #ifdef CONFIG_USB_PD_ALT_MODE_RTDC
-#define DC_INFO_ENABLE			1
-#define DC_DBG_ENABLE			1
+#define DC_INFO_ENABLE		1
+#define DC_DBG_ENABLE		1
 #endif	/* CONFIG_USB_PD_ALT_MODE_RTDC */
 
 #define TCPC_ENABLE_ANYMSG	\
@@ -70,7 +69,7 @@
 
 /* Disable VDM DBG Msg */
 #define PE_STATE_INFO_VDM_DIS	0
-#define PE_EVT_INFO_VDM_DIS		0
+#define PE_EVT_INFO_VDM_DIS	0
 #define PE_DBG_RESET_VDM_DIS	1
 
 #define PD_BUG_ON(x)	WARN_ON(x)
@@ -101,11 +100,6 @@ struct tcpc_desc {
 #define CONFIG_TCPC_EXT_DISCHARGE
 #endif	/* CONFIG_TCPC_FORCE_DISCHARGE_EXT */
 
-#ifdef CONFIG_TCPC_AUTO_DISCHARGE_EXT
-#undef CONFIG_TCPC_EXT_DISCHARGE
-#define CONFIG_TCPC_EXT_DISCHARGE
-#endif	/* CONFIG_TCPC_AUTO_DISCHARGE_EXT */
-
 /*---------------------------------------------------------------------------*/
 
 /* TCPC Power Register Define */
@@ -134,6 +128,9 @@ struct tcpc_desc {
 #define TCPC_REG_ALERT_RX_MASK	\
 	(TCPC_REG_ALERT_RX_STATUS | TCPC_REG_ALERT_RX_BUF_OVF)
 
+#define TCPC_REG_ALERT_RX_ALL_MASK	\
+	(TCPC_REG_ALERT_RX_MASK | TCPC_REG_ALERT_RX_HARD_RST)
+
 #define TCPC_REG_ALERT_HRESET_SUCCESS	\
 	(TCPC_REG_ALERT_TX_SUCCESS | TCPC_REG_ALERT_TX_FAILED)
 
@@ -157,24 +154,35 @@ struct tcpc_desc {
 #define TCPC_FLAGS_WATCHDOG_EN			(1<<8)
 #define TCPC_FLAGS_WATER_DETECTION		(1<<9)
 #define TCPC_FLAGS_CABLE_TYPE_DETECTION		(1<<10)
+#define TCPC_FLAGS_VCONN_SAFE5V_ONLY		(1<<11)
+#define TCPC_FLAGS_ALERT_V10			(1<<12)
+
+#define TYPEC_CC_PULL(rp_lvl, res)	((rp_lvl & 0x03) << 3 | (res & 0x07))
+
+enum tcpc_rp_lvl {
+	TYPEC_RP_DFT,
+	TYPEC_RP_1_5,
+	TYPEC_RP_3_0,
+	TYPEC_RP_RSV,
+};
 
 enum tcpc_cc_pull {
 	TYPEC_CC_RA = 0,
 	TYPEC_CC_RP = 1,
 	TYPEC_CC_RD = 2,
 	TYPEC_CC_OPEN = 3,
-	TYPEC_CC_DRP = 4,	/* from Rd */
+	TYPEC_CC_DRP = 4,		/* from Rd */
 
-	TYPEC_CC_RP_DFT = 1,		/* 0x00 + 1 */
-	TYPEC_CC_RP_1_5 = 9,		/* 0x08 + 1*/
-	TYPEC_CC_RP_3_0 = 17,		/* 0x10 + 1 */
+	TYPEC_CC_RP_DFT = TYPEC_CC_PULL(TYPEC_RP_DFT, TYPEC_CC_RP),
+	TYPEC_CC_RP_1_5 = TYPEC_CC_PULL(TYPEC_RP_1_5, TYPEC_CC_RP),
+	TYPEC_CC_RP_3_0 = TYPEC_CC_PULL(TYPEC_RP_3_0, TYPEC_CC_RP),
 
-	TYPEC_CC_DRP_DFT = 4,		/* 0x00 + 4 */
-	TYPEC_CC_DRP_1_5 = 12,		/* 0x08 + 4 */
-	TYPEC_CC_DRP_3_0 = 20,		/* 0x10 + 4 */
+	TYPEC_CC_DRP_DFT = TYPEC_CC_PULL(TYPEC_RP_DFT, TYPEC_CC_DRP),
+	TYPEC_CC_DRP_1_5 = TYPEC_CC_PULL(TYPEC_RP_1_5, TYPEC_CC_DRP),
+	TYPEC_CC_DRP_3_0 = TYPEC_CC_PULL(TYPEC_RP_3_0, TYPEC_CC_DRP),
 };
 
-#define TYPEC_CC_PULL_GET_RES(pull)		(pull & 0x07)
+#define TYPEC_CC_PULL_GET_RES(pull)	(pull & 0x07)
 #define TYPEC_CC_PULL_GET_RP_LVL(pull)	((pull & 0x18) >> 3)
 
 enum tcpm_rx_cap_type {
@@ -190,8 +198,10 @@ enum tcpm_rx_cap_type {
 struct tcpc_ops {
 	int (*init)(struct tcpc_device *tcpc, bool sw_reset);
 	int (*init_alert_mask)(struct tcpc_device *tcpc);
+	int (*get_chip_id)(struct tcpc_device *tcpc);
 	int (*alert_status_clear)(struct tcpc_device *tcpc, uint32_t mask);
 	int (*fault_status_clear)(struct tcpc_device *tcpc, uint8_t status);
+	int (*set_alert_mask)(struct tcpc_device *tcpc, uint32_t mask);
 	int (*get_alert_mask)(struct tcpc_device *tcpc, uint32_t *mask);
 	int (*get_alert_status)(struct tcpc_device *tcpc, uint32_t *alert);
 	int (*get_power_status)(struct tcpc_device *tcpc, uint16_t *pwr_status);
@@ -209,6 +219,7 @@ struct tcpc_ops {
 #endif /* CONFIG_TCPC_VSAFE0V_DETECT_IC */
 
 #ifdef CONFIG_WATER_DETECTION
+	bool (*is_in_water_detecting)(struct tcpc_device *tcpc);
 	int (*is_water_detected)(struct tcpc_device *tcpc);
 	int (*set_water_protection)(struct tcpc_device *tcpc, bool en);
 	int (*set_usbid_polling)(struct tcpc_device *tcpc, bool en);
@@ -218,10 +229,6 @@ struct tcpc_ops {
 	int (*is_low_power_mode)(struct tcpc_device *tcpc);
 	int (*set_low_power_mode)(struct tcpc_device *tcpc, bool en, int pull);
 #endif /* CONFIG_TCPC_LOW_POWER_MODE */
-
-#ifdef CONFIG_TCPC_IDLE_MODE
-	int (*set_idle_mode)(struct tcpc_device *tcpc, bool en);
-#endif /* CONFIG_TCPC_IDLE_MODE */
 
 	int (*set_watchdog)(struct tcpc_device *tcpc, bool en);
 
@@ -298,7 +305,7 @@ struct tcpc_device {
 	bool wake_lock_user;
 	uint8_t wake_lock_pd;
 	struct wakeup_source *attach_wake_lock;
-	struct wakeup_source *dettach_temp_wake_lock;
+	struct wakeup_source *detach_wake_lock;
 
 	/* For tcpc timer & event */
 	uint32_t timer_handle_index;
@@ -312,17 +319,19 @@ struct tcpc_device {
 	struct mutex access_lock;
 	struct mutex typec_lock;
 	struct mutex timer_lock;
+#ifdef CONFIG_WATER_DETECTION
+	struct mutex wd_lock;
+	struct work_struct wd_report_usb_port_work;
+#endif /* CONFIG_WATER_DETECTION */
 	struct semaphore timer_enable_mask_lock;
 	spinlock_t timer_tick_lock;
 	atomic_t pending_event;
 	uint64_t timer_tick;
 	uint64_t timer_enable_mask;
-	wait_queue_head_t event_loop_wait_que;
-	wait_queue_head_t  timer_wait_que;
+	wait_queue_head_t event_wait_que;
+	wait_queue_head_t timer_wait_que;
 	struct task_struct *event_task;
 	struct task_struct *timer_task;
-	bool timer_thread_stop;
-	bool event_loop_thread_stop;
 
 	struct delayed_work	init_work;
 	struct delayed_work	event_init_work;
@@ -334,6 +343,7 @@ struct tcpc_device {
 	/* For TCPC TypeC */
 	uint8_t typec_state;
 	uint8_t typec_role;
+	uint8_t typec_role_new;
 	uint8_t typec_attach_old;
 	uint8_t typec_attach_new;
 	uint8_t typec_local_cc;
@@ -398,19 +408,6 @@ struct tcpc_device {
 #endif	/* CONFIG_TCPC_SOURCE_VCONN */
 
 	uint32_t tcpc_flags;
-
-	struct typec_capability typec_caps;
-	struct typec_port *typec_port;
-	struct device_connection dev_conn;
-	uint8_t dual_role_supported_modes;
-	uint8_t dual_role_mode;
-	uint8_t dual_role_pr;
-	uint8_t dual_role_dr;
-	uint8_t dual_role_vconn;
-	struct usb_pd_identity partner_ident;
-	struct typec_partner_desc partner_desc;
-	struct typec_partner *partner;
-	bool pd_capable;
 
 #ifdef CONFIG_USB_POWER_DELIVERY
 	/* Event */
@@ -477,35 +474,92 @@ struct tcpc_device {
 	uint8_t charging_status;
 	int bat_soc;
 #endif /* CONFIG_USB_PD_REV30 */
-#ifdef CONFIG_TYPEC_WAIT_BC12
-	uint8_t sink_wait_bc12_count;
+#ifdef CONFIG_USB_PD_WAIT_BC12
+	uint8_t pd_wait_bc12_count;
 	struct power_supply *chg_psy;
-#endif /* CONFIG_TYPEC_WAIT_BC12 */
+#endif /* CONFIG_USB_PD_WAIT_BC12 */
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#ifdef CONFIG_USB_PD_CHECK_RX_PENDING_IF_SRTOUT
+	struct completion alert_done;
+	bool is_rx_event;
+#endif /* CONFIG_USB_PD_CHECK_RX_PENDING_IF_SRTOUT */
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 #endif /* CONFIG_USB_POWER_DELIVERY */
 	u8 vbus_level:2;
 	bool vbus_safe0v;
 	bool vbus_present;
 	u8 irq_enabled:1;
 	u8 pd_inited_flag:1; /* MTK Only */
+	int bootmode;
 
 	/* TypeC Shield Protection */
 #ifdef CONFIG_WATER_DETECTION
 	int usbid_calib;
-	int bootmode;
+	struct delayed_work wd_status_work;
+	struct task_struct *wd_task;
+	struct alarm wd_wakeup_timer;
+	atomic_t wd_wakeup;
+	atomic_t wd_thread_stop;
+	wait_queue_head_t wd_wait_queue;
+	struct wakeup_source wd_thread_wlock;
+#ifdef CONFIG_WD_INIT_POWER_OFF_CHARGE
+	bool init_pwroff_check;
+#endif /* CONFIG_WD_INIT_POWER_OFF_CHARGE */
+	bool water_state;
+	bool is_water_checked;
+	bool retry_wd;
 #endif /* CONFIG_WATER_DETECTION */
 #ifdef CONFIG_CABLE_TYPE_DETECTION
 	enum tcpc_cable_type typec_cable_type;
 #endif /* CONFIG_CABLE_TYPE_DETECTION */
+#ifdef CONFIG_CC_BOUNCE_DETECTION
+	u32 cc_bounce_cnt;
+	ktime_t last_cc_change_time;
+	bool cc_bounce_detected;
+#endif /* CONFIG_CC_BOUNCE_DETECTION */
 };
-
 
 #define to_tcpc_device(obj) container_of(obj, struct tcpc_device, dev)
 
+#ifdef CONFIG_USB_POWER_DELIVERY
+static inline uint8_t pd_get_rev(struct pd_port *pd_port, uint8_t sop_type)
+{
+	uint8_t pd_rev = PD_REV20;
+#ifdef CONFIG_USB_PD_REV30_SYNC_SPEC_REV
+	struct pe_data *pe_data = &pd_port->pe_data;
+	struct tcpc_device *tcpc = pd_port->tcpc;
+
+	if (sop_type == TCPC_TX_SOP) {
+		pd_rev = pd_port->pd_revision[0];
+	} else {
+		if (pe_data->explicit_contract || pe_data->cable_rev_discovered)
+			pd_rev = pd_port->pd_revision[1];
+		else if (tcpc->tcpc_flags & TCPC_FLAGS_PD_REV30)
+			pd_rev = PD_REV30;
+	}
+#endif	/* CONFIG_USB_PD_REV30_SYNC_SPEC_REV */
+
+	return pd_rev;
+}
+
+static inline bool pd_check_rev30(struct pd_port *pd_port)
+{
+	return pd_get_rev(pd_port, TCPC_TX_SOP) >= PD_REV30;
+}
+#endif /* CONFIG_USB_POWER_DELIVERY */
+
 #ifdef CONFIG_PD_DBG_INFO
-#define RT_DBG_INFO	pd_dbg_info
+#define __RT_DBG_INFO	pd_dbg_info
 #else
-#define RT_DBG_INFO	pr_info
+#define __RT_DBG_INFO	pr_info
 #endif /* CONFIG_PD_DBG_INFO */
+
+#ifdef CONFIG_TCPC_LOG_WITH_PORT_NAME
+#define RT_DBG_INFO(format, args...)	__RT_DBG_INFO(format,	\
+						      tcpc->desc.name, ##args)
+#else
+#define RT_DBG_INFO(format, args...)	__RT_DBG_INFO(format, ##args)
+#endif /* CONFIG_TCPC_LOG_WITH_PORT_NAME */
 
 #if TYPEC_DBG_ENABLE
 #define TYPEC_DBG(format, args...)		\
@@ -627,14 +681,14 @@ struct tcpc_device {
 
 #if UVDM_INFO_ENABLE
 #define UVDM_INFO(format, args...)	\
-	RT_DBG_INFO(CONFIG_TCPC_DBG_PRESTR "UVDM:" format, ## args)
+	RT_DBG_INFO(CONFIG_TCPC_DBG_PRESTR "UVDM:" format, ##args)
 #else
 #define UVDM_INFO(format, args...)
 #endif
 
 #if TCPM_DBG_ENABLE
 #define TCPM_DBG(format, args...)	\
-	RT_DBG_INFO(CONFIG_TCPC_DBG_PRESTR "TCPM:" format, ## args)
+	RT_DBG_INFO(CONFIG_TCPC_DBG_PRESTR "TCPM:" format, ##args)
 #else
 #define TCPM_DBG(format, args...)
 #endif
@@ -643,14 +697,14 @@ struct tcpc_device {
 
 #if DC_INFO_ENABLE
 #define DC_INFO(format, args...)	\
-	RT_DBG_INFO(CONFIG_TCPC_DBG_PRESTR "DC> " format, ## args)
+	RT_DBG_INFO(CONFIG_TCPC_DBG_PRESTR "DC> " format, ##args)
 #else
 #define DC_INFO(format, args...)
 #endif
 
 #if DC_DBG_ENABLE
 #define DC_DBG(format, args...)	\
-	RT_DBG_INFO(CONFIG_TCPC_DBG_PRESTR "DC> " format, ## args)
+	RT_DBG_INFO(CONFIG_TCPC_DBG_PRESTR "DC> " format, ##args)
 #else
 #define DC_DBG(format, args...)
 #endif

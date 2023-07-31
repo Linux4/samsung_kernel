@@ -194,6 +194,58 @@ config SEC_INPUT_BOOSTER
 
 	  It's triggered in evdev module.
 
+config TYHX_HX9035
+    tristate "Support for hx9036 sar sensor"
+    help
+      Say Y to enable support for TYHX_HX9035.
+
+config INPUT_ABOV
+    tristate "ABOV_SAR_sensor"
+    help
+        Say Y to enable the SAR detection application, if N here not to use the
+        this SAR sensor
+
+config INPUT_ABOV_TWO_CHANNEL
+    bool "ABOV_SAR_sensor_2CH"
+    default n
+    help
+        Say Y to enable the SAR sub channel detection application, if N here not to use the
+        this SAR sub channel sensor
+
+config SX9375_SAR
+    tristate "SX937X_SAR_sensor"
+    depends on I2C
+    default n
+    help
+        Say Y to enable the SAR detection application, if N here not to use the
+        this SAR sensor
+
+config HX9031AS_SAR
+    tristate "Support for hx9031as sar sensor"
+    help
+      Say Y to enable support for TYHX_HX9031as.
+
+config HX9023S_SAR
+    tristate "Support for hx9023s sar sensor"
+    default y
+    help
+        Say Y to enable support for TYHX_HX9023S.
+
+#+S96818AA1-1936, liuling3.wt,ADD, 2023/06/05, sar sx9338 & sx9328 bringup
+config SX9328_SAR
+    tristate "SX932X_SAR_sensor"
+    default y
+    help
+        Say Y to enable support for Semtech_SX9328_SAR
+
+config SX9338_SAR
+    tristate "SX933X_SAR_sensor"
+    default y
+    help
+        Say Y to enable support for Semtech_SX9338_SAR
+
+#-S96818AA1-1936, liuling3.wt,ADD, 2023/06/05, sar sx9338 & sx9328 bringup
+
 comment "Input Device Drivers"
 
 source "drivers/input/keyboard/Kconfig"

@@ -612,7 +612,10 @@ static int _pe2_is_algo_ready(struct chg_alg_device *alg)
 			ret_value = ALG_TA_NOT_SUPPORT;
 		} else if (uisoc < pe2->ta_start_battery_soc ||
 			uisoc >= pe2->ta_stop_battery_soc ||
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+#else
 			pe2->charging_current_limit1 != -1 ||
+#endif
 			pe2->charging_current_limit2 != -1) {
 			ret_value = ALG_NOT_READY;
 		} else {
@@ -979,7 +982,11 @@ static int _pe2_start_algo(struct chg_alg_device *alg)
 				again = true;
 			} else if (ret == ALG_TA_CHECKING)
 				ret_value = ALG_TA_CHECKING;
-			else if (pe2->charging_current_limit1 != -1 ||
+			else if (
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+#else
+			pe2->charging_current_limit1 != -1 ||
+#endif
 				pe2->charging_current_limit2 != -1)
 				ret_value = ALG_NOT_READY;
 			else {
@@ -1351,6 +1358,10 @@ static int mtk_pe2_probe(struct platform_device *pdev)
 	pe2->vbus = 5000000;
 	pe2->state = PE2_HW_UNINIT;
 	mtk_pe2_parse_dt(pe2, &pdev->dev);
+	pe2->bat_psy = devm_power_supply_get_by_phandle(&pdev->dev, "gauge");
+
+	if (IS_ERR_OR_NULL(pe2->bat_psy))
+		pe2_err("%s: devm power fail to get bat_psy\n", __func__);
 
 	pe2->profile[0].vbat = 3400000;
 	pe2->profile[1].vbat = 3500000;

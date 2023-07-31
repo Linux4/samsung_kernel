@@ -554,7 +554,8 @@ uclamp_st_restrict(struct task_struct *p, enum uclamp_id clamp_id)
 
 	if (UCLAMP_MIN == clamp_id && 0 == uc_max.value)
 		goto unlock;
-	if (uc_req.value > uc_max.value || !uc_req.user_defined) {
+	if (!uc_req.user_defined || (uc_req.value != uc_max.value &&
+						uc_max.value != uclamp_none(clamp_id))) {
 		rcu_read_unlock();
 		return uc_max;
 	}
@@ -947,7 +948,7 @@ schedtune_init_cgroups(void)
 	schedtune_initialized = true;
 }
 
-#ifdef CONFIG_MTK_FPSGO_V3
+#ifdef CONFIG_SCHED_TUNE
 int prefer_idle_for_perf_idx(int idx, int prefer_idle)
 {
 	struct schedtune *ct = NULL;
@@ -1004,6 +1005,18 @@ int uclamp_min_for_perf_idx(int idx, int min_value)
 
 }
 EXPORT_SYMBOL(uclamp_min_for_perf_idx);
+
+int uclamp_min_pct_for_perf_idx(int idx, int pct)
+{
+	unsigned int min_value;
+
+	if (pct < 0 || pct > 100)
+		return -ERANGE;
+
+	min_value = scale_from_percent(pct);
+	return uclamp_min_for_perf_idx(idx, min_value);
+}
+EXPORT_SYMBOL(uclamp_min_pct_for_perf_idx);
 #endif
 
 /*

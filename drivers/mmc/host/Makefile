@@ -23,7 +23,8 @@ obj-$(CONFIG_MMC_SDHCI_F_SDH30)	+= sdhci_f_sdh30.o
 obj-$(CONFIG_MMC_SDHCI_SPEAR)	+= sdhci-spear.o
 obj-$(CONFIG_MMC_WBSD)		+= wbsd.o
 obj-$(CONFIG_MMC_AU1X)		+= au1xmmc.o
-obj-$(CONFIG_MMC_MTK)		+= mtk-sd.o
+obj-$(CONFIG_MMC_MTK)		+= mtk-sd.o mtk-sd-dbg.o
+obj-$(CONFIG_MMC_MTK)		+= mmc-sec-sysfs.o
 obj-$(CONFIG_MMC_OMAP)		+= omap.o
 obj-$(CONFIG_MMC_OMAP_HS)	+= omap_hsmmc.o
 obj-$(CONFIG_MMC_ATMELMCI)	+= atmel-mci.o
@@ -109,5 +110,7 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/include
 ccflags-y += -I$(srctree)/drivers/devfreq
 obj-y		+= cmdq_hci.o
 endif
+ccflags-y += -I$(srctree)/drivers/char/rpmb/
+
 obj-$(CONFIG_MMC_SDHCI_XENON)	+= sdhci-xenon-driver.o
 sdhci-xenon-driver-y		+= sdhci-xenon.o sdhci-xenon-phy.o

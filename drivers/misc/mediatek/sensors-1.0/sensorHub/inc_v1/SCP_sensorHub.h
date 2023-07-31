@@ -25,7 +25,7 @@ enum {
 	CONFIG_CMD_CFG_DATA     = 3,
 	CONFIG_CMD_CALIBRATE    = 4,
 	CONFIG_CMD_SELF_TEST    = 5,
-	CONFIG_CMD_SET_LCDNAME  = 6,
+	CONFIG_CMD_SET_LCDNAME  = 6,//Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 };
 
 struct ConfigCmd {
@@ -291,7 +291,6 @@ struct SCP_SENSOR_HUB_ACTIVATE_REQ {
 	uint8_t reserve[2];
 	uint32_t enable;	/* 0 : disable ; 1 : enable */
 	/* uint32_t    reserved[9]; */
-
 };
 
 #define SCP_SENSOR_HUB_ACTIVATE_RSP SCP_SENSOR_HUB_RSP

@@ -48,6 +48,14 @@
 #if defined(CONFIG_MMC_MTK_PRO)
 #include "mtk_sd.h"
 #endif
+
+#if defined(CONFIG_MMC_MTK)
+#include <linux/of.h>
+#include <linux/of_fdt.h>
+#include <linux/of_irq.h>
+#include <linux/of_platform.h>
+static struct mmc_host *mtk_mmc_host[] = {NULL};
+#endif
 #ifndef CONFIG_TEEGRIS_TEE_SUPPORT
 #ifdef CONFIG_SCSI_UFS_MEDIATEK
 #include "ufs-mediatek.h"
@@ -110,6 +118,7 @@ struct rpmb_dev *ufs_mtk_rpmb_get_raw_dev(void);
 
 static struct task_struct *iwsock_th;
 static DEFINE_MUTEX(rpmb_mutex);
+static int dt_get_boot_type(void);
 #endif
 
 /*
@@ -355,6 +364,16 @@ int emmc_rpmb_switch(struct mmc_card *card, struct emmc_rpmb_blk_data *md)
 		}
 		mmc_card_clr_cmdq(card);
 	}
+#elif defined(CONFIG_MMC_MTK)
+	if (md->part_type == EXT_CSD_PART_CONFIG_ACC_RPMB) {
+		if (card->ext_csd.cmdq_en) {
+			ret = mmc_cmdq_disable(card);
+			if (ret) {
+				MSG(ERR, "CMDQ disabled failed!(%d)\n", ret);
+				return ret;
+			}
+		}
+	}
 #endif
 
 	if (mmc_card_mmc(card)) {
@@ -382,6 +401,15 @@ int emmc_rpmb_switch(struct mmc_card *card, struct emmc_rpmb_blk_data *md)
 					mmc_hostname(card->host), ret);
 		else
 			mmc_card_set_cmdq(card);
+	}
+#elif defined(CONFIG_MMC_MTK)
+	if (main_md->part_curr == EXT_CSD_PART_CONFIG_ACC_RPMB) {
+		if (card->reenable_cmdq && !card->ext_csd.cmdq_en) {
+			ret = mmc_cmdq_enable(card);
+			if (ret)
+				pr_notice("%s enable CMDQ error %d,so just work without CMDQ\n",
+					mmc_hostname(card->host), ret);
+		}
 	}
 #endif
 
@@ -2237,12 +2265,16 @@ static int rpmb_gp_execute_ufs(u32 cmdId)
 #endif
 
 #ifndef CONFIG_TEE
-#if defined(CONFIG_MMC_MTK_PRO)
+#if defined(CONFIG_MMC_MTK_PRO) || defined(CONFIG_MMC_MTK)
 static int rpmb_execute_emmc(u32 cmdId)
 {
 	int ret;
-
+#if defined(CONFIG_MMC_MTK_PRO)
 	struct mmc_card *card = mtk_msdc_host[0]->mmc->card;
+#else
+	struct mmc_host *mmc = mtk_mmc_host[0];
+	struct mmc_card *card = mmc->card;
+#endif
 	struct emmc_rpmb_req rpmb_req;
 
 	switch (cmdId) {
@@ -2323,12 +2355,16 @@ static int rpmb_execute_emmc(u32 cmdId)
 #endif
 #endif
 
-#if defined(CONFIG_MMC_MTK_PRO)
+#if defined(CONFIG_MMC_MTK_PRO) || defined(CONFIG_MMC_MTK)
 static int rpmb_gp_execute_emmc(u32 cmdId)
 {
 	int ret;
-
+#if defined(CONFIG_MMC_MTK_PRO)
 	struct mmc_card *card = mtk_msdc_host[0]->mmc->card;
+#else
+	struct mmc_host *mmc = mtk_mmc_host[0];
+	struct mmc_card *card = mmc->card;
+#endif
 	struct emmc_rpmb_req rpmb_req;
 
 	switch (cmdId) {
@@ -2437,6 +2473,11 @@ int rpmb_listenDci(void *data)
 		/* Received exception. */
 		if (mtk_msdc_host[0] && mtk_msdc_host[0]->mmc
 			&& mtk_msdc_host[0]->mmc->card)
+			mc_ret = rpmb_execute_emmc(cmdId);
+		else
+#elif defined(CONFIG_MMC_MTK)
+		/* Received exception. */
+		if (mtk_mmc_host[0] && mtk_mmc_host[0]->card)
 			mc_ret = rpmb_execute_emmc(cmdId);
 		else
 #endif
@@ -2573,6 +2614,11 @@ int rpmb_gp_listenDci(void *data)
 			&& mtk_msdc_host[0]->mmc->card)
 			mc_ret = rpmb_gp_execute_emmc(cmdId);
 		else
+#elif defined(CONFIG_MMC_MTK)
+		/* Received exception. */
+		if (mtk_mmc_host[0] && mtk_mmc_host[0]->card)
+			mc_ret = rpmb_gp_execute_emmc(cmdId);
+		else
 #endif
 #ifdef CONFIG_SCSI_UFS_MEDIATEK
 			mc_ret = rpmb_gp_execute_ufs(cmdId);
@@ -2600,7 +2646,7 @@ static int rpmb_gp_open_session(void)
 	MSG(INFO, "%s start\n", __func__);
 
 	do {
-		msleep(2000);
+		msleep(500);
 
 		/* open device */
 		mc_ret = mc_open_device(rpmb_gp_devid);
@@ -2668,9 +2714,9 @@ static int rpmb_gp_open_session(void)
 		else
 			break;
 
-	} while (cnt < 60);
+	} while (cnt < 240);
 
-	if (cnt >= 60)
+	if (cnt >= 240)
 		MSG(ERR, "%s, open session failed!!!\n", __func__);
 
 
@@ -2713,8 +2759,7 @@ static struct rpmb_ctx *create_rpmb_ctx(void)
 
 static int init_rpmb_wsm(struct rpmb_ctx *ctx)
 {
-	ctx->wsm_vaddr = kzalloc(sizeof(struct rpmb_req) + TEEGRIS_MAX_RPMB_REQUEST_SIZE,
-								GFP_KERNEL);
+	ctx->wsm_vaddr = kzalloc(sizeof(struct rpmb_req) + TEEGRIS_MAX_RPMB_REQUEST_SIZE, GFP_KERNEL);
 	if (!ctx->wsm_vaddr) {
 		MSG(ERR, "%s failed to alloc rpmb wsm\n", __func__);
 		return -ENOMEM;
@@ -2859,7 +2904,7 @@ static inline void destroy_rpmb_ctx(struct rpmb_ctx *ctx)
 	kfree(ctx);
 }
 
-#ifdef CONFIG_MTK_UFS_SUPPORT
+#ifdef CONFIG_SCSI_UFS_MEDIATEK
 static void rpmb_iwsock_execute_ufs(struct rpmb_ctx *ctx)
 {
 	int ret = 0;
@@ -2898,16 +2943,33 @@ static void rpmb_iwsock_execute_ufs(struct rpmb_ctx *ctx)
 }
 #endif
 
+
 static void rpmb_iwsock_execute_emmc(struct rpmb_ctx *ctx)
 {
 	int ret = 0, cnt = 0;
-	struct mmc_card *card = mtk_msdc_host[0]->mmc->card;
+	struct mmc_card *card;
 	struct emmc_rpmb_req rpmb_req;
+
+#if defined(CONFIG_MMC_MTK_PRO)
+	if (!mtk_msdc_host[0] || !mtk_msdc_host[0]->mmc
+		|| !mtk_msdc_host[0]->mmc->card) {
+		MSG(ERR, "%s: ret= %x\n", __func__, -EFAULT);
+	}
+	card = mtk_msdc_host[0]->mmc->card;
+#elif defined(CONFIG_MMC_MTK)
+	if (!mtk_mmc_host[0] || !mtk_mmc_host[0]->card)
+		MSG(ERR, "%s: ret= %x\n", __func__, -EFAULT);
+	card = mtk_mmc_host[0]->card;
+#endif
 
 	/* max wait time 20s */
 	while (!card || !dev_get_drvdata(&card->dev)) {
 		msleep(100);
+#if defined(CONFIG_MMC_MTK_PRO)
 		card = mtk_msdc_host[0]->mmc->card;
+#elif defined(CONFIG_MMC_MTK)
+		card = mtk_mmc_host[0]->card;
+#endif
 		if (cnt++ > 200)
 			return;
 	};
@@ -2970,6 +3032,8 @@ static void rpmb_iwsock_execute_emmc(struct rpmb_ctx *ctx)
 static int rpmb_iwsock_thread(void *context)
 {
 	int ret;
+	int boot_type;
+
 	struct rpmb_ctx *ctx;
 	struct sock_desc *rpmb_conn;
 
@@ -3006,6 +3070,7 @@ static int rpmb_iwsock_thread(void *context)
 		if (ret)
 			goto release_sock;
 
+		boot_type = dt_get_boot_type();
 		mutex_lock(&rpmb_mutex);
 #if defined(CONFIG_MMC_MTK_PRO)
 		rpmb_iwsock_execute_emmc(ctx);
@@ -3287,6 +3352,10 @@ long rpmb_ioctl_emmc(struct file *file, unsigned int cmd, unsigned long arg)
 		return -EFAULT;
 
 	card = mtk_msdc_host[0]->mmc->card;
+#elif defined(CONFIG_MMC_MTK)
+	if (!mtk_mmc_host[0] || !mtk_mmc_host[0]->card)
+		return -EFAULT;
+	card = mtk_mmc_host[0]->card;
 #else
 	card = NULL;
 	ret = -EFAULT;
@@ -3565,7 +3634,7 @@ static const struct file_operations rpmb_fops_emmc = {
 	.write = NULL,
 	.read = NULL,
 };
-#if defined(CONFIG_MMC_MTK_PRO)
+#if defined(CONFIG_MMC_MTK_PRO) || defined(CONFIG_MMC_MTK)
 struct tag_bootmode {
 	u32 size;
 	u32 tag;
@@ -3602,13 +3671,103 @@ static int dt_get_boot_type(void)
 }
 #endif
 
+#if defined(CONFIG_MMC_MTK)
+int mmc_rpmb_register(struct mmc_host *mmc)
+{
+	int ret = 0;
+
+	if (!(mmc->caps2 & MMC_CAP2_NO_MMC))
+		mtk_mmc_host[0] = mmc;
+	else if (!(mmc->caps2 & MMC_CAP2_NO_SD))
+		return ret;
+	else
+		return -EINVAL;
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(mmc_rpmb_register);
+#endif
 #ifdef CONFIG_TEEGRIS_TEE_SUPPORT
-static void rpmb_gp_execute_emmc(u32 cmdId)
+#ifdef CONFIG_SCSI_UFS_MEDIATEK
+static void rpmb_gp_execute_ufs(u32 cmdId)
 {
 	int ret;
 
-	struct mmc_card *card = mtk_msdc_host[0]->mmc->card;
+	switch (cmdId) {
+
+	case DCI_RPMB_CMD_READ_DATA:
+
+		MSG(DBG_INFO, "%s: DCI_RPMB_CMD_READ_DATA\n", __func__);
+
+		ret = rpmb_req_read_data_ufs(rpmb_gp_dci->request.frame,
+						rpmb_gp_dci->request.blks);
+
+		break;
+
+	case DCI_RPMB_CMD_GET_WCNT:
+
+		MSG(DBG_INFO, "%s: DCI_RPMB_CMD_GET_WCNT\n", __func__);
+
+		ret = rpmb_req_get_wc_ufs(NULL, NULL,
+						rpmb_gp_dci->request.frame);
+
+		break;
+
+	case DCI_RPMB_CMD_WRITE_DATA:
+
+		MSG(DBG_INFO, "%s: DCI_RPMB_CMD_WRITE_DATA\n", __func__);
+
+		ret = rpmb_req_write_data_ufs(rpmb_gp_dci->request.frame,
+						rpmb_gp_dci->request.blks);
+
+		break;
+
+#ifdef CFG_RPMB_KEY_PROGRAMED_IN_KERNEL
+	case DCI_RPMB_CMD_PROGRAM_KEY:
+		MSG(INFO, "%s: DCI_RPMB_CMD_PROGRAM_KEY.\n", __func__);
+		rpmb_dump_frame(rpmb_gp_dci->request.frame);
+
+		ret = rpmb_req_program_key_ufs(rpmb_gp_dci->request.frame, 1);
+
+		break;
+#endif
+
+	default:
+		MSG(ERR, "%s: receive an unknown command id(%d).\n",
+			__func__, cmdId);
+		break;
+
+	}
+
+	if (ret)
+		MSG(ERR, "%s: Error ret(%d).\n", __func__, ret);
+}
+#endif
+#if defined(CONFIG_MMC_MTK_PRO) || defined(CONFIG_MMC_MTK)
+static void rpmb_gp_execute_emmc(u32 cmdId)
+{
+	int ret;
+	struct mmc_card *card;
 	struct emmc_rpmb_req rpmb_req;
+
+#if defined(CONFIG_MMC_MTK_PRO)
+	if (!mtk_msdc_host[0] || !mtk_msdc_host[0]->mmc
+		|| !mtk_msdc_host[0]->mmc->card) {
+		MSG(ERR, "%s: ret= %x\n", __func__, -EFAULT);
+		return;
+	}
+		card = mtk_msdc_host[0]->mmc->card;
+#elif defined(CONFIG_MMC_MTK)
+	if (!mtk_mmc_host[0] || !mtk_mmc_host[0]->card) {
+		MSG(ERR, "%s: ret= %x\n", __func__, -EFAULT);
+		return;
+	}
+	card = mtk_mmc_host[0]->card;
+#else
+	card = NULL;
+	MSG(ERR, "%s: ret= %x\n", __func__, -EFAULT);
+	return;
+#endif
 
 	switch (cmdId) {
 
@@ -3685,12 +3844,12 @@ static void rpmb_gp_execute_emmc(u32 cmdId)
 	if (ret)
 		MSG(ERR, "%s: Error ret(%d).\n", __func__, ret);
 }
-
+#endif
 TEEC_UUID uuid_client = {
 	.timeLow = 0x00000000,
 	.timeMid = 0x4D54,
 	.timeHiAndVersion = 0x4B5F,
-	.clockSeqAndNode = {0x42, 0x46, 0x72, 0x70, 0x6D, 0x62, 0x64, 0x72},
+	.clockSeqAndNode = {0x42, 0x46, 0x72, 0x70, 0x6D, 0x62, 0x74, 0x61},
 };
 
 enum cmd_invoke {
@@ -3728,10 +3887,23 @@ TEEC_Result teegris_rpmb_open_session(TEEC_Context *context,
 				__func__, res);
 			break;
 		}
-		msleep(500);
+		msleep(1000);
 	} while (1);
 
 	return res;
+}
+
+static int check_tee_return(TEEC_Result res)
+{
+	if (res == TEEC_ERROR_TARGET_DEAD) {
+#ifdef CONFIG_MTK_ENG_BUILD
+		BUG();
+#endif
+		return 1;
+	} else if (res != TEEC_SUCCESS){
+		return 1;
+	}
+	return 0;
 }
 
 TEEC_Result teegris_rpmb_run(TEEC_Context *context)
@@ -3740,6 +3912,7 @@ TEEC_Result teegris_rpmb_run(TEEC_Context *context)
 	TEEC_Operation operation;
 	uint32_t returnOrigin;
 	u32 cmdId;
+	int boot_type;
 
 	memset(&operation, 0, sizeof(TEEC_Operation));
 
@@ -3771,10 +3944,14 @@ TEEC_Result teegris_rpmb_run(TEEC_Context *context)
 		MSG(ERR, "%s: cmd wait notify done!! cmdId = %x\n",
 			__func__, cmdId);
 
+		boot_type = dt_get_boot_type();
 		mutex_lock(&rpmb_mutex);
-
-		rpmb_gp_execute_emmc(cmdId);
-
+		if (boot_type == BOOTDEV_SDMMC)
+			rpmb_gp_execute_emmc(cmdId);
+#ifdef CONFIG_SCSI_UFS_MEDIATEK
+		else if (boot_type == BOOTDEV_UFS)
+			rpmb_gp_execute_ufs(cmdId);
+#endif
 		mutex_unlock(&rpmb_mutex);
 
 		switch (cmdId) {
@@ -3808,8 +3985,10 @@ exit:
 int teegris_rpmb_thread(void *data)
 {
 	int cnt = 0;
+	int recovery_cnt = 0;
 	TEEC_Result res = -1;
 
+recovery:
 	rpmb_gp_session =
 		kzalloc(sizeof(struct TEE_GP_SESSION_DATA), GFP_KERNEL);
 	if (!rpmb_gp_session) {
@@ -3837,8 +4016,10 @@ int teegris_rpmb_thread(void *data)
 	}
 
 	res = teegris_rpmb_run(&rpmb_gp_session->context);
-	if (res) {
+	if (check_tee_return(res)) {
 		kfree(rpmb_gp_session->wsm_buffer);
+		recovery_cnt++;
+		MSG(ERR, "RPMB recovery cnt %d\n", recovery_cnt);
 	}
 
 	MSG(ERR, "TEEC_FinalizeContex\n", res);
@@ -3846,6 +4027,8 @@ int teegris_rpmb_thread(void *data)
 	TEEC_FinalizeContext(&rpmb_gp_session->context);
 
 	kfree(rpmb_gp_session);
+
+	goto recovery;
 
 	return (res != TEEC_SUCCESS);
 }
@@ -3870,7 +4053,7 @@ static int __init rpmb_init(void)
 
 	major = MAJOR(dev);
 
-#if defined(CONFIG_MMC_MTK_PRO)
+#if defined(CONFIG_MMC_MTK_PRO) || defined(CONFIG_MMC_MTK)
 	if (dt_get_boot_type() == BOOTDEV_SDMMC)
 		cdev_init(&rpmb_dev, &rpmb_fops_emmc);
 	else

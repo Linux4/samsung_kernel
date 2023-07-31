@@ -1,0 +1,1 @@
+obj-y += w2hi5022qreartxd_mipiraw_Sensor.o

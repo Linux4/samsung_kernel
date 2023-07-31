@@ -635,7 +635,6 @@ extern int imgSensorReadEepromData(struct stCAM_CAL_DATAINFO_STRUCT* pData,
 	struct stCAM_CAL_CHECKSUM_STRUCT* checkData);
 extern int imgSensorSetEepromData(struct stCAM_CAL_DATAINFO_STRUCT* pData);
 
-
 static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 {
 	kal_uint8 i = 0;

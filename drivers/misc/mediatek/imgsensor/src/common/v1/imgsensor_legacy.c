@@ -81,7 +81,7 @@ int iBurstWriteReg(u8 *pData, u32 bytes, u16 i2cId)
 	    bytes,
 	    bytes,
 	    i2cId,
-	    IMGSENSOR_I2C_SPEED);
+	    1000);
 }
 
 int iBurstWriteReg_multi(

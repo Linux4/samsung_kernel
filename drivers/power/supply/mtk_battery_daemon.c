@@ -1403,7 +1403,25 @@ void exec_BAT_EC(int cmd, int param)
 			gauge_set_property(GAUGE_PROP_CAR_TUNE_VALUE,
 				param);
 		}
+		break;
+	case 798:
+		{
+			bm_err(
+				"exe_BAT_EC cmd %d,FG_KERNEL_CMD_CHG_DECIMAL_RATE=%d\n",
+				cmd, param);
 
+		}
+		break;
+	case 799:
+		{
+			bm_err(
+				"exe_BAT_EC cmd %d, FG_DAEMON_CMD_GET_IS_FORCE_FULL, force_full =%d\n",
+				cmd, param);
+
+			gm->is_force_full = param;
+			wakeup_fg_algo(gm, FG_INTR_CHR_FULL);
+		}
+		break;
 
 	default:
 		bm_err(
@@ -2315,8 +2333,10 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 
 		if (gm->bs_data.bat_status == POWER_SUPPLY_STATUS_CHARGING)
 			is_charger_exist = true;
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
 		else if (gm->bs_data.bat_status == POWER_SUPPLY_STATUS_FULL)
 			is_charger_exist = true;
+#endif
 		else
 			is_charger_exist = false;
 
@@ -3043,7 +3063,22 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 				daemon_ui_soc);
 			daemon_ui_soc = 0;
 		}
-
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+#ifdef WT_COMPILE_FACTORY_VERSION
+		if(1){
+			static bool soc_inited = false;
+			if(!soc_inited && gm->gauge->hw_status.is_bat_plugout){
+				int diff = abs(gm->soc*100 - daemon_ui_soc);
+				printk("## soc=%d,ui_soc=%d,daemon_ui_soc=%d,diff=%d\n",gm->soc*100,gm->ui_soc,daemon_ui_soc,diff);
+				if(diff > 500){
+					daemon_ui_soc = gm->soc*100;
+					printk("## force set uisoc = soc!\n");
+				}
+				soc_inited = true;
+			}
+		}
+#endif
+#endif
 		gm->fg_cust_data.ui_old_soc = daemon_ui_soc;
 		old_uisoc = gm->ui_soc;
 
@@ -3293,9 +3328,13 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 		} else {
 			memcpy(&gm->fgd_pid, &msg->fgd_data[0],
 				sizeof(gm->fgd_pid));
-			bm_err("[K]FG_DAEMON_CMD_SET_DAEMON_PID = %d(re-launch)\n",
-				gm->fgd_pid);
-			/* kill daemon dod_init 14 , todo*/
+			bm_err("[K]FG_DAEMON_CMD_SET_DAEMON_PID=%d,kill daemon:%d init_flag:%d (re-launch)\n",
+				gm->fgd_pid,
+				gm->Bat_EC_ctrl.debug_kill_daemontest,
+				gm->init_flag);
+			if (gm->Bat_EC_ctrl.debug_kill_daemontest != 1 &&
+				gm->init_flag == 1)
+				gm->fg_cust_data.dod_init_sel = 14;
 		}
 	}
 	break;
@@ -3347,16 +3386,18 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 
 		shutdown_car_diff = gauge_get_int_property(
 			GAUGE_PROP_SHUTDOWN_CAR);
+
 		if (abs(shutdown_car_diff) > 1000) {
 			tmp_cardiff = shutdown_car_diff;
 			shutdown_car_diff = 0;
 		}
+
 		ret_msg->fgd_data_len += sizeof(shutdown_car_diff);
 		memcpy(ret_msg->fgd_data, &shutdown_car_diff,
 			sizeof(shutdown_car_diff));
 		bm_debug(
 			"[K]FG_DAEMON_CMD_GET_SHUTDOWN_CAR = %d, tmp=%d\n",
-			shutdown_car_diff,tmp_cardiff);
+			shutdown_car_diff, tmp_cardiff);
 	}
 	break;
 	case FG_DAEMON_CMD_GET_NCAR:
@@ -3570,6 +3611,19 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 	break;
 	case FG_DAEMON_CMD_SET_ZCV_INTR_EN:
 		bm_debug("[K]FG_DAEMON_CMD_SET_ZCV_INTR_EN");
+	break;
+	case FG_DAEMON_CMD_GET_IS_FORCE_FULL:
+	{
+		/* 1 = trust customer full condition */
+		/* 0 = using gauge ori full flow */
+		int force_full = gm->is_force_full;
+
+		ret_msg->fgd_data_len += sizeof(force_full);
+		memcpy(ret_msg->fgd_data, &force_full,
+			sizeof(force_full));
+
+		bm_debug("[K]FG_DAEMON_CMD_GET_IS_FORCE_FULL %d", force_full);
+	};
 	break;
 
 
@@ -4392,7 +4446,7 @@ static void mtk_battery_shutdown(struct mtk_battery *gm)
 
 void enable_bat_temp_det(bool en)
 {
-	/* todo in ALSP */
+	gauge_set_property(GAUGE_PROP_BAT_TEMP_FROZE_EN, !en);
 }
 
 static int mtk_battery_suspend(struct mtk_battery *gm, pm_message_t state)
@@ -4408,8 +4462,11 @@ static int mtk_battery_suspend(struct mtk_battery *gm, pm_message_t state)
 		gm->cmd_disable_nafg,
 		gm->enable_tmp_intr_suspend);
 
-	if (gm->enable_tmp_intr_suspend == 0)
+	if (gm->enable_tmp_intr_suspend == 0) {
+		gauge_set_property(GAUGE_PROP_EN_BAT_TMP_LT, 0);
+		gauge_set_property(GAUGE_PROP_EN_BAT_TMP_HT, 0);
 		enable_bat_temp_det(0);
+	}
 
 	version = gauge_get_int_property(GAUGE_PROP_HW_VERSION);
 
@@ -4447,7 +4504,11 @@ static int mtk_battery_resume(struct mtk_battery *gm)
 
 	fg_update_sw_iavg(gm);
 
-	enable_bat_temp_det(1);
+	if (gm->enable_tmp_intr_suspend == 0) {
+		gauge_set_property(GAUGE_PROP_EN_BAT_TMP_LT, 1);
+		gauge_set_property(GAUGE_PROP_EN_BAT_TMP_HT, 1);
+		enable_bat_temp_det(1);
+	}
 
 	return 0;
 }

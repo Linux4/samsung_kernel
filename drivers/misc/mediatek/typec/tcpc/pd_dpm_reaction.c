@@ -31,7 +31,9 @@
 #ifdef CONFIG_USB_PD_UFP_FLOW_DELAY
 static uint8_t dpm_reaction_ufp_flow_delay(struct pd_port *pd_port)
 {
-	DPM_INFO("UFP Delay\r\n");
+	struct tcpc_device __maybe_unused *tcpc = pd_port->tcpc;
+
+	DPM_INFO("UFP Delay\n");
 	pd_restart_timer(pd_port, PD_TIMER_UFP_FLOW_DELAY);
 	return DPM_READY_REACTION_BUSY;
 }
@@ -40,7 +42,9 @@ static uint8_t dpm_reaction_ufp_flow_delay(struct pd_port *pd_port)
 #ifdef CONFIG_USB_PD_DFP_FLOW_DELAY
 static uint8_t dpm_reaction_dfp_flow_delay(struct pd_port *pd_port)
 {
-	DPM_INFO("DFP Delay\r\n");
+	struct tcpc_device __maybe_unused *tcpc = pd_port->tcpc;
+
+	DPM_INFO("DFP Delay\n");
 	pd_restart_timer(pd_port, PD_TIMER_DFP_FLOW_DELAY);
 	return DPM_READY_REACTION_BUSY;
 }
@@ -49,8 +53,10 @@ static uint8_t dpm_reaction_dfp_flow_delay(struct pd_port *pd_port)
 #ifdef CONFIG_USB_PD_VCONN_STABLE_DELAY
 static uint8_t dpm_reaction_vconn_stable_delay(struct pd_port *pd_port)
 {
+	struct tcpc_device __maybe_unused *tcpc = pd_port->tcpc;
+
 	if (pd_port->vconn_role == PD_ROLE_VCONN_DYNAMIC_ON) {
-		DPM_INFO("VStable Delay\r\n");
+		DPM_INFO("VStable Delay\n");
 		return DPM_READY_REACTION_BUSY;
 	}
 
@@ -163,14 +169,12 @@ static uint8_t dpm_reaction_request_vconn_source(struct pd_port *pd_port)
 		return 0;
 
 #ifdef CONFIG_TCPC_VCONN_SUPPLY_MODE
-	if (pd_port->tcpc_dev->tcpc_vconn_supply == TCPC_VCONN_SUPPLY_STARTUP)
+	if (pd_port->tcpc->tcpc_vconn_supply == TCPC_VCONN_SUPPLY_STARTUP)
 		return_vconn = false;
 #endif	/* CONFIG_TCPC_VCONN_SUPPLY_MODE */
 
-#ifdef CONFIG_USB_PD_REV30
 	if (pd_check_rev30(pd_port))
 		return_vconn = false;
-#endif	/* CONFIG_USB_PD_REV30 */
 
 	if (return_vconn)
 		dpm_reaction_set(pd_port, DPM_REACTION_RETURN_VCONN_SRC);
@@ -199,8 +203,10 @@ static uint8_t pd_dpm_reaction_discover_cable(struct pd_port *pd_port)
 #ifdef CONFIG_USB_PD_DISCOVER_CABLE_RETURN_VCONN
 static uint8_t dpm_reaction_return_vconn_source(struct pd_port *pd_port)
 {
+	struct tcpc_device __maybe_unused *tcpc = pd_port->tcpc;
+
 	if (pd_port->vconn_role) {
-		DPM_DBG("VconnReturn\r\n");
+		DPM_DBG("VconnReturn\n");
 		return TCP_DPM_EVT_VCONN_SWAP_OFF;
 	}
 
@@ -349,22 +355,18 @@ static uint8_t dpm_reaction_handle_alert(struct pd_port *pd_port)
 static inline uint8_t dpm_get_pd_connect_state(struct pd_port *pd_port)
 {
 	if (pd_port->power_role == PD_ROLE_SOURCE) {
-#ifdef CONFIG_USB_PD_REV30
 		if (pd_check_rev30(pd_port))
 			return PD_CONNECT_PE_READY_SRC_PD30;
-#endif     /* CONFIG_USB_PD_REV30 */
 
 		return PD_CONNECT_PE_READY_SRC;
 	}
 
-#ifdef CONFIG_USB_PD_REV30
 	if (pd_check_rev30(pd_port)) {
 		if (pd_is_source_support_apdo(pd_port))
 			return PD_CONNECT_PE_READY_SNK_APDO;
 
 		return PD_CONNECT_PE_READY_SNK_PD30;
 	}
-#endif     /* CONFIG_USB_PD_REV30 */
 
 	return PD_CONNECT_PE_READY_SNK;
 }
@@ -372,17 +374,15 @@ static inline uint8_t dpm_get_pd_connect_state(struct pd_port *pd_port)
 static inline void dpm_check_vconn_highv_prot(struct pd_port *pd_port)
 {
 #ifdef CONFIG_USB_PD_VCONN_SAFE5V_ONLY
-	bool vconn_highv_prot;
+	struct tcpc_device *tcpc = pd_port->tcpc;
 	struct pe_data *pe_data = &pd_port->pe_data;
+	bool vconn_highv_prot = pd_port->request_v_new > 5000;
 
-	vconn_highv_prot = pd_port->request_v_new > 5000;
-	if (vconn_highv_prot != pe_data->vconn_highv_prot) {
-		DPM_INFO("VC_HIGHV_PROT: %d\r\n", vconn_highv_prot);
-
+	if (pe_data->vconn_highv_prot && !vconn_highv_prot &&
+		tcpc->tcpc_flags & TCPC_FLAGS_VCONN_SAFE5V_ONLY) {
+		DPM_INFO("VC_HIGHV_PROT: %d\n", vconn_highv_prot);
 		pe_data->vconn_highv_prot = vconn_highv_prot;
-
-		if (!vconn_highv_prot)
-			pd_set_vconn(pd_port, pd_port->vconn_role);
+		pd_set_vconn(pd_port, pe_data->vconn_highv_prot_role);
 	}
 #endif	/* CONFIG_USB_PD_VCONN_SAFE5V_ONLY */
 }
@@ -390,9 +390,10 @@ static inline void dpm_check_vconn_highv_prot(struct pd_port *pd_port)
 static uint8_t dpm_reaction_update_pe_ready(struct pd_port *pd_port)
 {
 	uint8_t state;
+	struct tcpc_device __maybe_unused *tcpc = pd_port->tcpc;
 
 	if (!pd_port->pe_data.pe_ready) {
-		DPM_INFO("PE_READY\r\n");
+		DPM_INFO("PE_READY\n");
 		pd_port->pe_data.pe_ready = true;
 	}
 
@@ -461,6 +462,12 @@ struct dpm_ready_reaction {
 #define DECL_DPM_REACTION_DFP(xmask, xhandler) \
 	DECL_DPM_REACTION(xmask, \
 		DPM_REACTION_COND_DFP_ONLY,	\
+		xhandler)
+
+#define DECL_DPM_REACTION_DFP_LIMITED_RETRIES(xmask, xhandler) \
+	DECL_DPM_REACTION(xmask, \
+		DPM_REACTION_COND_DFP_ONLY |\
+		DPM_REACTION_COND_LIMITED_RETRIES, \
 		xhandler)
 
 #define DECL_DPM_REACTION_PD30(xmask, xhandler) \
@@ -597,13 +604,13 @@ static const struct dpm_ready_reaction dpm_reactions[] = {
 #endif	/* CONFIG_USB_PD_DISCOVER_CABLE_RETURN_VCONN */
 
 #ifdef CONFIG_USB_PD_ATTEMP_DISCOVER_ID
-	DECL_DPM_REACTION_DFP_PD30_LIMITED_RETRIES(
+	DECL_DPM_REACTION_DFP_LIMITED_RETRIES(
 		DPM_REACTION_DISCOVER_ID,
 		dpm_reaction_discover_id),
 #endif	/* CONFIG_USB_PD_ATTEMP_DISCOVER_ID */
 
 #ifdef CONFIG_USB_PD_ATTEMP_DISCOVER_SVID
-	DECL_DPM_REACTION_DFP_PD30_LIMITED_RETRIES(
+	DECL_DPM_REACTION_DFP_LIMITED_RETRIES(
 		DPM_REACTION_DISCOVER_SVID,
 		dpm_reaction_discover_svid),
 #endif	/* CONFIG_USB_PD_ATTEMP_DISCOVER_SVID */
@@ -634,10 +641,8 @@ static inline uint8_t dpm_get_reaction_env(struct pd_port *pd_port)
 	else
 		conditions = DPM_REACCOND_UFP;
 
-#ifdef CONFIG_USB_PD_REV30
 	if (pd_check_rev30(pd_port))
 		conditions |= DPM_REACTION_COND_PD30;
-#endif	/* CONFIG_USB_PD_REV30 */
 
 	return conditions;
 }
@@ -737,10 +742,10 @@ uint8_t pd_dpm_get_ready_reaction(struct pd_port *pd_port)
 	uint8_t evt;
 	uint8_t env;
 	uint32_t clear_reaction = DPM_REACTION_CAP_READY_ONCE;
-
 	const struct dpm_ready_reaction *reaction = dpm_reactions;
 	const struct dpm_ready_reaction *reaction_last =
 			dpm_reactions + ARRAY_SIZE(dpm_reactions);
+	struct tcpc_device __maybe_unused *tcpc = pd_port->tcpc;
 
 	env = dpm_get_reaction_env(pd_port);
 
@@ -750,7 +755,7 @@ uint8_t pd_dpm_get_ready_reaction(struct pd_port *pd_port)
 
 	if (evt > 0 && dpm_check_clear_reaction(pd_port, reaction)) {
 		clear_reaction |= reaction->bit_mask;
-		DPM_DBG("clear_reaction=%d\r\n", evt);
+		DPM_DBG("clear_reaction=%d\n", evt);
 	}
 
 	dpm_reaction_clear(pd_port, clear_reaction);

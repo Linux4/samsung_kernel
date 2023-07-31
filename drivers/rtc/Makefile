@@ -21,12 +21,11 @@ rtc-core-$(CONFIG_RTC_INTF_DEV)		+= rtc-dev.o
 rtc-core-$(CONFIG_RTC_INTF_PROC)	+= rtc-proc.o
 rtc-core-$(CONFIG_RTC_INTF_SYSFS)	+= rtc-sysfs.o
 
-# +BUG 682938,songhaiyang.wt,ADD,20210811,delay binding
+#+CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
 ifeq ($(WT_COMPILE_FACTORY_VERSION),yes)
     ccflags-y += -DWT_COMPILE_FACTORY_VERSION
 endif
-# -BUG 682938,songhaiyang.wt,ADD,20210811,delay binding
-
+#-CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
 # Keep the list ordered.
 
 obj-$(CONFIG_RTC_DRV_88PM80X)	+= rtc-88pm80x.o
@@ -108,6 +107,7 @@ obj-$(CONFIG_RTC_DRV_MOXART)	+= rtc-moxart.o
 obj-$(CONFIG_RTC_DRV_MPC5121)	+= rtc-mpc5121.o
 obj-$(CONFIG_RTC_DRV_VRTC)	+= rtc-mrst.o
 obj-$(CONFIG_RTC_DRV_MSM6242)	+= rtc-msm6242.o
+obj-$(CONFIG_RTC_DRV_MT6358)    += rtc-mt6358.o
 obj-$(CONFIG_RTC_DRV_MT6397)	+= rtc-mt6397.o
 obj-$(CONFIG_RTC_DRV_MT7622)	+= rtc-mt7622.o
 obj-$(CONFIG_RTC_DRV_MV)	+= rtc-mv.o
