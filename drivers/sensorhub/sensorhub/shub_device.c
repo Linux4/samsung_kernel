@@ -414,6 +414,9 @@ int init_sensorhub_device(void)
 
 		for (type = 0; type <= RESET_TYPE_MAX; type++)
 			shub_data->cnt_shub_reset[type] = 0;
+
+		for (type = 0; type < MINI_DUMP_LENGTH; type++)
+			shub_data->mini_dump[type] = 0;
 	}
 
 	shub_data->pm_status = PM_COMPLETE;

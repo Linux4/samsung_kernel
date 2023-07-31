@@ -114,7 +114,12 @@ static int nan_max_ndp_instances = 1;
 module_param(nan_max_ndp_instances, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(nan_max_ndp_instances, "max ndp sessions");
 
+#ifdef SCSC_SEP_VERSION
 static int nan_max_ndi_ifaces = 1;
+#else
+static int nan_max_ndi_ifaces = 5;
+#endif
+
 module_param(nan_max_ndi_ifaces, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(nan_max_ndi_ifaces, "max ndi interface");
 
@@ -403,12 +408,14 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 	slsi_traffic_mon_clients_init(sdev);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 	slsi_wake_lock_init(NULL, &sdev->wlan_wl.ws, "wlan");
+	slsi_wake_lock_init(NULL, &sdev->wlan_wl_mlme_evt.ws, "wlan_wl_mlme_evt");
 	slsi_wake_lock_init(NULL, &sdev->wlan_wl_mlme.ws, "wlan_mlme");
 	slsi_wake_lock_init(NULL, &sdev->wlan_wl_ma.ws, "wlan_ma");
 	slsi_wake_lock_init(NULL, &sdev->wlan_wl_roam.ws, "wlan_roam");
 	slsi_wake_lock_init(NULL, &sdev->wlan_wl_init.ws, "wlan_init");
 #else
 	slsi_wake_lock_init(&sdev->wlan_wl, WAKE_LOCK_SUSPEND, "wlan");
+	slsi_wake_lock_init(&sdev->wlan_wl_mlme_evt, WAKE_LOCK_SUSPEND, "wlan_wl_mlme_evt");
 	slsi_wake_lock_init(&sdev->wlan_wl_mlme, WAKE_LOCK_SUSPEND, "wlan_mlme");
 	slsi_wake_lock_init(&sdev->wlan_wl_ma, WAKE_LOCK_SUSPEND, "wlan_ma");
 	slsi_wake_lock_init(&sdev->wlan_wl_roam, WAKE_LOCK_SUSPEND, "wlan_roam");
@@ -545,6 +552,14 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 #endif
 #endif
 	}
+#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
+#if (KERNEL_VERSION(5, 12, 0) <= LINUX_VERSION_CODE)
+	INIT_WORK(&sdev->nan_data_interface_create_work, slsi_nan_data_interface_create_wq);
+	INIT_WORK(&sdev->nan_data_interface_delete_work, slsi_nan_data_interface_delete_wq);
+	INIT_LIST_HEAD(&sdev->nan_data_interface_create_data);
+	INIT_LIST_HEAD(&sdev->nan_data_interface_delete_data);
+#endif
+#endif
 	INIT_WORK(&sdev->recovery_work_on_stop, slsi_failure_reset);
 	INIT_WORK(&sdev->recovery_work, slsi_subsystem_reset);
 	INIT_WORK(&sdev->recovery_work_on_start, slsi_chip_recovery);
@@ -601,6 +616,7 @@ err_ctrl_wq_init:
 
 err_if:
 	slsi_wake_lock_destroy(&sdev->wlan_wl);
+	slsi_wake_lock_destroy(&sdev->wlan_wl_mlme_evt);
 	slsi_wake_lock_destroy(&sdev->wlan_wl_mlme);
 	slsi_wake_lock_destroy(&sdev->wlan_wl_ma);
 	slsi_wake_lock_destroy(&sdev->wlan_wl_roam);
@@ -683,6 +699,7 @@ void slsi_dev_detach(struct slsi_dev *sdev)
 
 	SLSI_DBG2(sdev, SLSI_INIT_DEINIT, "Clean up wakelocks\n");
 	slsi_wake_lock_destroy(&sdev->wlan_wl);
+	slsi_wake_lock_destroy(&sdev->wlan_wl_mlme_evt);
 	slsi_wake_lock_destroy(&sdev->wlan_wl_mlme);
 	slsi_wake_lock_destroy(&sdev->wlan_wl_ma);
 	slsi_wake_lock_destroy(&sdev->wlan_wl_roam);
@@ -714,11 +731,14 @@ int __init slsi_dev_load(void)
 /* Always create devnode if TW Android P on */
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9
 	slsi_create_sysfs_macaddr();
+	slsi_create_sysfs_version_info();
 #endif
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
 	slsi_create_sysfs_debug_dump();
 	scsc_wlan_mmap_create();
 #endif
+	slsi_create_sysfs_pm();
+	slsi_create_sysfs_ant();
 	SLSI_INFO_NODEV("--- Maxwell Wi-Fi driver loaded successfully ---\n");
 	return 0;
 }
@@ -729,11 +749,14 @@ void __exit slsi_dev_unload(void)
 
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9
 	slsi_destroy_sysfs_macaddr();
+	slsi_destroy_sysfs_version_info();
 #endif
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
 	scsc_wlan_mmap_destroy();
 	slsi_destroy_sysfs_debug_dump();
 #endif
+	slsi_destroy_sysfs_pm();
+	slsi_destroy_sysfs_ant();
 	/* Unregister SAPs */
 	sap_mlme_deinit();
 	sap_ma_deinit();

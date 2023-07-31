@@ -5952,13 +5952,6 @@
 		disable_host_wakelock;
 	};
 
-	ifconn {
-		status = "okay";
-		compatible = "samsung,ifconn";
-		ifconn,usbpd = "s2mf301";
-		ifconn,muic = "s2mf301-muic";
-	};
-
 	power-data {
 
 		cpu {

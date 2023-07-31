@@ -514,6 +514,9 @@ static int lb_idle_pull_tasks_rt(struct rq *dst_rq)
 	if (src_cpu == -1)
 		return 0;
 
+	if (src_cpu == dst_cpu)
+		return 0;
+
 	src_rq = cpu_rq(src_cpu);
 	double_lock_balance(dst_rq, src_rq);
 

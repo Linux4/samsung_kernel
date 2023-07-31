@@ -114,12 +114,21 @@ extern void secdbg_comm_log_once(int type);
 	else							\
 		pr_emerg(fmt, ##__VA_ARGS__);			\
 })
+
+#define pr_auto_on(__pr_auto_cond, lvl, fmt, ...)	\
+({							\
+	if (__pr_auto_cond)				\
+		pr_auto(lvl, fmt, ##__VA_ARGS__);	\
+	else						\
+		pr_emerg(fmt, ##__VA_ARGS__);		\
+})
 #else
 #define DEFINE_STATIC_PR_AUTO_NAME_ONCE(name, lvl)
 #define pr_auto_name_once(name)
 #define pr_auto_name(name, fmt, ...)	pr_emerg(fmt, ##__VA_ARGS__)
 #define pr_auto_name_disable(name)
 #define pr_auto_name_on(__pr_auto_cond, name, fmt, ...)		pr_emerg(fmt, ##__VA_ARGS__)
+#define pr_auto_on(__pr_auto_cond, lvl, fmt, ...)		pr_emerg(fmt, ##__VA_ARGS__)
 #endif /* CONFIG_SEC_DEBUG_AUTO_COMMENT */
 
 /*

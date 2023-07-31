@@ -14,6 +14,7 @@
 #include "nl80211_vendor.h"
 #include "hip4_sampler.h"
 #include "traffic_monitor.h"
+#include "tdls_manager.h"
 
 #ifdef CONFIG_SCSC_WLAN_ANDROID
 #include "scsc_wifilogger_rings.h"

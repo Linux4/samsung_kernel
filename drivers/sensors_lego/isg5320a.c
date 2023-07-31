@@ -1789,7 +1789,9 @@ static void cal_work_func(struct work_struct *work)
 		isg5320a_i2c_read(data, ISG5320A_TARGET_CDC_REG, &buf[2], sizeof(buf[2]));
 
 		if (buf[0] != data->debug_val[0] || buf[1] != data->debug_val[1] || buf[2] != data->debug_val[2]) {
-			GRIP_ERR("the power was off\n");
+			GRIP_ERR("reg check fail - reg[0] : %d %d, reg[1] : %d %d, reg[2] : %d %d\n",
+				buf[0], data->debug_val[0], buf[1], data->debug_val[1], buf[2], data->debug_val[2]);
+
 			isg5320a_reset(data);
 			isg5320a_set_mode(data, ISG5320A_MODE_SLEEP);
 			isg5320a_initialize(data);

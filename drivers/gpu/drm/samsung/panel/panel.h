@@ -1173,7 +1173,7 @@ struct panel_id_mask {
 
 struct panel_dt_lut {
 	const char *name;
-	struct device_node *ddi_node;
+	struct device_node *ap_vendor_setting_node;
 	struct device_node *panel_modes_node;
 	struct device_node *power_ctrl_node;
 #ifdef CONFIG_PANEL_FREQ_HOP
@@ -1194,7 +1194,7 @@ struct panel_lut {
 struct panel_lut_info {
 	const char *names[MAX_PANEL];
 	int nr_panel;
-	struct device_node *ddi_node[MAX_PANEL_DDI];
+	struct device_node *ap_vendor_setting_node[MAX_PANEL_DDI];
 	int nr_panel_ddi;
 	struct device_node *panel_modes_node[MAX_PANEL_DDI];
 	int nr_panel_modes;

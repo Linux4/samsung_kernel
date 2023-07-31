@@ -4493,7 +4493,7 @@ int panel_parse_lcd_info(struct panel_device *panel)
 			return -EINVAL;
 		}
 	}
-	panel->ddi_node = node;
+	panel->ap_vendor_setting_node = node;
 
 	panel->panel_data.dqe_suffix =
 		get_panel_lut_dqe_suffix(panel, boot_panel_id);
@@ -4546,7 +4546,7 @@ static int panel_parse_panel_lookup(struct panel_device *panel)
 			panel_err("failed to get phandle of ddi\n");
 			return -EINVAL;
 		}
-		lut->ddi_node = node;
+		lut->ap_vendor_setting_node = node;
 		of_node_put(node);
 
 		node = of_parse_phandle(panel_np, "display-mode", 0);

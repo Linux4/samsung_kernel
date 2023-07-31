@@ -563,7 +563,7 @@ static int el7xx_parse_dt(struct device *dev, struct el7xx_data *etspi)
 
 	if (of_property_read_string_index(np, "etspi-chipid", 0,
 			(const char **)&etspi->chipid)) {
-		etspi->chipid = NULL;
+		etspi->chipid = "NULL";
 	}
 	pr_info("chipid: %s\n", etspi->chipid);
 

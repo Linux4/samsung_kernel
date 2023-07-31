@@ -1146,10 +1146,10 @@
 		table0 {
 			desc = "dvfs table v0.2";
 
-			default_cam = <0>;
-			default_isp = <0>;
-			default_mif = <0>;
-			default_int = <0>;
+			default_cam = <1>;
+			default_isp = <1>;
+			default_mif = <1>;
+			default_int = <2>;
 			default_cpu = CPU_CL0;
 
 			rear_single_photo_mif = <3>;

@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2014 - 2021 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2014 - 2023 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 #include <linux/types.h>
@@ -43,6 +43,11 @@ static int sap_mlme_notifier(struct slsi_dev *sdev, unsigned long event)
 	int level;
 	struct netdev_vif *ndev_vif;
 	bool is_recovery = false;
+#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
+	struct net_device *nan_mgmt_dev = NULL;
+	struct netdev_vif *ndev_vif_mgmt = NULL;
+#endif
+
 
 	SLSI_INFO_NODEV("Notifier event received: %lu\n", event);
 	if (event >= SCSC_MAX_NOTIFIER)
@@ -54,6 +59,10 @@ static int sap_mlme_notifier(struct slsi_dev *sdev, unsigned long event)
 		sdev->mlme_blocked = true;
 		sdev->detect_vif_active = false;
 		/* cleanup all the VIFs and scan data */
+#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
+		nan_mgmt_dev = slsi_get_netdev(sdev, SLSI_NET_INDEX_NAN);
+		ndev_vif_mgmt = netdev_priv(nan_mgmt_dev);
+#endif
 		SLSI_MUTEX_LOCK(sdev->netdev_add_remove_mutex);
 		level = atomic_read(&sdev->cm_if.reset_level);
 		SLSI_INFO_NODEV("MLME BLOCKED system error level:%d\n", level);
@@ -69,10 +78,14 @@ static int sap_mlme_notifier(struct slsi_dev *sdev, unsigned long event)
 				slsi_scan_cleanup(sdev, sdev->netdev[i]);
 				cancel_work_sync(&ndev_vif->set_multicast_filter_work);
 				cancel_work_sync(&ndev_vif->update_pkt_filter_work);
-/* For level8 use the older panic flow */
+				/* For level8 use the older panic flow */
 				if (level < SLSI_WIFI_CM_IF_SYSTEM_ERROR_PANIC && ndev_vif->vif_type == FAPI_VIFTYPE_AP)
 					vif_type_ap = true;
 				sdev->require_vif_delete[ndev_vif->ifnum] = false;
+#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
+				if (ndev_vif->ifnum >= SLSI_NAN_DATA_IFINDEX_START)
+					SLSI_MUTEX_LOCK(ndev_vif_mgmt->vif_mutex);
+#endif
 				SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 				slsi_vif_cleanup(sdev, sdev->netdev[i], 0, is_recovery);
 				if (level < SLSI_WIFI_CM_IF_SYSTEM_ERROR_PANIC && vif_type_ap)
@@ -83,16 +96,20 @@ static int sap_mlme_notifier(struct slsi_dev *sdev, unsigned long event)
 				atomic_set(&ndev_vif->arp_tx_count, 0);
 #endif
 				SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
+				if (ndev_vif->ifnum >= SLSI_NAN_DATA_IFINDEX_START)
+					SLSI_MUTEX_UNLOCK(ndev_vif_mgmt->vif_mutex);
+#endif
 			}
 #if !defined(CONFIG_SCSC_WLAN_TX_API) && defined(CONFIG_SCSC_WLAN_ARP_FLOW_CONTROL)
-			if (atomic_read(&sdev->arp_tx_count) && atomic_read(&sdev->ctrl_pause_state))
-				scsc_wifi_unpause_arp_q_all_vif(sdev);
-			atomic_set(&sdev->arp_tx_count, 0);
+		if (atomic_read(&sdev->arp_tx_count) && atomic_read(&sdev->ctrl_pause_state))
+			scsc_wifi_unpause_arp_q_all_vif(sdev);
+		atomic_set(&sdev->arp_tx_count, 0);
 #endif
-			if (level < SLSI_WIFI_CM_IF_SYSTEM_ERROR_PANIC)
-				sdev->device_state = SLSI_DEVICE_STATE_STOPPING;
-			if (sdev->netdev_up_count == 0)
-				sdev->mlme_blocked = false;
+		if (level < SLSI_WIFI_CM_IF_SYSTEM_ERROR_PANIC)
+			sdev->device_state = SLSI_DEVICE_STATE_STOPPING;
+		if (sdev->netdev_up_count == 0)
+			sdev->mlme_blocked = false;
 		SLSI_MUTEX_UNLOCK(sdev->netdev_add_remove_mutex);
 		SLSI_INFO_NODEV("Force cleaned all VIFs\n");
 		break;
@@ -345,7 +362,7 @@ void slsi_rx_netdev_mlme_work(struct work_struct *work)
 		return;
 	skb = slsi_skb_work_dequeue(w);
 
-	slsi_wake_lock(&sdev->wlan_wl);
+	slsi_wake_lock(&sdev->wlan_wl_mlme_evt);
 	while (skb) {
 		slsi_debug_frame(sdev, dev, skb, "RX");
 		slsi_rx_netdev_mlme(sdev, dev, skb);
@@ -359,7 +376,7 @@ void slsi_rx_netdev_mlme_work(struct work_struct *work)
 #endif
 		skb = slsi_skb_work_dequeue(w);
 	}
-	slsi_wake_unlock(&sdev->wlan_wl);
+	slsi_wake_unlock(&sdev->wlan_wl_mlme_evt);
 }
 
 int slsi_rx_enqueue_netdev_mlme(struct slsi_dev *sdev, struct sk_buff *skb, u16 vif)
@@ -389,7 +406,8 @@ int slsi_rx_enqueue_netdev_mlme(struct slsi_dev *sdev, struct sk_buff *skb, u16 
 
 	/* in case of del_vif failure, we may get mlme signals for a netdev which is already removed */
 	if (!dev) {
-		SLSI_WARN(sdev, "dev is NULL");
+		if (vif <= SLSI_NAN_DATA_IFINDEX_START)
+			SLSI_WARN(sdev, "dev is NULL");
 		kfree_skb(skb);
 		rcu_read_unlock();
 		return 0;

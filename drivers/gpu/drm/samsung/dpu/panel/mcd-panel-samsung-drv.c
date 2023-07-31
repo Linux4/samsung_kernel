@@ -37,7 +37,7 @@
 #include "panel-samsung-drv.h"
 #include "mcd-panel-samsung-helper.h"
 #include "panel_drv.h"
-#if defined(CONFIG_PANEL_FREQ_HOP)
+#if IS_ENABLED(CONFIG_PANEL_FREQ_HOP) || IS_ENABLED(CONFIG_USDM_PANEL_FREQ_HOP)
 #include "panel_freq_hop.h"
 #endif
 
@@ -205,7 +205,7 @@ static void exynos_panel_connector_print_state(struct drm_printer *p,
 		   desc->max_avg_luminance);
 	drm_printf(p, "\thdr_formats: 0x%x\n", desc->hdr_formats);
 	drm_printf(p, "\tadjusted_fps: %d\n", exynos_conn_state->adjusted_fps);
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	drm_printf(p, "\tfingerprint_mask_req: 0x%x\n", exynos_conn_state->fingerprint_mask);
 #endif
 }
@@ -298,7 +298,7 @@ exynos_panel_connector_set_property(struct exynos_drm_connector *exynos_conn,
 			struct exynos_drm_connector_state *exynos_conn_state,
 			struct drm_property *property, uint64_t val)
 {
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	struct exynos_panel *ctx = exynos_connector_to_panel(exynos_conn);
 	const struct exynos_drm_connector_properties *p =
 		exynos_drm_connector_get_properties(&ctx->exynos_connector);
@@ -328,7 +328,7 @@ exynos_panel_connector_get_property(struct exynos_drm_connector *exynos_conn,
 		*val = ctx->desc->hdr_formats;
 	else if (property == p->adjusted_fps)
 		*val = exynos_conn_state->adjusted_fps;
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	else if (property == p->fingerprint_mask)
 		*val = ctx->fingerprint_mask;
 #endif
@@ -588,7 +588,7 @@ static int exynos_panel_attach_properties(struct exynos_panel *ctx)
 	drm_object_attach_property(obj, p->max_avg_luminance, 0);
 	drm_object_attach_property(obj, p->hdr_formats, 0);
 	drm_object_attach_property(obj, p->adjusted_fps, 0);
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	drm_object_attach_property(obj, p->fingerprint_mask, 0);
 #endif
 
@@ -861,7 +861,7 @@ static void exynos_panel_parse_vendor_pps(struct exynos_panel *ctx)
 			return;
 		}
 
-		np = ctx->mcd_panel_dev->ddi_node;
+		np = ctx->mcd_panel_dev->ap_vendor_setting_node;
 		if (!np) {
 			panel_err(ctx, "mcd_panel ddi-node is null\n");
 			return;
@@ -889,7 +889,7 @@ static void exynos_panel_parse_vfp_detail(struct exynos_panel *ctx)
 		return;
 	}
 
-	np = ctx->mcd_panel_dev->ddi_node;
+	np = ctx->mcd_panel_dev->ap_vendor_setting_node;
 	if (!np) {
 		panel_err(ctx, "mcd_panel ddi-node is null\n");
 		return;
@@ -1244,7 +1244,7 @@ static void mcd_drm_request_set_clock(struct exynos_panel *ctx, void *arg)
 		panel_err(ctx, "mcd_panel req_set_clock failed(ret:%d)\n", ret);
 }
 
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 static int mcd_drm_panel_set_fingermask_layer(struct exynos_panel *ctx, u32 after)
 {
 	struct mask_layer_data data;
@@ -2240,7 +2240,7 @@ __visible_for_testing int mcd_drm_emergency_off(void *_ctx)
 	return 0;
 }
 
-#if defined(CONFIG_PANEL_FREQ_HOP)
+#if IS_ENABLED(CONFIG_PANEL_FREQ_HOP) || IS_ENABLED(CONFIG_USDM_PANEL_FREQ_HOP)
 static int mcd_drm_panel_set_osc(struct exynos_panel *ctx, u32 frequency)
 {
 	struct panel_clock_info info;
@@ -2352,7 +2352,7 @@ struct panel_adapter_funcs mcd_panel_adapter_funcs = {
 	.dpu_event_log_print = mcd_drm_dpu_event_log_print,
 	.set_commit_retry = mcd_drm_set_commit_retry,
 	.emergency_off = mcd_drm_emergency_off,
-#if defined(CONFIG_PANEL_FREQ_HOP)
+#if IS_ENABLED(CONFIG_PANEL_FREQ_HOP) || IS_ENABLED(CONFIG_USDM_PANEL_FREQ_HOP)
 	.set_freq_hop = mcd_drm_set_freq_hop,
 #endif
 };
@@ -2369,7 +2369,7 @@ static const struct exynos_panel_funcs mcd_exynos_panel_funcs = {
 	.set_lp_mode = exynos_panel_set_lp_mode,
 	.mode_set = mcd_drm_panel_mode_set,
 	.req_set_clock = mcd_drm_request_set_clock,
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	.set_fingermask_layer = mcd_drm_panel_set_fingermask_layer,
 #endif
 };
@@ -2516,7 +2516,7 @@ int mcd_drm_panel_get_size_mm(struct exynos_panel *ctx,
 	/* TODO: get width_mm, height_mm from mcd-panel */
 
 	/* temporary get width_mm, height_mm directly */
-	np = ctx->mcd_panel_dev->ddi_node;
+	np = ctx->mcd_panel_dev->ap_vendor_setting_node;
 	if (!np) {
 		panel_err(ctx, "mcd_panel ddi-node is null\n");
 		return -EINVAL;
@@ -2539,7 +2539,7 @@ bool mcd_drm_panel_get_lp11_reset(struct exynos_panel *ctx)
 	if (!ctx || !ctx->dev || !ctx->mcd_panel_dev)
 		return -ENODEV;
 
-	np = ctx->mcd_panel_dev->ddi_node;
+	np = ctx->mcd_panel_dev->ap_vendor_setting_node;
 	if (!np) {
 		panel_err(ctx, "mcd_panel ddi-node is null\n");
 		return -EINVAL;

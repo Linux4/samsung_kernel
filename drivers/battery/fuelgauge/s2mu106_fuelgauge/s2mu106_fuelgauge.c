@@ -2383,7 +2383,7 @@ static int s2mu106_fuelgauge_parse_dt(struct s2mu106_fuelgauge_data *fuelgauge)
 
 			pr_info("%s: battery_id (gpio) = %d\n", __func__, fuelgauge->battery_id);
 		} else {
-			fuelgauge->battery_id = -1;
+			fuelgauge->battery_id = 0;
 		}
 
 		/* get topoff info */

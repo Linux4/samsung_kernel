@@ -666,7 +666,7 @@ static void slsi_fw_test_tdls_event_connected(struct slsi_dev *sdev, struct net_
 	ndev_vif->sta.tdls_enabled = true;
 	SLSI_NET_DBG1(dev, SLSI_FW_TEST, "TDLS connect (vif:%d, peer_index:%d, mac:%pM)\n", fapi_get_vif(skb), peer_index, fapi_get_buff(skb, u.mlme_tdls_peer_ind.peer_sta_address));
 
-	if ((ndev_vif->sta.tdls_peer_sta_records) + 1 > SLSI_TDLS_PEER_CONNECTIONS_MAX) {
+	if (ndev_vif->sta.tdls_peer_sta_records + 1 > ndev_vif->sta.tdls_max_peer) {
 		SLSI_NET_ERR(dev, "max TDLS limit reached (peer_index:%d)\n", peer_index);
 		goto out;
 	}
@@ -684,6 +684,8 @@ static void slsi_fw_test_tdls_event_connected(struct slsi_dev *sdev, struct net_
 
 	/* QoS is mandatory for TDLS - enable QoS for TDLS peer by default */
 	peer->qos_enabled = true;
+	peer->flow_id = flow_id;
+
 	slsi_ps_port_control(sdev, dev, peer, SLSI_STA_CONN_STATE_CONNECTED);
 
 #ifdef CONFIG_SCSC_WLAN_TX_API

@@ -276,8 +276,9 @@ int fts_ex_mode_recovery(struct fts_ts_data *ts_data)
 		fts_ex_mode_switch(MODE_COVER, ENABLE);
 	}
 
-	if (ts_data->charger_mode) {
+	if (ts_data->ta_status) {
 		fts_ex_mode_switch(MODE_CHARGER, ENABLE);
+		ts_data->charger_mode = ENABLE;
 	}
 
 	if (ts_data->aot_enable) {

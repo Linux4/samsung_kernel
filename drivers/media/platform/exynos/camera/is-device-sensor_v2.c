@@ -945,7 +945,9 @@ static int is_sensor_stop(struct is_device_sensor *device)
 
 p_err:
 	clear_bit(IS_SENSOR_START, &device->state);
+#ifdef ENABLE_SMOOTH_CAM_CHANGE
 	is_set_static_dvfs(ischain, false);
+#endif
 
 	return ret;
 }

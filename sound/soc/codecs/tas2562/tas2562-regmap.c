@@ -1514,7 +1514,6 @@ static int tas2562_i2c_probe(struct i2c_client *p_client,
 #endif
 	p_tas2562->mn_power_state = TAS2562_POWER_SHUTDOWN;
 	p_tas2562->spk_l_control = 1;
-	p_tas2562->spk_r_control = 1; /* Temporary remove later */
 
 	mutex_init(&p_tas2562->dev_lock);
 

@@ -250,13 +250,16 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(batt_main_con_det),
 	SEC_BATTERY_ATTR(batt_sub_con_det),
 #if IS_ENABLED(CONFIG_LIMITER_S2ASL01)
+	SEC_BATTERY_ATTR(batt_main_vchg),
+	SEC_BATTERY_ATTR(batt_sub_vchg),
 	SEC_BATTERY_ATTR(batt_main_enb),
 	SEC_BATTERY_ATTR(batt_main_enb2),
 	SEC_BATTERY_ATTR(batt_sub_enb),
 	SEC_BATTERY_ATTR(batt_sub_pwr_mode2),
-#endif
+#else
 	SEC_BATTERY_ATTR(batt_main_shipmode),
 	SEC_BATTERY_ATTR(batt_sub_shipmode),
+#endif
 #if IS_ENABLED(CONFIG_DUAL_FUELGAUGE)
 	SEC_BATTERY_ATTR(batt_main_soc),
 	SEC_BATTERY_ATTR(batt_sub_soc),
@@ -1788,6 +1791,24 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		}
 		break;
 #if IS_ENABLED(CONFIG_LIMITER_S2ASL01)
+	case BATT_MAIN_VCHG:
+		{
+			value.intval = SEC_BATTERY_VOLTAGE_MV;
+			psy_do_property(battery->pdata->main_limiter_name, get,
+				POWER_SUPPLY_EXT_PROP_CHG_VOLTAGE, value);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				value.intval);
+		}
+		break;
+	case BATT_SUB_VCHG:
+		{
+			value.intval = SEC_BATTERY_VOLTAGE_MV;
+			psy_do_property(battery->pdata->sub_limiter_name, get,
+				POWER_SUPPLY_EXT_PROP_CHG_VOLTAGE, value);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				value.intval);
+		}
+		break;
 	case BATT_MAIN_ENB: /* This pin is reversed by FET */
 		{
 			if (battery->pdata->main_bat_enb_gpio)
@@ -1820,35 +1841,26 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 				value.intval);
 		}
 		break;
-#endif
+#else /* max17333 */
 	case BATT_MAIN_SHIPMODE:
 		{
 			value.intval = 0;
 			ret = psy_do_property(battery->pdata->main_limiter_name, get,
-					POWER_SUPPLY_EXT_PROP_MAIN_SHIPMODE, value);
-			if (ret < 0) {
-				pr_info("%s: not support BATT_MAIN_SHIPMODE\n", __func__);
-				value.intval = 0;
-			} else {
-				pr_info("%s: show BATT_MAIN_SHIPMODE(%d)\n", __func__, value.intval);
-			}
-			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", value.intval);
+					POWER_SUPPLY_EXT_PROP_LIMITER_SHIPMODE, value);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				value.intval);
 		}
 		break;
 	case BATT_SUB_SHIPMODE:
 		{
 			value.intval = 0;
 			ret = psy_do_property(battery->pdata->sub_limiter_name, get,
-					POWER_SUPPLY_EXT_PROP_SUB_SHIPMODE, value);
-			if (ret < 0) {
-				pr_info("%s: not support BATT_SUB_SHIPMODE\n", __func__);
-				value.intval = 0;
-			} else {
-				pr_info("%s: show BATT_SUB_SHIPMODE(%d)\n", __func__, value.intval);
-			}
-			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", value.intval);
+					POWER_SUPPLY_EXT_PROP_LIMITER_SHIPMODE, value);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				value.intval);
 		}
 		break;
+#endif
 #if IS_ENABLED(CONFIG_DUAL_FUELGAUGE)
 	case BATT_MAIN_SOC:
 		{
@@ -3944,6 +3956,9 @@ ssize_t sec_bat_store_attrs(
 	case BATT_SUB_CON_DET:
 		break;
 #if IS_ENABLED(CONFIG_LIMITER_S2ASL01)
+	case BATT_MAIN_VCHG:
+	case BATT_SUB_VCHG:
+		break;
 	case BATT_MAIN_ENB: /* Can control This pin with 523k jig only, high active pin because it is reversed */
 		if (sscanf(buf, "%10d\n", &x) == 1) {
 			if (battery->pdata->main_bat_enb_gpio) {
@@ -4034,21 +4049,46 @@ ssize_t sec_bat_store_attrs(
 			ret = count;
 		}
 		break;
-#endif
+#else /* max17333 */
 	case BATT_MAIN_SHIPMODE:
-		if (sscanf(buf, "%10d\n", &x) == 1)
-			if (battery->pdata->sub_bat_enb_gpio) {
-				pr_info("%s main shipmode = %d\n", __func__, x);
+		if (sscanf(buf, "%10d\n", &x) == 1) {
+			union power_supply_propval value = {0, };
+			pr_info("%s main limiter shipmode = %d\n", __func__, x);
+			if (x == 1) {
+				value.intval = 1;
+				psy_do_property(battery->pdata->main_limiter_name, set,
+					POWER_SUPPLY_EXT_PROP_LIMITER_SHIPMODE, value);
+			} else {
+				pr_info("%s wrong option for main limiter shipmode\n", __func__);
+			}
 			ret = count;
 		}
 		break;
 	case BATT_SUB_SHIPMODE:
 		if (sscanf(buf, "%10d\n", &x) == 1) {
-			pr_info("%s sub shipmode = %d\n", __func__, x);
+			union power_supply_propval value = {0, };
+			pr_info("%s sub limiter shipmode = %d\n", __func__, x);
+			if (x == 1) {
+				value.intval = 1;
+				psy_do_property(battery->pdata->sub_limiter_name, set,
+					POWER_SUPPLY_EXT_PROP_LIMITER_SHIPMODE, value);
+			} else {
+				pr_info("%s wrong option for sub limiter shipmode\n", __func__);
+			}
 			ret = count;
 		}
 		break;
 #endif
+#if IS_ENABLED(CONFIG_DUAL_FUELGAUGE)
+	case BATT_MAIN_SOC:
+	case BATT_SUB_SOC:
+	case BATT_MAIN_REPCAP:
+	case BATT_SUB_REPCAP:
+	case BATT_MAIN_FULLCAPREP:
+	case BATT_SUB_FULLCAPREP:
+		break;
+#endif
+#endif /* CONFIG_DUAL_BATTERY */
 	case EXT_EVENT:
 		if (sscanf(buf, "%10d\n", &x) == 1) {
 			pr_info("%s: ext event 0x%x\n", __func__, x);

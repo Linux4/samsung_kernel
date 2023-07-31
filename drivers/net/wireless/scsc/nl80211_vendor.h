@@ -115,6 +115,17 @@
 #define SLSI_WIFI_ROAMING_SEARCH_REASON_SCAN_TIMER2_EXPIRY    8
 #define SLSI_WIFI_ROAMING_SEARCH_REASON_INACTIVE_TIMER_EXPIRY 9
 
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_REQUEST_RX                      0x0050
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_RESPONSE_RX                     0x0051
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_CONFIRM_RX                      0x0052
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_INSTALL_RX                      0x0053
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_REQUEST_TX_STATUS               0x0054
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_RESPONSE_TX_STATUS              0x0055
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_CONFIRM_TX_STATUS               0x0056
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_INSTALL_TX_STATUS               0x0057
+/*autogen pending*/
+#define FAPI_EVENT_WIFI_EVENT_NAN_PEER_AVAILABILITY_UPDATE	      0x0058
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0))
 enum slsi_low_latency_attr {
 	SLSI_NL_ATTRIBUTE_LATENCY_MODE = 1,
@@ -453,7 +464,14 @@ enum slsi_vendor_event_values {
 	SLSI_NL80211_VENDOR_RCL_EVENT = 30,
 	SLSI_NL80211_VENDOR_POWER_MEASUREMENT_EVENT,
 	SLSI_NL80211_VENDOR_CONNECTIVITY_LOG_EVENT,
-	SLSI_NL80211_SUBSYSTEM_RESTART_EVENT
+	SLSI_NL80211_SUBSYSTEM_RESTART_EVENT,
+	SLSI_NL80211_VENDOR_TWT_SETUP_EVENT = 34,
+	SLSI_NL80211_VENDOR_TWT_TEARDOWN_EVENT,
+	SLSI_NL80211_VENDOR_TWT_NOTIFICATION_EVENT,
+	SLSI_NL80211_VENDOR_SCHED_PM_TEARDOWN_EVENT = 37,
+	SLSI_NL80211_VENDOR_SCHED_PM_LEAKY_AP_DETECT_EVENT = 38,
+	SLSI_NL80211_NAN_INTERFACE_CREATED_EVENT = 39,
+	SLSI_NL80211_NAN_INTERFACE_DELETED_EVENT = 40
 };
 
 enum slsi_lls_interface_mode {
@@ -1088,6 +1106,8 @@ int slsi_mib_get_gscan_cap(struct slsi_dev *sdev, struct slsi_nl_gscan_capabilit
 void slsi_rx_rssi_report_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
 int slsi_mib_get_apf_cap(struct slsi_dev *sdev, struct net_device *dev);
 int slsi_mib_get_rtt_cap(struct slsi_dev *sdev, struct net_device *dev, struct slsi_rtt_capabilities *cap);
+int slsi_mib_get_sta_tdls_activated(struct slsi_dev *sdev, struct net_device *dev, bool *tdls_supported);
+int slsi_mib_get_sta_tdls_max_peer(struct slsi_dev *sdev, struct net_device *dev, struct netdev_vif *ndev_vif);
 void slsi_rx_range_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
 void slsi_rx_range_done_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
 int slsi_tx_rate_calc(struct sk_buff *nl_skb, u16 fw_rate, int res, bool tx_rate);

@@ -217,7 +217,7 @@ int pmu_cal_progress(struct platform_mif *platform,
 	SCSC_TAG_INFO(PLAT_MIF, "start pmu_cal\n");
 
 	for (i = 0; i < pmucal_data_size; i++) {
-		if (pmu_data[i].bypass | enable_hwbypass) {
+		if (pmu_data[i].bypass || enable_hwbypass) {
 			switch (pmu_data[i].accesstype) {
 			case PMUCAL_WRITE:
 				ret = pmu_cal_write(platform, pmu_data[i]);

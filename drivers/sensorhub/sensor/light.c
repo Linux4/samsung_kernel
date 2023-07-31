@@ -19,8 +19,8 @@
 #include "../sensormanager/shub_sensor_manager.h"
 #include "../utility/shub_utility.h"
 #include "../utility/shub_file_manager.h"
+#include "../others/shub_panel.h"
 #include "light.h"
-
 #include <linux/of_gpio.h>
 #include <linux/slab.h>
 
@@ -181,18 +181,51 @@ static int set_light_cal(struct light_data *data)
 	return ret;
 }
 
+static int set_panel_vendor(struct light_data *data)
+{
+	int ret = 0;
+
+	data->panel_vendor = get_panel_lcd_type();
+	if (data->panel_vendor < 0)
+		return ret;
+
+	shub_info("%s : %d", __func__, data->panel_vendor);
+	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT, LIGHT_SUBCMD_PANEL_TYPE, (u8 *)(&data->panel_vendor),
+							sizeof(int8_t));
+	if (ret < 0)
+		shub_errf("shub_send_command fail %d", ret);
+
+	return ret;
+}
+
+static int set_hbm_finger(struct light_data *data)
+{
+	int ret = 0;
+
+	shub_info("%s : %d", __func__, data->hbm_finger);
+	if (data->hbm_finger == true) {
+		ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT, LIGHT_SUBCMD_HBM_FINGERPRINT,
+		(u8 *)(&data->hbm_finger), sizeof(data->hbm_finger));
+	}
+	if (ret < 0)
+		shub_errf("shub_send_command fail %d", ret);
+
+	return ret;
+}
+
 static int sync_light_status(void)
 {
 	int ret = 0;
 	struct light_data *data = get_sensor(SENSOR_TYPE_LIGHT)->data;
-
+	shub_info("sync_light_status ");
 	set_light_coef(data);
 	set_light_brightness(data);
 #ifdef CONFIG_SENSORS_SSP_LIGHT_JPNCONCEPT
 	set_light_region(data);
 #endif
 	set_light_cal(data);
-
+	set_panel_vendor(data);
+	set_hbm_finger(data);
 	return ret;
 }
 
@@ -237,9 +270,19 @@ int inject_light_additional_data(char *buf, int count)
 	int i, ret = 0;
 	struct light_data *data = get_sensor(SENSOR_TYPE_LIGHT)->data;
 
-	if (count < 4) {
+	if (count < 1) {
 		shub_errf("brightness length error %d", count);
 		return -EINVAL;
+	} else if (count == sizeof(int8_t)) {
+		int8_t finger_print;
+
+		finger_print = *((int8_t *)(buf));
+		shub_infof("finger_print on/off = %d", finger_print);
+		if (data->hbm_finger != finger_print) {
+			shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT, LIGHT_SUBCMD_HBM_FINGERPRINT,
+								(char *)&finger_print, sizeof(finger_print));
+		}
+		data->hbm_finger = finger_print;
 	} else if (count == sizeof(int32_t)) {
 		brightness = *((int32_t *)(buf));
 		cal_brightness = brightness / 10;
