@@ -693,6 +693,7 @@ struct synaptics_ts_data {
 	bool fw_corruption;
 	bool glove_enabled;
 	u8 brush_mode;
+	bool cover_closed;
 
 	int resolution_x;
 	int resolution_y;

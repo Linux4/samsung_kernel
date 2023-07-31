@@ -27,6 +27,7 @@
 #include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/kernel.h>
+#include <linux/limits.h>
 #include <linux/module.h>
 #include <linux/of_gpio.h>
 #include <linux/platform_device.h>
@@ -801,7 +802,7 @@ int sec_tclm_execute_force_calibration(struct i2c_client *client, int cal_mode);
 extern int get_lcd_attached(char *mode);
 #endif
 
-#if IS_ENABLED(CONFIG_EXYNOS_DPU30) || IS_ENABLED(CONFIG_MCD_PANEL)
+#if IS_ENABLED(CONFIG_EXYNOS_DPU30) || IS_ENABLED(CONFIG_MCD_PANEL) || IS_ENABLED(CONFIG_USDM_PANEL)
 extern int get_lcd_info(char *arg);
 #endif
 

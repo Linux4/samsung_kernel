@@ -540,7 +540,7 @@ static int p61_dev_open(struct inode *inode, struct file *filp)
 #endif
 
 	if (!get_nfcc_dev_data()) {
-		NFC_LOG_ERR("%s:open fail,no nfc dev", __func__);
+		NFC_LOG_ERR("%s:open fail,no nfc dev\n", __func__);
 		return -EAGAIN;
 	}
 

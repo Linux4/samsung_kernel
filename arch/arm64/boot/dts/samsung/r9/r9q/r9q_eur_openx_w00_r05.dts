@@ -8611,6 +8611,7 @@
 					compatible = "samsung,s2mpb03pmic";
 					reg = <0x56>;
 					s2mpb03,wakeup;
+					phandle = <0x180>;
 
 					regulators {
 
@@ -8677,7 +8678,7 @@
 				pinctrl-0 = <0x75 0x76>;
 				status = "okay";
 				clock-frequency = <0x186a0>;
-				phandle = <0x180>;
+				phandle = <0x181>;
 
 				mfc-charger@3b {
 					compatible = "idt,mfc-charger";
@@ -8700,7 +8701,7 @@
 					battery,tx_gear_min_op_freq_delay = <0xfa0>;
 					battery,wpc_vout_ctrl_full = <0xc>;
 					battery,wpc_headroom_ctrl_full;
-					phandle = <0x181>;
+					phandle = <0x182>;
 
 					fod_list {
 						count = <0x1>;
@@ -8726,7 +8727,7 @@
 				mboxes = <0xffffffff 0x0>;
 				mbox-names = "sec-pm-debug";
 				batt_node = <0x7a>;
-				phandle = <0x182>;
+				phandle = <0x183>;
 			};
 		};
 	};
@@ -8794,7 +8795,7 @@
 				reg = <0x63>;
 				sm5451,pps_lr = <0x53020>;
 				sm5451,rpcm = <0x7530>;
-				phandle = <0x183>;
+				phandle = <0x184>;
 			};
 		};
 	};
@@ -9117,7 +9118,7 @@
 				support_vrr;
 				support_open_short_test;
 				support_wireless_tx;
-				phandle = <0x184>;
+				phandle = <0x185>;
 			};
 		};
 	};
@@ -9140,7 +9141,7 @@
 		__overlay__ {
 
 			snvm_i2c_sda_sleep {
-				phandle = <0x185>;
+				phandle = <0x186>;
 
 				mux {
 					pins = "gpio36";
@@ -9156,7 +9157,7 @@
 			};
 
 			snvm_i2c_scl_sleep {
-				phandle = <0x186>;
+				phandle = <0x187>;
 
 				mux {
 					pins = "gpio37";
@@ -9319,7 +9320,7 @@
 				max77705,support-audio;
 				max77705,bc1p2_retry_count = <0x2>;
 				max77705,snkcap_data = [04 2c 91 01 36 c8 d0 02 00 c8 90 41 8b 30 21 dc c0];
-				phandle = <0x187>;
+				phandle = <0x188>;
 
 				max77705_pdic {
 					status = "okay";
@@ -9425,7 +9426,7 @@
 				sec,lcdid_mask = <0xfff0f0>;
 				sec,select_lcdid = <0x804540 0x804580>;
 				sec,firmware_name = "s3908_r9.bin", "s3908_r9_slsi.bin";
-				phandle = <0x188>;
+				phandle = <0x189>;
 			};
 		};
 	};
@@ -9625,7 +9626,7 @@
 				pn547,clk_req_wake;
 				pn547,ldo_control;
 				nfc_pvdd-supply = <0xffffffff>;
-				phandle = <0x189>;
+				phandle = <0x18a>;
 			};
 		};
 	};
@@ -10026,7 +10027,7 @@
 				samsung,mask_crc_pass_data = [d3 9b];
 				samsung,self_mask_check_rx_cmds_revA = [06 01 00 00 00 00 01 14 02 00];
 				samsung,self_mask_check_tx_post_revA = [29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 29 01 00 00 00 00 1a 7a 01 06 00 00 00 00 00 00 00 00 00 00 09 60 09 61 09 62 09 63 00 00 00 00 00 29 01 00 00 00 00 02 bf 00 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
-				phandle = <0x18a>;
+				phandle = <0x18b>;
 			};
 		};
 	};
@@ -10177,7 +10178,7 @@
 				samsung,delayed-display-on = <0x1>;
 				samsung,esd-irq-gpio1 = <0xa 0x7 0x0>;
 				qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
-				phandle = <0x18b>;
+				phandle = <0x18c>;
 
 				qcom,mdss-dsi-display-timings {
 
@@ -10333,17 +10334,17 @@
 
 			qcom,dsi-display@0 {
 				label = "ss_dsi_panel_PBA_BOOTING_FHD";
-				phandle = <0x18c>;
+				phandle = <0x18d>;
 			};
 
 			qcom,dsi-display@1 {
 				label = "ss_dsi_panel_EA8082_AMB641ZR01_FHD";
-				phandle = <0x18d>;
+				phandle = <0x18e>;
 			};
 
 			qcom,dsi-display@2 {
 				label = "ss_dsi_panel_S6E3FC3_AMB641ZR02_FHD";
-				phandle = <0x18e>;
+				phandle = <0x18f>;
 			};
 		};
 	};
@@ -10709,13 +10710,13 @@
 			samsung,security_mz1@146bfaa0 {
 				compatible = "samsung,security_mz1";
 				reg = <0x146bfaa0 0x4>;
-				phandle = <0x18f>;
+				phandle = <0x190>;
 			};
 
 			samsung,security_mz2@146bfaa4 {
 				compatible = "samsung,security_mz2";
 				reg = <0x146bfaa4 0x4>;
-				phandle = <0x190>;
+				phandle = <0x191>;
 			};
 		};
 	};
@@ -10744,13 +10745,13 @@
 				compatible = "removed-dma-pool";
 				no-map;
 				reg = <0x0 0xf0000000 0x0 0x900000>;
-				phandle = <0x191>;
+				phandle = <0x192>;
 			};
 
 			sec_debug_rdx_bootdev@0 {
 				no-ship;
 				reg = <0x1 0x0 0x0 0xad00000>;
-				phandle = <0x192>;
+				phandle = <0x193>;
 			};
 
 			ss_plog@1B0900000 {
@@ -10763,7 +10764,7 @@
 				compatible = "removed-dma-pool";
 				no-map;
 				reg = <0x0 0xb0100000 0x0 0x100000>;
-				phandle = <0x193>;
+				phandle = <0x194>;
 			};
 
 			ramoops@1B0B00000 {
@@ -10779,7 +10780,7 @@
 				compatible = "removed-dma-pool";
 				no-map;
 				reg = <0x0 0xa0001000 0x0 0x1000>;
-				phandle = <0x194>;
+				phandle = <0x195>;
 			};
 
 			hdm_region@9FB00000 {
@@ -11040,7 +11041,7 @@
 					qcom,send-defaults;
 					qcom,init-voltage = <0x1e4600>;
 					qcom,init-mode = <0x2>;
-					phandle = <0x195>;
+					phandle = <0x196>;
 				};
 			};
 		};
@@ -12261,7 +12262,7 @@
 				cam,ois = <0x1>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0x196>;
+				phandle = <0x197>;
 			};
 
 			qcom,cam-sensor1 {
@@ -12308,7 +12309,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0x197>;
+				phandle = <0x198>;
 			};
 
 			qcom,cam-sensor12 {
@@ -12355,7 +12356,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0x198>;
+				phandle = <0x199>;
 			};
 		};
 	};
@@ -12523,7 +12524,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0x199>;
+				phandle = <0x19a>;
 			};
 		};
 	};
@@ -12584,7 +12585,7 @@
 				cam,ois = <0x1>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0x19a>;
+				phandle = <0x19b>;
 			};
 		};
 	};
@@ -12749,7 +12750,7 @@
 				compatible = "samsung,usb-notifier";
 				qcom,disable_control_en = <0x1>;
 				qcom,unsupport_host_en = <0x0>;
-				phandle = <0x19b>;
+				phandle = <0x19c>;
 			};
 		};
 	};
@@ -12946,7 +12947,7 @@
 				pinctrl-0 = <0xc7>;
 				#address-cells = <0x1>;
 				#size-cells = <0x0>;
-				phandle = <0x19c>;
+				phandle = <0x19d>;
 
 				isg5320a@28 {
 					compatible = "isg5320a";
@@ -12959,7 +12960,7 @@
 					isg5320a,irq-gpio = <0xffffffff 0x4f 0x0>;
 					isg5320a,hallic_detect = <0x1>;
 					isg5320a,hallic_cert_detect = <0x1>;
-					phandle = <0x19d>;
+					phandle = <0x19e>;
 				};
 			};
 		};
@@ -12987,7 +12988,7 @@
 				pinctrl-0 = <0xc9>;
 				pinctrl-1 = <0xca>;
 				status = "ok";
-				phandle = <0x19e>;
+				phandle = <0x19f>;
 			};
 
 			bt_driver {
@@ -12996,7 +12997,7 @@
 				pinctrl-0 = <0xcb>;
 				bcm,bt-reset-gpio = <0xffffffff 0xc4 0x0>;
 				status = "ok";
-				phandle = <0x19f>;
+				phandle = <0x1a0>;
 			};
 
 			bt_bluesleep {
@@ -13006,7 +13007,7 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <0xcc 0xcd>;
 				status = "ok";
-				phandle = <0x1a0>;
+				phandle = <0x1a1>;
 			};
 		};
 	};
@@ -13158,7 +13159,7 @@
 					regulator-max-microvolt = <0x325aa0>;
 					qcom,init-voltage = <0x325aa0>;
 					regulator-always-on;
-					phandle = <0x1a1>;
+					phandle = <0x1a2>;
 				};
 			};
 		};
@@ -13443,6 +13444,7 @@
 		gpio_i2c_1_sda_default = "/fragment@66/__overlay__/gpio_i2c_1_sda/gpio_i2c_1_sda_default";
 		gpio_i2c_1_scl_default = "/fragment@67/__overlay__/gpio_i2c_1_scl/gpio_i2c_1_scl_default";
 		sw_i2c1 = "/fragment@model/__overlay__/i2c@31";
+		s2mpb03_pmic_0 = "/fragment@model/__overlay__/i2c@31/s2mpb03_pmic@56";
 		s2mpb03_0_l1 = "/fragment@model/__overlay__/i2c@31/s2mpb03_pmic@56/regulators/s2mpb03-ldo1";
 		s2mpb03_0_l2 = "/fragment@model/__overlay__/i2c@31/s2mpb03_pmic@56/regulators/s2mpb03-ldo2";
 		s2mpb03_0_l3 = "/fragment@model/__overlay__/i2c@31/s2mpb03_pmic@56/regulators/s2mpb03-ldo3";

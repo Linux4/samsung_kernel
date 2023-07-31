@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -460,6 +461,43 @@ static int sde_power_mnoc_bus_parse(struct platform_device *pdev,
 	return rc;
 }
 
+static void sde_power_parse_ib_votes(struct platform_device *pdev,
+	struct sde_power_handle *phandle)
+{
+	int rc = 0;
+	u32 tmp = 0;
+
+	if (!pdev || !phandle) {
+		pr_err("invalid input param pdev:%pK phandle:%pK\n", pdev,
+						phandle);
+		return;
+	}
+
+	rc = of_property_read_u32(pdev->dev.of_node,
+			"qcom,sde-min-core-ib-kbps", &tmp);
+	if (rc)
+		pr_err("error reading min core ib vote. rc=%d, np=%x\n", rc, pdev->dev.of_node);
+
+	phandle->ib_quota[SDE_POWER_HANDLE_DBUS_ID_MNOC] = (!rc ? tmp*1000 :
+							SDE_POWER_HANDLE_ENABLE_BUS_IB_QUOTA);
+
+	rc = of_property_read_u32(pdev->dev.of_node,
+			"qcom,sde-min-llcc-ib-kbps", &tmp);
+	if (rc)
+		pr_err("error reading min llcc ib vote. rc=%d\n", rc);
+
+	phandle->ib_quota[SDE_POWER_HANDLE_DBUS_ID_LLCC] = (!rc ? tmp*1000 :
+							SDE_POWER_HANDLE_ENABLE_BUS_IB_QUOTA);
+
+	rc = of_property_read_u32(pdev->dev.of_node,
+			"qcom,sde-min-dram-ib-kbps", &tmp);
+	if (rc)
+		pr_err("error reading min dram ib vote. rc=%d\n", rc);
+
+	phandle->ib_quota[SDE_POWER_HANDLE_DBUS_ID_EBI] = (!rc ? tmp*1000 :
+							SDE_POWER_HANDLE_ENABLE_BUS_IB_QUOTA);
+}
+
 static int sde_power_bus_parse(struct platform_device *pdev,
 	struct sde_power_handle *phandle)
 {
@@ -604,6 +642,8 @@ int sde_power_resource_init(struct platform_device *pdev,
 		goto bus_err;
 	}
 
+	sde_power_parse_ib_votes(pdev, phandle);
+
 	INIT_LIST_HEAD(&phandle->event_list);
 
 	phandle->rsc_client = NULL;
@@ -721,16 +761,17 @@ int sde_power_resource_enable(struct sde_power_handle *phandle, bool enable)
 		sde_power_event_trigger_locked(phandle,
 				SDE_POWER_EVENT_PRE_ENABLE);
 
-		for (i = 0; i < SDE_POWER_HANDLE_DBUS_ID_MAX &&
-			phandle->data_bus_handle[i].data_paths_cnt > 0; i++) {
-			rc = _sde_power_data_bus_set_quota(
-				&phandle->data_bus_handle[i],
-				SDE_POWER_HANDLE_ENABLE_BUS_AB_QUOTA,
-				SDE_POWER_HANDLE_ENABLE_BUS_IB_QUOTA);
-			if (rc) {
-				pr_err("failed to set data bus vote id=%d rc=%d\n",
-						i, rc);
-				goto vreg_err;
+		for (i = 0; i < SDE_POWER_HANDLE_DBUS_ID_MAX; i++) {
+			if (phandle->data_bus_handle[i].data_paths_cnt > 0) {
+				rc = _sde_power_data_bus_set_quota(
+					&phandle->data_bus_handle[i],
+					SDE_POWER_HANDLE_ENABLE_BUS_AB_QUOTA,
+					phandle->ib_quota[i]);
+				if (rc) {
+					pr_err("failed to set data bus vote id=%d rc=%d\n",
+							i, rc);
+					goto vreg_err;
+				}
 			}
 		}
 		rc = msm_dss_enable_vreg(mp->vreg_config, mp->num_vreg,

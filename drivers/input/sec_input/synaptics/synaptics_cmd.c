@@ -14,20 +14,20 @@ static void synaptics_ts_print_channel(struct synaptics_ts_data *ts,
 	if (!ts->cols)
 		return;
 
-	switch (type) { 
+	switch (type) {
 	case TEST_PID18_HYBRID_ABS_RAW:  /* int */
 		data_ptr_int = (int *)&tdata->buf[0];
 		for (i = 0; i < ts->rows + ts->cols; i++) {
 			ts->pFrame[i] = *data_ptr_int;
-			data_ptr_int++; 
-		}		
+			data_ptr_int++;
+		}
 		break;
 	default: /* short */
 		data_ptr = (short *)&tdata->buf[0];
 		for (i = 0; i < ts->rows + ts->cols; i++) {
 			ts->pFrame[i] = *data_ptr;
-			data_ptr++; 
-		}		
+			data_ptr++;
+		}
 		break;
 	}
 
@@ -538,7 +538,7 @@ static ssize_t sensitivity_mode_show(struct device *dev,
 		if (i != 0)
 			strlcat(buff, ",", sizeof(buff));
 		snprintf(tempv, 10, "%d", value[i]);
-		strlcat(buff, tempv, sizeof(buff));		
+		strlcat(buff, tempv, sizeof(buff));
 		data_ptr++;
 	}
 
@@ -778,7 +778,7 @@ static ssize_t get_lp_dump(struct device *dev, struct device_attribute *attr, ch
 			int e_offset = i * ts->sponge_dump_format;
 			char ibuff[30] = {0, };
 			u16 edata[5];
-			
+
 			edata[0] = (sec_spg_dat[1 + e_offset] & 0xFF) << 8 | (sec_spg_dat[0 + e_offset] & 0xFF);
 			edata[1] = (sec_spg_dat[3 + e_offset] & 0xFF) << 8 | (sec_spg_dat[2 + e_offset] & 0xFF);
 			edata[2] = (sec_spg_dat[5 + e_offset] & 0xFF) << 8 | (sec_spg_dat[4 + e_offset] & 0xFF);
@@ -863,6 +863,49 @@ static ssize_t synaptics_aod_active_area(struct device *dev,
 	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d,%d,%d",
 		 ts->plat_data->aod_data.active_area[0], ts->plat_data->aod_data.active_area[1],
 		 ts->plat_data->aod_data.active_area[2]);
+}
+
+static ssize_t virtual_prox_show(struct device *dev, struct device_attribute *attr,
+					char *buf)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct synaptics_ts_data *ts = container_of(sec, struct synaptics_ts_data, sec);
+	int retval;
+
+	retval = (ts->hover_event != 3) ? 0 : 3;
+
+	input_info(true, &ts->client->dev, "%s: hover_event: %d, retval: %d\n", __func__, ts->hover_event, retval);
+
+	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d", retval);
+}
+
+static ssize_t virtual_prox_store(struct device *dev, struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct synaptics_ts_data *ts = container_of(sec, struct synaptics_ts_data, sec);
+	int ret;
+	u8 data;
+
+	if (!ts->plat_data->support_ear_detect) {
+		input_err(true, &ts->client->dev, "%s: ear detection is not supported\n", __func__);
+		return -ENODEV;
+	}
+
+	ret = kstrtou8(buf, 8, &data);
+	if (ret < 0)
+		return ret;
+
+	if (data != 0 && data != 1 && data != 3) {
+		input_err(true, &ts->client->dev, "%s: %d is wrong param\n", __func__, data);
+		return -EINVAL;
+	}
+
+	ts->plat_data->ed_enable = data;
+	synaptics_ts_ear_detect_enable(ts, ts->plat_data->ed_enable);
+	input_info(true, &ts->client->dev, "%s: %d\n", __func__, data);
+
+	return count;
 }
 
 static ssize_t debug_info_show(struct device *dev,
@@ -993,9 +1036,10 @@ static DEVICE_ATTR(support_feature, 0444, read_support_feature, NULL);
 static DEVICE_ATTR(fod_pos, 0444, synaptics_ts_fod_position_show, NULL);
 static DEVICE_ATTR(fod_info, 0444, synaptics_ts_fod_info_show, NULL);
 static DEVICE_ATTR(aod_active_area, 0444, synaptics_aod_active_area, NULL);
+static DEVICE_ATTR(virtual_prox, 0664, virtual_prox_show, virtual_prox_store);
 static DEVICE_ATTR(debug_info, 0444, debug_info_show, NULL);
 static DEVICE_ATTR(enabled, 0664, enabled_show, enabled_store);
- 
+
 static struct attribute *cmd_attributes[] = {
 	&dev_attr_scrub_pos.attr,
 	&dev_attr_hw_param.attr,
@@ -1006,6 +1050,7 @@ static struct attribute *cmd_attributes[] = {
 	&dev_attr_fod_pos.attr,
 	&dev_attr_fod_info.attr,
 	&dev_attr_aod_active_area.attr,
+	&dev_attr_virtual_prox.attr,
 	&dev_attr_debug_info.attr,
 	&dev_attr_enabled.attr,
 	NULL,
@@ -1139,6 +1184,8 @@ static void get_chip_name(void *device_data)
 
 	if (ts->plat_data->img_version_of_ic[0] == 0x31)
 		strncpy(buff, "S3908", sizeof(buff));
+	else if (ts->plat_data->img_version_of_ic[0] == 0x32)
+		strncpy(buff, "S3907", sizeof(buff));
 	else
 		strncpy(buff, "N/A", sizeof(buff));
 
@@ -1226,6 +1273,66 @@ static void module_on_master(void *device_data)
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 
 	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
+}
+
+static void get_crc_check(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct synaptics_ts_data *ts = container_of(sec, struct synaptics_ts_data, sec);
+	struct synaptics_ts_message_data_blob *tcm_msg = NULL;
+	char buff[16] = { 0 };
+	unsigned char resp_code;
+	int ret;
+
+	sec_cmd_set_default_result(sec);
+
+	if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+		input_err(true, &ts->client->dev, "%s: [ERROR] Touch is stopped\n",
+				__func__);
+		goto NG;
+	}
+
+	ret = ts->write_message(ts,
+			SYNAPTICS_TS_CMD_IDENTIFY,
+			NULL,
+			0,
+			&resp_code,
+			0);
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: failed to write identify cmd\n", __func__);
+		goto NG;
+	}
+
+	tcm_msg = &ts->msg_data;
+
+	synaptics_ts_buf_lock(&tcm_msg->in);
+
+	ret = synaptics_ts_v1_parse_idinfo(ts,
+			&tcm_msg->in.buf[SYNAPTICS_TS_MESSAGE_HEADER_SIZE],
+			tcm_msg->in.buf_size - SYNAPTICS_TS_MESSAGE_HEADER_SIZE,
+			tcm_msg->payload_length);
+	if (ret < 0) {
+		input_info(true, &ts->client->dev, "%s:Fail to identify device\n", __func__);
+		synaptics_ts_buf_unlock(&tcm_msg->in);
+		goto NG;
+	}
+
+	synaptics_ts_buf_unlock(&tcm_msg->in);
+
+	if (IS_NOT_APP_FW_MODE(ts->dev_mode)) {
+		input_info(true, &ts->client->dev, "%s: in 0x%02X mode\n", __func__, ts->dev_mode);
+		goto NG;
+	} else {
+		input_info(true, &ts->client->dev, "%s: in application mode\n", __func__);
+		snprintf(buff, sizeof(buff), "OK");
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+	}
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	return;
+NG:
+	snprintf(buff, sizeof(buff), "NG");
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
 }
 
 static void run_full_rawcap_read(void *device_data)
@@ -1543,6 +1650,151 @@ err_power_state:
 	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
 }
 
+static void run_interrupt_gpio_test(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct synaptics_ts_data *ts = container_of(sec, struct synaptics_ts_data, sec);
+	char buff[SEC_CMD_STR_LEN] = {0};
+	unsigned char *buf = NULL;
+	int ret, status1, status2;
+	unsigned char command[3] = {SYNAPTICS_TS_CMD_IDENTIFY, 0x00, 0x00};
+
+	sec_cmd_set_default_result(sec);
+
+	if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+		input_err(true, &ts->client->dev, "%s: IC power is off\n", __func__);
+		goto err_power_state;
+	}
+
+	buf = synaptics_ts_pal_mem_alloc(2, sizeof(struct synaptics_ts_identification_info));
+	if (!buf) {
+		input_err(true, &ts->client->dev, "%s: Fail to create a buffer for test\n", __func__);
+		goto err_power_state;
+	}
+
+	disable_irq(ts->client->irq);
+
+	ret = ts->synaptics_ts_i2c_write(ts, command, sizeof(command), NULL, 0);
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: Fail to write cmd\n", __func__);
+		goto err;
+	}
+
+	msleep(200);
+
+	status1 = gpio_get_value(ts->plat_data->irq_gpio);
+	input_info(true, &ts->client->dev, "%s: gpio value %d (should be 0)\n", __func__, status1);
+
+	ret = synaptics_ts_i2c_only_read(ts, buf,
+			sizeof(struct synaptics_ts_identification_info) + SYNAPTICS_TS_MESSAGE_HEADER_SIZE);
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: Fail to read cmd\n", __func__);
+		goto err;
+	}
+
+	status2 = gpio_get_value(ts->plat_data->irq_gpio);
+	input_info(true, &ts->client->dev, "%s: gpio value %d (should be 1)\n", __func__, status2);
+
+	if ((status1 == 0) && (status2 == 1)) {
+		snprintf(buff, sizeof(buff), "0");
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+	} else {
+		if (status1 != 0)
+			snprintf(buff, sizeof(buff), "1:HIGH");
+		else if (status2 != 1)
+			snprintf(buff, sizeof(buff), "1:LOW");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	}
+
+	msleep(50);
+
+	enable_irq(ts->client->irq);
+	synaptics_ts_pal_mem_free(buf);
+
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
+		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "INT_GPIO");
+	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
+	return;
+
+err:
+	enable_irq(ts->client->irq);
+	synaptics_ts_pal_mem_free(buf);
+err_power_state:
+	snprintf(buff, sizeof(buff), "NG");
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
+		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "INT_GPIO");
+
+	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
+}
+
+enum prox_intensity_test_item {
+	PROX_INTENSITY_TEST_THD_X = 0,
+	PROX_INTENSITY_TEST_THD_Y,
+	PROX_INTENSITY_TEST_SUM_X,
+	PROX_INTENSITY_TEST_SUM_Y,
+	PROX_INTENSITY_TEST_MAX,
+};
+static void run_prox_intensity_read_all(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct synaptics_ts_data *ts = container_of(sec, struct synaptics_ts_data, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	struct synaptics_ts_buffer test_data;
+	short *data_ptr = NULL;
+	short value[PROX_INTENSITY_TEST_MAX] = { 0 };
+	int ret, i;
+
+	sec_cmd_set_default_result(sec);
+
+	if (!ts->plat_data->support_ear_detect) {
+		input_info(true, &ts->client->dev, "%s: ear detection is not supported\n", __func__);
+		snprintf(buff, sizeof(buff), "NA");
+		sec->cmd_state = SEC_CMD_STATUS_NOT_APPLICABLE;
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		return;
+	}
+	if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+		input_err(true, &ts->client->dev, "%s: IC power is off\n", __func__);
+		snprintf(buff, sizeof(buff), "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		return;
+	}
+
+	synaptics_ts_buf_init(&test_data);
+
+	ret = synaptics_ts_run_production_test(ts,
+			TEST_PID198_PROX_INTENSITY,
+			&test_data);
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: Fail to run test %d\n",
+				__func__, TEST_PID198_PROX_INTENSITY);
+		synaptics_ts_buf_release(&test_data);
+		snprintf(buff, sizeof(buff), "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		return;
+	}
+
+	data_ptr = (short *)&test_data.buf[0];
+	for (i = 0; i < PROX_INTENSITY_TEST_MAX; i++) {
+		value[i] = *data_ptr;
+		data_ptr++;
+	}
+
+	synaptics_ts_buf_release(&test_data);
+
+	snprintf(buff, sizeof(buff), "SUM_X:%d SUM_Y:%d THD_X:%d THD_Y:%d",
+			value[PROX_INTENSITY_TEST_SUM_X], value[PROX_INTENSITY_TEST_SUM_Y],
+			value[PROX_INTENSITY_TEST_THD_X], value[PROX_INTENSITY_TEST_THD_Y]);
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
+}
+
 static void run_factory_miscalibration(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -1558,7 +1810,7 @@ static void run_factory_miscalibration(void *device_data)
 	if (ts->tdata->tclm_level == TCLM_LEVEL_NOT_SUPPORT) {
 		snprintf(buff, sizeof(buff), "NA");
 		sec->cmd_state = SEC_CMD_STATUS_NOT_APPLICABLE;
-		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff))); 
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 		input_info(true, &ts->client->dev, "%s: tclm not supported\n", __func__);
 		return;
 	}
@@ -1577,7 +1829,7 @@ static void run_factory_miscalibration(void *device_data)
 
 	data_ptr = (unsigned short *)&test_data.buf[0];
 	for (i = 0; i < test_data.data_length / 2; i++) {
-		result[i] = *data_ptr; 
+		result[i] = *data_ptr;
 		data_ptr++;
 	}
 
@@ -1624,7 +1876,7 @@ static void run_miscalibration(void *device_data)
 	if (ts->tdata->tclm_level == TCLM_LEVEL_NOT_SUPPORT) {
 		snprintf(buff, sizeof(buff), "NA");
 		sec->cmd_state = SEC_CMD_STATUS_NOT_APPLICABLE;
-		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff))); 
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 		input_info(true, &ts->client->dev, "%s: tclm not supported\n", __func__);
 		return;
 	}
@@ -1643,7 +1895,7 @@ static void run_miscalibration(void *device_data)
 
 	data_ptr = (unsigned short *)&test_data.buf[0];
 	for (i = 0; i < test_data.data_length / 2; i++) {
-		result[i] = *data_ptr; 
+		result[i] = *data_ptr;
 		data_ptr++;
 	}
 
@@ -1663,7 +1915,7 @@ static void run_miscalibration(void *device_data)
 exit:
 	snprintf(buff, sizeof(buff), "NG");
 	sec->cmd_state = SEC_CMD_STATUS_FAIL;
-	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff))); 
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
 }
 
@@ -1677,13 +1929,13 @@ static void run_miscal_data_read_all(void *device_data)
 	int i;
 	int ret;
 	u8 test_type[3] = {TEST_PID65_MISCALDATA_NORMAL, TEST_PID66_MISCALDATA_NOISE, TEST_PID67_MISCALDATA_WET};
-	
+
 	sec_cmd_set_default_result(sec);
 
 	if (ts->tdata->tclm_level == TCLM_LEVEL_NOT_SUPPORT) {
 		snprintf(buff, sizeof(buff), "NA");
 		sec->cmd_state = SEC_CMD_STATUS_NOT_APPLICABLE;
-		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff))); 
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 		input_info(true, &ts->client->dev, "%s: tclm not supported\n", __func__);
 		return;
 	}
@@ -1786,10 +2038,13 @@ static void factory_cmd_result_all(void *device_data)
 	get_self_channel_data(sec, TEST_PID18_HYBRID_ABS_RAW);
 	run_abs_noise_read(sec);
 
+#ifdef TCLM_CONCEPT
 	if (ts->tdata->tclm_level != TCLM_LEVEL_NOT_SUPPORT)
 		run_factory_miscalibration(sec);
+#endif
 
 	run_sram_test(sec);
+	run_interrupt_gpio_test(sec);
 
 	sec->cmd_all_factory_state = SEC_CMD_STATUS_OK;
 
@@ -2083,7 +2338,7 @@ static void get_pat_information(void *device_data)
 	if (ts->tdata->tclm_level == TCLM_LEVEL_NOT_SUPPORT) {
 		snprintf(buff, sizeof(buff), "NA");
 		sec->cmd_state = SEC_CMD_STATUS_NOT_APPLICABLE;
-		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff))); 
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 		input_info(true, &ts->client->dev, "%s: tclm not supported\n", __func__);
 		return;
 	}
@@ -2129,7 +2384,7 @@ static void run_trx_short_test(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
 	struct synaptics_ts_data *ts = container_of(sec, struct synaptics_ts_data, sec);
-	struct synaptics_ts_buffer test_data;	
+	struct synaptics_ts_buffer test_data;
 	char buff[SEC_CMD_STR_LEN];
 	u8 type = 0;
 	int ret;
@@ -2187,7 +2442,7 @@ static void run_trx_short_test(void *device_data)
 		input_info(true, &ts->client->dev, "%s : not supported test case\n", __func__);
 		return;
 	}
-	
+
 	test_result_buff = kzalloc(PAGE_SIZE, GFP_KERNEL);
 	if (!test_result_buff) {
 		snprintf(buff, sizeof(buff), "NG");
@@ -2268,32 +2523,32 @@ static void run_trx_short_test(void *device_data)
 	if (ret < 0) {
 		sec_cmd_set_cmd_result(sec, test_result_buff, strnlen(buff, PAGE_SIZE));
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
-		
+
 		input_info(true, &ts->client->dev, "%s: %s\n", __func__, test_result_buff);
-		
+
 		snprintf(result, sizeof(result), "RESULT=FAIL");
 		sec_cmd_send_event_to_user(&ts->sec, test, result);
 
 		synaptics_ts_buf_release(&test_data);
 		kfree(test_result_buff);
-		
+
 		return;
 
 	} else {
 		snprintf(buff, sizeof(buff), "OK");
 		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 		sec->cmd_state = SEC_CMD_STATUS_OK;
-		input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff); 
-	
+		input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
+
 		snprintf(result_uevent, sizeof(result_uevent), "RESULT=PASS");
 		sec_cmd_send_event_to_user(&ts->sec, test, result_uevent);
 
 		synaptics_ts_buf_release(&test_data);
 		kfree(test_result_buff);
-	
+
 		return;
 
-	}	
+	}
 }
 
 static void run_jitter_delta_test(void *device_data)
@@ -2714,10 +2969,11 @@ static void clear_cover_mode(void *device_data)
 	} else {
 		if (sec->cmd_param[0] > 1) {
 			ts->plat_data->cover_type = sec->cmd_param[1];
-			synaptics_ts_set_cover_type(ts, true);
+			ts->cover_closed = true;
 		} else {
-			synaptics_ts_set_cover_type(ts, false);
+			ts->cover_closed = false;
 		}
+		synaptics_ts_set_cover_type(ts, ts->cover_closed);
 
 		snprintf(buff, sizeof(buff), "OK");
 		sec->cmd_state = SEC_CMD_STATUS_OK;
@@ -2880,7 +3136,7 @@ static void aod_enable(void *device_data)
 		sec_cmd_set_cmd_exit(sec);
 		return;
 	}
-	
+
 	if (sec->cmd_param[0])
 		ts->plat_data->lowpower_mode |= SEC_TS_MODE_SPONGE_AOD;
 	else
@@ -3035,7 +3291,7 @@ static void low_sensitivity_mode_enable(void *device_data)
 
 	sec_cmd_set_default_result(sec);
 
-	if (sec->cmd_param[0] != 0 && sec->cmd_param[0] != 1) {
+	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 3) {
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
@@ -3048,8 +3304,8 @@ static void low_sensitivity_mode_enable(void *device_data)
 	synaptics_ts_low_sensitivity_mode_enable(ts, ts->plat_data->low_sensitivity_mode);
 	mutex_unlock(&ts->modechange);
 
-	input_info(true, &ts->client->dev, "%s: %s\n",
-			__func__, ts->plat_data->low_sensitivity_mode ? "on" : "off");
+	input_info(true, &ts->client->dev, "%s: %d\n",
+			__func__, ts->plat_data->low_sensitivity_mode);
 
 	snprintf(buff, sizeof(buff), "OK");
 	sec->cmd_state = SEC_CMD_STATUS_OK;
@@ -3126,11 +3382,11 @@ static void fod_lp_mode(void *device_data)
 	else
 		ts->plat_data->fod_lp_mode = 0;
 
-	input_info(true, &ts->client->dev, "%s: %s\n", 
+	input_info(true, &ts->client->dev, "%s: %s\n",
 				__func__, sec->cmd_param[0] ? "on" : "off");
 
 	snprintf(buff, sizeof(buff), "%s", "OK");
-	sec->cmd_state = SEC_CMD_STATUS_OK;	
+	sec->cmd_state = SEC_CMD_STATUS_OK;
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec_cmd_set_cmd_exit(sec);
 	return;
@@ -3211,7 +3467,7 @@ static void set_game_mode(void *device_data)
 		snprintf(buff, sizeof(buff), "OK");
 		sec->cmd_state = SEC_CMD_STATUS_OK;
 	}
-	
+
 err_set_gamemode:
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec_cmd_set_cmd_exit(sec);
@@ -3346,7 +3602,7 @@ err_set_activemode:
 	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
 };
 
-/*	for game mode 
+/*	for game mode
 	byte[0]: Setting for the Game Mode with 240Hz scan rate
 		- 0: Disable
 		- 1: Enable
@@ -3356,7 +3612,7 @@ err_set_activemode:
 		- 1: HS60
 		- 2: HS120
 		- 3: VSYNC 48
-		- 4: VSYNC 96 
+		- 4: VSYNC 96
 */
 static void set_scan_rate(void *device_data)
 {
@@ -3611,6 +3867,7 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("get_gap_data_x_all", get_gap_data_x_all),},
 	{SEC_CMD("get_gap_data_y_all", get_gap_data_y_all),},
 	{SEC_CMD("run_sram_test", run_sram_test),},
+	{SEC_CMD("run_interrupt_gpio_test", run_interrupt_gpio_test),},
 	{SEC_CMD("run_factory_miscalibration", run_factory_miscalibration),},
 	{SEC_CMD("run_miscalibration", run_miscalibration),},
 	{SEC_CMD("run_force_calibration", run_force_calibration),},
@@ -3624,8 +3881,8 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("run_rawdata_read_all_for_ghost", run_rawdata_read_all),},
 	{SEC_CMD("run_trx_short_test", run_trx_short_test),},
 	{SEC_CMD("run_jitter_delta_test", run_jitter_delta_test),},
-/*	{SEC_CMD("run_elvss_test", run_elvss_test),},
-	{SEC_CMD("get_crc_check", get_crc_check),},*/
+/*	{SEC_CMD("run_elvss_test", run_elvss_test),},*/
+	{SEC_CMD("get_crc_check", get_crc_check),},
 	{SEC_CMD("factory_cmd_result_all", factory_cmd_result_all),},
 	{SEC_CMD("factory_cmd_result_all_imagetest", factory_cmd_result_all_imagetest),},
 	{SEC_CMD("run_snr_non_touched", run_snr_non_touched),},
@@ -3633,9 +3890,8 @@ static struct sec_cmd sec_cmds[] = {
 /*	{SEC_CMD("set_factory_level", set_factory_level),},
 	{SEC_CMD("check_connection", check_connection),},*/
 	{SEC_CMD_H("fix_active_mode", fix_active_mode),},
-/*	{SEC_CMD_H("touch_aging_mode", touch_aging_mode),},
+/*	{SEC_CMD_H("touch_aging_mode", touch_aging_mode),}, */
 	{SEC_CMD("run_prox_intensity_read_all", run_prox_intensity_read_all),},
-*/
 #ifdef TCLM_CONCEPT
 	{SEC_CMD("set_tsp_test_result", set_tsp_test_result),},
 	{SEC_CMD("get_tsp_test_result", get_tsp_test_result),},
@@ -3644,7 +3900,7 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("get_disassemble_count", get_disassemble_count),},
 	{SEC_CMD("get_pat_information", get_pat_information),},
 	{SEC_CMD("set_external_factory", set_external_factory),},
-#endif	
+#endif
 	{SEC_CMD_H("glove_mode", glove_mode),},
 	{SEC_CMD("dead_zone_enable", dead_zone_enable),},
 	{SEC_CMD_H("clear_cover_mode", clear_cover_mode),},
@@ -3661,7 +3917,7 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD_H("singletap_enable", singletap_enable),},
 	{SEC_CMD_H("ear_detect_enable", ear_detect_enable),},
 	{SEC_CMD_H("pocket_mode_enable", pocket_mode_enable),},
-	{SEC_CMD_H("low_sensitivity_mode_enable", low_sensitivity_mode_enable),},
+	{SEC_CMD("low_sensitivity_mode_enable", low_sensitivity_mode_enable),},
 	{SEC_CMD("set_grip_data", set_grip_data),},
 /*	{SEC_CMD_H("external_noise_mode", external_noise_mode),},*/
 	{SEC_CMD_H("set_scan_rate", set_scan_rate),},
@@ -3677,7 +3933,7 @@ static struct sec_cmd sec_cmds[] = {
 int synaptics_ts_fn_init(struct synaptics_ts_data *ts)
 {
 	int retval = 0;
-	
+
 	retval = sec_cmd_init(&ts->sec, sec_cmds,
 			ARRAY_SIZE(sec_cmds), SEC_CLASS_DEVT_TSP);
 	if (retval < 0) {

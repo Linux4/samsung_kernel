@@ -135,6 +135,7 @@ int32_t stk3a8x_request_registry(struct stk3a8x_data *alps_data)
 		err_flicker("filp_open error!err=%d,path=%s\n", err, STK3A8X_CALI_FILE);
 		err_flicker("Loading initial parameters\n");
 	}
+#ifdef USE_KERNEL_VFS_READ_WRITE
 	else
 	{
 		fs = get_fs();
@@ -144,6 +145,7 @@ int32_t stk3a8x_request_registry(struct stk3a8x_data *alps_data)
 		set_fs(fs);
 		//filp_close(cali_file, NULL);
 	}
+#endif
 
 	memcpy(&alps_data->cali_info.cali_para.als_version, file_out_buf, FILE_SIZE);
 	info_flicker("als_version = 0x%X, als_scale = 0x%X\n",
@@ -171,14 +173,15 @@ int32_t stk3a8x_update_registry(struct stk3a8x_data *alps_data)
 		err_flicker ("filp_open error!err=%d,path=%s\n", err, STK3A8X_CALI_FILE);
 		return -1;
 	}
-	else
-	{
+#ifdef USE_KERNEL_VFS_READ_WRITE
+	else {
 		fs = get_fs();
 		set_fs(KERNEL_DS);
 		pos = 0;
 		vfs_write(cali_file, file_buf, sizeof(file_buf), &pos);
 		set_fs(fs);
 	}
+#endif
 
 	//filp_close(cali_file, NULL);
 	info_flicker("Done\n");
