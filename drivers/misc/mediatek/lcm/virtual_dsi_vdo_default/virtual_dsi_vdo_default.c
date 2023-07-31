@@ -18,27 +18,15 @@
 static struct LCM_UTIL_FUNCS lcm_util;
 
 #define FRAME_WIDTH										(720)
-#define FRAME_HEIGHT									(1440)
+#define FRAME_HEIGHT									(1600)
 
-#define LCM_PHYSICAL_WIDTH									(64800)
-#define LCM_PHYSICAL_HEIGHT									(129600)
-
-//TODO:chensibo.wt, add log
-#ifdef BUILD_LK
-#define LCM_LOGI(string, args...)  dprintf(0, "[LK/"LOG_TAG"]"string, ##args)
-#define LCM_LOGD(string, args...)  dprintf(1, "[LK/"LOG_TAG"]"string, ##args)
-#else
-#define LCM_LOGI(fmt, args...)  pr_debug("[KERNEL/"LOG_TAG"]"fmt, ##args)
-#define LCM_LOGD(fmt, args...)  pr_debug("[KERNEL/"LOG_TAG"]"fmt, ##args)
-#endif
-
-
+#define LCM_PHYSICAL_WIDTH								(67932)
+#define LCM_PHYSICAL_HEIGHT								(150960)
 
 static void lcm_set_util_funcs(const struct LCM_UTIL_FUNCS *util)
 {
 	memcpy(&lcm_util, util, sizeof(struct LCM_UTIL_FUNCS));
 }
-
 
 static void lcm_get_params(struct LCM_PARAMS *params)
 {
@@ -55,8 +43,6 @@ static void lcm_get_params(struct LCM_PARAMS *params)
 
 	params->dsi.mode = SYNC_PULSE_VDO_MODE;
 	params->dsi.switch_mode = CMD_MODE;
-	//lcm_dsi_mode = SYNC_PULSE_VDO_MODE;
-	//LCM_LOGI("lcm_get_params lcm_dsi_mode %d\n", lcm_dsi_mode);
 	params->dsi.switch_mode_enable = 0;
 
 	/* DSI */
@@ -99,11 +85,6 @@ static void lcm_get_params(struct LCM_PARAMS *params)
 	params->corner_pattern_width = 720;
 	params->corner_pattern_height = 32;
 #endif
-	/*bug 338360 - For panel not insert need close backlight and vbias, heming.wt, 20180202, begin*/
-	params->vbias_level = 0;
-	/*bug 338360 - For panel not insert need close backlight and vbias, heming.wt, 20180202, end*/
-	
-	params->default_panel_bl_off = 1;//Chk 80142, chensibo.wt, ADD, 20210126, no panel insert to close backlight
 }
 
 static unsigned int lcm_compare_id(void)
@@ -122,19 +103,14 @@ static void lcm_init(void)
 
 static void lcm_suspend(void)
 {
-//+Chk 80142, chensibo.wt, MODIFY, 20210126, close lcd VSP VSN power
-#ifdef CONFIG_WT_PROJECT_S96717RA1
-	display_bias_disable();
-#endif
-//-Chk 80142, chensibo.wt, MODIFY, 20210126, close lcd VSP VSN powers
 }
 
 static void lcm_resume(void)
 {
 }
 
-struct LCM_DRIVER virtual_dsi_vdo_default = {
-	.name = "Simulator_dsi_vdo_default_NoPanel",
+struct LCM_DRIVER virtual_dsi_vdo_default_drv = {
+	.name = "virtual_dsi_vdo_default",
 	.set_util_funcs = lcm_set_util_funcs,
 	.get_params = lcm_get_params,
 	.compare_id = lcm_compare_id,

@@ -57,6 +57,9 @@ struct baro_control_path {
 	int (*batch)(int flag, int64_t samplingPeriodNs,
 		     int64_t maxBatchReportLatencyNs);
 	int (*flush)(void); /* open data rerport to HAL */
+//+Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
+	int (*cfg_cali)(uint8_t *data, uint8_t count); /* give cali data to scp driver*/
+//-Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 	int (*baroess_data_fifo)(void);
 	bool is_report_input_direct;
 	bool is_support_batch;
@@ -117,6 +120,9 @@ struct baro_context {
 extern int baro_driver_add(struct baro_init_info *obj);
 extern int baro_data_report(int value, int status, int64_t nt);
 extern int baro_flush_report(void);
+//+Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
+extern int baro_cali_report(int *value);
+//-Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 extern int baro_register_control_path(struct baro_control_path *ctl);
 extern int baro_register_data_path(struct baro_data_path *data);
 

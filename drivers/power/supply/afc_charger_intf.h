@@ -2,8 +2,47 @@
 #define _AFC_CHARGER_INTF
 
 #include <linux/kernel.h>
-#include "mtk_charger_algorithm_class.h"
 #include "mtk_charger.h"
+/*
+#include <linux/init.h>		// For init/exit macros
+#include <linux/module.h>	// For MODULE_ marcros
+#include <linux/fs.h>
+#include <linux/device.h>
+#include <linux/interrupt.h>
+#include <linux/spinlock.h>
+#include <linux/platform_device.h>
+#include <linux/device.h>
+#include <linux/kdev_t.h>
+#include <linux/fs.h>
+#include <linux/cdev.h>
+#include <linux/delay.h>
+#include <linux/kernel.h>
+#include <linux/init.h>
+#include <linux/types.h>
+#include <linux/wait.h>
+#include <linux/slab.h>
+#include <linux/fs.h>
+#include <linux/sched.h>
+#include <linux/poll.h>
+#include <linux/power_supply.h>
+#include <linux/pm_wakeup.h>
+#include <linux/time.h>
+#include <linux/mutex.h>
+#include <linux/kthread.h>
+#include <linux/proc_fs.h>
+#include <linux/platform_device.h>
+#include <linux/seq_file.h>
+#include <linux/scatterlist.h>
+#include <linux/suspend.h>
+#include <linux/of.h>
+#include <linux/of_irq.h>
+#include <linux/of_address.h>
+#include <linux/reboot.h>
+
+
+*/
+#include "mtk_charger_algorithm_class.h"
+
 #define AFC_COMM_CNT 3
 #define AFC_RETRY_MAX 10
 #define VBUS_RETRY_MAX 5
@@ -23,9 +62,9 @@ extern int g_afc_work_status;//Bug 518556,liuyong3.wt,ADD,20191128,Charging afc 
 #define AFC_ICHG_LEAVE_THRESHOLD	1000000 /* uA */
 #define AFC_START_BATTERY_SOC		0
 #define AFC_STOP_BATTERY_SOC		85
-#define AFC_PRE_INPUT_CURRENT		500000 /* uA */
-#define AFC_CHARGER_INPUT_CURRENT	1500000 /* uA */
-#define AFC_CHARGER_CURRENT			2800000 /* uA */
+#define AFC_PRE_INPUT_CURRENT		500000 /* uA */   
+#define AFC_CHARGER_INPUT_CURRENT	1500000 /* uA */ 
+#define AFC_CHARGER_CURRENT			2800000 /* uA */ 
 #define AFC_MIN_CHARGER_VOLTAGE		4200000
 #define AFC_MAX_CHARGER_VOLTAGE		9000000
 
@@ -110,10 +149,7 @@ struct afc_dev {
 	int afc_setting_input_current;
 	int afc_setting_charge_current;
 	int afc_limit_cv;
-	struct mutex data_lock;
-#if defined(CONFIG_DRV_SAMSUNG)
-	struct device *switch_device;
-#endif
+	struct mutex data_lock;#if defined(CONFIG_DRV_SAMSUNG)	struct device *switch_device;#endif
 };
 
 #ifdef CONFIG_AFC_CHARGER

@@ -11,6 +11,7 @@
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/debugfs.h>
+#include <linux/proc_fs.h>
 #include <linux/delay.h>
 #include <linux/kthread.h>
 #include <linux/uaccess.h>
@@ -121,7 +122,6 @@ static const struct file_operations vpu_debug_ ## name ## _fops = { \
 	.release = seq_release, \
 }
 
-/*IMPLEMENT_VPU_DEBUGFS(algo);*/
 IMPLEMENT_VPU_DEBUGFS(register);
 IMPLEMENT_VPU_DEBUGFS(user);
 IMPLEMENT_VPU_DEBUGFS(vpu);
@@ -218,76 +218,6 @@ static const struct file_operations vpu_debug_power_fops = {
 	.write = vpu_debug_power_write,
 };
 
-static int vpu_debug_algo_show(struct seq_file *s, void *unused)
-{
-	vpu_dump_algo(s);
-	return 0;
-}
-
-static int vpu_debug_algo_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, vpu_debug_algo_show, inode->i_private);
-}
-
-static ssize_t vpu_debug_algo_write(struct file *flip,
-		const char __user *buffer,
-		size_t count, loff_t *f_pos)
-{
-	char *tmp, *token, *cursor;
-	int ret, i, param;
-	const int max_arg = 5;
-	unsigned int args[max_arg];
-
-	tmp = kzalloc(count + 1, GFP_KERNEL);
-	if (!tmp)
-		return -ENOMEM;
-
-	ret = copy_from_user(tmp, buffer, count);
-	if (ret) {
-		LOG_ERR("copy_from_user failed, ret=%d\n", ret);
-		goto out;
-	}
-
-	tmp[count] = '\0';
-
-	cursor = tmp;
-
-	/* parse a command */
-	token = strsep(&cursor, " ");
-	if (strcmp(token, "dump_algo") == 0)
-		param = VPU_DEBUG_ALGO_PARAM_DUMP_ALGO;
-	else {
-		ret = -EINVAL;
-		LOG_ERR("no power param[%s]!\n", token);
-		goto out;
-	}
-
-	/* parse arguments */
-	for (i = 0; i < max_arg && (token = strsep(&cursor, " ")); i++) {
-		ret = kstrtouint(token, 10, &args[i]);
-		if (ret) {
-			LOG_ERR("fail to parse args[%d]\n", i);
-			goto out;
-		}
-	}
-
-	vpu_set_algo_parameter(param, i, args);
-
-	ret = count;
-out:
-
-	kfree(tmp);
-	return ret;
-}
-
-static const struct file_operations vpu_debug_algo_fops = {
-	.open = vpu_debug_algo_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = seq_release,
-	.write = vpu_debug_algo_write,
-};
-
 static char *vpu_debug_simple_write(const char __user *buffer, size_t count)
 {
 	char *buf;
@@ -340,6 +270,18 @@ int vpu_init_debug(struct vpu_device *vpu_dev)
 {
 	int ret;
 	struct dentry *debug_file;
+	struct proc_dir_entry *proc_root;
+
+	proc_root = proc_mkdir("vpu", NULL);
+
+	if (IS_ERR_OR_NULL(proc_root)) {
+		ret = PTR_ERR(proc_root);
+		pr_info("%s: failed to create procfs node: %d\n",
+			__func__, ret);
+		goto out;
+	}
+
+	vpu_dev->proc_root = proc_root;
 
 	vpu_dev->debug_root = debugfs_create_dir("vpu", NULL);
 
@@ -347,6 +289,19 @@ int vpu_init_debug(struct vpu_device *vpu_dev)
 	if (ret) {
 		LOG_ERR("failed to create debug dir.\n");
 		goto out;
+	}
+
+#define CREATE_VPU_PROCFS(name) \
+	{ \
+		proc_root = proc_create_data(#name, 0444, \
+			vpu_dev->proc_root, \
+			&vpu_debug_ ## name ## _fops, NULL); \
+		if (IS_ERR_OR_NULL(proc_root)) { \
+			ret = PTR_ERR(proc_root); \
+			pr_info("%s: " #name "): %d\n", \
+				__func__, ret); \
+			goto out; \
+		} \
 	}
 
 #define CREATE_VPU_DEBUGFS(name)                         \
@@ -358,22 +313,22 @@ int vpu_init_debug(struct vpu_device *vpu_dev)
 			LOG_ERR("failed to create debug file[" #name "].\n"); \
 	}
 
-	CREATE_VPU_DEBUGFS(algo);
 	CREATE_VPU_DEBUGFS(func_mask);
 	CREATE_VPU_DEBUGFS(log_level);
 	CREATE_VPU_DEBUGFS(internal_log_level);
 	CREATE_VPU_DEBUGFS(register);
 	CREATE_VPU_DEBUGFS(user);
 	CREATE_VPU_DEBUGFS(image_file);
-	CREATE_VPU_DEBUGFS(mesg);
+	CREATE_VPU_PROCFS(mesg);
 	CREATE_VPU_DEBUGFS(vpu);
 	CREATE_VPU_DEBUGFS(opp_table);
 	CREATE_VPU_DEBUGFS(power);
-	CREATE_VPU_DEBUGFS(device_dbg);
+	CREATE_VPU_PROCFS(device_dbg);
 	CREATE_VPU_DEBUGFS(user_algo);
-	CREATE_VPU_DEBUGFS(vpu_memory);
+	CREATE_VPU_PROCFS(vpu_memory);
 
 #undef CREATE_VPU_DEBUGFS
+#undef CREATE_VPU_PROCFS
 
 out:
 	return ret;

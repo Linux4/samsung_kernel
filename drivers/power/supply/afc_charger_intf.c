@@ -822,9 +822,9 @@ int afc_pre_check(struct mtk_charger *pinfo)
 	for (i = 0; i < 15; i++) {
 		mdelay(100);
 		if (/*!afc_device->to_check_chr_type || */
-			get_charger_type(NULL) != POWER_SUPPLY_TYPE_USB_DCP) {
+			get_charger_type(pinfo) != POWER_SUPPLY_TYPE_USB_DCP) {
 			pr_err("%s: stop, to_check_chr_type = %d, chr_type = %d \n",
-				__func__, afc_device->to_check_chr_type, get_charger_type(NULL));
+				__func__, afc_device->to_check_chr_type, get_charger_type(pinfo));
 			return 1;
 		}
 /*
@@ -1002,7 +1002,7 @@ int afc_set_ta_vchr(struct mtk_charger *pinfo, u32 chr_volt)
 		pr_info("%s: retry_cnt = (%d, %d), vchr = (%d, %d), vchr_target = %dmV\n",
 			__func__, sw_retry_cnt, retry_cnt, vchr_before / 1000,
 			vchr_after / 1000, chr_volt / 1000);
-	} while ( get_charger_type(NULL) == POWER_SUPPLY_TYPE_USB_DCP &&
+	} while ( get_charger_type(pinfo) == POWER_SUPPLY_TYPE_USB_DCP &&
 		 retry_cnt < retry_cnt_max && pinfo->enable_hv_charging/* &&
 		 cancel_afc(pinfo) != true */);
 
@@ -1414,6 +1414,33 @@ static ssize_t afc_disable_store(struct device *dev,
 static DEVICE_ATTR_RW(afc_disable);
 #endif
 
+/*
+int afc_hal_get_charger_type(struct chg_alg_device *alg)
+{
+	struct mtk_charger *info = NULL;
+	struct power_supply *chg_psy = NULL;
+	int ret = 0;
+	
+	if (alg == NULL)
+		return -EINVAL;
+	
+	chg_psy = power_supply_get_by_name("mtk-master-charger");
+	if (chg_psy == NULL || IS_ERR(chg_psy)) {
+		pr_notice("%s Couldn't get chg_psy\n", __func__);
+		ret = -EINVAL;
+	} else {
+		info = (struct mtk_charger *)power_supply_get_drvdata(chg_psy);
+		if (info == NULL)
+			ret = -EINVAL;
+		else
+			ret = info->chr_type;
+	}
+
+	pr_notice("%s type:%d\n", __func__, ret);
+	return ret;
+}
+*/
+
 static int afc_is_algo_ready(struct chg_alg_device *alg)
 {
 	struct afc_dev *afc;
@@ -1421,8 +1448,10 @@ static int afc_is_algo_ready(struct chg_alg_device *alg)
 	int charger_type = 0;
 	union power_supply_propval prop;
 	struct power_supply *bat_psy;
+	struct mtk_charger *pinfo;
 
 	afc = dev_get_drvdata(&alg->dev);
+	pinfo = afc->info;
 	__pm_stay_awake(afc->suspend_lock);
 	bat_psy = afc->bat_psy;
 	if (bat_psy == NULL)
@@ -1441,7 +1470,8 @@ static int afc_is_algo_ready(struct chg_alg_device *alg)
 		uisoc = prop.intval;
 	}
 //	afc = dev_get_drvdata(&alg->dev);
-	charger_type = get_charger_type(NULL);
+	charger_type = get_charger_type(pinfo);
+//	charger_type = afc_hal_get_charger_type(alg);
 
 	pr_info("%s: afc state %d, connect: %d\n", __func__, afc->state, afc->is_connect);
 	if(afc->state == AFC_HW_READY)

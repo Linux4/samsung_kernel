@@ -2,7 +2,7 @@
  *
  * FocalTech TouchScreen driver.
  *
- * Copyright (c) 2012-2019, Focaltech Ltd. All rights reserved.
+ * Copyright (c) 2012-2020, Focaltech Ltd. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -46,7 +46,7 @@
 #include <linux/vmalloc.h>
 #include <linux/gpio.h>
 #include <linux/regulator/consumer.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <linux/firmware.h>
 #include <linux/debugfs.h>
 #include <linux/mutex.h>
@@ -58,13 +58,12 @@
 #include <linux/proc_fs.h>
 #include <linux/version.h>
 #include <linux/types.h>
-#include <linux/sched.h>
+#include <linux/sched/types.h>
 #include <linux/kthread.h>
 #include <linux/dma-mapping.h>
 #include "focaltech_common.h"
-#include <uapi/linux/sched/types.h>
-#if defined(CONFIG_DRV_WT_TSP_CMD)
-//#include <linux/input/wt_sec_cmd.h>
+#if defined(CONFIG_DRV_SAMSUNG)
+#include <linux/input/sec_cmd.h>
 #endif
 
 /*****************************************************************************
@@ -75,8 +74,6 @@
 #define FTS_KEY_DIM                         10
 #define FTS_ONE_TCH_LEN                     6
 #define FTS_TOUCH_DATA_LEN  (FTS_MAX_POINTS_SUPPORT * FTS_ONE_TCH_LEN + 3)
-
-#define FTS_SPI_CLK_MAX                     6000000
 
 #define FTS_GESTURE_POINTS_MAX              6
 #define FTS_GESTURE_DATA_LEN               (FTS_GESTURE_POINTS_MAX * 4 + 4)
@@ -104,13 +101,18 @@
 #define EVENT_UP(flag)                      (FTS_TOUCH_UP == flag)
 #define EVENT_NO_DOWN(data)                 (!data->point_num)
 
-#define FTX_MAX_COMPATIBLE_TYPE             4
-#define FTX_MAX_COMMMAND_LENGTH             16
+//#define FTS_MAX_COMPATIBLE_TYPE             4
+#define FTS_MAX_COMMMAND_LENGTH             16
 
-#define FTS_MTK_OLD_TYPE                    0
 
-#if defined(CONFIG_DRV_WT_TSP_CMD)
-//#define SEC_TSP_FACTORY_TEST
+/*****************************************************************************
+*  Alternative mode (When something goes wrong, the modules may be able to solve the problem.)
+*****************************************************************************/
+#define FTS_HIGH_REPORT                         0
+#define FTS_SIZE_DEFAULT                        15
+
+#if defined(CONFIG_DRV_SAMSUNG)
+#define SEC_TSP_FACTORY_TEST
 #endif
 
 /*****************************************************************************
@@ -120,7 +122,7 @@ struct ftxxxx_proc {
     struct proc_dir_entry *proc_entry;
     u8 opmode;
     u8 cmd_len;
-    u8 cmd[FTX_MAX_COMMMAND_LENGTH];
+    u8 cmd[FTS_MAX_COMMMAND_LENGTH];
 };
 
 struct fts_ts_platform_data {
@@ -149,14 +151,28 @@ struct ts_event {
     int area;
 };
 
+struct pen_event {
+    int inrange;
+    int tip;
+    int x;      /*x coordinate */
+    int y;      /*y coordinate */
+    int p;      /* pressure */
+    int flag;   /* touch event flag: 0 -- down; 1-- up; 2 -- contact */
+    int id;     /*touch ID */
+    int tilt_x;
+    int tilt_y;
+    int tool_type;
+};
+
 struct fts_ts_data {
 #ifdef SEC_TSP_FACTORY_TEST
-		struct wt_sec_cmd_data sec;
+	struct sec_cmd_data sec;
 #endif
     struct i2c_client *client;
     struct spi_device *spi;
     struct device *dev;
     struct input_dev *input_dev;
+    struct input_dev *pen_dev;
     struct fts_ts_platform_data *pdata;
     struct ts_ic_info ic_info;
     struct workqueue_struct *ts_workqueue;
@@ -168,9 +184,11 @@ struct fts_ts_data {
     spinlock_t irq_lock;
     struct mutex report_mutex;
     struct mutex bus_lock;
+    unsigned long intr_jiffies;
     int irq;
     int log_level;
     int fw_is_running;      /* confirm fw is running when using spi:default 0 */
+    int dummy_byte;
     bool suspended;
     bool fw_loading;
     bool irq_disabled;
@@ -178,19 +196,36 @@ struct fts_ts_data {
     bool glove_mode;
     bool cover_mode;
     bool charger_mode;
+    bool gesture_mode;      /* gesture enable or disable, default: disable */
+    bool prc_mode;
+    struct pen_event pevent;
     /* multi-touch */
     struct ts_event *events;
-    u8 *bus_buf;
+    u8 *bus_tx_buf;
+    u8 *bus_rx_buf;
+    int bus_type;
     u8 *point_buf;
     int pnt_buf_size;
     int touchs;
     int key_state;
     int touch_point;
     int point_num;
+
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+    int fts_head_set;
+#endif
+
     struct regulator *vdd;
     struct pinctrl          *pinctrl;
     struct pinctrl_state    *spi_default;
     struct pinctrl_state    *spi_active;
+};
+
+enum _FTS_BUS_TYPE {
+    BUS_TYPE_NONE,
+    BUS_TYPE_I2C,
+    BUS_TYPE_SPI,
+    BUS_TYPE_SPI_V2,
 };
 
 /*****************************************************************************
@@ -206,28 +241,23 @@ int fts_write_reg(u8 addr, u8 value);
 void fts_hid2std(void);
 int fts_bus_init(struct fts_ts_data *ts_data);
 int fts_bus_exit(struct fts_ts_data *ts_data);
+int fts_spi_transfer_direct(u8 *writebuf, u32 writelen, u8 *readbuf, u32 readlen);
 
 /* Gesture functions */
-#if FTS_GESTURE_EN
 int fts_gesture_init(struct fts_ts_data *ts_data);
 int fts_gesture_exit(struct fts_ts_data *ts_data);
 void fts_gesture_recovery(struct fts_ts_data *ts_data);
 int fts_gesture_readdata(struct fts_ts_data *ts_data, u8 *data);
 int fts_gesture_suspend(struct fts_ts_data *ts_data);
 int fts_gesture_resume(struct fts_ts_data *ts_data);
-#endif
 
 /* Apk and functions */
-#if FTS_APK_NODE_EN
 int fts_create_apk_debug_channel(struct fts_ts_data *);
 void fts_release_apk_debug_channel(struct fts_ts_data *);
-#endif
 
 /* ADB functions */
-#if FTS_SYSFS_NODE_EN
 int fts_create_sysfs(struct fts_ts_data *ts_data);
 int fts_remove_sysfs(struct fts_ts_data *ts_data);
-#endif
 
 /* ESD */
 #if FTS_ESDCHECK_EN
@@ -256,13 +286,14 @@ void fts_prc_queue_work(struct fts_ts_data *ts_data);
 /* FW upgrade */
 int fts_fwupg_init(struct fts_ts_data *ts_data);
 int fts_fwupg_exit(struct fts_ts_data *ts_data);
-int fts_fw_resume(void);
+int fts_fw_resume(bool need_reset);
 int fts_fw_recovery(void);
 int fts_upgrade_bin(char *fw_name, bool force);
 int fts_enter_test_environment(bool test_state);
 
 /* Other */
 int fts_reset_proc(int hdelayms);
+int fts_check_cid(struct fts_ts_data *ts_data, u8 id_h);
 int fts_wait_tp_to_valid(void);
 void fts_release_all_finger(void);
 void fts_tp_state_recovery(struct fts_ts_data *ts_data);
@@ -272,6 +303,10 @@ int fts_ex_mode_recovery(struct fts_ts_data *ts_data);
 
 void fts_irq_disable(void);
 void fts_irq_enable(void);
+
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+int focal_headset_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
+#endif
 
 #if FTS_PSENSOR_EN
 int fts_proximity_init(void);

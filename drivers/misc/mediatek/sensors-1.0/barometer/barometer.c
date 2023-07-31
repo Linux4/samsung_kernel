@@ -380,7 +380,35 @@ static ssize_t barodevnum_show(struct device *dev,
 {
 	return snprintf(buf, PAGE_SIZE, "%d\n", 0);
 }
+//+Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
+static ssize_t barocali_store(struct device *dev, struct device_attribute *attr,
+        const char *buf, size_t count)
+{
+	struct baro_context *cxt = NULL;
+	int err = 0;
+	uint8_t *cali_buf = NULL;
 
+	cali_buf = vzalloc(count);
+	if (!cali_buf)
+	    return -ENOMEM;
+	memcpy(cali_buf, buf, count);
+
+	mutex_lock(&baro_context_obj->baro_op_mutex);
+	cxt = baro_context_obj;
+	if (cxt->baro_ctl.cfg_cali != NULL)
+	    err = cxt->baro_ctl.cfg_cali(cali_buf, count);
+	else
+	    pr_err("BARO DRIVER OLD ARCHITECTURE DON'T SUPPORT BARO COMMON VERSION CFG CALI\n");
+	if (err < 0)
+	    pr_err("baro cfg cali err %d\n", err);
+	mutex_unlock(&baro_context_obj->baro_op_mutex);
+	vfree(cali_buf);
+	if (err)
+	    return err;
+	else
+	    return count;
+}
+//-Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 static int barometer_remove(struct platform_device *pdev)
 {
 	pr_debug("%s\n", __func__);
@@ -523,12 +551,17 @@ DEVICE_ATTR_RW(baroactive);
 DEVICE_ATTR_RW(barobatch);
 DEVICE_ATTR_RW(baroflush);
 DEVICE_ATTR_RO(barodevnum);
-
+//+Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
+DEVICE_ATTR_WO(barocali);
+//-Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 static struct attribute *baro_attributes[] = {
 	&dev_attr_baroactive.attr,
 	&dev_attr_barobatch.attr,
 	&dev_attr_baroflush.attr,
 	&dev_attr_barodevnum.attr,
+//+Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
+	&dev_attr_barocali.attr,
+//-Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 	NULL
 };
 
@@ -564,6 +597,7 @@ int baro_register_control_path(struct baro_control_path *ctl)
 	cxt->baro_ctl.enable_nodata = ctl->enable_nodata;
 	cxt->baro_ctl.batch = ctl->batch;
 	cxt->baro_ctl.flush = ctl->flush;
+	cxt->baro_ctl.cfg_cali = ctl->cfg_cali;
 	cxt->baro_ctl.is_support_batch = ctl->is_support_batch;
 	cxt->baro_ctl.is_report_input_direct = ctl->is_report_input_direct;
 	cxt->baro_ctl.is_support_batch = ctl->is_support_batch;
@@ -609,7 +643,23 @@ int baro_data_report(int value, int status, int64_t nt)
 	err = sensor_input_event(baro_context_obj->mdev.minor, &event);
 	return err;
 }
+//+Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
+int baro_cali_report(int *value)
+{
+	struct sensor_event event;
+	int err = 0;
 
+	memset(&event, 0, sizeof(struct sensor_event));
+
+	event.flush_action = CALI_ACTION;
+	event.word[0] = value[0];
+	event.word[1] = value[1];
+	printk("%s: recv[0]:%d, recv[1]:%d\n", __func__, value[0], value[1]);
+
+	err = sensor_input_event(baro_context_obj->mdev.minor, &event);
+	return err;
+}
+//+Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 int baro_flush_report(void)
 {
 	struct sensor_event event;

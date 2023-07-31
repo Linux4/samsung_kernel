@@ -118,15 +118,29 @@ static int mtu3_ep_enable(struct mtu3_ep *mep)
 		break; /*others are ignored */
 	}
 
-	dev_dbg(mtu->dev, "%s maxp:%d, interval:%d, burst:%d, mult:%d\n",
-		__func__, mep->maxp, interval, burst, mult);
-
 	mep->ep.maxpacket = mep->maxp;
 	mep->ep.desc = desc;
 	mep->ep.comp_desc = comp_desc;
 
 	/* slot mainly affects bulk/isoc transfer, so ignore int */
 	mep->slot = usb_endpoint_xfer_int(desc) ? 0 : mtu->slot;
+
+	/* reserve ep slot for super speed */
+	if (mep->slot && mtu->g.speed >= MTU3_SPEED_SUPER) {
+		switch (mtu->ep_slot_mode) {
+		case MTU3_EP_SLOT_MAX:
+			mep->slot = MTU3_U3_IP_SLOT_MAX;
+			break;
+		case MTU3_EP_SLOT_MIN:
+			mep->slot = 0;
+			break;
+		default:
+			break;
+		}
+	}
+
+	dev_info(mtu->dev, "%s %s maxp:%d interval:%d burst:%d slot:%d\n",
+		__func__, mep->name, mep->maxp,	interval, burst, mep->slot);
 
 	ret = mtu3_config_ep(mtu, mep, interval, burst, mult);
 	if (ret < 0)
@@ -266,12 +280,19 @@ struct usb_request *mtu3_alloc_request(struct usb_ep *ep, gfp_t gfp_flags)
 void mtu3_free_request(struct usb_ep *ep, struct usb_request *req)
 {
 	struct mtu3_request *mreq = to_mtu3_request(req);
+	struct mtu3_request *r;
 	struct mtu3_ep *mep = to_mtu3_ep(ep);
 	struct mtu3 *mtu = mep->mtu;
 	unsigned long flags;
 
 	trace_mtu3_free_request(mreq);
 	spin_lock_irqsave(&mtu->lock, flags);
+	list_for_each_entry(r, &mep->req_list, list) {
+		if (r == mreq) {
+			list_del(&mreq->list);
+			break;
+		}
+	}
 	kfree(mreq);
 	spin_unlock_irqrestore(&mtu->lock, flags);
 }
@@ -503,21 +524,29 @@ static int mtu3_gadget_set_self_powered(struct usb_gadget *gadget,
 static void mtu3_gadget_set_ready(struct usb_gadget *gadget)
 {
 	struct mtu3 *mtu = gadget_to_mtu3(gadget);
-	struct of_changeset chgset;
-	struct property *prop;
+	struct device_node *np = mtu->dev->of_node;
+	struct property *prop = NULL;
+	int ret = 0;
 
 	dev_info(mtu->dev, "update gadget-ready property\n");
 
-	prop = kzalloc(sizeof(*prop), GFP_KERNEL);
-	if (!prop)
-		return;
+	prop = of_find_property(np, "gadget-ready", NULL);
+	if (!prop) {
+		dev_info(mtu->dev, "no gadget-ready node\n");
 
-	prop->name = "gadget-ready";
+		prop = kzalloc(sizeof(*prop), GFP_KERNEL);
+		if (!prop) {
+			pr_err("kzalloc failed\n");
+			return;
+		}
 
-	of_changeset_init(&chgset);
-	of_changeset_update_property(&chgset, mtu->dev->of_node, prop);
-	of_changeset_apply(&chgset);
-	of_changeset_destroy(&chgset);
+		prop->name = "gadget-ready";
+		ret = of_add_property(np, prop);
+		if (ret) {
+			pr_err("add prop failed\n");
+			return;
+		}
+	}
 
 	mtu->is_gadget_ready = 1;
 }
@@ -539,10 +568,11 @@ static int mtu3_gadget_pullup(struct usb_gadget *gadget, int is_on)
 		mtu->softconnect = is_on;
 	} else if (is_on != mtu->softconnect) {
 		mtu->softconnect = is_on;
-		mtu3_dev_on_off(mtu, is_on);
 
 		if (!is_on)
 			mtu3_nuke_all_ep(mtu);
+
+		mtu3_dev_on_off(mtu, is_on);
 	}
 
 	spin_unlock_irqrestore(&mtu->lock, flags);

@@ -463,9 +463,9 @@ static int __init do_early_param(char *param, char *val,
 
 	for (p = __setup_start; p < __setup_end; p++) {
 		if ((p->early && parameq(param, p->str)) ||
-				(strcmp(param, "console") == 0 &&
-				 strcmp(p->str, "earlycon") == 0)
-			 ) {
+		    (strcmp(param, "console") == 0 &&
+		     strcmp(p->str, "earlycon") == 0)
+		) {
 			set_memsize_reserved_name(p->str);
 			if (p->setup_func(val) != 0)
 				pr_warn("Malformed early option '%s'\n", param);
@@ -527,14 +527,16 @@ static void __init report_meminit(void)
 {
 	const char *stack;
 
-	if (IS_ENABLED(CONFIG_INIT_STACK_ALL))
-		stack = "all";
+	if (IS_ENABLED(CONFIG_INIT_STACK_ALL_PATTERN))
+		stack = "all(pattern)";
+	else if (IS_ENABLED(CONFIG_INIT_STACK_ALL_ZERO))
+		stack = "all(zero)";
 	else if (IS_ENABLED(CONFIG_GCC_PLUGIN_STRUCTLEAK_BYREF_ALL))
-		stack = "byref_all";
+		stack = "byref_all(zero)";
 	else if (IS_ENABLED(CONFIG_GCC_PLUGIN_STRUCTLEAK_BYREF))
-		stack = "byref";
+		stack = "byref(zero)";
 	else if (IS_ENABLED(CONFIG_GCC_PLUGIN_STRUCTLEAK_USER))
-		stack = "__user";
+		stack = "__user(zero)";
 	else
 		stack = "off";
 
@@ -558,6 +560,7 @@ static void __init mm_init(void)
 	page_ext_init_flatmem();
 	report_meminit();
 	mem_init();
+	set_memsize_kernel_type(MEMSIZE_KERNEL_STOP);
 	kmem_cache_init();
 	pgtable_init();
 	vmalloc_init();
@@ -566,7 +569,6 @@ static void __init mm_init(void)
 	init_espfix_bsp();
 	/* Should be run after espfix64 is set up. */
 	pti_init();
-	set_memsize_kernel_type(MEMSIZE_KERNEL_OTHERS);
 }
 
 asmlinkage __visible void __init start_kernel(void)
@@ -695,7 +697,6 @@ asmlinkage __visible void __init start_kernel(void)
 	boot_init_stack_canary();
 
 	time_init();
-	printk_safe_init();
 	perf_event_init();
 	profile_init();
 	call_function_init();
@@ -787,7 +788,6 @@ asmlinkage __visible void __init start_kernel(void)
 		efi_free_boot_services();
 	}
 
-	set_memsize_kernel_type(MEMSIZE_KERNEL_STOP);
 	/* Do the rest non-__init'ed, we're now alive */
 	rest_init();
 

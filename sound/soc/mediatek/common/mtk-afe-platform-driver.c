@@ -18,7 +18,7 @@ int mtk_afe_combine_sub_dai(struct mtk_base_afe *afe)
 	struct mtk_base_afe_dai *dai;
 	size_t num_dai_drivers = 0, dai_idx = 0;
 
-	/* calcualte total dai driver size */
+	/* calculate total dai driver size */
 	list_for_each_entry(dai, &afe->sub_dais, list) {
 		num_dai_drivers += dai->num_dai_drivers;
 	}
@@ -81,10 +81,7 @@ unsigned int word_size_align(unsigned int in_size)
 {
 	unsigned int align_size;
 
-	/* sram is device memory,need word size align,
-	 * 8 byte for 64 bit platform
-	 * [3:0] = 4'h0 for the convenience of the hardware implementation
-	 */
+	/* MTK memif access need 16 bytes alignment */
 	align_size = in_size & 0xFFFFFFF0;
 	return align_size;
 }
@@ -146,24 +143,94 @@ int mtk_afe_pcm_ack(struct snd_pcm_substream *substream)
 	return 0;
 }
 
+/* calculate the target DMA-buffer position to be written/read */
+static void *get_dma_ptr(struct snd_pcm_runtime *runtime,
+			   int channel, unsigned long hwoff)
+{
+	return runtime->dma_area + hwoff +
+		channel * (runtime->dma_bytes / runtime->channels);
+}
+
+/* default copy_user ops for write; used for both interleaved and non- modes */
+static int default_write_copy(struct snd_pcm_substream *substream,
+			      int channel, unsigned long hwoff,
+			      void *buf, unsigned long bytes)
+{
+	if (copy_from_user(get_dma_ptr(substream->runtime, channel, hwoff),
+			   (void __user *)buf, bytes))
+		return -EFAULT;
+	return 0;
+}
+
+/* default copy_user ops for read; used for both interleaved and non- modes */
+static int default_read_copy(struct snd_pcm_substream *substream,
+			     int channel, unsigned long hwoff,
+			     void *buf, unsigned long bytes)
+{
+	if (copy_to_user((void __user *)buf,
+			 get_dma_ptr(substream->runtime, channel, hwoff),
+			 bytes))
+		return -EFAULT;
+	return 0;
+}
+
+static int mtk_afe_pcm_copy_user(struct snd_pcm_substream *substream,
+				 int channel, unsigned long hwoff,
+				 void *buf, unsigned long bytes)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_component *component =
+		snd_soc_rtdcom_lookup(rtd, AFE_PCM_NAME);
+	struct mtk_base_afe *afe = snd_soc_component_get_drvdata(component);
+	int is_playback = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
+	mtk_sp_copy_f sp_copy;
+	int ret;
+
+	sp_copy = is_playback ? default_write_copy : default_read_copy;
+
+	if (afe->copy) {
+		ret = afe->copy(substream, channel, hwoff,
+				(void __user *)buf, bytes, sp_copy);
+		if (ret)
+			return -EFAULT;
+	} else {
+		sp_copy(substream, channel, hwoff,
+			(void __user *)buf, bytes);
+	}
+
+	return 0;
+}
+
 const struct snd_pcm_ops mtk_afe_pcm_ops = {
 	.ioctl = snd_pcm_lib_ioctl,
 	.pointer = mtk_afe_pcm_pointer,
 	.ack = mtk_afe_pcm_ack,
+	.copy_user = mtk_afe_pcm_copy_user,
 };
 EXPORT_SYMBOL_GPL(mtk_afe_pcm_ops);
 
 int mtk_afe_pcm_new(struct snd_soc_pcm_runtime *rtd)
 {
-	size_t size;
+	size_t size = 0;
 	struct snd_pcm *pcm = rtd->pcm;
 	struct snd_soc_component *component = snd_soc_rtdcom_lookup(rtd, AFE_PCM_NAME);
 	struct mtk_base_afe *afe = snd_soc_component_get_drvdata(component);
+	int ret = 0;
 
-	size = afe->mtk_afe_hardware->buffer_bytes_max;
-	return snd_pcm_lib_preallocate_pages_for_all(pcm, SNDRV_DMA_TYPE_DEV,
-						     afe->dev,
-						     size, size);
+	if (rtd->cpu_dai->id < afe->memif_size) { /* DL and UL memif pcm */
+		size = afe->mtk_afe_hardware->buffer_bytes_max;
+		ret = snd_pcm_lib_preallocate_pages_for_all(pcm,
+							    SNDRV_DMA_TYPE_DEV,
+							    afe->dev,
+							    size, size);
+	}
+
+	dev_info(afe->dev, "%s(), dai_link_name : %s, memif_id : %d, size : %zu, ret : %d\n",
+		 __func__,
+		 rtd->dai_link->name,
+		 rtd->cpu_dai->id,
+		 size, ret);
+	return ret;
 }
 EXPORT_SYMBOL_GPL(mtk_afe_pcm_new);
 

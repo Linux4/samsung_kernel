@@ -20,6 +20,9 @@
 #ifdef CONFIG_SND_SOC_MT6660
 #include "../../codecs/mt6660.h"
 #endif /* CONFIG_SND_SOC_MT6660 */
+#if defined(CONFIG_SND_SOC_TAS5782M)
+#include "../../codecs/tas5782m.h"
+#endif
 
 static unsigned int mtk_spk_type;
 static struct mtk_spk_i2c_ctrl mtk_spk_list[MTK_SPK_TYPE_NUM] = {
@@ -34,6 +37,14 @@ static struct mtk_spk_i2c_ctrl mtk_spk_list[MTK_SPK_TYPE_NUM] = {
 		.i2c_shutdown = rt5509_i2c_shutdown,
 		.codec_dai_name = "rt5509-aif1",
 		.codec_name = "RT5509_MT_0",
+	},
+#endif
+#if defined(CONFIG_SND_SOC_TAS5782M)
+	[MTK_SPK_TI_TAS5782M] = {
+		.i2c_probe = tas5782m_speaker_amp_probe,
+		.i2c_remove = tas5782m_speaker_amp_remove,
+		.codec_dai_name = "tas5782m-amplifier",
+		.codec_name = "tas5782m",
 	},
 #endif
 #ifdef CONFIG_SND_SOC_MT6660
@@ -102,7 +113,7 @@ int mtk_spk_update_dai_link(struct snd_soc_dai_link *mtk_spk_dai_link,
 		 __func__, mtk_spk_type);
 
 	/* update spk codec dai name and codec name */
-//+Bug 621775 fujiawen.wt,mofify,20210126,Don't update param
+//+Bug717428, qiuyonghui.wt, add, 20220113, add, audio bringup
 #ifndef CONFIG_SND_SMARTPA_AW881XX
 	dai_link[0].codec_dai_name =
 		mtk_spk_list[mtk_spk_type].codec_dai_name;
@@ -110,7 +121,7 @@ int mtk_spk_update_dai_link(struct snd_soc_dai_link *mtk_spk_dai_link,
 		mtk_spk_list[mtk_spk_type].codec_name;
 	dai_link[0].ignore_pmdown_time = 1;
 #endif
-//-Bug 621775 fujiawen.wt,mofify,20210126,Don't update param
+//-Bug717428, qiuyonghui.wt, add, 20220113, add, audio bringup
 	dev_info(&pdev->dev,
 		 "%s(), %s, codec dai name = %s, codec name = %s\n",
 		 __func__, dai_link[0].name,

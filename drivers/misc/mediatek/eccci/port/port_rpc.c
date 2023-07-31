@@ -33,6 +33,10 @@
 #endif
 #ifdef FEATURE_RF_CLK_BUF
 #include <mtk-clkbuf-bridge.h>
+#include <mtk_clkbuf_ctl.h>
+#endif
+#ifdef CONFIG_MTK_OTP
+#include <mt-plat/mtk_otp.h>
 #endif
 
 #include "ccci_core.h"
@@ -51,7 +55,6 @@ static size_t mt_secure_call(size_t function_id,
 
 	arm_smccc_smc(function_id, arg0, arg1,
 			arg2, arg3, r1, r2, r3, &res);
-
 	return res.a0;
 }
 
@@ -76,6 +79,8 @@ static struct gpio_item gpio_mapping_table[] = {
 		"GPIO_FDD_BAND_SUPPORT_DETECT_9TH_PIN",},
 	{"GPIO_FDD_Band_Support_Detection_A",
 		"GPIO_FDD_BAND_SUPPORT_DETECT_ATH_PIN",},
+	{"GPIO_RF_PWREN_RST_PIN",
+		"GPIO_RF_PWREN_RST_PIN",},
 };
 
 static int get_md_gpio_val(unsigned int num)
@@ -100,7 +105,8 @@ static int get_md_adc_val(__attribute__((unused))unsigned int num)
 #ifdef CONFIG_MEDIATEK_MT6577_AUXADC
 	return ccci_get_adc_val();
 #endif
-	CCCI_ERROR_LOG(0, RPC, "ERR:CONFIG AUXADC and IIO not ready");
+	CCCI_ERROR_LOG(0, RPC, "%s:ERR:CONFIG AUXADC and IIO not ready",
+		__func__);
 	return -1;
 }
 
@@ -153,7 +159,9 @@ static int get_md_adc_info(__attribute__((unused))char *adc_name,
 #ifdef CONFIG_MEDIATEK_MT6577_AUXADC
 	return ccci_get_adc_num();
 #endif
-	CCCI_ERROR_LOG(0, RPC, "ERR:CONFIG AUXADC and IIO not ready");
+
+	CCCI_ERROR_LOG(0, RPC, "%s:ERR:CONFIG AUXADC and IIO not ready",
+		__func__);
 	return -1;
 }
 
@@ -365,7 +373,7 @@ void get_dtsi_eint_node(int md_id)
 {
 	static int init; /*default is 0*/
 	int i;
-	struct device_node *node;
+	struct device_node *node = NULL;
 
 	if (init)
 		return;
@@ -378,7 +386,7 @@ void get_dtsi_eint_node(int md_id)
 		node = of_find_node_by_name(NULL,
 			eint_node_prop.name[i].node_name);
 		if (node != NULL) {
-			eint_node_prop.ExistFlag |= (1 << i);
+			eint_node_prop.ExistFlag |= (1U << i);
 			get_eint_attr_val(md_id, node, i);
 		} else {
 			CCCI_INIT_LOG(md_id, RPC, "%s: node %d no found\n",
@@ -387,7 +395,7 @@ void get_dtsi_eint_node(int md_id)
 	}
 }
 
-int get_eint_attr_DTSVal(int md_id, char *name, unsigned int name_len,
+int get_eint_attr_DTSVal(int md_id, const char *name, unsigned int name_len,
 			unsigned int type, char *result, unsigned int *len)
 {
 	int i, sim_value;
@@ -399,7 +407,7 @@ int get_eint_attr_DTSVal(int md_id, char *name, unsigned int name_len,
 		return ERR_SIM_HOT_PLUG_QUERY_TYPE;
 
 	for (i = 0; i < MD_SIM_MAX; i++) {
-		if ((eint_node_prop.ExistFlag & (1 << i)) == 0)
+		if ((eint_node_prop.ExistFlag & (1U << i)) == 0)
 			continue;
 		if (!(strncmp(name,
 			eint_node_prop.name[i].node_name, name_len))) {
@@ -458,7 +466,7 @@ static void get_md_dtsi_debug(void)
 {
 	struct ccci_rpc_md_dtsi_input input;
 	struct ccci_rpc_md_dtsi_output output;
-	int ret;
+	int ret = 0;
 
 	input.req = RPC_REQ_PROP_VALUE;
 	output.retValue = 0;
@@ -876,6 +884,7 @@ static void ccci_rpc_work_helper(struct port_t *port, struct rpc_pkt *pkt,
 			CLK_BUF_SWCTRL_STATUS_T swctrl_status[CLKBUF_MAX_COUNT];
 			struct ccci_rpc_clkbuf_input *clkinput;
 			u32 AfcDac;
+			int ret = 0;
 
 			if (pkt_num != 1) {
 				CCCI_ERROR_LOG(md_id, RPC,
@@ -924,9 +933,15 @@ static void ccci_rpc_work_helper(struct port_t *port, struct rpc_pkt *pkt,
 				node = of_find_compatible_node(NULL, NULL,
 						"mediatek,rf_clock_buffer");
 				if (node) {
-					of_property_read_u32_array(node,
+					ret = of_property_read_u32_array(node,
 						"mediatek,clkbuf-config", vals,
 						CLKBUF_MAX_COUNT);
+
+					if (ret)
+						CCCI_ERROR_LOG(md_id, RPC,
+							"%s get property fail\n",
+							__func__);
+
 				} else {
 					CCCI_ERROR_LOG(md_id, RPC,
 					"%s can't find compatible node\n",
@@ -982,7 +997,7 @@ static void ccci_rpc_work_helper(struct port_t *port, struct rpc_pkt *pkt,
 				val = get_md_gpio_val(num);
 			else if (p_rpc_buf->op_id == IPC_RPC_GET_ADC_VAL_OP)
 //+ExtB P210506-05247 penghui.wt mod 2021/7/5 get wrong hwid
-#ifdef CONFIG_WT_PROJECT_S96717RA1
+#ifdef CONFIG_WT_PROJECT_S96717AA2
 				val = wt_get_md_adc_val(num);
 #else
 				val = get_md_adc_val(num);
@@ -1114,6 +1129,31 @@ static void ccci_rpc_work_helper(struct port_t *port, struct rpc_pkt *pkt,
 			break;
 		}
 #endif
+
+#ifdef CONFIG_MTK_OTP
+		/* Fall through */
+		case IPC_RPC_EFUSE_BLOWING:
+			{
+				unsigned int *buf_data;
+				unsigned int cmd;
+
+				buf_data = (unsigned int *) (pkt[0].buf);
+				cmd = *buf_data;
+
+				tmp_data[1] = otp_ccci_handler(cmd);
+				pkt_num = 0;
+				tmp_data[0] = 0;
+				pkt[pkt_num].len = sizeof(unsigned int);
+				pkt[pkt_num++].buf = (void *)&tmp_data[0];
+				pkt[pkt_num].len = sizeof(unsigned int);
+				pkt[pkt_num++].buf = (void *)&tmp_data[1];
+				CCCI_NORMAL_LOG(md_id, RPC,
+					"[IPC_RPC_EFUSE_BLOWING] cmd = 0x%X, return 0x%X\n",
+					cmd, tmp_data[1]);
+				break;
+			}
+#endif
+
 	case IPC_RPC_CCCI_LHIF_MAPPING:
 		{
 			struct ccci_rpc_queue_mapping *remap;
@@ -1178,6 +1218,10 @@ static void ccci_rpc_work_helper(struct port_t *port, struct rpc_pkt *pkt,
 			get_md_dtsi_val(input, output);
 			break;
 		}
+	case IPC_RPC_QUERY_CARD_TYPE:
+		CCCI_NORMAL_LOG(md_id, RPC,
+			"enter QUERY CARD_TYPE operation in ccci_rpc_work\n");
+		break;
 	case IPC_RPC_TRNG:
 		{
 			unsigned int trng;
@@ -1257,7 +1301,7 @@ static void rpc_msg_handler(struct port_t *port, struct sk_buff *skb)
 	struct rpc_buffer *rpc_buf = (struct rpc_buffer *)skb->data;
 	int i, data_len, AlignLength, ret;
 	struct rpc_pkt pkt[RPC_MAX_ARG_NUM];
-	char *ptr, *ptr_base;
+	char *ptr = NULL, *ptr_base = NULL;
 	/* unsigned int tmp_data[128]; */
 	/* size of tmp_data should be >= any RPC output result */
 	unsigned int *tmp_data =
@@ -1384,7 +1428,7 @@ static const struct file_operations rpc_dev_fops = {
 };
 static int port_rpc_init(struct port_t *port)
 {
-	struct cdev *dev;
+	struct cdev *dev = NULL;
 	int ret = 0;
 	static int first_init = 1;
 
@@ -1455,6 +1499,7 @@ int port_rpc_recv_match(struct port_t *port, struct sk_buff *skb)
 			break;
 
 		case IPC_RPC_QUERY_AP_SYS_PROPERTY:
+		case IPC_RPC_SAR_TABLE_IDX_QUERY_OP:
 			is_userspace_msg = 1;
 			break;
 		default:

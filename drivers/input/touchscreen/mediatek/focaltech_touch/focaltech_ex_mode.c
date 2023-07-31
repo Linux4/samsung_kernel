@@ -2,7 +2,7 @@
  *
  * FocalTech ftxxxx TouchScreen driver.
  *
- * Copyright (c) 2012-2019, Focaltech Ltd. All rights reserved.
+ * Copyright (c) 2012-2020, Focaltech Ltd. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and

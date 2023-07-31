@@ -14,7 +14,12 @@
 #include <linux/sched.h>
 #include <linux/notifier.h>
 #include <linux/regulator/consumer.h>
+//+ExtB P220415-05397 ,zhanghao2.wt,add,2022/05/30, fix switching cameras plug charger and the camera crashes
 #include <linux/sched/signal.h>
+#include <linux/regmap.h>
+#include <linux/mfd/mt6358/core.h>
+#include <linux/of_platform.h>
+//+ExtB P220415-05397 ,zhanghao2.wt,add,2022/05/30, fix switching cameras plug charger and the camera crashes
 
 static struct REGULATOR *preg_own;
 static bool Is_Notify_call[IMGSENSOR_SENSOR_IDX_MAX_NUM][REGULATOR_TYPE_MAX_NUM];
@@ -29,14 +34,17 @@ struct reg_oc_debug_t {
 	bool is_md_reg;
 };
 
-//+bug 612420,huangguoyong.wt,add,2021/01/20. fixed regulator val setting issue
-static struct reg_oc_debug_t reg_oc_debug[IMGSENSOR_SENSOR_IDX_MAX_NUM][REGULATOR_TYPE_MAX_NUM];
-static int regulator_status[IMGSENSOR_SENSOR_IDX_MAX_NUM][REGULATOR_TYPE_MAX_NUM] = {0}; //Alex add for bokeh crash on regulator_set
-static void check_for_regulator_get(struct REGULATOR *preg, struct device *pdevice, enum IMGSENSOR_SENSOR_IDX sensor_idx, int index);
-static void check_for_regulator_put(struct REGULATOR *preg, enum IMGSENSOR_SENSOR_IDX sensor_idx, int index);
+static struct reg_oc_debug_t
+	reg_oc_debug[IMGSENSOR_SENSOR_IDX_MAX_NUM][REGULATOR_TYPE_MAX_NUM];
+//+ Bug 682590, zhoumin.wt, add, 2021.08.25, resolve problem: the DVDD voltage of front camera can not set to be 1.2V
+static bool regulator_status[IMGSENSOR_SENSOR_IDX_MAX_NUM][REGULATOR_TYPE_MAX_NUM] = {{false}};
+static void check_for_regulator_get(struct REGULATOR *preg,
+	struct device *pdevice, unsigned int sensor_index, unsigned int regulator_index);
+static void check_for_regulator_put(struct REGULATOR *preg,
+	unsigned int sensor_index, unsigned int regulator_index);
 static struct device_node *of_node_record = NULL;
 static DEFINE_MUTEX(g_regulator_state_mutex);
-//-bug 612420,huangguoyong.wt,add,2021/01/20. fixed regulator val setting issue
+//- Bug 682590, zhoumin.wt, add, 2021.08.25, resolve problem: the DVDD voltage of front camera can not set to be 1.2V
 
 static const int regulator_voltage[] = {
 	REGULATOR_VOLTAGE_0,
@@ -57,7 +65,6 @@ struct REGULATOR_CTRL regulator_control[REGULATOR_TYPE_MAX_NUM] = {
 	{"vcamd"},
 	{"vcamio"},
 	{"vcamaf"},//bug 612420,huangguoyong.wt,add,2021/01/04,add for s5k3l6 camera afvdd
-	//{"vldo28"},	//N6 Q camera bringup temp removed by yangzheng
 };
 
 static struct REGULATOR reg_instance;
@@ -88,28 +95,46 @@ static int regulator_oc_notify(
 
 #define OC_MODULE "camera"
 enum IMGSENSOR_RETURN imgsensor_oc_interrupt(
-	enum IMGSENSOR_SENSOR_IDX sensor_idx, bool enable)
+	enum IMGSENSOR_SENSOR_IDX sensor_idxU, bool enable)
 {
-        //+bug 612420,huangguoyong.wt,add,2021/01/20. fixed regulator val setting issue
-	struct device *pdevice = gimgsensor_device;
 	int i = 0;
-	struct device_node       *pof_node;
 	int ret = 0;
+	unsigned int sensor_idx = 0;
+
+	//+ExtB P220415-05397 ,zhanghao2.wt,add,2022/05/30, fix switching cameras plug charger and the camera crashes
+	struct device_node *pmic_node;
+	struct platform_device *pmic_pdev;
+	struct mt6358_chip *chip;
+	struct regmap *regmap;
+
+	pmic_node = of_parse_phandle(gimgsensor_device->of_node, "pmic", 0);
+	if (!pmic_node) {
+		pr_err("get pmic_node fail\n");
+		return -1;
+	}
+
+	pmic_pdev = of_find_device_by_node(pmic_node);
+	if (!pmic_pdev) {
+		pr_err("get pmic_pdev fail\n");
+		return -1;
+	}
+	chip = dev_get_drvdata(&(pmic_pdev->dev));
+
+	if (!chip) {
+		pr_err("get chip fail\n");
+		return -1;
+	}
+
+	regmap = chip->regmap;
+
+	sensor_idx = sensor_idxU;
 
 	mutex_lock(&oc_mutex);
-	pr_debug("[regulator] %s idx=%d %s enable=%d\n",
-					__func__,
-					sensor_idx,
-					regulator_control[i].pregulator_type,
-					enable);
-
-	pof_node = pdevice->of_node;
-	pdevice->of_node =
-		of_find_compatible_node(NULL, NULL, "mediatek,camera_hw");
-	pr_debug("[regulator] %s pdevice->of_node=%p\n", __func__, pdevice->of_node);
-
 	if (enable) {
 		mdelay(5);
+		regmap_update_bits(chip->regmap, 0x1a7c, 1<< 9, 0<< 9);//
+		regmap_update_bits(chip->regmap, 0x1a7a, 1<< 10, 0<< 10);//
+		regmap_update_bits(chip->regmap, 0x18ec, 1<< 15, 0<< 15);//
 		for (i = 0; i < REGULATOR_TYPE_MAX_NUM; i++) {
 			if (preg_own->pregulator[sensor_idx][i] &&
 					regulator_is_enabled(preg_own->pregulator[sensor_idx][i]) &&
@@ -145,6 +170,10 @@ enum IMGSENSOR_RETURN imgsensor_oc_interrupt(
 	} else {
 		reg_instance.pid = -1;
 		/* Disable interrupt before power off */
+		regmap_update_bits(chip->regmap, 0x1a7c, 1<< 9,	1<< 9); // ocfb enable
+		regmap_update_bits(chip->regmap, 0x1a7a, 1<< 10, 1<< 10); //ldo vcama stbtd 264us -> 312us
+		regmap_update_bits(chip->regmap, 0x18ec, 1<< 15, 1<< 15); // ldo ocfb degtd 10us ->100us
+		//-ExtB P220415-05397 ,zhanghao2.wt,add,2022/05/30, fix switching cameras plug charger and the camera crashes
 
 		for (i = 0; i < REGULATOR_TYPE_MAX_NUM; i++) {
 			if (preg_own->pregulator[sensor_idx][i] &&
@@ -162,8 +191,6 @@ enum IMGSENSOR_RETURN imgsensor_oc_interrupt(
 
 	}
 	mutex_unlock(&oc_mutex);
-	pdevice->of_node = pof_node;
-	//-bug 612420,huangguoyong.wt,add,2021/01/20. fixed regulator val setting issue
 	return IMGSENSOR_RETURN_SUCCESS;
 }
 
@@ -198,9 +225,8 @@ static enum IMGSENSOR_RETURN regulator_init(void *pinstance)
 		return IMGSENSOR_RETURN_ERROR;
 	}
 
-	//bug 612420,huangguoyong.wt,add,2021/01/20. fixed regulator val setting issue
+	//Bug 682590, zhoumin.wt, add, 2021.08.25, resolve problem: the DVDD voltage of front camera can not set to be 1.2V
 	of_node_record = pdevice->of_node;
-
 	for (j = IMGSENSOR_SENSOR_IDX_MIN_NUM;
 		j < IMGSENSOR_SENSOR_IDX_MAX_NUM;
 		j++) {
@@ -220,8 +246,8 @@ static enum IMGSENSOR_RETURN regulator_init(void *pinstance)
 					j, i, str_regulator_name);
 
 			atomic_set(&preg->enable_cnt[j][i], 0);
-			//bug 612420,huangguoyong.wt,add,2021/01/20. fixed regulator val setting issue
-			regulator_status[j][i] = 1; //Alex add for bokeh crash on regulator_set
+			//Bug 682590, zhoumin.wt, add, 2021.08.25, resolve problem: the DVDD voltage of front camera can not set to be 1.2V
+			regulator_status[j][i] = true;
 		}
 	}
 	pdevice->of_node = pof_node;
@@ -273,11 +299,9 @@ static enum IMGSENSOR_RETURN regulator_set(
 		return IMGSENSOR_RETURN_ERROR;
 
 	reg_type_offset = REGULATOR_TYPE_VCAMA;
-	//bug 612420,huangguoyong.wt,add,2021/01/20. fixed regulator val setting issue
-	if(pin == IMGSENSOR_HW_PIN_DVDD){
-		check_for_regulator_get(preg, gimgsensor_device, sensor_idx, (reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD));
-	}
-
+	//Bug 682590, zhoumin.wt, add, 2021.08.25, resolve problem: the DVDD voltage of front camera can not set to be 1.2V
+	check_for_regulator_get(preg, gimgsensor_device, sensor_idx,
+	    (reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD));
 	pregulator =
 		preg->pregulator[sensor_idx][
 			reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD];
@@ -308,6 +332,9 @@ static enum IMGSENSOR_RETURN regulator_set(
 				    pin,
 				    regulator_voltage[
 				   pin_state - IMGSENSOR_HW_PIN_STATE_LEVEL_0]);
+				//Bug 682590, zhoumin.wt, add, 2021.08.25, resolve problem: the DVDD voltage of front camera can not set to be 1.2V
+				check_for_regulator_put(preg, sensor_idx,
+				    (reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD));
 
 				return IMGSENSOR_RETURN_ERROR;
 			}
@@ -320,13 +347,15 @@ static enum IMGSENSOR_RETURN regulator_set(
 					pr_err(
 					    "[regulator]fail to regulator_disable, powertype: %d\n",
 					    pin);
+					//Bug 682590, zhoumin.wt, add, 2021.08.25, resolve problem: the DVDD voltage of front camera can not set to be 1.2V
+					check_for_regulator_put(preg, sensor_idx,
+					    (reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD));
 					return IMGSENSOR_RETURN_ERROR;
 				}
 			}
-			//bug 612420,huangguoyong.wt,add,2021/01/20. fixed regulator val setting issue
-			if(pin == IMGSENSOR_HW_PIN_DVDD){
-				check_for_regulator_put(preg, sensor_idx, (reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD));
-			}
+			//Bug 682590, zhoumin.wt, add, 2021.08.25, resolve problem: the DVDD voltage of front camera can not set to be 1.2V
+			check_for_regulator_put(preg, sensor_idx,
+			    (reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD));
 			atomic_dec(enable_cnt);
 		}
 	} else {
@@ -338,6 +367,80 @@ static enum IMGSENSOR_RETURN regulator_set(
 
 	return IMGSENSOR_RETURN_SUCCESS;
 }
+//+ Bug 682590, zhoumin.wt, add, 2021.08.25, resolve problem: the DVDD voltage of front camera can not set to be 1.2V
+static void check_for_regulator_get(struct REGULATOR *preg,
+	struct device *pdevice, unsigned int sensor_index,
+	unsigned int regulator_index)
+{
+	struct device_node *pof_node = NULL;
+	char str_regulator_name[LENGTH_FOR_SNPRINTF];
+
+	if (!preg || !pdevice) {
+		pr_err("Fatal: Null ptr.preg:%pK,pdevice:%pK\n", preg, pdevice);
+		return;
+	}
+
+	if (sensor_index >= IMGSENSOR_SENSOR_IDX_MAX_NUM ||
+	     regulator_index >= REGULATOR_TYPE_MAX_NUM ) {
+		 pr_err("[%s]Invalid sensor_idx:%d regulator_idx: %d\n",
+		 __func__, sensor_index, regulator_index);
+		 return;
+	}
+
+	 mutex_lock(&g_regulator_state_mutex);
+
+	 if (regulator_status[sensor_index][regulator_index] == false) {
+		 pof_node = pdevice->of_node;
+		 pdevice->of_node = of_node_record;
+
+		 snprintf(str_regulator_name,
+		     sizeof(str_regulator_name),
+		     "cam%d_%s",
+		     sensor_index,
+		     regulator_control[regulator_index].pregulator_type);
+		 preg->pregulator[sensor_index][regulator_index] =
+		     regulator_get(pdevice, str_regulator_name);
+
+		 if (preg != NULL)
+			regulator_status[sensor_index][regulator_index] = true;
+		 else
+			pr_err("get regulator failed.\n");
+		 pdevice->of_node = pof_node;
+	 }
+
+	 mutex_unlock(&g_regulator_state_mutex);
+
+	 return;
+}
+
+static void check_for_regulator_put(struct REGULATOR *preg,
+	unsigned int sensor_index, unsigned int regulator_index)
+{
+	 if (!preg) {
+		 pr_err("Fatal: Null ptr.\n");
+		 return;
+	 }
+
+	 if (sensor_index >= IMGSENSOR_SENSOR_IDX_MAX_NUM ||
+	     regulator_index >= REGULATOR_TYPE_MAX_NUM ) {
+		 pr_err("[%s]Invalid sensor_idx:%d regulator_idx: %d\n",
+		 __func__, sensor_index, regulator_index);
+		 return;
+	 }
+
+	 mutex_lock(&g_regulator_state_mutex);
+
+	 if (regulator_status[sensor_index][regulator_index] == true) {
+		 regulator_put(preg->pregulator[sensor_index][regulator_index]);
+		 preg->pregulator[sensor_index][regulator_index] = NULL;
+		 regulator_status[sensor_index][regulator_index] = false;
+	 }
+
+	 mutex_unlock(&g_regulator_state_mutex);
+
+	 return;
+}
+//- Bug 682590, zhoumin.wt, add, 2021.08.25, resolve problem: the DVDD voltage of front camera can not set to be 1.2V
 
 static struct IMGSENSOR_HW_DEVICE device = {
 	.pinstance = (void *)&reg_instance,
@@ -354,40 +457,3 @@ enum IMGSENSOR_RETURN imgsensor_hw_regulator_open(
 	return IMGSENSOR_RETURN_SUCCESS;
 }
 
-//+bug 612420,huangguoyong.wt,add,2021/01/20. fixed regulator val setting issue
-static void check_for_regulator_get(struct REGULATOR *preg, struct device *pdevice, enum IMGSENSOR_SENSOR_IDX sensor_idx, int index)
-{
-    struct device_node *pof_node;
-    char str_regulator_name[LENGTH_FOR_SNPRINTF];
-
-    mutex_lock(&g_regulator_state_mutex);
-    if(regulator_status[sensor_idx][index]==0)
-    {
-	snprintf(str_regulator_name,
-				sizeof(str_regulator_name),
-				"cam%d_%s",
-				sensor_idx,
-				regulator_control[index].pregulator_type);
-
-        pof_node = pdevice->of_node;
-        pdevice->of_node = of_node_record;
-        preg->pregulator[sensor_idx][index] = regulator_get_optional(pdevice, str_regulator_name);
-        pdevice->of_node = pof_node;
-        regulator_status[sensor_idx][index] = 1;
-        pr_info("regulator_dbg regulator_get %s, of_node:%p\n", str_regulator_name, of_node_record);
-    }
-    mutex_unlock(&g_regulator_state_mutex);
-}
-static void check_for_regulator_put(struct REGULATOR *preg, enum IMGSENSOR_SENSOR_IDX sensor_idx, int index)
-{
-    mutex_lock(&g_regulator_state_mutex);
-    if(regulator_status[sensor_idx][index]==1)
-    {
-        regulator_put(preg->pregulator[sensor_idx][index]);
-	preg->pregulator[sensor_idx][index] = NULL;
-        regulator_status[sensor_idx][index]=0;
-        pr_info("regulator_dbg regulator_put cam%d index=%d\n", sensor_idx, index);
-    }
-    mutex_unlock(&g_regulator_state_mutex);
-}
-//-bug 612420,huangguoyong.wt,add,2021/01/20. fixed regulator val setting issue

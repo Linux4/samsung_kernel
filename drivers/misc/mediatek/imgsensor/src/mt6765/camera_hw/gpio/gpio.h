@@ -30,6 +30,20 @@ enum GPIO_CTRL_STATE_CAM {
 	GPIO_CTRL_STATE_LDO_VCAMD_L,
 	GPIO_CTRL_STATE_LDO_VCAMIO_H,
 	GPIO_CTRL_STATE_LDO_VCAMIO_L,
+	//+bug720412,qinduilin.wt,ADD,2022/1/27,n26_hi5021q_rear_truly sensor bringup
+	GPIO_CTRL_STATE_LDO_VCAMAF_H,
+	GPIO_CTRL_STATE_LDO_VCAMAF_L,
+	GPIO_CTRL_STATE_LDO_VCAMD_1V1_H,
+	GPIO_CTRL_STATE_LDO_VCAMD_1V1_L,
+	GPIO_CTRL_STATE_LDO_VCAMD_1V2_H,
+	GPIO_CTRL_STATE_LDO_VCAMD_1V2_L,
+	//-bug720412,qinduilin.wt,ADD,2022/1/27,n26_hi5021q_rear_truly sensor bringup
+	//+bug727089liangyiyi.wt,MODIFY,2022/3/29,modify for fix front camera have loss power when open rear camera
+	GPIO_CTRL_STATE_LDO_VCAMD_EN_H,
+	GPIO_CTRL_STATE_LDO_VCAMD_EN_L,
+	GPIO_CTRL_STATE_RST_SUB_H,
+	GPIO_CTRL_STATE_RST_SUB_L,
+	//-bug727089liangyiyi.wt,MODIFY,2022/3/29,modify for fix front camera have loss power when open rear camera
 	GPIO_CTRL_STATE_MAX_NUM_CAM,
 };
 

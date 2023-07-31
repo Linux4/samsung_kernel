@@ -236,14 +236,6 @@ __memblock_find_range_top_down(phys_addr_t start, phys_addr_t end,
  *
  * Find @size free area aligned to @align in the specified range and node.
  *
- * When allocation direction is bottom-up, the @start should be greater
- * than the end of the kernel image. Otherwise, it will be trimmed. The
- * reason is that we want the bottom-up allocation just near the kernel
- * image so it is highly likely that the allocated memory and the kernel
- * will reside in the same node.
- *
- * If bottom-up allocation failed, will try to allocate memory top-down.
- *
  * Return:
  * Found address on success, 0 on failure.
  */
@@ -252,8 +244,6 @@ phys_addr_t __init_memblock memblock_find_in_range_node(phys_addr_t size,
 					phys_addr_t end, int nid,
 					enum memblock_flags flags)
 {
-	phys_addr_t kernel_end, ret;
-
 	/* pump up @end */
 	if (end == MEMBLOCK_ALLOC_ACCESSIBLE ||
 	    end == MEMBLOCK_ALLOC_KASAN)
@@ -262,40 +252,13 @@ phys_addr_t __init_memblock memblock_find_in_range_node(phys_addr_t size,
 	/* avoid allocating the first page */
 	start = max_t(phys_addr_t, start, PAGE_SIZE);
 	end = max(start, end);
-	kernel_end = __pa_symbol(_end);
 
-	/*
-	 * try bottom-up allocation only when bottom-up mode
-	 * is set and @end is above the kernel image.
-	 */
-	if (memblock_bottom_up() && end > kernel_end) {
-		phys_addr_t bottom_up_start;
-
-		/* make sure we will allocate above the kernel */
-		bottom_up_start = max(start, kernel_end);
-
-		/* ok, try bottom-up allocation first */
-		ret = __memblock_find_range_bottom_up(bottom_up_start, end,
-						      size, align, nid, flags);
-		if (ret)
-			return ret;
-
-		/*
-		 * we always limit bottom-up allocation above the kernel,
-		 * but top-down allocation doesn't have the limit, so
-		 * retrying top-down allocation may succeed when bottom-up
-		 * allocation failed.
-		 *
-		 * bottom-up allocation is expected to be fail very rarely,
-		 * so we use WARN_ONCE() here to see the stack trace if
-		 * fail happens.
-		 */
-		WARN_ONCE(IS_ENABLED(CONFIG_MEMORY_HOTREMOVE),
-			  "memblock: bottom-up allocation failed, memory hotremove may be affected\n");
-	}
-
-	return __memblock_find_range_top_down(start, end, size, align, nid,
-					      flags);
+	if (memblock_bottom_up())
+		return __memblock_find_range_bottom_up(start, end, size, align,
+						       nid, flags);
+	else
+		return __memblock_find_range_top_down(start, end, size, align,
+						      nid, flags);
 }
 
 /**
@@ -560,6 +523,7 @@ struct reserved_mem_reg {
 	bool		reusable;		/*  1/16 byte */
 	char		name[NAME_SIZE];	/* 14/16 byte */
 };
+
 static struct reserved_mem_reg kernel_mem_reg[] = {
 	[MEMSIZE_KERNEL_KERNEL]		= {0, 0, false, false, "Kernel    "},
 	[MEMSIZE_KERNEL_PAGING]		= {0, 0, false, false, "paging    "},
@@ -569,36 +533,45 @@ static struct reserved_mem_reg kernel_mem_reg[] = {
 	[MEMSIZE_KERNEL_MM_INIT]	= {0, 0, false, false, "mm_init   "},
 	[MEMSIZE_KERNEL_OTHERS]		= {0, 0, false, false, "others    "},
 };
+
 #define MAX_RESERVED_MEM_REG	64
 static struct reserved_mem_reg reserved_mem_reg[MAX_RESERVED_MEM_REG];
 static int reserved_mem_reg_count;
+
 static enum memsize_kernel_type memsize_kernel_type = MEMSIZE_KERNEL_STOP;
 static const char *memsize_reserved_name;
+
 void set_memsize_kernel_type(enum memsize_kernel_type type)
 {
 	memsize_kernel_type = type;
 }
+
 void set_memsize_reserved_name(const char *name)
 {
 	memsize_reserved_name = name;
 }
+
 void unset_memsize_reserved_name(void)
 {
 	memsize_reserved_name = NULL;
 }
+
 /* assume that freeing region is NOT bigger than the previous region */
 void free_memsize_reserved(phys_addr_t free_base, phys_addr_t free_size)
 {
 	int i;
 	struct reserved_mem_reg *rmem_reg;
 	phys_addr_t free_end, end;
+
 	for (i = 0 ; i < reserved_mem_reg_count; i++)
 	{
 		rmem_reg = &reserved_mem_reg[i];
+
 		end = rmem_reg->base + rmem_reg->size;
 		if (free_base < rmem_reg->base ||
-				free_base >= end)
+		    free_base >= end)
 			continue;
+
 		free_end = free_base + free_size;
 		if (free_base == rmem_reg->base) {
 			rmem_reg->size -= free_size;
@@ -608,53 +581,63 @@ void free_memsize_reserved(phys_addr_t free_base, phys_addr_t free_size)
 			rmem_reg->size -= free_size;
 		} else {
 			record_memsize_reserved(rmem_reg->name,
-					free_end, end - free_end, rmem_reg->nomap,
-					rmem_reg->reusable);
+				free_end, end - free_end, rmem_reg->nomap,
+				rmem_reg->reusable);
 			rmem_reg->size = free_base - rmem_reg->base;
 		}
 	}
 }
+
 #define MAX_LATE_FREE	10
 static unsigned long late_free_ip_addr[MAX_LATE_FREE];
 static struct page *late_free_first_page[MAX_LATE_FREE];
 static struct page *late_free_last_page[MAX_LATE_FREE];
 static int late_free_new_idx, late_free_prev_idx;
+
 static int __get_late_free_idx(unsigned long ip)
 {
 	int i;
+
 	if (late_free_ip_addr[late_free_prev_idx] == ip)
 		goto found;
+
 	for (i = 0; i < late_free_new_idx; i++) {
 		if (late_free_ip_addr[i] == ip) {
 			late_free_prev_idx = i;
 			goto found;
 		}
 	}
+
 	if (late_free_new_idx == MAX_LATE_FREE) {
 		pr_err("memsize: no space of late free\n");
 		return -ENOSPC;
 	}
+
 	late_free_ip_addr[late_free_new_idx] = ip;
 	late_free_prev_idx = late_free_new_idx;
 	late_free_new_idx++;
 found:
 	return late_free_prev_idx;
 }
+
 static void __clear_late_free_idx(int idx)
 {
 	late_free_ip_addr[idx] = 0;
 	late_free_first_page[idx] = NULL;
 	late_free_last_page[idx] = NULL;
 }
+
 int late_free_memsize_page(unsigned long ip, struct page *page)
 {
 	int idx, ret = 0;
 	struct page *first = NULL, *last = NULL;
+
 	idx =__get_late_free_idx(ip);
 	if (idx < 0) {
 		ret = -1;
 		goto out;
 	}
+
 	first = late_free_first_page[idx];
 	last = late_free_last_page[idx];
 	if (!first) {
@@ -665,14 +648,17 @@ int late_free_memsize_page(unsigned long ip, struct page *page)
 	} else {
 		__clear_late_free_idx(idx);
 	}
+
 out:
 	return ret;
 }
+
 void update_memsize_late_free(void)
 {
 	int i;
 	phys_addr_t first, last;
 	unsigned long addr;
+
 	for (i = 0; i < late_free_new_idx; i++)
 	{
 		if (!late_free_ip_addr[i] || !late_free_first_page[i])
@@ -681,14 +667,16 @@ void update_memsize_late_free(void)
 		first = page_to_pfn(late_free_first_page[i]) << PAGE_SHIFT;
 		last = page_to_pfn(late_free_last_page[i]) << PAGE_SHIFT;
 		pr_debug("%s %lx--%lx %ps\n", __func__, first, last + PAGE_SIZE,
-				(void*)addr);
+			 (void*)addr);
 		free_memsize_reserved(first, last + PAGE_SIZE - first);
 		late_free_first_page[i] = 0;
 	}
 }
+
 void record_memsize_size_only(enum memsize_kernel_type type, long size)
 {
 	struct reserved_mem_reg *rmem_reg;
+
 	if (type >= ARRAY_SIZE(kernel_mem_reg)) {
 		pr_err("type index is out ouf kernel_mem_reg\n");
 		return;
@@ -696,12 +684,15 @@ void record_memsize_size_only(enum memsize_kernel_type type, long size)
 	rmem_reg = &kernel_mem_reg[type];
 	rmem_reg->size += size;
 }
+
 static void memsize_get_valid_name(char *valid_name, const char *name)
 {
 	char *head, *tail, *found;
 	int val_size;
+
 	head = (char *)name;
 	tail = head + strlen(name);
+
 	/* get head position starting valid char */
 	found = strstr(head, "mblock-");
 	if (found) {
@@ -712,6 +703,7 @@ static void memsize_get_valid_name(char *valid_name, const char *name)
 		if (head >= tail)
 			head = (char *)name;
 	}
+
 	/* get tail position after valid char */
 	found = strstr(head, "_region");
 	if (found)
@@ -719,12 +711,14 @@ static void memsize_get_valid_name(char *valid_name, const char *name)
 	found = strchr(name, '@');
 	if (found)
 		tail = found;
+
 	val_size = tail - head;
 	if (val_size > NAME_SIZE - 1)
 		val_size = NAME_SIZE - 1;
 	strncpy(valid_name, head, val_size);
 	valid_name[NAME_SIZE - 1] = '\0';
 }
+
 static inline struct reserved_mem_reg *memsize_get_new_reg(void)
 {
 	if (reserved_mem_reg_count == ARRAY_SIZE(reserved_mem_reg)) {
@@ -733,6 +727,7 @@ static inline struct reserved_mem_reg *memsize_get_new_reg(void)
 	}
 	return &reserved_mem_reg[reserved_mem_reg_count++];
 }
+
 /* The memory region can be added into memblock reserved even after the same
  * memory region was already removed out of memblock memory. Let's assume that
  * additions to memblock reserved are valid information to be clear. Get the
@@ -740,21 +735,25 @@ static inline struct reserved_mem_reg *memsize_get_new_reg(void)
  * region.
  */
 static bool memsize_update_nomap_region(const char *name, phys_addr_t base,
-		phys_addr_t size, bool nomap)
+					phys_addr_t size, bool nomap)
 {
 	int i;
 	struct reserved_mem_reg *rmem_reg, *new_reg;
+
 	if (!name || nomap)
 		return false;
+
 	for (i = 0; i < reserved_mem_reg_count; i++)
 	{
 		rmem_reg = &reserved_mem_reg[i];
+
 		if (!rmem_reg->nomap)
 			continue;
 		if (base < rmem_reg->base)
 			continue;
 		if (base + size > rmem_reg->base + rmem_reg->size)
 			continue;
+
 		if (base == rmem_reg->base && size == rmem_reg->size) {
 			memsize_get_valid_name(rmem_reg->name, name);
 			return true;
@@ -767,6 +766,7 @@ static bool memsize_update_nomap_region(const char *name, phys_addr_t base,
 		new_reg->nomap = nomap;
 		new_reg->reusable = false;
 		memsize_get_valid_name(rmem_reg->name, name);
+
 		if (base == rmem_reg->base && size < rmem_reg->size) {
 			rmem_reg->base = base + size;
 			rmem_reg->size -= size;
@@ -778,7 +778,7 @@ static bool memsize_update_nomap_region(const char *name, phys_addr_t base,
 				return true;
 			new_reg->base = base + size;
 			new_reg->size = (rmem_reg->base + rmem_reg->size)
-				- (base + size);
+					- (base + size);
 			new_reg->nomap = nomap;
 			new_reg->reusable = false;
 			strcpy(new_reg->name, "unknown");
@@ -786,26 +786,33 @@ static bool memsize_update_nomap_region(const char *name, phys_addr_t base,
 		}
 		return true;
 	}
+
 	return false;
 }
+
 void record_memsize_reserved(const char *name, phys_addr_t base,
-		phys_addr_t size, bool nomap, bool reusable)
+			     phys_addr_t size, bool nomap, bool reusable)
 {
 	struct reserved_mem_reg *rmem_reg;
+
 	if (memsize_update_nomap_region(name, base, size, nomap))
 		return;
+
 	rmem_reg = memsize_get_new_reg();
 	if (!rmem_reg)
 		return;
+
 	rmem_reg->base = base;
 	rmem_reg->size = size;
 	rmem_reg->nomap = nomap;
 	rmem_reg->reusable = reusable;
+
 	if (!name)
 		strcpy(rmem_reg->name, "unknown");
 	else
 		memsize_get_valid_name(rmem_reg->name, name);
 }
+
 /* This function will be called to by early_init_dt_scan_nodes */
 void record_memsize_memory_hole(void)
 {
@@ -814,6 +821,7 @@ void record_memsize_memory_hole(void)
 	int idx;
 	struct memblock_region *rgn;
 	int memblock_cnt = (int)memblock.memory.cnt;
+
 	/* assume that the hole size is less than 256 MB */
 	for_each_memblock_type(idx, (&memblock.memory), rgn) {
 		if (idx == 0)
@@ -822,12 +830,14 @@ void record_memsize_memory_hole(void)
 			prev_end = end;
 		base = rgn->base;
 		end = rgn->base + rgn->size;
+
 		/* only for the last */
 		if (idx + 1 == memblock_cnt) {
 			hole_s = round_up(end, SZ_256M) - end;
 			if (hole_s)
 				record_memsize_reserved(NULL, end, hole_s, 1, 0);
 		}
+
 		/* for each region */
 		hole_s = base - prev_end;
 		if (!hole_s)
@@ -836,14 +846,15 @@ void record_memsize_memory_hole(void)
 			record_memsize_reserved(NULL, prev_end, hole_s, 1, 0);
 		} else {
 			phys_addr_t hole_s1, hole_s2;
+
 			hole_s1 = round_up(prev_end, SZ_256M) - prev_end;
 			if (hole_s1)
 				record_memsize_reserved(NULL, prev_end,
-						hole_s1, 1, 0);
+							hole_s1, 1, 0);
 			hole_s2 = base % SZ_256M;
 			if (hole_s2)
 				record_memsize_reserved(NULL, base - hole_s2,
-						hole_s2, 1, 0);
+							hole_s2, 1, 0);
 		}
 	}
 }
@@ -918,8 +929,8 @@ repeat:
 			nr_new++;
 			if (insert) {
 				memblock_insert_region(type, idx++, base,
-						rbase - base, nid,
-						flags);
+						       rbase - base, nid,
+						       flags);
 				new_size += (unsigned long)(rbase - base);
 			}
 		}
@@ -932,7 +943,7 @@ repeat:
 		nr_new++;
 		if (insert) {
 			memblock_insert_region(type, idx, base, end - base,
-					nid, flags);
+					       nid, flags);
 			new_size += (unsigned long)(end - base);
 		}
 	}
@@ -956,7 +967,7 @@ repeat:
 done:
 	if (memsize_reserved_name && type == &memblock.reserved)
 		record_memsize_reserved(memsize_reserved_name, obase, size,
-				false, false);
+					false, false);
 	else if (memsize_kernel_type != MEMSIZE_KERNEL_STOP &&
 			type == &memblock.reserved)
 		record_memsize_size_only(memsize_kernel_type, (long)new_size);
@@ -1090,8 +1101,8 @@ static int __init_memblock memblock_remove_range(struct memblock_type *type,
 
 	if (memsize_reserved_name && type == &memblock.memory)
 		record_memsize_reserved(memsize_reserved_name, base, size,
-				true, false);
-	else if (memsize_reserved_name && type == &memblock.reserved)
+					true, false);
+	else if (type == &memblock.reserved)
 		free_memsize_reserved(base, size);
 	else if (memsize_kernel_type != MEMSIZE_KERNEL_STOP
 			&& type == &memblock.reserved)
@@ -2207,6 +2218,181 @@ static int __init early_memblock(char *p)
 }
 early_param("memblock", early_memblock);
 
+static int memsize_kernel_show(struct seq_file *m, void *private)
+{
+	int i;
+	unsigned long total, initmem, kernel, text, rodata, data, bss, etc;
+	struct reserved_mem_reg *rmem_reg;
+	unsigned long unsigned_size;
+
+	initmem = __init_end - __init_begin;
+	rmem_reg = &kernel_mem_reg[MEMSIZE_KERNEL_KERNEL];
+	kernel = rmem_reg->size - initmem;
+	text = _etext - _text;
+	rodata = __end_rodata - __start_rodata;
+	if (__start_rodata < _etext)
+		text -= rodata;
+	data = _edata - _sdata;
+	bss = __bss_stop - __bss_start;
+	etc = kernel - text - rodata - data - bss;
+
+	seq_printf(m, " Kernel     : %8lu KB\n"
+		      "  .text     : %8lu KB\n"
+		      "  .rodata   : %8lu KB\n"
+		      "  .data     : %8lu KB\n"
+		      "  .BSS      : %8lu KB\n"
+		      "  .ETC      : %8lu KB\n",
+		   DIV_ROUND_UP(kernel, SZ_1K),
+		   DIV_ROUND_UP(text, SZ_1K),
+		   DIV_ROUND_UP(rodata, SZ_1K),
+		   DIV_ROUND_UP(data, SZ_1K),
+		   DIV_ROUND_UP(bss, SZ_1K),
+		   DIV_ROUND_UP(etc, SZ_1K));
+
+	total = kernel;
+	for (i = MEMSIZE_KERNEL_KERNEL + 1; i < MEMSIZE_KERNEL_STOP; i++) {
+		rmem_reg = &kernel_mem_reg[i];
+		unsigned_size = (unsigned long)rmem_reg->size;
+
+		seq_printf(m, " %s : %8lu KB\n", rmem_reg->name,
+			   DIV_ROUND_UP(unsigned_size, SZ_1K));
+		total += unsigned_size;
+	}
+	seq_printf(m, " Total      : %8lu KB\n", DIV_ROUND_UP(total, SZ_1K));
+
+	return 0;
+}
+
+static unsigned long get_memsize_kernel(void)
+{
+	int i;
+	unsigned long total;
+	struct reserved_mem_reg *rmem_reg;
+
+	rmem_reg = &kernel_mem_reg[MEMSIZE_KERNEL_KERNEL];
+	total = rmem_reg->size - (__init_end - __init_begin);
+
+	for (i = MEMSIZE_KERNEL_KERNEL + 1; i < MEMSIZE_KERNEL_STOP; i++) {
+		rmem_reg = &kernel_mem_reg[i];
+		total += (unsigned long)rmem_reg->size;
+	}
+
+	return total;
+}
+
+static int proc_memsize_kernel_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, memsize_kernel_show, NULL);
+}
+
+static const struct file_operations proc_memsize_kernel_fops = {
+	.open = proc_memsize_kernel_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+static int __rmem_reg_cmp(const void *a, const void *b)
+{
+	const struct reserved_mem_reg *ra = a, *rb = b;
+
+	if (ra->base > rb->base)
+		return -1;
+
+	if (ra->base < rb->base)
+		return 1;
+
+	return 0;
+}
+
+static int memsize_reserved_show(struct seq_file *m, void *private)
+{
+	int i;
+	struct reserved_mem_reg *rmem_reg;
+	unsigned long dt_reserved = 0, reusable = 0, kernel, total;
+	unsigned long system = totalram_pages << PAGE_SHIFT;
+
+#ifdef CONFIG_ION_RBIN_HEAP
+	system += totalrbin_pages << PAGE_SHIFT;
+#endif
+	update_memsize_late_free();
+	sort(reserved_mem_reg, reserved_mem_reg_count,
+	     sizeof(reserved_mem_reg[0]), __rmem_reg_cmp, NULL);
+	seq_printf(m, "v1\n");
+	for (i = 0 ; i < reserved_mem_reg_count; i++)
+	{
+		rmem_reg = &reserved_mem_reg[i];
+		seq_printf(m, "0x%09lx-0x%09lx 0x%08lx ( %7lu KB ) %s %s %s\n",
+#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+			   0UL,
+			   0UL,
+#else
+			   (unsigned long)rmem_reg->base,
+			   (unsigned long)(rmem_reg->base + rmem_reg->size),
+#endif
+			   (unsigned long)rmem_reg->size,
+			   (unsigned long)DIV_ROUND_UP(rmem_reg->size, SZ_1K),
+#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+			   "xxxxx",
+#else
+			   rmem_reg->nomap ? "nomap" : "  map",
+#endif
+			   rmem_reg->reusable ? "reusable" : "unusable",
+			   rmem_reg->name);
+		if (rmem_reg->reusable)
+			reusable += (unsigned long)rmem_reg->size;
+		else
+			dt_reserved += (unsigned long)rmem_reg->size;
+	}
+
+	kernel = get_memsize_kernel();
+	seq_printf(m, "0x%09lx-0x%09lx 0x%08lx ( %7lu KB ) %s %s %s\n",
+		   0UL, 0UL, kernel, DIV_ROUND_UP(kernel, SZ_1K), "xxxxx",
+		   "unusable", "kernel");
+	total = kernel + dt_reserved + system;
+
+	seq_printf(m, "\n");
+	seq_printf(m, "Reserved    : %7lu KB\n",
+		   DIV_ROUND_UP(kernel + dt_reserved, SZ_1K));
+	seq_printf(m, " .kernel    : %7lu KB\n",
+		   DIV_ROUND_UP(kernel, SZ_1K));
+	seq_printf(m, " .DT&EPARAM : %7lu KB\n",
+		   DIV_ROUND_UP(dt_reserved, SZ_1K));
+	seq_printf(m, "System      : %7lu KB\n",
+		   DIV_ROUND_UP(system, SZ_1K));
+	seq_printf(m, " .common    : %7lu KB\n",
+		   DIV_ROUND_UP(system - reusable, SZ_1K));
+	seq_printf(m, " .reusable  : %7lu KB\n",
+		   DIV_ROUND_UP(reusable, SZ_1K));
+	seq_printf(m, "Total       : %7lu KB ( %5lu.%02lu MB )\n",
+		   DIV_ROUND_UP(total, SZ_1K),
+		   total >> 20, ((total % SZ_1M) * 100) >> 20);
+	return 0;
+}
+
+static int proc_memsize_reserved_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, memsize_reserved_show, NULL);
+}
+
+static const struct file_operations proc_memsize_reserved_fops = {
+	.open = proc_memsize_reserved_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+static int __init memblock_memsize_init(void)
+{
+	if (proc_mkdir("memsize", NULL)) {
+		proc_create("memsize/kernel", 0, NULL, &proc_memsize_kernel_fops);
+		proc_create("memsize/reserved", 0, NULL, &proc_memsize_reserved_fops);
+	}
+
+	return 0;
+}
+__initcall(memblock_memsize_init);
+
 #if defined(CONFIG_DEBUG_FS) && !defined(CONFIG_ARCH_DISCARD_MEMBLOCK)
 
 static int memblock_debug_show(struct seq_file *m, void *private)
@@ -2225,145 +2411,14 @@ static int memblock_debug_show(struct seq_file *m, void *private)
 	}
 	return 0;
 }
-DEFINE_SHOW_ATTRIBUTE(memblock_debug);
 
-static int memsize_kernel_show(struct seq_file *m, void *private)
+static int memblock_debug_open(struct inode *inode, struct file *file)
 {
-	int i;
-	unsigned long total, initmem, kernel, text, rodata, data, bss, etc;
-	struct reserved_mem_reg *rmem_reg;
-	unsigned long unsigned_size;
-	initmem = __init_end - __init_begin;
-	rmem_reg = &kernel_mem_reg[MEMSIZE_KERNEL_KERNEL];
-	kernel = rmem_reg->size - initmem;
-	text = _etext - _text;
-	rodata = __end_rodata - __start_rodata;
-	if (__start_rodata < _etext)
-		text -= rodata;
-	data = _edata - _sdata;
-	bss = __bss_stop - __bss_start;
-	etc = kernel - text - rodata - data - bss;
-	seq_printf(m, " Kernel     : %8lu KB\n"
-			"  .text     : %8lu KB\n"
-			"  .rodata   : %8lu KB\n"
-			"  .data     : %8lu KB\n"
-			"  .BSS      : %8lu KB\n"
-			"  .ETC      : %8lu KB\n",
-			DIV_ROUND_UP(kernel, SZ_1K),
-			DIV_ROUND_UP(text, SZ_1K),
-			DIV_ROUND_UP(rodata, SZ_1K),
-			DIV_ROUND_UP(data, SZ_1K),
-			DIV_ROUND_UP(bss, SZ_1K),
-			DIV_ROUND_UP(etc, SZ_1K));
-	total = kernel;
-	for (i = MEMSIZE_KERNEL_KERNEL + 1; i < MEMSIZE_KERNEL_STOP; i++) {
-		rmem_reg = &kernel_mem_reg[i];
-		unsigned_size = (unsigned long)rmem_reg->size;
-		seq_printf(m, " %s : %8lu KB\n", rmem_reg->name,
-				DIV_ROUND_UP(unsigned_size, SZ_1K));
-		total += unsigned_size;
-	}
-	seq_printf(m, " Total      : %8lu KB\n", DIV_ROUND_UP(total, SZ_1K));
-	return 0;
+	return single_open(file, memblock_debug_show, inode->i_private);
 }
-static unsigned long get_memsize_kernel(void)
-{
-	int i;
-	unsigned long total;
-	struct reserved_mem_reg *rmem_reg;
-	rmem_reg = &kernel_mem_reg[MEMSIZE_KERNEL_KERNEL];
-	total = rmem_reg->size - (__init_end - __init_begin);
-	for (i = MEMSIZE_KERNEL_KERNEL + 1; i < MEMSIZE_KERNEL_STOP; i++) {
-		rmem_reg = &kernel_mem_reg[i];
-		total += (unsigned long)rmem_reg->size;
-	}
-	return total;
-}
-static int proc_memsize_kernel_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, memsize_kernel_show, NULL);
-}
-static const struct file_operations proc_memsize_kernel_fops = {
-	.open = proc_memsize_kernel_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = single_release,
-};
-static int __rmem_reg_cmp(const void *a, const void *b)
-{
-	const struct reserved_mem_reg *ra = a, *rb = b;
-	if (ra->base > rb->base)
-		return -1;
-	if (ra->base < rb->base)
-		return 1;
-	return 0;
-}
-static int memsize_reserved_show(struct seq_file *m, void *private)
-{
-	int i;
-	struct reserved_mem_reg *rmem_reg;
-	unsigned long dt_reserved = 0, reusable = 0, kernel, total;
-	unsigned long system = totalram_pages << PAGE_SHIFT;
-#ifdef CONFIG_ION_RBIN_HEAP
-	system += totalrbin_pages << PAGE_SHIFT;
-#endif
-	update_memsize_late_free();
-	sort(reserved_mem_reg, reserved_mem_reg_count,
-			sizeof(reserved_mem_reg[0]), __rmem_reg_cmp, NULL);
-	for (i = 0 ; i < reserved_mem_reg_count; i++)
-	{
-		rmem_reg = &reserved_mem_reg[i];
-#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
-		seq_printf(m, "0x%08lx ( %7lu KB ) %s\n",
-				(unsigned long)rmem_reg->size,
-				(unsigned long)DIV_ROUND_UP(rmem_reg->size, SZ_1K),
-				rmem_reg->name);
-#else
-		seq_printf(m, "0x%09lx-0x%09lx 0x%08lx ( %7lu KB ) %s %s %s\n",
-				(unsigned long)rmem_reg->base,
-				(unsigned long)(rmem_reg->base + rmem_reg->size),
-				(unsigned long)rmem_reg->size,
-				(unsigned long)DIV_ROUND_UP(rmem_reg->size, SZ_1K),
-				rmem_reg->nomap ? "nomap" : "  map",
-				rmem_reg->reusable ? "reusable" : "unusable",
-				rmem_reg->name);
-#endif
-		if (rmem_reg->reusable)
-			reusable += (unsigned long)rmem_reg->size;
-		else
-			dt_reserved += (unsigned long)rmem_reg->size;
-	}
-	kernel = get_memsize_kernel();
-#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
-	seq_printf(m, "                        ");
-#endif
-	seq_printf(m, "0x%08lx ( %7lu KB ) %s\n",
-			kernel, DIV_ROUND_UP(kernel, SZ_1K), "kernel");
-	total = kernel + dt_reserved + system;
-	seq_printf(m, "\n");
-	seq_printf(m, "Reserved    : %7lu KB\n",
-			DIV_ROUND_UP(kernel + dt_reserved, SZ_1K));
-	seq_printf(m, " .kernel    : %7lu KB\n",
-			DIV_ROUND_UP(kernel, SZ_1K));
-	seq_printf(m, " .DT&EPARAM : %7lu KB\n",
-			DIV_ROUND_UP(dt_reserved, SZ_1K));
-	seq_printf(m, "System      : %7lu KB\n",
-			DIV_ROUND_UP(system, SZ_1K));
-	seq_printf(m, " .common    : %7lu KB\n",
-			DIV_ROUND_UP(system - reusable, SZ_1K));
-	seq_printf(m, " .reusable  : %7lu KB\n",
-			DIV_ROUND_UP(reusable, SZ_1K));
-	seq_printf(m, "Total       : %7lu KB ( %5lu.%02lu MB )\n",
-			DIV_ROUND_UP(total, SZ_1K),
-			total >> 20, ((total % SZ_1M) * 100) >> 20);
-	return 0;
-}
-static int proc_memsize_reserved_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, memsize_reserved_show, NULL);
-}
-static const struct file_operations proc_memsize_reserved_fops = {
-	.open = proc_memsize_reserved_open,
+
+static const struct file_operations memblock_debug_fops = {
+	.open = memblock_debug_open,
 	.read = seq_read,
 	.llseek = seq_lseek,
 	.release = single_release,
@@ -2375,16 +2430,12 @@ static int __init memblock_init_debugfs(void)
 	if (!root)
 		return -ENXIO;
 	debugfs_create_file("memory", 0444, root,
-			&memblock.memory, &memblock_debug_fops);
+			    &memblock.memory, &memblock_debug_fops);
 	debugfs_create_file("reserved", 0444, root,
-			&memblock.reserved, &memblock_debug_fops);
-	if (proc_mkdir("memsize", NULL)) {
-		proc_create("memsize/kernel", 0, NULL, &proc_memsize_kernel_fops);
-		proc_create("memsize/reserved", 0, NULL, &proc_memsize_reserved_fops);
-	}
+			    &memblock.reserved, &memblock_debug_fops);
 #ifdef CONFIG_HAVE_MEMBLOCK_PHYS_MAP
 	debugfs_create_file("physmem", 0444, root,
-			&memblock.physmem, &memblock_debug_fops);
+			    &memblock.physmem, &memblock_debug_fops);
 #endif
 
 	return 0;

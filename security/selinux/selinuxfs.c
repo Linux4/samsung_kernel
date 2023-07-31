@@ -158,6 +158,7 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 		goto out;
 
 	new_value = !!new_value;
+
 	old_value = enforcing_enabled(state);
 
 // [ SEC_SELINUX_PORTING_COMMON
@@ -1557,6 +1558,7 @@ static struct avc_cache_stats *sel_avc_get_stat_idx(loff_t *idx)
 		*idx = cpu + 1;
 		return &per_cpu(avc_cache_stats, cpu);
 	}
+	(*idx)++;
 	return NULL;
 }
 

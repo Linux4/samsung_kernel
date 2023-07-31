@@ -489,12 +489,12 @@ int ilitek_tddi_sleep_handler(int mode)
 	return ret;
 }
 
+#if WT_ADD_TP_HARDWARE_INFO
+extern char Ctp_name[HARDWARE_MAX_ITEM_LONGTH];
+#endif
 int ilitek_tddi_fw_upgrade_handler(void *data)
 {
 	int ret = 0;
-#if WT_ADD_TP_HARDWARE_INFO
-	char firmware_ver[HARDWARE_MAX_ITEM_LONGTH];
-#endif
 
 	ipio_err("Enter %s.\n", __func__);
 	atomic_set(&idev->fw_stat, START);
@@ -523,11 +523,11 @@ int ilitek_tddi_fw_upgrade_handler(void *data)
 	if (ilitek_tddi_ic_get_fw_ver() < 0)
 		ipio_err("Failed to read TP fw info\n");
 
-	snprintf(firmware_ver,HARDWARE_MAX_ITEM_LONGTH,"ILI7807G,VND:%s,FW:%d.%d.%d.%d",ven_name[name_modue],\
+	snprintf(Ctp_name,HARDWARE_MAX_ITEM_LONGTH,"ILI7807G,VND:%s,FW:%d.%d.%d.%d",ven_name[name_modue],\
 			  (idev->chip->fw_ver&0xff000000)>>24, (idev->chip->fw_ver&0xff0000)>>16, (idev->chip->fw_ver&0xff00)>>8, idev->chip->fw_ver&0xff);
 
-	ipio_info("hardwareinfo firmware_ver = %s\n", firmware_ver);
-	hardwareinfo_set_prop(HARDWARE_TP,firmware_ver);
+	ipio_info("hardwareinfo Ctp_name = %s\n", Ctp_name);
+	hardwareinfo_set_prop(HARDWARE_TP,Ctp_name);
 #endif
 
 	ipio_err("Exit %s.\n", __func__);

@@ -753,9 +753,12 @@ int mtp_get_mtp_server(void)
 void mtp_dbg_dump(void)
 {
 	static char string[MTP_QUEUE_DBG_STR_SZ];
+	int ret;
 
-	sprintf(string, "NOT MtpServer, task info<%d,%s>\n", current->pid,
+	ret = sprintf(string, "NOT MtpServer, task info<%d,%s>\n", current->pid,
 			 current->comm);
+	if (ret < 0)
+		MTP_QUEUE_DBG("%s-%d, sprintf fail\n", __func__, __LINE__);
 	MTP_QUEUE_DBG("%s\n", string);
 
 #ifdef CONFIG_MEDIATEK_SOLUTION
@@ -1807,13 +1810,17 @@ static void do_monitor_work(struct work_struct *work)
 	char string_container[128];
 
 	r = sprintf(string_container, "IN <");
-	for (i = 0; i < MTP_MAX_MONITOR_TYPE; i++)
-		r += sprintf(string_container + r, "%d ", monitor_in_cnt[i]);
+	if (r >= 0 && r < ARRAY_SIZE(string_container))
+		for (i = 0; i < MTP_MAX_MONITOR_TYPE; i++)
+			r += sprintf(string_container + r, "%d ",
+				monitor_in_cnt[i]);
 	MTP_DBG("%s>\n", string_container);
 
 	r = sprintf(string_container, "OUT <");
-	for (i = 0; i < MTP_MAX_MONITOR_TYPE; i++)
-		r += sprintf(string_container + r, "%d ", monitor_out_cnt[i]);
+	if (r >= 0 && r < ARRAY_SIZE(string_container))
+		for (i = 0; i < MTP_MAX_MONITOR_TYPE; i++)
+			r += sprintf(string_container + r, "%d ",
+				monitor_out_cnt[i]);
 	MTP_DBG("%s>\n", string_container);
 
 	if (likely(!monitor_time))
@@ -1821,8 +1828,10 @@ static void do_monitor_work(struct work_struct *work)
 
 	/* TIME PROFILING */
 	r = sprintf(string_container, "TIME <");
-	for (i = 0; i < MTP_MAX_MONITOR_TYPE; i++)
-		r += sprintf(string_container + r, "%lld ", ktime_ns[i]);
+	if (r >= 0 && r < ARRAY_SIZE(string_container))
+		for (i = 0; i < MTP_MAX_MONITOR_TYPE; i++)
+			r += sprintf(string_container + r, "%lld ",
+				ktime_ns[i]);
 	MTP_DBG("%s>\n", string_container);
 
 monitor_work_exit:

@@ -42,8 +42,6 @@
 #include <uapi/linux/dma-buf.h>
 #include <uapi/linux/magic.h>
 
-static inline int is_dma_buf_file(struct file *);
-
 struct dma_buf_list {
 	struct list_head head;
 	struct mutex lock;
@@ -67,8 +65,49 @@ static char *dmabuffs_dname(struct dentry *dentry, char *buffer, int buflen)
 			     dentry->d_name.name, ret > 0 ? name : "");
 }
 
+static void dma_buf_release(struct dentry *dentry)
+{
+	struct dma_buf *dmabuf;
+	int dtor_ret = 0;
+
+	dmabuf = dentry->d_fsdata;
+
+	BUG_ON(dmabuf->vmapping_counter);
+
+	/*
+	 * Any fences that a dma-buf poll can wait on should be signaled
+	 * before releasing dma-buf. This is the responsibility of each
+	 * driver that uses the reservation objects.
+	 *
+	 * If you hit this BUG() it means someone dropped their ref to the
+	 * dma-buf while still having pending operation to the buffer.
+	 */
+	BUG_ON(dmabuf->cb_shared.active || dmabuf->cb_excl.active);
+
+	if (dmabuf->dtor)
+		dtor_ret = dmabuf->dtor(dmabuf, dmabuf->dtor_data);
+
+	if (!dtor_ret)
+		dmabuf->ops->release(dmabuf);
+	else
+		pr_warn_ratelimited("Leaking dmabuf %s because destructor failed error:%d\n",
+					dmabuf->name, dtor_ret);
+
+	mutex_lock(&db_list.lock);
+	list_del(&dmabuf->list_node);
+	mutex_unlock(&db_list.lock);
+
+	if (dmabuf->resv == (struct reservation_object *)&dmabuf[1])
+		reservation_object_fini(dmabuf->resv);
+
+	module_put(dmabuf->owner);
+	kfree(dmabuf->name);
+	kfree(dmabuf);
+}
+
 static const struct dentry_operations dma_buf_dentry_ops = {
 	.d_dname = dmabuffs_dname,
+	.d_release = dma_buf_release,
 };
 
 static struct vfsmount *dma_buf_mnt;
@@ -85,49 +124,6 @@ static struct file_system_type dma_buf_fs_type = {
 	.mount = dma_buf_fs_mount,
 	.kill_sb = kill_anon_super,
 };
-
-static int dma_buf_release(struct inode *inode, struct file *file)
-{
-	struct dma_buf *dmabuf;
-	int dtor_ret = 0;
-
-	if (!is_dma_buf_file(file))
-		return -EINVAL;
-
-	dmabuf = file->private_data;
-
-	BUG_ON(dmabuf->vmapping_counter);
-
-	/*
-	 * Any fences that a dma-buf poll can wait on should be signaled
-	 * before releasing dma-buf. This is the responsibility of each
-	 * driver that uses the reservation objects.
-	 *
-	 * If you hit this BUG() it means someone dropped their ref to the
-	 * dma-buf while still having pending operation to the buffer.
-	 */
-	BUG_ON(dmabuf->cb_shared.active || dmabuf->cb_excl.active);
-
-	mutex_lock(&db_list.lock);
-	list_del(&dmabuf->list_node);
-	mutex_unlock(&db_list.lock);
-
-	if (dmabuf->dtor)
-		dtor_ret = dmabuf->dtor(dmabuf, dmabuf->dtor_data);
-
-	if (!dtor_ret)
-		dmabuf->ops->release(dmabuf);
-	else
-		pr_warn_ratelimited("Leaking dmabuf %s because destructor failed error:%d\n",
-				    dmabuf->name, dtor_ret);
-
-	if (dmabuf->resv == (struct reservation_object *)&dmabuf[1])
-		reservation_object_fini(dmabuf->resv);
-
-	module_put(dmabuf->owner);
-	kfree(dmabuf);
-	return 0;
-}
 
 static int dma_buf_mmap_internal(struct file *file, struct vm_area_struct *vma)
 {
@@ -417,7 +413,8 @@ static long dma_buf_ioctl(struct file *file,
 
 		return ret;
 
-	case DMA_BUF_SET_NAME:
+	case DMA_BUF_SET_NAME_A:
+	case DMA_BUF_SET_NAME_B:
 		return dma_buf_set_name(dmabuf, (const char __user *)arg);
 
 	default:
@@ -440,7 +437,6 @@ static void dma_buf_show_fdinfo(struct seq_file *m, struct file *file)
 }
 
 static const struct file_operations dma_buf_fops = {
-	.release	= dma_buf_release,
 	.mmap		= dma_buf_mmap_internal,
 	.llseek		= dma_buf_llseek,
 	.poll		= dma_buf_poll,
@@ -454,10 +450,11 @@ static const struct file_operations dma_buf_fops = {
 /*
  * is_dma_buf_file - Check if struct file* is associated with dma_buf
  */
-static inline int is_dma_buf_file(struct file *file)
+int is_dma_buf_file(struct file *file)
 {
 	return file->f_op == &dma_buf_fops;
 }
+EXPORT_SYMBOL_GPL(is_dma_buf_file);
 
 static struct file *dma_buf_getfile(struct dma_buf *dmabuf, int flags)
 {
@@ -566,6 +563,7 @@ struct dma_buf *dma_buf_export(const struct dma_buf_export_info *exp_info)
 		goto err_module;
 	}
 
+	atomic_set(&dmabuf->ref_dbg, 0);
 	dmabuf->priv = exp_info->priv;
 	dmabuf->ops = exp_info->ops;
 	dmabuf->size = exp_info->size;
@@ -643,6 +641,7 @@ EXPORT_SYMBOL_GPL(dma_buf_fd);
 struct dma_buf *dma_buf_get(int fd)
 {
 	struct file *file;
+	struct dma_buf *dmabuf;
 
 	file = fget(fd);
 
@@ -654,7 +653,10 @@ struct dma_buf *dma_buf_get(int fd)
 		return ERR_PTR(-EINVAL);
 	}
 
-	return file->private_data;
+	dmabuf = file->private_data;
+	atomic_inc(&dmabuf->ref_dbg);
+
+	return dmabuf;
 }
 EXPORT_SYMBOL_GPL(dma_buf_get);
 
@@ -673,6 +675,10 @@ void dma_buf_put(struct dma_buf *dmabuf)
 	if (WARN_ON(!dmabuf || !dmabuf->file))
 		return;
 
+	if (atomic_dec_return(&dmabuf->ref_dbg) < 0) {
+		pr_info("[Warn] %s, ref underflow!\n", __func__);
+		atomic_set(&dmabuf->ref_dbg, 0);
+	}
 	fput(dmabuf->file);
 }
 EXPORT_SYMBOL_GPL(dma_buf_put);
@@ -1286,14 +1292,19 @@ static int dma_buf_debug_show(struct seq_file *s, void *unused)
 			continue;
 		}
 
-		seq_printf(s, "0x%p\t%08zu\t%08x\t%08x\t%08ld\t%s\t%08lu\t%s\n",
-				buf_obj->priv,
-				buf_obj->size,
-				buf_obj->file->f_flags, buf_obj->file->f_mode,
-				file_count(buf_obj->file),
-				buf_obj->exp_name,
-				file_inode(buf_obj->file)->i_ino,
-				buf_obj->name ?: "");
+	/*
+	 *  buf_obj->file is freed by fput(), because dma_buf_release() is moved to
+	 *  dentry_ops, so this part will lead use-after-free issue.
+	 */
+	/*
+	 *	seq_printf(s, "%08zu\t%08x\t%08x\t%08ld\t%s\t%08lu\t%s\n",
+	 *                      buf_obj->size,
+	 *                      buf_obj->file->f_flags, buf_obj->file->f_mode,
+	 *                      file_count(buf_obj->file),
+	 *                      buf_obj->exp_name,
+	 *                      file_inode(buf_obj->file)->i_ino,
+	 *                      buf_obj->name ?: "");
+	 */
 
 		robj = buf_obj->resv;
 		while (true) {

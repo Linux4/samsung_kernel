@@ -16,6 +16,7 @@
 #include <musb_core.h>
 #include "usb20.h"
 #include <linux/nvmem-consumer.h>
+#include <linux/phy/phy.h>
 
 #ifdef CONFIG_OF
 #include <linux/of_address.h>
@@ -99,10 +100,6 @@ void usb_phy_switch_to_usb(void)
 #define SHFT_RG_USB20_TERM_VREF_SEL 8
 #define OFFSET_RG_USB20_PHY_REV6 0x18
 #define SHFT_RG_USB20_PHY_REV6 30
-//Bug-621784 xuweijiang.wt, Modify, 20210303, change eye parameters ,start
-#define OFFSET_RG_USB20_HSTX_SRCTRL 0x14
-#define SHFT_RG_USB20_HSTX_SRCTRL 12
-//Bug-621784 xuweijiang.wt, Modify, 20210303, change eye parameters ,end
 void usb_phy_tuning(void)
 {
 	static bool inited;
@@ -488,43 +485,19 @@ void usb_phy_switch_to_usb(void)
 void set_usb_phy_mode(int mode)
 {
 	switch (mode) {
-	case PHY_DEV_ACTIVE:
+	case PHY_MODE_USB_DEVICE:
 	/* VBUSVALID=1, AVALID=1, BVALID=1, SESSEND=0, IDDIG=1, IDPULLUP=1 */
 		USBPHY_CLR32(0x6C, (0x10<<0));
 		USBPHY_SET32(0x6C, (0x2F<<0));
 		USBPHY_SET32(0x6C, (0x3F<<8));
-	//Bug-621784 xuweijiang.wt, Modify, 20210303, change eye parameters ,start
-	#ifdef CONFIG_WT_PROJECT_S96717RA1
-		USBPHY_CLR32(OFFSET_RG_USB20_VRT_VREF_SEL, VAL_MAX_WIDTH_3 << SHFT_RG_USB20_VRT_VREF_SEL);
-		USBPHY_SET32(OFFSET_RG_USB20_VRT_VREF_SEL, 7 << SHFT_RG_USB20_VRT_VREF_SEL);
-		USBPHY_CLR32(OFFSET_RG_USB20_TERM_VREF_SEL, VAL_MAX_WIDTH_3 << SHFT_RG_USB20_TERM_VREF_SEL);
-		USBPHY_SET32(OFFSET_RG_USB20_TERM_VREF_SEL, 7 << SHFT_RG_USB20_TERM_VREF_SEL);
-		USBPHY_CLR32(OFFSET_RG_USB20_PHY_REV6, VAL_MAX_WIDTH_2 << SHFT_RG_USB20_PHY_REV6);
-		USBPHY_SET32(OFFSET_RG_USB20_PHY_REV6, 3 <<SHFT_RG_USB20_PHY_REV6);
-		USBPHY_CLR32(OFFSET_RG_USB20_HSTX_SRCTRL, VAL_MAX_WIDTH_3 << SHFT_RG_USB20_HSTX_SRCTRL);
-		USBPHY_SET32(OFFSET_RG_USB20_HSTX_SRCTRL, 7 <<SHFT_RG_USB20_HSTX_SRCTRL);
-	#endif
-	//Bug-621784 xuweijiang.wt, Modify, 20210303, change eye parameters ,end
 		break;
-	case PHY_HOST_ACTIVE:
+	case PHY_MODE_USB_HOST:
 	/* VBUSVALID=1, AVALID=1, BVALID=1, SESSEND=0, IDDIG=0, IDPULLUP=1 */
 		USBPHY_CLR32(0x6c, (0x12<<0));
 		USBPHY_SET32(0x6c, (0x2d<<0));
 		USBPHY_SET32(0x6c, (0x3f<<8));
-	//Bug-621784 xuweijiang.wt, Modify, 20210303, change eye parameters ,start
-	#ifdef CONFIG_WT_PROJECT_S96717RA1
-		USBPHY_CLR32(OFFSET_RG_USB20_VRT_VREF_SEL, VAL_MAX_WIDTH_3 << SHFT_RG_USB20_VRT_VREF_SEL);
-		USBPHY_SET32(OFFSET_RG_USB20_VRT_VREF_SEL, 7 << SHFT_RG_USB20_VRT_VREF_SEL);
-		USBPHY_CLR32(OFFSET_RG_USB20_TERM_VREF_SEL, VAL_MAX_WIDTH_3 << SHFT_RG_USB20_TERM_VREF_SEL);
-		USBPHY_SET32(OFFSET_RG_USB20_TERM_VREF_SEL, 7 << SHFT_RG_USB20_TERM_VREF_SEL);
-		USBPHY_CLR32(OFFSET_RG_USB20_PHY_REV6, VAL_MAX_WIDTH_2 << SHFT_RG_USB20_PHY_REV6);
-		USBPHY_SET32(OFFSET_RG_USB20_PHY_REV6, 3 <<SHFT_RG_USB20_PHY_REV6);
-		USBPHY_CLR32(OFFSET_RG_USB20_HSTX_SRCTRL, VAL_MAX_WIDTH_3 << SHFT_RG_USB20_HSTX_SRCTRL);
-		USBPHY_SET32(OFFSET_RG_USB20_HSTX_SRCTRL, 7 <<SHFT_RG_USB20_HSTX_SRCTRL);
-	#endif
-	//Bug-621784 xuweijiang.wt, Modify, 20210303, change eye parameters ,end
 		break;
-	case PHY_IDLE_MODE:
+	case PHY_MODE_INVALID:
 	/* VBUSVALID=0, AVALID=0, BVALID=0, SESSEND=1, IDDIG=0, IDPULLUP=1 */
 		USBPHY_SET32(0x6c, (0x11<<0));
 		USBPHY_CLR32(0x6c, (0x2e<<0));
@@ -683,7 +656,7 @@ static void usb_phy_savecurrent_internal(void)
 
 	udelay(1);
 
-	set_usb_phy_mode(PHY_IDLE_MODE);
+	set_usb_phy_mode(PHY_MODE_INVALID);
 }
 
 void usb_phy_savecurrent(void)
@@ -804,7 +777,7 @@ void usb_phy_recover(struct musb *musb)
 	udelay(800);
 
 	/* force enter device mode */
-	set_usb_phy_mode(PHY_DEV_ACTIVE);
+	set_usb_phy_mode(PHY_MODE_USB_DEVICE);
 
 	hs_slew_rate_cal();
 
@@ -819,9 +792,10 @@ void usb_phy_recover(struct musb *musb)
 
 	/* disc threshold to max, RG_USB20_DISCTH[7:4], dft:1000, MAX:1111 */
 	USBPHY_SET32(0x18, (0xf0<<0));
-        //bug 612420, renyiyue.wt, add, 2020.12.22, SSD function
-        USBPHY_SET32(0x14,(0x1<<16));
-        DBG(0, "0x14 test value = 0x%0x\n", USBPHY_READ32(0x14));
+
+	USBPHY_SET32(0x14, (0x1<<16));
+
+	DBG(0, "0x14 test value = 0x%0x\n", USBPHY_READ32(0x14));
 
 	usb_phy_tuning();
 

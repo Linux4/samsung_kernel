@@ -25,7 +25,7 @@
 #define CONFIG_LONG_POWERKEY_LOG_STORE
 
 /*  log flag */
-#define BUFF_VALID		0x01
+#define BUFF_VALID      0x01
 #define CAN_FREE		0x02
 #define	NEED_SAVE_TO_EMMC	0x04
 #define RING_BUFF		0x08

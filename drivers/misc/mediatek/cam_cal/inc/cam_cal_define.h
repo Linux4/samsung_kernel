@@ -23,11 +23,23 @@ struct stCAM_CAL_DATAINFO_STRUCT{
 
 typedef enum{
 	MODULE_ITEM = 0,
+	SN_DATA,
 	AWB_ITEM,
 	SEGMENT_ITEM,
 	AF_ITEM,
 	LSC_ITEM,
 	PDAF_ITEM,
+	PDAF_PROC2_ITEM,   //+bug682590,zhanghengyuan.wt,ADD,2021/8/25,add n23_hi1336_rear_txd OTP
+	//+bug720367,qinduilin.wt,ADD,2022/2/17,add for n26 camera bring up
+	hi5021q_XGC,
+	hi5021q_QGC,
+	hi5021q_PGC,
+	XTC_DATA,
+	SENSOR_XTC_DATA,
+	PDXTC_DATA,
+	SWGCC_DATA,
+	HWGCC_DATA,
+	//-bug720367,qinduilin.wt,ADD,2022/2/17,add for n26 camera bring up
 	DUALCAM_ITEM,
 	TOTAL_ITEM,
 	MAX_ITEM,

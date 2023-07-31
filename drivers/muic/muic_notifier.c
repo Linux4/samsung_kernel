@@ -29,6 +29,7 @@
 #define DESTROY_MUIC_NOTIFIER_BLOCK(nb)			\
 		SET_MUIC_NOTIFIER_BLOCK(nb, NULL, -1)
 
+struct device *switch_device;
 static struct muic_notifier_struct muic_notifier;
 static struct muic_notifier_struct muic_pdic_notifier;
 
@@ -379,6 +380,13 @@ static int __init muic_notifier_init(void)
 	}
 	muic_notifier_init_done = 1;
 
+#if defined(CONFIG_DRV_SAMSUNG)
+	switch_device = sec_device_create(NULL, "switch");
+	if (IS_ERR(switch_device)) {
+		pr_err("%s Failed to create device(switch)!\n", __func__);
+		ret = -ENODEV;
+	}
+#endif
 #if defined(CONFIG_MUIC_MANAGER) && defined(CONFIG_PDIC_NOTIFIER)
 	muic_uses_new_noti = 1;
 #endif

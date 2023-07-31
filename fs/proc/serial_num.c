@@ -4,8 +4,7 @@
 #include <linux/seq_file.h>
 #include <linux/string.h>
 
-static char dest[64]="";
-
+char  dest[64]="";
 static char * serialno_get(void)
 {
 	char * s1= "";
@@ -48,5 +47,7 @@ static int __init proc_serialno_init(void)
 	return 0;
 }
 fs_initcall(proc_serialno_init);
+
+
 
 

@@ -2,7 +2,7 @@
  *
  * FocalTech TouchScreen driver.
  *
- * Copyright (c) 2012-2019, FocalTech Systems, Ltd., all rights reserved.
+ * Copyright (c) 2012-2020, FocalTech Systems, Ltd., all rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -40,7 +40,6 @@
 
 #if FTS_PSENSOR_EN
 #include <hwmsensor.h>
-#include <hwmsen_dev.h>
 #include <sensors_io.h>
 #include <alsps.h>
 
@@ -52,9 +51,19 @@
  * FTS_ALSPS_SUPPORT = 1, is control_path, data_path
  * FTS_ALSPS_SUPPORT = 0, hwmsen_object
  */
-#define FTS_ALSPS_SUPPORT    1
-#define PS_FAR_AWAY          1
-#define PS_NEAR              0
+#define FTS_ALSPS_SUPPORT            1
+/*
+ * FTS_OPEN_DATA_HAL_SUPPORT is choose structure ps_control_path or batch, flush
+ * FTS_ALSPS_SUPPORT = 1, is batch, flush
+ * FTS_ALSPS_SUPPORT = 0, NULL
+ */
+#define FTS_OPEN_DATA_HAL_SUPPORT    1
+#define PS_FAR_AWAY                  1
+#define PS_NEAR                      0
+
+#if !FTS_ALSPS_SUPPORT
+#include <hwmsen_dev.h>
+#endif
 
 /*****************************************************************************
 * Private enumerations, structures and unions using typedef
@@ -150,7 +159,17 @@ static int ps_set_delay(u64 ns)
 {
     return 0;
 }
+#if FTS_OPEN_DATA_HAL_SUPPORT
+static int ps_batch(int flag, int64_t sampling_period_ns, int64_t max_batch_report_ns)
+{
+    return 0;
+}
 
+static int ps_flush(void)
+{
+    return 0;
+}
+#endif
 static int ps_get_data(int *value, int *status)
 {
     *value = (int)fts_proximity_data.detect;
@@ -168,6 +187,10 @@ int ps_local_init(void)
     ps_ctl.open_report_data = ps_open_report_data;
     ps_ctl.enable_nodata = ps_enable_nodata;
     ps_ctl.set_delay = ps_set_delay;
+#if FTS_OPEN_DATA_HAL_SUPPORT
+    ps_ctl.batch = ps_batch;
+    ps_ctl.flush = ps_flush;
+#endif
     ps_ctl.is_report_input_direct = false;
     ps_ctl.is_support_batch = false;
 

@@ -42,7 +42,8 @@
 #include <linux/delay.h>
 #include <linux/of.h>
 #include <linux/of_fdt.h>
-
+#include <linux/of_gpio.h>
+#include <linux/spinlock.h>
 struct pinctrl *pinctrlaud;
 
 #define MT6755_PIN 1
@@ -84,10 +85,11 @@ enum audio_system_gpio_type {
 	GPIO_HPDEPOP_LOW,
 	GPIO_AUD_CLK_MOSI_HIGH,
 	GPIO_AUD_CLK_MOSI_LOW,
-	//+ Bug 621775 fujiawen.wt,add,20210129,add hac support
-	GPIO_HACAMP_HIGH,
-	GPIO_HACAMP_LOW,
-	//+ Bug 621775 fujiawen.wt,add,20210129,add hac support
+//Bug717428, qiuyonghui.wt, add, 20220124, audio bringup for hac
+#ifdef CONFIG_SND_SOC_HAC_SUPPORT
+    GPIO_HACAMP_HIGH,
+    GPIO_HACAMP_LOW,
+#endif
 	GPIO_NUM
 };
 
@@ -98,55 +100,63 @@ struct audio_gpio_attr {
 };
 
 static struct audio_gpio_attr aud_gpios[GPIO_NUM] = {
-		[GPIO_AUD_CLK_MOSI_OFF] = {"aud_clk_mosi_off", false, NULL},
-		[GPIO_AUD_CLK_MOSI_ON] = {"aud_clk_mosi_on", false, NULL},
-		[GPIO_AUD_DAT_MISO_OFF] = {"aud_dat_miso_off", false, NULL},
-		[GPIO_AUD_DAT_MISO_ON] = {"aud_dat_miso_on", false, NULL},
-		[GPIO_AUD_DAT_MOSI_OFF] = {"aud_dat_mosi_off", false, NULL},
-		[GPIO_AUD_DAT_MOSI_ON] = {"aud_dat_mosi_on", false, NULL},
-		[GPIO_AUD_DAT_MISO2_OFF] = {"aud_dat_miso2_off", false, NULL},
-		[GPIO_AUD_DAT_MISO2_ON] = {"aud_dat_miso2_on", false, NULL},
-		[GPIO_AUD_DAT_MOSI2_OFF] = {"aud_dat_mosi2_off", false, NULL},
-		[GPIO_AUD_DAT_MOSI2_ON] = {"aud_dat_mosi2_on", false, NULL},
-		[GPIO_VOW_DAT_MISO_OFF] = {"vow_dat_miso_off", false, NULL},
-		[GPIO_VOW_DAT_MISO_ON] = {"vow_dat_miso_on", false, NULL},
-		[GPIO_VOW_CLK_MISO_OFF] = {"vow_clk_miso_off", false, NULL},
-		[GPIO_VOW_CLK_MISO_ON] = {"vow_clk_miso_on", false, NULL},
+	[GPIO_AUD_CLK_MOSI_OFF] = {"aud_clk_mosi_off", false, NULL},
+	[GPIO_AUD_CLK_MOSI_ON] = {"aud_clk_mosi_on", false, NULL},
+	[GPIO_AUD_DAT_MISO_OFF] = {"aud_dat_miso_off", false, NULL},
+	[GPIO_AUD_DAT_MISO_ON] = {"aud_dat_miso_on", false, NULL},
+	[GPIO_AUD_DAT_MOSI_OFF] = {"aud_dat_mosi_off", false, NULL},
+	[GPIO_AUD_DAT_MOSI_ON] = {"aud_dat_mosi_on", false, NULL},
+	[GPIO_AUD_DAT_MISO2_OFF] = {"aud_dat_miso2_off", false, NULL},
+	[GPIO_AUD_DAT_MISO2_ON] = {"aud_dat_miso2_on", false, NULL},
+	[GPIO_AUD_DAT_MOSI2_OFF] = {"aud_dat_mosi2_off", false, NULL},
+	[GPIO_AUD_DAT_MOSI2_ON] = {"aud_dat_mosi2_on", false, NULL},
+	[GPIO_VOW_DAT_MISO_OFF] = {"vow_dat_miso_off", false, NULL},
+	[GPIO_VOW_DAT_MISO_ON] = {"vow_dat_miso_on", false, NULL},
+	[GPIO_VOW_CLK_MISO_OFF] = {"vow_clk_miso_off", false, NULL},
+	[GPIO_VOW_CLK_MISO_ON] = {"vow_clk_miso_on", false, NULL},
 
-		[GPIO_SMARTPA_RESET] = {"aud_smartpa_reset", false, NULL},
-		[GPIO_SMARTPA_ON] = {"aud_smartpa_on", false, NULL},
-		[GPIO_SMARTPA_OFF] = {"aud_smartpa_off", false, NULL},
-		[GPIO_TDM_MODE0] = {"aud_tdm_mode0", false, NULL},
-		[GPIO_TDM_MODE1] = {"aud_tdm_mode1", false, NULL},
+	[GPIO_SMARTPA_RESET] = {"aud_smartpa_reset", false, NULL},
+	[GPIO_SMARTPA_ON] = {"aud_smartpa_on", false, NULL},
+	[GPIO_SMARTPA_OFF] = {"aud_smartpa_off", false, NULL},
+	[GPIO_TDM_MODE0] = {"aud_tdm_mode0", false, NULL},
+	[GPIO_TDM_MODE1] = {"aud_tdm_mode1", false, NULL},
 
 #if MT6755_PIN
-		/* [GPIO_DEFAULT] = {"default", false, NULL}, */
-		[GPIO_PMIC_MODE0] = {"audpmicclk-mode0", false, NULL},
-		[GPIO_PMIC_MODE1] = {"audpmicclk-mode1", false, NULL},
-		[GPIO_I2S_MODE0] = {"audi2s1-mode0", false, NULL},
-		[GPIO_I2S_MODE1] = {"audi2s1-mode1", false, NULL},
-		[GPIO_EXTAMP_HIGH] = {"extamp-pullhigh", false, NULL},
-		[GPIO_EXTAMP_LOW] = {"extamp-pulllow", false, NULL},
-		[GPIO_EXTAMP2_HIGH] = {"extamp2-pullhigh", false, NULL},
-		[GPIO_EXTAMP2_LOW] = {"extamp2-pulllow", false, NULL},
-		[GPIO_RCVSPK_HIGH] = {"rcvspk-pullhigh", false, NULL},
-		[GPIO_RCVSPK_LOW] = {"rcvspk-pulllow", false, NULL},
+	/* [GPIO_DEFAULT] = {"default", false, NULL}, */
+	[GPIO_PMIC_MODE0] = {"audpmicclk-mode0", false, NULL},
+	[GPIO_PMIC_MODE1] = {"audpmicclk-mode1", false, NULL},
+	[GPIO_I2S_MODE0] = {"audi2s1-mode0", false, NULL},
+	[GPIO_I2S_MODE1] = {"audi2s1-mode1", false, NULL},
+	[GPIO_EXTAMP_HIGH] = {"extamp-pullhigh", false, NULL},
+	[GPIO_EXTAMP_LOW] = {"extamp-pulllow", false, NULL},
+	[GPIO_EXTAMP2_HIGH] = {"extamp2-pullhigh", false, NULL},
+	[GPIO_EXTAMP2_LOW] = {"extamp2-pulllow", false, NULL},
+	[GPIO_RCVSPK_HIGH] = {"rcvspk-pullhigh", false, NULL},
+	[GPIO_RCVSPK_LOW] = {"rcvspk-pulllow", false, NULL},
 #endif
 
-		[GPIO_HPDEPOP_HIGH] = {"hpdepop-pullhigh", false, NULL},
-		[GPIO_HPDEPOP_LOW] = {"hpdepop-pulllow", false, NULL},
-		[GPIO_AUD_CLK_MOSI_HIGH] = {"aud_clk_mosi_pull_high", false,
-					    NULL},
-		[GPIO_AUD_CLK_MOSI_LOW] = {"aud_clk_mosi_pull_low", false,
-					   NULL},
-		//+ Bug 621775 fujiawen.wt,add,20210129,add hac support
-		[GPIO_HACAMP_HIGH] = {"hacamp_pullhigh", false, NULL},
-		[GPIO_HACAMP_LOW] = {"hacamp_pulllow", false, NULL},
-		//- Bug 621775 fujiawen.wt,add,20210129,add hac support
+//Bug717428, qiuyonghui.wt, add, 20220124, audio bringup for hac
+#ifdef CONFIG_SND_SOC_HAC_SUPPORT
+        [GPIO_HACAMP_HIGH] = {"hacamp_pullhigh", false, NULL},
+        [GPIO_HACAMP_LOW] = {"hacamp_pulllow", false, NULL},
+#endif
+	[GPIO_HPDEPOP_HIGH] = {"hpdepop-pullhigh", false, NULL},
+	[GPIO_HPDEPOP_LOW] = {"hpdepop-pulllow", false, NULL},
+	[GPIO_AUD_CLK_MOSI_HIGH] = {"aud_clk_mosi_pull_high", false,
+		NULL
+	},
+	[GPIO_AUD_CLK_MOSI_LOW] = {"aud_clk_mosi_pull_low", false,
+		NULL
+	},
 };
 
 static unsigned int extbuck_fan53526_exist;
 
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+static int extamp_gpio;
+static int flag_id;
+static spinlock_t lock;
+#endif
 static DEFINE_MUTEX(gpio_request_mutex);
 
 void AudDrv_GPIO_probe(void *dev)
@@ -154,6 +164,59 @@ void AudDrv_GPIO_probe(void *dev)
 	int ret;
 	int i = 0;
 
+// Bug715587 daisiqing.wt add audio pa bringup N26 20220308        
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+       int extamp_gpio_id;
+       struct device_node *np = NULL;
+       struct device_node *id_nd = NULL;
+
+       np = of_find_compatible_node(NULL, NULL, "mediatek,mt_soc_pcm_dl1");
+       if (np) {
+               ret = of_get_named_gpio(np, "extamp-gpio", 0);
+               if (ret < 0)
+                       pr_err("%s: get extamp-gpio failed (%d)", __FILE__, ret);
+               else
+                       extamp_gpio = ret;
+               pr_err("%s extamp_gpio num =%d\n", __func__, extamp_gpio);
+
+               ret = gpio_request(extamp_gpio,"extamp-gpio" );
+               if (ret) {
+                       pr_err("%s : gpio_request failed\n", __FILE__);
+               }
+
+       }else{
+               pr_err("%s : get extamp_gpio num err.\n", __func__);
+       }
+
+       id_nd = of_find_compatible_node(NULL, NULL, "si,sia81xx");
+       if (id_nd) {
+               ret = of_get_named_gpio(id_nd, "si,sia81xx_id", 0);
+               if (ret < 0)
+                       pr_err("%s: get extamp-gpio_id failed (%d) ", __FILE__, ret);
+               else
+                       extamp_gpio_id = ret;
+               pr_err("%s extamp_gpio_id num =%d \n", __func__, extamp_gpio_id);
+               ret = gpio_request(extamp_gpio_id,"si,sia81xx_id" );
+               if (ret) {
+                       pr_err("%s : gpio_request failed ret = %d\n", __FILE__,ret);
+               }
+       } else {
+               pr_err("%s : get extamp_gpio_id num err.\n", __func__);
+       }
+       ret = gpio_get_value(extamp_gpio_id);
+       if (ret < 0)
+               pr_err("%s : fs15xx get gpio_id fail ret = %d\n", __func__,ret);
+       if (ret == 1) {
+               flag_id = 1;
+               fs15xx_gpio_init();
+               pr_err("%s : Audio PA is FS1559SN !!!\n", __func__);
+       } else if (ret == 0) {
+               pr_err("%s : Audio PA is not FS1559SN get gpio_id-value = %d!!!\n", __func__,ret);
+               flag_id = ret;
+       }
+
+#endif
+//Bug715587 end 
 	pr_debug("%s\n", __func__);
 
 	pinctrlaud = devm_pinctrl_get(dev);
@@ -170,9 +233,11 @@ void AudDrv_GPIO_probe(void *dev)
 		extbuck_fan53526_exist);
 	if (extbuck_fan53526_exist) { /* is e2 */
 		struct audio_gpio_attr gpio_hpdepop_high = {
-			"hpdepop-pullhigh_e2", false, NULL};
+			"hpdepop-pullhigh_e2", false, NULL
+		};
 		struct audio_gpio_attr gpio_hpdepop_low = {"hpdepop-pulllow_e2",
-							   false, NULL};
+			false, NULL
+		};
 
 		aud_gpios[GPIO_HPDEPOP_HIGH] = gpio_hpdepop_high;
 		aud_gpios[GPIO_HPDEPOP_LOW] = gpio_hpdepop_low;
@@ -194,6 +259,63 @@ void AudDrv_GPIO_probe(void *dev)
 		}
 	}
 }
+
+//Bug715587 daisiqing.wt add audio pa bringup N26 20220308
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+void fs15xx_gpio_init(void)
+{
+    spin_lock_init(&lock);
+}
+void fs15xx_shutdown(void)
+{
+    unsigned long flags;
+    spin_lock_irqsave(&lock, flags);
+    gpio_set_value( extamp_gpio, 0);
+    mdelay(10);
+    spin_unlock_irqrestore(&lock, flags);
+}
+int fs15xx_startup()
+{
+    unsigned long flags;
+    int count;
+    int ret = 0;
+    int mode = 4;
+
+    if (flag_id == 0) {
+        pr_err("%s : Audio PA is not FS1559SN !!!", __func__);
+        return -1;
+    }
+    pr_info("%s : mode: %d-->%d\n", __func__,extamp_gpio, mode);
+    // switch mode online, need shut down pa firstly
+    fs15xx_shutdown();
+    // enable pa into work mode
+    // make sure idle mode: gpio output low
+    gpio_direction_output(extamp_gpio, 0);
+    spin_lock_irqsave(&lock, flags);
+    // 1. send T-sta
+    gpio_set_value( extamp_gpio, 1);
+    udelay(300);
+    gpio_set_value( extamp_gpio, 0);
+    udelay(20); // < 140us
+
+    // 2. send mode
+    count = mode - 1;
+    while (count > 0) { // count of pulse
+        gpio_set_value( extamp_gpio, 1);
+        udelay(20); // < 140us 
+        gpio_set_value( extamp_gpio, 0);
+        udelay(20); // < 140us
+        count--;
+    }
+    // 3. pull up gpio and delay, enable pa
+    gpio_set_value( extamp_gpio, 1);
+    udelay(300); // pull up gpio > 220us
+    spin_unlock_irqrestore(&lock, flags);
+
+    return ret;
+}
+#endif 
+//Bug715587 end
 
 static int AudDrv_GPIO_Select(enum audio_system_gpio_type _type)
 {
@@ -385,7 +507,8 @@ int AudDrv_GPIO_SMARTPA_Select(int mode)
 	return retval;
 }
 
-//+ Bug 621775 fujiawen.wt,add,20210129,add hac support
+//+Bug717428, qiuyonghui.wt, add, 20220124, audio bringup for hac
+#ifdef CONFIG_SND_SOC_HAC_SUPPORT
 int HAC_Amp_Change(int bEnable)
 {
         int retval = 0;
@@ -411,8 +534,8 @@ int HAC_Amp_Change(int bEnable)
 
         return retval;
 }
-//- Bug 621775 fujiawen.wt,add,20210129,add hac support
-
+#endif
+//-Bug717428, qiuyonghui.wt, add, 20220124, audio bringup for hac
 
 int AudDrv_GPIO_TDM_Select(int mode)
 {

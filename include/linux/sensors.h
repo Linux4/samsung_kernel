@@ -49,8 +49,10 @@
 #define SENSOR_TYPE_STEP_COUNTER		19
 #define SENSOR_TYPE_GEOMAGNETIC_ROTATION_VECTOR	20
 //+Bug 445219 huangcunzhu_wt,20190513,MODIFY,change sar type ID
-#define SENSOR_TYPE_ABOV_CAPSENSE (SENSOR_TYPE_DEVICE_PRIVATE_BASE + 24)
+#define SENSOR_TYPE_AWINIC_CAPSENSE (SENSOR_TYPE_DEVICE_PRIVATE_BASE + 24)
 //-Bug 445219 huangcunzhu_wt,20190513,MODIFY,change sar type ID
+#define SENSOR_TYPE_TYHX_CAPSENSE	(SENSOR_TYPE_DEVICE_PRIVATE_BASE + 25)
+#define SENSOR_TYPE_ABOV_CAPSENSE (SENSOR_TYPE_DEVICE_PRIVATE_BASE + 26)
 
 enum LIS3DH_AXIS {
 	AXIS_X = 0,
@@ -131,7 +133,7 @@ struct sensors_classdev {
 	struct list_head	node;
 	const char		*name;
 	const char		*vendor;
-        const char              *sensor_name;
+	const char		*sensor_name;
 	int			version;
 	int			handle;
 	int			type;
@@ -160,7 +162,8 @@ struct sensors_classdev {
 					unsigned int max_latency);
 	int	(*sensors_enable_wakeup)(struct sensors_classdev *sensor_cdev,
 					unsigned int enable);
-	int	(*sensors_flush)(struct sensors_classdev *sensors_cdev,unsigned char val);
+	int	(*sensors_flush)(struct sensors_classdev *sensors_cdev,
+					unsigned char val);
 	int	(*sensors_calibrate)(struct sensors_classdev *sensor_cdev,
 					int axis, int apply_now);
 	int	(*sensors_write_cal_params)(struct sensors_classdev
@@ -172,3 +175,4 @@ extern int sensors_classdev_register(struct device *parent,
 extern void sensors_classdev_unregister(struct sensors_classdev *sensors_cdev);
 
 #endif		/* __LINUX_SENSORS_H_INCLUDED */
+

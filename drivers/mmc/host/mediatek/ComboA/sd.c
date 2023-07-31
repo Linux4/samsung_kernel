@@ -35,7 +35,6 @@
 #include <linux/pm_runtime.h>
 #include <linux/arm-smccc.h>
 #include <linux/soc/mediatek/mtk_sip_svc.h>
-#include <linux/sec_class.h>
 
 #include "mtk_sd.h"
 #include <mmc/core/core.h>
@@ -43,6 +42,7 @@
 #include <mmc/core/host.h>
 #include <mmc/core/queue.h>
 #include <mmc/core/mmc_ops.h>
+#include "mmc-sec-sysfs.h"
 
 #ifdef MTK_MSDC_BRINGUP_DEBUG
 //#include <mach/mt_pmic_wrap.h>
@@ -55,7 +55,7 @@
 #endif
 
 #include "dbg.h"
-//+bug 612420, renyiyue.wt, add, 2020.12.23, proc file for sdcard slot detect
+//bug 717429, linaiyu.wt, add, 2022.01.25, proc file for sdcard slot detect
 #include <linux/proc_fs.h>
 #define CAPACITY_2G             (2 * 1024 * 1024 * 1024ULL)
 
@@ -3560,9 +3560,12 @@ int msdc_error_tuning(struct mmc_host *mmc,  struct mmc_request *mrq)
 	}
 
 	/* send stop command if device not in transfer state */
-	if (R1_CURRENT_STATE(status) != R1_STATE_TRAN &&
-		msdc_stop_and_wait_busy(host))
-		goto recovery;
+	if (R1_CURRENT_STATE(status) == R1_STATE_DATA ||
+		R1_CURRENT_STATE(status) == R1_STATE_RCV) {
+		ret = msdc_stop_and_wait_busy(host);
+		if (ret)
+			goto recovery;
+	}
 
 start_tune:
 	msdc_pmic_force_vcore_pwm(true);
@@ -4433,8 +4436,15 @@ static int msdc_ops_switch_volt(struct mmc_host *mmc, struct mmc_ios *ios)
 		 * Must keep clock gate 5ms before switch voltage
 		 */
 		usleep_range(10000, 10500);
+
 		/* set as 500T -> 1.25ms for 400KHz or 1.9ms for 260KHz */
 		msdc_set_vol_change_wait_count(VOL_CHG_CNT_DEFAULT_VAL);
+
+		/*  CMD11 will enable SWITCH detect while mmc core layer trriger
+		 *  switch voltage flow without cmd11 for somecase,so also enable switch
+		 *  detect before switch.Otherwise will hang in this func.
+		 */
+		MSDC_SET_BIT32(SDC_CMD, SDC_CMD_VOLSWTH);
 		/* start to provide clock to device */
 		MSDC_SET_BIT32(MSDC_CFG, MSDC_CFG_BV18SDT);
 		/* Delay 1ms wait HW to finish voltage switch */
@@ -4954,7 +4964,7 @@ static void msdc_add_host(struct work_struct *work)
 static void msdc_dvfs_kickoff(struct work_struct *work)
 {
 }
-//+bug 612420, renyiyue.wt, add, 2020.12.23, proc file for sdcard slot detect
+//+bug 717429, linaiyu.wt, add, 2022.01.25, proc file for sdcard slot detect
 static int sim_card_status_show(struct seq_file *m, void *v)
 {
     int gpio_value = 0;
@@ -4995,131 +5005,7 @@ static void sim_card_tray_remove_proc(void)
 {
     remove_proc_entry("sd_tray_gpio_value", NULL);
 }
-//-bug 612420, renyiyue.wt, add, 2020.12.23, proc file for sdcard slot detect
-
-static struct device *sdcard_dev;
-static ssize_t sdcard_status_show(struct device *dev,
-		struct device_attribute *attr,
-		char *buf)
-{
-	struct mmc_host *mmc = dev_get_drvdata(dev);
-	struct msdc_host *host = mmc_priv(mmc);
-	unsigned int level;
-
-	if (cd_gpio) {      // cd gpio exists
-		// level - inserted : 1, removed: 0
-		level = (host->hw->cd_level == __gpio_get_value(cd_gpio)) ? 1 : 0;
-		if (level && mmc->card) {
-			pr_err("SD card inserted.\n");
-			return sprintf(buf, "Insert\n");
-		} else if (level && !mmc->card) {
-			pr_err("SD card removed.\n");
-			return sprintf(buf, "Remove\n");
-		} else {
-			pr_err("SD slot tray Removed.\n");
-			return sprintf(buf, "Notray\n");
-		}
-	} else {                                          // cd gpio does not exist
-		if (mmc->card) {
-			pr_err("SD card inserted.\n");
-			return sprintf(buf, "Insert\n");
-		} else {
-			pr_err("SD card removed.\n");
-			return sprintf(buf, "Remove\n");
-		}
-	}
-}
-
-/* SYSFS for service center support */
-static struct device *sd_info_dev;
-static ssize_t sd_count_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{	
-	struct mmc_host *host = dev_get_drvdata(dev);
-	struct mmc_card *card = host->card;
-	struct mmc_card_error_log *err_log;
-	u64 total_cnt = 0;
-	int len = 0;
-	int i = 0;
-
-	if (!card) {
-		len = snprintf(buf, PAGE_SIZE, "no card\n");
-		goto out;
-	}
-
-	err_log = card->err_log;
-
-	for (i = 0; i < 6; i++) {
-		if (total_cnt < MAX_CNT_U64)
-			total_cnt += err_log[i].count;
-	}
-	len = snprintf(buf, PAGE_SIZE, "%lld\n", total_cnt);
-
-out:
-	return len;
-}
-
-static ssize_t sd_cid_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct mmc_host *host = dev_get_drvdata(dev);
-	struct mmc_card *card = host->card;
-	int len = 0;
-
-	if (!card) {
-		len = snprintf(buf, PAGE_SIZE, "no card\n");
-		goto out;
-	}
-
-	len = snprintf(buf, PAGE_SIZE,
-			"%08x%08x%08x%08x\n",
-			card->raw_cid[0], card->raw_cid[1],
-			card->raw_cid[2], card->raw_cid[3]);
-out:
-	return len;
-}
-
-static ssize_t sd_health_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct mmc_host *host = dev_get_drvdata(dev);
-	struct mmc_card *card = host->card;
-	struct mmc_card_error_log *err_log;
-	u64 total_c_cnt = 0;
-	u64 total_t_cnt = 0;
-	int len = 0;
-	int i = 0;
-
-	if (!card) {
-		//There should be no spaces in 'No Card'(Vold Team).
-		len = snprintf(buf, PAGE_SIZE, "NOCARD\n");
-		goto out;
-	}
-
-	err_log = card->err_log;
-
-	for (i = 0; i < 6; i++) {
-		if (err_log[i].err_type == -EILSEQ && total_c_cnt < MAX_CNT_U64)
-			total_c_cnt += err_log[i].count;
-		if (err_log[i].err_type == -ETIMEDOUT && total_t_cnt < MAX_CNT_U64)
-			total_t_cnt += err_log[i].count;
-	}
-
-	if(err_log[0].ge_cnt > 100 || err_log[0].ecc_cnt > 0 || err_log[0].wp_cnt > 0 ||
-			err_log[0].oor_cnt > 10 || total_t_cnt > 100 || total_c_cnt > 100)
-		len = snprintf(buf, PAGE_SIZE, "BAD\n");
-	else
-		len = snprintf(buf, PAGE_SIZE, "GOOD\n");
-
-out:
-	return len;
-}
-
-static DEVICE_ATTR(status, 0444, sdcard_status_show, NULL);
-static DEVICE_ATTR(sd_count, 0444, sd_count_show, NULL);
-static DEVICE_ATTR(fc, 0444, sd_health_show, NULL);
-static DEVICE_ATTR(data, 0444, sd_cid_show, NULL);
-
+//-bug 717429, linaiyu.wt, add, 2022.01.25, proc file for sdcard slot detect
 static int msdc_drv_probe(struct platform_device *pdev)
 {
 	struct mmc_host *mmc = NULL;
@@ -5164,11 +5050,8 @@ static int msdc_drv_probe(struct platform_device *pdev)
 	if (host->hw->host_function == MSDC_EMMC)
 		mmc->caps |= MMC_CAP_CMD23;
 #endif
-
-#ifndef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-	if (host->hw->host_function == MSDC_SD){
-        }
-#endif
+//	if (host->hw->host_function == MSDC_SD)
+//		mmc->caps |= MMC_CAP_AGGRESSIVE_PM;
 
 	mmc->caps |= MMC_CAP_ERASE;
 
@@ -5347,45 +5230,18 @@ static int msdc_drv_probe(struct platform_device *pdev)
 
 	if (host->hw->host_function == MSDC_EMMC)
 		msdc_debug_proc_init_bootdevice();
-//+bug 612420, renyiyue.wt, add, 2020.12.23, proc file for sdcard slot detect
+//+bug 717429, linaiyu.wt, add, 2022.01.25, proc file for sdcard slot detect
         if (host->hw->host_function == MSDC_SD) {
                 if(sim_card_tray_create_proc()) {
                         dev_err(&pdev->dev, "creat proc sim_card_status failed\n");
                 } else {
                         dev_dbg(&pdev->dev, "creat proc sim_card_status successed\n");
                 }
-
-		/*sdcard*/
-		sdcard_dev = sec_device_create(NULL, "sdcard");
-		if (IS_ERR(sdcard_dev))
-			pr_err("%s : Failed to create device!\n", __func__);
-
-		if (device_create_file(sdcard_dev, &dev_attr_status) < 0)
-			pr_err("%s : Failed to create device file(%s)!\n",
-					__func__, dev_attr_status.attr.name);
-
-		dev_set_drvdata(sdcard_dev, mmc);
-
-	    /*sdinfo*/
-	    sd_info_dev = sec_device_create(NULL, "sdinfo");
-	    if (IS_ERR(sd_info_dev))
-		    pr_err("%s:Failed to create device\n", __func__);
-
-	    if (device_create_file(sd_info_dev, &dev_attr_sd_count) < 0)
-		    pr_err("%s : Failed to create device file(%s)!\n",
-				    __func__, dev_attr_sd_count.attr.name);
-
-	    if (device_create_file(sd_info_dev, &dev_attr_data) < 0)
-		    pr_err("%s : Failed to create device file(%s)!\n",
-				    __func__, dev_attr_data.attr.name);
-
-	    if (device_create_file(sd_info_dev, &dev_attr_fc) < 0)
-		    pr_err("%s : Failed to create device file(%s)!\n",
-				    __func__, dev_attr_fc.attr.name);
-
-	    dev_set_drvdata(sd_info_dev, mmc);
         }
-//-bug 612420, renyiyue.wt, add, 2020.12.23, proc file for sdcard slot detect
+//-bug 717429, linaiyu.wt, add, 2022.01.25, proc file for sdcard slot detect
+
+	mmc_sec_init_sysfs(mmc);
+
 	return 0;
 
 release:
@@ -5429,7 +5285,7 @@ static int msdc_drv_remove(struct platform_device *pdev)
 
 	if (mem)
 		release_mem_region(mem->start, mem->end - mem->start + 1);
-//+bug 612420, renyiyue.wt, add, 2020.12.23, proc file for sdcard slot detect
+//bug 717429, linaiyu.wt, add, 2022.01.25, proc file for sdcard slot detect
         if(host->hw->host_function == MSDC_SD){
                 sim_card_tray_remove_proc();
         }

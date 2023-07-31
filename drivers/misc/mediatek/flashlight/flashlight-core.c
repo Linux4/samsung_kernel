@@ -26,10 +26,17 @@
 
 #include "flashlight-core.h"
 
+#if (defined(CONFIG_MACH_MT6877) \
+|| defined(CONFIG_MACH_MT6833) \
+|| defined(CONFIG_MACH_MT6781) \
+|| defined(CONFIG_MACH_MT6739))
+#include "mach/upmu_sw.h" /* PT */
+#else
 #ifdef CONFIG_MTK_FLASHLIGHT_PT
 #include "mtk_battery_oc_throttling.h"
 #include "mtk_low_battery_throttling.h"
 #include "mtk_battery_percentage_throttling.h"
+#endif
 #endif
 
 #ifdef CONFIG_MTK_FLASHLIGHT_DLPT
@@ -126,7 +133,7 @@ static int fl_enable(struct flashlight_dev *fdev, int enable)
 	if (pt_is_low(pt_low_vol, pt_low_bat, pt_over_cur) == 2)
 		if (enable) {
 			//+P210619-00213 , add by dengyixuan.wt , 2021/06/29 , low power flash on
-			#if defined(CONFIG_WT_PROJECT_S96717RA1) || defined(CONFIG_MTK_96116_CAMERA)
+			#if defined(CONFIG_WT_PROJECT_S96717AA2)
 			enable = 1;
 			#else
 			enable = 0;

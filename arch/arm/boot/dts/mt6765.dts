@@ -11,8 +11,9 @@
 #include <dt-bindings/clock/mt6765-clk.h>
 #include <dt-bindings/iio/mt635x-auxadc.h>
 #include <dt-bindings/gce/mt6765-gce.h>
-#include <generated/autoconf.h>
 #include <dt-bindings/soc/mediatek,boot-mode.h>
+#include <dt-bindings/phy/phy.h>
+#include <generated/autoconf.h>
 
 /dts-v1/;
 
@@ -500,7 +501,11 @@
 		reserve-memory-scp_share {
 			compatible = "mediatek,reserve-memory-scp_share";
 			no-map;
+#ifdef CONFIG_MTK_TINYSYS_SCP_LOGGER_SUPPORT
 			size = <0 0x00300000>;
+#else
+			size = <0 0x00100000>;
+#endif
 			alignment = <0 0x1000000>;
 			alloc-ranges = <0 0x40000000 0 0x50000000>;
 		};
@@ -638,6 +643,7 @@
 
 	infracfg_ao: infracfg_ao@10001000 {
 		compatible = "mediatek,common-infracfg_ao",
+			     "mediatek,infracfg_ao",
 			     "mediatek,mt6765-infracfg", "syscon";
 		reg = <0 0x10001000 0 0x1000>;
 		interrupts = <GIC_SPI 147 IRQ_TYPE_EDGE_RISING>;
@@ -923,12 +929,13 @@
 		compatible = "mediatek,scp";
 		status = "okay";
 		reg =	<0 0x10500000 0 0x40000>,
-				<0 0x105c0000 0 0x3000>,
-				<0 0x105c4000 0 0x1000>,
-				<0 0x105d4000 0 0x6000>;
+			<0 0x105c0000 0 0x3000>,
+			<0 0x105c4000 0 0x1000>,
+			<0 0x105d4000 0 0x6000>;
 		interrupts = <GIC_SPI 192 IRQ_TYPE_LEVEL_HIGH>;
 		core_1 = "enable";
 		scp_sramSize = <0x00040000>;
+		scp_mpuRegionId = <27>;
 		scp_feature_tbl = <0 47>,   /* vow */
 				  <1 356>,  /* dsp */
 				  <2 62>,   /* sensor */
@@ -941,8 +948,12 @@
 				  <9 10>;   /* vow dump */
 
 		scp_mem_key = "mediatek,reserve-memory-scp_share";
+#ifdef CONFIG_MTK_TINYSYS_SCP_LOGGER_SUPPORT
 		scp_mem_tbl = <1 0x100000>, /* sensor */
 			      <4 0x200000>; /* logger */
+#else
+		scp_mem_tbl = <1 0x100000>; /* sensor */
+#endif
 	};
 
 	scp_dvfs {
@@ -1020,16 +1031,6 @@
 
 	goodix_fp: fingerprint {
 		compatible = "mediatek,goodix-fp";
-	};
-
-	mt6357_gauge {
-		compatible = "mediatek,mt6357_gauge";
-		gauge_name = "gauge";
-		alias_name = "mt6357";
-	};
-
-	gauge_timer {
-		compatible = "mediatek,gauge_timer_service";
 	};
 
 	topmisc@10011000 {
@@ -2455,12 +2456,30 @@
 		clock-names = "usb0",
 			"usb0_clk_top_sel",
 			"usb0_clk_univpll3_d4";
-		charger = <&mt6370_chg>;
+		pericfg= <&pericfg>;
+		interrupt-names = "mc";
+		phys = <&u2port0 PHY_TYPE_USB2>;
+		dr_mode = "otg";
+		usb-role-switch;
 	};
 
-	usb_sif@11210000 {
-		compatible = "mediatek,usb_sif";
-		reg = <0 0x11210000 0 0x10000>;
+	u2phy0: usb-phy@11210000 {
+		compatible = "mediatek,generic-tphy-v1";
+		reg = <0 0x11cc0000 0 0x0800>;
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+		status = "okay";
+		u2port0: usb-phy@11210000 {
+			reg = <0 0x11cc0800 0 0x100>;
+			clocks = <&clk26m>;
+			clock-names = "ref";
+			#phy-cells = <1>;
+			nvmem-cells = <&u2_phy_data>;
+			nvmem-cell-names = "intr_cal";
+			nvmem-cell-masks = <0x1f>;
+			status = "okay";
+		};
 	};
 
 	msdc0:msdc@11230000 {
@@ -2625,6 +2644,9 @@
 		};
 		thermal_efuse: segment@190 {
 			reg = <0x190 0xc>;
+		};
+		u2_phy_data: u2_phy_data@1ac {
+			reg = <0x1ac 0x4>;
 		};
 		efuse_ly: ly@210 {
 			reg = <0x210 0x4>;
@@ -3277,6 +3299,10 @@
 		interrupts = <GIC_SPI 242 IRQ_TYPE_LEVEL_LOW>;
 	};
 
+	camera_af_hw_node: camera_af_hw_node {
+		compatible = "mediatek,camera_af_lens";
+	};
+
 	flashlight_core: flashlight_core {
 		compatible = "mediatek,flashlight_core";
 	};
@@ -3494,6 +3520,16 @@
 	pd_adapter: pd_adapter {
 		compatible = "mediatek,pd_adapter";
 		adapter_name = "pd_adapter";
+	};
+
+	extcon_usb: extcon_usb {
+		compatible = "mediatek,extcon-usb";
+		charger = <&mt6370_chg>;
+		vbus-supply = <&otg_vbus>;
+		vbus-voltage = <5000000>;
+		vbus-current = <1800000>;
+		dev-conn = <&usb>;
+		mediatek,bypss-typec-sink = <1>;
 	};
 
 	rt9465_slave_chr: rt9465_slave_chr {

@@ -2,7 +2,7 @@
  *
  * FocalTech fts TouchScreen driver.
  *
- * Copyright (c) 2012-2019, Focaltech Ltd. All rights reserved.
+ * Copyright (c) 2012-2020, Focaltech Ltd. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -35,32 +35,29 @@
 #include "focaltech_core.h"
 #include "focaltech_flash.h"
 
-#include <linux/hardware_info.h>
-
 /*****************************************************************************
-* Static variables
+* Private constant and macro definitions using #define
 *****************************************************************************/
 #define FTS_FW_REQUEST_SUPPORT                      1
 /* Example: focaltech_ts_fw_tianma.bin */
-#define FTS_FW_NAME_PREX_WITH_REQUEST               "focaltech_ts_fw_"
+#define FTS_FW_NAME_PREX_WITH_REQUEST               "focaltech_ft8006s_fw_sky"
 #define FTS_READ_BOOT_ID_TIMEOUT                    3
 #define FTS_FLASH_PACKET_LENGTH_SPI_LOW             (4 * 1024 - 4)
-#define FTS_FLASH_PACKET_LENGTH_SPI                 (64 * 1024)
+#define FTS_FLASH_PACKET_LENGTH_SPI                 (32 * 1024 - 16)
+
+extern char Ctp_name[64];
+/*****************************************************************************
+* Private enumerations, structures and unions using typedef
+*****************************************************************************/
 
 /*****************************************************************************
 * Global variable or extern global variabls/functions
 *****************************************************************************/
-u8 fw_file[] = {
-#include FTS_UPGRADE_FW_FILE
-};
+u8 fw_file[] = {0};//#include FTS_UPGRADE_FW_FILE
 
-u8 fw_file2[] = {
-#include FTS_UPGRADE_FW2_FILE
-};
+u8 fw_file2[] = {0};//#include FTS_UPGRADE_FW2_FILE
 
-u8 fw_file3[] = {
-#include FTS_UPGRADE_FW3_FILE
-};
+u8 fw_file3[] = {0};//#include FTS_UPGRADE_FW3_FILE
 
 struct upgrade_module module_list[] = {
     {FTS_MODULE_ID, FTS_MODULE_NAME, fw_file, sizeof(fw_file)},
@@ -68,104 +65,53 @@ struct upgrade_module module_list[] = {
     {FTS_MODULE3_ID, FTS_MODULE3_NAME, fw_file3, sizeof(fw_file3)},
 };
 
+struct upgrade_setting_nf upgrade_setting_list[] = {
+    {0x87, 0x19, 0, (64 * 1024), (128 * 1024), 0x00, 0x02, 8,  1, 0, 1, 0},
+    {0x86, 0x22, 0, (64 * 1024), (128 * 1024), 0x00, 0x02, 8,  1, 0, 0, 0},
+    {0x87, 0x56, 0, (88 * 1024), 32766,        0xA5, 0x01, 8,  0, 1, 0, 1},
+    {0x80, 0x09, 0, (88 * 1024), 32766,        0xA5, 0x01, 8,  0, 1, 0, 1},
+    {0x86, 0x32, 0, (64 * 1024), (128 * 1024), 0xA5, 0x01, 12, 0, 0, 0, 0},
+    {0x86, 0x42, 0, (64 * 1024), (128 * 1024), 0xA5, 0x01, 12, 0, 0, 0, 0},
+    {0x87, 0x20, 0, (88 * 1024), (128 * 1024), 0xA5, 0x01, 8,  0, 1, 0, 1},
+    {0x87, 0x22, 0, (88 * 1024), (128 * 1024), 0xA5, 0x01, 8,  0, 1, 0, 1},
+    {0x82, 0x01, 0, (96 * 1024), (128 * 1024), 0xA5, 0x01, 8,  0, 1, 0, 0},
+};
+
 struct fts_upgrade *fwupgrade;
-
- //+ add by songbinbo.wt for tp info in factory mode  20190413
-#define TP_IC_FT8006P_ID   0x86
-#define TIANMA_FT8006P_VENDOR    0x45
-
- u8 tp_vendor_id = 0;
- u8 tp_ic_type = 0;
- u8 firmware_version_from_ic = 0;
- u8 firmware_version_from_bin = 0;
- //- add by songbinbo.wt for tp info in factory mode  20190413
 
 static int fts_check_bootid(void)
 {
     int ret = 0;
     u8 cmd = 0;
     u8 id[2] = { 0 };
-    struct ft_chip_t *chip_id = &fts_data->ic_info.ids;
+    struct fts_upgrade *upg = fwupgrade;
+    struct ft_chip_t *chip_id;
+
+    if (!upg || !upg->ts_data || !upg->setting_nf) {
+        FTS_ERROR("upgrade/ts_data/setting_nf is null");
+        return -EINVAL;
+    }
+
+    chip_id = &upg->ts_data->ic_info.ids;
 
     cmd = FTS_CMD_READ_ID;
     ret = fts_read(&cmd, 1, id, 2);
     if (ret < 0) {
-        FTS_ERROR("read boot id fail");
+        FTS_ERROR("read boot id(0x%02x 0x%02x) fail", id[0], id[1]);
         return ret;
     }
 
     FTS_INFO("read boot id:0x%02x 0x%02x", id[0], id[1]);
-    if ((chip_id->chip_idh == id[0]) && (chip_id->chip_idl == id[1])) {
+    if ((chip_id->rom_idh == id[0]) && (chip_id->rom_idl == id[1])) {
         return 0;
     }
 
     return -EIO;
 }
 
-//+ add by songbinbo.wt for tp info in factory mode  20190413
-void fts_read_tp_hardware_info(void)
-{
-	struct input_dev *input_dev = fts_data->input_dev;
-
-    mutex_lock(&input_dev->mutex);
-#if FTS_ESDCHECK_EN
-    fts_esdcheck_proc_busy(1);
-#endif
-
-    fts_read_reg(FTS_REG_VENDOR_ID, &tp_vendor_id);
-    fts_read_reg( FTS_REG_CHIP_ID, &tp_ic_type);
-    fts_read_reg(FTS_REG_FW_VER, &firmware_version_from_ic);
-
-#if FTS_ESDCHECK_EN
-    fts_esdcheck_proc_busy(0);
-#endif
-
-      FTS_ERROR("Factory read vendor id :0x%02x, ic_type :0x%02x, firmware_version_from_ic: 0x%02x\n",tp_vendor_id,tp_ic_type, firmware_version_from_ic);
-    mutex_unlock(&input_dev->mutex);
-
-    return ;
-
-}
-
-void fts_hardwareinfo_set(void)
-{
-	char firmware_ver[HARDWARE_MAX_ITEM_LONGTH];
-        char vendor_id[HARDWARE_MAX_ITEM_LONGTH];
-        char ic_name[HARDWARE_MAX_ITEM_LONGTH];
-        int err;
-
-	FTS_INFO("Hardwareinfo_set\n");
-
-	if(tp_vendor_id== TIANMA_FT8006P_VENDOR)
-	{
-		snprintf(vendor_id,HARDWARE_MAX_ITEM_LONGTH,"TIANMA");
-	}else {
-		snprintf(vendor_id,HARDWARE_MAX_ITEM_LONGTH,"Other vendor");
-	}
-
-	if(tp_ic_type == TP_IC_FT8006P_ID)
-	{
-		snprintf(ic_name,HARDWARE_MAX_ITEM_LONGTH,"FT8006P");
-	}else{
-		snprintf(ic_name,HARDWARE_MAX_ITEM_LONGTH,"Other IC");
-	}
-
-	snprintf(firmware_ver,HARDWARE_MAX_ITEM_LONGTH,"%s,VND:%s,FW:0x%x",vendor_id,ic_name,firmware_version_from_ic);
-	FTS_INFO("firmware_ver=%s\n", firmware_ver);
-
-	err = hardwareinfo_set_prop(HARDWARE_TP,firmware_ver);
-    if (err < 0)
-		return ;
-	return ;
-}
-
-//- add by songbinbo.wt for tp info in factory mode  20190413
-
 static int fts_fwupg_hardware_reset_to_boot(void)
 {
     fts_reset_proc(0);
-    mdelay(8);
-
     return 0;
 }
 
@@ -174,19 +120,26 @@ static int fts_enter_into_boot(void)
     int ret = 0;
     int i = 0;
     int j = 0;
-    u8 cmd = 0;
+    u8 cmd[2] = { 0 };
+    struct fts_upgrade *upg = fwupgrade;
+
+    if (!upg || !upg->ts_data || !upg->setting_nf) {
+        FTS_ERROR("upgrade/ts_data/setting_nf is null");
+        return -EINVAL;
+    }
 
     FTS_INFO("enter into boot environment");
     for (i = 0; i < FTS_UPGRADE_LOOP; i++) {
         /* hardware tp reset to boot */
         fts_fwupg_hardware_reset_to_boot();
+        mdelay(upg->setting_nf->delay_init);
 
         /* enter into boot & check boot id*/
         for (j = 0; j < FTS_READ_BOOT_ID_TIMEOUT; j++) {
-            cmd = FTS_CMD_START1;
-            ret = fts_write(&cmd, 1);
+            cmd[0] = FTS_CMD_START1;
+            ret = fts_write(cmd, 1);
             if (ret >= 0) {
-                mdelay(8);
+                mdelay(upg->setting_nf->delay_init);
                 ret = fts_check_bootid();
                 if (0 == ret) {
                     FTS_INFO("boot id check pass, retry=%d", i);
@@ -199,43 +152,86 @@ static int fts_enter_into_boot(void)
     return -EIO;
 }
 
+static bool fts_check_fast_download(void)
+{
+    int ret = 0;
+    u8 cmd[6] = {0xF2, 0x00, 0x78, 0x0A, 0x00, 0x02};
+    u8 value = 0;
+    u8 value2[2] = { 0 };
 
-static int fts_pram_write(u32 saddr, const u8 *buf, u32 len)
+    ret = fts_read_reg(0xdb, &value);
+    if (ret < 0) {
+        FTS_ERROR("read 0xdb fail");
+        goto read_err;
+    }
+
+    ret = fts_read(cmd, 6, value2, 2);
+    if (ret < 0) {
+        FTS_ERROR("read f2 fail");
+        goto read_err;
+    }
+
+    FTS_INFO("0xdb = 0x%x, 0xF2 = 0x%x", value, value2[0]);
+    if ((value >= 0x18) && (value2[0] == 0x55)) {
+        FTS_INFO("IC support fast-download");
+        return true;
+    }
+
+read_err:
+    FTS_INFO("IC not support fast-download");
+    return false;
+}
+
+static int fts_dpram_write_pe(u32 saddr, const u8 *buf, u32 len, bool wpram)
 {
     int ret = 0;
     int i = 0;
     int j = 0;
-    u8 *cmd;
+    u8 *cmd = NULL;
     u32 addr = 0;
     u32 offset = 0;
     u32 remainder = 0;
-    u32 packet_number;
+    u32 packet_number = 0;
     u32 packet_len = 0;
     u32 packet_size = FTS_FLASH_PACKET_LENGTH_SPI;
     bool fd_support = true;
+    struct fts_upgrade *upg = fwupgrade;
 
-    FTS_INFO("pram write");
-    if (NULL == buf) {
+    FTS_INFO("dpram write");
+    if (!upg || !upg->ts_data || !upg->setting_nf) {
+        FTS_ERROR("upgrade/ts_data/setting_nf is null");
+        return -EINVAL;
+    }
+
+    if (!buf) {
         FTS_ERROR("fw buf is null");
         return -EINVAL;
     }
 
-    if ((len < FTS_MIN_LEN) || (len > FTS_MAX_LEN_APP)) {
+    if ((len < FTS_MIN_LEN) || (len > upg->setting_nf->app2_offset)) {
         FTS_ERROR("fw length(%d) fail", len);
         return -EINVAL;
     }
 
-    cmd = kzalloc(packet_size + FTS_CMD_WRITE_LEN, GFP_KERNEL);
+    if (upg->setting_nf->fd_check) {
+        fd_support = fts_check_fast_download();
+        if (!fd_support)
+            packet_size = FTS_FLASH_PACKET_LENGTH_SPI_LOW;
+    }
+
+    cmd = vmalloc(packet_size + FTS_CMD_WRITE_LEN + 1);
     if (NULL == cmd) {
         FTS_ERROR("malloc memory for pram write buffer fail");
         return -ENOMEM;
     }
+    memset(cmd, 0, packet_size + FTS_CMD_WRITE_LEN + 1);
 
     packet_number = len / packet_size;
     remainder = len % packet_size;
     if (remainder > 0)
         packet_number++;
     packet_len = packet_size;
+    FTS_INFO("write data, num:%d remainder:%d", packet_number, remainder);
 
     cmd[0] = FTS_ROMBOOT_CMD_WRITE;
     for (i = 0; i < packet_number; i++) {
@@ -254,6 +250,7 @@ static int fts_pram_write(u32 saddr, const u8 *buf, u32 len)
         for (j = 0; j < packet_len; j++) {
             cmd[FTS_CMD_WRITE_LEN + j] = buf[offset + j];
         }
+
         ret = fts_write(&cmd[0], FTS_CMD_WRITE_LEN + packet_len);
         if (ret < 0) {
             FTS_ERROR("write fw to pram(%d) fail", i);
@@ -266,7 +263,90 @@ static int fts_pram_write(u32 saddr, const u8 *buf, u32 len)
 
 write_pram_err:
     if (cmd) {
-        kfree(cmd);
+        vfree(cmd);
+        cmd = NULL;
+    }
+    return ret;
+}
+
+static int fts_dpram_write(u32 saddr, const u8 *buf, u32 len, bool wpram)
+{
+    int ret = 0;
+    int i = 0;
+    int j = 0;
+    u8 *cmd = NULL;
+    u32 addr = 0;
+    u32 baseaddr = wpram ? FTS_PRAM_SADDR : FTS_DRAM_SADDR;
+    u32 offset = 0;
+    u32 remainder = 0;
+    u32 packet_number = 0;
+    u32 packet_len = 0;
+    u32 packet_size = FTS_FLASH_PACKET_LENGTH_SPI;
+    struct fts_upgrade *upg = fwupgrade;
+
+    FTS_INFO("dpram write");
+    if (!upg || !upg->ts_data || !upg->setting_nf) {
+        FTS_ERROR("upgrade/ts_data/setting_nf is null");
+        return -EINVAL;
+    }
+
+    if (!buf) {
+        FTS_ERROR("fw buf is null");
+        return -EINVAL;
+    }
+
+    if ((len < FTS_MIN_LEN) || (len > upg->setting_nf->app2_offset)) {
+        FTS_ERROR("fw length(%d) fail", len);
+        return -EINVAL;
+    }
+
+    cmd = vmalloc(packet_size + FTS_CMD_WRITE_LEN + 1);
+    if (NULL == cmd) {
+        FTS_ERROR("malloc memory for pram write buffer fail");
+        return -ENOMEM;
+    }
+    memset(cmd, 0, packet_size + FTS_CMD_WRITE_LEN + 1);
+
+    packet_number = len / packet_size;
+    remainder = len % packet_size;
+    if (remainder > 0)
+        packet_number++;
+    packet_len = packet_size;
+    FTS_INFO("write data, num:%d remainder:%d", packet_number, remainder);
+
+    for (i = 0; i < packet_number; i++) {
+        offset = i * packet_size;
+        addr = saddr + offset + baseaddr;
+        /* last packet */
+        if ((i == (packet_number - 1)) && remainder)
+            packet_len = remainder;
+
+        /* set pram address */
+        cmd[0] = FTS_ROMBOOT_CMD_SET_PRAM_ADDR;
+        cmd[1] = BYTE_OFF_16(addr);
+        cmd[2] = BYTE_OFF_8(addr);
+        cmd[3] = BYTE_OFF_0(addr);
+        ret = fts_write(&cmd[0], FTS_ROMBOOT_CMD_SET_PRAM_ADDR_LEN);
+        if (ret < 0) {
+            FTS_ERROR("set pram(%d) addr(%d) fail", i, addr);
+            goto write_pram_err;
+        }
+
+        /* write pram data */
+        cmd[0] = FTS_ROMBOOT_CMD_WRITE;
+        for (j = 0; j < packet_len; j++) {
+            cmd[1 + j] = buf[offset + j];
+        }
+        ret = fts_write(&cmd[0], 1 + packet_len);
+        if (ret < 0) {
+            FTS_ERROR("write fw to pram(%d) fail", i);
+            goto write_pram_err;
+        }
+    }
+
+write_pram_err:
+    if (cmd) {
+        vfree(cmd);
         cmd = NULL;
     }
     return ret;
@@ -278,8 +358,14 @@ static int fts_ecc_cal_tp(u32 ecc_saddr, u32 ecc_len, u16 *ecc_value)
     int i = 0;
     u8 cmd[FTS_ROMBOOT_CMD_ECC_NEW_LEN] = { 0 };
     u8 value[2] = { 0 };
+    struct fts_upgrade *upg = fwupgrade;
 
     FTS_INFO("ecc calc in tp");
+    if (!upg || !upg->ts_data || !upg->setting_nf) {
+        FTS_ERROR("upgrade/ts_data/setting_nf is null");
+        return -EINVAL;
+    }
+
     cmd[0] = FTS_ROMBOOT_CMD_ECC;
     cmd[1] = BYTE_OFF_16(ecc_saddr);
     cmd[2] = BYTE_OFF_8(ecc_saddr);
@@ -294,7 +380,7 @@ static int fts_ecc_cal_tp(u32 ecc_saddr, u32 ecc_len, u16 *ecc_value)
         FTS_ERROR("ecc calc cmd fail");
         return ret;
     }
-    mdelay(3);
+    mdelay(2);
 
     /* wait boot calculate ecc finish */
     cmd[0] = FTS_ROMBOOT_CMD_ECC_FINISH;
@@ -304,12 +390,12 @@ static int fts_ecc_cal_tp(u32 ecc_saddr, u32 ecc_len, u16 *ecc_value)
             FTS_ERROR("ecc finish cmd fail");
             return ret;
         }
-        if (0 == value[0])
+        if (upg->setting_nf->eccok_val == value[0])
             break;
         mdelay(1);
     }
     if (i >= FTS_ECC_FINISH_TIMEOUT) {
-        FTS_ERROR("wait ecc finish timeout");
+        FTS_ERROR("wait ecc finish timeout,ecc_finish=%x", value[0]);
         return -EIO;
     }
 
@@ -328,8 +414,8 @@ static int fts_ecc_cal_tp(u32 ecc_saddr, u32 ecc_len, u16 *ecc_value)
 static int fts_ecc_cal_host(const u8 *data, u32 data_len, u16 *ecc_value)
 {
     u16 ecc = 0;
-    u16 i = 0;
-    u16 j = 0;
+    u32 i = 0;
+    u32 j = 0;
     u16 al2_fcs_coef = AL2_FCS_COEF;
 
     for (i = 0; i < data_len; i += 2 ) {
@@ -346,6 +432,172 @@ static int fts_ecc_cal_host(const u8 *data, u32 data_len, u16 *ecc_value)
     return 0;
 }
 
+static int fts_ecc_check(const u8 *buf, u32 len, u32 ecc_saddr)
+{
+    int ret = 0;
+    int i = 0;
+    u16 ecc_in_host = 0;
+    u16 ecc_in_tp = 0;
+    int packet_length = 0;
+    int packet_number = 0;
+    int packet_remainder = 0;
+    int offset = 0;
+    u32 packet_size = FTS_MAX_LEN_FILE;
+    struct fts_upgrade *upg = fwupgrade;
+
+    FTS_INFO("ecc check");
+    if (!upg || !upg->ts_data || !upg->setting_nf) {
+        FTS_ERROR("upgrade/ts_data/setting_nf is null");
+        return -EINVAL;
+    }
+
+    if (upg->setting_nf->ecclen_max) {
+        packet_size = upg->setting_nf->ecclen_max;
+    }
+
+    packet_number = len / packet_size;
+    packet_remainder = len % packet_size;
+    if (packet_remainder)
+        packet_number++;
+    packet_length = packet_size;
+
+    for (i = 0; i < packet_number; i++) {
+        /* last packet */
+        if ((i == (packet_number - 1)) && packet_remainder)
+            packet_length = packet_remainder;
+
+        ret = fts_ecc_cal_host(buf + offset, packet_length, &ecc_in_host);
+        if (ret < 0) {
+            FTS_ERROR("ecc in host calc fail");
+            return ret;
+        }
+
+        ret = fts_ecc_cal_tp(ecc_saddr + offset, packet_length, &ecc_in_tp);
+        if (ret < 0) {
+            FTS_ERROR("ecc in tp calc fail");
+            return ret;
+        }
+
+        FTS_DEBUG("ecc in tp:%04x,host:%04x,i:%d", ecc_in_tp, ecc_in_host, i);
+        if (ecc_in_tp != ecc_in_host) {
+            FTS_ERROR("ecc_in_tp(%x) != ecc_in_host(%x), ecc check fail",
+                      ecc_in_tp, ecc_in_host);
+            return -EIO;
+        }
+
+        offset += packet_length;
+    }
+
+    return 0;
+}
+
+static int fts_pram_write_ecc(const u8 *buf, u32 len)
+{
+    int ret = 0;
+    u32 pram_app_size = 0;
+    u16 code_len = 0;
+    u16 code_len_n = 0;
+    u32 pram_start_addr = 0;
+    struct fts_upgrade *upg = fwupgrade;
+
+    FTS_INFO("begin to write pram app(bin len:%d)", len);
+    if (!upg || !upg->setting_nf) {
+        FTS_ERROR("upgrade/setting_nf is null");
+        return -EINVAL;
+    }
+
+    /* get pram app length */
+    code_len = ((u16)buf[FTS_APP_INFO_OFFSET + 0] << 8)
+               + buf[FTS_APP_INFO_OFFSET + 1];
+    code_len_n = ((u16)buf[FTS_APP_INFO_OFFSET + 2] << 8)
+                 + buf[FTS_APP_INFO_OFFSET + 3];
+    if ((code_len + code_len_n) != 0xFFFF) {
+        FTS_ERROR("pram code len(%x %x) fail", code_len, code_len_n);
+        return -EINVAL;
+    }
+
+    if (upg->setting_nf->half_length)
+        pram_app_size = ((u32)code_len) * 2;
+    else
+        pram_app_size = (u32)code_len;
+    FTS_INFO("pram app length in fact:%d", pram_app_size);
+
+    /* write pram */
+    if (upg->setting_nf->spi_pe)
+        ret = fts_dpram_write_pe(pram_start_addr, buf, pram_app_size, true);
+    else
+        ret = fts_dpram_write(pram_start_addr, buf, pram_app_size, true);
+    if (ret < 0) {
+        FTS_ERROR("write pram fail");
+        return ret;
+    }
+
+    /* check ecc */
+    ret = fts_ecc_check(buf, pram_app_size, pram_start_addr);
+    if (ret < 0) {
+        FTS_ERROR("pram ecc check fail");
+        return ret;
+    }
+
+    FTS_INFO("pram app write successfully");
+    return 0;
+}
+
+static int fts_dram_write_ecc(const u8 *buf, u32 len)
+{
+    int ret = 0;
+    u32 dram_size = 0;
+    u32 pram_app_size = 0;
+    u32 dram_start_addr = 0;
+    u16 const_len = 0;
+    u16 const_len_n = 0;
+    const u8 *dram_buf = NULL;
+    struct fts_upgrade *upg = fwupgrade;
+
+    FTS_INFO("begin to write dram data(bin len:%d)", len);
+    if (!upg || !upg->setting_nf) {
+        FTS_ERROR("upgrade/setting_nf is null");
+        return -EINVAL;
+    }
+
+    /* get dram data length */
+    const_len = ((u16)buf[FTS_APP_INFO_OFFSET + 0x8] << 8)
+                + buf[FTS_APP_INFO_OFFSET + 0x9];
+    const_len_n = ((u16)buf[FTS_APP_INFO_OFFSET + 0x0A] << 8)
+                  + buf[FTS_APP_INFO_OFFSET + 0x0B];
+    if (((const_len + const_len_n) != 0xFFFF) || (const_len == 0)) {
+        FTS_INFO("no support dram,const len(%x %x)", const_len, const_len_n);
+        return 0;
+    }
+
+    if (upg->setting_nf->half_length)
+        dram_size = ((u32)const_len) * 2;
+    else
+        dram_size = (u32)const_len;
+
+    pram_app_size = ((u32)(((u16)buf[FTS_APP_INFO_OFFSET + 0] << 8)
+                           + buf[FTS_APP_INFO_OFFSET + 1])) * 2;
+
+    dram_buf = buf + pram_app_size;
+    FTS_INFO("dram buf length in fact:%d,offset:%d", dram_size, pram_app_size);
+    /* write pram */
+    ret = fts_dpram_write(dram_start_addr, dram_buf, dram_size, false);
+    if (ret < 0) {
+        FTS_ERROR("write dram fail");
+        return ret;
+    }
+
+    /* check ecc */
+    ret = fts_ecc_check(dram_buf, dram_size, dram_start_addr);
+    if (ret < 0) {
+        FTS_ERROR("dram ecc check fail");
+        return ret;
+    }
+
+    FTS_INFO("dram data write successfully");
+    return 0;
+}
+
 static int fts_pram_start(void)
 {
     int ret = 0;
@@ -358,6 +610,7 @@ static int fts_pram_start(void)
         return ret;
     }
 
+    msleep(10);
     return 0;
 }
 
@@ -372,32 +625,16 @@ static int fts_pram_start(void)
 static int fts_fw_write_start(const u8 *buf, u32 len, bool need_reset)
 {
     int ret = 0;
-    u16 ecc_in_host = 0;
-    u16 ecc_in_tp = 0;
-    u32 fw_start_addr = 0;
-    u32 fw_len = 0;
-    u16 code_len = 0;
-    u16 code_len_n = 0;
+    u8 fwver = 0;
+    struct fts_upgrade *upg = fwupgrade;
 
     FTS_INFO("begin to write and start fw(bin len:%d)", len);
-    /* get app length */
-    code_len = ((u16)buf[FTS_APP_INFO_OFFSET + 0] << 8)
-               + buf[FTS_APP_INFO_OFFSET + 1];
-    code_len_n = ((u16)buf[FTS_APP_INFO_OFFSET + 2] << 8)
-                 + buf[FTS_APP_INFO_OFFSET + 3];
-    if ((code_len + code_len_n) != 0xFFFF) {
-        FTS_ERROR("code len(%x %x) fail", code_len, code_len_n);
+    if (!upg || !upg->ts_data || !upg->setting_nf) {
+        FTS_ERROR("upgrade/ts_data/setting_nf is null");
         return -EINVAL;
     }
 
-    fw_len = (u32)code_len;
-    if ((fw_len < FTS_MIN_LEN) || (fw_len > FTS_MAX_LEN_APP)) {
-        FTS_ERROR("fw length(%d) is invalid", fw_len);
-        return -EINVAL;
-    }
-
-    FTS_INFO("fw length in fact:%d", fw_len);
-    fts_data->fw_is_running = false;
+    upg->ts_data->fw_is_running = false;
 
     if (need_reset) {
         /* enter into boot environment */
@@ -409,29 +646,19 @@ static int fts_fw_write_start(const u8 *buf, u32 len, bool need_reset)
     }
 
     /* write pram */
-    ret = fts_pram_write(fw_start_addr, buf, fw_len);
+    ret = fts_pram_write_ecc(buf, len);
     if (ret < 0) {
         FTS_ERROR("write pram fail");
         return ret;
     }
 
-    /* ecc check */
-    ret = fts_ecc_cal_host(buf, fw_len, &ecc_in_host);
-    if (ret < 0) {
-        FTS_ERROR("ecc in host calc fail");
-        return ret;
-    }
-
-    ret = fts_ecc_cal_tp(fw_start_addr, fw_len, &ecc_in_tp);
-    if (ret < 0) {
-        FTS_ERROR("ecc in tp calc fail");
-        return ret;
-    }
-
-    FTS_INFO("ecc in tp:%04x host:%04x", ecc_in_tp, ecc_in_host);
-    if (ecc_in_tp != ecc_in_host) {
-        FTS_ERROR("ecc check fail");
-        return -EIO;
+    if (upg->setting_nf->drwr_support) {
+        /* write dram */
+        ret = fts_dram_write_ecc(buf, len);
+        if (ret < 0) {
+            FTS_ERROR("write dram fail");
+            return ret;
+        }
     }
 
     /* remap pram and run fw */
@@ -441,8 +668,13 @@ static int fts_fw_write_start(const u8 *buf, u32 len, bool need_reset)
         return ret;
     }
 
-    fts_data->fw_is_running = true;
+    upg->ts_data->fw_is_running = true;
     FTS_INFO("fw download successfully");
+
+    ret = fts_read_reg(FTS_REG_FW_VER, &fwver);
+    FTS_INFO("fts_tpfwver_show fw_version is : 0x0%d\n",fwver);
+    sprintf(Ctp_name,"SKY,FT8006S,FW:0x0%d",fwver);
+
     return 0;
 }
 
@@ -450,15 +682,20 @@ static int fts_fw_download(const u8 *buf, u32 len, bool need_reset)
 {
     int ret = 0;
     int i = 0;
-    struct fts_ts_data *ts_data = fts_data;
+    struct fts_upgrade *upg = fwupgrade;
 
     FTS_INFO("fw upgrade download function");
+    if (!upg || !upg->ts_data || !upg->setting_nf) {
+        FTS_ERROR("upgrade/ts_data/setting_nf is null");
+        return -EINVAL;
+    }
+
     if (!buf || (len < FTS_MIN_LEN)) {
         FTS_ERROR("fw/len(%d) is invalid", len);
         return -EINVAL;
     }
 
-    ts_data->fw_loading = 1;
+    upg->ts_data->fw_loading = 1;
     fts_irq_disable();
 #if FTS_ESDCHECK_EN
     fts_esdcheck_switch(DISABLE);
@@ -470,22 +707,25 @@ static int fts_fw_download(const u8 *buf, u32 len, bool need_reset)
         if (0 == ret)
             break;
     }
+    if (i >= 3) {
+        FTS_ERROR("fw download fail");
+        ret = -EIO;
+        goto err_fw_download;
+    }
 
 #if FTS_ESDCHECK_EN
     fts_esdcheck_switch(ENABLE);
 #endif
+
+    ret = 0;
+err_fw_download:
     fts_irq_enable();
-    ts_data->fw_loading = 0;
+    upg->ts_data->fw_loading = 0;
 
-    if (i >= 3) {
-        FTS_ERROR("fw download fail");
-        return -EIO;
-    }
-
-    return 0;
+    return ret;
 }
 
-int fts_read_file(char *file_name, u8 **file_buf)
+static int fts_read_file(char *file_name, u8 **file_buf)
 {
     int ret = 0;
     char file_path[FILE_NAME_LENGTH] = { 0 };
@@ -542,8 +782,8 @@ int fts_upgrade_bin(char *fw_name, bool force)
     struct fts_upgrade *upg = fwupgrade;
 
     FTS_INFO("start upgrade with fw bin");
-    if (NULL == upg) {
-        FTS_ERROR("upgrade/func is null");
+    if (!upg || !upg->ts_data || !upg->setting_nf) {
+        FTS_ERROR("upgrade/ts_data/setting_nf is null");
         return -EINVAL;
     }
 
@@ -553,8 +793,8 @@ int fts_upgrade_bin(char *fw_name, bool force)
     }
 
     ret = fts_read_file(fw_name, &fw_file_buf);
-    if ((ret < 0) || (ret < FTS_MIN_LEN) || (ret > FTS_MAX_LEN_FILE)) {
-        FTS_ERROR("read fw bin file(sdcard) fail, len:%d", fw_file_len);
+    if ((ret < 0) || (ret < FTS_MIN_LEN)) {
+        FTS_ERROR("read fw bin file(%s) fail, len:%d", fw_name, ret);
         goto err_bin;
     }
 
@@ -580,33 +820,44 @@ err_bin:
 int fts_enter_test_environment(bool test_state)
 {
     int ret = 0;
+    int i = 0;
     u8 detach_flag = 0;
+    u32 app_offset = 0;
     struct fts_upgrade *upg = fwupgrade;
 
     FTS_INFO("fw test download function");
-    if (!upg || !upg->fw) {
-        FTS_ERROR("upg/fw is null");
+    if (!upg || !upg->ts_data || !upg->setting_nf) {
+        FTS_ERROR("upgrade/ts_data/setting_nf is null");
         return -EINVAL;
     }
 
-    if (fts_data->fw_loading) {
+    if (upg->ts_data->fw_loading) {
         FTS_INFO("fw is loading, not download again");
         return -EINVAL;
     }
 
-    if (upg->fw_length <= FTS_MAX_LEN_APP) {
+    if (!upg->fw || (upg->fw_length <= upg->setting_nf->app2_offset)) {
         FTS_INFO("not multi-app");
         return 0;
     }
 
     if (test_state) {
-        ret = fts_fw_download(upg->fw + FTS_MAX_LEN_APP, upg->fw_length, true);
-    } else {
-        ret = fts_fw_download(upg->fw, upg->fw_length, true);
+        app_offset = upg->setting_nf->app2_offset;
     }
-    if (ret < 0) {
-        FTS_ERROR("fw(app2) download fail");
-        return ret;
+
+    /*download firmware*/
+    upg->ts_data->fw_loading = 1;
+    for (i = 0; i < 3; i++) {
+        FTS_INFO("fw download times:%d", i + 1);
+        ret = fts_fw_write_start(upg->fw + app_offset, upg->fw_length, true);
+        if (0 == ret)
+            break;
+    }
+    upg->ts_data->fw_loading = 0;
+
+    if (i >= 3) {
+        FTS_ERROR("fw(addr:%x) download fail", app_offset);
+        return -EIO;
     }
 
     msleep(50);
@@ -616,12 +867,15 @@ int fts_enter_test_environment(bool test_state)
     return 0;
 }
 
-int fts_fw_resume(void)
+int fts_fw_resume(bool need_reset)
 {
     int ret = 0;
     struct fts_upgrade *upg = fwupgrade;
     const struct firmware *fw = NULL;
     char fwname[FILE_NAME_LENGTH] = { 0 };
+    bool get_fw_i_flag = true;
+    const u8 *fw_buf = NULL;
+    u32 fwlen = 0;
 
     FTS_INFO("fw upgrade resume function");
     if (!upg || !upg->fw) {
@@ -634,31 +888,40 @@ int fts_fw_resume(void)
         return -EINVAL;
     }
 
-    snprintf(fwname, FILE_NAME_LENGTH, "%s%s.bin", \
-             FTS_FW_NAME_PREX_WITH_REQUEST, upg->module_info->vendor_name);
-
-    /* 1. request firmware */
-    ret = request_firmware(&fw, fwname, upg->ts_data->dev);
-    if (ret != 0) {
-        FTS_ERROR("%s:firmware(%s) request fail,ret=%d\n",
-                  __func__, fwname, ret);
-        FTS_INFO("download fw from bootimage");
-        ret = fts_fw_download(upg->fw, upg->fw_length, false);
-    } else {
-        FTS_INFO("firmware(%s) request successfully", fwname);
-        ret = fts_fw_download(fw->data, fw->size, false);
+    if (FTS_FW_REQUEST_SUPPORT) {
+        snprintf(fwname, FILE_NAME_LENGTH, "%s%s.bin", \
+                 FTS_FW_NAME_PREX_WITH_REQUEST, upg->module_info->vendor_name);
+        ret = request_firmware(&fw, fwname, upg->ts_data->dev);
+        if (ret == 0) {
+            FTS_INFO("firmware(%s) request successfully", fwname);
+            fw_buf = fw->data;
+            fwlen = fw->size;
+            get_fw_i_flag = false;
+        } else {
+            FTS_ERROR("%s:firmware(%s) request fail,ret=%d\n",
+                      __func__, fwname, ret);
+        }
     }
+
+    if (get_fw_i_flag) {
+        FTS_INFO("download fw from bootimage");
+        fw_buf = upg->fw;
+        fwlen = upg->fw_length;
+    }
+
+    ret = fts_fw_download(fw_buf, fwlen, need_reset);
     if (ret < 0) {
         FTS_ERROR("fw resume download failed");
-       // return ret;
     }
 
-    if (fw != NULL) {
-        release_firmware(fw);
-        fw = NULL;
+    if (FTS_FW_REQUEST_SUPPORT) {
+        if (fw != NULL) {
+            release_firmware(fw);
+            fw = NULL;
+        }
     }
 
-    return 0;
+    return ret;
 }
 
 int fts_fw_recovery(void)
@@ -669,8 +932,8 @@ int fts_fw_recovery(void)
     struct fts_upgrade *upg = fwupgrade;
 
     FTS_INFO("check if boot recovery");
-    if (!upg || !upg->ts_data) {
-        FTS_ERROR("upg/ts_data is null");
+    if (!upg || !upg->ts_data || !upg->setting_nf) {
+        FTS_ERROR("upg/ts_data/setting_nf is null");
         return -EINVAL;
     }
 
@@ -694,19 +957,19 @@ int fts_fw_recovery(void)
         return ret;
     }
 
-    if (boot_state != 0x02) {
+    if (boot_state != upg->setting_nf->upgsts_boot) {
         FTS_INFO("not in boot mode(0x%x),exit", boot_state);
         upg->ts_data->fw_is_running = true;
         return -EIO;
     }
 
     FTS_INFO("abnormal situation,need download fw");
-    ret = fts_fw_resume();
+    ret = fts_fw_resume(false);
     if (ret < 0) {
         FTS_ERROR("fts_fw_resume fail");
         return ret;
     }
-    msleep(10);
+
     ret = fts_read_reg(FTS_REG_CHIP_ID, &chip_id);
     FTS_INFO("read chip id:0x%02x", chip_id);
 
@@ -780,16 +1043,16 @@ static int fts_get_fw_file_via_request_firmware(struct fts_upgrade *upg)
 
     return ret;
 }
-
+#ifdef CONFIG_WT_PROJECT_S96616AA1
 static int fts_get_fw_file_via_i(struct fts_upgrade *upg)
 {
     upg->fw = upg->module_info->fw_file;
     upg->fw_length = upg->module_info->fw_len;
     upg->fw_from_request = 0;
-
+    FTS_ERROR("upload i file, upg->fw_length = %d\n",upg->fw,upg->fw_length);
     return 0;
 }
-
+#endif
 /*****************************************************************************
  *  Name: fts_fwupg_get_fw_file
  *  Brief: get fw image/file,
@@ -833,14 +1096,14 @@ static int fts_fwupg_get_fw_file(struct fts_upgrade *upg)
     } else {
         get_fw_i_flag = true;
     }
-
+#ifdef CONFIG_WT_PROJECT_S96616AA1
     if (get_fw_i_flag) {
         ret = fts_get_fw_file_via_i(upg);
     }
+#endif
 
     FTS_INFO("upgrade fw file len:%d", upg->fw_length);
-    if ((upg->fw_length < FTS_MIN_LEN)
-        || (upg->fw_length > FTS_MAX_LEN_FILE)) {
+    if (upg->fw_length < FTS_MIN_LEN) {
         FTS_ERROR("fw file len(%d) fail", upg->fw_length);
         return -ENODATA;
     }
@@ -848,18 +1111,12 @@ static int fts_fwupg_get_fw_file(struct fts_upgrade *upg)
     return ret;
 }
 
-/*
-* read firmware version from bin
-*/
-static int fts_get_fw_ver_in_host(struct fts_upgrade *upg, u8 *ver)
-{
-	*ver = upg->fw[0x10E];
-	return 0;
-}
-
 static void fts_fwupg_work(struct work_struct *work)
 {
     int ret = 0;
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+    int i = 0;
+#endif
     u8 chip_id = 0;
     struct fts_upgrade *upg = fwupgrade;
 
@@ -875,15 +1132,23 @@ static void fts_fwupg_work(struct work_struct *work)
     }
 
     /* get fw */
+#ifndef CONFIG_WT_PROJECT_S96616AA1
     ret = fts_fwupg_get_fw_file(upg);
+#endif
+
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+    for(i = 0; i < 3;i++){
+        ret = fts_fwupg_get_fw_file(upg);
+        if(ret == 0)
+            break;
+        else
+            msleep(1000);
+    }
+#endif
     if (ret < 0) {
         FTS_ERROR("get file fail, can't upgrade");
         return ;
     }
-
-    ret = fts_get_fw_ver_in_host(upg, &firmware_version_from_bin);
-    FTS_INFO("firmware version get from bin is 0x%02x.\n", firmware_version_from_bin);
-
     if (upg->ts_data->fw_loading) {
         FTS_INFO("fw is loading, not download again");
         return ;
@@ -897,21 +1162,24 @@ static void fts_fwupg_work(struct work_struct *work)
         ret = fts_read_reg(FTS_REG_CHIP_ID, &chip_id);
         FTS_INFO("read chip id:0x%02x", chip_id);
     }
-
-//+ add by songbinbo.wt for tp info in factory mode  20190413
-   fts_read_tp_hardware_info();
-   fts_hardwareinfo_set();
-   //- add by songbinbo.wt for tp info in factory mode	20190413
-
 }
 
 int fts_fwupg_init(struct fts_ts_data *ts_data)
 {
-    FTS_INFO("fw upgrade init function");
+    int i = 0;
+    struct upgrade_setting_nf *setting = &upgrade_setting_list[0];
+    int setting_count =
+        sizeof(upgrade_setting_list) / sizeof(upgrade_setting_list[0]);
 
+    FTS_INFO("fw upgrade init function");
     if (!ts_data || !ts_data->ts_workqueue) {
         FTS_ERROR("ts_data/workqueue is NULL, can't run upgrade function");
         return -EINVAL;
+    }
+
+    if (0 == setting_count) {
+        FTS_ERROR("no upgrade settings in tp driver, init fail");
+        return -ENODATA;
     }
 
     fwupgrade = (struct fts_upgrade *)kzalloc(sizeof(*fwupgrade), GFP_KERNEL);
@@ -919,6 +1187,31 @@ int fts_fwupg_init(struct fts_ts_data *ts_data)
         FTS_ERROR("malloc memory for upgrade fail");
         return -ENOMEM;
     }
+
+    if (1 == setting_count) {
+        fwupgrade->setting_nf = setting;
+    } else {
+        for (i = 0; i < setting_count; i++) {
+            setting = &upgrade_setting_list[i];
+            if ((setting->rom_idh == ts_data->ic_info.ids.rom_idh)
+                && (setting->rom_idl == ts_data->ic_info.ids.rom_idl)) {
+                FTS_INFO("match upgrade setting,type(ID):0x%02x%02x",
+                         setting->rom_idh, setting->rom_idl);
+                fwupgrade->setting_nf = setting;
+            }
+        }
+    }
+
+    if (NULL == fwupgrade->setting_nf) {
+        FTS_ERROR("no upgrade settings match, can't upgrade");
+        kfree(fwupgrade);
+        fwupgrade = NULL;
+        return -ENODATA;
+    }
+
+#if FTS_ESDCHECK_EN
+    fts_esdcheck_switch(DISABLE);
+#endif
 
     fwupgrade->ts_data = ts_data;
     INIT_WORK(&ts_data->fwupg_work, fts_fwupg_work);

@@ -905,7 +905,7 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 		imgsensor.i2c_write_id = imgsensor_info.i2c_addr_table[i];
 		spin_unlock(&imgsensor_drv_lock);
 		do {
-                        val = getDepthCameraIdGpioValue();//bug497390,gaoyu.git,add,20191106,Distinguish between 2st depth camera and 3rd depth camera
+			val = getDepthCameraIdGpioValue();//bug497390,gaoyu.git,add,20191106,Distinguish between 2st depth camera and 3rd depth camera
 			*sensor_id = return_sensor_id() + (val ? 2 : 4);//bug497390,gaoyu.git,add,20191106,Distinguish between 2st depth camera and 3rd depth camera
 			if (*sensor_id == imgsensor_info.sensor_id) {
 				cam_pr_debug("i2c write id: 0x%x, sensor id: 0x%x\n",
@@ -956,7 +956,7 @@ static kal_uint32 open(void)
 		imgsensor.i2c_write_id = imgsensor_info.i2c_addr_table[i];
 		spin_unlock(&imgsensor_drv_lock);
 		do {
-                        val = getDepthCameraIdGpioValue();//bug497390,gaoyu.git,add,20191106,Distinguish between 2st depth camera and 3rd depth camera
+			val = getDepthCameraIdGpioValue();//bug497390,gaoyu.git,add,20191106,Distinguish between 2st depth camera and 3rd depth camera
 			sensor_id = return_sensor_id() + (val ? 2 : 4);//bug497390,gaoyu.git,add,20191106,Distinguish between 2st depth camera and 3rd depth camera
 			if (sensor_id == imgsensor_info.sensor_id) {
 				cam_pr_debug("i2c write id: 0x%x, sensor id: 0x%x\n",

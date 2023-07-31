@@ -35,15 +35,7 @@
 #define DM_VERITY_OPT_IGN_ZEROES	"ignore_zero_blocks"
 #define DM_VERITY_OPT_AT_MOST_ONCE	"check_at_most_once"
 
-#define DM_VERITY_OPTS_MAX		(2 + DM_VERITY_OPTS_FEC)
-
-//+Bug627667,linyaosen.wt,add,20210311,System should panic when FEC recovery fails
-#define SEC_HEX_DEBUG
-
-#ifdef SEC_HEX_DEBUG
-#include <linux/ctype.h>
-#endif
-//-Bug627667,linyaosen.wt,add,20210311,System should panic when FEC recovery fails
+#define DM_VERITY_OPTS_MAX		(3 + DM_VERITY_OPTS_FEC)
 
 static unsigned dm_verity_prefetch_cluster = DM_VERITY_DEFAULT_PREFETCH_SIZE;
 
@@ -319,23 +311,23 @@ static int verity_verify_level(struct dm_verity *v, struct dm_verity_io *io,
 			aux->hash_verified = 1;
 		else if (verity_fec_decode(v, io,
 					   DM_VERITY_BLOCK_TYPE_METADATA,
-					   hash_block, data, NULL) == 0){
+					   hash_block, data, NULL) == 0) {
 #ifdef SEC_HEX_DEBUG
-            add_fec_correct_blks();
-            add_fc_blks_entry(hash_block,v->data_dev->name);
+			add_fec_correct_blks();
+			add_fc_blks_entry(hash_block,v->data_dev->name);
 #endif
 			aux->hash_verified = 1;
 		}
-		#ifdef SEC_HEX_DEBUG
+#ifdef SEC_HEX_DEBUG
 		else if (verity_handle_err_hex_debug(v,
 					   DM_VERITY_BLOCK_TYPE_METADATA,
 					   hash_block, io, NULL)) {
 			add_corrupted_blks();
-        #else
+#else
 		else if (verity_handle_err(v,
 					   DM_VERITY_BLOCK_TYPE_METADATA,
 					   hash_block)) {
-		#endif
+#endif
 			r = -EIO;
 			goto release_ret_r;
 		}
@@ -498,6 +490,7 @@ static int verity_verify_io(struct dm_verity_io *io)
 	struct bvec_iter start;
 	unsigned b;
 	struct crypto_wait wait;
+	struct bio *bio = dm_bio_from_per_bio_data(io, v->ti->per_io_data_size);
 
 	for (b = 0; b < io->n_blocks; b++) {
 		int r;
@@ -508,7 +501,7 @@ static int verity_verify_io(struct dm_verity_io *io)
 		    likely(test_bit(cur_block, v->validated_blocks))) {
 			verity_bv_skip_block(v, io, &io->iter);
 #ifdef SEC_HEX_DEBUG
-            add_skipped_blks();
+			add_skipped_blks();
 #endif
 			continue;
 		}
@@ -553,26 +546,43 @@ static int verity_verify_io(struct dm_verity_io *io)
 			continue;
 		}
 		else if (verity_fec_decode(v, io, DM_VERITY_BLOCK_TYPE_DATA,
-					   cur_block, NULL, &start) == 0){
+					   cur_block, NULL, &start) == 0) {
 #ifdef SEC_HEX_DEBUG
-            add_fec_correct_blks();
-            add_fc_blks_entry(cur_block,v->data_dev->name);
+			add_fec_correct_blks();
+			add_fc_blks_entry(cur_block,v->data_dev->name);
 #endif
 			continue;
 		}
-		#ifdef SEC_HEX_DEBUG
-		else if (verity_handle_err_hex_debug(v, DM_VERITY_BLOCK_TYPE_DATA,
-					   cur_block, io, &start)) {
-			add_corrupted_blks();
-        #else
-		else if (verity_handle_err(v, DM_VERITY_BLOCK_TYPE_DATA,
-					   cur_block)){
-		#endif
-			return -EIO;
+		else {
+			if (bio->bi_status) {
+				/*
+				 * Error correction failed; Just return error
+				 */
+				return -EIO;
+			}
+#ifdef SEC_HEX_DEBUG
+			if (verity_handle_err_hex_debug(v, DM_VERITY_BLOCK_TYPE_DATA,
+					cur_block, io, &start)) {
+				add_corrupted_blks();
+#else
+			if (verity_handle_err(v, DM_VERITY_BLOCK_TYPE_DATA,
+					cur_block)) {
+#endif
+				return -EIO;
+			}
 		}
 	}
 
 	return 0;
+}
+
+/*
+ * Skip verity work in response to I/O error when system is shutting down.
+ */
+static inline bool verity_is_system_shutting_down(void)
+{
+	return system_state == SYSTEM_HALT || system_state == SYSTEM_POWER_OFF
+		|| system_state == SYSTEM_RESTART;
 }
 
 /*
@@ -602,7 +612,8 @@ static void verity_end_io(struct bio *bio)
 {
 	struct dm_verity_io *io = bio->bi_private;
 
-	if (bio->bi_status && !verity_fec_is_enabled(io->v)) {
+	if (bio->bi_status &&
+	    (!verity_fec_is_enabled(io->v) || verity_is_system_shutting_down())) {
 		verity_finish_io(io, bio->bi_status);
 		return;
 	}
@@ -656,7 +667,7 @@ static void verity_submit_prefetch(struct dm_verity *v, struct dm_verity_io *io)
 	sector_t block = io->block;
 	unsigned int n_blocks = io->n_blocks;
 	struct dm_verity_prefetch_work *pw;
-	
+
 	if (v->validated_blocks) {
 		while (n_blocks && test_bit(block, v->validated_blocks)) {
 			block++;
@@ -716,12 +727,12 @@ static int verity_map(struct dm_target *ti, struct bio *bio)
 	io->n_blocks = bio->bi_iter.bi_size >> v->data_dev_block_bits;
 
 #ifdef SEC_HEX_DEBUG
-    add_total_blks(io->n_blocks);
+	add_total_blks(io->n_blocks);
 
-    if (get_total_blks() - get_prev_total_blks() > 0x4000){
-        set_prev_total_blks(get_total_blks());
-        print_blks_cnt(v->data_dev->name);
-    }
+	if (get_total_blks() - get_prev_total_blks() > 0x4000) {
+		set_prev_total_blks(get_total_blks());
+		print_blks_cnt(v->data_dev->name);
+	}
 #endif
 
 	bio->bi_end_io = verity_end_io;
@@ -1166,7 +1177,7 @@ static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 	}
 
 #ifdef SEC_HEX_DEBUG
-    get_b_info(v->data_dev->name);
+	get_b_info(v->data_dev->name);
 #endif
 
 #ifdef CONFIG_DM_ANDROID_VERITY_AT_MOST_ONCE_DEFAULT_ENABLED
@@ -1243,8 +1254,8 @@ static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 				       __alignof__(struct dm_verity_io));
 
 #ifdef SEC_HEX_DEBUG
-    if (!verity_fec_is_enabled(v))
-        add_fec_off_cnt(v->data_dev->name);
+	if (!verity_fec_is_enabled(v))
+		add_fec_off_cnt(v->data_dev->name);
 #endif
 
 	return 0;
@@ -1252,7 +1263,7 @@ static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 bad:
 
 #ifdef SEC_HEX_DEBUG
-    add_fec_off_cnt("bad");
+	add_fec_off_cnt("bad");
 #endif
 
 	verity_dtr(ti);

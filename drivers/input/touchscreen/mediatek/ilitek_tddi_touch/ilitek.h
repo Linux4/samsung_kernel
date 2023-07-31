@@ -104,7 +104,6 @@
 
 #if defined(CONFIG_DRV_SAMSUNG)
 #include <linux/input/sec_cmd.h>
-#define SEC_TSP_FACTORY_TEST
 #endif
 
 #define DRIVER_VERSION			"2.1.2.0.190906" //ritchie add for wait firstcmd
@@ -169,6 +168,10 @@
 
 #ifdef  ILITEK_TOUCHSCREEN_LOCKDOWN_INFO
 #define  ILITEK_PROC_LOCK_DOWN_INFO_FILE_WT	"lockdown_info"
+#endif
+
+#if defined(CONFIG_DRV_SAMSUNG)
+#define SEC_TSP_FACTORY_TEST
 #endif
 
 /* Debug messages */

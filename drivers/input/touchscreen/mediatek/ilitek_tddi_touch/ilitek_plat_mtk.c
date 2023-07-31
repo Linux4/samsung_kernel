@@ -689,7 +689,7 @@ static void not_support_cmd(void *device_data)
 	ipio_info( "%s: %s\n", __func__, buff);
 }
 
-struct sec_cmd ft_commands[] = {
+static struct sec_cmd ft_commands[] = {
 	{SEC_CMD("get_fw_ver_bin", get_fw_ver_bin),},
 	{SEC_CMD("get_fw_ver_ic", get_fw_ver_ic),},
 	 {SEC_CMD("aot_enable", aot_enable),},

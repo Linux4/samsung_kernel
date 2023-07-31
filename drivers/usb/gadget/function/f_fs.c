@@ -36,6 +36,8 @@
 #include "u_os_desc.h"
 #include "configfs.h"
 
+#include "usb_boost.h"
+
 #define FUNCTIONFS_MAGIC	0xa647361 /* Chosen by a honest dice roll ;) */
 
 /* Reference counter handling */
@@ -987,6 +989,9 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 		}
 	}
 
+	if (!strncmp(epfile->ffs->dev_name, "mtp", 3))
+		usb_boost();
+
 	spin_lock_irq(&epfile->ffs->eps_lock);
 
 	if (epfile->ep != ep) {
@@ -1114,6 +1119,11 @@ static int
 ffs_epfile_open(struct inode *inode, struct file *file)
 {
 	struct ffs_epfile *epfile = inode->i_private;
+#if defined(CONFIG_MACH_MT6765)
+	struct cpumask cpu_mask;
+	int i = 1, idx = 0;
+	unsigned int mask = 0x0F;
+#endif
 
 	ENTER();
 
@@ -1127,6 +1137,22 @@ ffs_epfile_open(struct inode *inode, struct file *file)
 					__func__, epfile->name);
 		return -EBUSY;
 	}
+
+#if defined(CONFIG_MACH_MT6765)
+	if (!strncmp(epfile->ffs->dev_name, "mtp", 3)) {
+		cpumask_clear(&cpu_mask);
+
+		while (i <= mask) {
+			if (i & mask) {
+				cpumask_set_cpu(idx, &cpu_mask);
+				pr_info("Set CPU[%d] On\n", idx);
+			}
+			idx++;
+			i = i << 1;
+		}
+		set_cpus_allowed_ptr(current, &cpu_mask);
+	}
+#endif
 
 	atomic_set(&epfile->opened, 1);
 	file->private_data = epfile;
@@ -1315,10 +1341,11 @@ static long ffs_epfile_ioctl(struct file *file, unsigned code,
 	case FUNCTIONFS_ENDPOINT_DESC:
 	{
 		int desc_idx;
-		struct usb_endpoint_descriptor *desc;
+		struct usb_endpoint_descriptor desc1, *desc;
 
 		switch (epfile->ffs->gadget->speed) {
 		case USB_SPEED_SUPER:
+		case USB_SPEED_SUPER_PLUS:
 			desc_idx = 2;
 			break;
 		case USB_SPEED_HIGH:
@@ -1327,10 +1354,12 @@ static long ffs_epfile_ioctl(struct file *file, unsigned code,
 		default:
 			desc_idx = 0;
 		}
+
 		desc = epfile->ep->descs[desc_idx];
+		memcpy(&desc1, desc, desc->bLength);
 
 		spin_unlock_irq(&epfile->ffs->eps_lock);
-		ret = copy_to_user((void __user *)value, desc, desc->bLength);
+		ret = copy_to_user((void __user *)value, &desc1, desc1.bLength);
 		if (ret)
 			ret = -EFAULT;
 		return ret;
@@ -1713,8 +1742,11 @@ static void ffs_data_put(struct ffs_data *ffs)
 	}
 }
 
+//Bug+715587,houdujing.wt,add 2022.6.8,modify for kernel init failed
 static void ffs_data_closed(struct ffs_data *ffs)
 {
+	struct ffs_epfile *epfiles;
+	unsigned long flags;
 	ENTER();
 
 	/* to get updated opened atomic variable value */
@@ -1722,11 +1754,14 @@ static void ffs_data_closed(struct ffs_data *ffs)
 	if (atomic_dec_and_test(&ffs->opened)) {
 		if (ffs->no_disconnect) {
 			ffs->state = FFS_DEACTIVATED;
-			if (ffs->epfiles) {
-				ffs_epfiles_destroy(ffs->epfiles,
+			spin_lock_irqsave(&ffs->eps_lock, flags);
+			epfiles = ffs->epfiles;
+			ffs->epfiles = NULL;
+			spin_unlock_irqrestore(&ffs->eps_lock,
+							flags);
+			if (epfiles) 
+				ffs_epfiles_destroy(epfiles,
 						   ffs->eps_count);
-				ffs->epfiles = NULL;
-			}
 			if (ffs->setup_state == FFS_SETUP_PENDING)
 				__ffs_ep0_stall(ffs);
 		} else {
@@ -1734,7 +1769,7 @@ static void ffs_data_closed(struct ffs_data *ffs)
 			ffs_data_reset(ffs);
 		}
 	}
-
+//Bug-715587,houdujing.wt,add 2022.6.8,modify for kernel init failed
 	/* to get updated opened atomic variable value */
 	smp_mb__before_atomic();
 	if (atomic_read(&ffs->opened) < 0) {
@@ -1775,26 +1810,37 @@ static struct ffs_data *ffs_data_new(const char *dev_name)
 
 	return ffs;
 }
-
+//Bug+715587,houdujing.wt,add 2022.6.8,modify for kernel init failed
 static void ffs_data_clear(struct ffs_data *ffs)
 {
+	struct ffs_epfile *epfiles;
+	unsigned long flags;
 	ENTER();
 
 	ffs_closed(ffs);
 
 	BUG_ON(ffs->gadget);
 
-	if (ffs->epfiles)
-		ffs_epfiles_destroy(ffs->epfiles, ffs->eps_count);
+	spin_lock_irqsave(&ffs->eps_lock, flags);
+	epfiles = ffs->epfiles;
+	ffs->epfiles = NULL;
+	spin_unlock_irqrestore(&ffs->eps_lock, flags);
 
-	if (ffs->ffs_eventfd)
+	if (epfiles){
+		ffs_epfiles_destroy(epfiles, ffs->eps_count);
+		ffs->epfiles = NULL;
+	}
+
+	if (ffs->ffs_eventfd){
 		eventfd_ctx_put(ffs->ffs_eventfd);
+		ffs->ffs_eventfd = NULL;
+	}
 
 	kfree(ffs->raw_descs_data);
 	kfree(ffs->raw_strings);
 	kfree(ffs->stringtabs);
 }
-
+//Bug-715587,houdujing.wt,add 2022.6.8,modify for kernel init failed
 static void ffs_data_reset(struct ffs_data *ffs)
 {
 	ENTER();
@@ -1929,14 +1975,18 @@ static void ffs_epfiles_destroy(struct ffs_epfile *epfiles, unsigned count)
 	kfree(epfiles);
 }
 
+//Bug+715587,houdujing.wt,add 2022.6.8,modify for kernel init failed
 static void ffs_func_eps_disable(struct ffs_function *func)
 {
-	struct ffs_ep *ep         = func->eps;
-	struct ffs_epfile *epfile = func->ffs->epfiles;
-	unsigned count            = func->ffs->eps_count;
+	struct ffs_ep *ep;
+	struct ffs_epfile *epfile;
+	unsigned short count;
 	unsigned long flags;
 
 	spin_lock_irqsave(&func->ffs->eps_lock, flags);
+	count = func->ffs->eps_count;
+	epfile = func->ffs->epfiles;
+	ep = func->eps;
 	while (count--) {
 
 		if (epfile)
@@ -1957,15 +2007,19 @@ static void ffs_func_eps_disable(struct ffs_function *func)
 }
 
 static int ffs_func_eps_enable(struct ffs_function *func)
-{
-	struct ffs_data *ffs      = func->ffs;
-	struct ffs_ep *ep         = func->eps;
-	struct ffs_epfile *epfile = ffs->epfiles;
-	unsigned count            = ffs->eps_count;
+{	
+	struct ffs_data *ffs;
+	struct ffs_ep *ep;
+	struct ffs_epfile *epfile;
+	unsigned short count;
 	unsigned long flags;
 	int ret = 0;
 
 	spin_lock_irqsave(&func->ffs->eps_lock, flags);
+	ffs = func->ffs;
+	ep = func->eps;
+	epfile = ffs->epfiles;
+	count = ffs->eps_count;
 	while(count--) {
 		ep->ep->driver_data = ep;
 
@@ -1994,7 +2048,7 @@ static int ffs_func_eps_enable(struct ffs_function *func)
 
 	return ret;
 }
-
+//Bug-715587,houdujing.wt,add 2022.6.8,modify for kernel init failed
 
 /* Parsing and building descriptors and strings *****************************/
 
@@ -2639,6 +2693,7 @@ static int __ffs_data_got_strings(struct ffs_data *ffs,
 
 	do { /* lang_count > 0 so we can use do-while */
 		unsigned needed = needed_count;
+		u32 str_per_lang = str_count;
 
 		if (unlikely(len < 3))
 			goto error_free;
@@ -2674,7 +2729,7 @@ static int __ffs_data_got_strings(struct ffs_data *ffs,
 
 			data += length + 1;
 			len -= length + 1;
-		} while (--str_count);
+		} while (--str_per_lang);
 
 		s->id = 0;   /* terminator */
 		s->s = NULL;
@@ -3164,7 +3219,8 @@ static int _ffs_func_bind(struct usb_configuration *c,
 	}
 
 	if (likely(super)) {
-		func->function.ss_descriptors = vla_ptr(vlabuf, d, ss_descs);
+		func->function.ss_descriptors = func->function.ssp_descriptors =
+			vla_ptr(vlabuf, d, ss_descs);
 		ss_len = ffs_do_descs(ffs->ss_descs_count,
 				vla_ptr(vlabuf, d, raw_descs) + fs_len + hs_len,
 				d_raw_descs__sz - fs_len - hs_len,
@@ -3577,6 +3633,7 @@ static void ffs_func_unbind(struct usb_configuration *c,
 	func->function.fs_descriptors = NULL;
 	func->function.hs_descriptors = NULL;
 	func->function.ss_descriptors = NULL;
+	func->function.ssp_descriptors = NULL;
 	func->interfaces_nums = NULL;
 
 	ffs_event_add(ffs, FUNCTIONFS_UNBIND);

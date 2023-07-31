@@ -650,8 +650,6 @@
 #define KEY_DATA			0x277
 #define KEY_ONSCREEN_KEYBOARD		0x278
 
-#define KEY_DEX_ON			0x2bd
-
 #define BTN_TRIGGER_HAPPY		0x2c0
 #define BTN_TRIGGER_HAPPY1		0x2c0
 #define BTN_TRIGGER_HAPPY2		0x2c1
@@ -694,6 +692,7 @@
 #define BTN_TRIGGER_HAPPY39		0x2e6
 #define BTN_TRIGGER_HAPPY40		0x2e7
 
+#define KEY_DEX_ON				0x2bd
 #define BTN_HOTKEY_APP1 		0x2f5
 #define BTN_HOTKEY_APP2 		0x2f6
 #define BTN_HOTKEY_APP3 		0x2f7
@@ -804,10 +803,11 @@
 #define SW_LINEIN_INSERT	0x0d  /* set = inserted */
 #define SW_MUTE_DEVICE		0x0e  /* set = device disabled */
 #define SW_PEN_INSERTED		0x0f  /* set = pen inserted */
-#define SW_HPHL_OVERCURRENT	0x10  /* set = over current on left hph */
-#define SW_HPHR_OVERCURRENT	0x11  /* set = over current on right hph */
-#define SW_MICROPHONE2_INSERT	0x12  /* set = inserted */
-#define SW_UNSUPPORT_INSERT	0x13  /* set = unsupported device inserted */
+#define SW_MACHINE_COVER	0x10  /* set = cover closed */
+#define SW_HPHL_OVERCURRENT	0x11  /* set = over current on left hph */
+#define SW_HPHR_OVERCURRENT	0x12  /* set = over current on right hph */
+#define SW_MICROPHONE2_INSERT	0x13  /* set = inserted */
+#define SW_UNSUPPORT_INSERT	0x14  /* set = unsupported device inserted */
 #define SW_MAX			0x20
 #define SW_CNT			(SW_MAX+1)
 

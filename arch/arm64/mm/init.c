@@ -371,7 +371,6 @@ void __init arm64_memblock_init(void)
 	const s64 linear_region_size = -(s64)PAGE_OFFSET;
 
 	set_memsize_kernel_type(MEMSIZE_KERNEL_STOP);
-
 	/* Handle linux,usable-memory-range property */
 	fdt_enforce_memory_region();
 
@@ -438,18 +437,10 @@ void __init arm64_memblock_init(void)
 			"initrd not fully accessible via the linear mapping -- please check your bootloader ...\n")) {
 			initrd_start = 0;
 		} else {
-			u64 start_up, end_dn, size_al;
-
-			start_up = PAGE_ALIGN(initrd_start);
-			end_dn = initrd_end & PAGE_MASK;
-			size_al = end_dn - start_up;
-
 			memblock_remove(base, size); /* clear MEMBLOCK_ flags */
 			memblock_add(base, size);
 			memblock_reserve(base, size);
-
-			record_memsize_reserved("initrd", start_up, size_al,
-					false, false);
+			record_memsize_reserved("initrd", base, size, false, false);
 		}
 	}
 
@@ -478,7 +469,7 @@ void __init arm64_memblock_init(void)
 	memblock_reserve(__pa_symbol(_text), _end - _text);
 	set_memsize_kernel_type(MEMSIZE_KERNEL_STOP);
 	record_memsize_reserved("initmem", __pa(__init_begin),
-			__init_end - __init_begin, false, false);
+				__init_end - __init_begin, false, false);
 #ifdef CONFIG_BLK_DEV_INITRD
 	if (initrd_start) {
 		memblock_reserve(initrd_start, initrd_end - initrd_start);

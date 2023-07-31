@@ -45,10 +45,9 @@
 #else
 #define LOG_INF(format, args...)
 #endif
+
 //+Bug 492443, sunhushan.wt, ADD, 2019.10.15, porting the otp of the 12sensor 
 #define EEPROM_BL24SA64B_ID 0xA2
-
-#define MULTI_WRITE    1
 
 static kal_uint16 read_eeprom(kal_uint32 addr)
 {
@@ -60,6 +59,9 @@ static kal_uint16 read_eeprom(kal_uint32 addr)
 	return get_byte;
 }
 //+Bug 492443, sunhushan.wt, ADD, 2019.10.15, porting the otp of the 12sensor 
+
+#define MULTI_WRITE    1
+
 static DEFINE_SPINLOCK(imgsensor_drv_lock);
 
 static kal_uint32 Dgain_ratio = 256;
@@ -1846,6 +1848,7 @@ static kal_uint32 set_test_pattern_mode(kal_bool enable)
 	return ERROR_NONE;
 }
 
+
 //+Bug 492443, sunhushan.wt, ADD, 2019.10.15, porting the otp of the 12sensor 
 #include "cam_cal_define.h"
 #include <linux/slab.h>
@@ -1868,6 +1871,7 @@ extern int imgSensorReadEepromData(struct stCAM_CAL_DATAINFO_STRUCT* pData,
 	struct stCAM_CAL_CHECKSUM_STRUCT* checkData);
 extern int imgSensorSetEepromData(struct stCAM_CAL_DATAINFO_STRUCT* pData);
 //-Bug 492443, sunhushan.wt, ADD, 2019.10.15, porting the otp of the 12sensor 
+
 /*************************************************************************
  * FUNCTION
  *	get_imgsensor_id

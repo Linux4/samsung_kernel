@@ -152,7 +152,10 @@ static int _pd_is_algo_ready(struct chg_alg_device *alg)
 		if (ret_value == ALG_READY) {
 			uisoc = pd_hal_get_uisoc(alg);
 			if (pd->input_current_limit1 != -1 ||
-//				pd->charging_current_limit1 != -1 ||
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+#else
+				pd->charging_current_limit1 != -1 ||
+#endif
 				pd->input_current_limit2 != -1 ||
 				pd->charging_current_limit2 != -1 ||
 				uisoc >= pd->pd_stop_battery_soc)
@@ -160,10 +163,7 @@ static int _pd_is_algo_ready(struct chg_alg_device *alg)
 		} else if (ret_value == ALG_TA_NOT_SUPPORT)
 			pd->state = PD_TA_NOT_SUPPORT;
 		else if (ret_value == ALG_TA_CHECKING)
-		{
 			pd->state = PD_HW_READY;
-			ret_value = ALG_TA_NOT_SUPPORT;
-		}
 		else
 			pd->state = PD_TA_NOT_SUPPORT;
 
@@ -514,7 +514,9 @@ int __mtk_pdc_get_setting(struct chg_alg_device *alg, int *newvbus, int *newcur,
 	ret = pd_hal_get_ibus(alg, &ibus);
 	if (ret < 0) {
 		pd_err("[%s] get ibus fail, keep default voltage\n", __func__);
+#ifndef	CONFIG_N26_CHARGER_PRIVATE
 		return -1;
+#endif
 	}
 
 #ifdef FIXME
@@ -660,17 +662,21 @@ static int pd_sc_set_charger(struct chg_alg_device *alg)
 
 	mutex_lock(&pd->data_lock);
 	if (pd->charging_current_limit1 != -1) {
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+	if (pd->charging_current_limit1 <=
+		pd->sc_charger_current)
+		pd->charging_current1 =
+			pd->charging_current_limit1;
+#else
 		if (pd->charging_current_limit1 <
 			pd->sc_charger_current)
 			pd->charging_current1 =
 				pd->charging_current_limit1;
-		else
-			pd->charging_current1 =
-				pd->sc_charger_current;
+#endif
 		ret = pd_hal_get_min_charging_current(alg, CHG1, &ichg1_min);
 		if (ret != -ENOTSUPP &&
 			pd->charging_current_limit1 < ichg1_min)
-			pd->charging_current1 = ichg1_min;
+			pd->charging_current1 = 0;
 	} else
 		pd->charging_current1 = pd->sc_charger_current;
 
@@ -681,7 +687,7 @@ static int pd_sc_set_charger(struct chg_alg_device *alg)
 		ret = pd_hal_get_min_input_current(alg, CHG1, &aicr1_min);
 		if (ret != -ENOTSUPP &&
 			pd->input_current_limit1 < aicr1_min)
-			pd->input_current1 = aicr1_min;
+			pd->input_current1 = 0;
 	} else
 		pd->input_current1 = pd->sc_input_current;
 	mutex_unlock(&pd->data_lock);
@@ -898,7 +904,11 @@ static int _pd_start_algo(struct chg_alg_device *alg)
 			else if (ret_value == ALG_READY) {
 				uisoc = pd_hal_get_uisoc(alg);
 				if (pd->input_current_limit1 != -1 ||
-//					pd->charging_current_limit1 != -1 ||
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+#else
+
+					pd->charging_current_limit1 != -1 ||
+#endif
 					pd->input_current_limit2 != -1 ||
 					pd->charging_current_limit2 != -1 ||
 					uisoc >= pd->pd_stop_battery_soc)
@@ -1128,6 +1138,7 @@ static void mtk_pd_parse_dt(struct mtk_pd *pd,
 	struct device_node *np = dev->of_node;
 	u32 val;
 
+	val = 0;
 	if (of_property_read_u32(np, "min_charger_voltage", &val) >= 0)
 		pd->min_charger_voltage = val;
 	else {
@@ -1135,7 +1146,8 @@ static void mtk_pd_parse_dt(struct mtk_pd *pd,
 		pd->min_charger_voltage = V_CHARGER_MIN;
 	}
 
-	/* PD */
+	/*	 PD	 */
+	val = 0;
 	if (of_property_read_u32(np, "pd_vbus_upper_bound", &val) >= 0) {
 		pd->vbus_h = val / 1000;
 	} else {
@@ -1305,6 +1317,9 @@ static int mtk_pd_probe(struct platform_device *pdev)
 	mutex_init(&pd->access_lock);
 	mutex_init(&pd->data_lock);
 	mtk_pd_parse_dt(pd, &pdev->dev);
+	pd->bat_psy = devm_power_supply_get_by_phandle(&pdev->dev, "gauge");
+	if (IS_ERR_OR_NULL(pd->bat_psy))
+		pd_err("%s: devm power fail to get bat_psy\n", __func__);
 
 	pd->alg = chg_alg_device_register("pd", &pdev->dev,
 					pd, &pd_alg_ops, NULL);

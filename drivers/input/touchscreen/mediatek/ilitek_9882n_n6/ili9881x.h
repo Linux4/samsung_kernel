@@ -102,6 +102,10 @@
 #include "sync_write.h"
 #endif
 
+#ifdef CONFIG_DRV_SAMSUNG
+#include <linux/input/sec_cmd.h>
+#endif
+
 #define DRIVER_VERSION			"3.0.3.0.200610"
 
 /* Options */
@@ -159,6 +163,11 @@
 #define DEBUG_NONE	0
 #define DEBUG_ALL	1
 #define DEBUG_OUTPUT	DEBUG_NONE
+
+#if defined(CONFIG_DRV_SAMSUNG)
+#define SEC_TSP_FACTORY_TEST
+#endif
+
 
 #define ILI_INFO(fmt, arg...)						\
 ({									\

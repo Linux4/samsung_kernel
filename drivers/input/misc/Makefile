@@ -81,8 +81,4 @@ obj-$(CONFIG_INPUT_WM831X_ON)		+= wm831x-on.o
 obj-$(CONFIG_INPUT_XEN_KBDDEV_FRONTEND)	+= xen-kbdfront.o
 obj-$(CONFIG_INPUT_YEALINK)		+= yealink.o
 obj-$(CONFIG_INPUT_IDEAPAD_SLIDEBAR)	+= ideapad_slidebar.o
-#bug 621774,xuyanan.wt,modify,20210128,sar sensor bringup
 obj-$(CONFIG_INPUT_ABOV_3CH)               += abov_sar_3ch.o
-obj-$(CONFIG_INPUT_ABOV)       += abov_sar.o
-
-

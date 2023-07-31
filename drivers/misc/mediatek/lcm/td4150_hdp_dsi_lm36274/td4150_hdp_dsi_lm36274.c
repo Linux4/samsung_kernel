@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2021 MediaTek Inc.
  */
 
 #define LOG_TAG "LCM"
@@ -624,15 +616,17 @@ static void lcm_suspend(void)
 		   ARRAY_SIZE(lcm_suspend_setting), 1);
 }
 
+/*
+// This is for reference only. Customer is expected to modify in their LCM driver directly
 static void lcm_disable(void)
 {
-/*This is for reference only. Customer is expected to modify in their LCM driver directly*/
 #ifdef CUSTOMER_REFERENCE
 	pr_info("td4320 : %s\n", __func__);
 	push_table(NULL, lcm_disable_setting,
 		   ARRAY_SIZE(lcm_disable_setting), 1);
 #endif
 }
+*/
 
 static void lcm_resume(void)
 {
@@ -723,5 +717,5 @@ struct LCM_DRIVER td4150_hdp_dsi_lm36274_lcm_drv = {
 	.suspend_power = lcm_suspend_power,
 	.set_backlight_cmdq = lcm_setbacklight_cmdq,
 	.update = lcm_update,
-	.disable = lcm_disable,
+//	.disable = lcm_disable,
 };

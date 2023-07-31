@@ -21,6 +21,12 @@ rtc-core-$(CONFIG_RTC_INTF_DEV)		+= rtc-dev.o
 rtc-core-$(CONFIG_RTC_INTF_PROC)	+= rtc-proc.o
 rtc-core-$(CONFIG_RTC_INTF_SYSFS)	+= rtc-sysfs.o
 
+# +CHK SC113850, zjj.wt,ADD,20220128,ATO enable RPMB delay binding by cmd
+ifeq ($(WT_COMPILE_FACTORY_VERSION),yes)
+    ccflags-y += -DWT_COMPILE_FACTORY_VERSION
+endif
+# -CHK SC113850, zjj.wt,ADD,20220128,ATO enable RPMB delay binding by cmd
+
 # Keep the list ordered.
 
 obj-$(CONFIG_RTC_DRV_88PM80X)	+= rtc-88pm80x.o
@@ -102,6 +108,7 @@ obj-$(CONFIG_RTC_DRV_MOXART)	+= rtc-moxart.o
 obj-$(CONFIG_RTC_DRV_MPC5121)	+= rtc-mpc5121.o
 obj-$(CONFIG_RTC_DRV_VRTC)	+= rtc-mrst.o
 obj-$(CONFIG_RTC_DRV_MSM6242)	+= rtc-msm6242.o
+obj-$(CONFIG_RTC_DRV_MT6358)    += rtc-mt6358.o
 obj-$(CONFIG_RTC_DRV_MT6397)	+= rtc-mt6397.o
 obj-$(CONFIG_RTC_DRV_MT7622)	+= rtc-mt7622.o
 obj-$(CONFIG_RTC_DRV_MV)	+= rtc-mv.o

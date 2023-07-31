@@ -693,7 +693,8 @@ extern struct LCM_BACKLIGHT_CUSTOM lcm_backlight_cust[6];
 					((int)max_bright*(int)bl_min - (int)min_bright*(int)bl_max)) \
 					/((int)max_bright - (int)min_bright); \
 					} while (0)
-#ifndef CONFIG_WT_PROJECT_S96717RA1
+#ifndef CONFIG_WT_PROJECT_S96717AA2
+
 void mt_mt65xx_led_set(struct led_classdev *led_cdev, enum led_brightness level)
 {
 	struct mt65xx_led_data *led_data =
@@ -760,16 +761,12 @@ void mt_mt65xx_led_set(struct led_classdev *led_cdev, enum led_brightness level)
 	}
 	/* spin_unlock_irqrestore(&leds_lock, flags); */
 #endif
-
 #else
 void mt_mt65xx_led_set(struct led_classdev *led_cdev, enum led_brightness level)
 {
 	int bl_lvl, i;
 	struct mt65xx_led_data *led_data =
 	    container_of(led_cdev, struct mt65xx_led_data, cdev);
-	/* unsigned long flags; */
-	/* spin_lock_irqsave(&leds_lock, flags); */
-
 #ifdef CONFIG_MTK_AAL_SUPPORT
 	if (led_data->level != level) {
 		led_data->level = level;
@@ -787,7 +784,6 @@ void mt_mt65xx_led_set(struct led_classdev *led_cdev, enum led_brightness level)
 				    255;
 			}
 			backlight_debug_log(led_data->level, level);
-			//printk("led -0 level: %d, bl_lvl: %d \n", level, bl_lvl);
 			for(i=0; i<lcm_backlight_cust_count;i++)
 			{
                 if( level < lcm_backlight_cust[i].min_brightness )
@@ -797,7 +793,6 @@ void mt_mt65xx_led_set(struct led_classdev *led_cdev, enum led_brightness level)
 			}
 			WINGTECH_MDSS_BRIGHT_TO_BL(bl_lvl, level, lcm_backlight_cust[i].min_bl_lvl, lcm_backlight_cust[i].max_bl_lvl,
 				lcm_backlight_cust[i].min_brightness, lcm_backlight_cust[i].max_brightness);
-
 			if(bl_lvl && !level)bl_lvl = 0;
 			if(!bl_lvl && level) bl_lvl = lcm_backlight_cust[i].min_bl_lvl;
             if(bl_lvl && (bl_lvl < lcm_backlight_cust[i].min_bl_lvl))
@@ -808,7 +803,6 @@ void mt_mt65xx_led_set(struct led_classdev *led_cdev, enum led_brightness level)
 		}
 	}
 #else
-	/* do something only when level is changed */
 	if (led_data->level != level) {
 		led_data->level = level;
 		if (strcmp(led_data->cust.name, "lcd-backlight") != 0) {
@@ -825,7 +819,6 @@ void mt_mt65xx_led_set(struct led_classdev *led_cdev, enum led_brightness level)
 				    255;
 			}
 			backlight_debug_log(led_data->level, level);
-
 			for(i=0; i<lcm_backlight_cust_count;i++)
 			{
                 if( level < lcm_backlight_cust[i].min_brightness )
@@ -836,7 +829,6 @@ void mt_mt65xx_led_set(struct led_classdev *led_cdev, enum led_brightness level)
 			WINGTECH_MDSS_BRIGHT_TO_BL(bl_lvl, level, lcm_backlight_cust[i].min_bl_lvl, lcm_backlight_cust[i].max_bl_lvl,
 					lcm_backlight_cust[i].min_brightness, lcm_backlight_cust[i].max_brightness);
 			printk("samir level: %d, bl_lvl: %d,min_bl_lvl:%d \n", level, bl_lvl,lcm_backlight_cust[i].min_bl_lvl);
-
 			if(bl_lvl && !level)bl_lvl = 0;
 			if(!bl_lvl && level) bl_lvl = lcm_backlight_cust[i].min_bl_lvl;
             if( bl_lvl && (bl_lvl < lcm_backlight_cust[i].min_bl_lvl))
@@ -850,7 +842,6 @@ void mt_mt65xx_led_set(struct led_classdev *led_cdev, enum led_brightness level)
 				mt_mt65xx_led_set_cust(&led_data->cust, bl_lvl);
 		}
 	}
-	/* spin_unlock_irqrestore(&leds_lock, flags); */
 #endif
 #endif
 /* if(0!=aee_kernel_Powerkey_is_press()) */

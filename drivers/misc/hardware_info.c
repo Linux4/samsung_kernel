@@ -2,19 +2,22 @@
 #include <linux/kernel.h>
 #include <linux/miscdevice.h>
 #include <linux/fs.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 
 #include <linux/proc_fs.h>
 
 #include <linux/hardware_info.h>
 
 #include <linux/platform_device.h>
+#include <linux/uaccess.h>
+
+char Ctp_name[HARDWARE_MAX_ITEM_LONGTH];// wanglongfei.wt 20210816 add for tp hardware info
 char Lcm_name[HARDWARE_MAX_ITEM_LONGTH];//req  wuzhenzhen.wt 20140901 add for hardware info
 char Sar_name[HARDWARE_MAX_ITEM_LONGTH];//bug 417945 , add sar info, chenrongli.wt, 20181218
 char board_id[HARDWARE_MAX_ITEM_LONGTH];//req  wuzhenzhen.wt 20140901 add for hardware info
-// +Bug 631211,fujiawen.wt,add,20210310,add hardware info
+// +Bug 717428,qiuyonghui.wt,add,20220216,add hardware info
 char smart_pa_name[HARDWARE_MAX_ITEM_LONGTH];
-// -Bug 631211,fujiawen.wt,add,20210310,add hardware info
+// -Bug 717428,qiuyonghui.wt,add,20220216,add hardware info
 char hardware_id[HARDWARE_MAX_ITEM_LONGTH];
 static char hardwareinfo_name[HARDWARE_MAX_ITEM][HARDWARE_MAX_ITEM_LONGTH];
 char hw_id_vol[HARDWARE_MAX_ITEM_LONGTH];//ExtB P210506-05247 penghui.wt add 2021/7/5 get wrong hwid
@@ -37,6 +40,7 @@ char* hardwareinfo_items[HARDWARE_MAX_ITEM] =
 	"GPS",
 	"FM",
 	"BATTERY",
+	"SMARTPA",
 	"CAM_M_BACK",
 	"CAM_M_FRONT",
 	"BOARD_ID",
@@ -160,7 +164,32 @@ static char* hwid_get(void)
 }
 //Bug 432505 njm@wt, 20180314 end
 
+/*bug682591, fanchenchen.wt, add, 20220221, get lcm serialnum */
+char lcm_serialnum[HARDWARE_MAX_ITEM_LONGTH];
+static char* hw_lcm_serialnum_get(void)
+{
+	char* s1= "";
+	char* s2="not found";
+	char *ptr =NULL;
 
+	s1 = strstr(saved_command_line, "lcm_serialnum:");
+	if(!s1) {
+		printk("lcm_serialnum not found in cmdline\n");
+		return s2;
+	}
+	s1 += strlen("lcm_serialnum:");
+	ptr=s1;
+	while(*ptr != ' ' && *ptr != '\0') {
+		ptr++;
+	}
+	strncpy(lcm_serialnum, (const char *)s1,ptr-s1);
+	lcm_serialnum[ptr-s1]='\0';
+	printk("lcm_serialnum found in cmdline : %s\n", lcm_serialnum);
+	s1 = lcm_serialnum;
+	return s1;
+}
+
+//+bug682590,zhoumin.wt,modify,2021/8/16, add camera module info for factory apk
 static long hardwareinfo_ioctl(struct file *file, unsigned int cmd,unsigned long arg)
 {
 	int ret = 0, hardwareinfo_num = HARDWARE_MAX_ITEM;
@@ -173,6 +202,7 @@ static long hardwareinfo_ioctl(struct file *file, unsigned int cmd,unsigned long
 		hardwareinfo_num = HARDWARE_LCD;
 		break;
 	case HARDWARE_TP_GET:
+		hardwareinfo_set_prop(HARDWARE_TP, Ctp_name);//wanglongfei.wt 20210816 add for tp hardware info
 		hardwareinfo_num = HARDWARE_TP;
 		//tid_hardware_info_get(hardwareinfo_name[hardwareinfo_num],
 		//				ARRAY_SIZE(hardwareinfo_name[0]));
@@ -189,14 +219,16 @@ static long hardwareinfo_ioctl(struct file *file, unsigned int cmd,unsigned long
 	case HARDWARE_BACK_SUBCAM_GET:
 		hardwareinfo_num = HARDWARE_BACK_SUB_CAM;
 		break;
+	//+bug720062, qinduilin.wt, ADD, 2022/2/7, add camera module info for factory apk
 	//+bug 621775 liuxiangyin.wt, add, 2021/3/2, n21 add hardware info for factory mode
 	case HARDWARE_WIDE_ANGLE_CAM_GET:
 		hardwareinfo_num = HARDWARE_WIDE_ANGLE_CAM;
 		break;
+	//-bug 621775 liuxiangyin.wt, add, 2021/3/2, n21 add hardware info for factory mode
 	case HARDWARE_MACRO_CAM_GET:
 		hardwareinfo_num = HARDWARE_MACRO_CAM;
-	//-bug 621775 liuxiangyin.wt, add, 2021/3/2, n21 add hardware info for factory mode
 		break;
+	//-bug720062, qinduilin.wt, ADD, 2022/2/7, add camera module info for factory apk
 	case HARDWARE_BT_GET:
 		hardwareinfo_set_prop(HARDWARE_BT, "MT6631");
 		hardwareinfo_num = HARDWARE_BT;
@@ -217,12 +249,6 @@ static long hardwareinfo_ioctl(struct file *file, unsigned int cmd,unsigned long
 	case HARDWARE_MAGNETOMETER_GET:
 		hardwareinfo_num = HARDWARE_MAGNETOMETER;
 		break;
-        /*bug 621783, add NFC info, liuwei.wt, 20210228,begin*/
-        case HARDWARE_NFC_GET:
-                hardwareinfo_set_prop(HARDWARE_NFC, "S3NRN82");
-                hardwareinfo_num = HARDWARE_NFC;
-                break;
-        /*bug 621783, add NFC info, liuwei.wt, 20210228,end*/
 	/*bug 417945 , add sar info, chenrongli.wt, 20181218, begin*/
 	case HARDWARE_SAR_GET:
 		//hardwareinfo_set_prop(HARDWARE_SAR, Sar_name);
@@ -237,6 +263,12 @@ static long hardwareinfo_ioctl(struct file *file, unsigned int cmd,unsigned long
 		hardwareinfo_set_prop(HARDWARE_FM, "MT6631");
 	    hardwareinfo_num = HARDWARE_FM;
 		break;
+	//+ExtB#P220510-06627 add NFC info jinzhao 20220511
+    case HARDWARE_NFC_GET:
+        hardwareinfo_set_prop(HARDWARE_NFC, "S3NRN82");
+        hardwareinfo_num = HARDWARE_NFC;
+        break;
+	//-ExtB#P220510-06627 add NFC info jinzhao 20220511
 	case HARDWARE_BATTERY_ID_GET:
 		hardwareinfo_num = HARDWARE_BATTERY_ID;
 		break;
@@ -245,11 +277,13 @@ static long hardwareinfo_ioctl(struct file *file, unsigned int cmd,unsigned long
 		hardwareinfo_num = HARDWARE_CHARGER_IC_INFO;
 		break;
 	//-bug 436809  modify getian.wt 20190403 Add charger IC model information in factory mode
-	case HARDWARE_BACK_CAM_MOUDULE_ID_GET:
-		hardwareinfo_num = HARDWARE_BACK_CAM_MOUDULE_ID;
-		break;
+	//+bug 717431, liyiying.wt, add, 2021/2/21, n21s add gauge mmi message
 	case HARDWARE_BMS_GAUGE_INFO_GET:
 		hardwareinfo_num = HARDWARE_BMS_GAUGE_INFO;
+		break;
+	//-bug 717431, liyiying.wt, add, 2021/2/21, n21s add gauge mmi message
+	case HARDWARE_BACK_CAM_MOUDULE_ID_GET:
+		hardwareinfo_num = HARDWARE_BACK_CAM_MOUDULE_ID;
 		break;
 	case HARDWARE_BACK_SUBCAM_MODULEID_GET:
 		hardwareinfo_num = HARDWARE_BACK_SUBCAM_MOUDULE_ID;
@@ -257,20 +291,22 @@ static long hardwareinfo_ioctl(struct file *file, unsigned int cmd,unsigned long
 	case HARDWARE_FRONT_CAM_MODULE_ID_GET:
 		hardwareinfo_num = HARDWARE_FRONT_CAM_MOUDULE_ID;
 		break;
+	//+bug720062, qinduilin.wt, ADD, 2022/2/7, add camera module info for factory apk
 	//+bug 621775 liuxiangyin.wt, add, 2021/3/2, n21 add hardware info for factory mode
 	case HARDWARE_WIDE_ANGLE_CAM_MOUDULE_ID_GET:
 		hardwareinfo_num = HARDWARE_WIDE_ANGLE_CAM_MOUDULE_ID;
 		break;
-	case HARDWARE_MACRO_CAM_MOUDULE_ID_GET:
-		hardwareinfo_num = HARDWARE_MACRO_CAM_MOUDULE_ID;
+	//-bug 621775 liuxiangyin.wt, add, 2021/3/2, n21 add hardware info for factory mode
+	case HARDWARE_MACRO_CAM_MOUDULEID_GET:
+		hardwareinfo_num = HARDWARE_MACRO_CAM_MODULE_ID;
 		break;
-	// +Bug 631211,fujiawen.wt,add,20210310,add hardware info
+	//-bug720062, qinduilin.wt, ADD, 2022/2/7, add camera module info for factory apk
+	// +Bug 717428,qiuyonghui.wt,add,20220216,add hardware info
 	case HARDWARE_SMARTPA_IC_GET:
 		hardwareinfo_set_prop(HARDWARE_SMART_PA_ID, smart_pa_name);
 		hardwareinfo_num = HARDWARE_SMART_PA_ID;
 		break;
-	// -Bug 631211,fujiawen.wt,add,20210310,add hardware info
-	//-bug 621775 liuxiangyin.wt, add, 2021/3/2, n21 add hardware info for factory mode
+	// -Bug 717428,qiuyonghui.wt,add,20220216,add hardware info
 	case HARDWARE_BOARD_ID_GET:
 		//Bug 432505 njm@wt, 20190314 start
 		boardid_get();
@@ -301,6 +337,12 @@ static long hardwareinfo_ioctl(struct file *file, unsigned int cmd,unsigned long
 			ret =  -EINVAL;
 		}
 		goto set_ok;
+		break;
+    /*bug682591, fanchenchen.wt, add, 20220221, get lcm serialnum */
+    case HARDWARE_LCD_SERIALNUM_GET:
+        hw_lcm_serialnum_get();
+        hardwareinfo_set_prop(HARDWARE_LCD_SERIALNUM, lcm_serialnum);
+		hardwareinfo_num = HARDWARE_LCD_SERIALNUM;
 		break;
 	default:
 		ret = -EINVAL;
@@ -435,5 +477,6 @@ module_exit(hardwareinfo_exit_module);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Ming He <heming@wingtech.com>");
+
 
 

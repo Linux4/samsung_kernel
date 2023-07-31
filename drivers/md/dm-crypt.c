@@ -1638,7 +1638,7 @@ static int crypt_dev_id(const char *path)
 		/* example: /dev/block/platform/bootdevice/by-name/userdata */
 		type = 0;
 
-	} else if (strstr(path, "externdevice") || strstr(path, "vold") || strstr(path, "loop")) {
+	} else if (strstr(path, "externdevice") || strstr(path, "vold")) {
 
 		/* example: /dev/block/vold/private:179,2 */
 		type = 1;
@@ -3253,7 +3253,7 @@ static void crypt_io_hints(struct dm_target *ti, struct queue_limits *limits)
 	limits->max_segment_size = PAGE_SIZE;
 
 	limits->logical_block_size =
-		max_t(unsigned short, limits->logical_block_size, cc->sector_size);
+		max_t(unsigned, limits->logical_block_size, cc->sector_size);
 	limits->physical_block_size =
 		max_t(unsigned, limits->physical_block_size, cc->sector_size);
 	limits->io_min = max_t(unsigned, limits->io_min, cc->sector_size);

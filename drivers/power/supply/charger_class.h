@@ -61,12 +61,9 @@ struct charger_ops {
 	/* enable/disable charger */
 	int (*enable)(struct charger_device *dev, bool en);
 	int (*is_enabled)(struct charger_device *dev, bool *en);
-//+bug 621775,yaocankun.wt,mod,20210201,charge add start/stop charging control node
-#ifdef CONFIG_WT_PROJECT_S96717RA1
-	int (*hz_mode)(struct charger_device *chg_dev, bool en);
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+	int (*hz_mode)(struct charger_device *dev, bool en);
 #endif
-//-bug 621775,yaocankun.wt,mod,20210201,charge add start/stop charging control node
-
 	/* enable/disable chip */
 	int (*enable_chip)(struct charger_device *dev, bool en);
 	int (*is_chip_enabled)(struct charger_device *dev, bool *en);
@@ -114,7 +111,9 @@ struct charger_ops {
 	/* enable/disable charging safety timer */
 	int (*is_safety_timer_enabled)(struct charger_device *dev, bool *en);
 	int (*enable_safety_timer)(struct charger_device *dev, bool en);
-
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+	int (*hz_mode)(struct charger_device *chg_dev, bool en);
+#endif
 	/* enable term */
 	int (*enable_termination)(struct charger_device *dev, bool en);
 
@@ -141,6 +140,9 @@ struct charger_ops {
 	int (*safety_check)(struct charger_device *dev, u32 polling_ieoc);
 
 	int (*is_charging_done)(struct charger_device *dev, bool *done);
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+	int (*is_hz_mode)(struct charger_device *dev, bool *done);
+#endif
 	int (*set_pe20_efficiency_table)(struct charger_device *dev);
 	int (*dump_registers)(struct charger_device *dev);
 
@@ -258,12 +260,6 @@ extern int charger_dev_reset_eoc_state(
 	struct charger_device *charger_dev);
 extern int charger_dev_safety_check(
 	struct charger_device *charger_dev, u32 polling_ieoc);
-//+bug 621775,yaocankun.wt,mod,20210201,charge add start/stop charging control node
-#ifdef CONFIG_WT_PROJECT_S96717RA1
-extern int charger_dev_hz_mode(
-	struct charger_device *chg_dev, bool en);
-#endif
-//-bug 621775,yaocankun.wt,mod,20210201,charge add start/stop charging control node
 
 /* PE+/PE+2.0 */
 extern int charger_dev_send_ta_current_pattern(
@@ -327,5 +323,11 @@ extern int unregister_charger_device_notifier(
 extern int charger_dev_notify(
 	struct charger_device *charger_dev, int event);
 
-
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+extern int charger_dev_hz_mode(struct charger_device *chg_dev, bool en);
+extern int charger_dev_is_hz_mode(struct charger_device *chg_dev, bool *done);
+#endif
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+extern int charger_dev_hz_mode(struct charger_device *chg_dev, bool en);
+#endif
 #endif /*LINUX_POWER_CHARGER_CLASS_H*/

@@ -75,7 +75,7 @@ static inline void sec_debug_hook_auto_comm(int type, const char *buf, size_t si
 static int sec_debug_auto_comment_init_print_buf(void)
 {
 	auto_comment_buf = (char *)phys_to_virt(sec_auto_comment_base);
-	auto_comment_info = (struct sec_debug_auto_comment *)(phys_to_virt(sec_auto_comment_base) + SZ_4K);
+	auto_comment_info = (struct sec_debug_auto_comment *)(phys_to_virt(sec_auto_comment_base) + SZ_8K);
 
 	if (!auto_comment_buf || !auto_comment_info) {
 		pr_crit("%s: no buffer for auto comment\n", __func__);
@@ -222,12 +222,7 @@ static ssize_t sec_debug_auto_comment_proc_read(struct file *file, char __user *
 		return -ENODEV;
 	}
 
-	if (reset_reason >= RR_R && reset_reason <= RR_N) {
-		pr_err("%s : reset_reason %d\n", __func__, reset_reason);
-		return -ENOENT;
-	}
-
-	if (pos >= AC_SIZE) {
+	if (pos > AC_SIZE) {
 		pr_err("%s : pos 0x%llx\n", __func__, pos);
 		return 0;
 	}

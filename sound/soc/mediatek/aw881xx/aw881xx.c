@@ -3691,7 +3691,7 @@ static int aw881xx_i2c_probe(struct i2c_client *i2c,
 		return ret;
 	// +Bug 631211,fujiawen.wt,add,20210310,add hardware info
 	}else{
-		strcpy(smart_pa_name, "aw88194a");
+        strcpy(smart_pa_name, "aw88194a");
 	}
 	// -Bug 631211,fujiawen.wt,add,20210310,add hardware info
 

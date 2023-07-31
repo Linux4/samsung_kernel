@@ -206,11 +206,7 @@ struct usb_function {
 	struct usb_descriptor_header	**ssp_descriptors;
 
 	struct usb_configuration	*config;
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	int (*set_intf_num)(struct usb_function *f,
-			int intf_num, int index_num);
-	int (*set_config_desc)(int conf_num);
-#endif
+
 	struct usb_os_desc_table	*os_desc_table;
 	unsigned			os_desc_n;
 
@@ -273,6 +269,9 @@ int usb_interface_id(struct usb_configuration *, struct usb_function *);
 int usb_func_wakeup(struct usb_function *func);
 
 int usb_get_func_interface_id(struct usb_function *func);
+
+int config_ep_by_speed_and_alt(struct usb_gadget *g, struct usb_function *f,
+				struct usb_ep *_ep, u8 alt);
 
 int config_ep_by_speed(struct usb_gadget *g, struct usb_function *f,
 			struct usb_ep *_ep);

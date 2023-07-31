@@ -6,7 +6,7 @@
 /dts-v1/;
 /plugin/;
 
-#include "../mediatek/S96717RA1.dts"
+#include "../mediatek/S96717AA2.dts"
 #include "mt6765-a21_common.dtsi"
 
 /* Add Samsung configuration over here */

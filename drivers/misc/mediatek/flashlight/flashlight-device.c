@@ -82,20 +82,24 @@ const struct flashlight_device_id flashlight_id[] = {
 	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
 	{0, 0, 0, "flashlights-lm3642", 0, 0},
 };
+#elif defined(CONFIG_MTK_FLASHLIGHT_SYWT78)
+const struct flashlight_device_id flashlight_id[] = {
+	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
+	{0, 0, 0, "flashlights-sywt78", 0, 0},
+};
 #else
-	//+bug 612420,huangguoyong.wt,add,2020/12/23,add for n6 camera bring up
-	#ifdef CONFIG_MTK_FLASHLIGHT_LED191
-	const struct flashlight_device_id flashlight_id[] = {
+const struct flashlight_device_id flashlight_id[] = {
 	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
-	{0, 0, 0, "flashlights_led191", 0, 0},
-	};
-	#else
-	const struct flashlight_device_id flashlight_id[] = {
-	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
-	{0, 0, 0, "flashlights-mt6370", 0, 0}, //bug 491015  , sunhushan.wt, ADD, 2019.10.10, add flashlight device node for factory mode
-	};
-	#endif
-	//-bug 612420,huangguoyong.wt,add,2020/12/23,add for n6 camera bring up
+	{0, 0, 0, "flashlights-sgm3785", 0, 1},
+	{0, 0, 0, "flashlights-mt6370", 0, 0},
+	{0, 1, 0, "flashlights-none", -1, 0},
+	{1, 0, 0, "flashlights-none", -1, 0},
+	{1, 1, 0, "flashlights-none", -1, 0},
+	{0, 0, 1, "flashlights-none", -1, 0},
+	{0, 1, 1, "flashlights-none", -1, 0},
+	{1, 0, 1, "flashlights-none", -1, 0},
+	{1, 1, 1, "flashlights-none", -1, 0},
+};
 #endif
 
 const int flashlight_device_num =

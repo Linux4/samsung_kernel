@@ -169,6 +169,7 @@ struct fsync_iocb {
 	struct file		*file;
 	struct work_struct	work;
 	bool			datasync;
+	struct cred		*creds;
 };
 
 struct poll_iocb {
@@ -1580,8 +1581,11 @@ static ssize_t aio_write(struct kiocb *req, const struct iocb *iocb,
 static void aio_fsync_work(struct work_struct *work)
 {
 	struct aio_kiocb *iocb = container_of(work, struct aio_kiocb, fsync.work);
+	const struct cred *old_cred = override_creds(iocb->fsync.creds);
 
 	iocb->ki_res.res = vfs_fsync(iocb->fsync.file, iocb->fsync.datasync);
+	revert_creds(old_cred);
+	put_cred(iocb->fsync.creds);
 	iocb_put(iocb);
 }
 
@@ -1594,6 +1598,10 @@ static int aio_fsync(struct fsync_iocb *req, const struct iocb *iocb,
 
 	if (unlikely(!req->file->f_op->fsync))
 		return -EINVAL;
+
+	req->creds = prepare_creds();
+	if (!req->creds)
+		return -ENOMEM;
 
 	req->datasync = datasync;
 	INIT_WORK(&req->work, aio_fsync_work);
@@ -1637,7 +1645,7 @@ static bool poll_iocb_lock_wq(struct poll_iocb *req)
 	 * In that case, only RCU prevents the queue memory from being freed.
 	 */
 	rcu_read_lock();
-	head = smp_load_acquire(&req->head);
+	head = smp_load_acquire(&req->head); /* BS check patch */
 	if (head) {
 		spin_lock(&head->lock);
 		if (!list_empty(&req->wait.entry))
@@ -1733,17 +1741,17 @@ static int aio_poll_wake(struct wait_queue_entry *wait, unsigned mode, int sync,
 	 * Complete the request inline if possible.  This requires that three
 	 * conditions be met:
 	 *   1. An event mask must have been passed.  If a plain wakeup was done
-	 *      instead, then mask == 0 and we have to call vfs_poll() to get
-	 *      the events, so inline completion isn't possible.
+	 *	instead, then mask == 0 and we have to call vfs_poll() to get
+	 *	the events, so inline completion isn't possible.
 	 *   2. The completion work must not have already been scheduled.
 	 *   3. ctx_lock must not be busy.  We have to use trylock because we
-	 *      already hold the waitqueue lock, so this inverts the normal
-	 *      locking order.  Use irqsave/irqrestore because not all
-	 *      filesystems (e.g. fuse) call this function with IRQs disabled,
-	 *      yet IRQs have to be disabled before ctx_lock is obtained.
+	 *	already hold the waitqueue lock, so this inverts the normal
+	 *	locking order.  Use irqsave/irqrestore because not all
+	 *	filesystems (e.g. fuse) call this function with IRQs disabled,
+	 *	yet IRQs have to be disabled before ctx_lock is obtained.
 	 */
 	if (mask && !req->work_scheduled &&
-		spin_trylock_irqsave(&iocb->ki_ctx->ctx_lock, flags)) {
+	    spin_trylock_irqsave(&iocb->ki_ctx->ctx_lock, flags)) {
 		struct kioctx *ctx = iocb->ki_ctx;
 
 		list_del_init(&req->wait.entry);

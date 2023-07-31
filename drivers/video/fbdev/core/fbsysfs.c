@@ -494,7 +494,7 @@ static ssize_t show_bl_curve(struct device *device,
 }
 #endif
 
-//+Bug 623261, chensibo.wt, ADD, 20210201, add CABC function
+//+Bug 717431, chensibo.wt, ADD, 20220118, add CABC function
 #define SYSFS_SET_LCM_CABC_MODE _IOW('O', 29, unsigned int)
 #define SYSFS_GET_LCM_CABC_MODE _IOR('O', 30, unsigned int)
 extern int fb_lcm_cabc_op(struct fb_info *info, unsigned int cmd, unsigned long arg);
@@ -535,7 +535,7 @@ static ssize_t show_lcm_cabc(struct device *device,
 
 	return(snprintf(buf, PAGE_SIZE, "%d\n", data));
 }
-//-Bug 623261, chensibo.wt, ADD, 20210201, add CABC function
+//-Bug 717431, chensibo.wt, ADD, 20220118, add CABC function
 
 /* When cmap is added back in it should be a binary attribute
  * not a text one. Consideration should also be given to converting

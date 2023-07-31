@@ -195,7 +195,7 @@ static int file_write(struct file_buffer *file, bool new_open)
 		ILI_ERR("str is invaild\n");
 		return -1;
 	}
-//TODO:chensibo.wt
+
 /*	if (file->fname == NULL) {
 		ILI_ERR("file name is invaild\n");
 		return -1;
@@ -351,7 +351,7 @@ static int dev_mkdir(char *name, umode_t mode)
 	ILI_INFO("mkdir: %s\n", name);
 	fs = get_fs();
 	set_fs(KERNEL_DS);
-	err = ksys_mkdir(name, mode);//Bug 621774, chensibo.wt, MODIFY, 20210120, kernel-4.9 changed to kernel-4.19
+	err = ksys_mkdir(name, mode);//Bug 717431, chensibo.wt, MODIFY, 20220118, kernel-4.9 changed to kernel-4.19
 	set_fs(fs);
 
 	return err;

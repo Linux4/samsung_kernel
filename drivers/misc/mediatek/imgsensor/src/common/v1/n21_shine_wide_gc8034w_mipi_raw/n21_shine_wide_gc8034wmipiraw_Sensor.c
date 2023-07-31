@@ -48,6 +48,7 @@
 
 #define MULTI_WRITE    1
 static DEFINE_SPINLOCK(imgsensor_drv_lock);
+
 //+Bug 492443, sunhushan.wt, ADD, 2019.10.15, porting the otp of the 12sensor 
 #define EEPROM_P24C64E_ID 0xA2
 
@@ -61,6 +62,7 @@ static kal_uint16 read_eeprom(kal_uint32 addr)
 	return get_byte;
 }
 //+Bug 492443, sunhushan.wt, ADD, 2019.10.15, porting the otp of the 12sensor
+
 static kal_uint32 Dgain_ratio = 256;
 static kal_uint8  BorF = 1;
 static struct imgsensor_info_struct imgsensor_info = {
@@ -1867,6 +1869,7 @@ extern int imgSensorReadEepromData(struct stCAM_CAL_DATAINFO_STRUCT* pData,
 	struct stCAM_CAL_CHECKSUM_STRUCT* checkData);
 extern int imgSensorSetEepromData(struct stCAM_CAL_DATAINFO_STRUCT* pData);
 //-Bug 492443, sunhushan.wt, ADD, 2019.10.15, porting the otp of the 12sensor 
+
 /*************************************************************************
  * FUNCTION
  *	get_imgsensor_id
@@ -1897,7 +1900,6 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 			*sensor_id = return_sensor_id() + 2;
 			if (*sensor_id == imgsensor_info.sensor_id) {
 				n21_shine_wide_gc8034w_otp_identify();
-
 				//+Bug 492443, sunhushan.wt, ADD, 2019.10.15, porting the otp of the 12sensor 
 				size = imgSensorReadEepromData(&shine_wide_gc8034w_eeprom_data,shine_wide_gc8034w_Checksum);
 				if(size != shine_wide_gc8034w_eeprom_data.dataLength || (shine_wide_gc8034w_eeprom_data.sensorVendorid >> 24)!= read_eeprom(0x0001)) {

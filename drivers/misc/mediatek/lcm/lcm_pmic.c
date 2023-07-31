@@ -40,6 +40,29 @@ int display_bias_regulator_init(void)
 }
 EXPORT_SYMBOL(display_bias_regulator_init);
 
+int disp_late_bias_enable(void)
+{
+	int ret = 0;
+	int retval = 0;
+
+	display_bias_regulator_init();
+
+	ret = regulator_enable(disp_bias_pos);
+	if (ret < 0)
+		pr_info("enable regulator disp_bias_pos fail, ret = %d\n",
+		ret);
+	retval |= ret;
+
+	ret = regulator_enable(disp_bias_neg);
+	if (ret < 0)
+		pr_info("enable regulator disp_bias_neg fail, ret = %d\n",
+		ret);
+	retval |= ret;
+
+	return retval;
+}
+EXPORT_SYMBOL(disp_late_bias_enable);
+
 int display_bias_enable(void)
 {
 	int ret = 0;
@@ -47,7 +70,7 @@ int display_bias_enable(void)
 
 	display_bias_regulator_init();
 
-//+bug621774, liuguohua.wt, modify, 20200120, lcd bring up
+//+bug717431, chensibo.wt, modify, 20220118, lcd bring up
 	/* set voltage with min & max*/
 	ret = regulator_set_voltage(disp_bias_pos, 5500000, 5500000);
 	if (ret < 0)
@@ -55,7 +78,7 @@ int display_bias_enable(void)
 	retval |= ret;
 
 	ret = regulator_set_voltage(disp_bias_neg, 5500000, 5500000);
-//-bug621774, liuguohua.wt, modify, 20200120, lcd bring up
+//-bug717431, chensibo.wt, modify, 20220118, lcd bring up
 	if (ret < 0)
 		pr_info("set voltage disp_bias_neg fail, ret = %d\n", ret);
 	retval |= ret;
@@ -112,6 +135,12 @@ int display_bias_enable(void)
 	return 0;
 }
 EXPORT_SYMBOL(display_bias_enable);
+
+int disp_late_bias_enable(void)
+{
+	return 0;
+}
+EXPORT_SYMBOL(disp_late_bias_enable);
 
 int display_bias_disable(void)
 {

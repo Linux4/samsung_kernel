@@ -69,6 +69,8 @@
 extern struct spi_device *spi_fingerprint;
 //bug 623233,zhanghao3.wt,add,20210204,add adm node
 extern int fingerprint_adm;
+bool fpc_fp_exist = false;
+extern bool egis_fp_exist;
 
 static const char * const pctl_names[] = {
 	"rst-low",
@@ -495,7 +497,7 @@ static int fpc1022_platform_probe(struct platform_device *pldev)
 
 	struct device_node *node = NULL;
 	struct platform_device *pdev = NULL;
-
+	printk(KERN_ERR "%s enter\n 44444444", __func__);
          dev_info(dev, "%s test new\n", __func__);
 
          fpc = devm_kzalloc(dev, sizeof(struct fpc_data), GFP_KERNEL);
@@ -596,6 +598,7 @@ static int fpc1022_platform_probe(struct platform_device *pldev)
 	/* Request that the interrupt should be wakeable */
 	enable_irq_wake(irq_num);
 	wakeup_source_init(&fpc->ttw_wl, "fpc_ttw_wl");
+	fpc_fp_exist = true;
 
 	rc = sysfs_create_group(&dev->kobj, &fpc_attribute_group);
 	if (rc) {
@@ -658,24 +661,26 @@ static int __init fpc_sensor_init(void)
 {
     int status=0;
     FPC_ALOGF();
-    printk(KERN_ERR "fpc koko  fpc_sensor_init \n");
-/* 
-   if (sunwave_fp_exist) {
-        printk(KERN_ERR "%s sunwave sensor has been detected, so exit FPC sensor detect.\n",__func__);
+    printk(KERN_ERR "fpc koko  fpc_sensor_init 111111111 \n");
+
+    /* if (egis_fp_exist) {
+        printk(KERN_ERR "%s egis sensor has been detected, so exit FPC sensor detect.\n",__func__);
         return -EINVAL;
-    }
-	*/
+    } */
+	
     //workaround to solve two spi device
     if(spi_fingerprint == NULL)
-        pr_notice("%s Line:%d spi device is NULL,cannot spi transfer\n",
+        printk("%s Line:%d spi device is NULL,cannot spi transfer\n",
                 __func__, __LINE__);
     else {
-	status = platform_driver_register(&fpc1022_driver);
-	if (status !=0) {
-		printk("%s, fpc_sensor_init failed.\n", __func__);
-	 }
-    	}
-
+		status = platform_driver_register(&fpc1022_driver);
+		if (status !=0) {
+			printk("%s, fpc_sensor_init failed 22222222.\n", __func__);
+		}
+    }
+	
+	printk(KERN_ERR "%s, fpc_sensor_init success 3333333.\n", __func__);
+	
 	return status;
 }
 late_initcall(fpc_sensor_init);

@@ -1,0 +1,13 @@
+#
+# Mediatek AW9610X Driver
+#
+
+config HX9031A_SAR
+	tristate "TianYiHeXin HX9031A_Sar driver"
+	depends on I2C
+	help
+	  Say Y here if you have TianYiHeXin HX9031A_Sar controller
+	  chip in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here: the
+	  module will be called HX9031A_Sar key.

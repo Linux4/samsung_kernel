@@ -2868,7 +2868,7 @@ static int
 	 * we don't (yet!) support high bandwidth interrupt transfers.
 	 */
 	if (qh->type == USB_ENDPOINT_XFER_ISOC) {
-		qh->hb_mult = 1 + ((qh->maxpacket >> 11) & 0x03);
+		qh->hb_mult = usb_endpoint_maxp_mult(epd);
 		if (qh->hb_mult > 1) {
 			int ok = (qh->type == USB_ENDPOINT_XFER_ISOC);
 
@@ -3026,8 +3026,8 @@ static int musb_cleanup_urb(struct urb *urb, struct musb_qh *qh)
 	else
 		DBG(4, "111111aaaaaaaaa\n");
 
-
-	musb_ep_select(regs, hw_end);
+	if (regs)
+		musb_ep_select(regs, hw_end);
 	DBG(2, "is_in is %d,ep num is %d\n", is_in, ep->epnum);
 
 	if (is_dma_capable()) {
@@ -3106,16 +3106,15 @@ static int musb_urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status)
 				qh);
 
 	if (pos < 256) {
-		snprintf(info + pos, 256 - pos, ",rdy<%d>,prev<%d>,cur<%d>",
+		ret = snprintf(info + pos, 256 - pos, ",rdy<%d>,prev<%d>,cur<%d>",
 				qh->is_ready,
 				urb->urb_list.prev != &qh->hep->urb_list,
 				musb_ep_get_qh(qh->hw_ep, is_in) == qh);
+		if (ret < 0)
+			DBG(0, "ret<%d>\n", ret);
 	}
 
-	if (strstr(current->comm, "usb_call"))
-		DBG_LIMIT(5, "%s", info);
-	else
-		DBG(0, "%s\n", info);
+	DBG_LIMIT(5, "%s", info);
 
 #ifdef CONFIG_MTK_MUSB_QMU_SUPPORT
 	/* abort HW transaction on this ep */
@@ -3170,7 +3169,7 @@ static int musb_urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status)
 #endif
 			if (qh->type != USB_ENDPOINT_XFER_CONTROL) {
 				DBG(0, "why here, this is ring case?\n");
-				musb_bug();
+				dump_stack();
 			}
 
 			qh->hep->hcpriv = NULL;
@@ -3356,6 +3355,11 @@ static int musb_bus_suspend(struct usb_hcd *hcd)
 {
 	struct musb *musb = hcd_to_musb(hcd);
 	u8 devctl;
+	int ret;
+
+	ret = musb_port_suspend(musb, true);
+	if (ret)
+		return ret;
 
 	if (!is_host_active(musb))
 		return 0;
@@ -3394,8 +3398,10 @@ static int musb_bus_resume(struct usb_hcd *hcd)
 {
 	struct musb *musb = hcd_to_musb(hcd);
 
-	if (is_host_active(musb))
-		usb_hal_dpidle_request(USB_DPIDLE_FORBIDDEN);
+	if (!is_host_active(musb))
+		return 0;
+
+	usb_hal_dpidle_request(USB_DPIDLE_FORBIDDEN);
 
 	/* resuming child port does the work */
 	return 0;

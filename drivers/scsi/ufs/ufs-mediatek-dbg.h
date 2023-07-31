@@ -33,12 +33,30 @@ do { \
 	} \
 } while (0)
 
+#define SPREAD_DEV_PRINTF(buff, size, evt, dev, fmt, args...) \
+do { \
+	if (buff && size && *(size)) { \
+		unsigned long var = snprintf(*(buff), *(size), fmt, ##args); \
+		if (var > 0) { \
+			*(size) -= var; \
+			*(buff) += var; \
+		} \
+	} \
+	if (evt) \
+		seq_printf(evt, fmt, ##args); \
+	if (!buff && !evt) { \
+		dev_info(dev, fmt, ##args); \
+	} \
+} while (0)
+
 enum ufsdbg_cmd_type {
 	UFSDBG_CMD_LIST_DUMP    = 0,
 	UFSDBG_PWR_MODE_DUMP    = 1,
 	UFSDBG_HEALTH_DUMP      = 2,
 	UFSDBG_CMD_LIST_ENABLE  = 3,
 	UFSDBG_CMD_LIST_DISABLE = 4,
+	UFS_CMD_QOS_ON          = 5,
+	UFS_CMD_QOS_OFF         = 6,
 	UFSDBG_UNKNOWN
 };
 
@@ -101,6 +119,10 @@ int ufsdbg_register(struct device *dev);
 int cmd_hist_enable(void);
 int cmd_hist_disable(void);
 void ufs_mediatek_dbg_dump(void);
-
+void ufs_mtk_dbg_add_trace(const char *dev_name,
+				 const char *str, unsigned int tag,
+				 u32 doorbell, int transfer_len, u32 intr,
+				 u64 lba, u8 opcode,
+				 u8 crypt_en, u8 crypt_keyslot);
 #endif
 

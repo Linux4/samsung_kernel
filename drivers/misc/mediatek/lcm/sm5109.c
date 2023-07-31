@@ -217,9 +217,9 @@
  	int ret=0;
 	//pr_debug("[LCM]power enable\n");
 	pinctrl_select_state(_lcm_gpio, _lcm_gpio_mode[1]);    //enable enp
-	mdelay(5);
+	mdelay(2);
 	pinctrl_select_state(_lcm_gpio, _lcm_gpio_mode[3]);	   //enable enn
-	mdelay(5);
+	mdelay(2);
 	/* set AVDD*/
 	/*4.0V + 20* 100mV*/
 	ret = SM5109_REG_MASK(0x00, 20, (0x1F << 0));
@@ -272,7 +272,21 @@
  	}
  }
  EXPORT_SYMBOL(lcm_reset_pin);
- 
+
+int wingtech_bright_to_bl(int level,int max_bright,int min_bright,int bl_max,int bl_min) {
+	if(!level){
+		return 0;
+	}else{
+		if(level <= min_bright){
+			return bl_min;
+		}else{
+			return ((((int)bl_max - (int)bl_min)*level + ((int)max_bright*(int)bl_min -
+			(int)min_bright*(int)bl_max))/((int)max_bright - (int)min_bright));
+		}
+	}
+}
+EXPORT_SYMBOL(wingtech_bright_to_bl);
+
  static int _lcm_gpio_probe(struct platform_device *pdev){
 		 int ret;
 		 unsigned int mode;

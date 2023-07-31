@@ -18,7 +18,11 @@ bat_gm30: battery{
 	PMIC_SHUTDOWN_CURRENT = <(20)>;	/*	System shutdown current.*/
 	FG_METER_RESISTANCE = <(75)>;	/*	The resistance of PCB*/
 	/*	Tune value for current measurement.*/
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+	CAR_TUNE_VALUE = <(96)>;
+#else
 	CAR_TUNE_VALUE = <(100)>;
+#endif
 	PMIC_MIN_VOL = <(33500)>;
 	/*	vboot voltage for gauge 0%.*/
 	POWERON_SYSTEM_IBOOT = <(500)>;

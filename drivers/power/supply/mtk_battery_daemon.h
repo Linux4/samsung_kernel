@@ -37,4 +37,6 @@ struct fgd_cmd_param_t_4 {
 	unsigned int idx;
 	char input[DATA_SIZE];
 };
-
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+extern signed int battery_get_debug_uisoc(void);
+#endif

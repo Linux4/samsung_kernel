@@ -142,9 +142,9 @@ typedef struct abov_platform_data *pabov_platform_data_t;
 
 #ifdef USE_SENSORS_CLASS
 static struct sensors_classdev sensors_capsensor_bottom_cdev = {
-	.name = "A96T3X6", //bug 492320,20191119,gaojingxuan.wt,add,use SS hal
+	.name = "grip_sensor", //bug 492320,20191119,gaojingxuan.wt,add,use SS hal
 	.vendor = "abov",
-    .sensor_name = "grip_sensor", //bug 492320,20191119,gaojingxuan.wt,add,use SS hal
+    .sensor_name = "A96T3X6", //bug 492320,20191119,gaojingxuan.wt,add,use SS hal
 	.version = 1,
 	.type = SENSOR_TYPE_ABOV_CAPSENSE,
 	.max_range = "5",
@@ -159,9 +159,9 @@ static struct sensors_classdev sensors_capsensor_bottom_cdev = {
 	.sensors_poll_delay = NULL,
 };
 static struct sensors_classdev sensors_capsensor_topleft_cdev = {
-	.name = "A96T3X6", //bug 492320,20191119,gaojingxuan.wt,add,use SS hal
+	.name = "grip_sensor_sub", //bug 492320,20191119,gaojingxuan.wt,add,use SS hal
 	.vendor = "abov",
-    .sensor_name = "grip_sensor_sub", //bug 492320,20191119,gaojingxuan.wt,add,use SS hal
+    .sensor_name = "A96T3X6", //bug 492320,20191119,gaojingxuan.wt,add,use SS hal
 	.version = 1,
 	.type = SENSOR_TYPE_ABOV_CAPSENSE,
 	.max_range = "5",
@@ -176,9 +176,9 @@ static struct sensors_classdev sensors_capsensor_topleft_cdev = {
 	.sensors_poll_delay = NULL,
 };
 static struct sensors_classdev sensors_capsensor_topright_cdev = {
-	.name = "A96T3X6", //bug 492320,20191119,gaojingxuan.wt,add,use SS hal
+	.name = "grip_sensor_wifi", //bug 492320,20191119,gaojingxuan.wt,add,use SS hal
 	.vendor = "abov",
-    .sensor_name = "grip_sensor_wifi", //bug 492320,20191119,gaojingxuan.wt,add,use SS hal
+    .sensor_name = "A96T3X6", //bug 492320,20191119,gaojingxuan.wt,add,use SS hal
 	.version = 1,
 	.type = SENSOR_TYPE_ABOV_CAPSENSE,
 	.max_range = "5",

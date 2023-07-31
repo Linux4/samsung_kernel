@@ -2,7 +2,7 @@
  *
  * FocalTech TouchScreen driver.
  *
- * Copyright (c) 2012-2019, FocalTech Systems, Ltd., all rights reserved.
+ * Copyright (c) 2012-2020, FocalTech Systems, Ltd., all rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -46,22 +46,26 @@
 #endif
 #include "focaltech_core.h"
 #include "tpd.h"
-#if FTS_MTK_OLD_TYPE
+#ifdef CONFIG_TOUCHSCREEN_FTS_BUS_SPI_MTCC
 #include "mt_spi.h"
 #endif
 
-#ifdef SEC_TSP_FACTORY_TEST
-#include <linux/input/wt_sec_cmd.h>
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+#include "../../../../misc/mediatek/lcm/inc/panel_notifier.h"
+static struct notifier_block focal_headset_notifier;
+#define FTS_HEADSET_PLUG 9
+#define FTS_HEADSET_UNPLUG 10
 #endif
 
 /*****************************************************************************
 * Private constant and macro definitions using #define
 *****************************************************************************/
-#define FTS_DRIVER_NAME                     "fts_ts"
+#define FTS_DRIVER_NAME                     "focaltech,fts"
+#define FTS_DRIVER_PEN_NAME                 "fts_ts,pen"
 #define INTERVAL_READ_REG                   200  /* unit:ms */
 #define TIMEOUT_READ_REG                    1000 /* unit:ms */
 #if FTS_POWER_SOURCE_CUST_EN
-#define FTS_VTG_MIN_UV                      2600000
+#define FTS_VTG_MIN_UV                      2800000
 #define FTS_VTG_MAX_UV                      3300000
 #define FTS_I2C_VTG_MIN_UV                  1800000
 #define FTS_I2C_VTG_MAX_UV                  1800000
@@ -89,6 +93,24 @@ struct fts_ts_data *fts_data;
 /*****************************************************************************
 * Static function prototypes
 *****************************************************************************/
+int fts_check_cid(struct fts_ts_data *ts_data, u8 id_h)
+{
+    int i = 0;
+    struct ft_chip_id_t *cid = &ts_data->ic_info.cid;
+    u8 cid_h = 0x0;
+
+    if (cid->type == 0)
+        return -ENODATA;
+
+    for (i = 0; i < FTS_MAX_CHIP_IDS; i++) {
+        cid_h = ((cid->chip_ids[i] >> 8) & 0x00FF);
+        if (cid_h && (id_h == cid_h)) {
+            return 0;
+        }
+    }
+
+    return -ENODATA;
+}
 
 /*****************************************************************************
 *  Name: fts_wait_tp_to_valid
@@ -102,17 +124,18 @@ int fts_wait_tp_to_valid(void)
 {
     int ret = 0;
     int cnt = 0;
-    u8 reg_value = 0;
-    u8 chip_id = fts_data->ic_info.ids.chip_idh;
+    u8 idh = 0;
+    struct fts_ts_data *ts_data = fts_data;
+    u8 chip_idh = ts_data->ic_info.ids.chip_idh;
 
     do {
-        ret = fts_read_reg(FTS_REG_CHIP_ID, &reg_value);
-        if ((ret < 0) || (reg_value != chip_id)) {
-            FTS_DEBUG("TP Not Ready, ReadData = 0x%x", reg_value);
-        } else if (reg_value == chip_id) {
-            FTS_INFO("TP Ready, Device ID = 0x%x", reg_value);
+        ret = fts_read_reg(FTS_REG_CHIP_ID, &idh);
+        if ((idh == chip_idh) || (fts_check_cid(ts_data, idh) == 0)) {
+            FTS_INFO("TP Ready,Device ID:0x%02x", idh);
             return 0;
-        }
+        } else
+            FTS_DEBUG("TP Not Ready,ReadData:0x%02x,ret:%d", idh, ret);
+
         cnt++;
         msleep(INTERVAL_READ_REG);
     } while ((cnt * INTERVAL_READ_REG) < TIMEOUT_READ_REG);
@@ -141,9 +164,7 @@ void fts_tp_state_recovery(struct fts_ts_data *ts_data)
 #endif
 
     /* recover TP gesture state 0xD0 */
-#if FTS_GESTURE_EN
     fts_gesture_recovery(ts_data);
-#endif
     FTS_FUNC_EXIT();
 }
 
@@ -151,7 +172,7 @@ int fts_reset_proc(int hdelayms)
 {
     FTS_DEBUG("tp reset");
     tpd_gpio_output(fts_data->pdata->reset_gpio, 0);
-    msleep(5);
+    msleep(1);
     tpd_gpio_output(fts_data->pdata->reset_gpio, 1);
     if (hdelayms) {
         msleep(hdelayms);
@@ -197,6 +218,9 @@ void fts_hid2std(void)
     int ret = 0;
     u8 buf[3] = {0xEB, 0xAA, 0x09};
 
+    if (fts_data->bus_type != BUS_TYPE_I2C)
+        return;
+
     ret = fts_write(buf, 3);
     if (ret < 0) {
         FTS_ERROR("hid2std cmd write fail");
@@ -214,11 +238,52 @@ void fts_hid2std(void)
     }
 }
 
+static int fts_match_cid(struct fts_ts_data *ts_data,
+                         u16 type, u8 id_h, u8 id_l, bool force)
+{
+#ifdef FTS_CHIP_ID_MAPPING
+    u32 i = 0;
+    u32 j = 0;
+    struct ft_chip_id_t chip_id_list[] = FTS_CHIP_ID_MAPPING;
+    u32 cid_entries = sizeof(chip_id_list) / sizeof(struct ft_chip_id_t);
+    u16 id = (id_h << 8) + id_l;
+
+    memset(&ts_data->ic_info.cid, 0, sizeof(struct ft_chip_id_t));
+    for (i = 0; i < cid_entries; i++) {
+        if (!force && (type == chip_id_list[i].type)) {
+            break;
+        } else if (force && (type == chip_id_list[i].type)) {
+            FTS_INFO("match cid,type:0x%x", (int)chip_id_list[i].type);
+            ts_data->ic_info.cid = chip_id_list[i];
+            return 0;
+        }
+    }
+
+    if (i >= cid_entries) {
+        return -ENODATA;
+    }
+
+    for (j = 0; j < FTS_MAX_CHIP_IDS; j++) {
+        if (id == chip_id_list[i].chip_ids[j]) {
+            FTS_DEBUG("cid:%x==%x", id, chip_id_list[i].chip_ids[j]);
+            FTS_INFO("match cid,type:0x%x", (int)chip_id_list[i].type);
+            ts_data->ic_info.cid = chip_id_list[i];
+            return 0;
+        }
+    }
+
+    return -ENODATA;
+#else
+    return -EINVAL;
+#endif
+}
+
+
 static int fts_get_chip_types(
     struct fts_ts_data *ts_data,
     u8 id_h, u8 id_l, bool fw_valid)
 {
-    int i = 0;
+    u32 i = 0;
     struct ft_chip_t ctype[] = FTS_CHIP_TYPE_MAPPING;
     u32 ctype_entries = sizeof(ctype) / sizeof(struct ft_chip_t);
 
@@ -230,13 +295,15 @@ static int fts_get_chip_types(
     FTS_DEBUG("verify id:0x%02x%02x", id_h, id_l);
     for (i = 0; i < ctype_entries; i++) {
         if (VALID == fw_valid) {
-            if ((id_h == ctype[i].chip_idh) && (id_l == ctype[i].chip_idl))
+            if (((id_h == ctype[i].chip_idh) && (id_l == ctype[i].chip_idl))
+                || (!fts_match_cid(ts_data, ctype[i].type, id_h, id_l, 0)))
                 break;
         } else {
             if (((id_h == ctype[i].rom_idh) && (id_l == ctype[i].rom_idl))
                 || ((id_h == ctype[i].pb_idh) && (id_l == ctype[i].pb_idl))
-                || ((id_h == ctype[i].bl_idh) && (id_l == ctype[i].bl_idl)))
+                || ((id_h == ctype[i].bl_idh) && (id_l == ctype[i].bl_idl))) {
                 break;
+            }
         }
     }
 
@@ -244,6 +311,7 @@ static int fts_get_chip_types(
         return -ENODATA;
     }
 
+    fts_match_cid(ts_data, ctype[i].type, id_h, id_l, 1);
     ts_data->ic_info.ids = ctype[i];
     return 0;
 }
@@ -301,8 +369,8 @@ static int fts_get_ic_information(struct fts_ts_data *ts_data)
     ts_data->ic_info.hid_supported = FTS_HID_SUPPORTTED;
 
     for (cnt = 0; cnt < 3; cnt++) {
-        fts_reset_proc(0);//songbinbo add 0 -> 200
-        mdelay(8);
+        fts_reset_proc(0);
+        mdelay(FTS_CMD_START_DELAY);
 
         ret = fts_read_bootid(ts_data, &chip_id[0]);
         if (ret <  0) {
@@ -325,8 +393,9 @@ static int fts_get_ic_information(struct fts_ts_data *ts_data)
     }
 
 
-    FTS_INFO("get ic information, chip id = 0x%02x%02x",
-             ts_data->ic_info.ids.chip_idh, ts_data->ic_info.ids.chip_idl);
+    FTS_INFO("get ic information, chip id = 0x%02x%02x(cid type=0x%x)",
+             ts_data->ic_info.ids.chip_idh, ts_data->ic_info.ids.chip_idl,
+             ts_data->ic_info.cid.type);
 
     return 0;
 }
@@ -361,14 +430,14 @@ static void fts_show_touch_buffer(u8 *data, int datalen)
 
 void fts_release_all_finger(void)
 {
-    struct input_dev *input_dev = fts_data->input_dev;
+    struct fts_ts_data *ts_data = fts_data;
+    struct input_dev *input_dev = ts_data->input_dev;
 #if FTS_MT_PROTOCOL_B_EN
     u32 finger_count = 0;
-    u32 max_touches = fts_data->pdata->max_touch_number;
+    u32 max_touches = ts_data->pdata->max_touch_number;
 #endif
 
-    FTS_FUNC_ENTER();
-    mutex_lock(&fts_data->report_mutex);
+    mutex_lock(&ts_data->report_mutex);
 #if FTS_MT_PROTOCOL_B_EN
     for (finger_count = 0; finger_count < max_touches; finger_count++) {
         input_mt_slot(input_dev, finger_count);
@@ -380,10 +449,15 @@ void fts_release_all_finger(void)
     input_report_key(input_dev, BTN_TOUCH, 0);
     input_sync(input_dev);
 
-    fts_data->touchs = 0;
-    fts_data->key_state = 0;
-    mutex_unlock(&fts_data->report_mutex);
-    FTS_FUNC_EXIT();
+#if FTS_PEN_EN
+    input_report_key(ts_data->pen_dev, BTN_TOOL_PEN, 0);
+    input_report_key(ts_data->pen_dev, BTN_TOUCH, 0);
+    input_sync(ts_data->pen_dev);
+#endif
+
+    ts_data->touchs = 0;
+    ts_data->key_state = 0;
+    mutex_unlock(&ts_data->report_mutex);
 }
 
 /*****************************************************************************
@@ -467,23 +541,17 @@ static int fts_input_report_b(struct fts_ts_data *data)
 
             if ((data->log_level >= 2) ||
                 ((1 == data->log_level) && (FTS_TOUCH_DOWN == events[i].flag))) {
-#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
-                    FTS_DEBUG("[B]P%d(%d, %d)[p:%d,tm:%d] DOWN!",
-                            events[i].id,
-                            events[i].x, events[i].y,
-                            events[i].p, events[i].area);
-#else
-                       FTS_DEBUG("[B]P%d  [p:%d,tm:%d] DOWN!",
-                            events[i].id,
-                            events[i].p, events[i].area);
-#endif
+                //FTS_DEBUG("[B]P%d(%d, %d)[p:%d,tm:%d] DOWN!",
+                         // events[i].id,
+                         // events[i].x, events[i].y,
+                         // events[i].p, events[i].area);
             }
         } else {
             uppoint++;
             input_mt_report_slot_state(data->input_dev, MT_TOOL_FINGER, false);
             data->touchs &= ~BIT(events[i].id);
             if (data->log_level >= 1) {
-                    FTS_DEBUG("[B]P%d UP!", events[i].id);
+               // FTS_DEBUG("[B]P%d UP!", events[i].id);
             }
         }
     }
@@ -492,7 +560,7 @@ static int fts_input_report_b(struct fts_ts_data *data)
         for (i = 0; i < max_touch_num; i++)  {
             if (BIT(i) & (data->touchs ^ touchs)) {
                 if (data->log_level >= 1) {
-                        FTS_DEBUG("[B]P%d UP!", i);
+                 //   FTS_DEBUG("[B]P%d UP!", i);
                 }
                 va_reported = true;
                 input_mt_slot(data->input_dev, i);
@@ -506,7 +574,7 @@ static int fts_input_report_b(struct fts_ts_data *data)
         /* touchs==0, there's no point but key */
         if (EVENT_NO_DOWN(data) || (!touchs)) {
             if (data->log_level >= 1) {
-                    FTS_DEBUG("[B]Points All Up!");
+             //   FTS_DEBUG("[B]Points All Up!");
             }
             input_report_key(data->input_dev, BTN_TOUCH, 0);
         } else {
@@ -584,6 +652,64 @@ static int fts_input_report_a(struct fts_ts_data *data)
 }
 #endif
 
+#if FTS_PEN_EN
+static int fts_input_pen_report(struct fts_ts_data *data)
+{
+    struct input_dev *pen_dev = data->pen_dev;
+    struct pen_event *pevt = &data->pevent;
+    u8 *buf = data->point_buf;
+
+
+    if (buf[3] & 0x08)
+        input_report_key(pen_dev, BTN_STYLUS, 1);
+    else
+        input_report_key(pen_dev, BTN_STYLUS, 0);
+
+    if (buf[3] & 0x02)
+        input_report_key(pen_dev, BTN_STYLUS2, 1);
+    else
+        input_report_key(pen_dev, BTN_STYLUS2, 0);
+
+    pevt->inrange = (buf[3] & 0x20) ? 1 : 0;
+    pevt->tip = (buf[3] & 0x01) ? 1 : 0;
+    pevt->x = ((buf[4] & 0x0F) << 8) + buf[5];
+    pevt->y = ((buf[6] & 0x0F) << 8) + buf[7];
+    pevt->p = ((buf[8] & 0x0F) << 8) + buf[9];
+    pevt->id = buf[6] >> 4;
+    pevt->flag = buf[4] >> 6;
+    pevt->tilt_x = (buf[10] << 8) + buf[11];
+    pevt->tilt_y = (buf[12] << 8) + buf[13];
+    pevt->tool_type = BTN_TOOL_PEN;
+
+    if (data->log_level >= 2  ||
+        ((1 == data->log_level) && (FTS_TOUCH_DOWN == pevt->flag))) {
+        FTS_DEBUG("[PEN]x:%d,y:%d,p:%d,inrange:%d,tip:%d,flag:%d DOWN",
+                  pevt->x, pevt->y, pevt->p, pevt->inrange,
+                  pevt->tip, pevt->flag);
+    }
+
+    if ( (data->log_level >= 1) && (!pevt->inrange)) {
+        FTS_DEBUG("[PEN]UP");
+    }
+
+    input_report_abs(pen_dev, ABS_X, pevt->x);
+    input_report_abs(pen_dev, ABS_Y, pevt->y);
+    input_report_abs(pen_dev, ABS_PRESSURE, pevt->p);
+
+    /* check if the pen support tilt event */
+    if ((pevt->tilt_x != 0) || (pevt->tilt_y != 0)) {
+        input_report_abs(pen_dev, ABS_TILT_X, pevt->tilt_x);
+        input_report_abs(pen_dev, ABS_TILT_Y, pevt->tilt_y);
+    }
+
+    input_report_key(pen_dev, BTN_TOUCH, pevt->tip);
+    input_report_key(pen_dev, BTN_TOOL_PEN, pevt->inrange);
+    input_sync(pen_dev);
+
+    return 0;
+}
+#endif
+
 static int fts_read_touchdata(struct fts_ts_data *data)
 {
     int ret = 0;
@@ -591,24 +717,29 @@ static int fts_read_touchdata(struct fts_ts_data *data)
 
     memset(buf, 0xFF, data->pnt_buf_size);
     buf[0] = 0x01;
+
     ret = fts_read(buf, 1, buf + 1, data->pnt_buf_size - 1);
-    if ((ret < 0) && ((buf[1] & 0xF0) != 0x90)) {
+
+    if (((0xEF == buf[2]) && (0xEF == buf[3]) && (0xEF == buf[4]))
+        || ((ret < 0) && (0xEF == buf[1]))) {
+        fts_release_all_finger();
         /* check if need recovery fw */
         fts_fw_recovery();
-        return ret;
-    } else if ((ret < 0) || ((buf[1] & 0xF0) != 0x90)) {
-        FTS_ERROR("touch data(%x) fail,ret:%d", buf[1], ret);
+        data->fw_is_running = true;
+        return 1;
+    } else if (ret < 0) {
+        FTS_ERROR("touch data(%x) abnormal,ret:%d", buf[1], ret);
         return -EIO;
     }
 
-#if FTS_GESTURE_EN
-    ret = fts_gesture_readdata(data, buf + FTS_TOUCH_DATA_LEN);
-    if (0 == ret) {
-        FTS_INFO("succuss to get gesture data in irq handler");
-        return 1;
-    }
-#endif
 
+    if (data->gesture_mode) {
+        ret = fts_gesture_readdata(data, buf + FTS_TOUCH_DATA_LEN);
+        if (0 == ret) {
+            FTS_INFO("succuss to get gesture data in irq handler");
+            return 1;
+        }
+    }
 
     if (data->log_level >= 3) {
         fts_show_touch_buffer(buf, data->pnt_buf_size);
@@ -616,6 +747,7 @@ static int fts_read_touchdata(struct fts_ts_data *data)
 
     return 0;
 }
+
 
 static int fts_read_parse_touchdata(struct fts_ts_data *data)
 {
@@ -632,20 +764,30 @@ static int fts_read_parse_touchdata(struct fts_ts_data *data)
         return ret;
     }
 
+#if FTS_PEN_EN
+    if ((buf[2] & 0xF0) == 0xB0) {
+        fts_input_pen_report(data);
+        return 2;
+    }
+#endif
+
     data->point_num = buf[FTS_TOUCH_POINT_NUM] & 0x0F;
     data->touch_point = 0;
 
     if (data->ic_info.is_incell) {
-        if ((data->point_num == 0x0F) && (buf[1] == 0xFF) && (buf[2] == 0xFF)
-            && (buf[3] == 0xFF) && (buf[4] == 0xFF) && (buf[5] == 0xFF) && (buf[6] == 0xFF)) {
+        if ((data->point_num == 0x0F) && (buf[2] == 0xFF) && (buf[3] == 0xFF)
+            && (buf[4] == 0xFF) && (buf[5] == 0xFF) && (buf[6] == 0xFF)) {
             FTS_DEBUG("touch buff is 0xff, need recovery state");
+            fts_release_all_finger();
             fts_tp_state_recovery(data);
+            data->point_num = 0;
             return -EIO;
         }
     }
 
     if (data->point_num > max_touch_num) {
         FTS_INFO("invalid point_num(%d)", data->point_num);
+        data->point_num = 0;
         return -EIO;
     }
 
@@ -676,7 +818,7 @@ static int fts_read_parse_touchdata(struct fts_ts_data *data)
     }
 
     if (data->touch_point == 0) {
-        FTS_INFO("no touch point information");
+        FTS_INFO("no touch point information(%02x)", buf[2]);
         return -EIO;
     }
 
@@ -687,8 +829,6 @@ static void fts_irq_read_report(void)
 {
     int ret = 0;
     struct fts_ts_data *ts_data = fts_data;
-
-//FTS_ERROR(" Binbo  fts_irq_read_report Enter ");
 
 #if FTS_ESDCHECK_EN
     fts_esdcheck_set_intr(1);
@@ -712,14 +852,15 @@ static void fts_irq_read_report(void)
 #if FTS_ESDCHECK_EN
     fts_esdcheck_set_intr(0);
 #endif
-//FTS_ERROR(" Binbo  fts_irq_read_report Exit! ");
-
 }
 
 static int touch_event_handler(void *unused)
 {
     struct sched_param param = { .sched_priority = RTPM_PRIO_TPD };
-
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+    struct spi_controller *ctlr = fts_data->spi->controller;
+    int i = 0;
+#endif
     sched_setscheduler(current, SCHED_RR, &param);
     do {
         set_current_state(TASK_INTERRUPTIBLE);
@@ -728,6 +869,21 @@ static int touch_event_handler(void *unused)
         tpd_flag = 0;
         set_current_state(TASK_RUNNING);
 
+#if FTS_PSENSOR_EN
+        if (fts_proximity_readdata(fts_data) == 0)
+            continue;
+#endif
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+        if (fts_data->suspended == true && fts_data->gesture_mode == 1 && ctlr->running == 0) {
+            for (i = 0; i < 10; i++) {
+                FTS_ERROR("touch_event_handler ctlr->running == %d\n",ctlr->running);
+                msleep(10);
+
+                if (ctlr->running == 1)
+                    break;
+            }
+        }
+#endif
         fts_irq_read_report();
     } while (!kthread_should_stop());
 
@@ -772,6 +928,48 @@ static int fts_irq_registration(struct fts_ts_data *ts_data)
     return ret;
 }
 
+#if FTS_PEN_EN
+static int fts_input_pen_init(struct fts_ts_data *ts_data)
+{
+    int ret = 0;
+    struct input_dev *pen_dev;
+    struct fts_ts_platform_data *pdata = ts_data->pdata;
+
+    FTS_FUNC_ENTER();
+    pen_dev = input_allocate_device();
+    if (!pen_dev) {
+        FTS_ERROR("Failed to allocate memory for input_pen device");
+        return -ENOMEM;
+    }
+
+    pen_dev->dev.parent = ts_data->dev;
+    pen_dev->name = FTS_DRIVER_PEN_NAME;
+    pen_dev->evbit[0] |= BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS);
+    __set_bit(ABS_X, pen_dev->absbit);
+    __set_bit(ABS_Y, pen_dev->absbit);
+    __set_bit(BTN_STYLUS, pen_dev->keybit);
+    __set_bit(BTN_STYLUS2, pen_dev->keybit);
+    __set_bit(BTN_TOUCH, pen_dev->keybit);
+    __set_bit(BTN_TOOL_PEN, pen_dev->keybit);
+    __set_bit(INPUT_PROP_DIRECT, pen_dev->propbit);
+    input_set_abs_params(pen_dev, ABS_X, pdata->x_min, pdata->x_max, 0, 0);
+    input_set_abs_params(pen_dev, ABS_Y, pdata->y_min, pdata->y_max, 0, 0);
+    input_set_abs_params(pen_dev, ABS_PRESSURE, 0, 4096, 0, 0);
+
+    ret = input_register_device(pen_dev);
+    if (ret) {
+        FTS_ERROR("Input device registration failed");
+        input_free_device(pen_dev);
+        pen_dev = NULL;
+        return ret;
+    }
+
+    ts_data->pen_dev = pen_dev;
+    FTS_FUNC_EXIT();
+    return 0;
+}
+#endif
+
 static int fts_input_init(struct fts_ts_data *ts_data)
 {
     int ret = 0;
@@ -788,8 +986,10 @@ static int fts_input_init(struct fts_ts_data *ts_data)
 
     /* Init and register Input device */
     input_dev->name = FTS_DRIVER_NAME;
-    input_dev->id.bustype = BUS_SPI;
-
+    if (ts_data->bus_type == BUS_TYPE_I2C)
+        input_dev->id.bustype = BUS_I2C;
+    else
+        input_dev->id.bustype = BUS_SPI;
     input_dev->dev.parent = ts_data->dev;
 
     input_set_drvdata(input_dev, ts_data);
@@ -827,8 +1027,18 @@ static int fts_input_init(struct fts_ts_data *ts_data)
         return ret;
     }
 
-    ts_data->input_dev = input_dev;
+#if FTS_PEN_EN
+    ret = fts_input_pen_init(ts_data);
+    if (ret) {
+        FTS_ERROR("Input-pen device registration failed");
+        input_set_drvdata(input_dev, NULL);
+        input_free_device(input_dev);
+        input_dev = NULL;
+        return ret;
+    }
+#endif
 
+    ts_data->input_dev = input_dev;
     FTS_FUNC_EXIT();
     return 0;
 }
@@ -1015,196 +1225,13 @@ static void fts_platform_data_init(struct fts_ts_data *ts_data)
              pdata->x_max, pdata->y_max);
 }
 
-//+ add by songbinbo.wt for tp open short  20190404
-#if OPEN_SHORT_PROC
-#define CTP_PARENT_PROC_NAME  "touchscreen"
-#define CTP_OPEN_PROC_NAME    "ctp_openshort_test"
-
-extern int fts_open_short_test(char *ini_file_name);
-
-static int fts_set_ini_name(char *cfgname)
-{
-	int ret;
-
-        sprintf(cfgname, "%s", "Wingtech_N6_TM_V01.ini");
-        return ret;
-}
-
-static ssize_t ctp_open_proc_write(struct file *filp, const char __user *userbuf,size_t count, loff_t *ppos)
-{
-	return -1;
-}
-
-static ssize_t ctp_open_proc_read(struct file *file, char __user *buf,size_t count, loff_t *ppos)
-{
-	char fwname[128] = {0};
-	struct fts_ts_data *ts_data = fts_data;
-	struct spi_device *slave_dev;
-	struct input_dev *input_dev;
-	int result = 0;
-	int ret;
-	int len = count;
-
-	slave_dev = ts_data->spi;
-	input_dev = ts_data->input_dev;
-
-	if(*ppos){
-		FTS_ERROR("tp test again return\n");
-		return 0;
-	}
-	*ppos += count;
-
-	memset(fwname, 0, sizeof(fwname));
-	fts_set_ini_name(fwname);
-	fwname[strlen(fwname)] = '\0';
-	printk("fwname:%s.", fwname);
-
-	mutex_lock(&input_dev->mutex);
-	disable_irq(slave_dev->irq);
-
-#if defined(FTS_ESDCHECK_EN) && (FTS_ESDCHECK_EN)
-	fts_esdcheck_switch(DISABLE);
-#endif
-
-	//+ add by songbinbo.wt for tp open short  20190418
-	ret = fts_enter_test_environment(1);
-	  if (ret < 0) {
-		  FTS_ERROR("enter test environment fail");
-	  } else {
-		ret = fts_open_short_test(fwname);
-		if(ret == 1){
-			result = 1;
-			printk("fts open short test success\n");
-		}else{
-			result = 0;
-			printk("fts open short test fail\n");
-		}
-	  }
-	  ret = fts_enter_test_environment(0);
-	  if (ret < 0) {
-		  FTS_ERROR("enter normal environment fail");
-	  }
-	//- add by songbinbo.wt for tp open short  20190404
-#if defined(FTS_ESDCHECK_EN) && (FTS_ESDCHECK_EN)
-	fts_esdcheck_switch(ENABLE);
-#endif
-
-	enable_irq(slave_dev->irq);
-	mutex_unlock(&input_dev->mutex);
-
-	if (count > 9)
-		len = 9;
-	printk("fts result = %d\n",result);
-	if (result == 1){
-		if (copy_to_user(buf, "result=1\n", len)) {
-			FTS_ERROR("copy_to_user fail\n");
-			return -1;
-		}
- 	}else{
- 		if (copy_to_user(buf, "result=0\n", len)) {
-			FTS_ERROR("copy_to_user fail\n");
-			return -1;
- 		}
-	}
- return len;
-}
-
-static  struct file_operations ctp_open_procs_fops =
-{
-    .write = ctp_open_proc_write,
-    .read = ctp_open_proc_read,
-    .owner = THIS_MODULE,
-};
-
-static struct proc_dir_entry *ctp_device_proc = NULL;
-
-void create_fts_ctp_proc(void)
-{
-   //----------------------------------------
-    //create read/write interface for tp information
-    //the path is :proc/touchscreen
-    //child node is :version
-    //----------------------------------------
-    struct proc_dir_entry *ctp_open_proc = NULL;
-    printk("openshort create_fts_ctp_proc \n");
-
-    if( ctp_device_proc == NULL)
-    {
-         ctp_device_proc = proc_mkdir(CTP_PARENT_PROC_NAME, NULL);
-        if(ctp_device_proc == NULL)
-        {
-            FTS_ERROR("create parent_proc fail\n");
-            return;
-        }
-    }
-    ctp_open_proc = proc_create(CTP_OPEN_PROC_NAME, 0777, ctp_device_proc, &ctp_open_procs_fops);
-    if (ctp_open_proc == NULL)
-    {
-        FTS_ERROR("create open_proc fail\n");
-    }
-
-}
-
-#endif
-//- add by songbinbo.wt for tp open short  20190404
-
-#ifdef SEC_TSP_FACTORY_TEST
-extern  u8 firmware_version_from_ic;
-extern u8 firmware_version_from_bin;
-
-static void get_fw_ver_bin(void *device_data)
-{
-	struct wt_sec_cmd_data *sec = (struct wt_sec_cmd_data *)device_data;
-	char buff[64] = { 0 };
-
-	wt_sec_cmd_set_default_result(sec);
-	FTS_INFO("fw version from bin is 0x%02x.\n", firmware_version_from_bin);
-	 snprintf(buff, sizeof(buff) ,"TIANMA,VND:FT8006P,FW:0x%02x",firmware_version_from_bin);
-	wt_sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
-	sec->cmd_state = WT_SEC_CMD_STATUS_OK;
-        FTS_INFO( "%s: %s,sec->cmd_state == %d\n", __func__, buff, sec->cmd_state);
-}
-
-static void get_fw_ver_ic(void *device_data)
-{
-	struct wt_sec_cmd_data *sec = (struct wt_sec_cmd_data *)device_data;
-	char buff[64] = { 0 };
-
-	wt_sec_cmd_set_default_result(sec);
-	FTS_INFO("focal Fw version from IC  is  0x%02x\n", firmware_version_from_ic);
-	snprintf(buff, sizeof(buff) ,"TIANMA,VND:FT8006P,FW:0x%02x",firmware_version_from_ic);
-	wt_sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
-	sec->cmd_state = WT_SEC_CMD_STATUS_OK;
-        FTS_INFO( "%s: %s,sec->cmd_state == %d\n", __func__, buff, sec->cmd_state);
-}
-
-static void not_support_cmd(void *device_data)
-{
-	struct wt_sec_cmd_data *sec = (struct wt_sec_cmd_data *)device_data;
-	char buff[64] = { 0 };
-
-	wt_sec_cmd_set_default_result(sec);
-	snprintf(buff, sizeof(buff), "%s", "NA");
-	wt_sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
-	sec->cmd_state = WT_SEC_CMD_STATUS_NOT_APPLICABLE;
-	wt_sec_cmd_set_cmd_exit(sec);
-
-	FTS_INFO( "%s: %s\n", __func__, buff);
-}
-
-static struct wt_sec_cmd fts_commands[] = {
-	{WT_SEC_CMD("get_fw_ver_bin", get_fw_ver_bin),},
-	{WT_SEC_CMD("get_fw_ver_ic", get_fw_ver_ic),},
-	{WT_SEC_CMD("not_support_cmd", not_support_cmd),},
-};
-#endif
-
 static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 {
     int ret = 0;
     int pdata_size = sizeof(struct fts_ts_platform_data);
 
     FTS_FUNC_ENTER();
+    FTS_INFO("%s", FTS_DRIVER_VERSION);
     ts_data->pdata = kzalloc(pdata_size, GFP_KERNEL);
     if (!ts_data->pdata) {
         FTS_ERROR("allocate memory for platform_data fail");
@@ -1222,7 +1249,11 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
     mutex_init(&ts_data->bus_lock);
 
     /* Init communication interface */
-    fts_bus_init(ts_data);
+    ret = fts_bus_init(ts_data);
+    if (ret) {
+        FTS_ERROR("bus initialize fail");
+        goto err_bus_init;
+    }
 
     ret = fts_input_init(ts_data);
     if (ret) {
@@ -1260,19 +1291,15 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
         goto err_irq_req;
     }
 
-#if FTS_APK_NODE_EN
     ret = fts_create_apk_debug_channel(ts_data);
     if (ret) {
         FTS_ERROR("create apk debug node fail");
     }
-#endif
 
-#if FTS_SYSFS_NODE_EN
     ret = fts_create_sysfs(ts_data);
     if (ret) {
         FTS_ERROR("create sysfs node fail");
     }
-#endif
 
 #if FTS_POINT_REPORT_CHECK_EN
     ret = fts_point_report_check_init(ts_data);
@@ -1286,12 +1313,10 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
         FTS_ERROR("init glove/cover/charger fail");
     }
 
-#if FTS_GESTURE_EN
     ret = fts_gesture_init(ts_data);
     if (ret) {
         FTS_ERROR("init gesture fail");
     }
-#endif
 
 #if FTS_TEST_EN
     ret = fts_test_init(ts_data);
@@ -1307,12 +1332,6 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
     }
 #endif
 
-//+ add by songbinbo.wt for tp open short  20190404
-#if OPEN_SHORT_PROC
-	 create_fts_ctp_proc();
-#endif
-//- add by songbinbo.wt for tp open short	20190404
-
     ret = fts_irq_registration(ts_data);
     if (ret) {
         FTS_ERROR("request irq failed");
@@ -1323,6 +1342,12 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
     if (ret) {
         FTS_ERROR("init fw upgrade fail");
     }
+
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+    focal_headset_notifier.notifier_call = focal_headset_notifier_callback;
+    if(panel_register_client(&focal_headset_notifier))
+        FTS_ERROR("gcore_headset_nodifier register notifier failed!");
+#endif
 
     tpd_load_status = 1;
     FTS_FUNC_EXIT();
@@ -1342,11 +1367,15 @@ err_power_init:
     kfree_safe(ts_data->events);
 err_report_buffer:
     input_unregister_device(ts_data->input_dev);
+#if FTS_PEN_EN
+    input_unregister_device(ts_data->pen_dev);
+#endif
 err_input_init:
     if (ts_data->ts_workqueue)
         destroy_workqueue(ts_data->ts_workqueue);
-
-    kfree_safe(ts_data->bus_buf);
+err_bus_init:
+    kfree_safe(ts_data->bus_tx_buf);
+    kfree_safe(ts_data->bus_rx_buf);
     kfree_safe(ts_data->pdata);
 
     FTS_FUNC_EXIT();
@@ -1361,14 +1390,8 @@ static int fts_ts_remove_entry(struct fts_ts_data *ts_data)
     fts_point_report_check_exit(ts_data);
 #endif
 
-#if FTS_APK_NODE_EN
     fts_release_apk_debug_channel(ts_data);
-#endif
-
-#if FTS_SYSFS_NODE_EN
     fts_remove_sysfs(ts_data);
-#endif
-
     fts_ex_mode_exit(ts_data);
 
     fts_fwupg_exit(ts_data);
@@ -1381,14 +1404,14 @@ static int fts_ts_remove_entry(struct fts_ts_data *ts_data)
     fts_esdcheck_exit(ts_data);
 #endif
 
-#if FTS_GESTURE_EN
     fts_gesture_exit(ts_data);
-#endif
-
     fts_bus_exit(ts_data);
 
     free_irq(ts_data->irq, ts_data);
     input_unregister_device(ts_data->input_dev);
+#if FTS_PEN_EN
+    input_unregister_device(ts_data->pen_dev);
+#endif
 
     if (ts_data->ts_workqueue)
         destroy_workqueue(ts_data->ts_workqueue);
@@ -1413,10 +1436,6 @@ static int fts_ts_remove_entry(struct fts_ts_data *ts_data)
     kfree_safe(ts_data->pdata);
     kfree_safe(ts_data);
 
-#ifdef SEC_TSP_FACTORY_TEST
-    wt_sec_cmd_exit(&fts_data->sec, WT_SEC_CLASS_DEVT_TSP);
-#endif
-
     FTS_FUNC_EXIT();
 
     return 0;
@@ -1425,7 +1444,7 @@ static int fts_ts_remove_entry(struct fts_ts_data *ts_data)
 /*****************************************************************************
 * TP Driver
 *****************************************************************************/
-#if FTS_MTK_OLD_TYPE
+#ifdef CONFIG_TOUCHSCREEN_FTS_BUS_SPI_MTCC
 static struct mt_chip_conf fts_mt_chip_conf = {
     .setuptime = 120,
     .holdtime = 120,
@@ -1434,7 +1453,7 @@ static struct mt_chip_conf fts_mt_chip_conf = {
     .cs_idletime = 2,
     .ulthgh_thrsh = 0,
     .cpol = 0,
-    .cpha = 1,
+    .cpha = 0,
     .rx_mlsb = 1,
     .tx_mlsb = 1,
     .tx_endian = 0,
@@ -1491,19 +1510,14 @@ void fts_spi_select_active(struct fts_ts_data *data)
 
 static int fts_ts_probe(struct spi_device *spi)
 {
-    int ret = 0;	
+    int ret = 0;
     struct fts_ts_data *ts_data = NULL;
 
-#ifdef SEC_TSP_FACTORY_TEST
-    int val = 0;
-#endif
-	
     FTS_INFO("Touch Screen(SPI BUS) driver prboe...");
-    spi->mode = SPI_MODE_1;
+    spi->mode = SPI_MODE_0;
     spi->bits_per_word = 8;
-    if (spi->max_speed_hz > FTS_SPI_CLK_MAX)
-        spi->max_speed_hz = FTS_SPI_CLK_MAX;
-#if FTS_MTK_OLD_TYPE
+
+#ifdef CONFIG_TOUCHSCREEN_FTS_BUS_SPI_MTCC
     spi->controller_data = (void *)&fts_mt_chip_conf;
 #endif
 
@@ -1530,6 +1544,8 @@ static int fts_ts_probe(struct spi_device *spi)
     ts_data->spi = spi;
     ts_data->dev = &spi->dev;
     ts_data->log_level = 1;
+
+    ts_data->bus_type = BUS_TYPE_SPI_V2;
     spi_set_drvdata(spi, ts_data);
 
     ret = fts_ts_probe_entry(ts_data);
@@ -1538,14 +1554,6 @@ static int fts_ts_probe(struct spi_device *spi)
         kfree_safe(ts_data);
         return ret;
     }
-
-#ifdef SEC_TSP_FACTORY_TEST
-	val = wt_sec_cmd_init(&fts_data->sec, fts_commands,ARRAY_SIZE(fts_commands), WT_SEC_CLASS_DEVT_TSP);
-	if (val < 0) {
-		FTS_ERROR("%s: Failed to wt_wt_sec_cmd_init\n", __func__);
-		return -ENODEV;
-	}
-#endif
 
     FTS_INFO("Touch Screen(SPI BUS) driver prboe successfully");
     return 0;
@@ -1581,6 +1589,8 @@ static int fts_ts_driver_init(void)
 {
     return spi_register_driver(&fts_ts_driver);
 }
+
+
 static int tpd_local_init(void)
 {
     int ret = 0;
@@ -1617,7 +1627,7 @@ static int tpd_local_init(void)
     return 0;
 }
 
-static void tpd_suspend(struct device *dev)
+void tpd_focal_suspend(struct device *dev)
 {
     int ret = 0;
     struct fts_ts_data *ts_data = fts_data;
@@ -1645,34 +1655,54 @@ static void tpd_suspend(struct device *dev)
     fts_esdcheck_suspend();
 #endif
 
-#if FTS_GESTURE_EN
-    if (fts_gesture_suspend(ts_data) == 0) {
-        /* Enter into gesture mode(suspend) */
-        ts_data->suspended = true;
-        return;
-    }
-#endif
+    if (ts_data->gesture_mode) {
+        fts_gesture_suspend(ts_data);
+    } else {
 
+        FTS_INFO("make TP enter into sleep mode");
+        ret = fts_write_reg(FTS_REG_POWER_MODE, FTS_REG_POWER_MODE_SLEEP);
+        if (ret < 0)
+            FTS_ERROR("set TP to sleep mode fail, ret=%d", ret);
 
-    /* TP enter sleep mode */
-    ret = fts_write_reg(FTS_REG_POWER_MODE, FTS_REG_POWER_MODE_SLEEP_VALUE);
-    if (ret < 0)
-        FTS_ERROR("set TP to sleep mode fail, ret=%d", ret);
-
-    if (!ts_data->ic_info.is_incell) {
+        if (!ts_data->ic_info.is_incell) {
 #if FTS_POWER_SOURCE_CUST_EN
-        ret = fts_power_source_suspend(ts_data);
-        if (ret < 0) {
-            FTS_ERROR("power enter suspend fail");
-        }
+            ret = fts_power_source_suspend(ts_data);
+            if (ret < 0) {
+                FTS_ERROR("power enter suspend fail");
+            }
 #endif
+        }
     }
 
+    fts_release_all_finger();
     ts_data->suspended = true;
     FTS_FUNC_EXIT();
 }
 
-static void tpd_resume(struct device *dev)
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+int focal_headset_notifier_callback(struct notifier_block *self, unsigned long event, void *data){
+    struct fts_ts_data *ts_data = fts_data;
+
+    FTS_ERROR("focal_headset_nodifier_callback start event = %d\n",event);
+
+    if (event == FTS_HEADSET_PLUG) {
+        ts_data->fts_head_set = 1;
+        if(ts_data->suspended == false) {
+            fts_write_reg(0x9E, 0x01);
+            FTS_ERROR("focal headset plug");
+        }
+    }else if(event == FTS_HEADSET_UNPLUG) {
+        ts_data->fts_head_set = 0;
+        if(ts_data->suspended == false){
+            fts_write_reg(0x9E, 0x00);
+            FTS_ERROR("focal headset unplug");
+        }
+    }
+    return 0;
+}
+#endif
+
+void tpd_focal_resume(struct device *dev)
 {
     struct fts_ts_data *ts_data = fts_data;
 
@@ -1698,19 +1728,27 @@ static void tpd_resume(struct device *dev)
         fts_reset_proc(200);
     }
 
-    fts_tp_state_recovery(ts_data);
+    fts_wait_tp_to_valid();
+    fts_ex_mode_recovery(ts_data);
 
 #if FTS_ESDCHECK_EN
     fts_esdcheck_resume();
 #endif
 
-#if FTS_GESTURE_EN
-    if (fts_gesture_resume(ts_data) == 0) {
-        ts_data->suspended = false;
-        return;
+    if (ts_data->gesture_mode) {
+        fts_gesture_resume(ts_data);
+    } else {
+    }
+
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+    if(ts_data->fts_head_set) {
+        fts_write_reg(0x9E, 0x01);
+        FTS_ERROR("focal headset plug");
+    }else {
+        fts_write_reg(0x9E, 0x00);
+        FTS_ERROR("focal headset unplug");
     }
 #endif
-
 
     ts_data->suspended = false;
     FTS_FUNC_EXIT();
@@ -1722,8 +1760,8 @@ static void tpd_resume(struct device *dev)
 static struct tpd_driver_t tpd_device_driver = {
     .tpd_device_name = FTS_DRIVER_NAME,
     .tpd_local_init = tpd_local_init,
-    .suspend = tpd_suspend,
-    .resume = tpd_resume,
+    .suspend = tpd_focal_suspend,
+    .resume = tpd_focal_resume,
 };
 
 /*****************************************************************************
@@ -1734,8 +1772,16 @@ static struct tpd_driver_t tpd_device_driver = {
 *  Output:
 *  Return:
 *****************************************************************************/
+extern char *saved_command_line;
 static int __init tpd_driver_init(void)
 {
+#ifndef CONFIG_WT_PROJECT_S96516SA1
+    if (!strstr(saved_command_line,"ft8006s_dsi_vdo_hdp_skyworth_shenchao")) {
+	FTS_ERROR("MATCH LCD ERROR\n");		
+        return  -1;
+    }
+#endif
+
     FTS_FUNC_ENTER();
     FTS_INFO("Driver version: %s", FTS_DRIVER_VERSION);
     tpd_get_dts_info();

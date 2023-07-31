@@ -138,6 +138,9 @@ static int mmc_decode_csd(struct mmc_card *card)
 			csd->erase_size = UNSTUFF_BITS(resp, 39, 7) + 1;
 			csd->erase_size <<= csd->write_blkbits - 9;
 		}
+
+		if (UNSTUFF_BITS(resp, 13, 1))
+			mmc_card_set_readonly(card);
 		break;
 	case 1:
 		/*
@@ -172,6 +175,9 @@ static int mmc_decode_csd(struct mmc_card *card)
 		csd->write_blkbits = 9;
 		csd->write_partial = 0;
 		csd->erase_size = 1;
+
+		if (UNSTUFF_BITS(resp, 13, 1))
+			mmc_card_set_readonly(card);
 		break;
 	default:
 		pr_err("%s: unrecognised CSD structure version %d\n",
@@ -1091,7 +1097,9 @@ free_card:
 static void mmc_sd_remove(struct mmc_host *host)
 {
 	mmc_remove_card(host->card);
+	mmc_claim_host(host);
 	host->card = NULL;
+	mmc_release_host(host);
 }
 
 /*
@@ -1134,15 +1142,17 @@ static int _mmc_sd_suspend(struct mmc_host *host)
 
 	mmc_claim_host(host);
 
-	if (mmc_card_suspended(host->card))
-		goto out;
+	if (host->card) {
+		if (mmc_card_suspended(host->card))
+			goto out;
 
-	if (!mmc_host_is_spi(host))
-		err = mmc_deselect_cards(host);
+		if (!mmc_host_is_spi(host))
+			err = mmc_deselect_cards(host);
 
-	if (!err) {
-		mmc_power_off(host);
-		mmc_card_set_suspended(host->card);
+		if (!err) {
+			mmc_power_off(host);
+			mmc_card_set_suspended(host->card);
+		}
 	}
 
 out:
@@ -1193,16 +1203,8 @@ out:
  */
 static int mmc_sd_resume(struct mmc_host *host)
 {
-	int err = 0;
-
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-	err = _mmc_sd_resume(host);
-	pm_runtime_set_active(&host->card->dev);
-	pm_runtime_mark_last_busy(&host->card->dev);
-#endif
 	pm_runtime_enable(&host->card->dev);
-
-	return err;
+	return 0;
 }
 
 /*
@@ -1229,9 +1231,6 @@ static int mmc_sd_runtime_suspend(struct mmc_host *host)
 static int mmc_sd_runtime_resume(struct mmc_host *host)
 {
 	int err;
-
-	if (!(host->caps & MMC_CAP_AGGRESSIVE_PM))
-		return 0;
 
 	err = _mmc_sd_resume(host);
 	if (err && err != -ENOMEDIUM)

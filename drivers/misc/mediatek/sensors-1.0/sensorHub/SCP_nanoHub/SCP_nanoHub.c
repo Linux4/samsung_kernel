@@ -59,7 +59,7 @@
 #error "SENSOR_DATA_SIZE > SENSOR_IPI_PACKET_SIZE, out of memory"
 #endif
 
-#define SYNC_TIME_CYCLC 10000
+#define SYNC_TIME_CYCLC 2000
 #define SYNC_TIME_START_CYCLC 3000
 #define SCP_sensorHub_DEV_NAME "SCP_sensorHub"
 
@@ -142,6 +142,10 @@ phys_addr_t __attribute__((weak))
 }
 
 void __attribute__((weak)) scp_register_feature(enum feature_id id)
+{
+}
+
+void __attribute__((weak)) scp_A_unregister_notify(struct notifier_block *nb)
 {
 }
 
@@ -524,9 +528,12 @@ static void SCP_sensorHub_sync_time_func(struct timer_list *t)
 
 static int SCP_sensorHub_direct_push_work(void *data)
 {
+	int ret = 0;
 	for (;;) {
-		wait_event(chre_kthread_wait,
+		ret = wait_event_interruptible(chre_kthread_wait,
 			READ_ONCE(chre_kthread_wait_condition));
+		if (ret)
+			continue;
 		WRITE_ONCE(chre_kthread_wait_condition, false);
 		mark_timestamp(0, WORK_START, ktime_get_boot_ns(), 0);
 		SCP_sensorHub_read_wp_queue();
@@ -1248,16 +1255,19 @@ static int sensor_send_timestamp_wake_locked(void)
 	int len;
 	int err = 0;
 	uint64_t now_time, arch_counter;
+	struct timespec ts;
 
 	/* send_timestamp_to_hub is process context, disable irq is safe */
 	local_irq_disable();
 	now_time = ktime_get_boot_ns();
 	arch_counter = arch_counter_get_cntvct();
+	getnstimeofday(&ts);
 	local_irq_enable();
 	req.set_config_req.sensorType = 0;
 	req.set_config_req.action = SENSOR_HUB_SET_TIMESTAMP;
 	req.set_config_req.ap_timestamp = now_time;
 	req.set_config_req.arch_counter = arch_counter;
+	req.set_config_req.ap_ts_sec = ts.tv_sec;
 	pr_debug("sync ap boottime=%lld\n", now_time);
 	len = sizeof(req.set_config_req);
 	err = scp_sensorHub_req_send(&req, &len, 1);
@@ -1428,7 +1438,34 @@ int sensor_cfg_to_hub(uint8_t handle, uint8_t *data, uint8_t count)
 	}
 	return ret;
 }
-
+//+Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
+int sensor_set_lcdname_to_hub(uint8_t handle, uint8_t *data, uint8_t count)
+{
+	struct ConfigCmd *cmd = NULL;
+	int ret = 0;
+	if (handle > ID_SENSOR_MAX_HANDLE) {
+		pr_err("invalid handle %d\n", handle);
+		ret = -1;
+	} else {
+		cmd = vzalloc(sizeof(struct ConfigCmd) + count);
+		if (cmd == NULL)
+			return -1;
+		cmd->evtType = EVT_NO_SENSOR_CONFIG_EVENT;
+		cmd->sensorType = handle + ID_OFFSET;
+		cmd->cmd = CONFIG_CMD_SET_LCDNAME;
+		memcpy(cmd->data, data, count);
+		ret = nanohub_external_write((const uint8_t *)cmd,
+			sizeof(struct ConfigCmd) + count);
+		if (ret < 0) {
+			pr_err("failed set lcdname handle:%d, cmd:%d\n",
+				handle, cmd->cmd);
+			ret =  -1;
+		}
+		vfree(cmd);
+	}
+	return ret;
+}
+//-Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 int sensor_calibration_to_hub(uint8_t handle)
 {
 	uint8_t sensor_type = handle + ID_OFFSET;
@@ -1958,6 +1995,17 @@ int sensor_set_cmd_to_hub(uint8_t sensorType,
 			len = offsetof(struct SCP_SENSOR_HUB_SET_CUST_REQ,
 				custData) + sizeof(req.set_cust_req.getInfo);
 			break;
+//+Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
+		case CUST_ACTION_SET_CALI:
+			req.set_cust_req.getInfo.action = CUST_ACTION_SET_CALI;
+			req.set_cust_req.setCali.int32_data[SCP_SENSOR_HUB_X]
+				= *((int32_t *) data + SCP_SENSOR_HUB_X);
+			req.set_cust_req.setCali.int32_data[SCP_SENSOR_HUB_Y]
+				= *((int32_t *) data + SCP_SENSOR_HUB_Y);
+			len = offsetof(struct SCP_SENSOR_HUB_SET_CUST_REQ,
+			    custData) + sizeof(req.set_cust_req.setCali);
+			break;
+//-Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 		default:
 			return -1;
 		}
@@ -2170,12 +2218,14 @@ static void restoring_enable_sensorHub_sensor(int handle)
 
 void sensorHub_power_up_loop(void *data)
 {
-	int handle = 0;
+	int ret = 0, handle = 0;
 	struct SCP_sensorHub_data *obj = obj_data;
 	unsigned long flags = 0;
 
-	wait_event(power_reset_wait,
+	ret = wait_event_interruptible(power_reset_wait,
 		READ_ONCE(scp_system_ready) && READ_ONCE(scp_chre_ready));
+	if (ret)
+		return;
 	spin_lock_irqsave(&scp_state_lock, flags);
 	WRITE_ONCE(scp_chre_ready, false);
 	WRITE_ONCE(scp_system_ready, false);

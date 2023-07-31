@@ -123,6 +123,9 @@ extern struct LCM_DRIVER nt35516_qhd_rav4_lcm_drv;
 extern struct LCM_DRIVER r63311_fhd_dsi_vdo_sharp_lcm_drv;
 extern struct LCM_DRIVER r81592_hvga_dsi_cmd_drv;
 extern struct LCM_DRIVER rm68190_dsi_vdo_lcm_drv;
+extern struct LCM_DRIVER nt35521_hd_dsi_vdo_truly_nt50358_lcm_drv;
+extern struct LCM_DRIVER nt35521_hd_dsi_vdo_truly_nt50358_fwvga_lcm_drv;
+extern struct LCM_DRIVER nt35521_hd_dsi_vdo_truly_nt50358_qhd_lcm_drv;
 extern struct LCM_DRIVER nt35596_fhd_dsi_vdo_truly_lcm_drv;
 extern struct LCM_DRIVER nt35595_fhd_dsi_vdo_truly_lcm_drv;
 extern struct LCM_DRIVER nt35595_fhd_dsi_cmd_truly_lcm_drv;
@@ -291,35 +294,68 @@ extern struct LCM_DRIVER ili9881c_hdp_dsi_vdo_ilitek_rt5081_lcm_drv;
 extern struct LCM_DRIVER nt51021_wuxga_dsi_vdo_mt8173_lcm_drv;
 extern struct LCM_DRIVER ili9881c_hdp_dsi_vdo_ilitek_rt5081_lcm_drv_ebbg;
 extern struct LCM_DRIVER hx8394f_hd720_dsi_vdo_tianma_lcm_drv;
+extern struct LCM_DRIVER jd9365_hd720_dsi_lcm_drv;
 extern struct LCM_DRIVER nt36672_fhdp_dsi_vdo_auo_lcm_drv;
 extern struct LCM_DRIVER nt36672_fhdp_dsi_vdo_auo_laneswap_lcm_drv;
+extern struct LCM_DRIVER nt36672c_fhdp_dsi_vdo_60hz_wo_dsc_shenchao_lcm_drv;
+extern struct LCM_DRIVER nt35521_hd_dsi_vdo_truly_nt50358_lcm_drv;
 extern struct LCM_DRIVER ili9881h_hdp_dsi_vdo_ilitek_rt5081_19_9_lcm_drv;
 extern struct LCM_DRIVER ili9881h_hdp_dsi_vdo_ilitek_rt5081_19_9_90hz_lcm_drv;
+extern struct LCM_DRIVER ili9881c_hd_dsi_vdo_ilitek_nt50358_lcm_drv;
 extern struct LCM_DRIVER hx83112b_fhdp_dsi_cmd_auo_rt4801_lcm_drv;
 extern struct LCM_DRIVER hx83112b_fhdp_dsi_cmd_fhd_auo_rt4801_lcm_drv;
 extern struct LCM_DRIVER hx83112b_fhdp_dsi_vdo_auo_rt4801_lcm_drv;
 extern struct LCM_DRIVER hx83112b_fhdp_dsi_cmd_auo_rt5081_lcm_drv;
+extern struct LCM_DRIVER hx83112b_fhdp_dsi_vdo_auo_rt5081_lcm_drv;
+extern struct LCM_DRIVER hx83112b_fhdp_dsi_cmd_auo_rt5081_hdp_lcm_drv;
+extern struct LCM_DRIVER hx83112b_fhdp_dsi_vdo_auo_rt5081_hdp_lcm_drv;
+extern struct LCM_DRIVER es6311_anx6585_zigzag_wxga_lcm_drv;
 extern struct LCM_DRIVER ft8201_wxga_vdo_incell_boe_lcm_drv;
 extern struct LCM_DRIVER nt51021h_wuxga_vdo_oncell_boe_lcm_drv;
 extern struct LCM_DRIVER nt36672ah_hdp_dsi_vdo_tcl_csot_lcm_drv;
 extern struct LCM_DRIVER nt36672ah_hdp_dsi_vdo_tcl_csot_fwvplus_lcm_drv;
 extern struct LCM_DRIVER sofeg01_fhdplus_dsi_cmd_samsung_lcm_drv;
+
+#if defined(NT36672C_FHDP_DSI_VDO_AUO_CPHY_90HZ_TIANMA)
+extern struct LCM_DRIVER nt36672c_fhdp_dsi_vdo_auo_cphy_90hz_tianma_lcm_drv;
+#endif
+
 extern struct LCM_DRIVER oppo_tianma_td4310_fhdp_dsi_vdo_rt5081_lcm_drv;
+extern struct LCM_DRIVER nt36672c_fhdp_dsi_vdo_60hz_shenchao_lcm_drv;
+extern struct LCM_DRIVER nt36672c_fhdp_dsi_vdo_90hz_shenchao_lcm_drv;
+extern struct LCM_DRIVER nt36672c_fhdp_dsi_vdo_90hz_shenchao_6382_lcm_drv;
+extern struct LCM_DRIVER r66451_fhdp_dsi_cmd_tianma_lcm_drv;
+
+extern struct LCM_DRIVER td4320_fhdp_dsi_vdo_auo_rt5081_lcm_drv;
+/*6768 otm */
+extern struct LCM_DRIVER otm1911a_fhdp_dsi_vdo_truly_rt5081_lcm_drv;
+extern struct LCM_DRIVER otm1911a_fhdp_dsi_vdo_truly_rt5081_hdp_lcm_drv;
+extern struct LCM_DRIVER hx83102p_wxga_vdo_incell_boe_lcm_drv;
+extern struct LCM_DRIVER otm1911a_fhdp_dsi_vdo_truly_rt4801_lcm_drv;
 
 extern struct LCM_DRIVER td4150_hdp_dsi_lm36274_lcm_drv;
 extern struct LCM_DRIVER ili9882n_hdp_dsi_vdo_ilitek_lm36274_lcm_drv;
-extern struct LCM_DRIVER virtual_dsi_vdo_default;
-extern struct LCM_DRIVER ili9881h_hd_plus_dsi_vdo_truly_lcm_drv;
-extern struct LCM_DRIVER ili9881h_hd_plus_dsi_vdo_txd_lcm_drv;
-extern struct LCM_DRIVER ili9882n_hd_plus_dsi_vdo_txd_lcm_drv;
-extern struct LCM_DRIVER ili9882n_hd_plus_dsi_vdo_ls_lcm_drv;
-extern struct LCM_DRIVER ft8006p_hd_plus_dsi_vdo_tianma_lcm_drv;
-extern struct LCM_DRIVER hx83112a_hd_plus_dsi_vdo_lide_lcm_drv;
-extern struct LCM_DRIVER icnl9911c_hd_plus_dsi_vdo_txd_lcm_drv;
-extern struct LCM_DRIVER ili9881h_hd_plus_dsi_vdo_truly_m_lcm_drv;
-extern struct LCM_DRIVER ili7807g_hd_plus_dsi_vdo_txd_na_lcm_drv; //bug621774, liuguohua.wt, add, 20210120, 1st lcd bring up
-extern struct LCM_DRIVER ili7807g_hd_plus_dsi_vdo_truly_na_lcm_drv;//bug621774, liuguohua.wt, add, 20210125, 2nd lcd bring up
-extern struct LCM_DRIVER ili7806s_hd_plus_dsi_vdo_txd_na_lcm_drv;//Bug 621774, chensibo.wt, ADD, 20210120, porting third lcd bringup
+extern struct LCM_DRIVER ili7807g_hd_plus_dsi_vdo_txd_na_lcm_drv; //bug717431, chensibo.wt, add, 20220118, 1st lcd bring up
+extern struct LCM_DRIVER ili7807g_hd_plus_dsi_vdo_truly_na_lcm_drv;//bug717431, chensibo.wt, add, 20220118, 2nd lcd bring up
+extern struct LCM_DRIVER ili7806s_hd_plus_dsi_vdo_txd_na_lcm_drv;
+
+/* bug715586, fengcheng.wt, add, 20220123, lcd bring up */
+extern struct LCM_DRIVER ft8006s_dsi_vdo_hdp_skyworth_shenchao_drv;
+extern struct LCM_DRIVER icnl9911c_dsi_vdo_hdp_lead_hsd_drv;
+extern struct LCM_DRIVER icnl9911c_dsi_vdo_hdp_txd_inx_drv;
+extern struct LCM_DRIVER ili9882q_dsi_vdo_hdp_truly_truly_drv;
+extern struct LCM_DRIVER gc7202_dsi_vdo_hdp_ice_panda_drv;
+extern struct LCM_DRIVER gc7202_dsi_vdo_hdp_txd_hkc_drv;
+extern struct LCM_DRIVER icnl9911c_dsi_vdo_hdp_tianma_hkc_drv;
+extern struct LCM_DRIVER hx83108_dsi_vdo_hdp_boe_boe_drv;
+extern struct LCM_DRIVER virtual_dsi_vdo_default_drv;
+
+/*bug682591, fanchenchen.wt, modify, 20220214, lcd bring up*/
+extern struct LCM_DRIVER incl9911c_dsi_vdo_hdp_tianma_tianma_drv;
+extern struct LCM_DRIVER ili9882q_dsi_vdo_hdp_ctc_txd_drv;
+extern struct LCM_DRIVER ili9882q10_dsi_vdo_hdp_ctc_txd_drv;
+extern struct LCM_DRIVER incl9911c_dsi_vdo_hdp_huajiacai_dijing_drv;
+extern struct LCM_DRIVER ft8006s_dsi_vdo_hdp_boe_skyworth_drv;
 
 #ifdef BUILD_LK
 extern void mdelay(unsigned long msec);

@@ -46,8 +46,8 @@ enum AEE_FIQ_STEP_NUM {
 	AEE_FIQ_STEP_COMMON_DIE_LOCK,
 	AEE_FIQ_STEP_COMMON_DIE_KASLR,
 	AEE_FIQ_STEP_COMMON_DIE_SCP,
+	AEE_FIQ_STEP_COMMON_DIE_EMISC,
 	AEE_FIQ_STEP_COMMON_DIE_TRACE,
-	AEE_FIQ_STEP_COMMON_DIE_REGS,
 	AEE_FIQ_STEP_COMMON_DIE_CS,
 	AEE_FIQ_STEP_COMMON_DIE_DONE
 };
@@ -66,6 +66,8 @@ extern int aee_rr_reboot_reason_show(struct seq_file *m, void *v);
 extern int aee_rr_last_fiq_step(void);
 extern void aee_rr_rec_exp_type(unsigned int type);
 extern unsigned int aee_rr_curr_exp_type(void);
+extern void aee_rr_rec_kick(uint32_t kick_bit);
+extern void aee_rr_rec_check(uint32_t check_bit);
 extern void aee_rr_rec_scp(void);
 extern void aee_rr_rec_kaslr_offset(u64 value64);
 extern void aee_rr_rec_cpu_dvfs_vproc_big(u8 val);
@@ -235,9 +237,10 @@ extern void aee_rr_rec_cpu_down_prepare_ktime(u64 val);
 extern void aee_rr_rec_cpu_dying_ktime(u64 val);
 extern void aee_rr_rec_cpu_dead_ktime(u64 val);
 extern void aee_rr_rec_cpu_post_dead_ktime(u64 val);
-extern void aee_rr_rec_hang_detect_timeout_count(unsigned int timeout);
 extern void aee_sram_fiq_log(const char *msg);
 extern void aee_sram_fiq_save_bin(const char *buffer, size_t len);
+extern void aee_rr_rec_wdk_ktime(u64 val);
+extern void aee_rr_rec_wdk_systimer_cnt(u64 val);
 
 extern int ipanic_kmsg_write(unsigned int part, const char *buf, size_t size);
 extern int ipanic_kmsg_get_next(int *count, u64 *id, enum pstore_type_id *type,
@@ -264,6 +267,14 @@ static inline void aee_rr_rec_exp_type(unsigned int type)
 static inline unsigned int aee_rr_curr_exp_type(void)
 {
 	return 0;
+}
+
+static inline void aee_rr_rec_kick(uint32_t kick_bit)
+{
+}
+
+static inline void aee_rr_rec_check(uint32_t check_bit)
+{
 }
 
 static inline void aee_rr_rec_scp(void)
@@ -934,10 +945,12 @@ static inline void aee_rr_rec_set_bit_pmic_ext_buck(int bit, int loc)
 
 static inline int aee_rr_init_thermal_temp(int num)
 {
+	return 0;
 }
 
 static inline int aee_rr_rec_thermal_temp(int index, s8 val)
 {
+	return 0;
 }
 
 static inline void aee_rr_rec_thermal_status(u8 val)
@@ -1008,16 +1021,19 @@ static inline void aee_rr_rec_cpu_post_dead_ktime(u64 val)
 {
 }
 
-static inline void aee_rr_rec_hang_detect_timeout_count(
-		unsigned int timeout)
-{
-}
-
 static inline void aee_sram_fiq_log(const char *msg)
 {
 }
 
 static inline void aee_sram_fiq_save_bin(unsigned char *buffer, size_t len)
+{
+}
+
+static inline void aee_rr_rec_wdk_ktime(u64 val)
+{
+}
+
+static inline void aee_rr_rec_wdk_systimer_cnt(u64 val)
 {
 }
 

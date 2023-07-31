@@ -289,6 +289,18 @@ int charger_dev_is_charging_done(struct charger_device *chg_dev, bool *done)
 }
 EXPORT_SYMBOL(charger_dev_is_charging_done);
 
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+int charger_dev_is_hz_mode(struct charger_device *chg_dev, bool *done)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+	    chg_dev->ops->is_hz_mode)
+		return chg_dev->ops->is_hz_mode(chg_dev, done);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_is_hz_mode);
+#endif
+
 int charger_dev_enable_vbus_ovp(struct charger_device *chg_dev, bool en)
 {
 	if (chg_dev != NULL && chg_dev->ops != NULL &&
@@ -495,6 +507,17 @@ int charger_dev_enable_discharge(struct charger_device *chg_dev, bool en)
 }
 EXPORT_SYMBOL(charger_dev_enable_discharge);
 
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
+int charger_dev_hz_mode(struct charger_device *chg_dev, bool en)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL && chg_dev->ops->hz_mode)
+		return chg_dev->ops->hz_mode(chg_dev, en);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_hz_mode);
+#endif
+
 int charger_dev_set_boost_current_limit(struct charger_device *chg_dev, u32 uA)
 {
 	if (chg_dev != NULL && chg_dev->ops != NULL &&
@@ -513,19 +536,6 @@ int charger_dev_get_zcv(struct charger_device *chg_dev, u32 *uV)
 	return -ENOTSUPP;
 }
 EXPORT_SYMBOL(charger_dev_get_zcv);
-
-//+bug 621775,yaocankun.wt,mod,20210201,charge add start/stop charging control node
-#ifdef CONFIG_WT_PROJECT_S96717RA1
-int charger_dev_hz_mode(struct charger_device *chg_dev, bool en)
-{
-	if (chg_dev != NULL && chg_dev->ops != NULL && chg_dev->ops->hz_mode)
-		return chg_dev->ops->hz_mode(chg_dev, en);
-
-	return -ENOTSUPP;
-}
-EXPORT_SYMBOL(charger_dev_hz_mode);
-#endif
-//-bug 621775,yaocankun.wt,mod,20210201,charge add start/stop charging control node
 
 int charger_dev_run_aicl(struct charger_device *chg_dev, u32 *uA)
 {

@@ -115,6 +115,7 @@
 #include "udp_impl.h"
 #include <net/sock_reuseport.h>
 #include <net/addrconf.h>
+#include <net/udp_tunnel.h>
 // SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
 #include <net/ncm.h>
 // SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
@@ -130,6 +131,7 @@ EXPORT_SYMBOL(udp_memory_allocated);
 
 #define MAX_UDP_PORTS 65536
 #define PORTS_PER_CHAIN (MAX_UDP_PORTS / UDP_HTABLE_SIZE_MIN)
+#define UDP_GRO_DISABLED 5
 
 /* IPCB reference means this can not be used from early demux */
 static bool udp_lib_exact_dif_match(struct net *net, struct sk_buff *skb)
@@ -436,7 +438,7 @@ static struct sock *udp4_lib_lookup2(struct net *net,
 				     struct udp_hslot *hslot2,
 				     struct sk_buff *skb)
 {
-	struct sock *sk, *result;
+	struct sock *sk, *result, *reuseport_result;
 	int score, badness;
 	u32 hash = 0;
 
@@ -446,17 +448,20 @@ static struct sock *udp4_lib_lookup2(struct net *net,
 		score = compute_score(sk, net, saddr, sport,
 				      daddr, hnum, dif, sdif, exact_dif);
 		if (score > badness) {
+			reuseport_result = NULL;
+
 			if (sk->sk_reuseport &&
 			    sk->sk_state != TCP_ESTABLISHED) {
 				hash = udp_ehashfn(net, daddr, hnum,
 						   saddr, sport);
-				result = reuseport_select_sock(sk, hash, skb,
-							sizeof(struct udphdr));
-				if (result && !reuseport_has_conns(sk, false))
-					return result;
+				reuseport_result = reuseport_select_sock(sk, hash, skb,
+									 sizeof(struct udphdr));
+				if (reuseport_result && !reuseport_has_conns(sk, false))
+					return reuseport_result;
 			}
+
+			result = reuseport_result ? : sk;
 			badness = score;
-			result = sk;
 		}
 	}
 	return result;
@@ -1748,6 +1753,10 @@ try_again:
 			BPF_CGROUP_RUN_PROG_UDP4_RECVMSG_LOCK(sk,
 							(struct sockaddr *)sin);
 	}
+
+	if (udp_sk(sk)->gro_enabled)
+		udp_cmsg_recv(msg, sk, skb);
+
 	if (inet->cmsg_flags)
 		ip_cmsg_recv_offset(msg, sk, skb, sizeof(struct udphdr), off);
 
@@ -1924,7 +1933,7 @@ static int __udp_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
 	return 0;
 }
 
-static DEFINE_STATIC_KEY_FALSE(udp_encap_needed_key);
+DEFINE_STATIC_KEY_FALSE(udp_encap_needed_key);
 void udp_encap_enable(void)
 {
 	static_branch_enable(&udp_encap_needed_key);
@@ -1939,7 +1948,7 @@ EXPORT_SYMBOL(udp_encap_enable);
  * Note that in the success and error cases, the skb is assumed to
  * have either been requeued or freed.
  */
-static int udp_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
+static int udp_queue_rcv_one_skb(struct sock *sk, struct sk_buff *skb)
 {
 	struct udp_sock *up = udp_sk(sk);
 	int is_udplite = IS_UDPLITE(sk);
@@ -1989,7 +1998,7 @@ static int udp_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
 	/*
 	 * 	UDP-Lite specific tests, ignored on UDP sockets
 	 */
-	if ((is_udplite & UDPLITE_RECV_CC)  &&  UDP_SKB_CB(skb)->partial_cov) {
+	if ((up->pcflag & UDPLITE_RECV_CC)  &&  UDP_SKB_CB(skb)->partial_cov) {
 
 		/*
 		 * MIB statistics other than incrementing the error count are
@@ -2040,6 +2049,27 @@ drop:
 	atomic_inc(&sk->sk_drops);
 	kfree_skb(skb);
 	return -1;
+}
+
+static int udp_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
+{
+	struct sk_buff *next, *segs;
+	int ret;
+
+	if (likely(!udp_unexpected_gso(sk, skb)))
+		return udp_queue_rcv_one_skb(sk, skb);
+
+	BUILD_BUG_ON(sizeof(struct udp_skb_cb) > SKB_SGO_CB_OFFSET);
+	__skb_push(skb, -skb_mac_offset(skb));
+	segs = udp_rcv_segment(sk, skb, true);
+	for (skb = segs; skb; skb = next) {
+		next = skb->next;
+		__skb_pull(skb, skb_transport_offset(skb));
+		ret = udp_queue_rcv_one_skb(sk, skb);
+		if (ret > 0)
+			ip_protocol_deliver_rcu(dev_net(skb->dev), skb, -ret);
+	}
+	return 0;
 }
 
 /* For TCP sockets, sk_rx_dst is protected by socket lock
@@ -2525,7 +2555,8 @@ int udp_v4_early_demux(struct sk_buff *skb)
 		 */
 		if (!inet_sk(sk)->inet_daddr && in_dev)
 			return ip_mc_validate_source(skb, iph->daddr,
-						     iph->saddr, iph->tos,
+						     iph->saddr,
+						     iph->tos & IPTOS_RT_MASK,
 						     skb->dev, in_dev, &itag);
 	}
 	return 0;
@@ -2611,6 +2642,19 @@ int udp_lib_setsockopt(struct sock *sk, int level, int optname,
 		if (val < 0 || val > USHRT_MAX)
 			return -EINVAL;
 		up->gso_size = val;
+		break;
+
+	case UDP_GRO:
+		lock_sock(sk);
+		if (val == 0xEAEA) {
+			up->gro_disabled = UDP_GRO_DISABLED;
+		} else {
+			up->gro_disabled = 0;
+			if (valbool)
+				udp_tunnel_encap_enable(sk->sk_socket);
+			up->gro_enabled = valbool;
+		}
+		release_sock(sk);
 		break;
 
 	/*
@@ -2715,6 +2759,13 @@ int udp_lib_getsockopt(struct sock *sk, int level, int optname,
 
 	case UDPLITE_RECV_CSCOV:
 		val = up->pcrlen;
+		break;
+
+	case UDP_GRO:
+		if (up->gro_disabled == UDP_GRO_DISABLED)
+			val = 0xEAEA;
+		else
+			val = -1;
 		break;
 
 	default:

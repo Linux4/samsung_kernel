@@ -154,23 +154,6 @@ config MTK_LENS_DW9714A_SUPPORT
 	  lens driver for the camera sensor module
 	  Set as y if the driver is used in this project
 
-config MTK_LENS_ZC535AF_SUPPORT
-        tristate "ZC535AF Lens Driver"
-        depends on MTK_LENS
-        help
-          ZC535AF Lens Driver
-          This config is used to enable the corresponding
-          lens driver for the camera sensor module
-          Set as y if the driver is used in this project
-
-config MTK_LENS_JCT_DW9714VAF_SUPPORT
-        tristate "JCT_DW9714VAF Lens Driver"
-        depends on MTK_LENS
-        help
-          JCT_DW9714VAF Lens Driver
-          This config is used to enable the corresponding
-          lens driver for the camera sensor module
-          Set as y if the driver is used in this project
 #+bug 621775 liuxiangyin.wt, add, 2021/2/23,  n21 1st supply main af TXD_S5K2P6_GT9769AF porting
 config MTK_LENS_TXD_S5K2P6_GT9769AF_SUPPORT
         tristate "TXD_S5K2P6_GT9769AF Lens Driver"

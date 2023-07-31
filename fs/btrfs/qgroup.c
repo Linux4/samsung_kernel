@@ -488,13 +488,13 @@ next2:
 			break;
 	}
 out:
+	btrfs_free_path(path);
 	fs_info->qgroup_flags |= flags;
 	if (!(fs_info->qgroup_flags & BTRFS_QGROUP_STATUS_FLAG_ON))
 		clear_bit(BTRFS_FS_QUOTA_ENABLED, &fs_info->flags);
 	else if (fs_info->qgroup_flags & BTRFS_QGROUP_STATUS_FLAG_RESCAN &&
 		 ret >= 0)
 		ret = qgroup_rescan_init(fs_info, rescan_progress, 0);
-	btrfs_free_path(path);
 
 	if (ret < 0) {
 		ulist_free(fs_info->qgroup_ulist);
@@ -2259,6 +2259,7 @@ int btrfs_qgroup_inherit(struct btrfs_trans_handle *trans, u64 srcid,
 	struct btrfs_root *quota_root;
 	struct btrfs_qgroup *srcgroup;
 	struct btrfs_qgroup *dstgroup;
+	bool need_rescan = false;
 	u32 level_size = 0;
 	u64 nums;
 
@@ -2402,6 +2403,13 @@ int btrfs_qgroup_inherit(struct btrfs_trans_handle *trans, u64 srcid,
 				goto unlock;
 		}
 		++i_qgroups;
+
+		/*
+		 * If we're doing a snapshot, and adding the snapshot to a new
+		 * qgroup, the numbers are guaranteed to be incorrect.
+		 */
+		if (srcid)
+			need_rescan = true;
 	}
 
 	for (i = 0; i <  inherit->num_ref_copies; ++i, i_qgroups += 2) {
@@ -2421,6 +2429,9 @@ int btrfs_qgroup_inherit(struct btrfs_trans_handle *trans, u64 srcid,
 
 		dst->rfer = src->rfer - level_size;
 		dst->rfer_cmpr = src->rfer_cmpr - level_size;
+
+		/* Manually tweaking numbers certainly needs a rescan */
+		need_rescan = true;
 	}
 	for (i = 0; i <  inherit->num_excl_copies; ++i, i_qgroups += 2) {
 		struct btrfs_qgroup *src;
@@ -2439,6 +2450,7 @@ int btrfs_qgroup_inherit(struct btrfs_trans_handle *trans, u64 srcid,
 
 		dst->excl = src->excl + level_size;
 		dst->excl_cmpr = src->excl_cmpr + level_size;
+		need_rescan = true;
 	}
 
 unlock:
@@ -2446,6 +2458,8 @@ unlock:
 out:
 	if (!committing)
 		mutex_unlock(&fs_info->qgroup_ioctl_lock);
+	if (need_rescan)
+		fs_info->qgroup_flags |= BTRFS_QGROUP_STATUS_FLAG_INCONSISTENT;
 	return ret;
 }
 
@@ -2760,6 +2774,12 @@ out:
 	return ret;
 }
 
+static bool rescan_should_stop(struct btrfs_fs_info *fs_info)
+{
+	return btrfs_fs_closing(fs_info) ||
+		test_bit(BTRFS_FS_STATE_REMOUNTING, &fs_info->fs_state);
+}
+
 static void btrfs_qgroup_rescan_worker(struct btrfs_work *work)
 {
 	struct btrfs_fs_info *fs_info = container_of(work, struct btrfs_fs_info,
@@ -2768,6 +2788,7 @@ static void btrfs_qgroup_rescan_worker(struct btrfs_work *work)
 	struct btrfs_trans_handle *trans = NULL;
 	int err = -ENOMEM;
 	int ret = 0;
+	bool stopped = false;
 
 	path = btrfs_alloc_path();
 	if (!path)
@@ -2780,7 +2801,7 @@ static void btrfs_qgroup_rescan_worker(struct btrfs_work *work)
 	path->skip_locking = 1;
 
 	err = 0;
-	while (!err && !btrfs_fs_closing(fs_info)) {
+	while (!err && !(stopped = rescan_should_stop(fs_info))) {
 		trans = btrfs_start_transaction(fs_info->fs_root, 0);
 		if (IS_ERR(trans)) {
 			err = PTR_ERR(trans);
@@ -2823,7 +2844,7 @@ out:
 	}
 
 	mutex_lock(&fs_info->qgroup_rescan_lock);
-	if (!btrfs_fs_closing(fs_info))
+	if (!stopped)
 		fs_info->qgroup_flags &= ~BTRFS_QGROUP_STATUS_FLAG_RESCAN;
 	if (trans) {
 		ret = update_qgroup_status_item(trans);
@@ -2842,7 +2863,7 @@ out:
 
 	btrfs_end_transaction(trans);
 
-	if (btrfs_fs_closing(fs_info)) {
+	if (stopped) {
 		btrfs_info(fs_info, "qgroup scan paused");
 	} else if (err >= 0) {
 		btrfs_info(fs_info, "qgroup scan completed%s",

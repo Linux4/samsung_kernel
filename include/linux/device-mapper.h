@@ -405,12 +405,6 @@ void dm_set_mdptr(struct mapped_device *md, void *ptr);
 void *dm_get_mdptr(struct mapped_device *md);
 
 /*
- * Export the device via the ioctl interface (uses mdptr).
- */
-int dm_ioctl_export(struct mapped_device *md, const char *name,
-		    const char *uuid);
-
-/*
  * A device can still be used while suspended, but I/O is deferred.
  */
 int dm_suspend(struct mapped_device *md, unsigned suspend_flags);
@@ -431,6 +425,7 @@ const char *dm_device_name(struct mapped_device *md);
 int dm_copy_name_and_uuid(struct mapped_device *md, char *name, char *uuid);
 struct gendisk *dm_disk(struct mapped_device *md);
 int dm_suspended(struct dm_target *ti);
+int dm_post_suspending(struct dm_target *ti);
 int dm_noflush_suspending(struct dm_target *ti);
 void dm_accept_partial_bio(struct bio *bio, unsigned n_sectors);
 void dm_remap_zone_report(struct dm_target *ti, struct bio *bio,
@@ -438,13 +433,6 @@ void dm_remap_zone_report(struct dm_target *ti, struct bio *bio,
 union map_info *dm_get_rq_mapinfo(struct request *rq);
 
 struct queue_limits *dm_get_queue_limits(struct mapped_device *md);
-
-void dm_lock_md_type(struct mapped_device *md);
-void dm_unlock_md_type(struct mapped_device *md);
-void dm_set_md_type(struct mapped_device *md, unsigned type);
-unsigned dm_get_md_type(struct mapped_device *md);
-int dm_setup_md_queue(struct mapped_device *md, struct dm_table *t);
-unsigned dm_table_get_type(struct dm_table *t);
 
 /*
  * Geometry functions.
@@ -532,11 +520,6 @@ struct dm_table *dm_swap_table(struct mapped_device *md,
  * A wrapper around vmalloc.
  */
 void *dm_vcalloc(unsigned long nmemb, unsigned long elem_size);
-
-/*
- * Helper function to parse DM arguments
- */
-int dm_split_args(int *argc, char ***argvp, char *input);
 
 /*-----------------------------------------------------------------
  * Macros.

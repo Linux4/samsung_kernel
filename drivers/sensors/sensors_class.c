@@ -97,7 +97,7 @@ static ssize_t sensors_name_show(struct device *dev,
 {
 	struct sensors_classdev *sensors_cdev = dev_get_drvdata(dev);
 
-	return snprintf(buf, PAGE_SIZE, "%s\n", sensors_cdev->name);
+	return snprintf(buf, PAGE_SIZE, "%s\n", sensors_cdev->sensor_name);
 }
 
 static ssize_t sensors_vendor_show(struct device *dev,
@@ -204,7 +204,7 @@ static ssize_t sensors_enable_store(struct device *dev,
 	struct sensors_classdev *sensors_cdev = dev_get_drvdata(dev);
 	ssize_t ret = -EINVAL;
 	unsigned long data = 0;
-	printk("abov sensors_enable_store \n");
+
 	ret = kstrtoul(buf, 10, &data);
 	if (ret)
 		return ret;
@@ -509,17 +509,11 @@ ATTRIBUTE_GROUPS(sensors_class);
  * @parent: The device to register.
  * @sensors_cdev: the sensors_classdev structure for this device.
 */
-//+bug 621774,xuyanan.wt,modify,20210128,sar sensor bringup
 int sensors_classdev_register(struct device *parent,
 				struct sensors_classdev *sensors_cdev)
 {
-#ifdef CONFIG_INPUT_ABOV
 	sensors_cdev->dev = device_create(sensors_class, parent, 0,
-				      sensors_cdev, "%s", sensors_cdev->name); 
-#else
-	sensors_cdev->dev = device_create(sensors_class, parent, 0,
-				      sensors_cdev, "%s", sensors_cdev->sensor_name); //bug 492320,20191119,gaojingxuan.wt,add,use SS hal
-#endif
+				      sensors_cdev, "%s", sensors_cdev->name);
 	if (IS_ERR(sensors_cdev->dev))
 		return PTR_ERR(sensors_cdev->dev);
 
@@ -531,7 +525,6 @@ int sensors_classdev_register(struct device *parent,
 			sensors_cdev->name);
 	return 0;
 }
-//-bug 621774,xuyanan.wt,modify,20210128,sar sensor bringup
 EXPORT_SYMBOL(sensors_classdev_register);
 
 /**

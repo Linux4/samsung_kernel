@@ -5,15 +5,14 @@
 
 #include <linux/ctype.h>
 
-#define DM_MSG_PREFIX			"verity"
+#define DM_MSG_PREFIX           "verity"
 
-#define DM_VERITY_ENV_LENGTH		42
-#define DM_VERITY_ENV_VAR_NAME		"DM_VERITY_ERR_BLOCK_NR"
+#define DM_VERITY_ENV_LENGTH        42
+#define DM_VERITY_ENV_VAR_NAME      "DM_VERITY_ERR_BLOCK_NR"
 
-#define DM_VERITY_DEFAULT_PREFETCH_SIZE	262144
+#define DM_VERITY_DEFAULT_PREFETCH_SIZE 262144
 
-#define DM_VERITY_MAX_CORRUPTED_ERRS	100
-
+#define DM_VERITY_MAX_CORRUPTED_ERRS    100
 
 struct blks_info* b_info = 0;
 
@@ -86,7 +85,7 @@ void add_dmv_ctr_entry(char* dev_name){
 struct blks_info * get_b_info(char* dev_name){
     pr_err("dm-verity-debug : dev_name = %s\n",dev_name);
 
-    if(empty_b_info()){
+    if(empty_b_info()) {
         b_info = create_b_info();
         add_dmv_ctr_entry(dev_name);
     }
@@ -181,6 +180,7 @@ void print_fc_blks_list(void){
         i = (b_info->list_idx + 1) % MAX_FC_BLKS_LIST;
     }
 
+
     for( ; i != b_info->list_idx; i = (i + 1) % MAX_FC_BLKS_LIST)
         pr_err("%s %llu",b_info->dev_name[i],(unsigned long long)b_info->fc_blks_list[i]);
 
@@ -202,8 +202,8 @@ void print_dmv_ctr_list(void){
     pr_err("====== DMV_CTR_LIST END ======\n");
 }
 
-static void print_block_data(unsigned long long blocknr, unsigned char *data_to_dump
-        , int start, int len)
+static void print_block_data(unsigned long long blocknr, unsigned char *data_to_dump,
+                            int start, int len)
 {
     int i, j;
     int bh_offset = (start / 16) * 16;
@@ -264,11 +264,11 @@ int verity_handle_err_hex_debug(struct dm_verity *v, enum verity_block_type type
     /* Corruption should be visible in device status in all modes */
     v->hash_failed = 1;
 
-    if (ignore_fs_panic) {
-        DMERR("%s: Don't trigger a panic during cleanup for shutdown. Skipping %s",
-                v->data_dev->name, __func__);
-        return 0;
-    }
+    //if (ignore_fs_panic) {
+    //    DMERR("%s: Don't trigger a panic during cleanup for shutdown. Skipping %s",
+    //            v->data_dev->name, __func__);
+    //    return 0;
+    //}
 
     if (v->corrupted_errs >= DM_VERITY_MAX_CORRUPTED_ERRS)
         goto out;
@@ -286,10 +286,9 @@ int verity_handle_err_hex_debug(struct dm_verity *v, enum verity_block_type type
             BUG();
     }
 
-    if(empty_b_info()){
+    if(empty_b_info()) {
         pr_err("dm-verity-debug : b_info is empty !\n");
-    }
-    else{
+    } else {
         print_dmv_ctr_list();
         print_blks_cnt(v->data_dev->name);
         print_fc_blks_list();
@@ -298,7 +297,7 @@ int verity_handle_err_hex_debug(struct dm_verity *v, enum verity_block_type type
     DMERR("%s: %s block %llu is corrupted", v->data_dev->name, type_str, block);
 
     for(i=0 ; i < v->salt_size; i++){
-        sprintf(hex_str + (i * 2), "%02x", *(v->salt + i)); 	
+        sprintf(hex_str + (i * 2), "%02x", *(v->salt + i));
     }
     DMERR("dm-verity salt: %s", hex_str);
 
@@ -324,7 +323,7 @@ int verity_handle_err_hex_debug(struct dm_verity *v, enum verity_block_type type
         DMERR("%s: reached maximum errors", v->data_dev->name);
 
     snprintf(verity_env, DM_VERITY_ENV_LENGTH, "%s=%d,%llu",
-            DM_VERITY_ENV_VAR_NAME, type, block);
+        DM_VERITY_ENV_VAR_NAME, type, block);
 
     kobject_uevent_env(&disk_to_dev(dm_disk(md))->kobj, KOBJ_CHANGE, envp);
 
@@ -332,9 +331,12 @@ out:
     if (v->mode == DM_VERITY_MODE_LOGGING)
         return 0;
 
-    if (v->mode == DM_VERITY_MODE_RESTART)
+    if (v->mode == DM_VERITY_MODE_RESTART) {
+#ifdef CONFIG_DM_VERITY_AVB
+        dm_verity_avb_error_handler();
+#endif
         kernel_restart("dm-verity device corrupted");
+    }
 
     return 1;
 }
-

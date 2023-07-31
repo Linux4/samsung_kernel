@@ -18,13 +18,11 @@
 #include "mt-plat/aee.h"
 
 /* RESERVED MEMORY BASE ADDRESS */
-//#define LK_RSV_ADDR		0x46C08000
-//#define LK_RSV_SIZE		0x600000
-#define SEC_LOG_BASE		0x46C00000    /* SZ_2M */
-#define SEC_LASTKMSG_BASE	0x46E00000    /* SZ_2M */
-#define SEC_LOGGER_BASE		0x47000000    /* SZ_4M */
-#define SEC_AUTO_COMMENT_BASE		0x47400000    /* SZ_4K */
-#define SEC_EXTRA_INFO_BASE	0x47410000    /* SZ_4M - SZ_64K */
+#define SEC_LOG_BASE				0x46C00000    /* SZ_2M */
+#define SEC_LASTKMSG_BASE			0x46E00000    /* SZ_2M */
+#define SEC_LOGGER_BASE				0x47000000    /* SZ_4M */
+#define SEC_AUTO_COMMENT_BASE		0x47400000    /* SZ_64K */
+#define SEC_EXTRA_INFO_BASE			0x47410000    /* SZ_2M - SZ_64K */
 
 /* +++ MediaTek Feature +++ */
 
@@ -46,6 +44,7 @@ struct mboot_params_buffer {
 	uint32_t filling[4];
 };
 
+#define CPU_NUMS 8
 /*
  *  This group of API call by sub-driver module to report reboot reasons
  *  aee_rr_* stand for previous reboot reason
@@ -57,13 +56,18 @@ struct last_reboot_reason {
 	uint64_t kaslr_offset;
 	uint64_t oops_in_progress_addr;
 
-	uint32_t last_irq_enter[AEE_MTK_CPU_NUMS];
-	uint64_t jiffies_last_irq_enter[AEE_MTK_CPU_NUMS];
+	uint32_t kick;
+	uint32_t check;
+	uint64_t wdk_ktime;
+	uint64_t wdk_systimer_cnt;
 
-	uint32_t last_irq_exit[AEE_MTK_CPU_NUMS];
-	uint64_t jiffies_last_irq_exit[AEE_MTK_CPU_NUMS];
+	uint32_t last_irq_enter[CPU_NUMS];
+	uint64_t jiffies_last_irq_enter[CPU_NUMS];
 
-	uint8_t hotplug_footprint[AEE_MTK_CPU_NUMS];
+	uint32_t last_irq_exit[CPU_NUMS];
+	uint64_t jiffies_last_irq_exit[CPU_NUMS];
+
+	uint8_t hotplug_footprint[CPU_NUMS];
 	uint8_t hotplug_cpu_event;
 	uint8_t hotplug_cb_index;
 	uint64_t hotplug_cb_fp;
@@ -90,8 +94,8 @@ struct last_reboot_reason {
 	uint32_t mcsodi_data;
 	uint32_t spm_suspend_data;
 	uint32_t spm_common_scenario_data;
-	uint32_t mtk_cpuidle_footprint[AEE_MTK_CPU_NUMS];
-	uint32_t mcdi_footprint[AEE_MTK_CPU_NUMS];
+	uint32_t mtk_cpuidle_footprint[CPU_NUMS];
+	uint32_t mcdi_footprint[CPU_NUMS];
 	uint32_t clk_data[8];
 	uint32_t suspend_debug_flag;
 	uint32_t fiq_cache_step;
@@ -394,7 +398,7 @@ enum sec_debug_reset_reason_t {
 	RR_C = 11,
 };
 
-extern unsigned reset_reason;
+extern unsigned int reset_reason;
 
 #ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
 
@@ -480,7 +484,7 @@ struct sec_debug_auto_comment {
 	int tail_magic;
 };
 
-#define AC_SIZE 0xf3c
+#define AC_SIZE 0x2000
 #define AC_MAGIC 0xcafecafe
 #define AC_TAIL_MAGIC 0x00c0ffee
 #define AC_EDATA_MAGIC 0x43218765
@@ -613,7 +617,7 @@ extern union sec_debug_level_t sec_debug_level;
 #else
 #define SEC_DEBUG_LEVEL(x)	0
 #endif
-extern void sec_dump_task_info(void);
+extern void sec_debug_dump_info(void);
 extern void sec_upload_cause(void *buf);
 extern void sec_debug_check_crash_key(unsigned int code, int value);
 extern void register_log_text_hook(void (*f)(char *text, size_t size));
@@ -651,6 +655,29 @@ extern void sec_debug_avc_log(char *fmt, ...);
 #else
 #define sec_debug_avc_log(a, ...)		do { } while(0)
 #endif
+
+/**
+ * sec_debug_tsp_log : Leave tsp log in tsp_msg file.
+ * ( Timestamp + Tsp logs )
+ * sec_debug_tsp_log_msg : Leave tsp log in tsp_msg file and
+ * add additional message between timestamp and tsp log.
+ * ( Timestamp + additional Message + Tsp logs )
+ */
+#ifdef CONFIG_SEC_DEBUG_TSP_LOG
+extern void sec_debug_tsp_log(char *fmt, ...);
+extern void sec_debug_tsp_log_msg(char *msg, char *fmt, ...);
+extern void sec_debug_tsp_raw_data(char *fmt, ...);
+extern void sec_debug_tsp_raw_data_msg(char *msg, char *fmt, ...);
+extern void sec_tsp_raw_data_clear(void);
+extern void sec_debug_tsp_command_history(char *buf);
+#else
+#define sec_debug_tsp_log(a, ...)		do { } while (0)
+#define sec_debug_tsp_log_msg(a, b, ...)		do { } while (0)
+#define sec_debug_tsp_raw_data(a, ...)			do { } while (0)
+#define sec_debug_tsp_raw_data_msg(a, b, ...)		do { } while (0)
+#define sec_tsp_raw_data_clear()			do { } while (0)
+#define sec_debug_tsp_command_history(a)	do { } while (0)
+#endif /* CONFIG_SEC_DEBUG_TSP_LOG */
 
 #ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
 struct tsp_dump_callbacks {

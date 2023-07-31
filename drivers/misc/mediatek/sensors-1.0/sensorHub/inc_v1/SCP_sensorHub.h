@@ -25,6 +25,7 @@ enum {
 	CONFIG_CMD_CFG_DATA     = 3,
 	CONFIG_CMD_CALIBRATE    = 4,
 	CONFIG_CMD_SELF_TEST    = 5,
+	CONFIG_CMD_SET_LCDNAME  = 6,//Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 };
 
 struct ConfigCmd {
@@ -348,6 +349,7 @@ struct SCP_SENSOR_HUB_SET_CONFIG_REQ {
 	uint32_t bufferSize;
 	uint64_t ap_timestamp;
 	uint64_t arch_counter;
+	uint64_t ap_ts_sec;
 	/* uint32_t    reserved[8]; */
 };
 
@@ -544,8 +546,9 @@ int sensor_batch_to_hub(uint8_t sensorType,
 	int flag, int64_t samplingPeriodNs, int64_t maxBatchReportLatencyNs);
 int sensor_flush_to_hub(uint8_t sensorType);
 int sensor_cfg_to_hub(uint8_t sensorType, uint8_t *data, uint8_t count);
-int sensor_calibration_to_hub(uint8_t sensorType);
+int sensor_calibration_to_hub(uint8_t sensorType);//Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 int sensor_selftest_to_hub(uint8_t sensorType);
+int sensor_set_lcdname_to_hub(uint8_t sensorType, uint8_t *data, uint8_t count);
 
 #endif
 #endif

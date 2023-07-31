@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2015-2020 Samsung Electronics Co. Ltd.
+ * Copyright (C) 2015-2021 Samsung Electronics Co. Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -8,7 +8,7 @@
  * (at your option) any later version.
  */
 
- /* usb notify layer v3.5 */
+ /* usb notify layer v3.6 */
 
 #define pr_fmt(fmt) "usb_notify: " fmt
 
@@ -19,7 +19,7 @@
 #include <linux/notifier.h>
 #include <linux/version.h>
 #include <linux/usb_notify.h>
-#include "../core/hub.h"
+#include <linux/usb/hcd.h>
 
 #define SMARTDOCK_INDEX	1
 #define MMDOCK_INDEX	2
@@ -70,7 +70,7 @@ static struct dev_table update_autotimer_device_table[] = {
 
 static struct dev_table unsupport_device_table[] = {
 	{ .dev = { USB_DEVICE(0x1a0a, 0x0201), },
-	},
+	}, /* The device for usb certification */
 	{}
 };
 
@@ -219,6 +219,32 @@ skip:
 	return 0;
 }
 
+static void seek_usb_interface(struct usb_device *dev)
+{
+	struct usb_interface *intf;
+	int i;
+
+	if (!dev) {
+		pr_err("%s no dev\n", __func__);
+		goto done;
+	}
+
+	if (!dev->actconfig) {
+		pr_info("%s no set config\n", __func__);
+		goto done;
+	}
+
+	for (i = 0; i < dev->actconfig->desc.bNumInterfaces; i++) {
+		intf = dev->actconfig->interface[i];
+		/* You can use this function for various purposes */
+		store_usblog_notify(NOTIFY_PORT_CLASS,
+			(void *)&dev->descriptor.bDeviceClass,
+			(void *)&intf->cur_altsetting->desc.bInterfaceClass);
+	}
+done:
+	return;
+}
+
 static int call_device_notify(struct usb_device *dev, int connect)
 {
 	struct otg_notify *o_notify = get_otg_notify();
@@ -240,6 +266,13 @@ static int call_device_notify(struct usb_device *dev, int connect)
 			store_usblog_notify(NOTIFY_PORT_CONNECT,
 				(void *)&dev->descriptor.idVendor,
 				(void *)&dev->descriptor.idProduct);
+
+			seek_usb_interface(dev);
+
+			if (!usb_check_whitelist_for_mdm(dev)) {
+				pr_info("This deice will be noattached state.\n");
+				usb_set_device_state(dev, USB_STATE_NOTATTACHED);
+			}
 		} else
 			store_usblog_notify(NOTIFY_PORT_DISCONNECT,
 				(void *)&dev->descriptor.idVendor,
@@ -283,6 +316,7 @@ static void check_device_speed(struct usb_device *dev, bool on)
 	struct usb_device *udev;
 	int port = 0;
 	int speed = USB_SPEED_UNKNOWN;
+	int pr_speed = USB_SPEED_UNKNOWN;
 	static int hs_hub;
 	static int ss_hub;
 
@@ -290,6 +324,8 @@ static void check_device_speed(struct usb_device *dev, bool on)
 		pr_err("%s otg_notify is null\n", __func__);
 		return;
 	}
+
+	pr_speed = get_con_dev_max_speed(o_notify);
 
 	hdev = dev->parent;
 	if (!hdev)
@@ -321,16 +357,16 @@ static void check_device_speed(struct usb_device *dev, bool on)
 		;
 
 	if (ss_hub || hs_hub) {
-		if (speed > o_notify->speed)
-			o_notify->speed = speed;
+		if (speed > pr_speed)
+			set_con_dev_max_speed(o_notify, speed);
 	} else
-		o_notify->speed = USB_SPEED_UNKNOWN;
+		set_con_dev_max_speed(o_notify, USB_SPEED_UNKNOWN);
 
 	pr_info("%s : dev->speed %s %s\n", __func__,
 		usb_speed_string(dev->speed), on ? "on" : "off");
 
 	pr_info("%s : o_notify->speed %s\n", __func__,
-		usb_speed_string(o_notify->speed));
+		usb_speed_string(get_con_dev_max_speed(o_notify)));
 }
 
 #if defined(CONFIG_USB_HW_PARAM)

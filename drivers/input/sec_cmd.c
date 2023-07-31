@@ -10,6 +10,9 @@
  */
 
 #include <linux/input/sec_cmd.h>
+#include <linux/sec_debug.h>
+#include<linux/sched/clock.h>
+ #define SECLOG			"[sec_input]"
 
 #if defined USE_SEC_CMD_QUEUE
 static void sec_cmd_store_function(struct sec_cmd_data *data);
@@ -54,7 +57,7 @@ static void cmd_exit_work(struct work_struct *work)
 void sec_cmd_set_default_result(struct sec_cmd_data *data)
 {
 	char delim = ':';
-	memset(data->cmd_result, 0x00, SEC_CMD_RESULT_STR_LEN);
+	memset(data->cmd_result, 0x00, SEC_CMD_RESULT_STR_LEN_EXPAND);
 	memcpy(data->cmd_result, data->cmd, SEC_CMD_STR_LEN);
 	strncat(data->cmd_result, &delim, 1);
 }
@@ -63,12 +66,12 @@ void sec_cmd_set_cmd_result_all(struct sec_cmd_data *data, char *buff, int len, 
 {
 	char delim1 = ' ';
 	char delim2 = ':';
-	int cmd_result_len;
+	size_t cmd_result_len;
 
-	cmd_result_len = (int)strlen(data->cmd_result_all) + len + 2 + (int)strlen(item);
+	cmd_result_len = strlen(data->cmd_result_all) + len + 2 + strlen(item);
 
-	if (cmd_result_len >= SEC_CMD_RESULT_STR_LEN) {
-		pr_err("%s %s: cmd length is over (%d)!!", SECLOG, __func__, cmd_result_len);
+	if (cmd_result_len >= (unsigned int)SEC_CMD_RESULT_STR_LEN) {
+		pr_err("%s %s: cmd length is over (%d)!!", SECLOG, __func__, (int)cmd_result_len);
 		return;
 	}
 
@@ -81,6 +84,15 @@ void sec_cmd_set_cmd_result_all(struct sec_cmd_data *data, char *buff, int len, 
 
 void sec_cmd_set_cmd_result(struct sec_cmd_data *data, char *buff, int len)
 {
+	if (strlen(buff) >= (unsigned int)SEC_CMD_RESULT_STR_LEN_EXPAND) {
+		pr_err("%s %s: cmd length is over (%d)!!", SECLOG, __func__, (int)strlen(buff));
+		strncat(data->cmd_result, "NG", 2);
+		return;
+	}
+
+	data->cmd_result_expand = (int)strlen(buff) / SEC_CMD_RESULT_STR_LEN;
+	data->cmd_result_expand_count = 0;
+
 	strncat(data->cmd_result, buff, len);
 }
 
@@ -102,7 +114,7 @@ static ssize_t sec_cmd_store(struct device *dev,
 		return -EINVAL;
 	}
 
-	if (strlen(buf) >= SEC_CMD_STR_LEN) {
+	if (strnlen(buf, SEC_CMD_STR_LEN) >= SEC_CMD_STR_LEN) {
 		pr_err("%s %s: cmd length(strlen(buf)) is over (%d,%s)!!\n",
 				SECLOG, __func__, (int)strlen(buf), buf);
 		return -EINVAL;
@@ -307,6 +319,20 @@ static void sec_cmd_store_function(struct sec_cmd_data *data)
 
 	sec_cmd_ptr->cmd_func(data);
 
+	if (cmd_found && sec_cmd_ptr->cmd_log) {
+		char tbuf[32];
+		unsigned long long t;
+		unsigned long nanosec_rem;
+
+		memset(tbuf, 0x00, sizeof(tbuf));
+		t = local_clock();
+		nanosec_rem = do_div(t, 1000000000);
+		snprintf(tbuf, sizeof(tbuf), "[r:%lu.%06lu]",
+				(unsigned long)t,
+				nanosec_rem / 1000);
+
+		sec_debug_tsp_command_history(tbuf);
+	}
 }
 
 static ssize_t sec_cmd_store(struct device *dev, struct device_attribute *devattr,
@@ -314,6 +340,7 @@ static ssize_t sec_cmd_store(struct device *dev, struct device_attribute *devatt
 {
 	struct sec_cmd_data *data = dev_get_drvdata(dev);
 	struct command cmd = {{0}};
+	struct sec_cmd *sec_cmd_ptr = NULL;
 	int queue_size;
 
 	if (!data) {
@@ -321,7 +348,7 @@ static ssize_t sec_cmd_store(struct device *dev, struct device_attribute *devatt
 		return -EINVAL;
 	}
 
-	if (strlen(buf) >= SEC_CMD_STR_LEN) {
+	if (strnlen(buf, SEC_CMD_STR_LEN) >= SEC_CMD_STR_LEN) {
 		pr_err("%s %s: cmd length(strlen(buf)) is over (%d,%s)!!\n",
 				SECLOG, __func__, (int)strlen(buf), buf);
 		return -EINVAL;
@@ -334,6 +361,31 @@ static ssize_t sec_cmd_store(struct device *dev, struct device_attribute *devatt
 	}
 
 	strncpy(cmd.cmd, buf, count);
+
+	list_for_each_entry(sec_cmd_ptr, &data->cmd_list_head, list) {
+		if (!strncmp(cmd.cmd, sec_cmd_ptr->cmd_name, strlen(sec_cmd_ptr->cmd_name))) {
+			if (sec_cmd_ptr->cmd_log) {
+				char task_info[40];
+				char tbuf[32];
+				unsigned long long t;
+				unsigned long nanosec_rem;
+
+				memset(tbuf, 0x00, sizeof(tbuf));
+				t = local_clock();
+				nanosec_rem = do_div(t, 1000000000);
+				snprintf(tbuf, sizeof(tbuf), "[q:%lu.%06lu]",
+						(unsigned long)t,
+						nanosec_rem / 1000);
+
+				snprintf(task_info, 40, "\n[%d:%s]", current->pid, current->comm);
+				sec_debug_tsp_command_history(task_info);
+				sec_debug_tsp_command_history(cmd.cmd);
+				sec_debug_tsp_command_history(tbuf);
+
+			}
+			break;
+		}
+	}
 
 	mutex_lock(&data->fifo_lock);
 	queue_size = (kfifo_len(&data->cmd_queue) / sizeof(struct command));
@@ -401,6 +453,9 @@ static ssize_t sec_cmd_show_status(struct device *dev,
 	else if (data->cmd_state == SEC_CMD_STATUS_NOT_APPLICABLE)
 		snprintf(buff, sizeof(buff), "NOT_APPLICABLE");
 
+	else if (data->cmd_state == SEC_CMD_STATUS_EXPAND)
+		snprintf(buff, sizeof(buff), "EXPAND");
+
 	pr_debug("%s %s: %d, %s\n", SECLOG, __func__, data->cmd_state, buff);
 
 	return snprintf(buf, SEC_CMD_BUF_SIZE, "%s\n", buff);
@@ -448,11 +503,35 @@ static ssize_t sec_cmd_show_result(struct device *dev,
 		return -EINVAL;
 	}
 
-	data->cmd_state = SEC_CMD_STATUS_WAITING;
-	pr_info("%s %s: %s\n", SECLOG, __func__, data->cmd_result);
-	size = snprintf(buf, SEC_CMD_RESULT_STR_LEN, "%s\n", data->cmd_result);
+	size = snprintf(buf, SEC_CMD_RESULT_STR_LEN, "%s\n", data->cmd_result 
+								+ ((SEC_CMD_RESULT_STR_LEN - 1) * data->cmd_result_expand_count));
+
+	if (data->cmd_result_expand_count != data->cmd_result_expand) {
+		data->cmd_state = SEC_CMD_STATUS_EXPAND;
+		data->cmd_result_expand_count++;
+	} else 
+		data->cmd_state = SEC_CMD_STATUS_WAITING;
+
+	pr_info("%s %s: %s\n", SECLOG, __func__, buf);
 
 	sec_cmd_set_cmd_exit(data);
+
+	return size;
+}
+
+static ssize_t sec_cmd_show_result_expand(struct device *dev,
+				 struct device_attribute *devattr, char *buf)
+{
+	struct sec_cmd_data *data = dev_get_drvdata(dev);
+	int size;
+
+	if (!data) {
+		pr_err("%s %s: No platform data found\n", SECLOG, __func__);
+		return -EINVAL;
+	}
+
+	size = snprintf(buf, SEC_CMD_RESULT_STR_LEN, "%s\n", data->cmd_result + SEC_CMD_RESULT_STR_LEN - 1);
+	pr_info("%s %s: %s\n", SECLOG, __func__, buf);
 
 	return size;
 }
@@ -500,40 +579,32 @@ static ssize_t sec_cmd_list_show(struct device *dev,
 	return snprintf(buf, SEC_CMD_BUF_SIZE, "%s\n", buffer);
 }
 
-#define INPUT_FEATURE_ENABLE_SETTINGS_AOT (1 << 0) /* Double tap wakeup settings */
-static ssize_t sec_cmd_support_feature(struct device *dev,
-				 struct device_attribute *devattr, char *buf)
+#define  INPUT_FEATURE_ENABLE_SETTINGS_AOT 1
+static ssize_t support_feature(struct device *dev,
+	struct device_attribute *attr, char *buf)
 {
-	struct sec_cmd_data *data = dev_get_drvdata(dev);
-        u32 feature = 0;
+	u32 feature = 0;
 
-	if (!data) {
-		pr_err("%s %s: No platform data found\n", SECLOG, __func__);
-		return -EINVAL;
-	}
+	feature |= INPUT_FEATURE_ENABLE_SETTINGS_AOT;
 
-#if defined(CONFIG_SUPPORT_FEATURE_A21) 
-        feature |= INPUT_FEATURE_ENABLE_SETTINGS_AOT;
-#endif
-
-	pr_debug("%s %s: %s, %s\n", SECLOG, __func__, "support_feature", buf);
-        return snprintf(buf, SEC_CMD_BUF_SIZE, "%d\n", feature);
-
+	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d", feature);
 }
 
 static DEVICE_ATTR(cmd, 0220, NULL, sec_cmd_store);
 static DEVICE_ATTR(cmd_status, 0444, sec_cmd_show_status, NULL);
 static DEVICE_ATTR(cmd_status_all, 0444, sec_cmd_show_status_all, NULL);
 static DEVICE_ATTR(cmd_result, 0444, sec_cmd_show_result, NULL);
+static DEVICE_ATTR(cmd_result_expand, 0444, sec_cmd_show_result_expand, NULL);
 static DEVICE_ATTR(cmd_result_all, 0444, sec_cmd_show_result_all, NULL);
 static DEVICE_ATTR(cmd_list, 0444, sec_cmd_list_show, NULL);
-static DEVICE_ATTR(support_feature, 0444, sec_cmd_support_feature, NULL);
+static DEVICE_ATTR(support_feature, 0444, support_feature, NULL);
 
 static struct attribute *sec_fac_attrs[] = {
 	&dev_attr_cmd.attr,
 	&dev_attr_cmd_status.attr,
 	&dev_attr_cmd_status_all.attr,
 	&dev_attr_cmd_result.attr,
+	&dev_attr_cmd_result_expand.attr,
 	&dev_attr_cmd_result_all.attr,
 	&dev_attr_cmd_list.attr,
 	&dev_attr_support_feature.attr,
@@ -543,7 +614,6 @@ static struct attribute *sec_fac_attrs[] = {
 static struct attribute_group sec_fac_attr_group = {
 	.attrs = sec_fac_attrs,
 };
-
 
 int sec_cmd_init(struct sec_cmd_data *data, struct sec_cmd *cmds,
 			int len, int devt)
@@ -565,6 +635,10 @@ int sec_cmd_init(struct sec_cmd_data *data, struct sec_cmd *cmds,
 	mutex_lock(&data->cmd_lock);
 	data->cmd_is_running = false;
 	mutex_unlock(&data->cmd_lock);
+
+	data->cmd_result = kzalloc(SEC_CMD_RESULT_STR_LEN_EXPAND, GFP_KERNEL);
+	if (!data->cmd_result)
+		goto err_alloc_cmd_result;
 
 #ifdef USE_SEC_CMD_QUEUE
 	if (kfifo_alloc(&data->cmd_queue,
@@ -611,14 +685,13 @@ int sec_cmd_init(struct sec_cmd_data *data, struct sec_cmd *cmds,
 		pr_err("%s %s: failed to create sysfs group\n", SECLOG, __func__);
 		goto err_sysfs_group;
 	}
-
 	return 0;
 
 err_sysfs_group:
 #ifdef CONFIG_SEC_SYSFS
 	sec_device_destroy(data->fac_dev->devt);
 #else
-//	device_destroy(sec_class, devt);
+	sec_device_destroy(data->fac_dev->devt);
 #endif
 err_sysfs_device:
 err_get_dev_name:
@@ -627,6 +700,8 @@ err_get_dev_name:
 	kfifo_free(&data->cmd_queue);
 err_alloc_queue:
 #endif
+	kfree(data->cmd_result);
+err_alloc_cmd_result:
 	mutex_destroy(&data->cmd_lock);
 	list_del(&data->cmd_list_head);
 	return -ENODEV;
@@ -663,8 +738,56 @@ void sec_cmd_exit(struct sec_cmd_data *data, int devt)
 	cancel_delayed_work_sync(&data->cmd_work);
 	flush_delayed_work(&data->cmd_work);
 #endif
+	kfree(data->cmd_result);
 	mutex_destroy(&data->cmd_lock);
 	list_del(&data->cmd_list_head);
+}
+
+void sec_cmd_send_event_to_user(struct sec_cmd_data *data, char *test, char *result)
+{
+	char *event[5];
+	char timestamp[32];
+	char feature[32];
+	char stest[32];
+	char sresult[32];
+	ktime_t calltime;
+	u64 realtime;
+	int curr_time;
+	char *eol = "\0";
+
+	calltime = ktime_get();
+	realtime = ktime_to_ns(calltime);
+	do_div(realtime, NSEC_PER_USEC);
+	curr_time = realtime / USEC_PER_MSEC;
+
+	snprintf(timestamp, 32, "TIMESTAMP=%d", curr_time);
+	strncat(timestamp, eol, 1);
+	snprintf(feature, 32, "FEATURE=TSP");
+	strncat(feature, eol, 1);
+	if (!test) {
+		snprintf(stest, 32, "TEST=NULL");
+	} else {
+		snprintf(stest, 32, "%s", test);
+	}
+	strncat(stest, eol, 1);
+
+	if (!result) {
+		snprintf(sresult, 32, "RESULT=NULL");
+	} else {
+		snprintf(sresult, 32, "%s", result);
+	}
+	strncat(sresult, eol, 1);
+
+	pr_info("%s %s: time:%s, feature:%s, test:%s, result:%s\n",
+			SECLOG, __func__, timestamp, feature, stest, sresult);
+
+	event[0] = timestamp;
+	event[1] = feature;
+	event[2] = stest;
+	event[3] = sresult;
+	event[4] = NULL;
+
+	kobject_uevent_env(&data->fac_dev->kobj, KOBJ_CHANGE, event);
 }
 
 MODULE_DESCRIPTION("Samsung factory command");

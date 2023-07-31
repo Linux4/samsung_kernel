@@ -221,8 +221,6 @@
 #include <linux/usb/gadget.h>
 #include <linux/usb/composite.h>
 
-#include <linux/nospec.h>
-
 #include "configfs.h"
 #include "usb_boost.h"
 
@@ -319,12 +317,16 @@ struct fsg_common {
 	void			*private_data;
 
 	char inquiry_string[INQUIRY_STRING_LEN];
+
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 	char vendor_string[8 + 1];
 	char product_string[16 + 1];
 	/* Additional image version info for SUA */
 	char version_string[100 + 1];
 #endif
+	/* For build-in CDROM */
+	u8 bicr;
+
 	/* For Fast META */
 #ifdef CONFIG_USB_CONFIGFS_MTK_FASTMETA
 	char name[FSG_MAX_LUNS][LUN_NAME_LEN];
@@ -1633,6 +1635,7 @@ static int do_mode_sense(struct fsg_common *common, struct fsg_buffhd *bh)
 		}
 		buf += 12;
 	}
+
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 	else if (page_code == 0x2A) {
 		valid_page = 1;
@@ -3317,6 +3320,33 @@ static void fsg_common_release(struct fsg_common *common)
 	if (common->free_storage_on_release)
 		kfree(common);
 }
+#ifdef CONFIG_USB_CONFIGFS_BICR
+ssize_t fsg_bicr_show(struct fsg_common *common, char *buf)
+{
+	return sprintf(buf, "%d\n", common->bicr);
+}
+
+ssize_t fsg_bicr_store(struct fsg_common *common, const char *buf, size_t size)
+{
+	int ret;
+
+	ret = kstrtou8(buf, 10, &common->bicr);
+	if (ret)
+		return -EINVAL;
+
+	/* Set Lun[0] is a CDROM when enable bicr.*/
+	if (!strcmp(buf, "1"))
+		common->luns[0]->cdrom = 1;
+	else {
+		common->luns[0]->cdrom = 0;
+		common->luns[0]->blkbits = 0;
+		common->luns[0]->blksize = 0;
+		common->luns[0]->num_sectors = 0;
+	}
+
+	return size;
+}
+#endif
 
 #ifdef CONFIG_USB_CONFIGFS_MTK_FASTMETA
 ssize_t fsg_inquiry_show(struct fsg_common *common, char *buf)
@@ -3648,7 +3678,6 @@ static struct config_group *fsg_lun_make(struct config_group *group,
 	fsg_opts = to_fsg_opts(&group->cg_item);
 	if (num >= FSG_MAX_LUNS)
 		return ERR_PTR(-ERANGE);
-	num = array_index_nospec(num, FSG_MAX_LUNS);
 
 	mutex_lock(&fsg_opts->lock);
 	if (fsg_opts->refcnt || fsg_opts->common->luns[num]) {
@@ -3821,6 +3850,7 @@ static const struct config_item_type fsg_func_type = {
 
 #ifdef CONFIG_USB_CONFIGFS_UEVENT
 extern struct device *create_function_device(char *name);
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 static ssize_t mass_storage_inquiry_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -3850,7 +3880,6 @@ static DEVICE_ATTR(inquiry_string, S_IRUGO | S_IWUSR,
 					mass_storage_inquiry_show,
 					mass_storage_inquiry_store);
 
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 static ssize_t mass_storage_vendor_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -3985,6 +4014,7 @@ static int create_mass_storage_device(struct usb_function_instance *fi)
 }
 #endif
 #endif
+
 static void fsg_free_inst(struct usb_function_instance *fi)
 {
 	struct fsg_opts *opts;
@@ -4036,7 +4066,6 @@ static struct usb_function_instance *fsg_alloc_inst(void)
 	config_group_init_type_name(&opts->func_inst.group, "", &fsg_func_type);
 
 	config_group_init_type_name(&opts->lun0.group, "lun.0", &fsg_lun_type);
-
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 	if (create_mass_storage_device(&opts->func_inst)) {
 		rc = -ENODEV;
@@ -4085,7 +4114,7 @@ static struct usb_function *fsg_alloc(struct usb_function_instance *fi)
 	opts->refcnt++;
 	mutex_unlock(&opts->lock);
 
-	fsg->function.name	= FSG_DRIVER_DESC;
+	fsg->function.name	= "mass_storage";
 	fsg->function.bind	= fsg_bind;
 	fsg->function.unbind	= fsg_unbind;
 	fsg->function.setup	= fsg_setup;

@@ -307,6 +307,75 @@ unsigned int Otp_read_region_SR846(struct i2c_client *client,
 	return readsize;
 }
 
+unsigned int Otp_read_region_SR846D(struct i2c_client *client,
+	unsigned int addr, unsigned char *data, unsigned int size)
+{
+	u16 ret = 0;
+
+	u16 OTP_addr = addr & 0xFFFF;
+	u8 OTP_addr_1 = OTP_addr & 0xFF;
+	u8 OTP_addr_2 = (OTP_addr >> 8) & 0xFF;
+
+	u32 readsize = size;
+	u8 *read_data = data;
+
+	g_pstI2CclientG = client;
+
+	pr_debug("readsize: 0x%x\n", size);
+	pr_debug("addr: 0x%08x\n", addr);
+
+	//Fast sleep on
+	write_otp_16bit(0x0A02, 0x01);
+	//Stand by on
+	write_otp_16bit(0x0A20, 0x00);
+	write_otp_16bit(0x0A00, 0x00);
+
+	mdelay(10);
+
+	//PLL disable
+	write_otp_16bit(0x0F02, 0x00);
+	//CP TRIM_H
+	write_otp_16bit(0x071A, 0x01);
+	//IPGM TRIM_H
+	write_otp_16bit(0x071B, 0x09);
+	//Fsync(OTP busy) Output Enable
+	write_otp_16bit(0x0D04, 0x01);
+	//Fsync(OTP busy) Output Drivability
+	write_otp_16bit(0x0D00, 0x07);
+	//OTP R/W mode
+	write_otp_16bit(0x003E, 0x10);
+	write_otp_16bit(0x0A20, 0x01);
+	//Stand by off
+	write_otp_16bit(0x0A00, 0x01);
+
+	//Start address H
+	write_otp_16bit(0x070A, OTP_addr_2);
+	//Start address L
+	write_otp_16bit(0x070B, OTP_addr_1);
+	//Single read
+	write_otp_16bit(0x0702, 0x01);
+
+	for (; ret < readsize; ret++) {
+		//OTP data read
+		*(read_data + ret) = read_otp_16bit(0x0708);
+	}
+
+	//Stand by on
+	write_otp_16bit(0x0A20, 0x00);
+	write_otp_16bit(0x0A00, 0x00);
+
+	mdelay(100);
+
+	//Display mode
+	write_otp_16bit(0x003E, 0x00);
+	write_otp_16bit(0x0A20, 0x01);
+	//Stand by off
+	write_otp_16bit(0x0A00, 0x01);
+
+	pr_debug("OTP read done\n");
+	return readsize;
+}
+
 unsigned int Otp_read_region_GC5035(struct i2c_client *client,
 	unsigned int addr, unsigned char *data, unsigned int size)
 {

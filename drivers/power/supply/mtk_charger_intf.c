@@ -68,8 +68,14 @@ int get_uisoc(struct mtk_charger *info)
 	struct power_supply *bat_psy = NULL;
 	int ret;
 
-	bat_psy = devm_power_supply_get_by_phandle(&info->pdev->dev,
-						       "gauge");
+	bat_psy = info->bat_psy;
+
+	if (bat_psy == NULL || IS_ERR(bat_psy)) {
+		chr_err("%s retry to get bat_psy\n", __func__);
+		bat_psy = devm_power_supply_get_by_phandle(&info->pdev->dev, "gauge");
+		info->bat_psy = bat_psy;
+	}
+
 	if (bat_psy == NULL || IS_ERR(bat_psy)) {
 		chr_err("%s Couldn't get bat_psy\n", __func__);
 		ret = 50;
@@ -90,8 +96,14 @@ int get_battery_voltage(struct mtk_charger *info)
 	struct power_supply *bat_psy = NULL;
 	int ret;
 
-	bat_psy = devm_power_supply_get_by_phandle(&info->pdev->dev,
-						       "gauge");
+	bat_psy = info->bat_psy;
+
+	if (bat_psy == NULL || IS_ERR(bat_psy)) {
+		chr_err("%s retry to get bat_psy\n", __func__);
+		bat_psy = devm_power_supply_get_by_phandle(&info->pdev->dev, "gauge");
+		info->bat_psy = bat_psy;
+	}
+
 	if (bat_psy == NULL || IS_ERR(bat_psy)) {
 		chr_err("%s Couldn't get bat_psy\n", __func__);
 		ret = 3999;
@@ -112,8 +124,14 @@ int get_battery_temperature(struct mtk_charger *info)
 	struct power_supply *bat_psy = NULL;
 	int ret;
 
-	bat_psy = devm_power_supply_get_by_phandle(&info->pdev->dev,
-						       "gauge");
+	bat_psy = info->bat_psy;
+
+	if (bat_psy == NULL || IS_ERR(bat_psy)) {
+		chr_err("%s retry to get bat_psy\n", __func__);
+		bat_psy = devm_power_supply_get_by_phandle(&info->pdev->dev, "gauge");
+		info->bat_psy = bat_psy;
+	}
+
 	if (bat_psy == NULL || IS_ERR(bat_psy)) {
 		chr_err("%s Couldn't get bat_psy\n", __func__);
 		ret = 27;
@@ -134,8 +152,14 @@ int get_battery_current(struct mtk_charger *info)
 	struct power_supply *bat_psy = NULL;
 	int ret;
 
-	bat_psy = devm_power_supply_get_by_phandle(&info->pdev->dev,
-						       "gauge");
+	bat_psy = info->bat_psy;
+
+	if (bat_psy == NULL || IS_ERR(bat_psy)) {
+		chr_err("%s retry to get bat_psy\n", __func__);
+		bat_psy = devm_power_supply_get_by_phandle(&info->pdev->dev, "gauge");
+		info->bat_psy = bat_psy;
+	}
+
 	if (bat_psy == NULL || IS_ERR(bat_psy)) {
 		chr_err("%s Couldn't get bat_psy\n", __func__);
 		ret = 0;
@@ -210,8 +234,14 @@ bool is_battery_exist(struct mtk_charger *info)
 	struct power_supply *bat_psy = NULL;
 	int ret;
 
-	bat_psy = devm_power_supply_get_by_phandle(&info->pdev->dev,
-						       "gauge");
+	bat_psy = info->bat_psy;
+
+	if (bat_psy == NULL || IS_ERR(bat_psy)) {
+		chr_err("%s retry to get bat_psy\n", __func__);
+		bat_psy = devm_power_supply_get_by_phandle(&info->pdev->dev, "gauge");
+		info->bat_psy = bat_psy;
+	}
+
 	if (bat_psy == NULL || IS_ERR(bat_psy)) {
 		chr_err("%s Couldn't get bat_psy\n", __func__);
 		ret = 1;
@@ -232,9 +262,21 @@ bool is_charger_exist(struct mtk_charger *info)
 	static struct power_supply *chg_psy;
 	int ret;
 
-	if (chg_psy == NULL)
-		chg_psy = devm_power_supply_get_by_phandle(&info->pdev->dev,
-						       "charger");
+	chg_psy = info->chg_psy;
+
+	if (chg_psy == NULL || IS_ERR(chg_psy)) {
+		chr_err("%s retry to get chg_psy\n", __func__);
+		chg_psy = devm_power_supply_get_by_phandle(&info->pdev->dev, "charger");
+		info->chg_psy = chg_psy;
+	}
+
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+#ifdef CONFIG_CHARGER_BQ2560X
+	if (chg_psy == NULL || IS_ERR(chg_psy))
+		chg_psy = power_supply_get_by_name("mtk_charger_type");
+#endif
+#endif
+
 	if (chg_psy == NULL || IS_ERR(chg_psy)) {
 		pr_notice("%s Couldn't get chg_psy\n", __func__);
 		ret = -1;
@@ -249,14 +291,34 @@ bool is_charger_exist(struct mtk_charger *info)
 	return ret;
 }
 
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+extern bool is_nonstd_chg;
+#endif
 int get_charger_type(struct mtk_charger *info)
 {
 	union power_supply_propval prop, prop2, prop3;
 	static struct power_supply *chg_psy;
 	int ret;
 
-	if (chg_psy == NULL)
+	chg_psy = info->chg_psy;
+
+	if (chg_psy == NULL || IS_ERR(chg_psy)) {
+		chr_err("%s retry to get chg_psy\n", __func__);
+		chg_psy = devm_power_supply_get_by_phandle(&info->pdev->dev, "charger");
+		info->chg_psy = chg_psy;
+	}
+
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+#ifdef CONFIG_CHARGER_BQ2589X
+	if (chg_psy == NULL || IS_ERR(chg_psy))
+		chg_psy = power_supply_get_by_name("bq2589x");
+#endif
+#ifdef CONFIG_CHARGER_BQ2560X
+	if (chg_psy == NULL || IS_ERR(chg_psy))
 		chg_psy = power_supply_get_by_name("mtk_charger_type");
+#endif
+#endif
+
 	if (chg_psy == NULL || IS_ERR(chg_psy)) {
 		pr_notice("%s Couldn't get chg_psy\n", __func__);
 	} else {
@@ -272,7 +334,22 @@ int get_charger_type(struct mtk_charger *info)
 		if (prop.intval == 0)
 			prop2.intval = POWER_SUPPLY_TYPE_UNKNOWN;
 		else if (prop2.intval == POWER_SUPPLY_TYPE_USB &&
+		    prop3.intval == POWER_SUPPLY_USB_TYPE_UNKNOWN)
+			prop2.intval = POWER_SUPPLY_TYPE_UNKNOWN;
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+		else if (prop2.intval == POWER_SUPPLY_TYPE_USB &&
+		    prop3.intval == POWER_SUPPLY_USB_TYPE_DCP &&
+			is_nonstd_chg == true)
+#elif defined (CONFIG_N26_CHARGER_PRIVATE)
+		else if (prop2.intval == POWER_SUPPLY_TYPE_USB &&
+		    prop3.intval == POWER_SUPPLY_USB_TYPE_DCP && 
+		    !(info->pd_type == MTK_PD_CONNECT_PE_READY_SNK || 
+			   info->pd_type == MTK_PD_CONNECT_PE_READY_SNK_PD30 ||
+			   info->pd_type == MTK_PD_CONNECT_PE_READY_SNK_APDO))
+#else
+		else if (prop2.intval == POWER_SUPPLY_TYPE_USB &&
 		    prop3.intval == POWER_SUPPLY_USB_TYPE_DCP)
+#endif
 			prop2.intval = POWER_SUPPLY_TYPE_USB_FLOAT;
 	}
 
@@ -365,7 +442,7 @@ int get_charger_zcv(struct mtk_charger *info,
 #define PMIC_RG_VCDT_HV_EN_MASK		0x1
 #define PMIC_RG_VCDT_HV_EN_SHIFT	11
 
-static void pmic_set_register_value(struct regmap *map,
+static void pmic_set_register_value1(struct regmap *map,
 	unsigned int addr,
 	unsigned int mask,
 	unsigned int shift,
@@ -377,7 +454,7 @@ static void pmic_set_register_value(struct regmap *map,
 		val << shift);
 }
 
-unsigned int pmic_get_register_value(struct regmap *map,
+unsigned int pmic_get_register_value1(struct regmap *map,
 	unsigned int addr,
 	unsigned int mask,
 	unsigned int shift)
@@ -419,7 +496,7 @@ int disable_hw_ovp(struct mtk_charger *info, int en)
 
 	regmap = chip->regmap;
 
-	pmic_set_register_value(regmap,
+	pmic_set_register_value1(regmap,
 		PMIC_RG_VCDT_HV_EN_ADDR,
 		PMIC_RG_VCDT_HV_EN_SHIFT,
 		PMIC_RG_VCDT_HV_EN_MASK,

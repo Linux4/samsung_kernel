@@ -160,7 +160,7 @@ static int ion_dma_reserved_heap_allocate(struct ion_heap *heap,
 	if (paddr == ION_DMA_RESERVED_ALLOCATE_FAIL) {
 		IONMSG("%s alloc fail size=%ld, details are:====>\n",
 		       __func__, size);
-		dump_heap_info_to_log(heap, LOGLEVEL_ERR);
+	dump_heap_info_to_log(heap, LOGLEVEL_ERR);
 		ret = -ENOMEM;
 		goto err_free_table;
 	}

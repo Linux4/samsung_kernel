@@ -1114,7 +1114,11 @@ port_type_store(struct device *dev, struct device_attribute *attr,
 	int ret;
 	enum typec_port_type type;
 
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+	if (!port->cap->port_type_set) {
+#else
 	if (!port->cap->port_type_set || port->cap->type != TYPEC_PORT_DRP) {
+#endif
 		dev_dbg(dev, "changing port type not supported\n");
 		return -EOPNOTSUPP;
 	}
@@ -1125,7 +1129,10 @@ port_type_store(struct device *dev, struct device_attribute *attr,
 
 	type = ret;
 	mutex_lock(&port->port_type_lock);
-
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+	pr_info("%s port_type(%s) type(%s)\n", __func__,
+		typec_port_power_roles[port->port_type], typec_port_power_roles[type]);
+#endif
 	if (port->port_type == type) {
 		ret = size;
 		goto unlock_and_ret;
@@ -1169,8 +1176,10 @@ static ssize_t power_operation_mode_show(struct device *dev,
 					 char *buf)
 {
 	struct typec_port *port = to_typec_port(dev);
-
-	return sprintf(buf, "%s\n", typec_pwr_opmodes[port->pwr_opmode]);
+	if (!IS_ERR_OR_NULL(port) && !IS_ERR_OR_NULL(&(port->pwr_opmode)) && (port->pwr_opmode) > 0 && (port->pwr_opmode) < 4)
+		return sprintf(buf, "%s\n", typec_pwr_opmodes[port->pwr_opmode]);
+	else
+		return sprintf(buf, "%s\n", typec_pwr_opmodes[0]);
 }
 static DEVICE_ATTR_RO(power_operation_mode);
 
@@ -1393,6 +1402,7 @@ void typec_set_pwr_opmode(struct typec_port *port,
 			partner->usb_pd = 1;
 			sysfs_notify(&partner_dev->kobj, NULL,
 				     "supports_usb_power_delivery");
+			kobject_uevent(&port->dev.kobj, KOBJ_CHANGE);
 		}
 		put_device(partner_dev);
 	}

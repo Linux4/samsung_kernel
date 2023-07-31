@@ -56,7 +56,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.startx = 0,
 		.starty = 0,
 		.grabwindow_width = 4224,
-		.grabwindow_height = 2376,/
+		.grabwindow_height = 2376,
 		.mipi_data_lp2hs_settle_dc = 85,
 		.max_framerate = 300,
 	},
@@ -178,11 +178,16 @@ static struct imgsensor_struct imgsensor = {
 	.gain = 0x200,		/* current gain */
 	.dummy_pixel = 0,	/* current dummypixel */
 	.dummy_line = 0,	/* current dummyline */
-	.current_fps = 0,
-	.autoflicker_en = KAL_FALSE,
-	.test_pattern = KAL_FALSE,
-	.current_scenario_id = MSDK_SCENARIO_ID_CAMERA_PREVIEW,
-	.hdr_mode = KAL_FALSE,/* sensor need support LE, SE with HDR feature */
+	.current_fps = 0,	/* full size current fps : 24fps for PIP, 30fps for Normal or ZSD */
+	.autoflicker_en = KAL_FALSE,	/* auto flicker enable: KAL_FALSE for disable auto flicker,
+					 * KAL_TRUE for enable auto flicker
+					 */
+	.test_pattern = 0,	        /* test pattern mode or not.
+					 * KAL_FALSE for in test pattern mode,
+					 * KAL_TRUE for normal output
+					 */
+	.current_scenario_id = MSDK_SCENARIO_ID_CAMERA_PREVIEW,	/* current scenario id */
+	.hdr_mode = KAL_FALSE,	/* sensor need support LE, SE with HDR feature */
 	.i2c_write_id = 0,	/* record current sensor's i2c write id */
 };
 
@@ -198,8 +203,8 @@ static struct SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[10] = {
 	 0, 0, 1056, 784, 0, 0, 1056, 784},	/* hight speed video */
 	{4224, 3136, 0, 0, 4224, 3136, 1056, 784,
 	 0, 0, 1056, 784, 0, 0, 1056, 784},	/* slim video */
-	{4224, 3136, 0, 0, 4224, 3136, 2112, 1568
-	  0, 0, 2112, 1568, 0, 0, 2112, 1568},	/* Custom1 */
+	{4224, 3136, 0, 0, 4224, 3136, 2112, 1568,
+	 0, 0, 2112, 1568, 0, 0, 2112, 1568},	/* Custom1 */
 	{4224, 3136, 0, 0, 4224, 3136, 2112, 1568,
 	 0, 0, 2112, 1568, 0, 0, 2112, 1568},	/* Custom2 */
 	{4224, 3136, 0, 0, 4224, 3136, 2112, 1568,
@@ -916,7 +921,7 @@ static kal_uint32 open(void)
 	imgsensor.dummy_pixel = 0;
 	imgsensor.dummy_line = 0;
 	imgsensor.hdr_mode = KAL_FALSE;
-	imgsensor.test_pattern = KAL_FALSE;
+	imgsensor.test_pattern = 0;
 	imgsensor.current_fps = imgsensor_info.pre.max_framerate;
 	spin_unlock(&imgsensor_drv_lock);
 
@@ -1597,11 +1602,11 @@ static kal_uint32 get_default_framerate_by_scenario(
 	return ERROR_NONE;
 }
 
-static kal_uint32 set_test_pattern_mode(kal_bool enable)
+static kal_uint32 set_test_pattern_mode(kal_uint32 modes)
 {
-	LOG_INF("enable: %d\n", enable);
+	LOG_INF("modes: %d\n", modes);
 
-	if (enable) {
+	if (modes == 2) {
 		/* 0x5081[0]: 1 enable,  0 disable */
 		/* 0x5081[5:4]: Color bar type */
 		write_cmos_sensor_byte(0x5081, 0x01);
@@ -1618,7 +1623,11 @@ static kal_uint32 set_test_pattern_mode(kal_bool enable)
 			|| pdaf_sensor_type == PDAF_NO_PDAF)) {
 			write_cmos_sensor_byte(0x5001, 0x04);
 		}
-	} else {
+	} else if (modes == 5) {
+		write_cmos_sensor_byte(0x3019, 0xf0);
+		write_cmos_sensor_byte(0x4308, 0x01);
+	}
+	if ((modes != 2) && (imgsensor.test_pattern == 2)) {//colorbar off
 		/* 0x5081[0]: 1 enable,  0 disable */
 		/* 0x5081[5:4]: Color bar type */
 		write_cmos_sensor_byte(0x5081, 0x00);
@@ -1629,10 +1638,13 @@ static kal_uint32 set_test_pattern_mode(kal_bool enable)
 			|| pdaf_sensor_type == PDAF_NO_PDAF)) {
 			write_cmos_sensor_byte(0x5001, 0x00);
 		}
+	} else if (modes != 5 && (imgsensor.test_pattern == 5)) {
+		write_cmos_sensor_byte(0x3019, 0xd2);
+		write_cmos_sensor_byte(0x4308, 0x00);
 	}
 
 	spin_lock(&imgsensor_drv_lock);
-	imgsensor.test_pattern = enable;
+	imgsensor.test_pattern = modes;
 	spin_unlock(&imgsensor_drv_lock);
 	return ERROR_NONE;
 }
@@ -1684,6 +1696,7 @@ static kal_uint32 feature_control(
 	struct SENSOR_VC_INFO_STRUCT *pvcinfo;
 	MSDK_SENSOR_REG_INFO_STRUCT *sensor_reg_data =
 		(MSDK_SENSOR_REG_INFO_STRUCT *) feature_para;
+	int ret = 0;
 
 
 	/* LOG_INF("feature_id = %d\n", feature_id); */
@@ -1740,7 +1753,7 @@ static kal_uint32 feature_control(
 			(MUINT32 *) (uintptr_t) (*(feature_data + 1)));
 		break;
 	case SENSOR_FEATURE_SET_TEST_PATTERN:
-		set_test_pattern_mode((BOOL) (*feature_data));
+		set_test_pattern_mode((UINT32) (*feature_data));
 		break;
 	case SENSOR_FEATURE_GET_TEST_PATTERN_CHECKSUM_VALUE:
 		*feature_return_para_32 = imgsensor_info.checksum_value;
@@ -1904,15 +1917,35 @@ static kal_uint32 feature_control(
 		break;
 	case SENSOR_FEATURE_GET_PDAF_TYPE:
 		*feature_para = pdaf_sensor_type;
-		if (pdaf_sensor_type == PDAF_NO_PDAF)
-			sprintf(feature_para, "configure as type 1");
-		else if (pdaf_sensor_type == PDAF_VC_TYPE)
-			sprintf(feature_para, "configure as type 2");
-		else if (pdaf_sensor_type == PDAF_RAW_TYPE)
-			sprintf(feature_para, "configure as type 3");
-		else
-			sprintf(feature_para, "configure as unknown type");
-
+		if (pdaf_sensor_type == PDAF_NO_PDAF) {
+			ret = sprintf(feature_para, "configure as type 1");
+			if (ret < 0) {
+				pr_info("sprintf allocate error!, ret = %d\n",
+				ret);
+				return ret;
+			}
+		} else if (pdaf_sensor_type == PDAF_VC_TYPE) {
+			ret = sprintf(feature_para, "configure as type 2");
+			if (ret < 0) {
+				pr_info("sprintf allocate error!, ret = %d",
+				ret);
+				return ret;
+			}
+		} else if (pdaf_sensor_type == PDAF_RAW_TYPE) {
+			ret = sprintf(feature_para, "configure as type 3");
+			if (ret < 0) {
+				pr_info("sprintf allocate error!, ret = %d",
+				ret);
+				return ret;
+			}
+		} else {
+			ret = sprintf(feature_para, "configure as unknown type");
+			if (ret < 0) {
+				pr_info("sprintf allocate error!, ret = %d",
+				ret);
+				return ret;
+			}
+		}
 		LOG_INF("get PDAF type = %d\n", pdaf_sensor_type);
 		break;
 	case SENSOR_FEATURE_SET_PDAF_TYPE:

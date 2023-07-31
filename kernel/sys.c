@@ -72,6 +72,9 @@
 #include <linux/uaccess.h>
 #include <asm/io.h>
 #include <asm/unistd.h>
+#ifdef CONFIG_MTK_TASK_TURBO
+#include <mt-plat/turbo_common.h>
+#endif
 
 #include "uid16.h"
 
@@ -1291,10 +1294,12 @@ SYSCALL_DEFINE1(uname, struct old_utsname __user *, name)
 
 SYSCALL_DEFINE1(olduname, struct oldold_utsname __user *, name)
 {
-	struct oldold_utsname tmp = {};
+	struct oldold_utsname tmp;
 
 	if (!name)
 		return -EFAULT;
+
+	memset(&tmp, 0, sizeof(tmp));
 
 	down_read(&uts_sem);
 	memcpy(&tmp.sysname, &utsname()->sysname, __OLD_UTS_LEN);
@@ -2487,6 +2492,9 @@ SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
 			return -EFAULT;
 		set_task_comm(me, comm);
 		proc_comm_connector(me);
+#ifdef CONFIG_MTK_TASK_TURBO
+		sys_set_turbo_task(me);
+#endif
 		break;
 	case PR_GET_NAME:
 		get_task_comm(comm, me);

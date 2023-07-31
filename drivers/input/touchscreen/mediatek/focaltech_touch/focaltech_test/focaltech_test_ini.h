@@ -1,5 +1,5 @@
 /************************************************************************
-* Copyright (C) 2012-2019, Focaltech Systems (R)£¬All Rights Reserved.
+* Copyright (c) 2012-2020, Focaltech Systems (R)£¬All Rights Reserved.
 *
 * File Name: focaltech_test_ini.h
 *
@@ -69,6 +69,7 @@ struct ini_data {
     "RAWDATA_TEST", \
     "LCD_NOISE_TEST", \
     "KEY_SHORT_TEST", \
+    "MUX_OPEN_TEST", \
 }
 
 #define BASIC_THRESHOLD_INCELL      { \
@@ -79,6 +80,7 @@ struct ini_data {
     "RawDataTest_Min", "RawDataTest_Max", \
     "RawDataTest_VKey_Check", "RawDataTest_Min_VKey", "RawDataTest_Max_VKey", \
     "LCD_NoiseTest_Frame", "LCD_NoiseTest_Coefficient", "LCD_NoiseTest_Coefficient_key", \
+    "OpenTest_DifferMin", \
 }
 
 
@@ -102,12 +104,17 @@ struct ini_data {
     "SCapRawDataTest_ON_Min", "SCapRawDataTest_ON_Max", "SCapRawDataTest_SetWaterproof_ON", \
     "WeakShortTest_CG", "WeakShortTest_CC", \
     "PanelDifferTest_Min", "PanelDifferTest_Max", \
+    "SCapCbTest_High_Min", "SCapCbTest_High_Max", "ScapCBTest_SetHighSensitivity", \
+    "SCapRawDataTest_High_Min", "SCapRawDataTest_High_Max", "SCapRawDataTest_SetHighSensitivity", \
+    "SCapCbTest_Hov_Min", "SCapCbTest_Hov_Max", "ScapCBTest_SetHov", \
+    "SCapRawDataTest_Hov_Min", "SCapRawDataTest_Hov_Max", "SCapRawDataTest_SetHov", \
 }
 
 #define TEST_ITEM_SC                { \
+    "RAWDATA_TEST", \
     "CB_TEST", \
     "DELTA_CB_TEST", \
-    "RAWDATA_TEST", \
+    "WEAK_SHORT_TEST", \
 }
 
 #define BASIC_THRESHOLD_SC          { \

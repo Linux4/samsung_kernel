@@ -220,6 +220,10 @@ source "drivers/input/serio/Kconfig"
 
 source "drivers/input/gameport/Kconfig"
 
+source "drivers/input/aw9610x_sar/Kconfig"
+
+source "drivers/input/hx9031a_sar/Kconfig"
+
 endmenu
 
 endmenu

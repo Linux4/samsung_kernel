@@ -50,14 +50,17 @@
 			ircmp_vclamp = <32000>;		/* uV */
 			en_te = <1>;
 			en_wdt = <1>;
+			en_otg_wdt = <1>;
 			aicc_once = <1>;
 			post_aicc = <1>;
 			batoc_notify = <0>;
 			charger = <&mt6360_chg>;
 			bc12_sel = <0>;
+#if !defined (CONFIG_MACH_MT6833)
 			phys = <&u2port0 PHY_TYPE_USB2>;
 			phy-names = "usb2-phy";
 			usb = <&ssusb>;
+#endif
 			otg_vbus: usb-otg-vbus {
 				regulator-compatible = "usb-otg-vbus";
 				regulator-name = "usb-otg-vbus";

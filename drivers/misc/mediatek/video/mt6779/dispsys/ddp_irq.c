@@ -110,14 +110,10 @@ int disp_unregister_irq_callback(DDP_IRQ_CALLBACK cb)
 		char msg[len];
 		int n = 0;
 
-		n = snprintf(msg, len,
+		n = scnprintf(msg, len,
 			     "Try to unregister callback function %p which was not registered\n",
 			     cb);
-		if (n < 0) {
-			DISP_LOG_E("[%s %d]snprintf err:%d\n",
-				   __func__, __LINE__, n);
-		} else
-			DISP_LOG_E("%s", msg);
+		DISP_LOG_E("%s", msg);
 		return -1;
 	}
 	return 0;
@@ -174,14 +170,10 @@ int disp_unregister_module_irq_callback(enum DISP_MODULE_ENUM module,
 		char msg[len];
 		int n = 0;
 
-		n = snprintf(msg, len,
+		n = scnprintf(msg, len,
 			"try to unregister callback function but not registered. module=%d cb=%p\n",
 			module, cb);
-		if (n < 0) {
-			DISP_LOG_E("[%s %d]snprintf err:%d\n",
-				   __func__, __LINE__, n);
-		} else
-			DISP_LOG_E("%s", msg);
+		DISP_LOG_E("%s", msg);
 		return -1;
 	}
 	return 0;
@@ -212,6 +204,8 @@ irqreturn_t disp_irq_handler(int irq, void *dev_id)
 	unsigned int reg_val = 0;
 	unsigned int index = 0;
 	unsigned int reg_temp_val = 0;
+
+	DDPIRQ("%s in, irq = 0x%x\n", __func__, irq);
 
 	if (irq == ddp_get_module_irq(DISP_MODULE_DSI0)) {
 		if (ddp_get_module_irq(DISP_MODULE_DSI0) == irq) {
@@ -403,6 +397,8 @@ irqreturn_t disp_irq_handler(int irq, void *dev_id)
 			rdma_start_time[index] = sched_clock();
 			DDPIRQ("IRQ: RDMA%d frame start!\n", index);
 			rdma_start_irq_cnt[index]++;
+
+			primary_display_wakeup_pf_thread();
 		}
 		if (reg_val & (1 << 3)) {
 			mmprofile_log_ex(
@@ -499,15 +495,15 @@ irqreturn_t disp_irq_handler(int irq, void *dev_id)
 		reg_val = DISP_REG_GET(DISP_REG_CONFIG_MMSYS_INTSTA) & 0x7;
 		DISP_CPU_REG_SET(DISP_REG_CONFIG_MMSYS_INTSTA, ~reg_val);
 		if (reg_val & (1 << 0)) {
-			n = snprintf(msg, len, "MMSYS to MFG APB TX Error, ");
-			n += snprintf(msg + n, len - n,
+			n = scnprintf(msg, len, "MMSYS to MFG APB TX Error, ");
+			n += scnprintf(msg + n, len - n,
 				      "MMSYS clock off but MFG clock on!\n");
 			DDP_PR_ERR("%s", msg);
 		}
 
 		if (reg_val & (1 << 1)) {
-			n = snprintf(msg, len, "MMSYS to MJC APB TX Error, ");
-			n += snprintf(msg + n, len - n,
+			n = scnprintf(msg, len, "MMSYS to MJC APB TX Error, ");
+			n += scnprintf(msg + n, len - n,
 				      "MMSYS clock off but MJC clock on!\n");
 			DDP_PR_ERR("%s", msg);
 		}

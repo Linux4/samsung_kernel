@@ -67,14 +67,13 @@ const char *const ssmr_state_text[NR_STATES] = {
 
 static struct SSMR_Feature _ssmr_feats[__MAX_NR_SSMR_FEATURES] = {
 	[SSMR_FEAT_SVP] = {
-		.dt_prop_name = "svp-size",
+		.dt_prop_name = "svp-region-based-size",
 		.feat_name = "svp",
 		.cmd_online = "svp=on",
 		.cmd_offline = "svp=off",
 #if IS_ENABLED(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) ||\
 	IS_ENABLED(CONFIG_TRUSTONIC_TEE_SUPPORT) ||\
-	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) || \
-	IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
+	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT)
 		.enable = "on",
 #else
 		.enable = "off",
@@ -190,8 +189,7 @@ struct SSMR_HEAP_INFO _ssmr_heap_info[__MAX_NR_SSMR_FEATURES];
 
 #if IS_ENABLED(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) ||\
 	IS_ENABLED(CONFIG_TRUSTONIC_TEE_SUPPORT) ||\
-	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) || \
-	IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
+	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT)
 static int __init dedicate_svp_memory(struct reserved_mem *rmem)
 {
 	struct SSMR_Feature *feature;
@@ -634,12 +632,18 @@ static ssize_t ssmr_show(struct kobject *kobj, struct kobj_attribute *attr,
 	return ret;
 }
 
+#ifdef CONFIG_MTK_ENG_BUILD
 static ssize_t ssmr_store(struct kobject *kobj, struct kobj_attribute *attr,
 				const char *cmd, size_t count)
 {
 	char buf[64];
 	int buf_size;
 	int feat = 0, ret;
+
+	if (count >= 64) {
+		pr_info("copy size too long.\n");
+		return -EINVAL;
+	}
 
 	ret = sscanf(cmd, "%s", buf);
 	if (ret) {
@@ -704,6 +708,7 @@ static int memory_ssmr_sysfs_init(void)
 	return 0;
 }
 #endif /* end of CONFIG_SYSFS */
+#endif
 
 int ssmr_probe(struct platform_device *pdev)
 {
@@ -731,8 +736,10 @@ int ssmr_probe(struct platform_device *pdev)
 	}
 
 	/* ssmr sys file init */
+#ifdef CONFIG_MTK_ENG_BUILD
 #if IS_ENABLED(CONFIG_SYSFS)
 	memory_ssmr_sysfs_init();
+#endif
 #endif
 
 	get_reserved_cma_memory(&pdev->dev);

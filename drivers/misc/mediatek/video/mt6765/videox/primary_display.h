@@ -459,15 +459,16 @@ int primary_display_get_lcm_refresh_rate(void);
 int _display_set_lcm_refresh_rate(int fps);
 void primary_display_idlemgr_kick(const char *source, int need_lock);
 void primary_display_idlemgr_enter_idle(int need_lock);
+void primary_display_update_present_fence(struct cmdqRecStruct *cmdq_handle,
+	unsigned int fence_idx);
+void primary_display_wakeup_pf_thread(void);
 void primary_display_switch_esd_mode(int mode);
 int primary_display_cmdq_set_reg(unsigned int addr, unsigned int val);
 int primary_display_vsync_switch(int method);
 int primary_display_setlcm_cmd(unsigned int *lcm_cmd, unsigned int *lcm_count,
 	unsigned int *lcm_value);
 int primary_display_mipi_clk_change(unsigned int clk_value);
-void primary_display_wakeup_pf_thread(void);
-void primary_display_update_present_fence(struct cmdqRecStruct *cmdq_handle,
-	unsigned int fence_idx);
+
 void _cmdq_insert_wait_frame_done_token_mira(void *handle);
 int primary_display_get_max_layer(void);
 long primary_display_wait_state(enum DISP_POWER_STATE state, long timeout);
@@ -528,10 +529,10 @@ int dynamic_debug_msg_print(unsigned int mva, int w, int h, int pitch,
 
 int display_enter_tui(void);
 int display_exit_tui(void);
-//+Bug 623261, chensibo.wt, ADD, 20210201, add CABC function
+//+Bug 717431, chensibo.wt, ADD, 20220118, add CABC function
 int primary_display_set_cabc(unsigned int enable);
 int primary_display_get_cabc(int *status);
-//-Bug 623261, chensibo.wt, ADD, 20210201, add CABC function
+//-Bug 717431, chensibo.wt, ADD, 20220118, add CABC function
 
 int primary_display_config_full_roi(struct disp_ddp_path_config *pconfig,
 	disp_path_handle disp_handle,

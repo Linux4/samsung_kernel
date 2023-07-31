@@ -9,7 +9,7 @@
 #include "inc/aal_control.h"
 struct alsps_context *alsps_context_obj /* = NULL*/;
 struct platform_device *pltfm_dev;
-int last_als_report_data = -1;
+
 
 /* AAL default delay timer(nano seconds)*/
 #define AAL_DELAY 200000000
@@ -35,15 +35,12 @@ int als_data_report_t(int value, int status, int64_t time_stamp)
 		err = sensor_input_event(cxt->als_mdev.minor, &event);
 		cxt->is_get_valid_als_data_after_enable = true;
 	}
-	if (value != last_als_report_data) {
 		event.handle = ID_LIGHT;
 		event.flush_action = DATA_ACTION;
 		event.word[0] = value;
 		event.status = status;
 		err = sensor_input_event(cxt->als_mdev.minor, &event);
-		if (err >= 0)
-			last_als_report_data = value;
-	}
+
 	return err;
 }
 int als_data_report(int value, int status)
@@ -427,7 +424,6 @@ static ssize_t alsactive_store(struct device *dev,
 	if (handle == ID_LIGHT) {
 		if (en) {
 			cxt->als_enable = 1;
-			last_als_report_data = -1;
 		} else if (!en) {
 			cxt->als_enable = 0;
 		} else {
@@ -623,7 +619,32 @@ static ssize_t alscali_store(struct device *dev,
 	vfree(cali_buf);
 	return count;
 }
-
+//+Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
+static ssize_t als_store_lcdinfo(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct alsps_context *cxt = NULL;
+	int err = 0;
+	uint8_t *lcdtype_buf = NULL;
+	lcdtype_buf = vzalloc(count);
+	if (!lcdtype_buf)
+		return -ENOMEM;
+	memcpy(lcdtype_buf, buf, count);
+	mutex_lock(&alsps_context_obj->alsps_op_mutex);
+	cxt = alsps_context_obj;
+		if (cxt->als_ctl.als_set_lcdinfo != NULL)
+			err = cxt->als_ctl.als_set_lcdinfo(lcdtype_buf, count);
+		else
+			pr_err("DON'T SUPPORT ALS GET LCDINFO\n");
+		if (err < 0)
+			pr_err("als get lcdinfo err %d\n", err);
+	mutex_unlock(&alsps_context_obj->alsps_op_mutex);
+	if (err)
+		return err;
+	else
+		return count;
+}
+//-Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 #if !defined(CONFIG_NANOHUB) || !defined(CONFIG_MTK_ALSPSHUB)
 static int ps_enable_and_batch(void)
 {
@@ -981,6 +1002,7 @@ DEVICE_ATTR_RW(alsbatch);
 DEVICE_ATTR_RW(alsflush);
 DEVICE_ATTR_RO(alsdevnum);
 DEVICE_ATTR_WO(alscali);
+DEVICE_ATTR(alslcd, 0644, NULL, als_store_lcdinfo);//Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 DEVICE_ATTR_RW(psactive);
 DEVICE_ATTR_RW(psbatch);
 DEVICE_ATTR_RW(psflush);
@@ -993,6 +1015,7 @@ static struct attribute *als_attributes[] = {
 	&dev_attr_alsflush.attr,
 	&dev_attr_alsdevnum.attr,
 	&dev_attr_alscali.attr,
+	&dev_attr_alslcd.attr,//Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 	NULL
 };
 
@@ -1143,6 +1166,7 @@ int als_register_control_path(struct als_control_path *ctl)
 	cxt->als_ctl.batch = ctl->batch;
 	cxt->als_ctl.flush = ctl->flush;
 	cxt->als_ctl.set_cali = ctl->set_cali;
+	cxt->als_ctl.als_set_lcdinfo = ctl->als_set_lcdinfo;//Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 	cxt->als_ctl.rgbw_enable = ctl->rgbw_enable;
 	cxt->als_ctl.rgbw_batch = ctl->rgbw_batch;
 	cxt->als_ctl.rgbw_flush = ctl->rgbw_flush;

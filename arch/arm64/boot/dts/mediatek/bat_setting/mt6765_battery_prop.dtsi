@@ -19,7 +19,11 @@
 	/* System shutdown current */
 	FG_METER_RESISTANCE = <(75)>;
 	/* The resistance of PCB */
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+	CAR_TUNE_VALUE = <(96)>;
+#else
 	CAR_TUNE_VALUE = <(100)>;
+#endif
 	/* Tune value for current measurement */
 	PMIC_MIN_VOL = <(33500)>;
 	/* vboot voltage for gauge 0%*/
@@ -70,18 +74,46 @@
 	RBAT_PULL_UP_R = <(16900)>;
 	RBAT_PULL_UP_VOLT = <(1800)>;
 
-//+bug 621775, yaocankun, mod, 20210113, merge bat curve
-#if defined (CONFIG_MT6370_PMU_CHARGER)
+#ifdef CONFIG_N26_CHARGER_PRIVATE
+	g_Q_MAX = <
+		5000 5000 5000 5000
+		5000 5000 5000 5000
+		4500 4500 4500 4500
+		4000 4000 4000 4000
+		3500 3500 3500 3500
+		3000 3000 3000 3000
+	>;
+	EMBEDDED_SEL = <(1)>;
+	/* Pseudo 100% percentage at T0 */
+	g_FG_PSEUDO100_T1 = <(97)>;
+	/* Pseudo 100% percentage at T1 */
+	g_FG_PSEUDO100_T2 = <(97)>;
+	/* Pseudo 100% percentage at T2 */
+	g_FG_PSEUDO100_T3 = <(97)>;
+	/* Pseudo 100% percentage at T3 */
+	g_FG_PSEUDO100_T4 = <(97)>;
+#include "battery_N26_SCUD_4V4_5000mAh.dtsi"
+#include "battery_N26_BYD_4V4_5000mAh.dtsi"
+#include "battery_N26_ND_4V4_5000mAh.dtsi"
+#endif
+
+#ifdef CONFIG_N23_CHARGER_PRIVATE
+#include "battery_N23_SDI_4V4_5000mAh.dtsi"
+#include "battery_N23_BYD_4V4_5000mAh.dtsi"
+#endif
+
+#ifdef CONFIG_N21_CHARGER_PRIVATE
+	EMBEDDED_SEL = <(1)>;
+	/* Pseudo 100% percentage at T0 */
+	g_FG_PSEUDO100_T1 = <(98)>;
+	/* Pseudo 100% percentage at T1 */
+	g_FG_PSEUDO100_T2 = <(98)>;
+	/* Pseudo 100% percentage at T2 */
+	g_FG_PSEUDO100_T3 = <(98)>;
+	/* Pseudo 100% percentage at T3 */
+	g_FG_PSEUDO100_T4 = <(98)>;
+#include "battery_N21_NVT_4V4_4000mah.dtsi"
 #include "battery_N21_SCUD_4V4_4000mah.dtsi"
 #include "battery_N21_SCUD_SDI_4V4_4000mah.dtsi"
-#include "battery_N21_NVT_4V4_4000mah.dtsi"
-#else
-//-bug 621775, yaocankun, mod, 20210113, merge bat curve
-#include "mt6765_battery_table_ext.dtsi"
-#if defined (CONFIG_CHARGER_BQ2415X)
-#include "battery_N6_SCUD_4V4_4000mah.dtsi"
-#include "battery_N6_SUNWODA_4V4_4000mah.dtsi"
-#include "battery_N6_NVT_4V4_4000mah.dtsi"
-#endif
 #endif
 };

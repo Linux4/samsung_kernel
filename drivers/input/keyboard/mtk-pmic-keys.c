@@ -318,6 +318,32 @@ int mtk_pmic_pwrkey_status(void)
 }
 EXPORT_SYMBOL(mtk_pmic_pwrkey_status);
 
+#ifdef CONFIG_SEC_DEBUG
+int mtk_pmic_homekey_status(void)
+{
+	struct mtk_pmic_keys_info *homekey;
+	const struct mtk_pmic_keys_regs *regs;
+	u32 key_deb, pressed;
+
+	if (!keys)
+		return -EINVAL;
+
+	homekey = &keys->keys[MTK_PMIC_HOMEKEY_INDEX];
+	regs = homekey->regs;
+
+	regmap_read(keys->regmap, regs->deb_reg, &key_deb);
+	dev_info(keys->dev, "Read register 0x%x and mask 0x%x and value: 0x%x\n",
+		 regs->deb_reg, regs->deb_mask, key_deb);
+	key_deb &= regs->deb_mask;
+	pressed = !key_deb;
+
+	dev_info(keys->dev, "%s home key\n", pressed ? "pressed" : "released");
+
+	return pressed;
+}
+EXPORT_SYMBOL(mtk_pmic_homekey_status);
+#endif
+
 static int __maybe_unused mtk_pmic_keys_suspend(struct device *dev)
 {
 	struct mtk_pmic_keys *keys = dev_get_drvdata(dev);

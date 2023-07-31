@@ -76,14 +76,14 @@ unsigned long long amms_seq_id;
 
 module_param(amms_irq_count, uint, 0644);
 
-static ssize_t amms_version_show(struct kobject *kobj,
-		struct kobj_attribute *attr, char *buf)
+static ssize_t amms_version_show(struct module_attribute *attr,
+		struct module_kobject *kobj, char *buf)
 {
 	return snprintf(buf, 5, "%s\n", "1.0");
 }
 
 
-static struct kobj_attribute amms_version_attribute =
+static struct module_attribute amms_version_attribute =
 	__ATTR(amms_version, 0600, amms_version_show, NULL);
 
 static struct attribute *attrs[] = {
@@ -151,8 +151,6 @@ int free_reserved_memory(phys_addr_t start_phys,
 	}
 
 	memblock_free(start_phys, (end_phys - start_phys));
-
-	free_memsize_reserved(start_phys, (end_phys - start_phys));
 
 	for (pos = start_phys; pos < end_phys; pos += PAGE_SIZE, pages++)
 		free_reserved_page(phys_to_page(pos));
@@ -295,6 +293,9 @@ static int __init amms_probe(struct platform_device *pdev)
 #if CONFIG_SYSFS
 	amms_sysfs_init();
 #endif
+	/* set amms_task interruptible */
+	smp_store_mb(amms_task->state, (TASK_INTERRUPTIBLE));
+
 	return 0;
 }
 

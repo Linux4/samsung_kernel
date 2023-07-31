@@ -22,24 +22,6 @@
 #include "flashlight-core.h"
 #include "flashlight-dt.h"
 
-//+bug 612420,huangguoyong.wt,add,2020/12/23,add for n6 camera bring up
-#define TAG_NAME "[flashligh_led191_drv]"
-#define PK_DBG_NONE(fmt, arg...)    do {} while (0)
-#define PK_DBG_FUNC(fmt, arg...)    pr_err(TAG_NAME "%s: " fmt, __func__, ##arg)
-#define PK_ERR(fmt, arg...)         pr_err(TAG_NAME "%s: " fmt, __func__, ##arg)
-
-
-#define DEBUG_LEDS_STROBE
-#ifdef DEBUG_LEDS_STROBE
-#define PK_LOG(fmt, arg...)       pr_err(TAG_NAME "flashlight %s is called.\n", __func__)
-#define PK_DBG         PK_DBG_FUNC
-#else
-#define PK_LOG(fmt, arg...)       do {} while (0)
-#define PK_DBG(a, ...)
-#endif
-
-#define FLASH_NODE
-
 /* define device tree */
 #ifndef LED191_DTNAME
 #define LED191_DTNAME "mediatek,flashlights_led191"
@@ -57,16 +39,11 @@ static struct work_struct led191_work;
 #define LED191_PINCTRL_PIN_HWEN 0
 #define LED191_PINCTRL_PINSTATE_LOW 0
 #define LED191_PINCTRL_PINSTATE_HIGH 1
-#define LED191_PINCTRL_STATE_HW_CH0_HIGH "flash_en_pin1"
-#define LED191_PINCTRL_STATE_HW_CH0_LOW  "flash_en_pin0"
-#define LED191_PINCTRL_STATE_HW_CH1_HIGH "torch_en_pin1"
-#define LED191_PINCTRL_STATE_HW_CH1_LOW  "torch_en_pin0"
-
+#define LED191_PINCTRL_STATE_HWEN_HIGH "hwen_high"
+#define LED191_PINCTRL_STATE_HWEN_LOW  "hwen_low"
 static struct pinctrl *led191_pinctrl;
-static struct pinctrl_state *led191_hw_ch0_high;
-static struct pinctrl_state *led191_hw_ch0_low;
-static struct pinctrl_state *led191_hw_ch1_high;
-static struct pinctrl_state *led191_hw_ch1_low;
+static struct pinctrl_state *led191_hwen_high;
+static struct pinctrl_state *led191_hwen_low;
 
 /* define usage count */
 static int use_count;
@@ -95,26 +72,20 @@ static int led191_pinctrl_init(struct platform_device *pdev)
 	}
 
 	/*  Flashlight pin initialization */
-	led191_hw_ch0_high = pinctrl_lookup_state(led191_pinctrl, LED191_PINCTRL_STATE_HW_CH0_HIGH);
-	if (IS_ERR(led191_hw_ch0_high)) {
-		PK_ERR("Failed to init (%s)\n", LED191_PINCTRL_STATE_HW_CH0_HIGH);
-		ret = PTR_ERR(led191_hw_ch0_high);
+	led191_hwen_high = pinctrl_lookup_state(
+			led191_pinctrl, LED191_PINCTRL_STATE_HWEN_HIGH);
+	if (IS_ERR(led191_hwen_high)) {
+		pr_info("Failed to init (%s)\n",
+			LED191_PINCTRL_STATE_HWEN_HIGH);
+		ret = PTR_ERR(led191_hwen_high);
 	}
-	led191_hw_ch0_low = pinctrl_lookup_state(led191_pinctrl, LED191_PINCTRL_STATE_HW_CH0_LOW);
-	if (IS_ERR(led191_hw_ch0_low)) {
-		PK_ERR("Failed to init (%s)\n", LED191_PINCTRL_STATE_HW_CH0_LOW);
-		ret = PTR_ERR(led191_hw_ch0_low);
+	led191_hwen_low = pinctrl_lookup_state(
+			led191_pinctrl, LED191_PINCTRL_STATE_HWEN_LOW);
+	if (IS_ERR(led191_hwen_low)) {
+		pr_info("Failed to init (%s)\n", LED191_PINCTRL_STATE_HWEN_LOW);
+		ret = PTR_ERR(led191_hwen_low);
 	}
-	led191_hw_ch1_high = pinctrl_lookup_state(led191_pinctrl, LED191_PINCTRL_STATE_HW_CH1_HIGH);
-	if (IS_ERR(led191_hw_ch1_high)) {
-		PK_ERR("Failed to init (%s)\n", LED191_PINCTRL_STATE_HW_CH1_HIGH);
-		ret = PTR_ERR(led191_hw_ch1_high);
-	}
-	led191_hw_ch1_low = pinctrl_lookup_state(led191_pinctrl, LED191_PINCTRL_STATE_HW_CH1_LOW);
-	if (IS_ERR(led191_hw_ch1_low)) {
-		PK_ERR("Failed to init (%s)\n", LED191_PINCTRL_STATE_HW_CH1_LOW);
-		ret = PTR_ERR(led191_hw_ch1_low);
-	}
+
 	return ret;
 }
 
@@ -122,34 +93,27 @@ static int led191_pinctrl_set(int pin, int state)
 {
 	int ret = 0;
 
-	if (IS_ERR(led191_pinctrl) || IS_ERR(led191_hw_ch0_high) || IS_ERR(led191_hw_ch0_low) || IS_ERR(led191_hw_ch1_high) || IS_ERR(led191_hw_ch1_low)) {
-		PK_ERR("pinctrl is not available\n");
+	if (IS_ERR(led191_pinctrl)) {
+		pr_info("pinctrl is not available\n");
 		return -1;
 	}
 
 	switch (pin) {
-		case 0://torch mode
-			if (state) {//enable
-			// Type Bug438143,yinjie1.wt,modify,2019.07.02,change gpio state
-				ret = pinctrl_select_state(led191_pinctrl, led191_hw_ch0_low);//153-0
-				ret += pinctrl_select_state(led191_pinctrl, led191_hw_ch1_high);//152-1
-			} else {//disable
-				ret = pinctrl_select_state(led191_pinctrl, led191_hw_ch0_low);
-				ret += pinctrl_select_state(led191_pinctrl, led191_hw_ch1_low);
-			}
-			break;
-		case 1://flash mode
-			if (state) {//enable
-				ret = pinctrl_select_state(led191_pinctrl, led191_hw_ch0_high);
-				ret += pinctrl_select_state(led191_pinctrl, led191_hw_ch1_low);
-			} else {//disable
-				ret = pinctrl_select_state(led191_pinctrl, led191_hw_ch0_low);
-				ret += pinctrl_select_state(led191_pinctrl, led191_hw_ch1_low);
-			}
-			break;
-		default:
-			PK_ERR("set err, pin(%d) state(%d)\n", pin, state);
-			break;
+	case LED191_PINCTRL_PIN_HWEN:
+		if (state == LED191_PINCTRL_PINSTATE_LOW &&
+				!IS_ERR(led191_hwen_low))
+			ret = pinctrl_select_state(
+					led191_pinctrl, led191_hwen_low);
+		else if (state == LED191_PINCTRL_PINSTATE_HIGH &&
+				!IS_ERR(led191_hwen_high))
+			ret = pinctrl_select_state(
+					led191_pinctrl, led191_hwen_high);
+		else
+			pr_info("set err, pin(%d) state(%d)\n", pin, state);
+		break;
+	default:
+		pr_info("set err, pin(%d) state(%d)\n", pin, state);
+		break;
 	}
 	pr_debug("pin(%d) state(%d), ret:%d\n", pin, state, ret);
 
@@ -163,14 +127,15 @@ static int led191_pinctrl_set(int pin, int state)
 /* flashlight enable function */
 static int led191_enable(void)
 {
-	PK_DBG("g_flash_duty = %d\n", g_flash_duty);
-	if (g_flash_duty == 0) {//torch mode
-		led191_pinctrl_set(0, 1);
-	} else if (g_flash_duty == 1) {//flash mode
-		led191_pinctrl_set(1, 1);
+	int pin = LED191_PINCTRL_PIN_HWEN;
+
+	if (g_flash_duty == 1) {
+		led191_pinctrl_set(pin, 1);
 	} else {
-		PK_ERR("set err, g_flash_duty(%d)\n", g_flash_duty);
+		led191_pinctrl_set(pin, 1);
+		led191_pinctrl_set(pin, 0);
 	}
+	led191_pinctrl_set(pin, 1);
 
 	return 0;
 }
@@ -187,11 +152,7 @@ static int led191_disable(void)
 /* set flashlight level */
 static int led191_set_level(int level)
 {
-	PK_DBG("g_flash_duty = %d\n", g_flash_duty);
 	g_flash_duty = level;
-	if (g_flash_duty > 1) {
-		g_flash_duty = 1;
-	}
 	return 0;
 }
 
@@ -411,51 +372,14 @@ err_node_put:
 	return -EINVAL;
 }
 
-#ifdef FLASH_NODE
-static int led_flash_state = 0;
-static ssize_t led_flash_show(struct device *dev, struct device_attribute *attr, char *buf){
-    return sprintf(buf, "%d\n", led_flash_state);
-}
-static ssize_t led_flash_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size){
-	unsigned long value;
-	int err;
-	err = kstrtoul(buf, 10, &value);
-	if(err != 0){
-		return err;
-	}
-	switch(value){
-		case 1://torch
-			err = led191_pinctrl_set(0, 1);
-			if(err < 0)
-				PK_ERR("AAA - error1 - AAA\n");
-			led_flash_state = 1;
-			break;
-		case 2://flash
-			err = led191_pinctrl_set(1, 1);
-			if(err < 0)
-				PK_ERR("AAA - error2 - AAA\n");
-			led_flash_state = 2;
-			break;
-		default :
-			err = led191_pinctrl_set(0, 0);
-			if(err < 0)
-				PK_ERR("AAA - error3 - AAA\n");
-			led_flash_state = 0;
-			break;
-	}
-	return 1;
-}
-static DEVICE_ATTR(led_flash, 0664, led_flash_show, led_flash_store);
-#endif
-
 static int led191_probe(struct platform_device *pdev)
 {
 	struct led191_platform_data *pdata = dev_get_platdata(&pdev->dev);
 	int err;
 	int i;
-	int ret;
 
-	PK_DBG("Probe start.\n");
+	pr_debug("Probe start.\n");
+
 	/* init pinctrl */
 	if (led191_pinctrl_init(pdev)) {
 		pr_debug("Failed to init pinctrl.\n");
@@ -506,21 +430,7 @@ static int led191_probe(struct platform_device *pdev)
 		}
 	}
 
-	ret = led191_pinctrl_set(0, 0);
-	if(ret < 0)
-		PK_ERR("AAA - error1 - AAA\n");
-	ret = led191_pinctrl_set(1, 0);
-	if(ret < 0)
-		PK_ERR("AAA - error2 - AAA\n");
-
-#ifdef FLASH_NODE
-  ret = device_create_file(&pdev->dev, &dev_attr_led_flash);
-  if(ret < 0){
-    pr_err("=== create led_flash_node file failed ===\n");
-  }
-#endif
-	PK_DBG("Probe done.\n");
-//-bug 612420,huangguoyong.wt,add,2020/12/23,add for n6 camera bring up
+	pr_debug("Probe done.\n");
 
 	return 0;
 err:

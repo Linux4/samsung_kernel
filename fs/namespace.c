@@ -131,6 +131,9 @@ static inline void sys_umount_trace_print(struct mount *mnt, int flags)
 	struct super_block *sb = mnt->mnt.mnt_sb;
 	int mnt_flags = mnt->mnt.mnt_flags;
 
+#ifndef SDFAT_SUPER_MAGIC
+#define SDFAT_SUPER_MAGIC       (0x5EC5DFA4UL)
+#endif /* SDFAT_SUPER_MAGIC */
 	/* We don`t want to see what zygote`s umount */
 	if (((sb->s_magic == SDFAT_SUPER_MAGIC) ||
 		(sb->s_magic == MSDOS_SUPER_MAGIC)) &&

@@ -16,10 +16,10 @@
 #if defined(MTK_LCM_DEVICE_TREE_SUPPORT)
 #include <linux/of.h>
 #endif
-#include "linux/hardware_info.h"
-extern char Lcm_name[HARDWARE_MAX_ITEM_LONGTH];
 unsigned int g_default_panel_backlight_off = 0;
 
+#include <linux/hardware_info.h>
+extern char Lcm_name[HARDWARE_MAX_ITEM_LONGTH];
 
 /* This macro and arrya is designed for multiple LCM support */
 /* for multiple LCM, we should assign I/F Port id in lcm driver, */
@@ -1035,15 +1035,15 @@ struct disp_lcm_handle *disp_lcm_probe(char *plcm_name,
 	bool isLCMDtFound = false;
 #endif
 
-
 	struct LCM_DRIVER *lcm_drv = NULL;
 	struct LCM_PARAMS *lcm_param = NULL;
 	struct disp_lcm_handle *plcm = NULL;
 
 	DISPFUNC();
 	DISPCHECK("plcm_name=%s is_lcm_inited %d\n", plcm_name, is_lcm_inited);
-	if (is_lcm_inited == 1){
-		strncpy(Lcm_name,plcm_name,strlen(plcm_name)+1);
+
+	if(is_lcm_inited == 1) {
+		strncpy(Lcm_name, plcm_name, strlen(plcm_name)+1);
 	}
 
 #if defined(MTK_LCM_DEVICE_TREE_SUPPORT)
@@ -1323,7 +1323,6 @@ int disp_lcm_init(struct disp_lcm_handle *plcm, int force)
 
 struct LCM_BACKLIGHT_CUSTOM lcm_backlight_cust[6];
 unsigned int lcm_backlight_cust_count;
-
 struct LCM_PARAMS *disp_lcm_get_params(struct disp_lcm_handle *plcm)
 {
     int i = 0;
@@ -1334,12 +1333,10 @@ struct LCM_PARAMS *disp_lcm_get_params(struct disp_lcm_handle *plcm)
 		for(i=0; i<6; i++)
 			lcm_backlight_cust[i] = plcm->params->backlight_cust[i];
 		lcm_backlight_cust_count = plcm->params->backlight_cust_count;
-
 		return plcm->params;
 	}else
 		return NULL;
 }
-
 EXPORT_SYMBOL(lcm_backlight_cust);
 EXPORT_SYMBOL(lcm_backlight_cust_count);
 
@@ -1535,7 +1532,10 @@ int disp_lcm_adjust_fps(void *cmdq, struct disp_lcm_handle *plcm, int fps)
 	DISPERR("lcm not initialied\n");
 	return -1;
 }
-
+unsigned int g_last_level;
+int get_lcm_backlight_level(void){
+	return g_last_level;
+}
 int disp_lcm_set_backlight(struct disp_lcm_handle *plcm,
 	void *handle, int level)
 {
@@ -1546,7 +1546,9 @@ int disp_lcm_set_backlight(struct disp_lcm_handle *plcm,
 		DISPERR("lcm_drv is null\n");
 		return -1;
 	}
+
 	lcm_drv = plcm->drv;
+	g_last_level = level;
 	if (lcm_drv->set_backlight_cmdq) {
 		lcm_drv->set_backlight_cmdq(handle, level);
 		DISPERR("disp_lcm_set_backlight:level:%d\n", level);
@@ -1557,7 +1559,7 @@ int disp_lcm_set_backlight(struct disp_lcm_handle *plcm,
 
 	return 0;
 }
-//+Bug 623261, chensibo.wt, ADD, 20210201, add CABC funciton
+//+Bug 717431, chensibo.wt, ADD, 20220118, add CABC funciton
 int disp_lcm_set_cabc(struct disp_lcm_handle *plcm,
 	void *handle, int enable)
 {
@@ -1600,7 +1602,7 @@ int disp_lcm_get_cabc(struct disp_lcm_handle *plcm, int *status)
 
 	return 0;
 }
-//-Bug 623261, chensibo.wt, ADD, 20210201, add CABC funciton
+//-Bug 717431, chensibo.wt, ADD, 20220118, add CABC funciton
 
 
 int disp_lcm_ioctl(struct disp_lcm_handle *plcm, enum LCM_IOCTL ioctl,
@@ -1915,7 +1917,7 @@ bool disp_lcm_need_send_cmd(
 	if (from_level < 0 ||
 		to_level < 0)
 		return false;
-	return	lcm_drv->dfps_need_send_cmd(from_level, to_level);
+	return	lcm_drv->dfps_need_send_cmd(from_level, to_level, lcm_param);
 }
 
 void disp_lcm_dynfps_send_cmd(
@@ -1953,7 +1955,7 @@ void disp_lcm_dynfps_send_cmd(
 			to_level = (dfps_params[j]).level;
 	}
 	lcm_drv->dfps_send_lcm_cmd(cmdq_handle,
-		from_level, to_level);
+		from_level, to_level, lcm_param);
 done:
 	DISPCHECK("%s,add done\n", __func__);
 }

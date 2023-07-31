@@ -179,6 +179,7 @@ struct compat_biometric_threshold {
 #define COMPAT_BAROMETER_GET_PRESS_DATA _IOR(BROMETER, 0x02, compat_int_t)
 #define COMPAT_BAROMETER_GET_TEMP_DATA _IOR(BROMETER, 0x03, compat_int_t)
 #define COMPAT_BAROMETER_IOCTL_ENABLE_CALI _IO(BROMETER, 0x05)
+#define BAROMETER_IOCTL_SET_CALI _IOW(BROMETER, 0x06, int)
 #endif
 
 #define BIOMETRIC 0x90

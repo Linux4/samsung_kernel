@@ -35,11 +35,8 @@
 #define ST_LOG(fmt, ...)
 #endif
 
-/** Default max number of pages that can be used in a single read request */
-#define FUSE_DEFAULT_MAX_PAGES_PER_REQ 32
-
-/** Maximum of max_pages received in init_out */
-#define FUSE_MAX_MAX_PAGES 256
+/** Max number of pages that can be used in a single read request */
+#define FUSE_MAX_PAGES_PER_REQ 32
 
 /** Bias for fi->writectr, meaning new writepages must not be sent */
 #define FUSE_NOWRITE INT_MIN
@@ -128,11 +125,20 @@ enum {
 	FUSE_I_INIT_RDPLUS,
 	/** An operation changing file size is in progress  */
 	FUSE_I_SIZE_UNSTABLE,
-	/** Can be filled in by open, to use direct I/O on this file. */
-	FUSE_I_ATTR_FORCE_SYNC,
 };
 
 struct fuse_conn;
+
+/**
+ * Reference to lower filesystem file for read/write operations handled in
+ * passthrough mode.
+ * This struct also tracks the credentials to be used for handling read/write
+ * operations.
+ */
+struct fuse_passthrough {
+	struct file *filp;
+	struct cred *cred;
+};
 
 /** FUSE specific file data */
 struct fuse_file {
@@ -159,6 +165,9 @@ struct fuse_file {
 
 	/** Entry on inode's write_files list */
 	struct list_head write_entry;
+
+	/** Container for data related to the passthrough functionality */
+	struct fuse_passthrough passthrough;
 
 	/** RB node to be linked on fuse_conn->polled_files */
 	struct rb_node polled_node;
@@ -497,9 +506,6 @@ struct fuse_conn {
 	/** Maximum write size */
 	unsigned max_write;
 
-	/** Maxmum number of pages that can be used in a single request */
-	unsigned int max_pages;
-
 	/** Input queue */
 	struct fuse_iqueue iq;
 
@@ -661,6 +667,9 @@ struct fuse_conn {
 	/** Allow other than the mounter user to access the filesystem ? */
 	unsigned allow_other:1;
 
+	/** Passthrough mode for read/write IO */
+	unsigned int passthrough:1;
+
 	/** The number of requests waiting for completion */
 	atomic_t num_waiting;
 
@@ -699,6 +708,12 @@ struct fuse_conn {
 
 	/** List of device instances belonging to this connection */
 	struct list_head devices;
+
+	/** IDR for passthrough requests */
+	struct idr passthrough_req;
+
+	/** Proctects passthrough_req */
+	spinlock_t passthrough_req_lock;
 };
 
 static inline struct fuse_conn *get_fuse_conn_super(struct super_block *sb)
@@ -1061,5 +1076,15 @@ static inline void fuse_freezer_count(void) {}
 										\
 	__ret;									\
 })
+
+/* passthrough.c */
+int fuse_passthrough_open(struct fuse_dev *fud,
+			  struct fuse_passthrough_out *pto);
+int fuse_passthrough_setup(struct fuse_conn *fc, struct fuse_file *ff,
+			   struct fuse_open_out *openarg);
+void fuse_passthrough_release(struct fuse_passthrough *passthrough);
+ssize_t fuse_passthrough_read_iter(struct kiocb *iocb, struct iov_iter *to);
+ssize_t fuse_passthrough_write_iter(struct kiocb *iocb, struct iov_iter *from);
+ssize_t fuse_passthrough_mmap(struct file *file, struct vm_area_struct *vma);
 
 #endif /* _FS_FUSE_I_H */

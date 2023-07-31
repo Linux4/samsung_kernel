@@ -130,7 +130,6 @@ static int samsung_kbd_mouse_input_mapping(struct hid_device *hdev,
 	return 1;
 }
 
-
 static int samsung_kbd_input_mapping(struct hid_device *hdev,
 	struct hid_input *hi, struct hid_field *field, struct hid_usage *usage,
 	unsigned long **bit, int *max)

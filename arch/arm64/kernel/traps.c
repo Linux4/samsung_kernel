@@ -67,7 +67,10 @@ int show_unhandled_signals = 0;
 
 static void dump_backtrace_entry(unsigned long where)
 {
-	printk(" %pS\n", (void *)where);
+	/*
+	 * Note that 'where' can have a physical address, but it's not handled.
+	 */
+	print_ip_sym(where);
 }
 
 #ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT

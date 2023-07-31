@@ -150,23 +150,6 @@ extern char *mtk8250_uart_dump(void);
 #define DB_OPT_NATIVE_BACKTRACE			(1<<30)
 #define DB_OPT_AARCH64				(1<<31)
 
-/*
- * AEE_FMT allow you to set the:
- *     @opt - DB dump option bits
- *     @level - exception level, only support 'W' and 'E'
- *     @module - the name of your module
- *     @msg - the debug message
- *
- * It is used as the 'format' arg of WARN functions.
- * e.g., WARN(1, AEE_FMT, DB_OPT_DUMMY_DUMP, 'W', "aee", "test")
- * You can use aee_kernel_xxx APIs directly, or use WARN like this insteadly.
- *
- * If you choose the WARN way, and use the default opt value, then you
- * do NOT have to include the aee.h in your c file, you can just copy the
- * defining of AEE_FMT to your c file insteadly.
- */
-#define AEE_FMT "AEE:opt=0x%x level=%c module=%s msg=%s"
-
 #define AEE_API_CALL_INTERVAL   (120 * HZ)
 #define AEE_API_CALL_BURST      2
 
@@ -270,6 +253,8 @@ void aed_common_exception_api(const char *assert_type, const int *log, int
 			log_size, const int *phy, int phy_size, const char
 			*detail, const int db_opt);
 
+int aed_get_status(void);
 int aee_is_printk_too_much(const char *module);
 void aee_sram_printk(const char *fmt, ...);
+int aee_is_enable(void);
 #endif/* __AEE_H__ */

@@ -61,8 +61,6 @@ static struct fuse_req *__fuse_request_alloc(unsigned npages, gfp_t flags)
 		struct page **pages;
 		struct fuse_page_desc *page_descs;
 
-		/* @fs.sec -- 5da784cce4308ae10a79e3c8c41b13fb9568e4e0 -- */
-		WARN_ON(npages > FUSE_MAX_MAX_PAGES);
 		if (npages <= FUSE_REQ_INLINE_PAGES) {
 			pages = req->inline_pages;
 			page_descs = req->inline_page_descs;
@@ -486,7 +484,7 @@ static void request_wait_answer(struct fuse_conn *fc, struct fuse_req *req)
 	 * Either request is already in userspace, or it was forced.
 	 * Wait it out.
 	 */
-	fuse_wait_event(req->waitq, test_bit(FR_FINISHED, &req->flags));
+	wait_event(req->waitq, test_bit(FR_FINISHED, &req->flags));
 }
 
 static void __fuse_request_send(struct fuse_conn *fc, struct fuse_req *req)
@@ -836,14 +834,14 @@ static int fuse_check_page(struct page *page)
 {
 	if (page_mapcount(page) ||
 	    page->mapping != NULL ||
-	    page_count(page) != 1 ||
 	    (page->flags & PAGE_FLAGS_CHECK_AT_PREP &
 	     ~(1 << PG_locked |
 	       1 << PG_referenced |
 	       1 << PG_uptodate |
 	       1 << PG_lru |
 	       1 << PG_active |
-	       1 << PG_reclaim))) {
+	       1 << PG_reclaim |
+	       1 << PG_waiters))) {
 		printk(KERN_WARNING "fuse: trying to steal weird page\n");
 		printk(KERN_WARNING "  page=%p index=%li flags=%08lx, count=%i, mapcount=%i, mapping=%p\n", page, page->index, page->flags, page_count(page), page_mapcount(page), page->mapping);
 		return 1;
@@ -858,15 +856,16 @@ static int fuse_try_move_page(struct fuse_copy_state *cs, struct page **pagep)
 	struct page *newpage;
 	struct pipe_buffer *buf = cs->pipebufs;
 
+	get_page(oldpage);
 	err = unlock_request(cs->req);
 	if (err)
-		return err;
+		goto out_put_old;
 
 	fuse_copy_finish(cs);
 
 	err = pipe_buf_confirm(cs->pipe, buf);
 	if (err)
-		return err;
+		goto out_put_old;
 
 	BUG_ON(!cs->nr_segs);
 	cs->currbuf = buf;
@@ -906,7 +905,7 @@ static int fuse_try_move_page(struct fuse_copy_state *cs, struct page **pagep)
 	err = replace_page_cache_page(oldpage, newpage, GFP_KERNEL);
 	if (err) {
 		unlock_page(newpage);
-		return err;
+		goto out_put_old;
 	}
 
 	get_page(newpage);
@@ -925,14 +924,19 @@ static int fuse_try_move_page(struct fuse_copy_state *cs, struct page **pagep)
 	if (err) {
 		unlock_page(newpage);
 		put_page(newpage);
-		return err;
+		goto out_put_old;
 	}
 
 	unlock_page(oldpage);
+	/* Drop ref for ap->pages[] array */
 	put_page(oldpage);
 	cs->len = 0;
 
-	return 0;
+	err = 0;
+out_put_old:
+	/* Drop ref obtained in this function */
+	put_page(oldpage);
+	return err;
 
 out_fallback_unlock:
 	unlock_page(newpage);
@@ -941,10 +945,10 @@ out_fallback:
 	cs->offset = buf->offset;
 
 	err = lock_request(cs->req);
-	if (err)
-		return err;
+	if (!err)
+		err = 1;
 
-	return 1;
+	goto out_put_old;
 }
 
 static int fuse_ref_page(struct fuse_copy_state *cs, struct page *page,
@@ -956,14 +960,16 @@ static int fuse_ref_page(struct fuse_copy_state *cs, struct page *page,
 	if (cs->nr_segs == cs->pipe->buffers)
 		return -EIO;
 
+	get_page(page);
 	err = unlock_request(cs->req);
-	if (err)
+	if (err) {
+		put_page(page);
 		return err;
+	}
 
 	fuse_copy_finish(cs);
 
 	buf = cs->pipebufs;
-	get_page(page);
 	buf->page = page;
 	buf->offset = offset;
 	buf->len = count;
@@ -1254,6 +1260,12 @@ static ssize_t fuse_dev_do_read(struct fuse_dev *fud, struct file *file,
 	struct fuse_req *req;
 	struct fuse_in *in;
 	unsigned reqsize;
+
+	if ((current->flags & PF_NOFREEZE) == 0) {
+		current->flags |= PF_NOFREEZE | PF_MEMALLOC_NOFS;
+		printk_ratelimited(KERN_WARNING "%s(%d): This thread should not be frozen\n",
+				current->comm, task_pid_nr(current));
+	}
 
  restart:
 	for (;;) {
@@ -1684,7 +1696,7 @@ static int fuse_retrieve(struct fuse_conn *fc, struct inode *inode,
 	unsigned int num;
 	unsigned int offset;
 	size_t total_len = 0;
-	unsigned int num_pages;
+	int num_pages;
 
 	offset = outarg->offset & ~PAGE_MASK;
 	file_size = i_size_read(inode);
@@ -1696,7 +1708,7 @@ static int fuse_retrieve(struct fuse_conn *fc, struct inode *inode,
 		num = file_size - outarg->offset;
 
 	num_pages = (num + offset + PAGE_SIZE - 1) >> PAGE_SHIFT;
-	num_pages = min(num_pages, fc->max_pages);
+	num_pages = min(num_pages, FUSE_MAX_PAGES_PER_REQ);
 
 	req = fuse_get_req(fc, num_pages);
 	if (IS_ERR(req))
@@ -2255,37 +2267,56 @@ static int fuse_device_clone(struct fuse_conn *fc, struct file *new)
 static long fuse_dev_ioctl(struct file *file, unsigned int cmd,
 			   unsigned long arg)
 {
-	int err = -ENOTTY;
+	int res;
+	int oldfd;
+	struct fuse_dev *fud = NULL;
+	struct fuse_passthrough_out pto;
 
-	if (cmd == FUSE_DEV_IOC_CLONE) {
-		int oldfd;
+	if (_IOC_TYPE(cmd) != FUSE_DEV_IOC_MAGIC)
+		return -EINVAL;
 
-		err = -EFAULT;
-		if (!get_user(oldfd, (__u32 __user *) arg)) {
+	switch (_IOC_NR(cmd)) {
+	case _IOC_NR(FUSE_DEV_IOC_CLONE):
+		res = -EFAULT;
+		if (!get_user(oldfd, (__u32 __user *)arg)) {
 			struct file *old = fget(oldfd);
 
-			err = -EINVAL;
+			res = -EINVAL;
 			if (old) {
-				struct fuse_dev *fud = NULL;
-
 				/*
 				 * Check against file->f_op because CUSE
 				 * uses the same ioctl handler.
 				 */
 				if (old->f_op == file->f_op &&
-				    old->f_cred->user_ns == file->f_cred->user_ns)
+				    old->f_cred->user_ns ==
+					    file->f_cred->user_ns)
 					fud = fuse_get_dev(old);
 
 				if (fud) {
 					mutex_lock(&fuse_mutex);
-					err = fuse_device_clone(fud->fc, file);
+					res = fuse_device_clone(fud->fc, file);
 					mutex_unlock(&fuse_mutex);
 				}
 				fput(old);
 			}
 		}
+		break;
+	case _IOC_NR(FUSE_DEV_IOC_PASSTHROUGH_OPEN):
+		res = -EFAULT;
+		if (!copy_from_user(&pto,
+				    (struct fuse_passthrough_out __user *)arg,
+				    sizeof(pto))) {
+			res = -EINVAL;
+			fud = fuse_get_dev(file);
+			if (fud)
+				res = fuse_passthrough_open(fud, &pto);
+		}
+		break;
+	default:
+		res = -ENOTTY;
+		break;
 	}
-	return err;
+	return res;
 }
 
 const struct file_operations fuse_dev_operations = {

@@ -23,7 +23,6 @@
 #define UNIT_TRANS_1000	1000
 #define UNIT_TRANS_60	60
 #define MAX_TABLE		10
-#define MAX_BAT_NUM     3
 
 #define BMLOG_ERROR_LEVEL   3
 #define BMLOG_WARNING_LEVEL 4
@@ -98,11 +97,6 @@ do {\
 	.set	= _name##_set,						\
 }
 
-struct bat_id_vol_range {
-	int low;
-	int high;
-};
-
 enum battery_property {
 	BAT_PROP_TEMPERATURE,
 	BAT_PROP_COULOMB_INT_GAP,
@@ -115,6 +109,7 @@ enum battery_property {
 	BAT_PROP_INIT_DONE,
 	BAT_PROP_FG_RESET,
 	BAT_PROP_LOG_LEVEL,
+	BAT_PROP_SLATE_MODE,
 };
 
 struct battery_data {
@@ -246,6 +241,7 @@ enum fg_daemon_cmds {
 	FG_DAEMON_CMD_GET_SOC_DECIMAL_RATE,
 	FG_DAEMON_CMD_GET_DIFF_SOC_SET,
 	FG_DAEMON_CMD_SET_ZCV_INTR_EN,
+	FG_DAEMON_CMD_GET_IS_FORCE_FULL,
 
 	FG_DAEMON_CMD_FROM_USER_NUMBER
 
@@ -738,7 +734,11 @@ struct simulator_log {
 #define SHUTDOWN_TIME 40
 #define AVGVBAT_ARRAY_SIZE 30
 #define INIT_VOLTAGE 3450
-#define BATTERY_SHUTDOWN_TEMPERATURE 68 //bug 621775,yaocankun.wt,mod,20210121,mod for 68 degree trigger shutdown
+#if defined (CONFIG_N26_CHARGER_PRIVATE) || defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
+#define BATTERY_SHUTDOWN_TEMPERATURE 88  //Bug493176,guoyanjun.wt,MODIFY,20220111,88 degrsee trigger shutdown
+#else
+#define BATTERY_SHUTDOWN_TEMPERATURE 60
+#endif
 
 struct shutdown_condition {
 	bool is_overheat;
@@ -802,13 +802,11 @@ struct mtk_battery {
 	struct sock *mtk_battery_sk;
 
 	struct mtk_battery_algo algo;
-
-#if defined (CONFIG_CHARGER_BQ2415X) || defined (CONFIG_WT_PROJECT_S96717RA1)
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
 	struct power_supply	*cw_battery_psy;
 	int			*batt_cycle_fv_cfg;
 	int			fv_levels;
-#endif 
-
+#endif
 	u_int fgd_pid;
 
 	/* adb */
@@ -828,6 +826,9 @@ struct mtk_battery {
 	bool ntc_disable_nafg;
 	bool cmd_disable_nafg;
 
+/*battery full*/
+	bool is_force_full;
+
 	/*battery plug in out*/
 	int chr_type;
 	bool disable_plug_int;
@@ -837,6 +838,7 @@ struct mtk_battery {
 	int ui_soc;
 	struct timespec uisoc_oldtime;
 	int d_saved_car;
+	int tbat_precise;
 
 	/*battery interrupt*/
 	/* coulomb interrupt */
@@ -941,9 +943,14 @@ struct mtk_battery {
 	/*custom related*/
 	int battery_id;
 	int battery_id_vol;
+	struct iio_channel *bat_id;
 	struct fuel_gauge_custom_data fg_cust_data;
 	struct fuel_gauge_table_custom_data fg_table_cust_data;
 	struct fgd_cmd_param_t_custom fg_data;
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+	int adc_gpio;
+	struct delayed_work get_ibus_adc_work;
+#endif
 	/* hwocv swocv */
 	int ext_hwocv_swocv;
 	int ext_hwocv_swocv_lt;
@@ -1028,16 +1035,16 @@ extern void do_fg_algo(struct mtk_battery *gm, unsigned int intr_num);
 extern void fg_bat_temp_int_internal(struct mtk_battery *gm);
 /* mtk_battery_algo.c end */
 
-extern signed int battery_get_debug_uisoc(void);//bug 615299,xuejizhou.wt,ADD,20201228, battery SOC limitation for store mode
-//+Bug 615302,xuejizhou.wt,ADD,20210113,battery Current event and slate mode
-#ifdef CONFIG_CHARGER_BQ2415X
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+extern int wt_set_batt_cycle_fv(void);
+extern int wt_get_afc_work_status(void);
+#endif
+
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 extern struct atomic_notifier_head charger_notifier;
 extern int register_mtk_battery_notifier(struct notifier_block *nb);
 extern void unre_mtk_battery_notifier(struct notifier_block *nb);
-extern int wt_set_batt_cycle_fv(void);
-#endif
-//-Bug 615302,xuejizhou.wt,ADD,20210113,battery Current event and slate mode
-#ifdef CONFIG_WT_PROJECT_S96717RA1
+
 extern int wt_set_batt_cycle_fv(void);
 #endif
 

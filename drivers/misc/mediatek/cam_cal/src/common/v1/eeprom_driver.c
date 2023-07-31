@@ -347,8 +347,13 @@ struct i2c_driver EEPROM_HW_i2c_driver2 = {
  **********************************************************/
 #ifdef CONFIG_OF
 static const struct of_device_id EEPROM_HW3_i2c_driver_of_ids[] = {
+	#ifdef CONFIG_MTK_96516_CAMERA
+	{.compatible = "mediatek,camera_sub_two_eeprom",},
+	{}
+	#else
 	{.compatible = "mediatek,camera_main_two_eeprom",},
 	{}
+	#endif
 };
 #endif
 
@@ -371,6 +376,8 @@ struct stCAM_CAL_DATAINFO_STRUCT *g_eepromSubData = NULL;
 struct stCAM_CAL_DATAINFO_STRUCT *g_eepromMainDepthData = NULL;
 struct stCAM_CAL_DATAINFO_STRUCT *g_eepromMainWideData = NULL;
 struct stCAM_CAL_DATAINFO_STRUCT *g_eepromMainMicroData = NULL;
+struct stCAM_CAL_DATAINFO_STRUCT *g_eepromSub2Data = NULL;
+
 
 static  void EEPROM_reset_cmd_info_ex
 	(unsigned int sensorID, unsigned int deviceID){
@@ -472,6 +479,7 @@ int imgSensorReadEepromData(struct stCAM_CAL_DATAINFO_STRUCT* pData, struct stCA
 		if (pcmdInf->readCMDFunc != NULL){
 			if (pData->dataBuffer == NULL){
 				pData->dataBuffer = kmalloc(pData->dataLength, GFP_KERNEL);
+				memset(pData->dataBuffer, 0x0, pData->dataLength);//Bug 682590, zhoumin.wt, add, 2021.08.24, bring-up OTP for front and micro camera
 				if (pData->dataBuffer == NULL) {
 					LOG_INF("pData->dataBuffer is malloc fail\n");
 					return -EFAULT;
@@ -554,10 +562,17 @@ int imgSensorSetEepromData(struct stCAM_CAL_DATAINFO_STRUCT* pData){
 		}
 		g_eepromMainDepthData = pData;
 	}else if(pData->deviceID == 0x08){
+		#ifdef CONFIG_MTK_96516_CAMERA
+		if(g_eepromSub2Data != NULL){
+			return -ETXTBSY;
+		}
+		g_eepromSub2Data = pData;
+		#else
 		if(g_eepromMainWideData != NULL){
 			return -ETXTBSY;
 		}
 		g_eepromMainWideData = pData;
+		#endif
 	}else if(pData->deviceID == 0x10){
 		if(g_eepromMainMicroData != NULL){
 			return -ETXTBSY;
@@ -636,10 +651,10 @@ static int compat_put_cal_info_struct
 	err |= put_user(i, &data32->deviceID);
 
 	/* Assume pointer is not change */
-
+#if 1
 	err |= get_user(p, (compat_uptr_t *) &data->pu1Params);
 	err |= put_user(p, &data32->pu1Params);
-
+#endif
 	return err;
 }
 
@@ -730,6 +745,13 @@ static long EEPROM_drv_compat_ioctl
 
 #endif
 
+int ov8856_af_mac;
+int ov8856_af_inf;
+int ov8856_af_lsb;
+
+int s5k4h7_af_mac;
+int s5k4h7_af_inf;
+int s5k4h7_af_lsb;
 #define NEW_UNLOCK_IOCTL
 #ifndef NEW_UNLOCK_IOCTL
 static int EEPROM_drv_ioctl(struct inode *a_pstInode,
@@ -906,7 +928,21 @@ static long EEPROM_drv_ioctl(struct file *file,
 			} else {
 				LOG_INF("maybe some error buf(%p)read(%d)have(%d) \n",g_eepromMainDepthData->dataBuffer,totalLength,g_eepromMainDepthData->dataLength);
 			}
-		} else if((ptempbuf->deviceID == 0x08)&&(g_eepromMainWideData != NULL)){
+		} else if(((ptempbuf->deviceID == 0x08)&&(g_eepromMainWideData != NULL)) || ((ptempbuf->deviceID == 0x08)&&(g_eepromSub2Data != NULL))){
+			#ifdef CONFIG_MTK_96516_CAMERA
+			u32 totalLength = ptempbuf->u4Offset+ ptempbuf->u4Length;
+			LOG_INF("read in sub2\n");
+			if((g_eepromSub2Data->dataBuffer)&&(totalLength <= g_eepromSub2Data->dataLength)){
+				if(ptempbuf->u4Offset == 1){
+					memcpy(pu1Params,(u8*)&g_eepromSub2Data->sensorVendorid,4);
+				} else {
+					memcpy(pu1Params,g_eepromSub2Data->dataBuffer+ptempbuf->u4Offset,ptempbuf->u4Length);
+				}
+				i4RetValue = ptempbuf->u4Length;
+			}else {
+				LOG_INF("maybe some error buf(%p)read(%d)have(%d) \n",g_eepromSub2Data->dataBuffer,totalLength,g_eepromSub2Data->dataLength);
+			}
+			#else
 			u32 totalLength = ptempbuf->u4Offset+ ptempbuf->u4Length;
 			//LOG_INF("read in main2\n");
 			if((g_eepromMainWideData->dataBuffer)&&(totalLength <= g_eepromMainWideData->dataLength)){
@@ -919,6 +955,7 @@ static long EEPROM_drv_ioctl(struct file *file,
 			} else {
 				LOG_INF("maybe some error buf(%p)read(%d)have(%d) \n",g_eepromMainWideData->dataBuffer,totalLength,g_eepromMainWideData->dataLength);
 			}
+			#endif
 		}else if((ptempbuf->deviceID == 0x10)&&(g_eepromMainMicroData != NULL)){
 			u32 totalLength = ptempbuf->u4Offset+ ptempbuf->u4Length;
 			//LOG_INF("read in main2\n");
@@ -962,12 +999,33 @@ static long EEPROM_drv_ioctl(struct file *file,
 		}
 
 		if (pcmdInf != NULL) {
-			if (pcmdInf->readCMDFunc != NULL)
-				i4RetValue =
-					pcmdInf->readCMDFunc(pcmdInf->client,
+			if (pcmdInf->readCMDFunc != NULL) {
+				if ((ptempbuf->sensorID == 0x885a)
+				&& (ptempbuf->u4Offset == 0x7500))
+					*pu1Params = i4RetValue = ov8856_af_inf;
+				else if ((ptempbuf->sensorID == 0x885a)
+				&& (ptempbuf->u4Offset == 0x7501))
+					*pu1Params = i4RetValue = ov8856_af_mac;
+				else if ((ptempbuf->sensorID == 0x885a)
+				&& (ptempbuf->u4Offset == 0x7502))
+					*pu1Params = i4RetValue = ov8856_af_lsb;
+				else if ((ptempbuf->sensorID == 0x487b)
+				&& (ptempbuf->u4Offset == 0x7500))
+					*pu1Params = i4RetValue = s5k4h7_af_inf;
+				else if ((ptempbuf->sensorID == 0x487b)
+				&& (ptempbuf->u4Offset == 0x7501))
+					*pu1Params = i4RetValue = s5k4h7_af_mac;
+				else if ((ptempbuf->sensorID == 0x487b)
+				&& (ptempbuf->u4Offset == 0x7502))
+					*pu1Params = i4RetValue = s5k4h7_af_lsb;
+				else
+					i4RetValue =
+						pcmdInf->readCMDFunc(
+							  pcmdInf->client,
 							  ptempbuf->u4Offset,
 							  pu1Params,
 							  ptempbuf->u4Length);
+			}
 			else {
 				pr_debug("pcmdInf->readCMDFunc == NULL\n");
 				kfree(pBuff);

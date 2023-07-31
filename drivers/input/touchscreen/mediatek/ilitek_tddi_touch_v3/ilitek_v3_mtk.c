@@ -494,7 +494,7 @@ static void not_support_cmd(void *device_data)
 	ILI_INFO("buff: %s\n", buff);
 }
 
-struct sec_cmd ft_commands3[] = {
+static struct sec_cmd ft_commands[] = {
 	{SEC_CMD("get_fw_ver_bin", get_fw_ver_bin),},
 	{SEC_CMD("get_fw_ver_ic", get_fw_ver_ic),},
 	{SEC_CMD("aot_enable", aot_enable),},
@@ -531,7 +531,7 @@ static int ilitek_plat_probe(void)
 	init_completion(&ilits->pm_completion);
 
 #ifdef SEC_TSP_FACTORY_TEST
-	ret = sec_cmd_init(&ilits->sec, ft_commands3, ARRAY_SIZE(ft_commands3), SEC_CLASS_DEVT_TSP);
+	ret = sec_cmd_init(&ilits->sec, ft_commands, ARRAY_SIZE(ft_commands), SEC_CLASS_DEVT_TSP);
 	if (ret < 0) {
 		ILI_ERR("Failed to sec_cmd_init\n");
 		return -ENODEV;

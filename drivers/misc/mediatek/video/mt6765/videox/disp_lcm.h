@@ -64,7 +64,7 @@ int disp_lcm_validate_roi(struct disp_lcm_handle *plcm,
 int disp_lcm_aod(struct disp_lcm_handle *plcm, int enter);
 int disp_lcm_is_arr_support(struct disp_lcm_handle *plcm);
 int disp_lcm_disable(struct disp_lcm_handle *plcm);
-//Bug 623261, chensibo.wt, ADD, 20210201, add CABC function
+//Bug 717431, chensibo.wt, ADD, 20220118, add CABC function
 int disp_lcm_set_cabc(struct disp_lcm_handle *plcm, void *handle, int enable);
 int disp_lcm_get_cabc(struct disp_lcm_handle *plcm, int *status);
 /*-----------------------DynFPS start-----------------------------------*/
@@ -80,6 +80,7 @@ bool disp_lcm_need_send_cmd(
 	unsigned int last_dynfps, unsigned int new_dynfps);
 void disp_lcm_dynfps_send_cmd(struct disp_lcm_handle *plcm, void *cmdq_handle,
 	unsigned int from_fps, unsigned int to_fps);
+int get_lcm_backlight_level(void);
 
 /*-----------------------DynFPS end-----------------------------------*/
 #endif

@@ -114,7 +114,8 @@ bool set_i2s_dac_out_source(unsigned int aud_block);
 int get_dai_rate(enum soc_aud_digital_block digitalBlock);
 
 bool SetHwDigitalGainMode(enum soc_aud_digital_block AudBlock,
-			  unsigned int SampleRate, unsigned int SamplePerStep);
+			  unsigned int SampleRate,
+			  unsigned int SamplePerStep);
 bool SetHwDigitalGainEnable(enum soc_aud_digital_block AudBlock, bool Enable);
 bool SetHwDigitalGain(enum soc_aud_digital_block AudBlock, unsigned int Gain);
 bool set_chip_hw_digital_gain_mode(enum soc_aud_digital_block aud_block,
@@ -383,5 +384,9 @@ int get_usage_digital_block(enum audio_usage_id id);
 int get_usage_digital_block_io(enum audio_usage_id id);
 int mtk_pcm_mmap(struct snd_pcm_substream *substream,
 		 struct vm_area_struct *vma);
+
+int mtk_afe_pcm_copy(struct snd_pcm_substream *substream,
+		     int channel, unsigned long hwoff,
+		     void *buf, unsigned long bytes);
 
 #endif

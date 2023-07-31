@@ -2,7 +2,7 @@
  *
  * FocalTech TouchScreen driver.
  *
- * Copyright (c) 2012-2019, FocalTech Systems, Ltd., all rights reserved.
+ * Copyright (c) 2012-2020, FocalTech Systems, Ltd., all rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -21,11 +21,11 @@
 *
 *    Author: FocalTech Driver Team
 *
-*   Created: 2018-11-17
+*   Created: 2019-03-21
 *
-*  Abstract: spi communication with TP
+*  Abstract: new spi protocol communication with TP
 *
-*   Version: v1.1
+*   Version: v1.0
 *
 * Revision History:
 *
@@ -39,23 +39,18 @@
 /*****************************************************************************
 * Private constant and macro definitions using #define
 *****************************************************************************/
-#define STATUS_PACKAGE              0x05
-#define COMMAND_PACKAGE             0xC0
-#define DATA_PACKAGE                0x3F
-#define BUSY_QUERY_TIMEOUT          350
-#define BUSY_QUERY_DELAY            150 /* unit: us */
+#define SPI_RETRY_NUMBER            3
 #define CS_HIGH_DELAY               150 /* unit: us */
-#define DELAY_AFTER_FIRST_BYTE      30
-#define SPI_HEADER_LENGTH           4
 #define SPI_BUF_LENGTH              256
 
 #define DATA_CRC_EN                 0x20
 #define WRITE_CMD                   0x00
 #define READ_CMD                    (0x80 | DATA_CRC_EN)
-#define CD_PACKAGE_BUFLEN           4
+
+#define SPI_DUMMY_BYTE              3
+#define SPI_HEADER_LENGTH           6   /*CRC*/
 
 #define MTK_SPI_PACKET_SIZE         1024
-
 /*****************************************************************************
 * Private enumerations, structures and unions using typedef
 *****************************************************************************/
@@ -81,48 +76,33 @@ static int fts_spi_transfer(u8 *tx_buf, u8 *rx_buf, u32 len)
     int ret = 0;
     struct spi_device *spi = fts_data->spi;
     struct spi_message msg;
-    struct spi_transfer xfer[3];
-    int i = 0;
-    int packet_num = 0;
-    int packet_length = 0;
-    int remainder = 0;
-    int data_len = 0;
-    int data_pos = 0;
+    struct spi_transfer xfer[2];
+    u32 packet_length = 0;
+    u32 packet_remainder = 0;
+
+    if (!spi || !tx_buf || !rx_buf || !len) {
+        FTS_ERROR("spi_device/tx_buf/rx_buf/len(%d) is invalid", len);
+        return -EINVAL;
+    }
 
     memset(&xfer[0], 0, sizeof(struct spi_transfer));
     memset(&xfer[1], 0, sizeof(struct spi_transfer));
-    memset(&xfer[2], 0, sizeof(struct spi_transfer));
 
     spi_message_init(&msg);
+    if (len > MTK_SPI_PACKET_SIZE) {
+        packet_remainder = len % MTK_SPI_PACKET_SIZE;
+    }
+    packet_length = len - packet_remainder;
     xfer[0].tx_buf = &tx_buf[0];
-    xfer[0].len = 1;
-    xfer[0].delay_usecs = DELAY_AFTER_FIRST_BYTE;
+    xfer[0].rx_buf = &rx_buf[0];
+    xfer[0].len = packet_length;
     spi_message_add_tail(&xfer[0], &msg);
 
-    if (len > CD_PACKAGE_BUFLEN) {
-        data_len = len - CD_PACKAGE_BUFLEN;
-        data_pos = CD_PACKAGE_BUFLEN;
-        packet_num = 2; /* must 2 packets at least */
-#if FTS_MTK_OLD_TYPE
-        remainder = data_len % MTK_SPI_PACKET_SIZE;
-        if ((data_len > MTK_SPI_PACKET_SIZE) && remainder) {
-            packet_num++;
-        }
-        packet_length = data_len - remainder;
-#else
-        packet_length = data_len;
-#endif
-
-        for (i = 1; i < packet_num; i++) {
-            if ((i == (packet_num - 1)) && remainder)
-                packet_length = remainder;
-            xfer[i].tx_buf = &tx_buf[data_pos];
-            if (rx_buf)
-                xfer[i].rx_buf = &rx_buf[data_pos];
-            xfer[i].len = packet_length;
-            spi_message_add_tail(&xfer[i], &msg);
-            data_pos += packet_length;
-        }
+    if (packet_remainder) {
+        xfer[1].tx_buf = &tx_buf[packet_length];
+        xfer[1].rx_buf = &rx_buf[packet_length];
+        xfer[1].len = packet_remainder;
+        spi_message_add_tail(&xfer[1], &msg);
     }
 
     ret = spi_sync(spi, &msg);
@@ -131,14 +111,42 @@ static int fts_spi_transfer(u8 *tx_buf, u8 *rx_buf, u32 len)
         return ret;
     }
 
-    udelay(CS_HIGH_DELAY);
     return ret;
 }
 
-static void crckermit(u8 *data, u16 len, u16 *crc_out)
+static void fts_spi_buf_show(u8 *data, int datalen)
 {
-    u16 i = 0;
-    u16 j = 0;
+    int i = 0;
+    int count = 0;
+    int size = 0;
+    char *tmpbuf = NULL;
+
+    if (!data || (datalen <= 0)) {
+        FTS_ERROR("data/datalen is invalid");
+        return;
+    }
+
+    size = (datalen > 256) ? 256 : datalen;
+    tmpbuf = kzalloc(1024, GFP_KERNEL);
+    if (!tmpbuf) {
+        FTS_ERROR("tmpbuf zalloc fail");
+        return;
+    }
+
+    for (i = 0; i < size; i++)
+        count += snprintf(tmpbuf + count, 1024 - count, "%02X ", data[i]);
+
+    FTS_DEBUG("%s", tmpbuf);
+    if (tmpbuf) {
+        kfree(tmpbuf);
+        tmpbuf = NULL;
+    }
+}
+
+static void crckermit(u8 *data, u32 len, u16 *crc_out)
+{
+    u32 i = 0;
+    u32 j = 0;
     u16 crc = 0xFFFF;
 
     for ( i = 0; i < len; i++) {
@@ -162,254 +170,197 @@ static int rdata_check(u8 *rdata, u32 rlen)
     crckermit(rdata, rlen - 2, &crc_calc);
     crc_read = (u16)(rdata[rlen - 1] << 8) + rdata[rlen - 2];
     if (crc_calc != crc_read) {
+        fts_spi_buf_show(rdata, rlen);
         return -EIO;
     }
 
     return 0;
 }
 
-static int fts_wait_idle(void)
-{
-    int ret = 0;
-    int i = 0;
-    int status = 0xFF;
-    u8 cmd[1 + CD_PACKAGE_BUFLEN] = { STATUS_PACKAGE, 0xFF, 0xFF, 0xFF, 0xFF };
-    u8 value[1 + CD_PACKAGE_BUFLEN] = { 0 };
-
-    for (i = 0; i < BUSY_QUERY_TIMEOUT; i++) {
-        udelay(BUSY_QUERY_DELAY);
-        ret = fts_spi_transfer(cmd, value, 1 + CD_PACKAGE_BUFLEN);
-        if (ret >= 0) {
-            status = (int)value[CD_PACKAGE_BUFLEN];
-            if ((fts_data->fw_is_running && (0x11 == (status & 0xB1)))
-		     || (!fts_data->fw_is_running && (0x01 == (status & 0xB1))))
-            {
-                break;
-            }
-        }
-    }
-//	FTS_ERROR("Binbo fts_data->fw_is_running == %d, status == %d,  value == 0x%x \n ", fts_data->fw_is_running, status, value);
-
-    if (i >= BUSY_QUERY_TIMEOUT) {
-        FTS_ERROR("spi is busy, status:0x%x", status);
-        return -EIO;
-    }
-
-    return (int)status;
-}
-
-static int fts_cmdpkg_wirte(u8 ctrl, u8 *cmd, u32 cmdlen)
-{
-    int i = 0;
-    int pos = 0;
-    u8 buf[FTX_MAX_COMMMAND_LENGTH] = { 0 };
-
-    if (!cmd || (cmdlen >= FTX_MAX_COMMMAND_LENGTH - SPI_HEADER_LENGTH)) {
-        FTS_ERROR("cmd/cmdlen fail");
-        return -EINVAL;
-    }
-
-    buf[0] = COMMAND_PACKAGE;
-    pos = pos + CD_PACKAGE_BUFLEN;
-    buf[pos++] = ctrl | (cmdlen & 0x0F);
-    for (i = 0; i < cmdlen; i++) {
-        buf[pos++] = cmd[i];
-    }
-
-    return fts_spi_transfer(buf, NULL, pos);
-}
-
-static int fts_boot_write(u8 *cmd, u32 cmdlen, u8 *data, u32 datalen)
-{
-    int ret = 0;
-    u8 *txbuf = NULL;
-    u32 txlen = 0;
-    u8 tmpcmd[FTX_MAX_COMMMAND_LENGTH] = { 0 };
-
-    if ((!cmd) || (!cmdlen)
-        || (cmdlen > FTX_MAX_COMMMAND_LENGTH - SPI_HEADER_LENGTH)) {
-        FTS_ERROR("cmd/cmdlen is invalid");
-        return -EINVAL;
-    }
-
-    mutex_lock(&fts_data->bus_lock);
-    /* wait spi idle */
-    ret = fts_wait_idle();
-    if (ret < 0) {
-        FTS_ERROR("wait spi idle fail");
-        goto err_boot_write;
-    }
-
-    /* write cmd */
-    memcpy(tmpcmd, cmd, cmdlen);
-    if (fts_data->fw_is_running && data && datalen) {
-        tmpcmd[cmdlen++] = (datalen >> 8) & 0xFF;
-        tmpcmd[cmdlen++] = datalen & 0xFF;
-    }
-    ret = fts_cmdpkg_wirte(WRITE_CMD, tmpcmd, cmdlen);
-    if (ret < 0) {
-        FTS_ERROR("command package wirte fail");
-        goto err_boot_write;
-    }
-
-    /* have data, transfer data */
-    if (data && datalen) {
-        /* wait spi idle */
-        ret = fts_wait_idle();
-        if (ret < 0) {
-            FTS_ERROR("wait spi idle from cmd fail");
-            goto err_boot_write;
-        }
-
-        /* write data */
-        if (datalen > SPI_BUF_LENGTH - SPI_HEADER_LENGTH) {
-            txbuf = kzalloc(datalen + SPI_HEADER_LENGTH, GFP_KERNEL);
-            if (NULL == txbuf) {
-                FTS_ERROR("txbuf malloc fail");
-                ret = -ENOMEM;
-                goto err_boot_write;
-            }
-        } else {
-            txbuf = fts_data->bus_buf;
-        }
-        memset(txbuf, 0xFF, datalen + SPI_HEADER_LENGTH);
-        txbuf[0] = DATA_PACKAGE;
-        txlen = datalen + CD_PACKAGE_BUFLEN;
-        memcpy(txbuf + CD_PACKAGE_BUFLEN, data, datalen);
-
-        ret = fts_spi_transfer(txbuf, NULL, txlen);
-        if (ret < 0) {
-            FTS_ERROR("data wirte fail");
-        }
-
-        if (txbuf && (datalen > SPI_BUF_LENGTH - SPI_HEADER_LENGTH)) {
-            kfree(txbuf);
-            txbuf = NULL;
-        }
-    }
-
-err_boot_write:
-    mutex_unlock(&fts_data->bus_lock);
-    return ret;
-}
-
 int fts_write(u8 *writebuf, u32 writelen)
 {
-    u8 *cmd = NULL;
-    u32 cmdlen = 0;
-    u8 *data = NULL;
-    u32 datalen = 0;
+    int ret = 0;
+    int i = 0;
+    struct fts_ts_data *ts_data = fts_data;
+    u8 *txbuf = NULL;
+    u8 *rxbuf = NULL;
+    u32 txlen = 0;
+    u32 txlen_need = writelen + SPI_HEADER_LENGTH + ts_data->dummy_byte;
+    u32 datalen = writelen - 1;
 
     if (!writebuf || !writelen) {
         FTS_ERROR("writebuf/len is invalid");
         return -EINVAL;
     }
 
-    if (1 == writelen) {
-        cmd = writebuf;
-        cmdlen = 1;
-        data = NULL;
-        datalen = 0;
-    } else {
-        cmd = writebuf;
-        cmdlen = 1;
-        if (!fts_data->fw_is_running) {
-            if ((cmd[0] == 0xAE) || (cmd[0] == 0x85) || (cmd[0] == 0xF2)) {
-                cmdlen = 6;
-            } else if (cmd[0] == 0xCC) {
-                cmdlen = 7;
-            }
+    mutex_lock(&ts_data->bus_lock);
+    if (txlen_need > SPI_BUF_LENGTH) {
+        txbuf = kzalloc(txlen_need, GFP_KERNEL);
+        if (NULL == txbuf) {
+            FTS_ERROR("txbuf malloc fail");
+            ret = -ENOMEM;
+            goto err_write;
         }
-        data = writebuf + cmdlen;
-        datalen = writelen - cmdlen;
+
+        rxbuf = kzalloc(txlen_need, GFP_KERNEL);
+        if (NULL == rxbuf) {
+            FTS_ERROR("rxbuf malloc fail");
+            ret = -ENOMEM;
+            goto err_write;
+        }
+    } else {
+        txbuf = ts_data->bus_tx_buf;
+        rxbuf = ts_data->bus_rx_buf;
+        memset(txbuf, 0x0, SPI_BUF_LENGTH);
+        memset(rxbuf, 0x0, SPI_BUF_LENGTH);
     }
 
-    return fts_boot_write(&cmd[0], cmdlen, data, datalen);
+    txbuf[txlen++] = writebuf[0];
+    txbuf[txlen++] = WRITE_CMD;
+    txbuf[txlen++] = (datalen >> 8) & 0xFF;
+    txbuf[txlen++] = datalen & 0xFF;
+    if (datalen > 0) {
+        txlen = txlen + SPI_DUMMY_BYTE;
+        memcpy(&txbuf[txlen], &writebuf[1], datalen);
+        txlen = txlen + datalen;
+    }
+
+    for (i = 0; i < SPI_RETRY_NUMBER; i++) {
+        ret = fts_spi_transfer(txbuf, rxbuf, txlen);
+        if ((0 == ret) && ((rxbuf[3] & 0xA0) == 0)) {
+            break;
+        } else {
+            FTS_DEBUG("data write(addr:%x),status:%x,retry:%d,ret:%d",
+                      writebuf[0], rxbuf[3], i, ret);
+            ret = -EIO;
+            udelay(CS_HIGH_DELAY);
+        }
+    }
+    if (ret < 0) {
+        FTS_ERROR("data write(addr:%x) fail,status:%x,ret:%d",
+                  writebuf[0], rxbuf[3], ret);
+    }
+
+err_write:
+    if (txlen_need > SPI_BUF_LENGTH) {
+        if (txbuf) {
+            kfree(txbuf);
+            txbuf = NULL;
+        }
+
+        if (rxbuf) {
+            kfree(rxbuf);
+            rxbuf = NULL;
+        }
+    }
+
+    udelay(CS_HIGH_DELAY);
+    mutex_unlock(&ts_data->bus_lock);
+    return ret;
 }
 
 int fts_write_reg(u8 addr, u8 value)
 {
-    return fts_boot_write(&addr, 1, &value, 1);
+    u8 writebuf[2] = { 0 };
+
+    writebuf[0] = addr;
+    writebuf[1] = value;
+    return fts_write(writebuf, 2);
 }
 
 int fts_read(u8 *cmd, u32 cmdlen, u8 *data, u32 datalen)
 {
     int ret = 0;
+    int i = 0;
+    struct fts_ts_data *ts_data = fts_data;
     u8 *txbuf = NULL;
+    u8 *rxbuf = NULL;
     u32 txlen = 0;
+    u32 txlen_need = datalen + SPI_HEADER_LENGTH + ts_data->dummy_byte;
     u8 ctrl = READ_CMD;
-    u8 tmpcmd[FTX_MAX_COMMMAND_LENGTH] = { 0 };
+    u32 dp = 0;
 
-    mutex_lock(&fts_data->bus_lock);
-    if (cmd && cmdlen) {
-        /* wait spi idle */
-        ret = fts_wait_idle();
-        if (ret < 0) {
-            FTS_ERROR("wait spi idle fail");
-            goto boot_read_err;
+    if (!cmd || !cmdlen || !data || !datalen) {
+        FTS_ERROR("cmd/cmdlen/data/datalen is invalid");
+        return -EINVAL;
+    }
+
+    mutex_lock(&ts_data->bus_lock);
+    if (txlen_need > SPI_BUF_LENGTH) {
+        txbuf = kzalloc(txlen_need, GFP_KERNEL);
+        if (NULL == txbuf) {
+            FTS_ERROR("txbuf malloc fail");
+            ret = -ENOMEM;
+            goto err_read;
         }
 
-        /* write cmd */
-        memcpy(tmpcmd, cmd, cmdlen);
-        if (fts_data->fw_is_running) {
-            tmpcmd[cmdlen++] = (datalen >> 8) & 0xFF;
-            tmpcmd[cmdlen++] = datalen & 0xFF;
+        rxbuf = kzalloc(txlen_need, GFP_KERNEL);
+        if (NULL == rxbuf) {
+            FTS_ERROR("rxbuf malloc fail");
+            ret = -ENOMEM;
+            goto err_read;
         }
-        ret = fts_cmdpkg_wirte(ctrl, tmpcmd, cmdlen);
-        if (ret < 0) {
-            FTS_ERROR("command package wirte fail");
-            goto boot_read_err;
-        }
+    } else {
+        txbuf = ts_data->bus_tx_buf;
+        rxbuf = ts_data->bus_rx_buf;
+        memset(txbuf, 0x0, SPI_BUF_LENGTH);
+        memset(rxbuf, 0x0, SPI_BUF_LENGTH);
+    }
 
-        /* wait spi idle */
-        ret = fts_wait_idle();
-        if (ret < 0) {
-            FTS_ERROR("wait spi idle from cmd fail");
-            goto boot_read_err;
+    txbuf[txlen++] = cmd[0];
+    txbuf[txlen++] = ctrl;
+    txbuf[txlen++] = (datalen >> 8) & 0xFF;
+    txbuf[txlen++] = datalen & 0xFF;
+    dp = txlen + SPI_DUMMY_BYTE;
+    txlen = dp + datalen;
+    if (ctrl & DATA_CRC_EN) {
+        txlen = txlen + 2;
+    }
+
+    for (i = 0; i < SPI_RETRY_NUMBER; i++) {
+        ret = fts_spi_transfer(txbuf, rxbuf, txlen);
+        if ((0 == ret) && ((rxbuf[3] & 0xA0) == 0)) {
+            memcpy(data, &rxbuf[dp], datalen);
+            /* crc check */
+            if (ctrl & DATA_CRC_EN) {
+                ret = rdata_check(&rxbuf[dp], txlen - dp);
+                if (ret < 0) {
+                    FTS_DEBUG("data read(addr:%x) crc abnormal,retry:%d",
+                              cmd[0], i);
+                    udelay(CS_HIGH_DELAY);
+                    continue;
+                }
+            }
+            break;
+        } else {
+            FTS_DEBUG("data read(addr:%x) status:%x,retry:%d,ret:%d",
+                      cmd[0], rxbuf[3], i, ret);
+            ret = -EIO;
+            udelay(CS_HIGH_DELAY);
         }
     }
 
-    if (data && datalen) {
-        /* write data */
-        if (datalen > SPI_BUF_LENGTH - SPI_HEADER_LENGTH) {
-            txbuf = kzalloc(datalen + SPI_HEADER_LENGTH, GFP_KERNEL);
-            if (NULL == txbuf) {
-                FTS_ERROR("txbuf kalloc fail");
-                ret = -ENOMEM;
-                goto boot_read_err;
-            }
-        } else {
-            txbuf = fts_data->bus_buf;
-        }
-        memset(txbuf, 0xFF, datalen + SPI_HEADER_LENGTH);
-        txbuf[0] = DATA_PACKAGE;
-        txlen = datalen + CD_PACKAGE_BUFLEN;
-        if (ctrl & DATA_CRC_EN) {
-            txlen = txlen + 2;
-        }
-        ret = fts_spi_transfer(txbuf, txbuf, txlen);
-        if (ret < 0) {
-            FTS_ERROR("data read fail");
-            goto boot_read_err;
-        }
-        memcpy(data, txbuf + CD_PACKAGE_BUFLEN, datalen);
-        /* crc check */
-        if (ctrl & DATA_CRC_EN) {
-            ret = rdata_check(txbuf + CD_PACKAGE_BUFLEN,
-                              txlen - CD_PACKAGE_BUFLEN);
-            if (ret < 0) {
-                FTS_INFO("read data crc check incorrect");
-                goto boot_read_err;
-            }
-        }
+    if (ret < 0) {
+        FTS_ERROR("data read(addr:%x) %s,status:%x,ret:%d", cmd[0],
+                  (i >= SPI_RETRY_NUMBER) ? "crc abnormal" : "fail",
+                  rxbuf[3], ret);
+    }
 
-        if (txbuf && (datalen > SPI_BUF_LENGTH - SPI_HEADER_LENGTH)) {
+err_read:
+    if (txlen_need > SPI_BUF_LENGTH) {
+        if (txbuf) {
             kfree(txbuf);
             txbuf = NULL;
         }
+
+        if (rxbuf) {
+            kfree(rxbuf);
+            rxbuf = NULL;
+        }
     }
-boot_read_err:
-    mutex_unlock(&fts_data->bus_lock);
+
+    udelay(CS_HIGH_DELAY);
+    mutex_unlock(&ts_data->bus_lock);
     return ret;
 }
 
@@ -418,15 +369,89 @@ int fts_read_reg(u8 addr, u8 *value)
     return fts_read(&addr, 1, value, 1);
 }
 
+
+int fts_spi_transfer_direct(u8 *writebuf, u32 writelen, u8 *readbuf, u32 readlen)
+{
+    int ret = 0;
+    struct fts_ts_data *ts_data = fts_data;
+    u8 *txbuf = NULL;
+    u8 *rxbuf = NULL;
+    bool read_cmd = (readbuf && readlen) ? 1 : 0;
+    u32 txlen = (read_cmd) ? (writelen + readlen) : writelen;
+
+    if (!writebuf || !writelen) {
+        FTS_ERROR("writebuf/len is invalid");
+        return -EINVAL;
+    }
+
+    mutex_lock(&ts_data->bus_lock);
+    if (txlen > SPI_BUF_LENGTH) {
+        txbuf = kzalloc(txlen, GFP_KERNEL);
+        if (NULL == txbuf) {
+            FTS_ERROR("txbuf malloc fail");
+            ret = -ENOMEM;
+            goto err_spi_dir;
+        }
+
+        rxbuf = kzalloc(txlen, GFP_KERNEL);
+        if (NULL == rxbuf) {
+            FTS_ERROR("rxbuf malloc fail");
+            ret = -ENOMEM;
+            goto err_spi_dir;
+        }
+    } else {
+        txbuf = ts_data->bus_tx_buf;
+        rxbuf = ts_data->bus_rx_buf;
+        memset(txbuf, 0x0, SPI_BUF_LENGTH);
+        memset(rxbuf, 0x0, SPI_BUF_LENGTH);
+    }
+
+    memcpy(txbuf, writebuf, writelen);
+    ret = fts_spi_transfer(txbuf, rxbuf, txlen);
+    if (ret < 0) {
+        FTS_ERROR("data read(addr:%x) fail,status:%x,ret:%d", txbuf[0], rxbuf[3], ret);
+        goto err_spi_dir;
+    }
+
+    if (read_cmd) {
+        memcpy(readbuf, rxbuf, txlen);
+    }
+
+    ret = 0;
+err_spi_dir:
+    if (txlen > SPI_BUF_LENGTH) {
+        if (txbuf) {
+            kfree(txbuf);
+            txbuf = NULL;
+        }
+
+        if (rxbuf) {
+            kfree(rxbuf);
+            rxbuf = NULL;
+        }
+    }
+
+    udelay(CS_HIGH_DELAY);
+    mutex_unlock(&ts_data->bus_lock);
+    return ret;
+}
+
 int fts_bus_init(struct fts_ts_data *ts_data)
 {
     FTS_FUNC_ENTER();
-    ts_data->bus_buf = kzalloc(SPI_BUF_LENGTH, GFP_KERNEL);
-    if (NULL == ts_data->bus_buf) {
-        FTS_ERROR("failed to allocate memory for bus_buf");
+    ts_data->bus_tx_buf = kzalloc(SPI_BUF_LENGTH, GFP_KERNEL);
+    if (NULL == ts_data->bus_tx_buf) {
+        FTS_ERROR("failed to allocate memory for bus_tx_buf");
         return -ENOMEM;
     }
 
+    ts_data->bus_rx_buf = kzalloc(SPI_BUF_LENGTH, GFP_KERNEL);
+    if (NULL == ts_data->bus_rx_buf) {
+        FTS_ERROR("failed to allocate memory for bus_rx_buf");
+        return -ENOMEM;
+    }
+
+    ts_data->dummy_byte = SPI_DUMMY_BYTE;
     FTS_FUNC_EXIT();
     return 0;
 }
@@ -434,11 +459,16 @@ int fts_bus_init(struct fts_ts_data *ts_data)
 int fts_bus_exit(struct fts_ts_data *ts_data)
 {
     FTS_FUNC_ENTER();
-    if (ts_data && ts_data->bus_buf) {
-        kfree(ts_data->bus_buf);
-        ts_data->bus_buf = NULL;
+    if (ts_data && ts_data->bus_tx_buf) {
+        kfree(ts_data->bus_tx_buf);
+        ts_data->bus_tx_buf = NULL;
     }
 
+    if (ts_data && ts_data->bus_rx_buf) {
+        kfree(ts_data->bus_rx_buf);
+        ts_data->bus_rx_buf = NULL;
+    }
     FTS_FUNC_EXIT();
     return 0;
 }
+

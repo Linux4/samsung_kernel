@@ -97,7 +97,8 @@ static int FM_i2s_RecordVol_Set(struct snd_kcontrol *kcontrol,
 	pr_info("%s mfm_i2s_RecordVol = 0x%x\n", __func__, mfm_i2s_RecordVol);
 
 	if (GetFmI2sInPathEnable() == true)
-		SetHwDigitalGain(Soc_Aud_Digital_Block_HW_GAIN2, mfm_i2s_RecordVol);
+		SetHwDigitalGain(Soc_Aud_Digital_Block_HW_GAIN2,
+						 mfm_i2s_RecordVol);
 
 	return 0;
 }
@@ -382,7 +383,7 @@ static int mtk_fm_i2s_awb_probe(struct platform_device *pdev)
 
 	pr_debug("%s(), mem_blk %d\n", __func__, fm_capture_mem_blk);
 
-	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(64);
+	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32);
 	if (!pdev->dev.dma_mask)
 		pdev->dev.dma_mask = &pdev->dev.coherent_dma_mask;
 

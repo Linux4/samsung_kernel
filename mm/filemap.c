@@ -2494,34 +2494,6 @@ int mmap_readaround_limit = (VM_MAX_READAHEAD / 4); 		/* page */
 int mmap_readaround_limit = CONFIG_MMAP_READAROUND_LIMIT;	/* page */
 #endif
 
-#ifdef CONFIG_TRACING
-static void filemap_tracing_mark_begin(struct file *file,
-		pgoff_t offset, unsigned int size, bool sync)
-{
-	char buf[TRACING_MARK_BUF_SIZE], *path;
-
-	if (!tracing_is_on())
-		return;
-
-	path = file_path(file, buf, TRACING_MARK_BUF_SIZE);
-	if (IS_ERR(path)) {
-		sprintf(buf, "file_path failed(%ld)", PTR_ERR(path));
-		path = buf;
-	}
-
-	tracing_mark_begin("%d , %s , %lu , %d", sync, path, offset, size);
-}
-
-static void filemap_tracing_mark_end(void)
-{
-    tracing_mark_end();
-}
-#else
-static void filemap_tracing_mark_begin(struct file *file,
-		pgoff_t offset, unsigned int size, bool sync) { }
-static void filemap_tracing_mark_end(void) { }
-#endif
-
 /*
  * Synchronous readahead happens when we don't even find a page in the page
  * cache at all.  We don't want to perform IO under the mmap sem, so if we have
@@ -2546,10 +2518,8 @@ static struct file *do_sync_mmap_readahead(struct vm_fault *vmf)
 
 	if (vmf->vma->vm_flags & VM_SEQ_READ) {
 		fpin = maybe_unlock_mmap_for_io(vmf, fpin);
-		filemap_tracing_mark_begin(file, offset, ra->ra_pages, 1);
 		page_cache_sync_readahead(mapping, ra, file, offset,
 					  ra->ra_pages);
-		filemap_tracing_mark_end();
 		return fpin;
 	}
 
@@ -2572,9 +2542,7 @@ static struct file *do_sync_mmap_readahead(struct vm_fault *vmf)
 	ra->start = max_t(long, 0, offset - ra_pages / 2);
 	ra->size = ra_pages;
 	ra->async_size = ra_pages / 4;
-	filemap_tracing_mark_begin(file, offset, ra_pages, 1);
 	ra_submit(ra, mapping, file);
-	filemap_tracing_mark_end();
 	return fpin;
 }
 
@@ -2593,16 +2561,14 @@ static struct file *do_async_mmap_readahead(struct vm_fault *vmf,
 	pgoff_t offset = vmf->pgoff;
 
 	/* If we don't want any read-ahead, don't bother */
-	if (vmf->vma->vm_flags & VM_RAND_READ)
+	if (vmf->vma->vm_flags & VM_RAND_READ || !ra->ra_pages)
 		return fpin;
 	if (ra->mmap_miss > 0)
 		ra->mmap_miss--;
 	if (PageReadahead(page)) {
 		fpin = maybe_unlock_mmap_for_io(vmf, fpin);
-		filemap_tracing_mark_begin(file, offset, ra->ra_pages, 0);
 		page_cache_async_readahead(mapping, ra, file,
 					   page, offset, ra->ra_pages);
-		filemap_tracing_mark_end();
 	}
 	return fpin;
 }
@@ -2725,9 +2691,7 @@ page_not_uptodate:
 	 */
 	ClearPageError(page);
 	fpin = maybe_unlock_mmap_for_io(vmf, fpin);
-	filemap_tracing_mark_begin(file, offset, 1, 1);
 	error = mapping->a_ops->readpage(file, page);
-	filemap_tracing_mark_end();
 	if (!error) {
 		wait_on_page_locked(page);
 		if (!PageUptodate(page))
@@ -3023,6 +2987,14 @@ filler:
 		unlock_page(page);
 		goto out;
 	}
+
+	/*
+	 * A previous I/O error may have been due to temporary
+	 * failures.
+	 * Clear page error before actual read, PG_error will be
+	 * set again if read page fails.
+	 */
+	ClearPageError(page);
 	goto filler;
 
 out:

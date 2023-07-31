@@ -91,19 +91,6 @@ UINT32 S5K2L7_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 S5K3L8_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 S5K3M3_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 S5K2P6_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-//+bug 621775,lintaicheng.wt, add, 20210207, add for n21 camera bring up
-UINT32 N21_HLT_MAIN_OV16B10_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 N21_TXD_SUB_S5K3L6_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 N21_CXT_DEPTH_GC2375H_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-//-bug 621775,lintaicheng.wt, add, 20210207, add for n21 camera bring up
-//+bug 621775,liuxiangyin, mod, 20210207, for n21 n21_cxt_micro_gc2375h camera bringup
-UINT32 N21_TXD_MAIN_S5K2P6_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 N21_SHINE_SUB_HI1336_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 N21_CXT_DEPTH_GC02M1B_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 N21_HLT_DEPTH_GC2375H_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 N21_HLT_MICRO_GC2375H_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 N21_CXT_MICRO_GC2375H_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-//-bug 621775,liuxiangyin, mod, 20210207, for n21 n21_cxt_micro_gc2375h camera bringup
 UINT32 S5K2P7_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 S5K2P8_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 S5K3L6_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
@@ -140,20 +127,6 @@ UINT32 HI542_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 HI542_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 HI253_YUV_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 HI191MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-//+bug 612420,zhanghao2.wt,add,2020/12/24,add for n6 camera bring up
-UINT32 N8_HI1336_XL_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 N8_GC2375H_HLT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 N8_HI1336_XL_JCT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 N8_HI1336_TXD_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 N8_HI846_LY_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-//-bug 612420,zhanghao2.wt,add,2020/12/24,add for n6 camera bring up
-//+bug 612420,huangguoyong.wt,add,2020/12/24,add for n6 camera bring up
-UINT32 N8_HI1336_TXD_JCT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 N8_S5K3L6_HLT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 N8_HI846_SHT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 N8_GC2375A_QH_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 N8_GC8034_TXD_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-//-bug 612420,huangguoyong.wt,add,2020/12/24,add for n6 camera bring up
 /*MT*/
 UINT32 MT9P012SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 MT9P015SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
@@ -183,10 +156,7 @@ UINT32 GC02M1_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC02M1B_MIPI_MONO_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC8C34_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC8034_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-//+bug 621775,huangzheng1, add, 20210205, add for n21 camera bring up
-UINT32 N21_SHINE_WIDE_GC8034WMIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 N21_HLT_WIDE_GC8034WMIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-//-bug 621775,huangzheng1, add, 20210205, add for n21 camera bring up
+UINT32 GC8054_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 /*SP*/
 UINT32 SP0A19_YUV_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 SP250A_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
@@ -211,11 +181,77 @@ UINT32 T4KA7_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 ISX012_MIPI_YUV_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 T8EV5_YUV_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 SR846_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-//+bug 612420,huangguoyong.wt,add,2021/01/15,add for n6 camera bring up
-UINT32 N8_BF2253_QH_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 N8_BF2253_QH_6_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 N8_BF2253_QH_7_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-//-bug 612420,huangguoyong.wt,add,2021/01/15,add for n6 camera bring up
+UINT32 SR846D_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+
+//+bug682590,zhanghengyuan.wt,ADD,2021/8/12,n23_hi1336_rear_txd sensor bringup
+UINT32 N23_HI1336_REAR_TXD_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-bug682590,zhanghengyuan.wt,ADD,2021/8/12,n23_hi1336_rear_txd sensor bringup
+
+//+bug682590,zhoumin.wt, ADD, 2021/8/19, second supply back camera bringup
+UINT32 N23_HI1336_REAR_ST_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-bug682590,zhoumin.wt, ADD, 2021/8/19, second supply back camera bringup
+
+//+bug682590, zhoumin.wt, ADD, 2021/8/16, first supply front camera bringup
+UINT32 N23_SC500CS_FRONT_TXD_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-bug682590, zhoumin.wt, ADD, 2021/8/16, first supply front camera bringup
+//+bug682590,liudijin.wt,ADD,2021/8/12,n23_gc5035_front_ly sensor bringup
+UINT32 N23_GC5035_FRONT_LY_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-bug682590,liudijin.wt,ADD,2021/8/12,n23_gc5035_front_ly sensor bringup
+//+bug682590,zhanghengyuan.wt,ADD,2021/8/12,n23_sc201cs_dep_cxt sensor bringup
+UINT32 N23_SC201CS_DEP_CXT_MIPI_MONO_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-bug682590,zhanghengyuan.wt,ADD,2021/8/12,n23_sc201cs_dep_cxt sensor bringup
+//+bug682590, huangzheng1.wt, ADD, 2021/8/13, n23_bf2253_dep_lh sensor bringup
+UINT32 N23_BF2253_DEP_LH_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-bug682590, huangzheng1.wt, ADD, 2021/8/13, n23_bf2253_dep_lh sensor bringup
+//+bug682590, liuxiangyin.wt, ADD, 2021/8/14, n23_c2515_dep_sj sensor bringup
+UINT32 N23_C2515_DEP_SJ_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-bug682590, liuxiangyin.wt, ADD, 2021/8/14, n23_c2515_dep_sj sensor bringup
+//+bug682590, zhanghao2.wt, ADD, 2021/8/12, n23_bf2253_micro_cxt sensor bringup
+UINT32 N23_BF2253_MICRO_CXT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-bug682590, zhanghao2.wt, ADD, 2021/8/12, n23_bf2253_micro_cxt sensor bringup
+//+bug682590, zhoumin.wt, ADD, 2021/8/14, second supply micro camera bringup
+UINT32 N23_SC201CS_MICRO_LHYX_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-bug682590, zhoumin.wt, ADD, 2021/8/14, second supply micro camera bringup
+//+bug720412,qinduilin.wt,ADD,2022/1/27,n26_hi5021q_rear_truly sensor bringup
+UINT32 N26_HI5021Q_REAR_TRULY_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_HI5021Q_REAR_ST_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_S5KJN1_REAR_TXD_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_HI5021Q_REAR_DELTA_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-bug720412,qinduilin.wt,ADD,2022/1/27,n26_hi5021q_rear_truly sensor bringup
+//+bug682590,zhanghengyuan.wt,ADD,2022/1/24,n26 front camera bringup
+UINT32 N26_SC501CS_FRONT_LY_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_HI556_FRONT_XL_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_S5K5E9_FRONT_TXD_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_HI556_FRONT_DELTA_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-bug682590,zhanghengyuan.wt,ADD,2021/1/24,n26 front camera bringup
+//+bug720412,lintaicheng.wt,ADD,2022/1/28,n26_c2515_dep_cxt sensor bringup
+UINT32 N26_C2515_DEP_CXT_MIPI_MONO_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_SC201CS_DEP_LH_MIPI_MONO_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_GC02M1_DEP_CXT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_C2519_DEP_DELTA_MIPI_MONO_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-bug720412,lintaicheng.wt,ADD,2022/1/28,n26_c2515_dep_cxt sensor bringup
+//+bug720367,liudijin.wt,ADD,2022/01/27,gc02m2 and sc201cs micro sensor bringup
+UINT32 N26_GC02M2_MICRO_CXT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_SC201CS_MICRO_LCE_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N26_C2599_MICRO_DELTA_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-bug720367,liudijin.wt,ADD,2022/01/27,gc02m2 and sc201cs micro sensor bringup
+
+//+bug 717431,liuxiangyin, mod, 20220128, for N21 camera bringup
+UINT32 N21_TXD_MAIN_S5K2P6_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N21_HLT_MAIN_OV16B10_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N21_TXD_SUB_S5K3L6_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N21_CXT_DEPTH_GC2375H_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N21_SHINE_SUB_HI1336_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N21_CXT_DEPTH_GC02M1B_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N21_HLT_DEPTH_GC2375H_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N21_HLT_MICRO_GC2375H_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N21_CXT_MICRO_GC2375H_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-bug 717431,liuxiangyin, mod, 20220128, for N21 camera bringup
+//+bug 621775,huangzheng1, add, 20210205, add for n21 camera bring up
+UINT32 N21_HLT_WIDE_GC8034WMIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 N21_SHINE_WIDE_GC8034WMIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//-bug 621775,huangzheng1, add, 20210205, add for n21 camera bring up
+
 extern struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[];
 
 #endif

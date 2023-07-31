@@ -750,6 +750,9 @@ fb_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
 	int c, cnt = 0, err = 0;
 	unsigned long total_size;
 
+	if (p % 8 != 0)
+		p = (p + 7) / 8;
+
 	if (!info || ! info->screen_base)
 		return -ENODEV;
 
@@ -758,7 +761,7 @@ fb_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
 
 	if (info->fbops->fb_read)
 		return info->fbops->fb_read(info, buf, count, ppos);
-	
+
 	total_size = info->screen_size;
 
 	if (total_size == 0)
@@ -815,6 +818,9 @@ fb_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 	int c, cnt = 0, err = 0;
 	unsigned long total_size;
 
+	if (p % 8 != 0)
+		p = (p + 7) / 8;
+
 	if (!info || !info->screen_base)
 		return -ENODEV;
 
@@ -823,7 +829,7 @@ fb_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 
 	if (info->fbops->fb_write)
 		return info->fbops->fb_write(info, buf, count, ppos);
-	
+
 	total_size = info->screen_size;
 
 	if (total_size == 0)
@@ -1888,7 +1894,7 @@ void fb_set_suspend(struct fb_info *info, int state)
 }
 EXPORT_SYMBOL(fb_set_suspend);
 
-//+Bug 623261, chensibo.wt, ADD, 20210201, add CABC function
+//+Bug 717431, chensibo.wt, ADD, 20220118, add CABC function
 int fb_lcm_cabc_op(struct fb_info *info, unsigned int cmd, unsigned long arg)
 {
 	int err;
@@ -1898,7 +1904,7 @@ int fb_lcm_cabc_op(struct fb_info *info, unsigned int cmd, unsigned long arg)
 	return err;
 }
 EXPORT_SYMBOL(fb_lcm_cabc_op);
-//-Bug 623261, chensibo.wt, ADD, 20210201, add CABC function
+//-Bug 717431, chensibo.wt, ADD, 20220118, add CABC function
 
 /**
  *	fbmem_init - init frame buffer subsystem

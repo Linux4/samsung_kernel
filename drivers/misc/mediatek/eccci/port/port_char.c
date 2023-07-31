@@ -25,7 +25,7 @@
 #include "modem_prj.h"
 #endif
 
-#define MAX_QUEUE_LENGTH 64
+#define MAX_QUEUE_LENGTH 32
 
 unsigned int port_char_dev_poll(struct file *fp,
 	struct poll_table_struct *poll)
@@ -68,6 +68,7 @@ static const struct file_operations char_dev_fops = {
 	.compat_ioctl = &port_dev_compat_ioctl,/*use default API*/
 #endif
 	.poll = &port_char_dev_poll,/*use port char self API*/
+	.mmap = &port_dev_mmap,
 };
 
 #ifdef CONFIG_MTK_SRIL_SUPPORT
@@ -80,7 +81,7 @@ EXPORT_SYMBOL(get_port_char_ops);
 
 static int port_char_init(struct port_t *port)
 {
-	struct cdev *dev;
+	struct cdev *dev = NULL;
 	int ret = 0;
 	int md_id = port->md_id;
 
@@ -128,7 +129,11 @@ static int c2k_req_push_to_usb(struct port_t *port, struct sk_buff *skb)
 	struct ccci_header *ccci_h = NULL;
 	int read_len, read_count, ret = 0;
 	int c2k_ch_id;
+#if (MD_GENERATION <= 6292)
+	int ppp_rx_ch = CCCI_C2K_PPP_DATA;
+#else
 	int ppp_rx_ch = CCCI_C2K_PPP_RX;
+#endif
 
 	if (port->rx_ch == ppp_rx_ch)
 		c2k_ch_id = DATA_PPP_CH_C2K-1;
@@ -188,8 +193,7 @@ static int port_char_recv_skb(struct port_t *port, struct sk_buff *skb)
 		port->rx_ch != CCCI_RPC_RX &&
 		port->rx_ch != CCCI_UDC_RX &&
 #ifdef CONFIG_MTK_SRIL_SUPPORT
-		port->rx_ch != CCCI_RIL_IPC0_RX &&
-		port->rx_ch != CCCI_RIL_IPC1_RX &&
+		port->rx_ch != CCCI_CIQ_RX &&
 #endif
 		!(port->rx_ch == CCCI_IPC_RX &&
 		port->minor ==

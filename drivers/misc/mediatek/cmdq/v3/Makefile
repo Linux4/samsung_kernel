@@ -21,7 +21,7 @@ ccflags-y += -DCMDQ_MDP_ENABLE_SPR
 endif
 
 ifneq ($(filter mt6785,$(shell echo $(MTK_PLATFORM)|tr A-Z a-z)),)
-ccflags-y += -DPMQOS_VERSION2
+#ccflags-y += -DPMQOS_VERSION2
 ccflags-y += -DMDP_MMPATH
 ccflags-y += -DCMDQ_MDP_ENABLE_SPR
 ifeq ($(CONFIG_MTK_DEVAPC),y)
@@ -42,7 +42,8 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/smi/ \
              -I$(srctree)/drivers/misc/mediatek/mdp/ \
              -I$(srctree)/drivers/iommu/ \
              -I$(srctree)/drivers/misc/mediatek/m4u/$(MTK_PLATFORM) \
-             -I$(srctree)/drivers/misc/mediatek/mach/$(MTK_PLATFORM)/include
+             -I$(srctree)/drivers/misc/mediatek/mach/$(MTK_PLATFORM)/include \
+             -I$(srctree)/drivers/misc/mediatek/cmdq/bridge
 
 ifneq ($(filter mt8168,$(shell echo $(MTK_PLATFORM)|tr A-Z a-z)),)
 ccflags-y += -DCMDQ_TABLET_ENABLE
@@ -86,12 +87,16 @@ obj-y += cmdq_sec.o
 ccflags-y += -DCMDQ_EVENT_SVP_BACKUP
 endif	# end of CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT or CONFIG_MTK_CAM_SECURITY_SUPPORT
 
+ifeq ($(strip $(CONFIG_MTK_TEE_GP_SUPPORT)),y)
+ccflags-y += -DCMDQ_GP_SUPPORT
+endif
 
 ifeq ($(strip $(CONFIG_MTK_CAM_SECURITY_SUPPORT)),y)
 ifeq ($(strip $(CONFIG_MTK_CAM_GENIEZONE_SUPPORT)),y)
 ifeq ($(strip $(CONFIG_MTK_ENABLE_GENIEZONE)),y)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/geniezone/public
 ccflags-y += -DCMDQ_SECURE_MTEE_SUPPORT
+ccflags-y += -DCMDQ_LATE_INIT_SUPPORT
 obj-y += cmdq_sec_mtee.o
 endif
 else

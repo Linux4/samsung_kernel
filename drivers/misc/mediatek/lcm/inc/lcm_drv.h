@@ -87,6 +87,11 @@ enum LCM_IOCTL {
 	LCM_IOCTL_NULL = 0,
 };
 
+enum LCM_Send_Cmd_Mode {
+	LCM_SEND_IN_CMD = 0,
+	LCM_SEND_IN_VDO
+};
+
 /* DBI related enumerations */
 
 enum LCM_DBI_CLOCK_FREQ {
@@ -193,8 +198,10 @@ enum LCM_LANE_NUM {
 
 enum LCM_DSI_FORMAT {
 	LCM_DSI_FORMAT_RGB565 = 0,
-	LCM_DSI_FORMAT_RGB666 = 1,
-	LCM_DSI_FORMAT_RGB888 = 2
+	LCM_DSI_FORMAT_RGB666_LOOSELY = 1,
+	LCM_DSI_FORMAT_RGB666 = 2,
+	LCM_DSI_FORMAT_RGB888 = 3,
+	LCM_DSI_FORMAT_RGB101010 = 4,
 };
 
 
@@ -354,6 +361,42 @@ struct LCM_UFOE_CONFIG_PARAMS {
 };
 /* ------------------------------------------------------------------------- */
 
+#ifdef CONFIG_MTK_MT6382_BDG
+struct LCM_DSC_CONFIG_PARAMS {
+	unsigned int ver; /* [7:4] major [3:0] minor */
+	unsigned int slice_width;
+	unsigned int bit_per_pixel;
+	unsigned int slice_mode;
+	unsigned int rgb_swap;
+	unsigned int dsc_cfg;
+	unsigned int dsc_line_buf_depth;
+	unsigned int bit_per_channel;
+	unsigned int rct_on;
+	unsigned int bp_enable;
+	unsigned int pic_height; /* need to check */
+	unsigned int pic_width;  /* need to check */
+	unsigned int slice_height;
+	unsigned int chunk_size;
+	unsigned int dec_delay;
+	unsigned int xmit_delay;
+	unsigned int scale_value;
+	unsigned int increment_interval;
+	unsigned int line_bpg_offset;
+	unsigned int decrement_interval;
+	unsigned int nfl_bpg_offset;
+	unsigned int slice_bpg_offset;
+	unsigned int initial_offset;
+	unsigned int final_offset;
+	unsigned int flatness_minqp;
+	unsigned int flatness_maxqp;
+	unsigned int rc_model_size;
+	unsigned int rc_edge_factor;
+	unsigned int rc_quant_incr_limit0;
+	unsigned int rc_quant_incr_limit1;
+	unsigned int rc_tgt_offset_hi;
+	unsigned int rc_tgt_offset_lo;
+};
+#else
 struct LCM_DSC_CONFIG_PARAMS {
 	unsigned int slice_width;
 	unsigned int slice_hight;
@@ -382,6 +425,7 @@ struct LCM_DSC_CONFIG_PARAMS {
 	unsigned int flatness_maxqp;
 	unsigned int rc_mode1_size;
 };
+#endif
 
 
 struct LCM_DBI_PARAMS {
@@ -507,6 +551,11 @@ struct dynamic_fps_info {
 	/*unsigned int idle_check_interval;*//*ms*/
 };
 
+struct vsync_trigger_time {
+	unsigned int fps;
+	unsigned int trigger_after_te;
+	unsigned int config_expense_time;
+};
 
 /*DynFPS*/
 enum DynFPS_LEVEL {
@@ -650,6 +699,8 @@ struct LCM_DSI_PARAMS {
 	unsigned int cont_clock;
 	unsigned int ufoe_enable;
 	unsigned int dsc_enable;
+	unsigned int bdg_dsc_enable;
+	unsigned int bdg_ssc_disable;
 	struct LCM_UFOE_CONFIG_PARAMS ufoe_params;
 	struct LCM_DSC_CONFIG_PARAMS dsc_params;
 	unsigned int edp_panel;
@@ -711,6 +762,7 @@ struct LCM_DSI_PARAMS {
 	/*for ARR*/
 	unsigned int dynamic_fps_levels;
 	struct dynamic_fps_info dynamic_fps_table[DYNAMIC_FPS_LEVELS];
+	struct vsync_trigger_time vsync_after_te[DFPS_LEVELS];
 
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
 	/****DynFPS start****/
@@ -724,28 +776,16 @@ struct LCM_DSI_PARAMS {
 #endif
 };
 
-//+Bug 621774, chensibo.wt, ADD, 20210120, lcd bring up
-/* ------------------------------------------------------------------------- */
-struct LCM_ROUND_CORNER {
-	unsigned int w;
-	unsigned int h;
-	unsigned int tp_size;
-	unsigned int bt_size;
-	void *lt_addr;
-	void *rt_addr;
-	void *lb_addr;
-	void *rb_addr;
-};
-//-Bug 621774, chensibo.wt, ADD, 20210120, lcd bring up
 
-//+bug621774, liuguohua.wt, add, 20200120, lcd bring up
+
+//+bug717431, chensibo.wt, add, 20220118, lcd bring up
 struct LCM_BACKLIGHT_CUSTOM{
 	unsigned int max_brightness;
 	unsigned int min_brightness;
 	unsigned int max_bl_lvl;
 	unsigned int min_bl_lvl;
 };
-//-bug621774, liuguohua.wt, add, 20200120, lcd bring up
+//-bug717431, chensibo.wt, add, 20220118, lcd bring up
 /* ------------------------------------------------------------------------- */
 struct LCM_PARAMS {
 	enum LCM_TYPE type;
@@ -782,9 +822,8 @@ struct LCM_PARAMS {
 	unsigned int corner_pattern_width;
 	unsigned int corner_pattern_height;
 	unsigned int corner_pattern_height_bot;
-	struct LCM_ROUND_CORNER round_corner_params;//+Bug 621774, chensibo.wt, ADD,20210121, set backlight
 	unsigned int backlight_cust_count;
-	struct LCM_BACKLIGHT_CUSTOM backlight_cust[6]; //bug621774, liuguohua.wt, add, 20200120, lcd bring up
+	struct LCM_BACKLIGHT_CUSTOM backlight_cust[6]; //bug717431, chensibo.wt, add, 20220118, lcd bring up
 	unsigned int corner_pattern_tp_size;
 	void *corner_pattern_lt_addr;
 
@@ -793,13 +832,17 @@ struct LCM_PARAMS {
 	unsigned int average_luminance;
 	unsigned int max_luminance;
 
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
+	enum LCM_Send_Cmd_Mode sendmode;
+#endif
+
 	unsigned int hbm_en_time;
 	unsigned int hbm_dis_time;
 	
 	unsigned use_gpioID;
 	unsigned gpioID_value;
 	unsigned int vbias_level;
-	unsigned int default_panel_bl_off;  //bug621774, liuguohua.wt, add, 20200120, lcd bring up
+	unsigned int default_panel_bl_off;  //bug717431, chensibo.wt, add, 20220118, lcd bring up
 };
 
 
@@ -971,7 +1014,7 @@ struct LCM_UTIL_FUNCS {
 	void (*dsi_dynfps_send_cmd)(
 		void *cmdq, unsigned int cmd,
 		unsigned char count, unsigned char *para_list,
-		unsigned char force_update);
+		unsigned char force_update, enum LCM_Send_Cmd_Mode sendmode);
 
 };
 enum LCM_DRV_IOCTL_CMD {
@@ -1042,8 +1085,9 @@ struct LCM_DRIVER {
 	void (*set_cabc_cmdq)(void *handle, unsigned int enable);
 	void (*get_cabc_status)(int *status);
 	void (*dfps_send_lcm_cmd)(void *cmdq_handle,
-		unsigned int from_level, unsigned int to_level);
+		unsigned int from_level, unsigned int to_level, struct LCM_PARAMS *params);
 	bool (*dfps_need_send_cmd)(
+
 	unsigned int from_level, unsigned int to_level);
 
 	/* /////////////suspend////////////////////////// */
@@ -1066,6 +1110,8 @@ extern int display_bias_regulator_init(void);
 extern int lcm_power_disable(void);
 extern int lcm_power_enable(void);
 extern void lcm_reset_pin(unsigned int mode);
+
+extern int wingtech_bright_to_bl(int level,int max_bright,int min_bright,int bl_max,int bl_min);
 
 
 #endif /* __LCM_DRV_H__ */

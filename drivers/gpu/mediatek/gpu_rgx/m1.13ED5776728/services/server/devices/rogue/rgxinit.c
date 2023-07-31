@@ -1584,7 +1584,7 @@ const void * RGXLoadAndGetFWData(PVRSRV_DEVICE_NODE *psDeviceNode,
 	_GetFWFileName(psDeviceNode, aszFWFilenameStr, aszFWpFilenameStr);
 
 	/* Get pointer to Firmware image */
-	pszLoadedFwStr = aszFWFilenameStr;
+	pszLoadedFwStr = RGX_FW_FILENAME;
 	*ppsRGXFW = OSLoadFirmware(psDeviceNode, pszLoadedFwStr, OS_FW_VERIFY_FUNCTION);
 	if (*ppsRGXFW == NULL)
 	{
@@ -1592,7 +1592,7 @@ const void * RGXLoadAndGetFWData(PVRSRV_DEVICE_NODE *psDeviceNode,
 		*ppsRGXFW = OSLoadFirmware(psDeviceNode, pszLoadedFwStr, OS_FW_VERIFY_FUNCTION);
 		if (*ppsRGXFW == NULL)
 		{
-			pszLoadedFwStr = RGX_FW_FILENAME;
+			pszLoadedFwStr = aszFWFilenameStr;
 			*ppsRGXFW = OSLoadFirmware(psDeviceNode, pszLoadedFwStr, OS_FW_VERIFY_FUNCTION);
 			if (*ppsRGXFW == NULL)
 			{

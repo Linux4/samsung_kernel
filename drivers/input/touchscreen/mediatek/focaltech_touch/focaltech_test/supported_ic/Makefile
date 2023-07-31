@@ -1,1 +1,1 @@
-obj-$(CONFIG_TOUCHSCREEN_MTK_FOCALTECH_TS) += focaltech_test_ft8006p.o
+obj-$(CONFIG_TOUCHSCREEN_FOCALTECH) += focaltech_test_ft8006s_aa.o

@@ -13,13 +13,10 @@ config MTK_FINGERPRINT_SUPPORT
 	  use mediatek fingerprint driver,fingerprint
 	  driver will support fingerprint function
 
-if MTK_FINGERPRINT_SUPPORT
 config MTK_FINGERPRINT_SELECT
 	string "sensor type"
 	default "GF318M"
-	
-#+bug 621776,zhanghao3.wt,modify,20210203,finegrprint bingup
-config EGIS_FINGERPRINT
+config EGIS_FINGERPRINT_N21
 	bool "egis Fingerprint"
 	default n
 
@@ -28,37 +25,22 @@ config FPC_FINGERPRINT
 	default n
 	help
 	  FPC fingerprint FPC's 102x/104x device.
-#-bug 621776,zhanghao3.wt,modify,20210203,finegrprint bingup
-
-config CHIPONE_FINGERPRINT_N6
+config CHIPONE_FINGERPRINT
 	bool "chipone Fingerprint"
 	default n
 	help
-	  chipone fingerprint 7332 device.
+	  chipone fingerprint device driver
 
-config FPC_FINGERPRINT_N6
-	bool "FPC Fingerprint"
+config EGIS_FINGERPRINT
+	bool "Egis Fingerprint"
 	default n
 	help
-	  FPC fingerprint FPC's 102x/104x device.
+	  egis fingerprint support
 
-config SUNWAVE_FINGERPRINT_N6
-	bool "sunwave Fingerprint"
+config FOCALTECH_FINGERPRINT
+	bool "focaltech Fingerprint"
 	default n
 	help
-	  sunwave fingerprint FPC's 102x/104x device.
+	  focaltech fingerprint device driver.
 
-config EGIS_FINGERPRINT_N6
-	bool "egis Fingerprint"
-	default n
-	help
-	  egis fingerprint et520 device.
-
-config FINGERTECH_FINGERPRINT_N6
-	bool "fingertech Fingerprint"
-	default n
-	help
-	  fingertech fingerprint fps980 device.
-
-endif
 endmenu

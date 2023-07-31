@@ -550,12 +550,13 @@ int ili_sleep_handler(int mode)
 	return ret;
 }
 
+#if WT_ADD_TP_HARDWARE_INFO
+extern char Ctp_name[HARDWARE_MAX_ITEM_LONGTH];
+#endif
+
 int ili_fw_upgrade_handler(void *data)
 {
 	int ret = 0;
-#if WT_ADD_TP_HARDWARE_INFO
-	char hardware_info[HARDWARE_MAX_ITEM_LONGTH];
-#endif
 
 	atomic_set(&ilits->fw_stat, START);
 
@@ -593,13 +594,13 @@ int ili_fw_upgrade_handler(void *data)
 	if (ili_ic_get_fw_ver() < 0)
 		ILI_ERR("Failed to read TP fw info\n");
 
-	snprintf(hardware_info, HARDWARE_MAX_ITEM_LONGTH, "%s,VND:%s,FW:%d.%d.%d.%d",
+	snprintf(Ctp_name, HARDWARE_MAX_ITEM_LONGTH, "%s,VND:%s,FW:%d.%d.%d.%d",
 		ilits->ic_name, ilits->md_name, (ilits->chip->fw_ver & 0xff000000) >> 24,
 		(ilits->chip->fw_ver & 0xff0000)>>16, (ilits->chip->fw_ver & 0xff00) >> 8,
 		ilits->chip->fw_ver & 0xff);
 
-	ILI_INFO("hardwareinfo firmware_ver = %s\n", hardware_info);
-	hardwareinfo_set_prop(HARDWARE_TP, hardware_info);
+	ILI_INFO("hardwareinfo firmware_ver = %s\n", Ctp_name);
+	hardwareinfo_set_prop(HARDWARE_TP, Ctp_name);
 #endif
 
 	atomic_set(&ilits->fw_stat, END);

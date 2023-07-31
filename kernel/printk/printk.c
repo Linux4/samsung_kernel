@@ -544,6 +544,18 @@ int get_logtoomuch_enable(void)
 
 #endif
 
+/*
+ * We cannot access per-CPU data (e.g. per-CPU flush irq_work) before
+ * per_cpu_areas are initialised. This variable is set to true when
+ * it's safe to access per-CPU data.
+ */
+static bool __printk_percpu_data_ready __read_mostly;
+
+bool printk_percpu_data_ready(void)
+{
+	return __printk_percpu_data_ready;
+}
+
 /* Return log buffer address */
 char *log_buf_addr_get(void)
 {
@@ -1023,14 +1035,14 @@ static ssize_t devkmsg_write(struct kiocb *iocb, struct iov_iter *from)
 		return len;
 
 	/* Ratelimit when not explicitly enabled. */
-	//++CHK 80268,linyaosen.wt,modify,2021/02/07, add log avoid init log loss
-    #ifndef WT_COMPILE_FACTORY_VERSION
+	//++CHK 115136,linyaosen.wt,modify,2022/02/17, add log avoid init log loss
+    #ifndef WT_FINAL_RELEASE
 	if (!(devkmsg_log & DEVKMSG_LOG_MASK_ON)) {
 		if (!___ratelimit(&user->rs, current->comm))
 			return ret;
 	}
 	#endif
-    //++CHK 80268,linyaosen.wt,modify,2021/02/07, add log avoid init log loss
+    //++CHK 115136,linyaosen.wt,modify,2022/02/17, add log avoid init log loss
 
 	buf = kmalloc(len+1, GFP_KERNEL);
 	if (buf == NULL)
@@ -1350,11 +1362,27 @@ static void __init log_buf_add_cpu(void)
 static inline void log_buf_add_cpu(void) {}
 #endif /* CONFIG_SMP */
 
+static void __init set_percpu_data_ready(void)
+{
+	printk_safe_init();
+	/* Make sure we set this flag only after printk_safe() init is done */
+	barrier();
+	__printk_percpu_data_ready = true;
+}
+
 void __init setup_log_buf(int early)
 {
 	unsigned long flags;
 	char *new_log_buf;
 	unsigned int free;
+
+	/*
+	 * Some archs call setup_log_buf() multiple times - first is very
+	 * early, e.g. from setup_arch(), and second - when percpu_areas
+	 * are initialised.
+	 */
+	if (!early)
+		set_percpu_data_ready();
 
 	if (log_buf != __log_buf)
 		return;
@@ -2513,6 +2541,9 @@ static int __init console_setup(char *str)
 	char *s, *options, *brl_options = NULL;
 	int idx;
 
+	if (str[0] == 0)
+		return 1;
+
 	if (_braille_console_setup(&str, &brl_options))
 		return 1;
 
@@ -3406,6 +3437,9 @@ static DEFINE_PER_CPU(struct irq_work, wake_up_klogd_work) = {
 
 void wake_up_klogd(void)
 {
+	if (!printk_percpu_data_ready())
+		return;
+
 	preempt_disable();
 	if (waitqueue_active(&log_wait)) {
 		this_cpu_or(printk_pending, PRINTK_PENDING_WAKEUP);
@@ -3416,6 +3450,9 @@ void wake_up_klogd(void)
 
 void defer_console_output(void)
 {
+	if (!printk_percpu_data_ready())
+		return;
+
 	preempt_disable();
 	__this_cpu_or(printk_pending, PRINTK_PENDING_OUTPUT);
 	irq_work_queue(this_cpu_ptr(&wake_up_klogd_work));

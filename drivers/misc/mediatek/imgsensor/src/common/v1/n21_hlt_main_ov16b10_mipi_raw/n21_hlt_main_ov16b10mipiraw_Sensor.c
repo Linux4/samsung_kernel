@@ -1842,6 +1842,8 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 		do {
 			*sensor_id = return_sensor_id();
 			if (*sensor_id == imgsensor_info.sensor_id) {
+				pr_info("zhh i2c write id: 0x%x, sensor id: 0x%x\n",
+					imgsensor.i2c_write_id, *sensor_id);
 				//+Bug 492443, sunhushan.wt, ADD, 2019.10.15, porting the otp of the 12sensor 
 				size = imgSensorReadEepromData(&hlt_main_ov16b10_eeprom_data,hlt_main_ov16b10_Checksum);
 				if(size != hlt_main_ov16b10_eeprom_data.dataLength || (hlt_main_ov16b10_eeprom_data.sensorVendorid >> 24)!= read_eeprom(0x0001)) {
