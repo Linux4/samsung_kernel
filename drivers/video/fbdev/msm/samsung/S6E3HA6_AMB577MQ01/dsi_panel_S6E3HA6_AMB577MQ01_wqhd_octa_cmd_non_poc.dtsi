@@ -1,0 +1,325 @@
+/* Copyright (c) 2012, Samsung Electronics Corporation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&mdss_mdp {
+	ss_dsi_panel_S6E3HA6_AMB577MQ01_WQHD: ss_dsi_panel_S6E3HA6_AMB577MQ01_WQHD {
+		/delete-property/ samsung,support_poc_driver;
+
+		/*
+		* ************************************************************************************************************************
+		*  MULTI_RESOLUTION (DSC configs were moved all to below timing set)
+		* ************************************************************************************************************************
+		*/
+
+		qcom,mdss-dsi-display-timings {
+			// WQHD ========================================
+			wqhd {
+				qcom,mdss-dsi-on-command = [
+					29 01 00 00 00 00 03 9F A5 A5		/* LV1(9F) key enable  */
+					// DSC setting1
+					29 00 00 00 00 00 03 F0 5A 5A		/* level2_key Enable - 5ms */
+					07 01 00 00 00 00 01 01			/* DSC enable :  Compression Mode*/
+					0A 01 00 00 00 00 59                    	/* PPS setting wqhd */
+						11 00 00 89 30 80 0B 90
+						05 A0 00 28 02 D0 02 D0
+						02 00 02 68 00 20 04 6C
+						00 0A 00 0C 02 77 01 E9
+						18 00 10 F0 03 0C 20 00
+						06 0B 0B 33 0E 1C 2A 38
+						46 54 62 69 70 77 79 7B
+						7D 7E 01 02 01 00 09 40
+						09 BE 19 FC 19 FA 19 F8
+						1A 38 1A 78 1A B6 2A F6
+						2B 34 2B 74 3B 74 6B F4
+						00
+					29 00 00 00 00 00 03 F0 A5 A5		/* level2_key Disable*/
+
+					// Sleep out
+					05 01 00 00 0A 00 01 11			/* Sleep out (Wait 10ms) */
+
+					// DSC setting2
+					29 00 00 00 00 00 03 F0 5A 5A			/* level3_key enable*/
+					29 00 00 00 00 00 03 FC 5A 5A			/* level2_key enable*/
+					29 00 00 00 00 00 05 2A 00 00 05 9F		/* CASET*/
+					29 00 00 00 00 00 05 2B 00 00 0B 8F  	/* PASET */
+					29 00 00 00 00 00 02 BA 01				/* scaler setup */
+					29 00 00 00 00 00 02 B0 05
+					29 00 00 00 00 00 02 FF 01				/* 2Ch latch on 1.78<->4x Scaler mode change */
+					29 00 00 00 00 00 02 B0 07
+					29 00 00 00 00 00 03 F2 3C D0			/* scaler on/off, CASET/PASET, PPS, DSC on/off 2Ch latch O, Black frame insertion =0-frame*/
+					29 00 00 00 00 00 03 FC A5 A5			/* level3_key Disable*/
+					29 00 00 00 00 00 03 F0 A5 A5			/* level2_key Disable*/
+
+					// Module Information READ
+
+					// Common Setting
+					29 00 00 00 00 00 02 35 00		/* TE Vsync ON */
+
+					29 00 00 00 00 00 03 F0 5A 5A		/* TEST KEY1 Enable*/
+					29 00 00 00 00 00 02 ED 4C		/* ERR_FG */
+					29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY1 Disable*/
+
+					/* FFC Setting (898Mbps) */
+					29 00 00 00 00 00 03 F0 5A 5A		/* TEST KEY1 Enable*/
+					29 00 00 00 00 00 14 C5 0D 08 40 19 B7 07 1F 81 25 CE 79 77 73 00 FF 78 8F 00 00
+					29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY1 Disable*/
+
+					/* TSP HSYNC Enable */
+					29 00 00 00 00 00 03 F0 5A 5A		/* TEST KEY1 Enable*/
+					29 00 00 00 00 00 08 B9 00 00 14 00 18 11 03
+					29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY1 Disable*/
+
+					/* Side Display Off */
+					29 00 00 00 00 00 03 F0 5A 5A
+					29 00 00 00 00 00 06 1A 1F 00 00 00 00
+					29 00 00 00 00 00 03 F0 A5 A5
+
+					/* ISC Setting */
+					29 00 00 00 00 00 03 F0 5A 5A
+					29 00 00 00 00 00 02 B0 03
+					29 00 00 00 00 00 02 F6 53
+					29 00 00 00 00 00 02 B0 08
+					29 00 00 00 00 00 02 F6 80
+					29 00 00 00 00 00 03 F0 A5 A5
+
+					/* COPR enable */
+					29 00 00 00 00 00 03 F0 5A 5A		/* TEST KEY1 Enable*/
+					29 01 00 00 00 00 0D E1 03 5D 6E B5 00 00 00 00 00 00 00 00
+					29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY1 Disable*/
+
+					// Brightness Setting
+					29 00 00 00 00 00 03 F0 5A 5A		/* TEST KEY1 Enable*/
+					29 00 00 00 00 00 24				/* Brightness condition set */
+						CA
+						01 00 01 00 01 00
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						00 00
+					29 00 00 00 00 00 03 B1 00 0C   /* AID Set : 0% */
+					29 00 00 00 00 00 03 B5 19 DC   /* ELVSS Setting:CAPS ON : acl off */
+					29 00 00 00 00 00 03 F4 EB 17   /* VINT set */
+					29 01 00 00 00 00 02 F7 03      /* Gamma, LTPS(AID) update */
+
+					29 01 00 00 00 00 03 F0 A5 A5   /* TEST KEY1 Disable */
+					29 01 00 00 00 00 03 9F 5A 5A	/* LV1(9F) key disable  */
+				];
+			};
+
+			// FHD ========================================
+			fhd {
+				qcom,mdss-dsi-on-command = [
+					29 01 00 00 00 00 03 9F A5 A5		/* LV1(9F) key enable */
+					// DSC setting1
+					29 00 00 00 00 00 03 F0 5A 5A		/* level2_key Enable - 5ms */
+					07 01 00 00 00 00 01 01			/* DSC enable :  Compression Mode*/
+					0A 01 00 00 00 00 59				/* PPS setting fhd */
+						11 00 00 89 30 80 08 AC
+						04 38 00 1E 02 1C 02 1C
+						02 00 02 0E 00 20 02 E3
+						00 07 00 0C 03 50 03 64
+						18 00 10 F0 03 0C 20 00
+						06 0B 0B 33 0E 1C 2A 38
+						46 54 62 69 70 77 79 7B
+						7D 7E 01 02 01 00 09 40
+						09 BE 19 FC 19 FA 19 F8
+						1A 38 1A 78 1A B6 2A F6
+						2B 34 2B 74 3B 74 6B F4
+						00
+					29 00 00 00 00 00 03 F0 A5 A5		/* level2_key Disable*/
+
+					// Sleep out
+					05 01 00 00 0A 00 01 11			/* Sleep out (Wait 10ms) */
+
+					// DSC setting2
+					29 00 00 00 00 00 03 F0 5A 5A			/* level3_key enable*/
+					29 00 00 00 00 00 03 FC 5A 5A			/* level2_key enable*/
+					29 00 00 00 00 00 05 2A 00 00 04 37		/* CASET*/
+					29 00 00 00 00 00 05 2B 00 00 08 AB 		/* PASET */
+					29 00 00 00 00 00 08 BA 02 02 06 08 08 1E 03		/* scaler setup */
+					29 00 00 00 00 00 02 B0 05
+					29 00 00 00 00 00 02 FF 01				/* 2Ch latch on 1.78<->4x Scaler mode change */
+					29 00 00 00 00 00 02 B0 07
+					29 00 00 00 00 00 03 F2 3C D0			/* scaler on/off, CASET/PASET, PPS, DSC on/off 2Ch latch O, Black frame insertion =0-frame*/
+					29 00 00 00 00 00 03 FC A5 A5			/* level3_key Disable*/
+					29 00 00 00 00 00 03 F0 A5 A5			/* level2_key Disable*/
+
+					// Module Information READ
+
+					// Common Setting
+					29 00 00 00 00 00 02 35 00		/* TE Vsync ON */
+
+					29 00 00 00 00 00 03 F0 5A 5A		/* TEST KEY1 Enable*/
+					29 00 00 00 00 00 02 ED 4C		/* ERR_FG */
+					29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY1 Disable*/
+
+					/* FFC Setting (898Mbps) */
+					29 00 00 00 00 00 03 F0 5A 5A		/* TEST KEY1 Enable*/
+					29 00 00 00 00 00 14 C5 0D 08 40 19 B7 07 1F 81 25 CE 79 77 73 00 FF 78 8F 00 00
+					29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY1 Disable*/
+
+					/* TSP HSYNC Enable */
+					29 00 00 00 00 00 03 F0 5A 5A		/* TEST KEY1 Enable*/
+					29 00 00 00 00 00 08 B9 00 00 14 00 18 11 03
+					29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY1 Disable*/
+
+					/* Side Display Off */
+					29 00 00 00 00 00 03 F0 5A 5A
+					29 00 00 00 00 00 06 1A 1F 00 00 00 00
+					29 00 00 00 00 00 03 F0 A5 A5
+
+					/* ISC Setting */
+					29 00 00 00 00 00 03 F0 5A 5A
+					29 00 00 00 00 00 02 B0 03
+					29 00 00 00 00 00 02 F6 53
+					29 00 00 00 00 00 02 B0 08
+					29 00 00 00 00 00 02 F6 80
+					29 00 00 00 00 00 03 F0 A5 A5
+
+					/* COPR enable */
+					29 00 00 00 00 00 03 F0 5A 5A		/* TEST KEY1 Enable*/
+					29 01 00 00 00 00 0D E1 03 5D 6E B5 00 00 00 00 00 00 00 00
+					29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY1 Disable*/
+
+					// Brightness Setting
+					29 00 00 00 00 00 03 F0 5A 5A		/* TEST KEY1 Enable*/
+					29 00 00 00 00 00 24				/* Brightness condition set */
+						CA
+						01 00 01 00 01 00
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						00 00
+					29 00 00 00 00 00 03 B1 00 0C   /* AID Set : 0% */
+					29 00 00 00 00 00 03 B5 19 DC   /* ELVSS Setting:CAPS ON : acl off */
+					29 00 00 00 00 00 03 F4 EB 17   /* VINT set */
+					29 01 00 00 00 00 02 F7 03      /* Gamma, LTPS(AID) update  */
+
+					29 01 00 00 00 00 03 F0 A5 A5   /* TEST KEY1 Disable */
+					29 01 00 00 00 00 03 9F 5A 5A	/* LV1(9F) key disable */
+				];
+			};
+
+			// HD ========================================
+			hd {
+				qcom,mdss-dsi-on-command = [
+					29 01 00 00 00 00 03 9F A5 A5		/* LV1(9F) key enable */
+					// DSC setting1
+					29 00 00 00 00 00 03 F0 5A 5A		/* level2_key Enable - 5ms */
+					07 01 00 00 00 00 01 01			/* DSC enable :  Compression Mode*/
+					0A 01 00 00 00 00 59				/* PPS setting hd */
+						11 00 00 89 30 80 05 C8
+						02 D0 00 4A 01 68 01 68
+						02 00 01 B4 00 20 05 BA
+						00 05 00 0C 01 51 02 10
+						18 00 10 F0 03 0C 20 00
+						06 0B 0B 33 0E 1C 2A 38
+						46 54 62 69 70 77 79 7B
+						7D 7E 01 02 01 00 09 40
+						09 BE 19 FC 19 FA 19 F8
+						1A 38 1A 78 1A B6 2A F6
+						2B 34 2B 74 3B 74 6B F4
+						00
+					29 00 00 00 00 00 03 F0 A5 A5		/* level2_key Disable*/
+
+					// Sleep out
+					05 01 00 00 0A 00 01 11			/* Sleep out (Wait 10ms) */
+
+					// DSC setting2
+					29 00 00 00 00 00 03 F0 5A 5A				/* level3_key enable*/
+					29 00 00 00 00 00 03 FC 5A 5A				/* level2_key enable*/
+					29 00 00 00 00 00 05 2A 00 00 02 CF			/* CASET*/
+					29 00 00 00 00 00 05 2B 00 00 05 C7 			/*PASET */
+					29 00 00 00 00 00 08 BA 00 02 06 08 08 1E 03		/* scaler setup */
+					29 00 00 00 00 00 02 B0 05
+					29 00 00 00 00 00 02 FF 01					/* 2Ch latch on 1.78<->4x Scaler mode change */
+					29 00 00 00 00 00 02 B0 07
+					29 00 00 00 00 00 03 F2 3C D0				/* scaler on/off, CASET/PASET, PPS, DSC on/off 2Ch latch O, Black frame insertion =0-frame*/
+					29 00 00 00 00 00 03 FC A5 A5				/* level3_key Disable*/
+					29 00 00 00 00 00 03 F0 A5 A5				/* level2_key Disable*/
+
+					// Module Information READ
+
+					// Common Setting
+					29 00 00 00 00 00 02 35 00		/* TE Vsync ON */
+
+					29 00 00 00 00 00 03 F0 5A 5A		/* TEST KEY1 Enable*/
+					29 00 00 00 00 00 02 ED 4C		/* ERR_FG */
+					29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY1 Disable*/
+
+					/* FFC Setting (898Mbps) */
+					29 00 00 00 00 00 03 F0 5A 5A		/* TEST KEY1 Enable*/
+					29 00 00 00 00 00 14 C5 0D 08 40 19 B7 07 1F 81 25 CE 79 77 73 00 FF 78 8F 00 00
+					29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY1 Disable*/
+
+					/* TSP HSYNC Enable */
+					29 00 00 00 00 00 03 F0 5A 5A		/* TEST KEY1 Enable*/
+					29 00 00 00 00 00 08 B9 00 00 14 00 18 11 03
+					29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY1 Disable*/
+
+					/* Side Display Off */
+					29 00 00 00 00 00 03 F0 5A 5A
+					29 00 00 00 00 00 06 1A 1F 00 00 00 00
+					29 00 00 00 00 00 03 F0 A5 A5
+
+					/* ISC Setting */
+					29 00 00 00 00 00 03 F0 5A 5A
+					29 00 00 00 00 00 02 B0 03
+					29 00 00 00 00 00 02 F6 53
+					29 00 00 00 00 00 02 B0 08
+					29 00 00 00 00 00 02 F6 80
+					29 00 00 00 00 00 03 F0 A5 A5
+
+					/* COPR enable */
+					29 00 00 00 00 00 03 F0 5A 5A		/* TEST KEY1 Enable*/
+					29 01 00 00 00 00 0D E1 03 5D 6E B5 00 00 00 00 00 00 00 00
+					29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY1 Disable*/
+
+					// Brightness Setting
+					29 00 00 00 00 00 03 F0 5A 5A		/* TEST KEY1 Enable*/
+					29 00 00 00 00 00 24				/* Brightness condition set */
+						CA
+						01 00 01 00 01 00
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						00 00
+					29 00 00 00 00 00 03 B1 00 0C   /* AID Set : 0% */
+					29 00 00 00 00 00 03 B5 19 DC   /* ELVSS Setting:CAPS ON : acl off */
+					29 00 00 00 00 00 03 F4 EB 17   /* VINT set */
+					29 01 00 00 00 00 02 F7 03      /* Gamma, LTPS(AID) update */
+
+					29 01 00 00 00 00 03 F0 A5 A5   /* TEST KEY1 Disable */
+					29 01 00 00 00 00 03 9F 5A 5A	/* LV1(9F) key disable */
+				];
+			};
+		};
+	};
+};
