@@ -269,7 +269,7 @@ static ssize_t dex_store(struct class *class,
 		secdp_bigdata_save_item(BD_DP_MODE, "MIRROR");
 #endif
 
-	if (sec->dex.res == DEX_RES_NOT_SUPPORT) {
+	if (secdp_get_dex_res() == DEX_RES_NOT_SUPPORT) {
 		DP_DEBUG("this dongle does not support dex\n");
 		goto exit;
 	}
@@ -293,14 +293,13 @@ static ssize_t dex_ver_show(struct class *class,
 {
 	int rc;
 	struct secdp_sysfs_private *sysfs = g_secdp_sysfs;
-	struct secdp_misc *sec = sysfs->sec;
-	struct secdp_dex *dex = &sec->dex;
+	struct secdp_adapter *adapter = &sysfs->sec->adapter;
 
 	DP_INFO("branch revision: HW(0x%X), SW(0x%X, 0x%X)\n",
-		dex->fw_ver[0], dex->fw_ver[1], dex->fw_ver[2]);
+		adapter->fw_ver[0], adapter->fw_ver[1], adapter->fw_ver[2]);
 
 	rc = scnprintf(buf, PAGE_SIZE, "%02X%02X\n",
-		dex->fw_ver[1], dex->fw_ver[2]);
+		adapter->fw_ver[1], adapter->fw_ver[2]);
 
 	return rc;
 }
@@ -686,9 +685,12 @@ static ssize_t dp_forced_resolution_show(struct class *class,
 	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "\n< HMD >\n%s\n", tmp);
 
 	memset(tmp, 0, ARRAY_SIZE(tmp));
-
 	secdp_show_phy_param(tmp);
 	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "\n< DP-PHY >\n%s\n", tmp);
+
+	memset(tmp, 0, ARRAY_SIZE(tmp));
+	secdp_show_link_param(tmp);
+	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "\n< link params >\n%s\n", tmp);
 
 	return rc;
 }
@@ -696,7 +698,8 @@ static ssize_t dp_forced_resolution_show(struct class *class,
 static ssize_t dp_forced_resolution_store(struct class *dev,
 		struct class_attribute *attr, const char *buf, size_t size)
 {
-	int val[10] = {0, };
+	char str[MAX_DEX_STORE_LEN] = {0,}, *p, *tok;
+	int len, val[10] = {0, };
 
 	if (secdp_check_store_args(buf, size)) {
 		DP_ERR("args error!\n");
@@ -705,11 +708,16 @@ static ssize_t dp_forced_resolution_store(struct class *dev,
 
 	get_options(buf, ARRAY_SIZE(val), val);
 
+	memcpy(str, buf, size);
+	p   = str;
+	tok = strsep(&p, ",");
+	len = strlen(tok);
+	DP_DEBUG("tok:%s, len:%d\n", tok, len);
+
 	if (val[1] <= 0)
 		forced_resolution = 0;
 	else
 		forced_resolution = val[1];
-
 exit:
 	return size;
 }

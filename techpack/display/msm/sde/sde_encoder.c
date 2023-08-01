@@ -249,7 +249,8 @@ const char *sde_enc_rc_states_str[SDE_ENC_RC_STATE_MAX] = {
  * @recovery_events_enabled:	status of hw recovery feature enable by client
  * @elevated_ahb_vote:		increase AHB bus speed for the first frame
  *				after power collapse
- * @pm_qos_cpu_req:		pm_qos request for cpu frequency
+ * @pm_qos_cpu_req:		qos request for all cpu core frequency
+ * @valid_cpu_mask:		actual voted cpu core mask
  * @mode_info:                  stores the current mode and should be used
  *				 only in commit phase
  */
@@ -317,7 +318,8 @@ struct sde_encoder_virt {
 
 	bool recovery_events_enabled;
 	bool elevated_ahb_vote;
-	struct pm_qos_request pm_qos_cpu_req;
+	struct dev_pm_qos_request pm_qos_cpu_req[NR_CPUS];
+	struct cpumask valid_cpu_mask;
 	struct msm_mode_info mode_info;
 };
 
@@ -339,42 +341,67 @@ void sde_encoder_uidle_enable(struct drm_encoder *drm_enc, bool enable)
 	}
 }
 
-static void _sde_encoder_pm_qos_add_request(struct drm_encoder *drm_enc,
-	struct sde_kms *sde_kms)
+static void _sde_encoder_pm_qos_add_request(struct drm_encoder *drm_enc)
 {
 	struct sde_encoder_virt *sde_enc = to_sde_encoder_virt(drm_enc);
-	struct pm_qos_request *req;
-	u32 cpu_mask;
+	struct msm_drm_private *priv;
+	struct sde_kms *sde_kms;
+	struct device *cpu_dev;
+	struct cpumask *cpu_mask = NULL;
+	int cpu = 0;
 	u32 cpu_dma_latency;
-	int cpu;
+	priv = drm_enc->dev->dev_private;
+	sde_kms = to_sde_kms(priv->kms);
 
 	if (!sde_kms->catalog || !sde_kms->catalog->perf.cpu_mask)
 		return;
 
-	cpu_mask = sde_kms->catalog->perf.cpu_mask;
 	cpu_dma_latency = sde_kms->catalog->perf.cpu_dma_latency;
+	cpumask_clear(&sde_enc->valid_cpu_mask);
 
-	req = &sde_enc->pm_qos_cpu_req;
-	req->type = PM_QOS_REQ_AFFINE_CORES;
-	cpumask_empty(&req->cpus_affine);
-	for_each_possible_cpu(cpu) {
-		if ((1 << cpu) & cpu_mask)
-			cpumask_set_cpu(cpu, &req->cpus_affine);
+	if (sde_enc->mode_info.frame_rate > FPS60)
+		cpu_mask = to_cpumask(&sde_kms->catalog->perf.cpu_mask_perf);
+	if (!cpu_mask &&
+			sde_encoder_check_curr_mode(drm_enc,
+				MSM_DISPLAY_CMD_MODE))
+		cpu_mask = to_cpumask(&sde_kms->catalog->perf.cpu_mask);
+
+	if (!cpu_mask)
+		return;
+
+	for_each_cpu(cpu, cpu_mask) {
+		cpu_dev = get_cpu_device(cpu);
+		if (!cpu_dev) {
+			SDE_ERROR("%s: failed to get cpu%d device\n", __func__,
+					cpu);
+			return;
+		}
+		cpumask_set_cpu(cpu, &sde_enc->valid_cpu_mask);
+		dev_pm_qos_add_request(cpu_dev,
+				&sde_enc->pm_qos_cpu_req[cpu],
+				DEV_PM_QOS_RESUME_LATENCY, cpu_dma_latency);
+		SDE_EVT32(DRMID(drm_enc), cpu_dma_latency, cpu);
 	}
-	pm_qos_add_request(req, PM_QOS_CPU_DMA_LATENCY, cpu_dma_latency);
-
-	SDE_EVT32_VERBOSE(DRMID(drm_enc), cpu_mask, cpu_dma_latency);
 }
 
-static void _sde_encoder_pm_qos_remove_request(struct drm_encoder *drm_enc,
-	struct sde_kms *sde_kms)
+static void _sde_encoder_pm_qos_remove_request(struct drm_encoder *drm_enc)
 {
 	struct sde_encoder_virt *sde_enc = to_sde_encoder_virt(drm_enc);
 
-	if (!sde_kms->catalog || !sde_kms->catalog->perf.cpu_mask)
-		return;
+	struct device *cpu_dev;
+	int cpu = 0;
 
-	pm_qos_remove_request(&sde_enc->pm_qos_cpu_req);
+	for_each_cpu(cpu, &sde_enc->valid_cpu_mask) {
+		cpu_dev = get_cpu_device(cpu);
+		if (!cpu_dev) {
+			SDE_ERROR("%s: failed to get cpu%d device\n", __func__,
+					cpu);
+			continue;
+		}
+		dev_pm_qos_remove_request(&sde_enc->pm_qos_cpu_req[cpu]);
+		SDE_EVT32(DRMID(drm_enc), cpu);
+	}
+	cpumask_clear(&sde_enc->valid_cpu_mask);
 }
 
 static bool _sde_encoder_is_autorefresh_enabled(
@@ -2240,14 +2267,10 @@ static int _sde_encoder_resource_control_helper(struct drm_encoder *drm_enc,
 	struct sde_kms *sde_kms;
 	struct sde_encoder_virt *sde_enc;
 	int rc;
-	bool is_cmd_mode = false;
 
 	sde_enc = to_sde_encoder_virt(drm_enc);
 	priv = drm_enc->dev->dev_private;
 	sde_kms = to_sde_kms(priv->kms);
-
-	if (sde_encoder_check_curr_mode(drm_enc, MSM_DISPLAY_CMD_MODE))
-		is_cmd_mode = true;
 
 	SDE_DEBUG_ENC(sde_enc, "enable:%d\n", enable);
 	SDE_EVT32(DRMID(drm_enc), enable);
@@ -2279,12 +2302,10 @@ static int _sde_encoder_resource_control_helper(struct drm_encoder *drm_enc,
 		/* enable all the irq */
 		_sde_encoder_irq_control(drm_enc, true);
 
-		if (is_cmd_mode)
-			_sde_encoder_pm_qos_add_request(drm_enc, sde_kms);
+		_sde_encoder_pm_qos_add_request(drm_enc);
 
 	} else {
-		if (is_cmd_mode)
-			_sde_encoder_pm_qos_remove_request(drm_enc, sde_kms);
+		_sde_encoder_pm_qos_remove_request(drm_enc);
 
 		/* disable all the irq */
 		_sde_encoder_irq_control(drm_enc, false);
@@ -2734,6 +2755,7 @@ static int _sde_encoder_rc_pre_modeset(struct drm_encoder *drm_enc,
 		SDE_ENC_RC_STATE_MODESET, SDE_EVTLOG_FUNC_CASE5);
 
 	sde_enc->rc_state = SDE_ENC_RC_STATE_MODESET;
+	_sde_encoder_pm_qos_remove_request(drm_enc);
 
 end:
 	mutex_unlock(&sde_enc->rc_lock);
@@ -2772,6 +2794,7 @@ static int _sde_encoder_rc_post_modeset(struct drm_encoder *drm_enc,
 			SDE_ENC_RC_STATE_ON, SDE_EVTLOG_FUNC_CASE6);
 
 	sde_enc->rc_state = SDE_ENC_RC_STATE_ON;
+	_sde_encoder_pm_qos_add_request(drm_enc);
 
 end:
 	mutex_unlock(&sde_enc->rc_lock);
@@ -4461,6 +4484,45 @@ bool sde_encoder_check_curr_mode(struct drm_encoder *drm_enc, u32 mode)
 	return (disp_info->curr_panel_mode == mode);
 }
 
+void sde_encoder_trigger_rsc_state_change(struct drm_encoder *drm_enc)
+{
+	struct sde_encoder_virt *sde_enc = NULL;
+	int ret = 0;
+
+	sde_enc = to_sde_encoder_virt(drm_enc);
+
+	if (!sde_enc)
+		return;
+
+	mutex_lock(&sde_enc->rc_lock);
+	/*
+	 * In dual display case when secondary comes out of
+	 * idle make sure RSC solver mode is disabled before
+	 * setting CTL_PREPARE.
+	 */
+	if (!sde_enc->cur_master ||
+		!sde_encoder_check_curr_mode(drm_enc, MSM_DISPLAY_CMD_MODE) ||
+		sde_enc->disp_info.display_type == SDE_CONNECTOR_PRIMARY ||
+		sde_enc->rc_state != SDE_ENC_RC_STATE_IDLE)
+		goto end;
+
+	/* enable all the clks and resources */
+	ret = _sde_encoder_resource_control_helper(drm_enc, true);
+	if (ret) {
+		SDE_ERROR_ENC(sde_enc, "rc in state %d\n", sde_enc->rc_state);
+		SDE_EVT32(DRMID(drm_enc), sde_enc->rc_state, SDE_EVTLOG_ERROR);
+		goto end;
+	}
+
+	_sde_encoder_update_rsc_client(drm_enc, true);
+
+	SDE_EVT32(DRMID(drm_enc), sde_enc->rc_state, SDE_ENC_RC_STATE_ON);
+	sde_enc->rc_state = SDE_ENC_RC_STATE_ON;
+
+	end:
+	mutex_unlock(&sde_enc->rc_lock);
+}
+
 void sde_encoder_trigger_kickoff_pending(struct drm_encoder *drm_enc)
 {
 	struct sde_encoder_virt *sde_enc;
@@ -5026,12 +5088,6 @@ int sde_encoder_prepare_for_kickoff(struct drm_encoder *drm_enc,
 	bool needs_hw_reset = false, is_cmd_mode;
 	int i, rc, ret = 0;
 	struct msm_display_info *disp_info;
-#if defined(CONFIG_DISPLAY_SAMSUNG)
-	/* DSC Mismatch Debug, Case #04007749*/
-	struct sde_connector *sde_con;
-	struct dsi_display *display;
-	struct dsi_display_mode_priv_info *priv_info;
-#endif
 
 	if (!drm_enc || !params || !drm_enc->dev ||
 		!drm_enc->dev->dev_private) {
@@ -5132,21 +5188,6 @@ int sde_encoder_prepare_for_kickoff(struct drm_encoder *drm_enc,
 	if (sde_enc->cur_master && !sde_enc->cur_master->cont_splash_enabled)
 		sde_configure_qdss(sde_enc, sde_enc->cur_master->hw_qdss,
 				sde_enc->cur_master, sde_kms->qdss_enabled);
-
-#if defined(CONFIG_DISPLAY_SAMSUNG)
-	/* DSC Mismatch Debug, Case #04007749*/
-	sde_con = to_sde_connector(sde_enc->cur_master->connector);
-	display = sde_con->display;
-	priv_info = display->modes->priv_info;
-
-	if (disp_info->intf_type == DRM_MODE_CONNECTOR_DSI && !_sde_encoder_is_dsc_enabled(drm_enc) && priv_info->dsc_enabled) {
-		pr_err("DSC is disabled\n");
-		if (sde_enc && sde_enc->phys_encs[0] && sde_enc->phys_encs[0]->connector) {
-			SDE_EVT32(sde_connector_get_topology_name(sde_enc->phys_encs[0]->connector), 0x9999);
-		}
-		SDE_DBG_DUMP("all", "dbg_bus", "panic");
-	}
-#endif
 
 end:
 	SDE_ATRACE_END("sde_encoder_prepare_for_kickoff");

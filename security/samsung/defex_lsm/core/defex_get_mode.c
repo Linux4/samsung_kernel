@@ -15,7 +15,6 @@
 #include <linux/defex.h>
 #include "include/defex_internal.h"
 
-
 int defex_get_features(void)
 {
 	int features = 0;
@@ -23,31 +22,53 @@ int defex_get_features(void)
 #if !defined(DEFEX_PERMISSIVE_PED)
 	features |= GLOBAL_PED_STATUS;
 #else
-	if (global_privesc_obj->status != 0)
+	if (global_privesc_status != 0)
 		features |= FEATURE_CHECK_CREDS;
-	if (global_privesc_obj->status == 2)
+	if (global_privesc_status == 2)
 		features |= FEATURE_CHECK_CREDS_SOFT;
 #endif /* DEFEX_PERMISSIVE_PED */
 #endif /* DEFEX_PED_ENABLE */
+
+#ifdef DEFEX_INTEGRITY_ENABLE
+#if !defined(DEFEX_PERMISSIVE_INT)
+	features |= GLOBAL_INTEGRITY_STATUS;
+#else
+	if (global_integrity_status != 0)
+		features |= FEATURE_INTEGRITY;
+	if (global_integrity_status == 2)
+		features |= FEATURE_INTEGRITY_SOFT;
+#endif /* DEFEX_PERMISSIVE_INT */
+#endif /* DEFEX_INTEGRITY_ENABLE */
 
 #ifdef DEFEX_SAFEPLACE_ENABLE
 #if !defined(DEFEX_PERMISSIVE_SP)
 	features |= GLOBAL_SAFEPLACE_STATUS;
 #else
-	if (global_safeplace_obj->status != 0)
+	if (global_safeplace_status != 0)
 		features |= FEATURE_SAFEPLACE;
-	if (global_safeplace_obj->status == 2)
+	if (global_safeplace_status == 2)
 		features |= FEATURE_SAFEPLACE_SOFT;
 #endif /* DEFEX_PERMISSIVE_SP */
 #endif /* DEFEX_SAFEPLACE_ENABLE */
+
+#ifdef DEFEX_TRUSTED_MAP_ENABLE
+#if !defined(DEFEX_PERMISSIVE_TM)
+	features |= GLOBAL_TRUSTED_MAP_STATUS;
+#else
+	if (global_trusted_map_status != 0)
+		features |= FEATURE_TRUSTED_MAP;
+	if (global_trusted_map_status & DEFEX_TM_PERMISSIVE_MODE)
+		features |= FEATURE_TRUSTED_MAP_SOFT;
+#endif /* DEFEX_PERMISSIVE_TM */
+#endif /* DEFEX_TRUSTED_MAP_ENABLE */
 
 #ifdef DEFEX_IMMUTABLE_ENABLE
 #if !defined(DEFEX_PERMISSIVE_IM)
 	features |= GLOBAL_IMMUTABLE_STATUS;
 #else
-	if (global_immutable_obj->status != 0)
+	if (global_immutable_status != 0)
 		features |= FEATURE_IMMUTABLE;
-	if (global_immutable_obj->status == 2)
+	if (global_immutable_status == 2)
 		features |= FEATURE_IMMUTABLE_SOFT;
 #endif /* DEFEX_PERMISSIVE_IM */
 #endif /* DEFEX_IMMUTABLE_ENABLE */

@@ -1124,7 +1124,7 @@ struct dma_buf *ion_alloc_dmabuf(size_t len, unsigned int heap_id_mask,
 	task_cputime(current, &utime, &stime_e);
 	stime_d = stime_e - stime_s;
 	if (!IS_ERR(dmabuf) && stime_d / NSEC_PER_MSEC > 100) {
-		pr_info("%s ion_heap_id: %d mask=0x%x timeJS(ms):%u/%llu len:0x%zx",
+		pr_info("%s ion_heap_id: %d mask=0x%x timeJS(ms):%u/%llu len:0x%zu\n",
 			__func__, heap->id, heap_id_mask,
 			jiffies_to_msecs(jiffies - jiffies_s),
 			stime_d / NSEC_PER_MSEC, len);

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1297,7 +1298,7 @@ util_scan_add_hidden_ssid(struct wlan_objmgr_pdev *pdev, qdf_nbuf_t bcnbuf)
 	uint16_t tmplen, ie_length;
 	uint8_t *pbeacon, *tmp;
 	bool     set_ssid_flag = false;
-	struct ie_ssid *ssid;
+	struct ie_ssid ssid = {0};
 	uint8_t pdev_id;
 
 	if (!pdev) {
@@ -1346,8 +1347,15 @@ util_scan_add_hidden_ssid(struct wlan_objmgr_pdev *pdev, qdf_nbuf_t bcnbuf)
 						 sizeof(struct ie_header))) {
 				return QDF_STATUS_E_INVAL;
 			}
-			ssid = (struct ie_ssid *)ie;
-			if (util_scan_is_hidden_ssid(ssid)) {
+			ssid.ssid_id = ie->ie_id;
+			ssid.ssid_len = ie->ie_len;
+
+			if (ssid.ssid_len)
+				qdf_mem_copy(ssid.ssid,
+					     ie + sizeof(struct ie_header),
+					     ssid.ssid_len);
+
+			if (util_scan_is_hidden
 				set_ssid_flag  = true;
 				ssid_ie_start_offset = bcn_ie_offset -
 					sizeof(struct ie_header);
@@ -1374,7 +1382,7 @@ util_scan_add_hidden_ssid(struct wlan_objmgr_pdev *pdev, qdf_nbuf_t bcnbuf)
 
 	if (set_ssid_flag) {
 		/* Hidden SSID if the Length is 0 */
-		if (!ssid->ssid_len) {
+		if (!ssid.ssid_len) {
 			/* increase the taillength by length of ssid */
 			if (qdf_nbuf_put_tail(bcnbuf,
 					      conf_ssid->length) == NULL) {
@@ -1407,7 +1415,7 @@ util_scan_add_hidden_ssid(struct wlan_objmgr_pdev *pdev, qdf_nbuf_t bcnbuf)
 			qdf_mem_free(tmp);
 
 			/* Hidden ssid with all 0's */
-		} else if (ssid->ssid_len == conf_ssid->length) {
+		} else if (ssid.ssid_len == conf_ssid->length) {
 			/* Insert the  SSID string */
 			qdf_mem_copy((pbeacon + ssid_ie_start_offset +
 				      sizeof(struct ie_header)),
@@ -1970,9 +1978,9 @@ util_scan_parse_beacon_frame(struct wlan_objmgr_pdev *pdev,
 {
 	struct wlan_bcn_frame *bcn;
 	struct wlan_frame_hdr *hdr;
-	uint8_t *mbssid_ie = NULL;
+	uint8_t *mbssid_ie = NULL, *extcap_ie;
 	uint32_t ie_len = 0;
-	QDF_STATUS status;
+	QDF_STATUS status = QDF_STATUS_E_FAILURE;
 	struct scan_mbssid_info mbssid_info = { 0 };
 
 	hdr = (struct wlan_frame_hdr *)frame;
@@ -1982,12 +1990,24 @@ util_scan_parse_beacon_frame(struct wlan_objmgr_pdev *pdev,
 		sizeof(struct wlan_frame_hdr) -
 		offsetof(struct wlan_bcn_frame, ie));
 
-	mbssid_ie = util_scan_find_ie(WLAN_ELEMID_MULTIPLE_BSSID,
+	extcap_ie = util_scan_find_ie(WLAN_ELEMID_XCAPS,
 				      (uint8_t *)&bcn->ie, ie_len);
-	if (mbssid_ie) {
-		qdf_mem_copy(&mbssid_info.trans_bssid,
-			     hdr->i_addr3, QDF_MAC_ADDR_SIZE);
-		mbssid_info.profile_count = 1 << mbssid_ie[2];
+	/* Process MBSSID when Multiple BSSID (Bit 22) is set in Ext Caps */
+	if (extcap_ie &&
+	    extcap_ie[1] >= 3 && extcap_ie[1] <= WLAN_EXTCAP_IE_MAX_LEN &&
+	    (extcap_ie[4] & 0x40)) {
+		mbssid_ie = util_scan_find_ie(WLAN_ELEMID_MULTIPLE_BSSID,
+					      (uint8_t *)&bcn->ie, ie_len);
+		if (mbssid_ie) {
+			if (mbssid_ie[1] <= 0) {
+				scm_debug("MBSSID IE length is wrong %d",
+					  mbssid_ie[1]);
+				return status;
+			}
+			qdf_mem_copy(&mbssid_info.trans_bssid,
+				     hdr->i_addr3, QDF_MAC_ADDR_SIZE);
+			mbssid_info.profile_count = 1 << mbssid_ie[2];
+		}
 	}
 
 	status = util_scan_gen_scan_entry(pdev, frame, frame_len,

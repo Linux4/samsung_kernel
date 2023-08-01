@@ -302,7 +302,7 @@ config SEC_QPNP_PON_SPARE_BITS
 
 config SEC_DEBUG_TEST
 	bool "KUnit test for sec_debug_test"
-	depends on KUNIT
+	depends on SEC_KUNIT
 	help
 	  TODO: Describe config fully.
 

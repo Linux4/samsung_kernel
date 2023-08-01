@@ -1121,6 +1121,12 @@ static long bt_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	int ret = 0, pwr_cntrl = 0;
 	int chipset_version = 0;
 
+	if(bt_power_pdata == NULL){
+		BT_PWR_ERR("Bt_power not probed");
+		ret = -EINVAL;
+		return ret;
+	}
+
 	switch (cmd) {
 	case BT_CMD_SLIM_TEST:
 #if defined CONFIG_BT_SLIM_QCA6390 || defined CONFIG_BT_SLIM_QCA6490|| defined CONFIG_BTFM_SLIM_WCN3990
@@ -1136,11 +1142,7 @@ static long bt_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case BT_CMD_PWR_CTRL:
 		pwr_cntrl = (int)arg;
 		BT_PWR_ERR("BT_CMD_PWR_CTRL pwr_cntrl:%d", pwr_cntrl);
-		if(bt_power_pdata == NULL){
-			BT_PWR_ERR("Bt_power not probed");
-			ret = -EINVAL;
-			break;
-		}
+
 		if (pwr_state != pwr_cntrl) {
 			ret = bluetooth_power(pwr_cntrl);
 			if (!ret)

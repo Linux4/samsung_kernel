@@ -283,7 +283,7 @@ static void ufshcd_update_uic_error_cnt(struct ufs_hba *hba, u32 reg, int type)
 #ifdef CONFIG_SCSI_UFS_SUPPORT_TW_MAN_GC
 #define UFS_TW_MANUAL_FLUSH_THRESHOLD   5
 #endif
-#define UFS_TW_DISABLE_THRESHOLD	7
+#define UFS_TW_DISABLE_THRESHOLD	9
 
 #define SEC_UFS_TW_INFO_DIFF(t, n, o, member) ({		\
 		(t)->member = (n)->member - (o)->member;	\
@@ -5302,6 +5302,13 @@ int ufshcd_read_desc_param(struct ufs_hba *hba,
 		dev_err(hba->dev, "%s: Failed to get full descriptor length",
 			__func__);
 		return ret;
+	}
+
+	/* Check param offset and size what we need is less than buff_len */
+	if ((param_offset + param_size) > buff_len) {
+		dev_err(hba->dev, "%s: Invalid offset 0x%x(size 0x%x) in descriptor IDN 0x%x, length 0x%x\n",
+				__func__, param_offset, param_size, desc_id, buff_len);
+		return -EINVAL;
 	}
 
 	/* Check whether we need temp memory */

@@ -443,12 +443,8 @@ check_dc_step_change:
 
 		if (battery->step_charging_status < 0) {
 			pr_info("%s : step input current = %d\n", __func__, battery->pdata->dc_step_chg_val_iout[battery->pdata->age_step][step] / 2);
-			val.intval = battery->pdata->dc_step_chg_val_iout[battery->pdata->age_step][step] / 2;
-			psy_do_property(battery->pdata->charger_name, set,
-				POWER_SUPPLY_EXT_PROP_DIRECT_CURRENT_MAX, val);
-
 			/* updated charging current */
-			battery->charging_current = battery->pdata->dc_step_chg_val_iout[battery->pdata->age_step][step];
+			sec_bat_refresh_charging_current(battery);
 		}
 
 		battery->step_charging_status = step;
