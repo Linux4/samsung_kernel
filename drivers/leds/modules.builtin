@@ -1,0 +1,5 @@
+kernel/drivers/leds/leds-qpnp.ko
+kernel/drivers/leds/leds-gpio.ko
+kernel/drivers/leds/leds-msm-gpio-flash.ko
+kernel/drivers/leds/rtfled.ko
+kernel/drivers/leds/rt5033_fled.ko

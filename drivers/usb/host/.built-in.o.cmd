@@ -1,0 +1,1 @@
+cmd_drivers/usb/host/built-in.o :=  /opt/toolchains/arm-eabi-4.7/bin/arm-eabi-ld -EL    -r -o drivers/usb/host/built-in.o drivers/usb/host/ehci-hcd.o drivers/usb/host/ehci-msm.o drivers/usb/host/ehci-msm2.o drivers/usb/host/ehci-msm-uicc.o 

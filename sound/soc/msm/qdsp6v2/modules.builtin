@@ -1,0 +1,3 @@
+kernel/sound/soc/msm/qdsp6v2/snd-soc-qdsp6v2.ko
+kernel/sound/soc/msm/qdsp6v2/msm-pcm-dtmf-v2.ko
+kernel/sound/soc/msm/qdsp6v2/msm-dai-stub-v2.ko

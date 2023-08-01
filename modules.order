@@ -1,0 +1,12 @@
+kernel/arch/arm/mach-msm/dma_test.ko
+kernel/arch/arm/mach-msm/msm-buspm-dev.ko
+kernel/crypto/ansi_cprng.ko
+kernel/block/test-iosched.ko
+kernel/drivers/spi/spidev.ko
+kernel/drivers/usb/host/ice40-hcd.ko
+kernel/drivers/input/evbug.ko
+kernel/drivers/media/radio/radio-iris-transport.ko
+kernel/drivers/mmc/card/mmc_test.ko
+kernel/drivers/mmc/card/mmc_block_test.ko
+kernel/drivers/crypto/msm/qcrypto.ko
+kernel/arch/arm/oprofile/oprofile.ko

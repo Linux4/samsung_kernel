@@ -1,0 +1,1 @@
+cmd_drivers/clk/built-in.o :=  /opt/toolchains/arm-eabi-4.7/bin/arm-eabi-ld -EL    -r -o drivers/clk/built-in.o drivers/clk/clk-devres.o drivers/clk/clkdev.o drivers/clk/clk.o drivers/clk/qcom/built-in.o 

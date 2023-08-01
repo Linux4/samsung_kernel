@@ -1,0 +1,1 @@
+cmd_arch/arm/boot/compressed/piggy.lz4 := (cat arch/arm/boot/compressed/../Image | lz4c -l -c1 stdin stdout && printf \\310\\103\\017\\001) > arch/arm/boot/compressed/piggy.lz4 || (rm -f arch/arm/boot/compressed/piggy.lz4 ; false)

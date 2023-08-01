@@ -1,0 +1,1 @@
+cmd_drivers/sensors/built-in.o :=  /opt/toolchains/arm-eabi-4.7/bin/arm-eabi-ld -EL    -r -o drivers/sensors/built-in.o drivers/sensors/sensors_core.o drivers/sensors/k2hh.o drivers/sensors/cm36672p.o 

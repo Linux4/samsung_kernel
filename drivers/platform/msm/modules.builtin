@@ -1,0 +1,3 @@
+kernel/drivers/platform/msm/qpnp-power-on.ko
+kernel/drivers/platform/msm/avtimer.ko
+kernel/drivers/platform/msm/qpnp-revid.ko

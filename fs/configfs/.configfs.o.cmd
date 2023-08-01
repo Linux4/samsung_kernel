@@ -1,0 +1,1 @@
+cmd_fs/configfs/configfs.o := /opt/toolchains/arm-eabi-4.7/bin/arm-eabi-ld -EL    -r -o fs/configfs/configfs.o fs/configfs/inode.o fs/configfs/file.o fs/configfs/dir.o fs/configfs/symlink.o fs/configfs/mount.o fs/configfs/item.o 

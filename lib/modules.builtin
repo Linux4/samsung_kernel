@@ -1,0 +1,13 @@
+kernel/lib/bitrev.ko
+kernel/lib/crc-ccitt.ko
+kernel/lib/crc16.ko
+kernel/lib/crc32.ko
+kernel/lib/libcrc32c.ko
+kernel/lib/ts_kmp.ko
+kernel/lib/ts_bm.ko
+kernel/lib/ts_fsm.ko
+kernel/lib/lz4/lz4_decompress.ko
+kernel/lib/lzo/lzo_compress.ko
+kernel/lib/lzo/lzo_decompress.ko
+kernel/lib/zlib_deflate/zlib_deflate.ko
+kernel/lib/zlib_inflate/zlib_inflate.ko

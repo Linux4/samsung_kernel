@@ -1,0 +1,3 @@
+kernel/sound/soc/codecs/snd-soc-msm8x16-wcd.ko
+kernel/sound/soc/codecs/msm8916-wcd-irq.ko
+kernel/sound/soc/codecs/snd-soc-msm-stub.ko

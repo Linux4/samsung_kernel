@@ -1,0 +1,6 @@
+kernel/drivers/hwmon/hwmon.ko
+kernel/drivers/hwmon/qpnp-buck-current-monitor.ko
+kernel/drivers/hwmon/qpnp-adc-voltage.ko
+kernel/drivers/hwmon/qpnp-adc-common.ko
+kernel/drivers/hwmon/qpnp-adc-current.ko
+kernel/drivers/hwmon/qpnp-adc-common.ko

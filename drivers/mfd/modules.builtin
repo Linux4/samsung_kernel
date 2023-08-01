@@ -1,0 +1,7 @@
+kernel/drivers/mfd/mfd-core.ko
+kernel/drivers/mfd/wcd9xxx-core.ko
+kernel/drivers/mfd/wcd9xxx-irq.ko
+kernel/drivers/mfd/wcd9xxx-slimslave.ko
+kernel/drivers/mfd/wcd9xxx-core-resource.ko
+kernel/drivers/mfd/rt5033_core.ko
+kernel/drivers/mfd/rt5033_irq.ko

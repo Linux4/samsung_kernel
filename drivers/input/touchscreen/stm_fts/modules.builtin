@@ -1,0 +1,2 @@
+kernel/drivers/input/touchscreen/stm_fts/fts_ts.ko
+kernel/drivers/input/touchscreen/stm_fts/fts_fwu.ko

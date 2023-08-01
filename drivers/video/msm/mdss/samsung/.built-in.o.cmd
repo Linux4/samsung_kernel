@@ -1,0 +1,1 @@
+cmd_drivers/video/msm/mdss/samsung/built-in.o :=  /opt/toolchains/arm-eabi-4.7/bin/arm-eabi-ld -EL    -r -o drivers/video/msm/mdss/samsung/built-in.o drivers/video/msm/mdss/samsung/ss_dsi_panel_common.o drivers/video/msm/mdss/samsung/ss_dsi_mdnie_lite_common.o drivers/video/msm/mdss/samsung/ss_dsi_smart_dimming_common.o drivers/video/msm/mdss/samsung/EA8061_AMS549BU19/built-in.o 

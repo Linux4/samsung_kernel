@@ -1,0 +1,1 @@
+cmd_drivers/input/keyboard/built-in.o :=  /opt/toolchains/arm-eabi-4.7/bin/arm-eabi-ld -EL    -r -o drivers/input/keyboard/built-in.o drivers/input/keyboard/atkbd.o drivers/input/keyboard/gpio_keys.o drivers/input/keyboard/tc360-touchkey_e.o drivers/input/keyboard/hall_ic.o 

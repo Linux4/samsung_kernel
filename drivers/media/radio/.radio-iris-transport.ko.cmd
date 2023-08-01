@@ -1,0 +1,1 @@
+cmd_drivers/media/radio/radio-iris-transport.ko := /opt/toolchains/arm-eabi-4.7/bin/arm-eabi-ld -EL -r  -T /home/longjian.cui/SM-E7000_CHN_CHC_Kernel/scripts/module-common.lds --build-id  -o drivers/media/radio/radio-iris-transport.ko drivers/media/radio/radio-iris-transport.o drivers/media/radio/radio-iris-transport.mod.o

@@ -1,0 +1,3 @@
+kernel/block/deadline-iosched.ko
+kernel/block/row-iosched.ko
+kernel/block/cfq-iosched.ko

@@ -1,0 +1,1 @@
+cmd_drivers/soc/qcom/qdsp6v2/built-in.o :=  /opt/toolchains/arm-eabi-4.7/bin/arm-eabi-ld -EL    -r -o drivers/soc/qcom/qdsp6v2/built-in.o drivers/soc/qcom/qdsp6v2/apr.o drivers/soc/qcom/qdsp6v2/apr_v3.o drivers/soc/qcom/qdsp6v2/apr_tal.o drivers/soc/qcom/qdsp6v2/voice_svc.o drivers/soc/qcom/qdsp6v2/msm_audio_ion.o drivers/soc/qcom/qdsp6v2/adsp-loader.o 

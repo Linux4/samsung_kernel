@@ -1,0 +1,17 @@
+kernel/sound/soundcore.ko
+kernel/sound/core/snd.ko
+kernel/sound/core/snd-timer.ko
+kernel/sound/core/snd-pcm.ko
+kernel/sound/core/snd-page-alloc.ko
+kernel/sound/core/snd-rawmidi.ko
+kernel/sound/core/snd-compress.ko
+kernel/sound/soc/snd-soc-core.ko
+kernel/sound/soc/codecs/snd-soc-msm8x16-wcd.ko
+kernel/sound/soc/codecs/msm8916-wcd-irq.ko
+kernel/sound/soc/codecs/snd-soc-msm-stub.ko
+kernel/sound/soc/msm/snd-soc-hostless-pcm.ko
+kernel/sound/soc/msm/snd-soc-qdsp6v2.ko
+kernel/sound/soc/msm/snd-soc-msm8x16.ko
+kernel/sound/soc/msm/qdsp6v2/snd-soc-qdsp6v2.ko
+kernel/sound/soc/msm/qdsp6v2/msm-pcm-dtmf-v2.ko
+kernel/sound/soc/msm/qdsp6v2/msm-dai-stub-v2.ko

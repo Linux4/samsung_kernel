@@ -1,0 +1,1 @@
+cmd_firmware/built-in.o :=  /opt/toolchains/arm-eabi-4.7/bin/arm-eabi-ld -EL    -r -o firmware/built-in.o firmware/coreriver/tc360_e5.fw.gen.o firmware/coreriver/tc360_e7.fw.gen.o firmware/tsp_stm/stm.fw.gen.o 

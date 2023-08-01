@@ -1,0 +1,1 @@
+cmd_sound/soc/codecs/built-in.o :=  /opt/toolchains/arm-eabi-4.7/bin/arm-eabi-ld -EL    -r -o sound/soc/codecs/built-in.o sound/soc/codecs/snd-soc-msm8x16-wcd.o sound/soc/codecs/msm8916-wcd-irq.o sound/soc/codecs/snd-soc-msm-stub.o 

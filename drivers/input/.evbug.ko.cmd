@@ -1,0 +1,1 @@
+cmd_drivers/input/evbug.ko := /opt/toolchains/arm-eabi-4.7/bin/arm-eabi-ld -EL -r  -T /home/longjian.cui/SM-E7000_CHN_CHC_Kernel/scripts/module-common.lds --build-id  -o drivers/input/evbug.ko drivers/input/evbug.o drivers/input/evbug.mod.o

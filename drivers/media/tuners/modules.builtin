@@ -1,0 +1,13 @@
+kernel/drivers/media/tuners/tuner-xc2028.ko
+kernel/drivers/media/tuners/tuner-simple.ko
+kernel/drivers/media/tuners/tuner-types.ko
+kernel/drivers/media/tuners/mt20xx.ko
+kernel/drivers/media/tuners/tda8290.ko
+kernel/drivers/media/tuners/tea5767.ko
+kernel/drivers/media/tuners/tea5761.ko
+kernel/drivers/media/tuners/tda9887.ko
+kernel/drivers/media/tuners/tda827x.ko
+kernel/drivers/media/tuners/tda18271.ko
+kernel/drivers/media/tuners/xc5000.ko
+kernel/drivers/media/tuners/xc4000.ko
+kernel/drivers/media/tuners/mc44s803.ko

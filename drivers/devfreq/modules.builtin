@@ -1,0 +1,11 @@
+kernel/drivers/devfreq/governor_simpleondemand.ko
+kernel/drivers/devfreq/governor_performance.ko
+kernel/drivers/devfreq/governor_powersave.ko
+kernel/drivers/devfreq/governor_userspace.ko
+kernel/drivers/devfreq/governor_cpufreq.ko
+kernel/drivers/devfreq/governor_msm_adreno_tz.ko
+kernel/drivers/devfreq/bimc-bwmon.ko
+kernel/drivers/devfreq/governor_bw_hwmon.ko
+kernel/drivers/devfreq/governor_gpubw_mon.ko
+kernel/drivers/devfreq/governor_bw_vbif.ko
+kernel/drivers/devfreq/devfreq_simple_dev.ko

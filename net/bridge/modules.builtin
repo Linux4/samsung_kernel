@@ -1,0 +1,3 @@
+kernel/net/bridge/bridge.ko
+kernel/net/bridge/netfilter/ebtables.ko
+kernel/net/bridge/netfilter/ebtable_broute.ko

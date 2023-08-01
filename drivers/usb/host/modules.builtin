@@ -1,0 +1,4 @@
+kernel/drivers/usb/host/ehci-hcd.ko
+kernel/drivers/usb/host/ehci-msm.ko
+kernel/drivers/usb/host/ehci-msm2.ko
+kernel/drivers/usb/host/ehci-msm-uicc.ko

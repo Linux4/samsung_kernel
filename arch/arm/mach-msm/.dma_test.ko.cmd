@@ -1,0 +1,1 @@
+cmd_arch/arm/mach-msm/dma_test.ko := /opt/toolchains/arm-eabi-4.7/bin/arm-eabi-ld -EL -r  -T /home/longjian.cui/SM-E7000_CHN_CHC_Kernel/scripts/module-common.lds --build-id  -o arch/arm/mach-msm/dma_test.ko arch/arm/mach-msm/dma_test.o arch/arm/mach-msm/dma_test.mod.o

@@ -1,0 +1,2 @@
+kernel/drivers/crypto/msm/qcedev.ko
+kernel/drivers/crypto/msm/qce50.ko

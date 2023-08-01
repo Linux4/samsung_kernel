@@ -1,0 +1,1 @@
+cmd_drivers/battery/built-in.o :=  /opt/toolchains/arm-eabi-4.7/bin/arm-eabi-ld -EL    -r -o drivers/battery/built-in.o drivers/battery/sec_battery.o drivers/battery/sec_board-battery.o drivers/battery/rt5033_fuelgauge.o drivers/battery/rt5033_charger.o 

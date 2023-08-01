@@ -1,0 +1,2 @@
+kernel/arch/arm/mach-msm/tz_log.ko
+kernel/arch/arm/mach-msm/smcmod.ko

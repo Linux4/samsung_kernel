@@ -1,0 +1,1 @@
+cmd_net/netfilter/nf_nat.o := /opt/toolchains/arm-eabi-4.7/bin/arm-eabi-ld -EL    -r -o net/netfilter/nf_nat.o net/netfilter/nf_nat_core.o net/netfilter/nf_nat_proto_unknown.o net/netfilter/nf_nat_proto_common.o net/netfilter/nf_nat_proto_udp.o net/netfilter/nf_nat_proto_tcp.o net/netfilter/nf_nat_helper.o 

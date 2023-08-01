@@ -1,0 +1,5 @@
+kernel/drivers/media/platform/msm/camera_v2/jpeg_10/msm_jpeg_dev.ko
+kernel/drivers/media/platform/msm/camera_v2/jpeg_10/msm_jpeg_sync.ko
+kernel/drivers/media/platform/msm/camera_v2/jpeg_10/msm_jpeg_core.ko
+kernel/drivers/media/platform/msm/camera_v2/jpeg_10/msm_jpeg_hw.ko
+kernel/drivers/media/platform/msm/camera_v2/jpeg_10/msm_jpeg_platform.ko

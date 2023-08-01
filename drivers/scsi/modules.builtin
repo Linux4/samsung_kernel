@@ -1,0 +1,5 @@
+kernel/drivers/scsi/scsi_mod.ko
+kernel/drivers/scsi/scsi_tgt.ko
+kernel/drivers/scsi/sd_mod.ko
+kernel/drivers/scsi/sg.ko
+kernel/drivers/scsi/ch.ko

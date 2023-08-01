@@ -1,0 +1,8 @@
+kernel/drivers/soc/qcom/rpm_stats.ko
+kernel/drivers/soc/qcom/rpm_master_stat.ko
+kernel/drivers/soc/qcom/rpm_log.ko
+kernel/drivers/soc/qcom/subsys-pil-tz.ko
+kernel/drivers/soc/qcom/pil-q6v5.ko
+kernel/drivers/soc/qcom/pil-msa.ko
+kernel/drivers/soc/qcom/pil-q6v5-mss.ko
+kernel/drivers/soc/qcom/qdsp6v2/adsp-loader.ko

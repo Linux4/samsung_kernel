@@ -1,0 +1,3 @@
+kernel/drivers/misc/qseecom.ko
+kernel/drivers/misc/tzic.ko
+kernel/drivers/misc/eeprom/eeprom_93cx6.ko

@@ -1,0 +1,6 @@
+kernel/drivers/usb/gadget/udc-core.ko
+kernel/drivers/usb/gadget/libcomposite.ko
+kernel/drivers/usb/gadget/ci13xxx_msm.ko
+kernel/drivers/usb/gadget/usb_f_acm.ko
+kernel/drivers/usb/gadget/u_serial.ko
+kernel/drivers/usb/gadget/usb_f_serial.ko
