@@ -1,0 +1,15 @@
+#
+# Samsung Electronics TOUCH driver configuration
+#
+
+if INPUT_TOUCHSCREEN
+
+config TOUCHSCREEN_SEC_TS
+        tristate "Samsung Electronics Touchscreen"
+        depends on I2C
+
+config TOUCHSCREEN_SEC_TS_GLOVEMODE
+        tristate "Samsung Electronics Touchscreen"
+        depends on I2C
+
+endif

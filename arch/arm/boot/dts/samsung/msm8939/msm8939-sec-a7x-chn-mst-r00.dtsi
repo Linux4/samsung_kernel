@@ -1,0 +1,51 @@
+/* Copyright (c) 2015, Samsung Electronics Corporation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	sec-mst {
+		compatible = "sec-mst";
+		sec-mst,mst-pd-gpio = <&msm_gpio 20 0x00>;
+		sec-mst,mst-md-gpio = <&msm_gpio 21 0x00>;
+		sec-mst,mst-pwr-gpio = <&expander_gpios 4 0>;
+
+		pinctrl-names = "mst_active";
+		pinctrl-0 = <&mst_pd_init &mst_md_init>;
+	};
+
+	tlmm_pinmux: pinctrl@1000000 {
+
+		mst_pd_init_pin: mst_pd_init_pin {
+			qcom,pins = <&gp 20>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "mst_pd_init";
+			mst_pd_init: mst_pd_init {
+				drive-strength = <2>;
+				bias-pull-none;
+				output-low;
+			};
+		};
+
+		mst_md_init_pin: mst_md_init_pin {
+			qcom,pins = <&gp 21>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "mst_md_init";
+			mst_md_init: mst_md_init {
+				drive-strength = <2>;
+				bias-pull-none;
+				output-low;
+			};
+		};
+
+	};
+};
