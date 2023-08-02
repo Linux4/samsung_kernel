@@ -1,0 +1,17 @@
+config CGX
+	bool "Sprd gps"
+	depends on SPRD_2351
+	help
+	  GPS can locate you position
+
+config CGX_DRIVER
+	tristate "Sprd gps driver"
+	depends on CGX
+	help
+	  GPS can locate you position
+
+config CGX_VIRTUALCOM
+	tristate "Sprd gps virtual com"
+	depends on CGX
+	help
+	  GPS can locate you position

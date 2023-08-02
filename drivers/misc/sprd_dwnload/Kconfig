@@ -1,0 +1,10 @@
+config SPRD_DOWNLOAD_IMG
+	tristate "SPRD Marlin Download img"
+	default n
+	help
+	  If you say yes here you can use the fdl and img for marlin.
+config SPRD_DOWNLOAD_POWER_CTL
+	bool "SPRD Marlin Power control"
+	default n
+	help
+	  If you say yes here you can use the marlin chip.

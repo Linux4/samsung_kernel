@@ -1,0 +1,89 @@
+&gen_panel {
+	dsi_ili9486s1_HVGA_vid: gen-panel-ili9486s1-HVGA-video {
+		gen-panel-manu = "SDC";			/* condensed manufacturer name */
+		gen-panel-name = "ili9486s1";
+		gen-panel-id = <0x5bbcd1>;
+		gen-panel-dev-id = <0>;			/* SPRDFB_MAINLCD_ID : MAIN 0, SUB 1 */
+		gen-panel-type = <2>;			/* LCD_MODE_DSI: MCU 0, RGB 1, DSI 2 */
+		gen-panel-refresh = <60>;
+		gen-panel-xres = <320>;
+		gen-panel-yres = <480>;
+		gen-panel-width= <49>;			/* screen width in mm */
+		gen-panel-height = <74>;		/* screen height in mm */
+		gen-panel-work-mode = <0>;		/* SPRDFB_MIPI_MODE_VIDEO : CMD 0, VIDEO 1*/
+		gen-panel-direction = <0>;		/* LCD_DIRECT_NORMAL : Normal 0, ROT90 1, ROT180 2, ROT270 3 */
+		gen-panel-suspend-mode = <1>;	/* SEND_SLEEP_CMD : RST 0, SLEEP 1 */
+		gen-panel-bus-width = <18>;
+		gen-panel-lanes = <1>;
+		gen-panel-phy-feq = <350000>;
+		gen-panel-h-sync-pol = <0>;		/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-v-sync-pol = <0>;		/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-de-pol = <0>;			/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-te-pol = <0>;			/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-color-mode-pol = <1>;	/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-shut-down-pol = <1>;	/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-h-front-porch = <30>; /* hfp */
+		gen-panel-h-back-porch = <26>;	/* hbp */
+		gen-panel-h-sync-width = <0>;	/* hsync */
+		gen-panel-v-front-porch = <12>;	/* vfp */
+		gen-panel-v-back-porch = <8>;	/* vbp */
+		gen-panel-v-sync-width = <1>;	/* vsync */
+		gen-panel-esd-mode = <1>;		/*ESD_DET_INTERRUPT : POLLING 0, INTERRUPT 1 */
+		gen-panel-esd-gpio = <236>;
+		gen-panel-esd-state = <0>;		/* ESD_DET_NOT_INITIALIZED : NOT_INT 0, OFF 1, ON 0 */
+		gen-panel-esd-level = <1>;		/* ESD_DET_HIGH : LOW 0, HIGH 1 */
+		gen-panel-rst-high-in-sleep;
+
+		/*
+		 * DSI PACKET HEADER INFO
+		 * @ delay(msec) : 2byte
+		 * @ size of data : 2byte
+		 */
+		gen-panel-pkt-dinfo-addr-offset = <0>;
+		gen-panel-pkt-dinfo-addr-length = <1>;
+		gen-panel-pkt-dinfo-data-offset = <1>;
+		gen-panel-pkt-dinfo-data-length = <1>;
+		gen-panel-init-cmds = [
+			39 00 00 00 00 05		03 00 C0 11 11
+			15 00 00 00 00 02		C1 44
+			15 00 00 00 00 02		C2 22
+			39 00 00 00 00 07		05 00 2A 00 00 01 3F
+			39 00 00 00 00 07		05 00 2B 00 00 01 DF
+			15 00 00 00 00 02		36 08
+			15 00 00 00 00 02		3A 66
+			15 00 00 00 00 02		35 00
+			15 00 00 00 00 02		B4 02
+			39 00 00 00 00 06		04 00 B6 32 42 3B
+			15 00 00 00 00 02		B7 C6
+			39 00 00 00 00 05		03 00 F9 00 08
+			39 00 00 00 00 07		05 00 F7 A9 91 2D 8A
+			39 00 00 00 00 06		04 00 F8 21 05 02
+			39 00 00 00 00 0B		09 00 F1 36 04 00 3C 0F 8F 04 02
+			39 00 00 00 00 0C		0A 00 F2 18 A3 12 02 B2 12 FF 10 00
+			39 00 00 00 00 06		04 00 FC 00 0C 80
+			39 00 00 00 00 05		03 00 B1 B0 13
+			39 00 00 00 00 12		10 00 E0 00 18 14 0C 0C 06 45 96 37 08 13 07 0A 07 06
+			39 00 00 00 00 12		10 00 E1 0F 38 32 05 07 00 3D 30 29 04 0E 03 18 17 00
+
+			05 00 00 78 00 01		11
+			05 00 00 64 00 01		29
+
+		];
+		gen-panel-enable-cmds = [
+		];
+		gen-panel-disable-cmds = [
+			05 00 00 14 00 01		28
+			05 00 00 78 00 01		10
+			15 00 00 00 00 02		B7 0E
+		];
+
+		gen-panel-read-id = [
+			DA 00 01
+			DB 00 01
+			DC 00 01
+		];
+		gen-panel-read-status-reg = [0A];
+		gen-panel-read-status-ok = [9A];
+		status = "okay";
+	};
+};

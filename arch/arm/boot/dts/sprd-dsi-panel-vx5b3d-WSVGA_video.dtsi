@@ -1,0 +1,149 @@
+&gen_panel {
+	dsi_vx5b3d_WSVGA_vid: gen-panel-vx5b3d-WSVGA-video {
+		gen-panel-manu = "BOE";			/* condensed manufacturer name */
+		gen-panel-name = "vx5b3d";
+		gen-panel-model = "BA070WS1-400";
+		gen-panel-id = <0x5B3D>;
+		gen-panel-dev-id = <0>; 		/* SPRDFB_MAINLCD_ID : MAIN 0, SUB 1 */
+		gen-panel-type = <2>;			/* LCD_MODE_DSI: MCU 0, RGB 1, DSI 2 */
+		gen-panel-refresh = <60>;
+		gen-panel-xres = <1024>;
+		gen-panel-yres = <600>;
+		gen-panel-width= <154>;			/* screen width in mm */
+		gen-panel-height = <90>;		/* screen height in mm */
+		gen-panel-work-mode = <1>;		/* SPRDFB_MIPI_MODE_VIDEO : CMD 0, VIDEO 1*/
+		gen-panel-direction = <0>;		/* LCD_DIRECT_NORMAL : Normal 0, ROT90 1, ROT180 2, ROT270 3 */
+		gen-panel-suspend-mode = <1>;	/* SEND_SLEEP_CMD : RST 0, SLEEP 1 */
+		gen-panel-bus-width = <24>;
+		gen-panel-lan-number = <4>;
+		gen-panel-phy-feq = <312000>;
+		gen-panel-h-sync-pol = <0>;		/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-v-sync-pol = <0>;		/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-de-pol = <0>;			/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-te-pol = <0>;			/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-color-mode-pol = <1>;	/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-shut-down-pol = <1>;	/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-h-front-porch = <160>;/* hfp - right margin */
+		gen-panel-h-back-porch = <148>;	/* hbp - left margin */
+		gen-panel-h-sync-width = <2>;	/* hsync */
+		gen-panel-v-front-porch = <40>;	/* vfp - lower margin */
+		gen-panel-v-back-porch = <28>;	/* vbp - upper margin */
+		gen-panel-v-sync-width = <10>;	/* vsync */
+
+		/*
+		 * DSI PACKET HEADER INFO
+		 * @ delay(msec) : 2byte
+		 * @ size of data : 2byte
+		 */
+		gen-panel-pkt-dinfo-addr-offset = <5>;
+		gen-panel-pkt-dinfo-addr-length = <2>;
+		gen-panel-pkt-dinfo-data-offset = <7>;
+		gen-panel-pkt-dinfo-data-length = <4>;
+		gen-panel-init-cmds = [
+			29 00 00 00 00 0B		09 29 05 01 40 00 07 40 00 90 6C
+			29 00 00 00 00 0B		09 29 05 01 40 04 07 0A 04 03 00
+			29 00 00 00 00 0B		09 29 05 01 40 0C 07 04 46 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 10 07 0B 00 4D 05
+			29 00 00 00 00 0B		09 29 05 01 40 14 07 20 00 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 18 07 02 01 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 1C 07 2F 00 A8 00
+			29 00 00 0A 00 0B		09 29 05 01 40 20 07 00 00 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 54 01 00 00 00 00
+			29 00 00 0A 00 0B		09 29 05 01 40 54 01 00 00 00 80
+			29 00 00 00 00 0B		09 29 05 01 40 00 07 40 08 90 6C
+			29 00 00 00 00 0B		09 29 05 01 40 0C 07 56 5E 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 18 07 02 02 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 54 01 00 00 00 00
+			29 00 00 0A 00 0B		09 29 05 01 40 54 01 00 00 00 80
+			29 00 00 00 00 0B		09 29 05 01 40 7C 03 63 10 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 80 03 30 60 A8 82
+			29 00 00 00 00 0B		09 29 05 01 40 84 03 8B 40 61 28
+			29 00 00 00 00 0B		09 29 05 01 40 88 03 85 02 13 00
+			29 00 00 00 00 0B		09 29 05 01 40 8C 03 09 00 63 10
+			29 00 00 00 00 0B		09 29 05 01 40 94 03 A8 82 0B 40
+			29 00 00 00 00 0B		09 29 05 01 40 00 06 8C C7 6C 01
+			29 00 00 00 00 0B		09 29 05 01 40 04 06 FF FF FF 3F
+			29 00 00 00 00 0B		09 29 05 01 40 08 06 8C 0D 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 54 01 00 00 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 54 01 00 00 00 80
+			29 00 00 00 00 0B		09 29 05 01 40 20 01 05 00 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 24 01 00 C4 92 18
+			29 00 00 00 00 0B		09 29 05 01 40 28 01 06 28 10 00
+			29 00 00 00 00 0B		09 29 05 01 40 2C 01 62 00 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 30 01 18 3C 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 34 01 15 00 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 38 01 00 80 FF 00
+			29 00 00 00 00 0B		09 29 05 01 40 3C 01 00 00 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 14 01 02 63 0c 00
+			29 00 00 00 00 0B		09 29 05 01 40 40 01 00 00 01 00
+			29 00 00 00 00 0B		09 29 05 01 40 74 01 00 00 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 04 04 22 08 55 55
+			29 00 00 00 00 0B		09 29 05 01 40 18 04 ff 02 55 55
+			29 00 00 00 00 0B		09 29 05 01 40 10 04 00 03 E5 05
+			29 00 00 00 00 0B		09 29 05 01 40 0C 02 24 01 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 1C 02 00 00 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 24 02 07 00 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 28 02 01 00 05 00
+			29 00 00 00 00 0B		09 29 05 01 40 2C 02 03 FF 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 30 02 01 00 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 34 02 10 3E 03 CA
+			29 00 00 00 00 0B		09 29 05 01 40 38 02 60 00 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 3C 02 30 60 E8 82
+			29 00 00 00 00 0B		09 29 05 01 40 44 02 85 02 1E 00
+			29 00 00 00 00 0B		09 29 05 01 40 58 02 62 00 06 00
+			29 00 00 00 00 0B		09 29 05 01 40 00 04 00 00 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 58 01 00 00 00 00
+			29 00 00 00 00 0B		09 29 05 01 40 58 01 01 00 00 00
+		];
+		gen-panel-enable-cmds = [
+		];
+		gen-panel-disable-cmds = [
+			29 00 00 00 00 0B		09 29 05 01 40 64 01 00 00 00 00
+			29 00 00 64 00 0B		09 29 05 01 40 5C 01 00 00 00 00
+			29 00 00 01 00 0B		09 29 05 01 40 04 06 FF FF FF 3F
+		];
+		gen-panel-backlight-on-cmds = [
+			29 00 00 00 00 0B		09 29 05 01 40 60 01 F8 07 00 00
+			29 00 00 22 00 0B		09 29 05 01 40 04 06 E0 FF FF 3F
+			29 00 00 00 00 0B		09 29 05 01 40 38 01 00 00 ff 3f
+			29 00 00 00 00 0B		09 29 05 01 40 5C 01 05 00 00 00
+		];
+		gen-panel-backlight-set-brightness-cmds = [
+			29 00 00 00 00 0B		09 29 05 01 40 64 01 78 04 00 00
+		];
+		gen-panel-backlight-set-brightness-reg = <0x164>;
+		gen-panel-backlight-get-brightness-reg = <0x164>;
+		gen-panel-read-id = [
+			DA 00 01
+			DB 00 01
+			DC 00 01
+		];
+		gen-panel-read-status-reg = <0x0A>;
+		gen-panel-read-status-ok = <0x9A>;
+		gen-panel-manipulate-table {
+			lvds_clk_set_4805: manipulate-1 {
+				gen-panel-init-cmds = [
+					29 00 00 00 00 0B		09 29 05 01 40 04 07 0A 04 03 00
+					29 00 00 00 00 0B		09 29 05 01 40 24 01 00 C4 92 18
+					29 00 00 00 00 0B		09 29 05 01 40 2C 01 62 00 00 00
+					29 00 00 00 00 0B		09 29 05 01 40 58 02 62 00 06 00
+				];
+			};
+			lvds_clk_set_5098: manipulate-2 {
+				gen-panel-init-cmds = [
+					29 00 00 00 00 0B		09 29 05 01 40 04 07 49 04 03 00
+					29 00 00 00 00 0B		09 29 05 01 40 24 01 00 C4 12 1B
+					29 00 00 00 00 0B		09 29 05 01 40 2C 01 6C 00 00 00
+					29 00 00 00 00 0B		09 29 05 01 40 58 02 6C 00 0A 00
+				];
+			};
+		};
+		gen-panel-sysfs-node {
+			lvds_clk {
+				action-names = "4805", "5098";
+				action-0 = <&lvds_clk_set_4805>;
+				action-1 = <&lvds_clk_set_5098>;
+			};
+		};
+	};
+};
