@@ -292,6 +292,8 @@ struct dw_mci {
 
 	/* channel id */
 	u32 ch_id;
+	void __iomem		*test_cmu1;
+	void __iomem		*test_cmu2;
 
 	struct regmap *sysreg;
 	struct exynos_access_cxt cxt_coherency; /* io coherency */

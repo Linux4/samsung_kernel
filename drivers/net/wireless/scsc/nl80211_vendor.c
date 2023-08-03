@@ -3930,10 +3930,6 @@ void slsi_handle_nan_rx_event_log_ind(struct slsi_dev *sdev, struct net_device *
 										"NAN_PEER_AVAILABILITY", timestamp);
 					}
 					break;
-				case FAPI_EVENT_WIFI_EVENT_NAN_PEER_AVAILABILITY_UPDATE:
-					slsi_print_availability_log_ind(sdev, &pm_set,
-									"NAN_PEER_AVAILABILITY", timestamp);
-					break;
 				case FAPI_EVENT_WIFI_EVENT_NAN_NDP_CONFIRM_RX:
 					slsi_print_availability_log_ind(sdev, &pm_set, "NDP_CFM_RX", timestamp);
 					break;
@@ -3978,9 +3974,6 @@ void slsi_handle_nan_rx_event_log_ind(struct slsi_dev *sdev, struct net_device *
 		} else {
 			slsi_print_availability_log_ind(sdev, &pm_set, "NAN_PEER_AVAILABILITY", timestamp);
 		}
-		break;
-	case FAPI_EVENT_WIFI_EVENT_NAN_PEER_AVAILABILITY_UPDATE:
-		slsi_print_availability_log_ind(sdev, &pm_set, "NAN_PEER_AVAILABILITY", timestamp);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_NAN_ULW_UPDATE:
 		SLSI_INFO(sdev, "[0x%ux] NAN_ULW_UPDATE, Master_TSF: %x, ULW_Reason:%s, ULW_Index: %d,"
@@ -4404,8 +4397,8 @@ static void slsi_rx_event_log_print(struct slsi_dev *sdev, struct net_device *de
 		break;
 	case FAPI_EVENT_WIFI_EVENT_ROAM_SEARCH_STARTED:
 		slsi_conn_log2us_roam_scan_start(sdev, dev, evt_info->vd.roam_reason, evt_info->roam_rssi_val,
-						 evt_info->vd.chan_utilisation, evt_info->vd.rssi_thresh,
-                                                 evt_info->vd.expired_timer_value, timestamp);
+						 evt_info->vd.chan_utilisation, evt_info->vd.expired_timer_value,
+						 evt_info->vd.rssi_thresh, timestamp);
 		SLSI_INFO(sdev, "WIFI_EVENT_ROAM_SEARCH_STARTED, Roaming Type : %s, RSSI:%d, Deauth Reason:0x%04x, "
 			  "RSSI Threshold:%d,Channel Utilisation:%d, Roam Reason: %s, Expired Timer Value: %d\n",
 			  (evt_info->vd.roaming_type == 0 ? "Legacy" : "NCHO"), evt_info->roam_rssi_val,
@@ -4442,27 +4435,27 @@ static void slsi_rx_event_log_print(struct slsi_dev *sdev, struct net_device *de
 		break;
 	case FAPI_EVENT_WIFI_EVENT_ASSOC_COMPLETE:
 		if (evt_info->vd.mgmt_frame_subtype == SLSI_MGMT_FRAME_SUBTYPE_ASSOC_RESP)
-			SLSI_INFO(sdev, "WIFI_EVENT_ASSOC_COMPLETE, status code: %d\n", evt_info->status_code);
+			SLSI_INFO(sdev, "WIFI_EVENT_ASSOC_COMPLETE, reason code: %d\n", evt_info->reason_code);
 		else if (evt_info->vd.mgmt_frame_subtype == SLSI_MGMT_FRAME_SUBTYPE_REASSOC_RESP)
-			SLSI_INFO(sdev, "WIFI_EVENT_REASSOC_COMPLETE, status code: %d\n", evt_info->status_code);
-		slsi_conn_log2us_assoc_resp(sdev, dev, evt_info->mac_addr, evt_info->vd.sn, evt_info->status_code,
+			SLSI_INFO(sdev, "WIFI_EVENT_REASSOC_COMPLETE, reason code: %d\n", evt_info->reason_code);
+		slsi_conn_log2us_assoc_resp(sdev, dev, evt_info->mac_addr, evt_info->vd.sn, evt_info->reason_code,
 					    evt_info->vd.mgmt_frame_subtype, evt_info->vd.aid);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_DEAUTHENTICATION_RECEIVED:
-		SLSI_INFO(sdev, "WIFI_EVENT_FW_DEAUTHENTICATION_RECEIVED, status code: %d\n", evt_info->status_code);
-		slsi_conn_log2us_deauth(sdev, dev, "RX", ndev_vif->sta.bssid, evt_info->vd.sn, evt_info->status_code);
+		SLSI_INFO(sdev, "WIFI_EVENT_FW_DEAUTHENTICATION_RECEIVED, reason code: %d\n", evt_info->reason_code);
+		slsi_conn_log2us_deauth(sdev, dev, "RX", ndev_vif->sta.bssid, evt_info->vd.sn, evt_info->reason_code);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_DEAUTHENTICATION_SENT:
-		SLSI_INFO(sdev, "WIFI_EVENT_FW_DEAUTHENTICATION_SENT, status code: %d\n", evt_info->status_code);
-		slsi_conn_log2us_deauth(sdev, dev, "TX", ndev_vif->sta.bssid, evt_info->vd.sn, evt_info->status_code);
+		SLSI_INFO(sdev, "WIFI_EVENT_FW_DEAUTHENTICATION_SENT, reason code: %d\n", evt_info->reason_code);
+		slsi_conn_log2us_deauth(sdev, dev, "TX", ndev_vif->sta.bssid, evt_info->vd.sn, evt_info->reason_code);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_DISASSOCIATION_REQUESTED:
-		SLSI_INFO(sdev, "WIFI_EVENT_DISASSOCIATION_REQUESTED, status code: %d\n", evt_info->status_code);
-		slsi_conn_log2us_disassoc(sdev, dev, "TX", ndev_vif->sta.bssid, evt_info->vd.sn, evt_info->status_code);
+		SLSI_INFO(sdev, "WIFI_EVENT_DISASSOCIATION_REQUESTED, reason code: %d\n", evt_info->reason_code);
+		slsi_conn_log2us_disassoc(sdev, dev, "TX", ndev_vif->sta.bssid, evt_info->vd.sn, evt_info->reason_code);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_DISASSOCIATION_RECEIVED:
-		SLSI_INFO(sdev, "WIFI_EVENT_FW_DISASSOCIATION_RECEIVED, status code: %d\n", evt_info->status_code);
-		slsi_conn_log2us_disassoc(sdev, dev, "RX", ndev_vif->sta.bssid, evt_info->vd.sn, evt_info->status_code);
+		SLSI_INFO(sdev, "WIFI_EVENT_FW_DISASSOCIATION_RECEIVED, reason code: %d\n", evt_info->reason_code);
+		slsi_conn_log2us_disassoc(sdev, dev, "RX", ndev_vif->sta.bssid, evt_info->vd.sn, evt_info->reason_code);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_NR_FRAME_REQUEST:
 		SLSI_INFO(sdev, "WIFI_EVENT_FW_NR_FRAME_REQUEST Send Radio Measurement Frame"
@@ -4489,7 +4482,7 @@ static void slsi_rx_event_log_print(struct slsi_dev *sdev, struct net_device *de
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_CONNECTION_ATTEMPT_ABORTED:
 		SLSI_INFO(sdev, "WIFI_EVENT_FW_CONNECTION_ATTEMPT_ABORTED, BSSID:" MACSTR ", Result:%d\n",
-			  MAC2STR(evt_info->mac_addr), evt_info->status_code);
+			  MAC2STR(evt_info->mac_addr), evt_info->reason_code);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_ROAM_SCAN_STARTED:
 		string = slsi_print_channel_list(evt_info->channel_list, evt_info->channel_count);
@@ -4616,7 +4609,6 @@ void slsi_rx_event_log_indication(struct slsi_dev *sdev, struct net_device *dev,
 	switch (event_id) {
 	case FAPI_EVENT_WIFI_EVENT_FW_NAN_ROLE_TYPE:
 	case FAPI_EVENT_WIFI_EVENT_NAN_AVAILABILITY_UPDATE:
-	case FAPI_EVENT_WIFI_EVENT_NAN_PEER_AVAILABILITY_UPDATE:
 	case FAPI_EVENT_WIFI_EVENT_NAN_ULW_UPDATE:
 	case FAPI_EVENT_WIFI_EVENT_NAN_TRAFFIC_UPDATE:
 	case FAPI_EVENT_WIFI_EVENT_NAN_NDP_REQUEST_RX:

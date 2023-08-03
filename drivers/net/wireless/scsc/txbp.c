@@ -1273,10 +1273,7 @@ static __always_inline int slsi_tx_transmit_nan_multicast(struct slsi_dev *sdev,
 	fapi_set_u16(skb, sender_pid,   SLSI_TX_PROCESS_ID_MIN);
 	fapi_set_u32(skb, fw_reference, 0);
 
-	/* TODO: group option will be added to next fapi.xml.
-	 * Until then, set configuration_option for NAN multicast with 0x0010
-	 */
-	fapi_set_u16(skb, u.ma_unitdata_req.configuration_option, FAPI_OPTION_INLINE | 0x0010);
+	fapi_set_u16(skb, u.ma_unitdata_req.configuration_option, FAPI_OPTION_INLINE | FAPI_OPTION_GROUP);
 	fapi_set_memcpy(skb, u.ma_unitdata_req.address, sdev->nan_cluster_id);
 	SLSI_NET_DBG_HEX(dev, SLSI_TX, skb->data, skb->len < 128 ? skb->len : 128, "\n");
 

@@ -462,9 +462,13 @@ struct fwhdr_if *whdr_create(void)
 /* Implementation destroy */
 void whdr_destroy(struct fwhdr_if *interface)
 {
-	struct whdr *whdr = whdr_from_fwhdr_if(interface);
+	struct whdr *whdr;
 	struct fwhdr_if *fw_if;
 
+	if (!interface)
+		return;
+
+	whdr = whdr_from_fwhdr_if(interface);
 	if (!whdr)
 		return;
 

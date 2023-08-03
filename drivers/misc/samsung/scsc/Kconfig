@@ -253,3 +253,18 @@ config WLBT_PMU2AP_MBOX
 	depends on SOC_S5E8835
 	help 
 		Enable PMU2AP Mailbox
+
+config SCSC_PCIE_CHIP
+	bool "Samsung Connectivity chips using PCIe"
+	default y
+	depends on (SOC_S5E9925 || SOC_S5E9935 || SOC_S5E9945)
+	help
+		Use PCIe
+
+config WLBT_DCXO_TUNE
+	bool "Enable to Control DCXO Calibration Tune value"
+	default n
+	depends on SCSC_CORE
+	depends on SOC_S5E8835
+	help
+		Enable to Control DCXO Calibration Tune value

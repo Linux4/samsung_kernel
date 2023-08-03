@@ -51,6 +51,7 @@
 #include "dw_mmc.h"
 #include "dw_mmc-exynos.h"
 #include "../core/queue.h"
+#include <soc/samsung/exynos/debug-snapshot.h>
 
 /* Common flag combinations */
 #define DW_MCI_DATA_ERROR_FLAGS	(SDMMC_INT_DRTO | SDMMC_INT_DCRC | \
@@ -637,6 +638,9 @@ static void dw_mci_update_clock(struct dw_mci_slot *slot)
 			/* reset controller because a command is stuecked */
 			if (mci_readl(host, RINTSTS) & SDMMC_INT_HLE) {
 				mci_writel(host, RINTSTS, SDMMC_INT_HLE);
+				host->drv_data->dump_reg(host);
+				/* Check for HLE issue */
+				dbg_snapshot_expire_watchdog();
 				break;
 			}
 		}
@@ -3333,6 +3337,10 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 			mci_writel(host, RINTSTS, SDMMC_INT_HLE);
 			dw_mci_debug_cmd_log(host->cmd, host, false, DW_MCI_FLAG_ERROR, status);
 			host->cmd_status = pending;
+			/* Check for HLE issue */
+#ifndef CONFIG_SCSI_UFS_EXYNOS_BLOCK_WDT_RST
+			dbg_snapshot_expire_watchdog();
+#endif
 			tasklet_schedule(&host->tasklet);
 		}
 

@@ -1592,9 +1592,7 @@ static int exynos_ufs_suspend(struct device *dev)
 	/* Save timestamp of vcc/vccq off time */
 	ufs->vcc_off_time = ktime_get();
 
-#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 	dev_info(dev, "%s done\n", __func__);
-#endif
 
 	return ret;
 }
