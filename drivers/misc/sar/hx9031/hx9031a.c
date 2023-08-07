@@ -8,9 +8,9 @@
 #define HX9031A_HW_MONITOR_EN 0
 /* Tab A8 code for AX6300DEV-735 by mayuhang at 2021/9/23 start */
 #define HX9031A_ALG_COMPILE_EN 1
-/*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/16 start*/
+/*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 start*/
 #define HX9031A_DRIVER_VER "Change-Id d67aaf-Temp20221016"
-/*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/16 end*/
+/*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 end*/
 /* Tab A8 code for AX6300DEV-735 by mayuhang at 2021/9/23 end */
 #include <linux/module.h>
 #include <linux/slab.h>
@@ -64,13 +64,13 @@ static struct workqueue_struct* sar_work;
 static struct work_struct sar_enable_work;
 
 static int16_t data_raw[HX9031A_CH_NUM] = {0};
-/*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/16 start*/
+/*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 start*/
 static int32_t data_diff[HX9031A_CH_NUM] = {0};
-/*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/16 end*/
+/*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 end*/
 static int16_t data_lp[HX9031A_CH_NUM] = {0};
 static int16_t data_bl[HX9031A_CH_NUM] = {0};
 static uint16_t data_offset_dac[HX9031A_CH_NUM] = {0};
-/*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/16 start*/
+/*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 start*/
 /* Tab A8 code for AX6300DEV-735 by mayuhang at 2021/9/23 start */
 static struct hx9031a_near_far_threshold hx9031a_ch_thres[HX9031A_CH_NUM] = {
     {.thr_near = 288, .thr_far = 224}, //ch0
@@ -79,14 +79,14 @@ static struct hx9031a_near_far_threshold hx9031a_ch_thres[HX9031A_CH_NUM] = {
     {.thr_near = 32767, .thr_far = 32767},
 };
 /* Tab A8 code for AX6300DEV-735 by mayuhang at 2021/9/23 end */
-/*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/16 end*/
+/*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 end*/
 static uint8_t hx9031a_ch_near_state[HX9031A_CH_NUM] = {0};
 static volatile uint8_t hx9031a_irq_from_suspend_flag = 0;
 static volatile uint8_t hx9031a_irq_en_flag = 1;
 static volatile uint8_t hx9031a_hw_monitor_en_flag = HX9031A_HW_MONITOR_EN;
-/*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 start*/
+/*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 start*/
 static volatile uint8_t hx9031a_output_switch = HX9031A_OUTPUT_LP_BL;
-/*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 end*/
+/*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 end*/
 static DEFINE_MUTEX(hx9031a_i2c_rw_mutex);
 static DEFINE_MUTEX(hx9031a_ch_en_mutex);
 #ifdef CONFIG_PM_WAKELOCKS
@@ -94,10 +94,10 @@ static struct wakeup_source hx9031a_wake_lock;
 #else
 static struct wake_lock hx9031a_wake_lock;
 #endif
-/*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 start*/
+/*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 start*/
 static int anfr_status = 1;
 static int irq_count = 0;
-/*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 end*/
+/*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 end*/
 
 /* Tab A8 code for AX6300DEV-735 by mayuhang at 2021/9/23 start */
 #if HX9031A_ALG_COMPILE_EN
@@ -640,7 +640,7 @@ static uint16_t hx9031a_set_thres_far(uint8_t ch, uint16_t val)
     return hx9031a_ch_thres[ch].thr_far;
 }
 
-/*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/16 start*/
+/*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 start*/
 static void hx9031a_get_prox_state(int32_t *data_compare, uint8_t ch_num)
 {
     int ret = -1;
@@ -691,7 +691,7 @@ static void hx9031a_get_prox_state(int32_t *data_compare, uint8_t ch_num)
               hx9031a_ch_near_state[0],
               hx9031a_pdata.prox_state_far_to_near_flag);
 }
-/*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/16 end*/
+/*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 end*/
 
 
 static void hx9031a_data_switch(uint8_t output_switch)
@@ -754,10 +754,10 @@ static void hx9031a_sample(void)
                 data_diff[ii] = (data[ii] > 0x7FFF) ? (data[ii] - (0xFFFF + 1)) : data[ii];
                 data_lp[ii] = 0;
             } else {
-                /*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 start*/
+                /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 start*/
                 data_lp[ii] = (data[ii] > 0x7FFF) ? (data[ii] - (0xFFFF + 1)) : data[ii];
                 data_diff[ii] = data_lp[ii] - data_bl[ii];
-                /*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 end*/
+                /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 end*/
             }
 
         }
@@ -783,7 +783,7 @@ static void hx9031a_sample(void)
     PRINT_DBG("LP    : %-8d, %-8d, %-8d, %-8d\n", data_lp[0], data_lp[1], data_lp[2], data_lp[3]);
 }
 
-/*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 start*/
+/*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 start*/
 void self_cali(void)
 {
     int i = 0;
@@ -800,7 +800,7 @@ void self_cali(void)
         anfr_status = 0;
     }
 }
-/*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 end*/
+/*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 end*/
 
 static void hx9031a_input_report(void)
 {
@@ -817,21 +817,14 @@ static void hx9031a_input_report(void)
         return;
     }
 
-    /*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 start*/
+    /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 start*/
     if (irq_count <= IRQ_EXIT_NUM && anfr_status == 1) {
         PRINT_ERR("lc_self_cali  irq_count = %d\n",irq_count);
         irq_count++;
         self_cali();
     }
     PRINT_ERR("lc_anfr_status = %d\n",anfr_status);
-    /*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 end*/
-
-#if defined(CONFIG_SENSORS)
-    if (hx9031a_pdata.skip_data == true) {
-        PRINT_INF("%s - skip grip event\n", __func__);
-        return;
-    }
-#endif
+    /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 end*/
 
     for (ii = 0; ii < num_channels; ii++) {
         if (false == hx9031a_channels[ii].enabled) {
@@ -856,136 +849,135 @@ static void hx9031a_input_report(void)
             return;
         }
 
-        /*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 start*/
+        /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 start*/
         if (anfr_status == SELF_CALI_NUM) {
             PRINT_ERR("LC_SELF\n");
             input_report_abs(input, ABS_DISTANCE, 0);
             input_sync(input);
         } else {
             PRINT_ERR("LC_recover\n");
-        //touch_state = hx9031a_ch_near_state[ii];
-        touch_state = hx9031a_pdata.prox_state_reg >> ii & 0x1;
-        //touch_state = hx9031a_pdata.prox_state_cmp & (1 << ii);
-        /*Tab A8 code for SR-AX6300-01-81 by mayuhang at 2021/9/6 start*/
-        if (BODYACTIVE == touch_state) {
-            if (channel_p->state == BODYACTIVE)
-                PRINT_DBG("%s already BODYACTIVE, nothing report\n", channel_p->name);
-            else {
-#ifdef CONFIG_PM_WAKELOCKS
-                __pm_wakeup_event(&hx9031a_wake_lock, 1000);
-#else
-                wake_lock_timeout(&hx9031a_wake_lock, HZ * 1);
-#endif
-                if(0 == ii){
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input, KEY_SAR1_FAR, 1);
-                        input_report_key(input, KEY_SAR1_FAR, 0);
-                        #else
-                        input_report_abs(input, ABS_DISTANCE, 0);
-                        #endif
-                        input_sync(input);
-                }else if(1 == ii){
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input, KEY_SAR2_FAR, 1);
-                        input_report_key(input, KEY_SAR2_FAR, 0);
-                        #else
-                        input_report_abs(input, ABS_DISTANCE, 0);
-                        #endif
-                        input_sync(input);
-                }else if(2 == ii){
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input, KEY_SAR3_FAR, 1);
-                        input_report_key(input, KEY_SAR3_FAR, 0);
-                        #else
-                        input_report_abs(input, ABS_DISTANCE, 0);
-                        #endif
-                        input_sync(input);
+            //touch_state = hx9031a_ch_near_state[ii];
+            touch_state = hx9031a_pdata.prox_state_reg >> ii & 0x1;
+            //touch_state = hx9031a_pdata.prox_state_cmp & (1 << ii);
+            /*Tab A8 code for SR-AX6300-01-81 by mayuhang at 2021/9/6 start*/
+            if (BODYACTIVE == touch_state) {
+                if (channel_p->state == BODYACTIVE)
+                    PRINT_DBG("%s already BODYACTIVE, nothing report\n", channel_p->name);
+                else {
+    #ifdef CONFIG_PM_WAKELOCKS
+                    __pm_wakeup_event(&hx9031a_wake_lock, 1000);
+    #else
+                    wake_lock_timeout(&hx9031a_wake_lock, HZ * 1);
+    #endif
+                    if(0 == ii){
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input, KEY_SAR1_FAR, 1);
+                            input_report_key(input, KEY_SAR1_FAR, 0);
+                            #else
+                            input_report_abs(input, ABS_DISTANCE, 0);
+                            #endif
+                            input_sync(input);
+                    }else if(1 == ii){
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input, KEY_SAR2_FAR, 1);
+                            input_report_key(input, KEY_SAR2_FAR, 0);
+                            #else
+                            input_report_abs(input, ABS_DISTANCE, 0);
+                            #endif
+                            input_sync(input);
+                    }else if(2 == ii){
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input, KEY_SAR3_FAR, 1);
+                            input_report_key(input, KEY_SAR3_FAR, 0);
+                            #else
+                            input_report_abs(input, ABS_DISTANCE, 0);
+                            #endif
+                            input_sync(input);
+                    }
+                    channel_p->state = BODYACTIVE;
+                    PRINT_DBG("%s report BODYACTIVE(5mm)\n", channel_p->name);
                 }
-                channel_p->state = BODYACTIVE;
-                PRINT_DBG("%s report BODYACTIVE(5mm)\n", channel_p->name);
-            }
-        } else if (PROXACTIVE == touch_state) {
-            if (channel_p->state == PROXACTIVE)
-                PRINT_DBG("%s already PROXACTIVE, nothing report\n", channel_p->name);
-            else {
-#ifdef CONFIG_PM_WAKELOCKS
-                __pm_wakeup_event(&hx9031a_wake_lock, 1000);
-#else
-                wake_lock_timeout(&hx9031a_wake_lock, HZ * 1);
-#endif
-                if(0 == ii){
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input, KEY_SAR1_FAR, 1);
-                        input_report_key(input, KEY_SAR1_FAR, 0);
-                        #else
-                        input_report_abs(input, ABS_DISTANCE, 0);
-                        #endif
-                        input_sync(input);
+            } else if (PROXACTIVE == touch_state) {
+                if (channel_p->state == PROXACTIVE)
+                    PRINT_DBG("%s already PROXACTIVE, nothing report\n", channel_p->name);
+                else {
+    #ifdef CONFIG_PM_WAKELOCKS
+                    __pm_wakeup_event(&hx9031a_wake_lock, 1000);
+    #else
+                    wake_lock_timeout(&hx9031a_wake_lock, HZ * 1);
+    #endif
+                    if(0 == ii){
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input, KEY_SAR1_FAR, 1);
+                            input_report_key(input, KEY_SAR1_FAR, 0);
+                            #else
+                            input_report_abs(input, ABS_DISTANCE, 0);
+                            #endif
+                            input_sync(input);
 
-                }else if(1 == ii){
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input, KEY_SAR2_FAR, 1);
-                        input_report_key(input, KEY_SAR2_FAR, 0);
-                        #else
-                        input_report_abs(input, ABS_DISTANCE, 0);
-                        #endif
-                        input_sync(input);
-                }else if(2 == ii){
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input, KEY_SAR3_FAR, 1);
-                        input_report_key(input, KEY_SAR3_FAR, 0);
-                        #else
-                        input_report_abs(input, ABS_DISTANCE, 0);
-                        #endif
-                        input_sync(input);
+                    }else if(1 == ii){
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input, KEY_SAR2_FAR, 1);
+                            input_report_key(input, KEY_SAR2_FAR, 0);
+                            #else
+                            input_report_abs(input, ABS_DISTANCE, 0);
+                            #endif
+                            input_sync(input);
+                    }else if(2 == ii){
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input, KEY_SAR3_FAR, 1);
+                            input_report_key(input, KEY_SAR3_FAR, 0);
+                            #else
+                            input_report_abs(input, ABS_DISTANCE, 0);
+                            #endif
+                            input_sync(input);
+                    }
+                    channel_p->state = PROXACTIVE;
+                    PRINT_DBG("%s report PROXACTIVE(15mm)\n", channel_p->name);
                 }
-                channel_p->state = PROXACTIVE;
-                PRINT_DBG("%s report PROXACTIVE(15mm)\n", channel_p->name);
-            }
-        } else if (IDLE == touch_state) {
-            if (channel_p->state == IDLE)
-                PRINT_DBG("%s already released, nothing report\n", channel_p->name);
-            else {
-#ifdef CONFIG_PM_WAKELOCKS
-                __pm_wakeup_event(&hx9031a_wake_lock, 1000);
-#else
-                wake_lock_timeout(&hx9031a_wake_lock, HZ * 1);
-#endif
-                if(0 == ii){
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input, KEY_SAR1_CLOSE, 1);
-                        input_report_key(input, KEY_SAR1_CLOSE, 0);
-                        #else
-                        input_report_abs(input, ABS_DISTANCE, 5);
-                        #endif
-                        input_sync(input);
-
-                }else if(1 == ii){
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input, KEY_SAR2_CLOSE, 1);
-                        input_report_key(input, KEY_SAR2_CLOSE, 0);
-                        #else
-                        input_report_abs(input, ABS_DISTANCE, 5);
-                        #endif
-                        input_sync(input);
-                }else if(2 == ii){
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input, KEY_SAR3_CLOSE, 1);
-                        input_report_key(input, KEY_SAR3_CLOSE, 0);
-                        #else
-                        input_report_abs(input, ABS_DISTANCE, 5);
-                        #endif
-                        input_sync(input);
+            } else if (IDLE == touch_state) {
+                if (channel_p->state == IDLE)
+                    PRINT_DBG("%s already released, nothing report\n", channel_p->name);
+                else {
+    #ifdef CONFIG_PM_WAKELOCKS
+                    __pm_wakeup_event(&hx9031a_wake_lock, 1000);
+    #else
+                    wake_lock_timeout(&hx9031a_wake_lock, HZ * 1);
+    #endif
+                    if(0 == ii){
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input, KEY_SAR1_CLOSE, 1);
+                            input_report_key(input, KEY_SAR1_CLOSE, 0);
+                            #else
+                            input_report_abs(input, ABS_DISTANCE, 5);
+                            #endif
+                            input_sync(input);
+                    }else if(1 == ii){
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input, KEY_SAR2_CLOSE, 1);
+                            input_report_key(input, KEY_SAR2_CLOSE, 0);
+                            #else
+                            input_report_abs(input, ABS_DISTANCE, 5);
+                            #endif
+                            input_sync(input);
+                    }else if(2 == ii){
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input, KEY_SAR3_CLOSE, 1);
+                            input_report_key(input, KEY_SAR3_CLOSE, 0);
+                            #else
+                            input_report_abs(input, ABS_DISTANCE, 5);
+                            #endif
+                            input_sync(input);
+                    }
+            /*Tab A8 code for SR-AX6300-01-81 by mayuhang at 2021/9/6 end*/
+                    channel_p->state = IDLE;
+                    PRINT_DBG("%s report released\n", channel_p->name);
                 }
-        /*Tab A8 code for SR-AX6300-01-81 by mayuhang at 2021/9/6 end*/
-                channel_p->state = IDLE;
-                PRINT_DBG("%s report released\n", channel_p->name);
+            } else {
+                PRINT_ERR("unknow touch state! touch_state=%d\n", touch_state);
             }
-        } else {
-            PRINT_ERR("unknow touch state! touch_state=%d\n", touch_state);
         }
-        }
-        /*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 end*/
+        /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 end*/
     }
 }
 
@@ -1250,17 +1242,10 @@ static int hx9031a_set_enable(struct sensors_classdev *sensors_cdev, unsigned in
 #else
                 wake_lock_timeout(&hx9031a_wake_lock, HZ * 1);
 #endif
-#if defined(CONFIG_SENSORS)
-                if (hx9031a_pdata.skip_data == true) {
-                    PRINT_INF("%s - skip grip event\n", __func__);
-                }
-                else
-                {
-#endif
-                    /* Tab A8 code for AX6300DEV-3809 by xiongxiaoliang at 2021/12/16 start */
-                    hx9031a_sample();
-                    hx9031a_get_prox_state(data_diff, HX9031A_CH_NUM);
- /*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 start*/
+                /* Tab A8 code for AX6300DEV-3809 by xiongxiaoliang at 2021/12/16 start */
+                hx9031a_sample();
+                hx9031a_get_prox_state(data_diff, HX9031A_CH_NUM);
+                /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 start*/
                 if (anfr_status == 1) {
                     PRINT_ERR("lc_enable\n");
                     input_report_abs(hx9031a_channels[ii].hx9031a_input_dev, ABS_DISTANCE, 0);
@@ -1276,11 +1261,8 @@ static int hx9031a_set_enable(struct sensors_classdev *sensors_cdev, unsigned in
                     input_report_abs(hx9031a_channels[ii].hx9031a_input_dev, ABS_DISTANCE, ((hx9031a_pdata.prox_state_reg >> ii) & 0x1) ?  0 : 5);
                     input_sync(hx9031a_channels[ii].hx9031a_input_dev);
                 }
-                /*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 end*/
-                    /* Tab A8 code for AX6300DEV-3809 by xiongxiaoliang at 2021/12/16 end */
-#if defined(CONFIG_SENSORS)
-                }
-#endif
+                /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 end*/
+                /* Tab A8 code for AX6300DEV-3809 by xiongxiaoliang at 2021/12/16 end */
             } else if (0 == enable) {
                 PRINT_INF("disable ch_%d(name:%s)\n", ii, sensors_cdev->name);
                 ret = hx9031a_ch_en(ii, 0);
@@ -1295,20 +1277,12 @@ static int hx9031a_set_enable(struct sensors_classdev *sensors_cdev, unsigned in
 #else
                 wake_lock_timeout(&hx9031a_wake_lock, HZ * 1);
 #endif
-#if defined(CONFIG_SENSORS)
-                if (hx9031a_pdata.skip_data == true) {
-                    PRINT_INF("%s - skip grip event\n", __func__);
-                }
-                else
-                {
-#endif
-                    /* Tab A8 code for AX6300DEV-3809 by xiongxiaoliang at 2021/12/16 start */
-                    input_report_abs(hx9031a_channels[ii].hx9031a_input_dev, ABS_DISTANCE, -1);
-                    /* Tab A8 code for AX6300DEV-3809 by xiongxiaoliang at 2021/12/16 end */
-                    input_sync(hx9031a_channels[ii].hx9031a_input_dev);
-#if defined(CONFIG_SENSORS)
-                }
-#endif
+                /* Tab A8 code for AX6300DEV-3809 by xiongxiaoliang at 2021/12/16 start */
+                /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 start*/
+                input_report_abs(hx9031a_channels[ii].hx9031a_input_dev, ABS_DISTANCE, -1);
+                /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 end*/
+                /* Tab A8 code for AX6300DEV-3809 by xiongxiaoliang at 2021/12/16 end */
+                input_sync(hx9031a_channels[ii].hx9031a_input_dev);
             } else {
                 PRINT_ERR("unknown enable symbol\n");
             }
@@ -1460,9 +1434,9 @@ static int hx9031a_reg_reinitialize(void)
     hx9031a_register_init();
     chip_select = hx9031a_get_board_info();
     hx9031a_ch_cfg(chip_select);
-    /*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 start*/
+    /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 start*/
     hx9031a_data_switch(HX9031A_OUTPUT_LP_BL);
-    /*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 end*/
+    /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 end*/
 
     for(ii = 0; ii < HX9031A_CH_NUM; ii++) {
         hx9031a_set_thres_near(ii, hx9031a_ch_thres[ii].thr_near);
@@ -2394,9 +2368,9 @@ static int hx9031a_probe(struct i2c_client *client, const struct i2c_device_id *
     hx9031a_register_init();
     chip_select = hx9031a_get_board_info();
     hx9031a_ch_cfg(chip_select);
-    /*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 start*/
+    /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 start*/
     hx9031a_data_switch(HX9031A_OUTPUT_LP_BL);
-    /*Tab A8 code for AX6300SDEV-687 by lichang at 2022/10/08 end*/
+    /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 end*/
 /* Tab A8 code for AX6300DEV-735 by mayuhang at 2021/9/23 start */
 #if HX9031A_ALG_COMPILE_EN
 /* Tab A8 code for AX6300DEV-735 by mayuhang at 2021/9/23 end */

@@ -3056,6 +3056,7 @@ static inline bool should_fail_alloc_page(gfp_t gfp_mask, unsigned int order)
 
 #endif /* CONFIG_FAIL_PAGE_ALLOC */
 
+
 static inline long __zone_watermark_unusable_free(struct zone *z,
 				unsigned int order, unsigned int alloc_flags)
 {
@@ -3078,7 +3079,6 @@ static inline long __zone_watermark_unusable_free(struct zone *z,
 
 	return unusable_free;
 }
-
 
 /*
  * Return true if free base pages are above 'mark'. For high-order checks it

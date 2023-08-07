@@ -19,6 +19,7 @@
 					sprd,phy-bit-clock = <914000>; /* kbps */
 					//sprd,phy-escape-clock = <20000>;/* kHz */
 					//sprd,dpi-clk-div = <1>;
+					sprd,power-vsp-out = <1>;
 					sprd,power-gpio-delay = <20>;/* ms */
 					sprd,power-vsp-on-delay = <1>;
 					sprd,power-vsn-on-delay = <12>;

@@ -790,6 +790,10 @@ void sdiohal_set_carddump_status(unsigned int flag)
 		pr_info("disable rx int for dump\n");
 	}
 	p_data->card_dump_flag = flag;
+	pr_info("%s %s rx_irq_ns(%llu %llu), tx_sch_ns(%llu %llu).\n",
+		current->comm, __func__,
+		p_data->tm_begin_irq, p_data->tm_end_irq,
+		p_data->tm_begin_sch, p_data->tm_end_sch);
 }
 
 unsigned int sdiohal_get_carddump_status(void)

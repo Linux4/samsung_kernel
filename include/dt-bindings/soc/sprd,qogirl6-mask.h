@@ -311,6 +311,7 @@
 #define MASK_AON_APB_RC100M_ANA_SOFT_RST                    0x0010
 #define MASK_AON_APB_RC100M_FORCE_EN                        0x0002
 #define MASK_AON_APB_RC100M_AUTO_GATE_EN                    0x0001
+#define MASK_AON_APB_RF_BOND_OPTION0                        0xffffffff
 #define MASK_AON_APB_LTE_PCCSCC_RFTI_CLK_SW_CFG             0xFF000000
 #define MASK_AON_APB_CGM_UFS_AO_EN                          0x800000
 #define MASK_AON_APB_CGM_LPLL1_WTLCP_SEL                    0x200000
@@ -1563,6 +1564,7 @@
 #define MASK_AP_APB_CKG_EB                                  0x0004
 #define MASK_AP_APB_UFS_REG_EB                              0x0002
 #define MASK_AP_APB_UFS_EB                                  0x0001
+#define MASK_GPU_APB_CUR_ST_ST0                             0x00F0
 #define MASK_PMU_APB_WCN_ACCESS_AON_MEM_EN                  0x0004
 #define MASK_PMU_APB_SP_SYS_MEM_ALL_SEL                     0x0002
 #define MASK_PMU_APB_AON_MEM_ALL_SYS_SEL                    0x0001

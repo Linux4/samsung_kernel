@@ -40,6 +40,9 @@ enum batt_misc_event_ss {
 	BATT_MISC_EVENT_UNDEFINED_RANGE_TYPE = 0x00000001,					/* water detection - not support */
 	BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE = 0x00000004,						/* DCD timeout */
 	BATT_MISC_EVENT_HICCUP_TYPE = 0x00000020,						/* It happens when water is detected in a interface port */
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163  by  xuliqin at 20220920 start */
+	BATT_MISC_EVENT_FULL_CAPACITY = 0x01000000,
+	/* Tab A8 code for P220915-04436  and AX6300TDEV-163 by  xuliqin at 20220920 end */
 };
 #endif
 /* HS03 code forSR-SL6215-01-545 by shixuanxuan at 20210818 end */
@@ -132,6 +135,11 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_BATTERY_CYCLE,
 	#endif
 	/* HS03 code for SR-SL6215-01-540 by qiaodan at 20210829 end */
+	/* Tab A8 code for P220915-04436  and AX6300TDEV-163 by  xuliqin at 20220920 start */
+#if !defined(HQ_FACTORY_BUILD)
+	POWER_SUPPLY_PROP_BATT_FULL_CAPACITY,
+#endif
+	/* Tab A8 code for P220915-04436  and AX6300TDEV-163 by  xuliqin at 20220920 end */
 	/* HS03 code for SR-SL6215-01-238 by qiaodan at 20210802 start */
 	#ifdef HQ_FACTORY_BUILD
 	POWER_SUPPLY_PROP_BATT_CAP_CONTROL,
@@ -151,6 +159,9 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_TYPEC_CC_ORIENTATION, /* 0: N/C, 1: CC1, 2: CC2 */
 #endif
 /* Tab A8 code for SR-AX6300-01-254 by wangjian at 20210810 end */
+/* Tab A8 code for SR-AX6301A-01-111 and SR-SL6217T-01-119 by  xuliqin at 20220914 start */
+	POWER_SUPPLY_PROP_CHG_INFO,
+/* Tab A8 code for SR-AX6301A-01-111 and SR-SL6217T-01-119 by  xuliqin at 20220914 end */
 	POWER_SUPPLY_PROP_AUTHENTIC,
 	POWER_SUPPLY_PROP_TECHNOLOGY,
 	POWER_SUPPLY_PROP_CYCLE_COUNT,

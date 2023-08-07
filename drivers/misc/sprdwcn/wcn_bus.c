@@ -43,6 +43,16 @@ static struct chn_info_t *chn_info(void)
 	return &g_chn_info;
 }
 
+int wlan_status = 1;
+
+int sprd_wlan_power_status_sync(int option, int value)
+{
+	if (option == 1)
+		wlan_status = value;
+	return wlan_status;
+}
+EXPORT_SYMBOL_GPL(sprd_wlan_power_status_sync);
+
 static int buf_list_check(struct buffer_pool_t *pool, struct mbuf_t *head,
 			  struct mbuf_t *tail, int num)
 {
@@ -248,6 +258,10 @@ int bus_chn_init(struct mchn_ops_t *ops, int hif_type)
 	struct chn_info_t *chn_inf = chn_info();
 
 	pr_info("[+]%s(%d, %d)\n", __func__, ops->channel, ops->hif_type);
+
+	if (ops->channel >= CHN_MAX_NUM || ops->channel < 0)
+		return -1;
+
 	if (chn_inf->ops[ops->channel] != NULL) {
 		pr_err("%s err, hif_type %d\n", __func__, ops->hif_type);
 		WARN_ON_ONCE(1);

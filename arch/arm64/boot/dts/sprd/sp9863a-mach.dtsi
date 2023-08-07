@@ -255,6 +255,7 @@
 	ddr_dfs: scene-frequency {
 		compatible = "sprd,dfs";
 		freq-num = <8>;
+		info-socdump-enable-flag = <1>;
 	};
 
 	chosen: chosen {

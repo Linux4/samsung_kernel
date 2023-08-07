@@ -17,6 +17,7 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/pm_runtime.h>
+#include <linux/reboot.h>
 #include <video/mipi_display.h>
 #include <video/of_display_timing.h>
 #include <video/videomode.h>
@@ -27,6 +28,12 @@
 /*Tab A8 code for AX6300DEV-805 by suyurui at 2021/10/9 start*/
 #include <linux/touchscreen_info.h>
 /*Tab A8 code for AX6300DEV-805 by suyurui at 2021/10/9 end*/
+/*Tab A8_T code for  P221008-02152 by zhawei at 2022/10/27 start*/
+#ifdef CONFIG_TARGET_UMS512_1H10
+#include <linux/kthread.h>
+#include <linux/sprd_dfs_drv.h>
+#endif
+/*Tab A8_T code for  P221008-02152 by zhawei at 2022/10/27 end*/
 
 #define SPRD_MIPI_DSI_FMT_DSC 0xff
 #define SPRD_OLED_DEFAULT_BRIGHTNESS 25
@@ -36,6 +43,14 @@
 
 static DEFINE_MUTEX(panel_lock);
 
+/*Tab A8_T code for P221008-02152 by zhawei at 2022/10/27 start*/
+#ifdef CONFIG_TARGET_UMS512_1H10
+int8_t g_is_ddr_loadon = 0;
+int8_t g_needed_loadon_ddr = 0;
+const char *ddr_lcdon = "lcdon";
+const char *ddr_lcdoff = "lcdoff";
+#endif
+/*Tab A8_T code for P221008-02152 by zhawei at 2022/10/27 end*/
 const char *lcd_name;
 
 /* HS03 code for SL6215DEV-3752 by LiChao at 20211127 start */
@@ -70,6 +85,32 @@ static int __init lcd_noise_get(char *str)
 __setup("panel_noise=", lcd_noise_get);
 /* HS03 code for SL6215DEV-3752 by LiChao at 20211127 end */
 
+/*Tab A8_T code for P221008-02152 by zhawei at 2022/10/27 start*/
+#ifdef CONFIG_TARGET_UMS512_1H10
+int get_scene_dfs_count(const char *scenario) {
+
+	unsigned int scene_num = 0;
+	char *name = 0;
+	unsigned int freq = 0;
+	unsigned int count = 0;
+	unsigned int magic = 0;
+
+	int i = 0;
+	int err = 0;
+
+	err = get_scene_num(&scene_num);
+	for (i = 0; i < scene_num; i++) {
+		err = get_scene_info(&name, &freq, &count, &magic, i);
+		DRM_INFO("lcd scene i:%d,name:%s,scenario:%s\n",i,name,scenario);
+		if (err == 0 && strcmp(name, scenario) == 0) {
+			DRM_INFO("lcd scene i:%d,scenario:%s  count:%d break\n", i, name, count);
+			break;
+		}
+	}
+	return count;
+}
+#endif
+/*Tab A8_T code for P221008-02152 by zhawei at 2022/10/27 end*/
 static inline struct sprd_panel *to_sprd_panel(struct drm_panel *panel)
 {
 	return container_of(panel, struct sprd_panel, base);
@@ -213,9 +254,9 @@ static int sprd_panel_prepare(struct drm_panel *p)
 		DRM_ERROR("enable lcd regulator failed\n");
 	/* HS03 code for SL6215DEV-1777 by LiChao at 20210916 start */
 	/*Tab A8 code for AX6300DEV-3002 by huangzhongjie at 20211111 start*/
-	/* HS03 code for P220718-03172 by wenghailong at 20220722 start */
+	/* HS03 code for SL6215TDEV-652 by gaoxue at 20221020 start */
 	if (tp_gesture == 0 || panel->esd_flag || panel->info.power_vsp_out) {
-	/* HS03 code for P220718-03172 by wenghailong at 20220722 start */
+	/* HS03 code for SL6215TDEV-652 by gaoxue at 20221020 end */
 	/*Tab A8 code for AX6300DEV-3002 by huangzhongjie at 20211111 end*/
 		if (panel->info.avdd_gpio) {
 			gpiod_direction_output(panel->info.avdd_gpio, 1);
@@ -323,6 +364,11 @@ void  sprd_panel_exit_doze(struct drm_panel *p)
 
 static int sprd_panel_disable(struct drm_panel *p)
 {
+/*Tab A8_T code for P221008-02152 by zhawei at 2022/10/27 start*/
+#ifdef CONFIG_TARGET_UMS512_1H10
+	int err = 0;
+#endif
+/*Tab A8_T code for P221008-02152 by zhawei at 2022/10/27 end*/
 	struct sprd_panel *panel = to_sprd_panel(p);
 
 	DRM_INFO("%s()\n", __func__);
@@ -368,6 +414,22 @@ static int sprd_panel_disable(struct drm_panel *p)
 	}
 	/*Tab A8 code for AX6300DEV-174 by fengzhigang at 20210907 end*/
 	panel->is_enabled = false;
+
+/*Tab A8_T code for P221008-02152 by zhawei at 2022/10/27 start*/
+#ifdef CONFIG_TARGET_UMS512_1H10
+	//DRM_INFO("scene ddr_lcdoff num:%d \n", err);
+	if (g_needed_loadon_ddr) {
+		err = scene_dfs_request((char *)ddr_lcdoff);
+		if (err) {
+			DRM_ERROR("scene lcd off enter fail:%d\n", err);
+		} else {
+			DRM_INFO("scene lcd off enter success\n");
+			scene_exit((char *)ddr_lcdon);
+		}
+	}
+#endif
+/*Tab A8_T code for P221008-02152 by zhawei at 2022/10/27 end*/
+
 	mutex_unlock(&panel_lock);
 
 	return 0;
@@ -375,11 +437,31 @@ static int sprd_panel_disable(struct drm_panel *p)
 
 static int sprd_panel_enable(struct drm_panel *p)
 {
+/*Tab A8_T code for P221008-02152 by zhawei at 2022/10/27 start*/
+#ifdef CONFIG_TARGET_UMS512_1H10
+	int err = 0;
+#endif
+/*Tab A8_T code for P221008-02152 by zhawei at 2022/10/27 end*/
 	struct sprd_panel *panel = to_sprd_panel(p);
 
 	DRM_INFO("HS03 set init code enter\n");
 
 	mutex_lock(&panel_lock);
+
+/*Tab A8_T code for P221008-02152 by zhawei at 2022/10/27 start*/
+#ifdef CONFIG_TARGET_UMS512_1H10
+	DRM_INFO("scene g_needed_loadon_ddr :%d \n", g_needed_loadon_ddr);
+	if (g_needed_loadon_ddr) {
+		err = scene_dfs_request((char *)ddr_lcdon);
+		if (err) {
+			DRM_ERROR("scene lcd on enter fail:%d\n", err);
+		} else {
+			DRM_INFO("scene lcd on enter success\n");
+			scene_exit((char *)ddr_lcdoff);
+		}
+	}
+#endif
+/*Tab A8_T code for P221008-02152 by zhawei at 2022/10/27 end*/
 
 	/* HS03 code for SL6215DEV-3752 by LiChao at 20211127 start */
 	is_init_code = 1;
@@ -477,6 +559,31 @@ static int sprd_panel_get_modes(struct drm_panel *p)
 
 	return mode_count;
 }
+/*Tab A8_T code for P221008-02152 by zhawei at 2022/10/27 start*/
+#ifdef CONFIG_TARGET_UMS512_1H10
+static int dfs_lcdon_load_thread(void *data) {
+	int err = 0;
+	while(1) {
+		mdelay(100);
+		err = get_scene_dfs_count(ddr_lcdon);
+		if (!err) {
+			DRM_INFO("scene lcd on count num:%d\n",err);
+			g_needed_loadon_ddr = 1;
+			err = scene_dfs_request((char *)ddr_lcdon);
+			if (err) {
+				DRM_ERROR("scene lcd on enter fail:%d\n", err);
+			} else {
+				DRM_INFO("scene lcd on enter success\n");
+				scene_exit((char *)ddr_lcdoff);
+			}
+			break;
+		}
+		break;
+	}
+	return 0;
+}
+#endif
+/*Tab A8_T code for P221008-02152 by zhawei at 2022/10/27 end*/
 
 static const struct drm_panel_funcs sprd_panel_funcs = {
 	.get_modes = sprd_panel_get_modes,
@@ -918,6 +1025,12 @@ static int of_parse_oled_cmds(struct sprd_oled *oled,
 
 int sprd_oled_set_brightness(struct backlight_device *bdev)
 {
+/*Tab A8_T code for P221008-02152 by zhawei at 2022/10/27 start*/
+#ifdef CONFIG_TARGET_UMS512_1H10
+	struct task_struct *tsk_st ;
+#endif
+/*Tab A8_T code for P221008-02152 by zhawei at 2022/10/27 end*/
+
 	int brightness;
 	struct sprd_oled *oled = bl_get_data(bdev);
 	struct sprd_panel *panel = oled->panel;
@@ -963,6 +1076,20 @@ int sprd_oled_set_brightness(struct backlight_device *bdev)
 	sprd_panel_send_cmds(panel->slave,
 			     panel->info.cmds[CMD_OLED_REG_UNLOCK],
 			     panel->info.cmds_len[CMD_OLED_REG_UNLOCK]);
+
+/*Tab A8_T code for P221008-02152 by zhawei at 2022/10/27 start*/
+#ifdef CONFIG_TARGET_UMS512_1H10
+	if (!g_is_ddr_loadon) {
+		// struct task_struct *tsk_st =
+		tsk_st = kthread_run(dfs_lcdon_load_thread, NULL,"panel_lcdon_freq_load");
+		if (IS_ERR(tsk_st)) {
+			PTR_ERR(tsk_st);
+			DRM_ERROR("create load lcdon freq thread failed\n");
+		}
+		g_is_ddr_loadon++;
+	}
+#endif
+/*Tab A8_T code for P221008-02152 by zhawei at 2022/10/27 end*/
 
 	mutex_unlock(&panel_lock);
 
@@ -1284,7 +1411,7 @@ int sprd_panel_parse_lcddtb(struct device_node *lcd_node,
 	}
 	/*Tab A8 code for SR-AX6300-01-441 by huangzhongjie at 20211129 end*/
 
-	/* HS03 code for P220718-03172 by wenghailong at 20220722 start */
+	/* HS03 code for SL6215TDEV-652 by gaoxue at 20221020 start */
 	rc = of_property_read_u32(lcd_node, "sprd,power-vsp-out", &val);
 	if (!rc) {
 		info->power_vsp_out = val;
@@ -1292,7 +1419,7 @@ int sprd_panel_parse_lcddtb(struct device_node *lcd_node,
 	} else {
 		info->power_vsp_out = 0;
 	}
-	/* HS03 code for P220718-03172 by wenghailong at 20220722 end */
+	/* HS03 code for SL6215TDEV-652 by gaoxue at 20221020 end */
 
 	/* HS03 code for SL6215DEV-1777 by LiChao at 20210916 start */
 	rc = of_property_read_u32(lcd_node, "sprd,power-vsp-on-delay", &val);
@@ -1483,6 +1610,33 @@ static int sprd_panel_device_create(struct device *parent,
 	return device_register(&panel->dev);
 }
 
+static int sprd_panel_panic_event(struct notifier_block *self, unsigned long val, void *reason)
+{
+	struct sprd_panel *panel = container_of(self, struct sprd_panel, panic_nb);
+
+	/*HS03 code for  P221121-04171 by zhawei at 2022/11/23 start*/
+	if (!panel->is_enabled) {
+		DRM_ERROR("panel is not enabled, skip panic event.\n");
+		return 0;
+	}
+	/*HS03 code for  P221121-04171 by zhawei at 2022/11/23 end*/
+
+	mutex_lock(&panel_lock);
+	sprd_panel_send_cmds(panel->slave,
+			     panel->info.cmds[CMD_CODE_SLEEP_IN],
+			     panel->info.cmds_len[CMD_CODE_SLEEP_IN]);
+	mutex_unlock(&panel_lock);
+
+	DRM_ERROR("%s() disable panel because panic event\n", __func__);
+
+	return 0;
+}
+
+static struct notifier_block sprd_panel_panic_event_nb = {
+	.notifier_call = sprd_panel_panic_event,
+	.priority = 128,
+};
+
 static int sprd_panel_probe(struct mipi_dsi_device *slave)
 {
 	int ret;
@@ -1594,6 +1748,9 @@ static int sprd_panel_probe(struct mipi_dsi_device *slave)
 
 	panel->is_enabled = true;
 
+	panel->panic_nb = sprd_panel_panic_event_nb;
+	atomic_notifier_chain_register(&panic_notifier_list, &panel->panic_nb);
+
 	DRM_INFO("panel driver probe success\n");
 
 	return 0;
@@ -1625,7 +1782,7 @@ static int sprd_panel_remove(struct mipi_dsi_device *slave)
 /**
 *Name：sprd_panel_shutdown
 *Author：hehaoran
-*Date：2021.10.18
+*Date�?021.10.18
 *Param：struct mipi_dsi_device *slave
 *Return：NA
 *Purpose：change tp_gesture make vsp and vsn  async off

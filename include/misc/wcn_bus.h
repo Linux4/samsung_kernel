@@ -318,6 +318,7 @@ extern void module_bus_init(void);
 extern void module_bus_deinit(void);
 extern struct sprdwcn_bus_ops *get_wcn_bus_ops(void);
 extern void wcn_assert_interface(enum wcn_source_type, char *str);
+int sprd_wlan_power_status_sync(int option, int value);
 
 static inline
 int sprdwcn_bus_preinit(void)

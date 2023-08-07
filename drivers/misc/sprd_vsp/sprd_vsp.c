@@ -123,9 +123,8 @@ static long vsp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case VSP_ENABLE:
 		pr_debug("vsp ioctl VSP_ENABLE\n");
 		__pm_stay_awake(&vsp_wakelock);
-		/*Tab A8_s code for P220701-02273 by yingboyang at 20220709 start*/
 		vsp_fp->is_wakelock_got = true;
-		/*Tab A8_s code for P220701-02273 by yingboyang at 20220709 end*/
+
 		ret = vsp_clk_enable(&vsp_hw_dev);
 		if (ret == 0)
 			vsp_fp->is_clock_enabled = 1;
@@ -139,9 +138,7 @@ static long vsp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			vsp_fp->is_clock_enabled = 0;
 			vsp_clk_disable(&vsp_hw_dev);
 		}
-		/*Tab A8_s code for P220701-02273 by yingboyang at 20220709 start*/
 		vsp_fp->is_wakelock_got = false;
-		/*Tab A8_s code for P220701-02273 by yingboyang at 20220709 end*/
 		__pm_relax(&vsp_wakelock);
 		break;
 
@@ -653,12 +650,10 @@ static int vsp_release(struct inode *inode, struct file *filp)
 		vsp_fp->is_clock_enabled = 0;
 		vsp_clk_disable(&vsp_hw_dev);
 	}
-	/*Tab A8_s code for P220701-02273 by yingboyang at 20220709 start*/
 	if (vsp_fp->is_wakelock_got) {
 		pr_err("error occurred and wakelock relax\n");
-		 __pm_relax(&vsp_wakelock);
+		__pm_relax(&vsp_wakelock);
 	}
-	/*Tab A8_s code for P220701-02273 by yingboyang at 20220709 end*/
 
 	if (vsp_fp->is_vsp_aquired) {
 		pr_err("error occurred and up vsp_mutex\n");

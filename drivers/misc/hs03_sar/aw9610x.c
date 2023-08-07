@@ -53,7 +53,11 @@ struct aw9610x *aw9610x_ptr;
 char *o7_sar_name = NULL;
 module_param(o7_sar_name, charp, 0644);
 static bool is_EU = false;
-
+/*HS03_T code for SL6215TDEV-637 by xiongxiaoliang at 2022/10/17 start*/
+int anfr_flag = 1, irq_count = 0;
+int irq_data = 0;
+int interrupted_data = 0;
+/*HS03_T code for SL6215TDEV-637 by xiongxiaoliang at 2022/10/17 end*/
 static struct workqueue_struct* sar_work;
 static struct work_struct sx_sar_enable_work;
 static struct notifier_block sx_sar_notify;
@@ -747,7 +751,7 @@ aw9610x_cfg_all_loaded(const struct firmware *cont, void *context)
     int32_t ret;
     struct aw_bin *aw_bin;
     struct aw9610x *aw9610x = context;
-    uint32_t reg_val = 0;
+    //uint32_t reg_val = 0;
 
     AWLOGD(aw9610x->dev, "enter");
 
@@ -787,7 +791,7 @@ aw9610x_cfg_all_loaded(const struct firmware *cont, void *context)
         release_firmware(cont);
         return;
     }
-    /* HS03  code for SR-SL6215-01-729 by shibinbin at 2021/09/02 start */
+    /*HS03_T code for SL6215TDEV-637 by xiongxiaoliang at 2022/10/17 start*/
     /* config sar defalut state */
     disable_irq(aw9610x->to_irq);
     aw9610x_bin_valid_loaded(aw9610x, aw_bin);
@@ -797,12 +801,11 @@ aw9610x_cfg_all_loaded(const struct firmware *cont, void *context)
 
     /* defualt sar at shutdowe mode */
     //aw9610x_i2c_read(aw9610x, REG_HOSTIRQSRC, &reg_val); // clear irq
-    aw9610x_i2c_write(aw9610x, REG_CMD, AW9610X_SLEEP_MODE);
-    aw9610x_i2c_read(aw9610x, REG_HOSTIRQSRC, &reg_val); // clear irq
-    aw9610x->mode = AW9610X_SLEEP_MODE;
-
-    //enable_irq(aw9610x->to_irq);
-    /* HS03  code for SR-SL6215-01-729 by shibinbin at 2021/09/02 end */
+    //aw9610x_i2c_write(aw9610x, REG_CMD, AW9610X_SLEEP_MODE);
+    //aw9610x_i2c_read(aw9610x, REG_HOSTIRQSRC, &reg_val); // clear irq
+    //aw9610x->mode = AW9610X_SLEEP_MODE;
+    enable_irq(aw9610x->to_irq);
+    /*HS03_T code for SL6215TDEV-637 by xiongxiaoliang at 2022/10/17 end*/
 
     kfree(aw_bin);
     release_firmware(cont);
@@ -1419,33 +1422,26 @@ bool aw9610x_is_all_channle_off(struct aw9610x *aw9610x)
     return true;
 }
 
-
+/*HS03_T code for SL6215TDEV-637 by xiongxiaoliang at 2022/10/17 start*/
 static ssize_t aw9610x_enable_set(struct device *dev,
                         struct device_attribute *attr,
                         const char *buf, size_t count)
 {
     struct aw9610x *aw9610x = dev_get_drvdata(dev);
     uint32_t databuf[2] = { 0, 0 };
-    bool is_old_all_ch_off = false;
-    bool is_new_all_ch_off = false;
     uint32_t reg_val;
-    uint32_t data_en = 0;
     int sar_id = aw9610x->sar_num;
-    bool is_first_enable = false;
     int input_val = 0;
 
     mutex_lock(&g_mutex_lock);
     if (sscanf(buf, "%d %d", &databuf[0], &databuf[1]) == 2) {
-        pr_err("aw9610x %s :value:%d received.\n", __func__,databuf[0]);
-        if(databuf[0] == 176)
-        {
-            databuf[0] = 2;
-        }
-        else if(databuf[0] == 178){
+        pr_err("value:%d %d received.", databuf[0], databuf[1]);
+        // Channel detection
+        if (databuf[0] == 178) {
             databuf[0] = 1;
-        }
-        else
-        {
+        } else if (databuf[0] == 176) {
+            databuf[0] = 2;
+        } else {
             pr_err("aw9610x %s :value:%d unexcepted parameter", __func__,databuf[0]);
             return count;
         }
@@ -1453,37 +1449,21 @@ static ssize_t aw9610x_enable_set(struct device *dev,
             pr_err("aw9610x %s :value:%d is bigger than AW_CHANNEL_MAX", __func__,databuf[0]);
             return count;
         }
-
-        is_old_all_ch_off = aw9610x_is_all_channle_off(aw9610x);
-        if ((!!databuf[1]) != aw9610x->is_channle_enable[databuf[0]]) {
-            aw9610x->is_channle_enable[databuf[0]] = !!databuf[1];
-
-        }
-
-        is_new_all_ch_off = aw9610x_is_all_channle_off(aw9610x);
-
-        if (is_old_all_ch_off && !is_new_all_ch_off) {//power on
-            aw9610x_i2c_write(aw9610x, REG_CMD, AW9610X_ACTIVE_MODE);
-
-            /*auto cali on first enable*/
-            aw9610x_i2c_read(aw9610x, REG_SCANCTRL0, &data_en);
-            aw9610x_i2c_write_bits(aw9610x, REG_SCANCTRL0, ~(0x3f << 8),
-                                    (data_en & 0x3f) << 8);
-            usleep_range(2000, 2100);
-            enable_irq(aw9610x->to_irq);
-            /* first power on , default is far */
-            input_val = 5; //far
-
-            aw9610x->mode = AW9610X_ACTIVE_MODE;
-            is_first_enable = true;
-        }
-
-        if (aw9610x->is_channle_enable[databuf[0]]) { //channle is enable
-            if (!is_first_enable) {
-                /* read channel runtime state */
-                aw9610x_i2c_read(aw9610x, REG_STAT0, &reg_val);
-                input_val = ((reg_val >> 24) & (0x01 << databuf[0])) ? 0 : 5; //close : far
-            }
+        if (anfr_flag == 1) {
+            /* Reporting the near state */
+            input_report_rel(
+                aw9610x->aw_channel[sar_id * AW_CHANNEL_MAX + databuf[0]].input,
+                            REL_MISC, 1);
+            input_sync(aw9610x->aw_channel[sar_id * AW_CHANNEL_MAX + databuf[0]].input);
+            pr_err("aw9610x %s : anfr_flag is report", __func__);
+        } else { //channle is enable
+            /* read channel runtime state */
+            aw9610x_i2c_read(aw9610x, REG_STAT0, &reg_val);
+            input_val = ((reg_val >> 24) & (0x01 << databuf[0]));
+            input_val = input_val ? 1 : 0; //close : far
+            aw9610x->aw_channel[sar_id * AW_CHANNEL_MAX + databuf[0]].last_state = input_val;
+            input_val = input_val ? 1 : 5; //close : far
+            pr_err("aw9610x %s : status2 is report", __func__);
 #if defined(CONFIG_SENSORS)
             if (aw9610x->skip_data == true) {
                 AWLOGI(aw9610x->dev, "%s - skip grip event\n", __func__);
@@ -1491,22 +1471,14 @@ static ssize_t aw9610x_enable_set(struct device *dev,
             else
             {
 #endif
-                input_report_abs(
+                /* Reporting the current state */
+                input_report_rel(
                     aw9610x->aw_channel[sar_id * AW_CHANNEL_MAX + databuf[0]].input,
-                                ABS_DISTANCE, input_val);
+                                REL_MISC, input_val);
                 input_sync(aw9610x->aw_channel[sar_id * AW_CHANNEL_MAX + databuf[0]].input);
 #if defined(CONFIG_SENSORS)
             }
 #endif
-        }
-
-
-        if (!is_old_all_ch_off && is_new_all_ch_off) {//power off
-            disable_irq(aw9610x->to_irq);
-            aw9610x_i2c_read(aw9610x, REG_HOSTIRQSRC, &reg_val); //clear irq
-            aw9610x_i2c_write(aw9610x, REG_CMD, AW9610X_SLEEP_MODE);
-            aw9610x->mode = AW9610X_SLEEP_MODE;
-
         }
     } else {
         pr_err("aw9610x %s : unavailable parameter", __func__);
@@ -1515,6 +1487,7 @@ static ssize_t aw9610x_enable_set(struct device *dev,
 
     return count;
 }
+/*HS03_T code for SL6215TDEV-637 by xiongxiaoliang at 2022/10/17 end*/
 
 static ssize_t aw9610x_enable_get(struct device *dev,
                 struct device_attribute *attr, char *buf)
@@ -1617,10 +1590,12 @@ static ssize_t aw9610x_onoff_store(struct device *dev,
     if (val == 0) {
         this->skip_data = true;
         if (this->is_channle_enable[1]) {
-            input_report_abs(this->aw_channel[1].input, ABS_DISTANCE, 5);
+            input_report_rel(this->aw_channel[1].input, REL_MISC, 5);
+            input_sync(this->aw_channel[1].input);
         }
         if (this->is_channle_enable[2]) {
-            input_report_abs(this->aw_channel[2].input, ABS_DISTANCE, 5);
+            input_report_rel(this->aw_channel[2].input, REL_MISC, 5);
+            input_sync(this->aw_channel[2].input);
         }
     } else {
         this->skip_data = false;
@@ -1670,7 +1645,6 @@ void aw96103_sar_usb_callback_init(struct aw9610x *aw9610x)
     if (!sar_work) {
         return;
     }
-    cali_aw9610x = aw9610x;
     INIT_WORK(&sx_sar_enable_work, calibration_func_callback);
     sx_sar_notify.notifier_call = aw96103_sar_calibration_notifier_callback;
     ret = power_supply_reg_notifier(&sx_sar_notify);
@@ -1689,7 +1663,7 @@ static struct attribute_group aw9610x_sar_attribute_group = {
 *
 *****************************************************/
 
-/* HS03 code for SR-SL6215-01-168 by shibinbin at 2021/08/16 start */
+/*HS03_T code for SL6215TDEV-637 by xiongxiaoliang at 2022/10/17 start*/
 static void aw9610x_irq_handle(struct aw9610x *aw9610x)
 {
     uint32_t curr_status = 0;
@@ -1720,8 +1694,7 @@ static void aw9610x_irq_handle(struct aw9610x *aw9610x)
         AWLOGI(aw9610x->dev, "curr_state[%d] = 0x%x", j * AW_CHANNEL_MAX + i,
                     aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].curr_state);
         if ((aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].curr_state !=
-                    aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].last_state) &&
-                    aw9610x->is_channle_enable[j * AW_CHANNEL_MAX + i]) {
+                    aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].last_state)) {
             #ifdef HQ_FACTORY_BUILD
             if (AW_CHANNEL0 == (j * AW_CHANNEL_MAX + i) ) {
                 intput_value_far = KEY_SAR1_FAR;
@@ -1736,37 +1709,47 @@ static void aw9610x_irq_handle(struct aw9610x *aw9610x)
                 intput_value_close = KEY_SAR3_CLOSE;
             }
             #endif
-            switch (aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].curr_state) {
-            case FAR:
-                #ifdef HQ_FACTORY_BUILD
-                input_report_key(
+            if(anfr_flag == 1) {
+                pr_err("lc_force\n");
+                input_report_rel(
                     aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].input,
-                            intput_value_far, 1);
-                input_report_key(
-                    aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].input,
-                            intput_value_far, 0);
-                AWLOGE(aw9610x->dev, "case far reported");
-                #else
-                input_report_abs(
-                    aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].input,
-                            ABS_DISTANCE, 5);
-                #endif
-                break;
-            default:
-                #ifdef HQ_FACTORY_BUILD
-                input_report_key(
-                    aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].input,
-                            intput_value_close, 1);
-                input_report_key(
-                    aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].input,
-                            intput_value_close, 0);
-                AWLOGE(aw9610x->dev, "case close reported");
-                #else
-                input_report_abs(
-                    aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].input,
-                            ABS_DISTANCE, 0);
-                #endif
-                break;
+                            REL_MISC, 1);
+            } else {
+                pr_err("lc_recover\n");
+                switch (aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].curr_state) {
+                case FAR:
+                    #ifdef HQ_FACTORY_BUILD
+                    input_report_key(
+                        aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].input,
+                                intput_value_far, 1);
+                    input_report_key(
+                        aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].input,
+                                intput_value_far, 0);
+                    AWLOGE(aw9610x->dev, "case far reported");
+                    #else
+                    pr_err("lc_far\n");
+                    input_report_rel(
+                        aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].input,
+                                REL_MISC, 5);
+                    #endif
+                    break;
+                default:
+                    #ifdef HQ_FACTORY_BUILD
+                    input_report_key(
+                        aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].input,
+                                intput_value_close, 1);
+                    input_report_key(
+                        aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].input,
+                                intput_value_close, 0);
+                    AWLOGE(aw9610x->dev, "case close reported");
+                    #else
+                    pr_err("lc_near\n");
+                    input_report_rel(
+                        aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].input,
+                                REL_MISC, 1);
+                    #endif
+                    break;
+                }
             }
             input_sync(aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].input);
         }
@@ -1774,7 +1757,7 @@ static void aw9610x_irq_handle(struct aw9610x *aw9610x)
                 aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].curr_state;
     }
 }
-/* HS03 code for SR-SL6215-01-168 by shibinbin at 2021/08/16 end */
+/*HS03_T code for SL6215TDEV-637 by xiongxiaoliang at 2022/10/17 end*/
 
 static void aw9610x_farirq_handle(struct aw9610x *aw9610x)
 {
@@ -1811,6 +1794,7 @@ static void aw9610x_version_aw9610xA_private(struct aw9610x *aw9610x)
     AWLOGD(aw9610x->dev, "AW9610XA enter");
 }
 
+/*HS03_T code for SL6215TDEV-637 by xiongxiaoliang at 2022/10/17 start*/
 static void aw9610x_version_aw9610xB_private(struct aw9610x *aw9610x)
 {
     uint32_t progxirq_stat = (aw9610x->irq_status >> 12) & 0x0f;
@@ -1819,48 +1803,84 @@ static void aw9610x_version_aw9610xB_private(struct aw9610x *aw9610x)
 
     switch (progxirq_stat) {
     case PROG0IRQ:
-        input_report_abs(
+        input_report_rel(
             aw9610x->aw_channel[aw9610x->sar_num * AW_CHANNEL_MAX].input,
-                            ABS_DISTANCE, 5);
-        input_report_abs(
+                            REL_MISC, 5);
+        input_report_rel(
             aw9610x->aw_channel[aw9610x->sar_num * AW_CHANNEL_MAX].input,
-                            ABS_DISTANCE, 16);
+                            REL_MISC, 16);
         input_sync(aw9610x->aw_channel[aw9610x->sar_num * AW_CHANNEL_MAX].input);
-        AWLOGD(aw9610x->dev, "ABS_DISTANCE : 5");
+        AWLOGD(aw9610x->dev, "REL_MISC : 5");
         break;
     case PROG1IRQ:
-        input_report_abs(
+        input_report_rel(
             aw9610x->aw_channel[aw9610x->sar_num * AW_CHANNEL_MAX].input,
-                            ABS_DISTANCE, 6);
-        input_report_abs(
+                            REL_MISC, 6);
+        input_report_rel(
             aw9610x->aw_channel[aw9610x->sar_num * AW_CHANNEL_MAX].input,
-                            ABS_DISTANCE, 16);
+                            REL_MISC, 16);
         input_sync(aw9610x->aw_channel[aw9610x->sar_num * AW_CHANNEL_MAX].input);
-        AWLOGD(aw9610x->dev, "ABS_DISTANCE : 6");
+        AWLOGD(aw9610x->dev, "REL_MISC : 6");
         break;
     case PROG2IRQ:
-        input_report_abs(
+        input_report_rel(
             aw9610x->aw_channel[aw9610x->sar_num * AW_CHANNEL_MAX].input,
-                            ABS_DISTANCE, 7);
-        input_report_abs(
+                            REL_MISC, 7);
+        input_report_rel(
             aw9610x->aw_channel[aw9610x->sar_num * AW_CHANNEL_MAX].input,
-                            ABS_DISTANCE, 16);
+                            REL_MISC, 16);
         input_sync(aw9610x->aw_channel[aw9610x->sar_num * AW_CHANNEL_MAX].input);
-        AWLOGD(aw9610x->dev, "ABS_DISTANCE : 7");
+        AWLOGD(aw9610x->dev, "REL_MISC : 7");
         break;
     case PROG3IRQ:
-        input_report_abs(
+        input_report_rel(
             aw9610x->aw_channel[aw9610x->sar_num * AW_CHANNEL_MAX].input,
-                            ABS_DISTANCE, 8);
-        input_report_abs(
+                            REL_MISC, 8);
+        input_report_rel(
             aw9610x->aw_channel[aw9610x->sar_num * AW_CHANNEL_MAX].input,
-                            ABS_DISTANCE, 16);
+                            REL_MISC, 16);
         input_sync(aw9610x->aw_channel[aw9610x->sar_num * AW_CHANNEL_MAX].input);
-        AWLOGD(aw9610x->dev, "ABS_DISTANCE : 8");
+        AWLOGD(aw9610x->dev, "REL_MISC : 8");
         break;
     default:
         AWLOGD(aw9610x->dev, "There is no current state");
         break;
+    }
+}
+
+void lc_self_cali(struct aw9610x *aw9610x)
+{
+    int cali_data = 0;
+    int ret = 0;
+    int i = 0;
+    int j = 0;
+
+    aw9610x_i2c_read(aw9610x,AW9610_CHECK_CALI,&cali_data);
+    pr_err("lc_cali_data_1 %x\n",cali_data);
+
+    ret = cali_data >> 3 & 1;
+
+    if(ret == 1){
+        irq_data++;
+        i = irq_data;
+    }
+    pr_err("lc_irq_data = %d ;i = %d\n",irq_data,i);
+    if(i == 2 || interrupted_data > 9){
+        if(i == 2){
+            pr_err("lc_self_cali_far\n");
+            for(j = 0; j < AW_CHANNEL_MAX; j++ ){
+                if(aw9610x->aw_channel[aw9610x->sar_num * AW_CHANNEL_MAX + j].input){
+                    input_report_rel(
+                        aw9610x->aw_channel[aw9610x->sar_num * AW_CHANNEL_MAX + j].input,
+                                        REL_MISC, 5);
+                    input_sync(aw9610x->aw_channel[aw9610x->sar_num * AW_CHANNEL_MAX + j].input);
+                }
+            }
+        }
+        aw9610x_i2c_write(aw9610x, AW9610_1, AW9610__1);
+        aw9610x_i2c_write(aw9610x, AW9610_2, AW9610__2);
+        aw9610x_i2c_write(aw9610x, AW9610_3, AW9610__3);
+        anfr_flag = 0;
     }
 }
 
@@ -1869,6 +1889,16 @@ static void aw9610x_interrupt_clear(struct aw9610x *aw9610x)
     int32_t ret = 0;
 
     AWLOGD(aw9610x->dev, "enter");
+
+    if(interrupted_data <= 9)
+    {
+        irq_count++;
+        interrupted_data = irq_count;
+        lc_self_cali(aw9610x);
+    }
+
+    pr_err("lc_irq irq_count = %d ,interrupted_data = %d\n", irq_count, interrupted_data);
+    pr_err("lc_irq anfr_flag = %d\n", anfr_flag);
 
     ret = aw9610x_i2c_read(aw9610x, REG_HOSTIRQSRC, &aw9610x->irq_status);
     if (ret < 0) {
@@ -1898,6 +1928,7 @@ static void aw9610x_interrupt_clear(struct aw9610x *aw9610x)
 
     aw9610x_irq_handle(aw9610x);
 }
+/*HS03_T code for SL6215TDEV-637 by xiongxiaoliang at 2022/10/17 end*/
 
 static irqreturn_t aw9610x_irq(int32_t irq, void *data)
 {
@@ -2395,11 +2426,10 @@ aw9610x_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
                 AWLOGE(aw9610x->dev, "AW_CHANNEL2 report init");
             }
             #else
-            __set_bit(EV_KEY, aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].input->evbit);
-            __set_bit(EV_SYN, aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].input->evbit);
-            __set_bit(KEY_F1, aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].input->keybit);
-            input_set_abs_params(aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].input,
-                            ABS_DISTANCE, -1, 100, 0, 0);
+            /*HS03_T code for SL6215TDEV-637 by xiongxiaoliang at 2022/10/17 start*/
+            __set_bit(EV_REL, aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].input->evbit);
+            __set_bit(REL_MISC, aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].input->relbit);
+            /*HS03_T code for SL6215TDEV-637 by xiongxiaoliang at 2022/10/17 end*/
             #endif
             /* HS03 code for SR-SL6215-01-168 by shibinbin at 2021/08/16 end */
             ret = input_register_device(aw9610x->aw_channel[j * AW_CHANNEL_MAX + i].input);
@@ -2436,7 +2466,10 @@ aw9610x_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
         AWLOGE(aw9610x->dev, "cfg situation not confirmed!");
         goto err_cfg;
     }
-    aw96103_sar_usb_callback_init(aw9610x);
+    /*HS03_T code for SL6215TDEV-637 by xiongxiaoliang at 2022/10/17 start*/
+    cali_aw9610x = aw9610x;
+    //aw96103_sar_usb_callback_init(aw9610x);
+    /*HS03_T code for SL6215TDEV-637 by xiongxiaoliang at 2022/10/17 end*/
     o7_sar_name = "aw96103";
     register_sar_notifier(&sdcrad_insert_notifier);
     return AW_SAR_SUCCESS;

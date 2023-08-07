@@ -2449,6 +2449,7 @@
 #define MASK_AON_CLK_CORE_CGM_VSP_CFG_CGM_VSP_SEL                       0x7
 #define MASK_AON_CLK_CORE_CGM_GPU_CORE_FRA_DIV_CGM_GPU_CORE_FRA_DIV     0xf
 #define MASK_AON_CLK_CORE_CGM_GPU_SOC_FRA_DIV_CGM_GPU_SOC_FRA_DIV       0xf
+#define MASK_AON_CLK_GPU_EB                               0x1
 #define MASK_AON_CLK_LP_CLK_CSSYS_DBG_MODE_SEL            0x400
 #define MASK_AON_CLK_LP_CLK_RFTI2_XO_MODE_SEL             0x200
 #define MASK_AON_CLK_LP_CLK_RFTI1_XO_MODE_SEL             0x100
