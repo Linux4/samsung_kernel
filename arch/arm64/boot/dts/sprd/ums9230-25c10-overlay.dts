@@ -979,6 +979,7 @@
 	extcon = <&extcon_gpio>;
 	/* HS03 code for SR-SL6215-01-186 by gaochao at 20210729 end */
 	vbus-supply = <&vddvbus>;
+	sprd,usb-data-enable = <1>;
 	status = "okay";
 };
 

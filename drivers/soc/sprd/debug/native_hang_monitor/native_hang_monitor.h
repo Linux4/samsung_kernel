@@ -29,6 +29,7 @@
 #define CORE_TASK_NUM_MAX 20
 #define TASK_STATE_TO_CHAR_STR "RSDTtZXxKWP"
 
+#define SYSDUMP_PROC_BUF_LEN 5
 struct thread_backtrace_info {
 	__u32 pid;
 	__u32 nr_entries;

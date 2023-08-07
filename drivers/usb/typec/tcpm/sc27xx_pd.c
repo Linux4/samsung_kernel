@@ -1412,7 +1412,7 @@ static int sc27xx_pd_read_message(struct sc27xx_pd *pd, struct pd_message *msg)
 	sprd_pd_log(pd, "rx fifo data num = %d, msg header = 0x%x, type = %d, spec = %d",
 	reg_val, msg->header, type, spec);
 
-	if ((data_obj_num * 2 + 1) < reg_val && !vendor_define &&
+	if ((data_obj_num * 4 + 1) < reg_val && !vendor_define &&
 		!source_capabilities && !data_request) {
 		sprd_pd_log(pd, "retry read msg");
 		pd->need_retry = true;

@@ -620,8 +620,8 @@
 					"MMU",
 					"GPU";
 
-				nvmem-cells = <&gpu_bin>;
-				nvmem-cell-names = "gpu_bin";
+				nvmem-cells = <&gpu_bin>, <&cpu_flag>;
+				nvmem-cell-names = "gpu_bin", "cpu_flag";
 
 				operating-points = <
 					/* kHz    uV */
@@ -2507,6 +2507,10 @@
 		gpu_bin: gpu-bin@1b{
 			reg = <0x1b 0x4>;
 			bits = <3 3>;
+		};
+
+		cpu_flag: cpu-flag@50{
+			reg = <0x50 0x4>;
 		};
 
 		dvfs_bin_dsu: dvfs-bin@13{

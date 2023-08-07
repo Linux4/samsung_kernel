@@ -1265,6 +1265,47 @@ static void sprd_musb_dma_completion(struct musb *musb, u8 epnum, u8 transmit)
 }
 
 #if IS_ENABLED(CONFIG_USB_MUSB_HOST) || IS_ENABLED(CONFIG_USB_MUSB_DUAL_ROLE)
+/* HS03T code for P221010-04008 by lina at 20221025 start */
+static void sprd_calc_urb_actual_length(struct musb *musb,
+	struct urb *urb,
+	struct musb_qh *qh,
+	struct dma_channel *channel,
+	u32 dma_addr,
+	u32 blk_len)
+{
+	u32 i = 0, j = 0;
+	u32 node_num = 0;
+	u32 unused_length = 0;
+	struct sprd_musb_dma_channel *musb_channel = channel->private_data;
+
+	node_num = musb_channel->node_num;
+	for (i = 0; i < node_num; i++) {
+		if ((musb_channel->dma_linklist[i].addr +
+			musb_channel->dma_linklist[i].blk_len -
+			blk_len) == dma_addr)
+			break;
+	}
+
+	if (i == node_num) {
+		dev_err(musb->controller, "cannot find the dma_addr\n");
+		urb->actual_length = 0;
+		return;
+	}
+
+	if (i + 1 == node_num) {
+		urb->actual_length += qh->segsize - blk_len;
+		return;
+	}
+
+	for (j = i + 1; j < node_num; j++) {
+		unused_length += musb_channel->dma_linklist[j].blk_len;
+	}
+	urb->actual_length += qh->segsize - unused_length - blk_len;
+
+	return;
+}
+
+/* HS03T code for P221010-04008 by lina at 20221025 end */
 static void sprd_musb_urb_completion(struct musb *musb, u8 epnum, u8 is_in)
 {
 	struct musb_hw_ep *hw_ep;
@@ -1272,7 +1313,9 @@ static void sprd_musb_urb_completion(struct musb *musb, u8 epnum, u8 is_in)
 	struct dma_channel *channel;
 	struct urb *urb;
 	u32 blk_len = 0;
-
+	/* HS03T code for P221010-04008 by lina at 20221025 start */
+	u32 dma_addr = 0;
+	/* HS03T code for P221010-04008 by lina at 20221025 end */
 	hw_ep = &musb->endpoints[epnum];
 	if (is_in) {
 		channel = hw_ep->rx_channel;
@@ -1291,17 +1334,22 @@ static void sprd_musb_urb_completion(struct musb *musb, u8 epnum, u8 is_in)
 	urb = next_urb(qh);
 	if (!urb)
 		return;
-
-	if (is_in)
+	/* HS03T code for P221010-04008 by lina at 20221025 start */
+	if (is_in) {
 		blk_len = musb_readl(musb->mregs,
 			MUSB_DMA_CHN_LEN(epnum + 15));
-	else
+		dma_addr = musb_readl(musb->mregs,
+			MUSB_DMA_CHN_ADDR(epnum + 15));
+	} else {
 		blk_len = musb_readl(musb->mregs,
 			MUSB_DMA_CHN_LEN(epnum));
+		dma_addr = musb_readl(musb->mregs,
+			MUSB_DMA_CHN_ADDR(epnum));
+	}
 
 	blk_len = (blk_len & 0xffff0000) >> 16;
-	urb->actual_length += qh->segsize - blk_len;
-
+	sprd_calc_urb_actual_length(musb, urb, qh, channel, dma_addr, blk_len);
+	/* HS03T code for P221010-04008 by lina at 20221025 end */
 	if (usb_pipeisoc(urb->pipe)) {
 		struct usb_iso_packet_descriptor *d;
 

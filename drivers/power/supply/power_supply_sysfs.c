@@ -181,6 +181,10 @@ static ssize_t power_supply_show_property(struct device *dev,
 	else if (off == POWER_SUPPLY_PROP_HEALTH)
 		return sprintf(buf, "%s\n",
 			       power_supply_health_text[value.intval]);
+	/* Tab A8 code for SR-AX6301A-01-111 and SR-SL6217T-01-119 by  xuliqin at 20220914 start */
+	else if (off == POWER_SUPPLY_PROP_CHG_INFO)
+		return sprintf(buf, "%s\n",value.strval);
+	/* Tab A8 code for SR-AX6301A-01-111 and SR-SL6217T-01-119 by  xuliqin at 20220914 end */
 	else if (off == POWER_SUPPLY_PROP_TECHNOLOGY)
 		return sprintf(buf, "%s\n",
 			       power_supply_technology_text[value.intval]);
@@ -313,6 +317,11 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(battery_cycle),
 	#endif
 	/* HS03 code for SR-SL6215-01-540 by qiaodan at 20210829 end */
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 start */
+#if !defined(HQ_FACTORY_BUILD)
+	POWER_SUPPLY_ATTR(batt_full_capacity),
+#endif
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 end */
 	#ifdef HQ_FACTORY_BUILD
 	POWER_SUPPLY_ATTR(batt_cap_control),
 	#endif
@@ -331,6 +340,9 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(typec_cc_orientation),
 #endif
 /* Tab A8 code for SR-AX6300-01-254 by wangjian at 20210810 end */
+/* Tab A8 code for SR-AX6301A-01-111 and SR-SL6217T-01-119 by  xuliqin at 20220914 start */
+	POWER_SUPPLY_ATTR(chg_info),
+/* Tab A8 code for SR-AX6301A-01-111 and SR-SL6217T-01-119 by  xuliqin at 20220914 end */
 	POWER_SUPPLY_ATTR(authentic),
 	POWER_SUPPLY_ATTR(technology),
 	POWER_SUPPLY_ATTR(cycle_count),

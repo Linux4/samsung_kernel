@@ -69,6 +69,10 @@ static ssize_t reg_read_store(struct device *dev,
 	reg_stride = regmap_get_reg_stride(regmap);
 
 	for (i = 0; i < (input_param[1] ? : 1); i++) {
+		if (i >= sizeof(read_buf) / 4) {
+			pr_err("%s() read data is overwrite read buf, i = %d\n", __func__, i);
+			break;
+		}
 		reg = input_param[0] + i * reg_stride;
 		regmap_read(regmap, reg, &read_buf[i]);
 	}
@@ -111,10 +115,15 @@ static ssize_t reg_read_show(struct device *dev,
 	} else
 		return -ENODEV;
 
-	for (i = 0; i < (input_param[1] ? : 1); i++)
+	for (i = 0; i < (input_param[1] ? : 1); i++) {
+		if (i >= sizeof(read_buf) / 4) {
+			pr_err("%s() read data is overwrite read buf, i = %d\n", __func__, i);
+			break;
+		}
 		ret += snprintf(buf + ret, PAGE_SIZE, fmt,
 				input_param[0] + i * reg_stride,
 				read_buf[i]);
+	}
 
 	return ret;
 }

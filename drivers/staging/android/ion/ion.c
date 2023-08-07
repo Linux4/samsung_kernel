@@ -859,9 +859,17 @@ static ssize_t
 total_pools_kb_show(struct kobject *kobj, struct kobj_attribute *attr,
 		    char *buf)
 {
-	u64 size_in_bytes = ion_page_pool_nr_pages() * PAGE_SIZE;
+	struct ion_device *dev = internal_dev;
+	struct ion_heap *heap;
+	u64 total_pages = 0;
 
-	return sprintf(buf, "%llu\n", div_u64(size_in_bytes, 1024));
+	down_read(&dev->lock);
+	plist_for_each_entry(heap, &dev->heaps, node)
+		if (heap->ops->get_pool_size)
+			total_pages += heap->ops->get_pool_size(heap);
+	up_read(&dev->lock);
+
+	return sprintf(buf, "%llu\n", total_pages * (PAGE_SIZE / 1024));
 }
 
 static struct kobj_attribute total_heaps_kb_attr =

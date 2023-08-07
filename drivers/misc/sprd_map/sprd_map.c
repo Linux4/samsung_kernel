@@ -8,16 +8,14 @@
 #include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/of.h>
-//+bug P220602-01925,liangjierong.wt.add, 20220620,User space can access kernel memory patch
 #include <linux/of_address.h>
-//+bug P220602-01925,liangjierong.wt.add, 20220620,User space can access kernel memory patch
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/sprd_map.h>
 #include <linux/uaccess.h>
 
 #define MAP_USER_MINOR MISC_DYNAMIC_MINOR
-//+bug P220602-01925,liangjierong.wt.add, 20220620,User space can access kernel memory patch
+
 struct reserved_mem_cfg {
 	bool no_reserved;
 	unsigned long reserved_mem_addr;
@@ -25,7 +23,7 @@ struct reserved_mem_cfg {
 };
 
 static struct reserved_mem_cfg mem_cfg;
-//+bug P220602-01925,liangjierong.wt.add, 20220620,User space can access kernel memory patch
+
 static int map_user_open(struct inode *inode, struct file *file)
 {
 	struct sprd_pmem_info *mem_info = kzalloc(sizeof(*mem_info),
@@ -77,10 +75,10 @@ static long map_user_ioctl(struct file *file,
 
 	if (!mem_info)
 		return -ENODEV;
-//+bug P220602-01925,liangjierong.wt.add, 20220620,User space can access kernel memory patch
+
 	if (mem_cfg.no_reserved)
 		return -ENOMEM;
-//+bug P220602-01925,liangjierong.wt.add, 20220620,User space can access kernel memory patch
+
 	arg_user = (void __user *)arg;
 	switch (cmd) {
 	case MAP_USER_VIR:
@@ -89,15 +87,13 @@ static long map_user_ioctl(struct file *file,
 
 		if (copy_from_user(&data, arg_user, sizeof(data))) {
 			pr_err("%s, PHYS copy_from_user error!\n", __func__);
-//+bug P220602-01925,liangjierong.wt.add, 20220620,User space can access kernel memory patch
 			return -EFAULT;
 		}
-
+		
 		if ((data.phy_addr < mem_cfg.reserved_mem_addr) ||
 			((data.phy_addr + data.size) > (mem_cfg.reserved_mem_addr +
                                                         mem_cfg.reserved_mem_size))) {
 			pr_err("%s, user use mem out of reserved memory size!\n", __func__);
-//+bug P220602-01925,liangjierong.wt.add, 20220620,User space can access kernel memory patch
 			return -EFAULT;
 		}
 
@@ -182,7 +178,6 @@ static struct miscdevice map_user_dev = {
 static int map_user_probe(struct platform_device *pdev)
 {
 	int ret;
-//+bug P220602-01925,liangjierong.wt.add, 20220620,User space can access kernel memory patch
 	struct device_node *reserved_mem_node;
 	struct device_node *fd_reserved_node;
 	struct resource r;
@@ -207,7 +202,7 @@ static int map_user_probe(struct platform_device *pdev)
 			}
 		}
 	}
-//+bug P220602-01925,liangjierong.wt.add, 20220620,User space can access kernel memory patch
+
 	ret = misc_register(&map_user_dev);
 	if (ret)
 		dev_err(&pdev->dev, "can't register miscdev minor=%d (%d)\n",

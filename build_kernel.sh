@@ -5,7 +5,7 @@ export ARCH=arm64
 export CLANG_TOOL_PATH=$(pwd)/toolchain/clang/host/linux-x86/clang-r383902/bin/
 export PATH=${CLANG_TOOL_PATH}:${PATH//"${CLANG_TOOL_PATH}:"}
 
-export BSP_BUILD_FAMILY=qogirl6
+export BSP_BUILD_FAMILY=sharkl5Pro
 export DTC_OVERLAY_TEST_EXT=$(pwd)/tools/mkdtimg/ufdt_apply_overlay
 export DTC_OVERLAY_VTS_EXT=$(pwd)/tools/mkdtimg/ufdt_verify_overlay_host
 export BSP_BUILD_ANDROID_OS=y

@@ -54,6 +54,7 @@
 #define REG_AON_APB_SP_CFG_BUS                              0x0124
 #define REG_AON_APB_APB_RST3                                0x0130
 #define REG_AON_APB_RC100M_CFG                              0x0134
+#define REG_AON_APB_RF_BOND_OPT0                            0x083c
 #define REG_AON_APB_CGM_REG1                                0x0138
 #define REG_AON_APB_CGM_CLK_TOP_REG1                        0x013C
 #define REG_AON_APB_AUDCP_DSP_CTRL0                         0x0140
@@ -276,6 +277,7 @@
 #define REG_AP_APB_APB_RST                                  0x0004
 #define REG_AP_APB_APB_MISC_CTRL                            0x0008
 #define REG_AP_APB_APB_EB1                                  0x000C
+#define REG_GPU_APB_GONDUL_PDC_CONTROL_STACK0               0x002C
 #define REG_PMU_APB_AON_MEM_CTRL                            0x0000
 #define REG_PMU_APB_MEM_AUTO_SD_CFG0                        0x0004
 #define REG_PMU_APB_MEM_AUTO_SD_CFG1                        0x0008

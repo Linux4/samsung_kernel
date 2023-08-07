@@ -1092,7 +1092,16 @@ static const struct sc27xx_adc_variant_data ump9620_data = {
 	.init_scale = ump9620_adc_scale_init,
 	.get_ratio = ump9620_adc_get_ratio,
 };
+/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 start */
+static struct sc27xx_adc_data *g_sc27xx_data;
+struct regmap *sprd_get_pmic_regmap(void)
+{
+	if (!g_sc27xx_data)
+		return NULL;
 
+	return g_sc27xx_data->regmap;
+}
+/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 end */
 static int sc27xx_adc_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
@@ -1200,7 +1209,9 @@ static int sc27xx_adc_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "could not register iio (ADC)");
 		goto err_iio_register;
 	}
-
+	/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 start */
+	g_sc27xx_data = sc27xx_data;
+	/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 end */
 	return 0;
 
 err_iio_register:

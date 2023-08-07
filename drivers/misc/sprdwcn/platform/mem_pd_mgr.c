@@ -358,6 +358,7 @@ static void save_bin_cp_ready(void)
 		complete(&(mem_pd.save_bin_completion));
 		WCN_INFO("%s ,cp while(1) state\n", __func__);
 		mem_pd.cp_mem_all_off = 1;
+		mem_pd.cp_version = 0;
 		return;
 	}
 	WCN_INFO("%s ,wifi/bt power down, wait event\n", __func__);

@@ -100,7 +100,7 @@ static int sprd_pmic_wdt_enable(struct sprd_pmic_wdt *wdt, bool en)
 	if (en)
 		p_cmd = "watchdog on";
 	else
-		p_cmd = "watchdog off";
+		p_cmd = "watchdog rstoff";
 
 	len = strlen(p_cmd) + 1;
 	nwrite =

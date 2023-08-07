@@ -271,9 +271,9 @@ try_misrouted_irq(unsigned int irq, struct irq_desc *desc,
 }
 
 #define SPURIOUS_DEFERRED	0x80000000
-/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 start */
+/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 start */
 extern bool is_pmic_irq(int irq);
-/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 end */
+/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 end */
 void note_interrupt(struct irq_desc *desc, irqreturn_t action_ret)
 {
 	unsigned int irq;
@@ -422,10 +422,10 @@ void note_interrupt(struct irq_desc *desc, irqreturn_t action_ret)
 		 * Now kill the IRQ
 		 */
 		printk(KERN_EMERG "Disabling IRQ #%d\n", irq);
-		/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 start */
-		if (is_pmic_irq(irq))
-			panic("too many irqs_unhandled");
-		/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 end */
+		/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 start */
+          	if (is_pmic_irq(irq))
+		panic("too many irqs_unhandled");
+		/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 end */
 		desc->istate |= IRQS_SPURIOUS_DISABLED;
 		desc->depth++;
 		irq_disable(desc);

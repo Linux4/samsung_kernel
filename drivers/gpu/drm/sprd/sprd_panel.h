@@ -146,9 +146,9 @@ struct panel_info {
 	int reset_delay_vspn_ms;
 	/*Tab A8 code for AX6300DEV-787 by fengzhigang at 20211020 end*/
 
-	/* HS03 code for P220718-03172 by wenghailong at 20220722 start */
+	/* HS03 code for SL6215TDEV-652 by gaoxue at 20221020 start */
 	u32 power_vsp_out;
-	/* HS03 code for P220718-03172 by wenghailong at 20220722 end */
+	/* HS03 code for SL6215TDEV-652 by gaoxue at 20221020 end */
 	/*Tab A8 code for SR-AX6300-01-441 by huangzhongjie at 20211129 start*/
 	u32 reset_low_before_power_delay;
 	/*Tab A8 code for SR-AX6300-01-441 by huangzhongjie at 20211129 end*/
@@ -175,6 +175,7 @@ struct sprd_panel {
 	struct backlight_device *backlight;
 	struct backlight_device *oled_bdev;
 	struct regulator *supply;
+	struct notifier_block panic_nb;
 	struct delayed_work esd_work;
 	/*Tab A8 code for AX6300DEV-875 by fengzhigang at 20210926 start*/
 	bool esd_work_backup;
