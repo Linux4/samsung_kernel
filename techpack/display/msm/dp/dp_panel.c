@@ -2163,7 +2163,11 @@ static int dp_panel_read_edid(struct dp_panel *dp_panel,
 
 	if (panel->custom_edid) {
 		DP_DEBUG("skip edid read in debug mode\n");
+#ifndef CONFIG_SEC_DISPLAYPORT
 		goto end;
+#else
+		goto opt;
+#endif
 	}
 
 	sde_get_edid(connector, &panel->aux->drm_aux->ddc,
@@ -2175,6 +2179,7 @@ static int dp_panel_read_edid(struct dp_panel *dp_panel,
 	}
 
 #ifdef CONFIG_SEC_DISPLAYPORT
+opt:
 	secdp_get_max_timing(dp_panel);
 #endif
 end:

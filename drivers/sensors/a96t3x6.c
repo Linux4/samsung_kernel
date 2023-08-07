@@ -3414,6 +3414,7 @@ static int a96t3x6_probe(struct i2c_client *client,
 	noti_input_dev = input_allocate_device();
 	if (!noti_input_dev) {
 		GRIP_ERR("Failed to allocate memory for input device\n");
+		input_free_device(input_dev);
 		ret = -ENOMEM;
 		goto err_noti_input_alloc;
 	}
@@ -3437,12 +3438,16 @@ static int a96t3x6_probe(struct i2c_client *client,
 	ret = a96t3x6_parse_dt(data, &client->dev);
 	if (ret) {
 		GRIP_ERR("failed to a96t3x6_parse_dt\n");
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_config;
 	}
 
 	ret = a96t3x6_irq_init(&client->dev, data);
 	if (ret) {
 		GRIP_ERR("failed to init reg\n");
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto pwr_config;
 	}
 
@@ -3464,6 +3469,8 @@ static int a96t3x6_probe(struct i2c_client *client,
 	ret = a96t3x6_fw_check(data);
 	if (ret) {
 		GRIP_ERR("failed to firmware check (%d)\n", ret);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_reg_input_dev;
 	}
 #else
@@ -3474,6 +3481,8 @@ static int a96t3x6_probe(struct i2c_client *client,
 	ret = a96t3x6_i2c_read(client, REG_MODEL_NO, &buf, 1);
 	if (ret) {
 		GRIP_ERR("i2c is failed %d\n", ret);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_reg_input_dev;
 	} else {
 		GRIP_INFO("i2c is normal, model_no = 0x%2x\n", buf);
@@ -3508,6 +3517,8 @@ static int a96t3x6_probe(struct i2c_client *client,
 	if (ret) {
 		GRIP_ERR("failed to register input dev (%d)\n",
 			ret);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_reg_input_dev;
 	}
 
@@ -3515,6 +3526,7 @@ static int a96t3x6_probe(struct i2c_client *client,
 					data->input_dev->name);
 	if (ret < 0) {
 		GRIP_ERR("Failed to create sysfs symlink\n");
+		input_free_device(noti_input_dev);
 		goto err_sysfs_symlink;
 	}
 
@@ -3522,6 +3534,7 @@ static int a96t3x6_probe(struct i2c_client *client,
 				&a96t3x6_attribute_group);
 	if (ret < 0) {
 		GRIP_ERR("Failed to create sysfs group\n");
+		input_free_device(noti_input_dev);
 		goto err_sysfs_group;
 	}
 
@@ -3535,6 +3548,7 @@ static int a96t3x6_probe(struct i2c_client *client,
 	if (ret) {
 		GRIP_ERR("failed to register input dev (%d)\n",
 			ret);
+		input_free_device(noti_input_dev);
 		goto err_reg_noti_input_dev;
 	}
 
@@ -3585,6 +3599,7 @@ err_req_irq:
 	sensors_unregister(data->dev, grip_sensor_attributes);
 err_sensor_register:
 	input_unregister_device(input_dev);
+	input_unregister_device(noti_input_dev);
 err_reg_noti_input_dev:
 	sysfs_remove_group(&data->input_dev->dev.kobj,
 			&a96t3x6_attribute_group);
@@ -3602,9 +3617,7 @@ err_reg_input_dev:
 pwr_config:
 err_config:
 	wake_lock_destroy(&data->grip_wake_lock);
-	input_free_device(noti_input_dev);
 err_noti_input_alloc:
-	input_free_device(input_dev);
 err_input_alloc:
 	kfree(data);
 err_alloc:
