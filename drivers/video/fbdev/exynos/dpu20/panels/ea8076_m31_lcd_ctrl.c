@@ -2019,19 +2019,19 @@ static int dsim_panel_mask_brightness(struct dsim_device *dsim)
 		decon->current_mask_layer = true;				/* for MASK brightness  ACL OFF */
 		lcd->trans_dimming = TRANS_DIMMING_OFF;			/* for DIMMING OFF */
 		dsim_panel_set_brightness(lcd, 1);
-		decon_abd_save_str(&decon->abd, "mask_brightness");
+		//decon_abd_save_str(&decon->abd, "mask_brightness");
 
 		decon_wait_for_vsync(decon, VSYNC_TIMEOUT_MSEC);
 		decon_info("%s: MASK_LAYER TE 2\n", __func__);
-		decon_abd_save_str(&decon->abd, "mask_te_2");
+		//decon_abd_save_str(&decon->abd, "mask_te_2");
 		decon_wait_for_vsync(decon, VSYNC_TIMEOUT_MSEC);
 		decon_info("%s: MASK_LAYER TE 3\n", __func__);
-		decon_abd_save_str(&decon->abd, "mask_te_3");
+		//decon_abd_save_str(&decon->abd, "mask_te_3");
 
 		decon_reg_start(decon->id, &psr);
 
 		decon_info("%s: MASK_LAYER trigger done.\n", __func__);
-		decon_abd_save_str(&decon->abd, "mask_trigger_done");
+		//decon_abd_save_str(&decon->abd, "mask_trigger_done");
 
 		mutex_lock(&lcd->lock);
 		lcd->actual_mask_brightness = lcd->mask_brightness;
@@ -2043,13 +2043,13 @@ static int dsim_panel_mask_brightness(struct dsim_device *dsim)
 		dev_info(&lcd->ld->dev, "%s: mask(%d) to current(%d)\n", __func__, lcd->mask_brightness, lcd->bd->props.brightness);
 		decon->current_mask_layer = false;				/* for normal brightness  ACL ON */
 		dsim_panel_set_brightness(lcd, 1);
-		decon_abd_save_str(&decon->abd, "prev_brightness");
+		//decon_abd_save_str(&decon->abd, "prev_brightness");
 
 		decon_reg_start(decon->id, &psr);
 		decon_reg_wait_update_done_timeout(decon->id, SHADOW_UPDATE_TIMEOUT); /* wait for frame start */
 
 		decon_info("%s: MASK_LAYER trigger done.\n", __func__);
-		decon_abd_save_str(&decon->abd, "mask_trigger_done");
+		//decon_abd_save_str(&decon->abd, "mask_trigger_done");
 
 		lcd->trans_dimming = TRANS_DIMMING_ON;			/* for DIMMING ON */
 

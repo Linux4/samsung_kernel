@@ -1812,10 +1812,10 @@ static int decon_set_mask_layer(struct decon_device *decon, struct decon_reg_dat
 	}
 
 	decon_systrace(decon, 'C', "decon_mask_layer", 1);
-	decon_abd_save_str(&decon->abd, "mask_te_0");
+	//decon_abd_save_str(&decon->abd, "mask_te_0");
 	decon_wait_for_vsync(decon, VSYNC_TIMEOUT_MSEC);
 	decon_info("%s: MASK_LAYER TE 1\n", __func__);
-	decon_abd_save_str(&decon->abd, "mask_te_1");
+	//decon_abd_save_str(&decon->abd, "mask_te_1");
 	decon_systrace(decon, 'C', "decon_mask_layer", 0);
 	decon->mask_regs = regs;
 	ret = call_panel_ops(dsim, mask_brightness, dsim);
@@ -2757,7 +2757,7 @@ static int decon_set_win_config(struct decon_device *decon,
 	mutex_unlock(&decon->up.lock);
 	kthread_queue_work(&decon->up.worker, &decon->up.work);
 
-	/*
+	/**
 	 * The code is moved here because the DPU driver may get a wrong fd
 	 * through the released file pointer,
 	 * if the user(HWC) closes the fd and releases the file pointer.
