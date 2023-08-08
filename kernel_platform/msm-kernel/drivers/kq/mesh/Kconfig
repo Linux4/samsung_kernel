@@ -1,0 +1,15 @@
+config SEC_KQ_MESH_QC
+	tristate "Samsung KQ MESH support for QC models"
+	default n
+	help
+	  This option enables Samsung KQ MESH features for QC models.
+	  This module created to enhance system stability.
+	  Enable this feature to check MESH system functionality.
+	  This module only works with MESH application.
+
+config MESH_KERNEL_MEMTEST
+	tristate "Mesh kernel space MEMTEST"
+	default n
+	depends on SEC_KQ_MESH_QC
+	help
+	  This tests kernel space memory.

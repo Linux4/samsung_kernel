@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (C) 2009-2012 Broadcom Corporation
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+   Changes from Qualcomm Innovation Center are provided under the following license:
+
+   Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted (subject to the limitations in the
+   disclaimer below) provided that the following conditions are met:
+
+   Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+   Redistributions in binary form must reproduce the above
+   copyright notice, this list of conditions and the following
+   disclaimer in the documentation and/or other materials provided
+   with the distribution.
+
+   Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
+   contributors may be used to endorse or promote products derived
+   from this software without specific prior written permission.
+
+   NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
+   GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
+   HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+   WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+   MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+   IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+   ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+   GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+   INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+   IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+   OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+   IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
+
+-->
+<resources>
+    <bool name="profile_supported_a2dp">true</bool>
+    <bool name="profile_supported_ca">true</bool>
+    <bool name="profile_supported_a2dp_sink">false</bool>
+    <bool name="profile_supported_hs_hfp">true</bool>
+    <bool name="profile_supported_hfpclient">false</bool>
+    <bool name="profile_supported_hfp_incallservice">true</bool>
+    <bool name="profile_supported_hid_host">true</bool>
+    <bool name="profile_supported_opp">true</bool>
+    <bool name="profile_supported_pc">true</bool>
+    <bool name="profile_supported_pan">true</bool>
+    <bool name="profile_supported_pbap">true</bool>
+    <bool name="profile_supported_gatt">true</bool>
+    <bool name="pbap_include_photos_in_vcard">true</bool>
+    <bool name="pbap_use_profile_for_owner_vcard">true</bool>
+    <bool name="profile_supported_map">true</bool>
+    <bool name="profile_supported_avrcp_target">true</bool>
+    <bool name="profile_supported_avrcp_controller">true</bool>
+    <bool name="profile_supported_bac">true</bool>
+    <bool name="profile_supported_sap">true</bool>
+    <bool name="profile_supported_pbapclient">false</bool>
+    <bool name="profile_supported_mapmce">false</bool>
+    <bool name="profile_supported_broadcast">true</bool>
+    <bool name="profile_supported_hid_device">true</bool>
+    <bool name="profile_supported_le_audio">true</bool>
+    <bool name="profile_supported_ba">false</bool>
+    <bool name="profile_supported_group_client">true</bool>
+    <bool name="profile_supported_csip_set_coordinator">true</bool>
+    <bool name="profile_supported_music_player_service">true</bool>
+    <bool name="profile_supported_cc_server">true</bool>
+    <bool name="avrcp_target_enable_bip">true</bool>
+    <bool name="profile_supported_bass_client">true</bool>
+    <bool name="profile_supported_le_direction_finding">true</bool>
+    <bool name="profile_supported_volume_control">true</bool>
+    <bool name="profile_supported_csc">true</bool>
+
+    <!-- If true, we will require location to be enabled on the device to
+         fire Bluetooth LE scan result callbacks in addition to having one
+         of the location permissions. -->
+    <bool name="strict_location_check">true</bool>
+
+    <!-- Specifies the min/max connection interval parameters for high priority,
+         balanced and low power GATT configurations. These values are in
+         multiples of 1.25ms. -->
+    <integer name="gatt_high_priority_min_interval">9</integer>
+    <integer name="gatt_high_priority_max_interval">12</integer>
+    <!-- Default specs recommended interval is 30 (24 * 1.25) -> 50 (40 * 1.25)
+         ms. -->
+    <integer name="gatt_balanced_priority_min_interval">24</integer>
+    <integer name="gatt_balanced_priority_max_interval">40</integer>
+    <integer name="gatt_low_power_min_interval">80</integer>
+    <integer name="gatt_low_power_max_interval">100</integer>
+
+    <!-- Specifies latency parameters for high priority, balanced and low power
+         GATT configurations. These values represents the number of packets a
+         peripheral device is allowed to skip. -->
+    <integer name="gatt_high_priority_latency">0</integer>
+    <integer name="gatt_balanced_priority_latency">0</integer>
+    <integer name="gatt_low_power_latency">2</integer>
+
+    <!-- Specifies the min/max subrate factor parameters for high priority,
+         balanced and low power subrate request configurations. -->
+    <integer name="subrate_mode_high_priority_min_subrate">2</integer>
+    <integer name="subrate_mode_high_priority_max_subrate">4</integer>
+    <integer name="subrate_mode_balanced_min_subrate">4</integer>
+    <integer name="subrate_mode_balanced_max_subrate">7</integer>
+    <integer name="subrate_mode_low_power_min_subrate">4</integer>
+    <integer name="subrate_mode_low_power_max_subrate">10</integer>
+
+    <!-- Specifies max latency parameters for high priority, balanced
+         and low power subrate request configurations. These values
+         represents the number of subrate events a peripheral device
+         is allowed to skip. -->
+    <integer name="subrate_mode_high_priority_latency">0</integer>
+    <integer name="subrate_mode_balanced_latency">1</integer>
+    <integer name="subrate_mode_low_power_latency">1</integer>
+
+    <!-- Specifies continuation number parameters for high priority,
+         balanced and low power subrate request configurations. -->
+    <integer name="subrate_mode_high_priority_cont_number">2</integer>
+    <integer name="subrate_mode_balanced_cont_number">2</integer>
+    <integer name="subrate_mode_low_power_cont_number">2</integer>
+
+    <bool name="headset_client_initial_audio_route_allowed">true</bool>
+
+    <!-- @deprecated: use a2dp_absolute_volume_initial_threshold_percent
+         instead. -->
+    <integer name="a2dp_absolute_volume_initial_threshold">8</integer>
+
+    <!-- AVRCP absolute volume initial value as percent of the maximum value.
+         Valid values are in the interval [0, 100].
+         Recommended value is 50. -->
+    <integer name="a2dp_absolute_volume_initial_threshold_percent">50</integer>
+
+    <!-- For A2DP sink ducking volume feature. -->
+    <integer name="a2dp_sink_duck_percent">25</integer>
+    <!-- If true, device requests audio focus and start avrcp updates on source start or play -->
+    <bool name="a2dp_sink_automatically_request_audio_focus">false</bool>
+
+    <!-- For enabling the hfp client connection service -->
+    <bool name="hfp_client_connection_service_enabled">false</bool>
+
+    <!-- For supporting emergency call through the hfp client connection service  -->
+    <bool name="hfp_client_connection_service_support_emergency_call">false</bool>
+
+    <!-- Enabling autoconnect over pan -->
+    <bool name="config_bluetooth_pan_enable_autoconnect">false</bool>
+
+    <!-- Enabling the phone policy -->
+    <bool name="enable_phone_policy">true</bool>
+
+    <!-- Configuring priorities of A2DP source codecs. Larger value means
+         higher priority. Value -1 means the codec is disabled.
+         Value 0 is reserved and should not be used here. Enabled codecs
+         should have priorities in the interval [1, 999999], and each priority
+         value should be unique. -->
+    <integer name="a2dp_source_codec_priority_sbc">1001</integer>
+    <integer name="a2dp_source_codec_priority_aac">2001</integer>
+    <integer name="a2dp_source_codec_priority_ldac">3001</integer>
+    <integer name="a2dp_source_codec_priority_aptx">4001</integer>
+    <integer name="a2dp_source_codec_priority_aptx_hd">5001</integer>
+    <integer name="a2dp_source_codec_priority_lc3">6001</integer>
+    <integer name="a2dp_source_codec_priority_aptx_adaptive">7001</integer>
+    <integer name="a2dp_source_codec_priority_aptx_tws">8001</integer>
+    <!-- max priority is used to dynamically increase the priority
+         of codecs(mainly Aptx Adaptive) to highest value based
+         on config
+         Value of a2dp_source_codec_priority_max should be set to
+         1000 + priority of codec with highest priority-->
+    <integer name="a2dp_source_codec_priority_max">9001</integer>
+
+    <!-- Package that is responsible for user interaction on pairing request,
+         success or cancel.
+         Receives:
+          - BluetootDevice.ACTION_PAIRING_CANCEL on bond failure
+          - BluetoothDevice.ACTION_PAIRING_REUQEST on pin request
+          - BluetootDevice.ACTION_BOND_STATE_CHANGED on pairing request and success
+          - BluetoothDevice.ACTION_CONNECTION_ACCESS_REQUEST on access requests
+          - BluetoothDevice.ACTION_CONNECTION_ACCESS_CANCEL to cancel access requests -->
+    <string name="pairing_ui_package">com.android.settings</string>
+
+    <!-- Flag whether or not to keep polling AG with CLCC for call information every 2 seconds -->
+    <bool name="hfp_clcc_poll_during_call">true</bool>
+
+     <!-- Reload supported Bluetooth Profiles while BLE is turning ON -->
+     <bool name="reload_supported_profiles_when_enabled">true</bool>
+    <!-- For AVRCP cover art configuration If there is no update from UI
+         these default values would be used to fetch cover art.
+         height and width are to be  mentioned in pixels
+         maxsize is to be mentioned in bytes -->
+    <string name="avrcp_cover_art_default_mimetype">JPEG</string>
+    <string name="avrcp_cover_art_default_image_type">image</string>
+    <integer name="avrcp_cover_art_default_height">500</integer>
+    <integer name="avrcp_cover_art_default_width">500</integer>
+    <integer name="avrcp_cover_art_default_maxsize">200000</integer>
+    <!-- Package that is responsible for email related functionalities.
+        Receives:
+          - ACTION_MOVE_MESSAGE
+          - ACTION_MESSAGE_READ
+          - ACTION_SEND_PENDING_MAIL
+          - ACTION_DELETE_MESSAGE -->
+    <string name="email_ui_package">com.android.email</string>
+    <!-- Package that is providing the exposure notification service -->
+    <string name="exposure_notification_package">com.google.android.gms</string>
+
+    <!-- Max number of Bluetooth tethering connections allowed. If this is
+         updated config_tether_dhcp_range has to be updated appropriately. -->
+    <integer translatable="false" name="config_max_pan_devices">5</integer>
+
+    <!-- Whether supported profiles should be reloaded upon enabling bluetooth -->
+    <bool name="config_bluetooth_reload_supported_profiles_when_enabled">false</bool>
+
+    <!-- Max number of connected audio devices supported by Bluetooth stack -->
+    <integer name="config_bluetooth_max_connected_audio_devices">5</integer>
+
+    <bool name="config_supportBluetoothPersistedState">true</bool>
+
+    <!-- Boolean indicating if current platform need do one-time bluetooth address
+    re-validation -->
+    <bool name="config_bluetooth_address_validation">false</bool>
+
+    <!-- Boolean indicating if current platform supports HFP inband ringing -->
+    <bool name="config_bluetooth_hfp_inband_ringing_support">true</bool>
+</resources>
