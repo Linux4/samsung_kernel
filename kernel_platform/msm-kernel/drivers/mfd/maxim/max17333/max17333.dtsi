@@ -1,0 +1,299 @@
+&tlmm {
+	main_bat_int_default: main_bat_int_default {
+			 GPIO_CONFIG_PUD_DRV(AP,tlmm,181, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+		 };
+};
+
+&tlmm {
+	sub_bat_int_default: sub_bat_int_default {
+			 GPIO_CONFIG_PUD_DRV(AP,tlmm,182, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+		 };
+};
+
+&qupv3_hub_i2c1 {
+	status = "okay";
+
+	max17333_main: max17333-main@36 {
+		compatible = "maxim,max17333";
+		pinctrl-names = "default";
+		pinctrl-0 = <&main_bat_int_default>;
+		interrupt-parent = <SEC_GPIO_TYPE(AP,tlmm,181)>;
+		interrupts = <SEC_GPIO_NUM(AP,tlmm,181) 0 0>;
+		interrupt-cells = <1>;
+		interrupt-controller;
+		reg = <0x36>;
+		status = "ok";
+		rsense = <5>;		/* miliOhm */
+		battery-type = <1>;     /* main */
+
+		charger-main {
+			compatible = "maxim,max17333-charger";
+			status = "ok";
+			/* Charger */
+		};
+
+		fuelgauge-main {
+			compatible = "maxim,max17333-battery";
+			status = "ok";
+			/* Battery */
+			talrt-min			= <0>;			/* DegreeC */
+			talrt-max			= <50>;			/* DegreeC */
+			valrt-min			= <3000>;		/* mV */
+			valrt-max			= <4500>;		/* mV */
+			salrt-min			= <1>;			/* Percent */
+			salrt-max			= <99>;			/* Percent */
+			ialrt-min			= <(-5000)>;	/* mA */
+			ialrt-max			= <5000>;		/* mA */
+		};
+
+		max17333,shdw-init {
+			/* 3108-battery */
+			#use-shdw-default;
+			shdw-data {
+				nVAlrtTh = <0x0000>;
+				nTAlrtTh = <0x0000>;
+				nIAlrtTh = <0x0000>;
+				nSAlrtTh = <0x0000>;
+				nRSense = <0x0005>;
+				nFilterCfg = <0x0000>;
+				nVEmpty = <0xA7E2>;
+				nLearnCfg = <0x2606>;
+				nQRTable00 = <0x4B00>;
+				nQRTable10 = <0x2180>;
+				nQRTable20 = <0x0C80>;
+				nQRTable30 = <0x0A00>;
+				nCycles = <0x0000>;
+				nFullCapNom = <0x0D00>;
+				nRComp0 = <0x0560>;
+				nTempCo = <0x131F>;
+				nBattStatus = <0x0000>;
+				nFullCapRep = <0x0D00>;
+				nVoltTemp = <0x0000>;
+				nMaxMinCurr = <0x0000>;
+				nMaxMinVolt = <0x0000>;
+				nMaxMinTemp = <0x0000>;
+				nFaultLog = <0x0000>;
+				nTimerH = <0x0000>;
+				nConfig = <0x2654>;
+				nRippleCfg = <0x0204>;
+				nMiscCfg = <0x3870>;
+				nDesignCap = <0xA641>;
+				nI2CCfg = <0x0000>;
+				nFullCfg = <0x7005>;
+				nRelaxCfg = <0x023C>;
+				nConvgCfg = <0x2241>;
+				nRGain = <0x0000>;
+				nAgeChgCfg = <0x0000>;
+				nTTFCfg = <0x0000>;
+				nHibCfg = <0x0909>;
+				nChgCtrl1 = <0x4209>;
+				nIChgTerm = <0x06B9>;
+				nChgCfg0 = <0x902C>;
+				nChgCtrl0 = <0x5772>;
+				nStepCurr = <0x0000>;
+				nStepVolt = <0x0000>;
+				nChgCtrl2 = <0xE840>;
+				nPackCfg = <0x8000>;
+				nCGain = <0x4000>;
+				nADCCfg = <0x5188>;
+				nThermCfg = <0x71BE>;
+				nChgCfg1 = <0xFFFF>;
+				nVChgCfg1 = <0x02C0>;
+				nVChgCfg2 = <0x0000>;
+				nIChgCfg1 = <0x0260>;
+				nIChgCfg2 = <0x0000>;
+				nUVPrtTh = <0x0200>;
+				nTPrtTh1 = <0xFFF0>;
+				nTPrtTh3 = <0xF002>;
+				nIPrtTh1 = <0xFA00>;
+				nIPrtTh2 = <0xFA28>;
+				nTPrtTh2 = <0x7FFF>;
+				nProtMiscTh = <0x7F6F>;
+				nProtCfg = <0x3020>;
+				nNVCfg0 = <0xC9B0>;
+				nNVCfg1 = <0x0102>;
+				nOVPrtTh = <0xFFC1>;
+				nNVCfg2 = <0xFE0A>;
+				nDelayCfg = <0x8B3C>;
+				nODSCTh = <0x0080>;
+				nODSCCfg = <0x435F>;
+				nProtCfg2 = <0x0066>;
+				nDPLimit = <0x0000>;
+				nScOcvLim = <0x0000>;
+				nAgeFcCfg = <0x0000>;
+				nDesignVoltage = <0x0000>;
+				nChgCfg2 = <0x1808>;
+				nRFastVShdn = <0x0000>;
+				nManfctrDate = <0x0000>;
+				nFirstUsed = <0x0000>;
+				nROMID = <0x0000>, <0x0000>, <0x0000>, <0x0000>;
+				nSerialNumber = <0x0000>, <0x0000>, <0x0000>;
+				nDeviceName = <0x0000>, <0x0000>;
+				nManfctrName = <0x0000>, <0x0000>, <0x0208>;
+				nXTable = <0x0020>, <0x01FD>, <0x0A6D>,
+						<0x15A1>, <0x1758>, <0x25D0>,
+						<0x0C80>, <0x08F9>, <0x07E0>,
+						<0x05F0>, <0x06D7>, <0x0744>;
+				nOCVTable = <0xAA0B>, <0xB2A8>, <0xB4AD>,
+						  <0xBB3B>, <0xBCAE>, <0xBDF5>,
+						  <0xBFBC>, <0xC208>, <0xC503>,
+						  <0xCD3D>, <0xD0B9>, <0xD3BC>;
+				battProfile = <0xaa00>, <0xb2a0>, <0xb4a0>,
+							<0xb8d0>, <0xbb30>, <0xbca0>,
+							<0xbdf0>, <0xbe50>, <0xbfb0>,
+							<0xc200>, <0xc500>, <0xc830>,
+							<0xcd30>, <0xd0b0>, <0xd3b0>,
+							<0xd9c0>, <0x0020>, <0x01f0>,
+							<0x0a60>, <0x0dd0>, <0x15a0>,
+							<0x1750>, <0x25d0>, <0x1800>,
+							<0x0c80>, <0x08f0>, <0x07e0>,
+							<0x0900>, <0x05f0>, <0x06d0>,
+							<0x0740>, <0x0740>;
+			};
+		};
+	};
+};
+
+&qupv3_hub_i2c9 {
+	status = "okay";
+
+	max17333_sub: max17333-sub@36 {
+		compatible = "maxim,max17333";
+		pinctrl-names = "default";
+		pinctrl-0 = <&sub_bat_int_default>;
+		interrupt-parent = <SEC_GPIO_TYPE(AP,tlmm,182)>;
+		interrupts = <SEC_GPIO_NUM(AP,tlmm,182) 0 0>;
+		interrupt-cells = <1>;
+		interrupt-controller;
+		reg = <0x36>;
+		status = "ok";
+		rsense = <5>;		/* miliOhm */
+		battery-type = <0>;     /* sub */
+
+		charger-sub {
+			compatible = "maxim,max17333-charger";
+			status = "ok";
+			/* Charger */
+		};
+
+		fuelgauge-sub {
+			compatible = "maxim,max17333-battery";
+			status = "ok";
+			/* Battery */
+			talrt-min			= <0>;			/* DegreeC */
+			talrt-max			= <50>;			/* DegreeC */
+			valrt-min			= <3000>;		/* mV */
+			valrt-max			= <4500>;		/* mV */
+			salrt-min			= <1>;			/* Percent */
+			salrt-max			= <99>;			/* Percent */
+			ialrt-min			= <(-5000)>;	/* mA */
+			ialrt-max			= <5000>;		/* mA */
+		};
+
+		max17333,shdw-init {
+			/* 3109-battery */
+			#use-shdw-default;
+			shdw-data {
+				nVAlrtTh = <0x0000>;
+				nTAlrtTh = <0x0000>;
+				nIAlrtTh = <0x0000>;
+				nSAlrtTh = <0x0000>;
+				nRSense = <0x0005>;
+				nFilterCfg = <0x0000>;
+				nVEmpty = <0xA7E2>;
+				nLearnCfg = <0x2606>;
+				nQRTable00 = <0x4B00>;
+				nQRTable10 = <0x2180>;
+				nQRTable20 = <0x0C80>;
+				nQRTable30 = <0x0A00>;
+				nCycles = <0x0000>;
+				nFullCapNom = <0x0D00>;
+				nRComp0 = <0x0560>;
+				nTempCo = <0x131F>;
+				nBattStatus = <0x0000>;
+				nFullCapRep = <0x0D00>;
+				nVoltTemp = <0x0000>;
+				nMaxMinCurr = <0x0000>;
+				nMaxMinVolt = <0x0000>;
+				nMaxMinTemp = <0x0000>;
+				nFaultLog = <0x0000>;
+				nTimerH = <0x0000>;
+				nConfig = <0x2654>;
+				nRippleCfg = <0x0204>;
+				nMiscCfg = <0x3870>;
+				nDesignCap = <0xA641>;
+				nI2CCfg = <0x0000>;
+				nFullCfg = <0x7005>;
+				nRelaxCfg = <0x023C>;
+				nConvgCfg = <0x2241>;
+				nRGain = <0x0000>;
+				nAgeChgCfg = <0x0000>;
+				nTTFCfg = <0x0000>;
+				nHibCfg = <0x0909>;
+				nChgCtrl1 = <0x4209>;
+				nIChgTerm = <0x06B9>;
+				nChgCfg0 = <0x902C>;
+				nChgCtrl0 = <0x5772>;
+				nStepCurr = <0x0000>;
+				nStepVolt = <0x0000>;
+				nChgCtrl2 = <0xE840>;
+				nPackCfg = <0x8000>;
+				nCGain = <0x4000>;
+				nADCCfg = <0x5188>;
+				nThermCfg = <0x71BE>;
+				nChgCfg1 = <0xFFFF>;
+				nVChgCfg1 = <0x02C0>;
+				nVChgCfg2 = <0x0000>;
+				nIChgCfg1 = <0x0260>;
+				nIChgCfg2 = <0x0000>;
+				nUVPrtTh = <0x0200>;
+				nTPrtTh1 = <0xFFF0>;
+				nTPrtTh3 = <0xF002>;
+				nIPrtTh1 = <0xFA00>;
+				nIPrtTh2 = <0xFA28>;
+				nTPrtTh2 = <0x7FFF>;
+				nProtMiscTh = <0x7F6F>;
+				nProtCfg = <0x3020>;
+				nNVCfg0 = <0xC9B0>;
+				nNVCfg1 = <0x0102>;
+				nOVPrtTh = <0xFFC1>;
+				nNVCfg2 = <0xFE0A>;
+				nDelayCfg = <0x8B3C>;
+				nODSCTh = <0x0080>;
+				nODSCCfg = <0x435F>;
+				nProtCfg2 = <0x0066>;
+				nDPLimit = <0x0000>;
+				nScOcvLim = <0x0000>;
+				nAgeFcCfg = <0x0000>;
+				nDesignVoltage = <0x0000>;
+				nChgCfg2 = <0x1808>;
+				nRFastVShdn = <0x0000>;
+				nManfctrDate = <0x0000>;
+				nFirstUsed = <0x0000>;
+				nROMID = <0x0000>, <0x0000>, <0x0000>, <0x0000>;
+				nSerialNumber = <0x0000>, <0x0000>, <0x0000>;
+				nDeviceName = <0x0000>, <0x0000>;
+				nManfctrName = <0x0000>, <0x0000>, <0x0208>;
+				nXTable = <0x0020>, <0x01FD>, <0x0A6D>,
+						<0x15A1>, <0x1758>, <0x25D0>,
+						<0x0C80>, <0x08F9>, <0x07E0>,
+						<0x05F0>, <0x06D7>, <0x0744>;
+				nOCVTable = <0xAA0B>, <0xB2A8>, <0xB4AD>,
+						  <0xBB3B>, <0xBCAE>, <0xBDF5>,
+						  <0xBFBC>, <0xC208>, <0xC503>,
+						  <0xCD3D>, <0xD0B9>, <0xD3BC>;
+				battProfile = <0xaa00>, <0xb2a0>, <0xb4a0>,
+							<0xb8d0>, <0xbb30>, <0xbca0>,
+							<0xbdf0>, <0xbe50>, <0xbfb0>,
+							<0xc200>, <0xc500>, <0xc830>,
+							<0xcd30>, <0xd0b0>, <0xd3b0>,
+							<0xd9c0>, <0x0020>, <0x01f0>,
+							<0x0a60>, <0x0dd0>, <0x15a0>,
+							<0x1750>, <0x25d0>, <0x1800>,
+							<0x0c80>, <0x08f0>, <0x07e0>,
+							<0x0900>, <0x05f0>, <0x06d0>,
+							<0x0740>, <0x0740>;
+			};
+		};
+	};
+};
