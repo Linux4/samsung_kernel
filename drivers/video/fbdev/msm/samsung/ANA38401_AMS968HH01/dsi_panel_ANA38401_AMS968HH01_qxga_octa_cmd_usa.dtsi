@@ -1,0 +1,87 @@
+/* Copyright (c) 2012, Samsung Electronics Corporation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&mdss_mdp {
+	ss_dsi_panel_ANA38401_AMS968HH01_QXGA: ss_dsi_panel_ANA38401_AMS968HH01_QXGA {
+		qcom,mdss-dsi-on-command= [
+			15 01 00 00 00 00 02 B0 34		/* Global Para*/
+			39 01 00 00 00 00 03 B2 64 00		/* check fail off */
+
+			15 01 00 00 00 00 02 B0 75		/* Global Para 117th */
+			39 01 00 00 00 00 02 B2 28			/* INTR Setting */
+
+			15 01 00 00 00 00 02 B0 51		/* Global Para 81st */
+			39 01 00 00 00 00 02 B1 06		/* dual dsi Setting */
+
+			15 01 00 00 00 00 02 B0 D9		/* Global Para 217th */
+			39 01 00 00 00 00 02 B1 08		/* Anapass compression mode Setting */
+
+			15 01 00 00 00 00 02 B0 7F		/* Global Para 127th */
+			39 01 00 00 00 00 02 B2 15		/* TSP_HTE TSP_VTE Setting */
+
+			39 01 00 00 00 00 03 44 05 F6		/* Set Tear Scanline 1526  */
+
+			15 01 00 00 00 00 02 B0 56		/* Global Para 86th */
+			39 01 00 00 00 00 02 B1 4C		/* Porch Setting: 0x4C: Htotal 3224 */
+
+			15 01 00 00 00 00 02 B0 BC		/* Global Para 188th  ?? */
+			39 01 00 00 00 00 02 B2 04		/* Gamma Offset index setting  ??*/
+
+			39 01 00 00 00 00 22 83				/* Brightness condition set */
+				80 80
+				80 80
+				80 80
+				80 00
+				80 80
+				00
+				80 80
+				80 80
+				80 80
+				80 00
+				80 80
+				00
+				80 80
+				80 80
+				80 80
+				80 00
+				80 80
+				00
+
+
+			39 01 00 00 00 00 04 90 00 00 0E		/* AID 360 nit */
+
+			15 01 00 00 00 00 02 B0 67		/* Global Para 103rd */
+			39 01 00 00 00 00 02 B2 0F		/* 360 nit ELVSS */
+
+			15 01 00 00 00 00 02 B0 4D		/* Global Para 77th */
+			39 01 00 00 00 00 02 B2 04		/* 16 Frame Avg at ACL off */
+
+			15 01 00 00 00 00 02 B0 36		/* Global Para 54th */
+			39 01 00 00 00 00 02 B2 10		/* ACL off */
+
+			15 01 00 00 00 00 02 B0 6D		/* Global Para 109th */
+			39 01 00 00 00 00 02 B2 85		/* CAPS on */
+
+			15 01 00 00 00 00 02 B0 35		/* Global Para 53rd */
+			39 01 00 00 00 00 02 B2 01		/* Gamma Update: Update key */
+
+								/* ELVSS Temp Compensation */
+
+			15 01 00 00 00 00 02 B0 D0		/* Global Para 208th */
+			39 01 00 00 D7 00 02 B1 1D		/* UPLL_F = 35 then delay  215ms */
+
+			05 01 00 00 00 00 02 29 00		/* display on then 50ms delay??*/
+		];
+
+		qcom,mdss-dsi-panel-clockrate = <895400000>;
+	};
+};
