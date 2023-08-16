@@ -1,0 +1,1 @@
+cmd_drivers/input/keyboard/cypress_20055/built-in.o :=  arm-eabi-ld -EL    -r -o drivers/input/keyboard/cypress_20055/built-in.o drivers/input/keyboard/cypress_20055/cypress-touchkey.o drivers/input/keyboard/cypress_20055/issp_driver_routines.o drivers/input/keyboard/cypress_20055/issp_main.o drivers/input/keyboard/cypress_20055/issp_routines.o 

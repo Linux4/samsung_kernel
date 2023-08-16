@@ -1,0 +1,46 @@
+/*
+ * SAMSUNG UNIVERSAL5430 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+#include "exynos5430-slte_eur_open_09.dts"
+
+/ {
+
+	model_info-subtype = "slte_aus_open";
+
+	pinctrl@14CC0000 {
+		sensor2_i2c: sensor2-i2c {
+			samsung,pins ="gpd2-7", "gpd2-6";
+			samsung,pin-pud =<0>;
+		};
+	};
+
+	i2c@38 {
+		cell-index = <38>;
+		compatible = "i2c-gpio";
+		gpios = <&gpd2 7 0
+		&gpd2 6 0
+		>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names ="default";
+		pinctrl-0 = <&sensor2_i2c>;
+		status = "okay";
+
+		tmd3782@39 {
+			compatible = "taos,tmd3782";
+			reg = <0x39>;
+			interrupts = <3 0 0>;
+			interrupt-parent = <&gpa3>;
+			taos,irq_gpio = <&gpa3 3 0>;
+		};
+	};
+};

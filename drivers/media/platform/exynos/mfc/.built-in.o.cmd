@@ -1,0 +1,1 @@
+cmd_drivers/media/platform/exynos/mfc/built-in.o :=  arm-eabi-ld -EL    -r -o drivers/media/platform/exynos/mfc/built-in.o drivers/media/platform/exynos/mfc/s5p-mfc.o drivers/media/platform/exynos/mfc/s5p_mfc_opr_v6.o drivers/media/platform/exynos/mfc/s5p_mfc_cmd_v6.o 

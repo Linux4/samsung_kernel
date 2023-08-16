@@ -1,0 +1,1 @@
+cmd_sound/soc/codecs/built-in.o :=  arm-eabi-ld -EL    -r -o sound/soc/codecs/built-in.o sound/soc/codecs/snd-soc-arizona.o sound/soc/codecs/snd-soc-florida.o sound/soc/codecs/snd-soc-wm-adsp.o sound/soc/codecs/snd-soc-dummy.o sound/soc/codecs/snd-soc-max98504a.o sound/soc/codecs/snd-soc-maxim-dsma.o 

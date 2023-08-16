@@ -1,0 +1,1 @@
+cmd_drivers/usb/phy/built-in.o :=  arm-eabi-ld -EL    -r -o drivers/usb/phy/built-in.o drivers/usb/phy/phy.o drivers/usb/phy/of.o drivers/usb/phy/phy-samsung-usb.o drivers/usb/phy/phy-samsung-usb2.o drivers/usb/phy/phy-samsung-usb2-dummy.o drivers/usb/phy/phy-samsung-usb3.o 

@@ -1,0 +1,1 @@
+cmd_arch/arm/crypto/built-in.o :=  arm-eabi-ld -EL    -r -o arch/arm/crypto/built-in.o arch/arm/crypto/first_file_asm.o arch/arm/crypto/aes-arm.o arch/arm/crypto/sha1-arm.o arch/arm/crypto/last_file_asm.o 

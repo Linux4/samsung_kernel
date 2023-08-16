@@ -1,0 +1,1 @@
+cmd_drivers/video/exynos/panels/built-in.o :=  arm-eabi-ld -EL    -r -o drivers/video/exynos/panels/built-in.o drivers/video/exynos/panels/mdnie_lite.o drivers/video/exynos/panels/mdnie_tuning.o drivers/video/exynos/panels/ea8064g_mipi_lcd.o drivers/video/exynos/panels/dynamic_aid.o 

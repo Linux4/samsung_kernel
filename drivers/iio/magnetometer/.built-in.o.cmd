@@ -1,0 +1,1 @@
+cmd_drivers/iio/magnetometer/built-in.o :=  arm-eabi-ld -EL    -r -o drivers/iio/magnetometer/built-in.o drivers/iio/magnetometer/yas_mag_drv-yas532.o drivers/iio/magnetometer/yas_mag_kernel.o drivers/iio/magnetometer/yas537/built-in.o 

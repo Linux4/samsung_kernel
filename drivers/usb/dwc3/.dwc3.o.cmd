@@ -1,0 +1,1 @@
+cmd_drivers/usb/dwc3/dwc3.o := arm-eabi-ld -EL    -r -o drivers/usb/dwc3/dwc3.o drivers/usb/dwc3/core.o drivers/usb/dwc3/otg.o drivers/usb/dwc3/host.o drivers/usb/dwc3/gadget.o drivers/usb/dwc3/ep0.o drivers/usb/dwc3/debugfs.o 

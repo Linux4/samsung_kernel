@@ -1,0 +1,1 @@
+cmd_drivers/media/platform/exynos/scaler/scaler.o := arm-eabi-ld -EL    -r -o drivers/media/platform/exynos/scaler/scaler.o drivers/media/platform/exynos/scaler/scaler-core.o drivers/media/platform/exynos/scaler/scaler-regs.o 

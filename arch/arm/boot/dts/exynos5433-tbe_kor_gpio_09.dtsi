@@ -1,0 +1,61 @@
+/*
+ * Copyright (c) 2014 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+// Support TRLTE KOR HW REV05~ diff GPIOs.
+
+#include "exynos_gpio_config_macros.dtsi"
+
+&pinctrl_0 {
+	sleep0: sleep-state {
+		PIN_SLP(gpf1-5, PREV, NONE);	/* LCD EN */
+	};
+};
+
+&pinctrl_3 {
+	sleep3: sleep-state {
+		PIN_SLP(gpj2-1, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpj2-2, INPUT, DOWN);	/* NC */
+	};
+};
+
+&pinctrl_8 {
+	initial8: initial-state {
+		PIN_IN(gpb0-2, DOWN, LV1);	/* NC */
+		PIN_IN(gpb0-3, DOWN, LV1);	/* NC */
+
+		PIN_IN(gpd1-4, DOWN, LV1);	/* NC */
+		PIN_IN(gpd1-5, DOWN, LV1);	/* NC */
+
+		PIN_IN(gpd4-1, DOWN, LV1);	/* NC */
+
+		PIN_IN(gpd7-1, DOWN, LV1);	/* NFC_MCLK */
+
+		PIN_IN(gpg1-4, DOWN, LV1);	/* NC */
+	};
+	sleep8: sleep-state {
+		PIN_SLP(gpd1-4, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpd1-5, INPUT, DOWN);	/* NC */
+
+		PIN_SLP(gpg0-0, PREV, NONE);	/* LCD RST */
+
+		PIN_SLP(gpd4-1, INPUT, DOWN);	/* NC  */
+
+		PIN_SLP(gpg3-0, INPUT, NONE);	/* TDMB_I2C_SDA */
+		PIN_SLP(gpg3-1, INPUT, NONE);	/* TDMB_I2C_SCL */
+	};
+};
+
+&pinctrl_9 {
+	sleep9: sleep-state {
+		PIN_SLP(gpj1-0, INPUT, NONE);	/* TS_I2C_SDA */
+		PIN_SLP(gpj1-1, INPUT, NONE);	/* TS_I2C_SCL */
+	};
+};
+
+

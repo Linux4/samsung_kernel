@@ -1,0 +1,1 @@
+cmd_drivers/media/platform/exynos/jpeg4/jpeg4.o := arm-eabi-ld -EL    -r -o drivers/media/platform/exynos/jpeg4/jpeg4.o drivers/media/platform/exynos/jpeg4/jpeg_dev.o drivers/media/platform/exynos/jpeg4/jpeg_core.o drivers/media/platform/exynos/jpeg4/jpeg_regs.o drivers/media/platform/exynos/jpeg4/jpeg_mem.o 

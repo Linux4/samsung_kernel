@@ -1,0 +1,72 @@
+config DECON_LCD
+	depends on EXYNOS_DECON
+	bool "Select LCD panel driver"
+
+config DECON_MDNIE_LITE
+	depends on DECON_LCD && DECON_MIPI_DSI
+	tristate "Support MDNIE LITE"
+	default n
+
+config DECON_MDNIE_LITE_CHAGALL
+	depends on DECON_LCD && DECON_MIPI_DSI
+	tristate "Support MDNIE LITE"
+	default n
+
+config LCD_HMT
+	depends on DECON_LCD
+	tristate "Support HMT display"
+	default n
+
+config LCD_ALPM
+	depends on DECON_LCD
+	tristate "Support ALPM mode"
+	default n
+
+config LCD_PCD
+	depends on DECON_LCD
+	tristate "Support PCD detection"
+	default n
+
+config DECON_LCD_S6E8AA0
+	depends on DECON_LCD && DECON_MIPI_DSI
+	tristate "S6E8AA0 driver"
+
+config DECON_LCD_S6E3FA0
+	depends on DECON_LCD && DECON_MIPI_DSI
+	tristate "S6E3FA0 driver"
+
+config DECON_LCD_S6E3HA0K
+	depends on DECON_LCD && DECON_MIPI_DSI
+	tristate "S6E3HA0K driver"
+
+config DECON_LCD_S6E3FA2
+	depends on DECON_LCD && DECON_MIPI_DSI
+	tristate "S6E8FA2 driver"
+
+config DECON_LCD_S6E3HA0
+	depends on DECON_LCD && DECON_MIPI_DSI
+	tristate "S6E3HA0 driver"
+
+config DECON_LCD_EA8064G
+	depends on DECON_LCD && DECON_MIPI_DSI
+	tristate "EA8064G driver"
+
+config DECON_LCD_S6E3HA2
+	depends on DECON_LCD && DECON_MIPI_DSI
+	tristate "S6E3HA2 driver"
+
+config DECON_LCD_S6E3HF2
+	depends on DECON_LCD && DECON_MIPI_DSI
+	tristate "S6E3HA2 driver"
+
+config DECON_LCD_S6TNMR7
+	depends on DECON_LCD && DECON_MIPI_DSI
+	tristate "S6TNMR7 driver"
+
+config DECON_LCD_ANA38401
+	depends on DECON_LCD && DECON_MIPI_DSI
+	tristate "ANA38401 driver"
+
+config DECON_LCD_S6E3HA2_TABS2
+	depends on DECON_LCD && DECON_MIPI_DSI
+	tristate "S6E3HA2 driver"

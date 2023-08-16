@@ -1,0 +1,1 @@
+cmd_drivers/gpu/gpu_sysfs/gpu_sysfs.o := arm-eabi-ld -EL    -r -o drivers/gpu/gpu_sysfs/gpu_sysfs.o drivers/gpu/gpu_sysfs/gpu_sysfs_main.o drivers/gpu/gpu_sysfs/gpu_sysfs_util.o drivers/gpu/gpu_sysfs/gpu_sysfs_target_exynos5430.o 

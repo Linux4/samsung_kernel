@@ -1,0 +1,1 @@
+cmd_drivers/misc/mipi-lli/built-in.o :=  arm-eabi-ld -EL    -r -o drivers/misc/mipi-lli/built-in.o drivers/misc/mipi-lli/exynos-mipi-lli-mphy.o drivers/misc/mipi-lli/mipi-lli.o drivers/misc/mipi-lli/exynos-mipi-lli.o 
