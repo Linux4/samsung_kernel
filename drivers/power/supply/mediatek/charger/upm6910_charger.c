@@ -265,6 +265,51 @@ int upm6910_set_chargecurrent(struct upm6910 *upm, int curr)
                    ichg << REG02_ICHG_SHIFT);
 
 }
+/* hs14 code for AL6528ADEU-3951 by qiaodan at 2023/04/07 start */
+int upm6910_get_chargecurrent(struct upm6910 *upm, int *curr_ma)
+{
+    u8 reg_val = 0;
+    int ichg = 0;
+    int ret = 0;
+
+    if (!upm) {
+        pr_err("%s device is null\n", __func__);
+        return -ENODEV;
+    }
+
+    ret = upm6910_read_byte(upm, UPM6910_REG_02, &reg_val);
+    if (!ret) {
+        ichg = (reg_val & REG02_ICHG_MASK) >> REG02_ICHG_SHIFT;
+        ichg = ichg * REG02_ICHG_LSB + REG02_ICHG_BASE;
+        *curr_ma = ichg;
+    }
+
+    return ret;
+}
+
+int upm6910_chargecurrent_recheck(struct upm6910 *upm)
+{
+    int curr_value = 0;
+    int ret = 0;
+
+    if (!upm) {
+        pr_err("%s device is null\n", __func__);
+        return -ENODEV;
+    }
+
+    ret = upm6910_get_chargecurrent(upm,&curr_value);
+    if (!ret) {
+        pr_info("%s the curr value is %d\n", __func__ ,curr_value);
+        if (curr_value < ICHG_OCP_THRESHOLD_MA) {
+            ret = upm6910_set_chargecurrent(upm, ICHG_OCP_THRESHOLD_MA);
+        }
+    } else {
+        pr_err("%s get charge current failed\n", __func__);
+    }
+
+    return ret;
+}
+/* hs14 code for AL6528ADEU-3951 by qiaodan at 2023/04/07 end */
 
 int upm6910_set_term_current(struct upm6910 *upm, int curr)
 {
@@ -1255,6 +1300,9 @@ static irqreturn_t upm6910_irq_handler(int irq, void *data)
         /*hs14 code for AL6528ADEU-2064 by lina at 2022/11/17 end*/
         upm->psy_usb_type = CHARGER_UNKNOWN;
         schedule_delayed_work(&upm->psy_dwork, 0);
+        /* hs14 code for AL6528ADEU-3951 by qiaodan at 2023/04/07 start */
+        upm6910_chargecurrent_recheck(upm);
+        /* hs14 code for AL6528ADEU-3951 by qiaodan at 2023/04/07 end */
         pr_notice("adapter/usb removed\n");
         Charger_Detect_Release();
         return IRQ_HANDLED;
@@ -1612,6 +1660,16 @@ static int upm6910_is_charging_done(struct charger_device *chg_dev, bool *done)
 static int upm6910_set_ichg(struct charger_device *chg_dev, u32 curr)
 {
     struct upm6910 *upm = dev_get_drvdata(&chg_dev->dev);
+    /* hs14 code for AL6528ADEU-3951 by qiaodan at 2023/04/07 start */
+    if (!upm) {
+        pr_err("%s device is null\n", __func__);
+        return -ENODEV;
+    }
+
+    if (!upm->power_good) {
+        curr = ICHG_OCP_THRESHOLD_MA * 1000;
+    }
+    /* hs14 code for AL6528ADEU-3951 by qiaodan at 2023/04/07 end */
 
     pr_err("charge curr = %d\n", curr);
 

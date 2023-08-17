@@ -2286,7 +2286,10 @@ void ss_charger_check_status(struct charger_manager *info)
 		g_batt_full_flag = 1;
 		input_suspend(info, MAIN_CHARGER, true, false);
 	}
-	if (info->capacity <= info->cust_batt_cap - 2 && g_batt_full_flag == 1) {
+	/* hs14 code for P230105-02859 by gaozhengwei at 2023/01/06 start */
+	if ((info->cust_batt_cap == 100 || info->capacity <= info->cust_batt_cap - 2)
+			&& g_batt_full_flag == 1) {
+	/* hs14 code for P230105-02859 by gaozhengwei at 2023/01/06 end */
 		g_batt_full_flag = 0;
 		input_suspend(info, MAIN_CHARGER, false, false);
 	}

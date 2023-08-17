@@ -45,6 +45,10 @@ static int kbase_kcpu_map_import_prepare(
 {
 	struct kbase_context *const kctx = kcpu_queue->kctx;
 	struct kbase_va_region *reg;
+	struct kbase_mem_phy_alloc *alloc;
+	struct page **pages;
+	struct tagged_addr *pa;
+	long i;
 	int ret = 0;
 
 	lockdep_assert_held(&kctx->csf.kcpu_queues.lock);
@@ -76,6 +80,13 @@ static int kbase_kcpu_map_import_prepare(
 		ret = kbase_jd_user_buf_pin_pages(kctx, reg);
 		if (ret)
 			goto out;
+
+		alloc = reg->gpu_alloc;
+		pa = kbase_get_gpu_phy_pages(reg);
+		pages = alloc->imported.user_buf.pages;
+
+		for (i = 0; i < alloc->nents; i++)
+			pa[i] = as_tagged(page_to_phys(pages[i]));
 	}
 
 	current_command->type = BASE_KCPU_COMMAND_TYPE_MAP_IMPORT;
@@ -634,9 +645,8 @@ static int kbase_csf_queue_group_suspend_prepare(
 		    (kbase_reg_current_backed_size(reg) < nr_pages) ||
 		    !(reg->flags & KBASE_REG_CPU_WR) ||
 		    (reg->gpu_alloc->type != KBASE_MEM_TYPE_NATIVE) ||
-		    (reg->flags & KBASE_REG_DONT_NEED) ||
-		    (reg->flags & KBASE_REG_ACTIVE_JIT_ALLOC) ||
-		    (reg->flags & KBASE_REG_NO_USER_FREE)) {
+		    (kbase_is_region_shrinkable(reg)) ||
+		    (kbase_va_region_is_no_user_free(kctx, reg))) {
 			ret = -EINVAL;
 			goto out_clean_pages;
 		}

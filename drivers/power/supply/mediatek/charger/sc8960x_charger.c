@@ -322,22 +322,9 @@ static int sc8960x_enable_hvdcp(struct sc8960x *sc, bool enable)
 /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
 
-/* hs14 code for AL6528A-389 by wenyaqi at 2022/11/02 start */
-#ifdef HQ_FACTORY_BUILD
-// for factory test
-static void sc8960x_dump_regs(struct sc8960x *sc);
-#endif
-/* hs14 code for AL6528A-389 by wenyaqi at 2022/11/02 end */
 static int sc8960x_enable_otg(struct sc8960x *sc)
 {
     u8 val = REG01_OTG_ENABLE << REG01_OTG_CONFIG_SHIFT;
-/* hs14 code for AL6528A-389 by wenyaqi at 2022/11/02 start */
-#ifdef HQ_FACTORY_BUILD
-    // for factory test
-    pr_err("%s:factory otg test\n",__func__);
-    sc8960x_dump_regs(sc);
-#endif
-/* hs14 code for AL6528A-389 by wenyaqi at 2022/11/02 end */
     return sc8960x_update_bits(sc, SC8960X_REG_01, REG01_OTG_CONFIG_MASK,
                 val);
 
@@ -346,13 +333,6 @@ static int sc8960x_enable_otg(struct sc8960x *sc)
 static int sc8960x_disable_otg(struct sc8960x *sc)
 {
     u8 val = REG01_OTG_DISABLE << REG01_OTG_CONFIG_SHIFT;
-/* hs14 code for AL6528A-389 by wenyaqi at 2022/11/02 start */
-#ifdef HQ_FACTORY_BUILD
-    // for factory test
-    pr_err("%s:factory otg test\n",__func__);
-    sc8960x_dump_regs(sc);
-#endif
-/* hs14 code for AL6528A-389 by wenyaqi at 2022/11/02 end */
     return sc8960x_update_bits(sc, SC8960X_REG_01, REG01_OTG_CONFIG_MASK,
                 val);
 
@@ -365,13 +345,6 @@ static int sc8960x_enable_charger(struct sc8960x *sc)
 
     ret =
         sc8960x_update_bits(sc, SC8960X_REG_01, REG01_CHG_CONFIG_MASK, val);
-/* hs14 code for AL6528A-389 by wenyaqi at 2022/11/02 start */
-#ifdef HQ_FACTORY_BUILD
-    // for factory test
-    pr_err("%s:factory otg test,ret=%d\n",__func__,ret);
-    sc8960x_dump_regs(sc);
-#endif
-/* hs14 code for AL6528A-389 by wenyaqi at 2022/11/02 end */
 
     return ret;
 }
@@ -383,11 +356,6 @@ static int sc8960x_disable_charger(struct sc8960x *sc)
 
     ret =
         sc8960x_update_bits(sc, SC8960X_REG_01, REG01_CHG_CONFIG_MASK, val);
-#ifdef HQ_FACTORY_BUILD
-    // for factory test
-    pr_err("%s:factory otg test,ret=%d\n",__func__,ret);
-    sc8960x_dump_regs(sc);
-#endif
     return ret;
 }
 
@@ -480,6 +448,13 @@ int sc8960x_set_input_volt_limit(struct sc8960x *sc, int volt)
 
     if (volt < REG06_VINDPM_BASE)
         volt = REG06_VINDPM_BASE;
+
+	/* hs14 code for AL6528A-1072 by zhangzhihao at 2023/1/18 start */
+    if (volt >= REG06_VINDPM_HV_LOW && volt < REG06_VINDPM_HV_TOP) {
+        val = REG06_VINDPM_HV_VAL;
+        return sc8960x_update_bits(sc, SC8960X_REG_06, REG06_VINDPM_MASK,
+                    val << REG06_VINDPM_SHIFT);
+    }
 
     val = (volt - REG06_VINDPM_BASE) / REG06_VINDPM_LSB;
     return sc8960x_update_bits(sc, SC8960X_REG_06, REG06_VINDPM_MASK,

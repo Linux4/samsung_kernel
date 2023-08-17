@@ -112,7 +112,7 @@
 #define REG05_WDT_160S            	3
 #define REG05_WDT_BASE            	0
 #define REG05_WDT_LSB             	40
-
+/* hs14 code for AL6528A-1072 by zhangzhihao at 2023/1/18 start */#define REG06_VINDPM_HV_VAL			0x0F // 8.4V#define REG06_VINDPM_HV_LOW			8000 // 8V#define REG06_VINDPM_HV_TOP			9000 // 9V/* hs14 code for AL6528A-1072 by zhangzhihao at 2023/1/18 end */
 #define REG05_EN_TIMER_MASK       	0x08
 #define REG05_EN_TIMER_SHIFT      	3
 #define REG05_CHG_TIMER_ENABLE    	1

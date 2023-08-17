@@ -333,6 +333,7 @@
 /* hs14 code for AL6528ADEU-2768 by qiaodan at 2022/11/25 start */
 #define HIZ_CONTROL_VINDPM		5400
 /* hs14 code for AL6528ADEU-2768 by qiaodan at 2022/11/25 end */
+/* hs14 code for AL6528ADEU-3951 by qiaodan at 2023/04/07 start */
+#define ICHG_OCP_THRESHOLD_MA		900
+/* hs14 code for AL6528ADEU-3951 by qiaodan at 2023/04/07 end */
 #endif
-
-
