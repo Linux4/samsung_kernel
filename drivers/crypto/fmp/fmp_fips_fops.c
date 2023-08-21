@@ -461,7 +461,8 @@ static int fmp_run(struct fmp_fips_info *info, struct fcrypt *fcr,
 
 	if ((ses_ptr->cdata.init != 0) && (cop->len > PAGE_SIZE)) {
 		dev_err(fmp->dev, "Invalid input length. len = %d\n", cop->len);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto out_unlock;
 	}
 
 	if (ses_ptr->cdata.init != 0) {
@@ -543,7 +544,8 @@ static int fmp_run_AES_CBC_MCT(struct fmp_fips_info *info, struct fcrypt *fcr,
 
 	if (cop->len > PAGE_SIZE) {
 		dev_err(fmp->dev, "Invalid input length. len = %d\n", cop->len);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto out_unlock;
 	}
 
 	if (ses_ptr->cdata.init != 0) {
@@ -885,6 +887,7 @@ static int fmp_finish_session(struct fmp_fips_info *info, struct fcrypt *fcr, ui
 
 	if (!info || !info->fmp) {
 		pr_err("%s: Invalid fmp info\n", __func__);
+		mutex_unlock(&fcr->sem);
 		return -ENODEV;
 	}
 	fmp = info->fmp;
