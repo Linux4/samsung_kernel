@@ -62,6 +62,7 @@ static void cs35l43_pm_runtime_setup(struct cs35l43_private *cs35l43);
 static void cs35l43_log_status(struct cs35l43_private *cs35l43);
 static int cs35l43_check_dsp_regs(struct cs35l43_private *cs35l43);
 
+static DEFINE_MUTEX(cs35l43_irq_init_mutex);
 
 static void cs35l43_log_regmap_fail(struct cs35l43_private *cs35l43,
 					unsigned int reg)
@@ -1379,6 +1380,7 @@ static int cs35l43_check_dsp_regs(struct cs35l43_private *cs35l43)
 {
 	int ret = 0;
 	unsigned int val;
+	unsigned int pm_state, audio_state;
 
 	ret = wm_adsp_read_ctl(&cs35l43->dsp, "HALO_STATE", WMFW_ADSP2_XM, 0x1800d6,
 				&val, sizeof(u32));
@@ -1421,6 +1423,19 @@ static int cs35l43_check_dsp_regs(struct cs35l43_private *cs35l43)
 	if (ret) {
 		dev_err(cs35l43->dev, "%s: Error DSP SCRATCH\n", __func__);
 		return ret;
+	}
+
+	wm_adsp_read_ctl(&cs35l43->dsp, "PM_CUR_STATE",
+		WMFW_ADSP2_XM, CS35L43_ALG_ID_PM, &pm_state, sizeof(u32));
+	pm_state = be32_to_cpu(pm_state);
+	wm_adsp_read_ctl(&cs35l43->dsp, "AUDIO_STATE",
+		WMFW_ADSP2_XM, 0x5f212, &audio_state, sizeof(u32));
+	audio_state = be32_to_cpu(audio_state);
+	dev_info(cs35l43->dev, "PM_STATE: 0x%x\tAUDIO_STATE: 0x%x\n",
+			       pm_state, audio_state);
+	if (pm_state == 0x2 && audio_state == CS35L43_AUDIO_STATE_RAMPDOWN) {
+		dev_err(cs35l43->dev, "%s: Error PM_STATE and AUDIO_STATE\n", __func__);
+		return -EINVAL;
 	}
 
 	return 0;
@@ -1599,8 +1614,15 @@ static void cs35l43_log_status(struct cs35l43_private *cs35l43)
 
 	wm_adsp_read_ctl(&cs35l43->dsp, "PM_CUR_STATE",
 		WMFW_ADSP2_XM, CS35L43_ALG_ID_PM, &pm_state, sizeof(u32));
+	pm_state = be32_to_cpu(pm_state);
 	wm_adsp_read_ctl(&cs35l43->dsp, "AUDIO_STATE",
 		WMFW_ADSP2_XM, 0x5f212, &audio_state, sizeof(u32));
+	audio_state = be32_to_cpu(audio_state);
+	if (pm_state == 0x2 && audio_state == CS35L43_AUDIO_STATE_RAMPDOWN) {
+		dev_err(cs35l43->dev, "%s: Error PM_STATE and AUDIO_STATE\n", __func__);
+		if (!mutex_is_locked(&cs35l43->err_lock))
+			queue_work(cs35l43->err_wq, &cs35l43->err_work);
+	}
 
 	dev_info(cs35l43->dev, "PM_STATE: 0x%x\tAUDIO_STATE: 0x%x\n",
 			       pm_state, audio_state);
@@ -2071,7 +2093,7 @@ static const struct snd_soc_dapm_route cs35l43_audio_map[] = {
 static irqreturn_t cs35l43_irq(int irq, void *data)
 {
 	struct cs35l43_private *cs35l43 = data;
-	unsigned int status[3], masks[3];
+	unsigned int status[3], masks[3], pin_status;
 	int ret = IRQ_NONE, i;
 	bool is_pm_runtime_enabled = pm_runtime_enabled(cs35l43->dev);
 
@@ -2104,6 +2126,8 @@ static irqreturn_t cs35l43_irq(int irq, void *data)
 		for (i = 0; i < ARRAY_SIZE(status); i++)
 			dev_info_ratelimited(cs35l43->dev, "mask[%d]=0x%x status[%d]=0x%x\n",
 				i, masks[i], i, status[i]);
+		cs35l43_regmap_read(cs35l43, CS35L43_IRQ1_STATUS, &pin_status);
+		dev_info_ratelimited(cs35l43->dev, "pin_status: %d\n", pin_status);
 		goto done;
 	}
 
@@ -3301,9 +3325,11 @@ int cs35l43_probe(struct cs35l43_private *cs35l43,
 	regmap_write(cs35l43->regmap, CS35L43_IRQ1_EINT_1,
 					CS35L43_DSP_VIRTUAL2_MBOX_WR_EINT1_MASK);
 
+	mutex_lock(&cs35l43_irq_init_mutex);
 	ret = devm_request_threaded_irq(cs35l43->dev, cs35l43->irq, NULL,
 				cs35l43_irq, IRQF_ONESHOT | IRQF_SHARED |
 				irq_pol, "cs35l43", cs35l43);
+	mutex_unlock(&cs35l43_irq_init_mutex);
 
 	cs35l43_dsp_init(cs35l43);
 

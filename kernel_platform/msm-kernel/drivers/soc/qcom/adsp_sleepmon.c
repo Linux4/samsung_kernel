@@ -277,6 +277,9 @@ struct adspsleepmon {
 	bool b_config_adsp_panic_lpm;
 	bool b_config_adsp_panic_lpi;
 	bool b_config_adsp_panic_lpm_overall;
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
+	bool b_config_adsp_recovery_lpm_overall;
+#endif
 	bool b_rpmsg_register;
 	u32 lpm_wait_time;
 	u32 lpi_wait_time;
@@ -896,6 +899,11 @@ static int adspsleepmon_driver_probe(struct platform_device *pdev)
 	g_adspsleepmon.b_config_adsp_panic_lpm_overall = of_property_read_bool(dev->of_node,
 			"qcom,enable_adsp_panic_lpm_overall");
 
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
+	g_adspsleepmon.b_config_adsp_recovery_lpm_overall = of_property_read_bool(dev->of_node,
+			"qcom,enable_adsp_recovery_lpm_overall");
+#endif
+
 	of_property_read_u32(dev->of_node, "qcom,wait_time_lpm",
 						 &g_adspsleepmon.lpm_wait_time);
 
@@ -1010,6 +1018,20 @@ static void adspsleepmon_lpm_adsp_panic(void)
 	}
 }
 
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
+extern void send_ssc_recovery_command(void);
+static void adspsleepmon_send_recovery_overall(u32 sleep_latency)
+{
+	// check no audio, suspend, no direct channel
+	if (g_adspsleepmon.b_config_adsp_recovery_lpm_overall) {
+		if (g_adspsleepmon.suspend_event && sleep_latency == 0) {
+			pr_err("Sending recovery command to ADSP for LPM violation\n");
+			send_ssc_recovery_command();
+		}
+	}
+}
+#endif
+
 static void adspsleepmon_lpm_adsp_panic_overall(void)
 {
 	if (g_adspsleepmon.b_config_adsp_panic_lpm_overall) {
@@ -1090,6 +1112,11 @@ static void sleepmon_lpm_exception_check(u64 curr_timestamp, u64 elapsed_time)
 					(g_adspsleepmon.accumulated_resumes >=
 						g_adspsleepmon.min_required_resumes)) {
 					adspsleepmon_lpm_adsp_panic_overall();
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
+					if (!is_audio_active) {
+						adspsleepmon_send_recovery_overall(sysmon_event_stats.sleep_latency);
+					}
+#endif
 					g_adspsleepmon.accumulated_duration = 0;
 					g_adspsleepmon.accumulated_resumes = 0;
 				}

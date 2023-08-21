@@ -43,6 +43,8 @@
 #include <linux/leds-s2mpb02.h>
 #elif IS_ENABLED(CONFIG_LEDS_KTD2692)
 #include <linux/leds-ktd2692.h>
+#elif IS_ENABLED(CONFIG_LEDS_AW36518_FLASH)
+#include <linux/leds-aw36518.h>
 #elif IS_ENABLED(CONFIG_LEDS_QTI_FLASH) && IS_ENABLED(CONFIG_SENSORS_STK6D2X)
 #include <linux/leds.h>
 #include <linux/leds-qti-flash.h>

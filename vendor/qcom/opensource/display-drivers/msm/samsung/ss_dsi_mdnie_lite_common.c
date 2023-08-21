@@ -81,7 +81,9 @@ char mdnie_hdr_name[][NAME_STRING_MAX] = {
 	"HDR_OFF",
 	"HDR_1",
 	"HDR_2",
-	"HDR_3"
+	"HDR_3",
+	"HDR_4",
+	"HDR_5",
 };
 
 char mdnie_light_notification_name[][NAME_STRING_MAX] = {

@@ -684,6 +684,15 @@ static int s2dos05_pmic_dt_parse_pdata(struct device *dev,
 		return -EINVAL;
 	pdata->adc_sync_mode = val;
 
+#if IS_ENABLED(CONFIG_SEC_PM)
+	pdata->ocl_elvss = -1;
+	ret = of_property_read_u32(pmic_np, "ocl_elvss", &val);
+	if (!ret) {
+		pdata->ocl_elvss = val;
+		dev_info(dev, "get ocl elvss value: %d\n", pdata->ocl_elvss);
+	}
+#endif
+
 	regulators_np = of_find_node_by_name(pmic_np, "regulators");
 	if (!regulators_np) {
 		dev_err(dev, "could not find regulators sub-node\n");
@@ -1312,6 +1321,12 @@ static int s2dos05_pmic_probe(struct i2c_client *i2c,
 	if (val & (1 << 7)) {
 		iodev->is_sm3080 = true;
 		dev_info(&i2c->dev, "SM3080 DEVICE ID: 0x%02X\n", val);
+	}
+
+	/* set OCL_ELVSS */
+	if (pdata->ocl_elvss > -1) {
+		s2dos05_update_reg(i2c, S2DOS05_REG_OCL, pdata->ocl_elvss, S2DOS05_OCL_ELVSS_MASK);
+		pr_info("%s: set ocl elvss: %d\n", __func__, pdata->ocl_elvss);
 	}
 
 	ret = s2dos05_sec_pm_init(s2dos05);

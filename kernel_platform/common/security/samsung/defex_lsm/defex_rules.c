@@ -7,6 +7,7 @@
  */
 
 #if 0
+	/* Rules start after this line */
 	{feature_ped_exception,"/system/bin/run-as"},	/* DEFAULT */
 	{feature_ped_exception,"/system/bin/dumpstate"},	/* DEFAULT */
 	{feature_ped_exception,"/vendor/bin/hw/vendor.samsung.hardware.camera.provider@4.0-service"},	/* DEFAULT */

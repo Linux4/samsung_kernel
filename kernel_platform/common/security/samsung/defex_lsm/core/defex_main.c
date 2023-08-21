@@ -141,29 +141,32 @@ __visible_for_testing long kill_process_group(struct task_struct *p, int tgid, i
 	return 0;
 }
 
+__visible_for_testing int check_incfs(struct defex_context *dc)
+{
+	char *new_file;
+	struct file *f = dc->target_file;
+	static const char incfs_path[] = "/data/incremental/";
+
+	if (f) {
+		new_file = get_dc_target_name(dc);
+		if (!strncmp(new_file, incfs_path, sizeof(incfs_path) - 1)) {
+#ifdef DEFEX_DEBUG_ENABLE
+			pr_crit("[DEFEX] Allow IncFS access\n");
+#endif /* DEFEX_DEBUG_ENABLE */
+			return 1;
+		}
+	}
+	return 0;
+}
+
 __visible_for_testing int task_defex_is_secured(struct defex_context *dc)
 {
 	struct file *exe_file = get_dc_process_file(dc);
-	struct task_struct *p = dc->task->group_leader;
-	struct task_struct *task = dc->task;
 	char *proc_name = get_dc_process_name(dc);
 	int is_secured = 0;
 
 	if (!get_dc_process_dpath(dc))
 		return is_secured;
-
-	if (!strncmp(p->comm, "system_server",  strlen(p->comm))) {
-		return DEFEX_ALLOW;
-	}
-
-	if (!strncmp(p->comm, "ding:background", strlen(p->comm))) {
-		return DEFEX_ALLOW;
-	}
-
-	if (!strncmp(task->comm, "FinalizerDaemon", strlen(task->comm))) {
-		return DEFEX_ALLOW;
-	}
-
 	is_secured = !rules_lookup(proc_name, feature_ped_exception, exe_file);
 	return is_secured;
 }
@@ -354,6 +357,8 @@ out:
 	return DEFEX_ALLOW;
 
 trigger_violation:
+	if (check_incfs(dc))
+		return DEFEX_ALLOW;
 	set_task_creds(p, dead_uid, dead_uid, dead_uid, cred_flags);
 	path = get_dc_process_name(dc);
 	pr_crit("defex[%d]: credential violation [task=%s, filename=%s, uid=%d, tgid=%u, pid=%u, ppid=%u]\n",

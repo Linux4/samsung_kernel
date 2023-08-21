@@ -14,5 +14,6 @@ obj-$(CONFIG_CPU_IDLE_GOV_QCOM_LPM) += qcom_lpm.o
 qcom_lpm-y += qcom-lpm.o
 qcom_lpm-y += qcom-cluster-lpm.o
 qcom_lpm-y += qcom-lpm-sysfs.o
+qcom_lpm-$(CONFIG_SEC_QC_QCOM_WDT_CORE) += qcom-lpm-sec-extra.o
 obj-$(CONFIG_CPU_IDLE_GOV_TEO) += teo.o
 obj-$(CONFIG_CPU_IDLE_GOV_HALTPOLL) += haltpoll.o

@@ -443,7 +443,7 @@ static struct binder_buffer *binder_alloc_new_buf_locked(
 	trace_android_vh_binder_alloc_new_buf_locked(size, &alloc->free_async_space, is_async);
 #ifdef CONFIG_SAMSUNG_FREECESS
 	if (is_async && (alloc->free_async_space < 3*(size + sizeof(struct binder_buffer))
-		|| (alloc->free_async_space < ((alloc->buffer_size/2)*9/10)))) {
+		|| (alloc->free_async_space < alloc->buffer_size/4))) {
 		rcu_read_lock();
 		p = find_task_by_vpid(alloc->pid);
 		rcu_read_unlock();

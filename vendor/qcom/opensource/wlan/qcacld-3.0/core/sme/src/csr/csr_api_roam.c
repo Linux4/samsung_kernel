@@ -2571,6 +2571,7 @@ static void csr_get_peer_stats(struct mac_context *mac, uint32_t session_id,
 	qdf_mem_copy(info.peer_mac_addr, &peer_mac, QDF_MAC_ADDR_SIZE);
 	sme_debug("peer_mac" QDF_MAC_ADDR_FMT,
 		  QDF_MAC_ADDR_REF(peer_mac.bytes));
+	mlme_obj->disconnect_stats_param.vdev_id = info.vdev_id;
 	status = ucfg_mc_cp_stats_send_stats_request(vdev, TYPE_PEER_STATS,
 						     &info);
 	if (QDF_IS_STATUS_ERROR(status)) {
@@ -2583,7 +2584,6 @@ static void csr_get_peer_stats(struct mac_context *mac, uint32_t session_id,
 	qdf_mc_timer_start(
 		&mlme_obj->disconnect_stats_param.disconn_stats_timer,
 		SME_CMD_GET_DISCONNECT_STATS_TIMEOUT);
-	mlme_obj->disconnect_stats_param.vdev_id = info.vdev_id;
 
 	wma_get_rx_retry_cnt(mac, session_id, info.peer_mac_addr);
 	wlan_objmgr_vdev_release_ref(vdev, WLAN_LEGACY_SME_ID);

@@ -336,7 +336,6 @@ struct arm_smmu_power_resources {
 	int (*resume)(struct arm_smmu_power_resources *pwr);
 	void (*suspend)(struct arm_smmu_power_resources *pwr);
 
-	struct arm_smmu_device *smmu;	
 };
 
 struct arm_smmu_s2cr {
@@ -730,13 +729,5 @@ extern struct platform_driver qsmmuv500_tbu_driver;
 
 /* Misc. constants */
 #define ARM_MMU500_ACR_CACHE_LOCK	(1 << 26)
-
-void arm_smmu_debug_power_off(struct arm_smmu_device *smmu);
-void arm_smmu_debug_last_busy(struct arm_smmu_device *smmu);
-
-void arm_smmu_debug_suspend(struct arm_smmu_device *smmu);
-void arm_smmu_debug_resume(struct arm_smmu_device *smmu);
-void arm_smmu_debug_power_on(struct arm_smmu_device *smmu);
-void arm_smmu_debug_setup(struct arm_smmu_device *smmu);
 
 #endif /* _ARM_SMMU_H */

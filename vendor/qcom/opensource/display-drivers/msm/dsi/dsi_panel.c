@@ -4223,6 +4223,7 @@ static void dsi_panel_update_util(struct dsi_panel *panel,
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	struct dsi_parser_utils *self_disp_utils = &panel->self_display_utils;
 	struct dsi_parser_utils *mafpc_utils = &panel->mafpc_utils;
+	struct dsi_parser_utils *fw_update_utils = &panel->fw_update_utils;
 	struct dsi_parser_utils *test_mode_utils = &panel->test_mode_utils;
 #endif
 
@@ -4247,6 +4248,9 @@ end:
 	*mafpc_utils = *dsi_parser_get_of_utils();
 	mafpc_utils->data = panel->mafpc_of_node;
 	mafpc_utils->node = panel->mafpc_of_node;
+	*fw_update_utils = *dsi_parser_get_of_utils();
+	fw_update_utils->data = panel->fw_update_of_node;
+	fw_update_utils->node = panel->fw_update_of_node;
 	*test_mode_utils = *dsi_parser_get_of_utils();
 	test_mode_utils->data = panel->test_mode_of_node;
 	test_mode_utils->node = panel->test_mode_of_node;
@@ -4297,6 +4301,7 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	struct device_node *self_display_node = of_parse_phandle(of_node, "ss,self_display", 0);
 	struct device_node *mafpc_node = of_parse_phandle(of_node, "ss,mafpc", 0);
+	struct device_node *fw_update_node = of_parse_phandle(of_node, "ss,fw_update", 0);
 	struct device_node *test_mode_node = of_parse_phandle(of_node, "ss,test_mode", 0);
 #endif
 
@@ -4310,6 +4315,7 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	panel->self_display_of_node = self_display_node;
 	panel->mafpc_of_node = mafpc_node;
+	panel->fw_update_of_node = fw_update_node;
 	panel->test_mode_of_node = test_mode_node;
 #endif
 	panel->parent = parent;

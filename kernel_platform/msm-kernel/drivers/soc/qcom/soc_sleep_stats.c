@@ -31,6 +31,7 @@
 #include <linux/time.h>
 #include <linux/ktime.h>
 #include <linux/time64.h>
+#include "../../adsp_factory/adsp.h"
 #endif
 #if IS_ENABLED(CONFIG_SEC_PM)
 #include <trace/events/power.h>
@@ -741,7 +742,7 @@ static void sec_sleep_stats_show(const char *annotation)
 		}
 #ifdef CONFIG_SEC_FACTORY
 		dsp_entry = (!strcmp(subsystem->name, "adsp")) ? &DSP_ENTRY[1] : NULL;
-		if (dsp_entry != NULL) {
+		if (dsp_entry != NULL && !sns_check_ignore_crash()) {
 			if (!is_exit) {
 				// entry
 				dsp_entry->sleep_enter_kts =
@@ -979,7 +980,7 @@ skip_ddr_stats:
 
 #if defined(DSP_SLEEP_DEBUG_ON)
 	strncpy(DSP_ENTRY[0].name, "cdsp", 4);
-#ifdef CONFIG_SEC_FACTORY
+#if 0
 	strncpy(DSP_ENTRY[1].name, "adsp", 4);
 #endif
 #endif

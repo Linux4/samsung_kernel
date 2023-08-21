@@ -67,6 +67,7 @@ struct accel_data {
 };
 
 static struct accel_data *pdata;
+static bool is_ignore_crash_factory = false;
 
 static ssize_t accel_vendor_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -456,6 +457,12 @@ static ssize_t accel_reactive_store(struct device *dev,
 	return size;
 }
 
+bool sns_check_ignore_crash()
+{
+	return is_ignore_crash_factory;
+}
+EXPORT_SYMBOL(sns_check_ignore_crash);
+
 static ssize_t accel_lowpassfilter_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
@@ -465,14 +472,23 @@ static ssize_t accel_lowpassfilter_store(struct device *dev,
 
 	if (sysfs_streq(buf, "1")) {
 		msg_buf = 1;
+		is_ignore_crash_factory = false;
 	} else if (sysfs_streq(buf, "0")) {
 		msg_buf = 0;
+		is_ignore_crash_factory = false;
 #ifdef CONFIG_SEC_FACTORY
 	} else if (sysfs_streq(buf, "2")) {
 		msg_buf = 2;
+		is_ignore_crash_factory = true;
 		pr_info("[FACTORY] %s: Pretest\n", __func__);
+	} else if (sysfs_streq(buf, "3")) {
+		msg_buf = 3;
+		is_ignore_crash_factory = true;
+		pr_info("[FACTORY] %s: Questt\n", __func__);
+		return size;
 #endif
 	} else {
+		is_ignore_crash_factory = false;
 		pr_info("[FACTORY] %s: wrong value\n", __func__);
 		return size;
 	}

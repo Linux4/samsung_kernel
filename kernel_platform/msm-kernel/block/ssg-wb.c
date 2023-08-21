@@ -206,9 +206,13 @@ void ssg_wb_exit(struct ssg_data *ssg)
 	if (!ssg_wb)
 		return;
 
+	cancel_delayed_work_sync(&ssg_wb->wb_ctrl_work);
+	cancel_delayed_work_sync(&ssg_wb->wb_deferred_off_work);
+
 	if (atomic_read(&ssg_wb->wb_trigger))
 		ufs_sec_wb_ctrl(WB_OFF, ssg_wb->queue->queuedata);
 
+	ssg->wb_data = NULL;
 	kfree(ssg_wb);
 }
 

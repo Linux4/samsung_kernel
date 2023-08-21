@@ -516,99 +516,31 @@ def define_common_kernels(
         if arch_config.get("enable_interceptor"):
             continue
 
-        kernel_modules_install(
-            name = name + "_modules_install",
-            # The GKI target does not have external modules. GKI modules goes
-            # into the in-tree kernel module list, aka kernel_build.module_implicit_outs.
-            # Hence, this is empty.
-            kernel_modules = [],
-            kernel_build = name,
+        _define_gki_additional_targets(
+            kernel_build_name = name,
+            target_config = target_config,
+            arch_config = arch_config,
         )
 
-        kernel_unstripped_modules_archive(
-            name = name + "_unstripped_modules_archive",
-            kernel_build = name,
+        _define_gki_additional_targets(
+            kernel_build_name = name + "_with_vmlinux",
+            target_config = target_config,
+            arch_config = arch_config,
         )
-
-        kernel_images(
-            name = name + "_images",
-            kernel_build = name,
-            kernel_modules_install = name + "_modules_install",
-            # Sync with GKI_DOWNLOAD_CONFIGS, "images"
-            build_system_dlkm = True,
-            # Keep in sync with build.config.gki* MODULES_LIST
-            modules_list = "android/gki_system_dlkm_modules",
-        )
-
-        if target_config.get("build_gki_artifacts"):
-            gki_artifacts(
-                name = name + "_gki_artifacts",
-                kernel_build = name,
-                boot_img_sizes = target_config.get("gki_boot_img_sizes", {}),
-                arch = arch_config["arch"],
-            )
-        else:
-            native.filegroup(
-                name = name + "_gki_artifacts",
-                srcs = [],
-            )
-
-        # module_staging_archive from <name>
-        native.filegroup(
-            name = name + "_modules_staging_archive",
-            srcs = [name],
-            output_group = "modules_staging_archive",
-        )
-
-        # All GKI modules
-        native.filegroup(
-            name = name + "_modules",
-            srcs = [
-                "{}/{}".format(name, module)
-                for module in (kernel_build_abi_kwargs["module_implicit_outs"] or [])
-            ],
-        )
-
-        # Everything in name + "_dist", minus UAPI headers & DDK & modules, because
-        # device-specific external kernel modules may install different headers.
-        native.filegroup(
-            name = name + "_additional_artifacts",
-            srcs = [
-                # Sync with additional_artifacts_items
-                name + "_headers",
-                name + "_images",
-                name + "_kmi_symbol_list",
-                name + "_gki_artifacts",
-            ],
-        )
-
-        # Everything in name + "_dist" for the DDK.
-        # These aren't in DIST_DIR for build.sh-style builds, but necessary for driver
-        # development. Hence they are also added to kernel_*_dist so they can be downloaded.
-        # Note: This poke into details of kernel_build!
-        native.filegroup(
-            name = name + "_ddk_artifacts",
-            srcs = [
-                name + "_modules_prepare",
-                name + "_modules_staging_archive",
-            ],
-        )
-
-        dist_targets = [
-            name,
-            name + "_uapi_headers",
-            name + "_unstripped_modules_archive",
-            name + "_additional_artifacts",
-            name + "_ddk_artifacts",
-            name + "_modules",
-            name + "_modules_install",
-            # BUILD_GKI_CERTIFICATION_TOOLS=1 for all kernel_build defined here.
-            "//build/kernel:gki_certification_tools",
-        ]
 
         copy_to_dist_dir(
             name = name + "_dist",
-            data = dist_targets,
+            data = [
+                name,
+                name + "_uapi_headers",
+                name + "_unstripped_modules_archive",
+                name + "_additional_artifacts",
+                name + "_ddk_artifacts",
+                name + "_modules",
+                name + "_modules_install",
+                # BUILD_GKI_CERTIFICATION_TOOLS=1 for all kernel_build defined here.
+                "//build/kernel:gki_certification_tools",
+            ],
             flat = True,
             dist_dir = "out/{branch}/dist".format(branch = BRANCH),
             log = "info",
@@ -617,7 +549,16 @@ def define_common_kernels(
         kernel_build_abi_dist(
             name = name + "_abi_dist",
             kernel_build_abi = name,
-            data = dist_targets,
+            data = [
+                name + "_with_vmlinux",
+                name + "_with_vmlinux_uapi_headers",
+                name + "_with_vmlinux_unstripped_modules_archive",
+                name + "_with_vmlinux_additional_artifacts",
+                name + "_with_vmlinux_ddk_artifacts",
+                name + "_with_vmlinux_modules",
+                name + "_with_vmlinux_modules_install",
+                # We don't certify binaries from ABI targets.
+            ],
             flat = True,
             dist_dir = "out_abi/{branch}/dist".format(branch = BRANCH),
             log = "info",
@@ -666,6 +607,104 @@ def define_common_kernels(
     )
 
     _define_prebuilts(visibility = visibility)
+
+def _define_gki_additional_targets(
+        kernel_build_name,
+        target_config,
+        arch_config):
+    """Defines additional targets for a GKI target.
+
+    * `{kernel_build_name}_additional_artifacts`
+    * `{kernel_build_name}_ddk_artifacts`
+    * `{kernel_build_name}_modules`
+    * `{kernel_build_name}_modules_install`
+    * `{kernel_build_name}_images`
+    * `{kernel_build_name}_unstripped_modules_archive`
+    * Some other internal targets.
+
+    Args:
+        kernel_build_name: name of the GKI target [`kernel_build`](#kernel_build).
+        target_config: See [`define_common_kernels`](#define_common_kernels).
+        arch_config: See [`define_common_kernels`](#define_common_kernels).
+    """
+
+    kernel_modules_install(
+        name = kernel_build_name + "_modules_install",
+        # The GKI target does not have external modules. GKI modules goes
+        # into the in-tree kernel module list, aka kernel_build.module_implicit_outs.
+        # Hence, this is empty.
+        kernel_modules = [],
+        kernel_build = kernel_build_name,
+    )
+
+    kernel_unstripped_modules_archive(
+        name = kernel_build_name + "_unstripped_modules_archive",
+        kernel_build = kernel_build_name,
+    )
+
+    kernel_images(
+        name = kernel_build_name + "_images",
+        kernel_build = kernel_build_name,
+        kernel_modules_install = kernel_build_name + "_modules_install",
+        # Sync with GKI_DOWNLOAD_CONFIGS, "images"
+        build_system_dlkm = True,
+        # Keep in sync with build.config.gki* MODULES_LIST
+        modules_list = "android/gki_system_dlkm_modules",
+    )
+
+    if target_config.get("build_gki_artifacts"):
+        gki_artifacts(
+            name = kernel_build_name + "_gki_artifacts",
+            kernel_build = kernel_build_name,
+            boot_img_sizes = target_config.get("gki_boot_img_sizes", {}),
+            arch = arch_config["arch"],
+        )
+    else:
+        native.filegroup(
+            name = kernel_build_name + "_gki_artifacts",
+            srcs = [],
+        )
+
+    # module_staging_archive from <name>
+    native.filegroup(
+        name = kernel_build_name + "_modules_staging_archive",
+        srcs = [kernel_build_name],
+        output_group = "modules_staging_archive",
+    )
+
+    # All GKI modules
+    native.filegroup(
+        name = kernel_build_name + "_modules",
+        srcs = [
+            "{}/{}".format(kernel_build_name, module)
+            for module in (target_config["module_implicit_outs"] or [])
+        ],
+    )
+
+    # Everything in kernel_build_name + "_dist", minus UAPI headers & DDK & modules, because
+    # device-specific external kernel modules may install different headers.
+    native.filegroup(
+        name = kernel_build_name + "_additional_artifacts",
+        srcs = [
+            # Sync with additional_artifacts_items
+            kernel_build_name + "_headers",
+            kernel_build_name + "_images",
+            kernel_build_name + "_kmi_symbol_list",
+            kernel_build_name + "_gki_artifacts",
+        ],
+    )
+
+    # Everything in kernel_build_name + "_dist" for the DDK.
+    # These aren't in DIST_DIR for build.sh-style builds, but necessary for driver
+    # development. Hence they are also added to kernel_*_dist so they can be downloaded.
+    # Note: This poke into details of kernel_build!
+    native.filegroup(
+        name = kernel_build_name + "_ddk_artifacts",
+        srcs = [
+            kernel_build_name + "_modules_prepare",
+            kernel_build_name + "_modules_staging_archive",
+        ],
+    )
 
 def _define_prebuilts(**kwargs):
     # Build number for GKI prebuilts

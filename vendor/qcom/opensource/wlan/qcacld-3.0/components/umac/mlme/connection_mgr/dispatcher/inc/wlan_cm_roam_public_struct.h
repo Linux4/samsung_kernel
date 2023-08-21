@@ -509,6 +509,7 @@ struct owe_transition_mode_info {
  * @lost_link_rssi: lost link RSSI
  * @roam_sync_frame_ind: roam sync frame ind
  * @roam_band_bitmask: This allows the driver to roam within this band
+ * @tried_candidate_freq_list: freq list on which connection tried
  */
 struct rso_config {
 #ifdef WLAN_FEATURE_HOST_ROAM
@@ -555,6 +556,7 @@ struct rso_config {
 	int32_t lost_link_rssi;
 	struct roam_synch_frame_ind roam_sync_frame_ind;
 	uint32_t roam_band_bitmask;
+	struct wlan_chan_list tried_candidate_freq_list;
 };
 
 /**

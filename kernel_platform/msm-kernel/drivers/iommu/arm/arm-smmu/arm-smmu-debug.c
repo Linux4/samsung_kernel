@@ -1,164 +1,370 @@
-#include <linux/kernel.h>
-#include <linux/slab.h>
-#include "arm-smmu.h"
-
-#define ARM_SMMU_DEBUG_STACK_DEPTH (0x10)
-#define NR_GDSC_WAIT_LOG 0x10
-#define NR_SUSPEND_LOG 0x10
-
-struct arm_smmu_debug_log {
-	ktime_t start;
-	ktime_t end;
-	ktime_t delta;
-	unsigned long entries[ARM_SMMU_DEBUG_STACK_DEPTH];	
-};
-
-struct arm_smmu_debug_state {
-	bool gpu_waiting;
-	ktime_t gpu_waiting_start_ts;
-	struct arm_smmu_debug_log gdsc_wait_log[NR_GDSC_WAIT_LOG];
-
-	spinlock_t last_busy_lock;
-	unsigned long last_busy_stack[ARM_SMMU_DEBUG_STACK_DEPTH];
-
-	bool suspended;
-	int suspend_idx;
-	struct arm_smmu_debug_log suspend_log[NR_SUSPEND_LOG];
-};
-
-static struct arm_smmu_device *kgsl_smmu;
-static struct arm_smmu_debug_state *arm_smmu_debug_state;
-
+// SPDX-License-Identifier: GPL-2.0-only
 /*
- * GPU calls it from gen7_gmu_enable_gdsc
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
-void arm_smmu_debug_gdsc_cx_start_wait(void)
-{
-	struct arm_smmu_power_resources *pwr = kgsl_smmu->pwr;
-	struct arm_smmu_debug_state *state = arm_smmu_debug_state;
 
-	mutex_lock(&pwr->power_lock);
-	if (pwr->power_count) {
-		state->gpu_waiting = true;
-		state->gpu_waiting_start_ts = ktime_get();
-	}
-	mutex_unlock(&pwr->power_lock);
+#include <linux/kernel.h>
+#include <linux/io.h>
+#include <linux/device.h>
+#include "arm-smmu.h"
+#include "arm-smmu-debug.h"
+#include <linux/qcom_scm.h>
+
+u32 arm_smmu_debug_qtb_debugchain_load(void __iomem *debugchain_base)
+{
+	u32 shiftreglen = 0;
+
+	/* Reading the debugchain_load register will start the debugchain sequence */
+	readl_relaxed(debugchain_base + DebugChainQTB_debug_Load);
+	shiftreglen = readl_relaxed(debugchain_base + DebugChainQTB_debug_ShiftRegLen);
+	return (((shiftreglen * 2)/64 + ((shiftreglen * 2)%64 == 0 ? 0 : 1) + 1));
 }
-EXPORT_SYMBOL_GPL(arm_smmu_debug_gdsc_cx_start_wait);
 
-/* Called with pwr->mutex held and pwr->power_count == 0 */
-void arm_smmu_debug_power_off(struct arm_smmu_device *smmu)
+u64 arm_smmu_debug_qtb_debugchain_dump(void __iomem *debugchain_base)
 {
-	ktime_t ts, delta;
-	int i;
-	struct arm_smmu_debug_log *victim = NULL;
-	struct arm_smmu_debug_state *state = arm_smmu_debug_state;
-	unsigned long flags;
+	u64 dump;
 
-	if (smmu != kgsl_smmu || !state->gpu_waiting)
-		return;
+	dump = readl_relaxed(debugchain_base + DebugChainQTB_debug_Dump_Low);
+	dump = (dump | (readl_relaxed(debugchain_base + DebugChainQTB_debug_Dump_High) << 31));
 
-	ts = ktime_get();
-	delta = ts - state->gpu_waiting_start_ts;
+	return dump;
+}
 
-	for (i = 0; i < NR_GDSC_WAIT_LOG; i++) {
-		struct arm_smmu_debug_log *log = &state->gdsc_wait_log[i];
+void arm_smmu_debug_dump_debugchain(struct device *dev, void __iomem *debugchain_base)
+{
+	long chain_length = 0, index = 0;
+	u64 val;
 
-		if (delta > log->delta) {
-			if (!victim || log->delta < victim->delta) {
-				victim = log;
-			}
+	chain_length = arm_smmu_debug_qtb_debugchain_load(debugchain_base);
+	dev_info(dev, "Dumping Debug chain: Length : %d\n", chain_length);
+	/* First read is to dump away the 0xDEADBEEF value */
+	arm_smmu_debug_qtb_debugchain_dump(debugchain_base);
+	do {
+		val = arm_smmu_debug_qtb_debugchain_dump(debugchain_base);
+		dev_info(dev, "Debug chain: Index :%ld, val : 0x%lx\n", index++, val);
+	} while (chain_length--);
+}
+
+void arm_smmu_debug_dump_qtb_regs(struct device *dev, void __iomem *tbu_base)
+{
+	dev_info(dev, "QSMSTATUS: 0x%lx IDLESTATUS: 0x%lx\n",
+			readl_relaxed(tbu_base + Qtb500_QtbNsDbgQsmStatus),
+			readl_relaxed(tbu_base + Qtb500_QtbNsDbgIdleStatus));
+}
+
+u32 arm_smmu_debug_tbu_testbus_select(void __iomem *tbu_base,
+				bool write, u32 val)
+{
+	if (write) {
+		writel_relaxed(val, tbu_base + DEBUG_TESTBUS_SEL_TBU);
+		/* Make sure tbu select register is written to */
+		wmb();
+	} else {
+		return readl_relaxed(tbu_base + DEBUG_TESTBUS_SEL_TBU);
+	}
+	return 0;
+}
+
+u32 arm_smmu_debug_tbu_testbus_output(void __iomem *tbu_base)
+{
+	return readl_relaxed(tbu_base + DEBUG_TESTBUS_TBU);
+}
+
+u32 arm_smmu_debug_tcu_testbus_select(phys_addr_t phys_addr,
+		void __iomem *tcu_base, enum tcu_testbus testbus,
+		bool write, u32 val)
+{
+	int offset;
+	u32 testbus_sel;
+	int ret = 0;
+
+	if (testbus == CLK_TESTBUS) {
+		if (write) {
+			offset = ARM_SMMU_TESTBUS_SEL_HLOS1_NS;
+			writel_relaxed(val, tcu_base + offset);
+			/* Make sure tcu select register is written to */
+			wmb();
+		} else {
+			offset = ARM_SMMU_TCU_TESTBUS_HLOS1_NS;
+			return readl_relaxed(tcu_base + offset);
+		}
+	} else {
+		offset = ARM_SMMU_TESTBUS_SEL;
+		if (write) {
+			ret = qcom_scm_io_writel((phys_addr + offset), val);
+			if (ret)
+				pr_err_ratelimited("SCM write of TESTBUS SEL fails: %d\n",
+				       ret);
+
+			/* Make sure tcu select register is written to */
+			wmb();
+		} else {
+			ret = qcom_scm_io_readl(phys_addr + offset,
+						&testbus_sel);
+			if (ret)
+				pr_err_ratelimited("SCM write of TESTBUS SEL fails: %d\n",
+				       ret);
+			else
+				return testbus_sel;
 		}
 	}
 
-	if (victim) {
-		victim->start = state->gpu_waiting_start_ts;
-		victim->end = ts;
-		victim->delta = delta;
+	return 0;
+}
 
-		spin_lock_irqsave(&state->last_busy_lock, flags);
-		memcpy(victim->entries, state->last_busy_stack,
-			sizeof(victim->entries));
-		spin_unlock_irqrestore(&state->last_busy_lock, flags);
+u32 arm_smmu_debug_tcu_testbus_output(phys_addr_t phys_addr)
+{
+	u32 testbus_output;
+	int ret;
+
+	ret = qcom_scm_io_readl(phys_addr + ARM_SMMU_TESTBUS, &testbus_output);
+	if (!ret)
+		return testbus_output;
+
+	pr_err_ratelimited("SCM write of TESTBUS output fails: %d\n", ret);
+
+	return 0;
+}
+
+static void arm_smmu_debug_dump_tbu_qns4_testbus(struct device *dev,
+					void __iomem *tbu_base)
+{
+	int i;
+	u32 reg;
+
+	for (i = 0 ; i < TBU_QNS4_BRIDGE_SIZE; ++i) {
+		reg = arm_smmu_debug_tbu_testbus_select(tbu_base, READ, 0);
+		reg = (reg & ~TBU_QNS4_BRIDGE_MASK) | i << 0;
+		arm_smmu_debug_tbu_testbus_select(tbu_base, WRITE, reg);
+		dev_info(dev, "testbus_sel: 0x%lx Index: %d val: 0x%llx\n",
+			arm_smmu_debug_tbu_testbus_select(tbu_base,
+						READ, 0), i,
+			arm_smmu_debug_tbu_testbus_output(tbu_base));
+	}
+}
+
+static void arm_smmu_debug_program_tbu_testbus(void __iomem *tbu_base,
+					int tbu_testbus)
+{
+	u32 reg;
+
+	reg = arm_smmu_debug_tbu_testbus_select(tbu_base, READ, 0);
+	reg = (reg & ~TBU_MASK) | tbu_testbus;
+	arm_smmu_debug_tbu_testbus_select(tbu_base, WRITE, reg);
+}
+
+void arm_smmu_debug_dump_tbu_testbus(struct device *dev, void __iomem *tbu_base,
+			int tbu_testbus_sel)
+{
+	if (tbu_testbus_sel & TBU_CLK_GATE_CONTROLLER_TESTBUS_SEL) {
+		dev_info(dev, "Dumping TBU clk gate controller:\n");
+		arm_smmu_debug_program_tbu_testbus(tbu_base,
+				TBU_CLK_GATE_CONTROLLER_TESTBUS);
+		dev_info(dev, "testbus_sel: 0x%lx val: 0x%llx\n",
+			arm_smmu_debug_tbu_testbus_select(tbu_base,
+						READ, 0),
+			arm_smmu_debug_tbu_testbus_output(tbu_base));
 	}
 
-	state->gpu_waiting = false;
+	if (tbu_testbus_sel & TBU_QNS4_A2Q_TESTBUS_SEL) {
+		dev_info(dev, "Dumping TBU qns4 a2q test bus:\n");
+		arm_smmu_debug_program_tbu_testbus(tbu_base,
+				TBU_QNS4_A2Q_TESTBUS);
+		arm_smmu_debug_dump_tbu_qns4_testbus(dev, tbu_base);
+	}
+
+	if (tbu_testbus_sel & TBU_QNS4_Q2A_TESTBUS_SEL) {
+		dev_info(dev, "Dumping qns4 q2a test bus:\n");
+		arm_smmu_debug_program_tbu_testbus(tbu_base,
+				TBU_QNS4_Q2A_TESTBUS);
+		arm_smmu_debug_dump_tbu_qns4_testbus(dev, tbu_base);
+	}
+
+	if (tbu_testbus_sel & TBU_MULTIMASTER_QCHANNEL_TESTBUS_SEL) {
+		dev_info(dev, "Dumping multi master qchannel:\n");
+		arm_smmu_debug_program_tbu_testbus(tbu_base,
+				TBU_MULTIMASTER_QCHANNEL_TESTBUS);
+		dev_info(dev, "testbus_sel: 0x%lx val: 0x%llx\n",
+			arm_smmu_debug_tbu_testbus_select(tbu_base,
+						READ, 0),
+			arm_smmu_debug_tbu_testbus_output(tbu_base));
+	}
+
+	if (tbu_testbus_sel & TBU_CLK_GATE_CONTROLLER_EXT_TESTBUS_SEL) {
+		dev_info(dev, "Dumping tbu clk gate controller ext:\n");
+		arm_smmu_debug_program_tbu_testbus(tbu_base,
+				TBU_CLK_GATE_CONTROLLER_EXT_TESTBUS);
+		dev_info(dev, "testbus_sel: 0x%lx val: 0x%llx\n",
+			arm_smmu_debug_tbu_testbus_select(tbu_base,
+						READ, 0),
+			arm_smmu_debug_tbu_testbus_output(tbu_base));
+	}
+
+	if (tbu_testbus_sel & TBU_LOW_POWER_STATUS_TESTBUS_SEL) {
+		dev_info(dev, "Dumping tbu low power status:\n");
+		arm_smmu_debug_program_tbu_testbus(tbu_base,
+				TBU_LOW_POWER_STATUS_TESTBUS);
+		dev_info(dev, "testbus_sel: 0x%lx val: 0x%llx\n",
+			arm_smmu_debug_tbu_testbus_select(tbu_base,
+						READ, 0),
+			arm_smmu_debug_tbu_testbus_output(tbu_base));
+	}
+
+	if (tbu_testbus_sel & TBU_QNS4_VLD_RDY_SEL) {
+		dev_info(dev, "Dumping tbu qns4 vld rdy:\n");
+		arm_smmu_debug_program_tbu_testbus(tbu_base,
+				TBU_QNS4_VLD_RDY);
+		dev_info(dev, "testbus_sel: 0x%lx val: 0x%llx\n",
+			arm_smmu_debug_tbu_testbus_select(tbu_base,
+						READ, 0),
+			arm_smmu_debug_tbu_testbus_output(tbu_base));
+	}
 }
 
-/*
- * save stack trace if we are (probably) the last refcount
- */
-void arm_smmu_debug_last_busy(struct arm_smmu_device *smmu)
+static void arm_smmu_debug_program_tcu_testbus(struct device *dev,
+		phys_addr_t phys_addr, void __iomem *tcu_base,
+		unsigned long mask, int start, int end, int shift,
+		bool print)
 {
-	struct arm_smmu_debug_state *state = arm_smmu_debug_state;
-	struct device *dev;
-	int count;
-	unsigned long flags;
+	u32 reg;
+	int i;
 
-	if (smmu != kgsl_smmu)
-		return;
-
-	dev = smmu->dev;
-	count = atomic_read(&dev->power.usage_count);
-	if (count)
-		return;
-
-	spin_lock_irqsave(&state->last_busy_lock, flags);
-	stack_trace_save(state->last_busy_stack,
-			 ARRAY_SIZE(state->last_busy_stack), 1);
-	spin_unlock_irqrestore(&state->last_busy_lock, flags);
+	for (i = start; i < end; i++) {
+		reg = arm_smmu_debug_tcu_testbus_select(phys_addr, tcu_base,
+				PTW_AND_CACHE_TESTBUS, READ, 0);
+		reg &= mask;
+		reg |= i << shift;
+		arm_smmu_debug_tcu_testbus_select(phys_addr, tcu_base,
+				PTW_AND_CACHE_TESTBUS, WRITE, reg);
+		if (print)
+			dev_info(dev, "testbus_sel: 0x%lx Index: %d val: 0x%lx\n",
+				 arm_smmu_debug_tcu_testbus_select(phys_addr,
+				 tcu_base, PTW_AND_CACHE_TESTBUS, READ, 0), i,
+				 arm_smmu_debug_tcu_testbus_output(phys_addr));
+	}
 }
 
-void arm_smmu_debug_suspend(struct arm_smmu_device *smmu)
+void arm_smmu_debug_dump_tcu_testbus(struct device *dev, phys_addr_t phys_addr,
+			void __iomem *tcu_base,	int tcu_testbus_sel)
 {
-	struct arm_smmu_debug_state *state = arm_smmu_debug_state;
+	int i;
 
-	if (smmu != kgsl_smmu)
-		return;
+	if (tcu_testbus_sel & TCU_CACHE_TESTBUS_SEL) {
+		dev_info(dev, "Dumping TCU cache testbus:\n");
+		arm_smmu_debug_program_tcu_testbus(dev, phys_addr, tcu_base,
+				TCU_CACHE_TESTBUS, 0, 1, 0, false);
+		arm_smmu_debug_program_tcu_testbus(dev, phys_addr, tcu_base,
+						   ~TCU_PTW_QUEUE_MASK, 0,
+						   TCU_CACHE_LOOKUP_QUEUE_SIZE,
+						   2, true);
+	}
 
-	state->suspended = true;	
+	if (tcu_testbus_sel & TCU_PTW_TESTBUS_SEL) {
+		dev_info(dev, "Dumping TCU PTW test bus:\n");
+		arm_smmu_debug_program_tcu_testbus(dev, phys_addr, tcu_base, 1,
+				TCU_PTW_TESTBUS, TCU_PTW_TESTBUS + 1, 0, false);
+
+		arm_smmu_debug_program_tcu_testbus(dev, phys_addr, tcu_base,
+						~TCU_PTW_INTERNAL_STATES_MASK,
+						   0, TCU_PTW_INTERNAL_STATES,
+						   2, true);
+
+		for (i = TCU_PTW_QUEUE_START;
+			i < TCU_PTW_QUEUE_START + TCU_PTW_QUEUE_SIZE; ++i) {
+			arm_smmu_debug_program_tcu_testbus(dev, phys_addr,
+							   tcu_base,
+							   ~TCU_PTW_QUEUE_MASK,
+							   i, i + 1, 2, true);
+			arm_smmu_debug_program_tcu_testbus(dev, phys_addr,
+						tcu_base,
+						~TCU_PTW_TESTBUS_SEL2_MASK,
+						TCU_PTW_TESTBUS_SEL2,
+						TCU_PTW_TESTBUS_SEL2 + 1, 0,
+						false);
+			dev_info(dev, "testbus_sel: 0x%lx Index: %d val: 0x%lx\n",
+				 arm_smmu_debug_tcu_testbus_select(phys_addr,
+				 tcu_base, PTW_AND_CACHE_TESTBUS, READ, 0), i,
+				 arm_smmu_debug_tcu_testbus_output(phys_addr));
+		}
+	}
+
+	if (tcu_testbus_sel & TCU_CD_TESTBUS_SEL) {
+		dev_info(dev, "Dumping TCU CD testbus:\n");
+		arm_smmu_debug_program_tcu_testbus(dev, phys_addr, tcu_base,
+				TCU_CD_TESTBUS, 0, 1, 0, false);
+		arm_smmu_debug_program_tcu_testbus(dev, phys_addr, tcu_base,
+						   ~TCU_PTW_QUEUE_MASK, 1,
+						   2, TCU_CD_TESTBUS_SHIFT, true);
+	}
+
+	/* program ARM_SMMU_TESTBUS_SEL_HLOS1_NS to select TCU clk testbus*/
+	arm_smmu_debug_tcu_testbus_select(phys_addr, tcu_base,
+			CLK_TESTBUS, WRITE, TCU_CLK_TESTBUS_SEL);
+	dev_info(dev, "Programming Tcu clk gate controller: testbus_sel: 0x%lx\n",
+		arm_smmu_debug_tcu_testbus_select(phys_addr, tcu_base,
+						CLK_TESTBUS, READ, 0));
 }
 
-void arm_smmu_debug_resume(struct arm_smmu_device *smmu)
+void arm_smmu_debug_set_tnx_tcr_cntl(void __iomem *tbu_base, u64 val)
 {
-	struct arm_smmu_debug_state *state = arm_smmu_debug_state;
+	u64 tcr_cntl_val = readq_relaxed(tbu_base + TNX_TCR_CNTL);
 
-	if (smmu != kgsl_smmu)
-		return;
-
-	state->suspended = false;	
+	/* Don't override OT_CAPTURE configuration*/
+	if (!(tcr_cntl_val & TNX_TCR_CNTL_TBU_OT_CAPTURE_EN))
+		writeq_relaxed(val, tbu_base + TNX_TCR_CNTL);
+	else
+		pr_err_ratelimited("OT capture enbl, skip TCR CNTL write\n");
 }
 
-void arm_smmu_debug_power_on(struct arm_smmu_device *smmu)
+u64 arm_smmu_debug_get_tnx_tcr_cntl(void __iomem *tbu_base)
 {
-	struct arm_smmu_debug_log *log;
-	struct arm_smmu_debug_state *state = arm_smmu_debug_state;
-
-	if (smmu != kgsl_smmu || !state->suspended)
-		return;
-
-	if (state->suspend_idx >= NR_SUSPEND_LOG)
-		return;
-
-	log = &state->suspend_log[state->suspend_idx++];
-	log->start = ktime_get();
-	
-	stack_trace_save(log->entries, ARRAY_SIZE(log->entries), 1);
+	return readq_relaxed(tbu_base + TNX_TCR_CNTL);
 }
 
-/* Call from arm_smmu_probe, after it can no longer fail */
-void arm_smmu_debug_setup(struct arm_smmu_device *smmu)
+void arm_smmu_debug_set_mask_and_match(void __iomem *tbu_base, u64 sel,
+					u64 mask, u64 match)
 {
-	struct arm_smmu_debug_state *state;
+	writeq_relaxed(mask, tbu_base + ARM_SMMU_CAPTURE1_MASK(sel));
+	writeq_relaxed(match, tbu_base + ARM_SMMU_CAPTURE1_MATCH(sel));
+}
 
-	if (!strstr(dev_name(smmu->dev), "kgsl-smmu"))
-		return;
+void arm_smmu_debug_get_mask_and_match(void __iomem *tbu_base, u64 *mask,
+					u64 *match)
+{
+	int i;
 
-	state = kzalloc(sizeof(*state), GFP_KERNEL);
-	if (!state)
-		return;
+	for (i = 0; i < NO_OF_MASK_AND_MATCH; ++i) {
+		mask[i] = readq_relaxed(tbu_base +
+				ARM_SMMU_CAPTURE1_MASK(i+1));
+		match[i] = readq_relaxed(tbu_base +
+				ARM_SMMU_CAPTURE1_MATCH(i+1));
+	}
+}
 
-	spin_lock_init(&state->last_busy_lock);
-	arm_smmu_debug_state = state;
-	kgsl_smmu = smmu;
-}	
+void arm_smmu_debug_get_capture_snapshot(void __iomem *tbu_base,
+		u64 snapshot[NO_OF_CAPTURE_POINTS][REGS_PER_CAPTURE_POINT])
+{
+	int  i, j;
+	u64 valid;
+
+	valid = readl_relaxed(tbu_base + TNX_TCR_CNTL_2);
+
+	for (i = 0; i < NO_OF_CAPTURE_POINTS ; ++i) {
+		if (valid & BIT(i))
+			for (j = 0; j < REGS_PER_CAPTURE_POINT; ++j)
+				snapshot[i][j] = readq_relaxed(tbu_base +
+					ARM_SMMU_CAPTURE_SNAPSHOT(i, j));
+		else
+			for (j = 0; j < REGS_PER_CAPTURE_POINT; ++j)
+				snapshot[i][j] = 0xdededede;
+	}
+}
+
+void arm_smmu_debug_clear_intr_and_validbits(void __iomem *tbu_base)
+{
+	u64 val = 0;
+
+	val |= INTR_CLR | RESET_VALID;
+	writeq_relaxed(val, tbu_base + TNX_TCR_CNTL);
+}

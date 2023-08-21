@@ -8620,7 +8620,7 @@ bool policy_mgr_is_restart_sap_required(struct wlan_objmgr_psoc *psoc,
 					 freq, connection[i].freq,
 					 user_config_freq);
 			restart_required = true;
-            
+
 			/*
 			 * SAP in 2.4 Ghz + STA in VLP or Non-VLP 6GHz non-PSC
 			 * channel -> Then SAP stays in 2.4 GHz
@@ -8632,7 +8632,6 @@ bool policy_mgr_is_restart_sap_required(struct wlan_objmgr_psoc *psoc,
 			if (wlan_reg_is_6ghz_chan_freq(connection[i].freq) &&
 			    !wlan_reg_is_6ghz_psc_chan_freq(connection[i].freq))
 				restart_required = false;
-
 
 			if (wlan_reg_is_freq_indoor(pm_ctx->pdev,
 						    connection[i].freq) &&

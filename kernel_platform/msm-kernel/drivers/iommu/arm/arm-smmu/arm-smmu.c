@@ -122,7 +122,6 @@ static inline void arm_smmu_rpm_put(struct arm_smmu_device *smmu)
 	if (pm_runtime_enabled(smmu->dev)) {
 		pm_runtime_mark_last_busy(smmu->dev);
 		pm_runtime_put_autosuspend(smmu->dev);
-		arm_smmu_debug_last_busy(smmu);
 	}
 }
 
@@ -3575,8 +3574,7 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 	smmu->pwr = arm_smmu_init_power_resources(dev);
 	if (IS_ERR(smmu->pwr))
 		return PTR_ERR(smmu->pwr);
-	//for debug
-	smmu->pwr->smmu = smmu;
+
 	/*
 	 * We can't use arm_smmu_rpm_get() because pm-runtime isn't
 	 * enabled yet.
@@ -3678,8 +3676,6 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 		if (err)
 			goto err_unregister_device;
 	}
-	
-	arm_smmu_debug_setup(smmu);
 
 	return 0;
 
@@ -3752,8 +3748,6 @@ static int __maybe_unused arm_smmu_pm_resume_common(struct device *dev)
 {
 	int ret;
 	struct arm_smmu_device *smmu = dev_get_drvdata(dev);
-
-	arm_smmu_debug_resume(smmu);
 
 	ret = clk_bulk_prepare(smmu->num_clks, smmu->clks);
 	if (ret)
@@ -3871,7 +3865,7 @@ static int __maybe_unused arm_smmu_pm_suspend(struct device *dev)
 	ret = arm_smmu_runtime_suspend(dev);
 	if (ret)
 		return ret;
-  arm_smmu_debug_suspend(smmu);
+
 clk_unprepare:
 	clk_bulk_unprepare(smmu->num_clks, smmu->clks);
 	return ret;

@@ -676,6 +676,17 @@ input_err:
 	return -EINVAL;
 }
 
+static int is_matched_analog_offset_on(struct samsung_display_driver_data *vdd,
+				char *val, struct ss_cmd_desc *cmd)
+{
+	bool ret = false;
+
+	if (vdd->panel_func.analog_offset_on)
+		ret = vdd->panel_func.analog_offset_on(vdd);
+	
+	return ret;
+}
+
 static int update_tset(struct samsung_display_driver_data *vdd,
 			char *val, struct ss_cmd_desc *cmd)
 {
@@ -875,6 +886,26 @@ static int update_acl_offset(struct samsung_display_driver_data *vdd,
 	return 0;
 }
 
+static int update_irc_offset(struct samsung_display_driver_data *vdd,
+				char *val, struct ss_cmd_desc *cmd)
+{
+	struct cmd_legoop_map *irc_offset_map = NULL;
+	struct cmd_ref_state *state = &vdd->cmd_ref_state;
+	int bl_lvl = state->bl_level;
+	int i = -1;
+
+	while (!cmd->pos_0xXX[++i] && i < cmd->tx_len);
+
+	irc_offset_map = &vdd->br_info.irc_offset_map_table[vdd->panel_revision];
+
+	if (irc_offset_map->cmds) {
+		LCD_DEBUG(vdd, "irc_offset : 0x%x\n", irc_offset_map->cmds[bl_lvl][0]);
+		cmd->txbuf[i] = irc_offset_map->cmds[bl_lvl][0];
+	}
+
+	return 0;
+}
+
 int register_common_op_sym_cb(struct samsung_display_driver_data *vdd)
 {
 	register_op_sym_cb(vdd, "VRR", is_matched_vrr, false);
@@ -895,6 +926,8 @@ int register_common_op_sym_cb(struct samsung_display_driver_data *vdd)
 	register_op_sym_cb(vdd, "EARLY_TE", is_matched_early_te, false);
 	register_op_sym_cb(vdd, "FINGER_MASK", is_matched_finger_mask, false);
 	register_op_sym_cb(vdd, "REVISION", is_matched_ddi_rev, false);
+	register_op_sym_cb(vdd, "ANALOG_OFFSET", is_matched_analog_offset_on, false);
+	
 
 	/* common UPDATE symbol */
 	register_op_sym_cb(vdd, "BRIGHTNESS", update_brightness, true);
@@ -902,6 +935,7 @@ int register_common_op_sym_cb(struct samsung_display_driver_data *vdd)
 	register_op_sym_cb(vdd, "TSET", update_tset, true);
 	register_op_sym_cb(vdd, "OTP", update_otp, true);
 	register_op_sym_cb(vdd, "ACL_OFFSET", update_acl_offset, true);
+	register_op_sym_cb(vdd, "IRC_OFFSET", update_irc_offset, true);
 
 	return 0;
 }
@@ -2025,6 +2059,7 @@ static int ss_create_cmd_packets(struct samsung_display_driver_data *vdd,
 	enum ss_cmd_op_cond cond;
 	int gpara_offset = 0;
 	int gpara_addr = 0;
+	int gpara_len;
 
 	LIST_HEAD(op_blk_list_head);
 
@@ -2166,8 +2201,14 @@ static int ss_create_cmd_packets(struct samsung_display_driver_data *vdd,
 			cmds[cmd_idx].rxbuf = NULL;
 
 			/* keep the offset of the current gpara to set the rx_offset of the next rx cmd. */
-			if (cmds[cmd_idx].txbuf[0] == 0xB0) {
-				if (cmds[cmd_idx].tx_len == 4) { /* two byte gpara */
+			gpara_len = 2;
+			if (vdd->two_byte_gpara)
+				gpara_len++;
+			if (vdd->pointing_gpara)
+				gpara_len++;
+
+			if (cmds[cmd_idx].txbuf[0] == 0xB0 && cmds[cmd_idx].tx_len == gpara_len) {
+				if (vdd->two_byte_gpara) { /* two byte gpara */
 					gpara_offset = cmds[cmd_idx].txbuf[2];
 					gpara_offset |= (cmds[cmd_idx].txbuf[1] << 8);
 					gpara_addr = cmds[cmd_idx].txbuf[3];
@@ -2646,7 +2687,7 @@ __visible_for_testing int ss_bridge_qc_cmd_alloc(
 
 	qc_set->count = ss_set->count;
 
-	if (!vdd->gpara)
+	if (!ss_set->gpara)
 		goto alloc;
 
 	for (i = 0; i < ss_set->count; i++, cmd++) {
@@ -2863,7 +2904,7 @@ __visible_for_testing int ss_bridge_qc_cmd_update(
 	for (i = 0; i < ss_set->count; ++i, ++ss_cmd, ++qc_cmd) {
 		/* don't handle test key, should put test key in dtsi cmd */
 		if (ss_is_read_ss_cmd(ss_cmd)) {
-			if (vdd->gpara)
+			if (ss_set->gpara)
 				qc_cmd = ss_pack_rx_gpara(vdd, ss_cmd, qc_cmd);
 			else
 				qc_cmd = ss_pack_rx_no_gpara(vdd, ss_cmd, qc_cmd);
@@ -2930,7 +2971,7 @@ static int ss_free_cmd_set(struct samsung_display_driver_data *vdd, struct ss_cm
 	/* free ss cmds */
 	for (i = 0; i < ss_set->count; i++) {
 		kfree_and_null(ss_set->cmds[i].txbuf);
-		if (vdd->gpara)
+		if (ss_set->gpara)
 			kfree_and_null(ss_set->cmds[i].rxbuf);
 	}
 
@@ -2952,7 +2993,7 @@ static int ss_free_cmd_set(struct samsung_display_driver_data *vdd, struct ss_cm
 	/* free qc cmds */
 	qc_set = &ss_set->base;
 	for (i = 0; i < qc_set->count; i++) {
-		if (!vdd->gpara)
+		if (!ss_set->gpara)
 			kfree_and_null(qc_set->cmds[i].msg.rx_buf);
 	}
 
@@ -3136,6 +3177,9 @@ int ss_wrapper_parse_cmd_sets(struct samsung_display_driver_data *vdd,
 
 	LCD_INFO_IF(vdd, "+ name: [%s]\n", cmd_name);
 
+	/* set initial gpara option */
+	set->gpara = vdd->gpara;
+
 	/* Samsung RX cmd is splited to multiple QCT cmds, with RX cmds and
 	 * B0h grapam cmds with RX_LIMIT(10 bytets)
 	 */
@@ -3184,6 +3228,14 @@ int ss_wrapper_parse_cmd_sets(struct samsung_display_driver_data *vdd,
 	set->is_skip_tot_lvl = of_property_read_bool(np, map_option);
 	if (set->is_skip_tot_lvl)
 		LCD_INFO_IF(vdd, "skip tot lvl: [%s]\n", ss_get_cmd_name(type));
+
+	if (vdd->gpara) {
+		strcpy(map_option, cmd_name);
+		strcat(map_option, "_no_gpara");
+		set->gpara = !of_property_read_bool(np, map_option);
+		if (!set->gpara)
+			LCD_INFO_IF(vdd, "skip gpara: [%s]\n", ss_get_cmd_name(type));
+	}
 
 	rc = ss_create_cmd_packets(vdd, data, length, packet_count, set->cmds, set, is_lp);
 	if (rc) {
@@ -3331,7 +3383,7 @@ err_free_cmds:
 	/* free ss cmds */
 	for (i = 0; i < dummy_set->count; i++) {
 		kfree_and_null(dummy_set->cmds[i].txbuf);
-		if (vdd->gpara)
+		if (dummy_set->gpara)
 			kfree_and_null(dummy_set->cmds[i].rxbuf);
 	}
 	dummy_set->count = 0;
@@ -3339,7 +3391,7 @@ err_free_cmds:
 	/* free qc cmds */
 	qc_set = &dummy_set->base;
 	for (i = 0; i < qc_set->count; i++) {
-		if (!vdd->gpara)
+		if (!dummy_set->gpara)
 			kfree_and_null(qc_set->cmds[i].msg.rx_buf);
 	}
 	qc_set->count = 0;

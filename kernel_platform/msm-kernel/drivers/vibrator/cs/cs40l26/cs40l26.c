@@ -4079,9 +4079,6 @@ static const struct sec_vib_inputff_ops cs40l26_vib_ops = {
 };
 
 static struct attribute_group *cs40l26_dev_attr_groups[] = {
-	&cs40l26_dev_attr_group,
-	&cs40l26_dev_attr_cal_group,
-	&cs40l26_dev_attr_dbc_group,
 	NULL
 };
 

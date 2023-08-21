@@ -14,10 +14,6 @@
 
 #define get_vdi_member(member) ufs_sec_features.vdi->member
 
-#if !IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
-#define get_wb_member(member) ufs_sec_features.ufs_wb->member
-#endif
-
 /* sec specific vendor sysfs nodes */
 #if IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
 struct device *sec_ufs_cmd_dev;
@@ -137,139 +133,6 @@ static void ufs_sec_create_info_sysfs(struct ufs_hba *hba)
 				__func__, ret);
 }
 /* UFS info nodes : end */
-
-#if !IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
-/* UFS SEC WB : begin */
-static ssize_t ufs_sec_wb_support_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct ufs_hba *hba = dev_get_drvdata(dev);
-
-	return sprintf(buf, "%s:%s\n",
-			get_wb_member(support) ? "Support" : "No support",
-			hba->dev_info.wb_enabled ? "on" : "off");
-}
-static DEVICE_ATTR(sec_wb_support, 0444, ufs_sec_wb_support_show, NULL);
-
-static ssize_t ufs_sec_wb_enable_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	struct ufs_hba *hba = dev_get_drvdata(dev);
-	unsigned long flags;
-	u32 value;
-
-	if (!get_wb_member(setup_done)) {
-		dev_err(hba->dev, "SEC WB is not ready yet.\n");
-		return -ENODEV;
-	}
-
-	if (!ufs_sec_is_wb_allowed()) {
-		pr_err("%s: not allowed.\n", __func__);
-		return -EPERM;
-	}
-
-	if (kstrtou32(buf, 0, &value))
-		return -EINVAL;
-
-	spin_lock_irqsave(hba->host->host_lock, flags);
-	value = !!value;
-
-	if (!value) {
-		if (atomic_inc_return(&get_wb_member(wb_off_cnt)) == 1) {
-			get_wb_member(wb_off) = true;
-			pr_err("disable SEC WB : state %d.\n", get_wb_member(state));
-		}
-	} else {
-		if (atomic_dec_and_test(&get_wb_member(wb_off_cnt))) {
-			get_wb_member(wb_off) = false;
-			pr_err("enable SEC WB.\n");
-		}
-	}
-	spin_unlock_irqrestore(hba->host->host_lock, flags);
-
-	return count;
-}
-
-static ssize_t ufs_sec_wb_enable_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%s\n", get_wb_member(wb_off) ? "off" : "Enabled");
-}
-static DEVICE_ATTR(sec_wb_enable, 0664, ufs_sec_wb_enable_show, ufs_sec_wb_enable_store);
-
-SEC_UFS_WB_DATA_ATTR(wb_up_threshold_block, "%d\n", up_threshold_block);
-SEC_UFS_WB_DATA_ATTR(wb_up_threshold_rqs, "%d\n", up_threshold_rqs);
-SEC_UFS_WB_DATA_ATTR(wb_down_threshold_block, "%d\n", down_threshold_block);
-SEC_UFS_WB_DATA_ATTR(wb_down_threshold_rqs, "%d\n", down_threshold_rqs);
-SEC_UFS_WB_DATA_ATTR(lp_wb_up_threshold_block, "%d\n", lp_up_threshold_block);
-SEC_UFS_WB_DATA_ATTR(lp_wb_up_threshold_rqs, "%d\n", lp_up_threshold_rqs);
-SEC_UFS_WB_DATA_ATTR(lp_wb_down_threshold_block, "%d\n", lp_down_threshold_block);
-SEC_UFS_WB_DATA_ATTR(lp_wb_down_threshold_rqs, "%d\n", lp_down_threshold_rqs);
-SEC_UFS_WB_DATA_ATTR(wb_sync_write_threshold_block, "%d\n", sync_write_threshold_block);
-
-SEC_UFS_WB_TIME_ATTR(wb_on_delay_ms, "%d\n", on_delay);
-SEC_UFS_WB_TIME_ATTR(wb_off_delay_ms, "%d\n", off_delay);
-SEC_UFS_WB_TIME_ATTR(lp_wb_on_delay_ms, "%d\n", lp_on_delay);
-SEC_UFS_WB_TIME_ATTR(lp_wb_off_delay_ms, "%d\n", lp_off_delay);
-
-SEC_UFS_WB_DATA_RO_ATTR(wb_state, "%d,%u\n",
-		get_wb_member(state), jiffies_to_msecs(jiffies - get_wb_member(state_ts)));
-SEC_UFS_WB_DATA_RO_ATTR(wb_current_stat, "current : block %d, rqs %d, issued blocks %d\n",
-		get_wb_member(current_block), get_wb_member(current_rqs),
-		get_wb_member(curr_issued_block));
-SEC_UFS_WB_DATA_RO_ATTR(wb_current_min_max_stat, "current issued blocks : min %d, max %d.\n",
-		(get_wb_member(curr_issued_min_block) == INT_MAX) ?
-		0 : get_wb_member(curr_issued_min_block),
-		get_wb_member(curr_issued_max_block));
-SEC_UFS_WB_DATA_RO_ATTR(wb_total_stat, "total : %dMB\n\t<  4GB:%d\n\t<  8GB:%d\n\t< 16GB:%d\n\t>=16GB:%d\n",
-		get_wb_member(total_issued_mb),
-		get_wb_member(issued_size_cnt[0]),
-		get_wb_member(issued_size_cnt[1]),
-		get_wb_member(issued_size_cnt[2]),
-		get_wb_member(issued_size_cnt[3]));
-
-static struct attribute *sec_ufs_wb_attributes[] = {
-	&dev_attr_sec_wb_support.attr,
-	&dev_attr_sec_wb_enable.attr,
-	&dev_attr_wb_up_threshold_block.attr,
-	&dev_attr_wb_up_threshold_rqs.attr,
-	&dev_attr_wb_down_threshold_block.attr,
-	&dev_attr_wb_down_threshold_rqs.attr,
-	&dev_attr_lp_wb_up_threshold_block.attr,
-	&dev_attr_lp_wb_up_threshold_rqs.attr,
-	&dev_attr_lp_wb_down_threshold_block.attr,
-	&dev_attr_lp_wb_down_threshold_rqs.attr,
-	&dev_attr_wb_sync_write_threshold_block.attr,
-	&dev_attr_wb_on_delay_ms.attr,
-	&dev_attr_wb_off_delay_ms.attr,
-	&dev_attr_lp_wb_on_delay_ms.attr,
-	&dev_attr_lp_wb_off_delay_ms.attr,
-	&dev_attr_wb_state.attr,
-	&dev_attr_wb_current_stat.attr,
-	&dev_attr_wb_current_min_max_stat.attr,
-	&dev_attr_wb_total_stat.attr,
-	NULL
-};
-
-static struct attribute_group sec_ufs_wb_attribute_group = {
-	.attrs	= sec_ufs_wb_attributes,
-};
-
-static void ufs_sec_create_wb_sysfs(struct ufs_hba *hba)
-{
-	int ret = 0;
-
-	if (!get_wb_member(setup_done))
-		return;
-
-	ret = sysfs_create_group(&sec_ufs_cmd_dev->kobj,
-			&sec_ufs_wb_attribute_group);
-	if (ret)
-		dev_err(hba->dev, "%s: Failed to create sec_ufs_wb sysfs group (err = %d)\n",
-				__func__, ret);
-}
-/* UFS SEC WB : end */
-#endif
 
 /* SEC error info : begin */
 static ssize_t SEC_UFS_op_cnt_store(struct device *dev,
@@ -635,11 +498,6 @@ void ufs_sec_add_sysfs_nodes(struct ufs_hba *hba)
 	if (!ufs_sec_create_sysfs_dev(hba)) {
 		/* sec specific vendor sysfs nodes */
 		ufs_sec_create_info_sysfs(hba);
-
-#if !IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
-		/* create WB sysfs-nodes */
-		ufs_sec_create_wb_sysfs(hba);
-#endif
 
 #if IS_ENABLED(CONFIG_SEC_UFS_CMD_LOGGING)
 		if (ufs_sec_is_cmd_log_allowed())
