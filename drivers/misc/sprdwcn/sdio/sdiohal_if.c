@@ -7,6 +7,7 @@
  */
 
 #include "sdiohal.h"
+#include <misc/wcn_bus.h>
 
 static int sdio_preinit(void)
 {
@@ -49,6 +50,27 @@ static int sdio_chn_init(struct mchn_ops_t *ops)
 
 static int sdio_chn_deinit(struct mchn_ops_t *ops)
 {
+	struct sdiohal_data_t *p_data = sdiohal_get_data();
+
+	/* wifi tx port is 8*/
+	if ((!sprd_wlan_power_status_sync(0, 0)) && (ops->pool_size > 0)
+			&& (ops->channel == 8)) {
+		/* rm invalid mbuf in p_data->tx_list_head */
+		if (p_data->tx_list_head.mbuf_head && p_data->tx_list_head.node_num) {
+			sdiohal_atomic_sub(sdiohal_remove_datalist_invalid_data(ops,
+						&p_data->tx_list_head), &p_data->tx_mbuf_num);
+			if (atomic_read(&p_data->tx_mbuf_num) == 0) {
+				p_data->tx_list_head.mbuf_head = NULL;
+				p_data->tx_list_head.mbuf_tail = NULL;
+			}
+		}
+		/* rm invalid mbuf in data_list_tx */
+		if (p_data->data_list_tx == NULL)
+			pr_info("p_data->data_list_tx is NULL!\n");
+		else if (p_data->data_list_tx->mbuf_head && p_data->data_list_tx->node_num)
+			sdiohal_remove_datalist_invalid_data(ops, p_data->data_list_tx);
+		sprd_wlan_power_status_sync(1, 1);
+	}
 	return bus_chn_deinit(ops);
 }
 

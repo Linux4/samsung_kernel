@@ -361,7 +361,12 @@ static int sc27xx_typec_connect(struct sc27xx_typec *sc, u32 status)
 	}
 
 	desc.usb_pd = 0;
-	desc.accessory = TYPEC_ACCESSORY_NONE;
+	/* Tab A8 code for P221116-05713  by  xuliqin at 20221123 start */
+	if(sc->state == SC27XX_AUDIO_CABLE)
+		desc.accessory = TYPEC_ACCESSORY_AUDIO;
+	else
+		desc.accessory = TYPEC_ACCESSORY_NONE;
+	/* Tab A8 code for  P221116-05713   by  xuliqin at 20221123 end */
 	desc.identity = NULL;
 
 	sc->partner = typec_register_partner(sc->port, &desc);

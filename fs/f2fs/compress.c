@@ -784,10 +784,6 @@ static int __f2fs_cluster_blocks(struct compress_ctx *cc, bool compr)
 					ret++;
 			}
 		}
-
-		f2fs_bug_on(F2FS_I_SB(cc->inode),
-			!compr && ret != cc->cluster_size &&
-			!is_inode_flag_set(cc->inode, FI_COMPRESS_RELEASED));
 	}
 fail:
 	f2fs_put_dnode(&dn);
