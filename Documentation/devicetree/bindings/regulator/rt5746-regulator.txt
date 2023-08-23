@@ -1,0 +1,52 @@
+Richtek RT5746 5A Buck regulator
+
+rt5746-regulator is a regulator driver with i2c bus control interface.
+
+Required properties:
+- compatible:      Must be "rt,rt5746".
+- reg:             Must be 0x1c as the i2c address.
+- regulator-name:  A string used as a descriptive name for regulator outputs
+- regulator-min-microvolt:  min microvolt voltage output for RT5746.
+- regulator-max-microvolt:  max microvolt voltage output for RT5746.
+
+Optional properties:
+- qcom,qpnp-regulator:	That's depends upon Qualcomm evalutaion board.
+			Not necessary for RT5746 driver.
+- rt,standby_uV:        Can be used to set standby voltage. If not specified,
+			IC default voltage will be used.
+- rt,rampup_sel:	DVS rampping up rate sel, the value can be referenced
+			in the datasheet.
+- rt,rampdn_sel:	DVS rampping down rate sel, the value can be referenced
+			in the datasheet.
+- rt,ipeak_sel:		Current peak value for RT5746 buck. the value can be
+			referenced in the datasheet.
+- rt,tpwth_sel:		Thermal prewarning degree for RT5746 buck. the value can be
+			referenced in the datasheet.
+- rt,rearm_en:		After thermal shutdown, recovery procedure enabled or disabled.
+- rt,discharge_en:	discharge circuit enable or disabled, it will be used when
+			RT5746 buck was disabled.
+- rt,irq_gpio:		IRQ gpio can be used to nofity AP SOC. if not used, please
+			just mark it.
+
+Example:
+	i2c@f9928000 {
+		status = "ok";
+		rt5746_regulator: rt5746@1c {
+			//required properties
+			compatible = "rt,rt5746";
+			reg = <0x1c>;
+			regulator-name = "rt5746-dcdc1";
+			regulator-min-microvolt = < 600000>;
+			regulator-max-microvolt = <1393750>;
+			//optional properties
+			qcom,consumer-supplies = "rt5746-dcdc1", "";
+			rt,standby_uV = < 800000>;
+			rt,rampup_sel = <0x06>;
+			rt,rampdn_sel = <0x01>;
+			rt,ipeak_sel = <0x01>;
+			rt,tpwth_sel = <0x02>;
+			rt,rearm_en;
+			//rt,discharge_en;
+			rt,irq_gpio = <&msmgpio 73 0x00>;
+		};
+	};
