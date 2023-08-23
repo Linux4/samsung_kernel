@@ -557,6 +557,11 @@ static long slsi_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long a
 		}
 
 		mib_data = kmalloc(mib_data_size, GFP_KERNEL);
+		if (!mib_data) {
+			SLSI_ERR(sdev, "UNIFI_SET_MIB: Failed to allocate memory for mib_data\n");
+			r = -ENOMEM;
+			break;
+		}
 
 		/* Read the rest of the Mib Data */
 		if (copy_from_user((void *)mib_data, (void *)(arg + 10), mib_data_length)) {
@@ -620,7 +625,11 @@ static long slsi_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long a
 		}
 
 		mib_data = kmalloc(mib_data_size, GFP_KERNEL);
-
+		if (!mib_data) {
+			SLSI_ERR(sdev, "UNIFI_GET_MIB: Failed to allocate memory for mib_data\n");
+			r = -ENOMEM;
+			break;
+		}
 		/* Read the rest of the Mib Data */
 		if (copy_from_user((void *)mib_data, (void *)(arg + 10), mib_data_length)) {
 			SLSI_ERR(sdev, "UNIFI_GET_MIB: Failed to copy in mib_data\n");

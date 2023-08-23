@@ -186,6 +186,38 @@ static int dek_release_req(struct inode *ignored, struct file *file)
 	return 0;
 }
 
+#ifdef CONFIG_SDP_ENHANCED
+#if DEK_DEBUG
+void hex_key_dump(const char* tag, uint8_t *data, size_t data_len)
+{
+	static const char *hex = "0123456789ABCDEF";
+	static const char delimiter = ' ';
+	int i;
+	char *buf;
+	size_t buf_len;
+
+	if (tag == NULL || data == NULL || data_len <= 0) {
+		return;
+	}
+
+	buf_len = data_len * 3;
+	buf = (char *)kmalloc(buf_len, GFP_ATOMIC);
+	if (buf == NULL) {
+		return;
+	}
+	for (i= 0 ; i < data_len ; i++) {
+		buf[i*3 + 0] = hex[(data[i] >> 4) & 0x0F];
+		buf[i*3 + 1] = hex[(data[i]) & 0x0F];
+		buf[i*3 + 2] = delimiter;
+	}
+	buf[buf_len - 1] = '\0';
+	printk(KERN_ERR
+		"[%s] %s(len=%d) : %s\n", "DEK_DBG", tag, data_len, buf);
+	kfree(buf);
+}
+#endif
+#endif
+
 #ifdef CONFIG_SDP_KEY_DUMP
 void key_dump(unsigned char *buf, int len) {
 	int i;
@@ -251,6 +283,67 @@ int dek_generate_dek(int engine_id, dek_t *newDek) {
 	return 0;
 }
 
+#ifdef CONFIG_SDP_ENHANCED
+int dek_encrypt_dek_ecdh(dek_t *plainDek, dek_t *encDek, kek_t *drv_key)
+{
+	int res;
+	int enc_type;
+	unsigned int enc_plen;
+	u8 enc_pbuf[SDP_CRYPTO_GCM_MAX_PLEN];
+
+	ss_payload sspay;
+	dek_t in;
+	dek_t out;
+
+	enc_type = CONV_DLEN_TO_TYPE(plainDek->len);
+	if (unlikely(!enc_type))
+		return -EINVAL;
+
+#if DEK_DEBUG
+	hex_key_dump("enc_ecdh: plainDek", (u8 *)plainDek, sizeof(dek_t));
+#endif
+
+	// Update Dummy DEK into input dek
+	in.type = DEK_TYPE_DUMMY,
+	in.len = 0;
+
+	// Derive shared secret
+	res = ecdh_deriveSS(&in, &out, drv_key);
+	if (res || out.len != sizeof(ss_payload))
+		return -EINVAL;
+
+	// Update ss_payload
+	memcpy(&sspay, out.buf, out.len);
+	res = dek_aes_encrypt_key_raw(
+			sspay.ss.buf, sspay.ss.len, plainDek->buf, plainDek->len, enc_pbuf, &enc_plen);
+	if (res)
+		goto clean;
+
+	/*
+	 * Update encDek which will be stored into file system
+	 *
+	 * Blob Format : [ DataK.pub | GCM Pack   ]
+	 *               [ dhkt_t    | gcm_pack32 ]
+	 *            or [ dhkt_t    | gcm_pack64 ]
+	 */
+	memset(encDek->buf, 0, DEK_MAXLEN);
+	memcpy(encDek->buf, &sspay.dh, sizeof(dhk_t));
+	memcpy((u8 *)encDek->buf + sizeof(dhk_t), enc_pbuf, enc_plen);
+	encDek->len = sizeof(dhk_t) + enc_plen;
+	encDek->type = DEK_TYPE_ECDH256_ENC;
+
+#if DEK_DEBUG
+	hex_key_dump("enc_ecdh: encDek", (u8 *)encDek, sizeof(dek_t));
+#endif
+
+clean:
+	memset(sspay.ss.buf, 0, sspay.ss.len);
+	memset(out.buf, 0, out.len);
+
+	return res;
+}
+#endif
+
 static int dek_encrypt_dek(int engine_id, dek_t *plainDek, dek_t *encDek) {
 	int ret = 0;
 	kek_t *kek;
@@ -264,6 +357,15 @@ static int dek_encrypt_dek(int engine_id, dek_t *plainDek, dek_t *encDek) {
 
 	kek = get_kek(engine_id, KEK_TYPE_SYM, &ret);
 	if (kek) {
+#ifdef CONFIG_SDP_ENHANCED
+		ret = dek_aes_encrypt_key(kek, plainDek->buf, plainDek->len, encDek->buf, &encDek->len);
+		if (ret) {
+			DEK_LOGE("aes encrypt failed\n");
+			dek_add_to_log(engine_id, "aes encrypt failed");
+		} else {
+			encDek->type = DEK_TYPE_AES_ENC;
+		}
+#else
 		if (dek_aes_encrypt(kek, plainDek->buf, encDek->buf, plainDek->len)) {
 			DEK_LOGE("aes encrypt failed\n");
 			dek_add_to_log(engine_id, "aes encrypt failed");
@@ -272,7 +374,7 @@ static int dek_encrypt_dek(int engine_id, dek_t *plainDek, dek_t *encDek) {
 			encDek->len = plainDek->len;
 			encDek->type = DEK_TYPE_AES_ENC;
 		}
-
+#endif
 		put_kek(kek);
 	} else {
 #ifdef CONFIG_PUB_CRYPTO
@@ -283,7 +385,11 @@ static int dek_encrypt_dek(int engine_id, dek_t *plainDek, dek_t *encDek) {
         case SDPK_ALGOTYPE_ASYMM_ECDH:
             kek = get_kek(engine_id, KEK_TYPE_ECDH256_PUB, &ret);
             if(kek) {
+#ifdef CONFIG_SDP_ENHANCED
+                ret = dek_encrypt_dek_ecdh(plainDek, encDek, kek);
+#else
                 ret = ecdh_encryptDEK(plainDek, encDek, kek);
+#endif
                 put_kek(kek);
                 break;
             }else{
@@ -357,6 +463,65 @@ int dek_encrypt_dek_efs(int engine_id, dek_t *plainDek, dek_t *encDek) {
 	return dek_encrypt_dek(engine_id, plainDek, encDek);
 }
 
+#ifdef CONFIG_SDP_ENHANCED
+int dek_decrypt_dek_ecdh(dek_t *encDek, dek_t *plainDek, kek_t *drv_key)
+{
+	int res;
+	int dec_type;
+	unsigned int dec_plen;
+	u8 dec_pbuf[SDP_CRYPTO_GCM_MAX_PLEN];
+
+	ssk_t ss;
+	dek_t in;
+	dek_t out;
+
+	dec_plen = encDek->len - sizeof(dhk_t);
+	dec_type = CONV_PLEN_TO_TYPE(dec_plen);
+	if (unlikely(!dec_type))
+		return -EINVAL;
+
+#if DEK_DEBUG
+	hex_key_dump("dec_ecdh: encDek", (u8 *)encDek, sizeof(dek_t));
+#endif
+
+	// Update DataK.pub into input dek
+	memcpy(in.buf, encDek->buf, sizeof(dhk_t));
+	in.type = DEK_TYPE_ECDH256_ENC;
+	in.len = sizeof(dhk_t);
+
+	// Derive shared secret
+	res = ecdh_deriveSS(&in, &out, drv_key);
+	if (res || out.len != sizeof(ssk_t))
+		return -EINVAL;
+
+	// Update ss_payload
+	memcpy(&ss, out.buf, out.len);
+
+	// Update GCM pack buffer
+	memcpy(dec_pbuf, (u8 *)encDek->buf + sizeof(dhk_t), dec_plen);
+
+	// Clean up plain key buffer
+	memset(plainDek->buf, 0, DEK_MAXLEN);
+
+	res = dek_aes_decrypt_key_raw(
+			ss.buf, ss.len, dec_pbuf, dec_plen, plainDek->buf, &plainDek->len);
+	if (res)
+		goto clean;
+
+	plainDek->type = DEK_TYPE_PLAIN;
+
+#if DEK_DEBUG
+	hex_key_dump("dec_ecdh: plainDek->buf", plainDek->buf,plainDek->len);
+#endif
+
+clean:
+	memset(ss.buf, 0, ss.len);
+	memset(out.buf, 0, out.len);
+
+	return res;
+}
+#endif
+
 static int dek_decrypt_dek(int engine_id, dek_t *encDek, dek_t *plainDek) {
 	int dek_type = encDek->type;
 	kek_t *kek = NULL;
@@ -373,6 +538,15 @@ static int dek_decrypt_dek(int engine_id, dek_t *encDek, dek_t *plainDek) {
 	{
 		kek = get_kek(engine_id, KEK_TYPE_SYM, &ret);
         if (kek) {
+#ifdef CONFIG_SDP_ENHANCED
+            ret = dek_aes_decrypt_key(kek, encDek->buf, encDek->len, plainDek->buf, &plainDek->len);
+            if (ret) {
+                DEK_LOGE("aes decrypt failed\n");
+                dek_add_to_log(engine_id, "aes decrypt failed");
+            } else {
+                plainDek->type = DEK_TYPE_PLAIN;
+            }
+#else
             if (dek_aes_decrypt(kek, encDek->buf, plainDek->buf, encDek->len)) {
                 DEK_LOGE("aes decrypt failed\n");
                 dek_add_to_log(engine_id, "aes decrypt failed");
@@ -381,13 +555,18 @@ static int dek_decrypt_dek(int engine_id, dek_t *encDek, dek_t *plainDek) {
                 plainDek->len = encDek->len;
                 plainDek->type = DEK_TYPE_PLAIN;
             }
+#endif
             put_kek(kek);
         } else {
             DEK_LOGE("no KEK_TYPE_SYM for id: %d\n", engine_id);
             dek_add_to_log(engine_id, "decrypt failed, no KEK_TYPE_SYM");
             return -EIO;
         }
+#ifdef CONFIG_SDP_ENHANCED
+        return ret;
+#else
         return 0;
+#endif
 	}
 	case DEK_TYPE_RSA_ENC:
 	{
@@ -432,7 +611,11 @@ static int dek_decrypt_dek(int engine_id, dek_t *encDek, dek_t *plainDek) {
 #ifdef CONFIG_PUB_CRYPTO
 		kek = get_kek(engine_id, KEK_TYPE_ECDH256_PRIV, &ret);
         if(kek) {
+#ifdef CONFIG_SDP_ENHANCED
+            ret = dek_decrypt_dek_ecdh(encDek, plainDek, kek);
+#else
             ret = ecdh_decryptEDEK(encDek, plainDek, kek);
+#endif
             put_kek(kek);
         }else{
             DEK_LOGE("no KEK_TYPE_ECDH256_PRIV for id: %d\n", engine_id);
@@ -458,6 +641,26 @@ static int dek_decrypt_dek(int engine_id, dek_t *encDek, dek_t *plainDek) {
 int dek_decrypt_dek_efs(int engine_id, dek_t *encDek, dek_t *plainDek) {
 	return dek_decrypt_dek(engine_id, encDek, plainDek);
 }
+
+#ifdef CONFIG_SDP_ENHANCED
+int dek_encrypt_fek(unsigned char *master_key, unsigned int master_key_len,
+					unsigned char *fek, unsigned int fek_len,
+					unsigned char *efek, unsigned int *efek_len)
+{
+	return dek_aes_encrypt_key_raw(master_key, master_key_len,
+								fek, fek_len,
+								efek, efek_len);
+}
+
+int dek_decrypt_fek(unsigned char *master_key, unsigned int master_key_len,
+					unsigned char *efek, unsigned int efek_len,
+					unsigned char *fek, unsigned int *fek_len)
+{
+	return dek_aes_decrypt_key_raw(master_key, master_key_len,
+								efek, efek_len,
+								fek, fek_len);
+}
+#endif
 
 static int dek_on_boot(dek_arg_on_boot *evt) {
 	int ret = 0;
@@ -907,6 +1110,7 @@ static long dek_do_ioctl_req(unsigned int minor, unsigned int cmd,
 		memset(tempPlain_dek->buf, 0, DEK_MAXLEN);
 
 		if (ret < 0) {
+			DEK_LOGE("DEK_ENCRYPT_DEK: failed to encrypt dek! (err:%ld)\n", ret);
 			zero_out((char *)&req, sizeof(dek_arg_encrypt_dek));
 			kzfree(tempPlain_dek);
 			kzfree(tempEnc_dek);
@@ -973,6 +1177,7 @@ static long dek_do_ioctl_req(unsigned int minor, unsigned int cmd,
 				tempEnc_dek, tempPlain_dek);
 
 		if (ret < 0) {
+			DEK_LOGE("DEK_DECRYPT_DEK: failed to decrypt dek! (err:%ld)\n", ret);
 			zero_out((char *)&req, sizeof(dek_arg_decrypt_dek));
 			kzfree(tempPlain_dek);
 			kzfree(tempEnc_dek);

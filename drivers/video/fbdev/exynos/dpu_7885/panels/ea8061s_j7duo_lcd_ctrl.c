@@ -20,7 +20,7 @@
 
 #if defined(CONFIG_EXYNOS_DECON_MDNIE)
 #include "mdnie.h"
-#include "mdnie_lite_table_j7duo.h"
+#include "ea8061s_j7duo_mdnie.h"
 #endif
 
 #define PANEL_STATE_SUSPENED	0
@@ -588,6 +588,10 @@ static int ea8061s_read_id(struct lcd_info *lcd)
 {
 	struct panel_private *priv = &lcd->dsim->priv;
 	int ret = 0;
+	struct decon_device *decon = get_decon_drvdata(0);
+	static char *LDI_BIT_DESC_ID[BITS_PER_BYTE * LDI_LEN_ID] = {
+		[0 ... 23] = "ID Read Fail",
+	};
 
 	lcd->id_info.value = 0;
 	priv->lcdconnected = lcd->connected = lcdtype ? 1 : 0;
@@ -596,6 +600,9 @@ static int ea8061s_read_id(struct lcd_info *lcd)
 	if (ret < 0 || !lcd->id_info.value) {
 		priv->lcdconnected = lcd->connected = 0;
 		dev_info(&lcd->ld->dev, "%s: connected lcd is invalid\n", __func__);
+
+		if (lcdtype && decon)
+			decon_abd_save_bit(&decon->abd, BITS_PER_BYTE * LDI_LEN_ID, cpu_to_be32(lcd->id_info.value), LDI_BIT_DESC_ID);
 	}
 
 	lcd->ux_color = get_bit(lcd->id_info.id[1], 1, 1);
@@ -839,8 +846,11 @@ static int fb_notifier_callback(struct notifier_block *self,
 	if (evdata->info->node)
 		return NOTIFY_DONE;
 
-	if (fb_blank == FB_BLANK_UNBLANK)
+	if (fb_blank == FB_BLANK_UNBLANK) {
+		mutex_lock(&lcd->lock);
 		ea8061s_displayon(lcd);
+		mutex_unlock(&lcd->lock);
+	}
 
 	return NOTIFY_DONE;
 }
@@ -1422,4 +1432,5 @@ struct dsim_lcd_driver ea8061s_mipi_lcd_driver = {
 	.displayon	= dsim_panel_displayon,
 	.suspend	= dsim_panel_suspend,
 };
+__XX_ADD_LCD_DRIVER(ea8061s_mipi_lcd_driver);
 

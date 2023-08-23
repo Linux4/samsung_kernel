@@ -647,7 +647,7 @@ static void max77865_set_otg(struct max77865_charger_data *charger, int enable)
 		/* Update CHG_CNFG_11 to 0x00(3.485V) */
 		max77865_write_reg(charger->i2c,
 			MAX77865_CHG_REG_CNFG_11, 0x00);
-		mdelay(50);
+		msleep(50);
 
 		/* enable charger interrupt */
 		max77865_write_reg(charger->i2c,
@@ -666,25 +666,6 @@ static void max77865_set_otg(struct max77865_charger_data *charger, int enable)
 	pr_info("%s: INT_MASK(0x%x), CHG_CNFG_00(0x%x)\n",
 		__func__, chg_int_state, reg);
 	power_supply_changed(charger->psy_otg);
-}
-
-static void max77865_check_slow_charging(struct max77865_charger_data *charger,
-	int input_current)
-{
-	/* under 400mA considered as slow charging concept for VZW */
-	if (input_current <= charger->slow_charging_current &&
-		charger->cable_type != SEC_BATTERY_CABLE_NONE) {
-		union power_supply_propval value;
-
-		charger->slow_charging = true;
-		pr_info("%s: slow charging on : input current(%dmA), cable type(%d)\n",
-			__func__, input_current, charger->cable_type);
-
-		psy_do_property("battery", set,
-			POWER_SUPPLY_PROP_CHARGE_TYPE, value);
-	}
-	else
-		charger->slow_charging = false;
 }
 
 static void max77865_charger_initialize(struct max77865_charger_data *charger)
@@ -893,11 +874,6 @@ static int max77865_chg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_TYPE:
 		if (!charger->is_charging)
 			val->intval = POWER_SUPPLY_CHARGE_TYPE_NONE;
-		else if (charger->slow_charging)
-		{
-			val->intval = POWER_SUPPLY_CHARGE_TYPE_SLOW;
-			pr_info("%s: slow-charging mode\n", __func__);
-		}
 		else
 			val->intval = POWER_SUPPLY_CHARGE_TYPE_FAST;
 		break;
@@ -1039,7 +1015,6 @@ static int max77865_chg_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_ONLINE:
 		charger->cable_type = val->intval;
 		charger->aicl_on = false;
-		charger->slow_charging = false;
 		charger->input_current = max77865_get_input_current(charger);
 		max77865_change_charge_path(charger, charger->cable_type);
 		if (charger->cable_type == SEC_BATTERY_CABLE_NONE) {
@@ -1072,7 +1047,6 @@ static int max77865_chg_set_property(struct power_supply *psy,
 						  MAX77865_CHG_REG_INT_MASK, &reg_data);
 				pr_info("%s : disable aicl : 0x%x\n", __func__, reg_data);
 				charger->aicl_on = false;
-				charger->slow_charging = false;
 			}
 		}
 		break;
@@ -1165,7 +1139,7 @@ static int max77865_chg_set_property(struct power_supply *psy,
 		/* Update CHG_CNFG_11 to 0x00(3.485V) */
 			max77865_write_reg(charger->i2c,
 					   MAX77865_CHG_REG_CNFG_11, 0x00);
-			mdelay(50);
+			msleep(50);
 
 			/* enable charger interrupt */
 			max77865_write_reg(charger->i2c,
@@ -1401,7 +1375,7 @@ static void wpc_detect_work(struct work_struct *work)
 				psy_do_property(charger->pdata->wireless_charger_name, set,
 					POWER_SUPPLY_PROP_STATUS, value);
 			}
-			mdelay(50);
+			msleep(50);
 		} while (!wcin_state && !wcin_dtls && wcin_cnt < 2);
 	} 
 
@@ -1525,7 +1499,7 @@ static void max77865_aicl_isr_work(struct work_struct *work)
 			reduce_input_current(charger, REDUCE_CURRENT_STEP);
 			aicl_cnt = 0;
 		}
-		mdelay(50);
+		msleep(50);
 		max77865_read_reg(charger->i2c, MAX77865_CHG_REG_INT_OK, &aicl_state);
 		if (max77865_get_input_current(charger) <= MINIMUM_INPUT_CURRENT)
 			break;
@@ -1536,9 +1510,6 @@ static void max77865_aicl_isr_work(struct work_struct *work)
 		value.intval = max77865_get_input_current(charger);
 		psy_do_property("battery", set,
 				POWER_SUPPLY_EXT_PROP_AICL_CURRENT, value);
-
-		if (is_not_wireless_type(charger->cable_type))
-			max77865_check_slow_charging(charger, charger->input_current);
 	}
 
 	max77865_update_reg(charger->i2c,
@@ -1867,13 +1838,6 @@ static int max77865_charger_parse_dt(struct max77865_charger_data *charger)
 			pr_info("%s : default vsys ocp\n", __func__);
 			charger->vsys_ocp = 0x04;
 		}
-
-		ret = of_property_read_u32(np, "charger,slow_charging_current",
-					   &charger->slow_charging_current);
-		if (ret) {
-			pr_info("%s : slow_charging_current is Empty\n", __func__);
-			charger->slow_charging_current = SLOW_CHARGING_CURRENT_STANDARD;
-		}
 	}
 
 	np = of_find_node_by_name(NULL, "max77865-fuelgauge");
@@ -1942,7 +1906,6 @@ static int max77865_charger_probe(struct platform_device *pdev)
 	charger->pmic_i2c = max77865->i2c;
 	charger->pdata = charger_data;
 	charger->aicl_on = false;
-	charger->slow_charging = false;
 	charger->is_mdock = false;
 	charger->otg_on = false;
 	charger->max77865_pdata = pdata;

@@ -2955,7 +2955,8 @@ retry:
 	 */
 	if (!page && !drained) {
 		unreserve_highatomic_pageblock(ac);
-		drain_all_pages(NULL);
+		if (!need_memory_boosting(NULL, true))
+			drain_all_pages(NULL);
 		drained = true;
 		goto retry;
 	}
@@ -3278,8 +3279,15 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
 		.nodemask = nodemask,
 		.migratetype = gfpflags_to_migratetype(gfp_mask),
 	};
-
+	gfp_t gfp_highuser_movable = GFP_HIGHUSER | __GFP_MOVABLE;
+	
 	gfp_mask &= gfp_allowed_mask;
+	if (unlikely(current->flags & PF_NOFS_MASK))
+		gfp_mask &= ~__GFP_FS;
+
+	// The request GFP_HIGHUSER | __GFP_MOVABLE also allocates from CMA.
+	if ((gfp_highuser_movable & gfp_mask) == gfp_highuser_movable)
+		gfp_mask |= __GFP_CMA;
 
 	lockdep_trace_alloc(gfp_mask);
 

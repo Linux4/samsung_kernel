@@ -19,3 +19,4 @@ obj-$(CONFIG_CHARGER_S2MU004)   += s2mu004_charger.o
 obj-$(CONFIG_CHARGER_S2MU005)   += s2mu005_charger.o
 obj-$(CONFIG_CHARGER_MAX77865)	+= max77865_charger.o
 obj-$(CONFIG_CHARGER_BQ25898S)	+= bq25898s_charger.o
+obj-$(CONFIG_BATTERY_SAMSUNG)	+= sec_battery_ttf.o

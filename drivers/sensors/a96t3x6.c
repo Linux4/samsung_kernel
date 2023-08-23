@@ -377,6 +377,38 @@ sar_mode:
 		data->sar_mode = 0;
 }
 
+static void grip_always_active(struct a96t3x6_data *data, int on)
+{
+	int ret, retry = 3;
+	u8 cmd, r_buf;
+
+	SENSOR_INFO("Grip always active mode %d\n", on);
+
+	if (on == 1)
+		cmd = CMD_ON;
+	else
+		cmd = CMD_OFF;
+
+	ret = a96t3x6_i2c_write(data->client, REG_GRIP_ALWAYS_ACTIVE, &cmd);
+		if (ret < 0)
+			SENSOR_ERR("failed to change grip always active mode\n");
+
+	while (retry--) {
+		usleep_range(20000,20000);
+
+		ret = a96t3x6_i2c_read(data->client, REG_GRIP_ALWAYS_ACTIVE, &r_buf, 1);
+		if (ret < 0)
+			SENSOR_ERR("i2c read fail(%d)\n", ret);
+
+		if ((cmd == CMD_ON && r_buf == GRIP_ALWAYS_ACTIVE_READY) || (cmd == CMD_OFF && r_buf == CMD_OFF))
+			break;
+		else
+			SENSOR_INFO("Wrong value 0x%x, retry again %d\n", r_buf, retry);
+	}
+
+	SENSOR_INFO("Grip check mode: cmd 0x%x, return value 0x%x\n", cmd, r_buf);
+}
+
 static void a96t3x6_sar_sensing(struct a96t3x6_data *data, int on)
 {
 	u8 cmd;
@@ -1440,6 +1472,8 @@ static int a96t3x6_get_fw_version(struct a96t3x6_data *data, bool bootmode)
 	int ret;
 	int retry = 3;
 
+	grip_always_active(data, 1);
+
 	ret = a96t3x6_i2c_read(client, REG_FW_VER, &buf, 1);
 	if (ret < 0) {
 		while (retry--) {
@@ -1447,13 +1481,13 @@ static int a96t3x6_get_fw_version(struct a96t3x6_data *data, bool bootmode)
 			if (!bootmode)
 				a96t3x6_reset(data);
 			else
-				return -1;
+				goto err_grip_revert_mode;
 			ret = a96t3x6_i2c_read(client, REG_FW_VER, &buf, 1);
 			if (ret == 0)
 				break;
 		}
 		if (retry <= 0)
-			return -1;
+			goto err_grip_revert_mode;
 	}
 	data->fw_ver = buf;
 
@@ -1465,13 +1499,13 @@ static int a96t3x6_get_fw_version(struct a96t3x6_data *data, bool bootmode)
 			if (!bootmode)
 				a96t3x6_reset(data);
 			else
-				return -1;
+				goto err_grip_revert_mode;
 			ret = a96t3x6_i2c_read(client, REG_MODEL_NO, &buf, 1);
 			if (ret == 0)
 				break;
 		}
 		if (retry <= 0)
-			return -1;
+			goto err_grip_revert_mode;
 	}
 	data->md_ver = buf;
 
@@ -1484,13 +1518,13 @@ static int a96t3x6_get_fw_version(struct a96t3x6_data *data, bool bootmode)
 				if (!bootmode)
 					a96t3x6_reset(data);
 				else
-					return -1;
+					goto err_grip_revert_mode;
 				ret = a96t3x6_i2c_read(client, REG_ID_NO, &buf, 1);
 				if (ret == 0)
 					break;
 			}
 			if (retry <= 0)
-				return -1;
+				goto err_grip_revert_mode;
 		}
 		data->id_ver = buf;
 
@@ -1499,7 +1533,12 @@ static int a96t3x6_get_fw_version(struct a96t3x6_data *data, bool bootmode)
 	else
 		SENSOR_INFO("fw = 0x%x, md = 0x%x\n", data->fw_ver, data->md_ver);
 
+	grip_always_active(data, 0);
 	return 0;
+	
+err_grip_revert_mode:
+	grip_always_active(data, 0);
+	return -1;
 }
 
 static ssize_t read_fw_ver(struct device *dev,
@@ -2012,6 +2051,8 @@ static ssize_t grip_crc_check_show(struct device *dev,
 	unsigned char cmd[3] = {0x1B, 0x00, 0x10};
 	unsigned char checksum[2] = {0, };
 
+	grip_always_active(data, 1);
+
 	i2c_master_send(data->client, cmd, 3);
 	usleep_range(50 * 1000, 50 * 1000);
 
@@ -2019,11 +2060,14 @@ static ssize_t grip_crc_check_show(struct device *dev,
 
 	if (ret < 0) {
 		SENSOR_ERR("i2c read fail\n");
+		grip_always_active(data, 0);
 		return snprintf(buf, PAGE_SIZE, "NG,0000\n");
 	}
 
 	SENSOR_INFO("CRC:%02x%02x, BIN:%02x%02x\n", checksum[0], checksum[1],
 		data->checksum_h_bin, data->checksum_l_bin);
+
+	grip_always_active(data, 0);
 
 	if ((checksum[0] != data->checksum_h_bin) ||
 		(checksum[1] != data->checksum_l_bin))

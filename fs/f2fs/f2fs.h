@@ -38,16 +38,25 @@
 #endif
 
 extern int ignore_fs_panic;
+extern int hard_reset_key_pressed;
+extern void (*ufs_debug_func)(void *);
 
-#define f2fs_bug_on(sbi, condition)						\
+extern struct super_block *keypress_callback_sb;
+extern int (*keypress_callback_fn)(struct super_block *sb);
+#define f2fs_bug_on(sbi, condition)	  __f2fs_bug_on(sbi, condition, true)
+#define f2fs_bug_on_endio(sbi, condition) __f2fs_bug_on(sbi, condition, false)	
+#define __f2fs_bug_on(sbi, condition, set_extra_blk)				\
 	do {									\
 		if (unlikely(condition)) {					\
+			if (ufs_debug_func)					\
+				ufs_debug_func(NULL);				\
 			if (is_sbi_flag_set(sbi, SBI_POR_DOING)) {		\
 				set_sbi_flag(sbi, SBI_NEED_FSCK);		\
 				sbi->sec_stat.fs_por_error++;			\
 				WARN_ON(1);					\
 			} else if (unlikely(!ignore_fs_panic)) {		\
-				f2fs_set_sb_extra_flag(sbi,			\
+				if (set_extra_blk)				\
+					f2fs_set_sb_extra_flag(sbi,		\
 						F2FS_SEC_EXTRA_FSCK_MAGIC);	\
 				sbi->sec_stat.fs_error++;			\
 				BUG_ON_CHKFS(1);				\
@@ -136,9 +145,9 @@ struct f2fs_mount_info {
 	unsigned int opt;
 	int write_io_size_bits;		/* Write IO size bits */
 	block_t root_reserved_blocks;	/* root reserved blocks */
-	block_t core_reserved_blocks;	/* core reserved blocks */
 	kuid_t s_resuid;		/* reserved blocks for uid */
 	kgid_t s_resgid;		/* reserved blocks for gid */
+	kgid_t flush_group;		/* should issue flush for gid */
 	int active_logs;		/* # of active logs */
 	int inline_xattr_size;		/* inline xattr size */
 #ifdef CONFIG_F2FS_FAULT_INJECTION
@@ -242,6 +251,7 @@ static inline struct timespec current_time(struct inode *inode)
  */
 #define	F2FS_DEF_RESUID		0
 #define	F2FS_DEF_RESGID		0
+#define	F2FS_DEF_FLUSHGROUP	5666
 
 /*
  * For checkpoint manager
@@ -463,8 +473,6 @@ static inline bool __has_cursum_space(struct f2fs_journal *journal,
 #define F2FS_IOC_SETFLAGS		FS_IOC_SETFLAGS
 #define F2FS_IOC_GETVERSION		FS_IOC_GETVERSION
 
-#define F2FS_CORE_FILE_FL		0x40000000
-
 #define F2FS_IOCTL_MAGIC		0xf5
 #define F2FS_IOC_START_ATOMIC_WRITE	_IO(F2FS_IOCTL_MAGIC, 1)
 #define F2FS_IOC_COMMIT_ATOMIC_WRITE	_IO(F2FS_IOCTL_MAGIC, 2)
@@ -485,6 +493,7 @@ static inline bool __has_cursum_space(struct f2fs_journal *journal,
 #define F2FS_IOC_SET_PIN_FILE		_IOW(F2FS_IOCTL_MAGIC, 13, __u32)
 #define F2FS_IOC_GET_PIN_FILE		_IOR(F2FS_IOCTL_MAGIC, 14, __u32)
 #define F2FS_IOC_PRECACHE_EXTENTS	_IO(F2FS_IOCTL_MAGIC, 15)
+#define F2FS_IOC_GET_VALID_NODE_COUNT	_IOR(F2FS_IOCTL_MAGIC, 32, __u32)
 
 #define F2FS_IOC_SET_ENCRYPTION_POLICY	FS_IOC_SET_ENCRYPTION_POLICY
 #define F2FS_IOC_GET_ENCRYPTION_POLICY	FS_IOC_GET_ENCRYPTION_POLICY
@@ -861,6 +870,9 @@ static inline void print_block_data(struct super_block *sb, sector_t blocknr,
 	char row_hex[50] = { 0, };
 	char ch;
 	struct mount *mnt = NULL;
+
+	if (ignore_fs_panic)
+		return;
 
 	printk(KERN_ERR "As F2FS-fs error, printing data in hex\n");
 	printk(KERN_ERR " [partition info] s_id : %s, start sector# : %lu\n"
@@ -1328,6 +1340,15 @@ struct f2fs_sec_stat_info {
 	u32 max_undiscard_blks;		/* # of undiscard blocks */
 };
 
+struct f2fs_sec_fsck_info {
+	u64 fsck_read_bytes;
+	u64 fsck_written_bytes;
+	u64 fsck_elapsed_time;
+	u32 fsck_exit_code;
+	u32 valid_node_count;
+	u32 valid_inode_count;
+};
+
 struct f2fs_sb_info {
 	struct super_block *sb;			/* pointer to VFS super block */
 	struct proc_dir_entry *s_proc;		/* proc entry */
@@ -1510,7 +1531,19 @@ struct f2fs_sb_info {
 	/* Precomputed FS UUID checksum for seeding other checksums */
 	__u32 s_chksum_seed;
 
+	unsigned int sec_hqm_preserve;
 	struct f2fs_sec_stat_info sec_stat;
+	struct f2fs_sec_fsck_info sec_fsck_stat;
+
+	/* To gather information of fragmentation */
+	unsigned int s_sec_part_best_extents;
+	unsigned int s_sec_part_current_extents;
+	unsigned int s_sec_part_score;
+	unsigned int s_sec_defrag_writes_kb;
+	unsigned int s_sec_num_apps;
+	unsigned int s_sec_capacity_apps_kb;
+
+	unsigned int s_sec_cond_fua_mode;
 };
 
 #ifdef CONFIG_F2FS_FAULT_INJECTION
@@ -1547,8 +1580,9 @@ static inline bool time_to_inject(struct f2fs_sb_info *sbi, int type)
  * and the return value is in kbytes. s is of struct f2fs_sb_info.
  */
 #define BD_PART_WRITTEN(s)						 \
-(((u64)part_stat_read((s)->sb->s_bdev->bd_part, sectors[1]) -		 \
-		(s)->sectors_written_start) >> 1)
+((((u64)part_stat_read((s)->sb->s_bdev->bd_part, sectors[1]) -		 \
+	(u64)part_stat_read((s)->sb->s_bdev->bd_part, discard_sectors))	 \
+	- (s)->sectors_written_start) >> 1)
 
 static inline void f2fs_update_time(struct f2fs_sb_info *sbi, int type)
 {
@@ -1595,6 +1629,7 @@ static inline unsigned int f2fs_time_to_wait(struct f2fs_sb_info *sbi,
  *   - rsvd
  */
 void f2fs_set_sb_extra_flag(struct f2fs_sb_info *sbi, int flag);
+void f2fs_get_fsck_stat(struct f2fs_sb_info *sbi);
 
 /*
  * Inline functions
@@ -1908,9 +1943,6 @@ static inline bool __allow_reserved_blocks(struct f2fs_sb_info *sbi,
 }
 
 static inline bool f2fs_android_claim_sec_r_blocks(unsigned long flags) {
-	if (flags & F2FS_CORE_FILE_FL)
-		return true;
-
 #if ANDROID_VERSION < 90000
 	if (in_group_p(AID_USE_SEC_RESERVED))
 		return true;
@@ -1948,12 +1980,8 @@ static inline int inc_valid_block_count(struct f2fs_sb_info *sbi,
 	avail_user_block_count = sbi->user_block_count -
 					sbi->current_reserved_blocks;
 
-	if (!__allow_reserved_blocks(sbi, inode, true)) {
+	if (!__allow_reserved_blocks(sbi, inode, true))
 		avail_user_block_count -= F2FS_OPTION(sbi).root_reserved_blocks;
-
-		if (!f2fs_android_claim_sec_r_blocks(F2FS_I(inode)->i_flags))
-			avail_user_block_count -= F2FS_OPTION(sbi).core_reserved_blocks;
-	}
 
 	if (unlikely(is_sbi_flag_set(sbi, SBI_CP_DISABLED)))
 		avail_user_block_count -= sbi->unusable_block_count;
@@ -2174,11 +2202,8 @@ static inline int inc_valid_node_count(struct f2fs_sb_info *sbi,
 	valid_block_count = sbi->total_valid_block_count +
 					sbi->current_reserved_blocks + 1;
 
-	if (!__allow_reserved_blocks(sbi, inode, false)) {
+	if (!__allow_reserved_blocks(sbi, inode, false))
 		valid_block_count += F2FS_OPTION(sbi).root_reserved_blocks;
-		if (!f2fs_android_claim_sec_r_blocks(F2FS_I(inode)->i_flags))
-			valid_block_count += F2FS_OPTION(sbi).core_reserved_blocks;
-	}
 
 	if (unlikely(is_sbi_flag_set(sbi, SBI_CP_DISABLED)))
 		valid_block_count += sbi->unusable_block_count;
@@ -2486,6 +2511,41 @@ static inline void f2fs_change_bit(unsigned int nr, char *addr)
 	*addr ^= mask;
 }
 
+
+enum F2FS_SEC_FUA_MODE {
+	F2FS_SEC_FUA_NONE = 0,
+	F2FS_SEC_FUA_ROOT,
+	F2FS_SEC_FUA_DIR,
+
+	NR_F2FS_SEC_FUA_MODE,
+};
+
+#define __f2fs_is_cold_node(page)			\
+	(le32_to_cpu(F2FS_NODE(page)->footer.flag) & (1 << COLD_BIT_SHIFT))
+
+static inline void f2fs_cond_set_fua(struct f2fs_io_info *fio) 
+{
+	if (!fio->sbi->s_sec_cond_fua_mode) 
+		return;
+
+	if (fio->type == META)
+		fio->op_flags |= REQ_FLUSH | REQ_FUA;
+	else if ((fio->page && IS_NOQUOTA(fio->page->mapping->host)) || 
+			(fio->ino == f2fs_qf_ino(fio->sbi->sb, USRQUOTA) ||
+			fio->ino == f2fs_qf_ino(fio->sbi->sb, GRPQUOTA) ||
+			fio->ino == f2fs_qf_ino(fio->sbi->sb, PRJQUOTA)))
+		fio->op_flags |= REQ_FUA;
+	else if (fio->sbi->s_sec_cond_fua_mode == F2FS_SEC_FUA_ROOT &&
+			fio->ino == F2FS_ROOT_INO(fio->sbi))
+		fio->op_flags |= REQ_FUA;
+	else if (fio->sbi->s_sec_cond_fua_mode == F2FS_SEC_FUA_DIR && fio->page &&
+		((fio->type == NODE && !__f2fs_is_cold_node(fio->page)) ||
+		(fio->type == DATA && S_ISDIR(fio->page->mapping->host->i_mode))))
+		fio->op_flags |= REQ_FUA;
+	// Directory Inode or Indirect Node -> COLD_BIT X
+	// ref. set_cold_node()
+}
+
 /*
  * Inode flags
  */
@@ -2513,11 +2573,12 @@ static inline void f2fs_change_bit(unsigned int nr, char *addr)
 #define F2FS_EXTENTS_FL			0x00080000 /* Inode uses extents */
 #define F2FS_EA_INODE_FL	        0x00200000 /* Inode used for large EA */
 #define F2FS_EOFBLOCKS_FL		0x00400000 /* Blocks allocated beyond EOF */
+#define F2FS_NOCOW_FL			0x00800000 /* Do not cow file */
 #define F2FS_INLINE_DATA_FL		0x10000000 /* Inode has inline data. */
 #define F2FS_PROJINHERIT_FL		0x20000000 /* Create with parents projid */
 #define F2FS_RESERVED_FL		0x80000000 /* reserved for ext4 lib */
 
-#define F2FS_FL_USER_VISIBLE		0x304BDFFF /* User visible flags */
+#define F2FS_FL_USER_VISIBLE		0x30CBDFFF /* User visible flags */
 #define F2FS_FL_USER_MODIFIABLE		0x204BC0FF /* User modifiable flags */
 
 /* Flags we can manipulate with through F2FS_IOC_FSSETXATTR */
@@ -3539,6 +3600,7 @@ static inline struct f2fs_stat_info *F2FS_STAT(struct f2fs_sb_info *sbi)
 	} while (0)
 
 int f2fs_build_stats(struct f2fs_sb_info *sbi);
+void f2fs_update_sec_stats(struct f2fs_sb_info *sbi);
 void f2fs_destroy_stats(struct f2fs_sb_info *sbi);
 int __init f2fs_create_root_stats(void);
 void f2fs_destroy_root_stats(void);

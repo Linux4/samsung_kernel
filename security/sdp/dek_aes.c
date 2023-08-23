@@ -22,6 +22,35 @@
 #include <sdp/dek_aes.h>
 #include <crypto/skcipher.h>
 
+#ifdef CONFIG_SDP_ENHANCED
+#include "../../fs/ext4/sdp/sdp_crypto.h"
+
+inline int __dek_aes_encrypt_key32(struct crypto_aead *tfm,
+					unsigned char *key, unsigned int key_len,
+					unsigned char *out);
+inline int __dek_aes_encrypt_key64(struct crypto_aead *tfm,
+					unsigned char *key, unsigned int key_len,
+					unsigned char *out);
+inline int __dek_aes_encrypt_key(struct crypto_aead *tfm,
+					unsigned char *key, unsigned int key_len,
+					gcm_pack *pack);
+inline int __dek_aes_decrypt_key32(struct crypto_aead *tfm,
+					unsigned char *key, unsigned int key_len,
+					unsigned char *out);
+inline int __dek_aes_decrypt_key64(struct crypto_aead *tfm,
+					unsigned char *key, unsigned int key_len,
+					unsigned char *out);
+inline int __dek_aes_decrypt_key(struct crypto_aead *tfm,
+					gcm_pack *pack);
+
+inline int __dek_aes_encrypt_key_raw(unsigned char *kek, unsigned int kek_len,
+									unsigned char *key, unsigned int key_len,
+									unsigned char *out, unsigned int *out_len);
+inline int __dek_aes_decrypt_key_raw(unsigned char  *kek, unsigned int kek_len,
+									unsigned char *ekey, unsigned int ekey_len,
+									unsigned char *out, unsigned int *out_len);
+#endif
+
 static struct crypto_skcipher *dek_aes_key_setup(kek_t *kek)
 {
 	struct crypto_skcipher *tfm = NULL;
@@ -105,3 +134,224 @@ int dek_aes_decrypt(kek_t *kek, unsigned char *src, unsigned char *dst, int len)
 	} else
 		return -ENOMEM;
 }
+
+#ifdef CONFIG_SDP_ENHANCED
+int dek_aes_encrypt_key(kek_t *kek, unsigned char *key, unsigned int key_len,
+						unsigned char *out, unsigned int *out_len)
+{
+	if (kek == NULL)
+		return -EINVAL;
+	return __dek_aes_encrypt_key_raw(kek->buf, kek->len, key, key_len, out, out_len);
+}
+
+int dek_aes_encrypt_key_raw(unsigned char *kek, unsigned int kek_len,
+							unsigned char *key, unsigned int key_len,
+							unsigned char *out, unsigned int *out_len)
+{
+	if (kek == NULL || kek_len == 0)
+		return -EINVAL;
+	return __dek_aes_encrypt_key_raw(kek, kek_len, key, key_len, out, out_len);
+}
+
+inline int __dek_aes_encrypt_key_raw(unsigned char *kek, unsigned int kek_len,
+									unsigned char *key, unsigned int key_len,
+									unsigned char *out, unsigned int *out_len)
+{
+	int rc;
+	int type;
+	int ekey_len = 0;
+	struct crypto_aead *tfm;
+
+	tfm = sdp_crypto_aes_gcm_key_setup(kek, kek_len);
+	if (unlikely(IS_ERR(tfm))) {
+		rc = PTR_ERR(tfm);
+		goto end;
+	}
+
+	type = CONV_DLEN_TO_TYPE(key_len);
+	ekey_len = CONV_TYPE_TO_PLEN(type);
+
+	switch(type) {
+		case SDP_CRYPTO_GCM_PACK32:
+			rc = __dek_aes_encrypt_key32(tfm, key, key_len, out);
+			break;
+		case SDP_CRYPTO_GCM_PACK64:
+			rc = __dek_aes_encrypt_key64(tfm, key, key_len, out);
+			break;
+		default:
+			printk(KERN_ERR
+				"dek_aes_encrypt_key: not supported key length(%d)\n", key_len);
+			rc = -EINVAL;
+			break;
+	}
+	sdp_crypto_aes_gcm_key_free(tfm);
+
+end:
+	if (rc)
+		*out_len = 0;
+	else
+		*out_len = ekey_len;
+	return rc;
+}
+
+inline int __dek_aes_encrypt_key32(struct crypto_aead *tfm,
+					unsigned char *key, unsigned int key_len,
+					unsigned char *out)
+{
+	int rc;
+	gcm_pack32 pack;
+	gcm_pack __pack;
+
+	memset(&pack, 0, sizeof(pack));
+	__pack.type = SDP_CRYPTO_GCM_PACK32;
+	__pack.iv = pack.iv;
+	__pack.data = pack.data;
+	__pack.auth = pack.auth;
+
+	rc = __dek_aes_encrypt_key(tfm, key, key_len, &__pack);
+	if (!rc)
+		memcpy(out, &pack, sizeof(pack));
+	memzero_explicit(&pack, sizeof(gcm_pack32));
+	return rc;
+}
+
+inline int __dek_aes_encrypt_key64(struct crypto_aead *tfm,
+					unsigned char *key, unsigned int key_len,
+					unsigned char *out)
+{
+	int rc;
+	gcm_pack64 pack;
+	gcm_pack __pack;
+
+	memset(&pack, 0, sizeof(gcm_pack64));
+	__pack.type = SDP_CRYPTO_GCM_PACK64;
+	__pack.iv = pack.iv;
+	__pack.data = pack.data;
+	__pack.auth = pack.auth;
+
+	rc = __dek_aes_encrypt_key(tfm, key, key_len, &__pack);
+	if (!rc)
+		memcpy(out, &pack, sizeof(pack));
+	memzero_explicit(&pack, sizeof(pack));
+	return rc;
+}
+
+inline int __dek_aes_encrypt_key(struct crypto_aead *tfm,
+					unsigned char *key, unsigned int key_len,
+					gcm_pack *pack)
+{
+	int rc = sdp_crypto_generate_key(pack->iv, SDP_CRYPTO_GCM_IV_LEN);
+	if (rc)
+		memset(pack->iv, 0, SDP_CRYPTO_GCM_IV_LEN);
+
+	memcpy(pack->data, key, key_len);
+	rc = sdp_crypto_aes_gcm_encrypt_pack(tfm, pack);
+	return rc;
+}
+
+int dek_aes_decrypt_key(kek_t *kek, unsigned char *ekey, unsigned int ekey_len,
+						unsigned char *out, unsigned int *out_len)
+{
+	if (kek == NULL)
+		return -EINVAL;
+	return __dek_aes_decrypt_key_raw(kek->buf, kek->len, ekey, ekey_len, out, out_len);
+}
+
+int dek_aes_decrypt_key_raw(unsigned char *kek, unsigned int kek_len,
+							unsigned char *ekey, unsigned int ekey_len,
+							unsigned char *out, unsigned int *out_len)
+{
+	if (kek == NULL || kek_len == 0)
+		return -EINVAL;
+	return __dek_aes_decrypt_key_raw(kek, kek_len, ekey, ekey_len, out, out_len);
+}
+
+inline int __dek_aes_decrypt_key_raw(unsigned char  *kek, unsigned int kek_len,
+									unsigned char *ekey, unsigned int ekey_len,
+									unsigned char *out, unsigned int *out_len)
+{
+	int rc;
+	int type;
+	int key_len = 0;
+	struct crypto_aead *tfm;
+
+	tfm = sdp_crypto_aes_gcm_key_setup(kek, kek_len);
+	if (unlikely(IS_ERR(tfm))) {
+		rc = PTR_ERR(tfm);
+		goto end;
+	}
+
+	type = CONV_PLEN_TO_TYPE(ekey_len);
+	key_len = CONV_TYPE_TO_DLEN(type);
+
+	switch(type) {
+		case SDP_CRYPTO_GCM_PACK32:
+			rc = __dek_aes_decrypt_key32(tfm, ekey, key_len, out);
+			break;
+		case SDP_CRYPTO_GCM_PACK64:
+			rc = __dek_aes_decrypt_key64(tfm, ekey, key_len, out);
+			break;
+		default:
+			printk(KERN_ERR
+				"dek_aes_decrypt_key: not supported ekey length(%d)\n", ekey_len);
+			rc = -EINVAL;
+			break;
+	}
+	sdp_crypto_aes_gcm_key_free(tfm);
+
+end:
+	if (rc)
+		*out_len = 0;
+	else
+		*out_len = key_len;
+	return rc;
+}
+
+inline int __dek_aes_decrypt_key32(struct crypto_aead *tfm,
+					unsigned char *ekey, unsigned int key_len,
+					unsigned char *out)
+{
+	int rc;
+	gcm_pack32 pack;
+	gcm_pack __pack;
+
+	memcpy(&pack, ekey, sizeof(pack));
+	__pack.type = SDP_CRYPTO_GCM_PACK32;
+	__pack.iv = pack.iv;
+	__pack.data = pack.data;
+	__pack.auth = pack.auth;
+
+	rc = __dek_aes_decrypt_key(tfm, &__pack);
+	if (!rc)
+		memcpy(out, pack.data, key_len);
+	memzero_explicit(&pack, sizeof(pack));
+	return rc;
+}
+
+inline int __dek_aes_decrypt_key64(struct crypto_aead *tfm,
+					unsigned char *ekey, unsigned int key_len,
+					unsigned char *out)
+{
+	int rc;
+	gcm_pack64 pack;
+	gcm_pack __pack;
+
+	memcpy(&pack, ekey, sizeof(pack));
+	__pack.type = SDP_CRYPTO_GCM_PACK64;
+	__pack.iv = pack.iv;
+	__pack.data = pack.data;
+	__pack.auth = pack.auth;
+
+	rc = __dek_aes_decrypt_key(tfm, &__pack);
+	if (!rc)
+		memcpy(out, pack.data, key_len);
+	memzero_explicit(&pack, sizeof(pack));
+	return rc;
+}
+
+inline int __dek_aes_decrypt_key(struct crypto_aead *tfm,
+					gcm_pack *pack)
+{
+	return sdp_crypto_aes_gcm_decrypt_pack(tfm, pack);
+}
+#endif

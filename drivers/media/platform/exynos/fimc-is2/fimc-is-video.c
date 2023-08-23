@@ -969,8 +969,6 @@ int fimc_is_video_probe(struct fimc_is_video *video,
 
 	vref_init(video);
 	mutex_init(&video->lock);
-	sema_init(&video->smp_multi_input, 1);
-	video->try_smp		= false;
 	snprintf(video->vd.name, sizeof(video->vd.name), "%s", video_name);
 	video->id		= video_number;
 	video->vb2_mem_ops	= mem->vb2_mem_ops;
@@ -1018,6 +1016,11 @@ int fimc_is_video_open(struct fimc_is_video_ctx *vctx,
 	if (!(vctx->state & BIT(FIMC_IS_VIDEO_CLOSE))) {
 		mverr("already open(%lX)", vctx, video, vctx->state);
 		return -EEXIST;
+	}
+
+	if (atomic_read(&video->refcount) == 1) {
+		sema_init(&video->smp_multi_input, 1);
+		video->try_smp		= false;
 	}
 
 	queue = GET_QUEUE(vctx);
@@ -1421,7 +1424,7 @@ int fimc_is_video_prepare(struct file *file,
 	struct v4l2_buffer *buf)
 {
 	int ret = 0;
-	int index = 0;
+	unsigned int index = 0;
 	struct fimc_is_device_ischain *device;
 	struct fimc_is_queue *queue;
 	struct vb2_queue *vbq;

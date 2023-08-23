@@ -29,4 +29,5 @@ void s5p_mfc_dump_info(struct s5p_mfc_dev *dev);
 void s5p_mfc_dump_info_and_stop_hw(struct s5p_mfc_dev *dev);
 void s5p_mfc_watchdog_worker(struct work_struct *work);
 void s5p_mfc_dump_power_clk_status(void);
+void s5p_mfc_dump_dynamic_dpb_info(struct s5p_mfc_dev *dev);
 #endif /* __S5P_MFC_WATCHDOG_H */

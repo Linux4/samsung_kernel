@@ -68,10 +68,12 @@ static int fimc_is_ischain_3ap_start(struct fimc_is_device_ischain *device,
 		goto p_err;
 	}
 
-	if (otcrop->x || otcrop->y) {
-		mwarn("crop pos(%d, %d) is ignored", device, otcrop->x, otcrop->y);
-		otcrop->x = 0;
-		otcrop->y = 0;
+	if (!test_bit(FIMC_IS_ISCHAIN_REPROCESSING, &device->state)) {
+		if (otcrop->x || otcrop->y) {
+			mwarn("crop pos(%d, %d) is ignored", device, otcrop->x, otcrop->y);
+			otcrop->x = 0;
+			otcrop->y = 0;
+		}
 	}
 
 	/*
@@ -129,10 +131,12 @@ static int fimc_is_ischain_3ap_stop(struct fimc_is_device_ischain *device,
 		goto p_err;
 	}
 
-	if (otcrop->x || otcrop->y) {
-		mwarn("crop pos(%d, %d) is ignored", device, otcrop->x, otcrop->y);
-		otcrop->x = 0;
-		otcrop->y = 0;
+	if (!test_bit(FIMC_IS_ISCHAIN_REPROCESSING, &device->state)) {
+		if (otcrop->x || otcrop->y) {
+			mwarn("crop pos(%d, %d) is ignored", device, otcrop->x, otcrop->y);
+			otcrop->x = 0;
+			otcrop->y = 0;
+		}
 	}
 
 	dma_output = fimc_is_itf_g_param(device, frame, subdev->param_dma_ot);

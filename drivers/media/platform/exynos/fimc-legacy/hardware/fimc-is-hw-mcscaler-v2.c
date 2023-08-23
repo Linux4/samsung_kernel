@@ -83,6 +83,11 @@ static int fimc_is_hw_mcsc_handle_interrupt(u32 id, void *context)
 	instance = atomic_read(&hw_ip->instance);
 	param = &hw_ip->region[instance]->parameter.mcs;
 
+	if (!test_bit(HW_OPEN, &hw_ip->state)) {
+		mserr_hw("invalid interrupt", instance, hw_ip);
+		return 0;
+	}
+	
 	fimc_is_scaler_get_input_status(hw_ip->regs, hw_ip->id, &hl, &vl);
 	/* read interrupt status register (sc_intr_status) */
 	intr_mask = fimc_is_scaler_get_intr_mask(hw_ip->regs, hw_ip->id);
@@ -207,9 +212,6 @@ static int fimc_is_hw_mcsc_handle_interrupt(u32 id, void *context)
 			}
 
 			wake_up(&hw_ip->status.wait_queue);
-			head = GET_HEAD_GROUP_IN_DEVICE(FIMC_IS_DEVICE_ISCHAIN, hw_ip->group[instance]);
-			if (!test_bit(FIMC_IS_GROUP_OTF_INPUT, &head->state))
-				up(&hw_ip->smp_resource);
 			flag_clk_gate = true;
 			hw_ip->mframe = NULL;
 		}
@@ -783,15 +785,6 @@ static int fimc_is_hw_mcsc_shot(struct fimc_is_hw_ip *hw_ip, struct fimc_is_fram
 		return -EINVAL;
 	}
 
-	head = GET_HEAD_GROUP_IN_DEVICE(FIMC_IS_DEVICE_ISCHAIN, hw_ip->group[frame->instance]);
-	if (!test_bit(FIMC_IS_GROUP_OTF_INPUT, &head->state)) {
-		ret = down_interruptible(&hw_ip->smp_resource);
-		if (ret) {
-			mserr_hw(" down fail(%d)", frame->instance, hw_ip, ret);
-			return -EINVAL;
-		}
-	}
-
 	if ((!test_bit(ENTRY_M0P, &frame->out_flag))
 		&& (!test_bit(ENTRY_M1P, &frame->out_flag))
 		&& (!test_bit(ENTRY_M2P, &frame->out_flag))
@@ -803,6 +796,7 @@ static int fimc_is_hw_mcsc_shot(struct fimc_is_hw_ip *hw_ip, struct fimc_is_fram
 	param = &hw_ip->region[instance]->parameter;
 	mcs_param = &param->mcs;
 
+	head = hw_ip->group[frame->instance]->head;
 	if (test_bit(FIMC_IS_GROUP_OTF_INPUT, &head->state)) {
 		if (!test_bit(HW_CONFIG, &hw_ip->state)
 			&& !atomic_read(&hardware->streaming[hardware->sensor_position[instance]]))
@@ -851,6 +845,10 @@ static int fimc_is_hw_mcsc_shot(struct fimc_is_hw_ip *hw_ip, struct fimc_is_fram
 	hw_mcsc->back_lindex = lindex;
 	hw_mcsc->back_hindex = hindex;
 #endif
+
+	hw_mcsc->back_param = param;
+	hw_mcsc->back_lindex = lindex;
+	hw_mcsc->back_hindex = hindex;
 
 	fimc_is_hw_mcsc_update_param(hw_ip, mcs_param,
 		lindex, hindex, instance);
@@ -1430,17 +1428,12 @@ static int fimc_is_hw_mcsc_frame_ndone(struct fimc_is_hw_ip *hw_ip, struct fimc_
 	u32 instance, enum ShotErrorType done_type)
 {
 	int ret = 0;
-	struct fimc_is_group *head;
 
 	fimc_is_hw_mcsc_frame_done(hw_ip, frame, done_type);
 
 	if (test_bit_variables(hw_ip->id, &frame->core_flag))
 		ret = fimc_is_hardware_frame_done(hw_ip, frame, -1, FIMC_IS_HW_CORE_END,
 				done_type, false);
-
-	head = GET_HEAD_GROUP_IN_DEVICE(FIMC_IS_DEVICE_ISCHAIN, hw_ip->group[instance]);
-	if (!test_bit(FIMC_IS_GROUP_OTF_INPUT, &head->state))
-		up(&hw_ip->smp_resource);
 
 	return ret;
 }
@@ -2727,6 +2720,38 @@ static int fimc_is_hw_mcsc_get_meta(struct fimc_is_hw_ip *hw_ip,
 	return ret;
 }
 
+int fimc_is_hw_mcsc_restore(struct fimc_is_hw_ip *hw_ip, u32 instance)
+{
+	int ret = 0;
+	struct fimc_is_hw_mcsc *hw_mcsc;
+	struct is_param_region *param;
+	u32 lindex, hindex;
+
+	BUG_ON(!hw_ip);
+
+	hw_mcsc = (struct fimc_is_hw_mcsc *)hw_ip->priv_info;
+
+	fimc_is_hw_mcsc_reset(hw_ip);
+
+	param = hw_mcsc->back_param;
+	lindex = hw_mcsc->back_lindex;
+	hindex = hw_mcsc->back_hindex;
+	param->tpu.config.tdnr_bypass = true;
+
+	/* setting for MCSC */
+	fimc_is_hw_mcsc_update_param(hw_ip, &param->mcs, lindex, hindex, instance);
+	info_hw("[RECOVERY]: mcsc update param\n");
+
+	/* setting for TDNR */
+	ret = fimc_is_hw_mcsc_recovery_tdnr_register(hw_ip, param, instance);
+	info_hw("[RECOVERY]: tdnr update param\n");
+
+	fimc_is_hw_mcsc_clear_interrupt(hw_ip);
+	fimc_is_scaler_start(hw_ip->regs, hw_ip->id);
+
+	return ret;
+}
+
 const struct fimc_is_hw_ip_ops fimc_is_hw_mcsc_ops = {
 	.open			= fimc_is_hw_mcsc_open,
 	.init			= fimc_is_hw_mcsc_init,
@@ -2741,7 +2766,8 @@ const struct fimc_is_hw_ip_ops fimc_is_hw_mcsc_ops = {
 	.apply_setfile		= fimc_is_hw_mcsc_apply_setfile,
 	.delete_setfile		= fimc_is_hw_mcsc_delete_setfile,
 	.size_dump		= fimc_is_hw_mcsc_size_dump,
-	.clk_gate		= fimc_is_hardware_clk_gate
+	.clk_gate		= fimc_is_hardware_clk_gate,
+	.restore		= fimc_is_hw_mcsc_restore
 };
 
 int fimc_is_hw_mcsc_probe(struct fimc_is_hw_ip *hw_ip, struct fimc_is_interface *itf,

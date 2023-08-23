@@ -39,7 +39,7 @@ const u32 DSIM_PHY_CHARIC_VAL[][9] = {
 /* DPHY timing table */
 /* below table have to be changed to meet Katmai DPHY spec */
 /* based on JF 14nm DPHY timing values */
-const u32 dphy_timing[][10] = {
+u32 dphy_timing[][10] = {
 	/* bps, clk_prepare, clk_zero, clk_post, clk_trail,
 	hs_prepare, hs_zero, hs_trail, lpx, hs_exit */
 	{1500, 13, 65, 17, 13, 14, 24, 16, 11, 18},
@@ -923,7 +923,7 @@ void dsim_reg_force_dphy_stop_state(u32 id, u32 en)
 
 void dsim_reg_wr_tx_header(u32 id, u32 data_id, unsigned long data0, u32 data1, u32 bta_type)
 {
-	u32 val = DSIM_PKTHDR_BTA_TYPE(bta_type) |DSIM_PKTHDR_ID(data_id) |
+	u32 val = DSIM_PKTHDR_BTA_TYPE(bta_type) | DSIM_PKTHDR_ID(data_id) |
 		DSIM_PKTHDR_DATA0(data0) | DSIM_PKTHDR_DATA1(data1);
 
 	dsim_write_mask(id, DSIM_PKTHDR, val, DSIM_PKTHDR_DATA);
@@ -1202,7 +1202,7 @@ void dsim_reg_set_config(u32 id, struct decon_lcd *lcd_info, u32 data_lane_cnt,
 	u32 num_of_slice;
 	u32 num_of_transfer;
 
-	if(lcd_info->mode == DECON_VIDEO_MODE)
+	if (lcd_info->mode == DECON_VIDEO_MODE)
 		dsim_reg_enable_clocklane(id, lcd_info->clklane_onoff);
 	else
 		dsim_reg_enable_noncont_clock(id, 1);
@@ -1747,8 +1747,7 @@ void dsim_reg_stop(u32 id, u32 lanes)
 	dsim_reg_set_int(id, 0);
 
 	/* first disable HS clock */
-	if (dsim_reg_set_hs_clock(id, 0) < 0)
-	{
+	if (dsim_reg_set_hs_clock(id, 0) < 0) {
 		dsim_err("The CLK lane doesn't be switched to LP mode\n");
 	}
 	dsim_reg_set_lanes(id, lanes, 0);

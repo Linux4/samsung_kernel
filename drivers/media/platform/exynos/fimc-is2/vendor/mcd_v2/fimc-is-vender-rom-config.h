@@ -19,6 +19,8 @@
 #include "fimc-is-vender-rom-config_wxs_v00.h"
 #elif defined(CONFIG_CAMERA_ATS_V03)
 #include "fimc-is-vender-rom-config_ats_v03.h"
+#elif defined(CONFIG_CAMERA_ATS_V04)
+#include "fimc-is-vender-rom-config_ats_v04.h"
 #elif defined(CONFIG_CAMERA_AAS_V30)
 #include "fimc-is-vender-rom-config_aas_v30.h"
 #elif defined(CONFIG_CAMERA_AAS_V30J)
@@ -37,6 +39,8 @@
 #include "fimc-is-vender-rom-config_aas_v20e.h"
 #elif defined(CONFIG_CAMERA_AAS_V10E)
 #include "fimc-is-vender-rom-config_aas_v10e.h"
+#elif defined(CONFIG_CAMERA_AAS_V10EKX)
+#include "fimc-is-vender-rom-config_aas_v10ekx.h"
 #elif defined(CONFIG_CAMERA_XXS_V04S)
 #include "fimc-is-vender-rom-config_xxs_v04s.h"
 #elif defined(CONFIG_CAMERA_AAS_V07J)

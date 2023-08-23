@@ -46,23 +46,29 @@ static long hdcp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	{
 		struct hdcp_sess_info ss_info;
 
+		mutex_lock(&hdcp_lock);
 		rval = copy_from_user(&ss_info, (void __user *)arg, sizeof(struct hdcp_sess_info));
 		if (rval) {
 			hdcp_err("Session open copy from user fail. (%x)\n", rval);
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_COPY_FROM_USER_FAILED;
 		}
 
 		rval = hdcp_session_open(&ss_info);
 		if (rval) {
 			hdcp_err("Session open fail. (%x)\n", rval);
+			mutex_unlock(&hdcp_lock);
 			return rval;
 		}
 
 		rval = copy_to_user((void __user *)arg, &ss_info, sizeof(struct hdcp_sess_info));
 		if (rval) {
 			hdcp_err("Session open copy to user fail. (%x)\n", rval);
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_COPY_TO_USER_FAILED;
 		}
+
+		mutex_unlock(&hdcp_lock);
 		break;
 	}
 	case (uint32_t)HDCP_IOC_SESSION_CLOSE:
@@ -70,83 +76,103 @@ static long hdcp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		/* todo: session close */
 		struct hdcp_sess_info ss_info;
 
+		mutex_lock(&hdcp_lock);
 		rval = copy_from_user(&ss_info, (void __user *)arg, sizeof(struct hdcp_sess_info));
 		if (rval) {
 			hdcp_err("Session close copy from user fail. (%x)\n", rval);
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_COPY_FROM_USER_FAILED;
 		}
 
 		rval = hdcp_session_close(&ss_info);
 		if (rval) {
 			hdcp_err("hdcp_session close fail (0x%08x)\n", rval);
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_SESSION_CLOSE_FAILED;
 		}
 
+		mutex_unlock(&hdcp_lock);
 		break;
 	}
 	case (uint32_t)HDCP_IOC_LINK_OPEN:
 	{
 		struct hdcp_link_info lk_info;
 
+		mutex_lock(&hdcp_lock);
 		rval = copy_from_user(&lk_info, (void __user *)arg, sizeof(struct hdcp_link_info));
 		if (rval) {
 			hdcp_err("hdcp_link open copy from user fail (0x%08x)\n", rval);
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_COPY_FROM_USER_FAILED;
 		}
 
 		rval = hdcp_link_open(&lk_info, HDCP_LINK_TYPE_IIA);
 		if (rval) {
 			hdcp_err("hdcp_link open fail (0x%08x)\n", rval);
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_LINK_OPEN_FAILED;
 		}
 
 		rval = copy_to_user((void __user *)arg, &lk_info, sizeof(struct hdcp_link_info));
 		if (rval) {
 			hdcp_err("hdcp_link open copy to user fail (0x%08x)\n", rval);
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_COPY_TO_USER_FAILED;
 		}
+
+		mutex_unlock(&hdcp_lock);
 		break;
 	}
 	case (uint32_t)HDCP_IOC_LINK_CLOSE:
 	{
 		struct hdcp_link_info lk_info;
 
+		mutex_lock(&hdcp_lock);
 		/* find Session node which contain the Link */
 		rval = copy_from_user(&lk_info, (void __user *)arg, sizeof(struct hdcp_link_info));
 		if (rval) {
 			hdcp_err("hdcp_link close copy from user fail (0x%08x)\n", rval);
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_COPY_FROM_USER_FAILED;
 		}
 
 		rval = hdcp_link_close(&lk_info);
 		if (rval) {
 			hdcp_err("hdcp_link close fail (0x%08x)\n", rval);
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_LINK_CLOSE_FAILED;
 		}
 
+		mutex_unlock(&hdcp_lock);
 		break;
 	}
 	case (uint32_t)HDCP_IOC_LINK_AUTH:
 	{
 		struct hdcp_msg_info msg_info;
 
+		mutex_lock(&hdcp_lock);
 		rval = copy_from_user(&msg_info, (void __user *)arg, sizeof(struct hdcp_msg_info));
 		if (rval) {
 			hdcp_err("hdcp_authenticate fail (0x%08x)\n", rval);
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_COPY_FROM_USER_FAILED;
 		}
 
 		rval = hdcp_link_authenticate(&msg_info);
 		if (rval) {
 			hdcp_err("hdcp_authenticate fail (0x%08x)\n", rval);
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_AUTHENTICATE_FAILED;
 		}
 
 		rval = copy_to_user((void __user *)arg, &msg_info, sizeof(struct hdcp_msg_info));
 		if (rval) {
 			hdcp_err("hdcp_authenticate fail (0x%08x)\n", rval);
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_COPY_TO_USER_FAILED;
 		}
+
+		mutex_unlock(&hdcp_lock);
 		break;
 	}
 	case (uint32_t)HDCP_IOC_LINK_ENC:
@@ -162,26 +188,32 @@ static long hdcp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		uint8_t *input_virt, *output_virt;
 		int ret = HDCP_SUCCESS;
 
+		mutex_lock(&hdcp_lock);
 		/* find Session node which contain the Link */
 		rval = copy_from_user(&enc_info, (void __user *)arg, sizeof(struct hdcp_enc_info));
 		if (rval) {
 			hdcp_err("hdcp_encrypt copy from user fail (0x%08x)\n", rval);
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_COPY_FROM_USER_FAILED;
 		}
 
 		/* find Session node which contains the Link */
 		ss_node = hdcp_session_list_find(enc_info.id, &g_hdcp_session_list);
-		if (!ss_node)
+		if (!ss_node) {
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_INVALID_INPUT;
-
+		}
 		lk_node = hdcp_link_list_find(enc_info.id, &ss_node->ss_data->ln);
-		if (!lk_node)
+		if (!lk_node) {
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_INVALID_INPUT;
-
+		}
 		lk_data = lk_node->lk_data;
 
-		if (!lk_data)
+		if (!lk_data) {
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_INVALID_INPUT;
+		}
 
 		input_phys = (ion_phys_addr_t)enc_info.input_phys;
 		output_phys = (ion_phys_addr_t)enc_info.output_phys;
@@ -205,37 +237,47 @@ static long hdcp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 		if (ret) {
 			hdcp_err("encrypt_packet() is failed with 0x%x\n", ret);
+			mutex_unlock(&hdcp_lock);
 			return -1;
 		}
 
 		rval = copy_to_user((void __user *)arg, &enc_info, sizeof(struct hdcp_enc_info));
 		if (rval) {
 			hdcp_err("hdcp_encrypt copy to user fail (0x%08x)\n", rval);
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_COPY_TO_USER_FAILED;
 		}
+
+		mutex_unlock(&hdcp_lock);
 		break;
 	}
 	case (uint32_t)HDCP_IOC_STREAM_MANAGE:
 	{
 		struct hdcp_stream_info stream_info;
 
+		mutex_lock(&hdcp_lock);
 		rval = copy_from_user(&stream_info, (void __user *)arg, sizeof(struct hdcp_stream_info));
 		if (rval) {
 			hdcp_err("hdcp_link stream manage copy from user fail (0x%08x)\n", rval);
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_COPY_FROM_USER_FAILED;
 		}
 
 		rval = hdcp_link_stream_manage(&stream_info);
 		if (rval) {
 			hdcp_err("hdcp_link stream manage fail (0x%08x)\n", rval);
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_LINK_STREAM_FAILED;
 		}
 
 		rval = copy_to_user((void __user *)arg, &stream_info, sizeof(struct hdcp_stream_info));
 		if (rval) {
 			hdcp_err("hdcp_link stream manage copy to user fail (0x%08x)\n", rval);
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_COPY_TO_USER_FAILED;
 		}
+
+		mutex_unlock(&hdcp_lock);
 		break;
 	}
 #if defined(CONFIG_HDCP2_EMULATION_MODE)
@@ -274,20 +316,26 @@ static long hdcp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	{
 		struct hdcp_wrapped_key key_info;
 
+		mutex_lock(&hdcp_lock);
 		rval = copy_from_user(&key_info, (void __user *)arg, sizeof(struct hdcp_wrapped_key));
 		if (rval) {
 			hdcp_err("hdcp_wrap_key copy from user fail (0x%08x)\n", rval);
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_COPY_FROM_USER_FAILED;
 		}
 
-		if (hdcp_wrap_key(&key_info))
+		if (hdcp_wrap_key(&key_info)) {
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_WRAP_FAIL;
-
+		}
 		rval = copy_to_user((void __user *)arg, &key_info, sizeof(struct hdcp_wrapped_key));
 		if (rval) {
 			hdcp_err("hdcp_wrap_key copy to user fail (0x%08x)\n", rval);
+			mutex_unlock(&hdcp_lock);
 			return HDCP_ERROR_COPY_TO_USER_FAILED;
 		}
+
+		mutex_unlock(&hdcp_lock);
 		break;
 	}
 

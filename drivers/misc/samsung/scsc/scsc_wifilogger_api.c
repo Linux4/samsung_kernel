@@ -240,22 +240,22 @@ EXPORT_SYMBOL(scsc_wifi_start_pkt_fate_monitoring);
 
 wifi_error scsc_wifi_get_tx_pkt_fates(wifi_tx_report *tx_report_bufs,
 				      size_t n_requested_fates,
-				      size_t *n_provided_fates)
+				      size_t *n_provided_fates, bool is_user)
 {
 	SCSC_TAG_DEBUG(WLOG, "\n");
 	scsc_wifilogger_ring_pktfate_get_fates(TX_FATE, tx_report_bufs,
-					       n_requested_fates, n_provided_fates);
+					       n_requested_fates, n_provided_fates, is_user);
 	return WIFI_SUCCESS;
 }
 EXPORT_SYMBOL(scsc_wifi_get_tx_pkt_fates);
 
 wifi_error scsc_wifi_get_rx_pkt_fates(wifi_rx_report *rx_report_bufs,
 				      size_t n_requested_fates,
-				      size_t *n_provided_fates)
+				      size_t *n_provided_fates, bool is_user)
 {
 	SCSC_TAG_DEBUG(WLOG, "\n");
 	scsc_wifilogger_ring_pktfate_get_fates(RX_FATE, rx_report_bufs,
-					       n_requested_fates, n_provided_fates);
+					       n_requested_fates, n_provided_fates, is_user);
 	return WIFI_SUCCESS;
 }
 EXPORT_SYMBOL(scsc_wifi_get_rx_pkt_fates);

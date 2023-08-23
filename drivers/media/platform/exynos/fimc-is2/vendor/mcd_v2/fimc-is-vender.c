@@ -1159,6 +1159,9 @@ int fimc_is_vender_set_torch(u32 aeflashMode, u32 frontFlashMode)
 #if defined(CONFIG_LEDS_S2MU005_FLASH)
 		s2mu005_led_mode_ctrl(S2MU005_FLED_MODE_MOVIE);
 #endif
+#if defined(CONFIG_LEDS_S2MU106_FLASH)
+		s2mu106_led_mode_ctrl(S2MU106_FLED_MODE_TORCH);
+#endif
 		break;
 	case AA_FLASHMODE_START: /*Pre flash mode*/
 	case AA_FLASHMODE_ON: /* Main flash Mode */
@@ -1166,12 +1169,21 @@ int fimc_is_vender_set_torch(u32 aeflashMode, u32 frontFlashMode)
 		if(frontFlashMode == CAM2_FLASH_MODE_LCD)
 			s2mu005_led_mode_ctrl(S2MU005_FLED_MODE_FLASH);
 #endif
+#if defined(CONFIG_LEDS_S2MU106_FLASH)
+		s2mu106_led_mode_ctrl(S2MU106_FLED_MODE_TORCH)
+#endif
 		break;
 	case AA_FLASHMODE_CAPTURE: /*Main flash mode*/
+#if defined(CONFIG_LEDS_S2MU106_FLASH)
+		s2mu106_led_mode_ctrl(S2MU106_FLED_MODE_FLASH);
+#endif
 		break;
 	case AA_FLASHMODE_OFF: /*OFF mode*/
 #if defined(CONFIG_LEDS_S2MU005_FLASH)
 		s2mu005_led_mode_ctrl(S2MU005_FLED_MODE_OFF);
+#endif
+#if defined(CONFIG_LEDS_S2MU106_FLASH)
+		s2mu106_led_mode_ctrl(S2MU106_FLED_MODE_OFF);
 #endif
 		break;
 	default:

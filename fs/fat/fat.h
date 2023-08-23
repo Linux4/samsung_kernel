@@ -1,3 +1,8 @@
+
+/* @fs.sec -- d315380a99f81d98b0c3718617b5da5a -- */
+/* @fs.sec -- 0aada64b546ebb65e2ae266910f5b40a -- */
+/* @fs.sec -- fafc95ecfe8e741015d6cc26a6a3af41 -- */
+
 #ifndef _FAT_H
 #define _FAT_H
 
@@ -6,6 +11,7 @@
 #include <linux/hash.h>
 #include <linux/ratelimit.h>
 #include <linux/msdos_fs.h>
+#include <linux/kobject.h>
 
 #ifdef CONFIG_FAT_SUPPORT_STLOG
 #include <linux/fslog.h>
@@ -397,6 +403,18 @@ static inline unsigned long fat_dir_hash(int logstart)
 }
 
 /* fat/misc.c */
+#ifdef CONFIG_FAT_UEVENT
+extern int fat_uevent_init(struct kset *fat_kset);
+extern void fat_uevent_uninit(void);
+extern void fat_uevent_ro_remount(struct super_block *sb);
+#else
+static inline int fat_uevent_init(struct kset *fat_kset)
+{
+	return 0;
+}
+static inline void fat_uevent_uninit(void) {};
+static inline void fat_uevent_ro_remount(struct super_block *sb) {};
+#endif
 extern __printf(3, 4) __cold
 void __fat_fs_error(struct super_block *sb, int report, const char *fmt, ...);
 #define fat_fs_error(sb, fmt, args...)		\

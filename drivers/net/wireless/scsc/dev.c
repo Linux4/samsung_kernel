@@ -85,6 +85,20 @@ static bool nan_disabled;
 module_param(nan_disabled, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(nan_disabled, "Disable NAN: to disable NAN set 1.");
 
+#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
+static bool nan_include_ipv6_tlv = true;
+module_param(nan_include_ipv6_tlv, bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(nan_include_ipv6_tlv, "include ipv6 address tlv: to disable NAN set 0. Enabled by default");
+
+static int nan_max_ndp_instances = 1;
+module_param(nan_max_ndp_instances, int, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(nan_max_ndp_instances, "max ndp sessions");
+
+static int nan_max_ndi_ifaces = 1;
+module_param(nan_max_ndi_ifaces, int, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(nan_max_ndi_ifaces, "max ndi interface");
+#endif
+
 bool slsi_dev_gscan_supported(void)
 {
 	return !gscan_disabled;
@@ -130,6 +144,23 @@ int slsi_dev_nan_supported(struct slsi_dev *sdev)
 	return false;
 #endif
 }
+
+#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
+bool slsi_dev_nan_is_ipv6_link_tlv_include(void)
+{
+	return nan_include_ipv6_tlv;
+}
+
+int slsi_get_nan_max_ndp_instances(void)
+{
+	return nan_max_ndp_instances;
+}
+
+int slsi_get_nan_max_ndi_ifaces(void)
+{
+	return nan_max_ndi_ifaces;
+}
+#endif
 
 static int slsi_dev_inetaddr_changed(struct notifier_block *nb, unsigned long data, void *arg)
 {
@@ -223,8 +254,8 @@ void slsi_regd_init(struct slsi_dev *sdev)
 
 	SLSI_DBG1_NODEV(SLSI_INIT_DEINIT, "regulatory init\n");
 
-	SLSI_DBG1(sdev, SLSI_INIT_DEINIT, "chip ver=Maxwell, chan supp=2.4 & 5 GHz");
-	slsi_world_regdom_custom->n_reg_rules = 6;
+        SLSI_DBG1(sdev, SLSI_INIT_DEINIT, "chip ver=Maxwell, chan supp=2.4 & 5 GHz");
+	slsi_world_regdom_custom->n_reg_rules = (sizeof(reg_rules))/sizeof(reg_rules[0]);
 	for (i = 0; i < slsi_world_regdom_custom->n_reg_rules; i++)
 		slsi_world_regdom_custom->reg_rules[i] = reg_rules[i];
 
@@ -249,6 +280,7 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 	}
 
 	sdev->mlme_blocked = false;
+	sdev->wlan_service_on = 0;
 
 	SLSI_MUTEX_INIT(sdev->netdev_add_remove_mutex);
 	SLSI_MUTEX_INIT(sdev->netdev_remove_mutex);
@@ -315,11 +347,7 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 		SLSI_ERR(sdev, "Can not create the network interface\n");
 		goto err_ctrl_wq_init;
 	}
-
-	if (slsi_hip_init(sdev, dev) != 0) {
-		SLSI_ERR(sdev, "slsi_hip_init() Failed\n");
-		goto err_netif_init;
-	}
+	slsi_hip_init(sdev, dev);
 
 	if (slsi_udi_node_init(sdev, dev) != 0) {
 		SLSI_ERR(sdev, "failed to init UDI\n");
@@ -373,8 +401,8 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 		SLSI_ERR(sdev, "failed to register with p2p netdev\n");
 		goto err_wlan_registered;
 	}
-#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
-#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000)
+#if defined(CONFIG_SCSC_WLAN_WIFI_SHARING) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
+#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
 	if (slsi_netif_register(sdev, sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN]) != 0) {
 		SLSI_ERR(sdev, "failed to register with p2px_wlan1 netdev\n");
 		goto err_p2p_registered;
@@ -385,8 +413,8 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 #if CONFIG_SCSC_WLAN_MAX_INTERFACES >= 4
 	if (slsi_netif_register(sdev, sdev->netdev[SLSI_NET_INDEX_NAN]) != 0) {
 		SLSI_ERR(sdev, "failed to register with NAN netdev\n");
-#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
-#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000)
+#if defined(CONFIG_SCSC_WLAN_WIFI_SHARING) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
+#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
 		goto err_p2px_wlan_registered;
 #else
 		goto err_p2p_registered;
@@ -403,6 +431,9 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 #endif
 
 	slsi_dbg_skb_device_add();
+#ifdef CONFIG_SCSC_WLAN_ENHANCED_PKT_FILTER
+	sdev->enhanced_pkt_filter_enabled = true;
+#endif
 	sdev->device_state = SLSI_DEVICE_STATE_STOPPED;
 	sdev->current_tspec_id = -1;
 	sdev->tspec_error_code = -1;
@@ -414,8 +445,8 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 #if CONFIG_SCSC_WLAN_MAX_INTERFACES >= 4
 		goto err_nan_registered;
 #else
-#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
-#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000)
+#if defined(CONFIG_SCSC_WLAN_WIFI_SHARING) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
+#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
 		goto err_p2px_wlan_registered;
 #else
 		goto err_p2p_registered;
@@ -433,7 +464,7 @@ err_nan_registered:
 #endif
 
 #ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
-#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000)
+#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9)
 err_p2px_wlan_registered:
 	slsi_netif_remove(sdev, sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN]);
 	rcu_assign_pointer(sdev->netdev_ap, NULL);
@@ -461,8 +492,6 @@ err_udi_proc_init:
 
 err_hip_init:
 	slsi_hip_deinit(sdev);
-
-err_netif_init:
 	slsi_netif_deinit(sdev);
 
 err_ctrl_wq_init:
@@ -573,7 +602,7 @@ int __init slsi_dev_load(void)
 	sap_test_init();
 
 /* Always create devnode if TW Android P on */
-#if defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9
 	slsi_create_sysfs_macaddr();
 #endif
 	SLSI_INFO_NODEV("--- Maxwell Wi-Fi driver loaded successfully ---\n");
@@ -584,7 +613,7 @@ void __exit slsi_dev_unload(void)
 {
 	SLSI_INFO_NODEV("Unloading Maxwell Wi-Fi driver\n");
 
-#if defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9
 	slsi_destroy_sysfs_macaddr();
 #endif
 	/* Unregister SAPs */

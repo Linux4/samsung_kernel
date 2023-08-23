@@ -208,6 +208,7 @@ struct reg_ioctl {
 #define TOUCH_JITTER_MODE			15
 #define TOUCH_SELF_DND_MODE			17
 #define TOUCH_SENTIVITY_MEASUREMENT_MODE	21
+#define TOUCH_CHARGE_PUMP_MODE			25
 #define TOUCH_REF_ABNORMAL_TEST_MODE		33
 #define DEF_RAW_SELF_SSR_DATA_MODE		39	/* SELF SATURATION RX */
 #define DEF_RAW_SELF_SFR_UNIT_DATA_MODE		40
@@ -481,6 +482,7 @@ struct tsp_raw_data {
 	s16 jitter_data[TSP_CMD_NODE_NUM];
 	s16 reference_data[TSP_CMD_NODE_NUM];
 	s16 reference_data_abnormal[TSP_CMD_NODE_NUM];
+	s16 charge_pump_data[TSP_CMD_NODE_NUM];
 	u16 channel_test_data[5];
 };
 
@@ -1317,10 +1319,12 @@ static bool ts_read_coord(struct bt532_ts_info *info)
 				input_report_key(info->input_dev, KEY_HOMEPAGE, 0);
 				input_sync(info->input_dev);
 				/* request from sensor team */
-				input_report_abs(info->input_dev_proximity, ABS_MT_CUSTOM2, 1);
-				input_sync(info->input_dev_proximity);
-				input_report_abs(info->input_dev_proximity, ABS_MT_CUSTOM2, 0);
-				input_sync(info->input_dev_proximity);
+				if (info->pdata->support_ear_detect) {
+					input_report_abs(info->input_dev_proximity, ABS_MT_CUSTOM2, 1);
+					input_sync(info->input_dev_proximity);
+					input_report_abs(info->input_dev_proximity, ABS_MT_CUSTOM2, 0);
+					input_sync(info->input_dev_proximity);
+				}
 
 				input_info(true, &client->dev, "AOT Doubletab\n");
 			} else {
@@ -3402,6 +3406,15 @@ static void fw_update(void *device_data)
 	int ret;
 
 	sec_cmd_set_default_result(sec);
+#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	if (sec->cmd_param[0] == 1) {
+		sec->cmd_state = 2;
+		snprintf(result, sizeof(result) , "%s", "OK");
+		sec_cmd_set_cmd_result(sec, result, strnlen(result, sizeof(result)));
+		input_info(true, &client->dev, "%s: user_ship, success\n", __func__);
+		return;
+	}
+#endif
 
 	switch (sec->cmd_param[0]) {
 	case BUILT_IN:
@@ -5512,6 +5525,55 @@ out:
 				sec_cmd_set_cmd_result_all(sec, rx_buff, strnlen(rx_buff, sizeof(rx_buff)), "SELF_DND_TX");
 			sec_cmd_set_cmd_result_all(sec, rx_buff, strnlen(rx_buff, sizeof(rx_buff)), "SELF_DND_RX");
 		}
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	}
+	input_info(true, &client->dev, "%s: \"%s\"(%d)\n", __func__, sec->cmd_result,
+				(int)strlen(sec->cmd_result));
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_start(CHECK_ESD_TIMER, misc_info);
+	write_reg(client, BT532_PERIODICAL_INTERRUPT_INTERVAL,
+		SCAN_RATE_HZ * ESD_TIMER_INTERVAL);
+#endif
+	return;
+}
+
+static void run_charge_pump_read(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct bt532_ts_info *info = container_of(sec, struct bt532_ts_info, sec);
+	struct i2c_client *client = info->client;
+	struct tsp_raw_data *raw_data = info->raw_data;
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	int ret;
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_stop(misc_info);
+	write_reg(client, BT532_PERIODICAL_INTERRUPT_INTERVAL, 0);
+	write_cmd(client, BT532_CLEAR_INT_STATUS_CMD);
+#endif
+	sec_cmd_set_default_result(sec);
+
+	ret = ts_set_touchmode(TOUCH_CHARGE_PUMP_MODE);
+	if (ret < 0) {
+		ts_set_touchmode(TOUCH_POINT_MODE);
+		goto out;
+	}
+	get_raw_data(info, (u8 *)raw_data->charge_pump_data, 1);
+	ts_set_touchmode(TOUCH_POINT_MODE);
+
+	snprintf(buff, sizeof(buff), "%d,%d", raw_data->charge_pump_data[0], raw_data->charge_pump_data[0]);
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
+		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "CHARGE_PUMP");
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+
+out:
+	if (ret < 0) {
+		snprintf(buff, sizeof(buff), "%s", "NG");
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
+			sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "CHARGE_PUMP");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	}
 	input_info(true, &client->dev, "%s: \"%s\"(%d)\n", __func__, sec->cmd_result,
@@ -8291,6 +8353,7 @@ static void factory_cmd_result_all(void *device_data)
 		run_selfdnd_v_gap_read(sec);
 		run_selfdnd_h_gap_read(sec);
 		run_self_saturation_read(sec);
+		run_charge_pump_read(sec);
 #ifdef TCLM_CONCEPT
 		run_mis_cal_read(sec);
 #endif
@@ -9037,6 +9100,7 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("factory_cmd_result_all", factory_cmd_result_all),},
 	{SEC_CMD("check_connection", check_connection),},
 	{SEC_CMD("run_prox_intensity_read_all", run_prox_intensity_read_all),},
+	{SEC_CMD("run_charge_pump_read", run_charge_pump_read),},
 	{SEC_CMD("not_support_cmd", not_support_cmd),},
 };
 

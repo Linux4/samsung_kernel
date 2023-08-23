@@ -31,13 +31,22 @@
 #include "fscrypto_sdp_name.h"
 // #include "fscrypto_sdp_dek_private.h"
 #include "fscrypto_sdp_xattr_private.h"
-
+#ifdef CONFIG_SDP_ENHANCED
+#include "sdp_crypto.h"
+#endif
 /**
  * SDP Encryption context for inode
  */
 #define PKG_NAME_SIZE 16
+#ifdef CONFIG_SDP_ENHANCED
+#define SDP_DEK_SDP_ENABLED             0x00100000
+#else
 //#define SDP_DEK_SDP_ENABLED             0x00100000
+#endif
 #define SDP_DEK_IS_SENSITIVE            0x00200000
+#ifdef CONFIG_SDP_ENHANCED
+#define SDP_DEK_IS_UNINITIALIZED        0x00400000
+#endif
 //#define SDP_DEK_MULTI_ENGINE            0x00400000
 #define SDP_DEK_TO_SET_SENSITIVE        0x00800000
 #define SDP_DEK_TO_CONVERT_KEY_TYPE     0x01000000
@@ -59,14 +68,27 @@ struct fscrypt_sdp_context {
 	__u32 engine_id;
 	__u32 sdp_dek_type;
 	__u32 sdp_dek_len;
+#ifdef CONFIG_SDP_ENHANCED
+	__u8 sdp_dek_buf[DEK_MAXLEN];
+	__u8 sdp_en_buf[MAX_EN_BUF_LEN];
+#else
 	char sdp_dek_buf[DEK_MAXLEN];
 	char comm[PKG_NAME_SIZE];
 	__u32 euid;
+#endif
 } __attribute__((__packed__));
 
 extern int dek_is_locked(int engine_id);
 extern int dek_encrypt_dek_efs(int engine_id, dek_t *plainDek, dek_t *encDek);
 extern int dek_decrypt_dek_efs(int engine_id, dek_t *encDek, dek_t *plainDek);
+#ifdef CONFIG_SDP_ENHANCED
+extern int dek_encrypt_fek(unsigned char *master_key, unsigned int master_key_len,
+					unsigned char *fek, unsigned int fek_len,
+					unsigned char *efek, unsigned int *efek_len);
+extern int dek_decrypt_fek(unsigned char *master_key, unsigned int master_key_len,
+					unsigned char *efek, unsigned int efek_len,
+					unsigned char *fek, unsigned int *fek_len);
+#endif
 extern int fscrypt_sdp_get_engine_id(struct inode *inode);
 
 #ifndef IS_ENCRYPTED //Implemented from 4.14(Beyond)

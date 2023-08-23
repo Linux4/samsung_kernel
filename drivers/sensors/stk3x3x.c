@@ -555,7 +555,7 @@ static void stk3x3x_work_func_pocket_read(struct work_struct *work)
 	if(ret < 0)
 		SENSOR_ERR("WAIT_REG failed %d\n", ret);
 
-	mdelay(10);
+	usleep_range(10000, 10000);
 
 	// check sunlight mode
 	ret = STK3X3X_REG_READ(ps_data, STK3X3X_SUNLIGHT_CHECK_REG);
@@ -586,7 +586,7 @@ static void stk3x3x_work_func_pocket_read(struct work_struct *work)
 			}
 		}
 		if (i < POCKET_DATA_NUM - 1)
-			mdelay(10);
+			usleep_range(10000, 10000);
 	}
 	read_adc = read_adc / POCKET_DATA_NUM;
 

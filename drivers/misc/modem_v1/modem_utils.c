@@ -42,6 +42,7 @@
 #include <linux/exynos-ss.h>
 #include <linux/bitops.h>
 #include <linux/smc.h>
+#include <linux/sec_debug.h>
 #include <soc/samsung/pmu-cp.h>
 #include <soc/samsung/exynos-modem-ctrl.h>
 
@@ -87,7 +88,7 @@ static const char *hex = "0123456789abcdef";
 
 static struct raw_notifier_head cp_crash_notifier;
 
-struct mif_buff_mng *g_mif_buff_mng;
+struct mif_buff_mng *g_mif_buff_mng = NULL;
 
 static inline void ts2utc(struct timespec *ts, struct utc_time *utc)
 {
@@ -1238,7 +1239,17 @@ void mif_set_snapshot(bool enable)
 {
 	if (!enable)
 		acpm_stop_log();
-	exynos_ss_set_enable("log_kevents", enable);
+
+#ifdef CONFIG_SEC_DEBUG
+#ifdef CONFIG_SEC_DEBUG_SNAPSHOT_DISABLE
+	if (sec_debug_get_debug_level() == 0)
+		pr_err("%s: log_kevents disabled by debug level\n", __func__);
+	else
+#endif
+#endif
+	{
+		exynos_ss_set_enable("log_kevents", enable);
+	}
 }
 
 struct mif_buff_mng *init_mif_buff_mng(unsigned char *buffer_start,

@@ -135,6 +135,7 @@ static int gp2ap_write_settings(struct gp2ap_data *data)
 			led_reg_val = data->led_reg_val_2;
 			ps_high_th = data->ps_high_th_2;
 			ps_low_th = data->ps_low_th_2;
+			data->min_close_offset = MAX_OFFSET;
 	}
 	
 	data->led_reg_val = led_reg_val;
@@ -238,7 +239,7 @@ static void gp2ap_StopMeasurement(struct gp2ap_data *data)
 	gp2ap_i2c_write(REG_COM2, wdata, data->client);
 }
 
-static uint32_t gp2ap_get_proximity_adc(struct gp2ap_data *data)
+static int gp2ap_get_proximity_adc(struct gp2ap_data *data)
 {
 	u8 value[2];
 	int ret;
@@ -256,7 +257,7 @@ static void gp2ap_InitData(struct gp2ap_data *data)
 {
 	u8    wdata;
 	u8    offset;
-        uint32_t adc = 0;
+	int   adc = 0;
 
 	gp2ap_i2c_read(REG_DYNAMIC_CAL_RESULT, &offset, sizeof(offset), data->client);
 	SENSOR_INFO("offset=%d\n", offset);
@@ -271,11 +272,16 @@ static void gp2ap_InitData(struct gp2ap_data *data)
 			if (offset >= OFFSET_TUNE_ADC &&
     				data->tune_adc_count < MAX_RETRY_TUNE_ADC_COUNT) {
     				adc = gp2ap_get_proximity_adc(data);
+					if(adc < 0) {
+						data->tune_adc_count++;
+						return;
+					}
     				wdata = (adc+ 1280)/256;
     				SENSOR_INFO("Tune ADC: adc %d, wdata 0x%x\n", adc, wdata);
     				if(wdata > 0x0D)
 					wdata = 0x0D;
     				data->handle_high_offset = true;
+    				data->high_offset = (u16)wdata * 16;
     				gp2ap_i2c_write(0x8D, wdata, data->client);
     				data->tune_adc_count++;
     				return;
@@ -284,7 +290,7 @@ static void gp2ap_InitData(struct gp2ap_data *data)
 	}
 
 	wdata = 0x00;    				     gp2ap_i2c_write(0x81, wdata, data->client);
-	wdata = 0x00;    				     gp2ap_i2c_write(0x82, wdata, data->client);
+	wdata = 0x02;    				     gp2ap_i2c_write(0x82, wdata, data->client);
 	wdata = 0x13;   				     gp2ap_i2c_write(0x83, wdata, data->client);
 	wdata = 0x10;    				     gp2ap_i2c_write(0x85, wdata, data->client);
 	wdata = data->led_reg_val;		     gp2ap_i2c_write(0x86, wdata, data->client);
@@ -304,11 +310,10 @@ static void gp2ap_InitDataDynamicCalibration(struct gp2ap_data *data)
 {
 	u8    wdata;
 
-	SENSOR_INFO("\n");
 	SENSOR_INFO("led_reg_val=%d", data->led_reg_val);
 
 	wdata = 0x00;    				gp2ap_i2c_write(0x81, wdata, data->client);
-	wdata = 0x10;    				gp2ap_i2c_write(0x82, wdata, data->client);
+	wdata = 0x12;    				gp2ap_i2c_write(0x82, wdata, data->client);
 	wdata = 0x10;    				gp2ap_i2c_write(0x83, wdata, data->client);
 	wdata = 0x10;   				gp2ap_i2c_write(0x85, wdata, data->client);
 	wdata = data->led_reg_val;		gp2ap_i2c_write(0x86, wdata, data->client);
@@ -332,7 +337,7 @@ static ssize_t ps_enable_show(struct device *dev,
 	struct gp2ap_data *data = dev_get_drvdata(dev);
 	int                 enabled;
 
-	SENSOR_INFO("ps_enable_show\n");
+	SENSOR_INFO("ps_enable_show: %d\n", data->ps_enabled);
 	enabled = data->ps_enabled;
 	return sprintf(buf, "%d", enabled);
 }
@@ -381,7 +386,7 @@ static void gp2ap_ps_setting(struct gp2ap_data *data)
 
 static int gp2ap_ps_onoff(u8 onoff, struct gp2ap_data *data)
 {
-	SENSOR_INFO("proximity_sensor onoff = %d\n", onoff);
+	SENSOR_INFO("onoff= %d\n", onoff);
 
 	if (onoff) {
 		gp2ap_ps_setting(data);
@@ -389,26 +394,22 @@ static int gp2ap_ps_onoff(u8 onoff, struct gp2ap_data *data)
 			gp2ap_InitDataDynamicCalibration(data);
 			data->dynamic_calib_done = 0;
 
-			enable_irq_wake(data->ps_irq);
-			enable_irq(data->ps_irq);
-
 			gp2ap_StartMeasurement(data);
 
 			msleep(50);
 
-			SENSOR_INFO("dynamic calibration done\n");
 			data->dynamic_calib_done = 1;
+			SENSOR_INFO("dynamic calibration done\n");
+
 			if(data->zero_detect)
 				data->zero_detect = 0;
+
 			gp2ap_InitData(data);
 		} else {
 			gp2ap_InitData(data);
 		}
 		gp2ap_StartMeasurement(data);
 	} else {
-		disable_irq_wake(data->ps_irq);
-		disable_irq(data->ps_irq);
-
 		gp2ap_StopMeasurement(data);
 	}
 
@@ -421,8 +422,6 @@ static ssize_t gp2ap_ps_enable_store(struct device *dev,
 	struct gp2ap_data *data = dev_get_drvdata(dev);
 	bool new_value;
 
-	SENSOR_INFO("data=%s\n", buf);
-
 	if (sysfs_streq(buf, "1"))
 		new_value = true;
 	else if (sysfs_streq(buf, "0"))
@@ -434,7 +433,7 @@ static ssize_t gp2ap_ps_enable_store(struct device *dev,
 
 	mutex_lock(&data->mutex_enable);
 
-	SENSOR_INFO("new_value = %d, ps_enabled = %d\n",
+	SENSOR_INFO("new= %d, ps_enabled= %d\n",
 		new_value, data->ps_enabled);
 
 	if (!data->ps_enabled && new_value) {
@@ -444,6 +443,7 @@ static ssize_t gp2ap_ps_enable_store(struct device *dev,
 		data->ps_enabled = new_value;
 		data->tune_adc_count = 0;
 		data->handle_high_offset = false;
+		data->high_offset = 0;
 		mutex_lock(&data->mutex_ps_onoff);
 		gp2ap_ps_onoff(1, data);
 		mutex_unlock(&data->mutex_ps_onoff);
@@ -456,10 +456,15 @@ static ssize_t gp2ap_ps_enable_store(struct device *dev,
 			mutex_unlock(&data->mutex_ps_onoff);
 		}
 
+		enable_irq_wake(data->ps_irq);
+		enable_irq(data->ps_irq);
 		schedule_delayed_work(&data->offset_work, msecs_to_jiffies(OFFSET_TUNE_DELAY));
 
 		SENSOR_INFO("proximity_sensor enable!! \n");
 	} else if (data->ps_enabled && !new_value) {
+		disable_irq_wake(data->ps_irq);
+		disable_irq(data->ps_irq);
+
 		cancel_delayed_work_sync(&data->offset_work);
 		mutex_lock(&data->mutex_ps_onoff);
 		gp2ap_ps_onoff(0, data);
@@ -533,6 +538,22 @@ static int ps_input_init(struct gp2ap_data *data)
 	return err;
 }
 
+void gp2ap_update_min_close_offset(struct gp2ap_data *data)
+{
+	u8 offset;
+	u8 rdata_d0[2];
+	u16 ps_count;
+
+	gp2ap_i2c_read(REG_DYNAMIC_CAL_RESULT, &offset, sizeof(offset), data->client);
+	gp2ap_i2c_read(REG_D0_LSB, rdata_d0, sizeof(rdata_d0), data->client);
+	ps_count = (rdata_d0[1] << 8) | rdata_d0[0];
+
+	if (data->high_offset + offset + OFFSET_DELTA < data->min_close_offset)
+		data->min_close_offset = data->high_offset + offset + OFFSET_DELTA;
+
+	SENSOR_INFO(":%u %u %u %u\n", ps_count, offset, data->high_offset, data->min_close_offset);
+}
+
 irqreturn_t gp2ap_ps_irq_handler(int irq, void *id_data)
 {
 	struct gp2ap_data *data = id_data;
@@ -540,9 +561,10 @@ irqreturn_t gp2ap_ps_irq_handler(int irq, void *id_data)
 
 	val = gpio_get_value(data->p_out);
 
-	SENSOR_INFO("val:%d\n", val);
-
-	schedule_work(&data->ps_int_work);
+	/*1: Far, 0: Near */
+	SENSOR_INFO("val:%d en:%d\n", val, data->ps_enabled);
+	if(data->ps_enabled)
+		schedule_work(&data->ps_int_work);
 
 	return IRQ_HANDLED;
 }
@@ -561,12 +583,12 @@ static void gp2ap_ps_work_int_func(struct work_struct *work)
 		return;
 
 	mutex_lock(&data->mutex_interrupt);
-	// 0 : proximity, 1 : away 
+	gp2ap_i2c_read(REG_DYNAMIC_CAL_RESULT, &offset, sizeof(offset), data->client);
 	gp2ap_i2c_read(0x81, &rdata, sizeof(rdata), data->client);
 	if ((rdata & 0x08) == 0x08)
-		distance = 0;
+		distance = 0; // Near
 	else
-		distance = 1;
+		distance = 1; // Far
 	if (data->ps_distance != distance) {
 		data->ps_distance = distance;
 	}
@@ -574,31 +596,34 @@ static void gp2ap_ps_work_int_func(struct work_struct *work)
 	gp2ap_i2c_read(REG_D0_LSB, rdata_d0, sizeof(rdata_d0), data->client);
 	data->ps_count = (rdata_d0[1] << 8) | rdata_d0[0];
 
-	if (data->ps_count >= data->ps_high_th)
+	if (data->ps_count >= data->ps_high_th || (data->high_offset + offset >= data->min_close_offset && data->ps_count != 0))
 		near_far = 0;
-	else if (data->ps_count < data->ps_low_th)
+	else if (data->ps_count < data->ps_low_th && (data->high_offset + offset < data->min_close_offset && data->ps_count != 0))
 		near_far = 1;
-
-	SENSOR_INFO("ps_distance:%d, near_far:%d, ps_count:%d\n", data->ps_distance, near_far, data->ps_count);
 
 	if (near_far == 0) {
 		data->zero_detect = 0;
 	}
 
-	SENSOR_INFO("zero_detect=%d\n", data->zero_detect);
+	SENSOR_INFO("dis:%d near_far:%d count:%d zero:%d\n", 
+		data->ps_distance, near_far, data->ps_count,data->zero_detect);
 
 	if ((near_far == 1) && (data->ps_count == 0) && (data->zero_detect == 0)) {
 		SENSOR_INFO("zero detection!!!\n");
 		data->zero_detect = 1;
 		mutex_lock(&data->mutex_ps_onoff);
+		disable_irq_wake(data->ps_irq);
+		disable_irq(data->ps_irq);
 		gp2ap_ps_onoff(0, data);
 		gp2ap_ps_onoff(1, data);
+		enable_irq_wake(data->ps_irq);
+		enable_irq(data->ps_irq);
 		mutex_unlock(&data->mutex_ps_onoff);
-
-		gp2ap_i2c_read(REG_DYNAMIC_CAL_RESULT, &offset, sizeof(offset), data->client);
 
 		if(!offset) {
 			gp2ap_i2c_write(0x8D, 0, data->client);
+			data->min_close_offset = MAX_OFFSET;
+			data->high_offset = 0;
 			SENSOR_INFO("offset = 0 , Restart sensor!");
 			mutex_lock(&data->mutex_ps_onoff);
 			gp2ap_ps_onoff(0, data);
@@ -609,6 +634,7 @@ static void gp2ap_ps_work_int_func(struct work_struct *work)
 		input_report_abs(data->ps_input_dev, ABS_DISTANCE, near_far);
 		input_sync(data->ps_input_dev);
 	}
+	gp2ap_update_min_close_offset(data);
 	mutex_unlock(&data->mutex_interrupt);
 }
 
@@ -629,9 +655,9 @@ static int gp2ap_setup_irq(struct gp2ap_data *gp2ap)
 	}
 
 	gp2ap->ps_irq = gpio_to_irq(gp2ap->p_out);
-		ret = request_irq(gp2ap->ps_irq, gp2ap_ps_irq_handler,
-			  IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING, "proximity_int", gp2ap);
-	
+	ret = request_irq(gp2ap->ps_irq, gp2ap_ps_irq_handler,
+			IRQF_TRIGGER_RISING  |  IRQF_TRIGGER_FALLING | IRQF_ONESHOT, "proximity_int", gp2ap);
+
 	if (ret < 0) {
 		SENSOR_ERR("request_irq(%d) failed for gpio %d (%d)\n",
 			gp2ap->ps_irq, gp2ap->p_out, ret);
@@ -744,6 +770,14 @@ static ssize_t proximity_cal_show(struct device *dev,
 	
 	return snprintf(buf, PAGE_SIZE, "%d,%d,%d\n",
 		value, data->ps_high_th, data->ps_low_th);
+}
+
+static ssize_t proximity_cal_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	//for LCiA ADC Check sequence
+	SENSOR_INFO("\n");
+	return size;
 }
 
 static ssize_t proximity_thresh_high_show(struct device *dev,
@@ -981,28 +1015,34 @@ static void gp2ap_offset_work_func(struct work_struct *work)
 	struct gp2ap_data *data = container_of((struct delayed_work *)work,
 		struct gp2ap_data, offset_work);
 		
-	uint32_t ps_data;
+	int   ps_data;
 	u8    offset;
 
-	ps_data = gp2ap_get_proximity_adc(data);
+	if(!data->ps_enabled) return;
 	
-	SENSOR_INFO("ps_data_offset_work=%d\n", ps_data);
+	ps_data = gp2ap_get_proximity_adc(data);
+	SENSOR_INFO("offset=%d\n", ps_data);
 
 	if (ps_data > 0)
 		data->zero_detect = 0;
-
-	if (ps_data == 0 && data->zero_detect == 0) {
+	else if (ps_data == 0 && data->zero_detect == 0) {
 		SENSOR_INFO(" zero detection\n");
 		data->zero_detect = 1;
 		mutex_lock(&data->mutex_ps_onoff);
+		disable_irq_wake(data->ps_irq);
+		disable_irq(data->ps_irq);
 		gp2ap_ps_onoff(0, data);
 		gp2ap_ps_onoff(1, data);
+		enable_irq_wake(data->ps_irq);
+		enable_irq(data->ps_irq);
 		mutex_unlock(&data->mutex_ps_onoff);
 
 		gp2ap_i2c_read(REG_DYNAMIC_CAL_RESULT, &offset, sizeof(offset), data->client);
 
 		if(!offset) {
 			gp2ap_i2c_write(0x8D, 0, data->client);
+			data->min_close_offset = MAX_OFFSET;
+			data->high_offset = 0;
 			SENSOR_INFO("offset = 0 , Restart sensor!");
 			mutex_lock(&data->mutex_ps_onoff);
 			gp2ap_ps_onoff(0, data);
@@ -1010,7 +1050,7 @@ static void gp2ap_offset_work_func(struct work_struct *work)
 			mutex_unlock(&data->mutex_ps_onoff);
 		}
 	}
-
+	gp2ap_update_min_close_offset(data);
 	schedule_delayed_work(&data->offset_work, msecs_to_jiffies(OFFSET_TUNE_DELAY));
 }
 
@@ -1018,7 +1058,7 @@ static ssize_t proximity_state_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {   
 	struct gp2ap_data *data = dev_get_drvdata(dev);
-	uint32_t ps_data;
+	int ps_data;
 
 	ps_data = gp2ap_get_proximity_adc(data);
 
@@ -1081,9 +1121,9 @@ static ssize_t dynamic_calib_enabled_store(struct device *dev,
 static DEVICE_ATTR(name, 0444, name_read, NULL);
 static DEVICE_ATTR(vendor, 0444, vendor_read, NULL);
 static DEVICE_ATTR(raw_data, 0444, proximity_state_show, NULL);
-static DEVICE_ATTR(prox_register, 0444, proximity_register_read_show, proximity_register_write_store);
+static DEVICE_ATTR(prox_register, 0644, proximity_register_read_show, proximity_register_write_store);
 static DEVICE_ATTR(prox_trim, 0444, proximity_trim_show, NULL);
-static DEVICE_ATTR(prox_cal, 0444, proximity_cal_show, NULL);
+static DEVICE_ATTR(prox_cal, 0664, proximity_cal_show, proximity_cal_store);
 static DEVICE_ATTR(thresh_high, S_IRUGO | S_IWUSR | S_IWGRP,
 	proximity_thresh_high_show, proximity_thresh_high_store);
 static DEVICE_ATTR(thresh_low, S_IRUGO | S_IWUSR | S_IWGRP,
@@ -1128,11 +1168,12 @@ static void proximity_get_avg_val(struct gp2ap_data *data)
 {
 	int min = 0, max = 0, avg = 0;
 	int i;
-	u16 ps_data;
+	int ps_data;
 
 	for (i = 0; i < PROX_READ_NUM; i++) {
 		msleep(40);
 		ps_data = gp2ap_get_proximity_adc(data);
+		if(ps_data < 0) continue;
 		avg += ps_data;
 		if (!i)
 			min = ps_data;
@@ -1298,6 +1339,8 @@ static int gp2ap_i2c_probe(struct i2c_client *client,
 	gp2ap->bytes = 14; // 4 bytes each for led_reg_val, thresholds & 1 byte each for ","
 	gp2ap->pre_test = 0;
 	gp2ap->zero_detect = 0;
+	gp2ap->high_offset = 0;
+	gp2ap->min_close_offset = MAX_OFFSET;
 
 	value = 0x00;
 	gp2ap_i2c_write(0x8D, value, gp2ap->client);
@@ -1427,8 +1470,10 @@ static int gp2ap_suspend(struct device *pdev)
 
 	SENSOR_INFO("is called.\n");
 
-	if (data->ps_enabled)
+	if (data->ps_enabled) {
 		disable_irq(data->ps_irq);
+		cancel_delayed_work_sync(&data->offset_work);
+	}
 
 	return 0;
 }
@@ -1439,8 +1484,10 @@ static int gp2ap_resume(struct device *pdev)
 
 	SENSOR_INFO("is called.\n");
 
-	if (data->ps_enabled)
+	if (data->ps_enabled) {
 		enable_irq(data->ps_irq);
+		schedule_delayed_work(&data->offset_work, msecs_to_jiffies(OFFSET_TUNE_DELAY));
+	}
 
 	return 0;
 }

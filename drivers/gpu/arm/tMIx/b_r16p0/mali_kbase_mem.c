@@ -3391,8 +3391,14 @@ static int kbase_jd_user_buf_map(struct kbase_context *kctx,
 	pinned_pages = get_user_pages(NULL, mm,
 			address,
 			alloc->imported.user_buf.nr_pages,
+#if KERNEL_VERSION(4, 4, 168) <= LINUX_VERSION_CODE && \
+			KERNEL_VERSION(4, 5, 0) > LINUX_VERSION_CODE
+			reg->flags & KBASE_REG_GPU_WR ? FOLL_WRITE : 0,
+			pages, NULL);
+#else
 			reg->flags & KBASE_REG_GPU_WR,
 			pages, NULL);
+#endif
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	pinned_pages = get_user_pages_remote(NULL, mm,
 			address,

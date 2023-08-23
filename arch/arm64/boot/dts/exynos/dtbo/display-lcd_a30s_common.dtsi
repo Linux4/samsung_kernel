@@ -1,22 +1,27 @@
 /*
  * SAMSUNG LCD Panel Device Tree Source
  *
- * Copyright (c) 2016 Samsung Electronics Co., Ltd.
+ * Copyright (c) Samsung Electronics Co., Ltd.
  *		http://www.samsung.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
-*/
+ */
 
 / {
 	fragment@lcd {
 		target-path = "/";
 		__overlay__ {
-			decon_board: decon_board {
-				gpio_lcd_1p8 = <&gpg1 4 0x1>;
-				gpio_lcd_3p0 = <&gpg1 2 0x1>;
-				gpio_lcd_rst = <&gpg2 0 0x1>;
+			decon_board_s6e8fc1: decon_board_s6e8fc1 {
+				gpio_det = <&gpa2 5 0x1>;	/* EL_ON1_DET */
+				gpio_err = <&gpa1 1 0x1>;	/* FG_ERR */
+				gpio_con = <&gpg3 0 0x0>;	/* OCTA_CON_DET */
+				gpio_pcd = <&gpa2 7 0x1>;	/* PCD_INT */
+
+				gpio_lcd_1p8 = <&gpg1 4 0>;
+				gpio_lcd_3p0 = <&gpg1 2 0>;
+				gpio_lcd_rst = <&gpg2 0 0>;
 
 				dsim_set_panel_power_enable {
 					type =
@@ -42,7 +47,7 @@
 				};
 			};
 
-			s6e8fc1: s6e8fc1_hdp {
+			s6e8fc1: s6e8fc1 {
 				mode = <0>; /* 0: video mode, 1: DP command mode, 2: MIPI command mode */
 				resolution = <720 1560>;
 				size = <68 147>;	/* 67.9 x 147.11 */
@@ -62,6 +67,7 @@
 				data_lane = <4>;	/* number of using data lane */
 				vt_compensation = <717>;	/* for underrun detect at command mode */
 				clklane_onoff = <1>;
+				decon_board = <&decon_board_s6e8fc1>;
 			};
 		};
 	};
@@ -69,17 +75,11 @@
 
 &dsim_0 {
 	lcd_info = <&s6e8fc1>;
-	decon_board = <&decon_board>;
 };
 
 &decon_f {
-	psr_mode = <0>;         /* 0: video mode, 1: DP command mode, 2: MIPI command mode */
-	trig_mode = <1>;        /* 0: hw trigger, 1: sw trigger */
-	dsi_mode = <0>;        /* 0: single dsi, 1: dual dsi */
-
-	gpio_det = <&gpa2 5 0x1>;		/* EL_ON1_DET */
-	gpio_err = <&gpa1 1 0x1>;		/* FG_ERR */
-	gpio_con = <&gpg3 0 0x0>;		/* OCTA_CON_DET  */
-	gpio_pcd = <&gpa2 7 0x1>;		/* PCD_INT */
+	psr_mode = <0>;		/* 0: video mode, 1: DP command mode, 2: MIPI command mode */
+	trig_mode = <1>;	/* 0: hw trigger, 1: sw trigger */
+	dsi_mode = <0>;		/* 0: single dsi, 1: dual dsi */
 };
 

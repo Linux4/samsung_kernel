@@ -57,10 +57,15 @@ config DECON_HIBER
         depends on EXYNOS_DECON_7885
         default n
 
-config EXYNOS_SUPPORT_DOZE
+config EXYNOS_DOZE
 	bool "Suppot Doze mode to aod service"
 	depends on EXYNOS_DECON_7885
 	default n
+
+config EXYNOS_SUPPORT_DOZE
+	bool "Suppot backword compatibility for EXYNOS_DOZE"
+	depends on EXYNOS_DOZE
+	default y
 
 config EXYNOS_SUPPORT_FB_HANDOVER
 	bool "Suppot bootloader framebuffer handover"
@@ -84,7 +89,7 @@ config SUPPORT_MASK_LAYER
 
 config LOGGING_BIGDATA_BUG
 	bool "Logging extra information when decon bug"
-	depends on EXYNOS_DECON_7885
+	depends on SEC_DEBUG
 	default n
 
 endif

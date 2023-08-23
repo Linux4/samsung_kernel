@@ -189,9 +189,17 @@ config S2MU106_TYPEC_WATER
 	  If you say yes here you will get support for
 	  the S2MU106 Type-C Water functions.
 
+config S2MU106_IFCONN_HOUSE_NOT_GND
+	bool "take w/a when ifconn house is not gnd"
+	depends on S2MU106_TYPEC_WATER
+	default n
+	help
+	  If you say yes here you will get support w/a for
+	  the ifconn house is not gnd models.
+
 config MUIC_S2MU106_FAST_DETECTION
 	bool "Using S2MU106 Type-C Water Detection, fast cable also."
-	depends on MUIC_S2MU106
+	depends on S2MU106_TYPEC_WATER
 	default n
 	help
 	  If you say yes here you will get support for
@@ -325,3 +333,9 @@ config MUIC_SUPPORT_PRSWAP
 	help
 	  If you say yes here you will get support for the power role swap.
 
+config MUIC_NOT_SUPPORT_QC
+	bool "MUIC not supports quick charger"
+	depends on MUIC_HV
+	default n
+	help
+	  If you say yes here you will not get support for the quick charger.

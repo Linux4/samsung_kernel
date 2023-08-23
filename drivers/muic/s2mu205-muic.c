@@ -807,26 +807,58 @@ static int s2mu205_if_check_usb_killer(void *mdata)
 	struct i2c_client *i2c = muic_data->i2c;
 	int ret = MUIC_NORMAL_OTG;
 	u8 reg_val = 0;
+	bool lc_cable_inserted = false;
 
 #if IS_ENABLED(CONFIG_S2MU205_TYPEC_WATER)
 	int wait_ret = 0;
+	u8 muic_int1_mask = 0, muic_int2_mask = 0, muic_ctrl2 = 0;
+	u8 adc = 0;
 
 	if (muic_data->water_status != S2MU205_WATER_MUIC_IDLE)
 		return MUIC_ABNORMAL_OTG;
 
 	if (!muic_data->is_cable_inserted) {
-		wait_ret = wait_event_interruptible_timeout(muic_data->cable_wait,
-			muic_data->is_cable_inserted == true,
-			msecs_to_jiffies(300));
+		muic_ctrl2 = s2mu205_i2c_read_byte(muic_data->i2c, S2MU205_REG_MUIC_CTRL2);
+		if (muic_ctrl2 & MUIC_CTRL2_ADC_OFF_MASK) {
+			muic_int1_mask = s2mu205_i2c_read_byte(muic_data->i2c, S2MU205_REG_MUIC_INT1_MASK);
+			muic_int2_mask = s2mu205_i2c_read_byte(muic_data->i2c, S2MU205_REG_MUIC_INT2_MASK);
 
-		if ((wait_ret < 0) || (!wait_ret)) {
-			pr_err("%s not cable state.\n", __func__);
-			return MUIC_ABNORMAL_OTG;
+			s2mu205_i2c_write_byte(muic_data->i2c, S2MU205_REG_MUIC_INT1_MASK, 0xff);
+			s2mu205_i2c_write_byte(muic_data->i2c, S2MU205_REG_MUIC_INT2_MASK, 0xff);
+			_s2mu205_muic_control_rid_adc(muic_data, true);
+			msleep(100);
+
+			adc = _s2mu205_muic_get_rid_adc(muic_data);
+			pr_info("%s adc(%d)\n", __func__, adc);
+
+			_s2mu205_muic_control_rid_adc(muic_data, false);
+			usleep_range(20000, 22000);
+
+			muic_int1_mask = s2mu205_i2c_read_byte(muic_data->i2c, S2MU205_REG_MUIC_INT1);
+			muic_int2_mask = s2mu205_i2c_read_byte(muic_data->i2c, S2MU205_REG_MUIC_INT2);
+			pr_info("%s muic_int(%#x, %#x)\n", __func__, muic_int1_mask, muic_int2_mask);
+			s2mu205_i2c_write_byte(muic_data->i2c, S2MU205_REG_MUIC_INT1_MASK, muic_int1_mask);
+			s2mu205_i2c_write_byte(muic_data->i2c, S2MU205_REG_MUIC_INT2_MASK, muic_int2_mask);
+
+			if (adc != ADC_GND) {
+				pr_err("%s not cable state.\n", __func__);
+				return MUIC_ABNORMAL_OTG;
+			} else {
+				lc_cable_inserted = true;
+			}
+		} else {
+			wait_ret = wait_event_interruptible_timeout(muic_data->cable_wait,
+				muic_data->is_cable_inserted == true,
+				msecs_to_jiffies(300));
+
+			if ((wait_ret < 0) || (!wait_ret)) {
+				pr_err("%s not cable state.\n", __func__);
+				return MUIC_ABNORMAL_OTG;
+			}
+			pr_info("%s, cable detected after while.", __func__);
 		}
-		pr_info("%s, cable detected after while.", __func__);
 	}
 #endif
-
 	pr_info("%s entered\n", __func__);
 
 	/* Set Data Path to Open. */
@@ -836,7 +868,7 @@ static int s2mu205_if_check_usb_killer(void *mdata)
 		msleep(50);
 	}
 
-	if (!muic_data->is_cable_inserted) {
+	if (!muic_data->is_cable_inserted && lc_cable_inserted == false) {
 		pr_info("%s Not Cable.\n", __func__);
 		return MUIC_ABNORMAL_OTG;
 	}
@@ -1004,6 +1036,21 @@ static int s2mu205_if_get_hiccup_mode(void *mdata)
 	return muic_data->is_hiccup_mode;
 }
 #endif
+
+static void s2mu205_if_set_bypass(void *mdata)
+{
+	/*
+	 * To prevent charging operation after entering bypass mode
+	 */
+	struct s2mu205_muic_data *muic_data = (struct s2mu205_muic_data *)mdata;
+
+	pr_info("%s\n", __func__);
+
+	s2mu205_i2c_write_byte(muic_data->i2c, S2MU205_REG_MUIC_INT1_MASK, 0xff);
+	s2mu205_i2c_write_byte(muic_data->i2c, S2MU205_REG_MUIC_INT2_MASK, 0xff);
+
+	muic_core_handle_detach(muic_data->pdata);
+}
 
 int s2mu205_set_gpio_uart_sel(struct s2mu205_muic_data *muic_data, int uart_sel)
 {
@@ -2512,6 +2559,7 @@ static void s2mu205_muic_init_interface(struct s2mu205_muic_data *muic_data,
 #if defined(CONFIG_MUIC_SUPPORT_PRSWAP)
 	muic_if->prswap_work = s2mu205_if_prswap_work;
 #endif
+	muic_if->set_bypass = s2mu205_if_set_bypass;
 	muic_data->if_data = muic_if;
 	muic_pdata->muic_if = muic_if;
 }

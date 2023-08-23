@@ -40,6 +40,7 @@ struct exynos_ion_platform_heap {
 	struct reserved_mem *rmem;
 	unsigned int id;
 	unsigned int compat_ids;
+	unsigned int protected_id;
 	bool secure;
 	bool reusable;
 	bool protected;
@@ -118,6 +119,18 @@ struct exynos_ion_platform_heap ion_hpa_heaps[] __initdata = {
 		.id = 9, /* 9 but it is not defined in exynos_ion.h */
 		.secure = true,
 	},
+#ifdef CONFIG_HPA_EXTRA
+	{
+		.heap_data = {
+			.name = "vframe_extra_heap",
+			.type = ION_HEAP_TYPE_HPA,
+			.id = ION_EXYNOS_HEAP_ID_EXTRA_VFRAME,
+		},
+		.id = ION_EXYNOS_HEAP_ID_EXTRA_VFRAME,
+		.protected_id = ION_EXYNOS_HEAP_ID_VIDEO_FRAME,
+		.secure = true,
+	},
+#endif
 #endif /* CONFIG_HPA */
 };
 
@@ -221,6 +234,9 @@ static int __ion_secure_protect_buffer(struct exynos_ion_platform_heap *pdata,
 	if (ret)
 		return ret;
 	prot->dma_addr = dma_addr;
+	
+	if (pdata->protected_id)
+		prot->flags = pdata->protected_id;
 
 	__flush_dcache_area(prot, sizeof(struct ion_buffer_prot_info));
 	if (prot->chunk_count > 1)
@@ -314,6 +330,30 @@ bool ion_is_heap_available(struct ion_heap *heap,
 {
 	return true;
 }
+
+#ifdef CONFIG_HPA_EXTRA
+/*
+ * HPA has allocation failure problem due to memory fragementation
+ * on low memory device. CMA also makes memory allocation failure
+ * problem for unmovable page.
+ * The way to resolve the memory allocation problem is to reduce
+ * CMA size and add the extra HPA heap to try again if CMA allocation fails.
+ * Currently, HPA heap is additionally registered for vframe CMA heap
+ * and the size of CMA is also reduced.
+ */
+unsigned int ion_get_extra_heap_id(unsigned int heap_id_mask)
+{
+	if (heap_id_mask == 1 << ION_EXYNOS_HEAP_ID_VIDEO_FRAME)
+		return 1 << ION_EXYNOS_HEAP_ID_EXTRA_VFRAME;
+
+	return 0;
+}
+#else
+unsigned int ion_get_extra_heap_id(unsigned int heap_id_mask)
+{
+	return 0;
+}
+#endif
 
 unsigned int ion_parse_heap_id(unsigned int heap_id_mask, unsigned int flags)
 {

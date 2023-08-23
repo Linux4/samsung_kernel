@@ -482,6 +482,10 @@ static void dw_mci_exynos_adjust_clock(struct dw_mci *host, unsigned int wanted)
 	host->current_speed = 0;
 }
 
+#ifndef KHZ
+#define KHZ (1000)
+#endif
+
 static void dw_mci_exynos_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 {
 	struct dw_mci_exynos_priv_data *priv = host->priv;
@@ -552,6 +556,9 @@ static void dw_mci_exynos_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 		else
 			dw_mci_card_int_hwacg_ctrl(host, HWACG_Q_ACTIVE_DIS, LEGACY_MODE);
 	}
+
+	if ((ios->clock > 0) && (ios->clock <= 400 * KHZ))
+		mci_phase7_mux_dis(host, AXI_BURST_LEN);
 
 	host->cclk_in = wanted;
 
@@ -1222,25 +1229,21 @@ static ssize_t sd_detection_cmd_show(struct device *dev,
 	struct dw_mci *host = dev_get_drvdata(dev);
 	struct dw_mci_exynos_priv_data *priv = host->priv;
 
-	if (host->cur_slot && host->cur_slot->mmc && host->cur_slot->mmc->card) {
-		if (priv->sec_sd_slot_type > 0 && !gpio_is_valid(priv->cd_gpio))
-			goto gpio_error;
+	if (priv->sec_sd_slot_type > 0 && !gpio_is_valid(priv->cd_gpio))
+		goto gpio_error;
 
+	if (gpio_get_value(priv->cd_gpio) ^ (host->pdata->use_gpio_invert)
+			&& (priv->sec_sd_slot_type == SEC_HYBRID_SD_SLOT)) {
+		dev_info(host->dev, "SD slot tray Removed.\n");
+		return sprintf(buf, "Notray\n");
+	}
+
+	if (host->cur_slot && host->cur_slot->mmc && host->cur_slot->mmc->card) {
 		dev_info(host->dev, "SD card inserted.\n");
 		return sprintf(buf, "Insert\n");
-	} else {
-		if (priv->sec_sd_slot_type > 0 && !gpio_is_valid(priv->cd_gpio))
-			goto gpio_error;
-
-		if (gpio_get_value(priv->cd_gpio) ^ (host->pdata->use_gpio_invert)
-				&& priv->sec_sd_slot_type == SEC_HYBRID_SD_SLOT) {
-			dev_info(host->dev, "SD slot tray Removed.\n");
-			return sprintf(buf, "Notray\n");
-		}
-
-		dev_info(host->dev, "SD card removed.\n");
-		return sprintf(buf, "Remove\n");
 	}
+	dev_info(host->dev, "SD card removed.\n");
+	return sprintf(buf, "Remove\n");
 
 gpio_error:
 	dev_info(host->dev, "%s : External SD detect pin Error\n", __func__);
@@ -1592,6 +1595,46 @@ static ssize_t sd_cid_show(struct device *dev,
 out:
 	return len;
 }
+
+static ssize_t sd_health_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct dw_mci *host = dev_get_drvdata(dev);
+	struct mmc_card *cur_card = NULL;
+	struct mmc_card_error_log *err_log;
+	u64 total_c_cnt = 0;
+	u64 total_t_cnt = 0;
+	int len = 0;
+	int i = 0;
+
+	if (host->cur_slot && host->cur_slot->mmc && host->cur_slot->mmc->card)
+		cur_card = host->cur_slot->mmc->card;
+
+	if (!cur_card) {
+		//There should be no spaces in 'No Card'(Vold Team).
+		len = snprintf(buf, PAGE_SIZE, "NOCARD\n");
+		goto out;
+	}
+
+	err_log = cur_card->err_log;
+
+	for (i = 0; i < 6; i++) {
+		if (err_log[i].err_type == -EILSEQ && total_c_cnt < MAX_CNT_U64)
+			total_c_cnt += err_log[i].count;
+		if (err_log[i].err_type == -ETIMEDOUT && total_t_cnt < MAX_CNT_U64)
+			total_t_cnt += err_log[i].count;
+	}
+
+	if(err_log[0].ge_cnt > 100 || err_log[0].ecc_cnt > 0 || err_log[0].wp_cnt > 0 ||
+	   err_log[0].oor_cnt > 10 || total_t_cnt > 100 || total_c_cnt > 100)
+		len = snprintf(buf, PAGE_SIZE, "BAD\n");
+	else
+		len = snprintf(buf, PAGE_SIZE, "GOOD\n");
+
+out:
+	return len;
+}
+
 static DEVICE_ATTR(status, 0444, sd_detection_cmd_show, NULL);
 static DEVICE_ATTR(cd_cnt, 0444, sd_detection_cnt_show, NULL);
 static DEVICE_ATTR(max_mode, 0444, sd_detection_maxmode_show, NULL);
@@ -1602,6 +1645,7 @@ static DEVICE_ATTR(sd_data, 0444, sd_data_show, NULL);
 static DEVICE_ATTR(mmc_data, S_IRUGO, mmc_data_show, NULL);
 static DEVICE_ATTR(mmc_summary, S_IRUGO, mmc_summary_show, NULL);
 static DEVICE_ATTR(data, 0444, sd_cid_show, NULL);
+static DEVICE_ATTR(fc, 0444, sd_health_show, NULL);
 
 /* Callback function for SD Card IO Error */
 static int sdcard_uevent(struct mmc_card *card)
@@ -1720,6 +1764,10 @@ static void dw_mci_exynos_add_sysfs(struct dw_mci *host)
 
 			if (device_create_file(sd_info_cmd_dev,
 						&dev_attr_data) < 0)
+				pr_err("Fail to create status sysfs file\n");
+
+			if (device_create_file(sd_info_cmd_dev,
+						&dev_attr_fc) < 0)
 				pr_err("Fail to create status sysfs file\n");
 		}
 

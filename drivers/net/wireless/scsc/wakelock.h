@@ -8,15 +8,11 @@
 #ifndef __SLSI_WAKELOCK_H__
 #define __SLSI_WAKELOCK_H__
 
-#ifdef CONFIG_WAKELOCK
 #include <linux/wakelock.h>
-#endif
 #include <linux/spinlock.h>
 
 struct slsi_wake_lock {
-#ifdef CONFIG_WAKELOCK
 	struct wake_lock wl;
-#endif
 	/* Spinlock to synchronize the access of the counter */
 	spinlock_t       wl_spinlock;
 	int              counter;

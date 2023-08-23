@@ -70,6 +70,9 @@ enum scsc_wlbtd_response_codes {
 	SCSC_WLBTD_OTHER_ERR_SABLE_FILE,
 	SCSC_WLBTD_OTHER_ERR_TAR,
 	SCSC_WLBTD_OTHER_IGNORE_TRIGGER,
+
+	/* Keep this as last entry */
+	SCSC_WLBTD_LAST_RESPONSE_CODE,
 };
 
 static const struct genl_multicast_group scsc_mcgrp[] = {

@@ -27,7 +27,7 @@
 
 #if defined(CONFIG_EXYNOS_DECON_MDNIE)
 #include "mdnie.h"
-#include "mdnie_lite_table_j3tope.h"
+#include "td4100_j3tope_mdnie.h"
 #endif
 
 #define PANEL_STATE_SUSPENED	0
@@ -250,6 +250,10 @@ static int td4100_read_id(struct lcd_info *lcd)
 {
 	struct panel_private *priv = &lcd->dsim->priv;
 	int i, ret = 0;
+	struct decon_device *decon = get_decon_drvdata(0);
+	static char *LDI_BIT_DESC_ID[BITS_PER_BYTE * TD4100_ID_LEN] = {
+		[0 ... 23] = "ID Read Fail",
+	};
 
 	lcd->id_info.value = 0;
 	priv->lcdconnected = lcd->connected = lcdtype ? 1 : 0;
@@ -263,6 +267,9 @@ static int td4100_read_id(struct lcd_info *lcd)
 	if (ret < 0 || !lcd->id_info.value) {
 		priv->lcdconnected = lcd->connected = 0;
 		dev_info(&lcd->ld->dev, "%s: connected lcd is invalid\n", __func__);
+
+		if (lcdtype && decon)
+			decon_abd_save_bit(&decon->abd, BITS_PER_BYTE * TD4100_ID_LEN, cpu_to_be32(lcd->id_info.value), LDI_BIT_DESC_ID);
 	}
 
 	dev_info(&lcd->ld->dev, "%s: %x\n", __func__, cpu_to_be32(lcd->id_info.value));
@@ -281,8 +288,6 @@ static int td4100_displayon_late(struct lcd_info *lcd)
 
 	DSI_WRITE(SEQ_DISPLAY_ON, ARRAY_SIZE(SEQ_DISPLAY_ON));
 	DSI_WRITE(SEQ_TD4100_BLON, ARRAY_SIZE(SEQ_TD4100_BLON));
-
-	dsim_panel_set_brightness(lcd, 1);
 
 	return ret;
 }
@@ -384,8 +389,13 @@ static int fb_notifier_callback(struct notifier_block *self,
 	if (evdata->info->node)
 		return NOTIFY_DONE;
 
-	if (fb_blank == FB_BLANK_UNBLANK)
+	if (fb_blank == FB_BLANK_UNBLANK) {
+		mutex_lock(&lcd->lock);
 		td4100_displayon_late(lcd);
+		mutex_unlock(&lcd->lock);
+
+		dsim_panel_set_brightness(lcd, 1);
+	}
 
 	return NOTIFY_DONE;
 }
@@ -747,4 +757,5 @@ struct dsim_lcd_driver td4100_mipi_lcd_driver = {
 	.displayon	= dsim_panel_displayon,
 	.suspend	= dsim_panel_suspend,
 };
+__XX_ADD_LCD_DRIVER(td4100_mipi_lcd_driver);
 

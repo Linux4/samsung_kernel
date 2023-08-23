@@ -44,6 +44,10 @@
 #include "../fs/ext4/sdp/fscrypto_sdp_cache.h"
 #endif
 
+#ifdef CONFIG_PAGE_BOOST_RECORDING
+#include <linux/io_record.h>
+#endif
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/filemap.h>
 
@@ -1577,7 +1581,9 @@ static ssize_t do_generic_file_read(struct file *filp, loff_t *ppos,
 	prev_offset = ra->prev_pos & (PAGE_CACHE_SIZE-1);
 	last_index = (*ppos + iter->count + PAGE_CACHE_SIZE-1) >> PAGE_CACHE_SHIFT;
 	offset = *ppos & ~PAGE_CACHE_MASK;
-
+#ifdef CONFIG_PAGE_BOOST_RECORDING
+	record_io_info(filp, index, last_index - index);
+#endif
 	for (;;) {
 		struct page *page;
 		pgoff_t end_index;
@@ -1900,7 +1906,11 @@ static int page_cache_read(struct file *file, pgoff_t offset, gfp_t gfp_mask)
 }
 
 #define MMAP_LOTSAMISS  (100)
-int mmap_readaround_limit;
+#if CONFIG_MMAP_READAROUND_LIMIT == 0
+int mmap_readaround_limit = (VM_MAX_READAHEAD / 4); 		/* page */
+#else
+int mmap_readaround_limit = CONFIG_MMAP_READAROUND_LIMIT;	/* page */
+#endif
 
 /*
  * Synchronous readahead happens when we don't even find
@@ -1911,7 +1921,7 @@ static void do_sync_mmap_readahead(struct vm_area_struct *vma,
 				   struct file *file,
 				   pgoff_t offset)
 {
-	unsigned long ra_pages;
+	unsigned int ra_pages;
 	struct address_space *mapping = file->f_mapping;
 
 	/* If we don't want any read-ahead, don't bother */
@@ -1940,16 +1950,7 @@ static void do_sync_mmap_readahead(struct vm_area_struct *vma,
 	/*
 	 * mmap read-around
 	 */
-#if CONFIG_MMAP_READAROUND_LIMIT == 0
-	ra_pages = ra->ra_pages;
-#else
-	if (ra->ra_pages > CONFIG_MMAP_READAROUND_LIMIT)
-		ra_pages = CONFIG_MMAP_READAROUND_LIMIT;
-	else
-		ra_pages = ra->ra_pages;
-#endif
-	if (mmap_readaround_limit && ra->ra_pages > mmap_readaround_limit)
-		ra_pages = mmap_readaround_limit;
+	ra_pages = min_t(unsigned int, ra->ra_pages, mmap_readaround_limit);
 	ra->start = max_t(long, 0, offset - ra_pages / 2);
 	ra->size = ra_pages;
 	ra->async_size = ra_pages / 4;
@@ -2130,6 +2131,7 @@ void filemap_map_pages(struct vm_area_struct *vma, struct vm_fault *vmf)
 	struct file *file = vma->vm_file;
 	struct address_space *mapping = file->f_mapping;
 	loff_t size;
+	pgoff_t last_pgoff = vmf->pgoff;
 	struct page *page;
 	unsigned long address = (unsigned long) vmf->virtual_address;
 	unsigned long addr;
@@ -2180,6 +2182,7 @@ repeat:
 		if (file->f_ra.mmap_miss > 0)
 			file->f_ra.mmap_miss--;
 		addr = address + (page->index - vmf->pgoff) * PAGE_SIZE;
+		last_pgoff = page->index;
 		do_set_pte(vma, addr, page, pte, false, false);
 		unlock_page(page);
 		goto next;
@@ -2192,6 +2195,11 @@ next:
 			break;
 	}
 	rcu_read_unlock();
+	
+#ifdef CONFIG_PAGE_BOOST_RECORDING
+	/* end_pgoff is inclusive */
+	record_io_info(file, vmf->pgoff, last_pgoff - vmf->pgoff + 1);
+#endif
 }
 EXPORT_SYMBOL(filemap_map_pages);
 

@@ -768,7 +768,7 @@ void gfspi_hw_power_enable(struct gf_device *gf_dev, u8 onoff)
 			exynos_smc(FP_CSMC_HANDLER_ID, FP_HANDLER_MAIN, FP_SET_POWERON_INACTIVE, 0));
 #endif
 		if (gf_dev->reset_gpio) {
-			mdelay(11);
+			usleep_range(11000, 11050);
 			gpio_set_value(gf_dev->reset_gpio, 1);
 		}
 		gf_dev->ldo_onoff = 1;
@@ -787,7 +787,7 @@ void gfspi_hw_power_enable(struct gf_device *gf_dev, u8 onoff)
 #endif
 		if (gf_dev->reset_gpio) {
 			gpio_set_value(gf_dev->reset_gpio, 0);
-			mdelay(11);
+			usleep_range(11000, 11050);
 		}
 		if (gf_dev->pwr_gpio)
 			gpio_set_value(gf_dev->pwr_gpio, 0);
@@ -811,9 +811,9 @@ void gfspi_hw_reset(struct gf_device *gf_dev, u8 delay)
 	}
 	gpio_direction_output(gf_dev->reset_gpio, 1);
 	gpio_set_value(gf_dev->reset_gpio, 0);
-	mdelay(3);
+	usleep_range(3000, 3050);
 	gpio_set_value(gf_dev->reset_gpio, 1);
-	mdelay(delay);
+	usleep_range((delay * 1000), ((delay * 1000) + 50));
 	gf_dev->reset_count++;
 }
 

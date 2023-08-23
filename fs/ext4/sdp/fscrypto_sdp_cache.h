@@ -32,6 +32,7 @@ void fscrypt_sdp_unset_file_io_ongoing(struct file *file);
 void fscrypt_sdp_unset_clearing_ongoing(struct inode *inode);
 bool fscrypt_sdp_is_cache_releasable(struct inode *inode);
 bool fscrypt_sdp_is_locked_sensitive_inode(struct inode *inode);
+/* EXT4CRYPT-dedicated */
 int ext4_sdp_d_delete_wrapper(const struct dentry *dentry);
 void fscrypt_sdp_drop_inode(struct inode *inode);
 #endif

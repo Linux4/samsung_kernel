@@ -201,6 +201,12 @@ static int s5p_mfc_dec_buf_init(struct vb2_buffer *vb)
 		if (ret < 0)
 			return ret;
 
+		/* When there is change of reference address, MFC Driver need to communicate
+		 * this information with MFC FW using NAL START OPTIONS
+		 * Information is stored by setting the bit position
+		 */
+		s5p_mfc_dec_vb_index_info(ctx, buf);
+
 		start_raw = s5p_mfc_mem_get_daddr_vb(vb, 0);
 		if (ctx->dst_fmt->fourcc == V4L2_PIX_FMT_NV12N) {
 			buf->planes.raw[0] = start_raw;
@@ -439,6 +445,7 @@ static void s5p_mfc_dec_stop_streaming(struct vb2_queue *q)
 		dec->y_addr_for_pb = 0;
 
 		s5p_mfc_cleanup_assigned_dpb(ctx);
+		s5p_mfc_clear_all_bits(&ctx->vbindex_bits);
 
 		while (index < MFC_MAX_BUFFERS) {
 			index = find_next_bit(&ctx->dst_ctrls_avail,

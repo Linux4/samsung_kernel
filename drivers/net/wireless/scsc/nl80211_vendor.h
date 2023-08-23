@@ -16,6 +16,7 @@
 #define SLSI_NL80211_LOGGING_SUBCMD_RANGE_START           0x1400
 #define SLSI_NL80211_NAN_SUBCMD_RANGE_START             0x1500
 #define SLSI_NL80211_RTT_SUBCMD_RANGE_START    0x1100
+#define SLSI_NL80211_APF_SUBCMD_RANGE_START    0x1600
 #define SLSI_GSCAN_SCAN_ID_START                        0x410
 #define SLSI_GSCAN_SCAN_ID_END                          0x500
 
@@ -37,6 +38,8 @@
 
 #define SLSI_NL_ATTRIBUTE_U32_LEN                       (NLA_HDRLEN + 4)
 #define SLSI_NL_ATTRIBUTE_COUNTRY_CODE                  (4)
+#define SLSI_NL_ATTRIBUTE_LATENCY_MODE                  (5)
+
 #define SLSI_NL_VENDOR_ID_OVERHEAD                      SLSI_NL_ATTRIBUTE_U32_LEN
 #define SLSI_NL_VENDOR_SUBCMD_OVERHEAD                  SLSI_NL_ATTRIBUTE_U32_LEN
 #define SLSI_NL_VENDOR_DATA_OVERHEAD                    (NLA_HDRLEN)
@@ -86,11 +89,22 @@
 #define SLSI_WIFI_HAL_FEATURE_HAL_EPNO           0x040000      /* WiFi PNO enhanced */
 #define SLSI_WIFI_HAL_FEATURE_RSSI_MONITOR       0x080000      /* RSSI Monitor */
 #define SLSI_WIFI_HAL_FEATURE_MKEEP_ALIVE        0x100000      /* WiFi mkeep_alive */
+#define SLSI_WIFI_HAL_FEATURE_CONFIG_NDO         0x200000      /* ND offload */
 #define SLSI_WIFI_HAL_FEATURE_CONTROL_ROAMING    0x800000      /* Enable/Disable firmware roaming macro */
+#define SLSI_WIFI_HAL_FEATURE_SCAN_RAND          0x2000000     /* Random MAC & Probe seq */
+#define SLSI_WIFI_HAL_FEATURE_LOW_LATENCY        0x40000000    /* Low Latency modes */
+#define SLSI_WIFI_HAL_FEATURE_P2P_RAND_MAC       0x80000000    /* Random P2P MAC */
 
 enum slsi_wifi_attr {
 	SLSI_NL_ATTRIBUTE_ND_OFFLOAD_VALUE = 0,
 	SLSI_NL_ATTRIBUTE_PNO_RANDOM_MAC_OUI
+};
+
+enum SLSI_APF_ATTRIBUTES {
+	SLSI_APF_ATTR_VERSION = 0,
+	SLSI_APF_ATTR_MAX_LEN,
+	SLSI_APF_ATTR_PROGRAM,
+	SLSI_APF_ATTR_PROGRAM_LEN
 };
 
 enum SLSI_ROAM_ATTRIBUTES {
@@ -303,6 +317,7 @@ enum slsi_hal_vendor_subcmds {
 	SLSI_NL80211_VENDOR_SUBCMD_CONFIGURE_ND_OFFLOAD,
 	SLSI_NL80211_VENDOR_SUBCMD_GET_ROAMING_CAPABILITIES,
 	SLSI_NL80211_VENDOR_SUBCMD_SET_ROAMING_STATE,
+	SLSI_NL80211_VENDOR_SUBCMD_SET_LATENCY_MODE,
 	SLSI_NL80211_VENDOR_SUBCMD_START_LOGGING = SLSI_NL80211_LOGGING_SUBCMD_RANGE_START,
 	SLSI_NL80211_VENDOR_SUBCMD_TRIGGER_FW_MEM_DUMP,
 	SLSI_NL80211_VENDOR_SUBCMD_GET_FW_MEM_DUMP,
@@ -326,9 +341,17 @@ enum slsi_hal_vendor_subcmds {
 	SLSI_NL80211_VENDOR_SUBCMD_NAN_TXFOLLOWUP,
 	SLSI_NL80211_VENDOR_SUBCMD_NAN_CONFIG,
 	SLSI_NL80211_VENDOR_SUBCMD_NAN_CAPABILITIES,
+	SLSI_NL80211_VENDOR_SUBCMD_NAN_DATA_INTERFACE_CREATE,
+	SLSI_NL80211_VENDOR_SUBCMD_NAN_DATA_INTERFACE_DELETE,
+	SLSI_NL80211_VENDOR_SUBCMD_NAN_DATA_REQUEST_INITIATOR,
+	SLSI_NL80211_VENDOR_SUBCMD_NAN_DATA_INDICATION_RESPONSE,
+	SLSI_NL80211_VENDOR_SUBCMD_NAN_DATA_END,
 	SLSI_NL80211_VENDOR_SUBCMD_RTT_GET_CAPABILITIES = SLSI_NL80211_RTT_SUBCMD_RANGE_START,
 	SLSI_NL80211_VENDOR_SUBCMD_RTT_RANGE_START,
-	SLSI_NL80211_VENDOR_SUBCMD_RTT_RANGE_CANCEL
+	SLSI_NL80211_VENDOR_SUBCMD_RTT_RANGE_CANCEL,
+	SLSI_NL80211_VENDOR_SUBCMD_APF_SET_FILTER = SLSI_NL80211_APF_SUBCMD_RANGE_START,
+	SLSI_NL80211_VENDOR_SUBCMD_APF_GET_CAPABILITIES,
+	SLSI_NL80211_VENDOR_SUBCMD_APF_READ_FILTER
 };
 
 enum slsi_supp_vendor_subcmds {
@@ -352,7 +375,7 @@ enum slsi_vendor_event_values {
 	SLSI_NL80211_VENDOR_HANGED_EVENT,
 	SLSI_NL80211_EPNO_EVENT,
 	SLSI_NL80211_HOTSPOT_MATCH,
-	SLSI_NL80211_RSSI_REPORT_EVENT,
+	SLSI_NL80211_RSSI_REPORT_EVENT = 10,
 	SLSI_NL80211_LOGGER_RING_EVENT,
 	SLSI_NL80211_LOGGER_FW_DUMP_EVENT,
 	SLSI_NL80211_NAN_RESPONSE_EVENT,
@@ -362,12 +385,16 @@ enum slsi_vendor_event_values {
 	SLSI_NL80211_NAN_SUBSCRIBE_TERMINATED_EVENT,
 	SLSI_NL80211_NAN_FOLLOWUP_EVENT,
 	SLSI_NL80211_NAN_DISCOVERY_ENGINE_EVENT,
-	SLSI_NL80211_NAN_DISABLED_EVENT,
+	SLSI_NL80211_NAN_DISABLED_EVENT = 20,
 	SLSI_NL80211_RTT_RESULT_EVENT,
 	SLSI_NL80211_RTT_COMPLETE_EVENT,
 	SLSI_NL80211_VENDOR_ACS_EVENT,
 	SLSI_NL80211_VENDOR_FORWARD_BEACON,
-	SLSI_NL80211_VENDOR_FORWARD_BEACON_ABORT
+	SLSI_NL80211_VENDOR_FORWARD_BEACON_ABORT,
+	SLSI_NL80211_NAN_TRANSMIT_FOLLOWUP_STATUS,
+	SLSI_NAN_EVENT_NDP_REQ,
+	SLSI_NAN_EVENT_NDP_CFM,
+	SLSI_NAN_EVENT_NDP_END
 };
 
 enum slsi_lls_interface_mode {
@@ -939,7 +966,10 @@ struct slsi_rtt_config {
 	u16 LCR_request;              /* 1: request LCR, 0: do not request LCR */
 };
 
-#define MAX_CHAN_VALUE_ACS 25  /*Max number of supported channel is 25*/
+#define MAX_24G_CHANNELS 14  /*Max number of 2.4G channels*/
+#define MAX_5G_CHANNELS 25  /*Max number of 5G channels*/
+#define MAX_CHAN_VALUE_ACS MAX_24G_CHANNELS + MAX_5G_CHANNELS
+#define MAX_AP_THRESHOLD 10  /*Max AP threshold in ACS*/
 
 struct slsi_acs_chan_info {
 	u16 chan;
@@ -977,6 +1007,7 @@ int slsi_gscan_alloc_buckets(struct slsi_dev *sdev, struct slsi_gscan *gscan, in
 int slsi_vendor_event(struct slsi_dev *sdev, int event_id, const void *data, int len);
 int slsi_mib_get_gscan_cap(struct slsi_dev *sdev, struct slsi_nl_gscan_capabilities *cap);
 void slsi_rx_rssi_report_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
+int slsi_mib_get_apf_cap(struct slsi_dev *sdev, struct net_device *dev);
 int slsi_mib_get_rtt_cap(struct slsi_dev *sdev, struct net_device *dev, struct slsi_rtt_capabilities *cap);
 int slsi_mlme_add_range_req(struct slsi_dev *sdev, u8 count, struct slsi_rtt_config *nl_rtt_params,
 			    u16 rtt_id, u16 vif_idx, u8 *source_addr);

@@ -1107,21 +1107,28 @@ static void free_intermediate_frame(struct sc_ctx *ctx)
 	if (ctx->i_frame->src_addr.y)
 		ion_iovmm_unmap(ctx->i_frame->attachment[0],
 				ctx->i_frame->src_addr.y);
-	if (ctx->i_frame->src_addr.cb)
-		ion_iovmm_unmap(ctx->i_frame->attachment[1],
+
+	if (ctx->i_frame->handle[1]){
+		if (ctx->i_frame->src_addr.cb)
+			ion_iovmm_unmap(ctx->i_frame->attachment[1],
 				ctx->i_frame->src_addr.cb);
-	if (ctx->i_frame->src_addr.cr)
-		ion_iovmm_unmap(ctx->i_frame->attachment[2],
+		if (ctx->i_frame->handle[2] && ctx->i_frame->src_addr.cr)
+			ion_iovmm_unmap(ctx->i_frame->attachment[2],
 				ctx->i_frame->src_addr.cr);
+	}
+
 	if (ctx->i_frame->dst_addr.y)
 		ion_iovmm_unmap(ctx->i_frame->attachment[0],
 				ctx->i_frame->dst_addr.y);
-	if (ctx->i_frame->dst_addr.cb)
-		ion_iovmm_unmap(ctx->i_frame->attachment[1],
+
+	if (ctx->i_frame->handle[1]){
+		if (ctx->i_frame->dst_addr.cb)
+			ion_iovmm_unmap(ctx->i_frame->attachment[1],
 				ctx->i_frame->dst_addr.cb);
-	if (ctx->i_frame->dst_addr.cr)
-		ion_iovmm_unmap(ctx->i_frame->attachment[2],
+		if (ctx->i_frame->handle[2] && ctx->i_frame->dst_addr.cr)
+			ion_iovmm_unmap(ctx->i_frame->attachment[2],
 				ctx->i_frame->dst_addr.cr);
+	}
 
 	for(i = 0; i < 3; i++) {
 		if (ctx->i_frame->handle[i]) {

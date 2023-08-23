@@ -62,12 +62,15 @@ extern void sec_initcall_debug_add(initcall_t fn, unsigned long long t);
 #define sec_initcall_debug_add(a,b)		do { } while(0)	
 #endif /* CONFIG_SEC_INITCALL_DEBUG */
 
+
 /*
  * Param op.
  */
 #ifdef CONFIG_SEC_PARAM
 #define CM_OFFSET				CONFIG_CM_OFFSET
-#define CM_OFFSET_LIMIT 8
+#define CM_OFFSET_LIMIT			(CM_OFFSET + 3)
+#define FMM_LOCK_OFFSET			CONFIG_FMM_LOCK_OFFSET
+
 enum
 {
 	PARAM_OFF = '0',

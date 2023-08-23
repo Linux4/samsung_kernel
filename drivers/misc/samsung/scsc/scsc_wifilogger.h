@@ -172,10 +172,12 @@ wifi_error scsc_wifi_start_pkt_fate_monitoring(void);
  *  - Framework may call this API multiple times for the same association.
  *  - Framework will ensure |n_requested_fates <= MAX_FATE_LOG_LEN|.
  *  - Framework will allocate and free the referenced storage.
+ *  - is_user - to indicate if buffer passed is a user buffer
  */
 wifi_error scsc_wifi_get_tx_pkt_fates(wifi_tx_report *tx_report_bufs,
 				      size_t n_requested_fates,
-				      size_t *n_provided_fates);
+				      size_t *n_provided_fates,
+				      bool    is_user);
 
 /**
  *  API to retrieve fates of inbound packets.
@@ -191,9 +193,11 @@ wifi_error scsc_wifi_get_tx_pkt_fates(wifi_tx_report *tx_report_bufs,
  *  - Framework may call this API multiple times for the same association.
  *  - Framework will ensure |n_requested_fates <= MAX_FATE_LOG_LEN|.
  *  - Framework will allocate and free the referenced storage.
+ *  - is_user - to indicate if buffer passed is a user buffer
  */
 wifi_error scsc_wifi_get_rx_pkt_fates(wifi_rx_report *rx_report_bufs,
 				      size_t n_requested_fates,
-				      size_t *n_provided_fates);
+				      size_t *n_provided_fates,
+				      bool    is_user);
 
 #endif /*_SCSC_WIFILOGGER_H_*/

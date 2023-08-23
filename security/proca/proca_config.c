@@ -18,6 +18,7 @@
 #include <linux/ioport.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
+#include <linux/version.h>
 
 #include "proca_config.h"
 #include "proca_log.h"
@@ -27,31 +28,44 @@
 #define PROCA_CONFIG_VERSION 3U
 #define PROCA_CONFIG_MAGIC 0xCD0436EAU
 
-static int append_sys_ram_range(uint64_t start, uint64_t end, void *arg)
+static int append_sys_ram_range(struct resource *res, void *arg)
 {
 	struct proca_config *conf = arg;
 
-	PROCA_DEBUG_LOG("System RAM region %p-%p was found\n",
-			(void *)(uintptr_t)start, (void *)(uintptr_t)end);
+	PROCA_DEBUG_LOG("System RAM region %llx-%llx was found\n",
+			res->start, res->end);
 
 	if (conf->sys_ram_ranges_num == MAX_MEMORY_RANGES_NUM) {
 		PROCA_ERROR_LOG("Unsupported number of sys ram regions %llu\n",
 		       MAX_MEMORY_RANGES_NUM);
 		return -ENOMEM;
 	}
-	conf->sys_ram_ranges[conf->sys_ram_ranges_num].start = start;
-	conf->sys_ram_ranges[conf->sys_ram_ranges_num].end = end;
+	conf->sys_ram_ranges[conf->sys_ram_ranges_num].start = res->start;
+	conf->sys_ram_ranges[conf->sys_ram_ranges_num].end = res->end;
 
 	++conf->sys_ram_ranges_num;
 
 	return 0;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 42)
+#define __walk_system_ram_res_cb append_sys_ram_range
+#else
+static int __walk_system_ram_res_cb(u64 start, u64 end, void *arg)
+{
+	struct resource res;
+
+	res.start = start;
+	res.end = end;
+	return append_sys_ram_range(&res, arg);
+}
+#endif
+
 static int prepare_sys_ram_ranges(struct proca_config *conf)
 {
 	int ret = 0;
 
-	ret = walk_system_ram_res(0, ULONG_MAX, conf, append_sys_ram_range);
+	ret = walk_system_ram_res(0, ULONG_MAX, conf, __walk_system_ram_res_cb);
 	if (ret)
 		conf->sys_ram_ranges_num = 0;
 
@@ -78,8 +92,8 @@ static void dump_proca_config(const struct proca_config *conf)
 	PROCA_DEBUG_LOG("size:     %u\n", conf->size);
 	PROCA_DEBUG_LOG("magic:    %u\n", conf->magic);
 
-	PROCA_DEBUG_LOG("gaf_addr:         %p\n", conf->gaf_addr);
-	PROCA_DEBUG_LOG("proca_table_addr: %p\n", conf->proca_table_addr);
+	PROCA_DEBUG_LOG("gaf_addr:         %pK\n", conf->gaf_addr);
+	PROCA_DEBUG_LOG("proca_table_addr: %pK\n", conf->proca_table_addr);
 
 	PROCA_DEBUG_LOG("page_offset:    %llx\n",  conf->page_offset);
 	PROCA_DEBUG_LOG("va_bits:        %llu\n",  conf->va_bits);

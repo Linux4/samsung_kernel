@@ -142,6 +142,7 @@ int s5p_mfc_run_dec_frame(struct s5p_mfc_ctx *ctx)
 	if (call_cop(ctx, set_buf_ctrls_val, ctx, &ctx->src_ctrls[index]) < 0)
 		mfc_err_ctx("failed in set_buf_ctrls_val\n");
 
+	s5p_mfc_set_nal_options_dpb_address_change(ctx);
 	s5p_mfc_set_dynamic_dpb(ctx, dst_mb);
 
 	s5p_mfc_clean_ctx_int_flags(ctx);
@@ -220,6 +221,7 @@ int s5p_mfc_run_dec_last_frames(struct s5p_mfc_ctx *ctx)
 		return -EAGAIN;
 	}
 
+	s5p_mfc_set_nal_options_dpb_address_change(ctx);
 	s5p_mfc_set_dynamic_dpb(ctx, dst_mb);
 
 	s5p_mfc_clean_ctx_int_flags(ctx);

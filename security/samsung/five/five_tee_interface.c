@@ -53,7 +53,7 @@ exit:
 
 	return rc;
 }
-EXPORT_SYMBOL(register_five_tee_driver);
+EXPORT_SYMBOL_GPL(register_five_tee_driver);
 
 void unregister_five_tee_driver(void)
 {
@@ -65,7 +65,7 @@ void unregister_five_tee_driver(void)
 	}
 	up_write(&usage_lock);
 }
-EXPORT_SYMBOL(unregister_five_tee_driver);
+EXPORT_SYMBOL_GPL(unregister_five_tee_driver);
 
 int verify_hash(enum hash_algo algo, const void *hash, size_t hash_len,
 		const void *label, size_t label_len,
@@ -85,20 +85,6 @@ int verify_hash(enum hash_algo algo, const void *hash, size_t hash_len,
 	down_read(&usage_lock);
 	if (is_registered)
 		rc = g_tee_driver_fn->verify_hmac(&args);
-	up_read(&usage_lock);
-
-	return rc;
-}
-
-int verify_hash_vec(struct tee_iovec *verify_iovec,
-		    const size_t verify_iovcnt)
-{
-	int rc = -ENODEV;
-
-	down_read(&usage_lock);
-	if (is_registered)
-		rc = g_tee_driver_fn->verify_hmac_vec(verify_iovec,
-						      verify_iovcnt);
 	up_read(&usage_lock);
 
 	return rc;
@@ -125,19 +111,6 @@ int sign_hash(enum hash_algo algo, const void *hash, size_t hash_len,
 	up_read(&usage_lock);
 
 	*signature_len = args.signature_len;
-
-	return rc;
-}
-
-int sign_hash_vec(struct tee_iovec *sign_iovec,
-		  const size_t sign_iovcnt)
-{
-	int rc = -ENODEV;
-
-	down_read(&usage_lock);
-	if (is_registered)
-		rc = g_tee_driver_fn->sign_hmac_vec(sign_iovec, sign_iovcnt);
-	up_read(&usage_lock);
 
 	return rc;
 }

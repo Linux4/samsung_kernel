@@ -34,6 +34,7 @@ obj-$(CONFIG_SEC_DEBUG_INIT_LOG)      += sec_debug_init_log.o
 obj-$(CONFIG_SEC_PARAM)		+= sec_param.o
 obj-$(CONFIG_SEC_BOOTSTAT)	+= sec_bootstat.o
 obj-$(CONFIG_SEC_INITCALL_DEBUG)+= sec_initcall_debug.o
+obj-$(CONFIG_SEC_RESUME_SUSPEND_DEBUG)+= sec_resume_suspend_debug.o
 obj-$(CONFIG_ARGOS)		+= sec_argos.o
 
 obj-$(CONFIG_SEC_MMIOTRACE)	+= sec_mmiotrace.o

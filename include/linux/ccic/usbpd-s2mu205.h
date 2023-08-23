@@ -667,6 +667,7 @@ struct s2mu205_usbpd_data {
     int is_host;
     int is_client;
     int is_attached;
+	int is_killer;
 	u8 rp_threshold;
 	u8 rd_threshold;
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
@@ -704,6 +705,8 @@ struct s2mu205_usbpd_data {
     struct power_supply_desc ccic_desc;
     struct power_supply *psy_pm;
     struct power_supply *psy_ccic;
+    struct power_supply *psy_chg;
+    struct power_supply *psy_muic;
 	int cc1_val;
 	int cc2_val;
     struct regulator *regulator;

@@ -94,6 +94,7 @@ int vm_dirty_ratio;
  * vm_dirty_bytes starts at 0 (disabled) so that it is a function of
  * vm_dirty_ratio * the amount of dirtyable memory
  */
+/* IOPP-dirty_buffer-v1.0.4.4 */
 unsigned long vm_dirty_bytes = 50 * 1024 * 1024;
 
 /*
@@ -1740,6 +1741,7 @@ pause:
 					  pause,
 					  start_time);
 
+		/* IOPP-prevent_infinite_writeback-v1.0.4.4 */
 		/* Do not sleep if the backing device is removed */
 		if (unlikely(!bdi->dev))
 			return;

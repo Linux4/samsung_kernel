@@ -86,31 +86,31 @@ enum {
 	LDI_BIT_ENUM_MAX
 };
 
-char *LDI_BIT_DESC_05[BITS_PER_BYTE] = {
+static char *LDI_BIT_DESC_05[BITS_PER_BYTE] = {
 	[0 ... 6] = "number of corrupted packets",
 	[7] = "overflow on number of corrupted packets",
 };
 
-char *LDI_BIT_DESC_0A[BITS_PER_BYTE] = {
+static char *LDI_BIT_DESC_0A[BITS_PER_BYTE] = {
 	[2] = "Display is Off",
 	[7] = "Booster has a fault",
 };
 
-char *LDI_BIT_DESC_0E[BITS_PER_BYTE] = {
+static char *LDI_BIT_DESC_0E[BITS_PER_BYTE] = {
 	[0] = "Error on DSI",
 };
 
-char *LDI_BIT_DESC_0F[BITS_PER_BYTE] = {
+static char *LDI_BIT_DESC_0F[BITS_PER_BYTE] = {
 	[7] = "Register Loading Detection",
 };
 
-char *LDI_BIT_DESC_EE[BITS_PER_BYTE] = {
+static char *LDI_BIT_DESC_EE[BITS_PER_BYTE] = {
 	[2] = "VLIN3 error",
 	[3] = "ELVDD error",
 	[6] = "VLIN1 error",
 };
 
-struct bit_info ldi_bit_info_list[LDI_BIT_ENUM_MAX] = {
+static struct bit_info ldi_bit_info_list[LDI_BIT_ENUM_MAX] = {
 	[LDI_BIT_ENUM_05] = {0x05, 1, LDI_BIT_DESC_05, 0x00, },
 	[LDI_BIT_ENUM_0A] = {0x0A, 1, LDI_BIT_DESC_0A, 0x9E, .invert = (BIT(2) | BIT(7)), },
 	[LDI_BIT_ENUM_0E] = {0x0E, 1, LDI_BIT_DESC_0E, 0x80, },
@@ -309,7 +309,7 @@ static unsigned char SEQ_POC_COMPEN_SETTING[] = {
 	0x02, 0x1A, 0x33, 0x5E, 0x8C, 0xB3, 0xD9, 0xFF,
 };
 
-#if defined(CONFIG_EXYNOS_SUPPORT_DOZE)
+#if defined(CONFIG_EXYNOS_DOZE)
 enum {
 	ALPM_OFF,
 	ALPM_ON_LOW,	/* ALPM 2 NIT */
@@ -317,6 +317,26 @@ enum {
 	ALPM_ON_HIGH,	/* ALPM 60 NIT */
 	HLPM_ON_HIGH,	/* HLPM 60 NIT */
 	ALPM_MODE_MAX
+};
+
+enum {
+	AOD_MODE_OFF,
+	AOD_MODE_ALPM,
+	AOD_MODE_HLPM,
+	AOD_MODE_MAX
+};
+
+static unsigned int lpm_old_table[ALPM_MODE_MAX] = {
+	ALPM_OFF,
+	HLPM_ON_LOW,
+	HLPM_ON_LOW,
+	ALPM_ON_HIGH,
+	HLPM_ON_HIGH,
+};
+
+static unsigned int lpm_brightness_table[EXTEND_BRIGHTNESS + 1] = {
+	[0 ... 93]			= HLPM_ON_LOW,
+	[94 ... EXTEND_BRIGHTNESS]	= HLPM_ON_HIGH,
 };
 
 static unsigned char SEQ_AOR_CONTROL_HLPM_ON[] = {

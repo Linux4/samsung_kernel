@@ -24,6 +24,8 @@
 #include <asm/termios.h>
 #include <linux/wakelock.h>
 #include <linux/delay.h>
+#include <linux/seq_file.h>
+#include <linux/ctype.h>
 
 #ifdef CONFIG_ARCH_EXYNOS
 #include <linux/soc/samsung/exynos-soc.h>
@@ -45,7 +47,22 @@
 #define SLSI_BT_SERVICE_STOP_RECOVERY_TIMEOUT 20000
 #define SLSI_BT_SERVICE_STOP_RECOVERY_DISABLED_TIMEOUT 2000
 
+/* btlog string
+ *
+ * The string must be null-terminated, and may also include a single
+ * newline before its terminating null. The string shall be given
+ * as a hexadecimal number, but the first character may also be a
+ * plus sign. The maximum number of Hexadecimal characters is 32
+ * (128bits)
+ */
+#define SCSC_BTLOG_MAX_STRING_LEN       (37)
+#define SCSC_BTLOG_BUF_LEN              (19)
+#define SCSC_BTLOG_BUF_MAX_CHAR_TO_COPY (16)
+#define SCSC_BTLOG_BUF_PREFIX_LEN        (2)
+
 #define SCSC_ANT_MAX_TIMEOUT (20*HZ)
+
+static u16 bt_module_irq_mask;
 
 #ifdef CONFIG_SCSC_ANT
 static DECLARE_WAIT_QUEUE_HEAD(ant_recovery_complete_queue);
@@ -83,7 +100,10 @@ static u32 bt_info_trigger;
 static u32 bt_info_interrupt;
 static u32 firmware_control;
 static bool firmware_control_reset = true;
-static u32 firmware_mxlog_filter;
+static u32 firmware_btlog_enables0_low;
+static u32 firmware_btlog_enables0_high;
+static u32 firmware_btlog_enables1_low;
+static u32 firmware_btlog_enables1_high;
 static bool disable_service;
 
 /* Audio */
@@ -147,6 +167,21 @@ static void bt_failure_reset(struct scsc_service_client *client, u16 scsc_panic_
 	wake_up(&bt_service.read_wait);
 }
 
+static int bt_ap_resumed(struct scsc_service_client *client)
+{
+	UNUSED(client);
+	if (bt_service.interrupt_count != bt_service.last_suspend_interrupt_count)
+		SCSC_TAG_INFO(BT_COMMON, "Possible Bluetooth firmware wake up detected\n");
+	return 0;
+}
+
+static int bt_ap_suspended(struct scsc_service_client *client)
+{
+	UNUSED(client);
+	bt_service.last_suspend_interrupt_count = bt_service.interrupt_count;
+	return 0;
+}
+
 #ifdef CONFIG_SCSC_ANT
 static void ant_stop_on_failure(struct scsc_service_client *client)
 {
@@ -189,6 +224,8 @@ static void scsc_bt_shm_irq_handler(int irqbit, void *data)
 static struct scsc_service_client mx_bt_client = {
 	.stop_on_failure =      bt_stop_on_failure,
 	.failure_reset =        bt_failure_reset,
+	.suspend =                 bt_ap_suspended,
+	.resume =                  bt_ap_resumed,
 };
 
 #ifdef CONFIG_SCSC_ANT
@@ -200,15 +237,41 @@ static struct scsc_service_client mx_ant_client = {
 
 static void slsi_sm_bt_service_cleanup_interrupts(void)
 {
-	u16 int_src = bt_service.bsmhcp_protocol->header.info_bg_to_ap_int_src;
+	u16 irq_num = 0;
 
 	SCSC_TAG_DEBUG(BT_COMMON,
 		       "unregister firmware information interrupts\n");
 
-	scsc_service_mifintrbit_unregister_tohost(bt_service.service, int_src);
-	scsc_service_mifintrbit_free_fromhost(bt_service.service,
-		bt_service.bsmhcp_protocol->header.info_ap_to_bg_int_src,
-		SCSC_MIFINTR_TARGET_R4);
+	if (bt_module_irq_mask & 1 << irq_num++)
+		scsc_service_mifintrbit_unregister_tohost(bt_service.service,
+            bt_service.bsmhcp_protocol->header.info_bg_to_ap_int_src);
+	if (bt_module_irq_mask & 1 << irq_num++)
+		scsc_service_mifintrbit_free_fromhost(bt_service.service,
+		    bt_service.bsmhcp_protocol->header.info_ap_to_bg_int_src,
+		    SCSC_MIFINTR_TARGET_R4);
+}
+
+static int slsi_sm_bt_service_init_interrupts(void) {
+	int irq_ret;
+	u16 irq_num = 0;
+
+	irq_ret = scsc_service_mifintrbit_register_tohost(bt_service.service,
+	    scsc_bt_shm_irq_handler, NULL);
+	if (irq_ret < 0)
+		return irq_ret;
+
+	bt_service.bsmhcp_protocol->header.info_bg_to_ap_int_src = irq_ret;
+	bt_module_irq_mask |= 1 << irq_num++;
+
+	irq_ret = scsc_service_mifintrbit_alloc_fromhost(bt_service.service,
+	    SCSC_MIFINTR_TARGET_R4);
+	if (irq_ret < 0)
+		return irq_ret;
+
+	bt_service.bsmhcp_protocol->header.info_ap_to_bg_int_src = irq_ret;
+	bt_module_irq_mask |= 1 << irq_num++;
+
+	return 0;
 }
 
 static int slsi_sm_bt_service_cleanup_stop_service(void)
@@ -252,8 +315,10 @@ static int slsi_sm_bt_service_cleanup(bool allow_service_stop)
 		wake_up_interruptible(&bt_service.read_wait);
 
 		/* Unregister firmware information interrupts */
-		if (bt_service.bsmhcp_protocol)
+		if (bt_service.bsmhcp_protocol) {
 			slsi_sm_bt_service_cleanup_interrupts();
+			bt_module_irq_mask = 0;
+		}
 
 		/* Shut down the shared memory interface */
 		SCSC_TAG_DEBUG(BT_COMMON,
@@ -346,6 +411,12 @@ static int slsi_sm_bt_service_cleanup(bool allow_service_stop)
 	if (bt_audio.abox_virtual)
 		vunmap(bt_audio.abox_virtual);
 
+	/* Release write wake lock if held */
+	if (wake_lock_active(&bt_service.write_wake_lock)) {
+		bt_service.write_wake_unlock_count++;
+		wake_unlock(&bt_service.write_wake_lock);
+	}
+
 	SCSC_TAG_DEBUG(BT_COMMON, "complete\n");
 	return 0;
 
@@ -388,12 +459,13 @@ static int slsi_sm_ant_service_cleanup(bool allow_service_stop)
 		/* If slsi_sm_ant_service_cleanup_stop_service fails, then let
 		 * recovery do the rest of the deinit later.
 		 **/
-		if (!ant_recovery_in_progress && allow_service_stop)
+		if (!ant_recovery_in_progress && allow_service_stop) {
 			if (slsi_sm_ant_service_cleanup_stop_service() < 0) {
 				SCSC_TAG_DEBUG(BT_COMMON,
 					"slsi_sm_ant_service_cleanup_stop_service failed. Recovery has been triggered\n");
 				goto done_error;
 			}
+		}
 
 		/* Service is stopped - ensure polling function is existed */
 		SCSC_TAG_DEBUG(BT_COMMON, "wake reader/poller thread\n");
@@ -822,13 +894,14 @@ int slsi_sm_bt_service_start(void)
 		goto exit;
 	}
 
-	bt_service.bsmhcp_protocol->header.info_ap_to_bg_int_src =
-		scsc_service_mifintrbit_alloc_fromhost(bt_service.service,
-						SCSC_MIFINTR_TARGET_R4);
-	bt_service.bsmhcp_protocol->header.info_bg_to_ap_int_src =
-		scsc_service_mifintrbit_register_tohost(bt_service.service,
-						scsc_bt_shm_irq_handler, NULL);
-	bt_service.bsmhcp_protocol->header.mxlog_filter = firmware_mxlog_filter;
+	err = slsi_sm_bt_service_init_interrupts();
+	if (err < 0)
+		goto exit;
+
+	bt_service.bsmhcp_protocol->header.btlog_enables0_low = firmware_btlog_enables0_low;
+	bt_service.bsmhcp_protocol->header.btlog_enables0_high = firmware_btlog_enables0_high;
+	bt_service.bsmhcp_protocol->header.btlog_enables1_low = firmware_btlog_enables1_low;
+	bt_service.bsmhcp_protocol->header.btlog_enables1_high = firmware_btlog_enables1_high;
 	bt_service.bsmhcp_protocol->header.firmware_control = firmware_control;
 	bt_service.bsmhcp_protocol->header.abox_offset = bt_service.abox_ref;
 	bt_service.bsmhcp_protocol->header.abox_length = sizeof(struct scsc_bt_audio_abox);
@@ -860,10 +933,6 @@ int slsi_sm_bt_service_start(void)
 		}
 		mutex_unlock(&bt_audio_mutex);
 	}
-
-	if (bt_service.bsmhcp_protocol->header.firmware_features &
-	    BSMHCP_FEATURE_M4_INTERRUPTS)
-		SCSC_TAG_DEBUG(BT_COMMON, "features enabled: M4_INTERRUPTS\n");
 
 exit:
 	if (err) {
@@ -999,7 +1068,10 @@ int slsi_sm_ant_service_start(void)
 		goto exit;
 	}
 
-	ant_service.asmhcp_protocol->header.mxlog_filter = firmware_mxlog_filter;
+	ant_service.asmhcp_protocol->header.btlog_enables0_low = firmware_btlog_enables0_low;
+	ant_service.asmhcp_protocol->header.btlog_enables0_high = firmware_btlog_enables0_high;
+	ant_service.asmhcp_protocol->header.btlog_enables1_low = firmware_btlog_enables1_low;
+	ant_service.asmhcp_protocol->header.btlog_enables1_high = firmware_btlog_enables1_high;
 	ant_service.asmhcp_protocol->header.firmware_control = firmware_control;
 
 	SCSC_TAG_DEBUG(BT_COMMON,
@@ -1088,6 +1160,8 @@ static int scsc_bt_h4_open(struct inode *inode, struct file *file)
 
 static int scsc_bt_h4_release(struct inode *inode, struct file *file)
 {
+	SCSC_TAG_INFO(BT_COMMON, "\n");
+
 	mutex_lock(&bt_start_mutex);
 	wake_lock(&bt_service.service_wake_lock);
 	if (!bt_recovery_in_progress) {
@@ -1132,6 +1206,8 @@ recovery:
 #ifdef CONFIG_SCSC_ANT
 static int scsc_ant_release(struct inode *inode, struct file *file)
 {
+	SCSC_TAG_INFO(BT_COMMON, "\n");
+
 	mutex_lock(&ant_start_mutex);
 	wake_lock(&ant_service.service_wake_lock);
 	if (!ant_recovery_in_progress) {
@@ -1676,6 +1752,39 @@ static const struct file_operations scsc_bt_procfs_fops = {
 	.release = single_release,
 };
 
+static void scsc_update_btlog_params(void)
+{
+	mutex_lock(&bt_start_mutex);
+	if (bt_service.service) {
+		bt_service.bsmhcp_protocol->header.btlog_enables0_low = firmware_btlog_enables0_low;
+		bt_service.bsmhcp_protocol->header.btlog_enables0_high = firmware_btlog_enables0_high;
+		bt_service.bsmhcp_protocol->header.btlog_enables1_low = firmware_btlog_enables1_low;
+		bt_service.bsmhcp_protocol->header.btlog_enables1_high = firmware_btlog_enables1_high;
+
+		/* Trigger the interrupt in the mailbox */
+		scsc_service_mifintrbit_bit_set(bt_service.service,
+				bt_service.bsmhcp_protocol->header.ap_to_bg_int_src,
+				SCSC_MIFINTR_TARGET_R4);
+	}
+	mutex_unlock(&bt_start_mutex);
+
+#ifdef CONFIG_SCSC_ANT
+	mutex_lock(&ant_start_mutex);
+	if (ant_service.service) {
+		ant_service.asmhcp_protocol->header.btlog_enables0_low = firmware_btlog_enables0_low;
+		ant_service.asmhcp_protocol->header.btlog_enables0_high = firmware_btlog_enables0_high;
+		ant_service.asmhcp_protocol->header.btlog_enables1_low = firmware_btlog_enables1_low;
+		ant_service.asmhcp_protocol->header.btlog_enables1_high = firmware_btlog_enables1_high;
+
+		/* Trigger the interrupt in the mailbox */
+		scsc_service_mifintrbit_bit_set(ant_service.service,
+				ant_service.asmhcp_protocol->header.ap_to_bg_int_src,
+				SCSC_MIFINTR_TARGET_R4);
+	}
+	mutex_unlock(&ant_start_mutex);
+#endif
+}
+
 static int scsc_mxlog_filter_set_param_cb(const char *buffer,
 					  const struct kernel_param *kp)
 {
@@ -1684,19 +1793,113 @@ static int scsc_mxlog_filter_set_param_cb(const char *buffer,
 
 	ret = kstrtou32(buffer, 0, &value);
 	if (!ret) {
-		firmware_mxlog_filter = value;
+		firmware_btlog_enables0_low = value;
+		scsc_update_btlog_params();
+	}
 
-		mutex_lock(&bt_start_mutex);
-		if (bt_service.service) {
-			bt_service.bsmhcp_protocol->header.mxlog_filter =
-				firmware_mxlog_filter;
+	return ret;
+}
 
-			/* Trigger the interrupt in the mailbox */
-			scsc_service_mifintrbit_bit_set(bt_service.service,
-			    bt_service.bsmhcp_protocol->header.ap_to_bg_int_src,
-			    SCSC_MIFINTR_TARGET_R4);
+/* Validate, by conventional semantics, that the base of the
+ * string is 16. I.e if the string begins with 0x the number
+ * can be parsed as a hexadecimal (case insensitive)
+ *
+ * Returns true if the string can be parsed as hexadecimal
+ */
+static bool scsc_string_is_hexadecimal(const char *s)
+{
+	if (s[0] == '0' && tolower(s[1]) == 'x' && isxdigit(s[2]))
+		return true;
+
+	return false;
+}
+
+/* Updates btlog level by converting the string to four u32 integers.
+ *
+ * Note the string given to kstrtou64 must be null-terminated, and may also
+ * include a single newline before its terminating null. The first character
+ * may also be a plus sign, but not a minus sign.
+ *
+ * If the string cannot be parsed as a hexadecimal number it is considered
+ * as a parsing error
+ *
+ * Returns 0 on success, -ERANGE on overflow and -EINVAL on parsing error.
+ */
+static int scsc_btlog_enables_set_param_cb(const char *buffer,
+				           const struct kernel_param *kp)
+{
+	int ret;
+	size_t buffer_len;
+	u16 newline_len = 0;
+	u64 btlog_enables_low = 0;
+	u64 btlog_enables_high = 0;
+
+	if (buffer == NULL)
+		return -EINVAL;
+
+	buffer_len = strnlen(buffer, SCSC_BTLOG_MAX_STRING_LEN);
+
+	if (buffer_len >= SCSC_BTLOG_MAX_STRING_LEN)
+		return -ERANGE;
+
+	if (buffer_len <= SCSC_BTLOG_BUF_PREFIX_LEN)
+		return -EINVAL;
+
+	/* If the first character is a plus sign sign, ignore it */
+	if (buffer[0] == '+')
+	{
+		buffer++;
+		buffer_len--;
+
+		if (buffer_len <= SCSC_BTLOG_BUF_PREFIX_LEN)
+			return -EINVAL;
+	}
+
+	/* Only accept the string if it can be parsed as a hexadecimal number */
+	if (!scsc_string_is_hexadecimal(buffer))
+		return -EINVAL;
+
+	/* Is a newline included before the terminating null */
+	if (buffer[buffer_len - 1] == '\n')
+		newline_len = 1;
+
+	if (buffer_len < SCSC_BTLOG_BUF_LEN + newline_len)
+		ret = kstrtou64(buffer, 0, &btlog_enables_low);
+	else {
+		/* Need to split the string into two parts.
+		 *
+		 * First, the least significant integer(u64) is found by
+		 * copying the prefix ('0' 'x') plus the last 17
+		 * (18 if a newline is included) character including
+		 * the null terminator, to a temporary buffer.
+		 *
+		 * Second, the most significant integer(u64) is found
+		 * by copying the remaining part of the string plus a null
+		 * terminator, to a temporary buffer.
+		 */
+		char btlog_enables_buf[SCSC_BTLOG_BUF_LEN + newline_len];
+
+		u32 start_index = buffer_len - SCSC_BTLOG_BUF_MAX_CHAR_TO_COPY - newline_len;
+
+		memcpy(btlog_enables_buf, buffer, SCSC_BTLOG_BUF_PREFIX_LEN);
+		strcpy(&btlog_enables_buf[SCSC_BTLOG_BUF_PREFIX_LEN], &buffer[start_index]);
+		ret = kstrtou64(btlog_enables_buf, 0, &btlog_enables_low);
+
+		if (!ret) {
+			u32 char_to_copy = start_index;
+
+			memcpy(btlog_enables_buf, buffer, char_to_copy);
+			btlog_enables_buf[char_to_copy] = '\0';
+			ret = kstrtou64(btlog_enables_buf, 0, &btlog_enables_high);
 		}
-		mutex_unlock(&bt_start_mutex);
+	}
+
+	if (!ret) {
+		firmware_btlog_enables0_low  = (u32)(btlog_enables_low & 0x00000000FFFFFFFF);
+		firmware_btlog_enables0_high = (u32)((btlog_enables_low & 0xFFFFFFFF00000000) >> 32);
+		firmware_btlog_enables1_low  = (u32)(btlog_enables_high & 0x00000000FFFFFFFF);
+		firmware_btlog_enables1_high = (u32)((btlog_enables_high & 0xFFFFFFFF00000000) >> 32);
+		scsc_update_btlog_params();
 	}
 
 	return ret;
@@ -1705,7 +1908,15 @@ static int scsc_mxlog_filter_set_param_cb(const char *buffer,
 static int scsc_mxlog_filter_get_param_cb(char *buffer,
 					  const struct kernel_param *kp)
 {
-	return sprintf(buffer, "filter=0x%08x\n", firmware_mxlog_filter);
+	return sprintf(buffer, "mxlog_filter=0x%08x\n", firmware_btlog_enables0_low);
+}
+
+static int scsc_btlog_enables_get_param_cb(char *buffer,
+					    const struct kernel_param *kp)
+{
+	return sprintf(buffer, "btlog_enables = 0x%08x%08x%08x%08x\n",
+			firmware_btlog_enables1_high ,firmware_btlog_enables1_low,
+			firmware_btlog_enables0_high, firmware_btlog_enables0_low);
 }
 
 static struct kernel_param_ops scsc_mxlog_filter_ops = {
@@ -1713,9 +1924,18 @@ static struct kernel_param_ops scsc_mxlog_filter_ops = {
 	.get = scsc_mxlog_filter_get_param_cb,
 };
 
+static struct kernel_param_ops scsc_btlog_enables_ops = {
+	.set = scsc_btlog_enables_set_param_cb,
+	.get = scsc_btlog_enables_get_param_cb,
+};
+
 module_param_cb(mxlog_filter, &scsc_mxlog_filter_ops, NULL, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(mxlog_filter,
-		 "Set the filter for MX log in the Bluetooth firmware");
+		 	 	 "Set the enables for btlog sources in Bluetooth firmware (31..0)");
+
+module_param_cb(btlog_enables, &scsc_btlog_enables_ops, NULL, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(btlog_enables,
+				"Set the enables for btlog sources in Bluetooth firmware (127..0)");
 
 static int scsc_force_crash_set_param_cb(const char *buffer,
 					 const struct kernel_param *kp)
@@ -1803,6 +2023,7 @@ static int __init scsc_bt_module_init(void)
 
 	SCSC_TAG_INFO(BT_COMMON, "%s %s (C) %s\n",
 		      SCSC_MODDESC, SCSC_MODVERSION, SCSC_MODAUTH);
+	bt_module_irq_mask = 0;
 
 	memset(&bt_service, 0, sizeof(bt_service));
 #ifdef CONFIG_SCSC_ANT

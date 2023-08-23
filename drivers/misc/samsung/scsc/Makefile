@@ -110,6 +110,20 @@ scsc_dbg_sampler-y += mx_dbg_sampler.o
 
 endif
 
+# Android Platform version
+ifneq ($(ANDROID_VERSION),)
+ANDROID_PLATFORM_VERSION=$(shell expr $(ANDROID_VERSION) / 10000)
+ccflags-y += -DSCSC_SEP_VERSION=$(ANDROID_PLATFORM_VERSION)
+$(info ANDROID_VERSION is $(ANDROID_VERSION))
+else
+ifneq ($(PLATFORM_VERSION),)
+ANDROID_PLATFORM_VERSION := $(basename $(PLATFORM_VERSION))
+ccflags-y += -DSCSC_SEP_VERSION=$(ANDROID_PLATFORM_VERSION)
+$(info PLATFORM_VERSION is $(PLATFORM_VERSION))
+endif
+endif
+$(info ANDROID_PLATFORM_VERSION is $(ANDROID_PLATFORM_VERSION))
+
 # The below section is only for DTE purpose. It is controlled by the flag SCSC_DTE_BUILD which is set only by the
 # DTE top level Makefile. Hence, no risk.
 # In the below include dir the KERNEL_DIR comes from the DTE top level makefile.

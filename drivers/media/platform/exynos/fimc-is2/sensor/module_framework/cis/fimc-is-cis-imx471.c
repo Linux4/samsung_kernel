@@ -733,6 +733,8 @@ int sensor_imx471_cis_read_dpc(struct v4l2_subdev *subdev)
 	int j = 0;
 	int ret = 0;
 	int index = 0;
+	int index_sg = 0;
+	u16 DFCT_NUM = 0;
 	int extra_size = 0;
 	u8 *temp_buf = NULL;
 	struct fimc_is_cis *cis = NULL;
@@ -742,24 +744,41 @@ int sensor_imx471_cis_read_dpc(struct v4l2_subdev *subdev)
 	cis = (struct fimc_is_cis *)v4l2_get_subdevdata(subdev);
 	BUG_ON(!cis);
 
-	temp_buf = kzalloc(sizeof(u8) * 400, GFP_KERNEL);
-	if (!temp_buf) {
-		probe_err("temp_buf is NULL");
-		ret = -ENOMEM;
-		goto p_err;
-	}
-
 	memset(imx471_dpc.fd_dfct_data, 0x0, sizeof(*imx471_dpc.fd_dfct_data));
-	memset(temp_buf, 0x0, sizeof(*temp_buf));
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	fimc_is_sensor_read16(cis->client, 0x7678, &imx471_dpc.fd_num);
+	fimc_is_sensor_read16(cis->client, 0x7678, &DFCT_NUM);
+	imx471_dpc.fd_num = MIN(DFCT_NUM & 0x7, SENSOR_IMX471_FD_DFCT_MAX); //Masking for only [2:0] bit
 
 	index = (imx471_dpc.fd_num * 25) / 8;
 	if ((imx471_dpc.fd_num * 25) % 8 != 0)
 		index++;
 	
 	info("[%s] fd dfct num(%x), index = %d\n", __func__, imx471_dpc.fd_num, index);
+
+	DFCT_NUM = 0;
+
+	fimc_is_sensor_read16(cis->client, 0x767A, &DFCT_NUM);
+	imx471_dpc.sg_num = MIN(imx471_dpc.sg_num & 0x1FF, SENSOR_IMX471_SG_DFCT_MAX); //Masking for only [9:0] bit
+
+	index_sg = (imx471_dpc.sg_num * 25) / 8;
+	if ((imx471_dpc.sg_num * 25) % 8 != 0)
+		index_sg++;
+
+	if(index > index_sg)
+		temp_buf = kzalloc(sizeof(u8) * index+1, GFP_KERNEL);
+	else
+		temp_buf = kzalloc(sizeof(u8) * index_sg+1, GFP_KERNEL);
+
+	if (!temp_buf) {
+		probe_err("temp_buf is NULL");
+		ret = -ENOMEM;
+		goto p_err;
+	}
+
+	memset(temp_buf, 0x0, sizeof(*temp_buf));
+	
+	info("[%s] sg dfct num(%x), index_sg = %d\n, buffer size : %ld", __func__, imx471_dpc.sg_num, index_sg, sizeof(*temp_buf));
 
 	for (i = 0; i < index; i++) {
 		fimc_is_sensor_read8(cis->client, 0x8B00 + i, temp_buf + i);
@@ -782,15 +801,7 @@ int sensor_imx471_cis_read_dpc(struct v4l2_subdev *subdev)
 	memset(imx471_dpc.sg_dfct_data, 0x0, sizeof(imx471_dpc.sg_dfct_data));
 	memset(temp_buf, 0x0, sizeof(*temp_buf));
 
-	fimc_is_sensor_read16(cis->client, 0x767A, &imx471_dpc.sg_num);
-
-	index = (imx471_dpc.sg_num * 25) / 8;
-	if ((imx471_dpc.sg_num * 25) % 8 != 0)
-		index++;
-	
-	info("[%s] sg dfct num(%x), index = %d\n", __func__, imx471_dpc.sg_num, index);
-
-	for (i = 0; i < index; i++) {
+	for (i = 0; i < index_sg; i++) {
 		fimc_is_sensor_read8(cis->client, 0x8B10 + i, temp_buf + i);
 		dbg_sensor(1, "sg dfct (0x%02x)\n", *(temp_buf + i));
 	}

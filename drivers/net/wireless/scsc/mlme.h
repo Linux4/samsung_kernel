@@ -24,10 +24,11 @@ enum slsi_ac_index_wmm_pe {
 
 #define SLSI_WLAN_EID_VENDOR_SPECIFIC 0xdd
 #define SLSI_WLAN_EID_INTERWORKING 107
+#define SLSI_WLAN_EID_EXTENSION 255
 
 #define SLSI_WLAN_OUI_TYPE_WFA_HS20_IND 0x10
 #define SLSI_WLAN_OUI_TYPE_WFA_OSEN 0x12
-
+#define SLSI_WLAN_OUI_TYPE_WFA_MBO 0x16
 /*Extended capabilities bytes*/
 #define SLSI_WLAN_EXT_CAPA2_BSS_TRANSISITION_ENABLED  (1 << 3)
 #define SLSI_WLAN_EXT_CAPA3_INTERWORKING_ENABLED        (1 << 7)
@@ -149,7 +150,7 @@ int slsi_mlme_get(struct slsi_dev *sdev, struct net_device *dev, u8 *req, int re
 		  u8 *resp, int resp_buf_len, int *resp_len);
 
 int slsi_mlme_add_vif(struct slsi_dev *sdev, struct net_device *dev, u8 *interface_address, u8 *device_address);
-void slsi_mlme_del_vif(struct slsi_dev *sdev, struct net_device *dev);
+int slsi_mlme_del_vif(struct slsi_dev *sdev, struct net_device *dev);
 #ifdef CONFIG_SLSI_WLAN_STA_FWD_BEACON
 int slsi_mlme_set_forward_beacon(struct slsi_dev *sdev, struct net_device *dev, int action);
 #endif
@@ -213,6 +214,10 @@ int slsi_mlme_connect_scan(struct slsi_dev *sdev, struct net_device *dev,
 int slsi_mlme_powermgt(struct slsi_dev *sdev, struct net_device *dev, u16 ps_mode);
 int slsi_mlme_powermgt_unlocked(struct slsi_dev *sdev, struct net_device *dev, u16 ps_mode);
 int slsi_mlme_register_action_frame(struct slsi_dev *sdev, struct net_device *dev,  u32 af_bitmap_active, u32 af_bitmap_suspended);
+#ifdef CONFIG_SCSC_WLAN_SAE_CONFIG
+int slsi_mlme_synchronised_response(struct slsi_dev *sdev, struct net_device *dev,
+                    struct cfg80211_external_auth_params *params);
+#endif
 int slsi_mlme_channel_switch(struct slsi_dev *sdev, struct net_device *dev,  u16 center_freq, u16 chan_info);
 int slsi_mlme_add_info_elements(struct slsi_dev *sdev, struct net_device *dev,  u16 purpose, const u8 *ies, const u16 ies_len);
 int slsi_mlme_send_frame_mgmt(struct slsi_dev *sdev, struct net_device *dev, const u8 *frame, int frame_len, u16 data_desc, u16 msg_type, u16 host_tag, u16 freq, u32 dwell_time, u32 period);
@@ -239,6 +244,7 @@ int slsi_mlme_set_pno_list(struct slsi_dev *sdev, int count,
 			   struct slsi_epno_param *epno_param, struct slsi_epno_hs2_param *epno_hs2_param);
 int slsi_mlme_start_link_stats_req(struct slsi_dev *sdev, u16 mpdu_size_threshold, bool aggressive_statis_enabled);
 int slsi_mlme_stop_link_stats_req(struct slsi_dev *sdev, u16 stats_stop_mask);
+#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
 int slsi_mlme_nan_enable(struct slsi_dev *sdev, struct net_device *dev, struct slsi_hal_nan_enable_req *hal_req);
 int slsi_mlme_nan_publish(struct slsi_dev *sdev, struct net_device *dev, struct slsi_hal_nan_publish_req *hal_req,
 			  u16 publish_id);
@@ -247,21 +253,35 @@ int slsi_mlme_nan_subscribe(struct slsi_dev *sdev, struct net_device *dev, struc
 int slsi_mlme_nan_tx_followup(struct slsi_dev *sdev, struct net_device *dev,
 			      struct slsi_hal_nan_transmit_followup_req *hal_req);
 int slsi_mlme_nan_set_config(struct slsi_dev *sdev, struct net_device *dev, struct slsi_hal_nan_config_req *hal_req);
+int slsi_mlme_ndp_request(struct slsi_dev *sdev, struct net_device *dev,
+			  struct slsi_hal_nan_data_path_initiator_req *hal_req, u32 ndp_id, u16 ndl_vif_id);
+int slsi_mlme_ndp_response(struct slsi_dev *sdev, struct net_device *dev,
+			  struct slsi_hal_nan_data_path_indication_response *hal_req, u16 local_ndp_id);
+int slsi_mlme_ndp_terminate(struct slsi_dev *sdev, struct net_device *dev, u16 ndp_id);
+#endif
 #endif
 
-int slsi_mlme_set_ext_capab(struct slsi_dev *sdev, struct net_device *dev, struct slsi_mib_value *mib_val);
-int slsi_mlme_set_hs2_ext_cap(struct slsi_dev *sdev, struct net_device *dev, const u8 *ies, int ie_len);
+int slsi_mlme_set_ext_capab(struct slsi_dev *sdev, struct net_device *dev, u8 *data, int datalength);
 int slsi_mlme_reassociate(struct slsi_dev *sdev, struct net_device *dev);
 void slsi_mlme_reassociate_resp(struct slsi_dev *sdev, struct net_device *dev);
 int slsi_modify_ies(struct net_device *dev, u8 eid, u8 *ies, int ies_len, u8 ie_index, u8 ie_value);
 int slsi_mlme_set_rssi_monitor(struct slsi_dev *sdev, struct net_device *dev, u8 enable, s8 low_rssi_threshold, s8 high_rssi_threshold);
 struct slsi_mib_value *slsi_read_mibs(struct slsi_dev *sdev, struct net_device *dev, struct slsi_mib_get_entry *mib_entries, int mib_count, struct slsi_mib_data *mibrsp);
 int slsi_mlme_set_host_state(struct slsi_dev *sdev, struct net_device *dev, u8 host_state);
+int slsi_mlme_read_apf_request(struct slsi_dev *sdev, struct net_device *dev, u8 **host_dst, int *datalen);
+int slsi_mlme_install_apf_request(struct slsi_dev *sdev, struct net_device *dev,
+				  u8 *program, u32 program_len);
+#ifdef CONFIG_SCSC_WLAN_STA_ENHANCED_ARP_DETECT
+int slsi_mlme_arp_detect_request(struct slsi_dev *sdev, struct net_device *dev, u16 action, u8 *ipaddr);
+#endif
 int slsi_mlme_set_ctwindow(struct slsi_dev *sdev, struct net_device *dev, unsigned int ct_param);
 int slsi_mlme_set_p2p_noa(struct slsi_dev *sdev, struct net_device *dev, unsigned int noa_count,
 			  unsigned int interval, unsigned int duration);
-void slsi_fw_tx_rate_calc(u16 fw_rate, struct rate_info *tx_rate, unsigned long *data_rate_mbps);
+void slsi_decode_fw_rate(u16 fw_rate, struct rate_info *rate, unsigned long *data_rate_mbps);
 int slsi_test_sap_configure_monitor_mode(struct slsi_dev *sdev, struct net_device *dev, struct cfg80211_chan_def *chandef);
 
 struct sk_buff *slsi_mlme_req_cfm(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb, u16 cfm_id);
+int slsi_mlme_set_roaming_parameters(struct slsi_dev *sdev, struct net_device *dev, u16 psid, int mib_value, int mib_length);
+int slsi_mlme_set_band_req(struct slsi_dev *sdev, struct net_device *dev, uint band);
+
 #endif /*__SLSI_MLME_H__*/

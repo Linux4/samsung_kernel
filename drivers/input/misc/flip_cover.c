@@ -33,6 +33,12 @@
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 #include <linux/delay.h>
 #endif
+#include <linux/sec_class.h>
+
+#if defined(CONFIG_HALL_NEW_NODE)
+struct device *hall_ic;
+EXPORT_SYMBOL(hall_ic);
+#endif
 
 struct flip_cover_hall_data {
 	struct delayed_work dwork;
@@ -63,10 +69,17 @@ struct flip_cover_drvdata *gddata;
 static ssize_t flip_cover_detect_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
+#ifdef CONFIG_HALL_EVENT_REVERSE
+	if (test_bit(SW_FLIP, gddata->input->sw))
+		sprintf(buf, "CLOSE\n");
+	else
+		sprintf(buf, "OPEN\n");
+#else
 	if (test_bit(SW_FLIP, gddata->input->sw))
 		sprintf(buf, "OPEN\n");
 	else
 		sprintf(buf, "CLOSE\n");
+#endif
 	return strlen(buf);
 }
 static ssize_t certify_hall_detect_show(struct device *dev,
@@ -127,7 +140,14 @@ static void flip_cover_work(struct work_struct *work)
 		state = first ^ hall->active_low;
 		pr_info("%s %s\n", hall->name,
 			hall->state ? "open" : "close");
+#ifdef CONFIG_HALL_EVENT_REVERSE
+		if (!strncmp(hall->name, "hall", 4))
+			input_report_switch(hall->input, hall->event, !state);
+		else
+			input_report_switch(hall->input, hall->event, state);
+#else
 		input_report_switch(hall->input, hall->event, state);
+#endif
 		input_sync(hall->input);
 	} else
 		pr_info("%s %d,%d\n", hall->name,
@@ -144,7 +164,14 @@ static void flip_cover_work(struct work_struct *work)
 	state = hall->state ^ hall->active_low;
 	pr_info("%s %s\n", hall->name,
 		hall->state ? "open" : "close");
+#ifdef CONFIG_HALL_EVENT_REVERSE
+	if (!strncmp(hall->name, "hall", 4))
+		input_report_switch(hall->input, hall->event, !state);
+	else
+		input_report_switch(hall->input, hall->event, state);
+#else
 	input_report_switch(hall->input, hall->event, state);
+#endif
 	input_sync(hall->input);
 }
 #endif
@@ -261,7 +288,9 @@ static int flip_cover_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 #if IS_ENABLED(CONFIG_SEC_SYSFS)
+#if !defined(CONFIG_HALL_NEW_NODE)
 	struct device *sec_key_dev;
+#endif
 #endif
 	struct flip_cover_pdata *pdata = dev_get_platdata(dev);
 	struct flip_cover_drvdata *ddata;
@@ -309,6 +338,22 @@ static int flip_cover_probe(struct platform_device *pdev)
 	}
 	input_set_drvdata(input, ddata);
 #if IS_ENABLED(CONFIG_SEC_SYSFS)
+#if defined(CONFIG_HALL_NEW_NODE)
+	hall_ic = sec_device_create(ddata, "hall_ic");
+	if (pdata->nhalls == 1) {
+		struct flip_cover_hall_data *hall = &ddata->pdata->hall[0];
+
+		if (!strncmp(hall->name, "hall", 4))
+			ret = sysfs_create_group(&hall_ic->kobj,
+						&flip_cover_attr_group);
+		else
+			ret = sysfs_create_group(&hall_ic->kobj,
+						&certify_cover_attr_group);
+	} else if (pdata->nhalls == 2) {
+		ret = sysfs_create_group(&hall_ic->kobj,
+					&flip_cover_attrs_group);
+	}
+#else
 	sec_key_dev = sec_device_find("sec_key");
 	if (pdata->nhalls == 1) {
 		struct flip_cover_hall_data *hall = &ddata->pdata->hall[0];
@@ -323,6 +368,7 @@ static int flip_cover_probe(struct platform_device *pdev)
 		ret = sysfs_create_group(&sec_key_dev->kobj,
 					&flip_cover_attrs_group);
 	}
+#endif
 	if (ret) {
 		pr_err("failed to create sysfs %d\n", ret);
 		goto fail4;
@@ -345,6 +391,21 @@ static int flip_cover_remove(struct platform_device *pdev)
 {
 	struct flip_cover_drvdata *ddata = platform_get_drvdata(pdev);
 #if IS_ENABLED(CONFIG_SEC_SYSFS)
+#if defined(CONFIG_HALL_NEW_NODE)
+	hall_ic  = sec_device_find("hall_ic");
+	if (ddata->pdata->nhalls == 1) {
+		struct flip_cover_hall_data *hall = &ddata->pdata->hall[0];
+
+		if (!strncmp(hall->name, "hall", 4))
+			sysfs_remove_group(&hall_ic->parent->kobj,
+						&flip_cover_attr_group);
+		else
+			sysfs_remove_group(&hall_ic->parent->kobj,
+						&certify_cover_attr_group);
+	} else if (ddata->pdata->nhalls == 2)
+		sysfs_remove_group(&hall_ic->parent->kobj,
+						&flip_cover_attrs_group);
+#else
 	struct device *sec_key_dev;
 
 	sec_key_dev = sec_device_find("sec_key");
@@ -360,6 +421,7 @@ static int flip_cover_remove(struct platform_device *pdev)
 	} else if (ddata->pdata->nhalls == 2)
 		sysfs_remove_group(&sec_key_dev->parent->kobj,
 						&flip_cover_attrs_group);
+#endif
 #endif
 
 	device_init_wakeup(&pdev->dev, 0);
@@ -398,7 +460,6 @@ static int flip_cover_resume(struct device *dev)
 		struct flip_cover_hall_data *hall = &ddata->pdata->hall[i];
 		int state = !!gpio_get_value_cansleep(hall->gpio);
 
-		state ^= hall->active_low;
 		pr_info("%s %s : %s\n", __func__,
 			hall->name, state ? "open" : "close");
 		disable_irq_wake(hall->irq);

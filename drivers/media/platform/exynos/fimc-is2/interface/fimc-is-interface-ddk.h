@@ -249,7 +249,7 @@ int fimc_is_lib_isp_set_param(struct fimc_is_hw_ip *hw_ip,
 	struct fimc_is_lib_isp *this, void *param);
 int fimc_is_lib_isp_set_ctrl(struct fimc_is_hw_ip *hw_ip,
 	struct fimc_is_lib_isp *this, struct fimc_is_frame *frame);
-void fimc_is_lib_isp_shot(struct fimc_is_hw_ip *hw_ip,
+int fimc_is_lib_isp_shot(struct fimc_is_hw_ip *hw_ip,
 	struct fimc_is_lib_isp *this, void *param_set, struct camera2_shot *shot);
 int fimc_is_lib_isp_get_meta(struct fimc_is_hw_ip *hw_ip,
 	struct fimc_is_lib_isp *this, struct fimc_is_frame *frame);

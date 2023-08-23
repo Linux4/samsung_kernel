@@ -1203,7 +1203,7 @@ static void s2mm005_usbpd_shutdown(struct i2c_client *i2c)
 				}
 #endif
 				s2mm005_manual_LPM(usbpd_data, 0xB);
-				mdelay(110);
+				msleep(110);
 			}
 			s2mm005_reset(usbpd_data);
 		}

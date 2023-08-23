@@ -3,18 +3,22 @@
 #
 
 # [ SEC_SELINUX_PORTING_COMMON
+ccflags-y := -I$(srctree)/security/selinux -I$(srctree)/security/selinux/include
+
 ifeq ($(TARGET_BUILD_VARIANT), eng)
 ifeq ($(SEC_BUILD_OPTION_PRODUCT_SHIP), false)
 ifeq ($(SEC_BUILD_OPTION_SELINUX_ENFORCE),true)
-EXTRA_CFLAGS += -DSEC_SELINUX_DEBUG
+ccflags-y += -DSEC_SELINUX_DEBUG
 endif
 endif
 endif
 
+ifeq ($(SEC_BUILD_OPTION_VTS),false)
 ifeq ($(TARGET_BUILD_VARIANT), user)
 ifeq ($(SEC_BUILD_OPTION_PRODUCT_SHIP), true)
 ifeq ($(SEC_BUILD_OPTION_SELINUX_ENFORCE),true)
-EXTRA_CFLAGS += -DCONFIG_ALWAYS_ENFORCE=true
+ccflags-y += -DCONFIG_ALWAYS_ENFORCE=true
+endif
 endif
 endif
 endif
@@ -30,8 +34,6 @@ selinux-y := avc.o hooks.o selinuxfs.o netlink.o nlmsgtab.o netif.o \
 selinux-$(CONFIG_SECURITY_NETWORK_XFRM) += xfrm.o
 
 selinux-$(CONFIG_NETLABEL) += netlabel.o
-
-ccflags-y := -Isecurity/selinux -Isecurity/selinux/include
 
 $(addprefix $(obj)/,$(selinux-y)): $(obj)/flask.h
 

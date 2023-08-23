@@ -416,6 +416,7 @@ struct mem_link_device {
 
 	struct hrtimer tx_timer;
 	struct hrtimer sbd_tx_timer;
+	struct hrtimer sbd_print_timer;
 
 	struct work_struct page_reclaim_work;
 

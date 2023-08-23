@@ -777,9 +777,9 @@ static int dsim_enable(struct dsim_device *dsim)
 	enum dsim_state state = dsim->state;
 
 	if (dsim->state == DSIM_STATE_ON) {
-#if defined(CONFIG_EXYNOS_SUPPORT_DOZE)
+#if defined(CONFIG_EXYNOS_DOZE)
 		if (IS_DOZE(dsim->doze_state))
-			call_panel_ops(dsim, exitalpm, dsim);
+			call_panel_ops(dsim, displayon, dsim);
 #endif
 		goto exit;
 	}
@@ -802,7 +802,7 @@ static int dsim_enable(struct dsim_device *dsim)
 		call_panel_ops(dsim, resume_early, dsim);
 
 	/* Panel power on */
-#if defined(CONFIG_EXYNOS_SUPPORT_DOZE)
+#if defined(CONFIG_EXYNOS_DOZE)
 	if (IS_DOZE(dsim->doze_state))
 		dsim_info("%s: exit_doze\n", __func__);
 	else
@@ -852,7 +852,7 @@ static int dsim_enable(struct dsim_device *dsim)
 
 		dsim_info("dsim_%d enabled", dsim->id);
 		/* Panel reset should be set after LP-11 */
-#if defined(CONFIG_EXYNOS_SUPPORT_DOZE)
+#if defined(CONFIG_EXYNOS_DOZE)
 		if (IS_DOZE(dsim->doze_state))
 			dsim_info("%s: exit_doze\n", __func__);
 		else
@@ -871,18 +871,11 @@ init_end:
 
 	if (state != DSIM_STATE_INIT) {
 		dsim_info("Panel init commands are transfered\n");
-#if defined(CONFIG_EXYNOS_SUPPORT_DOZE)
-		if (IS_DOZE(dsim->doze_state))
-			call_panel_ops(dsim, exitalpm, dsim);
-		else
-			call_panel_ops(dsim, displayon, dsim);
-#else
 		call_panel_ops(dsim, displayon, dsim);
-#endif
 	}
 
 exit:
-#if defined(CONFIG_EXYNOS_SUPPORT_DOZE)
+#if defined(CONFIG_EXYNOS_DOZE)
 	dsim->doze_state = DOZE_STATE_NORMAL;
 #endif
 	dsim_info("- %s\n", __func__);
@@ -900,7 +893,7 @@ static int dsim_disable(struct dsim_device *dsim)
 	if (dsim->lcd_info.mode != DECON_VIDEO_MODE)
 		call_panel_ops(dsim, suspend, dsim);
 
-#if defined(CONFIG_EXYNOS_SUPPORT_DOZE)
+#if defined(CONFIG_EXYNOS_DOZE)
 	dsim->doze_state = DOZE_STATE_SUSPEND;
 #endif
 
@@ -1069,7 +1062,7 @@ static long dsim_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	case DSIM_IOC_GET_WCLK:
 		v4l2_set_subdev_hostdata(sd, &dsim->clks.word_clk);
 		break;
-#if defined(CONFIG_EXYNOS_SUPPORT_DOZE)
+#if defined(CONFIG_EXYNOS_DOZE)
 	case DSIM_IOC_DOZE:
 		ret = dsim_doze(dsim);
 		if (ret)
@@ -1337,6 +1330,25 @@ static int dsim_parse_dt(struct dsim_device *dsim, struct device *dev)
 	dsim_parse_lcd_info(dsim);
 
 	return 0;
+}
+
+static void dsim_register_panel(struct dsim_device *dsim)
+{
+#if IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_S6E3HA2K)
+	dsim->panel_ops = &s6e3ha2k_mipi_lcd_driver;
+#elif IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_S6E3HF4)
+	dsim->panel_ops = &s6e3hf4_mipi_lcd_driver;
+#elif IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_EMUL_DISP)
+	dsim->panel_ops = &emul_disp_mipi_lcd_driver;
+#elif IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_S6E3FA0)
+	dsim->panel_ops = &s6e3fa0_mipi_lcd_driver;
+#elif IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_S6E3FA3)
+	dsim->panel_ops = &s6e3fa3_mipi_lcd_driver;
+#elif IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_S6E3FA7)
+	dsim->panel_ops = &s6e3fa7_mipi_lcd_driver;
+#else
+	dsim->panel_ops = mipi_lcd_driver;
+#endif
 }
 
 static int dsim_get_data_lanes(struct dsim_device *dsim)

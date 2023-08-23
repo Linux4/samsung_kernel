@@ -484,6 +484,9 @@ void s2mu004_hv_muic_reset_hvcontrol_reg(struct s2mu004_muic_data *muic_data)
 	muic_data->is_mrxtrf_in = false;
 	muic_data->retry_qc_cnt = 0;
 	muic_data->qc_prepare = 0;
+#if IS_ENABLED(CONFIG_NONE_WATERPROOF_MODEL)
+	muic_data->afc_check = false;
+#endif
 }
 
 void s2mu004_muic_set_afc_ready(struct s2mu004_muic_data *muic_data, bool value)

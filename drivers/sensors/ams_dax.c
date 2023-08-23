@@ -365,7 +365,7 @@ static bool ams_highBrightness_alsCalcLux(struct ams_chip *chip,
 
 	if (chip->count_log_time >= LIGHT_LOG_TIME) {
 		SENSOR_INFO("[MAX-MIN] max: %d min: %d Br: %d\n",
-			chip->ch0_2nd_max, chip->ch0_2nd_max,
+			chip->ch0_2nd_max, chip->ch0_2nd_min,
 			chip->brightness_level);
 		chip->count_log_time = 0;
 	} else {

@@ -133,6 +133,7 @@ static const char *dev_to_str(muic_attached_dev_t n)
 	ENUM_STR(ATTACHED_DEV_AFC_CHARGER_9V_MUIC, ret);
 	ENUM_STR(ATTACHED_DEV_AFC_CHARGER_ERR_V_MUIC, ret);
 	ENUM_STR(ATTACHED_DEV_AFC_CHARGER_ERR_V_DUPLI_MUIC, ret);
+	ENUM_STR(ATTACHED_DEV_AFC_CHARGER_DISABLED_MUIC, ret);
 	ENUM_STR(ATTACHED_DEV_QC_CHARGER_PREPARE_MUIC, ret);
 	ENUM_STR(ATTACHED_DEV_QC_CHARGER_5V_MUIC, ret);
 	ENUM_STR(ATTACHED_DEV_QC_CHARGER_ERR_V_MUIC, ret);
@@ -571,6 +572,61 @@ static inline int _s2mu106_muic_get_vbus_state(struct s2mu106_muic_data *muic_da
 		& DEVICE_APPLE_VBUS_WAKEUP_MASK) >> DEVICE_APPLE_VBUS_WAKEUP_SHIFT;
 }
 
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+static void _s2mu106_muic_set_int_mask(struct s2mu106_muic_data *muic_data,
+							u8 mask1, u8 mask2, u8 val1, u8 val2)
+{
+	/* @ mask1,2 : selected bits to write values
+	 * @ val1,2 : values to write on the masks
+	 * @ ex) unmask DETACH -> (0x02, 0x00, 0x00, 0x00)
+	 *
+	 * - INT1_MASK
+	 * WAKE_UP, USB_KILLER, RID_CHG, LKR, LKP, KP, DETACH, ATTACH
+	 *
+	 * - INT2_MASK
+	 * VBUS_OFF, AV_CHARGE, MHDL, STUCKRCV, STUCK, ADCCHANGE, RSVD_ATTACH, VBUS_ON
+	 */
+	struct i2c_client *i2c = muic_data->i2c;
+
+	u8 int1_mask_r = 0, int1_mask_w = 0, int2_mask_r = 0, int2_mask_w = 0;
+
+	int1_mask_w = int1_mask_r = s2mu106_i2c_read_byte(i2c, S2MU106_REG_MUIC_INT1_MASK);
+	int2_mask_w = int2_mask_r = s2mu106_i2c_read_byte(i2c, S2MU106_REG_MUIC_INT2_MASK);
+
+	if (mask1 || mask2) {
+		int1_mask_w &= ~(mask1);
+		int2_mask_w &= ~(mask2);
+
+		int1_mask_w |= val1;
+		int2_mask_w |= val2;
+
+		if ((int1_mask_r != int1_mask_w) || (int2_mask_r != int2_mask_w)) {
+			s2mu106_i2c_write_byte(i2c, S2MU106_REG_MUIC_INT1_MASK, int1_mask_w);
+			s2mu106_i2c_write_byte(i2c, S2MU106_REG_MUIC_INT2_MASK, int2_mask_w);
+
+			pr_info("%s INT1_MASK(%#x->%#x), INT2_MASK(%#x->%#x)\n", __func__,
+				int1_mask_r, int1_mask_w, int2_mask_r, int2_mask_w);
+		}
+	}
+}
+#endif
+
+#if IS_ENABLED(CONFIG_S2MU106_IFCONN_HOUSE_NOT_GND)
+static void _s2mu106_muic_set_rescan_status(struct s2mu106_muic_data *muic_data,
+						bool en)
+{
+	if (muic_data->is_rescanning != en) {
+		pr_info("%s is_rescanning(%d->%d)\n", __func__, muic_data->is_rescanning, en);
+		muic_data->is_rescanning = en;
+	}
+}
+
+static inline bool _s2mu106_muic_get_rescan_status(struct s2mu106_muic_data *muic_data)
+{
+	return muic_data->is_rescanning;
+}
+#endif
+
 void s2mu106_muic_get_detect_info(struct s2mu106_muic_data *muic_data)
 {
 	struct muic_platform_data *muic_pdata = muic_data->pdata;
@@ -604,6 +660,9 @@ int s2mu106_muic_bcd_rescan(struct s2mu106_muic_data *muic_data)
 	if (ret < 0)
 		pr_err("%s, fail to open mansw\n", __func__);
 #if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+#if IS_ENABLED(CONFIG_S2MU106_IFCONN_HOUSE_NOT_GND)
+	_s2mu106_muic_set_rescan_status(muic_data, true);
+#endif
 	_s2mu106_muic_control_rid_adc(muic_data, MUIC_DISABLE);
 	msleep(150);
 	cancel_delayed_work(&muic_data->rescan_validity_checker);
@@ -643,6 +702,9 @@ static void s2mu106_muic_dcd_recheck(struct work_struct *work)
 		goto skip_dcd_recheck;
 	}
 
+#if IS_ENABLED(CONFIG_S2MU106_IFCONN_HOUSE_NOT_GND)
+	_s2mu106_muic_set_rescan_status(muic_data, false);
+#endif
 	/* Detect Type & Handle the result */
 	det_ret = s2mu106_muic_detect_dev_bc1p2(muic_data);
 	if (det_ret == S2MU106_DETECT_NONE) {
@@ -685,6 +747,9 @@ static void s2mu106_muic_rescan_validity_checker(struct work_struct *work)
 		if (reg_val & MUIC_CTRL2_ADC_OFF_MASK) {
 			muic_data->invalid_rescanned = true;
 		}
+#if IS_ENABLED(CONFIG_S2MU106_IFCONN_HOUSE_NOT_GND)
+		_s2mu106_muic_set_rescan_status(muic_data, false);
+#endif
 #else
 #if !IS_ENABLED(CONFIG_SEC_FACTORY)
 		pr_info("TIMEOUT DETECTED\n");
@@ -900,7 +965,7 @@ static int s2mu106_muic_detect_usb_killer(struct s2mu106_muic_data *muic_data)
 {
 	struct i2c_client *i2c = muic_data->i2c;
 	u8 reg_val = 0;
-	u8 afc_otp6, dnres, vdnmon;
+	u8 afc_otp6, dnres, vdnmon, afc_otp3;
 	int ret = MUIC_NORMAL_OTG;
 
 	pr_info("%s entered\n", __func__);
@@ -919,6 +984,11 @@ static int s2mu106_muic_detect_usb_killer(struct s2mu106_muic_data *muic_data)
 	s2mu106_i2c_write_byte(i2c, S2MU106_REG_AFC_CTRL1, reg_val);
 
 	s2mu106_muic_set_dn_ready_for_killer(muic_data);
+
+	afc_otp3 = s2mu106_i2c_read_byte(i2c, S2MU106_REG_AFC_OTP3);
+	s2mu106_i2c_write_byte(i2c, S2MU106_REG_AFC_OTP3,
+			S2MU106_COMP_REF_SEL_0p4V_MASK | S2MU106_HCOMP_REF_SEL_1p2V_MASK);
+	usleep_range(10000, 11000);
 
 	/* 1st check */
 	reg_val = (AFCCTRL2_DP06EN_MASK);
@@ -944,12 +1014,10 @@ static int s2mu106_muic_detect_usb_killer(struct s2mu106_muic_data *muic_data)
 	reg_val = (AFCCTRL1_CTRLIDMON_MASK | AFCCTRL1_AFCEN_MASK |
 			AFCCTRL1_DPDNVDEN_MASK);
 	s2mu106_i2c_write_byte(i2c, S2MU106_REG_AFC_CTRL1, reg_val);
-
-	usleep_range(10000, 11000);
-	s2mu106_i2c_write_byte(i2c, S2MU106_REG_AFC_OTP3, 0x48);
-	usleep_range(10000, 11000);
+	usleep_range(20000, 21000);
 
 	reg_val = s2mu106_i2c_read_byte(i2c, S2MU106_REG_AFC_STATUS);
+	pr_info("%s 2nd chk: AFC_STATUS(%#x)\n", __func__, reg_val);
 	dnres = reg_val & STATUS_DNRES_MASK;
 	if (!dnres) {
 		pr_info("%s, USB Killer Condition.", __func__);
@@ -958,6 +1026,7 @@ static int s2mu106_muic_detect_usb_killer(struct s2mu106_muic_data *muic_data)
 
 	s2mu106_i2c_write_byte(i2c, S2MU106_REG_AFC_OTP6, afc_otp6);
 exit_chk:
+	s2mu106_i2c_write_byte(i2c, S2MU106_REG_AFC_OTP3, afc_otp3);
 	s2mu106_i2c_write_byte(i2c, S2MU106_REG_AFC_INT_MASK, 0x00);
 	s2mu106_i2c_write_byte(i2c, S2MU106_REG_AFC_CTRL1, 0x0);
 	s2mu106_i2c_write_byte(i2c, S2MU106_REG_AFC_CTRL2, 0x0);
@@ -976,8 +1045,25 @@ static int s2mu106_if_check_usb_killer(void *mdata)
 	int ret = MUIC_NORMAL_OTG, i;
 
 #if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+#if !IS_ENABLED(CONFIG_S2MU106_IFCONN_HOUSE_NOT_GND)
 	int wait_ret = 0;
+#endif
+#endif
+	/* vbus discharing off when cc attach event */
+	if (muic_data->discharging_en) {
+		if (gpio_is_valid(muic_data->vbus_discharging)) {
+			if (muic_data->discharging) {
+				pr_info("%s, discharging forced finished, flush wq\n", __func__);
+				muic_data->discharging = 0;
+				gpio_direction_output(muic_data->vbus_discharging, 0);
+				flush_workqueue(muic_data->discharging_wq);
+				flush_workqueue(muic_data->discharging_start_wq);
+			}
+		}
+	}
 
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+#if !IS_ENABLED(CONFIG_S2MU106_IFCONN_HOUSE_NOT_GND)
 	if (muic_data->water_status != S2MU106_WATER_MUIC_IDLE)
 		return MUIC_ABNORMAL_OTG;
 
@@ -993,6 +1079,7 @@ static int s2mu106_if_check_usb_killer(void *mdata)
 		pr_info("%s, cable detected after while.", __func__);
 	}
 #endif
+#endif
 
 	for (i = 0; i < 3; i++) {
 		ret = s2mu106_muic_detect_usb_killer(muic_data);
@@ -1001,8 +1088,10 @@ static int s2mu106_if_check_usb_killer(void *mdata)
 		msleep(150);
 
 #if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+#if !IS_ENABLED(CONFIG_S2MU106_IFCONN_HOUSE_NOT_GND)
 		if (muic_data->water_status != S2MU106_WATER_MUIC_IDLE)
 			return MUIC_ABNORMAL_OTG;
+#endif
 #endif
 	}
 
@@ -1186,6 +1275,7 @@ static int s2mu106_muic_reg_init(struct s2mu106_muic_data *muic_data)
 	struct i2c_client *i2c = muic_data->i2c;
 	int ret = 0, data = 0;
 	u8 reg_val = 0;
+	u8 r_val = 0, w_val = 0;
 
 	pr_info("%s\n", __func__);
 
@@ -1209,6 +1299,13 @@ static int s2mu106_muic_reg_init(struct s2mu106_muic_data *muic_data)
 	reg_val |= MUIC_INT2_MASK_ADCCHANGE_Im_MASK;
 	s2mu106_i2c_write_byte(i2c, S2MU106_REG_MUIC_INT2_MASK, reg_val);
 #endif
+
+	/* Set VDAT_REF 0.3V */
+	r_val = s2mu106_i2c_read_byte(i2c, S2MU106_REG_AFC_OTP3);
+	w_val = r_val & ~S2MU106_COMP_REF_SEL_MASK;
+	w_val |= S2MU106_COMP_REF_SEL_0p3V_MASK;
+	s2mu106_i2c_write_byte(i2c, S2MU106_REG_AFC_OTP3, w_val);
+	pr_info("%s AFC_OTP3 %#x->%#x\n", __func__, r_val, w_val);
 
 	/* for usb killer */
 	_s2mu106_i2c_update_bit(muic_data->i2c, S2MU106_REG_RID_DISCHARGE,
@@ -1242,6 +1339,11 @@ static int s2mu106_muic_reg_init(struct s2mu106_muic_data *muic_data)
 			RID_DISCHARGE_RID_DISCHARGE_ON_SHIFT,
 			0x1);
 
+	_s2mu106_i2c_update_bit(muic_data->i2c, S2MU106_REG_LDOPCP_VSET_OTP,
+			LDOPCP_VSET_OTP_DETACH_TIME_SET_MASK,
+			LDOPCP_VSET_OTP_DETACH_TIME_SET_SHIFT,
+			0x3);
+
 	s2mu106_muic_set_rid_for_water(muic_data, MUIC_ENABLE);
 #else
 	if (s2mu106_muic_is_opmode_typeC(muic_data)) {
@@ -1263,6 +1365,9 @@ static void s2mu106_muic_handle_legacy_detach(struct s2mu106_muic_data *muic_dat
 	_s2mu106_muic_control_rid_adc(muic_data, MUIC_ENABLE);
 	if (muic_data->is_cable_inserted) {
 		muic_data->is_cable_inserted = false;
+#if IS_ENABLED(CONFIG_S2MU106_IFCONN_HOUSE_NOT_GND)
+		MUIC_SEND_NOTI_TO_CCIC_DETACH(muic_data->pdata->attached_dev);
+#endif
 	}
 	s2mu106_muic_set_rid_int_mask_en(muic_data, MUIC_DISABLE);
 	return;
@@ -1800,6 +1905,10 @@ static void s2mu106_muic_water_detect_handler(struct work_struct *work)
 
 	pr_info("%s\n", __func__);
 
+#if IS_ENABLED(CONFIG_HICCUP_CHARGER)
+	s2mu106_muic_set_hiccup_mode(muic_data, MUIC_ENABLE);
+#endif
+
 	muic_data->water_status = S2MU106_WATER_MUIC_DET;
 	_s2mu106_muic_control_rid_adc(muic_data, MUIC_DISABLE);
 	MUIC_SEND_NOTI_TO_CCIC_ATTACH(ATTACHED_DEV_CHK_WATER_REQ);
@@ -1819,6 +1928,9 @@ static void s2mu106_muic_water_detect_handler(struct work_struct *work)
 			pr_info("%s Not Water From CCIC.\n", __func__);
 			muic_data->water_status = S2MU106_WATER_MUIC_IDLE;
 			_s2mu106_muic_control_rid_adc(muic_data, MUIC_ENABLE);
+#if IS_ENABLED(CONFIG_HICCUP_CHARGER)
+			s2mu106_muic_set_hiccup_mode(muic_data, MUIC_DISABLE);
+#endif
 		}
 	}
 EXIT_DETECT:
@@ -2001,6 +2113,17 @@ static bool s2mu106_muic_is_opmode_typeC(struct s2mu106_muic_data *muic_data)
 }
 #endif
 
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+static void s2mu106_muic_handle_cable_inserted(struct s2mu106_muic_data *muic_data)
+{
+	pr_info("%s enter\n", __func__);
+	muic_data->is_cable_inserted = true;
+#if IS_ENABLED(CONFIG_S2MU106_IFCONN_HOUSE_NOT_GND)
+	MUIC_SEND_NOTI_TO_CCIC_ATTACH(ATTACHED_DEV_TYPE3_MUIC);
+#endif
+}
+#endif
+
 static irqreturn_t s2mu106_muic_attach_isr(int irq, void *data)
 {
 	struct s2mu106_muic_data *muic_data = data;
@@ -2025,10 +2148,13 @@ static irqreturn_t s2mu106_muic_attach_isr(int irq, void *data)
 	s2mu106_muic_get_detect_info(muic_data);
 
 #if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+#if IS_ENABLED(CONFIG_S2MU106_IFCONN_HOUSE_NOT_GND)
+	_s2mu106_muic_set_rescan_status(muic_data, false);
+#endif
 	if (s2mu106_muic_is_opmode_typeC(muic_data)) {
 		if (!muic_data->is_cable_inserted
 			&& muic_data->adc == ADC_GND) {
-			muic_data->is_cable_inserted = true;
+			s2mu106_muic_handle_cable_inserted(muic_data);
 			wake_up_interruptible(&muic_data->cable_wait);
 		}
 	}
@@ -2100,12 +2226,25 @@ static irqreturn_t s2mu106_muic_detach_isr(int irq, void *data)
 	mutex_lock(&muic_data->muic_mutex);
 	wake_lock(&muic_data->wake_lock);
 
+	s2mu106_muic_get_detect_info(muic_data);
+#if IS_ENABLED(CONFIG_S2MU106_IFCONN_HOUSE_NOT_GND)
+	if (_s2mu106_muic_get_rescan_status(muic_data)) {
+		pr_err("%s rid disable in rescan\n", __func__);
+		goto detach_skip;
+	}
+#endif
+
 	if (MUIC_IS_ATTACHED(muic_pdata->attached_dev) == false) {
 		pr_err("%s Cable type already was detached\n", __func__);
+#if IS_ENABLED(CONFIG_S2MU106_IFCONN_HOUSE_NOT_GND)
+		if (muic_data->adc == ADC_OPEN && muic_data->is_cable_inserted) {
+			muic_data->is_cable_inserted = false;
+			MUIC_SEND_NOTI_TO_CCIC_DETACH(muic_data->pdata->attached_dev);
+		}
+#endif
 		goto detach_skip;
 	}
 
-	s2mu106_muic_get_detect_info(muic_data);
 #if IS_ENABLED(CONFIG_MUIC_SUPPORT_CCIC)
 	if (s2mu106_muic_is_opmode_typeC(muic_data)) {
 		if (!muic_core_get_ccic_cable_state(muic_data->pdata)) {
@@ -2156,6 +2295,18 @@ static irqreturn_t s2mu106_muic_vbus_on_isr(int irq, void *data)
 
 	pr_info("%s start(%s)\n", __func__, dev_to_str(muic_pdata->attached_dev));
 
+	if (muic_data->discharging_en) {
+		if (gpio_is_valid(muic_data->vbus_discharging)) {
+			if (muic_data->discharging) {
+				pr_info("%s, discharging forced finished, flush wq\n", __func__);
+				muic_data->discharging = 0;
+				gpio_direction_output(muic_data->vbus_discharging, 0);
+				flush_workqueue(muic_data->discharging_wq);
+				flush_workqueue(muic_data->discharging_start_wq);
+			}
+		}
+	}
+
 	s2mu106_muic_get_detect_info(muic_data);
 #if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
 	if (s2mu106_muic_is_opmode_typeC(muic_data)) {
@@ -2165,7 +2316,7 @@ static irqreturn_t s2mu106_muic_vbus_on_isr(int irq, void *data)
 			msecs_to_jiffies(1200));
 		if (!muic_data->is_cable_inserted
 			&& muic_data->adc == ADC_GND) {
-			muic_data->is_cable_inserted = true;
+			s2mu106_muic_handle_cable_inserted(muic_data);
 			wake_up_interruptible(&muic_data->cable_wait);
 		}
 #if !IS_ENABLED(CONFIG_MUIC_S2MU106_FAST_DETECTION)
@@ -2206,6 +2357,33 @@ static irqreturn_t s2mu106_muic_vbus_on_isr(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+static void s2mu106_muic_discharging_handler(struct work_struct *work)
+{
+	struct s2mu106_muic_data *muic_data =
+	    container_of(work, struct s2mu106_muic_data, discharging_handler.work);
+
+	if (!muic_data->discharging)
+		return;
+	muic_data->discharging = 0;
+	pr_info("%s, discharging finished\n", __func__);
+	gpio_direction_output(muic_data->vbus_discharging, 0);
+
+	return;
+}
+
+static void s2mu106_muic_discharging_start_handler(struct work_struct *work)
+{
+	struct s2mu106_muic_data *muic_data =
+	    container_of(work, struct s2mu106_muic_data, discharging_start_handler.work);
+
+	if (!muic_data->discharging)
+		return;
+	pr_info("%s, discharging start\n", __func__);
+	gpio_direction_output(muic_data->vbus_discharging, 1);
+
+	return;
+}
+
 static irqreturn_t s2mu106_muic_vbus_off_isr(int irq, void *data)
 {
 	struct s2mu106_muic_data *muic_data = data;
@@ -2240,9 +2418,10 @@ static irqreturn_t s2mu106_muic_vbus_off_isr(int irq, void *data)
 
 	if (muic_data->discharging_en) {
 		if (gpio_is_valid(muic_data->vbus_discharging)) {
-			gpio_direction_output(muic_data->vbus_discharging, 1);
-			msleep(120);
-			gpio_direction_output(muic_data->vbus_discharging, 0);
+			pr_info("%s, discharging start after 300ms\n", __func__);
+			muic_data->discharging = 1;
+			queue_delayed_work(muic_data->discharging_start_wq, &muic_data->discharging_start_handler, 300);
+			queue_delayed_work(muic_data->discharging_wq, &muic_data->discharging_handler, 500); 
 		}
 	}
 
@@ -2258,7 +2437,10 @@ static irqreturn_t s2mu106_muic_vbus_off_isr(int irq, void *data)
 
 #if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
 	if (muic_data->invalid_rescanned
-		&& !MUIC_IS_ATTACHED(muic_pdata->attached_dev)) {
+			&& !MUIC_IS_ATTACHED(muic_pdata->attached_dev)) {
+#if IS_ENABLED(CONFIG_S2MU106_IFCONN_HOUSE_NOT_GND)
+		_s2mu106_muic_set_rescan_status(muic_data, false);
+#endif
 		_s2mu106_muic_control_rid_adc(muic_data, MUIC_ENABLE);
 		muic_data->invalid_rescanned = false;
 	}
@@ -2270,9 +2452,15 @@ static irqreturn_t s2mu106_muic_vbus_off_isr(int irq, void *data)
 	}
 
 #if IS_ENABLED(CONFIG_MUIC_MANAGER)
-	if (muic_core_get_ccic_cable_state(muic_pdata)
-			&& muic_if->is_ccic_attached == false) {
-		muic_core_handle_detach(muic_data->pdata);
+	if (s2mu106_muic_is_opmode_typeC(muic_data)) {
+		if (muic_core_get_ccic_cable_state(muic_pdata)
+				&& muic_if->is_ccic_attached == false) {
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+			_s2mu106_muic_control_rid_adc(muic_data, MUIC_ENABLE);
+			_s2mu106_muic_set_int_mask(muic_data, 0x3, 0x0, 0x0, 0x0);
+#endif
+			muic_core_handle_detach(muic_data->pdata);
+		}
 	}
 #endif
 
@@ -2317,8 +2505,9 @@ static irqreturn_t s2mu106_muic_rid_chg_isr(int irq, void *data)
 	if (s2mu106_muic_is_opmode_typeC(muic_data)) {
 		if (!muic_data->is_cable_inserted
 				&& muic_data->adc == ADC_GND) {
-			muic_data->is_cable_inserted = true;
+			s2mu106_muic_handle_cable_inserted(muic_data);
 		}
+
 		if (muic_data->adc == ADC_GND
 				&& muic_data->vbvolt
 				&& !muic_core_get_ccic_cable_state(muic_pdata)
@@ -2603,6 +2792,9 @@ static void s2mu106_muic_init_drvdata(struct s2mu106_muic_data *muic_data,
 	muic_data->is_cable_inserted = false;
 #endif
 	muic_data->is_timeout_attached = false;
+#if IS_ENABLED(CONFIG_S2MU106_IFCONN_HOUSE_NOT_GND)
+	muic_data->is_rescanning = false;
+#endif
 }
 
 static void s2mu106_muic_init_interface(struct s2mu106_muic_data *muic_data,
@@ -2708,6 +2900,7 @@ static int s2mu106_muic_probe(struct platform_device *pdev)
 
 	if (muic_data->discharging_en)
 		gpio_request(muic_data->vbus_discharging, "s2mu106-discharging");
+	muic_data->discharging = 0;
 
 	mutex_init(&muic_data->muic_mutex);
 	mutex_init(&muic_data->switch_mutex);
@@ -2763,6 +2956,19 @@ static int s2mu106_muic_probe(struct platform_device *pdev)
 
 	pr_info("%s muic_if->opmode(%d)\n", __func__, muic_if->opmode);
 
+	muic_data->discharging_wq = alloc_workqueue("s2mu106_muic", WQ_MEM_RECLAIM, 1);
+	if (!muic_data->discharging_wq) {
+		pr_err("%s, fail to create workqueue\n", __func__);
+		goto fail;
+	}
+	muic_data->discharging_start_wq = alloc_workqueue("s2mu106_muic", WQ_MEM_RECLAIM, 1);
+	if (!muic_data->discharging_start_wq) {
+		pr_err("%s, fail to create workqueue\n", __func__);
+		goto fail;
+	}
+	INIT_DELAYED_WORK(&muic_data->discharging_handler, s2mu106_muic_discharging_handler);
+	INIT_DELAYED_WORK(&muic_data->discharging_start_handler, s2mu106_muic_discharging_start_handler);
+
 	INIT_DELAYED_WORK(&muic_data->dcd_recheck, s2mu106_muic_dcd_recheck);
 	INIT_DELAYED_WORK(&muic_data->rescan_validity_checker,
 		s2mu106_muic_rescan_validity_checker);
@@ -2814,12 +3020,12 @@ static int s2mu106_muic_probe(struct platform_device *pdev)
 				&& !muic_core_get_ccic_cable_state(muic_pdata)
 				&& !IS_WATER_STATUS(muic_data->water_status)) {
 			/* In case of normal charger cable */
-			muic_data->is_cable_inserted = true;
+			s2mu106_muic_handle_cable_inserted(muic_data);
 			s2mu106_muic_bcd_rescan(muic_data);
 		} else if (!muic_data->is_cable_inserted
 				&& muic_data->adc == ADC_GND) {
 			/* In case of OTG */
-			muic_data->is_cable_inserted = true;
+			s2mu106_muic_handle_cable_inserted(muic_data);
 			wake_up_interruptible(&muic_data->cable_wait);
 		} else if (muic_data->adc != ADC_GND
 				&& !_s2mu106_muic_get_vbus_state(muic_data)) {

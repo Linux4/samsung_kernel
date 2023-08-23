@@ -229,6 +229,7 @@ struct scsc_bt_service {
 	size_t                         interrupt_count;
 	size_t                         interrupt_read_count;
 	size_t                         interrupt_write_count;
+	size_t                         last_suspend_interrupt_count;
 
 	u32                            mailbox_hci_evt_read;
 	u32                            mailbox_hci_evt_write;
@@ -243,6 +244,8 @@ struct scsc_bt_service {
 	struct scsc_bt_avdtp_detect    avdtp_detect;
 	struct completion              recovery_release_complete;
 	struct completion              recovery_probe_complete;
+
+	bool                           iq_reports_enabled;
 };
 
 extern struct scsc_bt_service bt_service;

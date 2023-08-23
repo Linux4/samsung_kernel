@@ -236,7 +236,7 @@ void dpu_prepare_win_update_config(struct decon_device *decon,
 	struct decon_rect r;
 	struct decon_win_config *update_config = &win_config[DECON_WIN_UPDATE_IDX];
 
-#if defined(CONFIG_EXYNOS_SUPPORT_DOZE)
+#if defined(CONFIG_EXYNOS_DOZE)
 	if ((decon->dt.out_type == DECON_OUT_DSI) && (decon->doze_state == DOZE_STATE_DOZE))
 		memset(update_config, 0, sizeof(struct decon_win_config));
 #endif

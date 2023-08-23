@@ -197,13 +197,10 @@ void vbus_turn_on_ctrl(struct s2mu205_usbpd_data *usbpd_data, bool enable)
 static int s2mu205_usbpd_get_volt(struct s2mu205_usbpd_data *pdic_data,
 														CCIC_VBUS_SEL mode)
 {
-
-	struct power_supply *psy_chg, *psy_muic;
+	struct power_supply *psy_chg = pdic_data->psy_chg;
+	struct power_supply *psy_muic = pdic_data->psy_muic;
 	union power_supply_propval val, val2;
 	int ret = 0;
-
-	psy_chg = get_power_supply_by_name("s2mu205-charger");
-	psy_muic = get_power_supply_by_name("muic-manager");
 
 	if (psy_chg && psy_muic) {
 		if (mode == VBUS_OFF) {
@@ -776,8 +773,11 @@ static bool s2mu205_poll_status(void *_data)
 	if (intr[2] & S2MU205_REG_INT_STATUS2_MSG_VCONN_SWAP)
 		status_reg_val |= 1 << MSG_VCONN_SWAP;
 
-	if (intr[3] & S2MU205_REG_INT_STATUS3_UNS_CMD_DATA)
+	if (intr[3] & S2MU205_REG_INT_STATUS3_UNS_CMD_DATA) {
+		if (pdic_data->detach_valid)
+			status_reg_val |= 1 << PLUG_ATTACH;
 		status_reg_val |= 1 << MSG_RID;
+	}
 
 	/* function that support dp control */
 	if (intr[4] & S2MU205_REG_INT_STATUS4_MSG_PASS) {
@@ -957,9 +957,10 @@ static int s2mu205_set_otg_control(void *_data, int val)
 	struct s2mu205_usbpd_data *pdic_data = data->phy_driver_data;
 
 	mutex_lock(&pdic_data->cc_mutex);
-	if (val)
-		vbus_turn_on_ctrl(pdic_data, VBUS_ON);
-	else
+	if (val) {
+		if (pdic_data->is_killer == 0)
+			vbus_turn_on_ctrl(pdic_data, VBUS_ON);
+	} else
 		vbus_turn_on_ctrl(pdic_data, VBUS_OFF);
 	mutex_unlock(&pdic_data->cc_mutex);
 
@@ -1256,7 +1257,7 @@ static void s2mu205_usbpd_set_threshold(struct s2mu205_usbpd_data *pdic_data,
 	} else {
 		if (port_sel == PLUG_CTRL_RD)
 			s2mu205_usbpd_write_reg(i2c,
-				S2MU205_REG_PLUG_CTRL_SET_RD, threshold_sel);
+				S2MU205_REG_PLUG_CTRL_SET_RD, threshold_sel | 0x40);
 		else if (port_sel == PLUG_CTRL_RP)
 			s2mu205_usbpd_write_reg(i2c,
 				S2MU205_REG_PLUG_CTRL_SET_RP, threshold_sel);
@@ -1303,33 +1304,36 @@ static void s2mu205_usbpd_set_rp_scr_sel(struct s2mu205_usbpd_data *pdic_data,
 		data &= ~S2MU205_REG_PLUG_CTRL_RP_SEL_MASK;
 		data |= S2MU205_REG_PLUG_CTRL_RP80;
 		s2mu205_usbpd_write_reg(i2c, S2MU205_REG_PLUG_CTRL_PORT, data);
+#if 0
 		s2mu205_usbpd_set_threshold(pdic_data, PLUG_CTRL_RD,
 						S2MU205_THRESHOLD_214MV);
 		s2mu205_usbpd_set_threshold(pdic_data, PLUG_CTRL_RP,
 						S2MU205_THRESHOLD_1628MV);
-
+#endif
 		break;
 	case PLUG_CTRL_RP180:
 		s2mu205_usbpd_read_reg(i2c, S2MU205_REG_PLUG_CTRL_PORT, &data);
 		data &= ~S2MU205_REG_PLUG_CTRL_RP_SEL_MASK;
 		data |= S2MU205_REG_PLUG_CTRL_RP180;
 		s2mu205_usbpd_write_reg(i2c, S2MU205_REG_PLUG_CTRL_PORT, data);
+#if 0
 		s2mu205_usbpd_set_threshold(pdic_data, PLUG_CTRL_RD,
 						S2MU205_THRESHOLD_428MV);
 		s2mu205_usbpd_set_threshold(pdic_data, PLUG_CTRL_RP,
 						S2MU205_THRESHOLD_2057MV);
-
+#endif
 		break;
 	case PLUG_CTRL_RP330:
 		s2mu205_usbpd_read_reg(i2c, S2MU205_REG_PLUG_CTRL_PORT, &data);
 		data &= ~S2MU205_REG_PLUG_CTRL_RP_SEL_MASK;
 		data |= S2MU205_REG_PLUG_CTRL_RP330;
 		s2mu205_usbpd_write_reg(i2c, S2MU205_REG_PLUG_CTRL_PORT, data);
+#if 0
 		s2mu205_usbpd_set_threshold(pdic_data, PLUG_CTRL_RD,
 						S2MU205_THRESHOLD_428MV);
 		s2mu205_usbpd_set_threshold(pdic_data, PLUG_CTRL_RP,
 						S2MU205_THRESHOLD_2057MV);
-
+#endif
 		break;
 	default:
 		break;
@@ -1486,7 +1490,7 @@ int s2mu205_usbpd_check_msg(void *_data, u64 *val)
 					*val |= one << VDM_ENTER_MODE;
 					break;
 				case Discover_Modes:
-					*val |= one << VDM_ENTER_MODE;
+					*val |= one << VDM_DISCOVER_MODE;
 					break;
 				case Discover_SVIDs:
 					*val |= one << VDM_DISCOVER_SVID;
@@ -2363,6 +2367,9 @@ static int type3_handle_notification(struct notifier_block *nb,
 		cancel_delayed_work(&pdic_data->water_dry_handler);
 		schedule_delayed_work(&pdic_data->water_dry_handler, msecs_to_jiffies(100));
 	} else if ((action == MUIC_PDIC_NOTIFY_CMD_ATTACH) &&
+		attached_dev == ATTACHED_DEV_ABNORMAL_OTG_MUIC) {
+		pdic_data->is_killer = true;
+	} else if ((action == MUIC_PDIC_NOTIFY_CMD_ATTACH) &&
 		attached_dev == ATTACHED_DEV_OTG_MUIC) {
 		s2mu205_usbpd_otg_attach(pdic_data);
 	} else if ((action == MUIC_PDIC_NOTIFY_CMD_DETACH) &&
@@ -2517,7 +2524,7 @@ static void s2mu205_vbus_short_check(struct s2mu205_usbpd_data *pdic_data)
 #ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
 	pd_noti.sink_status.rp_currentlvl = rp_currentlvl;
 	pd_noti.event = PDIC_NOTIFY_EVENT_CCIC_ATTACH;
-	ccic_event_work(pdic_data, CCIC_NOTIFY_DEV_BATTERY, CCIC_NOTIFY_ID_POWER_STATUS, 1, 0);
+	ccic_event_work(pdic_data, CCIC_NOTIFY_DEV_BATTERY, CCIC_NOTIFY_ID_POWER_STATUS, 0, 0);
 #endif
 #endif
 	s2mu205_usbpd_read_reg(i2c, S2MU205_REG_PLUG_MON1, &val);
@@ -2658,7 +2665,7 @@ static void s2mu205_usbpd_detach_init(struct s2mu205_usbpd_data *pdic_data)
 	struct usbpd_data *pd_data = dev_get_drvdata(dev);
 	struct i2c_client *i2c = pdic_data->i2c;
 	int ret = 0;
-
+	u8 rid = 0;
 	dev_info(dev, "%s\n", __func__);
 
 	mutex_lock(&pdic_data->cc_mutex);
@@ -2684,10 +2691,14 @@ static void s2mu205_usbpd_detach_init(struct s2mu205_usbpd_data *pdic_data)
 	usbpd_reinit(dev);
 	/* for ccic hw detect */
 	ret = s2mu205_usbpd_write_reg(i2c, S2MU205_REG_MSG_SEND_CON, S2MU205_REG_MSG_SEND_CON_HARD_EN);
-	s2mu205_self_soft_reset(i2c);
+	s2mu205_usbpd_read_reg(i2c, S2MU205_REG_ADC_STATUS, &rid);
+	rid = (rid & S2MU205_PDIC_RID_MASK) >> S2MU205_PDIC_RID_SHIFT;
+	if (!rid)
+		s2mu205_self_soft_reset(i2c);
 	pdic_data->rid = REG_RID_MAX;
 	pdic_data->is_factory_mode = false;
 	pdic_data->is_pr_swap = false;
+	pdic_data->is_killer = false;
 	pdic_data->vbus_short_check = false;
 	pdic_data->pd_vbus_short_check = false;
 	pdic_data->vbus_short = false;
@@ -2886,6 +2897,8 @@ static int s2mu205_check_port_detect(struct s2mu205_usbpd_data *pdic_data)
 			dev_err(&i2c->dev, "%s, abnormal attach\n", __func__);
 			return -1;
 		}
+		s2mu205_usbpd_set_threshold(pdic_data, PLUG_CTRL_RP,
+											S2MU205_THRESHOLD_2057MV);
 		dev_info(dev, "SOURCE\n");
 		ret = s2mu205_usbpd_check_accessory(pdic_data);
 		if (ret < 0) {
@@ -2915,7 +2928,7 @@ static int s2mu205_check_port_detect(struct s2mu205_usbpd_data *pdic_data)
 		s2mu205_set_vconn_source(pd_data, USBPD_VCONN_ON);
 
 //		msleep(tTypeCSinkWaitCap); /* dont over 310~620ms(tTypeCSinkWaitCap) */
-		msleep(200); /* dont over 310~620ms(tTypeCSinkWaitCap) */
+		msleep(300); /* dont over 310~620ms(tTypeCSinkWaitCap) */
 	} else {
 		dev_err(dev, "%s, PLUG Error\n", __func__);
 		return -1;
@@ -3021,6 +3034,7 @@ static irqreturn_t s2mu205_irq_thread(int irq, void *data)
 		attach_status = s2mu205_get_status(pd_data, PLUG_ATTACH);
 		rid_status = s2mu205_get_status(pd_data, MSG_RID);
 		s2mu205_usbpd_detach_init(pdic_data);
+		s2mu205_usbpd_notify_detach(pdic_data);
 		if (attach_status) {
 			ret = s2mu205_check_port_detect(pdic_data);
 			if (ret >= 0) {
@@ -3030,7 +3044,6 @@ static irqreturn_t s2mu205_irq_thread(int irq, void *data)
 				goto hard_reset;
 			}
 		}
-		s2mu205_usbpd_notify_detach(pdic_data);
 
 		goto out;
 	}
@@ -3137,7 +3150,7 @@ static int s2mu205_usbpd_reg_init(struct s2mu205_usbpd_data *_data)
 	s2mu205_usbpd_write_reg(i2c, S2MU205_REG_PLUG_CTRL_SET_RD_2, S2MU205_THRESHOLD_600MV);
 	s2mu205_usbpd_write_reg(i2c, S2MU205_REG_PLUG_CTRL_SET_RP_2, S2MU205_THRESHOLD_1200MV);
 #ifdef CONFIG_SEC_FACTORY
-	s2mu205_usbpd_write_reg(i2c, S2MU205_REG_PLUG_CTRL_SET_RD, S2MU205_THRESHOLD_385MV);
+	s2mu205_usbpd_write_reg(i2c, S2MU205_REG_PLUG_CTRL_SET_RD, S2MU205_THRESHOLD_342MV | 0x40);
 #else
 	s2mu205_usbpd_write_reg(i2c, S2MU205_REG_PLUG_CTRL_SET_RD, S2MU205_THRESHOLD_257MV | 0x40);
 	_data->rd_threshold = S2MU205_THRESHOLD_257MV;
@@ -3345,6 +3358,7 @@ static void s2mu205_usbpd_pdic_data_init(struct s2mu205_usbpd_data *_data)
 	_data->pd_vbus_short_check = false;
 	_data->vbus_short_check_cnt = 0;
 	_data->lpcharge_water = false;
+	_data->is_killer = false;
 }
 
 static int of_s2mu205_dt(struct device *dev,
@@ -3519,6 +3533,16 @@ static int s2mu205_usbpd_probe(struct i2c_client *i2c,
 
 	pdic_data->psy_pm = get_power_supply_by_name("s2mu205_pmeter");
 	if (!pdic_data->psy_pm) {
+		pr_err("%s: Fail to get pmeter\n", __func__);
+	}
+
+	pdic_data->psy_chg = get_power_supply_by_name("s2mu205-charger");
+	if (!pdic_data->psy_chg) {
+		pr_err("%s: Fail to get pmeter\n", __func__);
+	}
+
+	pdic_data->psy_muic = get_power_supply_by_name("muic-manager");
+	if (!pdic_data->psy_muic) {
 		pr_err("%s: Fail to get pmeter\n", __func__);
 	}
 

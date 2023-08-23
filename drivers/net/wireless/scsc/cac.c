@@ -49,21 +49,6 @@ static u8        ccx_status = BSS_CCX_DISABLED;
 
 static void cac_set_ric_ie(struct slsi_dev *sdev, struct net_device *netdev);
 static int cac_get_rde_tspec_ie(struct slsi_dev *sdev, u8 *assoc_rsp_ie, int assoc_rsp_ie_len, const u8 **tspec_ie_arr);
-/* Name: strtoint
- * Desc: Converts a string to a decimal or hexadecimal integer
- * s: the string to be converted
- * res: pointer to the calculated integer
- * return: 0 (success), 1(failure)
- */
-static int strtoint(const char *s, int *res)
-{
-	int base = 10;
-
-	if (strlen(s) > 2)
-		if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X'))
-			base = 16;
-	return kstrtoint(s, base, res);
-}
 
 /* Name: find_tspec_entry
  * Desc: Finds a tspec entry in the list of tspecs (tspec_list)

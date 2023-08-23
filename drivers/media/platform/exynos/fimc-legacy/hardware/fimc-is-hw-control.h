@@ -320,6 +320,7 @@ struct fimc_is_hw_ip_ops {
 	int (*delete_setfile)(struct fimc_is_hw_ip *hw_ip, u32 instance, ulong hw_map);
 	void (*size_dump)(struct fimc_is_hw_ip *hw_ip);
 	void (*clk_gate)(struct fimc_is_hw_ip *hw_ip, u32 instance, bool on, bool close);
+	int (*restore)(struct fimc_is_hw_ip *hw_ip, u32 instance);
 };
 
 /**
@@ -354,8 +355,24 @@ struct fimc_is_hardware {
 	atomic_t			log_count;
 };
 
-void framemgr_e_barrier_common(struct fimc_is_framemgr *this, u32 index, ulong flag);
-void framemgr_x_barrier_common(struct fimc_is_framemgr *this, u32 index, ulong flag);
+#define framemgr_e_barrier_common(this, index, flag)		\
+	do {							\
+		if (in_irq()) {					\
+			framemgr_e_barrier(this, index);	\
+		} else {						\
+			framemgr_e_barrier_irqs(this, index, flag);	\
+		}							\
+	} while (0)
+
+#define framemgr_x_barrier_common(this, index, flag)		\
+	do {							\
+		if (in_irq()) {					\
+			framemgr_x_barrier(this, index);	\
+		} else {						\
+			framemgr_x_barrier_irqr(this, index, flag);	\
+		}							\
+	} while (0)
+
 u32 get_hw_id_from_group(u32 group_id);
 void fimc_is_hardware_flush_frame(struct fimc_is_hw_ip *hw_ip,
 	enum fimc_is_hw_frame_state state,
@@ -400,4 +417,8 @@ void fimc_is_hardware_sfr_dump(struct fimc_is_hardware *hardware);
 void print_all_hw_frame_count(struct fimc_is_hardware *hardware);
 void fimc_is_hardware_clk_gate(struct fimc_is_hw_ip *hw_ip, u32 instance,
 	bool on, bool close);
+int fimc_is_hardware_flush_frame_by_group(struct fimc_is_hardware *hardware,
+	struct fimc_is_group *head, u32 instance);
+int fimc_is_hardware_restore_by_group(struct fimc_is_hardware *hardware,
+	struct fimc_is_group *group, u32 instance);
 #endif

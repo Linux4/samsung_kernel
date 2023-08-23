@@ -55,6 +55,7 @@
 
 #define DIFF_READ_NUM            10
 #define GRIP_LOG_TIME            15 /* 30 sec */
+#define ZERO_DETECT_TIME         5 /* 10 sec */
 
 /* CS Main */
 #define ENABLE_CSX               0x03
@@ -68,7 +69,11 @@
 #if defined(CONFIG_FOLDER_HALL)
 #define HALLIC_PATH		"/sys/class/sec/sec_flip/flipStatus"
 #else
+#if IS_ENABLED(CONFIG_HALL_NEW_NODE)
+#define HALLIC_PATH	"/sys/class/sec/hall_ic/hall_detect"
+#else
 #define HALLIC_PATH		"/sys/class/sec/sec_key/hall_detect"
+#endif
 #endif
 
 struct sx9360_p {
@@ -114,6 +119,7 @@ struct sx9360_p {
 	s16 max_normal_diff;
 
 	int debug_count;
+	int debug_zero_count;
 	char hall_ic[6];
 };
 
@@ -479,6 +485,7 @@ static void sx9360_set_debug_work(struct sx9360_p *data, u8 enable,
 {
 	if (enable == ON) {
 		data->debug_count = 0;
+		data->debug_zero_count = 0;
 		schedule_delayed_work(&data->debug_work,
 			msecs_to_jiffies(time_ms));
 	} else {
@@ -1099,12 +1106,33 @@ static void sx9360_init_work_func(struct work_struct *work)
 	struct sx9360_p *data = container_of((struct delayed_work *)work,
 		struct sx9360_p, init_work);
 
+	int retry = 0;
+
 	sx9360_initialize_chip(data);
 
 	sx9360_set_mode(data, SX9360_MODE_NORMAL);
 	/* make sure no interrupts are pending since enabling irq
 	 * will only work on next falling edge */
 	sx9360_read_irqstate(data);
+	msleep(20);
+
+	while(retry++ < 10) {
+		sx9360_get_data(data);
+		/* Defence code */
+		if (data->capMain == 0 && data->avg == 0 && data->diff == 0
+			&& data->useful == 0 && data->offset == 0) {
+			pr_info("[SX9360]: Defence code for grip sensor - retry: %d\n", retry);
+
+			sx9360_i2c_write(data, SX9360_SOFTRESET_REG, SX9360_SOFTRESET);
+			msleep(300);
+			sx9360_initialize_chip(data);
+			sx9360_set_mode(data, SX9360_MODE_NORMAL);
+			sx9360_read_irqstate(data);
+			msleep(20);
+		} else {
+			break;
+		}
+	}
 }
 
 static void sx9360_irq_work_func(struct work_struct *work)
@@ -1119,11 +1147,31 @@ static void sx9360_irq_work_func(struct work_struct *work)
 			__func__, sx9360_get_nirq_state(data));
 }
 
+static void sx9360_read_register(struct sx9360_p *data)
+{
+	u8 val, offset = 0;
+	int array_size, idx = 0;
+	char buf[52] = {0,};
+
+	array_size = (int)(ARRAY_SIZE(setup_reg));
+	while (idx < array_size) {
+		sx9360_i2c_read(data, setup_reg[idx].reg, &val);
+		offset += snprintf(buf + offset, sizeof(buf) - offset, "[0x%02x]:0x%02x ", setup_reg[idx].reg, val);
+		idx++;
+		if(!(idx & 0x03) || (idx == array_size)) {
+			pr_info("[SX9360_WIFI]: %s - %s\n", __func__, buf);
+			offset = 0;
+		}
+	}
+}
+
 static void sx9360_debug_work_func(struct work_struct *work)
 {
 	struct sx9360_p *data = container_of((struct delayed_work *)work,
 		struct sx9360_p, debug_work);
 	static int hall_flag = 1;
+	int ret;
+	u8 value = 0;
 
 #if defined(CONFIG_FOLDER_HALL)
 	char str[2] = "0";
@@ -1159,6 +1207,27 @@ static void sx9360_debug_work_func(struct work_struct *work)
 				data->debug_count++;
 			}
 		}
+	}
+
+	/* Zero Detect Defence code*/
+	if(data->debug_zero_count >= ZERO_DETECT_TIME) {
+		ret = sx9360_i2c_read(data, SX9360_GNRLCTRL0_REG, &value);
+		if (ret < 0)
+			pr_err("[SX9360_WIFI]: fail to read PHEN :0x%02x (%d)\n", value, ret);
+		else if (value == 0) {
+			pr_info("[SX9360_WIFI]: %s - detected all data zero!!!\n", __func__);
+			sx9360_read_register(data);
+
+			sx9360_i2c_write(data, SX9360_SOFTRESET_REG, SX9360_SOFTRESET);
+			msleep(300);
+			sx9360_initialize_chip(data);
+			sx9360_set_mode(data, SX9360_MODE_NORMAL);
+			sx9360_read_irqstate(data);
+			msleep(20);
+		}
+		data->debug_zero_count = 0;
+	} else {
+		data->debug_zero_count++;
 	}
 
 	schedule_delayed_work(&data->debug_work, msecs_to_jiffies(2000));

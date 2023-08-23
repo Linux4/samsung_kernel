@@ -28,6 +28,8 @@ int fscrypt_sdp_check_rmdir(struct dentry *dentry);
 
 #define FSCRYPT_EVT_RENAME_TO_CHAMBER      1
 #define FSCRYPT_EVT_RENAME_OUT_OF_CHAMBER  2
+
+/* EXT4CRYPT-dedicated */
 #define FSCRYPT_IS_SENSITIVE_DENTRY(dentry) (EXT4_I(dentry->d_inode)->i_crypt_info->ci_sdp_info && (EXT4_I(dentry->d_inode)->i_crypt_info->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE))
 #define FSCRYPT_IS_CHAMBER_DENTRY(dentry) (EXT4_I(dentry->d_inode)->i_crypt_info->ci_sdp_info && (EXT4_I(dentry->d_inode)->i_crypt_info->ci_sdp_info->sdp_flags & SDP_IS_CHAMBER_DIR))
 #define FSCRYPT_IS_SENSITIVE_INODE(inode) (EXT4_I(inode)->i_crypt_info->ci_sdp_info && (EXT4_I(inode)->i_crypt_info->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE))

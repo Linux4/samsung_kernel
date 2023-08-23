@@ -17,6 +17,7 @@
 #include <linux/workqueue.h>
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
+#include <linux/power_supply.h>
 #include <linux/mfd/samsung/s2mu106.h>
 #include <linux/leds-s2mu106.h>
 #include <linux/platform_device.h>
@@ -406,6 +407,7 @@ static int s2mu106_fled_set_mode(struct s2mu106_fled_data *fled,
 int s2mu106_led_mode_ctrl(int state)
 {
 	struct s2mu106_fled_data *fled = g_fled_data;
+	union power_supply_propval value;
 	int gpio_torch = fled->torch_gpio;
 	int gpio_flash = fled->flash_gpio;
 
@@ -418,15 +420,46 @@ int s2mu106_led_mode_ctrl(int state)
 		case S2MU106_FLED_MODE_OFF:
 			gpio_direction_output(gpio_torch, 0);
 			gpio_direction_output(gpio_flash, 0);
-			s2mu106_fled_operating_mode(fled, AUTO_MODE);
+			if(s2mu106_fled_get_torch_curr(fled, 1) != fled->preflash_current/10)
+				s2mu106_fled_set_torch_curr(fled, 1, fled->preflash_current);
+
+			if (fled->is_en_flash) {
+				if (!fled->psy_chg)
+					fled->psy_chg = power_supply_get_by_name("s2mu106-charger");
+				fled->is_en_flash = (value.intval = false);
+				power_supply_set_property(fled->psy_chg,
+					POWER_SUPPLY_PROP_ENERGY_AVG, &value);
+			}
+			s2mu106_fled_operating_mode(fled, SYS_MODE);
 			break;
 		case S2MU106_FLED_MODE_TORCH:
 			/* chgange SYS MODE when turn on torch */
+			if((s2mu106_fled_get_torch_curr(fled, 1)/10) != fled->preflash_current/10)
+				s2mu106_fled_set_torch_curr(fled, 1, fled->preflash_current);
 			s2mu106_fled_operating_mode(fled, SYS_MODE);
 			gpio_direction_output(gpio_torch, 1);
 			break;
 		case S2MU106_FLED_MODE_FLASH:
+			if (!fled->psy_chg)
+				fled->psy_chg = power_supply_get_by_name("s2mu106-charger");
+
+			fled->is_en_flash = (value.intval = true);
+			power_supply_set_property(fled->psy_chg,
+				POWER_SUPPLY_PROP_ENERGY_AVG, &value);
+
+			s2mu106_fled_operating_mode(fled, AUTO_MODE);
+
 			gpio_direction_output(gpio_flash, 1);
+			break;
+		case S2MU106_FLED_MODE_MOVIE:
+			s2mu106_fled_operating_mode(fled, SYS_MODE);
+			s2mu106_fled_set_torch_curr(fled, 1, fled->movie_current);
+			gpio_direction_output(gpio_torch, 1);
+			break;
+		case S2MU106_FLED_MODE_FACTORY:
+			/* chgange SYS MODE when turn on torch */
+			s2mu106_fled_operating_mode(fled, SYS_MODE);
+			gpio_direction_output(gpio_torch, 1);
 			break;
 		default:
 			break;
@@ -738,6 +771,7 @@ static void s2mu106_fled_init(struct s2mu106_fled_data *fled)
 	int i;
 	pr_info("%s: s2mu106_fled init start\n", __func__);
 
+	fled->is_en_flash = false;
 	if (gpio_is_valid(fled->pdata->flash_gpio) &&
 			gpio_is_valid(fled->pdata->torch_gpio)) {
 		pr_info("%s: s2mu106_fled gpio mode\n", __func__);
@@ -780,6 +814,8 @@ static void s2mu106_fled_init(struct s2mu106_fled_data *fled)
 	/* w/a: prevent SMPL event in case of flash operation */
 	s2mu106_update_reg(fled->i2c, 0x21, 0x4, 0x7);
 	s2mu106_update_reg(fled->i2c, 0x89, 0x0, 0x3);
+
+	fled->psy_chg = power_supply_get_by_name("s2mu106-charger");
 
 	s2mu106_fled_test_read(fled);
 }
@@ -978,10 +1014,10 @@ static ssize_t rear_flash_store(struct device *dev,
 		s2mu106_fled_set_mode(g_fled_data, 1, mode);
 	} else {
 		if (mode == S2MU106_FLED_MODE_TORCH) {
-			pr_info("%s: %d: S2MU106_FLED_MODE_TORCH - %dmA\n", __func__, value, torch_current );
+			pr_info("%s: %d: S2MU106_FLED_MODE_FACTORY - %dmA\n", __func__, value, torch_current );
 			/* torch current set */
 			s2mu106_fled_set_torch_curr(g_fled_data, 1, torch_current);
-			s2mu106_led_mode_ctrl(S2MU106_FLED_MODE_TORCH);
+			s2mu106_led_mode_ctrl(S2MU106_FLED_MODE_FACTORY);
 		} else if (mode == S2MU106_FLED_MODE_FLASH) {
 			pr_info("%s: %d: S2MU106_FLED_MODE_FLASH - %dmA\n", __func__, value, flash_current );
 			/* flash current set */

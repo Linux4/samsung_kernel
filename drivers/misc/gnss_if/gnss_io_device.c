@@ -549,7 +549,7 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			return -EINVAL;
 		}
 		gc->ops.gnss_release_reset(gc);
-		mdelay(50);
+		msleep(50);
 		return 0;
 
 	case GNSS_IOCTL_REQ_FAULT_INFO:

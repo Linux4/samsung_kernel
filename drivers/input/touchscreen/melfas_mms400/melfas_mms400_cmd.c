@@ -54,6 +54,15 @@ static void cmd_fw_update(void *device_data)
 	sec_cmd_set_default_result(sec);
 
 	fw_location = sec->cmd_param[0];
+#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	if (sec->cmd_param[0] == 1) {
+		snprintf(buff, sizeof(buff), "%s", "OK");
+		sec->cmd_state = SEC_CMD_STATUS_OK;	
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		input_info(true, &info->client->dev, "%s: user_ship, success \n", __func__);
+		return;
+	}
+#endif
 
 	/* Factory cmd for firmware update
 	 * argument represent what is source of firmware like below.

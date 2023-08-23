@@ -104,7 +104,11 @@ module_param_cb(enabled, &zswap_enabled_param_ops, &zswap_enabled, 0644);
 
 /* Crypto compressor to use */
 #define ZSWAP_COMPRESSOR_DEFAULT "lzo"
+#if IS_ENABLED(CONFIG_CRYPTO_ZSTD)
+#define ZSWAP_COMPRESSOR "zstd"
+#else
 #define ZSWAP_COMPRESSOR "lz4"
+#endif
 static char *zswap_compressor = ZSWAP_COMPRESSOR;
 static int zswap_compressor_param_set(const char *,
 				      const struct kernel_param *);
@@ -802,7 +806,7 @@ static struct zswap_pool *zswap_pool_create(char *type, char *compressor)
 	struct zswap_pool *pool;
 	char name[38]; /* 'zswap' + 32 char (max) num + \0 */
 #ifdef CONFIG_ZSWAP_MIGRATION_SUPPORT
-	gfp_t gfp = __GFP_NORETRY | __GFP_NOWARN | __GFP_KSWAPD_RECLAIM | __GFP_HIGHMEM | __GFP_MOVABLE;
+	gfp_t gfp = __GFP_NORETRY | __GFP_NOWARN | __GFP_KSWAPD_RECLAIM | __GFP_HIGHMEM | __GFP_MOVABLE | __GFP_CMA;
 #else
 	gfp_t gfp = __GFP_NORETRY | __GFP_NOWARN | __GFP_KSWAPD_RECLAIM | __GFP_HIGHMEM;
 #endif

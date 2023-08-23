@@ -506,14 +506,19 @@ int typec_port_type_set(const struct typec_capability *cap, enum typec_port_type
 #endif
 	
 	int timeout = 0;
+	int ret = 0;
 
 	if (!usbpd_data) {
 		pr_err("%s : usbpd_data is null\n", __func__);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto err_return;
 	}
 
 	pr_info("%s : typec_power_role=%d, typec_data_role=%d, port_type=%d\n",
 		__func__, usbpd_data->typec_power_role, usbpd_data->typec_data_role, port_type);
+#if defined CONFIG_CCIC_S2MU106
+	usbpd_data->rprd_mode = 1;
+#endif
 
 	switch (port_type) {
 	case TYPEC_PORT_DFP:
@@ -549,10 +554,12 @@ int typec_port_type_set(const struct typec_capability *cap, enum typec_port_type
 		break;
 	case TYPEC_PORT_DRP:
 		pr_info("%s : set to DRP (No action)\n", __func__);
-		return 0;
+		ret = 0;
+		goto err_return;
 	default :
 		pr_info("%s : invalid typec_role\n", __func__);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto err_return;
 	}
 
 	if (usbpd_data->typec_try_state_change) {
@@ -576,14 +583,21 @@ int typec_port_type_set(const struct typec_capability *cap, enum typec_port_type
 #endif
 
 			enable_irq(usbpd_data->irq);
-			return -EIO;
+			ret = -EIO;
+			goto err_return;
 		} else {
 			pr_err("%s: reverse success, one more check\n", __func__);
 			schedule_delayed_work(&usbpd_data->typec_role_swap_work, msecs_to_jiffies(DUAL_ROLE_SET_MODE_WAIT_MS));
 		}
 	}
+	
+err_return:
+#if defined CONFIG_CCIC_S2MU106
+	pr_info("%s clear rprd_mode\n", __func__);
+	usbpd_data->rprd_mode = 0;
+#endif
 
-	return 0;
+	return ret;
 }
 
 static int typec_pr_set(const struct typec_capability *cap, enum typec_role role)

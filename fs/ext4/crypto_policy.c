@@ -284,7 +284,11 @@ int ext4_inherit_context(struct inode *parent, struct inode *child)
 #endif
 
 #ifdef CONFIG_EXT4CRYPT_SDP
+#ifdef CONFIG_SDP_ENHANCED
+	res = fscrypt_sdp_inherit_context(parent, child, &ctx);
+#else
 	res = fscrypt_sdp_test_and_inherit_context(parent, child, &ctx);
+#endif
 	if (res) {
 		printk_once(KERN_WARNING
 				"%s: Failed to set sensitive ongoing flag (err:%d)\n", __func__, res);

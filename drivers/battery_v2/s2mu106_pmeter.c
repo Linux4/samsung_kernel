@@ -91,7 +91,7 @@ static int s2mu106_pm_get_vchgin(struct s2mu106_pmeter_data *pmeter)
 		return -EINVAL;
 	
 	charge_voltage = ((data1 << 4) | (data2 >> 4)) * 5;
-	pr_info ("%s, data1 : 0x%2x, data2 : 0x%2x, voltage = %d\n",
+	pr_debug("%s, data1 : 0x%2x, data2 : 0x%2x, voltage = %d\n",
 			__func__, data1, data2, charge_voltage);
 	return charge_voltage;
 }

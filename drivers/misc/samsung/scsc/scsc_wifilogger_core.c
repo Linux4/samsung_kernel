@@ -13,6 +13,7 @@
 #include <linux/workqueue.h>
 #include <linux/spinlock.h>
 #include <scsc/scsc_logring.h>
+#include <linux/uaccess.h>
 
 /* Implements */
 #include "scsc_wifilogger_core.h"
@@ -99,10 +100,12 @@ static wifi_error wlog_get_ring_status(struct scsc_wlog_ring *r,
 
 static int wlog_read_records(struct scsc_wlog_ring *r, u8 *buf,
 			     size_t blen, u32 *records,
-			     struct scsc_wifi_ring_buffer_status *status)
+			     struct scsc_wifi_ring_buffer_status *status,
+			     bool is_user)
 {
 	u16 read_bytes = 0, rec_sz = 0;
 	u32 got_records = 0, req_records = -1;
+	int ret_ignore = 0;
 
 	if (scsc_wlog_ring_is_flushing(r))
 		return 0;
@@ -136,7 +139,13 @@ static int wlog_read_records(struct scsc_wlog_ring *r, u8 *buf,
 		 * Rollover is transparent on read...last written material in
 		 * spare is still there...
 		 */
-		memcpy(buf + read_bytes, REC_START(r, RPOS(r)), rec_sz);
+		if (is_user)
+			/* This case invoked from netlink api */
+			ret_ignore = copy_to_user(buf + read_bytes, REC_START(r, RPOS(r)), rec_sz);
+		else
+			/* This case will be invoked from debugfs */
+			memcpy(buf + read_bytes, REC_START(r, RPOS(r)), rec_sz);
+
 		read_bytes += rec_sz;
 		r->st.read_bytes += rec_sz;
 		got_records++;
@@ -163,7 +172,7 @@ static int wlog_default_ring_drainer(struct scsc_wlog_ring *r, size_t drain_sz)
 	mutex_lock(&r->drain_lock);
 	do {
 		/* drain ... consumes data */
-		rval = r->ops.read_records(r, r->drain_buf, chunk_sz, NULL, &ring_status);
+		rval = r->ops.read_records(r, r->drain_buf, chunk_sz, NULL, &ring_status, false);
 		/* and push...if any callback defined */
 		if (!r->flushing) {
 			mutex_lock(&r->wl->lock);

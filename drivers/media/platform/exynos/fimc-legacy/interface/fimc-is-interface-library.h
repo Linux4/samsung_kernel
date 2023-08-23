@@ -291,8 +291,7 @@ int fimc_is_dva_vra(ulong kva, u32 *dva);
 void fimc_is_inv_vra(ulong kva, u32 size);
 void fimc_is_clean_vra(ulong kva, u32 size);
 
-bool fimc_is_lib_in_interrupt(void);
-
+bool fimc_is_lib_in_irq(void);
 int fimc_is_load_bin_on_boot(void);
 void fimc_is_load_ctrl_unlock(void);
 void fimc_is_load_ctrl_lock(void);

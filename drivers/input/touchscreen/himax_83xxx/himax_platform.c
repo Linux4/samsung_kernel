@@ -205,8 +205,15 @@ int himax_parse_dt(struct himax_ts_data *ts,
 			HIMAX_LOG_TAG);
 	}
 
+	pdata->support_dual_fw = of_property_read_bool(dt, "support_dual_fw");
 	of_property_read_string(dt, "himax,fw-path",
 				&pdata->i_CTPM_firmware_name);
+	/* CU IC: 11 62 30, AL IC: 8A 62 34*/
+	if (pdata->support_dual_fw && lcdtype == 0x8A6234) {
+		of_property_read_string(dt, "himax,fw-path_al",
+				&pdata->i_CTPM_firmware_name);
+		input_info(true, &ts->client->dev, "%s DT:fw for AL IC",HIMAX_LOG_TAG);
+	}
 
 	input_info(true, &ts->client->dev,
 		"%s DT:gpio_irq=%d, gpio_rst=%d, gpio_3v3_en=%d\n",
@@ -382,7 +389,7 @@ void himax_int_enable(int enable)
 		irq_enable_count = 1;
 		private_ts->irq_enabled = 1;
 	} else if (enable == 0 && irq_enable_count == 1) {
-		disable_irq(irqnum);
+		disable_irq_nosync(irqnum);
 		irq_enable_count = 0;
 		private_ts->irq_enabled = 0;
 	}

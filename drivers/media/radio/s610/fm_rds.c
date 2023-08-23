@@ -154,7 +154,7 @@ void fm_rds_write_data(struct s610_radio *radio,
 	u16 usage;
 
 	if (ringbuf_is_full(&radio->rds_rb)) {
-		dev_info(radio->dev, "%s():>>>RB full! H[%ld]T[%ld]",
+		RDSEBUG(radio, "%s():>>>RB full! H[%ld]T[%ld]",
 			__func__,
 			(unsigned long) (radio->rds_rb.head - radio->rds_rb.buf),
 			(unsigned long) (radio->rds_rb.tail - radio->rds_rb.buf));
@@ -171,7 +171,7 @@ void fm_rds_write_data(struct s610_radio *radio,
 
 	if (!ringbuf_memcpy_into(&radio->rds_rb, buf_ptr, HOST_RDS_BLOCK_SIZE)) {
 		usage = ringbuf_bytes_used(&radio->rds_rb);
-		dev_info(radio->dev,
+		RDSEBUG(radio,
 			"%s():>>>RB memcpy into fail! usage:%04d",
 			__func__, ringbuf_bytes_used(&radio->rds_rb));
 		if (!usage)
@@ -196,7 +196,7 @@ skip_into_buf:
 
 			if (!(radio->rds_n_count%200)) {
 				fm_update_rssi_work(radio);
-				dev_info(radio->dev,
+				RDSEBUG(radio,
 					">>>[FM] RSSI[%03d] NCOUNT[%08d] FIFO_ERR[%08d] USAGE[%04d] SYNCLOSS[%08d]",
 					radio->low->fm_state.rssi, radio->rds_n_count, radio->rds_fifo_err_cnt,
 					usage, radio->rds_sync_loss_cnt);
@@ -282,7 +282,7 @@ void fm_rds_write_data_remove(struct s610_radio *radio,
 	ringbuf_memcpy_remove(&radio->rds_rb,
 		(int)removeblock*HOST_RDS_BLOCK_SIZE);
 	cur_head = (unsigned long) radio->rds_rb.head;
-	dev_info(radio->dev, ">>> pre-head :%08lX, cur-head :%08lX\n",
+	RDSEBUG(radio, ">>> pre-head :%08lX, cur-head :%08lX\n",
 		pre_head, cur_head);
 }
 #else
@@ -315,7 +315,7 @@ int fm_read_rds_data(struct s610_radio *radio, u8 *buffer, int size,
 	u16 rsize = size;
 
 	if (ringbuf_is_empty(&radio->rds_rb)) {
-		dev_info(radio->dev,
+		RDSEBUG(radio,
 			"%s():>>>RB empty!! H[%04ld]T[%04ld]",
 			__func__,
 			(unsigned long) (radio->rds_rb.head - radio->rds_rb.buf),
@@ -325,7 +325,7 @@ int fm_read_rds_data(struct s610_radio *radio, u8 *buffer, int size,
 	}
 	radio->rb_used = ringbuf_bytes_used(&radio->rds_rb);
 	if (!ringbuf_memcpy_from(buffer, &radio->rds_rb, rsize)) {
-		dev_info(radio->dev,
+		RDSEBUG(radio,
 			"%s():>>>RB memcpy from fail! H[%04ld]T[%04ld]",
 			__func__,
 			(unsigned long) (radio->rds_rb.head - radio->rds_rb.buf),
@@ -493,7 +493,7 @@ void fm_rds_update_error_status(struct s610_radio *radio, u16 errors)
 #endif
 			} else {
 				/*remove data*/
-				fm_rds_write_data_remove(radio, fm_rds_get_state(radio));
+				fm_rds_write_data_remove(radio, (fm_rds_rm_align_enum)fm_rds_get_state(radio));
 			}
 			fm_rds_change_state(radio, RDS_STATE_INIT);
 #endif	/*USE_RDS_HW_DECODER*/
@@ -536,8 +536,8 @@ static fm_host_rds_errors_enum fm_rds_process_block(
 			fm_rds_parser(pi, data, block_type, error_type);
 			fm_rds_write_data_pi(radio, pi);
 		} else {
-		fm_rds_write_data(radio, data, block_type, error_type);
-	}
+			fm_rds_write_data(radio, data, block_type, error_type);
+		}
 	}
 
 	return error_type;
@@ -980,6 +980,9 @@ void find_group_data(struct fm_rds_parser_info *pi, u16 info)
 
 	pi->grp = (info >> 11) & 0x1f;
 
+	pi->pty = (info >> 5) & 0x1f;
+	pi->rds_event |= RDS_EVENT_PTY_MASK;
+
 	switch (pi->grp) {
 	case RDS_GRPTYPE_0A:
 	case RDS_GRPTYPE_0B:
@@ -1192,7 +1195,7 @@ void fm_rds_write_data_pi(struct s610_radio *radio,
 
 #ifdef USE_RINGBUFF_API
 	if (ringbuf_bytes_free(&radio->rds_rb) < RDS_MEM_MAX_THRESH_PARSER)	{
-		dev_info(radio->dev, ">>> ringbuff not free, wait..");
+		RDSEBUG(radio, ">>> ringbuff not free, wait..");
 		/*ringbuf_reset(&radio->rds_rb);*/
 		return;
 	}
@@ -1283,13 +1286,25 @@ void fm_rds_write_data_pi(struct s610_radio *radio,
 			RDSEBUG(radio, "[%d,%d,%d]\n", pi->rtp_data.tag[1].content_type, pi->rtp_data.tag[1].start_pos, pi->rtp_data.tag[1].len);
 
 			total_size += sizeof(struct rtp_info) + 2;
+		} else if (pi->rds_event & RDS_EVENT_PTY_MASK) {
+			pi->rds_event &= ~RDS_EVENT_PTY_MASK;
+
+			buf_ptr[total_size] = RDS_EVENT_PTY;
+			buf_ptr[total_size+1] = 1;
+			buf_ptr[total_size+2] = pi->pty;
+			RDSEBUG(radio,
+				"[RDS] Enqueue PTY data[%02X:%02X:%02X]. total=%d\n",
+				buf_ptr[total_size],buf_ptr[total_size+1],buf_ptr[total_size+2],
+				total_size+3);
+
+			total_size += 3;
 		}
 
 		if (!pi->rds_event && total_size) {
 #ifdef USE_RINGBUFF_API
 			if (!ringbuf_memcpy_into(&radio->rds_rb, buf_ptr, total_size)) {
 				usage = ringbuf_bytes_used(&radio->rds_rb);
-				dev_info(radio->dev,
+				RDSEBUG(radio,
 					"%s():>>>RB memcpy into fail! usage:%04d",
 					__func__, ringbuf_bytes_used(&radio->rds_rb));
 				if (!usage)
@@ -1298,7 +1313,7 @@ void fm_rds_write_data_pi(struct s610_radio *radio,
 
 			usage = ringbuf_bytes_used(&radio->rds_rb);
 #else
-			dev_info(radio->dev, ">>> ringbuff API not used, fail..");
+			RDSEBUG(radio, ">>> ringbuff API not used, fail..");
 #endif /* USE_RINGBUFF_API */
 
 			if (atomic_read(&radio->is_rds_new))
@@ -1311,7 +1326,7 @@ void fm_rds_write_data_pi(struct s610_radio *radio,
 
 			if (!(radio->rds_n_count%200)) {
 				fm_update_rssi_work(radio);
-				dev_info(radio->dev,
+				RDSEBUG(radio,
 					">>>[FM] RSSI[%03d] NCOUNT[%08d] FIFO_ERR[%08d] USAGE[%04d] SYNCLOSS[%08d]",
 					radio->low->fm_state.rssi, radio->rds_n_count, radio->rds_fifo_err_cnt,
 					usage, radio->rds_sync_loss_cnt);

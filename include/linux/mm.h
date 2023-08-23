@@ -2363,6 +2363,8 @@ void __init setup_nr_node_ids(void);
 static inline void setup_nr_node_ids(void) {}
 #endif
 
+extern bool need_memory_boosting(struct zone *zone, bool skip);
+
 enum memsize_kernel_type {
 	MEMSIZE_KERNEL_KERNEL = 0,
 	MEMSIZE_KERNEL_PAGING,

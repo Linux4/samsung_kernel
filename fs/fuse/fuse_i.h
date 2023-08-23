@@ -23,6 +23,13 @@
 #include <linux/poll.h>
 #include <linux/workqueue.h>
 #include <linux/kref.h>
+#include <linux/freezer.h>
+
+#ifdef CONFIG_FUSE_SUPPORT_STLOG
+#include <linux/fslog.h>
+#else
+#define ST_LOG(fmt, ...)
+#endif
 
 /** Max number of pages that can be used in a single read request */
 #define FUSE_MAX_PAGES_PER_REQ 32
@@ -724,7 +731,6 @@ void fuse_read_fill(struct fuse_req *req, struct file *file,
 int fuse_open_common(struct inode *inode, struct file *file, bool isdir);
 
 struct fuse_file *fuse_file_alloc(struct fuse_conn *fc);
-struct fuse_file *fuse_file_get(struct fuse_file *ff);
 void fuse_file_free(struct fuse_file *ff);
 void fuse_finish_open(struct inode *inode, struct file *file);
 
@@ -957,5 +963,49 @@ int fuse_do_setattr(struct inode *inode, struct iattr *attr,
 		    struct file *file);
 
 void fuse_set_initialized(struct fuse_conn *fc);
+
+#ifdef CONFIG_FREEZER
+static inline void fuse_freezer_do_not_count(void)
+{
+	current->flags |= PF_FREEZER_SKIP;
+}
+
+static inline void fuse_freezer_count(void)
+{
+	current->flags &= ~PF_FREEZER_SKIP;
+}
+#else /* !CONFIG_FREEZER */
+static inline void fuse_freezer_do_not_count(void) {}
+static inline void fuse_freezer_count(void) {}
+#endif
+
+#define fuse_wait_event(wq, condition)						\
+({										\
+	fuse_freezer_do_not_count();						\
+	wait_event(wq, condition);						\
+	fuse_freezer_count();							\
+})
+
+#define fuse_wait_event_killable(wq, condition)					\
+({										\
+	int __ret = 0;								\
+										\
+	fuse_freezer_do_not_count();						\
+	__ret = wait_event_killable(wq, condition);				\
+	fuse_freezer_count();							\
+										\
+	__ret;									\
+})
+
+#define fuse_wait_event_killable_exclusive(wq, condition)			\
+({										\
+	int __ret = 0;								\
+										\
+	fuse_freezer_do_not_count();						\
+	__ret = wait_event_killable_exclusive(wq, condition);			\
+	fuse_freezer_count();							\
+										\
+	__ret;									\
+})
 
 #endif /* _FS_FUSE_I_H */

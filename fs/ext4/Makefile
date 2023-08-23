@@ -15,4 +15,5 @@ ext4-$(CONFIG_EXT4_FS_SECURITY)		+= xattr_security.o
 ext4-$(CONFIG_EXT4_FS_ENCRYPTION)	+= crypto_policy.o crypto.o \
 		crypto_key.o crypto_fname.o
 
+ext4-$(CONFIG_SDP) += sdp/sdp_crypto.o
 ext4-$(CONFIG_EXT4CRYPT_SDP) += sdp/sdp_cache.o sdp/sdp_dek.o sdp/sdp_ioctl.o sdp/sdp_name.o sdp/sdp_xattr.o

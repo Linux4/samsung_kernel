@@ -13,8 +13,11 @@
 #include <linux/smc.h>
 
 #include "s5p_mfc_utils.h"
+#include "s5p_mfc_qos.h"
 
 #include "s5p_mfc_mem.h"
+#include "s5p_mfc_reg.h"
+#include "s5p_mfc_sync.h"
 
 int s5p_mfc_check_vb_with_fmt(struct s5p_mfc_fmt *fmt, struct vb2_buffer *vb)
 {
@@ -502,4 +505,46 @@ void s5p_mfc_watchdog_reset_tick(struct s5p_mfc_dev *dev)
 
 	/* Reset the timeout watchdog */
 	atomic_set(&dev->watchdog_tick_cnt, 0);
+}
+
+
+void mfc_idle_checker(unsigned long arg)
+{
+	struct s5p_mfc_dev *dev = (struct s5p_mfc_dev *)arg;
+
+	mfc_debug(5, "[MFCIDLE] MFC HW idle checker is ticking!\n");
+
+	if (atomic_read(&dev->qos_req_cur) == 0) {
+		mfc_debug(6, "[MFCIDLE] MFC QoS not started yet\n");
+		mfc_idle_checker_start_tick(dev);
+		return;
+	}
+
+	if (atomic_read(&dev->hw_run_cnt)) {
+		atomic_set(&dev->hw_run_cnt, 0);
+		mfc_idle_checker_start_tick(dev);
+		return;
+	}
+
+	if (atomic_read(&dev->queued_cnt)) {
+		atomic_set(&dev->queued_cnt, 0);
+		mfc_idle_checker_start_tick(dev);
+		return;
+	}
+
+#ifdef CONFIG_MFC_USE_BUS_DEVFREQ
+	mfc_change_idle_mode(dev, MFC_IDLE_MODE_RUNNING);
+	queue_work(dev->mfc_idle_wq, &dev->mfc_idle_work);
+#endif
+}
+void s5p_mfc_dec_vb_index_info(struct s5p_mfc_ctx *ctx, struct s5p_mfc_buf *buf)
+{
+	struct s5p_mfc_dec *dec = ctx->dec_priv;
+
+	if(dec->dynamic_used & (1 << buf->vb.vb2_buf.index)) {
+		mfc_info_dev("DPB Address change at index:%d\n",
+				buf->vb.vb2_buf.index);
+		ctx->dpb_info[buf->vb.vb2_buf.index] =  buf;
+		s5p_mfc_set_bit(buf->vb.vb2_buf.index, &ctx->vbindex_bits);
+	}
 }

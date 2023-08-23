@@ -500,10 +500,6 @@ static int sn65dsi86_hx8876_displayon_late(struct lcd_info *lcd)
 
 	dsim_panel_set_brightness(lcd, 1);
 
-	sn65dsi86_dump(lcd, NULL);
-
-	sn65dsi86_check_lt_fail(lcd);
-
 	return ret;
 }
 
@@ -567,8 +563,13 @@ static int fb_notifier_callback(struct notifier_block *self,
 	if (evdata->info->node)
 		return NOTIFY_DONE;
 
-	if (fb_blank == FB_BLANK_UNBLANK)
+	if (fb_blank == FB_BLANK_UNBLANK) {
 		sn65dsi86_hx8876_displayon_late(lcd);
+		mutex_lock(&lcd->lock);
+		sn65dsi86_dump(lcd, NULL);
+		sn65dsi86_check_lt_fail(lcd);
+		mutex_unlock(&lcd->lock);
+	}
 
 	return NOTIFY_DONE;
 }
@@ -1015,12 +1016,13 @@ exit:
 	return 0;
 }
 
-struct dsim_lcd_driver sn65dsi86_hx8876_mipi_lcd_driver = {
-	.name		= "sn65dsi86_hx8876",
+struct dsim_lcd_driver sn65dsi86_mipi_lcd_driver = {
+	.name		= "sn65dsi86",
 	.probe		= dsim_panel_probe,
 	.resume_early	= dsim_panel_resume_early,
 	.after_reset	= dsim_panel_after_reset,
 	.displayon	= dsim_panel_displayon,
 	.suspend	= dsim_panel_suspend,
 };
+__XX_ADD_LCD_DRIVER(sn65dsi86_mipi_lcd_driver);
 

@@ -135,7 +135,7 @@ struct scsc_wlog_ring_ops {
 	wifi_error (*get_ring_status)(struct scsc_wlog_ring *r,
 				      struct scsc_wifi_ring_buffer_status *status);
 	int (*read_records)(struct scsc_wlog_ring *r, u8 *buf, size_t blen,
-			    u32 *records, struct scsc_wifi_ring_buffer_status *status);
+			    u32 *records, struct scsc_wifi_ring_buffer_status *status, bool is_user);
 	int (*write_record)(struct scsc_wlog_ring *r, u8 *buf, size_t blen,
 			    void *hdr, size_t hlen, u32 verbose_level, u64 timestamp);
 	int (*loglevel_change)(struct scsc_wlog_ring *r, u32 new_loglevel);
@@ -209,15 +209,15 @@ static inline bool scsc_wlog_is_message_allowed(struct scsc_wlog_ring *r, u32 ve
 	return r->st.verbose_level && verbose_level <= r->st.verbose_level;
 }
 
-static inline int scsc_wlog_read_records(struct scsc_wlog_ring *r, u8 *buf, size_t blen)
+static inline int scsc_wlog_read_records(struct scsc_wlog_ring *r, u8 *buf, size_t blen, bool is_user)
 {
-	return r->ops.read_records(r, buf, blen, NULL, NULL);
+	return r->ops.read_records(r, buf, blen, NULL, NULL, false);
 }
 
 static inline int scsc_wlog_read_max_records(struct scsc_wlog_ring *r, u8 *buf,
-					     size_t blen, u32 *max_records)
+					     size_t blen, u32 *max_records, bool is_user)
 {
-	return r->ops.read_records(r, buf, blen, max_records, NULL);
+	return r->ops.read_records(r, buf, blen, max_records, NULL, is_user);
 }
 
 static inline int scsc_wlog_write_record(struct scsc_wlog_ring *r, u8 *buf, size_t blen,

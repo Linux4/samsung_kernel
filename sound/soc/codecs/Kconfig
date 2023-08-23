@@ -116,9 +116,11 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_STA529 if I2C
 	select SND_SOC_STAC9766 if SND_SOC_AC97_BUS
 	select SND_SOC_STI_SAS
+	select SND_SOC_SPK_DUAL if I2C
 	select SND_SOC_TAS2552 if I2C
 	select SND_SOC_TAS5086 if I2C
 	select SND_SOC_TAS571X if I2C
+	select SND_SOC_TAS2562 if I2C
 	select SND_SOC_TFA9872 if I2C
 	select SND_SOC_TFA9879 if I2C
 	select SND_SOC_TFA9896 if I2C
@@ -664,6 +666,7 @@ config SND_SOC_SMA1301
 config SND_SOC_SMA1301_DUAL
 	tristate "Silicon mitus SMA1301 Audio Amplifier"
 	depends on I2C
+	select SND_SOC_SPK_DUAL
 	select SND_SOC_SMA1301
 
 config SND_SOC_SN95031
@@ -712,6 +715,10 @@ config SND_SOC_STAC9766
 config SND_SOC_STI_SAS
 	tristate "codec Audio support for STI SAS codec"
 
+config SND_SOC_SPK_DUAL
+	tristate "Support for Dual SPK"
+	depends on I2C
+
 config SND_SOC_TAS2552
 	tristate "Texas Instruments TAS2552 Mono Audio amplifier"
 	depends on I2C
@@ -722,6 +729,10 @@ config SND_SOC_TAS5086
 
 config SND_SOC_TAS571X
 	tristate "Texas Instruments TAS5711/TAS5717/TAS5719 power amplifiers"
+	depends on I2C
+
+config SND_SOC_TAS2562
+	tristate "Texas Instruments TAS2562 SmartAmp(R)"
 	depends on I2C
 
 config SND_SOC_TFA9872
@@ -739,6 +750,7 @@ config SND_SOC_TFA9896
 config SND_SOC_TFA9896_DUAL
 	tristate "NXP Semiconductors TFA9896 amplifier"
 	depends on I2C
+	select SND_SOC_SPK_DUAL
 	select SND_SOC_TFA9896
 
 config SND_SOC_TFA9896_QUAD
@@ -1003,6 +1015,9 @@ config SND_SOC_NAU8825
 config SND_SOC_TPA6130A2
 	tristate "Texas Instruments TPA6130A2 headphone amplifier"
 	depends on I2C
+
+#tas2562
+source "sound/soc/codecs/tas2562/Kconfig"
 
 #dbmdx
 source "sound/soc/codecs/dbmdx/Kconfig"

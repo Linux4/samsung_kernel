@@ -799,7 +799,7 @@ static int s2mu004_get_rawsoc(struct s2mu004_fuelgauge_data *fuelgauge)
 	/* SOC VM Monitoring For debugging SOC error */
 	s2mu004_read_reg_byte(fuelgauge->i2c, S2MU004_REG_MONOUT_SEL, &r_monoutsel);
 	s2mu004_write_reg_byte(fuelgauge->i2c, S2MU004_REG_MONOUT_SEL, 0x02);
-	mdelay(10);
+	msleep(10);
 	if (s2mu004_read_reg(fuelgauge->i2c, S2MU004_REG_MONOUT, mount_data) < 0)
 		return -EINVAL;
 
@@ -1144,7 +1144,7 @@ static int s2mu004_get_monout_avgvbat(struct s2mu004_fuelgauge_data *fuelgauge)
 
 	s2mu004_write_reg_byte(fuelgauge->i2c, S2MU004_REG_MONOUT_SEL, 0x27);
 
-	mdelay(50);
+	msleep(50);
 
 	if (s2mu004_read_reg(fuelgauge->i2c, S2MU004_REG_MONOUT, data) < 0)
 		goto err;
@@ -1490,6 +1490,8 @@ static int s2mu004_fg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CAPACITY:
 		if (val->intval == SEC_FUELGAUGE_CAPACITY_TYPE_RAW) {
 			val->intval = s2mu004_get_rawsoc(fuelgauge);
+		} else if (val->intval == SEC_FUELGAUGE_CAPACITY_TYPE_DYNAMIC_SCALE) {
+			val->intval = fuelgauge->raw_capacity;
 		} else {
 			val->intval = s2mu004_get_rawsoc(fuelgauge) / 10;
 
@@ -1682,7 +1684,7 @@ static int s2mu004_fg_set_property(struct power_supply *psy,
 				temp &= 0xCF;
 				temp |= 0x10;
 				s2mu004_write_reg_byte(fuelgauge->i2c, S2MU004_REG_CTRL0, temp);
-				mdelay(1000);
+				msleep(1000);
 				s2mu004_restart_gauging(fuelgauge);
 				s2mu004_fg_reset_capacity_by_jig_connection(fuelgauge);
 			} else if (val->intval == SEC_BAT_INBAT_FGSRC_SWITCHING_OFF) {
@@ -1694,7 +1696,7 @@ static int s2mu004_fg_set_property(struct power_supply *psy,
 				else
 					temp |= 0x10;
 				s2mu004_write_reg_byte(fuelgauge->i2c, S2MU004_REG_CTRL0, temp);
-				mdelay(1000);
+				msleep(1000);
 				s2mu004_restart_gauging(fuelgauge);
 			}
 			s2mu004_read_reg_byte(fuelgauge->i2c, S2MU004_REG_CTRL0, &temp);
@@ -1924,6 +1926,11 @@ static int s2mu004_fuelgauge_parse_dt(struct s2mu004_fuelgauge_data *fuelgauge)
 
 			pr_err("%s: [Long life] fuelgauge->fg_num_age_step %d\n",
 				__func__, fuelgauge->fg_num_age_step);
+
+			if ((sizeof(fg_age_data_info_t) * fuelgauge->fg_num_age_step) != len) {
+				pr_err("%s: The Long life variables and the data in device tree does not match\n", __func__);
+				BUG();
+			}
 
 			for (i = 0; i < fuelgauge->fg_num_age_step; i++) {
 #if defined(CONFIG_S2MU004_MODE_CHANGE_BY_TOPOFF)

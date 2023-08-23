@@ -1127,6 +1127,7 @@ irqreturn_t cmdq_irq(struct mmc_host *mmc, int err)
 	unsigned long err_info = 0;
 	struct mmc_request *mrq;
 	struct mmc_cmdq_context_info *ctx_info = &mmc->cmdq_ctx;
+	int is_done_dbr;
 
 	status = cmdq_readl(cq_host, CQIS);
 	cmdq_writel(cq_host, status, CQIS);
@@ -1250,10 +1251,16 @@ irqreturn_t cmdq_irq(struct mmc_host *mmc, int err)
 		 */
 		for_each_set_bit(tag, &comp_status, cq_host->num_slots) {
 			/* complete the corresponding mrq */
-			pr_debug("%s: completing tag -> %lu\n",
-				mmc_hostname(mmc), tag);
-			if (!err)
-				cmdq_finish_data(mmc, tag);
+			spin_lock(&cq_host->lock);
+			is_done_dbr = test_bit(tag, &ctx_info->curr_dbr);
+			spin_unlock(&cq_host->lock);
+			if (is_done_dbr) {
+				/* complete the corresponding mrq */
+				pr_debug("%s: completing tag -> %lu\n",
+						mmc_hostname(mmc), tag);
+				if (!err)
+					cmdq_finish_data(mmc, tag);
+			}
 		}
 	}
 

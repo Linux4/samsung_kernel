@@ -1167,7 +1167,7 @@ static int ist40xx_suspend(struct device *dev)
 #endif
 
 	mutex_lock(&data->lock);
-	if (data->lpm_mode) {
+	if (data->lpm_mode || data->fod_lp_mode) {
 		ist40xx_disable_irq(data);
 		ist40xx_cmd_gesture(data, IST40XX_ENABLE);
 

@@ -429,7 +429,7 @@ int fimc_is_itf_process_off_wrap(struct fimc_is_device_ischain *device, u32 grou
 	return ret;
 }
 
-void fimc_is_itf_sudden_stop_wrap(struct fimc_is_device_ischain *device, u32 instance)
+void fimc_is_itf_sudden_stop_wrap(struct fimc_is_device_ischain *device, u32 instance, struct fimc_is_group *group)
 {
 	int ret = 0;
 	struct fimc_is_device_sensor *sensor;
@@ -453,6 +453,18 @@ void fimc_is_itf_sudden_stop_wrap(struct fimc_is_device_ischain *device, u32 ins
 			merr("fimc_is_sensor_front_stop is fail(%d)", sensor, ret);
 	}
 
+	if (group) {
+		if (test_bit(FIMC_IS_GROUP_FORCE_STOP, &group->state)) {
+			ret = fimc_is_itf_force_stop(device, GROUP_ID(group->id));
+			if (ret)
+				mgerr("fimc_is_itf_force_stop is fail(%d)", device, group, ret);
+		} else {
+			ret = fimc_is_itf_process_stop(device, GROUP_ID(group->id));
+			if (ret)
+				mgerr("fimc_is_itf_process_stop is fail(%d)", device, group, ret);
+		}
+	}
+
 	return;
 }
 
@@ -472,7 +484,7 @@ int fimc_is_itf_power_down_wrap(struct fimc_is_interface *interface, u32 instanc
 		return ret;
 	}
 
-	fimc_is_itf_sudden_stop_wrap(&core->ischain[instance], instance);
+	fimc_is_itf_sudden_stop_wrap(&core->ischain[instance], instance, NULL);
 
 #ifdef USE_DDK_SHUT_DOWN_FUNC
 #ifdef ENABLE_FPSIMD_FOR_USER

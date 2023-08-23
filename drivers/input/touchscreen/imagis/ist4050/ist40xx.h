@@ -724,6 +724,7 @@ struct ist40xx_data {
 	int report_rate;
 	int idle_rate;
 	u8 lpm_mode;
+	u8 fod_lp_mode;
 	u16 rect_data[4];
 	u16 rejectzone_t;
 	u16 rejectzone_b;

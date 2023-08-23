@@ -200,6 +200,16 @@ static void fw_update(void *dev_data)
 	struct ist40xx_data *data = container_of(sec, struct ist40xx_data, sec);
 
 	sec_cmd_set_default_result(sec);
+	
+#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	if (sec->cmd_param[0] == 1) {
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+		snprintf(buf, sizeof(buf), "%s", "OK");
+		sec_cmd_set_cmd_result(sec, buf, strnlen(buf, sizeof(buf)));
+		input_info(true, &data->client->dev, "%s: user_ship binary, success\n", __func__);
+		return;
+	}
+#endif
 
 	if (data->status.sys_mode != STATE_POWER_ON) {
 		input_err(true, &data->client->dev,

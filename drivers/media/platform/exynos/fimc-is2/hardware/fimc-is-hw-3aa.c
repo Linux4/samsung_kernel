@@ -447,7 +447,7 @@ config:
 			frame->instance, hw_ip);
 	}
 
-	fimc_is_lib_isp_shot(hw_ip, &hw_3aa->lib[frame->instance], param_set, frame->shot);
+	ret = fimc_is_lib_isp_shot(hw_ip, &hw_3aa->lib[frame->instance], param_set, frame->shot);
 
 	set_bit(HW_CONFIG, &hw_ip->state);
 
@@ -789,6 +789,28 @@ void fimc_is_hw_3aa_dump(void)
 	ret = fimc_is_lib_logdump();
 }
 
+int fimc_is_hw_3aa_restore(struct fimc_is_hw_ip *hw_ip, u32 instance)
+{
+	int ret = 0;
+	struct fimc_is_hw_3aa *hw_3aa = NULL;
+
+	BUG_ON(!hw_ip);
+	BUG_ON(!hw_ip->priv_info);
+
+	if (!test_bit(HW_OPEN, &hw_ip->state))
+		return -EINVAL;
+
+	hw_3aa = (struct fimc_is_hw_3aa *)hw_ip->priv_info;
+
+	ret = fimc_is_lib_isp_reset_recovery(hw_ip, &hw_3aa->lib[instance], instance);
+	if (ret) {
+		mserr_hw("fimc_is_lib_isp_reset_recovery fail ret(%d)",
+				instance, hw_ip, ret);
+	}
+
+	return ret;
+}
+
 const struct fimc_is_hw_ip_ops fimc_is_hw_3aa_ops = {
 	.open			= fimc_is_hw_3aa_open,
 	.init			= fimc_is_hw_3aa_init,
@@ -804,7 +826,8 @@ const struct fimc_is_hw_ip_ops fimc_is_hw_3aa_ops = {
 	.apply_setfile		= fimc_is_hw_3aa_apply_setfile,
 	.delete_setfile		= fimc_is_hw_3aa_delete_setfile,
 	.size_dump		= fimc_is_hw_3aa_size_dump,
-	.clk_gate		= fimc_is_hardware_clk_gate
+	.clk_gate		= fimc_is_hardware_clk_gate,
+	.restore		= fimc_is_hw_3aa_restore
 };
 
 int fimc_is_hw_3aa_probe(struct fimc_is_hw_ip *hw_ip, struct fimc_is_interface *itf,

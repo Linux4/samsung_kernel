@@ -85,7 +85,7 @@ ssize_t knox_kap_write(struct file *file, const char __user *buffer, size_t size
 
 	printk(KERN_ERR " %s\n", __FUNCTION__);
 
-	if(size == 0)
+	if(size == 0 || size+1 == 0)
 		return 0;
 	string = kmalloc(size + sizeof(char), GFP_KERNEL);
 	if (string == NULL) {

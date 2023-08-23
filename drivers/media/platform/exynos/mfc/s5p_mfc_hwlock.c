@@ -762,6 +762,8 @@ int s5p_mfc_just_run(struct s5p_mfc_dev *dev, int new_ctx_index)
 		return -EINVAL;
 	}
 
+	atomic_inc(&dev->hw_run_cnt);
+
 	if (ctx->state == MFCINST_RUNNING)
 		s5p_mfc_clean_ctx_int_flags(ctx);
 

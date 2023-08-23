@@ -316,6 +316,7 @@ struct mms_ts_info {
 	u8 glove_mode;
 	u8 charger_mode;
 	u8 cover_mode;
+	u8 fod_lp_mode;
 
 	u8 esd_cnt;
 	bool disable_esd;

@@ -19,6 +19,8 @@ struct slsi_dev;
 #define SLSI_WPS_OUI_PATTERN                    0x04F25000
 #define SLSI_P2P_OUI_PATTERN                    0x099a6f50
 #define SLSI_VENDOR_OUI_AND_TYPE_LEN            4
+#define PMKID_LEN                               16
+#define RSN_SELECTOR_LEN                        4
 
 struct slsi_dev *slsi_cfg80211_new(struct device *dev);
 int slsi_cfg80211_register(struct slsi_dev *sdev);

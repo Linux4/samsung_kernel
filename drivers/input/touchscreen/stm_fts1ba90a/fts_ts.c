@@ -2954,7 +2954,12 @@ static int fts_input_open(struct input_dev *dev)
 		goto out;
 	}
 
-	input_dbg(false, &info->client->dev, "%s\n", __func__);
+	if (!info->info_work_done) {
+		input_err(true, &info->client->dev, "%s: not finished info work\n", __func__);
+		goto out;
+	}
+
+	input_info(false, &info->client->dev, "%s\n", __func__);
 
 #ifdef USE_OPEN_DWORK
 	schedule_delayed_work(&info->open_work,
@@ -2981,7 +2986,12 @@ static void fts_input_close(struct input_dev *dev)
 		return;
 	}
 
-	input_dbg(false, &info->client->dev, "%s\n", __func__);
+	if (!info->info_work_done) {
+		input_err(true, &info->client->dev, "%s: not finished info work\n", __func__);
+		return;
+	}
+
+	input_info(false, &info->client->dev, "%s\n", __func__);
 
 #ifdef USE_OPEN_DWORK
 	cancel_delayed_work(&info->open_work);
@@ -3371,6 +3381,7 @@ err_data:
 err_no_mem:
 #endif
 	fts_interrupt_set(info, INT_ENABLE);
+	info->info_work_done = true;
 }
 
 static int fts_stop_device(struct fts_ts_info *info, bool lpmode)
@@ -3557,7 +3568,7 @@ static int fts_suspend(struct i2c_client *client, pm_message_t mesg)
 {
 	struct fts_ts_info *info = i2c_get_clientdata(client);
 
-	input_dbg(true, &info->client->dev, "%s\n", __func__);
+	input_info(true, &info->client->dev, "%s\n", __func__);
 
 	fts_stop_device(info, info->lowpower_flag);
 
@@ -3569,7 +3580,7 @@ static int fts_resume(struct i2c_client *client)
 
 	struct fts_ts_info *info = i2c_get_clientdata(client);
 
-	input_dbg(true, &info->client->dev, "%s\n", __func__);
+	input_info(true, &info->client->dev, "%s\n", __func__);
 
 	fts_start_device(info);
 

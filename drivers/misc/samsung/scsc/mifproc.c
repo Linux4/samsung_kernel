@@ -26,9 +26,11 @@ static int mifprocfs_open_file_generic(struct inode *inode, struct file *file)
 	return 0;
 }
 
+#ifdef CONFIG_SCSC_PCIE
 MIF_PROCFS_RW_FILE_OPS(mif_dump);
 MIF_PROCFS_RW_FILE_OPS(mif_writemem);
 MIF_PROCFS_RW_FILE_OPS(mif_reg);
+#endif
 
 /* miframman ops */
 MIF_PROCFS_RO_FILE_OPS(ramman_total);
@@ -40,6 +42,7 @@ MIF_PROCFS_RO_FILE_OPS(ramman_size);
 
 MIF_PROCFS_SEQ_FILE_OPS(ramman_list);
 
+#ifdef CONFIG_SCSC_PCIE
 static ssize_t mifprocfs_mif_reg_read(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
 {
 	char         buf[128];
@@ -259,6 +262,7 @@ static ssize_t mifprocfs_mif_reg_write(struct file *file, const char __user *use
 
 	return count;
 }
+#endif
 /*
  * TODO: Add here any debug message should be exported
 static int mifprocfs_mif_dbg_show(struct seq_file *m, void *v)
@@ -406,9 +410,12 @@ int mifproc_create_proc_dir(struct scsc_mif_abs *mif)
 #if (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 4, 0))
 		parent->data = NULL;
 #endif
+
+#ifdef CONFIG_SCSC_PCIE
 		MIF_PROCFS_ADD_FILE(NULL, mif_writemem, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 		MIF_PROCFS_ADD_FILE(NULL, mif_dump, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 		MIF_PROCFS_ADD_FILE(NULL, mif_reg, parent, S_IRUSR | S_IRGRP);
+#endif
 	} else {
 		SCSC_TAG_INFO(MIF, "failed to create /proc dir\n");
 		return -EINVAL;

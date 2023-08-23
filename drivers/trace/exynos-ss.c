@@ -85,8 +85,13 @@
 #define ESS_MMU_REG_OFFSET		SZ_512
 #define ESS_CORE_REG_OFFSET		SZ_512
 #define ESS_CORE_PC_OFFSET		0x600
+#if defined(CONFIG_EXYNOS_SNAPSHOT_MINIMIZED_MODE) && defined(CONFIG_SEC_DEBUG_SMALL_DEBUG_MODE)
+#define ESS_LOG_MAX_NUM			SZ_256
+#define ESS_API_MAX_NUM			SZ_512
+#else
 #define ESS_LOG_MAX_NUM			SZ_1K
 #define ESS_API_MAX_NUM			SZ_2K
+#endif
 #define ESS_EX_MAX_NUM			SZ_8
 #define ESS_IN_MAX_NUM			SZ_8
 #define ESS_CALLSTACK_MAX_NUM		CONFIG_EXYNOS_SNAPSHOT_CALLSTACK
@@ -550,20 +555,34 @@ static struct exynos_ss_item ess_items[] = {
 	{"log_kernel",	{SZ_2M,		0, 0, false, true, true}, NULL ,NULL, 0},
 #ifdef CONFIG_EXYNOS_SNAPSHOT_HOOK_LOGGER
 	{"log_platform",{SZ_4M,		0, 0, false, true, true}, NULL ,NULL, 0},
-#endif
+#endif /* HOOK_LOGGER */
 #ifdef CONFIG_EXYNOS_SNAPSHOT_SFRDUMP
 	{"log_sfr",	{SZ_4M,		0, 0, false, true, true}, NULL ,NULL, 0},
-#endif
+#endif /* SFRDUMP */
 #ifdef CONFIG_EXYNOS_CORESIGHT_ETR
 	{"log_etm",	{SZ_8M,		0, 0, true, true, true}, NULL ,NULL, 0},
-#endif
+#endif /* ETR */
+
 #else /* MINIMIZED MODE */
+/* + SMALL_DEBUG_MODE */
+#if defined(CONFIG_SEC_DEBUG_SMALL_DEBUG_MODE)
+	{"log_kevents",	{SZ_1M,		0, 0, false, true, true}, NULL ,NULL, 0},
+	{"log_kernel",	{SZ_2M,		0, 0, false, true, true}, NULL ,NULL, 0},
+#ifdef CONFIG_EXYNOS_SNAPSHOT_HOOK_LOGGER
+	{"log_platform",{SZ_2M,		0, 0, false, true, true}, NULL ,NULL, 0},
+#endif /* HOOK_LOGGER */
+
+/* - SMALL_DEBUG_MODE */
+#else /* [ORIGINAL MINIMIZED MODE] MINIMIZED MODE && ! SMALL_DEBUG_MODE */
 	{"log_kevents",	{SZ_2M,		0, 0, false, true, true}, NULL ,NULL, 0},
 	{"log_kernel",	{SZ_2M,		0, 0, false, true, true}, NULL ,NULL, 0},
 #ifdef CONFIG_EXYNOS_SNAPSHOT_HOOK_LOGGER
 	{"log_platform",{SZ_2M,		0, 0, false, true, true}, NULL ,NULL, 0},
-#endif
-#endif
+#endif /* HOOK_LOGGER */
+#endif /* end of SMALL_DEBUG_MODE */
+
+#endif /* end of MINIMIZED MODE */
+
 #ifdef CONFIG_EXYNOS_SNAPSHOT_PSTORE
 	{"log_pstore",	{SZ_32K,	0, 0, true, true, true}, NULL ,NULL, 0},
 #endif
@@ -2026,6 +2045,7 @@ bool exynos_ss_dumper_one(void *v_dumper,
 		break;
 	}
 #endif
+#ifndef CONFIG_EXYNOS_SNAPSHOT_MINIMIZED_MODE
 	case ESS_FLAG_PRINTK:
 	{
 		char *log;
@@ -2079,6 +2099,7 @@ bool exynos_ss_dumper_one(void *v_dumper,
 						msg, val, callstack[0], callstack[1], callstack[2], callstack[3]);
 		break;
 	}
+#endif
 	default:
 		snprintf(line, size, "unsupported inforation to dump\n");
 		goto out;
@@ -2221,7 +2242,9 @@ static int __init exynos_ss_init_desc(void)
 	memset((struct exynos_ss_desc *)&ess_desc, 0, sizeof(struct exynos_ss_desc));
 	ess_desc.callstack = CONFIG_EXYNOS_SNAPSHOT_CALLSTACK;
 	raw_spin_lock_init(&ess_desc.lock);
+#ifdef CONFIG_EXYNOS_SNAPSHOT_SFRDUMP
 	INIT_LIST_HEAD(&ess_desc.sfrdump_list);
+#endif
 
 	for (i = 0; i < ARRAY_SIZE(ess_items); i++) {
 		len = strlen(ess_items[i].name);
@@ -2584,6 +2607,15 @@ static int __init exynos_ss_init(void)
 #endif
 		register_reboot_notifier(&nb_reboot_block);
 		atomic_notifier_chain_register(&panic_notifier_list, &nb_panic_block);
+
+#ifdef CONFIG_SEC_DEBUG
+#ifdef CONFIG_SEC_DEBUG_SNAPSHOT_DISABLE
+		if (sec_debug_get_debug_level() == 0) {
+			exynos_ss_set_enable("log_kevents", false);
+			pr_err("%s: disabled by debug level\n", __func__);
+		}
+#endif
+#endif
 	} else
 		pr_err("exynos-snapshot: %s failed\n", __func__);
 
@@ -3660,6 +3692,7 @@ static char * parse_buffer(char *buffer, unsigned char type)
 
 #endif
 
+#ifdef CONFIG_EXYNOS_SNAPSHOT_PSTORE
 static int exynos_ss_combine_pmsg(char *buffer, size_t count, unsigned int level)
 {
 	char *logbuf = logger.buffer;
@@ -3848,7 +3881,6 @@ EXPORT_SYMBOL(exynos_ss_hook_pmsg);
  *  ess_ramoops platform_device is used by pstore fs.
  */
 
-#ifdef CONFIG_EXYNOS_SNAPSHOT_PSTORE
 static struct ramoops_platform_data ess_ramoops_data = {
 	.record_size	= SZ_4K,
 	.pmsg_size	= SZ_4K,

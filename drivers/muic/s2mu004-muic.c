@@ -165,7 +165,7 @@ static const char *dev_to_str(muic_attached_dev_t n)
 static struct s2mu004_muic_data *static_data;
 #if defined(CONFIG_CCIC_S2MU004)
 static void s2mu004_muic_set_water_adc_ldo_wa(struct s2mu004_muic_data *muic_data, bool en);
-#if !IS_ENABLED(CONFIG_S2MU004_NONE_WATERPROOF_MODEL)
+#if !IS_ENABLED(CONFIG_NONE_WATERPROOF_MODEL)
 static int s2mu004_muic_water_judge(struct s2mu004_muic_data *muic_data);
 #endif
 #endif
@@ -1603,7 +1603,7 @@ static int s2mu004_muic_reg_init(struct s2mu004_muic_data *muic_data)
 			LDOADC_VSETH_WAKE_HYS_MASK,
 			LDOADC_VSETH_WAKE_HYS_SHIFT, 0x1);
 
-#if IS_ENABLED(CONFIG_S2MU004_NONE_WATERPROOF_MODEL) && !IS_ENABLED(CONFIG_SEC_FACTORY)
+#if IS_ENABLED(CONFIG_NONE_WATERPROOF_MODEL) && !IS_ENABLED(CONFIG_SEC_FACTORY)
     reg_data = s2mu004_i2c_read_byte(i2c, S2MU004_REG_MUIC_INT1_MASK);
     reg_data |= INTm_RID_CHG_MASK;
     s2mu004_i2c_write_byte(i2c, S2MU004_REG_MUIC_INT1_MASK, reg_data);
@@ -1794,7 +1794,7 @@ static int s2mu004_muic_detect_with_ccic(struct s2mu004_muic_data *muic_data,
 			s2mu004_muic_detect_first_attach(muic_data, vbvolt);
 		}
 	} else if (muic_data->attach_mode == S2MU004_NONE_CABLE) {
-#if IS_ENABLED(CONFIG_S2MU004_NONE_WATERPROOF_MODEL)
+#if IS_ENABLED(CONFIG_NONE_WATERPROOF_MODEL)
 		if (muic_if->opmode & OPMODE_MUIC) {
 			if (s2mu004_muic_detect_array_jig_cable(muic_data, adc, vbvolt, intr, new_dev))
 				return S2MU004_DETECT_JIG;
@@ -2302,7 +2302,7 @@ jig:
 			return;
 #ifdef	CONFIG_MUIC_MANAGER
 		if (muic_if->opmode & OPMODE_CCIC) {
-			if (muic_core_get_ccic_cable_state(muic_data->pdata)) {
+			if (muic_core_get_ccic_cable_state(muic_data->pdata) && (muic_if->is_ccic_attached == true)) {
 				pr_info("[muic] %s, skipped handle detach!\n", __func__);
 				return;
 			}
@@ -2338,7 +2338,7 @@ static int s2mu004_muic_check_irq_exeptions(struct s2mu004_muic_data *muic_data,
 		MUIC_SEND_NOTI_TO_CCIC_ATTACH(ATTACHED_DEV_CHECK_OCP);
 #endif
 
-#if !IS_ENABLED(CONFIG_S2MU004_NONE_WATERPROOF_MODEL)
+#if !IS_ENABLED(CONFIG_NONE_WATERPROOF_MODEL)
 	if (((adc > 0 && adc < ADC_OPEN) || (adc & 0x80))
 		&& !muic_data->re_detect && !vbvolt
 		&& (muic_if->opmode & OPMODE_CCIC)
@@ -2363,7 +2363,7 @@ static int s2mu004_muic_check_irq_exeptions(struct s2mu004_muic_data *muic_data,
 			&& !vbvolt && adc != ADC_GND && (muic_if->opmode & OPMODE_CCIC)) {
 		pr_info("%s:%d adc : 0x%X, water_status : %d, vbvolt : %d\n",
 					__func__, __LINE__, adc, muic_data->water_status, vbvolt);
-#if !IS_ENABLED(CONFIG_S2MU004_NONE_WATERPROOF_MODEL)
+#if !IS_ENABLED(CONFIG_NONE_WATERPROOF_MODEL)
 		if (adc < 0x1F && muic_data->water_status == S2MU004_WATER_MUIC_IDLE) {
 			cancel_delayed_work(&muic_data->water_detect_handler);
 			schedule_delayed_work(&muic_data->water_detect_handler,
@@ -2463,7 +2463,7 @@ static irqreturn_t s2mu004_muic_irq_thread(int irq, void *data)
 	pr_info("%s attach_mode : %d, irq_num: %d\n",
 		__func__, muic_data->attach_mode, irq_num);
 
-#if IS_ENABLED(CONFIG_S2MU004_NONE_WATERPROOF_MODEL)
+#if IS_ENABLED(CONFIG_NONE_WATERPROOF_MODEL)
 	if (irq_num == S2MU004_MUIC_IRQ2_VBUS_ON) {
 		cancel_delayed_work(&muic_data->bad_cable_checker);
 		schedule_delayed_work(&muic_data->bad_cable_checker,
@@ -2525,7 +2525,7 @@ static void s2mu004_muic_set_water_adc_ldo_wa(struct s2mu004_muic_data *muic_dat
 	}
 }
 
-#if !IS_ENABLED(CONFIG_S2MU004_NONE_WATERPROOF_MODEL)
+#if !IS_ENABLED(CONFIG_NONE_WATERPROOF_MODEL)
 static int s2mu004_muic_water_judge(struct s2mu004_muic_data *muic_data)
 {
 	int i, adc_recheck = 0;
@@ -2723,7 +2723,7 @@ static void s2mu004_muic_sleep_dry_checker(struct work_struct *work)
 	}
 }
 
-#if IS_ENABLED(CONFIG_S2MU004_NONE_WATERPROOF_MODEL)
+#if IS_ENABLED(CONFIG_NONE_WATERPROOF_MODEL)
 static void s2mu004_muic_bad_cable_checker(struct work_struct *work)
 {
 	struct s2mu004_muic_data *muic_data =
@@ -3206,13 +3206,13 @@ static int s2mu004_muic_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&muic_data->sleep_dry_checker, s2mu004_muic_sleep_dry_checker);
 #endif
 	INIT_DELAYED_WORK(&muic_data->dcd_recheck, s2mu004_muic_dcd_recheck);
-#if IS_ENABLED(CONFIG_S2MU004_NONE_WATERPROOF_MODEL)
+#if IS_ENABLED(CONFIG_NONE_WATERPROOF_MODEL)
 	INIT_DELAYED_WORK(&muic_data->bad_cable_checker,
 		s2mu004_muic_bad_cable_checker);
 #endif
 	s2mu004_muic_irq_thread(-1, muic_data);
 
-#if IS_ENABLED(CONFIG_S2MU004_NONE_WATERPROOF_MODEL)
+#if IS_ENABLED(CONFIG_NONE_WATERPROOF_MODEL)
 	if (muic_if->opmode & OPMODE_CCIC) {
 		cancel_delayed_work(&muic_data->bad_cable_checker);
 		schedule_delayed_work(&muic_data->bad_cable_checker,

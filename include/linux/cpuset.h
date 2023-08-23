@@ -53,6 +53,7 @@ extern nodemask_t cpuset_mems_allowed(struct task_struct *p);
 void cpuset_init_current_mems_allowed(void);
 int cpuset_nodemask_valid_mems_allowed(nodemask_t *nodemask);
 extern int cpuset_task_is_boosted(struct task_struct *p);
+extern int cpuset_task_is_pinned(struct task_struct *p);
 
 extern int __cpuset_node_allowed(int node, gfp_t gfp_mask);
 

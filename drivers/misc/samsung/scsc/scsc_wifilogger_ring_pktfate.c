@@ -24,6 +24,8 @@ static struct scsc_wlog_ring *fate_ring_rx;
 static struct scsc_wlog_debugfs_info di_tx, di_rx;
 
 #ifdef CONFIG_SCSC_WIFILOGGER_TEST
+#include <linux/uaccess.h>
+
 static ssize_t dfs_read_fates(struct file *filp, char __user *ubuf,
 			      size_t count, loff_t *f_pos)
 {
@@ -42,7 +44,7 @@ static ssize_t dfs_read_fates(struct file *filp, char __user *ubuf,
 		tx_report_bufs = vmalloc(sizeof(wifi_tx_report) * n_requested_fates);
 		if (tx_report_bufs)
 			scsc_wifi_get_tx_pkt_fates(tx_report_bufs, n_requested_fates,
-						   &n_provided_fates);
+						   &n_provided_fates, false);
 		got_sz = sizeof(wifi_tx_report) * n_provided_fates;
 		srcbuf =  tx_report_bufs;
 	} else {
@@ -50,7 +52,7 @@ static ssize_t dfs_read_fates(struct file *filp, char __user *ubuf,
 		rx_report_bufs = vmalloc(sizeof(wifi_rx_report) * n_requested_fates);
 		if (rx_report_bufs)
 		scsc_wifi_get_rx_pkt_fates(rx_report_bufs, n_requested_fates,
-					   &n_provided_fates);
+					   &n_provided_fates, false);
 		got_sz = sizeof(wifi_rx_report) * n_provided_fates;
 		srcbuf = rx_report_bufs;
 	}
@@ -181,7 +183,8 @@ EXPORT_SYMBOL(scsc_wifilogger_ring_pktfate_new_assoc);
 
 void scsc_wifilogger_ring_pktfate_get_fates(int fate, void *report_bufs,
 					    size_t n_requested_fates,
-					    size_t *n_provided_fates)
+					    size_t *n_provided_fates,
+					    bool is_user)
 {
 	struct scsc_wlog_ring *r;
 	u32 n_req_fates = (u32)n_requested_fates;
@@ -192,7 +195,7 @@ void scsc_wifilogger_ring_pktfate_get_fates(int fate, void *report_bufs,
 		blen = sizeof(wifi_tx_report) * n_req_fates;
 	else
 		blen = sizeof(wifi_rx_report) * n_req_fates;
-	scsc_wlog_read_max_records(r, report_bufs, blen, &n_req_fates);
+	scsc_wlog_read_max_records(r, report_bufs, blen, &n_req_fates, is_user);
 	*n_provided_fates = n_req_fates;
 
 	SCSC_TAG_INFO(WLOG, "[%s]:: GET %s pkt_fates -- Requested:%zd  -  Got:%zd\n",

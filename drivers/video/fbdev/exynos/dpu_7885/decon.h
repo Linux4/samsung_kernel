@@ -710,10 +710,22 @@ struct decon_reg_data {
 #endif
 };
 
+struct decon_win_config_extra {
+	int remained_frames;
+	u32 reserved[7];
+};
+
+struct decon_win_config_data_old {
+	int	fence;
+	int	fd_odma;
+	struct decon_win_config config[MAX_DECON_WIN + 1];
+};
+
 struct decon_win_config_data {
 	int	fence;
 	int	fd_odma;
 	struct decon_win_config config[MAX_DECON_WIN + 1];
+	struct decon_win_config_extra extra;
 };
 
 #if defined(CONFIG_DPU_20)
@@ -996,6 +1008,7 @@ struct decon_update_regs {
 	struct task_struct *thread;
 	struct kthread_worker worker;
 	struct kthread_work work;
+	atomic_t remaining_frame;
 };
 
 struct decon_vsync {
@@ -1065,15 +1078,17 @@ struct decon_device {
 	unsigned int ignore_vsync;
 	struct abd_protect abd;
 	unsigned int esd_recovery;
-	atomic_t win_config;
+	atomic_t ffu_flag;	/* first frame update */
 
-#if defined(CONFIG_EXYNOS_SUPPORT_DOZE)
+#if defined(CONFIG_EXYNOS_DOZE)
 	unsigned int doze_state;
 #endif
 
 #if defined(CONFIG_SUPPORT_MASK_LAYER)
 	bool current_mask_layer;
 	struct decon_reg_data *mask_regs;
+	u32 wait_mask_layer_trigger;
+	wait_queue_head_t wait_mask_layer_trigger_queue;
 #endif
 
 	unsigned long prev_used_dpp;
@@ -1480,7 +1495,7 @@ void decon_set_protected_content(struct decon_device *decon,
 int decon_runtime_suspend(struct device *dev);
 int decon_runtime_resume(struct device *dev);
 void decon_dpp_stop(struct decon_device *decon, bool do_reset);
-#if defined(CONFIG_EXYNOS_SUPPORT_DOZE)
+#if defined(CONFIG_EXYNOS_DOZE)
 int decon_set_doze_mode(struct decon_device *decon, u32 mode);
 
 enum doze_state {
@@ -1494,6 +1509,8 @@ enum doze_state {
 #endif
 /* IOCTL commands */
 #define S3CFB_SET_VSYNC_INT		_IOW('F', 206, __u32)
+#define S3CFB_WIN_CONFIG_OLD		_IOW('F', 209, \
+						struct decon_win_config_data_old)
 #define S3CFB_WIN_CONFIG		_IOW('F', 209, \
 						struct decon_win_config_data)
 #if defined(CONFIG_DPU_20)

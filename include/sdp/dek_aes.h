@@ -24,9 +24,23 @@
 #include <linux/types.h>
 #include <linux/crypto.h>
 #include <linux/scatterlist.h>
+#ifndef CONFIG_SDP_ENHANCED
 #include <sdp/dek_aes.h>
+#endif
 
 int dek_aes_encrypt(kek_t *kek, unsigned char *src, unsigned char *dst, int len);
 int dek_aes_decrypt(kek_t *kek, unsigned char *src, unsigned char *dst, int len);
+#ifdef CONFIG_SDP_ENHANCED
+int dek_aes_encrypt_key(kek_t *kek, unsigned char *key, unsigned int key_len,
+						unsigned char *out, unsigned int *out_len);
+int dek_aes_decrypt_key(kek_t *kek, unsigned char *ekey, unsigned int ekey_len,
+						unsigned char *out, unsigned int *out_len);
+int dek_aes_encrypt_key_raw(unsigned char *kek, unsigned int kek_len,
+							unsigned char *key, unsigned int key_len,
+							unsigned char *out, unsigned int *out_len);
+int dek_aes_decrypt_key_raw(unsigned char *kek, unsigned int kek_len,
+							unsigned char *ekey, unsigned int ekey_len,
+							unsigned char *out, unsigned int *out_len);
+#endif
 
 #endif

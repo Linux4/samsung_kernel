@@ -426,8 +426,13 @@ static void WA_0_issue_at_init1(struct s2mu005_fuelgauge_data *fuelgauge, int ta
 	u8 temp_REG26 = 0, temp_REG27 = 0, temp = 0;
 
 	if ((fuelgauge->temperature <= (int)fuelgauge->low_temp_limit) && (!(fuelgauge->info.soc <= 500))) {
+		union power_supply_propval value = {0, };
 		pr_info("%s : Skip F/G reset in low temperatures\n", __func__);
-		fuelgauge->vbatl_mode = VBATL_MODE_SW_VALERT;
+
+		psy_do_property("battery", get, POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT, value);
+		pr_info("%s: swelling_mode = %d\n", __func__, value.intval);
+		if (value.intval == 0)
+			fuelgauge->vbatl_mode = VBATL_MODE_SW_VALERT;
 		return;
 	}
 
@@ -1426,7 +1431,7 @@ static int s2mu005_get_monout_avgvbat(struct s2mu005_fuelgauge_data *fuelgauge)
 		s2mu005_write_and_verify_reg_byte(fuelgauge->i2c, S2MU005_REG_MONOUT_SEL, 0x27);
 	}
 
-	mdelay(50);
+	msleep(50);
 
 	if (s2mu005_read_reg(fuelgauge->i2c, S2MU005_REG_MONOUT, data) < 0)
 		goto err;
@@ -1467,11 +1472,16 @@ static int s2mu005_get_avgvbat(struct s2mu005_fuelgauge_data *fuelgauge)
 
 	dev_info(&fuelgauge->i2c->dev, "%s: avgvbat (%d)\n", __func__, old_vbat);
 
-	if ((fuelgauge->vbatl_mode == VBATL_MODE_SW_VALERT) &&
-		(fuelgauge->temperature > (int)fuelgauge->low_temp_limit) &&
-		(old_vbat >= fuelgauge->sw_vbat_l_recovery_vol)) {
-		fuelgauge->vbatl_mode = VBATL_MODE_SW_RECOVERY;
-		pr_info("%s : Recover from VBAT_L Activation\n", __func__);
+	if (fuelgauge->vbatl_mode == VBATL_MODE_SW_VALERT) {
+		union power_supply_propval value = {0, };
+		psy_do_property("battery", get, POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT, value);
+		pr_info("%s: swelling_mode = %d\n", __func__, value.intval);
+
+		if (((fuelgauge->temperature > (int)fuelgauge->low_temp_limit) &&
+		(old_vbat >= fuelgauge->sw_vbat_l_recovery_vol)) || value.intval != 0) {
+			fuelgauge->vbatl_mode = VBATL_MODE_SW_RECOVERY;
+			pr_info("%s : Recover from VBAT_L Activation\n", __func__);
+		}
 	}
 
 	return old_vbat;
@@ -1872,6 +1882,8 @@ static int s2mu005_fg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CAPACITY:
 		if (val->intval == SEC_FUELGAUGE_CAPACITY_TYPE_RAW) {
 			val->intval = s2mu005_get_rawsoc(fuelgauge);
+		} else if (val->intval == SEC_FUELGAUGE_CAPACITY_TYPE_DYNAMIC_SCALE) {
+			val->intval = fuelgauge->raw_capacity;
 		} else {
 			val->intval = s2mu005_get_rawsoc(fuelgauge) / 10;
 
@@ -2023,7 +2035,7 @@ static int s2mu005_fg_set_property(struct power_supply *psy,
 				if (fuelgauge->revision >= 3) {
 					u8 reg_0x41 = 0, reg_0x27 = 0, reg_0x26 = 0, temp = 0;
 					pr_info("%s, swelling SOC jump issue W/A\n", __func__);
-					mdelay(250);
+					msleep(250);
 
 					s2mu005_read_reg_byte(fuelgauge->i2c, 0x41, &reg_0x41);
 					s2mu005_read_reg_byte(fuelgauge->i2c, 0x27, &reg_0x27);
@@ -2036,7 +2048,7 @@ static int s2mu005_fg_set_property(struct power_supply *psy,
 					s2mu005_write_and_verify_reg_byte(fuelgauge->i2c, 0x27, temp);
 					s2mu005_write_and_verify_reg_byte(fuelgauge->i2c, 0x26, 0xFD);
 
-					mdelay(260);
+					msleep(260);
 
 					s2mu005_write_and_verify_reg_byte(fuelgauge->i2c, 0x26, reg_0x26);
 					s2mu005_write_and_verify_reg_byte(fuelgauge->i2c, 0x27, reg_0x27);
@@ -2098,7 +2110,7 @@ static int s2mu005_fg_set_property(struct power_supply *psy,
 						temp &= 0xCF;
 						temp |= 0x10;
 						s2mu005_write_and_verify_reg_byte(fuelgauge->i2c, 0x25, temp);
-						mdelay(1000);
+						msleep(1000);
 						s2mu005_restart_gauging(fuelgauge);
 						s2mu005_fg_reset_capacity_by_jig_connection(fuelgauge);
 						s2mu005_fg_test_read(fuelgauge->i2c);
@@ -2109,7 +2121,7 @@ static int s2mu005_fg_set_property(struct power_supply *psy,
 						temp &= 0xCF;
 						temp |= 0x30;
 						s2mu005_write_and_verify_reg_byte(fuelgauge->i2c, 0x25, temp);
-						mdelay(1000);
+						msleep(1000);
 						s2mu005_restart_gauging(fuelgauge);
 						s2mu005_fg_test_read(fuelgauge->i2c);
 						pr_info("%s: SEC_BAT_INBAT_FGSRC_SWITCHING_OFF : 0x25 = %x\n",
@@ -2366,6 +2378,11 @@ static int s2mu005_fuelgauge_parse_dt(struct s2mu005_fuelgauge_data *fuelgauge)
 					(int *)fuelgauge->age_data_info, len/sizeof(int));
 
 			pr_err("%s: [Long life] fuelgauge->fg_num_age_step %d\n", __func__,fuelgauge->fg_num_age_step);
+
+			if ((sizeof(fg_age_data_info_t) * fuelgauge->fg_num_age_step) != len) {
+				pr_err("%s: The Long life variables and the data in device tree does not match\n", __func__);
+				BUG();
+			}
 
 			for (i = 0; i < fuelgauge->fg_num_age_step; i++) {
 #if defined(CONFIG_S2MU005_VOLT_MODE_TUNING)

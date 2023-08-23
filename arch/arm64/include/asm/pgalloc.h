@@ -49,8 +49,8 @@ static inline pmd_t *pmd_alloc_one(struct mm_struct *mm, unsigned long addr)
 	if (boot_mode_security)
 #endif
 		rkp_do = 1;
-	if (rkp_do) rkp_ropage = (pmd_t *)rkp_ro_alloc();
-	if (rkp_ropage)
+
+	if (rkp_do && mm == &init_mm && (rkp_ropage = (pmd_t *)rkp_ro_alloc()))
 		return rkp_ropage;
 	else
 		return (pmd_t *)__get_free_page(PGALLOC_GFP);

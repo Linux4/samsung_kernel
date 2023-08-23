@@ -437,6 +437,41 @@ void s5p_mfc_dump_power_clk_status(void)
 	}
 }
 
+void s5p_mfc_dump_dynamic_dpb_info(struct s5p_mfc_dev *dev)
+{
+	struct s5p_mfc_ctx *ctx = dev->ctx[dev->curr_ctx];
+	struct s5p_mfc_buf_queue *ref_queue = &ctx->ref_buf_queue;
+	struct s5p_mfc_buf_queue *dst_queue = &ctx->dst_buf_queue;
+	struct s5p_mfc_buf *ref_mb, *tmp_mb, *dst_mb;
+	int index;
+	int i;
+
+	mfc_info_dev("MFC Dynamic DPB Info\n");
+	mfc_info_dev("Dynamic DPB Flag:%d\n",
+			MFC_READL(S5P_FIMV_D_DYNAMIC_DPB_FLAG_LOWER));
+
+	mfc_info_dev("Reference Queue Info\n");
+	list_for_each_entry_safe(ref_mb, tmp_mb, &ref_queue->head, list) {
+		index = ref_mb->vb.vb2_buf.index;
+		mfc_info_dev("ref[%d]: Plane[0] fd:%d Addr:%#llx Plane[1] fd:%d Addr:%#llx\n",
+			index, ref_mb->vb.vb2_buf.planes[0].m.fd, ref_mb->planes.raw[0],
+			ref_mb->vb.vb2_buf.planes[1].m.fd, ref_mb->planes.raw[1]);
+	}
+
+	mfc_info_dev("Destination Queue Info\n");
+	list_for_each_entry_safe(dst_mb, tmp_mb, &dst_queue->head, list) {
+		index = dst_mb->vb.vb2_buf.index;
+		mfc_info_dev("dst[%d]: Plane[0] fd:%d Addr:%#llx Plane[1] fd:%d Addr:%#llx\n",
+			index, dst_mb->vb.vb2_buf.planes[0].m.fd, dst_mb->planes.raw[0],
+			dst_mb->vb.vb2_buf.planes[1].m.fd, dst_mb->planes.raw[1]);
+	}
+
+	mfc_info_dev("Assigned fd Info\n");
+	for (i = 0; i < MFC_MAX_DPBS; i++)
+		mfc_info_dev("fd[%d]: %d\n", i, ctx->dec_priv->assigned_fd[i]);
+
+}
+
 void s5p_mfc_dump_info(struct s5p_mfc_dev *dev)
 {
 	mfc_display_state(dev);
@@ -444,6 +479,10 @@ void s5p_mfc_dump_info(struct s5p_mfc_dev *dev)
 	mfc_save_logging_sfr(dev);
 	mfc_dump_regs(dev);
 	s5p_mfc_dump_power_clk_status();
+
+	if (dev->ctx[dev->curr_ctx]->type == MFCINST_DECODER)
+		s5p_mfc_dump_dynamic_dpb_info(dev);
+
 	exynos_sysmmu_show_status(dev->device);
 }
 

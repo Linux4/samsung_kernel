@@ -1,3 +1,11 @@
+config GAF
+	bool "Use GAF structure"
+	default y if PROCA || FIVE
+	default n
+	help
+	  Enable GAF structure
+
+if GAF
 # When adding new entries keep the list in alphabetical order
 choice
 	prompt "Version of GAF structure"
@@ -15,6 +23,11 @@ choice
 	config GAF_V5
 		bool "Use GAF structure version 5"
 		help
-		  Default option for kernel with PROCA LSM module.
+		  Default option for kernel with PROCA 2.0-2.1 LSM module.
+	config GAF_V6
+		bool "Use GAF structure version 6"
+		help
+		  Default option for kernel with PROCA 2.2+ LSM module.
 endchoice
 
+endif #GAF

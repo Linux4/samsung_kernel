@@ -516,6 +516,23 @@ static ssize_t sec_cmd_show_result(struct device *dev,
 	return size;
 }
 
+static ssize_t sec_cmd_show_result_expand(struct device *dev,
+				 struct device_attribute *devattr, char *buf)
+{
+	struct sec_cmd_data *data = dev_get_drvdata(dev);
+	int size;
+
+	if (!data) {
+		pr_err("%s %s: No platform data found\n", SECLOG, __func__);
+		return -EINVAL;
+	}
+
+	size = snprintf(buf, SEC_CMD_RESULT_STR_LEN, "%s\n", data->cmd_result + SEC_CMD_RESULT_STR_LEN - 1);
+	pr_info("%s %s: %s\n", SECLOG, __func__, buf);
+
+	return size;
+}
+
 static ssize_t sec_cmd_show_result_all(struct device *dev,
 				 struct device_attribute *devattr, char *buf)
 {
@@ -563,6 +580,7 @@ static DEVICE_ATTR(cmd, 0220, NULL, sec_cmd_store);
 static DEVICE_ATTR(cmd_status, 0444, sec_cmd_show_status, NULL);
 static DEVICE_ATTR(cmd_status_all, 0444, sec_cmd_show_status_all, NULL);
 static DEVICE_ATTR(cmd_result, 0444, sec_cmd_show_result, NULL);
+static DEVICE_ATTR(cmd_result_expand, 0444, sec_cmd_show_result_expand, NULL);
 static DEVICE_ATTR(cmd_result_all, 0444, sec_cmd_show_result_all, NULL);
 static DEVICE_ATTR(cmd_list, 0444, sec_cmd_list_show, NULL);
 
@@ -571,6 +589,7 @@ static struct attribute *sec_fac_attrs[] = {
 	&dev_attr_cmd_status.attr,
 	&dev_attr_cmd_status_all.attr,
 	&dev_attr_cmd_result.attr,
+	&dev_attr_cmd_result_expand.attr,
 	&dev_attr_cmd_result_all.attr,
 	&dev_attr_cmd_list.attr,
 	NULL,

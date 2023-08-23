@@ -312,6 +312,9 @@ int fimc_is_hw_shared_meta_update(struct fimc_is_device_ischain *device,
 void __iomem *fimc_is_hw_get_sysreg(ulong core_regs);
 u32 fimc_is_hw_find_settle(u32 mipi_speed);
 unsigned int get_dma(struct fimc_is_device_sensor *device, u32 *dma_ch);
+#ifdef ENABLE_FULLCHAIN_OVERFLOW_RECOVERY
+int fimc_is_hw_overflow_recovery(void);
+#endif
 
 /*
  * *****************

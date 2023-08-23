@@ -16,6 +16,9 @@
 #define OFFSET_TUNE_DELAY 1000
 #define AUTO_CALIB_OFFSET_MAX 4500
 
+#define OFFSET_DELTA 40
+#define MAX_OFFSET 5000
+
 struct gp2ap_data
 {
 	struct mutex		mutex_ps_onoff;
@@ -60,6 +63,8 @@ struct gp2ap_data
 	int			zero_detect;
 	int			pre_test;
 	bool			handle_high_offset;
+	u16			high_offset;
+	u16			min_close_offset;
 	enum of_gpio_flags	irq_gpio_flags;
 };
 

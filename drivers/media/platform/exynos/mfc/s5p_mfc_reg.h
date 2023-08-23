@@ -240,4 +240,6 @@ void s5p_mfc_set_enc_stride(struct s5p_mfc_ctx *ctx);
 
 int s5p_mfc_set_dynamic_dpb(struct s5p_mfc_ctx *ctx, struct s5p_mfc_buf *dst_vb);
 
+int s5p_mfc_set_nal_options_dpb_address_change(struct s5p_mfc_ctx *ctx);
+
 #endif /* __S5P_MFC_REG_H */

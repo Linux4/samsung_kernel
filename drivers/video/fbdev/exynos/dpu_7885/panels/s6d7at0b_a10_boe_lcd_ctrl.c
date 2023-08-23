@@ -24,7 +24,7 @@
 
 #if defined(CONFIG_EXYNOS_DECON_MDNIE)
 #include "mdnie.h"
-#include "mdnie_lite_table_a10.h"
+#include "s6d7at0b_a10_mdnie.h"
 #endif
 
 #define PANEL_STATE_SUSPENED	0
@@ -255,6 +255,10 @@ static int s6d7at0b_read_id(struct lcd_info *lcd)
 {
 	struct panel_private *priv = &lcd->dsim->priv;
 	int ret = 0;
+	struct decon_device *decon = get_decon_drvdata(0);
+	static char *LDI_BIT_DESC_ID[BITS_PER_BYTE * S6D7AT0B_ID_LEN] = {
+		[0 ... 23] = "ID Read Fail",
+	};
 
 	lcd->id_info.value = 0;
 	priv->lcdconnected = lcd->connected = lcdtype ? 1 : 0;
@@ -263,6 +267,9 @@ static int s6d7at0b_read_id(struct lcd_info *lcd)
 	if (ret < 0 || !lcd->id_info.value) {
 		priv->lcdconnected = lcd->connected = 0;
 		dev_info(&lcd->ld->dev, "%s: connected lcd is invalid\n", __func__);
+
+		if (lcdtype && decon)
+			decon_abd_save_bit(&decon->abd, BITS_PER_BYTE * S6D7AT0B_ID_LEN, cpu_to_be32(lcd->id_info.value), LDI_BIT_DESC_ID);
 	}
 
 	dev_info(&lcd->ld->dev, "%s: %x\n", __func__, cpu_to_be32(lcd->id_info.value));
@@ -286,8 +293,6 @@ static int s6d7at0b_displayon_late(struct lcd_info *lcd)
 	DSI_WRITE(SEQ_TEST_KEY_OFF_9F, ARRAY_SIZE(SEQ_TEST_KEY_OFF_9F));
 	DSI_WRITE(SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0));
 	DSI_WRITE(SEQ_TEST_KEY_OFF_FC, ARRAY_SIZE(SEQ_TEST_KEY_OFF_FC));
-
-	dsim_panel_set_brightness(lcd, 1);
 
 	return ret;
 }
@@ -388,8 +393,13 @@ static int fb_notifier_callback(struct notifier_block *self,
 	if (evdata->info->node)
 		return NOTIFY_DONE;
 
-	if (fb_blank == FB_BLANK_UNBLANK)
+	if (fb_blank == FB_BLANK_UNBLANK) {
+		mutex_lock(&lcd->lock);
 		s6d7at0b_displayon_late(lcd);
+		mutex_unlock(&lcd->lock);
+
+		dsim_panel_set_brightness(lcd, 1);
+	}
 
 	return NOTIFY_DONE;
 }
@@ -737,24 +747,24 @@ exit:
 	return 0;
 }
 
+#if 0
+static int s6d7at0b_boe_id_match(void *unused)
+{
+	dsim_info("%s: lcdtype: %x\n", __func__, lcdtype);
+
+	if (((lcdtype & 0x00F000) >> 8) == 0x60)
+		return NOTIFY_OK;
+	else
+		return NOTIFY_DONE;
+}
+#endif
+
 struct dsim_lcd_driver s6d7at0b_boe_mipi_lcd_driver = {
-	.name		= "s6d7at0b",
+	.name		= "s6d7at0b_boe",
 	.probe		= dsim_panel_probe,
 	.resume_early	= dsim_panel_resume_early,
 	.displayon	= dsim_panel_displayon,
 	.suspend	= dsim_panel_suspend,
 };
-
-static int s6d7at0b_boe_module_init(void)
-{
-	if (((lcdtype & 0x00F000) >> 8) == 0x60) {
-		of_update_phandle_property("lcd_info", "s6d7at0b_hd_boe");
-		mipi_lcd_driver = &s6d7at0b_boe_mipi_lcd_driver;
-	}
-
-	dsim_info("%s: lcdtype: %x\n", __func__, lcdtype);
-
-	return 0;
-}
-module_init(s6d7at0b_boe_module_init);
+__XX_ADD_LCD_DRIVER(s6d7at0b_boe_mipi_lcd_driver);
 

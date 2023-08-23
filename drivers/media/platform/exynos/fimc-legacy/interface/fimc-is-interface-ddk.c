@@ -169,6 +169,9 @@ static void fimc_is_lib_io_callback(void *this, enum lib_cb_event_type event_id,
 	int wq_id = WORK_MAX_MAP;
 	int output_id = ENTRY_END;
 	u32 hw_fcount, index;
+#if defined(ENABLE_FULLCHAIN_OVERFLOW_RECOVERY)
+	int ret = 0;
+#endif
 
 	BUG_ON(!this);
 
@@ -256,7 +259,11 @@ static void fimc_is_lib_io_callback(void *this, enum lib_cb_event_type event_id,
 		msinfo_hw("LIB_EVENT_ERROR_CIN_OVERFLOW\n", instance_id, hw_ip);
 		fimc_is_hardware_flush_frame(hw_ip, FS_HW_CONFIGURE, IS_SHOT_OVERFLOW);
 
-#ifdef OVERFLOW_PANIC_ENABLE_ISCHAIN
+#if defined(ENABLE_FULLCHAIN_OVERFLOW_RECOVERY)
+		ret = fimc_is_hw_overflow_recovery();
+		if (ret < 0)
+			panic("OVERFLOW recovery fail!!!!");
+#elif defined(OVERFLOW_PANIC_ENABLE_ISCHAIN)
 		panic("CIN OVERFLOW!!");
 #endif
 		break;
@@ -274,7 +281,6 @@ static void fimc_is_lib_camera_callback(void *this, enum lib_cb_event_type event
 {
 	struct fimc_is_hardware *hardware;
 	struct fimc_is_hw_ip *hw_ip;
-	struct fimc_is_group *head;
 	ulong fcount;
 	u32 hw_fcount, index;
 	bool ret = false;
@@ -337,10 +343,6 @@ static void fimc_is_lib_camera_callback(void *this, enum lib_cb_event_type event
 		}
 		atomic_set(&hw_ip->status.Vvalid, V_BLANK);
 		wake_up(&hw_ip->status.wait_queue);
-
-		head = GET_HEAD_GROUP_IN_DEVICE(FIMC_IS_DEVICE_ISCHAIN, hw_ip->group[instance_id]);
-		if (!test_bit(FIMC_IS_GROUP_OTF_INPUT, &head->state))
-			up(&hw_ip->smp_resource);
 
 		CALL_HW_OPS(hw_ip, clk_gate, instance_id, false, false);
 		break;
@@ -662,7 +664,7 @@ int fimc_is_lib_isp_set_ctrl(struct fimc_is_hw_ip *hw_ip,
 	return 0;
 }
 
-void fimc_is_lib_isp_shot(struct fimc_is_hw_ip *hw_ip,
+int fimc_is_lib_isp_shot(struct fimc_is_hw_ip *hw_ip,
 	struct fimc_is_lib_isp *this, void *param_set, struct camera2_shot *shot)
 {
 	int ret = 0;
@@ -703,6 +705,8 @@ void fimc_is_lib_isp_shot(struct fimc_is_hw_ip *hw_ip,
 		err_lib("invalid hw (%d)", hw_ip->id);
 		break;
 	}
+
+	return ret;
 }
 
 int fimc_is_lib_isp_get_meta(struct fimc_is_hw_ip *hw_ip,
@@ -910,6 +914,24 @@ int fimc_is_lib_isp_sensor_update_control(struct fimc_is_lib_isp *this,
 		err_lib("sensor_update_ctl fail (%d)", ret);
 		return ret;
 	}
+
+	return ret;
+}
+
+int fimc_is_lib_isp_reset_recovery(struct fimc_is_hw_ip *hw_ip,
+		struct fimc_is_lib_isp *this, u32 instance_id)
+{
+	int ret = 0;
+
+	BUG_ON(!hw_ip);
+	BUG_ON(!this->func);
+
+	ret = CALL_LIBOP(this, recovery, instance_id);
+	if (ret) {
+		err_lib("chain_reset_recovery fail (%d)", hw_ip->id);
+		return ret;
+	}
+	msinfo_lib("chain_reset_recovery done\n", instance_id, hw_ip);
 
 	return ret;
 }

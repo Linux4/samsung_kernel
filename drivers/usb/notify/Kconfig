@@ -68,6 +68,12 @@ config USB_NOTIFY_PROC_LOG
 	  The USB STATE, The USB MODE, Cable event 
 	  are saved in usblog heap.
 
+config ENABLE_USB_SUSPEND_STATE
+	bool "Enable USB suspend current state"
+	default n
+	help
+	  Say Y to enable USB supend current state.
+
 config USB_HOST_SAMSUNG_FEATURE
 	boolean "USB Host Samsung Feature"
 	depends on USB

@@ -33,6 +33,7 @@
 #include "scsc_bt_hci.h"
 
 static u8   ant_write_buffer[ASMHCP_BUFFER_SIZE];
+static u16  ant_irq_mask;
 
 static void scsc_ant_shm_irq_handler(int irqbit, void *data)
 {
@@ -68,19 +69,34 @@ static void scsc_ant_shm_irq_handler(int irqbit, void *data)
 }
 
 /* Assign firmware/host interrupts */
-static void scsc_ant_shm_init_interrupt(void)
+static int scsc_ant_shm_init_interrupt(void)
 {
+	int irq_ret = 0;
+	u16 irq_num = 0;
+
 	/* To-host f/w IRQ allocations and ISR registrations */
-	ant_service.asmhcp_protocol->header.bg_to_ap_int_src =
-	    scsc_service_mifintrbit_register_tohost(ant_service.service, scsc_ant_shm_irq_handler, NULL);
+	irq_ret = scsc_service_mifintrbit_register_tohost(
+	    ant_service.service, scsc_ant_shm_irq_handler, NULL);
+	if (irq_ret < 0)
+		return irq_ret;
+
+	ant_service.asmhcp_protocol->header.bg_to_ap_int_src = irq_ret;
+	ant_irq_mask |= 1 << irq_num++;
 
 	/* From-host f/w IRQ allocations */
-	ant_service.asmhcp_protocol->header.ap_to_bg_int_src =
-	    scsc_service_mifintrbit_alloc_fromhost(ant_service.service, SCSC_MIFINTR_TARGET_R4);
+	irq_ret = scsc_service_mifintrbit_alloc_fromhost(
+	    ant_service.service, SCSC_MIFINTR_TARGET_R4);
+	if (irq_ret < 0)
+		return irq_ret;
+
+	ant_service.asmhcp_protocol->header.ap_to_bg_int_src = irq_ret;
+	ant_irq_mask |= 1 << irq_num++;
 
 	SCSC_TAG_DEBUG(BT_COMMON, "Registered to-host IRQ bit %d, from-host IRQ bit %d\n",
 		       ant_service.asmhcp_protocol->header.bg_to_ap_int_src,
 		       ant_service.asmhcp_protocol->header.ap_to_bg_int_src);
+
+	return 0;
 }
 
 static ssize_t scsc_shm_ant_cmd_write(const unsigned char *data, size_t count)
@@ -645,9 +661,13 @@ int scsc_ant_shm_init(void)
 	ant_service.mailbox_cmd_ctr_driv_read = 0;
 	ant_service.mailbox_cmd_ctr_driv_write = 0;
 	ant_service.read_index = 0;
+	ant_irq_mask = 0;
 
 	/* Initialise the interrupt handlers */
-	scsc_ant_shm_init_interrupt();
+	if (scsc_ant_shm_init_interrupt() < 0) {
+		SCSC_TAG_ERR(BT_COMMON, "Failed to register IRQ bits\n");
+		return -EIO;
+	}
 
 	return 0;
 }
@@ -659,16 +679,22 @@ int scsc_ant_shm_init(void)
  */
 void scsc_ant_shm_exit(void)
 {
+	u16 irq_num = 0;
+
 	/* Release IRQs */
 	if (ant_service.asmhcp_protocol != NULL) {
-		scsc_service_mifintrbit_unregister_tohost(
-			ant_service.service,
-			ant_service.asmhcp_protocol->header.bg_to_ap_int_src);
+		if (ant_irq_mask & 1 << irq_num++) {
+			scsc_service_mifintrbit_unregister_tohost(
+				ant_service.service,
+				ant_service.asmhcp_protocol->header.bg_to_ap_int_src);
+		}
 
-		scsc_service_mifintrbit_free_fromhost(
-			ant_service.service,
-			ant_service.asmhcp_protocol->header.ap_to_bg_int_src,
-			SCSC_MIFINTR_TARGET_R4);
+		if (ant_irq_mask & 1 << irq_num++) {
+			scsc_service_mifintrbit_free_fromhost(
+				ant_service.service,
+				ant_service.asmhcp_protocol->header.ap_to_bg_int_src,
+				SCSC_MIFINTR_TARGET_R4);
+		}
 	}
 
 	/* Clear all control structures */

@@ -17,56 +17,90 @@
 int fscrypt_sdp_ioctl_get_sdp_info(struct inode *inode, unsigned long arg)
 {
 	struct dek_arg_sdp_info req;
+	/* EXT4CRYPT-dedicated */
+	struct ext4_crypt_info *ci;
 	int result = 0;
 
+	/* EXT4CRYPT-dedicated */
 	if (ext4_encryption_info(inode) == NULL) {
 		DEK_LOGE("No encryption context to the target..\n");
 		return -EOPNOTSUPP;
 	}
 
-	if (copy_from_user(&req,
-			(struct dek_arg_get_sdp_info __user *)arg, sizeof(req))) {
-		DEK_LOGE("can't copy from user\n");
-		memset(&req, 0, sizeof(struct dek_arg_sdp_info));
-		result = -EFAULT;
+	memset(&req, 0, sizeof(struct dek_arg_sdp_info));
+	req.engine_id = -1;
+	req.type = -1;
+	req.sdp_enabled = 1;
+
+	/* EXT4CRYPT-dedicated */
+	ci = ext4_encryption_info(inode);
+	if (!ci->ci_sdp_info) {
+		DEK_LOGE("get_info: can't find sdp info\n");
 	} else {
-		struct ext4_crypt_info *ci = ext4_encryption_info(inode);
+		DEK_LOGD("get_info: ci->i_crypt_info->sdp_flags: 0x%08x\n",
+				ci->ci_sdp_info->sdp_flags);
 
-		req.engine_id = -1;
-		req.type = -1;
-		req.sdp_enabled = 1;
-
-		if (ci->ci_sdp_info) {
-			DEK_LOGD("ei->i_crypt_info->sdp_flags: %x\n", ci->ci_sdp_info->sdp_flags);
-
-			if (ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE) {
-				req.is_sensitive = 1;
-				req.engine_id = ci->ci_sdp_info->engine_id;
-				req.type = ci->ci_sdp_info->sdp_dek.type;
-			}
-			if (ci->ci_sdp_info->sdp_flags & SDP_IS_CHAMBER_DIR)
-				req.is_chamber = 1;
-		} else {
-			req.is_sensitive = 0;
-			req.is_chamber = 0;
+		if (ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE) {
+			req.is_sensitive = 1;
+			req.engine_id = ci->ci_sdp_info->engine_id;
+			req.type = ci->ci_sdp_info->sdp_dek.type;
 		}
-
-		if (copy_to_user((void __user *)arg, &req, sizeof(req)))
-			return -EFAULT;
+		if (ci->ci_sdp_info->sdp_flags & SDP_IS_CHAMBER_DIR)
+			req.is_chamber = 1;
 	}
 
+	if (copy_to_user((void __user *)arg, &req, sizeof(req))) {
+		DEK_LOGE("get_info: failed to copy data to user\n");
+		result = -EFAULT;
+	}
 	return result;
 }
+
+#ifdef CONFIG_SDP_ENHANCED
+int fscrypt_sdp_ioctl_set_sdp_policy(struct inode *inode, unsigned long arg)
+{
+	dek_arg_set_sdp_policy_t req;
+	int rc = 0;
+
+	/* EXT4CRYPT-dedicated */
+	if (ext4_encryption_info(inode) == NULL) {
+		DEK_LOGE("no encryption context to the target..\n");
+		rc = -EOPNOTSUPP;
+	} else {
+
+		if (!is_root()) {
+			DEK_LOGE("set_policy: operation not permitted to non-root process\n");
+			return -EPERM;
+		}
+
+		memset(&req, 0, sizeof(dek_arg_set_sdp_policy_t));
+		if (copy_from_user(&req,
+				(dek_arg_set_sdp_policy_t __user *)arg, sizeof(req))) {
+			DEK_LOGE("set_policy: failed to copy data from user\n");
+			return -EFAULT;
+		}
+
+		rc = fscrypt_sdp_set_sdp_policy(inode, req.engine_id);
+		if (rc) {
+			DEK_LOGE("set_policy: operation failed (err:%d)\n", rc);
+			rc = -EFAULT;
+		}
+	}
+	return rc;
+}
+#endif
 
 int fscrypt_sdp_ioctl_set_sensitive(struct inode *inode, unsigned long arg)
 {
 	dek_arg_set_sensitive_t req;
 	int result = 0;
 
+	/* EXT4CRYPT-dedicated */
 	if (ext4_encryption_info(inode) == NULL) {
 		DEK_LOGE("No encryption context to the target..\n");
 		result = -EOPNOTSUPP;
 	} else {
+		/* EXT4CRYPT-dedicated */
 		struct ext4_crypt_info *ci = ext4_encryption_info(inode);
 
 		if (ci->ci_sdp_info &&
@@ -94,7 +128,11 @@ int fscrypt_sdp_ioctl_set_sensitive(struct inode *inode, unsigned long arg)
 			memset(&req, 0, sizeof(dek_arg_set_sensitive_t));
 			result = -EFAULT;
 		} else {
+#ifdef CONFIG_SDP_ENHANCED
+			int rc = fscrypt_sdp_set_sensitive(inode, req.engine_id, NULL);
+#else
 			int rc = fscrypt_sdp_set_sensitive(req.engine_id, inode);
+#endif
 
 			if (rc) {
 				DEK_LOGE("failed to set sensitive rc(%d)\n", rc);
@@ -109,8 +147,12 @@ int fscrypt_sdp_ioctl_set_sensitive(struct inode *inode, unsigned long arg)
 
 int fscrypt_sdp_ioctl_set_protected(struct inode *inode, unsigned long arg)
 {
+#ifdef CONFIG_SDP_ENHANCED
+	dek_arg_set_protected_t req;
+#endif
 	int result = 0;
 
+	/* EXT4CRYPT-dedicated */
 	if (ext4_encryption_info(inode) == NULL) {
 		DEK_LOGE("No encryption context to the target..\n");
 		result = -EOPNOTSUPP;
@@ -130,7 +172,18 @@ int fscrypt_sdp_ioctl_set_protected(struct inode *inode, unsigned long arg)
 #endif
 		}
 
+#ifdef CONFIG_SDP_ENHANCED
+		memset(&req, 0, sizeof(dek_arg_set_protected_t));
+		if (copy_from_user(&req,
+				(dek_arg_set_protected_t __user *)arg, sizeof(req))) {
+			DEK_LOGE("set_protected: failed to copy data from user\n");
+			return -EFAULT;
+		}
+
+		rc = fscrypt_sdp_set_protected(inode, req.engine_id);
+#else
 		rc = fscrypt_sdp_set_protected(inode);
+#endif
 		if (rc) {
 			DEK_LOGE("failed to set protected rc(%d)\n", rc);
 			result = -EFAULT;
@@ -143,11 +196,13 @@ int fscrypt_sdp_ioctl_add_chamber_directory(struct inode *inode, unsigned long a
 {
 	int result = 0;
 
+	/* EXT4CRYPT-dedicated */
 	if (ext4_encryption_info(inode) == NULL) {
 		DEK_LOGE("No encryption context to the target..\n");
 		result = -EOPNOTSUPP;
 	} else {
 		dek_arg_add_chamber_t req;
+		/* EXT4CRYPT-dedicated */
 		struct ext4_crypt_info *ci = ext4_encryption_info(inode);
 
 		if (!S_ISDIR(inode->i_mode)) {
@@ -189,11 +244,13 @@ int fscrypt_sdp_ioctl_remove_chamber_directory(struct inode *inode)
 {
 	int result = 0;
 
+	/* EXT4CRYPT-dedicated */
 	if (ext4_encryption_info(inode) == NULL) {
 		DEK_LOGE("No encryption context to the target..\n");
 		result = -EOPNOTSUPP;
 	} else {
 		int rc;
+		/* EXT4CRYPT-dedicated */
 		struct ext4_crypt_info *ci = ext4_encryption_info(inode);
 
 		if (!ci->ci_sdp_info ||
@@ -225,7 +282,11 @@ int fscrypt_sdp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case EXT4_IOC_GET_SDP_INFO:
 		return fscrypt_sdp_ioctl_get_sdp_info(inode, arg);
 	case EXT4_IOC_SET_SDP_POLICY:
+#ifdef CONFIG_SDP_ENHANCED
+		return fscrypt_sdp_ioctl_set_sdp_policy(inode, arg);
+#else
 		return 0;
+#endif
 	case EXT4_IOC_SET_SENSITIVE:
 		return fscrypt_sdp_ioctl_set_sensitive(inode, arg);
 	case EXT4_IOC_SET_PROTECTED:

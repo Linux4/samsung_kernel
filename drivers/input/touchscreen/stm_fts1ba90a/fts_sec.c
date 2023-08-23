@@ -1083,6 +1083,16 @@ static void fw_update(void *device_data)
 	int retval = 0;
 
 	sec_cmd_set_default_result(sec);
+#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	if (sec->cmd_param[0] == 1) {
+		snprintf(buff, sizeof(buff), "%s", "OK");
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+		input_info(true, &info->client->dev, "%s: user_ship, success\n", __func__);
+		return;
+	}
+#endif
+
 	if (info->fts_power_state == FTS_POWER_STATE_POWERDOWN) {
 		input_err(true, &info->client->dev, "%s: [ERROR] Touch is stopped\n",
 				__func__);
@@ -1432,9 +1442,10 @@ void fts_checking_miscal(struct fts_ts_info *info, int testmode)
 	u8 regAdd[3] = { 0 };
 	u8 data[2] = { 0 };
 	u16 jitter_avg = 0, miscal_thd = 0;
-	int ret, diff_sum = 0, i;
+	int ret, i, j;
 	short min = 0x7FFF;
 	short max = 0x8000;
+	short *miscal_diff;
 
 	info->miscal_result = MISCAL_PASS;
 
@@ -1486,19 +1497,34 @@ void fts_checking_miscal(struct fts_ts_info *info, int testmode)
 
 	miscal_thd = data[0] << 8 | data[1];
 
-	/* compare raw data between autotune and selftest */
-	for (i = 0; i < info->ForceChannelLength * info->SenseChannelLength; i++) {
-		short node_diff = abs(info->miscal_ref_raw[i] - info->pFrame[i]);
-
-		if (node_diff > jitter_avg)
-			diff_sum += node_diff - jitter_avg;
+	miscal_diff = kzalloc(info->SenseChannelLength * info->ForceChannelLength * 2 + 1, GFP_KERNEL);
+	if(!miscal_diff){
+		input_err(true, &info->client->dev, "%s: failed to allocated memory\n", __func__);
+		goto FAIL;
 	}
 
-	if (diff_sum < miscal_thd)
-		info->miscal_result = MISCAL_PASS;
+	info->miscal_result = MISCAL_PASS;
+	max = 0;
+	for (i = 0; i < info->ForceChannelLength; i++) {
+		for (j = 0; j < info->SenseChannelLength - 1; j++) {
+			short raw_node_diff1 = abs(info->miscal_ref_raw[i * info->SenseChannelLength + j + 0] - info->miscal_ref_raw[i * info->SenseChannelLength + 1]);
+			short raw_node_diff2 = abs(info->pFrame[i * info->SenseChannelLength + j + 0] - info->pFrame[i * info->SenseChannelLength + 1]);
+			short node_diff = abs(raw_node_diff1 - raw_node_diff2);
+			miscal_diff[i * info->SenseChannelLength + j] = node_diff;
 
-	input_info(true, &info->client->dev, "%s: jitter avg:%d, threshold:%d, diff sum:%d, miscal:%s\n",
-			__func__, jitter_avg, miscal_thd, diff_sum,
+			if (node_diff > max)
+				max = node_diff;
+		}
+	}
+	if (max > miscal_thd)
+		info->miscal_result = MISCAL_FAIL;
+
+	if(miscal_diff != NULL)
+		kfree(miscal_diff);
+
+FAIL:
+	input_info(true, &info->client->dev, "%s: threshold:%d, diff max:%d, miscal:%s\n",
+			__func__, miscal_thd, max,
 			info->miscal_result == MISCAL_PASS ? "PASS" : "FAIL");
 }
 
@@ -1632,6 +1658,8 @@ int fts_panel_ito_test(struct fts_ts_info *info, int testmode)
 		fts_delay(20);
 	}
 
+	fts_checking_miscal(info, testmode);
+
 	if (info->board->item_version == 2 && sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING) {
 		if (result < 0)
 			snprintf(buff, sizeof(buff), "%d", ITO_FAIL);
@@ -1642,8 +1670,6 @@ int fts_panel_ito_test(struct fts_ts_info *info, int testmode)
 		if (fts_set_sec_ito_test_result(info) >= 0)
 			fts_get_sec_ito_test_result(info);
 	}
-
-	fts_checking_miscal(info, testmode);
 
 	info->fts_systemreset(info);
 
@@ -4272,6 +4298,8 @@ static void factory_cmd_result_all(void *device_data)
 		get_wet_mode(sec);
 	get_mis_cal_info(sec);
 
+	fts_panel_ito_test(info, SAVE_MISCAL_REF_RAW);
+
 	/* do not systemreset in COB type */
 	if (info->board->chip_on_board)
 		fts_set_scanmode(info, info->scan_mode);
@@ -5804,6 +5832,8 @@ static void run_force_calibration(void *device_data)
 						"%s: sec_execute_tclm_package\n", __func__);
 
 		sec_tclm_root_of_cal(info->tdata, CALPOSITION_NONE);
+
+		fts_panel_ito_test(info, SAVE_MISCAL_REF_RAW);
 #endif
 	}
 

@@ -1,6 +1,6 @@
 /*****************************************************************************
  *
- * Copyright (c) 2012 - 2016 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2019 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -102,5 +102,12 @@ void slsi_netif_remove_all(struct slsi_dev *sdev);
 void slsi_netif_deinit(struct slsi_dev *sdev);
 void slsi_tdls_move_packets(struct slsi_dev *sdev, struct net_device *dev,
 			    struct slsi_peer *sta_peer, struct slsi_peer *tdls_peer, bool connection);
+void slsi_netif_remove_locked(struct slsi_dev *sdev, struct net_device *dev);
+int slsi_netif_add_locked(struct slsi_dev *sdev, const char *name, int ifnum);
+int slsi_netif_register_locked(struct slsi_dev *sdev, struct net_device *dev);
+#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
+void slsi_net_randomize_nmi_ndi(struct slsi_dev *sdev);
+#endif
+
 
 #endif /*__SLSI_NETIF_H__*/

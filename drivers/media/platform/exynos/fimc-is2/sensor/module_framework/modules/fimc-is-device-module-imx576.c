@@ -72,7 +72,7 @@ static int _sensor_module_get_drv_data(struct platform_device *pdev);
  *	[12]REG_M: Super Slow Motion (16:9)     : 1872x1052@240,  MIPI lane: 4, MIPI data rate(Mbps/lane) Sensor: 2054
  *	[13]REG_N: Super Slow Motion (16:9)     : 1920x1080@120,  MIPI lane: 4, MIPI data rate(Mbps/lane) Sensor: 2054
  *	[14]REG_O: Super Slow Motion (16:9)     : 1280x720 @240,  MIPI lane: 4, MIPI data rate(Mbps/lane) Sensor: 2054
- *	[15]REG_U: Super Slow Motion (16:9)     : 1280x720 @120,  MIPI lane: 4, MIPI data rate(Mbps/lane) Sensor: 2054 
+ *	[15]REG_U: Super Slow Motion (16:9)     : 1280x720 @120,  MIPI lane: 4, MIPI data rate(Mbps/lane) Sensor: 2054
  *
  *	- FAST AE -
  *	[16]REG_R: Single Preview Fast(4:3)     : 2832x2124@117,  MIPI lane: 4, MIPI data rate(Mbps/lane) Sensor: 2054
@@ -123,6 +123,23 @@ static struct fimc_is_sensor_cfg config_imx576[] = {
 	FIMC_IS_SENSOR_CFG_EXT(2832, 2124, 117, 46, 16, CSI_DATA_LANES_4, 2054, 0, 0, 0),
 	FIMC_IS_SENSOR_CFG_EXT(2832, 2124,  60, 46, 17, CSI_DATA_LANES_4, 2054, 0, 0, 0),
 	FIMC_IS_SENSOR_CFG_EXT(2832, 1592, 120, 46, 18, CSI_DATA_LANES_4, 2054, 0, 0, 0),
+
+	/* 19: REG_R: 4800x3600@30fps */
+	/* 20: REG_S: 2400x1800@30fps */
+	/* 21: REG_T: 2400x1352@30fps */
+	/* 22: REG_T: 2400x1168@30fps */
+	/* 23: REG_T: 1800x1800@30fps */
+	/* 24: REG_T: 4800x2700@30fps */
+	/* 25: REG_T: 4800x2336@30fps */
+	/* 26: REG_T: 3600x3600@30fps */
+	FIMC_IS_SENSOR_CFG_EXT(4800, 3600, 30, 46, 19, CSI_DATA_LANES_4, 2054, 0, 0, 0),
+	FIMC_IS_SENSOR_CFG_EXT(2400, 1800, 30, 46, 20, CSI_DATA_LANES_4, 2054, 0, 0, 0),
+	FIMC_IS_SENSOR_CFG_EXT(2400, 1352, 30, 46, 21, CSI_DATA_LANES_4, 2054, 0, 0, 0),
+	FIMC_IS_SENSOR_CFG_EXT(2400, 1168, 30, 46, 22, CSI_DATA_LANES_4, 2054, 0, 0, 0),
+	FIMC_IS_SENSOR_CFG_EXT(1800, 1800, 30, 46, 23, CSI_DATA_LANES_4, 2054, 0, 0, 0),
+	FIMC_IS_SENSOR_CFG_EXT(4800, 2700, 30, 46, 24, CSI_DATA_LANES_4, 2054, 0, 0, 0),
+	FIMC_IS_SENSOR_CFG_EXT(4800, 2336, 30, 46, 25, CSI_DATA_LANES_4, 2054, 0, 0, 0),
+	FIMC_IS_SENSOR_CFG_EXT(3600, 3600, 30, 46, 26, CSI_DATA_LANES_4, 2054, 0, 0, 0),
 };
 
 
@@ -164,7 +181,7 @@ static struct fimc_is_sensor_cfg config_imx576[] = {
  *	[21]REG_T : Single Preview Fast(16:9)          : 2832x1592@120,  MIPI lane: 4, MIPI data rate(Mbps/lane) Sensor: 2054
  *	[22]REG_AG: Single Preview Fast(4:3)_Ver2      : 2880x2156@114,  MIPI lane: 4, MIPI data rate(Mbps/lane) Sensor: 2054
  */
- 
+
  static struct fimc_is_sensor_cfg config_imx576_25M[] = {
 	/*[0] REG_Z : Single Still Preview (4:3)_Ver2    : 2880x2156@30*/
 	/*[1] REG_AA: Single Still Preview (16:9)_Ver2   : 2880x1620@30*/
@@ -398,7 +415,7 @@ static int module_imx576_power_setpin(struct device *dev,
 
 	if(actuator)
 		SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_camaf_2p8_en, "camaf_2p8_en", PIN_OUTPUT, 1, 500);
-	
+
 	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_none, "pin", PIN_FUNCTION, 2, 3000);
 	if(shared_mclk) {
 		SET_PIN_SHARED(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, SRT_ACQUIRE,
@@ -454,7 +471,7 @@ static int module_imx576_power_setpin(struct device *dev,
 		SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_OFF, gpio_camio_1p8_en, "camio_1p8_en", PIN_OUTPUT, 0, 1000);
 	else
 		SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_OFF, gpio_none, cam_iovdd_1p8, PIN_REGULATOR, 0, 1000);
-	if(actuator)	
+	if(actuator)
 		SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_OFF, gpio_camaf_2p8_en, "camaf_2p8_en", PIN_OUTPUT, 0, 5000);
 
 	dev_info(dev, "%s X v4\n", __func__);
@@ -500,7 +517,7 @@ int sensor_module_imx576_probe(struct platform_device *pdev)
 		goto p_err;
 	}
 
-	probe_info("%s pdata->id(%d), module_enum id(%d), position(%d) \n", 
+	probe_info("%s pdata->id(%d), module_enum id(%d), position(%d) \n",
 		__func__, pdata->id, atomic_read(&device->module_count), pdata->position);
 	module = &device->module_enum[atomic_read(&device->module_count)];
 	atomic_inc(&device->module_count);
@@ -552,7 +569,7 @@ int sensor_module_imx576_probe(struct platform_device *pdev)
 		module->cfg = config_imx576;
 	}
 	module->ops = NULL;
-	
+
     /* Sensor peri */
 	module->private_data = kzalloc(sizeof(struct fimc_is_device_sensor_peri), GFP_KERNEL);
 	if (!module->private_data) {

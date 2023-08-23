@@ -38,7 +38,7 @@ static struct key *five_request_asymmetric_key(uint32_t keyid)
 	struct key *key;
 	char name[12];
 
-	sprintf(name, "id:%08x", keyid);
+	snprintf(name, sizeof(name), "id:%08x", keyid);
 
 	pr_debug("key search: \"%s\"\n", name);
 
@@ -47,7 +47,7 @@ static struct key *five_request_asymmetric_key(uint32_t keyid)
 		key_ref_t kref;
 
 		kref = keyring_search(make_key_ref(five_keyring, 1),
-				      &key_type_asymmetric, name);
+				      &key_type_asymmetric, name, true);
 		if (IS_ERR(kref))
 			key = ERR_CAST(kref);
 		else

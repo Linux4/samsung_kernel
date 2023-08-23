@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright (c) 2012 - 2016 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2020 Samsung Electronics Co., Ltd. All rights reserved
  *
  *****************************************************************************/
 
@@ -16,6 +16,7 @@
 #include <netif.h>
 
 #include "wakelock.h"
+#include "fapi.h"
 
 static inline u32  slsi_convert_tlv_data_to_value(u8 *data, u16 length)
 {
@@ -42,10 +43,122 @@ extern "C" {
 #define SLSI_ETHER_EQUAL(mac1, mac2)	(memcmp((mac1), (mac2), ETH_ALEN) == 0)
 #endif
 
+#ifndef CONFIG_SCSC_SMAPPER
+struct slsi_skb_cb {
+	u32 sig_length;
+	u32 data_length;
+	u32 frame_format;
+	u32 colour;
+};
+
+static inline struct slsi_skb_cb *slsi_skb_cb_get(struct sk_buff *skb)
+{
+	return (struct slsi_skb_cb *)skb->cb;
+}
+
+static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
+{
+	BUILD_BUG_ON(sizeof(struct slsi_skb_cb) > sizeof(skb->cb));
+
+	memset(skb->cb, 0, sizeof(struct slsi_skb_cb));
+	return slsi_skb_cb_get(skb);
+}
+#endif
+
+static inline struct sk_buff *fapi_alloc_f(size_t sig_size, size_t data_size, u16 id, u16 vif, const char *file, int line)
+{
+	struct sk_buff                *skb = NULL;
+	struct fapi_vif_signal_header *header;
+
+	if (WARN_ON(in_interrupt()))
+		return NULL;
+	skb = alloc_skb(sig_size + data_size, GFP_KERNEL);
+	WARN_ON(sig_size < sizeof(struct fapi_signal_header));
+	if (WARN_ON(!skb))
+		return NULL;
+
+	slsi_skb_cb_init(skb)->sig_length = sig_size;
+	slsi_skb_cb_get(skb)->data_length = sig_size;
+
+	header = (struct fapi_vif_signal_header *)skb_put(skb, sig_size);
+	header->id = cpu_to_le16(id);
+	header->receiver_pid = 0;
+	header->sender_pid = 0;
+	header->fw_reference = 0;
+	header->vif = vif;
+	return skb;
+}
+
+#define fapi_alloc(mp_name, mp_id, mp_vif, mp_datalen) fapi_alloc_f(fapi_sig_size(mp_name), mp_datalen, mp_id, mp_vif, __FILE__, __LINE__)
+#define fapi_get_buff(mp_skb, mp_name) (((struct fapi_signal *)(mp_skb)->data)->mp_name)
+#define fapi_get_u16(mp_skb, mp_name) le16_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name)
+#define fapi_get_u32(mp_skb, mp_name) le32_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name)
+#define fapi_get_u64(mp_skb, mp_name) le64_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name)
+#define fapi_set_u16(mp_skb, mp_name, mp_value) (((struct fapi_signal *)(mp_skb)->data)->mp_name = cpu_to_le16(mp_value))
+#define fapi_set_u32(mp_skb, mp_name, mp_value) (((struct fapi_signal *)(mp_skb)->data)->mp_name = cpu_to_le32(mp_value))
+#define fapi_get_s16(mp_skb, mp_name) ((s16)le16_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name))
+#define fapi_get_s32(mp_skb, mp_name) ((s32)le32_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name))
+#define fapi_set_s16(mp_skb, mp_name, mp_value) (((struct fapi_signal *)(mp_skb)->data)->mp_name = cpu_to_le16((u16)mp_value))
+#define fapi_set_s32(mp_skb, mp_name, mp_value) (((struct fapi_signal *)(mp_skb)->data)->mp_name = cpu_to_le32((u32)mp_value))
+#define fapi_set_memcpy(mp_skb, mp_name, mp_value) memcpy(((struct fapi_signal *)(mp_skb)->data)->mp_name, mp_value, sizeof(((struct fapi_signal *)(mp_skb)->data)->mp_name))
+#define fapi_set_memset(mp_skb, mp_name, mp_value) memset(((struct fapi_signal *)(mp_skb)->data)->mp_name, mp_value, sizeof(((struct fapi_signal *)(mp_skb)->data)->mp_name))
+
+/* Helper to get and set high/low 16 bits from u32 signals */
+#define fapi_get_high16_u32(mp_skb, mp_name) ((fapi_get_u32((mp_skb), mp_name) & 0xffff0000) >> 16)
+#define fapi_set_high16_u32(mp_skb, mp_name, mp_value) fapi_set_u32((mp_skb), mp_name, (fapi_get_u32((mp_skb), mp_name) & 0xffff) | ((mp_value) << 16))
+#define fapi_get_low16_u32(mp_skb, mp_name) (fapi_get_u32((mp_skb), mp_name) & 0xffff)
+#define fapi_set_low16_u32(mp_skb, mp_name, mp_value) fapi_set_u32((mp_skb), mp_name, (fapi_get_u32((mp_skb), mp_name) & 0xffff0000) | (mp_value))
+
+#define fapi_get_siglen(mp_skb) (slsi_skb_cb_get(mp_skb)->sig_length)
+#define fapi_get_datalen(mp_skb) (slsi_skb_cb_get(mp_skb)->data_length - slsi_skb_cb_get(mp_skb)->sig_length)
+#define fapi_get_data(mp_skb) (mp_skb->data + fapi_get_siglen(mp_skb))
+#define fapi_get_vif(mp_skb) le16_to_cpu(((struct fapi_vif_signal_header *)(mp_skb)->data)->vif)
+
+/* Helper to get the struct ieee80211_mgmt from the data */
+#define fapi_get_mgmt(mp_skb) ((struct ieee80211_mgmt *)fapi_get_data(mp_skb))
+#define fapi_get_mgmtlen(mp_skb) fapi_get_datalen(mp_skb)
+
+
+static inline u8 *fapi_append_data(struct sk_buff *skb, const u8 *data, size_t data_len)
+{
+	u8 *p;
+
+	if (WARN_ON(skb_tailroom(skb) < data_len))
+		return NULL;
+
+	p = skb_put(skb, data_len);
+	slsi_skb_cb_get(skb)->data_length += data_len;
+	if (data)
+		memcpy(p, data, data_len);
+	return p;
+}
+
+static inline u8 *fapi_append_data_u32(struct sk_buff *skb, const u32 data)
+{
+	__le32 val = cpu_to_le32(data);
+
+	return fapi_append_data(skb, (u8 *)&val, sizeof(val));
+}
+
+static inline u8 *fapi_append_data_u16(struct sk_buff *skb, const u16 data)
+{
+	__le16 val = cpu_to_le16(data);
+
+	return fapi_append_data(skb, (u8 *)&val, sizeof(val));
+}
+
+static inline u8 *fapi_append_data_u8(struct sk_buff *skb, const u8 data)
+{
+	u8 val = data;
+
+	return fapi_append_data(skb, (u8 *)&val, sizeof(val));
+}
+
+#define fapi_append_data_bool(skb, data) fapi_append_data_u16(skb, data)
+
 extern uint slsi_sg_host_align_mask;
 #define SLSI_HIP_FH_SIG_PREAMBLE_LEN 4
-#define SLSI_SKB_GET_ALIGNMENT_OFFSET(skb) (offset_in_page(skb->data + SLSI_NETIF_SKB_HEADROOM - SLSI_HIP_FH_SIG_PREAMBLE_LEN) \
-					    & slsi_sg_host_align_mask)
+#define SLSI_SKB_GET_ALIGNMENT_OFFSET(skb) (0)
 
 /* Get the Compiler to ignore Unused parameters */
 #define SLSI_UNUSED_PARAMETER(x) ((void)(x))
@@ -85,7 +198,7 @@ extern uint slsi_sg_host_align_mask;
 	} while (0)
 
 /*------------------------------------------------------------------*/
-/* Endian conversion */
+/* Endian conversion. */
 /*------------------------------------------------------------------*/
 #define SLSI_BUFF_LE_TO_U16(ptr)        (((u16)((u8 *)(ptr))[0]) | ((u16)((u8 *)(ptr))[1]) << 8)
 #define SLSI_U16_TO_BUFF_LE(uint, ptr) \
@@ -436,17 +549,53 @@ static inline void slsi_eth_broadcast_addr(u8 *addr)
 static inline int slsi_str_to_int(char *str, int *result)
 {
 	int i = 0;
+	int sign = 1;
+	int err = 0;
+	long long int res = 0;
+	int digit = 0;
+
+	if (!str)
+		return 0;
+	if (*str == '-') {
+		sign = -1;
+		++str;
+	} else if (*str == '+') {
+		sign = 1;
+		++str;
+	}
 
 	*result = 0;
-	if ((str[i] == '-') || ((str[i] >= '0') && (str[i] <= '9'))) {
-		if (str[0] == '-')
-			i++;
+	if ((str[i] >= '0') && (str[i] <= '9')) {
 		while (str[i] >= '0' && str[i] <= '9') {
-			*result *= 10;
-			*result += (int)str[i++] - '0';
+			if (res > INT_MAX / 10) {
+				err = 1;
+				break;
+			}
+			res *= 10;
+			digit = str[i] - '0';
+
+			if (res > INT_MAX - digit) {
+				if (sign == -1) {
+					res += digit;
+					if (-(res) >= INT_MIN) {
+						break;
+					} else {
+						err = 1;
+						break;
+					}
+				} else {
+					err = 1;
+					break;
+				}
+			}
+			res += digit;
+			i++;
 		}
 
-		*result = ((str[0] == '-') ? (-(*result)) : *result);
+		if (!err)
+			*result = ((sign == -1) ? -(res) : res);
+		else
+			return 0;
 	}
 	return i;
 }
@@ -544,6 +693,178 @@ static inline u32 slsi_get_center_freq1(struct slsi_dev *sdev, u16 chann_info, u
 		break;
 	}
 	return center_freq1;
+}
+
+/* Name: strtoint
+ * Desc: Converts a string to a decimal or hexadecimal integer
+ * s: the string to be converted
+ * res: pointer to the calculated integer
+ * return: 0 (success), 1(failure)
+ */
+static inline int strtoint(const char *s, int *res)
+{
+	int base = 10;
+
+	if (strlen(s) > 2)
+		if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X'))
+			base = 16;
+	return kstrtoint(s, base, res);
+}
+
+static inline u8 *slsi_mem_dup(u8 *src, size_t len)
+{
+	u8 *dest;
+
+	if (!src || !len)
+		return NULL;
+
+	dest = kmalloc(len, GFP_KERNEL);
+	if (!dest)
+		return NULL;
+	memcpy(dest, src, len);
+	return dest;
+}
+
+static inline void slsi_get_random_bytes(u8 *byte_buffer, u32 buffer_len)
+{
+	return get_random_bytes(byte_buffer, buffer_len);
+}
+
+static inline int slsi_util_nla_get_u8(const struct nlattr *attr, u8 *val)
+{
+	if (nla_len(attr) >= sizeof(u8)) {
+		*val = nla_get_u8(attr);
+		return 0;
+	}
+	return -EINVAL;
+}
+
+static inline int slsi_util_nla_get_u16(const struct nlattr *attr, u16 *val)
+{
+	if (nla_len(attr) >= sizeof(u16)) {
+		*val = nla_get_u16(attr);
+		return 0;
+	}
+	return -EINVAL;
+
+}
+
+static inline int slsi_util_nla_get_u32(const struct nlattr *attr, u32 *val)
+{
+	if (nla_len(attr) >= sizeof(u32)) {
+		*val = nla_get_u32(attr);
+		return 0;
+	}
+	return -EINVAL;
+}
+
+static inline int slsi_util_nla_get_u64(const struct nlattr *attr, u64 *val)
+{
+	if (nla_len(attr) >= sizeof(u64)) {
+		*val = nla_get_u64(attr);
+		return 0;
+	}
+	return -EINVAL;
+}
+
+
+static inline int slsi_util_nla_get_s8(const struct nlattr *attr, s8 *val)
+{
+	if (nla_len(attr) >= sizeof(s8)) {
+		*val = nla_get_s8(attr);
+		return 0;
+	}
+	return -EINVAL;
+}
+
+static inline int slsi_util_nla_get_s16(const struct nlattr *attr, s16 *val)
+{
+	if (nla_len(attr) >= sizeof(s16)) {
+		*val = nla_get_s16(attr);
+		return 0;
+	}
+	return -EINVAL;
+}
+
+static inline int slsi_util_nla_get_s32(const struct nlattr *attr, s32 *val)
+{
+	if (nla_len(attr) >= sizeof(s32)) {
+		*val = nla_get_s32(attr);
+		return 0;
+	}
+	return -EINVAL;
+}
+
+static inline int slsi_util_nla_get_s64(const struct nlattr *attr, s64 *val)
+{
+	if (nla_len(attr) >= sizeof(s64)) {
+		*val = nla_get_s64(attr);
+		return 0;
+	}
+	return -EINVAL;
+}
+
+static inline int slsi_util_nla_get_be16(const struct nlattr *attr, __be16 *val)
+{
+	if (nla_len(attr) >= sizeof(__be16)) {
+		*val = nla_get_be16(attr);
+		return 0;
+	}
+	return -EINVAL;
+}
+
+static inline int slsi_util_nla_get_be32(const struct nlattr *attr, __be32 *val)
+{
+	if (nla_len(attr) >= sizeof(__be32)) {
+		*val = nla_get_be32(attr);
+		return 0;
+	}
+	return -EINVAL;
+}
+
+static inline int slsi_util_nla_get_be64(const struct nlattr *attr, __be64 *val)
+{
+	if (nla_len(attr) >= sizeof(__be64)) {
+		*val = nla_get_be64(attr);
+		return 0;
+	}
+	return -EINVAL;
+}
+
+static inline int slsi_util_nla_get_le16(const struct nlattr *attr,  __le16  *val)
+{
+	if (nla_len(attr) >= sizeof(__le16)) {
+		*val = nla_get_le16(attr);
+		return 0;
+	}
+	return -EINVAL;
+}
+
+static inline int slsi_util_nla_get_le32(const struct nlattr *attr, __le32 *val)
+{
+	if (nla_len(attr) >= sizeof(__le32)) {
+		*val = nla_get_le32(attr);
+		return 0;
+	}
+	return -EINVAL;
+}
+
+static inline int slsi_util_nla_get_le64(const struct nlattr *attr, __le64 *val)
+{
+	if (nla_len(attr) >= sizeof(__le64)) {
+		*val = nla_get_le64(attr);
+		return 0;
+	}
+	return -EINVAL;
+}
+
+static inline int slsi_util_nla_get_data(const struct nlattr *attr, size_t size, void *val)
+{
+	if(nla_len(attr) >= size) {
+		memcpy(val, nla_data(attr), size);
+		return 0;
+	}
+	return -EINVAL;
 }
 
 #ifdef __cplusplus

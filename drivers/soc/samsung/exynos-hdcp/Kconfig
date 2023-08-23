@@ -4,7 +4,7 @@
 
 menuconfig EXYNOS_HDCP2
 	bool "HDCP2 driver support"
-	default y
+	default n
 	help
 	  Enable HDCP2 support
 

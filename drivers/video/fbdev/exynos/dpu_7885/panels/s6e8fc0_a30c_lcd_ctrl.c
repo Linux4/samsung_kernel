@@ -23,7 +23,7 @@
 
 #if defined(CONFIG_EXYNOS_DECON_MDNIE)
 #include "mdnie.h"
-#include "mdnie_lite_table_a20.h"
+#include "s6e8fc0_a20_mdnie.h"
 #endif
 
 #if defined(CONFIG_DISPLAY_USE_INFO)
@@ -354,6 +354,10 @@ static int s6e8fc0_read_id(struct lcd_info *lcd)
 {
 	struct panel_private *priv = &lcd->dsim->priv;
 	int ret = 0;
+	struct decon_device *decon = get_decon_drvdata(0);
+	static char *LDI_BIT_DESC_ID[BITS_PER_BYTE * LDI_LEN_ID] = {
+		[0 ... 23] = "ID Read Fail",
+	};
 
 	lcd->id_info.value = 0;
 	priv->lcdconnected = lcd->connected = lcdtype ? 1 : 0;
@@ -362,6 +366,9 @@ static int s6e8fc0_read_id(struct lcd_info *lcd)
 	if (ret < 0 || !lcd->id_info.value) {
 		priv->lcdconnected = lcd->connected = 0;
 		dev_info(&lcd->ld->dev, "%s: connected lcd is invalid\n", __func__);
+
+		if (lcdtype && decon)
+			decon_abd_save_bit(&decon->abd, BITS_PER_BYTE * LDI_LEN_ID, cpu_to_be32(lcd->id_info.value), LDI_BIT_DESC_ID);
 	}
 
 	dev_info(&lcd->ld->dev, "%s: %x\n", __func__, cpu_to_be32(lcd->id_info.value));
@@ -568,24 +575,6 @@ static int s6e8fc0_read_rddsm(struct lcd_info *lcd)
 	return ret;
 }
 
-#ifdef CONFIG_LOGGING_BIGDATA_BUG
-unsigned int get_panel_bigdata(struct dsim_device *dsim)
-{
-	struct lcd_info *lcd = dsim->priv.par;
-	unsigned int val = 0;
-
-	lcd->rddpm = 0xff;
-	lcd->rddsm = 0xff;
-
-	s6e8fc0_read_rddpm(lcd);
-	s6e8fc0_read_rddsm(lcd);
-
-	val = (lcd->rddpm  << 8) | lcd->rddsm;
-
-	return val;
-}
-#endif
-
 static int s6e8fc0_read_init_info(struct lcd_info *lcd)
 {
 	int ret = 0;
@@ -731,7 +720,7 @@ static int panel_dpui_notifier_callback(struct notifier_block *self,
 	set_dpui_field(DPUI_KEY_DISP_MODEL, tbuf, size);
 
 	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "0x%02X%02X%02X%02X%02X",
-			lcd->code[0], lcd->code[1], lcd->code[2], lcd->code[3], lcd->code[4]);
+		lcd->code[0], lcd->code[1], lcd->code[2], lcd->code[3], lcd->code[4]);
 	set_dpui_field(DPUI_KEY_CHIPID, tbuf, size);
 
 	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
@@ -784,8 +773,11 @@ static int fb_notifier_callback(struct notifier_block *self,
 	if (evdata->info->node)
 		return NOTIFY_DONE;
 
-	if (fb_blank == FB_BLANK_UNBLANK)
+	if (fb_blank == FB_BLANK_UNBLANK) {
+		mutex_lock(&lcd->lock);
 		s6e8fc0_displayon(lcd);
+		mutex_unlock(&lcd->lock);
+	}
 
 	return NOTIFY_DONE;
 }
@@ -1146,6 +1138,7 @@ static DEVICE_ATTR(lux, 0644, lux_show, lux_store);
 static DEVICE_ATTR(octa_id, 0444, octa_id_show, NULL);
 static DEVICE_ATTR(SVC_OCTA, 0444, cell_id_show, NULL);
 static DEVICE_ATTR(SVC_OCTA_CHIPID, 0444, octa_id_show, NULL);
+static DEVICE_ATTR(SVC_OCTA_DDI_CHIPID, 0444, manufacture_code_show, NULL);
 
 static struct attribute *lcd_sysfs_attributes[] = {
 	&dev_attr_lcd_type.attr,
@@ -1201,6 +1194,7 @@ static void lcd_init_svc(struct lcd_info *lcd)
 
 	device_create_file(dev, &dev_attr_SVC_OCTA);
 	device_create_file(dev, &dev_attr_SVC_OCTA_CHIPID);
+	device_create_file(dev, &dev_attr_SVC_OCTA_DDI_CHIPID);
 
 	if (kn)
 		kernfs_put(kn);
@@ -1355,10 +1349,32 @@ exit:
 	return 0;
 }
 
+#if defined(CONFIG_LOGGING_BIGDATA_BUG)
+static unsigned int dsim_get_panel_bigdata(struct dsim_device *dsim)
+{
+	struct lcd_info *lcd = dsim->priv.par;
+	unsigned int val = 0;
+
+	lcd->rddpm = 0xff;
+	lcd->rddsm = 0xff;
+
+	s6e8fc0_read_rddpm(lcd);
+	s6e8fc0_read_rddsm(lcd);
+
+	val = (lcd->rddpm  << 8) | lcd->rddsm;
+
+	return val;
+}
+#endif
+
 struct dsim_lcd_driver s6e8fc0_mipi_lcd_driver = {
 	.name		= "s6e8fc0",
 	.probe		= dsim_panel_probe,
 	.displayon	= dsim_panel_displayon,
 	.suspend	= dsim_panel_suspend,
+#if defined(CONFIG_LOGGING_BIGDATA_BUG)
+	.get_buginfo	= dsim_get_panel_bigdata,
+#endif
 };
+__XX_ADD_LCD_DRIVER(s6e8fc0_mipi_lcd_driver);
 

@@ -1718,9 +1718,9 @@ void check_lib_memory_leak(void)
 #endif
 }
 
-bool fimc_is_lib_in_interrupt(void)
+bool fimc_is_lib_in_irq(void)
 {
-	if (in_interrupt())
+	if (in_irq())
 		return true;
 	else
 		return false;
@@ -1786,7 +1786,7 @@ void set_os_system_funcs(os_system_func_t *funcs)
 	funcs[45] = (os_system_func_t)fimc_is_free_heap;
 	funcs[46] = (os_system_func_t)get_reg_addr;
 
-	funcs[47] = (os_system_func_t)fimc_is_lib_in_interrupt;
+	funcs[47] = (os_system_func_t)fimc_is_lib_in_irq;
 	funcs[48] = (os_system_func_t)fimc_is_lib_flush_task_handler;
 
 	/* TODO: re-odering function table */

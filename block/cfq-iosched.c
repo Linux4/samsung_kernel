@@ -31,10 +31,12 @@ static const int cfq_slice_sync = HZ / 10;
 static int cfq_slice_async = HZ / 25;
 static const int cfq_slice_async_rq = 2;
 static int cfq_slice_idle = HZ / 125;
+/* IOPP-cfq_rt_idle_only-v1.0.4.4 */
 static int cfq_rt_idle_only = 1;
 static int cfq_group_idle = HZ / 125;
 static const int cfq_target_latency = HZ * 3/10; /* 300 ms */
 static const int cfq_hist_divisor = 4;
+/* IOPP-cfq_max_async_dispatch-v1.0.4.4 */
 static int cfq_max_async_dispatch = 4;
 
 /*

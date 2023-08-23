@@ -18,10 +18,13 @@
 #define MAX_CNT_U64	0xFFFFFFFFFF
 #define MAX_CNT_U32	0x7FFFFFFF
 #define STATUS_MASK	(R1_ERROR | R1_CC_ERROR | R1_CARD_ECC_FAILED | R1_WP_VIOLATION | R1_OUT_OF_RANGE)
+
+/* Only [0:4] bits in response are reserved. The other bits shouldn't be used */
 #define HALT_UNHALT_ERR		0x00000001
 #define CQ_EN_DIS_ERR		0x00000002
 #define RPMB_SWITCH_ERR		0x00000004
-#define CQERR_MASK	(HALT_UNHALT_ERR | CQ_EN_DIS_ERR | RPMB_SWITCH_ERR)
+#define CQ_HW_RST			0x00000008
+#define CQERR_MASK	(HALT_UNHALT_ERR | CQ_EN_DIS_ERR | RPMB_SWITCH_ERR | CQ_HW_RST)
 
 
 struct mmc_cid {
@@ -285,6 +288,7 @@ struct mmc_card_error_log {
 	u32		halt_cnt;		// cq halt / unhalt fail
 	u32		cq_cnt;			// cq enable / disable fail
 	u32		rpmb_cnt;		// RPMB switch fail
+	u32		hw_rst_cnt;		// reset count
 };
 
 /*

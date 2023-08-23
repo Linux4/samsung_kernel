@@ -77,7 +77,7 @@ static void s2mu005_test_read(struct i2c_client *i2c)
 	static int reg_list[] = {
 		0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11,
 		0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x2A,
-		0x51, 0x7E, 0x55, 0x5E, 0x7B
+		0x51, 0x7E, 0x55, 0x5E, 0x7B, 0x23, 0x26, 0xA7
 	};
 	u8 data;
 	char str[1016] = {0,};
@@ -169,7 +169,7 @@ static void s2mu005_charger_otg_control(struct s2mu005_charger_data *charger,
 			s2mu005_update_reg(charger->client, S2MU005_CHG_CTRL0,
 				5 << REG_MODE_SHIFT, REG_MODE_MASK);
 
-			mdelay(150);
+			msleep(150);
 			pr_info("%s: EVT4 OTG Control for factory mode\n", __func__);
 
 			/* set mode to Charger mode */
@@ -260,45 +260,6 @@ out :
 }
 
 #if EN_IVR_IRQ
-static bool s2mu005_check_slow_charging(struct s2mu005_charger_data *charger,
-	int input_current)
-{
-	u8 chg_sts;
-	int ret;
-	bool slow_charge_prev = charger->slow_charging;
-
-	ret = s2mu005_read_reg(charger->client, S2MU005_CHG_STATUS0, &chg_sts);
-	if (ret < 0)
-		pr_err("%s: ERROR in reading charger STATUS0\n", __func__);
-
-	if (!(chg_sts & 0x80)) {
-		pr_err("%s: VBUS invalid, not check slow charging\n", __func__);
-		charger->slow_charging = false;
-		return charger->slow_charging;
-	}
-
-	pr_info("%s: charger->cable_type %d, input_current %d\n",
-		__func__, charger->cable_type, input_current);
-
-	/* under 400mA considered as slow charging concept for VZW */
-	if (input_current <= charger->pdata->slow_charging_current &&
-		charger->cable_type != SEC_BATTERY_CABLE_NONE) {
-		union power_supply_propval value;
-
-		charger->slow_charging = true;
-		pr_info("%s: slow charging on : input current(%dmA), cable type(%d)\n",
-			__func__, input_current, charger->cable_type);
-		if (slow_charge_prev != charger->slow_charging) {
-			value.intval = POWER_SUPPLY_CHARGE_TYPE_SLOW;
-			psy_do_property("battery", set,
-				POWER_SUPPLY_PROP_CHARGE_TYPE, value);
-		}
-	} else
-		charger->slow_charging = false;
-
-	return charger->slow_charging;
-}
-
 static void reduce_input_current(struct s2mu005_charger_data *charger)
 {
 	int old_input_current, new_input_current;
@@ -355,10 +316,11 @@ static void s2mu005_enable_charger_switch(struct s2mu005_charger_data *charger,
 	int original_input_current = 0;
 #endif
 
-	if (factory_mode || charger->is_otg) {
-		pr_info("%s: Factory Mode or OTG Skip CHG_EN Control\n", __func__);
-		return;
-	}
+	if (!charger->chg_shutdown)
+		if (factory_mode || charger->is_otg) {
+			pr_info("%s: Factory Mode or OTG Skip CHG_EN Control\n", __func__);
+			return;
+		}
 
 	/* prevent vsys drop, set full current at QBAT */
 	if (charger->dev_id <= 2) {
@@ -1053,12 +1015,6 @@ static int sec_chg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_TYPE:
 		if ((!charger->is_charging) || (charger->cable_type == SEC_BATTERY_CABLE_NONE))
 			val->intval = POWER_SUPPLY_CHARGE_TYPE_NONE;
-#if EN_IVR_IRQ
-		else if (s2mu005_check_slow_charging(charger, charger->input_current)) {
-			val->intval = POWER_SUPPLY_CHARGE_TYPE_SLOW;
-			pr_info("%s: slow-charging mode\n", __func__);
-		}
-#endif
 		else
 			val->intval = POWER_SUPPLY_CHARGE_TYPE_FAST;
 		break;
@@ -1100,7 +1056,6 @@ static int sec_chg_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_ONLINE:
 		charger->cable_type = val->intval;
 		charger->ivr_on = false;
-		charger->slow_charging = false;
 		charger->input_current = s2mu005_get_input_current_limit(charger->client);
 		pr_info("[DEBUG]%s:[BATT] cable_type(%d), input_current(%d)mA\n",
 			__func__, charger->cable_type, charger->input_current);
@@ -1579,12 +1534,8 @@ static void s2mu005_ivr_irq_work(struct work_struct *work)
 	if (charger->ivr_on) {
 		union power_supply_propval value;
 
-		if (is_not_wireless_type(charger->cable_type))
-			s2mu005_check_slow_charging(charger, charger->input_current);
-
 		if ((charger->irq_ivr_enabled == 1) &&
-			(charger->input_current <= MINIMUM_INPUT_CURRENT) &&
-			(charger->slow_charging)) {
+			(charger->input_current <= MINIMUM_INPUT_CURRENT)) {
 			/* Disable IVR IRQ, can't reduce current any more */
 			u8 reg_data;
 
@@ -1716,16 +1667,6 @@ static int s2mu005_charger_parse_dt(struct device *dev,
 		pdata->mivr_voltage = S2MU005_MIVR_4500MV;
 	}
 
-	ret = of_property_read_u32(np, "charger,slow_charging_current",
-					   &pdata->slow_charging_current);
-	if (ret) {
-		pdata->slow_charging_current = SLOW_CHARGING_CURRENT_STANDARD;
-		pr_info("%s : slow_charging_current is Empty, set default %d\n",
-			__func__, SLOW_CHARGING_CURRENT_STANDARD);
-	} else {
-		pr_info("%s : slow_charging_current is %d \n", __func__, pdata->slow_charging_current);
-	}
-
 	ret = of_property_read_u32(np, "charger,pd_authentication",
 					   &pdata->pd_authentication);
 	if (ret) {
@@ -1802,8 +1743,10 @@ static int s2mu005_charger_probe(struct platform_device *pdev)
 	charger->client = s2mu005->i2c;
 
 	charger->ivr_on = false;
-	charger->slow_charging = false;
 	charger->input_current = 1000;
+	charger->cable_type = SEC_BATTERY_CABLE_NONE;
+
+	charger->chg_shutdown = false;
 
 	charger->pdata = devm_kzalloc(&pdev->dev, sizeof(*(charger->pdata)),
 			GFP_KERNEL);
@@ -1997,7 +1940,10 @@ static void s2mu005_charger_shutdown(struct platform_device *pdev)
 	s2mu005_write_reg(charger->client, 0x2A, 0x08);
 	s2mu005_write_reg(charger->client, 0x23, 0x55);
 	s2mu005_write_reg(charger->client, 0x24, 0x55);
+	charger->chg_shutdown = true;
 #endif
+	s2mu005_charger_otg_control(charger, false);
+
 	pr_info("%s: S2MU005 Charger driver shutdown\n", __func__);
 
 	if (!(charger->pdata->always_enable)) {

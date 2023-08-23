@@ -29,7 +29,7 @@
 #if defined(CONFIG_SEC_FACTORY)
 #define tSenderResponse		(1100)	/* for UCT300 */
 #else
-#define tSenderResponse		(25)	/* 24~30ms */
+#define tSenderResponse		(24)	/* 24~30ms */
 #endif
 #define tSenderResponseSRC	(300)	/* 1000 ms */
 #define tSendSourceCap		(10)	/* 1~2 s */
@@ -42,7 +42,11 @@
 #define tVDMWaitModeExit	(50)    /* 40~50  ms */
 #define tDiscoverIdentity	(50)	/* 40~50  ms */
 #define tSwapSourceStart        (20)	/* 20  ms */
-#define tTypeCSinkWaitCap       (310)	/* 310~620 ms */
+#if defined(CONFIG_SEC_FACTORY)
+#define tTypeCSinkWaitCap       (6100)	/* for UCT100 */
+#else
+#define tTypeCSinkWaitCap       (460)	/* 310~620 ms */
+#endif
 #define tTypeCSendSourceCap (100) /* 100~200ms Q*/
 #define tSrcRecover (880) /* 660~1000ms */
 #define tNoResponse (5500) /* 660~1000ms */
@@ -269,6 +273,11 @@ typedef enum {
 	Error_Recovery			= 0xFF
 } policy_state;
 
+enum usbpd_manager_support {
+	MANAGER_SUPPORT,
+	MANAGER_NOT_SUPPORT,
+};
+
 typedef enum usbpd_manager_command {
 	MANAGER_REQ_GET_SNKCAP			= 1,
 	MANAGER_REQ_GOTOMIN			= 1 << 2,
@@ -477,6 +486,7 @@ struct policy_data {
 	bool			send_sink_cap;
 	bool			txhardresetflag;
 	bool			pd_support;
+	bool			otgnotify_sent;
 };
 
 struct protocol_data {
@@ -534,6 +544,7 @@ struct usbpd_manager_data {
 	bool data_role_swap;
 	bool vconn_source_swap;
 	bool vbus_short;
+	int vb_cc_short_max_input_current;
 
 	bool flash_mode;
 	int prev_available_pdo;
@@ -591,7 +602,10 @@ struct usbpd_data {
 	int					msg_id;
 	int					specification_revision;
 	struct mutex		accept_mutex;
+	int 			is_prswap;
+	bool			pd_nego;
 
+	struct power_supply *psy_muic;
 	struct timeval		time1;
 	struct timeval		time2;
 };

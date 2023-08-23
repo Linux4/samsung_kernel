@@ -16,13 +16,18 @@
 #define USIM_DETECT_NAME		"usim_detect"
 #define USIM_DETECT_NAME0		"usim_detect0"
 #define USIM_DETECT_NAME1		"usim_detect1"
-#define USIM_LOW_DETECT_COUNT		1
-#define USIM_HIGH_DETECT_COUNT		5
+#define USIM_LOW_DETECT_COUNT_DEFAULT		1
+#define USIM_HIGH_DETECT_COUNT_DEFAULT		5
+#define USIM_CHECK_DELAY_MSEC_DEFAULT		100
 
 struct usim_det_data {
 	char *name;
 
 	u32 num_of_usim_det;
+	
+	u32 usim_check_delay_msec;
+	u32 usim_high_detect_count;
+	u32 usim_low_detect_count;
 
 	int usim_det0_irq;
 	int gpio_usim_det0;

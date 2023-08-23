@@ -252,7 +252,7 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 	#define FLAG_SACK_RENEGING      0x2000 /* snd_una advanced to a sacked seq */
 	#define FLAG_UPDATE_TS_RECENT   0x4000 /* tcp_replace_ts_recent() */
 	#define FLAG_NO_CHALLENGE_ACK	0x8000 /* do not call tcp_send_challenge_ack()	*/
-	#define MPTCP_FLAG_DATA_ACKED	0x8000
+	#define MPTCP_FLAG_DATA_ACKED	0x10000
 
 	#define FLAG_ACKED              (FLAG_DATA_ACKED|FLAG_SYN_ACKED)
 	#define FLAG_NOT_DUP            (FLAG_DATA|FLAG_WIN_UPDATE|FLAG_ACKED)
@@ -1649,6 +1649,8 @@ struct tcp_fastopen_context {
 	struct rcu_head		rcu;
 };
 
+static inline void tcp_init_send_head(struct sock *sk);
+
 /* write queue abstraction */
 static inline void tcp_write_queue_purge(struct sock *sk)
 {
@@ -1656,6 +1658,7 @@ static inline void tcp_write_queue_purge(struct sock *sk)
 
 	while ((skb = __skb_dequeue(&sk->sk_write_queue)) != NULL)
 		sk_wmem_free_skb(sk, skb);
+	tcp_init_send_head(sk);
 	sk_mem_reclaim(sk);
 	tcp_clear_all_retrans_hints(tcp_sk(sk));
 	inet_csk(sk)->icsk_backoff = 0;

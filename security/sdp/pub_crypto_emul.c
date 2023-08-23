@@ -162,8 +162,11 @@ static int __do_dek_crypt(pub_crypto_request_t *req, char *ret) {
 	switch(req->opcode) {
 	case OP_DH_ENC:
 	case OP_DH_DEC:
-    case OP_ECDH_ENC:
-    case OP_ECDH_DEC:
+	case OP_ECDH_ENC:
+	case OP_ECDH_DEC:
+#ifdef CONFIG_SDP_ENHANCED
+	case OP_ECDH_REQ_SS:
+#endif
 		dump(req->result.dek.buf, req->result.dek.len, "req->result.dek");
 		memcpy(ret, &(req->result.dek), sizeof(dek_t));
 		//dump(req->result.dek.buf, req->result.dek.len, "req->result.dek");
@@ -269,8 +272,11 @@ int do_dek_crypt(int opcode, dek_t *in, dek_t *out, kek_t *key){
 		case OP_RSA_DEC:
 		case OP_DH_ENC:
 		case OP_DH_DEC:
-        case OP_ECDH_ENC:
-        case OP_ECDH_DEC:
+		case OP_ECDH_ENC:
+		case OP_ECDH_DEC:
+#ifdef CONFIG_SDP_ENHANCED
+		case OP_ECDH_REQ_SS:
+#endif
 			req->cipher_param.request_id = req->id;
 			req->cipher_param.opcode = req->opcode;
 			memcpy(&req->cipher_param.in, (void *) in, sizeof(dek_t));
@@ -324,6 +330,12 @@ int ecdh_decryptEDEK(dek_t *edek, dek_t *dek, kek_t *key){
     return do_dek_crypt(OP_ECDH_DEC, edek, dek, key);
 }
 
+#ifdef CONFIG_SDP_ENHANCED
+int ecdh_deriveSS(dek_t *in, dek_t *out, kek_t *drv_key){
+    return do_dek_crypt(OP_ECDH_REQ_SS, in, out, drv_key);
+}
+#endif
+
 static int pub_crypto_request_get_msg(pub_crypto_request_t *req, char **msg)
 {
 	int msg_len = -1;
@@ -333,8 +345,11 @@ static int pub_crypto_request_get_msg(pub_crypto_request_t *req, char **msg)
 		case OP_RSA_DEC:
 		case OP_DH_DEC:
 		case OP_DH_ENC:
-        case OP_ECDH_DEC:
-        case OP_ECDH_ENC:
+		case OP_ECDH_DEC:
+		case OP_ECDH_ENC:
+#ifdef CONFIG_SDP_ENHANCED
+		case OP_ECDH_REQ_SS:
+#endif
 			*msg = (char *)&req->cipher_param;
 			msg_len = (int) sizeof(cipher_param_t);
 			break;

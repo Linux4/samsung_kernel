@@ -2338,6 +2338,15 @@ static void fw_update(void *dev_data)
 		container_of(sec, struct himax_ts_data, sec);
 
 	sec_cmd_set_default_result(sec);
+#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	if (sec->cmd_param[0] == 1) {
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+		snprintf(buf, sizeof(buf), "%s", "OK");
+		sec_cmd_set_cmd_result(sec, buf, strnlen(buf, sizeof(buf)));
+		input_info(true, &data->client->dev, "%s: user_ship, success\n", __func__);
+		return;
+	}
+#endif
 
 	input_info(true, &data->client->dev, "%s %s(), %d\n", HIMAX_LOG_TAG,
 			__func__, sec->cmd_param[0]);

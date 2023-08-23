@@ -132,8 +132,6 @@ struct s3c24xx_i2c {
 	enum s3c24xx_i2c_state	state;
 	unsigned long		clkrate;
 
-	int scl_recover_flag;
-	int sda_recover_flag;
 	void __iomem		*regs;
 	struct clk		*rate_clk;
 	struct clk		*clk;
@@ -144,6 +142,8 @@ struct s3c24xx_i2c {
 	int			gpios[2];
 	struct pinctrl          *pctrl;
 	int			idle_ip_index;
+	int			fix_doxfer_return;
+	int			filter_on;
 };
 
 static const struct platform_device_id s3c24xx_driver_ids[] = {
@@ -224,11 +224,8 @@ static void recover_i2c_gpio(struct s3c24xx_i2c *i2c)
 			}
 			msleep(10);
 		}
-		if (timeout) {
-			i2c->scl_recover_flag = 1;
+		if (timeout)
 			dev_err(i2c->dev, "SCL line is still LOW!!!\n");
-		} else
-			i2c->scl_recover_flag = 0;
 	}
 
 	sda_val = gpio_get_value(gpio_sda);
@@ -244,15 +241,12 @@ static void recover_i2c_gpio(struct s3c24xx_i2c *i2c)
 			gpio_set_value(gpio_scl, 1);
 			udelay(5);
 			if (gpio_get_value(gpio_sda) == 1) {
-				i2c->sda_recover_flag = 0;
 				dev_err(i2c->dev, "SDA line is recovered.\n");
 				break;
 			}
 		}
-		if (clk_cnt == 100) {
-			i2c->sda_recover_flag = 1;
+		if (clk_cnt == 100)
 			dev_err(i2c->dev, "SDA line is not recovered!!!\n");
-		}
 	}
 
 	default_i2c_pinctrl = devm_pinctrl_get(i2c->dev);
@@ -724,6 +718,10 @@ static irqreturn_t s3c24xx_i2c_irq(int irqno, void *dev_id)
 	if (status & S3C2410_IICSTAT_ARBITR) {
 		/* deal with arbitration loss */
 		dev_err(i2c->dev, "deal with arbitration loss\n");
+		if (i2c->fix_doxfer_return) {
+			i2c->msg_idx = -ECONNREFUSED;
+			goto out;
+		}
 	}
 
 	if (i2c->state == STATE_IDLE) {
@@ -874,12 +872,6 @@ static int s3c24xx_i2c_doxfer(struct s3c24xx_i2c *i2c,
 	if (i2c->suspended)
 		return -EIO;
 
-	if ((i2c->scl_recover_flag == 1) || (i2c->sda_recover_flag == 1)) {
-		dev_err(i2c->dev, "SCL & SDA line recover failed\n");
-		recover_i2c_gpio(i2c);
-		return -EIO;
-	}
-
 	ret = s3c24xx_i2c_set_master(i2c);
 	if (ret != 0) {
 		dev_err(i2c->dev, "cannot get bus (error %d)\n", ret);
@@ -901,7 +893,13 @@ static int s3c24xx_i2c_doxfer(struct s3c24xx_i2c *i2c,
 		ret = i2c->msg_idx;
 
 		if (ret != num)
-			dev_dbg(i2c->dev, "incomplete xfer (%d)\n", ret);
+			dev_err(i2c->dev, "QUIRK_POLL incomplete xfer (%d)\n"
+				"I2C Stat Reg dump:\n"
+				"IIC STAT = 0x%08x\n"
+				"IIC CON = 0x%08x\n"
+				, ret
+				, readl(i2c->regs + S3C2410_IICSTAT)
+				, readl(i2c->regs + S3C2410_IICCON));
 
 		goto out;
 	}
@@ -915,10 +913,33 @@ static int s3c24xx_i2c_doxfer(struct s3c24xx_i2c *i2c,
 
 	if (timeout == 0) {
 		dev_err(i2c->dev, "timeout\n");
+		dev_err(i2c->dev, "incomplete xfer (%d)\n"
+				"I2C Stat Reg dump:\n"
+				"IIC STAT = 0x%08x\n"
+				"IIC CON = 0x%08x\n"
+				, ret
+				, readl(i2c->regs + S3C2410_IICSTAT)
+				, readl(i2c->regs + S3C2410_IICCON));
+		if (i2c->fix_doxfer_return && (ret >= 0)) {
+			ret = -ETIMEDOUT;
+		}
 		recover_i2c_gpio(i2c);
 	}
-	else if (ret != num)
-		dev_err(i2c->dev, "incomplete xfer (%d)\n", ret);
+	else if (ret != num) {
+		dev_err(i2c->dev, "sent lengh(%d) don't match requested length(%d)\n", ret, num);
+		dev_err(i2c->dev, "incomplete xfer (%d)\n"
+				"I2C Stat Reg dump:\n"
+				"IIC STAT = 0x%08x\n"
+				"IIC CON = 0x%08x\n"
+				, ret
+				, readl(i2c->regs + S3C2410_IICSTAT)
+				, readl(i2c->regs + S3C2410_IICCON));
+		if (i2c->fix_doxfer_return) {
+			recover_i2c_gpio(i2c);
+			if (ret >= 0)
+				ret = -EIO;
+		}
+	}
 
 	/* For QUIRK_HDMIPHY, bus is already disabled */
 	if (i2c->quirks & QUIRK_HDMIPHY)
@@ -1100,6 +1121,9 @@ static int s3c24xx_i2c_clockrate(struct s3c24xx_i2c *i2c, unsigned int *got)
 			sda_delay |= S3C2410_IICLC_FILTER_ON;
 		} else
 			sda_delay = 0;
+
+		if (i2c->filter_on)
+			sda_delay |= S3C2410_IICLC_FILTER_ON;
 
 		dev_dbg(i2c->dev, "IICLC=%08lx\n", sda_delay);
 		writel(sda_delay, i2c->regs + S3C2440_IICLC);
@@ -1287,6 +1311,16 @@ static int s3c24xx_i2c_probe(struct platform_device *pdev)
 		memcpy(i2c->pdata, pdata, sizeof(*pdata));
 	else
 		s3c24xx_i2c_parse_dt(pdev->dev.of_node, i2c);
+
+	if (of_get_property(pdev->dev.of_node, "samsung,fix-doxfer-return", NULL))
+		i2c->fix_doxfer_return = 1;
+	else
+		i2c->fix_doxfer_return = 0;
+
+	if (of_get_property(pdev->dev.of_node, "samsung,glitch-filter", NULL))
+		i2c->filter_on = 1;
+	else
+		i2c->filter_on = 0;
 
 	strlcpy(i2c->adap.name, "s3c2410-i2c", sizeof(i2c->adap.name));
 	i2c->adap.owner = THIS_MODULE;

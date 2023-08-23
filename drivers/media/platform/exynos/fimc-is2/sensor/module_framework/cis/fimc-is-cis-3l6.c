@@ -1790,10 +1790,13 @@ int sensor_3l6_cis_wait_streamoff(struct v4l2_subdev *subdev)
 		dbg_sensor(1, "[MOD:D:%d] %s, sensor_fcount(%d), (wait_limit(%d) < time_out(%d))\n",
 				cis->id, __func__, sensor_fcount, wait_cnt, time_out_cnt);
 	}
+	#if defined(CONFIG_CAMERA_AAS_V20E)
+		msleep(7);
+	#endif
 
 	do_gettimeofday (&t_end);
 
-        u_delay = (t_end.tv_sec * 1000000 + t_end.tv_usec) - (t_start.tv_sec * 1000000 + t_start.tv_usec);
+	u_delay = (t_end.tv_sec * 1000000 + t_end.tv_usec) - (t_start.tv_sec * 1000000 + t_start.tv_usec);
 	info("%s:%d timediff min_delay[%ld] u_delay[%ld][required_sleep[%ld]] sensor_fcount(%d)\n", __func__, __LINE__,
 			min_delay, u_delay,  min_delay - u_delay, sensor_fcount);
 

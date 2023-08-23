@@ -55,6 +55,9 @@
 #include "queue.h"
 #include "../host/dw_mmc.h"
 #include "../host/dw_mmc-exynos.h"
+#if defined(CONFIG_SEC_ABC)  
+#include <linux/sti/abc_common.h>
+#endif
 
 #ifdef CONFIG_MMC_SUPPORT_STLOG
 #include <linux/fslog.h>
@@ -745,7 +748,7 @@ static struct mmc_blk_ioc_data *mmc_blk_ioctl_copy_from_kernel(
 	struct mmc_blk_ioc_data *idata;
 	int err;
 
-	idata = kzalloc(sizeof(*idata), GFP_KERNEL);
+	idata = kzalloc(sizeof(*idata), GFP_NOIO);
 	if (!idata) {
 		err = -ENOMEM;
 		goto out;
@@ -762,7 +765,7 @@ static struct mmc_blk_ioc_data *mmc_blk_ioctl_copy_from_kernel(
 	if (!idata->buf_bytes)
 		return idata;
 
-	idata->buf = kzalloc(idata->buf_bytes, GFP_KERNEL);
+	idata->buf = kzalloc(idata->buf_bytes, GFP_NOIO);
 	if (!idata->buf) {
 		err = -ENOMEM;
 		goto idata_err;
@@ -1840,6 +1843,13 @@ void mmc_cmdq_error_logging(struct mmc_card *card,
 			err_log[index].cq_cnt++;
 		if (status & RPMB_SWITCH_ERR)
 			err_log[index].rpmb_cnt++;
+		if (status & CQ_HW_RST) {
+			err_log[index].hw_rst_cnt++;
+#if defined(CONFIG_SEC_ABC) 
+			if ((err_log[index].hw_rst_cnt % 20) == 0)
+				sec_abc_send_event("MODULE=storage@ERROR=mmc_hwreset_err");
+#endif
+		}
 	}
 
 	if (!cqrq)
@@ -3389,6 +3399,7 @@ static struct mmc_cmdq_req *mmc_cmdq_prep_dcmd(
 #define IS_RT_CLASS_REQ(x)     \
 	(IOPRIO_PRIO_CLASS(req_get_ioprio(x)) == IOPRIO_CLASS_RT)
 SIO_PATCH_VERSION(eMMC_CP, 1, 0, "");
+/* IOPP-emmc_cp-v1.0.4.4 */
 
 static struct mmc_cmdq_req *mmc_blk_cmdq_rw_prep(
 		struct mmc_queue_req *mqrq, struct mmc_queue *mq)
@@ -3579,6 +3590,7 @@ reset:
 	mmc_hw_reset(host);
 	host->cmdq_ops->reset(host, true);
 	clear_bit(CMDQ_STATE_HALT, &host->cmdq_ctx.curr_state);
+	mmc_cmdq_error_logging(host->card, NULL, CQ_HW_RST);
 }
 
 static void mmc_blk_cmdq_shutdown(struct mmc_queue *mq)
@@ -3699,6 +3711,9 @@ static void mmc_blk_cmdq_err(struct mmc_queue *mq)
 		    R1_CURRENT_STATE(status) == R1_STATE_RCV) {
 			err =  send_stop(card, MMC_CMDQ_STOP_TIMEOUT_MS,
 					 mrq->req, &gen_err, &status);
+
+			mmc_cmdq_error_logging(host->card, mrq->cmdq_req, status);
+
 			if (err) {
 				pr_err("%s: error %d sending stop (%d) command\n",
 					mrq->req->rq_disk->disk_name,
@@ -4792,7 +4807,9 @@ static int mmc_blk_probe(struct mmc_card *card)
 			if (!part)
 				break;
 			if (!strncmp(part->info->volname, "SYSTEM", 6) ||
-					!strncmp(part->info->volname, "system", 6)) {
+					!strncmp(part->info->volname, "system", 6) ||
+					!strncmp(part->info->volname, "SUPER", 5) ||
+					!strncmp(part->info->volname, "super", 5)) {
 				md->mmc_system_start = part->start_sect;
 				md->mmc_system_end = part->start_sect + part->nr_sects;
 				md->mmc_sys_log_en = true;

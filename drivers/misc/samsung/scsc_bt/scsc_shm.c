@@ -28,6 +28,10 @@
 #include <scsc/api/bsmhcp.h>
 #include <scsc/scsc_logring.h>
 
+#ifdef CONFIG_SCSC_LOG_COLLECTION
+#include <scsc/scsc_log_collector.h>
+#endif
+
 #include "scsc_bt_priv.h"
 #include "scsc_shm.h"
 #include "scsc_bt_hci.h"
@@ -45,7 +49,7 @@ static struct hci_credit_entry *h4_hci_credit_entries = (struct hci_credit_entry
 static u8   h4_hci_event_hardware_error[4] = { HCI_EVENT_PKT, HCI_EVENT_HARDWARE_ERROR_EVENT, 1, 0 };
 static u8   h4_iq_report_evt[HCI_IQ_REPORT_MAX_LEN];
 static u32  h4_iq_report_evt_len;
-
+static u16  h4_irq_mask;
 
 static void scsc_bt_shm_irq_handler(int irqbit, void *data)
 {
@@ -88,23 +92,43 @@ static void scsc_bt_shm_irq_handler(int irqbit, void *data)
 }
 
 /* Assign firmware/host interrupts */
-static void scsc_bt_shm_init_interrupt(void)
+static int scsc_bt_shm_init_interrupt(void)
 {
+	int irq_ret = 0;
+	u16 irq_num = 0;
+
 	/* To-host f/w IRQ allocations and ISR registrations */
-	bt_service.bsmhcp_protocol->header.bg_to_ap_int_src = scsc_service_mifintrbit_register_tohost(bt_service.service, scsc_bt_shm_irq_handler, NULL);
-	bt_service.bsmhcp_protocol->header.fg_to_ap_int_src = scsc_service_mifintrbit_register_tohost(bt_service.service, scsc_bt_shm_irq_handler, NULL);
+	irq_ret = scsc_service_mifintrbit_register_tohost(
+	    bt_service.service, scsc_bt_shm_irq_handler, NULL);
+	if (irq_ret < 0)
+		return irq_ret;
+
+	bt_service.bsmhcp_protocol->header.bg_to_ap_int_src = irq_ret;
+	h4_irq_mask |= 1 << irq_num++;
 
 	/* From-host f/w IRQ allocations */
-	bt_service.bsmhcp_protocol->header.ap_to_bg_int_src = scsc_service_mifintrbit_alloc_fromhost(bt_service.service, SCSC_MIFINTR_TARGET_R4);
-	bt_service.bsmhcp_protocol->header.ap_to_fg_int_src = scsc_service_mifintrbit_alloc_fromhost(bt_service.service, SCSC_MIFINTR_TARGET_R4);
-	bt_service.bsmhcp_protocol->header.ap_to_fg_m4_int_src = scsc_service_mifintrbit_alloc_fromhost(bt_service.service, SCSC_MIFINTR_TARGET_M4);
+	irq_ret = scsc_service_mifintrbit_alloc_fromhost(
+	    bt_service.service, SCSC_MIFINTR_TARGET_R4);
+	if (irq_ret < 0)
+		return irq_ret;
 
-	SCSC_TAG_DEBUG(BT_COMMON, "Registered to-host IRQ bits %d:%d:%d, from-host IRQ bits %d:%d\n",
+	bt_service.bsmhcp_protocol->header.ap_to_bg_int_src = irq_ret;
+	h4_irq_mask |= 1 << irq_num++;
+
+	irq_ret = scsc_service_mifintrbit_alloc_fromhost(
+	    bt_service.service, SCSC_MIFINTR_TARGET_R4);
+	if (irq_ret < 0)
+		return irq_ret;
+
+	bt_service.bsmhcp_protocol->header.ap_to_fg_int_src = irq_ret;
+	h4_irq_mask |= 1 << irq_num++;
+
+	SCSC_TAG_DEBUG(BT_COMMON, "Registered to-host IRQ bits %d, from-host IRQ bits %d:%d\n",
 		       bt_service.bsmhcp_protocol->header.bg_to_ap_int_src,
-		       bt_service.bsmhcp_protocol->header.fg_to_ap_int_src,
-		       bt_service.bsmhcp_protocol->header.ap_to_fg_m4_int_src,
 		       bt_service.bsmhcp_protocol->header.ap_to_bg_int_src,
 		       bt_service.bsmhcp_protocol->header.ap_to_fg_int_src);
+
+	return 0;
 }
 
 bool scsc_bt_shm_h4_avdtp_detect_write(uint32_t flags,
@@ -393,14 +417,9 @@ static ssize_t scsc_bt_shm_h4_acl_write(const unsigned char *data, size_t count)
 		/* Memory barrier to ensure out-of-order execution is completed */
 		mmiowb();
 
-		if (bt_service.bsmhcp_protocol->header.firmware_features & BSMHCP_FEATURE_M4_INTERRUPTS)
-			/* Trigger the interrupt in the mailbox */
-			scsc_service_mifintrbit_bit_set(bt_service.service,
-							bt_service.bsmhcp_protocol->header.ap_to_fg_m4_int_src, SCSC_MIFINTR_TARGET_M4);
-		else
-			/* Trigger the interrupt in the mailbox */
-			scsc_service_mifintrbit_bit_set(bt_service.service,
-							bt_service.bsmhcp_protocol->header.ap_to_fg_int_src, SCSC_MIFINTR_TARGET_R4);
+		/* Trigger the interrupt in the mailbox */
+		scsc_service_mifintrbit_bit_set(bt_service.service,
+						bt_service.bsmhcp_protocol->header.ap_to_fg_int_src, SCSC_MIFINTR_TARGET_R4);
 	} else {
 		/* Transfer ring full. Only happens if the user attempt to send more ACL data packets than
 		 * available credits */
@@ -630,6 +649,12 @@ static ssize_t scsc_hci_evt_error_read(char __user *buf, size_t len)
 			/* All good - read operation is completed */
 			bt_service.read_offset = 0;
 			bt_service.read_operation = BT_READ_OP_NONE;
+#ifdef CONFIG_SCSC_LOG_COLLECTION
+			if (bt_service.recovery_level == 0)
+				scsc_log_collector_schedule_collection(
+					SCSC_LOG_HOST_BT,
+					SCSC_LOG_HOST_BT_REASON_HCI_ERROR);
+#endif
 		}
 	} else {
 		SCSC_TAG_WARNING(BT_H4, "copy_to_user returned: %zu\n", ret);
@@ -710,15 +735,10 @@ static ssize_t scsc_acl_read(char __user *buf, size_t len)
 
 static ssize_t scsc_acl_credit(char __user *buf, size_t len)
 {
-#ifdef CONFIG_SCSC_PRINTK
-	struct BSMHCP_TD_ACL_TX_FREE *td = &bt_service.bsmhcp_protocol->acl_tx_free_transfer_ring[bt_service.read_index];
-#endif
 	ssize_t                      consumed = 0;
 	ssize_t                      ret = 0;
 
-	SCSC_TAG_DEBUG(BT_H4, "td (hci_connection_handle=0x%03x, buffer_index=%u), len=%zu, read_offset=%zu\n",
-		       td->hci_connection_handle & SCSC_BT_ACL_HANDLE_MASK,
-		       td->buffer_index, len, bt_service.read_offset);
+	SCSC_TAG_DEBUG(BT_H4, "len=%zu, read_offset=%zu\n", len, bt_service.read_offset);
 
 	/* Calculate the amount of data that can be transferred */
 	len = min(h4_hci_event_ncp_header_len - bt_service.read_offset, len);
@@ -810,61 +830,69 @@ static ssize_t scsc_bt_shm_h4_read_iq_report_evt(char __user *buf, size_t len)
 		u32 j = 0;
 		u32 i;
 
-		memset(h4_iq_report_evt, 0, sizeof(h4_iq_report_evt));
-		h4_iq_report_evt_len = 0;
-
-		h4_iq_report_evt[index++] = HCI_EVENT_PKT;
-		h4_iq_report_evt[index++] = 0x3E;
-		index++; /* Leaving room for total length of params  */
-		h4_iq_report_evt[index++] = td->subevent_code;
-
-		if (td->subevent_code == HCI_LE_CONNECTIONLESS_IQ_REPORT_EVENT_SUB_CODE) {
-			/* LE Connectionless IQ Report Event*/
-			h4_iq_report_evt[index++] = td->sync_handle & 0xFF;
-			h4_iq_report_evt[index++] = (td->sync_handle >> 8) & 0xFF;
-		} else if (td->subevent_code == HCI_LE_CONNECTION_IQ_REPORT_EVENT_SUB_CODE) {
-			/* LE connection IQ Report Event */
-			h4_iq_report_evt[index++] = td->connection_handle & 0xFF;
-			h4_iq_report_evt[index++] = (td->connection_handle >> 8) & 0xFF;
-			h4_iq_report_evt[index++] = td->rx_phy;
-
+		if (!bt_service.iq_reports_enabled)
+		{
+			BSMHCP_INCREASE_INDEX(bt_service.mailbox_iq_report_read,
+			BSMHCP_TRANSFER_RING_IQ_REPORT_SIZE);
 		}
-		h4_iq_report_evt[index++] = td->channel_index;
-		h4_iq_report_evt[index++] = td->rssi & 0xFF;
-		h4_iq_report_evt[index++] = (td->rssi >> 8) & 0xFF;
-		h4_iq_report_evt[index++] = td->rssi_antenna_id;
-		h4_iq_report_evt[index++] = td->cte_type;
-		h4_iq_report_evt[index++] = td->slot_durations;
-		h4_iq_report_evt[index++] = td->packet_status;
-		h4_iq_report_evt[index++] = td->sample_count;
+		else
+		{
+			memset(h4_iq_report_evt, 0, sizeof(h4_iq_report_evt));
+			h4_iq_report_evt_len = 0;
 
-		/* Total length of hci event */
-		h4_iq_report_evt_len = index + (2 * td->sample_count);
+			h4_iq_report_evt[index++] = HCI_EVENT_PKT;
+			h4_iq_report_evt[index++] = 0x3E;
+			index++; /* Leaving room for total length of params  */
+			h4_iq_report_evt[index++] = td->subevent_code;
 
-		/* Total length of hci event parameters */
-		h4_iq_report_evt[2] = h4_iq_report_evt_len - 3;
+			if (td->subevent_code == HCI_LE_CONNECTIONLESS_IQ_REPORT_EVENT_SUB_CODE) {
+				/* LE Connectionless IQ Report Event*/
+				h4_iq_report_evt[index++] = td->sync_handle & 0xFF;
+				h4_iq_report_evt[index++] = (td->sync_handle >> 8) & 0xFF;
+			} else if (td->subevent_code == HCI_LE_CONNECTION_IQ_REPORT_EVENT_SUB_CODE) {
+				/* LE connection IQ Report Event */
+				h4_iq_report_evt[index++] = td->connection_handle & 0xFF;
+				h4_iq_report_evt[index++] = (td->connection_handle >> 8) & 0xFF;
+				h4_iq_report_evt[index++] = td->rx_phy;
 
-		for (i = 0; i < td->sample_count; i++) {
-			h4_iq_report_evt[index + i] = td->data[j++];
-			h4_iq_report_evt[(index + td->sample_count) + i] = td->data[j++];
-		}
+			}
+			h4_iq_report_evt[index++] = td->channel_index;
+			h4_iq_report_evt[index++] = td->rssi & 0xFF;
+			h4_iq_report_evt[index++] = (td->rssi >> 8) & 0xFF;
+			h4_iq_report_evt[index++] = td->rssi_antenna_id;
+			h4_iq_report_evt[index++] = td->cte_type;
+			h4_iq_report_evt[index++] = td->slot_durations;
+			h4_iq_report_evt[index++] = td->packet_status;
+			h4_iq_report_evt[index++] = td->sample_count;
 
-		bt_service.read_operation = BT_READ_OP_IQ_REPORT;
-		bt_service.read_index = bt_service.mailbox_iq_report_read;
+			/* Total length of hci event */
+			h4_iq_report_evt_len = index + (2 * td->sample_count);
 
-		ret = scsc_iq_report_evt_read(&buf[consumed], len - consumed);
-		if (ret > 0) {
-			/* All good - Update our consumed information */
-			consumed += ret;
-			ret = 0;
+			/* Total length of hci event parameters */
+			h4_iq_report_evt[2] = h4_iq_report_evt_len - 3;
 
-			/**
-			 * Update the index if all the data could be copied to the userspace
-			 * buffer otherwise stop processing the HCI events
-			 */
-			if (bt_service.read_operation == BT_READ_OP_NONE)
-				BSMHCP_INCREASE_INDEX(bt_service.mailbox_iq_report_read,
+			for (i = 0; i < td->sample_count; i++) {
+				h4_iq_report_evt[index + i] = td->data[j++];
+				h4_iq_report_evt[(index + td->sample_count) + i] = td->data[j++];
+			}
+
+			bt_service.read_operation = BT_READ_OP_IQ_REPORT;
+			bt_service.read_index = bt_service.mailbox_iq_report_read;
+
+			ret = scsc_iq_report_evt_read(&buf[consumed], len - consumed);
+			if (ret > 0) {
+				/* All good - Update our consumed information */
+				consumed += ret;
+				ret = 0;
+
+				/**
+				 * Update the index if all the data could be copied to the userspace
+				 * buffer otherwise stop processing the HCI events
+				 */
+				if (bt_service.read_operation == BT_READ_OP_NONE)
+					BSMHCP_INCREASE_INDEX(bt_service.mailbox_iq_report_read,
 									  BSMHCP_TRANSFER_RING_IQ_REPORT_SIZE);
+			}
 		}
 	}
 
@@ -887,7 +915,7 @@ static ssize_t scsc_bt_shm_h4_read_hci_evt(char __user *buf, size_t len)
 		}
 
 		/* A connection event has been detected by the firmware */
-		if (td->event_type & BSMHCP_EVENT_TYPE_CONNECTED) {
+		if (td->event_type == BSMHCP_EVENT_TYPE_CONNECTED) {
 			/* Sanity check of the HCI connection handle */
 			if (td->hci_connection_handle >= SCSC_BT_CONNECTION_INFO_MAX) {
 				SCSC_TAG_ERR(BT_H4, "connection handle is beyond max (hci_connection_handle=0x%03x)\n",
@@ -907,7 +935,7 @@ static ssize_t scsc_bt_shm_h4_read_hci_evt(char __user *buf, size_t len)
 			bt_service.acldata_paused = false;
 
 			/* A disconnection event has been detected by the firmware */
-		} else if (td->event_type & BSMHCP_EVENT_TYPE_DISCONNECTED) {
+		} else if (td->event_type == BSMHCP_EVENT_TYPE_DISCONNECTED) {
 			SCSC_TAG_DEBUG(BT_H4, "disconnected (hci_connection_handle=0x%03x, state=%u)\n",
 				       td->hci_connection_handle, bt_service.connection_handle_list[td->hci_connection_handle].state);
 
@@ -924,6 +952,10 @@ static ssize_t scsc_bt_shm_h4_read_hci_evt(char __user *buf, size_t len)
 
 			/* Firmware does not have more ACL data - Mark the connection as inactive */
 			bt_service.connection_handle_list[td->hci_connection_handle].state = CONNECTION_NONE;
+		} else if (td->event_type == BSMHCP_EVENT_TYPE_IQ_REPORT_ENABLED) {
+			bt_service.iq_reports_enabled = true;
+		} else if (td->event_type == BSMHCP_EVENT_TYPE_IQ_REPORT_DISABLED) {
+			bt_service.iq_reports_enabled = false;
 		}
 
 		/* Start a HCI event copy to userspace */
@@ -1058,6 +1090,9 @@ static ssize_t scsc_bt_shm_h4_read_acl_credit(char __user *buf, size_t len)
 			uint16_t sanitized_conn_handle = td->hci_connection_handle & SCSC_BT_ACL_HANDLE_MASK;
 
 			if (bt_service.connection_handle_list[sanitized_conn_handle].state == CONNECTION_ACTIVE) {
+				SCSC_TAG_DEBUG(BT_H4, "td (hci_connection_handle=0x%03x, buffer_index=%u)\n",
+					td->hci_connection_handle & SCSC_BT_ACL_HANDLE_MASK, td->buffer_index);
+
 				for (index = 0; index < BSMHCP_TRANSFER_RING_ACL_COUNT; index++) {
 					if (0 == h4_hci_credit_entries[index].hci_connection_handle) {
 						h4_hci_credit_entries[index].hci_connection_handle =
@@ -1330,7 +1365,7 @@ ssize_t scsc_bt_shm_h4_read(struct file *file, char __user *buf, size_t len, lof
 			bt_service.read_operation = BT_READ_OP_HCI_EVT_ERROR;
 
 		if (BT_READ_OP_HCI_EVT_ERROR == bt_service.read_operation) {
-			SCSC_TAG_DEBUG(BT_H4, "BT_READ_OP_HCI_EVT_ERROR\n");
+			SCSC_TAG_ERR(BT_H4, "BT_READ_OP_HCI_EVT_ERROR\n");
 
 			/* Copy data into the userspace buffer */
 			ret = scsc_hci_evt_error_read(buf, len);
@@ -1373,16 +1408,10 @@ ssize_t scsc_bt_shm_h4_read(struct file *file, char __user *buf, size_t len, lof
 	if (gen_bg_int)
 		scsc_service_mifintrbit_bit_set(bt_service.service, bt_service.bsmhcp_protocol->header.ap_to_bg_int_src, SCSC_MIFINTR_TARGET_R4);
 
-	if (gen_fg_int) {
-		if (bt_service.bsmhcp_protocol->header.firmware_features & BSMHCP_FEATURE_M4_INTERRUPTS)
-			/* Trigger the interrupt in the mailbox */
-			scsc_service_mifintrbit_bit_set(bt_service.service,
-							bt_service.bsmhcp_protocol->header.ap_to_fg_m4_int_src, SCSC_MIFINTR_TARGET_M4);
-		else
-			/* Trigger the interrupt in the mailbox */
-			scsc_service_mifintrbit_bit_set(bt_service.service,
-							bt_service.bsmhcp_protocol->header.ap_to_fg_int_src, SCSC_MIFINTR_TARGET_R4);
-	}
+	if (gen_fg_int)
+		/* Trigger the interrupt in the mailbox */
+		scsc_service_mifintrbit_bit_set(bt_service.service,
+						bt_service.bsmhcp_protocol->header.ap_to_fg_int_src, SCSC_MIFINTR_TARGET_R4);
 
 	if (BT_READ_OP_STOP != bt_service.read_operation)
 		SCSC_TAG_DEBUG(BT_H4, "hci_evt_read=%u, acl_rx_read=%u, acl_free_read=%u, read_operation=%u, consumed=%zd, ret=%zd\n",
@@ -1513,12 +1542,13 @@ unsigned scsc_bt_shm_h4_poll(struct file *file, poll_table *wait)
 	poll_wait(file, &bt_service.read_wait, wait);
 
 	/* Has en error been detect then just return with an error */
-	if (bt_service.bsmhcp_protocol->header.mailbox_hci_evt_write !=
-	    bt_service.bsmhcp_protocol->header.mailbox_hci_evt_read ||
-	    bt_service.bsmhcp_protocol->header.mailbox_acl_rx_write !=
-	    bt_service.bsmhcp_protocol->header.mailbox_acl_rx_read ||
-	    bt_service.bsmhcp_protocol->header.mailbox_acl_free_write !=
-	    bt_service.bsmhcp_protocol->header.mailbox_acl_free_read ||
+	if (((bt_service.bsmhcp_protocol->header.mailbox_hci_evt_write !=
+	      bt_service.bsmhcp_protocol->header.mailbox_hci_evt_read ||
+	      bt_service.bsmhcp_protocol->header.mailbox_acl_rx_write !=
+	      bt_service.bsmhcp_protocol->header.mailbox_acl_rx_read ||
+	      bt_service.bsmhcp_protocol->header.mailbox_acl_free_write !=
+	      bt_service.bsmhcp_protocol->header.mailbox_acl_free_read) &&
+	     bt_service.read_operation != BT_READ_OP_STOP) ||
 	    (bt_service.read_operation != BT_READ_OP_NONE &&
 	     bt_service.read_operation != BT_READ_OP_STOP) ||
 	    ((BT_READ_OP_STOP != bt_service.read_operation) &&
@@ -1553,9 +1583,14 @@ int scsc_bt_shm_init(void)
 	bt_service.mailbox_iq_report_read = 0;
 	bt_service.read_index = 0;
 	bt_service.allocated_count = 0;
+	bt_service.iq_reports_enabled = false;
+	h4_irq_mask = 0;
 
 	/* Initialise the interrupt handlers */
-	scsc_bt_shm_init_interrupt();
+	if (scsc_bt_shm_init_interrupt() < 0) {
+		SCSC_TAG_ERR(BT_COMMON, "Failed to register IRQ bits\n");
+		return -EIO;
+	}
 
 	return 0;
 }
@@ -1567,14 +1602,20 @@ int scsc_bt_shm_init(void)
  */
 void scsc_bt_shm_exit(void)
 {
+	u16 irq_num = 0;
+
 	/* Release IRQs */
 	if (bt_service.bsmhcp_protocol != NULL) {
-		scsc_service_mifintrbit_unregister_tohost(bt_service.service, bt_service.bsmhcp_protocol->header.bg_to_ap_int_src);
-		scsc_service_mifintrbit_unregister_tohost(bt_service.service, bt_service.bsmhcp_protocol->header.fg_to_ap_int_src);
 
-		scsc_service_mifintrbit_free_fromhost(bt_service.service, bt_service.bsmhcp_protocol->header.ap_to_bg_int_src, SCSC_MIFINTR_TARGET_R4);
-		scsc_service_mifintrbit_free_fromhost(bt_service.service, bt_service.bsmhcp_protocol->header.ap_to_fg_int_src, SCSC_MIFINTR_TARGET_R4);
-		scsc_service_mifintrbit_free_fromhost(bt_service.service, bt_service.bsmhcp_protocol->header.ap_to_fg_m4_int_src, SCSC_MIFINTR_TARGET_M4);
+		if (h4_irq_mask & 1 << irq_num++)
+			scsc_service_mifintrbit_unregister_tohost(
+			    bt_service.service, bt_service.bsmhcp_protocol->header.bg_to_ap_int_src);
+		if (h4_irq_mask & 1 << irq_num++)
+			scsc_service_mifintrbit_free_fromhost(
+			    bt_service.service, bt_service.bsmhcp_protocol->header.ap_to_bg_int_src, SCSC_MIFINTR_TARGET_R4);
+		if (h4_irq_mask & 1 << irq_num++)
+			scsc_service_mifintrbit_free_fromhost(
+			    bt_service.service, bt_service.bsmhcp_protocol->header.ap_to_fg_int_src, SCSC_MIFINTR_TARGET_R4);
 	}
 
 	/* Clear all control structures */

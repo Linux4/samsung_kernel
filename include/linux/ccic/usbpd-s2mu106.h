@@ -706,6 +706,8 @@ struct s2mu106_usbpd_data {
 	int cc1_val;
 	int cc2_val;
     struct regulator *regulator;
+	int rprd_mode;
+	int first_goodcrc;
 };
 
 extern int s2mu106_usbpd_get_adc(void);

@@ -406,3 +406,48 @@ int s5p_mfc_set_dynamic_dpb(struct s5p_mfc_ctx *ctx, struct s5p_mfc_buf *dst_mb)
 
 	return 0;
 }
+
+int s5p_mfc_set_nal_options_dpb_address_change(struct s5p_mfc_ctx *ctx)
+{
+	unsigned long vb_index;
+	struct s5p_mfc_dev *dev = ctx->dev;
+	struct s5p_mfc_raw_info *raw = &ctx->raw_buf;
+	unsigned long flags = 0;
+	int i;
+	u32 reg;
+	unsigned long bit_pos;
+
+	spin_lock_irqsave(&ctx->vbindex_bits.lock, flags);
+
+	if(ctx->vbindex_bits.bits){
+		/* Set the NAL START OPTIONS to Change the DPB ADDRESS */
+		reg = MFC_READL(S5P_FIMV_D_NAL_START_OPTIONS);
+		reg &= ~(0x1 << S5P_FIMV_D_NAL_START_OPT_DPB_ADDRESS_CHANGE);
+		reg |= (0x1 << S5P_FIMV_D_NAL_START_OPT_DPB_ADDRESS_CHANGE);
+		MFC_WRITEL(reg, S5P_FIMV_D_NAL_START_OPTIONS);
+	}
+
+	vb_index = ctx->vbindex_bits.bits;
+	while((bit_pos = ffs(vb_index)))
+	{
+		/* Wait till the buffer state is changed to VB2_BUF_STATE_ACTIVE
+		 * VB2 Framework copies timestamp and userinfo.
+		 */
+		if(ctx->dpb_info[bit_pos -1]->vb.vb2_buf.state != VB2_BUF_STATE_ACTIVE)
+			continue;
+
+		/* Update the DPB Address */
+		for (i = 0; i < raw->num_planes; i++) {
+			MFC_WRITEL(raw->plane_size[i],
+				S5P_FIMV_D_FIRST_PLANE_DPB_SIZE + i*4);
+
+			MFC_WRITEL(ctx->dpb_info[bit_pos-1]->planes.raw[i],
+			S5P_FIMV_D_FIRST_PLANE_DPB0 + (i*0x100 + (bit_pos-1)*4));
+		}
+		__clear_bit((bit_pos - 1), &vb_index);
+	}
+	ctx->vbindex_bits.bits = 0;
+	spin_unlock_irqrestore(&ctx->vbindex_bits.lock, flags);
+
+	return 0;
+}

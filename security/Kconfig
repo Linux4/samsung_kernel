@@ -229,14 +229,18 @@ config DEFAULT_SECURITY
 	default "" if DEFAULT_SECURITY_DAC
 	
 config SDP
-    bool "Enables SDP"
-    default n
-    help
-    Sensitive Data Protection
+	bool "Enables SDP"
+	default n
+	help
+	Sensitive Data Protection
+
+config SDP_ENHANCED
+	bool "Enables enhanced SDP"
+	default n
 
 config SDP_KEY_DUMP
-    bool "SDP KEY DUMP"
-    default n
+	bool "SDP KEY DUMP"
+	default n
 
 endmenu
 

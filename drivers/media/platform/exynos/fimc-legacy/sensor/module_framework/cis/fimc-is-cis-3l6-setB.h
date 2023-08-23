@@ -566,7 +566,7 @@ const struct sensor_pll_info sensor_3l6_pllinfo_B_1280x720_120fps = {
 	0x02, /* vt_pix_clk_div	(0x0301) */
 	0x01, /* vt_sys_clk_div	(0x0303) */
 	0x03, /* pre_pll_clk_div	(0x0305) */
-	0x57, /* pll_multiplier	(0x0307) */
+	0x53, /* pll_multiplier	(0x0307) */
 	0x08, /* op_pix_clk_div	(0x0309) */
 	0x04, /* op_sys_clk_div	(0x030B) */
 

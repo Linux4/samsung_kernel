@@ -173,6 +173,10 @@ dtc_cpp_flags  = -Wp,-MD,$(depfile).pre.tmp -nostdinc                    \
 		 -DANDROID_VERSION=$(ANDROID_VERSION)                    \
 		 -DANDROID_MAJOR_VERSION=$(ANDROID_MAJOR_VERSION)
 
+ifeq ($(CONFIG_SEC_FACTORY),y)
+dtc_cpp_flags += -DCONFIG_SEC_FACTORY
+endif
+
 # Finds the multi-part object the current object will be linked into
 modname-multi = $(sort $(foreach m,$(multi-used),\
 		$(if $(filter $(subst $(obj)/,,$*.o), $($(m:.o=-objs)) $($(m:.o=-y))),$(m:.o=))))
@@ -306,7 +310,7 @@ $(obj)/%.dtb.S: $(obj)/%.dtb
 quiet_cmd_dtc = DTC     $@
 cmd_dtc = mkdir -p $(dir ${dtc-tmp}) ; \
 	$(CPP) $(dtc_cpp_flags) -x assembler-with-cpp -o $(dtc-tmp) $< ; \
-	$(objtree)/scripts/dtc/dtc -O dtb -o $@ -b 0 \
+	$(objtree)/scripts/dtc/dtc -O dtb -o $@ -b 0 -a 4 \
 		-i $(dir $<) $(DTC_FLAGS) \
 		-d $(depfile).dtc.tmp $(dtc-tmp) ; \
 	cat $(depfile).pre.tmp $(depfile).dtc.tmp > $(depfile)

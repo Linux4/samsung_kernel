@@ -49,7 +49,7 @@ static int decon_set_doze(struct decon_device *decon)
 	struct decon_mode_info psr;
 	struct decon_param p;
 	int ret = 0;
-	struct dsim_device *dsim = container_of(decon->out_sd[0], struct dsim_device, sd);
+	//struct dsim_device *dsim = container_of(decon->out_sd[0], struct dsim_device, sd);
 
 	decon_info("+ %s: %d, %d\n", __func__, decon->state, decon->doze_state);
 
@@ -107,7 +107,7 @@ static int decon_set_doze(struct decon_device *decon)
 			 */
 			decon_reg_start(decon->id, &psr);
 			decon_reg_update_req_and_unmask(decon->id, &psr);
-			usleep_range(17000, 18000);
+			msleep(34);
 		}
 	}
 
@@ -125,7 +125,7 @@ static int decon_set_doze(struct decon_device *decon)
 	decon->state = DECON_STATE_ON;
 	decon_reg_set_int(decon->id, &psr, 1);
 	decon->doze_state = DOZE_STATE_DOZE;
-	call_panel_ops(dsim, displayon, dsim);
+	//call_panel_ops(dsim, displayon, dsim);
 
 err:
 	mutex_unlock(&decon->lock);
@@ -234,9 +234,6 @@ err:
 int decon_set_doze_mode(struct decon_device *decon, u32 mode)
 {
 	int ret = 0;
-	struct fb_info *info = decon->win[decon->dt.dft_win]->fbinfo;
-	struct fb_event v = {0, };
-	int blank = 0;
 
 	int (*doze_cb[DECON_PWR_MAX])(struct decon_device *) = {
 		NULL,
@@ -256,16 +253,13 @@ int decon_set_doze_mode(struct decon_device *decon, u32 mode)
 	if (doze_cb[mode] == NULL)
 		return ret;
 
-	blank = (mode == DECON_PWR_DOZE) ? FB_BLANK_UNBLANK : FB_BLANK_POWERDOWN;
+	decon_info("%s: decon%d pwr_state %d(%s)\n", __func__, decon->id, mode, (mode == DECON_PWR_DOZE) ? "DOZE" : "DOZE_SUSPEND");
 
-	v.info = info;
-	v.data = &blank;
-
-	decon_notifier_call_chain(DECON_EARLY_EVENT_DOZE, &v);
+	decon_simple_notifier_call_chain(DECON_EARLY_EVENT_DOZE, (mode == DECON_PWR_DOZE) ? FB_BLANK_UNBLANK : FB_BLANK_POWERDOWN);
 
 	ret = doze_cb[mode](decon);
 
-	decon_notifier_call_chain(DECON_EVENT_DOZE, &v);
+	decon_simple_notifier_call_chain(DECON_EVENT_DOZE, (mode == DECON_PWR_DOZE) ? FB_BLANK_UNBLANK : FB_BLANK_POWERDOWN);
 
 	return ret;
 }

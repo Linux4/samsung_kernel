@@ -749,6 +749,7 @@ static int ion_handle_add(struct ion_client *client, struct ion_handle *handle)
 }
 
 unsigned int ion_parse_heap_id(unsigned int heap_id_mask, unsigned int flags);
+unsigned int ion_get_extra_heap_id(unsigned int heap_id_mask);
 
 static struct ion_handle *__ion_alloc(struct ion_client *client, size_t len,
 			     size_t align, unsigned int heap_id_mask,
@@ -758,6 +759,7 @@ static struct ion_handle *__ion_alloc(struct ion_client *client, size_t len,
 	struct ion_device *dev = client->dev;
 	struct ion_buffer *buffer = NULL;
 	struct ion_heap *heap;
+	unsigned int heapmask;
 	int ret;
 
 	ION_EVENT_BEGIN();
@@ -778,19 +780,28 @@ static struct ion_handle *__ion_alloc(struct ion_client *client, size_t len,
 		return ERR_PTR(-EINVAL);
 	}
 
-	down_read(&dev->lock);
-	heap_id_mask = ion_parse_heap_id(heap_id_mask, flags);
-	if (heap_id_mask == 0)
+	heapmask = ion_parse_heap_id(heap_id_mask, flags);
+	if (heapmask == 0) {
+		trace_ion_alloc_fail(client->name, EINVAL, len,
+				align, heap_id_mask, flags);
 		return ERR_PTR(-EINVAL);
+	}
 
+	down_read(&dev->lock);
+retry:
 	plist_for_each_entry(heap, &dev->heaps, node) {
 		/* if the caller didn't specify this heap id */
-		if (!((1 << heap->id) & heap_id_mask))
+		if (!((1 << heap->id) & heapmask))
 			continue;
 		buffer = ion_buffer_create(heap, dev, len, align, flags);
 		if (!IS_ERR(buffer))
 			break;
 	}
+
+	heapmask = ion_get_extra_heap_id(heapmask);
+	if ((!buffer || IS_ERR(buffer)) && heapmask)
+		goto retry;
+
 	up_read(&dev->lock);
 
 	if (buffer == NULL) {

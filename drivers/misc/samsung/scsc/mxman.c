@@ -137,7 +137,12 @@ static bool disable_error_handling;
 module_param(disable_error_handling, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(disable_error_handling, "Disable error handling");
 
-int disable_recovery_handling = 1; /* MEMDUMP_FILE_FOR_RECOVERY : for /sys/wifi/memdump */
+#if defined(SCSC_SEP_VERSION) && (SCSC_SEP_VERSION >= 10)
+int disable_recovery_handling = 2; /* MEMDUMP_FILE_FOR_RECOVERY : for /sys/wifi/memdump */
+#else
+/* AOSP */
+int disable_recovery_handling = 1; /* Recovery disabled, enable in init.rc, not here. */
+#endif
 module_param(disable_recovery_handling, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(disable_recovery_handling, "Disable recovery handling");
 static bool disable_recovery_from_memdump_file = true;
@@ -528,7 +533,6 @@ static void mxman_print_versions(struct mxman *mxman)
 #ifdef CONFIG_SCSC_WLBTD
 	scsc_wlbtd_get_and_print_build_type();
 #endif
-
 }
 
 /** Receive handler for messages from the FW along the maxwell management transport */
@@ -1059,17 +1063,27 @@ static int mxman_start(struct mxman *mxman)
 
 static bool is_bug_on_enabled(struct scsc_mx *mx)
 {
-	bool bug_on_enabled = false;
+	bool bug_on_enabled;
+	const struct firmware *firm;
+	int r;
+
+	if ((memdump == 3) && (disable_recovery_handling == MEMDUMP_FILE_FOR_RECOVERY))
+		bug_on_enabled = true;
+	else
+		bug_on_enabled = false;
 #ifdef CONFIG_SCSC_LOG_COLLECTION
 	return bug_on_enabled;
 #else
-#if defined(ANDROID_VERSION) && (ANDROID_VERSION >= 90000)
+	/* non SABLE platforms should also follow /sys/wifi/memdump if enabled */
+	if (disable_recovery_handling == MEMDUMP_FILE_FOR_RECOVERY)
+		return bug_on_enabled;
+
+	/* for legacy platforms (including Andorid P) using .memdump.info */
+#if defined(SCSC_SEP_VERSION) && (SCSC_SEP_VERSION >= 9)
 	#define MX140_MEMDUMP_INFO_FILE	"/data/vendor/conn/.memdump.info"
 #else
 	#define MX140_MEMDUMP_INFO_FILE	"/data/misc/conn/.memdump.info"
 #endif
-	const struct firmware *firm;
-	int r;
 
 	SCSC_TAG_INFO(MX_FILE, "Loading %s file\n", MX140_MEMDUMP_INFO_FILE);
 	r = mx140_request_file(mx, MX140_MEMDUMP_INFO_FILE, &firm);
@@ -1142,7 +1156,7 @@ static void print_panic_code(u16 code)
 		break;
 	case SCSC_PANIC_ORIGIN_HOST:
 		SCSC_TAG_INFO(MXMAN, "WLBT HOST detected FW failure, service:\n");
-		switch (subcode) {
+		switch (subcode >> SCSC_SYSERR_HOST_SERVICE_SHIFT) {
 		case SCSC_SERVICE_ID_WLAN:
 			SCSC_TAG_INFO(MXMAN, " WLAN\n");
 			break;
@@ -1234,6 +1248,11 @@ static void process_panic_record(struct mxman *mxman)
 		if (mxman->fwhdr.m4_panic_record_offset) {
 			m4_panic_record = (u32 *)(mxman->fw + mxman->fwhdr.m4_panic_record_offset);
 			m4_panic_record_ok = fw_parse_m4_panic_record(m4_panic_record, &m4_panic_record_length);
+#ifdef CONFIG_SCSC_MX450_GDB_SUPPORT
+		} else if (mxman->fwhdr.m4_1_panic_record_offset) {
+			m4_1_panic_record = (u32 *)(mxman->fw + mxman->fwhdr.m4_1_panic_record_offset);
+			m4_1_panic_record_ok = fw_parse_m4_panic_record(m4_1_panic_record, &m4_1_panic_record_length);
+#endif
 		} else {
 			SCSC_TAG_INFO(MXMAN, "M4 panic record doesn't exist in the firmware header\n");
 		}
@@ -1842,14 +1861,14 @@ void mxman_init(struct mxman *mxman, struct scsc_mx *mx)
 	mxproc_create_info_proc_dir(&mxman->mxproc, mxman);
 	active_mxman = mxman;
 
-#if defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9
 	mxman_create_sysfs_memdump();
 #endif
 }
 
 void mxman_deinit(struct mxman *mxman)
 {
-#if defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9
 	mxman_destroy_sysfs_memdump();
 #endif
 	active_mxman = NULL;

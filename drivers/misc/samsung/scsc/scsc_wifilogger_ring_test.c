@@ -8,7 +8,7 @@
 
 /* Uses */
 #include "scsc_wifilogger_internal.h"
-
+#include <linux/uaccess.h>
 static u32 seq;
 static struct scsc_wlog_ring *the_ring;
 

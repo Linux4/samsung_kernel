@@ -518,7 +518,7 @@ void sec_debug_set_extra_info_zswap(char *str)
 void sec_debug_set_extra_info_mfc_error(char *str)
 {
 	sec_debug_clear_extra_info(INFO_STACK); /* erase STACK */
-	sec_debug_set_extra_info(INFO_STACK, "MFC ERROR");
+//	sec_debug_set_extra_info(INFO_STACK, "MFC ERROR");
 	sec_debug_set_extra_info(INFO_MFC, "%s", str);
 }
 

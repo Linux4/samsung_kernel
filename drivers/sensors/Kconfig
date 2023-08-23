@@ -85,6 +85,14 @@ config SENSORS_YAS539
 	  If you say yes here you get support for YAMAHA
 	  YAS539 Geomagnitor Sensor.
 
+config SENSORS_YAS539_A20E
+	tristate "YAS539 Sensor Driver"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you get support for YAMAHA
+	  YAS539 Geomagnitor Sensor.
+
 config SENSORS_GP2AP070S
 	depends on I2C
 	tristate "GP2AP070S driver"
@@ -375,6 +383,17 @@ config SENSORS_TC3XXK_A10
 	  Say N here if you do not use TC3XXK for grip Sensor.
 
 config SENSORS_TC3XXK_A10E
+	depends on I2C
+	tristate "TC3XXK driver for grip Sensor"
+	default n
+	help
+	  Say Y here if you use TC3XXK IC for grip Sensor.
+	  This option enables grip sensors using
+	  Coreriver TC3XXK device driver for grip Sensor.
+	  
+	  Say N here if you do not use TC3XXK for grip.
+
+config SENSORS_TC3XXK_A10E_KOR
 	depends on I2C
 	tristate "TC3XXK driver for grip Sensor"
 	default n

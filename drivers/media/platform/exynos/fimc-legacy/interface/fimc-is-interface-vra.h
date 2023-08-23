@@ -85,7 +85,7 @@ struct fimc_is_lib_vra_os_system_funcs {
 	ulong (*spin_lock_irqsave)(void *slock_lib);
 	int  (*spin_unlock_irqrestore)(void *slock_lib, ulong flag);
 	void (*lib_assert)(void);
-	bool (*lib_in_interrupt)(void);
+	bool (*lib_in_irq)(void);
 };
 
 struct fimc_is_lib_vra_interface_funcs {
@@ -129,6 +129,9 @@ struct fimc_is_lib_vra_interface_funcs {
 #ifdef ENABLE_VRA_CHANGE_SETFILE_PARSING
 	int (*copy_tune_set)(void *sen_obj_ptr, vra_uint32 instance_id, struct lib_vra_tune_set *set);
 	int (*apply_tune_set)(void *sen_obj_ptr, vra_uint32 instance_id, vra_uint32 index);
+#endif
+#ifdef ENABLE_VRA_OVERFLOW_RECOVERY
+	int (*recovery)(void *sen_obj_ptr);
 #endif
 };
 
@@ -250,6 +253,9 @@ int fimc_is_lib_vra_apply_tune_set(struct fimc_is_lib_vra *this,
 #ifdef ENABLE_HYBRID_FD
 int fimc_is_lib_vra_set_post_detect_output(struct fimc_is_lib_vra *lib_vra,
 	unsigned int hfd_enable, u32 instance);
+#endif
+#ifdef ENABLE_VRA_OVERFLOW_RECOVERY
+int fimc_is_lib_vra_reset_recovery(struct fimc_is_lib_vra *lib_vra, u32 instance_id);
 #endif
 
 #ifdef DEBUG_HW_SIZE

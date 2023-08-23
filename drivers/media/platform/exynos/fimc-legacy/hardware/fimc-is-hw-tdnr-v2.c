@@ -1009,3 +1009,30 @@ tdnr_mode_select:
 
 	return 0;
 }
+
+
+int fimc_is_hw_mcsc_recovery_tdnr_register(struct fimc_is_hw_ip *hw_ip,
+			struct is_param_region *param, u32 instance)
+{
+	int ret = 0;
+	struct fimc_is_hw_mcsc *hw_mcsc = NULL;
+	struct mcs_param *mcs_param;
+	enum tdnr_mode tdnr_mode;
+
+	BUG_ON(!hw_ip);
+	BUG_ON(!param);
+
+	tdnr_mode = TDNR_MODE_BYPASS;
+	mcs_param = &param->mcs;
+	hw_mcsc = (struct fimc_is_hw_mcsc *)hw_ip->priv_info;
+
+	fimc_is_hw_mcsc_tdnr_init(hw_ip, mcs_param, instance);
+
+	fimc_is_scaler_set_tdnr_image_size(hw_ip->regs,
+			mcs_param->output[hw_mcsc->tdnr_output].width,
+			mcs_param->output[hw_mcsc->tdnr_output].height);
+
+	fimc_is_scaler_set_tdnr_mode_select(hw_ip->regs, tdnr_mode);
+
+	return ret;
+}

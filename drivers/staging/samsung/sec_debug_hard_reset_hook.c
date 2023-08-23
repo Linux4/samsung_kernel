@@ -19,6 +19,8 @@
 #include <linux/of_gpio.h>
 #endif
 #include <linux/gpio_keys.h>
+#include <linux/workqueue.h>
+#include <linux/fs.h>
 
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
@@ -38,6 +40,13 @@ static ktime_t hold_time;
 static struct hrtimer hard_reset_hook_timer;
 static bool hard_reset_occurred;
 static int all_pressed;
+
+static struct workqueue_struct *blkdev_flush_wq;
+static struct delayed_work blkdev_flush_work;
+int hard_reset_key_pressed = 0;
+
+struct super_block *keypress_callback_sb = NULL;
+int (*keypress_callback_fn)(struct super_block *sb) = NULL;
 
 static bool is_hard_reset_key(unsigned int code)
 {
@@ -120,9 +129,16 @@ static bool is_gpio_keys_all_pressed(void)
 	return true;
 }
 
+static void blkdev_flush_work_fn(struct work_struct *work) {
+	int ret = 0;
+	if (keypress_callback_fn && keypress_callback_sb)
+		ret = keypress_callback_fn(keypress_callback_sb);
+}
+
 static enum hrtimer_restart hard_reset_hook_callback(struct hrtimer *hrtimer)
 {
 	if (!is_gpio_keys_all_pressed()) {
+		hard_reset_key_pressed = 0;
 		pr_warn("All gpio keys are not pressed\n");
 		return HRTIMER_NORESTART;
 	}
@@ -182,11 +198,16 @@ static int hard_reset_hook(struct notifier_block *nb,
 	else
 		hard_reset_key_unset(code);
 
-	if (hard_reset_key_all_pressed())
+	if (hard_reset_key_all_pressed()) {
+		hard_reset_key_pressed = 1;
+		if (blkdev_flush_wq)
+			queue_delayed_work(blkdev_flush_wq, &blkdev_flush_work, 0);
 		hrtimer_start(&hard_reset_hook_timer,
 			      hold_time, HRTIMER_MODE_REL);
-	else
+	} else {
 		hrtimer_cancel(&hard_reset_hook_timer);
+		hard_reset_key_pressed = 0;
+	}
 
 	return NOTIFY_OK;
 }
@@ -224,6 +245,12 @@ int __init hard_reset_hook_init(void)
 		all_pressed |= 0x1 << i;
 	load_gpio_key_info();
 	register_gpio_keys_notifier(&nb_gpio_keys);
+
+	INIT_DELAYED_WORK(&blkdev_flush_work, blkdev_flush_work_fn);
+	blkdev_flush_wq = create_singlethread_workqueue("blkdev_flush_wq");
+	if (!blkdev_flush_wq) {
+		pr_err("fail to create blkdev_flush_wq!\n");
+	}
 
 	return 0;
 }

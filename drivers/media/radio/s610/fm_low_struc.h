@@ -8,6 +8,7 @@
 #include <linux/io.h>
 
 #define S612_REV_1	(0x030100)
+#define S620_REV_0	(0x100000)
 
 #define USE_SPUR_CANCEL
 #undef USE_SPUR_CANCEL
@@ -50,13 +51,13 @@ typedef u32 TIME;
 #define	TUNE_TIME_FAST_MS	(30)
 #define	TUNE_TIME_SLOW_MS	(60)
 #ifdef USE_NEW_SCAN
-#define	SEARCH_DELAY_MS	(20)
+#define	SEARCH_DELAY_MS	(16)
 #else
 #define	SEARCH_DELAY_MS	(15)
 #endif
 
 #define RSSI_REF_ENABLE 0x01
-#define FM_RDS_MEM_SIZE_PARSER	1000
+#define FM_RDS_MEM_SIZE_PARSER	2000
 #define FM_RDS_MEM_SIZE	480
 #define RDS_PARSER_ENABLE 0x04
 #define FM_RADIO_RDS_PARSER_VER_CHECK 0x400
@@ -90,6 +91,7 @@ typedef u32 TIME;
 #define FM_SLV_INT	(0x00000040)
 #define AUDIO_CTRL	(0x00000024)
 #define AUDIO_FIFO	(0x00000028)
+#define AUDIO_LR_DATA	(0x0000002C)
 #define FM_SPEEDY_MA_SIZE	1024
 
 /* FMSPDY INT Mask bits */

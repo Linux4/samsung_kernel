@@ -22,6 +22,22 @@ else ifeq ($(KERNEL_DEFCONFIG), universal7884B_P_Treble_defconfig)
 TARGET_KERNEL_DTB := exynos7884b-universal7884b_P_Treble.dtb
 else ifeq ($(KERNEL_DEFCONFIG), universal7884B_FHD_P_Treble_defconfig)
 TARGET_KERNEL_DTB := exynos7884b-universal7884b_FHD_P_Treble.dtb
+else ifeq ($(KERNEL_DEFCONFIG), universal7885_FHD_Q_MR_Treble_defconfig)
+TARGET_KERNEL_DTB := exynos7885-universal7885_FHD_P_Treble.dtb
+else ifeq ($(KERNEL_DEFCONFIG), universal7885_Q_MR_Treble_defconfig)
+TARGET_KERNEL_DTB := exynos7885-universal7885_P_Treble.dtb
+else ifeq ($(KERNEL_DEFCONFIG), universal7905_FHD_Q_MR_Treble_defconfig)
+TARGET_KERNEL_DTB := exynos7905-universal7905_FHD_P_Treble.dtb
+else ifeq ($(KERNEL_DEFCONFIG), universal7905_Q_MR_Treble_defconfig)
+TARGET_KERNEL_DTB := exynos7905-universal7905_P_Treble.dtb
+else ifeq ($(KERNEL_DEFCONFIG), universal7904_FHD_Q_MR_Treble_defconfig)
+TARGET_KERNEL_DTB := exynos7904-universal7904_FHD_P_Treble.dtb
+else ifeq ($(KERNEL_DEFCONFIG), universal7904_Q_MR_Treble_defconfig)
+TARGET_KERNEL_DTB := exynos7904-universal7904_P_Treble.dtb
+else ifeq ($(KERNEL_DEFCONFIG), universal7884B_FHD_Q_MR_Treble_defconfig)
+TARGET_KERNEL_DTB := exynos7884b-universal7884b_FHD_P_Treble.dtb
+else ifeq ($(KERNEL_DEFCONFIG), universal7884B_Q_MR_Treble_defconfig)
+TARGET_KERNEL_DTB := exynos7884b-universal7884b_P_Treble.dtb
 else
 TARGET_KERNEL_DTB := exynos7885-universal7885_P_Treble.dtb
 endif
@@ -71,6 +87,22 @@ else ifeq ($(KERNEL_DEFCONFIG), universal7884B_P_Treble_defconfig)
 KERNEL_DTBO_CFG := $(KERNEL_DTB_DIR)/exynos7884B_dtboimg.cfg
 else ifeq ($(KERNEL_DEFCONFIG), universal7884B_FHD_P_Treble_defconfig)
 KERNEL_DTBO_CFG := $(KERNEL_DTB_DIR)/exynos7884B_FHD_dtboimg.cfg
+else ifeq ($(KERNEL_DEFCONFIG), universal7885_FHD_Q_MR_Treble_defconfig)
+KERNEL_DTBO_CFG := $(KERNEL_DTB_DIR)/exynos7885_FHD_dtboimg.cfg
+else ifeq ($(KERNEL_DEFCONFIG), universal7885_Q_MR_Treble_defconfig)
+KERNEL_DTBO_CFG := $(KERNEL_DTB_DIR)/exynos7885_dtboimg.cfg
+else ifeq ($(KERNEL_DEFCONFIG), universal7905_FHD_Q_MR_Treble_defconfig)
+KERNEL_DTBO_CFG := $(KERNEL_DTB_DIR)/exynos7905_FHD_dtboimg.cfg
+else ifeq ($(KERNEL_DEFCONFIG), universal7905_Q_MR_Treble_defconfig)
+KERNEL_DTBO_CFG := $(KERNEL_DTB_DIR)/exynos7905_dtboimg.cfg
+else ifeq ($(KERNEL_DEFCONFIG), universal7904_FHD_Q_MR_Treble_defconfig)
+KERNEL_DTBO_CFG := $(KERNEL_DTB_DIR)/exynos7904_FHD_dtboimg.cfg
+else ifeq ($(KERNEL_DEFCONFIG), universal7904_Q_MR_Treble_defconfig)
+KERNEL_DTBO_CFG := $(KERNEL_DTB_DIR)/exynos7904_dtboimg.cfg
+else ifeq ($(KERNEL_DEFCONFIG), universal7884B_FHD_Q_MR_Treble_defconfig)
+KERNEL_DTBO_CFG := $(KERNEL_DTB_DIR)/exynos7884B_FHD_dtboimg.cfg
+else ifeq ($(KERNEL_DEFCONFIG), universal7884B_Q_MR_Treble_defconfig)
+KERNEL_DTBO_CFG := $(KERNEL_DTB_DIR)/exynos7884B_dtboimg.cfg
 else
 KERNEL_DTBO_CFG := $(KERNEL_DTB_DIR)/exynos7885_dtboimg.cfg
 endif

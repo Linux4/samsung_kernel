@@ -1400,6 +1400,12 @@ config CC_OPTIMIZE_FOR_PERFORMANCE
 	  with the "-O2" compiler flag for best performance and most
 	  helpful compile-time warnings.
 
+config CC_OPTIMIZE_FOR_PERFORMANCE_O3_OFAST_SUB_OPTIONS
+	bool "Optimize more for performance with O3 and Ofast sub-options"
+	help
+	  Choosing this option will pass "-O3" and Ofast sub-options to your compiler
+	  to optimize the kernel yet more for performance.config 
+
 config CC_OPTIMIZE_FOR_SIZE
 	bool "Optimize for size"
 	help

@@ -445,7 +445,7 @@ static void mms_input_close(struct input_dev *dev)
 	}
 #endif
 
-	if (info->lowpower_mode) {
+	if (info->lowpower_mode || info->fod_lp_mode) {
 		mms_lowpower_mode(info, TO_LOWPOWER_MODE);
 		if (device_may_wakeup(&info->client->dev))
 			enable_irq_wake(info->client->irq);
@@ -1695,8 +1695,7 @@ static int mms_suspend(struct device *dev)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 
-	if (info->lowpower_mode)
-		reinit_completion(&info->resume_done);
+	reinit_completion(&info->resume_done);
 
 	return 0;
 }
@@ -1705,8 +1704,7 @@ static int mms_resume(struct device *dev)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 
-	if (info->lowpower_mode)
-		complete_all(&info->resume_done);
+	complete_all(&info->resume_done);
 
 	return 0;
 }

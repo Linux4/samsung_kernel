@@ -615,8 +615,8 @@ struct tee_object *tee_object_read(u32 spid, uintptr_t address, size_t length)
 	}
 
 	/* Check header */
-	if ((thdr.intro.magic != MC_SERVICE_HEADER_MAGIC_BE) &&
-	    (thdr.intro.magic != MC_SERVICE_HEADER_MAGIC_LE)) {
+	if (thdr.intro.magic != MC_SERVICE_HEADER_MAGIC_BE &&
+	    thdr.intro.magic != MC_SERVICE_HEADER_MAGIC_LE) {
 		mc_dev_err("header: invalid magic");
 		return ERR_PTR(-EINVAL);
 	}

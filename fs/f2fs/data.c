@@ -188,11 +188,13 @@ static void f2fs_write_end_io(struct bio *bio)
 
 		if (unlikely(bio->bi_error)) {
 			set_bit(AS_EIO, &page->mapping->flags);
-			if (type == F2FS_WB_CP_DATA)
+			if (type == F2FS_WB_CP_DATA) {
 				f2fs_stop_checkpoint(sbi, true);
+				f2fs_bug_on_endio(sbi, 1);
+			}
 		}
 
-		f2fs_bug_on(sbi, page->mapping == NODE_MAPPING(sbi) &&
+		f2fs_bug_on_endio(sbi, page->mapping == NODE_MAPPING(sbi) &&
 					page->index != nid_of_node(page));
 
 		dec_page_count(sbi, type);
@@ -1929,6 +1931,8 @@ static int __write_data_page(struct page *page, bool *submitted,
 	};
 
 	trace_f2fs_writepage(page, DATA);
+
+	f2fs_cond_set_fua(&fio);
 
 	/* we should bypass data pages to proceed the kworkder jobs */
 	if (unlikely(f2fs_cp_error(sbi))) {

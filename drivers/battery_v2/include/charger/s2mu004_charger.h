@@ -305,7 +305,6 @@ enum {
 
 #define REDUCE_CURRENT_STEP			25
 #define MINIMUM_INPUT_CURRENT			300
-#define SLOW_CHARGING_CURRENT_STANDARD		400
 
 enum {
 	CHIP_ID = 0,
@@ -379,8 +378,6 @@ typedef struct s2mu004_charger_platform_data {
 	bool chg_freq_ctrl;
 	/* 2nd full check */
 	sec_battery_full_charged_t full_check_type_2nd;
-	/* Slow charging current */
-	int slow_charging_current;
 } s2mu004_charger_platform_data_t;
 
 struct s2mu004_charger_data {
@@ -430,7 +427,6 @@ struct s2mu004_charger_data {
 	struct wake_lock ivr_wake_lock;
 	int irq_ivr_enabled;
 	int ivr_on;
-	bool slow_charging;
 
 	/* wireless charge, w(wpc), v(vbus) */
 	int wc_w_irq;

@@ -1133,6 +1133,16 @@ config TOUCHSCREEN_DUMP_MODE
 	  Say Y here if you need to get raw data.
 
 	  If unsure, say N.
+	  
+config TOUCHSCREEN_HIMAX_CHIPSET
+	bool "Himax touchpanel CHIPSET"
+	depends on I2C
+	help
+	  Say Y here if you have a Himax CHIPSET touchscreen.
+	  HIMAX controllers are multi touch controllers which can
+	  report 10 touches at a time.
+
+	  If unsure, say N.
 
 source "drivers/input/touchscreen/zinitix/Kconfig"
 source "drivers/input/touchscreen/sec_ts/Kconfig"
@@ -1147,4 +1157,5 @@ source "drivers/input/touchscreen/imagis_40xx/Kconfig"
 source "drivers/input/touchscreen/imagis/ist4050/Kconfig"
 source "drivers/input/touchscreen/novatek_nt36xx/Kconfig"
 source "drivers/input/touchscreen/himax_83xxx/Kconfig"
+source "drivers/input/touchscreen/himax/himax_83102P/Kconfig"
 endif

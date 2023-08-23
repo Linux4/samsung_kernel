@@ -178,7 +178,7 @@ static void sec_reboot(enum reboot_mode reboot_mode, const char *cmd)
 			exynos_pmu_write(EXYNOS_PMU_INFORM3, SEC_RESET_REASON_FOTA);
 		else if (!strcmp(cmd, "fota_bl"))
 			exynos_pmu_write(EXYNOS_PMU_INFORM3, SEC_RESET_REASON_FOTA_BL);
-		else if (!strcmp(cmd, "recovery")) {
+		else if (!strncmp(cmd, "recovery", 8)) {
 			exynos_pmu_write(EXYNOS_PMU_INFORM3, SEC_RESET_REASON_RECOVERY);
 			//sec_debug_recovery_reboot();
 		}

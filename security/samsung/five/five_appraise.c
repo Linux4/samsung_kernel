@@ -31,8 +31,33 @@
 #include "five_tee_api.h"
 #include "five_porting.h"
 #include "five_cache.h"
+#include "five_dmverity.h"
 
 #define FIVE_RSA_SIGNATURE_MAX_LENGTH (2048/8)
+/* Identify extend structure of integrity label */
+#define FIVE_ID_INTEGRITY_LABEL_EX 0xFFFF
+#define FIVE_LABEL_VERSION1 1
+/* Maximum length of data integrity label.
+ * This limit is applied because:
+ * 1. TEEgris doesn't support signing data longer than 480 bytes;
+ * 2. The label's length is limited to 3965 byte according to the data
+ * transmission protocol between five_tee_driver and TA.
+ */
+#define FIVE_LABEL_MAX_LEN 256
+
+/**
+ * Extend structure of integrity label.
+ * If field "len" equals 0xffff then it is extend integrity label,
+ * otherwise simple integrity label.
+ */
+struct integrity_label_ex {
+	uint16_t len;
+	uint8_t version;
+	uint8_t reserved[2];
+	uint8_t hash_algo;
+	uint8_t hash[64];
+	struct integrity_label label;
+} __packed;
 
 #ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 static const bool panic_on_error = true;
@@ -125,13 +150,13 @@ static int five_fix_xattr(struct task_struct *task,
 			  void **raw_cert,
 			  size_t *raw_cert_len,
 			  struct integrity_iint_cache *iint,
-			  struct integrity_label *label)
+			  struct integrity_label_ex *label)
 {
 	int rc = 0;
 	u8 hash[FIVE_MAX_DIGEST_SIZE], *hash_file, *sig = NULL;
 	size_t hash_len = sizeof(hash), hash_file_len, sig_len;
-	void *file_label = label ? label->data : NULL;
-	short file_label_len = label ? label->len : 0;
+	void *file_label = label->label.data;
+	u16 file_label_len = label->label.len;
 	struct five_cert_body body_cert = {0};
 	struct five_cert_header *header;
 
@@ -148,16 +173,20 @@ static int five_fix_xattr(struct task_struct *task,
 	if (unlikely(!header || !hash_file))
 		return -EINVAL;
 
-	rc = five_collect_measurement(file, header->hash_algo, hash_file,
-				      hash_file_len);
-	if (unlikely(rc))
-		return rc;
+	if (label->version == FIVE_LABEL_VERSION1) {
+		rc = five_collect_measurement(file, header->hash_algo,
+				      hash_file, hash_file_len);
+		if (unlikely(rc))
+			return rc;
+	} else {
+		memcpy(hash_file, label->hash, hash_file_len);
+	}
 
 	rc = five_cert_calc_hash(&body_cert, hash, &hash_len);
 	if (unlikely(rc))
 		return rc;
 
-	sig_len = body_cert.hash->length + file_label_len;
+	sig_len = (size_t)body_cert.hash->length + file_label_len;
 
 	sig = kzalloc(sig_len, GFP_NOFS);
 	if (!sig)
@@ -173,7 +202,7 @@ static int five_fix_xattr(struct task_struct *task,
 			int count = 1;
 
 			do {
-				rc = __vfs_setxattr_noperm(dentry,
+				rc = __vfs_setxattr_noperm(d_real_comp(dentry),
 							XATTR_NAME_FIVE,
 							*raw_cert,
 							*raw_cert_len,
@@ -188,7 +217,10 @@ static int five_fix_xattr(struct task_struct *task,
 		}
 	} else if (panic_on_error) {
 		panic("FIVE failed to sign %s (ret code = %d)",
-			dentry->d_name.name, rc);
+		dentry->d_name.name, rc);
+	} else {
+		five_audit_sign_err(current, file, "fix_xattr", 0,
+			0, "can't sign the file", rc);
 	}
 
 	kfree(sig);
@@ -208,39 +240,11 @@ int five_read_xattr(struct dentry *dentry, char **xattr_value)
 	return ret;
 }
 
-static bool dmverity_protected(struct file *file)
-{
-	const char *pathname = NULL;
-	char *pathbuf = NULL;
-	const char system_prefix[] = "/system/";
-#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
-	const char apex_prefix[] = "/apex/";
-#endif
-	bool res = false;
-
-	pathname = five_d_path(&file->f_path, &pathbuf);
-
-	if (pathname) {
-		if (!strncmp(pathname, system_prefix,
-						sizeof(system_prefix) - 1))
-			res = true;
-
-#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
-		if (!strncmp(pathname, apex_prefix, sizeof(apex_prefix) - 1))
-			res = true;
-#endif
-	}
-
-	if (pathbuf)
-		__putname(pathbuf);
-
-	return res;
-}
-
 static bool bad_fs(struct inode *inode)
 {
 	if (inode->i_sb->s_magic == EXT4_SUPER_MAGIC ||
-	    inode->i_sb->s_magic == F2FS_SUPER_MAGIC)
+	    inode->i_sb->s_magic == F2FS_SUPER_MAGIC ||
+	    inode->i_sb->s_magic == OVERLAYFS_SUPER_MAGIC)
 		return false;
 
 	return true;
@@ -252,6 +256,16 @@ static bool readonly_sb(struct inode *inode)
 		return true;
 
 	return false;
+}
+
+/*
+ * five_is_fsverity_protected - checks if file is protected by FSVERITY
+ *
+ * Return true/false
+ */
+static bool five_is_fsverity_protected(const struct inode *inode)
+{
+	return IS_VERITY(inode);
 }
 
 /*
@@ -290,7 +304,9 @@ int five_appraise_measurement(struct task_struct *task, int func,
 
 	if (!cert) {
 		cause = CAUSE_NO_CERT;
-		if (dmverity_protected(file))
+		if (five_is_fsverity_protected(inode))
+			status = FIVE_FILE_FSVERITY;
+		else if (five_is_dmverity_protected(file))
 			status = FIVE_FILE_DMVERITY;
 		goto out;
 	}
@@ -439,11 +455,12 @@ out:
  */
 static int five_update_xattr(struct task_struct *task,
 		struct integrity_iint_cache *iint, struct file *file,
-		struct integrity_label *label)
+		struct integrity_label_ex *label)
 {
 	struct dentry *dentry;
 	int rc = 0;
-	uint8_t hash[hash_digest_size[five_hash_algo]];
+	uint8_t *hash;
+	size_t hash_len;
 	uint8_t *raw_cert;
 	size_t raw_cert_len;
 	struct five_cert_header header = {
@@ -454,17 +471,35 @@ static int five_update_xattr(struct task_struct *task,
 
 	BUG_ON(!task || !iint || !file || !label);
 
+	if (label->version == FIVE_LABEL_VERSION1) {
+		hash_len = (size_t)hash_digest_size[five_hash_algo];
+	} else {
+		header.hash_algo = label->hash_algo;
+		if (label->hash_algo >= HASH_ALGO__LAST)
+			return -EINVAL;
+
+		hash_len = (size_t)hash_digest_size[label->hash_algo];
+		if (hash_len > sizeof(label->hash))
+			return -EINVAL;
+	}
+
+	hash = kzalloc(hash_len, GFP_KERNEL);
+	if (!hash)
+		return -ENOMEM;
+
 	dentry = file->f_path.dentry;
 
 	/* do not collect and update hash for digital signatures */
 	if (five_get_cache_status(iint) == FIVE_FILE_RSA) {
 		char dummy[512];
+		struct inode *inode = file_inode(file);
 
-		rc = vfs_getxattr(dentry, XATTR_NAME_FIVE, dummy,
-			sizeof(dummy));
+		rc = __vfs_getxattr(d_real_comp(dentry), inode, XATTR_NAME_FIVE,
+				dummy, sizeof(dummy), XATTR_NOSECURITY);
 
 		// Check if xattr is exist
 		if (rc > 0 || rc != -ENODATA) {
+			kfree(hash);
 			return -EPERM;
 		} else {	// xattr does not exist.
 			five_set_cache_status(iint, FIVE_FILE_UNKNOWN);
@@ -472,15 +507,15 @@ static int five_update_xattr(struct task_struct *task,
 		}
 	}
 
-	rc = five_cert_body_alloc(&header, hash, sizeof(hash),
-				  label->data, label->len,
+	rc = five_cert_body_alloc(&header, hash, hash_len,
+				  label->label.data, label->label.len,
 				  &raw_cert, &raw_cert_len);
 	if (rc)
-		return rc;
+		goto exit;
 
 	if (task_integrity_allow_sign(task->integrity)) {
 		rc = five_fix_xattr(task, dentry, file,
-				(void **)&raw_cert, &raw_cert_len, iint, label);
+			(void **)&raw_cert, &raw_cert_len, iint, label);
 		if (rc)
 			pr_err("FIVE: Can't sign hash: rc=%d\n", rc);
 	} else {
@@ -491,7 +526,22 @@ static int five_update_xattr(struct task_struct *task,
 
 	five_cert_free(raw_cert);
 
+exit:
+	kfree(hash);
 	return rc;
+}
+
+static void five_reset_appraise_flags(struct dentry *dentry)
+{
+	struct inode *inode = d_backing_inode(dentry);
+	struct integrity_iint_cache *iint;
+
+	if (!S_ISREG(inode->i_mode))
+		return;
+
+	iint = integrity_iint_find(inode);
+	if (iint)
+		five_set_cache_status(iint, FIVE_FILE_UNKNOWN);
 }
 
 /**
@@ -505,15 +555,7 @@ static int five_update_xattr(struct task_struct *task,
  */
 void five_inode_post_setattr(struct task_struct *task, struct dentry *dentry)
 {
-	struct inode *inode = d_backing_inode(dentry);
-	struct integrity_iint_cache *iint;
-
-	if (!S_ISREG(inode->i_mode))
-		return;
-
-	iint = integrity_iint_find(inode);
-	if (iint)
-		five_set_cache_status(iint, FIVE_FILE_UNKNOWN);
+	five_reset_appraise_flags(dentry);
 }
 
 /*
@@ -532,18 +574,6 @@ static int five_protect_xattr(struct dentry *dentry, const char *xattr_name,
 	return 0;
 }
 
-static void five_reset_appraise_flags(struct inode *inode)
-{
-	struct integrity_iint_cache *iint;
-
-	if (!S_ISREG(inode->i_mode))
-		return;
-
-	iint = integrity_iint_find(inode);
-	if (iint)
-		five_set_cache_status(iint, FIVE_FILE_UNKNOWN);
-}
-
 int five_inode_setxattr(struct dentry *dentry, const char *xattr_name,
 			const void *xattr_value, size_t xattr_value_len)
 {
@@ -551,7 +581,7 @@ int five_inode_setxattr(struct dentry *dentry, const char *xattr_name,
 				   xattr_value_len);
 
 	if (result == 1 && xattr_value_len == 0) {
-		five_reset_appraise_flags(d_backing_inode(dentry));
+		five_reset_appraise_flags(dentry);
 		return 0;
 	}
 
@@ -574,7 +604,7 @@ int five_inode_setxattr(struct dentry *dentry, const char *xattr_name,
 		if (!digsig)
 			return -EPERM;
 
-		five_reset_appraise_flags(d_backing_inode(dentry));
+		five_reset_appraise_flags(dentry);
 		result = 0;
 	}
 
@@ -587,7 +617,7 @@ int five_inode_removexattr(struct dentry *dentry, const char *xattr_name)
 
 	result = five_protect_xattr(dentry, xattr_name, NULL, 0);
 	if (result == 1) {
-		five_reset_appraise_flags(d_backing_inode(dentry));
+		five_reset_appraise_flags(dentry);
 		result = 0;
 	}
 	return result;
@@ -603,12 +633,95 @@ int five_reboot_notifier(struct notifier_block *nb,
 	return NOTIFY_DONE;
 }
 
+static int copy_label(const struct integrity_label __user *ulabel,
+		      struct integrity_label_ex **out_label)
+{
+	u16 len;
+	size_t label_len;
+	int rc = 0;
+	struct integrity_label_ex header = {0};
+	struct integrity_label_ex *label = NULL;
+
+	if (unlikely(!ulabel || !out_label)) {
+		rc = -EINVAL;
+		goto error;
+	}
+
+	if (unlikely(copy_from_user(&len, ulabel, sizeof(len)))) {
+		rc = -EFAULT;
+		goto error;
+	}
+
+	if (len == FIVE_ID_INTEGRITY_LABEL_EX) {
+		if (unlikely(copy_from_user(&header, ulabel, sizeof(header)))) {
+			rc = -EFAULT;
+			goto error;
+		}
+
+		if (len != header.len ||
+		    header.label.len > FIVE_LABEL_MAX_LEN ||
+		    header.version <= FIVE_LABEL_VERSION1) {
+			rc = -EINVAL;
+			goto error;
+		}
+
+		label_len = sizeof(header) + header.label.len;
+
+		label = kzalloc(label_len, GFP_NOFS);
+		if (unlikely(!label)) {
+			rc = -ENOMEM;
+			goto error;
+		}
+
+		memcpy(label, &header, sizeof(header));
+		if (unlikely(copy_from_user(&label->label.data[0],
+				(const u8 __user *)ulabel + sizeof(header),
+				label_len - sizeof(header)))) {
+			rc = -EFAULT;
+			goto error;
+		}
+	} else {
+		if (len > FIVE_LABEL_MAX_LEN) {
+			rc = -EINVAL;
+			goto error;
+		}
+
+		label_len = sizeof(header) + len;
+
+		label = kzalloc(label_len, GFP_NOFS);
+		if (unlikely(!label)) {
+			rc = -ENOMEM;
+			goto error;
+		}
+
+		if (unlikely(copy_from_user(&label->label, ulabel,
+					    sizeof(len) + len))) {
+			rc = -EFAULT;
+			goto error;
+		}
+
+		if (len != label->label.len) {
+			rc = -EINVAL;
+			goto error;
+		}
+
+		label->version = FIVE_LABEL_VERSION1;
+	}
+
+	*out_label = label;
+error:
+	if (rc)
+		kfree(label);
+
+	return rc;
+}
+
 /* Called from do_fcntl */
 int five_fcntl_sign(struct file *file, struct integrity_label __user *label)
 {
 	struct integrity_iint_cache *iint;
 	struct inode *inode = file_inode(file);
-	struct integrity_label *l = NULL;
+	struct integrity_label_ex *l = NULL;
 	int rc = 0;
 
 	if (!S_ISREG(inode->i_mode))
@@ -620,31 +733,11 @@ int five_fcntl_sign(struct file *file, struct integrity_label __user *label)
 	}
 
 	if (task_integrity_allow_sign(current->integrity)) {
-		struct integrity_label label_hdr = {0};
-		size_t len;
-
-		if (!label)
-			return -EINVAL;
-
-		if (unlikely(copy_from_user(&label_hdr,
-					    label, sizeof(label_hdr))))
-			return -EFAULT;
-
-		if (label_hdr.len > PAGE_SIZE)
-			return -EINVAL;
-
-		len = label_hdr.len + sizeof(label_hdr);
-
-		l = kmalloc(len, GFP_NOFS);
-		if (!l)
-			return -ENOMEM;
-
-		if (unlikely(copy_from_user(l, label, len))) {
-			kfree(l);
-			return -EFAULT;
+		rc = copy_label(label, &l);
+		if (rc) {
+			pr_err("FIVE: Can't copy integrity label\n");
+			return rc;
 		}
-
-		l->len = label_hdr.len;
 	} else {
 		enum task_integrity_value tint =
 				    task_integrity_read(current->integrity);
@@ -674,8 +767,7 @@ int five_fcntl_sign(struct file *file, struct integrity_label __user *label)
 	inode_unlock(inode);
 	up_read(&sign_fcntl_lock);
 
-	if (label)
-		kfree(l);
+	kfree(l);
 
 	return rc;
 }
@@ -711,7 +803,7 @@ int five_fcntl_edit(struct file *file)
 
 	inode_lock(inode);
 	dentry = file->f_path.dentry;
-	rc = __vfs_setxattr_noperm(dentry,
+	rc = __vfs_setxattr_noperm(d_real_comp(dentry),
 				   XATTR_NAME_FIVE,
 				   raw_cert,
 				   raw_cert_len,
@@ -745,10 +837,11 @@ int five_fcntl_close(struct file *file)
 
 	if (iint->five_signing) {
 		dentry = file->f_path.dentry;
-		xattr_len = __vfs_getxattr(dentry, inode, XATTR_NAME_FIVE, NULL,
-				0);
+		xattr_len = __vfs_getxattr(d_real_comp(dentry), inode,
+				XATTR_NAME_FIVE, NULL, 0, XATTR_NOSECURITY);
 		if (xattr_len == 0)
-			rc = __vfs_removexattr(dentry, XATTR_NAME_FIVE);
+			rc = __vfs_removexattr(d_real_comp(dentry),
+				XATTR_NAME_FIVE);
 
 		iint->five_signing = false;
 	}
@@ -756,4 +849,3 @@ int five_fcntl_close(struct file *file)
 
 	return rc;
 }
-

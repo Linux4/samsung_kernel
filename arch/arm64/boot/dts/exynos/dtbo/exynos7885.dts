@@ -1630,6 +1630,18 @@
 			samsung,area = <1>;
 			samsung,offset = <0x7EC000>;
 		};
+		ext_bin_3: ext_bin@3 {
+			status = "disabled";
+			samsung,name = "spkamp.bin";
+			samsung,area = <1>;
+			samsung,offset = <0x502000>;
+		};
+		ext_bin_4: ext_bin@4 {
+			status = "disabled";
+			samsung,name = "param_ti.bin";
+			samsung,area = <1>;
+			samsung,offset = <0x600000>;
+		};
 	};
 
 	iommu-domain_is {

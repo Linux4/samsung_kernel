@@ -626,22 +626,22 @@ config ZSMALLOC_STAT
 
 config DIRECT_RECLAIM_FILE_PAGES_ONLY
 	bool "Reclaim file pages only on direct reclaim path"
-	depends on ZSWAP
+	depends on SWAP
 	default n
 
 config INCREASE_MAXIMUM_SWAPPINESS
 	bool "Allow swappiness to be set up to 200"
-	depends on ZSWAP
+	depends on SWAP
 	default n
 
 config FIX_INACTIVE_RATIO
 	bool "Fix active:inactive anon ratio to 1:1"
-	depends on ZSWAP
+	depends on SWAP
 	default n
 
 config TIGHT_PGDAT_BALANCE
 	bool "Set more tight balanced condition to kswapd"
-	depends on ZSWAP
+	depends on SWAP
 	default n
 
 config SWAP_ENABLE_READAHEAD
@@ -759,3 +759,50 @@ config FAULT_AROUND_4KB
 	default n
 	help
 	  Reduce fault around bytes to 4KB
+	  
+config VMPRESSURE_LEVEL_CRI
+	int "Threshold to account memory pressure"
+	default 95
+	help
+	  This supports to adjust vmpressure_level_critical threshold value
+
+config PAGE_BOOST
+	bool "PAGE_BOOST feature"
+	depends on MMU
+	default n
+	help
+	  Enable this for PAGE_BOOST feature
+
+config PAGE_BOOST_RECORDING
+	bool "PAGE_BOOST recording feature"
+	depends on PAGE_BOOST
+	default y
+	help
+	  Record Everything for the chosen process.
+	  As Android executes an app one by one, only allow 1 recording
+	  at a time.
+
+config MEM_BOOST_THRESHOLD_MB
+	int "skip swap only if file cache is bigger than threshold"
+	default 300
+	help
+	  Memboost feature is designed to skip swap when memboost is on.
+	  However when file cache is low, this could cause cache thrashing.
+	  Set appropriate value to protect minimum level of file cache.
+
+	  
+config PROCESS_RECLAIM
+	bool "Enable process reclaim"
+	depends on PROC_FS
+	default y
+	help
+	 It allows to reclaim pages of the process by /proc/pid/reclaim.
+
+	 (echo file > /proc/PID/reclaim) reclaims file-backed pages only.
+	 (echo anon > /proc/PID/reclaim) reclaims anonymous pages only.
+	 (echo all > /proc/PID/reclaim) reclaims all pages.
+
+	 (echo addr size-byte > /proc/PID/reclaim) reclaims pages in
+	 (addr, addr + size-bytes) of the process.
+
+	 Any other value is ignored.

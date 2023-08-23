@@ -669,7 +669,7 @@ int fimc_is_lib_isp_set_ctrl(struct fimc_is_hw_ip *hw_ip,
 	return 0;
 }
 
-void fimc_is_lib_isp_shot(struct fimc_is_hw_ip *hw_ip,
+int fimc_is_lib_isp_shot(struct fimc_is_hw_ip *hw_ip,
 	struct fimc_is_lib_isp *this, void *param_set, struct camera2_shot *shot)
 {
 	int ret = 0;
@@ -710,6 +710,8 @@ void fimc_is_lib_isp_shot(struct fimc_is_hw_ip *hw_ip,
 		err_lib("invalid hw (%d)", hw_ip->id);
 		break;
 	}
+
+	return ret;
 }
 
 int fimc_is_lib_isp_get_meta(struct fimc_is_hw_ip *hw_ip,

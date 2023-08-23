@@ -60,31 +60,31 @@ enum {
 	LDI_BIT_ENUM_MAX
 };
 
-char *LDI_BIT_DESC_05[BITS_PER_BYTE] = {
+static char *LDI_BIT_DESC_05[BITS_PER_BYTE] = {
 	[0 ... 6] = "number of corrupted packets",
 	[7] = "overflow on number of corrupted packets",
 };
 
-char *LDI_BIT_DESC_0A[BITS_PER_BYTE] = {
+static char *LDI_BIT_DESC_0A[BITS_PER_BYTE] = {
 	[2] = "Display is Off",
 	[7] = "Booster has a fault",
 };
 
-char *LDI_BIT_DESC_0E[BITS_PER_BYTE] = {
+static char *LDI_BIT_DESC_0E[BITS_PER_BYTE] = {
 	[0] = "Error on DSI",
 };
 
-char *LDI_BIT_DESC_0F[BITS_PER_BYTE] = {
+static char *LDI_BIT_DESC_0F[BITS_PER_BYTE] = {
 	[7] = "Register Loading Detection",
 };
 
-char *LDI_BIT_DESC_EE[BITS_PER_BYTE] = {
+static char *LDI_BIT_DESC_EE[BITS_PER_BYTE] = {
 	[2] = "VLIN3 error",
 	[3] = "ELVDD error",
 	[6] = "VLIN1 error",
 };
 
-struct bit_info ldi_bit_info_list[LDI_BIT_ENUM_MAX] = {
+static struct bit_info ldi_bit_info_list[LDI_BIT_ENUM_MAX] = {
 	[LDI_BIT_ENUM_05] = {0x05, 1, LDI_BIT_DESC_05, 0x00, },
 	[LDI_BIT_ENUM_0A] = {0x0A, 1, LDI_BIT_DESC_0A, 0x9F, .invert = (BIT(2) | BIT(7)), },
 	[LDI_BIT_ENUM_0E] = {0x0E, 1, LDI_BIT_DESC_0E, 0x00, },
@@ -168,7 +168,7 @@ static unsigned char SEQ_ELVSS_SET[] = {
 
 static unsigned char SEQ_HBM_ON[] = {
 	0x53,
-	0xE0,
+	0xE8,
 };
 
 static unsigned char SEQ_HBM_OFF[] = {
@@ -189,7 +189,7 @@ static unsigned char SEQ_ACL_OPR_OFF[] = {
 	0x61, 0x28,	/* 13th~14th para ACL 15% */
 	0x4A,
 	0x41, 0xFC,	/* 16th~17th para Start step 50% */
-	0x00
+	0x20		/* 18th para Dimming 32 frame */
 };
 
 static unsigned char SEQ_ACL_OPR_08P[] = {
@@ -200,7 +200,7 @@ static unsigned char SEQ_ACL_OPR_08P[] = {
 	0x60, 0x98,	/* 13th~14th para ACL 8% */
 	0x4A,
 	0x42, 0x64,	/* 16th~17th para Start step 60% */
-	0x00
+	0x20		/* 18th para Dimming 32 frame */
 };
 
 static unsigned char SEQ_ACL_OPR_15P[] = {
@@ -211,7 +211,7 @@ static unsigned char SEQ_ACL_OPR_15P[] = {
 	0x61, 0x28,	/* 13th~14th para ACL 15% */
 	0x4A,
 	0x41, 0xFC,	/* 16th~17th para Start step 50% */
-	0x00
+	0x20		/* 18th para Dimming 32 frame */
 };
 
 static unsigned char SEQ_ACL_OFF[] = {

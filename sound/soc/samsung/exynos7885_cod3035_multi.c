@@ -634,7 +634,7 @@ static struct snd_soc_dai_link exynos7885_dai[] = {
 		.stream_name = "UAIF3",
 		.cpu_dai_name = "UAIF3",
 		.platform_name = "snd-soc-dummy",
-#if !defined(CONFIG_SND_SOC_TFA9872) && !defined(CONFIG_SND_SOC_TFA9896) && !defined(CONFIG_SND_SOC_SMA1301)
+#if !defined(CONFIG_SND_SOC_TFA9872) && !defined(CONFIG_SND_SOC_TFA9896) && !defined(CONFIG_SND_SOC_SMA1301) && !defined(CONFIG_SND_SOC_TAS2562)
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
 #endif
@@ -717,7 +717,7 @@ static struct snd_soc_codec_conf codec_conf[] = {
 		.name_prefix = "VTS",
 	},
 #endif
-#if defined(CONFIG_SND_SOC_TFA9896_DUAL) || defined(CONFIG_SND_SOC_SMA1301_DUAL)
+#ifdef CONFIG_SND_SOC_SPK_DUAL
 	{ .name_prefix = "SPKR", },
 	{ .name_prefix = "SPKL", },
 #endif

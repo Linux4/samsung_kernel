@@ -131,10 +131,3 @@ config SECURITY_SELINUX_POLICYDB_VERSION_MAX_VALUE
 	  installed under /etc/selinux/$SELINUXTYPE/policy, where
 	  SELINUXTYPE is defined in your /etc/selinux/config.
 
-config SECURITY_DEBUG_UNLABELED
-	bool "NSA SELinux Debug for unlabeled"
-	depends on SECURITY_SELINUX
-	default n
-	help
-	  This option enable kernel panic point
-	  when someone set selinux label as unlabeled

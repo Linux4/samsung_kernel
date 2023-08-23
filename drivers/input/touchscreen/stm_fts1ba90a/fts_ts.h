@@ -694,6 +694,7 @@ struct fts_ts_info {
 	struct mutex device_mutex;
 	struct mutex eventlock;
 	bool reinit_done;
+	bool info_work_done;
 
 	u8 ddi_type;
 

@@ -35,9 +35,12 @@ struct ASMHCP_HEADER {
 	uint32_t                        mailbox_cmd_driv_ctr_write;     /* 0x10 */
 	uint16_t                        ap_to_bg_int_src;               /* 0x14 */
 	uint16_t                        bg_to_ap_int_src;               /* 0x16 */
-	uint32_t                        mxlog_filter;                   /* 0x18 */
+	uint32_t                        btlog_enables0_low;             /* 0x18 */
 	uint32_t                        firmware_control;               /* 0x1C */
-	uint8_t                         reserved1[0x20];                /* 0x20 */
+	uint32_t                        btlog_enables0_high;            /* 0x20 */
+	uint32_t                        btlog_enables1_low;             /* 0x24 */
+	uint32_t                        btlog_enables1_high;            /* 0x28 */
+	uint8_t                         reserved1[0x14];                /* 0x2C */
 
 	/* AP RO - R4 RW - 64 octets */
 	uint32_t                        mailbox_cmd_driv_ctr_read;      /* 0x40 */

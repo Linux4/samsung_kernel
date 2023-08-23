@@ -96,7 +96,7 @@ out:
 	if (!enable)
 		usleep_range(10 * 1000, 11 * 1000);
 	else
-		msleep(70);
+		msleep(90);
 
 	input_info(true, &info->client->dev, "%s [DONE %s]\n",
 			__func__, enable ? "on":"off");

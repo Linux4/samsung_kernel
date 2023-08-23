@@ -22,7 +22,7 @@ int dsim_doze(struct dsim_device *dsim)
 
 	if (dsim->state == DSIM_STATE_ON) {
 		if (dsim->doze_state != DOZE_STATE_DOZE)
-			call_panel_ops(dsim, enteralpm, dsim);
+			call_panel_ops(dsim, doze, dsim);
 		goto exit;
 	}
 
@@ -73,7 +73,7 @@ int dsim_doze(struct dsim_device *dsim)
 	enable_irq(dsim->res.irq);
 
 	if (dsim->doze_state == DOZE_STATE_SUSPEND || dsim->doze_state == DOZE_STATE_DOZE_SUSPEND)
-		call_panel_ops(dsim, enteralpm, dsim);
+		call_panel_ops(dsim, doze, dsim);
 
 exit:
 	dsim->doze_state = DOZE_STATE_DOZE;
@@ -91,7 +91,7 @@ int dsim_doze_suspend(struct dsim_device *dsim)
 	dsim_info("+ %s: %d, %d\n", __func__, dsim->state, dsim->doze_state);
 
 	if (dsim->doze_state == DOZE_STATE_NORMAL)
-		call_panel_ops(dsim, enteralpm, dsim);
+		call_panel_ops(dsim, doze, dsim);
 
 	dsim->doze_state = DOZE_STATE_DOZE_SUSPEND;
 

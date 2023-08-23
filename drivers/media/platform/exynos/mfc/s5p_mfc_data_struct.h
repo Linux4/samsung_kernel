@@ -186,6 +186,13 @@ enum s5p_mfc_ctrl_mode {
 	MFC_CTRL_MODE_CST	= 0x2,
 };
 
+enum mfc_idle_mode {
+	MFC_IDLE_MODE_NONE	= 0,
+	MFC_IDLE_MODE_RUNNING	= 1,
+	MFC_IDLE_MODE_IDLE	= 2,
+	MFC_IDLE_MODE_CANCEL	= 3,
+};
+
 struct s5p_mfc_ctx;
 
 enum s5p_mfc_debug_cause {
@@ -472,6 +479,14 @@ struct s5p_mfc_dev {
 
 	struct vb2_alloc_ctx *alloc_ctx;
 
+	atomic_t hw_run_cnt;
+	atomic_t queued_cnt;
+	struct mutex idle_qos_mutex;
+	enum mfc_idle_mode idle_mode;
+	struct timer_list mfc_idle_timer;
+	struct workqueue_struct *mfc_idle_wq;
+	struct work_struct mfc_idle_work;
+
 	/* for DRM */
 	int curr_ctx_is_drm;
 	int num_drm_inst;
@@ -498,6 +513,8 @@ struct s5p_mfc_dev {
 	int qos_extra;
 #endif
 #endif
+	struct mutex qos_mutex;
+
 	int id;
 	atomic_t clk_ref;
 
@@ -756,6 +773,12 @@ struct s5p_mfc_enc_params {
 
 	u16 rc_frame_delta;	/* MFC6.1 Only */
 
+	u32 check_color_range;
+	u32 color_range;
+	u32 colour_primaries;
+	u32 transfer_characteristics;
+	u32 matrix_coefficients;
+
 	union {
 		struct s5p_mfc_h264_enc_params h264;
 		struct s5p_mfc_mpeg4_enc_params mpeg4;
@@ -872,6 +895,7 @@ struct mfc_user_shared_handle {
 	int fd;
 	struct ion_handle *ion_handle;
 	void *vaddr;
+	size_t data_size;
 };
 
 struct s5p_mfc_raw_info {
@@ -1109,6 +1133,8 @@ struct s5p_mfc_ctx {
 	int frame_cnt;
 	u32 last_src_addr;
 	u32 last_dst_addr[MFC_MAX_PLANES];
+	struct s5p_mfc_bits vbindex_bits;
+	struct s5p_mfc_buf *dpb_info[MFC_MAX_DPBS];
 };
 
 #endif /* __S5P_MFC_DATA_STRUCT_H */

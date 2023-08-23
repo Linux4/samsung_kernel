@@ -64,8 +64,33 @@ void exynos_swd_test_fail(void)
 #endif
 }
 
+static int exynos_cm_smc(uint64_t *arg0, uint64_t *arg1,
+			 uint64_t *arg2, uint64_t *arg3)
+{
+	register uint64_t reg0 __asm__("x0") = *arg0;
+	register uint64_t reg1 __asm__("x1") = *arg1;
+	register uint64_t reg2 __asm__("x2") = *arg2;
+	register uint64_t reg3 __asm__("x3") = *arg3;
+
+	__asm__ volatile (
+		"smc    0\n"
+		: "+r"(reg0), "+r"(reg1), "+r"(reg2), "+r"(reg3)
+	);
+
+	*arg0 = reg0;
+	*arg1 = reg1;
+	*arg2 = reg2;
+	*arg3 = reg3;
+
+	return *arg0;
+}
+
 static int exynos_swd_startup_test(void)
 {
+	uint64_t reg0;
+	uint64_t reg1;
+	uint64_t reg2;
+	uint64_t reg3;
 	uint32_t start_up_size;
 	uint32_t retry_cnt;
 	uint32_t test_cnt;
@@ -76,7 +101,12 @@ static int exynos_swd_startup_test(void)
 	retry_cnt = 0;
 	test_cnt = 1;
 	while (start_up_size) {
-		ret = exynos_smc(SMC_CMD_RANDOM, HWRNG_GET_DATA, 1, 0);
+		reg0 = SMC_CMD_RANDOM;
+		reg1 = HWRNG_GET_DATA;
+		reg2 = 1;
+		reg3 = 0;
+
+		ret = exynos_cm_smc(&reg0, &reg1, &reg2, &reg3);
 		if (ret == HWRNG_RET_RETRY_ERROR) {
 			if (retry_cnt++ > EXYRNG_RETRY_MAX_COUNT) {
 				printk("[ExyRNG] exceed retry in start-up test\n");
@@ -128,33 +158,30 @@ static int exynos_swd_startup_test(void)
 
 static int exynos_swd_read(struct hwrng *rng, void *data, size_t max, bool wait)
 {
+	uint64_t reg0;
+	uint64_t reg1;
+	uint64_t reg2;
+	uint64_t reg3;
 	uint32_t *read_buf = data;
 	uint32_t read_size = max;
-	uint32_t r_data[2];
 	unsigned long flag;
 	uint32_t retry_cnt;
 	int ret = HWRNG_RET_OK;
-
-	register u64 reg0 __asm__("x0");
-	register u64 reg1 __asm__("x1");
-	register u64 reg2 __asm__("x2");
-	register u64 reg3 __asm__("x3");
 
 #if defined(CONFIG_EXYRNG_FAIL_POLICY_DISABLE)
 	if (hwrng_disabled)
 		return -EPERM;
 #endif
-
-	reg0 = 0;
-	reg1 = 0;
-	reg2 = 0;
-	reg3 = 0;
-
 	retry_cnt = 0;
 	do {
 		spin_lock_irqsave(&hwrandom_lock, flag);
 		if (hwrng_read_flag == 0) {
-			ret = exynos_smc(SMC_CMD_RANDOM, HWRNG_INIT, 0, 0);
+			reg0 = SMC_CMD_RANDOM;
+			reg1 = HWRNG_INIT;
+			reg2 = 0;
+			reg3 = 0;
+
+			ret = exynos_cm_smc(&reg0, &reg1, &reg2, &reg3);
 			if (ret == HWRNG_RET_OK)
 				hwrng_read_flag = 1;
 			spin_unlock_irqrestore(&hwrandom_lock, flag);
@@ -192,13 +219,14 @@ static int exynos_swd_read(struct hwrng *rng, void *data, size_t max, bool wait)
 	retry_cnt = 0;
 	while (read_size) {
 		spin_lock_irqsave(&hwrandom_lock, flag);
-		ret = exynos_smc(SMC_CMD_RANDOM, HWRNG_GET_DATA, 0, 0);
-		__asm__ volatile(
-			"\t"
-			: "+r"(reg0), "+r"(reg1), "+r"(reg2), "+r"(reg3)
-		);
-		r_data[0] = (uint32_t)reg2;
-		r_data[1] = (uint32_t)reg3;
+
+		reg0 = SMC_CMD_RANDOM;
+		reg1 = HWRNG_GET_DATA;
+		reg2 = 0;
+		reg3 = 0;
+
+		ret = exynos_cm_smc(&reg0, &reg1, &reg2, &reg3);
+
 		spin_unlock_irqrestore(&hwrandom_lock, flag);
 
 		if (ret == HWRNG_RET_RETRY_ERROR) {
@@ -222,8 +250,8 @@ static int exynos_swd_read(struct hwrng *rng, void *data, size_t max, bool wait)
 			goto out;
 		}
 
-		*(uint32_t*)(read_buf++) = r_data[0];
-		*(uint32_t*)(read_buf++) = r_data[1];
+		*(uint32_t*)(read_buf++) = (uint32_t)reg2;
+		*(uint32_t*)(read_buf++) = (uint32_t)reg3;
 
 		read_size -= 8;
 		retry_cnt = 0;
@@ -235,7 +263,13 @@ out:
 	retry_cnt = 0;
 	do {
 		spin_lock_irqsave(&hwrandom_lock, flag);
-		if (!exynos_smc(SMC_CMD_RANDOM, HWRNG_EXIT, 0, 0)) {
+
+		reg0 = SMC_CMD_RANDOM;
+		reg1 = HWRNG_EXIT;
+		reg2 = 0;
+		reg3 = 0;
+
+		if (!exynos_cm_smc(&reg0, &reg1, &reg2, &reg3)) {
 			hwrng_read_flag = 0;
 			spin_unlock_irqrestore(&hwrandom_lock, flag);
 			break;
@@ -284,12 +318,21 @@ static int exyswd_rng_remove(struct platform_device *pdev)
 #if defined(CONFIG_PM_SLEEP) || defined(CONFIG_PM_RUNTIME)
 static int exyswd_rng_suspend(struct device *dev)
 {
+	uint64_t reg0;
+	uint64_t reg1;
+	uint64_t reg2;
+	uint64_t reg3;
 	unsigned long flag;
 	int ret = HWRNG_RET_OK;
 
 	spin_lock_irqsave(&hwrandom_lock, flag);
 	if (hwrng_read_flag) {
-		ret = exynos_smc(SMC_CMD_RANDOM, HWRNG_EXIT, 0, 0);
+		reg0 = SMC_CMD_RANDOM;
+		reg1 = HWRNG_EXIT;
+		reg2 = 0;
+		reg3 = 0;
+
+		ret = exynos_cm_smc(&reg0, &reg1, &reg2, &reg3);
 		if (ret != HWRNG_RET_OK)
 			printk("[ExyRNG] failed to enter suspend with %d\n", ret);
 	}
@@ -300,17 +343,31 @@ static int exyswd_rng_suspend(struct device *dev)
 
 static int exyswd_rng_resume(struct device *dev)
 {
+	uint64_t reg0;
+	uint64_t reg1;
+	uint64_t reg2;
+	uint64_t reg3;
 	unsigned long flag;
 	int ret = HWRNG_RET_OK;
 
 	spin_lock_irqsave(&hwrandom_lock, flag);
 #if defined(CONFIG_EXYRNG_FIPS_COMPLIANCE)
-	ret = exynos_smc(SMC_CMD_RANDOM, HWRNG_RESUME, 0, 0);
+	reg0 = SMC_CMD_RANDOM;
+	reg1 = HWRNG_RESUME;
+	reg2 = 0;
+	reg3 = 0;
+
+	ret = exynos_cm_smc(&reg0, &reg1, &reg2, &reg3);
 	if (ret != HWRNG_RET_OK)
 		printk("[ExyRNG] failed to resume with %d\n", ret);
 #endif
 	if (hwrng_read_flag) {
-		ret = exynos_smc(SMC_CMD_RANDOM, HWRNG_INIT, 0, 0);
+		reg0 = SMC_CMD_RANDOM;
+		reg1 = HWRNG_INIT;
+		reg2 = 0;
+		reg3 = 0;
+
+		ret = exynos_cm_smc(&reg0, &reg1, &reg2, &reg3);
 		if (ret != HWRNG_RET_OK)
 			printk("[ExyRNG] failed to resume with %d\n", ret);
 	}

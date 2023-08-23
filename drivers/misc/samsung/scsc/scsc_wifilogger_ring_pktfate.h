@@ -36,5 +36,5 @@ void scsc_wifilogger_ring_pktfate_log_rx_frame(wifi_rx_packet_fate fate, u16 du_
 					       void *frame, size_t len, bool ma_unitdata);
 void scsc_wifilogger_ring_pktfate_get_fates(int fate, void *report_bufs,
 					    size_t n_requested_fates,
-					    size_t *n_provided_fates);
+					    size_t *n_provided_fates, bool is_user);
 #endif /* __SCSC_WIFILOGGER_RING_PKTFATE_H__ */

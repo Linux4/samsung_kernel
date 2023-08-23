@@ -268,6 +268,30 @@ out:
 }
 __setup("androidboot.recovery_offset=", sec_debug_recovery_cause_setup);
 
+static unsigned long fmm_lock_offset;
+
+static int __init sec_debug_fmm_lock_offset(char *arg)
+{
+	fmm_lock_offset = simple_strtoul(arg, NULL, 10);
+	return 0;
+}
+
+early_param("sec_debug.fmm_lock_offset", sec_debug_fmm_lock_offset);
+
+static ssize_t store_FMM_lock(struct device *dev,
+                struct device_attribute *attr, const char *buf, size_t count)
+{
+	char lock;
+
+	sscanf(buf, "%c", &lock);
+	pr_info("%s: store %c in FMM_lock\n", __func__, lock);
+	sec_set_param(fmm_lock_offset, lock);
+
+        return count;
+}
+
+static DEVICE_ATTR(FMM_lock, 0220, NULL, store_FMM_lock);
+
 static int __init sec_debug_recovery_cause_init(void)
 {
 	struct device *dev;
@@ -280,6 +304,9 @@ static int __init sec_debug_recovery_cause_init(void)
 		pr_err("%s:Failed to create devce\n", __func__);
 
 	if (device_create_file(dev, &dev_attr_recovery_cause) < 0)
+		pr_err("%s: Failed to create device file\n", __func__);
+
+	if (device_create_file(dev, &dev_attr_FMM_lock) < 0)
 		pr_err("%s: Failed to create device file\n", __func__);
 
 	return 0;
@@ -843,39 +870,6 @@ void sec_debug_summary_set_reserved_out_buf(unsigned long buf, unsigned long siz
 	reserved_out_size = size;
 }
 
-static int __init sec_summary_log_setup(char *str)
-{
-	unsigned long size = memparse(str, &str);
-	unsigned long base = 0;
-
-	/* If we encounter any problem parsing str ... */
-	if (!size || *str != '@' || kstrtoul(str + 1, 0, &base)) {
-		pr_err("%s: failed to parse address.\n", __func__);
-		goto out;
-	}
-
-	last_summary_size = size;
-
-#ifdef CONFIG_NO_BOOTMEM
-	if (memblock_is_region_reserved(base, size) || memblock_reserve(base, size)) {
-#else
-	if (reserve_bootmem(base, size, BOOTMEM_EXCLUSIVE)) {
-#endif
-		pr_err("%s: failed to reserve size:0x%lx at base 0x%lx\n", __func__, size, base);
-		goto out;
-	}
-
-	pr_info("%s, base:0x%lx size:0x%lx\n", __func__, base, size);
-
-	sec_summary_log_buf = phys_to_virt(base);
-	sec_summary_log_size = round_up(sizeof(struct sec_debug_summary), PAGE_SIZE);
-	last_summary_buffer = phys_to_virt(base + sec_summary_log_size);
-	sec_debug_summary_set_reserved_out_buf(base + sec_summary_log_size, (size - sec_summary_log_size));
-out:
-	return 0;
-}
-__setup("sec_summary_log=", sec_summary_log_setup);
-
 int sec_debug_summary_init(void)
 {
 	int offset = 0;
@@ -972,5 +966,66 @@ int sec_debug_save_panic_info(const char *str, unsigned long caller)
 
 	return 0;
 }
-#endif /* CONFIG_SEC_DUMP_SUMMARY */
 
+static int __init sec_summary_log_setup(char *str)
+{
+	unsigned long size = memparse(str, &str);
+	unsigned long base = 0;
+
+	/* If we encounter any problem parsing str ... */
+	if (!size || *str != '@' || kstrtoul(str + 1, 0, &base)) {
+		pr_err("%s: failed to parse address.\n", __func__);
+		goto out;
+	}
+
+	last_summary_size = size;
+
+#ifdef CONFIG_NO_BOOTMEM
+	if (memblock_is_region_reserved(base, size) || memblock_reserve(base, size)) {
+#else
+	if (reserve_bootmem(base, size, BOOTMEM_EXCLUSIVE)) {
+#endif
+		pr_err("%s: failed to reserve size:0x%lx at base 0x%lx\n", __func__, size, base);
+		goto out;
+	}
+
+	pr_info("%s, base:0x%lx size:0x%lx\n", __func__, base, size);
+
+	sec_summary_log_buf = phys_to_virt(base);
+	sec_summary_log_size = round_up(sizeof(struct sec_debug_summary), PAGE_SIZE);
+	last_summary_buffer = phys_to_virt(base + sec_summary_log_size);
+	sec_debug_summary_set_reserved_out_buf(base + sec_summary_log_size, (size - sec_summary_log_size));
+out:
+	return 0;
+}
+__setup("sec_summary_log=", sec_summary_log_setup);
+#elif defined(CONFIG_SEC_DEBUG_SMALL_DEBUG_MODE)
+/* need to reserve dump summary area to prevent to corrupt kernel dump
+ * this reserved memory will not be used in kernel
+ */
+static int __init sec_summary_log_setup(char *str)
+{
+	unsigned long size = memparse(str, &str);
+	unsigned long base = 0;
+
+	/* If we encounter any problem parsing str ... */
+	if (!size || *str != '@' || kstrtoul(str + 1, 0, &base)) {
+		pr_err("%s: failed to parse address.\n", __func__);
+		goto out;
+	}
+
+#ifdef CONFIG_NO_BOOTMEM
+	if (memblock_is_region_reserved(base, size) || memblock_reserve(base, size)) {
+#else
+	if (reserve_bootmem(base, size, BOOTMEM_EXCLUSIVE)) {
+#endif
+		pr_err("%s: failed to reserve size:0x%lx at base 0x%lx\n", __func__, size, base);
+		goto out;
+	}
+
+	pr_info("%s: base:0x%lx size:0x%lx\n", __func__, base, size);
+out:
+	return 0;
+}
+__setup("sec_summary_log=", sec_summary_log_setup);
+#endif

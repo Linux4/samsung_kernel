@@ -321,6 +321,7 @@ struct fimc_is_hw_ip_ops {
 	int (*delete_setfile)(struct fimc_is_hw_ip *hw_ip, u32 instance, ulong hw_map);
 	void (*size_dump)(struct fimc_is_hw_ip *hw_ip);
 	void (*clk_gate)(struct fimc_is_hw_ip *hw_ip, u32 instance, bool on, bool close);
+	int (*restore)(struct fimc_is_hw_ip *hw_ip, u32 instance);
 };
 
 /**
@@ -401,4 +402,8 @@ void fimc_is_hardware_sfr_dump(struct fimc_is_hardware *hardware);
 void print_all_hw_frame_count(struct fimc_is_hardware *hardware);
 void fimc_is_hardware_clk_gate(struct fimc_is_hw_ip *hw_ip, u32 instance,
 	bool on, bool close);
+int fimc_is_hardware_flush_frame_by_group(struct fimc_is_hardware *hardware,
+	struct fimc_is_group *head, u32 instance);
+int fimc_is_hardware_restore_by_group(struct fimc_is_hardware *hardware,
+	struct fimc_is_group *group, u32 instance);
 #endif

@@ -295,9 +295,10 @@ static int manager_external_notifier_notification(struct notifier_block *nb,
 	switch (action) {
 	case EXTERNAL_NOTIFY_DEVICEADD:
 		pr_info("%s EXTERNAL_NOTIFY_DEVICEADD, enable=%d\n", __func__, enable);
+		pr_info("drp_state %d, pdic_attach_state %d, muic_attach_state %d\n",
+				typec_manager.ccic_drp_state, typec_manager.ccic_attach_state, typec_manager.muic_action);
 		if (enable &&
 			typec_manager.ccic_drp_state == USB_STATUS_NOTIFY_ATTACH_DFP &&
-			typec_manager.ccic_attach_state == CCIC_NOTIFY_ATTACH &&
 			typec_manager.muic_action != MUIC_NOTIFY_CMD_DETACH) {
 			pr_info("%s: a usb device is added in host mode\n", __func__);
 			/* USB cable Type */

@@ -72,6 +72,7 @@ void fscrypt_sdp_check_chamber_event(struct inode *old_dir, struct dentry *old_d
 		.inode = d_inode(new_dentry),
 	};
 
+	/* EXT4CRYPT-dedicated */
 	if (EXT4_I(old_dir)->i_crypt_info &&
 				EXT4_I(new_dir)->i_crypt_info) {
 		sdp_fs_command_t *cmd = NULL;
@@ -111,6 +112,7 @@ void fscrypt_sdp_check_chamber_event(struct inode *old_dir, struct dentry *old_d
 
 int fscrypt_sdp_check_rename_pre(struct dentry *old_dentry)
 {
+	/* EXT4CRYPT-dedicated */
 	if (EXT4_I(old_dentry->d_inode)->i_crypt_info &&
 			EXT4_I(old_dentry->d_inode)->i_crypt_info->ci_sdp_info &&
 			FSCRYPT_IS_CHAMBER_DENTRY(old_dentry)) {
@@ -132,6 +134,7 @@ void fscrypt_sdp_check_rename_post(struct inode *old_dir, struct dentry *old_den
 
 int fscrypt_sdp_check_rmdir(struct dentry *dentry)
 {
+	/* EXT4CRYPT-dedicated */
 	if (EXT4_I(dentry->d_inode)->i_crypt_info &&
 			EXT4_I(dentry->d_inode)->i_crypt_info->ci_sdp_info &&
 			FSCRYPT_IS_CHAMBER_DENTRY(dentry)) {

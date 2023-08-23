@@ -43,6 +43,7 @@ static int ext4_journal_check_start(struct super_block *sb)
 	journal_t *journal;
 
 	might_sleep();
+	/* @fs.sec -- 2b51c18e3186a30147fd8c0e277b77c937163f9a -- */
 	if (sb->s_flags & MS_RDONLY && !ext4_journal_current_handle())
 		return -EROFS;
 	WARN_ON(sb->s_writers.frozen == SB_FREEZE_COMPLETE);
@@ -316,6 +317,15 @@ int __ext4_handle_dirty_super(const char *where, unsigned int line,
 {
 	struct buffer_head *bh = EXT4_SB(sb)->s_sbh;
 	int err = 0;
+
+	/* @fs.sec -- f3fb2f98ccf1698650e6f1f5709100c424198b5c -- */
+	if (unlikely(le16_to_cpu(EXT4_SB(sb)->s_es->s_magic) !=
+			EXT4_SUPER_MAGIC)) {
+		print_bh(sb, bh, 0, EXT4_BLOCK_SIZE(sb));
+		if (test_opt(sb, ERRORS_PANIC))
+			panic("EXT4(Can not find EXT4_SUPER_MAGIC");
+		return -EIO;
+	}
 
 	ext4_superblock_csum_set(sb);
 	if (ext4_handle_valid(handle)) {

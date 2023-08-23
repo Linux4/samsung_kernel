@@ -54,6 +54,8 @@ static int sap_mlme_notifier(struct slsi_dev *sdev, unsigned long event)
 			if (sdev->netdev[i]) {
 				ndev_vif = netdev_priv(sdev->netdev[i]);
 				slsi_scan_cleanup(sdev, sdev->netdev[i]);
+				if (cancel_work_sync(&ndev_vif->set_multicast_filter_work))
+					slsi_wakeunlock(&sdev->wlan_wl);
 				SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 				slsi_vif_cleanup(sdev, sdev->netdev[i], 0);
 				SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
@@ -184,23 +186,39 @@ static int slsi_rx_netdev_mlme(struct slsi_dev *sdev, struct net_device *dev, st
 	case MLME_RANGE_DONE_IND:
 		slsi_rx_range_done_ind(sdev, dev, skb);
 		break;
-
-#endif
 	case MLME_EVENT_LOG_IND:
 		slsi_rx_event_log_indication(sdev, dev, skb);
 		break;
+#endif
 #ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
 	case MLME_NAN_EVENT_IND:
 		slsi_nan_event(sdev, dev, skb);
-		slsi_kfree_skb(skb);
 		break;
 	case MLME_NAN_FOLLOWUP_IND:
 		slsi_nan_followup_ind(sdev, dev, skb);
-		slsi_kfree_skb(skb);
 		break;
 	case MLME_NAN_SERVICE_IND:
 		slsi_nan_service_ind(sdev, dev, skb);
-		slsi_kfree_skb(skb);
+		break;
+	case MLME_NDP_REQUEST_IND:
+		slsi_nan_ndp_setup_ind(sdev, dev, skb, true);
+		break;
+	case MLME_NDP_REQUESTED_IND:
+		slsi_nan_ndp_requested_ind(sdev, dev, skb);
+		break;
+	case MLME_NDP_RESPONSE_IND:
+		slsi_nan_ndp_setup_ind(sdev, dev, skb, false);
+		break;
+	case MLME_NDP_TERMINATE_IND:
+		slsi_nan_ndp_termination_ind(sdev, dev, skb, false);
+		break;
+	case MLME_NDP_TERMINATED_IND:
+		slsi_nan_ndp_termination_ind(sdev, dev, skb, true);
+		break;
+#endif
+#ifdef CONFIG_SCSC_WLAN_SAE_CONFIG
+	case MLME_SYNCHRONISED_IND:
+		slsi_rx_synchronised_ind(sdev, dev, skb);
 		break;
 #endif
 #ifdef CONFIG_SLSI_WLAN_STA_FWD_BEACON
@@ -242,10 +260,12 @@ int slsi_rx_enqueue_netdev_mlme(struct slsi_dev *sdev, struct sk_buff *skb, u16 
 
 	rcu_read_lock();
 	dev = slsi_get_netdev_rcu(sdev, vif);
-	if (WARN_ON(!dev)) {
+	/* in case of del_vif failure, we may get mlme signals for a netdev which is already removed */
+	if (!dev) {
+		SLSI_WARN(sdev, "dev is NULL");
+		kfree_skb(skb);
 		rcu_read_unlock();
-		/* Calling function should free the skb */
-		return -ENODEV;
+		return 0;
 	}
 
 	ndev_vif = netdev_priv(dev);
@@ -348,10 +368,17 @@ static int sap_mlme_rx_handler(struct slsi_dev *sdev, struct sk_buff *skb)
 			}
 			return slsi_rx_action_enqueue_netdev_mlme(sdev, skb, vif);
 #ifdef CONFIG_SCSC_WLAN_GSCAN_ENABLE
+#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
 		case MLME_NAN_EVENT_IND:
 		case MLME_NAN_FOLLOWUP_IND:
 		case MLME_NAN_SERVICE_IND:
+		case MLME_NDP_REQUEST_IND:
+		case MLME_NDP_REQUESTED_IND:
+		case MLME_NDP_RESPONSE_IND:
+		case MLME_NDP_TERMINATE_IND:
+		case MLME_NDP_TERMINATED_IND:
 			return slsi_rx_enqueue_netdev_mlme(sdev, skb, vif);
+#endif
 		case MLME_RANGE_IND:
 		case MLME_RANGE_DONE_IND:
 			if (vif == 0)

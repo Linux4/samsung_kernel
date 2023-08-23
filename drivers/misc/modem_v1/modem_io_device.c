@@ -369,6 +369,7 @@ static int rx_multi_pdp(struct sk_buff *skb)
 
 	skb_reset_transport_header(skb);
 	skb_reset_network_header(skb);
+	skb_reset_mac_header(skb);
 
 	if (check_gro_support(skb)) {
 		ret = napi_gro_receive(napi_get_current(), skb);
@@ -499,8 +500,10 @@ exit:
 	if (state == STATE_CRASH_RESET
 	    || state == STATE_CRASH_EXIT
 	    || state == STATE_NV_REBUILDING
-	    || state == STATE_CRASH_WATCHDOG)
-		wake_up(&iod->wq);
+	    || state == STATE_CRASH_WATCHDOG) {
+		if (atomic_read(&iod->opened) > 0)
+			wake_up(&iod->wq);
+	}
 }
 
 static void io_dev_sim_state_changed(struct io_device *iod, bool sim_online)
@@ -1286,12 +1289,19 @@ static int vnet_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	ret = ld->send(ld, iod, skb_new);
 	if (unlikely(ret < 0)) {
+		static DEFINE_RATELIMIT_STATE(_rs, HZ, 100);
+
 		if (ret != -EBUSY) {
 			mif_err_limited("%s->%s: ERR! %s->send fail:%d "
 					"(tx_bytes:%d len:%d)\n",
 					iod->name, mc->name, ld->name, ret,
 					tx_bytes, count);
+			goto drop;
 		}
+
+		/* do 100-retry for every 1sec */
+		if (__ratelimit(&_rs))
+			goto retry;
 		goto drop;
 	}
 

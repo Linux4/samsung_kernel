@@ -1966,7 +1966,7 @@ static int dw_mci_switch_voltage(struct mmc_host *mmc, struct mmc_ios *ios)
 			}
 out:
 			/* waiting for stable */
-			mdelay(10);
+			msleep(10);
 
 			ret = mmc_regulator_set_vqmmc(mmc, ios);
 

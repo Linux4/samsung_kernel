@@ -42,6 +42,7 @@
 #ifdef CONFIG_EXT4CRYPT_SDP
 #include "sdp/fscrypto_sdp_private.h"
 #include "sdp/fscrypto_sdp_dek_private.h"
+#include "sdp/sdp_crypto.h"
 #endif
 
 /* Encryption added and removed here! (L: */
@@ -173,6 +174,7 @@ void ext4_exit_crypto(void)
 		kmem_cache_destroy(ext4_crypt_info_cachep);
 	ext4_crypt_info_cachep = NULL;
 #ifdef CONFIG_EXT4CRYPT_SDP
+	sdp_crypto_exit();
 	fscrypt_sdp_release_sdp_info_cachep();
 #endif
 }
@@ -209,6 +211,7 @@ int ext4_init_crypto(void)
 #ifdef CONFIG_EXT4CRYPT_SDP
 	if (!fscrypt_sdp_init_sdp_info_cachep())
 		goto fail;
+	sdp_crypto_init();
 #endif
 
 	for (i = 0; i < num_prealloc_crypto_ctxs; i++) {

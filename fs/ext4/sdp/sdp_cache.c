@@ -127,6 +127,7 @@ int fscrypt_sdp_cache_init(void)
 
 void fscrypt_sdp_cache_add_inode_num(struct inode *inode)
 {
+	/* EXT4CRYPT-dedicated */
 	struct ext4_crypt_info *ci = ext4_encryption_info(inode);//This pointer must be loaded by get_encryption_info completely
 	if (ci && ci->ci_sdp_info) {
 		int res = add_entry_locked(ci->ci_sdp_info->engine_id, inode->i_sb, inode->i_ino);
@@ -141,6 +142,7 @@ void fscrypt_sdp_cache_remove_inode_num(struct inode *inode)
 {
 	if (inode) {
 		struct list_head *e;
+		/* EXT4CRYPT-dedicated */
 		struct ext4_crypt_info *ci = ext4_encryption_info(inode);
 
 		spin_lock(&list_lock);
@@ -212,6 +214,7 @@ static int inode_drop_task(void *arg)
 
 	struct _entry *entry, *entry_safe;
 	struct inode *inode;
+	/* EXT4CRYPT-dedicated */
 	struct ext4_crypt_info *ci;
 	LIST_HEAD(drop_list);
 
@@ -237,6 +240,7 @@ static int inode_drop_task(void *arg)
 			}
 
 			DEK_LOGD("%s found ino:%lu sb:%p\n", __func__, entry->ino, entry->sb);
+			/* EXT4CRYPT-dedicated */
 			ci = ext4_encryption_info(inode);
 			/*
 			 * Instead of occuring BUG, skip the clearing only
@@ -299,6 +303,7 @@ int fscrypt_sdp_file_not_readable(struct file *file)
 {
 	struct address_space *mapping = file->f_mapping;
 	struct inode *inode = mapping->host;
+	/* EXT4CRYPT-dedicated */
 	struct ext4_crypt_info *ci = ext4_encryption_info(inode);
 	int retval = 0;
 
@@ -340,6 +345,7 @@ int fscrypt_sdp_file_not_writable(struct file *file)
 {
 	struct address_space *mapping = file->f_mapping;
 	struct inode *inode = mapping->host;
+	/* EXT4CRYPT-dedicated */
 	struct ext4_crypt_info *ci = ext4_encryption_info(inode);
 	int retval = 0;
 
@@ -361,6 +367,7 @@ void fscrypt_sdp_unset_file_io_ongoing(struct file *file)
 {
 	struct address_space *mapping = file->f_mapping;
 	struct inode *inode = mapping->host;
+	/* EXT4CRYPT-dedicated */
 	struct ext4_crypt_info *ci = ext4_encryption_info(inode);
 
 	if (ci && ci->ci_sdp_info && (ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE)) {
@@ -370,6 +377,7 @@ void fscrypt_sdp_unset_file_io_ongoing(struct file *file)
 
 void fscrypt_sdp_unset_clearing_ongoing(struct inode *inode)
 {
+	/* EXT4CRYPT-dedicated */
 	struct ext4_crypt_info *ci = ext4_encryption_info(inode);
 
 	if (ci && ci->ci_sdp_info && (ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE)) {
@@ -380,6 +388,7 @@ void fscrypt_sdp_unset_clearing_ongoing(struct inode *inode)
 bool fscrypt_sdp_is_cache_releasable(struct inode *inode)
 {
 	bool retval = false;
+	/* EXT4CRYPT-dedicated */
 	struct ext4_crypt_info *ci = ext4_encryption_info(inode);
 
 	if (ci && ci->ci_sdp_info && (ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE)) {
@@ -399,6 +408,7 @@ bool fscrypt_sdp_is_cache_releasable(struct inode *inode)
 
 bool fscrypt_sdp_is_locked_sensitive_inode(struct inode *inode)
 {
+	/* EXT4CRYPT-dedicated */
 	struct ext4_crypt_info *ci = ext4_encryption_info(inode);
 
 	if (ci && ci->ci_sdp_info &&
@@ -413,6 +423,7 @@ int __fscrypt_sdp_d_delete(const struct dentry *dentry, int dek_is_locked) {
 	struct inode *inode = d_inode(dentry);
 
 	if (inode && dek_is_locked) {
+		/* EXT4CRYPT-dedicated */
 		struct ext4_crypt_info *crypt_info = ext4_encryption_info(inode);
 
 		if (crypt_info && crypt_info->ci_sdp_info &&
@@ -426,8 +437,10 @@ int __fscrypt_sdp_d_delete(const struct dentry *dentry, int dek_is_locked) {
 }
 EXPORT_SYMBOL(__fscrypt_sdp_d_delete);
 
+/* EXT4CRYPT-dedicated */
 int ext4_sdp_d_delete_wrapper(const struct dentry *dentry) {
-struct inode *inode = d_inode(dentry);
+	struct inode *inode = d_inode(dentry);
+	/* EXT4CRYPT-dedicated */
 	struct ext4_crypt_info *ci = inode ? ext4_encryption_info(inode) : NULL;
 #if 1
 	int is_locked = 1; /* TODO: */

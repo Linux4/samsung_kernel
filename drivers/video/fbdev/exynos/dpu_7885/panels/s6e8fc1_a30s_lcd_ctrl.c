@@ -25,7 +25,7 @@
 
 #if defined(CONFIG_EXYNOS_DECON_MDNIE)
 #include "mdnie.h"
-#include "mdnie_lite_table_a30s.h"
+#include "s6e8fc1_a30s_mdnie.h"
 #endif
 
 #if defined(CONFIG_DISPLAY_USE_INFO)
@@ -395,6 +395,10 @@ static int s6e8fc1_read_id(struct lcd_info *lcd)
 {
 	struct panel_private *priv = &lcd->dsim->priv;
 	int ret = 0;
+	struct decon_device *decon = get_decon_drvdata(0);
+	static char *LDI_BIT_DESC_ID[BITS_PER_BYTE * LDI_LEN_ID] = {
+		[0 ... 23] = "ID Read Fail",
+	};
 
 	lcd->id_info.value = 0;
 	priv->lcdconnected = lcd->connected = lcdtype ? 1 : 0;
@@ -403,6 +407,9 @@ static int s6e8fc1_read_id(struct lcd_info *lcd)
 	if (ret < 0 || !lcd->id_info.value) {
 		priv->lcdconnected = lcd->connected = 0;
 		dev_info(&lcd->ld->dev, "%s: connected lcd is invalid\n", __func__);
+
+		if (lcdtype && decon)
+			decon_abd_save_bit(&decon->abd, BITS_PER_BYTE * LDI_LEN_ID, cpu_to_be32(lcd->id_info.value), LDI_BIT_DESC_ID);
 	}
 
 	dev_info(&lcd->ld->dev, "%s: %x\n", __func__, cpu_to_be32(lcd->id_info.value));
@@ -625,24 +632,6 @@ static int s6e8fc1_read_rddsm(struct lcd_info *lcd)
 	return ret;
 }
 
-#ifdef CONFIG_LOGGING_BIGDATA_BUG
-unsigned int get_panel_bigdata(struct dsim_device *dsim)
-{
-	struct lcd_info *lcd = dsim->priv.par;
-	unsigned int val = 0;
-
-	lcd->rddpm = 0xff;
-	lcd->rddsm = 0xff;
-
-	s6e8fc1_read_rddpm(lcd);
-	s6e8fc1_read_rddsm(lcd);
-
-	val = (lcd->rddpm  << 8) | lcd->rddsm;
-
-	return val;
-}
-#endif
-
 static int s6e8fc1_read_init_info(struct lcd_info *lcd)
 {
 	int ret = 0;
@@ -799,7 +788,7 @@ static int panel_dpui_notifier_callback(struct notifier_block *self,
 	set_dpui_field(DPUI_KEY_DISP_MODEL, tbuf, size);
 
 	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "0x%02X%02X%02X%02X%02X",
-			lcd->code[0], lcd->code[1], lcd->code[2], lcd->code[3], lcd->code[4]);
+		lcd->code[0], lcd->code[1], lcd->code[2], lcd->code[3], lcd->code[4]);
 	set_dpui_field(DPUI_KEY_CHIPID, tbuf, size);
 
 	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
@@ -855,8 +844,11 @@ static int fb_notifier_callback(struct notifier_block *self,
 	if (evdata->info->node)
 		return NOTIFY_DONE;
 
-	if (fb_blank == FB_BLANK_UNBLANK)
+	if (fb_blank == FB_BLANK_UNBLANK) {
+		mutex_lock(&lcd->lock);
 		s6e8fc1_displayon(lcd);
+		mutex_unlock(&lcd->lock);
+	}
 
 	return NOTIFY_DONE;
 }
@@ -1270,6 +1262,7 @@ static DEVICE_ATTR(lux, 0644, lux_show, lux_store);
 static DEVICE_ATTR(octa_id, 0444, octa_id_show, NULL);
 static DEVICE_ATTR(SVC_OCTA, 0444, cell_id_show, NULL);
 static DEVICE_ATTR(SVC_OCTA_CHIPID, 0444, octa_id_show, NULL);
+static DEVICE_ATTR(SVC_OCTA_DDI_CHIPID, 0444, manufacture_code_show, NULL);
 
 static struct attribute *lcd_sysfs_attributes[] = {
 	&dev_attr_lcd_type.attr,
@@ -1329,6 +1322,7 @@ static void lcd_init_svc(struct lcd_info *lcd)
 
 	device_create_file(dev, &dev_attr_SVC_OCTA);
 	device_create_file(dev, &dev_attr_SVC_OCTA_CHIPID);
+	device_create_file(dev, &dev_attr_SVC_OCTA_DDI_CHIPID);
 
 	if (kn)
 		kernfs_put(kn);
@@ -1483,6 +1477,24 @@ exit:
 	return 0;
 }
 
+#if defined(CONFIG_LOGGING_BIGDATA_BUG)
+static unsigned int dsim_get_panel_bigdata(struct dsim_device *dsim)
+{
+	struct lcd_info *lcd = dsim->priv.par;
+	unsigned int val = 0;
+
+	lcd->rddpm = 0xff;
+	lcd->rddsm = 0xff;
+
+	s6e8fc1_read_rddpm(lcd);
+	s6e8fc1_read_rddsm(lcd);
+
+	val = (lcd->rddpm  << 8) | lcd->rddsm;
+
+	return val;
+}
+#endif
+
 #if defined(CONFIG_SUPPORT_MASK_LAYER)
 static int dsim_panel_mask_brightness(struct dsim_device *dsim)
 {
@@ -1556,16 +1568,23 @@ struct dsim_lcd_driver s6e8fc1_mipi_lcd_driver = {
 	.probe		= dsim_panel_probe,
 	.displayon	= dsim_panel_displayon,
 	.suspend	= dsim_panel_suspend,
+#if defined(CONFIG_LOGGING_BIGDATA_BUG)
+	.get_buginfo	= dsim_get_panel_bigdata,
+#endif
 #if defined(CONFIG_SUPPORT_MASK_LAYER)
 	.mask_brightness	= dsim_panel_mask_brightness,
 #endif
 };
+__XX_ADD_LCD_DRIVER(s6e8fc1_mipi_lcd_driver);
 
 static void panel_conn_uevent(struct lcd_info *lcd)
 {
 	char *uevent_conn_str[3] = {"CONNECTOR_NAME=UB_CONNECT", "CONNECTOR_TYPE=HIGH_LEVEL", NULL};
 
 	if (!IS_ENABLED(CONFIG_SEC_FACTORY))
+		return;
+
+	if (!lcd->conn_det_enable)
 		return;
 
 	kobject_uevent_env(&lcd->ld->dev.kobj, KOBJ_CHANGE, uevent_conn_str);
@@ -1582,7 +1601,7 @@ static void panel_conn_work(struct work_struct *work)
 	panel_conn_uevent(lcd);
 }
 
-irqreturn_t panel_conn_det_handler(int irq, void *dev_id)
+static irqreturn_t panel_conn_det_handler(int irq, void *dev_id)
 {
 	struct lcd_info *lcd = (struct lcd_info *)dev_id;
 
@@ -1595,7 +1614,6 @@ irqreturn_t panel_conn_det_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-#if defined(CONFIG_SEC_FACTORY)
 static ssize_t conn_det_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -1643,11 +1661,11 @@ static ssize_t conn_det_store(struct device *dev,
 }
 
 static DEVICE_ATTR(conn_det, 0644, conn_det_show, conn_det_store);
-#endif
 
 static void panel_conn_register(struct lcd_info *lcd)
 {
 	struct decon_device *decon = get_decon_drvdata(0);
+	struct abd_protect *abd = &decon->abd;
 	int gpio = 0, gpio_active = 0;
 
 	if (!decon) {
@@ -1672,11 +1690,6 @@ static void panel_conn_register(struct lcd_info *lcd)
 		return;
 	}
 
-#if defined(CONFIG_SEC_FACTORY)
-	decon_abd_con_register(decon);
-	device_create_file(&lcd->ld->dev, &dev_attr_conn_det);
-#endif
-
 	INIT_WORK(&lcd->conn_work, panel_conn_work);
 
 	lcd->conn_workqueue = create_singlethread_workqueue("lcd_conn_workqueue");
@@ -1685,57 +1698,44 @@ static void panel_conn_register(struct lcd_info *lcd)
 		return;
 	}
 
-	decon_abd_pin_register_handler(gpio_to_irq(gpio), panel_conn_det_handler, lcd);
-}
+	decon_abd_pin_register_handler(abd, gpio_to_irq(gpio), panel_conn_det_handler, lcd);
 
-static int compare_with_name(struct device *dev, void *data)
-{
-	const char *keyword = data;
+	if (!IS_ENABLED(CONFIG_SEC_FACTORY))
+		return;
 
-	return dev_name(dev) ? !!strstr(dev_name(dev), keyword) : 0;
-}
-
-static struct device *find_platform_device_by_keyword(const char *keyword)
-{
-	return bus_find_device(&platform_bus_type, NULL, (void *)keyword, compare_with_name);
-}
-
-static struct device *find_lcd_device(void)
-{
-	struct device *parent = NULL;
-	struct device *dev = NULL;
-
-	parent = find_platform_device_by_keyword("dsim");
-
-	if (!parent) {
-		dsim_info("bus_find_device fail\n");
-		return parent;
-	}
-
-	dev = device_find_child(parent, "panel", compare_with_name);
-
-	if (parent)
-		put_device(parent);
-
-	if (dev)
-		put_device(dev);
-
-	return dev ? dev : parent;
+	decon_abd_con_register(abd);
+	device_create_file(&lcd->ld->dev, &dev_attr_conn_det);
 }
 
 static int __init panel_conn_init(void)
 {
-	struct device *dev = find_lcd_device();
 	struct lcd_info *lcd = NULL;
+	struct dsim_device *pdata = NULL;
+	struct platform_device *pdev = NULL;
 
-	if (!dev) {
-		decon_info("find_lcd_device fail\n");
+	pdev = of_find_dsim_platform_device();
+	if (!pdev) {
+		dsim_info("%s: of_find_dsim_platform_device fail\n", __func__);
 		return 0;
 	}
 
-	lcd = dev_get_drvdata(dev);
+	pdata = platform_get_drvdata(pdev);
+	if (!pdata) {
+		dsim_info("%s: platform_get_drvdata fail\n", __func__);
+		return 0;
+	}
+
+	if (!pdata->panel_ops) {
+		dsim_info("%s: panel_ops invalid\n", __func__);
+		return 0;
+	}
+
+	if (pdata->panel_ops != this_driver)
+		return 0;
+
+	lcd = pdata->priv.par;
 	if (!lcd) {
-		decon_info("lcd_info invalid\n");
+		dsim_info("lcd_info invalid\n");
 		return 0;
 	}
 
@@ -1744,8 +1744,9 @@ static int __init panel_conn_init(void)
 		panel_conn_register(lcd);
 	}
 
+	dev_info(&lcd->ld->dev, "%s: %s: done\n", kbasename(__FILE__), __func__);
+
 	return 0;
 }
-
 late_initcall_sync(panel_conn_init);
 

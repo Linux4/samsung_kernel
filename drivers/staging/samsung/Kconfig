@@ -25,7 +25,7 @@ menuconfig SEC_DEBUG
 	depends on EXYNOS_SNAPSHOT && SEC_REBOOT
 	default y
 
- config SEC_DEBUG_RESET_REASON
+config SEC_DEBUG_RESET_REASON
 	bool "Enable TN reset reason"
 	depends on SEC_DEBUG
 	default y
@@ -117,6 +117,13 @@ config CM_OFFSET
 	help
 	  set Charging Mode Offset when you enable SEC_PARAM.
 
+config FMM_LOCK_OFFSET
+	int "FMM lock Offset"
+	default 0
+	depends on SEC_PARAM
+	help
+	  set FMM lock Offset when you enable SEC_PARAM.
+
 config SEC_EVENT_LOG
 	bool "Enable Event log parser"
 	depends on SEC_EXT
@@ -131,7 +138,12 @@ config SEC_INITCALL_DEBUG
 	bool "Enable TN Initcall logging"
 	depends on SEC_EXT && !SAMSUNG_PRODUCT_SHIP
 	default y
-
+	
+config SEC_RESUME_SUSPEND_DEBUG
+	bool "Enable TN resume and suspend logging"
+	depends on SEC_EXT && !SAMSUNG_PRODUCT_SHIP
+	default y
+	  
 config ARGOS
 	bool "Throughput monitoring Feature"
 	default n
@@ -179,6 +191,22 @@ config SEC_DEBUG_TSP_LOG
 	depends on SEC_EXT
 	help
 	  This option enables additional log buffer for tsp log.
+
+config SEC_DEBUG_INIT_EXIT_PANIC
+	bool "Trigger panic when exiting init task group"
+	depends on SEC_DEBUG
+	default y
+	help
+	  This option enables early panic when it attempt to kill init tasks.
+	  It may happen before init task stack is destroyed for debugging.
+
+config SEC_DEBUG_SOFTDOG_PWDT
+	bool "Enable Soft Watchdog for Platform"
+	default y
+	depends on WATCHDOG
+	select SOFT_WATCHDOG
+	help
+	  This option enables soft watchdog device and soft_panic.
 
 comment "Samsung TN Power Management Options"
 menuconfig SEC_PM
@@ -281,3 +309,14 @@ config SEC_PERIPHERAL_SECURE_CHK
 	help
 	  This option supports secure check
 
+config SEC_DEBUG_SNAPSHOT_DISABLE
+	bool "Disable EXYNOS SNAPSHOT logging"
+	default n
+	help
+	  This option blocks exynos snapshot logging
+
+config SEC_DEBUG_SMALL_DEBUG_MODE
+	bool "Enable small debug mode"
+	default n
+	help
+	  This option supports small debug mode

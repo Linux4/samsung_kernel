@@ -475,13 +475,14 @@ finish:
 	pr_auto_disable(4);
 }
 
-static void show_fault_information(struct sysmmu_drvdata *drvdata,
-				   int flags, unsigned long fault_addr)
+static int show_fault_information(struct sysmmu_drvdata *drvdata,
+				  int flags, unsigned long fault_addr)
 {
 	unsigned int info;
 	phys_addr_t pgtable;
 	int fault_id = SYSMMU_FAULT_ID(flags);
 	const char *port_name = NULL;
+	static int ptw_count = 0;
 #ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
 	char temp_buf[SZ_128];
 #endif
@@ -528,8 +529,17 @@ static void show_fault_information(struct sysmmu_drvdata *drvdata,
 		pr_auto(ASL4, "Page table base of driver: %pa\n",
 			&drvdata->pgtable);
 
-	if (fault_id == SYSMMU_FAULT_PTW_ACCESS)
-		pr_auto(ASL4, "System MMU has failed to access page table\n");
+	if (fault_id == SYSMMU_FAULT_PTW_ACCESS) {
+		ptw_count++;
+		pr_auto(ASL4, "System MMU has failed to access page table, %d\n", ptw_count);
+
+		if (ptw_count > 3)
+			panic("Unrecoverable System MMU PTW fault");
+
+		writel(0x1, drvdata->sfrbase + REG_INT_CLEAR);
+
+		return -EAGAIN;
+	}
 
 	if (!pfn_valid(pgtable >> PAGE_SHIFT)) {
 		pr_auto(ASL4, "Page table base is not in a valid memory region\n");
@@ -549,6 +559,8 @@ static void show_fault_information(struct sysmmu_drvdata *drvdata,
 finish:
 	pr_auto(ASL4, "----------------------------------------------------------\n");
 	pr_auto_disable(4);
+	
+	return 0;
 }
 
 #define REG_INT_STATUS_WRITE_BIT 16
@@ -592,7 +604,7 @@ static irqreturn_t exynos_sysmmu_irq(int irq, void *dev_id)
 	struct sysmmu_drvdata *drvdata = dev_id;
 	unsigned int itype;
 	unsigned long addr = -1;
-	int flags = 0;
+	int flags = 0, ret;
 
 	dev_info(drvdata->sysmmu, "%s:%d: irq(%d) happened\n", __func__, __LINE__, irq);
 
@@ -630,7 +642,9 @@ static irqreturn_t exynos_sysmmu_irq(int irq, void *dev_id)
 		flags |= SYSMMU_FAULT_FLAG(itype);
 	}
 
-	show_fault_information(drvdata, flags, addr);
+	ret = show_fault_information(drvdata, flags, addr);
+	if (ret == -EAGAIN)
+		return IRQ_HANDLED;
 	atomic_notifier_call_chain(&drvdata->fault_notifiers, addr, &flags);
 
 	panic("Unrecoverable System MMU Fault!!");
@@ -1198,8 +1212,6 @@ static void __sysmmu_set_tlb_port_dedication(struct sysmmu_drvdata *drvdata)
 static void __sysmmu_init_config(struct sysmmu_drvdata *drvdata)
 {
 	unsigned long cfg = 0;
-
-	writel_relaxed(CTRL_BLOCK, drvdata->sfrbase + REG_MMU_CTRL);
 
 	if (IS_TLB_WAY_TYPE(drvdata)) {
 		__sysmmu_set_tlb_way_dedication(drvdata);

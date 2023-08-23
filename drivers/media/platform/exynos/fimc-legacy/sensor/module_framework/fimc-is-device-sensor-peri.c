@@ -1333,7 +1333,6 @@ int fimc_is_sensor_peri_pre_flash_fire(struct v4l2_subdev *subdev, void *arg)
 	int ret = 0;
 	u32 vsync_count = 0;
 	struct fimc_is_module_enum *module = NULL;
-	struct fimc_is_device_sensor *device;
 	struct fimc_is_flash *flash = NULL;
 	struct fimc_is_sensor_ctl *sensor_ctl = NULL;
 	camera2_flash_uctl_t *flash_uctl = NULL;
@@ -1352,9 +1351,6 @@ int fimc_is_sensor_peri_pre_flash_fire(struct v4l2_subdev *subdev, void *arg)
 	flash = sensor_peri->flash;
 	BUG_ON(!flash);
 
-	device = v4l2_get_subdev_hostdata(sensor_peri->subdev_cis);
-	BUG_ON(!device);
-
 	mutex_lock(&sensor_peri->cis.control_lock);
 
 	sensor_ctl = &sensor_peri->cis.sensor_ctls[vsync_count % CAM2P0_UCTL_LIST_SIZE];
@@ -1362,7 +1358,7 @@ int fimc_is_sensor_peri_pre_flash_fire(struct v4l2_subdev *subdev, void *arg)
 	flash_uctl = &sensor_ctl->cur_cam20_flash_udctrl;
 
 	if ((sensor_ctl->valid_flash_udctrl == false)
-		|| ((vsync_count != sensor_ctl->flash_frame_number) && (device->image.framerate >= 60)))
+		|| (vsync_count != sensor_ctl->flash_frame_number))
 		goto p_err;
 
 	if ((flash_uctl->flashMode != flash->flash_data.mode) ||
@@ -1797,6 +1793,8 @@ int fimc_is_sensor_peri_s_stream(struct fimc_is_device_sensor *device,
 			memset(&sensor_peri->cis.sensor_ctls[i].cur_cam20_sensor_udctrl, 0, sizeof(camera2_sensor_uctl_t));
 			sensor_peri->cis.sensor_ctls[i].valid_sensor_ctrl = 0;
 			sensor_peri->cis.sensor_ctls[i].force_update = false;
+			memset(&sensor_peri->cis.sensor_ctls[i].cur_cam20_flash_udctrl, 0, sizeof(camera2_flash_uctl_t));
+			sensor_peri->cis.sensor_ctls[i].valid_flash_udctrl = false;
 		}
 		sensor_peri->use_sensor_work = false;
 	}
@@ -2304,7 +2302,7 @@ int fimc_is_sensor_peri_actuator_softlanding(struct fimc_is_device_sensor_peri *
 		actuator_itf->hw_pos = soft_landing_table->hw_table[i];
 
 		/* The actuator needs a delay time when lens moving for soft landing. */
-		mdelay(soft_landing_table->step_delay);
+		msleep(soft_landing_table->step_delay);
 
 		ret = fimc_is_sensor_peri_actuator_check_move_done(device);
 		if (ret) {

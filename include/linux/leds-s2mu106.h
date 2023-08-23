@@ -117,6 +117,8 @@ enum s2mu106_fled_mode {
 	S2MU106_FLED_MODE_OFF,
 	S2MU106_FLED_MODE_TORCH,
 	S2MU106_FLED_MODE_FLASH,
+	S2MU106_FLED_MODE_MOVIE,
+	S2MU106_FLED_MODE_FACTORY,
 	S2MU106_FLED_MODE_MAX,
 };
 
@@ -155,6 +157,11 @@ struct s2mu106_fled_data {
 	int torch_gpio;
 	int sysfs_input_data;
 	int control_mode; /* 0 : I2C, 1 : GPIO */
+
+	/* charger mode control */
+	bool is_en_flash;
+	struct power_supply *psy_chg;
+
 	struct i2c_client *i2c;
 	struct mutex lock;
 	u32 default_current;

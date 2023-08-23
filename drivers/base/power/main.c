@@ -42,7 +42,12 @@
 #include <linux/sec_debug.h>
 #endif
 
+#ifdef CONFIG_SEC_RESUME_SUSPEND_DEBUG
+#include <linux/sec_suspend_resume.h>
+int debug_enable;
+#else
 typedef int (*pm_callback_t)(struct device *);
+#endif
 
 /*
  * The entries in the dpm_list list are in a depth first order, simply
@@ -515,6 +520,10 @@ static int device_resume_noirq(struct device *dev, pm_message_t state, bool asyn
 	pm_callback_t callback = NULL;
 	char *info = NULL;
 	int error = 0;
+#ifdef CONFIG_SEC_RESUME_SUSPEND_DEBUG
+	ktime_t calltime, delta, rettime;
+	unsigned long long duration;
+#endif
 
 	TRACE_DEVICE(dev);
 	TRACE_RESUME(0);
@@ -546,7 +555,21 @@ static int device_resume_noirq(struct device *dev, pm_message_t state, bool asyn
 		callback = pm_noirq_op(dev->driver->pm, state);
 	}
 
+#ifdef CONFIG_SEC_RESUME_SUSPEND_DEBUG	
+	if (debug_enable){
+		calltime = ktime_get();
+		error = dpm_run_callback(callback, dev, state, info);
+		rettime = ktime_get();
+		delta = ktime_sub(rettime, calltime);
+		duration = (unsigned long long) ktime_to_ns(delta) >> 10;
+		if(callback)
+			sec_debug_add(callback, duration, 1);
+	} else
+		error = dpm_run_callback(callback, dev, state, info);
+#else
 	error = dpm_run_callback(callback, dev, state, info);
+	
+#endif
 	dev->power.is_noirq_suspended = false;
 
  Out:
@@ -645,6 +668,10 @@ static int device_resume_early(struct device *dev, pm_message_t state, bool asyn
 	pm_callback_t callback = NULL;
 	char *info = NULL;
 	int error = 0;
+#ifdef CONFIG_SEC_RESUME_SUSPEND_DEBUG
+	ktime_t calltime, delta, rettime;
+	unsigned long long duration;
+#endif
 
 	TRACE_DEVICE(dev);
 	TRACE_RESUME(0);
@@ -676,7 +703,20 @@ static int device_resume_early(struct device *dev, pm_message_t state, bool asyn
 		callback = pm_late_early_op(dev->driver->pm, state);
 	}
 
-	error = dpm_run_callback(callback, dev, state, info);
+#ifdef CONFIG_SEC_RESUME_SUSPEND_DEBUG
+	if (debug_enable){
+		calltime = ktime_get();
+		error = dpm_run_callback(callback, dev, state, info);
+		rettime = ktime_get();
+		delta = ktime_sub(rettime, calltime);
+		duration = (unsigned long long) ktime_to_ns(delta) >> 10;
+		if(callback)
+			sec_debug_add(callback, duration, 1);
+	} else 
+		error = dpm_run_callback(callback, dev, state, info);
+#else
+		error = dpm_run_callback(callback, dev, state, info);
+#endif
 	dev->power.is_late_suspended = false;
 
  Out:
@@ -773,6 +813,11 @@ static int device_resume(struct device *dev, pm_message_t state, bool async)
 	pm_callback_t callback = NULL;
 	char *info = NULL;
 	int error = 0;
+#ifdef CONFIG_SEC_RESUME_SUSPEND_DEBUG
+	ktime_t calltime, delta, rettime;
+	unsigned long long duration;
+#endif
+
 	DECLARE_DPM_WATCHDOG_ON_STACK(wd);
 
 	TRACE_DEVICE(dev);
@@ -845,7 +890,21 @@ static int device_resume(struct device *dev, pm_message_t state, bool async)
 	}
 
  End:
+
+#ifdef CONFIG_SEC_RESUME_SUSPEND_DEBUG
+	if (debug_enable){
+		calltime = ktime_get();
+		error = dpm_run_callback(callback, dev, state, info);
+		rettime = ktime_get();
+		delta = ktime_sub(rettime, calltime);
+		duration = (unsigned long long) ktime_to_ns(delta) >> 10;
+		if(callback)
+			sec_debug_add(callback, duration, 1);
+	} else
+		error = dpm_run_callback(callback, dev, state, info);
+#else
 	error = dpm_run_callback(callback, dev, state, info);
+#endif
 	dev->power.is_suspended = false;
 
  Unlock:
@@ -926,6 +985,9 @@ void dpm_resume(pm_message_t state)
 
 	cpufreq_resume();
 	trace_suspend_resume(TPS("dpm_resume"), state.event, false);
+#ifdef CONFIG_SEC_RESUME_SUSPEND_DEBUG
+	sec_sorted_list(1);
+#endif
 }
 
 /**
@@ -1060,6 +1122,10 @@ static int __device_suspend_noirq(struct device *dev, pm_message_t state, bool a
 	pm_callback_t callback = NULL;
 	char *info = NULL;
 	int error = 0;
+#ifdef CONFIG_SEC_RESUME_SUSPEND_DEBUG
+	ktime_t calltime, delta, rettime;
+	unsigned long long duration;
+#endif
 
 	TRACE_DEVICE(dev);
 	TRACE_SUSPEND(0);
@@ -1096,7 +1162,20 @@ static int __device_suspend_noirq(struct device *dev, pm_message_t state, bool a
 		callback = pm_noirq_op(dev->driver->pm, state);
 	}
 
+#ifdef CONFIG_SEC_RESUME_SUSPEND_DEBUG
+	if (debug_enable){
+		calltime = ktime_get();
+		error = dpm_run_callback(callback, dev, state, info);
+		rettime = ktime_get();
+		delta = ktime_sub(rettime, calltime);
+		duration = (unsigned long long) ktime_to_ns(delta) >> 10;
+		if (callback)
+			sec_debug_add(callback, duration, 0);
+	} else 
+		error = dpm_run_callback(callback, dev, state, info);
+#else
 	error = dpm_run_callback(callback, dev, state, info);
+#endif
 	if (!error)
 		dev->power.is_noirq_suspended = true;
 	else
@@ -1189,6 +1268,11 @@ int dpm_suspend_noirq(pm_message_t state)
 		dpm_show_time(starttime, state, "noirq");
 	}
 	trace_suspend_resume(TPS("dpm_suspend_noirq"), state.event, false);
+	
+#ifdef CONFIG_SEC_RESUME_SUSPEND_DEBUG
+	sec_sorted_list(0);
+#endif
+
 	return error;
 }
 
@@ -1205,6 +1289,10 @@ static int __device_suspend_late(struct device *dev, pm_message_t state, bool as
 	pm_callback_t callback = NULL;
 	char *info = NULL;
 	int error = 0;
+#ifdef CONFIG_SEC_RESUME_SUSPEND_DEBUG
+	ktime_t calltime, delta, rettime;
+	unsigned long long duration;
+#endif
 
 	TRACE_DEVICE(dev);
 	TRACE_SUSPEND(0);
@@ -1243,7 +1331,21 @@ static int __device_suspend_late(struct device *dev, pm_message_t state, bool as
 		callback = pm_late_early_op(dev->driver->pm, state);
 	}
 
+#ifdef CONFIG_SEC_RESUME_SUSPEND_DEBUG
+	if (debug_enable){
+		calltime = ktime_get();
+		error = dpm_run_callback(callback, dev, state, info);
+		rettime = ktime_get();
+		delta = ktime_sub(rettime, calltime);
+		duration = (unsigned long long) ktime_to_ns(delta) >> 10;
+		if (callback)
+			sec_debug_add(callback, duration, 0);
+	
+	} else 
+		error = dpm_run_callback(callback, dev, state, info);
+#else
 	error = dpm_run_callback(callback, dev, state, info);
+#endif
 	if (!error)
 		dev->power.is_late_suspended = true;
 	else
@@ -1391,6 +1493,11 @@ static int __device_suspend(struct device *dev, pm_message_t state, bool async)
 	char *info = NULL;
 	int error = 0;
 	char suspend_abort[MAX_SUSPEND_ABORT_LEN];
+#ifdef CONFIG_SEC_RESUME_SUSPEND_DEBUG
+	ktime_t calltime, delta, rettime;
+	unsigned long long duration;
+#endif
+
 	DECLARE_DPM_WATCHDOG_ON_STACK(wd);
 
 	TRACE_DEVICE(dev);
@@ -1483,7 +1590,20 @@ static int __device_suspend(struct device *dev, pm_message_t state, bool async)
 		callback = pm_op(dev->driver->pm, state);
 	}
 
+#ifdef CONFIG_SEC_RESUME_SUSPEND_DEBUG
+	if (debug_enable){
+		calltime = ktime_get();
+		error = dpm_run_callback(callback, dev, state, info);
+		rettime = ktime_get();
+		delta = ktime_sub(rettime, calltime);
+		duration = (unsigned long long) ktime_to_ns(delta) >> 10;
+		if(callback)
+			sec_debug_add(callback, duration, 0);	
+	} else
+		error = dpm_run_callback(callback, dev, state, info);
+#else
 	error = dpm_run_callback(callback, dev, state, info);
+#endif
 
  End:
 	if (!error) {

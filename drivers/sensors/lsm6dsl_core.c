@@ -3637,7 +3637,7 @@ int lsm6dsl_common_probe(struct lsm6dsl_data *cdata, int irq, u16 bustype)
 		else
 			break;
 
-		msleep(20);
+		usleep_range(20000, 20000);
 	}
 
 	if (retry < 0)

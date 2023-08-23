@@ -288,6 +288,7 @@ struct muic_interface_t {
 #if IS_ENABLED(CONFIG_HV_MUIC_VOLTAGE_CTRL)
 	int (*set_afc_voltage)(void *, int vol);
 #endif
+	void (*set_chgtype_usrcmd)(void *);
 	void (*hv_reset)(void *);
 	void (*hv_dcp_charger)(void *);
 	void (*hv_fast_charge_adaptor)(void *);
@@ -324,6 +325,7 @@ struct muic_interface_t {
 	void (*set_chg_det)(void *, bool en);
 	void (*prswap_work)(void *, int mode);
 #endif
+	void (*set_bypass)(void *);
 };
 
 extern struct device *switch_device;

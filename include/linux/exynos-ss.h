@@ -155,7 +155,7 @@ extern void exynos_ss_irq_exit(unsigned int irq, unsigned long long start_time);
 #ifdef CONFIG_EXYNOS_SNAPSHOT_PSTORE
 extern int exynos_ss_hook_pmsg(char *buffer, size_t count);
 #else
-#define exynos_ss_hook_pmsg(a,b)	do { } while(0)
+static inline int exynos_ss_hook_pmsg(char *buffer, size_t count) { return 0; }
 #endif
 
 #ifdef CONFIG_EXYNOS_SNAPSHOT_SFRDUMP

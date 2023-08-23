@@ -36,7 +36,7 @@ static void process_file(struct task_struct *task, struct file *file)
 	if (five_check_params(task, file))
 		return;
 
-	five_read_xattr(file->f_path.dentry, &xattr_value);
+	five_read_xattr(d_real_comp(file->f_path.dentry), &xattr_value);
 	file->f_signature = xattr_value;
 }
 
@@ -81,7 +81,7 @@ int proca_fcntl_setxattr(struct file *file, void __user *lv_xattr)
 	inode_lock(inode);
 
 	if (task_integrity_allow_sign(current->integrity)) {
-		rc = __vfs_setxattr_noperm(file->f_path.dentry,
+		rc = __vfs_setxattr_noperm(d_real_comp(file->f_path.dentry),
 						XATTR_NAME_PA,
 						x,
 						lv_hdr.length,

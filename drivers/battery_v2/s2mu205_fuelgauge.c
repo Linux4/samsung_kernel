@@ -289,7 +289,7 @@ static void s2mu205_reset_fg(struct s2mu205_fuelgauge_data *fuelgauge)
 
 	/* Dumpdone. Re-calculate SOC */
 	s2mu205_write_and_verify_reg_byte(fuelgauge->i2c, 0x1E, 0x0F);
-	mdelay(300);
+	msleep(300);
 
 	/* If it was voltage mode, recover it */
 	if (fuelgauge->mode == HIGH_SOC_VOLTAGE_MODE) {
@@ -561,7 +561,7 @@ static int s2mu205_get_cycle(struct s2mu205_fuelgauge_data *fuelgauge)
 	mutex_lock(&fuelgauge->fg_lock);
 
 	s2mu205_write_and_verify_reg_byte(fuelgauge->i2c, S2MU205_REG_MONOUT_SEL, 0x27);
-	mdelay(50);
+	msleep(50);
 
 	if (s2mu205_read_reg(fuelgauge->i2c, S2MU205_REG_MONOUT, data) < 0)
 		goto err;
@@ -1055,7 +1055,7 @@ batcap_learn_init:
 			s2mu205_write_and_verify_reg_byte(fuelgauge->i2c, 0x24, 0x01);
 			/* Dumpdone. Re-calculate SOC */
 			s2mu205_write_and_verify_reg_byte(fuelgauge->i2c, 0x1E, 0x0F);
-			mdelay(300);
+			msleep(300);
 			s2mu205_write_and_verify_reg_byte(fuelgauge->i2c, 0x24, 0x00);
 
 			/* Make report SOC 0% */
@@ -1578,7 +1578,9 @@ static int s2mu205_fg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CAPACITY:
 		if (val->intval == SEC_FUELGAUGE_CAPACITY_TYPE_RAW) {
 			val->intval = s2mu205_get_rawsoc(fuelgauge);
-		} 
+		} else if (val->intval == SEC_FUELGAUGE_CAPACITY_TYPE_DYNAMIC_SCALE) {
+			val->intval = fuelgauge->raw_capacity;
+		}
 		else {
 			val->intval = s2mu205_get_rawsoc(fuelgauge) / 10;
 
@@ -1742,7 +1744,7 @@ static int s2mu205_fg_set_property(struct power_supply *psy,
 						(val->intval == SEC_BAT_FGSRC_SWITCHING_ON)) {
 					/* Get Battery voltage (by I2C control) */
 					s2mu205_update_reg_byte(fuelgauge->i2c, 0x25, 0x10, 0x30);
-					mdelay(1000);
+					msleep(1000);
 					s2mu205_read_reg_byte(fuelgauge->i2c, 0x25, &temp);
 					pr_info("%s: SW Vbat: fgsrc_switching_on: REG25:0x%02x, 0x25[5:4]=0x%x\n", __func__, temp, (temp & 0x30) >> 4);
 					if (val->intval == SEC_BAT_INBAT_FGSRC_SWITCHING_ON)
@@ -1752,7 +1754,7 @@ static int s2mu205_fg_set_property(struct power_supply *psy,
 				}  else if ((val->intval == SEC_BAT_INBAT_FGSRC_SWITCHING_OFF) ||
 						(val->intval == SEC_BAT_FGSRC_SWITCHING_OFF)) {
 					s2mu205_update_reg_byte(fuelgauge->i2c, 0x25, 0x30, 0x30);
-					mdelay(1000);
+					msleep(1000);
 					s2mu205_read_reg_byte(fuelgauge->i2c, 0x25, &temp);
 					pr_info("%s: SW Vsys: fgsrc_switching_off: REG25:0x%02x, 0x25[5:4]=0x%x\n", __func__, temp, (temp & 0x30) >> 4);
 					if (val->intval == SEC_BAT_INBAT_FGSRC_SWITCHING_OFF)
@@ -1926,6 +1928,11 @@ static int s2mu205_fuelgauge_parse_dt(struct s2mu205_fuelgauge_data *fuelgauge)
 
 			pr_err("%s: [Long life] fuelgauge->fg_num_age_step %d \n",
 				__func__,fuelgauge->fg_num_age_step);
+
+			if ((sizeof(fg_age_data_info_t) * fuelgauge->fg_num_age_step) != len) {
+				pr_err("%s: The Long life variables and the data in device tree does not match\n", __func__);
+				BUG();
+			}
 
 			for(i=0 ; i < fuelgauge->fg_num_age_step ; i++){
 				pr_err("%s: [Long life] age_step = %d, table3[0] %d, table4[0] %d, batcap[0] %02x, accum[0] %02x, soc_arr[0] %d, ocv_arr[0] %d, volt_tun : %02x\n",

@@ -40,7 +40,7 @@ int fimc_is_itf_stream_off_wrap(struct fimc_is_device_ischain *device);
 int fimc_is_itf_process_on_wrap(struct fimc_is_device_ischain *device, u32 group);
 int fimc_is_itf_process_off_wrap(struct fimc_is_device_ischain *device, u32 group,
 	u32 fstop);
-void fimc_is_itf_sudden_stop_wrap(struct fimc_is_device_ischain *device, u32 instance);
+void fimc_is_itf_sudden_stop_wrap(struct fimc_is_device_ischain *device, u32 instance, struct fimc_is_group *group);
 int fimc_is_itf_power_down_wrap(struct fimc_is_interface *interface, u32 instance);
 int fimc_is_itf_sys_ctl_wrap(struct fimc_is_device_ischain *device,
 	int cmd, int val);

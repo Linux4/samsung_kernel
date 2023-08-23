@@ -43,6 +43,7 @@
 #define REG_ID_NO                       0x15
 #define REG_SAR_TOTALCAP                0x16
 #define REG_SAR_MODE                    0x17
+#define REG_GRIP_ALWAYS_ACTIVE          0x20
 #define REG_SW_RESET                    0x1A
 #define REG_SAR_ENABLE                  0x24
 #define REG_SAR_SENSING                 0x25
@@ -72,6 +73,7 @@
 #define REG_ID_NO           0x15
 #define REG_SAR_TOTALCAP	0x16
 #define REG_SAR_MODE		0x17
+#define REG_GRIP_ALWAYS_ACTIVE	0x20
 #define REG_SAR_TOTALCAP_READ	0x18
 #define REG_SW_RESET		0x1A
 #define REG_SAR_ENABLE		0x24
@@ -96,6 +98,8 @@
 #define CMD_OFF			0x10
 #define CMD_SW_RESET		0x10
 
+#define GRIP_ALWAYS_ACTIVE_READY	0x21
+
 #define BOOT_DELAY		45000
 #define RESET_DELAY		150000
 #define FLASH_DELAY		1400000
@@ -103,7 +107,11 @@
 
 #define TK_FW_PATH_BIN "abov/abov_noble.fw"
 #define TK_FW_PATH_SDCARD "/sdcard/Firmware/Grip/abov_fw.bin"
+#if IS_ENABLED(CONFIG_HALL_NEW_NODE)
+#define HALL_PATH	"/sys/class/sec/hall_ic/hall_detect"
+#else
 #define HALL_PATH	"/sys/class/sec/sec_key/hall_detect"
+#endif
 #define HALL_CLOSE_STATE        1
 
 #define I2C_M_WR 0		/* for i2c */

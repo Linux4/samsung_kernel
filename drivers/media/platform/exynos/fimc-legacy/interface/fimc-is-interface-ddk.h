@@ -197,7 +197,7 @@ struct lib_interface_func {
 	int (*chain_destroy)(u32 chain_id);
 	int (*object_destroy)(void *object, u32 sensor_id);
 	int (*stop)(void *object, u32 instance_id);
-	int (*reset)(u32 chain_id);
+	int (*recovery)(u32 instance_id);
 	int (*set_param)(void *object, void *param_set);
 	int (*set_ctrl)(void *object, u32 instance, u32 frame_number,
 		struct camera2_shot *shot);
@@ -232,7 +232,7 @@ int fimc_is_lib_isp_set_param(struct fimc_is_hw_ip *hw_ip,
 	struct fimc_is_lib_isp *this, void *param);
 int fimc_is_lib_isp_set_ctrl(struct fimc_is_hw_ip *hw_ip,
 	struct fimc_is_lib_isp *this, struct fimc_is_frame *frame);
-void fimc_is_lib_isp_shot(struct fimc_is_hw_ip *hw_ip,
+int fimc_is_lib_isp_shot(struct fimc_is_hw_ip *hw_ip,
 	struct fimc_is_lib_isp *this, void *param_set, struct camera2_shot *shot);
 int fimc_is_lib_isp_get_meta(struct fimc_is_hw_ip *hw_ip,
 	struct fimc_is_lib_isp *this, struct fimc_is_frame *frame);
@@ -256,6 +256,8 @@ int fimc_is_lib_isp_convert_face_map(struct fimc_is_hardware *hardware,
 	struct taa_param_set *param_set, struct fimc_is_frame *frame);
 void fimc_is_lib_isp_configure_algorithm(void);
 void fimc_is_isp_get_bcrop1_size(void __iomem *base_addr, u32 *width, u32 *height);
+int fimc_is_lib_isp_reset_recovery(struct fimc_is_hw_ip *hw_ip,
+	struct fimc_is_lib_isp *this, u32 instance_id);
 
 #ifdef ENABLE_FPSIMD_FOR_USER
 #define CALL_LIBOP(lib, op, args...)					\
