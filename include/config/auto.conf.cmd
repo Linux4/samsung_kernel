@@ -14,6 +14,7 @@ deps_config := \
 	crypto/async_tx/Kconfig \
 	crypto/Kconfig \
 	security/samsung/dsms/Kconfig \
+	security/proca/gaf/Kconfig \
 	security/proca/Kconfig \
 	security/samsung/defex_lsm/Kconfig \
 	security/tz_iccc/Kconfig \

@@ -194,7 +194,7 @@ static void proca_hook_file_processed(struct task_struct *task,
 	bool need_set_five = false;
 	struct proca_task_descr *target_task_descr = NULL;
 
-	target_task_descr = proca_table_get_by_pid(&g_proca_table, task->pid);
+	target_task_descr = proca_table_get_by_task(&g_proca_table, task);
 
 	if (!task->mm || !task->mm->exe_file)
 		return;
@@ -205,9 +205,8 @@ static void proca_hook_file_processed(struct task_struct *task,
 			"Task descr for task %d already exists before exec\n",
 			task->pid);
 
-		target_task_descr = proca_table_remove_by_pid(
-					&g_proca_table,
-					task->pid);
+		proca_table_remove_task_descr(&g_proca_table,
+					      target_task_descr);
 		destroy_proca_task_descr(target_task_descr);
 		target_task_descr = NULL;
 	}
@@ -289,7 +288,7 @@ static void proca_hook_task_forked(struct task_struct *parent,
 	if (!parent || !child)
 		return;
 
-	target_task_descr = proca_table_get_by_pid(&g_proca_table, parent->pid);
+	target_task_descr = proca_table_get_by_task(&g_proca_table, parent);
 	if (!target_task_descr)
 		return;
 
@@ -312,8 +311,7 @@ static void proca_task_free_hook(struct task_struct *task)
 {
 	struct proca_task_descr *target_task_descr = NULL;
 
-	target_task_descr = proca_table_remove_by_pid(&g_proca_table,
-						      task->pid);
+	target_task_descr = proca_table_remove_by_task(&g_proca_table, task);
 
 	destroy_proca_task_descr(target_task_descr);
 }
@@ -349,7 +347,7 @@ int proca_get_task_cert(const struct task_struct *task,
 
 	BUG_ON(!task || !cert || !cert_size);
 
-	task_descr = proca_table_get_by_pid(&g_proca_table, task->pid);
+	task_descr = proca_table_get_by_task(&g_proca_table, task);
 	if (!task_descr)
 		return -ESRCH;
 
