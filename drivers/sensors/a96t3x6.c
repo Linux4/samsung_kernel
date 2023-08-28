@@ -794,10 +794,12 @@ static int a96t3x6_ccic_handle_notification(struct notifier_block *nb,
 			usb_typec_info.attach == MUIC_NOTIFY_CMD_DETACH) {
 			cmd = CMD_ON;
 			schedule_work(&grip_data->cmdon_work);
+			a96t3x6_enter_unknown_mode(grip_data, TYPE_USB);
 		} else if (usb_typec_info.id == CCIC_NOTIFY_ID_POWER_STATUS &&
 			usb_typec_info.attach == MUIC_NOTIFY_CMD_ATTACH) {
 			cmd = CMD_OFF;
 			schedule_work(&grip_data->cmdoff_work);
+			a96t3x6_enter_unknown_mode(grip_data, TYPE_USB);
 		} else {
 			return 0;
 		}
@@ -834,6 +836,8 @@ static int a96t3x6_ccic_handle_notification(struct notifier_block *nb,
 				schedule_work(&grip_data->cmdoff_work);
 			} else
 				schedule_work(&grip_data->cmdon_work);
+
+			a96t3x6_enter_unknown_mode(grip_data, TYPE_USB);
 #endif
 			GRIP_INFO("attach = %d, cmd = %d", usb_typec_info.attach, cmd);
 			break;
@@ -843,13 +847,6 @@ static int a96t3x6_ccic_handle_notification(struct notifier_block *nb,
 	}
 
 	pre_attach = usb_typec_info.attach;
-
-#if defined(CONFIG_SENSORS_SKIP_CABLE_RESET) && defined(CONFIG_TABLET_MODEL_CONCEPT)
-	GRIP_INFO("CCIC event, grip reset skip");
-#else
-	a96t3x6_enter_unknown_mode(grip_data, TYPE_USB);
-#endif
-
 	return 0;
 }
 #endif
@@ -890,6 +887,7 @@ static int a96t3x6_hall_ic_notify(struct notifier_block *nb,
 #else
 	if (flip_cover)
 		schedule_delayed_work(&data->reset_work, msecs_to_jiffies(1));
+	a96t3x6_enter_unknown_mode(data, TYPE_HALL);
 #endif
 	return 0;
 }
@@ -3614,6 +3612,7 @@ static int a96t3x6_probe(struct i2c_client *client,
 	if (!noti_input_dev) {
 		GRIP_ERR("Failed to allocate memory for input device\n");
 		ret = -ENOMEM;
+		input_free_device(input_dev);
 		goto err_noti_input_alloc;
 	}
 
@@ -3637,12 +3636,16 @@ static int a96t3x6_probe(struct i2c_client *client,
 	ret = a96t3x6_parse_dt(data, &client->dev);
 	if (ret) {
 		GRIP_ERR("failed to a96t3x6_parse_dt\n");
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_config;
 	}
 
 	ret = a96t3x6_irq_init(&client->dev, data);
 	if (ret) {
 		GRIP_ERR("failed to init reg\n");
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto pwr_config;
 	}
 
@@ -3664,6 +3667,8 @@ static int a96t3x6_probe(struct i2c_client *client,
 	ret = a96t3x6_fw_check(data);
 	if (ret) {
 		GRIP_ERR("failed to firmware check (%d)\n", ret);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_reg_input_dev;
 	}
 #else
@@ -3674,6 +3679,8 @@ static int a96t3x6_probe(struct i2c_client *client,
 	ret = a96t3x6_i2c_read(client, REG_MODEL_NO, &buf, 1);
 	if (ret) {
 		GRIP_ERR("i2c is failed %d\n", ret);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_reg_input_dev;
 	} else {
 		GRIP_INFO("i2c is normal, model_no = 0x%2x\n", buf);
@@ -3714,6 +3721,8 @@ static int a96t3x6_probe(struct i2c_client *client,
 	if (ret) {
 		GRIP_ERR("failed to register input dev (%d)\n",
 			ret);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_reg_input_dev;
 	}
 
@@ -3721,6 +3730,7 @@ static int a96t3x6_probe(struct i2c_client *client,
 					data->input_dev->name);
 	if (ret < 0) {
 		GRIP_ERR("Failed to create sysfs symlink\n");
+		input_free_device(noti_input_dev);
 		goto err_sysfs_symlink;
 	}
 
@@ -3728,6 +3738,7 @@ static int a96t3x6_probe(struct i2c_client *client,
 				&a96t3x6_attribute_group);
 	if (ret < 0) {
 		GRIP_ERR("Failed to create sysfs group\n");
+		input_free_device(noti_input_dev);
 		goto err_sysfs_group;
 	}
 
@@ -3741,6 +3752,7 @@ static int a96t3x6_probe(struct i2c_client *client,
 	if (ret) {
 		GRIP_ERR("failed to register input dev (%d)\n",
 			ret);
+		input_free_device(noti_input_dev);
 		goto err_reg_noti_input_dev;
 	}
 
@@ -3789,8 +3801,8 @@ static int a96t3x6_probe(struct i2c_client *client,
 
 err_req_irq:
 	sensors_unregister(data->dev, grip_sensor_attributes);
+	input_unregister_device(noti_input_dev);
 err_sensor_register:
-	input_unregister_device(input_dev);
 err_reg_noti_input_dev:
 	sysfs_remove_group(&data->input_dev->dev.kobj,
 			&a96t3x6_attribute_group);
@@ -3806,9 +3818,7 @@ err_reg_input_dev:
 pwr_config:
 err_config:
 	wake_lock_destroy(&data->grip_wake_lock);
-	input_free_device(noti_input_dev);
 err_noti_input_alloc:
-	input_free_device(input_dev);
 err_input_alloc:
 	kfree(data);
 err_alloc:
