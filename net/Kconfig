@@ -99,6 +99,12 @@ config NET_ANALYTICS
 
 endif # if INET
 
+config ANDROID_PARANOID_NETWORK
+	bool "Only allow certain groups to create sockets"
+	default y
+	help
+		none
+
 config NETWORK_SECMARK
 	bool "Security Marking"
 	help
@@ -191,7 +197,6 @@ config BRIDGE_NETFILTER
 	depends on NETFILTER && INET
 	depends on NETFILTER_ADVANCED
 	select NETFILTER_FAMILY_BRIDGE
-	default m
 	---help---
 	  Enabling this option will let arptables resp. iptables see bridged
 	  ARP resp. IP traffic. If you want a bridging firewall, you probably
@@ -332,6 +337,15 @@ config NET_FLOW_LIMIT
 	  with many clients some protection against DoS by a single (spoofed)
 	  flow that greatly exceeds average workload.
 
+config SOCKEV_NLMCAST
+	bool "Enable SOCKEV Netlink Multicast"
+	default n
+	help
+	  Default client for SOCKEV notifier events. Sends multicast netlink
+	  messages whenever the socket event notifier is invoked. Enable if
+	  user space entities need to be notified of socket events without
+	  having to poll /proc
+
 menu "Network testing"
 
 config NET_PKTGEN
@@ -468,9 +482,3 @@ config HAVE_CBPF_JIT
 # Extended BPF JIT (eBPF)
 config HAVE_EBPF_JIT
 	bool
-	
-# Network Pacemaker
-config NETPM
-	bool "Network Pacemaker"
-	---help---
-	This feature implements Network Pacemaker (NETPM)

@@ -70,6 +70,8 @@
 #include <linux/dax.h>
 #include <linux/oom.h>
 
+#include <trace/events/kmem.h>
+
 #include <asm/io.h>
 #include <asm/mmu_context.h>
 #include <asm/pgalloc.h>
@@ -141,6 +143,22 @@ static int __init init_zero_pfn(void)
 }
 core_initcall(init_zero_pfn);
 
+/*
+ * Only trace rss_stat when there is a 512kb cross over.
+ * Smaller changes may be lost unless every small change is
+ * crossing into or returning to a 512kb boundary.
+ */
+#define TRACE_MM_COUNTER_THRESHOLD 128
+
+void mm_trace_rss_stat(struct mm_struct *mm, int member, long count,
+		       long value)
+{
+	long thresh_mask = ~(TRACE_MM_COUNTER_THRESHOLD - 1);
+
+	/* Threshold roll-over, trace it */
+	if ((count & thresh_mask) != ((count - value) & thresh_mask))
+		trace_rss_stat(mm, member, count);
+}
 
 #if defined(SPLIT_RSS_COUNTING)
 
@@ -875,6 +893,7 @@ struct page *__vm_normal_page(struct vm_area_struct *vma, unsigned long addr,
 	 * This part should never get called when CONFIG_SPECULATIVE_PAGE_FAULT
 	 * is set. This is mainly because we can't rely on vm_start.
 	 */
+
 	if (unlikely(vma_flags & (VM_PFNMAP|VM_MIXEDMAP))) {
 		if (vma_flags & VM_MIXEDMAP) {
 			if (!pfn_valid(pfn))
@@ -1818,8 +1837,7 @@ static int insert_pfn(struct vm_area_struct *vma, unsigned long addr,
 				goto out_unlock;
 			}
 			entry = pte_mkyoung(*pte);
-			entry = maybe_mkwrite(pte_mkdirty(entry),
-					      vma->vm_flags);
+			entry = maybe_mkwrite(pte_mkdirty(entry), vma->vm_flags);
 			if (ptep_set_access_flags(vma, addr, pte, entry, 1))
 				update_mmu_cache(vma, addr, pte);
 		}
@@ -2556,6 +2574,10 @@ static vm_fault_t do_page_mkwrite(struct vm_fault *vmf)
 
 	vmf->flags = FAULT_FLAG_WRITE|FAULT_FLAG_MKWRITE;
 
+	if (vmf->vma->vm_file &&
+	    IS_SWAPFILE(vmf->vma->vm_file->f_mapping->host))
+		return VM_FAULT_SIGBUS;
+
 	ret = vmf->vma->vm_ops->page_mkwrite(vmf);
 	/* Restore original flags so that caller is not surprised */
 	vmf->flags = old_flags;
@@ -3084,6 +3106,8 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 	struct page *page = NULL, *swapcache;
 	struct mem_cgroup *memcg;
 	swp_entry_t entry;
+	struct swap_info_struct *si;
+	bool skip_swapcache = false;
 	pte_t pte;
 	int locked;
 	int exclusive = 0;
@@ -3125,17 +3149,26 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 
 
 	delayacct_set_flag(DELAYACCT_PF_SWAPIN);
+
+	/*
+	 * lookup_swap_cache below can fail and before the SWP_SYNCHRONOUS_IO
+	 * check is made, another process can populate the swapcache, delete
+	 * the swap entry and decrement the swap count. So decide on taking
+	 * the SWP_SYNCHRONOUS_IO path before the lookup. In the event of the
+	 * race described, the victim process will find a swap_count > 1
+	 * and can then take the readahead path instead of SWP_SYNCHRONOUS_IO.
+	 */
+	si = swp_swap_info(entry);
+	if (si->flags & SWP_SYNCHRONOUS_IO && __swap_count(si, entry) == 1)
+		skip_swapcache = true;
+
 	page = lookup_swap_cache(entry, vma, vmf->address);
 	swapcache = page;
 
 	if (!page) {
-		struct swap_info_struct *si = swp_swap_info(entry);
-
-		if (si->flags & SWP_SYNCHRONOUS_IO &&
-				__swap_count(si, entry) == 1) {
-			/* skip swapcache */
-			page = alloc_page_vma(GFP_HIGHUSER_MOVABLE, vma,
-							vmf->address);
+		if (skip_swapcache) {
+			page = alloc_page_vma(GFP_HIGHUSER_MOVABLE | __GFP_CMA,
+					      vma, vmf->address);
 			if (page) {
 				__SetPageLocked(page);
 				__SetPageSwapBacked(page);
@@ -3519,7 +3552,7 @@ static vm_fault_t pte_alloc_one_map(struct vm_fault *vmf)
 {
 	struct vm_area_struct *vma = vmf->vma;
 
-	if (!pmd_none(*vmf->pmd))
+	if (!pmd_none(*vmf->pmd) || (vmf->flags & FAULT_FLAG_SPECULATIVE))
 		goto map_pte;
 	if (vmf->prealloc_pte) {
 		vmf->ptl = pmd_lock(vma->vm_mm, vmf->pmd);
@@ -3702,6 +3735,10 @@ vm_fault_t alloc_set_pte(struct vm_fault *vmf, struct mem_cgroup *memcg,
 	entry = mk_pte(page, vmf->vma_page_prot);
 	if (write)
 		entry = maybe_mkwrite(pte_mkdirty(entry), vmf->vma_flags);
+
+	if (vmf->flags & FAULT_FLAG_PREFAULT_OLD)
+		entry = pte_mkold(entry);
+
 	/* copy-on-write page */
 	if (write && !(vmf->vma_flags & VM_SHARED)) {
 		inc_mm_counter_fast(vma->vm_mm, MM_ANONPAGES);
@@ -3760,8 +3797,16 @@ vm_fault_t finish_fault(struct vm_fault *vmf)
 	return ret;
 }
 
+/*
+ * If architecture emulates "accessed" or "young" bit without HW support,
+ * there is no much gain with fault_around.
+ */
 static unsigned long fault_around_bytes __read_mostly =
+#ifndef __HAVE_ARCH_PTEP_SET_ACCESS_FLAGS
+	PAGE_SIZE;
+#else
 	rounddown_pow_of_two(65536);
+#endif
 
 #ifdef CONFIG_DEBUG_FS
 static int fault_around_bytes_get(void *data, u64 *val)
@@ -4215,6 +4260,7 @@ static vm_fault_t wp_huge_pud(struct vm_fault *vmf, pud_t orig_pud)
 static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 {
 	pte_t entry;
+	int ret = 0;
 
 	if (unlikely(pmd_none(*vmf->pmd))) {
 		/*
@@ -4267,8 +4313,6 @@ static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 	if (!vmf->pte) {
 		if (vma_is_anonymous(vmf->vma))
 			return do_anonymous_page(vmf);
-		else if (vmf->flags & FAULT_FLAG_SPECULATIVE)
-			return VM_FAULT_RETRY;
 		else
 			return do_fault(vmf);
 	}
@@ -4302,10 +4346,12 @@ static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 		 */
 		if (vmf->flags & FAULT_FLAG_WRITE)
 			flush_tlb_fix_spurious_fault(vmf->vma, vmf->address);
+		if (vmf->flags & FAULT_FLAG_SPECULATIVE)
+			ret = VM_FAULT_RETRY;
 	}
 unlock:
 	pte_unmap_unlock(vmf->pte, vmf->ptl);
-	return 0;
+	return ret;
 }
 
 /*
@@ -4340,7 +4386,7 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 	vmf.pud = pud_alloc(mm, p4d, address);
 	if (!vmf.pud)
 		return VM_FAULT_OOM;
-	if (pud_none(*vmf.pud) && transparent_hugepage_enabled(vma)) {
+	if (pud_none(*vmf.pud) && __transparent_hugepage_enabled(vma)) {
 		ret = create_huge_pud(&vmf);
 		if (!(ret & VM_FAULT_FALLBACK))
 			return ret;
@@ -4369,7 +4415,7 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 #ifdef CONFIG_SPECULATIVE_PAGE_FAULT
 	vmf.sequence = raw_read_seqcount(&vma->vm_sequence);
 #endif
-	if (pmd_none(*vmf.pmd) && transparent_hugepage_enabled(vma)) {
+	if (pmd_none(*vmf.pmd) && __transparent_hugepage_enabled(vma)) {
 		ret = create_huge_pmd(&vmf);
 		if (!(ret & VM_FAULT_FALLBACK))
 			return ret;
@@ -4403,14 +4449,14 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 }
 
 #ifdef CONFIG_SPECULATIVE_PAGE_FAULT
+
+#ifndef CONFIG_ARCH_HAS_PTE_SPECIAL
+/* This is required by vm_normal_page() */
+#error "Speculative page fault handler requires CONFIG_ARCH_HAS_PTE_SPECIAL"
+#endif
 /*
- * Tries to handle the page fault in a speculative way, without grabbing the
- * mmap_sem.
- * When VM_FAULT_RETRY is returned, the vma pointer is valid and this vma must
- * be checked later when the mmap_sem has been grabbed by calling
- * can_reuse_spf_vma().
- * This is needed as the returned vma is kept in memory until the call to
- * can_reuse_spf_vma() is made.
+ * vm_normal_page() adds some processing which should be done while
+ * hodling the mmap_sem.
  */
 
 /*
@@ -4450,21 +4496,11 @@ int __handle_speculative_fault(struct mm_struct *mm, unsigned long address,
 	}
 
 	/*
-	 * Can't call vm_ops service has we don't know what they would do
-	 * with the VMA.
-	 * This include huge page from hugetlbfs.
-	 */
-	if (vmf.vma->vm_ops) {
-		trace_spf_vma_notsup(_RET_IP_, vmf.vma, address);
-		return VM_FAULT_RETRY;
-	}
-
-	/*
 	 * __anon_vma_prepare() requires the mmap_sem to be held
 	 * because vm_next and vm_prev must be safe. This can't be guaranteed
 	 * in the speculative path.
 	 */
-	if (unlikely(!vmf.vma->anon_vma)) {
+	if (unlikely(vma_is_anonymous(vmf.vma) && !vmf.vma->anon_vma)) {
 		trace_spf_vma_notsup(_RET_IP_, vmf.vma, address);
 		return VM_FAULT_RETRY;
 	}
@@ -4606,7 +4642,10 @@ int __handle_speculative_fault(struct mm_struct *mm, unsigned long address,
 	 * If there is no need to retry, don't return the vma to the caller.
 	 */
 	if (ret != VM_FAULT_RETRY) {
-		count_vm_event(SPECULATIVE_PGFAULT);
+		if (vma_is_anonymous(vmf.vma))
+			count_vm_event(SPECULATIVE_PGFAULT_ANON);
+		else
+			count_vm_event(SPECULATIVE_PGFAULT_FILE);
 		put_vma(vmf.vma);
 		*vma = NULL;
 		check_sync_rss_stat(current);

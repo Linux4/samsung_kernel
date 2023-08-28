@@ -13,7 +13,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
-*/
+ */
 
 #include <linux/module.h>
 #include <linux/types.h>
@@ -34,6 +34,7 @@ static ssize_t state_show(struct device *dev, struct device_attribute *attr,
 
 	if (sdev->print_state) {
 		int ret = sdev->print_state(sdev, buf);
+
 		if (ret >= 0)
 			return ret;
 	}
@@ -48,14 +49,15 @@ static ssize_t name_show(struct device *dev, struct device_attribute *attr,
 
 	if (sdev->print_name) {
 		int ret = sdev->print_name(sdev, buf);
+
 		if (ret >= 0)
 			return ret;
 	}
 	return sprintf(buf, "%s\n", sdev->name);
 }
 
-static DEVICE_ATTR(state, S_IRUGO, state_show, NULL);
-static DEVICE_ATTR(name, S_IRUGO, name_show, NULL);
+static DEVICE_ATTR(state, 0444, state_show, NULL);
+static DEVICE_ATTR(name, 0444, name_show, NULL);
 
 void switch_set_state(struct switch_dev *sdev, int state)
 {
@@ -91,7 +93,7 @@ void switch_set_state(struct switch_dev *sdev, int state)
 			kobject_uevent_env(&sdev->dev->kobj, KOBJ_CHANGE, envp);
 			free_page((unsigned long)prop_buf);
 		} else {
-			printk(KERN_ERR "out of memory in switch_set_state\n");
+			pr_err("%s: out of memory\n", __func__);
 			kobject_uevent(&sdev->dev->kobj, KOBJ_CHANGE);
 		}
 	}
@@ -129,6 +131,7 @@ int switch_dev_register(struct switch_dev *sdev)
 	ret = device_create_file(sdev->dev, &dev_attr_state);
 	if (ret < 0)
 		goto err_create_file_1;
+
 	ret = device_create_file(sdev->dev, &dev_attr_name);
 	if (ret < 0)
 		goto err_create_file_2;
@@ -141,7 +144,7 @@ err_create_file_2:
 	device_remove_file(sdev->dev, &dev_attr_state);
 err_create_file_1:
 	device_destroy(switch_class, MKDEV(0, sdev->index));
-	printk(KERN_ERR "switch: Failed to register driver %s\n", sdev->name);
+	pr_err("%s: Failed to register driver %s\n", __func__, sdev->name);
 
 	return ret;
 }

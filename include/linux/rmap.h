@@ -104,7 +104,6 @@ enum ttu_flags {
 	TTU_RMAP_LOCKED		= 0x80,	/* do not grab rmap lock:
 					 * caller holds it */
 	TTU_SPLIT_FREEZE	= 0x100,		/* freeze pte under splitting thp */
-	TTU_FORCE_BATCH_FLUSH	= 0x200,/* just for page_steal */
 };
 
 #ifdef CONFIG_MMU
@@ -209,8 +208,8 @@ static inline void page_dup_rmap(struct page *page, bool compound)
 int page_referenced(struct page *, int is_locked,
 			struct mem_cgroup *memcg, unsigned long *vm_flags);
 
-bool try_to_unmap(struct page *, enum ttu_flags flags,
-		struct vm_area_struct *);
+bool try_to_unmap(struct page *page, enum ttu_flags flags,
+				struct vm_area_struct *vma);
 
 /* Avoid racy checks */
 #define PVMW_SYNC		(1 << 0)

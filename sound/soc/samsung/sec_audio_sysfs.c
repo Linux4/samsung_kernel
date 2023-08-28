@@ -35,7 +35,6 @@
 #define CODEC_DEV_ID 1
 #define AMP_DEV_ID 2
 
-/* bigdata add */
 #define DECLARE_AMP_BIGDATA_SYSFS(id) \
 static ssize_t audio_amp_##id##_temperature_max_show(struct device *dev, \
 	struct device_attribute *attr, char *buf) \
@@ -164,8 +163,10 @@ static ssize_t audio_jack_state_show(struct device *dev,
 
 	if (audio_data->get_jack_state)
 		report = audio_data->get_jack_state();
-	else
+	else {
 		dev_info(dev, "%s: No callback registered\n", __func__);
+		panic("sound card is not registered");
+	}
 
 	return snprintf(buf, 4, "%d\n", report);
 }

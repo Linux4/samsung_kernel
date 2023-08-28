@@ -18,13 +18,22 @@
 #include <linux/module.h>
 #include <linux/proc_fs.h>
 #include <linux/mm.h>
+#if defined(CONFIG_ARCH_QCOM)
+#include <linux/of.h>
+#include <linux/of_address.h>
+#include <linux/resource.h>
+#endif
 #include <linux/hdm.h>
 #include <linux/fs.h>
 #include <linux/debugfs.h>
 #include <linux/uaccess.h>
 #include <linux/uh.h>
-//#include <linux/sched/signal.h>
 #include <linux/sec_class.h>
+#if defined(CONFIG_ARCH_QCOM)
+#include <linux/sched/signal.h>
+#include <soc/qcom/secure_buffer.h>
+#include <soc/qcom/qtee_shmbridge.h>
+#endif
 
 #if defined(CONFIG_ARCH_EXYNOS)
 #include <linux/sec_ext.h>
@@ -74,24 +83,10 @@ TEEC_Result tz_call(uint8_t* data, size_t len, unsigned long* mode)
 
 	hdm_info("%s begin\n", __func__);
 
- 	if (len >= JWS_LEN) {
-  		result = TEEC_ERROR_EXCESS_DATA;
- 		hdm_info("%s Invalid jws len: %zu\n", __func__, len);
- 		goto out;
- 	}
-
 	sendmsg = kmalloc(sizeof(tciMessage_t), GFP_KERNEL);
-	if (sendmsg == NULL) {
- 		hdm_info("%s sendmsg allocation failed\n", __func__);
-		goto out;
-	}
 	rspmsg = kmalloc(sizeof(tciMessage_t), GFP_KERNEL);
-	if (rspmsg == NULL) {
- 		hdm_info("%s rspmsg allocation failed\n", __func__);
-		goto out;
-	}
 
-	sendmsg->jws_message.len = (uint32_t)len;
+	sendmsg->jws_message.len = len;
 	memcpy(sendmsg->jws_message.data, data, len);
 
 	hdm_info("%s sendmsg->jws_message.len = %d\n", __func__,
@@ -136,10 +131,6 @@ close_session:
 finalize_context:
 	TEEC_FinalizeContext(&context);
 out:
-	if(sendmsg)
-		kfree(sendmsg);
-	if(rspmsg)
-		kfree(rspmsg);
 	hdm_info("%s end, result=0x%x\n", __func__, result);
 
 	return result;
@@ -302,7 +293,7 @@ int hdm_pre_setting(int mode)
 	hdm_device_control_handler_t dc_prev_hdlr = NULL;
 
 	for(dev_num = 0; dev_num < HDM_DEVICE_MAX; ++dev_num) {
-		hdm_cmd[dev_num] = mode & (1 << dev_num)? HDM_DENY : HDM_ALLOW;
+		hdm_cmd[dev_num] = mode & (1 << dev_num)? HDM_PROTECT : HDM_ALLOW;
 		dc_prev_hdlr = hdm_device_prev_ctrl_table[dev_num].fn;
 		if(dc_prev_hdlr == NULL) {
 			return -1;
@@ -318,7 +309,7 @@ int hdm_post_setting(int mode)
 	hdm_device_control_handler_t dc_next_hdlr = NULL;
 
 	for(dev_num = 0; dev_num < HDM_DEVICE_MAX; ++dev_num) {
-		hdm_cmd[dev_num] = mode & (1 << dev_num)? HDM_DENY : HDM_ALLOW;
+		hdm_cmd[dev_num] = mode & (1 << dev_num)? HDM_PROTECT : HDM_ALLOW;
 		dc_next_hdlr = hdm_device_next_ctrl_table[dev_num].fn;
 		if(dc_next_hdlr == NULL) {
 			return -1;
@@ -346,7 +337,8 @@ static ssize_t store_hdm_policy(struct device *dev,
 				struct device_attribute *attr,
 				const char *buf, size_t count)
 {
-	unsigned long mode = 0xFFFFF;
+	unsigned long mode = HDM_CMD_MAX;
+	int c, p; 
 
 	if (count == 0) {
 		hdm_err("%s count = 0\n", __func__);
@@ -363,11 +355,28 @@ static ssize_t store_hdm_policy(struct device *dev,
 	}
 	hdm_info("%s: command id: 0x%x\n", __func__, (int)mode);
 
-	if (mode & HDM_KERNEL_PRE)
-		hdm_pre_setting(mode & HDM_POLICY_BIT);
-	else if (mode & HDM_KERNEL_POST)
-		hdm_post_setting(mode & HDM_POLICY_BIT);
+	c = (int)(mode & HDM_C_BITMASK);
+	p = (int)(mode & HDM_P_BITMASK);
 
+	hdm_info("%s m:0x%x c:0x%x p:0x%x\n", __func__, (int)mode, c ,p);	
+	switch(c) {
+	case HDM_KERNEL_PRE:
+		hdm_pre_setting(p);
+		break;
+	case HDM_KERNEL_POST:
+		hdm_post_setting(p);
+		break;
+#if defined(CONFIG_ARCH_QCOM)
+#if defined(CONFIG_UH)
+	case HDM_HYP_CALL:
+		uh_call(UH_APP_HDM, 9, 0, p, 0, 0);
+
+		break;
+#endif
+#endif
+	default:
+		goto error;
+	}
 error:
 	return count;
 }
@@ -417,9 +426,9 @@ static ssize_t store_hdm_test(struct device *dev, struct device_attribute *attr,
 	hdm_err("%s command id: 0x%x\n", __func__, (int)mode);
 
 	if (mode & HDM_KERNEL_PRE) {
-		hdm_pre_setting(mode & HDM_POLICY_BIT);
+		hdm_pre_setting(mode & HDM_P_BITMASK);
 	} else if (mode & HDM_KERNEL_POST) {
-		hdm_post_setting(mode & HDM_POLICY_BIT);
+		hdm_post_setting(mode & HDM_P_BITMASK);
 		return count;
 	}
 
@@ -451,6 +460,9 @@ static ssize_t store_hdm_test(struct device *dev, struct device_attribute *attr,
 				hdm_info("%s BT uh_call\n", __func__);
 				command = APP_HDM_EVENT_BLUETOOTH;
 				break;
+			default:
+				hdm_info("%s wrong cmd\n", __func__);
+				break;
 			}
 			uh_call(UH_APP_HDM, command, 0, 0, 0, 0);
 		}
@@ -474,23 +486,93 @@ error:
 static DEVICE_ATTR(hdm_test, 0660, show_hdm_test, store_hdm_test);
 #endif
 
+#if defined(CONFIG_ARCH_QCOM)
+static uint64_t qseelog_shmbridge_handle;
+static int __init __hdm_init_of(void)
+{
+	struct device_node *node;
+	struct resource r;
+	int ret;
+	phys_addr_t addr;
+	u64 size;
+
+	uint32_t ns_vmids[] = {VMID_HLOS_FREE};
+	uint32_t ns_vm_perms[] = {PERM_READ | PERM_WRITE};
+	uint32_t ns_vm_nums = 1;
+	
+	int src_vmids[1] = {VMID_HLOS};
+	int dest_vmids[1] = {VMID_HLOS_FREE};
+	int dest_perms[1] = {PERM_READ | PERM_WRITE};
+
+	hdm_info("%s start\n", __func__);
+
+	node = of_find_node_by_name(NULL, "samsung,sec_hdm");
+	if(!node) {
+		hdm_err("failed of_find_node_by_name\n");
+		return -ENODEV;
+	}
+	
+	node = of_parse_phandle(node, "memory-region", 0);
+	if(!node) {
+		hdm_err("no memory-region specified\n");
+		return -EINVAL;
+	}
+
+
+	ret = of_address_to_resource(node, 0, &r);
+	if(ret) {
+		hdm_err("failed of_address_to_resource\n");
+		return ret;
+	}
+
+	addr = r.start;
+	size = resource_size(&r);
+
+	ret = hyp_assign_phys(addr, size, src_vmids, 1, dest_vmids, dest_perms, 1);
+	if (ret) {
+		hdm_err("%s: failed to assign, rc:%d\n", __func__, ret);
+	}
+
+	ret = qtee_shmbridge_register(addr, size, ns_vmids, ns_vm_perms, 
+			ns_vm_nums, PERM_READ | PERM_WRITE, &qseelog_shmbridge_handle);
+	if (ret) {
+		hdm_err("%s: failed to bridge_register, rc:%d\n", __func__, ret);
+	}
+
+	hdm_info("%s done\n", __func__);
+	return 0;
+}
+#endif
+
 static int __init hdm_test_init(void)
 {
 	struct device *dev;
-
+#if defined(CONFIG_ARCH_QCOM)
+	int err;
+#endif
 	dev = sec_device_create(NULL, "hdm");
 	WARN_ON(!dev);
-	if (IS_ERR(dev))
+	if (IS_ERR(dev)) {
 		hdm_err("%s Failed to create devce\n", __func__);
+	}
 
-	if (device_create_file(dev, &dev_attr_hdm_policy) < 0)
+	if (device_create_file(dev, &dev_attr_hdm_policy) < 0) {
 		hdm_err("%s Failed to create device file\n", __func__);
+	}
 
 #if defined(CONFIG_HDM_DEBUG)
-	if (device_create_file(dev, &dev_attr_hdm_test) < 0)
+	if (device_create_file(dev, &dev_attr_hdm_test) < 0) {
 		hdm_err("%s Failed to create device file\n", __func__);
+	}
 #endif
 
+#if defined(CONFIG_ARCH_QCOM)
+	err = __hdm_init_of();
+	if (err)
+		return err;
+#endif
+
+	hdm_info("%s end\n", __func__);
 	return 0;
 }
 

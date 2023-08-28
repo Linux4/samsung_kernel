@@ -16,6 +16,7 @@
 #include <linux/refcount.h>
 #include <linux/workqueue.h>
 #include "flask.h"
+
 #ifdef CONFIG_KDP_CRED
 #include <linux/uh.h>
 #include <linux/kdp.h>
@@ -71,11 +72,7 @@
 
 struct netlbl_lsm_secattr;
 
-#if (defined CONFIG_KDP_CRED && defined CONFIG_SAMSUNG_PRODUCT_SHIP)
-extern int selinux_enabled __kdp_ro;
-#else
 extern int selinux_enabled;
-#endif
 
 /* Policy capabilities */
 enum {
@@ -89,7 +86,7 @@ enum {
 };
 #define POLICYDB_CAPABILITY_MAX (__POLICYDB_CAPABILITY_MAX - 1)
 
-extern char *selinux_policycap_names[__POLICYDB_CAPABILITY_MAX];
+extern const char *selinux_policycap_names[__POLICYDB_CAPABILITY_MAX];
 
 /*
  * type_datum properties
@@ -114,6 +111,7 @@ struct selinux_state {
 	bool policycap[__POLICYDB_CAPABILITY_MAX];
 	bool android_netlink_route;
 	bool android_netlink_getneigh;
+
 	struct selinux_avc *avc;
 	struct selinux_ss *ss;
 };
@@ -124,12 +122,7 @@ void selinux_avc_init(struct selinux_avc **avc);
 extern struct selinux_state selinux_state;
 
 #ifdef CONFIG_SECURITY_SELINUX_DEVELOP
-//If the binary is no-ship, selinux_enforcing value can be changed.
-#if (defined CONFIG_KDP_CRED && defined CONFIG_SAMSUNG_PRODUCT_SHIP)
-extern int selinux_enforcing __kdp_ro;
-#else
 extern int selinux_enforcing;
-#endif
 static inline bool enforcing_enabled(struct selinux_state *state)
 {
 	return selinux_enforcing; // SEC_SELINUX_PORTING_COMMON Change to use RKP 
@@ -138,7 +131,7 @@ static inline bool enforcing_enabled(struct selinux_state *state)
 static inline void enforcing_set(struct selinux_state *state, bool value)
 {
 #if (defined CONFIG_KDP_CRED && defined CONFIG_SAMSUNG_PRODUCT_SHIP)
-	uh_call(UH_APP_KDP, RKP_KDP_X60, (u64)&selinux_enforcing, (u64)value, 0, 0);
+	uh_call(UH_APP_RKP, RKP_KDP_X60, (u64)&selinux_enforcing, (u64)value, 0, 0);
 #else
 	selinux_enforcing = value; // SEC_SELINUX_PORTING_COMMON Change to use RKP 
 #endif
@@ -253,13 +246,7 @@ struct extended_perms {
 };
 
 /* definitions of av_decision.flags */
-// [ SEC_SELINUX_PORTING_COMMON
-#ifdef CONFIG_ALWAYS_ENFORCE
-#define AVD_FLAGS_PERMISSIVE	0x0000
-#else
 #define AVD_FLAGS_PERMISSIVE	0x0001
-#endif
-// ] SEC_SELINUX_PORTING_COMMON
 
 void security_compute_av(struct selinux_state *state,
 			 u32 ssid, u32 tsid,
@@ -431,5 +418,8 @@ extern void avtab_cache_init(void);
 extern void ebitmap_cache_init(void);
 extern void hashtab_cache_init(void);
 extern void selinux_nlmsg_init(void);
+extern int security_sidtab_hash_stats(struct selinux_state *state, char *page);
+extern void selinux_nlmsg_init(void);
 
 #endif /* _SELINUX_SECURITY_H_ */
+

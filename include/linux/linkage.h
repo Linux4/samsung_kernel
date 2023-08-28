@@ -40,14 +40,8 @@
 #define __page_aligned_bss	__section(.bss..page_aligned) __aligned(PAGE_SIZE)
 
 #ifdef CONFIG_UH_RKP
-#define __page_aligned_rkp_bss		__section(.rkp_bss.page_aligned) __aligned(PAGE_SIZE)
-#define __rkp_ro				__section(.rkp_ro)
-#elif defined CONFIG_FASTUH_RKP
-#define __page_aligned_rkp_bss		__page_aligned_bss
-#define __rkp_ro				__section(.rkp_ro)
-#else
-#define __page_aligned_rkp_bss		__page_aligned_bss
-#define __rkp_ro
+#define __page_aligned_rkp_bss	__section(.rkp_bss.page_aligned) __aligned(PAGE_SIZE)
+#define __rkp_ro		__section(.rkp_ro)
 #endif
 
 #ifdef CONFIG_KDP_CRED
@@ -104,7 +98,7 @@
 	ALIGN ASM_NL \
 	name:
 
-#ifdef CONFIG_RKP_CFP_JOPP
+#ifdef CONFIG_CFP_JOPP
 #define NOP_ENTRY(name) \
 	.globl name ASM_NL \
 	nop; \
@@ -117,7 +111,7 @@
 #define FALLTHROUGH(target) \
 	b target
 
-#endif /* CONFIG_RKP_CFP_JOPP */
+#endif /* CONFIG_CFP_JOPP */
 #endif
 #endif /* LINKER_SCRIPT */
 

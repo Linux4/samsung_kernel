@@ -113,6 +113,7 @@ tcp_timewait_state_process(struct inet_timewait_sock *tw, struct sk_buff *skb,
 #endif
 #ifdef CONFIG_MPTCP
 		mptcp_init_mp_opt(&mopt);
+
 		tcp_parse_options(twsk_net(tw), skb, &tmp_opt, &mopt, 0, NULL, NULL);
 
 #else
@@ -397,7 +398,6 @@ void tcp_twsk_destructor(struct sock *sk)
 #ifndef CONFIG_MPTCP
 	struct tcp_timewait_sock *twsk = tcp_twsk(sk);
 #endif
-
 	if (twsk->tw_md5_key)
 		kfree_rcu(twsk->tw_md5_key, rcu);
 #endif
@@ -518,6 +518,7 @@ struct sock *tcp_create_openreq_child(const struct sock *sk,
 	struct tcp_request_sock *treq = tcp_rsk(req);
 	struct inet_connection_sock *newicsk;
 	struct tcp_sock *oldtp, *newtp;
+	u32 seq;
 
 	if (!newsk)
 		return NULL;
@@ -531,8 +532,10 @@ struct sock *tcp_create_openreq_child(const struct sock *sk,
 	/* Now setup tcp_sock */
 	newtp->pred_flags = 0;
 
-	newtp->rcv_wup = newtp->copied_seq =
-	newtp->rcv_nxt = treq->rcv_isn + 1;
+	seq = treq->rcv_isn + 1;
+	newtp->rcv_wup = seq;
+	newtp->copied_seq = seq;
+	WRITE_ONCE(newtp->rcv_nxt, seq);
 	newtp->segs_in = 1;
 
 	newtp->snd_sml = newtp->snd_una =
@@ -613,8 +616,8 @@ struct sock *tcp_create_openreq_child(const struct sock *sk,
 		newtp->tcp_header_len = sizeof(struct tcphdr);
 	}
 #ifdef CONFIG_MPTCP
-		if (ireq->saw_mpc)
-			newtp->tcp_header_len += MPTCP_SUB_LEN_DSM_ALIGN;
+	if (ireq->saw_mpc)
+		newtp->tcp_header_len += MPTCP_SUB_LEN_DSM_ALIGN;
 #endif
 	newtp->tsoffset = treq->ts_off;
 #ifdef CONFIG_TCP_MD5SIG
@@ -724,6 +727,7 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 		if (inet_rsk(req)->saw_mpc && !mopt.saw_mpc)
 			inet_rsk(req)->saw_mpc = false;
 #endif
+
 		if (!tcp_oow_rate_limited(sock_net(sk), skb,
 					  LINUX_MIB_TCPACKSKIPPEDSYNRECV,
 					  &tcp_rsk(req)->last_oow_ack_time) &&
@@ -976,7 +980,7 @@ int tcp_child_process(struct sock *parent, struct sock *child,
 	bh_unlock_sock(child);
 #ifdef CONFIG_MPTCP
 	if (mptcp(tcp_sk(child)))
-	bh_unlock_sock(meta_sk);
+		bh_unlock_sock(meta_sk);
 #endif
 	sock_put(child);
 	return ret;

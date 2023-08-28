@@ -114,10 +114,10 @@ freezer_css_alloc(struct cgroup_subsys_state *parent_css)
  * parent's freezing state while holding both parent's and our
  * freezer->lock.
  */
-static int freezer_css_online(struct cgroup_subsys_state *css)
+static int freezer_css_online(struct cgroup_subsys_state* css)
 {
-	struct freezer *freezer = css_freezer(css);
-	struct freezer *parent = parent_freezer(freezer);
+	struct freezer* freezer = css_freezer(css);
+	struct freezer* parent = parent_freezer(freezer);
 
 	mutex_lock(&freezer_mutex);
 

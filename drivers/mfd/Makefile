@@ -2,7 +2,6 @@
 #
 # Makefile for multifunction miscellaneous devices
 #
-subdir-ccflags-y := -Wformat
 
 88pm860x-objs			:= 88pm860x-core.o 88pm860x-i2c.o
 obj-$(CONFIG_MFD_88PM860X)	+= 88pm860x.o
@@ -19,6 +18,7 @@ obj-$(CONFIG_MFD_CROS_EC_CHARDEV) += cros_ec_dev.o
 obj-$(CONFIG_MFD_CS35L41)	+= cs35l41-core.o cs35l41-tables.o cs35l41-cal.o cs35l41-bd.o cs35l41-pwr.o cirrus-cal.o cirrus-bd.o cirrus-amp.o cirrus-pwr.o
 obj-$(CONFIG_MFD_CS35L41_SPI)	+= cs35l41-spi.o
 obj-$(CONFIG_MFD_CS35L41_I2C)	+= cs35l41-i2c.o
+
 obj-$(CONFIG_MFD_EXYNOS_LPASS)	+= exynos-lpass.o
 
 obj-$(CONFIG_HTC_PASIC3)	+= htc-pasic3.o
@@ -75,9 +75,6 @@ obj-$(CONFIG_MFD_WM8994)	+= wm8994.o
 obj-$(CONFIG_MFD_WM97xx)	+= wm97xx-core.o
 
 madera-objs			:= madera-core.o
-ifeq ($(CONFIG_MFD_CS47L15),y)
-madera-objs			+= cs47l15-tables.o
-endif
 ifeq ($(CONFIG_MFD_CS47L35),y)
 madera-objs			+= cs47l35-tables.o
 endif
@@ -86,9 +83,6 @@ madera-objs			+= cs47l85-tables.o
 endif
 ifeq ($(CONFIG_MFD_CS47L90),y)
 madera-objs			+= cs47l90-tables.o
-endif
-ifeq ($(CONFIG_MFD_CS47L92),y)
-madera-objs			+= cs47l92-tables.o
 endif
 obj-$(CONFIG_MFD_MADERA)	+= madera.o
 obj-$(CONFIG_MFD_MADERA_I2C)	+= madera-i2c.o
@@ -163,9 +157,8 @@ obj-$(CONFIG_MFD_MAX14577)	+= max14577.o
 obj-$(CONFIG_MFD_MAX77620)	+= max77620.o
 obj-$(CONFIG_MFD_MAX77686)	+= max77686.o
 obj-$(CONFIG_MFD_MAX77693)	+= max77693.o
+obj-$(CONFIG_MFD_MAX77705) 	+= max77705.o max77705-irq.o
 obj-$(CONFIG_MFD_MAX77843)	+= max77843.o
-obj-$(CONFIG_MFD_MAX77865)	+= max77865.o max77865-irq.o
-obj-$(CONFIG_MFD_MAX77705)	+= max77705.o max77705-irq.o
 obj-$(CONFIG_MFD_MAX8907)	+= max8907.o
 max8925-objs			:= max8925-core.o max8925-i2c.o
 obj-$(CONFIG_MFD_MAX8925)	+= max8925.o
@@ -203,6 +196,7 @@ obj-$(CONFIG_MFD_SI476X_CORE)	+= si476x-core.o
 obj-$(CONFIG_MFD_CS5535)	+= cs5535-mfd.o
 obj-$(CONFIG_MFD_OMAP_USB_HOST)	+= omap-usb-host.o omap-usb-tll.o
 obj-$(CONFIG_MFD_PM8XXX) 	+= qcom-pm8xxx.o ssbi.o
+obj-$(CONFIG_MFD_I2C_PMIC)     += qcom-i2c-pmic.o
 obj-$(CONFIG_MFD_QCOM_RPM)	+= qcom_rpm.o
 obj-$(CONFIG_MFD_SPMI_PMIC)	+= qcom-spmi-pmic.o
 obj-$(CONFIG_TPS65911_COMPARATOR)	+= tps65911-comparator.o
@@ -221,8 +215,6 @@ obj-$(CONFIG_MFD_RC5T583)	+= rc5t583.o rc5t583-irq.o
 obj-$(CONFIG_MFD_RK808)		+= rk808.o
 obj-$(CONFIG_MFD_RN5T618)	+= rn5t618.o
 obj-$(CONFIG_MFD_SEC_CORE)	+= sec-core.o sec-irq.o
-obj-$(CONFIG_MFD_S2MU004)	+= s2mu004_core.o s2mu004_irq.o
-obj-$(CONFIG_MFD_S2MU106)       += s2mu106_core.o s2mu106_irq.o
 obj-$(CONFIG_MFD_SYSCON)	+= syscon.o
 obj-$(CONFIG_MFD_LM3533)	+= lm3533-core.o lm3533-ctrlbank.o
 obj-$(CONFIG_MFD_VEXPRESS_SYSREG)	+= vexpress-sysreg.o
@@ -255,14 +247,9 @@ obj-$(CONFIG_MFD_SC27XX_PMIC)	+= sprd-sc27xx-spi.o
 obj-$(CONFIG_RAVE_SP_CORE)	+= rave-sp.o
 obj-$(CONFIG_MFD_ROHM_BD718XX)	+= rohm-bd718x7.o
 
-obj-$(CONFIG_MFD_S2MPS19)	+= s2mps19_core.o s2mps19_irq.o
-obj-$(CONFIG_MFD_S2MPS20)	+= s2mps20-core.o s2mps20-irq.o
-obj-$(CONFIG_MFD_S2MPS22)	+= s2mps22_core.o s2mps22_irq.o
-obj-$(CONFIG_MFD_S2MPB02)	+= s2mpb02-core.o s2mpb02-irq.o
+obj-$(CONFIG_MFD_S2MPB02)       += s2mpb02-core.o s2mpb02-irq.o
+obj-$(CONFIG_SEC_PM)		+= sec_ap_pmic.o
 
-GCOV_PROFILE_cs35l41-tables.o		:=y
-GCOV_PROFILE_cirrus-bd.o		:=y
-GCOV_PROFILE_cirrus-cal.o		:=y
-GCOV_PROFILE_cirrus-pwr.o		:=y
-
-ccflags-y := -Wformat
+CFLAGS_s2mpb02-core.o = -Wformat
+CFLAGS_s2mpb02-irq.o = -Wformat
+CFLAGS_sec_ap_pmic.o = -Wformat

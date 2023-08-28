@@ -77,9 +77,8 @@ extern unsigned int lpcharge;
 #include <linux/t-base-tui.h>
 #endif
 
-#if defined(CONFIG_SAMSUNG_TUI)
-static int stui_tsp_enter(void);
-static int stui_tsp_exit(void);
+#ifdef CONFIG_SAMSUNG_TUI
+#include "stui_inf.h"
 #endif
 
 #define ZINITIX_DEBUG					0
@@ -10126,12 +10125,6 @@ static int zt_ts_probe(struct i2c_client *client,
 #endif
 #ifdef CONFIG_SAMSUNG_TUI
 	tui_tsp_info = info;
-	ret = stui_set_info(stui_tsp_enter, stui_tsp_exit, STUI_TSP_TYPE_ZINITIX);
-	if (ret < 0) {
-			input_err(true, &info->client->dev,
-					"%s: Failed to register stui tsp type\n", __func__);
-	}
-	input_info(true, &info->client->dev, "%s: stui tsp vendor zt7650 register\n", __func__);
 #endif
 #ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
 	if (sysfs_create_group(&info->input_dev->dev.kobj, &secure_attr_group) < 0)
@@ -10295,7 +10288,7 @@ void zt_ts_shutdown(struct i2c_client *client)
 extern int stui_i2c_lock(struct i2c_adapter *adap);
 extern int stui_i2c_unlock(struct i2c_adapter *adap);
 
-static int stui_tsp_enter(void)
+int stui_tsp_enter(void)
 {
 	int ret = 0;
 
@@ -10320,7 +10313,7 @@ static int stui_tsp_enter(void)
 	return 0;
 }
 
-static int stui_tsp_exit(void)
+int stui_tsp_exit(void)
 {
 	int ret = 0;
 

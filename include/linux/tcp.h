@@ -295,7 +295,8 @@ struct tcp_sock {
 		fastopen_connect:1, /* FASTOPEN_CONNECT sockopt */
 		fastopen_no_cookie:1, /* Allow send/recv SYN+data without a cookie */
 		is_sack_reneg:1,    /* in recovery from loss with SACK reneg? */
-		unused:2;
+		unused:1,
+		wqp_called:1;
 	u8	nonagle     : 4,/* Disable Nagle algorithm?             */
 		thin_lto    : 1,/* Use linear timeouts for thin streams */
 		recvmsg_inq : 1,/* Indicate # of bytes in queue upon recvmsg */
@@ -411,18 +412,6 @@ struct tcp_sock {
 
 	int			linger2;
 
-/* Network Pacemaker */
-#ifdef CONFIG_NETPM
-	u8 netpm_netif;
-	u8 netpm_rbuf_flag;
-	u32 netpm_rtt_min_us;
-	u32 netpm_srtt_us;
-	u32 netpm_rttvar_us;
-	int netpm_cwnd_est;
-	int netpm_tcp_rmem_max;
-	int netpm_max_tput;
-	int netpm_rmem_max_curbdp;
-#endif
 
 /* Sock_ops bpf program related variables */
 #ifdef CONFIG_BPF

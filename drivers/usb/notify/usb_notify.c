@@ -1050,11 +1050,8 @@ void send_usb_err_uevent(int err_type, int mode)
 	switch (err_type) {
 	case USB_ERR_ABNORMAL_RESET:
 		words = "WORDS=abnormal_reset";
-#if defined(CONFIG_USB_HW_PARAM)
 		if (mode)
-			inc_hw_param(o_notify,
-				USB_CLIENT_ANDROID_AUTO_RESET_POPUP_COUNT);
-#endif
+			inc_hw_param(o_notify, USB_CLIENT_ANDROID_AUTO_RESET_POPUP_COUNT);
 		break;
 	default:
 		pr_err("%s invalid input\n", __func__);
@@ -2416,7 +2413,7 @@ void send_usb_audio_uevent(struct usb_device *dev,
 	envp[index++] = path_buf;
 
 #ifdef CONFIG_USB_AUDIO_ENHANCED_DETECT_TIME
-	if (attach && !card_num) {
+	if (attach) {
 		cardnum = get_next_snd_card_number(THIS_MODULE);
 		if (cardnum < 0) {
 			pr_err("%s cardnum error\n", __func__);

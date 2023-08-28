@@ -1,37 +1,14 @@
-# drivers/samsung/Makefile
-#
-# Copyright (c) 2010-2019 Samsung Electronics Co., Ltd.
-#		http://www.samsung.com/
-#
-# Licensed under GPLv2
+subdir-ccflags-y		:= -Wformat
 
-obj-y				:=
-obj-m				:=
-obj-n				:=
-obj-				:=
-
-ccflags-y := -Wformat
-
+obj-$(CONFIG_DRV_SAMSUNG)	+= sec_class.o sec_kcompat.o
+obj-$(CONFIG_SEC_PARAM)		+= sec_param.o
+obj-$(CONFIG_SEC_MPARAM)	+= sec_mparam.o
+obj-$(CONFIG_SEC_SYSUP)		+= sec_sysup.o
 obj-$(CONFIG_SEC_DEBUG)		+= debug/
 obj-$(CONFIG_SEC_MISC)		+= misc/
-obj-$(CONFIG_SEC_PM)		+= pm/
-obj-$(CONFIG_SEC_PERF)		+= perf/
+obj-$(CONFIG_SEC_QUEST)		+= quest/
 
-# Samsung Reset Feature
-obj-$(CONFIG_SEC_REBOOT)	+= sec_reboot.o
-# Samsung sec sysfs Feature
-obj-$(CONFIG_DRV_SAMSUNG)	+= sec_class.o
-obj-$(CONFIG_SEC_PARAM)		+= sec_param.o
-obj-$(CONFIG_SEC_PARAM)		+= sec_fmm_lock.o
+obj-$(CONFIG_SEC_DEBUG_TEST)	+= debug/
+GCOV_PROFILE_sec_class.o		:=y
 
-obj-$(CONFIG_SEC_KEY_NOTIFIER)	+= sec_key_notifier.o
-obj-$(CONFIG_SEC_DEBUG)		+= sec_crash_key.o
-obj-$(CONFIG_SEC_DEBUG)		+= sec_crash_key_user.o
-obj-$(CONFIG_SEC_DEBUG)		+= sec_hard_reset_hook.o
-
-# Samsung Throughput monitoring Feature
-obj-$(CONFIG_ARGOS)		+= sec_argos.o
-
-# Samsung System Update
-obj-$(CONFIG_SEC_SYSUP)		+= sec_sysup.o
-obj-$(CONFIG_SEC_DUMP_SINK)	+= sec_dump_sink.o
+obj-$(CONFIG_SAMSUNG_LMKD_DEBUG)		+= lmkd_debug.o

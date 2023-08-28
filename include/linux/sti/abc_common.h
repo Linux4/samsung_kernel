@@ -23,7 +23,11 @@
 
 #include <linux/kernel.h>
 #include <linux/module.h>
+#ifdef CONFIG_DRV_SAMSUNG
 #include <linux/sec_class.h>
+#else
+extern struct class *sec_class;
+#endif
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
@@ -37,10 +41,6 @@
 #include <linux/workqueue.h>
 #include <linux/rtc.h>
 #include <linux/sched/clock.h>
-
-#if defined(CONFIG_SEC_SUPPORT_MOTTOTEST_WITH_ACT)
-#include <linux/kq/sec_motto.h>
-#endif
 
 #define ABC_UEVENT_MAX		20
 #define ABC_BUFFER_MAX		256
@@ -88,10 +88,12 @@ struct abc_qdata {
 
 struct abc_platform_data {
 	struct abc_qdata *gpu_items;
+	struct abc_qdata *gpu_page_items;
 	struct abc_qdata *aicl_items;
 
 	unsigned int nItem;
 	unsigned int nGpu;
+	unsigned int nGpuPage;
 	unsigned int nAicl;
 };
 

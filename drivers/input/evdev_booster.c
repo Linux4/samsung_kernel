@@ -38,7 +38,12 @@ int chk_boost_on_off(struct evdev_client *dev, int idx, int dev_type)
 	if (dev_type == SPEN || dev_type == HOVER) {
 		if (!evdev_mt_event[dev_type] && dev->buffer[idx].value)
 			ret_val = 1;
-		else if(evdev_mt_event[dev_type] && !dev->buffer[idx].value)
+		else if (evdev_mt_event[dev_type] && !dev->buffer[idx].value)
+			ret_val = 0;
+	} else if (dev_type == TOUCH || dev_type == MULTI_TOUCH) {
+		if (dev->buffer[idx].value >= 0)
+			ret_val = 1;
+		else
 			ret_val = 0;
 	} else if (dev->buffer[idx].value > 0)
 		ret_val = 1;
@@ -122,7 +127,7 @@ int get_device_type(struct evdev_client *dev, unsigned int *keyId, int *cur_idx,
 					evdev_mt_slot--;
 				}
 
-				if (dev->buffer[i].value > 0) {
+				if (dev->buffer[i].value >= 0) {
 					if (evdev_mt_slot == 1) {
 						dev_type = TOUCH;
 						uniq_slot = 1;
@@ -130,7 +135,7 @@ int get_device_type(struct evdev_client *dev, unsigned int *keyId, int *cur_idx,
 						dev_type = MULTI_TOUCH;
 						uniq_slot = 2;
 					}
-				} else if (dev->buffer[i].value <= 0) {
+				} else if (dev->buffer[i].value < 0) {
 					//ret_val = 0;
 					if (evdev_mt_slot == 0) {
 						dev_type = TOUCH;

@@ -1,23 +1,9 @@
 /*
  * max77705.c - mfd core driver for the Maxim 77705
  *
- * Copyright (C) 2016 Samsung Electronics
- * Insun Choi <insun77.choi@samsung.com>
- *
  * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- * This driver is based on max8997.c
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/module.h>
@@ -35,14 +21,18 @@
 
 #include <linux/muic/muic.h>
 #include <linux/muic/max77705-muic.h>
-#include <linux/usb/typec/maxim/max77705_usbc.h>
-//#include <linux/ccic/max77705_pass2.h>
-#if defined(CONFIG_MAX77705_FW_PID03_SUPPORT)
-#include <linux/usb/typec/maxim/max77705C_pass2_PID03.h>
-#include <linux/usb/typec/maxim/max77705_extra.h>
+#include <linux/ccic/max77705_usbc.h>
+#include <linux/ccic/max77705_pass3.h>
+#include <linux/ccic/max77705_pass4.h>
+#if defined(CONFIG_SEC_BLOOMXQ_PROJECT)
+#include <linux/ccic/max77705C_pass2_PID07.h>
+#elif defined(CONFIG_SEC_F2Q_PROJECT) || defined(CONFIG_SEC_GTS7XL_PROJECT) ||	\
+	 defined(CONFIG_SEC_GTS7L_PROJECT) || defined(CONFIG_SEC_VICTORY_PROJECT)
+#include <linux/ccic/max77705C_pass2_PID05.h>
 #else
-#include <linux/usb/typec/maxim/max77705C_pass2.h>
+#include <linux/ccic/max77705C_pass2_PID03.h>
 #endif
+#include <linux/ccic/max77705_extra.h>
 
 #include <linux/usb_notify.h>
 #if defined(CONFIG_OF)
@@ -87,10 +77,6 @@ static struct mfd_cell max77705_devs[] = {
 #if defined(CONFIG_CHARGER_MAX77705)
 	{ .name = "max77705-charger", },
 #endif
-#if defined(CONFIG_MAX77705_VIBRATOR)
-	{ .name = "max77705_vibrator",
-	  .of_compatible = "maxim,max77705_vibrator", },
-#endif /* CONFIG_MAX77705_VIBRATOR */
 #if defined(CONFIG_MOTOR_DRV_MAX77705)
 	{ .name = "max77705-haptic", },
 #endif /* CONFIG_MAX77705_HAPTIC */
@@ -374,10 +360,6 @@ static int of_max77705_dt(struct device *dev, struct max77705_platform_data *pda
 	pr_info("%s: irq-gpio: %u\n", __func__, pdata->irq_gpio);
 
 	pdata->wakeup = of_property_read_bool(np_max77705, "max77705,wakeup");
-
-	if (of_property_read_u32(np_max77705, "max77705,fw_product_id", &pdata->fw_product_id))
-		pdata->fw_product_id = 0;
-	
 #if defined(CONFIG_SEC_FACTORY)
 	pdata->blocking_waterevent = 0;
 #else
@@ -707,10 +689,6 @@ int max77705_usbc_fw_update(struct max77705_dev *max77705,
 	fw_header = (max77705_fw_header *)fw_bin;
 	msg_maxim("FW: magic/%x/ major/%x/ minor/%x/ product_id/%x/ rev/%x/ id/%x/",
 		  fw_header->magic, fw_header->major, fw_header->minor, fw_header->product_id, fw_header->rev, fw_header->id);
-	if(max77705->device_product_id != fw_header->product_id) {
-		msg_maxim("product indicator mismatch");
-		return 0;
-	}
 	if(fw_header->magic == MAX77705_SIGN)
 		msg_maxim("FW: matched");
 
@@ -746,7 +724,8 @@ retry:
 	store_ccic_bin_version(&fw_header->major, &sw_boot);
 
 #ifdef CONFIG_SEC_FACTORY
-	if ((max77705->FW_Revision != fw_header->major) || (max77705->FW_Minor_Revision != fw_header->minor)) {
+	if ((max77705->FW_Revision != fw_header->major) || (max77705->FW_Minor_Revision != fw_header->minor) ||
+                (max77705->FW_Product_ID != fw_header->product_id)) {
 #else
 	if ((max77705->FW_Revision == 0xff) || (max77705->FW_Revision < fw_header->major) ||
 		((max77705->FW_Revision == fw_header->major) && (max77705->FW_Minor_Revision < fw_header->minor)) ||
@@ -855,11 +834,18 @@ retry:
 		max77705_read_reg(max77705->muic, REG_UIC_FW_MINOR, &max77705->FW_Minor_Revision);
 		max77705->FW_Minor_Revision &= MINOR_VERSION_MASK;
 		msg_maxim("Start FW updating (%02X.%02X)", max77705->FW_Revision, max77705->FW_Minor_Revision);
+		if (max77705->FW_Revision != 0xFF && try_command < 3) {
+			try_command++;
+			msg_maxim("can not enter secure mode. try_command %d", try_command);			
+			max77705_reset_ic(max77705);
+			msleep(1000);
+			goto retry;
+		}
 
 		if (max77705->FW_Revision != 0xFF) {
-			if (++try_command < FW_SECURE_MODE_TRY_COUNT) {
+			if (++try_count < FW_VERIFY_TRY_COUNT) {
 				msg_maxim("the Fail to enter secure mode %d",
-						try_command);
+						try_count);
 				max77705_reset_ic(max77705);
 				msleep(1000);
 				goto retry;
@@ -873,8 +859,6 @@ retry:
 				goto out;
 			}
 		}
-
-		try_command = 0;
 
 		for (offset = FW_HEADER_SIZE;
 				offset < fw_bin_len && size != FW_UPDATE_END;) {
@@ -996,17 +980,22 @@ EXPORT_SYMBOL_GPL(max77705_usbc_fw_update);
 void max77705_usbc_fw_setting(struct max77705_dev *max77705, int enforce_do)
 {
 	if (max77705->pdata->extra_fw_enable) {
-		max77705_usbc_fw_update(max77705, BOOT_FLASH_FW_EXTRA, ARRAY_SIZE(BOOT_FLASH_FW_EXTRA), enforce_do);
+                max77705_usbc_fw_update(max77705, BOOT_FLASH_FW_EXTRA, ARRAY_SIZE(BOOT_FLASH_FW_EXTRA), enforce_do);
 		pr_info("%s: extra fw update\n", __func__);
-		return;
-	}
-
+                return;
+        }
 	switch (max77705->pmic_rev) {
 	case MAX77705_PASS1:
+		pr_info("[MAX77705] Doesn't update the MAX77705_PASS1\n");
+		break;
 	case MAX77705_PASS2:
+		max77705_usbc_fw_update(max77705, BOOT_FLASH_FW_PASS2, ARRAY_SIZE(BOOT_FLASH_FW_PASS2), enforce_do);
+		break;
 	case MAX77705_PASS3:
+		max77705_usbc_fw_update(max77705, BOOT_FLASH_FW_PASS3,  ARRAY_SIZE(BOOT_FLASH_FW_PASS3), enforce_do);
+		break;
 	case MAX77705_PASS4:
-		pr_info("[MAX77705] Couldn't update the MAX77705 FirmWare\n");
+		max77705_usbc_fw_update(max77705, BOOT_FLASH_FW_PASS4,  ARRAY_SIZE(BOOT_FLASH_FW_PASS4), enforce_do);
 		break;
 	case MAX77705_PASS5:
 		max77705_usbc_fw_update(max77705, BOOT_FLASH_FW_PASS2,  ARRAY_SIZE(BOOT_FLASH_FW_PASS2), enforce_do);
@@ -1021,8 +1010,7 @@ EXPORT_SYMBOL_GPL(max77705_usbc_fw_setting);
 
 static u8 max77705_revision_check(u8 pmic_id, u8 pmic_rev) {
 	int i, logical_id = 0;
-	int pmic_arrary = ARRAY_SIZE(max77705_revision);
-	for (i = 0; i < pmic_arrary; i++) {
+	for (i = 0; i < ARRAY_SIZE(max77705_revision); i++) {
 		if (max77705_revision[i].id == pmic_id &&
 		    max77705_revision[i].rev  == pmic_rev)
 			logical_id = max77705_revision[i].logical_id;
@@ -1048,6 +1036,7 @@ static int max77705_i2c_probe(struct i2c_client *i2c,
 {
 	struct max77705_dev *max77705;
 	struct max77705_platform_data *pdata = i2c->dev.platform_data;
+
 	int ret = 0;
 	u8 pmic_id, pmic_rev = 0;
 
@@ -1093,13 +1082,14 @@ static int max77705_i2c_probe(struct i2c_client *i2c,
 		max77705->irq_gpio = pdata->irq_gpio;
 		max77705->wakeup = pdata->wakeup;
 		max77705->blocking_waterevent = pdata->blocking_waterevent;
-		max77705->device_product_id = pdata->fw_product_id;
 	} else {
 		ret = -EINVAL;
 		goto err;
 	}
 	mutex_init(&max77705->i2c_lock);
 
+	max77705->suspended = false;
+	init_waitqueue_head(&max77705->suspend_wait);
 	i2c_set_clientdata(i2c, max77705);
 
 	if (max77705_read_reg(i2c, MAX77705_PMIC_REG_PMICID1, &pmic_id) < 0) {
@@ -1137,6 +1127,7 @@ static int max77705_i2c_probe(struct i2c_client *i2c,
 		return -ENOMEM;
 	INIT_WORK(&max77705->fw_work, max77705_usbc_wait_response_q);
 #endif
+	init_waitqueue_head(&max77705->queue_empty_wait_q);
 	max77705->muic = i2c_new_dummy(i2c->adapter, I2C_ADDR_MUIC);
 	i2c_set_clientdata(max77705->muic, max77705);
 
@@ -1172,9 +1163,6 @@ err_mfd:
 	mfd_remove_devices(max77705->dev);
 err_irq_init:
 	i2c_unregister_device(max77705->muic);
-	i2c_unregister_device(max77705->charger);
-	i2c_unregister_device(max77705->fuelgauge);
-	i2c_unregister_device(max77705->debug);
 err_w_lock:
 	mutex_destroy(&max77705->i2c_lock);
 err:
@@ -1187,12 +1175,8 @@ static int max77705_i2c_remove(struct i2c_client *i2c)
 	struct max77705_dev *max77705 = i2c_get_clientdata(i2c);
 
 	device_init_wakeup(max77705->dev, 0);
-	max77705_irq_exit(max77705);
 	mfd_remove_devices(max77705->dev);
 	i2c_unregister_device(max77705->muic);
-	i2c_unregister_device(max77705->charger);
-	i2c_unregister_device(max77705->fuelgauge);
-	i2c_unregister_device(max77705->debug);
 	kfree(max77705);
 
 	return 0;
@@ -1218,12 +1202,16 @@ static int max77705_suspend(struct device *dev)
 	struct i2c_client *i2c = container_of(dev, struct i2c_client, dev);
 	struct max77705_dev *max77705 = i2c_get_clientdata(i2c);
 
-	pr_info("%s:%s\n", MFD_DEV_NAME, __func__);
+	pr_info("%s:%s +\n", MFD_DEV_NAME, __func__);
+	max77705->suspended =  true;
 
 	if (device_may_wakeup(dev))
 		enable_irq_wake(max77705->irq);
+	
+	wait_event_interruptible_timeout(max77705->queue_empty_wait_q,
+					(!max77705->doing_irq) && (!max77705->is_usbc_queue), 1*HZ);
 
-	disable_irq(max77705->irq);
+	pr_info("%s:%s -\n", MFD_DEV_NAME, __func__);
 
 	return 0;
 }
@@ -1234,11 +1222,10 @@ static int max77705_resume(struct device *dev)
 	struct max77705_dev *max77705 = i2c_get_clientdata(i2c);
 
 	pr_info("%s:%s\n", MFD_DEV_NAME, __func__);
+	max77705->suspended =  false;
 
 	if (device_may_wakeup(dev))
 		disable_irq_wake(max77705->irq);
-
-	enable_irq(max77705->irq);
 
 	return 0;
 }
@@ -1396,8 +1383,14 @@ static struct i2c_driver max77705_i2c_driver = {
 
 static int __init max77705_i2c_init(void)
 {
+	int val;
+
 	pr_info("%s:%s\n", MFD_DEV_NAME, __func__);
-	return i2c_add_driver(&max77705_i2c_driver);
+
+	val = i2c_add_driver(&max77705_i2c_driver);
+	pr_info("%s:%d\n", MFD_DEV_NAME, val);
+
+	return val;
 }
 /* init early so consumer devices can complete system boot */
 subsys_initcall(max77705_i2c_init);

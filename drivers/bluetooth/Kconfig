@@ -379,13 +379,6 @@ config BT_WILINK
 	  Say Y here to compile support for Texas Instrument's WiLink7 driver
 	  into the kernel or say M to compile it as module (btwilink).
 
-config BT_BCM43XX
-	bool "Enable BCM43XX driver"
-	default n
-	help
-	  Adds BCM43XX RFKILL driver for Broadcom BCM4359 chipset for exynos.
-	  default is n.
-
 config BT_MTKUART
 	tristate "MediaTek HCI UART driver"
 	depends on SERIAL_DEV_BUS
@@ -422,11 +415,61 @@ config BT_HCIRSI
 
 config MSM_BT_POWER
 	bool "MSM Bluetooth Power Control"
-	default n
+	depends on ARCH_QCOM && RFKILL
 	help
 	  MSM Bluetooth Power control driver.
 	  This provides a parameter to switch on/off power from PMIC
 	  to Bluetooth device. This will control LDOs/Clock/GPIOs to
 	  control Bluetooth Chipset based on power on/off sequence.
+
+config BTFM_SLIM
+	bool "MSM Bluetooth/FM Slimbus Driver"
+	select SLIMBUS
+	help
+	  This enables BT/FM slimbus driver to get multiple audio channel.
+	  This will make use of slimbus platform driver and slimbus codec
+	  driver to communicate with slimbus machine driver and LPSS which
+	  is Slimbus master.
+
+	  Slimbus slave initialization and configuration will be done through
+	  this driver.
+
+config BTFM_SLIM_WCN3990
+	bool "MSM Bluetooth/FM WCN3990 Device"
+	select BTFM_SLIM
+	help
+	  This enables specific driver handle for WCN3990 device.
+	  It is designed to adapt any future BT/FM device to implement a specific
+	  chip initialization process and control.
+
+config BT_SLIM_QCA6390
+	bool "MSM Bluetooth QCA6390 Device"
+	select BTFM_SLIM
+	help
+	  This enables specific driver handle for QCA6390 device.
+	  It is designed to adapt any future BT/FM device to implement a specific
+	  chip initialization process and control.
+
+config BT_SLIM_QCA6490
+	bool "MSM Bluetooth QCA6490 Device"
+	select BTFM_SLIM
+	help
+	  This enables specific driver handle for QCA6490 device.
+	  It is designed to adapt any future BT/FM device to implement a specific
+	  chip initialization process and control.
+
+config BT_BCM4361
+	bool "Enable BCM4361 driver"
+	default n
+	help
+	  Adds BCM43XX RFKILL driver for Broadcom BCM4361, BCM4375 chipset
+	  default is n.
+
+config BT_BLUESLEEP
+	bool "Enable BlUESLEEP driver"
+	default n
+	help
+	  Adds BlUESLEEP driver for Broadcom chipset.
+	  default is n.
 
 endmenu

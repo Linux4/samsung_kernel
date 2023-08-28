@@ -364,7 +364,7 @@ enum mhi_cmd_type {
 #define MHI_RSCTRE_DATA_DWORD0(cookie) (cookie)
 #define MHI_RSCTRE_DATA_DWORD1 (MHI_PKT_TYPE_COALESCING << 16)
 
-#define MHI_RSC_MIN_CREDITS (8)
+#define MHI_RSC_MIN_CREDITS (11)
 
 enum MHI_CMD {
 	MHI_CMD_RESET_CHAN,
@@ -414,6 +414,10 @@ enum MHI_CH_STATE {
 	MHI_CH_STATE_ERROR = 0x5,
 };
 
+enum MHI_BRSTMODE {
+	MHI_BRSTMODE_DISABLE = 0x2,
+	MHI_BRSTMODE_ENABLE = 0x3,
+};
 
 #define MHI_INVALID_BRSTMODE(mode) (mode != MHI_BRSTMODE_DISABLE && \
 				    mode != MHI_BRSTMODE_ENABLE)
@@ -507,6 +511,15 @@ enum MHI_PM_STATE {
 #define MHI_PM_IN_SUSPEND_STATE(pm_state) (pm_state & \
 					   (MHI_PM_M3_ENTER | MHI_PM_M3))
 
+/* accepted buffer type for the channel */
+enum MHI_XFER_TYPE {
+	MHI_XFER_BUFFER,
+	MHI_XFER_SKB,
+	MHI_XFER_SCLIST,
+	MHI_XFER_NOP, /* CPU offload channel, host does not accept transfer */
+	MHI_XFER_DMA, /* receive dma address, already mapped by client */
+	MHI_XFER_RSC_DMA, /* RSC type, accept premapped buffer */
+};
 
 #define NR_OF_CMD_RINGS (1)
 #define CMD_EL_PER_RING (128)
@@ -543,6 +556,14 @@ enum mhi_er_priority {
 #define IS_MHI_ER_PRIORITY_SPECIAL(ev) (ev->priority >= MHI_ER_PRIORITY_SPECIAL)
 #define IS_MHI_ER_PRIORITY_HIGH(ev) (ev->priority == MHI_ER_PRIORITY_HIGH)
 
+enum mhi_er_data_type {
+	MHI_ER_DATA_ELEMENT_TYPE,
+	MHI_ER_CTRL_ELEMENT_TYPE,
+	MHI_ER_TSYNC_ELEMENT_TYPE,
+	MHI_ER_BW_SCALE_ELEMENT_TYPE,
+	MHI_ER_DATA_TYPE_MAX = MHI_ER_BW_SCALE_ELEMENT_TYPE,
+};
+
 enum mhi_ch_ee_mask {
 	MHI_CH_EE_PBL = BIT(MHI_EE_PBL),
 	MHI_CH_EE_SBL = BIT(MHI_EE_SBL),
@@ -553,6 +574,12 @@ enum mhi_ch_ee_mask {
 	MHI_CH_EE_EDL = BIT(MHI_EE_EDL),
 };
 
+enum mhi_ch_type {
+	MHI_CH_TYPE_INVALID = 0,
+	MHI_CH_TYPE_OUTBOUND = DMA_TO_DEVICE,
+	MHI_CH_TYPE_INBOUND = DMA_FROM_DEVICE,
+	MHI_CH_TYPE_INBOUND_COALESCED = 3,
+};
 
 struct db_cfg {
 	bool reset_req;
@@ -690,8 +717,6 @@ struct mhi_chan {
 struct tsync_node {
 	struct list_head node;
 	u32 sequence;
-	u32 int_sequence;
-	u64 local_time;
 	u64 remote_time;
 	struct mhi_device *mhi_dev;
 	void (*cb_func)(struct mhi_device *mhi_dev, u32 sequence,
@@ -701,6 +726,11 @@ struct tsync_node {
 struct mhi_timesync {
 	void __iomem *time_reg;
 	u32 int_sequence;
+	u64 local_time;
+	u64 remote_time;
+	bool db_support;
+	bool db_response_pending;
+	struct completion db_completion;
 	spinlock_t lock; /* list protection */
 	struct list_head head;
 };
@@ -728,11 +758,13 @@ extern struct mhi_bus mhi_bus;
 struct mhi_controller *find_mhi_controller_by_name(const char *name);
 
 /* debug fs related functions */
+int mhi_debugfs_mhi_regdump_show(struct seq_file *m, void *d);
 int mhi_debugfs_mhi_vote_show(struct seq_file *m, void *d);
 int mhi_debugfs_mhi_chan_show(struct seq_file *m, void *d);
 int mhi_debugfs_mhi_event_show(struct seq_file *m, void *d);
 int mhi_debugfs_mhi_states_show(struct seq_file *m, void *d);
 int mhi_debugfs_trigger_reset(void *data, u64 val);
+int mhi_debugfs_trigger_soc_reset(void *data, u64 val);
 
 void mhi_deinit_debugfs(struct mhi_controller *mhi_cntrl);
 void mhi_init_debugfs(struct mhi_controller *mhi_cntrl);
@@ -761,8 +793,8 @@ int mhi_process_data_event_ring(struct mhi_controller *mhi_cntrl,
 				struct mhi_event *mhi_event, u32 event_quota);
 int mhi_process_ctrl_ev_ring(struct mhi_controller *mhi_cntrl,
 			     struct mhi_event *mhi_event, u32 event_quota);
-int mhi_process_tsync_event_ring(struct mhi_controller *mhi_cntrl,
-				 struct mhi_event *mhi_event, u32 event_quota);
+int mhi_process_tsync_ev_ring(struct mhi_controller *mhi_cntrl,
+			      struct mhi_event *mhi_event, u32 event_quota);
 int mhi_process_bw_scale_ev_ring(struct mhi_controller *mhi_cntrl,
 				 struct mhi_event *mhi_event, u32 event_quota);
 int mhi_send_cmd(struct mhi_controller *mhi_cntrl, struct mhi_chan *mhi_chan,
@@ -827,12 +859,8 @@ static inline void mhi_timesync_log(struct mhi_controller *mhi_cntrl)
 	struct mhi_timesync *mhi_tsync = mhi_cntrl->mhi_tsync;
 
 	if (mhi_tsync && mhi_cntrl->tsync_log)
-#if defined(CONFIG_ARM64)
 		mhi_cntrl->tsync_log(mhi_cntrl,
 				     readq_no_log(mhi_tsync->time_reg));
-#else
-		mhi_cntrl->tsync_log(mhi_cntrl, 0);
-#endif
 }
 
 /* memory allocation methods */
@@ -934,7 +962,6 @@ int mhi_init_mmio(struct mhi_controller *mhi_cntrl);
 int mhi_init_dev_ctxt(struct mhi_controller *mhi_cntrl);
 void mhi_deinit_dev_ctxt(struct mhi_controller *mhi_cntrl);
 int mhi_init_irq_setup(struct mhi_controller *mhi_cntrl);
-void mhi_irq_setup(struct mhi_controller *mhi_cntrl, bool enable);
 void mhi_deinit_free_irq(struct mhi_controller *mhi_cntrl);
 int mhi_dtr_init(void);
 void mhi_rddm_prepare(struct mhi_controller *mhi_cntrl,
@@ -944,6 +971,7 @@ int mhi_prepare_channel(struct mhi_controller *mhi_cntrl,
 			struct mhi_chan *mhi_chan);
 void mhi_reset_reg_write_q(struct mhi_controller *mhi_cntrl);
 void mhi_force_reg_write(struct mhi_controller *mhi_cntrl);
+void mhi_perform_soc_reset(struct mhi_controller *mhi_cntrl);
 
 /* isr handlers */
 irqreturn_t mhi_msi_handlr(int irq_number, void *dev);

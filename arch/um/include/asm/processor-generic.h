@@ -28,7 +28,7 @@ struct thread_struct {
 	struct arch_thread arch;
 	jmp_buf switch_buf;
 	bool is_running_test;
-	struct {
+    struct {
 		int op;
 		union {
 			struct {

@@ -25,20 +25,12 @@
 #define BUF_SIZE	SZ_256K
 #define MAX_STR_LEN	128
 #define PROC_FILE_NAME	"nfclog"
-#define LOG_PREFIX	"sec-nfc"
-#define PRINT_DATE_FREQ	30
 
 static char log_buf[BUF_SIZE];
 static unsigned int g_curpos;
 static int is_nfc_logger_init;
 static int is_buf_full;
 static int log_max_count = -1;
-
-/* set max log count, if count is -1, no limit */
-void nfc_logger_set_max_count(int count)
-{
-	log_max_count = count;
-}
 
 void nfc_logger_print_date_time(void)
 {
@@ -58,6 +50,14 @@ void nfc_logger_print_date_time(void)
 	nfc_logger_print("%s\n", tmp);
 }
 
+/* set max log count, if count is -1, no limit */
+void nfc_logger_set_max_count(int count)
+{
+	log_max_count = count;
+
+	nfc_logger_print_date_time();
+}
+
 void nfc_logger_print(const char *fmt, ...)
 {
 	int len;
@@ -66,7 +66,7 @@ void nfc_logger_print(const char *fmt, ...)
 	u64 time;
 	unsigned long nsec;
 	volatile unsigned int curpos;
-	static unsigned int log_count = PRINT_DATE_FREQ;
+	static int log_count = 0;
 
 	if (!is_nfc_logger_init)
 		return;
@@ -76,11 +76,6 @@ void nfc_logger_print(const char *fmt, ...)
 	else if (log_max_count > 0)
 		log_max_count--;
 
-	if (--log_count == 0) {
-		nfc_logger_print_date_time();
-		log_count = PRINT_DATE_FREQ;
-	}
-
 	time = local_clock();
 	nsec = do_div(time, 1000000000);
 	len = snprintf(buf, sizeof(buf), "[%5lu.%06ld] ", (unsigned long)time, nsec / 1000);
@@ -89,19 +84,25 @@ void nfc_logger_print(const char *fmt, ...)
 	len += vsnprintf(buf + len, MAX_STR_LEN, fmt, args);
 	va_end(args);
 
-	curpos = g_curpos; 
-	if (curpos + len >= BUF_SIZE) { 
-		g_curpos = curpos = 0; 
+	curpos = g_curpos;
+	if (curpos + len >= BUF_SIZE) {
+		g_curpos = curpos = 0;
 		is_buf_full = 1;
 	}
 	memcpy(log_buf + curpos, buf, len);
 	g_curpos += len;
+	
+	log_count++;
+	if (log_count == 150) {
+		nfc_logger_print_date_time();
+		log_count = 0;
+	}
 }
 
 void nfc_print_hex_dump(void *buf, void *pref, size_t size)
 {
 	uint8_t *ptr = buf;
-	size_t i;
+	uint32_t i;
 	char tmp[128] = {0x0, };
 	char *ptmp = tmp;
 	int len;

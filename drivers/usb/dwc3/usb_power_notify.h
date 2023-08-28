@@ -16,6 +16,6 @@
 
 extern void register_usb_power_notify(void);
 extern void unregister_usb_power_notify(void);
-extern int xhci_port_power_set(u32 on, u32 prt);
+extern int xhci_port_power_set(u32 on);
 #endif
 

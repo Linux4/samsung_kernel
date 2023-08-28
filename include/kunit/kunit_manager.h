@@ -20,12 +20,6 @@
 
 #include <linux/kernel.h>
 #include <linux/module.h>
-#ifdef CONFIG_DRV_SAMSUNG
-#include <linux/sec_class.h>
-#else
-extern struct class *sec_class;
-#endif
-
 #include <linux/device.h>
 
 #ifdef CONFIG_KUNIT

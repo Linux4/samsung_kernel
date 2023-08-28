@@ -4,29 +4,16 @@
 #ifndef _CNSS_MAIN_H
 #define _CNSS_MAIN_H
 
-#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
 #include <asm/arch_timer.h>
-#endif
-#ifdef CONFIG_ESOC_CLIENT
 #include <linux/esoc_client.h>
-#endif
-
-#ifdef CONFIG_QCOM_BUS_SCALING
-#include <linux/msm-bus.h>
-#endif
-#ifdef CONFIG_QCOM_MEMORY_DUMP_V2
-#include <soc/qcom/memory_dump.h>
-#endif
-#ifdef CONFIG_MSM_SUBSYSTEM_RESTART
-#include <soc/qcom/subsystem_restart.h>
-#endif
-
 #include <linux/etherdevice.h>
+#include <linux/msm-bus.h>
 #include <linux/pm_qos.h>
 #include <net/cnss2.h>
+#include <soc/qcom/memory_dump.h>
+#include <soc/qcom/subsystem_restart.h>
 
 #include "qmi.h"
-#include <linux/of_gpio.h>
 
 #define MAX_NO_OF_MAC_ADDR		4
 #define QMI_WLFW_MAX_TIMESTAMP_LEN	32
@@ -39,8 +26,6 @@
 #define CNSS_RAMDUMP_MAGIC		0x574C414E
 #define CNSS_RAMDUMP_VERSION		0
 #define MAX_FIRMWARE_NAME_LEN		30
-#define CNSS_DUMP_DESC_SIZE		0x1000
-
 
 #define CNSS_EVENT_SYNC   BIT(0)
 #define CNSS_EVENT_UNINTERRUPTIBLE BIT(1)
@@ -92,13 +77,12 @@ struct cnss_pinctrl_info {
 	struct pinctrl_state *bootstrap_active;
 	struct pinctrl_state *wlan_en_active;
 	struct pinctrl_state *wlan_en_sleep;
+	int bt_en_gpio;
 };
 
 struct cnss_subsys_info {
 	struct subsys_device *subsys_device;
-#ifdef CONFIG_MSM_SUBSYSTEM_RESTART
 	struct subsys_desc subsys_desc;
-#endif
 	void *subsys_handle;
 };
 
@@ -107,9 +91,7 @@ struct cnss_ramdump_info {
 	unsigned long ramdump_size;
 	void *ramdump_va;
 	phys_addr_t ramdump_pa;
-#ifdef CONFIG_QCOM_MEMORY_DUMP_V2
 	struct msm_dump_data dump_data;
-#endif
 };
 
 struct cnss_dump_seg {
@@ -129,7 +111,7 @@ struct cnss_dump_data {
 };
 
 struct cnss_ramdump_info_v2 {
-	void *ramdump_dev;
+	struct ramdump_device *ramdump_dev;
 	unsigned long ramdump_size;
 	void *dump_data_vaddr;
 	u8 dump_data_valid;
@@ -336,7 +318,6 @@ enum cnss_ce_index {
 	CNSS_CE_COMMON,
 };
 
-#define DUMP_MAX_SEG 20
 struct cnss_plat_data {
 	struct platform_device *plat_dev;
 	void *bus_priv;
@@ -344,9 +325,6 @@ struct cnss_plat_data {
 	struct list_head vreg_list;
 	struct list_head clk_list;
 	struct cnss_pinctrl_info pinctrl_info;
-	struct regulator *wlan_vdd;
-	unsigned int wlan_host_wake_gpio;
-	unsigned int host_wake_irq;
 	struct cnss_subsys_info subsys_info;
 	struct cnss_ramdump_info ramdump_info;
 	struct cnss_ramdump_info_v2 ramdump_info_v2;
@@ -354,20 +332,17 @@ struct cnss_plat_data {
 	struct cnss_bus_bw_info bus_bw_info;
 	struct notifier_block modem_nb;
 	struct notifier_block reboot_nb;
-	struct notifier_block panic_nb;
 	struct cnss_platform_cap cap;
 	struct pm_qos_request qos_request;
 	struct cnss_device_version device_version;
 	unsigned long device_id;
 	enum cnss_driver_status driver_status;
 	u32 recovery_count;
-	u8 recovery_enabled;
 	unsigned long driver_state;
 	struct list_head event_list;
 	spinlock_t event_lock; /* spinlock for driver work event handling */
 	struct work_struct event_work;
 	struct workqueue_struct *event_wq;
-	struct work_struct recovery_work;
 	struct qmi_handle qmi_wlfw;
 	struct wlfw_rf_chip_info chip_info;
 	struct wlfw_rf_board_info board_info;
@@ -396,7 +371,9 @@ struct cnss_plat_data {
 	u8 *diag_reg_read_buf;
 	u8 cal_done;
 	u8 powered_on;
+	u8 use_fw_path_with_prefix;
 	char firmware_name[MAX_FIRMWARE_NAME_LEN];
+	char fw_fallback_name[MAX_FIRMWARE_NAME_LEN];
 	struct completion rddm_complete;
 	struct completion recovery_complete;
 	struct cnss_control_params ctrl_params;
@@ -411,14 +388,8 @@ struct cnss_plat_data {
 	int (*get_info_cb)(void *ctx, void *event, int event_len);
 	u8 use_nv_mac;
 	u8 set_wlaon_pwr_ctrl;
-	struct kobject *shutdown_kobj;
+
 	struct kobject *wifi_kobj;
-	u32 num_dump_segs;
-	struct cnss_dump_seg dump_segs[DUMP_MAX_SEG * CNSS_FW_DUMP_TYPE_MAX + CNSS_FW_DUMP_TYPE_MAX + 1];
-	atomic_t dump_status;
-	struct completion dump_complete;
-	int devcoredump_status;
-	struct mutex force_assert_lock;
 };
 
 #ifdef CONFIG_ARCH_QCOM
@@ -442,8 +413,6 @@ static inline u64 cnss_get_host_timestamp(struct cnss_plat_data *plat_priv)
 #endif
 
 struct cnss_plat_data *cnss_get_plat_priv(struct platform_device *plat_dev);
-void cnss_pm_stay_awake(struct cnss_plat_data *plat_priv);
-void cnss_pm_relax(struct cnss_plat_data *plat_priv);
 int cnss_driver_event_post(struct cnss_plat_data *plat_priv,
 			   enum cnss_driver_event_type type,
 			   u32 flags, void *data);

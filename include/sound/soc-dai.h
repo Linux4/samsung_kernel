@@ -318,7 +318,6 @@ struct snd_soc_dai {
 	unsigned int rate;
 	unsigned int channels;
 	unsigned int sample_bits;
-	unsigned int sample_width;
 
 	/* parent platform/codec */
 	struct snd_soc_component *component;

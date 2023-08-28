@@ -40,8 +40,18 @@
 #include <linux/workqueue.h>
 #include <linux/power_supply.h>
 
-#if defined(CONFIG_SAMSUNG_TUI)
-#include <linux/input/stui_inf.h>
+#ifdef CONFIG_SAMSUNG_TUI
+#include "stui_inf.h"
+#endif
+
+#if defined(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE) && defined(CONFIG_FOLDER_HALL)
+#include <linux/hall.h>
+#endif
+
+#ifdef CONFIG_TOUCHSCREEN_DUAL_FOLDABLE
+#define input_raw_info_d(mode, dev, fmt, ...) input_raw_info(SUB_TOUCH, dev, fmt, ## __VA_ARGS__)
+#else
+#define input_raw_info_d(mode, dev, fmt, ...) input_raw_info(mode, dev, fmt, ## __VA_ARGS__)
 #endif
 
 #ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
@@ -327,6 +337,7 @@
 #define SEC_TS_GESTURE_CODE_PRESS		0x03
 #define SEC_TS_GESTURE_CODE_SINGLE_TAP		0x04
 #define SEC_TS_GESTURE_CODE_DUMPFLUSH		0x05
+#define SEC_TS_GESTURE_CODE_LARGEPALM		0x06
 
 
 /* SEC_TS_GESTURE_ID */
@@ -426,6 +437,18 @@
 
 #define SEC_TS_LFD_CTRL_LOCK			1
 #define SEC_TS_LFD_CTRL_UNLOCK			2
+
+#if defined(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+#define SEC_TS_STATUS_UNFOLDING		0x00
+#define SEC_TS_STATUS_FOLDING		0x01
+
+enum tsp_status_call_pos {
+	SEC_TS_STATE_CHK_POS_OPEN = 0,
+	SEC_TS_STATE_CHK_POS_CLOSE,
+	SEC_TS_STATE_CHK_POS_HALL,
+	SEC_TS_STATE_CHK_POS_SYSFS,
+};
+#endif
 
 enum sync_changed_data {
 	SEC_TS_SYNC_CHANGED_30_TO_60	= 1,
@@ -808,6 +831,9 @@ struct sec_ts_data {
 	struct mutex modechange;
 	struct mutex sponge_mutex;
 	struct mutex proc_mutex;
+#if defined(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE) && defined(CONFIG_FOLDER_HALL)
+	struct mutex status_mutex;
+#endif
 	int nv;
 	int disassemble_count;
 
@@ -835,7 +861,16 @@ struct sec_ts_data {
 	struct wake_lock wakelock;
 	struct sec_cmd_data sec;
 	short *pFrame;
-
+#ifdef CONFIG_TOUCHSCREEN_DUAL_FOLDABLE
+	int flip_status_prev;
+	int flip_status;
+	int flip_status_current;
+	int change_flip_status;
+	int tsp_open_status;
+	struct mutex switching_mutex;
+	struct delayed_work switching_work;
+	struct notifier_block hall_ic_nb;
+#endif
 	bool probe_done;
 	bool info_work_done;
 	volatile bool shutdown_is_on_going;
@@ -1132,7 +1167,11 @@ int sec_ts_raw_device_init(struct sec_ts_data *ts);
 void send_event_to_user(struct sec_ts_data *ts, int number, int val);
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
+#ifdef CONFIG_TOUCHSCREEN_DUAL_FOLDABLE
+int get_lcd_attached_secondary(char *mode);
+#else
 int get_lcd_attached(char *mode);
+#endif
 #endif
 
 #if defined(CONFIG_EXYNOS_DPU30)
@@ -1145,6 +1184,10 @@ extern unsigned int lpcharge;
 
 void set_grip_data_to_ic(struct sec_ts_data *ts, u8 flag);
 void sec_ts_set_grip_type(struct sec_ts_data *ts, u8 set_type);
+
+#ifdef CONFIG_TOUCHSCREEN_DUAL_FOLDABLE
+void sec_ts_chk_tsp_ic_status(struct sec_ts_data *ts, int call_pos);
+#endif
 
 ssize_t get_miscal_dump(struct sec_ts_data *ts, char *buf);
 ssize_t get_cmoffset_dump_all(struct sec_ts_data *ts, char *buf, u8 position);

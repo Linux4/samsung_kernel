@@ -57,8 +57,19 @@ real-obj-y := $(foreach m, $(obj-y), $(if $(strip $($(m:.o=-objs)) $($(m:.o=-y))
 real-obj-m := $(foreach m, $(obj-m), $(if $(strip $($(m:.o=-objs)) $($(m:.o=-y)) $($(m:.o=-m))),$($(m:.o=-objs)) $($(m:.o=-y)) $($(m:.o=-m)),$(m)))
 
 # DTB
+DTB_NAMES := $(subst $\",,$(CONFIG_BUILD_ARM_APPENDED_DTB_IMAGE_NAMES))
+ifneq ($(DTB_NAMES),)
+DTB_LIST := $(addsuffix .dtb,$(DTB_NAMES))
+else
+DTB_LIST := $(dtb-y)
+endif
+
+targets += dtbs dtbs_install
+targets += $(DTB_LIST)
+
+extra-y                                += $(DTB_LIST)
+
 # If CONFIG_OF_ALL_DTBS is enabled, all DT blobs are built
-extra-y				+= $(dtb-y)
 extra-$(CONFIG_OF_ALL_DTBS)	+= $(dtb-)
 
 # Add subdir path
@@ -170,10 +181,6 @@ dtc_cpp_flags  = -Wp,-MD,$(depfile).pre.tmp -nostdinc                    \
 		 $(addprefix -I,$(DTC_INCLUDE))                          \
 		 -undef -D__DTS__
 
-ifeq ($(CONFIG_SEC_FACTORY),y)
-dtc_cpp_flags += -DCONFIG_SEC_FACTORY
-endif
-
 # Useful for describing the dependency of composite objects
 # Usage:
 #   $(call multi_depend, multi_used_targets, suffix_to_remove, suffix_to_add)
@@ -248,17 +255,18 @@ cmd_gzip = (cat $(filter-out FORCE,$^) | gzip -n -f -9 > $@) || \
 # ---------------------------------------------------------------------------
 DTC ?= $(objtree)/scripts/dtc/dtc
 
-# Overlay support
-DTC_FLAGS += -@
-
 # Disable noisy checks by default
 ifeq ($(findstring 1,$(KBUILD_ENABLE_EXTRA_GCC_CHECKS)),)
-DTC_FLAGS += -Wno-unit_address_vs_reg \
+DTC_FLAGS += -Wno-unit_address_vs_reg
+endif
+ifeq ($(DTC_EXT),)
+DTC_FLAGS += -Wno-simple_bus_reg \
 	-Wno-unit_address_format \
 	-Wno-avoid_unnecessary_addr_size \
 	-Wno-alias_paths \
 	-Wno-graph_child_address \
 	-Wno-graph_port \
+	-Wno-simple_bus_reg \
 	-Wno-unique_unit_address \
 	-Wno-pci_device_reg
 endif
@@ -288,35 +296,31 @@ cmd_dt_S_dtb=						\
 $(obj)/%.dtb.S: $(obj)/%.dtb FORCE
 	$(call if_changed,dt_S_dtb)
 
-show_dtc_error =                                                          	\
-(                                                                         	\
-	cat $1;                                                           	\
-	for err in "$$(cat $1 | grep 'Error:')"; do                       	\
-		echo "See more detail error as below:";                   	\
-		cat $$(echo $$err | cut -d':' -f2) | nl -ba			\
-		| head -n $$(echo $$err | grep -Eo ':[0-9]+' | cut -d':' -f2)	\
-		| tail -n 2;							\
-	done;									\
-	rm $1;									\
-	false;									\
-)
+ifneq ($(DTC_EXT),)
+DTC = $(DTC_EXT)
+else
+DTC = $(objtree)/scripts/dtc/dtc
+endif
 
 quiet_cmd_dtc = DTC     $@
 cmd_dtc = mkdir -p $(dir ${dtc-tmp}) ; \
 	$(CPP) $(dtc_cpp_flags) -x assembler-with-cpp -o $(dtc-tmp) $< ; \
-	$(DTC) -O dtb -o $@ -b 0 -a 4 \
+	$(DTC) -O dtb -o $@ -b 0 \
 		$(addprefix -i,$(dir $<) $(DTC_INCLUDE)) $(DTC_FLAGS) \
-		-d $(depfile).dtc.tmp $(dtc-tmp) 2>$@.dtout || $(call show_dtc_error, $@.dtout) ;\
-	$(DTC) -O dts -I dtb -o $@.reverse.dts $(DTC_FLAGS) $@ ; \
+		-d $(depfile).dtc.tmp $(dtc-tmp) ; \
+	$(DTC) -O dts -I dtb -o $@.reverse.dts $@ ; \
 	cat $(depfile).pre.tmp $(depfile).dtc.tmp > $(depfile)
 
 $(obj)/%.dtb: $(src)/%.dts $(DTC) FORCE
 	$(call if_changed_dep,dtc)
 
-$(obj)/%.dtbo: $(src)/%.dts FORCE
-	$(call if_changed_dep,dtc)
-
 dtc-tmp = $(subst $(comma),_,$(dot-target).dts.tmp)
+
+# cat
+# ---------------------------------------------------------------------------
+# Concatentate multiple files together
+quiet_cmd_cat = CAT     $@
+cmd_cat = (cat $(filter-out FORCE,$^) > $@) || (rm -f $@; false)
 
 # Bzip2
 # ---------------------------------------------------------------------------

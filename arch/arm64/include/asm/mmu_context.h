@@ -34,14 +34,20 @@
 #include <asm/pgtable.h>
 #include <asm/sysreg.h>
 #include <asm/tlbflush.h>
+#include <linux/msm_rtb.h>
 
 static inline void contextidr_thread_switch(struct task_struct *next)
 {
+	pid_t pid = task_pid_nr(next);
+
 	if (!IS_ENABLED(CONFIG_PID_IN_CONTEXTIDR))
 		return;
 
-	write_sysreg(task_pid_nr(next), contextidr_el1);
+	write_sysreg(pid, contextidr_el1);
 	isb();
+
+	uncached_logk(LOGK_CTXID, (void *)(u64)pid);
+
 }
 
 /*
@@ -149,7 +155,7 @@ static inline void __nocfi cpu_replace_ttbr1(pgd_t *pgdp)
 
 	phys_addr_t pgd_phys = virt_to_phys(pgdp);
 
-	replace_phys = (void *)__pa_symbol(idmap_cpu_replace_ttbr1);
+	replace_phys = (void *)__pa_function(idmap_cpu_replace_ttbr1);
 
 	cpu_install_idmap();
 	replace_phys(pgd_phys);
@@ -240,6 +246,7 @@ switch_mm(struct mm_struct *prev, struct mm_struct *next,
 
 void verify_cpu_asid_bits(void);
 void post_ttbr_update_workaround(void);
+void arm64_workaround_1542418_asid_rollover(void);
 
 #endif /* !__ASSEMBLY__ */
 

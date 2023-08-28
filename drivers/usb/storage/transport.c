@@ -47,9 +47,7 @@
 
 #include <linux/blkdev.h>
 #include "../../scsi/sd.h"
-#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
 #include "../core/usb.h"
-#endif
 
 
 /***********************************************************************
@@ -282,7 +280,7 @@ static int interpret_urb_result(struct us_data *us, unsigned int pipe,
 		if (usb_pipecontrol(pipe)) {
 			usb_stor_dbg(us, "-- stall on control pipe\n");
 #ifdef CONFIG_USB_DEBUG_DETAILED_LOG
-			pr_err("usb storage -- stall on control pipe\n");
+			printk(KERN_ERR "usb storage -- stall on control pipe\n");
 #endif
 			return USB_STOR_XFER_STALLED;
 		}
@@ -298,7 +296,7 @@ static int interpret_urb_result(struct us_data *us, unsigned int pipe,
 	case -EOVERFLOW:
 		usb_stor_dbg(us, "-- babble\n");
 #ifdef CONFIG_USB_DEBUG_DETAILED_LOG
-		pr_err("usb storage -- babble\n");
+		printk(KERN_ERR "usb storage -- babble\n");
 #endif
 		return USB_STOR_XFER_LONG;
 
@@ -306,7 +304,7 @@ static int interpret_urb_result(struct us_data *us, unsigned int pipe,
 	case -ECONNRESET:
 		usb_stor_dbg(us, "-- transfer cancelled\n");
 #ifdef CONFIG_USB_DEBUG_DETAILED_LOG
-		pr_err("usb storage -- transfer cancelled\n");
+		printk(KERN_ERR "usb storage -- transfer cancelled\n");
 #endif
 		return USB_STOR_XFER_ERROR;
 
@@ -314,7 +312,7 @@ static int interpret_urb_result(struct us_data *us, unsigned int pipe,
 	case -EREMOTEIO:
 		usb_stor_dbg(us, "-- short read transfer\n");
 #ifdef CONFIG_USB_DEBUG_DETAILED_LOG
-		pr_err("usb storage -- short read transfer\n");
+		printk(KERN_ERR "usb storage -- short read transfer\n");
 #endif
 		return USB_STOR_XFER_SHORT;
 
@@ -322,7 +320,7 @@ static int interpret_urb_result(struct us_data *us, unsigned int pipe,
 	case -EIO:
 		usb_stor_dbg(us, "-- abort or disconnect in progress\n");
 #ifdef CONFIG_USB_DEBUG_DETAILED_LOG
-		pr_err("usb storage -- abort or disconnect in progress\n");
+		printk(KERN_ERR "usb storage -- abort or disconnect in progress\n");
 #endif
 		return USB_STOR_XFER_ERROR;
 
@@ -330,7 +328,7 @@ static int interpret_urb_result(struct us_data *us, unsigned int pipe,
 	default:
 		usb_stor_dbg(us, "-- unknown error\n");
 #ifdef CONFIG_USB_DEBUG_DETAILED_LOG
-		pr_err("usb storage -- unknown error %d\n", result);
+		printk(KERN_ERR "usb storage -- unknown error %d\n", result);
 #endif
 		return USB_STOR_XFER_ERROR;
 	}
@@ -633,7 +631,7 @@ void usb_stor_invoke_transport(struct scsi_cmnd *srb, struct us_data *us)
 	if (test_bit(US_FLIDX_TIMED_OUT, &us->dflags)) {
 		usb_stor_dbg(us, "-- command was aborted\n");
 #ifdef CONFIG_USB_DEBUG_DETAILED_LOG
-		pr_err("usb storage -- command was aborted\n");
+		printk(KERN_ERR "usb storage -- command was aborted\n");
 #endif
 		srb->result = DID_ABORT << 16;
 		goto Handle_Errors;
@@ -643,7 +641,7 @@ void usb_stor_invoke_transport(struct scsi_cmnd *srb, struct us_data *us)
 	if (result == USB_STOR_TRANSPORT_ERROR) {
 		usb_stor_dbg(us, "-- transport indicates error, resetting\n");
 #ifdef CONFIG_USB_DEBUG_DETAILED_LOG
-		pr_err("usb storage -- transport indicates error, resetting\n");
+		printk(KERN_ERR "usb storage -- transport indicates error, resetting\n");
 #endif
 		srb->result = DID_ERROR << 16;
 		goto Handle_Errors;
@@ -750,7 +748,7 @@ Retry_Sense:
 		if (test_bit(US_FLIDX_TIMED_OUT, &us->dflags)) {
 			usb_stor_dbg(us, "-- auto-sense aborted\n");
 #ifdef CONFIG_USB_DEBUG_DETAILED_LOG
-			pr_err("usb storage -- auto-sense aborted\n");
+			printk(KERN_ERR "usb storage -- auto-sense aborted\n");
 #endif
 			srb->result = DID_ABORT << 16;
 
@@ -781,8 +779,9 @@ Retry_Sense:
 		if (temp_result != USB_STOR_TRANSPORT_GOOD) {
 			usb_stor_dbg(us, "-- auto-sense failure\n");
 #ifdef CONFIG_USB_DEBUG_DETAILED_LOG
-			pr_err("usb storage -- auto-sense failure\n");
+			printk(KERN_ERR "usb storage -- auto-sense failure\n");
 #endif
+
 			/*
 			 * we skip the reset if this happens to be a
 			 * multi-target device, since failure of an
@@ -936,6 +935,7 @@ Retry_Sense:
 #ifdef CONFIG_USB_DEBUG_DETAILED_LOG
 	printk(KERN_ERR USB_STORAGE "%s scsi_unlock 1\n", __func__);
 #endif
+
 	/*
 	 * We must release the device lock because the pre_reset routine
 	 * will want to acquire it.
@@ -1475,24 +1475,17 @@ int usb_stor_port_reset(struct us_data *us)
 			result = -EIO;
 			usb_stor_dbg(us, "No reset during disconnect\n");
 		} else {
-#ifdef CONFIG_USB_STORAGE_DETECT
 			if (test_bit(US_FLIDX_TIMED_OUT, &us->dflags)) {
 #ifdef CONFIG_USB_DEBUG_DETAILED_LOG
 				printk(KERN_ERR USB_STORAGE "%s remove device\n",
 					__func__);
 #endif
 				result = usb_remove_device(us->pusb_dev);
-
 			} else {
 				result = usb_reset_device(us->pusb_dev);
 				usb_stor_dbg(us, "usb_reset_device returns %d\n",
 					     result);
 			}
-#else
-			result = usb_reset_device(us->pusb_dev);
-			usb_stor_dbg(us, "usb_reset_device returns %d\n",
-				     result);
-#endif /* CONFIG_USB_STORAGE_DETECT */
 		}
 		usb_unlock_device(us->pusb_dev);
 	}

@@ -20,6 +20,12 @@
 
 #include <kunit/kunit_manager.h>
 
+#ifdef CONFIG_DRV_SAMSUNG
+#include <linux/sec_class.h>
+#else
+static struct class *sec_class;
+#endif
+
 static ssize_t kunit_manager_run_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {

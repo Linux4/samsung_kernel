@@ -10,43 +10,69 @@
 #include <linux/swap.h>
 #include <linux/sched/signal.h>
 
-#include <asm/cacheflush.h>
-
 #include "ion.h"
 
 #ifdef CONFIG_HUGEPAGE_POOL
 #include <linux/hugepage_pool.h>
 #endif
-static void *ion_page_pool_alloc_pages(struct ion_page_pool *pool, unsigned long flags)
-{
-	gfp_t gfpmask = pool->gfp_mask;
-	struct page *page;
 
+/*
+ * We avoid atomic_long_t to minimize cache flushes at the cost of possible
+ * race which would result in a small accounting inaccuracy that we can
+ * tolerate.
+ */
+static long nr_total_pages;
+
+/* do a simple check to see if we are in any low memory situation */
+static bool pool_refill_ok(struct ion_page_pool *pool)
+{
+	struct zonelist *zonelist;
+	struct zoneref *z;
+	struct zone *zone;
+	int mark;
+	enum zone_type classzone_idx = gfp_zone(pool->gfp_mask);
+	s64 delta;
+
+	/* check if we are within the refill defer window */
+	delta = ktime_ms_delta(ktime_get(), pool->last_low_watermark_ktime);
+	if (delta < ION_POOL_REFILL_DEFER_WINDOW_MS)
+		return false;
+
+	zonelist = node_zonelist(numa_node_id(), pool->gfp_mask);
+	/*
+	 * make sure that if we allocate a pool->order page from buddy,
+	 * we don't put the zone watermarks go below the high threshold.
+	 * This makes sure there's no unwanted repetitive refilling and
+	 * reclaiming of buddy pages on the pool.
+	 */
+	for_each_zone_zonelist(zone, z, zonelist, classzone_idx) {
+		mark = high_wmark_pages(zone);
+		mark += 1 << pool->order;
+		if (!zone_watermark_ok_safe(zone, pool->order, mark,
+					    classzone_idx)) {
+			pool->last_low_watermark_ktime = ktime_get();
+			return false;
+		}
+	}
+
+	return true;
+}
+
+static inline struct page *ion_page_pool_alloc_pages(struct ion_page_pool *pool)
+{
 	if (fatal_signal_pending(current))
 		return NULL;
-
-	if (flags & ION_FLAG_NOZEROED)
-		gfpmask &= ~__GFP_ZERO;
-
-	if (!(flags & ION_FLAG_MAY_HWRENDER))
-		gfpmask |= (__GFP_MOVABLE | __GFP_NOCMA);
 
 #ifdef CONFIG_HUGEPAGE_POOL
 	/* we assume that this path is only being used by system heap */
 	if (pool->order == HUGEPAGE_ORDER)
-		page = alloc_zeroed_hugepage(gfpmask, pool->order, true,
+		return alloc_zeroed_hugepage(pool->gfp_mask, pool->order, true,
 					     HPAGE_ION);
 	else
-		page = alloc_pages(gfpmask, pool->order);
+		return alloc_pages(pool->gfp_mask, pool->order);
 #else
-	page = alloc_pages(gfpmask, pool->order);
+	return alloc_pages(pool->gfp_mask, pool->order);
 #endif
-	if (!page) {
-		if (pool->order == 0)
-			perrfn("failed to alloc order-0 page (gfp %pGg)", &gfpmask);
-		return NULL;
-	}
-	return page;
 }
 
 static void ion_page_pool_free_pages(struct ion_page_pool *pool,
@@ -58,7 +84,7 @@ static void ion_page_pool_free_pages(struct ion_page_pool *pool,
 static void ion_page_pool_add(struct ion_page_pool *pool, struct page *page)
 {
 	mutex_lock(&pool->mutex);
-	if (zone_idx(page_zone(page)) == ZONE_MOVABLE) {
+	if (PageHighMem(page)) {
 		list_add_tail(&page->lru, &pool->high_items);
 		pool->high_count++;
 	} else {
@@ -66,9 +92,33 @@ static void ion_page_pool_add(struct ion_page_pool *pool, struct page *page)
 		pool->low_count++;
 	}
 
-	mod_node_page_state(page_pgdat(page), NR_INDIRECTLY_RECLAIMABLE_BYTES,
-			    (1 << (PAGE_SHIFT + pool->order)));
+	atomic_inc(&pool->count);
+	nr_total_pages += 1 << pool->order;
+	mod_node_page_state(page_pgdat(page), NR_KERNEL_MISC_RECLAIMABLE,
+							1 << pool->order);
 	mutex_unlock(&pool->mutex);
+}
+
+void ion_page_pool_refill(struct ion_page_pool *pool)
+{
+	struct page *page;
+	gfp_t gfp_refill = (pool->gfp_mask | __GFP_RECLAIM) & ~__GFP_NORETRY;
+	struct device *dev = pool->dev;
+
+	/* skip refilling order 0 pools */
+	if (!pool->order)
+		return;
+
+	while (!pool_fillmark_reached(pool) && pool_refill_ok(pool)) {
+		page = alloc_pages(gfp_refill, pool->order);
+		if (!page)
+			break;
+		if (!pool->cached)
+			ion_pages_sync_for_device(dev, page,
+						  PAGE_SIZE << pool->order,
+						  DMA_BIDIRECTIONAL);
+		ion_page_pool_add(pool, page);
+	}
 }
 
 static struct page *ion_page_pool_remove(struct ion_page_pool *pool, bool high)
@@ -85,9 +135,11 @@ static struct page *ion_page_pool_remove(struct ion_page_pool *pool, bool high)
 		pool->low_count--;
 	}
 
+	atomic_dec(&pool->count);
 	list_del(&page->lru);
-	mod_node_page_state(page_pgdat(page), NR_INDIRECTLY_RECLAIMABLE_BYTES,
-			    -(1 << (PAGE_SHIFT + pool->order)));
+	nr_total_pages -= 1 << pool->order;
+	mod_node_page_state(page_pgdat(page), NR_KERNEL_MISC_RECLAIMABLE,
+							-(1 << pool->order));
 	return page;
 }
 
@@ -111,39 +163,66 @@ done:
 	return page;
 }
 
-struct page *ion_page_pool_alloc(struct ion_page_pool *pool, unsigned long flags)
+struct page *ion_page_pool_alloc(struct ion_page_pool *pool, bool *from_pool)
 {
 	struct page *page = NULL;
 
 	BUG_ON(!pool);
 
-	mutex_lock(&pool->mutex);
-	if (pool->high_count && !(flags & ION_FLAG_MAY_HWRENDER))
-		page = ion_page_pool_remove(pool, true);
-	else if (pool->low_count)
-		page = ion_page_pool_remove(pool, false);
-	mutex_unlock(&pool->mutex);
+	if (fatal_signal_pending(current))
+		return ERR_PTR(-EINTR);
+
+	if (*from_pool && mutex_trylock(&pool->mutex)) {
+		if (pool->high_count)
+			page = ion_page_pool_remove(pool, true);
+		else if (pool->low_count)
+			page = ion_page_pool_remove(pool, false);
+		mutex_unlock(&pool->mutex);
+	}
+	if (!page) {
+		page = ion_page_pool_alloc_pages(pool);
+		*from_pool = false;
+	}
 
 	if (!page)
-		return ion_page_pool_alloc_pages(pool, flags);
+		return ERR_PTR(-ENOMEM);
+	return page;
+}
 
+/*
+ * Tries to allocate from only the specified Pool and returns NULL otherwise
+ */
+struct page *ion_page_pool_alloc_pool_only(struct ion_page_pool *pool)
+{
+	struct page *page = NULL;
+
+	if (!pool)
+		return ERR_PTR(-EINVAL);
+
+	if (mutex_trylock(&pool->mutex)) {
+		if (pool->high_count)
+			page = ion_page_pool_remove(pool, true);
+		else if (pool->low_count)
+			page = ion_page_pool_remove(pool, false);
+		mutex_unlock(&pool->mutex);
+	}
+
+	if (!page)
+		return ERR_PTR(-ENOMEM);
 	return page;
 }
 
 void ion_page_pool_free(struct ion_page_pool *pool, struct page *page)
 {
-#ifndef CONFIG_ION_RBIN_HEAP
-	/*
-	 * ION RBIN heap can utilize ion_page_pool_free() for pages which are
-	 * not compound pages. Thus, comment out the below line.
-	 */
-	BUG_ON(pool->order != compound_order(page));
-#endif
-
 	ion_page_pool_add(pool, page);
 }
 
-static int ion_page_pool_total(struct ion_page_pool *pool, bool high)
+void ion_page_pool_free_immediate(struct ion_page_pool *pool, struct page *page)
+{
+	ion_page_pool_free_pages(pool, page);
+}
+
+int ion_page_pool_total(struct ion_page_pool *pool, bool high)
 {
 	int count = pool->low_count;
 
@@ -152,6 +231,16 @@ static int ion_page_pool_total(struct ion_page_pool *pool, bool high)
 
 	return count << pool->order;
 }
+
+#ifdef CONFIG_ION_SYSTEM_HEAP
+long ion_page_pool_nr_pages(void)
+{
+	/* Correct possible overflow caused by racing writes */
+	if (nr_total_pages < 0)
+		nr_total_pages = 0;
+	return nr_total_pages;
+}
+#endif
 
 int ion_page_pool_shrink(struct ion_page_pool *pool, gfp_t gfp_mask,
 			 int nr_to_scan)
@@ -162,7 +251,7 @@ int ion_page_pool_shrink(struct ion_page_pool *pool, gfp_t gfp_mask,
 	if (current_is_kswapd())
 		high = true;
 	else
-		high = !!(gfp_mask & GFP_HIGHUSER_MOVABLE);
+		high = !!(gfp_mask & __GFP_HIGHMEM);
 
 	if (nr_to_scan == 0)
 		return ion_page_pool_total(pool, high);
@@ -187,20 +276,21 @@ int ion_page_pool_shrink(struct ion_page_pool *pool, gfp_t gfp_mask,
 	return freed;
 }
 
-struct ion_page_pool *ion_page_pool_create(gfp_t gfp_mask, unsigned int order)
+struct ion_page_pool *ion_page_pool_create(gfp_t gfp_mask, unsigned int order,
+					   bool cached)
 {
-	struct ion_page_pool *pool = kmalloc(sizeof(*pool), GFP_KERNEL);
+	struct ion_page_pool *pool = kzalloc(sizeof(*pool), GFP_KERNEL);
 
 	if (!pool)
 		return NULL;
-	pool->high_count = 0;
-	pool->low_count = 0;
 	INIT_LIST_HEAD(&pool->low_items);
 	INIT_LIST_HEAD(&pool->high_items);
-	pool->gfp_mask = gfp_mask | __GFP_COMP;
+	pool->gfp_mask = gfp_mask;
 	pool->order = order;
 	mutex_init(&pool->mutex);
 	plist_node_init(&pool->list, order);
+	if (cached)
+		pool->cached = true;
 
 	return pool;
 }

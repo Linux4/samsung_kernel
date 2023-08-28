@@ -13,12 +13,32 @@
 
 config MST_LDO
 	bool "MST LDO kernel driver"
+	depends on !(MACH_X1Q_CHN_OPEN && !(MACH_X1Q_CHN_HKX) && !(SEC_FACTORY)) \
+			&& !(MACH_Y2Q_CHN_OPEN && !(MACH_Y2Q_CHN_HKX) && !(SEC_FACTORY)) \
+			&& !(MACH_Z3Q_CHN_OPEN && !(MACH_Z3Q_CHN_HKX) && !(SEC_FACTORY)) \
+			&& !(SEC_GTS7XL_PROJECT) && !(SEC_GTS7L_PROJECT) \
+			&& !(MACH_C1Q_CHN_OPEN && !(MACH_C1Q_CHN_HK) && !(SEC_FACTORY)) \
+			&& !(MACH_C2Q_CHN_OPEN && !(MACH_C2Q_CHN_HK) && !(SEC_FACTORY)) \
+			&& !(MACH_F2Q_CHN_OPEN && !(MACH_F2Q_CHN_HKX) && !(SEC_FACTORY)) \
+			&& !(MACH_BLOOMXQ_CHN_OPEN && !(MACH_BLOOMXQ_CHN_HKX) && !(SEC_FACTORY)) \
+			&& !(MACH_R8Q_CAN_SINGLE) && !(MACH_R8Q_CHN_HKX) && !(MACH_R8Q_CHN_OPEN) \
+			&& !(SEC_VICTORY_PROJECT)
 	default n
 	help
 	This enables the MST LDO kernel driver
 
 config MST_V2
 	bool "MST V2"
+	depends on !(MACH_X1Q_CHN_OPEN && !(MACH_X1Q_CHN_HKX) && !(SEC_FACTORY)) \
+			&& !(MACH_Y2Q_CHN_OPEN && !(MACH_Y2Q_CHN_HKX) && !(SEC_FACTORY)) \
+			&& !(MACH_Z3Q_CHN_OPEN && !(MACH_Z3Q_CHN_HKX) && !(SEC_FACTORY)) \
+			&& !(SEC_GTS7XL_PROJECT) && !(SEC_GTS7L_PROJECT) \
+			&& !(MACH_C1Q_CHN_OPEN && !(MACH_C1Q_CHN_HK) && !(SEC_FACTORY)) \
+			&& !(MACH_C2Q_CHN_OPEN && !(MACH_C2Q_CHN_HK) && !(SEC_FACTORY)) \
+			&& !(MACH_F2Q_CHN_OPEN && !(MACH_F2Q_CHN_HKX) && !(SEC_FACTORY)) \
+			&& !(MACH_BLOOMXQ_CHN_OPEN && !(MACH_BLOOMXQ_CHN_HKX) && !(SEC_FACTORY)) \
+			&& !(MACH_R8Q_CAN_SINGLE) && !(MACH_R8Q_CHN_HKX) && !(MACH_R8Q_CHN_OPEN) \
+			&& !(SEC_VICTORY_PROJECT)
 	default n
 	help
 	This enables the MST V2 codes
@@ -49,6 +69,16 @@ config MST_IF_PMIC
 
 config MFC_CHARGER
 	bool "MFC IC using model"
+	depends on !(MACH_X1Q_CHN_OPEN && !(MACH_X1Q_CHN_HKX) && !(SEC_FACTORY)) \
+			&& !(MACH_Y2Q_CHN_OPEN && !(MACH_Y2Q_CHN_HKX) && !(SEC_FACTORY)) \
+			&& !(MACH_Z3Q_CHN_OPEN && !(MACH_Z3Q_CHN_HKX) && !(SEC_FACTORY)) \
+			&& !(SEC_GTS7XL_PROJECT) && !(SEC_GTS7L_PROJECT) \
+			&& !(MACH_C1Q_CHN_OPEN && !(MACH_C1Q_CHN_HK) && !(SEC_FACTORY)) \
+			&& !(MACH_C2Q_CHN_OPEN && !(MACH_C2Q_CHN_HK) && !(SEC_FACTORY)) \
+			&& !(MACH_F2Q_CHN_OPEN && !(MACH_F2Q_CHN_HKX) && !(SEC_FACTORY)) \
+			&& !(MACH_BLOOMXQ_CHN_OPEN && !(MACH_BLOOMXQ_CHN_HKX) && !(SEC_FACTORY)) \
+			&& !(MACH_R8Q_CAN_SINGLE) && !(MACH_R8Q_CHN_HKX) && !(MACH_R8Q_CHN_OPEN) \
+			&& !(SEC_VICTORY_PROJECT)
 	default n
 	help
 	This enables the MFC IC sysfs node
@@ -70,3 +100,4 @@ config MST_LPM_CONTROL
 	default n
 	help
 	This enables the MST LPM control code
+

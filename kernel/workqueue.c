@@ -48,17 +48,13 @@
 #include <linux/moduleparam.h>
 #include <linux/uaccess.h>
 #include <linux/sched/isolation.h>
-#include <linux/debug-snapshot.h>
 #include <linux/nmi.h>
-#include <linux/sec_debug.h>
-#include <soc/samsung/exynos-debug.h>
-#ifdef CONFIG_SEC_DEBUG_SHOW_USER_STACK
+#include <linux/bug.h>
 #include <linux/delay.h>
-#include <linux/hrtimer.h>
-#include "sched/sched.h"
-#endif
 
 #include "workqueue_internal.h"
+
+#include <linux/sec_debug.h>
 
 enum {
 	/*
@@ -342,10 +338,6 @@ static struct workqueue_attrs *unbound_std_wq_attrs[NR_STD_WORKER_POOLS];
 
 /* I: attributes used when instantiating ordered pools on demand */
 static struct workqueue_attrs *ordered_wq_attrs[NR_STD_WORKER_POOLS];
-
-#ifdef CONFIG_SEC_DEBUG_SHOW_USER_STACK
-static struct hrtimer debug_wqlockup_hrtimer;
-#endif
 
 struct workqueue_struct *system_wq __read_mostly;
 EXPORT_SYMBOL(system_wq);
@@ -930,6 +922,16 @@ struct task_struct *wq_worker_sleeping(struct task_struct *task)
  * CONTEXT:
  * spin_lock_irq(rq->lock)
  *
+ * This function is called during schedule() when a kworker is going
+ * to sleep. It's used by psi to identify aggregation workers during
+ * dequeuing, to allow periodic aggregation to shut-off when that
+ * worker is the last task in the system or cgroup to go to sleep.
+ *
+ * As this function doesn't involve any workqueue-related locking, it
+ * only returns stable values when called from inside the scheduler's
+ * queuing and dequeuing paths, when @task, which must be a kworker,
+ * is guaranteed to not be processing any works.
+ *
  * Return:
  * The last work function %current executed as a worker, NULL if it
  * hasn't executed any work yet.
@@ -1306,6 +1308,12 @@ fail:
 	if (work_is_canceling(work))
 		return -ENOENT;
 	cpu_relax();
+	/*
+	 * The queueing is in progress in another context. If we keep
+	 * taking the pool->lock in a busy loop, the other context may
+	 * never get the lock. Give 1 usec delay to avoid this contention.
+	 */
+	udelay(1);
 	return -EAGAIN;
 }
 
@@ -1416,14 +1424,16 @@ static void __queue_work(int cpu, struct workqueue_struct *wq,
 	    WARN_ON_ONCE(!is_chained_work(wq)))
 		return;
 retry:
-	if (req_cpu == WORK_CPU_UNBOUND)
-		cpu = wq_select_unbound_cpu(raw_smp_processor_id());
-
 	/* pwq which will be used unless @work is executing elsewhere */
-	if (!(wq->flags & WQ_UNBOUND))
-		pwq = per_cpu_ptr(wq->cpu_pwqs, cpu);
-	else
+	if (wq->flags & WQ_UNBOUND) {
+		if (req_cpu == WORK_CPU_UNBOUND)
+			cpu = wq_select_unbound_cpu(raw_smp_processor_id());
 		pwq = unbound_pwq_by_node(wq, cpu_to_node(cpu));
+	} else {
+		if (req_cpu == WORK_CPU_UNBOUND)
+			cpu = raw_smp_processor_id();
+		pwq = per_cpu_ptr(wq->cpu_pwqs, cpu);
+	}
 
 	/*
 	 * If @work was previously on a different pool, it might still be
@@ -1540,7 +1550,9 @@ static void __queue_delayed_work(int cpu, struct workqueue_struct *wq,
 	struct work_struct *work = &dwork->work;
 
 	WARN_ON_ONCE(!wq);
+#ifndef CONFIG_CFI
 	WARN_ON_ONCE(timer->function != delayed_work_timer_fn);
+#endif
 	WARN_ON_ONCE(timer_pending(timer));
 	WARN_ON_ONCE(!list_empty(&work->entry));
 
@@ -2182,9 +2194,10 @@ __acquires(&pool->lock)
 	 */
 	lockdep_invariant_state(true);
 	trace_workqueue_execute_start(work);
-	dbg_snapshot_work(worker, worker->task, worker->current_func, DSS_FLAG_IN);
+
+	sec_debug_sched_msg(NULL, worker->current_func);
+
 	worker->current_func(work);
-	dbg_snapshot_work(worker, worker->task, worker->current_func, DSS_FLAG_OUT);
 	/*
 	 * While we must be careful to not use "work" after this, the trace
 	 * point will only record its address.
@@ -2450,8 +2463,14 @@ repeat:
 			 */
 			if (need_to_create_worker(pool)) {
 				spin_lock(&wq_mayday_lock);
-				get_pwq(pwq);
-				list_move_tail(&pwq->mayday_node, &wq->maydays);
+				/*
+				 * Queue iff we aren't racing destruction
+				 * and somebody else hasn't queued it already.
+				 */
+				if (wq->rescuer && list_empty(&pwq->mayday_node)) {
+					get_pwq(pwq);
+					list_add_tail(&pwq->mayday_node, &wq->maydays);
+				}
 				spin_unlock(&wq_mayday_lock);
 			}
 		}
@@ -2954,9 +2973,7 @@ static bool __flush_work(struct work_struct *work, bool from_cancel)
 	}
 
 	if (start_flush_work(work, &barr, from_cancel)) {
-		secdbg_dtsk_set_data(DTYPE_WORK, work);
 		wait_for_completion(&barr.done);
-		secdbg_dtsk_clear_data();
 		destroy_work_on_stack(&barr.work);
 		return true;
 	} else {
@@ -4193,8 +4210,28 @@ void destroy_workqueue(struct workqueue_struct *wq)
 	struct pool_workqueue *pwq;
 	int node;
 
+	/*
+	 * Remove it from sysfs first so that sanity check failure doesn't
+	 * lead to sysfs name conflicts.
+	 */
+	workqueue_sysfs_unregister(wq);
+
 	/* drain it before proceeding with destruction */
 	drain_workqueue(wq);
+
+	/* kill rescuer, if sanity checks fail, leave it w/o rescuer */
+	if (wq->rescuer) {
+		struct worker *rescuer = wq->rescuer;
+
+		/* this prevents new queueing */
+		spin_lock_irq(&wq_mayday_lock);
+		wq->rescuer = NULL;
+		spin_unlock_irq(&wq_mayday_lock);
+
+		/* rescuer will empty maydays list before exiting */
+		kthread_stop(rescuer->task);
+		kfree(rescuer);
+	}
 
 	/* sanity checks */
 	mutex_lock(&wq->mutex);
@@ -4226,11 +4263,6 @@ void destroy_workqueue(struct workqueue_struct *wq)
 	mutex_lock(&wq_pool_mutex);
 	list_del_rcu(&wq->list);
 	mutex_unlock(&wq_pool_mutex);
-
-	workqueue_sysfs_unregister(wq);
-
-	if (wq->rescuer)
-		kthread_stop(wq->rescuer->task);
 
 	if (!(wq->flags & WQ_UNBOUND)) {
 		/*
@@ -4503,7 +4535,8 @@ static void show_pwq(struct pool_workqueue *pwq)
 	pr_info("  pwq %d:", pool->id);
 	pr_cont_pool_info(pool);
 
-	pr_cont(" active=%d/%d%s\n", pwq->nr_active, pwq->max_active,
+	pr_cont(" active=%d/%d refcnt=%d%s\n",
+		pwq->nr_active, pwq->max_active, pwq->refcnt,
 		!list_empty(&pwq->mayday_node) ? " MAYDAY" : "");
 
 	hash_for_each(pool->busy_hash, bkt, worker, hentry) {
@@ -5121,8 +5154,8 @@ static int workqueue_apply_unbound_cpumask(void)
  *  and apply it to all unbound workqueues and updates all pwqs of them.
  *
  *  Retun:	0	- Success
- *		-EINVAL	- Invalid @cpumask
- *		-ENOMEM	- Failed to allocate memory for attrs or pwqs.
+ *  		-EINVAL	- Invalid @cpumask
+ *  		-ENOMEM	- Failed to allocate memory for attrs or pwqs.
  */
 int workqueue_set_unbound_cpumask(cpumask_var_t cpumask)
 {
@@ -5562,13 +5595,6 @@ static void wq_watchdog_reset_touched(void)
 		per_cpu(wq_watchdog_touched_cpu, cpu) = jiffies;
 }
 
-#ifdef CONFIG_SEC_DEBUG_SHOW_USER_STACK
-static enum hrtimer_restart debug_wqlockup(struct hrtimer *t)
-{
-	BUG();
-}
-#endif
-
 static void wq_watchdog_timer_fn(struct timer_list *unused)
 {
 	unsigned long thresh = READ_ONCE(wq_watchdog_thresh) * HZ;
@@ -5607,44 +5633,17 @@ static void wq_watchdog_timer_fn(struct timer_list *unused)
 		/* did we stall? */
 		if (time_after(jiffies, ts + thresh)) {
 			lockup_detected = true;
-			pr_auto(ASL9, "BUG: workqueue lockup - pool");
+			pr_emerg("BUG: workqueue lockup - pool");
 			pr_cont_pool_info(pool);
 			pr_cont(" stuck for %us!\n",
 				jiffies_to_msecs(jiffies - pool_ts) / 1000);
-#ifdef CONFIG_SEC_DEBUG_WQ_LOCKUP_INFO
-			if (pool->cpu >= 0) {
-				secdbg_show_sched_info(pool->cpu, 10);
-				secdbg_show_busy_task(pool->cpu, jiffies_to_msecs(jiffies - pool_ts) / 1000, 5);
-			}
-#endif
 		}
 	}
 
 	rcu_read_unlock();
 
-	if (lockup_detected) {
-#ifdef CONFIG_SEC_DEBUG_SHOW_USER_STACK
-		int cpu;
-		struct task_struct *p;
-
-		for_each_cpu(cpu, cpu_online_mask) {
-			p = cpu_curr(cpu);
-			pr_info("cpu %d, pid %d, task name : %s", cpu, p->pid, p->comm);
-			secdbg_send_sig_debuggerd(p, 2);
-		}
-#endif
+	if (lockup_detected)
 		show_workqueue_state();
-#ifdef CONFIG_SEC_DEBUG_WORKQUEUE_LOCKUP_PANIC
-#ifdef CONFIG_SEC_DEBUG_SHOW_USER_STACK
-		hrtimer_init(&debug_wqlockup_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-		debug_wqlockup_hrtimer.function = debug_wqlockup;
-		hrtimer_start(&debug_wqlockup_hrtimer, ns_to_ktime(5000000000),
-				HRTIMER_MODE_REL_PINNED);
-#else
-		BUG();
-#endif
-#endif
-	}
 
 	wq_watchdog_reset_touched();
 	mod_timer(&wq_watchdog_timer, jiffies + thresh);

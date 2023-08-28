@@ -15,7 +15,6 @@
 #include <linux/gpio.h>
 #include <linux/mfd/core.h>
 #include <linux/module.h>
-#include <linux/mutex.h>
 #include <linux/notifier.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
@@ -31,11 +30,9 @@
 
 #include "madera.h"
 
-#define CS47L15_SILICON_ID	0x6370
 #define CS47L35_SILICON_ID	0x6360
 #define CS47L85_SILICON_ID	0x6338
 #define CS47L90_SILICON_ID	0x6364
-#define CS47L92_SILICON_ID	0x6371
 
 #define MADERA_32KZ_MCLK2	1
 
@@ -46,28 +43,6 @@ static const char * const madera_core_supplies[] = {
 
 static const struct mfd_cell madera_ldo1_devs[] = {
 	{ .name = "madera-ldo1" },
-};
-
-static const char * const cs47l15_supplies[] = {
-	"MICVDD",
-	"CPVDD1",
-	"SPKVDD",
-};
-
-static const struct mfd_cell cs47l15_devs[] = {
-	{ .name = "madera-pinctrl", },
-	{ .name = "madera-irq" },
-	{ .name = "madera-gpio" },
-	{
-		.name = "madera-extcon",
-		.parent_supplies = cs47l15_supplies,
-		.num_parent_supplies = 1, /* We only need MICVDD */
-	},
-	{
-		.name = "cs47l15-codec",
-		.parent_supplies = cs47l15_supplies,
-		.num_parent_supplies = ARRAY_SIZE(cs47l15_supplies),
-	},
 };
 
 static const char * const cs47l35_supplies[] = {
@@ -83,11 +58,7 @@ static const struct mfd_cell cs47l35_devs[] = {
 	{ .name = "madera-irq", },
 	{ .name = "madera-micsupp", },
 	{ .name = "madera-gpio", },
-	{
-		.name = "madera-extcon",
-		.parent_supplies = cs47l35_supplies,
-		.num_parent_supplies = 1, /* We only need MICVDD */
-	},
+	{ .name = "madera-extcon", },
 	{
 		.name = "cs47l35-codec",
 		.parent_supplies = cs47l35_supplies,
@@ -111,11 +82,7 @@ static const struct mfd_cell cs47l85_devs[] = {
 	{ .name = "madera-irq", },
 	{ .name = "madera-micsupp" },
 	{ .name = "madera-gpio", },
-	{
-		.name = "madera-extcon",
-		.parent_supplies = cs47l85_supplies,
-		.num_parent_supplies = 1, /* We only need MICVDD */
-	},
+	{ .name = "madera-extcon", },
 	{
 		.name = "cs47l85-codec",
 		.parent_supplies = cs47l85_supplies,
@@ -137,11 +104,7 @@ static const struct mfd_cell cs47l90_devs[] = {
 	{ .name = "madera-irq", },
 	{ .name = "madera-micsupp", },
 	{ .name = "madera-gpio", },
-	{
-		.name = "madera-extcon",
-		.parent_supplies = cs47l90_supplies,
-		.num_parent_supplies = 1, /* We only need MICVDD */
-	},
+	{ .name = "madera-extcon", },
 	{
 		.name = "cs47l90-codec",
 		.parent_supplies = cs47l90_supplies,
@@ -149,35 +112,10 @@ static const struct mfd_cell cs47l90_devs[] = {
 	},
 };
 
-static const char * const cs47l92_supplies[] = {
-	"MICVDD",
-	"CPVDD1",
-	"CPVDD2",
-};
-
-static const struct mfd_cell cs47l92_devs[] = {
-	{ .name = "madera-pinctrl" },
-	{ .name = "madera-irq", },
-	{ .name = "madera-micsupp", },
-	{ .name = "madera-gpio" },
-	{
-		.name = "madera-extcon",
-		.parent_supplies = cs47l92_supplies,
-		.num_parent_supplies = 1, /* We only need MICVDD */
-	},
-	{
-		.name = "cs47l92-codec",
-		.parent_supplies = cs47l92_supplies,
-		.num_parent_supplies = ARRAY_SIZE(cs47l92_supplies),
-	},
-};
-
 /* Used by madera-i2c and madera-spi drivers */
 const char *madera_name_from_type(enum madera_type type)
 {
 	switch (type) {
-	case CS47L15:
-		return "CS47L15";
 	case CS47L35:
 		return "CS47L35";
 	case CS47L85:
@@ -186,10 +124,6 @@ const char *madera_name_from_type(enum madera_type type)
 		return "CS47L90";
 	case CS47L91:
 		return "CS47L91";
-	case CS47L92:
-		return "CS47L92";
-	case CS47L93:
-		return "CS47L93";
 	case WM1840:
 		return "WM1840";
 	default:
@@ -198,39 +132,32 @@ const char *madera_name_from_type(enum madera_type type)
 }
 EXPORT_SYMBOL_GPL(madera_name_from_type);
 
-#define MADERA_BOOT_POLL_INTERVAL_USEC		5000
-#define MADERA_BOOT_POLL_TIMEOUT_USEC		25000
+#define MADERA_BOOT_POLL_MAX_INTERVAL_US  5000
+#define MADERA_BOOT_POLL_TIMEOUT_US	 25000
 
 static int madera_wait_for_boot(struct madera *madera)
 {
-	ktime_t timeout;
 	unsigned int val;
-	int ret = 0;
+	int ret;
 
 	/*
 	 * We can't use an interrupt as we need to runtime resume to do so,
 	 * so we poll the status bit. This won't race with the interrupt
 	 * handler because it will be blocked on runtime resume.
-	 * The chip could NAK a read request while it is booting so ignore
-	 * errors from regmap_read.
 	 */
-	timeout = ktime_add_us(ktime_get(), MADERA_BOOT_POLL_TIMEOUT_USEC);
-	regmap_read(madera->regmap, MADERA_IRQ1_RAW_STATUS_1, &val);
-	while (!(val & MADERA_BOOT_DONE_STS1) &&
-	       !ktime_after(ktime_get(), timeout)) {
-		usleep_range(MADERA_BOOT_POLL_INTERVAL_USEC / 2,
-			     MADERA_BOOT_POLL_INTERVAL_USEC);
-		regmap_read(madera->regmap, MADERA_IRQ1_RAW_STATUS_1, &val);
-	}
+	ret = regmap_read_poll_timeout(madera->regmap,
+				       MADERA_IRQ1_RAW_STATUS_1,
+				       val,
+				       (val & MADERA_BOOT_DONE_STS1),
+				       MADERA_BOOT_POLL_MAX_INTERVAL_US,
+				       MADERA_BOOT_POLL_TIMEOUT_US);
 
-	if (!(val & MADERA_BOOT_DONE_STS1)) {
-		dev_err(madera->dev, "Polling BOOT_DONE_STS timed out\n");
-		ret = -ETIMEDOUT;
-	}
+	if (ret)
+		dev_err(madera->dev, "Polling BOOT_DONE_STS failed: %d\n", ret);
 
 	/*
 	 * BOOT_DONE defaults to unmasked on boot so we must ack it.
-	 * Do this even after a timeout to avoid interrupt storms.
+	 * Do this unconditionally to avoid interrupt storms.
 	 */
 	regmap_write(madera->regmap, MADERA_IRQ1_STATUS_1,
 		     MADERA_BOOT_DONE_EINT1);
@@ -275,7 +202,7 @@ static void madera_disable_hard_reset(struct madera *madera)
 		return;
 
 	gpiod_set_raw_value_cansleep(madera->pdata.reset, 1);
-	usleep_range(2000, 3000);
+	usleep_range(1000, 2000);
 }
 
 static int __maybe_unused madera_runtime_resume(struct device *dev)
@@ -293,8 +220,6 @@ static int __maybe_unused madera_runtime_resume(struct device *dev)
 
 	regcache_cache_only(madera->regmap, false);
 	regcache_cache_only(madera->regmap_32bit, false);
-
-	usleep_range(2000, 3000);
 
 	ret = madera_wait_for_boot(madera);
 	if (ret)
@@ -346,13 +271,10 @@ const struct dev_pm_ops madera_pm_ops = {
 EXPORT_SYMBOL_GPL(madera_pm_ops);
 
 const struct of_device_id madera_of_match[] = {
-	{ .compatible = "cirrus,cs47l15", .data = (void *)CS47L15 },
 	{ .compatible = "cirrus,cs47l35", .data = (void *)CS47L35 },
 	{ .compatible = "cirrus,cs47l85", .data = (void *)CS47L85 },
 	{ .compatible = "cirrus,cs47l90", .data = (void *)CS47L90 },
 	{ .compatible = "cirrus,cs47l91", .data = (void *)CS47L91 },
-	{ .compatible = "cirrus,cs47l92", .data = (void *)CS47L92 },
-	{ .compatible = "cirrus,cs47l93", .data = (void *)CS47L93 },
 	{ .compatible = "cirrus,wm1840", .data = (void *)WM1840 },
 	{}
 };
@@ -397,10 +319,6 @@ static void madera_set_micbias_info(struct madera *madera)
 	 * childbiases for each micbias. Unspecified values default to 0.
 	 */
 	switch (madera->type) {
-	case CS47L15:
-		madera->num_micbias = 1;
-		madera->num_childbias[0] = 3;
-		return;
 	case CS47L35:
 		madera->num_micbias = 2;
 		madera->num_childbias[0] = 2;
@@ -416,12 +334,6 @@ static void madera_set_micbias_info(struct madera *madera)
 		madera->num_micbias = 2;
 		madera->num_childbias[0] = 4;
 		madera->num_childbias[1] = 4;
-		return;
-	case CS47L92:
-	case CS47L93:
-		madera->num_micbias = 2;
-		madera->num_childbias[0] = 4;
-		madera->num_childbias[1] = 2;
 		return;
 	default:
 		return;
@@ -439,8 +351,6 @@ int madera_dev_init(struct madera *madera)
 
 	dev_set_drvdata(madera->dev, madera);
 	BLOCKING_INIT_NOTIFIER_HEAD(&madera->notifier);
-	mutex_init(&madera->dapm_ptr_lock);
-
 	madera_set_micbias_info(madera);
 
 	/*
@@ -470,12 +380,9 @@ int madera_dev_init(struct madera *madera)
 	 * No devm_ because we need to control shutdown order of children.
 	 */
 	switch (madera->type) {
-	case CS47L15:
 	case CS47L35:
 	case CS47L90:
 	case CS47L91:
-	case CS47L92:
-	case CS47L93:
 		break;
 	case CS47L85:
 	case WM1840:
@@ -531,19 +438,10 @@ int madera_dev_init(struct madera *madera)
 	regcache_cache_only(madera->regmap, false);
 	regcache_cache_only(madera->regmap_32bit, false);
 
-	/* If we don't have a reset GPIO use a soft reset */
-	if (!madera->pdata.reset) {
-		ret = madera_soft_reset(madera);
-		if (ret)
-			goto err_reset;
-	}
-
-	ret = madera_wait_for_boot(madera);
-	if (ret) {
-		dev_err(madera->dev, "Device failed initial boot: %d\n", ret);
-		goto err_reset;
-	}
-
+	/*
+	 * Now we can power up and verify that this is a chip we know about
+	 * before we start doing any writes to its registers.
+	 */
 	ret = regmap_read(madera->regmap, MADERA_SOFTWARE_RESET, &hwid);
 	if (ret) {
 		dev_err(dev, "Failed to read ID register: %d\n", ret);
@@ -551,19 +449,6 @@ int madera_dev_init(struct madera *madera)
 	}
 
 	switch (hwid) {
-	case CS47L15_SILICON_ID:
-		if (IS_ENABLED(CONFIG_MFD_CS47L15)) {
-			switch (madera->type) {
-			case CS47L15:
-				patch_fn = cs47l15_patch;
-				mfd_devs = cs47l15_devs;
-				n_devs = ARRAY_SIZE(cs47l15_devs);
-				break;
-			default:
-				break;
-			}
-		}
-		break;
 	case CS47L35_SILICON_ID:
 		if (IS_ENABLED(CONFIG_MFD_CS47L35)) {
 			switch (madera->type) {
@@ -605,20 +490,6 @@ int madera_dev_init(struct madera *madera)
 			}
 		}
 		break;
-	case CS47L92_SILICON_ID:
-		if (IS_ENABLED(CONFIG_MFD_CS47L92)) {
-			switch (madera->type) {
-			case CS47L92:
-			case CS47L93:
-				patch_fn = cs47l92_patch;
-				mfd_devs = cs47l92_devs;
-				n_devs = ARRAY_SIZE(cs47l92_devs);
-				break;
-			default:
-				break;
-			}
-		}
-		break;
 	default:
 		dev_err(madera->dev, "Unknown device ID: %x\n", hwid);
 		ret = -EINVAL;
@@ -629,6 +500,22 @@ int madera_dev_init(struct madera *madera)
 		dev_err(madera->dev, "Device ID 0x%x not a %s\n", hwid,
 			madera->type_name);
 		ret = -ENODEV;
+		goto err_reset;
+	}
+
+	/*
+	 * It looks like a device we support. If we don't have a hard reset
+	 * we can now attempt a soft reset.
+	 */
+	if (!madera->pdata.reset) {
+		ret = madera_soft_reset(madera);
+		if (ret)
+			goto err_reset;
+	}
+
+	ret = madera_wait_for_boot(madera);
+	if (ret) {
+		dev_err(madera->dev, "Device failed initial boot: %d\n", ret);
 		goto err_reset;
 	}
 

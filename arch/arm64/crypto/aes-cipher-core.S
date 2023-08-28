@@ -61,7 +61,11 @@
 
 	__pair\enc	\sz, \op, w12, w13, \in0, \in1, \in3, 0
 	__pair\enc	\sz, \op, w14, w15, \in1, \in2, \in0, 8
+#ifdef CONFIG_CFP_ROPP
+	__pair\enc	\sz, \op, w16, w18, \in2, \in3, \in1, 16
+#else
 	__pair\enc	\sz, \op, w16, w17, \in2, \in3, \in1, 16
+#endif
 	__pair\enc	\sz, \op, \t0, \t1, \in3, \in0, \in2, 24
 
 	eor		\out0, \out0, w12
@@ -69,7 +73,11 @@
 	eor		\out0, \out0, w14, ror #24
 	eor		\out1, \out1, w15, ror #24
 	eor		\out0, \out0, w16, ror #16
+#ifdef CONFIG_CFP_ROPP
+	eor		\out1, \out1, w18, ror #16
+#else
 	eor		\out1, \out1, w17, ror #16
+#endif
 	eor		\out0, \out0, \t0, ror #8
 	eor		\out1, \out1, \t1, ror #8
 	.endm

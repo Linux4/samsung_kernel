@@ -28,6 +28,9 @@ static int abc_hub_parse_dt(struct device *dev)
 {
 	struct abc_hub_platform_data *pdata = dev->platform_data;
 	struct device_node *np;
+#ifdef CONFIG_SEC_ABC_HUB_COND
+	struct device_node *cond_np;
+#endif
 
 	np = dev->of_node;
 	pdata->nSub = of_get_child_count(np);
@@ -37,10 +40,13 @@ static int abc_hub_parse_dt(struct device *dev)
 	}
 
 #ifdef CONFIG_SEC_ABC_HUB_COND
-	if (parse_cond_data(dev, pdata, np) < 0)
-		dev_info(dev, "sub module(cond) is not supported\n");
-	else
-		pdata->cond_pdata.init = 1;
+	cond_np = of_find_node_by_name(np, "cond");
+	if (cond_np) {
+		if (parse_cond_data(dev, pdata, cond_np) < 0)
+			dev_info(dev, "sub module(cond) is not supported\n");
+		else
+			pdata->cond_pdata.init = 1;
+	}
 #endif
 #ifdef CONFIG_SEC_ABC_HUB_BOOTC
 	if (parse_bootc_data(dev, pdata, np) < 0)
@@ -85,11 +91,6 @@ static int abc_hub_resume(struct device *dev)
 
 static int abc_hub_remove(struct platform_device *pdev)
 {
-#ifdef CONFIG_SEC_ABC_HUB_COND
-	struct abc_hub_info *pinfo = platform_get_drvdata(pdev);
-	
-    mutex_destroy(&pinfo->pdata->cond_pdata.cond_lock);
-#endif
 	return 0;
 }
 
@@ -286,8 +287,11 @@ static int abc_hub_probe(struct platform_device *pdev)
 
 	if (!pinfo)
 		return -ENOMEM;
-
+#ifdef CONFIG_DRV_SAMSUNG
 	pinfo->dev = sec_device_create(pinfo, "sec_abc_hub");
+#else
+	pinfo->dev = device_create(sec_class, NULL, 0, NULL, "sec_abc_hub");
+#endif
 	if (IS_ERR(pinfo->dev)) {
 		pr_err("%s Failed to create device(sec_abc_hub)!\n", __func__);
 		ret = -ENODEV;
@@ -343,7 +347,11 @@ err_create_abc_hub_bootc_offset_sysfs:
 	device_remove_file(pinfo->dev, &dev_attr_enable);
 #endif
 err_create_abc_hub_enable_sysfs:
+#ifdef CONFIG_DRV_SAMSUNG
 	sec_device_destroy(abc_hub_dev->devt);
+#else
+	device_destroy(sec_class, abc_hub_dev->devt);
+#endif
 out:
 	kfree(pinfo);
 	devm_kfree(&pdev->dev, pdata);

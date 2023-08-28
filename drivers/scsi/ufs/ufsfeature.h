@@ -48,7 +48,7 @@
 
 /* Constant value*/
 #define SECTOR					512
-#define SECTOR_SHIFT				9
+#define SECTOR_SHIFT            9
 #define BLOCK					4096
 #define SECTORS_PER_BLOCK			(BLOCK / SECTOR)
 #define BITS_PER_DWORD				32
@@ -123,7 +123,7 @@ struct ufsf_feature {
 #if defined(CONFIG_UFSHPB)
 	struct ufshpb_dev_info hpb_dev_info;
 	struct ufshpb_lu *ufshpb_lup[UFS_UPIU_MAX_GENERAL_LUN];
-	struct delayed_work ufshpb_init_work;
+        struct delayed_work ufshpb_init_work;
 	struct work_struct ufshpb_reset_work;
 	struct work_struct ufshpb_eh_work;
 	wait_queue_head_t wait_hpb;

@@ -172,6 +172,7 @@ static int send_nci_transceive(uint8_t *prop_cmd, size_t prop_cmd_size)
 
 	pr_info("%s: Enter\n", __func__);
 
+	memset(&filp, 0, sizeof(struct file));
 	filp.private_data = pn547_dev;
 	if (pn547_dev->state_flags & PN547_STATE_FW_DNLD) {
 		/* If FW DNLD, Operation is not permitted */
@@ -214,7 +215,7 @@ static int send_nci_transceive(uint8_t *prop_cmd, size_t prop_cmd_size)
 			/* call the pn547_dev_read() */
 			filp.f_flags &= ~O_NONBLOCK;
 			ret = pn547_dev_read(&filp, NULL, 3, 0);
-			usleep_range(2000, 3000);
+			usleep_range(3500, 4000);
 		}
 	} while ((retry-- >= 0) && (ret == -ERESTARTSYS || ret == -EFAULT));
 

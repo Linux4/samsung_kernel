@@ -46,7 +46,6 @@
 #include <linux/property.h>
 #include <linux/rwsem.h>
 #include <linux/slab.h>
-#include <linux/debug-snapshot.h>
 
 #include "i2c-core.h"
 
@@ -195,10 +194,11 @@ int i2c_generic_scl_recovery(struct i2c_adapter *adap)
 	 * If we can set SDA, we will always create a STOP to ensure additional
 	 * pulses will do no harm. This is achieved by letting SDA follow SCL
 	 * half a cycle later. Check the 'incomplete_write_byte' fault injector
-	 * for details.
+	 * for details. Note that we must honour tsu:sto, 4us, but lets use 5us
+	 * here for simplicity.
 	 */
 	bri->set_scl(adap, scl);
-	ndelay(RECOVERY_NDELAY / 2);
+	ndelay(RECOVERY_NDELAY);
 	if (bri->set_sda)
 		bri->set_sda(adap, scl);
 	ndelay(RECOVERY_NDELAY / 2);
@@ -220,7 +220,13 @@ int i2c_generic_scl_recovery(struct i2c_adapter *adap)
 		scl = !scl;
 		bri->set_scl(adap, scl);
 		/* Creating STOP again, see above */
-		ndelay(RECOVERY_NDELAY / 2);
+		if (scl)  {
+			/* Honour minimum tsu:sto */
+			ndelay(RECOVERY_NDELAY);
+		} else {
+			/* Honour minimum tf and thd:dat */
+			ndelay(RECOVERY_NDELAY / 2);
+		}
 		if (bri->set_sda)
 			bri->set_sda(adap, scl);
 		ndelay(RECOVERY_NDELAY / 2);
@@ -548,10 +554,6 @@ static int i2c_check_addr_validity(unsigned int addr, unsigned short flags)
 	if (flags & I2C_CLIENT_TEN) {
 		/* 10-bit address, all values are valid */
 		if (addr > 0x3ff)
-			return -EINVAL;
-	} else if (flags & I2C_CLIENT_SPEEDY) {
-		/* 12-bit address for SPEEDY, all values are valid */
-		if (addr > 0xfff)
 			return -EINVAL;
 	} else {
 		/* 7-bit address, reject the general call address */
@@ -1968,9 +1970,7 @@ int i2c_transfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num)
 			i2c_lock_bus(adap, I2C_LOCK_SEGMENT);
 		}
 
-		dbg_snapshot_i2c(adap, msgs, num, DSS_FLAG_IN);
 		ret = __i2c_transfer(adap, msgs, num);
-		dbg_snapshot_i2c(adap, msgs, num, DSS_FLAG_OUT);
 		i2c_unlock_bus(adap, I2C_LOCK_SEGMENT);
 
 		return ret;

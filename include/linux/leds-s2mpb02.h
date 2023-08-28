@@ -2,6 +2,7 @@
  * leds-S2MPB02.h - Flash-led driver for Samsung S2MPB02
  *
  * Copyright (C) 2014 Samsung Electronics
+ * XXX <xxx@samsung.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -13,14 +14,17 @@
 #ifndef __LEDS_S2MPB02_H__
 #define __LEDS_S2MPB02_H__
 
+#define S2MPB02_FLED_CHANNEL_1  /* GPIOs connected to FLASH_EN1, TORCH_EN1 */
+//#define S2MPB02_FLED_CHANNEL_2   /* GPIOs connected to FLASH_EN2, TORCH_EN2 */
+
 #define S2MPB02_FLASH_TORCH_CURRENT_MAX 0xF
 #define S2MPB02_TIMEOUT_MAX 0xF
 
 /* S2MPB02_LV_SEL_VOUT */
 #define S2MPB02_LV_SEL_VOUT_MASK 0x07
-#define S2MPB02_LV_SEL_VOLT(voltage)	\
-		((voltage) <= 2700 ? 0x00 : \
-		((voltage) <= 3400 ? ((voltage) - 2900) / 100 : 0x07))
+#define S2MPB02_LV_SEL_VOLT(mV)	\
+		((mV) <= 2700 ? 0x00 : \
+		((mV) <= 3400 ? ((mV) - 2700) / 100 : 0x07))
 
 #define S2MPB02_FLASH_MASK 0xF0
 #define S2MPB02_TORCH_MASK 0x0F
@@ -33,58 +37,40 @@
 #define S2MPB02_FLED_TORCH_MODE 1
 #define S2MPB02_FLED_MODE_SHIFT 6
 
-#define S2MPB02_FLED_FLASH_TORCH_OFF 0x00
-#define S2MPB02_FLED_FLASH_ON 0x80
-#define S2MPB02_FLED_TORCH_ON 0xC0
-#define S2MPB02_FLED2_TORCH_ON 0xF0
-#define S2MPB02_FLED_ENABLE_MODE_MASK 0xC0
-#define S2MPB02_FLED2_ENABLE_MODE_MASK 0xFF
-
+/* S2MPB02_LV_EN */
 #define S2MPB02_FLED_CTRL1_LV_EN_MASK 0x08
 #define S2MPB02_FLED_CTRL1_LV_ENABLE 1
 #define S2MPB02_FLED_CTRL1_LV_DISABLE 0
 
-#ifdef CONFIG_LEDS_IRIS_IRLED_CERTIFICATE_SUPPORT
-#define S2MPB02_FLED_CTRL2_TORCH_ON 0xF0
-#define S2MPB02_FLED_CTRL2_FLASH_ON 0x38
-#define S2MPB02_FLED_CTRL2_TORCH_MASK 0xFB
-
-#define S2MPB02_FLED_CUR2_TORCH_CUR2_MASK 0x0F
-
-#define S2MPB02_FLED_TIME2_IRMAX_TIMER_DISABLE 0x00
-#define S2MPB02_FLED_TIME2_IRMAX_TIMER_EN_MASK 0x01
-#endif
-
+#define S2MPB02_FLED_ENABLE_MODE_MASK 0xC0
 #define S2MPB02_FLED2_MAX_TIME_MASK 0x1F
 #define S2MPB02_FLED2_MAX_TIME_CLEAR_MASK 0x04
 #define S2MPB02_FLED2_MAX_TIME_EN_MASK 0x01
 #define S2MPB02_FLED2_IRON2_MASK 0xC0
 
-#define TORCH_STEP 10
 
 enum s2mpb02_led_id {
 	S2MPB02_FLASH_LED_1,
 	S2MPB02_TORCH_LED_1,
-	S2MPB02_TORCH_LED_2,
 	S2MPB02_LED_MAX,
 };
 
 enum s2mpb02_flash_current {
-	S2MPB02_FLASH_OUT_I_150MA = 1,
-	S2MPB02_FLASH_OUT_I_250MA,
-	S2MPB02_FLASH_OUT_I_350MA,
-	S2MPB02_FLASH_OUT_I_450MA,
-	S2MPB02_FLASH_OUT_I_550MA,
-	S2MPB02_FLASH_OUT_I_650MA,
-	S2MPB02_FLASH_OUT_I_750MA,
-	S2MPB02_FLASH_OUT_I_850MA,
-	S2MPB02_FLASH_OUT_I_950MA,
-	S2MPB02_FLASH_OUT_I_1050MA,
-	S2MPB02_FLASH_OUT_I_1150MA,
-	S2MPB02_FLASH_OUT_I_1250MA,
-	S2MPB02_FLASH_OUT_I_1350MA,
-	S2MPB02_FLASH_OUT_I_1450MA,
-	S2MPB02_FLASH_OUT_I_1550MA,
+	S2MPB02_FLASH_OUT_I_100MA = 1,
+	S2MPB02_FLASH_OUT_I_200MA,
+	S2MPB02_FLASH_OUT_I_300MA,
+	S2MPB02_FLASH_OUT_I_400MA,
+	S2MPB02_FLASH_OUT_I_500MA,
+	S2MPB02_FLASH_OUT_I_600MA,
+	S2MPB02_FLASH_OUT_I_700MA,
+	S2MPB02_FLASH_OUT_I_800MA,
+	S2MPB02_FLASH_OUT_I_900MA,
+	S2MPB02_FLASH_OUT_I_1000MA,
+	S2MPB02_FLASH_OUT_I_1100MA,
+	S2MPB02_FLASH_OUT_I_1200MA,
+	S2MPB02_FLASH_OUT_I_1300MA,
+	S2MPB02_FLASH_OUT_I_1400MA,
+	S2MPB02_FLASH_OUT_I_1500MA,
 	S2MPB02_FLASH_OUT_I_MAX,
 };
 
@@ -159,9 +145,8 @@ struct s2mpb02_led {
 	int id;
 	int brightness;
 	int timeout;
-	int irda_off;
-	int torch_table_enable;
-	int torch_table[TORCH_STEP];
+	const char *default_trigger; /* Trigger to use */
+	uint32_t gpio;
 };
 
 struct s2mpb02_led_platform_data {
@@ -170,12 +155,12 @@ struct s2mpb02_led_platform_data {
 };
 
 extern int s2mpb02_led_en(int mode, int onoff, enum s2mpb02_led_turn_way turn_way);
-
-#ifdef CONFIG_LEDS_IRIS_IRLED_SUPPORT
-extern int s2mpb02_ir_led_current(uint32_t current_value);
-extern int s2mpb02_ir_led_pulse_width(uint32_t width);
-extern int s2mpb02_ir_led_pulse_delay(uint32_t delay);
-extern int s2mpb02_ir_led_max_time(uint32_t max_time);
+#if defined(CONFIG_SAMSUNG_SECURE_CAMERA)
+extern int s2mpb02_ir_led_init(void);
+extern int s2mpb02_ir_led_current(int32_t current_value);
+extern int s2mpb02_ir_led_pulse_width(int32_t width);
+extern int s2mpb02_ir_led_pulse_delay(int32_t delay);
+extern int s2mpb02_ir_led_max_time(int32_t max_time);
 #endif
 
 #endif

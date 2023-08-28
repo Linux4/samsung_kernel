@@ -6,9 +6,7 @@
 #include <linux/dma-direction.h>
 #include <linux/errno.h>
 #include <linux/fs.h>
-#ifdef CONFIG_IPC_LOGGING
 #include <linux/ipc_logging.h>
-#endif
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/of_device.h>
@@ -51,10 +49,8 @@ struct uci_dev {
 	int ref_count;
 	bool enabled;
 	u32 tiocm;
-#ifdef CONFIG_IPC_LOGGING
 	void *ipc_log;
 	enum MHI_DEBUG_LEVEL *ipc_log_lvl;
-#endif
 };
 
 struct mhi_uci_drv {
@@ -66,8 +62,6 @@ struct mhi_uci_drv {
 };
 
 enum MHI_DEBUG_LEVEL msg_lvl = MHI_MSG_LVL_ERROR;
-
-#ifdef CONFIG_IPC_LOGGING
 
 #ifdef CONFIG_MHI_DEBUG
 
@@ -110,24 +104,7 @@ enum MHI_DEBUG_LEVEL msg_lvl = MHI_MSG_LVL_ERROR;
 			ipc_log_string(uci_dev->ipc_log, "[E][%s] " fmt, \
 				       __func__, ##__VA_ARGS__); \
 	} while (0)
-#else // CONFIG_IPC_LOGGING
 
-#define MSG_VERB(fmt, ...) do { \
-                if (msg_lvl <= MHI_MSG_LVL_VERBOSE) \
-                        pr_err("[D][%s] " fmt, __func__, ##__VA_ARGS__); \
-        } while (0)
-
-#define MSG_LOG(fmt, ...) do { \
-                if (msg_lvl <= MHI_MSG_LVL_INFO) \
-                        pr_err("[I][%s] " fmt, __func__, ##__VA_ARGS__); \
-        } while (0)
-
-#define MSG_ERR(fmt, ...) do { \
-                if (msg_lvl <= MHI_MSG_LVL_ERROR) \
-                        pr_err("[E][%s] " fmt, __func__, ##__VA_ARGS__); \
-        } while (0)
-
-#endif // CONFIG_IPC_LOGGING
 #define MAX_UCI_DEVICES (64)
 
 static DECLARE_BITMAP(uci_minors, MAX_UCI_DEVICES);
@@ -431,21 +408,29 @@ static ssize_t mhi_uci_read(struct file *file,
 	}
 
 	uci_buf = uci_chan->cur_buf;
-	spin_unlock_bh(&uci_chan->lock);
 
 	/* Copy the buffer to user space */
 	to_copy = min_t(size_t, count, uci_chan->rx_size);
 	ptr = uci_buf->data + (uci_buf->len - uci_chan->rx_size);
+	spin_unlock_bh(&uci_chan->lock);
+
 	ret = copy_to_user(buf, ptr, to_copy);
 	if (ret)
 		return ret;
+
+	spin_lock_bh(&uci_chan->lock);
+	/* Buffer already queued from diff thread while we dropped lock ? */
+	if (to_copy && !uci_chan->rx_size) {
+		MSG_VERB("Bailout as buffer already queued (%lu %lu)\n",
+			 to_copy, uci_chan->rx_size);
+		goto read_error;
+	}
 
 	MSG_VERB("Copied %lu of %lu bytes\n", to_copy, uci_chan->rx_size);
 	uci_chan->rx_size -= to_copy;
 
 	/* we finished with this buffer, queue it back to hardware */
 	if (!uci_chan->rx_size) {
-		spin_lock_bh(&uci_chan->lock);
 		uci_chan->cur_buf = NULL;
 
 		if (uci_dev->enabled)
@@ -460,9 +445,8 @@ static ssize_t mhi_uci_read(struct file *file,
 			kfree(uci_buf->data);
 			goto read_error;
 		}
-
-		spin_unlock_bh(&uci_chan->lock);
 	}
+	spin_unlock_bh(&uci_chan->lock);
 
 	MSG_VERB("Returning %lu bytes\n", to_copy);
 
@@ -593,9 +577,7 @@ static int mhi_uci_probe(struct mhi_device *mhi_dev,
 			 const struct mhi_device_id *id)
 {
 	struct uci_dev *uci_dev;
-#ifdef CONFIG_IPC_LOGGING
 	struct mhi_controller *mhi_cntrl = mhi_dev->mhi_cntrl;
-#endif
 	int minor;
 	char node_name[32];
 	int dir;
@@ -629,11 +611,9 @@ static int mhi_uci_probe(struct mhi_device *mhi_dev,
 	snprintf(node_name, sizeof(node_name), "mhi_uci_%04x_%02u.%02u.%02u_%d",
 		 mhi_dev->dev_id, mhi_dev->domain, mhi_dev->bus, mhi_dev->slot,
 		 mhi_dev->ul_chan_id);
-#ifdef CONFIG_IPC_LOGGING
 	uci_dev->ipc_log = ipc_log_context_create(MHI_UCI_IPC_LOG_PAGES,
 						  node_name, 0);
 	uci_dev->ipc_log_lvl = &mhi_cntrl->log_lvl;
-#endif
 
 	for (dir = 0; dir < 2; dir++) {
 		struct uci_chan *uci_chan = (dir) ?
@@ -644,7 +624,7 @@ static int mhi_uci_probe(struct mhi_device *mhi_dev,
 	}
 
 	uci_dev->mtu = min_t(size_t, id->driver_data, mhi_dev->mtu);
-	uci_dev->actual_mtu = uci_dev->mtu -  sizeof(struct uci_buf);
+	uci_dev->actual_mtu = uci_dev->mtu - sizeof(struct uci_buf);
 	mhi_device_set_devdata(mhi_dev, uci_dev);
 	uci_dev->enabled = true;
 

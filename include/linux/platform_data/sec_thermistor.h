@@ -32,6 +32,7 @@ struct sec_therm_adc_table {
 struct sec_therm_platform_data {
 	unsigned int adc_channel;
 	unsigned int adc_arr_size;
+	bool iio_processed;
 	struct sec_therm_adc_table *adc_table;
 };
 

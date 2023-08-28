@@ -292,6 +292,7 @@ TRACE_MAKE_SYSTEM_STR();
 		trace_print_flags_seq(p, delim, flag, __flags);	\
 	})
 
+#undef __print_symbolic
 #define __print_symbolic(value, symbol_array...)			\
 	({								\
 		static const struct trace_print_flags symbols[] =	\
@@ -718,7 +719,8 @@ trace_event_raw_event_##call(void *__data, proto)			\
 									\
 	{ assign; }							\
 									\
-	trace_event_buffer_commit(&fbuffer);				\
+	trace_event_buffer_commit(&fbuffer,				\
+				  sizeof(*entry) + __data_size);	\
 }
 /*
  * The ftrace_test_probe is compiled out, it is only here as a build time check
@@ -742,6 +744,7 @@ static inline void ftrace_test_probe_##call(void)			\
 #define __entry REC
 
 #undef __print_flags
+#undef __print_symbolic
 #undef __print_hex
 #undef __print_hex_str
 #undef __get_dynamic_array

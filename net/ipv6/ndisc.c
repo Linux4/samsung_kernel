@@ -929,7 +929,7 @@ have_ifp:
 			saddr->s6_addr[14], saddr->s6_addr[15], 
 			daddr->s6_addr[14], daddr->s6_addr[15], 
 			neigh->dev->name);
-	}	
+	}
 
 	if (neigh || !dev->header_ops) {
 		ndisc_send_na(dev, saddr, &msg->target, !!is_router,

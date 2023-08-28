@@ -85,6 +85,7 @@ enum NOTI_SUB_ID {
 	OOK_PACKET,
 	CMD_PACKET,
 	GCF_PACKET		= 7,	/* Garage Charging Finished notification data*/
+	COVER_DETECT_PACKET	= 10,
 };
 
 enum REPLY_SUB_ID {
@@ -104,6 +105,12 @@ enum SEPC_SUB_ID {
 enum TABLE_SWAP {
 	TABLE_SWAP_DEX_STATION = 1,
 	TABLE_SWAP_KBD_COVER = 2,
+};
+
+enum COVER_STATE {
+	NOMAL_MODE = 0,
+	BOOKCOVER_MODE,
+	KBDCOVER_MODE,
 };
 
 #define WACOM_PATH_EXTERNAL_FW		"/sdcard/FIRMWARE/WACOM/wacom.bin"
@@ -164,12 +171,13 @@ struct fw_image {
 #define EPEN_EVENT_PEN_OUT		(1 << 0)
 #define EPEN_EVENT_GARAGE		(1 << 1)
 #define EPEN_EVENT_AOP			(1 << 2)
-#define EPEN_EVENT_SURVEY		(EPEN_EVENT_GARAGE | EPEN_EVENT_AOP)
+#define EPEN_EVENT_COVER_DETECTION			(1 << 3)
+#define EPEN_EVENT_SURVEY		(EPEN_EVENT_GARAGE | EPEN_EVENT_AOP | EPEN_EVENT_COVER_DETECTION)
 
 #define EPEN_SURVEY_MODE_NONE		0x0
 #define EPEN_SURVEY_MODE_GARAGE_ONLY	EPEN_EVENT_GARAGE
 #define EPEN_SURVEY_MODE_GARAGE_AOP	EPEN_EVENT_AOP
-
+#define EPEN_SURVEY_MODE_COVER_DETECTION_ONLY	EPEN_EVENT_COVER_DETECTION
 
 /*--------------------------------------------------
  * function setting by user or default
@@ -373,6 +381,8 @@ struct wacom_g5_platform_data {
 	u32 table_swap;
 	bool regulator_boot_on;
 	u32 bringup;
+	bool support_cover_noti;
+	bool support_cover_detection;
 
 	u32	area_indicator;
 	u32	area_navigation;
@@ -523,6 +533,8 @@ struct wacom_i2c {
 	char *ble_hist;
 	char *ble_hist1;
 	int ble_hist_index;
+	char cover;
+	u8 flip_state;
 };
 
 extern struct wacom_i2c *g_wac_i2c;
@@ -575,4 +587,6 @@ void wacom_i2c_coord_modify(struct wacom_i2c *wac_i2c);
 void wacom_disable_mode(struct wacom_i2c *wac_i2c, wacom_disable_mode_t mode);
 
 int wacom_check_ub(struct i2c_client *client);
+
+void wacom_swap_compensation(struct wacom_i2c *wac_i2c, char cmd);
 int wacom_ble_charge_mode(struct wacom_i2c *wac_i2c, int mode);

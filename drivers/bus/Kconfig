@@ -190,13 +190,13 @@ config MHI_BUS
 	  devices that support MHI protocol.
 
 config MHI_DEBUG
-	bool "MHI debug support"
-	depends on MHI_BUS
-	help
-	  Say yes here to enable debugging support in the MHI transport
-	  and individual MHI client drivers. This option will impact
-	  throughput as individual MHI packets and state transitions
-	  will be logged.
+	 bool "MHI debug support"
+	 depends on MHI_BUS
+	 help
+	   Say yes here to enable debugging support in the MHI transport
+	   and individual MHI client drivers. This option will impact
+	   throughput as individual MHI packets and state transitions
+	   will be logged.
 
 source "drivers/bus/fsl-mc/Kconfig"
 source "drivers/bus/mhi/controllers/Kconfig"

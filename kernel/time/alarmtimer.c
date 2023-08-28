@@ -65,6 +65,111 @@ static struct rtc_timer		rtctimer;
 static struct rtc_device	*rtcdev;
 static DEFINE_SPINLOCK(rtcdev_lock);
 
+#if IS_ENABLED(CONFIG_SEC_PM)
+extern void log_suspend_abort_reason(const char *fmt, ...);
+#endif
+
+#ifdef CONFIG_RTC_AUTO_PWRON
+/* 0|1234|56|78|90|12 */
+/* 1|2010|01|01|00|00 */
+/*en yyyy mm dd hh mm */
+#define BOOTALM_BIT_EN       0
+#define BOOTALM_BIT_YEAR     1
+#define BOOTALM_BIT_MONTH    5
+#define BOOTALM_BIT_DAY      7
+#define BOOTALM_BIT_HOUR     9
+#define BOOTALM_BIT_MIN     11
+#define BOOTALM_BIT_TOTAL   13
+
+int alarm_set_alarm(char *alarm_data)
+{
+	struct rtc_wkalrm alm;
+	int ret = 0;
+	char buf_ptr[BOOTALM_BIT_TOTAL+1] = {0,};
+	struct rtc_time     rtc_tm;
+	unsigned long       rtc_sec;
+	unsigned long       rtc_alm_sec;
+	struct timespec     delta;
+	struct timespec     ktm_ts;
+	struct rtc_time     ktm_tm;
+
+	if (!rtcdev) {
+		pr_err("alarm_set_alarm: no RTC, time will be lost on reboot\n");
+		return -ENXIO;
+	}
+
+	strlcpy(buf_ptr, alarm_data, BOOTALM_BIT_TOTAL+1);
+
+	alm.time.tm_sec = 0;
+	alm.time.tm_min = (buf_ptr[BOOTALM_BIT_MIN]-'0') * 10
+					+ (buf_ptr[BOOTALM_BIT_MIN+1]-'0');
+	alm.time.tm_hour = (buf_ptr[BOOTALM_BIT_HOUR]-'0') * 10
+					+ (buf_ptr[BOOTALM_BIT_HOUR+1]-'0');
+	alm.time.tm_mday = (buf_ptr[BOOTALM_BIT_DAY]-'0') * 10
+					+ (buf_ptr[BOOTALM_BIT_DAY+1]-'0');
+	alm.time.tm_mon  = (buf_ptr[BOOTALM_BIT_MONTH]-'0') * 10
+	                  + (buf_ptr[BOOTALM_BIT_MONTH+1]-'0');
+	alm.time.tm_year = (buf_ptr[BOOTALM_BIT_YEAR]-'0') * 1000
+					+ (buf_ptr[BOOTALM_BIT_YEAR+1]-'0') * 100
+					+ (buf_ptr[BOOTALM_BIT_YEAR+2]-'0') * 10
+					+ (buf_ptr[BOOTALM_BIT_YEAR+3]-'0');
+
+	alm.enabled = (*buf_ptr == '1');
+	if (*buf_ptr == '2')
+		alm.enabled = 2;
+
+	pr_info("sapa %s: %s => tm(%d %04d-%02d-%02d %02d:%02d:%02d)\n",
+			__func__, buf_ptr, alm.enabled,
+			alm.time.tm_year, alm.time.tm_mon, alm.time.tm_mday,
+			alm.time.tm_hour, alm.time.tm_min, alm.time.tm_sec);
+
+	if (alm.enabled) {
+		/* read kernel time */
+		getnstimeofday(&ktm_ts);
+		ktm_tm = rtc_ktime_to_tm(timespec_to_ktime(ktm_ts));
+		pr_info("set_sapa: <KTM > %4d-%02d-%02d %02d:%02d:%02d\n",
+			ktm_tm.tm_year+1900, ktm_tm.tm_mon+1, ktm_tm.tm_mday,
+			ktm_tm.tm_hour, ktm_tm.tm_min, ktm_tm.tm_sec);
+
+		alm.time.tm_mon -= 1;
+		alm.time.tm_year -= 1900;
+		pr_info("set_sapa: <ALRM> %4d-%02d-%02d %02d:%02d:%02d\n",
+			alm.time.tm_year+1900, alm.time.tm_mon+1, alm.time.tm_mday,
+			alm.time.tm_hour, alm.time.tm_min, alm.time.tm_sec);
+
+		/* read current time */
+		rtc_read_time(rtcdev, &rtc_tm);
+		rtc_tm_to_time(&rtc_tm, &rtc_sec);
+		pr_info("set_sapa: <rtc > %4d-%02d-%02d %02d:%02d:%02d -> %lu\n",
+			rtc_tm.tm_year, rtc_tm.tm_mon, rtc_tm.tm_mday,
+			rtc_tm.tm_hour, rtc_tm.tm_min, rtc_tm.tm_sec, rtc_sec);
+
+		/* calculate offset */
+		set_normalized_timespec(&delta,
+					ktm_ts.tv_sec - rtc_sec,
+					ktm_ts.tv_nsec);
+
+		/* convert user requested SAPA time to second type */
+		rtc_tm_to_time(&alm.time, &rtc_alm_sec);
+
+		/* convert to RTC time with user requested SAPA time and offset */
+		rtc_alm_sec -= delta.tv_sec;
+		rtc_alm_sec = (rtc_alm_sec & ~0x00000003) | ((alm.enabled-1)<<1);
+		alm.enabled = 1;
+		rtc_time_to_tm(rtc_alm_sec, &alm.time);
+		pr_info("set_sapa: <alrm> %4d-%02d-%02d %02d:%02d:%02d -> %lu\n",
+			alm.time.tm_year, alm.time.tm_mon, alm.time.tm_mday,
+			alm.time.tm_hour, alm.time.tm_min, alm.time.tm_sec, rtc_alm_sec);
+
+	}
+	ret = rtc_set_bootalarm(rtcdev, &alm);
+	if (ret < 0)
+		pr_err("%s: Failed to set bootalarm\n", __func__);
+
+	return ret;
+}
+#endif /*CONFIG_RTC_AUTO_PWRON*/
+
 /**
  * alarmtimer_get_rtcdev - Return selected rtcdevice
  *
@@ -91,6 +196,7 @@ static int alarmtimer_rtc_add_device(struct device *dev,
 	unsigned long flags;
 	struct rtc_device *rtc = to_rtc_device(dev);
 	struct wakeup_source *__ws;
+	int ret = 0;
 
 	if (rtcdev)
 		return -EBUSY;
@@ -100,13 +206,13 @@ static int alarmtimer_rtc_add_device(struct device *dev,
 	if (!device_may_wakeup(rtc->dev.parent))
 		return -1;
 
-	__ws = wakeup_source_register("alarmtimer");
+	__ws = wakeup_source_register(dev, "alarmtimer");
 
 	spin_lock_irqsave(&rtcdev_lock, flags);
 	if (!rtcdev) {
 		if (!try_module_get(rtc->owner)) {
-			spin_unlock_irqrestore(&rtcdev_lock, flags);
-			return -1;
+			ret = -1;
+			goto unlock;
 		}
 
 		rtcdev = rtc;
@@ -115,11 +221,12 @@ static int alarmtimer_rtc_add_device(struct device *dev,
 		ws = __ws;
 		__ws = NULL;
 	}
+unlock:
 	spin_unlock_irqrestore(&rtcdev_lock, flags);
 
 	wakeup_source_unregister(__ws);
 
-	return 0;
+	return ret;
 }
 
 static inline void alarmtimer_rtc_timer_init(void)
@@ -250,6 +357,9 @@ static int alarmtimer_suspend(struct device *dev)
 	struct rtc_device *rtc;
 	unsigned long flags;
 	struct rtc_time tm;
+#if IS_ENABLED(CONFIG_SEC_PM)
+	struct alarm *min_alarm = NULL;
+#endif
 
 	spin_lock_irqsave(&freezer_delta_lock, flags);
 	min = freezer_delta;
@@ -279,12 +389,24 @@ static int alarmtimer_suspend(struct device *dev)
 			expires = next->expires;
 			min = delta;
 			type = i;
+#if IS_ENABLED(CONFIG_SEC_PM)
+			min_alarm = container_of(next, struct alarm, node);
+#endif
 		}
 	}
 	if (min == 0)
 		return 0;
 
+#if IS_ENABLED(CONFIG_SEC_PM)
+	if (min_alarm)
+		pr_info("soonest alarm : %ps\n", min_alarm->function);
+#endif
+	
 	if (ktime_to_ns(min) < 2 * NSEC_PER_SEC) {
+#if IS_ENABLED(CONFIG_SEC_PM)
+		pr_info("alarmtimer suspending blocked by %ps\n", min_alarm->function);
+		log_suspend_abort_reason("alarmtimer suspending blocked by %ps\n", min_alarm->function);
+#endif
 		__pm_wakeup_event(ws, 2 * MSEC_PER_SEC);
 		return -EBUSY;
 	}

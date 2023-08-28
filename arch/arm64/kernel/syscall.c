@@ -30,7 +30,7 @@ static long do_ni_syscall(struct pt_regs *regs, int scno)
 		ret = defex_syscall_enter(scno, regs);
 		if (!ret)
 #endif /* CONFIG_SECURITY_DEFEX */
-		ret = compat_arm_syscall(regs, scno);
+			ret = compat_arm_syscall(regs, scno);
 		if (ret != -ENOSYS)
 			return ret;
 	}
@@ -57,7 +57,7 @@ static void invoke_syscall(struct pt_regs *regs, unsigned int scno,
 		ret = defex_syscall_enter(scno, regs);
 		if (!ret)
 #endif /* CONFIG_SECURITY_DEFEX */
-		ret = __invoke_syscall(regs, syscall_fn);
+			ret = __invoke_syscall(regs, syscall_fn);
 	} else {
 		ret = do_ni_syscall(regs, scno);
 	}

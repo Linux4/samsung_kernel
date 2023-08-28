@@ -76,9 +76,6 @@
 #include <linux/ipsec.h>
 #include <asm/unaligned.h>
 #include <linux/errqueue.h>
-#ifdef CONFIG_NETPM
-#include <linux/inetdevice.h>
-#endif
 #ifdef CONFIG_MPTCP
 #include <net/mptcp.h>
 #include <net/mptcp_v4.h>
@@ -89,10 +86,6 @@
 #include <net/busy_poll.h>
 
 int sysctl_tcp_max_orphans __read_mostly = NR_FILE;
-
-#ifdef CONFIG_NETPM
-int sysctl_tcp_netpm[4] __read_mostly;	/* Timestamp, RAT, PHY status, Access TP */
-#endif
 
 #ifndef CONFIG_MPTCP
 #define FLAG_DATA		0x01 /* Incoming frame contained data.		*/
@@ -125,143 +118,6 @@ int sysctl_tcp_netpm[4] __read_mostly;	/* Timestamp, RAT, PHY status, Access TP 
 #define REXMIT_NONE	0 /* no loss recovery to do */
 #define REXMIT_LOST	1 /* retransmit packets marked lost */
 #define REXMIT_NEW	2 /* FRTO-style transmit of unsent/new packets */
-
-#ifdef CONFIG_NETPM
-static int netpm_int_log2(u32);
-static int netpm_pow(int, int);
-static int netpm_piecelinear_logbdp(struct tcp_sock *);
-
-#define NETPM_DEF_ENABLE 1
-#define NETPM_DEF_LB 2560000
-#define NETPM_DEF_SRTT_SCALE 10 // it should be equal or larger than 1
-#define NETPM_DEF_PA 600000
-#define NETPM_DEF_PB 17
-#define NETPM_DEF_RTT_MIN_LB 20000
-#define NETPM_DEF_MP 150
-#define NETPM_DEF_GAIN 250
-#define NETPM_RTT_MIN_INITIAL_VAL 86400000
-
-static const s8 NetpmLogTable[256] = {
-	-1, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
-	4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-	5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
-	5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
-	6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-	6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-	6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-	6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-	7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-	7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-	7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-	7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-	7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-	7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-	7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-	7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7
-};
-
-#ifdef SAMSUNG_NETPM_DEBUG
-#define netpm_debug(format, ...) pr_debug("<netpm> "format, __VA_ARGS__)
-#else
-#define netpm_debug(format, ...) do {} while (0)
-#endif
-
-static inline bool netpm(struct tcp_sock *tp)
-{
-	return NETPM_DEF_ENABLE && (sysctl_tcp_netpm[1] == 0x04) &&
-		(tp->netpm_netif == 1);
-}
-
-static inline int netpm_rmem_max(const struct sock *sk)
-{
-	struct tcp_sock *tp = tcp_sk(sk);
-	
-	if (netpm(tp)) {
-		if (sysctl_tcp_netpm[2] == 0x01)
-			return tp->netpm_tcp_rmem_max;
-		else
-			return sock_net(sk)->ipv4.sysctl_tcp_rmem[1];
-	}
-
-	return sock_net(sk)->ipv4.sysctl_tcp_rmem[2];
-}
-
-static inline u32 netpm_rtt_min(struct tcp_sock *tp)
-{
-	if (tp->netpm_rtt_min_us >> 3 > NETPM_DEF_RTT_MIN_LB)
-		return tp->netpm_rtt_min_us >> 3;
-	else
-		return NETPM_DEF_RTT_MIN_LB;
-}
-
-static struct net_device *netpm_dev_find(struct sock *sk)
-{
-	struct net_device *dev = NULL;
-
-	if (!sk)
-		goto outdev_out;
-
-	if (sk->sk_family == AF_INET) {
-		struct rtable *rt = (struct rtable *)__sk_dst_check(sk, 0);
-
-		if (rt)
-			dev = rt->dst.dev;
-
-		if (!dev) {
-			struct inet_sock *inet = inet_sk(sk);
-
-			dev = __ip_dev_find(sock_net(sk), inet->inet_saddr, false);
-		}
-	} else if (sk->sk_family == AF_INET6) {
-		struct ipv6_pinfo *np = inet6_sk(sk);
-		struct rtable *rt = (struct rtable *)__sk_dst_check(sk,
-				np->dst_cookie);
-
-		if (rt)
-			dev = rt->dst.dev;
-
-		if (!dev)
-			dev = ip6_dev_find(sock_net(sk), &np->saddr);
-	}
-outdev_out:
-	return dev;
-}
-
-static void netpm_init_buffer_space(struct sock *sk)
-{
-	struct tcp_sock *tp = tcp_sk(sk);
-	struct net_device *dev_out = netpm_dev_find(sk);
-
-	if (!NETPM_DEF_ENABLE || !dev_out)
-		return;
-
-	if (dev_out->netpm_use) {
-		tp->netpm_netif = 1;
-
-		/* Initialization for NETPM */
-		tp->netpm_rtt_min_us = NETPM_RTT_MIN_INITIAL_VAL;
-		tp->netpm_max_tput = 0;
-		tp->netpm_srtt_us = 0;
-		tp->netpm_rttvar_us = 0;
-		tp->netpm_cwnd_est = 0;
-		tp->netpm_tcp_rmem_max = sock_net(sk)->ipv4.sysctl_tcp_rmem[2];
-		tp->netpm_rbuf_flag = 0;
-		tp->netpm_rmem_max_curbdp = -1;
-	} else {
-		tp->netpm_netif = 0;
-	}
-}
-
-static inline u32 netpm_rtt_avg(struct tcp_sock *tp)
-{
-	return tp->netpm_srtt_us >> NETPM_DEF_SRTT_SCALE;
-}
-
-static inline u32 netpm_rttvar_avg(struct tcp_sock *tp)
-{
-	return tp->netpm_rttvar_us >> (NETPM_DEF_SRTT_SCALE - 1);
-}
-#endif
 
 #if IS_ENABLED(CONFIG_TLS_DEVICE)
 static DEFINE_STATIC_KEY_FALSE(clean_acked_data_enabled);
@@ -561,11 +417,7 @@ static int __tcp_grow_window(const struct sock *sk, const struct sk_buff *skb)
 	struct tcp_sock *tp = tcp_sk(sk);
 	/* Optimize this! */
 	int truesize = tcp_win_from_space(sk, skb->truesize) >> 1;
-#ifdef CONFIG_NETPM
-	int window = tcp_win_from_space(sk, netpm_rmem_max(sk)) >> 1;
-#else
 	int window = tcp_win_from_space(sk, sock_net(sk)->ipv4.sysctl_tcp_rmem[2]) >> 1;
-#endif
 
 	while (tp->rcv_ssthresh <= window) {
 		if (truesize <= skb->len)
@@ -659,10 +511,6 @@ void tcp_init_buffer_space(struct sock *sk)
 
 	tp->rcv_ssthresh = min(tp->rcv_ssthresh, tp->window_clamp);
 	tp->snd_cwnd_stamp = tcp_jiffies32;
-	
-#ifdef CONFIG_NETPM
-	netpm_init_buffer_space(sk);
-#endif
 }
 
 /* 4. Recalculate window clamp after socket hit its memory bounds. */
@@ -670,21 +518,10 @@ static void tcp_clamp_window(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct inet_connection_sock *icsk = inet_csk(sk);
-#ifndef CONFIG_NETPM
 	struct net *net = sock_net(sk);
-#endif
 
 	icsk->icsk_ack.quick = 0;
 
-#ifdef CONFIG_NETPM
-	if (sk->sk_rcvbuf < netpm_rmem_max(sk) &&
-	    !(sk->sk_userlocks & SOCK_RCVBUF_LOCK) &&
-	    !tcp_under_memory_pressure(sk) &&
-	    sk_memory_allocated(sk) < sk_prot_mem_limits(sk, 0)) {
-		sk->sk_rcvbuf = min(atomic_read(&sk->sk_rmem_alloc),
-				    netpm_rmem_max(sk));
-	}
-#else
 	if (sk->sk_rcvbuf < net->ipv4.sysctl_tcp_rmem[2] &&
 	    !(sk->sk_userlocks & SOCK_RCVBUF_LOCK) &&
 	    !tcp_under_memory_pressure(sk) &&
@@ -692,7 +529,6 @@ static void tcp_clamp_window(struct sock *sk)
 		sk->sk_rcvbuf = min(atomic_read(&sk->sk_rmem_alloc),
 				    net->ipv4.sysctl_tcp_rmem[2]);
 	}
-#endif
 	if (atomic_read(&sk->sk_rmem_alloc) > sk->sk_rcvbuf)
 		tp->rcv_ssthresh = min(tp->window_clamp, 2U * tp->advmss);
 }
@@ -716,40 +552,6 @@ void tcp_initialize_rcv_mss(struct sock *sk)
 	inet_csk(sk)->icsk_ack.rcv_mss = hint;
 }
 EXPORT_SYMBOL(tcp_initialize_rcv_mss);
-
-#ifdef CONFIG_NETPM
-static void netpm_net_status_estimator(struct tcp_sock *tp)
-{
-	u32 netpm_rttdiff = 0;
-
-	if (tp->netpm_rtt_min_us > tp->rcv_rtt_est.rtt_us)
-		tp->netpm_rtt_min_us = tp->rcv_rtt_est.rtt_us;
-
-	if (tp->netpm_srtt_us != 0) {
-		tp->netpm_srtt_us -= netpm_rtt_avg(tp);
-		tp->netpm_srtt_us += tp->rcv_rtt_est.rtt_us;
-
-		if (tp->rcv_rtt_est.rtt_us >= netpm_rtt_avg(tp))
-			netpm_rttdiff = tp->rcv_rtt_est.rtt_us - netpm_rtt_avg(tp);
-		else
-			netpm_rttdiff = netpm_rtt_avg(tp) - tp->rcv_rtt_est.rtt_us;
-	} else {
-		tp->netpm_srtt_us = tp->rcv_rtt_est.rtt_us << NETPM_DEF_SRTT_SCALE;
-	}
-
-	if (tp->netpm_rttvar_us != 0) {
-		tp->netpm_rttvar_us -= netpm_rttvar_avg(tp);
-		tp->netpm_rttvar_us += netpm_rttdiff;
-	} else {
-		tp->netpm_rttvar_us = (tp->rcv_rtt_est.rtt_us << (NETPM_DEF_SRTT_SCALE - 1)) / 2;
-	}
-
-	netpm_debug("%s tp->rcv_rtt_est.rtt_us) = %u\n", __func__, tp->rcv_rtt_est.rtt_us);
-	netpm_debug("%s tp->rtt_min_us = %u\n", __func__, tp->netpm_rtt_min_us);
-	netpm_debug("%s tp->netpm_srtt_us = %u\n", __func__, netpm_rtt_avg(tp));
-	netpm_debug("%s tp->netpm_rttvar_us = %u\n", __func__, netpm_rttvar_avg(tp));
-}
-#endif
 
 /* Receiver "autotuning" code.
  *
@@ -792,10 +594,6 @@ static void tcp_rcv_rtt_update(struct tcp_sock *tp, u32 sample, int win_dep)
 	}
 
 	tp->rcv_rtt_est.rtt_us = new_sample;
-#ifdef CONFIG_NETPM
-	if (netpm(tp))
-		netpm_net_status_estimator(tp);
-#endif
 }
 
 static inline void tcp_rcv_rtt_measure(struct tcp_sock *tp)
@@ -837,104 +635,6 @@ static inline void tcp_rcv_rtt_measure_ts(struct sock *sk,
 	}
 }
 
-#ifdef CONFIG_NETPM
-static int netpm_int_log2(u32 v)
-{
-	u32 r, t, tt;
-
-	tt = v >> 16;
-	if (tt)
-		r = ((t = tt >> 8) ? 24 + NetpmLogTable[t] : 16 + NetpmLogTable[tt]);
-	else
-		r = ((t = v >> 8) ? 8 + NetpmLogTable[t] : NetpmLogTable[v]);
-
-	return r;
-}
-
-static int netpm_pow(int base, int n)
-{
-	int result = 1, i;
-
-	for (i = 0; i < n; i++)
-		result *= base;
-
-	return result;
-}
-
-/* RWNDmax = a * log(TPaccess,max * RTTmin - b) */
-#define NETPM_RWND_CAL(rtt)	\
-		(NETPM_DEF_PA * \
-		  (netpm_int_log2(tp->netpm_max_tput * rtt * 125) \
-		  - NETPM_DEF_PB))
-
-static int netpm_piecelinear_logbdp(struct tcp_sock *tp)
-{
-	int s, i, delta;
-	u32 rtt_min_ms, intlog_lower, intlog_upper, rtt_low, rtt_high;
-
-	rtt_min_ms = netpm_rtt_min(tp) / (u32) USEC_PER_MSEC;
-	s = 0;
-	i = 0;
-	while (s < rtt_min_ms) {
-		i++;
-		s = 7 * netpm_pow(2, i);
-	}
-
-	rtt_high = s;
-	rtt_low = 7 * netpm_pow(2, i - 1);
-
-	tp->netpm_max_tput = sysctl_tcp_netpm[3];
-
-	intlog_lower = NETPM_RWND_CAL(rtt_low) < 0 ? 0 : NETPM_RWND_CAL(rtt_low);
-	intlog_upper = NETPM_RWND_CAL(rtt_high);
-
-	delta = (rtt_min_ms - rtt_low) * (intlog_upper - intlog_lower)
-		/ (rtt_high - rtt_low);
-
-	return intlog_lower + delta;
-}
-
-static void netpm_rwnd_max_adjustment(struct sock *sk)
-{
-	struct tcp_sock *tp = tcp_sk(sk);
-	u32 rtt_min_ms, srtt_ms, rtt_var_ms;
-
-	rtt_min_ms = netpm_rtt_min(tp) / (u32) USEC_PER_MSEC;
-	srtt_ms = netpm_rtt_avg(tp) >> 3 / (u32) USEC_PER_MSEC;
-	rtt_var_ms = netpm_rttvar_avg(tp) >> 3 / (u32) USEC_PER_MSEC;
-
-	if (tp->netpm_srtt_us && tp->netpm_rtt_min_us != NETPM_RTT_MIN_INITIAL_VAL) {
-		/* initial RWND max estimation */
-		if (rtt_min_ms <= NETPM_DEF_MP)
-			tp->netpm_rmem_max_curbdp = sysctl_tcp_netpm[3] * rtt_min_ms * NETPM_DEF_GAIN;
-		else
-			tp->netpm_rmem_max_curbdp = netpm_piecelinear_logbdp(tp);
-
-		netpm_debug("%s saddr/sport = %08X/%d\n", __func__,
-			    ntohl(tp->inet_conn.icsk_inet.inet_saddr),
-			    ntohs(tp->inet_conn.icsk_inet.inet_sport));
-		netpm_debug("%s daddr/dport = %08X/%d\n", __func__,
-			    ntohl(tp->inet_conn.icsk_inet.inet_daddr),
-			    ntohs(tp->inet_conn.icsk_inet.inet_dport));
-		netpm_debug("%s netpm_max_tput = %u, rtt_min_ms = %u, srtt_ms = %u, rtt_var_ms = %u\n",
-			    __func__, tp->netpm_max_tput, rtt_min_ms, srtt_ms, rtt_var_ms);
-
-		tp->netpm_tcp_rmem_max = tcp_space_from_win(sk, tp->netpm_rmem_max_curbdp);
-
-		netpm_debug("%s calculated netpm_tcp_rmem_max = %d\n",
-			    __func__, tp->netpm_tcp_rmem_max);
-
-		if (tp->netpm_tcp_rmem_max < NETPM_DEF_LB)
-			tp->netpm_tcp_rmem_max = NETPM_DEF_LB;
-		if (tp->netpm_tcp_rmem_max > sock_net(sk)->ipv4.sysctl_tcp_rmem[2])
-			tp->netpm_tcp_rmem_max = sock_net(sk)->ipv4.sysctl_tcp_rmem[2];
-	}
-
-	netpm_debug("%s filtered netpm_tcp_rmem_max = %d\n", __func__,
-		    tp->netpm_tcp_rmem_max);
-}
-#endif
-
 /*
  * This function should be called every time data is copied to user space.
  * It calculates the appropriate TCP receive buffer space.
@@ -961,25 +661,8 @@ void tcp_rcv_space_adjust(struct sock *sk)
 
 	/* Number of bytes copied to user in last RTT */
 	copied = tp->copied_seq - tp->rcvq_space.seq;
-#ifdef CONFIG_NETPM
-	if (netpm(tp)) {
-		if (tp->netpm_cwnd_est == 0)
-			tp->netpm_cwnd_est = copied;
-		else
-			tp->netpm_cwnd_est = (7 * tp->netpm_cwnd_est + copied) / 8;
-
-		netpm_debug("%s cwnd_est = %d\n", __func__, tp->netpm_cwnd_est);
-
-		if (copied <= tp->rcvq_space.space &&
-		    tp->netpm_max_tput == sysctl_tcp_netpm[3])
-			goto new_measure;
-	} else {
-#endif
 	if (copied <= tp->rcvq_space.space)
 		goto new_measure;
-#ifdef CONFIG_NETPM
-	}
-#endif
 
 	/* A bit of theory :
 	 * copied = bytes received in previous RTT, our base window
@@ -1010,41 +693,14 @@ void tcp_rcv_space_adjust(struct sock *sk)
 			rcvmem += 128;
 
 		do_div(rcvwin, tp->advmss);
-#ifdef CONFIG_NETPM
-		if (netpm(tp)) {
-			netpm_rwnd_max_adjustment(sk);
-			rcvbuf = min_t(u64, rcvwin * rcvmem, netpm_rmem_max(sk));
-			if (!tp->netpm_rbuf_flag && rcvbuf == netpm_rmem_max(sk)) {
-				pr_info("<netpm> %s netpm is applied (rmem size = %d, rtt_min_us = %u, cause = %d%d%u)\n",
-					__func__, rcvbuf, tp->netpm_rtt_min_us >> 3, sysctl_tcp_netpm[1], sysctl_tcp_netpm[2], tp->netpm_netif);
-				tp->netpm_rbuf_flag = 1;
-			}
-		} else {
-#endif
 		rcvbuf = min_t(u64, rcvwin * rcvmem,
 			       sock_net(sk)->ipv4.sysctl_tcp_rmem[2]);
-#ifdef CONFIG_NETPM
-			if (!tp->netpm_rbuf_flag && rcvbuf == sock_net(sk)->ipv4.sysctl_tcp_rmem[2]) {
-				pr_info("<netpm> %s netpm is not applied (rmem size = %d, cause = %d%d%u)\n",
-					__func__, rcvbuf, sysctl_tcp_netpm[1], sysctl_tcp_netpm[2], tp->netpm_netif);
-				tp->netpm_rbuf_flag = 1;
-			}
-		}
-		netpm_debug("%s final rcvbuf %d\n", __func__, rcvbuf);
-#endif
 		if (rcvbuf > sk->sk_rcvbuf) {
 			sk->sk_rcvbuf = rcvbuf;
 
 			/* Make the window clamp follow along.  */
 			tp->window_clamp = tcp_win_from_space(sk, rcvbuf);
 		}
-#ifdef CONFIG_NETPM
-		else if (netpm(tp) && netpm_rmem_max(sk) < sk->sk_rcvbuf) {
-			sk->sk_rcvbuf = netpm_rmem_max(sk);
-
-			tp->window_clamp = tcp_win_from_space(sk, netpm_rmem_max(sk));
-		}
-#endif
 	}
 	tp->rcvq_space.space = copied;
 
@@ -1304,9 +960,10 @@ static void tcp_check_sack_reordering(struct sock *sk, const u32 low_seq,
 /* This must be called before lost_out is incremented */
 static void tcp_verify_retransmit_hint(struct tcp_sock *tp, struct sk_buff *skb)
 {
-	if (!tp->retransmit_skb_hint ||
-	    before(TCP_SKB_CB(skb)->seq,
-		   TCP_SKB_CB(tp->retransmit_skb_hint)->seq))
+	if ((!tp->retransmit_skb_hint && tp->retrans_out >= tp->lost_out) ||
+	    (tp->retransmit_skb_hint &&
+	     before(TCP_SKB_CB(skb)->seq,
+		    TCP_SKB_CB(tp->retransmit_skb_hint)->seq)))
 		tp->retransmit_skb_hint = skb;
 }
 
@@ -2127,8 +1784,11 @@ tcp_sacktag_write_queue(struct sock *sk, const struct sk_buff *ack_skb,
 		}
 
 		/* Ignore very old stuff early */
-		if (!after(sp[used_sacks].end_seq, prior_snd_una))
+		if (!after(sp[used_sacks].end_seq, prior_snd_una)) {
+			if (i == 0)
+				first_sack_index = -1;
 			continue;
+		}
 
 		used_sacks++;
 	}
@@ -3567,6 +3227,7 @@ static int tcp_clean_rtx_queue(struct sock *sk, u32 prior_fack,
 			tp->retransmit_skb_hint = NULL;
 		if (unlikely(skb == tp->lost_skb_hint))
 			tp->lost_skb_hint = NULL;
+		tcp_highest_sack_replace(sk, skb, next);
 		tcp_rtx_queue_unlink_and_free(skb, sk);
 	}
 
@@ -3778,7 +3439,7 @@ static void tcp_rcv_nxt_update(struct tcp_sock *tp, u32 seq)
 
 	sock_owned_by_me((struct sock *)tp);
 	tp->bytes_received += delta;
-	tp->rcv_nxt = seq;
+	WRITE_ONCE(tp->rcv_nxt, seq);
 }
 
 /* Update our send window.
@@ -5745,19 +5406,26 @@ static void __tcp_ack_snd_check(struct sock *sk, int ofo_possible)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	unsigned long rtt, delay;
+#ifdef CONFIG_MPTCP
+	struct sock *meta_sk = mptcp(tp) ? mptcp_meta_sk(sk) : sk;
+	struct tcp_sock *meta_tp = tcp_sk(meta_sk);
+#endif
 
 	    /* More than one full frame received... */
-	if (((tp->rcv_nxt - tp->rcv_wup) > inet_csk(sk)->icsk_ack.rcv_mss &&
+	if (((tp->rcv_nxt - tp->rcv_wup) > (inet_csk(sk)->icsk_ack.rcv_mss) *
+					sysctl_tcp_delack_seg &&
 	     /* ... and right edge of window advances far enough.
 	      * (tcp_recvmsg() will send ACK otherwise).
 	      * If application uses SO_RCVLOWAT, we want send ack now if
 	      * we have not received enough bytes to satisfy the condition.
 	      */
-	    (tp->rcv_nxt - tp->copied_seq < sk->sk_rcvlowat ||
+	    
 #ifdef CONFIG_MPTCP
-	     tp->ops->__select_window(sk) >= tp->rcv_wnd)) ||
+	     (meta_tp->rcv_nxt - meta_tp->copied_seq < meta_sk->sk_rcvlowat ||
+		 tp->ops->__select_window(sk) >= tp->rcv_wnd)) ||
 #else
-	     __tcp_select_window(sk) >= tp->rcv_wnd)) ||
+	     (tp->rcv_nxt - tp->copied_seq < sk->sk_rcvlowat ||
+		 __tcp_select_window(sk) >= tp->rcv_wnd)) ||
 #endif
 	    /* We ACK each frame or... */
 	    tcp_in_quickack_mode(sk) ||
@@ -6499,7 +6167,7 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 		/* Ok.. it's good. Set up sequence numbers and
 		 * move to established.
 		 */
-		tp->rcv_nxt = TCP_SKB_CB(skb)->seq + 1;
+		WRITE_ONCE(tp->rcv_nxt, TCP_SKB_CB(skb)->seq + 1);
 		tp->rcv_wup = TCP_SKB_CB(skb)->seq + 1;
 
 		/* RFC1323: The window in SYN & SYN/ACK segments is
@@ -6627,7 +6295,7 @@ discard:
 			tp->advmss -= MPTCP_SUB_LEN_DSM_ALIGN;
 		}
 #endif
-		tp->rcv_nxt = TCP_SKB_CB(skb)->seq + 1;
+		WRITE_ONCE(tp->rcv_nxt, TCP_SKB_CB(skb)->seq + 1);
 		tp->copied_seq = tp->rcv_nxt;
 		tp->rcv_wup = TCP_SKB_CB(skb)->seq + 1;
 

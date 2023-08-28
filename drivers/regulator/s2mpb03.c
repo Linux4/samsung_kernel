@@ -443,6 +443,31 @@ static ssize_t s2mpb03_write_show(struct device *dev,
 static DEVICE_ATTR(s2mpb03_write, 0644, s2mpb03_write_show, s2mpb03_write_store);
 static DEVICE_ATTR(s2mpb03_read, 0644, s2mpb03_read_show, s2mpb03_read_store);
 
+#ifdef CONFIG_SEC_FACTORY
+#define VALID_ADDR	S2MPB03_REG_PMIC_ID
+static ssize_t validation_show(struct device *dev,
+				  struct device_attribute *attr,
+				  char *buf)
+{
+	struct s2mpb03_data *s2mpb03 = dev_get_drvdata(dev);
+	int ret;
+	u8 val;
+	bool result = false;
+
+	ret = s2mpb03_read_reg(s2mpb03->iodev->i2c, VALID_ADDR, &val);
+	if (ret < 0) {
+		pr_err("%s: fail to read i2c address\n", __func__);
+		result = false;
+	} else {
+		pr_info("%s: reg(0x%02x) data(0x%02x)\n", __func__, VALID_ADDR, val);
+		result = true;
+	}
+
+	return sprintf(buf, "%d\n", result);
+}
+static DEVICE_ATTR(validation, 0440, validation_show, NULL);
+#endif
+
 int create_s2mpb03_sysfs(struct s2mpb03_data *s2mpb03)
 {
 	struct device *s2mpb03_pmic = s2mpb03->dev;
@@ -466,6 +491,14 @@ int create_s2mpb03_sysfs(struct s2mpb03_data *s2mpb03)
 			dev_attr_s2mpb03_read.attr.name);
 	}
 
+#ifdef CONFIG_SEC_FACTORY
+	err = device_create_file(s2mpb03_pmic, &dev_attr_validation);
+	if (err) {
+		pr_err("s2mpb03_sysfs: failed to create device file, %s\n",
+			dev_attr_validation.attr.name);
+	}
+#endif
+
 	return 0;
 }
 #endif
@@ -476,7 +509,7 @@ static int s2mpb03_pmic_probe(struct i2c_client *i2c,
 	struct s2mpb03_platform_data *pdata = i2c->dev.platform_data;
 	struct regulator_config config = { };
 	struct s2mpb03_data *s2mpb03;
-	size_t i;
+	int i;
 	int ret = 0;
 
 	pr_info("%s:%s\n", MFD_DEV_NAME, __func__);
@@ -569,50 +602,15 @@ static struct of_device_id s2mpb03_i2c_dt_ids[] = {
 
 static int s2mpb03_pmic_remove(struct i2c_client *i2c)
 {
+#ifdef CONFIG_DRV_SAMSUNG_PMIC
 	struct s2mpb03_data *info = i2c_get_clientdata(i2c);
 
-	dev_info(&i2c->dev, "%s\n", __func__);
-#ifdef CONFIG_DRV_SAMSUNG_PMIC
 	pmic_device_destroy(info->dev->devt);
 #endif
+	dev_info(&i2c->dev, "%s\n", __func__);
+	
 	return 0;
 }
-
-#if defined(CONFIG_PM)
-static int s2mpb03_pmic_suspend(struct device *dev)
-{
-	struct i2c_client *i2c = container_of(dev, struct i2c_client, dev);
-
-	/* Setting LDO3 and BGR to LPM mode for retention */
-	s2mpb03_update_reg(i2c, S2MPB03_REG_LDO3_CTRL, 0x40, 0x40);
-	pr_info("[%s:%d] LDO3: LPM Enable\n", __func__, __LINE__);
-	s2mpb03_update_reg(i2c, S2MPB03_REG_CTRL, 0x80, 0x80);
-	pr_info("[%s:%d] BGR: LPM Enable\n", __func__, __LINE__);
-
-	return 0;
-}
-
-static int s2mpb03_pmic_resume(struct device *dev)
-{
-	struct i2c_client *i2c = container_of(dev, struct i2c_client, dev);
-
-	/* Disabling LDO3 and BGR from LPM mode for Normal */
-	s2mpb03_update_reg(i2c, S2MPB03_REG_LDO3_CTRL, 0x00, 0x40);
-	pr_info("[%s:%d] LDO3: LPM Disable\n", __func__, __LINE__);
-	s2mpb03_update_reg(i2c, S2MPB03_REG_CTRL, 0x00, 0x80);
-	pr_info("[%s:%d] BGR: LPM Disable\n", __func__, __LINE__);
-
-	return 0;
-}
-#else
-#define s2mpb03_pmic_suspend	NULL
-#define s2mpb03_pmic_resume	NULL
-#endif /* CONFIG_PM */
-
-const struct dev_pm_ops s2mpb03_pmic_pm = {
-	.suspend = s2mpb03_pmic_suspend,
-	.resume = s2mpb03_pmic_resume,
-};
 
 #if defined(CONFIG_OF)
 static const struct i2c_device_id s2mpb03_pmic_id[] = {
@@ -628,9 +626,6 @@ static struct i2c_driver s2mpb03_i2c_driver = {
 #if defined(CONFIG_OF)
 		.of_match_table	= s2mpb03_i2c_dt_ids,
 #endif /* CONFIG_OF */
-#if defined(CONFIG_PM)
-		.pm = &s2mpb03_pmic_pm,
-#endif
 		.suppress_bind_attrs = true,
 	},
 	.probe = s2mpb03_pmic_probe,

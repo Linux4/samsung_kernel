@@ -19,21 +19,17 @@
 #endif
 
 struct pdic_notifier_struct pd_noti;
-EXPORT_SYMBOL(pd_noti);
 
 void (*fp_select_pdo)(int num);
-EXPORT_SYMBOL(fp_select_pdo);
 int (*fp_sec_pd_select_pps)(int num, int ppsVol, int ppsCur);
-EXPORT_SYMBOL(fp_sec_pd_select_pps);
 int (*fp_sec_pd_get_apdo_max_power)(unsigned int *pdo_pos, unsigned int *taMaxVol, unsigned int *taMaxCur, unsigned int *taMaxPwr);
-EXPORT_SYMBOL(fp_sec_pd_get_apdo_max_power);
+int (*fp_pps_enable)(int num, int ppsVol, int ppsCur, int enable);
 
 void select_pdo(int num)
 {
 	if (fp_select_pdo)
 		fp_select_pdo(num);
 }
-EXPORT_SYMBOL(select_pdo);
 
 int sec_pd_select_pps(int num, int ppsVol, int ppsCur)
 {
@@ -42,7 +38,14 @@ int sec_pd_select_pps(int num, int ppsVol, int ppsCur)
 
 	return 0;
 }
-EXPORT_SYMBOL(sec_pd_select_pps);
+
+int sec_pps_enable(int num, int ppsVol, int ppsCur, int enable)
+{
+	if (fp_pps_enable)
+		return fp_pps_enable(num, ppsVol, ppsCur, enable);
+
+	return 0;
+}
 
 int sec_pd_get_apdo_max_power(unsigned int *pdo_pos, unsigned int *taMaxVol, unsigned int *taMaxCur, unsigned int *taMaxPwr)
 {
@@ -51,4 +54,3 @@ int sec_pd_get_apdo_max_power(unsigned int *pdo_pos, unsigned int *taMaxVol, uns
 
 	return -ENOTSUPP;
 }
-EXPORT_SYMBOL(sec_pd_get_apdo_max_power);

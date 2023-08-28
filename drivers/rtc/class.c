@@ -20,9 +20,6 @@
 #include <linux/idr.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
-#ifdef CONFIG_SEC_PM_DEBUG
-#include <linux/suspend.h>
-#endif /* CONFIG_SEC_PM_DEBUG */
 
 #include "rtc-core.h"
 
@@ -54,11 +51,7 @@ static struct timespec64 old_rtc, old_system, old_delta;
 static int rtc_suspend(struct device *dev)
 {
 	struct rtc_device	*rtc = to_rtc_device(dev);
-#ifdef CONFIG_RTC_HIGH_RES
-	struct rtc_hrtime	tm;
-#else
 	struct rtc_time		tm;
-#endif
 	struct timespec64	delta, delta_delta;
 	int err;
 
@@ -69,23 +62,14 @@ static int rtc_suspend(struct device *dev)
 		return 0;
 
 	/* snapshot the current RTC and system time at suspend*/
-#ifdef CONFIG_RTC_HIGH_RES
-	err = rtc_read_hrtime(rtc, &tm);
-#else
 	err = rtc_read_time(rtc, &tm);
-#endif
 	if (err < 0) {
 		pr_debug("%s:  fail to read rtc time\n", dev_name(&rtc->dev));
 		return 0;
 	}
 
 	ktime_get_real_ts64(&old_system);
-#ifdef CONFIG_RTC_HIGH_RES
-	old_rtc.tv_sec = rtc_hrtm_to_time64(&tm);
-	old_rtc.tv_nsec = tm.tm_msec * NSEC_PER_MSEC;
-#else
 	old_rtc.tv_sec = rtc_tm_to_time64(&tm);
-#endif
 
 
 	/*
@@ -113,11 +97,7 @@ static int rtc_suspend(struct device *dev)
 static int rtc_resume(struct device *dev)
 {
 	struct rtc_device	*rtc = to_rtc_device(dev);
-#ifdef CONFIG_RTC_HIGH_RES
-	struct rtc_hrtime	tm;
-#else
 	struct rtc_time		tm;
-#endif
 	struct timespec64	new_system, new_rtc;
 	struct timespec64	sleep_time;
 	int err;
@@ -131,23 +111,14 @@ static int rtc_resume(struct device *dev)
 
 	/* snapshot the current rtc and system time at resume */
 	ktime_get_real_ts64(&new_system);
-#ifdef CONFIG_RTC_HIGH_RES
-	err = rtc_read_hrtime(rtc, &tm);
-#else
 	err = rtc_read_time(rtc, &tm);
-#endif
 	if (err < 0) {
 		pr_debug("%s:  fail to read rtc time\n", dev_name(&rtc->dev));
 		return 0;
 	}
 
-#ifdef CONFIG_RTC_HIGH_RES
-	new_rtc.tv_sec = rtc_hrtm_to_time64(&tm);
-	new_rtc.tv_nsec = tm.tm_msec * NSEC_PER_MSEC;
-#else
 	new_rtc.tv_sec = rtc_tm_to_time64(&tm);
 	new_rtc.tv_nsec = 0;
-#endif
 
 	if (new_rtc.tv_sec < old_rtc.tv_sec) {
 		pr_debug("%s:  time travel!\n", dev_name(&rtc->dev));
@@ -169,12 +140,6 @@ static int rtc_resume(struct device *dev)
 
 	if (sleep_time.tv_sec >= 0)
 		timekeeping_inject_sleeptime64(&sleep_time);
-#ifdef CONFIG_SEC_PM_DEBUG
-	else
-		pm_deferred_pr_dbg("rtc: suspended for 0 seconds(%lld.%03lu)\n",
-				sleep_time.tv_sec,
-				sleep_time.tv_nsec / NSEC_PER_MSEC);
-#endif /* CONFIG_SEC_PM_DEBUG */
 	rtc_hctosys_ret = 0;
 	return 0;
 }
@@ -376,6 +341,11 @@ struct rtc_device *rtc_device_register(const char *name, struct device *dev,
 	dev_info(dev, "rtc core: registered %s as %s\n",
 			name, dev_name(&rtc->dev));
 
+#ifdef CONFIG_RTC_HCTOSYS_DEVICE
+	if (!strcmp(dev_name(&rtc->dev), CONFIG_RTC_HCTOSYS_DEVICE))
+		rtc_hctosys();
+#endif
+
 	return rtc;
 
 exit_ida:
@@ -561,6 +531,11 @@ int __rtc_register_device(struct module *owner, struct rtc_device *rtc)
 	rtc->registered = true;
 	dev_info(rtc->dev.parent, "registered as %s\n",
 		 dev_name(&rtc->dev));
+
+#ifdef CONFIG_RTC_HCTOSYS_DEVICE
+	if (!strcmp(dev_name(&rtc->dev), CONFIG_RTC_HCTOSYS_DEVICE))
+		rtc_hctosys();
+#endif
 
 	return 0;
 }

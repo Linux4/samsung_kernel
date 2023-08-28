@@ -24,8 +24,6 @@
 #include <linux/regulator/machine.h>
 #include "../sec_charging_common.h"
 
-#include <linux/sec_batt.h>
-
 /* Slave address should be shifted to the right 1bit.
  * R/W bit should NOT be included.
  */
@@ -35,6 +33,10 @@
 #define ALERT_EN 0x04
 #define CAPACITY_SCALE_DEFAULT_CURRENT 1000
 #define CAPACITY_SCALE_HV_CURRENT 600
+
+extern unsigned int lpcharge;
+extern int charging_night_mode;
+extern int fg_reset;
 
 enum max77705_vempty_mode {
 	VEMPTY_MODE_HW = 0,
@@ -205,7 +207,7 @@ struct max77705_fuelgauge_data {
 	struct battery_data_t        *battery_data;
 
 	bool is_fuel_alerted;
-	struct wake_lock fuel_alert_wake_lock;
+	struct wakeup_source *fuel_alert_wake_lock;
 
 	unsigned int capacity_old;	/* only for atomic calculation */
 	unsigned int capacity_max;	/* only for dynamic calculation */

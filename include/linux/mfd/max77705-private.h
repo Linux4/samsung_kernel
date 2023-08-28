@@ -1,28 +1,23 @@
 /*
  * max77705-private.h - Voltage regulator driver for the Maxim 77705
  *
- *  Copyright (C) 2016 Samsung Electrnoics
- *  Insun Choi <insun77.choi@samsung.com>
- *
  * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #ifndef __LINUX_MFD_MAX77705_PRIV_H
 #define __LINUX_MFD_MAX77705_PRIV_H
 
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/slab.h>
+#include <linux/irq.h>
+#include <linux/gpio.h>
+#include <linux/delay.h>
 #include <linux/i2c.h>
-#include <linux/usb/typec/maxim/max77705.h>
+#include <linux/ccic/max77705.h>
+#include <linux/ccic/max77705_usbc.h>
 #define MAX77705_I2C_ADDR		(0x92)
 #define MAX77705_REG_INVALID		(0xff)
 
@@ -357,7 +352,6 @@ struct max77705_dev {
 	int irq_gpio;
 	bool wakeup;
 	bool blocking_waterevent;
-	int device_product_id;
 	struct mutex irqlock;
 	int irq_masks_cur[MAX77705_IRQ_GROUP_NR];
 	int irq_masks_cache[MAX77705_IRQ_GROUP_NR];
@@ -386,7 +380,17 @@ struct max77705_dev {
 
 	u8 cc_booting_complete;
 
-	int set_altmode_en;
+	int set_altmode;
+
+	bool suspended;
+	wait_queue_head_t suspend_wait;
+
+	wait_queue_head_t queue_empty_wait_q;
+	int doing_irq;
+	int is_usbc_queue;
+
+	int enable_nested_irq;    
+	u8 usbc_irq;
 
 	void (*check_pdmsg)(void *data, u8 pdmsg);
 	void *usbc_data;

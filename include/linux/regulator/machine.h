@@ -247,19 +247,14 @@ struct regulator_init_data {
 
 #ifdef CONFIG_REGULATOR
 void regulator_has_full_constraints(void);
-#ifdef CONFIG_SEC_PM_DEBUG
-int regulator_show_enabled(void);
-#endif /* CONFIG_SEC_PM_DEBUG */
+void regulator_debug_print_enabled(void);
 #else
 static inline void regulator_has_full_constraints(void)
 {
 }
-#ifdef CONFIG_SEC_PM_DEBUG
-int regulator_show_enabled(void)
+static void regulator_debug_print_enabled(void)
 {
-	return 0;
 }
-#endif /* CONFIG_SEC_PM_DEBUG */
 #endif
 
 static inline int regulator_suspend_prepare(suspend_state_t state)

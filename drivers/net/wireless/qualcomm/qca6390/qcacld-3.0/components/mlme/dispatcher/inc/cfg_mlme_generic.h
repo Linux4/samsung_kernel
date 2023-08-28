@@ -159,8 +159,8 @@
 #define CFG_BAND_CAPABILITY CFG_INI_UINT( \
 	"BandCapability", \
 	0, \
-	7, \
-	7, \
+	2, \
+	0, \
 	CFG_VALUE_OR_DEFAULT, \
 	"Band Capability")
 
@@ -692,12 +692,13 @@
  * sae_connect_retries - Bit mask to retry Auth and full connection on assoc
  * timeout to same AP and auth retries during roaming
  * @Min: 0x0
- * @Max: 0x52
+ * @Max: 0x53
  * @Default: 0x49
  *
  * This ini is used to set max auth retry in auth phase of roaming and initial
- * connection and max connection retry in case of assoc timeout. MAX Auth and
- * connection retries are capped to 2 and roam Auth retry is capped to 1.
+ * connection and max connection retry in case of assoc timeout. MAX Auth
+ * retries are capped to 3, connection retries are capped to 2 and roam Auth
+ * retry is capped to 1.
  * Default is 0x49 i.e. 1 retry each.
  *
  * Bits       Retry Type
@@ -726,30 +727,8 @@
  * </ini>
  */
 #define CFG_SAE_CONNECION_RETRIES CFG_INI_UINT("sae_connect_retries", \
-				0, 0x52, 0x49, CFG_VALUE_OR_DEFAULT, \
+				0, 0x53, 0x49, CFG_VALUE_OR_DEFAULT, \
 				"Bit mask to retry Auth and full connection on assoc timeout to same AP for SAE connection")
-
-/*
- * <ini>
- * join_failure_retry_interval - Set join failure retry interval (in ms)
- *
- * @Min: 0
- * @Max: 3000
- * @Default: 50
- *
- * This ini to set the join failure retry interval in ms
- *
- * Related: None.
-
- * Supported Feature: General
- *
- * Usage: Internal
- *
- * </ini>
- */
-#define CFG_JOIN_FAILURE_RETRY_INTERVAL CFG_INI_UINT("join_failure_retry_interval", \
-				0, 3000, 50, CFG_VALUE_OR_DEFAULT, \
-				"Set join failure retry time in ms")
 
 #define CFG_GENERIC_ALL \
 	CFG(CFG_ENABLE_DEBUG_PACKET_LOG) \
@@ -781,6 +760,5 @@
 	CFG(CFG_MGMT_RETRY_MAX) \
 	CFG(CFG_BMISS_SKIP_FULL_SCAN) \
 	CFG(CFG_ENABLE_RING_BUFFER) \
-	CFG(CFG_JOIN_FAILURE_RETRY_INTERVAL) \
 	CFG(CFG_SAE_CONNECION_RETRIES)
 #endif /* __CFG_MLME_GENERIC_H */

@@ -16,9 +16,9 @@
 #include <linux/sched/autogroup.h>
 #include <net/net_namespace.h>
 #include <linux/sched/rt.h>
+#include <linux/task_integrity.h>
 #include <linux/livepatch.h>
 #include <linux/mm_types.h>
-#include <linux/task_integrity.h>
 
 #include <asm/thread_info.h>
 
@@ -54,7 +54,7 @@ extern struct cred init_cred;
 	.usage_count = ATOMIC_INIT(1),					\
 	.value_lock = __SPIN_LOCK_UNLOCKED(integrity.value_lock),	\
 	.list_lock = __SPIN_LOCK_UNLOCKED(integrity.list_lock),		\
-	.events = { .list = LIST_HEAD_INIT(integrity.events.list),},   \
+	.events = { .list = LIST_HEAD_INIT(integrity.events.list),},	\
 }
 
 # define INIT_INTEGRITY(tsk)						\

@@ -17,6 +17,14 @@
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 
+#ifdef CONFIG_SEC_PM
+#include <linux/sec_class.h>
+#endif // CONFIG_SEC_PM
+
+#ifdef CONFIG_SEC_PM
+static struct s2dos06_data *s2dos06_info;
+#endif /* CONFIG_SEC_PM */
+
 #define MFD_DEV_NAME "s2dos06"
 
 struct s2dos06_dev {
@@ -37,6 +45,10 @@ struct s2dos06_dev {
 	struct device *powermeter_dev;
 #endif
 	struct adc_info *adc_meter;
+
+#ifdef CONFIG_SEC_PM
+	struct device *sec_disp_pmic_dev;
+#endif /* CONFIG_SEC_PM */
 };
 
 /**
@@ -58,6 +70,9 @@ struct s2dos06_platform_data {
 	int dp_pmic_irq;
 	int adc_mode; /* 0: not use, 1: current meter, 2: power meter */
 	int adc_sync_mode; /* 1: sync mode, 2: async mode  */
+#ifdef CONFIG_SEC_PM
+	const char *sec_disp_pmic_name;
+#endif /* CONFIG_SEC_PM */
 };
 
 struct s2dos06 {
@@ -77,6 +92,18 @@ enum S2DOS06_reg {
 	S2DOS06_REG_BUCK_VOUT,
 	S2DOS06_REG_IRQ_MASK = 0x0D,
 	S2DOS06_REG_IRQ = 0x11,
+#ifdef CONFIG_SEC_PM
+/*
+	Note: To access the 0x20 address, you have to write 0x16[6], 0x17[6] register as '1'
+		
+		Example: FD1,2,3 enable with 0xC0 slave address
+		0x16[6]='1' -> 0x17[6]='1' -> 0x20[3:2]='11' -> 0x16[6]='0' -> 0x17[6]='0'
+*/
+	S2DOS06_REG_17_SOFT_RESET = 0x16,	/* Bit[6]: Enabling AVDD, EL */
+	S2DOS06_REG_20_SOFT_RESET = 0x17,	/* Bit[6]: VOUT3_EN & VOUT12_EN */
+	S2DOS06_REG_FD = 0x20,			/* Bit[3]: AVDD(VO3), Bit[2]: ELVDD(VO1), ELVSS(VO2) */
+#endif
+	S2DOS06_REG_SSD = 0x24,
 };
 
 /* S2DOS06 regulator ids */
@@ -86,6 +113,9 @@ enum S2DOS06_regulators {
 	S2DOS06_LDO3,
 	S2DOS06_LDO4,
 	S2DOS06_BUCK1,
+#ifdef CONFIG_SEC_PM
+	S2DOS06_ELVSS,
+#endif
 	S2DOS06_REG_MAX,
 };
 /* IRQ_MASK */
@@ -104,7 +134,13 @@ enum S2DOS06_regulators {
 #define S2DOS06_BUCK_STEP1		6250
 #define S2DOS06_LDO_STEP1		25000
 #define S2DOS06_LDO_VSEL_MASK		0x7F
+#define S2DOS06_LDO_FD_MASK			0x80
 #define S2DOS06_BUCK_VSEL_MASK		0xFF
+#define S2DOS06_BUCK_FD_MASK		0x08
+#ifdef CONFIG_SEC_PM
+#define S2DOS06_ELVSS_SSD_SET_MASK	(1 << 4)
+#define S2DOS06_ELVSS_SSD_EN_MASK	(3 << 0)
+#endif
 /* Control signal */
 #define S2DOS06_ENABLE_MASK_L1		(1 << 0)
 #define S2DOS06_ENABLE_MASK_L2		(1 << 1)
@@ -153,7 +189,7 @@ enum S2DOS06_regulators {
 #define SMPNUM_MASK			0x0F
 #define PWRMT_EN_CHK			(1 << 6)
 
-#define S2DOS06_REGULATOR_MAX		5
+#define S2DOS06_REGULATOR_MAX		6
 #define S2DOS06_MAX_ADC_CHANNEL		8
 
 extern void s2dos06_powermeter_init(struct s2dos06_dev *s2dos06);

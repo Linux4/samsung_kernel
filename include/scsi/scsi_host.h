@@ -325,7 +325,7 @@ struct scsi_host_template {
 #define SCSI_ADAPTER_RESET	1
 #define SCSI_FIRMWARE_RESET	2
 
-	void (* tw_ctrl)(struct scsi_device *, int);
+        void (* tw_ctrl)(struct scsi_device *, int);
 
 	/*
 	 * Name of proc directory
@@ -485,6 +485,9 @@ struct scsi_host_template {
 	 */
 	unsigned int cmd_size;
 	struct scsi_host_cmd_pool *cmd_pool;
+
+	/* Delay for runtime autosuspend */
+	int rpm_autosuspend_delay;
 };
 
 /*
@@ -656,6 +659,12 @@ struct Scsi_Host {
 	unsigned short_inquiry:1;
 
 	/*
+	 * Set "DBD" field in mode_sense caching mode page in case it is
+	 * mandatory by LLD standard.
+	 */
+	unsigned set_dbd_for_caching:1;
+
+	/*
 	 * Optional work queue to be utilized by the transport
 	 */
 	char work_q_name[20];
@@ -687,7 +696,6 @@ struct Scsi_Host {
 	
 
 	enum scsi_host_state shost_state;
-	bool wlun_clr_uac;
 
 	/* ldm bits */
 	struct device		shost_gendev, shost_dev;
@@ -703,20 +711,24 @@ struct Scsi_Host {
 	 * Needed just in case we have virtual hosts.
 	 */
 	struct device *dma_dev;
+
+	unsigned int  by_ufs;
 #ifdef CONFIG_USB_STORAGE_DETECT
 	unsigned int  by_usb;
 #endif
-	unsigned int  by_ufs;
+
 	unsigned int medium_err_cnt;
 	unsigned int hw_err_cnt;
-#define SEC_MAX_LBA_LOGGING	10 
-#define SEC_ISSUE_REGION_STEP	(200*1024/4)	/* 200MB : 1 LBA = 4KB */ 
-	unsigned long issue_LBA_list[SEC_MAX_LBA_LOGGING]; 
-	unsigned int issue_LBA_count; 
-	u64 issue_region_map; 
+#define SEC_MAX_LBA_LOGGING	10
+#define SEC_ISSUE_REGION_STEP	(200*1024/4)	/* 200MB : 1 LBA = 4KB */
+	unsigned long issue_LBA_list[SEC_MAX_LBA_LOGGING];
+	unsigned int issue_LBA_count;
+	u64 issue_region_map;
+#if defined(CONFIG_UFS_DATA_LOG)
 	sector_t  ufs_system_start;
 	sector_t  ufs_system_end;
 	bool ufs_sys_log_en;
+#endif
 
 	/*
 	 * We should ensure that this is aligned, both for better performance

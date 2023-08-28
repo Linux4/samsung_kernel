@@ -22,7 +22,6 @@
 #ifdef __KERNEL__
 
 #include <linux/types.h>
-#include <linux/debug-snapshot.h>
 
 #include <asm/byteorder.h>
 #include <asm/barrier.h>
@@ -31,11 +30,13 @@
 #include <asm/early_ioremap.h>
 #include <asm/alternative.h>
 #include <asm/cpufeature.h>
+#include <linux/msm_rtb.h>
 
 #include <xen/xen.h>
 
 /*
  * Generic IO read/write.  These perform native-endian accesses.
+ * that some architectures will want to re-define __raw_{read,write}w.
  */
 static inline void __raw_writeb_no_log(u8 val, volatile void __iomem *addr)
 {
@@ -60,7 +61,6 @@ static inline void __raw_writeq_no_log(u64 val, volatile void __iomem *addr)
 static inline u8 __raw_readb_no_log(const volatile void __iomem *addr)
 {
 	u8 val;
-
 	asm volatile(ALTERNATIVE("ldrb %w0, [%1]",
 				 "ldarb %w0, [%1]",
 				 ARM64_WORKAROUND_DEVICE_LOAD_ACQUIRE)
@@ -82,7 +82,6 @@ static inline u16 __raw_readw_no_log(const volatile void __iomem *addr)
 static inline u32 __raw_readl_no_log(const volatile void __iomem *addr)
 {
 	u32 val;
-
 	asm volatile(ALTERNATIVE("ldr %w0, [%1]",
 				 "ldar %w0, [%1]",
 				 ARM64_WORKAROUND_DEVICE_LOAD_ACQUIRE)
@@ -93,7 +92,6 @@ static inline u32 __raw_readl_no_log(const volatile void __iomem *addr)
 static inline u64 __raw_readq_no_log(const volatile void __iomem *addr)
 {
 	u64 val;
-
 	asm volatile(ALTERNATIVE("ldr %0, [%1]",
 				 "ldar %0, [%1]",
 				 ARM64_WORKAROUND_DEVICE_LOAD_ACQUIRE)
@@ -101,33 +99,53 @@ static inline u64 __raw_readq_no_log(const volatile void __iomem *addr)
 	return val;
 }
 
-#define __raw_write_logging(v, a, _l) ({ \
-		volatile void __iomem *_a = (a); \
-		const char *_type __attribute__((unused)); \
-		_type = #_l; \
-		dbg_snapshot_reg('w', _type[0], (void __force *)_a); \
-		__raw_write##_l##_no_log((v), _a); \
-		})
+/*
+ * There may be cases when  clients don't want to support or can't support the
+ * logging, The appropriate functions can be used but clinets should carefully
+ * consider why they can't support the logging
+ */
 
-#define __raw_writeb(v, a)	__raw_write_logging((v), a, b)
-#define __raw_writew(v, a)	__raw_write_logging((v), a, w)
-#define __raw_writel(v, a)	__raw_write_logging((v), a, l)
-#define __raw_writeq(v, a)	__raw_write_logging((v), a, q)
+#if defined(CONFIG_QCOM_RTB)
+#define SEC_DEBUG_ETB_WAYPOINT_COND(__cond) \
+	if (!IS_ENABLED(CONFIG_SEC_DEBUG)) \
+		ETB_WAYPOINT; \
+	else if (__cond) \
+		ETB_WAYPOINT;
+#else
+#define SEC_DEBUG_ETB_WAYPOINT_COND(__cond)	ETB_WAYPOINT
+#endif
 
-#define __raw_read_logging(a, _l, _t) ({ \
-		_t __a; \
-		const volatile void __iomem *_a = (const volatile void __iomem *)(a); \
-		const char *_type __attribute__((unused)); \
-		_type = #_l; \
-		dbg_snapshot_reg('r', _type[0], (void __force *)_a); \
-		__a = __raw_read##_l##_no_log(_a); \
-		__a; \
-		})
+#define __raw_write_logged(v, a, _t) ({ \
+	int _ret; \
+	void *_addr = (void *)(a); \
+	_ret = uncached_logk(LOGK_WRITEL, _addr); \
+	SEC_DEBUG_ETB_WAYPOINT_COND(_ret); \
+	__raw_write##_t##_no_log((v), _addr); \
+	if (_ret) \
+		LOG_BARRIER; \
+	})
 
-#define __raw_readb(a)		__raw_read_logging((a), b, u8)
-#define __raw_readw(a)		__raw_read_logging((a), w, u16)
-#define __raw_readl(a)		__raw_read_logging((a), l, u32)
-#define __raw_readq(a)		__raw_read_logging((a), q, u64)
+#define __raw_writeb(v, a)	__raw_write_logged((v), a, b)
+#define __raw_writew(v, a)	__raw_write_logged((v), a, w)
+#define __raw_writel(v, a)	__raw_write_logged((v), a, l)
+#define __raw_writeq(v, a)	__raw_write_logged((v), a, q)
+
+#define __raw_read_logged(a, _l, _t)    ({ \
+	_t __a; \
+	void *_addr = (void *)(a); \
+	int _ret; \
+	_ret = uncached_logk(LOGK_READL, _addr); \
+	SEC_DEBUG_ETB_WAYPOINT_COND(_ret); \
+	__a = __raw_read##_l##_no_log(_addr); \
+	if (_ret) \
+		LOG_BARRIER; \
+	__a; \
+	})
+
+#define __raw_readb(a)		__raw_read_logged((a), b, u8)
+#define __raw_readw(a)		__raw_read_logged((a), w, u16)
+#define __raw_readl(a)		__raw_read_logged((a), l, u32)
+#define __raw_readq(a)		__raw_read_logged((a), q, u64)
 
 /* IO barriers */
 #define __iormb(v)							\
@@ -166,15 +184,21 @@ static inline u64 __raw_readq_no_log(const volatile void __iomem *addr)
 #define writel_relaxed(v,c)	((void)__raw_writel((__force u32)cpu_to_le32(v),(c)))
 #define writeq_relaxed(v,c)	((void)__raw_writeq((__force u64)cpu_to_le64(v),(c)))
 
-#define readb_relaxed_no_log(c)	({ u8  __r = __raw_readb_no_log(c); __r; })
-#define readw_relaxed_no_log(c)	({ u16 __r = le16_to_cpu((__force __le16)__raw_readw_no_log(c)); __r; })
-#define readl_relaxed_no_log(c)	({ u32 __r = le32_to_cpu((__force __le32)__raw_readl_no_log(c)); __r; })
-#define readq_relaxed_no_log(c)	({ u64 __r = le64_to_cpu((__force __le64)__raw_readq_no_log(c)); __r; })
+#define readb_relaxed_no_log(c)	({ u8 __v = __raw_readb_no_log(c); __v; })
+#define readw_relaxed_no_log(c) \
+	({ u16 __v = le16_to_cpu((__force __le16)__raw_readw_no_log(c)); __v; })
+#define readl_relaxed_no_log(c) \
+	({ u32 __v = le32_to_cpu((__force __le32)__raw_readl_no_log(c)); __v; })
+#define readq_relaxed_no_log(c) \
+	({ u64 __v = le64_to_cpu((__force __le64)__raw_readq_no_log(c)); __v; })
 
-#define writeb_relaxed_no_log(v,c)	((void)__raw_writeb_no_log((v),(c)))
-#define writew_relaxed_no_log(v,c)	((void)__raw_writew_no_log((__force u16)cpu_to_le16(v),(c)))
-#define writel_relaxed_no_log(v,c)	((void)__raw_writel_no_log((__force u32)cpu_to_le32(v),(c)))
-#define writeq_relaxed_no_log(v,c)	((void)__raw_writeq_no_log((__force u64)cpu_to_le64(v),(c)))
+#define writeb_relaxed_no_log(v, c)	((void)__raw_writeb_no_log((v), (c)))
+#define writew_relaxed_no_log(v, c) \
+	((void)__raw_writew_no_log((__force u16)cpu_to_le32(v), (c)))
+#define writel_relaxed_no_log(v, c) \
+	((void)__raw_writel_no_log((__force u32)cpu_to_le32(v), (c)))
+#define writeq_relaxed_no_log(v, c) \
+	((void)__raw_writeq_no_log((__force u64)cpu_to_le32(v), (c)))
 
 /*
  * I/O memory access primitives. Reads are ordered relative to any
@@ -191,15 +215,23 @@ static inline u64 __raw_readq_no_log(const volatile void __iomem *addr)
 #define writel(v,c)		({ __iowmb(); writel_relaxed((v),(c)); })
 #define writeq(v,c)		({ __iowmb(); writeq_relaxed((v),(c)); })
 
-#define readb_no_log(c)		({ u8  __v = readb_relaxed_no_log(c); __iormb(__v); __v; })
-#define readw_no_log(c)		({ u16 __v = readw_relaxed_no_log(c); __iormb(__v); __v; })
-#define readl_no_log(c)		({ u32 __v = readl_relaxed_no_log(c); __iormb(__v); __v; })
-#define readq_no_log(c)		({ u64 __v = readq_relaxed_no_log(c); __iormb(__v); __v; })
+#define readb_no_log(c) \
+		({ u8  __v = readb_relaxed_no_log(c); __iormb(__v); __v; })
+#define readw_no_log(c) \
+		({ u16 __v = readw_relaxed_no_log(c); __iormb(__v); __v; })
+#define readl_no_log(c) \
+		({ u32 __v = readl_relaxed_no_log(c); __iormb(__v); __v; })
+#define readq_no_log(c) \
+		({ u64 __v = readq_relaxed_no_log(c); __iormb(__v); __v; })
 
-#define writeb_no_log(v,c)		({ __iowmb(); writeb_relaxed_no_log((v),(c)); })
-#define writew_no_log(v,c)		({ __iowmb(); writew_relaxed_no_log((v),(c)); })
-#define writel_no_log(v,c)		({ __iowmb(); writel_relaxed_no_log((v),(c)); })
-#define writeq_no_log(v,c)		({ __iowmb(); writeq_relaxed_no_log((v),(c)); })
+#define writeb_no_log(v, c) \
+		({ __iowmb(); writeb_relaxed_no_log((v), (c)); })
+#define writew_no_log(v, c) \
+		({ __iowmb(); writew_relaxed_no_log((v), (c)); })
+#define writel_no_log(v, c) \
+		({ __iowmb(); writel_relaxed_no_log((v), (c)); })
+#define writeq_no_log(v, c) \
+		({ __iowmb(); writeq_relaxed_no_log((v), (c)); })
 
 /*
  *  I/O port access primitives.
@@ -245,13 +277,13 @@ extern void __iomem *ioremap_cache(phys_addr_t phys_addr, size_t size);
 /*
  * io{read,write}{16,32,64}be() macros
  */
-#define ioread16be(p)		({ __u16 __v = be16_to_cpu((__force __be16)__raw_readw(p)); __iormb(__v); __v; })
-#define ioread32be(p)		({ __u32 __v = be32_to_cpu((__force __be32)__raw_readl(p)); __iormb(__v); __v; })
-#define ioread64be(p)		({ __u64 __v = be64_to_cpu((__force __be64)__raw_readq(p)); __iormb(__v); __v; })
+#define ioread16be(p)		({ __u16 __v = be16_to_cpu((__force __be16)__raw_readw_no_log(p)); __iormb(__v); __v; })
+#define ioread32be(p)		({ __u32 __v = be32_to_cpu((__force __be32)__raw_readl_no_log(p)); __iormb(__v); __v; })
+#define ioread64be(p)		({ __u64 __v = be64_to_cpu((__force __be64)__raw_readq_no_log(p)); __iormb(__v); __v; })
 
-#define iowrite16be(v,p)	({ __iowmb(); __raw_writew((__force __u16)cpu_to_be16(v), p); })
-#define iowrite32be(v,p)	({ __iowmb(); __raw_writel((__force __u32)cpu_to_be32(v), p); })
-#define iowrite64be(v,p)	({ __iowmb(); __raw_writeq((__force __u64)cpu_to_be64(v), p); })
+#define iowrite16be(v,p)	({ __iowmb(); __raw_writew_no_log((__force __u16)cpu_to_be16(v), p); })
+#define iowrite32be(v,p)	({ __iowmb(); __raw_writel_no_log((__force __u32)cpu_to_be32(v), p); })
+#define iowrite64be(v,p)	({ __iowmb(); __raw_writeq_no_log((__force __u64)cpu_to_be64(v), p); })
 
 #include <asm-generic/io.h>
 

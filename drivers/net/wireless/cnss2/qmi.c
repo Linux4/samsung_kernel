@@ -168,6 +168,8 @@ static int cnss_wlfw_host_cap_send_sync(struct cnss_plat_data *plat_priv)
 	struct wlfw_host_cap_resp_msg_v01 *resp;
 	struct qmi_txn txn;
 	int ret = 0;
+	u64 iova_start = 0, iova_size = 0,
+	    iova_ipa_start = 0, iova_ipa_size = 0;
 
 	cnss_pr_dbg("Sending host capability message, state: 0x%lx\n",
 		    plat_priv->driver_state);
@@ -208,6 +210,16 @@ static int cnss_wlfw_host_cap_send_sync(struct cnss_plat_data *plat_priv)
 	req->cal_done_valid = 1;
 	req->cal_done = plat_priv->cal_done;
 	cnss_pr_dbg("Calibration done is %d\n", plat_priv->cal_done);
+
+	if (!cnss_bus_get_iova(plat_priv, &iova_start, &iova_size) &&
+	    !cnss_bus_get_iova_ipa(plat_priv, &iova_ipa_start,
+				   &iova_ipa_size)) {
+		req->ddr_range_valid = 1;
+		req->ddr_range[0].start = iova_start;
+		req->ddr_range[0].size = iova_size + iova_ipa_size;
+		cnss_pr_dbg("Sending iova starting 0x%llx with size 0x%llx\n",
+			    req->ddr_range[0].start, req->ddr_range[0].size);
+	}
 
 	req->host_build_type_valid = 1;
 	req->host_build_type = cnss_get_host_build_type();
@@ -457,6 +469,24 @@ out:
 	return ret;
 }
 
+#ifdef CONFIG_SEC_SEPARATE_BDFILE
+static unsigned int system_rev __read_mostly;
+static int __init sec_hw_rev_setup(char *p)
+{
+	int ret;
+	ret = kstrtouint(p, 0, &system_rev);
+	if (unlikely(ret < 0)) {
+		cnss_pr_err("androidboot.revision is malformed (%s)\n", p);
+		return -EINVAL;
+	}
+
+	cnss_pr_info("androidboot.revision %x\n", system_rev);
+
+	return 0;
+}
+early_param("androidboot.revision", sec_hw_rev_setup);
+
+#endif
 extern int ant_from_macloader;
 
 static int cnss_get_bdf_file_name(struct cnss_plat_data *plat_priv,
@@ -466,27 +496,36 @@ static int cnss_get_bdf_file_name(struct cnss_plat_data *plat_priv,
 	char filename_tmp[MAX_FIRMWARE_NAME_LEN];
 	int ret = 0;
 
-	cnss_pr_err("ant_from_macloader %d\n",ant_from_macloader);
 	switch (bdf_type) {
 	case CNSS_BDF_ELF:
-		if (plat_priv->board_info.board_id == 0xFF) {
-			if (ant_from_macloader == 1 || ant_from_macloader == 2){
+		if (plat_priv->board_info.board_id == 0xFF)
+			if (ant_from_macloader == 1 || ant_from_macloader == 2) {
 				snprintf(filename_tmp, filename_len, ELF_BDF_FILE_NAME "%d",
 					ant_from_macloader);
-			}
-			else
+			} else
 				snprintf(filename_tmp, filename_len, ELF_BDF_FILE_NAME);
-
-		}
 		else if (plat_priv->board_info.board_id < 0xFF)
-			snprintf(filename_tmp, filename_len,
-				 ELF_BDF_FILE_NAME_PREFIX "%02x",
-				 plat_priv->board_info.board_id);
+			if (ant_from_macloader == 1 || ant_from_macloader == 2) {
+				snprintf(filename_tmp, filename_len,
+					 ELF_BDF_FILE_NAME_PREFIX "%02x%d",
+					 plat_priv->board_info.board_id, ant_from_macloader);
+			} else
+				snprintf(filename_tmp, filename_len,
+					 ELF_BDF_FILE_NAME_PREFIX "%02x",
+					 plat_priv->board_info.board_id);
 		else
 			snprintf(filename_tmp, filename_len,
 				 BDF_FILE_NAME_PREFIX "%02x.e%02x",
 				 plat_priv->board_info.board_id >> 8 & 0xFF,
 				 plat_priv->board_info.board_id & 0xFF);
+
+#ifdef CONFIG_SEC_SEPARATE_BDFILE
+	cnss_pr_info("%s: system_rev : %d ", __func__, system_rev);
+	if (system_rev < 2)
+		strcat(filename_tmp, "_old");
+
+	cnss_pr_info("%s: new BDF file by REV (w/ or w/o FEM): %s ", __func__, filename);
+#endif
 		break;
 	case CNSS_BDF_BIN:
 		if (plat_priv->board_info.board_id == 0xFF)
@@ -551,17 +590,13 @@ int cnss_wlfw_bdf_dnld_send_sync(struct cnss_plat_data *plat_priv,
 				     filename, sizeof(filename));
 	if (ret > 0) {
 		temp = DUMMY_BDF_FILE_NAME;
-		remaining = strlen(DUMMY_BDF_FILE_NAME) + 1;
+		remaining = MAX_FIRMWARE_NAME_LEN;
 		goto bypass_bdf;
 	} else if (ret < 0) {
 		goto err_req_fw;
 	}
 
-#ifdef CONFIG_ARCH_QCOM
 	ret = request_firmware(&fw_entry, filename, &plat_priv->plat_dev->dev);
-#else
-        ret = request_firmware(&fw_entry, filename, NULL);
-#endif
 	if (ret) {
 		cnss_pr_err("Failed to load BDF: %s\n", filename);
 		goto err_req_fw;
@@ -797,7 +832,7 @@ static int cnss_wlfw_wlan_mac_req_send_sync(struct cnss_plat_data *plat_priv,
 	}
 
 	if (resp->resp.result != QMI_RESULT_SUCCESS_V01) {
-		cnss_pr_err("WLAN mac req failed, result: %d\n",
+		cnss_pr_err("WLAN mac req failed, result: %d, err: %d\n",
 			    resp->resp.result);
 
 		ret = -EIO;
@@ -911,9 +946,8 @@ int cnss_wlfw_wlan_mode_send_sync(struct cnss_plat_data *plat_priv,
 
 	ret = qmi_txn_wait(&txn, QMI_WLFW_TIMEOUT_JF);
 	if (ret < 0) {
-		if (mode != CNSS_OFF)
-			cnss_pr_err("Failed to wait for response of mode request, mode: %s(%d), err: %d\n",
-				    cnss_qmi_mode_to_str(mode), mode, ret);
+		cnss_pr_err("Failed to wait for response of mode request, mode: %s(%d), err: %d\n",
+			    cnss_qmi_mode_to_str(mode), mode, ret);
 		goto out;
 	}
 
@@ -1063,7 +1097,7 @@ int cnss_wlfw_athdiag_read_send_sync(struct cnss_plat_data *plat_priv,
 		return -ENODEV;
 
 	if (!data || data_len == 0 || data_len > QMI_WLFW_MAX_DATA_SIZE_V01) {
-		cnss_pr_err("Invalid parameters for athdiag read: data %p, data_len %u\n",
+		cnss_pr_err("Invalid parameters for athdiag read: data %pK, data_len %u\n",
 			    data, data_len);
 		return -EINVAL;
 	}
@@ -1150,12 +1184,12 @@ int cnss_wlfw_athdiag_write_send_sync(struct cnss_plat_data *plat_priv,
 		return -ENODEV;
 
 	if (!data || data_len == 0 || data_len > QMI_WLFW_MAX_DATA_SIZE_V01) {
-		cnss_pr_err("Invalid parameters for athdiag write: data %p, data_len %u\n",
+		cnss_pr_err("Invalid parameters for athdiag write: data %pK, data_len %u\n",
 			    data, data_len);
 		return -EINVAL;
 	}
 
-	cnss_pr_dbg("athdiag write: state 0x%lx, offset %x, mem_type %x, data_len %u, data %p\n",
+	cnss_pr_dbg("athdiag write: state 0x%lx, offset %x, mem_type %x, data_len %u, data %pK\n",
 		    plat_priv->driver_state, offset, mem_type, data_len, data);
 
 	req = kzalloc(sizeof(*req), GFP_KERNEL);
@@ -1503,8 +1537,8 @@ out:
 	return ret;
 }
 
-static int cnss_wlfw_wfc_call_status_send_sync(struct cnss_plat_data *plat_priv,
-					       u32 data_len, const void *data)
+int cnss_wlfw_wfc_call_status_send_sync(struct cnss_plat_data *plat_priv,
+					u32 data_len, const void *data)
 {
 	struct wlfw_wfc_call_status_req_msg_v01 *req;
 	struct wlfw_wfc_call_status_resp_msg_v01 *resp;
@@ -1734,7 +1768,8 @@ static void cnss_wlfw_request_mem_ind_cb(struct qmi_handle *qmi_wlfw,
 			    ind_msg->mem_seg[i].size, ind_msg->mem_seg[i].type);
 		plat_priv->fw_mem[i].type = ind_msg->mem_seg[i].type;
 		plat_priv->fw_mem[i].size = ind_msg->mem_seg[i].size;
-		if (plat_priv->fw_mem[i].type == CNSS_MEM_TYPE_DDR)
+		if (!plat_priv->fw_mem[i].va &&
+		    plat_priv->fw_mem[i].type == CNSS_MEM_TYPE_DDR)
 			plat_priv->fw_mem[i].attrs |=
 				DMA_ATTR_FORCE_CONTIGUOUS;
 	}

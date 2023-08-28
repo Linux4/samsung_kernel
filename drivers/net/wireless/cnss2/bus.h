@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved. */
+/* Copyright (c) 2018-2020, The Linux Foundation. All rights reserved. */
 
 #ifndef _CNSS_BUS_H
 #define _CNSS_BUS_H
@@ -37,7 +37,6 @@ int cnss_bus_qmi_send_put(struct cnss_plat_data *plat_priv);
 void cnss_bus_fw_boot_timeout_hdlr(struct timer_list *t);
 void cnss_bus_collect_dump_info(struct cnss_plat_data *plat_priv,
 				bool in_panic);
-void cnss_bus_device_crashed(struct cnss_plat_data *plat_priv);
 int cnss_bus_call_driver_probe(struct cnss_plat_data *plat_priv);
 int cnss_bus_call_driver_remove(struct cnss_plat_data *plat_priv);
 int cnss_bus_dev_powerup(struct cnss_plat_data *plat_priv);
@@ -57,5 +56,7 @@ int cnss_bus_debug_reg_read(struct cnss_plat_data *plat_priv, u32 offset,
 			    u32 *val);
 int cnss_bus_debug_reg_write(struct cnss_plat_data *plat_priv, u32 offset,
 			     u32 val);
-
+int cnss_bus_get_iova(struct cnss_plat_data *plat_priv, u64 *addr, u64 *size);
+int cnss_bus_get_iova_ipa(struct cnss_plat_data *plat_priv, u64 *addr,
+			  u64 *size);
 #endif /* _CNSS_BUS_H */

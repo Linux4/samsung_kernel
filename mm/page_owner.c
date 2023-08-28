@@ -10,6 +10,8 @@
 #include <linux/migrate.h>
 #include <linux/stackdepot.h>
 #include <linux/seq_file.h>
+#include <linux/sched.h>
+#include <linux/sched/clock.h>
 
 #include "internal.h"
 
@@ -24,9 +26,16 @@ struct page_owner {
 	short last_migrate_reason;
 	gfp_t gfp_mask;
 	depot_stack_handle_t handle;
+	int pid;
+	u64 ts_nsec;
+	u64 free_ts_nsec;
+	int alloc_cpu, free_cpu;
+	char alloc_comm[TASK_COMM_LEN], free_comm[TASK_COMM_LEN];
+	pid_t free_pid;
 };
 
-static bool page_owner_disabled = true;
+static bool page_owner_disabled =
+	!IS_ENABLED(CONFIG_PAGE_OWNER_ENABLE_DEFAULT);
 DEFINE_STATIC_KEY_FALSE(page_owner_inited);
 
 static depot_stack_handle_t dummy_handle;
@@ -42,6 +51,9 @@ static int __init early_page_owner_param(char *buf)
 
 	if (strcmp(buf, "on") == 0)
 		page_owner_disabled = false;
+
+	if (strcmp(buf, "off") == 0)
+		page_owner_disabled = true;
 
 	return 0;
 }
@@ -111,12 +123,22 @@ void __reset_page_owner(struct page *page, unsigned int order)
 {
 	int i;
 	struct page_ext *page_ext;
+	u64 free_ts_nsec = local_clock();
+	struct page_owner *page_owner;
 
 	for (i = 0; i < (1 << order); i++) {
 		page_ext = lookup_page_ext(page + i);
 		if (unlikely(!page_ext))
 			continue;
+		page_owner = get_page_owner(page_ext);
+		page_owner->free_ts_nsec = free_ts_nsec;
+		preempt_disable();
+		page_owner->free_cpu = smp_processor_id();
+		preempt_enable();
+		strncpy(page_owner->free_comm, current->comm, TASK_COMM_LEN);
+		page_owner->free_pid = current->pid;
 		__clear_bit(PAGE_EXT_OWNER, &page_ext->flags);
+		__set_bit(PAGE_EXT_PG_FREE, &page_ext->flags);
 	}
 }
 
@@ -179,8 +201,16 @@ static inline void __set_page_owner_handle(struct page_ext *page_ext,
 	page_owner->order = order;
 	page_owner->gfp_mask = gfp_mask;
 	page_owner->last_migrate_reason = -1;
+	page_owner->pid = current->pid;
+	page_owner->ts_nsec = local_clock();
+	page_owner->free_ts_nsec = 0;
+	preempt_disable();
+	page_owner->alloc_cpu = smp_processor_id();
+	preempt_enable();
+	strncpy(page_owner->alloc_comm, current->comm, TASK_COMM_LEN);
 
 	__set_bit(PAGE_EXT_OWNER, &page_ext->flags);
+	__clear_bit(PAGE_EXT_PG_FREE, &page_ext->flags);
 }
 
 noinline void __set_page_owner(struct page *page, unsigned int order,
@@ -188,12 +218,24 @@ noinline void __set_page_owner(struct page *page, unsigned int order,
 {
 	struct page_ext *page_ext = lookup_page_ext(page);
 	depot_stack_handle_t handle;
+	int i;
 
 	if (unlikely(!page_ext))
 		return;
 
 	handle = save_stack(gfp_mask);
 	__set_page_owner_handle(page_ext, handle, order, gfp_mask);
+
+	/* set page owner for tail pages if any */
+	for (i = 1; i < (1 << order); i++) {
+		page_ext = lookup_page_ext(page + i);
+
+		if (unlikely(!page_ext))
+			continue;
+
+		/* mark tail pages as order 0 individual pages */
+		__set_page_owner_handle(page_ext, handle, 0, gfp_mask);
+	}
 }
 
 void __set_page_owner_migrate_reason(struct page *page, int reason)
@@ -239,6 +281,16 @@ void __copy_page_owner(struct page *oldpage, struct page *newpage)
 	new_page_owner->last_migrate_reason =
 		old_page_owner->last_migrate_reason;
 	new_page_owner->handle = old_page_owner->handle;
+	new_page_owner->pid = old_page_owner->pid;
+	new_page_owner->ts_nsec = old_page_owner->ts_nsec;
+	new_page_owner->free_ts_nsec = old_page_owner->ts_nsec;
+	new_page_owner->alloc_cpu = old_page_owner->alloc_cpu;
+	strncpy(new_page_owner->alloc_comm, old_page_owner->alloc_comm,
+		TASK_COMM_LEN);
+	new_page_owner->free_cpu = old_page_owner->free_cpu;
+	strncpy(new_page_owner->free_comm, old_page_owner->free_comm,
+		TASK_COMM_LEN);
+	new_page_owner->free_pid = old_page_owner->free_pid;
 
 	/*
 	 * We don't clear the bit on the oldpage as it's going to be freed
@@ -357,9 +409,10 @@ print_page_owner(char __user *buf, size_t count, unsigned long pfn,
 		return -ENOMEM;
 
 	ret = snprintf(kbuf, count,
-			"Page allocated via order %u, mask %#x(%pGg)\n",
+			"Page allocated via order %u, mask %#x(%pGg), pid %d, ts %llu ns\n",
 			page_owner->order, page_owner->gfp_mask,
-			&page_owner->gfp_mask);
+			&page_owner->gfp_mask, page_owner->pid,
+			page_owner->ts_nsec);
 
 	if (ret >= count)
 		goto err;
@@ -442,8 +495,9 @@ void __dump_page_owner(struct page *page)
 	}
 
 	depot_fetch_stack(handle, &trace);
-	pr_alert("page allocated via order %u, migratetype %s, gfp_mask %#x(%pGg)\n",
-		 page_owner->order, migratetype_names[mt], gfp_mask, &gfp_mask);
+	pr_alert("page allocated via order %u, migratetype %s, gfp_mask %#x(%pGg), pid %d, ts %llu ns\n",
+		 page_owner->order, migratetype_names[mt], gfp_mask, &gfp_mask,
+		 page_owner->pid, page_owner->ts_nsec);
 	print_stack_trace(&trace, 0);
 
 	if (page_owner->last_migrate_reason != -1)

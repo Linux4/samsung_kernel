@@ -93,9 +93,9 @@ static bool match_index(struct hid_usage *usage,
 
 typedef bool (*hid_usage_cmp_t)(struct hid_usage *usage,
 				unsigned int cur_idx, unsigned int val);
-
-extern bool lcd_is_on;
                 
+extern bool lcd_is_on;      
+
 static struct hid_usage *hidinput_find_key(struct hid_device *hid,
 					   hid_usage_cmp_t match,
 					   unsigned int value,
@@ -1131,9 +1131,15 @@ mapped:
 	if (!bit)
 		return;
 
-	if (device->driver->input_mapped && device->driver->input_mapped(device,
-				hidinput, field, usage, &bit, &max) < 0)
-		goto ignore;
+	if (device->driver->input_mapped &&
+	    device->driver->input_mapped(device, hidinput, field, usage,
+					 &bit, &max) < 0) {
+		/*
+		 * The driver indicated that no further generic handling
+		 * of the usage is desired.
+		 */
+		return;
+	}
 
 	set_bit(usage->type, input->evbit);
 
@@ -1214,9 +1220,11 @@ mapped:
 		set_bit(MSC_SCAN, input->mscbit);
 	}
 
-ignore:
 	return;
 
+ignore:
+	usage->type = 0;
+	usage->code = 0;
 }
 
 void hidinput_hid_event(struct hid_device *hid, struct hid_field *field, struct hid_usage *usage, __s32 value)
@@ -1466,7 +1474,7 @@ static void hidinput_led_worker(struct work_struct *work)
 		kfree(buf);
 		return;
 	}
-    
+
 	hid_output_report(report, buf);
 	/* synchronous output report */
 	ret = hid_hw_output_report(hid, buf, len);

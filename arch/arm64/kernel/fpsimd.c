@@ -18,6 +18,7 @@
  */
 
 #include <linux/bitmap.h>
+#include <linux/bottom_half.h>
 #include <linux/bug.h>
 #include <linux/cache.h>
 #include <linux/compat.h>
@@ -27,6 +28,7 @@
 #include <linux/linkage.h>
 #include <linux/irqflags.h>
 #include <linux/init.h>
+#include <linux/percpu.h>
 #include <linux/prctl.h>
 #include <linux/preempt.h>
 #include <linux/ptrace.h>
@@ -36,18 +38,18 @@
 #include <linux/slab.h>
 #include <linux/stddef.h>
 #include <linux/sysctl.h>
-#include <linux/hardirq.h>
 
 #include <asm/esr.h>
 #include <asm/fpsimd.h>
 #include <asm/cpufeature.h>
 #include <asm/cputype.h>
 #include <asm/processor.h>
-#include <asm/neon.h>
 #include <asm/simd.h>
 #include <asm/sigcontext.h>
 #include <asm/sysreg.h>
 #include <asm/traps.h>
+
+#include <linux/sec_debug.h>
 
 #define FPEXC_IOF	(1 << 0)
 #define FPEXC_DZF	(1 << 1)
@@ -84,6 +86,13 @@
  * present in the registers. The flag is set unless the FPSIMD registers of this
  * CPU currently contain the most recent userland FPSIMD state of the current
  * task.
+ *
+ * In order to allow softirq handlers to use FPSIMD, kernel_neon_begin() may
+ * save the task's FPSIMD context back to task_struct from softirq context.
+ * To prevent this from racing with the manipulation of the task's FPSIMD state
+ * from task context and thereby corrupting the state, it is necessary to
+ * protect any manipulation of a task's fpsimd_state or TIF_FOREIGN_FPSTATE
+ * flag with local_bh_disable() unless softirqs are already masked.
  *
  * For a certain task, the sequence may look something like this:
  * - the task gets scheduled in; if both the task's fpsimd_cpu field
@@ -210,6 +219,9 @@ static void sve_free(struct task_struct *task)
  */
 static void task_fpsimd_load(void)
 {
+	WARN_ON(!in_softirq() && !irqs_disabled());
+	WARN_ON(!system_supports_fpsimd());
+
 	if (system_supports_sve() && test_thread_flag(TIF_SVE))
 		sve_load_state(sve_pffr(&current->thread),
 			       &current->thread.uw.fpsimd_state.fpsr,
@@ -228,6 +240,9 @@ void fpsimd_save(void)
 {
 	struct user_fpsimd_state *st = __this_cpu_read(fpsimd_last_state.st);
 	/* set by fpsimd_bind_task_to_cpu() or fpsimd_bind_state_to_cpu() */
+
+	WARN_ON(!system_supports_fpsimd());
+	WARN_ON(!in_softirq() && !irqs_disabled());
 
 	if (!test_thread_flag(TIF_FOREIGN_FPSTATE)) {
 		if (system_supports_sve() && test_thread_flag(TIF_SVE)) {
@@ -855,73 +870,15 @@ asmlinkage void do_fpsimd_exc(unsigned int esr, struct pt_regs *regs)
 	send_sig_info(SIGFPE, &info, current);
 }
 
-#if defined(CONFIG_SEC_DEBUG_FPSIMD_CHECK_CONTEXT)
-static bool fpsimd_check_context_forced = true;
-#else
-static bool fpsimd_check_context_forced;
-#endif
-
-static int __init parse_fpsimd_check_context(char *str)
-{
-	bool enabled;
-	int ret = strtobool(str, &enabled);
-
-	if (ret)
-		return ret;
-
-	fpsimd_check_context_forced = enabled;
-
-	return 0;
-}
-early_param("fpsimd_check_context", parse_fpsimd_check_context);
-
-static void fpsimd_check_context(struct task_struct *next)
-{
-	struct user_fpsimd_state this_cpu_st;
-	struct user_fpsimd_state *nxt_st = &next->thread.uw.fpsimd_state;
-	int i;
-
-	fpsimd_save_state(&this_cpu_st);
-	for (i = 0; i < 32; i++) {
-		if (this_cpu_st.vregs[i] != nxt_st->vregs[i]) {
-			pr_auto(ASL4, "fpsimd regs were not restored properly #1 curr: (%s:%d), next: (%s:%d)\n",
-				current->comm, current->pid, next->comm, next->pid);
-			if (IS_ENABLED(CONFIG_SEC_DEBUG_FPSIMD_CHECK_CONTEXT))
-				dump_stack();
-		}
-	}
-
-	if ((this_cpu_st.fpsr != nxt_st->fpsr) ||
-			(this_cpu_st.fpcr != nxt_st->fpcr)) {
-		pr_auto(ASL4, "fpsimd regs were not restored properly #2 curr: (%s:%d), next: (%s:%d)\n",
-			current->comm, current->pid, next->comm, next->pid);
-		if (IS_ENABLED(CONFIG_SEC_DEBUG_FPSIMD_CHECK_CONTEXT))
-			dump_stack();
-	}
-}
-
 void fpsimd_thread_switch(struct task_struct *next)
 {
 	bool wrong_task, wrong_cpu;
-	struct fpsimd_kernel_state *cur_kst
-			= &current->thread.fpsimd_kernel_state;
-	struct fpsimd_kernel_state *nxt_kst
-			= &next->thread.fpsimd_kernel_state;
 
 	if (!system_supports_fpsimd())
 		return;
 
 	/* Save unsaved fpsimd state, if any: */
 	fpsimd_save();
-
-	if (atomic_read(&cur_kst->depth))
-		fpsimd_save_state((struct user_fpsimd_state *)cur_kst);
-
-	if (atomic_read(&nxt_kst->depth)) {
-		fpsimd_load_state((struct user_fpsimd_state *)nxt_kst);
-		this_cpu_write(fpsimd_last_state.st, (struct user_fpsimd_state *)nxt_kst);
-		nxt_kst->cpu = smp_processor_id();
-	}
 
 	/*
 	 * Fix up TIF_FOREIGN_FPSTATE to correctly describe next's
@@ -932,13 +889,12 @@ void fpsimd_thread_switch(struct task_struct *next)
 					&next->thread.uw.fpsimd_state;
 	wrong_cpu = next->thread.fpsimd_cpu != smp_processor_id();
 
+	if (IS_ENABLED(CONFIG_KERNEL_MODE_NEON_DEBUG))
+		if (!wrong_task && !wrong_cpu)
+			fpsimd_context_check(next);
+
 	update_tsk_thread_flag(next, TIF_FOREIGN_FPSTATE,
 			       wrong_task || wrong_cpu);
-
-	if (next->mm && !wrong_task && !wrong_cpu) {
-		if (fpsimd_check_context_forced)
-			fpsimd_check_context(next);
-	}
 }
 
 void fpsimd_flush_thread(void)
@@ -947,6 +903,8 @@ void fpsimd_flush_thread(void)
 
 	if (!system_supports_fpsimd())
 		return;
+
+	local_bh_disable();
 
 	memset(&current->thread.uw.fpsimd_state, 0,
 	       sizeof(current->thread.uw.fpsimd_state));
@@ -988,6 +946,8 @@ void fpsimd_flush_thread(void)
 	}
 
 	set_thread_flag(TIF_FOREIGN_FPSTATE);
+
+	local_bh_enable();
 }
 
 /*
@@ -999,9 +959,9 @@ void fpsimd_preserve_current_state(void)
 	if (!system_supports_fpsimd())
 		return;
 
-	preempt_disable();
+	local_bh_disable();
 	fpsimd_save();
-	preempt_enable();
+	local_bh_enable();
 }
 
 /*
@@ -1025,6 +985,7 @@ void fpsimd_bind_task_to_cpu(void)
 	struct fpsimd_last_state_struct *last =
 		this_cpu_ptr(&fpsimd_last_state);
 
+	WARN_ON(!system_supports_fpsimd());
 	last->st = &current->thread.uw.fpsimd_state;
 	current->thread.fpsimd_cpu = smp_processor_id();
 
@@ -1044,6 +1005,7 @@ void fpsimd_bind_state_to_cpu(struct user_fpsimd_state *st)
 	struct fpsimd_last_state_struct *last =
 		this_cpu_ptr(&fpsimd_last_state);
 
+	WARN_ON(!system_supports_fpsimd());
 	WARN_ON(!in_softirq() && !irqs_disabled());
 
 	last->st = st;
@@ -1056,14 +1018,28 @@ void fpsimd_bind_state_to_cpu(struct user_fpsimd_state *st)
  */
 void fpsimd_restore_current_state(void)
 {
-	if (!system_supports_fpsimd())
+	/*
+	 * For the tasks that were created before we detected the absence of
+	 * FP/SIMD, the TIF_FOREIGN_FPSTATE could be set via fpsimd_thread_switch(),
+	 * e.g, init. This could be then inherited by the children processes.
+	 * If we later detect that the system doesn't support FP/SIMD,
+	 * we must clear the flag for  all the tasks to indicate that the
+	 * FPSTATE is clean (as we can't have one) to avoid looping for ever in
+	 * do_notify_resume().
+	 */
+	if (!system_supports_fpsimd()) {
+		clear_thread_flag(TIF_FOREIGN_FPSTATE);
 		return;
-	preempt_disable();
+	}
+
+	local_bh_disable();
+
 	if (test_and_clear_thread_flag(TIF_FOREIGN_FPSTATE)) {
 		task_fpsimd_load();
 		fpsimd_bind_task_to_cpu();
 	}
-	preempt_enable();
+
+	local_bh_enable();
 }
 
 /*
@@ -1073,10 +1049,10 @@ void fpsimd_restore_current_state(void)
  */
 void fpsimd_update_current_state(struct user_fpsimd_state const *state)
 {
-	if (!system_supports_fpsimd())
+	if (WARN_ON(!system_supports_fpsimd()))
 		return;
 
-	preempt_disable();
+	local_bh_disable();
 
 	current->thread.uw.fpsimd_state = *state;
 	if (system_supports_sve() && test_thread_flag(TIF_SVE))
@@ -1087,7 +1063,7 @@ void fpsimd_update_current_state(struct user_fpsimd_state const *state)
 
 	clear_thread_flag(TIF_FOREIGN_FPSTATE);
 
-	preempt_enable();
+	local_bh_enable();
 }
 
 /*
@@ -1100,98 +1076,76 @@ void fpsimd_flush_task_state(struct task_struct *t)
 
 void fpsimd_flush_cpu_state(void)
 {
+	WARN_ON(!system_supports_fpsimd());
 	__this_cpu_write(fpsimd_last_state.st, NULL);
 	set_thread_flag(TIF_FOREIGN_FPSTATE);
 }
 
-void fpsimd_set_task_using(struct task_struct *t)
-{
-	atomic_set(&t->thread.fpsimd_kernel_state.depth, 1);
-}
-
-void fpsimd_clr_task_using(struct task_struct *t)
-{
-	atomic_set(&t->thread.fpsimd_kernel_state.depth, 0);
-}
-
-void fpsimd_get(void)
-{
-	if (in_interrupt())
-		return;
-
-	if (atomic_inc_return(&current->thread.fpsimd_kernel_state.depth) == 1) {
-		preempt_disable();
-		if (current->mm) {
-			fpsimd_save();
-			fpsimd_flush_task_state(current);
-		}
-		fpsimd_flush_cpu_state();
-		preempt_enable();
-	}
-}
-
-void fpsimd_put(void)
-{
-	if (in_interrupt())
-		return;
-
-	BUG_ON(atomic_dec_return(
-		&current->thread.fpsimd_kernel_state.depth) < 0);
-
-	if (atomic_read(&current->thread.fpsimd_kernel_state.depth) == 0) {
-		preempt_disable();
-		if (current->mm && test_thread_flag(TIF_FOREIGN_FPSTATE)) {
-			task_fpsimd_load();
-			fpsimd_bind_task_to_cpu();
-			clear_thread_flag(TIF_FOREIGN_FPSTATE);
-		}
-		preempt_enable();
-	}
-}
-
 #ifdef CONFIG_KERNEL_MODE_NEON
 
-static DEFINE_PER_CPU(struct fpsimd_partial_state, hardirq_fpsimdstate);
-static DEFINE_PER_CPU(struct fpsimd_partial_state, softirq_fpsimdstate);
+DEFINE_PER_CPU(bool, kernel_neon_busy);
+EXPORT_PER_CPU_SYMBOL(kernel_neon_busy);
 
 /*
  * Kernel-side NEON support functions
+ */
+
+/*
+ * kernel_neon_begin(): obtain the CPU FPSIMD registers for use by the calling
+ * context
+ *
+ * Must not be called unless may_use_simd() returns true.
+ * Task context in the FPSIMD registers is saved back to memory as necessary.
+ *
+ * A matching call to kernel_neon_end() must be made before returning from the
+ * calling context.
+ *
+ * The caller may freely use the FPSIMD registers until kernel_neon_end() is
+ * called.
  */
 void kernel_neon_begin(void)
 {
 	if (WARN_ON(!system_supports_fpsimd()))
 		return;
-	if (in_interrupt()) {
-		struct fpsimd_partial_state *s = this_cpu_ptr(
-			in_irq() ? &hardirq_fpsimdstate : &softirq_fpsimdstate);
 
-		fpsimd_save_partial_state(s, 32);
-	} else {
-		BUG_ON(!may_use_simd());
+	BUG_ON(!may_use_simd());
 
-		preempt_disable();
+	local_bh_disable();
 
-		/* Save unsaved fpsimd state, if any: */
-		fpsimd_save();
+	__this_cpu_write(kernel_neon_busy, true);
 
-		/* Invalidate any task state remaining in the fpsimd regs: */
-		fpsimd_flush_cpu_state();
+	/* Save unsaved fpsimd state, if any: */
+	fpsimd_save();
 
-	}
+	/* Invalidate any task state remaining in the fpsimd regs: */
+	fpsimd_flush_cpu_state();
+
+	preempt_disable();
+
+	local_bh_enable();
 }
 EXPORT_SYMBOL(kernel_neon_begin);
 
+/*
+ * kernel_neon_end(): give the CPU FPSIMD registers back to the current task
+ *
+ * Must be called from a context in which kernel_neon_begin() was previously
+ * called, with no call to kernel_neon_end() in the meantime.
+ *
+ * The caller must not use the FPSIMD registers after this function is called,
+ * unless kernel_neon_begin() is called again in the meantime.
+ */
 void kernel_neon_end(void)
 {
+	bool busy;
+
 	if (!system_supports_fpsimd())
 		return;
-	if (in_interrupt()) {
-		struct fpsimd_partial_state *s = this_cpu_ptr(
-			in_irq() ? &hardirq_fpsimdstate : &softirq_fpsimdstate);
-		fpsimd_load_partial_state(s);
-	} else {
-		preempt_enable();
-	}
+
+	busy = __this_cpu_xchg(kernel_neon_busy, false);
+	WARN_ON(!busy);	/* No matching kernel_neon_begin()? */
+
+	preempt_enable();
 }
 EXPORT_SYMBOL(kernel_neon_end);
 
@@ -1287,10 +1241,6 @@ static int fpsimd_cpu_pm_notifier(struct notifier_block *self,
 		fpsimd_flush_cpu_state();
 		break;
 	case CPU_PM_EXIT:
-		if (atomic_read(&current->thread.fpsimd_kernel_state.depth)) {
-			task_fpsimd_load();
-			fpsimd_bind_task_to_cpu();
-		}
 		break;
 	case CPU_PM_ENTER_FAILED:
 	default:

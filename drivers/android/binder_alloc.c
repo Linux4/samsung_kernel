@@ -294,8 +294,7 @@ static int binder_update_page_range(struct binder_alloc *alloc, int allocate,
 	return 0;
 
 free_range:
-	for (page_addr = end - PAGE_SIZE; page_addr >= start;
-	     page_addr -= PAGE_SIZE) {
+	for (page_addr = end - PAGE_SIZE; 1; page_addr -= PAGE_SIZE) {
 		bool ret;
 		size_t index;
 
@@ -308,6 +307,8 @@ free_range:
 		WARN_ON(!ret);
 
 		trace_binder_free_lru_end(alloc, index);
+		if (page_addr == start)
+			break;
 		continue;
 
 err_vm_insert_page_failed:
@@ -315,7 +316,8 @@ err_vm_insert_page_failed:
 		page->page_ptr = NULL;
 err_alloc_page_failed:
 err_page_ptr_cleared:
-		;
+		if (page_addr == start)
+			break;
 	}
 err_no_vma:
 	if (mm) {
@@ -369,6 +371,7 @@ static struct binder_buffer *binder_alloc_new_buf_locked(
 	void __user *end_page_addr;
 	size_t size, data_offsets_size;
 	int ret;
+
 #ifdef CONFIG_SAMSUNG_FREECESS
 	struct task_struct *p = NULL;
 #endif
@@ -412,8 +415,8 @@ static struct binder_buffer *binder_alloc_new_buf_locked(
 	if (is_async &&
 	    alloc->free_async_space < size + sizeof(struct binder_buffer)) {
 		//binder_alloc_debug(BINDER_DEBUG_BUFFER_ALLOC,
-		//         "%d: binder_alloc_buf size %zd failed, no async space left\n",
-		//         alloc->pid, size);
+		//		"%d: binder_alloc_buf size %zd failed, no async space left\n",
+		//		alloc->pid, size);
 		pr_info("%d: binder_alloc_buf size %zd(%zd) failed, no async space left\n",
 		         alloc->pid, size, alloc->free_async_space);
 		return ERR_PTR(-ENOSPC);
@@ -539,8 +542,8 @@ static struct binder_buffer *binder_alloc_new_buf_locked(
 		alloc->free_async_space -= size + sizeof(struct binder_buffer);
 		if ((system_server_pid == alloc->pid) && (alloc->free_async_space <= 153600)) { // 150K
 			pr_info("%d: [free_size<150K] binder_alloc_buf size %zd async free %zd\n",
-                                 alloc->pid, size, alloc->free_async_space);
-                }
+					alloc->pid, size, alloc->free_async_space);
+		}
 		if ((system_server_pid == alloc->pid) && (size >= 122880)) { // 120K
 			pr_info("%d: [alloc_size>120K] binder_alloc_buf size %zd async free %zd\n",
 				alloc->pid, size, alloc->free_async_space);
@@ -898,14 +901,20 @@ void binder_alloc_print_pages(struct seq_file *m,
 	int free = 0;
 
 	mutex_lock(&alloc->mutex);
-	for (i = 0; i < alloc->buffer_size / PAGE_SIZE; i++) {
-		page = &alloc->pages[i];
-		if (!page->page_ptr)
-			free++;
-		else if (list_empty(&page->lru))
-			active++;
-		else
-			lru++;
+	/*
+	 * Make sure the binder_alloc is fully initialized, otherwise we might
+	 * read inconsistent state.
+	 */
+	if (binder_alloc_get_vma(alloc) != NULL) {
+		for (i = 0; i < alloc->buffer_size / PAGE_SIZE; i++) {
+			page = &alloc->pages[i];
+			if (!page->page_ptr)
+				free++;
+			else if (list_empty(&page->lru))
+				active++;
+			else
+				lru++;
+		}
 	}
 	mutex_unlock(&alloc->mutex);
 	seq_printf(m, "  pages: %d:%d:%d\n", active, lru, free);

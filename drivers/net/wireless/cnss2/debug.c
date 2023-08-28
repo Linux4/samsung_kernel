@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved. */
+/* Copyright (c) 2016-2020, The Linux Foundation. All rights reserved. */
 
 #include <linux/err.h>
 #include <linux/seq_file.h>
@@ -8,12 +8,29 @@
 #include "bus.h"
 #include "debug.h"
 #include "pci.h"
-#include "cnss_devcoredump.h"
 
 #define MMIO_REG_ACCESS_MEM_TYPE		0xFF
+#define HEX_DUMP_ROW_SIZE			16
 
 void *cnss_ipc_log_context;
 void *cnss_ipc_log_long_context;
+
+static void cnss_print_hex_dump(const void *buf, int len)
+{
+	const u8 *ptr = buf;
+	int i, linelen, remaining = len, rowsize = HEX_DUMP_ROW_SIZE;
+	unsigned char linebuf[HEX_DUMP_ROW_SIZE * 3 + 1];
+
+	for (i = 0; i < len; i += rowsize) {
+		linelen = min(remaining, rowsize);
+		remaining -= rowsize;
+
+		hex_dump_to_buffer(ptr + i, linelen, rowsize, 1,
+				   linebuf, sizeof(linebuf), false);
+
+		cnss_pr_dbg("%.8x: %s\n", i, linebuf);
+	}
+}
 
 static int cnss_pin_connect_show(struct seq_file *s, void *data)
 {
@@ -751,6 +768,95 @@ static const struct file_operations cnss_dynamic_feature_fops = {
 	.llseek = seq_lseek,
 };
 
+static int cnss_wfc_call_status_debug_show(struct seq_file *s, void *data)
+{
+	seq_puts(s, "\nUsage: echo <data_len> <hex data> > <debugfs_path>/cnss/wfc_call_status\n");
+	seq_puts(s, "e.g. Send 4 bytes of hex data for WFC call status using QMI message:\n");
+	seq_puts(s, "echo '0x4 0xA 0xB 0xC 0xD' > /d/cnss/wfc_call_status\n");
+
+	return 0;
+}
+
+static ssize_t cnss_wfc_call_status_debug_write(struct file *fp,
+						const char __user *user_buf,
+						size_t count, loff_t *off)
+{
+	struct cnss_plat_data *plat_priv =
+		((struct seq_file *)fp->private_data)->private;
+	char buf[(QMI_WLFW_MAX_WFC_CALL_STATUS_DATA_SIZE_V01 + 1) * 5];
+	char *sptr, *token;
+	unsigned int len = 0;
+	const char *delim = " ";
+	u32 data_len;
+	u8 data[QMI_WLFW_MAX_WFC_CALL_STATUS_DATA_SIZE_V01] = {0}, data_byte;
+	int ret = 0, i;
+
+	if (!test_bit(CNSS_FW_READY, &plat_priv->driver_state)) {
+		cnss_pr_err("Firmware is not ready yet\n");
+		return -EINVAL;
+	}
+
+	len = min(count, sizeof(buf) - 1);
+	if (copy_from_user(buf, user_buf, len))
+		return -EFAULT;
+
+	buf[len] = '\0';
+	sptr = buf;
+
+	token = strsep(&sptr, delim);
+	if (!token || !sptr)
+		return -EINVAL;
+
+	if (kstrtou32(token, 0, &data_len))
+		return -EINVAL;
+
+	cnss_pr_dbg("Parsing 0x%x bytes data for WFC call status\n", data_len);
+
+	if (data_len > QMI_WLFW_MAX_WFC_CALL_STATUS_DATA_SIZE_V01 ||
+	    data_len == 0) {
+		cnss_pr_err("Invalid data length 0x%x\n", data_len);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < data_len; i++) {
+		token = strsep(&sptr, delim);
+		if (!token || (!sptr && i < data_len - 1)) {
+			cnss_pr_err("Input data is less than length\n");
+			return -EINVAL;
+		}
+
+		if (kstrtou8(token, 0, &data_byte)) {
+			cnss_pr_err("Data format is incorrect\n");
+			return -EINVAL;
+		}
+
+		data[i] = data_byte;
+	}
+
+	cnss_print_hex_dump(data, data_len);
+
+	ret = cnss_wlfw_wfc_call_status_send_sync(plat_priv, data_len, data);
+	if (ret)
+		return ret;
+
+	return count;
+}
+
+static int cnss_wfc_call_status_debug_open(struct inode *inode,
+					   struct file *file)
+{
+	return single_open(file, cnss_wfc_call_status_debug_show,
+			   inode->i_private);
+}
+
+static const struct file_operations cnss_wfc_call_status_debug_fops = {
+	.read		= seq_read,
+	.write		= cnss_wfc_call_status_debug_write,
+	.open		= cnss_wfc_call_status_debug_open,
+	.owner		= THIS_MODULE,
+	.llseek		= seq_lseek,
+};
+
 #ifdef CONFIG_CNSS2_DEBUG
 static int cnss_create_debug_only_node(struct cnss_plat_data *plat_priv)
 {
@@ -768,210 +874,11 @@ static int cnss_create_debug_only_node(struct cnss_plat_data *plat_priv)
 			    &cnss_control_params_debug_fops);
 	debugfs_create_file("dynamic_feature", 0600, root_dentry, plat_priv,
 			    &cnss_dynamic_feature_fops);
+	debugfs_create_file("wfc_call_status", 0600, root_dentry, plat_priv,
+			    &cnss_wfc_call_status_debug_fops);
 
 	return 0;
 }
-#else
-static int cnss_create_debug_only_node(struct cnss_plat_data *plat_priv)
-{
-	return 0;
-}
-#endif
-
-/**
- * enum driver_status: Driver Modules status
- * @DRIVER_MODULES_UNINITIALIZED: Driver CDS modules uninitialized
- * @DRIVER_MODULES_ENABLED: Driver CDS modules opened
- * @DRIVER_MODULES_CLOSED: Driver CDS modules closed
- */
-enum driver_modules_status {
-        DRIVER_MODULES_UNINITIALIZED,
-        DRIVER_MODULES_ENABLED,
-        DRIVER_MODULES_CLOSED
-};
-
-enum driver_modules_status current_driver_status = DRIVER_MODULES_UNINITIALIZED;
-char ver_info[512] = {0,};
-char softap_info[512] = {0,};
-
-void cnss_sysfs_update_driver_status(int32_t new_status, void *version, void *softap)
-{
-	if (new_status == DRIVER_MODULES_ENABLED) {
-		memcpy(ver_info, version, 512);
-		memcpy(softap_info, softap, 512);
-	}
-	current_driver_status = new_status;
-}
-EXPORT_SYMBOL(cnss_sysfs_update_driver_status);
-
-#define MAC_ADDR_SIZE 6
-uint8_t mac_from_macloader[MAC_ADDR_SIZE] = {0,0,0,0,0,0};
-int pm_from_macloader = 0;
-int ant_from_macloader = 0;
-
-extern int cnss_utils_set_wlan_mac_address(const u8 *mac_list, const uint32_t len);
-static ssize_t store_mac_addr(struct kobject *kobj,
-			    struct kobj_attribute *attr,
-			    const char *buf,
-			    size_t count)
-{
-	sscanf(buf, "%02X:%02X:%02X:%02X:%02X:%02X",
-		(unsigned int*)&mac_from_macloader[0],
-		(unsigned int*)&mac_from_macloader[1],
-		(unsigned int*)&mac_from_macloader[2],
-		(unsigned int*)&mac_from_macloader[3],
-		(unsigned int*)&mac_from_macloader[4],
-		(unsigned int*)&mac_from_macloader[5]);
-
-	cnss_pr_info("Assigning MAC from Macloader %02x:%02x:%02x:%02x:%02x:%02x\n",
-		mac_from_macloader[0], mac_from_macloader[1],mac_from_macloader[2],
-		mac_from_macloader[3], mac_from_macloader[4],mac_from_macloader[5]);
-
-	cnss_utils_set_wlan_mac_address(mac_from_macloader, MAC_ADDR_SIZE);
-
-	return 0;
-}
-
-static ssize_t show_verinfo(struct kobject *kobj,
-				 struct kobj_attribute *attr,
-				 char *buf)
-{
-	return scnprintf(buf, 512, "%s", ver_info);
-}
-static ssize_t show_softapinfo(struct kobject *kobj,
-				 struct kobj_attribute *attr,
-				 char *buf)
-{
-	return scnprintf(buf, 512, "%s", softap_info);
-}
-
-static ssize_t show_qcwlanstate(struct kobject *kobj,
-                                struct kobj_attribute *attr,
-                                char *buf)
-{
-       char status[20];
-       static const char wlan_off_str[] = "OFF";
-       static const char wlan_on_str[] = "ON";
-
-       switch (current_driver_status) {
-               case DRIVER_MODULES_UNINITIALIZED:
-               case DRIVER_MODULES_CLOSED:
-                       cnss_pr_info("Modules not initialized just return");
-                       memset(status, '\0', sizeof("OFF"));
-                       memcpy(status, wlan_off_str, sizeof("OFF"));
-                       break;
-               case DRIVER_MODULES_ENABLED:
-                       cnss_pr_info("Modules enabled");
-                       memset(status, '\0', sizeof("ON"));
-                       memcpy(status, wlan_on_str, sizeof("ON"));
-                       break;
-       }
-
-       return scnprintf(buf, PAGE_SIZE, "%s", status);
-}
-
-static ssize_t store_pm_info(struct kobject *kobj,
-			    struct kobj_attribute *attr,
-			    const char *buf,
-			    size_t count)
-{
-	cnss_pr_info("%s enter\n", __func__);
-	sscanf(buf, "%d", &pm_from_macloader);
-	pm_from_macloader = !pm_from_macloader;
-	cnss_pr_info("pm_from_macloader %d\n", pm_from_macloader);
-
-	return 0;
-}
-
-int cnss_sysfs_get_pm_info(void)
-{
-	return pm_from_macloader;
-}
-EXPORT_SYMBOL(cnss_sysfs_get_pm_info);
-
-static ssize_t store_ant_info(struct kobject *kobj,
-			    struct kobj_attribute *attr,
-			    const char *buf,
-			    size_t count)
-{
-	cnss_pr_info("%s enter\n", __func__);
-	sscanf(buf, "%d", &ant_from_macloader);
-	cnss_pr_info("ant_from_macloader %d\n", ant_from_macloader);
-
-	return 0;
-}
-
-static ssize_t store_memdump_info(struct kobject *kobj,
-			    struct kobj_attribute *attr,
-			    const char *buf,
-			    size_t count)
-{
-	cnss_pr_info("%s called\n", __func__);
-	return 0;
-}
-static struct kobj_attribute sec_mac_addr_attribute =
-        __ATTR(mac_addr, 0220, NULL, store_mac_addr);
-static struct kobj_attribute sec_verinfo_sysfs_attribute =
-	__ATTR(wifiver, 0440, show_verinfo, NULL);
-static struct kobj_attribute sec_softapinfo_sysfs_attribute =
-	__ATTR(softap, 0440, show_softapinfo, NULL);
-static struct kobj_attribute qcwlanstate_attribute =
-       __ATTR(qcwlanstate, 0440, show_qcwlanstate, NULL);
-static struct kobj_attribute sec_pminfo_sysfs_attribute =
-       __ATTR(pm, 0220, NULL, store_pm_info);
-static struct kobj_attribute sec_antinfo_sysfs_attribute =
-       __ATTR(ant, 0220, NULL, store_ant_info);
-static struct kobj_attribute sec_memdumpinfo_sysfs_attribute =
-	__ATTR(memdump, 0220, NULL, store_memdump_info);
-
-static struct attribute *sec_sysfs_attrs[] = {
-	&sec_mac_addr_attribute.attr,
-	&sec_verinfo_sysfs_attribute.attr,
-	&sec_softapinfo_sysfs_attribute.attr,
-	&qcwlanstate_attribute.attr,
-	&sec_pminfo_sysfs_attribute.attr,
-	&sec_antinfo_sysfs_attribute.attr,
-	&sec_memdumpinfo_sysfs_attribute.attr,
-	NULL
-};
-
-static struct attribute_group sec_sysfs_attr_group = {
-        .attrs = sec_sysfs_attrs,
-};
-
-static int sec_create_wifi_sysfs(struct cnss_plat_data *plat_priv)
-{
-	int ret = 0;
-
-	plat_priv->wifi_kobj = kobject_create_and_add("wifi", NULL);
-	if (!plat_priv->wifi_kobj) {
-		cnss_pr_err("Failed to create shutdown_wlan kernel object\n");
-		return -ENOMEM;
-	}
-
-        ret = sysfs_create_group(plat_priv->wifi_kobj, &sec_sysfs_attr_group);
-        if (ret) {
-                cnss_pr_err("could not create group %d", ret);
-		kobject_put(plat_priv->wifi_kobj);
-		plat_priv->wifi_kobj = NULL;
-	}
-
-	cnss_pr_info("%s done\n", __func__);
-
-	return ret;
-}
-
-static void sec_remove_wifi_sysfs(struct cnss_plat_data *plat_priv)
-{
-	if (plat_priv->wifi_kobj) {
-		sysfs_remove_group(plat_priv->wifi_kobj,
-				  &sec_sysfs_attr_group);
-		kobject_put(plat_priv->wifi_kobj);
-		plat_priv->wifi_kobj = NULL;
-	}
-}
-
-
 
 int cnss_debugfs_create(struct cnss_plat_data *plat_priv)
 {
@@ -993,23 +900,26 @@ int cnss_debugfs_create(struct cnss_plat_data *plat_priv)
 			    &cnss_stats_fops);
 
 	cnss_create_debug_only_node(plat_priv);
-	sec_create_wifi_sysfs(plat_priv);
 
-	ret = cnss_devcoredump_init();
-	if (ret)
-		cnss_pr_err("failed to init dev coredump %d\n", ret);
 out:
 	return ret;
 }
 
 void cnss_debugfs_destroy(struct cnss_plat_data *plat_priv)
 {
-	cnss_devcoredump_exit();
-	sec_remove_wifi_sysfs(plat_priv);
 	debugfs_remove_recursive(plat_priv->root_dentry);
 }
+#else
+int cnss_debugfs_create(struct cnss_plat_data *plat_priv)
+{
+	return 0;
+}
 
-#ifdef CONFIG_IPC_LOGGING
+void cnss_debugfs_destroy(struct cnss_plat_data *plat_priv)
+{
+}
+#endif
+
 int cnss_debug_init(void)
 {
 	cnss_ipc_log_context = ipc_log_context_create(CNSS_IPC_LOG_PAGES,
@@ -1042,7 +952,3 @@ void cnss_debug_deinit(void)
 		cnss_ipc_log_context = NULL;
 	}
 }
-#else
-int cnss_debug_init(void) { return 0; }
-void cnss_debug_deinit(void) {}
-#endif

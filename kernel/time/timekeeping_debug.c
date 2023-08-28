@@ -21,9 +21,6 @@
 #include <linux/seq_file.h>
 #include <linux/suspend.h>
 #include <linux/time.h>
-#ifdef CONFIG_SEC_PM_DEBUG
-#include <linux/sec_pm_debug.h>
-#endif /* CONFIG_SEC_PM_DEBUG */
 
 #include "timekeeping_internal.h"
 
@@ -79,11 +76,7 @@ void tk_debug_account_sleep_time(const struct timespec64 *t)
 	int bin = min(fls(t->tv_sec), NUM_BINS-1);
 
 	sleep_time_bin[bin]++;
-	pm_deferred_pr_dbg("Timekeeping suspended for %lld.%03lu seconds\n",
+	printk_deferred("PM: Timekeeping suspended for %lld.%03lu seconds\n",
 			   (s64)t->tv_sec, t->tv_nsec / NSEC_PER_MSEC);
-#ifdef CONFIG_SEC_PM_DEBUG
-	sleep_time_sec += t->tv_sec;
-	sleep_count++;
-#endif /* CONFIG_SEC_PM_DEBUG */
 }
 

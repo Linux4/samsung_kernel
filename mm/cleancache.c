@@ -112,7 +112,6 @@ int cleancache_register_ops(const struct cleancache_ops *ops)
 EXPORT_SYMBOL(cleancache_register_ops);
 
 /* Called by a cleancache-enabled filesystem at time of mount */
-/* KERNELCORE. allowed fs : ext4 */
 void __cleancache_init_fs(struct super_block *sb)
 {
 	int pool_id = CLEANCACHE_NO_BACKEND;

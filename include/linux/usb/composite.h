@@ -42,10 +42,12 @@
 #include <linux/log2.h>
 #include <linux/configfs.h>
 
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-#include <linux/usb_notify.h>
-#include <linux/gpio.h>
-#endif
+/* FUNCTION_SUSPEND: suspend options from usb 3.0 spec Table 9-7 */
+#define FUNC_SUSPEND_OPT_SUSP_MASK BIT(0)
+#define FUNC_SUSPEND_OPT_RW_EN_MASK BIT(1)
+
+#define FUNC_WAKEUP_CAPABLE_SHIFT  0
+#define FUNC_WAKEUP_ENABLE_SHIFT   1
 
 /*
  * USB function drivers should return USB_GADGET_DELAYED_STATUS if they
@@ -123,6 +125,7 @@ struct usb_os_desc_table {
 /**
  * struct usb_function - describes one function of a configuration
  * @name: For diagnostics, identifies the function.
+ * @intf_id: Interface ID
  * @strings: tables of strings, keyed by identifiers assigned during bind()
  *	and by language IDs provided in control requests
  * @fs_descriptors: Table of full (or low) speed descriptors, using interface and
@@ -167,7 +170,14 @@ struct usb_os_desc_table {
  * @get_status: Returns function status as a reply to
  *	GetStatus() request when the recipient is Interface.
  * @func_suspend: callback to be called when
- *	SetFeature(FUNCTION_SUSPEND) is reseived
+ *	SetFeature(FUNCTION_SUSPEND) is received
+ * @func_is_suspended: Tells whether the function is currently in
+ *	Function Suspend state (used in Super Speed mode only).
+ * @func_wakeup_allowed: Tells whether Function Remote Wakeup has been allowed
+ *	by the USB host (used in Super Speed mode only).
+ * @func_wakeup_pending: Marks that the function has issued a Function Wakeup
+ *	while the USB bus was suspended and therefore a Function Wakeup
+ *	notification needs to be sent once the USB bus is resumed.
  *
  * A single USB function uses one or more interfaces, and should in most
  * cases support operation at both full and high speeds.  Each function is
@@ -195,6 +205,7 @@ struct usb_os_desc_table {
 
 struct usb_function {
 	const char			*name;
+	int				intf_id;
 	struct usb_gadget_strings	**strings;
 	struct usb_descriptor_header	**fs_descriptors;
 	struct usb_descriptor_header	**hs_descriptors;
@@ -202,11 +213,13 @@ struct usb_function {
 	struct usb_descriptor_header	**ssp_descriptors;
 
 	struct usb_configuration	*config;
+
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 	int (*set_intf_num)(struct usb_function *f,
 			int intf_num, int index_num);
 	int (*set_config_desc)(int conf_num);
 #endif
+
 	struct usb_os_desc_table	*os_desc_table;
 	unsigned			os_desc_n;
 
@@ -225,7 +238,7 @@ struct usb_function {
 	struct module		*mod;
 
 #ifdef CONFIG_USB_CONFIGFS_UEVENT
-	/* OPtional function for vendor specific processing */
+/* Optional function for vendor specific processing */
 	int			(*ctrlrequest)(struct usb_function *,
 					const struct usb_ctrlrequest *);
 #endif
@@ -248,6 +261,9 @@ struct usb_function {
 	int			(*get_status)(struct usb_function *);
 	int			(*func_suspend)(struct usb_function *,
 						u8 suspend_opt);
+	unsigned		func_is_suspended:1;
+	unsigned		func_wakeup_allowed:1;
+	unsigned		func_wakeup_pending:1;
 	/* private: */
 	/* internals */
 	struct list_head		list;
@@ -263,6 +279,9 @@ int usb_function_deactivate(struct usb_function *);
 int usb_function_activate(struct usb_function *);
 
 int usb_interface_id(struct usb_configuration *, struct usb_function *);
+int usb_func_wakeup(struct usb_function *func);
+
+int usb_get_func_interface_id(struct usb_function *func);
 
 int config_ep_by_speed(struct usb_gadget *g, struct usb_function *f,
 			struct usb_ep *_ep);
@@ -519,15 +538,14 @@ struct usb_composite_dev {
 	 * data/status stages till delayed_status is zero.
 	 */
 	int				delayed_status;
+
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	/* used by enable_store function of android.c
-	 * to avoid signalling switch changes
-	 */
+		/* used by enable_store function of android.c
+		 * to avoid signalling switch changes
+		 */
 	bool				mute_switch;
 	bool				force_disconnect;
-	bool				cleanup_flag;
 #endif
-	bool				is_rndis;
 	/* protects deactivations and delayed_status counts*/
 	spinlock_t			lock;
 
@@ -614,10 +632,6 @@ struct usb_function_instance {
 	int (*set_inst_name)(struct usb_function_instance *inst,
 			      const char *name);
 	void (*free_func_inst)(struct usb_function_instance *inst);
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	int (*set_inst_eth_addr)(struct usb_function_instance *inst,
-		       u8 *ethaddr);
-#endif
 };
 
 void usb_function_unregister(struct usb_function_driver *f);

@@ -1,18 +1,13 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved. */
+/* Copyright (c) 2016-2020, The Linux Foundation. All rights reserved. */
 
 #ifndef _CNSS_PCI_H
 #define _CNSS_PCI_H
 
-#ifdef CONFIG_ARCH_QCOM
 #include <asm/dma-iommu.h>
-#include <linux/msm_pcie.h>
-#endif
-#ifdef CONFIG_ARCH_EXYNOS9
-#include <linux/exynos-pci-noti.h>
-#endif
 #include <linux/iommu.h>
 #include <linux/mhi.h>
+#include <linux/msm_pcie.h>
 #include <linux/pci.h>
 
 #include "main.h"
@@ -76,12 +71,7 @@ struct cnss_pci_data {
 	u8 pci_link_down_ind;
 	struct pci_saved_state *saved_state;
 	struct pci_saved_state *default_state;
-#ifdef CONFIG_ARCH_QCOM
 	struct msm_pcie_register_event msm_pci_event;
-#endif
-#ifdef CONFIG_ARCH_EXYNOS9
-	struct exynos_pcie_register_event exynos_pci_event;
-#endif
 	atomic_t auto_suspended;
 	atomic_t drv_connected;
 	u8 drv_connected_last;
@@ -89,12 +79,12 @@ struct cnss_pci_data {
 	u16 def_link_width;
 	struct completion wake_event;
 	u8 monitor_wake_intr;
-	u32 wake_counter;
 	struct iommu_domain *iommu_domain;
 	u8 smmu_s1_enable;
 	dma_addr_t smmu_iova_start;
 	size_t smmu_iova_len;
 	dma_addr_t smmu_iova_ipa_start;
+	dma_addr_t smmu_iova_ipa_current;
 	size_t smmu_iova_ipa_len;
 	void __iomem *bar;
 	struct cnss_msi_config *msi_config;
@@ -113,6 +103,7 @@ struct cnss_pci_data {
 	u32 pcie_reg_size;
 	struct cnss_misc_reg *wlaon_reg;
 	u32 wlaon_reg_size;
+	u8 iommu_geometry;
 };
 
 static inline void cnss_set_pci_priv(struct pci_dev *pci_dev, void *data)
@@ -188,7 +179,6 @@ void cnss_pci_free_qdss_mem(struct cnss_pci_data *pci_priv);
 int cnss_pci_load_m3(struct cnss_pci_data *pci_priv);
 int cnss_pci_start_mhi(struct cnss_pci_data *pci_priv);
 void cnss_pci_collect_dump_info(struct cnss_pci_data *pci_priv, bool in_panic);
-void cnss_pci_device_crashed(struct cnss_pci_data *pci_priv);
 void cnss_pci_clear_dump_info(struct cnss_pci_data *pci_priv);
 u32 cnss_pci_get_wake_msi(struct cnss_pci_data *pci_priv);
 int cnss_pci_force_fw_assert_hdlr(struct cnss_pci_data *pci_priv);
@@ -225,5 +215,8 @@ int cnss_pci_debug_reg_read(struct cnss_pci_data *pci_priv, u32 offset,
 			    u32 *val);
 int cnss_pci_debug_reg_write(struct cnss_pci_data *pci_priv, u32 offset,
 			     u32 val);
-void cnss_pci_force_save_dump(struct cnss_pci_data *pci_priv);
+int cnss_pci_get_iova(struct cnss_pci_data *pci_priv, u64 *addr, u64 *size);
+int cnss_pci_get_iova_ipa(struct cnss_pci_data *pci_priv, u64 *addr,
+			  u64 *size);
+
 #endif /* _CNSS_PCI_H */

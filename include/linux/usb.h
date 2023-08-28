@@ -303,7 +303,7 @@ void usb_put_intf(struct usb_interface *intf);
  * should cope with both LPJ calibration errors and devices not following every
  * detail of the USB Specification.
  */
-#define USB_RESUME_TIMEOUT	40 /* ms */
+#define USB_RESUME_TIMEOUT	20 /* ms */
 
 /**
  * struct usb_interface_cache - long-term representation of a device interface
@@ -402,6 +402,8 @@ struct usb_host_bos {
 	struct usb_ssp_cap_descriptor	*ssp_cap;
 	struct usb_ss_container_id_descriptor	*ss_id;
 	struct usb_ptm_cap_descriptor	*ptm_cap;
+	struct usb_config_summary_descriptor	*config_summary;
+	unsigned int	num_config_summary_desc;
 };
 
 int __usb_get_extra_descriptor(char *buffer, unsigned size,
@@ -466,6 +468,15 @@ struct usb_bus {
 	struct mon_bus *mon_bus;	/* non-null when associated */
 	int monitored;			/* non-zero when monitored */
 #endif
+	unsigned skip_resume:1;		/* All USB devices are brought into full
+					 * power state after system resume. It
+					 * is desirable for some buses to keep
+					 * their devices in suspend state even
+					 * after system resume. The devices
+					 * are resumed later when a remote
+					 * wakeup is detected or an interface
+					 * driver starts I/O.
+					 */
 };
 
 struct usb_dev_state;
@@ -550,38 +561,6 @@ struct usb3_lpm_parameters {
 	 * will initiate an LPM transition to either U1 or U2.
 	 */
 	int timeout;
-};
-
-struct hcd_hw_info {
-	/*for XHCI */
-	int slot_id;
-	dma_addr_t erst_addr;
-	dma_addr_t dcbaa_dma;
-	dma_addr_t in_ctx;
-	dma_addr_t out_ctx;
-	dma_addr_t save_dma;
-	u64 cmd_ring;
-	/* Data Stream EP */
-	u64 old_out_deq;
-	u64 old_in_deq;
-	u64 out_deq;
-	u64 in_deq;
-	int in_ep;
-	int out_ep;
-	/* feedback ep */
-	int fb_in_ep;
-	int fb_out_ep;
-	u64 fb_old_out_deq;
-	u64 fb_old_in_deq;
-	u64 fb_out_deq;
-	u64 fb_in_deq;
-	/* Device Common Information */
-	int speed;
-	void *out_buf;
-	u64 out_dma;
-	void *in_buf;
-	u64 in_dma;
-	int use_uram;
 };
 
 /**
@@ -689,9 +668,6 @@ struct usb_device {
 	struct usb_host_endpoint *ep_out[16];
 
 	char **rawdescriptors;
-	int rawdesc_length;
-
-	struct hcd_hw_info hwinfo;
 
 	unsigned short bus_mA;
 	u8 portnum;
@@ -859,6 +835,19 @@ static inline bool usb_device_no_sg_constraint(struct usb_device *udev)
 
 /* for drivers using iso endpoints */
 extern int usb_get_current_frame_number(struct usb_device *usb_dev);
+extern int usb_sec_event_ring_setup(struct usb_device *dev,
+	unsigned int intr_num);
+extern int usb_sec_event_ring_cleanup(struct usb_device *dev,
+	unsigned int intr_num);
+
+extern phys_addr_t usb_get_sec_event_ring_phys_addr(
+	struct usb_device *dev, unsigned int intr_num, dma_addr_t *dma);
+extern phys_addr_t usb_get_xfer_ring_phys_addr(struct usb_device *dev,
+	struct usb_host_endpoint *ep, dma_addr_t *dma);
+extern int usb_get_controller_id(struct usb_device *dev);
+
+extern int usb_stop_endpoint(struct usb_device *dev,
+	struct usb_host_endpoint *ep);
 
 /* Sets up a group of bulk endpoints to support multiple stream IDs. */
 extern int usb_alloc_streams(struct usb_interface *interface,
@@ -1843,6 +1832,8 @@ extern int usb_string(struct usb_device *dev, int index,
 extern int usb_clear_halt(struct usb_device *dev, int pipe);
 extern int usb_reset_configuration(struct usb_device *dev);
 extern int usb_set_interface(struct usb_device *dev, int ifnum, int alternate);
+extern int usb_set_interface_timeout(struct usb_device *dev, int ifnum,
+		int alternate, unsigned long timeout);
 extern void usb_reset_endpoint(struct usb_device *dev, unsigned int epaddr);
 
 /* this request isn't really synchronous, but it belongs with the others */
@@ -2025,8 +2016,11 @@ static inline int usb_translate_errors(int error_code)
 #define USB_DEVICE_REMOVE	0x0002
 #define USB_BUS_ADD		0x0003
 #define USB_BUS_REMOVE		0x0004
+#define USB_BUS_DIED		0x0005
 extern void usb_register_notify(struct notifier_block *nb);
 extern void usb_unregister_notify(struct notifier_block *nb);
+extern void usb_register_atomic_notify(struct notifier_block *nb);
+extern void usb_unregister_atomic_notify(struct notifier_block *nb);
 
 /* debugfs stuff */
 extern struct dentry *usb_debug_root;
@@ -2036,6 +2030,19 @@ enum usb_led_event {
 	USB_LED_EVENT_HOST = 0,
 	USB_LED_EVENT_GADGET = 1,
 };
+
+#if IS_ENABLED(CONFIG_USB_HOST_CERTIFICATION)
+/* USB certification */
+enum usb_host_certi_type {
+	USB_HOST_CERTI_UNSUPPORT_ACCESSORY,
+	USB_HOST_CERTI_NO_RESPONSE,
+	USB_HOST_CERTI_HUB_DEPTH_EXCEED,
+	USB_HOST_CERTI_HUB_POWER_EXCEED,
+	USB_HOST_CERTI_HOST_RESOURCE_EXCEED,
+	USB_HOST_CERTI_WARM_RESET
+};
+extern void send_usb_host_certi_uevent(struct device *dev, int usb_certi);
+#endif
 
 #ifdef CONFIG_USB_LED_TRIG
 extern void usb_led_activity(enum usb_led_event ev);

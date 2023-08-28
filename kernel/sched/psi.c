@@ -140,8 +140,12 @@
 #include <linux/file.h>
 #include <linux/poll.h>
 #include <linux/psi.h>
+#include <linux/oom.h>
 #include <linux/ologk.h>
 #include "sched.h"
+
+#define CREATE_TRACE_POINTS
+#include <trace/events/psi.h>
 
 static int psi_bug __read_mostly;
 
@@ -177,9 +181,6 @@ __setup("psi=", setup_psi);
 #define AVG60			1
 #define AVG300			2
 
-static int lmkd_count;
-static int lmkd_cricount;
-
 u64 psi_full_max;
 
 /* Sampling frequency in nanoseconds */
@@ -199,8 +200,9 @@ static void group_init(struct psi_group *group)
 
 	for_each_possible_cpu(cpu)
 		seqcount_init(&per_cpu_ptr(group->pcpu, cpu)->seq);
-	group->avg_next_update = sched_clock() + psi_period;
-	INIT_DELAYED_WORK(&group->avgs_work, psi_avgs_work);
+	group->avg_last_update = sched_clock();
+	group->avg_next_update = group->avg_last_update + psi_period;
+	INIT_DEFERRABLE_WORK(&group->avgs_work, psi_avgs_work);
 	mutex_init(&group->avgs_lock);
 	/* Init trigger-related members */
 	atomic_set(&group->poll_scheduled, 0);
@@ -478,6 +480,41 @@ static void psi_avgs_work(struct work_struct *work)
 	mutex_unlock(&group->avgs_lock);
 }
 
+#ifdef CONFIG_PSI_FTRACE
+
+#define TOKB(x) ((x) * (PAGE_SIZE / 1024))
+
+static void trace_event_helper(struct psi_group *group)
+{
+	struct zone *zone;
+	unsigned long wmark;
+	unsigned long free;
+	unsigned long cma;
+	unsigned long file;
+
+	u64 mem_some_delta = group->total[PSI_POLL][PSI_MEM_SOME] -
+			group->polling_total[PSI_MEM_SOME];
+	u64 mem_full_delta = group->total[PSI_POLL][PSI_MEM_FULL] -
+			group->polling_total[PSI_MEM_FULL];
+
+	for_each_populated_zone(zone) {
+		wmark = TOKB(high_wmark_pages(zone));
+		free = TOKB(zone_page_state(zone, NR_FREE_PAGES));
+		cma = TOKB(zone_page_state(zone, NR_FREE_CMA_PAGES));
+		file = TOKB(zone_page_state(zone, NR_ZONE_ACTIVE_FILE) +
+			zone_page_state(zone, NR_ZONE_INACTIVE_FILE));
+
+		trace_psi_window_vmstat(
+			mem_some_delta, mem_full_delta, zone->name, wmark,
+			free, cma, file);
+	}
+}
+#else
+static void trace_event_helper(struct psi_group *group)
+{
+}
+#endif /* CONFIG_PSI_FTRACE */
+
 /* Trigger tracking window manupulations */
 static void window_reset(struct psi_window *win, u64 now, u64 value,
 			 u64 prev_growth)
@@ -518,7 +555,7 @@ static u64 window_update(struct psi_window *win, u64 now, u64 value)
 		u32 remaining;
 
 		remaining = win->size - elapsed;
-		growth += div_u64(win->prev_growth * remaining, win->size);
+		growth += div64_u64(win->prev_growth * remaining, win->size);
 	}
 
 	return growth;
@@ -579,22 +616,97 @@ static u64 update_triggers(struct psi_group *group, u64 now)
 		if (now < t->last_event_time + t->win.size)
 			continue;
 
+		trace_psi_event(t->state, t->threshold);
+
 		if ((t->win.size >= MONITOR_WINDOW_MIN_NS) && 
 		    (t->threshold >= MONITOR_THRESHOLD_MIN_NS))
 			printk_deferred("psi: %s %llu %llu %d %llu %llu\n", __func__, now,
 			       t->last_event_time, t->state, t->threshold, growth);
 
 		/* Generate an event */
-		if (cmpxchg(&t->event, 0, 1) == 0)
+		if (cmpxchg(&t->event, 0, 1) == 0) {
+			if (!strcmp(t->comm, ULMK_MAGIC))
+				mod_timer(&t->wdog_timer, jiffies +
+					  nsecs_to_jiffies(2 * t->win.size));
 			wake_up_interruptible(&t->event_wait);
+		}
 		t->last_event_time = now;
 	}
 
+	trace_event_helper(group);
 	if (new_stall)
 		memcpy(group->polling_total, total,
 				sizeof(group->polling_total));
 
 	return now + group->poll_min_period;
+}
+
+/*
+ * Allows sending more than one event per window.
+ */
+void psi_emergency_trigger(void)
+{
+	struct psi_group *group = &psi_system;
+	struct psi_trigger *t;
+	u64 now;
+
+	if (static_branch_likely(&psi_disabled))
+		return;
+
+	/*
+	 * In unlikely case that OOM was triggered while adding/
+	 * removing triggers.
+	 */
+	if (!mutex_trylock(&group->trigger_lock))
+		return;
+
+	now = sched_clock();
+	list_for_each_entry(t, &group->triggers, node) {
+		if (strcmp(t->comm, ULMK_MAGIC))
+			continue;
+		trace_psi_event(t->state, t->threshold);
+
+		/* Generate an event */
+		if (cmpxchg(&t->event, 0, 1) == 0) {
+			mod_timer(&t->wdog_timer, jiffies +
+					  nsecs_to_jiffies(2 * t->win.size));
+			wake_up_interruptible(&t->event_wait);
+		}
+		t->last_event_time = now;
+	}
+	mutex_unlock(&group->trigger_lock);
+}
+
+/*
+ * Return true if any trigger is active.
+ */
+bool psi_is_trigger_active(void)
+{
+	struct psi_group *group = &psi_system;
+	struct psi_trigger *t;
+	bool trigger_active = false;
+	u64 now;
+
+	if (static_branch_likely(&psi_disabled))
+		return false;
+
+	/*
+	 * In unlikely case that OOM was triggered while adding/
+	 * removing triggers.
+	 */
+	if (!mutex_trylock(&group->trigger_lock))
+		return true;
+
+	now = sched_clock();
+	list_for_each_entry(t, &group->triggers, node) {
+		if (strcmp(t->comm, ULMK_MAGIC))
+			continue;
+
+		if (now <= t->last_event_time + t->win.size)
+			trigger_active = true;
+	}
+	mutex_unlock(&group->trigger_lock);
+	return trigger_active;
 }
 
 /*
@@ -1054,70 +1166,6 @@ static int psi_cpu_open(struct inode *inode, struct file *file)
 	return single_open(file, psi_cpu_show, NULL);
 }
 
-static ssize_t psi_lmkd_count_read(struct file *file, char __user *buf,
-			    size_t count, loff_t *ppos)
-{
-	size_t len;
-	char buffer[32];
-	len = snprintf(buffer, sizeof(buffer), "%d\n", lmkd_count);
-
-	return simple_read_from_buffer(buf, count, ppos, buffer, len);
-}
-
-static ssize_t psi_lmkd_cricount_read(struct file *file, char __user *buf,
-			    size_t count, loff_t *ppos)
-{
-	size_t len;
-	char buffer[32];
-	len = snprintf(buffer, sizeof(buffer), "%d\n", lmkd_cricount);
-
-	return simple_read_from_buffer(buf, count, ppos, buffer, len);
-}
-
-static ssize_t psi_lmkd_count_write(struct file *file, const char __user *user_buf,
-			    size_t count, loff_t *ppos)
-{
-	char buffer[32];
-	int err;
-	memset(buffer, 0, sizeof(buffer));
-
-	if (count > sizeof(buffer) - 1)
-		count = sizeof(buffer) - 1;
-	if (copy_from_user(buffer, user_buf, count)) {
-		err = -EFAULT;
-		return err;
-	}
-
-	buffer[count] = '\0';
-	err = kstrtoint(strstrip(buffer), 0, &lmkd_count);
-	if(err)
-		return err;
-
-	return count;
-}
-
-static ssize_t psi_lmkd_cricount_write(struct file *file, const char __user *user_buf,
-			    size_t count, loff_t *ppos)
-{
-	char buffer[32];
-	int err;
-	memset(buffer, 0, sizeof(buffer));
-
-	if (count > sizeof(buffer) - 1)
-		count = sizeof(buffer) - 1;
-	if (copy_from_user(buffer, user_buf, count)) {
-		err = -EFAULT;
-		return err;
-	}
-
-	buffer[count] = '\0';
-	err = kstrtoint(strstrip(buffer), 0, &lmkd_cricount);
-	if(err)
-		return err;
-
-	return count;
-}
-
 struct psi_trigger *psi_trigger_create(struct psi_group *group,
 			char *buf, size_t nbytes, enum psi_res res)
 {
@@ -1161,12 +1209,14 @@ struct psi_trigger *psi_trigger_create(struct psi_group *group,
 	t->last_event_time = 0;
 	init_waitqueue_head(&t->event_wait);
 	kref_init(&t->refcount);
+	get_task_comm(t->comm, current);
+	timer_setup(&t->wdog_timer, ulmk_watchdog_fn, TIMER_DEFERRABLE);
 
 	mutex_lock(&group->trigger_lock);
 
 	if (!rcu_access_pointer(group->poll_kworker)) {
 		struct sched_param param = {
-			.sched_priority = MAX_RT_PRIO - 1,
+			.sched_priority = 1,
 		};
 		struct kthread_worker *kworker;
 
@@ -1176,7 +1226,7 @@ struct psi_trigger *psi_trigger_create(struct psi_group *group,
 			mutex_unlock(&group->trigger_lock);
 			return ERR_CAST(kworker);
 		}
-		sched_setscheduler(kworker->task, SCHED_FIFO, &param);
+		sched_setscheduler_nocheck(kworker->task, SCHED_FIFO, &param);
 		kthread_init_delayed_work(&group->poll_work,
 				psi_poll_work);
 		rcu_assign_pointer(group->poll_kworker, kworker);
@@ -1233,6 +1283,7 @@ static void psi_trigger_destroy(struct kref *ref)
 		}
 	}
 
+	del_timer_sync(&t->wdog_timer);
 	mutex_unlock(&group->trigger_lock);
 
 	/*
@@ -1246,7 +1297,15 @@ static void psi_trigger_destroy(struct kref *ref)
 	 * deadlock while waiting for psi_poll_work to acquire trigger_lock
 	 */
 	if (kworker_to_destroy) {
+		/*
+		 * After the RCU grace period has expired, the worker
+		 * can no longer be found through group->poll_kworker.
+		 * But it might have been already scheduled before
+		 * that - deschedule it cleanly before destroying it.
+		 */
 		kthread_cancel_delayed_work_sync(&group->poll_work);
+		atomic_set(&group->poll_scheduled, 0);
+
 		kthread_destroy_worker(kworker_to_destroy);
 	}
 	kfree(t);
@@ -1286,8 +1345,11 @@ __poll_t psi_trigger_poll(void **trigger_ptr,
 
 	poll_wait(file, &t->event_wait, wait);
 
-	if (cmpxchg(&t->event, 1, 0) == 1)
+	if (cmpxchg(&t->event, 1, 0) == 1) {
 		ret |= EPOLLPRI;
+		if (!strcmp(t->comm, ULMK_MAGIC))
+			ulmk_watchdog_pet(&t->wdog_timer);
+	}
 
 	kref_put(&t->refcount, psi_trigger_destroy);
 
@@ -1308,7 +1370,7 @@ static ssize_t psi_write(struct file *file, const char __user *user_buf,
 	if (!nbytes)
 		return -EINVAL;
 
-	buf_size = min(nbytes, (sizeof(buf) - 1));
+	buf_size = min(nbytes, sizeof(buf));
 	if (copy_from_user(buf, user_buf, buf_size))
 		return -EFAULT;
 
@@ -1387,26 +1449,20 @@ static const struct file_operations psi_cpu_fops = {
 	.release        = psi_fop_release,
 };
 
-static const struct file_operations psi_lmkd_count_fops = {
-	.read           = psi_lmkd_count_read,
-	.write          = psi_lmkd_count_write,
-	.llseek         = default_llseek,
-};
-
-static const struct file_operations psi_lmkd_cricount_fops = {
-	.read           = psi_lmkd_cricount_read,
-	.write          = psi_lmkd_cricount_write,
-	.llseek         = default_llseek,
-};
-
 static int __init psi_proc_init(void)
 {
 	proc_mkdir("pressure", NULL);
 	proc_create("pressure/io", 0, NULL, &psi_io_fops);
 	proc_create("pressure/memory", 0, NULL, &psi_memory_fops);
 	proc_create("pressure/cpu", 0, NULL, &psi_cpu_fops);
-	proc_create("pressure/lmkd_count", 0644, NULL, &psi_lmkd_count_fops);
-	proc_create("pressure/lmkd_cricount", 0644, NULL, &psi_lmkd_cricount_fops);
+
+	#ifdef CONFIG_SAMSUNG_LMKD_DEBUG
+	if (!proc_symlink("pressure/lmkd_count", NULL, "/proc/lmkd_debug/lmkd_count"))
+		pr_err("Failed to create link /proc/pressure/lmkd_count -> /proc/lmkd_debug/lmkd_count\n");
+	if (!proc_symlink("pressure/lmkd_cricount", NULL, "/proc/lmkd_debug/lmkd_cricount"))
+		pr_err("Failed to create link /proc/pressure/lmkd_cricount -> /proc/lmkd_debug/lmkd_cricount\n");
+	#endif
+
 	return 0;
 }
 module_init(psi_proc_init);

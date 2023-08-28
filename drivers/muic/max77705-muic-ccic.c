@@ -1,21 +1,9 @@
 /*
  * muic_ccic.c
  *
- * Copyright (C) 2014 Samsung Electronics
- * Thomas Ryu <smilesr.ryu@samsung.com>
- *
  * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/gpio.h>
@@ -35,11 +23,36 @@
 #endif
 
 #if defined(CONFIG_MUIC_SUPPORT_CCIC)
-#include <linux/usb/typec/common/pdic_notifier.h>
+#include <linux/ccic/ccic_notifier.h>
 #endif
 #if defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
-#include <linux/usb/typec/manager/usb_typec_manager_notifier.h>
+#include <linux/usb/manager/usb_typec_manager_notifier.h>
 #endif
+
+
+static int __ccic_info;
+
+/*
+ * __ccic_info :
+ * b'0: 1 if an active ccic is present,
+ *        0 when muic works without ccic chip or
+ *              no ccic Noti. registration is needed
+ *              even though a ccic chip is present.
+ */
+static int set_ccic_info(char *str)
+{
+	get_option(&str, &__ccic_info);
+
+	pr_info("%s: ccic_info: 0x%04x\n", __func__, __ccic_info);
+
+	return __ccic_info;
+}
+__setup("ccic_info=", set_ccic_info);
+
+int max77705_get_ccic_info(void)
+{
+	return __ccic_info;
+}
 
 static void max77705_muic_init_ccic_info_data(struct max77705_muic_data *muic_data)
 {
@@ -167,21 +180,6 @@ static int max77705_muic_handle_ccic_WATER(struct max77705_muic_data *muic_data,
 	return 0;
 }
 
-static int max77705_muic_handle_ccic_hiccup(struct max77705_muic_data *muic_data, CC_NOTI_ATTACH_TYPEDEF *pnoti)
-{
-	pr_info("%s: src:%d dest:%d id:%d attach:%d cable_type:%d rprd:%d\n", __func__,
-		pnoti->src, pnoti->dest, pnoti->id, pnoti->attach, pnoti->cable_type, pnoti->rprd);
-
-	if (muic_data->pdata->muic_set_hiccup_mode_cb) {
-		if (pnoti->attach == CCIC_NOTIFY_ATTACH)
-			muic_data->pdata->muic_set_hiccup_mode_cb(MUIC_HICCUP_MODE_ON);
-		else
-			muic_data->pdata->muic_set_hiccup_mode_cb(MUIC_HICCUP_MODE_OFF);
-	}
-
-	return 0;
-}
-
 static int max77705_muic_handle_ccic_notification(struct notifier_block *nb,
 				unsigned long action, void *data)
 {
@@ -216,10 +214,6 @@ static int max77705_muic_handle_ccic_notification(struct notifier_block *nb,
 	case CCIC_NOTIFY_ID_WATER:
 		pr_info("%s: CCIC_NOTIFY_ID_WATER\n", __func__);
 		max77705_muic_handle_ccic_WATER(muic_data, (CC_NOTI_ATTACH_TYPEDEF *)pnoti);
-		break;
-	case CCIC_NOTIFY_ID_WATER_CABLE:
-		pr_info("%s: CCIC_NOTIFY_ID_WATER_CABLE\n", __func__);
-		max77705_muic_handle_ccic_hiccup(muic_data, (CC_NOTI_ATTACH_TYPEDEF *)pnoti);
 		break;
 	default:
 		pr_info("%s: Undefined Noti. ID\n", __func__);

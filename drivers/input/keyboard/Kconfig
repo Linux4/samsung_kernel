@@ -202,6 +202,44 @@ config KEYBOARD_EP93XX
 	  To compile this driver as a module, choose M here: the
 	  module will be called ep93xx_keypad.
 
+config SENSORS_HALL
+	bool "HALL"
+	default n
+	help
+	  Say Y here to enable the HALL
+	  and send a event when HALL state is changed.
+	  Active gpio state is low and active event value is 0.
+
+	  If unsure, say N.
+
+config CERTIFY_HALL
+	tristate "Enable CERTIFY HALL"
+	default n
+	help
+	  Say Y here to enable the CERTIFY HALL
+	  and send a event when CERTIFY HALL state is changed.
+	  Active gpio state is low and active event value is 0.
+
+	  If unsure, say N.
+
+config FOLDER_HALL
+	bool "FOLDER HALL"
+	default n
+	help
+	  Enable FOLDER Hall Feature
+
+config LOGICAL_HALL
+	bool "LOGICAL HALL"
+	default n
+	help
+	  Enable LOGICAL Hall Feature
+
+config WACOM_HALL
+	bool "WACOM HALL"
+	default n
+	help
+	  Enable WACOM Hall Feature
+
 config KEYBOARD_GPIO
 	tristate "GPIO Buttons"
 	depends on GPIOLIB || COMPILE_TEST
@@ -757,5 +795,6 @@ config KEYBOARD_MTK_PMIC
 	  module will be called pmic-keys.
 
 source "drivers/input/keyboard/stm/fsr1ad04/Kconfig"
+source "drivers/input/keyboard/stm/stm32l0/Kconfig"
 
 endif

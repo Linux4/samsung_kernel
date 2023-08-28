@@ -15,13 +15,17 @@
 #define __LINUX_MFD_S2DOS05_H
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
+#ifdef CONFIG_SEC_FACTORY
+#include <linux/kernel.h>
+#include <linux/notifier.h>
+#endif /* CONFIG_SEC_FACTORY */
 
 #define MFD_DEV_NAME "s2dos05"
 
 /**
  * sec_regulator_data - regulator data
  * @id: regulator id
- * @initdata: regulator init data (contraints, supplies, ...)
+ * @initdata: regulator init data (constraints, supplies, ...)
  */
 
 struct s2dos05_dev {
@@ -33,8 +37,8 @@ struct s2dos05_dev {
 	u8 rev_num; /* pmic Rev */
 	bool wakeup;
 	int dp_pmic_irq;
-	int		adc_mode;
-	int		adc_sync_mode;
+	int adc_mode;
+	int adc_sync_mode;
 	u8 adc_en_val;
 
 	struct s2dos05_platform_data *pdata;
@@ -57,8 +61,8 @@ struct s2dos05_regulator_data {
 struct s2dos05_platform_data {
 	bool wakeup;
 	int num_regulators;
-	struct	s2dos05_regulator_data *regulators;
-	int	device_type;
+	struct s2dos05_regulator_data *regulators;
+	int device_type;
 	int dp_pmic_irq;
 
 	/* adc_mode
@@ -66,9 +70,10 @@ struct s2dos05_platform_data {
 	 * 1 : current meter
 	 * 2 : power meter
 	*/
-	int		adc_mode;
+	int adc_mode;
 	/* 1 : sync mode, 2 : async mode  */
-	int		adc_sync_mode;
+	int adc_sync_mode;
+	bool ocl_max;
 #ifdef CONFIG_SEC_PM
 	const char *sec_disp_pmic_name;
 #endif /* CONFIG_SEC_PM */
@@ -79,7 +84,7 @@ struct s2dos05 {
 };
 
 /* S2DOS05 registers */
-/* Slave Addr : 0xC0 */
+/* Slave Addr : 0xC0(Low(AGND)), 0xC2(Hihg-Z), 0xC4(High(VBAT)) */
 enum S2DOS05_reg {
 	S2DOS05_REG_DEV_ID,
 	S2DOS05_REG_TOPSYS_STAT,
@@ -129,7 +134,9 @@ enum S2DOS05_regulators {
 #define S2DOS05_BUCK_STEP1	6250
 #define S2DOS05_LDO_STEP1	25000
 #define S2DOS05_LDO_VSEL_MASK	0x7F
+#define S2DOS05_LDO_FD_MASK	0x80
 #define S2DOS05_BUCK_VSEL_MASK	0xFF
+#define S2DOS05_BUCK_FD_MASK	0x08
 #ifdef CONFIG_SEC_PM
 #define S2DOS05_ELVSS_SEL_SSD_MASK	(3 << 5)
 #define S2DOS05_ELVSS_SSD_EN_MASK	(3 << 3)
@@ -196,5 +203,14 @@ extern int s2dos05_read_reg(struct i2c_client *i2c, u8 reg, u8 *dest);
 extern int s2dos05_write_reg(struct i2c_client *i2c, u8 reg, u8 value);
 extern int s2dos05_update_reg(struct i2c_client *i2c, u8 reg, u8 val, u8 mask);
 
+#ifdef CONFIG_SEC_FACTORY
+int msm_drm_register_notifier_client(struct notifier_block *nb);
+int msm_drm_unregister_notifier_client(struct notifier_block *nb);
+#if defined(CONFIG_SEC_WINNERLTE_PROJECT) || defined(CONFIG_SEC_WINNERX_PROJECT)
+int enable_sub_fd_store(int enable);
+int enable_sub_fd_show(void);
+int s2mpb02_recovery(int pmic_id);
+#endif /* CONFIG_SEC_WINNERLTE_PROJECT */
+#endif /* CONFIG_SEC_FACTORY */
 
 #endif /*  __LINUX_MFD_S2DOS05_H */

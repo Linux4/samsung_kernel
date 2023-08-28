@@ -22,6 +22,10 @@
 
 #include <linux/types.h>
 
+#ifdef CONFIG_SEC_DEBUG
 #define COMMAND_LINE_SIZE	4096
+#else
+#define COMMAND_LINE_SIZE	2048
+#endif
 
 #endif

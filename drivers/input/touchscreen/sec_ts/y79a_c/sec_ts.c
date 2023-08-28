@@ -21,14 +21,14 @@ static void sec_ts_read_info_work(struct work_struct *work);
 static void sec_ts_print_info_work(struct work_struct *work);
 static void sec_ts_lfd_ctrl_work(struct work_struct *work);
 
+#if defined(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE) && defined(CONFIG_FOLDER_HALL)
+static void sec_ts_switching_work(struct work_struct *work);
+static int sec_ts_hall_ic_notify(struct notifier_block *nb, unsigned long flip_cover, void *v);
+#endif
+
 #ifdef USE_OPEN_CLOSE
 static int sec_ts_input_open(struct input_dev *dev);
 static void sec_ts_input_close(struct input_dev *dev);
-#endif
-
-#if defined(CONFIG_SAMSUNG_TUI)
-static int stui_tsp_enter(void);
-static int stui_tsp_exit(void);
 #endif
 
 int sec_ts_read_information(struct sec_ts_data *ts);
@@ -270,6 +270,15 @@ static int sec_touch_notify_call(struct notifier_block *n, unsigned long data, v
 	case NOTIFIER_WACOM_PEN_REMOVE:
 		ret = sec_ts_set_scan_mode(ts, ENABLE_SPEN_OUT);
 		break;
+#if defined(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE) && defined(CONFIG_FOLDER_HALL)
+	case NOTIFIER_MAIN_TOUCH_ON:
+		input_info(true, &ts->client->dev, "%s: main_tsp open\n", __func__);
+		mutex_lock(&ts->modechange);
+		ts->tsp_open_status = NOTIFIER_MAIN_TOUCH_ON;
+		sec_ts_chk_tsp_ic_status(ts, SEC_TS_STATE_CHK_POS_CLOSE);
+		mutex_unlock(&ts->modechange);
+		break;
+#endif
 	default:
 		break;
 	}
@@ -748,7 +757,11 @@ static void sec_ts_set_prox_power_off(struct sec_ts_data *ts, u8 data)
 
 #if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
 #include <linux/input/sec_tsp_dumpkey.h>
+#ifdef CONFIG_TOUCHSCREEN_DUAL_FOLDABLE
+extern struct tsp_dump_callbacks *tsp_callbacks;
+#else
 extern struct tsp_dump_callbacks dump_callbacks;
+#endif
 static struct delayed_work *p_ghost_check;
 
 static void sec_ts_check_rawdata(struct work_struct *work)
@@ -789,7 +802,6 @@ static void sec_ts_sponge_dump_flush(struct sec_ts_data *ts, int dump_area)
 {
 	int i, ret;
 	unsigned char *sec_spg_dat;
-	input_info(true, &ts->client->dev, "%s: ++\n", __func__);
 
 	sec_spg_dat = vmalloc(SEC_TS_MAX_SPONGE_DUMP_BUFFER);
 	if (!sec_spg_dat) {
@@ -810,6 +822,13 @@ static void sec_ts_sponge_dump_flush(struct sec_ts_data *ts, int dump_area)
 	}
 	
 	/* dump all events at once */
+	if (ts->sponge_dump_event * ts->sponge_dump_format > SEC_TS_MAX_SPONGE_DUMP_BUFFER) {
+		input_err(true, &ts->client->dev, "%s: wrong sponge dump read size(%d)\n",
+				__func__, ts->sponge_dump_event * ts->sponge_dump_format);
+		vfree(sec_spg_dat);
+		return;
+	}
+
 	ret = ts->sec_ts_read_sponge(ts, sec_spg_dat, ts->sponge_dump_event * ts->sponge_dump_format);
 	if (ret < 0) {
 		input_err(true, &ts->client->dev, "%s: Failed to read sponge\n", __func__);
@@ -836,7 +855,6 @@ static void sec_ts_sponge_dump_flush(struct sec_ts_data *ts, int dump_area)
 	}
 
 	vfree(sec_spg_dat);
-	input_info(true, &ts->client->dev, "%s: --\n", __func__);
 	return;
 }
 #endif
@@ -1672,6 +1690,15 @@ static void sec_ts_read_event(struct sec_ts_data *ts)
 						__func__, p_gesture_status->gesture_id ? "" : "LONG");
 #endif
 				break;
+			case SEC_TS_GESTURE_CODE_LARGEPALM:
+				input_info(true, &ts->client->dev, "%s: LARGE PALM: %d\n", __func__, p_gesture_status->gesture_id);
+
+				if (p_gesture_status->gesture_id == 0)
+					input_report_key(ts->input_dev, BTN_LARGE_PALM, 1);
+				else
+					input_report_key(ts->input_dev, BTN_LARGE_PALM, 0);
+				input_sync(ts->input_dev);
+				break;
 			case SEC_TS_GESTURE_CODE_DUMPFLUSH:
 				if (ts->sponge_inf_dump) {
 					if (ts->power_status == SEC_TS_STATE_LPM) {
@@ -2107,14 +2134,22 @@ static void sec_ts_init_proc(struct sec_ts_data *ts)
 	if (!ts->fail_hist_main_proc)
 		goto err_alloc_fail_hist_main;
 
+#ifdef CONFIG_TOUCHSCREEN_DUAL_FOLDABLE
+	entry_cmoffset_all = proc_create("tsp_cmoffset_all_sub", S_IFREG | S_IRUGO, NULL, &tsp_cmoffset_all_file_ops);
+#else
 	entry_cmoffset_all = proc_create("tsp_cmoffset_all", S_IFREG | S_IRUGO, NULL, &tsp_cmoffset_all_file_ops);
+#endif
 	if (!entry_cmoffset_all) {
 		input_err(true, &ts->client->dev, "%s: failed to create /proc/tsp_cmoffset_all\n", __func__);
 		goto err_cmoffset_proc_create;
 	}
 	proc_set_size(entry_cmoffset_all, ts->proc_cmoffset_all_size);
 
+#ifdef CONFIG_TOUCHSCREEN_DUAL_FOLDABLE
+	entry_fail_hist_all = proc_create("tsp_fail_hist_all_sub", S_IFREG | S_IRUGO, NULL, &tsp_fail_hist_all_file_ops);
+#else
 	entry_fail_hist_all = proc_create("tsp_fail_hist_all", S_IFREG | S_IRUGO, NULL, &tsp_fail_hist_all_file_ops);
+#endif
 	if (!entry_fail_hist_all) {
 		input_err(true, &ts->client->dev, "%s: failed to create /proc/tsp_fail_hist_all\n", __func__);
 		goto err_fail_hist_proc_create;
@@ -2317,11 +2352,19 @@ static int sec_ts_parse_dt(struct i2c_client *client)
 		input_err(true, dev, "%s: Failed to get tsp-id gpio\n", __func__);
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
+#ifdef CONFIG_TOUCHSCREEN_DUAL_FOLDABLE
+	lcdtype = get_lcd_attached_secondary("GET");
+	if (lcdtype == 0xFFFFFF) {
+		input_err(true, &client->dev, "%s: lcd is not attached\n", __func__);
+		return -ENODEV;
+	}
+#else
 	lcdtype = get_lcd_attached("GET");
 	if (lcdtype == 0xFFFFFF) {
 		input_err(true, &client->dev, "%s: lcd is not attached\n", __func__);
 		return -ENODEV;
 	}
+#endif
 #endif
 
 #if defined(CONFIG_EXYNOS_DPU30)
@@ -2616,6 +2659,7 @@ static void sec_ts_set_input_prop(struct sec_ts_data *ts, struct input_dev *dev,
 	set_bit(EV_SW, dev->evbit);
 	set_bit(BTN_TOUCH, dev->keybit);
 	set_bit(BTN_TOOL_FINGER, dev->keybit);
+	set_bit(BTN_LARGE_PALM, dev->keybit);
 	set_bit(KEY_BLACK_UI_GESTURE, dev->keybit);
 	set_bit(KEY_INT_CANCEL, dev->keybit);
 
@@ -2818,6 +2862,9 @@ static int sec_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	mutex_init(&ts->modechange);
 	mutex_init(&ts->sponge_mutex);
 	mutex_init(&ts->proc_mutex);
+#if defined(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE) && defined(CONFIG_FOLDER_HALL)
+	mutex_init(&ts->status_mutex);
+#endif
 
 	wake_lock_init(&ts->wakelock, WAKE_LOCK_SUSPEND, "tsp_wakelock");
 	init_completion(&ts->resume_done);
@@ -2937,7 +2984,11 @@ static int sec_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 		sec_ts_set_input_prop_proximity(ts, ts->input_dev_proximity);
 	}
 
+#if defined(CONFIG_TOUCHSCREEN_SEC_TS_Y771_SUB)
+	ts->input_dev->name = "sec_touchscreen2";
+#else
 	ts->input_dev->name = "sec_touchscreen";
+#endif
 	sec_ts_set_input_prop(ts, ts->input_dev, INPUT_PROP_DIRECT);
 #ifdef USE_OPEN_CLOSE
 	ts->input_dev->open = sec_ts_input_open;
@@ -2977,12 +3028,6 @@ static int sec_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 
 #ifdef CONFIG_SAMSUNG_TUI
 	tsp_info = ts;
-	ret = stui_set_info(stui_tsp_enter, stui_tsp_exit, STUI_TSP_TYPE_SLSI);
-	if (ret < 0) {
-			input_err(true, &tsp_info->client->dev,
-					"%s: Failed to register stui tsp type\n", __func__);
-	}
-	input_info(true, &tsp_info->client->dev, "%s: stui tsp vendor slsi register\n", __func__);
 #endif
 	/* need remove below resource @ remove driver */
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
@@ -3003,13 +3048,30 @@ static int sec_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	schedule_delayed_work(&ts->work_read_info, msecs_to_jiffies(50));
 
 #if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
+#if defined(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+	tsp_callbacks[SEC_TS_STATUS_FOLDING].inform_dump = dump_tsp_log;
+#else
 	dump_callbacks.inform_dump = dump_tsp_log;
+#endif
 	INIT_DELAYED_WORK(&ts->ghost_check, sec_ts_check_rawdata);
 	p_ghost_check = &ts->ghost_check;
 #endif
 
 	/* register dev for ltp */
 	sec_ts_ioctl_init(ts);
+
+#if defined(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE) && defined(CONFIG_FOLDER_HALL)
+	mutex_init(&ts->switching_mutex);
+	INIT_DELAYED_WORK(&ts->switching_work, sec_ts_switching_work);
+
+	/* Hall IC notify priority -> ftn -> register */
+	ts->flip_status = -1;
+	ts->flip_status_current = SEC_TS_STATUS_UNFOLDING;	// default : 0 unfolding
+	ts->hall_ic_nb.priority = 1;
+	ts->hall_ic_nb.notifier_call = sec_ts_hall_ic_notify;
+	hall_ic_register_notify(&ts->hall_ic_nb);
+	input_info(true, &ts->client->dev, "%s: hall ic register\n", __func__);
+#endif
 
 #if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_EXYNOS_DPU30)
 	ts->panel_notif.notifier_call = sec_ts_dms_notifier_cb;
@@ -3150,6 +3212,7 @@ void sec_ts_unlocked_release_all_finger(struct sec_ts_data *ts)
 
 	input_report_key(ts->input_dev, BTN_TOUCH, false);
 	input_report_key(ts->input_dev, BTN_TOOL_FINGER, false);
+	input_report_key(ts->input_dev, BTN_LARGE_PALM, 0);
 	ts->touch_count = 0;
 	ts->check_multi = 0;
 
@@ -3208,6 +3271,7 @@ void sec_ts_locked_release_all_finger(struct sec_ts_data *ts)
 
 	input_report_key(ts->input_dev, BTN_TOUCH, false);
 	input_report_key(ts->input_dev, BTN_TOOL_FINGER, false);
+	input_report_key(ts->input_dev, BTN_LARGE_PALM, 0);
 	ts->touch_count = 0;
 	ts->check_multi = 0;
 
@@ -3390,6 +3454,12 @@ static void sec_ts_read_info_work(struct work_struct *work)
 
 	schedule_work(&ts->work_print_info.work);
 
+#if defined(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE) && defined(CONFIG_FOLDER_HALL)
+	if (ts->change_flip_status) {
+		input_info(true, &ts->client->dev, "%s: re-try switching after reading info\n", __func__);
+		schedule_work(&ts->switching_work.work);
+	}
+#endif
 }
 
 /* limit LFD during touch
@@ -3422,6 +3492,135 @@ static void sec_ts_lfd_ctrl_work(struct work_struct *work)
 	}
 	ts->lfd_ctrl_prev = ts->lfd_ctrl;
 }
+
+#if defined(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE) && defined(CONFIG_FOLDER_HALL)
+static void sec_ts_switching_work(struct work_struct *work)
+{
+	struct sec_ts_data *ts = container_of(work, struct sec_ts_data,
+				switching_work.work);
+
+	if (ts == NULL) {
+		input_err(true, NULL, "%s: tsp info is null\n", __func__);
+		return;
+	}
+
+	if (ts->flip_status != ts->flip_status_current) {
+		if (!ts->info_work_done) {
+			input_err(true, &ts->client->dev, "%s: info_work is not done yet\n", __func__);
+			ts->change_flip_status = 1;
+			return;
+		}
+		ts->change_flip_status = 0;
+
+		mutex_lock(&ts->switching_mutex);
+		ts->flip_status = ts->flip_status_current;
+
+		if (ts->flip_status == SEC_TS_STATUS_UNFOLDING) {
+			/* open : sub_tsp off */
+#ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
+			secure_touch_stop(ts, 1);
+#endif
+		} else {
+			/* close : sub_tsp on */
+		}
+
+		mutex_lock(&ts->modechange);
+		sec_ts_chk_tsp_ic_status(ts, SEC_TS_STATE_CHK_POS_HALL);
+		mutex_unlock(&ts->modechange);
+
+		mutex_unlock(&ts->switching_mutex);
+	}
+}
+
+static int sec_ts_hall_ic_notify(struct notifier_block *nb,
+			unsigned long flip_cover, void *v)
+{
+	struct sec_ts_data *ts = container_of(nb, struct sec_ts_data,
+				hall_ic_nb);
+
+	if (ts == NULL) {
+		input_err(true, NULL, "%s: tsp info is null\n", __func__);
+		return 0;
+	}
+
+	input_info(true, &ts->client->dev, "%s: %s\n", __func__,
+			 flip_cover ? "close" : "open");
+
+	cancel_delayed_work(&ts->switching_work);
+
+	ts->flip_status_current = flip_cover;
+
+	schedule_work(&ts->switching_work.work);
+
+	return 0;
+}
+
+void sec_ts_chk_tsp_ic_status(struct sec_ts_data *ts, int call_pos)
+{
+	mutex_lock(&ts->status_mutex);
+
+	input_info(true, &ts->client->dev,
+			"%s : START : pos[%d] power_status[0x%X] lowpower_mode[0x%X] %sfolding\n",
+			__func__, call_pos, ts->power_status, ts->lowpower_mode,
+			ts->flip_status_current ? "": "un");
+
+	if (call_pos == SEC_TS_STATE_CHK_POS_OPEN) {
+		input_dbg(true, &ts->client->dev, "%s : OPEN  : Notthing\n", __func__);
+
+	} else if (call_pos == SEC_TS_STATE_CHK_POS_CLOSE) {
+		if (ts->power_status == SEC_TS_STATE_LPM && ts->flip_status_current == SEC_TS_STATUS_UNFOLDING) {
+			input_info(true, &ts->client->dev, "%s : HALL  : TSP IC LP => IC OFF\n", __func__);
+			sec_ts_stop_device(ts);
+		}
+	} else if (call_pos == SEC_TS_STATE_CHK_POS_HALL) {
+		if (ts->power_status == SEC_TS_STATE_LPM && ts->flip_status_current == SEC_TS_STATUS_UNFOLDING) {
+			input_info(true, &ts->client->dev, "%s : HALL  : TSP IC LP => IC OFF\n", __func__);
+			sec_ts_stop_device(ts);
+		} else if (ts->power_status == SEC_TS_STATE_POWER_OFF && ts->flip_status_current == SEC_TS_STATUS_FOLDING && ts->lowpower_mode != 0) {
+			input_info(true, &ts->client->dev, "%s : HALL  : TSP IC OFF => LP[0x%X]\n", __func__, ts->lowpower_mode);
+			sec_ts_start_device(ts);
+			sec_ts_set_lowpowermode(ts, TO_LOWPOWER_MODE);
+		} else {
+			input_info(true, &ts->client->dev, "%s : HALL  : nothing!\n", __func__);
+		}
+
+	} else if (call_pos == SEC_TS_STATE_CHK_POS_SYSFS) {
+		if (ts->flip_status_current == SEC_TS_STATUS_FOLDING) {
+			if (ts->power_status == SEC_TS_STATE_POWER_OFF && ts->lowpower_mode){
+				input_info(true, &ts->client->dev, "%s : SYSFS : TSP IC OFF => LP mode[0x%X]\n", __func__, ts->lowpower_mode);
+				sec_ts_start_device(ts);
+				sec_ts_set_lowpowermode(ts, TO_LOWPOWER_MODE);
+
+			} else if (ts->power_status == SEC_TS_STATE_LPM && ts->lowpower_mode == 0) {
+				input_info(true, &ts->client->dev, "%s : SYSFS : LP mode [0x0] => IC OFF\n", __func__);
+				sec_ts_stop_device(ts);
+
+			} else if (ts->power_status == SEC_TS_STATE_LPM && ts->lowpower_mode != 0) {
+				input_info(true, &ts->client->dev, "%s : SYSFS : call LP mode again\n", __func__);
+				sec_ts_set_lowpowermode(ts, TO_LOWPOWER_MODE);
+
+			} else {
+				input_info(true, &ts->client->dev, "%s : SYSFS : nothing!\n", __func__);
+			}
+		} else {
+			if (ts->power_status == SEC_TS_STATE_LPM) {
+				input_info(true, &ts->client->dev, "%s : SYSFS : rear selfie off => IC OFF\n", __func__);
+				sec_ts_stop_device(ts);
+			} else {
+				input_info(true, &ts->client->dev, "%s : SYSFS : unfolding nothing[0x%X]\n", __func__, ts->lowpower_mode);
+			}
+		}
+
+	} else {
+		input_info(true, &ts->client->dev, "%s : Abnormal case\n", __func__);
+	}
+
+	input_info(true, &ts->client->dev, "%s : END   : pos[%d] power_status[0x%X], lowpower_mode[0x%X]\n",
+			__func__, call_pos, ts->power_status, ts->lowpower_mode);
+
+	mutex_unlock(&ts->status_mutex);
+}
+#endif
 
 int sec_ts_set_lowpowermode(struct sec_ts_data *ts, u8 mode)
 {
@@ -3524,6 +3723,11 @@ static int sec_ts_dms_notifier_cb(struct notifier_block *nb, unsigned long event
 	if (event != PANEL_EVENT_LFD_CHANGED)
 		return 0;
 
+#if defined(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+	/* dual - sub do not support lfd */
+	if (evdata->display_idx != SUB_TOUCHSCREEN)
+		return 0;
+#endif
 	if ((ts->dms_event_data.fps != evdata->fps) ||
 		(ts->dms_event_data.lfd_max_freq != evdata->lfd_max_freq) ||
 		(ts->dms_event_data.lfd_min_freq != evdata->lfd_min_freq)) {
@@ -3554,6 +3758,10 @@ static int sec_ts_input_open(struct input_dev *dev)
 		return 0;
 	}
 
+#if defined(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE) && defined(CONFIG_FOLDER_HALL)
+	cancel_delayed_work_sync(&ts->switching_work);
+	mutex_lock(&ts->switching_mutex);
+#endif
 	mutex_lock(&ts->modechange);
 
 	ts->input_closed = false;
@@ -3562,7 +3770,6 @@ static int sec_ts_input_open(struct input_dev *dev)
 #ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
 	secure_touch_stop(ts, 0);
 #endif
-
 	if (ts->power_status == SEC_TS_STATE_LPM) {
 #ifdef USE_RESET_EXIT_LPM
 		if (!ts->shutdown_is_on_going)
@@ -3582,13 +3789,19 @@ static int sec_ts_input_open(struct input_dev *dev)
 
 	sec_ts_set_temp(ts, true);
 
+#if defined(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE) && defined(CONFIG_TOUCHSCREEN_SEC_TS_Y771_SUB)
+	ts->tsp_open_status = NOTIFIER_SUB_TOUCH_ON;
+#endif
 	mutex_unlock(&ts->modechange);
-
+#if defined(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE) && defined(CONFIG_FOLDER_HALL)
+	mutex_unlock(&ts->switching_mutex);
+#endif
 	cancel_delayed_work(&ts->work_print_info);
 	ts->print_info_cnt_open = 0;
 	ts->print_info_cnt_release = 0;
 	if (!ts->shutdown_is_on_going)
 		schedule_work(&ts->work_print_info.work);
+
 	return 0;
 }
 
@@ -3605,6 +3818,10 @@ static void sec_ts_input_close(struct input_dev *dev)
 		return;
 	}
 
+#if defined(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE) && defined(CONFIG_FOLDER_HALL)
+	cancel_delayed_work_sync(&ts->switching_work);
+	mutex_lock(&ts->switching_mutex);
+#endif
 	mutex_lock(&ts->modechange);
 
 	ts->input_closed = true;
@@ -3630,13 +3847,29 @@ static void sec_ts_input_close(struct input_dev *dev)
 #ifdef USE_POWER_RESET_WORK
 	cancel_delayed_work(&ts->reset_work);
 #endif
-
+#if defined(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE) && defined(CONFIG_FOLDER_HALL)
+	if (ts->lowpower_mode && !ts->prox_power_off &&
+			ts->flip_status_current == SEC_TS_STATUS_FOLDING)
+		sec_ts_set_lowpowermode(ts, TO_LOWPOWER_MODE);
+#if defined(CONFIG_TOUCHSCREEN_SEC_TS_Y771_SUB)
+	else if (ts->lowpower_mode && !ts->prox_power_off &&
+			ts->flip_status_current == SEC_TS_STATUS_UNFOLDING &&
+			ts->tsp_open_status == NOTIFIER_SUB_TOUCH_ON)
+		sec_ts_set_lowpowermode(ts, TO_LOWPOWER_MODE);
+#endif
+	else if (ts->lowpower_mode || ts->ed_enable)
+		sec_ts_set_lowpowermode(ts, TO_LOWPOWER_MODE);
+#else
 	if (ts->lowpower_mode || ts->ed_enable)
 		sec_ts_set_lowpowermode(ts, TO_LOWPOWER_MODE);
+#endif
 	else
 		sec_ts_stop_device(ts);
 
 	mutex_unlock(&ts->modechange);
+#if defined(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE) && defined(CONFIG_FOLDER_HALL)
+	mutex_unlock(&ts->switching_mutex);
+#endif
 }
 #endif
 
@@ -3656,10 +3889,17 @@ static int sec_ts_remove(struct i2c_client *client)
 
 	sec_input_unregister_notify(&ts->sec_input_nb);
 #if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
+#if defined(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+	tsp_callbacks[SEC_TS_STATUS_FOLDING].inform_dump = NULL;
+#else
 	dump_callbacks.inform_dump = NULL;
+#endif
 	p_ghost_check = NULL;
 #endif
 	sec_ts_ioctl_remove(ts);
+#if defined(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE) && defined(CONFIG_FOLDER_HALL)
+	hall_ic_unregister_notify(&ts->hall_ic_nb);
+#endif
 #if defined(CONFIG_EXYNOS_DPU30)
 	panel_notifier_unregister(&ts->panel_notif);
 #elif defined(CONFIG_DISPLAY_SAMSUNG)
@@ -3847,7 +4087,7 @@ static int sec_ts_pm_resume(struct device *dev)
 extern int stui_i2c_lock(struct i2c_adapter *adap);
 extern int stui_i2c_unlock(struct i2c_adapter *adap);
 
-static int stui_tsp_enter(void)
+int stui_tsp_enter(void)
 {
 	int ret = 0;
 
@@ -3870,7 +4110,7 @@ static int stui_tsp_enter(void)
 	return 0;
 }
 
-static int stui_tsp_exit(void)
+int stui_tsp_exit(void)
 {
 	int ret = 0;
 

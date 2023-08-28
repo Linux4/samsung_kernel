@@ -3,7 +3,10 @@
 #include <linux/linkage.h>
 #include <asm/asm-offsets.h>
 #include <asm/assembler.h>
-#include <asm/cputype.h>
+
+#ifdef CONFIG_CFP_ROPP
+#include <asm/cfp.h>
+#endif
 
 	.text
 /*
@@ -63,6 +66,9 @@
  *  x0 = struct sleep_stack_data area
  */
 ENTRY(__cpu_suspend_enter)
+#if (defined CONFIG_CFP_ROPP) && !(defined CONFIG_CFP_ROPP_SYSREGKEY)
+	stp	RRX, RRK, [x0, #SLEEP_STACK_DATA_CALLEE_REGS+96]
+#endif
 	stp	x29, lr, [x0, #SLEEP_STACK_DATA_CALLEE_REGS]
 	stp	x19, x20, [x0,#SLEEP_STACK_DATA_CALLEE_REGS+16]
 	stp	x21, x22, [x0,#SLEEP_STACK_DATA_CALLEE_REGS+32]
@@ -77,10 +83,6 @@ ENTRY(__cpu_suspend_enter)
 	/* find the mpidr_hash */
 	ldr_l	x1, sleep_save_stash
 	mrs	x7, mpidr_el1
-	tst	x7, #MPIDR_MT_BITMASK
-	b.eq	1f
-	lsr	x7, x7, #MPIDR_LEVEL_BITS
-1:
 	adr_l	x9, mpidr_hash
 	ldr	x10, [x9, #MPIDR_HASH_MASK]
 	/*
@@ -115,10 +117,6 @@ ENDPROC(cpu_resume)
 
 ENTRY(_cpu_resume)
 	mrs	x1, mpidr_el1
-	tst	x1, #MPIDR_MT_BITMASK
-	b.eq	1f
-	lsr	x1, x1, #MPIDR_LEVEL_BITS
-1:
 	adr_l	x8, mpidr_hash		// x8 = struct mpidr_hash virt address
 
 	/* retrieve mpidr_hash members to compute the hash */
@@ -149,6 +147,15 @@ ENTRY(_cpu_resume)
 	ldp	x21, x22, [x29, #32]
 	ldp	x23, x24, [x29, #48]
 	ldp	x25, x26, [x29, #64]
+#ifdef CONFIG_CFP_ROPP
+#ifdef CONFIG_CFP_ROPP_SYSREGKEY
+	ropp_load_mk
+	get_thread_info	x27
+	ropp_load_key	x27
+#else
+	ldp	RRX, RRK, [x29, #96]
+#endif
+#endif
 	ldp	x27, x28, [x29, #80]
 	ldp	x29, lr, [x29]
 	mov	x0, #0

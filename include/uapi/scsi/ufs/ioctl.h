@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 #ifndef UAPI_UFS_IOCTL_H_
 #define UAPI_UFS_IOCTL_H_
 
@@ -14,13 +15,14 @@
 #endif
 
 /**
- * struct ufs_ioctl_query_data - used to transfer data to and from user via ioctl
+ * struct ufs_ioctl_query_data - used to transfer data to and from user via
+ * ioctl
  * @opcode: type of data to query (descriptor/attribute/flag)
  * @idn: id of the data structure
  * @buf_size: number of allocated bytes/data size on return
  * @buffer: data location
  *
- * Received: buffer and buf_size (available space for transfered data)
+ * Received: buffer and buf_size (available space for transferred data)
  * Submitted: opcode, idn, length, buf_size
  */
 struct ufs_ioctl_query_data {
@@ -52,8 +54,8 @@ struct ufs_ioctl_query_data {
 	 * placeholder for the start of the data buffer where kernel will copy
 	 * the query data (attribute/flag/descriptor) read from the UFS device
 	 * Note:
-	 * For Read Attribute you will have to allocate 4 bytes
-	 * For Read Flag you will have to allocate 1 byte
+	 * For Read/Write Attribute you will have to allocate 4 bytes
+	 * For Read/Write Flag you will have to allocate 1 byte
 	 */
 	__u8 buffer[0];
 };

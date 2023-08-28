@@ -17,7 +17,6 @@
 #include <linux/module.h>
 #include <linux/smp.h>
 #include <linux/device.h>
-#include <linux/debug-snapshot.h>
 
 #include "tick-internal.h"
 

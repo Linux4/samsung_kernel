@@ -193,6 +193,13 @@ int __anon_vma_prepare(struct vm_area_struct *vma)
 		allocated = anon_vma;
 	}
 
+#ifdef CONFIG_SEC_DEBUG
+	/* FIXME: if 'anon_vma' is young and the current core and the core
+	 * that 'anon_vma' is born are different, then 'anon_vma'
+	 * sometimes has different contents from its hometown. */
+	smp_mb();
+#endif
+
 	anon_vma_lock_write(anon_vma);
 	/* page_table_lock to protect against threads */
 	spin_lock(&mm->page_table_lock);
@@ -633,8 +640,6 @@ static bool should_defer_flush(struct mm_struct *mm, enum ttu_flags flags)
 	if (!(flags & TTU_BATCH_FLUSH))
 		return false;
 
-	if (!!(flags & TTU_FORCE_BATCH_FLUSH))
-		return true;
 	/* If remote CPUs need to be flushed then defer batch the flush */
 	if (cpumask_any_but(mm_cpumask(mm), get_cpu()) < nr_cpu_ids)
 		should_defer = true;
@@ -1829,6 +1834,7 @@ static void rmap_walk_anon(struct page *page, struct rmap_walk_control *rwc,
 	} else {
 		anon_vma = rmap_walk_anon_lock(page, rwc);
 	}
+
 	if (!anon_vma)
 		return;
 

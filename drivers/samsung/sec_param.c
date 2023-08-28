@@ -1,408 +1,465 @@
 /*
- * Copyright (c) 2014 Samsung Electronics Co., Ltd.
- *      http://www.samsung.com
+ * drivers/misc/samsung/sec_param.c
  *
- * Samsung TN debugging code
+ * COPYRIGHT(C) 2011-2018 Samsung Electronics Co., Ltd. All Right Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
-#include <linux/kernel.h>
+#define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
+
+#include <linux/version.h>
 #include <linux/module.h>
+#include <linux/device.h>
+#include <linux/slab.h>
+#include <linux/workqueue.h>
 #include <linux/fs.h>
 #include <linux/uaccess.h>
+#include <linux/sec_param.h>
 #include <linux/file.h>
 #include <linux/syscalls.h>
-#include <linux/sec_ext.h>
+#include <linux/delay.h>
+
+#include <linux/sec_debug.h>
+#ifdef CONFIG_SEC_QUEST
+#include <linux/sec_quest.h>
+#endif
+#ifdef CONFIG_SEC_QUEST_BPS_CLASSIFIER
+#include <linux/sec_quest_bps_classifier.h>
+#endif
 
 #define PARAM_RD		0
 #define PARAM_WR		1
 
-#define SEC_PARAM_NAME	"/dev/block/param"
-#define STR_LENGTH	2048
+#define MAX_PARAM_BUFFER	128
 
-struct sec_param_data_s {
-	struct work_struct sec_param_work;
-	struct completion work;
-	unsigned long offset;
-	char val;
-};
+static const char *param_name = "/dev/block/bootdevice/by-name/param";
+static unsigned int param_file_size;
 
-struct sec_param_data_s_u32 {
-	struct work_struct sec_param_work_u32;
-	struct completion work;
-	unsigned long offset;
-	u32 val;
-	int direction;
-};
+struct sec_param_data_s sched_sec_param_data;
 
-struct sec_param_data_s_str {
-	struct work_struct sec_param_work_str;
-	struct completion work;
-	unsigned long offset;
-	char str[STR_LENGTH];
-	int direction;
-};
-
-struct sec_param_data_s_extra {
-	struct work_struct sec_param_work;
-	struct completion work;
-	unsigned long offset;
-	void *extra;
-	size_t size;
-	int direction;
-};
-
-static struct sec_param_data_s sec_param_data;
-static struct sec_param_data_s_u32 sec_param_data_u32;
-static struct sec_param_data_s_str sec_param_data_str;
-static struct sec_param_data_s_extra sec_param_data_extra;
-
-static DEFINE_MUTEX(sec_param_mutex);
-static DEFINE_MUTEX(sec_param_mutex_u32);
-static DEFINE_MUTEX(sec_param_mutex_str);
-static DEFINE_MUTEX(sec_param_mutex_extra);
-
-static void sec_param_update(struct work_struct *work)
+static int __init sec_get_param_file_size_setup(char *str)
 {
-	int ret = -1;
-	struct file *fp;
-	struct sec_param_data_s *param_data =
+	int err;
+
+	err = kstrtouint(str, 0, &param_file_size);
+	if (err)
+		pr_err("str:%s\n", str);
+
+	return 1;
+}
+__setup("sec_param_file_size=", sec_get_param_file_size_setup);
+
+static void param_sec_operation(struct work_struct *work)
+{
+	/* Read from PARAM(parameter) partition  */
+	struct file *filp;
+	mm_segment_t fs;
+	int ret;
+	struct sec_param_data_s *sched_param_data =
 		container_of(work, struct sec_param_data_s, sec_param_work);
-
-	fp = filp_open(SEC_PARAM_NAME, O_WRONLY | O_SYNC, 0);
-	if (IS_ERR(fp)) {
-		pr_err("%s: filp_open error %ld\n", __func__, PTR_ERR(fp));
-		complete(&param_data->work);
-		return;
-	}
-	pr_info("%s: set param %c at %lu\n", __func__,
-		param_data->val, param_data->offset);
-	ret = fp->f_op->llseek(fp, param_data->offset, SEEK_SET);
-	if (ret < 0) {
-		pr_err("%s: llseek error %d!\n", __func__, ret);
-		goto close_fp_out;
-	}
-
-	ret = vfs_write(fp, &param_data->val, 1, &fp->f_pos);
-	if (ret < 0)
-		pr_err("%s: write error! %d\n", __func__, ret);
-
-close_fp_out:
-	filp_close(fp, NULL);
-	complete(&param_data->work);
-	pr_info("%s: exit %d\n", __func__, ret);
-}
-
-static void sec_param_update_u32(struct work_struct *work)
-{
-	int ret = -1;
-	struct file *fp;
-	mm_segment_t fs;
-	struct sec_param_data_s_u32 *param_data_u32 =
-		container_of(work, struct sec_param_data_s_u32, sec_param_work_u32);
-	int flag = (param_data_u32->direction == PARAM_WR)
+	int flag = (sched_param_data->direction == PARAM_WR)
 			? (O_RDWR | O_SYNC) : O_RDONLY;
 
-	fp = filp_open(SEC_PARAM_NAME, flag, 0);
+	pr_debug("%p %x %d %d\n", sched_param_data->value,
+			sched_param_data->offset, sched_param_data->size,
+			sched_param_data->direction);
 
-	if (IS_ERR(fp)) {
-		pr_err("%s: filp_open error %ld\n", __func__, PTR_ERR(fp));
-		complete(&param_data_u32->work);
+	sched_sec_param_data.success = false;
+
+	filp = filp_open(param_name, flag, 0);
+
+	if (IS_ERR(filp)) {
+		pr_err("filp_open failed. (%ld)\n", PTR_ERR(filp));
+		complete(&sched_sec_param_data.work);
 		return;
 	}
 
 	fs = get_fs();
-	set_fs(get_ds());
+	set_fs(KERNEL_DS);
 
-	ret = vfs_llseek(fp, param_data_u32->offset, SEEK_SET);
-	if (ret < 0) {
-		pr_err("%s: llseek error %d!\n", __func__, ret);
-		goto close_fp_out;
+	ret = vfs_llseek(filp, sched_param_data->offset, SEEK_SET);
+	if (unlikely(ret < 0)) {
+		pr_err("FAIL LLSEEK\n");
+		goto param_sec_debug_out;
 	}
 
-	if (param_data_u32->direction == PARAM_WR)
-		ret = vfs_write(fp, (const char __user *)&param_data_u32->val, sizeof(param_data_u32->val), &fp->f_pos);
-	else if (param_data_u32->direction == PARAM_RD)
-		ret = vfs_read(fp, (char __user *)&param_data_u32->val, sizeof(param_data_u32->val), &fp->f_pos);
+	if (sched_param_data->direction == PARAM_RD)
+		vfs_read(filp,
+				(char __user *)sched_param_data->value,
+				sched_param_data->size, &filp->f_pos);
+	else if (sched_param_data->direction == PARAM_WR)
+		vfs_write(filp,
+				(char __user *)sched_param_data->value,
+				sched_param_data->size, &filp->f_pos);
 
-	if (ret < 0) {
-		pr_err("%s: %s error! %d\n", __func__, param_data_u32->direction ? "write" : "read", ret);
-		goto close_fp_out;
-	}
+	sched_sec_param_data.success = true;
 
-close_fp_out:
+param_sec_debug_out:
 	set_fs(fs);
-	filp_close(fp, NULL);
-	complete(&param_data_u32->work);
-	pr_info("%s: exit %d\n", __func__, ret);
+	filp_close(filp, NULL);
+	complete(&sched_sec_param_data.work);
 }
 
-static void sec_param_update_str(struct work_struct *work)
+struct sec_param_data *param_data;
+static DEFINE_MUTEX(sec_param_mutex);
+
+static bool sec_open_param(void)
 {
-	int ret = -1;
-	struct file *fp;
-	mm_segment_t fs;
-	struct sec_param_data_s_str *param_data_str =
-		container_of(work, struct sec_param_data_s_str, sec_param_work_str);
-	int flag = (param_data_str->direction == PARAM_WR)
-			? (O_RDWR | O_SYNC) : O_RDONLY;
+	static bool is_param_loaded;
 
-	fp = filp_open(SEC_PARAM_NAME, flag, 0);
+	pr_info("start\n");
 
-	if (IS_ERR(fp)) {
-		pr_err("%s: filp_open error %ld\n", __func__, PTR_ERR(fp));
-		complete(&param_data_str->work);
-		return;
+	if (!param_data)
+		param_data = kmalloc(sizeof(struct sec_param_data), GFP_KERNEL);
+
+	if (unlikely(!param_data)) {
+		pr_err("failed to alloc for param_data\n");
+		return false;
 	}
 
-	fs = get_fs();
-	set_fs(get_ds());
+	sched_sec_param_data.value = param_data;
+	sched_sec_param_data.offset = SEC_PARAM_FILE_OFFSET;
+	sched_sec_param_data.size = sizeof(struct sec_param_data);
+	sched_sec_param_data.direction = PARAM_RD;
 
-	ret = vfs_llseek(fp, param_data_str->offset, SEEK_SET);
-	if (ret < 0) {
-		pr_err("%s: llseek error %d!\n", __func__, ret);
-		goto close_fp_out;
+	schedule_work(&sched_sec_param_data.sec_param_work);
+	wait_for_completion(&sched_sec_param_data.work);
+
+	is_param_loaded = sched_sec_param_data.success;
+	if (!is_param_loaded) {
+		pr_err("param_sec_operation open failed\n");
+		return false;
 	}
+	pr_info("end\n");
 
-	if (param_data_str->direction == PARAM_WR)
-		ret = vfs_write(fp, (const char __user *)param_data_str->str, sizeof(param_data_str->str), &fp->f_pos);
-	else if (param_data_str->direction == PARAM_RD)
-		ret = vfs_read(fp, (char __user *)param_data_str->str, sizeof(param_data_str->str), &fp->f_pos);
-
-	if (ret < 0) {
-		pr_err("%s: %s error! %d\n", __func__, param_data_str->direction ? "write" : "read", ret);
-		goto close_fp_out;
-	}
-
-close_fp_out:
-	set_fs(fs);
-	filp_close(fp, NULL);
-	complete(&param_data_str->work);
-	pr_info("%s: exit %d\n", __func__, ret);
+	return true;
 }
 
-static void sec_param_update_extra(struct work_struct *work)
+static bool sec_write_param_locked(void)
 {
-	int ret = -1;
-	struct file *fp;
-	mm_segment_t fs;
-	struct sec_param_data_s_extra *param_data_extra =
-		container_of(work, struct sec_param_data_s_extra, sec_param_work);
-	int flag = (param_data_extra->direction == PARAM_WR)
-			? (O_RDWR | O_SYNC) : O_RDONLY;
+	pr_info("start\n");
 
-	fp = filp_open(SEC_PARAM_NAME, flag, 0);
+	sched_sec_param_data.value = param_data;
+	sched_sec_param_data.offset = SEC_PARAM_FILE_OFFSET;
+	sched_sec_param_data.size = sizeof(struct sec_param_data);
+	sched_sec_param_data.direction = PARAM_WR;
 
-	if (IS_ERR(fp)) {
-		pr_err("%s: filp_open error %ld\n", __func__, PTR_ERR(fp));
-		complete(&param_data_extra->work);
-		return;
+	schedule_work(&sched_sec_param_data.sec_param_work);
+	wait_for_completion(&sched_sec_param_data.work);
+
+	if (!sched_sec_param_data.success) {
+		pr_err("%s: param_sec_operation write failed\n", __func__);
+		return false;
 	}
 
-	fs = get_fs();
-	set_fs(get_ds());
+	pr_info("end\n");
 
-	ret = vfs_llseek(fp, param_data_extra->offset, SEEK_SET);
-	if (ret < 0) {
-		pr_err("%s: llseek error %d!\n", __func__, ret);
-		goto close_fp_out;
-	}
-
-	if (param_data_extra->direction == PARAM_WR)
-		ret = vfs_write(fp, (const char __user *)param_data_extra->extra, param_data_extra->size, &fp->f_pos);
-	else if (param_data_extra->direction == PARAM_RD)
-		ret = vfs_read(fp, (char __user *)param_data_extra->extra,  param_data_extra->size, &fp->f_pos);
-
-	if (ret < 0) {
-		pr_err("%s: %s error! %d\n", __func__, param_data_extra->direction ? "write" : "read", ret);
-		goto close_fp_out;
-	}
-
-close_fp_out:
-	set_fs(fs);
-	filp_close(fp, NULL);
-	complete(&param_data_extra->work);
-	pr_info("%s: exit %d\n", __func__, ret);
+	return true;
 }
 
-int sec_set_param(unsigned long offset, char val)
+#define __memcpy_t(__type, __dst, __src)				\
+	*(__type *)(__dst) = *(__type *)(__src)
+
+bool sec_get_param(enum sec_param_index index, void *value)
 {
-	int ret = -1;
+	bool ret;
 
 	mutex_lock(&sec_param_mutex);
-	printk("%s offset %lu\n", __func__, offset);
-	switch (offset) {
-	case CM_OFFSET ... CM_OFFSET_LIMIT:
-	case PD_OFFSET ... PD_OFFSET_LIMIT:
-		break;
-	default:
-		if (offset != FMM_LOCK_OFFSET)
-			goto unlock_out;
-		break;
+
+	ret = sec_open_param();
+	if (unlikely(!ret)) {
+		pr_err("can't open a param partition\n");
+		goto out;
 	}
 
-	switch (val) {
-	case PARAM_OFF:
-	case PARAM_ON:
-		goto set_param;
+	switch (index) {
+	case param_index_debuglevel:
+		__memcpy_t(unsigned int,
+				value, &(param_data->debuglevel));
+		break;
+	case param_index_uartsel:
+		__memcpy_t(unsigned int,
+				value, &(param_data->uartsel));
+		break;
+	case param_rory_control:
+		__memcpy_t(unsigned int,
+				value, &(param_data->rory_control));
+		break;
+#ifdef CONFIG_RTC_AUTO_PWRON_PARAM
+	case param_index_sapa:
+		memcpy(value, param_data->sapa, sizeof(param_data->sapa));
+		break;
+#endif
+#ifdef CONFIG_WIRELESS_IC_PARAM
+	case param_index_wireless_ic:
+		memcpy(value, &(param_data->wireless_ic), sizeof(unsigned int));
+		break;
+#endif
+#ifdef CONFIG_WIRELESS_CHARGER_HIGH_VOLTAGE
+	case param_index_wireless_charging_mode:
+		__memcpy_t(unsigned int,
+				value, &(param_data->wireless_charging_mode));
+		break;
+#endif
+#if defined(CONFIG_MUIC_HV) || defined(CONFIG_AFC)
+	case param_index_afc_disable:
+		__memcpy_t(unsigned int,
+				value, &(param_data->afc_disable));
+		break;
+#endif
+#if defined(CONFIG_PD_CHARGER_HV_DISABLE)
+	case param_index_pd_hv_disable:
+		__memcpy_t(unsigned int,
+				value, &(param_data->pd_disable));
+		break;
+#endif
+	case param_index_cp_reserved_mem:
+		__memcpy_t(unsigned int,
+				value, &(param_data->cp_reserved_mem));
+		break;
+	case param_index_reboot_recovery_cause:
+		memcpy(value, param_data->reboot_recovery_cause,
+				sizeof(param_data->reboot_recovery_cause));
+		break;
+	case param_index_api_gpio_test:
+		memcpy(value, &(param_data->api_gpio_test),
+			sizeof(param_data->api_gpio_test));
+		break;
+	case param_index_api_gpio_test_result:
+		memcpy(value, param_data->api_gpio_test_result,
+			sizeof(param_data->api_gpio_test_result));
+		break;
+	case param_index_FMM_lock:
+		memcpy(value, &(param_data->FMM_lock),
+				sizeof(param_data->FMM_lock));
+		break;
+    case param_index_window_color:
+		memcpy(value, param_data->window_color, sizeof(param_data->window_color));
+		break;
+#ifdef CONFIG_SEC_QUEST
+	case param_index_quest:
+		sched_sec_param_data.value = value;
+		sched_sec_param_data.offset = SEC_PARAM_QUEST_OFFSET;
+		sched_sec_param_data.size = sizeof(struct param_quest_t);
+		sched_sec_param_data.direction = PARAM_RD;
+		schedule_work(&sched_sec_param_data.sec_param_work);
+		wait_for_completion(&sched_sec_param_data.work);
+		break;
+	case param_index_quest_ddr_result:
+		sched_sec_param_data.value = value;
+		sched_sec_param_data.offset = SEC_PARAM_QUEST_DDR_RESULT_OFFSET;
+		sched_sec_param_data.size = sizeof(struct param_quest_ddr_result_t);
+		sched_sec_param_data.direction = PARAM_RD;
+		schedule_work(&sched_sec_param_data.sec_param_work);
+		wait_for_completion(&sched_sec_param_data.work);
+		break;
+#endif
+#ifdef CONFIG_SEC_QUEST_BPS_CLASSIFIER
+	case param_index_quest_bps_data:
+		sched_sec_param_data.value = value;
+		sched_sec_param_data.offset = SEC_PARAM_QUEST_BPS_DATA_OFFSET;
+		sched_sec_param_data.size = sizeof(struct bps_info);
+		sched_sec_param_data.direction = PARAM_RD;
+		schedule_work(&sched_sec_param_data.sec_param_work);
+		wait_for_completion(&sched_sec_param_data.work);
+		break;
+#endif
+	case param_index_VrrStatus:
+		memcpy(value, param_data->VrrStatus,
+			sizeof(param_data->VrrStatus));
+		break;
 	default:
-		goto unlock_out;
+		ret = false;
 	}
 
-set_param:
-	sec_param_data.offset = offset;
-	sec_param_data.val = val;
-
-	schedule_work(&sec_param_data.sec_param_work);
-	wait_for_completion_timeout(&sec_param_data.work, msecs_to_jiffies(HZ));
-
-	/* how to determine to return success or fail ? */
-	ret = 0;
-unlock_out:
+out:
 	mutex_unlock(&sec_param_mutex);
 	return ret;
 }
+EXPORT_SYMBOL(sec_get_param);
 
-int sec_set_param_u32(unsigned long offset, u32 val)
+bool sec_set_param(enum sec_param_index index, void *value)
 {
-	mutex_lock(&sec_param_mutex_u32);
+	bool ret;
 
-	if ((offset < WC_OFFSET) || (offset > WC_OFFSET_LIMIT)) {
-		mutex_unlock(&sec_param_mutex_u32);
-		return -1;
-	}
-		
-	sec_param_data_u32.val = val;
-	sec_param_data_u32.offset = offset;
-	sec_param_data_u32.direction = PARAM_WR;
+	mutex_lock(&sec_param_mutex);
 
-	schedule_work(&sec_param_data_u32.sec_param_work_u32);
-	wait_for_completion_timeout(&sec_param_data_u32.work, msecs_to_jiffies(HZ));
-
-	mutex_unlock(&sec_param_mutex_u32);
-	return 0;
-}
-
-int sec_get_param_u32(unsigned long offset, u32 *val)
-{
-	mutex_lock(&sec_param_mutex_u32);
-
-	if ((offset < WC_OFFSET) || (offset > WC_OFFSET_LIMIT)) {
-		mutex_unlock(&sec_param_mutex_u32);
-		return -1;
+	ret = sec_open_param();
+	if (unlikely(!ret)) {
+		pr_err("can't open a param partition\n");
+		goto out;
 	}
 
-	sec_param_data_u32.val = 0;
-	sec_param_data_u32.offset = offset;
-	sec_param_data_u32.direction = PARAM_RD;
+	switch (index) {
+	case param_index_debuglevel:
+		if (*(unsigned int*)value == (unsigned int)KERNEL_SEC_DEBUG_LEVEL_LOW || *(unsigned int*)value == (unsigned int)KERNEL_SEC_DEBUG_LEVEL_MID ||
+				                           *(unsigned int*)value == (unsigned int)KERNEL_SEC_DEBUG_LEVEL_HIGH) {
+			__memcpy_t(unsigned int,
+					&(param_data->debuglevel), value);
+		}
+		break;
+	case param_index_uartsel:
+		__memcpy_t(unsigned int,
+				&(param_data->uartsel), value);
+		break;
+	case param_rory_control:
+		__memcpy_t(unsigned int,
+				&(param_data->rory_control), value);
+		break;
+#ifdef CONFIG_RTC_AUTO_PWRON_PARAM
+	case param_index_sapa:
+		if (*(unsigned int*)value == (unsigned int)SAPA_KPARAM_MAGIC) {
+			memcpy(param_data->sapa, value, sizeof(param_data->sapa));
+		}
+		break;
+#endif
+#ifdef CONFIG_SEC_MONITOR_BATTERY_REMOVAL
+	case param_index_normal_poweroff:
+		__memcpy_t(unsigned int,
+				&(param_data->normal_poweroff), value);
+		break;
+#endif
+#ifdef CONFIG_WIRELESS_IC_PARAM
+	case param_index_wireless_ic:
+		memcpy(&(param_data->wireless_ic), value,
+			sizeof(unsigned int));
+		break;
+#endif
+#ifdef CONFIG_WIRELESS_CHARGER_HIGH_VOLTAGE
+	case param_index_wireless_charging_mode:
+		__memcpy_t(unsigned int,
+				&(param_data->wireless_charging_mode), value);
+		break;
+#endif
+#if defined(CONFIG_MUIC_HV) || defined(CONFIG_AFC)
+	case param_index_afc_disable:
+		if (*(char*)value == (char)'0' || *(char*)value == (char)'1') {
+			__memcpy_t(unsigned int,
+					&(param_data->afc_disable), value);
+		}
+		break;
+#endif
+#if defined(CONFIG_PD_CHARGER_HV_DISABLE)
+	case param_index_pd_hv_disable:
+		if (*(char*)value == (char)'0' || *(char*)value == (char)'1') {
+			__memcpy_t(unsigned int,
+					&(param_data->pd_disable), value);
+		}
+		break;
+#endif
+	case param_index_cp_reserved_mem:
+		if ( *(unsigned int*)value == (unsigned int)CP_MEM_RESERVE_OFF || *(unsigned int*)value == (unsigned int)CP_MEM_RESERVE_ON_1 ||
+					 	*(unsigned int*)value == (unsigned int)CP_MEM_RESERVE_ON_2 ) {
+			__memcpy_t(unsigned int,
+					&(param_data->cp_reserved_mem), value);
+		}
+		break;
+	case param_index_reboot_recovery_cause:
+		memcpy(param_data->reboot_recovery_cause, value,
+				sizeof(param_data->reboot_recovery_cause));
+		break;
+	case param_index_api_gpio_test:
+		memcpy(&(param_data->api_gpio_test), value,
+				sizeof(param_data->api_gpio_test));
+		break;
+	case param_index_api_gpio_test_result:
+		memcpy(&(param_data->api_gpio_test_result), value,
+				sizeof(param_data->api_gpio_test_result));
+		break;
+	case param_index_FMM_lock:
+		if (*(unsigned int*)value == (unsigned int)FMMLOCK_MAGIC_NUM || *(unsigned int*)value == (unsigned int)0 ) {
+			memcpy(&(param_data->FMM_lock),
+					value, sizeof(param_data->FMM_lock));
+		}
+		break;
+	case param_index_fiemap_update:
+		if (*(unsigned int*)value == (unsigned int)EDTBO_FIEMAP_MAGIC || *(unsigned int*)value == (unsigned int)0 ) {
+			memcpy(&(param_data->fiemap_update), value, sizeof(unsigned int));
+		}
+		break;
 
-	schedule_work(&sec_param_data_u32.sec_param_work_u32);
-	wait_for_completion_timeout(&sec_param_data_u32.work, msecs_to_jiffies(HZ));
+	case param_index_fiemap_result:
+		memcpy(&(param_data->fiemap_result),value, sizeof(param_data->fiemap_result));
+		break;
 
-	*val = sec_param_data_u32.val;
+    case param_index_window_color:
+    	memcpy(param_data->window_color, value,	sizeof(param_data->window_color));
+		break;
 
-	mutex_unlock(&sec_param_mutex_u32);
-	return 0;
-}
-
-int sec_set_param_str(unsigned long offset, const char *str, int size)
-{
-	int ret = 0;
-
-	mutex_lock(&sec_param_mutex_str);
-
-	if (!strcmp(str, "")) {
-		mutex_unlock(&sec_param_mutex_str);
-		return -1;
+#ifdef CONFIG_SEC_QUEST
+	case param_index_quest:
+		sched_sec_param_data.value = (struct param_quest_t *)value;
+		sched_sec_param_data.offset = SEC_PARAM_QUEST_OFFSET;
+		sched_sec_param_data.size = sizeof(struct param_quest_t);
+		sched_sec_param_data.direction = PARAM_WR;
+		schedule_work(&sched_sec_param_data.sec_param_work);
+		wait_for_completion(&sched_sec_param_data.work);
+		break;
+	case param_index_quest_ddr_result:
+		sched_sec_param_data.value = (struct param_quest_ddr_result_t *)value;
+		sched_sec_param_data.offset = SEC_PARAM_QUEST_DDR_RESULT_OFFSET;
+		sched_sec_param_data.size = sizeof(struct param_quest_ddr_result_t);
+		sched_sec_param_data.direction = PARAM_WR;
+		schedule_work(&sched_sec_param_data.sec_param_work);
+		wait_for_completion(&sched_sec_param_data.work);
+		break;
+#endif
+#ifdef CONFIG_SEC_QUEST_BPS_CLASSIFIER
+	case param_index_quest_bps_data:
+		sched_sec_param_data.value = (struct bps_info *)value;
+		sched_sec_param_data.offset = SEC_PARAM_QUEST_BPS_DATA_OFFSET;
+		sched_sec_param_data.size = sizeof(struct bps_info);
+		sched_sec_param_data.direction = PARAM_WR;
+		schedule_work(&sched_sec_param_data.sec_param_work);
+		wait_for_completion(&sched_sec_param_data.work);
+		break;
+#endif
+	case param_index_VrrStatus:
+		memcpy(&(param_data->VrrStatus), value,
+				sizeof(param_data->VrrStatus));
+		break;
+	default:
+		ret = false;
+		goto out;
 	}
 
-	memset(sec_param_data_str.str, 0, sizeof(sec_param_data_str.str));
-	sec_param_data_str.offset = offset;
-	sec_param_data_str.direction = PARAM_WR;
-	strncpy(sec_param_data_str.str, str, size);
+	ret = sec_write_param_locked();
 
-	schedule_work(&sec_param_data_str.sec_param_work_str);
-	wait_for_completion_timeout(&sec_param_data_str.work, msecs_to_jiffies(HZ));
-
-	mutex_unlock(&sec_param_mutex_str);
+out:
+	mutex_unlock(&sec_param_mutex);
 	return ret;
 }
-
-int sec_get_param_str(unsigned long offset, char *str)
-{
-	mutex_lock(&sec_param_mutex_str);
-
-	memset(sec_param_data_str.str, 0, sizeof(sec_param_data_str.str));
-	sec_param_data_str.offset = offset;
-	sec_param_data_str.direction = PARAM_RD;
-
-	schedule_work(&sec_param_data_str.sec_param_work_str);
-	wait_for_completion_timeout(&sec_param_data_str.work, msecs_to_jiffies(HZ));
-
-	snprintf(str, sizeof(sec_param_data_str.str), "%s", sec_param_data_str.str);
-
-	mutex_unlock(&sec_param_mutex_str);
-	return 0;
-}
-
-int sec_set_param_extra(unsigned long offset, void *extra, size_t size)
-{
-	int ret = 0;
-
-	mutex_lock(&sec_param_mutex_extra);
-
-	if (!extra || !size) {
-		mutex_unlock(&sec_param_mutex_extra);
-		return -1;
-	}
-
-	sec_param_data_extra.offset = offset;
-	sec_param_data_extra.direction = PARAM_WR;
-	sec_param_data_extra.extra = (void *)extra;
-	sec_param_data_extra.size = size;
-
-	schedule_work(&sec_param_data_extra.sec_param_work);
-	wait_for_completion_timeout(&sec_param_data_extra.work, msecs_to_jiffies(HZ));
-
-	mutex_unlock(&sec_param_mutex_extra);
-	return ret;
-}
+EXPORT_SYMBOL(sec_set_param);
 
 static int __init sec_param_work_init(void)
 {
-	pr_info("%s: start\n", __func__);
+	pr_info("start\n");
 
-	sec_param_data.offset = 0;
-	sec_param_data.val = '0';
+	sched_sec_param_data.offset = 0;
+	sched_sec_param_data.direction = 0;
+	sched_sec_param_data.size = 0;
+	sched_sec_param_data.value = NULL;
 
-	sec_param_data_str.offset = 0;
-	memset(sec_param_data_str.str, 0, sizeof(sec_param_data_str.str));
-	sec_param_data_str.direction = 0;
+	init_completion(&sched_sec_param_data.work);
+	INIT_WORK(&sched_sec_param_data.sec_param_work, param_sec_operation);
 
-	sec_param_data_u32.offset = 0;
-	sec_param_data_u32.val = 0;
-	sec_param_data_u32.direction = 0;
-
-	init_completion(&sec_param_data.work);
-	INIT_WORK(&sec_param_data.sec_param_work, sec_param_update);
-	init_completion(&sec_param_data_u32.work);
-	INIT_WORK(&sec_param_data_u32.sec_param_work_u32, sec_param_update_u32);
-	init_completion(&sec_param_data_str.work);
-	INIT_WORK(&sec_param_data_str.sec_param_work_str, sec_param_update_str);
-	init_completion(&sec_param_data_extra.work);
-	INIT_WORK(&sec_param_data_extra.sec_param_work, sec_param_update_extra);
+	pr_info("end\n");
 
 	return 0;
 }
+module_init(sec_param_work_init);
 
 static void __exit sec_param_work_exit(void)
 {
-	cancel_work_sync(&sec_param_data.sec_param_work);
-	pr_info("%s: exit\n", __func__);
+	cancel_work_sync(&sched_sec_param_data.sec_param_work);
+	pr_info("exit\n");
 }
-
-module_init(sec_param_work_init);
 module_exit(sec_param_work_exit);

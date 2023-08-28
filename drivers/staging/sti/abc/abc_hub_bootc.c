@@ -67,7 +67,7 @@ static int abc_hub_bootc_get_boot_time(void)
 			break;
 		pos += offset;
 		if (!strcmp(buf, "bootcomplete")) {
-			if (sscanf(boot_stat + pos, "%d %n", &boot_time, &offset) != 1)
+			if (sscanf(boot_stat + pos, "%20s %d %n", buf, &boot_time, &offset) != 2)
 				break;
 		}
 	}

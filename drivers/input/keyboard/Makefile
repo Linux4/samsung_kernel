@@ -5,6 +5,14 @@
 
 # Each configuration option enables a list of files.
 
+
+# Object files in subdirectories 
+CFLAGS_hall_ic.o = -Wformat
+CFLAGS_certify_hall_ic.o = -Wformat
+CFLAGS_folder_hall_ic.o = -Wformat
+CFLAGS_hall_ic_wacom.o = -Wformat
+CFLAGS_hall_ic_logical.o = -Wformat
+
 obj-$(CONFIG_KEYBOARD_ADC)		+= adc-keys.o
 obj-$(CONFIG_KEYBOARD_ADP5520)		+= adp5520-keys.o
 obj-$(CONFIG_KEYBOARD_ADP5588)		+= adp5588-keys.o
@@ -21,6 +29,10 @@ obj-$(CONFIG_KEYBOARD_DLINK_DIR685)	+= dlink-dir685-touchkeys.o
 obj-$(CONFIG_KEYBOARD_EP93XX)		+= ep93xx_keypad.o
 obj-$(CONFIG_KEYBOARD_GOLDFISH_EVENTS)	+= goldfish_events.o
 obj-$(CONFIG_KEYBOARD_GPIO)		+= gpio_keys.o
+obj-$(CONFIG_SENSORS_HALL)		+= hall_ic.o
+obj-$(CONFIG_CERTIFY_HALL)		+= certify_hall_ic.o
+obj-$(CONFIG_FOLDER_HALL)		+= folder_hall_ic.o
+obj-$(CONFIG_WACOM_HALL)		+= hall_ic_wacom.o
 obj-$(CONFIG_KEYBOARD_GPIO_POLLED)	+= gpio_keys_polled.o
 obj-$(CONFIG_KEYBOARD_TCA6416)		+= tca6416-keypad.o
 obj-$(CONFIG_KEYBOARD_TCA8418)		+= tca8418_keypad.o
@@ -70,3 +82,4 @@ obj-$(CONFIG_KEYBOARD_W90P910)		+= w90p910_keypad.o
 obj-$(CONFIG_KEYBOARD_STM_FSR)		+= stm/fsr1ad04/
 
 CFLAGS_gpio_keys.o = -Wformat
+obj-$(CONFIG_KEYBOARD_STM32_POGO)	+= stm/stm32l0/

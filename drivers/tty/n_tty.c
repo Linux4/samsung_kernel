@@ -59,8 +59,8 @@
  * unthrottling the TTY driver.  These watermarks are used for
  * controlling the space in the read buffer.
  */
-#define TTY_THRESHOLD_THROTTLE		512 /* now based on remaining room */
-#define TTY_THRESHOLD_UNTHROTTLE	512
+#define TTY_THRESHOLD_THROTTLE		128 /* now based on remaining room */
+#define TTY_THRESHOLD_UNTHROTTLE	128
 
 /*
  * Special byte codes used in the echo buffer to represent operations
@@ -84,8 +84,6 @@
 #else
 # define n_tty_trace(f, args...)
 #endif
-
-#define BLUETOOTH_UART_PORT_LINE 1
 
 struct n_tty_data {
 	/* producer-published */
@@ -127,6 +125,10 @@ struct n_tty_data {
 };
 
 #define MASK(x) ((x) & (N_TTY_BUF_SIZE - 1))
+
+#if defined(CONFIG_TTY_FLUSH_LOCAL_ECHO)
+static void continue_process_echoes(struct work_struct *work);
+#endif
 
 static inline size_t read_cnt(struct n_tty_data *ldata)
 {
@@ -764,7 +766,17 @@ static size_t __process_echoes(struct tty_struct *tty)
 			tail++;
 	}
 
- not_yet_stored:
+#if defined(CONFIG_TTY_FLUSH_LOCAL_ECHO)
+	if (ldata->echo_commit != tail) {
+		if (!tty->delayed_work) {
+			INIT_DELAYED_WORK(&tty->echo_delayed_work, continue_process_echoes);
+			schedule_delayed_work(&tty->echo_delayed_work, 1);
+		}
+		tty->delayed_work = 1;
+	}
+#endif
+
+not_yet_stored:
 	ldata->echo_tail = tail;
 	return old_space - space;
 }
@@ -829,6 +841,25 @@ static void flush_echoes(struct tty_struct *tty)
 	__process_echoes(tty);
 	mutex_unlock(&ldata->output_lock);
 }
+
+#if defined(CONFIG_TTY_FLUSH_LOCAL_ECHO)
+static void continue_process_echoes(struct work_struct *work)
+{
+	struct tty_struct *tty =
+		container_of(work, struct tty_struct, echo_delayed_work.work);
+	struct n_tty_data *ldata;
+
+	/* Possible for n_tty_close() is called here and free the disc_data */
+	ldata = tty->disc_data;
+	if (!ldata)
+		return;
+
+	mutex_lock(&ldata->output_lock);
+	tty->delayed_work = 0;
+	__process_echoes(tty);
+	mutex_unlock(&ldata->output_lock);
+}
+#endif
 
 /**
  *	add_echo_byte	-	add a byte to the echo buffer
@@ -1704,7 +1735,7 @@ n_tty_receive_buf_common(struct tty_struct *tty, const unsigned char *cp,
 
 	down_read(&tty->termios_rwsem);
 
-	while (1) {
+	do {
 		/*
 		 * When PARMRK is set, each input char may take up to 3 chars
 		 * in the read buf; reduce the buffer space avail by 3x
@@ -1746,7 +1777,7 @@ n_tty_receive_buf_common(struct tty_struct *tty, const unsigned char *cp,
 			fp += n;
 		count -= n;
 		rcvd += n;
-	}
+	} while (!test_bit(TTY_LDISC_CHANGING, &tty->flags));
 
 	tty->receive_room = room;
 
@@ -1892,6 +1923,11 @@ static void n_tty_close(struct tty_struct *tty)
 	if (tty->link)
 		n_tty_packet_mode_flush(tty);
 
+#if defined(CONFIG_TTY_FLUSH_LOCAL_ECHO)
+	if (tty->echo_delayed_work.work.func)
+		cancel_delayed_work_sync(&tty->echo_delayed_work);
+#endif
+
 	vfree(ldata);
 	tty->disc_data = NULL;
 }
@@ -1935,12 +1971,8 @@ static inline int input_available_p(struct tty_struct *tty, int poll)
 
 	if (ldata->icanon && !L_EXTPROC(tty))
 		return ldata->canon_head != ldata->read_tail;
-	else {
-		if (amt == 0)
-			pr_err("%s WARNIGN: amt is zero! poll:%d TIME_CHAR:%d MIN_CHAR:%d\n",
-					__func__, poll, TIME_CHAR(tty), MIN_CHAR(tty));
+	else
 		return ldata->commit_head - ldata->read_tail >= amt;
-	}
 }
 
 /**
@@ -2217,7 +2249,7 @@ static ssize_t n_tty_read(struct tty_struct *tty, struct file *file,
 					break;
 				if (!timeout)
 					break;
-				if (file->f_flags & O_NONBLOCK) {
+				if (tty_io_nonblock(tty, file)) {
 					retval = -EAGAIN;
 					break;
 				}
@@ -2325,11 +2357,8 @@ static ssize_t n_tty_write(struct tty_struct *tty, struct file *file,
 	add_wait_queue(&tty->write_wait, &wait);
 	while (1) {
 		if (signal_pending(current)) {
-			pr_err("%s TTY-%d signal_pending\n", __func__, tty->index);
-			if (tty->index != BLUETOOTH_UART_PORT_LINE) {
-				retval = -ERESTARTSYS;
-				break;
-			}
+			retval = -ERESTARTSYS;
+			break;
 		}
 		if (tty_hung_up_p(file) || (tty->link && !tty->link->count)) {
 			retval = -EIO;
@@ -2374,7 +2403,7 @@ static ssize_t n_tty_write(struct tty_struct *tty, struct file *file,
 		}
 		if (!nr)
 			break;
-		if (file->f_flags & O_NONBLOCK) {
+		if (tty_io_nonblock(tty, file)) {
 			retval = -EAGAIN;
 			break;
 		}

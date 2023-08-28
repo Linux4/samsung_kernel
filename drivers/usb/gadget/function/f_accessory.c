@@ -59,7 +59,7 @@
 #define TX_REQ_MAX 4
 #define RX_REQ_MAX 2
 
-bool acc_dev_status = false;
+bool acc_dev_status;
 
 struct acc_hid_dev {
 	struct list_head	list;
@@ -179,7 +179,6 @@ static struct usb_ss_ep_comp_descriptor acc_superspeed_out_comp_desc = {
 	/* .bMaxBurst =		0, */
 	/* .bmAttributes =	0, */
 };
-
 
 static struct usb_endpoint_descriptor acc_highspeed_in_desc = {
 	.bLength                = USB_DT_ENDPOINT_SIZE,
@@ -346,15 +345,6 @@ static void acc_complete_out(struct usb_ep *ep, struct usb_request *req)
 
 	wake_up(&dev->read_wq);
 }
-
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-static void acc_ctrlrequest_complete(struct usb_ep *ep, struct usb_request *req)
-{
-	if (req->status != 0) {
-		pr_err("acc_ctrlrequest_complete, err %d\n", req->status);
-	}
-}
-#endif
 
 static void acc_complete_set_string(struct usb_ep *ep, struct usb_request *req)
 {
@@ -574,7 +564,7 @@ static int create_bulk_endpoints(struct acc_dev *dev,
 	struct usb_ep *ep;
 	int i;
 
-	DBG(cdev, "create_bulk_endpoints dev: %pK\n", dev);
+	DBG(cdev, "%s dev: %pK\n", __func__, dev);
 
 	ep = usb_ep_autoconfig(cdev->gadget, in_desc);
 	if (!ep) {
@@ -722,7 +712,6 @@ static ssize_t acc_write(struct file *fp, const char __user *buf,
 		req = 0;
 		ret = wait_event_interruptible(dev->write_wq,
 			((req = req_get(dev, &dev->tx_idle)) || !dev->online));
-
 		if (!dev->online || dev->disconnected) {
 			pr_debug("acc_write dev->error\n");
 			r = -EIO;
@@ -813,11 +802,10 @@ static long acc_ioctl(struct file *fp, unsigned code, unsigned long value)
 
 static int acc_open(struct inode *ip, struct file *fp)
 {
-	if (atomic_xchg(&_acc_dev->open_excl, 1)) {
-		printk(KERN_INFO "usb: acc_open_EBUSY\n");
+	printk(KERN_INFO "acc_open\n");
+	if (atomic_xchg(&_acc_dev->open_excl, 1))
 		return -EBUSY;
-	}
-	printk(KERN_INFO "usb: acc_open\n");
+
 	_acc_dev->disconnected = 0;
 	fp->private_data = _acc_dev;
 	return 0;
@@ -841,9 +829,6 @@ static const struct file_operations acc_fops = {
 	.read = acc_read,
 	.write = acc_write,
 	.unlocked_ioctl = acc_ioctl,
-#ifdef CONFIG_COMPAT
-	.compat_ioctl = acc_ioctl,
-#endif
 	.open = acc_open,
 	.release = acc_release,
 };
@@ -911,9 +896,6 @@ int acc_ctrlrequest(struct usb_composite_dev *cdev,
 			w_value, w_index, w_length);
 */
 
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	cdev->req->complete = acc_ctrlrequest_complete;
-#endif
 	if (b_requestType == (USB_DIR_OUT | USB_TYPE_VENDOR)) {
 		if (b_request == ACCESSORY_START) {
 			dev->start_requested = 1;
@@ -1004,6 +986,26 @@ err:
 	return value;
 }
 EXPORT_SYMBOL_GPL(acc_ctrlrequest);
+
+int acc_ctrlrequest_composite(struct usb_composite_dev *cdev,
+							const struct usb_ctrlrequest *ctrl)
+{
+	u16 w_length = le16_to_cpu(ctrl->wLength);
+
+	if (w_length > USB_COMP_EP0_BUFSIZ) {
+		if (ctrl->bRequestType & USB_DIR_IN) {
+			/* Cast away the const, we are going to overwrite on purpose. */
+			__le16 *temp = (__le16 *)&ctrl->wLength;
+
+			*temp = cpu_to_le16(USB_COMP_EP0_BUFSIZ);
+			w_length = USB_COMP_EP0_BUFSIZ;
+		} else {
+			return -EINVAL;
+		}
+	}
+	return acc_ctrlrequest(cdev, ctrl);
+}
+EXPORT_SYMBOL_GPL(acc_ctrlrequest_composite);
 
 static int
 __acc_function_bind(struct usb_configuration *c,
@@ -1129,10 +1131,10 @@ acc_function_unbind(struct usb_configuration *c, struct usb_function *f)
 static void acc_start_work(struct work_struct *data)
 {
 	char *envp[2] = { "ACCESSORY=START", NULL };
-	printk(KERN_INFO "usb: Send uevent, ACCESSORY=START\n");
+	pr_info("usb: Send uevent, ACCESSORY=START\n");
 	kobject_uevent_env(&acc_device.this_device->kobj, KOBJ_CHANGE, envp);
 #ifdef CONFIG_USB_NOTIFY_PROC_LOG
-	store_usblog_notify(NOTIFY_USBSTATE, (void *)envp[0], NULL);
+ 	store_usblog_notify(NOTIFY_USBSTATE, (void *)envp[0], NULL);
 #endif
 }
 
@@ -1266,11 +1268,9 @@ static void acc_function_disable(struct usb_function *f)
 
 	DBG(cdev, "acc_function_disable\n");
 	acc_set_disconnected(dev); /* this now only sets disconnected */
-
 	/* check accessory reset */
 	if (dev->online)
 		acc_dev_status = true;
-
 	dev->online = 0; /* so now need to clear online flag here too */
 	usb_ep_disable(dev->ep_in);
 	usb_ep_disable(dev->ep_out);

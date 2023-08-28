@@ -29,14 +29,21 @@ static inline struct dma_coherent_mem *dev_get_coherent_memory(struct device *de
 	return NULL;
 }
 
-static inline dma_addr_t dma_get_device_base(struct device *dev,
-					     struct dma_coherent_mem * mem)
+dma_addr_t dma_get_device_base(struct device *dev,
+			       struct dma_coherent_mem *mem)
 {
 	if (mem->use_dev_dma_pfn_offset)
 		return (mem->pfn_base - dev->dma_pfn_offset) << PAGE_SHIFT;
 	else
 		return mem->device_base;
 }
+EXPORT_SYMBOL(dma_get_device_base);
+
+unsigned long dma_get_size(struct dma_coherent_mem *mem)
+{
+	return mem->size << PAGE_SHIFT;
+}
+EXPORT_SYMBOL(dma_get_size);
 
 static int dma_init_coherent_memory(
 	phys_addr_t phys_addr, dma_addr_t device_addr, size_t size, int flags,
@@ -160,6 +167,30 @@ void *dma_mark_declared_memory_occupied(struct device *dev,
 }
 EXPORT_SYMBOL(dma_mark_declared_memory_occupied);
 
+static void dma_coherent_show_areas_locked(struct dma_coherent_mem *mem,
+					ssize_t size, int order)
+{
+	unsigned long next_zero_bit, next_set_bit;
+	unsigned long start = 0;
+	unsigned int nr_zero, nr_total = 0;
+	static DEFINE_RATELIMIT_STATE(dma_alloc_coherent_rs, DEFAULT_RATELIMIT_INTERVAL, 1);
+
+	if (__ratelimit(&dma_alloc_coherent_rs) == 0)
+		return;
+	pr_info("number of available pages: ");
+	for (;;) {
+		next_zero_bit = find_next_zero_bit(mem->bitmap, mem->size, start);
+		if (next_zero_bit >= mem->size)
+			break;
+		next_set_bit = find_next_bit(mem->bitmap, mem->size, next_zero_bit);
+		nr_zero = next_set_bit - next_zero_bit;
+		pr_cont("%s%u@%lu", nr_total ? "+" : "", nr_zero, next_zero_bit);
+		nr_total += nr_zero;
+		start = next_zero_bit + nr_zero;
+	}
+	pr_cont("=> %u free of %d total pages\n", nr_total, mem->size);
+}
+
 static void *__dma_alloc_from_coherent(struct dma_coherent_mem *mem,
 		ssize_t size, dma_addr_t *dma_handle)
 {
@@ -174,8 +205,12 @@ static void *__dma_alloc_from_coherent(struct dma_coherent_mem *mem,
 		goto err;
 
 	pageno = bitmap_find_free_region(mem->bitmap, mem->size, order);
-	if (unlikely(pageno < 0))
+	if (unlikely(pageno < 0)) {
+		pr_err("%s: alloc failed, req-size: %zd bytes, req-order %d\n",
+		       __func__, size, order);
+		dma_coherent_show_areas_locked(mem, size, order);
 		goto err;
+	}
 
 	/*
 	 * Memory was found in the coherent area.

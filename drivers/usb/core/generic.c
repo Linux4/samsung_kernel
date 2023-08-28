@@ -22,7 +22,7 @@
 #include <linux/usb.h>
 #include <linux/usb/hcd.h>
 #include "usb.h"
-#if defined(CONFIG_USB_HOST_CERTI) || defined(CONFIG_USB_NOTIFY_PROC_LOG)
+#if defined(CONFIG_USB_HOST_CERTI)
 #include <linux/usb_notify.h>
 #endif
 
@@ -44,6 +44,71 @@ static int is_activesync(struct usb_interface_descriptor *desc)
 		&& desc->bInterfaceSubClass == 1
 		&& desc->bInterfaceProtocol == 1;
 }
+
+static int get_usb_audio_config(struct usb_host_bos *bos)
+{
+	unsigned int desc_cnt, num_cfg_desc, len = 0;
+	unsigned char *buffer;
+	struct usb_config_summary_descriptor *conf_summary;
+
+	if (!bos || !bos->config_summary)
+		goto done;
+
+	num_cfg_desc = bos->num_config_summary_desc;
+	conf_summary = bos->config_summary;
+	buffer = (unsigned char *)conf_summary;
+	for (desc_cnt = 0; desc_cnt < num_cfg_desc; desc_cnt++) {
+		conf_summary =
+			(struct usb_config_summary_descriptor *)(buffer + len);
+
+		len += conf_summary->bLength;
+		pr_info("%s : bcdVersion=%d, bClass=%d\n", conf_summary->bcdVersion, conf_summary->bClass);
+		if (conf_summary->bcdVersion != USB_CONFIG_SUMMARY_DESC_REV ||
+				conf_summary->bClass != USB_CLASS_AUDIO)
+			continue;
+		pr_info("%s : bConfigurationIndex[0]=%d\n", conf_summary->bConfigurationIndex[0]);
+		/* return 1st config as per device preference */
+		return conf_summary->bConfigurationIndex[0];
+	}
+
+done:
+	return -EINVAL;
+}
+
+static struct usb_device_id sec_earphone_skip_table[] = {
+	{ USB_DEVICE(0x05ac, 0x110a) }, /* ipad_pro */
+	{}
+};
+
+static int check_sec_skip_audio_device(struct usb_device *dev)
+{
+	struct usb_device_id *id;
+	struct usb_device *hdev;
+	int found = 0;
+
+	hdev = dev->parent;
+	if (!hdev) 		
+		return 0;	
+
+	/* check VID, PID */
+	for (id = sec_earphone_skip_table; id->match_flags; id++) {
+		if ((id->match_flags & USB_DEVICE_ID_MATCH_VENDOR) &&
+		(id->match_flags & USB_DEVICE_ID_MATCH_PRODUCT) &&
+		id->idVendor == le16_to_cpu(dev->descriptor.idVendor) &&
+		id->idProduct == le16_to_cpu(dev->descriptor.idProduct)) {
+			found = 1;
+			break;
+		}
+	}
+
+	if (found) {
+		pr_info("%s : VID : 0x%x, PID : 0x%x\n", __func__,
+			dev->descriptor.idVendor, dev->descriptor.idProduct);
+
+	}
+	return found;	
+}
+
 
 int usb_choose_configuration(struct usb_device *udev)
 {
@@ -152,7 +217,15 @@ int usb_choose_configuration(struct usb_device *udev)
 	}
 
 	if (best) {
-		i = best->desc.bConfigurationValue;
+		if(!check_sec_skip_audio_device(udev)) {
+			/* choose device preferred config */
+			i = get_usb_audio_config(udev->bos);
+			if (i < 0)
+				i = best->desc.bConfigurationValue;
+		}
+		else {
+			i = best->desc.bConfigurationValue;
+		}
 		dev_dbg(&udev->dev,
 			"configuration #%d chosen from %d choice%s\n",
 			i, num_configs, plural(num_configs));
@@ -208,9 +281,6 @@ static void generic_disconnect(struct usb_device *udev)
 static int generic_suspend(struct usb_device *udev, pm_message_t msg)
 {
 	int rc;
-#if defined(CONFIG_USB_NOTIFY_PROC_LOG)
-	int event;
-#endif
 
 	/* Normal USB devices suspend through their upstream port.
 	 * Root hubs don't have upstream ports to suspend,
@@ -230,13 +300,6 @@ static int generic_suspend(struct usb_device *udev, pm_message_t msg)
 		rc = 0;
 	else
 		rc = usb_port_suspend(udev, msg);
-
-#if defined(CONFIG_USB_NOTIFY_PROC_LOG)
-	if (!udev->parent && rc) {
-		event = NOTIFY_EXTRA_ROOTHUB_SUSPEND_FAIL;
-		store_usblog_notify(NOTIFY_EXTRA, (void *)&event, NULL);
-	}
-#endif
 
 	return rc;
 }

@@ -665,61 +665,62 @@ void ufshpb_end_pre_req(struct ufsf_feature *ufsf, struct request *req)
 
 static int ufshpb_fill_passthrough_rq(struct scsi_cmnd *cmd)
 {
-	struct request *rq = cmd->request;
-	struct scsi_device *sdp = cmd->device;
-	struct bio *bio = rq->bio;
-	sector_t sector = 0;
-	unsigned int data_len = 0;
-	u8 *p = NULL;
+   struct request *rq = cmd->request;
+   struct scsi_device *sdp = cmd->device;
+   struct bio *bio = rq->bio;
+   sector_t sector = 0;
+   unsigned int data_len = 0;
+   u8 *p = NULL;
 
-	/*
-	 * UFS is 4K block device.
-	 */
-	if (unlikely(sdp->sector_size != BLOCK)) {
-		ERR_MSG("this device is not 4K block device");
-		return -EACCES;
-	}
+   /*
+    * UFS is 4K block device.
+    */
+   if (unlikely(sdp->sector_size != BLOCK)) {
+       ERR_MSG("this device is not 4K block device");
+       return -EACCES;
+   }
 
-	switch (cmd->cmnd[0]) {
-	case UNMAP:
-		/*
-		 * UNMAP command has just a block descriptor(=a phys_segment).
-		 */
-		if (unlikely(!bio) ||
-		    unlikely(bio->bi_vcnt != 1) ||
-		    unlikely(bio->bi_phys_segments != 1)) {
-			ERR_MSG("UNMAP bio info is incorrect");
-			return -EINVAL;
-		}
+   switch (cmd->cmnd[0]) {
+   case UNMAP:
+       /*
+        * UNMAP command has just a block descriptor(=a phys_segment).
+        */
+       if (unlikely(!bio) ||
+           unlikely(bio->bi_vcnt != 1) ||
+           unlikely(bio->bi_phys_segments != 1)) {
+           ERR_MSG("UNMAP bio info is incorrect");
+           return -EINVAL;
+       }
 
-		p = page_address(bio->bi_io_vec->bv_page);
-		if (unlikely(!p)) {
-			ERR_MSG("can't get bio page address");
-			return -ENOMEM;
-		}
+       p = page_address(bio->bi_io_vec->bv_page);
+       if (unlikely(!p)) {
+           ERR_MSG("can't get bio page address");
+           return -ENOMEM;
+       }
 
-		sector = LI_EN_64(p + 8);
-		data_len = LI_EN_32(p + 16);
-		break;
-	case READ_10:
-	case WRITE_10:
-		sector = LI_EN_32(cmd->cmnd + 2);
-		data_len = LI_EN_16(cmd->cmnd + 7);
-		break;
-	case READ_16:
-	case WRITE_16:
-		sector = LI_EN_64(cmd->cmnd + 2);
-		data_len = LI_EN_32(cmd->cmnd + 10);
-		break;
-	default:
-		return 0;
-	};
+       sector = LI_EN_64(p + 8);
+       data_len = LI_EN_32(p + 16);
+       break;
+   case READ_10:
+   case WRITE_10:
+       sector = LI_EN_32(cmd->cmnd + 2);
+       data_len = LI_EN_16(cmd->cmnd + 7);
+       break;
+   case READ_16:
+   case WRITE_16:
+       sector = LI_EN_64(cmd->cmnd + 2);
+       data_len = LI_EN_32(cmd->cmnd + 10);
+       break;
+   default:
+       return 0;
+   };
 
-	rq->__sector = sector << sects_per_blk_shift;
-	rq->__data_len = data_len << sects_per_blk_shift << SECTOR_SHIFT;
+   rq->__sector = sector << sects_per_blk_shift;
+   rq->__data_len = data_len << sects_per_blk_shift << SECTOR_SHIFT;
 
-	return 0;
+   return 0;
 }
+
 
 int ufshpb_prepare_pre_req(struct ufsf_feature *ufsf, struct scsi_cmnd *cmd,
 			   int lun)
@@ -738,12 +739,12 @@ int ufshpb_prepare_pre_req(struct ufsf_feature *ufsf, struct scsi_cmnd *cmd,
 	if (!ufsf_is_valid_lun(lun))
 		return -ENODEV;
 
-	if (unlikely(blk_rq_is_passthrough(cmd->request) &&
-		     cmd->request->__sector == (sector_t) -1)) {
-		ret = ufshpb_fill_passthrough_rq(cmd);
-		if (ret)
-			return ret;
-	}
+    if (unlikely(blk_rq_is_passthrough(cmd->request) &&
+             cmd->request->__sector == (sector_t) -1)) {
+        ret = ufshpb_fill_passthrough_rq(cmd);
+        if (ret)
+            return ret;
+    }
 
 	hpb = ufsf->ufshpb_lup[lun];
 	ret = ufshpb_lu_get(hpb);
@@ -813,11 +814,25 @@ int ufshpb_prepare_add_lrbp(struct ufsf_feature *ufsf, int add_tag)
 
 	add_lrbp = &hba->lrb[add_tag];
 
+	pre_cmd = add_lrbp->cmd;
+
 	err = ufshcd_hold(hba, true);
 	if (err)
 		goto hold_err;
 
-	ufshcd_comp_scsi_upiu(hba, add_lrbp);
+	err = ufshcd_hibern8_hold(hba, true);
+	if (err) {
+		ufshcd_release(hba, true);
+		goto hold_err;
+	}
+
+	/* Vote PM QoS for the pre_req */
+	ufshcd_vops_pm_qos_req_start(hba, pre_cmd->request);
+
+	err = ufshcd_comp_scsi_upiu(hba, add_lrbp);
+	if (err)
+		goto map_err;
+
 
 	err = ufshcd_map_sg(hba, add_lrbp);
 	if (err)
@@ -825,9 +840,10 @@ int ufshpb_prepare_add_lrbp(struct ufsf_feature *ufsf, int add_tag)
 
 	return 0;
 map_err:
-	ufshcd_release(hba);
+	scsi_dma_unmap(pre_cmd);
+	ufshcd_vops_pm_qos_req_end(hba, pre_cmd->request, true);
+	ufshcd_release_all(hba);
 hold_err:
-	pre_cmd = add_lrbp->cmd;
 	add_lrbp->cmd = NULL;
 	clear_bit_unlock(add_tag, &hba->lrb_in_use);
 	ufsf_hpb_end_pre_req(&hba->ufsf, pre_cmd->request);
@@ -960,14 +976,14 @@ static void ufshpb_update_active_info(struct ufshpb_lu *hpb, int rgn_idx,
 #if defined(CONFIG_HPB_DEBUG)
 		if (info == HPBUPDATE_RT_FROM_FS) {
 			HPB_DEBUG(hpb, "*** Noti [HOST]: RT SET %d - %d",
-				  rgn_idx, srgn_idx);
+					rgn_idx, srgn_idx);
 			TMSG(hpb->ufsf, hpb->lun, "*** Noti [HOST]: RT SET %d - %d",
-			     rgn_idx, srgn_idx);
+					rgn_idx, srgn_idx);
 		} else if (info == HPBUPDATE_FROM_DEV) {
 			HPB_DEBUG(hpb, "*** Noti [DEV]: ACT %d - %d",
-				  rgn_idx, srgn_idx);
+					rgn_idx, srgn_idx);
 			TMSG(hpb->ufsf, hpb->lun, "*** Noti [DEV]: ACT %d - %d",
-			     rgn_idx, srgn_idx);
+					rgn_idx, srgn_idx);
 		}
 #endif
 	}
@@ -995,15 +1011,15 @@ static void ufshpb_update_inactive_info(struct ufshpb_lu *hpb, int rgn_idx,
 		if (info == HPBUPDATE_RT_FROM_FS) {
 			HPB_DEBUG(hpb, "*** Noti [HOST]: RT UNSET %d", rgn_idx);
 			TMSG(hpb->ufsf, hpb->lun, "*** Noti [HOST]: RT UNSET %d",
-			     rgn_idx);
+					rgn_idx);
 		} else if (info == HPBUPDATE_FROM_DEV) {
 			HPB_DEBUG(hpb, "*** Noti [DEV]: INACT %d", rgn_idx);
 			TMSG(hpb->ufsf, hpb->lun, "*** Noti [DEV]: INACT %d",
-			     rgn_idx);
+					rgn_idx);
 		} else {
 			HPB_DEBUG(hpb, "*** ERR : INACT %d", rgn_idx);
 			TMSG(hpb->ufsf, hpb->lun, "*** ERR [DEV]: INACT %d",
-			     rgn_idx);
+					rgn_idx);
 		}
 #endif
 	}
@@ -1034,17 +1050,17 @@ static void ufshpb_update_active_info_by_flag(struct ufshpb_lu *hpb,
 		    rgn->rgn_state == HPBREGION_ACTIVE) {
 			is_update = true;
 			atomic_set(&rgn->reason, HPBUPDATE_RT_FROM_FS);
-		 } else if (rgn->rgn_state == HPBREGION_RT_PINNED) {
-			 if (ufshpb_is_write_cmd(cmd))
-				 is_update = true;
+		} else if (rgn->rgn_state == HPBREGION_RT_PINNED) {
+			if (ufshpb_is_write_cmd(cmd))
+				is_update = true;
 		}
 		spin_unlock_irqrestore(&hpb->hpb_lock, flags);
 
 		if (is_update) {
 #if defined(CONFIG_HPB_DEBUG)
 			TMSG(hpb->ufsf, hpb->lun, "%llu + %u set rt_pin %d",
-			     (unsigned long long) blk_rq_pos(rq),
-			     (unsigned int) blk_rq_sectors(rq), rgn_idx);
+					(unsigned long long) blk_rq_pos(rq),
+					(unsigned int) blk_rq_sectors(rq), rgn_idx);
 #endif
 			spin_lock_irqsave(&hpb->rsp_list_lock, flags);
 			for (srgn_idx = 0; srgn_idx < rgn->srgn_cnt; srgn_idx++)
@@ -1099,8 +1115,8 @@ static void ufshpb_update_inactive_info_by_flag(struct ufshpb_lu *hpb,
 		if (is_update) {
 #if defined(CONFIG_HPB_DEBUG)
 			TMSG(hpb->ufsf, hpb->lun, "%llu + %u unset rt_pin %d",
-			     (unsigned long long) blk_rq_pos(rq),
-			     (unsigned int) blk_rq_sectors(rq), rgn_idx);
+					(unsigned long long) blk_rq_pos(rq),
+					(unsigned int) blk_rq_sectors(rq), rgn_idx);
 #endif
 			spin_lock_irqsave(&hpb->rsp_list_lock, flags);
 			ufshpb_update_inactive_info(hpb, rgn_idx,
@@ -1111,11 +1127,11 @@ static void ufshpb_update_inactive_info_by_flag(struct ufshpb_lu *hpb,
 }
 
 #if defined(CONFIG_HPB_DEBUG_SYSFS)
-static void ufshpb_increase_hit_count(struct ufshpb_lu *hpb,
-				      struct ufshpb_region *rgn,
-				      int transfer_len)
+static void ufshpb_increase_hit_count(struct ufshpb_lu *hpb, 
+				     struct ufshpb_region *rgn,
+				     int transfer_len)
 {
-	if (rgn->rgn_state == HPBREGION_PINNED ||
+	if (rgn->rgn_state == HPBREGION_PINNED || 
 	    rgn->rgn_state == HPBREGION_RT_PINNED) {
 		if (transfer_len < HPB_MULTI_CHUNK_LOW) {
 			atomic64_inc(&hpb->pinned_low_hit);
@@ -1136,10 +1152,10 @@ static void ufshpb_increase_hit_count(struct ufshpb_lu *hpb,
 }
 
 static void ufshpb_increase_miss_count(struct ufshpb_lu *hpb,
-				       struct ufshpb_region *rgn,
-				       int transfer_len)
+				      struct ufshpb_region *rgn, 
+				      int transfer_len)
 {
-	if (rgn->rgn_state == HPBREGION_PINNED ||
+	if (rgn->rgn_state == HPBREGION_PINNED || 
 	    rgn->rgn_state == HPBREGION_RT_PINNED) {
 		if (transfer_len < HPB_MULTI_CHUNK_LOW) {
 			atomic64_inc(&hpb->pinned_low_miss);
@@ -1167,16 +1183,16 @@ static void ufshpb_increase_miss_count(struct ufshpb_lu *hpb,
 	}
 }
 
-static void ufshpb_increase_rb_count(struct ufshpb_lu *hpb,
-				struct ufshpb_region *rgn)
+static void ufshpb_increase_rb_count(struct ufshpb_lu *hpb, 
+				    struct ufshpb_region *rgn)
 {
-	if (rgn->rgn_state == HPBREGION_PINNED ||
-		rgn->rgn_state == HPBREGION_RT_PINNED) {
-		atomic64_inc(&hpb->pinned_rb_cnt);
-		atomic64_inc(&rgn->rgn_pinned_rb_cnt);
+       if (rgn->rgn_state == HPBREGION_PINNED || 
+	   rgn->rgn_state == HPBREGION_RT_PINNED) {
+	       atomic64_inc(&hpb->pinned_rb_cnt);
+	       atomic64_inc(&rgn->rgn_pinned_rb_cnt);
        } else if (rgn->rgn_state == HPBREGION_ACTIVE) {
-		atomic64_inc(&hpb->active_rb_cnt);
-		atomic64_inc(&rgn->rgn_active_rb_cnt);
+	       atomic64_inc(&hpb->active_rb_cnt);
+	       atomic64_inc(&rgn->rgn_active_rb_cnt);
        }
 }
 
@@ -1398,7 +1414,7 @@ static int ufshpb_clean_dirty_bitmap(struct ufshpb_lu *hpb,
 
 	if (rgn->rgn_state == HPBREGION_INACTIVE) {
 		ERR_MSG("region[%d] was activated. But it's state is changed",
-			rgn->rgn_idx);
+				rgn->rgn_idx);
 		return -EINVAL;
 	}
 
@@ -1419,7 +1435,7 @@ static void ufshpb_clean_active_subregion(struct ufshpb_lu *hpb,
 
 	if (rgn->rgn_state == HPBREGION_INACTIVE) {
 		ERR_MSG("region[%d] was activated. But it's state is changed",
-			rgn->rgn_idx);
+				rgn->rgn_idx);
 		return;
 	}
 	srgn->srgn_state = HPBSUBREGION_CLEAN;
@@ -1436,7 +1452,7 @@ static void ufshpb_error_active_subregion(struct ufshpb_lu *hpb,
 
 	if (rgn->rgn_state == HPBREGION_INACTIVE) {
 		ERR_MSG("region[%d] was activated. But it's state is changed",
-			rgn->rgn_idx);
+				rgn->rgn_idx);
 		return;
 	}
 	srgn->srgn_state = HPBSUBREGION_DIRTY;
@@ -1630,7 +1646,7 @@ static inline int ufshpb_get_scsi_device(struct ufs_hba *hba,
 	}
 	spin_unlock_irqrestore(hba->host->host_lock, flags);
 
-	return ret;
+        return ret;
 }
 
 static int ufshpb_execute_dev_ctx_req(struct ufshpb_lu *hpb, unsigned char *cdb,
@@ -1751,8 +1767,8 @@ static int ufshpb_map_req_add_bio_page(struct ufshpb_lu *hpb,
 
 inline int ufshpb_support_device_active(struct ufshpb_lu *hpb)
 {
-	return hpb->hpb_ver >= UFSHPB_MIN_VER &&
-		hpb->hpb_ver <= UFSHPB_RTRESET_VER;
+        return hpb->hpb_ver >= UFSHPB_MIN_VER &&
+                hpb->hpb_ver <= UFSHPB_RTRESET_VER;
 }
 
 static int ufshpb_execute_map_req(struct ufshpb_lu *hpb,
@@ -1796,16 +1812,15 @@ static int ufshpb_execute_map_req(struct ufshpb_lu *hpb,
 	/* 2. scsi_request setup */
 	rq = scsi_req(req);
 
-	if (ufshpb_support_device_active(hpb) &&
-	    !ufshpb_is_triggered_by_fs(rgn))
-		ufshpb_set_read_buf_cmd(rq->cmd, map_req->rgn_idx,
-					map_req->srgn_idx, hpb->srgn_mem_size);
-	else
-		ufshpb_set_rt_cmd(rq->cmd, map_req->rgn_idx, map_req->srgn_idx,
-				  hpb->srgn_mem_size);
+        if (ufshpb_support_device_active(hpb) &&
+            !ufshpb_is_triggered_by_fs(rgn))
+                ufshpb_set_read_buf_cmd(rq->cmd, map_req->rgn_idx,
+                                  map_req->srgn_idx, hpb->srgn_mem_size);
+        else
+                ufshpb_set_rt_cmd(rq->cmd, map_req->rgn_idx, map_req->srgn_idx,
+                                  hpb->srgn_mem_size);
 
 	rq->cmd_len = scsi_command_size(rq->cmd);
-
 #if defined(CONFIG_HPB_DEBUG)
 	if (hpb->debug)
 		ufshpb_check_ppn(hpb, map_req->rgn_idx, map_req->srgn_idx,
@@ -1814,7 +1829,6 @@ static int ufshpb_execute_map_req(struct ufshpb_lu *hpb,
 	TMSG(hpb->ufsf, hpb->lun, "Noti: I RB %d - %d", map_req->rgn_idx,
 	     map_req->srgn_idx);
 #endif
-
 	blk_execute_rq_nowait(q, NULL, req, 1, ufshpb_map_req_compl_fn);
 
 	if (ufshpb_is_triggered_by_fs(rgn))
@@ -1928,7 +1942,6 @@ static inline int ufshpb_add_region(struct ufshpb_lu *hpb,
 		  rgn->rgn_idx);
 	TMSG(hpb->ufsf, hpb->lun, "Noti: ACT RG: %d", rgn->rgn_idx);
 #endif
-
 	ufshpb_add_lru_info(lru_info, rgn);
 out:
 	return err;
@@ -1969,13 +1982,11 @@ static void __ufshpb_evict_region(struct ufshpb_lu *hpb,
 	int srgn_idx;
 
 	lru_info = &hpb->lru_info;
-
 #if defined(CONFIG_HPB_DEBUG)
 	HPB_DEBUG(hpb, "\x1b[41m\x1b[33m C->EVICT region: %d \x1b[0m",
 		  rgn->rgn_idx);
 	TMSG(hpb->ufsf, hpb->lun, "Noti: EVIC RG: %d", rgn->rgn_idx);
 #endif
-
 	ufshpb_cleanup_lru_info(lru_info, rgn);
 
 	for (srgn_idx = 0; srgn_idx < rgn->srgn_cnt; srgn_idx++) {
@@ -2057,7 +2068,7 @@ static void ufshpb_unset_rt_req_compl_fn(struct request *req,
 	unsigned long flags;
 
 #ifdef CONFIG_PM
-	ufshpb_mimic_blk_pm_put_request(req);
+       ufshpb_mimic_blk_pm_put_request(req);
 #endif
 
 	if (hpb->ufsf->ufshpb_state != HPB_PRESENT) {
@@ -2070,12 +2081,10 @@ static void ufshpb_unset_rt_req_compl_fn(struct request *req,
 		spin_lock_irqsave(&hpb->hpb_lock, flags);
 		goto free_pre_req;
 	}
-
 #if defined(CONFIG_HPB_DEBUG)
 	HPB_DEBUG(hpb, "COMPL UNSET_RT %d", pre_req->rgn_idx);
 	TMSG(hpb->ufsf, hpb->lun, "COMPL UNSET_RT %d", pre_req->rgn_idx);
 #endif
-
 	spin_lock_irqsave(&hpb->hpb_lock, flags);
 	if (rgn->rgn_state != HPBREGION_INACTIVE)
 		rgn->rgn_state = HPBREGION_ACTIVE;
@@ -2134,12 +2143,11 @@ static int ufshpb_execute_unset_rt_req(struct ufshpb_lu *hpb,
 	rq = scsi_req(req);
 	ufshpb_set_unset_rt_cmd(rq->cmd, pre_req->rgn_idx);
 	rq->cmd_len = scsi_command_size(rq->cmd);
-
 #if defined(CONFIG_HPB_DEBUG)
 	HPB_DEBUG(hpb, "ISSUE UNSET_RT %d", pre_req->rgn_idx);
+
 	TMSG(hpb->ufsf, hpb->lun, "ISSUE UNSET_RT %d", pre_req->rgn_idx);
 #endif
-
 	blk_execute_rq_nowait(q, NULL, req, 1, ufshpb_unset_rt_req_compl_fn);
 
 	atomic64_inc(&hpb->unset_rt_req_cnt);
@@ -2376,15 +2384,14 @@ static int ufshpb_load_region(struct ufshpb_lu *hpb, struct ufshpb_region *rgn)
 				spin_lock_irqsave(&hpb->hpb_lock, flags);
 				if (ret) {
 					if (ret == -ENOMEM)
-						 ERR_MSG("skip issue unset_rt. [%d] ret %d",
-							 rgn->rgn_idx, ret);
+						ERR_MSG("skip issue unset_rt. [%d] err %d",
+							rgn->rgn_idx, ret);
 					else
 						ERR_MSG("issue unset_rt failed. [%d] err %d",
-						 	rgn->rgn_idx, ret);
+							rgn->rgn_idx, ret);
 					goto out;
 				}
 			}
-
 #if defined(CONFIG_HPB_DEBUG)
 			TMSG(hpb->ufsf, hpb->lun, "Noti: VT RG %d state %d",
 			     victim_rgn->rgn_idx, victim_rgn->rgn_state);
@@ -2393,7 +2400,6 @@ static int ufshpb_load_region(struct ufshpb_lu *hpb, struct ufshpb_region *rgn)
 				  (long long)atomic64_read(&lru_info->active_cnt),
 				  victim_rgn->rgn_idx, victim_rgn->rgn_state);
 #endif
-
 			__ufshpb_evict_region(hpb, victim_rgn);
 		}
 
@@ -2429,7 +2435,7 @@ static void ufshpb_rsp_req_region_update(struct ufshpb_lu *hpb,
 
 		if (unlikely(rgn_idx >= hpb->rgns_per_lu)) {
 			ERR_MSG("rgn_idx %d is wrong. (Max %d\n",
-				rgn_idx, hpb->rgns_per_lu);
+					rgn_idx, hpb->rgns_per_lu);
 			continue;
 		}
 
@@ -2437,7 +2443,7 @@ static void ufshpb_rsp_req_region_update(struct ufshpb_lu *hpb,
 
 		if (unlikely(srgn_idx >= rgn->srgn_cnt)) {
 			ERR_MSG("srgn_idx %d is wrong. (Max %d\n",
-				srgn_idx, rgn->srgn_cnt);
+					srgn_idx, rgn->srgn_cnt);
 			continue;
 		}
 
@@ -2446,15 +2452,15 @@ static void ufshpb_rsp_req_region_update(struct ufshpb_lu *hpb,
 		if (ufshpb_is_triggered_by_fs(rgn))
 			continue;
 
-		if (!ufshpb_support_device_active(hpb)) {
-			if ((rgn->rgn_state != HPBREGION_RT_PINNED) &&
-			    (rgn->rgn_state != HPBREGION_PINNED))
-				continue;
-		}
+                if (!ufshpb_support_device_active(hpb)) {
+                        if ((rgn->rgn_state != HPBREGION_RT_PINNED) &&
+                            (rgn->rgn_state != HPBREGION_PINNED))
+                                continue;
+                }
 
 		spin_lock(&hpb->rsp_list_lock);
 		ufshpb_update_active_info(hpb, rgn_idx, srgn_idx,
-					  HPBUPDATE_FROM_DEV);
+				HPBUPDATE_FROM_DEV);
 		spin_unlock(&hpb->rsp_list_lock);
 
 		/* It is just blocking HPB_READ */
@@ -2471,7 +2477,7 @@ static void ufshpb_rsp_req_region_update(struct ufshpb_lu *hpb,
 
 		if (unlikely(rgn_idx >= hpb->rgns_per_lu)) {
 			ERR_MSG("rgn_idx %d is wrong. (Max %d\n",
-				rgn_idx, hpb->rgns_per_lu);
+					rgn_idx, hpb->rgns_per_lu);
 			continue;
 		}
 
@@ -2482,7 +2488,7 @@ static void ufshpb_rsp_req_region_update(struct ufshpb_lu *hpb,
 
 		spin_lock(&hpb->rsp_list_lock);
 		ufshpb_update_inactive_info(hpb, rgn_idx,
-					    HPBUPDATE_FROM_DEV);
+				HPBUPDATE_FROM_DEV);
 		spin_unlock(&hpb->rsp_list_lock);
 
 		/*
@@ -2673,7 +2679,7 @@ static inline void ufshpb_set_unset_rt_all_cmd(unsigned char *cdb)
 {
 	cdb[0] = UFSHPB_WRITE_BUFFER;
 	cdb[1] = UFSHPB_WB_ID_UNSET_RT_ALL;
-	cdb[9] = 0x00;	/* Control = 0x00 */
+	cdb[9] = 0x00;  /* Control = 0x00 */
 }
 
 static int ufshpb_issue_unset_rt_all_req(struct ufshpb_lu *hpb)
@@ -2730,13 +2736,13 @@ static int ufshpb_issue_map_req_from_list(struct ufshpb_lu *hpb)
 		list_del_init(&srgn->list_act_srgn);
 		spin_unlock_irqrestore(&hpb->rsp_list_lock, flags);
 
-		if (ufshpb_support_device_active(hpb))
-			ufshpb_set_read_buf_cmd(cmd, srgn->rgn_idx,
-						srgn->srgn_idx,
-						hpb->srgn_mem_size);
-		else
-			ufshpb_set_rt_cmd(cmd, srgn->rgn_idx, srgn->srgn_idx,
-					  hpb->srgn_mem_size);
+                if (ufshpb_support_device_active(hpb))
+                        ufshpb_set_read_buf_cmd(cmd, srgn->rgn_idx,
+                                                srgn->srgn_idx,
+                                                hpb->srgn_mem_size);
+                else
+                        ufshpb_set_rt_cmd(cmd, srgn->rgn_idx, srgn->srgn_idx,
+                                          hpb->srgn_mem_size);
 
 #if defined(CONFIG_HPB_DEBUG)
 		if (hpb->debug)
@@ -2761,7 +2767,7 @@ static int ufshpb_issue_map_req_from_list(struct ufshpb_lu *hpb)
 			ufshpb_check_ppn(hpb, srgn->rgn_idx, srgn->srgn_idx,
 					 srgn->mctx, "COMPL");
 		TMSG(hpb->ufsf, hpb->lun, "Pinend: C RB %d - %d",
-		     srgn->rgn_idx, srgn->srgn_idx);
+				srgn->rgn_idx, srgn->srgn_idx);
 #endif
 		spin_lock_irqsave(&hpb->hpb_lock, flags);
 		ufshpb_clean_active_subregion(hpb, srgn);
@@ -2972,7 +2978,7 @@ static void ufshpb_run_active_subregion_list(struct ufshpb_lu *hpb)
 			spin_lock_irqsave(&hpb->rsp_list_lock, flags);
 			if (ret == -EACCES) {
 				continue;
-			} else {		
+			} else {
 				ufshpb_add_active_list(hpb, rgn, srgn);
 				break;
 			}
@@ -3455,8 +3461,8 @@ static int ufshpb_lu_hpb_init(struct ufsf_feature *ufsf, int lun)
 
 	ufshpb_init_lu_constant(&ufsf->hpb_dev_info, hpb);
 
-	if ((hpb->hpb_ver >= UFSHPB_RTRESET_VER) &&
-	    (hpb->hpb_ver <= UFSHPB_MAX_VER)) {
+        if ((hpb->hpb_ver >= UFSHPB_RTRESET_VER) &&
+            (hpb->hpb_ver <= UFSHPB_MAX_VER)) {
 		ret = ufshpb_issue_unset_rt_all_req(hpb);
 		if (ret) {
 			ERR_MSG("V2.2 spec cmd is not allowed.");
@@ -3589,15 +3595,15 @@ out:
 
 static inline int ufshpb_version_check(struct ufshpb_dev_info *hpb_dev_info)
 {
-	INIT_INFO("Support HPB Spec : Driver(MIN) = %.4X Driver(MAX) = %.4X"
-		  "  Device = %.4X", UFSHPB_MIN_VER, UFSHPB_MAX_VER,
-		  hpb_dev_info->hpb_ver);
+        INIT_INFO("Support HPB Spec : Driver(MIN) = %.4X Driver(MAX) = %.4X"
+                  "  Device = %.4X", UFSHPB_MIN_VER, UFSHPB_MAX_VER,
+                  hpb_dev_info->hpb_ver);
 
 	INIT_INFO("HPB Driver Version : %.6X%s", UFSHPB_DD_VER,
 		  UFSHPB_DD_VER_POST);
 
-	if ((hpb_dev_info->hpb_ver < UFSHPB_MIN_VER) ||
-	    (hpb_dev_info->hpb_ver > UFSHPB_MAX_VER)) {
+        if ((hpb_dev_info->hpb_ver < UFSHPB_MIN_VER) ||
+            (hpb_dev_info->hpb_ver > UFSHPB_MAX_VER)) {
 		ERR_MSG("ERROR: HPB Spec Version mismatch. So HPB disabled.");
 		return -ENODEV;
 	}
@@ -3957,10 +3963,10 @@ static inline int ufshpb_probe_lun_done(struct ufsf_feature *ufsf)
 void ufshpb_init_handler(struct work_struct *work)
 {
 	struct ufsf_feature *ufsf;
-	struct delayed_work *dwork = to_delayed_work(work);
+        struct delayed_work *dwork = to_delayed_work(work);
 	int ret;
 
-	ufsf = container_of(dwork, struct ufsf_feature, ufshpb_init_work);
+        ufsf = container_of(dwork, struct ufsf_feature, ufshpb_init_work);
 
 	init_waitqueue_head(&ufsf->wait_hpb);
 
@@ -4252,7 +4258,6 @@ static ssize_t ufshpb_sysfs_pre_req_max_tr_len_store(struct ufshpb_lu *hpb,
 
 	return count;
 }
-
 #if defined(CONFIG_HPB_DEBUG)
 static ssize_t ufshpb_sysfs_debug_show(struct ufshpb_lu *hpb, char *buf)
 {
@@ -4509,8 +4514,8 @@ static ssize_t ufshpb_sysfs_rsp_list_cnt_show(struct ufshpb_lu *hpb, char *buf)
 	inact_cnt = atomic64_read(&hpb->inact_rsp_list_cnt);
 
 	ret = snprintf(buf, PAGE_SIZE,
-		       "act_rsp_list_cnt %lld inact_rsp_list_cnt %lld\n",
-		       act_cnt, inact_cnt);
+			"act_rsp_list_cnt %lld inact_rsp_list_cnt %lld\n",
+			act_cnt, inact_cnt);
 
 	SYSFS_INFO("%s", buf);
 

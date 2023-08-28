@@ -198,7 +198,7 @@ static void get_full_task_comm(struct task_entry *task_entry,
 	int i = 0, offset = 0, len = 0;
 	/* save one byte for terminating null character */
 	int unused_len = MAX_TASK_COMM_LEN - TASK_COMM_LEN - 1;
-	char buf[unused_len];
+	char buf[MAX_TASK_COMM_LEN - TASK_COMM_LEN - 1];
 	struct mm_struct *mm = task->mm;
 
 	/* fill the first TASK_COMM_LEN bytes with thread name */
@@ -419,21 +419,27 @@ static int uid_cputime_show(struct seq_file *m, void *v)
 	}
 
 	rcu_read_lock();
+	read_lock(&tasklist_lock);
 	do_each_thread(temp, task) {
 		uid = from_kuid_munged(user_ns, task_uid(task));
 		if (!uid_entry || uid_entry->uid != uid)
 			uid_entry = find_or_register_uid(uid);
 		if (!uid_entry) {
+			read_unlock(&tasklist_lock);
 			rcu_read_unlock();
 			rt_mutex_unlock(&uid_lock);
 			pr_err("%s: failed to find the uid_entry for uid %d\n",
 				__func__, uid);
 			return -ENOMEM;
 		}
-		task_cputime_adjusted(task, &utime, &stime);
-		uid_entry->active_utime += utime;
-		uid_entry->active_stime += stime;
+		/* avoid double accounting of dying threads */
+		if (!(task->flags & PF_EXITING)) {
+			task_cputime_adjusted(task, &utime, &stime);
+			uid_entry->active_utime += utime;
+			uid_entry->active_stime += stime;
+		}
 	} while_each_thread(temp, task);
+	read_unlock(&tasklist_lock);
 	rcu_read_unlock();
 
 	hash_for_each(hash_table, bkt, uid_entry, hash) {
@@ -473,7 +479,8 @@ static ssize_t uid_remove_write(struct file *file,
 	struct hlist_node *tmp;
 	char uids[128];
 	char *start_uid, *end_uid = NULL;
-	long int uid_start = 0, uid_end = 0;
+	uid_t uid_start = 0, uid_end = 0;
+	u64 uid;
 
 	if (count >= sizeof(uids))
 		count = sizeof(uids) - 1;
@@ -488,8 +495,8 @@ static ssize_t uid_remove_write(struct file *file,
 	if (!start_uid || !end_uid)
 		return -EINVAL;
 
-	if (kstrtol(start_uid, 10, &uid_start) != 0 ||
-		kstrtol(end_uid, 10, &uid_end) != 0) {
+	if (kstrtouint(start_uid, 10, &uid_start) != 0 ||
+		kstrtouint(end_uid, 10, &uid_end) != 0) {
 		return -EINVAL;
 	}
 
@@ -498,10 +505,10 @@ static ssize_t uid_remove_write(struct file *file,
 
 	rt_mutex_lock(&uid_lock);
 
-	for (; uid_start <= uid_end; uid_start++) {
+	for (uid = uid_start; uid <= uid_end; uid++) {
 		hash_for_each_possible_safe(hash_table, uid_entry, tmp,
-							hash, (uid_t)uid_start) {
-			if (uid_start == uid_entry->uid) {
+							hash, uid) {
+			if (uid == uid_entry->uid) {
 				remove_uid_tasks(uid_entry);
 				hash_del(&uid_entry->hash);
 				kfree(uid_entry);
@@ -524,6 +531,10 @@ static void add_uid_io_stats(struct uid_entry *uid_entry,
 			struct task_struct *task, int slot)
 {
 	struct io_stats *io_slot = &uid_entry->io[slot];
+
+	/* avoid double accounting of dying threads */
+	if (slot != UID_STATE_DEAD_TASKS && (task->flags & PF_EXITING))
+		return;
 
 	io_slot->read_bytes += task->ioac.read_bytes;
 	io_slot->write_bytes += compute_write_bytes(task);
@@ -549,6 +560,7 @@ static void update_io_stats_all_locked(void)
 	}
 
 	rcu_read_lock();
+	read_lock(&tasklist_lock);
 	do_each_thread(temp, task) {
 		uid = from_kuid_munged(user_ns, task_uid(task));
 		if (!uid_entry || uid_entry->uid != uid)
@@ -557,6 +569,7 @@ static void update_io_stats_all_locked(void)
 			continue;
 		add_uid_io_stats(uid_entry, task, UID_STATE_TOTAL_CURR);
 	} while_each_thread(temp, task);
+	read_unlock(&tasklist_lock);
 	rcu_read_unlock();
 
 	hash_for_each(hash_table, bkt, uid_entry, hash) {
@@ -578,11 +591,13 @@ static void update_io_stats_uid_locked(struct uid_entry *uid_entry)
 	set_io_uid_tasks_zero(uid_entry);
 
 	rcu_read_lock();
+	read_lock(&tasklist_lock);
 	do_each_thread(temp, task) {
 		if (from_kuid_munged(user_ns, task_uid(task)) != uid_entry->uid)
 			continue;
 		add_uid_io_stats(uid_entry, task, UID_STATE_TOTAL_CURR);
 	} while_each_thread(temp, task);
+	read_unlock(&tasklist_lock);
 	rcu_read_unlock();
 
 	compute_io_bucket_stats(&uid_entry->io[uid_entry->state],

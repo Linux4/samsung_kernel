@@ -5,11 +5,9 @@
  * (NOTE: these are not related to SCHED_IDLE batch scheduled
  *        tasks which are handled in sched/fair.c )
  */
-#include <linux/cpu_pm.h>
 #include "sched.h"
 
 #include <trace/events/power.h>
-#include <linux/sec_perf.h>
 
 /* Linker adds these: start and end of __cpuidle functions */
 extern char __cpuidle_text_start[], __cpuidle_text_end[];
@@ -62,7 +60,8 @@ static noinline int __cpuidle cpu_idle_poll(void)
 	stop_critical_timings();
 
 	while (!tif_need_resched() &&
-		(cpu_idle_force_poll || tick_check_broadcast_expired()))
+		(cpu_idle_force_poll || tick_check_broadcast_expired() ||
+		is_reserved(smp_processor_id())))
 		cpu_relax();
 	start_critical_timings();
 	trace_cpu_idle_rcuidle(PWR_EVENT_EXIT, smp_processor_id());
@@ -237,7 +236,6 @@ static void do_idle(void)
 	 */
 
 	__current_set_polling();
-	cpu_pm_enter_pre();
 	tick_nohz_idle_enter();
 
 	while (!need_resched()) {
@@ -253,9 +251,6 @@ static void do_idle(void)
 		}
 
 		arch_cpu_idle_enter();
-#ifdef CONFIG_SEC_PERF_LATENCYCHECKER
-		sec_perf_latencychecker_disable(smp_processor_id());
-#endif
 
 		/*
 		 * In poll mode we reenable interrupts and spin. Also if we
@@ -263,17 +258,13 @@ static void do_idle(void)
 		 * broadcast device expired for us, we don't want to go deep
 		 * idle as we know that the IPI is going to arrive right away.
 		 */
-		if (cpu_idle_force_poll || tick_check_broadcast_expired()) {
+		if (cpu_idle_force_poll || tick_check_broadcast_expired() ||
+				is_reserved(smp_processor_id())) {
 			tick_nohz_idle_restart_tick();
 			cpu_idle_poll();
 		} else {
 			cpuidle_idle_call();
 		}
-
-#ifdef CONFIG_SEC_PERF_LATENCYCHECKER
-		sec_perf_latencychecker_enable(smp_processor_id());
-#endif
-
 		arch_cpu_idle_exit();
 	}
 
@@ -284,7 +275,6 @@ static void do_idle(void)
 	 * This is required because for polling idle loops we will not have had
 	 * an IPI to fold the state for us.
 	 */
-	cpu_pm_exit_post();
 	preempt_set_need_resched();
 	tick_nohz_idle_exit();
 	__current_clr_polling();

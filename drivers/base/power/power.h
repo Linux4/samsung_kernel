@@ -98,6 +98,12 @@ extern int pm_async_enabled;
 /* drivers/base/power/main.c */
 extern struct list_head dpm_list;	/* The active device list */
 
+#ifdef CONFIG_QCOM_SHOW_RESUME_IRQ
+extern int msm_show_resume_irq_mask;
+#else
+#define msm_show_resume_irq_mask 0
+#endif
+
 static inline struct device *to_device(struct list_head *entry)
 {
 	return container_of(entry, struct device, power.entry);
@@ -148,3 +154,21 @@ static inline void device_pm_init(struct device *dev)
 	device_pm_sleep_init(dev);
 	pm_runtime_init(dev);
 }
+
+#ifdef CONFIG_PM_SLEEP
+
+/* drivers/base/power/wakeup_stats.c */
+extern int wakeup_source_sysfs_add(struct device *parent,
+				   struct wakeup_source *ws);
+extern void wakeup_source_sysfs_remove(struct wakeup_source *ws);
+
+extern int pm_wakeup_source_sysfs_add(struct device *parent);
+
+#else /* !CONFIG_PM_SLEEP */
+
+static inline int pm_wakeup_source_sysfs_add(struct device *parent)
+{
+	return 0;
+}
+
+#endif /* CONFIG_PM_SLEEP */

@@ -94,6 +94,8 @@ struct f_ss_monitor {
 	u8	intreface_id;
 	int	accessory_string;
 	u8	aoa_start_cmd;
+	/* new mode change flag */
+	bool	usb_mode_change;
 	int	usb_function_info;
 	char usb_mode[50];
 	struct ss_monitor_instance *func_inst;
@@ -190,15 +192,12 @@ static void ss_monitor_disable(struct usb_function *f)
 	char aoa_check[12] = {0,};
 
 	ss_monitor = func_to_ss_monitor(f);
-	if (!ss_monitor)
-		goto ret;
-	if (ss_monitor->accessory_string && !ss_monitor->aoa_start_cmd) {
+	if (ss_monitor && ss_monitor->accessory_string && ss_monitor->aoa_start_cmd) {
 		snprintf(aoa_check, sizeof(aoa_check), "AOA_ERR_%x", ss_monitor->accessory_string);
 		store_usblog_notify(NOTIFY_USBMODE_EXTRA, (void *)aoa_check, NULL);
 	}
 	ss_monitor->accessory_string = 0;
 	ss_monitor->aoa_start_cmd = 0;
-ret:
 	memset(guid_info, 0, sizeof(guid_info));
 }
 
@@ -207,13 +206,11 @@ static void
 mtp_complete_get_guid(struct usb_ep *ep, struct usb_request *req)
 {
 	int size;
-	if (the_mtpg)
-		pr_info("usb: [%s]\tline = [%d]\n", __func__, __LINE__);
-	else
-		pr_info("usb: [%s]\tline = [%d] / mtpg misc driver load fails\n", __func__, __LINE__);
 
+	pr_info("usb: [%s]\tline = [%d]\n", __func__, __LINE__);
 	if (req->status != 0) {
-		pr_info("usb: [%s]req->status !=0\tline = [%d]\n", __func__, __LINE__);
+		pr_info("usb: [%s]req->status !=0\tline = [%d]\n",
+						 __func__, __LINE__);
 		return;
 	}
 
@@ -298,13 +295,13 @@ static int ss_monitor_setup(struct usb_function *f,
 	u16	w_value = le16_to_cpu(ctrl->wValue);
 	u16	w_length = le16_to_cpu(ctrl->wLength);
 
-	ss_monitor = func_to_ss_monitor(f);
-
 	if (f->config != NULL && f->config->cdev != NULL) {
 		cdev = f->config->cdev;
 		req = cdev->req;
 	} else
 		goto unknown;
+
+	ss_monitor = func_to_ss_monitor(f);
 
 	if (ctrl->bRequestType ==
 			(USB_DIR_IN | USB_TYPE_STANDARD | USB_RECIP_DEVICE)
@@ -337,14 +334,11 @@ static int ss_monitor_setup(struct usb_function *f,
 				}
 			} else {
 				if (ctrl->bRequest == ACCESSORY_START) {
-					ss_monitor->aoa_start_cmd = 1;
 #if defined(CONFIG_USB_NOTIFY_PROC_LOG) && IS_MODULE(CONFIG_USB_DWC3)
+					ss_monitor->aoa_start_cmd = 1;
 					if (!is_aoa_string_come(ss_monitor->accessory_string))
 						store_usblog_notify(NOTIFY_USBMODE_EXTRA,
 							(void *)"AOA_STR_ERR", NULL);
-					else
-						store_usblog_notify(NOTIFY_USBSTATE,
-							(void *)"ACCESSORY=START", NULL);
 #endif
 				} else if (ctrl->bRequest == ACCESSORY_SEND_STRING) {
 					ss_monitor->accessory_string |= 0x1 << w_index;
@@ -364,30 +358,21 @@ static int ss_monitor_setup(struct usb_function *f,
 #if defined(CONFIG_USB_NOTIFY_PROC_LOG) && IS_MODULE(CONFIG_USB_DWC3)
 			switch (w_value >> 8) {
 			case USB_DT_DEVICE:
-				if (w_length == USB_DT_DEVICE_SIZE) {
-					ss_monitor->vbus_current = USB_CURRENT_UNCONFIGURED;
-					schedule_work(&ss_monitor->set_vbus_current_work);
-					usb_speed = get_usb_speed(cdev->gadget->speed);
-					sprintf(log_buf, "USB_STATE=ENUM:GET:DES:%s", usb_speed);
-					pr_info("usb: GET_DES(%s)\n", usb_speed);
-					store_usblog_notify(NOTIFY_USBSTATE,
-						(void *)"USB_STATE=ENUM:GET:DES", NULL);
-				}
+				usb_speed = get_usb_speed(cdev->gadget->speed);
+				sprintf(log_buf, "USB_STATE=ENUM:GET:DES:%s", usb_speed);
+				pr_info("usb: %s :: %s\n", __func__, usb_speed, log_buf);
+				store_usblog_notify(NOTIFY_USBSTATE,
+					(void *)"USB_STATE=ENUM:GET:DES", NULL);
 				break;
 			case USB_DT_CONFIG:
-				pr_info("usb: GET_CONFIG (%d)\n", w_index);
+				pr_info("usb: %s : Get_Config(%d)\n", __func__, w_index);
 					break;
 			}
 			break;
 #endif
 		case USB_REQ_SET_CONFIGURATION:
 #if defined(CONFIG_USB_NOTIFY_PROC_LOG) && IS_MODULE(CONFIG_USB_DWC3)
-			pr_info("usb: SET_CONFIG (%d)\n", w_value);
-			if (cdev->gadget->speed >= USB_SPEED_SUPER)
-				ss_monitor->vbus_current = USB_CURRENT_SUPER_SPEED;
-			else
-				ss_monitor->vbus_current = USB_CURRENT_HIGH_SPEED;
-			schedule_work(&ss_monitor->set_vbus_current_work);
+			pr_info("usb: %s : Set_Config(%d)\n", __func__, w_index);
 			store_usblog_notify(NOTIFY_USBSTATE,
 				(void *)"USB_STATE=ENUM:SET:CON", NULL);
 #endif
@@ -486,9 +471,9 @@ static int usb_configuration_name(struct usb_configuration *config, struct usb_f
 				if (!f_name)
 					return -ENOMEM;
 			}
-		} else {
-			if (!strcmp(f->name, "mtp") || !strcmp(f->name, "ptp"))
-				use_ffs_mtp = 0;
+		} else if (!strcmp(f->name, "mtp") || !strcmp(f->name, "ptp"))
+			use_ffs_mtp = 0;
+		else {
 			name_len = sizeof(f->name);
 			if (name_len > MAX_INST_NAME_LEN)
 				return -ENAMETOOLONG;
@@ -507,16 +492,10 @@ static int usb_configuration_name(struct usb_configuration *config, struct usb_f
 		length += copy_usb_mode(f_name, ss_monitor->usb_mode);
 		kfree(f_name);
 	}
-
-	if (length)
-		ss_monitor->usb_mode[length-1] = 0;
-	else
-		strncat(ss_monitor->usb_mode, "func:empty", 11);
-
-	store_usblog_notify(NOTIFY_USBMODE_EXTRA, (void *)ss_monitor->usb_mode, NULL);
+	ss_monitor->usb_mode[length-1] = 0;
+	if (use_ffs_mtp)
+		store_usblog_notify(NOTIFY_USBMODE_EXTRA, (void *)ss_monitor->usb_mode, NULL);
 	pr_info("usb: %s : ss_mon: usb_mode: %s\n", __func__, ss_monitor->usb_mode);
-
-	return 0;
 }
 #endif
 
@@ -526,10 +505,7 @@ ss_monitor_bind(struct usb_configuration *c, struct usb_function *f)
 #if defined(CONFIG_USB_NOTIFY_PROC_LOG) && IS_MODULE(CONFIG_USB_DWC3)
 	struct f_ss_monitor		*ss_monitor = func_to_ss_monitor(f);
 #endif
-	struct ss_monitor_instance *opts;
 	int	rc = -1;
-
-	opts = container_of(f->fi, struct ss_monitor_instance, func_inst);
 
 	/* copy descriptors, and track endpoint copies */
 	f->fs_descriptors = usb_copy_descriptors(log_fs_function);
@@ -555,23 +531,38 @@ ss_monitor_bind(struct usb_configuration *c, struct usb_function *f)
 			goto fail;
 	}
 
+	/* scenario for MTP  */
+	rc = misc_register(&mtpg_device);
+	if (rc != 0) {
+		pr_err("usb: %s misc_register of mtpg Failed\n", __func__);
+		goto fail;
+	}
+	rc = device_create_file(mtpg_device.this_device, &dev_attr_guid);
+	if (rc) {
+		pr_info("mtp: %s failed to create guid attr\n",
+				__func__);
+		goto err_misc_deregister;
+	}
+
 	/* save usb mode information */
 #if defined(CONFIG_USB_NOTIFY_PROC_LOG) && IS_MODULE(CONFIG_USB_DWC3)
 	usb_configuration_name(c, f);
+	ss_monitor->usb_mode_change = false;
 	store_usblog_notify(NOTIFY_USBSTATE,
 		(void *)"USB_STATE=PULLUP:EN:SUCCESS", NULL);
 #endif
 
-	f->ctrlrequest = ss_monitor_setup;
-	pr_info("usb: [%s] ss_mon.%s bind\n", __func__, opts->name);
+	f->setup = ss_monitor_setup;
+	pr_info("usb: [%s] ss_monitor bind\n", __func__);
 	return 0;
-
+err_misc_deregister:
+	misc_deregister(&mtpg_device);
 fail:
 #if defined(CONFIG_USB_NOTIFY_PROC_LOG) && IS_MODULE(CONFIG_USB_DWC3)
 	store_usblog_notify(NOTIFY_USBSTATE,
 		(void *)"USB_STATE=PULLUP:EN:FAIL", NULL);
 #endif
-	pr_err("usb: [%s] ss_mon.%s bind fail\n", __func__, opts->name);
+	pr_info("usb: [%s] ss_monitor bind fail\n", __func__);
 	return rc;
 
 }
@@ -579,16 +570,13 @@ fail:
 static void
 ss_monitor_unbind(struct usb_configuration *c, struct usb_function *f)
 {
-	struct ss_monitor_instance *opts;
-
-	opts = container_of(f->fi, struct ss_monitor_instance, func_inst);
-	f->ctrlrequest = NULL;
+	f->setup = NULL;
 #if defined(CONFIG_USB_NOTIFY_PROC_LOG) && IS_MODULE(CONFIG_USB_DWC3)
 	store_usblog_notify(NOTIFY_USBSTATE,
 		(void *)"USB_STATE=PULLUP:DIS", NULL);
 #endif
-
-	pr_info("usb: %s: ss_mon.%s unbind\n", __func__, opts->name);
+	misc_deregister(&mtpg_device);
+	pr_info("usb: [%s] ss_monitor_unbind\n", __func__);
 }
 
 static struct ss_monitor_instance *to_ss_monitor_instance(struct config_item *item)
@@ -638,12 +626,6 @@ static void ss_monitor_free_inst(struct usb_function_instance *fi)
 	struct ss_monitor_instance *fi_ss_monitor;
 
 	fi_ss_monitor = to_fi_ss_monitor(fi);
-	if (the_mtpg) {
-		device_remove_file(mtpg_device.this_device, &dev_attr_guid);
-		misc_deregister(&mtpg_device);
-		kfree(the_mtpg);
-		the_mtpg = NULL;
-	}
 	kfree(fi_ss_monitor->name);
 	kfree(fi_ss_monitor);
 }
@@ -651,32 +633,10 @@ static void ss_monitor_free_inst(struct usb_function_instance *fi)
 static struct usb_function_instance *ss_mon_alloc_inst(void)
 {
 	struct ss_monitor_instance *fi_ss_monitor;
-	int rc = -ENODEV;
-
-	/* scenario for MTP  */
-	if (the_mtpg == NULL) {
-		rc = misc_register(&mtpg_device);
-		if (rc != 0) {
-			pr_err("usb: %s misc_register of mtpg Failed(%d)\n", __func__, rc);
-		} else {
-			rc = device_create_file(mtpg_device.this_device, &dev_attr_guid);
-			if (rc) {
-				pr_err("usb: %s failed to create guid attr\n", __func__);
-				misc_deregister(&mtpg_device);
-			} else {
-				the_mtpg = kzalloc(sizeof(*the_mtpg), GFP_KERNEL);
-				if (!the_mtpg) {
-					device_remove_file(mtpg_device.this_device, &dev_attr_guid);
-					misc_deregister(&mtpg_device);
-				}
-			}
-		}
-	}
 
 	fi_ss_monitor = kzalloc(sizeof(*fi_ss_monitor), GFP_KERNEL);
 	if (!fi_ss_monitor)
-		goto err_misc_deregister;
-
+		return ERR_PTR(-ENOMEM);
 	fi_ss_monitor->func_inst.set_inst_name = ss_monitor_set_inst_name;
 	fi_ss_monitor->func_inst.free_func_inst = ss_monitor_free_inst;
 
@@ -684,17 +644,6 @@ static struct usb_function_instance *ss_mon_alloc_inst(void)
 					"", &ss_monitor_func_type);
 
 	return  &fi_ss_monitor->func_inst;
-
-err_misc_deregister:
-	if (the_mtpg) {
-		device_remove_file(mtpg_device.this_device, &dev_attr_guid);
-		misc_deregister(&mtpg_device);
-		kfree(the_mtpg);
-		the_mtpg = NULL;
-	}
-	pr_err("usb: [%s] ss_mon_alloc_inst fail\n", __func__);
-	return ERR_PTR(-ENOMEM);
-
 }
 
 static void ss_monitor_free(struct usb_function *f)
@@ -722,9 +671,11 @@ static struct usb_function *ss_mon_alloc(struct usb_function_instance *fi)
 	ss_monitor->function.set_alt = ss_monitor_set_alt;
 	ss_monitor->function.disable = ss_monitor_disable;
 	ss_monitor->function.free_func = ss_monitor_free;
-//	ss_monitor->function.setup = ss_monitor_setup;
 
 	fi_ss_monitor->ss_monitor = ss_monitor;
+#if defined(CONFIG_USB_NOTIFY_PROC_LOG)
+	ss_monitor->usb_mode_change = true;
+#endif
 	fi->f = &ss_monitor->function;
 	ss_monitor->func_inst = fi_ss_monitor;
 

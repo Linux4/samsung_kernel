@@ -1001,6 +1001,10 @@ static int check_fmt(struct file *file, enum v4l2_buf_type type)
 		if (is_vid && is_rx && ops->vidioc_g_fmt_meta_cap)
 			return 0;
 		break;
+	case V4L2_BUF_TYPE_PRIVATE:
+		if (ops->vidioc_g_fmt_type_private)
+			return 0;
+		break;
 	default:
 		break;
 	}
@@ -1295,6 +1299,90 @@ static void v4l_fill_fmtdesc(struct v4l2_fmtdesc *fmt)
 	case V4L2_META_FMT_VSP1_HGO:	descr = "R-Car VSP1 1-D Histogram"; break;
 	case V4L2_META_FMT_VSP1_HGT:	descr = "R-Car VSP1 2-D Histogram"; break;
 	case V4L2_META_FMT_UVC:		descr = "UVC payload header metadata"; break;
+	case V4L2_PIX_FMT_NV12_UBWC:
+					descr = "NV12 UBWC"; break;
+	case V4L2_PIX_FMT_SDE_Y_CBCR_H2V2_P010_VENUS:
+					descr = "Y/CbCr 4:2:0 P10 Venus"; break;
+	case V4L2_PIX_FMT_NV12_TP10_UBWC:
+					descr = "Y/CbCr 4:2:0 TP10 UBWC"; break;
+	case V4L2_PIX_FMT_NV12_512:
+				descr = "Y/CbCr 4:2:0 (512 align)"; break;
+	case V4L2_PIX_FMT_NV12_P010_UBWC:
+					descr = "Y/CbCr 4:2:0 P010 UBWC"; break;
+	case V4L2_PIX_FMT_RGBA8888_UBWC:
+					descr = "RGBA8888 UBWC"; break;
+	case V4L2_PIX_FMT_SDE_ABGR_8888:
+					descr = "32-bit ABGR 8-8-8-8"; break;
+	case V4L2_PIX_FMT_SDE_RGBA_8888:
+					descr = "32-bit RGBA 8-8-8-8"; break;
+	case V4L2_PIX_FMT_SDE_RGBX_8888:
+					descr = "32-bit RGBX 8-8-8-8"; break;
+	case V4L2_PIX_FMT_SDE_XBGR_8888:
+					descr = "32-bit XBGR 8-8-8-8"; break;
+	case V4L2_PIX_FMT_SDE_RGBA_5551:
+					descr = "16-bit RGBA 5-5-5-1"; break;
+	case V4L2_PIX_FMT_SDE_ABGR_1555:
+					descr = "16-bit ABGR 1-5-5-5"; break;
+	case V4L2_PIX_FMT_SDE_BGRA_5551:
+					descr = "16-bit BGRA 5-5-5-1"; break;
+	case V4L2_PIX_FMT_SDE_BGRX_5551:
+					descr = "16-bit BGRX 5-5-5-1"; break;
+	case V4L2_PIX_FMT_SDE_RGBX_5551:
+					descr = "16-bit RGBX 5-5-5-1"; break;
+	case V4L2_PIX_FMT_SDE_XBGR_1555:
+					descr = "16-bit XBGR 1-5-5-5"; break;
+	case V4L2_PIX_FMT_SDE_RGBA_4444:
+					descr = "16-bit RGBA 4-4-4-4"; break;
+	case V4L2_PIX_FMT_SDE_BGRA_4444:
+					descr = "16-bit BGRA 4-4-4-4"; break;
+	case V4L2_PIX_FMT_SDE_ABGR_4444:
+					descr = "16-bit ABGR 4-4-4-4"; break;
+	case V4L2_PIX_FMT_SDE_RGBX_4444:
+					descr = "16-bit RGBX 4-4-4-4"; break;
+	case V4L2_PIX_FMT_SDE_BGRX_4444:
+					descr = "16-bit BGRX 4-4-4-4"; break;
+	case V4L2_PIX_FMT_SDE_XBGR_4444:
+					descr = "16-bit XBGR 4-4-4-4"; break;
+	case V4L2_PIX_FMT_SDE_BGR_565:
+					descr = "16-bit BGR 5-6-5"; break;
+	case V4L2_PIX_FMT_SDE_Y_CR_CB_GH2V2:
+					descr = "Planar YVU 4:2:0 A16"; break;
+	case V4L2_PIX_FMT_SDE_Y_CBCR_H1V2:
+					descr = "Y/CbCr 4:2:2"; break;
+	case V4L2_PIX_FMT_SDE_Y_CRCB_H1V2:
+					descr = "Y/CrCb 4:2:2"; break;
+	case V4L2_PIX_FMT_SDE_Y_CBCR_H2V2_VENUS:
+					descr = "Y/CbCr 4:2:0 Venus"; break;
+	case V4L2_PIX_FMT_SDE_Y_CRCB_H2V2_VENUS:
+					descr = "Y/CrCb 4:2:0 Venus"; break;
+	case V4L2_PIX_FMT_SDE_RGBX_8888_UBWC:
+					descr = "RGBX 8:8:8:8 UBWC"; break;
+	case V4L2_PIX_FMT_SDE_RGB_565_UBWC:
+					descr = "RGB 5:6:5 UBWC"; break;
+	case V4L2_PIX_FMT_SDE_RGBA_1010102:
+					descr = "RGBA 10:10:10:2"; break;
+	case V4L2_PIX_FMT_SDE_RGBX_1010102:
+					descr = "RGBX 10:10:10:2"; break;
+	case V4L2_PIX_FMT_SDE_ARGB_2101010:
+					descr = "ARGB 2:10:10:10"; break;
+	case V4L2_PIX_FMT_SDE_XRGB_2101010:
+					descr = "XRGB 2:10:10:10"; break;
+	case V4L2_PIX_FMT_SDE_BGRA_1010102:
+					descr = "BGRA 10:10:10:2"; break;
+	case V4L2_PIX_FMT_SDE_BGRX_1010102:
+					descr = "BGRX 10:10:10:2"; break;
+	case V4L2_PIX_FMT_SDE_ABGR_2101010:
+					descr = "ABGR 2:10:10:10"; break;
+	case V4L2_PIX_FMT_SDE_XBGR_2101010:
+					descr = "XBGR 2:10:10:10"; break;
+	case V4L2_PIX_FMT_SDE_RGBA_1010102_UBWC:
+					descr = "RGBA 10:10:10:2 UBWC"; break;
+	case V4L2_PIX_FMT_SDE_RGBX_1010102_UBWC:
+					descr = "RGBX 10:10:10:2 UBWC"; break;
+	case V4L2_PIX_FMT_SDE_Y_CBCR_H2V2_TP10:
+					descr = "Y/CbCr 4:2:0 TP10"; break;
+	case V4L2_PIX_FMT_SDE_Y_CBCR_H2V2_P010:
+					descr = "Y/CbCr 4:2:0 P10"; break;
 
 	default:
 		/* Compressed formats */
@@ -1338,6 +1426,8 @@ static void v4l_fill_fmtdesc(struct v4l2_fmtdesc *fmt)
 		case V4L2_PIX_FMT_SE401:	descr = "GSPCA SE401"; break;
 		case V4L2_PIX_FMT_S5C_UYVY_JPG:	descr = "S5C73MX interleaved UYVY/JPEG"; break;
 		case V4L2_PIX_FMT_MT21C:	descr = "Mediatek Compressed Format"; break;
+		case V4L2_PIX_FMT_TME:
+			descr = "TME"; break;
 		default:
 			WARN(1, "Unknown pixelformat 0x%08x\n", fmt->pixelformat);
 			if (fmt->description[0])
@@ -1415,10 +1505,26 @@ static int v4l_enum_fmt(const struct v4l2_ioctl_ops *ops,
 	return ret;
 }
 
+static void v4l_pix_format_touch(struct v4l2_pix_format *p)
+{
+	/*
+	 * The v4l2_pix_format structure contains fields that make no sense for
+	 * touch. Set them to default values in this case.
+	 */
+
+	p->field = V4L2_FIELD_NONE;
+	p->colorspace = V4L2_COLORSPACE_RAW;
+	p->flags = 0;
+	p->ycbcr_enc = 0;
+	p->quantization = 0;
+	p->xfer_func = 0;
+}
+
 static int v4l_g_fmt(const struct v4l2_ioctl_ops *ops,
 				struct file *file, void *fh, void *arg)
 {
 	struct v4l2_format *p = arg;
+	struct video_device *vfd = video_devdata(file);
 	int ret = check_fmt(file, p->type);
 
 	if (ret)
@@ -1456,6 +1562,8 @@ static int v4l_g_fmt(const struct v4l2_ioctl_ops *ops,
 		ret = ops->vidioc_g_fmt_vid_cap(file, fh, arg);
 		/* just in case the driver zeroed it again */
 		p->fmt.pix.priv = V4L2_PIX_FMT_PRIV_MAGIC;
+		if (vfd->vfl_type == VFL_TYPE_TOUCH)
+			v4l_pix_format_touch(&p->fmt.pix);
 		return ret;
 	case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
 		return ops->vidioc_g_fmt_vid_cap_mplane(file, fh, arg);
@@ -1489,21 +1597,6 @@ static int v4l_g_fmt(const struct v4l2_ioctl_ops *ops,
 		return ops->vidioc_g_fmt_meta_cap(file, fh, arg);
 	}
 	return -EINVAL;
-}
-
-static void v4l_pix_format_touch(struct v4l2_pix_format *p)
-{
-	/*
-	 * The v4l2_pix_format structure contains fields that make no sense for
-	 * touch. Set them to default values in this case.
-	 */
-
-	p->field = V4L2_FIELD_NONE;
-	p->colorspace = V4L2_COLORSPACE_RAW;
-	p->flags = 0;
-	p->ycbcr_enc = 0;
-	p->quantization = 0;
-	p->xfer_func = 0;
 }
 
 static int v4l_s_fmt(const struct v4l2_ioctl_ops *ops,
@@ -1545,12 +1638,12 @@ static int v4l_s_fmt(const struct v4l2_ioctl_ops *ops,
 	case V4L2_BUF_TYPE_VBI_CAPTURE:
 		if (unlikely(!ops->vidioc_s_fmt_vbi_cap))
 			break;
-		CLEAR_AFTER_FIELD(p, fmt.vbi);
+		CLEAR_AFTER_FIELD(p, fmt.vbi.flags);
 		return ops->vidioc_s_fmt_vbi_cap(file, fh, arg);
 	case V4L2_BUF_TYPE_SLICED_VBI_CAPTURE:
 		if (unlikely(!ops->vidioc_s_fmt_sliced_vbi_cap))
 			break;
-		CLEAR_AFTER_FIELD(p, fmt.sliced);
+		CLEAR_AFTER_FIELD(p, fmt.sliced.io_size);
 		return ops->vidioc_s_fmt_sliced_vbi_cap(file, fh, arg);
 	case V4L2_BUF_TYPE_VIDEO_OUTPUT:
 		if (unlikely(!ops->vidioc_s_fmt_vid_out))
@@ -1573,22 +1666,22 @@ static int v4l_s_fmt(const struct v4l2_ioctl_ops *ops,
 	case V4L2_BUF_TYPE_VBI_OUTPUT:
 		if (unlikely(!ops->vidioc_s_fmt_vbi_out))
 			break;
-		CLEAR_AFTER_FIELD(p, fmt.vbi);
+		CLEAR_AFTER_FIELD(p, fmt.vbi.flags);
 		return ops->vidioc_s_fmt_vbi_out(file, fh, arg);
 	case V4L2_BUF_TYPE_SLICED_VBI_OUTPUT:
 		if (unlikely(!ops->vidioc_s_fmt_sliced_vbi_out))
 			break;
-		CLEAR_AFTER_FIELD(p, fmt.sliced);
+		CLEAR_AFTER_FIELD(p, fmt.sliced.io_size);
 		return ops->vidioc_s_fmt_sliced_vbi_out(file, fh, arg);
 	case V4L2_BUF_TYPE_SDR_CAPTURE:
 		if (unlikely(!ops->vidioc_s_fmt_sdr_cap))
 			break;
-		CLEAR_AFTER_FIELD(p, fmt.sdr);
+		CLEAR_AFTER_FIELD(p, fmt.sdr.buffersize);
 		return ops->vidioc_s_fmt_sdr_cap(file, fh, arg);
 	case V4L2_BUF_TYPE_SDR_OUTPUT:
 		if (unlikely(!ops->vidioc_s_fmt_sdr_out))
 			break;
-		CLEAR_AFTER_FIELD(p, fmt.sdr);
+		CLEAR_AFTER_FIELD(p, fmt.sdr.buffersize);
 		return ops->vidioc_s_fmt_sdr_out(file, fh, arg);
 	case V4L2_BUF_TYPE_META_CAPTURE:
 		if (unlikely(!ops->vidioc_s_fmt_meta_cap))
@@ -1632,12 +1725,12 @@ static int v4l_try_fmt(const struct v4l2_ioctl_ops *ops,
 	case V4L2_BUF_TYPE_VBI_CAPTURE:
 		if (unlikely(!ops->vidioc_try_fmt_vbi_cap))
 			break;
-		CLEAR_AFTER_FIELD(p, fmt.vbi);
+		CLEAR_AFTER_FIELD(p, fmt.vbi.flags);
 		return ops->vidioc_try_fmt_vbi_cap(file, fh, arg);
 	case V4L2_BUF_TYPE_SLICED_VBI_CAPTURE:
 		if (unlikely(!ops->vidioc_try_fmt_sliced_vbi_cap))
 			break;
-		CLEAR_AFTER_FIELD(p, fmt.sliced);
+		CLEAR_AFTER_FIELD(p, fmt.sliced.io_size);
 		return ops->vidioc_try_fmt_sliced_vbi_cap(file, fh, arg);
 	case V4L2_BUF_TYPE_VIDEO_OUTPUT:
 		if (unlikely(!ops->vidioc_try_fmt_vid_out))
@@ -1660,22 +1753,22 @@ static int v4l_try_fmt(const struct v4l2_ioctl_ops *ops,
 	case V4L2_BUF_TYPE_VBI_OUTPUT:
 		if (unlikely(!ops->vidioc_try_fmt_vbi_out))
 			break;
-		CLEAR_AFTER_FIELD(p, fmt.vbi);
+		CLEAR_AFTER_FIELD(p, fmt.vbi.flags);
 		return ops->vidioc_try_fmt_vbi_out(file, fh, arg);
 	case V4L2_BUF_TYPE_SLICED_VBI_OUTPUT:
 		if (unlikely(!ops->vidioc_try_fmt_sliced_vbi_out))
 			break;
-		CLEAR_AFTER_FIELD(p, fmt.sliced);
+		CLEAR_AFTER_FIELD(p, fmt.sliced.io_size);
 		return ops->vidioc_try_fmt_sliced_vbi_out(file, fh, arg);
 	case V4L2_BUF_TYPE_SDR_CAPTURE:
 		if (unlikely(!ops->vidioc_try_fmt_sdr_cap))
 			break;
-		CLEAR_AFTER_FIELD(p, fmt.sdr);
+		CLEAR_AFTER_FIELD(p, fmt.sdr.buffersize);
 		return ops->vidioc_try_fmt_sdr_cap(file, fh, arg);
 	case V4L2_BUF_TYPE_SDR_OUTPUT:
 		if (unlikely(!ops->vidioc_try_fmt_sdr_out))
 			break;
-		CLEAR_AFTER_FIELD(p, fmt.sdr);
+		CLEAR_AFTER_FIELD(p, fmt.sdr.buffersize);
 		return ops->vidioc_try_fmt_sdr_out(file, fh, arg);
 	case V4L2_BUF_TYPE_META_CAPTURE:
 		if (unlikely(!ops->vidioc_try_fmt_meta_cap))

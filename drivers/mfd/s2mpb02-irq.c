@@ -24,8 +24,8 @@
 #include <linux/irq.h>
 #include <linux/interrupt.h>
 #include <linux/gpio.h>
-#include <linux/mfd/s2mpb02.h>
-#include <linux/mfd/s2mpb02-regulator.h>
+#include <linux/mfd/samsung/s2mpb02.h>
+#include <linux/mfd/samsung/s2mpb02-regulator.h>
 
 static const u8 s2mpb02_mask_reg[] = {
 	[LED_INT] = S2MPB02_REG_INT1M,

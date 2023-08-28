@@ -17,6 +17,7 @@
 
 #define IPC_SYSTEM_CP_CHANNEL_INFO	0x01
 #define IPC_SYSTEM_CHARGING_DOCK_INFO	0x02
+#define	IPC_SYSTEM_CP_DBG_LEVEL_COMPLETED	0x04
 
 struct __packed sipc_fmt_hdr {
 	u16 len;

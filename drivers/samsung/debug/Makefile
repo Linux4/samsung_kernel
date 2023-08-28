@@ -1,36 +1,30 @@
-# drivers/samsung/debug/Makefile
-#
-# Copyright (c) 2010-2019 Samsung Electronics Co., Ltd.
-#		http://www.samsung.com/
-#
-# Licensed under GPLv2
-#
+obj-$(CONFIG_SEC_DEBUG)			+= sec_debug.o \
+					   sec_debug_node.o \
+					   sec_debug_partition.o \
+					   sec_hw_param.o \
+					   sec_key_notifier.o \
+					   sec_crashkey.o \
+					   sec_crashkey_long.o
 
-obj-y				:=
-obj-m				:=
-obj-n				:=
-obj-				:=
+obj-$(CONFIG_SEC_LOG_BUF)		+= sec_log_buf.o \
+					   sec_init_log.o
 
-ccflags-y := -Wformat
+obj-$(CONFIG_SEC_DEBUG_SCHED_LOG)	+= sec_debug_sched_log.o
+__SEC_DEBUG_SUMMARY_BUILD_ROOT	:= $(shell echo $(srctree) | sed -e 's|/android/kernel/.\+$$||' -e 's|^.\+/||')
+ccflags-$(CONFIG_SEC_DEBUG_SUMMARY)	+= -D__SEC_DEBUG_SUMMARY_BUILD_ROOT=$(__SEC_DEBUG_SUMMARY_BUILD_ROOT)
 
-# Samsung TN Debugging Features
-obj-$(CONFIG_SEC_DEBUG)			+= sec_debug_base.o
-obj-$(CONFIG_SEC_DEBUG)			+= sec_debug_test.o
-obj-$(CONFIG_SEC_DEBUG)			+= sec_debug_ksym.o
-obj-$(CONFIG_SEC_DEBUG)			+= sec_debug_mode.o
-obj-$(CONFIG_SEC_DEBUG)			+= sec_debug_memtab.o
-obj-$(CONFIG_SEC_DEBUG)			+= sec_debug_summary.o
-obj-$(CONFIG_SEC_DEBUG_HIST_LOG) 	+= sec_debug_hist.o
-obj-$(CONFIG_SEC_DEBUG_RESET_REASON)	+= sec_debug_reset_reason.o
-obj-$(CONFIG_SEC_DEBUG_EXTRA_INFO)	+= sec_debug_extra_info.o
-obj-$(CONFIG_SEC_DEBUG_HW_PARAM)	+= sec_debug_hw_param.o
-obj-$(CONFIG_SEC_DEBUG_AUTO_COMMENT)	+= sec_debug_auto_comment.o
-obj-$(CONFIG_SEC_DEBUG_LAST_KMSG)	+= sec_debug_last_kmsg.o
-obj-$(CONFIG_SEC_DEBUG_FIRST2M_LOG)	+= sec_debug_first2M_log.o
-obj-$(CONFIG_SEC_DEBUG_INIT_LOG)	+= sec_debug_init_log.o
-obj-$(CONFIG_SEC_DEBUG_WATCHDOGD_FOOTPRINT)	+= sec_debug_wdd_info.o
-obj-$(CONFIG_SEC_DEBUG_FREQ)		+= sec_debug_freq.o
-obj-$(CONFIG_SEC_DEBUG_COMPLETE_HINT)	+= sec_debug_complete_hint.o
-obj-$(CONFIG_SEC_DEBUG_DTASK)		+= sec_debug_dtask.o
-obj-$(CONFIG_SEC_DEBUG_SOFTDOG)   	+= sec_debug_softdog.o
-obj-$(CONFIG_SEC_DEBUG_SHOW_USER_STACK)	+= sec_debug_show_user_stack.o
+obj-$(CONFIG_SEC_DEBUG_SUMMARY)		+= sec_debug_summary.o sec_debug_summary_coreinfo.o
+
+obj-$(CONFIG_SEC_DEBUG_FORCE_ERROR)	+= sec_debug_force_err.o
+
+obj-$(CONFIG_SEC_DEBUG_PWDT)		+= sec_debug_pwdt.o
+
+obj-$(CONFIG_SEC_BOOTSTAT)		+= sec_bootstat.o
+
+obj-$(CONFIG_SEC_USER_RESET_DEBUG)	+= sec_debug_user_reset.o
+
+obj-$(CONFIG_KERNEL_MODE_NEON_DEBUG)	+= sec_kernel_mode_neon_debug.o
+
+obj-$(CONFIG_SEC_SLUB_DEBUG)		+= sec_slub_debug.o
+
+GCOV_PROFILE_sec_debug.o		:=y

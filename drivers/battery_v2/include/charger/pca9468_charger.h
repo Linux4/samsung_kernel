@@ -334,6 +334,8 @@ static int adc_gain[16] = { 0, 1, 2, 3, 4, 5, 6, 7, -8, -7, -6, -5, -4, -3, -2, 
 
 /* Maximum TA voltage threshold */
 #define PCA9468_TA_MAX_VOL		9800000 // 9800000uV
+/* Minimum TA voltage threshold */
+#define PCA9468_TA_MIN_VOL		7000000	// 7000000uV
 /* Maximum TA current threshold */
 #define PCA9468_TA_MAX_CUR		2450000	// 2450000uA
 /* Mimimum TA current threshold */
@@ -375,6 +377,8 @@ static int adc_gain[16] = { 0, 1, 2, 3, 4, 5, 6, 7, -8, -7, -6, -5, -4, -3, -2, 
 #define PCA9468_TA_IIN_OFFSET		100000	// 100mA
 /* IIN_CC upper protection offset in Power Limit Mode TA */
 #define PCA9468_IIN_CC_UPPER_OFFSET	150000	// 150mA
+/* TA current low offset for reducing input current */
+#define PCA9468_TA_CUR_LOW_OFFSET	200000	// 200mA
 
 /* PD Message Voltage and Current Step */
 #define PD_MSG_TA_VOL_STEP			20000	// 20mV
@@ -510,7 +514,7 @@ struct pca9468_platform_data {
 	int	irq_gpio;	/* GPIO pin that's connected to INT# */
 	unsigned int	iin_cfg;	/* Input Current Limit - uA unit */
 	unsigned int 	ichg_cfg;	/* Charging Current - uA unit */
-	unsigned int 	ta_max_vol; /* Maximum TA voltage threshold - uV unit */
+	unsigned int	ta_max_vol;	/* Maximum TA voltage threshold - uV unit */
 	unsigned int	v_float;	/* V_Float Voltage - uV unit */
 	unsigned int 	iin_topoff;	/* Input Topoff current -uV unit */
 	unsigned int 	v_float_max;	/* V_Float max Voltage -uV unit */
@@ -565,7 +569,7 @@ struct pca9468_platform_data {
  * @debug_address: debug register address
  */
 struct pca9468_charger {
-	struct wakeup_source	monitor_wake_lock;
+	struct wakeup_source	*monitor_wake_lock;
 	struct mutex		lock;
 	struct mutex		i2c_lock;
 	struct device		*dev;
@@ -590,7 +594,7 @@ struct pca9468_charger {
 	unsigned int		ret_state;
 
 	unsigned int		iin_cc;
-	
+
 	unsigned int		ta_cur;
 	unsigned int		ta_vol;
 	unsigned int		ta_objpos;
@@ -608,7 +612,7 @@ struct pca9468_charger {
 	bool				req_new_vfloat;
 	unsigned int		new_iin;
 	unsigned int		new_vfloat;
-	
+
 	int					adc_comp_gain;
 
 	int					retry_cnt;

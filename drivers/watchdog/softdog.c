@@ -29,7 +29,6 @@
 #include <linux/reboot.h>
 #include <linux/types.h>
 #include <linux/watchdog.h>
-#include <linux/sec_debug.h>
 
 #define TIMER_MARGIN	60		/* Default is 60 seconds */
 static unsigned int soft_margin = TIMER_MARGIN;	/* in seconds */
@@ -66,14 +65,7 @@ static enum hrtimer_restart softdog_fire(struct hrtimer *timer)
 		pr_crit("Triggered - Reboot ignored\n");
 	} else if (soft_panic) {
 		pr_crit("Initiating panic\n");
-#ifdef CONFIG_SEC_DEBUG_SOFTDOG
-		secdbg_softdog_show_info();
-#endif
-#if IS_ENABLED(CONFIG_SEC_DEBUG_SOFTDOG_PWDT)
 		panic("Software Watchdog Timer expired %ds", softdog_dev.timeout);
-#else
-		panic("Software Watchdog Timer expired");
-#endif
 	} else {
 		pr_crit("Initiating system reboot\n");
 		emergency_restart();
@@ -97,8 +89,6 @@ static int softdog_ping(struct watchdog_device *w)
 	hrtimer_start(&softdog_ticktock, ktime_set(w->timeout, 0),
 		      HRTIMER_MODE_REL);
 
-	pr_info_ratelimited("%s: %u\n", __func__, w->timeout);
-
 	if (IS_ENABLED(CONFIG_SOFT_WATCHDOG_PRETIMEOUT)) {
 		if (w->pretimeout)
 			hrtimer_start(&softdog_preticktock,
@@ -115,8 +105,6 @@ static int softdog_stop(struct watchdog_device *w)
 {
 	if (hrtimer_cancel(&softdog_ticktock))
 		module_put(THIS_MODULE);
-
-	pr_info_ratelimited("%s: %u\n", __func__, w->timeout);
 
 	if (IS_ENABLED(CONFIG_SOFT_WATCHDOG_PRETIMEOUT))
 		hrtimer_cancel(&softdog_preticktock);

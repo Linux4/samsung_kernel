@@ -1254,9 +1254,6 @@ static void read_bulk_callback(struct urb *urb)
 		netif_device_detach(tp->netdev);
 		return;
 	case -ENOENT:
-	case -EPROTO:
-		netif_info(tp, intr, tp->netdev,
-				"Stop submitting intr, status %d\n", status);
 		return;	/* the urb is in unlink state */
 	case -ETIME:
 		if (net_ratelimit())
@@ -2594,7 +2591,7 @@ static int rtl8153_enable(struct r8152 *tp)
 	if (test_bit(RTL8152_UNPLUG, &tp->flags))
 		return -ENODEV;
 
-	usb_unlocked_disable_lpm(tp->udev);
+	usb_disable_lpm(tp->udev);
 	set_tx_qlen(tp);
 	rtl_set_eee_plus(tp);
 	r8153_set_rx_early_timeout(tp);
@@ -5344,7 +5341,7 @@ static void rtl8153_disable(struct r8152 *tp)
 	rtl_disable(tp);
 	rtl_reset_bmu(tp);
 	tp->rtl_ops.aldps_enable(tp, true);
-	usb_unlocked_enable_lpm(tp->udev);
+	usb_enable_lpm(tp->udev);
 }
 
 static int rtl8152_set_speed(struct r8152 *tp, u8 autoneg, u16 speed, u8 duplex)
@@ -5494,7 +5491,7 @@ static void rtl8153_up(struct r8152 *tp)
 	tp->rtl_ops.aldps_enable(tp, true);
 	tp->rtl_ops.u2p3_enable(tp, true);
 	tp->rtl_ops.u1u2_enable(tp, true);
-	usb_unlocked_enable_lpm(tp->udev);
+	usb_enable_lpm(tp->udev);
 }
 
 static void rtl8153_down(struct r8152 *tp)
@@ -5869,7 +5866,7 @@ static void r8153_init(struct r8152 *tp)
 		msleep(20);
 	}
 
-	usb_unlocked_disable_lpm(tp->udev);
+	usb_disable_lpm(tp->udev);
 	r8153_u2p3en(tp, false);
 
 	if (tp->version == RTL_VER_04) {
@@ -6225,10 +6222,9 @@ static int rtl8152_reset_resume(struct usb_interface *intf)
 	struct r8152 *tp = usb_get_intfdata(intf);
 
 	clear_bit(SELECTIVE_SUSPEND, &tp->flags);
-	mutex_lock(&tp->control);
 	tp->rtl_ops.init(tp);
 	queue_delayed_work(system_long_wq, &tp->hw_phy_work, 0);
-	mutex_unlock(&tp->control);
+	set_ethernet_addr(tp);
 	return rtl8152_resume(intf);
 }
 
@@ -7265,6 +7261,9 @@ static int rtl8152_probe(struct usb_interface *intf,
 		return -ENODEV;
 	}
 
+	if (intf->cur_altsetting->desc.bNumEndpoints < 3)
+		return -ENODEV;
+
 	usb_reset_device(udev);
 	netdev = alloc_etherdev(sizeof(struct r8152));
 	if (!netdev) {
@@ -7344,6 +7343,11 @@ static int rtl8152_probe(struct usb_interface *intf,
 
 	intf->needs_remote_wakeup = 1;
 
+	if (!rtl_can_wakeup(tp))
+		__rtl_set_wol(tp, 0);
+	else
+		tp->saved_wolopts = __rtl_get_wol(tp);
+
 	tp->rtl_ops.init(tp);
 	queue_delayed_work(system_long_wq, &tp->hw_phy_work, 0);
 	set_ethernet_addr(tp);
@@ -7357,10 +7361,6 @@ static int rtl8152_probe(struct usb_interface *intf,
 		goto out1;
 	}
 
-	if (!rtl_can_wakeup(tp))
-		__rtl_set_wol(tp, 0);
-
-	tp->saved_wolopts = __rtl_get_wol(tp);
 	if (tp->saved_wolopts)
 		device_set_wakeup_enable(&udev->dev, true);
 	else

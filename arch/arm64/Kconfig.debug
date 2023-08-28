@@ -93,4 +93,22 @@ config ARM64_RELOC_TEST
 	depends on m
 	tristate "Relocation testing module"
 
+config ARM64_STRICT_BREAK_BEFORE_MAKE
+	bool "Enforce strict break-before-make on page table updates "
+
+comment "PowerManagement Feature"
+menuconfig SEC_PM
+	bool "Samsung PowerManagement Feature"
+	default y
+	help
+	  Samsung PowerManagement Feature.
+
+if SEC_PM
+config SEC_PM_DEBUG
+	bool "Samsung PowerManagement Debug Feature"
+	default n
+	help
+	  Samsung PowerManagement Debug Feature.
+endif
+
 source "drivers/hwtracing/coresight/Kconfig"

@@ -263,12 +263,11 @@ unsigned long segv(struct faultinfo fi, unsigned long ip, int is_user,
 		 */
 		address = 0;
 	}
-
 	if (!err)
 		goto out;
 	else if (catcher != NULL) {
 		segv_run_catcher(catcher, (void *) address);
-	}
+    }
 	else if (current->thread.fault_addr != NULL)
 		panic("fault_addr set but no fault catcher");
 	else if (!is_user && arch_fixup(ip, regs))

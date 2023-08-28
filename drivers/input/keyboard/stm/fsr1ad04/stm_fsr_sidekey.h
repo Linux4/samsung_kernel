@@ -24,8 +24,8 @@
 #include <linux/regulator/consumer.h>
 #include <linux/of_gpio.h>
 #include <linux/input/mt.h>
-#ifdef CONFIG_DRV_SAMSUNG
-#include <linux/sec_class.h>
+#ifdef CONFIG_SEC_SYSFS
+#include <linux/sec_sysfs.h>
 #endif
 
 #include <linux/device.h>

@@ -258,6 +258,97 @@ static ssize_t scrub_position_show(struct device *dev,
 static DEVICE_ATTR(scrub_pos, 0444, scrub_position_show, NULL);
 
 /* read param */
+#if defined(CONFIG_TOUCHSCREEN_SEC_TS_Y771_SUB)
+static ssize_t hardware_param_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct sec_ts_data *ts = container_of(sec, struct sec_ts_data, sec);
+	char buff[516];
+	char tbuff[128];
+	char temp[128];
+
+	memset(buff, 0x00, sizeof(buff));
+
+	/* ito_check */
+	memset(tbuff, 0x00, sizeof(tbuff));
+	snprintf(tbuff, sizeof(tbuff), "\"TITO2\":\"%02X%02X%02X%02X\",",
+			ts->ito_test[0], ts->ito_test[1],
+			ts->ito_test[2], ts->ito_test[3]);
+	strlcat(buff, tbuff, sizeof(buff));
+
+	/* muli_count */
+	memset(tbuff, 0x00, sizeof(tbuff));
+	snprintf(tbuff, sizeof(tbuff), "\"TMUL2\":\"%d\",", ts->multi_count);
+	strlcat(buff, tbuff, sizeof(buff));
+
+	/* wet_mode */
+	memset(tbuff, 0x00, sizeof(tbuff));
+	snprintf(tbuff, sizeof(tbuff), "\"TWET2\":\"%d\",", ts->wet_count);
+	strlcat(buff, tbuff, sizeof(buff));
+
+	/* noise_mode */
+	memset(tbuff, 0x00, sizeof(tbuff));
+	snprintf(tbuff, sizeof(tbuff), "\"TNOI2\":\"%d\",", ts->noise_count);
+	strlcat(buff, tbuff, sizeof(buff));
+
+	/* comm_err_count */
+	memset(tbuff, 0x00, sizeof(tbuff));
+	snprintf(tbuff, sizeof(tbuff), "\"TCOM2\":\"%d\",", ts->comm_err_count);
+	strlcat(buff, tbuff, sizeof(buff));
+
+	/* module_id */
+	memset(tbuff, 0x00, sizeof(tbuff));
+	snprintf(tbuff, sizeof(tbuff), "\"TMOD2\":\"SE%02X%02X%02X%02X%c%01X\",",
+			ts->plat_data->img_version_of_bin[1], ts->plat_data->img_version_of_bin[2],
+			ts->plat_data->img_version_of_bin[3], ts->nv,
+#ifdef TCLM_CONCEPT
+			ts->tdata->tclm_string[ts->tdata->nvdata.cal_position].s_name,
+			ts->tdata->nvdata.cal_count & 0xF);
+#else
+			"0",0);
+#endif
+	strlcat(buff, tbuff, sizeof(buff));
+
+	/* vendor_id */
+	memset(tbuff, 0x00, sizeof(tbuff));
+	if (ts->plat_data->firmware_name) {
+		memset(temp, 0x00, sizeof(temp));
+		snprintf(temp, 4, "%s", ts->plat_data->firmware_name);
+
+		snprintf(tbuff, sizeof(tbuff), "\"TVEN2\":\"LSI_%s\",", temp);
+	} else {
+		snprintf(tbuff, sizeof(tbuff), "\"TVEN2\":\"LSI\",");
+	}
+	strlcat(buff, tbuff, sizeof(buff));
+
+	/* checksum */
+	memset(tbuff, 0x00, sizeof(tbuff));
+	snprintf(tbuff, sizeof(tbuff), "\"TCHK2\":\"%d\",", ts->checksum_result);
+	strlcat(buff, tbuff, sizeof(buff));
+
+	/* all_touch_count */
+	memset(tbuff, 0x00, sizeof(tbuff));
+	snprintf(tbuff, sizeof(tbuff), "\"TTCN2\":\"%d\",\"TACN\":\"%d\",\"TSCN\":\"%d\",",
+			ts->all_finger_count, ts->all_aod_tap_count,
+			ts->all_spay_count);
+	strlcat(buff, tbuff, sizeof(buff));
+
+	/* mode_change_failed_count */
+	memset(tbuff, 0x00, sizeof(tbuff));
+	snprintf(tbuff, sizeof(tbuff), "\"TMCF2\":\"%d\",", ts->mode_change_failed_count);
+	strlcat(buff, tbuff, sizeof(buff));
+
+	/* ic_reset_count */
+	memset(tbuff, 0x00, sizeof(tbuff));
+	snprintf(tbuff, sizeof(tbuff), "\"TRIC2\":\"%d\"", ts->ic_reset_count);
+	strlcat(buff, tbuff, sizeof(buff));
+
+	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
+
+	return snprintf(buf, SEC_CMD_BUF_SIZE, "%s", buff);
+}
+#else
 static ssize_t hardware_param_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -278,22 +369,22 @@ static ssize_t hardware_param_show(struct device *dev,
 
 	/* muli_count */
 	memset(tbuff, 0x00, sizeof(tbuff));
-	snprintf(tbuff, sizeof(tbuff), "\"TMUL\":\"%d\",",	ts->multi_count);
+	snprintf(tbuff, sizeof(tbuff), "\"TMUL\":\"%d\",", ts->multi_count);
 	strlcat(buff, tbuff, sizeof(buff));
 
 	/* wet_mode */
 	memset(tbuff, 0x00, sizeof(tbuff));
-	snprintf(tbuff, sizeof(tbuff), "\"TWET\":\"%d\",",	ts->wet_count);
+	snprintf(tbuff, sizeof(tbuff), "\"TWET\":\"%d\",", ts->wet_count);
 	strlcat(buff, tbuff, sizeof(buff));
 
 	/* noise_mode */
 	memset(tbuff, 0x00, sizeof(tbuff));
-	snprintf(tbuff, sizeof(tbuff), "\"TNOI\":\"%d\",",	ts->noise_count);
+	snprintf(tbuff, sizeof(tbuff), "\"TNOI\":\"%d\",", ts->noise_count);
 	strlcat(buff, tbuff, sizeof(buff));
 
 	/* comm_err_count */
 	memset(tbuff, 0x00, sizeof(tbuff));
-	snprintf(tbuff, sizeof(tbuff), "\"TCOM\":\"%d\",",	ts->comm_err_count);
+	snprintf(tbuff, sizeof(tbuff), "\"TCOM\":\"%d\",", ts->comm_err_count);
 	strlcat(buff, tbuff, sizeof(buff));
 
 	/* module_id */
@@ -347,6 +438,7 @@ static ssize_t hardware_param_show(struct device *dev,
 
 	return snprintf(buf, SEC_CMD_BUF_SIZE, "%s", buff);
 }
+#endif
 
 /* clear param */
 static ssize_t hardware_param_store(struct device *dev,
@@ -651,6 +743,11 @@ static ssize_t get_lp_dump(struct device *dev, struct device_attribute *attr, ch
 			sec_spg_dat[1] = 0;
 		}
 
+		if (dump_cnt * ts->sponge_dump_format > SEC_TS_MAX_SPONGE_DUMP_BUFFER) {
+			input_err(true, &ts->client->dev, "%s: wrong sponge dump read size (%d)\n",
+					__func__, dump_cnt * ts->sponge_dump_format);
+			goto out;
+		}
 		ret = ts->sec_ts_read_sponge(ts, sec_spg_dat, dump_cnt * ts->sponge_dump_format);
 		if (ret < 0) {
 			input_err(true, &ts->client->dev, "%s: Failed to read sponge\n", __func__);
@@ -1811,7 +1908,7 @@ static void sec_ts_print_frame(struct sec_ts_data *ts, short *min, short *max)
 	unsigned char pTmp[16] = { 0 };
 	int lsize = 7 * (ts->tx_count + 1);
 
-	input_raw_info(true, &ts->client->dev, "%s\n", __func__);
+	input_raw_info_d(true, &ts->client->dev, "%s\n", __func__);
 
 	pStr = kzalloc(lsize, GFP_KERNEL);
 	if (pStr == NULL)
@@ -1826,7 +1923,7 @@ static void sec_ts_print_frame(struct sec_ts_data *ts, short *min, short *max)
 		strlcat(pStr, pTmp, lsize);
 	}
 
-	input_raw_info(true, &ts->client->dev, "%s\n", pStr);
+	input_raw_info_d(true, &ts->client->dev, "%s\n", pStr);
 	memset(pStr, 0x0, lsize);
 	snprintf(pTmp, sizeof(pTmp), " +");
 	strlcat(pStr, pTmp, lsize);
@@ -1836,7 +1933,7 @@ static void sec_ts_print_frame(struct sec_ts_data *ts, short *min, short *max)
 		strlcat(pStr, pTmp, lsize);
 	}
 
-	input_raw_info(true, &ts->client->dev, "%s\n", pStr);
+	input_raw_info_d(true, &ts->client->dev, "%s\n", pStr);
 
 	for (i = 0; i < ts->rx_count; i++) {
 		memset(pStr, 0x0, lsize);
@@ -1854,7 +1951,7 @@ static void sec_ts_print_frame(struct sec_ts_data *ts, short *min, short *max)
 
 			strlcat(pStr, pTmp, lsize);
 		}
-		input_raw_info(true, &ts->client->dev, "%s\n", pStr);
+		input_raw_info_d(true, &ts->client->dev, "%s\n", pStr);
 	}
 	kfree(pStr);
 }
@@ -1870,7 +1967,7 @@ static int sec_ts_read_frame(struct sec_ts_data *ts, u8 type, short *min,
 	int j = 0;
 	short *temp = NULL;
 
-	input_raw_info(true, &ts->client->dev, "%s: type %d\n", __func__, type);
+	input_raw_info_d(true, &ts->client->dev, "%s: type %d\n", __func__, type);
 
 	/* set data length, allocation buffer memory */
 	readbytes = ts->rx_count * ts->tx_count * 2;
@@ -1979,7 +2076,7 @@ static void sec_ts_print_channel(struct sec_ts_data *ts)
 		snprintf(pTmp, sizeof(pTmp), "    %02d", k);
 		strlcat(pStr, pTmp, 7 * (ts->tx_count + 1));
 	}
-	input_raw_info(true, &ts->client->dev, "%s\n", pStr);
+	input_raw_info_d(true, &ts->client->dev, "%s\n", pStr);
 
 	memset(pStr, 0x0, 7 * (ts->tx_count + 1));
 	snprintf(pTmp, sizeof(pTmp), " +");
@@ -1989,7 +2086,7 @@ static void sec_ts_print_channel(struct sec_ts_data *ts)
 		snprintf(pTmp, sizeof(pTmp), "------");
 		strlcat(pStr, pTmp, 7 * (ts->tx_count + 1));
 	}
-	input_raw_info(true, &ts->client->dev, "%s\n", pStr);
+	input_raw_info_d(true, &ts->client->dev, "%s\n", pStr);
 
 	memset(pStr, 0x0, 7 * (ts->tx_count + 1));
 	snprintf(pTmp, sizeof(pTmp), " | ");
@@ -1997,8 +2094,8 @@ static void sec_ts_print_channel(struct sec_ts_data *ts)
 
 	for (i = 0; i < (ts->tx_count + ts->rx_count) * 2; i += 2) {
 		if (j == ts->tx_count) {
-			input_raw_info(true, &ts->client->dev, "%s\n", pStr);
-			input_raw_info(true, &ts->client->dev, "\n");
+			input_raw_info_d(true, &ts->client->dev, "%s\n", pStr);
+			input_raw_info_d(true, &ts->client->dev, "\n");
 			memset(pStr, 0x0, 7 * (ts->tx_count + 1));
 			snprintf(pTmp, sizeof(pTmp), " RX");
 			strlcat(pStr, pTmp, 7 * (ts->tx_count + 1));
@@ -2008,7 +2105,7 @@ static void sec_ts_print_channel(struct sec_ts_data *ts)
 				strlcat(pStr, pTmp, 7 * (ts->tx_count + 1));
 			}
 
-			input_raw_info(true, &ts->client->dev, "%s\n", pStr);
+			input_raw_info_d(true, &ts->client->dev, "%s\n", pStr);
 
 			memset(pStr, 0x0, 7 * (ts->tx_count + 1));
 			snprintf(pTmp, sizeof(pTmp), " +");
@@ -2018,13 +2115,13 @@ static void sec_ts_print_channel(struct sec_ts_data *ts)
 				snprintf(pTmp, sizeof(pTmp), "------");
 				strlcat(pStr, pTmp, 7 * (ts->tx_count + 1));
 			}
-			input_raw_info(true, &ts->client->dev, "%s\n", pStr);
+			input_raw_info_d(true, &ts->client->dev, "%s\n", pStr);
 
 			memset(pStr, 0x0, 7 * (ts->tx_count + 1));
 			snprintf(pTmp, sizeof(pTmp), " | ");
 			strlcat(pStr, pTmp, 7 * (ts->tx_count + 1));
 		} else if (j && !(j % ts->tx_count)) {
-			input_raw_info(true, &ts->client->dev, "%s\n", pStr);
+			input_raw_info_d(true, &ts->client->dev, "%s\n", pStr);
 			memset(pStr, 0x0, 7 * (ts->tx_count + 1));
 			snprintf(pTmp, sizeof(pTmp), " | ");
 			strlcat(pStr, pTmp, 7 * (ts->tx_count + 1));
@@ -2035,7 +2132,7 @@ static void sec_ts_print_channel(struct sec_ts_data *ts)
 
 		j++;
 	}
-	input_raw_info(true, &ts->client->dev, "%s\n", pStr);
+	input_raw_info_d(true, &ts->client->dev, "%s\n", pStr);
 	vfree(pStr);
 }
 
@@ -2050,7 +2147,7 @@ static int sec_ts_read_channel(struct sec_ts_data *ts, u8 type,
 	unsigned int data_length = (ts->tx_count + ts->rx_count) * 2;
 	u8 w_data;
 
-	input_raw_info(true, &ts->client->dev, "%s: type %d\n", __func__, type);
+	input_raw_info_d(true, &ts->client->dev, "%s: type %d\n", __func__, type);
 
 	pRead = kzalloc(data_length, GFP_KERNEL);
 	if (!pRead)
@@ -2369,7 +2466,7 @@ static int sec_ts_read_raw_data(struct sec_ts_data *ts,
 		goto error_power_state;
 	}
 
-	input_raw_info(true, &ts->client->dev, "%s: %d, %s\n",
+	input_raw_info_d(true, &ts->client->dev, "%s: %d, %s\n",
 			__func__, mode->type, mode->allnode ? "ALL" : "");
 
 	ret = sec_ts_fix_tmode(ts, TOUCH_SYSTEM_MODE_TOUCH, TOUCH_MODE_STATE_TOUCH);
@@ -2538,7 +2635,7 @@ static void run_cmoffset_set_proximity_read_all(void *device_data)
 		goto error_power_state;
 	}
 
-	input_raw_info(true, &ts->client->dev, "%s: called\n", __func__);
+	input_raw_info_d(true, &ts->client->dev, "%s: called\n", __func__);
 
 	buf[0] = 0x03;	/* 00: off, 01:Mutual, 10:Self, 11: Mutual+Self */
 	ret = ts->sec_ts_i2c_write(ts, SEC_TS_SET_EAR_DETECT_MODE, &buf[0], 1);
@@ -3757,7 +3854,7 @@ void sec_ts_get_saved_cmoffset(struct sec_ts_data *ts)
 	int result_size = SEC_TS_SELFTEST_REPORT_SIZE + ts->tx_count * ts->rx_count * 2;
 	short min, max;
 
-	input_raw_info(true, &ts->client->dev, "%s:\n", __func__);
+	input_raw_info_d(true, &ts->client->dev, "%s:\n", __func__);
 
 	rBuff = kzalloc(result_size, GFP_KERNEL);
 	if (!rBuff)
@@ -3800,8 +3897,12 @@ void sec_ts_run_rawdata_all(struct sec_ts_data *ts, bool full_read)
 		TYPE_SIGNAL_DATA, TYPE_OFFSET_DATA_SEC, TYPE_OFFSET_DATA_SDC};
 
 	ts->tsp_dump_lock = 1;
+#if defined(CONFIG_TOUCHSCREEN_SEC_TS_Y771_SUB)
+	input_raw_data_clear(SUB_TOUCH);
+#else
 	input_raw_data_clear();
-	input_raw_info(true, &ts->client->dev,
+#endif
+	input_raw_info_d(true, &ts->client->dev,
 			"%s: start (noise:%d, wet:%d)##\n",
 			__func__, ts->touch_noise_status, ts->wet_mode);
 
@@ -3822,12 +3923,12 @@ void sec_ts_run_rawdata_all(struct sec_ts_data *ts, bool full_read)
 	for (i = 0; i < read_num; i++) {
 		ret = sec_ts_read_frame(ts, test_type[i], &min, &max, false);
 		if (ret < 0) {
-			input_raw_info(true, &ts->client->dev,
+			input_raw_info_d(true, &ts->client->dev,
 					"%s: mutual %d : error ## ret:%d\n",
 					__func__, test_type[i], ret);
 			goto out;
 		} else {
-			input_raw_info(true, &ts->client->dev,
+			input_raw_info_d(true, &ts->client->dev,
 					"%s: mutual %d : Max/Min %d,%d ##\n",
 					__func__, test_type[i], max, min);
 		}
@@ -3844,12 +3945,12 @@ void sec_ts_run_rawdata_all(struct sec_ts_data *ts, bool full_read)
 		if (full_read) {
 			ret = sec_ts_read_channel(ts, test_type[i], &min, &max, false);
 			if (ret < 0) {
-				input_raw_info(true, &ts->client->dev,
+				input_raw_info_d(true, &ts->client->dev,
 						"%s: self %d : error ## ret:%d\n",
 						__func__, test_type[i], ret);
 				goto out;
 			} else {
-				input_raw_info(true, &ts->client->dev,
+				input_raw_info_d(true, &ts->client->dev,
 						"%s: self %d : Max/Min %d,%d ##\n",
 						__func__, test_type[i], max, min);
 			}
@@ -3865,11 +3966,11 @@ void sec_ts_run_rawdata_all(struct sec_ts_data *ts, bool full_read)
 out:
 	run_cmoffset_set_proximity_read_all(&ts->sec);
 
-	input_raw_info(true, &ts->client->dev, "%s: ito : %02X %02X %02X %02X\n",
+	input_raw_info_d(true, &ts->client->dev, "%s: ito : %02X %02X %02X %02X\n",
 			__func__, ts->ito_test[0], ts->ito_test[1]
 			, ts->ito_test[2], ts->ito_test[3]);
 
-	input_raw_info(true, &ts->client->dev, "%s: done (noise:%d, wet:%d)##\n",
+	input_raw_info_d(true, &ts->client->dev, "%s: done (noise:%d, wet:%d)##\n",
 			__func__, ts->touch_noise_status, ts->wet_mode);
 	ts->tsp_dump_lock = 0;
 
@@ -4848,7 +4949,7 @@ static int execute_selftest(struct sec_ts_data *ts, bool save_result)
 		goto err_exit;
 	}
 
-	input_raw_info(true, &ts->client->dev, "%s: Self test done!\n", __func__);
+	input_raw_info_d(true, &ts->client->dev, "%s: Self test done!\n", __func__);
 
 	rc = ts->sec_ts_i2c_read(ts, SEC_TS_READ_SELFTEST_RESULT, rBuff, result_size);
 	if (rc < 0) {
@@ -4916,7 +5017,7 @@ static int execute_selftest(struct sec_ts_data *ts, bool save_result)
 			ts->ito_test[3] = rBuff[i + 3];
 		}
 		if (i % 8 == 4) {
-			input_raw_info(true, &ts->client->dev, "%s\n", pStr);
+			input_raw_info_d(true, &ts->client->dev, "%s\n", pStr);
 			memset(pStr, 0x00, sizeof(pStr));
 		} else {
 			strlcat(pStr, "  ", sizeof(pStr));
@@ -6011,7 +6112,11 @@ static void set_wirelesscharger_mode(void *device_data)
 	int ret;
 	struct sec_input_notify_data data;
 
+#if defined(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+	data.dual_policy = SUB_TOUCHSCREEN;
+#else
 	data.dual_policy = MAIN_TOUCHSCREEN;
+#endif
 
 	sec_cmd_set_default_result(sec);
 
@@ -7824,8 +7929,13 @@ int sec_ts_fn_init(struct sec_ts_data *ts)
 {
 	int retval = 0;
 
+#if defined(CONFIG_TOUCHSCREEN_SEC_TS_Y771_SUB)
+	retval = sec_cmd_init(&ts->sec, sec_cmds,
+			ARRAY_SIZE(sec_cmds), SEC_CLASS_DEVT_TSP2);
+#else
 	retval = sec_cmd_init(&ts->sec, sec_cmds,
 			ARRAY_SIZE(sec_cmds), SEC_CLASS_DEVT_TSP);
+#endif
 	if (retval < 0) {
 		input_err(true, &ts->client->dev,
 				"%s: Failed to sec_cmd_init\n", __func__);
@@ -7910,6 +8020,9 @@ void sec_ts_fn_remove(struct sec_ts_data *ts)
 
 	sysfs_remove_group(&ts->sec.fac_dev->kobj,
 			&cmd_attr_group);
-
+#if defined(CONFIG_TOUCHSCREEN_SEC_TS_Y771_SUB)
+	sec_cmd_exit(&ts->sec, SEC_CLASS_DEVT_TSP2);
+#else
 	sec_cmd_exit(&ts->sec, SEC_CLASS_DEVT_TSP);
+#endif
 }

@@ -1,10 +1,24 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * (C) Copyright David Gibson <dwg@au1.ibm.com>, IBM Corporation.  2005.
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *  General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307
+ *                                                                   USA
  */
 
 #include "dtc.h"
-#include "srcpos.h"
 
 /*
  * Tree building functions
@@ -36,8 +50,7 @@ void delete_labels(struct label **labels)
 		label->deleted = 1;
 }
 
-struct property *build_property(char *name, struct data val,
-				struct srcpos *srcpos)
+struct property *build_property(char *name, struct data val)
 {
 	struct property *new = xmalloc(sizeof(*new));
 
@@ -45,7 +58,6 @@ struct property *build_property(char *name, struct data val,
 
 	new->name = name;
 	new->val = val;
-	new->srcpos = srcpos_copy(srcpos);
 
 	return new;
 }
@@ -85,8 +97,7 @@ struct property *reverse_properties(struct property *first)
 	return head;
 }
 
-struct node *build_node(struct property *proplist, struct node *children,
-			struct srcpos *srcpos)
+struct node *build_node(struct property *proplist, struct node *children)
 {
 	struct node *new = xmalloc(sizeof(*new));
 	struct node *child;
@@ -95,7 +106,6 @@ struct node *build_node(struct property *proplist, struct node *children,
 
 	new->proplist = reverse_properties(proplist);
 	new->children = children;
-	new->srcpos = srcpos_copy(srcpos);
 
 	for_each_child(new, child) {
 		child->parent = new;
@@ -104,14 +114,13 @@ struct node *build_node(struct property *proplist, struct node *children,
 	return new;
 }
 
-struct node *build_node_delete(struct srcpos *srcpos)
+struct node *build_node_delete(void)
 {
 	struct node *new = xmalloc(sizeof(*new));
 
 	memset(new, 0, sizeof(*new));
 
 	new->deleted = 1;
-	new->srcpos = srcpos_copy(srcpos);
 
 	return new;
 }
@@ -174,8 +183,6 @@ struct node *merge_nodes(struct node *old_node, struct node *new_node)
 
 				old_prop->val = new_prop->val;
 				old_prop->deleted = 0;
-				free(old_prop->srcpos);
-				old_prop->srcpos = new_prop->srcpos;
 				free(new_prop);
 				new_prop = NULL;
 				break;
@@ -216,8 +223,6 @@ struct node *merge_nodes(struct node *old_node, struct node *new_node)
 			add_child(old_node, new_child);
 	}
 
-	old_node->srcpos = srcpos_extend(old_node->srcpos, new_node->srcpos);
-
 	/* The new node contents are now merged into the old node.  Free
 	 * the new node. */
 	free(new_node);
@@ -234,21 +239,20 @@ struct node * add_orphan_node(struct node *dt, struct node *new_node, char *ref)
 	char *name;
 
 	if (ref[0] == '/') {
-		d = data_add_marker(d, TYPE_STRING, ref);
 		d = data_append_data(d, ref, strlen(ref) + 1);
 
-		p = build_property("target-path", d, NULL);
+		p = build_property("target-path", d);
 	} else {
 		d = data_add_marker(d, REF_PHANDLE, ref);
 		d = data_append_integer(d, 0xffffffff, 32);
 
-		p = build_property("target", d, NULL);
+		p = build_property("target", d);
 	}
 
 	xasprintf(&name, "fragment@%u",
 			next_orphan_fragment++);
 	name_node(new_node, "__overlay__");
-	node = build_node(p, new_node, NULL);
+	node = build_node(p, new_node);
 	name_node(node, name);
 
 	add_child(dt, node);
@@ -336,21 +340,18 @@ void delete_node(struct node *node)
 }
 
 void append_to_property(struct node *node,
-			char *name, const void *data, int len,
-			enum markertype type)
+				    char *name, const void *data, int len)
 {
 	struct data d;
 	struct property *p;
 
 	p = get_property(node, name);
 	if (p) {
-		d = data_add_marker(p->val, type, name);
-		d = data_append_data(d, data, len);
+		d = data_append_data(p->val, data, len);
 		p->val = d;
 	} else {
-		d = data_add_marker(empty_data, type, name);
-		d = data_append_data(d, data, len);
-		p = build_property(name, d, NULL);
+		d = data_append_data(empty_data, data, len);
+		p = build_property(name, d);
 		add_property(node, p);
 	}
 }
@@ -593,7 +594,6 @@ struct node *get_node_by_ref(struct node *tree, const char *ref)
 cell_t get_node_phandle(struct node *root, struct node *node)
 {
 	static cell_t phandle = 1; /* FIXME: ick, static local */
-	struct data d = empty_data;
 
 	if ((node->phandle != 0) && (node->phandle != -1))
 		return node->phandle;
@@ -603,16 +603,17 @@ cell_t get_node_phandle(struct node *root, struct node *node)
 
 	node->phandle = phandle;
 
-	d = data_add_marker(d, TYPE_UINT32, NULL);
-	d = data_append_cell(d, phandle);
-
 	if (!get_property(node, "linux,phandle")
 	    && (phandle_format & PHANDLE_LEGACY))
-		add_property(node, build_property("linux,phandle", d, NULL));
+		add_property(node,
+			     build_property("linux,phandle",
+					    data_append_cell(empty_data, phandle)));
 
 	if (!get_property(node, "phandle")
 	    && (phandle_format & PHANDLE_EPAPR))
-		add_property(node, build_property("phandle", d, NULL));
+		add_property(node,
+			     build_property("phandle",
+					    data_append_cell(empty_data, phandle)));
 
 	/* If the node *does* have a phandle property, we must
 	 * be dealing with a self-referencing phandle, which will be
@@ -786,7 +787,7 @@ static struct node *build_and_name_child_node(struct node *parent, char *name)
 {
 	struct node *node;
 
-	node = build_node(NULL, NULL, NULL);
+	node = build_node(NULL, NULL);
 	name_node(node, xstrdup(name));
 	add_child(parent, node);
 
@@ -847,9 +848,8 @@ static void generate_label_tree_internal(struct dt_info *dti,
 
 			/* insert it */
 			p = build_property(l->label,
-				data_copy_escape_string(node->fullpath,
-						strlen(node->fullpath)),
-				NULL);
+				data_copy_mem(node->fullpath,
+						strlen(node->fullpath) + 1));
 			add_property(an, p);
 		}
 
@@ -899,7 +899,7 @@ static void add_fixup_entry(struct dt_info *dti, struct node *fn,
 
 	xasprintf(&entry, "%s:%s:%u",
 			node->fullpath, prop->name, m->offset);
-	append_to_property(fn, m->ref, entry, strlen(entry) + 1, TYPE_STRING);
+	append_to_property(fn, m->ref, entry, strlen(entry) + 1);
 
 	free(entry);
 }
@@ -959,7 +959,7 @@ static void add_local_fixup_entry(struct dt_info *dti,
 	char **compp;
 	int i, depth;
 
-	/* walk back retrieving depth */
+	/* walk back retreiving depth */
 	depth = 0;
 	for (wn = node; wn; wn = wn->parent)
 		depth++;
@@ -982,7 +982,7 @@ static void add_local_fixup_entry(struct dt_info *dti,
 	free(compp);
 
 	value_32 = cpu_to_fdt32(m->offset);
-	append_to_property(wn, prop->name, &value_32, sizeof(value_32), TYPE_UINT32);
+	append_to_property(wn, prop->name, &value_32, sizeof(value_32));
 }
 
 static void generate_local_fixups_tree_internal(struct dt_info *dti,

@@ -4,14 +4,6 @@
 #ifndef __ASSEMBLY__
 #ifndef LINKER_SCRIPT
 #include <linux/rkp.h>
-#ifdef CONFIG_KDP_NS
-#include <linux/mount.h>
-#endif
-
-/* uH_RKP Command ID */
-/*
-Add KDP call IDs 
-*/
 
 /***************** KDP_CRED *****************/
 #define CRED_JAR_RO		"cred_jar_ro"
@@ -30,26 +22,7 @@ extern struct cred init_cred;
 extern struct task_security_struct init_sec;
 extern int security_integrity_current(void);
 
-struct ro_rcu_head {
-	/* RCU deletion */
-	union {
-		int non_rcu;		/* Can we skip RCU deletion? */
-		struct rcu_head	rcu;	/* RCU deletion hook */
-	};
-	void *bp_cred;
-};
-
-struct kdp_usecnt {
-	atomic_t kdp_use_cnt;
-	struct ro_rcu_head kdp_rcu_head;
-};
-#define get_rocred_rcu(cred) ((struct ro_rcu_head *)((atomic_t *)cred->use_cnt + 1))
-#define get_usecnt_rcu(use_cnt) ((struct ro_rcu_head *)((atomic_t *)use_cnt + 1))
-
-#ifdef CONFIG_KDP_NS
-void rkp_reset_mnt_flags(struct vfsmount *mnt,int flags);
-#endif
-
+/* uH KDP Command ID */
 enum __KDP_CMD_ID{
 	RKP_KDP_X40 = 0x40,
 	RKP_KDP_X41 = 0x41,
@@ -77,17 +50,7 @@ enum __KDP_CMD_ID{
 	RKP_KDP_X60 = 0x60,
 };
 
-enum __KDP_CRED_TYPE {
-	KDP_CRED_JAR = 1,
-	KDP_TSEC_JAR = 2,
-	KDP_VFSMNT_JAR = 3,
-};
-
 typedef struct kdp_init_struct {
-#ifdef CONFIG_FASTUH_RKP
-	u64 _srodata;
-	u64 _erodata;
-#endif
 	u32 credSize;
 	u32 sp_size;
 	u32 pgd_mm;
@@ -114,7 +77,6 @@ typedef struct kdp_init_struct {
 	}selinux;
 } kdp_init_t;
 
-#ifndef CONFIG_FASTUH_RKP
 /*Check whether the address belong to Cred Area*/
 static inline u8 rkp_ro_page(unsigned long addr)
 {
@@ -126,9 +88,7 @@ static inline u8 rkp_ro_page(unsigned long addr)
 	else
 		return rkp_is_pg_protected(addr);
 }
-#else
-extern u8 rkp_ro_page(unsigned long addr);
-#endif
+
 
 /***************** KDP_NS *****************/
 #ifdef CONFIG_KDP_NS
@@ -158,7 +118,7 @@ do {						\
 static inline void dmap_prot(u64 addr,u64 order,u64 val)
 {
 	if(rkp_cred_enable)
-		uh_call(UH_APP_KDP, RKP_KDP_X4A, order, val, 0, 0);
+		uh_call(UH_APP_RKP, RKP_KDP_X4A, order, val, 0, 0);
 }
 #endif
 

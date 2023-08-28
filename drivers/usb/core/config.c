@@ -203,10 +203,60 @@ static const unsigned short super_speed_maxpacket_maxes[4] = {
 	[USB_ENDPOINT_XFER_INT] = 1024,
 };
 
-static int usb_parse_endpoint(struct device *ddev, int cfgno, int inum,
-    int asnum, struct usb_host_interface *ifp, int num_ep,
-    unsigned char *buffer, int size)
+static bool endpoint_is_duplicate(struct usb_endpoint_descriptor *e1,
+		struct usb_endpoint_descriptor *e2)
 {
+	if (e1->bEndpointAddress == e2->bEndpointAddress)
+		return true;
+
+	if (usb_endpoint_xfer_control(e1) || usb_endpoint_xfer_control(e2)) {
+		if (usb_endpoint_num(e1) == usb_endpoint_num(e2))
+			return true;
+	}
+
+	return false;
+}
+
+/*
+ * Check for duplicate endpoint addresses in other interfaces and in the
+ * altsetting currently being parsed.
+ */
+static bool config_endpoint_is_duplicate(struct usb_host_config *config,
+		int inum, int asnum, struct usb_endpoint_descriptor *d)
+{
+	struct usb_endpoint_descriptor *epd;
+	struct usb_interface_cache *intfc;
+	struct usb_host_interface *alt;
+	int i, j, k;
+
+	for (i = 0; i < config->desc.bNumInterfaces; ++i) {
+		intfc = config->intf_cache[i];
+
+		for (j = 0; j < intfc->num_altsetting; ++j) {
+			alt = &intfc->altsetting[j];
+
+			if (alt->desc.bInterfaceNumber == inum &&
+					alt->desc.bAlternateSetting != asnum)
+				continue;
+
+			for (k = 0; k < alt->desc.bNumEndpoints; ++k) {
+				epd = &alt->endpoint[k].desc;
+
+				if (endpoint_is_duplicate(epd, d))
+					return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+static int usb_parse_endpoint(struct device *ddev, int cfgno,
+		struct usb_host_config *config, int inum, int asnum,
+		struct usb_host_interface *ifp, int num_ep,
+		unsigned char *buffer, int size)
+{
+	struct usb_device *udev = to_usb_device(ddev);
 	unsigned char *buffer0 = buffer;
 	struct usb_endpoint_descriptor *d;
 	struct usb_host_endpoint *endpoint;
@@ -217,52 +267,6 @@ static int usb_parse_endpoint(struct device *ddev, int cfgno, int inum,
 	d = (struct usb_endpoint_descriptor *) buffer;
 	buffer += d->bLength;
 	size -= d->bLength;
-
-	if (( d->bmAttributes & 0x3 ) == 0x1) {
-		if ((d->bmAttributes & 0x30) == 0x10) {
-			/* Only Feedback endpoint(Not implict feedback data endpoint) */
-			if (d->bEndpointAddress & USB_ENDPOINT_DIR_MASK) {
-				to_usb_device(ddev)->hwinfo.fb_in_ep =
-					d->bEndpointAddress;
-				dev_info(ddev, "Feedback IN ISO endpoint #0%x 0x%x\n",
-					d->bEndpointAddress, d->bSynchAddress);
-			} else {
-				to_usb_device(ddev)->hwinfo.fb_out_ep =
-					d->bEndpointAddress;
-				dev_info(ddev, "Feedback OUT ISO endpoint #0%x 0x%x\n",
-					d->bEndpointAddress, d->bSynchAddress);
-			}
-		} else {
-			/* Data Stream Endpoint only */
-			if (d->bEndpointAddress & USB_ENDPOINT_DIR_MASK) {
-				if (d->bEndpointAddress != to_usb_device(ddev)->hwinfo.fb_in_ep) {
-					to_usb_device(ddev)->hwinfo.in_ep =
-						d->bEndpointAddress;
-					dev_info(ddev, " This is IN ISO endpoint #0%x 0x%x\n",
-						d->bEndpointAddress, d->bSynchAddress);
-				} else
-					dev_info(ddev, "IN ISO endpoint is same with FB #0%x\n",
-						d->bEndpointAddress);
-				if ((d->bLength > 7) && (d->bSynchAddress != 0x0)) {
-					to_usb_device(ddev)->hwinfo.fb_out_ep =
-						d->bSynchAddress;
-					dev_info(ddev, "Feedback IN ISO endpoint #0%x 0x%x\n",
-						d->bEndpointAddress, d->bSynchAddress);
-				}
-			} else {
-				to_usb_device(ddev)->hwinfo.out_ep =
-					d->bEndpointAddress;
-				dev_info(ddev, " This is OUT ISO endpoint #0%x 0x%x\n",
-					d->bEndpointAddress, d->bSynchAddress);
-				if ((d->bLength > 7) && (d->bSynchAddress != 0x0)) {
-					to_usb_device(ddev)->hwinfo.fb_in_ep =
-						d->bSynchAddress;
-					dev_info(ddev, "Feedback IN ISO endpoint #0%x 0x%x\n",
-						d->bEndpointAddress, d->bSynchAddress);
-				}
-			}
-		}
-	}
 
 	if (d->bLength >= USB_DT_ENDPOINT_AUDIO_SIZE)
 		n = USB_DT_ENDPOINT_AUDIO_SIZE;
@@ -288,11 +292,18 @@ static int usb_parse_endpoint(struct device *ddev, int cfgno, int inum,
 		goto skip_to_next_endpoint_or_interface_descriptor;
 
 	/* Check for duplicate endpoint addresses */
-	for (i = 0; i < ifp->desc.bNumEndpoints; ++i) {
-		if (ifp->endpoint[i].desc.bEndpointAddress ==
-		    d->bEndpointAddress) {
-			dev_warn(ddev, "config %d interface %d altsetting %d has a duplicate endpoint with address 0x%X, skipping\n",
-			    cfgno, inum, asnum, d->bEndpointAddress);
+	if (config_endpoint_is_duplicate(config, inum, asnum, d)) {
+		dev_warn(ddev, "config %d interface %d altsetting %d has a duplicate endpoint with address 0x%X, skipping\n",
+				cfgno, inum, asnum, d->bEndpointAddress);
+		goto skip_to_next_endpoint_or_interface_descriptor;
+	}
+
+	/* Ignore blacklisted endpoints */
+	if (udev->quirks & USB_QUIRK_ENDPOINT_BLACKLIST) {
+		if (usb_endpoint_is_blacklisted(udev, ifp, d)) {
+			dev_warn(ddev, "config %d interface %d altsetting %d has a blacklisted endpoint with address 0x%X, skipping\n",
+					cfgno, inum, asnum,
+					d->bEndpointAddress);
 			goto skip_to_next_endpoint_or_interface_descriptor;
 		}
 	}
@@ -392,12 +403,16 @@ static int usb_parse_endpoint(struct device *ddev, int cfgno, int inum,
 			endpoint->desc.wMaxPacketSize = cpu_to_le16(8);
 	}
 
-	/* Validate the wMaxPacketSize field */
+	/*
+	 * Validate the wMaxPacketSize field.
+	 * Some devices have isochronous endpoints in altsetting 0;
+	 * the USB-2 spec requires such endpoints to have wMaxPacketSize = 0
+	 * (see the end of section 5.6.3), so don't warn about them.
+	 */
 	maxp = usb_endpoint_maxp(&endpoint->desc);
-	if (maxp == 0) {
-		dev_warn(ddev, "config %d interface %d altsetting %d endpoint 0x%X has wMaxPacketSize 0, skipping\n",
+	if (maxp == 0 && !(usb_endpoint_xfer_isoc(d) && asnum == 0)) {
+		dev_warn(ddev, "config %d interface %d altsetting %d endpoint 0x%X has invalid wMaxPacketSize 0\n",
 		    cfgno, inum, asnum, d->bEndpointAddress);
-		goto skip_to_next_endpoint_or_interface_descriptor;
 	}
 
 	/* Find the highest legal maxpacket size for this endpoint */
@@ -568,8 +583,8 @@ static int usb_parse_interface(struct device *ddev, int cfgno,
 		if (((struct usb_descriptor_header *) buffer)->bDescriptorType
 		     == USB_DT_INTERFACE)
 			break;
-		retval = usb_parse_endpoint(ddev, cfgno, inum, asnum, alt,
-		    num_ep, buffer, size);
+		retval = usb_parse_endpoint(ddev, cfgno, config, inum, asnum,
+				alt, num_ep, buffer, size);
 		if (retval < 0)
 			return retval;
 		++n;
@@ -591,7 +606,7 @@ skip_to_next_interface_descriptor:
 	return buffer - buffer0 + i;
 }
 
-int usb_parse_configuration(struct usb_device *dev, int cfgidx,
+static int usb_parse_configuration(struct usb_device *dev, int cfgidx,
     struct usb_host_config *config, unsigned char *buffer, int size)
 {
 	struct device *ddev = &dev->dev;
@@ -935,7 +950,6 @@ int usb_get_configuration(struct usb_device *dev)
 		}
 
 		dev->rawdescriptors[cfgno] = bigbuffer;
-		dev->rawdesc_length = length;
 
 		result = usb_parse_configuration(dev, cfgno,
 		    &dev->config[cfgno], bigbuffer, length);
@@ -1075,6 +1089,15 @@ int usb_get_bos_descriptor(struct usb_device *dev)
 		case USB_PTM_CAP_TYPE:
 			dev->bos->ptm_cap =
 				(struct usb_ptm_cap_descriptor *)buffer;
+			break;
+		case USB_CAP_TYPE_CONFIG_SUMMARY:
+			/* one such desc per function */
+			if (!dev->bos->num_config_summary_desc)
+				dev->bos->config_summary =
+				(struct usb_config_summary_descriptor *)buffer;
+
+			dev->bos->num_config_summary_desc++;
+			break;
 		default:
 			break;
 		}

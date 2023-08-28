@@ -88,6 +88,7 @@ static u32 psci_function_id[PSCI_FN_MAX];
 				PSCI_1_0_EXT_POWER_STATE_TYPE_MASK)
 
 static u32 psci_cpu_suspend_feature;
+static bool psci_system_reset2_supported;
 
 static inline bool psci_has_ext_power_state(void)
 {
@@ -253,7 +254,17 @@ static int get_set_conduit_method(struct device_node *np)
 
 static void psci_sys_reset(enum reboot_mode reboot_mode, const char *cmd)
 {
-	invoke_psci_fn(PSCI_0_2_FN_SYSTEM_RESET, 0, 0, 0);
+	if ((reboot_mode == REBOOT_WARM || reboot_mode == REBOOT_SOFT) &&
+	    psci_system_reset2_supported) {
+		/*
+		 * reset_type[31] = 0 (architectural)
+		 * reset_type[30:0] = 0 (SYSTEM_WARM_RESET)
+		 * cookie = 0 (ignored by the implementation)
+		 */
+		invoke_psci_fn(PSCI_FN_NATIVE(1_1, SYSTEM_RESET2), 0, 0, 0);
+	} else {
+		invoke_psci_fn(PSCI_0_2_FN_SYSTEM_RESET, 0, 0, 0);
+	}
 }
 
 static void psci_sys_poweroff(void)
@@ -268,8 +279,9 @@ static int __init psci_features(u32 psci_func_id)
 }
 
 #ifdef CONFIG_CPU_IDLE
-static DEFINE_PER_CPU_READ_MOSTLY(u32 *, psci_power_state);
+static __maybe_unused DEFINE_PER_CPU_READ_MOSTLY(u32 *, psci_power_state);
 
+#ifdef CONFIG_DT_IDLE_STATES
 static int psci_dt_cpu_init_idle(struct device_node *cpu_node, int cpu)
 {
 	int i, ret, count = 0;
@@ -322,6 +334,10 @@ free_mem:
 	kfree(psci_states);
 	return ret;
 }
+#else
+static int psci_dt_cpu_init_idle(struct device_node *cpu_node, int cpu)
+{ return 0; }
+#endif
 
 #ifdef CONFIG_ACPI
 #include <acpi/processor.h>
@@ -397,77 +413,26 @@ int psci_cpu_init_idle(unsigned int cpu)
 	return ret;
 }
 
-static int psci_suspend_finisher(unsigned long index)
+static int psci_suspend_finisher(unsigned long state_id)
 {
-	u32 *state = __this_cpu_read(psci_power_state);
-
-	return psci_ops.cpu_suspend(state[index - 1],
+	return psci_ops.cpu_suspend(state_id,
 				    __pa_symbol(cpu_resume));
 }
-
-/**
- * Pack PSCI power state to integer
- *
- * @id : indicates system power mode. 0 means non system power mode.
- * @type : not used.
- * @affinity_level : indicates power down scope.
- */
-static u32 psci_power_state_pack(u32 id, u32 type, u32 affinity_level)
-{
-	return ((id << PSCI_0_2_POWER_STATE_ID_SHIFT)
-			& PSCI_0_2_POWER_STATE_ID_MASK) |
-		((type << PSCI_0_2_POWER_STATE_TYPE_SHIFT)
-		 & PSCI_0_2_POWER_STATE_TYPE_MASK) |
-		((affinity_level << PSCI_0_2_POWER_STATE_AFFL_SHIFT)
-		 & PSCI_0_2_POWER_STATE_AFFL_MASK);
-}
-
-/**
- * We hope that PSCI framework cover the all platform specific power
- * states, unfortunately PSCI can support only state managed by cpuidle.
- * psci_suspend_customized_finisher supports extra power state which
- * cpuidle does not handle. This function is only for Exynos.
- */
-static int psci_suspend_customized_finisher(unsigned long index)
-{
-	u32 state;
-	u32 id = 0, type = 0, affinity_level = 0;
-
-	if (index & PSCI_SYSTEM_IDLE)
-		id = 1;
-
-	if (index & PSCI_CLUSTER_SLEEP)
-		affinity_level = 1;
-
-	if (index & PSCI_CP_CALL)
-		affinity_level = 2;
-
-	if (index & PSCI_SYSTEM_SLEEP)
-		affinity_level = 3;
-
-	state = psci_power_state_pack(id, type, affinity_level);
-
-	return psci_ops.cpu_suspend(state, virt_to_phys(cpu_resume));
-}
-
-int psci_cpu_suspend_enter(unsigned long index)
+int psci_cpu_suspend_enter(unsigned long state_id)
 {
 	int ret;
-	u32 *state = __this_cpu_read(psci_power_state);
+
 	/*
 	 * idle state index 0 corresponds to wfi, should never be called
 	 * from the cpu_suspend operations
 	 */
-	if (WARN_ON_ONCE(!index))
+	if (WARN_ON_ONCE(!state_id))
 		return -EINVAL;
 
-	if (unlikely(index >= PSCI_CUSTOMIZED_INDEX))
-		return cpu_suspend(index, psci_suspend_customized_finisher);
-
-	if (!psci_power_state_loses_context(state[index - 1]))
-		ret = psci_ops.cpu_suspend(state[index - 1], 0);
+	if (!psci_power_state_loses_context(state_id))
+		ret = psci_ops.cpu_suspend(state_id, 0);
 	else
-		ret = cpu_suspend(index, psci_suspend_finisher);
+		ret = cpu_suspend(state_id, psci_suspend_finisher);
 
 	return ret;
 }
@@ -498,6 +463,16 @@ static const struct platform_suspend_ops psci_suspend_ops = {
 	.valid          = suspend_valid_only_mem,
 	.enter          = psci_system_suspend_enter,
 };
+
+static void __init psci_init_system_reset2(void)
+{
+	int ret;
+
+	ret = psci_features(PSCI_FN_NATIVE(1_1, SYSTEM_RESET2));
+
+	if (ret != PSCI_RET_NOT_SUPPORTED)
+		psci_system_reset2_supported = true;
+}
 
 static void __init psci_init_system_suspend(void)
 {
@@ -636,6 +611,7 @@ static int __init psci_probe(void)
 		psci_init_smccc();
 		psci_init_cpu_suspend();
 		psci_init_system_suspend();
+		psci_init_system_reset2();
 	}
 
 	return 0;

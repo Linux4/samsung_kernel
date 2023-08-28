@@ -3843,7 +3843,7 @@ int wlan_hdd_update_phymode(struct hdd_adapter *adapter, int new_phymode)
 	enum hdd_dot11_mode hdd_dot11mode = hdd_ctx->config->dot11Mode;
 	enum band_info curr_band = BAND_ALL;
 	int retval = 0;
-	uint32_t band_capability;
+	uint8_t band_capability;
 	QDF_STATUS status;
 	uint32_t channel_bonding_mode;
 
@@ -7169,8 +7169,8 @@ static int __iw_get_char_setnone(struct net_device *dev,
 			buf = snprintf
 				      ((extra + length),
 				      WE_MAX_STR_LEN - length,
-				      "\n" QDF_MAC_ADDR_FMT "\n",
-				      QDF_MAC_ADDR_REF(sta_ctx->conn_info.
+				      "\n" QDF_FULL_MAC_FMT "\n",
+				      QDF_FULL_MAC_REF(sta_ctx->conn_info.
 				      peer_macaddr[idx].bytes));
 			length += buf;
 		}

@@ -121,24 +121,24 @@ static inline void gic_write_bpr1(u32 val)
 
 #define gic_flush_dcache_to_poc(a,l)	__flush_dcache_area((a), (l))
 
-#define gits_read_baser(c)		readq_relaxed_no_log(c)
-#define gits_write_baser(v, c)		writeq_relaxed_no_log(v, c)
+#define gits_read_baser(c)		readq_relaxed(c)
+#define gits_write_baser(v, c)		writeq_relaxed(v, c)
 
-#define gits_read_cbaser(c)		readq_relaxed_no_log(c)
-#define gits_write_cbaser(v, c)		writeq_relaxed_no_log(v, c)
+#define gits_read_cbaser(c)		readq_relaxed(c)
+#define gits_write_cbaser(v, c)		writeq_relaxed(v, c)
 
-#define gits_write_cwriter(v, c)	writeq_relaxed_no_log(v, c)
+#define gits_write_cwriter(v, c)	writeq_relaxed(v, c)
 
-#define gicr_read_propbaser(c)		readq_relaxed_no_log(c)
-#define gicr_write_propbaser(v, c)	writeq_relaxed_no_log(v, c)
+#define gicr_read_propbaser(c)		readq_relaxed(c)
+#define gicr_write_propbaser(v, c)	writeq_relaxed(v, c)
 
-#define gicr_write_pendbaser(v, c)	writeq_relaxed_no_log(v, c)
-#define gicr_read_pendbaser(c)		readq_relaxed_no_log(c)
+#define gicr_write_pendbaser(v, c)	writeq_relaxed(v, c)
+#define gicr_read_pendbaser(c)		readq_relaxed(c)
 
-#define gits_write_vpropbaser(v, c)	writeq_relaxed_no_log(v, c)
+#define gits_write_vpropbaser(v, c)	writeq_relaxed(v, c)
 
-#define gits_write_vpendbaser(v, c)	writeq_relaxed_no_log(v, c)
-#define gits_read_vpendbaser(c)		readq_relaxed_no_log(c)
+#define gits_write_vpendbaser(v, c)	writeq_relaxed(v, c)
+#define gits_read_vpendbaser(c)		readq_relaxed(c)
 
 #endif /* __ASSEMBLY__ */
 #endif /* __ASM_ARCH_GICV3_H */

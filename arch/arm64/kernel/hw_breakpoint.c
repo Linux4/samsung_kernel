@@ -77,6 +77,21 @@ int hw_breakpoint_slots(int type)
 		AARCH64_DBG_WRITE(N, REG, VAL);	\
 		break
 
+//Reserve DBGBVR5_EL1 for CFP_ROPP_SYSREGKEY
+#ifdef CONFIG_CFP_ROPP_SYSREGKEY
+
+#define _READ_WB_REG_CASE(OFF, N, REG, VAL)
+#define _WRITE_WB_REG_CASE(OFF, N, REG, VAL)
+
+#else // NO CONFIG_CFP_ROPP_SYSREGKEY
+
+#define _READ_WB_REG_CASE(OFF, N, REG, VAL)	\
+	READ_WB_REG_CASE(OFF,  5, REG, VAL);
+#define _WRITE_WB_REG_CASE(OFF, N, REG, VAL)	\
+	WRITE_WB_REG_CASE(OFF,  5, REG, VAL);
+
+#endif //END CONFIG_CFP_ROPP_SYSREGKEY
+
 #define GEN_READ_WB_REG_CASES(OFF, REG, VAL)	\
 	READ_WB_REG_CASE(OFF,  0, REG, VAL);	\
 	READ_WB_REG_CASE(OFF,  1, REG, VAL);	\
@@ -935,12 +950,31 @@ void hw_breakpoint_thread_switch(struct task_struct *next)
 }
 
 /*
+ * Check if halted debug mode is enabled.
+ */
+static u32 hde_enabled(void)
+{
+	u32 mdscr;
+
+	asm volatile("mrs %0, mdscr_el1" : "=r" (mdscr));
+	return (mdscr & DBG_MDSCR_HDE);
+}
+
+/*
  * CPU initialisation.
  */
 static int hw_breakpoint_reset(unsigned int cpu)
 {
 	int i;
 	struct perf_event **slots;
+
+	/*
+	 * When halting debug mode is enabled, break point could be already
+	 * set be external debugger. Don't reset debug registers here to
+	 * reserve break point from external debugger.
+	 */
+	if (hde_enabled())
+		return 0;
 	/*
 	 * When a CPU goes through cold-boot, it does not have any installed
 	 * slot, so it is safe to share the same function for restoring and
@@ -952,6 +986,13 @@ static int hw_breakpoint_reset(unsigned int cpu)
 	 * reprogrammed according to the debug slots content.
 	 */
 	for (slots = this_cpu_ptr(bp_on_reg), i = 0; i < core_num_brps; ++i) {
+#ifdef CONFIG_CFP_ROPP_SYSREGKEY
+		if (5 == i) {
+			/* There are too many logs so we cannot debug kernel */
+			//pr_warning("ROPP: Reserve BVR for CPU%d\n", cpu);
+			continue;
+		}
+#endif
 		if (slots[i]) {
 			hw_breakpoint_control(slots[i], HW_BREAKPOINT_RESTORE);
 		} else {

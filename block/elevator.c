@@ -560,8 +560,11 @@ void elv_bio_merged(struct request_queue *q, struct request *rq,
 #ifdef CONFIG_PM
 static void blk_pm_requeue_request(struct request *rq)
 {
-	if (rq->q->dev && !(rq->rq_flags & RQF_PM))
+	if (rq->q->dev && !(rq->rq_flags & RQF_PM)) {
 		rq->q->nr_pending--;
+		if (!rq->q->nr_pending)
+			pm_runtime_mark_last_busy(rq->q->dev);
+	}
 }
 
 static void blk_pm_add_request(struct request_queue *q, struct request *rq)
@@ -858,6 +861,8 @@ int elv_register_queue(struct request_queue *q)
 		e->registered = 1;
 		if (!e->uses_mq && e->type->ops.sq.elevator_registered_fn)
 			e->type->ops.sq.elevator_registered_fn(q);
+		else if (e->uses_mq && e->type->ops.mq.elevator_registered_fn)
+			e->type->ops.mq.elevator_registered_fn(q);
 	}
 	return error;
 }
@@ -994,11 +999,15 @@ int elevator_init_mq(struct request_queue *q)
 	mutex_lock(&q->sysfs_lock);
 	if (unlikely(q->elevator))
 		goto out_unlock;
-
-	e = elevator_get(q, "mq-deadline", false);
-	if (!e)
-		goto out_unlock;
-
+	if (IS_ENABLED(CONFIG_IOSCHED_BFQ)) {
+		e = elevator_get(q, "bfq", false);
+		if (!e)
+			goto out_unlock;
+	} else {
+		e = elevator_get(q, "mq-deadline", false);
+		if (!e)
+			goto out_unlock;
+	}
 	err = blk_mq_init_sched(q, e);
 	if (err)
 		elevator_put(e);

@@ -5,7 +5,7 @@
  * 1 AMP project - mono(AMP_0)
  * 2 AMP project - L(AMP_0), R(AMP_1)
  * 3 AMP project - L(AMP_0), R(AMP_1), receiver(AMP_2)
- * 4 AMP project - FL(AMP_1), FR(AMP_2), RL(AMP_3), RR(AMP_4)
+ * 4 AMP project - FL(AMP_0), FR(AMP_1), RL(AMP_2), RR(AMP_3)
  */
 enum amp_id {
 	AMP_0,

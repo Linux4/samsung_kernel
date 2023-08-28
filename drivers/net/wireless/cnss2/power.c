@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved. */
+/* Copyright (c) 2016-2021, The Linux Foundation. All rights reserved. */
 
 #include <linux/clk.h>
 #include <linux/delay.h>
@@ -7,13 +7,12 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/regulator/consumer.h>
 #include <soc/qcom/cmd-db.h>
-#include <linux/platform_device.h>
-
+#include <linux/of_gpio.h>
 
 #include "main.h"
 #include "debug.h"
+#include "bus.h"
 
-#ifdef CONFIG_ARCH_QCOM
 static struct cnss_vreg_cfg cnss_vreg_list[] = {
 	{"vdd-wlan-core", 1300000, 1300000, 0, 0, 0},
 	{"vdd-wlan-io", 1800000, 1800000, 0, 0, 0},
@@ -35,7 +34,6 @@ static struct cnss_vreg_cfg cnss_vreg_list[] = {
 static struct cnss_clk_cfg cnss_clk_list[] = {
 	{"rf_clk", 0, 0},
 };
-#endif
 
 #define CNSS_VREG_INFO_SIZE		ARRAY_SIZE(cnss_vreg_list)
 #define CNSS_CLK_INFO_SIZE		ARRAY_SIZE(cnss_clk_list)
@@ -44,6 +42,7 @@ static struct cnss_clk_cfg cnss_clk_list[] = {
 #define BOOTSTRAP_GPIO			"qcom,enable-bootstrap-gpio"
 #define BOOTSTRAP_ACTIVE		"bootstrap_active"
 #define WLAN_EN_GPIO			"wlan-en-gpio"
+#define BT_EN_GPIO				"qcom,bt-en-gpio"
 #define WLAN_EN_ACTIVE			"wlan_en_active"
 #define WLAN_EN_SLEEP			"wlan_en_sleep"
 
@@ -57,7 +56,6 @@ static struct cnss_clk_cfg cnss_clk_list[] = {
 #define MAX_TCS_CMD_NUM			5
 #define BT_CXMX_VOLTAGE_MV		950
 
-#ifdef CONFIG_ARCH_QCOM
 static int cnss_get_vreg_single(struct cnss_plat_data *plat_priv,
 				struct cnss_vreg_info *vreg)
 {
@@ -705,6 +703,15 @@ int cnss_get_pinctrl(struct cnss_plat_data *plat_priv)
 		}
 	}
 
+	/* Added for QCA6490/QCA6390 PMU delayed WLAN_EN_GPIO */
+	if (of_find_property(dev->of_node, BT_EN_GPIO, NULL)) {
+		pinctrl_info->bt_en_gpio = of_get_named_gpio(dev->of_node,
+							     BT_EN_GPIO, 0);
+		cnss_pr_dbg("BT GPIO: %d\n", pinctrl_info->bt_en_gpio);
+	} else {
+		pinctrl_info->bt_en_gpio = -EINVAL;
+	}
+
 	return 0;
 out:
 	return ret;
@@ -765,6 +772,57 @@ out:
 	return ret;
 }
 
+/**
+ * cnss_select_pinctrl_enable - select WLAN_GPIO for Active pinctrl status
+ * @plat_priv: Platform private data structure pointer
+ *
+ * For QCA6490/QCA6390, PMU requires minimum 100ms delay between BT_EN_GPIO
+ * off and WLAN_EN_GPIO on. This is done to avoid power up issues.
+ *
+ * Return: Status of pinctrl select operation. 0 - Success.
+ */
+static int cnss_select_pinctrl_enable(struct cnss_plat_data *plat_priv)
+{
+	int ret = 0, bt_en_gpio = plat_priv->pinctrl_info.bt_en_gpio;
+	u8 wlan_en_state = 0;
+
+	if (bt_en_gpio < 0)
+		goto set_wlan_en;
+
+	switch (plat_priv->device_id) {
+	case QCA6390_DEVICE_ID:
+	case QCA6490_DEVICE_ID:
+		break;
+	default:
+		goto set_wlan_en;
+	}
+
+	if (gpio_get_value(bt_en_gpio)) {
+		cnss_pr_dbg("BT_EN_GPIO State: On\n");
+		ret = cnss_select_pinctrl_state(plat_priv, true);
+		if (!ret)
+			return ret;
+		wlan_en_state = 1;
+	}
+	if (!gpio_get_value(bt_en_gpio)) {
+		cnss_pr_dbg("BT_EN_GPIO State: Off. Delay WLAN_GPIO enable\n");
+		/* check for BT_EN_GPIO down race during above operation */
+		if (wlan_en_state) {
+			cnss_pr_dbg("Reset WLAN_EN as BT got turned off during enable\n");
+			cnss_select_pinctrl_state(plat_priv, false);
+			wlan_en_state = 0;
+		}
+		/* 100 ms delay for BT_EN and WLAN_EN QCA6490/QCA6390 PMU
+		 * sequencing.
+		 */
+		msleep(100);
+	}
+set_wlan_en:
+	if (!wlan_en_state)
+		ret = cnss_select_pinctrl_state(plat_priv, true);
+	return ret;
+}
+
 int cnss_power_on_device(struct cnss_plat_data *plat_priv)
 {
 	int ret = 0;
@@ -786,7 +844,7 @@ int cnss_power_on_device(struct cnss_plat_data *plat_priv)
 		goto vreg_off;
 	}
 
-	ret = cnss_select_pinctrl_state(plat_priv, true);
+	ret = cnss_select_pinctrl_enable(plat_priv);
 	if (ret) {
 		cnss_pr_err("Failed to select pinctrl state, err = %d\n", ret);
 		goto clk_off;
@@ -817,6 +875,10 @@ void cnss_power_off_device(struct cnss_plat_data *plat_priv)
 	plat_priv->powered_on = false;
 }
 
+bool cnss_is_device_powered_on(struct cnss_plat_data *plat_priv)
+{
+	return plat_priv->powered_on;
+}
 
 void cnss_set_pin_connect_status(struct cnss_plat_data *plat_priv)
 {
@@ -957,229 +1019,3 @@ update_cpr:
 
 	return 0;
 }
-#elif defined(CONFIG_ARCH_EXYNOS9)
-int cnss_get_pinctrl(struct cnss_plat_data *plat_priv)
-{
-	int ret = 0;
-	struct device *dev;
-	struct cnss_pinctrl_info *pinctrl_info;
-
-	dev = &plat_priv->plat_dev->dev;
-	pinctrl_info = &plat_priv->pinctrl_info;
-
-	pinctrl_info->pinctrl = devm_pinctrl_get(dev);
-	if (IS_ERR_OR_NULL(pinctrl_info->pinctrl)) {
-		ret = PTR_ERR(pinctrl_info->pinctrl);
-		cnss_pr_err("Failed to get pinctrl, err = %d\n", ret);
-		goto out;
-	}
-
-	if (of_find_property(dev->of_node, BOOTSTRAP_GPIO, NULL)) {
-		pinctrl_info->bootstrap_active =
-			pinctrl_lookup_state(pinctrl_info->pinctrl,
-					     BOOTSTRAP_ACTIVE);
-		if (IS_ERR_OR_NULL(pinctrl_info->bootstrap_active)) {
-			ret = PTR_ERR(pinctrl_info->bootstrap_active);
-			cnss_pr_err("Failed to get bootstrap active state, err = %d\n",
-				    ret);
-			goto out;
-		}
-	}
-
-	if (of_find_property(dev->of_node, WLAN_EN_GPIO, NULL)) {
-		pinctrl_info->wlan_en_active =
-			pinctrl_lookup_state(pinctrl_info->pinctrl,
-					     WLAN_EN_ACTIVE);
-		if (IS_ERR_OR_NULL(pinctrl_info->wlan_en_active)) {
-			ret = PTR_ERR(pinctrl_info->wlan_en_active);
-			cnss_pr_err("Failed to get wlan_en active state, err = %d\n",
-				    ret);
-			goto out;
-		}
-
-		pinctrl_info->wlan_en_sleep =
-			pinctrl_lookup_state(pinctrl_info->pinctrl,
-					     WLAN_EN_SLEEP);
-		if (IS_ERR_OR_NULL(pinctrl_info->wlan_en_sleep)) {
-			ret = PTR_ERR(pinctrl_info->wlan_en_sleep);
-			cnss_pr_err("Failed to get wlan_en sleep state, err = %d\n",
-				    ret);
-			goto out;
-		}
-	}
-
-	return 0;
-out:
-	return ret;
-}
-
-static int cnss_select_pinctrl_state(struct cnss_plat_data *plat_priv,
-				     bool state)
-{
-	int ret = 0;
-	struct cnss_pinctrl_info *pinctrl_info;
-
-	if (!plat_priv) {
-		cnss_pr_err("plat_priv is NULL!\n");
-		ret = -ENODEV;
-		goto out;
-	}
-
-	pinctrl_info = &plat_priv->pinctrl_info;
-
-	if (state) {
-		if (!IS_ERR_OR_NULL(pinctrl_info->bootstrap_active)) {
-			ret = pinctrl_select_state
-				(pinctrl_info->pinctrl,
-				 pinctrl_info->bootstrap_active);
-			if (ret) {
-				cnss_pr_err("Failed to select bootstrap active state, err = %d\n",
-					    ret);
-				goto out;
-			}
-			udelay(BOOTSTRAP_DELAY);
-		}
-		cnss_pr_err("pinctrl_select_state wlan_en_active\n");
-		if (!IS_ERR_OR_NULL(pinctrl_info->wlan_en_active)) {
-			ret = pinctrl_select_state
-				(pinctrl_info->pinctrl,
-				 pinctrl_info->wlan_en_active);
-			if (ret) {
-				cnss_pr_err("Failed to select wlan_en active state, err = %d\n",
-					    ret);
-				goto out;
-			}
-			udelay(WLAN_ENABLE_DELAY);
-		}
-	} else {
-		if (!IS_ERR_OR_NULL(pinctrl_info->wlan_en_sleep)) {
-			cnss_pr_err("pinctrl_select_state wlan_en_sleep\n");
-			ret = pinctrl_select_state(pinctrl_info->pinctrl,
-						   pinctrl_info->wlan_en_sleep);
-			if (ret) {
-				cnss_pr_err("Failed to select wlan_en sleep state, err = %d\n",
-					    ret);
-				goto out;
-			}
-		}
-	}
-
-	return 0;
-out:
-	return ret;
-}
-
-int cnss_power_on_device(struct cnss_plat_data *plat_priv)
-{
-	int ret = 0;
-
-	if (plat_priv->powered_on) {
-		cnss_pr_dbg("Already powered up");
-		return 0;
-	}
-
-	ret = regulator_enable(plat_priv->wlan_vdd);
-	if (ret) {
-		cnss_pr_err("Failed to enable wlan_vdd\n");
-		goto out;
-	}
-
-	udelay(WLAN_ENABLE_DELAY);
-	
-	ret = cnss_select_pinctrl_state(plat_priv, false);
-	if (ret) {
-		cnss_pr_err("failed to select pinctrl state, err = %d\n",ret);
-		goto out;
-	}
-
-	udelay(WLAN_ENABLE_DELAY);
-
-	ret = cnss_select_pinctrl_state(plat_priv, true);
-	if (ret) {
-		cnss_pr_err("Failed to select pinctrl state, err = %d\n", ret);
-		goto out;
-	}
-
-	plat_priv->powered_on = true;
-
-	return 0;
-
-out:
-	return ret;
-}
-
-void cnss_power_off_device(struct cnss_plat_data *plat_priv)
-{
-	if (!plat_priv->powered_on) {
-		cnss_pr_dbg("Already powered down");
-		return;
-	}
-
-	regulator_disable(plat_priv->wlan_vdd);
-
-	cnss_select_pinctrl_state(plat_priv, false);
-	plat_priv->powered_on = false;
-}
-void cnss_put_clk(struct cnss_plat_data *plat_priv) {}
-void cnss_set_pin_connect_status(struct cnss_plat_data *plat_priv) {}
-int cnss_get_vreg_type(struct cnss_plat_data *plat_priv,
-		       enum cnss_vreg_type type)
-{
-	return 0;
-}
-int cnss_vreg_unvote_type(struct cnss_plat_data *plat_priv,
-			  enum cnss_vreg_type type)
-{
-	return 0;
-}
-bool cnss_is_device_powered_on(struct cnss_plat_data *plat_priv)
-{
-	return plat_priv->powered_on;
-}
-void cnss_put_vreg_type(struct cnss_plat_data *plat_priv,
-			enum cnss_vreg_type type) {}
-int cnss_get_clk(struct cnss_plat_data *plat_priv)
-{
-	return 0;
-}
-int cnss_update_cpr_info(struct cnss_plat_data *plat_priv)
-{
-	return 0;
-}
-#else
-void cnss_put_clk(struct cnss_plat_data *plat_priv) {}
-void cnss_set_pin_connect_status(struct cnss_plat_data *plat_priv) {}
-void cnss_power_off_device(struct cnss_plat_data *plat_priv) {}
-bool cnss_is_device_powered_on(struct cnss_plat_data *plat_priv)
-{
-	return plat_priv->powered_on;
-}
-void cnss_put_vreg_type(struct cnss_plat_data *plat_priv,
-			enum cnss_vreg_type type) {}
-int cnss_update_cpr_info(struct cnss_plat_data *plat_priv)
-{
-	return 0;
-}
-int cnss_power_on_device(struct cnss_plat_data *plat_priv)
-{
-	return 0;
-}
-int cnss_get_pinctrl(struct cnss_plat_data *plat_priv)
-{
-	return 0;
-}
-int cnss_get_vreg_type(struct cnss_plat_data *plat_priv,
-		       enum cnss_vreg_type type)
-{
-	return 0;
-}
-int cnss_vreg_unvote_type(struct cnss_plat_data *plat_priv,
-			  enum cnss_vreg_type type)
-{
-	return 0;
-}
-int cnss_get_clk(struct cnss_plat_data *plat_priv)
-{
-	return 0;
-}
-#endif

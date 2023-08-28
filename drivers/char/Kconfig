@@ -539,6 +539,41 @@ config DEVPORT
 source "drivers/s390/char/Kconfig"
 
 source "drivers/char/xillybus/Kconfig"
+source "drivers/char/diag/Kconfig"
+
+config MSM_FASTCVPD
+	bool "QTI FASTCVP driver"
+	depends on QCOM_GLINK
+	help
+	  This driver exposes APIs (Application Program Interface) to video driver
+	  to share HFI command queue address to CDSP (Compute Digital Signal
+	  Processor) and handle errors to exit gracefully in case video and cdsp
+	  subsystems crash.
+
+config MSM_ADSPRPC
+	tristate "QTI FastRPC driver"
+	depends on QCOM_GLINK
+	help
+		Provides a communication mechanism that allows clients to
+		make remote method invocations across processor boundary to
+		applications/compute DSP processor.
+		Say M if you want to enable this module.
+
+config ADSPRPC_DEBUG
+	bool "Debug logs in FastRPC driver"
+	help
+		Enable debug logs in the fastrpc driver. Flag will be
+		disabled by default to maximize RPC performance as debug
+		logging will impact RPC overhead.
+		Say Y here if you want to enable the logs.
+
+config MSM_RDBG
+	tristate "QTI Remote debug driver"
+	help
+	Implements a shared memory based transport mechanism that allows
+	for a debugger running on a host PC to communicate with a remote
+	stub running on peripheral subsystems such as the ADSP, MODEM etc.
+		Say M if you want to enable this module.
 
 config ADI
 	tristate "SPARC Privileged ADI driver"
@@ -568,3 +603,59 @@ config RANDOM_TRUST_CPU
 	has not installed a hidden back door to compromise the CPU's
 	random number generation facilities. This can also be configured
 	at boot with "random.trust_cpu=on/off".
+
+config OKL4_PIPE
+      bool "OKL4 Pipe Driver"
+      depends on OKL4_GUEST
+      default n
+      help
+        Virtual pipe driver for the OKL4 Microvisor. This driver allows
+        OKL4 Microvisor pipes to be exposed directly to user level as
+        character devices.
+
+config VSERVICES_SERIAL
+	tristate
+
+config VSERVICES_SERIAL_SERVER
+	tristate "Virtual Services serial server"
+	depends on VSERVICES_SUPPORT && VSERVICES_SERVER
+	select VSERVICES_SERIAL
+	select VSERVICES_PROTOCOL_SERIAL_SERVER
+	default y
+	help
+	  Select this option if you want support for server side Virtual
+	  Services serial. A virtual serial service behaves similarly to
+	  a UNIX pseudo terminal (pty), and does not require any physical
+	  serial hardware. Virtual serial devices are typically called
+	  /dev/ttyVS0, /dev/ttyVS1, etc.
+
+config VSERVICES_SERIAL_CLIENT
+	tristate "Virtual Services serial client"
+	depends on VSERVICES_SUPPORT && VSERVICES_CLIENT
+	select VSERVICES_SERIAL
+	select VSERVICES_PROTOCOL_SERIAL_CLIENT
+	default y
+	help
+	  Select this option if you want support for client side Virtual
+	  Services serial. A virtual serial service behaves similarly to
+	  a UNIX pseudo terminal (pty), and does not require any physical
+	  serial hardware. Virtual serial devices are typically called
+	  /dev/ttyVS0, /dev/ttyVS1, etc.
+
+config VSERVICES_VTTY_COUNT
+	int "Maximum number of Virtual Services serial devices"
+	depends on VSERVICES_SERIAL
+	range 0 256
+	default "8"
+	help
+	  The maximum number of Virtual Services serial devices to support.
+	  This limit applies to both the client and server.
+
+config RANDOM_TRUST_BOOTLOADER
+	bool "Trust the bootloader to initialize Linux's CRNG"
+	help
+	Some bootloaders can provide entropy to increase the kernel's initial
+	device randomness. Say Y here to assume the entropy provided by the
+	booloader is trustworthy so it will be added to the kernel's entropy
+	pool. Otherwise, say N here so it will be regarded as device input that
+	only mixes the entropy pool.

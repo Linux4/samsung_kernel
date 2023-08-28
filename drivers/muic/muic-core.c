@@ -9,13 +9,14 @@
  */
 #include <linux/platform_device.h>
 #include <linux/i2c.h>
-#include <linux/i2c-gpio.h>
+#include <linux/platform_data/i2c-gpio.h>
 #include <linux/gpio.h>
+//#include <mach/irqs.h>
 
 /* switch device header */
-#ifdef CONFIG_ANDROID_SWITCH
-#include "../staging/android/switch/switch.h"
-#endif /* CONFIG_ANDROID_SWITCH */
+#ifdef CONFIG_SWITCH
+#include <linux/switch.h>
+#endif /* CONFIG_SWITCH */
 
 #if defined(CONFIG_USE_SAFEOUT)
 #include <linux/regulator/consumer.h>
@@ -23,6 +24,11 @@
 
 #if defined(CONFIG_USB_HW_PARAM)
 #include <linux/usb_notify.h>
+#endif
+
+#if defined(CONFIG_MFD_S2MU005)
+#include <linux/mfd/samsung/s2mu005.h>
+#include <linux/mfd/samsung/s2mu005-private.h>
 #endif
 
 #if defined(CONFIG_MFD_MAX77804) || defined(CONFIG_MFD_MAX77804K)
@@ -40,6 +46,9 @@
 #elif defined(CONFIG_MFD_MAX77888)
 #include <linux/mfd/max77888.h>
 #include <linux/mfd/max77888-private.h>
+#elif defined(CONFIG_MFD_MAX77854)
+#include <linux/mfd/max77854.h>
+#include <linux/mfd/max77854-private.h>
 #endif
 
 #include <linux/muic/muic.h>
@@ -49,47 +58,93 @@
 #endif /* CONFIG_MUIC_NOTIFIER */
 
 #if defined(CONFIG_MUIC_SUPPORT_CCIC) && defined(CONFIG_CCIC_NOTIFIER)
-#include <linux/usb/typec/common/pdic_notifier.h>
+#include <linux/ccic/ccic_notifier.h>
 #endif
 
-#ifdef CONFIG_ANDROID_SWITCH
+#ifdef CONFIG_SWITCH
 static struct switch_dev switch_dock = {
 	.name = "dock",
 };
 
-struct switch_dev switch_uart3 = {
-	.name = "uart3", /* sys/class/switch/uart3/state */
-};
-
-#ifdef CONFIG_SEC_FACTORY
-struct switch_dev switch_attached_muic_cable = {
-	.name = "attached_muic_cable", /* sys/class/switch/attached_muic_cable/state */
+#ifdef CONFIG_UART3
+static struct switch_dev switch_uart3 = {
+	.name = "uart3",	/* /sys/class/switch/uart3/state */
 };
 #endif
-#endif /* CONFIG_ANDROID_SWITCH */
+
+#if defined(CONFIG_SEC_FACTORY)
+struct switch_dev switch_attached_muic_cable = {
+	.name = "attached_muic_cable",	/* sys/class/switch/attached_muic_cable/state */
+};
+#endif
+
+struct switch_dev switch_uart3 = {
+	.name = "uart3",	/* sys/class/switch/uart3/state */
+};
+EXPORT_SYMBOL(switch_uart3);
+#if defined(CONFIG_MUIC_SUPPORT_EARJACK)
+static struct switch_dev switch_earjack = {
+	.name = "h2w",          /* /sys/class/switch/h2w/state */
+};
+
+static struct switch_dev switch_earjackkey = {
+	.name = "send_end",     /* /sys/class/switch/send_end/state */
+};
+#endif
+#endif /* CONFIG_SWITCH */
+
+int muic_wakeup_noti = 1;
 
 #if defined(CONFIG_MUIC_NOTIFIER)
 static struct notifier_block dock_notifier_block;
 static struct notifier_block cable_data_notifier_block;
 
+extern struct muic_platform_data muic_pdata;
+
+static void muic_jig_uart_cb(int jig_state)
+{
+	pr_info("%s: MUIC uart type(%d)\n", __func__, jig_state);
+#ifdef CONFIG_SWITCH
+	switch_set_state(&switch_uart3, jig_state);
+#endif
+}
+
 void muic_send_dock_intent(int type)
 {
 	pr_info("%s: MUIC dock type(%d)\n", __func__, type);
-#ifdef CONFIG_ANDROID_SWITCH
+#ifdef CONFIG_SWITCH
 	switch_set_state(&switch_dock, type);
 #endif
 }
 
-#ifdef CONFIG_SEC_FACTORY
+#if defined(CONFIG_SEC_FACTORY)
 void muic_send_attached_muic_cable_intent(int type)
 {
 	pr_info("%s: MUIC attached_muic_cable type(%d)\n", __func__, type);
-#ifdef CONFIG_ANDROID_SWITCH
+#ifdef CONFIG_SWITCH
 	switch_set_state(&switch_attached_muic_cable, type);
 #endif
 }
 #endif
 
+#if defined(CONFIG_MUIC_SUPPORT_EARJACK)
+static int muic_earjack_intent(int state)
+{
+	pr_info("%s: MUIC earjack(%d)\n", __func__, state);
+#ifdef CONFIG_SWITCH
+	switch_set_state(&switch_earjack, state);
+#endif
+	return NOTIFY_OK;
+}
+static int muic_earjackkey_intent(int state)
+{
+	pr_info("%s: MUIC earjackkey(%d)\n", __func__, state);
+#ifdef CONFIG_SWITCH
+	switch_set_state(&switch_earjackkey, state);
+#endif
+	return NOTIFY_OK;
+}
+#endif
 static int muic_dock_attach_notify(int type, const char *name)
 {
 	pr_info("%s: %s\n", __func__, name);
@@ -128,6 +183,9 @@ static int muic_handle_dock_notification(struct notifier_block *nb,
 		}
 		else if (action == MUIC_NOTIFY_CMD_DETACH)
 			return muic_dock_detach_notify();
+#if defined(CONFIG_SEC_FACTORY)
+	case ATTACHED_DEV_JIG_UART_ON_MUIC:
+#endif
 		break;
 	case ATTACHED_DEV_CARDOCK_MUIC:
 		if (action == MUIC_NOTIFY_CMD_ATTACH) {
@@ -138,6 +196,19 @@ static int muic_handle_dock_notification(struct notifier_block *nb,
 		else if (action == MUIC_NOTIFY_CMD_DETACH)
 			return muic_dock_detach_notify();
 		break;
+#ifdef CONFIG_UART3	//XO Shutdown
+	case ATTACHED_DEV_JIG_UART_OFF_MUIC:
+	case ATTACHED_DEV_JIG_UART_OFF_VB_MUIC:
+	case ATTACHED_DEV_JIG_UART_ON_MUIC:
+	case ATTACHED_DEV_JIG_UART_ON_VB_MUIC:
+		/* write value at "sys/class/switch/uart3/state" */
+		if (action == MUIC_NOTIFY_CMD_ATTACH || action == MUIC_NOTIFY_CMD_DETACH) {
+			switch_set_state(&switch_uart3, action);
+			printk(KERN_DEBUG "[muic] %s: set %ld to sys/class/switch/uart3/state\n", __func__, action);
+			return NOTIFY_OK;
+		}
+		break;
+#endif
 	case ATTACHED_DEV_SMARTDOCK_MUIC:
 	case ATTACHED_DEV_SMARTDOCK_VB_MUIC:
 	case ATTACHED_DEV_SMARTDOCK_TA_MUIC:
@@ -185,6 +256,18 @@ static int muic_handle_dock_notification(struct notifier_block *nb,
 		} else if (action == MUIC_NOTIFY_CMD_DETACH)
 			return muic_dock_detach_notify();
 		break;
+#if defined(CONFIG_MUIC_SUPPORT_EARJACK)
+	case ATTACHED_DEV_SEND_MUIC:
+	case ATTACHED_DEV_VOLDN_MUIC:
+	case ATTACHED_DEV_VOLUP_MUIC:
+			return muic_earjackkey_intent(1);
+	case ATTACHED_DEV_EARJACK_MUIC:
+		if (action == MUIC_NOTIFY_CMD_ATTACH) {
+			return muic_earjack_intent(1);
+		} else if (action == MUIC_NOTIFY_CMD_DETACH)
+			return muic_earjack_intent(0);
+		break;
+#endif
 	default:
 		break;
 	}
@@ -192,6 +275,7 @@ static int muic_handle_dock_notification(struct notifier_block *nb,
 	pr_info("%s: ignore(%d)\n", __func__, attached_dev);
 	return NOTIFY_DONE;
 }
+#endif /* CONFIG_MUIC_NOTIFIER */
 
 static int muic_handle_cable_data_notification(struct notifier_block *nb,
 			unsigned long action, void *data)
@@ -221,9 +305,15 @@ static int muic_handle_cable_data_notification(struct notifier_block *nb,
 		break;
 #if defined(CONFIG_USB_HW_PARAM)
 	case ATTACHED_DEV_TIMEOUT_OPEN_MUIC:
-		if (action == MUIC_NOTIFY_CMD_ATTACH && o_notify)
+		if (action == MUIC_NOTIFY_CMD_DETACH && o_notify)
 			inc_hw_param(o_notify, USB_MUIC_DCD_TIMEOUT_COUNT);
 		break;
+#if defined(CONFIG_MUIC_UNIVERSAL_SM5705_AFC)
+	case ATTACHED_DEV_AFC_CHARGER_ERR_V_MUIC:
+		if (action == MUIC_NOTIFY_CMD_ATTACH && o_notify)
+			inc_hw_param(o_notify, USB_MUIC_AFC_ERROR_COUNT);
+		break;
+#endif
 #endif
 	default:
 		jig_state = 0;
@@ -231,12 +321,11 @@ static int muic_handle_cable_data_notification(struct notifier_block *nb,
 	}
 
 	pr_info("%s: MUIC uart type(%d)\n", __func__, jig_state);
-#ifdef CONFIG_ANDROID_SWITCH
+#ifdef CONFIG_SWITCH
 	switch_set_state(&switch_uart3, jig_state);
 #endif
 	return NOTIFY_DONE;
 }
-#endif /* CONFIG_MUIC_NOTIFIER */
 
 #if defined(CONFIG_USE_SAFEOUT)
 int muic_set_safeout(int safeout_path)
@@ -299,7 +388,7 @@ err:
 
 static void muic_init_switch_dev_cb(void)
 {
-#ifdef CONFIG_ANDROID_SWITCH
+#ifdef CONFIG_SWITCH
 	int ret;
 
 	/* for DockObserver */
@@ -309,17 +398,16 @@ static void muic_init_switch_dev_cb(void)
 				__func__, ret);
 		return;
 	}
-
-	/* for UART event */
+#ifdef CONFIG_UART3
+	/* for JigUartOnObserver */
 	ret = switch_dev_register(&switch_uart3);
 	if (ret < 0) {
-		pr_err("%s: Failed to register uart3 switch(%d)\n",
+		printk(KERN_ERR "[muic] %s: Failed to register uart3 switch(%d)\n",
 				__func__, ret);
 		return;
 	}
-
-#ifdef CONFIG_SEC_FACTORY
-	/* for cable type event */
+#endif
+#if defined(CONFIG_SEC_FACTORY)
 	ret = switch_dev_register(&switch_attached_muic_cable);
 	if (ret < 0) {
 		pr_err("%s: Failed to register attached_muic_cable switch(%d)\n",
@@ -327,7 +415,25 @@ static void muic_init_switch_dev_cb(void)
 		return;
 	}
 #endif
-#endif /* CONFIG_ANDROID_SWITCH */
+	ret = switch_dev_register(&switch_uart3);
+	if (ret < 0) {
+		pr_err("%s : Failed to register switch_uart3 device\n", __func__);
+		goto err_switch_uart3_dev_register;
+	}
+#if defined(CONFIG_MUIC_SUPPORT_EARJACK)
+        ret = switch_dev_register(&switch_earjack);
+        if (ret < 0) {
+                pr_info("%s : Failed to register switch device\n", __func__);
+                goto err_switch_dev_register;
+        }
+
+        ret = switch_dev_register(&switch_earjackkey);
+        if (ret < 0) {
+                pr_info("%s : Failed to register switch device\n", __func__);
+                goto err_switch_dev_register;
+        }
+#endif
+#endif /* CONFIG_SWITCH */
 
 #if defined(CONFIG_MUIC_NOTIFIER)
 	muic_notifier_register(&dock_notifier_block,
@@ -337,20 +443,21 @@ static void muic_init_switch_dev_cb(void)
 #endif /* CONFIG_MUIC_NOTIFIER */
 
 	pr_info("%s: done\n", __func__);
+	return;
+#ifdef CONFIG_SWITCH
+#if defined(CONFIG_MUIC_SUPPORT_EARJACK)
+err_switch_dev_register:
+	switch_dev_unregister(&switch_earjack);
+	switch_dev_unregister(&switch_earjackkey);
+#endif
+	switch_dev_unregister(&switch_uart3);
+err_switch_uart3_dev_register:
+	switch_dev_unregister(&switch_dock);
+#endif
 }
 
 static void muic_cleanup_switch_dev_cb(void)
 {
-#ifdef CONFIG_ANDROID_SWITCH
-#ifdef CONFIG_SEC_FACTORY
-	/* for cable type event */
-	switch_dev_unregister(&switch_attached_muic_cable);
-#endif
-	/* for UART event */
-	switch_dev_unregister(&switch_uart3);
-	/* for DockObserver */
-	switch_dev_unregister(&switch_dock);
-#endif /* CONFIG_ANDROID_SWITCH */
 #if defined(CONFIG_MUIC_NOTIFIER)
 	muic_notifier_unregister(&dock_notifier_block);
 	muic_notifier_unregister(&cable_data_notifier_block);
@@ -358,8 +465,6 @@ static void muic_cleanup_switch_dev_cb(void)
 
 	pr_info("%s: done\n", __func__);
 }
-
-extern struct muic_platform_data muic_pdata;
 
 /* func : set_switch_sel
  * switch_sel value get from bootloader comand line
@@ -391,41 +496,31 @@ int get_switch_sel(void)
 static int afc_mode = 0;
 static int __init set_afc_mode(char *str)
 {
-	int mode;
-	get_option(&str, &mode);
-	afc_mode = (mode & 0x0000FF00) >> 8;
+	get_option(&str, &afc_mode);
 	pr_info("%s: afc_mode is 0x%02x\n", __func__, afc_mode);
 
 	return 0;
 }
-early_param("charging_mode", set_afc_mode);
+early_param("afc_disable", set_afc_mode);
 
 int get_afc_mode(void)
 {
 	return afc_mode;
 }
 
-static int __ccic_info;
-/*
- * __ccic_info :
- * b'0: 1 if an active ccic is present,
- *        0 when muic works without ccic chip or
- *              no ccic Noti. registration is needed
- *              even though a ccic chip is present.
- */
-static int set_ccic_info(char *str)
+static int uart_mode = 0;
+static int __init set_uart_mode(char *str)
 {
-	get_option(&str, &__ccic_info);
+	get_option(&str, &uart_mode);
+	pr_info("%s: uart_mode is 0x%02x\n", __func__, uart_mode);
 
-	pr_info("%s: ccic_info: 0x%04x\n", __func__, __ccic_info);
-
-	return __ccic_info;
+	return 0;
 }
-__setup("ccic_info=", set_ccic_info);
+early_param("uart_sel", set_uart_mode);
 
-int get_ccic_info(void)
+int get_uart_mode(void)
 {
-	return __ccic_info;
+	return uart_mode;
 }
 
 bool is_muic_usb_path_ap_usb(void)
@@ -457,7 +552,7 @@ static int muic_init_gpio_cb(int switch_sel)
 
 	pr_info("%s (%d)\n", __func__, switch_sel);
 
-	if (switch_sel & SWITCH_SEL_USB_MASK) {
+	if (1) {
 		pdata->usb_path = MUIC_PATH_USB_AP;
 		usb_mode = "PDA";
 	} else {
@@ -468,7 +563,7 @@ static int muic_init_gpio_cb(int switch_sel)
 	if (pdata->set_gpio_usb_sel)
 		ret = pdata->set_gpio_usb_sel(pdata->uart_path);
 
-	if (switch_sel & SWITCH_SEL_UART_MASK) {
+	if (1) {	//if (switch_sel & SWITCH_SEL_UART_MASK) {
 		pdata->uart_path = MUIC_PATH_UART_AP;
 		uart_mode = "AP";
 	} else {
@@ -504,22 +599,14 @@ int muic_afc_set_voltage(int voltage)
 int muic_hv_charger_disable(bool en)
 {
 	struct muic_platform_data *pdata = &muic_pdata;
-#if defined(CONFIG_USE_SECOND_MUIC)
-	struct muic_platform_data *pdata2 = &muic_pdata2;
-#endif
 	int ret = -ENODEV;
 
 	pr_info("%s %sable\n", __func__, en ? "en" : "dis");
 
-#if defined(CONFIG_USE_SECOND_MUIC)
-	if (pdata2->muic_hv_charger_disable_cb)
-		ret = pdata2->muic_hv_charger_disable_cb(en);
-#endif
-
 	if (pdata && pdata->muic_hv_charger_disable_cb)
 		ret = pdata->muic_hv_charger_disable_cb(en);
 
-	return  ret;
+	return ret;
 }
 
 int muic_hv_charger_init(void)
@@ -548,6 +635,7 @@ struct muic_platform_data muic_pdata = {
 	.init_switch_dev_cb	= muic_init_switch_dev_cb,
 	.cleanup_switch_dev_cb	= muic_cleanup_switch_dev_cb,
 	.init_gpio_cb		= muic_init_gpio_cb,
+	.jig_uart_cb		= muic_jig_uart_cb,
 #if defined(CONFIG_USE_SAFEOUT)
 	.set_safeout		= muic_set_safeout,
 #endif /* CONFIG_USE_SAFEOUT */

@@ -496,9 +496,21 @@ int create_s2dos06_powermeter_sysfs(struct s2dos06_dev *s2dos06)
 	err = device_create_file(s2dos06_adc_dev, &dev_attr_adc_ctrl1);
 	if (err)
 		goto remove_adc_val_7;
+#ifdef CONFIG_SEC_PM
+	if (!IS_ERR_OR_NULL(s2dos06->sec_disp_pmic_dev)) {
+		err = sysfs_create_link(&s2dos06->sec_disp_pmic_dev->kobj,
+				&s2dos06_adc_dev->kobj, "power_meter");
+		if (err) {
+			pr_err("%s: fail to create link for power_meter\n",
+					__func__);
+			goto sysfs_create_link_error;
+		}
+	}
+#endif /* CONFIG_SEC_PM */
 
 	return 0;
 
+sysfs_create_link_error:
 remove_adc_val_7:
 	device_remove_file(s2dos06_adc_dev, &dev_attr_adc_val_7);
 remove_adc_val_6:

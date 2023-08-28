@@ -57,10 +57,6 @@
 /* Align . to a 8 byte boundary equals to maximum function alignment. */
 #define ALIGN_FUNCTION()  . = ALIGN(8)
 
-#ifndef CONFIG_UML
-#include <asm/kernel-pgtable.h>
-#endif
-
 /*
  * LD_DEAD_CODE_DATA_ELIMINATION option enables -fdata-sections, which
  * generates .data.identifier sections, which need to be pulled in with
@@ -317,19 +313,21 @@
 	__end_ro_after_init = .;
 #endif
 
+#ifdef CONFIG_UH_RKP
 #define PG_IDMAP							\
-	. = ALIGN(PAGE_SIZE);					\
-		idmap_pg_dir = .;					\
+	. = ALIGN(PAGE_SIZE);						\
+	idmap_pg_dir = .;						\
 	. += IDMAP_DIR_SIZE;
 
 #define PG_SWAP								\
-	. = ALIGN(PAGE_SIZE);					\
-		swapper_pg_dir = .;					\
-	. += SWAPPER_DIR_SIZE;                  \
-        swapper_pg_end = .;                 
+	. = ALIGN(PAGE_SIZE);						\
+	swapper_pg_dir = .;						\
+	. += SWAPPER_DIR_SIZE;						\
+	swapper_pg_end = .;						
+
 #ifdef CONFIG_ARM64_SW_TTBR0_PAN
 #define PG_RESERVED							\
-	. = ALIGN(PAGE_SIZE);					\
+	. = ALIGN(PAGE_SIZE);						\
 	reserved_ttbr0 = .;						\
 	. += RESERVED_TTBR0_SIZE;
 #else
@@ -338,22 +336,36 @@
 
 #ifdef CONFIG_UNMAP_KERNEL_AT_EL0
 #define PG_TRAMP							\
-	. = ALIGN(PAGE_SIZE);					\
+	. = ALIGN(PAGE_SIZE);						\
 	tramp_pg_dir = .;						\
 	. += PAGE_SIZE;
 #else
 #define PG_TRAMP
 #endif
 
-#ifdef CONFIG_UH_RKP
 #define RKP_RO_DATA							\
-	PG_IDMAP								\
-	PG_SWAP									\
-	PG_RESERVED								\
+	PG_IDMAP							\
+	PG_SWAP								\
+	PG_RESERVED							\
 	PG_TRAMP
+
+#define RKP_RO_SECTION							\
+	. = ALIGN(4096);						\
+	.rkp_bss          : AT(ADDR(.rkp_bss) - LOAD_OFFSET) {		\
+		*(.rkp_bss.page_aligned)				\
+		*(.rkp_bss)						\
+	} = 0								\
+				 					\
+	.rkp_ro          : AT(ADDR(.rkp_ro) - LOAD_OFFSET) {		\
+		*(.rkp_ro)						\
+		*(.kdp_ro)						\
+		RKP_RO_DATA	/* Read only after init */		\
+	}								\
+
 #else
-#define RKP_RO_DATA
+#define RKP_RO_SECTION
 #endif
+
 
 /*
  * Read only Data
@@ -363,6 +375,7 @@
 	.rodata           : AT(ADDR(.rodata) - LOAD_OFFSET) {		\
 		__start_rodata = .;					\
 		*(.rodata) *(.rodata.*)					\
+		RO_AFTER_INIT_DATA	/* Read only after init */	\
 		KEEP(*(__vermagic))	/* Kernel version magic */	\
 		. = ALIGN(8);						\
 		__start___tracepoints_ptrs = .;				\
@@ -372,21 +385,11 @@
 	}								\
 									\
 	.rodata1          : AT(ADDR(.rodata1) - LOAD_OFFSET) {		\
-		RO_AFTER_INIT_DATA	/* Read only after init */	\
 		*(.rodata1)						\
-	}                                                               \
-	. = ALIGN(4096);				\
-	.rkp_bss          : AT(ADDR(.rkp_bss) - LOAD_OFFSET) {		\
-		*(.rkp_bss.page_aligned)				\
-		*(.rkp_bss)						\
-	} = 0								\
-									\
-	.rkp_ro          : AT(ADDR(.rkp_ro) - LOAD_OFFSET) {		\
-		*(.rkp_ro)						\
-		*(.kdp_ro)						\
-		RKP_RO_DATA	/* Read only after init */	        \
 	}								\
 									\
+	/*CONFIG_RKP_UH*/						\
+	RKP_RO_SECTION							\
 	/* PCI quirks */						\
 	.pci_fixup        : AT(ADDR(.pci_fixup) - LOAD_OFFSET) {	\
 		__start_pci_fixups_early = .;				\
@@ -498,8 +501,6 @@
         __ksymtab_strings : AT(ADDR(__ksymtab_strings) - LOAD_OFFSET) {	\
 		*(__ksymtab_strings)					\
 	}								\
-									\
-	SECDBG_MEMBERS							\
 									\
 	/* __*init sections */						\
 	__init_rodata : AT(ADDR(__init_rodata) - LOAD_OFFSET) {		\
@@ -803,19 +804,6 @@
 #define ORC_UNWIND_TABLE
 #endif
 
-#ifdef CONFIG_SEC_DEBUG
-#define SECDBG_MEMBERS							\
-	/* Secdbg member table: offsets */				\
-	. = ALIGN(8);							\
-	__secdbg_member_table : AT(ADDR(__secdbg_member_table) - LOAD_OFFSET) { \
-		__start__secdbg_member_table = .;			\
-		KEEP(*(SORT(.secdbg_mbtab.*))) 				\
-		__stop__secdbg_member_table = .;			\
-	}
-#else
-#define SECDBG_MEMBERS
-#endif
-
 #ifdef CONFIG_PM_TRACE
 #define TRACEDATA							\
 	. = ALIGN(4);							\
@@ -846,6 +834,30 @@
 		KEEP(*(.initcall##level##.init))			\
 		KEEP(*(.initcall##level##s.init))			\
 
+#ifdef CONFIG_DEFERRED_INITCALLS
+#define DEFERRED_INITCALLS(level)					\
+		__deferred_initcall_start = .;		\
+		KEEP(*(.deferred_initcall##level##.init))		\
+		KEEP(*(.deferred_initcall##level##s.init))		\
+		__deferred_initcall_end = .;
+#endif
+
+#ifdef CONFIG_DEFERRED_INITCALLS
+#define INIT_CALLS							\
+		__initcall_start = .;					\
+		KEEP(*(.initcallearly.init))				\
+		INIT_CALLS_LEVEL(0)					\
+		INIT_CALLS_LEVEL(1)					\
+		INIT_CALLS_LEVEL(2)					\
+		INIT_CALLS_LEVEL(3)					\
+		INIT_CALLS_LEVEL(4)					\
+		INIT_CALLS_LEVEL(5)					\
+		INIT_CALLS_LEVEL(rootfs)				\
+		INIT_CALLS_LEVEL(6)					\
+		INIT_CALLS_LEVEL(7)					\
+		__initcall_end = .;					\
+		DEFERRED_INITCALLS(0)
+#else
 #define INIT_CALLS							\
 		__initcall_start = .;					\
 		KEEP(*(.initcallearly.init))				\
@@ -859,6 +871,7 @@
 		INIT_CALLS_LEVEL(6)					\
 		INIT_CALLS_LEVEL(7)					\
 		__initcall_end = .;
+#endif
 
 #define CON_INITCALL							\
 		__con_initcall_start = .;				\

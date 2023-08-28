@@ -3,6 +3,7 @@
 
 config QRTR
 	tristate "Qualcomm IPC Router support"
+	depends on ARCH_QCOM || COMPILE_TEST
 	---help---
 	  Say Y if you intend to use Qualcomm IPC router protocol.  The
 	  protocol is used to communicate with services provided by other
@@ -36,5 +37,22 @@ config QRTR_MHI
 	  MHI bus provides an asynchronous send mechanism, the QRTR MHI
 	  transport will wait for the uplink callback notification before
 	  returning to qrtr.
+
+config QRTR_USB
+	tristate "USB IPC Router channels"
+	depends on USB || (COMPILE_TEST && USB=n)
+	help
+	  Say Y here to support USB based ipcrouter channels. USB transport
+	  is used for connections with other sytems for IPC Router. The USB
+	  transport provides bulk endpoints to facilitate sending and receiving
+	  IPC Router data packets.
+
+config QRTR_FIFO
+	tristate "FIFO IPC Router channels"
+	help
+	Say Y here to support FIFO based ipcrouter channels. FIFO Transport
+	Layer enables IPC Router communication between two virtual machines.
+	The shared memory between virtual machines will be allocated by the
+	hypervisor and signal other VMs through virtualized interrupts.
 
 endif # QRTR

@@ -1,23 +1,9 @@
 /*
  * max77705-irq.c - Interrupt controller support for MAX77705
  *
- * Copyright (C) 2016 Samsung Electronics Co.Ltd
- * Insun Choi <insun77.choi@samsung.com>
- *
  * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- * This driver is based on max77705-irq.c
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/err.h>
@@ -26,6 +12,11 @@
 #include <linux/gpio.h>
 #include <linux/mfd/max77705.h>
 #include <linux/mfd/max77705-private.h>
+#if defined(CONFIG_SEC_FACTORY)
+#include <linux/wakelock.h>
+
+static struct wake_lock max77705_irq_wakelock;
+#endif
 
 static const u8 max77705_mask_reg[] = {
 	/* TODO: Need to check other INTMASK */
@@ -53,7 +44,6 @@ static struct i2c_client *get_i2c(struct max77705_dev *max77705,
 	case CC_INT:
 	case PD_INT:
 	case VDM_INT:
-	case VIR_INT:
 		return max77705->muic;
 	default:
 		return ERR_PTR(-EINVAL);
@@ -207,17 +197,36 @@ static irqreturn_t max77705_irq_thread(int irq, void *data)
 	u8 bc_status0 = 0;
 	u8 ccstat = 0;
 	u8 vbvolt = 0;
-	u8 pre_ccstati = 0;
+	u8 pre_ccstati =0;
 	u8 ic_alt_mode = 0;
+	
+	max77705->doing_irq = 1;
 
 	pr_debug("%s: irq gpio pre-state(0x%02x)\n", __func__,
 				gpio_get_value(max77705->irq_gpio));
+
+#if defined(CONFIG_SEC_FACTORY)
+	wake_lock(&max77705_irq_wakelock);
+#endif
+
+	ret = wait_event_timeout(max77705->suspend_wait,
+						!max77705->suspended,
+						msecs_to_jiffies(200));
+	if (!ret) {
+		pr_info("%s suspend_wait timeout\n", __func__);
+		max77705->doing_irq = 0;
+		return IRQ_NONE;
+	}
 
 	ret = max77705_read_reg(max77705->i2c,
 					MAX77705_PMIC_REG_INTSRC, &irq_src);
 	if (ret) {
 		pr_err("%s:%s Failed to read interrupt source: %d\n",
 			MFD_DEV_NAME, __func__, ret);
+#if defined(CONFIG_SEC_FACTORY)
+		wake_unlock(&max77705_irq_wakelock);
+#endif
+		max77705->doing_irq = 0;
 		return IRQ_NONE;
 	}
 
@@ -264,6 +273,9 @@ static irqreturn_t max77705_irq_thread(int irq, void *data)
 		pr_debug("[%s]IRQ_BASE(%d), NESTED_IRQ(%d)\n",
 			__func__, max77705->irq_base, max77705->irq_base + MAX77705_FG_IRQ_ALERT);
 		irq_reg[FUEL_INT] = 1 << 1;
+#if defined(CONFIG_SEC_FACTORY)
+		wake_unlock(&max77705_irq_wakelock);
+#endif
 	}
 
 	if (irq_src & MAX77705_IRQSRC_TOP) {
@@ -320,7 +332,14 @@ static irqreturn_t max77705_irq_thread(int irq, void *data)
 					4, &irq_reg[USBC_INT]);
 			ret = max77705_read_reg(max77705->muic, MAX77705_USBC_REG_VDM_INT_M,
 					&irq_vdm_mask);
-			if (irq_reg[USBC_INT] & BIT_VBUSDetI) {
+
+		   	if(max77705->enable_nested_irq){
+				irq_reg[USBC_INT] |= max77705->usbc_irq;
+				max77705->enable_nested_irq = 0x0;
+				max77705->usbc_irq = 0x0;
+			}
+
+			if(irq_reg[USBC_INT] & BIT_VBUSDetI) {
 				ret = max77705_read_reg(max77705->muic, REG_BC_STATUS, &bc_status0);
 				ret = max77705_read_reg(max77705->muic, REG_CC_STATUS0, &cc_status0);
 				vbvolt = (bc_status0 & BIT_VBUSDet) >> FFS(BIT_VBUSDet);
@@ -348,7 +367,7 @@ static irqreturn_t max77705_irq_thread(int irq, void *data)
 	if (max77705->cc_booting_complete) {
 		max77705_read_reg(max77705->muic, REG_CC_STATUS1, &cc_status1);
 		ic_alt_mode = (cc_status1 & BIT_Altmode) >> FFS(BIT_Altmode);
-		if (!ic_alt_mode && max77705->set_altmode_en)
+		if (!ic_alt_mode && max77705->set_altmode)
 			irq_reg[VIR_INT] |= (1 << 0);
 		pr_info("%s ic_alt_mode=%d\n", __func__, ic_alt_mode);
 
@@ -361,8 +380,8 @@ static irqreturn_t max77705_irq_thread(int irq, void *data)
 		}
 	}
 
-	if ((irq_reg[USBC_INT] & BIT_SYSMsgI)
-			&& (dump_reg[1] == 0x03 /*sysmsg wdt*/)) {
+	if (((irq_reg[USBC_INT] & BIT_SYSMsgI) && (dump_reg[1] == SYSERROR_BOOT_WDT))
+		|| ((irq_reg[USBC_INT] & BIT_SYSMsgI) && (dump_reg[1] == SYSMSG_BOOT_POR))) {
 		irq_reg[CC_INT] &= ~(BIT_VCONNSCI);
 		pr_info("%s skip water detect during WDT\n", __func__);
 	}
@@ -376,6 +395,20 @@ static irqreturn_t max77705_irq_thread(int irq, void *data)
 		if (irq_reg[max77705_irqs[i].group] & max77705_irqs[i].mask)
 			handle_nested_irq(max77705->irq_base + i);
 	}
+
+#if defined(CONFIG_SEC_FACTORY)
+	wake_unlock(&max77705_irq_wakelock);
+#endif
+
+	max77705->doing_irq = 0;
+#if defined(CONFIG_CCIC_MAX77705)
+	max77705->is_usbc_queue = !check_usbc_opcode_queue();
+#endif
+
+	pr_info("%s doing_irq = %d, is_usbc_queue=%d\n", __func__,
+				max77705->doing_irq, max77705->is_usbc_queue);
+
+	wake_up_interruptible(&max77705->queue_empty_wait_q);
 
 	return IRQ_HANDLED;
 }
@@ -399,6 +432,10 @@ int max77705_irq_init(struct max77705_dev *max77705)
 	}
 
 	mutex_init(&max77705->irqlock);
+
+#if defined(CONFIG_SEC_FACTORY)
+	wake_lock_init(&max77705_irq_wakelock, WAKE_LOCK_SUSPEND, "max77705-irq");
+#endif
 
 	max77705->irq = gpio_to_irq(max77705->irq_gpio);
 	pr_info("%s:%s irq=%d, irq->gpio=%d\n", MFD_DEV_NAME, __func__,

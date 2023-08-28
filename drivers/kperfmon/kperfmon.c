@@ -939,7 +939,7 @@ void perflog_evt(int logid, int arg1)
 					PERFLOG_BUFF_STR_MAX_SIZE,
 					"%d jiffies",
 					arg1);
-			/*send_signal();*/  // Make some stuck problems to be needed to check how many the mutex logging are occured. Refer to P200523-00343, P200523-01815.
+			/*send_signal();*/ // Make some stuck problems to be needed to check how many the mutex logging are occured. Refer to P200523-00343, P200523-01815.
 
 			get_callstack(log_buffer + len,
 					PERFLOG_BUFF_STR_MAX_SIZE - len,

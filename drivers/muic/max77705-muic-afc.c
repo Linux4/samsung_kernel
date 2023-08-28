@@ -1,21 +1,9 @@
 /*
  * max77705-muic.c - MUIC driver for the Maxim 77705
  *
- *  Copyright (C) 2015 Samsung Electronics
- *  Insun Choi <insun77.choi@samsung.com>
- *
  * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/kernel.h>
@@ -31,7 +19,7 @@
 /* MUIC header file */
 #include <linux/muic/muic.h>
 #include <linux/muic/max77705-muic.h>
-#include <linux/usb/typec/maxim/max77705_usbc.h>
+#include <linux/ccic/max77705_usbc.h>
 
 #if defined(CONFIG_MUIC_NOTIFIER)
 #include <linux/muic/muic_notifier.h>
@@ -80,23 +68,6 @@ bool max77705_muic_check_is_enable_afc(struct max77705_muic_data *muic_data, mui
 	return ret;
 }
 
-static void max77705_muic_afc_reset(struct max77705_muic_data *muic_data)
-{
-	struct max77705_usbc_platform_data *usbc_pdata = muic_data->usbc_pdata;
-	usbc_cmd_data write_data;
-
-	pr_info("%s:%s\n", MUIC_DEV_NAME, __func__);
-	muic_data->is_afc_reset = true;
-
-	init_usbc_cmd_data(&write_data);
-	write_data.opcode = COMMAND_BC_CTRL2_WRITE;
-	write_data.write_length = 1;
-	write_data.write_data[0] = 0x13; /* DPDNMan enable, DP GND, DM Open */
-	write_data.read_length = 0;
-
-	max77705_usbc_opcode_write(usbc_pdata, &write_data);
-}
-
 void max77705_muic_check_afc_disabled(struct max77705_muic_data *muic_data)
 {
 	struct muic_platform_data *pdata = muic_data->pdata;
@@ -126,6 +97,7 @@ void max77705_muic_check_afc_disabled(struct max77705_muic_data *muic_data)
 
 static void max77705_muic_afc_hv_tx_byte_set(struct max77705_muic_data *muic_data, u8 tx_byte)
 {
+#if defined(CONFIG_CCIC_MAX77705)
 	struct max77705_usbc_platform_data *usbc_pdata = muic_data->usbc_pdata;
 	usbc_cmd_data write_data;
 
@@ -138,6 +110,7 @@ static void max77705_muic_afc_hv_tx_byte_set(struct max77705_muic_data *muic_dat
 	write_data.read_length = 10;
 
 	max77705_usbc_opcode_write(usbc_pdata, &write_data);
+#endif
 }
 
 void max77705_muic_clear_hv_control(struct max77705_muic_data *muic_data)
@@ -155,6 +128,7 @@ void max77705_muic_clear_hv_control(struct max77705_muic_data *muic_data)
 
 void max77705_muic_afc_hv_set(struct max77705_muic_data *muic_data, int voltage)
 {
+#if defined(CONFIG_CCIC_MAX77705)
 	struct max77705_usbc_platform_data *usbc_pdata = muic_data->usbc_pdata;
 	usbc_cmd_data write_data;
 	u8 tx_byte;
@@ -181,10 +155,12 @@ void max77705_muic_afc_hv_set(struct max77705_muic_data *muic_data, int voltage)
 	write_data.read_length = 10;
 
 	max77705_usbc_opcode_write(usbc_pdata, &write_data);
+#endif
 }
 
 void max77705_muic_qc_hv_set(struct max77705_muic_data *muic_data, int voltage)
 {
+#if defined(CONFIG_CCIC_MAX77705)
 	struct max77705_usbc_platform_data *usbc_pdata = muic_data->usbc_pdata;
 	usbc_cmd_data write_data;
 	u8 dpdndrv;
@@ -211,10 +187,14 @@ void max77705_muic_qc_hv_set(struct max77705_muic_data *muic_data, int voltage)
 	write_data.read_length = 2;
 
 	max77705_usbc_opcode_write(usbc_pdata, &write_data);
+#endif
 }
 
+#if !defined(CONFIG_MACH_X1Q_JPN_SINGLE) && !defined(CONFIG_MACH_Y2Q_JPN_SINGLE) && !defined(CONFIG_MACH_C2Q_JPN_SINGLE) && \
+    !defined(CONFIG_MACH_F2Q_JPN_SINGLE)
 static void max77705_muic_handle_detect_dev_mpnack(struct max77705_muic_data *muic_data)
 {
+#if defined(CONFIG_CCIC_MAX77705)
 	struct max77705_usbc_platform_data *usbc_pdata = muic_data->usbc_pdata;
 	usbc_cmd_data write_data;
 	u8 dpdndrv = 0x09;
@@ -226,7 +206,9 @@ static void max77705_muic_handle_detect_dev_mpnack(struct max77705_muic_data *mu
 	write_data.read_length = 2;
 
 	max77705_usbc_opcode_write(usbc_pdata, &write_data);
+#endif
 }
+#endif
 
 void max77705_muic_handle_detect_dev_afc(struct max77705_muic_data *muic_data, unsigned char *data)
 {
@@ -307,10 +289,17 @@ void max77705_muic_handle_detect_dev_afc(struct max77705_muic_data *muic_data, u
 		break;
 	case 4:
 		pr_info("%s:%s MPing NACK\n", MUIC_DEV_NAME, __func__);
-		if (!muic_data->pdata->afc_disable) {
+#if !defined(CONFIG_MACH_X1Q_JPN_SINGLE) && !defined(CONFIG_MACH_Y2Q_JPN_SINGLE) && !defined(CONFIG_MACH_C2Q_JPN_SINGLE) && \
+    !defined(CONFIG_MACH_F2Q_JPN_SINGLE)
+		if (muic_data->pdata->afc_disable)
 			pr_info("%s:%s skip checking QC TA, just return!\n", MUIC_DEV_NAME, __func__);
+		else {
+			pr_info("%s:%s checking QC TA!\n", MUIC_DEV_NAME, __func__);
 			max77705_muic_handle_detect_dev_mpnack(muic_data);
 		}
+#else
+		pr_info("%s:%s No QC2.0 at JPN, just return!\n", MUIC_DEV_NAME, __func__);
+#endif
 		break;
 	case 5:
 		pr_info("%s:%s Unsupported TX data\n", MUIC_DEV_NAME, __func__);
@@ -415,19 +404,13 @@ void max77705_muic_handle_detect_dev_afc(struct max77705_muic_data *muic_data, u
 			max77705_muic_afc_hv_set(muic_data, muic_data->hv_voltage);
 		} else {
 			pr_info("%s:%s Retry Done, do not retry\n", MUIC_DEV_NAME, __func__);
-			if (vbadc >= MAX77705_VBADC_7_5V_TO_8_5V) {
-				max77705_muic_afc_reset(muic_data);
-				muic_data->afc_retry = 0;
-			} else {
 #if defined(CONFIG_MUIC_NOTIFIER)
-				/* Send attached device noti to clear prepare noti */
-				if (muic_data->attached_dev == ATTACHED_DEV_AFC_CHARGER_5V_MUIC ||
-					muic_data->attached_dev == ATTACHED_DEV_AFC_CHARGER_9V_MUIC)
-					muic_notifier_attach_attached_dev(muic_data->attached_dev);
-				else
-					muic_notifier_attach_attached_dev(ATTACHED_DEV_AFC_CHARGER_ERR_V_MUIC);
+			if (vbadc >= MAX77705_VBADC_7_5V_TO_8_5V &&
+					vbadc <= MAX77705_VBADC_8_5V_TO_9_5V)
+				muic_notifier_attach_attached_dev(ATTACHED_DEV_AFC_CHARGER_9V_MUIC);
+			else
+				muic_notifier_attach_attached_dev(ATTACHED_DEV_TA_MUIC);
 #endif /* CONFIG_MUIC_NOTIFIER */
-			}
 #if defined(CONFIG_SEC_ABC)
 			sec_abc_send_event("MODULE=muic@ERROR=afc_hv_fail");
 #endif
@@ -436,15 +419,11 @@ void max77705_muic_handle_detect_dev_afc(struct max77705_muic_data *muic_data, u
 
 #if defined(CONFIG_USB_HW_PARAM)
 	if (o_notify) {
-		if (muic_data->is_skip_bigdata)
-			return;
-
 		if (afc_err && !afc_nack)
 			inc_hw_param(o_notify, USB_MUIC_AFC_ERROR_COUNT);
 		if (afc_nack) {
 			inc_hw_param(o_notify, USB_MUIC_AFC_ERROR_COUNT);
 			inc_hw_param(o_notify, USB_MUIC_AFC_NACK_COUNT);
-			muic_data->is_skip_bigdata = true;
 		}
 	}
 #endif
@@ -549,19 +528,13 @@ void max77705_muic_handle_detect_dev_qc(struct max77705_muic_data *muic_data, un
 			max77705_muic_qc_hv_set(muic_data, muic_data->hv_voltage);
 		} else {
 			pr_info("%s:%s Retry Done, do not retry\n", MUIC_DEV_NAME, __func__);
-			if (vbadc >= MAX77705_VBADC_7_5V_TO_8_5V) {
-				max77705_muic_afc_reset(muic_data);
-				muic_data->afc_retry = 0;
-			} else {
 #if defined(CONFIG_MUIC_NOTIFIER)
-				/* Send attached device noti to clear prepare noti */
-				if (muic_data->attached_dev == ATTACHED_DEV_QC_CHARGER_5V_MUIC ||
-					muic_data->attached_dev == ATTACHED_DEV_QC_CHARGER_9V_MUIC)
-					muic_notifier_attach_attached_dev(muic_data->attached_dev);
-				else
-					muic_notifier_attach_attached_dev(ATTACHED_DEV_QC_CHARGER_ERR_V_MUIC);
+			if (vbadc >= MAX77705_VBADC_7_5V_TO_8_5V &&
+					vbadc <= MAX77705_VBADC_8_5V_TO_9_5V)
+				muic_notifier_attach_attached_dev(ATTACHED_DEV_QC_CHARGER_9V_MUIC);
+			else
+				muic_notifier_attach_attached_dev(ATTACHED_DEV_TA_MUIC);
 #endif /* CONFIG_MUIC_NOTIFIER */
-			}
 #if defined(CONFIG_SEC_ABC)
 			sec_abc_send_event("MODULE=muic@ERROR=qc_hv_fail");
 #endif
@@ -570,15 +543,11 @@ void max77705_muic_handle_detect_dev_qc(struct max77705_muic_data *muic_data, un
 
 #if defined(CONFIG_USB_HW_PARAM)
 	if (o_notify) {
-		if (muic_data->is_skip_bigdata)
-			return;
-
 		if (afc_err && !afc_nack)
 			inc_hw_param(o_notify, USB_MUIC_AFC_ERROR_COUNT);
 		if (afc_nack) {
 			inc_hw_param(o_notify, USB_MUIC_AFC_ERROR_COUNT);
 			inc_hw_param(o_notify, USB_MUIC_AFC_NACK_COUNT);
-			muic_data->is_skip_bigdata = true;
 		}
 	}
 #endif

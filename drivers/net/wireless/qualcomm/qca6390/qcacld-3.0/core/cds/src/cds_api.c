@@ -123,8 +123,9 @@ static struct ol_if_ops  dp_ol_if_ops = {
 	.dp_prealloc_get_consistent = dp_prealloc_get_coherent,
 	.dp_prealloc_put_consistent = dp_prealloc_put_coherent,
 	.dp_get_multi_pages = dp_prealloc_get_multi_pages,
-	.dp_put_multi_pages = dp_prealloc_put_multi_pages
+	.dp_put_multi_pages = dp_prealloc_put_multi_pages,
 #endif
+	.dp_rx_get_pending = dp_rx_tm_get_pending,
     /* TODO: Add any other control path calls required to OL_IF/WMA layer */
 };
 #else
@@ -1916,8 +1917,6 @@ static void cds_trigger_recovery_work(void *context)
 void __cds_trigger_recovery(enum qdf_hang_reason reason, const char *func,
 			    const uint32_t line)
 {
-	bool is_work_queue_needed = false;
-
 	if (!gp_cds_context) {
 		cds_err("gp_cds_context is null");
 		return;
@@ -1925,19 +1924,10 @@ void __cds_trigger_recovery(enum qdf_hang_reason reason, const char *func,
 
 	gp_cds_context->recovery_reason = reason;
 
-	if (in_atomic() ||
-	    (QDF_RESUME_TIMEOUT == reason || QDF_SUSPEND_TIMEOUT == reason))
-		is_work_queue_needed = true;
-
-	if (is_work_queue_needed) {
-		__cds_recovery_caller.func = func;
-		__cds_recovery_caller.line = line;
-		qdf_queue_work(0, gp_cds_context->cds_recovery_wq,
-			       &gp_cds_context->cds_recovery_work);
-		return;
-	}
-
-	cds_trigger_recovery_handler(func, line);
+	__cds_recovery_caller.func = func;
+	__cds_recovery_caller.line = line;
+	qdf_queue_work(0, gp_cds_context->cds_recovery_wq,
+		       &gp_cds_context->cds_recovery_work);
 }
 
 void cds_trigger_recovery_psoc(void *psoc, enum qdf_hang_reason reason,

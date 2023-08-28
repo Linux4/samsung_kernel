@@ -353,11 +353,19 @@ CPU_LE(	rev64		T1.16b, T1.16b	)
 	 * void pmull_ghash_update(int blocks, u64 dg[], const char *src,
 	 *			   struct ghash_key const *k, const char *head)
 	 */
+#ifdef CONFIG_CFP_JOPP
+NOP_ENTRY(pmull_ghash_update_p64)
+#else
 ENTRY(pmull_ghash_update_p64)
+#endif
 	__pmull_ghash	p64
 ENDPROC(pmull_ghash_update_p64)
 
+#ifdef CONFIG_CFP_JOPP
+NOP_ENTRY(pmull_ghash_update_p8)
+#else
 ENTRY(pmull_ghash_update_p8)
+#endif
 	__pmull_ghash	p8
 ENDPROC(pmull_ghash_update_p8)
 

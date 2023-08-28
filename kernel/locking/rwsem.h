@@ -97,13 +97,12 @@ static inline void rwsem_set_reader_owned(struct rw_semaphore *sem)
 }
 #endif
 
-
+#ifdef CONFIG_FAST_TRACK
+#include <cpu/ftt/ftt.h>
+#endif
 #ifdef CONFIG_RWSEM_PRIO_AWARE
 
 #define RWSEM_MAX_PREEMPT_ALLOWED 3000
-
-#define MID_FIRST	4
-#define BIG_FIRST	6
 
 /*
  * Return true if current waiter is added in the front of the rwsem wait list.
@@ -114,8 +113,9 @@ static inline bool rwsem_list_add_per_prio(struct rwsem_waiter *waiter_in,
 	struct list_head *pos;
 	struct list_head *head;
 	struct rwsem_waiter *waiter = NULL;
-	struct rwsem_waiter *prewaiter = NULL;
-	int i;
+#ifdef CONFIG_FAST_TRACK
+	int doftt;
+#endif
 
 	pos = head = &sem->wait_list;
 	/*
@@ -134,36 +134,30 @@ static inline bool rwsem_list_add_per_prio(struct rwsem_waiter *waiter_in,
 		return true;
 	}
 
+#ifdef CONFIG_FAST_TRACK
+	doftt = is_ftt(&waiter_in->task->se);
+	if ((waiter_in->task->prio < DEFAULT_PRIO || doftt)
+#else
 	if (waiter_in->task->prio < DEFAULT_PRIO
+#endif
 		&& sem->m_count < RWSEM_MAX_PREEMPT_ALLOWED) {
 
 		list_for_each(pos, head) {
 			waiter = list_entry(pos, struct rwsem_waiter, list);
+#ifdef CONFIG_FAST_TRACK
+			if (is_ftt(&waiter->task->se))
+				continue;
+			if (doftt) {
+				list_add(&waiter_in->list, pos->prev);
+				sem->m_count++;
+				return &waiter_in->list == head->next;
+			}
+#endif
 			if (waiter->task->prio > waiter_in->task->prio) {
 				list_add(&waiter_in->list, pos->prev);
 				sem->m_count++;
-				if (prewaiter != NULL) {
-#ifndef CONFIG_UML
-					if (prewaiter->task->cpu > (BIG_FIRST-1)) {
-#else
-					if (task_cpu(prewaiter->task) > (BIG_FIRST-1)) {
-#endif
-						cpumask_clear(&(waiter->task->aug_cpus_allowed));
-						for (i = BIG_FIRST; i < NR_CPUS ; i++)
-							cpumask_set_cpu(i,&(waiter->task->aug_cpus_allowed));
-#ifndef CONFIG_UML
-					} else if (prewaiter->task->cpu > (MID_FIRST-1)) {
-#else
-					} else if (task_cpu(prewaiter->task) > (MID_FIRST-1)) {
-#endif
-						cpumask_clear(&(waiter->task->aug_cpus_allowed));
-						for (i = MID_FIRST; i < NR_CPUS ; i++)
-							cpumask_set_cpu(i,&(waiter->task->aug_cpus_allowed));
-					}
-				}
 				return &waiter_in->list == head->next;
 			}
-			prewaiter = waiter;
 		}
 	}
 
@@ -175,8 +169,11 @@ static inline bool rwsem_list_add_per_prio(struct rwsem_waiter *waiter_in,
 static inline bool rwsem_list_add_per_prio(struct rwsem_waiter *waiter_in,
 				    struct rw_semaphore *sem)
 {
+#ifdef CONFIG_FAST_TRACK
+	rwsem_list_add(waiter_in->task, &waiter_in->list, &sem->wait_list);
+#else
 	list_add_tail(&waiter_in->list, &sem->wait_list);
+#endif
 	return false;
 }
 #endif
-

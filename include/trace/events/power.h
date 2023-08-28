@@ -40,50 +40,6 @@ DEFINE_EVENT(cpu, cpu_idle,
 	TP_ARGS(state, cpu_id)
 );
 
-TRACE_EVENT(exynos_slack_func,
-
-	TP_PROTO(int cpu),
-
-	TP_ARGS(cpu),
-
-	TP_STRUCT__entry(
-		__field(int, cpu)
-	),
-
-	TP_fast_assign(
-		__entry->cpu = cpu;
-	),
-
-	TP_printk("cpu=%d SLACK EXPIRED", __entry->cpu)
-);
-
-TRACE_EVENT(exynos_slack,
-
-	TP_PROTO(int cpu, unsigned long util,
-		unsigned long min, unsigned long action, int ret),
-
-	TP_ARGS(cpu, util, min, action, ret),
-
-	TP_STRUCT__entry(
-		__field(int, cpu)
-		__field(unsigned long, util)
-		__field(unsigned long, min)
-		__field(unsigned long, action)
-		__field(int, ret)
-	),
-
-	TP_fast_assign(
-		__entry->cpu = cpu;
-		__entry->util = util;
-		__entry->min = min;
-		__entry->action = action;
-		__entry->ret = ret;
-	),
-
-	TP_printk("cpu=%d util=%ld min=%ld action=%ld ret=%d", __entry->cpu,
-			__entry->util, __entry->min, __entry->action, __entry->ret)
-);
-
 TRACE_EVENT(powernv_throttle,
 
 	TP_PROTO(int chip_id, const char *reason, int pmax),
@@ -215,6 +171,48 @@ TRACE_EVENT(cpu_frequency_limits,
 		  (unsigned long)__entry->min_freq,
 		  (unsigned long)__entry->max_freq,
 		  (unsigned long)__entry->cpu_id)
+);
+
+TRACE_EVENT(cpu_frequency_switch_start,
+
+	TP_PROTO(unsigned int start_freq, unsigned int end_freq,
+		 unsigned int cpu_id),
+
+	TP_ARGS(start_freq, end_freq, cpu_id),
+
+	TP_STRUCT__entry(
+		__field(u32, start_freq)
+		__field(u32, end_freq)
+		__field(u32, cpu_id)
+	),
+
+	TP_fast_assign(
+		__entry->start_freq = start_freq;
+		__entry->end_freq = end_freq;
+		__entry->cpu_id = cpu_id;
+	),
+
+	TP_printk("start=%lu end=%lu cpu_id=%lu",
+		  (unsigned long)__entry->start_freq,
+		  (unsigned long)__entry->end_freq,
+		  (unsigned long)__entry->cpu_id)
+);
+
+TRACE_EVENT(cpu_frequency_switch_end,
+
+	TP_PROTO(unsigned int cpu_id),
+
+	TP_ARGS(cpu_id),
+
+	TP_STRUCT__entry(
+		__field(u32, cpu_id)
+	),
+
+	TP_fast_assign(
+		__entry->cpu_id = cpu_id;
+	),
+
+	TP_printk("cpu_id=%lu", (unsigned long)__entry->cpu_id)
 );
 
 TRACE_EVENT(device_pm_callback_start,
@@ -425,42 +423,7 @@ DECLARE_EVENT_CLASS(pm_qos_request,
 		  __print_symbolic(__entry->pm_qos_class,
 			{ PM_QOS_CPU_DMA_LATENCY,	"CPU_DMA_LATENCY" },
 			{ PM_QOS_NETWORK_LATENCY,	"NETWORK_LATENCY" },
-			{ PM_QOS_CLUSTER0_FREQ_MIN,	"CLUSTER0_FREQ_MIN" },
-			{ PM_QOS_CLUSTER0_FREQ_MAX,	"CLUSTER0_FREQ_MAX" },
-			{ PM_QOS_CLUSTER1_FREQ_MIN,	"CLUSTER1_FREQ_MIN" },
-			{ PM_QOS_CLUSTER1_FREQ_MAX,	"CLUSTER1_FREQ_MAX" },
-			{ PM_QOS_CLUSTER2_FREQ_MIN,	"CLUSTER2_FREQ_MIN" },
-			{ PM_QOS_CLUSTER2_FREQ_MAX,	"CLUSTER2_FREQ_MAX" },
-			{ PM_QOS_CPU_ONLINE_MIN,	"CPU_ONLINE_MIN" },
-			{ PM_QOS_CPU_ONLINE_MAX,	"CPU_ONLINE_MAX" },
-			{ PM_QOS_DEVICE_THROUGHPUT,     "DEVICE_THROUGHPUT" },
-			{ PM_QOS_INTCAM_THROUGHPUT,     "INTCAM_THROUGHPUT" },
-			{ PM_QOS_DEVICE_THROUGHPUT_MAX,	"DEVICE_THROUGHPUT_MAX" },
-			{ PM_QOS_INTCAM_THROUGHPUT_MAX,	"INTCAM_THROUGHPUT_MAX" },
-			{ PM_QOS_BUS_THROUGHPUT,	"BUS_THROUGHPUT" },
-			{ PM_QOS_BUS_THROUGHPUT_MAX,	"BUS_THROUGHPUT_MAX" },
-			{ PM_QOS_NETWORK_THROUGHPUT,	"NETWORK_THROUGHPUT" },
-			{ PM_QOS_MEMORY_BANDWIDTH,	"MEMORY_BANDWIDTH" },
-			{ PM_QOS_DISPLAY_THROUGHPUT,	"DISPLAY_THROUGHPUT" },
-			{ PM_QOS_DISPLAY_THROUGHPUT_MAX,"DISPLAY_THROUGHPUT_MAX" },
-			{ PM_QOS_CAM_THROUGHPUT,	"CAM_THROUGHPUT" },
-			{ PM_QOS_AUD_THROUGHPUT,	"AUD_THROUGHPUT" },
-			{ PM_QOS_DSP_THROUGHPUT,	"DSP_THROUGHPUT" },
-			{ PM_QOS_DNC_THROUGHPUT,	"DNC_THROUGHPUT" },
-			{ PM_QOS_FSYS0_THROUGHPUT,	"FSYS0_THROUGHPUT" },
-			{ PM_QOS_CAM_THROUGHPUT_MAX,	"CAM_THROUGHPUT_MAX" },
-			{ PM_QOS_AUD_THROUGHPUT_MAX,	"AUD_THROUGHPUT_MAX" },
-			{ PM_QOS_DSP_THROUGHPUT_MAX,	"DSP_THROUGHPUT_MAX" },
-			{ PM_QOS_DNC_THROUGHPUT_MAX,	"DNC_THROUGHPUT_MAX" },
-			{ PM_QOS_FSYS0_THROUGHPUT_MAX,	"FSYS0_THROUGHPUT_MAX" },
-			{ PM_QOS_MFC_THROUGHPUT,	"MFC_THROUGHPUT" },
-			{ PM_QOS_NPU_THROUGHPUT,	"NPU_THROUGHPUT" },
-			{ PM_QOS_MFC_THROUGHPUT_MAX,	"MFC_THROUGHPUT_MAX" },
-			{ PM_QOS_NPU_THROUGHPUT_MAX,	"NPU_THROUGHPUT_MAX" },
-			{ PM_QOS_TNR_THROUGHPUT,	"TNR_THROUGHPUT" },
-			{ PM_QOS_TNR_THROUGHPUT_MAX,	"TNR_THROUGHPUT_MAX" },
-			{ PM_QOS_GPU_THROUGHPUT_MIN,	"GPU_THROUGHPUT_MIN" },
-			{ PM_QOS_GPU_THROUGHPUT_MAX,	"GPU_THROUGHPUT_MAX" }),
+			{ PM_QOS_NETWORK_THROUGHPUT,	"NETWORK_THROUGHPUT" }),
 		  __entry->value)
 );
 
@@ -507,42 +470,7 @@ TRACE_EVENT(pm_qos_update_request_timeout,
 		  __print_symbolic(__entry->pm_qos_class,
 			{ PM_QOS_CPU_DMA_LATENCY,	"CPU_DMA_LATENCY" },
 			{ PM_QOS_NETWORK_LATENCY,	"NETWORK_LATENCY" },
-			{ PM_QOS_CLUSTER0_FREQ_MIN,	"CLUSTER0_FREQ_MIN" },
-			{ PM_QOS_CLUSTER0_FREQ_MAX,	"CLUSTER0_FREQ_MAX" },
-			{ PM_QOS_CLUSTER1_FREQ_MIN,	"CLUSTER1_FREQ_MIN" },
-			{ PM_QOS_CLUSTER1_FREQ_MAX,	"CLUSTER1_FREQ_MAX" },
-			{ PM_QOS_CLUSTER2_FREQ_MIN,	"CLUSTER2_FREQ_MIN" },
-			{ PM_QOS_CLUSTER2_FREQ_MAX,	"CLUSTER2_FREQ_MAX" },
-			{ PM_QOS_CPU_ONLINE_MIN,	"CPU_ONLINE_MIN" },
-			{ PM_QOS_CPU_ONLINE_MAX,	"CPU_ONLINE_MAX" },
-			{ PM_QOS_DEVICE_THROUGHPUT,     "DEVICE_THROUGHPUT" },
-			{ PM_QOS_INTCAM_THROUGHPUT,     "INTCAM_THROUGHPUT" },
-			{ PM_QOS_DEVICE_THROUGHPUT_MAX,	"DEVICE_THROUGHPUT_MAX" },
-			{ PM_QOS_INTCAM_THROUGHPUT_MAX,	"INTCAM_THROUGHPUT_MAX" },
-			{ PM_QOS_BUS_THROUGHPUT,	"BUS_THROUGHPUT" },
-			{ PM_QOS_BUS_THROUGHPUT_MAX,	"BUS_THROUGHPUT_MAX" },
-			{ PM_QOS_NETWORK_THROUGHPUT,	"NETWORK_THROUGHPUT" },
-			{ PM_QOS_MEMORY_BANDWIDTH,	"MEMORY_BANDWIDTH" },
-			{ PM_QOS_DISPLAY_THROUGHPUT,	"DISPLAY_THROUGHPUT" },
-			{ PM_QOS_DISPLAY_THROUGHPUT_MAX,"DISPLAY_THROUGHPUT_MAX" },
-			{ PM_QOS_CAM_THROUGHPUT,	"CAM_THROUGHPUT" },
-			{ PM_QOS_AUD_THROUGHPUT,	"AUD_THROUGHPUT" },
-			{ PM_QOS_DSP_THROUGHPUT,	"DSP_THROUGHPUT" },
-			{ PM_QOS_DNC_THROUGHPUT,	"DNC_THROUGHPUT" },
-			{ PM_QOS_FSYS0_THROUGHPUT,	"FSYS0_THROUGHPUT" },
-			{ PM_QOS_CAM_THROUGHPUT_MAX,	"CAM_THROUGHPUT_MAX" },
-			{ PM_QOS_AUD_THROUGHPUT_MAX,	"AUD_THROUGHPUT_MAX" },
-			{ PM_QOS_DSP_THROUGHPUT_MAX,	"DSP_THROUGHPUT_MAX" },
-			{ PM_QOS_DNC_THROUGHPUT_MAX,	"DNC_THROUGHPUT_MAX" },
-			{ PM_QOS_FSYS0_THROUGHPUT_MAX,	"FSYS0_THROUGHPUT_MAX" },
-			{ PM_QOS_MFC_THROUGHPUT,	"MFC_THROUGHPUT" },
-			{ PM_QOS_NPU_THROUGHPUT,	"NPU_THROUGHPUT" },
-			{ PM_QOS_MFC_THROUGHPUT_MAX,	"MFC_THROUGHPUT_MAX" },
-			{ PM_QOS_NPU_THROUGHPUT_MAX,	"NPU_THROUGHPUT_MAX" },
-			{ PM_QOS_TNR_THROUGHPUT,	"TNR_THROUGHPUT" },
-			{ PM_QOS_TNR_THROUGHPUT_MAX,	"TNR_THROUGHPUT_MAX" },
-			{ PM_QOS_GPU_THROUGHPUT_MIN,	"GPU_THROUGHPUT_MIN" },
-			{ PM_QOS_GPU_THROUGHPUT_MAX,	"GPU_THROUGHPUT_MAX" }),
+			{ PM_QOS_NETWORK_THROUGHPUT,	"NETWORK_THROUGHPUT" }),
 		  __entry->value, __entry->timeout_us)
 );
 
@@ -572,71 +500,11 @@ DECLARE_EVENT_CLASS(pm_qos_update,
 		  __entry->prev_value, __entry->curr_value)
 );
 
-TRACE_EVENT(pm_qos_update_target,
+DEFINE_EVENT(pm_qos_update, pm_qos_update_target,
 
-	TP_PROTO(int pm_qos_class, enum pm_qos_req_action action, int prev_value, int curr_value),
+	TP_PROTO(enum pm_qos_req_action action, int prev_value, int curr_value),
 
-	TP_ARGS(pm_qos_class, action, prev_value, curr_value),
-
-	TP_STRUCT__entry(
-		__field( int,                    pm_qos_class	)
-		__field( enum pm_qos_req_action, action         )
-		__field( int,                    prev_value     )
-		__field( int,                    curr_value     )
-	),
-
-	TP_fast_assign(
-		__entry->pm_qos_class = pm_qos_class;
-		__entry->action = action;
-		__entry->prev_value = prev_value;
-		__entry->curr_value = curr_value;
-	),
-
-	TP_printk("pm_qos_class=%s action=%s prev_value=%d curr_value=%d",
-		  __print_symbolic(__entry->pm_qos_class,
-			{ PM_QOS_CPU_DMA_LATENCY,	"CPU_DMA_LATENCY" },
-			{ PM_QOS_NETWORK_LATENCY,	"NETWORK_LATENCY" },
-			{ PM_QOS_CLUSTER0_FREQ_MIN,	"CLUSTER0_FREQ_MIN" },
-			{ PM_QOS_CLUSTER0_FREQ_MAX,	"CLUSTER0_FREQ_MAX" },
-			{ PM_QOS_CLUSTER1_FREQ_MIN,	"CLUSTER1_FREQ_MIN" },
-			{ PM_QOS_CLUSTER1_FREQ_MAX,	"CLUSTER1_FREQ_MAX" },
-			{ PM_QOS_CLUSTER2_FREQ_MIN,	"CLUSTER2_FREQ_MIN" },
-			{ PM_QOS_CLUSTER2_FREQ_MAX,	"CLUSTER2_FREQ_MAX" },
-			{ PM_QOS_CPU_ONLINE_MIN,	"CPU_ONLINE_MIN" },
-			{ PM_QOS_CPU_ONLINE_MAX,	"CPU_ONLINE_MAX" },
-			{ PM_QOS_DEVICE_THROUGHPUT,     "DEVICE_THROUGHPUT" },
-			{ PM_QOS_INTCAM_THROUGHPUT,     "INTCAM_THROUGHPUT" },
-			{ PM_QOS_DEVICE_THROUGHPUT_MAX,	"DEVICE_THROUGHPUT_MAX" },
-			{ PM_QOS_INTCAM_THROUGHPUT_MAX,	"INTCAM_THROUGHPUT_MAX" },
-			{ PM_QOS_BUS_THROUGHPUT,	"BUS_THROUGHPUT" },
-			{ PM_QOS_BUS_THROUGHPUT_MAX,	"BUS_THROUGHPUT_MAX" },
-			{ PM_QOS_NETWORK_THROUGHPUT,	"NETWORK_THROUGHPUT" },
-			{ PM_QOS_MEMORY_BANDWIDTH,	"MEMORY_BANDWIDTH" },
-			{ PM_QOS_DISPLAY_THROUGHPUT,	"DISPLAY_THROUGHPUT" },
-			{ PM_QOS_DISPLAY_THROUGHPUT_MAX,"DISPLAY_THROUGHPUT_MAX" },
-			{ PM_QOS_CAM_THROUGHPUT,	"CAM_THROUGHPUT" },
-			{ PM_QOS_AUD_THROUGHPUT,	"AUD_THROUGHPUT" },
-			{ PM_QOS_DSP_THROUGHPUT,	"DSP_THROUGHPUT" },
-			{ PM_QOS_DNC_THROUGHPUT,	"DNC_THROUGHPUT" },
-			{ PM_QOS_FSYS0_THROUGHPUT,	"FSYS0_THROUGHPUT" },
-			{ PM_QOS_CAM_THROUGHPUT_MAX,	"CAM_THROUGHPUT_MAX" },
-			{ PM_QOS_AUD_THROUGHPUT_MAX,	"AUD_THROUGHPUT_MAX" },
-			{ PM_QOS_DSP_THROUGHPUT_MAX,	"DSP_THROUGHPUT_MAX" },
-			{ PM_QOS_DNC_THROUGHPUT_MAX,	"DNC_THROUGHPUT_MAX" },
-			{ PM_QOS_FSYS0_THROUGHPUT_MAX,	"FSYS0_THROUGHPUT_MAX" },
-			{ PM_QOS_MFC_THROUGHPUT,	"MFC_THROUGHPUT" },
-			{ PM_QOS_NPU_THROUGHPUT,	"NPU_THROUGHPUT" },
-			{ PM_QOS_MFC_THROUGHPUT_MAX,	"MFC_THROUGHPUT_MAX" },
-			{ PM_QOS_NPU_THROUGHPUT_MAX,	"NPU_THROUGHPUT_MAX" },
-			{ PM_QOS_TNR_THROUGHPUT,	"TNR_THROUGHPUT" },
-			{ PM_QOS_TNR_THROUGHPUT_MAX,	"TNR_THROUGHPUT_MAX" },
-			{ PM_QOS_GPU_THROUGHPUT_MIN,	"GPU_THROUGHPUT_MIN" },
-			{ PM_QOS_GPU_THROUGHPUT_MAX,	"GPU_THROUGHPUT_MAX" }),
-		  __print_symbolic(__entry->action,
-			{ PM_QOS_ADD_REQ,	"ADD_REQ" },
-			{ PM_QOS_UPDATE_REQ,	"UPDATE_REQ" },
-			{ PM_QOS_REMOVE_REQ,	"REMOVE_REQ" }),
-		  __entry->prev_value, __entry->curr_value)
+	TP_ARGS(action, prev_value, curr_value)
 );
 
 DEFINE_EVENT_PRINT(pm_qos_update, pm_qos_update_flags,
@@ -704,25 +572,36 @@ DEFINE_EVENT(dev_pm_qos_request, dev_pm_qos_remove_request,
 	TP_ARGS(name, type, new_value)
 );
 
-TRACE_EVENT(ocp_max_limit,
-
-	TP_PROTO(unsigned int clipped_freq, bool start),
-
-	TP_ARGS(clipped_freq, start),
-
-	TP_STRUCT__entry(
-		__field(        u32,            clipped_freq    )
-		__field(        bool,           start   )
-	),
-
-	TP_fast_assign(
-		__entry->clipped_freq = clipped_freq;
-		__entry->start = start;
-	),
-
-	TP_printk("clipped_freq=%lu %s",
-			(unsigned long)__entry->clipped_freq,
-			(__entry->start)?"begin":"end")
+TRACE_EVENT(sugov_util_update,
+	    TP_PROTO(int cpu,
+		     unsigned long util, unsigned long avg_cap,
+		     unsigned long max_cap, unsigned long nl, unsigned long pl,
+		     unsigned int rtgb, unsigned int flags),
+	    TP_ARGS(cpu, util, avg_cap, max_cap, nl, pl, rtgb, flags),
+	    TP_STRUCT__entry(
+		    __field(int, cpu)
+		    __field(unsigned long, util)
+		    __field(unsigned long, avg_cap)
+		    __field(unsigned long, max_cap)
+		    __field(unsigned long, nl)
+		    __field(unsigned long, pl)
+		    __field(unsigned int, rtgb)
+		    __field(unsigned int, flags)
+	    ),
+	    TP_fast_assign(
+		    __entry->cpu = cpu;
+		    __entry->util = util;
+		    __entry->avg_cap = avg_cap;
+		    __entry->max_cap = max_cap;
+		    __entry->nl = nl;
+		    __entry->pl = pl;
+		    __entry->rtgb = rtgb;
+		    __entry->flags = flags;
+	    ),
+	    TP_printk("cpu=%d util=%lu avg_cap=%lu max_cap=%lu nl=%lu pl=%lu rtgb=%u flags=0x%x",
+		      __entry->cpu, __entry->util, __entry->avg_cap,
+		      __entry->max_cap, __entry->nl,
+		      __entry->pl, __entry->rtgb, __entry->flags)
 );
 
 TRACE_EVENT(sugov_ffsi_freq,
@@ -752,6 +631,205 @@ TRACE_EVENT(sugov_ffsi_freq,
 		      __entry->l1_rand,
 		      __entry->legacy_freq,
 		      __entry->freq)
+);
+
+TRACE_EVENT(sugov_next_freq,
+	    TP_PROTO(unsigned int cpu, unsigned long util, unsigned long max,
+		     unsigned int freq),
+	    TP_ARGS(cpu, util, max, freq),
+	    TP_STRUCT__entry(
+		    __field(unsigned int, cpu)
+		    __field(unsigned long, util)
+		    __field(unsigned long, max)
+		    __field(unsigned int, freq)
+	    ),
+	    TP_fast_assign(
+		    __entry->cpu = cpu;
+		    __entry->util = util;
+		    __entry->max = max;
+		    __entry->freq = freq;
+	    ),
+	    TP_printk("cpu=%u util=%lu max=%lu freq=%u",
+		      __entry->cpu,
+		      __entry->util,
+		      __entry->max,
+		      __entry->freq)
+);
+
+TRACE_EVENT(bw_hwmon_meas,
+
+	TP_PROTO(const char *name, unsigned long mbps,
+		 unsigned long us, int wake),
+
+	TP_ARGS(name, mbps, us, wake),
+
+	TP_STRUCT__entry(
+		__string(name,			name)
+		__field(unsigned long,		mbps)
+		__field(unsigned long,		us)
+		__field(int,			wake)
+	),
+
+	TP_fast_assign(
+		__assign_str(name, name);
+		__entry->mbps = mbps;
+		__entry->us = us;
+		__entry->wake = wake;
+	),
+
+	TP_printk("dev: %s, mbps = %lu, us = %lu, wake = %d",
+		__get_str(name),
+		__entry->mbps,
+		__entry->us,
+		__entry->wake)
+);
+
+TRACE_EVENT(bw_hwmon_update,
+
+	TP_PROTO(const char *name, unsigned long mbps, unsigned long freq,
+		 unsigned long up_thres, unsigned long down_thres),
+
+	TP_ARGS(name, mbps, freq, up_thres, down_thres),
+
+	TP_STRUCT__entry(
+		__string(name,			name)
+		__field(unsigned long,		mbps)
+		__field(unsigned long,		freq)
+		__field(unsigned long,		up_thres)
+		__field(unsigned long,		down_thres)
+	),
+
+	TP_fast_assign(
+		__assign_str(name, name);
+		__entry->mbps = mbps;
+		__entry->freq = freq;
+		__entry->up_thres = up_thres;
+		__entry->down_thres = down_thres;
+	),
+
+	TP_printk("dev: %s, mbps = %lu, freq = %lu, up = %lu, down = %lu",
+		__get_str(name),
+		__entry->mbps,
+		__entry->freq,
+		__entry->up_thres,
+		__entry->down_thres)
+);
+
+TRACE_EVENT(cache_hwmon_meas,
+	TP_PROTO(const char *name, unsigned long high_mrps,
+		 unsigned long med_mrps, unsigned long low_mrps,
+		 unsigned int busy_percent, unsigned int us),
+	TP_ARGS(name, high_mrps, med_mrps, low_mrps, busy_percent, us),
+	TP_STRUCT__entry(
+		__string(name, name)
+		__field(unsigned long, high_mrps)
+		__field(unsigned long, med_mrps)
+		__field(unsigned long, low_mrps)
+		__field(unsigned long, total_mrps)
+		__field(unsigned int, busy_percent)
+		__field(unsigned int, us)
+	),
+	TP_fast_assign(
+		__assign_str(name, name);
+		__entry->high_mrps = high_mrps;
+		__entry->med_mrps = med_mrps;
+		__entry->low_mrps = low_mrps;
+		__entry->total_mrps = high_mrps + med_mrps + low_mrps;
+		__entry->busy_percent = busy_percent;
+		__entry->us = us;
+	),
+	TP_printk("dev=%s H=%lu M=%lu L=%lu T=%lu busy_pct=%u period=%u",
+		  __get_str(name), __entry->high_mrps, __entry->med_mrps,
+		  __entry->low_mrps, __entry->total_mrps,
+		  __entry->busy_percent, __entry->us)
+);
+
+TRACE_EVENT(cache_hwmon_update,
+	TP_PROTO(const char *name, unsigned long freq_mhz),
+	TP_ARGS(name, freq_mhz),
+	TP_STRUCT__entry(
+		__string(name, name)
+		__field(unsigned long, freq)
+	),
+	TP_fast_assign(
+		__assign_str(name, name);
+		__entry->freq = freq_mhz;
+	),
+	TP_printk("dev=%s freq=%lu", __get_str(name), __entry->freq)
+);
+
+TRACE_EVENT(memlat_dev_meas,
+	TP_PROTO(const char *name, unsigned int dev_id, unsigned long inst,
+		 unsigned long mem, unsigned long freq, unsigned int stall,
+		 unsigned int wb, unsigned int ratio),
+
+	TP_ARGS(name, dev_id, inst, mem, freq, stall, wb, ratio),
+
+	TP_STRUCT__entry(
+		__string(name, name)
+		__field(unsigned int, dev_id)
+		__field(unsigned long, inst)
+		__field(unsigned long, mem)
+		__field(unsigned long, freq)
+		__field(unsigned int, stall)
+		__field(unsigned int, wb)
+		__field(unsigned int, ratio)
+	),
+
+	TP_fast_assign(
+		__assign_str(name, name);
+		__entry->dev_id = dev_id;
+		__entry->inst = inst;
+		__entry->mem = mem;
+		__entry->freq = freq;
+		__entry->stall = stall;
+		__entry->wb = wb;
+		__entry->ratio = ratio;
+	),
+
+	TP_printk("dev: %s, id=%u, inst=%lu, mem=%lu, freq=%lu, stall=%u, wb=%u, ratio=%u",
+		__get_str(name),
+		__entry->dev_id,
+		__entry->inst,
+		__entry->mem,
+		__entry->freq,
+		__entry->stall,
+		__entry->wb,
+		__entry->ratio)
+);
+
+TRACE_EVENT(memlat_dev_update,
+
+	TP_PROTO(const char *name, unsigned int dev_id, unsigned long inst,
+		 unsigned long mem, unsigned long freq, unsigned long vote),
+
+	TP_ARGS(name, dev_id, inst, mem, freq, vote),
+
+	TP_STRUCT__entry(
+		__string(name, name)
+		__field(unsigned int, dev_id)
+		__field(unsigned long, inst)
+		__field(unsigned long, mem)
+		__field(unsigned long, freq)
+		__field(unsigned long, vote)
+	),
+
+	TP_fast_assign(
+		__assign_str(name, name);
+		__entry->dev_id = dev_id;
+		__entry->inst = inst;
+		__entry->mem = mem;
+		__entry->freq = freq;
+		__entry->vote = vote;
+	),
+
+	TP_printk("dev: %s, id=%u, inst=%lu, mem=%lu, freq=%lu, vote=%lu",
+		__get_str(name),
+		__entry->dev_id,
+		__entry->inst,
+		__entry->mem,
+		__entry->freq,
+		__entry->vote)
 );
 
 #endif /* _TRACE_POWER_H */

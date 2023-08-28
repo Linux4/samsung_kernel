@@ -10,9 +10,10 @@
  * published by the Free Software Foundation.
  */
 
+struct sec_ts_data *tsp_info;
+
 #include "sec_ts.h"
 
-struct sec_ts_data *tsp_info;
 struct sec_ts_data *ts_dup;
 bool shutdown_is_on_going_tsp;
 
@@ -25,11 +26,6 @@ static void sec_ts_print_info_work(struct work_struct *work);
 #ifdef USE_OPEN_CLOSE
 static int sec_ts_input_open(struct input_dev *dev);
 static void sec_ts_input_close(struct input_dev *dev);
-#endif
-
-#if defined(CONFIG_SAMSUNG_TUI)
-static int stui_tsp_enter(void);
-static int stui_tsp_exit(void);
 #endif
 
 int sec_ts_read_information(struct sec_ts_data *ts);
@@ -103,6 +99,8 @@ static ssize_t secure_touch_enable_store(struct device *dev,
 			return -EBUSY;
 		}
 
+		sec_ts_delay(200);
+		
 		/* syncronize_irq -> disable_irq + enable_irq
 		 * concern about timing issue.
 		 */
@@ -142,6 +140,8 @@ static ssize_t secure_touch_enable_store(struct device *dev,
 			input_err(true, &ts->client->dev, "%s: already disabled\n", __func__);
 			return count;
 		}
+
+		sec_ts_delay(200);
 
 		pm_runtime_put_sync(ts->client->adapter->dev.parent);
 		atomic_set(&ts->secure_enabled, 0);
@@ -2742,12 +2742,6 @@ static int sec_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 
 #ifdef CONFIG_SAMSUNG_TUI
 	tsp_info = ts;
-	ret = stui_set_info(stui_tsp_enter, stui_tsp_exit, STUI_TSP_TYPE_SLSI);
-	if (ret < 0) {
-			input_err(true, &tsp_info->client->dev,
-					"%s: Failed to register stui tsp type\n", __func__);
-	}
-	input_info(true, &tsp_info->client->dev, "%s: stui tsp vendor slsi register\n", __func__);
 #endif
 	/* need remove below resource @ remove driver */
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
@@ -3497,7 +3491,7 @@ static int sec_ts_pm_resume(struct device *dev)
 extern int stui_i2c_lock(struct i2c_adapter *adap);
 extern int stui_i2c_unlock(struct i2c_adapter *adap);
 
-static int stui_tsp_enter(void)
+int stui_tsp_enter(void)
 {
 	int ret = 0;
 
@@ -3517,7 +3511,7 @@ static int stui_tsp_enter(void)
 	return 0;
 }
 
-static int stui_tsp_exit(void)
+int stui_tsp_exit(void)
 {
 	int ret = 0;
 

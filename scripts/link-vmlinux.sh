@@ -69,29 +69,30 @@ archive_builtin()
 	fi
 }
 
-# If CONFIG_LTO_CLANG is selected, collect generated symbol versions into
-# .tmp_symversions
-modversions()
+# If CONFIG_LTO_CLANG is selected, generate a linker script to ensure correct
+# ordering of initcalls, and with CONFIG_MODVERSIONS also enabled, collect the
+# previously generated symbol versions into the same script.
+lto_lds()
 {
 	if [ -z "${CONFIG_LTO_CLANG}" ]; then
 		return
 	fi
 
-	if [ -z "${CONFIG_MODVERSIONS}" ]; then
-		return
+	${srctree}/scripts/generate_initcall_order.pl \
+		built-in.a ${KBUILD_VMLINUX_LIBS} \
+		> .tmp_lto.lds
+
+	if [ -n "${CONFIG_MODVERSIONS}" ]; then
+		for a in built-in.a ${KBUILD_VMLINUX_LIBS}; do
+			for o in $(${AR} t $a); do
+				if [ -f ${o}.symversions ]; then
+					cat ${o}.symversions >> .tmp_lto.lds
+				fi
+			done
+		done
 	fi
 
-	rm -f .tmp_symversions
-
-	for a in built-in.a ${KBUILD_VMLINUX_LIBS}; do
-		for o in $(${AR} t $a); do
-			if [ -f ${o}.symversions ]; then
-				cat ${o}.symversions >> .tmp_symversions
-			fi
-		done
-	done
-
-	echo "-T .tmp_symversions"
+	echo "-T .tmp_lto.lds"
 }
 
 # Link of vmlinux.o used for section mismatch analysis
@@ -113,7 +114,7 @@ modpost_link()
 		info LTO vmlinux.o
 	fi
 
-	${LD} ${KBUILD_LDFLAGS} -r -o ${1} $(modversions) ${objects}
+	${LD} ${KBUILD_LDFLAGS} -r -o ${1} $(lto_lds) ${objects}
 }
 
 # If CONFIG_LTO_CLANG is selected, we postpone running recordmcount until
@@ -199,6 +200,31 @@ kallsyms()
 	${CC} ${aflags} -c -o ${2} ${afile}
 }
 
+# Generates ${2} .o file with RTIC MP's from the ${1} object file (vmlinux)
+# ${3} the file name where the sizes of the RTIC MP structure are stored
+# just in case, save copy of the RTIC mp to ${4}
+# Note: RTIC_MPGEN has to be set if MPGen is available
+rtic_mp()
+{
+	# assume that RTIC_MP_O generation may fail
+	RTIC_MP_O=
+
+	local aflags="${KBUILD_AFLAGS} ${KBUILD_AFLAGS_KERNEL}               \
+		      ${NOSTDINC_FLAGS} ${LINUXINCLUDE} ${KBUILD_CPPFLAGS}"
+
+	${RTIC_MPGEN} --objcopy="${OBJCOPY}" --objdump="${OBJDUMP}" \
+	--binpath='' --vmlinux=${1} --config=${KCONFIG_CONFIG} && \
+	cat rtic_mp.c | ${CC} ${aflags} -c -o ${2} -x c - && \
+	cp rtic_mp.c ${4} && \
+	${NM} --print-size --size-sort ${2} > ${3} && \
+	RTIC_MP_O=${2} || echo “RTIC MP generation has failed”
+	# NM - save generated variable sizes for verification
+	# RTIC_MP_O is our retval - great success if set to generated .o file
+	# Echo statement above prints the error message in case any of the
+	# above RTIC MP generation commands fail and it ensures rtic mp failure
+	# does not cause kernel compilation to fail.
+}
+
 # Create map file with all symbols from ${1}
 # See mksymap for additional details
 mksysmap()
@@ -216,12 +242,14 @@ cleanup()
 {
 	rm -f .tmp_System.map
 	rm -f .tmp_kallsyms*
-	rm -f .tmp_symversions
+	rm -f .tmp_lto.lds
 	rm -f .tmp_vmlinux*
 	rm -f built-in.a
 	rm -f System.map
 	rm -f vmlinux
 	rm -f vmlinux.o
+	rm -f .tmp_rtic_mp_sz*
+	rm -f rtic_mp.*
 }
 
 on_exit()
@@ -253,14 +281,7 @@ if [ "$1" = "clean" ]; then
 fi
 
 # We need access to CONFIG_ symbols
-case "${KCONFIG_CONFIG}" in
-*/*)
-	. "${KCONFIG_CONFIG}"
-	;;
-*)
-	# Force using a file from the current directory
-	. "./${KCONFIG_CONFIG}"
-esac
+. include/config/auto.conf
 
 # Update version
 info GEN .version
@@ -286,6 +307,15 @@ ${MAKE} -f "${srctree}/scripts/Makefile.modpost" vmlinux.o
 if [ -n "${CONFIG_LTO_CLANG}" ]; then
 	# Call recordmcount if needed
 	recordmcount vmlinux.o
+fi
+
+# Generate RTIC MP placeholder compile unit of the correct size
+# and add it to the list of link objects
+# this needs to be done before generating kallsyms
+if [ ! -z ${RTIC_MPGEN+x} ]; then
+	rtic_mp vmlinux.o rtic_mp.o .tmp_rtic_mp_sz1 .tmp_rtic_mp1.c
+	KBUILD_VMLINUX_LIBS+=" "
+	KBUILD_VMLINUX_LIBS+=$RTIC_MP_O
 fi
 
 kallsymso=""
@@ -340,6 +370,22 @@ if [ -n "${CONFIG_KALLSYMS}" ]; then
 	fi
 fi
 
+# Update RTIC MP object by replacing the place holder
+# with actual MP data of the same size
+# Also double check that object size did not change
+# Note: Check initilally if RTIC_MP_O is not empty or uninitialized,
+# as incase RTIC_MPGEN is set and failure occurs in RTIC_MP_O
+# generation, below check for comparing object sizes fails
+# due to an empty RTIC_MP_O object.
+if [ ! -z ${RTIC_MP_O} ]; then
+	rtic_mp "${kallsyms_vmlinux}" rtic_mp.o .tmp_rtic_mp_sz2 \
+		.tmp_rtic_mp2.c
+	if ! cmp -s .tmp_rtic_mp_sz1 .tmp_rtic_mp_sz2; then
+		echo >&2 'ERROR: RTIC MP object files size mismatch'
+		exit 1
+	fi
+fi
+
 info LD vmlinux
 vmlinux_link "${kallsymso}" vmlinux
 
@@ -363,9 +409,9 @@ if [ -n "${CONFIG_KALLSYMS}" ]; then
 fi
 
 # CFP instrumentation will change binary, need to be before FIPS
-if [ -n "${CONFIG_RKP_CFP}" ]; then
-	echo '  RKP_CFP : instrumenting vmlinux... '
-	"${srctree}/scripts/rkp_cfp/instrument.py" --vmlinux "${objtree}/vmlinux" \
+if [ -n "${CONFIG_CFP}" ]; then
+	echo '  CFP : instrumenting vmlinux... '
+	python "${srctree}/scripts/cfp/instrument.py" --vmlinux "${objtree}/vmlinux" \
 	--config "${objtree}/.config"  --inplace
 fi
 
@@ -374,7 +420,17 @@ if [ -n "${CONFIG_CRYPTO_FIPS}" ]; then
 	PYTHONDONTWRITEBYTECODE=0 "${srctree}/scripts/crypto/fips_crypto_integrity.py" "${objtree}/vmlinux"
 fi
 
-if [ -n "${CONFIG_EXYNOS_FMP_FIPS}" ]; then
-    echo '  FIPS : Generating hmac of fmp and updating vmlinux... '
-	PYTHONDONTWRITEBYTECODE=0 "${srctree}/scripts/fmp/fips_fmp_integrity.py" "${objtree}/vmlinux"
+# Starting Android Q, the DTB's are part of dtb.img and not part
+# of the kernel image. RTIC DTS relies on the kernel environment
+# and could not build outside of the kernel. Generate RTIC DTS after
+# successful kernel build if MPGen is enabled. The DTB will be
+# generated with dtb.img in kernel_definitions.mk.
+if [ ! -z ${RTIC_MPGEN+x} ]; then
+	${RTIC_MPGEN} --objcopy="${OBJCOPY}" --objdump="${OBJDUMP}" \
+		--binpath="" --vmlinux="vmlinux" --config=${KCONFIG_CONFIG} \
+		--cc="${CC} ${KBUILD_AFLAGS}" --dts=rtic_mp.dts \
+		|| echo “RTIC MP DTS generation has failed”
+	# Echo statement above prints the error message in case above
+	# RTIC MP DTS generation command fails and it ensures rtic mp
+	# failure does not cause kernel compilation to fail.
 fi

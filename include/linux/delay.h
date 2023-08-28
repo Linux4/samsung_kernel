@@ -39,50 +39,38 @@ extern unsigned long loops_per_jiffy;
 #define MAX_UDELAY_MS	5
 #endif
 
+#define MAX_MDELAY	1000
+
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SEC_DEBUG_SUMMARY)
+extern unsigned long sec_delay_check;
+#define BUG_MDELAY(condition) do \
+    { \
+        if (unlikely(condition)) { \
+            pr_err("BUG: mdelay function is used in the non-atomic context\n"); \
+            barrier_before_unreachable(); \
+            panic("BUG! - Irrational mdelay usage"); \
+        } \
+    } while (0)
+#endif
+
 #ifndef mdelay
-#ifndef CONFIG_DELAY_CHECKER
+#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP) || !defined(CONFIG_SEC_DEBUG_SUMMARY)
 #define mdelay(n) (\
 	(__builtin_constant_p(n) && (n)<=MAX_UDELAY_MS) ? udelay((n)*1000) : \
 	({unsigned long __ms=(n); while (__ms--) udelay(1000);}))
-
-#define dev_mdelay(n)  mdelay(n)
 #else
-#include <linux/sched/debug.h>
-
-#define MAX_MDELAY	1000
-extern unsigned long sec_delay_check;
-
-#define MDELAY_CHECKER(n) do \
-    { \
-        if (unlikely(irqs_disabled() && (n) >= 2 && sec_delay_check)) { \
-            barrier_before_unreachable(); \
-            show_stack_auto_comment(NULL, NULL); \
-            panic("bad mdelay %dms with irq disabled", (n)); \
-        } \
-        if (unlikely(!in_atomic())) { \
-            barrier_before_unreachable(); \
-            show_stack_auto_comment(NULL, NULL); \
-            panic("bad mdelay %dms in non-atomic context", (n)); \
-        } \
-    } while (0)
-
-#define mdelay(n)  ({\
+#define mdelay(n) ({\
     BUILD_BUG_ON(__builtin_constant_p(n) && (n) > MAX_MDELAY); \
-    if (__builtin_constant_p(n) && (n)<=MAX_UDELAY_MS) \
-        udelay((n)*1000); \
+    if (__builtin_constant_p(n) && (n) <= MAX_UDELAY_MS) \
+        udelay((n) * 1000); \
     else {\
-        unsigned long __ms=(n); \
-	MDELAY_CHECKER((n));\
+        unsigned long __ms = (n); \
+        BUG_ON(irqs_disabled() && (n) >= 2 && sec_delay_check);\
+        BUG_MDELAY(!in_atomic());\
         while (__ms--) \
             udelay(1000); \
-    } })
-
-/* limit delay duration under 1000ms.
- * if want use over 1000ms intentionally for dev, use dev_mdelay.
- */
-#define dev_mdelay(n) (\
-	(__builtin_constant_p(n) && (n)<=MAX_UDELAY_MS) ? udelay((n)*1000) : \
-	({unsigned long __ms=(n); while (__ms--) udelay(1000);}))
+        } \
+    })
 #endif
 #endif
 

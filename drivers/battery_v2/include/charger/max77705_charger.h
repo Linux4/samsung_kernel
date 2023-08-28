@@ -32,6 +32,11 @@ enum {
 
 extern unsigned int lpcharge;
 extern bool mfc_fw_update;
+//extern int is_debug_level_low;
+
+#if defined(CONFIG_SEC_FACTORY)
+extern int factory_mode;
+#endif
 
 extern void max77705_set_fw_noautoibus(int enable);
 extern void max77705_set_snkcap(u8 *snkcap_data, int length);
@@ -316,10 +321,23 @@ ssize_t max77705_chg_store_attrs(struct device *dev,
 
 #define REDUCE_CURRENT_STEP						100
 #define MINIMUM_INPUT_CURRENT					300
+/* for VZW support */
+#if defined(CONFIG_TABLET_MODEL_CONCEPT) && !defined(CONFIG_SEC_FACTORY)
+#define SLOW_CHARGING_CURRENT_STANDARD          1000
+#else
 #define SLOW_CHARGING_CURRENT_STANDARD          400
+#endif
 
 #define WC_CURRENT_STEP		100
 #define WC_CURRENT_START	480
+
+#if defined(CONFIG_CHARGER_MAX77705_OTG_LIMIT)
+enum max77705_otg_limit_step {
+	MAX77705_LIMIT_STEP_DEFAULT,
+	MAX77705_LIMIT_STEP_OTG_ON,
+	MAX77705_LIMIT_STEP_NUM,
+};
+#endif
 
 struct max77705_charger_data {
 	struct device           *dev;
@@ -338,18 +356,25 @@ struct max77705_charger_data {
 	struct delayed_work	aicl_work;
 	struct delayed_work	isr_work;
 	struct delayed_work	recovery_work;	/*  softreg recovery work */
+#if defined(CONFIG_USE_POGO)
+	struct delayed_work	wpc_work;	/*  wpc detect work */
+#endif
 	struct delayed_work	chgin_init_work;	/*  chgin init work */
 	struct delayed_work wc_current_work;
+	struct delayed_work skipmode_work;
 
 	/* mutex */
 	struct mutex irq_lock;
 	struct mutex ops_lock;
 
 	/* wakelock */
-	struct wake_lock chgin_wake_lock;
-	struct wake_lock wc_current_wake_lock;
-	struct wake_lock aicl_wake_lock;
-	struct wake_lock otg_wake_lock;
+#if defined(CONFIG_USE_POGO)
+	struct wakeup_source *wpc_wake_lock;
+#endif
+	struct wakeup_source *chgin_wake_lock;
+	struct wakeup_source *wc_current_wake_lock;
+	struct wakeup_source *aicl_wake_lock;
+	struct wakeup_source *otg_wake_lock;
 
 	unsigned int	is_charging;
 	unsigned int	charging_type;
@@ -381,6 +406,10 @@ struct max77705_charger_data {
 	int		irq_aicl;
 	int		irq_aicl_enabled;
 
+	/* wireless charge, w(wpc), v(vbus) */
+#if defined(CONFIG_USE_POGO)
+	int		wc_w_irq;
+#endif
 	int		wc_current;
 	int		wc_pre_current;
 
@@ -390,11 +419,15 @@ struct max77705_charger_data {
 	bool enable_sysovlo_irq;
 	bool enable_noise_wa;
 	int irq_sysovlo;
-	struct wake_lock sysovlo_wake_lock;
+	struct wakeup_source *sysovlo_wake_lock;
 
 	bool is_mdock;
 	bool otg_on;
 	bool uno_on;
+#if defined(CONFIG_CHARGER_MAX77705_OTG_LIMIT)
+	int otg_limit_step;
+	int cpu_max_freq[MAX77705_LIMIT_STEP_NUM];
+#endif
 
 	int pmic_ver;
 	int input_curr_limit_step;

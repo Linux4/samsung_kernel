@@ -114,7 +114,6 @@ struct samsung_pin_bank_type {
  * @eint_type: type of the external interrupt supported by the bank.
  * @eint_mask: bit mask of pins which support EINT function.
  * @eint_offset: SoC-specific EINT register or interrupt offset of bank.
- * @fltcon_offset: SoC-specific EINT filter control register offset of bank.
  * @name: name to be prefixed for each pin in this pin bank.
  */
 struct samsung_pin_bank_data {
@@ -126,7 +125,6 @@ struct samsung_pin_bank_data {
 	enum eint_type	eint_type;
 	u32		eint_mask;
 	u32		eint_offset;
-	u32		fltcon_offset;
 	const char	*name;
 };
 
@@ -141,7 +139,6 @@ struct samsung_pin_bank_data {
  * @eint_type: type of the external interrupt supported by the bank.
  * @eint_mask: bit mask of pins which support EINT function.
  * @eint_offset: SoC-specific EINT register or interrupt offset of bank.
- * @fltcon_offset: SoC-specific EINT filter control register offset of bank.
  * @name: name to be prefixed for each pin in this pin bank.
  * @pin_base: starting pin number of the bank.
  * @soc_priv: per-bank private data for SoC-specific code.
@@ -164,7 +161,6 @@ struct samsung_pin_bank {
 	enum eint_type	eint_type;
 	u32		eint_mask;
 	u32		eint_offset;
-	u32		fltcon_offset;
 	const char	*name;
 
 	u32		pin_base;
@@ -280,7 +276,7 @@ struct samsung_pinctrl_drv_data {
 	struct pinctrl_desc		pctl;
 	struct pinctrl_dev		*pctl_dev;
 
-	struct samsung_pin_group	*pin_groups;
+	const struct samsung_pin_group	*pin_groups;
 	unsigned int			nr_groups;
 	const struct samsung_pmx_func	*pmx_functions;
 	unsigned int			nr_functions;
@@ -312,16 +308,12 @@ struct samsung_pinctrl_of_match_data {
  * @pins: the pins included in this group.
  * @num_pins: number of pins included in this group.
  * @func: the function number to be programmed when selected.
- * @state: current pin group state.
- * @state_num: state number in pin group.
  */
 struct samsung_pin_group {
 	const char		*name;
 	const unsigned int	*pins;
 	u8			num_pins;
 	u8			func;
-	unsigned int		state[PINCFG_TYPE_NUM];
-	unsigned int		state_num;
 };
 
 /**
@@ -353,7 +345,5 @@ extern const struct samsung_pinctrl_of_match_data s3c2416_of_data;
 extern const struct samsung_pinctrl_of_match_data s3c2440_of_data;
 extern const struct samsung_pinctrl_of_match_data s3c2450_of_data;
 extern const struct samsung_pinctrl_of_match_data s5pv210_of_data;
-extern const struct samsung_pinctrl_of_match_data exynos9820_of_data;
-extern const struct samsung_pinctrl_of_match_data exynos9830_of_data;
 
 #endif /* __PINCTRL_SAMSUNG_H */

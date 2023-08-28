@@ -74,14 +74,7 @@
 #include <linux/seq_file.h>
 #include <linux/uio.h>
 #include <linux/skb_array.h>
-#include <linux/bpf.h>
-#include <linux/bpf_trace.h>
-#include <linux/mutex.h>
-
-#include <linux/uaccess.h>
-#include <linux/proc_fs.h>
-
-// ------------- START of KNOX_VPN ------------------//
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
 #include <linux/types.h>
 #include <linux/udp.h>
 #include <linux/tcp.h>
@@ -91,7 +84,13 @@
 #define META_MARK_BASE_LOWER 100
 #define META_MARK_BASE_UPPER 500
 
-// ------------- END of KNOX_VPN -------------------//
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
+#include <linux/bpf.h>
+#include <linux/bpf_trace.h>
+#include <linux/mutex.h>
+
+#include <linux/uaccess.h>
+#include <linux/proc_fs.h>
 
 static void tun_default_link_ksettings(struct net_device *dev,
 				       struct ethtool_link_ksettings *cmd);
@@ -143,7 +142,7 @@ do {								\
 
 #define GOODCOPY_LEN 128
 
-// ------------- START of KNOX_VPN ------------------//
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
 /* The KNOX framework marks packets intended to a VPN client for special processing differently.
  * The marked packets hit special IP table rules and are routed back to user space using the TUN driver
  * for policy based treatment by the VPN client.
@@ -163,7 +162,7 @@ struct knox_meta_param {
 
 #define TUN_META_HDR_SZ sizeof(struct knox_meta_param)
 #define TUN_META_MARK_OFFSET offsetof(struct knox_meta_param, uid)
-// ------------- END of KNOX_VPN -------------------//
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 
 #define FLT_EXACT_COUNT 8
 struct tap_filter {
@@ -353,8 +352,8 @@ static void tun_napi_init(struct tun_struct *tun, struct tun_file *tfile,
 	tfile->napi_enabled = napi_en;
 	tfile->napi_frags_enabled = napi_en && napi_frags;
 	if (napi_en) {
-		netif_napi_add(tun->dev, &tfile->napi, tun_napi_poll,
-			       NAPI_POLL_WEIGHT);
+		netif_tx_napi_add(tun->dev, &tfile->napi, tun_napi_poll,
+				  NAPI_POLL_WEIGHT);
 		napi_enable(&tfile->napi);
 	}
 }
@@ -1880,11 +1879,9 @@ drop:
 		return -EINVAL;
 	}
 
-#ifdef CONFIG_MODEM_IF_NET_GRO
 	if (!(tun->flags & IFF_NO_PI))
 		if (pi.flags & htons(CHECKSUM_UNNECESSARY))
 			skb->ip_summed = CHECKSUM_UNNECESSARY;
-#endif
 
 	switch (tun->flags & TUN_TYPE_MASK) {
 	case IFF_TUN:
@@ -1940,6 +1937,10 @@ drop:
 			if (ret != XDP_PASS) {
 				rcu_read_unlock();
 				local_bh_enable();
+				if (frags) {
+					tfile->napi.skb = NULL;
+					mutex_unlock(&tfile->napi_mutex);
+				}
 				return total_len;
 			}
 		}
@@ -2029,7 +2030,7 @@ static ssize_t tun_chr_write_iter(struct kiocb *iocb, struct iov_iter *from)
 	return result;
 }
 
-// ------------- START of KNOX_VPN ------------------//
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
 static int get_meta_param_values(struct sk_buff *skb, 
 				 struct knox_meta_param *metalocal) {
 
@@ -2063,8 +2064,7 @@ static int get_meta_param_values(struct sk_buff *skb,
 
 	return 0;
 }
-// ------------- END of KNOX_VPN ------------------//
-
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 static ssize_t tun_put_user_xdp(struct tun_struct *tun,
 				struct tun_file *tfile,
 				struct xdp_frame *xdp_frame,
@@ -2106,10 +2106,10 @@ static ssize_t tun_put_user(struct tun_struct *tun,
 			    struct iov_iter *iter)
 {
 	struct tun_pi pi = { 0, skb->protocol };
-// ------------- START of KNOX_VPN ------------------//
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
 	struct knox_meta_param metalocal = { 0, 0 };
 	int meta_param_get_status = 0;
-// ------------- END of KNOX_VPN ------------------//
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 	struct tun_pcpu_stats *stats;
 	ssize_t total;
 	int vlan_offset = 0;
@@ -2138,7 +2138,7 @@ static ssize_t tun_put_user(struct tun_struct *tun,
 			return -EFAULT;
 	}
 
-// ------------- START of KNOX_VPN ------------------//
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
 	meta_param_get_status = get_meta_param_values(skb, &metalocal);
 	if(meta_param_get_status == 1) {
 #ifdef TUN_DEBUG
@@ -2161,8 +2161,7 @@ static ssize_t tun_put_user(struct tun_struct *tun,
 			}
 		}
 	}
-// ------------- END of KNOX_VPN ------------------//
-
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 	if (vnet_hdr_sz) {
 		struct virtio_net_hdr gso;
 
@@ -2573,9 +2572,9 @@ static struct proto tun_proto = {
 
 static int tun_flags(struct tun_struct *tun)
 {
-	// ------------- START of KNOX_VPN ------------------//
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
 	return tun->flags & (TUN_FEATURES | IFF_PERSIST | IFF_TUN | IFF_TAP | IFF_META_HDR);
-	// ------------- END of KNOX_VPN -------------------//
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 }
 
 static ssize_t tun_show_flags(struct device *dev, struct device_attribute *attr,
@@ -2777,14 +2776,13 @@ static int tun_set_iff(struct net *net, struct file *file, struct ifreq *ifr)
 	netif_carrier_on(tun->dev);
 
 	tun_debug(KERN_INFO, tun, "tun_set_iff\n");
-
-	// ------------- START of KNOX_VPN ------------------//
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
 	if (ifr->ifr_flags & IFF_META_HDR) {
 		tun->flags |= TUN_META_HDR;
 	} else {
 		tun->flags &= ~TUN_META_HDR;
 	}
-	// ------------- END of KNOX_VPN -------------------//
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 
 	/* Make sure persistent devices do not get stuck in
 	 * xoff state.
@@ -2976,13 +2974,18 @@ static long __tun_chr_ioctl(struct file *file, unsigned int cmd,
 	unsigned int ifindex;
 	int le;
 	int ret;
-	bool do_notify = false;
-
-	// ------------- START of KNOX_VPN ------------------//
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
 	int knox_flag = 0;
 	int tun_meta_param;
 	int tun_meta_value;
-	// ------------- END of KNOX_VPN -------------------//
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
+	bool do_notify = false;
+
+#ifdef CONFIG_ANDROID_PARANOID_NETWORK
+	if (cmd != TUNGETIFF && !capable(CAP_NET_ADMIN)) {
+		return -EPERM;
+	}
+#endif
 
 	if (cmd == TUNSETIFF || cmd == TUNSETQUEUE ||
 	    (_IOC_TYPE(cmd) == SOCK_IOC_TYPE && cmd != SIOCGSKNS)) {
@@ -2996,11 +2999,11 @@ static long __tun_chr_ioctl(struct file *file, unsigned int cmd,
 		 * This is needed because we never checked for invalid flags on
 		 * TUNSETIFF.
 		 */
-		// ------------- START of KNOX_VPN ------------------//
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
 		knox_flag |= IFF_META_HDR;
 		return put_user(IFF_TUN | IFF_TAP | TUN_FEATURES| knox_flag,
 				(unsigned int __user*)argp);
-		// ------------- END of KNOX_VPN -------------------//
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 	} else if (cmd == TUNSETQUEUE) {
 		return tun_set_queue(file, &ifr);
 	} else if (cmd == SIOCGSKNS) {
@@ -3189,7 +3192,7 @@ static long __tun_chr_ioctl(struct file *file, unsigned int cmd,
 			ret = -EFAULT;
 		break;
 
-	// ------------- START of KNOX_VPN ------------------//
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
 	case TUNGETMETAPARAM:
 
 		if (copy_from_user(&tun_meta_param, argp,
@@ -3219,7 +3222,7 @@ static long __tun_chr_ioctl(struct file *file, unsigned int cmd,
 				ret = -EFAULT;
 		}
 		break;
-	// ------------- END of KNOX_VPN -------------------//
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 	case TUNSETVNETHDRSZ:
 		if (copy_from_user(&vnet_hdr_sz, argp, sizeof(vnet_hdr_sz))) {
 			ret = -EFAULT;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -236,7 +236,7 @@ QDF_STATUS ucfg_mlme_set_ht_mpdu_density(struct wlan_objmgr_psoc *psoc,
  */
 static inline
 QDF_STATUS ucfg_mlme_get_band_capability(struct wlan_objmgr_psoc *psoc,
-					 uint32_t *band_capability)
+					 uint8_t *band_capability)
 {
 	return wlan_mlme_get_band_capability(psoc, band_capability);
 }
@@ -250,7 +250,7 @@ QDF_STATUS ucfg_mlme_get_band_capability(struct wlan_objmgr_psoc *psoc,
  */
 static inline
 QDF_STATUS ucfg_mlme_set_band_capability(struct wlan_objmgr_psoc *psoc,
-					 uint32_t band_capability)
+					 uint8_t band_capability)
 {
 	return wlan_mlme_set_band_capability(psoc, band_capability);
 }
@@ -3205,6 +3205,34 @@ ucfg_mlme_get_wmm_mode(struct wlan_objmgr_psoc *psoc, uint8_t *value)
 	return wlan_mlme_get_wmm_mode(psoc, value);
 }
 
+/**
+ * ucfg_mlme_cfg_get_wlm_level() - Get the WLM level value
+ * @psoc: pointer to psoc object
+ * @level: level that needs to be filled.
+ *
+ * Return: QDF Status
+ */
+static inline
+QDF_STATUS ucfg_mlme_cfg_get_wlm_level(struct wlan_objmgr_psoc *psoc,
+				       uint8_t *level)
+{
+	return mlme_get_cfg_wlm_level(psoc, level);
+}
+
+/**
+ * ucfg_mlme_cfg_get_wlm_reset() - Get the WLM reset flag
+ * @psoc: pointer to psoc object
+ * @reset: reset that needs to be filled.
+ *
+ * Return: QDF Status
+ */
+static inline
+QDF_STATUS ucfg_mlme_cfg_get_wlm_reset(struct wlan_objmgr_psoc *psoc,
+				       bool *reset)
+{
+	return mlme_get_cfg_wlm_reset(psoc, reset);
+}
+
 #ifdef WLAN_FEATURE_11AX
 /**
  * ucfg_mlme_update_tgt_he_cap() - Update tgt he cap in mlme component
@@ -3771,9 +3799,8 @@ ucfg_mlme_get_etsi_srd_chan_in_master_mode(struct wlan_objmgr_psoc *psoc,
  */
 QDF_STATUS
 ucfg_mlme_get_srd_master_mode_for_vdev(struct wlan_objmgr_psoc *psoc,
-                                      enum QDF_OPMODE vdev_opmode,
-                                      bool *value);
-
+				       enum QDF_OPMODE vdev_opmode,
+				       bool *value);
 
 #ifdef SAP_AVOID_ACS_FREQ_LIST
 /**

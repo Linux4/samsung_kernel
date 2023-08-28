@@ -11,14 +11,19 @@
 extern int dd_submit_bio(struct dd_info *info, struct bio *bio);
 
 int dd_test_and_inherit_context(
-		struct fscrypt_context *ctx,
+		union fscrypt_context *ctx,
 		struct inode *parent, struct inode *child,
 		struct fscrypt_info *ci, void *fs_data)
 {
 	// check if parent directory or file is ddar protected
 	if (ci && ci->ci_dd_info) {
 		dd_verbose("policy.flag:%x", ci->ci_dd_info->policy.flags);
-		ctx->knox_flags |= (ci->ci_dd_info->policy.flags << FSCRYPT_KNOX_FLG_DDAR_SHIFT) & FSCRYPT_KNOX_FLG_DDAR_MASK;
+		if (ci->ci_policy.version == FSCRYPT_POLICY_V1) {
+			ctx->v1.knox_flags |= (ci->ci_dd_info->policy.flags << FSCRYPT_KNOX_FLG_DDAR_SHIFT) & FSCRYPT_KNOX_FLG_DDAR_MASK;
+		} else if (ci->ci_policy.version == FSCRYPT_POLICY_V2) {
+			ctx->v2.knox_flags |= (ci->ci_dd_info->policy.flags << FSCRYPT_KNOX_FLG_DDAR_SHIFT) & FSCRYPT_KNOX_FLG_DDAR_MASK;
+		}
+//		ctx->knox_flags |= (ci->ci_dd_info->policy.flags << FSCRYPT_KNOX_FLG_DDAR_SHIFT) & FSCRYPT_KNOX_FLG_DDAR_MASK;
 
 		return dd_create_crypt_context(child, &ci->ci_dd_info->policy, fs_data);
 	} else {
@@ -30,7 +35,7 @@ int update_encryption_context_with_dd_policy(
 		struct inode *inode,
 		const struct dd_policy *policy)
 {
-	struct fscrypt_context ctx;
+	union fscrypt_context ctx;
 	int ret;
 
 	dd_info("update encryption context with dd policy ino:%ld flag:%x\n", inode->i_ino, policy->flags);
@@ -42,19 +47,38 @@ int update_encryption_context_with_dd_policy(
 	inode_lock(inode);
 
 	ret = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
-	if (ret == offsetof(struct fscrypt_context, knox_flags)) {
-		ctx.knox_flags = 0;
-		ret = sizeof(ctx);
+	switch (ctx.version) {
+	case FSCRYPT_CONTEXT_V1: {
+		if (ret == offsetof(struct fscrypt_context_v1, knox_flags)) {
+			ctx.v1.knox_flags = 0;
+			ret = sizeof(ctx.v1);
+		}
+		break;
+	}
+	case FSCRYPT_CONTEXT_V2: {
+		if (ret == offsetof(struct fscrypt_context_v2, knox_flags)) {
+			ctx.v2.knox_flags = 0;
+			ret = sizeof(ctx.v2);
+		}
+		break;
+	}
 	}
 
 	if (ret == -ENODATA) {
 		dd_error("failed to set dd policy. empty fscrypto context\n");
 		ret = -EFAULT;
-	} else if (ret == sizeof(ctx)) {
-		ctx.knox_flags |= policy->flags << FSCRYPT_KNOX_FLG_DDAR_SHIFT & FSCRYPT_KNOX_FLG_DDAR_MASK;
-		dd_verbose("fscrypt_context.knox_flag:0x%08x\n", ctx.knox_flags);
-//		ret = inode->i_sb->s_cop->set_context(inode, &ctx, sizeof(ctx), NULL);
-		ret = inode->i_sb->s_cop->set_knox_context(inode, NULL, &ctx, sizeof(ctx), NULL);
+	} else if (ret == fscrypt_context_size(&ctx)) {
+		struct fscrypt_info	*ci = inode->i_crypt_info;
+		if (ci && ci->ci_policy.version == FSCRYPT_POLICY_V1) {
+			ctx.v1.knox_flags |= policy->flags << FSCRYPT_KNOX_FLG_DDAR_SHIFT & FSCRYPT_KNOX_FLG_DDAR_MASK;
+			dd_verbose("fscrypt_context.knox_flag:0x%08x\n", ctx.v1.knox_flags);
+		} else if (ci && ci->ci_policy.version == FSCRYPT_POLICY_V2) {
+			ctx.v2.knox_flags |= policy->flags << FSCRYPT_KNOX_FLG_DDAR_SHIFT & FSCRYPT_KNOX_FLG_DDAR_MASK;
+			dd_verbose("fscrypt_context.knox_flag:0x%08x\n", ctx.v2.knox_flags);
+		}
+//		ctx.knox_flags |= policy->flags << FSCRYPT_KNOX_FLG_DDAR_SHIFT & FSCRYPT_KNOX_FLG_DDAR_MASK;
+//		dd_verbose("fscrypt_context.knox_flag:0x%08x\n", ctx.knox_flags);
+		ret = inode->i_sb->s_cop->set_knox_context(inode, NULL, &ctx, fscrypt_context_size(&ctx), NULL);
 		dd_info("result of set knox context for ino(%ld) : %d\n", inode->i_ino, ret);
 	} else {
 		dd_error("failed to set dd policy. get_context rc:%d\n", ret);
@@ -86,7 +110,7 @@ int update_encryption_context_with_dd_policy(
 
 int dd_oem_page_crypto_inplace(struct dd_info *info, struct page *page, int dir)
 {
-	return fscrypt_do_page_crypto(info->inode,
+	return fscrypt_crypt_block(info->inode,
 			(dir == WRITE) ? FS_ENCRYPT:FS_DECRYPT, 0, page, page, PAGE_SIZE, 0, GFP_NOFS);
 }
 
@@ -159,8 +183,10 @@ struct inode *fscrypt_bio_get_inode(const struct bio *bio)
 		struct inode *inode;
 
 		/* Using direct-io (O_DIRECT) without page cache */
-		inode = dio_bio_get_inode((struct bio *)bio);
-		dd_verbose("inode on direct-io, inode = 0x%pK.\n", inode);
+		// SDP - START BLOCK
+		// inode = dio_bio_get_inode((struct bio *)bio);
+		// dd_verbose("inode on direct-io, inode = 0x%pK.\n", inode);
+		// SDP - END BLOCK
 
 		return inode;
 	}
@@ -174,7 +200,8 @@ struct inode *fscrypt_bio_get_inode(const struct bio *bio)
 /**
  * prevent merging bios from different files when either is ddar enabled
  */
-bool fscrypt_dd_can_merge_bio(struct bio *bio, struct address_space *mapping) {
+bool fscrypt_dd_can_merge_bio(struct bio *bio, struct address_space *mapping)
+{
 	struct dd_info *info1, *info2;
 
 	if (!bio)

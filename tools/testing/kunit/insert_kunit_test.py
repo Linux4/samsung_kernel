@@ -16,8 +16,8 @@ from insert_kunit import *
 script_path, _ = os.path.split(os.path.realpath(__file__))
 
 test_list = [
-        'test_data/exynos9830/drivers/fingerprint',
-        'test_data/exynos9830/drivers/muic'
+        'test_data/kernel/drivers/fingerprint',
+        'test_data/kernel/drivers/muic'
 ]
 
 def generate_test_data(path_name):

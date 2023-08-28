@@ -13,9 +13,9 @@ menuconfig MMC
 	  also to your specific host controller driver.
 
 config MMC_SUPPORT_STLOG
- 	bool "Enable storage log"
- 	depends on MMC && PROC_STLOG
- 	default y
+	bool "Enable storage log"
+	depends on MMC && PROC_STLOG
+	default y
 
 if MMC
 

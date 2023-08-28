@@ -167,20 +167,6 @@ extern bool initcall_debug;
 
 #ifndef __ASSEMBLY__
 
-#ifdef CONFIG_LTO_CLANG
-  /*
-   * Use __COUNTER__ prefix in the variable to help ensure ordering
-   * inside a compilation unit that defines multiple initcalls, and
-   * __LINE__ to help prevent naming collisions.
-   */
-  #define ___initcall_name2(c, l, fn, id) __initcall_##c##_##l##_##fn##id
-  #define ___initcall_name1(c, l, fn, id) ___initcall_name2(c, l, fn, id)
-  #define __initcall_name(fn, id) \
-		___initcall_name1(__COUNTER__, __LINE__, fn, id)
-#else
-  #define __initcall_name(fn, id) 	__initcall_##fn##id
-#endif
-
 /*
  * initcalls are now grouped by functionality into separate
  * subsections. Ordering inside the subsections is determined
@@ -201,13 +187,39 @@ extern bool initcall_debug;
 #define ___define_initcall(fn, id, __sec)			\
 	__ADDRESSABLE(fn)					\
 	asm(".section	\"" #__sec ".init\", \"a\"	\n"	\
-	__stringify(__initcall_name(fn, id)) ":		\n"	\
+	"__initcall_" #fn #id ":			\n"	\
 	    ".long	" #fn " - .			\n"	\
 	    ".previous					\n");
 #else
-#define ___define_initcall(fn, id, __sec) \
-	static initcall_t __initcall_name(fn, id) __used \
+#ifdef CONFIG_LTO_CLANG
+  /*
+   * With LTO, the compiler doesn't necessarily obey link order for
+   * initcalls, and the initcall variable needs to be globally unique
+   * to avoid naming collisions.  In order to preserve the correct
+   * order, we add each variable into its own section and generate a
+   * linker script (in scripts/link-vmlinux.sh) to ensure the order
+   * remains correct.  We also add a __COUNTER__ prefix to the name,
+   * so we can retain the order of initcalls within each compilation
+   * unit, and __LINE__ to make the names more unique.
+   */
+  #define ___lto_initcall(c, l, fn, id, __sec) \
+	static initcall_t __initcall_##c##_##l##_##fn##id __used \
+		__attribute__((__section__( #__sec \
+			__stringify(.init..##c##_##l##_##fn)))) = fn;
+  #define __lto_initcall(c, l, fn, id, __sec) \
+	___lto_initcall(c, l, fn, id, __sec)
+
+  #define ___define_initcall(fn, id, __sec) \
+	__lto_initcall(__COUNTER__, __LINE__, fn, id, __sec)
+#else
+  #define ___define_initcall(fn, id, __sec) \
+	static initcall_t __initcall_##fn##id __used \
 		__attribute__((__section__(#__sec ".init"))) = fn;
+#endif
+#endif
+
+#ifdef CONFIG_DEFERRED_INITCALLS
+#define deferred_initcall(fn, id)	___define_initcall(fn, id, .deferred_initcall##id)
 #endif
 
 #define __define_initcall(fn, id) ___define_initcall(fn, id, .initcall##id)
@@ -249,8 +261,8 @@ extern bool initcall_debug;
 #define __exitcall(fn)						\
 	static exitcall_t __exitcall_##fn __exit_call = fn
 
-#define console_initcall(fn)	___define_initcall(fn,, .con_initcall)
-#define security_initcall(fn)	___define_initcall(fn,, .security_initcall)
+#define console_initcall(fn)	___define_initcall(fn, con, .con_initcall)
+#define security_initcall(fn)	___define_initcall(fn, security, .security_initcall)
 
 struct obs_kernel_param {
 	const char *str;
@@ -305,7 +317,16 @@ void __init parse_early_param(void);
 void __init parse_early_options(char *cmdline);
 #endif /* __ASSEMBLY__ */
 
+#ifdef CONFIG_DEFERRED_INITCALLS
+#define deferred_module_init(fn) deferred_initcall(fn, 0)
+#define deferred_module_init_sync(fn) deferred_initcall(fn, 0s)
+#endif
+
 #else /* MODULE */
+
+#ifdef CONFIG_DEFERRED_INITCALLS
+#define deferred_module_init(fn) module_init(fn)
+#endif
 
 #define __setup_param(str, unique_id, fn)	/* nothing */
 #define __setup(str, func) 			/* nothing */
@@ -313,6 +334,8 @@ void __init parse_early_options(char *cmdline);
 
 /* Data marked not to be saved by software suspend */
 #define __nosavedata __section(.data..nosave)
+
+#define __rticdata  __attribute__((section(".bss.rtic")))
 
 #ifdef MODULE
 #define __exit_p(x) x

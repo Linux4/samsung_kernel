@@ -252,11 +252,7 @@ static struct bio *bounce_clone_bio(struct bio *bio_src, gfp_t gfp_mask,
 	bio->bi_write_hint	= bio_src->bi_write_hint;
 	bio->bi_iter.bi_sector	= bio_src->bi_iter.bi_sector;
 	bio->bi_iter.bi_size	= bio_src->bi_iter.bi_size;
-	bio->bi_aux_private = bio_src->bi_aux_private;
-#ifdef CONFIG_CRYPTO_DISKCIPHER
-	bio->bi_crypt_skip = bio_src->bi_crypt_skip;
-	bio->bi_iter.bi_dun = bio_src->bi_iter.bi_dun;
-#endif
+
 	switch (bio_op(bio)) {
 	case REQ_OP_DISCARD:
 	case REQ_OP_SECURE_ERASE:
@@ -271,18 +267,14 @@ static struct bio *bounce_clone_bio(struct bio *bio_src, gfp_t gfp_mask,
 		break;
 	}
 
-	if (bio_integrity(bio_src)) {
-		int ret;
+	bio_crypt_clone(bio, bio_src, gfp_mask);
 
-		ret = bio_integrity_clone(bio, bio_src, gfp_mask);
-		if (ret < 0) {
-			bio_put(bio);
-			return NULL;
-		}
+	if (bio_integrity(bio_src) &&
+	    bio_integrity_clone(bio, bio_src, gfp_mask) < 0) {
+		bio_put(bio);
+		return NULL;
 	}
-#ifdef CONFIG_DDAR
-	bio_clone_crypt_key(bio, bio_src);
-#endif
+
 	bio_clone_blkcg_association(bio, bio_src);
 
 	return bio;

@@ -29,7 +29,9 @@
 #include <linux/acpi.h>
 
 #include <asm/arch_timer.h>
+#include <asm/traps.h>
 #include <asm/virt.h>
+#include <asm/cputype.h>
 
 #include <clocksource/arm_arch_timer.h>
 
@@ -52,6 +54,8 @@
 #define CNTFRQ		0x10
 #define CNTP_TVAL	0x28
 #define CNTP_CTL	0x2c
+#define CNTCVAL_LO	0x30
+#define CNTCVAL_HI	0x34
 #define CNTV_TVAL	0x38
 #define CNTV_CTL	0x3c
 
@@ -76,7 +80,6 @@ static bool arch_timer_c3stop;
 static bool arch_timer_mem_use_virtual;
 static bool arch_counter_suspend_stop;
 static bool vdso_default = true;
-static bool arch_timer_use_clocksource_only;
 
 static cpumask_t evtstrm_available = CPU_MASK_NONE;
 static bool evtstrm_enable = IS_ENABLED(CONFIG_ARM_ARCH_TIMER_EVTSTREAM);
@@ -190,6 +193,25 @@ struct ate_acpi_oem_info {
 	char oem_table_id[ACPI_OEM_TABLE_ID_SIZE + 1];
 	u32 oem_revision;
 };
+
+#ifdef CONFIG_ARM_ERRATUM_858921
+DEFINE_PER_CPU(bool, timer_erratum_858921_workaround_enabled);
+EXPORT_PER_CPU_SYMBOL(timer_erratum_858921_workaround_enabled);
+static void arch_timer_check_858921_workaround(void)
+{
+	unsigned int cpuid_part;
+
+	cpuid_part = read_cpuid_part();
+	if (cpuid_part == ARM_CPU_PART_CORTEX_A73 ||
+	    cpuid_part == QCOM_CPU_PART_KRYO2XX_GOLD) {
+		this_cpu_write(timer_erratum_858921_workaround_enabled, true);
+	} else {
+		this_cpu_write(timer_erratum_858921_workaround_enabled, false);
+	}
+}
+#else
+#define arch_timer_check_858921_workaround()	do { } while (0)
+#endif
 
 #ifdef CONFIG_FSL_ERRATUM_A008585
 /*
@@ -361,6 +383,12 @@ static u32 notrace sun50i_a64_read_cntv_tval_el0(void)
 	return read_sysreg(cntv_cval_el0) - sun50i_a64_read_cntvct_el0();
 }
 #endif
+#ifdef CONFIG_ARM64_ERRATUM_1188873
+static u64 notrace arm64_1188873_read_cntvct_el0(void)
+{
+	return read_sysreg(cntvct_el0);
+}
+#endif
 
 #ifdef CONFIG_ARM_ARCH_TIMER_OOL_WORKAROUND
 DEFINE_PER_CPU(const struct arch_timer_erratum_workaround *, timer_unstable_counter_workaround);
@@ -462,6 +490,14 @@ static const struct arch_timer_erratum_workaround ool_workarounds[] = {
 		.read_cntvct_el0 = sun50i_a64_read_cntvct_el0,
 		.set_next_event_phys = erratum_set_next_event_tval_phys,
 		.set_next_event_virt = erratum_set_next_event_tval_virt,
+	},
+#endif
+#ifdef CONFIG_ARM64_ERRATUM_1188873
+	{
+		.match_type = ate_match_local_cap_id,
+		.id = (void *)ARM64_WORKAROUND_1188873,
+		.desc = "ARM erratum 1188873",
+		.read_cntvct_el0 = arm64_1188873_read_cntvct_el0,
 	},
 #endif
 };
@@ -787,6 +823,7 @@ static void __arch_timer_setup(unsigned type,
 		}
 
 		arch_timer_check_ool_workaround(ate_match_local_cap_id, NULL);
+		arch_timer_check_858921_workaround();
 	} else {
 		clk->features |= CLOCK_EVT_FEAT_DYNIRQ;
 		clk->name = "arch_mem_timer";
@@ -856,7 +893,8 @@ static void arch_counter_set_user_access(void)
 	 * need to be workaround. The vdso may have been already
 	 * disabled though.
 	 */
-	if (arch_timer_this_cpu_has_cntvct_wa())
+	if (arch_timer_this_cpu_has_cntvct_wa() ||
+	    !IS_ENABLED(CONFIG_ARM_ARCH_TIMER_VCT_ACCESS))
 		pr_info("CPU%d: Trapping CNTVCT access\n", smp_processor_id());
 	else
 		cntkctl |= ARCH_TIMER_USR_VCT_ACCESS_EN;
@@ -888,14 +926,6 @@ static int arch_timer_starting_cpu(unsigned int cpu)
 	struct clock_event_device *clk = this_cpu_ptr(arch_timer_evt);
 	u32 flags;
 
-	/*
-	 * if arch_timer is used to clocksource only,
-	 * it doesn't need to setup clockevent configuration.
-	 * this is only for exynos soc
-	 */
-	if (arch_timer_use_clocksource_only)
-		goto skip_clockevent_setup;
-
 	__arch_timer_setup(ARCH_TIMER_TYPE_CP15, clk);
 
 	flags = check_ppi_trigger(arch_timer_ppi[arch_timer_uses_ppi]);
@@ -907,7 +937,6 @@ static int arch_timer_starting_cpu(unsigned int cpu)
 				  flags);
 	}
 
-skip_clockevent_setup:
 	arch_counter_set_user_access();
 	if (evtstrm_enable)
 		arch_timer_configure_evtstream();
@@ -965,6 +994,23 @@ bool arch_timer_evtstrm_available(void)
 	 * for a preemptible context and context where we might resume a task.
 	 */
 	return cpumask_test_cpu(raw_smp_processor_id(), &evtstrm_available);
+}
+
+void arch_timer_mem_get_cval(u32 *lo, u32 *hi)
+{
+	u32 ctrl;
+
+	*lo = *hi = ~0U;
+
+	if (!arch_counter_base)
+		return;
+
+	ctrl = readl_relaxed_no_log(arch_counter_base + CNTV_CTL);
+
+	if (ctrl & ARCH_TIMER_CTRL_ENABLE) {
+		*lo = readl_relaxed_no_log(arch_counter_base + CNTCVAL_LO);
+		*hi = readl_relaxed_no_log(arch_counter_base + CNTCVAL_HI);
+	}
 }
 
 static u64 arch_counter_get_cntvct_mem(void)
@@ -1033,17 +1079,8 @@ static int arch_timer_dying_cpu(unsigned int cpu)
 	struct clock_event_device *clk = this_cpu_ptr(arch_timer_evt);
 
 	cpumask_clear_cpu(smp_processor_id(), &evtstrm_available);
-	/*
-	 * If arch_timer is used to clocksource only,
-	 * it doesn't need to setup clockevent configuration.
-	 * This is only for Exynos SoC
-	 */
-	if (arch_timer_use_clocksource_only)
-		goto skip_clockevent_setup;
 
 	arch_timer_stop(clk);
-
-skip_clockevent_setup:
 	return 0;
 }
 
@@ -1228,9 +1265,15 @@ static bool __init arch_timer_needs_of_probing(void)
 
 static int __init arch_timer_common_init(void)
 {
+	int ret;
+
 	arch_timer_banner(arch_timers_present);
 	arch_counter_register(arch_timers_present);
-	return arch_timer_arch_init();
+	ret = arch_timer_arch_init();
+	if (!ret)
+		clocksource_select_force();
+
+	return ret;
 }
 
 /**
@@ -1284,12 +1327,6 @@ static int __init arch_timer_of_init(struct device_node *np)
 	rate = arch_timer_get_cntfrq();
 	arch_timer_of_configure_rate(rate, np);
 
-	/* Exynos Specific Device Tree Information */
-	if (of_property_read_bool(np, "use-clocksource-only")) {
-		pr_info("%s: arch_timer is used only clocksource\n", __func__);
-		arch_timer_use_clocksource_only = true;
-	}
-
 	arch_timer_c3stop = !of_property_read_bool(np, "always-on");
 
 	/* Check for globally applicable workarounds */
@@ -1338,7 +1375,7 @@ arch_timer_mem_frame_get_cntfrq(struct arch_timer_mem_frame *frame)
 		return 0;
 	}
 
-	rate = readl_relaxed_no_log(base + CNTFRQ);
+	rate = readl_relaxed(base + CNTFRQ);
 
 	iounmap(base);
 
@@ -1375,8 +1412,8 @@ arch_timer_mem_find_best_frame(struct arch_timer_mem *timer_mem)
 			continue;
 
 		/* Try enabling everything, and see what sticks */
-		writel_relaxed_no_log(cntacr, cntctlbase + CNTACR(i));
-		cntacr = readl_relaxed_no_log(cntctlbase + CNTACR(i));
+		writel_relaxed(cntacr, cntctlbase + CNTACR(i));
+		cntacr = readl_relaxed(cntctlbase + CNTACR(i));
 
 		if ((cnttidr & CNTTIDR_VIRT(i)) &&
 		    !(~cntacr & (CNTACR_RWVT | CNTACR_RVCT))) {
@@ -1505,6 +1542,8 @@ static int __init arch_timer_mem_of_init(struct device_node *np)
 	ret = arch_timer_mem_frame_register(frame);
 	if (!ret && !arch_timer_needs_of_probing())
 		ret = arch_timer_common_init();
+	get_timer_count_hook_init();
+	get_timer_freq_hook_init();
 out:
 	kfree(timer_mem);
 	return ret;

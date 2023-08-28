@@ -38,4 +38,10 @@ void secdp_bigdata_clr_error_cnt(enum DP_BD_ITEM_LIST err);
 void secdp_bigdata_connection(void);
 void secdp_bigdata_disconnection(void);
 void secdp_bigdata_init(struct class *dp_class);
+
+ssize_t _secdp_bigdata_show(struct class *class,
+					struct class_attribute *attr, char *buf);
+ssize_t _secdp_bigdata_store(struct class *dev,
+					struct class_attribute *attr, const char *buf, size_t size);
+
 #endif /* DISPLAYPORT_BIGDATA_H */

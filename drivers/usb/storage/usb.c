@@ -224,7 +224,6 @@ EXPORT_SYMBOL_GPL(usb_stor_reset_resume);
 
 int usb_stor_pre_reset(struct usb_interface *iface)
 {
-#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
 	struct us_data *us;
 	unsigned long jiffies_expire = jiffies + HZ;
 	int mu_lock = 1;
@@ -295,19 +294,11 @@ skip:
 	us->is_mu_lock = mu_lock;
 	pr_info("%s - mu_lock=%d\n", __func__, us->is_mu_lock);
 	return 0;
-#else
-	struct us_data *us = usb_get_intfdata(iface);
-
-	/* Make sure no command runs during the reset */
-	mutex_lock(&us->dev_mutex);
-	return 0;
-#endif
 }
 EXPORT_SYMBOL_GPL(usb_stor_pre_reset);
 
 int usb_stor_post_reset(struct usb_interface *iface)
 {
-#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
 	struct us_data *us = usb_get_intfdata(iface);
 
 	pr_info("%s +\n", __func__);
@@ -328,20 +319,6 @@ int usb_stor_post_reset(struct usb_interface *iface)
 	}
 	pr_info("%s -\n", __func__);
 	return 0;
-#else
-	struct us_data *us = usb_get_intfdata(iface);
-
-	/* Report the reset to the SCSI core */
-	usb_stor_report_bus_reset(us);
-
-	/*
-	 * If any of the subdrivers implemented a reinitialization scheme,
-	 * this is where the callback would be invoked.
-	 */
-
-	mutex_unlock(&us->dev_mutex);
-	return 0;
-#endif
 }
 EXPORT_SYMBOL_GPL(usb_stor_post_reset);
 
@@ -1183,10 +1160,10 @@ EXPORT_SYMBOL_GPL(usb_stor_probe2);
 void usb_stor_disconnect(struct usb_interface *intf)
 {
 	struct us_data *us = usb_get_intfdata(intf);
-
 #ifdef CONFIG_USB_STORAGE_DETECT
 	pr_info("%s enter\n", __func__);
 #endif
+
 	quiesce_and_remove_host(us);
 #ifdef CONFIG_USB_STORAGE_DETECT
 	pr_info("%s doing\n", __func__);

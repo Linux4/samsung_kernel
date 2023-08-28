@@ -37,6 +37,10 @@
 #include <asm/asm-uaccess.h>
 #include <asm/unistd.h>
 
+#ifdef CONFIG_CFP_ROPP
+#include <asm/cfp.h>
+#endif
+
 /*
  * Context tracking subsystem.  Used to instrument transitions
  * between user and kernel mode.
@@ -51,30 +55,13 @@
 #ifdef CONFIG_CONTEXT_TRACKING
 	bl	context_tracking_user_enter
 #endif
-
-#ifdef CONFIG_SOC_EXYNOS9830
-	bl	inv_pnt
-	adr	x23, inv_pnt
-	ic	ivau, x23
-	isb
-#endif
 	.endm
-
-#ifdef CONFIG_SOC_EXYNOS9830
-	.align 8
-inv_pnt:
-	ret
-#endif
 
 	.macro	clear_gp_regs
 	.irp	n,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29
 	mov	x\n, xzr
 	.endr
 	.endm
-
-#ifdef CONFIG_SEC_DEBUG_EXCEPTION_STACK
-#define PRESERVE_STACK_SIZE	256
-#endif
 
 /*
  * Bad Abort numbers
@@ -103,15 +90,7 @@ inv_pnt:
 .Lskip_tramp_vectors_cleanup\@:
 	.endif
 
-#ifdef CONFIG_SEC_DEBUG_EXCEPTION_STACK
-	.if	\el == 0
 	sub	sp, sp, #S_FRAME_SIZE
-	.else
-	sub	sp, sp, #(S_FRAME_SIZE+PRESERVE_STACK_SIZE)
-	.endif /* \el == 0 */
-#else
-	sub	sp, sp, #S_FRAME_SIZE
-#endif
 #ifdef CONFIG_VMAP_STACK
 	/*
 	 * Test whether the SP has overflowed, without corrupting a GPR.
@@ -198,6 +177,11 @@ alternative_cb_end
 	stp	x10, x11, [sp, #16 * 5]
 	stp	x12, x13, [sp, #16 * 6]
 	stp	x14, x15, [sp, #16 * 7]
+#if (defined CONFIG_CFP_ROPP) && (!defined CONFIG_CFP_TEST)
+	.if	\el == 1
+	mov	RRK, xzr
+	.endif
+#endif
 	stp	x16, x17, [sp, #16 * 8]
 	stp	x18, x19, [sp, #16 * 9]
 	stp	x20, x21, [sp, #16 * 10]
@@ -206,24 +190,30 @@ alternative_cb_end
 	stp	x26, x27, [sp, #16 * 13]
 	stp	x28, x29, [sp, #16 * 14]
 
+	str lr, [sp, #S_LR]
+	mrs x22, elr_el1
+ 	mrs x23, spsr_el1
+ 	stp x22, x23, [sp, #S_PC]
+
+
 	.if	\el == 0
 	clear_gp_regs
 	mrs	x21, sp_el0
 	ldr_this_cpu	tsk, __entry_task, x20	// Ensure MDSCR_EL1.SS is clear,
 	ldr	x19, [tsk, #TSK_TI_FLAGS]	// since we can unmask debug
+#ifdef CONFIG_CFP_ROPP
+	ropp_new_key	tsk
+#endif
 	disable_step_tsk x19, x20		// exceptions when scheduling.
 
 	apply_ssbd 1, x22, x23
 
+#ifdef CONFIG_SHADOW_CALL_STACK
+	ldr	x18, [tsk, #TSK_TI_SCS]		// Restore shadow call stack
+	str	xzr, [tsk, #TSK_TI_SCS]		// Limit visibility of saved SCS
+#endif
 	.else
-#ifdef CONFIG_SEC_DEBUG_EXCEPTION_STACK
-	add	x21, sp, #(S_FRAME_SIZE+PRESERVE_STACK_SIZE)
-#else
 	add	x21, sp, #S_FRAME_SIZE
-#endif
-#ifdef CONFIG_SEC_DEBUG_BAD_STACK_CAREFULLY
-	.if \el == 1
-#endif
 	get_thread_info tsk
 	/* Save the task's original addr_limit and set USER_DS */
 	ldr	x20, [tsk, #TSK_TI_ADDR_LIMIT]
@@ -231,8 +221,8 @@ alternative_cb_end
 	mov	x20, #USER_DS
 	str	x20, [tsk, #TSK_TI_ADDR_LIMIT]
 	/* No need to reset PSTATE.UAO, hardware's already set it to 0 for us */
-#ifdef CONFIG_SEC_DEBUG_BAD_STACK_CAREFULLY
-	.endif /* \el == 1 */
+#ifdef CONFIG_CFP_ROPP
+	ropp_load_key 	tsk
 #endif
 	.endif /* \el == 0 */
 	mrs	x22, elr_el1
@@ -316,6 +306,12 @@ alternative_else_nop_endif
 	ct_user_enter
 	.endif
 
+#ifdef CONFIG_SHADOW_CALL_STACK
+	.if	\el == 0
+	str	x18, [tsk, #TSK_TI_SCS]		// Save shadow call stack
+	.endif
+#endif
+
 #ifdef CONFIG_ARM64_SW_TTBR0_PAN
 	/*
 	 * Restore access to TTBR0_EL1. If returning to EL0, no need for SPSR
@@ -378,6 +374,13 @@ alternative_else_nop_endif
 	ldp	x12, x13, [sp, #16 * 6]
 	ldp	x14, x15, [sp, #16 * 7]
 	ldp	x16, x17, [sp, #16 * 8]
+#ifdef CONFIG_CFP_ROPP
+	.if	\el == 1
+	/* Might be having an interrupt right after smc call, before any RRK loading code */
+	get_thread_info	x19
+	ropp_load_key 	x19
+	.endif
+#endif
 	ldp	x18, x19, [sp, #16 * 9]
 	ldp	x20, x21, [sp, #16 * 10]
 	ldp	x22, x23, [sp, #16 * 11]
@@ -406,17 +409,16 @@ alternative_else_nop_endif
 #endif
 	.else
 	ldr	lr, [sp, #S_LR]
-#ifdef CONFIG_SEC_DEBUG_EXCEPTION_STACK
-	add	sp, sp, #(S_FRAME_SIZE+PRESERVE_STACK_SIZE)
-#else
 	add	sp, sp, #S_FRAME_SIZE		// restore sp
-#endif
 	eret
 	.endif
 	.endm
 
 	.macro	irq_stack_entry
 	mov	x19, sp			// preserve the original sp
+#ifdef CONFIG_SHADOW_CALL_STACK
+	mov	x20, x18		// preserve the original shadow stack
+#endif
 
 	/*
 	 * Compare sp with the base of the task stack.
@@ -434,15 +436,24 @@ alternative_else_nop_endif
 
 	/* switch to the irq stack */
 	mov	sp, x26
+
+#ifdef CONFIG_SHADOW_CALL_STACK
+	/* also switch to the irq shadow stack */
+	ldr_this_cpu x18, irq_shadow_call_stack_ptr, x26
+#endif
+
 9998:
 	.endm
 
 	/*
-	 * x19 should be preserved between irq_stack_entry and
-	 * irq_stack_exit.
+	 * The callee-saved regs (x19-x29) should be preserved between
+	 * irq_stack_entry and irq_stack_exit.
 	 */
 	.macro	irq_stack_exit
 	mov	sp, x19
+#ifdef CONFIG_SHADOW_CALL_STACK
+	mov	x18, x20
+#endif
 	.endm
 
 /*
@@ -521,17 +532,9 @@ __bad_stack:
 	 * S_FRAME_SIZE) was stashed in tpidr_el0 by kernel_ventry.
 	 */
 	sub	sp, sp, #S_FRAME_SIZE
-#ifdef CONFIG_SEC_DEBUG_BAD_STACK_CAREFULLY
-	kernel_entry fake_el_bad_stack
-#else
 	kernel_entry 1
-#endif
 	mrs	x0, tpidr_el0
-#ifdef CONFIG_SEC_DEBUG_EXCEPTION_STACK
-	add	x0, x0, #(S_FRAME_SIZE+PRESERVE_STACK_SIZE)
-#else
 	add	x0, x0, #S_FRAME_SIZE
-#endif
 	str	x0, [sp, #S_SP]
 
 	/* Stash the regs for handle_bad_stack */
@@ -543,21 +546,10 @@ __bad_stack:
 #endif /* CONFIG_VMAP_STACK */
 
 /*
- * DPM handlers
- */
-	.macro dpm_entry, el
-#ifdef CONFIG_DEBUG_SNAPSHOT
-	mov	x0, sp
-	bl	dbg_snapshot_do_dpm
-#endif
-	.endm
-
-/*
  * Invalid mode handlers
  */
 	.macro	inv_entry, el, reason, regsize = 64
 	kernel_entry \el, \regsize
-	dpm_entry
 	mov	x0, sp
 	mov	x1, #\reason
 	mrs	x2, esr_el1
@@ -609,7 +601,6 @@ ENDPROC(el1_error_invalid)
 	.align	6
 el1_sync:
 	kernel_entry 1
-	dpm_entry
 	mrs	x1, esr_el1			// read the syndrome register
 	lsr	x24, x1, #ESR_ELx_EC_SHIFT	// exception class
 	cmp	x24, #ESR_ELx_EC_DABT_CUR	// data abort in EL1
@@ -638,7 +629,7 @@ el1_da:
 	 */
 	mrs	x3, far_el1
 	inherit_daif	pstate=x23, tmp=x2
-	clear_address_tag x0, x3
+	untagged_addr x0, x3
 	mov	x2, sp				// struct pt_regs
 	bl	do_mem_abort
 
@@ -767,9 +758,9 @@ el0_sync_compat:
 	cmp	x24, #ESR_ELx_EC_UNKNOWN	// unknown exception in EL0
 	b.eq	el0_undef
 	cmp	x24, #ESR_ELx_EC_CP15_32	// CP15 MRC/MCR trap
-	b.eq	el0_undef
+	b.eq	el0_cp15
 	cmp	x24, #ESR_ELx_EC_CP15_64	// CP15 MRRC/MCRR trap
-	b.eq	el0_undef
+	b.eq	el0_cp15
 	cmp	x24, #ESR_ELx_EC_CP14_MR	// CP14 MRC/MCR trap
 	b.eq	el0_undef
 	cmp	x24, #ESR_ELx_EC_CP14_LS	// CP14 LDC/STC trap
@@ -792,6 +783,17 @@ el0_irq_compat:
 el0_error_compat:
 	kernel_entry 0, 32
 	b	el0_error_naked
+
+el0_cp15:
+	/*
+	 * Trapped CP15 (MRC, MCR, MRRC, MCRR) instructions
+	 */
+	enable_daif
+	ct_user_exit
+	mov	x0, x25
+	mov	x1, sp
+	bl	do_cp15instr
+	b	ret_to_user
 #endif
 
 el0_da:
@@ -801,7 +803,7 @@ el0_da:
 	mrs	x26, far_el1
 	enable_daif
 	ct_user_exit
-	clear_address_tag x0, x26
+	untagged_addr x0, x26
 	mov	x1, x25
 	mov	x2, sp
 	bl	do_mem_abort
@@ -873,9 +875,6 @@ el0_undef:
 	enable_daif
 	ct_user_exit
 	mov	x0, sp
-#if defined(CONFIG_SEC_DEBUG_FAULT_MSG_ADV)
-	mrs	x1, esr_el1			// read the syndrome register
-#endif
 	bl	do_undefinstr
 	b	ret_to_user
 el0_sys:
@@ -994,6 +993,7 @@ ENDPROC(el0_svc)
 	.popsection				// .entry.text
 
 	// Move from tramp_pg_dir to swapper_pg_dir
+
 	.macro tramp_map_kernel, tmp
 	mrs	\tmp, ttbr1_el1
 	add	\tmp, \tmp, #(PAGE_SIZE + RESERVED_TTBR0_SIZE)
@@ -1015,20 +1015,9 @@ alternative_else_nop_endif
 
 	.macro tramp_unmap_kernel, tmp
 	mrs	\tmp, ttbr1_el1
-#ifdef CONFIG_SOC_EXYNOS9830_EVT0
-	/*
-	 * Apply workaround to avoid errata of Lion evt0. (Lion-7071)
-	 * This workaroud will be removed when evt1 comes
-	 */
+	sub	\tmp, \tmp, #(PAGE_SIZE + RESERVED_TTBR0_SIZE)
 	orr	\tmp, \tmp, #USER_ASID_FLAG
 	msr	ttbr1_el1, \tmp
-	sub	\tmp, \tmp, #(PAGE_SIZE + RESERVED_TTBR0_SIZE)
-#else
-	sub     \tmp, \tmp, #(PAGE_SIZE + RESERVED_TTBR0_SIZE)
-	orr     \tmp, \tmp, #USER_ASID_FLAG
-#endif
-	msr	ttbr1_el1, \tmp
-
 	/*
 	 * We avoid running the post_ttbr_update_workaround here because
 	 * it's only needed by Cavium ThunderX, which requires KPTI to be
@@ -1250,6 +1239,18 @@ ENTRY(cpu_switch_to)
 	ldr	lr, [x8]
 	mov	sp, x9
 	msr	sp_el0, x1
+#ifdef CONFIG_CFP_ROPP
+	/*
+	 * Must be after sp updated
+	 * x1 holds thread_info addr
+	 */
+	ropp_load_key	x1
+#endif
+#ifdef CONFIG_SHADOW_CALL_STACK
+	str	x18, [x0, #TSK_TI_SCS]
+	ldr	x18, [x1, #TSK_TI_SCS]
+	str	xzr, [x1, #TSK_TI_SCS]		// limit visibility of saved SCS
+#endif
 	ret
 ENDPROC(cpu_switch_to)
 NOKPROBE(cpu_switch_to)

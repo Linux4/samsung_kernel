@@ -153,6 +153,10 @@ static void mmc_bus_shutdown(struct device *dev)
 	/* disable rescan in shutdown sequence */
 	host->rescan_disable = 1;
 
+#ifndef CONFIG_MMC_CLKGATE
+	SEC_mmc_pm_state_set_system_suspend(host);
+#endif
+
 	if (dev->driver && drv->shutdown)
 		drv->shutdown(card);
 
@@ -178,6 +182,9 @@ static int mmc_bus_suspend(struct device *dev)
 	if (mmc_bus_needs_resume(host))
 		return 0;
 
+#ifndef CONFIG_MMC_CLKGATE
+	SEC_mmc_pm_state_set_system_suspend(host);
+#endif
 	ret = host->bus_ops->suspend(host);
 	if (ret)
 		pm_generic_resume(dev);
@@ -191,15 +198,20 @@ static int mmc_bus_resume(struct device *dev)
 	struct mmc_host *host = card->host;
 	int ret;
 
-	if (mmc_bus_manual_resume(host))
+	if (mmc_bus_manual_resume(host)) {
 		host->bus_resume_flags |= MMC_BUSRESUME_NEEDS_RESUME;
-	else {
-		ret = host->bus_ops->resume(host);
-		if (ret)
-			pr_warn("%s: error %d during resume (card was removed?)\n",
-					mmc_hostname(host), ret);
+		goto skip_full_resume;
 	}
 
+	ret = host->bus_ops->resume(host);
+	if (ret)
+		pr_warn("%s: error %d during resume (card was removed?)\n",
+			mmc_hostname(host), ret);
+
+skip_full_resume:
+#ifndef CONFIG_MMC_CLKGATE
+	SEC_mmc_pm_state_set_active(host);
+#endif
 	ret = pm_generic_resume(dev);
 	return ret;
 }
@@ -211,6 +223,12 @@ static int mmc_runtime_suspend(struct device *dev)
 	struct mmc_card *card = mmc_dev_to_card(dev);
 	struct mmc_host *host = card->host;
 
+	if (mmc_bus_needs_resume(host))
+		return 0;
+
+#ifndef CONFIG_MMC_CLKGATE
+	SEC_mmc_pm_state_set_runtime_suspend(host);
+#endif
 	return host->bus_ops->runtime_suspend(host);
 }
 
@@ -218,8 +236,21 @@ static int mmc_runtime_resume(struct device *dev)
 {
 	struct mmc_card *card = mmc_dev_to_card(dev);
 	struct mmc_host *host = card->host;
+#ifndef CONFIG_MMC_CLKGATE
+	int ret = 0;
+#endif
 
+	if (mmc_bus_needs_resume(host))
+		host->bus_resume_flags &= ~MMC_BUSRESUME_NEEDS_RESUME;
+
+#ifndef CONFIG_MMC_CLKGATE
+	ret = host->bus_ops->runtime_resume(host);
+	SEC_mmc_pm_state_set_active(host);
+
+	return ret;
+#else
 	return host->bus_ops->runtime_resume(host);
+#endif
 }
 #endif /* !CONFIG_PM */
 
@@ -276,12 +307,15 @@ EXPORT_SYMBOL(mmc_unregister_driver);
 static void mmc_release_card(struct device *dev)
 {
 	struct mmc_card *card = mmc_dev_to_card(dev);
+	struct mmc_host *host = card->host;
 
 	sdio_free_common_cis(card);
 
 	kfree(card->info);
 
 	kfree(card);
+	if (host)
+		host->card = NULL;
 }
 
 /*
@@ -428,6 +462,8 @@ void mmc_remove_card(struct mmc_card *card)
 		device_del(&card->dev);
 		of_node_put(card->dev.of_node);
 	}
+	if (host->ops->exit_dbg_mode)
+		host->ops->exit_dbg_mode(host);
 
 	put_device(&card->dev);
 }

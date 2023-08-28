@@ -43,15 +43,19 @@
 #include <linux/spi/spidev.h>
 #include <linux/of_gpio.h>
 #include <linux/of_platform.h>
-#include <linux/wakelock.h>
+#include <linux/pm_wakeup.h>
 #include "p61.h"
 #include "pn547.h"
 #include "cold_reset.h"
-#ifdef CONFIG_ESE_SECURE
-#include "../misc/tzdev/include/tzdev/tee_client_api.h"
-#endif
+#include "./nfc_logger/nfc_logger.h"
 
+extern long  pn547_dev_ioctl(struct file *filp, unsigned int cmd,
+	unsigned long arg);
+#ifdef CONFIG_NFC_FEATURE_SN100U
 #define P61_SPI_CLOCK     12000000L
+#else
+#define P61_SPI_CLOCK     8000000L
+#endif
 
 /* size of maximum read/write buffer supported by driver */
 #ifdef CONFIG_NFC_FEATURE_SN100U
@@ -66,18 +70,15 @@ enum P61_DEBUG_LEVEL {
 	P61_FULL_DEBUG
 };
 
-extern long  pn547_dev_ioctl(struct file *filp, unsigned int cmd,
-	unsigned long arg);
-
 /* Variable to store current debug level request by ioctl */
 static unsigned char debug_level = P61_FULL_DEBUG;
 static unsigned char pwr_req_on;
-#define P61_DBG_MSG(msg, ...) {\
+#define P61_DBG_MSG(msg...) {\
 	switch (debug_level) {\
 	case P61_DEBUG_OFF:\
 		break;\
 	case P61_FULL_DEBUG:\
-		pr_info("[NXP-P61] "msg, ##__VA_ARGS__);\
+		pr_info("[NXP-P61] " msg);\
 		break;\
 		/*fallthrough*/\
 	default:\
@@ -86,26 +87,7 @@ static unsigned char pwr_req_on;
 	} \
 }
 
-#define P61_ERR_MSG(msg, ...) pr_err("[NXP-P61] "msg, ##__VA_ARGS__)
-#define P61_INFO_MSG(msg, ...) pr_info("[NXP-P61] "msg, ##__VA_ARGS__)
-
-#ifdef CONFIG_ESE_SECURE
-static TEEC_UUID ese_drv_uuid = {
-	0x00000000, 0x0000, 0x0000, {0x00, 0x00, 0x65, 0x73, 0x65, 0x44, 0x72, 0x76}
-};
-
-enum pm_mode {
-	PM_SUSPEND,
-	PM_RESUME,
-	SECURE_CHECK,
-};
-
-enum secure_state {
-	NOT_CHECKED,
-	ESE_SECURED,
-	ESE_NOT_SECURED,
-};
-#endif
+#define P61_ERR_MSG(msg...) pr_err("[NXP-P61] " msg)
 
 /* Device specific macro and structure */
 struct p61_device {
@@ -123,7 +105,7 @@ struct p61_device {
 	bool tz_mode;
 	spinlock_t ese_spi_lock;
 	bool isGpio_cfgDone;
-	struct wake_lock ese_lock;
+	struct wakeup_source *ws;
 	bool device_opened;
 
 #ifdef ESE_PINCTRL
@@ -138,7 +120,6 @@ struct p61_device {
 #ifdef CONFIG_ESE_SECURE
 	struct clk *ese_spi_pclk;
 	struct clk *ese_spi_sclk;
-	int ese_secure_check;
 #endif
 	const char *ap_vendor;
 	unsigned char *buf;
@@ -152,7 +133,7 @@ const unsigned char SOF = 0xA5u;
 static int ese_set_spi_configuration(enum ESE_SPI_PINCTRL status)
 {
 	int ret = 0;
-	char *pin_status[] = {"ese_on", "ese_off", "ese_lpm"};
+	char *pin_status[] = {"sleep", "default", "lpm"};
 
 	pr_info("%s [%s]\n", __func__, pin_status[status]);
 
@@ -233,10 +214,10 @@ static void p61_spi_clock_set(struct p61_device *p61_dev, unsigned long speed)
 			return;
 		}
 		speed = rate;
-		/*P61_INFO_MSG("%s speed:%lu\n", __func__, speed);*/
+		/*pr_info("%s speed:%lu\n", __func__, speed);*/
 	} else if (!strcmp(p61_dev->ap_vendor, "slsi")) {
 		/* There is half-multiplier */
-		speed =  speed * 4;
+		speed =  speed * 2;
 	}
 
 	clk_set_rate(p61_dev->ese_spi_sclk, speed);
@@ -247,17 +228,17 @@ static int p61_clk_control(struct p61_device *p61_dev, bool onoff)
 	static bool old_value;
 
 	if (old_value == onoff) {
-		P61_INFO_MSG("%s: ALREADY %s\n", __func__,
+		pr_info("%s: ALREADY %s\n", __func__,
 			onoff ? "enabled" : "disabled");
 		return 0;
 	}
 
 	if (onoff == true) {
+		p61_spi_clock_set(p61_dev, P61_SPI_CLOCK);
 		clk_prepare_enable(p61_dev->ese_spi_pclk);
 		clk_prepare_enable(p61_dev->ese_spi_sclk);
-		p61_spi_clock_set(p61_dev, P61_SPI_CLOCK);
 		usleep_range(5000, 5100);
-		P61_INFO_MSG("%s: clock:%lu\n", __func__,
+		pr_info("%s: clock:%lu\n", __func__,
 			clk_get_rate(p61_dev->ese_spi_sclk));
 	} else {
 		clk_disable_unprepare(p61_dev->ese_spi_pclk);
@@ -265,7 +246,7 @@ static int p61_clk_control(struct p61_device *p61_dev, bool onoff)
 	}
 	old_value = onoff;
 
-	P61_INFO_MSG("%s: clock %s\n", __func__, onoff ? "enabled" : "disabled");
+	pr_info("%s: clock %s\n", __func__, onoff ? "enabled" : "disabled");
 	return 0;
 }
 
@@ -291,81 +272,7 @@ err_sclk_get:
 err_pclk_get:
 	return -EPERM;
 }
-
-static uint32_t tz_tee_ese_drv(enum pm_mode mode)
-{
-	TEEC_Context context;
-	TEEC_Session session;
-	TEEC_Result result;
-	uint32_t returnOrigin = TEEC_NONE;
-
-	result = TEEC_InitializeContext(NULL, &context);
-	if (result != TEEC_SUCCESS)
-		goto out;
-
-	result = TEEC_OpenSession(&context, &session, &ese_drv_uuid, TEEC_LOGIN_PUBLIC,
-			NULL, NULL, &returnOrigin);
-	if (result != TEEC_SUCCESS)
-		goto finalize_context;
-
-	/* test with valid cmd id, expected result : TEEC_SUCCESS */
-	result = TEEC_InvokeCommand(&session, mode, NULL, &returnOrigin);
-	if (result != TEEC_SUCCESS) {
-		P61_ERR_MSG("%s with cmd %d : FAIL\n", __func__, mode);
-		goto close_session;
-	}
-
-	P61_ERR_MSG("eSE tz_tee_dev return origin %d\n", returnOrigin);
-
-close_session:
-	TEEC_CloseSession(&session);
-finalize_context:
-	TEEC_FinalizeContext(&context);
-out:
-	P61_INFO_MSG("tz_tee_ese_drv, cmd %d result=%#x origin=%#x\n", mode, result, returnOrigin);
-
-	return result;
-}
-
-extern int tz_tee_ese_secure_check(void);
-int tz_tee_ese_secure_check(void)
-{
-	return	tz_tee_ese_drv(SECURE_CHECK);
-}
 #endif
-
-int ese_spi_pinctrl(int enable)
-{
-	int ret = 0;
-
-	P61_INFO_MSG("%s (%d)\n", __func__, enable);
-
-	switch (enable) {
-	case 0:
-#ifdef CONFIG_ESE_SECURE
-		p61_clk_control(p61_dev, false);
-		tz_tee_ese_drv(PM_SUSPEND);
-#else
-		ese_set_spi_configuration(ESE_SPI_SLEEP);
-#endif
-		break;
-	case 1:
-#ifdef CONFIG_ESE_SECURE
-		p61_clk_control(p61_dev, true);
-		tz_tee_ese_drv(PM_RESUME);
-#else
-		ese_set_spi_configuration(ESE_SPI_ACTIVE);
-#endif
-
-		break;
-	default:
-		pr_err("%s no matching!\n", __func__);
-		ret = -EINVAL;
-	}
-
-	return ret;
-}
-EXPORT_SYMBOL_GPL(ese_spi_pinctrl);
 
 static int p61_xfer(struct p61_device *p61_dev,
 			struct p61_ioctl_transfer *tr)
@@ -388,7 +295,7 @@ static int p61_xfer(struct p61_device *p61_dev,
 
 	memset(p61_dev->buf, 0, tr->len); /*memset 0 for read */
 	if (tr->tx_buffer != NULL) { /*write */
-		P61_INFO_MSG("write %d\n", tr->len);
+		NFC_LOG_REC("%s...write\n", __func__);
 		if (copy_from_user(p61_dev->buf, tr->tx_buffer, tr->len) != 0)
 			return -EFAULT;
 	}
@@ -403,14 +310,14 @@ static int p61_xfer(struct p61_device *p61_dev,
 	if (status == 0) {
 		if (tr->rx_buffer != NULL) { /*read */
 			unsigned long missing = 0;
-			if (tr->len != 1 || p61_dev->buf[0] != 0)
-				P61_INFO_MSG("read %d\n", tr->len);
+
+			NFC_LOG_REC("%s...read\n", __func__);
 			missing = copy_to_user(tr->rx_buffer, p61_dev->buf, tr->len);
 			if (missing != 0)
 				tr->len = tr->len - (unsigned int)missing;
 		}
 	}
-	P61_DBG_MSG("%s length=%d\n", __func__, tr->len);
+	NFC_LOG_REC("%s: length=%d\n", __func__, tr->len);
 	return status;
 
 } /* vfsspi_xfer */
@@ -434,7 +341,7 @@ static int p61_rw_spi_message(struct p61_device *p61_dev,
 	err = p61_xfer(p61_dev, dup);
 	if (err != 0) {
 		kfree(dup);
-		pr_err("%s p61_xfer failed!\n", __func__);
+		NFC_LOG_ERR("%s: p61_xfer failed!\n", __func__);
 		return err;
 	}
 
@@ -461,41 +368,21 @@ static int p61_dev_open(struct inode *inode, struct file *filp)
 	struct p61_device *p61_dev = container_of(filp->private_data,
 				struct p61_device, miscdev);
 	struct spi_device *spidev = NULL;
+	struct wakeup_source *ws = p61_dev->ws;
 
 	spidev = spi_dev_get(p61_dev->spi);
 
 	filp->private_data = p61_dev;
 	if (p61_dev->device_opened) {
-		pr_err("%s: already opened!\n", __func__);
+		NFC_LOG_ERR("%s: already opened!\n", __func__);
 		return -EBUSY;
 	}
-#ifdef CONFIG_NFC_FEATURE_SN100U
-	ese_spi_pinctrl(1);
-	msleep(60);
-#endif
-#ifdef CONFIG_ESE_SECURE
-	if (p61_dev->ese_secure_check == NOT_CHECKED) {
-		int ret = 0;
-
-		ret = tz_tee_ese_secure_check();
-		if (ret) {
-			p61_dev->ese_secure_check = ESE_NOT_SECURED;
-			P61_ERR_MSG("eSE spi is not Secured\n");
-			return -EBUSY;
-		}
-		p61_dev->ese_secure_check = ESE_SECURED;
-	} else if (p61_dev->ese_secure_check == ESE_NOT_SECURED) {
-			P61_ERR_MSG("eSE spi is not Secured\n");
-			return -EBUSY;
-	}
-#endif
-
-	P61_INFO_MSG("%s Major No: %d, Minor No: %d\n", __func__,
+	NFC_LOG_INFO("%s: Major No: %d, Minor No: %d\n", __func__,
 			imajor(inode), iminor(inode));
 
-	if (!wake_lock_active(&p61_dev->ese_lock)) {
-		P61_INFO_MSG("%s: wake lock.\n", __func__);
-		wake_lock(&p61_dev->ese_lock);
+	if (!ws->active) {
+		NFC_LOG_INFO("%s: wake lock.\n", __func__);
+		__pm_stay_awake(ws);
 	}
 
 #ifdef CONFIG_ESE_SECURE
@@ -503,6 +390,10 @@ static int p61_dev_open(struct inode *inode, struct file *filp)
 #endif
 
 	p61_dev->device_opened = true;
+#ifdef CONFIG_NFC_FEATURE_SN100U
+	p61_dev->pid = task_pid_nr(current);
+	NFC_LOG_INFO("%s: pid:%d\n", __func__, p61_dev->pid);
+#endif
 
 	return 0;
 }
@@ -528,42 +419,43 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
 	struct p61_device *p61_dev = NULL;
 
 	if (_IOC_TYPE(cmd) != P61_MAGIC) {
-		pr_err("%s invalid magic. cmd=0x%X Received=0x%X Expected=0x%X\n",
+		NFC_LOG_ERR("%s: invalid magic. cmd=0x%X Received=0x%X Expected=0x%X\n",
 			__func__, cmd, _IOC_TYPE(cmd), P61_MAGIC);
 		return -ENOTTY;
 	}
-	pr_debug("%s entered %x\n", __func__, cmd);
+	NFC_LOG_REC("%s: entered %x\n", __func__, cmd);
 	p61_dev = filp->private_data;
 
 	switch (cmd) {
 	case P61_SET_PWR:
 		if (arg == 2)
-			P61_INFO_MSG("%s P61_SET_PWR. No Action.\n", __func__);
+			NFC_LOG_INFO("%s: P61_SET_PWR. No Action.\n", __func__);
 		break;
 
 	case P61_SET_DBG:
 		debug_level = (unsigned char)arg;
-		P61_INFO_MSG("Debug level %d", debug_level);
+		P61_DBG_MSG(KERN_INFO"[NXP-P61] -  Debug level %d",
+			debug_level);
 		break;
 	case P61_SET_POLL:
 		p61_dev->enable_poll_mode = (unsigned char)arg;
 		if (p61_dev->enable_poll_mode == 0) {
-			P61_INFO_MSG("IRQ Mode is set\n");
+			P61_DBG_MSG(KERN_INFO"[NXP-P61] - IRQ Mode is set\n");
 		} else {
-			P61_INFO_MSG("Poll Mode is set\n");
+			P61_DBG_MSG(KERN_INFO"[NXP-P61] - Poll Mode is set\n");
 			p61_dev->enable_poll_mode = 1;
 		}
 		break;
 
 #if !defined(CONFIG_NFC_FEATURE_SN100U)
 	case P61_SET_SPI_CONFIG:
-		P61_INFO_MSG("%s P61_SET_SPI_CONFIG. No Action.\n", __func__);
+		NFC_LOG_INFO("%s P61_SET_SPI_CONFIG. No Action.\n", __func__);
 		break;
 	case P61_ENABLE_SPI_CLK:
-		P61_INFO_MSG("%s P61_ENABLE_SPI_CLK. No Action.\n", __func__);
+		NFC_LOG_INFO("%s P61_ENABLE_SPI_CLK. No Action.\n", __func__);
 		break;
 	case P61_DISABLE_SPI_CLK:
-		P61_INFO_MSG("%s P61_DISABLE_SPI_CLK. No Action.\n", __func__);
+		NFC_LOG_INFO("%s P61_DISABLE_SPI_CLK. No Action.\n", __func__);
 		break;
 #endif
 
@@ -574,29 +466,29 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
 		break;
 
 	case P61_SET_SPM_PWR:
-		P61_INFO_MSG("%s P61_SET_SPM_PWR: enter\n", __func__);
+		NFC_LOG_INFO("%s: P61_SET_SPM_PWR: enter\n", __func__);
 		ret = pn547_dev_ioctl(filp, P61_SET_SPI_PWR, arg);
 		if (arg == 0 || arg == 1 || arg == 3)
 			pwr_req_on = arg;
-		P61_DBG_MSG("%s P61_SET_SPM_PWR: exit\n", __func__);
+		NFC_LOG_INFO("%s: P61_SET_SPM_PWR: exit\n", __func__);
 		break;
 
 	case P61_GET_SPM_STATUS:
-		P61_INFO_MSG("%s P61_GET_SPM_STATUS: enter\n", __func__);
+		NFC_LOG_INFO("%s: P61_GET_SPM_STATUS: enter\n", __func__);
 		ret = pn547_dev_ioctl(filp, P61_GET_PWR_STATUS, arg);
-		P61_DBG_MSG("%s P61_GET_SPM_STATUS: exit\n", __func__);
+		NFC_LOG_INFO("%s: P61_GET_SPM_STATUS: exit\n", __func__);
 		break;
 
 	case P61_GET_ESE_ACCESS:
 		/*P61_DBG_MSG(KERN_ALERT " P61_GET_ESE_ACCESS: enter");*/
 		ret = pn547_dev_ioctl(filp, P547_GET_ESE_ACCESS, arg);
-		P61_INFO_MSG("%s P61_GET_ESE_ACCESS ret: %d exit\n", __func__, ret);
+		NFC_LOG_INFO("%s: P61_GET_ESE_ACCESS ret: %d exit\n", __func__, ret);
 		break;
 
 	case P61_SET_DWNLD_STATUS:
-		P61_DBG_MSG("P61_SET_DWNLD_STATUS: enter\n");
-		ret = pn547_dev_ioctl(filp, PN547_SET_DWNLD_STATUS,	arg);
-		P61_DBG_MSG("%s P61_SET_DWNLD_STATUS: =%lu exit\n",	__func__, arg);
+		P61_DBG_MSG(KERN_ALERT "P61_SET_DWNLD_STATUS: enter\n");
+		ret = pn547_dev_ioctl(filp, PN547_SET_DWNLD_STATUS, arg);
+		NFC_LOG_INFO("%s: P61_SET_DWNLD_STATUS: =%lu exit\n", __func__, arg);
 		break;
 
 #ifdef CONFIG_NFC_FEATURE_SN100U
@@ -614,7 +506,7 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
 #endif
 
 	default:
-		pr_info("%s no matching ioctl!\n", __func__);
+		NFC_LOG_INFO("%s: no matching ioctl!\n", __func__);
 		ret = -EINVAL;
 	}
 
@@ -622,14 +514,14 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
 }
 
 #ifdef CONFIG_NFC_FEATURE_SN100U
-/* this function is defined temporarily to fix build error. this fucntion is used by uwb */
+/* this function is defined temporarily to fix build error. this function is used by uwb */
 long p61_cold_reset(void)
 {
 	int ret;
 
-	P61_INFO_MSG("UWB ESE_COLD_RESET: enter");
+	NFC_LOG_INFO("UWB ESE_COLD_RESET: enter");
 	ret = ese_cold_reset(ESE_COLD_RESET_SOURCE_UWB);
-	P61_INFO_MSG("ret: %d exit", ret);
+	NFC_LOG_INFO("ret: %d exit", ret);
 
 	return ret;
 }
@@ -641,23 +533,36 @@ long p61_cold_reset(void)
 static int p61_dev_release(struct inode *inode, struct file *file)
 {
 	struct p61_device *p61_dev = file->private_data;
+	struct wakeup_source *ws = p61_dev->ws;
+#ifdef CONFIG_NFC_FEATURE_SN100U
+	int pid;
+#endif
 
-	P61_INFO_MSG("%s\n", __func__);
+	NFC_LOG_INFO("%s: ++\n", __func__);
+
 #ifdef CONFIG_NFC_FEATURE_SN100U
 	do_reset_protection(false);
 #endif
+
+#ifdef CONFIG_ESE_SECURE
+	p61_clk_control(p61_dev, false);
+#endif
 #ifdef CONFIG_NFC_FEATURE_SN100U
-	ese_spi_pinctrl(0);
-	msleep(60);
+	pid = task_pid_nr(current);
+	NFC_LOG_INFO("%s: open pid :%d, close pid :%d\n", __func__, p61_dev->pid, pid);
+	if (pid != p61_dev->pid)
+		p61_dev->pid_diff = true;
+	else
+		p61_dev->pid_diff = false;
 #endif
 
-	if (wake_lock_active(&p61_dev->ese_lock)) {
-		P61_INFO_MSG("%s: wake unlock.\n", __func__);
-		wake_unlock(&p61_dev->ese_lock);
+	if (ws->active) {
+		NFC_LOG_INFO("%s: wake unlock.\n", __func__);
+		__pm_relax(ws);
 	}
 
 	if (pwr_req_on && (pwr_req_on != 5)) {
-		P61_INFO_MSG("%s: release spi session.\n", __func__);
+		NFC_LOG_INFO("%s: release spi session.\n", __func__);
 		pwr_req_on = 0;
 		pn547_dev_ioctl(file, P61_SET_SPI_PWR, 0);
 		pn547_dev_ioctl(file, P61_SET_SPI_PWR, 5);
@@ -685,11 +590,12 @@ static ssize_t p61_dev_write(struct file *filp, const char *buf, size_t count,
 	int ret = -1;
 	struct p61_device *p61_dev;
 
-	P61_DBG_MSG("p61_dev_write -Enter count %zu\n", count);
+	P61_DBG_MSG("%s: -Enter count %zu\n", __func__, count);
 
 #ifdef CONFIG_ESE_SECURE
 	return 0;
 #endif
+
 	p61_dev = filp->private_data;
 
 	mutex_lock(&p61_dev->write_mutex);
@@ -698,21 +604,20 @@ static ssize_t p61_dev_write(struct file *filp, const char *buf, size_t count,
 
 	memset(p61_dev->buf, 0, count);
 	if (copy_from_user(p61_dev->buf, &buf[0], count)) {
-		P61_ERR_MSG("%s : failed to copy from user space\n", __func__);
+		P61_ERR_MSG("%s: failed to copy from user space\n", __func__);
 		mutex_unlock(&p61_dev->write_mutex);
 		return -EFAULT;
 	}
+
 	/* Write data */
 	ret = spi_write(p61_dev->spi, p61_dev->buf, count);
-	if (ret < 0) {
-		P61_INFO_MSG("write(%zu) error %d\n", count, ret);
+	if (ret < 0)
 		ret = -EIO;
-	} else {
+	else
 		ret = count;
-		P61_INFO_MSG("write(%zu)\n", count);
-	}
 
 	mutex_unlock(&p61_dev->write_mutex);
+	NFC_LOG_INFO("%s: -count %zu  %d- Exit\n", __func__, count, ret);
 
 	return ret;
 }
@@ -740,7 +645,7 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
 	int total_count = 0;
 	//unsigned char rx_buffer[MAX_BUFFER_SIZE];
 
-	P61_DBG_MSG("p61_dev_read count %zu - Enter\n", count);
+	P61_DBG_MSG("%s: count %zu - Enter\n", __func__, count);
 
 #ifdef CONFIG_ESE_SECURE
 	return 0;
@@ -756,7 +661,7 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
 	//memset(&rx_buffer[0], 0x00, sizeof(rx_buffer));
 	memset(p61_dev->buf, 0x00, MAX_BUFFER_SIZE);
 
-	P61_DBG_MSG(" %s Poll Mode Enabled\n", __func__);
+	P61_DBG_MSG("%s: Poll Mode Enabled\n", __func__);
 	do {
 		sof = 0x00;
 		ret = spi_read(p61_dev->spi, (void *)&sof, 1);
@@ -764,7 +669,7 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
 			P61_ERR_MSG("spi_read failed [SOF]\n");
 			goto fail;
 		}
-		//P61_DBG_MSG("SPI_READ returned 0x%x\n", sof);
+		//P61_DBG_MSG(KERN_INFO"SPI_READ returned 0x%x\n", sof);
 		/* if SOF not received, give some time to P61 */
 		/* RC put the conditional delay only if SOF not received */
 		if (sof != SOF)
@@ -787,31 +692,32 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
 	/* Get the data length */
 	//count = rx_buffer[2];
 	count = *(p61_dev->buf + 2);
-	P61_INFO_MSG("Data Length = %zu", count);
+	NFC_LOG_REC("Data Length = %zu", count);
 	/* Read the available data along with one byte LRC */
 	ret = spi_read(p61_dev->spi, (void *)(p61_dev->buf + 3), (count+1));
 	if (ret < 0) {
-		P61_ERR_MSG("%s spi_read data failed\n", __func__);
+		NFC_LOG_ERR("%s: spi_read failed\n", __func__);
 		ret = -EIO;
 		goto fail;
 	}
 	total_count = (total_count + (count+1));
-	P61_DBG_MSG("total_count = %d", total_count);
+	P61_DBG_MSG(KERN_INFO"total_count = %d", total_count);
 
 	if (copy_to_user(buf, p61_dev->buf, total_count)) {
-		P61_ERR_MSG("%s : failed to copy to user space\n", __func__);
+		P61_ERR_MSG("%s: failed to copy to user space\n", __func__);
 		ret = -EFAULT;
 		goto fail;
 	}
 	ret = total_count;
-	P61_DBG_MSG("p61_dev_read ret %d Exit\n", ret);
+	P61_DBG_MSG("%s: ret %d Exit\n", __func__, ret);
 
 	mutex_unlock(&p61_dev->read_mutex);
 
 	return ret;
 
 fail:
-	P61_ERR_MSG("Error p61_dev_read ret %d Exit\n", ret);
+	NFC_LOG_INFO("%s: count %zu  %d- Exit\n", __func__, count, ret);
+
 	mutex_unlock(&p61_dev->read_mutex);
 	return ret;
 }
@@ -852,23 +758,38 @@ static int p61_parse_dt(struct device *dev,
 	struct p61_device *p61_dev)
 {
 	struct device_node *np = dev->of_node;
+#ifdef ESE_PINCTRL
 	struct device_node *spi_device_node;
 	struct platform_device *spi_pdev;
-#ifdef ESE_PINCTRL
-	char *pin_status[] = {"ese_on", "ese_off", "ese_lpm"};
+	char *pin_status[] = {"sleep", "default", "lpm"};
 	int i;
 #endif
+	int ese_det_gpio;
 
 	if (!of_property_read_string(np, "p61-ap_vendor",
 		&p61_dev->ap_vendor)) {
-		P61_INFO_MSG("%s: ap_vendor - %s\n", __func__, p61_dev->ap_vendor);
+		NFC_LOG_INFO("%s: ap_vendor - %s\n", __func__, p61_dev->ap_vendor);
 	}
+
+	ese_det_gpio = of_get_named_gpio(np, "ese-det-gpio", 0);
+	if (!gpio_is_valid(ese_det_gpio)) {
+		NFC_LOG_INFO("%s: ese-det-gpio is not set\n", __func__);
+	} else {
+		gpio_request(ese_det_gpio, "ese_det_gpio");
+		gpio_direction_input(ese_det_gpio);
+		if (!gpio_get_value(ese_det_gpio)) {
+			NFC_LOG_INFO("%s: ese is not supported\n", __func__);
+			return -ENODEV;
+		}
+		NFC_LOG_INFO("%s: ese is supported\n", __func__);
+	}
+
 #ifdef CONFIG_NFC_FEATURE_SN100U
 	p61_dev->spi_cs_gpio = of_get_named_gpio(np, "ese-spi_cs-gpio", 0);
 	if (!gpio_is_valid(p61_dev->spi_cs_gpio))
-		pr_info("%s : cs_gpio is not set", __func__);
+		NFC_LOG_INFO("%s: cs_gpio is not set\n", __func__);
 	else
-		pr_info("%s : cs_gpio is %d", __func__, p61_dev->spi_cs_gpio);
+		NFC_LOG_INFO("%s: cs_gpio is %d\n", __func__, p61_dev->spi_cs_gpio);
 #endif
 #ifdef ESE_PINCTRL
 	spi_device_node = of_parse_phandle(np,
@@ -876,25 +797,25 @@ static int p61_parse_dt(struct device *dev,
 	if (!IS_ERR_OR_NULL(spi_device_node)) {
 		spi_pdev = of_find_device_by_node(spi_device_node);
 		if (!spi_pdev) {
-			pr_info("%s: of_find_device_by_node failed\n", __func__);
+			NFC_LOG_INFO("%s: of_find_device_by_node failed\n", __func__);
 			goto end;
 		}
 
 		p61_dev->pinctrl = devm_pinctrl_get(&spi_pdev->dev);
 		if (IS_ERR(p61_dev->pinctrl)) {
-			pr_info("%s: devm_pinctrl_get failed\n", __func__);
+			NFC_LOG_INFO("%s: devm_pinctrl_get failed\n", __func__);
 			goto end;
 		}
 
 		for (i = 0; i < ESE_SPI_PCTRL_CNT; i++) {
 			p61_dev->pinctrl_state[i] = pinctrl_lookup_state(p61_dev->pinctrl, pin_status[i]);
 			if (IS_ERR(p61_dev->pinctrl_state[i])) {
-				pr_info("%s : pinctrl_lookup_state[%s] failed", __func__, pin_status[i]);
+				NFC_LOG_INFO("%s: pinctrl_lookup_state[%s] failed\n", __func__, pin_status[i]);
 				p61_dev->pinctrl_state[i] = NULL;
 			}
 		}
 	} else {
-		P61_INFO_MSG("target does not use spi pinctrl\n");
+		NFC_LOG_INFO("%s: of_parse_phandle failed\n", __func__);
 	}
 end:
 #endif
@@ -927,8 +848,10 @@ static int p61_probe(struct spi_device *spi)
 {
 	int ret = -1;
 
-	P61_INFO_MSG("%s: chip select(%d), bus number(%d)\n",
+	pr_info("%s: chip select(%d), bus number(%d)\n",
 		__func__, spi->chip_select, spi->master->bus_num);
+
+	nfc_logger_init();
 
 	p61_dev = kzalloc(sizeof(*p61_dev), GFP_KERNEL);
 	if (p61_dev == NULL) {
@@ -939,10 +862,10 @@ static int p61_probe(struct spi_device *spi)
 
 	ret = p61_parse_dt(&spi->dev, p61_dev);
 	if (ret) {
-		pr_err("%s: Failed to parse DT\n", __func__);
+		NFC_LOG_ERR("%s: Failed to parse DT\n", __func__);
 		goto p61_parse_dt_failed;
 	}
-	P61_INFO_MSG("%s: tz_mode=%d, isGpio_cfgDone:%d\n", __func__,
+	NFC_LOG_INFO("%s: tz_mode=%d, isGpio_cfgDone:%d\n", __func__,
 			p61_dev->tz_mode, p61_dev->isGpio_cfgDone);
 
 	spi->bits_per_word = 8;
@@ -955,8 +878,7 @@ static int p61_probe(struct spi_device *spi)
 		goto p61_spi_setup_failed;
 	}
 #else
-	p61_dev->ese_secure_check = NOT_CHECKED;
-	P61_INFO_MSG("%s: eSE Secured system\n", __func__);
+	pr_info("%s: eSE Secured system\n", __func__);
 	ret = p61_clk_setup(&spi->dev, p61_dev);
 	if (ret)
 		pr_err("%s - Failed to do clk_setup\n", __func__);
@@ -981,8 +903,9 @@ static int p61_probe(struct spi_device *spi)
 	mutex_init(&p61_dev->write_mutex);
 	spin_lock_init(&p61_dev->ese_spi_lock);
 
-	wake_lock_init(&p61_dev->ese_lock, WAKE_LOCK_SUSPEND, "ese_wake_lock");
+	p61_dev->ws = wakeup_source_register(&spi->dev, "ese_ws");
 	p61_dev->device_opened = false;
+
 	if (!lpcharge) {
 		ret = misc_register(&p61_dev->miscdev);
 		if (ret < 0) {
@@ -1003,13 +926,13 @@ static int p61_probe(struct spi_device *spi)
 	pn547_register_ese_shutdown(p61_shutdown);
 #endif
 
-	P61_INFO_MSG("%s: finished\n", __func__);
+	NFC_LOG_INFO("%s: finished\n", __func__);
 	return ret;
 
 err_exit0:
 	mutex_destroy(&p61_dev->read_mutex);
 	mutex_destroy(&p61_dev->write_mutex);
-	wake_lock_destroy(&p61_dev->ese_lock);
+	wakeup_source_remove(p61_dev->ws);
 
 #ifndef CONFIG_ESE_SECURE
 p61_spi_setup_failed:
@@ -1035,7 +958,7 @@ static int p61_remove(struct spi_device *spi)
 	P61_DBG_MSG("Entry : %s\n", __func__);
 	mutex_destroy(&p61_dev->read_mutex);
 	misc_deregister(&p61_dev->miscdev);
-	wake_lock_destroy(&p61_dev->ese_lock);
+	wakeup_source_remove(p61_dev->ws);
 	kfree(p61_dev->buf);
 	kfree(p61_dev);
 
@@ -1097,7 +1020,8 @@ static void __exit p61_dev_exit(void)
 	P61_DBG_MSG("Exit : %s\n", __func__);
 }
 
-module_init(p61_dev_init);
+/* module_init(p61_dev_init); */
+late_initcall(p61_dev_init);
 module_exit(p61_dev_exit);
 
 MODULE_AUTHOR("BHUPENDRA PAWAR");

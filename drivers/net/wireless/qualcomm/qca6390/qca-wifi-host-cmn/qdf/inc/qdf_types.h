@@ -814,13 +814,29 @@ QDF_STATUS qdf_uint64_parse(const char *int_str, uint64_t *out_int);
 
 #define QDF_MAC_ADDR_SIZE 6
 
+/**
+ * If the feature CONFIG_WLAN_TRACE_HIDE_MAC_ADDRESS is enabled,
+ * then the requirement is to hide 2nd, 3rd and 4th octet of the
+ * MAC address in the kernel logs and driver logs.
+ * But other management interfaces like ioctl, debugfs, sysfs,
+ * wext, unit test code or non-production simulator sw (iot_sim)
+ * should continue to log the full mac address.
+ *
+ * Developers must use QDF_FULL_MAC_FMT instead of "%pM",
+ * as this macro helps avoid accidentally breaking the feature
+ * CONFIG_WLAN_TRACE_HIDE_MAC_ADDRESS if enabled and code auditing
+ * becomes easy.
+ */
+#define QDF_FULL_MAC_FMT "%pM"
+#define QDF_FULL_MAC_REF(a) (a)
+
 #if defined(WLAN_TRACE_HIDE_MAC_ADDRESS)
 #define QDF_MAC_ADDR_FMT "%02x:**:**:**:%02x:%02x"
 
 /*
  * The input data type for QDF_MAC_ADDR_REF can be pointer or an array.
  * In case of array, compiler was throwing following warning
- * 'address of array will always evaluate as ‘true’
+ * 'address of array will always evaluate as â€˜trueâ€™
  * and if the pointer is NULL, zero is passed to the format specifier
  * which results in zero mac address (00:**:**:**:00:00)
  * For this reason, input data type is typecasted to (uintptr_t).
@@ -1295,6 +1311,7 @@ enum qdf_suspend_type {
  * @QDF_VDEV_STOP_RESPONSE_TIMED_OUT: Stop response timeout from FW
  * @QDF_VDEV_DELETE_RESPONSE_TIMED_OUT: Delete response timeout from FW
  * @QDF_VDEV_PEER_DELETE_ALL_RESPONSE_TIMED_OUT: Peer delete all resp timeout
+ * @QDF_WMI_BUF_SEQUENCE_MISMATCH: WMI Tx completion buffer sequence mismatch
  * @QDF_HAL_REG_WRITE_FAILURE: HAL register writing failures
  * @QDF_SUSPEND_NO_CREDIT: host lack of credit after suspend
  */
@@ -1319,7 +1336,7 @@ enum qdf_hang_reason {
 	QDF_VDEV_STOP_RESPONSE_TIMED_OUT,
 	QDF_VDEV_DELETE_RESPONSE_TIMED_OUT,
 	QDF_VDEV_PEER_DELETE_ALL_RESPONSE_TIMED_OUT,
-    QDF_WMI_BUF_SEQUENCE_MISMATCH,
+	QDF_WMI_BUF_SEQUENCE_MISMATCH,
 	QDF_HAL_REG_WRITE_FAILURE,
 	QDF_SUSPEND_NO_CREDIT,
 };

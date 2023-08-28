@@ -731,17 +731,8 @@ static void ce_srng_msi_ring_params_setup(struct hif_softc *scn, uint32_t ce_id,
 
 	ring_params->msi_addr = addr_low;
 	ring_params->msi_addr |= (qdf_dma_addr_t)(((uint64_t)addr_high) << 32);
-#ifdef CONFIG_ARCH_EXYNOS9
-	if (ce_id == CE_ID_5)
-		/* Hack as CE_ID_4 not used */
-		ring_params->msi_data = 4 + msi_data_start;
-	else
-		ring_params->msi_data = (ce_id % msi_data_count) + msi_data_start;
-	ring_params->flags |= HAL_SRNG_MSI_INTR;
-#else
 	ring_params->msi_data = (ce_id % msi_data_count) + msi_data_start;
-	//ring_params->flags |= HAL_SRNG_MSI_INTR;
-#endif
+	ring_params->flags |= HAL_SRNG_MSI_INTR;
 
 	HIF_DBG("%s: ce_id %d, msi_addr %pK, msi_data %d", __func__, ce_id,
 		  (void *)ring_params->msi_addr, ring_params->msi_data);
@@ -954,10 +945,10 @@ static void ce_prepare_shadow_register_v2_cfg_srng(struct hif_softc *scn,
 		/* return with original configuration*/
 		return;
 	}
-
-	hal_construct_shadow_config(scn->hal_soc);
+	hal_construct_srng_shadow_regs(scn->hal_soc);
 	ce_construct_shadow_config_srng(scn);
-
+	hal_set_shadow_regs(scn->hal_soc);
+	hal_construct_shadow_regs(scn->hal_soc);
 	/* get updated configuration */
 	hal_get_shadow_config(scn->hal_soc, shadow_config,
 			      num_shadow_registers_configured);

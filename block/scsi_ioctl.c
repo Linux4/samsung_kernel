@@ -691,13 +691,6 @@ int scsi_verify_blk_ioctl(struct block_device *bd, unsigned int cmd)
 	if (bd && bd == bd->bd_contains)
 		return 0;
 
-	switch (cmd) {
-	case SCSI_IOCTL_SECURITY_PROTOCOL_IN:
-	case SCSI_IOCTL_SECURITY_PROTOCOL_OUT:
-		return 0;
-	default:
-		break;
-	}
 	if (capable(CAP_SYS_RAWIO))
 		return 0;
 

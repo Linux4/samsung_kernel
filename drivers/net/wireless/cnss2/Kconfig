@@ -2,10 +2,9 @@
 
 config CNSS2
 	tristate "CNSS2 Platform Driver for Wi-Fi Module"
-	depends on !CNSS
+	depends on !CNSS && PCI_MSM
 	select CNSS_UTILS
-    select WANT_DEV_COREDUMP	
-    help
+	help
 	  This module adds the support for Connectivity Subsystem (CNSS) used
 	  for PCIe based Wi-Fi devices with QCA6174/QCA6290 chipsets.
 	  This driver also adds support to integrate WLAN module to subsystem
@@ -85,3 +84,8 @@ config CNSS_QCA6490
 	  CNSS QCA6490 chipset.
 	  These changes are needed to support the new hardware architecture
 	  for CNSS QCA6490 chipset.
+
+config SEC_SEPARATE_BDFILE
+	bool "Enable/disable SEC_SEPARATE_BDFILE"
+	depends on CNSS2
+	depends on CNSS_QCA6390 || CNSS_QCA6490

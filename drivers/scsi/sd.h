@@ -2,10 +2,6 @@
 #ifndef _SCSI_DISK_H
 #define _SCSI_DISK_H
 
-#if defined(CONFIG_UFS_SRPMB)
-#include "scsi_srpmb.h"
-#endif
-
 /*
  * More than enough for everybody ;)  The huge number of majors
  * is a leftover from 16bit dev_t days, we don't really need that
@@ -18,15 +14,17 @@
  */
 #define SD_TIMEOUT		(30 * HZ)
 #define SD_MOD_TIMEOUT		(75 * HZ)
-#define SD_UFS_TIMEOUT		(10 * HZ)
-#define SD_UFS_FLUSH_TIMEOUT		(6 * HZ)
-
 /*
  * Flush timeout is a multiplier over the standard device timeout which is
  * user modifiable via sysfs but initially set to SD_TIMEOUT
  */
 #define SD_FLUSH_TIMEOUT_MULTIPLIER	2
 #define SD_WRITE_SAME_TIMEOUT	(120 * HZ)
+
+/*
+ * In case of UFS device, use this timeout values
+ */
+#define SD_UFS_TIMEOUT          (10 * HZ)
 
 /*
  * Number of allowed retries
@@ -125,9 +123,9 @@ struct scsi_disk {
 	unsigned	security : 1;
 	unsigned	ignore_medium_access_errors : 1;
 #ifdef CONFIG_USB_STORAGE_DETECT
-	wait_queue_head_t	delay_wait;
+	wait_queue_head_t	 delay_wait;
 	struct completion	scanning_done;
-	struct task_struct	*th;
+	struct task_struct *th;
 	int		thread_remove;
 	int		async_end;
 	int		prv_media_present;

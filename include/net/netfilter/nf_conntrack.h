@@ -107,6 +107,7 @@ struct nf_conn {
 
 	/* Storage reserved for other modules, must be the last member */
 	union nf_conntrack_proto proto;
+
 	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
 	/* The number of application layer bytes sent by the socket */
 	__u64   knox_sent;
@@ -138,16 +139,6 @@ struct nf_conn {
 	/* Atomic variable indicating end of intermediate flow */
 	atomic_t intermediateFlow;
 	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
-#ifdef CONFIG_HW_FORWARD
-	u32 packet_count;
-	bool forward_registered;
-	struct net_device *netdev;
-#endif
-#ifdef CONFIG_LINK_FORWARD
-	u32 packet_count;
-	bool linkforward_registered;
-	struct net_device *netdev;
-#endif
 };
 
 static inline struct nf_conn *

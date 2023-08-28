@@ -306,7 +306,7 @@ static ssize_t enable_compliance_store(struct device *dev,
 		port = lvs->portnum;
 
 	ret = lvs_rh_set_port_feature(hdev,
-			port | USB_SS_PORT_LS_COMP_MOD << 3,
+			port | (USB_SS_PORT_LS_COMP_MOD << 3),
 			USB_PORT_FEAT_LINK_STATE);
 	if (ret < 0) {
 		dev_err(dev, "can't enable compliance mode %d\n", ret);

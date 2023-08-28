@@ -30,6 +30,7 @@
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/stddef.h>
+#include <linux/sysctl.h>
 #include <linux/unistd.h>
 #include <linux/user.h>
 #include <linux/delay.h>
@@ -46,10 +47,10 @@
 #include <linux/hw_breakpoint.h>
 #include <linux/personality.h>
 #include <linux/notifier.h>
-#include <linux/debug-snapshot.h>
 #include <trace/events/power.h>
 #include <linux/percpu.h>
 #include <linux/thread_info.h>
+#include <linux/prctl.h>
 
 #include <asm/alternative.h>
 #include <asm/compat.h>
@@ -58,12 +59,18 @@
 #include <asm/fpsimd.h>
 #include <asm/mmu_context.h>
 #include <asm/processor.h>
+#include <asm/scs.h>
 #include <asm/stacktrace.h>
 
 #ifdef CONFIG_STACKPROTECTOR
 #include <linux/stackprotector.h>
 unsigned long __stack_chk_guard __read_mostly;
 EXPORT_SYMBOL(__stack_chk_guard);
+#endif
+
+#ifdef CONFIG_CFP_ROPP
+#include <linux/cfp.h>
+#define RRK_MASK (1UL << 63)
 #endif
 
 /*
@@ -87,6 +94,16 @@ void arch_cpu_idle(void)
 	cpu_do_idle();
 	local_irq_enable();
 	trace_cpu_idle_rcuidle(PWR_EVENT_EXIT, smp_processor_id());
+}
+
+void arch_cpu_idle_enter(void)
+{
+	idle_notifier_call_chain(IDLE_START);
+}
+
+void arch_cpu_idle_exit(void)
+{
+	idle_notifier_call_chain(IDLE_END);
 }
 
 #ifdef CONFIG_HOTPLUG_CPU
@@ -138,9 +155,7 @@ void machine_power_off(void)
 
 /*
  * Restart requires that the secondary CPUs stop performing any activity
- * while the primary CPU resets the system. Systems with a single CPU can
- * use soft_restart() as their machine descriptor's .restart hook, since that
- * will cause the only available CPU to reset. Systems with multiple CPUs must
+ * while the primary CPU resets the system. Systems with multiple CPUs must
  * provide a HW restart implementation, to ensure that all CPUs reset at once.
  * This is required so that any code running after reset on the primary CPU
  * doesn't have to co-ordinate with other CPUs to ensure they aren't still
@@ -159,8 +174,6 @@ void machine_restart(char *cmd)
 	 */
 	if (efi_enabled(EFI_RUNTIME_SERVICES))
 		efi_reboot(reboot_mode, NULL);
-
-	dbg_snapshot_post_reboot(cmd);
 
 	/* Now call the architecture specific reboot code. */
 	if (arm_pm_restart)
@@ -208,46 +221,30 @@ static void print_pstate(struct pt_regs *regs)
 	}
 }
 
-#ifdef CONFIG_SEC_DEBUG_AVOID_UNNECESSARY_TRAP
-extern unsigned long long incorrect_addr;
-#endif
-
 /*
  * dump a block of kernel memory from around the given address
  */
-static void show_data(unsigned long addr, int nbytes, const char *name)
+static void __show_data(unsigned long addr, int nbytes, const char *name, unsigned long base_addr)
 {
 	int	i, j;
 	int	nlines;
-#ifdef CONFIG_SEC_DEBUG_AVOID_UNNECESSARY_TRAP
-	int	nbytes_offset = nbytes;
-#endif
 	u32	*p;
+	unsigned long page_address;
+	const unsigned long page_mask = ~(PAGE_SIZE - 0x1);
+
+	if (!base_addr)
+		page_address = 0x0;
+	else
+		page_address = base_addr & page_mask;
 
 	/*
 	 * don't attempt to dump non-kernel addresses or
 	 * values that are probably just small negative numbers
 	 */
-	if (addr < PAGE_OFFSET || addr > -256UL) {
-		/*
-		 * If kaslr is enabled, Kernel code is able to
-		 * located in VMALLOC address.
-		 */
-		if (IS_ENABLED(CONFIG_RANDOMIZE_BASE)) {
-#ifdef CONFIG_VMAP_STACK
-			if (!is_vmalloc_addr((const void *)addr))
-				return;
-#else
-			if (addr < (unsigned long)KERNEL_START ||
-			    addr > (unsigned long)KERNEL_END)
-				return;
-#endif
-		} else {
-			return;
-		}
-	}
+	if (addr < KIMAGE_VADDR || addr > -256UL)
+		return;
 
-	printk("\n%s: %#lx:\n", name, addr);
+	printk(KERN_DEBUG "\n%s: %#lx:\n", name, addr);
 
 	/*
 	 * round address down to a 32 bit boundary
@@ -263,34 +260,25 @@ static void show_data(unsigned long addr, int nbytes, const char *name)
 		 * just display low 16 bits of address to keep
 		 * each line of the dump < 80 characters
 		 */
-		printk("%04lx :", (unsigned long)p & 0xffff);
+		printk(KERN_DEBUG "%04lx ", (unsigned long)p & 0xffff);
 		for (j = 0; j < 8; j++) {
 			u32	data;
-#ifdef CONFIG_SEC_DEBUG_AVOID_UNNECESSARY_TRAP
-			if ((incorrect_addr != 0) && (((unsigned long long)p >= (incorrect_addr - nbytes_offset)) && ((unsigned long long)p <= (incorrect_addr + nbytes_offset)))) {
-				if (j == 7)
-					pr_cont(" ********\n");
-				else
-					pr_cont(" ********");
-			}
-			else if (probe_kernel_address(p, data)) {
-#else
-			if (probe_kernel_address(p, data)) {
-#endif
-				if (j == 7)
-					pr_cont(" ********\n");
-				else
-					pr_cont(" ********");
 
-			} else {
-				if (j == 7)
-					pr_cont(" %08X\n", data);
-				else
-					pr_cont(" %08X", data);
-			}
+			if (page_address && page_address != (page_mask & (uintptr_t)p))
+				pr_cont(" ????????");
+			else if (probe_kernel_address(p, data))
+				pr_cont(" ********");
+			else
+				pr_cont(" %08x", data);
 			++p;
 		}
+		pr_cont("\n");
 	}
+}
+
+static void show_data(unsigned long addr, int nbytes, const char *name)
+{
+	__show_data(addr, nbytes, name, 0);
 }
 
 static void show_extra_register_data(struct pt_regs *regs, int nbytes)
@@ -305,8 +293,9 @@ static void show_extra_register_data(struct pt_regs *regs, int nbytes)
 	show_data(regs->sp - nbytes, nbytes * 2, "SP");
 	for (i = 0; i < 30; i++) {
 		char name[4];
+
 		snprintf(name, sizeof(name), "X%u", i);
-		show_data(regs->regs[i] - nbytes, nbytes * 2, name);
+		__show_data(regs->regs[i] - nbytes, nbytes * 2, name, regs->regs[i]);
 	}
 	set_fs(fs);
 }
@@ -325,21 +314,6 @@ void __show_regs(struct pt_regs *regs)
 		sp = regs->sp;
 		top_reg = 29;
 	}
-
-	if (!user_mode(regs)) {
-		dbg_snapshot_save_context(regs);
-		/*
-		 *  If you want to see more kernel events after panic,
-		 *  you should modify dbg_snapshot_set_enable's function 2nd parameter
-		 *  to true.
-		 */
-		dbg_snapshot_set_enable_item("log_kevents", false);
-	}
-
-	pr_info("TIF_FOREIGN_FPSTATE: %d, FP/SIMD depth %d, cpu: %d\n",
-			test_thread_flag(TIF_FOREIGN_FPSTATE),
-			atomic_read(&current->thread.fpsimd_kernel_state.depth),
-			current->thread.fpsimd_kernel_state.cpu);
 
 	show_regs_print_info(KERN_DEFAULT);
 	print_pstate(regs);
@@ -367,9 +341,10 @@ void __show_regs(struct pt_regs *regs)
 
 		pr_cont("\n");
 	}
-	if (!user_mode(regs) && !dbg_snapshot_is_hardlockup())
-		show_extra_register_data(regs, 256);
-	printk("\n");
+
+	if (!user_mode(regs) && (oops_in_progress == 1 || oops_in_progress == 2))
+		show_extra_register_data(regs, 128);
+
 }
 
 void show_regs(struct pt_regs * regs)
@@ -378,16 +353,6 @@ void show_regs(struct pt_regs * regs)
 	dump_backtrace(regs, NULL);
 }
 
-#ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
-void show_regs_auto_comment(struct pt_regs * regs, bool comm)
-{
-	__show_regs(regs);
-	if (comm)
-		dump_backtrace_auto_summary(regs, NULL);
-	else
-		dump_backtrace(regs, NULL);
-}
-#endif
 static void tls_thread_flush(void)
 {
 	write_sysreg(0, tpidr_el0);
@@ -405,11 +370,18 @@ static void tls_thread_flush(void)
 	}
 }
 
+static void flush_tagged_addr_state(void)
+{
+	if (IS_ENABLED(CONFIG_ARM64_TAGGED_ADDR_ABI))
+		clear_thread_flag(TIF_TAGGED_ADDR);
+}
+
 void flush_thread(void)
 {
 	fpsimd_flush_thread();
 	tls_thread_flush();
 	flush_ptrace_hw_breakpoint(current);
+	flush_tagged_addr_state();
 }
 
 void release_thread(struct task_struct *dead_task)
@@ -446,6 +418,28 @@ int arch_dup_task_struct(struct task_struct *dst, struct task_struct *src)
 }
 
 asmlinkage void ret_from_fork(void) asm("ret_from_fork");
+
+#ifdef CONFIG_CFP_ROPP
+static inline void ropp_change_key(struct task_struct *p)
+{
+#ifdef CONFIG_CFP_ROPP_SYSREGKEY
+	task_thread_info(p)->rrk = get_random_long() | RRK_MASK;
+
+#ifdef SYSREG_DEBUG
+	task_thread_info(p)->rrk = ropp_fixed_key ^ ropp_master_key;
+#endif
+
+#elif defined CONFIG_CFP_ROPP_RANDKEY
+	task_thread_info(p)->rrk = get_random_long();
+#elif defined CONFIG_CFP_ROPP_FIXKEY
+	task_thread_info(p)->rrk = ropp_fixed_key;
+#elif defined CONFIG_CFP_ROPP_ZEROKEY
+	task_thread_info(p)->rrk = 0x0;
+#else
+	#error "Please choose one ROPP key scheme"
+#endif
+}
+#endif
 
 int copy_thread(unsigned long clone_flags, unsigned long stack_start,
 		unsigned long stk_sz, struct task_struct *p)
@@ -499,6 +493,9 @@ int copy_thread(unsigned long clone_flags, unsigned long stack_start,
 		p->thread.cpu_context.x19 = stack_start;
 		p->thread.cpu_context.x20 = stk_sz;
 	}
+#ifdef CONFIG_CFP_ROPP
+	ropp_change_key(p);
+#endif
 	p->thread.cpu_context.pc = (unsigned long)ret_from_fork;
 	p->thread.cpu_context.sp = (unsigned long)childregs;
 
@@ -550,6 +547,13 @@ static void ssbs_thread_switch(struct task_struct *next)
 	if (unlikely(next->flags & PF_KTHREAD))
 		return;
 
+	/*
+	 * If all CPUs implement the SSBS extension, then we just need to
+	 * context-switch the PSTATE field.
+	 */
+	if (cpu_have_feature(cpu_feature(SSBS)))
+		return;
+
 	/* If the mitigation is enabled, then we leave SSBS clear. */
 	if ((arm64_get_ssbd_state() == ARM64_SSBD_FORCE_ENABLE) ||
 	    test_tsk_thread_flag(next, TIF_SSBD))
@@ -590,6 +594,7 @@ __notrace_funcgraph struct task_struct *__switch_to(struct task_struct *prev,
 	entry_task_switch(next);
 	uao_thread_switch(next);
 	ssbs_thread_switch(next);
+	scs_overflow_check(next);
 
 	/*
 	 * Complete any pending TLB or cache maintenance on this CPU in case
@@ -680,3 +685,70 @@ void __used stackleak_check_alloca(unsigned long size)
 }
 EXPORT_SYMBOL(stackleak_check_alloca);
 #endif
+
+#ifdef CONFIG_ARM64_TAGGED_ADDR_ABI
+/*
+ * Control the relaxed ABI allowing tagged user addresses into the kernel.
+ */
+static unsigned int tagged_addr_disabled;
+
+long set_tagged_addr_ctrl(unsigned long arg)
+{
+	if (is_compat_task())
+		return -EINVAL;
+	if (arg & ~PR_TAGGED_ADDR_ENABLE)
+		return -EINVAL;
+
+	/*
+	 * Do not allow the enabling of the tagged address ABI if globally
+	 * disabled via sysctl abi.tagged_addr_disabled.
+	 */
+	if (arg & PR_TAGGED_ADDR_ENABLE && tagged_addr_disabled)
+		return -EINVAL;
+
+	update_thread_flag(TIF_TAGGED_ADDR, arg & PR_TAGGED_ADDR_ENABLE);
+
+	return 0;
+}
+
+long get_tagged_addr_ctrl(void)
+{
+	if (is_compat_task())
+		return -EINVAL;
+
+	if (test_thread_flag(TIF_TAGGED_ADDR))
+		return PR_TAGGED_ADDR_ENABLE;
+
+	return 0;
+}
+
+/*
+ * Global sysctl to disable the tagged user addresses support. This control
+ * only prevents the tagged address ABI enabling via prctl() and does not
+ * disable it for tasks that already opted in to the relaxed ABI.
+ */
+static int zero;
+static int one = 1;
+
+static struct ctl_table tagged_addr_sysctl_table[] = {
+	{
+		.procname	= "tagged_addr_disabled",
+		.mode		= 0644,
+		.data		= &tagged_addr_disabled,
+		.maxlen		= sizeof(int),
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &zero,
+		.extra2		= &one,
+	},
+	{ }
+};
+
+static int __init tagged_addr_init(void)
+{
+	if (!register_sysctl("abi", tagged_addr_sysctl_table))
+		return -EINVAL;
+	return 0;
+}
+
+core_initcall(tagged_addr_init);
+#endif	/* CONFIG_ARM64_TAGGED_ADDR_ABI */

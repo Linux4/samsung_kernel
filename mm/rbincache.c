@@ -746,7 +746,7 @@ static struct attribute_group rc_attr_group = {
 static int __init rc_sysfs_init(void)
 {
 	int err;
-	
+
 	err = sysfs_create_group(mm_kobj, &rc_attr_group);
 	if (err) {
 		pr_err("sysfs create failed(%d)\n", err);

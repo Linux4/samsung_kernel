@@ -1824,6 +1824,59 @@ static int pinctrl_show(struct seq_file *s, void *what)
 }
 DEFINE_SHOW_ATTRIBUTE(pinctrl);
 
+#ifdef CONFIG_SEC_PM
+static int sec_gpio_debug_show(struct seq_file *s, void *what)
+{
+	struct pinctrl_dev *pctldev;
+	const struct pinconf_ops *confops;
+
+	mutex_lock(&pinctrldev_list_mutex);
+
+	list_for_each_entry(pctldev, &pinctrldev_list, node) {
+		confops = pctldev->desc->confops;
+		if (confops && confops->pin_config_sec_dbg_show) {
+			seq_printf(s, "%s\n", pctldev->desc->name);
+			confops->pin_config_sec_dbg_show(pctldev, s);
+		}
+	}
+
+	mutex_unlock(&pinctrldev_list_mutex);
+
+	return 0;
+}
+
+void sec_gpio_debug_print(void)
+{
+	struct pinctrl_dev *pctldev;
+	const struct pinconf_ops *confops;
+
+	mutex_lock(&pinctrldev_list_mutex);
+
+	list_for_each_entry(pctldev, &pinctrldev_list, node) {
+		confops = pctldev->desc->confops;
+		if (confops && confops->pin_config_sec_dbg_print) {
+			pr_info("%s\n", pctldev->desc->name);
+			confops->pin_config_sec_dbg_print(pctldev);
+		}
+	}
+
+	mutex_unlock(&pinctrldev_list_mutex);
+}
+EXPORT_SYMBOL_GPL(sec_gpio_debug_print);
+
+static int sec_gpio_debug_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, sec_gpio_debug_show, NULL);
+}
+
+static const struct file_operations sec_gpio_debug_ops = {
+	.open		= sec_gpio_debug_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+#endif /* CONFIG_SEC_PM */
+
 static struct dentry *debugfs_root;
 
 static void pinctrl_init_device_debugfs(struct pinctrl_dev *pctldev)
@@ -1885,6 +1938,10 @@ static void pinctrl_init_debugfs(void)
 			    debugfs_root, NULL, &pinctrl_maps_fops);
 	debugfs_create_file("pinctrl-handles", S_IFREG | S_IRUGO,
 			    debugfs_root, NULL, &pinctrl_fops);
+#ifdef CONFIG_SEC_PM
+	debugfs_create_file("showall", S_IFREG | 0444,
+			    debugfs_root, NULL, &sec_gpio_debug_ops);
+#endif /* CONFIG_SEC_PM */
 }
 
 #else /* CONFIG_DEBUG_FS */
@@ -2008,7 +2065,6 @@ static int pinctrl_claim_hogs(struct pinctrl_dev *pctldev)
 		return PTR_ERR(pctldev->p);
 	}
 
-	kref_get(&pctldev->p->users);
 	pctldev->hog_default =
 		pinctrl_lookup_state(pctldev->p, PINCTRL_STATE_DEFAULT);
 	if (IS_ERR(pctldev->hog_default)) {

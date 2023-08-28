@@ -136,11 +136,6 @@ static ssize_t cpu_capacity_show(struct device *dev,
 static void update_topology_flags_workfn(struct work_struct *work);
 static DECLARE_WORK(update_topology_flags_work, update_topology_flags_workfn);
 
-void topology_update(void)
-{
-	schedule_work(&update_topology_flags_work);
-}
-
 static ssize_t cpu_capacity_store(struct device *dev,
 				  struct device_attribute *attr,
 				  const char *buf,

@@ -153,6 +153,11 @@ enum drm_mode_status {
 #define DRM_MODE_MATCH_3D_FLAGS (1 << 3)
 #define DRM_MODE_MATCH_ASPECT_RATIO (1 << 4)
 
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+/* Used for VRR SOT HS mode */
+#define DRM_MODE_MATCH_TYPE_USERDEF (1 << 5)
+#endif
+
 /**
  * struct drm_display_mode - DRM kernel-internal display mode structure
  * @hdisplay: horizontal display size

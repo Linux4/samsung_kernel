@@ -19,9 +19,6 @@
 #include <linux/posix_acl_xattr.h>
 #include <linux/exportfs.h>
 #include "overlayfs.h"
-#ifdef CONFIG_KDP_NS
-#include <linux/kdp.h>
-#endif
 
 MODULE_AUTHOR("Miklos Szeredi <miklos@szeredi.hu>");
 MODULE_DESCRIPTION("Overlay filesystem");
@@ -76,6 +73,11 @@ static bool ovl_metacopy_def = IS_ENABLED(CONFIG_OVERLAY_FS_METACOPY);
 module_param_named(metacopy, ovl_metacopy_def, bool, 0644);
 MODULE_PARM_DESC(ovl_metacopy_def,
 		 "Default to on or off for the metadata only copy up feature");
+
+#ifdef CONFIG_KDP_NS
+extern void rkp_set_mnt_flags(struct vfsmount *mnt,int flags);
+extern void rkp_reset_mnt_flags(struct vfsmount *mnt,int flags);
+#endif
 
 static void ovl_dentry_release(struct dentry *dentry)
 {
@@ -1104,7 +1106,7 @@ static int ovl_get_upper(struct super_block *sb, struct ovl_fs *ofs,
 
 	/* Don't inherit atime flags */
 #ifdef CONFIG_KDP_NS
-	rkp_reset_mnt_flags(upper_mnt, (MNT_NOATIME | MNT_NODIRATIME | MNT_RELATIME));
+	rkp_reset_mnt_flags(upper_mnt, MNT_NOATIME | MNT_NODIRATIME | MNT_RELATIME); 
 #else
 	upper_mnt->mnt_flags &= ~(MNT_NOATIME | MNT_NODIRATIME | MNT_RELATIME);
 #endif
@@ -1329,9 +1331,7 @@ static int ovl_get_fsid(struct ovl_fs *ofs, struct super_block *sb)
 
 	return ofs->numlowerfs;
 }
-#ifdef CONFIG_KDP_NS
-extern void rkp_set_mnt_flags(struct vfsmount *mnt,int flags);
-#endif
+
 static int ovl_get_lower_layers(struct super_block *sb, struct ovl_fs *ofs,
 				struct path *stack, unsigned int numlower)
 {

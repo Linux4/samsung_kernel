@@ -48,7 +48,7 @@
 #define RADIX_TREE_ENTRY_MASK		3UL
 #define RADIX_TREE_INTERNAL_NODE	1UL
 
-#define RADIX_TREE_INDIRECT_PTR		1UL
+#define RADIX_TREE_INDIRECT_PTR		1
 
 /*
  * Most users of the radix tree store pointers but shmem/tmpfs stores swap

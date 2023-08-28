@@ -330,22 +330,6 @@ static void debug_print_object(struct debug_obj *obj, char *msg)
 	debug_objects_warnings++;
 }
 
-#ifdef CONFIG_SEC_DEBUG_OBJECTS_ADDITIONAL_INFO
-static void debug_objecte_additional_info(struct debug_obj *obj)
-{
-#ifdef CONFIG_STACKTRACE
-	struct stack_trace trace;
-	
-	trace.nr_entries = 0;
-	trace.max_entries = DEBUG_OBJ_CALLSTACK_MAX;
-	trace.entries = (unsigned long *)obj->addrs;
-	trace.skip = 0;
-	save_stack_trace(&trace);
-#endif
-	return;
-}
-#endif
-
 /*
  * Try to repair the damage, so we have a better chance to get useful
  * debug output.
@@ -493,9 +477,6 @@ int debug_object_activate(void *addr, struct debug_obj_descr *descr)
 		case ODEBUG_STATE_INIT:
 		case ODEBUG_STATE_INACTIVE:
 			obj->state = ODEBUG_STATE_ACTIVE;
-#ifdef CONFIG_SEC_DEBUG_OBJECTS_ADDITIONAL_INFO
-			debug_objecte_additional_info(obj);
-#endif
 			ret = 0;
 			break;
 
@@ -504,10 +485,6 @@ int debug_object_activate(void *addr, struct debug_obj_descr *descr)
 			state = obj->state;
 			raw_spin_unlock_irqrestore(&db->lock, flags);
 			ret = debug_object_fixup(descr->fixup_activate, addr, state);
-#ifdef CONFIG_SEC_DEBUG_OBJECTS_FIXUP
-			if (descr->fixup_activate)
-				panic("%s() descr name : %s", __func__, descr->name);
-#endif
 			return ret ? 0 : -EINVAL;
 
 		case ODEBUG_STATE_DESTROYED:
@@ -667,6 +644,10 @@ void debug_object_free(void *addr, struct debug_obj_descr *descr)
 		debug_print_object(obj, "free");
 		state = obj->state;
 		raw_spin_unlock_irqrestore(&db->lock, flags);
+#ifdef CONFIG_SEC_DEBUG
+		panic("DEBUG OBJECT FREE: address(0x%p) %s (active state %u) object type: %s\n",
+			addr, obj_states[obj->state], obj->astate, descr->name);
+#endif
 		debug_object_fixup(descr->fixup_free, addr, state);
 		return;
 	default:
@@ -784,9 +765,6 @@ static void __debug_check_no_obj_freed(const void *address, unsigned long size)
 	struct debug_obj *obj;
 	int cnt, objs_checked = 0;
 	bool work = false;
-#ifdef CONFIG_SEC_DEBUG_OBJECTS_FREE	
-	int fixup_cnt = 0;
-#endif	
 
 	saddr = (unsigned long) address;
 	eaddr = saddr + size;
@@ -814,9 +792,6 @@ repeat:
 				raw_spin_unlock_irqrestore(&db->lock, flags);
 				debug_object_fixup(descr->fixup_free,
 						   (void *) oaddr, state);
-#ifdef CONFIG_SEC_DEBUG_OBJECTS_FREE
-				fixup_cnt++;
-#endif
 				goto repeat;
 			default:
 				hlist_del(&obj->node);
@@ -826,10 +801,6 @@ repeat:
 		}
 		raw_spin_unlock_irqrestore(&db->lock, flags);
 
-#ifdef CONFIG_SEC_DEBUG_OBJECTS_FREE
-		if (fixup_cnt)
-			panic("%s fixup_cnt : %d", __func__, fixup_cnt);
-#endif
 		if (cnt > debug_objects_maxchain)
 			debug_objects_maxchain = cnt;
 

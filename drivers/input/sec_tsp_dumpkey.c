@@ -9,12 +9,18 @@
  * published by the Free Software Foundation.
  */
 
-#include <linux/kernel.h>
+#include <linux/init.h>
 #include <linux/input.h>
-#include <linux/gpio_keys.h>
+#include <linux/slab.h>
+#include <linux/notifier.h>
+#include <linux/spinlock.h>
+#include <linux/list_sort.h>
 #include <linux/input/sec_tsp_dumpkey.h>
-#ifdef CONFIG_SEC_KEY_NOTIFIER
+
 #include "../samsung/debug/sec_key_notifier.h"
+
+#ifndef ARRAYSIZE
+#define ARRAYSIZE(a)		(sizeof(a) / sizeof(a[0]))
 #endif
 
 /* Input sequence 9530 */
@@ -50,19 +56,17 @@ struct tsp_dump_key_state tsp_dump_key_states[] = {
 	{KEY_HOMEPAGE, KEY_STATE_UP},
 };
 
-#ifdef CONFIG_SEC_KEY_NOTIFIER
 static unsigned int __tsp_dump_keys[] = {
 	KEY_POWER,
 	KEY_VOLUMEDOWN,
 	KEY_VOLUMEUP,
 	KEY_HOMEPAGE
 };
-#endif
 
 static unsigned int hold_key = KEY_VOLUMEUP;
 static unsigned int hold_key_hold = KEY_STATE_UP;
-static size_t check_count;
-static size_t check_step;
+static unsigned int check_count;
+static unsigned int check_step;
 
 static int is_hold_key(unsigned int code)
 {
@@ -91,7 +95,7 @@ static int is_key_matched_for_current_step(unsigned int code)
 
 static int is_crash_keys(unsigned int code)
 {
-	size_t i;
+	unsigned long i;
 
 	for (i = 0; i < ARRAY_SIZE(tsp_dump_key_states); i++)
 		if (tsp_dump_key_states[i].key_code == code)
@@ -99,10 +103,10 @@ static int is_crash_keys(unsigned int code)
 	return 0;
 }
 
-static size_t get_count_for_next_step(void)
+static int get_count_for_next_step(void)
 {
-	size_t i;
-	size_t count = 0;
+	int i;
+	int count = 0;
 
 	for (i = 0; i < check_step + 1; i++)
 		count += tsp_dump_key_combination[i].crash_count;
@@ -114,10 +118,10 @@ static int is_reaching_count_for_next_step(void)
 	return (check_count == get_count_for_next_step());
 }
 
-static size_t get_count_for_panic(void)
+static int get_count_for_panic(void)
 {
-	size_t i;
-	size_t count = 0;
+	unsigned long i;
+	int count = 0;
 
 	for (i = 0; i < ARRAY_SIZE(tsp_dump_key_combination); i++)
 		count += tsp_dump_key_combination[i].crash_count;
@@ -126,7 +130,7 @@ static size_t get_count_for_panic(void)
 
 static unsigned int is_key_state_down(unsigned int code)
 {
-	size_t i;
+	unsigned long i;
 
 	if (is_hold_key(code))
 		return is_hold_key_hold();
@@ -139,7 +143,7 @@ static unsigned int is_key_state_down(unsigned int code)
 
 static void set_key_state_down(unsigned int code)
 {
-	size_t i;
+	unsigned long i;
 
 	if (is_hold_key(code))
 		set_hold_key_hold(KEY_STATE_DOWN);
@@ -151,7 +155,7 @@ static void set_key_state_down(unsigned int code)
 
 static void set_key_state_up(unsigned int code)
 {
-	size_t i;
+	unsigned long i;
 
 	if (is_hold_key(code))
 		set_hold_key_hold(KEY_STATE_UP);
@@ -187,17 +191,13 @@ static void reset_count(void)
 	check_count = 0;
 }
 
-static int check_tsp_crash_keys(struct notifier_block *nb,
+static int check_tsp_crash_keys(struct notifier_block *this,
 				unsigned long type, void *data)
 {
-#ifndef CONFIG_SEC_KEY_NOTIFIER
-	unsigned int code = (unsigned int)type;
-	int state = *(int *)data;
-#else
 	struct sec_key_notifier_param *param = data;
+
 	unsigned int code = param->keycode;
 	int state = param->down;
-#endif
 
 	if (!is_crash_keys(code))
 		return NOTIFY_DONE;
@@ -232,29 +232,20 @@ static int check_tsp_crash_keys(struct notifier_block *nb,
 		}
 	}
 	return NOTIFY_OK;
+
 }
 
-#ifndef CONFIG_SEC_KEY_NOTIFIER
 static struct notifier_block nb_gpio_keys = {
-	.notifier_call = check_tsp_crash_keys
+	.notifier_call = check_tsp_crash_keys,
 };
-#else
-static struct notifier_block seccmn_tsp_crash_key_notifier = {
-	.notifier_call = check_tsp_crash_keys
-};
-#endif
 
 static int __init sec_tsp_dumpkey_init(void)
 {
 	/* only work for debug level is low */
-//	if (!sec_debug_enter_upload())
-#ifndef CONFIG_SEC_KEY_NOTIFIER
-	register_gpio_keys_notifier(&nb_gpio_keys);
-#else
-	sec_kn_register_notifier(&seccmn_tsp_crash_key_notifier,
-			__tsp_dump_keys, ARRAY_SIZE(__tsp_dump_keys));
-#endif
+//	if (unlikely(!sec_debug_is_enabled()))
+		sec_kn_register_notifier(&nb_gpio_keys,
+				__tsp_dump_keys, ARRAY_SIZE(__tsp_dump_keys));
 	return 0;
 }
 
-late_initcall(sec_tsp_dumpkey_init);
+fs_initcall_sync(sec_tsp_dumpkey_init);

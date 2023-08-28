@@ -1050,6 +1050,12 @@ static int f_midi_bind(struct usb_configuration *c, struct usb_function *f)
 			goto fail_f_midi;
 	}
 
+	if (gadget_is_superspeed_plus(c->cdev->gadget)) {
+		f->ssp_descriptors = usb_copy_descriptors(midi_function);
+		if (!f->ssp_descriptors)
+			goto fail_f_midi;
+	}
+
 	kfree(midi_function);
 
 	return 0;
@@ -1229,7 +1235,7 @@ static ssize_t alsa_show(struct device *dev,
 
 	if (fi_midi && fi_midi->f) {
 		midi = func_to_midi(fi_midi->f);
-		if (midi->rmidi && midi->rmidi->card)
+		if (midi->rmidi && midi->card && midi->rmidi->card)
 			return sprintf(buf, "%d %d\n",
 			midi->rmidi->card->number, midi->rmidi->device);
 	}
@@ -1399,7 +1405,7 @@ static struct usb_function *f_midi_alloc(struct usb_function_instance *fi)
 	++opts->refcnt;
 	mutex_unlock(&opts->lock);
 
-	midi->func.name		= "midi";
+	midi->func.name		= "gmidi function";
 	midi->func.bind		= f_midi_bind;
 	midi->func.unbind	= f_midi_unbind;
 	midi->func.set_alt	= f_midi_set_alt;

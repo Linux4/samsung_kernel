@@ -2,10 +2,10 @@ RPMH RSC:
 ------------
 
 Resource Power Manager Hardened (RPMH) is the mechanism for communicating with
-the hardened resource accelerators on Qualcomm SoCs. Requests to the resources
-can be written to the Trigger Command Set (TCS)  registers and using a (addr,
-val) pair and triggered. Messages in the TCS are then sent in sequence over an
-internal bus.
+the hardened resource accelerators on Qualcomm Technologies, Inc. SoCs.
+Requests to the resources can be written to the Trigger Command Set (TCS)
+registers and using a (addr, val) pair and triggered. Messages in the TCS are
+then sent in sequence over an internal bus.
 
 The hardware block (Direct Resource Voter or DRV) is a part of the h/w entity
 (Resource State Coordinator a.k.a RSC) that can handle multiple sleep and

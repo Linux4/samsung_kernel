@@ -1,21 +1,55 @@
 # SPDX-License-Identifier: GPL-2.0
-dtb-y += exynos/exynos5433-tm2e.dtb
-dtbo-y += exynos/exynos9830-universal9830_r06.dtbo
-dtbo-y += exynos/exynos9830-smdk9830_r02.dtbo
-dtb-y += exynos/exynos7-espresso.dtb
-dtb-y += exynos/exynos5433-tm2.dtb
-dtbo-y += exynos/exynos9830-universal9830_r05.dtbo
-dtb-y += exynos/exynos9830.dtb
-dtbo-y += exynos/exynos9830-universal9830_r10.dtbo
-dtbo-y += exynos/exynos9830-universal9830_r04.dtbo
-dtbo-y += samsung/exynos990-r8s_eur_open_02.dtbo
-dtbo-y += samsung/exynos990-r8s_eur_open_00.dtbo
-dtbo-y += samsung/exynos990-r8s_eur_open_05.dtbo
+subdir-y += actions
+subdir-y += al
+subdir-y += allwinner
+subdir-y += altera
+subdir-y += amd
+subdir-y += amlogic
+subdir-y += apm
+subdir-y += arm
+subdir-y += broadcom
+subdir-y += cavium
+subdir-y += exynos
+subdir-y += freescale
+subdir-y += hisilicon
+subdir-y += lg
+subdir-y += marvell
+subdir-y += mediatek
+subdir-y += nvidia
+# subdir-y += qcom
+subdir-y += realtek
+subdir-y += renesas
+subdir-y += rockchip
+subdir-y += socionext
+subdir-y += sprd
+subdir-y += synaptics
+subdir-y += ti
+subdir-y += xilinx
+subdir-y += zte
+subdir-y += samsung
+
+
+dtstree		:= $(srctree)/$(src)
+
+#vendor := $(dtstree)/vendor
+#ifneq "$(wildcard $(vendor)/Makefile)" ""
+#        subdir-y += vendor
+#endif
+
+dtb-$(CONFIG_OF_ALL_DTBS) := $(patsubst $(dtstree)/%.dts,%.dtb, $(foreach d,$(subdir), $(wildcard $(dtstree)/$(d)/*.dts)))
+
+always		:= $(dtb-y)
 
 targets += dtbs
-DTB_LIST  := $(dtb-y) $(dtbo-y)
-always    := $(DTB_LIST)
+
+DTB_NAMES := $(subst $\",,$(CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES))
+ifneq ($(DTB_NAMES),)
+DTB_LIST := $(addsuffix .dtb,$(DTB_NAMES))
+else
+DTB_LIST := $(dtb-y)
+endif
+targets += $(DTB_LIST)
 
 dtbs: $(addprefix $(obj)/, $(DTB_LIST))
 
-clean-files := *.dtb*
+clean-files := dts/*.dtb *.dtb

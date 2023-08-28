@@ -526,6 +526,12 @@ next_subflow:
 			rem4.port = rem->port;
 			rem4.rem4_id = rem->rem4_id;
 
+			/* do not need to JOIN from CLAT IP ADDR (192.0.0.x) */
+			if ((mptcp_local->locaddr4[i].addr.s_addr & htonl(0xffffff00)) == htonl(0xc0000000)) {
+				mptcp_debug("%s: <MAD> skip clat join\n", __func__);
+				goto next_subflow;
+			}
+
 			/* If a route is not yet available then retry once */
 			if (mptcp_init4_subsockets(meta_sk, &mptcp_local->locaddr4[i],
 						   &rem4) == -ENETUNREACH)
@@ -1306,6 +1312,12 @@ static void full_mesh_new_session(const struct sock *meta_sk)
 		    saddr.ip == ifa_address)
 			continue;
 
+		/* do not need send CLAT IP (192.0.0.x) in JOIN */
+		if ((ifa_address & htonl(0xffffff00)) == htonl(0xc0000000)) {
+			mptcp_debug("%s: <MAD> skip clat add address\n", __func__);
+			continue;
+		}
+
 		fmp->add_addr++;
 		mpcb->addr_signal = 1;
 	}
@@ -1575,6 +1587,7 @@ static void full_mesh_addr_signal(struct sock *sk, unsigned *size,
 	if (!meta_v4 && meta_sk->sk_ipv6only)
 		goto skip_ipv4;
 
+skip_clat_ipv4:
 	/* IPv4 */
 	unannouncedv4 = (~fmp->announced_addrs_v4) & mptcp_local->loc4_bits;
 	if (unannouncedv4 &&
@@ -1583,6 +1596,15 @@ static void full_mesh_addr_signal(struct sock *sk, unsigned *size,
 	    (mpcb->mptcp_ver >= MPTCP_VERSION_1 &&
 	    MAX_TCP_OPTION_SPACE - *size >= MPTCP_SUB_LEN_ADD_ADDR4_ALIGN_VER1))) {
 		int ind = mptcp_find_free_index(~unannouncedv4);
+		
+		__be32 ifa_address = mptcp_local->locaddr4[ind].addr.s_addr;
+
+		/* do not need to announce clat ipv4 address (192.0.0.x) */
+		if ((ifa_address & htonl(0xffffff00)) == htonl(0xc0000000)) {
+			mptcp_debug("%s: <MAD> SKIP CLAT\n", __func__);
+			fmp->announced_addrs_v4 |= (1 << ind);
+			goto skip_clat_ipv4;
+		}
 
 		opts->options |= OPTION_MPTCP;
 		opts->mptcp_options |= OPTION_ADD_ADDR;

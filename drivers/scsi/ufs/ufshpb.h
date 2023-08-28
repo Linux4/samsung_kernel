@@ -50,11 +50,11 @@
 #include "../scsi_priv.h"
 
 /* Version info*/
-#define UFSHPB_MIN_VER				0x0210
-#define UFSHPB_MAX_VER				0x0230
-#define UFSHPB_RTRESET_VER			0x0220
-#define UFSHPB_HPBEN_VER			0x0230
-#define UFSHPB_DD_VER				0x020309
+#define UFSHPB_MIN_VER                         0x0210
+#define UFSHPB_MAX_VER                         0x0230
+#define UFSHPB_RTRESET_VER                     0x0220
+#define UFSHPB_HPBEN_VER                       0x0230
+#define UFSHPB_DD_VER                          0x020309
 #define UFSHPB_DD_VER_POST			""
 
 /* Constant value*/
@@ -81,7 +81,6 @@
 /* Vender defined OPCODE */
 #define UFSHPB_READ_BUFFER			0xF9
 #define UFSHPB_WRITE_BUFFER			0xFA
-
 #define UFSHPB_GROUP_NUMBER			0x11
 #define UFSHPB_RB_ID_READ			0x01
 #define UFSHPB_RB_ID_SET_RT			0x02

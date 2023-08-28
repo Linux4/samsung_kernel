@@ -25,9 +25,6 @@
 #ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
 #include <linux/input/sec_secure_touch.h>
 #endif
-#if defined(CONFIG_SAMSUNG_TUI)
-#include <linux/input/stui_inf.h>
-#endif
 
 #ifdef CONFIG_INPUT_TOUCHSCREEN_TCLMV2
 #define TCLM_CONCEPT

@@ -54,7 +54,7 @@ obj-$(CONFIG_MX3_IPU) += ipu/
 obj-$(CONFIG_NBPFAXI_DMA) += nbpfaxi.o
 obj-$(CONFIG_OWL_DMA) += owl-dma.o
 obj-$(CONFIG_PCH_DMA) += pch_dma.o
-obj-$(CONFIG_PL330_DMA) += pl330.o samsung-dma.o
+obj-$(CONFIG_PL330_DMA) += pl330.o
 obj-$(CONFIG_PPC_BESTCOMM) += bestcomm/
 obj-$(CONFIG_PXA_DMA) += pxa_dma.o
 obj-$(CONFIG_RENESAS_DMA) += sh/
@@ -72,6 +72,7 @@ obj-$(CONFIG_TIMB_DMA) += timb_dma.o
 obj-$(CONFIG_XGENE_DMA) += xgene-dma.o
 obj-$(CONFIG_ZX_DMA) += zx_dma.o
 obj-$(CONFIG_ST_FDMA) += st_fdma.o
+obj-$(CONFIG_QCOM_SPS_DMA) += qcom-sps-dma.o
 
 obj-y += mediatek/
 obj-y += qcom/

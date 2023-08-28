@@ -45,7 +45,7 @@ struct cirrus_bd_t {
 	struct cirrus_mfd_amp *amps;
 	int num_amps;
 	const char *bd_suffixes[CIRRUS_MAX_AMPS];
-	int max_temp_limit[CIRRUS_MAX_AMPS];
+	int max_temp_limit[CIRRUS_MAX_AMPS];	
 	unsigned int max_exc[CIRRUS_MAX_AMPS];
 	unsigned int over_exc_count[CIRRUS_MAX_AMPS];
 	unsigned int max_temp[CIRRUS_MAX_AMPS];
@@ -149,7 +149,7 @@ int cirrus_bd_amp_add(struct regmap *regmap_new, const char *mfd_suffix,
 				cirrus_bd->max_temp_limit[amp->index] =
 								bd_max_temp - 1;
 			else
-				cirrus_bd->max_temp_limit[amp->index] = 99;
+				cirrus_bd->max_temp_limit[amp->index] = 99;			
 		} else {
 			dev_err(cirrus_bd->dev,
 				"No amp with suffix %s registered\n",

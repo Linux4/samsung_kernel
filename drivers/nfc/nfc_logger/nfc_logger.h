@@ -6,12 +6,12 @@
 #define NFC_LOG_ERR(fmt, ...) \
 	do { \
 		pr_err(fmt, ##__VA_ARGS__); \
-		nfc_logger_print(fmt, ##__VA_ARGS__); \
+		nfc_logger_print(pr_fmt(fmt), ##__VA_ARGS__); \
 	} while (0)
 #define NFC_LOG_INFO(fmt, ...) \
 	do { \
 		pr_info(fmt, ##__VA_ARGS__); \
-		nfc_logger_print(fmt, ##__VA_ARGS__); \
+		nfc_logger_print(pr_fmt(fmt), ##__VA_ARGS__); \
 	} while (0)
 #define NFC_LOG_DBG(fmt, ...)		pr_debug(fmt, ##__VA_ARGS__)
 #define NFC_LOG_REC(fmt, ...)		nfc_logger_print(fmt, ##__VA_ARGS__)

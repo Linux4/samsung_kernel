@@ -69,10 +69,10 @@
 #include <asm/tlb.h>
 
 #include <trace/events/task.h>
-#if 0 /* def CONFIG_KDP_NS */
+#include "internal.h"
+#ifdef CONFIG_KDP_NS
 #include "mount.h"
 #endif
-#include "internal.h"
 
 #include <trace/events/sched.h>
 
@@ -85,6 +85,20 @@
 #ifdef CONFIG_LOD_SEC
 #define rkp_is_lod(x) ((x->cred->type)>>3 & 1)
 #endif
+static unsigned int __is_kdp_recovery __kdp_ro;
+
+static int __init boot_recovery(char *str)
+{
+	int temp = 0;
+
+	if (get_option(&str, &temp)) {
+		__is_kdp_recovery = temp;
+		return 0;
+	}
+
+	return -EINVAL;
+}
+early_param("androidboot.boot_recovery", boot_recovery);
 #endif
 
 int suid_dumpable = 0;
@@ -326,7 +340,6 @@ static int __bprm_mm_init(struct linux_binprm *bprm)
 	vma->vm_start = vma->vm_end - PAGE_SIZE;
 	vma->vm_flags = VM_SOFTDIRTY | VM_STACK_FLAGS | VM_STACK_INCOMPLETE_SETUP;
 	vma->vm_page_prot = vm_get_page_prot(vma->vm_flags);
-	INIT_VMA(vma);
 
 	err = insert_vm_struct(mm, vma);
 	if (err)
@@ -1052,7 +1065,7 @@ static int exec_mmap(struct mm_struct *mm)
 	vmacache_flush(tsk);
 #ifdef CONFIG_KDP_CRED
 	if(rkp_cred_enable)
-		uh_call(UH_APP_KDP, RKP_KDP_X43, (u64)current_cred(), (u64)mm->pgd, 0, 0);
+		uh_call(UH_APP_RKP, RKP_KDP_X43, (u64)current_cred(), (u64)mm->pgd, 0, 0);
 #endif 
 	task_unlock(tsk);
 	if (old_mm) {
@@ -1263,22 +1276,28 @@ void __set_task_comm(struct task_struct *tsk, const char *buf, bool exec)
 	task_unlock(tsk);
 	perf_event_comm(tsk, exec);
 }
-#if 0 /* def CONFIG_KDP_NS */
-extern int rkp_from_vfsmnt_cache(unsigned long addr);
-extern struct super_block *sys_sb;	/* pointer to superblock */
-extern struct super_block *odm_sb;	/* pointer to superblock */
-extern struct super_block *vendor_sb;	/* pointer to superblock */
-extern struct super_block *rootfs_sb;	/* pointer to superblock */
-extern struct super_block *art_sb;	/* pointer to superblock */
-extern int __is_kdp_recovery;
+#if 0
+#ifdef CONFIG_KDP_NS
+/* pointer to superblock */
+extern struct super_block *sys_sb;
+extern struct super_block *odm_sb;
+extern struct super_block *vendor_sb;
+extern struct super_block *rootfs_sb;
+extern struct super_block *crypt_sb;
+extern struct super_block *art_sb;
+extern struct super_block *dex2oat_sb;
+extern struct super_block *adbd_sb;
 extern int __check_verifiedboot;
+
 static int kdp_check_sb_mismatch(struct super_block *sb) 
 {	
 	if(__is_kdp_recovery || __check_verifiedboot) {
 		return 0;
 	}
-	if((sb != rootfs_sb) && (sb != sys_sb)
-		&& (sb != odm_sb) && (sb != vendor_sb) && (sb != art_sb)) {
+
+	if((sb != rootfs_sb) && (sb != sys_sb) && (sb != odm_sb)
+		&& (sb != vendor_sb) && (sb != crypt_sb) && (sb != art_sb) 
+		&& (sb != dex2oat_sb) && (sb != adbd_sb)) {
 		return 1;
 	}
 	return 0;
@@ -1323,19 +1342,15 @@ out:
 	return ret;
 }
 
-/*
 static int invalid_drive(struct linux_binprm * bprm) 
 {
 	struct super_block *sb =  NULL;
 	struct vfsmount *vfsmnt = NULL;
 	
 	vfsmnt = bprm->file->f_path.mnt;
-#ifdef CONFIG_FASTUH_RKP
-	if(!vfsmnt || !rkp_from_vfsmnt_cache((unsigned long)vfsmnt)) {
-#else
 	if(!vfsmnt || !rkp_ro_page((unsigned long)vfsmnt)) {
-#endif
-		printk("\nInvalid Drive #%s# #%p#\n",bprm->filename, vfsmnt);
+		printk("\nInvalid Drive : %s, vfsmnt: 0x%lx\n",
+			bprm->filename, (long unsigned int)vfsmnt);
 		return 1;
 	}
 
@@ -1346,8 +1361,14 @@ static int invalid_drive(struct linux_binprm * bprm)
 	sb = vfsmnt->mnt_sb;
 
 	if(kdp_check_sb_mismatch(sb)) {
-		printk("\n Superblock Mismatch #%s# vfsmnt #%p#sb #%p:%p:%p:%p:%p:%p#\n",
-					bprm->filename, vfsmnt, sb, rootfs_sb, sys_sb, odm_sb, vendor_sb, art_sb);
+		printk("\n Superblock Mismatch -> %s vfsmnt: 0x%lx, mnt_sb: 0x%lx\n \
+		Superblock list : rootfs_sb: 0x%lx, sys_sb: 0x%lx, odm_sb: 0x%lx, \
+		vendor_sb: 0x%lx, crypt_sb: 0x%lx, art_sb: 0x%lx, dex2oat_sb: 0x%lx, adbd_sb: 0x%lx\n",
+		bprm->filename, (long unsigned int)vfsmnt, (long unsigned int)sb,
+		(long unsigned int)rootfs_sb, 
+		(long unsigned int)sys_sb, (long unsigned int)odm_sb, 
+		(long unsigned int)vendor_sb, (long unsigned int)crypt_sb,
+		(long unsigned int)art_sb, (long unsigned int)dex2oat_sb, (long unsigned int)adbd_sb);
 		return 1;
 	}
 
@@ -1365,7 +1386,7 @@ static int is_kdp_priv_task(void)
 	}
 	return 0;
 }
-*/
+#endif
 #endif
 
 /*
@@ -1397,7 +1418,7 @@ int flush_old_exec(struct linux_binprm * bprm)
 	 * Release all of the old mmap stuff
 	 */
 	acct_arg_size(bprm, 0);
-#if 0 /* def CONFIG_KDP_NS */
+#ifdef CONFIG_KDP_NS
 	/*
 	if(rkp_cred_enable &&
 		is_kdp_priv_task() && 
@@ -2149,7 +2170,7 @@ SYSCALL_DEFINE3(execve,
 		return error;
 
 	if(rkp_cred_enable){
-		uh_call(UH_APP_KDP, RKP_KDP_X4B, (u64)path->name, (u64)current, 0, 0);
+		uh_call(UH_APP_RKP, RKP_KDP_X4B, (u64)path->name, 0, 0, 0);
 	}
 
 	if(CHECK_ROOT_UID(current) && rkp_cred_enable) {

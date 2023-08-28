@@ -28,7 +28,7 @@
 
 #ifdef CONFIG_UH
 #include <linux/uh.h>
-#if (defined CONFIG_UH_RKP || defined CONFIG_FASTUH_RKP)
+#ifdef CONFIG_UH_RKP
 #include <linux/rkp.h>
 #endif
 #endif
@@ -37,7 +37,7 @@ static struct kmem_cache *pgd_cache __ro_after_init;
 
 pgd_t *pgd_alloc(struct mm_struct *mm)
 {
-#if (defined CONFIG_UH_RKP || defined CONFIG_FASTUH_RKP)
+#ifdef CONFIG_UH_RKP
 	pgd_t *ret = NULL;
 
 	ret = (pgd_t *) rkp_ro_alloc();
@@ -54,20 +54,13 @@ pgd_t *pgd_alloc(struct mm_struct *mm)
 		return ret;
 	}
 
-#ifdef CONFIG_UH_RKP
 	if (rkp_started)
 		uh_call(UH_APP_RKP, RKP_NEW_PGD, (u64)ret, 0, 0, 0);
-#else
-	if (rkp_started)
-		uh_call(UH_APP_RKP, RKP_PGD_RO, (u64)ret, 0, 0, 0);
-#endif
 
 	return ret;
 #else
-	if (PGD_SIZE == PAGE_SIZE) {
-		pgd_t *pgdp = (pgd_t *)__get_free_page(PGALLOC_GFP);
-		return pgdp;
-	}
+	if (PGD_SIZE == PAGE_SIZE)
+		return (pgd_t *)__get_free_page(PGALLOC_GFP);
 	else
 		return kmem_cache_alloc(pgd_cache, PGALLOC_GFP);
 #endif
@@ -75,29 +68,22 @@ pgd_t *pgd_alloc(struct mm_struct *mm)
 
 void pgd_free(struct mm_struct *mm, pgd_t *pgd)
 {
-#if (defined CONFIG_UH_RKP || defined CONFIG_FASTUH_RKP)
 #ifdef CONFIG_UH_RKP
 	if (rkp_started)
 		uh_call(UH_APP_RKP, RKP_FREE_PGD, (u64)pgd, 0, 0, 0);
-#else
-	if (rkp_started)
-		uh_call(UH_APP_RKP, RKP_PGD_RW, (u64)pgd, 0, 0, 0);
-#endif
 
 	/* if pgd memory come from read only buffer, the put it back */
-	/*TODO: use a macro*/
-	if (is_rkp_ro_page((u64)pgd))
-		rkp_ro_free((void *)pgd);
-	else {
+	if (is_rkp_ro_page((unsigned long)pgd)) {
+		rkp_ro_free((void *)pgd); 
+	} else {
 		if (PGD_SIZE == PAGE_SIZE)
 			free_page((unsigned long)pgd);
 		else
 			kmem_cache_free(pgd_cache, pgd);
 	}
 #else
-	if (PGD_SIZE == PAGE_SIZE) {
+	if (PGD_SIZE == PAGE_SIZE)
 		free_page((unsigned long)pgd);
-	}
 	else
 		kmem_cache_free(pgd_cache, pgd);
 #endif

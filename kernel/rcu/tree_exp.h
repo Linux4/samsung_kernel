@@ -21,7 +21,6 @@
  */
 
 #include <linux/lockdep.h>
-#include <linux/sec_debug.h>
 
 /*
  * Record the start of an expedited grace period.
@@ -536,6 +535,7 @@ static void synchronize_sched_expedited_wait(struct rcu_state *rsp)
 		WARN_ON(ret < 0);  /* workqueues should not be signaled. */
 		if (rcu_cpu_stall_suppress)
 			continue;
+		panic_on_rcu_stall();
 		pr_err("INFO: %s detected expedited stalls on CPUs/tasks: {",
 		       rsp->name);
 		ndetected = 0;
@@ -580,7 +580,6 @@ static void synchronize_sched_expedited_wait(struct rcu_state *rsp)
 				dump_cpu_task(cpu);
 			}
 		}
-		panic_on_rcu_stall();
 		jiffies_stall = 3 * rcu_jiffies_till_stall_check() + 3;
 	}
 }
@@ -596,14 +595,14 @@ static void rcu_exp_wait_wake(struct rcu_state *rsp, unsigned long s)
 	struct rcu_node *rnp;
 
 	synchronize_sched_expedited_wait(rsp);
-	rcu_exp_gp_seq_end(rsp);
-	trace_rcu_exp_grace_period(rsp->name, s, TPS("end"));
 
-	/*
-	 * Switch over to wakeup mode, allowing the next GP, but -only- the
-	 * next GP, to proceed.
+	/* Switch over to wakeup mode, allowing the next GP to proceed.
+	 * End the previous grace period only after acquiring the mutex
+	 * to ensure that only one GP runs concurrently with wakeups.
 	 */
 	mutex_lock(&rsp->exp_wake_mutex);
+	rcu_exp_gp_seq_end(rsp);
+	trace_rcu_exp_grace_period(rcu_state.name, s, TPS("end"));
 
 	rcu_for_each_node_breadth_first(rsp, rnp) {
 		if (ULONG_CMP_LT(READ_ONCE(rnp->exp_seq_rq), s)) {
@@ -614,7 +613,7 @@ static void rcu_exp_wait_wake(struct rcu_state *rsp, unsigned long s)
 			spin_unlock(&rnp->exp_lock);
 		}
 		smp_mb(); /* All above changes before wakeup. */
-		wake_up_all(&rnp->exp_wq[rcu_seq_ctr(rsp->expedited_sequence) & 0x3]);
+		wake_up_all(&rnp->exp_wq[rcu_seq_ctr(s) & 0x3]);
 	}
 	trace_rcu_exp_grace_period(rsp->name, s, TPS("endwake"));
 	mutex_unlock(&rsp->exp_wake_mutex);
@@ -679,7 +678,6 @@ static void _synchronize_rcu_expedited(struct rcu_state *rsp,
 		rew.rew_s = s;
 		INIT_WORK_ONSTACK(&rew.rew_work, wait_rcu_exp_gp);
 		queue_work(rcu_gp_wq, &rew.rew_work);
-		secdbg_dtsk_set_data(DTYPE_WORK, &rew.rew_work);
 	}
 
 	/* Wait for expedited grace period to complete. */
@@ -688,8 +686,6 @@ static void _synchronize_rcu_expedited(struct rcu_state *rsp,
 	wait_event(rnp->exp_wq[rcu_seq_ctr(s) & 0x3],
 		   sync_exp_work_done(rsp, s));
 	smp_mb(); /* Workqueue actions happen before return. */
-
-	secdbg_dtsk_clear_data();
 
 	/* Let the next expedited grace period start. */
 	mutex_unlock(&rsp->exp_mutex);

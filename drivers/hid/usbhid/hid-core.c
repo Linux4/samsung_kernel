@@ -44,6 +44,8 @@
 
 #define DRIVER_DESC "USB HID core driver"
 
+#undef dev_dbg
+#define dev_dbg dev_err
 /*
  * Module parameters.
  */
@@ -288,11 +290,10 @@ static void hid_irq_in(struct urb *urb)
 			break;
 		usbhid_mark_busy(usbhid);
 		if (!test_bit(HID_RESUME_RUNNING, &usbhid->iofl)) {
-#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
-			status = hid_input_report(urb->context, HID_INPUT_REPORT,
+			hid_input_report(urb->context, HID_INPUT_REPORT,
 					 urb->transfer_buffer,
 					 urb->actual_length, 1);
-
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
 			if (status == 0) {
 				if (usbhid->in_err_isr) {
 					usbhid->in_err_isr = 0;
@@ -307,10 +308,6 @@ static void hid_irq_in(struct urb *urb)
 					__func__, status, usbhid->in_err_isr
 						, urb->actual_length);
 			}
-#else
-			hid_input_report(urb->context, HID_INPUT_REPORT,
-					 urb->transfer_buffer,
-					 urb->actual_length, 1);
 #endif
 			/*
 			 * autosuspend refused while keys are pressed
@@ -1432,11 +1429,6 @@ static int usbhid_probe(struct usb_interface *intf, const struct usb_device_id *
 			hid_err(intf, "can't add hid device: %d\n", ret);
 		goto err_free;
 	}
-
-#if !defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
-	if (dev->do_remote_wakeup)
-		usb_enable_autosuspend(dev);
-#endif
 
 	return 0;
 err_free:

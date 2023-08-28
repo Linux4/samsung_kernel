@@ -40,7 +40,7 @@ class LinuxSourceTreeOperations(object):
 		except OSError as e:
 			raise ConfigError('Could not call make command: ' + str(e))
 		except subprocess.CalledProcessError as e:
-			raise ConfigError(e.output)
+			raise ConfigError(e.output.decode())
 
 	def make_olddefconfig(self):
 		try:
@@ -48,7 +48,7 @@ class LinuxSourceTreeOperations(object):
 		except OSError as e:
 			raise ConfigError('Could not call make command: ' + str(e))
 		except subprocess.CalledProcessError as e:
-			raise ConfigError(e.output)
+			raise ConfigError(e.output.decode())
 
 	def make(self, jobs):
 		try:
@@ -56,7 +56,7 @@ class LinuxSourceTreeOperations(object):
 		except OSError as e:
 			raise BuildError('Could not call execute make: ' + str(e))
 		except subprocess.CalledProcessError as e:
-			raise BuildError(e.output)
+			raise BuildError(e.output.decode())
 
 	def linux_bin(self, params, timeout):
 		"""Runs the Linux UML binary. Must be named 'linux'."""

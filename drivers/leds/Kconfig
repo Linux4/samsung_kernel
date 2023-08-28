@@ -208,6 +208,21 @@ config LEDS_NET48XX
 	  This option enables support for the Soekris net4801 and net4826 error
 	  LED.
 
+config LEDS_QTI_FLASH
+	tristate "Support for QTI Flash LEDs"
+	depends on LEDS_CLASS_FLASH
+	depends on MFD_SPMI_PMIC
+	select LEDS_TRIGGERS
+	help
+	  This driver supports flash LED peripheral that is present on
+	  some Qualcomm Technologies, Inc. PMICs (e.g. PM8350C).  It can
+	  configure the flash LED target current for several independent
+	  channels. It also supports various over current and over
+	  temperature mitigation features.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called leds-qti-flash.
+
 config LEDS_FSG
 	tristate "LED Support for the Freecom FSG-3"
 	depends on LEDS_CLASS
@@ -640,6 +655,16 @@ config LEDS_MENF21BMC
 	  This driver can also be built as a module. If so the module
 	  will be called leds-menf21bmc.
 
+config LEDS_KTD2692
+	tristate "LED support for KTD2692 flash LED controller"
+	depends on LEDS_CLASS_FLASH && OF
+	depends on GPIOLIB || COMPILE_TEST
+	help
+	  This option enables support for KTD2692 LED flash connected
+	  through ExpressWire interface.
+
+	  Say Y to enable this driver.
+
 config LEDS_IS31FL319X
 	tristate "LED Support for ISSI IS31FL319x I2C LED controller family"
 	depends on LEDS_CLASS && I2C && OF
@@ -746,6 +771,34 @@ config LEDS_NIC78BX
 	  To compile this driver as a module, choose M here: the module
 	  will be called leds-nic78bx.
 
+config LEDS_QTI_TRI_LED
+	tristate "LED support for Qualcomm Technologies, Inc. TRI_LED"
+	depends on LEDS_CLASS && MFD_SPMI_PMIC && PWM && OF
+	help
+	  This driver supports the TRI_LED module found in Qualcomm
+	  Technologies, Inc. PMIC chips. TRI_LED supports 3 LED drivers
+	  at max and each is controlled by a PWM channel used for dimming
+	  or blinking.
+
+config LEDS_QPNP_FLASH_V2
+        tristate "Support for QPNP V2 Flash LEDs"
+        depends on LEDS_CLASS && MFD_SPMI_PMIC
+	select LEDS_TRIGGERS
+        help
+          This driver supports the flash V2 LED functionality of Qualcomm
+          Technologies, Inc. QPNP PMICs.  This driver supports PMICs starting
+          from PMI8998, PM8150L and their derivatives.  It can configure the
+          flash LED target current for several independent channels.  It also
+          supports various over current and over temperature mitigation features.
+
+config LEDS_QPNP_VIBRATOR_LDO
+	tristate "Vibrator-LDO support for QPNP PMIC"
+	depends on LEDS_CLASS && MFD_SPMI_PMIC
+	help
+	  This option enables device driver support for the vibrator-ldo
+	  peripheral found on Qualcomm Technologies, Inc. QPNP PMICs.
+	  The vibrator-ldo peripheral is capable of driving ERM vibrators.
+
 config LEDS_S2MPB02
 	bool "LED support for the S2MPB02"
 	depends on LEDS_CLASS
@@ -754,27 +807,15 @@ config LEDS_S2MPB02
 
 config LEDS_KTD2692
 	bool "LED support for the KTD2692"
+	depends on LEDS_CLASS
 	help
-	  If you say yes here you will get support for
-	  for the KTD2692 FLASH led chip.
-
-config LEDS_S2MPB02_MULTI_TORCH_REAR2
-	bool "LED support for second multi flash"
-	help
-	  If you say yes here you will get support for
-	  for second multi flash.
-
-config LEDS_KTD2692_MULTI_TORCH_REAR3
-	bool "LED support for third multi flash"
-	help
-	  If you say yes here you will get support for
-	  for third multi flash.
+	  This option enables support for the LEDs on the KTD2692.
 
 config LEDS_RT8547
 	bool "LED support for the RT8547"
+	depends on LEDS_CLASS
 	help
-	  If you say yes here you will get support for
-	  for the RT8547 FLASH led chip.
+	  This option enables support for the LEDs on the RT8547.
 
 comment "LED Triggers"
 source "drivers/leds/trigger/Kconfig"

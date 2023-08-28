@@ -47,7 +47,9 @@
 #include <linux/bug.h>
 #include <linux/sched.h>
 #include <linux/rculist.h>
+
 #include <linux/sec_debug.h>
+
 extern struct bug_entry __start___bug_table[], __stop___bug_table[];
 
 static inline unsigned long bug_addr(const struct bug_entry *bug)
@@ -188,17 +190,14 @@ enum bug_trap_type report_bug(unsigned long bugaddr, struct pt_regs *regs)
 		return BUG_TRAP_TYPE_WARN;
 	}
 
+	sec_debug_store_bug_string(file, line);
+
 	printk(KERN_DEFAULT CUT_HERE);
 
-#ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
 	if (file)
-		secdbg_exin_set_bug(file, line);
-#endif
-
-	if (file)
-		pr_auto(ASL1, "kernel BUG at %s:%u!\n", file, line);
+		pr_crit("kernel BUG at %s:%u!\n", file, line);
 	else
-		pr_auto(ASL1, "Kernel BUG at %pB [verbose debug info unavailable]\n",
+		pr_crit("Kernel BUG at %pB [verbose debug info unavailable]\n",
 			(void *)bugaddr);
 
 	return BUG_TRAP_TYPE_BUG;

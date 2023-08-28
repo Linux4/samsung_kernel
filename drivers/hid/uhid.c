@@ -24,7 +24,7 @@
 #include <linux/spinlock.h>
 #include <linux/uhid.h>
 #include <linux/wait.h>
-#include <linux/fb.h>
+#include "../../../techpack/display/msm/samsung/ss_panel_notify.h"
 
 #define UHID_NAME	"uhid"
 #define UHID_BUFSIZE	32
@@ -760,13 +760,14 @@ unlock:
 static __poll_t uhid_char_poll(struct file *file, poll_table *wait)
 {
 	struct uhid_device *uhid = file->private_data;
+	__poll_t mask = EPOLLOUT | EPOLLWRNORM; /* uhid is always writable */
 
 	poll_wait(file, &uhid->waitq, wait);
 
 	if (uhid->head != uhid->tail)
-		return EPOLLIN | EPOLLRDNORM;
+		mask |= EPOLLIN | EPOLLRDNORM;
 
-	return 0;
+	return mask;
 }
 
 static const struct file_operations uhid_fops = {
@@ -784,45 +785,54 @@ static struct miscdevice uhid_misc = {
 	.minor		= UHID_MINOR,
 	.name		= UHID_NAME,
 };
-static int fb_state_change(struct notifier_block *nb,
-    unsigned long val, void *data)
+
+static int light_panel_state_change(struct notifier_block *nb,
+	unsigned long val, void *data)
 {
-	struct fb_event *evdata = data;
-	unsigned int blank;
-    dbg_hid("fb_state_change");
-	if (val != FB_EVENT_BLANK)
+	struct panel_state_data *evdata = (struct panel_state_data *)data;
+	unsigned int panel_state;
+
+	dbg_hid("light_panel_state_change");
+	if (val != PANEL_EVENT_STATE_CHANGED)
 		return 0;
 
-	blank = *(int *)evdata->data;
+    if(evdata) {
+    	panel_state = evdata->state;
+    } else {
+        printk(KERN_ALERT "light_panel_state_change(), evdata is null\n");
+        return 0;
+    }
 
-	switch (blank) {
-	case FB_BLANK_POWERDOWN:
-		lcd_is_on = false;
-		break;
-	case FB_BLANK_UNBLANK:
-		lcd_is_on = true;
-		break;
-	default:
-		break;
-	}
+    printk(KERN_DEBUG "light_panel_state_change(), lcd state : %d\n", panel_state);
+    switch (panel_state) {
+    case PANEL_OFF:
+        lcd_is_on = false;
+        break;
+    case PANEL_ON:
+        lcd_is_on = true;
+        break;
+    default:
+        break;
+    }
 
 	return NOTIFY_OK;
 }
-static struct notifier_block fb_block = {
-    .notifier_call = fb_state_change,
+static struct notifier_block light_panel_block = {
+	.notifier_call = light_panel_state_change,
 };
 
 static int __init uhid_init(void)
 {
-	fb_register_client(&fb_block);
+    ss_panel_notifier_register(&light_panel_block);
 	return misc_register(&uhid_misc);
 }
 
 static void __exit uhid_exit(void)
 {
-	fb_unregister_client(&fb_block);
+    ss_panel_notifier_unregister(&light_panel_block);
 	misc_deregister(&uhid_misc);
 }
+
 module_init(uhid_init);
 module_exit(uhid_exit);
 

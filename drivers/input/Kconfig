@@ -185,6 +185,13 @@ config INPUT_APMPOWER
 	  To compile this driver as a module, choose M here: the
 	  module will be called apm-power.
 
+config INPUT_KEYRESET
+	bool "Reset key"
+	depends on INPUT
+	select INPUT_KEYCOMBO
+	---help---
+	  Say Y here if you want to reboot when some keys are pressed;
+
 config SEC_DEBUG_TSP_LOG
 	tristate "Support for tsp_msg"
 	default n
@@ -196,6 +203,20 @@ config INPUT_TOUCHSCREEN_TCLMV2
 	  Say Y here if you need to use tclm.
 
 	  If unsure, say N.
+
+config INPUT_SEC_SECURE_TOUCH
+	bool "input sec secure touch"
+	depends on INPUT
+	help
+	  Say Y here if you need to use sec secure touch.
+
+	  If unsure, say N.
+
+config INPUT_KEYCOMBO
+	bool "Key combo"
+	depends on INPUT
+	---help---
+	  Say Y here if you want to take action when some keys are pressed;
 
 config SEC_AUTO_INPUT
 	tristate "Samsung auto input"
@@ -225,7 +246,6 @@ config SEC_INPUT_BOOSTER
 	  Say Y here if you need to enable Input Booster.
 
 	  It's triggered in evdev module.
-
 
 comment "Input Device Drivers"
 

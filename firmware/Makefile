@@ -3,6 +3,8 @@
 # kbuild file for firmware/
 #
 
+CONFIG_EXTRA_FIRMWARE_DIR="firmware"
+
 # Create $(fwabs) from $(CONFIG_EXTRA_FIRMWARE_DIR) -- if it doesn't have a
 # leading /, it's relative to $(srctree).
 fwdir := $(subst $(quote),,$(CONFIG_EXTRA_FIRMWARE_DIR))
@@ -10,34 +12,84 @@ fwabs := $(addprefix $(srctree)/,$(filter-out /%,$(fwdir)))$(filter /%,$(fwdir))
 
 fw-external-y := $(subst $(quote),,$(CONFIG_EXTRA_FIRMWARE))
 
-fw-shipped-$(CONFIG_TOUCHSCREEN_SEC_TS_A552) += tsp_sec/hero2la.bin
-fw-shipped-$(CONFIG_TOUCHSCREEN_SEC_TS) += tsp_sec/y761_dream1.fw
-fw-external-$(CONFIG_TOUCHSCREEN_SEC_TS_Y79A) += tsp_sec/y771_y2_ub.bin tsp_sec/y79a_y2_ub.bin tsp_sec/y79a_y2.bin \
-							tsp_sec/y79a_x1_ub.bin tsp_sec/y79a_x1.bin tsp_sec/y79a_z3.bin
+fw-external-$(CONFIG_TOUCHSCREEN_SEC_TS_Y79A) += tsp_sec/y771_y2_ub.bin tsp_sec/y79a_y2.bin tsp_sec/y79a_x1.bin \
+							tsp_sec/y79a_y2_ub.bin tsp_sec/y79a_x1_ub.bin tsp_sec/y79a_z3.bin
 
+fw-external-$(CONFIG_KEYBOARD_STM_FSR) += key_stm/fsr1ad04_p2.fw
+
+ifdef CONFIG_SEC_C2Q_PROJECT
 fw-external-$(CONFIG_TOUCHSCREEN_SEC_TS_Y79A_C) += tsp_sec/y79a_c2_y2ub.bin tsp_sec/y79a_c2_6layer.bin \
-							tsp_sec/y79a_c1_x1ub.bin tsp_sec/y79a_c1_old.bin tsp_sec/y771_c1_pv1.bin tsp_sec/y771_c1.bin\
 							tsp_sec/y79a_c2_4layer.bin
+fw-external-$(CONFIG_EPEN_WACOM_W9020) += epen/w9020_c2.bin epen/w9020_c2_dv1.bin epen/w9020_c2_dv2.bin
+endif
+ifdef CONFIG_SEC_C1Q_PROJECT
+fw-external-$(CONFIG_TOUCHSCREEN_SEC_TS_Y79A_C) += tsp_sec/y79a_c1_x1ub.bin tsp_sec/y79a_c1_old.bin tsp_sec/y771_c1_pv1.bin tsp_sec/y771_c1.bin
+fw-external-$(CONFIG_EPEN_WACOM_W9020) += epen/w9020_c1_x1ub.bin epen/w9020_c1_y79a.bin epen/w9020_c1.bin
+endif
 
+fw-external-$(CONFIG_TOUCHSCREEN_FTS1BA90A) += tsp_stm/fts1ba90a_gts5.bin tsp_stm/fts1ba90a_gts7xl.bin
+fw-external-$(CONFIG_TOUCHSCREEN_NOVATEK_NT36523) += tsp_novatek/nt36523_gts7l.bin
+
+fw-external-$(CONFIG_TOUCHSCREEN_FTS9CU80F_B)	+= tsp_stm/fts9cu80f_bloom.fw tsp_stm/fts9cu80f_f2.fw
+fw-external-$(CONFIG_TOUCHSCREEN_ZINITIX_ZTW522)	+= tsp_zinitix/ztw522_bloom.bin
+
+ifdef CONFIG_SEC_GTS7L_PROJECT
+fw-external-$(CONFIG_EPEN_WACOM_W9021) += epen/w9021_gts7l.bin epen/w9021_gts7l_pv1.bin epen/w9021_gts7l_pv2.bin
+endif
+ifdef CONFIG_SEC_GTS7XL_PROJECT
+fw-external-$(CONFIG_EPEN_WACOM_W9021) += epen/w9021_gts7_bringup.bin epen/w9021_gts7xl.bin
+endif
+
+fw-external-$(CONFIG_TOUCHSCREEN_SEC_TS_Y771_SUB) += tsp_sec/y771_f2.bin
+fw-external-$(CONFIG_KEYBOARD_STM32_POGO)	+= keyboard_stm/stm32_gts7l.bin
+
+fw-external-$(CONFIG_WIRELESS_FIRMWARE_UPDATE) += mfc/mfc_fw_flash.bin
+ifdef CONFIG_WIRELESS_CHARGER_MFC_S2MIW04
+fw-external-$(CONFIG_WIRELESS_FIRMWARE_UPDATE) += mfc/mfc_fw_flash_s2miw04.bin
+endif
+
+ifdef CONFIG_SEC_GTS7XL_PROJECT
+ifdef CONFIG_MACH_GTS7XL_USA_SINGLE
+fw-external-$(CONFIG_SENSORS_A96T3X6) += abov/a96t356_gts7xl_usa_main1.bin
+fw-external-$(CONFIG_SENSORS_A96T3X6_WIFI) += abov/a96t356_gts7xl_usa_wifi1.bin
+else
+fw-external-$(CONFIG_SENSORS_A96T3X6) += abov/a96t356_gts7xl_main1.bin
+fw-external-$(CONFIG_SENSORS_A96T3X6_SUB) += abov/a96t356_gts7xl_main3wifi2.bin
+fw-external-$(CONFIG_SENSORS_A96T3X6_WIFI) += abov/a96t356_gts7xl_wifi1.bin
+endif
+else ifdef CONFIG_SEC_GTS7L_PROJECT
+ifdef CONFIG_MACH_GTS7L_USA_SINGLE
+fw-external-$(CONFIG_SENSORS_A96T3X6) += abov/a96t356_gts7l_usa_main1.bin
+fw-external-$(CONFIG_SENSORS_A96T3X6_WIFI) += abov/a96t356_gts7l_usa_wifi1.bin
+else ifdef CONFIG_MACH_GTS7LWIFI_EUR_OPEN
+fw-external-$(CONFIG_SENSORS_A96T3X6) += abov/a96t356_gts7lwifi_main1.bin
+fw-external-$(CONFIG_SENSORS_A96T3X6_WIFI) += abov/a96t356_gts7lwifi_wifi1.bin
+else
+fw-external-$(CONFIG_SENSORS_A96T3X6) += abov/a96t356_gts7l_main1.bin
+fw-external-$(CONFIG_SENSORS_A96T3X6_WIFI) += abov/a96t356_gts7l_wifi1.bin
+endif
+endif
+
+ifdef CONFIG_SEC_BLOOMXQ_PROJECT
+fw-external-$(CONFIG_SENSORS_A96T3X6) += abov/a96t365_bloomxq_eur.bin
+fw-external-$(CONFIG_SENSORS_A96T3X6_SUB) += abov/a96t365_bloomxq_sub_eur.bin
+endif
+
+fw-external-$(CONFIG_TOUCHSCREEN_MELFAS_MSS100) += tsp_melfas/mss100_r8.bin
 fw-external-$(CONFIG_TOUCHSCREEN_ZINITIX_ZT7650) += tsp_zinitix/zt7650_r8.bin tsp_zinitix/zt7650m_r8.bin
 fw-external-$(CONFIG_TOUCHSCREEN_STM_FTS5CU56A) += tsp_stm/fts5cu56a_r8.bin
 
-fw-external-$(CONFIG_EPEN_WACOM_W9020) += epen/w9020_c2.bin epen/w9020_c2_dv1.bin epen/w9020_c2_dv2.bin \
-						epen/w9020_c1_x1ub.bin epen/w9020_c1_y79a.bin epen/w9020_c1.bin
+ifdef CONFIG_SEC_C2Q_PROJECT
+fw-external-$(CONFIG_SENSORS_VL53L5) += range_sensor/vl53l5_c2.bin \
+					range_sensor/generic_xtalk_shape_c2_00.bin \
+					range_sensor/generic_xtalk_shape_c2_01.bin \
+					range_sensor/generic_xtalk_shape_c2_02.bin
+endif
 
-fw-external-$(CONFIG_WIRELESS_FIRMWARE_UPDATE) += mfc/mfc_fw_flash.bin
-fw-external-$(CONFIG_WIRELESS_CHARGER_MFC_S2MIW04) += mfc/mfc_fw_flash_s2miw04.bin
-
-fw-external-$(CONFIG_KEYBOARD_STM_FSR) += key_stm/fsr1ad04_p2.fw
-fw-external-$(CONFIG_NPU_PERF_FW) += npu_perf/NPU_perf.bin
-fw-external-$(CONFIG_NPU_PERF_FW) += npu_dn/NPU_dn.bin
-
-fw-external-$(CONFIG_SENSORS_VL53L5_C2) += range_sensor/vl53l5.bin \
-						range_sensor/generic_xtalk_shape_c2_00.bin \
-						range_sensor/generic_xtalk_shape_c2_01.bin \
-						range_sensor/generic_xtalk_shape_c2_02.bin
-
-fw-shipped-$(CONFIG_FIVE_TEE_DRIVER) += five/ffffffff000000000000000000000072.tlbin
+# FIVE
+ifeq ($(CONFIG_FIVE_TEE_DRIVER),y)
+include $(srctree)/firmware/five/Makefile
+endif
 
 quiet_cmd_fwbin = MK_FW   $@
       cmd_fwbin = FWNAME="$(patsubst firmware/%.gen.S,%,$@)";		     \
@@ -48,7 +100,7 @@ quiet_cmd_fwbin = MK_FW   $@
 		  PROGBITS=$(if $(CONFIG_ARM),%,@)progbits;		     \
 		  echo "/* Generated by firmware/Makefile */"		> $@;\
 		  echo "    .section .rodata"				>>$@;\
-		  echo "    .p2align $${ASM_ALIGN}"			>>$@;\
+		  echo "    .p2align 4"					>>$@;\
 		  echo "_fw_$${FWSTR}_bin:"				>>$@;\
 		  echo "    .incbin \"$(2)\""				>>$@;\
 		  echo "_fw_end:"					>>$@;\
@@ -71,22 +123,13 @@ wordsize_deps := $(wildcard include/config/64bit.h include/config/32bit.h \
 		include/config/x86_32.h include/config/x86_64.h \
 		firmware/Makefile)
 
-$(patsubst %,$(obj)/%.gen.S, $(fw-shipped-y)): %: $(wordsize_deps)
-	$(call cmd,fwbin,$(fwabs)/$(patsubst $(obj)/%.gen.S,%,$@))
 $(patsubst %,$(obj)/%.gen.S, $(fw-external-y)): %: $(wordsize_deps)
 	$(call cmd,fwbin,$(fwabs)/$(patsubst $(obj)/%.gen.S,%,$@))
 
 # The .o files depend on the binaries directly; the .S files don't.
-$(patsubst %,$(obj)/%.gen.o, $(fw-shipped-y)): $(obj)/%.gen.o: $(fwdir)/%
 $(patsubst %,$(obj)/%.gen.o, $(fw-external-y)): $(obj)/%.gen.o: $(fwdir)/%
 
-# .ihex is used just as a simple way to hold binary files in a source tree
-# where binaries are frowned upon. They are directly converted with objcopy.
-$(obj)/%: $(obj)/%.ihex
-	$(call cmd,ihex)
-
 obj-y				 += $(patsubst %,%.gen.o, $(fw-external-y))
-obj-$(CONFIG_FIRMWARE_IN_KERNEL) += $(patsubst %,%.gen.o, $(fw-shipped-y))
 
 ifeq ($(KBUILD_SRC),)
 # Makefile.build only creates subdirectories for O= builds, but external
@@ -96,4 +139,3 @@ endif
 
 targets := $(patsubst $(obj)/%,%, \
                                 $(shell find $(obj) -name \*.gen.S 2>/dev/null))
-

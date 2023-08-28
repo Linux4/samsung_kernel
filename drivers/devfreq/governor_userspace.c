@@ -53,7 +53,11 @@ static ssize_t store_freq(struct device *dev, struct device_attribute *attr,
 	mutex_lock(&devfreq->lock);
 	data = devfreq->data;
 
-	sscanf(buf, "%lu", &wanted);
+	if (sscanf(buf, "%lu", &wanted) != 1) {
+		pr_err("%s: failed to set freq\n", __func__);
+		mutex_unlock(&devfreq->lock);
+		return -EINVAL;
+	}
 	data->user_frequency = wanted;
 	data->valid = true;
 	err = update_devfreq(devfreq);

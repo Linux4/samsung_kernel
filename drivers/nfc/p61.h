@@ -110,8 +110,8 @@ struct p61_spi_platform_data {
 
 #ifdef ESE_PINCTRL
 enum ESE_SPI_PINCTRL {
-	ESE_SPI_ACTIVE,
 	ESE_SPI_SLEEP,
+	ESE_SPI_ACTIVE,
 #ifdef CONFIG_NFC_FEATURE_SN100U
 	ESE_SPI_LPM,
 #endif

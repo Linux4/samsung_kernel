@@ -53,7 +53,17 @@
 #define KDP_MOUNT_ART2 "/com.android.runtime@1"
 #define KDP_MOUNT_ART2_LEN strlen(KDP_MOUNT_ART2)
 
+#define KDP_MOUNT_CRYPT "/com.android.conscrypt"
+#define KDP_MOUNT_CRYPT_LEN strlen(KDP_MOUNT_CRYPT)
+
+#define KDP_MOUNT_DEX2OAT "/com.android.art@1"
+#define KDP_MOUNT_DEX2OAT_LEN strlen(KDP_MOUNT_DEX2OAT)
+
+#define KDP_MOUNT_ADBD "/com.android.adbd@300900700"
+#define KDP_MOUNT_ADBD_LEN strlen(KDP_MOUNT_ADBD)
+
 #define ART_ALLOW 2
+#define DEX2OAT_ALLOW 1
 #endif
 
 /* Maximum number of mounts in a mount namespace */
@@ -98,11 +108,14 @@ static struct hlist_head *mountpoint_hashtable __read_mostly;
 static struct kmem_cache *mnt_cache __read_mostly;
 
 #ifdef CONFIG_KDP_NS
-struct super_block *sys_sb __kdp_ro = NULL;
-struct super_block *odm_sb __kdp_ro = NULL;
-struct super_block *vendor_sb __kdp_ro = NULL;
-struct super_block *art_sb __kdp_ro = NULL;
-struct super_block *rootfs_sb __kdp_ro = NULL;
+struct super_block *sys_sb	__kdp_ro = NULL;
+struct super_block *odm_sb	__kdp_ro = NULL;
+struct super_block *vendor_sb	__kdp_ro = NULL;
+struct super_block *art_sb 	__kdp_ro = NULL;
+struct super_block *rootfs_sb	__kdp_ro = NULL;
+struct super_block *crypt_sb	__kdp_ro = NULL;
+struct super_block *dex2oat_sb	__kdp_ro = NULL;
+struct super_block *adbd_sb		__kdp_ro = NULL;
 static struct kmem_cache *vfsmnt_cache __read_mostly;
 /* Populate all superblocks required for NS Protection */
 
@@ -112,10 +125,14 @@ enum kdp_sb {
 	KDP_SB_SYS,
 	KDP_SB_VENDOR,
 	KDP_SB_ART,
+	KDP_SB_CRYPT,
+	KDP_SB_DEX2OAT,
+	KDP_SB_ADBD,
 	KDP_SB_MAX
 };
 
 int art_count = 0;
+int dex2oat_count = 0;
 #endif
 
 static DECLARE_RWSEM(namespace_sem);
@@ -229,13 +246,13 @@ unsigned int cmp_ns_integrity(void)
 
 void rkp_set_mnt_root_sb(struct vfsmount *mnt,	struct dentry *mnt_root,struct super_block *mnt_sb)
 {
-	uh_call(UH_APP_KDP, RKP_KDP_X53, (u64)mnt, (u64)mnt_root, (u64)mnt_sb, 0);
+	uh_call(UH_APP_RKP, RKP_KDP_X53, (u64)mnt, (u64)mnt_root, (u64)mnt_sb, 0);
 }
 
 
 void rkp_assign_mnt_flags(struct vfsmount *mnt,int flags)
 {
-	uh_call(UH_APP_KDP, RKP_KDP_X54, (u64)mnt, (u64)flags, 0, 0);
+	uh_call(UH_APP_RKP, RKP_KDP_X54, (u64)mnt, (u64)flags, 0, 0);
 }
 
 void rkp_set_mnt_flags(struct vfsmount *mnt,int flags)
@@ -253,7 +270,7 @@ void rkp_reset_mnt_flags(struct vfsmount *mnt,int flags)
 }
 void rkp_set_data(struct vfsmount *mnt,void *data)
 {
-	uh_call(UH_APP_KDP, RKP_KDP_X55, (u64)mnt, (u64)data, 0, 0);
+	uh_call(UH_APP_RKP, RKP_KDP_X55, (u64)mnt, (u64)data, 0, 0);
 }
 #endif
 
@@ -277,7 +294,7 @@ static int mnt_alloc_id(struct mount *mnt)
 #ifdef CONFIG_KDP_NS
 void rkp_init_ns(struct vfsmount *vfsmnt,struct mount *mnt)
 {
-	uh_call(UH_APP_KDP, RKP_KDP_X52, (u64)vfsmnt, (u64)mnt, 0, 0);
+	uh_call(UH_APP_RKP, RKP_KDP_X52, (u64)vfsmnt, (u64)mnt, 0, 0);
 }
 
 static int mnt_alloc_vfsmount(struct mount *mnt)
@@ -2093,6 +2110,7 @@ dput_and_out:
 	mntput_no_expire(mnt);
 	if (!retval)
 		sys_umount_trace_print(mnt, flags);
+
 out:
 	return retval;
 }
@@ -2976,28 +2994,42 @@ unlock:
 #ifdef CONFIG_KDP_NS
 static void rkp_populate_sb(char *mount_point, struct vfsmount *mnt) 
 {
+	struct super_block *sb = NULL;
+
 	if (!mount_point || !mnt)
 		return;
+	
+	sb = mnt->mnt_sb;
 
 	if (!odm_sb &&
 		!strncmp(mount_point, KDP_MOUNT_PRODUCT, KDP_MOUNT_PRODUCT_LEN)) {
-		uh_call(UH_APP_KDP, RKP_KDP_X56, (u64)&odm_sb, (u64)mnt, KDP_SB_ODM, 0);
+		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&odm_sb, (u64)mnt, KDP_SB_ODM, 0);
 	} else if (!sys_sb &&
 		!strncmp(mount_point, KDP_MOUNT_SYSTEM, KDP_MOUNT_SYSTEM_LEN)) {
-		uh_call(UH_APP_KDP, RKP_KDP_X56, (u64)&sys_sb, (u64)mnt, KDP_SB_SYS, 0);
+		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&sys_sb, (u64)mnt, KDP_SB_SYS, 0);
 	} else if (!sys_sb &&
 		!strncmp(mount_point, KDP_MOUNT_SYSTEM2, KDP_MOUNT_SYSTEM2_LEN)) {
-		uh_call(UH_APP_KDP, RKP_KDP_X56, (u64)&sys_sb, (u64)mnt, KDP_SB_SYS, 0);
+		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&sys_sb, (u64)mnt, KDP_SB_SYS, 0);
 	} else if (!vendor_sb &&
 		!strncmp(mount_point, KDP_MOUNT_VENDOR, KDP_MOUNT_VENDOR_LEN)) {
-		uh_call(UH_APP_KDP, RKP_KDP_X56, (u64)&vendor_sb, (u64)mnt, KDP_SB_VENDOR, 0);
+		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&vendor_sb, (u64)mnt, KDP_SB_VENDOR, 0);
+	} else if(!crypt_sb && strstr(mount_point, KDP_MOUNT_CRYPT)) {
+		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&crypt_sb, (u64)mnt, KDP_SB_CRYPT, 0);
+	} else if(!dex2oat_sb && !strncmp(mount_point, KDP_MOUNT_DEX2OAT, KDP_MOUNT_DEX2OAT_LEN)) {
+		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&dex2oat_sb, (u64)mnt, KDP_SB_DEX2OAT, 0);
+	} else if((dex2oat_count < DEX2OAT_ALLOW) && !strncmp(mount_point, KDP_MOUNT_DEX2OAT, KDP_MOUNT_DEX2OAT_LEN)) {
+		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&dex2oat_sb, (u64)mnt, KDP_SB_DEX2OAT, 0);
+		dex2oat_count++;
+	} else if (!adbd_sb &&
+		!strncmp(mount_point, KDP_MOUNT_ADBD, KDP_MOUNT_ADBD_LEN - 1)) {
+		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&adbd_sb, (u64)mnt, KDP_SB_ADBD, 0);
 	} else if (!art_sb &&
 		!strncmp(mount_point, KDP_MOUNT_ART, KDP_MOUNT_ART_LEN - 1)) {
-		uh_call(UH_APP_KDP, RKP_KDP_X56, (u64)&art_sb, (u64)mnt, KDP_SB_ART, 0);
+		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&art_sb, (u64)mnt, KDP_SB_ART, 0);
 	} else if ((art_count < ART_ALLOW) &&
 		!strncmp(mount_point, KDP_MOUNT_ART2, KDP_MOUNT_ART2_LEN - 1)) {
 		if (art_count)
-			uh_call(UH_APP_KDP, RKP_KDP_X56, (u64)&art_sb, (u64)mnt, KDP_SB_ART, 0);
+			uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&art_sb, (u64)mnt, KDP_SB_ART, 0);
 		art_count++;
 	}
 }
@@ -3050,7 +3082,8 @@ static int do_new_mount(struct path *path, const char *fstype, int sb_flags,
 		return -ENOMEM;
 	}
 	dir_name = dentry_path_raw(path->dentry, buf, PATH_MAX);
-	if (!sys_sb || !odm_sb || !vendor_sb || !art_sb || (art_count < ART_ALLOW)) 
+	if (!sys_sb || !odm_sb || !vendor_sb || !crypt_sb || !dex2oat_sb 
+		|| (dex2oat_count < DEX2OAT_ALLOW) || !adbd_sb || !art_sb || (art_count < ART_ALLOW)) 
 		rkp_populate_sb(dir_name, mnt);
 	kfree(buf);
 #endif
@@ -3260,7 +3293,7 @@ void *copy_mount_options(const void __user * data)
 	 * the remainder of the page.
 	 */
 	/* copy_from_user cannot cross TASK_SIZE ! */
-	size = TASK_SIZE - (unsigned long)data;
+	size = TASK_SIZE - (unsigned long)untagged_addr(data);
 	if (size > PAGE_SIZE)
 		size = PAGE_SIZE;
 
@@ -3809,7 +3842,7 @@ static void __init init_mount_tree(void)
 		panic("Can't create rootfs");
 #ifdef CONFIG_KDP_NS
 	if(!rootfs_sb) {
-		uh_call(UH_APP_KDP, RKP_KDP_X56, (u64)&rootfs_sb, (u64)mnt, KDP_SB_ROOTFS, 0);
+		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&rootfs_sb, (u64)mnt, KDP_SB_ROOTFS, 0);
 	}
 #endif
 	ns = create_mnt_ns(mnt);
@@ -3857,7 +3890,7 @@ void __init mnt_init(void)
 	rkp_ns_fill_params(nsparam, vfsmnt_cache->size, sizeof(struct vfsmount), (u64)offsetof(struct vfsmount, bp_mount),
 										(u64)offsetof(struct vfsmount, mnt_sb),(u64)offsetof(struct vfsmount, mnt_flags),
 										(u64)offsetof(struct vfsmount, data));
-	uh_call(UH_APP_KDP, RKP_KDP_X41, (u64)&nsparam, 0, 0, 0);
+	uh_call(UH_APP_RKP, RKP_KDP_X41, (u64)&nsparam, 0, 0, 0);
 #endif
 
 	mount_hashtable = alloc_large_system_hash("Mount-cache",

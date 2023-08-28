@@ -4,9 +4,7 @@
 #ifndef _CNSS_DEBUG_H
 #define _CNSS_DEBUG_H
 
-#ifdef CONFIG_IPC_LOGGING
 #include <linux/ipc_logging.h>
-#endif
 #include <linux/printk.h>
 
 #define CNSS_IPC_LOG_PAGES		32
@@ -14,7 +12,6 @@
 extern void *cnss_ipc_log_context;
 extern void *cnss_ipc_log_long_context;
 
-#ifdef CONFIG_IPC_LOGGING
 #define cnss_ipc_log_string(_x...) do {					\
 		if (cnss_ipc_log_context)				\
 			ipc_log_string(cnss_ipc_log_context, _x);	\
@@ -24,11 +21,6 @@ extern void *cnss_ipc_log_long_context;
 		if (cnss_ipc_log_long_context)				\
 			ipc_log_string(cnss_ipc_log_long_context, _x);	\
 	} while (0)
-#else
-#define cnss_ipc_log_string(_x...)
-#define cnss_ipc_log_long_string(_x...)
-#endif
-
 
 #define cnss_pr_err(_fmt, ...) do {					\
 		printk("%scnss: " _fmt, KERN_ERR, ##__VA_ARGS__);	\

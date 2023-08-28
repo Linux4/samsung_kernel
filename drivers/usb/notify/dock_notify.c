@@ -283,8 +283,8 @@ static void check_device_speed(struct usb_device *dev, bool on)
 	struct usb_device *udev;
 	int port = 0;
 	int speed = USB_SPEED_UNKNOWN;
-	static int hs_hub;
-	static int ss_hub;
+	static int hs_hub = 0;
+	static int ss_hub = 0;
 
 	if (!o_notify) {
 		pr_err("%s otg_notify is null\n", __func__);

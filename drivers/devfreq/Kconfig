@@ -39,21 +39,6 @@ config DEVFREQ_GOV_SIMPLE_ONDEMAND
 	  Simple-Ondemand should be able to provide busy/total counter
 	  values that imply the usage rate. A device may provide tuned
 	  values to the governor with data field at devfreq_add_device().
-config DEVFREQ_GOV_SIMPLE_USAGE
-	tristate "Simple Usage"
-	help
-	  Chooses frequency based on the percentage of target device.
-
-config DEVFREQ_GOV_SIMPLE_EXYNOS
-	tristate "Simple Exynos"
-	help
-	  Chooses frequency based on the threshold of target device.
-
-config DEVFREQ_GOV_SIMPLE_INTERACTIVE
-	tristate "Simple Interactive"
-	help
-	  Chooses frequency based on the requested PM QoS from target device.
-	  And This governor uses timer when change frequency.
 
 config DEVFREQ_GOV_PERFORMANCE
 	tristate "Performance"
@@ -88,45 +73,81 @@ config DEVFREQ_GOV_PASSIVE
 	  through sysfs entries. The passive governor recommends that
 	  devfreq device uses the OPP table to get the frequency/voltage.
 
-config EXYNOS_ALT_DVFS
-	tristate "ALT(Active Load Tracing) DVFS"
-	depends on DEVFREQ_GOV_SIMPLE_INTERACTIVE
+config QCOM_BIMC_BWMON
+	tristate "QCOM BIMC Bandwidth monitor hardware"
+	depends on ARCH_QCOM
 	help
-	  Enable ALT-DVFS scheme for simpleinteractive governor.
-	  When ALT-DVFS is enabled, governor will start to trace and
-	  calculate memory load based on activated cycle. Simpleinteractive
-	  governor decides new frequency for DVFS by comparing current load
-	  and PM QoS requests.
+	  The BIMC Bandwidth monitor hardware allows for monitoring the
+	  traffic coming from each master port connected to the BIMC. It also
+	  has the capability to raise an IRQ when the count exceeds a
+	  programmable limit.
 
-config EXYNOS_ALT_DVFS_DEBUG
-	tristate "ALT(Active Load Tracing) DVFS Debugging Feature"
-	depends on DEVFREQ_GOV_SIMPLE_INTERACTIVE
+config ARM_MEMLAT_MON
+	tristate "ARM CPU Memory Latency monitor hardware"
+	depends on ARCH_QCOM
 	help
-	  For ALT-DVFS Debugging
+	  The PMU present on these ARM cores allow for the use of counters to
+	  monitor the memory latency characteristics of an ARM CPU workload.
+	  This driver uses these counters to implement the APIs needed by
+	  the mem_latency devfreq governor.
+
+config DEVFREQ_GOV_QCOM_BW_HWMON
+	tristate "HW monitor based governor for device BW"
+	depends on QCOM_BIMC_BWMON
+	help
+	  HW monitor based governor for device to DDR bandwidth voting.
+	  This governor sets the CPU BW vote by using BIMC counters to monitor
+	  the CPU's use of DDR. Since this uses target specific counters it
+	  can conflict with existing profiling tools.  This governor is unlikely
+	  to be useful for non-QCOM devices.
+
+config DEVFREQ_GOV_QCOM_CACHE_HWMON
+	tristate "HW monitor based governor for cache frequency"
+	help
+	  HW monitor based governor for cache frequency scaling. This
+	  governor sets the cache frequency by using PM counters to monitor the
+	  CPU's use of cache. Since this governor uses some of the PM counters
+	  it can conflict with existing profiling tools. This governor is
+	  unlikely to be useful for other devices.
+
+config DEVFREQ_GOV_MEMLAT
+	tristate "HW monitor based governor for device BW"
+	depends on ARM_MEMLAT_MON
+	help
+	  HW monitor based governor for device to DDR bandwidth voting.
+	  This governor sets the CPU BW vote based on stats obtained from memalat
+	  monitor if it determines that a workload is memory latency bound. Since
+	  this uses target specific counters it can conflict with existing profiling
+	  tools.
+
+config DEVFREQ_GOV_CDSPL3
+	tristate "QTI DEVFREQ governor for CDSP L3 requests"
+	depends on QCOM_CDSP_RM
+	help
+	  CDSP resource manager will use this governor to vote for L3 clock
+	  for IO-coherent traffic generated from CDSP. The driver implements
+	  a callback routine for CDSP resource manager to register a CPU L3
+	  clock frequency level.
 
 comment "DEVFREQ Drivers"
 
-config ARM_EXYNOS_DEVFREQ
-	bool "ARM Exynos Memory Bus DEVFREQ Common driver"
-	depends on ARCH_EXYNOS
-	select ARCH_HAS_OPP
-	select PM_OPP
+config DEVFREQ_GOV_QCOM_ADRENO_TZ
+	tristate "Qualcomm Technologies Inc Adreno Trustzone"
+	depends on QCOM_KGSL
 	help
-	  This adds the DEVFREQ driver for Exynos series common bus.
+	   Trustzone based governor for the Adreno GPU. Sets
+	   the frequency using a "on-demand" algorithm. This
+	   governor is unlikely to be useful for other
+	   devices.
 
-config ARM_EXYNOS_DEVFREQ_DISABLE_BOOT_LOCK
-	bool "disable boot qos lock of ARM Exynos Memory Bus DEVFREQ driver"
-	depends on ARM_EXYNOS_DEVFREQ && SEC_FACTORY
-	default n
+config DEVFREQ_GOV_QCOM_GPUBW_MON
+	tristate "GPU BW voting governor"
+	depends on DEVFREQ_GOV_QCOM_ADRENO_TZ
 	help
-	  This feature disables the bus qos lock in
-	  exynos devfreq driver during boot
-	  This feature support flexable boot.
-	  The config creates a lot of clk when device boot up.
-
-config ARM_EXYNOS_DEVFREQ_DEBUG
-	bool "ARM Exynos DEVFREQ sysfs for Debug"
-	depends on ARM_EXYNOS_DEVFREQ
+	  This governor works together with Adreno Trustzone governor,
+	  and select bus frequency votes using an "on-demand" alorithm.
+	  This governor is unlikely to be useful for non-Adreno
+	  devices.
 
 config ARM_EXYNOS_BUS_DEVFREQ
 	tristate "ARM EXYNOS Generic Memory Bus DEVFREQ Driver"
@@ -156,7 +177,8 @@ config ARM_TEGRA_DEVFREQ
 
 config ARM_RK3399_DMC_DEVFREQ
 	tristate "ARM RK3399 DMC DEVFREQ Driver"
-	depends on ARCH_ROCKCHIP
+	depends on (ARCH_ROCKCHIP && HAVE_ARM_SMCCC) || \
+		(COMPILE_TEST && HAVE_ARM_SMCCC)
 	select DEVFREQ_EVENT_ROCKCHIP_DFI
 	select DEVFREQ_GOV_SIMPLE_ONDEMAND
 	select PM_DEVFREQ_EVENT
@@ -166,15 +188,65 @@ config ARM_RK3399_DMC_DEVFREQ
           It sets the frequency for the memory controller and reads the usage counts
           from hardware.
 
-source "drivers/devfreq/event/Kconfig"
-
-config ARM_EXYNOS9810_BUS_DEVFREQ
-	bool "ARM Exynos9810 Memory Bus DEVFREQ Driver"
-	default y
-	depends on ARM_EXYNOS_DEVFREQ
-	depends on SOC_EXYNOS9810
-	select DEVFREQ_GOV_SIMPLE_INTERACTIVE
+config ARM_QCOM_DEVFREQ_FW
+	bool "Qualcomm Technologies Inc. DEVFREQ FW driver"
+	depends on ARCH_QCOM
+	select DEVFREQ_GOV_PERFORMANCE
+	select DEVFREQ_GOV_POWERSAVE
+	select DEVFREQ_GOV_USERSPACE
+	default n
 	help
-	  This adds the DEVFREQ driver for Exynos8895 memory and int.
+	  The firmware present in some QCOM chipsets offloads the steps
+	  necessary for changing the frequency of some devices (Eg: L3). This
+	  driver implements the devfreq interface for this firmware so that
+	  various governors could be used to scale the frequency of these
+	  devices.
+
+config DEVFREQ_SIMPLE_DEV
+	tristate "Device driver for simple clock device with no status info"
+	select DEVFREQ_GOV_PERFORMANCE
+	select DEVFREQ_GOV_POWERSAVE
+	select DEVFREQ_GOV_USERSPACE
+	select DEVFREQ_GOV_CPUFREQ
+	help
+	  Device driver for simple devices that control their frequency using
+	  clock APIs and don't have any form of status reporting.
+
+config QCOM_DEVFREQ_DEVBW
+	bool "Qualcomm Technologies Inc. DEVFREQ device for device master <-> slave IB/AB BW voting"
+	depends on ARCH_QCOM
+	select DEVFREQ_GOV_PERFORMANCE
+	select DEVFREQ_GOV_POWERSAVE
+	select DEVFREQ_GOV_USERSPACE
+	select DEVFREQ_GOV_CPUFREQ
+	default n
+	help
+	  Different devfreq governors use this devfreq device to make CPU to
+	  DDR IB/AB bandwidth votes. This driver provides a SoC topology
+	  agnostic interface to so that some of the devfreq governors can be
+	  shared across SoCs.
+
+config ARM_QCOM_DEVFREQ_QOSLAT
+	bool "Qualcomm Technologies Inc. DEVFREQ QOSLAT device driver"
+	depends on ARCH_QCOM
+	select DEVFREQ_GOV_PERFORMANCE
+	select DEVFREQ_GOV_POWERSAVE
+	select DEVFREQ_GOV_USERSPACE
+	default n
+	help
+	  Some Qualcomm Technologies, Inc. (QTI) chipsets have an
+	  interface to vote for a memory latency QoS level. This
+	  driver votes on this interface to request a particular
+	  memory latency QoS level.
+
+config DEVFREQ_GOV_STATICMAP
+	tristate "Device driver for static voting of DDR freq based on a clock rate change"
+	depends on ARCH_QCOM
+	help
+	  Clock notifier based governor for device to DDR Bandwidth voting.
+	  This governor votes for the DDR BW based on the device's clock rate
+	  change.
+
+source "drivers/devfreq/event/Kconfig"
 
 endif # PM_DEVFREQ

@@ -268,6 +268,8 @@ struct pmu {
 	atomic_t			exclusive_cnt; /* < 0: cpu; > 0: tsk */
 	int				task_ctx_nr;
 	int				hrtimer_interval_ms;
+	u32				events_across_hotplug:1,
+					reserved:31;
 
 	/* number of address filters this PMU can do */
 	unsigned int			nr_addr_filters;
@@ -495,10 +497,16 @@ struct perf_addr_filters_head {
 	unsigned int		nr_file_filters;
 };
 
+struct perf_addr_filter_range {
+	unsigned long		start;
+	unsigned long		size;
+};
+
 /**
  * enum perf_event_state - the states of an event:
  */
 enum perf_event_state {
+	PERF_EVENT_STATE_DORMANT	= -5,
 	PERF_EVENT_STATE_DEAD		= -4,
 	PERF_EVENT_STATE_EXIT		= -3,
 	PERF_EVENT_STATE_ERROR		= -2,
@@ -590,6 +598,12 @@ struct perf_event {
 	int				group_caps;
 
 	struct perf_event		*group_leader;
+
+	/*
+	 * Protect the pmu, attributes and context of a group leader.
+	 * Note: does not protect the pointer to the group_leader.
+	 */
+	struct mutex			group_leader_mutex;
 	struct pmu			*pmu;
 	void				*pmu_private;
 
@@ -643,6 +657,7 @@ struct perf_event {
 
 	int				oncpu;
 	int				cpu;
+	cpumask_t			readable_on_cpus;
 
 	struct list_head		owner_entry;
 	struct task_struct		*owner;
@@ -671,7 +686,7 @@ struct perf_event {
 	/* address range filters */
 	struct perf_addr_filters_head	addr_filters;
 	/* vma address array for file-based filders */
-	unsigned long			*addr_filters_offs;
+	struct perf_addr_filter_range	*addr_filter_ranges;
 	unsigned long			addr_filters_gen;
 
 	void (*destroy)(struct perf_event *);
@@ -704,6 +719,15 @@ struct perf_event {
 	void *security;
 #endif
 	struct list_head		sb_list;
+	/* Is this event shared with other events */
+	bool				shared;
+
+	/*
+	 * Entry into the list that holds the events whose CPUs
+	 * are offline. These events will be installed once the
+	 * CPU wakes up and will be removed from the list after that
+	 */
+	struct list_head		dormant_event_entry;
 #endif /* CONFIG_PERF_EVENTS */
 };
 
@@ -1447,9 +1471,11 @@ static struct device_attribute format_attr_##_name = __ATTR_RO(_name)
 #ifdef CONFIG_PERF_EVENTS
 int perf_event_init_cpu(unsigned int cpu);
 int perf_event_exit_cpu(unsigned int cpu);
+int perf_event_restart_events(unsigned int cpu);
 #else
 #define perf_event_init_cpu	NULL
 #define perf_event_exit_cpu	NULL
+#define perf_event_restart_events NULL
 #endif
 
 #endif /* _LINUX_PERF_EVENT_H */

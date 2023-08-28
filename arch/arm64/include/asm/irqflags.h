@@ -19,7 +19,6 @@
 #ifdef __KERNEL__
 
 #include <asm/ptrace.h>
-#include <linux/debug-snapshot.h>
 
 /*
  * Aarch64 has flags for masking: Debug, Asynchronous (serror), Interrupts and
@@ -46,13 +45,11 @@ static inline unsigned long arch_local_irq_save(void)
 		: "=r" (flags)
 		:
 		: "memory");
-	dbg_snapshot_irqs_disabled(0);
 	return flags;
 }
 
 static inline void arch_local_irq_enable(void)
 {
-	dbg_snapshot_irqs_disabled(1);
 	asm volatile(
 		"msr	daifclr, #2		// arch_local_irq_enable"
 		:
@@ -67,7 +64,6 @@ static inline void arch_local_irq_disable(void)
 		:
 		:
 		: "memory");
-	dbg_snapshot_irqs_disabled(0);
 }
 
 /*
@@ -89,7 +85,6 @@ static inline unsigned long arch_local_save_flags(void)
  */
 static inline void arch_local_irq_restore(unsigned long flags)
 {
-	dbg_snapshot_irqs_disabled(flags & PSR_I_BIT);
 	asm volatile(
 		"msr	daif, %0		// arch_local_irq_restore"
 	:

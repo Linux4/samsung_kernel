@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved. */
+/* Copyright (c) 2018-2020, The Linux Foundation. All rights reserved. */
 
 #include "bus.h"
 #include "debug.h"
@@ -267,21 +267,6 @@ void cnss_bus_collect_dump_info(struct cnss_plat_data *plat_priv, bool in_panic)
 	}
 }
 
-void cnss_bus_device_crashed(struct cnss_plat_data *plat_priv)
-{
-	if (!plat_priv)
-		return;
-
-	switch (plat_priv->bus_type) {
-	case CNSS_BUS_PCI:
-		return cnss_pci_device_crashed(plat_priv->bus_priv);
-	default:
-		cnss_pr_err("Unsupported bus type: %d\n",
-			    plat_priv->bus_type);
-		return;
-	}
-}
-
 int cnss_bus_call_driver_probe(struct cnss_plat_data *plat_priv)
 {
 	if (!plat_priv)
@@ -480,7 +465,6 @@ int cnss_bus_recover_link_down(struct cnss_plat_data *plat_priv)
 	}
 }
 
-
 int cnss_bus_debug_reg_read(struct cnss_plat_data *plat_priv, u32 offset,
 			    u32 *val)
 {
@@ -512,5 +496,36 @@ int cnss_bus_debug_reg_write(struct cnss_plat_data *plat_priv, u32 offset,
 		cnss_pr_dbg("Unsupported bus type: %d\n",
 			    plat_priv->bus_type);
 		return 0;
+	}
+}
+
+int cnss_bus_get_iova(struct cnss_plat_data *plat_priv, u64 *addr, u64 *size)
+{
+	if (!plat_priv)
+		return -ENODEV;
+
+	switch (plat_priv->bus_type) {
+	case CNSS_BUS_PCI:
+		return cnss_pci_get_iova(plat_priv->bus_priv, addr, size);
+	default:
+		cnss_pr_err("Unsupported bus type: %d\n",
+			    plat_priv->bus_type);
+		return -EINVAL;
+	}
+}
+
+int cnss_bus_get_iova_ipa(struct cnss_plat_data *plat_priv, u64 *addr,
+			  u64 *size)
+{
+	if (!plat_priv)
+		return -ENODEV;
+
+	switch (plat_priv->bus_type) {
+	case CNSS_BUS_PCI:
+		return cnss_pci_get_iova_ipa(plat_priv->bus_priv, addr, size);
+	default:
+		cnss_pr_err("Unsupported bus type: %d\n",
+			    plat_priv->bus_type);
+		return -EINVAL;
 	}
 }

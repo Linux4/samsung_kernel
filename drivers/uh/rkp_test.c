@@ -1,9 +1,10 @@
+#include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/sched/signal.h> 
 #include <linux/proc_fs.h>
 #include <linux/mm.h>
 #include <linux/rkp.h>
 #include <linux/uh.h>
-#include <linux/sched/signal.h>
 
 /*
  * BIT[0:1]	TYPE	PXN BIT
@@ -16,46 +17,14 @@
 #define L3_PAGE_PXN    (_AT(pmdval_t, 1) << 53)
 
 #define MEM_END		0xfffffffffffff000 /* 4K aligned */
+#define MEM_END1	0xffffffffa0000000 /* 4K aligned */
+#define MEM_END2	0xffffffffc0000000 /* 4K aligned */
 #define DESC_MASK	0xFFFFFFFFF000
 
 #define RKP_PA_READ	0
 #define RKP_PA_WRITE	1
 
 #define RKP_ROBUFFER_ARG_TEST 1
-
-/**********************************************************
- *			FIMC defines
- **********************************************************/
-#define CONFIG_USE_DIRECT_IS_CONTROL
-#ifdef CONFIG_USE_DIRECT_IS_CONTROL //which means FIMC
-#ifdef CONFIG_KASAN
-#define FIMC_LIB_OFFSET_VA		(VMALLOC_START + 0xF6000000 - 0x8000000)
-#else
-#define FIMC_LIB_OFFSET_VA		(VMALLOC_START + 0x1000000000UL + 0xF6000000 - 0x8000000)
-#endif
-#define FIMC_LIB_START_VA		(FIMC_LIB_OFFSET_VA + 0x04000000)
-
-#define VRA_START_VA	FIMC_LIB_START_VA
-// #define VRA_CODE_SIZE	0x40000 /* for Great and Crown */
-#define VRA_CODE_SIZE	0x80000
-#define VRA_DATA_SIZE	0x40000
-
-#define DDK_START_VA	(FIMC_LIB_START_VA + VRA_CODE_SIZE + VRA_DATA_SIZE)
-// #define DDK_CODE_SIZE	0x300000 /* for Great and Crown */
-#define DDK_CODE_SIZE	0x340000
-#define DDK_DATA_SIZE	0x100000
-
-#define RTA_START_VA	(DDK_START_VA + DDK_CODE_SIZE + DDK_DATA_SIZE)
-
-/*#define RTA_CODE_SIZE	0x100000	*//* for Dream and Star */
-/*#define RTA_DATA_SIZE	0x200000*/
-//#define RTA_CODE_SIZE	0x180000	/* for Great and Crown*/
-//#define RTA_DATA_SIZE	0x180000
-#define RTA_CODE_SIZE	0x200000	/* for Beyond*/
-#define RTA_DATA_SIZE	0x200000
-
-#define FIMC_LIB_END_VA (RTA_START_VA+RTA_CODE_SIZE+RTA_DATA_SIZE)
-#endif
 
 struct test_data_struct{
 	u64 iter;
@@ -69,9 +38,7 @@ struct test_data_struct{
 
 static DEFINE_RAW_SPINLOCK(par_lock);
 
-#define RKP_BUF_SIZE	4096*2
-#define RKP_LINE_MAX	80
-
+#define RKP_BUF_SIZE	4096
 char rkp_test_buf[RKP_BUF_SIZE];
 unsigned long rkp_test_len = 0;
 unsigned long prot_user_l2 = 1;
@@ -82,9 +49,6 @@ u64 *ha2;
 void buf_print(const char *fmt, ...)
 {
 	va_list aptr;
-
-	if (rkp_test_len > RKP_BUF_SIZE-RKP_LINE_MAX)
-		return;
 	va_start(aptr, fmt);
 	rkp_test_len += vsprintf(rkp_test_buf+rkp_test_len, fmt, aptr);
 	va_end(aptr);
@@ -104,16 +68,6 @@ bool hyp_check_page_ro(u64 va)
 	return (par & 0x1) ? true : false;
 }
 
-static void hyp_check_range_rw(u64 va, u64 count, u64 *ro, u64 *rw)
-{
-	unsigned long  flags;
-
-	raw_spin_lock_irqsave(&par_lock, flags);
-	uh_call(UH_APP_RKP, CMD_ID_TEST_GET_RO, (unsigned long)va, (unsigned long)count, 0, 0);
-	*ro = *ha1;
-	*rw = *ha2;
-	raw_spin_unlock_irqrestore(&par_lock, flags);
-}
 
 static void hyp_check_l23pgt_rw(u64 *pg_l, unsigned int level, struct test_data_struct *test)
 {
@@ -163,7 +117,6 @@ static int test_case_user_pgtable_ro(void)
 	struct test_data_struct test[3] = {{0}, {0}, {0} };
 	int i;
 	struct mm_struct *mm = NULL;
-
 	for_each_process(task) {
 		mm = task->active_mm;
 		if (!(mm) || !(mm->context.id.counter)) {
@@ -197,7 +150,6 @@ static int test_case_kernel_pgtable_ro(void)
 {
 	struct test_data_struct test[3] = {{0}, {0}, {0} };
 	int i = 0;
-
 	// Check for swapper_pg_dir
 	test[0].iter++;
 	if (hyp_check_page_ro((u64)swapper_pg_dir)) {
@@ -243,49 +195,57 @@ static int test_case_kernel_l3pgt_ro(void)
 	return (rw == 0) ? 0 : 1;
 }
 
-static void page_pxn_set(struct mm_struct *mm, unsigned long addr, u64 *xn, u64 *x)
+// return true if addr mapped, otherwise return false
+static bool page_pxn_set(unsigned long addr, u64 *xn, u64 *x)
 {
 	pgd_t *pgd;
 	pud_t *pud;
 	pmd_t *pmd;
 	pte_t *pte;
 
-	pgd = pgd_offset(mm, addr);
+	pgd = pgd_offset_k(addr);
 	if (pgd_none(*pgd))
-		return;
+		return false;
 
 	pud = pud_offset(pgd, addr);
 	if (pud_none(*pud))
-		return;
+		return false;
+
+	if (pud_sect(*pud)) {
+		if ((pud_val(*pud) & L012_BLOCK_PXN) > 0)
+			*xn +=1;
+		else 
+			*x +=1;
+		return true;
+	}
 
 	pmd = pmd_offset(pud, addr);
 	if (pmd_none(*pmd))
-		return;
+		return false;
 
 	if (pmd_sect(*pmd)) {
 		if ((pmd_val(*pmd) & L012_BLOCK_PXN) > 0)
 			*xn +=1;
 		else 
 			*x +=1;
-		return;
-	}
-	else {
+		return true;
+	} else {
 		if ((pmd_val(*pmd) & L012_TABLE_PXN) > 0) {
 			*xn +=1;
-			return;
+			return true;
 		}
 	}
 
 	// If pmd is table, such as kernel text head and tail, need to check L3
-	pte = pte_offset_map(pmd, addr);
-	if (!pte_none(*pte)) {
-		if ((pte_val(*pte) & L3_PAGE_PXN) > 0)
-			*xn +=1;
-		else 
-			*x +=1;
-	}
+	pte = pte_offset_kernel(pmd, addr);
+	if (pte_none(*pte))
+		return false;
 
-	pte_unmap(pte);
+	if ((pte_val(*pte) & L3_PAGE_PXN) > 0)
+		*xn +=1;
+	else 
+		*x +=1;
+	return true;
 }
 
 static void count_pxn(unsigned long pxn, int level, struct test_data_struct *test){
@@ -379,7 +339,6 @@ static int test_case_user_pxn(void)
 	struct mm_struct *mm = NULL;
 	struct test_data_struct test[3] = {{0}, {0}, {0} };
 	int i = 0;
-
 	for_each_process(task) {
 		mm = task->active_mm;
 		if (!(mm) || !(mm->context.id.counter)) {
@@ -410,14 +369,6 @@ static int test_case_user_pxn(void)
 		return 1;
 }
 
-static void range_pxn_set(unsigned long va_start, unsigned long count, u64 *xn, u64 *x)
-{
-	unsigned long i;
-	for (i = 0; i < count; i++) {
-		 page_pxn_set(&init_mm, (va_start + i*PAGE_SIZE), xn, x);
-	}
-}
-
 struct mem_range_struct {
 	u64 start_va;
 	u64 size; //in bytes
@@ -432,19 +383,16 @@ static int test_case_kernel_range_rwx(void)
 	u64 ro = 0, rw = 0;
 	u64 xn = 0, x = 0;
 	int i;
-#ifdef CONFIG_UNMAP_KERNEL_AT_EL0
-	u64 fixmap_va = TRAMP_VALIAS;
-#else
-	u64 fixmap_va = MEM_END;
-#endif
+	u64 j;
+	bool mapped = false;
+	u64 va_temp;
+
 	struct mem_range_struct test_ranges[] = {
 		{(u64)VMALLOC_START,		((u64)_text) - ((u64)VMALLOC_START),	"VMALLOC -  STEXT", false, true},
 		{((u64)_text),			((u64)_etext) - ((u64)_text),		"STEXT - ETEXT   ", true, false},
-
-		// For STAR, two bit maps are between etext and srodata
-		{((u64)_etext),			((u64) __end_rodata) - ((u64)_etext),	"ETEXT -  ERODATA", true, true},
-		// For STAR, FIMC is after erodata
+		{((u64)_etext),			((u64) __end_rodata) - ((u64)_etext),	"ETEXT - ERODATA ", true, true},
 #ifdef CONFIG_USE_DIRECT_IS_CONTROL
+		// For STAR, FIMC is after erodata
 		{((u64) __end_rodata),		VRA_START_VA-((u64) __end_rodata),	"ERODATA - S_FIMC", false, true},
 		{VRA_START_VA,			VRA_CODE_SIZE,				"     VRA CODE   ", true, false},
 		{VRA_START_VA+VRA_CODE_SIZE,	VRA_DATA_SIZE,				"     VRA DATA   ", false, true},
@@ -452,21 +400,28 @@ static int test_case_kernel_range_rwx(void)
 		{DDK_START_VA+DDK_CODE_SIZE,	DDK_DATA_SIZE,				"     DDK_DATA   ", false, true},
 		{RTA_START_VA,			RTA_CODE_SIZE,				"     RTA CODE   ", true, false},
 		{RTA_START_VA+RTA_CODE_SIZE,	RTA_DATA_SIZE,				"     RTA DATA   ", false, true},
-		{((u64)FIMC_LIB_END_VA),	fixmap_va - ((u64)FIMC_LIB_END_VA),	"FIMC_END- FIXMAP", false, true},
-#endif
-#ifdef CONFIG_UNMAP_KERNEL_AT_EL0
-		{((u64)fixmap_va),		((u64) PAGE_SIZE),			"     FIXMAP     ", true, false},
-		{((u64)fixmap_va+PAGE_SIZE),	((u64) MEM_END-(fixmap_va+PAGE_SIZE)),	"FIXMAP - MEM_END", false, true},
-#endif
+		{FIMC_LIB_END_VA,		MEM_END-FIMC_LIB_END_VA,		"E_FIMC - MEM END", false, true},
+#else
+		{((u64) __end_rodata),		MEM_END-((u64) __end_rodata),		"ERODATA -MEM_END", false, true},
+#endif 
+
 	};
 
 	int len = sizeof(test_ranges)/sizeof(struct mem_range_struct);
-
 	buf_print("\t\t| MEMORY RANGES  | %16s - %16s | %8s %8s %8s %8s\n",
 		"START", "END", "RO", "RW", "PXN", "PX");
 	for (i = 0; i < len; i++) {
-		hyp_check_range_rw(test_ranges[i].start_va, test_ranges[i].size/PAGE_SIZE, &ro, &rw);
-		range_pxn_set(test_ranges[i].start_va, test_ranges[i].size/PAGE_SIZE, &xn, &x);
+		for (j = 0; j < test_ranges[i].size/PAGE_SIZE; j++) {
+			va_temp = test_ranges[i].start_va + j*PAGE_SIZE;
+			mapped = page_pxn_set(va_temp, &xn, &x);
+			if (!mapped)
+				continue;
+			// only for mapped pages
+			if (hyp_check_page_ro(va_temp))
+				ro +=1;
+			else
+				rw +=1;
+		}
 
 		buf_print("\t\t|%s| %016llx - %016llx | %8llu %8llu %8llu %8llu\n",
 			test_ranges[i].info, test_ranges[i].start_va,
@@ -547,43 +502,21 @@ static const struct file_operations rkp_proc_fops = {
 
 static int __init rkp_test_init(void)
 {
-#ifdef CONFIG_FASTUH_RKP
-	u64 va;
-#else
 	phys_addr_t ret = 0;
-#endif
 
 	if (proc_create("rkp_test", 0444, NULL, &rkp_proc_fops) == NULL) {
 		printk(KERN_ERR "RKP_TEST: Error creating proc entry");
 		return -1;
 	}
-#ifdef CONFIG_FASTUH_RKP
-	va = __get_free_page(GFP_KERNEL | __GFP_ZERO);
-	if (!va)
-		return -1;
-	uh_call(UH_APP_RKP, RKP_ROBUFFER_ALLOC, va, 0, 0, 1);
 
-	ha1 = (u64 *)va;
-	ha2 = (u64 *)(va + 8);
-#else
-	uh_call(UH_APP_RKP, RKP_ROBUFFER_ALLOC, (u64)&ret | (u64)RKP_ROBUFFER_ARG_TEST, 0, 0, 0);
+	uh_call(UH_APP_RKP, RKP_RKP_ROBUFFER_ALLOC, (u64)&ret | (u64)RKP_ROBUFFER_ARG_TEST, 0, 0, 0);
 	ha1 = (u64 *)(__va(ret));
 	ha2 = (u64 *)(__va(ret) + 8);
-#endif
-	/*
-	ha1 = (u64 *)(__va(RKP_ROBUF_START)+RKP_ROBUF_SIZE-16);
-	ha2 = (u64 *)(__va(RKP_ROBUF_START)+RKP_ROBUF_SIZE-8);
-	*/
-
 	return 0;
 }
 
 static void __exit rkp_test_exit(void)
 {
-#ifdef CONFIG_FASTUH_RKP
-	uh_call(UH_APP_RKP, RKP_ROBUFFER_FREE, (u64)ha1, 0, 0, 1);
-	free_page((unsigned long)ha1);
-#endif
 	remove_proc_entry("rkp_test", NULL);
 }
 

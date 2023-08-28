@@ -659,7 +659,12 @@ exit:
 	disk_part_iter_init(&piter, disk, 0);
 	while ((part = disk_part_iter_next(&piter))) {
 		kobject_uevent(&part_to_dev(part)->kobj, KOBJ_ADD);
-		ST_LOG("<%s> KOBJ_ADD %d:%d", __func__, major,
+		if (part->info)
+			ST_LOG("<%s> KOBJ_ADD %d:%d, volname %s.", __func__, major,
+					first_minor + part->partno,
+					part->info->volname);
+		else
+			ST_LOG("<%s> KOBJ_ADD %d:%d", __func__, major,
 					first_minor + part->partno);
 	}
 	disk_part_iter_exit(&piter);
@@ -1583,17 +1588,16 @@ static int disk_uevent(struct device *dev, struct kobj_uevent_env *env)
 	struct hd_struct *part;
 	int cnt = 0;
 
-	if (disk->flags & GENHD_FL_IF_USB) {
-		disk_part_iter_init(&piter, disk, 0);
-		while ((part = disk_part_iter_next(&piter)))
-			cnt++;
-		disk_part_iter_exit(&piter);
-		add_uevent_var(env, "NPARTS=%u", cnt);
-		add_uevent_var(env, "MEDIAPRST=%d",
-			(disk->flags & GENHD_FL_MEDIA_PRESENT) ? 1 : 0);
-		pr_info("%s %d, disk flag media_present=%d, cnt=%d\n",
-			__func__, __LINE__,
-			(disk->flags & GENHD_FL_MEDIA_PRESENT), cnt);
+	disk_part_iter_init(&piter, disk, 0);
+	while((part = disk_part_iter_next(&piter)))
+		cnt++;
+	disk_part_iter_exit(&piter);
+	add_uevent_var(env, "NPARTS=%u", cnt);
+
+	if (disk->interfaces == GENHD_IF_USB) {
+		add_uevent_var(env, "MEDIAPRST=%d", disk->media_present);
+		pr_info("%s %d, disk->media_present=%d, cnt=%d, disk->disk_name=%s\n",
+				__func__, __LINE__, disk->media_present, cnt, disk->disk_name);
 	}
 	return 0;
 }
@@ -2202,12 +2206,12 @@ static void disk_check_events(struct disk_events *ev,
 	int nr_events = 0, i;
 
 #ifdef CONFIG_USB_STORAGE_DETECT
-	if (!(disk->flags & GENHD_FL_IF_USB))
-		/* check events */
+	events = 0;
+	if (disk->interfaces != GENHD_IF_USB)
+	/* check events */
 		events = disk->fops->check_events(disk, clearing);
-	else
-		events = 0;
 #else
+	/* check events */
 	events = disk->fops->check_events(disk, clearing);
 #endif
 
@@ -2235,15 +2239,11 @@ static void disk_check_events(struct disk_events *ev,
 			envp[nr_events++] = disk_uevents[i];
 
 #ifdef CONFIG_USB_STORAGE_DETECT
-	if (!(disk->flags & GENHD_FL_IF_USB)) {
-		if (nr_events)
-			kobject_uevent_env(&disk_to_dev(disk)->kobj,
-					KOBJ_CHANGE, envp);
-	}
+	if (nr_events && disk->interfaces != GENHD_IF_USB)
+		kobject_uevent_env(&disk_to_dev(disk)->kobj, KOBJ_CHANGE, envp);
 #else
 	if (nr_events)
-		kobject_uevent_env(&disk_to_dev(disk)->kobj,
-					KOBJ_CHANGE, envp);
+		kobject_uevent_env(&disk_to_dev(disk)->kobj, KOBJ_CHANGE, envp);
 #endif
 }
 

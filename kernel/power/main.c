@@ -16,8 +16,21 @@
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 #include <linux/suspend.h>
+#ifdef CONFIG_SEC_PM
+#include <linux/input/qpnp-power-on.h>
+#include <linux/fb.h>
+#endif
+
+#ifdef CONFIG_CPU_FREQ_LIMIT_USERSPACE
+#include <linux/cpufreq.h>
+#include <linux/cpufreq_limit.h>
+#endif
 
 #include "power.h"
+
+#ifdef CONFIG_SEC_PM
+static struct delayed_work ws_work;
+#endif
 
 #ifdef CONFIG_PM_SLEEP
 
@@ -53,7 +66,7 @@ EXPORT_SYMBOL_GPL(unlock_system_sleep);
 
 /* Routines for PM-transition notifications */
 
-BLOCKING_NOTIFIER_HEAD(pm_chain_head);
+static BLOCKING_NOTIFIER_HEAD(pm_chain_head);
 
 int register_pm_notifier(struct notifier_block *nb)
 {
@@ -80,27 +93,6 @@ int pm_notifier_call_chain(unsigned long val)
 {
 	return __pm_notifier_call_chain(val, -1, NULL);
 }
-
-#ifdef CONFIG_SEC_PM_DEBUG
-void *pm_notifier_call_chain_get_callback(int nr_calls)
-{
-	struct notifier_block *nb, *next_nb;
-	int nr_to_call = nr_calls;
-
-	nb = rcu_dereference_raw(pm_chain_head.head);
-
-	while (nb && nr_to_call) {
-		next_nb = rcu_dereference_raw(nb->next);
-		nb = next_nb;
-		nr_to_call--;
-	}
-
-	if (nb)
-		return (void *)nb->notifier_call;
-	else
-		return ERR_PTR(-ENODATA);
-}
-#endif /* CONFIG_SEC_PM_DEBUG */
 
 /* If set, devices may be suspended and resumed asynchronously. */
 int pm_async_enabled = 1;
@@ -263,7 +255,6 @@ static ssize_t pm_test_store(struct kobject *kobj, struct kobj_attribute *attr,
 power_attr(pm_test);
 #endif /* CONFIG_PM_SLEEP_DEBUG */
 
-#ifdef CONFIG_DEBUG_FS
 static char *suspend_step_name(enum suspend_stat_step step)
 {
 	switch (step) {
@@ -284,6 +275,92 @@ static char *suspend_step_name(enum suspend_stat_step step)
 	}
 }
 
+#define suspend_attr(_name)					\
+static ssize_t _name##_show(struct kobject *kobj,		\
+		struct kobj_attribute *attr, char *buf)		\
+{								\
+	return sprintf(buf, "%d\n", suspend_stats._name);	\
+}								\
+static struct kobj_attribute _name = __ATTR_RO(_name)
+
+suspend_attr(success);
+suspend_attr(fail);
+suspend_attr(failed_freeze);
+suspend_attr(failed_prepare);
+suspend_attr(failed_suspend);
+suspend_attr(failed_suspend_late);
+suspend_attr(failed_suspend_noirq);
+suspend_attr(failed_resume);
+suspend_attr(failed_resume_early);
+suspend_attr(failed_resume_noirq);
+
+static ssize_t last_failed_dev_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	int index;
+	char *last_failed_dev = NULL;
+
+	index = suspend_stats.last_failed_dev + REC_FAILED_NUM - 1;
+	index %= REC_FAILED_NUM;
+	last_failed_dev = suspend_stats.failed_devs[index];
+
+	return sprintf(buf, "%s\n", last_failed_dev);
+}
+static struct kobj_attribute last_failed_dev = __ATTR_RO(last_failed_dev);
+
+static ssize_t last_failed_errno_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	int index;
+	int last_failed_errno;
+
+	index = suspend_stats.last_failed_errno + REC_FAILED_NUM - 1;
+	index %= REC_FAILED_NUM;
+	last_failed_errno = suspend_stats.errno[index];
+
+	return sprintf(buf, "%d\n", last_failed_errno);
+}
+static struct kobj_attribute last_failed_errno = __ATTR_RO(last_failed_errno);
+
+static ssize_t last_failed_step_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	int index;
+	enum suspend_stat_step step;
+	char *last_failed_step = NULL;
+
+	index = suspend_stats.last_failed_step + REC_FAILED_NUM - 1;
+	index %= REC_FAILED_NUM;
+	step = suspend_stats.failed_steps[index];
+	last_failed_step = suspend_step_name(step);
+
+	return sprintf(buf, "%s\n", last_failed_step);
+}
+static struct kobj_attribute last_failed_step = __ATTR_RO(last_failed_step);
+
+static struct attribute *suspend_attrs[] = {
+	&success.attr,
+	&fail.attr,
+	&failed_freeze.attr,
+	&failed_prepare.attr,
+	&failed_suspend.attr,
+	&failed_suspend_late.attr,
+	&failed_suspend_noirq.attr,
+	&failed_resume.attr,
+	&failed_resume_early.attr,
+	&failed_resume_noirq.attr,
+	&last_failed_dev.attr,
+	&last_failed_errno.attr,
+	&last_failed_step.attr,
+	NULL,
+};
+
+static struct attribute_group suspend_attr_group = {
+	.name = "suspend_stats",
+	.attrs = suspend_attrs,
+};
+
+#ifdef CONFIG_DEBUG_FS
 static int suspend_stats_show(struct seq_file *s, void *unused)
 {
 	int i, index, last_dev, last_errno, last_step;
@@ -411,7 +488,7 @@ static ssize_t pm_wakeup_irq_show(struct kobject *kobj,
 
 power_attr_ro(pm_wakeup_irq);
 
-bool pm_debug_messages_on __read_mostly = true;
+bool pm_debug_messages_on __read_mostly;
 
 static ssize_t pm_debug_messages_show(struct kobject *kobj,
 				      struct kobj_attribute *attr, char *buf)
@@ -715,6 +792,162 @@ power_attr(wake_unlock);
 #endif /* CONFIG_PM_WAKELOCKS */
 #endif /* CONFIG_PM_SLEEP */
 
+#ifdef CONFIG_CPU_FREQ_LIMIT_USERSPACE
+#define MAX_BUF_SIZE	100
+DEFINE_MUTEX(cpufreq_limit_mutex);
+
+int set_freq_limit(unsigned long id, unsigned int freq)
+{
+	int ret = 0;
+	struct cpufreq_limit_handle *handle =
+							cpufreq_limit_get_handle(id);
+
+	pr_debug("%s: id(%d) freq(%d)\n", __func__, (int)id, freq);
+
+	mutex_lock(&cpufreq_limit_mutex);
+
+	if (freq != -1) {
+		ret = cpufreq_limit_get(freq, handle);
+		if (ret)
+			pr_err("%s: cpufreq_limit_get fail %lu, %u, %d\n",
+									__func__, id, freq, ret);
+	} else
+		cpufreq_limit_put(handle);
+
+	mutex_unlock(&cpufreq_limit_mutex);
+
+	return ret;
+}
+
+static ssize_t cpufreq_table_show(struct kobject *kobj,
+			struct kobj_attribute *attr, char *buf)
+{
+	ssize_t len = 0;
+#ifndef CONFIG_CPU_FREQ_LIMIT
+	int i, count = 0;
+	unsigned int freq;
+
+	struct cpufreq_frequency_table *table;
+
+	table = cpufreq_frequency_get_table(0);
+	if (table == NULL)
+		return 0;
+
+	for (i = 0; table[i].frequency != CPUFREQ_TABLE_END; i++)
+		count = i;
+
+	for (i = count; i >= 0; i--) {
+		freq = table[i].frequency;
+
+		if (freq == CPUFREQ_ENTRY_INVALID)
+			continue;
+
+		len += snprintf(buf + len, MAX_BUF_SIZE, "%u ", freq);
+	}
+
+	len--;
+	len += snprintf(buf + len, MAX_BUF_SIZE, "\n");
+#else
+	len = cpufreq_limit_get_table(buf);
+#endif
+
+	return len;
+}
+
+static ssize_t cpufreq_table_store(struct kobject *kobj,
+				struct kobj_attribute *attr,
+				const char *buf, size_t n)
+{
+	pr_err("%s: cpufreq_table is read-only\n", __func__);
+	return -EINVAL;
+}
+
+static ssize_t cpufreq_max_limit_show(struct kobject *kobj,
+					struct kobj_attribute *attr,
+					char *buf)
+{
+	return snprintf(buf, MAX_BUF_SIZE, "%d\n", cpufreq_limit_get_cur_max());
+}
+
+static ssize_t cpufreq_max_limit_store(struct kobject *kobj,
+					struct kobj_attribute *attr,
+					const char *buf, size_t n)
+{
+	int freq;
+	ssize_t ret = -EINVAL;
+
+	ret = kstrtoint(buf, 10, &freq);
+	if (ret < 0) {
+		pr_err("%s: Invalid cpufreq format\n", __func__);
+		return ret;
+	}
+
+	set_freq_limit(DVFS_USER_MAX_ID, freq);
+	ret = n;
+
+	return ret;
+}
+
+static ssize_t cpufreq_min_limit_show(struct kobject *kobj,
+					struct kobj_attribute *attr,
+					char *buf)
+{
+	return snprintf(buf, MAX_BUF_SIZE, "%d\n", cpufreq_limit_get_cur_min());
+}
+
+static ssize_t cpufreq_min_limit_store(struct kobject *kobj,
+					struct kobj_attribute *attr,
+					const char *buf, size_t n)
+{
+	int freq;
+	ssize_t ret = -EINVAL;
+
+	ret = kstrtoint(buf, 10, &freq);
+	if (ret < 0) {
+		pr_err("%s: Invalid cpufreq format\n", __func__);
+		return ret;
+	}
+
+	set_freq_limit(DVFS_USER_MIN_ID, freq);
+	ret = n;
+
+	return ret;
+}
+
+static ssize_t over_limit_show(struct kobject *kobj,
+					struct kobj_attribute *attr,
+					char *buf)
+{
+	return snprintf(buf, MAX_BUF_SIZE, "%d\n", cpufreq_limit_get_over_limit());
+}
+
+static ssize_t over_limit_store(struct kobject *kobj,
+					struct kobj_attribute *attr,
+					const char *buf, size_t n)
+{
+	unsigned int val;
+	ssize_t ret = -EINVAL;
+
+	ret = kstrtoint(buf, 10, &val);
+	if (ret < 0) {
+		pr_err("%s: Invalid cpufreq format\n", __func__);
+		goto out;
+	}
+
+	mutex_lock(&cpufreq_limit_mutex);
+	cpufreq_limit_set_over_limit((unsigned int)val);
+	mutex_unlock(&cpufreq_limit_mutex);
+	ret = n;
+out:
+	return ret;
+}
+
+power_attr(cpufreq_table);
+power_attr(cpufreq_max_limit);
+power_attr(cpufreq_min_limit);
+power_attr(over_limit);
+#endif
+
 #ifdef CONFIG_PM_TRACE
 int pm_trace_enabled;
 
@@ -778,11 +1011,56 @@ power_attr(pm_freeze_timeout);
 
 #endif	/* CONFIG_FREEZER*/
 
-#ifdef CONFIG_FOTA_LIMIT
+#ifdef CONFIG_SEC_PM
+extern int qpnp_set_resin_wk_int(int en);
+static int volkey_wakeup;
+static ssize_t volkey_wakeup_show(struct kobject *kobj,
+				  struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", volkey_wakeup);
+}
+
+static ssize_t volkey_wakeup_store(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   const char *buf, size_t n)
+{
+	int val;
+
+	if (kstrtoint(buf, 10, &val) < 0)
+		return -EINVAL;
+
+	if (volkey_wakeup == val)
+		return n;
+
+	volkey_wakeup = val;
+	qpnp_set_resin_wk_int(volkey_wakeup);
+
+	return n;
+
+}
+power_attr(volkey_wakeup);
+
+extern int poff_status;
+static ssize_t rtc_status_show(struct kobject *kobj,
+				  struct kobj_attribute *attr, char *buf)
+{
+	int status = poff_status;
+	pr_info("complete power off status(%d)\n", status);
+	poff_status = 0;
+	return sprintf(buf, "%d\n", status);
+}
+power_attr_ro(rtc_status);
+#endif /* CONFIG_SEC_PM */
+
+#if defined(CONFIG_FOTA_LIMIT)
 static char fota_limit_str[] =
-#ifdef CONFIG_ARCH_EXYNOS9
+#if defined(CONFIG_ARCH_KONA)
 	"[START]\n"
-	"/sys/power/cpufreq_max_limit 1791562\n"
+#if defined(CONFIG_SEC_BLOOMXQ_PROJECT)
+	"/sys/power/cpufreq_max_limit 1401600\n"
+#else
+	"/sys/power/cpufreq_max_limit 1516800\n"
+#endif
 	"[STOP]\n"
 	"/sys/power/cpufreq_max_limit -1\n"
 	"[END]\n";
@@ -806,6 +1084,7 @@ static struct kobj_attribute fota_limit_attr = {
 	.show	= fota_limit_show,
 };
 #endif /* CONFIG_FOTA_LIMIT */
+
 
 static struct attribute * g[] = {
 	&state_attr.attr,
@@ -833,17 +1112,35 @@ static struct attribute * g[] = {
 	&pm_debug_messages_attr.attr,
 #endif
 #endif
+#ifdef CONFIG_CPU_FREQ_LIMIT_USERSPACE
+	&cpufreq_table_attr.attr,
+	&cpufreq_max_limit_attr.attr,
+	&cpufreq_min_limit_attr.attr,
+	&over_limit_attr.attr,
+#endif
 #ifdef CONFIG_FREEZER
 	&pm_freeze_timeout_attr.attr,
 #endif
-#ifdef CONFIG_FOTA_LIMIT
-	&fota_limit_attr.attr,
+#ifdef CONFIG_SEC_PM
+	&volkey_wakeup_attr.attr,
+	&rtc_status_attr.attr,
 #endif
+#if defined(CONFIG_FOTA_LIMIT)
+	&fota_limit_attr.attr,
+#endif /* CONFIG_FOTA_LIMIT */
 	NULL,
 };
 
 static const struct attribute_group attr_group = {
 	.attrs = g,
+};
+
+static const struct attribute_group *attr_groups[] = {
+	&attr_group,
+#ifdef CONFIG_PM_SLEEP
+	&suspend_attr_group,
+#endif
+	NULL,
 };
 
 struct workqueue_struct *pm_wq;
@@ -856,6 +1153,37 @@ static int __init pm_start_workqueue(void)
 	return pm_wq ? 0 : -ENOMEM;
 }
 
+#ifdef CONFIG_SEC_PM
+static void handle_ws_work(struct work_struct *work)
+{
+	//wakeup_sources_stats_active();
+	schedule_delayed_work(&ws_work, msecs_to_jiffies(5000));
+}
+
+static int fb_state_change(struct notifier_block *nb, unsigned long val,
+			   void *data)
+{
+	int *blank;
+
+	if (val != FB_EVENT_BLANK)
+		return 0;
+
+	blank = data;
+
+	if (*blank == FB_BLANK_UNBLANK) {
+		cancel_delayed_work_sync(&ws_work);
+ 	} else {
+		schedule_delayed_work(&ws_work, msecs_to_jiffies(5000));
+	}
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block fb_block = {
+	.notifier_call = fb_state_change,
+};
+#endif
+
 static int __init pm_init(void)
 {
 	int error = pm_start_workqueue();
@@ -867,10 +1195,14 @@ static int __init pm_init(void)
 	power_kobj = kobject_create_and_add("power", NULL);
 	if (!power_kobj)
 		return -ENOMEM;
-	error = sysfs_create_group(power_kobj, &attr_group);
+	error = sysfs_create_groups(power_kobj, attr_groups);
 	if (error)
 		return error;
 	pm_print_times_init();
+#ifdef CONFIG_SEC_PM
+	msm_drm_register_notifier_client(&fb_block);
+	INIT_DELAYED_WORK(&ws_work, handle_ws_work);
+#endif	
 	return pm_autosleep_init();
 }
 

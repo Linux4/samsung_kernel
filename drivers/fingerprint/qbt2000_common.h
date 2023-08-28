@@ -30,13 +30,9 @@
 #include <linux/pm_qos.h>
 #include <linux/cpufreq.h>
 #include <linux/regulator/consumer.h>
-#include <linux/pinctrl/consumer.h>
-#include "../pinctrl/core.h"
 #if defined(ENABLE_SENSORS_FPRINT_SECURE) && defined(CONFIG_ARCH_EXYNOS9)
 #include <linux/smc.h>
 #endif
-
-#undef DISABLED_GPIO_PROTECTION
 
 #define MAX_NAME_SIZE					 32
 #define SPI_CLOCK_MAX 25000000

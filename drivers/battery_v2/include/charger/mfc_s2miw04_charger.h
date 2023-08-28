@@ -394,7 +394,7 @@
 #define TX_RX_POWER_17_5W		0xAF
 #define TX_RX_POWER_20W			0xC8
 
-#define MFC_NUM_FOD_REG			20
+#define MFC_NUM_FOD_REG					20
 
 /* BIT DEFINE of Command Register, COM_L(0x4E) */
 #define MFC_CMD_TOGGLE_PHM_SHIFT			7
@@ -835,6 +835,7 @@ struct mfc_charger_platform_data {
 	int wpc_det;
 	int irq_wpc_det;
 	int wpc_int;
+	int mst_pwr_en;
 	int wpc_en;
 	int wpc_pdrc;
 	int irq_wpc_pdrc;
@@ -868,14 +869,20 @@ struct mfc_charger_platform_data {
 	char *wired_charger_name;
 	char *fuelgauge_name;
 	int opfq_cnt;
+	int mst_switch_delay;
+	int wc_cover_rpp;
+	int wc_hv_rpp;
 	u32 oc_fod1;
 	u32 phone_fod_threshold;
 	u32 gear_ping_freq;
 	u32 gear_min_op_freq;
 	u32 gear_min_op_freq_delay;
+	bool wpc_vout_ctrl_lcd_on;
+	int no_hv;
+	bool keep_tx_vout;
 
 	mfc_fod_data* fod_list;
-	int	fod_data_count;
+	int fod_data_count;
 };
 
 #define mfc_charger_platform_data_t \
@@ -895,19 +902,22 @@ struct mfc_charger_data {
 	int wc_w_state;
 
 	struct power_supply *psy_chg;
-	struct wake_lock wpc_wake_lock;
-	struct wake_lock wpc_tx_wake_lock;
-	struct wake_lock wpc_rx_wake_lock;
-	struct wake_lock wpc_update_lock;
-	struct wake_lock wpc_opfq_lock;
-	struct wake_lock wpc_tx_duty_min_lock;
-	struct wake_lock wpc_tx_min_opfq_lock;
-	struct wake_lock wpc_afc_vout_lock;
-	struct wake_lock wpc_vout_mode_lock;
-	struct wake_lock wpc_rx_det_lock;
-	struct wake_lock wpc_tx_phm_lock;
-	struct wake_lock wpc_tx_id_lock;
-	struct wake_lock wpc_pdrc_lock;
+	struct wakeup_source *wpc_wake_lock;
+	struct wakeup_source *wpc_tx_wake_lock;
+	struct wakeup_source *wpc_rx_wake_lock;
+	struct wakeup_source *wpc_update_lock;
+	struct wakeup_source *wpc_opfq_lock;
+	struct wakeup_source *wpc_tx_opfq_lock;
+	struct wakeup_source *wpc_tx_duty_min_lock;
+	struct wakeup_source *wpc_tx_min_opfq_lock;
+	struct wakeup_source *wpc_afc_vout_lock;
+	struct wakeup_source *wpc_vout_mode_lock;
+	struct wakeup_source *wpc_rx_det_lock;
+	struct wakeup_source *wpc_tx_phm_lock;
+	struct wakeup_source *wpc_vrect_check_lock;
+	struct wakeup_source *wpc_tx_id_lock;
+	struct wakeup_source *wpc_cs100_lock;
+	struct wakeup_source *wpc_pdrc_lock;
 	struct workqueue_struct *wqueue;
 	struct work_struct	wcin_work;
 	struct delayed_work	wpc_det_work;
@@ -926,9 +936,12 @@ struct mfc_charger_data {
 	struct delayed_work	wpc_rx_type_det_work;
 	struct delayed_work	wpc_rx_connection_work;
 	struct delayed_work wpc_tx_min_op_freq_work;
+	struct delayed_work wpc_tx_op_freq_work;
 	struct delayed_work wpc_tx_duty_min_work;
 	struct delayed_work wpc_tx_phm_work;
+	struct delayed_work wpc_vrect_check_work;
 	struct delayed_work wpc_rx_power_work;
+	struct delayed_work wpc_cs100_work;
 #if defined(CONFIG_SEC_FACTORY)
 	struct delayed_work evt2_err_detect_work;
 #endif
@@ -951,11 +964,17 @@ struct mfc_charger_data {
 	int mst_off_lock;
 	bool is_otg_on;
 	int led_cover;
+	bool is_probed;
 	bool is_afc_tx;
+	bool pad_ctrl_by_lcd;
 	bool tx_id_done;
 	bool is_suspend;
 	int tx_id;
 	int tx_id_cnt;
+	bool initial_vrect;
+
+	int flicker_delay;
+	int flicker_vout_threshold;
 
 	/* wireless tx */
 	int tx_status;

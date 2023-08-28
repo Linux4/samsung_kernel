@@ -20,22 +20,16 @@
 #include <linux/usb_notify.h>
 #include "usb_power_notify.h"
 #include "../core/hub.h"
-#include "core.h"
-#include "otg.h"
 
 enum usb_port_state {
 	PORT_EMPTY = 0,		/* OTG only */
 	PORT_USB2,		/* usb 2.0 device only */
 	PORT_USB3,		/* usb 3.0 device only */
-	PORT_HUB,		/* usb hub single */
-	PORT_DP			/* DP device */
+	PORT_HUB		/* usb hub single */
 };
-
-#define USB_CLASS_BILLBOARD	0x11
 
 static enum usb_port_state port_state;
 int is_otg_only;
-extern struct dwc3 *g_dwc;
 
 static int check_usb3_hub(struct usb_device *dev, bool on)
 {
@@ -46,7 +40,6 @@ static int check_usb3_hub(struct usb_device *dev, bool on)
 	int usb3_hub_detect = 0;
 	int usb2_detect = 0;
 	int port;
-	int bInterfaceClass = 0;
 
 	if (udev->bus->root_hub == udev) {
 		pr_info("this dev is a root hub\n");
@@ -75,37 +68,11 @@ static int check_usb3_hub(struct usb_device *dev, bool on)
 	for (port = 1; port <= hdev->maxchild; port++) {
 		udev = hub->ports[port-1]->child;
 		if (udev && udev->state != USB_STATE_NOTATTACHED) {
-			if (udev->config->interface[0] == NULL)
-				continue;
-			bInterfaceClass	= udev->config->interface[0]
-					->cur_altsetting->desc.bInterfaceClass;
-			if (on) {
-#ifdef CONFIG_USB_HOST_SAMSUNG_FEATURE
-				if (bInterfaceClass == USB_CLASS_AUDIO) {
-#else
-				if ((bInterfaceClass == USB_CLASS_HID) ||
-						(bInterfaceClass == USB_CLASS_AUDIO)) {
-#endif
-					udev->do_remote_wakeup =
-						(udev->config->desc.bmAttributes &
-						 USB_CONFIG_ATT_WAKEUP) ? 1 : 0;
-					if (udev->do_remote_wakeup == 1) {
-						device_init_wakeup(&udev->dev, 1);
-						usb_enable_autosuspend(dev);
-					}
-				}
-			}
 			if (udev->descriptor.bDeviceClass == USB_CLASS_HUB) {
 				port_state = PORT_HUB;
 				usb3_hub_detect = 1;
 				break;
-			} else if(udev->descriptor.bDeviceClass ==
-							USB_CLASS_BILLBOARD) {
-				port_state = PORT_DP;
-				usb3_hub_detect = 1;
-				break;
 			}
-
 			if (udev->speed >= USB_SPEED_SUPER) {
 				port_state = PORT_USB3;
 				usb3_hub_detect = 1;
@@ -131,37 +98,25 @@ skip:
 
 static void set_usb3_port_power(struct usb_device *dev, bool on)
 {
-	cancel_delayed_work_sync(&g_dwc->usb_qos_lock_delayed_work);
-
 	switch (check_usb3_hub(dev, on)) {
 	case PORT_EMPTY:
 		pr_info("Port check empty\n");
 		is_otg_only = 1;
-		usb_power_notify_control(0, 1);
-		xhci_port_power_set(1, 1);
-		dwc3_otg_qos_lock(g_dwc, 1);
+		xhci_port_power_set(1);
 		break;
 	case PORT_USB2:
 		pr_info("Port check usb2\n");
 		is_otg_only = 0;
-		xhci_port_power_set(0, 1);
-		usb_power_notify_control(0, 0);
-		schedule_delayed_work(&g_dwc->usb_qos_lock_delayed_work,
-				msecs_to_jiffies(USB_BUS_CLOCK_DELAY_MS));
+		xhci_port_power_set(0);
 		break;
 	case PORT_USB3:
-		/* xhci_port_power_set(1, 1); */
+		xhci_port_power_set(1);
 		is_otg_only = 0;
 		pr_info("Port check usb3\n");
 		break;
 	case PORT_HUB:
-		/*xhci_port_power_set(1, 1);*/
+		/*xhci_port_power_set(1);*/
 		pr_info("Port check hub\n");
-		is_otg_only = 0;
-		break;
-	case PORT_DP:
-		/*xhci_port_power_set(1, 1);*/
-		pr_info("Port check DP\n");
 		is_otg_only = 0;
 		break;
 	default:

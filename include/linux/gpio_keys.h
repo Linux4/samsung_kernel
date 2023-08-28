@@ -59,9 +59,4 @@ struct gpio_keys_platform_data {
 	bool wakeup_enable;
 };
 
-#ifndef CONFIG_SEC_KEY_NOTIFIER
-int register_gpio_keys_notifier(struct notifier_block *nb);
-int unregister_gpio_keys_notifier(struct notifier_block *nb);
-#endif
-
 #endif

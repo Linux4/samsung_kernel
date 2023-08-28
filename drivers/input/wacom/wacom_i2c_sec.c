@@ -1595,6 +1595,19 @@ static ssize_t get_epen_pos_show(struct device *dev,
 			max_x, max_y);
 }
 
+static ssize_t flip_status_detect_show(struct device *dev,
+		struct device_attribute *attr,
+		char *buf)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct wacom_i2c *wac_i2c = container_of(sec, struct wacom_i2c, sec);
+
+	input_info(true, &wac_i2c->client->dev, "%s: %d\n",
+			__func__,	wac_i2c->flip_state);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", wac_i2c->flip_state);
+}
+
 /* firmware update */
 static DEVICE_ATTR(epen_firm_update, (S_IWUSR | S_IWGRP),
 		NULL, epen_firmware_update_store);
@@ -1647,6 +1660,8 @@ static DEVICE_ATTR(epen_fac_garage_mode, (S_IRUGO | S_IWUSR | S_IWGRP),
 static DEVICE_ATTR(epen_fac_garage_rawdata, S_IRUGO,
 		epen_fac_garage_rawdata_show, NULL);
 #endif
+static DEVICE_ATTR(flip_status_detect, 0444,
+		flip_status_detect_show, NULL);
 
 static struct attribute *epen_attributes[] = {
 	&dev_attr_epen_firm_update.attr,
@@ -1677,6 +1692,7 @@ static struct attribute *epen_attributes[] = {
 	&dev_attr_epen_fac_garage_mode.attr,
 	&dev_attr_epen_fac_garage_rawdata.attr,
 #endif
+	&dev_attr_flip_status_detect.attr,
 	NULL,
 };
 
@@ -3395,6 +3411,56 @@ static void get_ble_charge_fp(void *device_data)
 	sec->cmd_state = SEC_CMD_STATUS_OK;
 }
 
+static void set_cover_type(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct wacom_i2c *wac_i2c = container_of(sec, struct wacom_i2c, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+
+	sec_cmd_set_default_result(sec);
+
+	if (wac_i2c->pdata->support_cover_noti) {
+		if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 2) {
+			input_err(true, &wac_i2c->client->dev, "%s: Not support command[%d]\n",
+					__func__, sec->cmd_param[0]);
+			goto err_out;
+		} else 
+			wac_i2c->cover = sec->cmd_param[0];
+	}else {
+		input_err(true, &wac_i2c->client->dev, "%s: Not support notice cover command\n",
+					__func__);
+		goto err_out;
+	}
+
+	if (!wac_i2c->power_enable) {
+		input_err(true, &wac_i2c->client->dev, "%s: [ERROR] Wacom is stopped\n", __func__);
+		goto err_out;
+	}
+
+	input_info(true, &wac_i2c->client->dev, "%s: %d\n", __func__, sec->cmd_param[0]);
+
+	wacom_swap_compensation(wac_i2c, wac_i2c->cover);
+
+	snprintf(buff, sizeof(buff), "OK\n");
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+
+	input_info(true, &wac_i2c->client->dev, "%s: Done\n", __func__);
+
+	return;
+
+err_out:
+	snprintf(buff, sizeof(buff), "NG");
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+
+	input_info(true, &wac_i2c->client->dev, "%s: Fail\n", __func__);
+
+	return;
+}
+
 static void not_support_cmd(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -3437,6 +3503,7 @@ static struct sec_cmd sec_cmds[] = {
 #endif
 	{SEC_CMD("debug", debug),},
 	{SEC_CMD("get_ble_charge_fp", get_ble_charge_fp),},
+	{SEC_CMD("set_cover_type", set_cover_type),},
 	{SEC_CMD("not_support_cmd", not_support_cmd),},
 };
 

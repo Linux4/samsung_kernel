@@ -16,6 +16,7 @@
  * M-TX Configuration Attributes
  */
 #define TX_HIBERN8TIME_CAPABILITY		0x000F
+#define TX_HSGEAR_CAPABILITY			0x0002
 #define TX_MODE					0x0021
 #define TX_HSRATE_SERIES			0x0022
 #define TX_HSGEAR				0x0023
@@ -36,6 +37,7 @@
 #define TX_LCC_SEQUENCER			0x0032
 #define TX_MIN_ACTIVATETIME			0x0033
 #define TX_PWM_G6_G7_SYNC_LENGTH		0x0034
+#define TX_HS_ADAPT_LENGTH			0x003A
 #define TX_REFCLKFREQ				0x00EB
 #define TX_CFGCLKFREQVAL			0x00EC
 #define	CFGEXTRATTR				0x00F0
@@ -55,6 +57,7 @@
 #define RX_TERMINATION_FORCE_ENABLE		0x00A9
 #define RX_MIN_ACTIVATETIME_CAPABILITY		0x008F
 #define RX_HIBERN8TIME_CAPABILITY		0x0092
+#define RX_HS_ADAPT_INITIAL_CAPABILITY		0x009F
 #define RX_REFCLKFREQ				0x00EB
 #define	RX_CFGCLKFREQVAL			0x00EC
 #define CFGWIDEINLN				0x00F0
@@ -68,6 +71,8 @@
 #define CFGRXOVR4				0x00E9
 #define RXSQCTRL				0x00B5
 #define CFGRXOVR6				0x00BF
+#define MPHY_RX_ATTR_ADDR_START			0x81
+#define MPHY_RX_ATTR_ADDR_END			0xC1
 
 #define is_mphy_tx_attr(attr)			(attr < RX_MODE)
 #define RX_MIN_ACTIVATETIME_UNIT_US		100
@@ -150,6 +155,18 @@
 #define PA_SLEEPNOCONFIGTIME	0x15A2
 #define PA_STALLNOCONFIGTIME	0x15A3
 #define PA_SAVECONFIGTIME	0x15A4
+#define PA_PEERRXHSADAPTINITIAL	0x15D3
+#define PA_TXHSADAPTTYPE	0x15D4
+/*
+ * Default value of PA_PEERRXHSADAPTINITIAL.
+ * TODO: This may need to be tuned if required.
+ */
+#define PA_PEERRXHSADAPTINITIAL_Default	0x91
+
+/* Adpat type for PA_TXHSADAPTTYPE attribute */
+#define PA_REFRESH_ADAPT	0x00
+#define PA_INITIAL_ADAPT	0x01
+#define PA_NO_ADAPT		0x03
 
 #define PA_TACTIVATE_TIME_UNIT_US	10
 #define PA_HIBERN8_TIME_UNIT_US		100
@@ -165,6 +182,17 @@
 /* PHY Adapter Protocol Constants */
 #define PA_MAXDATALANES	4
 
+#define DL_FC0ProtectionTimeOutVal_Default	8191
+#define DL_TC0ReplayTimeOutVal_Default		65535
+#define DL_AFC0ReqTimeOutVal_Default		32767
+#define DL_FC1ProtectionTimeOutVal_Default	8191
+#define DL_TC1ReplayTimeOutVal_Default		65535
+#define DL_AFC1ReqTimeOutVal_Default		32767
+
+#define DME_LocalFC0ProtectionTimeOutVal	0xD041
+#define DME_LocalTC0ReplayTimeOutVal		0xD042
+#define DME_LocalAFC0ReqTimeOutVal		0xD043
+
 /* PA power modes */
 enum {
 	FAST_MODE	= 1,
@@ -173,9 +201,6 @@ enum {
 	SLOWAUTO_MODE	= 5,
 	UNCHANGED	= 7,
 };
-
-#define IS_PWR_MODE_HS(m)        (((m) == FAST_MODE) || ((m) == FASTAUTO_MODE))
-#define IS_PWR_MODE_PWM(m)       (((m) == SLOW_MODE) || ((m) == SLOWAUTO_MODE))
 
 /* PA TX/RX Frequency Series */
 enum {
@@ -199,6 +224,7 @@ enum ufs_hs_gear_tag {
 	UFS_HS_G1,		/* HS Gear 1 (default for reset) */
 	UFS_HS_G2,		/* HS Gear 2 */
 	UFS_HS_G3,		/* HS Gear 3 */
+	UFS_HS_G4,		/* HS Gear 4 */
 };
 
 enum ufs_unipro_ver {
@@ -238,11 +264,6 @@ enum ufs_unipro_ver {
 #define DL_PEERTC1PRESENT	0x2066
 #define DL_PEERTC1RXINITCREVAL	0x2067
 
-/* Default value of L2 Timer */
-#define FC0PROTTIMEOUTVAL	8191
-#define TC0REPLAYTIMEOUTVAL	65535
-#define AFC0REQTIMEOUTVAL	32767
-
 /*
  * Network Layer Attributes
  */
@@ -278,21 +299,6 @@ enum ufs_unipro_ver {
 #ifdef TRUE
 #undef TRUE
 #endif
-
-/* CPort setting */
-#define E2EFC_ON	(1 << 0)
-#define E2EFC_OFF	(0 << 0)
-#define CSD_N_ON	(0 << 1)
-#define CSD_N_OFF	(1 << 1)
-#define CSV_N_ON	(0 << 2)
-#define CSV_N_OFF	(1 << 2)
-#define CPORT_DEF_FLAGS	(CSV_N_OFF | CSD_N_OFF | E2EFC_OFF)
-
-/* CPort connection state */
-enum {
-	CPORT_IDLE = 0,
-	CPORT_CONNECTED,
-};
 
 /* Boolean attribute values */
 enum {

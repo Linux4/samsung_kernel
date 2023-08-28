@@ -24,7 +24,7 @@
 #include <linux/poll.h>
 #include <linux/usb/cdc.h>
 
-extern int acm_notify(void *dev, u16 state);
+void acm_notify(void *dev, u16 state);
 
 
 static wait_queue_head_t modem_wait_q;
@@ -69,6 +69,7 @@ static ssize_t modem_read(struct file *file, char __user *buf,
 static unsigned int modem_poll(struct file *file, poll_table *wait)
 {
 	int ret;
+
 	poll_wait(file, &modem_wait_q, wait);
 
 	ret = (read_state ? (POLLIN | POLLRDNORM) : 0);
@@ -94,7 +95,7 @@ static long
 modem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 
-	printk(KERN_INFO "modem_ioctl: cmd=0x%x, arg=%lu\n", cmd, arg);
+	pr_info("%s: cmd=0x%x, arg=%lu\n", __func__, cmd, arg);
 
 	/* handle ioctls */
 	switch (cmd) {
@@ -104,14 +105,13 @@ modem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	case GS_IOC_NOTIFY_DTR_TEST:
 		{
-			printk(KERN_ALERT"DUN : DTR %d\n", (int)arg);
+			pr_info("DUN : DTR %d\n", (int)arg);
 			notify_control_line_state((int)arg);
 			break;
 		}
 
 	default:
-		printk(KERN_INFO "modem_ioctl: Unknown ioctl cmd(0x%x).\n",
-				cmd);
+		pr_info("%s: Unknown ioctl cmd(0x%x).\n", __func__, cmd);
 		return -ENOIOCTLCMD;
 	}
 	return 0;
@@ -129,7 +129,7 @@ static const struct file_operations modem_fops = {
 };
 
 static struct miscdevice modem_device = {
-	.minor = MISC_DYNAMIC_MINOR,
+	.minor = 123,
 	.name	= "dun",
 	.fops	= &modem_fops,
 };
@@ -137,13 +137,13 @@ static struct miscdevice modem_device = {
 int modem_register(void *data)
 {
 	if (data == NULL) {
-		printk(KERN_INFO "DUN register failed. data is null.\n");
+		pr_info("DUN register failed. data is null.\n");
 		return -1;
 	}
 
 	acm_data = data;
 
-	printk(KERN_INFO "DUN is registerd\n");
+	pr_info("DUN is registered\n");
 
 	return 0;
 }
@@ -152,9 +152,10 @@ EXPORT_SYMBOL(modem_register);
 int modem_misc_register(void)
 {
 	int ret;
+
 	ret = misc_register(&modem_device);
 	if (ret) {
-		printk(KERN_ERR "DUN register is failed, ret = %d\n", ret);
+		pr_err("DUN register is failed, ret = %d\n", ret);
 		return ret;
 	}
 
@@ -167,8 +168,8 @@ void modem_unregister(void)
 {
 	acm_data = NULL;
 
-	notify_control_line_state(0);
-
-	printk(KERN_INFO "DUN is unregisterd\n");
+	read_state = 1;
+	wake_up_interruptible(&modem_wait_q);
+	pr_info("DUN is unregisterd\n");
 }
 EXPORT_SYMBOL(modem_unregister);

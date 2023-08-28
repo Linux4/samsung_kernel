@@ -143,8 +143,62 @@ config ARCH_QCOM
 	bool "Qualcomm Platforms"
 	select GPIOLIB
 	select PINCTRL
+	select SOC_BUS
+	select MFD_CORE
+	select SND_SOC_COMPRESS
+	select SND_HWDEP
 	help
 	  This enables support for the ARMv8 based Qualcomm chipsets.
+
+config ARCH_KONA
+	bool "Enable Support for Qualcomm Technologies, Inc. KONA"
+	depends on ARCH_QCOM
+	select COMMON_CLK_QCOM
+	help
+	  This enables support for the KONA chipset. If you do not
+	  wish to build a kernel that runs on this chipset, say 'N' here.\
+
+config ARCH_LITO
+	bool "Enable Support for Qualcomm Technologies, Inc. LITO"
+	depends on ARCH_QCOM
+	select COMMON_CLK_QCOM
+	help
+	  This enables support for the LITO chipset. If you do not
+	  wish to build a kernel that runs on this chipset, say 'N' here.
+
+config ARCH_LAGOON
+	bool "Enable Support for Qualcomm Technologies, Inc. LAGOON"
+	depends on ARCH_QCOM
+	select COMMON_CLK_QCOM
+	help
+	  This enables support for the LAGOON chipset. If you do not
+	  wish to build a kernel that runs on this chipset, say 'N' here.
+
+config ARCH_BENGAL
+	bool "Enable Support for Qualcomm Technologies, Inc. BENGAL"
+	depends on ARCH_QCOM
+	select COMMON_CLK_QCOM
+	help
+	  This enables support for the BENGAL chipset. If you do not
+	  wish to build a kernel that runs on this chipset, say 'N' here.
+
+config ARCH_SCUBA
+	bool "Enable Support for Qualcomm Technologies, Inc. SCUBA"
+	depends on ARCH_QCOM
+	select COMMON_CLK_QCOM
+	help
+	  This enables support for the SCUBA chipset. If you do not
+	  wish to build a kernel that runs on this chipset, say 'N' here.
+
+config ARCH_SDM660
+	bool "Enable Support for Qualcomm Technologies, Inc. SDM660"
+	depends on ARCH_QCOM
+	select COMMON_CLK
+	select COMMON_CLK_QCOM
+	select QCOM_GDSC
+	help
+	  This enables support for the SDM660 chipset. If you do not
+	  wish to build a kernel that runs on this chipset, say 'N' here.
 
 config ARCH_REALTEK
 	bool "Realtek Platforms"
@@ -303,56 +357,5 @@ config ARCH_ZYNQMP
 	bool "Xilinx ZynqMP Family"
 	help
 	  This enables support for Xilinx ZynqMP Family
-
-menu "Samsung Exynos"
-config ARCH_EXYNOS
-	bool
-
-config SOC_EXYNOS9820
-	bool "Samsung EXYNOS9820"
-	select SOC_SAMSUNG
-	select ARCH_EXYNOS
-	select ARCH_HAS_CPUFREQ
-	select HAVE_S3C2410_I2C if I2C
-	select HAVE_S3C2410_WATCHDOG if WATCHDOG
-	select HAVE_S3C_RTC if RTC_CLASS
-	select ARCH_SUPPORTS_MSI
-	select ARM_AMBA
-	select CLKSRC_OF
-	select USE_OF
-	select COMMON_CLK_SAMSUNG
-	select CLKSRC_EXYNOS_MCT
-	select PINCTRL
-	select SAMSUNG_DMADEV
-
-config SOC_EXYNOS9830
-	bool "Samsung EXYNOS9830"
-	select SOC_SAMSUNG
-	select ARCH_EXYNOS
-	select ARCH_HAS_CPUFREQ
-	select HAVE_S3C2410_I2C if I2C
-	select HAVE_S3C2410_WATCHDOG if WATCHDOG
-	select HAVE_S3C_RTC if RTC_CLASS
-	select ARCH_SUPPORTS_MSI
-	select ARM_AMBA
-	select CLKSRC_OF
-	select USE_OF
-	select COMMON_CLK_SAMSUNG
-	select CLKSRC_EXYNOS_MCT
-	select PINCTRL
-	select SAMSUNG_DMADEV
-
-config SOC_EXYNOS9830_EVT0
-	default n
-	bool "Samsung EXYNOS9830 EVT0"
-
-config ARCH_EXYNOS9
-	bool "ARMv8 based Samsung Exynos9"
-	select HAVE_ARM_SCU if SMP
-	select HAVE_SMP
-	help
-	  Samsung EXYNOS9 (Meercat/Ananke) SoC based systems
-
-endmenu
 
 endmenu

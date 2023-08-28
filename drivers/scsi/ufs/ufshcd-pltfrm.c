@@ -42,6 +42,22 @@
 
 #define UFSHCD_DEFAULT_LANES_PER_DIRECTION		2
 
+static int ufshcd_parse_reset_info(struct ufs_hba *hba)
+{
+	int ret = 0;
+
+	hba->core_reset = devm_reset_control_get(hba->dev,
+				"core_reset");
+	if (IS_ERR(hba->core_reset)) {
+		ret = PTR_ERR(hba->core_reset);
+		dev_err(hba->dev, "core_reset unavailable,err = %d\n",
+				ret);
+		hba->core_reset = NULL;
+	}
+
+	return ret;
+}
+
 static int ufshcd_parse_clock_info(struct ufs_hba *hba)
 {
 	int ret = 0;
@@ -54,6 +70,7 @@ static int ufshcd_parse_clock_info(struct ufs_hba *hba)
 	struct ufs_clk_info *clki;
 	int len = 0;
 	size_t sz = 0;
+	char *str = NULL;
 
 	if (!np)
 		goto out;
@@ -115,7 +132,15 @@ static int ufshcd_parse_clock_info(struct ufs_hba *hba)
 
 		clki->min_freq = clkfreq[i];
 		clki->max_freq = clkfreq[i+1];
-		clki->name = kstrdup(name, GFP_KERNEL);
+		str = devm_kzalloc(dev, strlen(name) + 1, GFP_KERNEL);
+		if (!str) {
+			ret = -ENOMEM;
+			goto out;
+		}
+
+		memcpy(str, name, strlen(name) + 1);
+		clki->name = str;
+
 		dev_dbg(dev, "%s: min %u max %u name %s\n", "freq-table-hz",
 				clki->min_freq, clki->max_freq, clki->name);
 		list_add_tail(&clki->list, &hba->clk_list_head);
@@ -128,10 +153,12 @@ out:
 static int ufshcd_populate_vreg(struct device *dev, const char *name,
 		struct ufs_vreg **out_vreg)
 {
-	int ret = 0;
+	int len, ret = 0;
 	char prop_name[MAX_PROP_SIZE];
 	struct ufs_vreg *vreg = NULL;
 	struct device_node *np = dev->of_node;
+	const __be32 *prop;
+	char *str = NULL;
 
 	if (!np) {
 		dev_err(dev, "%s: non DT initialization\n", __func__);
@@ -149,7 +176,11 @@ static int ufshcd_populate_vreg(struct device *dev, const char *name,
 	if (!vreg)
 		return -ENOMEM;
 
-	vreg->name = kstrdup(name, GFP_KERNEL);
+	str = devm_kzalloc(dev, strlen(name) + 1, GFP_KERNEL);
+	if (!str)
+		return -ENOMEM;
+	memcpy(str, name, strlen(name) + 1);
+	vreg->name = str;
 
 	/* if fixed regulator no need further initialization */
 	snprintf(prop_name, MAX_PROP_SIZE, "%s-fixed-regulator", name);
@@ -164,21 +195,57 @@ static int ufshcd_populate_vreg(struct device *dev, const char *name,
 		goto out;
 	}
 
-	vreg->min_uA = 0;
+	snprintf(prop_name, MAX_PROP_SIZE, "%s-min-microamp", name);
+	if (of_property_read_u32(np, prop_name, &vreg->min_uA))
+		vreg->min_uA = UFS_VREG_LPM_LOAD_UA;
+
 	if (!strcmp(name, "vcc")) {
 		if (of_property_read_bool(np, "vcc-supply-1p8")) {
 			vreg->min_uV = UFS_VREG_VCC_1P8_MIN_UV;
 			vreg->max_uV = UFS_VREG_VCC_1P8_MAX_UV;
 		} else {
-			vreg->min_uV = UFS_VREG_VCC_MIN_UV;
-			vreg->max_uV = UFS_VREG_VCC_MAX_UV;
+			prop = of_get_property(np, "vcc-voltage-level", &len);
+			if (!prop || (len != (2 * sizeof(__be32)))) {
+				dev_warn(dev, "%s vcc-voltage-level property.\n",
+					prop ? "invalid format" : "no");
+				vreg->min_uV = UFS_VREG_VCC_MIN_UV;
+				vreg->max_uV = UFS_VREG_VCC_MAX_UV;
+			} else {
+				vreg->min_uV = be32_to_cpup(&prop[0]);
+				vreg->max_uV = be32_to_cpup(&prop[1]);
+			}
+			if (of_property_read_bool(np, "vcc-low-voltage-sup"))
+				vreg->low_voltage_sup = true;
 		}
 	} else if (!strcmp(name, "vccq")) {
 		vreg->min_uV = UFS_VREG_VCCQ_MIN_UV;
 		vreg->max_uV = UFS_VREG_VCCQ_MAX_UV;
+		/**
+		 * Only if the SoC supports turning off VCCQ or VCCQ2 power
+		 * supply source during power collapse, set a flag to turn off
+		 * the specified power supply to reduce the system power
+		 * consumption during system suspend events. The tradeoffs are:
+		 *   - System resume time will increase due
+		 *     to UFS device full re-initialization time.
+		 *   - UFS device life may be affected due to multiple
+		 *     UFS power on/off events.
+		 * The benefits vs tradeoff should be considered carefully.
+		 */
+		if (of_property_read_bool(np, "vccq-pwr-collapse-sup"))
+			vreg->sys_suspend_pwr_off = true;
 	} else if (!strcmp(name, "vccq2")) {
-		vreg->min_uV = UFS_VREG_VCCQ2_MIN_UV;
-		vreg->max_uV = UFS_VREG_VCCQ2_MAX_UV;
+		prop = of_get_property(np, "vccq2-voltage-level", &len);
+		if (!prop || (len != (2 * sizeof(__be32)))) {
+			dev_warn(dev, "%s vccq2-voltage-level property.\n",
+				prop ? "invalid format" : "no");
+			vreg->min_uV = UFS_VREG_VCCQ2_MIN_UV;
+			vreg->max_uV = UFS_VREG_VCCQ2_MAX_UV;
+		} else {
+			vreg->min_uV = be32_to_cpup(&prop[0]);
+			vreg->max_uV = be32_to_cpup(&prop[1]);
+		}
+		if (of_property_read_bool(np, "vccq2-pwr-collapse-sup"))
+			vreg->sys_suspend_pwr_off = true;
 	}
 
 	goto out;
@@ -221,55 +288,105 @@ out:
 	return err;
 }
 
-static int ufshcd_parse_pm_lvl_policy(struct ufs_hba *hba)
+static void ufshcd_parse_pm_levels(struct ufs_hba *hba)
 {
 	struct device *dev = hba->dev;
 	struct device_node *np = dev->of_node;
-	u32 lvl_def[] = {UFS_PM_LVL_2, UFS_PM_LVL_5};
-	u32 lvl[2] = {0,}, i;
 
-	for (i = 0; i < ARRAY_SIZE(lvl); i++) {
-		if (of_property_read_u32_index(np, "pm_lvl_states", i, lvl +i)) {
-			dev_info(hba->dev,
-				"UFS power management: set default level%d index %d\n",
-				lvl_def[i], i);
-			lvl[i] = lvl_def[i];
-		}
+	if (np) {
+		if (of_property_read_u32(np, "rpm-level", &hba->rpm_lvl))
+			hba->rpm_lvl = -1;
+		if (of_property_read_u32(np, "spm-level", &hba->spm_lvl))
+			hba->spm_lvl = -1;
+	}
+}
 
-		if (lvl[i] < UFS_PM_LVL_0 || lvl[i] >= UFS_PM_LVL_MAX) {
-			dev_warn(hba->dev,
-				"UFS power management: out of range level%d index %d\n",
-				lvl[i], i);
-			lvl[i] =  lvl_def[i];
-		}
+static int ufshcd_parse_pinctrl_info(struct ufs_hba *hba)
+{
+	int ret = 0;
+
+	/* Try to obtain pinctrl handle */
+	hba->pctrl = devm_pinctrl_get(hba->dev);
+	if (IS_ERR(hba->pctrl)) {
+		ret = PTR_ERR(hba->pctrl);
+		hba->pctrl = NULL;
 	}
 
-	hba->rpm_lvl = lvl[0];
-	hba->spm_lvl = lvl[1];
-
-	return 0;
+	return ret;
 }
 
-static int ufshcd_parse_caps_info(struct ufs_hba *hba)
+static void ufshcd_parse_gear_limits(struct ufs_hba *hba)
 {
 	struct device *dev = hba->dev;
 	struct device_node *np = dev->of_node;
+	int ret;
 
-	if (of_find_property(np, "ufs-cap-clk-gating", NULL))
-		hba->caps |= UFSHCD_CAP_CLK_GATING;
-	if (of_find_property(np, "ufs-cap-hibern8-with-clk-gating", NULL))
-		hba->caps |= UFSHCD_CAP_HIBERN8_WITH_CLK_GATING;
-	if (of_find_property(np, "ufs-cap-clk-scaling", NULL))
-		hba->caps |= UFSHCD_CAP_CLK_SCALING;
-	if (of_find_property(np, "ufs-cap-auto-bkops-suspend", NULL))
-		hba->caps |= UFSHCD_CAP_AUTO_BKOPS_SUSPEND;
-	if (of_find_property(np, "ufs-cap-fake-clk-gating", NULL))
-		hba->caps |= UFSHCD_CAP_FAKE_CLK_GATING;
+	if (!np)
+		return;
 
-	return 0;
+	ret = of_property_read_u32(np, "limit-tx-hs-gear",
+		&hba->limit_tx_hs_gear);
+	if (ret)
+		hba->limit_tx_hs_gear = -1;
+
+	ret = of_property_read_u32(np, "limit-rx-hs-gear",
+		&hba->limit_rx_hs_gear);
+	if (ret)
+		hba->limit_rx_hs_gear = -1;
+
+	ret = of_property_read_u32(np, "limit-tx-pwm-gear",
+		&hba->limit_tx_pwm_gear);
+	if (ret)
+		hba->limit_tx_pwm_gear = -1;
+
+	ret = of_property_read_u32(np, "limit-rx-pwm-gear",
+		&hba->limit_rx_pwm_gear);
+	if (ret)
+		hba->limit_rx_pwm_gear = -1;
 }
 
-#ifdef CONFIG_PM
+static void ufshcd_parse_cmd_timeout(struct ufs_hba *hba)
+{
+	struct device *dev = hba->dev;
+	struct device_node *np = dev->of_node;
+	int ret;
+
+	if (!np)
+		return;
+
+	ret = of_property_read_u32(np, "scsi-cmd-timeout",
+		&hba->scsi_cmd_timeout);
+	if (ret)
+		hba->scsi_cmd_timeout = 0;
+}
+
+static void ufshcd_parse_force_g4_flag(struct ufs_hba *hba)
+{
+	if (device_property_read_bool(hba->dev, "force-g4"))
+		hba->force_g4 = true;
+	else
+		hba->force_g4 = false;
+}
+
+static void ufshcd_parse_dev_ref_clk_freq(struct ufs_hba *hba)
+{
+	struct device *dev = hba->dev;
+	struct device_node *np = dev->of_node;
+	int ret;
+
+	if (!np)
+		return;
+
+	ret = of_property_read_u32(np, "dev-ref-clk-freq",
+				   &hba->dev_ref_clk_freq);
+	if (ret ||
+	    (hba->dev_ref_clk_freq < 0) ||
+	    (hba->dev_ref_clk_freq > REF_CLK_FREQ_52_MHZ))
+		/* default setting */
+		hba->dev_ref_clk_freq = REF_CLK_FREQ_26_MHZ;
+}
+
+#ifdef CONFIG_SMP
 /**
  * ufshcd_pltfrm_suspend - suspend power management function
  * @dev: pointer to device handle
@@ -340,12 +457,12 @@ static void ufshcd_init_lanes_per_dir(struct ufs_hba *hba)
 /**
  * ufshcd_pltfrm_init - probe routine of the driver
  * @pdev: pointer to Platform device handle
- * @vops: pointer to variant ops
+ * @var: pointer to variant specific data
  *
  * Returns 0 on success, non-zero value on failure
  */
 int ufshcd_pltfrm_init(struct platform_device *pdev,
-		       struct ufs_hba_variant_ops *vops)
+		       struct ufs_hba_variant *var)
 {
 	struct ufs_hba *hba;
 	void __iomem *mmio_base;
@@ -373,7 +490,7 @@ int ufshcd_pltfrm_init(struct platform_device *pdev,
 		goto out;
 	}
 
-	hba->vops = vops;
+	hba->var = var;
 
 	err = ufshcd_parse_clock_info(hba);
 	if (err) {
@@ -388,10 +505,28 @@ int ufshcd_pltfrm_init(struct platform_device *pdev,
 		goto dealloc_host;
 	}
 
-	ufshcd_parse_pm_lvl_policy(hba);
-	ufshcd_parse_caps_info(hba);
-	pm_runtime_set_active(&pdev->dev);
-	pm_runtime_enable(&pdev->dev);
+	err = ufshcd_parse_reset_info(hba);
+	if (err) {
+		dev_err(&pdev->dev, "%s: reset parse failed %d\n",
+				__func__, err);
+		goto dealloc_host;
+	}
+
+	err = ufshcd_parse_pinctrl_info(hba);
+	if (err) {
+		dev_dbg(&pdev->dev, "%s: unable to parse pinctrl data %d\n",
+				__func__, err);
+		/* let's not fail the probe */
+	}
+
+	ufshcd_parse_dev_ref_clk_freq(hba);
+	ufshcd_parse_pm_levels(hba);
+	ufshcd_parse_gear_limits(hba);
+	ufshcd_parse_cmd_timeout(hba);
+	ufshcd_parse_force_g4_flag(hba);
+
+	if (!dev->dma_mask)
+		dev->dma_mask = &dev->coherent_dma_mask;
 
 	ufshcd_init_lanes_per_dir(hba);
 
@@ -414,20 +549,6 @@ out:
 	return err;
 }
 EXPORT_SYMBOL_GPL(ufshcd_pltfrm_init);
-
-/**
- * ufshcd_pltfrm_exit - exit common routine for platform driver
- * @pdev: pointer to platform device handle
- */
-void ufshcd_pltfrm_exit(struct platform_device *pdev)
-{
-	struct ufs_hba *hba =  platform_get_drvdata(pdev);
-
-	disable_irq(hba->irq);
-
-	ufshcd_remove(hba);
-}
-EXPORT_SYMBOL_GPL(ufshcd_pltfrm_exit);
 
 MODULE_AUTHOR("Santosh Yaragnavi <santosh.sy@samsung.com>");
 MODULE_AUTHOR("Vinayak Holikatti <h.vinayak@samsung.com>");

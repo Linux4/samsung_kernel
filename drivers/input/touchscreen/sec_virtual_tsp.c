@@ -33,7 +33,7 @@ static struct sec_cmd_data *sub_sec;
 #define PATH_SUB_SEC_CMD_RESULT_ALL	"/sys/class/sec/tsp2/cmd_result_all"
 
 #if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
-#include <linux/input/sec_tsp_dumpkey.h>
+#include <linux/sec_ts_common.h>
 extern struct tsp_dump_callbacks dump_callbacks;
 struct tsp_dump_callbacks *tsp_callbacks;
 EXPORT_SYMBOL(tsp_callbacks);
@@ -164,6 +164,7 @@ static int sec_virtual_tsp_write_cmd(struct sec_cmd_data *sec, bool main, bool s
 
 	if (!main && !sub) {
 		snprintf(buff, sizeof(buff), "%s", "NA");
+		sec->cmd_state = SEC_CMD_STATUS_NOT_APPLICABLE;
 		goto err;
 	}
 
@@ -172,6 +173,7 @@ static int sec_virtual_tsp_write_cmd(struct sec_cmd_data *sec, bool main, bool s
 		ret_sub = sec_virtual_tsp_write_sysfs(sec, PATH_SUB_SEC_CMD, sec->cmd);
 		if (ret_sub < 0) {
 			snprintf(buff, sizeof(buff), "%s", "NG");
+			sec->cmd_state = SEC_CMD_STATUS_FAIL;
 			goto main;
 		}
 		sec->cmd_state = sec_virtual_tsp_get_cmd_status(sec, PATH_SUB_SEC_CMD_STATUS);
@@ -188,6 +190,7 @@ main:
 		ret_main = sec_virtual_tsp_write_sysfs(sec, PATH_MAIN_SEC_CMD, sec->cmd);
 		if (ret_main < 0) {
 			snprintf(buff, sizeof(buff), "%s", "NG");
+			sec->cmd_state = SEC_CMD_STATUS_FAIL;
 			goto err;
 		}
 		sec->cmd_state = sec_virtual_tsp_get_cmd_status(sec, PATH_MAIN_SEC_CMD_STATUS);
@@ -206,7 +209,6 @@ main:
 	return (ret_sub < 0 || ret_main < 0) ? -1 : 0;
 
 err:
-	sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	sec_cmd_set_cmd_result(sec, buff, SEC_CMD_RESULT_STR_LEN);
 	sec_cmd_set_cmd_exit(sec);
 
@@ -222,6 +224,7 @@ static void sec_virtual_tsp_write_cmd_factory_all(struct sec_cmd_data *sec, bool
 
 	if (!main && !sub) {
 		snprintf(buff, sizeof(buff), "%s", "NA");
+		sec->cmd_state = SEC_CMD_STATUS_NOT_APPLICABLE;
 		goto err;
 	}
 
@@ -230,6 +233,7 @@ static void sec_virtual_tsp_write_cmd_factory_all(struct sec_cmd_data *sec, bool
 		ret = sec_virtual_tsp_write_sysfs(sec, PATH_SUB_SEC_CMD, sec->cmd);
 		if (ret < 0) {
 			snprintf(buff, sizeof(buff), "%s", "NG");
+			sec->cmd_all_factory_state = SEC_CMD_STATUS_FAIL;
 			goto main;
 		}
 		sec->cmd_all_factory_state = sec_virtual_tsp_get_cmd_status(sec, PATH_SUB_SEC_CMD_STATUS_ALL);
@@ -241,6 +245,7 @@ main:
 		ret = sec_virtual_tsp_write_sysfs(sec, PATH_MAIN_SEC_CMD, sec->cmd);
 		if (ret < 0) {
 			snprintf(buff, sizeof(buff), "%s", "NG");
+			sec->cmd_all_factory_state = SEC_CMD_STATUS_FAIL;
 			goto err;
 		}
 		sec->cmd_all_factory_state = sec_virtual_tsp_get_cmd_status(sec, PATH_MAIN_SEC_CMD_STATUS_ALL);
@@ -250,7 +255,6 @@ main:
 	return;
 
 err:
-	sec->cmd_all_factory_state = SEC_CMD_STATUS_FAIL;
 	sec_cmd_set_cmd_result_all(sec, buff, SEC_CMD_RESULT_STR_LEN, "NONE");
 }
 
@@ -457,6 +461,11 @@ static struct sec_cmd tsp_commands[] = {
 	{SEC_CMD_H("singletap_enable", sec_virtual_tsp_dual_cmd),},
 	{SEC_CMD_H("set_touchable_area", sec_virtual_tsp_dual_cmd),},
 	{SEC_CMD("set_rear_selfie_mode", set_rear_selfie_mode),},
+	{SEC_CMD("clear_cover_mode", sec_virtual_tsp_dual_cmd),},
+#ifdef CONFIG_TOUCHSCREEN_FTS9CU80F_B
+	{SEC_CMD_H("ear_detect_enable", sec_virtual_tsp_dual_cmd),},
+	{SEC_CMD_H("touch_aging_mode", sec_virtual_tsp_dual_cmd),},
+#endif
 
 	/* run_xxx_read_all common */
 	{SEC_CMD("run_cs_raw_read_all", sec_virtual_tsp_switch_cmd),},
@@ -470,6 +479,10 @@ static struct sec_cmd tsp_commands[] = {
 	{SEC_CMD("run_cx_gap_data_rx_all", sec_virtual_tsp_main_cmd),},
 	{SEC_CMD("run_cx_gap_data_tx_all", sec_virtual_tsp_main_cmd),},
 
+	/* only main */
+	/* only sub */
+
+#ifdef CONFIG_TOUCHSCREEN_SEC_TS_Y771_SUB
 	/* run_xxx_read_all sub(s.lsi) */
 	{SEC_CMD("run_gap_data_x_all", sec_virtual_tsp_sub_cmd),},
 	{SEC_CMD("run_gap_data_y_all", sec_virtual_tsp_sub_cmd),},
@@ -482,6 +495,18 @@ static struct sec_cmd tsp_commands[] = {
 	{SEC_CMD("run_self_delta_read_all", sec_virtual_tsp_sub_cmd),},
 	{SEC_CMD("run_self_raw_p2p_min_read_all", sec_virtual_tsp_sub_cmd),},
 	{SEC_CMD("run_self_raw_p2p_max_read_all", sec_virtual_tsp_sub_cmd),},
+#endif
+
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_ZTW522
+	/* run_xxx_read_all sub(zinitix) */
+	{SEC_CMD("run_dnd_read_all", sec_virtual_tsp_sub_cmd),},
+	{SEC_CMD("run_dnd_v_gap_read_all", sec_virtual_tsp_sub_cmd),},
+	{SEC_CMD("run_dnd_h_gap_read_all", sec_virtual_tsp_sub_cmd),},
+	{SEC_CMD("run_selfdnd_read_all", sec_virtual_tsp_sub_cmd),},
+	{SEC_CMD("run_selfdnd_h_gap_read_all", sec_virtual_tsp_sub_cmd),},
+	{SEC_CMD("run_jitter_read_all", sec_virtual_tsp_sub_cmd),},
+	{SEC_CMD("run_self_saturation_read_all", sec_virtual_tsp_sub_cmd),},
+#endif
 
 	{SEC_CMD("factory_cmd_result_all", sec_virtual_tsp_factory_cmd_result_all),},
 
@@ -544,12 +569,47 @@ static ssize_t sec_virtual_tsp_prox_power_off_store(struct device *dev,
 	return count;
 }
 
+#if defined(CONFIG_TOUCHSCREEN_FTS9CU80F_B) && defined(CONFIG_TOUCHSCREEN_SEC_TS_Y771_SUB)
+static ssize_t dualscreen_policy_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int ret, value;
+
+	ret = kstrtoint(buf, 10, &value);
+	if (ret != 0)
+		return ret;
+
+	if (value <= FLIP_STATUS_DEFAULT || value > FLIP_STATUS_SUB) {
+		input_info(false, dual_sec->fac_dev, "%s: value=%d %s\n", __func__, value,
+				 flip_status ? "close" : "open");
+		return count;
+	}
+
+	mutex_lock(&switching_mutex);
+	flip_status = value;
+	mutex_unlock(&switching_mutex);
+
+	if (value == FLIP_STATUS_MAIN)
+		ret = sec_virtual_tsp_write_sysfs(dual_sec, "/sys/class/sec/tsp1/dualscreen_policy", buf);
+
+	input_info(false, dual_sec->fac_dev, "%s: value=%d %s, ret:%d\n", __func__, value,
+			 flip_status ? "close" : "open", ret);
+
+	return count;
+}
+
+static DEVICE_ATTR(dualscreen_policy, 0644, NULL, dualscreen_policy_store);
+#endif
+
 static DEVICE_ATTR(support_feature, 0444, sec_virtual_tsp_support_feature_show, NULL);
 static DEVICE_ATTR(prox_power_off, 0644, sec_virtual_tsp_prox_power_off_show, sec_virtual_tsp_prox_power_off_store);
 
 static struct attribute *sec_virtual_tsp_attrs[] = {
 	&dev_attr_support_feature.attr,
 	&dev_attr_prox_power_off.attr,
+#if defined(CONFIG_TOUCHSCREEN_FTS9CU80F_B) && defined(CONFIG_TOUCHSCREEN_SEC_TS_Y771_SUB)
+	&dev_attr_dualscreen_policy.attr,
+#endif
 	NULL,
 };
 
@@ -596,5 +656,5 @@ static int __init __init_sec_virtual_tsp(void)
 	return 0;
 }
 
-fs_initcall(__init_sec_virtual_tsp);
+module_init(__init_sec_virtual_tsp);
 

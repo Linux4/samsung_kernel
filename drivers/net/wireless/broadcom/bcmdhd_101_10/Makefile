@@ -423,13 +423,17 @@ endif
 ##########################
 DRIVER_TYPE ?= m
 
-
+$(warning DHD_CONFIG_BCM4389 = $(CONFIG_BCM4389))
+$(warning DHD_CONFIG_BCM4375 = $(CONFIG_BCM4375))
 ifneq ($(filter c2% c1%, $(TARGET_PRODUCT)), )
-ifeq ($(SEC_BUILD_OPTION_HW_REVISION),00)
+ifeq ($(SEC_BUILD_OPTION_HW_REVISION),01)
 CONFIG_BCM4389=y
 CONFIG_BCM4375=n
 endif
 endif
+$(warning After DHD_CONFIG_BCM4389 = $(CONFIG_BCM4389))
+$(warning After DHD_CONFIG_BCM4375 = $(CONFIG_BCM4375))
+
 #########################
 # Chip dependent feature
 #########################

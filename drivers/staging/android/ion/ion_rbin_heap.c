@@ -21,6 +21,7 @@
 #include <linux/rbinregion.h>
 #include <linux/kthread.h>
 #include <linux/freezer.h>
+#include <linux/cpuhotplug.h>
 #include <asm/cacheflush.h>
 
 #include "ion.h"
@@ -188,12 +189,6 @@ static int ion_rbin_heap_allocate(struct ion_heap *heap,
 	bool may_dirty = false;
 #endif
 
-	if (!!(flags & ION_FLAG_PROTECTED)) {
-		pr_err("ION_FLAG_PROTECTED is set to non-secure heap %s",
-		       heap->name);
-		return -EINVAL;
-	}
-
 	nr_free = rbin_heap->count - atomic_read(&rbin_allocated_pages);
 	if (size_remain > nr_free << PAGE_SHIFT)
 		return -ENOMEM;
@@ -304,7 +299,7 @@ static int ion_rbin_heap_create_pools(struct ion_page_pool **pools)
 	int i;
 
 	for (i = 0; i < NUM_ORDERS; i++) {
-		pools[i] = ion_page_pool_create(GFP_KERNEL, orders[i]);
+		pools[i] = ion_page_pool_create(GFP_KERNEL, orders[i], false);
 		if (!pools[i])
 			goto err_create_pool;
 	}
@@ -313,6 +308,29 @@ static int ion_rbin_heap_create_pools(struct ion_page_pool **pools)
 err_create_pool:
 	ion_rbin_heap_destroy_pools(pools);
 	return -ENOMEM;
+}
+
+#define RBIN_CORE_NUM_FIRST 0
+#define RBIN_CORE_NUM_LAST 3
+static struct cpumask rbin_cpumask;
+static void init_rbin_cpumask(void)
+{
+	int i;
+
+	cpumask_clear(&rbin_cpumask);
+
+	for (i = RBIN_CORE_NUM_FIRST; i <= RBIN_CORE_NUM_LAST; i++)
+		cpumask_set_cpu(i, &rbin_cpumask);
+}
+
+static int rbin_cpu_online(unsigned int cpu)
+{
+	if (cpumask_any_and(cpu_online_mask, &rbin_cpumask) < nr_cpu_ids) {
+		/* One of our CPUs online: restore mask */
+		set_cpus_allowed_ptr(g_rbin_heap->task, &rbin_cpumask);
+		set_cpus_allowed_ptr(g_rbin_heap->task_shrink, &rbin_cpumask);
+	}
+	return 0;
 }
 
 static int ion_rbin_heap_prereclaim(void *data)
@@ -326,6 +344,7 @@ static int ion_rbin_heap_prereclaim(void *data)
 	struct page *page;
 	unsigned long jiffies_bstop;
 
+	set_cpus_allowed_ptr(current, &rbin_cpumask);
 	while (true) {
 		wait_event_freezable(rbin_heap->waitqueue, rbin_heap->task_run);
 		jiffies_bstop = jiffies + (HZ / 10);
@@ -363,6 +382,7 @@ static int ion_rbin_heap_shrink(void *data)
 	unsigned long size = PAGE_SIZE << orders[0];
 	struct page *page;
 
+	set_cpus_allowed_ptr(current, &rbin_cpumask);
 	while (true) {
 		wait_event_freezable(rbin_heap->waitqueue, rbin_heap->shrink_run);
 		trace_printk("%s\n", "start");
@@ -383,6 +403,7 @@ static int ion_rbin_heap_shrink(void *data)
 struct ion_heap *ion_rbin_heap_create(struct ion_platform_heap *data)
 {
 	struct ion_rbin_heap *rbin_heap;
+	int ret;
 
 	rbin_heap = kzalloc(sizeof(struct ion_rbin_heap), GFP_KERNEL);
 	if (!rbin_heap)
@@ -401,10 +422,17 @@ struct ion_heap *ion_rbin_heap_create(struct ion_platform_heap *data)
 		kfree(rbin_heap);
 		return ERR_PTR(-ENOMEM);
 	}
+	init_rbin_cpumask();
 	init_waitqueue_head(&rbin_heap->waitqueue);
 	rbin_heap->task = kthread_run(ion_rbin_heap_prereclaim, rbin_heap, "rbin");
 	rbin_heap->task_shrink = kthread_run(ion_rbin_heap_shrink, rbin_heap, "rbin_shrink");
 	g_rbin_heap = rbin_heap;
+
+	ret = cpuhp_setup_state_nocalls(CPUHP_AP_ONLINE_DYN,
+					"ion/rbin:online", rbin_cpu_online,
+					NULL);
+	if (ret < 0)
+		pr_err("rbin: failed to register 'online' hotplug state\n");
 
 	return &rbin_heap->heap;
 }

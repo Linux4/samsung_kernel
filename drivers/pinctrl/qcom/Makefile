@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0
 # Qualcomm pin control drivers
+ccflags-y += $(KBUILD_FP_SENSOR_CFLAGS)
 obj-$(CONFIG_PINCTRL_MSM)	+= pinctrl-msm.o
 obj-$(CONFIG_PINCTRL_APQ8064)	+= pinctrl-apq8064.o
 obj-$(CONFIG_PINCTRL_APQ8084)	+= pinctrl-apq8084.o
@@ -20,3 +21,9 @@ obj-$(CONFIG_PINCTRL_QCOM_SPMI_PMIC) += pinctrl-spmi-mpp.o
 obj-$(CONFIG_PINCTRL_QCOM_SSBI_PMIC) += pinctrl-ssbi-gpio.o
 obj-$(CONFIG_PINCTRL_QCOM_SSBI_PMIC) += pinctrl-ssbi-mpp.o
 obj-$(CONFIG_PINCTRL_SDM845) += pinctrl-sdm845.o
+obj-$(CONFIG_PINCTRL_KONA) += pinctrl-kona.o
+obj-$(CONFIG_PINCTRL_LITO) += pinctrl-lito.o
+obj-$(CONFIG_PINCTRL_BENGAL) += pinctrl-bengal.o
+obj-$(CONFIG_PINCTRL_LAGOON) += pinctrl-lagoon.o
+obj-$(CONFIG_PINCTRL_SCUBA) += pinctrl-scuba.o
+obj-$(CONFIG_PINCTRL_SDM660)   += pinctrl-sdm660.o

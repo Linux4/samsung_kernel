@@ -12,7 +12,3 @@
 #GNU General Public License for more details.
 
 obj-$(CONFIG_HDM) += hdm.o
-
-ifeq ($(CONFIG_ARCH_EXYNOS),y)
-ccflags-$(CONFIG_HDM)	+= -Idrivers/misc/tzdev/include/tzdev
-endif

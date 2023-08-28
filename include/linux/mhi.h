@@ -15,10 +15,6 @@ struct mhi_buf_info;
 struct mhi_sfr_info;
 
 #define REG_WRITE_QUEUE_LEN 1024
-#ifndef CONFIG_ARCH_EXYNOS9
-#define readq_relaxed_no_log(c)  ({0;})
-#define writel_relaxed_no_log(v, c)  ({0;})
-#endif
 
 /**
  * enum MHI_CB - MHI callback
@@ -31,6 +27,7 @@ struct mhi_sfr_info;
  * @MHI_CB_EE_MISSION_MODE: MHI device entered Mission Mode ee
  * @MHI_CB_SYS_ERROR: MHI device enter error state (may recover)
  * @MHI_CB_FATAL_ERROR: MHI device entered fatal error
+ * @MHI_CB_BOOTUP_TIMEOUT: MHI device did not get to a bootup state in time
  */
 enum MHI_CB {
 	MHI_CB_IDLE,
@@ -42,6 +39,8 @@ enum MHI_CB {
 	MHI_CB_EE_MISSION_MODE,
 	MHI_CB_SYS_ERROR,
 	MHI_CB_FATAL_ERROR,
+	MHI_CB_FW_FALLBACK_IMG,
+	MHI_CB_BOOTUP_TIMEOUT,
 };
 
 /**
@@ -118,132 +117,6 @@ enum mhi_dev_state {
 	MHI_STATE_BHI  = 0x7,
 	MHI_STATE_SYS_ERR  = 0xFF,
 	MHI_STATE_MAX,
-};
-
-enum mhi_er_data_type {
-	MHI_ER_DATA_ELEMENT_TYPE,
-	MHI_ER_CTRL_ELEMENT_TYPE,
-	MHI_ER_TSYNC_ELEMENT_TYPE,
-	MHI_ER_BW_SCALE_ELEMENT_TYPE,
-	MHI_ER_DATA_TYPE_MAX = MHI_ER_BW_SCALE_ELEMENT_TYPE,
-};
-
-/**
- * enum mhi_db_brst_mode - Doorbell mode
- * @MHI_DB_BRST_DISABLE: Burst mode disable
- * @MHI_DB_BRST_ENABLE: Burst mode enable
- */
-enum MHI_BRSTMODE {
-	MHI_BRSTMODE_DISABLE = 0x2,
-	MHI_BRSTMODE_ENABLE = 0x3,
-};
-
-enum mhi_ch_type {
-	MHI_CH_TYPE_INVALID = 0,
-	MHI_CH_TYPE_OUTBOUND = DMA_TO_DEVICE,
-	MHI_CH_TYPE_INBOUND = DMA_FROM_DEVICE,
-	MHI_CH_TYPE_INBOUND_COALESCED = 3,
-};
-
-/* accepted buffer type for the channel */
-enum MHI_XFER_TYPE {
-	MHI_XFER_BUFFER,
-	MHI_XFER_SKB,
-	MHI_XFER_SCLIST,
-	MHI_XFER_NOP, /* CPU offload channel, host does not accept transfer */
-	MHI_XFER_DMA, /* receive dma address, already mapped by client */
-	MHI_XFER_RSC_DMA, /* RSC type, accept premapped buffer */
-};
-
-/**
- * struct mhi_channel_config - Channel configuration structure for controller
- * @name: The name of this channel
- * @num: The number assigned to this channel
- * @num_elements: The number of elements that can be queued to this channel
- * @local_elements: The local ring length of the channel
- * @event_ring: The event rung index that services this channel
- * @dir: Direction that data may flow on this channel
- * @type: Channel type
- * @ee_mask: Execution Environment mask for this channel
- * @pollcfg: Polling configuration for burst mode.  0 is default.  milliseconds
-	     for UL channels, multiple of 8 ring elements for DL channels
- * @doorbell: Doorbell mode
- * @lpm_notify: The channel master requires low power mode notifications
- * @offload_channel: The client manages the channel completely
- * @doorbell_mode_switch: Channel switches to doorbell mode on M0 transition
- * @auto_queue: Framework will automatically queue buffers for DL traffic
- * @auto_start: Automatically start (open) this channel
- * @wake-capable: Channel capable of waking up the system
- */
-struct mhi_channel_config {
-	char *name;
-	u32 num;
-	u32 num_elements;
-	u32 local_elements;
-	u32 event_ring;
-	enum dma_data_direction dir;
-	enum mhi_ch_type type;
-	u32 ee_mask;
-	u32 pollcfg;
-	enum MHI_BRSTMODE doorbell;
-	bool lpm_notify;
-	bool offload_channel;
-	bool doorbell_mode_switch;
-	bool auto_queue;
-	bool auto_start;
-	bool wake_capable;
-	enum MHI_XFER_TYPE xfer_type;
-};
-
-/**
- * struct mhi_event_config - Event ring configuration structure for controller
- * @num_elements: The number of elements that can be queued to this ring
- * @irq_moderation_ms: Delay irq for additional events to be aggregated
- * @irq: IRQ associated with this ring
- * @channel: Dedicated channel number. U32_MAX indicates a non-dedicated ring
- * @priority: Priority of this ring. Use 1 for now
- * @mode: Doorbell mode
- * @data_type: Type of data this ring will process
- * @hardware_event: This ring is associated with hardware channels
- * @client_managed: This ring is client managed
- * @offload_channel: This ring is associated with an offloaded channel
- */
-struct mhi_event_config {
-	u32 num_elements;
-	u32 irq_moderation_ms;
-	u32 irq;
-	u32 channel;
-	u32 priority;
-	enum MHI_BRSTMODE mode;
-	enum mhi_er_data_type data_type;
-	bool hardware_event;
-	bool client_managed;
-	bool offload_channel;
-};
-
-/**
- * struct mhi_controller_config - Root MHI controller configuration
- * @max_channels: Maximum number of channels supported
- * @timeout_ms: Timeout value for operations. 0 means use default
- * @buf_len: Size of automatically allocated buffers. 0 means use default
- * @num_channels: Number of channels defined in @ch_cfg
- * @ch_cfg: Array of defined channels
- * @num_events: Number of event rings defined in @event_cfg
- * @event_cfg: Array of defined event rings
- * @use_bounce_buf: Use a bounce buffer pool due to limited DDR access
- * @m2_no_db: Host is not allowed to ring DB in M2 state
- */
-struct mhi_controller_config {
-	u32 max_channels;
-	u32 timeout_ms;
-	u32 buf_len;
-	u32 num_channels;
-	struct mhi_channel_config *ch_cfg;
-	u32 num_events;
-	struct mhi_event_config *event_cfg;
-	bool use_bounce_buf;
-	bool m2_no_db;
-	u32 bhie_offset;
 };
 
 #define MHI_VOTE_BUS BIT(0) /* do not disable the bus */
@@ -354,8 +227,6 @@ struct reg_write_info {
  * @img_pre_alloc: allocate rddm and fbc image buffers one time
  * @fbc_image: Points to firmware image buffer
  * @rddm_image: Points to RAM dump buffer
- * @sbl_buf: Pre-allocated sbl image buffer
- * @sbl_dma_addr: Pre-allocated sbl image buffer dma addr
  * @max_chan: Maximum number of channels controller support
  * @mhi_chan: Points to channel configuration table
  * @lpm_chans: List of channels that require LPM notifications
@@ -392,6 +263,7 @@ struct mhi_controller {
 
 	/* mmio base */
 	phys_addr_t base_addr;
+	unsigned int len;
 	void __iomem *regs;
 	void __iomem *bhi;
 	void __iomem *bhie;
@@ -415,12 +287,12 @@ struct mhi_controller {
 
 	/* fw images */
 	const char *fw_image;
+	const char *fw_image_fallback;
 	const char *edl_image;
- 	void *sbl_buf;
-	dma_addr_t sbl_dma_addr;
 
 	/* mhi host manages downloading entire fbc images */
 	bool fbc_download;
+	bool rddm_supported;
 	size_t rddm_size;
 	size_t sbl_size;
 	size_t seg_len;
@@ -485,7 +357,7 @@ struct mhi_controller {
 	/* worker for different state transitions */
 	struct work_struct st_worker;
 	struct work_struct special_work;
-	struct workqueue_struct *special_wq;
+	struct workqueue_struct *wq;
 
 	wait_queue_head_t state_event;
 
@@ -510,7 +382,6 @@ struct mhi_controller {
 			struct mhi_link_info *link_info);
 	void (*write_reg)(struct mhi_controller *mhi_cntrl, void __iomem *base,
 			u32 offset, u32 val);
-
 	/* channel to control DTR messaging */
 	struct mhi_device *dtr_dev;
 
@@ -536,8 +407,10 @@ struct mhi_controller {
 	/* controller specific data */
 	const char *name;
 	bool power_down;
+	bool initiate_mhi_reset;
 	void *priv_data;
 	void *log_buf;
+	void *cntrl_log_buf;
 	struct dentry *dentry;
 	struct dentry *parent;
 
@@ -648,9 +521,6 @@ struct mhi_driver {
 
 #define to_mhi_driver(drv) container_of(drv, struct mhi_driver, driver)
 #define to_mhi_device(dev) container_of(dev, struct mhi_device, dev)
-
-int register_mhi_controller(struct mhi_controller *mhi_cntrl,
-			    struct mhi_controller_config *config);
 
 static inline void mhi_device_set_devdata(struct mhi_device *mhi_dev,
 					  void *priv)
@@ -1019,20 +889,13 @@ void mhi_debug_reg_dump(struct mhi_controller *mhi_cntrl);
  */
 char *mhi_get_restart_reason(const char *name);
 
-/**
- * mhi_irq_setup - Enable/Disable MHI MSIs
- * @mhi_cntrl: MHI controller
- * @enable: enable/disable irq
- */
-void mhi_irq_setup(struct mhi_controller *mhi_cntrl, bool enable);
-
 #ifndef CONFIG_ARCH_QCOM
 
 #ifdef CONFIG_MHI_DEBUG
 
 #define MHI_VERB(fmt, ...) do { \
 		if (mhi_cntrl->klog_lvl <= MHI_MSG_LVL_VERBOSE) \
-			pr_err("[D][%s] " fmt, __func__, ##__VA_ARGS__);\
+			pr_dbg("[D][%s] " fmt, __func__, ##__VA_ARGS__);\
 } while (0)
 
 #else
@@ -1040,6 +903,16 @@ void mhi_irq_setup(struct mhi_controller *mhi_cntrl, bool enable);
 #define MHI_VERB(fmt, ...)
 
 #endif
+
+#define MHI_CNTRL_LOG(fmt, ...) do {	\
+		if (mhi_cntrl->klog_lvl <= MHI_MSG_LVL_INFO) \
+			pr_info("[I][%s] " fmt, __func__, ##__VA_ARGS__);\
+} while (0)
+
+#define MHI_CNTRL_ERR(fmt, ...) do {	\
+		if (mhi_cntrl->klog_lvl <= MHI_MSG_LVL_ERROR) \
+			pr_err("[E][%s] " fmt, __func__, ##__VA_ARGS__); \
+} while (0)
 
 #define MHI_LOG(fmt, ...) do {	\
 		if (mhi_cntrl->klog_lvl <= MHI_MSG_LVL_INFO) \
@@ -1073,14 +946,23 @@ void mhi_irq_setup(struct mhi_controller *mhi_cntrl, bool enable);
 
 #else
 
-#define MHI_VERB(fmt, ...) do { \
-		if (mhi_cntrl->log_buf && \
-		    (mhi_cntrl->log_lvl <= MHI_MSG_LVL_VERBOSE)) \
-			ipc_log_string(mhi_cntrl->log_buf, "[D][%s] " fmt, \
-				       __func__, ##__VA_ARGS__); \
-} while (0)
+#define MHI_VERB(fmt, ...)
 
 #endif
+
+#define MHI_CNTRL_LOG(fmt, ...) do { \
+		if (mhi_cntrl->klog_lvl <= MHI_MSG_LVL_INFO) \
+			pr_err("[I][%s] " fmt, __func__, ##__VA_ARGS__);\
+		ipc_log_string(mhi_cntrl->cntrl_log_buf, "[I][%s] " fmt, \
+			       __func__, ##__VA_ARGS__); \
+} while (0)
+
+#define MHI_CNTRL_ERR(fmt, ...) do { \
+		if (mhi_cntrl->klog_lvl <= MHI_MSG_LVL_ERROR) \
+			pr_err("[E][%s] " fmt, __func__, ##__VA_ARGS__); \
+		ipc_log_string(mhi_cntrl->cntrl_log_buf, "[E][%s] " fmt, \
+			       __func__, ##__VA_ARGS__); \
+} while (0)
 
 #define MHI_LOG(fmt, ...) do {	\
 		if (mhi_cntrl->klog_lvl <= MHI_MSG_LVL_INFO) \

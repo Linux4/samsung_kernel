@@ -408,6 +408,10 @@ int drm_atomic_set_mode_for_crtc(struct drm_crtc_state *state,
 }
 EXPORT_SYMBOL(drm_atomic_set_mode_for_crtc);
 
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+void ss_xlog_vrr_change_in_drm_ioctl(int vrefresh, int sot_hs_mode);
+bool ss_is_sot_hs_from_drm_mode(const struct drm_display_mode *drm_mode);
+#endif
 /**
  * drm_atomic_set_mode_prop_for_crtc - set mode for CRTC
  * @state: the CRTC whose incoming state to update
@@ -459,6 +463,11 @@ int drm_atomic_set_mode_prop_for_crtc(struct drm_crtc_state *state,
 		DRM_DEBUG_ATOMIC("Set [MODE:%s] for [CRTC:%d:%s] state %p\n",
 				 state->mode.name, crtc->base.id, crtc->name,
 				 state);
+
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+		ss_xlog_vrr_change_in_drm_ioctl(state->mode.vrefresh,
+				ss_is_sot_hs_from_drm_mode(&state->mode));
+#endif
 	} else {
 		state->enable = false;
 		DRM_DEBUG_ATOMIC("Set [NOMODE] for [CRTC:%d:%s] state %p\n",
@@ -1410,6 +1419,8 @@ static int drm_atomic_connector_set_property(struct drm_connector *connector,
 			return -EINVAL;
 		}
 		state->content_protection = val;
+	} else if (property == connector->colorspace_property) {
+		state->colorspace = val;
 	} else if (property == config->writeback_fb_id_property) {
 		struct drm_framebuffer *fb = drm_framebuffer_lookup(dev, NULL, val);
 		int ret = drm_atomic_set_writeback_fb_for_connector(state, fb);
@@ -1507,6 +1518,8 @@ drm_atomic_connector_get_property(struct drm_connector *connector,
 		*val = state->picture_aspect_ratio;
 	} else if (property == config->content_type_property) {
 		*val = state->content_type;
+	} else if (property == connector->colorspace_property) {
+		*val = state->colorspace;
 	} else if (property == connector->scaling_mode_property) {
 		*val = state->scaling_mode;
 	} else if (property == connector->content_protection_property) {

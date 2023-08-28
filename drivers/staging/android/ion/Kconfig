@@ -3,26 +3,13 @@ menuconfig ION
 	depends on HAVE_MEMBLOCK && HAS_DMA && MMU
 	select GENERIC_ALLOCATOR
 	select DMA_SHARED_BUFFER
+	select MSM_SECURE_BUFFER
 	help
 	  Choose this option to enable the ION Memory Manager,
 	  used by Android to efficiently allocate buffers
 	  from userspace that can be shared between drivers.
 	  If you're not using Android its probably safe to
 	  say N here.
-
-config ION_EXYNOS
-	bool "Exynos Extension to ION"
-	depends on ION
-	help
-	  Choose this option for Exynos SoCs. Initialization of cma heap is
-	  changed.
-
-config ION_TEST
-	tristate "Ion Test Device"
-	depends on ION
-	help
-	  Choose this option to create a device that can be used to test the
-	  kernel and device side ION functions.
 
 config ION_SYSTEM_HEAP
 	bool "Ion system heap"
@@ -57,23 +44,53 @@ config ION_CMA_HEAP
 	  by the Contiguous Memory Allocator (CMA). If your system has these
 	  regions, you should say Y here.
 
-config ION_HPA_HEAP
-	bool "Ion HPA heap support"
-	depends on ION && HPA
+config ION_FORCE_DMA_SYNC
+	bool "Force ION to always DMA sync buffer memory"
+	depends on ION
 	help
-	  Choose this option to enable HPA heaps with Ion. This heap is backed
-	  by the High-order Pages Allocator (HPA). If your system needs HPA for
-	  some reason, you should say Y here.
+	  Force ION to DMA sync buffer memory when it is allocated and to
+	  always DMA sync the buffer memory on calls to begin/end cpu
+	  access. This makes ION DMA sync behavior similar to that of the
+	  older version of ION.
+	  We generally don't want to enable this config as it breaks the
+	  cache maintenance model.
+	  If you're not sure say N here.
 
-config ION_DEBUG_EVENT_RECORD
-	bool "Ion event debug support"
-	default y
-	depends on ION_EXYNOS
+config ION_DEFER_FREE_NO_SCHED_IDLE
+	bool "Increases the priority of ION defer free thread"
+	depends on ION
+	help
+	  Certain heaps such as the system heaps make use of a low priority
+	  thread to help free buffer allocations back to the pool which might
+	  result in future allocations requests going to the buddy instead of
+	  the pool when there is a high buffer allocation rate.
+	  Choose this option to remove the SCHED_IDLE flag in case of defer
+	  free thereby increasing the priority of defer free thread.
+	  if you're not sure say Y here.
+
+config ION_POOL_AUTO_REFILL
+	bool "Refill the ION heap pools automatically"
+	depends on ION
+	help
+	  Choose this option to refill the ION system heap pools (non-secure)
+	  automatically when the pool pages count becomes lower than a set low mark.
+	  This refilling is done by worker thread which is invoked asynchronously
+	  when the pool count reaches below low mark.
+	  if you're not sure say Y here.
+
+config ION_POOL_FILL_MARK
+	int "ion pool fillmark size in MB"
+	depends on ION_POOL_AUTO_REFILL
+	range 16 256
+	default 100
+	help
+	  Set the fillmark of the pool in terms of mega bytes and the lowmark is
+	  ION_POOL_LOW_MARK_PERCENT of fillmark value.
 
 config ION_RBIN_HEAP
 	bool "ION RBIN Heap"
 	default y
-	depends on ION && RBIN && ION_EXYNOS && CLEANCACHE
+	depends on ION && RBIN && CLEANCACHE
 	help
 	  Provides ION RBIN heap which utilizes RBIN memory.
 	  While RBIN heap is similar with CMA heap, it assumes that an ION buffer
@@ -85,3 +102,10 @@ config ION_RBIN_ONLY_FOR_UNDER_8GB
 	depends on ION && RBIN && ION_RBIN_HEAP
 	help
 	  only under 8GB ram device can use rbin heap.
+
+config ION_RBIN_HEAP_EXCEPTION
+	bool "support different rbin size for under 8GB device"
+	default y
+	depends on ION_RBIN_ONLY_FOR_UNDER_8GB
+	help
+	  set different rbin size for under 8GB ram devices

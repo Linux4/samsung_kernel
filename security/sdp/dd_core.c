@@ -24,6 +24,7 @@
 
 #include <linux/blkdev.h>
 #include <linux/bio.h>
+#include <linux/bio-crypt-ctx.h>
 
 #include <linux/delay.h>
 #include <linux/kthread.h>
@@ -123,27 +124,6 @@ static int dd_dump_debug_req_list(int mask) {
 	return num;
 }
 #endif
-
-void assert_list_head_valid(const char *func, const char *msg, struct list_head *head) {
-	struct list_head *prev = head;
-	struct list_head *next = head->next;
-
-	if(next->prev != prev) {
-		panic("func:%s %s list_add corruption. next->prev should be prev (%p), but was %p. (next=%p).\n",
-				func, msg, prev, next->prev, next);
-	}
-	if(prev->next != next) {
-		panic("func:%s %s list_add corruption. prev->next should be next (%p), but was %p. (prev=%p).\n",
-				func, msg, next, prev->next, prev);
-	}
-}
-
-// caller required to hold proc->lock
-void assert_proc_locked(const char *func, const char *msg, struct dd_proc *proc) {
-	BUG_ON(!proc);
-	assert_list_head_valid(func, msg, &proc->processing);
-	assert_list_head_valid(func, msg, &proc->submitted);
-}
 
 static void dd_info_get(struct dd_info *info);
 static struct dd_req *get_req(const char *msg, struct dd_info *info,
@@ -283,12 +263,8 @@ static void dd_free_req_work(struct work_struct *work) {
 			 * dequeued immediately
 			 */
 			spin_lock(&proc->lock);
-			assert_proc_locked(__func__, "req->list deleting", proc);
-
 			if (!list_empty(&req->list))
 				list_del_init(&req->list);
-
-			assert_proc_locked(__func__, "req->list deleted", proc);
 			spin_unlock(&proc->lock);
 
 			if(atomic_dec_and_test(&proc->reqcount)) {
@@ -369,11 +345,9 @@ static inline void abort_req(const char *msg, struct dd_req *req, int err)
 	req->abort = 1;
 	if (proc) {
 		spin_lock(&proc->lock);
-		assert_proc_locked(__func__, "req->list aborting", proc);
 		// skip in case req is not assigned to any process
 		if (!list_empty(&req->list))
 			list_del_init(&req->list);
-		assert_proc_locked(__func__, "req->list aborted", proc);
 		spin_unlock(&proc->lock);
 	}
 
@@ -502,7 +476,6 @@ __releases(proc->lock)
 // caller required to hold proc->lock
 static void queue_pending_req_locked(struct dd_proc *proc, struct dd_req *req)
 {
-	assert_proc_locked(__func__, "req->list pending", proc);
 	list_move_tail(&req->list, &proc->pending);
 	dd_req_state(req, DD_REQ_PENDING);
 	req->pid = proc->pid;
@@ -517,6 +490,9 @@ static void dd_free_pages(struct dd_info *info, struct bio *clone) {
 
 	bio_for_each_segment_all(bv, clone, i) {
 		BUG_ON(!bv->bv_page);
+		if (bv->bv_page->mapping != NULL) {
+			bv->bv_page->mapping = NULL;
+		}
 		mempool_free(bv->bv_page, ctx->page_pool);
 		bv->bv_page = NULL;
 	}
@@ -563,12 +539,14 @@ static struct bio *dd_clone_bio(struct dd_req *req, struct bio *orig, unsigned s
 	unsigned i, len, remaining_size;
 	struct page *page;
 	struct bio_vec *bvec;
+	struct bio_vec *orig_bvec;
 
 retry:
 	if (unlikely(gfp_mask & __GFP_DIRECT_RECLAIM))
 		mutex_lock(&ctx->bio_alloc_lock);
 
 	dd_debug_req("cloning bio", DD_DEBUG_VERBOSE, req);
+
 	clone = bio_alloc_bioset(GFP_NOIO, nr_iovecs, ctx->bio_set);
 	if (!clone) {
 		dd_error("failed to alloc bioset\n");
@@ -578,6 +556,7 @@ retry:
 	clone->bi_private = req;
 	bio_copy_dev(clone, orig);
 	clone->bi_opf = orig->bi_opf;
+	bio_crypt_clone(clone, orig, GFP_NOIO);
 
 	remaining_size = size;
 
@@ -592,8 +571,13 @@ retry:
 
 		len = (unsigned int)((remaining_size > PAGE_SIZE) ? PAGE_SIZE : remaining_size);
 
-		bvec = &clone->bi_io_vec[clone->bi_vcnt++];
+		bvec = &clone->bi_io_vec[clone->bi_vcnt];
+		orig_bvec = &orig->bi_io_vec[clone->bi_vcnt];
+		clone->bi_vcnt++;
 		bvec->bv_page = page;
+		if (i == 0) {
+			bvec->bv_page->mapping = orig_bvec->bv_page->mapping;
+		}
 		bvec->bv_len = len;
 		bvec->bv_offset = 0;
 
@@ -659,7 +643,7 @@ static void dd_decrypt_work(struct work_struct *work) {
 #ifdef CONFIG_SDP_KEY_DUMP
 	if (!dd_policy_skip_decryption_inner_and_outer(req->info->policy.flags)) {
 #endif
-	if (fscrypt_disk_encrypted(req->info->inode)) {
+	if (fscrypt_inode_uses_inline_crypto(req->info->inode)) {
 		dd_verbose("skip oem s/w crypt. hw encryption enabled\n");
 	} else {
 		if (dd_oem_crypto_bio_pages(req, READ, orig)) {
@@ -773,9 +757,9 @@ int dd_submit_bio(struct dd_info *info, struct bio *bio) {
 				goto err_out;
 			}
 
-			if (fscrypt_disk_encrypted(req->info->inode)) {
+			if (fscrypt_inode_uses_inline_crypto(req->info->inode)) {
 				dd_verbose("skip oem s/w crypt. hw encryption enabled\n");
-				fscrypt_set_bio(req->info->inode, req->u.bio.clone, 0);
+//				fscrypt_set_ice_dun(req->info->inode, req->u.bio.clone, 0/* temporary */);
 			} else {
 				if (dd_oem_crypto_bio_pages(req, WRITE, req->u.bio.clone)) {
 					dd_error("failed oem crypto\n");
@@ -803,11 +787,19 @@ int dd_submit_bio(struct dd_info *info, struct bio *bio) {
 #ifdef CONFIG_SDP_KEY_DUMP
 		if (!dd_policy_skip_decryption_inner_and_outer(req->info->policy.flags)) {
 #endif
-		if (fscrypt_disk_encrypted(req->info->inode))
-			fscrypt_set_bio(req->info->inode, req->u.bio.clone, 0);
+		if (fscrypt_inode_uses_inline_crypto(req->info->inode)) {
+			dd_verbose("skip oem s/w crypt. hw encryption enabled\n");
+//			fscrypt_set_ice_dun(req->info->inode, req->u.bio.clone, 0/* temporary */);
+		}
 #ifdef CONFIG_SDP_KEY_DUMP
 		} else {
-			req->u.bio.clone->bi_opf = 0;
+			if (fscrypt_inode_uses_inline_crypto(req->info->inode)) {
+				struct bio_crypt_ctx *bc = req->u.bio.clone->bi_crypt_context;
+				req->u.bio.clone->bi_crypt_context = NULL;
+				dd_info("skip h/w decryption for ino(%ld)\n", req->info->inode->i_ino);
+				if (bc)
+					bio_crypt_free_ctx(req->u.bio.clone);
+			}
 		}
 #endif
 
@@ -866,7 +858,7 @@ int dd_page_crypto(struct dd_info *info, dd_crypto_direction_t dir,
 	req->u.page.dst_page = dst_page;
 
 	if (dir == DD_DECRYPT) {
-		if (fscrypt_disk_encrypted(req->info->inode)) {
+		if (fscrypt_inode_uses_inline_crypto(req->info->inode)) {
 			dd_verbose("skip oem s/w crypt. hw encryption enabled\n");
 		} else {
 			err = dd_oem_page_crypto_inplace(info, src_page, READ);
@@ -1341,7 +1333,6 @@ __acquires(proc->lock)
 		__get_md_page(proc, req->info->mdpage, req->ino, t);
 		spin_lock(&proc->lock);
 
-		assert_proc_locked(__func__, "req->list processing", proc);
 		list_move(&req->list, &proc->processing);
 		dd_req_state(req, DD_REQ_PROCESSING);
 	}
@@ -1420,7 +1411,6 @@ long dd_ioctl_submit_crypto_result(struct dd_proc *proc,
 	spin_lock(&proc->lock);
 	list_for_each_entry_safe(req, temp, &proc->processing, list) {
 		int err = get_user_resp_err(errs, num_err, req->ino);
-		assert_proc_locked(__func__, "req->list submitting", proc);
 		list_move(&req->list, &proc->submitted);
 		dd_req_state(req, DD_REQ_SUBMITTED);
 		spin_unlock(&proc->lock);
@@ -1438,9 +1428,9 @@ long dd_ioctl_submit_crypto_result(struct dd_proc *proc,
 				if (dir == WRITE) {
 					dd_dump_bio_pages("inner encryption done", req->u.bio.clone);
 
-					if (fscrypt_disk_encrypted(req->info->inode)) {
+					if (fscrypt_inode_uses_inline_crypto(req->info->inode)) {
 						dd_verbose("skip oem s/w crypt. hw encryption enabled\n");
-						fscrypt_set_bio(req->info->inode, req->u.bio.clone, 0);
+//						fscrypt_set_ice_dun(req->info->inode, req->u.bio.clone, 0/* temporary */);
 					} else {
 						if (dd_oem_crypto_bio_pages(req, WRITE, req->u.bio.clone)) {
 							abort_req(__func__, req, -EIO);
@@ -1628,10 +1618,8 @@ static long dd_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 #else
 	case DD_IOCTL_ADD_KEY:
 		dd_info("DD_IOCTL_ADD_KEY");
-		err = dd_add_master_key(ioc.u.add_key.userid,
+		return dd_add_master_key(ioc.u.add_key.userid,
 				ioc.u.add_key.key, ioc.u.add_key.len);
-		secure_zeroout("add_key", ioc.u.add_key.key, ioc.u.add_key.len);
-		return err;
 	case DD_IOCTL_EVICT_KEY:
 		dd_info("DD_IOCTL_EVICT_KEY");
 		dd_evict_master_key(ioc.u.evict_key.userid);
@@ -2138,6 +2126,7 @@ void dd_init_context(const char *name) {
 	struct dd_context *context = (struct dd_context *) kmalloc(sizeof(struct dd_context), GFP_KERNEL);
 
 	if (context) {
+		int ret = 0;
 		dd_info("dd_init_context %s\n", name);
 		strncpy(context->name, name, sizeof(context->name) - 1);
 		context->name[sizeof(context->name) - 1] = 0;
@@ -2156,10 +2145,15 @@ void dd_init_context(const char *name) {
 		context->layout = &default_mmap_layout;
 
 		mutex_init(&context->bio_alloc_lock);
-        
-        context->bio_set = kzalloc(sizeof(*context->bio_set), GFP_KERNEL);
-        
-		bioset_init(context->bio_set, 64, 0,(BIOSET_NEED_BVECS | BIOSET_NEED_RESCUER));
+		context->bio_set = kzalloc(sizeof(struct bio_set), GFP_KERNEL);
+		if (!context->bio_set) {
+			dd_error("Failed to allocate bioset\n");
+			return;
+		}
+		ret = bioset_init(context->bio_set, 64, 0,(BIOSET_NEED_BVECS | BIOSET_NEED_RESCUER));
+		if (ret) {
+			dd_error("Failed to init bioset\n");
+		}
 		context->page_pool = mempool_create_page_pool(256, 0);
 
 		dd_context_global = context;
@@ -2319,7 +2313,7 @@ void __dd_debug(unsigned int mask,
 		struct va_format vaf;
 		va_list args;
 		int buf_len = 256;
-		char buf[buf_len];
+		char buf[256];
 
 		va_start(args, fmt);
 		vaf.fmt = fmt;

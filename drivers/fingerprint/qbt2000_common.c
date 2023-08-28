@@ -206,18 +206,6 @@ static struct device_attribute *fp_attrs[] = {
 	NULL,
 };
 
-#if defined(ENABLE_SENSORS_FPRINT_SECURE)
-int fpsensor_goto_suspend = 0;
-
-int fps_resume_set(void) {
-	int rc = 0;
-
-	if (fpsensor_goto_suspend)
-		fpsensor_goto_suspend = 0;
-	return rc;
-}
-#endif
-
 #ifdef QBT2000_AVOID_NOISE
 static int qbt2000_noise_control(struct qbt2000_drvdata *drvdata, int control)
 {
@@ -257,19 +245,6 @@ static int qbt2000_power_control(struct qbt2000_drvdata *drvdata, int onoff)
 	if (drvdata->ldogpio >= 0) {
 		gpio_set_value(drvdata->ldogpio, onoff);
 		drvdata->enabled_ldo = onoff;
-#if !defined(ENABLE_SENSORS_FPRINT_SECURE) || defined(DISABLED_GPIO_PROTECTION)
-		if (onoff) {
-			if (drvdata->pins_poweron) {
-				rc = pinctrl_select_state(drvdata->p, drvdata->pins_poweron);
-				pr_debug("pinctrl for poweron\n");
-			}
-		} else {
-			if (drvdata->pins_poweroff) {
-				rc = pinctrl_select_state(drvdata->p, drvdata->pins_poweroff);
-				pr_debug("pinctrl for poweroff\n");
-			}
-		}
-#endif
 		pr_info("%s\n", onoff ? "ON" : "OFF");
 	} else if (drvdata->regulator_1p8 != NULL) {
 		if (onoff) {
@@ -281,19 +256,6 @@ static int qbt2000_power_control(struct qbt2000_drvdata *drvdata, int onoff)
 			if (rc)
 				pr_err("regulator disable failed, rc=%d\n", rc);
 		}
-#if !defined(ENABLE_SENSORS_FPRINT_SECURE) || defined(DISABLED_GPIO_PROTECTION)
-		if (onoff) {
-			if (drvdata->pins_poweron) {
-				rc = pinctrl_select_state(drvdata->p, drvdata->pins_poweron);
-				pr_debug("pinctrl for poweron\n");
-			}
-		} else {
-			if (drvdata->pins_poweroff) {
-				rc = pinctrl_select_state(drvdata->p, drvdata->pins_poweroff);
-				pr_debug("pinctrl for poweroff\n");
-			}
-		}
-#endif
 		drvdata->enabled_ldo = onoff;
 		pr_info("%s\n", onoff ? "ON" : "OFF");
 	} else {
@@ -859,46 +821,6 @@ err_alloc:
 	return rc;
 }
 
-int qbt2000_pinctrl_register(struct qbt2000_drvdata *drvdata)
-{
-	int rc = 0;
-
-	drvdata->p = pinctrl_get_select_default(drvdata->dev);
-	if (IS_ERR(drvdata->p)) {
-		rc = -EINVAL;
-		pr_err("failed pinctrl_get\n");
-		goto pinctrl_register_default_exit;
-	}
-
-#if !defined(ENABLE_SENSORS_FPRINT_SECURE) || defined(DISABLED_GPIO_PROTECTION)
-	drvdata->pins_poweroff = pinctrl_lookup_state(drvdata->p, "pins_poweroff");
-	if (IS_ERR(drvdata->pins_poweroff)) {
-		pr_err("could not get pins sleep_state (%li)\n",
-			PTR_ERR(drvdata->pins_poweroff));
-		drvdata->pins_poweroff = NULL;
-		drvdata->pins_poweron = NULL;
-		goto pinctrl_register_exit;
-	}
-
-	drvdata->pins_poweron = pinctrl_lookup_state(drvdata->p, "pins_poweron");
-	if (IS_ERR(drvdata->pins_poweron)) {
-		pr_err("could not get pins idle_state (%li)\n",
-			PTR_ERR(drvdata->pins_poweron));
-		drvdata->pins_poweron = NULL;
-		goto pinctrl_register_exit;
-	}
-#endif
-	pr_info("finished\n");
-	return rc;
-#if !defined(ENABLE_SENSORS_FPRINT_SECURE) || defined(DISABLED_GPIO_PROTECTION)
-pinctrl_register_exit:
-	pinctrl_put(drvdata->p);
-#endif
-pinctrl_register_default_exit:
-	pr_err("failed %d\n", rc);
-	return rc;
-}
-
 static void qbt2000_gpio_report_event(struct qbt2000_drvdata *drvdata)
 {
 	int state;
@@ -1396,10 +1318,6 @@ static int qbt2000_probe(struct platform_device *pdev)
 	wake_lock_init(&drvdata->fp_signal_lock,
 			WAKE_LOCK_SUSPEND, "qbt2000_signal_lock");
 
-	rc = qbt2000_pinctrl_register(drvdata);
-	if (rc < 0)
-		goto probe_failed_pinctrl;
-
 	rc = qbt2000_setup_fd_gpio_irq(pdev, drvdata);
 	if (rc < 0)
 		goto probe_failed_fd_gpio;
@@ -1464,8 +1382,6 @@ probe_failed_device_init_wakeup:
 probe_failed_ipc_gpio:
 	gpio_free(drvdata->fd_gpio.gpio);
 probe_failed_fd_gpio:
-	pinctrl_put(drvdata->p);
-probe_failed_pinctrl:
 	wake_lock_destroy(&drvdata->fp_spi_lock);
 	wake_lock_destroy(&drvdata->fp_signal_lock);
 	device_destroy(drvdata->qbt2000_class, drvdata->qbt2000_ipc_cdev.dev);
@@ -1514,7 +1430,6 @@ static int qbt2000_remove(struct platform_device *pdev)
 	fingerprint_unregister(drvdata->fp_device, fp_attrs);
 	device_init_wakeup(&pdev->dev, 0);
 	qbt2000_unregister_platform_variable(drvdata);
-	pinctrl_put(drvdata->p);
 	kfree(drvdata);
 
 	return 0;
@@ -1528,10 +1443,6 @@ static int qbt2000_suspend(struct platform_device *pdev, pm_message_t state)
 #ifdef CONFIG_BATTERY_SAMSUNG
 	if (lpcharge)
 		return rc;
-#endif
-
-#if defined(ENABLE_SENSORS_FPRINT_SECURE)
-	fpsensor_goto_suspend = 1;
 #endif
 
 	/*
@@ -1558,11 +1469,6 @@ static int qbt2000_resume(struct platform_device *pdev)
 #ifdef CONFIG_BATTERY_SAMSUNG
 	if (lpcharge)
 		return rc;
-#endif
-
-#if defined(ENABLE_SENSORS_FPRINT_SECURE)
-	if (fpsensor_goto_suspend)
-		fps_resume_set();
 #endif
 	qbt2000_enable_debug_timer();
 	pr_info("ret = %d\n", rc);

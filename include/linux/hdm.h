@@ -20,21 +20,19 @@
 
 #ifndef __ASSEMBLY__
 
-#if 0
-#define BBD_CTRL_GPS_ON1		"GPSD:CORE_ON"
-#define BBD_CTRL_GPS_OFF1		"GPSD:CORE_OFF"
-#endif
-
 #define HDM_CMD_LEN ((size_t)8)
 
-#define HDM_POLICY_BIT          0xFFFF
-#define HDM_KERNEL_PRE          0x10000
-#define HDM_KERNEL_POST         0x20000
-#define HDM_CMD_MAX             (HDM_KERNEL_PRE + HDM_KERNEL_POST)
+#define HDM_P_BITMASK		0xFFFF
+#define HDM_C_BITMASK		0xF0000
+#define HDM_KERNEL_PRE		0x10000
+#define HDM_KERNEL_POST		0x20000
+#define HDM_HYP_CALL		0x40000
+#define HDM_HYP_CALLP		0x80000
+#define HDM_CMD_MAX			0xFFFFF
 
 enum {
 	HDM_ALLOW = 0,
-	HDM_DENY,
+	HDM_PROTECT,
 };
 
 enum {

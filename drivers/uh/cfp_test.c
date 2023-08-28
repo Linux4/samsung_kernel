@@ -10,6 +10,7 @@
 #include <linux/types.h>
 #include <linux/slab.h>
 
+#include <linux/cfp.h>
 #include <linux/vmalloc.h>
 #include <linux/sched/signal.h>
 
@@ -25,9 +26,9 @@ unsigned long ret_addr = 0x8888;
 #define MAXPAIR 20*1024
 unsigned long jopp_array[MAXPAIR*2];
 
-#ifdef CONFIG_RKP_CFP_ROPP
+#ifdef CONFIG_CFP_ROPP
 
-#ifdef CONFIG_RKP_CFP_ROPP_SYSREGKEY
+#ifdef CONFIG_CFP_ROPP_SYSREGKEY
 static void ropp_readbvr(void)
 {
 	unsigned long bcr_val = 0xcccc;
@@ -167,7 +168,7 @@ static ssize_t cfp_write(struct file *file, const char __user *buf,
 	if (copy_from_user(data, buf, datalen))
 		goto out;
 
-#ifdef CONFIG_RKP_CFP_ROPP
+#ifdef CONFIG_CFP_ROPP
 	if (cfp_is_prefix("print_rrk", data)) {
 		ropp_print_all_rrk();
 	} else if (cfp_is_prefix("print_ra", data)) {
@@ -183,7 +184,7 @@ static ssize_t cfp_write(struct file *file, const char __user *buf,
 	}
 #endif
 
-#ifdef CONFIG_RKP_CFP_JOPP
+#ifdef CONFIG_CFP_JOPP
 	if (cfp_is_prefix("print_fp", data)) {
 		//extern unsigned long *__boot_kernel_offset; 
 		//unsigned long *kernel_addr = (unsigned long *) &__boot_kernel_offset;

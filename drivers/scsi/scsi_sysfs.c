@@ -24,7 +24,10 @@
 
 #include "scsi_priv.h"
 #include "scsi_logging.h"
+
+#ifdef CONFIG_SCSI_UFSHCD
 #include "ufs/ufshcd.h"
+#endif
 
 static struct device_type scsi_dev_type;
 
@@ -266,6 +269,8 @@ show_shost_supported_mode(struct device *dev, struct device_attribute *attr,
 
 static DEVICE_ATTR(supported_mode, S_IRUGO | S_IWUSR, show_shost_supported_mode, NULL);
 
+/* for Argos */
+#ifdef CONFIG_SCSI_UFSHCD
 static ssize_t show_shost_transferred_cnt(struct device *dev, struct device_attribute *attr, char *buf)
 {
     struct Scsi_Host *shost = class_to_shost(dev);
@@ -273,7 +278,9 @@ static ssize_t show_shost_transferred_cnt(struct device *dev, struct device_attr
 
     return sprintf(buf, "%u\n", hba->transferred_sector);
 }
-static DEVICE_ATTR(transferred_cnt, 0444, show_shost_transferred_cnt, NULL);
+
+static DEVICE_ATTR(transferred_cnt, S_IRUGO | S_IWUSR, show_shost_transferred_cnt, NULL);
+#endif
 
 static ssize_t
 show_shost_active_mode(struct device *dev,
@@ -409,12 +416,14 @@ static struct attribute *scsi_sysfs_shost_attrs[] = {
 	&dev_attr_scan.attr,
 	&dev_attr_hstate.attr,
 	&dev_attr_supported_mode.attr,
+#ifdef CONFIG_SCSI_UFSHCD
+ 	&dev_attr_transferred_cnt.attr,
+#endif
 	&dev_attr_active_mode.attr,
 	&dev_attr_prot_capabilities.attr,
 	&dev_attr_prot_guard_type.attr,
 	&dev_attr_host_reset.attr,
 	&dev_attr_eh_deadline.attr,
-	&dev_attr_transferred_cnt.attr,
 	NULL
 };
 
@@ -686,7 +695,7 @@ sdev_store_timeout (struct device *dev, struct device_attribute *attr,
 	int timeout;
 	int res;
 	sdev = to_scsi_device(dev);
-	res = sscanf (buf, "%d\n", &timeout);
+	res= sscanf (buf, "%d\n", &timeout);
 	if (res != 1)
 		return -EINVAL;
 	blk_queue_rq_timeout(sdev->request_queue, timeout * HZ);
@@ -1278,6 +1287,7 @@ static int scsi_target_add(struct scsi_target *starget)
 
 	pm_runtime_set_active(&starget->dev);
 	pm_runtime_enable(&starget->dev);
+	device_enable_async_suspend(&starget->dev);
 
 	return 0;
 }
@@ -1301,9 +1311,11 @@ int scsi_sysfs_add_sdev(struct scsi_device *sdev)
 
 	transport_configure_device(&starget->dev);
 
+	device_enable_async_suspend(&sdev->sdev_gendev);
 	scsi_autopm_get_target(starget);
 	pm_runtime_set_active(&sdev->sdev_gendev);
-	pm_runtime_forbid(&sdev->sdev_gendev);
+	if (!sdev->use_rpm_auto)
+		pm_runtime_forbid(&sdev->sdev_gendev);
 	pm_runtime_enable(&sdev->sdev_gendev);
 	scsi_autopm_put_target(starget);
 
@@ -1318,6 +1330,7 @@ int scsi_sysfs_add_sdev(struct scsi_device *sdev)
 		return error;
 	}
 
+	device_enable_async_suspend(&sdev->sdev_dev);
 	error = device_add(&sdev->sdev_dev);
 	if (error) {
 		sdev_printk(KERN_INFO, sdev,

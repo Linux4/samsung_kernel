@@ -119,15 +119,15 @@ QDF_STATUS ucfg_reg_get_current_cc(struct wlan_objmgr_pdev *pdev,
 #ifdef CONFIG_REG_CLIENT
 
 QDF_STATUS ucfg_reg_set_band(struct wlan_objmgr_pdev *pdev,
-			     uint32_t band_bitmap)
+			     enum band_info band)
 {
-	return reg_set_band(pdev, band_bitmap);
+	return reg_set_band(pdev, band);
 }
 
 QDF_STATUS ucfg_reg_get_band(struct wlan_objmgr_pdev *pdev,
-			     uint32_t *band_bitmap)
+			     enum band_info *band)
 {
-	return reg_get_band(pdev, band_bitmap);
+	return reg_get_band(pdev, band);
 }
 
 /**
@@ -225,6 +225,13 @@ QDF_STATUS ucfg_reg_enable_dfs_channels(struct wlan_objmgr_pdev *pdev,
 					bool dfs_enable)
 {
 	return reg_enable_dfs_channels(pdev, dfs_enable);
+}
+
+QDF_STATUS ucfg_reg_get_curr_band(struct wlan_objmgr_pdev *pdev,
+				  enum band_info *band)
+{
+	return reg_get_curr_band(pdev, band);
+
 }
 
 void ucfg_reg_register_chan_change_callback(struct wlan_objmgr_psoc *psoc,

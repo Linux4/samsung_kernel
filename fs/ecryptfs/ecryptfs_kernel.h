@@ -40,6 +40,7 @@
 #include <linux/nsproxy.h>
 #include <linux/backing-dev.h>
 #include <linux/ecryptfs.h>
+
 #ifdef CONFIG_ECRYPTFS_FEK_INTEGRITY
 #define HASH_OFFSET 512
 #define FEK_HASH_SIZE 32
@@ -51,6 +52,7 @@
 #define ENC_EXT_FILTER_MAX_INSTANCE 60
 #define ENC_EXT_FILTER_MAX_LEN 16
 #endif
+
 #define ECRYPTFS_DEFAULT_IV_BYTES 16
 #define ECRYPTFS_DEFAULT_EXTENT_SIZE 4096
 #define ECRYPTFS_MINIMUM_HEADER_EXTENT_SIZE 8192
@@ -62,7 +64,6 @@
 #define ECRYPTFS_XATTR_NAME "user.ecryptfs"
 
 #define SEC_ECRYPTFS_HMAC_KEY_SIZE   32
-
 void ecryptfs_dump_auth_tok(struct ecryptfs_auth_tok *auth_tok);
 static inline void
 ecryptfs_to_hex(char *dst, char *src, size_t src_size)
@@ -267,6 +268,7 @@ struct ecryptfs_crypt_stat {
 #define ECRYPTFS_ENCRYPTED_OTHER_DEVICE 0x00008000
 #endif
 #define ECRYPTFS_SUPPORT_HMAC_KEY     0x00010000
+
 	u32 flags;
 	unsigned int file_version;
 	size_t iv_bytes;
@@ -792,6 +794,7 @@ int ecryptfs_derive_iv(char *iv, struct ecryptfs_crypt_stat *crypt_stat,
 		       loff_t offset);
 
 extern const struct xattr_handler *ecryptfs_xattr_handlers[];
+
 
 #ifdef CONFIG_WTL_ENCRYPTION_FILTER
 extern int is_file_name_match(struct ecryptfs_mount_crypt_stat *mcs,

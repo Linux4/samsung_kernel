@@ -261,18 +261,6 @@ static const struct file_operations gw9558_fops = {
 	.release =	gw9558_release,
 };
 
-#if defined(ENABLE_SENSORS_FPRINT_SECURE)
-int fpsensor_goto_suspend = 0;
-
-int fps_resume_set(void) {
-	int rc = 0;
-
-	if (fpsensor_goto_suspend)
-		fpsensor_goto_suspend = 0;
-	return rc;
-}
-#endif
-
 static void gw9558_work_func_debug(struct work_struct *work)
 {
 	struct gf_device *gf_dev = NULL;

@@ -31,7 +31,7 @@ class KconfigTest(unittest.TestCase):
 		self.assertTrue(kconfig0.is_subset_of(kconfig0))
 
 		kconfig1 = kunit_config.Kconfig()
-		kconfig1.add_entry(kunit_config.KconfigEntry('TEST','y'))
+		kconfig1.add_entry(kunit_config.KconfigEntry('CONFIG_TEST=y'))
 		self.assertTrue(kconfig1.is_subset_of(kconfig1))
 		self.assertTrue(kconfig0.is_subset_of(kconfig1))
 		self.assertFalse(kconfig1.is_subset_of(kconfig0))
@@ -45,15 +45,15 @@ class KconfigTest(unittest.TestCase):
 
 		expected_kconfig = kunit_config.Kconfig()
 		expected_kconfig.add_entry(
-			kunit_config.KconfigEntry('UML','y'))
+			kunit_config.KconfigEntry('CONFIG_UML=y'))
 		expected_kconfig.add_entry(
-			kunit_config.KconfigEntry('MMU','y'))
+			kunit_config.KconfigEntry('CONFIG_MMU=y'))
 		expected_kconfig.add_entry(
-			kunit_config.KconfigEntry('TEST','y'))
+			kunit_config.KconfigEntry('CONFIG_TEST=y'))
 		expected_kconfig.add_entry(
-			kunit_config.KconfigEntry('EXAMPLE_TEST','y'))
+			kunit_config.KconfigEntry('CONFIG_EXAMPLE_TEST=y'))
 		expected_kconfig.add_entry(
-			kunit_config.KconfigEntry('MK8','n'))
+			kunit_config.KconfigEntry('# CONFIG_MK8 is not set'))
 
 		self.assertEqual(kconfig.entries(), expected_kconfig.entries())
 
@@ -62,15 +62,15 @@ class KconfigTest(unittest.TestCase):
 
 		expected_kconfig = kunit_config.Kconfig()
 		expected_kconfig.add_entry(
-			kunit_config.KconfigEntry('UML','y'))
+			kunit_config.KconfigEntry('CONFIG_UML=y'))
 		expected_kconfig.add_entry(
-			kunit_config.KconfigEntry('MMU','y'))
+			kunit_config.KconfigEntry('CONFIG_MMU=y'))
 		expected_kconfig.add_entry(
-			kunit_config.KconfigEntry('TEST','y'))
+			kunit_config.KconfigEntry('CONFIG_TEST=y'))
 		expected_kconfig.add_entry(
-			kunit_config.KconfigEntry('EXAMPLE_TEST','y'))
+			kunit_config.KconfigEntry('CONFIG_EXAMPLE_TEST=y'))
 		expected_kconfig.add_entry(
-			kunit_config.KconfigEntry('MK8','n'))
+			kunit_config.KconfigEntry('# CONFIG_MK8 is not set'))
 
 		expected_kconfig.write_to_file(kconfig_path)
 
@@ -287,7 +287,7 @@ class KUnitKernelTest(unittest.TestCase):
 	def test_not_subset_throw_exception(self):
 		supersetConfig = kunit_config.Kconfig()
 		subsetConfig = kunit_config.Kconfig()
-		subsetConfig.add_entry(kunit_config.KconfigEntry('TEST','y'))
+		subsetConfig.add_entry(kunit_config.KconfigEntry('CONFIG_TEST=y'))
 
 		with self.assertRaises(kunit_kernel.ConfigError):
 			kunit_kernel.throw_error_if_not_subset(supersetConfig, subsetConfig)
@@ -295,16 +295,16 @@ class KUnitKernelTest(unittest.TestCase):
 	def test_not_subset_no_exception(self):
 		subsetConfig = kunit_config.Kconfig()
 		supersetConfig = kunit_config.Kconfig()
-		supersetConfig.add_entry(kunit_config.KconfigEntry('TEST','y'))
+		supersetConfig.add_entry(kunit_config.KconfigEntry('CONFIG_TEST=y'))
 		kunit_kernel.throw_error_if_not_subset(supersetConfig, subsetConfig)
 
 	def test_build_reconfig_no_change(self):
 		tempConfig = tempfile.NamedTemporaryFile(delete=False, mode="w+")
 
 		kconfig = kunit_config.Kconfig()
-		kconfig.add_entry(kunit_config.KconfigEntry('TEST','y'))
-		kconfig.add_entry(kunit_config.KconfigEntry('MMU','y'))
-		kconfig.add_entry(kunit_config.KconfigEntry('UML','y'))
+		kconfig.add_entry(kunit_config.KconfigEntry('CONFIG_TEST=y'))
+		kconfig.add_entry(kunit_config.KconfigEntry('CONFIG_MMU=y'))
+		kconfig.add_entry(kunit_config.KconfigEntry('CONFIG_UML=y'))
 
 		operations = TestLinuxSourceTreeOperationsNoChange(tempConfig.name)
 
@@ -323,9 +323,9 @@ class KUnitKernelTest(unittest.TestCase):
 		tempConfig = tempfile.NamedTemporaryFile(delete=False, mode="w+")
 
 		kconfig = kunit_config.Kconfig()
-		kconfig.add_entry(kunit_config.KconfigEntry('TEST','y'))
-		kconfig.add_entry(kunit_config.KconfigEntry('MMU','y'))
-		kconfig.add_entry(kunit_config.KconfigEntry('UML','y'))
+		kconfig.add_entry(kunit_config.KconfigEntry('CONFIG_TEST=y'))
+		kconfig.add_entry(kunit_config.KconfigEntry('CONFIG_MMU=y'))
+		kconfig.add_entry(kunit_config.KconfigEntry('CONFIG_UML=y'))
 
 		operations = TestLinuxSourceTreeOperationsDeleteLine(tempConfig.name)
 
@@ -378,7 +378,7 @@ class KUnitKernelTest(unittest.TestCase):
 
 class TestExtKunitconfigGenerator(unittest.TestCase):
     def setUp(self):
-        self.test_path = './test_data/exynos9830'
+        self.test_path = './test_data/kernel'
 
     def test_get_subconfig_childs(self):
         ek = kunit_kernel.ExtKunitconfigGenerator(['muic'], path=self.test_path)

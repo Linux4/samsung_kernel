@@ -20,9 +20,9 @@
 #include <linux/hwmon-sysfs.h>
 #include <linux/iio/consumer.h>
 #include <linux/platform_data/sec_thermistor.h>
+#if defined(CONFIG_DRV_SAMSUNG)
 #include <linux/sec_class.h>
-
-#define ADC_SAMPLING_CNT	5
+#endif
 
 struct sec_therm_info {
 	int id;
@@ -84,6 +84,7 @@ static int sec_therm_parse_dt(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
+	pdata->iio_processed = of_property_read_bool(info->np, "use_iio_processed");
 	pdata->adc_arr_size = adc_arr_len / sizeof(u32);
 	pdata->adc_table = devm_kzalloc(&pdev->dev,
 			sizeof(*pdata->adc_table) * pdata->adc_arr_size,
@@ -112,31 +113,20 @@ static int sec_therm_parse_dt(struct platform_device *pdev) { return -ENODEV; }
 static int sec_therm_get_adc_data(struct sec_therm_info *info)
 {
 	int adc_data;
-	int adc_max = 0, adc_min = 0, adc_total = 0;
-	int i;
+	int ret;
 
-	for (i = 0; i < ADC_SAMPLING_CNT; i++) {
-		int ret = iio_read_channel_raw(info->chan, &adc_data);
+	if (info->pdata->iio_processed)
+		ret = iio_read_channel_processed(info->chan, &adc_data);
+	else
+		ret = iio_read_channel_raw(info->chan, &adc_data);
 
-		if (ret < 0) {
-			dev_err(info->dev, "%s : err(%d) returned, skip read\n",
+	if (ret < 0) {
+		dev_err(info->dev, "%s : err(%d) returned, skip read\n",
 				__func__, adc_data);
-			return ret;
-		}
-
-		if (i != 0) {
-			if (adc_data > adc_max)
-				adc_max = adc_data;
-			else if (adc_data < adc_min)
-				adc_min = adc_data;
-		} else {
-			adc_max = adc_data;
-			adc_min = adc_data;
-		}
-		adc_total += adc_data;
+		return ret;
 	}
 
-	return (adc_total - adc_max - adc_min) / (ADC_SAMPLING_CNT - 2);
+	return adc_data;
 }
 
 static int convert_adc_to_temper(struct sec_therm_info *info, unsigned int adc)
@@ -292,7 +282,11 @@ static int sec_therm_probe(struct platform_device *pdev)
 		return PTR_ERR(info->chan);
 	}
 
+#ifdef CONFIG_DRV_SAMSUNG
 	info->sec_dev = sec_device_create(info, info->name);
+#else
+	info->sec_dev = -EINVAL;
+#endif
 	if (IS_ERR(info->sec_dev)) {
 		dev_err(info->dev, "%s: fail to create sec_dev\n", __func__);
 		return PTR_ERR(info->sec_dev);

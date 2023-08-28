@@ -27,6 +27,7 @@
 #define INPUT_FEATURE_ENABLE_PRESSURE		(1 << 1) /* homekey pressure */
 #define INPUT_FEATURE_ENABLE_SYNC_RR120		(1 << 2) /* sync reportrate 120hz */
 #define INPUT_FEATURE_ENABLE_VRR		(1 << 3) /* variable refresh rate (support 240hz) */
+#define INPUT_FEATURE_ENABLE_SYSINPUT_ENABLED		(1 << 5) /* resume/suspend called by system input service */
 
 #define INPUT_FEATURE_SUPPORT_OPEN_SHORT_TEST		(1 << 8) /* open/short test support */
 #define INPUT_FEATURE_SUPPORT_MIS_CALIBRATION_TEST	(1 << 9) /* mis-calibration test support */
@@ -39,7 +40,8 @@
 #define INPUT_LOG_BUF_SIZE	512
 
 #ifdef CONFIG_SEC_DEBUG_TSP_LOG
-#include <linux/input/sec_tsp_log.h>
+//#include <linux/sec_debug.h>		/* exynos */
+#include <linux/input/sec_tsp_log.h>	/* qualcomm */
 
 #define input_dbg(mode, dev, fmt, ...)						\
 ({										\
@@ -124,7 +126,7 @@
 })
 #define input_raw_data_clear() sec_tsp_raw_data_clear()
 #endif
-#define input_log_fix() {}
+#define input_log_fix()	sec_tsp_log_fix()
 #else
 #define input_dbg(mode, dev, fmt, ...)						\
 ({										\
@@ -148,7 +150,6 @@
  * Note that __USE_TIME_BITS64 is defined by libc based on
  * application's request to use 64 bit time_t.
  */
-
 struct input_event {
 #if (__BITS_PER_LONG != 32 || !defined(__USE_TIME_BITS64)) && !defined(__KERNEL__)
 	struct timeval time;
@@ -158,6 +159,7 @@ struct input_event {
 	__kernel_ulong_t __sec;
 #if defined(__sparc__) && defined(__arch64__)
 	unsigned int __usec;
+	unsigned int __pad;
 #else
 	__kernel_ulong_t __usec;
 #endif
@@ -361,13 +363,14 @@ struct input_mask {
 #define EVIOCSMASK		_IOW('E', 0x93, struct input_mask)	/* Set event-masks */
 
 #define EVIOCSCLOCKID		_IOW('E', 0xa0, int)			/* Set clockid to be used for timestamps */
-#define KEY_SIDE_GESTURE_RIGHT	0x1ca
-#define KEY_SIDE_GESTURE_LEFT	0x1cb
-#define KEY_SIDE_GESTURE	0x1c6
-#define KEY_BLACK_UI_GESTURE	0x1c7
-#define SW_GLOVE		0x0f	/* set = glove mode */
-#define ABS_MT_PALM		0x3e	/* palm touch */
-#define ABS_MT_GRIP		0x3f	/* grip touch */
+
+/*
+ * Switch events
+ */
+#define SW_FLIP                 0x15  /* set = flip cover open, close*/
+#define SW_CERTIFYHALL          0x1b  /* set = certify_hall attach/detach */
+#define SW_WACOM_HALL		0x1e  /* set = wacom hall ic attach/detach */
+#define SW_HALL_LOGICAL		0x1f  /* set = logical hall ic attach/detach */
 
 /*
  * IDs.
@@ -398,6 +401,9 @@ struct input_mask {
 #define BUS_GSC			0x1A
 #define BUS_ATARI		0x1B
 #define BUS_SPI			0x1C
+#define BUS_RMI			0x1D
+#define BUS_CEC			0x1E
+#define BUS_INTEL_ISHTP		0x1F
 
 /*
  * MT_TOOL types

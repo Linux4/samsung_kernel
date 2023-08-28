@@ -18,6 +18,7 @@ struct cs40l2x_platform_data {
 	unsigned int boost_ipk;
 	unsigned int boost_ctl;
 	unsigned int boost_ovp;
+	unsigned int boost_clab;
 	bool refclk_gpio2;
 	unsigned int f0_default;
 	unsigned int f0_min;
@@ -58,6 +59,20 @@ struct cs40l2x_platform_data {
 	unsigned int fw_id_remap;
 	bool amp_gnd_stby;
 	bool auto_recovery;
+#ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
+	bool folder_type;
+	unsigned int dig_scale_default;
+	unsigned int dig_scale_fc_sd;			/* FOLDER CLOSE,  SHORT DURATION */
+	unsigned int dig_scale_fc_ld;			/* FOLDER CLOSE, LONG DURATION */
+	unsigned int dig_scale_fo_sd;			/* FOLDER OPEN, SHORT DURATION */
+	unsigned int dig_scale_fo_ld;			/* FOLDER OPEN, LONG DURATION */
+	unsigned int dig_scale_fo_ld_low_temp;		/* FOLDER OPEN, LONG DURATION, LOW TEMP */
+	unsigned int dig_scale_fo_ld_lower_temp;	/* FOLDER OPEN, LONG DURATION, LOWER TEMP */
+	unsigned int dig_scale_high_temp;		/* For TOP model, united dig scale for HIGH TEMP */
+	int low_temp;
+	int lower_temp;
+	int high_temp;
+#endif
 };
 
 #endif /* __CS40L2X_H */

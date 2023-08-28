@@ -155,15 +155,8 @@ static int soc_compr_open_fe(struct snd_compr_stream *cstream)
 	fe->dpcm[stream].runtime_update = SND_SOC_DPCM_UPDATE_FE;
 
 	ret = dpcm_be_dai_startup(fe, stream);
-	if (ret < 0) {
-		/* clean up all links */
-		list_for_each_entry(dpcm, &fe->dpcm[stream].be_clients, list_be)
-			dpcm->state = SND_SOC_DPCM_LINK_STATE_FREE;
-
-		dpcm_be_disconnect(fe, stream);
-		fe->dpcm[stream].runtime = NULL;
+	if (ret < 0)
 		goto out;
-	}
 
 	if (cpu_dai->driver->cops && cpu_dai->driver->cops->startup) {
 		ret = cpu_dai->driver->cops->startup(cstream, cpu_dai);
@@ -171,7 +164,7 @@ static int soc_compr_open_fe(struct snd_compr_stream *cstream)
 			dev_err(cpu_dai->dev,
 				"Compress ASoC: can't open interface %s: %d\n",
 				cpu_dai->name, ret);
-			goto out;
+			goto be_unwind;
 		}
 	}
 
@@ -194,9 +187,7 @@ static int soc_compr_open_fe(struct snd_compr_stream *cstream)
 	fe->dpcm[stream].state = SND_SOC_DPCM_STATE_OPEN;
 	fe->dpcm[stream].runtime_update = SND_SOC_DPCM_UPDATE_NO;
 
-	mutex_lock_nested(&fe->pcm_mutex, fe->pcm_subclass);
 	snd_soc_runtime_activate(fe, stream);
-	mutex_unlock(&fe->pcm_mutex);
 
 	mutex_unlock(&fe->card->mutex);
 
@@ -207,7 +198,15 @@ machine_err:
 open_err:
 	if (cpu_dai->driver->cops && cpu_dai->driver->cops->shutdown)
 		cpu_dai->driver->cops->shutdown(cstream, cpu_dai);
+be_unwind:
+	dpcm_be_dai_shutdown(fe, stream);
 out:
+	/* clean up all links */
+	list_for_each_entry(dpcm, &fe->dpcm[stream].be_clients, list_be)
+		dpcm->state = SND_SOC_DPCM_LINK_STATE_FREE;
+
+	dpcm_be_disconnect(fe, stream);
+	fe->dpcm[stream].runtime = NULL;
 	dpcm_path_put(&list);
 be_err:
 	fe->dpcm[stream].runtime_update = SND_SOC_DPCM_UPDATE_NO;
@@ -312,9 +311,7 @@ static int soc_compr_free_fe(struct snd_compr_stream *cstream)
 	else
 		stream = SNDRV_PCM_STREAM_CAPTURE;
 
-	mutex_lock_nested(&fe->pcm_mutex, fe->pcm_subclass);
 	snd_soc_runtime_deactivate(fe, stream);
-	mutex_unlock(&fe->pcm_mutex);
 
 	fe->dpcm[stream].runtime_update = SND_SOC_DPCM_UPDATE_FE;
 
@@ -398,7 +395,6 @@ static int soc_compr_trigger_fe(struct snd_compr_stream *cstream, int cmd)
 	struct snd_soc_component *component;
 	struct snd_soc_rtdcom_list *rtdcom;
 	struct snd_soc_dai *cpu_dai = fe->cpu_dai;
-	enum snd_soc_dpcm_trigger trigger;
 	int ret = 0, __ret, stream;
 
 	if (cmd == SND_COMPR_TRIGGER_PARTIAL_DRAIN ||
@@ -423,44 +419,7 @@ static int soc_compr_trigger_fe(struct snd_compr_stream *cstream, int cmd)
 	else
 		stream = SNDRV_PCM_STREAM_CAPTURE;
 
-	trigger = fe->dai_link->trigger[stream];
-	switch (cmd) {
-	case SNDRV_PCM_TRIGGER_START:
-	case SNDRV_PCM_TRIGGER_RESUME:
-	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		switch (trigger) {
-		case SND_SOC_DPCM_TRIGGER_PRE_POST:
-			trigger = SND_SOC_DPCM_TRIGGER_PRE;
-			break;
-		case SND_SOC_DPCM_TRIGGER_POST_PRE:
-			trigger = SND_SOC_DPCM_TRIGGER_POST;
-			break;
-		default:
-			break;
-		}
-		break;
-	case SNDRV_PCM_TRIGGER_STOP:
-	case SNDRV_PCM_TRIGGER_SUSPEND:
-	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
-		switch (trigger) {
-		case SND_SOC_DPCM_TRIGGER_PRE_POST:
-			trigger = SND_SOC_DPCM_TRIGGER_POST;
-			break;
-		case SND_SOC_DPCM_TRIGGER_POST_PRE:
-			trigger = SND_SOC_DPCM_TRIGGER_PRE;
-			break;
-		default:
-			break;
-		}
-		break;
-	}
-
 	mutex_lock_nested(&fe->card->mutex, SND_SOC_CARD_CLASS_RUNTIME);
-
-	if (trigger == SND_SOC_DPCM_TRIGGER_POST) {
-		fe->dpcm[stream].runtime_update = SND_SOC_DPCM_UPDATE_FE;
-		ret = dpcm_be_dai_trigger(fe, stream, cmd);
-	}
 
 	if (cpu_dai->driver->cops && cpu_dai->driver->cops->trigger) {
 		ret = cpu_dai->driver->cops->trigger(cstream, cmd, cpu_dai);
@@ -482,10 +441,9 @@ static int soc_compr_trigger_fe(struct snd_compr_stream *cstream, int cmd)
 	if (ret < 0)
 		goto out;
 
-	if (trigger == SND_SOC_DPCM_TRIGGER_PRE) {
-		fe->dpcm[stream].runtime_update = SND_SOC_DPCM_UPDATE_FE;
-		ret = dpcm_be_dai_trigger(fe, stream, cmd);
-	}
+	fe->dpcm[stream].runtime_update = SND_SOC_DPCM_UPDATE_FE;
+
+	ret = dpcm_be_dai_trigger(fe, stream, cmd);
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
@@ -506,6 +464,37 @@ out:
 	fe->dpcm[stream].runtime_update = SND_SOC_DPCM_UPDATE_NO;
 	mutex_unlock(&fe->card->mutex);
 	return ret;
+}
+
+static void dpcm_be_hw_params_prepare(void *data)
+{
+	struct snd_compr_stream *cstream = data;
+	struct snd_soc_pcm_runtime *fe = cstream->private_data;
+	struct snd_soc_pcm_runtime *be = cstream->be;
+	int stream, ret;
+
+	if (cstream->direction == SND_COMPRESS_PLAYBACK)
+		stream = SNDRV_PCM_STREAM_PLAYBACK;
+	else
+		stream = SNDRV_PCM_STREAM_CAPTURE;
+
+	ret = dpcm_fe_dai_hw_params_be(fe, be,
+		    &fe->dpcm[stream].hw_params, stream);
+	if (ret < 0) {
+		fe->err_ops = ret;
+		return;
+	}
+
+	ret = dpcm_fe_dai_prepare_be(fe, be, stream);
+	if (ret < 0) {
+		fe->err_ops = ret;
+		return;
+	}
+}
+
+static void dpcm_be_hw_params_prepare_async(void *data, async_cookie_t cookie)
+{
+	dpcm_be_hw_params_prepare(data);
 }
 
 static int soc_compr_set_params(struct snd_compr_stream *cstream,
@@ -581,7 +570,11 @@ static int soc_compr_set_params_fe(struct snd_compr_stream *cstream,
 	struct snd_soc_component *component;
 	struct snd_soc_rtdcom_list *rtdcom;
 	struct snd_soc_dai *cpu_dai = fe->cpu_dai;
-	int ret = 0, __ret, stream;
+	struct snd_soc_pcm_runtime *be_list[DPCM_MAX_BE_USERS];
+	struct snd_soc_dpcm *dpcm;
+	int ret = 0, __ret, stream, i, j = 0;
+
+	ASYNC_DOMAIN_EXCLUSIVE(async_domain);
 
 	if (cstream->direction == SND_COMPRESS_PLAYBACK)
 		stream = SNDRV_PCM_STREAM_PLAYBACK;
@@ -597,14 +590,6 @@ static int soc_compr_set_params_fe(struct snd_compr_stream *cstream,
 	 */
 	memset(&fe->dpcm[fe_substream->stream].hw_params, 0,
 		sizeof(struct snd_pcm_hw_params));
-
-	component = fe->cpu_dai->component;
-	if (component->driver->compr_ops && component->driver->compr_ops->get_hw_params) {
-		ret = component->driver->compr_ops->get_hw_params(cstream,
-				&fe->dpcm[fe_substream->stream].hw_params);
-		if (ret < 0)
-			goto out;
-	}
 
 	fe->dpcm[stream].runtime_update = SND_SOC_DPCM_UPDATE_FE;
 
@@ -622,23 +607,133 @@ static int soc_compr_set_params_fe(struct snd_compr_stream *cstream,
 			goto out;
 	}
 
-	for_each_rtdcom(fe, rtdcom) {
-		component = rtdcom->component;
+	if (!(fe->dai_link->async_ops & ASYNC_DPCM_SND_SOC_HW_PARAMS)) {
+		/* first we call set_params for the platform driver
+		 * this should configure the soc side
+		 * if the machine has compressed ops then we call that as well
+		 * expectation is that platform and machine will configure
+		 * everything for this compress path, like configuring pcm
+		 * port for codec
+		 */
+		for_each_rtdcom(fe, rtdcom) {
+			component = rtdcom->component;
 
-		if (!component->driver->compr_ops ||
-		    !component->driver->compr_ops->set_params)
-			continue;
+			if (!component->driver->compr_ops ||
+			    !component->driver->compr_ops->set_params)
+				continue;
 
-		__ret = component->driver->compr_ops->set_params(cstream, params);
-		if (__ret < 0)
-			ret = __ret;
-	}
-	if (ret < 0)
-		goto out;
-
-	if (fe->dai_link->compr_ops && fe->dai_link->compr_ops->set_params) {
-		ret = fe->dai_link->compr_ops->set_params(cstream);
+			__ret =
+				component->driver->compr_ops->set_params(
+					cstream, params);
+			if (__ret < 0)
+				ret = __ret;
+		}
 		if (ret < 0)
+			goto out;
+
+		if (fe->dai_link->compr_ops &&
+				fe->dai_link->compr_ops->set_params) {
+			ret = fe->dai_link->compr_ops->set_params(cstream);
+			if (ret < 0)
+				goto out;
+		}
+		/*
+		 * Create an empty hw_params for the BE as the machine
+		 * driver must fix this up to match DSP decoder and
+		 * ASRC configuration.
+		 * I.e. machine driver fixup for compressed BE is
+		 * mandatory.
+		 */
+		memset(&fe->dpcm[fe_substream->stream].hw_params, 0,
+				sizeof(struct snd_pcm_hw_params));
+
+		fe->dpcm[stream].runtime_update = SND_SOC_DPCM_UPDATE_FE;
+
+		ret = dpcm_be_dai_hw_params(fe, stream);
+		if (ret < 0)
+			goto out;
+
+		ret = dpcm_be_dai_prepare(fe, stream);
+		if (ret < 0)
+			goto out;
+	} else {
+		/*
+		 * Create an empty hw_params for the BE as the machine
+		 * driver must fix this up to match DSP decoder and
+		 * ASRC configuration.
+		 * I.e. machine driver fixup for compressed BE is
+		 * mandatory.
+		 */
+		memset(&fe->dpcm[fe_substream->stream].hw_params, 0,
+				sizeof(struct snd_pcm_hw_params));
+
+		fe->dpcm[stream].runtime_update = SND_SOC_DPCM_UPDATE_FE;
+
+		list_for_each_entry(dpcm,
+				&fe->dpcm[stream].be_clients, list_be) {
+			struct snd_soc_pcm_runtime *be = dpcm->be;
+
+			if (be->dai_link->async_ops &
+				ASYNC_DPCM_SND_SOC_HW_PARAMS) {
+				cstream->be = be;
+				async_schedule_domain(
+				dpcm_be_hw_params_prepare_async,
+				cstream, &async_domain);
+			} else {
+				be_list[j++] = be;
+				if (j == DPCM_MAX_BE_USERS) {
+					dev_dbg(fe->dev,
+						"ASoC: MAX backend users!\n");
+					break;
+				}
+			}
+		}
+		for (i = 0; i < j; i++) {
+			cstream->be = be_list[i];
+			dpcm_be_hw_params_prepare(cstream);
+		}
+
+		if (cpu_dai->driver->cops &&
+			cpu_dai->driver->cops->set_params) {
+			ret = cpu_dai->driver->cops->set_params(
+					cstream, params, cpu_dai);
+			if (ret < 0)
+				goto exit;
+		}
+
+		/* first we call set_params for the platform driver
+		 * this should configure the soc side
+		 * if the machine has compressed ops then we call that as well
+		 * expectation is that platform and machine will configure
+		 * everything this compress path, like configuring pcm port
+		 * for codec
+		 */
+		for_each_rtdcom(fe, rtdcom) {
+			component = rtdcom->component;
+
+			if (!component->driver->compr_ops ||
+			    !component->driver->compr_ops->set_params)
+				continue;
+
+			__ret = component->driver->compr_ops->set_params(
+					cstream, params);
+			if (__ret < 0)
+				ret = __ret;
+		}
+		if (ret < 0)
+			goto exit;
+
+		dpcm_dapm_stream_event(fe, stream, SND_SOC_DAPM_STREAM_START);
+
+		if (fe->dai_link->compr_ops &&
+				fe->dai_link->compr_ops->set_params) {
+			ret = fe->dai_link->compr_ops->set_params(cstream);
+			if (ret < 0)
+				goto exit;
+		}
+exit:
+		async_synchronize_full_domain(&async_domain);
+		if (fe->err_ops < 0 || ret < 0)
 			goto out;
 	}
 
@@ -825,6 +920,28 @@ static int soc_compr_copy(struct snd_compr_stream *cstream,
 	return ret;
 }
 
+static int sst_compr_set_next_track_param(struct snd_compr_stream *cstream,
+				union snd_codec_options *codec_options)
+{
+	struct snd_soc_pcm_runtime *rtd = cstream->private_data;
+	struct snd_soc_component *component;
+	struct snd_soc_rtdcom_list *rtdcom;
+	int ret = 0;
+
+	for_each_rtdcom(rtd, rtdcom) {
+		component = rtdcom->component;
+
+		if (component->driver->compr_ops &&
+			component->driver->compr_ops->set_next_track_param)
+			ret =
+			component->driver->compr_ops->set_next_track_param(
+				cstream, codec_options);
+	}
+
+	return ret;
+}
+
+
 static int soc_compr_set_metadata(struct snd_compr_stream *cstream,
 				  struct snd_compr_metadata *metadata)
 {
@@ -891,6 +1008,7 @@ static struct snd_compr_ops soc_compr_ops = {
 	.free		= soc_compr_free,
 	.set_params	= soc_compr_set_params,
 	.set_metadata   = soc_compr_set_metadata,
+	.set_next_track_param	= sst_compr_set_next_track_param,
 	.get_metadata	= soc_compr_get_metadata,
 	.get_params	= soc_compr_get_params,
 	.trigger	= soc_compr_trigger,
@@ -907,6 +1025,7 @@ static struct snd_compr_ops soc_compr_dyn_ops = {
 	.set_params	= soc_compr_set_params_fe,
 	.get_params	= soc_compr_get_params,
 	.set_metadata   = soc_compr_set_metadata,
+	.set_next_track_param	= sst_compr_set_next_track_param,
 	.get_metadata	= soc_compr_get_metadata,
 	.trigger	= soc_compr_trigger_fe,
 	.pointer	= soc_compr_pointer,
@@ -1033,8 +1152,21 @@ int snd_soc_new_compress(struct snd_soc_pcm_runtime *rtd, int num)
 	rtd->compr = compr;
 	compr->private_data = rtd;
 
-	dev_info(rtd->card->dev, "Compress ASoC: %s <-> %s mapping ok\n",
+	for_each_rtdcom(rtd, rtdcom) {
+		component = rtdcom->component;
+
+		if (component->driver->pcm_new) {
+			ret = component->driver->pcm_new(rtd);
+			if (ret < 0) {
+				pr_err("asoc: compress pcm constructor failed\n");
+				goto compr_err;
+			}
+		}
+	}
+
+	dev_dbg(rtd->card->dev, "Compress ASoC: %s <-> %s mapping ok\n",
 		 codec_dai->name, cpu_dai->name);
+
 	return ret;
 
 compr_err:

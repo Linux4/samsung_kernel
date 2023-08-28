@@ -18,11 +18,6 @@ obj-$(CONFIG_WLAN_VENDOR_ST) += st/
 obj-$(CONFIG_WLAN_VENDOR_TI) += ti/
 obj-$(CONFIG_WLAN_VENDOR_ZYDAS) += zydas/
 obj-$(CONFIG_WLAN_VENDOR_QUANTENNA) += quantenna/
-obj-$(CONFIG_CNSS2) += cnss2/
-obj-$(CONFIG_QCA_CLD_WLAN)  += qualcomm/qca6390/qcacld-3.0/
-obj-$(CONFIG_CNSS_UTILS) += cnss_utils/
-obj-$(CONFIG_CNSS_GENL) += cnss_genl/
-obj-$(CONFIG_WCNSS_MEM_PRE_ALLOC) += cnss_prealloc/
 
 obj-$(CONFIG_BCM_DHD_WLAN) += broadcom/
 
@@ -35,3 +30,13 @@ obj-$(CONFIG_USB_NET_RNDIS_WLAN)	+= rndis_wlan.o
 obj-$(CONFIG_MAC80211_HWSIM)	+= mac80211_hwsim.o
 
 obj-$(CONFIG_VIRT_WIFI)	+= virt_wifi.o
+
+obj-$(CONFIG_CNSS2) += cnss2/
+
+obj-$(CONFIG_CNSS_UTILS) += cnss_utils/
+
+obj-$(CONFIG_WCNSS_MEM_PRE_ALLOC) += cnss_prealloc/
+
+obj-$(CONFIG_QCA_CLD_WLAN)	+= qualcomm/qca6390/qcacld-3.0/
+
+obj-$(CONFIG_CNSS_GENL) += cnss_genl/

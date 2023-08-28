@@ -357,7 +357,7 @@ typedef enum _deviceIdentifier_e {
 #define AMS_ALS_REG_TO_PERS(x)		(x >> 0)
 
 typedef enum _deviceRegisters {
-	DEVREG_RAM_START, 
+	DEVREG_RAM_START,
 	DEVREG_SMUX13_PRX_TO_FLICKER,
 
 	DEVREG_ENABLE,
@@ -870,8 +870,8 @@ typedef struct _deviceInfo {
 } ams_deviceInfo_t;
 
 
-/* #define ALS_DBG */
-/* #define ALS_INFO */
+// #define ALS_DBG
+// #define ALS_INFO
 
 #ifndef ALS_dbg
 #ifdef ALS_DBG
@@ -966,7 +966,6 @@ struct tcs3407_device_data {
 	int in_suspend;
 	int wake_irq;
 	int irq_pending;
-	int suspend_cnt;
 	bool unpowered;
 	u8 device_index;
 	void *deviceCtx;
@@ -987,7 +986,9 @@ struct tcs3407_device_data {
 	u32 sampling_period_ns;
 	u8 regulator_state;
 	s32 pin_als_int;
+#if !defined(CONFIG_SEC_Y2Q_PROJECT)
 	s32 pin_als_en;
+#endif
 	s32 dev_irq;
 	u8 irq_state;
 	u32 reg_read_buf;
