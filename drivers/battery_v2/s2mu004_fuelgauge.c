@@ -500,6 +500,15 @@ static void s2mu004_reset_fg(struct s2mu004_fuelgauge_data *fuelgauge)
 
 	WA_0_issue_at_init(fuelgauge);
 
+	/*After FG reset current battery data version get reset to default value 1, causing mismatch in bootloader and kernel FG data verion.
+	 Below code restores the FG data version in 0x48 register to it's initalized value.*/
+	pr_info("%s: FG data version %02x\n", __func__, fuelgauge->info.data_ver);
+
+	s2mu004_read_reg_byte(fuelgauge->i2c, S2MU004_REG_FG_ID, &temp);
+	temp &= 0xF0;
+	temp |= fuelgauge->info.data_ver;
+	s2mu004_write_reg_byte(fuelgauge->i2c, S2MU004_REG_FG_ID, temp);
+
 	pr_err("%s: Reset FG completed\n", __func__);
 }
 
@@ -1857,6 +1866,11 @@ static int s2mu004_fuelgauge_probe(struct i2c_client *client,
 	fuelgauge->psy_fg.properties    = s2mu004_fuelgauge_props;
 	fuelgauge->psy_fg.num_properties =
 			ARRAY_SIZE(s2mu004_fuelgauge_props);
+
+	if (!fuelgauge->info.data_ver) {
+		s2mu004_read_reg_byte(fuelgauge->i2c, S2MU004_REG_FG_ID, &temp);
+		fuelgauge->info.data_ver = (temp & 0x0F);
+	}
 
 	/* 0x48[7:4]=0010 : EVT2 */
 	fuelgauge->revision = 0;

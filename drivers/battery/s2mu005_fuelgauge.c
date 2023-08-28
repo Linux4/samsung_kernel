@@ -248,7 +248,7 @@ static void WA_0_issue_at_init(struct s2mu005_fuelgauge_data *fuelgauge)
 	s2mu005_write_reg_byte(fuelgauge->i2c, 0x40, v_40);
 }
 
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
+#if defined(CONFIG_BATTERY_AGE_FORECAST_DETACHABLE)
 static void WA_force_rawsoc_100(struct s2mu005_fuelgauge_data *fuelgauge)
 {
 	u8 temp1, v_40;
@@ -458,7 +458,7 @@ static void s2mu005_reset_fg(struct s2mu005_fuelgauge_data *fuelgauge)
 	u8 temp = 0;
 	mutex_lock(&fuelgauge->fg_lock);
 	/* step 0: [Surge test] initialize register of FG */
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
+#if defined(CONFIG_BATTERY_AGE_FORECAST_DETACHABLE)
 	/*Reset IC*/
 	s2mu005_write_reg_byte(fuelgauge->i2c, 0x1F, 0x40);
 	msleep(50);
@@ -565,7 +565,7 @@ static void s2mu005_reset_fg(struct s2mu005_fuelgauge_data *fuelgauge)
 		s2mu005_write_reg_byte(fuelgauge->i2c, 0x26, temp);
 	}
 
-#if !defined(CONFIG_BATTERY_AGE_FORECAST)
+#if !defined(CONFIG_BATTERY_AGE_FORECAST_DETACHABLE)
 	s2mu005_write_reg_byte(fuelgauge->i2c, 0x40, 0x08);
 
 	WA_0_issue_at_init(fuelgauge);
