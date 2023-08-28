@@ -654,24 +654,29 @@ static int sec_direct_charger_parse_dt(struct device *dev,
 		}
 		pr_info("%s: charger,dchg_min_current is %d\n", __func__, charger->pdata->dchg_min_current);
 
-		ret = of_property_read_u32(np, "charger,dchg_temp_low_threshold",
-			&charger->pdata->dchg_temp_low_threshold);
-		if (ret) {
-			pr_err("%s : charger,dchg_temp_low_threshold is Empty\n", __func__);
-			charger->pdata->dchg_temp_low_threshold = 180;
-		}
-		pr_info("%s: charger,dchg_temp_low_threshold is %d\n", __func__, charger->pdata->dchg_temp_low_threshold);
-
-		ret = of_property_read_u32(np, "charger,dchg_temp_high_threshold",
-			&charger->pdata->dchg_temp_high_threshold);
-		if (ret) {
-			pr_err("%s : charger,dchg_temp_high_threshold is Empty\n", __func__);
-			charger->pdata->dchg_temp_high_threshold = 420;
-		}
-		pr_info("%s: charger,dchg_temp_high_threshold is %d\n", __func__, charger->pdata->dchg_temp_high_threshold);
-
 		charger->ta_alert_wa = of_property_read_bool(np, "charger,ta_alert_wa");
 	}
+
+	np = of_find_node_by_name(NULL, "battery");
+	if (!np) {
+		pr_info("%s: np NULL\n", __func__);
+		return 1;
+	} else {
+		ret = of_property_read_u32(np, "battery,wire_normal_warm_thresh",
+				&charger->pdata->dchg_temp_high_threshold);
+		if (ret) {
+			pr_info("%s : dchg_temp_high_threshold is Empty\n", __func__);
+			charger->pdata->dchg_temp_high_threshold = 420;
+		}
+
+		ret = of_property_read_u32(np, "battery,wire_cool1_normal_thresh",
+				&charger->pdata->dchg_temp_low_threshold);
+		if (ret) {
+			pr_info("%s : dchg_temp_low_threshold is Empty\n", __func__);
+			charger->pdata->dchg_temp_low_threshold = 180;
+		}
+	}
+
 	return 0;
 }
 #else

@@ -84,11 +84,11 @@ static struct GAForensicINFO {
 } GAFINFO = {
 	.ver = 0x0600, /* by hryhorii tur 2019 10 21 */
 	.size = sizeof(GAFINFO),
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 14, 0))	
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 14, 0))
 	.task_struct_struct_state = offsetof(struct task_struct, __state),
 #else
 	.task_struct_struct_state = offsetof(struct task_struct, state),
-#endif	
+#endif
 	.task_struct_struct_comm = offsetof(struct task_struct, comm),
 	.task_struct_struct_tasks = offsetof(struct task_struct, tasks),
 	.task_struct_struct_pid = offsetof(struct task_struct, pid),
@@ -122,8 +122,7 @@ static struct GAForensicINFO {
 	.list_head_struct_prev = offsetof(struct list_head, prev),
 #if defined(CONFIG_KDP_NS) || defined(CONFIG_RKP_NS_PROT) || defined(CONFIG_RUSTUH_KDP_NS)
 	.is_kdp_ns_on = true,
-#if defined(CONFIG_SOC_EXYNOS2100) || defined(CONFIG_ARCH_LAHAINA) || defined(CONFIG_SOC_S5E9925) || defined(CONFIG_ARCH_HOLI) \
-|| defined(CONFIG_SOC_S5E8825)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 	.struct_vfsmount_bp_mount = offsetof(struct kdp_vfsmount, bp_mount),
 #else
 	.struct_vfsmount_bp_mount = offsetof(struct vfsmount, bp_mount),

@@ -45,14 +45,12 @@ extern unsigned int lpcharge;
 #define SECDP_USE_WAKELOCK
 #define SECDP_MAX_HBR2
 #define SECDP_OPTIMAL_LINK_RATE	 /* use optimum link_rate, not max link_rate */
-#define SECDP_LIMIT_REFRESH_RATE /* needs to be DISABLED once android has menu for user to change DP resolution */
 
 /*#define SECDP_AUDIO_CTS*/
 /*#define SECDP_HDCP_DISABLE*/
 /*#define SECDP_EVENT_THREAD*/
 /*#define SECDP_TEST_HDCP2P2_REAUTH*/
 /*#define NOT_SUPPORT_DEX_RES_CHANGE*/
-/*#define SECDP_IGNORE_PREFER_IF_DEX_RES_EXIST*/
 
 #define LEN_BRANCH_REV		3
 #define	DPCD_BRANCH_HW_REV		0x509
@@ -215,6 +213,7 @@ static inline char *secdp_dex_res_to_string(int res)
 #define DEX_MAX_ROW	1440
 #define DEX_FPS_MIN	50                  /* DeX min refresh rate */
 #define DEX_FPS_MAX	60                  /* DeX max refresh rate */
+#define MIRROR_REFRESH_MIN	24
 
 enum DEX_STATUS {
 	DEX_DISABLED = 0,
@@ -302,6 +301,11 @@ struct secdp_attention_node {
 struct secdp_adapter {
 	uint ven_id;
 	uint prod_id;
+	char fw_ver[10];   /* firmware ver, 0:h/w, 1:s/w major, 2:s/w minor */
+
+	bool ss_genuine;
+	bool ss_legacy;
+	enum dex_support_res_t dex_type;
 };
 
 #define MON_NAME_LEN	14	/* monitor name length, max 13 chars + null */
@@ -325,8 +329,6 @@ struct secdp_prefer {
 	enum mon_aspect_ratio_t	ratio;
 
 	bool exist;   /* true if preferred resolution */
-	bool ignore;  /* true if larger refresh rate exists */
-
 	int  hdisp;   /* horizontal pixel of preferred resolution */
 	int  vdisp;   /* vertical pixel of preferred resolution */
 	int  refresh; /* refresh rate of preferred resolution */
@@ -350,12 +352,7 @@ struct secdp_dex {
 	 */
 	enum DEX_STATUS status; /* previously known as "dex_node_status" */
 
-	char fw_ver[10];   /* firmware ver, 0:h/w, 1:s/w major, 2:s/w minor */
 	bool reconnecting; /* true if dex is under reconnecting */
-
-#ifdef SECDP_IGNORE_PREFER_IF_DEX_RES_EXIST
-	bool res_exist;    /* true if dex resolution exists */
-#endif
 };
 
 struct secdp_display_timing {
@@ -367,6 +364,7 @@ struct secdp_display_timing {
 	enum dex_support_res_t dex_res;    /* dex supported resolution */
 	enum mon_aspect_ratio_t mon_ratio; /* monitor aspect ratio */
 	int  supported;                    /* for unit test */
+	u64  total;
 };
 
 struct secdp_mst {

@@ -580,6 +580,9 @@ int muic_hv_charger_init(void)
 {
 	struct muic_platform_data *pdata = &muic_pdata;
 
+	if (pdata)
+		set_bit(CHARGER_PROBE_DONE, &pdata->driver_probe_flag);
+
 	if (pdata && pdata->muic_hv_charger_init_cb)
 		return pdata->muic_hv_charger_init_cb();
 
