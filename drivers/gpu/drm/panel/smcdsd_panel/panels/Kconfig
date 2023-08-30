@@ -1,0 +1,53 @@
+if DRM_MEDIATEK && !MTK_FB && SMCDSD_PANEL
+
+config SMCDSD_LCD_DEBUG
+	bool "Support LCD_DEBUG"
+	depends on DEBUG_FS
+	default n
+
+config SMCDSD_DPUI
+	bool "Support DPUI"
+	default n
+
+config SMCDSD_MDNIE
+	bool "Support MDNIE"
+	default n
+
+config SMCDSD_DOZE
+	bool "Support DOZE"
+	default n
+
+config SMCDSD_MASK_LAYER
+	bool "Support mask layer"
+	default n
+
+config SMCDSD_DYNAMIC_MIPI
+	bool "Support dynamic mipi"
+	default n
+
+config SMCDSD_PANEL_M53X
+	bool "Support SMCDSD_PANEL_M53X driver"
+	default n
+
+config SMCDSD_PANEL_A32X
+	bool "Support SMCDSD_PANEL_A32X driver"
+	default n
+
+config SMCDSD_PANEL_A32XU
+	bool "Support SMCDSD_PANEL_A32XU driver"
+	default n
+
+config SMCDSD_PANEL_A22EX
+	bool "Support SMCDSD_PANEL_A22EX driver"
+	default n
+
+config SMCDSD_PANEL_A13X
+	bool "Support SMCDSD_PANEL_A13X driver"
+	default n
+
+config SMCDSD_PANEL_A13XU
+	bool "Support SMCDSD_PANEL_A13XU driver"
+	default n
+
+endif # DRM_MEDIATEK && !MTK_FB && SMCDSD_PANEL
+
