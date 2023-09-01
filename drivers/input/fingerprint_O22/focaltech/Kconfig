@@ -1,0 +1,26 @@
+#
+# Focaltech Fingerprint driver configuration
+#
+
+config FINGERPRINT_FOCALTECH
+    tristate "FocalTech Fingerprint"
+    default n
+    help
+      If you say Y to this option, support will be included for
+      the FocalTech's capacitive or optical fingerprint sensor.
+      This driver supports almost all the TEE solutions just like
+      QSEE, Trustonic, TrustKernel, Beanpod.., also including
+      REE emulation.
+
+      This driver can also be built as a module. If so, the module
+      will be called 'focaltech_fp'.
+
+
+config FINGERPRINT_FOCALTECH_SPI_SUPPORT
+    bool "FocalTech Fingerprint SPI Support"
+    default n
+    depends on FINGERPRINT_FOCALTECH
+    help
+        Set Y here if supports SPI communication
+        in kernel.
+        If unsure, say N.

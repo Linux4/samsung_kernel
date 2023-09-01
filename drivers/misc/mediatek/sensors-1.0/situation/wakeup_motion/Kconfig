@@ -1,0 +1,8 @@
+
+config MTK_WAKE_UP_MOTION
+    bool "wakeup motion for MediaTek package"
+    help
+      A lift detect is a device,
+      usually portable and electronic
+      or electromechanical,
+      that detect device is picked up with 35 degree.
