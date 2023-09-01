@@ -40,6 +40,11 @@
 #define MASK_6b		(0x3f)
 #define MASK_7b		(0x7f)
 #define MASK_8b		(0xff)
+#define IS_JIG_ADC(adc) \
+	(((adc == ADC_JIG_USB_OFF) \
+	|| (adc == ADC_JIG_USB_ON) \
+	|| (adc == ADC_JIG_UART_OFF) \
+	|| (adc == ADC_JIG_UART_ON)) ? 1 : 0)
 
 enum s2mu106_muic_registers {
 	S2MU106_REG_AFC_INT = 0x0,
@@ -373,6 +378,17 @@ enum s2mu106_muic_registers {
 #define BCD_RESCAN_BCD_RESCAN_SHIFT		0
 
 #define BCD_RESCAN_BCD_RESCAN_MASK		(0x1 << BCD_RESCAN_BCD_RESCAN_SHIFT)
+
+/* S2MU106 MUIC AFC_OTP3 Register (0x68) */
+#define AFC_COMP_REF_SEL_SHIFT		5
+#define AFC_HCOMP_REF_SEL_SHIFT		0
+
+#define AFC_COMP_REF_SEL_MASK               (0x7 << AFC_COMP_REF_SEL_SHIFT)
+#define AFC_COMP_REF_SEL_0p3V_MASK          (0x4 << AFC_COMP_REF_SEL_SHIFT)
+#define AFC_COMP_REF_SEL_0p4V_MASK          (0x2 << AFC_COMP_REF_SEL_SHIFT)
+#define AFC_HCOMP_REF_SEL_MASK              (0x1f << AFC_HCOMP_REF_SEL_SHIFT)
+#define AFC_HCOMP_REF_SEL_1p2V_MASK         (0x8 << AFC_HCOMP_REF_SEL_SHIFT)
+
 
 /* S2MU106 MUIC MUIC_CTRL1 Register (0x6D) */
 #define MUIC_CTRL1_TX_DPDM_SHORT_SHIFT		7
@@ -773,7 +789,7 @@ enum s2mu106_muic_registers {
 
 #if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
 #define WATER_DET_RETRY_CNT				10
-#define WATER_PDIC_WAIT_DURATION_MS		4000
+#define WATER_CCIC_WAIT_DURATION_MS		4000
 #define WATER_DRY_RETRY_INTERVAL_SEC	600
 #define WATER_DRY_RETRY_30MIN_SEC		1800
 #define WATER_DRY_RETRY_60MIN_SEC		6000
@@ -796,18 +812,18 @@ enum s2mu106_muic_registers {
 		&& ((adc) <= (ADC_AUDIOMODE_W_REMOTE)) \
 		? 1 : 0)
 #define IS_WATER_STATUS(x)\
-		( ((x) == (S2MU106_WATER_MUIC_PDIC_DET)) \
-		|| ((x) == (S2MU106_WATER_MUIC_PDIC_STABLE)) \
+		( ((x) == (S2MU106_WATER_MUIC_CCIC_DET)) \
+		|| ((x) == (S2MU106_WATER_MUIC_CCIC_STABLE)) \
 		? 1 : 0 )
 #endif
 
 /* s2mu106-muic macros */
 #define ENUM_STR(x, r) { case x: r = #x; break; }
 
-#define REQUEST_IRQ(_irq, _dev_id, _name, _func)			\
+#define REQUEST_IRQ(_irq, _dev_id, _name, _func)				\
 do {									\
-	ret = request_threaded_irq(_irq, NULL, _func,			\
-				0, _name, _dev_id);			\
+	ret = request_threaded_irq(_irq, NULL, _func,	\
+				0, _name, _dev_id);	\
 	if (ret < 0) {							\
 		pr_err("%s:%s Failed to request IRQ #%d: %d\n",		\
 				MUIC_DEV_NAME, __func__, _irq, ret);	\
@@ -885,16 +901,16 @@ typedef enum {
 	S2MU106_WATER_MUIC_IDLE,
 	S2MU106_WATER_MUIC_VERIFY,
 	S2MU106_WATER_MUIC_DET,
-	S2MU106_WATER_MUIC_PDIC_DET,
-	S2MU106_WATER_MUIC_PDIC_STABLE,
-	S2MU106_WATER_MUIC_PDIC_INVALID,
+	S2MU106_WATER_MUIC_CCIC_DET,
+	S2MU106_WATER_MUIC_CCIC_STABLE,
+	S2MU106_WATER_MUIC_CCIC_INVALID,
 } t_water_status;
 
 typedef enum {
 	S2MU106_WATER_DRY_MUIC_IDLE,
 	S2MU106_WATER_DRY_MUIC_DET,
-	S2MU106_WATER_DRY_MUIC_PDIC_DET,
-	S2MU106_WATER_DRY_MUIC_PDIC_INVALID,
+	S2MU106_WATER_DRY_MUIC_CCIC_DET,
+	S2MU106_WATER_DRY_MUIC_CCIC_INVALID,
 } t_water_dry_status;
 
 typedef enum {
@@ -955,6 +971,7 @@ struct s2mu106_muic_data {
 #if defined(CONFIG_HV_MUIC_S2MU106_AFC)
 	bool is_dp_drive;
 	bool is_hvcharger_detected;
+	bool is_requested_step_down;
 #endif
 
 	muic_attached_dev_t new_dev;
@@ -968,6 +985,8 @@ struct s2mu106_muic_data {
 	int mping_cnt;
 	int qc_retry_cnt;
 	int tx_data;
+	int qc_retry_wait_cnt;
+	int received_tx_data;
 
 	muic_hv_state_t hv_state;
 #endif
@@ -986,6 +1005,10 @@ struct s2mu106_muic_data {
 	struct delayed_work qc_retry_work;
 #endif
 
+#if IS_ENABLED(CONFIG_HICCUP_CHARGER)
+	bool is_hiccup_mode;
+#endif
+
 #if defined(CONFIG_S2MU106_TYPEC_WATER)
 	struct delayed_work water_detect_handler;
 	struct delayed_work water_dry_handler;
@@ -999,10 +1022,6 @@ struct s2mu106_muic_data {
 	long dry_chk_time;
 	int dry_cnt;
 	long dry_duration_sec;
-
-#if IS_ENABLED(CONFIG_HICCUP_CHARGER)
-	bool is_hiccup_mode;
-#endif
 
 	struct mutex water_det_mutex;
 	struct mutex water_dry_mutex;
@@ -1018,9 +1037,6 @@ struct s2mu106_muic_data {
 
 	int discharging_en;
 	int vbus_discharging;
-#if IS_ENABLED(CONFIG_S2MU106_IFCONN_HOUSE_NOT_GND)
-	bool is_rescanning;
-#endif
 };
 
 extern struct muic_platform_data muic_pdata;
@@ -1042,7 +1058,7 @@ int s2mu106_set_gpio_uart_sel(struct s2mu106_muic_data *muic_data,
 			      int uart_sel);
 int s2mu106_init_interface(struct s2mu106_muic_data *muic_data,
 			   struct muic_interface_t *muic_if);
-#if IS_ENABLED(CONFIG_PDIC_S2MU106)
+#if IS_ENABLED(CONFIG_CCIC_S2MU106)
 int s2mu106_muic_refresh_adc(struct s2mu106_muic_data *muic_data);
 #endif
 #if IS_ENABLED(CONFIG_SEC_FACTORY)

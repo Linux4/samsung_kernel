@@ -155,6 +155,7 @@
 #define AFC_MPING_RETRY_CNT_LIMIT (20)
 #define AFC_QC_RETRY_CNT_LIMIT (3)
 #define VCHGIN_CHECK_CNT_LIMIT (3)
+#define AFC_QC_RETRY_WAIT_CNT_LIMIT (3)
 
 #define IS_VCHGIN_9V(x) ((8000 <= x) && (x <= 10300))
 #define IS_VCHGIN_5V(x) ((4000 <= x) && (x <= 6000))
@@ -214,6 +215,7 @@ extern void s2mu106_hv_muic_remove(struct s2mu106_muic_data *muic_data);
 extern muic_attached_dev_t hv_muic_check_id_err(struct s2mu106_muic_data *muic_data,
 		muic_attached_dev_t new_dev);
 #ifdef CONFIG_HV_MUIC_VOLTAGE_CTRL
-extern int muic_afc_set_voltage(int vol);
+extern int s2mu106_muic_afc_set_voltage(int vol);
+extern int s2mu106_muic_afc_get_voltage(void);
 #endif
 #endif /* __S2MU106_MUIC_HV_H__ */

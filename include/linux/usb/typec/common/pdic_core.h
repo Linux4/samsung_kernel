@@ -58,7 +58,7 @@ typedef enum {
 
 #define TRY_ROLE_SWAP_WAIT_MS 5000
 #endif
-#define DUAL_ROLE_SET_MODE_WAIT_MS 1500
+#define DUAL_ROLE_SET_MODE_WAIT_MS 2000
 #define GEAR_VR_DETACH_WAIT_MS		1000
 #define SAMSUNG_PRODUCT_ID		0x6860
 #define SAMSUNG_PRODUCT_TYPE	0x2
@@ -90,7 +90,6 @@ typedef enum {
 #define SEC_UVDM_UNSTRUCTURED_VDM	0x4
 
 #define SEC_UVDM_ALIGN (4)
-#define SEC_UVDM_WAIT_MS (2000)
 #define SEC_UVDM_MAXDATA_FIRST (12)
 #define SEC_UVDM_MAXDATA_NORMAL (16)
 #define SEC_UVDM_CHECKSUM_COUNT (20)
@@ -270,7 +269,7 @@ struct pdic_misc_dev {
 
 typedef struct _pdic_data_t {
 	const char *name;
-	void *pdic_syfs_prop;
+	void *pdic_sysfs_prop;
 	void *drv_data;
 	void (*set_enable_alternate_mode)(int);
 	struct pdic_misc_dev *misc_dev;

@@ -30,7 +30,7 @@
 static struct pdic_misc_dev *c_dev;
 
 #define MAX_BUF 255
-#define NODE_OF_MISC "pdic_misc"
+#define NODE_OF_MISC "ccic_misc"
 #define PDIC_IOCTL_UVDM _IOWR('C', 0, struct uvdm_data)
 #ifdef CONFIG_COMPAT
 #define PDIC_IOCTL_UVDM_32 _IOWR('C', 0, struct uvdm_data_32)
@@ -202,7 +202,7 @@ static int pdic_misc_open(struct inode *inode, struct file *file)
 {
 	int ret = 0;
 
-	pr_info("%s + open supdess\n", __func__);
+	pr_info("%s + open success\n", __func__);
 	if (!c_dev) {
 		pr_err("%s - error : c_dev is NULL\n", __func__);
 		ret = -ENODEV;
@@ -223,7 +223,7 @@ static int pdic_misc_open(struct inode *inode, struct file *file)
 		goto err;
 	}
 
-	pr_info("%s - open supdess\n", __func__);
+	pr_info("%s - open success\n", __func__);
 
 	return 0;
 err:
@@ -232,10 +232,15 @@ err:
 
 static int pdic_misc_close(struct inode *inode, struct file *file)
 {
+	if (!c_dev) {
+		pr_err("%s - error : c_dev is NULL\n", __func__);
+		return -ENODEV;
+	}
+
 	if (c_dev)
 		_unlock(&c_dev->open_excl);
 	c_dev->uvdm_close();
-	pr_info("%s - close supdess\n", __func__);
+	pr_info("%s - close success\n", __func__);
 	return 0;
 }
 
@@ -442,7 +447,7 @@ int pdic_misc_init(ppdic_data_t ppdic_data)
 	if (ppdic_data)
 		ppdic_data->misc_dev = c_dev;
 
-	pr_info("%s - register supdess\n", __func__);
+	pr_info("%s - register success\n", __func__);
 	return 0;
 err1:
 	misc_deregister(&pdic_misc_device);

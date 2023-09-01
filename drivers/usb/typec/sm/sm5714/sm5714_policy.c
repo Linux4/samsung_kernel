@@ -28,6 +28,9 @@
 #if defined(CONFIG_USB_HOST_NOTIFY)
 #include <linux/usb_notify.h>
 #endif
+#if defined(CONFIG_BATTERY_SAMSUNG)
+#include "../../../../battery/common/sec_charging_common.h"
+#endif
 
 static unsigned int SRC_CHECK_LIST[][3] = {
 	{MODE_MSG, MSG_GET_SRC_CAP, PE_SRC_Send_Capabilities},
@@ -71,6 +74,11 @@ static unsigned int SNK_CHECK_LIST[][3] = {
 	{MODE_MSG, MSG_DR_SWAP, PE_DRS_Evaluate_Port},
 	{MODE_MSG, MSG_VCONN_SWAP, PE_VCS_Evaluate_Swap},
 	{MODE_MSG, MSG_BIST_M2, PE_BIST_CARRIER_M2},
+#if defined(CONFIG_PDIC_PD30)
+	{MODE_MSG, MSG_GET_STATUS, PE_SNK_Get_Source_Status},
+	{MODE_MSG, MSG_GET_PPS_STATUS, PE_SNK_Get_Source_PPS_Status},
+	{MODE_MSG, MSG_GET_SRC_CAP_EXT, PE_SNK_Get_Source_Cap_Ext},
+#endif
 	{MODE_MSG, VDM_DISCOVER_IDENTITY, PE_UFP_VDM_Get_Identity},
 	{MODE_MSG, VDM_DISCOVER_SVID, PE_UFP_VDM_Get_SVIDs},
 	{MODE_MSG, VDM_DISCOVER_MODE, PE_UFP_VDM_Get_Modes},
@@ -545,7 +553,11 @@ static policy_state sm5714_usbpd_policy_snk_startup(
 	struct sm5714_phydrv_data *pdic_data = pd_data->phy_driver_data;
 
 	dev_info(pd_data->dev, "%s\n", __func__);
+#if defined(CONFIG_SEC_FACTORY)
+	if (pdic_data->reset_done == 1 || policy->last_state == 0) {
+#else
 	if (pdic_data->reset_done == 1) {
+#endif
 		pdic_data->reset_done = 0;
 		return PE_SNK_Discovery;
 	}
@@ -558,10 +570,11 @@ static policy_state sm5714_usbpd_policy_snk_discovery(
 		struct sm5714_policy_data *policy)
 {
 	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
+	struct sm5714_phydrv_data *pdic_data = pd_data->phy_driver_data;
 	/* ST_PE_SNK_DISCOVERY */
 	sm5714_cc_state_hold_on_off(pd_data, 0); /* CC State Hold Off */
 
-	if (sm5714_check_vbus_state(pd_data)) {
+	if (sm5714_check_vbus_state(pd_data) || pdic_data->pd_support) {
 		sm5714_set_enable_pd_function(pd_data, PD_ENABLE);
 		return PE_SNK_Wait_for_Capabilities;
 	}
@@ -573,6 +586,9 @@ static policy_state sm5714_usbpd_policy_snk_wait_for_capabilities(
 		struct sm5714_policy_data *policy)
 {
 	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
+#if !defined(CONFIG_SEC_FACTORY)
+	struct sm5714_phydrv_data *pdic_data = pd_data->phy_driver_data;
+#endif
 
 	dev_info(pd_data->dev, "%s\n", __func__);
 
@@ -584,8 +600,10 @@ static policy_state sm5714_usbpd_policy_snk_wait_for_capabilities(
 		return PE_SNK_Wait_for_Capabilities;
 #if !defined(CONFIG_SEC_FACTORY)
 	if (pd_data->counter.hard_reset_counter <= USBPD_nHardResetCount) {
-		if (!sm5714_check_vbus_state(pd_data))
+		if (!sm5714_check_vbus_state(pd_data) && !pdic_data->pd_support) {
+			sm5714_set_enable_pd_function(pd_data, PD_DISABLE);
 			return PE_SNK_Discovery;
+		}
 		pd_data->counter.hard_reset_counter++;
 		return PE_SNK_Hard_Reset;
 	}
@@ -598,8 +616,21 @@ static policy_state sm5714_usbpd_policy_snk_evaluate_capability(
 {
 	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
 	int sink_request_obj_num = 0;
+#if defined(CONFIG_BATTERY_SAMSUNG)
+	union power_supply_propval val;
+	struct power_supply *psy;
+#endif
 
 	dev_info(pd_data->dev, "%s\n", __func__);
+#if defined(CONFIG_BATTERY_SAMSUNG)
+	psy = power_supply_get_by_name("battery");
+	if (psy) {
+		val.intval = 1;
+		psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_SRCCAP, val);
+	} else {
+		pr_err("%s: Fail to get psy battery\n", __func__);
+	}
+#endif
 	pd_data->counter.hard_reset_counter = 0;
 	sm5714_cc_state_hold_on_off(pd_data, 0); /* CC State Hold Off */
 
@@ -681,6 +712,9 @@ static policy_state sm5714_usbpd_policy_snk_transition_sink(
 		if (msg & MSG_PSRDY) {
 			dev_info(pd_data->dev, "got PS_READY.\n");
 #if defined(CONFIG_BATTERY_NOTIFIER)
+#if defined(CONFIG_PDIC_PD30)
+			complete(&pd_data->pd_completion);
+#endif
 			pd_noti.sink_status.current_pdo_num =
 					pd_noti.sink_status.selected_pdo_num;
 #endif
@@ -727,6 +761,11 @@ static policy_state sm5714_usbpd_policy_snk_hard_reset(
 {
 	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
 	struct sm5714_phydrv_data *pdic_data = pd_data->phy_driver_data;
+
+	if (policy->abnormal_state) {
+		pr_info("%s : cable is detached!\n", __func__);
+		return 0;
+	}
 
 	dev_info(pd_data->dev, "%s\n", __func__);
 	if (policy->last_state != policy->state) {
@@ -791,6 +830,59 @@ static policy_state sm5714_usbpd_policy_snk_give_sink_cap(
 	}
 	return PE_SNK_Give_Sink_Cap;
 }
+
+#if defined(CONFIG_PDIC_PD30)
+policy_state usbpd_policy_snk_get_source_cap_ext(
+		struct sm5714_policy_data *policy)
+{
+	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
+
+	if (policy->last_state != policy->state) {
+		sm5714_usbpd_send_ctrl_msg(pd_data, &policy->tx_msg_header,
+				USBPD_Get_Src_Cap_Ext, USBPD_UFP, USBPD_SINK);
+	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
+		if (pd_data->protocol_tx.status == MESSAGE_SENT)
+			return PE_SNK_Ready;
+		else
+			return PE_SNK_Send_Soft_Reset;
+	}
+	return PE_SNK_Get_Source_Cap_Ext;
+}
+
+policy_state usbpd_policy_snk_get_source_status(
+		struct sm5714_policy_data *policy)
+{
+	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
+
+	if (policy->last_state != policy->state) {
+		sm5714_usbpd_send_ctrl_msg(pd_data, &policy->tx_msg_header,
+				USBPD_Get_Status, USBPD_UFP, USBPD_SINK);
+	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
+		if (pd_data->protocol_tx.status == MESSAGE_SENT)
+			return PE_SNK_Ready;
+		else
+			return PE_SNK_Send_Soft_Reset;
+	}
+	return PE_SNK_Get_Source_Status;
+}
+
+policy_state usbpd_policy_snk_get_source_pps_status(
+		struct sm5714_policy_data *policy)
+{
+	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
+
+	if (policy->last_state != policy->state) {
+		sm5714_usbpd_send_ctrl_msg(pd_data, &policy->tx_msg_header,
+				USBPD_Get_PPS_Status, USBPD_UFP, USBPD_SINK);
+	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
+		if (pd_data->protocol_tx.status == MESSAGE_SENT)
+			return PE_SNK_Ready;
+		else
+			return PE_SNK_Send_Soft_Reset;
+	}
+	return PE_SNK_Get_Source_PPS_Status;
+}
+#endif
 
 static policy_state sm5714_usbpd_policy_snk_get_source_cap(
 		struct sm5714_policy_data *policy)
@@ -1251,8 +1343,9 @@ static policy_state sm5714_usbpd_policy_prs_src_snk_transition_to_off(
 		msleep(25);
 		sm5714_usbpd_turn_off_power_supply(pd_data);
 
-		sm5714_cc_state_hold_on_off(pd_data, 1); /* CC State Hold On */
+		sm5714_cc_state_hold_on_off(pd_data, 2); /* CC State Freeze On */
 		msleep(350);
+		sm5714_cc_state_hold_on_off(pd_data, 1); /* CC State Hold On */
 	}
 	return PE_PRS_SRC_SNK_Assert_Rd;
 }
@@ -1296,9 +1389,6 @@ static policy_state sm5714_usbpd_policy_prs_src_snk_wait_source_on(
 				complete(&pdic_data->typec_reverse_completion);
 			}
 #endif
-			msleep(tSwapSinkReady);
-			if (!sm5714_check_vbus_state(pd_data))
-				return Error_Recovery;
 			return PE_SNK_Startup;
 		}
 		if (policy->abnormal_state) /* Detach */
@@ -1974,7 +2064,7 @@ static policy_state sm5714_usbpd_policy_ufp_vdm_mode_entry_nak(
 static policy_state sm5714_usbpd_policy_ufp_vdm_mode_exit(
 		struct sm5714_policy_data *policy)
 {
-/*
+#if 0
 	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
 
 	dev_info(pd_data->dev, "%s\n", __func__);
@@ -1993,7 +2083,7 @@ static policy_state sm5714_usbpd_policy_ufp_vdm_mode_exit(
 				return PE_UFP_VDM_Mode_Exit_NAK;
 		}
 	}
-*/
+#endif
 	return PE_UFP_VDM_Mode_Exit_NAK;
 
 }
@@ -2399,15 +2489,12 @@ static policy_state sm5714_usbpd_policy_dfp_vdm_svids_request(
 	} else if (pd_data->protocol_tx.status != DEFAULT_PROTOCOL_NONE) {
 		if (pd_data->protocol_tx.status == MESSAGE_SENT) {
 			if (sm5714_usbpd_wait_msg(pd_data, VDM_DISCOVER_SVID, tVDMSenderResponse)) {
-				if (policy->rx_data_obj[0].structured_vdm.command_type == Responder_ACK) {
+				if (policy->rx_data_obj[0].structured_vdm.command_type == Responder_ACK)
 					return PE_DFP_VDM_SVIDs_ACKed;
-				}
-			} else {
+			} else
 				return PE_DFP_VDM_SVIDs_NAKed;
-			}
-		} else {
+		} else
 			return PE_DFP_VDM_SVIDs_NAKed;
-		}
 	}
 	return PE_DFP_VDM_SVIDs_Request;
 }
@@ -3006,11 +3093,10 @@ static policy_state sm5714_usbpd_policy_bist_carrier_m2(
 
 	sm5714_set_bist_carrier_m2(pd_data);
 
-	if (power_role == USBPD_SINK) {
+	if (power_role == USBPD_SINK)
 		return PE_SNK_Transition_to_default;
-	} else {
+	else
 		return PE_SRC_Transition_to_default;
-	}
 }
 
 static policy_state sm5714_usbpd_error_recovery(
@@ -3019,7 +3105,8 @@ static policy_state sm5714_usbpd_error_recovery(
 	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
 
 	dev_err(pd_data->dev, "%s\n", __func__);
-	sm5714_error_recovery_mode(pd_data);
+	if (policy->last_state != policy->state)
+		sm5714_error_recovery_mode(pd_data);
 	return Error_Recovery;
 }
 
@@ -3196,6 +3283,20 @@ void sm5714_usbpd_policy_work(struct work_struct *work)
 			policy->state =
 				sm5714_usbpd_policy_snk_give_source_cap(policy);
 			break;
+#if defined(CONFIG_PDIC_PD30)
+		case PE_SNK_Get_Source_Cap_Ext:
+			policy->state =
+				usbpd_policy_snk_get_source_cap_ext(policy);
+			break;
+		case PE_SNK_Get_Source_Status:
+			policy->state =
+				usbpd_policy_snk_get_source_status(policy);
+			break;
+		case PE_SNK_Get_Source_PPS_Status:
+			policy->state =
+				usbpd_policy_snk_get_source_pps_status(policy);
+			break;
+#endif
 		case PE_DRS_Evaluate_Port:
 			policy->state =
 				sm5714_usbpd_policy_drs_evaluate_port(policy);
@@ -3642,6 +3743,11 @@ void sm5714_usbpd_init_policy(struct sm5714_usbpd_data *pd_data)
 	policy->origin_message = 0x0;
 	policy->sink_cap_received = 0;
 	policy->send_sink_cap = 0;
+#if defined(CONFIG_BATTERY_NOTIFIER)
+	pd_noti.sink_status.current_pdo_num = 0;
+	pd_noti.sink_status.selected_pdo_num = 0;
+	pd_noti.sink_status.available_pdo_num = 0;
+#endif
 	for (i = 0; i < USBPD_MAX_COUNT_MSG_OBJECT; i++) {
 		policy->rx_data_obj[i].object = 0;
 		policy->tx_data_obj[i].object = 0;

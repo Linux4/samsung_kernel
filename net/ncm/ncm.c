@@ -12,11 +12,12 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-// KNOX NPA - START
+/* START_OF_KNOX_NPA */
 
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -253,7 +254,7 @@ static void update_intermediate_timeout(unsigned int timeout) {
 
 /* This function is used to get the intermediate flow timeout value */
 unsigned int get_intermediate_timeout(void) {
-	return intermediate_flow_timeout;
+	return intermediate_flow_timeout; 
 }
 EXPORT_SYMBOL(get_intermediate_timeout);
 
@@ -281,16 +282,15 @@ static unsigned int hook_func_ipv4_out_conntrack(void *priv, struct sk_buff *skb
 					sprintf(srcaddr,"%pI4",(void *)&tuple->src.u3.ip);
 					sprintf(dstaddr,"%pI4",(void *)&tuple->dst.u3.ip);
 					if ( isIpv4AddressEqualsNull(srcaddr, dstaddr) ) {
-						return NF_ACCEPT;
-					}
+						return NF_ACCEPT;	
+					}	
 				} else {
 					return NF_ACCEPT;
 				}
 				atomic_set(&ct->startFlow, 1);
 				if ( check_intermediate_flag() ) {
 					/* Use 'atomic_set(&ct->intermediateFlow, 1); ct->npa_timeout = ((u32)(jiffies)) + (get_intermediate_timeout() * HZ);' if struct nf_conn->timeout is of type u32; */
-					ct->npa_timeout = ((u32)(jiffies)) + (get_intermediate_timeout() * HZ);
-					atomic_set(&ct->intermediateFlow, 1);
+					atomic_set(&ct->intermediateFlow, 1); ct->npa_timeout = ((u32)(jiffies)) + (get_intermediate_timeout() * HZ);
 					/* Use 'unsigned long timeout = ct->timeout.expires - jiffies;
 							if ( (timeout > 0) && ((timeout/HZ) > 5) ) {
 								atomic_set(&ct->intermediateFlow, 1);
@@ -397,16 +397,15 @@ static unsigned int hook_func_ipv6_out_conntrack(void *priv, struct sk_buff *skb
 					sprintf(srcaddr,"%pI6",(void *)&tuple->src.u3.ip6);
 					sprintf(dstaddr,"%pI6",(void *)&tuple->dst.u3.ip6);
 					if ( isIpv6AddressEqualsNull(srcaddr, dstaddr) ) {
-						return NF_ACCEPT;
-					}
+						return NF_ACCEPT;	
+					}	
 				} else {
 					return NF_ACCEPT;
 				}
 				atomic_set(&ct->startFlow, 1);
 				if ( check_intermediate_flag() ) {
 					/* Use 'atomic_set(&ct->intermediateFlow, 1); ct->npa_timeout = ((u32)(jiffies)) + (get_intermediate_timeout() * HZ);' if struct nf_conn->timeout is of type u32; */
-					ct->npa_timeout = ((u32)(jiffies)) + (get_intermediate_timeout() * HZ);
-					atomic_set(&ct->intermediateFlow, 1);
+					atomic_set(&ct->intermediateFlow, 1); ct->npa_timeout = ((u32)(jiffies)) + (get_intermediate_timeout() * HZ);
 					/* Use 'unsigned long timeout = ct->timeout.expires - jiffies;
 							if ( (timeout > 0) && ((timeout/HZ) > 5) ) {
 								atomic_set(&ct->intermediateFlow, 1);
@@ -499,7 +498,7 @@ static unsigned int hook_func_ipv4_in_conntrack(void *priv, struct sk_buff *skb,
 
 	if (skb){
 		ip_header = (struct iphdr *)skb_network_header(skb);
-		if ( (ip_header) && (ip_header->protocol == IPPROTO_TCP || ip_header->protocol == IPPROTO_UDP || ip_header->protocol == IPPROTO_SCTP || ip_header->protocol == IPPROTO_ICMP || ip_header->protocol == IPPROTO_ICMPV6) ) {
+		if ( (ip_header) && (ip_header->protocol == IPPROTO_TCP || ip_header->protocol == IPPROTO_UDP || ip_header->protocol == IPPROTO_SCTP || ip_header->protocol == IPPROTO_ICMP || ip_header->protocol == IPPROTO_ICMPV6) ) {		
 			ct = nf_ct_get(skb, &ctinfo);
 			if ( (ct) && (!nf_ct_is_dying(ct)) ) {
 				if (ip_header->protocol == IPPROTO_TCP) {
@@ -850,20 +849,25 @@ static ssize_t ncm_read(struct file *file, char __user *buf, size_t count, loff_
 static ssize_t ncm_write(struct file *file, const char __user *buf, size_t count, loff_t *off) {
 	char intermediate_string[6];
 	int intermediate_value = 0;
+	int ret = 0;
 	if (!is_system_server()) {
 		NCM_LOGE("ncm_write failed:Caller is a non system process with uid %u \n", (current_uid().val));
 		return -EACCES;
 	}
 	memset(intermediate_string,'\0',sizeof(intermediate_string));
-	copy_from_user(intermediate_string,buf,sizeof(intermediate_string)-1);
-	intermediate_value = simple_strtol(intermediate_string, NULL, 10);
-	if (intermediate_value > 0) {
-		update_intermediate_timeout(intermediate_value);
-		update_intermediate_flag(intermediate_activated_flag);
-		return strlen(intermediate_string);
+	ret = copy_from_user(intermediate_string,buf,sizeof(intermediate_string)-1);
+	if(ret == 0)
+	{
+		intermediate_value = simple_strtol(intermediate_string, NULL, 10);
+		if (intermediate_value > 0) {
+			update_intermediate_timeout(intermediate_value);
+			update_intermediate_flag(intermediate_activated_flag);
+			return strlen(intermediate_string);
+		}
 	}
 	return intermediate_value;
 }
+
 
 /* The function closes the char device */
 static int ncm_close(struct inode *inode, struct file *file) {
@@ -1021,4 +1025,4 @@ module_exit(ncm_exit)
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("Network Context Metadata Module:");
 
-// KNOX NPA - END
+/* END_OF_KNOX_NPA */

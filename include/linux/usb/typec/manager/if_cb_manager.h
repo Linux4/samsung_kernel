@@ -18,6 +18,7 @@ struct usb_ops {
 
 struct muic_ops {
 	int (*muic_check_usb_killer)(void *data);
+	void (*muic_set_bypass)(void *data, int enable);
 };
 
 struct usbpd_ops {
@@ -50,6 +51,7 @@ extern struct if_cb_manager *register_usb(struct usb_dev *usb);
 extern struct if_cb_manager *register_muic(struct muic_dev *muic);
 extern struct if_cb_manager *register_usbpd(struct usbpd_dev *usbpd);
 extern int muic_check_usb_killer(struct if_cb_manager *man_core);
+extern void muic_set_bypass(struct if_cb_manager *man_core, int enable);
 extern int usbpd_sbu_test_read(struct if_cb_manager *man_core);
 extern void usbpd_set_host_on(struct if_cb_manager *man_core, int mode);
 

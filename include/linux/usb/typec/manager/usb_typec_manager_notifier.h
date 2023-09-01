@@ -25,19 +25,17 @@
 #ifndef __USB_TYPEC_MANAGER_NOTIFIER_H__
 #define __USB_TYPEC_MANAGER_NOTIFIER_H__
 
-#include <linux/muic/muic.h>
-#include <linux/muic/muic_notifier.h>
+#include <linux/muic/common/muic.h>
+#include <linux/muic/common/muic_notifier.h>
 #ifdef CONFIG_VBUS_NOTIFIER
 #include <linux/vbus_notifier.h>
 #endif
 #include <linux/usb/typec/common/pdic_notifier.h>
 
-/* USB TypeC Manager notifier call sequence,
- * largest priority number device will be called first. */
+/* USB TypeC Manager notifier call sequence, largest priority number device will be called first. */
 
 
-/* PDIC notifier call sequence,
- * largest priority number device will be called first. */
+/* PDIC notifier call sequence, largest priority number device will be called first. */
 typedef enum {
 /* MUIC */
 	MANAGER_NOTIFY_MUIC_NONE = 0,
@@ -86,8 +84,7 @@ typedef enum {
 } manager_muic_event;
 #endif
 
-typedef struct
-{
+typedef struct {
 	uint64_t src:4;
 	uint64_t dest:4;
 	uint64_t id:8;
@@ -97,8 +94,7 @@ typedef struct
 	void *pd;
 } MANAGER_NOTI_TYPEDEF;
 
-struct typec_manager_event_work
-{
+struct typec_manager_event_work {
 	struct work_struct typec_manager_work;
 	int src;
 	int dest;
@@ -108,8 +104,7 @@ struct typec_manager_event_work
 	int sub3;
 };
 
-typedef struct _manager_data_t
-{
+typedef struct _manager_data_t {
 	struct blocking_notifier_head manager_muic_notifier;
 	struct blocking_notifier_head manager_notifier;
 	struct notifier_block pdic_nb;
@@ -179,8 +174,8 @@ typedef struct _manager_data_t
 	int dp_is_connect;
 	int dp_hs_connect;
 	int dp_check_done;
-	struct notifier_block manager_external_notifier_nb; 
-}manager_data_t;
+	struct notifier_block manager_external_notifier_nb;
+} manager_data_t;
 
 
 #define PDIC_BATTERY	(1<<0)
@@ -194,8 +189,7 @@ extern void manager_notifier_usbdp_support(void);
 extern void manager_notifier_test(void *);
 
 
-/* pdic notifier register/unregister API
- * for used any where want to receive pdic attached device attach/detach. */
+/* pdic notifier register/unregister API for used any where want to receive pdic attached device attach/detach. */
 extern int manager_notifier_register(struct notifier_block *nb,
 		notifier_fn_t notifier, manager_notifier_device_t listener);
 extern int manager_notifier_unregister(struct notifier_block *nb);

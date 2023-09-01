@@ -20,7 +20,7 @@
  * refer Team Docs > ETC > 1. USB Type C >
  * code managing > pdic_notifier, pdic_notifier
  */
-#define PDIC_NOTI_DEST_NUM			(12)
+#define PDIC_NOTI_DEST_NUM			(13)
 #define PDIC_NOTI_ID_NUM			(17)
 #define PDIC_NOTI_RID_NUM			(8)
 #define PDIC_NOTI_USB_STATUS_NUM	(5)
@@ -28,16 +28,17 @@
 
 typedef enum {
 	PDIC_NOTIFY_DEV_INITIAL		= 0,
-	PDIC_NOTIFY_DEV_USB			= 1,
+	PDIC_NOTIFY_DEV_USB		= 1,
 	PDIC_NOTIFY_DEV_BATT		= 2,
 	PDIC_NOTIFY_DEV_PDIC		= 3,
 	PDIC_NOTIFY_DEV_MUIC		= 4,
 	PDIC_NOTIFY_DEV_MANAGER		= 6,
-	PDIC_NOTIFY_DEV_DP			= 7,
+	PDIC_NOTIFY_DEV_DP		= 7,
 	PDIC_NOTIFY_DEV_USB_DP		= 8,
 	PDIC_NOTIFY_DEV_SUB_BATTERY	= 9,
-	PDIC_NOTIFY_DEV_SECOND_MUIC = 10,
-	PDIC_NOTIFY_DEV_ALL 		= 11,
+	PDIC_NOTIFY_DEV_SECOND_MUIC	= 10,
+	PDIC_NOTIFY_DEV_DEDICATED_MUIC	= 11,
+	PDIC_NOTIFY_DEV_ALL			= 12,
 } pdic_notifier_device;
 
 typedef enum {
@@ -58,6 +59,7 @@ typedef enum {
 	PDIC_NOTIFY_ID_FAC				= 14,
 	PDIC_NOTIFY_ID_PD_PIN_STATUS	= 15,
 	PDIC_NOTIFY_ID_WATER_CABLE		= 16,
+	PDIC_NOTIFY_ID_POFF_WATER		= 17,
 } pdic_notifier_id_t;
 
 typedef enum {
@@ -72,11 +74,10 @@ typedef enum {
 } pdic_notifier_rid_t;
 
 typedef enum {
-	USB_STATUS_NOTIFY_DETACH		= 0,
+	USB_STATUS_NOTIFY_DETACH	= 0,
 	USB_STATUS_NOTIFY_ATTACH_DFP	= 1,
 	USB_STATUS_NOTIFY_ATTACH_UFP	= 2,
 	USB_STATUS_NOTIFY_ATTACH_DRP	= 3,
-	USB_STATUS_NOTIFY_ATTACH_NO_USB	= 4,
 } USB_STATUS;
 
 typedef enum {

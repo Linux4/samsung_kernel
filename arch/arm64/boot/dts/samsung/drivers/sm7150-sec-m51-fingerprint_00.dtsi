@@ -1,0 +1,85 @@
+/* Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&tlmm {
+	etspi_drdypin {
+		etspi_drdypin_active: etspi_drdypin_active {
+			mux {
+				pins = "gpio30";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio30";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+		etspi_drdypin_suspend: etspi_drdypin_suspend {
+			mux {
+				pins = "gpio30";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio30";
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+		};
+	};
+
+	etspi_rstpin {
+		etspi_rstpin: etspi_rstpin {
+			mux {
+				pins = "gpio58";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio58";
+				driver-strength = <2>;
+				bias-pull-down;
+			};
+		};
+	};
+};
+
+&pm6150l_l7 {
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	qcom,init-voltage = <3300000>;
+};
+
+&soc {
+	qupv3_se6_spi: spi@0xa80000 {
+		status = "okay";
+
+		etspi-spi@0 {
+			compatible = "etspi,et5xx";
+			reg = <0>;
+			spi-max-frequency = <12500000>;
+			etspi-min_cpufreq_limit = <2169600>;
+
+			pinctrl-names = "default", "sleep", "idle";
+			pinctrl-0 = <&etspi_drdypin_suspend &etspi_rstpin>;
+			pinctrl-1 = <&etspi_drdypin_suspend>;
+			pinctrl-2 = <&etspi_drdypin_active>;
+
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			etspi-regulator = "pm6150l_l7";
+			etspi-sleepPin = <&tlmm 58 0>;
+			etspi-drdyPin = <&tlmm 30 1>;
+			etspi-chipid = "ET523";
+			etspi-orient = <2>;
+		};
+	};
+};

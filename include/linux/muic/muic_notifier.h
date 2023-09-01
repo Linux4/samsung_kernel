@@ -21,12 +21,16 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
  */
+
 #ifndef __MUIC_NOTIFIER_H__
 #define __MUIC_NOTIFIER_H__
 
 #include <linux/muic/muic.h>
-#if defined(CONFIG_PDIC_NOTIFIER)
-#include <linux/usb/typec/common/pdic_notifier.h>
+#include <linux/notifier.h>
+//#include <linux/muic/muic_interface.h>
+
+#if defined(CONFIG_MUIC_SUPPORT_CCIC)
+#include <linux/usb/typec/pdic_notifier.h>
 #endif
 
 /* MUIC notifier call chain command */
@@ -49,20 +53,19 @@ typedef enum {
 	MUIC_NOTIFY_DEV_USB,
 	MUIC_NOTIFY_DEV_TSP,
 	MUIC_NOTIFY_DEV_CHARGER,
-	MUIC_NOTIFY_DEV_PDIC,
 	MUIC_NOTIFY_DEV_CPUIDLE,
 	MUIC_NOTIFY_DEV_CPUFREQ,
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
 	MUIC_NOTIFY_DEV_MANAGER,
-#endif
+	MUIC_NOTIFY_DEV_HSUART,
 	MUIC_NOTIFY_DEV_CABLE_DATA,
+	MUIC_NOTIFY_DEV_PDIC,
 } muic_notifier_device_t;
 
 struct muic_notifier_struct {
 	muic_attached_dev_t attached_dev;
 	muic_notifier_cmd_t cmd;
-#if defined(CONFIG_PDIC_NOTIFIER)
-	PD_NOTI_ATTACH_TYPEDEF cxt;
+#if defined(CONFIG_MUIC_SUPPORT_CCIC)
+	CC_NOTI_ATTACH_TYPEDEF cxt;
 #endif
 	struct blocking_notifier_head notifier_call_chain;
 };
@@ -82,10 +85,10 @@ extern void muic_notifier_logically_attach_attached_dev(muic_attached_dev_t new_
 extern void muic_notifier_logically_detach_attached_dev(muic_attached_dev_t cur_dev);
 extern void muic_notifier_chg_off(muic_attached_dev_t new_dev);
 
-#ifdef CONFIG_PDIC_SLSI_NON_MCU
-extern int muic_pdic_notifier_register(struct notifier_block *nb,
+#ifdef CONFIG_USE_CCIC
+extern int muic_ccic_notifier_register(struct notifier_block *nb,
 		notifier_fn_t notifier, muic_notifier_device_t listener);
-extern int muic_pdic_notifier_unregister(struct notifier_block *nb);
+extern int muic_ccic_notifier_unregister(struct notifier_block *nb);
 #endif
 /* muic notifier register/unregister API
  * for used any where want to receive muic attached device attach/detach. */

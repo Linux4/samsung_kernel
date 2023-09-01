@@ -1,9 +1,7 @@
 /*
  * driver/muic/muic_sysfs.c - micro USB switch device driver
  *
- * Copyright (C) 2019 Samsung Electronics
- * Sejong Park <sejong123.park@samsung.com>
- * Taejung Kim <tj.kim@samsung.com>
+ * Copyright (C) 2015 Samsung Electronics
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,22 +23,18 @@
 #include <linux/types.h>
 #include <linux/device.h>
 #include <linux/delay.h>
-#include <linux/muic/muic.h>
-#include <linux/sec_class.h>
+#ifdef CONFIG_SEC_SYSFS
+#include <linux/sec_sysfs.h>
 #include <linux/muic/muic_sysfs.h>
+#endif
+#include <linux/sec_class.h>
 #include <linux/muic/muic_interface.h>
-
 //#include <linux/sec_ext.h>
 #ifdef CONFIG_BATTERY_SAMSUNG
-//#include <linux/sec_batt.h>
-#if defined(CONFIG_BATTERY_SAMSUNG_LEGO_STYLE)
-#include "../battery/common/include/sec_charging_common.h"
-#else
 #include "../battery_v2/include/sec_charging_common.h"
 #endif
-#endif
-#if defined(CONFIG_MUIC_SUPPORT_SEC_EXT)
-#include <linux/sec_ext.h>
+#if defined(CONFIG_SEC_BSP)
+#include <linux/sec_param.h>
 #endif
 
 static ssize_t muic_sysfs_show_uart_en(struct device *dev,
@@ -170,7 +164,7 @@ static ssize_t muic_sysfs_show_adc(struct device *dev,
 
 #if IS_ENABLED(CONFIG_MUIC_SYSFS_SHOW_REFRESH_ADC)
 	int is_afc_muic_ready;
-#if IS_ENABLED(CONFIG_MUIC_SUPPORT_PDIC)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_CCIC)
 	/* TODO: NOTE: There are abnormal operations of rising volatage AFC 9V
 	 * by RID enable/disable in the muic_sysfs_refresh_adc functions in the
 	 * factory bianary. This is to minimize unnecessary interrupt by RID
@@ -369,6 +363,7 @@ static ssize_t muic_sysfs_show_attached_dev(struct device *dev,
 	case ATTACHED_DEV_AFC_CHARGER_9V_MUIC:
 	case ATTACHED_DEV_QC_CHARGER_5V_MUIC:
 	case ATTACHED_DEV_QC_CHARGER_9V_MUIC:
+	case ATTACHED_DEV_AFC_CHARGER_DISABLED_MUIC:
 		return sprintf(buf, "AFC Charger\n");
 	case ATTACHED_DEV_FACTORY_UART_MUIC:
 		return sprintf(buf, "FACTORY UART\n");
@@ -431,11 +426,19 @@ static ssize_t muic_show_vbus_value(struct device *dev,
 	int val = 0;
 
 	MUIC_PDATA_FUNC(muic_if->get_vbus_voltage, muic_pdata->drv_data, &val);
-
-	if (val > 0)
-		return sprintf(buf, "%dV\n", val);
-
-	return sprintf(buf, "UNKNOWN\n");
+	
+	switch(val) {
+	case 0 ... 3:
+		val = 0;
+		break;
+	case 4 ... 6:
+		val = 5;
+		break;
+	case 7 ... 9:
+		val = 9;
+		break;
+	}
+	return sprintf(buf, "%d\n", val);
 }
 
 #if IS_ENABLED(CONFIG_MUIC_HV)
@@ -457,10 +460,11 @@ static ssize_t muic_sysfs_set_afc_disable(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct muic_platform_data *pdata = dev_get_drvdata(dev);
+	struct muic_interface_t *muic_if = pdata->muic_if;
 	bool curr_val = pdata->afc_disable;
 	int param_val, ret = 0;
 #ifdef CONFIG_BATTERY_SAMSUNG
-//	union power_supply_propval psy_val;
+	union power_supply_propval psy_val;
 #endif
 	if (!strncasecmp(buf, "1", 1)) {
 		pdata->afc_disable = true;
@@ -475,24 +479,24 @@ static ssize_t muic_sysfs_set_afc_disable(struct device *dev,
 	param_val = pdata->afc_disable ? '1' : '0';
 #endif
 
-#ifdef CM_OFFSET
-	ret = sec_set_param(CM_OFFSET + 1, (char)param_val);
-	if (ret < 0) {
-		pr_err("%s:set_param failed - %02x:%02x(%d)\n",
-			__func__, param_val, curr_val, ret);
+#if defined(CONFIG_SEC_BSP)
+	ret = sec_set_param(param_index_afc_disable, &param_val);
+	if (ret == false) {
+		pr_info("%s:set_param failed - %02x:%02x(%d)\n", __func__,
+			param_val, curr_val, ret);
+
 		pdata->afc_disable = curr_val;
-		return ret;
+		return -EIO;
 	}
-#else
-	pr_err("%s:set_param is NOT supported! - %02x:%02x(%d)\n",
-		__func__, param_val, curr_val, ret);
 #endif
 
 #ifdef CONFIG_BATTERY_SAMSUNG
-//	psy_val.intval = param_val;
-//	psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_HV_DISABLE, psy_val);
+	psy_val.intval = param_val;
+	psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_HV_DISABLE, psy_val);
 #endif
 	pr_info("%s afc_disable(%d)\n", __func__, pdata->afc_disable);
+	if (curr_val != pdata->afc_disable)
+		MUIC_PDATA_VOID_FUNC(muic_if->set_chgtype_usrcmd, pdata->drv_data);
 
 	return count;
 }
@@ -560,19 +564,19 @@ static DEVICE_ATTR(uart_sel, 0664, muic_sysfs_show_uart_sel,
 					muic_sysfs_set_uart_sel);
 static DEVICE_ATTR(usb_sel, 0664, muic_sysfs_show_usb_sel,
 					muic_sysfs_set_usb_sel);
-static DEVICE_ATTR(adc, 0664, muic_sysfs_show_adc, NULL);
+static DEVICE_ATTR(adc, 0444, muic_sysfs_show_adc, NULL);
 
 #if IS_ENABLED(DEBUG_MUIC)
-static DEVICE_ATTR(mansw, 0664, muic_sysfs_show_mansw, NULL);
-static DEVICE_ATTR(dump_registers, 0664, muic_sysfs_show_registers, NULL);
-static DEVICE_ATTR(int_status, 0664, muic_sysfs_show_interrupt_status, NULL);
+static DEVICE_ATTR(mansw, 0444, muic_sysfs_show_mansw, NULL);
+static DEVICE_ATTR(dump_registers, 0444, muic_sysfs_show_registers, NULL);
+static DEVICE_ATTR(int_status, 0444, muic_sysfs_show_interrupt_status, NULL);
 #endif
-static DEVICE_ATTR(usb_state, 0664, muic_sysfs_show_usb_state, NULL);
+static DEVICE_ATTR(usb_state, 0444, muic_sysfs_show_usb_state, NULL);
 #if IS_ENABLED(CONFIG_USB_HOST_NOTIFY)
 static DEVICE_ATTR(otg_test, 0664,
 		muic_sysfs_show_otg_test, muic_sysfs_set_otg_test);
 #endif
-static DEVICE_ATTR(attached_dev, 0664, muic_sysfs_show_attached_dev, NULL);
+static DEVICE_ATTR(attached_dev, 0444, muic_sysfs_show_attached_dev, NULL);
 static DEVICE_ATTR(audio_path, 0664,
 		muic_sysfs_show_audio_path, muic_sysfs_set_audio_path);
 static DEVICE_ATTR(apo_factory, 0664,
@@ -632,11 +636,15 @@ static const struct attribute_group muic_sysfs_group = {
 int muic_sysfs_init(struct muic_platform_data *muic_pdata)
 {
 	int ret;
-
+	/* create sysfs group */
+#if (0)  //IS_ENABLED(CONFIG_SEC_FACTORY)
+	muic_pdata->switch_device = sec_device_find("switch");
+#endif
+#ifdef CONFIG_TEMP
 	mutex_init(&muic_pdata->sysfs_mutex);
-
+#endif
 	if (muic_pdata->switch_device == NULL)
-		muic_pdata->switch_device = sec_device_create(NULL, "switch");
+		muic_pdata->switch_device = sec_device_create(0, NULL, "switch");
 
 	if (IS_ERR(muic_pdata->switch_device)) {
 		pr_err("%s Failed to create device(switch)!\n", __func__);
@@ -650,6 +658,7 @@ int muic_sysfs_init(struct muic_platform_data *muic_pdata)
 		return ret;
 	}
 	dev_set_drvdata(muic_pdata->switch_device, muic_pdata);
+
 	return ret;
 }
 

@@ -76,6 +76,135 @@ void sm5714_select_pdo(int num)
 	sm5714_usbpd_inform_event(psubpd, MANAGER_NEW_POWER_SRC);
 }
 
+#if defined(CONFIG_PDIC_PD30)
+int sm5714_select_pps(int num, int ppsVol, int ppsCur)
+{
+	struct sm5714_usbpd_data *psubpd = pd_noti.pusbpd;
+	struct sm5714_phydrv_data *pdic_data = psubpd->phy_driver_data;
+	struct sm5714_usbpd_manager_data *manager = &psubpd->manager;
+	bool vbus_short = false;
+	int timeout = 0;
+
+	if (!pdic_data->is_attached) {
+		pr_info(" %s : PDO(%d) is ignored because of plug detached\n",
+				__func__, num);
+		return -EPERM;
+	}
+
+	psubpd->phy_ops.get_short_state(psubpd, &vbus_short);
+
+	if (vbus_short) {
+		pr_info(" %s : PDO(%d) is ignored because of vbus short\n",
+				__func__, num);
+		return -EPERM;
+	}
+
+	if (num > 1 && (manager->fled_torch_enable || manager->fled_flash_enable)) {
+		pr_info(" %s : PDO(%d) is ignored because of [torch(%d) or flash(%d)]\n",
+				__func__, num, manager->fled_torch_enable, manager->fled_flash_enable);
+		return -EPERM;
+	}
+
+	if (num > pd_noti.sink_status.available_pdo_num) {
+		pr_info("%s: request pdo num(%d) is higher that available pdo.\n", __func__, num);
+		return -EINVAL;
+	}
+
+	pd_noti.sink_status.selected_pdo_num = num;
+
+	if (ppsVol > pd_noti.sink_status.power_list[num].max_voltage) {
+		pr_info("%s: ppsVol is over(%d, max:%d)\n",
+			__func__, ppsVol, pd_noti.sink_status.power_list[num].max_voltage);
+		ppsVol = pd_noti.sink_status.power_list[num].max_voltage;
+	} else if (ppsVol < pd_noti.sink_status.power_list[num].min_voltage) {
+		pr_info("%s: ppsVol is under(%d, min:%d)\n",
+			__func__, ppsVol, pd_noti.sink_status.power_list[num].min_voltage);
+		ppsVol = pd_noti.sink_status.power_list[num].min_voltage;
+	}
+
+	if (ppsCur > pd_noti.sink_status.power_list[num].max_current) {
+		pr_info("%s: ppsCur is over(%d, max:%d)\n",
+			__func__, ppsCur, pd_noti.sink_status.power_list[num].max_current);
+		ppsCur = pd_noti.sink_status.power_list[num].max_current;
+	} else if (ppsCur < 0) {
+		pr_info("%s: ppsCur is under(%d, 0)\n",
+			__func__, ppsCur);
+		ppsCur = 0;
+	}
+
+	pd_noti.sink_status.pps_voltage = ppsVol;
+	pd_noti.sink_status.pps_current = ppsCur;
+
+	pr_info(" %s : PPS PDO(%d), voltage(%d), current(%d) is selected to change\n", __func__,
+		pd_noti.sink_status.selected_pdo_num, ppsVol, ppsCur);
+
+	sm5714_usbpd_inform_event(psubpd, MANAGER_NEW_POWER_SRC);
+
+	reinit_completion(&psubpd->pd_completion);
+	timeout =
+	    wait_for_completion_timeout(&psubpd->pd_completion,
+					msecs_to_jiffies(1000));
+
+	if (!timeout)
+		return -EBUSY;
+
+	return 0;
+}
+
+int sm5714_get_apdo_max_power(unsigned int *pdo_pos,
+		unsigned int *taMaxVol, unsigned int *taMaxCur, unsigned int *taMaxPwr)
+{
+	int i;
+	int ret = 0;
+	int max_current = 0, max_voltage = 0, max_power = 0;
+
+	if (!pd_noti.sink_status.has_apdo) {
+		pr_info("%s: pd don't have apdo\n",	__func__);
+		return -1;
+	}
+
+	/* First, get TA maximum power from the fixed PDO */
+	for (i = 1; i <= pd_noti.sink_status.available_pdo_num; i++) {
+		if (!(pd_noti.sink_status.power_list[i].apdo)) {
+			max_voltage = pd_noti.sink_status.power_list[i].max_voltage;
+			max_current = pd_noti.sink_status.power_list[i].max_current;
+			max_power = max_voltage*max_current;	/* uW */
+			*taMaxPwr = max_power;	/* mW */
+		}
+	}
+
+	if (*pdo_pos == 0) {
+		/* Get the proper PDO */
+		for (i = 1; i <= pd_noti.sink_status.available_pdo_num; i++) {
+			if (pd_noti.sink_status.power_list[i].apdo) {
+				if (pd_noti.sink_status.power_list[i].max_voltage >= *taMaxVol) {
+					*pdo_pos = i;
+					*taMaxVol = pd_noti.sink_status.power_list[i].max_voltage;
+					*taMaxCur = pd_noti.sink_status.power_list[i].max_current;
+					break;
+				}
+			}
+			if (*pdo_pos)
+				break;
+		}
+
+		if (*pdo_pos == 0) {
+			pr_info("mv (%d) and ma (%d) out of range of APDO\n",
+				*taMaxVol, *taMaxCur);
+			ret = -EINVAL;
+		}
+	} else {
+		/* If we already have pdo object position, we don't need to search max current */
+		ret = -ENOTSUPP;
+	}
+
+	pr_info("%s : *pdo_pos(%d), *taMaxVol(%d), *maxCur(%d), *maxPwr(%d)\n",
+		__func__, *pdo_pos, *taMaxVol, *taMaxCur, *taMaxPwr);
+
+	return ret;
+}
+#endif
+
 void sm5714_usbpd_change_available_pdo(struct device *dev)
 {
 	PD_NOTI_ATTACH_TYPEDEF pd_notifier;
@@ -95,6 +224,7 @@ void sm5714_request_default_power_src(void)
 {
 	struct sm5714_usbpd_data *pd_data = pd_noti.pusbpd;
 	int pdo_num = pd_noti.sink_status.selected_pdo_num;
+
 	pr_info(" %s : policy->state = (0x%x), pdo_num = %d, max vol = %d\n", __func__,
 		pd_data->policy.state, pdo_num,
 		pd_noti.sink_status.power_list[pdo_num].max_voltage);
@@ -102,6 +232,7 @@ void sm5714_request_default_power_src(void)
 	if ((pdo_num > 1) &&
 		(pd_noti.sink_status.power_list[pdo_num].max_voltage > 5000)) {
 		pd_noti.sink_status.available_pdo_num = 1;
+		pd_noti.sink_status.has_apdo = false;
 		sm5714_usbpd_change_available_pdo(pd_data->dev);
 	}
 }
@@ -127,6 +258,14 @@ int sm5714_usbpd_check_fled_state(bool enable, u8 mode)
 	pr_info("[%s] fled_torch_enable(%d), fled_flash_enable(%d)\n", __func__,
 		manager->fled_torch_enable, manager->fled_flash_enable);
 
+	if (manager->fled_flash_enable) {
+		if (pdic_data->pd_support && pd_noti.sink_status.has_apdo) {
+			pd_noti.sink_status.available_pdo_num = 1;
+			pd_noti.sink_status.has_apdo = false;
+			sm5714_usbpd_change_available_pdo(pd_data->dev);
+		}
+	}
+
 	if ((manager->fled_torch_enable == false) &&
 			(manager->fled_flash_enable == false)) {
 		if ((mode == FLED_MODE_TORCH) && (enable == false)) {
@@ -137,6 +276,8 @@ int sm5714_usbpd_check_fled_state(bool enable, u8 mode)
 		} else {
 			if (pdic_data->is_attached && (pdo_num > 0)) {
 				pd_noti.sink_status.available_pdo_num = manager->origin_available_pdo_num;
+				if (pd_noti.sink_status.power_list[pd_noti.sink_status.available_pdo_num].apdo)
+					pd_noti.sink_status.has_apdo = true;
 				sm5714_usbpd_change_available_pdo(pd_data->dev);
 			}
 		}
@@ -629,8 +770,7 @@ static void sm5714_usbpd_receive_samsung_uvdm_message(
 				manager->uvdm_in_ok = 3;
 			}
 		} else {
-			/* IN response case, SEC_TX_HEADER has no ACK message.
-			   So uvdm_is_ok is always 1. */
+			/* IN response case, SEC_TX_HEADER has no ACK message. So uvdm_is_ok is always 1. */
 			manager->uvdm_in_ok = 1;
 		}
 		wake_up(&manager->uvdm_in_wq);
@@ -662,6 +802,7 @@ void sm5714_usbpd_acc_detach(struct device *dev)
 
 	pr_info("%s: acc_type %d\n",
 		__func__, manager->acc_type);
+	manager->alt_sended = 0;
 	if (manager->acc_type != PDIC_DOCK_DETACHED) {
 		if (manager->acc_type == PDIC_DOCK_HMT)
 			schedule_delayed_work(&manager->acc_detach_handler,
@@ -683,6 +824,8 @@ static void sm5714_usbpd_manager_new_power_handler(struct work_struct *wk)
 	pr_info("[%s] pdic_data->is_attached = %d\n", __func__, pdic_data->is_attached);
 	if (pdic_data->is_attached && (pdo_num > 0)) {
 		pd_noti.sink_status.available_pdo_num = manager->origin_available_pdo_num;
+		if (pd_noti.sink_status.power_list[pd_noti.sink_status.available_pdo_num].apdo)
+			pd_noti.sink_status.has_apdo = true;
 		sm5714_usbpd_change_available_pdo(pd_data->dev);
 	}
 #endif
@@ -705,8 +848,7 @@ static void sm5714_usbpd_acc_detach_handler(struct work_struct *wk)
 		manager->acc_type = PDIC_DOCK_DETACHED;
 		manager->Vendor_ID = 0;
 		manager->Product_ID = 0;
-		manager->Device_Version = 0;
-		manager->alt_sended = 0;
+		manager->Device_Version = 0;		
 		manager->SVID_0 = 0;
 		manager->SVID_1 = 0;
 		manager->Standard_Vendor_ID = 0;
@@ -788,6 +930,10 @@ int sm5714_usbpd_check_accessory(
 					__func__);
 				break;
 			}
+		} else {
+			acc_type = PDIC_DOCK_NEW;
+			pr_info("%s : unknown device connected\n",
+				__func__);
 		}
 		manager->acc_type = acc_type;
 	} else
@@ -821,6 +967,9 @@ void sm5714_usbpd_power_ready(struct device *dev,
 			pd_noti.sink_status.power_list[1].max_current =
 				pd_noti.sink_status.power_list[1].max_current > 1800 ?
 				1800 : pd_noti.sink_status.power_list[1].max_current;
+#if defined(CONFIG_PDIC_PD30)
+			pd_noti.sink_status.has_apdo = false;
+#endif
 		}
 #endif
 		pdic_data->pd_support = 1;
@@ -1040,7 +1189,7 @@ int sm5714_usbpd_get_svids(struct sm5714_usbpd_data *pd_data)
 		 * Display port dongle, You should change dp_hs_connect depend
 		 * on Pin assignment.If DP use 4lane(Pin Assignment C,E,A),
 		 * dp_hs_connect is 1. USB can support HS.If DP use
-		 * 2lane(Pin Assigment B,D,F), dp_hs_connect is 0. USB
+		 * 2lane(Pin Assignment B,D,F), dp_hs_connect is 0. USB
 		 * can support SS
 		 */
 		manager->dp_hs_connect = 1;
@@ -1102,17 +1251,40 @@ data_obj_type sm5714_usbpd_select_capability(struct sm5714_usbpd_data *pd_data)
 #ifdef CONFIG_BATTERY_NOTIFIER
 	int pdo_num = pd_noti.sink_status.selected_pdo_num;
 #endif
-	obj.request_data_object.no_usb_suspend = 1;
-	obj.request_data_object.usb_comm_capable = 1;
-	obj.request_data_object.capability_mismatch = 0;
-	obj.request_data_object.give_back = 0;
+#if defined(CONFIG_PDIC_PD30)
+	int output_vol = 0;
+	int op_curr = 0;
+
+	if (pd_noti.sink_status.power_list[pdo_num].apdo) {
+		output_vol = (pd_noti.sink_status.pps_voltage / USBPD_OUT_VOLT_UNIT);
+		op_curr = (pd_noti.sink_status.pps_current / USBPD_PPS_CURRENT_UNIT);
+		obj.request_data_object_programmable.op_current = op_curr;
+		obj.request_data_object_programmable.reserved1 = 0;
+		obj.request_data_object_programmable.output_voltage = output_vol;
+		obj.request_data_object_programmable.reserved2 = 0;
+		obj.request_data_object_programmable.unchunked_ext_msg_support = 0;
+		obj.request_data_object_programmable.no_usb_suspend = 1;
+		obj.request_data_object_programmable.usb_comm_capable = 1;
+		obj.request_data_object_programmable.capability_mismatch = 0;
+		obj.request_data_object_programmable.reserved3 = 0;
+		obj.request_data_object_programmable.object_position = pd_noti.sink_status.selected_pdo_num;
+		obj.request_data_object_programmable.reserved4 = 0;
+	} else {
+#endif
+		obj.request_data_object.no_usb_suspend = 1;
+		obj.request_data_object.usb_comm_capable = 1;
+		obj.request_data_object.capability_mismatch = 0;
+		obj.request_data_object.give_back = 0;
 #ifdef CONFIG_BATTERY_NOTIFIER
-	obj.request_data_object.min_current =
-		pd_noti.sink_status.power_list[pdo_num].max_current / USBPD_CURRENT_UNIT;
-	obj.request_data_object.op_current =
-		pd_noti.sink_status.power_list[pdo_num].max_current / USBPD_CURRENT_UNIT;
-	obj.request_data_object.object_position =
-		pd_noti.sink_status.selected_pdo_num;
+		obj.request_data_object.min_current =
+			pd_noti.sink_status.power_list[pdo_num].max_current / USBPD_CURRENT_UNIT;
+		obj.request_data_object.op_current =
+			pd_noti.sink_status.power_list[pdo_num].max_current / USBPD_CURRENT_UNIT;
+		obj.request_data_object.object_position =
+			pd_noti.sink_status.selected_pdo_num;
+#endif
+#if defined(CONFIG_PDIC_PD30)
+	}
 #endif
 	return obj;
 }
@@ -1129,6 +1301,12 @@ int sm5714_usbpd_evaluate_capability(struct sm5714_usbpd_data *pd_data)
 	PDIC_SINK_STATUS *pdic_sink_status = &pd_noti.sink_status;
 #endif
 	data_obj_type *pd_obj;
+#if defined(CONFIG_PDIC_PD30)
+	int min_volt = 0, max_volt = 0, max_current = 0;
+
+	pd_data->specification_revision = USBPD_REV_20;
+	pdic_sink_status->has_apdo = false;
+#endif
 
 	for (i = 0; i < policy->rx_msg_header.num_data_objs; i++) {
 		pd_obj = &policy->rx_data_obj[i];
@@ -1142,12 +1320,19 @@ int sm5714_usbpd_evaluate_capability(struct sm5714_usbpd_data *pd_data)
 				pd_current * USBPD_CURRENT_UNIT);
 
 #ifdef CONFIG_BATTERY_NOTIFIER
-			if (pd_volt * USBPD_VOLT_UNIT <= MAX_CHARGING_VOLT)
-				available_pdo_num = i + 1;
+			available_pdo_num = i + 1;
+			if (pd_volt * USBPD_VOLT_UNIT > AVAILABLE_VOLTAGE)
+				pdic_sink_status->power_list[i + 1].accept = false;
+			else
+				pdic_sink_status->power_list[i + 1].accept = true;
 			pdic_sink_status->power_list[i + 1].max_voltage =
 						pd_volt * USBPD_VOLT_UNIT;
 			pdic_sink_status->power_list[i + 1].max_current =
 						pd_current * USBPD_CURRENT_UNIT;
+#endif
+#if defined(CONFIG_PDIC_PD30)
+			pdic_sink_status->power_list[i + 1].min_voltage = 0;
+			pdic_sink_status->power_list[i + 1].apdo = false;
 #endif
 			break;
 		case POWER_TYPE_BATTERY:
@@ -1160,6 +1345,27 @@ int sm5714_usbpd_evaluate_capability(struct sm5714_usbpd_data *pd_data)
 			dev_info(pd_data->dev, "[%d] VARIABLE volt(%d)mV\n",
 						i+1, pd_volt * USBPD_VOLT_UNIT);
 			break;
+#if defined(CONFIG_PDIC_PD30)
+		case POWER_TYPE_APDO:
+			min_volt = pd_obj->power_data_obj_programmable.min_voltage;
+			max_volt = pd_obj->power_data_obj_programmable.max_voltage;
+			max_current = pd_obj->power_data_obj_programmable.max_current;
+
+			pd_data->specification_revision = USBPD_REV_30;
+
+			dev_info(pd_data->dev, "[%d] Augmented min_volt(%d)mV, max_volt (%d)mV, max_current(%d)mA\n",
+					i+1, min_volt * USBPD_PPS_VOLT_UNIT,
+					max_volt * USBPD_PPS_VOLT_UNIT,
+					max_current * USBPD_PPS_CURRENT_UNIT);
+
+			available_pdo_num = i + 1;
+			pdic_sink_status->has_apdo = true;
+			pdic_sink_status->power_list[i + 1].max_voltage = max_volt * USBPD_PPS_VOLT_UNIT;
+			pdic_sink_status->power_list[i + 1].min_voltage = min_volt * USBPD_PPS_VOLT_UNIT;
+			pdic_sink_status->power_list[i + 1].max_current = max_current * USBPD_PPS_CURRENT_UNIT;
+			pdic_sink_status->power_list[i + 1].apdo = true;
+			break;
+#endif
 		default:
 			dev_err(pd_data->dev, "[%d] Power Type Error\n", i+1);
 			break;
@@ -1181,6 +1387,11 @@ int sm5714_usbpd_evaluate_capability(struct sm5714_usbpd_data *pd_data)
 		pdic_sink_status->selected_pdo_num = 1;
 	}
 	pdic_sink_status->available_pdo_num = available_pdo_num;
+	if (manager->fled_torch_enable || manager->fled_flash_enable) {
+		pdic_sink_status->available_pdo_num = 1;
+		pdic_sink_status->has_apdo = false;
+		policy->send_sink_cap = 1;
+	}
 	manager->origin_available_pdo_num = available_pdo_num;
 	return available_pdo_num;
 #else
@@ -1271,7 +1482,7 @@ bool sm5714_usbpd_send_msg(struct sm5714_usbpd_data *pd_data, msg_header_type *h
 	else
 		header->num_data_objs = 0;
 
-	header->spec_revision = USBPD_REV_20;
+	header->spec_revision = pd_data->specification_revision;
 	pd_data->protocol_tx.msg_header.word = header->word;
 	sm5714_usbpd_protocol_tx(pd_data);
 
@@ -1425,6 +1636,41 @@ void sm5714_usbpd_protocol_rx(struct sm5714_usbpd_data *pd_data)
 
 		if (ext_msg && pd_data->policy.rx_msg_header.spec_revision == 0) {
 			return;
+		} else if (ext_msg && pd_data->policy.rx_msg_header.spec_revision == USBPD_REV_30) {
+			switch (pd_data->policy.rx_msg_header.msg_type) {
+			case USBPD_Source_Cap_Ext:
+				break;
+			case USBPD_Status:
+				break;
+			case USBPD_Get_Battery_Cap:
+				break;
+			case USBPD_Get_Batt_Status:
+				break;
+			case USBPD_Battery_Cap:
+				break;
+			case USBPD_Get_Manuf_Info:
+				break;
+			case USBPD_Manuf_Info:
+				break;
+			case USBPD_Security_Request:
+				break;
+			case USBPD_Security_Response:
+				break;
+			case USBPD_FW_Update_Req:
+				break;
+			case USBPD_FW_Update_Res:
+				break;
+			case USBPD_PPS_Status:
+				break;
+			case USBPD_Country_Info:
+				break;
+			case USBPD_Country_Codes:
+				break;
+			case USBPD_Sink_Cap_Ext:
+				break;
+			default:
+				break;
+			}
 		} else if (pd_data->policy.rx_msg_header.num_data_objs > 0) {
 			switch (pd_data->policy.rx_msg_header.msg_type) {
 			case USBPD_Source_Capabilities:
@@ -1449,6 +1695,14 @@ void sm5714_usbpd_protocol_rx(struct sm5714_usbpd_data *pd_data)
 				break;
 			case USBPD_Sink_Capabilities:
 				pdic_data->status_reg |= MSG_SNK_CAP;
+				break;
+			case USBPD_Battery_Status:
+				break;
+			case USBPD_Alert:
+				if (pd_data->policy.rx_data_obj->alert_data_obejct.type_of_alert == Battery_Status_Change)
+					pdic_data->status_reg |= MSG_GET_BAT_STATUS;
+				else
+					pdic_data->status_reg |= MSG_GET_STATUS;
 				break;
 			case USBPD_Vendor_Defined:
 				if (!sm5714_get_rx_buf_st(pd_data))
@@ -1499,6 +1753,20 @@ void sm5714_usbpd_protocol_rx(struct sm5714_usbpd_data *pd_data)
 				break;
 			case USBPD_Soft_Reset:
 				pdic_data->status_reg |= MSG_SOFTRESET;
+				break;
+			case USBPD_Not_Supported:
+				break;
+			case USBPD_Get_Src_Cap_Ext:
+				break;
+			case USBPD_Get_Status:
+				break;
+			case USBPD_FR_Swap:
+				break;
+			case USBPD_Get_PPS_Status:
+				break;
+			case USBPD_Get_Country_Codes:
+				break;
+			case USBPD_Get_Sink_Cap_Ext:
 				break;
 			default:
 				break;
@@ -1629,6 +1897,10 @@ static int sm5714_usbpd_manager_init(struct sm5714_usbpd_data *pd_data)
 	ret = of_sm5714_usbpd_dt(manager);
 #ifdef CONFIG_BATTERY_NOTIFIER
 	fp_select_pdo = sm5714_select_pdo;
+#if defined(CONFIG_PDIC_PD30)
+	fp_sec_pd_select_pps = sm5714_select_pps;
+	fp_sec_pd_get_apdo_max_power = sm5714_get_apdo_max_power;
+#endif
 #endif
 	manager->pd_data = pd_data;
 	manager->power_role_swap = true;
@@ -1739,7 +2011,12 @@ void sm5714_usbpd_reinit(struct device *dev)
 	sm5714_usbpd_init_policy(pd_data);
 	reinit_completion(&pd_data->msg_arrived);
 	pd_data->wait_for_msg_arrived = 0;
+	pd_data->specification_revision = USBPD_REV_20;
 	complete(&pd_data->msg_arrived);
+#if defined(CONFIG_PDIC_PD30)
+	reinit_completion(&pd_data->pd_completion);
+	complete(&pd_data->pd_completion);
+#endif
 }
 
 int sm5714_usbpd_init(struct device *dev, void *phy_driver_data)
@@ -1762,6 +2039,9 @@ int sm5714_usbpd_init(struct device *dev, void *phy_driver_data)
 	pd_noti.pusbpd = pd_data;
 	pd_noti.sink_status.current_pdo_num = 0;
 	pd_noti.sink_status.selected_pdo_num = 0;
+	pd_noti.sink_status.pps_voltage = 0;
+	pd_noti.sink_status.pps_current = 0;
+	pd_noti.sink_status.has_apdo = false;
 #endif
 	sm5714_usbpd_init_counters(pd_data);
 	sm5714_usbpd_init_protocol(pd_data);
@@ -1770,6 +2050,8 @@ int sm5714_usbpd_init(struct device *dev, void *phy_driver_data)
 
 	INIT_WORK(&pd_data->worker, sm5714_usbpd_policy_work);
 	init_completion(&pd_data->msg_arrived);
-
+#if defined(CONFIG_PDIC_PD30)
+	init_completion(&pd_data->pd_completion);
+#endif
 	return 0;
 }

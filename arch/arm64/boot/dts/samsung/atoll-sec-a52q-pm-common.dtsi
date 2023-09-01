@@ -1,0 +1,169 @@
+/* Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "atoll-sec-pm-common.dtsi"
+
+&soc {
+	/* AP Thermistor table */
+	sec_thermistor@0 {
+		compatible = "samsung,sec-ap-thermistor";
+		status = "okay";
+		io-channels = <&pm6150_vadc ADC_AMUX_THM2_PU2>;
+		io-channel-names = "ap_therm";
+		adc_array = <1700 2190 2576 3046 3583 4240 4993 
+					5876 6940 8121 9339 10812 12445
+					14086 15773 17384 19110 20676 22090 23374 24495 25465 26282>;
+		temp_array = <900 850 800 750 700 650 600
+					550 500 450 400 350 300
+					250 200 150 100 50 0 (-50) (-100) (-150) (-200)>;
+	};
+
+	/* PA Thermistor table */
+	sec_thermistor@1 {
+		compatible = "samsung,sec-pa-thermistor";
+		status = "okay";
+		io-channels = <&pm6150l_vadc ADC_AMUX_THM2_PU2>;
+		io-channel-names = "pa_therm";
+		adc_array = <1800 2239 2631 3097 3640 4290 5056
+					5949 7006 8191 9423 10888 12510
+					14166 15850 17469 19165 20736 22147 23446 24559 25515 26328>;
+		temp_array = <900 850 800 750 700 650 600
+					550 500 450 400 350 300
+					250 200 150 100 50 0 (-50) (-100) (-150) (-200)>;
+	};
+
+	/* WiFi Thermistor table */
+	sec_thermistor@2 {
+		compatible = "samsung,sec-wf-thermistor";
+		status = "okay";
+		io-channels = <&pm6150l_vadc ADC_AMUX_THM3_PU2>;
+		io-channel-names = "wf_therm";
+		adc_array = <1800 2261 2662 3125 3669 4308 5088
+					5990 7041 8225 9459 10915 12532
+					14188 15881 17502 19180 20741 22156 23459 24569 25524 26336>;
+		temp_array = <900 850 800 750 700 650 600
+					550 500 450 400 350 300
+					250 200 150 100 50 0 (-50) (-100) (-150) (-200)>;
+	};
+
+	/* S2MPB03 Camera PMIC */
+	i2c2: i2c@2 {
+		cell-index = <2>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 25 0 /* sda */
+			&tlmm 26 0 /* scl */
+		>;
+		#i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&s2mpb03_i2c_sda_default &s2mpb03_i2c_scl_default>;
+
+		/* S2MPB03 Camera PMIC */
+		s2mpb03@56 {
+			compatible = "samsung,s2mpb03pmic";
+			reg = <0x56>;
+			additional_reg_init;
+
+			regulators {
+				s2mpb03_l1: s2mpb03-ldo1 {
+					regulator-name = "s2mpb03-ldo1";
+					regulator-min-microvolt = <1000000>;
+					regulator-max-microvolt = <1050000>;
+				};
+
+				s2mpb03_l2: s2mpb03-ldo2 {
+					regulator-name = "s2mpb03-ldo2";
+					regulator-min-microvolt = <1000000>;
+					regulator-max-microvolt = <1100000>;
+				};
+
+				s2mpb03_l3: s2mpb03-ldo3 {
+					regulator-name = "s2mpb03-ldo3";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <1800000>;
+				};
+
+				s2mpb03_l4: s2mpb03-ldo4 {
+					regulator-name = "s2mpb03-ldo4";
+					regulator-min-microvolt = <1200000>;
+					regulator-max-microvolt = <1200000>;
+				};
+
+				s2mpb03_l5: s2mpb03-ldo5 {
+					regulator-name = "s2mpb03-ldo5";
+					regulator-min-microvolt = <2800000>;
+					regulator-max-microvolt = <2900000>;
+				};
+
+				s2mpb03_l6: s2mpb03-ldo6 {
+					regulator-name = "s2mpb03-ldo6";
+					regulator-min-microvolt = <2800000>;
+					regulator-max-microvolt = <2900000>;
+				};
+
+				s2mpb03_l7: s2mpb03-ldo7 {
+					regulator-name = "s2mpb03-ldo7";
+					regulator-min-microvolt = <2800000>;
+					regulator-max-microvolt = <2800000>;
+				};
+			};
+		};
+	};
+};
+
+&pm6150_gpios {
+	interrupts = <0x0 0xc0 0 IRQ_TYPE_NONE>,
+		<0x0 0xc1 0 IRQ_TYPE_NONE>,
+		<0x0 0xc2 0 IRQ_TYPE_NONE>,
+		<0x0 0xc3 0 IRQ_TYPE_NONE>,
+		<0x0 0xc4 0 IRQ_TYPE_NONE>,
+		<0x0 0xc6 0 IRQ_TYPE_NONE>,
+		<0x0 0xc7 0 IRQ_TYPE_NONE>,
+		<0x0 0xc9 0 IRQ_TYPE_NONE>;
+	interrupt-names = "pm6150_gpio1", "pm6150_gpio2",
+		"pm6150_gpio3", "pm6150_gpio4", "pm6150_gpio5",
+		"pm6150_gpio7", "pm6150_gpio8",
+		"pm6150_gpio10";
+	qcom,gpios-disallowed = <6 9>;
+};
+
+&pm6150_vadc {
+	ap_therm {
+		reg = <ADC_AMUX_THM2_PU2>;
+		label = "ap_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+	};
+};
+
+&pm6150l_vadc {
+	/delete-node/ pa_therm0;
+
+	pa_therm {
+		reg = <ADC_AMUX_THM2_PU2>;
+		label = "pa_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+	};
+
+	wf_therm {
+		reg = <ADC_AMUX_THM3_PU2>;
+		label = "wf_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+	};
+};

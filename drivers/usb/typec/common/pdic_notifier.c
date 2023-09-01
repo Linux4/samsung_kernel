@@ -15,7 +15,7 @@
 #include <linux/device.h>
 #include <linux/module.h>
 #include <linux/usb_notify.h>
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+#if defined(CONFIG_BATTERY_NOTIFIER)
 #include <linux/battery/battery_notifier.h>
 #endif
 #include <linux/usb/typec/common/pdic_core.h>
@@ -36,26 +36,27 @@ static struct pdic_notifier_data pdic_notifier;
 static int pdic_notifier_init_done;
 
 char PDIC_NOTI_DEST_Print[PDIC_NOTI_DEST_NUM][10] = {
-	[PDIC_NOTIFY_DEV_INITIAL]			= {"INITIAL"},
-	[PDIC_NOTIFY_DEV_USB]				= {"USB"},
+	[PDIC_NOTIFY_DEV_INITIAL]		= {"INITIAL"},
+	[PDIC_NOTIFY_DEV_USB]			= {"USB"},
 	[PDIC_NOTIFY_DEV_BATT]			= {"BATTERY"},
-	[PDIC_NOTIFY_DEV_PDIC]				= {"PDIC"},
-	[PDIC_NOTIFY_DEV_MUIC]				= {"MUIC"},
-	[PDIC_NOTIFY_DEV_PDIC]				= {"PDIC"},
-	[PDIC_NOTIFY_DEV_MANAGER]			= {"MANAGER"},
-	[PDIC_NOTIFY_DEV_DP]				= {"DP"},
-	[PDIC_NOTIFY_DEV_USB_DP]			= {"USBDP"},
+	[PDIC_NOTIFY_DEV_PDIC]			= {"PDIC"},
+	[PDIC_NOTIFY_DEV_MUIC]			= {"MUIC"},
+	[PDIC_NOTIFY_DEV_PDIC]			= {"PDIC"},
+	[PDIC_NOTIFY_DEV_MANAGER]		= {"MANAGER"},
+	[PDIC_NOTIFY_DEV_DP]			= {"DP"},
+	[PDIC_NOTIFY_DEV_USB_DP]		= {"USBDP"},
 	[PDIC_NOTIFY_DEV_SUB_BATTERY]		= {"BATTERY2"},
 	[PDIC_NOTIFY_DEV_SECOND_MUIC]		= {"MUIC2"},
-	[PDIC_NOTIFY_DEV_ALL]				= {"ALL"},
+	[PDIC_NOTIFY_DEV_DEDICATED_MUIC]	= {"DMUIC"},
+	[PDIC_NOTIFY_DEV_ALL]			= {"ALL"},
 };
 
 char PDIC_NOTI_ID_Print[PDIC_NOTI_ID_NUM][20] = {
-	[PDIC_NOTIFY_ID_INITIAL] 		= {"ID_INITIAL"},
-	[PDIC_NOTIFY_ID_ATTACH] 		= {"ID_ATTACH"},
-	[PDIC_NOTIFY_ID_RID] 			= {"ID_RID"},
+	[PDIC_NOTIFY_ID_INITIAL]		= {"ID_INITIAL"},
+	[PDIC_NOTIFY_ID_ATTACH]			= {"ID_ATTACH"},
+	[PDIC_NOTIFY_ID_RID]			= {"ID_RID"},
 	[PDIC_NOTIFY_ID_USB]			= {"ID_USB"},
-	[PDIC_NOTIFY_ID_POWER_STATUS] 	= {"ID_POWER_STATUS"},
+	[PDIC_NOTIFY_ID_POWER_STATUS]	= {"ID_POWER_STATUS"},
 	[PDIC_NOTIFY_ID_WATER]			= {"ID_WATER"},
 	[PDIC_NOTIFY_ID_VCONN]			= {"ID_VCONN"},
 	[PDIC_NOTIFY_ID_OTG]			= {"ID_OTG"},
@@ -82,11 +83,10 @@ char PDIC_NOTI_RID_Print[PDIC_NOTI_RID_NUM][15] = {
 };
 
 char PDIC_NOTI_USB_STATUS_Print[PDIC_NOTI_USB_STATUS_NUM][20] = {
-	[USB_STATUS_NOTIFY_DETACH]			= {"USB_DETACH"},
+	[USB_STATUS_NOTIFY_DETACH]		= {"USB_DETACH"},
 	[USB_STATUS_NOTIFY_ATTACH_DFP]		= {"USB_ATTACH_DFP"},
 	[USB_STATUS_NOTIFY_ATTACH_UFP]		= {"USB_ATTACH_UFP"},
 	[USB_STATUS_NOTIFY_ATTACH_DRP]		= {"USB_ATTACH_DRP"},
-	[USB_STATUS_NOTIFY_ATTACH_NO_USB]	= {"USB_ATTACH_NO_USB"},
 };
 
 char PDIC_NOTI_PIN_STATUS_Print[PDIC_NOTI_PIN_STATUS_NUM][20] = {
@@ -146,9 +146,9 @@ int pdic_notifier_unregister(struct notifier_block *nb)
 
 static void pdic_uevent_work(int id, int state)
 {
-	char *water[2] = { "PDIC=WATER", NULL };
-	char *dry[2] = { "PDIC=DRY", NULL };
-	char *vconn[2] = { "PDIC=VCONN", NULL };
+	char *water[2] = { "CCIC=WATER", NULL };
+	char *dry[2] = { "CCIC=DRY", NULL };
+	char *vconn[2] = { "CCIC=VCONN", NULL };
 #if defined(CONFIG_SEC_FACTORY)
 	char pdicrid[15] = {0,};
 	char *rid[2] = {pdicrid, NULL};
@@ -207,10 +207,10 @@ int pdic_notifier_notify(PD_NOTI_TYPEDEF *p_noti, void *pd, int pdic_attach)
 	pdic_notifier.pdic_template = *p_noti;
 
 	switch (p_noti->id) {
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+#if defined(CONFIG_BATTERY_NOTIFIER)
 	case PDIC_NOTIFY_ID_POWER_STATUS:		/* PDIC_NOTIFY_EVENT_PD_SINK */
-		pr_info("%s: src:%01x dest:%01x id:%02x "
-			"attach:%02x cable_type:%02x rprd:%01x\n", __func__,
+		pr_info("%s: src:%01x dest:%01x id:%02x attach:%02x cable_type:%02x rprd:%01x\n",
+			__func__,
 			((PD_NOTI_ATTACH_TYPEDEF *)p_noti)->src,
 			((PD_NOTI_ATTACH_TYPEDEF *)p_noti)->dest,
 			((PD_NOTI_ATTACH_TYPEDEF *)p_noti)->id,
@@ -225,7 +225,7 @@ int pdic_notifier_notify(PD_NOTI_TYPEDEF *p_noti, void *pd, int pdic_attach)
 			}
 			pdic_notifier.pdic_template.pd = pd;
 
-			pr_info("%s: PD event:%d, num:%d, sel:%d \n", __func__,
+			pr_info("%s: PD event:%d, num:%d, sel:%d\n", __func__,
 				((struct pdic_notifier_struct *)pd)->event,
 				((struct pdic_notifier_struct *)pd)->sink_status.available_pdo_num,
 				((struct pdic_notifier_struct *)pd)->sink_status.selected_pdo_num);
@@ -233,8 +233,8 @@ int pdic_notifier_notify(PD_NOTI_TYPEDEF *p_noti, void *pd, int pdic_attach)
 		break;
 #endif
 	case PDIC_NOTIFY_ID_ATTACH:
-		pr_info("%s: src:%01x dest:%01x id:%02x "
-			"attach:%02x cable_type:%02x rprd:%01x\n", __func__,
+		pr_info("%s: src:%01x dest:%01x id:%02x attach:%02x cable_type:%02x rprd:%01x\n",
+			__func__,
 			((PD_NOTI_ATTACH_TYPEDEF *)p_noti)->src,
 			((PD_NOTI_ATTACH_TYPEDEF *)p_noti)->dest,
 			((PD_NOTI_ATTACH_TYPEDEF *)p_noti)->id,
@@ -266,6 +266,12 @@ int pdic_notifier_notify(PD_NOTI_TYPEDEF *p_noti, void *pd, int pdic_attach)
 			((PD_NOTI_ATTACH_TYPEDEF *)p_noti)->id,
 			((PD_NOTI_ATTACH_TYPEDEF *)p_noti)->attach);
 			pdic_uevent_work(PDIC_NOTIFY_ID_WATER, ((PD_NOTI_ATTACH_TYPEDEF *)p_noti)->attach);
+
+#ifdef CONFIG_SEC_FACTORY
+			pr_info("%s: Do not notifier, just return\n", __func__);
+			return 0;
+#endif
+
 		break;
 	case PDIC_NOTIFY_ID_VCONN:
 		pdic_uevent_work(PDIC_NOTIFY_ID_VCONN, 0);
@@ -285,8 +291,8 @@ int pdic_notifier_notify(PD_NOTI_TYPEDEF *p_noti, void *pd, int pdic_attach)
 			return 0;
 #endif
 	default:
-		pr_info("%s: src:%01x dest:%01x id:%02x "
-			"sub1:%d sub2:%02x sub3:%02x\n", __func__,
+		pr_info("%s: src:%01x dest:%01x id:%02x sub1:%d sub2:%02x sub3:%02x\n",
+			__func__,
 			((PD_NOTI_TYPEDEF *)p_noti)->src,
 			((PD_NOTI_TYPEDEF *)p_noti)->dest,
 			((PD_NOTI_TYPEDEF *)p_noti)->id,
@@ -296,7 +302,7 @@ int pdic_notifier_notify(PD_NOTI_TYPEDEF *p_noti, void *pd, int pdic_attach)
 		break;
 	}
 #ifdef CONFIG_USB_NOTIFY_PROC_LOG
-	store_usblog_notify(NOTIFY_PDIC_EVENT, (void *)p_noti, NULL);
+	store_usblog_notify(NOTIFY_CCIC_EVENT, (void *)p_noti, NULL);
 #endif
 	ret = blocking_notifier_call_chain(&(pdic_notifier.notifier_call_chain),
 			p_noti->id, &(pdic_notifier.pdic_template));

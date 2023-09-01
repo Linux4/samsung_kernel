@@ -58,9 +58,15 @@ static struct device_attribute pdic_attributes[] = {
 	PDIC_SYSFS_ATTR(control_gpio),
 	PDIC_SYSFS_ATTR(usbpd_ids),
 	PDIC_SYSFS_ATTR(usbpd_type),
-	PDIC_SYSFS_ATTR(pd_pin_status),
+	PDIC_SYSFS_ATTR(cc_pin_status),
 	PDIC_SYSFS_ATTR(ram_test),
 	PDIC_SYSFS_ATTR(sbu_adc),
+	PDIC_SYSFS_ATTR(vsafe0v_status),
+	PDIC_SYSFS_ATTR(ovp_ic_shutdown),
+	PDIC_SYSFS_ATTR(water_threshold),
+	PDIC_SYSFS_ATTR(water_check),
+	PDIC_SYSFS_ATTR(15mode_watertest_type),
+	PDIC_SYSFS_ATTR(vbus_adc),
 };
 
 static ssize_t pdic_sysfs_show_property(struct device *dev,
@@ -69,7 +75,7 @@ static ssize_t pdic_sysfs_show_property(struct device *dev,
 	ssize_t ret = 0;
 	ppdic_data_t ppdic_data = dev_get_drvdata(dev);
 	ppdic_sysfs_property_t ppdic_sysfs =
-			(ppdic_sysfs_property_t)ppdic_data->pdic_syfs_prop;
+			(ppdic_sysfs_property_t)ppdic_data->pdic_sysfs_prop;
 	const ptrdiff_t off = attr - pdic_attributes;
 
 	if (off == PDIC_SYSFS_PROP_CHIP_NAME) {
@@ -99,7 +105,7 @@ static ssize_t pdic_sysfs_store_property(struct device *dev,
 	ssize_t ret = 0;
 	ppdic_data_t ppdic_data = dev_get_drvdata(dev);
 	ppdic_sysfs_property_t ppdic_sysfs =
-			(ppdic_sysfs_property_t)ppdic_data->pdic_syfs_prop;
+			(ppdic_sysfs_property_t)ppdic_data->pdic_sysfs_prop;
 	const ptrdiff_t off = attr - pdic_attributes;
 
 	ret = ppdic_sysfs->set_property(ppdic_data, off, buf, count);
@@ -123,7 +129,7 @@ static umode_t pdic_sysfs_attr_is_visible(struct kobject *kobj,
 	struct device *dev = container_of(kobj, struct device, kobj);
 	ppdic_data_t ppdic_data = dev_get_drvdata(dev);
 	ppdic_sysfs_property_t ppdic_sysfs =
-			(ppdic_sysfs_property_t)ppdic_data->pdic_syfs_prop;
+			(ppdic_sysfs_property_t)ppdic_data->pdic_sysfs_prop;
 	umode_t mode = 0444;
 	int i;
 

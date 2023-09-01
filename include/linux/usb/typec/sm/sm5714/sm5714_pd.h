@@ -29,6 +29,9 @@
 #define MAX_CHARGING_VOLT		9000 /* 9V */
 #define USBPD_VOLT_UNIT			50 /* 50mV */
 #define USBPD_CURRENT_UNIT		10 /* 10mA */
+#define USBPD_PPS_VOLT_UNIT		100	/* 100mV */
+#define USBPD_OUT_VOLT_UNIT		20	/* 20mV */
+#define USBPD_PPS_CURRENT_UNIT	50	/* 50mV */
 
 #define USBPD_MAX_COUNT_MSG_OBJECT	(8) /* 0..7 */
 #define USBPD_MAX_COUNT_RX_PAYLOAD	(28)
@@ -44,7 +47,11 @@
 #define tSrcTransition			(35)	/* 25~35 ms */
 #define tPSSourceOn				(440)	/* 390~480 ms */
 #define tPSSourceOff			(760)	/* 750~960 ms */
+#if defined(CONFIG_SEC_FACTORY)
+#define tSenderResponse			(1100)  /* for UCT300 */
+#else
 #define tSenderResponse			(27)	/* 24~30 ms */
+#endif
 #define tSendSourceCap			(150)	/* 100 ~ 200 ms */
 #define tPSHardReset			(25)	/* 25~35 ms */
 #define tSinkWaitCap			(550)	/* 310~620 ms  */
@@ -63,6 +70,7 @@ typedef enum {
 	POWER_TYPE_FIXED = 0,
 	POWER_TYPE_BATTERY,
 	POWER_TYPE_VARIABLE,
+	POWER_TYPE_APDO,
 } power_supply_type;
 
 typedef enum {
@@ -98,6 +106,31 @@ enum usbpd_control_msg_type {
 	USBPD_Wait				= 0xC,
 	USBPD_Soft_Reset		= 0xD,
 	USBPD_UVDM_MSG			= 0xE,
+	USBPD_Not_Supported		= 0x10,
+	USBPD_Get_Src_Cap_Ext	= 0x11,
+	USBPD_Get_Status		= 0x12,
+	USBPD_FR_Swap			= 0x13,
+	USBPD_Get_PPS_Status	= 0x14,
+	USBPD_Get_Country_Codes	= 0x15,
+	USBPD_Get_Sink_Cap_Ext	= 0x16,
+};
+
+enum usbpd_extended_msg_type {
+	USBPD_Source_Cap_Ext	= 0x1,
+	USBPD_Status			= 0x2,
+	USBPD_Get_Battery_Cap	= 0x3,
+	USBPD_Get_Batt_Status	= 0x4,
+	USBPD_Battery_Cap		= 0x5,
+	USBPD_Get_Manuf_Info	= 0x6,
+	USBPD_Manuf_Info		= 0x7,
+	USBPD_Security_Request	= 0x8,
+	USBPD_Security_Response	= 0x9,
+	USBPD_FW_Update_Req		= 0xA,
+	USBPD_FW_Update_Res		= 0xB,
+	USBPD_PPS_Status		= 0xC,
+	USBPD_Country_Info		= 0xD,
+	USBPD_Country_Codes		= 0xE,
+	USBPD_Sink_Cap_Ext		= 0xF,
 };
 
 enum usbpd_check_msg_pass {
@@ -180,7 +213,19 @@ enum usbpd_data_msg_type {
 	USBPD_Request				= 0x2,
 	USBPD_BIST					= 0x3,
 	USBPD_Sink_Capabilities		= 0x4,
+	USBPD_Battery_Status		= 0x5,
+	USBPD_Alert					= 0x6,
+	USBPD_Get_Country_Info		= 0x7,
 	USBPD_Vendor_Defined		= 0xF,
+};
+
+enum alert_type {
+	Battery_Status_Change		= 1 << 1,
+	OCP_event			= 1 << 2, /* Source only, for Sink Reserved and Shall be set to zero */
+	OTP_event			= 1 << 3,
+	Operating_Condition_Change	= 1 << 4,
+	Source_Input_Change_Event	= 1 << 5,
+	OVP_event			= 1 << 6,
 };
 
 enum uvdm_res_type {
@@ -329,6 +374,10 @@ typedef enum {
 	PE_DFP_UVDM_Send_Message	= 0xD0,
 	PE_DFP_UVDM_Receive_Message	= 0xD1,
 
+	PE_SNK_Get_Source_Cap_Ext		= 0xD2,
+	PE_SNK_Get_Source_Status		= 0xD3,
+	PE_SNK_Get_Source_PPS_Status	= 0xD4,
+
 	/* BIST Message */
 	PE_BIST_CARRIER_M2		= 0xE0,
 
@@ -373,8 +422,8 @@ typedef enum sm5714_usbpd_manager_event {
 	MANAGER_NEW_POWER_SRC					= 15,
 	MANAGER_UVDM_SEND_MESSAGE				= 16,
 	MANAGER_UVDM_RECEIVE_MESSAGE			= 17,
-	MANAGER_PR_SWAP_REQUEST 				= 18,
-	MANAGER_DR_SWAP_REQUEST 				= 19,
+	MANAGER_PR_SWAP_REQUEST					= 18,
+	MANAGER_DR_SWAP_REQUEST					= 19,
 } sm5714_usbpd_manager_event_type;
 
 enum usbpd_msg_status {
@@ -410,6 +459,10 @@ enum usbpd_msg_status {
 	MSG_PASS				= 1<<29,
 	MSG_RID					= 1<<30,
 	MSG_NONE				= 1<<31,
+	MSG_GET_BAT_STATUS		= 3<<2,
+	MSG_GET_STATUS			= 3<<3,
+	MSG_GET_PPS_STATUS		= 3<<4,
+	MSG_GET_SRC_CAP_EXT		= 3<<5,
 };
 
 /* Timer */
@@ -499,6 +552,39 @@ typedef union {
 		unsigned max_voltage:10;	/* 50mV units  */
 		unsigned supply_type:2;
 	} power_data_obj_battery;
+
+	struct {
+		unsigned max_current:7;		/* 50mA units */
+		unsigned reserved1:1;
+		unsigned min_voltage:8;		/* 100mV units  */
+		unsigned reserved2:1;
+		unsigned max_voltage:8;		/* 100mV units  */
+		unsigned reserved3:2;
+		unsigned pps_power_limited:1;
+		unsigned pps_supply:2;
+		unsigned supply_type:2;
+	} power_data_obj_programmable;
+
+	struct {
+		unsigned op_current:7;		/* 50mA units */
+		unsigned reserved1:2;
+		unsigned output_voltage:11;	/* 20mV units */
+		unsigned reserved2:3;
+		unsigned unchunked_ext_msg_support:1;
+		unsigned no_usb_suspend:1;
+		unsigned usb_comm_capable:1;
+		unsigned capability_mismatch:1;
+		unsigned reserved3:1;
+		unsigned object_position:3;
+		unsigned reserved4:1;
+	} request_data_object_programmable;
+
+	struct {
+		unsigned reserved:16;
+		unsigned hot_swappable_batteries:4;
+		unsigned fixed_batteries:4;
+		unsigned type_of_alert:8;
+	} alert_data_obejct;
 
 	struct {
 		unsigned min_current:10;	/* 10mA units */
@@ -721,6 +807,9 @@ struct sm5714_usbpd_manager_data {
 	struct delayed_work	acc_detach_handler;
 	struct delayed_work	new_power_handler;
 	uint32_t dr_swap_cnt;
+#if defined(CONFIG_SEC_FACTORY)
+	int vbus_adc;
+#endif
 };
 
 struct sm5714_usbpd_data {
@@ -739,7 +828,11 @@ struct sm5714_usbpd_data {
 	struct sm5714_usbpd_manager_data	manager;
 	struct work_struct	worker;
 	struct completion	msg_arrived;
+#if defined(CONFIG_PDIC_PD30)
+	struct completion	pd_completion;
+#endif
 	unsigned int            wait_for_msg_arrived;
+	int			specification_revision;
 };
 
 static inline struct sm5714_usbpd_data *protocol_rx_to_usbpd(
@@ -821,4 +914,9 @@ extern int sm5714_usbpd_uvdm_out_request_message(void *data, int size);
 extern int sm5714_usbpd_uvdm_ready(void);
 extern void sm5714_usbpd_uvdm_close(void);
 extern void (*fp_select_pdo)(int num);
+#if defined(CONFIG_PDIC_PD30)
+extern int (*fp_sec_pd_select_pps)(int num, int ppsVol, int ppsCur);
+extern int (*fp_sec_pd_get_apdo_max_power)(unsigned int *pdo_pos,
+		unsigned int *taMaxVol, unsigned int *taMaxCur, unsigned int *taMaxPwr);
+#endif
 #endif

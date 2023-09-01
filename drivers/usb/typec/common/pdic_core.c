@@ -21,7 +21,9 @@
 
 #include <linux/device.h>
 #include <linux/module.h>
+#if defined(CONFIG_DRV_SAMSUNG)
 #include <linux/sec_class.h>
+#endif
 #include <linux/power_supply.h>
 #include <linux/of.h>
 #include <linux/regulator/consumer.h>
@@ -52,6 +54,7 @@ int pdic_register_switch_device(int mode)
 {
 	int ret = 0;
 
+	pr_info("%s:%d\n", __func__, mode);
 	if (mode) {
 		ret = switch_dev_register(&switch_dock);
 		if (ret < 0) {
@@ -62,6 +65,7 @@ int pdic_register_switch_device(int mode)
 	} else {
 		switch_dev_unregister(&switch_dock);
 	}
+	pr_info("%s-\n", __func__);
 	return 0;
 }
 
@@ -96,7 +100,7 @@ int pdic_core_register_chip(ppdic_data_t ppdic_data)
 {
 	int ret = 0;
 
-	pr_info("%s\n", __func__);
+	pr_info("%s+\n", __func__);
 	if (IS_ERR(pdic_device)) {
 		pr_err("%s pdic_device is not present try again\n", __func__);
 		ret = -ENODEV;
@@ -109,19 +113,21 @@ int pdic_core_register_chip(ppdic_data_t ppdic_data)
 	ret = sysfs_create_group(&pdic_device->kobj, &pdic_sysfs_group);
 	if (ret)
 		pr_err("%s: pdic sysfs fail, ret %d", __func__, ret);
+	pr_info("%s-\n", __func__);
 out:
 	return ret;
 }
 
 void pdic_core_unregister_chip(void)
 {
-	pr_info("%s\n", __func__);
+	pr_info("%s+\n", __func__);
 	if (IS_ERR(pdic_device)) {
 		pr_err("%s pdic_device is not present try again\n", __func__);
 		return;
 	}
 	sysfs_remove_group(&pdic_device->kobj, &pdic_sysfs_group);
 	dev_set_drvdata(pdic_device, NULL);
+	pr_info("%s-\n", __func__);
 }
 
 int pdic_core_init(void)
@@ -131,9 +137,9 @@ int pdic_core_init(void)
 	if (pdic_device)
 		return 0;
 
-	pr_info("%s\n", __func__);
+	pr_info("%s+\n", __func__);
 
-	pdic_device = sec_device_create(NULL, "ccic");
+	pdic_device = sec_device_create(0, NULL, "ccic");
 	if (IS_ERR(pdic_device)) {
 		pr_err("%s Failed to create device(switch)!\n", __func__);
 		ret = -ENODEV;
@@ -141,6 +147,7 @@ int pdic_core_init(void)
 	}
 	dev_set_drvdata(pdic_device, NULL);
 	pdic_sysfs_init_attrs();
+	pr_info("%s-\n", __func__);
 out:
 	return ret;
 }
@@ -159,5 +166,7 @@ void *pdic_core_get_drvdata(void)
 		pr_err("%s drv data is null in pdic device\n", __func__);
 		return NULL;
 	}
-	return (ppdic_data->drv_data);
+	pr_info("%s-\n", __func__);
+
+	return ppdic_data->drv_data;
 }

@@ -1,0 +1,44 @@
+/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/clock/qcom,camcc-sm6150.h>
+
+#include "../qcom/sm6150-idp.dtsi"
+#include "sm6150-sec-common.dtsi"
+
+#include "sm6150-sec-a70s-pm-common.dtsi"
+
+#include "sm6150-sec-a70s-swa-r01.dtsi"
+#include "sm6150-sec-a70s-swa-pinctrl-r01.dtsi"
+#include "sm6150-sec-a70s-battery-common.dtsi"
+#include "sm6150-sec-a70s-swa-nfc-r00.dtsi"
+#include "sm6150-sec-a70s-eif-r00.dtsi"
+#include "sm6150-sec-a70s-display-r01.dtsi"
+#include "sm6150-sec-a70s-fingerprint_02.dtsi"
+#include "sm6150-camera-sensor-a70s-eur-r03.dtsi"
+/ {
+	model = "Samsung A70S PROJECT Rev0.0 (board-id,01)";
+	compatible = "qcom,sm6150p-idp", "qcom,sm6150p", "qcom,idp";
+	qcom,msm-id = <355 0x0>;
+	qcom,board-id = <34 1>;
+};
+
+&qupv3_se1_i2c {
+	touchscreen@50 {
+		imagis,power-gpioen = <1>;
+		imagis,power-gpio = <&tlmm 93 0>;
+	};
+};

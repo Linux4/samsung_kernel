@@ -162,6 +162,7 @@
 #define AFC_MRXRDY_CNT_LIMIT (3)
 #define AFC_MPING_RETRY_CNT_LIMIT (20)
 #define AFC_QC_RETRY_CNT_LIMIT (3)
+#define AFC_QC_RETRY_WAIT_CNT_LIMIT (3)
 
 typedef enum {
 	MU107_IRQ_VDNMON = 1,
@@ -217,6 +218,7 @@ extern void s2mu107_hv_muic_remove(struct s2mu107_muic_data *muic_data);
 extern muic_attached_dev_t hv_muic_check_id_err(struct s2mu107_muic_data *muic_data,
 		muic_attached_dev_t new_dev);
 #ifdef CONFIG_HV_MUIC_VOLTAGE_CTRL
-extern int muic_afc_set_voltage(int vol);
+extern int s2mu107_muic_afc_set_voltage(int vol);
+extern int s2mu107_muic_afc_get_voltage(void);
 #endif
 #endif /* __S2MU107_MUIC_HV_H__ */
