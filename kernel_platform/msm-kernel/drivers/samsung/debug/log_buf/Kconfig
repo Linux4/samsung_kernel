@@ -1,0 +1,11 @@
+config SEC_LOG_BUF
+	tristate "SEC Kernel Log Buffer"
+	help
+	  TODO: help is not ready.
+
+config SEC_LOG_BUF_USING_KPROBE
+	bool "SEC Kernel Log Buffer - Kprobe Back-End"
+	depends on SEC_LOG_BUF
+	default n
+	help
+	  TODO: help is not ready.
