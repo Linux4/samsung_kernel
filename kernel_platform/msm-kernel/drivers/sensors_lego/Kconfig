@@ -1,0 +1,56 @@
+#
+# grip sensors configuration
+#
+
+config SENSORS_SX9360
+	depends on I2C
+	tristate "SX9360 driver"
+	default n
+	help
+	  Say Y here if you use sx9360.
+	  This option enables grip sensors using
+	  SemTech sx9360 device driver.
+	  Say N here if you do not use sx9360.
+
+config SENSORS_SX9360_SUB
+	depends on I2C
+	tristate "SX9360 sub driver"
+	default n
+	help
+	  Say Y here if you use sx9360 sub.
+	  This option enables grip sensors using
+	  SemTech sx9360 sub device driver.
+	  Say N here if you do not use sx9360 sub.
+
+config SENSORS_SX9364
+	depends on I2C
+	tristate "SX9364 driver"
+	default n
+	help
+	  Say Y here if you use sx9364.
+	  This option enables grip sensors using
+	  SemTech sx9360 device driver.
+	  Say N here if you do not use sx9364.
+
+config SENSORS_SX9364_SUB
+	depends on I2C
+	tristate "SX9364_SUB driver"
+	default n
+	help
+	  Say Y here if you use sx9364_sub.
+	  This option enables grip sensors using
+	  SemTech sx9364_sub device driver.
+	  Say N here if you do not use sx9364_sub.
+
+
+config SENSORS_DUMP_DATA
+	tristate "Grip sensor dump log"
+	default n
+	help
+	  Enable grip dump log data
+	  This option activates log output of grip error data using sensordump_notifier.
+
+config SENSORS_GRIP_FAILURE_DEBUG
+	bool "Grip failure debug"
+	help
+	  Say Y here, Enable Grip failure debug flag.

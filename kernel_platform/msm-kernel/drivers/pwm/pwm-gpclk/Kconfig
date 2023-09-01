@@ -1,0 +1,17 @@
+config PWM_GPCLK
+	tristate "Qualcomm GP CLK control driver"
+	depends on OF
+	help
+	  Qualcomm GP CLK control driver
+
+config PWM_GPCLK_DEBUG_FEATURE
+	tristate "PWM GPLK Debug info enable"
+	depends on OF
+	help
+	  Qualcomm GP CLK control driver's Debug info enable
+
+config PWM_GPCLK_USE_16_BIT_REGISTER
+	tristate "PWM GPLK Use 16 bit m, n, d register"
+	depends on OF
+	help
+	  Qualcomm GP CLK control driver use 16 bits registers from SM8550 before that 8 bit registers are used

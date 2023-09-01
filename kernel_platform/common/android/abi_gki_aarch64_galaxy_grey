@@ -1,0 +1,9 @@
+[abi_symbol_list]
+  ib_notifier_register
+  ib_notifier_unregister
+
+
+unload_trusted_app
+load_trusted_app
+unregister_mz_tee_crypto_driver
+register_mz_tee_crypto_driver
