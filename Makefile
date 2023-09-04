@@ -658,7 +658,7 @@ REAL_CC		= $(srctree)/../../prebuilts/gcc-cfp/gcc-cfp-jopp-only/aarch64-linux-an
 CC		= $(srctree)/scripts/gcc-wrapper.py $(REAL_CC)
 endif
 ifdef CONFIG_RKP_CFP_ROPP
-REAL_CC		= $(srctree)/tools/prebuilts/gcc-cfp/gcc-cfp-single/aarch64-linux-android-4.9/bin/aarch64-linux-android-gcc
+REAL_CC        = $(srctree)/tools/prebuilts/gcc-cfp/gcc-cfp-single/aarch64-linux-android-4.9/bin/aarch64-linux-android-gcc
 CC		= $(srctree)/scripts/gcc-wrapper.py $(REAL_CC)
 endif
 # check for 'asm goto'
