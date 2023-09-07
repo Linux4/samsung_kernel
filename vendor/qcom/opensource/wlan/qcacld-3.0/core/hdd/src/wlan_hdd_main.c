@@ -3343,11 +3343,6 @@ wlan_hdd_update_dbs_scan_and_fw_mode_config(void)
 		return QDF_STATUS_SUCCESS;
 #endif //SEC_WRITE_SOFTAP_INFO_IN_SYSFS
 
-	if (hdd_ctx->is_dual_mac_cfg_updated) {
-		hdd_debug("dual mac config has already been updated, skip");
-		return QDF_STATUS_SUCCESS;
-	}
-
 	cfg.scan_config = 0;
 	cfg.fw_mode_config = 0;
 	cfg.set_dual_mac_cb = policy_mgr_soc_set_dual_mac_cfg_cb;
@@ -3385,14 +3380,21 @@ wlan_hdd_update_dbs_scan_and_fw_mode_config(void)
 	hdd_debug("send scan_cfg: 0x%x fw_mode_cfg: 0x%x to fw",
 		cfg.scan_config, cfg.fw_mode_config);
 
+	status = policy_mgr_reset_dual_mac_configuration(hdd_ctx->psoc);
+	if (QDF_IS_STATUS_ERROR(status))
+		return status;
+
 	status = sme_soc_set_dual_mac_config(cfg);
-	if (QDF_IS_STATUS_ERROR(status)) {
+	if (QDF_IS_STATUS_SUCCESS(status)) {
+		/* wait for sme_soc_set_dual_mac_config to complete */
+		status =
+		    policy_mgr_wait_for_dual_mac_configuration(hdd_ctx->psoc);
+	} else {
 		hdd_err("sme_soc_set_dual_mac_config failed %d", status);
 		return status;
 	}
-	hdd_ctx->is_dual_mac_cfg_updated = true;
 
-	return QDF_STATUS_SUCCESS;
+	return status;
 }
 
 /**
@@ -15057,10 +15059,11 @@ static int hdd_features_init(struct hdd_context *hdd_ctx)
 		hdd_err("Get rf test mode failed");
 		return QDF_STATUS_E_FAILURE;
 	}
-	if (!rf_test_mode) {
-		wlan_cm_set_check_6ghz_security(hdd_ctx->psoc, true);
+
+	if (rf_test_mode) {
+		wlan_cm_set_check_6ghz_security(hdd_ctx->psoc, false);
 		wlan_cm_set_6ghz_key_mgmt_mask(hdd_ctx->psoc,
-					       ALLOWED_KEYMGMT_6G_MASK);
+					       DEFAULT_KEYMGMT_6G_MASK);
 	}
 	hdd_thermal_stats_cmd_init(hdd_ctx);
 	sme_set_cal_failure_event_cb(hdd_ctx->mac_handle,
@@ -15683,7 +15686,6 @@ int hdd_wlan_stop_modules(struct hdd_context *hdd_ctx, bool ftm_mode)
 
 	/* Once the firmware sequence is completed reset this flag */
 	hdd_ctx->imps_enabled = false;
-	hdd_ctx->is_dual_mac_cfg_updated = false;
 	hdd_ctx->driver_status = DRIVER_MODULES_CLOSED;
 	hdd_ctx->is_fw_dbg_log_levels_configured = false;
 #if defined (SEC_READ_MACADDR_SYSFS) || defined (SEC_WRITE_VERSION_IN_SYSFS) || defined (SEC_WRITE_SOFTAP_INFO_IN_SYSFS) || defined (SEC_CONFIG_PSM_SYSFS)

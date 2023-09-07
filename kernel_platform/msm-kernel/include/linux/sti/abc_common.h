@@ -79,6 +79,7 @@ extern struct class *sec_class;
 #define ABC_EVENT_BUFFER_MAX		30
 #define ABC_DEFAULT_COUNT			0
 #define ABC_TEST_STR_MAX		128
+#define ABC_SKIP_EVENT_COUNT_THRESHOLD		3
 
 enum abc_enable_cmd {
 	ERROR_REPORT_MODE_ENABLE = 0,
@@ -96,6 +97,7 @@ struct registered_abc_event_struct {
 	char host[ABC_EVENT_STR_MAX];
 	bool enabled;
 	bool singular_spec;
+	int error_count;
 };
 
 struct abc_enable_cmd_struct {

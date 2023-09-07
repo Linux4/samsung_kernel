@@ -1149,7 +1149,11 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
 
     dev->setDeviceAttributes(*dattr);
 
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    if (currentState == STREAM_IDLE || currentState == STREAM_STOPPED) {
+#else
     if (currentState == STREAM_IDLE) {
+#endif
         PAL_DBG(LOG_TAG, "stream is in %d state, no need to switch device", currentState);
         status = 0;
         goto exit;
@@ -1204,6 +1208,14 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
             goto dev_close;
         }
     }
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    else if (rm->isBtDevice((pal_device_id_t)dev->getSndDeviceId())) {
+        PAL_DBG(LOG_TAG, "stream is in %d state, no need to switch to BT", currentState);
+        status = 0;
+        rm->unlockGraph();
+        goto dev_close;
+    }
+#endif
     status = session->connectSessionDevice(streamHandle, mStreamAttr->type, dev);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "connectSessionDevice failed:%d", status);
@@ -1410,6 +1422,11 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
 
     for (int i = 0; i < numDev; i++) {
         struct pal_device_info devinfo = {};
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+        bool devReadyStatus = 0;
+        uint32_t retryCnt = 20;
+        uint32_t retryPeriodMs = 100;
+#endif
         /*
          * When A2DP, Out Proxy and DP device is disconnected the
          * music playback is paused and the policy manager sends routing=0
@@ -1446,7 +1463,20 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
             return 0;
         }
 
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+        while (!devReadyStatus && --retryCnt) {
+            devReadyStatus = rm->isDeviceReady(newDevices[i].id);
+            if (devReadyStatus)
+                break;
+            usleep(retryPeriodMs * 1000);
+        }
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+        PAL_VERBOSE(LOG_TAG, "Last retry count is %u", retryCnt);
+#endif
+        if (!devReadyStatus) {
+#else
         if (!rm->isDeviceReady(newDevices[i].id)) {
+#endif
             PAL_ERR(LOG_TAG, "Device %d is not ready", newDevices[i].id);
 #ifdef SEC_AUDIO_BLE_OFFLOAD
             if (((newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) ||
@@ -1737,7 +1767,12 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
 
 done:
     mStreamMutex.lock();
-    if (a2dpMuted && !isNewDeviceA2dp) {
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    if (a2dpMuted)
+#else
+    if (a2dpMuted && !isNewDeviceA2dp)
+#endif
+    {
         mute_l(false);
         a2dpMuted = false;
         suspendedDevIds.clear();

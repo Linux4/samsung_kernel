@@ -348,6 +348,7 @@ void sec_abc_change_spec(const char *str)
 
 	if (!strncmp(str, "reset", 5)) {
 		sec_abc_reset_all_spec();
+		sec_abc_enable_all_spec();
 		ABC_PRINT("end : %s", str);
 		return;
 	}
@@ -388,6 +389,15 @@ void sec_abc_reset_all_spec(void)
 	}
 }
 EXPORT_SYMBOL_KUNIT(sec_abc_reset_all_spec);
+
+void sec_abc_enable_all_spec(void)
+{
+	int i;
+
+	for (i = 0; i < REGISTERED_ABC_EVENT_TOTAL; i++)
+		abc_event_list[i].enabled = true;
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_enable_all_spec);
 
 int sec_abc_read_spec(char *buf)
 {

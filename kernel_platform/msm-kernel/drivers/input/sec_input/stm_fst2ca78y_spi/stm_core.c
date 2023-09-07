@@ -744,7 +744,6 @@ static void stm_trusted_touch_pvm_vm_mode_disable(struct stm_ts_data *ts)
 	stm_ts_trusted_touch_set_pvm_driver_state(ts,
 				PVM_IRQ_RECLAIMED);
 	input_err(true, &ts->client->dev, "vm irq reclaim succeded!\n");
-	enable_irq(ts->irq);
 
 	stm_ts_trusted_touch_set_pvm_driver_state(ts, PVM_INTERRUPT_ENABLED);
 	stm_ts_bus_put(ts);
@@ -755,6 +754,10 @@ static void stm_trusted_touch_pvm_vm_mode_disable(struct stm_ts_data *ts)
 						TRUSTED_TOUCH_PVM_INIT);
 	atomic_set(&ts->trusted_touch_enabled, 0);
 	input_err(true, &ts->client->dev, " trusted touch disabled\n");
+
+	msleep(200);
+	enable_irq(ts->irq);
+
 	return;
 error:
 	stm_ts_trusted_touch_abort_handler(ts,
@@ -2066,7 +2069,7 @@ static int stm_ts_get_rawdata(struct stm_ts_data *ts)
 	target_mem = ts->raw_pool[ts->raw_write_index++];
 	memcpy(target_mem, ts->raw, ts->raw_len);
 
-	if (ts->raw_write_index >= 3)
+	if (ts->raw_write_index >= RAW_VEC_NUM)
 		ts->raw_write_index = 0;
 
 /*	input_info(true, &ts->client->dev, "%s: | %d | %d | %d | %d\n", __func__, ts->raw[0], ts->raw[1], ts->raw[2], ts->raw[3]);*/

@@ -967,19 +967,53 @@ exit:
 int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
 {
     int status = 0;
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    struct pal_stream_attributes sAttr;
+#endif
     uint32_t tagsent;
     struct agm_tag_config* tagConfig;
     const char *setParamTagControl = "setParamTag";
     const char *stream = "COMPRESS";
     const char *setCalibrationControl = "setCalibration";
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    const char *setBEControl = "control";
+#endif
     struct mixer_ctl *ctl;
     struct agm_cal_config *calConfig;
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    std::ostringstream beCntrlName;
+#endif
     std::ostringstream tagCntrlName;
     std::ostringstream calCntrlName;
     int tkv_size = 0;
     int ckv_size = 0;
 
     PAL_DBG(LOG_TAG, "Enter");
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    status = s->getStreamAttributes(&sAttr);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "getStreamAttributes Failed \n");
+        return -EINVAL;
+    }
+
+    if ((sAttr.direction == PAL_AUDIO_OUTPUT && rxAifBackEnds.empty()) ||
+        (sAttr.direction == PAL_AUDIO_INPUT && txAifBackEnds.empty())) {
+        PAL_ERR(LOG_TAG, "No backend connected to this stream\n");
+        return -EINVAL;
+    }
+
+    if (compressDevIds.size() > 0)
+        beCntrlName<<stream<<compressDevIds.at(0)<<" "<<setBEControl;
+
+    ctl = mixer_get_ctl_by_name(mixer, beCntrlName.str().data());
+    if (!ctl) {
+        PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
+        return -ENOENT;
+    }
+    mixer_ctl_set_enum_by_string(ctl, (sAttr.direction == PAL_AUDIO_OUTPUT) ?
+                                 rxAifBackEnds[0].second.data() : txAifBackEnds[0].second.data());
+#endif
+
     switch (type) {
         case MODULE:
             tkv.clear();
@@ -1794,20 +1828,18 @@ int SessionAlsaCompress::registerCallBack(session_callback cb, uint64_t cookie)
 int SessionAlsaCompress::flush()
 {
     int status = 0;
-
-    if (!compress) {
-        PAL_ERR(LOG_TAG, "Compress is invalid");
-        return -EINVAL;
-    }
-    if (playback_started) {
-        PAL_VERBOSE(LOG_TAG, "Enter flush\n");
-        status = compress_stop(compress);
-        if (!status) {
-            playback_started = false;
+    PAL_VERBOSE(LOG_TAG, "Enter flush");
+ 
+     if (playback_started) {
+        if (compressDevIds.size() > 0) {
+            status = SessionAlsaUtils::flush(rm, compressDevIds.at(0));
+        } else {
+            PAL_ERR(LOG_TAG, "DevIds size is invalid");
+            return -EINVAL;
         }
     }
-    PAL_VERBOSE(LOG_TAG, "playback_started %d status %d\n", playback_started,
-            status);
+
+    PAL_VERBOSE(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 

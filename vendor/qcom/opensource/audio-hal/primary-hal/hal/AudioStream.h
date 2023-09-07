@@ -598,6 +598,7 @@ public:
     source_metadata_t btSourceMetadata;
     std::vector<playback_track_metadata_t> tracks;
     int SetAggregateSourceMetadata(bool voice_active);
+    static std::mutex sourceMetadata_mutex_;
 #endif
 protected:
 #ifdef SEC_AUDIO_DSM_AMP
@@ -709,6 +710,7 @@ public:
     sink_metadata_t btSinkMetadata;
     std::vector<record_track_metadata_t> tracks;
     int SetAggregateSinkMetadata(bool voice_active);
+    static std::mutex sinkMetadata_mutex_;
 #endif
 protected:
     struct timespec readAt;

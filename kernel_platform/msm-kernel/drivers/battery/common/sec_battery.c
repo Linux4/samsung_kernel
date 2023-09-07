@@ -4016,6 +4016,42 @@ static void sec_bat_d2d_check(struct sec_battery_info *battery,
 		battery->vpdo_auth_stat = auth;
 	}
 }
+
+static void sec_bat_check_direct_charger(struct sec_battery_info *battery)
+{
+	union power_supply_propval val = {0, };
+
+	if (battery->status != POWER_SUPPLY_STATUS_CHARGING ||
+		battery->health != POWER_SUPPLY_HEALTH_GOOD) {
+		battery->dc_check_cnt = 0;
+		return;
+	}
+
+	psy_do_property(battery->pdata->charger_name, get,
+		POWER_SUPPLY_EXT_PROP_CHARGER_MODE_DIRECT, val);
+	if (val.intval != SEC_BAT_CHG_MODE_CHARGING) {
+		battery->dc_check_cnt = 0;
+		return;
+	}
+
+	val.strval = "GETCHARGING";
+	psy_do_property(battery->pdata->charger_name, get,
+		POWER_SUPPLY_EXT_PROP_DIRECT_CHARGER_CHG_STATUS, val);
+	if (strncmp(val.strval, "NO_CHARGING", 12) == 0) {
+		pr_info("%s: cnt(%d)\n", __func__, battery->dc_check_cnt);
+		if (++battery->dc_check_cnt < 3)
+			return;
+		sec_bat_set_current_event(battery,
+			SEC_BAT_CURRENT_EVENT_DC_ERR, SEC_BAT_CURRENT_EVENT_DC_ERR);
+		sec_vote(battery->chgen_vote, VOTER_DC_ERR, true,
+			SEC_BAT_CHG_MODE_CHARGING_OFF);
+		msleep(100);
+		sec_bat_set_current_event(battery,
+			0, SEC_BAT_CURRENT_EVENT_DC_ERR);
+		sec_vote(battery->chgen_vote, VOTER_DC_ERR, false, 0);
+	}
+	battery->dc_check_cnt = 0;
+}
 #endif
 
 static void sec_bat_monitor_work(struct work_struct *work)
@@ -4141,6 +4177,8 @@ skip_current_monitor:
 #if IS_ENABLED(CONFIG_DIRECT_CHARGING)
 	if (is_pd_apdo_wire_type(battery->cable_type) && (val.intval == LOW_VBAT_SET))
 		sec_vote_refresh(battery->fcc_vote);
+	if (is_pd_apdo_wire_type(battery->cable_type))
+		sec_bat_check_direct_charger(battery);
 #endif
 	psy_do_property(battery->pdata->fuelgauge_name, get,
 		POWER_SUPPLY_EXT_PROP_MONITOR_WORK, val);
@@ -4711,6 +4749,7 @@ static void cw_nocharge_type(struct sec_battery_info *battery)
 			SEC_BAT_CURRENT_EVENT_USB_STATE |
 			SEC_BAT_CURRENT_EVENT_SEND_UVDM));
 	sec_bat_set_misc_event(battery, 0, BATT_MISC_EVENT_WIRELESS_MISALIGN);
+	sec_bat_recov_full_capacity(battery); /* should call this after setting discharging */
 
 	/* slate_mode needs to be clear manually since smart switch does not disable slate_mode sometimes */
 	if (is_slate_mode(battery)) {
@@ -5237,6 +5276,39 @@ static void sec_bat_handle_bc12_connection(struct sec_battery_info *battery)
 } /* sec_bat_handle_bc12_connection */
 #endif
 
+#define TRANSIT_CNT 5
+#define MAX_TRANSIT_CNT 100
+static void sec_bat_check_srccap_transit(struct sec_battery_info *battery, int enable)
+{
+	int voter_status;
+
+	pr_info("%s: set init_src_cap(%d->%d)",
+		__func__, battery->init_src_cap, enable);
+
+	if (enable) {
+		battery->init_src_cap = true;
+		return;
+	}
+
+	if (++battery->srccap_transit_cnt < TRANSIT_CNT) {
+		sec_vote(battery->chgen_vote, VOTER_SRCCAP_TRANSIT, true, SEC_BAT_CHG_MODE_BUCK_OFF);
+		return;
+	}
+
+	if (battery->srccap_transit_cnt > MAX_TRANSIT_CNT)
+		battery->srccap_transit_cnt = TRANSIT_CNT;
+	voter_status = SEC_BAT_CHG_MODE_CHARGING;
+	if (get_sec_voter_status(battery->chgen_vote, VOTER_SRCCAP_TRANSIT, &voter_status) < 0) {
+		return;
+	}
+	pr_info("%s: voter_status: %d cnt: %d\n", __func__, voter_status, battery->srccap_transit_cnt);
+
+	if (voter_status == SEC_BAT_CHG_MODE_BUCK_OFF) {
+		sec_vote(battery->chgen_vote, VOTER_SRCCAP_TRANSIT, false, 0);
+		pr_info("%s: disable VOTER_SRCCAP_TRANSIT manually\n", __func__);
+	}
+}
+
 static int sec_bat_set_property(struct power_supply *psy,
 				enum power_supply_property psp,
 				const union power_supply_propval *val)
@@ -5536,12 +5608,7 @@ static int sec_bat_set_property(struct power_supply *psy,
 			break;
 #endif
 		case POWER_SUPPLY_EXT_PROP_SRCCAP:
-			pr_info("%s: set init_src_cap(%d->%d)",
-				__func__, battery->init_src_cap, val->intval);
-			if (val->intval == 0)
-				sec_vote(battery->chgen_vote, VOTER_SRCCAP_TRANSIT, true, SEC_BAT_CHG_MODE_BUCK_OFF);
-			else
-				battery->init_src_cap = true;
+			sec_bat_check_srccap_transit(battery, val->intval);
 			break;
 #if IS_ENABLED(CONFIG_DIRECT_CHARGING)
 		case POWER_SUPPLY_EXT_PROP_DIRECT_TA_ALERT:
@@ -5717,6 +5784,15 @@ static int sec_bat_set_property(struct power_supply *psy,
 		case POWER_SUPPLY_EXT_PROP_MISC_EVENT_CLEAR:
 			pr_info("%s: new misc_event clear %d\n", __func__, val->intval);
 			sec_bat_set_misc_event(battery, 0, val->intval);
+			break;
+		case POWER_SUPPLY_EXT_PROP_ABNORMAL_SRCCAP:
+			store_battery_log(
+				"ABNORMAL_SRCCAP:%d%%,%dmV,%s,PDO(0x%X)",
+				battery->capacity,
+				battery->voltage_now,
+				sb_get_bst_str(battery->status),
+				val->intval
+			);
 			break;
 		default:
 			return -EINVAL;
@@ -7031,6 +7107,7 @@ static int usb_typec_handle_id_power_status(struct sec_battery_info *battery,
 		sec_bat_get_input_current_in_power_list(battery);
 		sec_bat_get_charging_current_in_power_list(battery);
 		sec_vote(battery->chgen_vote, VOTER_SRCCAP_TRANSIT, false, 0);
+		battery->srccap_transit_cnt = 0;
 	}
 	current_pdo = battery->sink_status.current_pdo_num;
 	if (battery->sink_status.power_list[current_pdo].max_voltage > SEC_INPUT_VOLTAGE_5V)
@@ -8312,6 +8389,8 @@ static int sec_battery_probe(struct platform_device *pdev)
 	battery->vpdo_ocp = false;
 	battery->vpdo_auth_stat = AUTH_NONE;
 	battery->hp_d2d = HP_D2D_NONE;
+	battery->dc_check_cnt = 0;
+	battery->srccap_transit_cnt = 0;
 
 	ttf_init(battery);
 #if defined(CONFIG_BATTERY_CISD)

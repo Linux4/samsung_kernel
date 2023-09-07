@@ -419,10 +419,11 @@ typedef enum {
     PAL_DEVICE_IN_EXT_EC_REF = PAL_DEVICE_IN_MIN + 20,
 #ifdef SEC_AUDIO_BLE_OFFLOAD
     PAL_DEVICE_IN_BLUETOOTH_BLE = PAL_DEVICE_IN_MIN + 21,
+    PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK = PAL_DEVICE_IN_MIN + 22, // temporary fix build err (refer 8550)
 #endif
     // Add new IN devices here, increment MAX and MIN below when you do so
 #ifdef SEC_AUDIO_BLE_OFFLOAD
-    PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 22,
+    PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 23,
 #else
     PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 21,
 #endif
@@ -1153,6 +1154,7 @@ typedef struct pal_param_bta2dp {
 #endif
 #ifdef SEC_AUDIO_BLE_OFFLOAD // SEC
     bool     a2dp_suspended_for_ble;
+    uint32_t bt_mix_latency;
 #endif
 } pal_param_bta2dp_t;
 

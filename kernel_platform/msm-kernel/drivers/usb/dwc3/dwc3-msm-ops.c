@@ -77,8 +77,16 @@ static int exit_dwc3_gadget_init_out_endpoint(struct kretprobe_instance *ri,
 static int entry_dwc3_gadget_run_stop(struct kretprobe_instance *ri,
 				   struct pt_regs *regs)
 {
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_F_SS_MON_GADGET)
+	struct kprobe_data *data = (struct kprobe_data *)ri->data;
+#endif
 	struct dwc3 *dwc = (struct dwc3 *)regs->regs[0];
 	int is_on = (int)regs->regs[1];
+
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_F_SS_MON_GADGET)
+	data->dwc = dwc;
+	data->xi0 = is_on;
+#endif
 
 	if (is_on) {
 		/*
@@ -110,6 +118,27 @@ static int entry_dwc3_gadget_run_stop(struct kretprobe_instance *ri,
 
 	return 0;
 }
+
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_F_SS_MON_GADGET)
+static int exit_dwc3_gadget_run_stop(struct kretprobe_instance *ri,
+				   struct pt_regs *regs)
+{
+	unsigned long long retval = regs_return_value(regs);
+	struct kprobe_data *data = (struct kprobe_data *)ri->data;
+	struct dwc3 *dwc = data->dwc;
+	int is_on;
+
+	is_on = data->xi0;
+
+	vbus_session_notify(dwc->gadget, is_on, retval);
+
+	if (retval) {
+		pr_info("usb: dwc3_gadget_run_stop : dwc3_gadget %s failed (%d)\n",
+			is_on ? "ON" : "OFF", retval);
+	}
+	return 0;
+}
+#endif
 
 static int entry_dwc3_send_gadget_ep_cmd(struct kretprobe_instance *ri,
 				   struct pt_regs *regs)
@@ -339,7 +368,11 @@ static int entry_dwc3_gadget_vbus_draw(struct kretprobe_instance *ri,
 }
 
 static struct kretprobe dwc3_msm_probes[] = {
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_F_SS_MON_GADGET)
+	ENTRY_EXIT(dwc3_gadget_run_stop),
+#else
 	ENTRY(dwc3_gadget_run_stop),
+#endif
 	ENTRY(dwc3_send_gadget_ep_cmd),
 	ENTRY(dwc3_gadget_reset_interrupt),
 	ENTRY_EXIT(dwc3_gadget_conndone_interrupt),

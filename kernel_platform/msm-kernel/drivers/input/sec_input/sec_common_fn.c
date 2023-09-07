@@ -62,7 +62,7 @@ int sec_input_get_lcd_id(struct device *dev)
 #if !IS_ENABLED(CONFIG_SMCDSD_PANEL)
 	int lcdtype = 0;
 #endif
-#if IS_ENABLED(CONFIG_EXYNOS_DPU30) || IS_ENABLED(CONFIG_MCD_PANEL)
+#if IS_ENABLED(CONFIG_EXYNOS_DPU30) || IS_ENABLED(CONFIG_MCD_PANEL) || IS_ENABLED(CONFIG_USDM_PANEL)
 	int connected;
 #endif
 	int lcd_id_param = 0;
@@ -75,7 +75,7 @@ int sec_input_get_lcd_id(struct device *dev)
 	}
 #endif
 
-#if IS_ENABLED(CONFIG_EXYNOS_DPU30) || IS_ENABLED(CONFIG_MCD_PANEL)
+#if IS_ENABLED(CONFIG_EXYNOS_DPU30) || IS_ENABLED(CONFIG_MCD_PANEL) || IS_ENABLED(CONFIG_USDM_PANEL)
 	connected = get_lcd_info("connected");
 	if (connected < 0) {
 		input_err(true, dev, "%s: Failed to get lcd info(connected)\n", __func__);
@@ -1299,11 +1299,10 @@ void sec_input_unregister_vbus_notifier(struct device *dev)
 #if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	manager_notifier_unregister(&pdata->ccic_nb);
 #endif
+	vbus_notifier_unregister(&pdata->vbus_nb);
 	cancel_work_sync(&pdata->vbus_notifier_work);
 	flush_workqueue(pdata->vbus_notifier_workqueue);
 	destroy_workqueue(pdata->vbus_notifier_workqueue);
-
-	vbus_notifier_unregister(&pdata->vbus_nb);
 #endif
 }
 EXPORT_SYMBOL(sec_input_unregister_vbus_notifier);

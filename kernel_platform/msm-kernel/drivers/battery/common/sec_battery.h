@@ -1209,6 +1209,8 @@ struct sec_battery_info {
 #endif
 	unsigned int batt_f_mode;
 #endif
+	int srccap_transit_cnt;
+	int dc_check_cnt;
 	bool usb_slow_chg;
 	bool usb_bootcomplete;
 	unsigned int flash_state;

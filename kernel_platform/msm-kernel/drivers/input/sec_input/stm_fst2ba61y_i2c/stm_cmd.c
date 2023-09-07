@@ -669,8 +669,7 @@ static ssize_t dualscreen_policy_store(struct device *dev,
 	input_info(true, &ts->client->dev, "%s: power_state[%d] %sfolding\n",
 					__func__, ts->plat_data->power_state, ts->flip_status_current ? "" : "un");
 
-	if ((ts->plat_data->power_state == SEC_INPUT_STATE_LPM && ts->flip_status_current == STM_TS_STATUS_UNFOLDING) ||
-		(ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF && ts->flip_status_current == STM_TS_STATUS_FOLDING)) {
+	if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM && ts->flip_status_current == STM_TS_STATUS_UNFOLDING) {
 		mutex_lock(&ts->modechange);
 		stm_chk_tsp_ic_status(ts, STM_TS_STATE_CHK_POS_SYSFS);
 		mutex_unlock(&ts->modechange);
@@ -2988,7 +2987,7 @@ static void run_prox_intensity_read_all(void *device_data)
 		return;
 	}
 
-	snprintf(buff, sizeof(buff), "SUM_X:%d THD_X:%d SUM_Y:%d THD_Y:%d",
+	snprintf(buff, sizeof(buff), "SUM_X:%d SUM_Y:%d THD_X:%d THD_Y:%d",
 			(sum_data[0] << 8) + sum_data[1], (sum_data[2] << 8) + sum_data[3],
 			(thd_data[0] << 8) + thd_data[1], (thd_data[2] << 8) + thd_data[3]);
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
@@ -6736,7 +6735,7 @@ struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("touch_aging_mode", touch_aging_mode),},
 	{SEC_CMD_H("ear_detect_enable", ear_detect_enable),},
 	{SEC_CMD_H("pocket_mode_enable", pocket_mode_enable),},
-	{SEC_CMD_H("low_sensitivity_mode_enable", low_sensitivity_mode_enable),},
+	{SEC_CMD("low_sensitivity_mode_enable", low_sensitivity_mode_enable),},
 	{SEC_CMD("set_sip_mode", set_sip_mode),},
 	{SEC_CMD("set_game_mode", set_game_mode),},
 	{SEC_CMD("set_note_mode", set_note_mode),},

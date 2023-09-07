@@ -2377,7 +2377,7 @@ static void get_digitizer_connection(void *device_data)
 
 #if WACOM_SEC_FACTORY
 	ret = wacom_check_ub(wac_i2c->client);
-	if (!ret) {
+	if (ret < 0) {
 		input_info(true, &client->dev, "%s: digitizer is not attached\n", __func__);
 		goto out;
 	}

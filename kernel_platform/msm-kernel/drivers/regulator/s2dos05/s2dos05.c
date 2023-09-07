@@ -110,7 +110,7 @@ static void s2dos05_irq_abc_event(const char *irq_desc)
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 	type = "WARN";
 #else
-	type = "INFO";
+	type = "WARN";	/* Diamond: black screen issue in user binary */
 #endif /* CONFIG_SEC_FACTORY */
 
 	snprintf(buf, sizeof(buf), "MODULE=pmic@%s=s2dos05_%s", type, irq_desc);
@@ -598,6 +598,7 @@ static irqreturn_t s2dos05_irq_thread(int irq, void *irq_data)
 	struct s2dos05_data *s2dos05 = irq_data;
 	u8 val = 0;
 #if IS_ENABLED(CONFIG_SEC_PM)
+	u8 scp_val[2] = { 0, };
 	const char *irq_bit[] = { "ocd", "uvlo", "scp", "ssd", "tsd", "pwrmt" };
 	char irq_name[32];
 	ssize_t ret = 0;
@@ -615,6 +616,20 @@ static irqreturn_t s2dos05_irq_thread(int irq, void *irq_data)
 	}
 
 	pr_info("%s: irq:%s\n", __func__, irq_name);
+
+	/* Show which regulator's SCP occurs */
+	if (0x04 & val) {
+		if (s2dos05->iodev->is_sm3080) {
+			/* SM3080 */
+			s2dos05_read_reg(s2dos05->iodev->i2c, INT_STATUS1, &scp_val[0]);
+			pr_info("%s:INT_STATUS1(0x%02hhx)\n", __func__, scp_val[0]);
+		} else {
+			/* S2DOS05 */
+			s2dos05_read_reg(s2dos05->iodev->i2c, FAULT_STATUS1, &scp_val[0]);
+			s2dos05_read_reg(s2dos05->iodev->i2c, FAULT_STATUS2, &scp_val[1]);
+			pr_info("%s:FAULT_STATUS1(0x%02hhx), FAULT_STATUS2(0x%02hhx)\n", __func__, scp_val[0], scp_val[1]);
+		}
+	}
 #endif /* CONFIG_SEC_PM */
 
 #if IS_ENABLED(CONFIG_SEC_PM)

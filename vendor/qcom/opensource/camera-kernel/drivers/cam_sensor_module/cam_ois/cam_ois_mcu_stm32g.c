@@ -3797,12 +3797,20 @@ int cam_ois_read_hall_position(struct cam_ois_ctrl_t *o_ctrl,
 		CAM_ERR(CAM_OIS, "Failed set hall read control bit(FWINFO_CTRL)");
 
 	for (j = 0; j < (CUR_MODULE_NUM * 2); j++) {
-		cnt = scnprintf(buf + offset, 256, "%u,", targetPosition[j]);
-		offset += cnt;
+		if (offset < 256) {
+			cnt = scnprintf(buf + offset, (256 - offset), "%u,", targetPosition[j]);
+			offset += cnt;
+		}
 	}
 	for (j = 0; j < (CUR_MODULE_NUM * 2); j++) {
-		cnt = scnprintf(buf + offset, 256, "%u,", hallPosition[j]);
-		offset += cnt;
+		if (offset < 256) {
+			cnt = scnprintf(buf + offset, (256 - offset), "%u,", hallPosition[j]);
+			offset += cnt;
+		}
+	}
+
+	if (offset > 256) {
+		offset = 256;
 	}
 	buf[offset - 1] = '\0';
 	CAM_INFO(CAM_OIS, "result - target[M1,..,Mn], current[M1,..,Mn] = %s", buf);
