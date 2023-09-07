@@ -1,0 +1,10 @@
+#
+# GENERIC PANEL
+#
+# Enable this to be able to choose the drivers for controlling the 
+# TFT-LCD and AMOLED on some platforms. This driver adds support for 
+# easy control of lcd, backlight, mdnie and tuning thru device tree.
+
+if LCD_GENERIC
+source "drivers/misc/mediatek/lcm/mtk_gen_panel/gen_panel/Kconfig"
+endif

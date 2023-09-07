@@ -1,0 +1,8 @@
+config BLOWFISH_TUI_SUPPORT
+	bool "TUI HW Handler"
+	default n
+	help
+	  Provide methods for TUI such as acquisition of buffer
+	  to be used as secure frame buffer in Secure World and
+	  synchronization of display and touch device between
+	  Normal World and Secure World.

@@ -1,0 +1,49 @@
+config MTK_LCM
+	bool "Enble LCM driver"
+	default n
+	help
+	  define LCM driver config to enable LCM driver.
+	  To set LCM driver which you choose avoid cannot driver LCM.
+	  Please make sure CONFIG_MTK_LCM in xxxxxx_defconfig.mk.
+	  And also make sure true on in ProjectConfig.mk
+
+config CUSTOM_LCM_USE_PMIC_VRF18_2
+	bool "pmic vrf18_2 for lcm"
+	default n
+	help
+	  this config is used to control lcm power
+	  if lcm 1.8V control by pmic vrf18_2,please set it true.
+	  Please make sure CUSTOM_LCM_USE_PMIC_VRF18_2 in xxxxx_defconfig.mk.
+	  And also make sure true on in ProjectConfig.mk
+
+config CUSTOM_KERNEL_LCM
+	string "define mediatek kernel LCM driver"
+	help
+	  To choose kernel LCM driver name.
+	  This config is to select which LCM driver you want to use.
+	  Please make sure CUSTOME_KERNEL_LCM in xxxxx_defconfig.mk.
+	  And also make sure turn on in ProjectConfig.mk
+
+config MTK_LCM_DEVICE_TREE_SUPPORT
+	bool "support LCM device tree connect with display drivers"
+	help
+	  Decide whether to support LCM device tree based configuration.
+	  This feature requires the connection between display driver and LCM devices.
+	  Please also turn on MTK_LCM_DEVICE_TREE_SUPPORT in ProjectConfig.mk.
+	  If not define MTK_LCM_DEVICE_TREE_SUPPORT
+	  there will not connect between display driver and LCM devices.
+
+config LCD_GENERIC
+	bool "GENERIC PANEL support"
+	help
+		Enable this to be able to choose the drivers for controlling the 
+		TFT-LCD and AMOLED on some platforms. This driver adds support for 
+		easy control of lcd, backlight, mdnie and tuning thru device tree.
+
+if CUSTOM_KERNEL_LCM="sec_panel"
+source "drivers/misc/mediatek/lcm/sec_panel/Kconfig"
+endif
+
+if LCD_GENERIC
+source "drivers/misc/mediatek/lcm/mtk_gen_panel/Kconfig"
+endif

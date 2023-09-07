@@ -1,0 +1,5 @@
+config SEC_PANEL
+	tristate "Support SEC PANEL"
+	default y
+
+source "drivers/misc/mediatek/lcm/sec_panel/panels/Kconfig"

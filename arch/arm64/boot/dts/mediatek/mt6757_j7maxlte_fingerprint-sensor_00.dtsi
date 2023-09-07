@@ -1,0 +1,167 @@
+/*
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&spi0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	etspi-spi@0 {
+		compatible = "etspi,et5xx";
+		reg = <0x00>;
+		spi-max-frequency = <16000000>;
+		pinctrl-names = "btp_check",
+			"btp_irq", 
+			"btp_irq_sleep",
+			"btp_reset",
+			"btp_ldo",
+			"spi0_miso_set_cfg",
+			"spi0_miso_clr_cfg",
+			"spi0_cs_set_cfg",
+			"spi0_cs_clr_cfg",
+			"spi0_mosi_set_cfg",
+			"spi0_mosi_clr_cfg",
+			"spi0_clk_set_cfg",
+			"spi0_clk_clr_cfg";
+		pinctrl-0 = <&btp_check>;
+		pinctrl-1 = <&btp_irq>;
+		pinctrl-2 = <&btp_irq_sleep>;
+		pinctrl-3 = <&btp_reset>;
+		pinctrl-4 = <&btp_ldo>;
+		/*spi pincntrl*/
+		pinctrl-5 = <&spi0_miso_set_cfg>;
+		pinctrl-6 = <&spi0_miso_clr_cfg>;
+		pinctrl-7 = <&spi0_cs_set_cfg>;
+		pinctrl-8 = <&spi0_cs_clr_cfg>;
+		pinctrl-9 = <&spi0_mosi_set_cfg>;
+		pinctrl-10 = <&spi0_mosi_clr_cfg>;
+		pinctrl-11 = <&spi0_clk_set_cfg>;
+		pinctrl-12 = <&spi0_clk_clr_cfg>;
+
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		etspi-sleepPin = <&pio 17 0>;
+		etspi-drdyPin = <&pio 10 0>;
+		etspi-ldoPin = <&pio 25 0>;
+		etspi-chipid = "ET510";
+		etspi-ldocontrol = <1>;
+		etspi-min_cpufreq_limit = <1820000>;
+	};
+};
+
+&pio {
+	btp_check: btp_check {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO0__FUNC_GPIO0>;
+			input-enable;
+			slew-rate = <0>;
+			bias-pull-down = <00>;
+		};
+	};
+	btp_irq: btp-irq {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO10__FUNC_GPIO10>;
+			input-enable;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+	btp_irq_sleep: btp-irq_sleep {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO10__FUNC_GPIO10>;
+			input-enable;
+			slew-rate = <0>;
+			bias-pull-down = <00>;
+		};
+	};
+	btp_reset: btp-reset {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO17__FUNC_GPIO17>;
+			slew-rate = <1>;
+			output-low;
+			bias-disable;
+			drive-strength = <1>;
+		};
+	};
+	btp_ldo: btp-ldo {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO25__FUNC_GPIO25>;
+			slew-rate = <1>;
+			output-low;
+			bias-disable;
+		};
+	};
+
+	/* SPI GPIO Settings-Start */
+	spi0_miso_set_cfg:spi0_miso_set@gpio95{
+		pins_cmd_dat{
+			pins = <PINMUX_GPIO95__FUNC_SPI0_MI>;
+			drive-strength = <1>;
+		};
+	};
+	spi0_miso_clr_cfg:spi0_miso_clear@gpio95{
+		pins_cmd_dat{
+			pins = <PINMUX_GPIO95__FUNC_GPIO95>;
+			slew-rate = <0>;
+			bias-pull-down = <00>;
+			drive-strength = <1>;
+		};
+	};
+	spi0_cs_set_cfg:spi0_cs_set@gpio96{
+		pins_cmd_dat{
+			pins = <PINMUX_GPIO96__FUNC_SPI0_CSB>;
+			drive-strength = <1>;
+		};
+	};
+	spi0_cs_clr_cfg:spi0_cs_clear@gpio96{
+		pins_cmd_dat{
+			pins = <PINMUX_GPIO96__FUNC_GPIO96>;
+			slew-rate = <1>;
+			output-low;
+			bias-disable;
+			drive-strength = <1>;
+		};
+	};
+	spi0_mosi_set_cfg:spi0_mosi_set@gpio97{
+		pins_cmd_dat{
+			pins = <PINMUX_GPIO97__FUNC_SPI0_MO>;
+			drive-strength = <1>;
+		};
+	};
+	spi0_mosi_clr_cfg:spi0_mosi_clear@gpio97{
+		pins_cmd_dat{
+			pins = <PINMUX_GPIO97__FUNC_GPIO97>;
+			slew-rate = <1>;
+			output-low;
+			bias-disable;
+			drive-strength = <1>;
+		};
+	};
+	spi0_clk_set_cfg:spi0_clk_set@gpio98{
+		pins_cmd_dat{
+			pins = <PINMUX_GPIO98__FUNC_SPI0_CLK>;
+			drive-strength = <1>;
+		};
+	};
+	spi0_clk_clr_cfg:spi0_clk_clear@gpio98{
+		pins_cmd_dat{
+			pins = <PINMUX_GPIO98__FUNC_GPIO98>;
+			slew-rate = <1>;
+			output-low;
+			bias-disable;
+			drive-strength = <1>;
+		};
+	};
+	/* SPI GPIO Settings-End */
+};

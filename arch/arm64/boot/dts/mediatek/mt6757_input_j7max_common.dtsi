@@ -1,0 +1,120 @@
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/input/input.h>
+
+/*
+ * Input device common device tree file.
+ */
+
+/* TOUCH start */
+&i2c1 {
+	status = "disabled";
+
+	#address-cells = <1>;
+	#size-cells = <0>;
+	def_speed = <400>;
+
+	touchscreen@4b {
+		status = "disabled";
+		compatible = "synaptics,rmi4";
+		reg = <0x4b>;
+		pinctrl-names = "tsp_active", "tsp_suspend";
+		pinctrl-0 = <&tsp_int_active &tsp_ta_active>;
+		pinctrl-1 = <&tsp_int_suspend &tsp_ta_suspend>;
+		interrupt-parent = <&eintc>;
+		interrupts = <1 IRQ_TYPE_EDGE_FALLING>;
+		synaptics,irq_gpio = <&pio 1 0>;
+		synaptics,tsp_rst = <&pio 18 0>;
+		synaptics,irq_type = <8200>;
+		synaptics,max_coords = <1080 1920>;	/* x y */
+		synaptics,num_lines = <30 17>;		/* rx tx */
+		synaptics,project_name = "J7max";
+		synaptics,irq-on-state = <0>;
+		synaptics,ub-i2c-addr = <0x2c>;
+		synaptics,power-delay-ms = <200>;
+		synaptics,reset-delay-ms = <200>;
+		synaptics,reset-on-state = <0>;
+		synaptics,reset-active-ms = <20>;
+		synaptics,firmware_name = "tsp_synaptics/td4303_j7maxlte.fw";
+		synaptics,firmware_name_bl = "tsp_synaptics/td4300_on7xelte_recovery.fw";
+		synaptics,pinctrl_active_name = "tsp_active";
+		synaptics,pinctrl_suspend_name = "tsp_suspend";
+		/* uncomment and update line below as appropriate if there are 0D buttons */
+		/* synaptics,cap-button-codes = <102 158>; */
+		/* uncomment and update lines below as appropriate if there are virtual buttons */
+		/* synaptics,vir-button-codes = <102 100 900 100 60 158 300 900 100 60>; */
+		/* synaptics,max-y-for-2d = <800>; */
+	};
+};
+/* TOUCH end */
+
+/* TOUCH KEY start */
+/* default GPIO number
+ * default SDA : 190
+ * default SCL : 191
+ * defualt IRQ : 11
+ */
+&i2c23 {
+	status = "disabled";
+
+	tc305k@20{
+		status = "disabled";
+		compatible = "coreriver,tc3xxk";
+		reg = <0x20>;
+		interrupt-parent = <&eintc>;
+		interrupts = <11 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "touchkey_active", "touchkey_suspend";
+		pinctrl-0 = <&touchkey_i2c_active &touchkey_int_active &touchkey_en_active>;
+		pinctrl-1 = <&touchkey_i2c_suspend>;
+		coreriver,sda-gpio = <&pio 190 0>;
+		coreriver,scl-gpio = <&pio 191 0>;
+		coreriver,irq-gpio = <&pio 11 0>;
+		coreriver,power-gpio = <&pio 15 0>;
+		coreriver,fw-name = "coreriver/tc305k_j7maxlte.fw";
+		coreriver,sensing-ch-num = <0x4>;
+		/*coreriver,bringup;*/
+	};
+ };
+/* TOUCH KEY end */
+
+/* gpio keys start */
+/* default GPIO number
+ * default VUOLUME_UP : 104
+ * default VUOLUME_DN : 42
+ */
+&gpio_keys {
+	status = "disabled";
+	pinctrl-names = "default";
+	pinctrl-0 = <&key_volup &key_home>;
+	name = "gpio_keys";
+	button@1 {
+		status = "disabled";
+		label = "gpio-keys: KEY_VOLUMEUP";
+		linux,code = <KEY_VOLUMEUP>;
+		interrupt-parent = <&eintc>;
+		interrupts = <104 IRQ_TYPE_NONE>;
+		debounce-interval = <15>;
+		gpios = <&pio 104 1>;
+	};
+	button@2 {
+		status = "disabled";
+		label = "gpio-keys: KEY_HOME";
+		linux,code = <KEY_HOMEPAGE>;
+		interrupt-parent = <&eintc>;
+		interrupts = <42 IRQ_TYPE_NONE>;
+		debounce-interval = <15>;
+		gpios = <&pio 42 1>;
+		gpio-key,wakeup = <1>;
+	};
+};
+/* gpio keys end */

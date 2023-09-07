@@ -1,0 +1,371 @@
+&gen_panel {
+	dsi_td4303_jdi_a425a_cmd_fhd: gen-panel-td4303_jdi_a425a_cmd_fhd {
+		gen-panel-manu = "JDI";		/* condensed manufacturer name */
+		gen-panel-name = "TD4303_jdi_a425a";
+		gen-panel-id = <0x000000>;
+		gen-panel-dev-id = <0>;		/* main lcd id : MAIN 0, SUB 1 */
+		gen-panel-type = <2>;		/* lcd interface : DBI 0, DPI 1, DSI 2 */
+		gen-panel-refresh = <60>;	/* refresh rate */
+		gen-panel-xres = <1080>;	/* horizontal resolution */
+		gen-panel-yres = <1920>;	/* vertical resolution */
+		gen-panel-width = <71>;		/* screen width in mm */
+		gen-panel-height = <126>;	/* screen height in mm */
+
+		gen-panel-dsi-mode = <0>;	/* mipi operation mode : CMD 0, PLUS 1, EVENT 2, BURST 3 */
+		gen-panel-lcm-if = <1>;		/* lcm interface : notdef 0, dsi0 1, dsi1 1, dsi dual 2 */
+		gen-panel-switch-mode-en = <0>;	/* switch mode */
+
+		gen-panel-direction = <0>;	/* lcd direction : Normal 0, ROT90 1, ROT180 2, ROT270 3 */
+		gen-panel-suspend-mode = <1>;	/* send sleep command : RST 0, SLEEP 1 */
+		gen-panel-bus-width = <24>;	/* physical bus width */
+		gen-panel-lanes = <4>;		/* number of dsi bus lane */
+		gen-panel-phy-feq = <439>;	/* fre * 2 = mipi fequency(Mbps) */
+		gen-panel-ssc-disable = <1>;	/* ssc enable 0, disable 1 */
+		gen-panel-clk-lp-enable = <0>;	/* clock low power per line */
+		gen-panel-cont-clock = <0>;	/* hs continous clock */
+
+		gen-panel-dbi-te = <1>;		/* te mode : disable 0, vsync only 1, vsync or hsync 2 */
+		gen-panel-te-pol = <0>;		/* Rising 0, Falling 1 */
+
+		gen-panel-color-order = <0>;	/* RGB 0, BGR 1 */
+		gen-panel-trans-seq = <0>;	/* MSB 0, LSB 1 */
+		gen-panel-padding-on = <0>;	/* LSB 0, MSB 1 */
+		gen-panel-rgb-format = <2>;	/* RGB565 0, RGB666 1, RGB888 2 */
+
+		gen-panel-dsi_wmem_cont = <0x3c>;/* Highly depends on LCD driver capability */
+		gen-panel-dsi_rmem_cont = <0x3e>;/* Highly depends on LCD driver capability */
+		gen-panel-dsi_packet_size = <256>;
+		gen-panel-dsi_intermediate_buff_num = <2>;/* number of intermediate buffer */
+		gen-panel-ps-to-bpp = <2>;	/* 16bit rgb565 0, 18bit rgb666 1, 24bit rgb888 2, 18bit rgb666 3*/
+
+		gen-panel-cust-esd-enable = <1>;/* customization esd echeck enable 1, disable 0 */
+		gen-panel-esd-check-enable = <0>;/* esd enable 1, disable 0*/
+
+		gen-panel-partial-update = <1>;	/* enable 1, disable 0*/
+		gen-panel-partial-col-multi-num = <8>; /*Different value by DDI*/
+		gen-panel-partial-page-multi-num = <2>; /*Different value by DDI*/
+		gen-panel-partial-page-min-size = <128>; /*Different value by DDI*/
+		gen-panel-partial-col-min-size = <6>; /*Different value by DDI*/
+		gen-panel-factory-panel-swap = <1>; /* panel swap*/
+		/*
+		 * DSI PACKET HEADER INFO
+		 * @ delay(msec) : 2byte
+		 * @ size of data : 2byte
+		 */
+		gen-panel-pkt-dinfo-addr-offset = <0>;
+		gen-panel-pkt-dinfo-addr-length = <1>;
+		gen-panel-pkt-dinfo-data-offset = <1>;
+		gen-panel-pkt-dinfo-data-length = <1>;
+		gen-panel-init-cmds = [
+			15 00 00 00 00 02	B0 04
+			39 00 00 00 00 04	B3 04 00 00
+			39 00 00 00 00 03	B4 00 03
+			39 00 00 00 00 05	B6 32 DB 00 12
+			39 00 00 00 00 08	B8 57 3D 19 1E 0A 50 50
+			39 00 00 00 00 08	B9 6F 3D 28 3C 14 C8 C8
+			39 00 00 00 00 08	BA 55 41 16 64 00 15 15
+			39 00 00 00 00 03	BB 14 14
+			39 00 00 00 00 03	BC 37 32
+			39 00 00 00 00 03	BD 64 32
+			39 00 00 00 00 03	C0 00 00
+			39 00 00 00 00 1A	C1 00 40 01 10 10 10 10 30 40
+						20 02 01 00 01 80 15 04 11 25
+						05 00 00 01 00 00
+			39 00 00 00 00 1C	C2 01 F0 04 04 04 08 08 07 80
+						07 80 04 00 04 00 04 00 08 00
+						08 80 00 08 01 6C 08 00
+			39 00 00 00 00 03	C3 60 1D
+			39 00 00 00 00 13	C4 00 00 00 00 00 00 00 00 00
+						01 00 01 03 15 15 10 01 00
+			39 00 00 00 00 09	C5 00 08 00 00 00 00 70 00
+			39 00 00 00 00 1E	C6 4C 4C 4C 4C 4C 4C 4D 60 4C
+						4C 05 3F 00 00 00 00 00 00 3D
+						0D 00 4C 00 4C 03 10 05 00 4D
+			39 00 00 00 00 27	C7 00 1C 2D 41 51 5D 75 85 92
+						9D 4F 5A 68 7B 84 92 A3 B0 BF
+						00 1C 2D 41 51 5D 75 85 92 9D
+						4F 5A 68 7B 84 92 A3 B0 BF
+			39 00 00 00 00 38	C8 01 00 02 FD 02 FC 00 00 FF
+						FF FD EF 00 00 03 F4 F0 FC 00
+						00 00 00 00 FC 00 00 00 00 00
+						FC 00 00 00 00 00 FC 00 00 00
+						00 00 FC 00 00 00 00 00 FC 00
+						00 00 00 00 FC 00
+			39 00 00 00 00 14	C9 00 00 00 00 00 FC 00 00 00
+						00 00 FC 00 00 00 00 00 FC 00
+			39 00 00 00 00 2C	CA 1D FC FC FC EF 15 05 FA 00
+						BC E5 F0 DF DB 00 E5 1F 14 E5
+						00 CE E8 00 00 00 00 00 00 00
+						00 00 00 00 00 00 00 00 00 00
+						00 00 00 00
+			39 00 00 00 00 24	CB 40 40 40 40 44 45 46 43 42
+						4B 40 74 73 72 57 56 55 55 56
+						57 72 73 74 40 4E 4D 4C 42 43
+						46 45 44 40 40 67
+			15 00 00 00 00 02	CC 01
+			39 00 00 00 00 1C	CE 59 40 49 53 59 5E 63 68 6E
+						74 7E 8A 98 A8 BB D0 FF 04 00
+						01 01 61 00 69 5A 01 F4
+			39 00 00 00 00 09	CF 00 00 00 0E 0E 01 1E 00
+			39 00 00 00 00 0E	D0 33 20 20 18 19 99 00 00 00
+						00 00 00 00
+			39 00 00 00 00 0A	D2 00 00 00 00 00 80 00 00 00
+			39 00 00 00 00 24	D3 DD 53 53 15 13 33 BA 14 33
+						33 33 77 33 77 77 BB BB 0D FF
+						00 00 FB FF 4D 8D FD 00 53 53
+						91 81 51 FF 00 00
+			15 00 00 00 00 02	D6 40
+			39 00 00 00 00 3A	D7 40 00 55 35 33 55 33 22 22
+						42 00 80 0F 00 80 47 C7 43 42
+						43 44 43 41 43 62 64 61 44 42
+						24 22 25 43 44 45 48 2C 28 08
+						0C 0C 0C 03 06 02 05 08 58 49
+						08 45 05 50 90 60 10 00
+			39 00 00 00 00 05	DD 30 06 23 65
+			39 00 00 00 00 05	DE 00 7F FF 10
+			15 00 00 00 00 02	DF 20
+			39 00 00 00 00 09	E8 0D 0C 05 36 80 33 E3 33
+			39 00 00 00 00 0B	E9 20 20 27 28 28 27 22 24 26
+						00
+			39 00 00 00 00 39	EA 9D 00 64 1D 1D 05 EC 3B 52
+						00 0B 0B 13 13 FF 16 00 00 03
+						21 00 03 00 00 00 00 00 FC 00
+						00 00 00 00 01 00 17 00 14 03
+						03 10 00 00 40 03 00 00 00 00
+						01 01 01 00 00 00 00
+			39 00 00 00 00 3D	EB 2B 6A 99 03 19 11 02 98 0B
+						02 20 00 00 03 16 19 08 D8 80
+						00 08 D8 30 00 01 1B 00 2C 2B
+						00 C1 14 2A 01 00 80 D8 55 05
+						14 00 BB 00 00 08 D8 08 D8 01
+						00 00 14 14 14 2B 00 2B 00 00
+						00
+			39 00 00 00 00 3D	EC 15 6A 99 03 00 10 02 10 0B
+						02 20 00 00 03 00 00 12 05 00
+						00 12 05 30 00 01 05 00 58 57
+						00 41 14 00 01 00 80 D8 55 05
+						14 00 BB 00 00 12 05 12 05 01
+						00 00 14 14 14 15 00 15 00 00
+						00
+			39 00 00 00 00 3D	ED 2B 00 00 00 00 00 00 00 08
+						02 20 00 00 03 16 19 08 D8 80
+						00 08 D8 30 00 01 1B 00 2C 2B
+						00 02 00 00 00 00 80 A8 55 05
+						14 00 BB 00 00 00 00 00 00 01
+						00 00 14 14 14 2B 00 2B 00 00
+						00
+			39 00 00 00 00 3D	EE BD 00 00 00 00 00 00 00 08
+						02 20 00 B9 BC 00 00 01 86 00
+						00 12 05 00 00 E1 B8 00 08 58
+						00 02 00 00 40 00 80 E8 55 05
+						14 00 BB 00 00 00 00 00 00 01
+						00 00 14 14 14 BD 00 BD 00 00
+						00
+			39 00 00 00 00 1D	EF C0 02 03 05 06 7D EE 80 00
+						00 00 01 40 06 C0 01 04 01 C0
+						50 0F 0F 03 00 00 00 00 00
+			15 00 00 00 00 02	FB 00
+			15 00 00 00 00 02	35 00
+			15 00 00 00 00 02	36 00
+			39 00 00 00 00 03	44 07 70
+			15 00 00 00 00 02	51 00
+			15 00 00 00 00 02	53 0C
+			15 00 00 00 00 02	55 00
+			15 00 00 00 00 02	5E 25
+		];
+
+		gen-panel-enable-cmds = [
+			05 00 00 4B 00 01	11
+			05 00 00 00 00 01	2C
+			05 00 00 21 00 01	29
+		];
+
+		gen-panel-backlight-on-cmds = [
+			00
+		];
+
+		gen-panel-disable-cmds = [
+			05 00 00 21 00 01	28
+			05 00 00 78 00 01	10
+		];
+
+		gen-panel-backlight-set-brightness-cmds = [
+			15 00 00 00 00 02	51 00
+		];
+
+		gen-panel-read-id = [
+			DA 00 01
+			DB 00 01
+			DC 00 01
+		];
+
+		gen-panel-mdnie-ui-mode-cmds = [
+			39 00 00 00 00 27	C7 00 1C 2D 41 51 5D 75 85 92
+						9D 4F 5A 68 7B 84 92 A3 B0 BF
+						00 1C 2D 41 51 5D 75 85 92 9D
+						4F 5A 68 7B 84 92 A3 B0 BF
+			39 00 00 00 00 38	C8 01 00 02 FD 02 FC 00 00 FF
+						FF FD EF 00 00 03 F4 F0 FC 00
+						00 00 00 00 FC 00 00 00 00 00
+						FC 00 00 00 00 00 FC 00 00 00
+						00 00 FC 00 00 00 00 00 FC 00
+						00 00 00 00 FC 00
+			39 00 00 00 00 05	DD 30 06 23 65
+			15 00 00 00 00 02	55 80
+		];
+
+		gen-panel-mdnie-video-mode-cmds = [
+			39 00 00 00 00 27	C7 00 11 1D 2F 45 52 70	82 91
+						9F 51 5F 70 85 8F 9C AA B4 BF
+						00 11 1D 2F 45 52 70 82 91 9F
+						51 5F 70 85 8F 9C AA B4 BF
+			39 00 00 00 00 38	C8 01 00 FE 05 0D FC 00 00 FE
+						05 0D EF 00 00 01 FD FA FC 00
+						00 00 00 00 FC 00 00 00 00 00
+						FC 00 00 00 00 00 FC 00 00 00
+						00 00 FC 00 00 00 00 00 FC 00
+						00 00 00 00 FC 00
+			39 00 00 00 00 05	DD 30 06 23 65
+			15 00 00 00 00 02	55 83
+		];
+
+		gen-panel-mdnie-camera-mode-cmds = [
+			39 00 00 00 00 27	C7 00 1C 2D 41 51 5D 75	85 92
+						9D 4F 5A 68 7B 84 92 A3 B0 BF
+						00 1C 2D 41 51 5D 75 85 92 9D
+						4F 5A 68 7B 84 92 A3 B0 BF
+			39 00 00 00 00 38	C8 01 00 02 FD 02 FC 00 00 FF
+						FF FD EF 00 00 03 F4 F0 FC 00
+						00 00 00 00 FC 00 00 00 00 00
+						FC 00 00 00 00 00 FC 00 00 00
+						00 00 FC 00 00 00 00 00 FC 00
+						00 00 00 00 FC 00
+			39 00 00 00 00 05	DD 30 06 23 65
+			15 00 00 00 00 02	55 83
+		];
+		gen-panel-mdnie-gallery-mode-cmds = [
+			39 00 00 00 00 27	C7 00 1C 2D 41 51 5D 75 85 92
+						9D 4F 5A 68 7B 84 92 A3 B0 BF
+						00 1C 2D 41 51 5D 75 85 92 9D
+						4F 5A 68 7B 84 92 A3 B0 BF
+			39 00 00 00 00 38	C8 01 00 02 FD 02 FC 00 00 FF
+						FF FD EF 00 00 03 F4 F0 FC 00
+						00 00 00 00 FC 00 00 00 00 00
+						FC 00 00 00 00 00 FC 00 00 00
+						00 00 FC 00 00 00 00 00 FC 00
+						00 00 00 00 FC 00
+			39 00 00 00 00 05	DD 31 00 10 65
+			15 00 00 00 00 02	55 80
+		];
+
+		gen-panel-mdnie-browser-mode-cmds = [
+			39 00 00 00 00 27	C7 00 1C 2D 41 51 5D 75 85 92
+						9D 4F 5A 68 7B 84 92 A3 B0 BF
+						00 1C 2D 41 51 5D 75 85 92 9D
+						4F 5A 68 7B 84 92 A3 B0 BF
+			39 00 00 00 00 38	C8 01 00 02 FD 02 FC 00 00 FF
+						FF FD EF 00 00 03 F4 F0 FC 00
+						00 00 00 00 FC 00 00 00 00 00
+						FC 00 00 00 00 00 FC 00 00 00
+						00 00 FC 00 00 00 00 00 FC 00
+						00 00 00 00 FC 00
+			39 00 00 00 00 05	DD 30 06 23 65
+			15 00 00 00 00 02	55 80
+		];
+
+		gen-panel-mdnie-ebook-mode-cmds = [
+			39 00 00 00 00 27	C7 00 1C 2D 41 51 5D 75 85 92
+						9D 4F 5A 68 7B 84 92 A3 B0 BF
+						00 1C 2D 41 51 5D 75 85 92 9D
+						4F 5A 68 7B 84 92 A3 B0 BF
+			39 00 00 00 00 38	C8 01 00 02 FD 02 FC 00 00 FF
+						FF FD B1 00 00 03 FC F7 2C 00
+						00 00 00 00 FC 00 00 00 00 00
+						FC 00 00 00 00 00 FC 00 00 00
+						00 00 FC 00 00 00 00 00	FC 00
+						00 00 00 00 FC 00
+			39 00 00 00 00 05	DD 30 06 23 65
+			15 00 00 00 00 02	55 80
+		];
+		gen-panel-mdnie-gamelow-mode-cmds = [
+			39 00 00 00 00 27	C7 00 1C 2D 41 51 5D 75 85 92
+						9D 4F 5A 68 7B 84 92 A3 B0 BF
+						00 1C 2D 41 51 5D 75 85 92 9D
+						4F 5A 68 7B 84 92 A3 B0 BF
+			39 00 00 00 00 38	C8 01 00 02 FD 02 FC 00 00 FF
+						FF FD EF 00 00 03 F4 F0 FC 00
+						00 00 00 00 FC 00 00 00 00 00
+						FC 00 00 00 00 00 FC 00 00 00
+						00 00 FC 00 00 00 00 00 FC 00
+						00 00 00 00 FC 00
+			39 00 00 00 00 05	DD 30 06 23 65
+			15 00 00 00 00 02	55 83
+		];
+
+		
+		gen-panel-mdnie-gamemid-mode-cmds = [
+			39 00 00 00 00 27	C7 00 1C 2D 41 51 5D 75 85 92
+						9D 4F 5A 68 7B 84 92 A3 B0 BF
+						00 1C 2D 41 51 5D 75 85 92 9D
+						4F 5A 68 7B 84 92 A3 B0 BF
+			39 00 00 00 00 38	C8 01 00 02 FD 02 FC 00 00 FF
+						FF FD EF 00 00 03 F4 F0 FC 00
+						00 00 00 00 FC 00 00 00 00 00
+						FC 00 00 00 00 00 FC 00 00 00
+						00 00 FC 00 00 00 00 00 FC 00
+						00 00 00 00 FC 00
+			39 00 00 00 00 05	DD 30 06 23 65
+			15 00 00 00 00 02	55 83
+		];
+
+		gen-panel-mdnie-gamehigh-mode-cmds = [
+			39 00 00 00 00 27	C7 00 1C 2D 41 51 5D 75 85 92
+						9D 4F 5A 68 7B 84 92 A3 B0 BF
+						00 1C 2D 41 51 5D 75 85 92 9D
+						4F 5A 68 7B 84 92 A3 B0 BF
+			39 00 00 00 00 38	C8 01 00 02 FD 02 FC 00 00 FF
+						FF FD EF 00 00 03 F4 F0 FC 00
+						00 00 00 00 FC 00 00 00 00 00
+						FC 00 00 00 00 00 FC 00 00 00
+						00 00 FC 00 00 00 00 00 FC 00
+						00 00 00 00 FC 00
+			39 00 00 00 00 05	DD 30 06 23 65
+			15 00 00 00 00 02	55 83
+		];
+
+		gen-panel-mdnie-hbm-cmds = [
+			39 00 00 00 00 27	C7 00 1C 2D 41 51 5D 75 85 92
+						9D 4F 5A 68 7B 84 92 A3 B0 BF
+						00 1C 2D 41 51 5D 75 85 92 9D
+						4F 5A 68 7B 84 92 A3 B0 BF
+			39 00 00 00 00 38	C8 01 00 46 35 0B FC 00 00 45
+						35 0B EF 00 00 44 2B FD FC 00
+						00 00 00 00 FC 00 00 00 00 00
+						FC 00 00 00 00 00 FC 00 00 00
+						00 00 FC 00 00 00 00 00 FC 00
+						00 00 00 00 FC 00
+			39 00 00 00 00 05	DD 30 06 23 65
+			15 00 00 00 00 02	55 80
+		];
+
+		gen-panel-mdnie-hbm-text-cmds = [
+			39 00 00 00 00 27	C7 00 1C 2D 41 51 5D 75 85 92
+						9D 4F 5A 68 7B 84 92 A3 B0 BF
+						00 1C 2D 41 51 5D 75 85 92 9D
+						4F 5A 68 7B 84 92 A3 B0 BF
+			39 00 00 00 00 38	C8 01 00 46 35 0B FC 00 00 45
+						35 0B EF 00 00 44 2B FD FC 00
+						00 00 00 00 FC 00 00 00 00 00
+						FC 00 00 00 00 00 FC 00 00 00
+						00 00 FC 00 00 00 00 00 FC 00
+						00 00 00 00 FC 00
+			39 00 00 00 00 05	DD 30 06 23 65
+			15 00 00 00 00 02	55 80
+		];
+
+		gen-panel-read-status-reg = [0A];
+		gen-panel-read-status-ok = [9A];
+
+		status = "okay";
+	};
+};

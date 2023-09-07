@@ -1,0 +1,144 @@
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/input/input.h>
+
+/*
+ * Input device common device tree file.
+ */
+
+/* TOUCH start */
+&i2c1 {
+	status = "disabled";
+
+	#address-cells = <1>;
+	#size-cells = <0>;
+	def_speed = <400>;
+
+	mms_ts@48 {
+		status = "disabled";
+		compatible = "melfas,mms_ts";
+		reg = <0x48>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&tsp_int_active>;
+		pinctrl-1 = <&tsp_int_suspend>;
+		interrupt-parent = <&eintc>;
+		interrupts = <3 IRQ_TYPE_EDGE_FALLING>;
+		melfas,vdd_en = <&pio 76 0>;
+		melfas,irq-gpio = <&pio 3 0>;
+		melfas,max_x = <1080>;
+		melfas,max_y = <1920>;
+		melfas,fw_name = "tsp_melfas/mms438_j7x.fw";
+		melfas,bringup = <0>;
+	};
+
+	touchscreen@50 {
+		status = "disabled";
+		compatible = "imagis,ist30xx-ts";
+		reg = <0x50>;
+		pinctrl-names = "tsp_int_active", "tsp_int_suspend";
+		pinctrl-0 = <&tsp_int_active>;
+		pinctrl-1 = <&tsp_int_suspend>;
+		imagis,irq-gpio = <&pio 3 0>;
+		imagis,vdd_en = <&pio 76 0>;
+		/*imagis,regulator_avdd = "tsp_avdd";*/
+		imagis,fw-bin = <1>;
+		imagis,octa-hw = <1>;
+		imagis,fw-path = "tsp_imagis/ist3038h_jade.fw";
+		imagis,cmcs-path = "tsp_imagis/ist3038h_jade_cmcs.bin";
+		imagis,tclm_level = <0x02>;
+		imagis,afe_base = <0x0109>;
+	};
+};
+/* TOUCH end */
+
+/* TOUCH KEY start */
+/* default GPIO number
+ * default SDA : 190
+ * default SCL : 191
+ * defualt IRQ : 11
+ */
+&i2c23 {
+	status = "disabled";
+
+	a96t3x6@20{
+		status = "disabled";
+		compatible = "abov,a96t3x6";
+		reg = <0x20>;
+		interrupt-parent = <&eintc>;
+		interrupts = <11 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "touchkey_active", "touchkey_suspend";
+		pinctrl-0 = <&touchkey_i2c_active &touchkey_int_active &touchkey_en_active>;
+		pinctrl-1 = <&touchkey_i2c_suspend>;
+		abov,sda-gpio = <&pio 190 0>;
+		abov,scl-gpio = <&pio 191 0>;
+		abov,irq-gpio = <&pio 11 0>;
+		abov,tkey_en-gpio = <&pio 20 0>;
+		abov,firmware_name = "abov/abov_t316_jade.fw";
+		/* vdd_led-supply = <&pm8950_l10>; */
+		/* abov,tkey_led_en-gpio = <&tlmm 42 0>; */
+		/*vddo-supply = <&pm660_l11>;*/
+		abov,firmup_cmd = <0x31>;
+		abov,bringup = <0>;
+	};
+
+	tc305k@20{
+		status = "disabled";
+		compatible = "coreriver,tc3xxk";
+		reg = <0x20>;
+		interrupt-parent = <&eintc>;
+		interrupts = <11 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "touchkey_active", "touchkey_suspend";
+		pinctrl-0 = <&touchkey_i2c_active &touchkey_int_active>;
+		pinctrl-1 = <&touchkey_i2c_suspend>;
+		coreriver,sda-gpio = <&pio 190 0>;
+		coreriver,scl-gpio = <&pio 191 0>;
+		coreriver,irq-gpio = <&pio 11 0>;
+		coreriver,power-gpio = <&pio 20 0>;
+		coreriver,fw-name = "coreriver/tc305k_j7maxlte.fw";
+		coreriver,sensing-ch-num = <0x4>;
+		coreriver,bringup;
+	};
+ };
+/* TOUCH KEY end */
+
+/* gpio keys start */
+/* default GPIO number
+ * default VUOLUME_UP : 43
+ * default VUOLUME_DN : 42
+ */
+&gpio_keys {
+	status = "disabled";
+	pinctrl-names = "default";
+	pinctrl-0 = <&key_volup &key_home>;
+	name = "gpio_keys";
+	button@1 {
+		status = "disabled";
+		label = "gpio-keys: KEY_VOLUMEUP";
+		linux,code = <KEY_VOLUMEUP>;
+		interrupt-parent = <&eintc>;
+		interrupts = <43 IRQ_TYPE_NONE>;
+		debounce-interval = <15>;
+		gpios = <&pio 43 1>;
+	};
+	button@2 {
+		status = "disabled";
+		label = "gpio-keys: KEY_HOME";
+		linux,code = <KEY_HOMEPAGE>;
+		interrupt-parent = <&eintc>;
+		interrupts = <42 IRQ_TYPE_NONE>;
+		debounce-interval = <15>;
+		gpios = <&pio 42 1>;
+		gpio-key,wakeup = <1>;
+	};
+};
+/* gpio keys end */

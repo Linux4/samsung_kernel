@@ -1,0 +1,1125 @@
+/dts-v1/;
+
+#include "mt6757.dts"
+#include "mt6757_jadelte_swa_open_gpio_00.dtsi"
+#include "mt6757_jadelte_fingerprint-sensor_00.dtsi"
+#include <dt-bindings/input/input.h>
+#include "battery_data_jadelte_common.dtsi"
+#include "modem-MTK6757ap-pdata.dtsi"
+#include "mt6757_camera_sensor_jadelte_chn_open_00.dtsi"
+#include "mt6757_input_jade_common.dtsi"
+#include "mtk-dsi-panel_s6e3fa3_ams549ku2x.dtsi"
+
+/ {
+	model = "Samsung JADE LTE SWA rev00A board based on MT6757";
+	model_info-chip = <6757>;
+	model_info-platform = "android";
+	model_info-subtype = "mediatek";
+	model_info-hw_rev = <4>;
+	model_info-hw_rev_end = <255>;
+	compatible = "samsung, JADE LTE CHN OPEN 00A", "mediatek,MT6757";
+
+	/* chosen */
+	chosen {
+		bootargs = "console=tty0 console=ttyMT0,921600n1 root=/dev/ram initrd=0x45000000,
+		0x1000000 loglevel=8 androidboot.selinux=permissive androidboot.hardware=mt6757";
+		/* fpga may has no lk, we need to specify display info here */
+		/* fb buffer is reserved using this dts by memory node above */
+		atag,videolfb-fb_base_h = <0x0>;
+		atag,videolfb-fb_base_l = <0x5e605000>;
+		atag,videolfb-islcmfound = <1>;
+		/* because no lk, so lcm is not inited */
+		atag,videolfb-islcm_inited = <0>;
+		atag,videolfb-fps= <6000>;
+		atag,videolfb-vramSize= <0x017bb000>;
+		atag,videolfb-dal_en= <0>;
+		atag,videolfb-lcmname= "nt35695_fhd_dsi_cmd_truly_nt50358_drv";
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		zone-movable-cma-memory {
+			compatible = "mediatek,zone_movable_cma";
+			size = <0 0x10000000>;
+			/* 256MB alignment */
+			alignment = <0 0x10000000>;
+			alloc-ranges = <0 0xc0000000 1 0x00000000>;
+		};
+	};
+
+	led0:led@0 {
+		compatible = "mediatek,red";
+		led_mode = <0>;
+		data = <1>;
+		pwm_config = <0 0 0 0 0>;
+	};
+	led1:led@1 {
+		compatible = "mediatek,green";
+		led_mode = <0>;
+		data = <1>;
+		pwm_config = <0 0 0 0 0>;
+	};
+	led2:led@2 {
+		compatible = "mediatek,blue";
+		led_mode = <0>;
+		data = <1>;
+		pwm_config = <0 0 0 0 0>;
+	};
+	led3:led@3 {
+		compatible = "mediatek,jogball-backlight";
+		led_mode = <0>;
+		data = <1>;
+		pwm_config = <0 0 0 0 0>;
+	};
+	led4:led@4 {
+		compatible = "mediatek,keyboard-backlight";
+		led_mode = <0>;
+		data = <1>;
+		pwm_config = <0 0 0 0 0>;
+	};
+	led5:led@5 {
+		compatible = "mediatek,button-backlight";
+		led_mode = <0>;
+		data = <1>;
+		pwm_config = <0 0 0 0 0>;
+	};
+	led6:led@6 {
+		compatible = "mediatek,lcd-backlight";
+		led_mode = <4>;
+		data = <1>;
+		pwm_config = <0 0 0 0 0>;
+	};
+	/* VIBRATOR */
+	sec_vib {
+		compatible = "sec_vib";
+		sec_vib_pdata {
+			status = "okay";
+			sec_vib,max_timeout = <10000>;
+			sec_vib,ldo_type = <0>;
+			sec_vib,regulator = "vgp2";
+		};
+	};
+
+/* start audio */
+	mt_soc_codec_name {
+		compatible = "mediatek,mt_soc_codec_63xx";
+		use_hp_depop_flow = <1>; /* select 1: use, 0: not use */
+		use_ul_260k = <0>; /* select 1: use, 0: not use */
+		clk_src = <0>; /* select 1: external, 0: pmic internal */
+	};
+/* end audio */
+
+	/* start svc leds */
+	rgb {
+		device_type = <0>;
+		rgb-name = "led_b", "led_g", "led_r";
+		rgb-channel = <1 2 3>;
+
+		normal_powermode_current = <255>;
+		low_powermode_current = <51>;
+		br_ratio_r = <26>;
+		br_ratio_g = <5>;
+		br_ratio_b = <49>;
+
+		normal_powermode_current_bk = <255>;
+		low_powermode_current_bk = <51>;
+		br_ratio_r_bk = <26>;
+		br_ratio_g_bk = <5>;
+		br_ratio_b_bk = <49>;
+
+		normal_powermode_current_gd = <255>;
+		low_powermode_current_gd = <51>;
+		br_ratio_r_gd = <11>;
+		br_ratio_g_gd = <3>;
+		br_ratio_b_gd = <55>;
+
+		normal_powermode_current_wt = <255>;
+		low_powermode_current_wt = <51>;
+		br_ratio_r_wt = <18>;
+		br_ratio_g_wt = <4>;
+		br_ratio_b_wt = <42>;
+	};
+	/* end svc leds */
+
+	sec_thermistor {
+		compatible = "samsung,sec-ap-thermistor";
+		status = "okay";
+		adc_channel = <0>;
+		adc_array = <48 68 93 123 153 188 228
+					241 250 259 268 277 289 301 313 325 337
+					351 365 379 393 407 423 439 455 471 487
+					510 531 552 573 594 621 648 675 702 729
+					854 1023 1217 1318 1614 1918 2200 2460 2762 3106
+					3450 3794>;
+
+		temp_array = <900 850 800 750 700 650 600
+					590 580 570 560 550 540 530 520 510 500
+					490 480 470 460 450 440 430 420 410 400
+					390 380 370 360 350 340 330 320 310 300
+					250 200 150 100 50 0 (-50) (-100) (-150) (-200)
+					(-250) (-300)>;
+	};
+};
+
+/* Sensor start */
+&i2c0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	def_speed = <400>;
+	lsm6dsl@6b {
+		compatible = "st,lsm6dsl";
+		reg = <0x6b>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&acc_sensor_int_active>;
+		pinctrl-1 = <&acc_sensor_int_suspend>;
+		interrupt-parent = <&eintc>;
+		interrupts = <4 IRQ_TYPE_EDGE_RISING>;
+		st,vdd_ldo_pin = <&pio 102 0>;
+		st,irq_gpio = <&pio 4 0>;
+		st,orientation = <1 2 1 2 1 1 1 1 0>;
+	};
+
+	cm36657@60 {
+		compatible = "cm36657";
+		reg = <0x60>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&prox_int_active>;
+		pinctrl-1 = <&prox_int_suspend>;
+		interrupt-parent = <&eintc>;
+		interrupts = <6 IRQ_TYPE_EDGE_FALLING>;
+		cm36657,vdd_ldo_pin = <&pio 102 0>;
+		cm36657,irq_gpio = <&pio 6 0>;
+		cm36657,vled-supply = <&mt_pmic_vio28_ldo_reg>;
+		cm36657,default_hi_thd = <18>;
+		cm36657,default_low_thd = <13>;
+		cm36657,cancel_hi_thd = <10>;
+		cm36657,cancel_low_thd = <7>;
+		cm36657,trim = <0x0003>;
+	};
+
+	yas539@2e {
+		compatible = "yas_magnetometer";
+		reg = <0x2e>;
+		yas,orientation = <4>;
+		yas,softiron = <9760 20 190 20 10300 90 190 90 9940>;
+		yas,softiron_sign = <2 0 2 0 2 2 2 2 2>;
+	};
+};
+
+&pio {
+	acc_sensor_int_active: acc_sensor_int_active {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO4__FUNC_GPIO4>;	/*sensor eint pin*/
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+	acc_sensor_int_suspend: acc_sensor_int_suspend {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO4__FUNC_GPIO4>;	/*sensor eint pin*/
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	prox_int_active: prox_int_active {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO6__FUNC_GPIO6>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	prox_int_suspend: prox_int_suspend {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO6__FUNC_GPIO6>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+};
+/* Sensor end */
+
+/* gpio keys */
+&gpio_keys {
+	status = "okay";
+	button@1 {
+		status = "okay";
+	};
+	button@2 {
+		status = "okay";
+	};
+};
+
+&pio {
+	key_volup: key_volup {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO43__FUNC_GPIO43>;
+			slew-rate = <0>;
+			bias-pull-up = <00>;
+		};
+	};
+	key_home: key_home{
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO42__FUNC_GPIO42>;
+			slew-rate = <0>;
+			bias-pull-up = <00>;
+		};
+	};
+};
+
+/* TOUCH start */
+&i2c1 {
+	status = "okay";
+
+	touchscreen@50 {
+		status = "okay";
+	};
+};
+
+&pio {
+	tsp_int_active: tsp_int_active {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO3__FUNC_GPIO3>;	/*touchkey eint pin*/
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+	tsp_int_suspend: tsp_int_suspend {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO3__FUNC_GPIO3>;	/*touchkey eint pin*/
+			slew-rate = <0>;
+			bias-pull-down = <11>;
+		};
+	};
+};
+/* TOUCH end */
+
+/* TOUCH KEY start */
+&i2c23 {
+	status = "okay";
+
+	a96t3x6@20{
+		abov,firmware_name = "abov/abov_t326_jade.fw";
+		abov,firmup_cmd = <0x32>;
+		status = "okay";
+	};
+};
+
+&pio {
+	touchkey_int_active: touchkey_int_active {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO11__FUNC_GPIO11>;	/*touchkey eint pin*/
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	touchkey_en_active: touchkey_en_active {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO20__FUNC_GPIO20>;	/*touchkey en pin*/
+			slew-rate = <1>;
+			bias-disable;
+		};
+	};
+
+	touchkey_i2c_active: touchkey_i2c_active {
+		pins_cmd_dat1 {
+			pins = <PINMUX_GPIO190__FUNC_GPIO190>;	/*touchkey i2c pin*/
+			slew-rate = <0>;
+			bias-disable;
+		};
+		pins_cmd_dat2 {
+			pins = <PINMUX_GPIO191__FUNC_GPIO191>;	/*touchkey i2c pin*/
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+	touchkey_i2c_suspend: touchkey_i2c_suspend {
+		pins_cmd_dat1 {
+			pins = <PINMUX_GPIO190__FUNC_GPIO190>;	/*touchkey i2c pin*/
+			slew-rate = <0>;
+			bias-disable;
+		};
+		pins_cmd_dat2 {
+			pins = <PINMUX_GPIO191__FUNC_GPIO191>;	/*touchkey i2c pin*/
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+};
+
+/* TOUCH KEY end */
+
+/* accdet start */
+&accdet {
+	/* accdet micbias voltage: 0x07,2.7v;0x05,2.5v;0x02,1.9v */
+	accdet-mic-vol = <7>;
+	headset-mode-setting = <0x500 0x500 1 0x1F0 0x800 0x800 0x20>;
+	accdet-plugout-debounce = <256>;
+	/*1:ACC mode, 2:low cost without in bias, 6:low cost with in bias*/
+	accdet-mic-mode = <1>;
+	/* eint_level_trigger: 8,LEVEL_LOW(default);4,LEVEL_HIGH;others,LEVEL_LOW */
+	headset-eint-level-pol = <8>;
+	/*min_3pole--max_3pole--min_4pole--max_4pole--vol_bias*/
+	headset-vol-threshold = <0 635 636 9999 2700>;
+	/*0--MD_MAX--UP_MAX--DW_MAX*/
+	headset-three-key-threshold = <0 210 291 540>;
+	headset-three-key-threshold-CDD = <0 121 192 600>;
+	/*0--MD_MAX--VOICE_MAX--UP_MAX--DW_MAX*/
+	headset-four-key-threshold = <0 160 191 273 521>;
+
+	/* ACCDET GPIO standardization ACC mode use */
+	pinctrl-names = "default", "state_eint_as_int";
+	pinctrl-0 = <&accdet_pins_default>;
+	pinctrl-1 = <&accdet_pins_eint_as_int>;
+	status = "okay";
+};
+&pio {
+	accdet_pins_default: accdetdefault {
+		pins_cmd0_dat {
+			pins = <PINMUX_GPIO9__FUNC_GPIO9>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+		pins_cmd1_dat {
+			pins = <PINMUX_GPIO1__FUNC_GPIO1>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+	accdet_pins_eint_as_int: state_eint_as_int {
+		pins_cmd0_dat {
+			pins = <PINMUX_GPIO9__FUNC_GPIO9>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+		pins_cmd1_dat {
+			pins = <PINMUX_GPIO1__FUNC_GPIO1>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+};
+/* accdet end*/
+
+/* CONSYS GPIO standardization */
+&pio {
+	consys_pins_default: default {
+	};
+	gpslna_pins_init: gpslna@0 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO114__FUNC_GPIO114>;
+			slew-rate = <0>;
+			bias-disable;
+			output-low;
+		};
+	};
+	gpslna_pins_oh: gpslna@1 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO114__FUNC_GPIO114>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	gpslna_pins_ol: gpslna@2 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO114__FUNC_GPIO114>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+};
+&consys {
+	pinctrl-names = "default", "gps_lna_state_init", "gps_lna_state_oh", "gps_lna_state_ol";
+	pinctrl-0 = <&consys_pins_default>;
+	pinctrl-1 = <&gpslna_pins_init>;
+	pinctrl-2 = <&gpslna_pins_oh>;
+	pinctrl-3 = <&gpslna_pins_ol>;
+	status = "okay";
+};
+/* CONSYS end */
+
+/**********************************************
+ *MT6757 MSDC DTSI File
+********************************************/
+
+&mmc0 {
+	clk_src = /bits/ 8 <MSDC50_CLKSRC_400MHZ>;
+	bus-width = <8>;
+	max-frequency = <200000000>;
+	cap-mmc-highspeed;
+	msdc-sys-suspend;
+        emmc_power_ao;
+	mmc-ddr-1_8v;
+	mmc-hs200-1_8v;
+	mmc-hs400-1_8v;
+	non-removable;
+	pinctl = <&mmc0_pins_default>;
+	register_setting = <&mmc0_register_setting_default>;
+	host_function = /bits/ 8 <MSDC_EMMC>;
+	bootable;
+	status = "okay";
+	vmmc-supply = <&mt_pmic_vemc_ldo_reg>;
+};
+
+&mmc1 {
+	clk_src = /bits/ 8 <MSDC30_CLKSRC_200MHZ>;
+	bus-width = <4>;
+	max-frequency = <200000000>;
+	msdc-sys-suspend;
+	cap-sd-highspeed;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
+	sd-uhs-ddr50;
+	pinctl = <&mmc1_pins_default>;
+	pinctl_sdr104 = <&mmc1_pins_sdr104>;
+	pinctl_sdr50 = <&mmc1_pins_sdr50>;
+	pinctl_ddr50 = <&mmc1_pins_ddr50>;
+	register_setting = <&mmc1_register_setting_default>;
+	host_function = /bits/ 8 <MSDC_SD>;
+	cd_level = /bits/ 8 <MSDC_CD_LOW>;
+        cd-gpios = <&pio 23 GPIO_ACTIVE_LOW>;
+        pinctrl-names = "default";
+        pinctrl-0 = <&mmc1_pins_def>;
+	status = "okay";
+	vmmc-supply = <&mt_pmic_vmch_ldo_reg>;
+	vqmmc-supply = <&mt_pmic_vmc_ldo_reg>;
+};
+
+&mmc2 {
+	clk_src = /bits/ 8 <MSDC30_CLKSRC_200MHZ>;
+	bus-width = <4>;
+	max-frequency = <200000000>;
+	cap-sd-highspeed;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
+	sd-uhs-ddr50;
+	keep-power-in-suspend;
+	non-removable;
+	pinctl = <&mmc2_pins_default>;
+	register_setting = <&mmc2_register_setting_default>;
+	host_function = /bits/ 8 <MSDC_SDIO>;
+	status = "disable";
+};
+
+&pio {
+	mmc0_pins_default: mmc0@default {
+		pins_cmd {
+			drive-strength = /bits/ 8 <3>;
+		};
+		pins_dat {
+			drive-strength = /bits/ 8 <3>;
+		};
+		pins_clk {
+			drive-strength = /bits/ 8 <3>;
+		};
+		pins_rst {
+			drive-strength = /bits/ 8 <3>;
+		};
+		pins_ds {
+			drive-strength = /bits/ 8 <1>;
+		};
+	};
+
+	mmc0_register_setting_default: mmc0@register_default {
+		datrddly      = /bits/ 8 <0 0 0 0 0 0 0 0>;
+		datwrddly      = /bits/ 8 <0>;
+		cmdrrddly      = /bits/ 8 <0>;
+		cmdrddly       = /bits/ 8 <0>;
+		cmd_edge = /bits/ 8 <MSDC_SMPL_FALLING>;
+		rdata_edge = /bits/ 8 <MSDC_SMPL_FALLING>;
+		wdata_edge = /bits/ 8 <MSDC_SMPL_FALLING>;
+	};
+
+        mmc1_pins_def: mmc1default {
+        pins_cmd_dat {
+                pins = <PINMUX_GPIO23__FUNC_GPIO23>;
+                bias-disable;
+                };
+        };
+
+	mmc1_pins_default: mmc1@default {
+		pins_cmd {
+			drive-strength = /bits/ 8 <3>;
+		};
+		pins_dat {
+			drive-strength = /bits/ 8 <3>;
+		};
+		pins_clk {
+			drive-strength = /bits/ 8 <4>;
+		};
+	};
+
+	mmc1_pins_sdr104: mmc1@sdr104 {
+		pins_cmd {
+			drive-strength = /bits/ 8 <3>;
+		};
+		pins_dat {
+			drive-strength = /bits/ 8 <3>;
+		};
+		pins_clk {
+			drive-strength = /bits/ 8 <3>;
+		};
+	};
+
+	mmc1_pins_sdr50: mmc1@sdr50 {
+		pins_cmd {
+			drive-strength = /bits/ 8 <3>;
+		};
+		pins_dat {
+			drive-strength = /bits/ 8 <3>;
+		};
+		pins_clk {
+			drive-strength = /bits/ 8 <3>;
+		};
+	};
+
+	mmc1_pins_ddr50: mmc1@ddr50 {
+		pins_cmd {
+			drive-strength = /bits/ 8 <3>;
+		};
+		pins_dat {
+			drive-strength = /bits/ 8 <3>;
+		};
+		pins_clk {
+			drive-strength = /bits/ 8 <3>;
+		};
+	};
+
+	mmc1_register_setting_default: mmc1@register_default {
+		datrddly       = /bits/ 8 <0 0 0 0 0 0 0 0>;
+		datwrddly      = /bits/ 8 <0>;
+		cmdrrddly      = /bits/ 8 <0>;
+		cmdrddly       = /bits/ 8 <0>;
+		cmd_edge = /bits/ 8 <MSDC_SMPL_RISING>;
+		rdata_edge = /bits/ 8 <MSDC_SMPL_RISING>;
+		wdata_edge = /bits/ 8 <MSDC_SMPL_RISING>;
+	};
+
+	mmc2_pins_default: mmc2@default {
+		pins_cmd {
+			drive-strength = /bits/ 8 <3>;
+		};
+		pins_dat {
+			drive-strength = /bits/ 8 <3>;
+		};
+		pins_clk {
+			drive-strength = /bits/ 8 <3>;
+		};
+	};
+
+	mmc2_register_setting_default: mmc2@register_default {
+		datrddly       = /bits/ 8 <0 0 0 0 0 0 0 0>;
+		datwrddly      = /bits/ 8 <0>;
+		cmdrrddly      = /bits/ 8 <0>;
+		cmdrddly       = /bits/ 8 <0>;
+		cmd_edge = /bits/ 8 <MSDC_SMPL_FALLING>;
+		rdata_edge = /bits/ 8 <MSDC_SMPL_FALLING>;
+		wdata_edge = /bits/ 8 <MSDC_SMPL_FALLING>;
+	};
+};
+/* MMC end*/
+
+/* AUDIO GPIO standardization */
+&audgpio {
+	pinctrl-names = "default",
+			"aud_clk_mosi_off",
+			"aud_clk_mosi_on",
+			"aud_dat_mosi_off",
+			"aud_dat_mosi_on",
+			"aud_dat_miso_off",
+			"aud_dat_miso_on",
+			"hpdepop-pullhigh",
+			"hpdepop-pulllow",
+			"aud_smartpa_reset",
+			"aud_smartpa_on",
+			"aud_clk_mosi_pull_high",
+			"aud_clk_mosi_pull_low";
+	pinctrl-0 = <&aud_pins_default>;
+	pinctrl-1 = <&aud_clk_mosi_off>;
+	pinctrl-2 = <&aud_clk_mosi_on>;
+	pinctrl-3 = <&aud_dat_mosi_off>;
+	pinctrl-4 = <&aud_dat_mosi_on>;
+	pinctrl-5 = <&aud_dat_miso_off>;
+	pinctrl-6 = <&aud_dat_miso_on>;
+	pinctrl-7 = <&aud_pins_hpdepop_high>;
+	pinctrl-8 = <&aud_pins_hpdepop_low>;
+	pinctrl-9 = <&aud_pins_smartpa_reset>;
+	pinctrl-10 = <&aud_pins_smartpa_on>;
+	pinctrl-11 = <&aud_clk_mosi_pull_high>;
+	pinctrl-12 = <&aud_clk_mosi_pull_low>;
+	status = "okay";
+};
+
+&pio {
+	aud_pins_default: aud_default_setting {
+		pins_cmd0_dat {
+			pins = <PINMUX_GPIO77__FUNC_GPIO77>;
+			slew-rate = <1>;
+			bias-disable;
+			output-low;
+		};
+	};
+	aud_clk_mosi_off: aud_clk_mosi_off {
+		pins_cmd0_dat {
+			pins = <PINMUX_GPIO149__FUNC_GPIO149>;
+			bias-disable;
+		};
+	};
+
+	aud_clk_mosi_on: aud_clk_mosi_on {
+		pins_cmd0_dat {
+			pins = <PINMUX_GPIO149__FUNC_AUD_CLK_MOSI>;
+			bias-disable;
+		};
+	};
+
+	aud_dat_mosi_off: aud_dat_mosi_off {
+		pins_cmd1_dat {
+			pins = <PINMUX_GPIO150__FUNC_GPIO150>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	aud_dat_mosi_on: aud_dat_mosi_on {
+		pins_cmd1_dat {
+			pins = <PINMUX_GPIO150__FUNC_AUD_DAT_MOSI>;
+			bias-disable;
+		};
+	};
+
+	aud_dat_miso_off: aud_dat_miso_off {
+		pins_cmd2_dat {
+			pins = <PINMUX_GPIO151__FUNC_GPIO151>;
+			bias-disable;
+		};
+	};
+
+	aud_dat_miso_on: aud_dat_miso_on {
+		pins_cmd2_dat {
+			pins = <PINMUX_GPIO151__FUNC_AUD_DAT_MISO>;
+			bias-disable;
+		};
+	};
+
+	aud_pins_hpdepop_high: audhpdepophigh {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO77__FUNC_GPIO77>;
+			slew-rate = <1>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	aud_pins_hpdepop_low: audhpdepoplow {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO77__FUNC_GPIO77>;
+			slew-rate = <1>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	aud_pins_smartpa_reset: aud_pins_smartpa_reset {
+		pins_cmd0_dat {
+			pins = <PINMUX_GPIO190__FUNC_GPIO190>;
+		};
+	};
+
+	aud_pins_smartpa_on: aud_pins_smartpa_on {
+		pins_cmd0_dat {
+			pins = <PINMUX_GPIO16__FUNC_I2S0_DI>;
+			bias-disable;
+		};
+		pins_cmd1_dat {
+			pins = <PINMUX_GPIO26__FUNC_I2S3_BCK>;
+			bias-disable;
+		};
+		pins_cmd2_dat {
+			pins = <PINMUX_GPIO27__FUNC_I2S3_LRCK>;
+			bias-disable;
+		};
+		pins_cmd3_dat {
+			pins = <PINMUX_GPIO28__FUNC_I2S3_DO>;
+			bias-disable;
+		};
+	};
+
+	aud_clk_mosi_pull_high: aud_clk_mosi_pull_high {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO149__FUNC_GPIO149>;
+			slew-rate = <1>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	aud_clk_mosi_pull_low: aud_clk_mosi_pull_low {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO149__FUNC_GPIO149>;
+			slew-rate = <1>;
+			bias-disable;
+			output-low;
+		};
+	};
+};
+/* AUDIO end */
+
+&mmc1 {
+	status = "okay";
+};
+
+/* UART GPIO */
+/*
+*&apuart0 {
+*	pinctrl-names = "uart0_gpio_default",
+*			"uart0_rx_set",
+*			"uart0_rx_clear",
+*			"uart0_tx_set",
+*			"uart0_tx_clear";
+*	pinctrl-0 = <&uart0_gpio_def_cfg>;
+*	pinctrl-1 = <&uart0_rx_set_cfg>;
+*	pinctrl-2 = <&uart0_rx_clr_cfg>;
+*	pinctrl-3 = <&uart0_tx_set_cfg>;
+*	pinctrl-4 = <&uart0_tx_clr_cfg>;
+*	status = "okay";
+*};
+*/
+&pio {
+	/* UART GPIO Settings - Start */
+	/* UART0: rx set, rx clear, tx clear, tx clear*/
+	uart0_gpio_def_cfg:uart0gpiodefault {
+
+	};
+	uart0_rx_set_cfg:uart0_rx_set@gpio105 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO105__FUNC_URXD0>;
+		};
+	};
+	uart0_rx_clr_cfg:uart0_rx_clear@gpio105  {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO105__FUNC_GPIO105>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	uart0_tx_set_cfg:uart0_tx_set@gpio106  {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO106__FUNC_UTXD0>;
+		};
+	};
+	uart0_tx_clr_cfg:uart0_tx_clear@gpio106  {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO106__FUNC_GPIO106>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+};/* UART GPIO end */
+
+/* DISPSYS GPIO standardization */
+&pio {
+
+	mtkfb_pins_lcd_vdd_1p8_out0: lcd_vdd_1p8_out0 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO22__FUNC_GPIO22>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+	mtkfb_pins_lcd_vdd_1p8_out1: lcd_vdd_1p8_out1 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO22__FUNC_GPIO22>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	mtkfb_pins_lcm_reset0: lcm_rst_out0_gpio {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO158__FUNC_GPIO158>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+	mtkfb_pins_lcm_reset1: lcm_rst_out1_gpio {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO158__FUNC_GPIO158>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	mtkfb_pins_lcd_vsp_5p5_en0: lcd_vsp_5p5_en0 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO20__FUNC_GPIO20>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+	mtkfb_pins_lcd_vsp_5p5_en1: lcd_vsp_5p5_en1 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO20__FUNC_GPIO20>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	mtkfb_pins_lcd_vsn_5p5_en0: lcd_vsn_5p5_en0 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO19__FUNC_GPIO19>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+	mtkfb_pins_lcd_vsn_5p5_en1: lcd_vsn_5p5_en1 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO19__FUNC_GPIO19>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	mtkfb_pins_lcd_bl_en0: lcd_bl_en0 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO21__FUNC_GPIO21>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+	mtkfb_pins_lcd_bl_en1: lcd_bl_en1 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO21__FUNC_GPIO21>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	mtkfb_pins_tsp_rst_en0: tsp_rst_en0 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO18__FUNC_GPIO18>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+	mtkfb_pins_tsp_rst_en1: tsp_rst_en1 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO18__FUNC_GPIO18>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	mtkfb_pins_disp_dsi_te: disp_dsi_te {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO44__FUNC_DSI_TE>;
+		};
+	};
+
+	mtkfb_pins_default: default {
+	};
+
+};
+
+&mtkfb {
+	pinctrl-names = "default", "lcd_vdd_1p8_out0", "lcd_vdd_1p8_out1", "lcm_rst_out0_gpio",
+	"lcm_rst_out1_gpio", "lcd_vsp_5p5_en0", "lcd_vsp_5p5_en1", "lcd_vsn_5p5_en0", "lcd_vsn_5p5_en1",
+	"lcd_bl_en0", "lcd_bl_en1", "tsp_rst_en0", "tsp_rst_en1", "disp_dsi_te";
+
+	pinctrl-0 = <&mtkfb_pins_default>;
+	pinctrl-1 = <&mtkfb_pins_lcd_vdd_1p8_out0>;
+	pinctrl-2 = <&mtkfb_pins_lcd_vdd_1p8_out1>;
+	pinctrl-3 = <&mtkfb_pins_lcm_reset0>;
+	pinctrl-4 = <&mtkfb_pins_lcm_reset1>;
+	pinctrl-5 = <&mtkfb_pins_lcd_vsp_5p5_en0>;
+	pinctrl-6 = <&mtkfb_pins_lcd_vsp_5p5_en1>;
+	pinctrl-7 = <&mtkfb_pins_lcd_vsn_5p5_en0>;
+	pinctrl-8 = <&mtkfb_pins_lcd_vsn_5p5_en1>;
+	pinctrl-9 = <&mtkfb_pins_lcd_bl_en0>;
+	pinctrl-10 = <&mtkfb_pins_lcd_bl_en1>;
+	pinctrl-11 = <&mtkfb_pins_tsp_rst_en0>;
+	pinctrl-12 = <&mtkfb_pins_tsp_rst_en1>;
+	pinctrl-13 = <&mtkfb_pins_disp_dsi_te>;
+	status = "okay";
+};/* DISPSYS GPIO standardization end */
+
+/* FLASHLIGHTS_LM3643 GPIO standardization */
+&pio {
+	flashlights_lm3643_pins_default: default {
+	};
+
+	flashlights_lm3643_pins_hwen_high: hwen_high {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO8__FUNC_GPIO8>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	flashlights_lm3643_pins_hwen_low: hwen_low {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO8__FUNC_GPIO8>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+};
+
+/* FG configurations */
+&pio {
+	fg_i2c_active: fg_i2c_active {
+		pins_cmd_dat1 {
+			pins = <PINMUX_GPIO15__FUNC_GPIO15>;	/*fuelgauge sda pin*/
+			slew-rate = <0>;
+			bias-disable;
+		};
+		pins_cmd_dat2 {
+			pins = <PINMUX_GPIO22__FUNC_GPIO22>;	/*fuelgauge scl pin*/
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	fg_i2c_suspend: fg_i2c_suspend {
+		pins_cmd_dat1 {
+			pins = <PINMUX_GPIO15__FUNC_GPIO15>;	/*fuelgauge sda pin*/
+			slew-rate = <0>;
+			bias-disable;
+		};
+		pins_cmd_dat2 {
+			pins = <PINMUX_GPIO22__FUNC_GPIO22>;	/*fuelgauge scl pin*/
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	fg_alert_default: fg_alert_default {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO85__FUNC_GPIO85>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+};
+
+&i2c10 {
+	status = "okay";
+
+	s2mu005-fuelgauge@3b {
+		compatible = "samsung,s2mu005-fuelgauge";
+		reg = <0x3b>;
+		interrupt-parent = <&eintc>;
+		pinctrl-names = "fg_alrt_default", "fg_active", "fg_suspend";
+		pinctrl-0 = <&fg_alert_default &fg_i2c_active &fg_i2c_suspend>;
+		pinctrl-1 = <&fg_i2c_active>;
+		pinctrl-2 = <&fg_i2c_suspend>;
+		fuelgauge,irqf = "IRQF_TRIGGER_FALLING + IRQF_ONESHOT + IRQF_NO_SUSPEND";
+		fuelgauge,fuel_int = <&pio 85 0>;
+		fuelgauge,fuel_alert_soc = <1>;
+		fuelgauge,capacity_max = <1000>;
+		fuelgauge,capacity_max_margin = <70>;
+		fuelgauge,capacity_min = <0>;
+		fuelgauge,capacity_calculation_type = <0x1F>;
+		fuelgauge,capacity_full = <3000>;
+	};
+};
+/* End-of FG configurations */
+
+/* IF-PMIC configurations */
+&i2c5 {
+	s2mu005@3d {
+		compatible = "samsung,s2mu005mfd";
+		reg = <0x3d>;
+		interrupt-parent = <&eintc>;
+		interrupts = <8 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-names = "default", "ifpmicirq", "ifpmicrstb";
+		pinctrl-0 = <&if_pmic_default &if_pmic_irq &if_pmic_rstb>;
+		pinctrl-1 = <&if_pmic_irq>;
+		pinctrl-2 = <&if_pmic_rstb>;
+		s2mu005,wakeup;
+		s2mu005,irq-gpio = <&pio 8 0>;
+		debounce = <0 0>;
+		status = "okay";
+
+		muic {
+			status = "okay";
+		};
+	};
+	s2mu005_fled {
+		compatible = "samsung,s2mu005-fled";
+		enable = <1 1>;
+		rear_flash_current = <1200>;
+		rear_preflash_current = <150>;
+		rear_movie_current = <150>;
+		rear_torch_current = <75>;
+		front_torch_current = <50>;
+		factory_current = <300>;
+		s2mu005,torch-gpio = <&pio 157 0x00>;
+		s2mu005,flash-gpio = <&pio 108 0x00>;
+		S2MU005_FLASH_LED{
+			id = <0>;
+			ledname = "S2MU005_FLASH_LED";
+			brightness = <1200>;
+			timeout = <15>;/*reg value:0xF*/
+			max_brightness = <1200>;
+		};
+		S2MU005_TORCH_LED{
+			id = <1>;
+			ledname = "S2MU005_TORCH_LED";
+			brightness = <50>;
+			timeout = <15>;/*reg value:0xF*/
+			max_brightness = <400>;
+		};
+	};
+};
+
+&pio {
+	if_pmic_default: ifpmicdefault {
+		/* Setting gpio mode to i2c */
+		pins_cmd_dat1 {
+			pins = <PINMUX_GPIO48__FUNC_SDA_APPM>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+		pins_cmd_dat2 {
+			pins = <PINMUX_GPIO47__FUNC_SCL_APPM>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	if_pmic_irq: ifpmicirq {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO8__FUNC_GPIO8>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	if_pmic_rstb: ifpmicrstb {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO13__FUNC_GPIO13>;
+			slew-rate = <1>;
+			output-high;
+			bias-disable;
+		};
+	};
+
+};
+/* IF-PMIC end */

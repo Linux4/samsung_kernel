@@ -1,0 +1,22 @@
+#
+# s6sy661 Electronics TOUCH driver configuration
+#
+
+if INPUT_TOUCHSCREEN
+
+config TOUCHSCREEN_SEC_TS_Y661
+        bool "s6sy661 Electronics Touchscreen"
+        depends on I2C
+		default n
+        help
+          Say Y here if you want support for SEC touchscreen controllers.
+
+config TOUCHSCREEN_SEC_TS_GLOVEMODE
+        bool "s6sy661 Electronics Touchscreen"
+        depends on I2C
+		default n
+        help
+          Say Y here if you have a s6sy661 Electronics Touchscreen and want to enable
+          support for the built-in touchscreen.
+
+endif

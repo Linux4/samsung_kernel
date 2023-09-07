@@ -1,0 +1,94 @@
+&pio {
+	/* GPIO IN/PD */
+	panel_input: lcd_input {
+		pins_cmd0_dat {
+			pins = <PINMUX_GPIO14__FUNC_GPIO14>;	/* EL_ON1_DET */
+			slew-rate = <0>;
+			bias-pull-down = <11>;
+		};
+		pins_cmd1_dat {
+			pins = <PINMUX_GPIO44__FUNC_DSI_TE>;	/* DISP_TE */
+			slew-rate = <0>;
+			bias-pull-down = <11>;
+		};
+		pins_cmd2_dat {
+			pins = <PINMUX_GPIO101__FUNC_GPIO101>;	/* PCD_INT */
+			slew-rate = <0>;
+			bias-pull-down = <11>;
+		};
+	};
+
+	/* GPIO OUT/NP */
+	panel_out: lcd_out {
+		pins_cmd0_dat {
+			pins = <PINMUX_GPIO78__FUNC_GPIO78>;	/* OCTA_LDO_EN */
+			slew-rate = <1>;
+			bias-disable;
+		};
+		pins_cmd1_dat {
+			pins = <PINMUX_GPIO158__FUNC_GPIO158>;	/* OCTA_RST_N */
+			slew-rate = <1>;
+			bias-disable;
+		};
+	};
+};
+
+/ {
+	panel {
+		compatible = "samsung,mtk-dsi-panel";
+		sec_panel = <&s6e3fa3>;
+		sec_board = <&sec_board_list>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&panel_input &panel_out>;
+	};
+
+	sec_board_list: sec_board_list {
+		panel_power_enable {
+			type = "regulator,enable", "gpio,high", "delay,usleep";
+			regulator = "vrf18_2";
+			gpios = <&pio 78 0>;
+			delay = <10000 11000>;
+		};
+		panel_power_disable {
+			type =  "gpio,low", "regulator,disable", "gpio,low";
+			regulator = "vrf18_2";
+			gpios = <&pio 158 0>, <&pio 78 0>;
+		};
+		panel_reset {
+			type = "delay,usleep", "gpio,high", "delay,usleep", "gpio,low", "delay,usleep", "gpio,high", "delay,usleep";
+			delay = <1000 1100>, <5000 6000>, <5000 6000>, <10000 11000>;
+			gpios = <&pio 158 0>, <&pio 158 0>, <&pio 158 0>;
+		};
+	};
+
+	s6e3fa3: s6e3fa3_ams549ku2x {
+		panel-name = "AMS549KU22";
+		panel-type = <2>;					/* lcd interface : DBI 0, DPI 1, DSI 2 */
+		panel-lcm_if = <1>;					/* lcm interface : notdef 0, dsi0 1, dsi1 1, dsi dual 2 */
+		panel-lcm_cmd_if = <1>;					/* lcm interface : notdef 0, dsi0 1, dsi1 1, dsi dual 2 */
+		panel-width = <1080>;					/* horizontal resolution */
+		panel-height = <1920>;					/* vertical resolution */
+		panel-physical_width = <68>;				/* screen width in mm */
+		panel-physical_height = <121>;				/* screen height in mm */
+		panel-dbi-te_mode = <1>;				/* te mode : disable 0, vsync only 1, vsync or hsync 2 */
+		panel-dbi-te_edge_polarity = <0>;			/* Rising 0, Falling 1 */
+		panel-dsi-mode = <0>;					/* mipi operation mode : CMD 0, PLUS 1, EVENT 2, BURST 3 */
+		panel-dsi-switch_mode_enable = <0>;			/* switch mode */
+		panel-dsi-lane_num = <4>;				/* number of dsi bus lane */
+		panel-dsi-data_format-color_order = <0>;		/* RGB 0, BGR 1 */
+		panel-dsi-data_format-trans_seq = <0>;			/* MSB 0, LSB 1 */
+		panel-dsi-data_format-padding = <0>;			/* LSB 0, MSB 1 */
+		panel-dsi-data_format-format = <2>;			/* RGB565 0, RGB666 1, RGB888 2 */
+		panel-dsi-ps = <2>;					/* 16bit rgb565 0, 18bit rgb666 1, 24bit rgb888 2, 18bit rgb666 3 */
+		panel-dsi-packet_size = <256>;
+		panel-dsi-pll_clock = <425>;				/* pll_clock * 2 = mipi fequency(Mbps) */
+		panel-dsi-ssc_disable = <1>;				/* ssc enable 0, disable 1 */
+		panel-dsi-cont_clock = <0>;				/* hs continous clock */
+		panel-dsi-clk_lp_per_line_enable = <0>;			/* clock low power per line */
+		panel-dsi-customization_esd_check_enable = <0>;		/* customization esd echeck enable 1, disable 0 */
+		panel-dsi-esd_check_enable = <0>;			/* esd enable 1, disable 0 */
+
+		gpio_det = <&pio 14 0x1>;
+		gpio_pcd = <&pio 101 0x1>;
+	};
+};
