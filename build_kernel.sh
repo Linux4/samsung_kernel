@@ -13,7 +13,7 @@ export ARCH=arm
 [ -d ${OUT_DIR} ] && rm -rf ${OUT_DIR}
 mkdir ${OUT_DIR}
 
-make ${COMMON_ARGS} msm8937_sec_j6primelte_swa_open_defconfig
+make ${COMMON_ARGS} j6primelte_swa_open_defconfig
 make -j64 ${COMMON_ARGS}
 
 cp ${OUT_DIR}/arch/arm/boot/zImage $(pwd)/arch/arm/boot/zImage
