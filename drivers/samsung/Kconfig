@@ -51,6 +51,13 @@ config DRV_SAMSUNG
 	depends on SEC_EXT
 	help
 	  Samsung sysfs name 'sec' directory create.
+	  
+config SEC_KEY_NOTIFIER
+	bool "Enable Samsung key event notifier"
+	depends on SEC_EXT
+	default y
+	help
+	  Samsung Key input event notifier	  
 
 comment "Samsung TN Build Options"
 config SEC_FACTORY
@@ -76,6 +83,12 @@ config ARGOS
 	  This option enables monitoring the data throughput and doing several actions for
 	  enhancing the performance such as adjusting the CPU freqency, allocating the tasks
 	  to the appropriate CPU and so on
+
+config SEC_DUMP_SINK
+	bool "Enable to dump_sink"
+	default n
+	help
+	  This option enables dump_sink.
 
 source "drivers/samsung/debug/Kconfig"
 source "drivers/samsung/misc/Kconfig"

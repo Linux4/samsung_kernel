@@ -8,6 +8,8 @@ subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/usb_boost
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include
 ccflags-y				+= -I$(srctree)/drivers/usb/gadget/udc
 ccflags-y				+= -I$(srctree)/drivers/usb/gadget/function
+subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/typec/inc
+subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/typec/tcpc/inc
 ifdef CONFIG_MTPROF
 ccflags-y += -Idrivers/misc/mediatek/mtprof/
 endif
@@ -15,6 +17,6 @@ endif
 obj-$(CONFIG_USB_LIBCOMPOSITE)	+= libcomposite.o
 libcomposite-y			:= usbstring.o config.o epautoconf.o
 libcomposite-y			+= composite.o functions.o configfs.o u_f.o
-libcomposite-$(CONFIG_USB_CONFIGFS_UEVENT)          += meta.o
+#libcomposite-$(CONFIG_USB_CONFIGFS_UEVENT)          += meta.o
 
 obj-$(CONFIG_USB_GADGET)	+= udc/ function/ legacy/

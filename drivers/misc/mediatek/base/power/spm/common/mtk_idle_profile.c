@@ -35,7 +35,7 @@
 
 /* [ByChip] Internal weak function: implemented in mtk_idle_cond_check.c */
 int __attribute__((weak)) mtk_idle_cond_append_info(
-	bool short_log, int idle_type, char *logptr, unsigned int logsize);
+	bool short_log, unsigned int idle_type, char *logptr, unsigned int logsize);
 
 /* idle ratio */
 static bool idle_ratio_en;
@@ -44,7 +44,7 @@ static unsigned long long idle_ratio_profile_duration;
 
 /* idle block information */
 static unsigned long long idle_cnt_dump_prev_time;
-static unsigned int idle_cnt_dump_criteria = 60000;          /* 60 sec */
+static unsigned int idle_cnt_dump_criteria = 5000;          /* 5 sec */
 
 /*External weak functions: implemented in mtk_cpufreq_api.c*/
 unsigned int __attribute__((weak))

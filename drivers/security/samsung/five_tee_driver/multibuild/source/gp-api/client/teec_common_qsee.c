@@ -17,6 +17,7 @@
 
 #include <linux/string.h>
 #include <linux/bug.h>
+#include <uapi/linux/qseecom.h>
 
 #include "teec_common.h"
 
@@ -25,7 +26,7 @@
 #include "teec_param_utils.h"
 #include "linux/errno.h"
 
-#define MAX_QSEE_UUID_LEN 17
+#define MAX_QSEE_UUID_LEN (MAX_APP_NAME_SIZE) // usually 64 bytes
 #define QSEE_SUCCESS      0
 
 /* 1. Actually we don't use the response buffer. But RBUF_LEN can't be zero.
@@ -38,6 +39,8 @@
  */
 #define SBUF_LEN (sizeof(ProtocolCmd) + MAX_SHAREDMEM_SIZE)
 #define RBUF_LEN (QSEECOM_ALIGN(SBUF_LEN) - SBUF_LEN + QSEECOM_ALIGN_SIZE)
+
+#define TA_LOAD_RETRY 5
 
 typedef struct QseeSessionStruct {
 	struct qseecom_handle *qsee_com_handle;
@@ -102,6 +105,7 @@ TEEC_Result QseeLoadTA(void *ta_session, const TEEC_UUID *uuid)
 	char ta_name[MAX_QSEE_UUID_LEN] = "five/";
 	char qsee_uuid[MAX_QSEE_UUID_LEN] = {0};
 	QseeSession *qsee_session = (QseeSession *)ta_session;
+	unsigned int retry_num = 0;
 
 	if (!ta_session || !uuid ||
 		TEEC_SUCCESS != TeecUuidToQseeUuid(uuid, qsee_uuid)) {
@@ -118,14 +122,41 @@ TEEC_Result QseeLoadTA(void *ta_session, const TEEC_UUID *uuid)
 
 	BUILD_BUG_ON((SBUF_LEN + RBUF_LEN) & QSEECOM_ALIGN_MASK);
 
-	qsee_res = qseecom_start_app(&qsee_session->qsee_com_handle,
-				 ta_name,
-				 SBUF_LEN + RBUF_LEN);
-	if (qsee_res != QSEE_SUCCESS) {
-		status = qsee_res == -EINVAL ? TEEC_ERROR_TARGET_DEAD :
-							    TEEC_ERROR_GENERIC;
-	}
+	do {
+		++retry_num;
+		qsee_res = qseecom_start_app(&qsee_session->qsee_com_handle,
+					ta_name,
+					SBUF_LEN + RBUF_LEN);
+		if (qsee_res == QSEE_SUCCESS) {
+			pr_info("FIVE: Load trusted app from five dir attempt: %u\n",
+				retry_num);
+			status = TEEC_SUCCESS;
+			break;
+		}
 
+		if (qsee_res == -EIO) {
+			qsee_res = qseecom_start_app(
+					&qsee_session->qsee_com_handle,
+					qsee_uuid,
+					SBUF_LEN + RBUF_LEN);
+			if (qsee_res != QSEE_SUCCESS) {
+				pr_err("FIVE: Can't load trusted app after -EIO attempt: %u result: %d\n",
+					retry_num, qsee_res);
+				status = qsee_res == -EINVAL ?
+				   TEEC_ERROR_TARGET_DEAD : TEEC_ERROR_GENERIC;
+			} else {
+				pr_info("FIVE: Load trusted app attempt: %u\n",
+					retry_num);
+				status = TEEC_SUCCESS;
+				break;
+			}
+		} else {
+			pr_err("FIVE: Can't load trusted app attempt: %u result: %d\n",
+				retry_num, qsee_res);
+			status = qsee_res == -EINVAL ?
+				TEEC_ERROR_TARGET_DEAD : TEEC_ERROR_GENERIC;
+		}
+	} while (retry_num < TA_LOAD_RETRY);
 exit:
 	return status;
 }

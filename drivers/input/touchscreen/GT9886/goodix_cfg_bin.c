@@ -1,3 +1,22 @@
+/*
+ * Goodix Touchscreen Driver
+ * Core layer of touchdriver architecture.
+ *
+ * Copyright (C) 2015 - 2016 Goodix, Inc.
+ * Authors:  Yulong Cai <caiyulong@goodix.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be a reference
+ * to you, when you are integrating the GOODiX's CTP IC into your system,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ */
 #include "goodix_cfg_bin.h"
 #define CFG_TAG ""
 int goodix_start_cfg_bin(struct goodix_ts_core *ts_core)
@@ -184,11 +203,14 @@ int goodix_cfg_bin_proc(void *data)
 	int r;
 	struct goodix_cfg_bin *cfg_bin =
 		kzalloc(sizeof(struct goodix_cfg_bin), GFP_KERNEL);
+
 	if (!cfg_bin) {
 		ts_err("Failed to alloc memory for cfg_bin");
 		r = -ENOMEM;
 		goto out;
 	}
+
+	cfg_bin->cfg_pkgs = NULL;
 	/*get cfg_bin from file system*/
 	r = goodix_read_cfg_bin(dev, cfg_bin);
 	if (r < 0) {
@@ -282,7 +304,9 @@ int goodix_cfg_bin_proc(void *data)
 #endif
 
 	/* esd protector */
+#ifdef GT9886_ESD_ENABLE
 	goodix_ts_esd_init(core_data);
+#endif
 
 	/* generic notifier callback */
 	core_data->ts_notifier.notifier_call = goodix_generic_noti_callback;

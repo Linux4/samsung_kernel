@@ -38,6 +38,7 @@
 #include <linux/uaccess.h>
 #include <linux/pm_runtime.h>
 #include <linux/ktime.h>
+#include "mt-plat/mtk_printk_ctrl.h"
 
 #include <asm/io.h>
 #include <asm/irq.h>
@@ -724,19 +725,26 @@ static void serial8250_set_sleep(struct uart_8250_port *p, int sleep)
 		goto out;
 	}
 
+	#define UART_EFR_MTK 0x26
+	#define UART_NEW_MAP 0x27
+
 	if (p->capabilities & UART_CAP_SLEEP) {
 		if (p->capabilities & UART_CAP_EFR) {
-			lcr = serial_in(p, UART_LCR);
-			efr = serial_in(p, UART_EFR);
-			serial_out(p, UART_LCR, UART_LCR_CONF_MODE_B);
-			serial_out(p, UART_EFR, UART_EFR_ECB);
-			serial_out(p, UART_LCR, 0);
+			//lcr = serial_in(p, UART_LCR);
+			//serial_out(p, UART_LCR, UART_LCR_CONF_MODE_B);
+			serial_out(p, UART_NEW_MAP, 0x1);
+			efr = serial_in(p, UART_EFR_MTK);
+			serial_out(p, UART_EFR_MTK, UART_EFR_ECB);
+			serial_out(p, UART_NEW_MAP, 0x0);
+			//serial_out(p, UART_LCR, 0);
 		}
 		serial_out(p, UART_IER, sleep ? UART_IERX_SLEEP : 0);
 		if (p->capabilities & UART_CAP_EFR) {
-			serial_out(p, UART_LCR, UART_LCR_CONF_MODE_B);
-			serial_out(p, UART_EFR, efr);
-			serial_out(p, UART_LCR, lcr);
+			//serial_out(p, UART_LCR, UART_LCR_CONF_MODE_B);
+			serial_out(p, UART_NEW_MAP, 0x1);
+			serial_out(p, UART_EFR_MTK, efr);
+			serial_out(p, UART_NEW_MAP, 0x0);
+			//serial_out(p, UART_LCR, lcr);
 		}
 	}
 out:
@@ -1692,9 +1700,18 @@ static void serial8250_read_char(struct uart_8250_port *up, unsigned char lsr)
 	unsigned char ch;
 	char flag = TTY_NORMAL;
 
-	if (likely(lsr & UART_LSR_DR))
+	if (likely(lsr & UART_LSR_DR)) {
 		ch = serial_in(up, UART_RX);
-	else
+		/* Enable uart log output on eng load when receive char input */
+		#ifndef CONFIG_FIQ_DEBUGGER
+		#ifdef CONFIG_MTK_ENG_BUILD
+		#ifdef CONFIG_MTK_PRINTK_UART_CONSOLE
+			if (ch == 'c')
+				mt_enable_uart();
+		#endif
+		#endif
+		#endif
+	} else
 		/*
 		 * Intel 82571 has a Serial Over Lan device that will
 		 * set UART_LSR_BI without setting UART_LSR_DR when
@@ -1872,15 +1889,6 @@ int serial8250_handle_irq(struct uart_port *port, unsigned int iir)
 	spin_lock_irqsave(&port->lock, flags);
 
 	status = serial_port_in(port, UART_LSR);
-/* Enable uart log output on eng load when receive char input */
-#ifndef CONFIG_FIQ_DEBUGGER
-#ifdef CONFIG_MTK_ENG_BUILD
-#ifdef CONFIG_MTK_PRINTK_UART_CONSOLE
-	if (uart_console(port) && (serial_port_in(port, UART_LSR) & 0x01))
-		printk_disable_uart = 0;
-#endif
-#endif
-#endif
 
 	if (status & (UART_LSR_DR | UART_LSR_BI)) {
 		if (!up->dma || handle_rx_dma(up, iir))
@@ -2266,6 +2274,10 @@ int serial8250_do_startup(struct uart_port *port)
 			port->handle_irq = serial8250_tx_threshold_handle_irq;
 		}
 	}
+
+	/* Check if we need to have shared IRQs */
+	if (port->irq && (up->port.flags & UPF_SHARE_IRQ))
+		up->port.irqflags |= IRQF_SHARED;
 
 	if (port->irq && !(up->port.flags & UPF_NO_THRE_TEST)) {
 		unsigned char iir1;

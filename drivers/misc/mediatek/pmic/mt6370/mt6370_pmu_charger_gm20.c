@@ -78,6 +78,7 @@ struct mt6370_pmu_charger_desc {
 	u32 dc_wdt;
 	bool en_te;
 	bool en_wdt;
+	bool en_otg_wdt;
 	bool en_polling;
 	const char *chg_dev_name;
 	const char *ls_dev_name;
@@ -96,7 +97,7 @@ struct mt6370_pmu_charger_data {
 	struct device *dev;
 	wait_queue_head_t wait_queue;
 	bool err_state;
-	CHARGER_TYPE chg_type;
+	enum charger_type chg_type;
 	bool chg_online;
 	u8 irq_flag[MT6370_CHG_IRQIDX_MAX];
 	u32 zcv;
@@ -299,24 +300,6 @@ static inline void mt6370_chg_irq_clr_flag(
 	mutex_lock(&chg_data->irq_access_lock);
 	*irq &= ~mask;
 	mutex_unlock(&chg_data->irq_access_lock);
-}
-
-static inline int mt6370_pmu_reg_test_bit(
-	struct mt6370_pmu_chip *chip, u8 cmd, u8 shift, bool *is_one)
-{
-	int ret = 0;
-	u8 data = 0;
-
-	ret = mt6370_pmu_reg_read(chip, cmd);
-	if (ret < 0) {
-		*is_one = false;
-		return ret;
-	}
-
-	data = ret & (1 << shift);
-	*is_one = (data == 0 ? false : true);
-
-	return ret;
 }
 
 static u8 mt6370_find_closest_reg_value(u32 min, u32 max, u32 step, u32 num,
@@ -668,7 +651,7 @@ static int mt6370_get_adc(struct mt6370_pmu_charger_data *chg_data,
 		__func__, adc_sel, adc_data[0], adc_data[1]);
 
 	dev_dbg(chg_data->dev,
-		"%s: 0x4e~51 = (0x%02X, 0x%02X, 0x%02X, 0x%02X)\n", __func__,
+		"%s: 0x4E~51 = (0x%02X, 0x%02X, 0x%02X, 0x%02X)\n", __func__,
 		adc_data[2], adc_data[3], adc_data[4], adc_data[5]);
 
 	/* Calculate ADC value */
@@ -1046,7 +1029,7 @@ static int _mt6370_set_ichg(struct mt6370_pmu_charger_data *chg_data, u32 uA)
 		reg_ichg << MT6370_SHIFT_ICHG
 	);
 
-	if (chg_data->chip->chip_vid == 0xf0)
+	if (chg_data->chip->chip_vid == 0xF0)
 		goto bypass_ieoc_workaround;
 	/* Workaround to make IEOC accurate */
 	if (uA < 900000) /* 900mA */
@@ -1667,7 +1650,7 @@ static int mt6370_enable_otg(struct mtk_charger_info *mchr_info, void *data)
 			dev_err(chg_data->dev,
 				"%s: disable usb chrdet failed\n", __func__);
 
-		if (chg_data->chg_desc->en_wdt) {
+		if (chg_data->chg_desc->en_otg_wdt) {
 			ret = mt6370_enable_wdt(chg_data, true);
 			if (ret < 0)
 				dev_err(chg_data->dev, "%s: en wdt failed\n",
@@ -3222,6 +3205,7 @@ static inline int mt_parse_dt(struct device *dev,
 
 	chg_desc->en_te = of_property_read_bool(np, "enable_te");
 	chg_desc->en_wdt = of_property_read_bool(np, "enable_wdt");
+	chg_desc->en_otg_wdt = of_property_read_bool(np, "enable_otg_wdt");
 
 	chg_data->chg_desc = chg_desc;
 
@@ -3516,7 +3500,7 @@ MODULE_DESCRIPTION("MediaTek MT6370 PMU Charger");
 MODULE_VERSION(MT6370_PMU_CHARGER_DRV_VERSION);
 
 /*
- * Version Note
+ * Release Note
  * 1.1.12_MTK
  * (1) Enable charger before sending PE+/PE+20 pattern
  * (2) Select to use reg AICR as input limit -> disable HW limit

@@ -21,9 +21,11 @@
 #include <linux/videodev2.h>
 #include "vcodec_ipi_msg.h"
 
-#define MTK_MAX_ENC_CODECS_SUPPORT       (32)
+#define MTK_MAX_ENC_CODECS_SUPPORT       (64)
 #define AP_IPIMSG_VENC_BASE 0xC000
 #define VCU_IPIMSG_VENC_BASE 0xD000
+#define VCU_IPIMSG_VENC_SEND_BASE 0xE000
+
 #define VENC_MAX_FB_NUM              VIDEO_MAX_FRAME
 #define VENC_MAX_BS_NUM              VIDEO_MAX_FRAME
 
@@ -46,24 +48,27 @@ enum venc_ipi_msg_id {
 	VCU_IPIMSG_ENC_ENCODE_DONE,
 	VCU_IPIMSG_ENC_DEINIT_DONE,
 	VCU_IPIMSG_ENC_QUERY_CAP_ACK,
-	VCU_IPIMSG_ENC_POWER_ON,
+	VCU_IPIMSG_ENC_ENCODE_ACK,
+
+	VCU_IPIMSG_ENC_POWER_ON = VCU_IPIMSG_VENC_SEND_BASE,
 	VCU_IPIMSG_ENC_POWER_OFF,
 	VCU_IPIMSG_ENC_WAIT_ISR,
-	VCU_IPIMSG_ENC_ENCODE_ACK
+	VCU_IPIMSG_ENC_PUT_BUFFER
 };
 
 /* enum venc_get_param_type - The type of set parameter used in
  *                            venc_if_get_param()
- * GET_PARAM_CAPABILITY_SUPPORTED_FORMATS: get codec supported format capability
- * GET_PARAM_CAPABILITY_FRAME_SIZES:
+ * VENC_GET_PARAM_CAPABILITY_SUPPORTED_FORMATS: get codec supported format capability
+ * VENC_GET_PARAM_CAPABILITY_FRAME_SIZES:
  *         get codec supported frame size & alignment info
  */
 enum venc_get_param_type {
-	GET_PARAM_CAPABILITY_SUPPORTED_FORMATS,
-	GET_PARAM_CAPABILITY_FRAME_SIZES,
-	GET_PARAM_FREE_BUFFERS,
-	GET_PARAM_ROI_RC_QP,
-	GET_PARAM_RESOLUTION_CHANGE,
+	VENC_GET_PARAM_CAPABILITY_SUPPORTED_FORMATS,
+	VENC_GET_PARAM_CAPABILITY_FRAME_SIZES,
+	VENC_GET_PARAM_FREE_BUFFERS,
+	VENC_GET_PARAM_ROI_RC_QP,
+	VENC_GET_PARAM_RESOLUTION_CHANGE,
+	VENC_GET_PARAM_REFBUF_FRAME_NUM,
 };
 
 /*
@@ -81,6 +86,7 @@ enum venc_get_param_type {
  * @VENC_SET_PARAM_TS_MODE: set VP8 temporal scalability mode
  * @VENC_SET_PARAM_SCENARIO: set encoder scenario mode for different RC control
  * @VENC_SET_PARAM_NONREFP: set encoder non reference P period
+ * @VENC_SET_PARAM_LOG: set encoder log
  */
 enum venc_set_param_type {
 	VENC_SET_PARAM_ENC,
@@ -101,7 +107,19 @@ enum venc_set_param_type {
 	VENC_SET_PARAM_BITRATE_MODE,
 	VENC_SET_PARAM_ROI_ON,
 	VENC_SET_PARAM_HEIF_GRID_SIZE,
+	VENC_SET_PARAM_COLOR_DESC,
 	VENC_SET_PARAM_SEC_MODE,
+	VENC_SET_PARAM_TSVC,
+	VENC_SET_PARAM_NONREFPFREQ,
+	VENC_SET_PARAM_ADJUST_MAX_QP,
+	VENC_SET_PARAM_ADJUST_MIN_QP,
+	VENC_SET_PARAM_ADJUST_I_P_QP_DELTA,
+	VENC_SET_PARAM_ADJUST_FRAME_LEVEL_QP,
+	VENC_SET_PARAM_MAX_REFP_NUM,
+	VENC_SET_PARAM_REFP_DISTANCE,
+	VENC_SET_PARAM_REFP_FRMNUM,
+	VENC_SET_PARAM_LOG,
+	VENC_SET_PARAM_ENABLE_DUMMY_NAL,
 };
 
 /**
@@ -213,6 +231,9 @@ struct venc_ap_ipi_msg_enc {
 	__s16 bs_fd;
 	__u8 fb_num_planes;
 	__u8 bs_mode;
+	__u32 meta_size;
+	__s16 meta_fd;
+	__u32 qpmap;
 };
 
 /**
@@ -387,12 +408,25 @@ struct venc_vcu_config {
 	__u32 roi_rc_qp;
 	__u32 roion;
 	__u32 heif_grid_size;
+	struct mtk_color_desc color_desc;
 	__u32 resolutionChange;
 	__u32 max_w;
 	__u32 max_h;
+	__u32 num_b_frame;
+	__u32 slbc_ready;
 	__u32 i_qp;
 	__u32 p_qp;
 	__u32 b_qp;
+	__u32 svp_mode;
+	__u32 tsvc;
+	__u32 max_qp;
+	__u32 min_qp;
+	__u32 i_p_qp_delta;
+	__u32 qp_control_mode;
+	__u32 frame_level_qp;
+	__u32 maxrefpnum;
+	__u32 maxrefbufFrameNum;
+	__u32 dummynal;
 };
 
 /**
@@ -429,6 +463,7 @@ struct venc_info {
 	__u32 index;
 	__u64 timestamp;
 	__u32 roimap;
+	__u32 qpmap;
 };
 
 /**
@@ -469,6 +504,10 @@ struct venc_vsi {
 	__u32  sizeimage[VIDEO_MAX_PLANES];
 	struct ring_input_list list_free;
 	struct venc_info       venc;
+	__u32 sync_mode;
+	__u32 meta_size;
+	__u64 meta_addr;
+	__s16 meta_fd;
 };
 
 #endif /* _VENC_IPI_MSG_H_ */

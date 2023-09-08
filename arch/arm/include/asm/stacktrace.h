@@ -27,5 +27,8 @@ void arm_get_current_stackframe(struct pt_regs *regs, struct stackframe *frame)
 extern int unwind_frame(struct stackframe *frame);
 extern void walk_stackframe(struct stackframe *frame,
 			    int (*fn)(struct stackframe *, void *), void *data);
-
+extern void dump_backtrace(struct pt_regs *regs, struct task_struct *tsk);
+#ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
+extern void dump_backtrace_auto_comment(struct pt_regs *regs, struct task_struct *tsk);
+#endif
 #endif	/* __ASM_STACKTRACE_H */

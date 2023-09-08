@@ -16,6 +16,7 @@
 #include <linux/types.h>
 #include <linux/wait.h>
 #include <disp_session.h>
+#include <ion.h>
 
 #include "ddp_hal.h"
 #include "lcm_drv.h"
@@ -222,6 +223,7 @@ struct OVL_CONFIG_STRUCT {
 	int ext_sel_layer;
 	int ext_layer;
 	int phy_layer;
+	struct ion_handle *hnd;
 };
 
 struct OVL_BASIC_STRUCT {
@@ -309,6 +311,7 @@ struct WDMA_CONFIG_STRUCT {
 	unsigned int useSpecifiedAlpha;
 	unsigned char alpha;
 	enum DISP_BUFFER_TYPE security;
+	struct ion_handle *hnd;
 };
 
 struct golden_setting_context {
@@ -380,6 +383,10 @@ struct disp_ddp_path_config {
 	int hrt_scale;
 	int sbch_enable;
 	int read_dum_reg[OVL_NUM];
+
+	/*DynFPS*/
+	unsigned int last_dynfps;
+	unsigned int dynfps;
 };
 
 struct rx_data {
@@ -392,6 +399,7 @@ struct rx_data {
 struct ddp_lcm_read_cmd_table {
 	unsigned char cmd[3];
 	struct rx_data data[3];
+	struct rx_data data1[3];
 };
 
 struct ddp_lcm_write_cmd_table {

@@ -26,6 +26,8 @@
 
 #ifdef CONFIG_UH_RKP
 #include <linux/rkp.h>
+#elif defined(CONFIG_RUSTUH_RKP)
+#include <linux/rustrkp.h>
 #endif
 
 #define check_pgt_cache()		do { } while (0)
@@ -37,7 +39,7 @@
 
 static inline pmd_t *pmd_alloc_one(struct mm_struct *mm, unsigned long addr)
 {
-#ifdef CONFIG_UH_RKP
+#if defined(CONFIG_UH_RKP) || defined(CONFIG_RUSTUH_RKP)
 	/* FIXME not zeroing the page */
 	pmd_t *rkp_ropage = NULL;
 
@@ -53,6 +55,10 @@ static inline void pmd_free(struct mm_struct *mm, pmd_t *pmd)
 	BUG_ON((unsigned long)pmd & (PAGE_SIZE-1));
 #ifdef CONFIG_UH_RKP
 	if (is_rkp_ro_page((u64)pmd))
+		rkp_ro_free((void *)pmd);
+	else
+#elif defined(CONFIG_RUSTUH_RKP)
+	if (is_rkp_ro_buffer((u64)pmd))
 		rkp_ro_free((void *)pmd);
 	else
 #endif
@@ -79,7 +85,7 @@ static inline void __pud_populate(pud_t *pud, phys_addr_t pmd, pudval_t prot)
 
 static inline pud_t *pud_alloc_one(struct mm_struct *mm, unsigned long addr)
 {
-#ifdef CONFIG_UH_RKP
+#if defined(CONFIG_UH_RKP) || defined(CONFIG_RUSTUH_RKP)
 	pmd_t *rkp_ropage = NULL;
 
 	rkp_ropage = (pud_t *)rkp_ro_alloc();
@@ -95,6 +101,10 @@ static inline void pud_free(struct mm_struct *mm, pud_t *pud)
 	BUG_ON((unsigned long)pud & (PAGE_SIZE-1));
 #ifdef CONFIG_UH_RKP
 	if (is_rkp_ro_page((u64)pud))
+		rkp_ro_free((void *)pud);
+	else
+#elif defined(CONFIG_RUSTUH_RKP)
+	if (is_rkp_ro_buffer((u64)pud))
 		rkp_ro_free((void *)pud);
 	else
 #endif

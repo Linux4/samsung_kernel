@@ -108,7 +108,6 @@ int mms_power_control(struct mms_ts_info *info, int enable)
 {
 	int ret = 0;
 	struct i2c_client *client = info->client;
-	struct regulator *regulator_avdd = NULL;
 	struct pinctrl_state *pinctrl_state;
 	static bool on;
 
@@ -121,74 +120,48 @@ int mms_power_control(struct mms_ts_info *info, int enable)
 		return ret;
 	}
 
-	regulator_avdd = regulator_get(NULL, info->dtdata->gpio_vdd_en);
-	if (IS_ERR_OR_NULL(regulator_avdd)) {
-		if (enable) {
-			pinctrl_state = pinctrl_lookup_state(info->pinctrl, "tsp_ldo_en");
-			
-			if (!IS_ERR_OR_NULL(pinctrl_state)) {
-				ret = pinctrl_select_state(info->pinctrl, pinctrl_state);
-				if (ret)
-					input_info(true, &client->dev, "%s: Failed to tsp_ldo_en.\n", __func__);
-				else
-					input_info(true, &client->dev, "%s:tsp_ldo_en select ok.\n", __func__);
-			} else {
-				input_info(true, &client->dev, "%s: tsp_ldo_en is NULL\n", __func__);
-			}
-			pinctrl_state = pinctrl_lookup_state(info->pinctrl, "on_state");
-		} else {
-			pinctrl_state = pinctrl_lookup_state(info->pinctrl, "tsp_ldo_dis_en");
-			
-			if (!IS_ERR_OR_NULL(pinctrl_state)) { 
-				ret = pinctrl_select_state(info->pinctrl, pinctrl_state);
-				if (ret)
-					input_info(true, &client->dev, "%s: Failed to tsp_ldo_dis_en.\n", __func__);
-				else
-					input_info(true, &client->dev, "%s:tsp_ldo_dis_en select ok.\n", __func__);
-			} else {
-				input_info(true, &client->dev, "%s: tsp_ldo_dis_en is NULL\n", __func__);
-			}
-			pinctrl_state = pinctrl_lookup_state(info->pinctrl, "off_state");
-		}
 
-		if (IS_ERR_OR_NULL(pinctrl_state)) {
-			input_info(true, &client->dev, "%s: Failed to lookup pinctrl.\n", __func__);
-			goto out;
-		} else {
+	if (enable) {
+		pinctrl_state = pinctrl_lookup_state(info->pinctrl, "tsp_ldo_en");
+		
+		if (!IS_ERR_OR_NULL(pinctrl_state)) {
 			ret = pinctrl_select_state(info->pinctrl, pinctrl_state);
 			if (ret)
-				input_info(true, &client->dev, "%s: Failed to configure pinctrl.\n", __func__);
+				input_info(true, &client->dev, "%s: Failed to tsp_ldo_en.\n", __func__);
 			else
-				input_info(true, &client->dev, "%s: pinctrl set ok.\n", __func__);
+				input_info(true, &client->dev, "%s:tsp_ldo_en select ok.\n", __func__);
+		} else {
+			input_info(true, &client->dev, "%s: tsp_ldo_en is NULL\n", __func__);
 		}
+		pinctrl_state = pinctrl_lookup_state(info->pinctrl, "on_state");
 	} else {
-		if (enable) {
-			ret = regulator_enable(regulator_avdd);
-			if (ret) {
-				input_info(true, &client->dev, "%s: Failed to enable avdd: %d\n", __func__, ret);
-				goto out;
-			}
-			pinctrl_state = pinctrl_lookup_state(info->pinctrl, "on_state");
-		} else {
-			if (regulator_is_enabled(regulator_avdd))
-				regulator_disable(regulator_avdd);
-
-			pinctrl_state = pinctrl_lookup_state(info->pinctrl, "off_state");
-		}
-
-		if (IS_ERR_OR_NULL(pinctrl_state)) {
-			input_info(true, &client->dev, "%s: Failed to lookup pinctrl.\n", __func__);
-		} else {
+		pinctrl_state = pinctrl_lookup_state(info->pinctrl, "tsp_ldo_dis_en");
+		
+		if (!IS_ERR_OR_NULL(pinctrl_state)) { 
 			ret = pinctrl_select_state(info->pinctrl, pinctrl_state);
 			if (ret)
-				input_info(true, &client->dev, "%s: Failed to configure pinctrl.\n", __func__);
+				input_info(true, &client->dev, "%s: Failed to tsp_ldo_dis_en.\n", __func__);
+			else
+				input_info(true, &client->dev, "%s:tsp_ldo_dis_en select ok.\n", __func__);
+		} else {
+			input_info(true, &client->dev, "%s: tsp_ldo_dis_en is NULL\n", __func__);
 		}
+		pinctrl_state = pinctrl_lookup_state(info->pinctrl, "off_state");
+	}
+
+	if (IS_ERR_OR_NULL(pinctrl_state)) {
+		input_info(true, &client->dev, "%s: Failed to lookup pinctrl.\n", __func__);
+		goto out;
+	} else {
+		ret = pinctrl_select_state(info->pinctrl, pinctrl_state);
+		if (ret)
+			input_info(true, &client->dev, "%s: Failed to configure pinctrl.\n", __func__);
+		else
+			input_info(true, &client->dev, "%s: pinctrl set ok.\n", __func__);
 	}
 
 	on = enable;
 out:
-	if (!IS_ERR_OR_NULL(regulator_avdd))
-		regulator_put(regulator_avdd);
 
 	if (!enable)
 		usleep_range(10 * 1000, 11 * 1000);

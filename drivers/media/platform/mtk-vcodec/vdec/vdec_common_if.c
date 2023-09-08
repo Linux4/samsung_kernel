@@ -97,7 +97,6 @@ static int vdec_init(struct mtk_vcodec_ctx *ctx, unsigned long *h_vdec)
 	if (!inst)
 		return -ENOMEM;
 	if (!ctx) {
-		mtk_vcodec_err(inst, "ctx is NULL");
 		err = -ENOMEM;
 		goto error_free_inst;
 	}
@@ -126,23 +125,6 @@ static int vdec_init(struct mtk_vcodec_ctx *ctx, unsigned long *h_vdec)
 	case V4L2_PIX_FMT_H263:
 		inst->vcu.id = IPI_VDEC_H263;
 		break;
-	case V4L2_PIX_FMT_S263:
-		inst->vcu.id = IPI_VDEC_S263;
-		break;
-	case V4L2_PIX_FMT_XVID:
-		inst->vcu.id = IPI_VDEC_XVID;
-		break;
-	case V4L2_PIX_FMT_DIVX3:
-		inst->vcu.id = IPI_VDEC_DIVX3;
-		break;
-	case V4L2_PIX_FMT_DIVX:
-	case V4L2_PIX_FMT_DIVX4:
-		inst->vcu.id = IPI_VDEC_DIVX4;
-		break;
-	case V4L2_PIX_FMT_DIVX5:
-	case V4L2_PIX_FMT_DIVX6:
-		inst->vcu.id = IPI_VDEC_DIVX5;
-		break;
 	case V4L2_PIX_FMT_MPEG1:
 	case V4L2_PIX_FMT_MPEG2:
 		inst->vcu.id = IPI_VDEC_MPEG12;
@@ -169,6 +151,11 @@ static int vdec_init(struct mtk_vcodec_ctx *ctx, unsigned long *h_vdec)
 	}
 
 	inst->vcu.dev = vcu_get_plat_device(ctx->dev->plat_dev);
+	if (inst->vcu.dev  == NULL) {
+		mtk_vcodec_err(inst, "vcu device in not ready");
+		goto error_free_inst;
+	}
+
 	inst->vcu.ctx = ctx;
 	inst->vcu.handler = vcu_dec_ipi_handler;
 
@@ -244,17 +231,35 @@ static int vdec_decode(unsigned long h_vdec, struct mtk_vcodec_mem *bs,
 	for (i = 0; i < num_planes; i++)
 		inst->vsi->dec.fb_dma[i] = fb_dma[i];
 
-	inst->vsi->dec.vdec_fb_va = vdec_fb_va;
 	inst->vsi->dec.bs_fd = (uint64_t)get_mapped_fd(bs->dmabuf);
 
+	inst->vsi->dec.vdec_fb_va = (u64)(uintptr_t)NULL;
 	if (fb != NULL) {
+		inst->vsi->dec.vdec_fb_va = vdec_fb_va;
 		inst->vsi->dec.index = fb->index;
 		for (i = 0; i < num_planes; i++) {
 			inst->vsi->dec.fb_fd[i] =
 				(uint64_t)get_mapped_fd(fb->fb_base[i].dmabuf);
 		}
+		if (fb->dma_general_buf != 0) {
+			fb->general_buf_fd =
+				(uint32_t)get_mapped_fd(fb->dma_general_buf);
+			inst->vsi->general_buf_fd = fb->general_buf_fd;
+			inst->vsi->general_buf_size = fb->dma_general_buf->size;
+			inst->vsi->general_buf_dma = fb->dma_general_addr;
+			mtk_vcodec_debug(inst, "dma_general_buf dma_buf=%p fd=%d dma=%llx size=%lu",
+			    fb->dma_general_buf, inst->vsi->general_buf_fd,
+			    inst->vsi->general_buf_dma,
+			    fb->dma_general_buf->size);
+		} else {
+			fb->general_buf_fd = -1;
+			inst->vsi->general_buf_fd = -1;
+			inst->vsi->general_buf_size = 0;
+			mtk_vcodec_debug(inst, "no general buf dmabuf");
+		}
 	} else {
-		inst->vsi->dec.index = 0xFF;
+		if (!inst->ctx->input_driven)
+			inst->vsi->dec.index = 0xFF;
 	}
 
 	inst->vsi->dec.queued_frame_buf_count =
@@ -271,7 +276,7 @@ static int vdec_decode(unsigned long h_vdec, struct mtk_vcodec_mem *bs,
 	data[0] = (unsigned int)bs->size;
 	data[1] = (unsigned int)bs->length;
 	data[2] = (unsigned int)bs->flags;
-	ret = vcu_dec_start(vcu, data, 3);
+	ret = vcu_dec_start(vcu, data, 3, bs, fb);
 
 	*src_chg = inst->vsi->dec.vdec_changed_info;
 	*(errormap_info + bs->index % VB2_MAX_FRAME) =
@@ -286,7 +291,7 @@ static int vdec_decode(unsigned long h_vdec, struct mtk_vcodec_mem *bs,
 	/*ack timeout means vpud has crashed*/
 	if (ret == -EIO) {
 		mtk_vcodec_err(inst, "- IPI msg ack timeout  -");
-		*src_chg = *src_chg | VDEC_HW_NOT_SUPPORT;
+		*src_chg = VDEC_HW_NOT_SUPPORT;
 	}
 
 	if (bs->dmabuf != NULL)
@@ -301,7 +306,7 @@ static int vdec_decode(unsigned long h_vdec, struct mtk_vcodec_mem *bs,
 		|| ((*src_chg & VDEC_NEED_SEQ_HEADER) != 0U))
 		goto err_free_fb_out;
 
-	mtk_vcodec_debug(inst, "\n - NALU[%d] -\n", inst->num_nalu);
+	inst->ctx->input_driven = inst->vsi->input_driven;
 	inst->num_nalu++;
 	return ret;
 
@@ -351,16 +356,22 @@ static void vdec_get_fb(struct vdec_inst *inst,
 
 	vdec_fb_va = (unsigned long)list->fb_list[list->read_idx].vdec_fb_va;
 	fb = (struct vdec_fb *)vdec_fb_va;
+	if (fb == NULL)
+		return;
+	fb->timestamp = list->fb_list[list->read_idx].timestamp;
+
 	if (disp_list)
 		fb->status |= FB_ST_DISPLAY;
 	else
 		fb->status |= FB_ST_FREE;
 
 	*out_fb = fb;
-	mtk_vcodec_debug(inst, "[FB] get %s fb st=%d poc=%d %llx",
+	mtk_vcodec_debug(inst, "[FB] get %s fb st=%d poc=%d ts=%llu %llx gbuf fd %d dma %p",
 		disp_list ? "disp" : "free",
 		fb->status, list->fb_list[list->read_idx].poc,
-		list->fb_list[list->read_idx].vdec_fb_va);
+		list->fb_list[list->read_idx].timestamp,
+		list->fb_list[list->read_idx].vdec_fb_va,
+		fb->general_buf_fd, fb->dma_general_buf);
 
 	list->read_idx = (list->read_idx == DEC_MAX_FB_NUM - 1U) ?
 					 0U : list->read_idx + 1U;
@@ -413,9 +424,6 @@ static void get_frame_sizes(struct vdec_inst *inst,
 static void get_color_desc(struct vdec_inst *inst,
 	struct mtk_color_desc *color_desc)
 {
-	if (inst->vsi == NULL)
-		return;
-
 	inst->vcu.ctx = inst->ctx;
 	memcpy(color_desc, &inst->vsi->color_desc, sizeof(*color_desc));
 }
@@ -461,6 +469,14 @@ static void get_codec_type(struct vdec_inst *inst,
 		*codec_type = inst->vsi->codec_type;
 }
 
+static void get_input_driven(struct vdec_inst *inst,
+			   unsigned int *input_driven)
+{
+	inst->vcu.ctx = inst->ctx;
+	if (inst->vsi != NULL)
+		*input_driven = inst->vsi->input_driven;
+}
+
 static int vdec_get_param(unsigned long h_vdec,
 	enum vdec_get_param_type type, void *out)
 {
@@ -478,16 +494,57 @@ static int vdec_get_param(unsigned long h_vdec,
 		break;
 
 	case GET_PARAM_DISP_FRAME_BUFFER:
+	{
+		struct vdec_fb *pfb;
 		if (inst->vsi == NULL)
 			return -EINVAL;
 		vdec_get_fb(inst, &inst->vsi->list_disp, true, out);
+
+		pfb = *((struct vdec_fb **)out);
+		if (pfb != NULL) {
+			if (pfb->general_buf_fd >= 0) {
+				mtk_vcodec_debug(inst, "free pfb->general_buf_fd:%d pfb->dma_general_buf %p\n",
+					pfb->general_buf_fd,
+					pfb->dma_general_buf);
+				close_mapped_fd((unsigned int)
+					pfb->general_buf_fd);
+				pfb->general_buf_fd = -1;
+			}
+		}
 		break;
+	}
 
 	case GET_PARAM_FREE_FRAME_BUFFER:
+	{
+		struct vdec_fb *pfb;
+		int i;
+
 		if (inst->vsi == NULL)
 			return -EINVAL;
 		vdec_get_fb(inst, &inst->vsi->list_free, false, out);
+
+		pfb = *((struct vdec_fb **)out);
+		if (pfb != NULL) {
+			for (i = 0; i < pfb->num_planes; i++) {
+				if (pfb->fb_base[i].buf_fd >= 0) {
+					mtk_vcodec_debug(inst, "free pfb->fb_base[%d].buf_fd:%llx\n",
+						i, pfb->fb_base[i].buf_fd);
+					close_mapped_fd((unsigned int)
+						pfb->fb_base[i].buf_fd);
+					pfb->fb_base[i].buf_fd = -1;
+				}
+			}
+			if (pfb->general_buf_fd >= 0) {
+				mtk_vcodec_debug(inst, "free pfb->general_buf_fd:%d pfb->dma_general_buf %p\n",
+					pfb->general_buf_fd,
+					pfb->dma_general_buf);
+				close_mapped_fd((unsigned int)
+					pfb->general_buf_fd);
+				pfb->general_buf_fd = -1;
+			}
+		}
 		break;
+	}
 
 	case GET_PARAM_PIC_INFO:
 		get_pic_info(inst, out);
@@ -510,6 +567,8 @@ static int vdec_get_param(unsigned long h_vdec,
 		break;
 
 	case GET_PARAM_COLOR_DESC:
+		if (inst->vsi == NULL)
+			return -EINVAL;
 		get_color_desc(inst, out);
 		break;
 
@@ -531,6 +590,10 @@ static int vdec_get_param(unsigned long h_vdec,
 
 	case GET_PARAM_CODEC_TYPE:
 		get_codec_type(inst, out);
+		break;
+
+	case GET_PARAM_INPUT_DRIVEN:
+		get_input_driven(inst, out);
 		break;
 
 	default:

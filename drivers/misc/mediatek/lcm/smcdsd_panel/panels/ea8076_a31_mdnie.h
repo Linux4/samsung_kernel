@@ -3454,7 +3454,7 @@ static unsigned char AUTO_GALLERY_5[] = {
 	0xff, // crc_lut_mode1_rr
 	0x00, // crc_lut_mode1_rg
 	0x00, // crc_lut_mode1_rb
-	0x00, // crc_lut_mode1_gr
+	0x14, // crc_lut_mode1_gr
 	0xff, // crc_lut_mode1_gg
 	0x00, // crc_lut_mode1_gb
 	0x00, // crc_lut_mode1_br
@@ -3701,7 +3701,7 @@ static unsigned char AUTO_CAMERA_5[] = {
 	0xff, // crc_lut_mode1_rr
 	0x00, // crc_lut_mode1_rg
 	0x00, // crc_lut_mode1_rb
-	0x00, // crc_lut_mode1_gr
+	0x14, // crc_lut_mode1_gr
 	0xff, // crc_lut_mode1_gg
 	0x00, // crc_lut_mode1_gb
 	0x00, // crc_lut_mode1_br
@@ -5697,7 +5697,7 @@ static struct mdnie_table main_table[SCENARIO_MAX][MODE_MAX] = {
 		MDNIE_SET(STANDARD_UI),
 		MDNIE_SET(NATURAL_UI),
 		MDNIE_SET(AUTO_UI),
-		MDNIE_SET(AUTO_UI),
+		MDNIE_SET(AUTO_GALLERY),
 		MDNIE_SET(AUTO_EBOOK)
 	},
 	[CAMERA_MODE] = {

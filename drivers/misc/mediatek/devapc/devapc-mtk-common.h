@@ -66,8 +66,9 @@
  ******************************************************************************/
 enum DEVAPC_DT_NODE_INDEX {
 	DT_DEVAPC_PD_IDX = 0,
-	DT_DEVAPC_AO_IDX,
-	DT_SRAMROM_IDX,
+	DT_DEVAPC_AO_IDX = 1,
+	DT_DEVAPC_SWP_IDX = 2,
+	DT_SRAMROM_IDX = 3,
 };
 
 enum DEVAPC_PD_REG_TYPE {
@@ -122,6 +123,22 @@ enum SRAMROM_VIO {
 	ROM_VIOLATION = 0,
 	SRAM_VIOLATION,
 };
+
+#ifdef CONFIG_DEVAPC_SWP_SUPPORT
+enum DEVAPC_SWP_REG_OFFSET {
+	DEVAPC_SWP_CON_OFFSET = 0x0,
+	DEVAPC_SWP_SA_OFFSET = 0x4,
+	DEVAPC_SWP_RG_OFFSET = 0x8,
+	DEVAPC_SWP_WR_VAL_OFFSET = 0xC,
+	DEVAPC_SWP_WR_MASK_OFFSET = 0x10,
+};
+
+enum DEVAPC_SWP_CON_BIT {
+	DEVAPC_SWP_CON_ENABLE = 0x0,
+	DEVAPC_SWP_CON_CLEAR,
+	DEVAPC_SWP_CON_RW,
+};
+#endif
 
 struct mtk_devapc_dbg_status {
 	bool enable_ut;
@@ -195,6 +212,7 @@ struct mtk_devapc_soc {
 	const char* (*subsys_get)(uint32_t index);
 	const char* (*master_get)(int bus_id, uint32_t vio_addr,
 			int vio_idx);
+	uint32_t (*shift_group_get)(uint32_t vio_idx);
 };
 
 void handle_sramrom_vio(void);

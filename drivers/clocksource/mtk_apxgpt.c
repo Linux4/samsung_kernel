@@ -22,6 +22,10 @@
 #include <linux/clocksource.h>
 #include <linux/clk.h>
 
+#include <linux/time64.h>
+#include <linux/timekeeping.h>
+#include <timekeeping.h>
+
 #include <linux/io.h>
 
 #include <linux/of.h>
@@ -124,9 +128,18 @@ static uint64_t gpt_time_int_handler_exit;
 #define GPT_IN_USE          (0x0100)
 
 /************define this for 32/64 compatible**************/
-#define GPT_BIT_MASK_L 0x00000000FFFFFFFF
-#define GPT_BIT_MASK_H 0xFFFFFFFF00000000
+#define GPT_BIT_MASK_L 0x00000000FFFFFFFFULL
+#define GPT_BIT_MASK_H 0xFFFFFFFF00000000ULL
 /****************************************************/
+
+/* time in seconds when SODI3/Suspend began for persistent clock */
+#if defined(CONFIG_MACH_MT6739)
+static struct timespec persistent_ts;
+static struct timespec64 persistent_ts64;
+static cycle_t cycles;
+static bool is_persist_clock_init_done;
+static unsigned int persistent_mult, persistent_shift;
+#endif
 
 struct mt_gpt_timers {
 	int tmr_irq;
@@ -1125,11 +1138,71 @@ int gpt_set_clk(unsigned int id, unsigned int clksrc, unsigned int clkdiv)
 }
 EXPORT_SYMBOL(gpt_set_clk);
 
+#if defined(CONFIG_MACH_MT6739)
+
+void mt_read_persistent_clock(struct timespec64 *ts)
+{
+	unsigned long long nsecs;
+	cycle_t last_cycles, delta_cycles;
+	unsigned long save_flags;
+	unsigned int counter[2] = {0, 0};
+
+	if (!is_persist_clock_init_done) {
+		ts->tv_sec = 0;
+		ts->tv_nsec = 0;
+		return;
+	}
+
+	/* Take spinlock for gpt_devs */
+	gpt_update_lock(save_flags);
+
+	last_cycles = cycles;
+
+	__gpt_get_cnt(id_to_dev(GPT6), counter);
+	cycles = (((cycle_t)counter[1] << 32) & GPT_BIT_MASK_H)
+		  | ((cycle_t)counter[0] & GPT_BIT_MASK_L);
+
+	/* Compute delta and explicitly handle wraps beyond 32 bits */
+	if (cycles < last_cycles)
+		delta_cycles = 0x100000000ULL + cycles - last_cycles;
+	else
+		delta_cycles = cycles - last_cycles;
+
+	/* Find the nanosecond delta, and update the persistent clock */
+	nsecs = clocksource_cyc2ns(delta_cycles, persistent_mult,
+				persistent_shift);
+	timespec_add_ns(&persistent_ts, nsecs);
+	persistent_ts64 = timespec_to_timespec64(persistent_ts);
+	*ts = persistent_ts64;
+
+	/* Give up spinlock */
+	gpt_update_unlock(save_flags);
+}
+
+static void mtk_setup_persistent_clock(void)
+{
+	/* Init GPT6 as 32K free-run counter, and act as the persistent clock */
+	setup_gpt_dev_locked(id_to_dev(GPT6), GPT_FREE_RUN, GPT_CLK_SRC_RTC,
+				GPT_CLK_DIV_1, 0, NULL, 0);
+
+	/* Determine values for tick conversion to nanoseconds */
+	clocks_calc_mult_shift(&persistent_mult, &persistent_shift,
+				32768, NSEC_PER_SEC, 3600);
+
+	is_persist_clock_init_done = true;
+}
+
+#endif
+
 static int __init mt_gpt_init(struct device_node *node)
 {
 	int i;
 	unsigned long save_flags;
-
+#if defined(CONFIG_MACH_MT6739)
+#ifndef CONFIG_ARM64
+	int ret;
+#endif
+#endif
 	gpt_update_lock(save_flags);
 
 	/* Setup IRQ numbers */
@@ -1153,6 +1226,16 @@ static int __init mt_gpt_init(struct device_node *node)
 
 	/* record the time when init GPT */
 	boot_time_value = gpt_boot_up_time();
+
+	#if defined(CONFIG_MACH_MT6739)
+	mtk_setup_persistent_clock();
+	/* Register function with timekeeping */
+	#ifndef CONFIG_ARM64
+	ret = register_persistent_clock(NULL, mt_read_persistent_clock);
+	if (ret)
+		pr_info("%s:Fail to register Persistent clock\n", __func__);
+	#endif /* CONFIG_ARM64 */
+	#endif
 
 	gpt_update_unlock(save_flags);
 

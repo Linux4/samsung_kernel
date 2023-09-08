@@ -7,5 +7,5 @@
 
 ccflags-$(CONFIG_MTK_LCM) += -I$(srctree)/drivers/misc/mediatek/lcm/inc
 
-obj-y += panels/
+obj-$(CONFIG_MTK_LCM) += panels/
 

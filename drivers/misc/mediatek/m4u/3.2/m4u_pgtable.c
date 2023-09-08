@@ -549,8 +549,10 @@ int m4u_alloc_pte(struct m4u_domain_t *domain,
 	for (retry_cnt = 0; retry_cnt < 5; retry_cnt++) {
 		pte_new_va = kmem_cache_zalloc(gM4u_pte_kmem,
 					       GFP_KERNEL | GFP_DMA);
-		if (likely(pte_new_va))
+		if (likely(pte_new_va)) {
+			kmemleak_ignore(pte_new_va); //ignored by kmemleak tool
 			break;
+		}
 	}
 	write_lock_domain(domain);
 	if (unlikely(!pte_new_va)) {
@@ -1197,12 +1199,14 @@ int m4u_unmap(struct m4u_domain_t *domain,
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_DEBUG_FS) || IS_ENABLED(CONFIG_PROC_FS)
 int m4u_debug_pgtable_show(struct seq_file *s, void *unused)
 {
 	m4u_dump_pgtable(s->private, s);
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 int m4u_debug_pgtable_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, m4u_debug_pgtable_show, inode->i_private);
@@ -1214,11 +1218,33 @@ const struct file_operations m4u_debug_pgtable_fops = {
 	.llseek = seq_lseek,
 	.release = single_release,
 };
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+int m4u_proc_pgtable_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, m4u_debug_pgtable_show, PDE_DATA(inode));
+}
+
+const struct file_operations m4u_proc_pgtable_fops = {
+	.open = m4u_proc_pgtable_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+#endif
+#endif
 
 int m4u_pgtable_init(struct m4u_device *m4u_dev,
 		struct m4u_domain_t *m4u_domain, int m4u_id)
 {
 	/* ======= alloc pagetable======================= */
+
+	if (unlikely((unsigned int)m4u_id >= TOTAL_M4U_NUM)) {
+		m4u_info("%s #%d: m4u_id error:%d\n",
+			 __func__, __LINE__, m4u_id);
+		return -EINVAL;
+	}
 	m4u_domain->pgd =
 	    dma_alloc_coherent(m4u_dev->pDev[m4u_id],
 			M4U_PGD_SIZE, &(m4u_domain->pgd_pa), GFP_KERNEL);
@@ -1247,6 +1273,7 @@ int m4u_pgtable_init(struct m4u_device *m4u_dev,
 			return -1;
 	}
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	if (m4u_id == 0)
 		debugfs_create_file("pgtable_mm", 0644,
 			m4u_dev->debug_root, m4u_domain,
@@ -1255,6 +1282,22 @@ int m4u_pgtable_init(struct m4u_device *m4u_dev,
 		debugfs_create_file("pgtable_vpu", 0644,
 			m4u_dev->debug_root, m4u_domain,
 			&m4u_debug_pgtable_fops);
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+	if (m4u_id == 0)
+		proc_create_data("pgtable_mm",
+				 S_IFREG | 0644,
+				 m4u_dev->proc_root,
+				 &m4u_proc_pgtable_fops,
+				 m4u_domain);
+	else if (m4u_id == 1)
+		proc_create_data("pgtable_vpu",
+				 S_IFREG | 0644,
+				 m4u_dev->proc_root,
+				 &m4u_proc_pgtable_fops,
+				 m4u_domain);
+#endif
 
 	return 0;
 }

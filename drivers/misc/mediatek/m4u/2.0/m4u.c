@@ -87,7 +87,7 @@ static int m4u_buf_show(void *priv, unsigned int mva_start,
 {
 	struct m4u_buf_info *pMvaInfo = priv;
 
-	M4U_PRINT_LOG_OR_SEQ(
+	M4U_PRINT_SEQ(
 		data,
 		"0x%-8x, 0x%-8x, 0x%lx, 0x%-8x, 0x%x, %s, 0x%x, 0x%x, 0x%x\n",
 		pMvaInfo->mva, pMvaInfo->mva + pMvaInfo->size - 1, pMvaInfo->va,
@@ -101,14 +101,14 @@ static int m4u_buf_show(void *priv, unsigned int mva_start,
 int m4u_dump_buf_info(struct seq_file *seq)
 {
 
-	M4U_PRINT_LOG_OR_SEQ(seq, "\ndump mva allocated info ========>\n");
-	M4U_PRINT_LOG_OR_SEQ(
+	M4U_PRINT_SEQ(seq, "\ndump mva allocated info ========>\n");
+	M4U_PRINT_SEQ(
 		seq,
 		"mva_start   mva_end          va       size     prot   module   flags   debug1  debug2\n");
 
 	mva_foreach_priv((void *)m4u_buf_show, seq);
 
-	M4U_PRINT_LOG_OR_SEQ(seq, " dump mva allocated info done ========>\n");
+	M4U_PRINT_SEQ(seq, " dump mva allocated info done ========>\n");
 	return 0;
 }
 
@@ -1649,9 +1649,7 @@ static int __m4u_sec_init(void)
 		goto out;
 	}
 
-	M4ULOG_HIGH("%s ret:0x%x, rsp:0x%x\n",
-		__func__, ret, ctx->m4u_msg->rsp);
-	/* ret = ctx->m4u_msg->rsp; */
+	ret = ctx->m4u_msg->rsp;
 out:
 	for (i = 0; i < SMI_LARB_NR; i++)
 		larb_clock_off(i, 1);
@@ -2126,6 +2124,27 @@ out:
 
 #endif
 
+int m4u_gz_sec_init(int mtk_iommu_sec_id)
+{
+	M4UMSG("%s : do nothing!!\n", __func__);
+	return 0;
+}
+#ifdef M4U_GZ_SERVICE_ENABLE
+int m4u_map_gz_nonsec_buf(int iommu_sec_id, int port, unsigned long mva,
+		unsigned long size)
+{
+	M4UMSG("%s : do nothing!!\n", __func__);
+	return 0;
+}
+
+int m4u_unmap_gz_nonsec_buffer(int iommu_sec_id, unsigned long mva,
+		unsigned long size)
+{
+	M4UMSG("%s : do nothing!!\n", __func__);
+	return 0;
+}
+#endif
+
 static long MTK_M4U_ioctl(struct file *filp, unsigned int cmd,
 			  unsigned long arg)
 {
@@ -2374,6 +2393,13 @@ static long MTK_M4U_ioctl(struct file *filp, unsigned int cmd,
 		mutex_unlock(&gM4u_sec_init);
 	} break;
 #endif
+#ifdef M4U_GZ_SERVICE_ENABLE
+	case MTK_M4U_GZ_SEC_INIT: {
+		M4UMSG("%s : MTK_M4U_GZ_SEC_INIT command do nothing!! 0x%x\n",
+		       __func__, cmd);
+	}
+	break;
+#endif
 	default:
 		/* M4UMSG("MTK M4U ioctl:No such command!!\n"); */
 		ret = -EINVAL;
@@ -2606,6 +2632,12 @@ long MTK_M4U_COMPAT_ioctl(struct file *filp, unsigned int cmd,
 	case MTK_M4U_T_SEC_INIT:
 		return filp->f_op->unlocked_ioctl(
 			filp, cmd, (unsigned long)compat_ptr(arg));
+#ifdef M4U_GZ_SERVICE_ENABLE
+	case MTK_M4U_GZ_SEC_INIT:
+		return filp->f_op->unlocked_ioctl(
+			filp, cmd, (unsigned long)compat_ptr(arg));
+		break;
+#endif
 	default:
 		return -ENOIOCTLCMD;
 	}

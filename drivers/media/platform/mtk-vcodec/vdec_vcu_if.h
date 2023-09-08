@@ -43,6 +43,8 @@ struct vdec_vcu_inst {
 	wait_queue_head_t wq;
 	ipi_handler_t handler;
 	bool abort;
+	int daemon_pid;
+	struct mutex *ctx_ipi_binding;
 };
 
 /**
@@ -60,7 +62,9 @@ int vcu_dec_init(struct vdec_vcu_inst *vcu);
  * @data: meta data to pass bitstream info to VCU decoder
  * @len : meta data length
  */
-int vcu_dec_start(struct vdec_vcu_inst *vcu, uint32_t *data, unsigned int len);
+int vcu_dec_start(struct vdec_vcu_inst *vcu,
+	uint32_t *data, unsigned int len,
+	struct mtk_vcodec_mem *bs, struct vdec_fb *fb);
 
 /**
  * vcu_dec_end - end decoding, basically the function will be invoked once
@@ -98,8 +102,6 @@ int vcu_dec_ipi_handler(void *data, unsigned int len, void *priv);
 int vcu_dec_query_cap(struct vdec_vcu_inst *vcu, unsigned int id, void *out);
 int vcu_dec_set_param(struct vdec_vcu_inst *vcu, unsigned int id,
 					  void *param, unsigned int size);
-int vcu_dec_set_ctx_for_gce(struct vdec_vcu_inst *vcu);
-int vcu_dec_clear_ctx_for_gce(struct vdec_vcu_inst *vcu);
 int get_mapped_fd(struct dma_buf *dmabuf);
 void close_mapped_fd(unsigned int target_fd);
 

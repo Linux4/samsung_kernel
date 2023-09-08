@@ -20,12 +20,11 @@
 #include <mt-plat/mtk_secure_api.h>
 #include "oemflag_arch.h"
 
-/*
-Note: res.a0 = func_cmd, res.a1 = name, res.a2 = value
-*/
+/* Note: res.a0 = func_cmd, res.a1 = name, res.a2 = value */
 static uint32_t run_cmd_mtk_atf(uint32_t cmd, uint32_t index)
 {
 	struct arm_smccc_res res;
+
 	arm_smccc_smc(cmd, index, 0, 0, 0, 0, 0, 0, &res);
 	return res.a2;
 }
@@ -36,10 +35,16 @@ int set_tamper_fuse(enum oemflag_id name)
 
 	pr_info("[oemflag][icdrv] MTK ATF cmd\n");
 	ret = run_cmd_mtk_atf(MTK_SIP_OEM_FLAG_WRITE, name);
+
 	return (ret == 1) ? 0 : ret;
 }
 
-int get_tamper_fuse(enum oemflag_id flag)
+int get_tamper_fuse(enum oemflag_id name)
 {
-	return 0;
+	int ret;
+
+	pr_info("[oemflag]MTK ATF cmd\n");
+	ret = run_cmd_mtk_atf(MTK_SIP_OEM_FLAG_READ, name);
+
+	return ret;
 }

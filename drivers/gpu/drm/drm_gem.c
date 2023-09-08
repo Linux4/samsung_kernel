@@ -41,6 +41,7 @@
 #include <drm/drm_vma_manager.h>
 #include <drm/drm_gem.h>
 #include "drm_internal.h"
+#include "mtk_drm_mmp.h"
 
 /** @file drm_gem.c
  *
@@ -213,6 +214,7 @@ static void drm_gem_object_exported_dma_buf_free(struct drm_gem_object *obj)
 {
 	/* Unbreak the reference cycle if we have an exported dma_buf. */
 	if (obj->dma_buf) {
+		DRM_MMP_MARK(dma_put, __LINE__, (unsigned long)obj->dma_buf);
 		dma_buf_put(obj->dma_buf);
 		obj->dma_buf = NULL;
 	}
@@ -446,6 +448,9 @@ int drm_gem_handle_create(struct drm_file *file_priv,
 			  struct drm_gem_object *obj,
 			  u32 *handlep)
 {
+	if (!&obj || (!&obj->dev) || (!&obj->dev->object_name_lock))
+		return -1;
+
 	mutex_lock(&obj->dev->object_name_lock);
 
 	return drm_gem_handle_create_tail(file_priv, obj, handlep);
@@ -1033,6 +1038,15 @@ int drm_gem_mmap(struct file *filp, struct vm_area_struct *vma)
 	if (!drm_vma_node_is_allowed(node, priv)) {
 		drm_gem_object_put_unlocked(obj);
 		return -EACCES;
+	}
+
+	if (node->readonly) {
+		if (vma->vm_flags & VM_WRITE) {
+			drm_gem_object_put_unlocked(obj);
+			return -EINVAL;
+		}
+
+		vma->vm_flags &= ~VM_MAYWRITE;
 	}
 
 	ret = drm_gem_mmap_obj(obj, drm_vma_node_size(node) << PAGE_SHIFT,

@@ -192,12 +192,10 @@ void init_region(unsigned long pfn, unsigned long nr_pages,
 	region.zone = page_zone(pfn_to_page(pfn));
 	region.start_pfn = pfn;
 	region.end_pfn = pfn + nr_pages;
-	BUG_ON(region.zone != page_zone(pfn_to_page(region.end_pfn)));
 	region.ops = ops;
 	spin_lock_init(&region.lru_lock);
 	spin_lock_init(&region.region_lock);
-	region.handles = (struct rr_handle *)vzalloc(nr_pages *
-			sizeof(struct rr_handle));
+	region.handles = vzalloc(nr_pages * sizeof(struct rr_handle));
 	INIT_LIST_HEAD(&region.freelist);
 	INIT_LIST_HEAD(&region.usedlist);
 	for (i = 0; i < nr_pages; i++) {
@@ -245,7 +243,7 @@ bool try_get_rbincache(void)
 	unsigned long flags;
 
 	spin_lock_irqsave(&region.region_lock, flags);
-	if (region.timeout < jiffies) {
+	if (time_before(region.timeout, jiffies)) {
 #ifdef CONFIG_ION_RBIN_HEAP
 		if (region.rc_disabled == true)
 			wake_ion_rbin_heap_shrink();
@@ -319,7 +317,7 @@ static void isolate_region(unsigned long start_pfn, unsigned long nr_pages)
 	mod_zone_page_state(region.zone, NR_FREE_RBIN_PAGES, -(nr_pages - nr_cached));
 }
 
-static void putback_region(unsigned start_pfn, unsigned long nr_pages)
+static void putback_region(unsigned long start_pfn, unsigned long nr_pages)
 {
 	struct rr_handle *handle;
 	unsigned long pfn;
@@ -335,26 +333,26 @@ static void putback_region(unsigned start_pfn, unsigned long nr_pages)
 /* ion_rbin_heap apis */
 phys_addr_t ion_rbin_allocate(unsigned long size)
 {
-	unsigned long offset;
+	unsigned long paddr;
 
 	if (!try_get_ion_rbin())
-		return ION_RBIN_ALLOCATE_FAIL;
+		return -EBUSY;
 
-	offset = gen_pool_alloc(region.pool, size);
-	if (!offset) {
-		offset = ION_RBIN_ALLOCATE_FAIL;
+	paddr = gen_pool_alloc(region.pool, size);
+	if (!paddr) {
+		paddr = -ENOMEM;
 		goto out;
 	}
-	isolate_region(PFN_DOWN(offset), size >> PAGE_SHIFT);
+	isolate_region(PFN_DOWN(paddr), size >> PAGE_SHIFT);
 out:
 	put_ion_rbin();
 
-	return offset;
+	return paddr;
 }
 
 void ion_rbin_free(phys_addr_t addr, unsigned long size)
 {
-	if (addr == ION_RBIN_ALLOCATE_FAIL)
+	if (IS_ERR_VALUE(addr))
 		return;
 
 	putback_region(PFN_DOWN(addr), size >> PAGE_SHIFT);

@@ -1897,13 +1897,4 @@ config SENSORS_ATK0110
 
 endif # ACPI
 
-config SENSORS_SEC_THERMISTOR
-	tristate "SEC Thermistor support"
-	depends on MEDIATEK_MT6577_AUXADC && MT635X_AUXADC
-	default n
-	help
-	This driver supports SEC Thermistor sensor reading and its
-	interpretation. The driver uses s3c adc driver and needs
-	adc-temperature mapping table for conversion.
-
 endif # HWMON

@@ -34,8 +34,10 @@
 #include "tzbatt_initcfg.h"
 #if (CONFIG_MTK_GAUGE_VERSION == 30)
 #include <mtk_battery.h>
-#else
+#else 
+#if !defined (CONFIG_MACH_MT6739)
 #include <tmp_battery.h>
+#endif
 #endif
 
 /* ************************************ */
@@ -49,7 +51,9 @@ static void tsbattery_exit(void);
 int __attribute__ ((weak))
 read_tbat_value(void)
 {
-	pr_notice("[Thermal] E_WF: %s doesn't exist\n", __func__);
+#if !defined(CONFIG_POWER_EXT)
+	pr_debug("[Thermal] E_WF: %s doesn't exist\n", __func__);
+#endif
 	return 30;
 }
 
@@ -203,7 +207,9 @@ static int get_hw_battery_temp(void)
 	ret = -1270;
 #else
 	/* Phone */
-
+#if defined(CONFIG_BATTERY_SAMSUNG)
+	ret = 250;
+#else
 #if (CONFIG_MTK_GAUGE_VERSION == 30)
 	ret = battery_get_bat_temperature();
 #else
@@ -212,8 +218,10 @@ static int get_hw_battery_temp(void)
 #endif
 	ret = ret * 10;
 #endif
+#endif
 
 	return ret;
+
 }
 
 static DEFINE_MUTEX(Battery_lock);

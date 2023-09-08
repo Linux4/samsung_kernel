@@ -27,7 +27,7 @@
 static bool idle_syspll_feature_enable = MTK_IDLE_FEATURE_ENABLE_IDLESYSPLL;
 static bool idle_syspll_bypass_idle_cond;
 
-static unsigned int idle_syspll_flag = MTK_IDLE_LOG_DISABLE;
+static unsigned int idle_syspll_flag = MTK_IDLE_LOG_REDUCE;
 
 /* Syspll mode in spm won't turn 26m off
  * So we won't block 26m event in spm
@@ -37,11 +37,11 @@ static unsigned int idle_syspll_flag = MTK_IDLE_LOG_DISABLE;
 
 /* [ByChip] Internal weak functions: implemented in mtk_idle_cond_check.c */
 void __attribute__((weak)) mtk_idle_cg_monitor(int sel) {}
-bool __attribute__((weak)) mtk_idle_cond_check(int idle_type) {return false; }
+bool __attribute__((weak)) mtk_idle_cond_check(unsigned int idle_type) {return false; }
 void __attribute__((weak)) mtk_idle_cond_update_mask(
-	int idle_type, unsigned int reg, unsigned int mask) {}
+	unsigned int idle_type, unsigned int reg, unsigned int mask) {}
 int __attribute__((weak)) mtk_idle_cond_append_info(
-	bool short_log, int idle_type, char *logptr, unsigned int logsize);
+	bool short_log, unsigned int idle_type, char *logptr, unsigned int logsize);
 
 bool mtk_idle_syspll_enabled(void)
 {

@@ -36,7 +36,6 @@
 
 module_param(mtk_v4l2_dbg_level, int, S_IRUGO | S_IWUSR);
 module_param(mtk_vcodec_dbg, bool, S_IRUGO | S_IWUSR);
-struct mtk_vcodec_dev *venc_dev;
 
 static int fops_vcodec_open(struct file *file)
 {
@@ -68,6 +67,7 @@ static int fops_vcodec_open(struct file *file)
 	INIT_LIST_HEAD(&ctx->list);
 	ctx->dev = dev;
 	init_waitqueue_head(&ctx->queue[0]);
+	mutex_init(&ctx->buf_lock);
 	mutex_init(&ctx->worker_lock);
 
 	ctx->type = MTK_INST_ENCODER;
@@ -88,7 +88,7 @@ static int fops_vcodec_open(struct file *file)
 	src_vq = v4l2_m2m_get_vq(ctx->m2m_ctx,
 		V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
 	ctx->enc_flush_buf->vb.vb2_buf.vb2_queue = src_vq;
-	ctx->enc_flush_buf->lastframe = EOS;
+	ctx->enc_flush_buf->lastframe = NON_EOS;
 	ctx->enc_flush_buf->vb.vb2_buf.planes[0].bytesused = 1;
 	mtk_vcodec_enc_set_default_params(ctx);
 
@@ -116,6 +116,7 @@ static int fops_vcodec_open(struct file *file)
 				   ctx->id, ctx, ctx->m2m_ctx);
 
 	list_add(&ctx->list, &dev->ctx_list);
+	dev->enc_cnt++;
 
 	mutex_unlock(&dev->dev_mutex);
 	mtk_v4l2_debug(0, "%s encoder [%d]", dev_name(&dev->plat_dev->dev),
@@ -157,6 +158,8 @@ static int fops_vcodec_release(struct file *file)
 	list_del_init(&ctx->list);
 	kfree(ctx->enc_flush_buf);
 	kfree(ctx);
+	if (dev->enc_cnt > 0)
+		dev->enc_cnt--;
 	mutex_unlock(&dev->dev_mutex);
 	return 0;
 }
@@ -179,14 +182,15 @@ static const struct v4l2_file_operations mtk_vcodec_fops = {
 static int mtk_vcodec_enc_suspend(struct device *pDev)
 {
 	int val, i;
+	struct mtk_vcodec_dev *dev = dev_get_drvdata(pDev);
 
 	for (i = 0; i < MTK_VENC_HW_NUM; i++) {
-		val = down_trylock(&venc_dev->enc_sem[i]);
+		val = down_trylock(&dev->enc_sem[i]);
 	if (val == 1) {
 		mtk_v4l2_debug(0, "fail due to videocodec activity");
 		return -EBUSY;
 	}
-		up(&venc_dev->enc_sem[i]);
+		up(&dev->enc_sem[i]);
 	}
 
 	mtk_v4l2_debug(1, "done");
@@ -205,13 +209,16 @@ static int mtk_vcodec_enc_suspend_notifier(struct notifier_block *nb,
 	int wait_cnt = 0;
 	int val = 0;
 	int i;
+	struct mtk_vcodec_dev *dev =
+		container_of(nb, struct mtk_vcodec_dev, pm_notifier);
 
 	mtk_v4l2_debug(1, "action = %ld", action);
 	switch (action) {
 	case PM_SUSPEND_PREPARE:
-		venc_dev->is_codec_suspending = 1;
+		dev->is_codec_suspending = 1;
 		for (i = 0; i < MTK_VENC_HW_NUM; i++) {
-			do {
+			val = down_trylock(&dev->enc_sem[i]);
+			while (val == 1) {
 				usleep_range(10000, 20000);
 				wait_cnt++;
 				/* Current task is still not finished, don't
@@ -221,13 +228,13 @@ static int mtk_vcodec_enc_suspend_notifier(struct notifier_block *nb,
 					mtk_v4l2_err("waiting fail");
 					return NOTIFY_DONE;
 				}
-				val = down_trylock(&venc_dev->enc_sem[i]);
-			} while (val == 1);
-			up(&venc_dev->enc_sem[i]);
+				val = down_trylock(&dev->enc_sem[i]);
+			}
+			up(&dev->enc_sem[i]);
 		}
 		return NOTIFY_OK;
 	case PM_POST_SUSPEND:
-		venc_dev->is_codec_suspending = 0;
+		dev->is_codec_suspending = 0;
 		return NOTIFY_OK;
 	default:
 		return NOTIFY_DONE;
@@ -241,7 +248,6 @@ static int mtk_vcodec_enc_probe(struct platform_device *pdev)
 	struct mtk_vcodec_dev *dev;
 	struct video_device *vfd_enc;
 	struct resource *res;
-	struct mtk_vcodec_pm *pm;
 	int i, ret;
 
 	dev = devm_kzalloc(&pdev->dev, sizeof(*dev), GFP_KERNEL);
@@ -263,43 +269,27 @@ static int mtk_vcodec_enc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	pm = &dev->pm;
-	pm->chip_node = of_find_compatible_node(NULL,
-		NULL, "mediatek,venc_gcon");
-	if (pm->chip_node) {
-		for (i = VENC_SYS; i < NUM_MAX_VENC_REG_BASE; i++) {
-			res = platform_get_resource(pdev, IORESOURCE_MEM, i);
-			if (res == NULL) {
-				dev_err(&pdev->dev, "get memory resource failed.");
-				ret = -ENXIO;
-				goto err_res;
-			}
-			dev->enc_reg_base[i] =
-				devm_ioremap_resource(&pdev->dev, res);
-			if (IS_ERR((__force void *)dev->enc_reg_base[i])) {
-				ret = PTR_ERR(
-					(__force void *)dev->enc_reg_base[i]);
-				goto err_res;
-			}
-			mtk_v4l2_debug(2, "reg[%d] base=0x%p",
-				i, dev->enc_reg_base[i]);
-		}
-	} else {
-		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-		if (res == NULL) {
-			dev_err(&pdev->dev, "get memory resource failed.");
+	for (i = VENC_SYS; i < NUM_MAX_VENC_REG_BASE; i++) {
+		res = platform_get_resource(pdev, IORESOURCE_MEM, i);
+		if (i == VENC_SYS && res == NULL) {
+			dev_info(&pdev->dev,
+				"get memory resource failed. idx:%d", i);
 			ret = -ENXIO;
 			goto err_res;
+		} else if (res == NULL) {
+			mtk_v4l2_debug(0, "try next resource. idx:%d", i);
+			continue;
 		}
-		dev->enc_reg_base[VENC_SYS] =
+
+		dev->enc_reg_base[i] =
 			devm_ioremap_resource(&pdev->dev, res);
-		if (IS_ERR((__force void *)dev->enc_reg_base[VENC_SYS])) {
+		if (IS_ERR((__force void *)dev->enc_reg_base[i])) {
 			ret = PTR_ERR(
-				(__force void *)dev->enc_reg_base[VENC_SYS]);
+				(__force void *)dev->enc_reg_base[i]);
 			goto err_res;
 		}
-		mtk_v4l2_debug(2, "reg[%d] base=0x%p",
-			VENC_SYS, dev->enc_reg_base[VENC_SYS]);
+		mtk_v4l2_debug(2, "reg[%d] base=0x%px",
+			i, dev->enc_reg_base[i]);
 	}
 
 	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
@@ -370,7 +360,7 @@ static int mtk_vcodec_enc_probe(struct platform_device *pdev)
 		goto err_event_workq;
 	}
 
-	ret = video_register_device(vfd_enc, VFL_TYPE_GRABBER, 1);
+	ret = video_register_device(vfd_enc, VFL_TYPE_GRABBER, -1);
 	if (ret) {
 		mtk_v4l2_err("Failed to register video device");
 		goto err_enc_reg;
@@ -379,11 +369,28 @@ static int mtk_vcodec_enc_probe(struct platform_device *pdev)
 	mtk_v4l2_debug(0, "encoder registered as /dev/video%d",
 				   vfd_enc->num);
 
+#ifdef CONFIG_MTK_IOMMU_V2
+	dev->io_domain = iommu_get_domain_for_dev(&pdev->dev);
+	if (dev->io_domain == NULL) {
+		mtk_v4l2_err("Failed to get io_domain\n");
+		return -EPROBE_DEFER;
+	}
+	ret = dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(64));
+	if (ret) {
+		ret = dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(32));
+		if (ret) {
+			dev_info(&pdev->dev, "64-bit DMA enable failed\n");
+			return ret;
+		}
+	}
+#endif
+
 	mtk_prepare_venc_dvfs();
 	mtk_prepare_venc_emi_bw();
-	pm_notifier(mtk_vcodec_enc_suspend_notifier, 0);
+	dev->pm_notifier.notifier_call = mtk_vcodec_enc_suspend_notifier;
+	register_pm_notifier(&dev->pm_notifier);
 	dev->is_codec_suspending = 0;
-	venc_dev = dev;
+	dev->enc_cnt = 0;
 
 	return 0;
 
@@ -405,6 +412,12 @@ static const struct of_device_id mtk_vcodec_enc_match[] = {
 	{.compatible = "mediatek,mt2712-vcodec-enc",},
 	{.compatible = "mediatek,mt8167-vcodec-enc",},
 	{.compatible = "mediatek,mt6771-vcodec-enc",},
+	{.compatible = "mediatek,mt6885-vcodec-enc",},
+	{.compatible = "mediatek,mt6873-vcodec-enc",},
+	{.compatible = "mediatek,mt6853-vcodec-enc",},
+	{.compatible = "mediatek,mt6833-vcodec-enc",},
+	{.compatible = "mediatek,mt6877-vcodec-enc",},
+	{.compatible = "mediatek,mt6781-vcodec-enc",},
 	{.compatible = "mediatek,venc_gcon",},
 	{},
 };

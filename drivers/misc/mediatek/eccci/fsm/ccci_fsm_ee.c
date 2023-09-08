@@ -17,20 +17,38 @@
 #include <mt-plat/aee.h>
 #endif
 
+#ifdef CUST_FT_EMI_DUMP_EN
+#if (MD_GENERATION >= 6297)
+#include <memory/mediatek/emi.h>
+#endif
+#endif
+
 void mdee_set_ex_start_str(struct ccci_fsm_ee *ee_ctl,
-	unsigned int type, char *str)
+	const unsigned int type, const char *str)
 {
 	u64 ts_nsec;
 	unsigned long rem_nsec;
+	int ret = 0;
 
-	if (type == MD_FORCE_ASSERT_BY_AP_MPU)
-		snprintf(ee_ctl->ex_mpu_string, MD_EX_MPU_STR_LEN,
+	if (type == MD_FORCE_ASSERT_BY_AP_MPU) {
+		ret = snprintf(ee_ctl->ex_mpu_string, MD_EX_MPU_STR_LEN,
 			"EMI MPU VIOLATION: %s", str);
+		if (ret < 0 || ret >= MD_EX_MPU_STR_LEN) {
+			CCCI_ERROR_LOG(ee_ctl->md_id, FSM,
+				"%s-%d:snprintf fail,ret = %d\n", __func__, __LINE__, ret);
+			return;
+		}
+	}
 	ts_nsec = local_clock();
 	rem_nsec = do_div(ts_nsec, 1000000000);
-	snprintf(ee_ctl->ex_start_time, MD_EX_START_TIME_LEN,
+	ret = snprintf(ee_ctl->ex_start_time, MD_EX_START_TIME_LEN,
 		"AP detect MDEE time:%5lu.%06lu\n",
 		(unsigned long)ts_nsec, rem_nsec / 1000);
+	if (ret < 0 || ret >= MD_EX_START_TIME_LEN) {
+		CCCI_ERROR_LOG(ee_ctl->md_id, FSM,
+			"%s-%d:snprintf fail,ret = %d\n", __func__, __LINE__, ret);
+		return;
+	}
 	CCCI_MEM_LOG_TAG(ee_ctl->md_id, FSM, "%s\n",
 		ee_ctl->ex_start_time);
 }
@@ -40,11 +58,12 @@ void fsm_md_bootup_timeout_handler(struct ccci_fsm_ee *ee_ctl)
 	struct ccci_mem_layout *mem_layout
 		= ccci_md_get_mem(ee_ctl->md_id);
 
-	CCCI_NORMAL_LOG(ee_ctl->md_id, FSM,
-		"Dump MD image memory\n");
-	ccci_mem_dump(ee_ctl->md_id,
-		(void *)mem_layout->md_bank0.base_ap_view_vir,
-		MD_IMG_DUMP_SIZE);
+	if (mem_layout == NULL) {
+		CCCI_NORMAL_LOG(ee_ctl->md_id, FSM,
+			"invalid  mem_layout\n");
+		return;
+	}
+
 	CCCI_NORMAL_LOG(ee_ctl->md_id, FSM,
 		"Dump MD layout struct\n");
 	ccci_mem_dump(ee_ctl->md_id, mem_layout,
@@ -63,6 +82,16 @@ void fsm_md_bootup_timeout_handler(struct ccci_fsm_ee *ee_ctl)
 void fsm_md_exception_stage(struct ccci_fsm_ee *ee_ctl, int stage)
 {
 	unsigned long flags;
+
+#ifdef CUST_FT_EMI_DUMP_EN
+#if (MD_GENERATION >= 6297)
+	CCCI_ERROR_LOG(-1, FSM,
+		"Dump MD ee mtk_emidbg_dump start\n");
+	mtk_emidbg_dump();
+	CCCI_ERROR_LOG(-1, FSM,
+		"Dump MD ee mtk_emidbg_dump end\n");
+#endif
+#endif
 
 	if (stage == 0) { /* CCIF handshake just came in */
 		mdee_set_ex_start_str(ee_ctl, 0, NULL);
@@ -85,6 +114,10 @@ void fsm_md_exception_stage(struct ccci_fsm_ee *ee_ctl, int stage)
 				SMEM_USER_RAW_MDSS_DBG);
 		struct ccci_modem *md = ccci_md_get_modem_by_id(ee_ctl->md_id);
 
+		if (mem_layout == NULL) {
+			CCCI_ERROR_LOG(md_id, FSM, "ccci_md_get_mem fail!\n");
+			return;
+		}
 		CCCI_ERROR_LOG(md_id, FSM, "MD exception stage 1!\n");
 #if defined(CONFIG_MTK_AEE_FEATURE)
 		tracing_off();
@@ -131,7 +164,7 @@ void fsm_md_exception_stage(struct ccci_fsm_ee *ee_ctl, int stage)
 				MDEE_DUMP_LEVEL_STAGE1, ee_case);
 
 		/* Dump MD register*/
-		md_dump_flag = DUMP_FLAG_REG;
+		md_dump_flag = DUMP_FLAG_REG | DUMP_FLAG_MD_WDT;
 		if (ee_case == MD_EE_CASE_ONLY_SWINT)
 			md_dump_flag |= (DUMP_FLAG_QUEUE_0
 							| DUMP_FLAG_CCIF
@@ -145,11 +178,6 @@ void fsm_md_exception_stage(struct ccci_fsm_ee *ee_ctl, int stage)
 			+ CCCI_EE_OFFSET_CCIF_SRAM,
 			CCCI_EE_SIZE_CCIF_SRAM);
 
-		/* Dump MD image memory */
-		CCCI_MEM_LOG_TAG(md_id, FSM, "Dump MD image memory\n");
-		ccci_util_mem_dump(md_id, CCCI_DUMP_MEM_DUMP,
-			(void *)mem_layout->md_bank0.base_ap_view_vir,
-			MD_IMG_DUMP_SIZE);
 		/* Dump MD memory layout */
 		CCCI_MEM_LOG_TAG(md_id, FSM, "Dump MD layout struct\n");
 		ccci_util_mem_dump(md_id, CCCI_DUMP_MEM_DUMP, mem_layout,
@@ -170,7 +198,9 @@ _dump_done:
 		struct ccci_smem_region *mdss_dbg
 			= ccci_md_get_smem_by_user_id(ee_ctl->md_id,
 				SMEM_USER_RAW_MDSS_DBG);
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
 		struct ccci_modem *md;
+#endif
 
 		CCCI_ERROR_LOG(md_id, FSM, "MD exception stage 2!\n");
 		CCCI_MEM_LOG_TAG(md_id, FSM, "MD exception stage 2! ee=%x\n",
@@ -184,7 +214,7 @@ _dump_done:
 		/* Dump MD register, only NO response case dump */
 		if (md_id == MD_SYS1
 			|| ee_ctl->ee_case == MD_EE_CASE_NO_RESPONSE)
-			md_dump_flag = DUMP_FLAG_REG;
+			md_dump_flag = DUMP_FLAG_REG | DUMP_FLAG_MD_WDT;
 		if (ee_ctl->ee_case == MD_EE_CASE_ONLY_SWINT)
 			md_dump_flag |= (DUMP_FLAG_QUEUE_0
 			| DUMP_FLAG_CCIF | DUMP_FLAG_CCIF_REG);
@@ -206,7 +236,8 @@ _dump_done:
 		if (ccci_fsm_get_md_state(GET_OTHER_MD_ID(md_id))
 				== BOOT_WAITING_FOR_HS2)
 			ccci_md_dump_info(GET_OTHER_MD_ID(md_id),
-				DUMP_FLAG_CCIF, NULL, 0);
+				DUMP_FLAG_CCIF,
+				NULL, 0);
 
 		spin_lock_irqsave(&ee_ctl->ctrl_lock, flags);
 		/* this flag should be the last action of
@@ -225,6 +256,7 @@ _dump_done:
 		CCCI_ERROR_LOG(md_id, FSM,
 			"MD exception stage 2:end\n");
 
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
 		md = ccci_md_get_modem_by_id(ee_ctl->md_id);
 		if (md == NULL) {
 			CCCI_ERROR_LOG(md_id, FSM,
@@ -242,6 +274,7 @@ _dump_done:
 				"[md1] EE time out case, call panic\n");
 			drv_tri_panic_by_lvl(md_id);
 		}
+#endif
 	}
 }
 
@@ -391,7 +424,9 @@ int fsm_ee_init(struct ccci_fsm_ee *ee_ctl)
 	ee_ctl->md_id = ctl->md_id;
 	spin_lock_init(&ee_ctl->ctrl_lock);
 	if (ee_ctl->md_id == MD_SYS1) {
-#if (MD_GENERATION >= 6292)
+#if (MD_GENERATION >= 6297)
+		ret = mdee_dumper_v5_alloc(ee_ctl);
+#elif (MD_GENERATION >= 6292)
 		ret = mdee_dumper_v3_alloc(ee_ctl);
 #elif (MD_GENERATION == 6291)
 		ret = mdee_dumper_v2_alloc(ee_ctl);

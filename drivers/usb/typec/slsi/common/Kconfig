@@ -4,16 +4,8 @@
 
 comment "PDIC configs"
 
-config PDIC_SLSI
-	bool "Using SLSI PDIC driver"
-	depends on I2C
-	default n
-	help
-	  If you say yes here you will get support for
-	  the S.LSI PD(Power Delivery)IC device driver.
-
 config PDIC_SLSI_NON_MCU
-	bool "Using USBPD device driver"
+	tristate "Using USBPD device driver"
 	depends on I2C
 	default n
 	help
@@ -26,3 +18,26 @@ config PDIC_PD30
 	default n
 	help
 	  If you say yes here you will get support for PD30
+
+config S2MU106_TYPEC_WATER
+	bool "Using S2MU Type-C Water Detection"
+	depends on I2C && (MFD_S2MU106 || PM_S2MU106)
+	default n
+	help
+	  If you say yes here you will get support for
+	  the S2MU Type-C Water functions.
+
+config S2MU106_TYPEC_WATER_SBU
+	bool "Using Type-C Water through SBU1/2"
+	depends on I2C && (MFD_S2MU106 || PM_S2MU106 || S2MU106_TYPEC_WATER)
+	default n
+	help
+	  If you say yes here you will get support for
+	  the S2MU Type-C Water with SBU1/2 functions.
+
+config SUPPORT_USB_TYPEC_OPS
+	bool "Using TYPEC OPS since kernel 5.4 version"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the Type-C OPS.

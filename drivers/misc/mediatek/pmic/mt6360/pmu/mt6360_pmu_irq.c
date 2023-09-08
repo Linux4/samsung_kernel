@@ -23,6 +23,10 @@
 #include <linux/irq.h>
 #include "../inc/mt6360_pmu.h"
 
+#ifdef CONFIG_SEC_PM
+#include <linux/wakeup_reason.h>
+#endif /* CONFIG_SEC_PM */
+
 static irqreturn_t mt6360_pmu_irq_handler(int irq, void *data)
 {
 	struct mt6360_pmu_info *mpi = data;
@@ -45,9 +49,12 @@ static irqreturn_t mt6360_pmu_irq_handler(int irq, void *data)
 	for (i = 0; i < MT6360_PMU_IRQ_REGNUM; i++) {
 		irq_events[i] &= ~irq_masks[i];
 		for (j = 0; j < 8; j++) {
-			if (!(irq_events[i] & (1 << j)))
+			if (!(irq_events[i] & (1 << (u32)j)))
 				continue;
 			ret = irq_find_mapping(mpi->irq_domain, i * 8 + j);
+#ifdef CONFIG_SEC_PM
+			log_threaded_irq_wakeup_reason(ret, mpi->irq);
+#endif /* CONFIG_SEC_PM */
 			if (ret) {
 				/* bypass adc donei & mivr irq */
 				if ((i == 5 && j == 4) || (i == 0 && j == 6))
@@ -91,11 +98,12 @@ static void mt6360_pmu_irq_bus_lock(struct irq_data *data)
 static void mt6360_pmu_irq_bus_sync_unlock(struct irq_data *data)
 {
 	struct mt6360_pmu_info *mpi = data->chip_data;
-	int offset = data->hwirq, ret;
+	int ret;
+	unsigned int offset = data->hwirq;
 
 	/* force clear current irq event */
 	ret = mt6360_pmu_reg_write(mpi, MT6360_PMU_CHG_IRQ1 + offset / 8,
-				   1 << (offset % 8));
+				   1 << (u32)(offset % 8));
 	if (ret < 0)
 		dev_err(mpi->dev, "%s: fail to write clr irq\n", __func__);
 	/* unmask current irq */

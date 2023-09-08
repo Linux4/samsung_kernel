@@ -27,7 +27,7 @@
 int irq_count[DSV_MODE_MAX];
 
 #define IRQ_COUNT_MAX 20
-#define MT6370_DB_VBST_MAX_V 0x2B	/*6.15v*/
+#define MT6370_DB_VBST_MAX_V 0x2C	/*6.2v*/
 #define MT6370_PMU_REG_DB_VBST_MASK 0x3F
 #define DB_MASK_DEFAULT_SHIFT 0x3
 
@@ -41,9 +41,9 @@ int g_irq_disable;
 int mt6370_pmu_dsv_scp_ocp_irq_debug(struct mt6370_pmu_chip *chip,
 					enum dsv_dbg_mode_t mode)
 {
-	int ret = 0;
+	int ret = 0, err = 0;
 	int dbvbst, dbvpos, dbvneg, dbmask;
-	char str[50] = "";
+	char s[50] = "";
 
 	if (!g_irq_mask)
 		return ret;
@@ -67,11 +67,11 @@ int mt6370_pmu_dsv_scp_ocp_irq_debug(struct mt6370_pmu_chip *chip,
 		pr_info("%s: DB_VBST = 0x%x, DB_VPOS = 0x%x, DB_VNEG = 0x%x, DBMASK = 0x%x\n",
 			__func__, dbvbst, dbvpos, dbvneg, dbmask);
 
-		snprintf(str, 50, "Vbst=0x%x,Vpos=0x%x,Vneg=0x%x,mask=0x%x",
+		err = snprintf(s, 50, "Vbst=0x%x,Vpos=0x%x,Vneg=0x%x,mask=0x%x",
 			dbvbst, dbvpos, dbvneg, dbmask);
-		if (g_irq_mask_warning)
+		if (err >= 0 && g_irq_mask_warning)
 			aee_kernel_warning("mt6370 dsv irq",
-				"db irq type = %x %s\n", mode, str);
+				"db irq type = %x %s\n", mode, s);
 		ret = 1;
 	}
 
@@ -115,7 +115,7 @@ void mt6370_pmu_dsv_auto_vbst_adjustment(struct mt6370_pmu_chip *chip,
 	}
 }
 
-
+#ifdef CONFIG_DEBUG_FS
 static ssize_t mt6370_pmu_dsv_debug_write(struct file *file,
 	const char __user *buf, size_t size, loff_t *ppos)
 {
@@ -220,12 +220,13 @@ static const struct file_operations mt6370_pmu_dsv_debug_ops = {
 	.llseek  = seq_lseek,
 	.release = single_release,
 };
-
+#endif
 
 int mt6370_pmu_dsv_debug_init(struct mt6370_pmu_chip *chip)
 {
+#ifdef CONFIG_DEBUG_FS
 	struct dentry *mt6370_pmu_dir;
-
+#endif
 	g_db_vbst = mt6370_pmu_reg_read(chip, MT6370_PMU_REG_DBVBST);
 	g_vbst_adjustment = 0;
 	g_irq_count_max = IRQ_COUNT_MAX;
@@ -233,6 +234,7 @@ int mt6370_pmu_dsv_debug_init(struct mt6370_pmu_chip *chip)
 	g_irq_mask_warning = 0;
 	g_irq_disable |= (1 << DSV_VPOS_OCP);
 
+#ifdef CONFIG_DEBUG_FS
 	mt6370_pmu_dir = debugfs_create_dir("mt6370_pmu", NULL);
 	if (!mt6370_pmu_dir) {
 		pr_info("create /sys/kernel/debug/mt6370_pmu failed\n");
@@ -242,7 +244,7 @@ int mt6370_pmu_dsv_debug_init(struct mt6370_pmu_chip *chip)
 	debugfs_create_file("mt6370_pmu_dsv", 0644,
 				mt6370_pmu_dir, NULL,
 				&mt6370_pmu_dsv_debug_ops);
-
+#endif
 	return 0;
 }
 

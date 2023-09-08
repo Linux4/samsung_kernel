@@ -15,6 +15,7 @@
  *
  */
 
+#include <linux/atomic.h>
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/file.h>
@@ -33,21 +34,188 @@
 #include <linux/seq_file.h>
 #include <linux/uaccess.h>
 #include <linux/vmalloc.h>
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 #include <linux/debugfs.h>
+#endif
+#if IS_ENABLED(CONFIG_PROC_FS)
+#include <linux/proc_fs.h>
+#endif
 #include <linux/dma-buf.h>
 #include <linux/idr.h>
 #include <linux/sched/task.h>
 #include <linux/sched/clock.h>
+#include <linux/delay.h>
+#include <linux/jiffies.h>
+#include <linux/sched/cputime.h>
 #include "ion.h"
 #include "ion_priv.h"
 #include "compat_ion.h"
-#include <trace/events/kmem.h>
-
+#include "aee.h"
 #include "mtk/ion_profile.h"
 #include "mtk/mtk_ion.h"
 #include "mtk/ion_drv_priv.h"
 
+#ifdef CONFIG_MTK_IOMMU_V2
+#include <mach/pseudo_m4u.h>
+#endif
+
+static atomic_long_t total_heap_bytes;
+
+struct ion_dmabuf_list {
+	struct list_head head;
+	struct mutex lock; /* dmabuf lock */
+};
+
+static struct ion_dmabuf_list dmabuf_list;
+
 atomic64_t page_sz_cnt = ATOMIC64_INIT(0);
+
+/* To support  ion_dmabuf_dbg_show, we also need to porting
+ * dma-buf.c . Ref: Change 3104500
+ */
+void ion_dmabuf_init(void)
+{
+	mutex_init(&dmabuf_list.lock);
+	INIT_LIST_HEAD(&dmabuf_list.head);
+}
+
+void ion_dmabuf_dbg_show(struct seq_file *s)
+{
+	struct dma_buf *dmabuf;
+
+	mutex_lock(&dmabuf_list.lock);
+
+	if (s) {
+		seq_puts(s, "\ndmabuf get/put count for orphaned buffer\n");
+		seq_printf(s, "%18.s %8.s %4.s\n",
+			   "buffer", "size", "ref");
+	} else {
+		pr_info("\ndmabuf get/put count for orphaned buffer\n");
+		pr_info("%18.s %8.s %3.s\n",
+			"buffer", "size", "ref");
+	}
+	list_for_each_entry(dmabuf, &dmabuf_list.head, node) {
+		if (atomic_read(&dmabuf->ref_dbg) > 0) {
+			struct ion_buffer *buffer = dmabuf->priv;
+
+			if (buffer->handle_count)
+				continue;
+			if (s)
+				seq_printf(s, "0x%p %8zu %3d\n",
+					   buffer, buffer->size,
+					atomic_read(&dmabuf->ref_dbg));
+			else
+				pr_info("0x%p %8zu %3d\n",
+					buffer, buffer->size,
+					atomic_read(&dmabuf->ref_dbg));
+		}
+	}
+
+	mutex_unlock(&dmabuf_list.lock);
+}
+
+void ion_client_buf_add(struct ion_heap *heap, struct ion_client *client,
+			size_t size)
+{
+#ifdef ION_RECORD_TOTAL_SIZE_SUPPORT
+	u64 total_size;
+
+	client->hnd_cnt++;
+	if (heap->type == ION_HEAP_TYPE_MULTIMEDIA_SEC)
+		total_size =
+		atomic64_add_return(size, &client->total_size[SECURE_HEAP]);
+	else if (heap->type == ION_HEAP_TYPE_SYSTEM)
+		total_size =
+		atomic64_add_return(size, &client->total_size[SYSTEM_HEAP]);
+	else
+		total_size =
+		atomic64_add_return(size, &client->total_size[NORMAL_HEAP]);
+
+	if (total_size >= client->threshold_size) {
+		if (client->task) {
+			char task_comm[TASK_COMM_LEN];
+
+			get_task_comm(task_comm, client->task);
+			IONMSG(
+			       "warn: client:%s(%s) memory exceed threshold:%llu, heap:%u, pid:%d\n",
+				task_comm, (*client->dbg_name) ?
+				client->dbg_name : client->name,
+				client->threshold_size,
+				heap->id, client->pid);
+		} else {
+			IONMSG(
+			       "warn: client:%s(%s) memory exceed threshold:%llu, heap:%u, pid:%d\n",
+				client->name, "from_kernel",
+				client->threshold_size,
+				heap->id, client->pid);
+		}
+		client->threshold_size += CLIENT_THRESHOLD_SIZE_INC;
+	}
+#endif
+}
+
+void ion_client_buf_sub(struct ion_heap *heap, struct ion_client *client,
+			size_t size)
+{
+#ifdef ION_RECORD_TOTAL_SIZE_SUPPORT
+	long long total_size;
+
+	client->hnd_cnt--;
+	if (heap->type == ION_HEAP_TYPE_MULTIMEDIA_SEC) {
+		total_size =
+		atomic64_sub_return(size, &client->total_size[SECURE_HEAP]);
+		if (total_size < 0) {
+			IONMSG(
+			       "heap_id:%u underflow!, total_now[%lld--%ld]\n",
+			heap->id, total_size,
+			atomic64_read(&client->total_size[SECURE_HEAP]));
+			atomic64_set(&client->total_size[SECURE_HEAP], 0);
+		}
+	} else if (heap->type == ION_HEAP_TYPE_SYSTEM) {
+		total_size =
+		atomic64_sub_return(size, &client->total_size[SYSTEM_HEAP]);
+		if (total_size < 0) {
+			IONMSG(
+			       "heap_id:%u underflow!, total_now[%lld--%ld]\n",
+			heap->id, total_size,
+			atomic64_read(&client->total_size[SYSTEM_HEAP]));
+			atomic64_set(&client->total_size[SYSTEM_HEAP], 0);
+		}
+	} else {
+		total_size =
+		atomic64_sub_return(size, &client->total_size[NORMAL_HEAP]);
+		if (total_size < 0) {
+			IONMSG(
+			       "heap_id:%u underflow!, total_now[%lld--%ld]\n",
+			heap->id, total_size,
+			atomic64_read(&client->total_size[NORMAL_HEAP]));
+			atomic64_set(&client->total_size[NORMAL_HEAP], 0);
+		}
+	}
+
+	if (client->threshold_size > CLIENT_THRESHOLD_SIZE &&
+	    (total_size <=
+	    (client->threshold_size - CLIENT_THRESHOLD_SIZE_DEC))) {
+		client->threshold_size -= CLIENT_THRESHOLD_SIZE_INC;
+		if (client->threshold_size < CLIENT_THRESHOLD_SIZE)
+			client->threshold_size = CLIENT_THRESHOLD_SIZE;
+	}
+#endif
+}
+
+u64 ion_client_buf_dump(struct ion_heap *heap, struct ion_client *client)
+{
+#ifdef ION_RECORD_TOTAL_SIZE_SUPPORT
+	if (heap->type == ION_HEAP_TYPE_MULTIMEDIA_SEC)
+		return (u64)(atomic64_read(&client->total_size[SECURE_HEAP]));
+	else if (heap->type == ION_HEAP_TYPE_SYSTEM)
+		return (u64)(atomic64_read(&client->total_size[SYSTEM_HEAP]));
+	else
+		return (u64)(atomic64_read(&client->total_size[NORMAL_HEAP]));
+#else
+	return 0;
+#endif
+}
 
 bool ion_buffer_fault_user_mappings(struct ion_buffer *buffer)
 {
@@ -134,6 +302,9 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 		task = current->group_leader;
 		get_task_comm(buffer->task_comm, task);
 		buffer->pid = task_pid_nr(task);
+		buffer->tid = task_pid_nr(current);
+		get_task_comm(buffer->thread_comm, current);
+		buffer->timestamp = sched_clock();
 	}
 
 	kref_init(&buffer->ref);
@@ -188,7 +359,7 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 	INIT_LIST_HEAD(&buffer->attachments);
 #endif
 	mutex_init(&buffer->lock);
-	if (heap->id == ION_HEAP_TYPE_MULTIMEDIA_PA2MVA)
+	if (heap->type == ION_HEAP_TYPE_MULTIMEDIA_SEC)
 		goto exit;
 	/*
 	 * this will set up dma addresses for the sglist -- it is not
@@ -201,25 +372,6 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 	 * cached mapping that mapping has been invalidated
 	 */
 	for_each_sg(buffer->sg_table->sgl, sg, buffer->sg_table->nents, i) {
-	#ifdef CONFIG_MTK_IOMMU_V2
-		if (heap->id == ION_HEAP_TYPE_MULTIMEDIA_MAP_MVA &&
-		    align < PAGE_OFFSET && sg_dma_len(sg) != 0) {
-			if (align < VMALLOC_START || align > VMALLOC_END) {
-				/*native va without vmalloc and no page struct*/
-				sg->length = sg_dma_len(sg);
-				continue;
-			}
-		}
-	#else
-		if (heap->id == ION_HEAP_TYPE_MULTIMEDIA_MAP_MVA) {
-		/*
-		 * We don't overwrite the sg dma information of the
-		 * buffer comes from mtk mm heap, because it will be
-		 * mapped iova by get_phys.
-		 */
-			continue;
-		}
-	#endif
 		sg_dma_address(sg) = sg_phys(sg);
 		sg_dma_len(sg) = sg->length;
 	}
@@ -227,9 +379,7 @@ exit:
 	mutex_lock(&dev->buffer_lock);
 	ion_buffer_add(dev, buffer);
 	mutex_unlock(&dev->buffer_lock);
-	trace_ion_heap_grow(heap->name, len,
-			    atomic_long_read(&heap->total_allocated));
-	atomic_long_add(len, &heap->total_allocated);
+	atomic_long_add(len, &total_heap_bytes);
 	return buffer;
 
 err1:
@@ -246,9 +396,6 @@ void ion_buffer_destroy(struct ion_buffer *buffer)
 		buffer->heap->ops->unmap_kernel(buffer->heap, buffer);
 	}
 
-	trace_ion_heap_shrink(buffer->heap->name,  buffer->size,
-			      atomic_long_read(&buffer->heap->total_allocated));
-	atomic_long_sub(buffer->size, &buffer->heap->total_allocated);
 	buffer->heap->ops->free(buffer);
 	vfree(buffer->pages);
 	kfree(buffer);
@@ -263,8 +410,11 @@ static void _ion_buffer_destroy(struct kref *kref)
 	mutex_lock(&dev->buffer_lock);
 	rb_erase(&buffer->node, &dev->buffers);
 	mutex_unlock(&dev->buffer_lock);
+	atomic_long_sub(buffer->size, &total_heap_bytes);
 
-	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
+	if (unlikely(buffer->flags & ION_FLAG_FREE_WITHOUT_DEFER))
+		ion_buffer_destroy(buffer);
+	else if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
 		ion_heap_freelist_add(heap, buffer);
 	else
 		ion_buffer_destroy(buffer);
@@ -348,6 +498,7 @@ static void ion_handle_destroy(struct kref *kref)
 	if (!RB_EMPTY_NODE(&handle->node))
 		rb_erase(&handle->node, &client->handles);
 
+	ion_client_buf_sub(buffer->heap, client, buffer->size);
 	ion_buffer_remove_from_handle(buffer);
 	ion_buffer_put(buffer);
 
@@ -360,6 +511,15 @@ static void ion_handle_destroy(struct kref *kref)
 static void ion_handle_get(struct ion_handle *handle)
 {
 	kref_get(&handle->ref);
+}
+
+static struct ion_handle *ion_handle_get_check_overflow(
+							struct ion_handle *handle)
+{
+	if (atomic_read(&handle->ref.refcount.refs) + 1 == 0)
+		return ERR_PTR(-EOVERFLOW);
+	ion_handle_get(handle);
+	return handle;
 }
 
 int ion_handle_put_nolock(struct ion_handle *handle)
@@ -376,6 +536,48 @@ int ion_handle_put(struct ion_handle *handle)
 	ret = ion_handle_put_nolock(handle);
 	mutex_unlock(&client->lock);
 
+	return ret;
+}
+
+/* Must hold the client lock */
+static void user_ion_handle_get(struct ion_handle *handle)
+{
+	if (handle->user_ref_count++ == 0)
+		kref_get(&handle->ref);
+}
+
+/* Must hold the client lock */
+static struct ion_handle *user_ion_handle_get_check_overflow(struct ion_handle *handle)
+{
+	if (handle->user_ref_count + 1 == 0)
+		return ERR_PTR(-EOVERFLOW);
+	user_ion_handle_get(handle);
+	return handle;
+}
+
+/* passes a kref to the user ref count.
+ * We know we're holding a kref to the object before and
+ * after this call, so no need to reverify handle.
+ */
+struct ion_handle *pass_to_user(struct ion_handle *handle)
+{
+	struct ion_client *client = handle->client;
+	struct ion_handle *ret;
+
+	mutex_lock(&client->lock);
+	ret = user_ion_handle_get_check_overflow(handle);
+	ion_handle_put_nolock(handle);
+	mutex_unlock(&client->lock);
+	return ret;
+}
+
+/* Must hold the client lock */
+static int user_ion_handle_put_nolock(struct ion_handle *handle)
+{
+	int ret = 0;
+
+	if (--handle->user_ref_count == 0)
+		ret = ion_handle_put_nolock(handle);
 	return ret;
 }
 
@@ -404,24 +606,12 @@ struct ion_handle *ion_handle_get_by_id_nolock(struct ion_client *client,
 
 	handle = idr_find(&client->idr, id);
 	if (handle)
-		ion_handle_get(handle);
+		return ion_handle_get_check_overflow(handle);
 	else
-		IONMSG("%s: can't get handle by id:%d\n", __func__, id);
-	return handle ? handle : ERR_PTR(-EINVAL);
+		IONDBG("%s: can't get handle by id:%d\n", __func__, id);
+	return  ERR_PTR(-EINVAL);
 }
 
-struct ion_handle *ion_handle_get_by_id(
-		struct ion_client *client,
-					       int id)
-{
-	struct ion_handle *handle;
-
-	mutex_lock(&client->lock);
-	handle = ion_handle_get_by_id_nolock(client, id);
-	mutex_unlock(&client->lock);
-
-	return handle;
-}
 
 static bool ion_handle_validate(struct ion_client *client,
 				struct ion_handle *handle)
@@ -463,9 +653,9 @@ static int ion_handle_add(struct ion_client *client, struct ion_handle *handle)
 	return 0;
 }
 
-struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
-			     size_t align, unsigned int heap_id_mask,
-			     unsigned int flags)
+struct ion_handle *__ion_alloc(struct ion_client *client, size_t len,
+			       size_t align, unsigned int heap_id_mask,
+			       unsigned int flags, bool grab_handle)
 {
 	struct ion_handle *handle;
 	struct ion_device *dev = client->dev;
@@ -474,10 +664,15 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	int ret;
 	unsigned long long start, end;
 	unsigned int heap_mask = ~0;
+	unsigned int alloc_err_heap = 0;
+	unsigned long jiffies_s = jiffies;
+	u64 utime, stime_s, stime_e, stime_d;
+	static DEFINE_RATELIMIT_STATE(show_mem_ratelimit, HZ * 10, 1);
 #ifdef CONFIG_ION_RBIN_HEAP
 	bool rbin_try = false;
 #endif
 
+	task_cputime(current, &utime, &stime_s);
 	pr_debug("%s: len %zu align %zu heap_id_mask %u flags %x\n", __func__,
 		 len, align, heap_id_mask, flags);
 
@@ -500,20 +695,13 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	 * request of the caller allocate from it.  Repeat until allocate has
 	 * succeeded or all heaps have been tried
 	 */
-	if (heap_id_mask != ION_HEAP_MULTIMEDIA_MAP_MVA_MASK)
-		len = PAGE_ALIGN(len);
+	len = PAGE_ALIGN(len);
 
 	if (!len) {
 		IONMSG("%s len cannot be zero.\n", __func__);
 		return ERR_PTR(-EINVAL);
 	}
 
-    /* add by k.zhang for sgtable_init KE bug */
-	if ((len > 1024 * 1024 * 1024)) {
-		IONMSG("%s error: size (%zu) is more than 1G !!\n",
-		       __func__, len);
-		return ERR_PTR(-EINVAL);
-	}
 	/*avoid camelcase, will modify in a letter*/
 	mmprofile_log_ex(ion_mmp_events[PROFILE_ALLOC], MMPROFILE_FLAG_START,
 			 (unsigned long)client, len);
@@ -530,7 +718,10 @@ repeat:
 		buffer = ion_buffer_create(heap, dev, len, align, flags);
 		if (!IS_ERR(buffer))
 			break;
+		if (IS_ERR(buffer))
+			alloc_err_heap |= (1 << heap->id);
 	}
+
 #ifdef CONFIG_ION_RBIN_HEAP
 	if (rbin_try && (!buffer || IS_ERR(buffer))) {
 		rbin_try = false;
@@ -546,8 +737,18 @@ repeat:
 	}
 
 	if (IS_ERR(buffer)) {
-		IONMSG("%s buffer is error 0x%p, heap_mask: 0x%x.\n",
-		       __func__, buffer, heap_id_mask);
+		IONMSG("%s error 0x%lx, heap_mask: 0x%x size:%zu align:%zu.\n",
+		       __func__, (unsigned long)buffer,
+		       heap_id_mask, len, align);
+		IONMSG("error heap:0x%x\n", alloc_err_heap);
+		plist_for_each_entry(heap, &dev->heaps, node) {
+			if (!((1 << heap->id) & alloc_err_heap))
+				continue;
+			if (IS_ERR_OR_NULL(heap->debug_show))
+				continue;
+			IONMSG("heap[%s][%d] show:\n", heap->name, heap->id);
+			heap->debug_show(heap, NULL, NULL);
+		}
 		return ERR_CAST(buffer);
 	}
 
@@ -565,7 +766,10 @@ repeat:
 	}
 
 	mutex_lock(&client->lock);
+	if (grab_handle)
+		ion_handle_get(handle);
 	ret = ion_handle_add(client, handle);
+	ion_client_buf_add(heap, client, len);
 	mutex_unlock(&client->lock);
 	if (ret) {
 		ion_handle_put(handle);
@@ -584,27 +788,68 @@ repeat:
 			 (unsigned long)client, (unsigned long)handle);
 
 #ifdef CONFIG_MTK_ION
+#ifdef ION_HISTORY_RECORD
 	ion_history_count_kick(true, len);
+#endif
 #endif
 
 	handle->dbg.user_ts = end;
 	do_div(handle->dbg.user_ts, 1000000);
 	memcpy(buffer->alloc_dbg, client->dbg_name, ION_MM_DBG_NAME_LEN);
 
+	task_cputime(current, &utime, &stime_e);
+	stime_d = stime_e - stime_s;
+	do_div(stime_d, NSEC_PER_MSEC);
+	if (!IS_ERR(handle) && stime_d > 100) {
+		pr_info("%s ion_heap_id: %d mask=0x%x timeJS(ms):%u/%llu len:0x%zx",
+			__func__, heap->id, heap_id_mask,
+			jiffies_to_msecs(jiffies - jiffies_s),
+			stime_d, len);
+		if (__ratelimit(&show_mem_ratelimit))
+			show_mem(0, NULL);
+	}
 	return handle;
 }
+
+struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
+			     size_t align, unsigned int heap_id_mask,
+			     unsigned int flags)
+{
+	return __ion_alloc(client, len, align, heap_id_mask, flags, false);
+}
 EXPORT_SYMBOL(ion_alloc);
+
+void user_ion_free_nolock(struct ion_client *client, struct ion_handle *handle)
+{
+	bool valid_handle;
+
+	WARN_ON(client != handle->client);
+	valid_handle = ion_handle_validate(client, handle);
+	if (!valid_handle) {
+		WARN(1, "%s: invalid handle passed to free.\n", __func__);
+		return;
+	}
+	if (handle->user_ref_count <= 0) {
+		WARN(1, "%s: User does not have access!\n", __func__);
+		return;
+	}
+	user_ion_handle_put_nolock(handle);
+}
 
 void ion_free_nolock(struct ion_client *client,
 		     struct ion_handle *handle)
 {
+	WARN_ON(client != handle->client);
+
 	if (!ion_handle_validate(client, handle)) {
 		WARN(1, "%s: invalid handle passed to free.\n", __func__);
 		return;
 	}
 	ion_handle_put_nolock(handle);
 #ifdef CONFIG_MTK_ION
+#ifdef ION_HISTORY_RECORD
 	ion_history_count_kick(false, 0);
+#endif
 #endif
 }
 
@@ -623,6 +868,11 @@ EXPORT_SYMBOL(ion_free);
 static void *ion_buffer_kmap_get(struct ion_buffer *buffer)
 {
 	void *vaddr;
+
+	if (buffer->kmap_cnt + 1 == 0) {
+		IONMSG("%s overflow\n", __func__);
+		return ERR_PTR(-EOVERFLOW);
+	}
 
 	if (buffer->kmap_cnt) {
 		buffer->kmap_cnt++;
@@ -648,6 +898,11 @@ static void *ion_handle_kmap_get(struct ion_handle *handle)
 {
 	struct ion_buffer *buffer = handle->buffer;
 	void *vaddr;
+
+	if (handle->kmap_cnt + 1 == 0) {
+		IONMSG("%s overflow\n", __func__);
+		return ERR_PTR(-EOVERFLOW);
+	}
 
 	if (handle->kmap_cnt) {
 		handle->kmap_cnt++;
@@ -693,6 +948,7 @@ static void ion_handle_kmap_put(struct ion_handle *handle)
 
 void *ion_map_kernel(struct ion_client *client, struct ion_handle *handle)
 {
+	struct ion_handle *handle_ret;
 	struct ion_buffer *buffer;
 	void *vaddr;
 
@@ -713,6 +969,13 @@ void *ion_map_kernel(struct ion_client *client, struct ion_handle *handle)
 		return ERR_PTR(-ENODEV);
 	}
 
+	handle_ret = ion_handle_get_check_overflow(handle);
+	if (IS_ERR(handle_ret)) {
+		mutex_unlock(&client->lock);
+		WARN(1, "%s: handle get fail %ld.\n", __func__,
+		     PTR_ERR(handle_ret));
+		return handle_ret;
+	}
 	mutex_lock(&buffer->lock);
 	vaddr = ion_handle_kmap_get(handle);
 	mutex_unlock(&buffer->lock);
@@ -730,6 +993,8 @@ void ion_unmap_kernel(struct ion_client *client, struct ion_handle *handle)
 	mutex_lock(&buffer->lock);
 	ion_handle_kmap_put(handle);
 	mutex_unlock(&buffer->lock);
+
+	ion_handle_put_nolock(handle);
 	mutex_unlock(&client->lock);
 }
 EXPORT_SYMBOL(ion_unmap_kernel);
@@ -751,6 +1016,7 @@ static int ion_client_validate(struct ion_device *dev,
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_DEBUG_FS) || IS_ENABLED(CONFIG_PROC_FS)
 static int ion_debug_client_show(struct seq_file *s, void *unused)
 {
 	struct ion_client *client = s->private;
@@ -827,6 +1093,7 @@ static int ion_debug_client_show(struct seq_file *s, void *unused)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 static int ion_debug_client_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, ion_debug_client_show, inode->i_private);
@@ -838,6 +1105,22 @@ static const struct file_operations debug_client_fops = {
 	.llseek = seq_lseek,
 	.release = single_release,
 };
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+static int ion_proc_client_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, ion_debug_client_show, PDE_DATA(inode));
+}
+
+static const struct file_operations proc_client_fops = {
+	.open = ion_proc_client_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+#endif
+#endif
 
 static int ion_get_client_serial(const struct rb_root *root,
 				 const unsigned char *name)
@@ -890,6 +1173,7 @@ struct ion_client *ion_client_create(struct ion_device *dev,
 	if (!client)
 		goto err_put_task_struct;
 
+	client->threshold_size = CLIENT_THRESHOLD_SIZE;
 	client->dev = dev;
 	client->handles = RB_ROOT;
 	idr_init(&client->idr);
@@ -921,16 +1205,17 @@ struct ion_client *ion_client_create(struct ion_device *dev,
 	rb_link_node(&client->node, parent, p);
 	rb_insert_color(&client->node, &dev->clients);
 
-	client->debug_root = debugfs_create_file(client->display_name, 0664,
-						 dev->clients_debug_root,
-						 client, &debug_client_fops);
-	if (!client->debug_root) {
-		char buf[256], *path;
-
-		path = dentry_path(dev->clients_debug_root, buf, 256);
-		pr_err("Failed to create client debugfs at %s/%s\n",
-		       path, client->display_name);
-	}
+#if IS_ENABLED(CONFIG_PROC_FS)
+	client->proc_root = proc_create_data(client->display_name,
+					     S_IFREG | 0664,
+					     dev->clients_proc_root,
+					     &proc_client_fops,
+					     client);
+	if (!client->proc_root)
+		IONMSG(
+		       "Failed to create client procfs at /proc/ion/clients/%s\n",
+		       client->display_name);
+#endif
 
 	up_write(&dev->lock);
 
@@ -951,20 +1236,27 @@ void ion_client_destroy(struct ion_client *client)
 {
 	struct ion_device *dev = client->dev;
 	struct rb_node *n;
+	struct task_struct *task = current->group_leader;
+	char task_comm[TASK_COMM_LEN];
+	pid_t pid;
+	unsigned long long time_s, time_e_lock, time_e_unlock;
 
 	pr_debug("%s: %d\n", __func__, __LINE__);
+	get_task_comm(task_comm, task);
+	pid = task_pid_nr(task);
+	time_s = sched_clock();
 	while ((n = rb_first(&client->handles))) {
 		struct ion_handle *handle = rb_entry(n, struct ion_handle,
 						     node);
 
 		mutex_lock(&client->lock);
-		IONMSG("%s:hdl=%p,buf=%p,sz=%zu,ref=%d,kmp=%d\n",
+		IONMSG(
+		       "%s:hdl=%p,buf=%p,sz=%zu,ref=%d,kmp=%d, client=%s,disp=%s,dbg=%s\n",
 		       __func__, handle, handle->buffer,
 		       handle->buffer->size,
 		       atomic_read(&handle->buffer->ref.refcount.refs),
-		       handle->buffer->kmap_cnt);
-		IONMSG("%s:client=%s,disp=%s,dbg=%s\n",
-		       __func__, client->name ? client->name : NULL,
+		       handle->buffer->kmap_cnt,
+		       client->name ? client->name : NULL,
 		       client->display_name ? client->display_name : NULL,
 		       client->dbg_name);
 		ion_handle_destroy(&handle->ref);
@@ -973,12 +1265,29 @@ void ion_client_destroy(struct ion_client *client)
 
 	idr_destroy(&client->idr);
 
+	time_e_unlock = sched_clock();
+	if ((time_e_unlock - time_s) > 50000000) // 50ms
+		IONMSG("%s unlock warnning, time:%llu, task:%s (%d)\n",
+		       __func__, (time_e_unlock - time_s),
+		       task_comm, pid);
+
 	down_write(&dev->lock);
 	if (client->task)
 		put_task_struct(client->task);
 	rb_erase(&client->node, &dev->clients);
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	debugfs_remove_recursive(client->debug_root);
+#endif
+#if IS_ENABLED(CONFIG_PROC_FS)
+	proc_remove(client->proc_root);
+#endif
 	up_write(&dev->lock);
+
+	time_e_lock = sched_clock();
+	if ((time_e_lock - time_s) > 100000000) // 100ms
+		IONMSG("%s warnning, time:%llu, task:%s (%d)\n",
+		       __func__, (time_e_lock - time_s),
+		       task_comm, pid);
 
 	kfree(client->display_name);
 	kfree(client->name);
@@ -995,8 +1304,12 @@ int clone_sg_table(const struct sg_table *source, struct sg_table *dest)
 	int i = 0;
 	struct scatterlist *s_sg, *d_sg;
 
-	if (source->nents != dest->nents)
+	if (source->nents != dest->nents) {
+		IONMSG("%s, %d, source nents:%d, dest nents:%d\n",
+		       __func__, __LINE__,
+		       source->nents, dest->nents);
 		return -1;
+	}
 
 	d_sg = dest->sgl;
 	for_each_sg(source->sgl, s_sg, source->nents, i) {
@@ -1017,7 +1330,8 @@ static int ion_iommu_heap_type(struct ion_buffer *buffer)
 
 	if (buffer->heap->type == (int)ION_HEAP_TYPE_FB ||
 	    buffer->heap->type == (int)ION_HEAP_TYPE_MULTIMEDIA ||
-	    buffer->heap->type == (int)ION_HEAP_TYPE_MULTIMEDIA_SEC) {
+	    buffer->heap->type == (int)ION_HEAP_TYPE_MULTIMEDIA_SEC ||
+	    buffer->heap->type == (int)ION_HEAP_TYPE_RBIN) {
 		return 1;
 	}
 	return 0;
@@ -1028,6 +1342,11 @@ static struct sg_table *dup_sg_table(struct sg_table *table)
 	struct sg_table *new_table;
 	int ret, i;
 	struct scatterlist *sg, *new_sg;
+
+	if (!table) {
+		IONMSG("%s invalid table\n", __func__);
+		return ERR_PTR(-EFAULT);
+	}
 
 	new_table = kzalloc(sizeof(*new_table), GFP_KERNEL);
 	if (!new_table)
@@ -1051,6 +1370,11 @@ static struct sg_table *dup_sg_table(struct sg_table *table)
 
 static void free_duped_table(struct sg_table *table)
 {
+	if (!table) {
+		IONMSG("%s invalid table\n", __func__);
+		return;
+	}
+
 	sg_free_table(table);
 	kfree(table);
 }
@@ -1065,15 +1389,23 @@ static int ion_dma_buf_attach(struct dma_buf *dmabuf, struct device *dev,
 			      struct dma_buf_attachment *attachment)
 {
 	struct ion_dma_buf_attachment *a;
-	struct sg_table *table;
+	struct sg_table *table = NULL;
 	struct ion_buffer *buffer;
 
-	if (!dmabuf->priv)
+	if (!attachment) {
+		IONMSG("%s invalid attachment\n", __func__);
 		return -ENODEV;
+	}
+	if (!dmabuf || !dmabuf->priv) {
+		IONMSG("%s invalid dmabuf\n", __func__);
+		return -ENODEV;
+	}
+
 	buffer = dmabuf->priv;
 
-	if (!ion_iommu_heap_type(buffer)) {
-		IONMSG("%s not iommu device\n", __func__);
+	if (!ion_iommu_heap_type(buffer) &&
+	    buffer->heap->type != (int)ION_HEAP_TYPE_SYSTEM) {
+		IONMSG("%s not dma buf device\n", __func__);
 		return 0;
 	}
 
@@ -1081,7 +1413,12 @@ static int ion_dma_buf_attach(struct dma_buf *dmabuf, struct device *dev,
 	if (!a)
 		return -ENOMEM;
 
-	table = dup_sg_table(buffer->sg_table);
+#ifdef CONFIG_MTK_IOMMU_V2
+	if (buffer->sg_table_orig)
+		table = dup_sg_table(buffer->sg_table_orig);
+#endif
+	if (!table)
+		table = dup_sg_table(buffer->sg_table);
 	if (IS_ERR(table)) {
 		kfree(a);
 		return -ENOMEM;
@@ -1109,23 +1446,28 @@ static void ion_dma_buf_detatch(struct dma_buf *dmabuf,
 
 	if (!attachment ||
 	    !attachment->priv ||
-	    !attachment->dmabuf)
+	    !attachment->dmabuf) {
+		IONMSG("%s invalid attachment\n", __func__);
 		return;
+	}
 	a = attachment->priv;
 
-	if (!dmabuf->priv)
+	if (!dmabuf || !dmabuf->priv) {
+		IONMSG("%s invalid dmabuf\n", __func__);
 		return;
+	}
 	buffer = dmabuf->priv;
 
-	if (!ion_iommu_heap_type(buffer)) {
-		IONMSG("%s not iommu device\n", __func__);
+	if (!ion_iommu_heap_type(buffer) &&
+	    buffer->heap->type != (int)ION_HEAP_TYPE_SYSTEM) {
+		IONMSG("%s not dma buf device\n", __func__);
 		return;
 	}
 
-	free_duped_table(a->table);
 	mutex_lock(&buffer->lock);
 	list_del(&a->list);
 	mutex_unlock(&buffer->lock);
+	free_duped_table(a->table);
 
     //pr_notice("%s, %d\n", __func__, __LINE__);
 	kfree(a);
@@ -1140,7 +1482,7 @@ static struct sg_table *ion_map_dma_buf(struct dma_buf_attachment *attachment,
 	struct ion_buffer *buffer;
 	ion_phys_addr_t addr = 0x0;
 	size_t len = 0;
-	int ret = 0;
+	int ret = 0, retry = 0;
 
 	if (!attachment ||
 	    !attachment->priv ||
@@ -1153,37 +1495,90 @@ static struct sg_table *ion_map_dma_buf(struct dma_buf_attachment *attachment,
 		return ERR_PTR(-ENODEV);
 	buffer = dmabuf->priv;
 
-	if (!ion_iommu_heap_type(buffer)) {
+	if (!ion_iommu_heap_type(buffer) &&
+	    buffer->heap->type != (int)ION_HEAP_TYPE_SYSTEM) {
 		pr_debug("%s not iommu device\n", __func__);
 		ion_buffer_sync_for_device(buffer,
 					   attachment->dev,
 					   direction);
 		table = buffer->sg_table;
 	} else if (buffer->heap->type ==
-		(int)ION_HEAP_TYPE_MULTIMEDIA_SEC) {
-		pr_debug("%s secure heap type\n", __func__);
+		(int)ION_HEAP_TYPE_MULTIMEDIA_SEC ||
+		buffer->heap->type == (int)ION_HEAP_TYPE_SYSTEM) {
+		pr_debug("%s heap type:%d\n", __func__,
+			 buffer->heap->type);
 		table = a->table;
 		if (clone_sg_table(buffer->sg_table, table))
 			return ERR_PTR(-EINVAL);
 	} else {
-		pr_debug("%s iommu device, go iova mapping\n",
-			 __func__);
+retry:
 		mutex_lock(&buffer->lock);
+		if (buffer->heap->ops->dma_buf_config) {
+			ret = buffer->heap->ops->dma_buf_config(
+						      buffer, attachment->dev);
+			if (ret) {
+#if defined(ION_NOT_SUPPORT_RETRY)
+				if (ret == M4U_PORT_GPU) {
+					struct ion_heap *heap = buffer->heap;
+
+					if (heap->ops->get_table) {
+						heap->ops->get_table(buffer,
+								a->table);
+					} else {
+						IONMSG(
+						       "error, heap:%u get_table not support!\n",
+						       heap->id);
+					}
+					mutex_unlock(&buffer->lock);
+
+					dma_sync_sg_for_device(attachment->dev,
+							       a->table->sgl,
+							       a->table->nents,
+							       direction);
+
+					return a->table;
+				}
+				mutex_unlock(&buffer->lock);
+#else
+				mutex_unlock(&buffer->lock);
+				if (ret == -ION_ERROR_CONFIG_CONFLICT &&
+				    retry++ < 50) {
+					IONMSG("%s, corrupt, retry%d...\n",
+					       __func__, retry);
+					usleep_range(20, 40);
+					goto retry;
+				}
+#endif
+				IONMSG("%s, failed at dmabuf process, ret:%d\n",
+				       __func__, ret);
+				return ERR_PTR(ret);
+			}
+		}
+
 		ret = buffer->heap->ops->phys(buffer->heap,
 					      buffer,
 					      &addr,
 					      &len);
-		mutex_unlock(&buffer->lock);
+
 		if (ret) {
+			mutex_unlock(&buffer->lock);
 			IONMSG("%s, failed at get phys, ret:%d\n",
 			       __func__, ret);
-			return ERR_PTR(-ENOMEM);
+			if (ret == -EDOM)
+				aee_kernel_warning_api(__FILE__, __LINE__,
+						       DB_OPT_DEFAULT |
+						       DB_OPT_NATIVE_BACKTRACE,
+						       "ion phys failed",
+						       "dump user backtrace");
+			return ERR_PTR(ret);
 		}
 		table = a->table;
-		if (clone_sg_table(buffer->sg_table, table))
+		if (clone_sg_table(buffer->sg_table, table)) {
+			mutex_unlock(&buffer->lock);
 			return ERR_PTR(-EINVAL);
+		}
+		mutex_unlock(&buffer->lock);
 	}
-    //pr_debug("%s, %d\n", __func__, __LINE__);
 
 	return table;
 }
@@ -1216,6 +1611,10 @@ void ion_pages_sync_for_device(struct device *dev, struct page *page,
 {
 	struct scatterlist sg;
 
+	if (!page) {
+		IONMSG("%s fail, page is NULL\n", __func__);
+		return;
+	}
 	sg_init_table(&sg, 1);
 	sg_set_page(&sg, page, size, 0);
 	/*
@@ -1267,7 +1666,8 @@ static void ion_buffer_sync_for_device(struct ion_buffer *buffer,
 static int ion_vm_fault(struct vm_fault *vmf)
 {
 	struct vm_area_struct *vma = vmf->vma;
-	struct ion_buffer *buffer = vma->vm_private_data;
+	struct dma_buf *dmabuf = vma->vm_private_data;
+	struct ion_buffer *buffer =  dmabuf->priv;
 	unsigned long pfn;
 	int ret;
 
@@ -1279,6 +1679,7 @@ static int ion_vm_fault(struct vm_fault *vmf)
 	mutex_lock(&buffer->lock);
 	ion_buffer_page_dirty(buffer->pages + vmf->pgoff);
 	if (!buffer->pages[vmf->pgoff]) {
+		mutex_unlock(&buffer->lock);
 		WARN_ON(1);
 		return VM_FAULT_ERROR;
 	}
@@ -1297,7 +1698,8 @@ static int ion_vm_fault(struct vm_fault *vmf)
 
 static void ion_vm_open(struct vm_area_struct *vma)
 {
-	struct ion_buffer *buffer = vma->vm_private_data;
+	struct dma_buf *dmabuf = vma->vm_private_data;
+	struct ion_buffer *buffer =  dmabuf->priv;
 	struct ion_vma_list *vma_list;
 
 	vma_list = kmalloc(sizeof(*vma_list), GFP_KERNEL);
@@ -1314,7 +1716,8 @@ static void ion_vm_open(struct vm_area_struct *vma)
 
 static void ion_vm_close(struct vm_area_struct *vma)
 {
-	struct ion_buffer *buffer = vma->vm_private_data;
+	struct dma_buf *dmabuf = vma->vm_private_data;
+	struct ion_buffer *buffer =  dmabuf->priv;
 	struct ion_vma_list *vma_list, *tmp;
 
 	pr_debug("%s\n", __func__);
@@ -1350,10 +1753,10 @@ static int ion_mmap(struct dma_buf *dmabuf, struct vm_area_struct *vma)
 		return -EINVAL;
 	}
 
+	vma->vm_private_data = dmabuf;
 	if (ion_buffer_fault_user_mappings(buffer)) {
 		vma->vm_flags |= VM_IO | VM_PFNMAP | VM_DONTEXPAND |
 							VM_DONTDUMP;
-		vma->vm_private_data = buffer;
 		vma->vm_ops = &ion_vma_ops;
 		ion_vm_open(vma);
 		return 0;
@@ -1381,18 +1784,41 @@ static void ion_dma_buf_release(struct dma_buf *dmabuf)
 	struct ion_buffer *buffer = dmabuf->priv;
 
 	ion_buffer_put(buffer);
+	mutex_lock(&dmabuf_list.lock);
+	list_del(&dmabuf->node);
+	mutex_unlock(&dmabuf_list.lock);
 }
 
 static void *ion_dma_buf_kmap(struct dma_buf *dmabuf, unsigned long offset)
 {
 	struct ion_buffer *buffer = dmabuf->priv;
+	void *vaddr;
 
-	return buffer->vaddr + offset * PAGE_SIZE;
+	if (!buffer->heap->ops->map_kernel) {
+		IONMSG("%s: map kernel is not implemented by this heap.\n",
+		       __func__);
+		return ERR_PTR(-ENOTTY);
+	}
+	mutex_lock(&buffer->lock);
+	vaddr = ion_buffer_kmap_get(buffer);
+	mutex_unlock(&buffer->lock);
+
+	if (IS_ERR(vaddr))
+		return vaddr;
+
+	return vaddr + offset * PAGE_SIZE;
 }
 
 static void ion_dma_buf_kunmap(struct dma_buf *dmabuf, unsigned long offset,
 			       void *ptr)
 {
+	struct ion_buffer *buffer = dmabuf->priv;
+
+	if (buffer->heap->ops->map_kernel) {
+		mutex_lock(&buffer->lock);
+		ion_buffer_kmap_put(buffer);
+		mutex_unlock(&buffer->lock);
+	}
 }
 
 #ifdef MTK_ION_DMABUF_SUPPORT
@@ -1400,19 +1826,11 @@ static int ion_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
 					enum dma_data_direction direction)
 {
 	struct ion_buffer *buffer = dmabuf->priv;
-	void *vaddr;
 	struct ion_dma_buf_attachment *a;
 
-	/*
-	 * TODO: Move this elsewhere because we don't always need a vaddr
-	 */
-	if (buffer->heap->ops->map_kernel) {
-		mutex_lock(&buffer->lock);
-		vaddr = ion_buffer_kmap_get(buffer);
-		mutex_unlock(&buffer->lock);
-	}
-	if (ion_iommu_heap_type(buffer)) {
-		IONMSG("%s iommu device, to cache sync\n", __func__);
+	if (ion_iommu_heap_type(buffer) ||
+	    buffer->heap->type == (int)ION_HEAP_TYPE_SYSTEM) {
+		IONDBG("%s iommu device, to cache sync\n", __func__);
 
 		mutex_lock(&buffer->lock);
 		list_for_each_entry(a, &buffer->attachments, list) {
@@ -1433,14 +1851,9 @@ static int ion_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
 	struct ion_buffer *buffer = dmabuf->priv;
 	struct ion_dma_buf_attachment *a;
 
-	if (buffer->heap->ops->map_kernel) {
-		mutex_lock(&buffer->lock);
-		ion_buffer_kmap_put(buffer);
-		mutex_unlock(&buffer->lock);
-	}
-
-	if (ion_iommu_heap_type(buffer)) {
-		IONMSG("%s iommu device, to cache sync\n", __func__);
+	if (ion_iommu_heap_type(buffer) ||
+	    buffer->heap->type == (int)ION_HEAP_TYPE_SYSTEM) {
+		IONDBG("%s iommu device, to cache sync\n", __func__);
 
 		mutex_lock(&buffer->lock);
 		list_for_each_entry(a, &buffer->attachments, list) {
@@ -1458,30 +1871,12 @@ static int ion_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
 static int ion_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
 					enum dma_data_direction direction)
 {
-	struct ion_buffer *buffer = dmabuf->priv;
-	void *vaddr;
-
-	if (!buffer->heap->ops->map_kernel) {
-		pr_err("%s: map kernel is not implemented by this heap.\n",
-		       __func__);
-		return -ENODEV;
-	}
-
-	mutex_lock(&buffer->lock);
-	vaddr = ion_buffer_kmap_get(buffer);
-	mutex_unlock(&buffer->lock);
-	return PTR_ERR_OR_ZERO(vaddr);
+	return 0;
 }
 
 static int ion_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
 				      enum dma_data_direction direction)
 {
-	struct ion_buffer *buffer = dmabuf->priv;
-
-	mutex_lock(&buffer->lock);
-	ion_buffer_kmap_put(buffer);
-	mutex_unlock(&buffer->lock);
-
 	return 0;
 }
 #endif
@@ -1503,24 +1898,28 @@ static struct dma_buf_ops dma_buf_ops = {
 	.unmap = ion_dma_buf_kunmap,
 };
 
-struct dma_buf *ion_share_dma_buf(struct ion_client *client,
-				  struct ion_handle *handle)
+static struct dma_buf *__ion_share_dma_buf(struct ion_client *client,
+					   struct ion_handle *handle,
+					   bool lock_client)
 {
 	DEFINE_DMA_BUF_EXPORT_INFO(exp_info);
 	struct ion_buffer *buffer;
 	struct dma_buf *dmabuf;
 	bool valid_handle;
 
-	mutex_lock(&client->lock);
+	if (lock_client)
+		mutex_lock(&client->lock);
 	valid_handle = ion_handle_validate(client, handle);
 	if (!valid_handle) {
 		WARN(1, "%s: invalid handle passed to share.\n", __func__);
-		mutex_unlock(&client->lock);
+		if (lock_client)
+			mutex_unlock(&client->lock);
 		return ERR_PTR(-EINVAL);
 	}
 	buffer = handle->buffer;
 	ion_buffer_get(buffer);
-	mutex_unlock(&client->lock);
+	if (lock_client)
+		mutex_unlock(&client->lock);
 
 	exp_info.ops = &dma_buf_ops;
 	exp_info.size = buffer->size;
@@ -1535,20 +1934,33 @@ struct dma_buf *ion_share_dma_buf(struct ion_client *client,
 		return dmabuf;
 	}
 
+	mutex_lock(&dmabuf_list.lock);
+	list_add(&dmabuf->node, &dmabuf_list.head);
+	mutex_unlock(&dmabuf_list.lock);
+
 	return dmabuf;
 }
+
+struct dma_buf *ion_share_dma_buf(struct ion_client *client,
+				  struct ion_handle *handle)
+{
+	return __ion_share_dma_buf(client, handle, true);
+}
+
 EXPORT_SYMBOL(ion_share_dma_buf);
 
-int ion_share_dma_buf_fd(struct ion_client *client, struct ion_handle *handle)
+static int __ion_share_dma_buf_fd(struct ion_client *client,
+				  struct ion_handle *handle, bool lock_client)
 {
 	struct dma_buf *dmabuf;
 	int fd;
 
 	mmprofile_log_ex(ion_mmp_events[PROFILE_SHARE], MMPROFILE_FLAG_START,
 			 (unsigned long)client, (unsigned long)handle);
-	dmabuf = ion_share_dma_buf(client, handle);
+	dmabuf = __ion_share_dma_buf(client, handle, lock_client);
 	if (IS_ERR(dmabuf)) {
-		IONMSG("%s dmabuf is err 0x%p.\n", __func__, dmabuf);
+		IONMSG("%s dmabuf is err 0x%lx.\n",
+		       __func__, (unsigned long)dmabuf);
 		return PTR_ERR(dmabuf);
 	}
 
@@ -1562,7 +1974,19 @@ int ion_share_dma_buf_fd(struct ion_client *client, struct ion_handle *handle)
 	handle->dbg.fd = fd;
 	return fd;
 }
+
+int ion_share_dma_buf_fd(struct ion_client *client, struct ion_handle *handle)
+{
+	return __ion_share_dma_buf_fd(client, handle, true);
+}
+
 EXPORT_SYMBOL(ion_share_dma_buf_fd);
+
+int ion_share_dma_buf_fd_nolock(struct ion_client *client,
+				struct ion_handle *handle)
+{
+	return __ion_share_dma_buf_fd(client, handle, false);
+}
 
 struct ion_handle *ion_import_dma_buf(struct ion_client *client,
 				      struct dma_buf *dmabuf)
@@ -1584,7 +2008,7 @@ struct ion_handle *ion_import_dma_buf(struct ion_client *client,
 	/* if a handle exists for this buffer just take a reference to it */
 	handle = ion_handle_lookup(client, buffer);
 	if (!IS_ERR(handle)) {
-		ion_handle_get(handle);
+		handle = ion_handle_get_check_overflow(handle);
 		mutex_unlock(&client->lock);
 		goto end;
 	}
@@ -1592,11 +2016,13 @@ struct ion_handle *ion_import_dma_buf(struct ion_client *client,
 	handle = ion_handle_create(client, buffer);
 	if (IS_ERR(handle)) {
 		mutex_unlock(&client->lock);
-		IONMSG("%s handle is error 0x%p.\n", __func__, handle);
+		IONMSG("%s handle is error 0x%lx.\n",
+		       __func__, (unsigned long)handle);
 		goto end;
 	}
 
 	ret = ion_handle_add(client, handle);
+	ion_client_buf_add(buffer->heap, client, buffer->size);
 	mutex_unlock(&client->lock);
 	if (ret) {
 		ion_handle_put(handle);
@@ -1619,8 +2045,8 @@ struct ion_handle *ion_import_dma_buf_fd(struct ion_client *client, int fd)
 
 	dmabuf = dma_buf_get(fd);
 	if (IS_ERR(dmabuf)) {
-		IONMSG("%s dma_buf_get fail fd=%d ret=0x%p\n",
-		       __func__, fd, dmabuf);
+		IONMSG("%s dma_buf_get fail fd=%d ret=0x%lx\n",
+		       __func__, fd, (unsigned long)dmabuf);
 		return ERR_CAST(dmabuf);
 	}
 
@@ -1630,9 +2056,11 @@ struct ion_handle *ion_import_dma_buf_fd(struct ion_client *client, int fd)
 	mmprofile_log_ex(ion_mmp_events[PROFILE_IMPORT], MMPROFILE_FLAG_END,
 			 (unsigned long)client,
 			 (unsigned long)handle);
-	handle->dbg.fd = fd;
-	handle->dbg.user_ts = sched_clock();
-	do_div(handle->dbg.user_ts, 1000000);
+	if (!IS_ERR(handle)) {
+		handle->dbg.fd = fd;
+		handle->dbg.user_ts = sched_clock();
+		do_div(handle->dbg.user_ts, 1000000);
+	}
 	return handle;
 }
 EXPORT_SYMBOL(ion_import_dma_buf_fd);
@@ -1644,8 +2072,8 @@ int ion_sync_for_device(struct ion_client *client, int fd)
 
 	dmabuf = dma_buf_get(fd);
 	if (IS_ERR(dmabuf)) {
-		IONMSG("%s dma_buf_get failed dmabuf is err %d, 0x%p.\n",
-		       __func__, fd, dmabuf);
+		IONMSG("%s dma_buf_get failed dmabuf is err %d, 0x%lx.\n",
+		       __func__, fd, (unsigned long)dmabuf);
 		return PTR_ERR(dmabuf);
 	}
 
@@ -1660,28 +2088,31 @@ int ion_sync_for_device(struct ion_client *client, int fd)
 
 #ifdef CONFIG_MTK_ION
 #ifdef CONFIG_MTK_IOMMU_V2
-	if (ion_iommu_heap_type(buffer))
+	if (ion_iommu_heap_type(buffer) &&
+	    buffer->heap->type != (int)ION_HEAP_TYPE_MULTIMEDIA_SEC)
 		dma_sync_sg_for_device(g_iommu_device,
 				       buffer->sg_table->sgl,
 				       buffer->sg_table->nents,
 				       DMA_BIDIRECTIONAL);
-	else if (buffer->heap->type != (int)ION_HEAP_TYPE_FB)
+	else if (buffer->heap->type != (int)ION_HEAP_TYPE_FB  &&
+		 buffer->heap->type != (int)ION_HEAP_TYPE_MULTIMEDIA_SEC)
 		dma_sync_sg_for_device(g_ion_device->dev.this_device,
 				       buffer->sg_table->sgl,
 				       buffer->sg_table->nents,
 				       DMA_BIDIRECTIONAL);
 	else
-		IONMSG("%s: can not support heap type(%d) to sync\n",
-		       __func__, buffer->heap->type);
+		IONMSG("%s: can not support heap type(%d) id (%d) to sync\n",
+		       __func__, buffer->heap->type, buffer->heap->id);
 #else
-	if (buffer->heap->type != (int)ION_HEAP_TYPE_FB)
+	if (buffer->heap->type != (int)ION_HEAP_TYPE_FB &&
+	    buffer->heap->type != (int)ION_HEAP_TYPE_MULTIMEDIA_SEC)
 		dma_sync_sg_for_device(g_ion_device->dev.this_device,
 				       buffer->sg_table->sgl,
 				       buffer->sg_table->nents,
 				       DMA_BIDIRECTIONAL);
 	else
-		pr_err("%s: can not support heap type(%d) to sync\n",
-		       __func__, buffer->heap->type);
+		IONMSG("%s: can not support heap type(%d) id (%d) to sync\n",
+		       __func__, buffer->heap->type, buffer->heap->id);
 #endif
 #endif
 
@@ -1755,7 +2186,8 @@ static int ion_open(struct inode *inode, struct file *file)
 	start = sched_clock();
 	client = ion_client_create(dev, debug_name);
 	if (IS_ERR(client)) {
-		IONMSG("%s ion client create failed 0x%p.\n", __func__, client);
+		IONMSG("%s ion client create failed 0x%lx.\n",
+		       __func__, (unsigned long)client);
 		return PTR_ERR(client);
 	}
 	file->private_data = client;
@@ -1776,24 +2208,30 @@ static const struct file_operations ion_fops = {
 	.compat_ioctl   = compat_ion_ioctl,
 };
 
+#if IS_ENABLED(CONFIG_DEBUG_FS) || IS_ENABLED(CONFIG_PROC_FS)
 static size_t ion_debug_heap_total(struct ion_client *client,
-				   unsigned int id)
+					unsigned int id)
 {
 	size_t size = 0;
 	struct rb_node *n;
 	unsigned int heapid;
+	enum ion_heap_type type;
 
 	mutex_lock(&client->lock);
 	for (n = rb_first(&client->handles); n; n = rb_next(n)) {
-		struct ion_handle *handle = rb_entry(n,
-						     struct ion_handle,
-						     node);
+		struct ion_handle *handle =
+			rb_entry(n, struct ion_handle, node);
 		heapid = handle->buffer->heap->id;
+		type = handle->buffer->heap->type;
 		if (heapid == id ||
+			/* for exception dump ion_mm_heap info */
 		    (id == ION_HEAP_TYPE_MULTIMEDIA &&
-		     (heapid == ION_HEAP_TYPE_MULTIMEDIA_FOR_CAMERA ||
-		      heapid == ION_HEAP_TYPE_MULTIMEDIA_MAP_MVA)))
+		     (type == ION_HEAP_TYPE_SYSTEM ||
+		      type == ION_HEAP_TYPE_MULTIMEDIA ||
+		      type == ION_HEAP_TYPE_MULTIMEDIA_SEC))) {
+			client->dbg_hnd_cnt++;
 			size += handle->buffer->size;
+		}
 	}
 	mutex_unlock(&client->lock);
 	return size;
@@ -1805,19 +2243,17 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 	struct ion_device *dev = heap->dev;
 	struct rb_node *n;
 	struct ion_heap *cam_heap = NULL;
-	struct ion_heap *map_mva_heap = NULL;
 	size_t total_size = 0;
 	size_t camera_total_size = 0;
-	size_t va2mva_total_size = 0;
 	size_t total_orphaned_size = 0;
 	unsigned long long current_ts = 0;
 	unsigned int cam_id = ION_HEAP_TYPE_MULTIMEDIA_FOR_CAMERA;
-	unsigned int map_mva_id = ION_HEAP_TYPE_MULTIMEDIA_MAP_MVA;
 
 	seq_printf(s, "total sz[%llu]\n",
 		   (unsigned long long)(4096 * atomic64_read(&page_sz_cnt)));
-	seq_printf(s, "%16.s(%16.s) %16.s %16.s %s\n",
-		   "client", "dbg_name", "pid", "size", "address");
+	seq_printf(s, "%16.s(%16.s) %16.s %16.s %16.s %16.s\n",
+		   "client", "dbg_name", "pid",
+		   "size(cnt)--size(cnt)", "address", "threshold");
 	seq_puts(s, "----------------------------------------------------\n");
 
 	down_read(&dev->lock);
@@ -1830,6 +2266,7 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 		struct ion_client *client = rb_entry(n, struct ion_client,
 						     node);
 		size_t size = ion_debug_heap_total(client, heap->id);
+		u64 total = ion_client_buf_dump(heap, client);
 
 		if (!size)
 			continue;
@@ -1837,17 +2274,22 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 			char task_comm[TASK_COMM_LEN];
 
 			get_task_comm(task_comm, client->task);
-			seq_printf(s, "%16.s(%16.s) %16u %16zu 0x%p\n",
+			seq_printf(s, "%16.s(%16.s) %16u %16zu(%d)--%llu(%d) 0x%p %llu\n",
 				   task_comm,
 				   (*client->dbg_name) ?
 				   client->dbg_name :
 				   client->name,
-				   client->pid, size, client);
+				   client->pid, size, client->dbg_hnd_cnt,
+				   total, client->hnd_cnt, client,
+				   client->threshold_size);
 		} else {
-			seq_printf(s, "%16.s(%16.s) %16u %16zu 0x%p\n",
+			seq_printf(s, "%16.s(%16.s) %16u %16zu(%d)--%llu(%d) 0x%p %llu\n",
 				   client->name, "from_kernel",
-				   client->pid, size, client);
+				   client->pid, size, client->dbg_hnd_cnt,
+				   total, client->hnd_cnt, client,
+				   client->threshold_size);
 		}
+		client->dbg_hnd_cnt = 0;
 	}
 	up_read(&dev->lock);
 
@@ -1868,18 +2310,14 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 			    buffer->heap->id == cam_id) {
 				cam_heap = buffer->heap;
 				camera_total_size += buffer->size;
-			}
-			else if (heap->id == ION_HEAP_TYPE_MULTIMEDIA &&
-				 buffer->heap->id == map_mva_id) {
-				map_mva_heap = buffer->heap;
-				va2mva_total_size += buffer->size;
-			}
-			else
+			} else {
 				continue;
+			}
 		}
 		total_size += buffer->size;
 		if (!buffer->handle_count) {
-			seq_printf(s, "%16.s %16u %16zu %d %d\n",
+			seq_printf(s, "0x%p %16.s %16u %16zu %d %d\n",
+				   buffer,
 				   buffer->task_comm, buffer->pid,
 				   buffer->size, buffer->kmap_cnt,
 				   atomic_read(
@@ -1893,8 +2331,8 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 		   total_orphaned_size);
 	seq_printf(s, "%16.s %16zu\n", "total ", total_size);
 	if (heap->id == ION_HEAP_TYPE_MULTIMEDIA)
-		seq_printf(s, "%16.s %16zu %16zu\n", "cam-va2mva total",
-			   camera_total_size, va2mva_total_size);
+		seq_printf(s, "%16.s %16zu\n", "cam total",
+			   camera_total_size);
 	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
 		seq_printf(s, "%16.s %u %16zu\n", "defer free heap_id",
 			   heap->id, heap->free_list_size);
@@ -1904,13 +2342,6 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 				   "cam heap deferred free heap_id",
 				   cam_heap->id, cam_heap->free_list_size);
 	}
-	if (map_mva_heap) {
-		if (map_mva_heap->flags & ION_HEAP_FLAG_DEFER_FREE)
-			seq_printf(s, "%16.s %u %16zu\n",
-				   "map_mva_heap deferred free heap_id",
-				   map_mva_heap->id,
-				   map_mva_heap->free_list_size);
-	}
 	seq_puts(s, "----------------------------------------------------\n");
 
 	if (heap->debug_show)
@@ -1918,18 +2349,6 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 
 	return 0;
 }
-
-static int ion_debug_heap_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, ion_debug_heap_show, inode->i_private);
-}
-
-static const struct file_operations debug_heap_fops = {
-	.open = ion_debug_heap_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = single_release,
-};
 
 static int debug_shrink_set(void *data, u64 val)
 {
@@ -1963,12 +2382,65 @@ static int debug_shrink_get(void *data, u64 *val)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+static int ion_debug_heap_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, ion_debug_heap_show, inode->i_private);
+}
+
+static const struct file_operations debug_heap_fops = {
+	.open = ion_debug_heap_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
 DEFINE_SIMPLE_ATTRIBUTE(debug_shrink_fops, debug_shrink_get,
 			debug_shrink_set, "%llu\n");
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+static int ion_proc_heap_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, ion_debug_heap_show, PDE_DATA(inode));
+}
+
+static const struct file_operations proc_heap_fops = {
+	.open = ion_proc_heap_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+static int proc_shrink_fops_open(struct inode *inode, struct file *file)
+{
+	struct inode local_inode = *inode;
+
+	local_inode.i_private = PDE_DATA(inode);
+
+	return simple_attr_open(&local_inode, file, debug_shrink_get,
+				debug_shrink_set, "%llu\n");
+}
+
+static const struct file_operations proc_shrink_fops = {
+	.owner	 = THIS_MODULE,
+	.open	 = proc_shrink_fops_open,
+	.release = simple_attr_release,
+	.read	 = simple_attr_read,
+	.write	 = simple_attr_write,
+	.llseek	 = generic_file_llseek,
+};
+#endif
+#endif
 
 void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 {
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	struct dentry *debug_file;
+#endif
+#if IS_ENABLED(CONFIG_PROC_FS)
+	struct proc_dir_entry *proc_file;
+#endif
 
 	if (!heap->ops->allocate || !heap->ops->free)
 		pr_err("%s: can not add heap with invalid ops struct.\n",
@@ -1991,6 +2463,8 @@ void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 	 */
 	plist_node_init(&heap->node, -heap->id);
 	plist_add(&heap->node, &dev->heaps);
+
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	debug_file = debugfs_create_file(heap->name, 0664,
 					 dev->heaps_debug_root, heap,
 					 &debug_heap_fops);
@@ -2018,11 +2492,93 @@ void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 			       path, debug_name);
 		}
 	}
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+	proc_file = proc_create_data(heap->name,
+				     S_IFREG | 0644,
+				     dev->heaps_proc_root,
+				     &proc_heap_fops,
+				     heap);
+
+	if (!proc_file)
+		IONMSG("Failed to create heap procfs at /proc/ion/heaps/%s\n",
+		       heap->name);
+
+	if (heap->shrinker.count_objects && heap->shrinker.scan_objects) {
+		char debug_name[64];
+		int name_length = 0;
+
+		name_length = snprintf(debug_name, 64, "%s_shrink", heap->name);
+		if (name_length <= 0)
+			IONMSG("%s set debug name error, heap %s\n",
+			       __func__, heap->name);
+		proc_file = proc_create_data(debug_name,
+					     S_IFREG | 0644,
+					     dev->heaps_proc_root,
+					     &proc_shrink_fops,
+					     heap);
+		if (!proc_file)
+			IONMSG(
+			       "Failed to create heap shrinker procfs at /proc/ion/heaps/%s\n",
+			       debug_name);
+	}
+#endif
 
 	dev->heap_cnt++;
 	up_write(&dev->lock);
 }
 EXPORT_SYMBOL(ion_device_add_heap);
+
+static ssize_t
+total_heaps_kb_show(struct kobject *kobj, struct kobj_attribute *attr,
+		    char *buf)
+{
+	u64 size_in_bytes = atomic_long_read(&total_heap_bytes);
+
+	return sprintf(buf, "%llu\n", div_u64(size_in_bytes, 1024));
+}
+
+static ssize_t
+total_pools_kb_show(struct kobject *kobj, struct kobj_attribute *attr,
+		    char *buf)
+{
+	u64 size_in_bytes = ion_page_pool_nr_pages() * PAGE_SIZE;
+
+	return sprintf(buf, "%llu\n", div_u64(size_in_bytes, 1024));
+}
+
+static struct kobj_attribute total_heaps_kb_attr =
+	__ATTR_RO(total_heaps_kb);
+
+static struct kobj_attribute total_pools_kb_attr =
+	__ATTR_RO(total_pools_kb);
+
+static struct attribute *ion_device_attrs[] = {
+	&total_heaps_kb_attr.attr,
+	&total_pools_kb_attr.attr,
+	NULL,
+};
+
+ATTRIBUTE_GROUPS(ion_device);
+
+static int ion_init_sysfs(void)
+{
+	struct kobject *ion_kobj;
+	int ret;
+
+	ion_kobj = kobject_create_and_add("ion", kernel_kobj);
+	if (!ion_kobj)
+		return -ENOMEM;
+
+	ret = sysfs_create_groups(ion_kobj, ion_device_groups);
+	if (ret) {
+		kobject_put(ion_kobj);
+		return ret;
+	}
+
+	return 0;
+}
 
 struct ion_device *ion_device_create(long (*custom_ioctl)
 				     (struct ion_client *client,
@@ -2043,10 +2599,16 @@ struct ion_device *ion_device_create(long (*custom_ioctl)
 	ret = misc_register(&idev->dev);
 	if (ret) {
 		pr_err("ion: failed to register misc device.\n");
-		kfree(idev);
-		return ERR_PTR(ret);
+		goto err_reg;
 	}
 
+	ret = ion_init_sysfs();
+	if (ret) {
+		pr_err("ion: failed to add sysfs attributes.\n");
+		goto err_sysfs;
+	}
+
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	idev->debug_root = debugfs_create_dir("ion", NULL);
 	if (!idev->debug_root) {
 		pr_err("ion: failed to create debugfs root directory.\n");
@@ -2063,7 +2625,25 @@ struct ion_device *ion_device_create(long (*custom_ioctl)
 		pr_err("ion: failed to create debugfs clients directory.\n");
 
 debugfs_done:
+#endif
 
+#if IS_ENABLED(CONFIG_PROC_FS)
+	idev->proc_root = proc_mkdir("ion", NULL);
+	if (!idev->proc_root) {
+		IONMSG("ion: failed to create procfs root directory.\n");
+		goto procfs_done;
+	}
+	idev->heaps_proc_root = proc_mkdir("heaps", idev->proc_root);
+	if (!idev->heaps_proc_root) {
+		IONMSG("ion: failed to create procfs heaps directory.\n");
+		goto procfs_done;
+	}
+	idev->clients_proc_root = proc_mkdir("clients", idev->proc_root);
+	if (!idev->clients_proc_root)
+		IONMSG("ion: failed to create procfs clients directory.\n");
+
+procfs_done:
+#endif
 	idev->custom_ioctl = custom_ioctl;
 	idev->buffers = RB_ROOT;
 	mutex_init(&idev->buffer_lock);
@@ -2071,13 +2651,24 @@ debugfs_done:
 	plist_head_init(&idev->heaps);
 	idev->clients = RB_ROOT;
 	return idev;
+
+err_sysfs:
+	misc_deregister(&idev->dev);
+err_reg:
+	kfree(idev);
+	return ERR_PTR(ret);
 }
 EXPORT_SYMBOL(ion_device_create);
 
 void ion_device_destroy(struct ion_device *dev)
 {
 	misc_deregister(&dev->dev);
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	debugfs_remove_recursive(dev->debug_root);
+#endif
+#if IS_ENABLED(CONFIG_PROC_FS)
+	proc_remove(dev->proc_root);
+#endif
 	/* XXX need to free the heaps and clients ? */
 	kfree(dev);
 }
@@ -2112,6 +2703,12 @@ int ion_phys(struct ion_client *client, struct ion_handle *handle,
 	mutex_lock(&buffer->lock);
 	ret = buffer->heap->ops->phys(buffer->heap, buffer, addr, len);
 	mutex_unlock(&buffer->lock);
+	if (ret == -EDOM)
+		aee_kernel_warning_api(__FILE__, __LINE__,
+				       DB_OPT_DEFAULT |
+				       DB_OPT_NATIVE_BACKTRACE,
+				       "ion phys failed",
+				       "dump user backtrace");
 	/*avoid camelcase, will modify in a letter*/
 	mmprofile_log_ex(ion_mmp_events[PROFILE_GET_PHYS], MMPROFILE_FLAG_END,
 			 buffer->size, (unsigned long)*addr);
@@ -2138,30 +2735,33 @@ struct ion_handle *ion_drv_get_handle(struct ion_client *client,
 		handle = kernel_handle;
 
 		if (IS_ERR_OR_NULL(handle)) {
-			IONMSG("%s handle invalid, handle = 0x%p.\n",
+			IONMSG("%s handle invalid, handle = 0x%lx.\n",
 			       __func__,
-			       handle);
+			       (unsigned long)handle);
 			return ERR_PTR(-EINVAL);
 		}
 
 		mutex_lock(&client->lock);
 		if (!ion_handle_validate(client, handle)) {
-			IONMSG("%s handle invalid, handle=0x%p\n",
+			IONMSG("%s handle invalid, handle=0x%lx\n",
 			       __func__,
-			       handle);
+			       (unsigned long)handle);
 			mutex_unlock(&client->lock);
 			return ERR_PTR(-EINVAL);
 		}
 		ion_handle_get(handle);
 		mutex_unlock(&client->lock);
 	} else {
-		handle = ion_handle_get_by_id(client, user_handle);
+		mutex_lock(&client->lock);
+		handle = ion_handle_get_by_id_nolock(client, user_handle);
 		if (IS_ERR_OR_NULL(handle)) {
 			IONMSG("%s handle invalid, handle_id=%d\n",
 			       __func__,
 			       user_handle);
+			mutex_unlock(&client->lock);
 			return ERR_PTR(-EINVAL);
 		}
+		mutex_unlock(&client->lock);
 	}
 	return handle;
 }
@@ -2201,29 +2801,21 @@ struct ion_buffer *ion_drv_file_to_buffer(struct file *file)
 {
 	struct dma_buf *dmabuf;
 	struct ion_buffer *buffer = NULL;
-	const char *pathname = NULL;
 
-	if (!file)
-		goto file2buf_exit;
-	if (!(file->f_path.dentry))
-		goto file2buf_exit;
+	if (!file || !is_dma_buf_file(file))
+		return ERR_PTR(-EINVAL);
 
-	pathname = file->f_path.dentry->d_name.name;
-	if (!pathname)
-		goto file2buf_exit;
-
-	if (strstr(pathname, "dmabuf")) {
-		dmabuf = file->private_data;
-		if (dmabuf->ops == &dma_buf_ops)
-			buffer = dmabuf->priv;
+	dmabuf = file->private_data;
+	if (!dmabuf) {
+		IONMSG("%s warnning, dmabuf is NULL\n", __func__);
+		return ERR_PTR(-EINVAL);
+	}
+	if (dmabuf->ops == &dma_buf_ops) {
+		buffer = dmabuf->priv;
+		return buffer;
 	}
 
-file2buf_exit:
-
-	if (buffer)
-		return buffer;
-	else
-		return ERR_PTR(-EINVAL);
+	return ERR_PTR(-EINVAL);
 }
 
 /* ===================================== */

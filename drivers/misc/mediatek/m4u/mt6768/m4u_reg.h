@@ -361,10 +361,8 @@
 #define F_SMI_NON_SEC_MMU_EN(en)	F_BIT_VAL(en, 0)
 #define F_SMI_MMU_EN          F_BIT_SET(0)
 
-#define SMI_LARB_SEC_CONx(larb_port)	(0xf80 + ((larb_port)<<2))
-#define F_SMI_SEC_MMU_EN(en)	F_BIT_VAL(en, 0)
-#define F_SMI_SEC_EN(sec)	F_BIT_VAL(sec, 1)
 #define F_SMI_DOMN(domain)	F_VAL(domain, 8, 4)
+#define F_SMI_BIT32	F_MSK(15, 8)
 
 #define SMI_COMMON_LARB_BUS_SEL     (0x220)
 #define F_SMI_LARB_BUS(larb, bus)    F_VAL(bus, (larb * 2 + 1), (larb * 2))

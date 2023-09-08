@@ -88,10 +88,7 @@ unsigned int word_size_align(unsigned int in_size)
 {
 	unsigned int align_size;
 
-	/* sram is device memory,need word size align,
-	 * 8 byte for 64 bit platform
-	 * [3:0] = 4'h0 for the convenience of the hardware implementation
-	 */
+	/* MTK memif access need 16 bytes alignment */
 	align_size = in_size & 0xFFFFFFF0;
 	return align_size;
 }
@@ -149,10 +146,67 @@ int mtk_afe_pcm_ack(struct snd_pcm_substream *substream)
 	return 0;
 }
 
+/* calculate the target DMA-buffer position to be written/read */
+static void *get_dma_ptr(struct snd_pcm_runtime *runtime,
+			   int channel, unsigned long hwoff)
+{
+	return runtime->dma_area + hwoff +
+		channel * (runtime->dma_bytes / runtime->channels);
+}
+
+/* default copy_user ops for write; used for both interleaved and non- modes */
+static int default_write_copy(struct snd_pcm_substream *substream,
+			      int channel, unsigned long hwoff,
+			      void *buf, unsigned long bytes)
+{
+	if (copy_from_user(get_dma_ptr(substream->runtime, channel, hwoff),
+			   (void __user *)buf, bytes))
+		return -EFAULT;
+	return 0;
+}
+
+/* default copy_user ops for read; used for both interleaved and non- modes */
+static int default_read_copy(struct snd_pcm_substream *substream,
+			     int channel, unsigned long hwoff,
+			     void *buf, unsigned long bytes)
+{
+	if (copy_to_user((void __user *)buf,
+			 get_dma_ptr(substream->runtime, channel, hwoff),
+			 bytes))
+		return -EFAULT;
+	return 0;
+}
+
+static int mtk_afe_pcm_copy_user(struct snd_pcm_substream *substream,
+				 int channel, unsigned long hwoff,
+				 void *buf, unsigned long bytes)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct mtk_base_afe *afe = snd_soc_platform_get_drvdata(rtd->platform);
+	int is_playback = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
+	mtk_sp_copy_f sp_copy;
+	int ret;
+
+	sp_copy = is_playback ? default_write_copy : default_read_copy;
+
+	if (afe->copy) {
+		ret = afe->copy(substream, channel, hwoff,
+				(void __user *)buf, bytes, sp_copy);
+		if (ret)
+			return -EFAULT;
+	} else {
+		sp_copy(substream, channel, hwoff,
+			(void __user *)buf, bytes);
+	}
+
+	return 0;
+}
+
 const struct snd_pcm_ops mtk_afe_pcm_ops = {
 	.ioctl = snd_pcm_lib_ioctl,
 	.pointer = mtk_afe_pcm_pointer,
 	.ack = mtk_afe_pcm_ack,
+	.copy_user = mtk_afe_pcm_copy_user,
 };
 
 int mtk_afe_pcm_new(struct snd_soc_pcm_runtime *rtd)

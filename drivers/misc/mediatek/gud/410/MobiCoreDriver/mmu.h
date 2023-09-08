@@ -30,6 +30,16 @@
  */
 #define PMD_ENTRIES_MAX	512
 
+/*
+ * This extern the mm gfp_allowed_mask to implement restrict/restore gfp API
+ * whict can restrict share buffer to not be allocted memory from CMA.
+ * Because share buffer need to do pin page, this behavior will effect CMA.
+ */
+extern gfp_t gfp_allowed_mask;
+#ifdef CONFIG_PM_SLEEP
+extern struct mutex pm_mutex;
+#endif
+
 struct tee_mmu;
 struct mcp_buffer_map;
 

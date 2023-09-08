@@ -22,6 +22,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/string.h>
 #include <linux/kernel.h>
+#include <linux/of_gpio.h>
 
 #ifdef BUILD_LK
 #include <platform/upmu_common.h>
@@ -74,8 +75,7 @@ static struct LCM_UTIL_FUNCS lcm_util;
 #endif
 
 #define FRAME_WIDTH			(1080)
-#define FRAME_HEIGHT			(2340)      // 2220
-//#define FRAME_HEIGHT        (2220)
+#define FRAME_HEIGHT			(2400)
 
 #define LCD_EN_1P8 (GPIO25 | 0x80000000)
 #define LCD_EN_3P0 (GPIO153 | 0x80000000)
@@ -120,50 +120,39 @@ __maybe_unused display_off_setting_cmd[] = {
 
 static struct LCM_setting_table init_setting_cmd[] = {
 	/* 8.1.2 PAGE ADDRESS SET : SEQ_PAGE_ADDR_SETTING */
-	{0x2B, 0x04, {0x00, 0x00, 0x09, 0x23} },
+
+	{0x2A, 0x04, {0x00, 0x00, 0x04, 0x37} },
+	{0x2B, 0x04, {0x00, 0x00, 0x09, 0x5f} },
+
 	/* Testkey Enable */
 	{0xF0, 0x02, {0x5A, 0x5A} },
 	{0xFC, 0x02, {0x5A, 0x5A} },
 
-	/* 8.1.3 FFC SET : SEQ_FFC_SET */
-	{0xE9, 0x0B, {0x11, 0x55, 0x98, 0x96, 0x80, 0xB2, 0x41, 0xC3, 0x00, 0x1A,
-				0xB8} },
-
-	/* 8.1.4 ERR FG SET : SEQ_ERR_FG_SET */
-	{0xE1, 0x0D, {0x00, 0x00, 0x02, 0x10, 0x10, 0x10, 0x00, 0x00, 0x20, 0x00,
-				0x00, 0x01, 0x19 } },
 	/* SEQ_VSYNC_SET */
 	{0xE0, 0x01, {0x01} },
-	/* SEQ_ASWIRE_OFF */
-	{0xD5, 0x0B, {0x83, 0xFF, 0x5C, 0x44, 0x89, 0x89, 0x00, 0x00, 0x00, 0x00,
-				0x00} },
+
 	/* SEQ_ACL_SETTING_1 */
+	{0xB0, 0x01, {0xCC} },
+	{0xB9, 0x03, {0x55, 0x27, 0x65} },
 	{0xB0, 0x01, {0xD7} },
-	/* SEQ_ACL_SETTING_2 */
-	{0xB9, 0x04, {0x02, 0xA1, 0x8C, 0x4B} },
+	{0xB9, 0x07, {0x02, 0x61, 0x24, 0x49, 0x41, 0xFF, 0x00} },
+
+	//HFP
+	{0xB0, 0x01, {0x22} },
+	{0xD1, 0x01, {0x11} },
 
 	/* 10. Brightness Setting : SEQ_HBM_OFF*/
 	{0x53, 0x01, {0x20} },
 	/* SEQ_ELVSS_SET */
-	{0xB7, 0x07, {0x01, 0x53, 0x28, 0x4D, 0x00, 0x90, 0x04} },
+	{0xB7, 0x06, {0x01, 0x53, 0x28, 0x4D, 0x00, 0x96} },
+
 	/* SEQ_BRIGHTNESS */
 	{0x51, 0x02, {0x01, 0xBD} },
+
 	/* SEQ_ACL_OFF */
 	{0x55, 0x01, {0x00} },
 
-	/* Testkey Disable */
-	/* SEQ_TEST_KEY_OFF_F0 */
-	{0xF0, 0x02, {0xA5, 0xA5} },
-	/* SEQ_TEST_KEY_OFF_FC */
-	{0xFC, 0x02, {0xA5, 0xA5} },
-
-	/* 8.1.1 TE(Vsync) ON/OFF */
-	/* SEQ_TEST_KEY_ON_F0 */
-	{0xF0, 0x02, {0x5A, 0x5A} },
-	/* SEQ_TE_ON */
 	{0x35, 0x02, {0x00, 0x00} },
-	/* SEQ_TEST_KEY_OFF_F0 */
-	{0xF0, 0x02, {0xA5, 0xA5} },
 
 	{REGFLAG_DELAY, 110, {} },
 };
@@ -179,24 +168,8 @@ __maybe_unused sleep_out_setting_cmd[] = {
 	{0x11, 0x01, {0x00} },
 	{REGFLAG_DELAY, 120, {} },
 };
-
-static struct LCM_setting_table bl_level[] = {
-	{0x51, 1, {0xFF} },
-	{REGFLAG_END_OF_TABLE, 0x00, {} }
-};
-
-#if 0
-static void lcm_set_gpio_output(unsigned int GPIO, unsigned int output,
-			unsigned int pullen, unsigned int pull, unsigned int smt)
-{
-	mt_set_gpio_mode(GPIO, GPIO_MODE_00);
-	mt_set_gpio_dir(GPIO, GPIO_DIR_OUT);
-	mt_set_gpio_pull_enable(GPIO, pullen);
-	mt_set_gpio_pull_select(GPIO, pull);
-	mt_set_gpio_out(GPIO, (output > 0) ? GPIO_OUT_ONE : GPIO_OUT_ZERO);
-	mt_set_gpio_smt(GPIO, smt);
-}
-#endif /* 0 */
+static int lcm_power_gpios[3] = {0, };
+static bool lcd_power_parsing = false;
 
 static void push_table(struct LCM_setting_table *table,
 		       unsigned int count, unsigned char force_update)
@@ -279,7 +252,7 @@ static void lcm_get_params(struct LCM_PARAMS *params)
 	/* params->dsi.ssc_disable = 1; */
 #ifndef CONFIG_FPGA_EARLY_PORTING
 	/* this value must be in MTK suggested table */
-	params->dsi.PLL_CLOCK = 497;    //497;    //472
+	params->dsi.PLL_CLOCK = 600;    //497;    //472
 	params->dsi.PLL_CK_VDO = 440;
 #else
 	params->dsi.pll_div1 = 0;
@@ -301,14 +274,88 @@ static void lcm_get_params(struct LCM_PARAMS *params)
 static void lcm_init_power(void)
 {
 }
+static void lcm_power_dt_parse(void)
+{
+	struct device_node *lcm_gpios = NULL;
+	enum of_gpio_flags flags = {0, };
+
+	if (lcd_power_parsing)
+		return;
+
+	lcm_gpios = of_find_node_by_name(NULL, "lcm_gpios");
+
+	if (lcm_gpios)
+		pr_info("%s property is in %s\n", "lcm_gpios", of_node_full_name(lcm_gpios));
+	else
+		pr_info("%s of_find_node_with_property fail\n", "lcm_gpios");
+
+	lcm_power_gpios[0] = of_get_named_gpio_flags(lcm_gpios, "gpio_1p8", 0, &flags);
+	lcm_power_gpios[1] = of_get_named_gpio_flags(lcm_gpios, "gpio_3p0", 0, &flags);
+	lcm_power_gpios[2] = of_get_named_gpio_flags(lcm_gpios, "gpio_reset", 0, &flags);
+
+	lcd_power_parsing = true;
+
+	pr_info("%s %d %d %d\n", __func__, lcm_power_gpios[0], lcm_power_gpios[1], lcm_power_gpios[2]);
+}
 
 static void lcm_suspend_power(void)
 {
+	int ret = 0;
+
+	pr_info("%s ++\n", __func__);
+
+	lcm_power_dt_parse();
+
+	ret = gpio_request_one(lcm_power_gpios[2], GPIOF_OUT_INIT_LOW, NULL);
+	if (ret < 0)
+		pr_info("%s gpio_request_one fail\n",  __func__);
+	gpio_free(lcm_power_gpios[2]);
+
+	MDELAY(10);
+
+	ret = gpio_request_one(lcm_power_gpios[1], GPIOF_OUT_INIT_LOW, NULL);
+	if (ret < 0)
+		pr_info("%s gpio_request_one fail\n",  __func__);
+	gpio_free(lcm_power_gpios[1]);
+
+	ret = gpio_request_one(lcm_power_gpios[0], GPIOF_OUT_INIT_LOW, NULL);
+	if (ret < 0)
+		pr_info("%s gpio_request_one fail\n",  __func__);
+	gpio_free(lcm_power_gpios[0]);
+
+	pr_info("%s --\n", __func__);
 }
 
 /* turn on gate ic & control voltage to 5.5V */
 static void lcm_resume_power(void)
 {
+	int ret = 0;
+
+	pr_info("%s ++\n", __func__);
+
+	lcm_power_dt_parse();
+
+	ret = gpio_request_one(lcm_power_gpios[0], GPIOF_OUT_INIT_HIGH, NULL);
+	if (ret < 0)
+		pr_info("%s gpio_request_one fail\n",  __func__);
+	gpio_free(lcm_power_gpios[0]);
+
+
+	ret = gpio_request_one(lcm_power_gpios[1], GPIOF_OUT_INIT_HIGH, NULL);
+	if (ret < 0)
+		pr_info("%s gpio_request_one fail\n",  __func__);
+	gpio_free(lcm_power_gpios[1]);
+
+	MDELAY(10);
+
+	ret = gpio_request_one(lcm_power_gpios[2], GPIOF_OUT_INIT_HIGH, NULL);
+	if (ret < 0)
+		pr_info("%s gpio_request_one fail\n",  __func__);
+	gpio_free(lcm_power_gpios[2]);
+
+	MDELAY(10);
+
+	pr_info("%s --\n", __func__);
 }
 
 //#define LCM_ID_READ
@@ -340,25 +387,6 @@ int ea8076_read_id(void)
 }
 #endif /* LCM_ID_READ */
 
-#if 0
-static void lcm_power_on(void)
-{
-    // OLED_RST_N (GPIO160)
-	lcm_set_gpio_output(OLED_RST_N, GPIO_OUT_ONE, GPIO_PULL_ENABLE, GPIO_PULL_DOWN, GPIO_SMT_DISABLE);
-
-    // LCD_EN_1P8 (GPIO25) -> VDD_LCD_1P8    
-	lcm_set_gpio_output(LCD_EN_1P8, GPIO_OUT_ONE, GPIO_PULL_ENABLE, GPIO_PULL_DOWN, GPIO_SMT_DISABLE);
-    // LCD_EN_3P0 (GPIO153) -> VDD_LCD_3P0
-	lcm_set_gpio_output(LCD_EN_3P0, GPIO_OUT_ONE, GPIO_PULL_ENABLE, GPIO_PULL_DOWN, GPIO_SMT_DISABLE);
-    // TSP_LDO_EN (GPIO165) -> TSP_AVDD_3P0
-	lcm_set_gpio_output(TSP_LDO_EN, GPIO_OUT_ONE, GPIO_PULL_ENABLE, GPIO_PULL_DOWN, GPIO_SMT_DISABLE);
-
-    // OLED_RST_N (GPIO160)
-	lcm_set_gpio_output(OLED_RST_N, GPIO_OUT_ZERO, GPIO_PULL_ENABLE, GPIO_PULL_DOWN, GPIO_SMT_DISABLE);
-
-    return;
-}
-#endif /* 0 */
 
 static void lcm_init(void)
 {
@@ -371,7 +399,7 @@ static void lcm_init(void)
 	push_table(sleep_out_setting_cmd, ARRAY_SIZE(sleep_out_setting_cmd), 1);
 
 	/* 7. Wait 10ms */
-	UDELAY(10000);
+    UDELAY(10000);
 
 	/* ID READ */
 	#ifdef LCM_ID_READ
@@ -387,23 +415,11 @@ static void lcm_init(void)
 	LCM_LOGI("lcm dis mode :%d----\n", lcm_dsi_mode);
 
 	/* 11. Wait 110ms */
-	MDELAY(110);
+    MDELAY(110);
 
-#ifndef LCM_SET_DISPLAY_ON_DELAY
 	/* display on */
 	push_table(display_on_setting_cmd, ARRAY_SIZE(display_on_setting_cmd), 1);
-#endif
-
 }
-
-#ifdef LCM_SET_DISPLAY_ON_DELAY
-static int lcm_set_display_on(void)
-{
-	push_table(display_on_setting_cmd, ARRAY_SIZE(display_on_setting_cmd),
-		1);
-	return 0;
-}
-#endif
 
 static void lcm_suspend(void)
 {
@@ -443,17 +459,6 @@ static unsigned int lcm_ata_check(unsigned char *buffer)
 #endif
 }
 
-#if 0
-static void lcm_setbacklight_cmdq(void *handle, unsigned int level)
-{
-	LCM_LOGI("%s,hx83112b backlight: level = %d\n", __func__, level);
-
-	bl_level[0].para_list[0] = level;
-
-	push_table(bl_level, ARRAY_SIZE(bl_level), 1);
-}
-#endif /* 0 */
-
 static void lcm_update(unsigned int x, unsigned int y,
 				unsigned int width, unsigned int height)
 {
@@ -472,10 +477,6 @@ static void lcm_update(unsigned int x, unsigned int y,
 	unsigned char y1_LSB = (y1&0xFF);
 
 	unsigned int data_array[16];
-
-#ifndef LCM_SET_DISPLAY_ON_DELAY
-	lcm_set_display_on();
-#endif
 
 	data_array[0] = 0x00053902;
 	data_array[1] = (x1_MSB<<24)|(x0_LSB<<16)|(x0_MSB<<8)|0x2a;
@@ -514,15 +515,6 @@ static struct LCM_setting_table seq_hbm_off[] = {
 	{0x53, 0x01, {0x20} },
 };
 
-static struct LCM_setting_table seq_brightness_10[] = {
-	{0x51, 0x02, {0x00, 0x03} },
-};
-
-static struct LCM_setting_table seq_brightness_20[] = {
-	{0x51, 0x02, {0x00, 0x30} },
-};
-
-
 static struct LCM_setting_table seq_brightness[] = {
 	{0x51, 0x02, {0x01, 0xBD} },
 };
@@ -533,33 +525,24 @@ static struct LCM_setting_table seq_test_key_off_f0[] = {
 
 static void lcm_setbacklight(void *handle, unsigned int level)
 {
-	LCM_LOGI("%s, backlight: level = %d\n", __func__, level);
+	seq_brightness[0].para_list[0] = (level >> 6) & 0x03;
+	seq_brightness[0].para_list[1] = (level << 2) & 0xFF;
 
-	bl_level[0].para_list[0] = level;
+	LCM_LOGI("%s, backlight: level = %d %02x %02x\n", __func__, level,
+		seq_brightness[0].para_list[0], seq_brightness[0].para_list[1]);
 
 	/* SEQ_TEST_KEY_ON_F0 */
 	push_table(seq_test_key_on_f0, ARRAY_SIZE(seq_test_key_on_f0), 1);
 	/* SEQ_HBM_OFF */
 	push_table(seq_hbm_off, ARRAY_SIZE(seq_hbm_off), 1);
 
-	if (level < 10)
-		push_table(seq_brightness_10, ARRAY_SIZE(seq_brightness_10), 1);	/* SEQ_BRIGHTNESS_10 */
-	else if (level < 20)
-		push_table(seq_brightness_20, ARRAY_SIZE(seq_brightness_20), 1);	/* SEQ_BRIGHTNESS_20 */
-	else
-		push_table(seq_brightness, ARRAY_SIZE(seq_brightness), 1);	/* SEQ_BRIGHTNESS */
+
+	push_table(seq_brightness, ARRAY_SIZE(seq_brightness), 1);	/* SEQ_BRIGHTNESS */
+
 
 	/* SEQ_TEST_KEY_OFF_F0 */
 	push_table(seq_test_key_off_f0, ARRAY_SIZE(seq_test_key_off_f0), 1);
 
-}
-
-static int lcm_read_by_cmdq(void *handle, unsigned int data_id,
-	unsigned int offset, unsigned int cmd, unsigned char *buffer,
-	unsigned char size)
-{
-	return lcm_util.dsi_dcs_read_cmdq_lcm_reg_v2_1(handle, data_id, offset,
-		cmd, buffer, size);
 }
 
 struct LCM_DRIVER ea8076g_fhdplus_dis_cmd_lcm_drv = {
@@ -576,7 +559,5 @@ struct LCM_DRIVER ea8076g_fhdplus_dis_cmd_lcm_drv = {
 	.ata_check = lcm_ata_check,
 	.update = lcm_update,
 	.validate_roi = lcm_validate_roi,
-	.read_by_cmdq = lcm_read_by_cmdq,
-	.set_display_on = lcm_set_display_on,
 };
 

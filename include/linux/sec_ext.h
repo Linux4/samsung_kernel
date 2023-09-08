@@ -29,6 +29,7 @@
 extern bool init_command_debug;
 extern int board_rev;
 
+extern void sec_boot_stat_set_bl_boot_time(int pl_t, int lk_t);
 extern void sec_boot_stat_get_start_kernel(void);
 extern void sec_boot_stat_get_mct(u32);
 extern void sec_boot_stat_add(const char *);

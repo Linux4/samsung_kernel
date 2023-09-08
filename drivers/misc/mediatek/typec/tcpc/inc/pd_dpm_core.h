@@ -32,7 +32,6 @@ void pd_dpm_dynamic_disable_vconn(struct pd_port *pd_port);
 /* ---- SNK ---- */
 
 #ifdef CONFIG_USB_PD_REV30_PPS_SINK
-void dpm_repeat_pps_request(struct pd_port *pd_port);
 void pd_dpm_start_pps_request_thread(struct pd_port *pd_port, bool en);
 #endif	/* CONFIG_USB_PD_REV30_PPS_SINK */
 
@@ -99,6 +98,8 @@ void pd_dpm_dfp_send_uvdm(struct pd_port *pd_port);
 void pd_dpm_dfp_inform_uvdm(struct pd_port *pd_port, bool ack);
 
 #endif     /* CONFIG_USB_PD_CUSTOM_VDM */
+
+void pd_dpm_ufp_send_svdm_nak(struct pd_port *pd_port);
 
 /* ---- DRP : Inform PowerCap ---- */
 
@@ -210,14 +211,14 @@ int pd_dpm_notify_pe_hardreset(struct pd_port *pd_port);
 
 static inline int pd_dpm_check_vbus_valid(struct pd_port *pd_port)
 {
-	return tcpci_check_vbus_valid(pd_port->tcpc_dev);
+	return tcpci_check_vbus_valid(pd_port->tcpc);
 }
 
 static inline int pd_dpm_sink_vbus(struct pd_port *pd_port, bool en)
 {
 	int mv = en ? TCPC_VBUS_SINK_5V : TCPC_VBUS_SINK_0V;
 
-	return tcpci_sink_vbus(pd_port->tcpc_dev,
+	return tcpci_sink_vbus(pd_port->tcpc,
 				TCP_VBUS_CTRL_REQUEST, mv, -1);
 }
 
@@ -225,7 +226,7 @@ static inline int pd_dpm_source_vbus(struct pd_port *pd_port, bool en)
 {
 	int mv = en ? TCPC_VBUS_SOURCE_5V : TCPC_VBUS_SOURCE_0V;
 
-	return tcpci_source_vbus(pd_port->tcpc_dev,
+	return tcpci_source_vbus(pd_port->tcpc,
 				TCP_VBUS_CTRL_REQUEST, mv, -1);
 }
 
@@ -274,6 +275,39 @@ extern bool dp_reset_state(
 extern bool dp_parse_svid_data(
 	struct pd_port *pd_port, struct svdm_svid_data *svid_data);
 #endif	/* CONFIG_USB_PD_ALT_MODE */
+
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+enum sec_dfp_state {
+	SEC_DFP_NONE = 0,
+	SEC_DFP_DISCOVER_ID,
+	SEC_DFP_DISCOVER_SVIDS,
+	SEC_DFP_DISCOVER_MODES,
+	SEC_DFP_ENTER_MODE,
+	SEC_DFP_ENTER_MODE_DONE,
+	SEC_DFP_ERR,
+};
+extern void sec_dfp_accessory_detach_handler(struct pd_port *pd_port);
+extern bool sec_dfp_notify_discover_id(struct pd_port *pd_port,
+		struct svdm_svid_data *svid_data, bool ack);
+extern bool sec_dfp_notify_discover_svid(struct pd_port *pd_port,
+		struct svdm_svid_data *svid_data, bool ack);
+extern bool sec_dfp_notify_discover_modes(struct pd_port *pd_port,
+		struct svdm_svid_data *svid_data, bool ack);
+extern bool sec_dfp_notify_enter_mode(struct pd_port *pd_port,
+		struct svdm_svid_data *svid_data, uint8_t ops, bool ack);
+extern bool sec_dfp_notify_pe_startup(struct pd_port *pd_port,
+		struct svdm_svid_data *svid_data);
+extern int sec_dfp_notify_pe_ready(struct pd_port *pd_port,
+		struct svdm_svid_data *svid_data);
+extern bool sec_dfp_notify_uvdm(struct pd_port *pd_port,
+		struct svdm_svid_data *svid_data, bool ack);
+extern bool sec_dfp_parse_svid_data(struct pd_port *pd_port,
+		struct svdm_svid_data *svid_data);
+extern int sec_dfp_uvdm_ready(void);
+extern void sec_dfp_uvdm_close(void);
+extern int sec_dfp_uvdm_out_request_message(void *data, int size);
+extern int sec_dfp_uvdm_in_request_message(void *data);
+#endif	/* CONFIG_PDIC_NOTIFIER */
 
 #ifdef CONFIG_USB_PD_RICHTEK_UVDM
 extern bool richtek_dfp_notify_pe_startup(

@@ -23,6 +23,9 @@
 #ifdef CONFIG_KDP_CRED
 #include <linux/kdp.h>
 #endif
+#ifdef CONFIG_RUSTUH_KDP_CRED
+#include <linux/rustkdp.h>
+#endif
 
 struct cred;
 struct inode;
@@ -96,9 +99,22 @@ struct ro_rcu_head {
 		struct rcu_head	rcu;	/* RCU deletion hook */
 	};
 	void *bp_cred;
+	void *reflected_cred;
+};
+
+struct kdp_usecnt {
+	atomic_t kdp_use_cnt;
+	struct ro_rcu_head kdp_rcu_head;
 };
 #define get_rocred_rcu(cred) ((struct ro_rcu_head *)((atomic_t *)cred->use_cnt + 1))
 #define get_usecnt_rcu(use_cnt) ((struct ro_rcu_head *)((atomic_t *)use_cnt + 1))
+/*
+After KDP endbled, argument of override_creds will not become the current->cred.
+But some code trys to put_creds the current->cred, to free the resource of cred
+which was allocated before the override_creds. In those case, we need to find the
+original cred by below function.
+*/
+#define get_reflected_cred(cred) ((struct cred *)get_rocred_rcu(cred)->reflected_cred)
 #endif
 
 /*
@@ -166,7 +182,7 @@ struct cred {
 		int non_rcu;			/* Can we skip RCU deletion? */
 		struct rcu_head	rcu;		/* RCU deletion hook */
 	};
-#ifdef CONFIG_KDP_CRED
+#if defined(CONFIG_KDP_CRED) || defined(CONFIG_RUSTUH_KDP_CRED)
 	atomic_t *use_cnt;
 	struct task_struct *bp_task;
 	void *bp_pgd;
@@ -192,7 +208,6 @@ enum {
 	RKP_CMD_CMMIT_CREDS,
 	RKP_CMD_OVRD_CREDS,
 };
-#define override_creds(x) rkp_override_creds((struct cred **)&x)
 
 #define rkp_cred_fill_params(crd,crd_ro,uptr,tsec,rkp_cmd_type,rkp_use_cnt)	\
 do {						\
@@ -215,12 +230,10 @@ extern struct cred *prepare_exec_creds(void);
 extern int commit_creds(struct cred *);
 extern void abort_creds(struct cred *);
 #ifdef CONFIG_KDP_CRED
-extern const struct cred *rkp_override_creds(struct cred **);
 extern unsigned int rkp_get_task_sec_size(void);
 unsigned int rkp_get_offset_bp_cred(void);
-#else
-extern const struct cred *override_creds(const struct cred *);
 #endif
+extern const struct cred *override_creds(const struct cred *);
 extern void revert_creds(const struct cred *);
 extern struct cred *prepare_kernel_cred(struct task_struct *);
 extern int change_create_files_as(struct cred *, struct inode *);
@@ -283,6 +296,7 @@ static inline bool cap_ambient_invariant_ok(const struct cred *cred)
  * Get a reference on the specified set of new credentials.  The caller must
  * release the reference.
  */
+#ifndef CONFIG_RUSTUH_KDP_CRED
 #ifdef CONFIG_KDP_CRED
 struct cred *get_new_cred(struct cred *cred);
 #else
@@ -291,6 +305,7 @@ static inline struct cred *get_new_cred(struct cred *cred)
 	atomic_inc(&cred->usage);
 	return cred;
 }
+#endif
 #endif
 
 /**
@@ -315,7 +330,12 @@ static inline const struct cred *get_cred(const struct cred *cred)
 		get_rocred_rcu(nonconst_cred)->non_rcu = 0;
 	else
 #endif
-	nonconst_cred->non_rcu = 0; 
+#ifdef CONFIG_RUSTUH_KDP_CRED
+	if (is_kdp_protect_addr((unsigned long)nonconst_cred))
+		GET_ROCRED_RCU(nonconst_cred)->non_rcu = 0;
+	else
+#endif
+	nonconst_cred->non_rcu = 0;
 	return get_new_cred(nonconst_cred);
 }
 
@@ -330,6 +350,7 @@ static inline const struct cred *get_cred(const struct cred *cred)
  * on task_struct are attached by const pointers to prevent accidental
  * alteration of otherwise immutable credential sets.
  */
+#ifndef CONFIG_RUSTUH_KDP_CRED
 #ifdef CONFIG_KDP_CRED
 void put_cred(const struct cred *_cred);
 #else
@@ -341,6 +362,7 @@ static inline void put_cred(const struct cred *_cred)
 	if (atomic_dec_and_test(&(cred)->usage))
 		__put_cred(cred);
 }
+#endif
 #endif
 
 /**

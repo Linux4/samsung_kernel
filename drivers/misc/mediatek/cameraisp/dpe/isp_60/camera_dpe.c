@@ -37,6 +37,7 @@
 #include <linux/seq_file.h>
 #include <linux/uaccess.h>
 #include <linux/sched/clock.h>
+#include <linux/dma-mapping.h>
 
 // V4L2
 #include <linux/mutex.h>
@@ -44,6 +45,12 @@
 #include <media/videobuf2-v4l2.h>
 #include <media/v4l2-ioctl.h>
 
+#define KERNEL_DMA_BUFFER
+#ifdef KERNEL_DMA_BUFFER
+#include <media/videobuf2-memops.h>
+#include <linux/dma-direction.h>
+#include <linux/dma-buf.h>
+#endif
 /*#include <linux/xlog.h>		 For xlog_printk(). */
 /*  */
 /*#include <mach/hardware.h>*/
@@ -62,12 +69,23 @@
 #include <linux/of_irq.h>
 #include <linux/of_platform.h>
 
-#include <cmdq_core.h>
-#include <cmdq_record.h>
+//#include <cmdq_core.h>
+//#include <cmdq_record.h>
+#include <linux/soc/mediatek/mtk-cmdq.h>
+
+#ifdef CONFIG_MTK_IOMMU_V2
+#include <mach/mt_iommu.h>
+#include "mach/pseudo_m4u.h"
+#else /* CONFIG_MTK_IOMMU_V2 */
 #include <m4u.h>
+#endif /* CONFIG_MTK_IOMMU_V2 */
+
+
 #include <smi_public.h>
 #include "engine_request.h"
-
+#ifdef KERNEL_DMA_BUFFER
+#include "videobuf2-dma-contig.h"
+#endif
 /*#define DPE_PMQOS_EN*/
 #if defined(DPE_PMQOS_EN) && defined(CONFIG_MTK_QOS_SUPPORT)
 #include <linux/pm_qos.h>
@@ -113,10 +131,6 @@ static unsigned long __read_mostly tracing_mark_write_addr;
 #include <linux/fs.h>
 #endif
 
-// GASPER ADD FOR EP
-#define MTK_M4U_ID(larb, port)	(((larb) << 5) | (port))
-#define M4U_PORT_L9_IMG_IMGI_D1_MDP	MTK_M4U_ID(9, 0)
-
 /*  #include "smi_common.h" */
 
 #include <linux/pm_wakeup.h>
@@ -139,7 +153,7 @@ struct DPE_CLK_STRUCT dpe_clk;
 #endif
 
 #define DPE_DEV_NAME "camera-dpe"
-#define EP_NO_CLKMGR
+//#define EP_NO_CLKMGR
 #define BYPASS_REG (0)
 #define DUMMY_DPE (0)
 #define UT_CASE
@@ -149,7 +163,7 @@ struct DPE_CLK_STRUCT dpe_clk;
 
 #define LOG_VRB(format, args...) pr_debug(MyTag format, ##args)
 
-#define DPE_DEBUG_USE
+//#define DPE_DEBUG_USE
 #ifdef DPE_DEBUG_USE
 #define LOG_DBG(format, args...) pr_info(MyTag format, ##args)
 #else
@@ -204,6 +218,10 @@ struct DPE_CLK_STRUCT dpe_clk;
 #define ALIGN16(x) (((x)+MASK_15)&(~(MASK_15)))
 #define MAX_NUM_TILE 4
 #define TILE_WITH_NUM 3
+
+#ifdef CONFIG_MTK_IOMMU_V2
+static int DPE_MEM_USE_VIRTUL = 1;
+#endif
 
 /* static irqreturn_t DPE_Irq_CAM_A(signed int  Irq,void *DeviceId); */
 static irqreturn_t ISP_Irq_DVP(signed int Irq, void *DeviceId);
@@ -261,6 +279,7 @@ struct wakeup_source DPE_wake_lock;
 
 static DEFINE_MUTEX(gDpeMutex);
 static DEFINE_MUTEX(gDpeDequeMutex);
+static DEFINE_MUTEX(MutexDPERef);
 
 #ifdef CONFIG_OF
 
@@ -289,37 +308,37 @@ static int nr_DPE_devs;
 
 #endif
 
-//#define USING_ION_MEMORY
+#ifdef KERNEL_DMA_BUFFER
+struct device *gdev;
 
-#ifdef USING_ION_MEMORY
-#include <ion.h>
-#include <mtk/ion_drv.h>
-#include <mtk/mtk_ion.h>
+struct dma_buf *dbuf;
+struct vb2_dc_buf {
+	struct device			*dev;
+	void				*vaddr;
+	unsigned long			size;
+	void				*cookie;
+	dma_addr_t			dma_addr;
+	unsigned long			attrs;
+	enum dma_data_direction		dma_dir;
+	struct sg_table			*dma_sgt;
+	struct frame_vector		*vec;
 
-struct dpe_imem_memory {
-	void *handle;
-	int ion_fd;
-	uint64_t va;
-	uint32_t pa;
-	uint32_t length;
+	/* MMAP related */
+	struct vb2_vmarea_handler	handler;
+	refcount_t			refcount;
+	struct sg_table			*sgt_base;
+
+	/* DMABUF related */
+	struct dma_buf_attachment	*db_attach;
 };
+struct vb2_dc_buf *kernel_dpebuf;
+struct vb2_dc_buf *dpebuf;
 
-static struct ion_client *dpe_ion_client;
-static struct dpe_imem_memory g_dpe_imem_buf;
-static bool g_bIonBufferAllocated;
-
-
-static unsigned int *g_dpewb_dvme_int_Buffer_pa;
-static unsigned int *g_dpewb_dvme_int_Buffer_va;
-static unsigned int *g_dpewb_cost_int_Buffer_pa;
-static unsigned int *g_dpewb_cost_int_Buffer_va;
-static unsigned int *g_dpewb_asfrm_Buffer_pa;
-static unsigned int *g_dpewb_asfrm_Buffer_va;
-static unsigned int *g_dpewb_asfrmext_Buffer_pa;
-static unsigned int *g_dpewb_asfrmext_Buffer_va;
-static unsigned int *g_dpewb_wmfhf_Buffer_pa;
-static unsigned int *g_dpewb_wmfhf_Buffer_va;
-
+unsigned int *g_dpewb_dvme_int_Buffer_pa;
+unsigned int *g_dpewb_cost_int_Buffer_pa;
+unsigned int *g_dpewb_asfrm_Buffer_pa;
+unsigned int *g_dpewb_asfrmext_Buffer_pa;
+unsigned int *g_dpewb_wmfhf_Buffer_pa;
 #endif
 
 static unsigned int g_u4EnableClockCount;
@@ -360,17 +379,17 @@ struct DPE_REQUEST_STRUCT {
 
 	unsigned int
 		enqueReqNum;   /* to judge it belongs to which frame package */
-	signed int FrameWRIdx; /* Frame write Index */
-	signed int RrameRDIdx; /* Frame read Index */
+	unsigned int FrameWRIdx; /* Frame write Index */
+	unsigned int RrameRDIdx; /* Frame read Index */
 	enum DPE_FRAME_STATUS_ENUM
 		DpeFrameStatus[_SUPPORT_MAX_DPE_FRAME_REQUEST_];
 	struct DPE_Config DpeFrameConfig[_SUPPORT_MAX_DPE_FRAME_REQUEST_];
 };
 
 struct DPE_REQUEST_RING_STRUCT {
-	signed int WriteIdx;     /* enque how many request  */
-	signed int ReadIdx;      /* read which request index */
-	signed int HWProcessIdx; /* HWWriteIdx */
+	unsigned int WriteIdx;     /* enque how many request  */
+	unsigned int ReadIdx;      /* read which request index */
+	unsigned int HWProcessIdx; /* HWWriteIdx */
 	struct DPE_REQUEST_STRUCT
 		DPEReq_Struct[_SUPPORT_MAX_DPE_REQUEST_RING_SIZE_];
 };
@@ -403,13 +422,12 @@ enum DPE_PROCESS_ID_ENUM {
  **************************************************************/
 struct DPE_IRQ_INFO_STRUCT {
 	unsigned int Status[DPE_IRQ_TYPE_AMOUNT];
-	signed int DpeIrqCnt;
-	pid_t ProcessID[DPE_PROCESS_ID_AMOUNT];
+	signed int DpeIrqCnt[IRQ_USER_NUM_MAX];
+	pid_t ProcessID[IRQ_USER_NUM_MAX];
 	unsigned int Mask[DPE_IRQ_TYPE_AMOUNT];
 };
 
 struct DPE_INFO_STRUCT {
-	spinlock_t SpinLockDPERef;
 	spinlock_t SpinLockDPE;
 	spinlock_t SpinLockIrq[DPE_IRQ_TYPE_AMOUNT];
 	wait_queue_head_t WaitQueueHead;
@@ -468,6 +486,7 @@ static struct SV_LOG_STR gSvLog[DPE_IRQ_TYPE_AMOUNT];
 	unsigned int *ptr2 = &gSvLog[irq]._cnt[ppb][logT];\
 	unsigned int str_leng;\
 	unsigned int logi;\
+	int ret; \
 	struct SV_LOG_STR *pSrc = &gSvLog[irq];\
 	if (logT == _LOG_ERR) {\
 		str_leng = NORMAL_STR_LEN*ERR_PAGE; \
@@ -482,8 +501,11 @@ static struct SV_LOG_STR gSvLog[DPE_IRQ_TYPE_AMOUNT];
 		&(gSvLog[irq]._str[ppb][logT][gSvLog[irq]._cnt[ppb][logT]]);   \
 	avaLen = str_leng - 1 - gSvLog[irq]._cnt[ppb][logT];\
 	if (avaLen > 1) {\
-		snprintf((char *)(pDes), avaLen, fmt,\
+		ret = snprintf((char *)(pDes), avaLen, fmt,\
 			##__VA_ARGS__);   \
+		if (ret < 0) { \
+			LOG_ERR("snprintf fail(%d)\n", ret); \
+		} \
 		if ('\0' != gSvLog[irq]._str[ppb][logT][str_leng - 1]) {\
 			LOG_ERR("log str over flow(%d)", irq);\
 		} \
@@ -548,7 +570,10 @@ static struct SV_LOG_STR gSvLog[DPE_IRQ_TYPE_AMOUNT];
 			ptr = pDes = (char *)\
 			&(pSrc->_str[ppb][logT][pSrc->_cnt[ppb][logT]]);\
 			ptr2 = &(pSrc->_cnt[ppb][logT]);\
-			snprintf((char *)(pDes), avaLen, fmt, ##__VA_ARGS__);  \
+		ret = snprintf((char *)(pDes), avaLen, fmt, ##__VA_ARGS__);  \
+		if (ret < 0) { \
+			LOG_ERR("snprintf fail(%d)\n", ret); \
+		} \
 			while (*ptr++ != '\0') {\
 				(*ptr2)++;\
 			} \
@@ -566,8 +591,8 @@ static struct SV_LOG_STR gSvLog[DPE_IRQ_TYPE_AMOUNT];
 	struct SV_LOG_STR *pSrc = &gSvLog[irq];\
 	char *ptr;\
 	unsigned int i;\
-	signed int ppb = 0;\
-	signed int logT = 0;\
+	unsigned int ppb = 0;\
+	unsigned int logT = 0;\
 	if (ppb_in > 1) {\
 		ppb = 1;\
 	} else{\
@@ -1154,17 +1179,19 @@ DPE_GetIRQState(unsigned int type, unsigned int userNumber, unsigned int stus,
 		enum DPE_PROCESS_ID_ENUM whichReq, int ProcessID)
 {
 	unsigned int ret = 0;
+	unsigned int p;
 	unsigned long flags;
 
+	p = ProcessID % IRQ_USER_NUM_MAX;
 	/*  */
 	spin_lock_irqsave(&(DPEInfo.SpinLockIrq[type]), flags);
 
 	if (stus & DPE_INT_ST) {
-		ret = ((DPEInfo.IrqInfo.DpeIrqCnt > 0) &&
-		       (DPEInfo.IrqInfo.ProcessID[whichReq] == ProcessID));
+		ret = ((DPEInfo.IrqInfo.DpeIrqCnt[p] > 0) &&
+		       (DPEInfo.IrqInfo.ProcessID[p] == ProcessID));
 	} else {
 		LOG_ERR("EWIRQ,type:%d,u:%d,stat:%d,wReq:%d,PID:0x%x\n",
-			type, userNumber, stus, whichReq, ProcessID);
+			type, userNumber, stus, p, ProcessID);
 	}
 	spin_unlock_irqrestore(&(DPEInfo.SpinLockIrq[type]), flags);
 	/*  */
@@ -1202,100 +1229,6 @@ for (i = start; i <= end; i += 0x10) {                                     \
 /**************************************************************
  *
  **************************************************************/
-#ifdef USING_ION_MEMORY
-static signed int dpe_allocbuf(struct dpe_imem_memory *pMemInfo)
-{
-	int ret = 0;
-	struct ion_mm_data mm_data;
-	struct ion_sys_data sys_data;
-	struct ion_handle *handle = NULL;
-
-	if (pMemInfo == NULL) {
-		LOG_ERR("pMemInfo is NULL!!\n");
-		ret = -ENOMEM;
-		goto dpe_allocbuf_exit;
-	}
-
-	if (dpe_ion_client == NULL) {
-		LOG_ERR("dpe_ion_client is NULL!!\n");
-		ret = -ENOMEM;
-		goto dpe_allocbuf_exit;
-	}
-	LOG_DBG("[Gasper] Allocate ion buffer SUCCESS\n");
-	handle = ion_alloc(dpe_ion_client,
-		pMemInfo->length,
-		0,
-		ION_HEAP_MULTIMEDIA_MASK,
-		0);
-	if (handle == NULL) {
-		LOG_ERR("fail to alloc ion buffer, ret=%d\n", ret);
-		ret = -ENOMEM;
-		goto dpe_allocbuf_exit;
-	}
-	pMemInfo->handle = (void *) handle;
-
-	pMemInfo->va = (uintptr_t) ion_map_kernel(dpe_ion_client, handle);
-	if (pMemInfo->va == 0) {
-		LOG_ERR("fail to map va of buffer!\n");
-		ret = -ENOMEM;
-		goto dpe_allocbuf_exit;
-	}
-
-	LOG_DBG("[Gasper] Config ion buffer\n");
-	mm_data.mm_cmd = ION_MM_CONFIG_BUFFER;
-	mm_data.config_buffer_param.kernel_handle = handle;
-	mm_data.config_buffer_param.module_id = M4U_PORT_L9_IMG_IMGI_D1_MDP;
-	mm_data.config_buffer_param.security = 0;
-	mm_data.config_buffer_param.coherent = 1;
-	ret = ion_kernel_ioctl(dpe_ion_client,
-		ION_CMD_MULTIMEDIA,
-		(unsigned long)&mm_data);
-	if (ret) {
-		LOG_ERR("fail to config ion buffer, ret=%d\n", ret);
-		ret = -ENOMEM;
-		goto dpe_allocbuf_exit;
-	}
-
-	LOG_DBG("[Gasper] Map ion buffer\n");
-	sys_data.sys_cmd = ION_SYS_GET_PHYS;
-	sys_data.get_phys_param.kernel_handle = handle;
-	ret = ion_kernel_ioctl(dpe_ion_client,
-		ION_CMD_SYSTEM,
-		(unsigned long)&sys_data);
-	pMemInfo->pa = sys_data.get_phys_param.phy_addr;
-	LOG_DBG("[Gasper] Map ion buffer SUCCESS\n");
-
-dpe_allocbuf_exit:
-
-	if (ret < 0) {
-		if (handle)
-			ion_free(dpe_ion_client, handle);
-	}
-
-	return ret;
-}
-
-/**************************************************************
- *
- **************************************************************/
-static void dpe_freebuf(struct dpe_imem_memory *pMemInfo)
-{
-	struct ion_handle *handle;
-
-	if (pMemInfo == NULL) {
-		LOG_ERR("pMemInfo is NULL!!\n");
-		return;
-	}
-
-	handle = (struct ion_handle *) pMemInfo->handle;
-	if (handle != NULL) {
-		ion_unmap_kernel(dpe_ion_client, handle);
-		ion_free(dpe_ion_client, handle);
-	}
-
-}
-#endif
-
 signed int dpe_enque_cb(struct frame *frames, void *req)
 {
 	unsigned int f, fcnt, t, ucnt;
@@ -1486,16 +1419,18 @@ void DPE_Config_DVS(struct DPE_Config *pDpeConfig,
 	unsigned int pitch = pDpeConfig->Dpe_DVSSettings.pitch >> 4;
 
 	LOG_INF(
-	"DVS param: frm w/h(%d/%d), engStart X_L/X_R/Y(%d/%d/%d), eng w/h(%d/%d), occ w(%d), occ startX(%d), pitch(%d), main eye(%d), 16bit mode(%d), sbf/conf/occ_en(%d/%d/%d)\n",
+	"DVS param: frm w/h(%d/%d), engStart X_L/X_R/Y(%d/%d/%d), eng w/h(%d/%d), occ w(%d), occ startX(%d), pitch(%d), main eye(%d), 16bit mode(%d), sbf/conf/occ_en(%d/%d/%d), Dpe_InBuf_SrcImg_Y_L: (0x%08x), Dpe_InBuf_SrcImg_Y_R(0x%08x), Dpe_InBuf_ValidMap_L(0x%08x), Dpe_InBuf_ValidMap_R(0x%08x), Dpe_OutBuf_CONF(0x%08x), Dpe_OutBuf_OCC(0x%08x), use_fd(%d)\n",
 	frmWidth, frmHeight, L_engStartX, R_engStartX, engStartY,
 	engWidth, engHeight, occWidth, occStartX, pitch,
 	pDpeConfig->Dpe_DVSSettings.mainEyeSel, pDpeConfig->Dpe_is16BitMode,
 	pDpeConfig->Dpe_DVSSettings.SubModule_EN.sbf_en,
 	pDpeConfig->Dpe_DVSSettings.SubModule_EN.conf_en,
-	pDpeConfig->Dpe_DVSSettings.SubModule_EN.occ_en);
-
+	pDpeConfig->Dpe_DVSSettings.SubModule_EN.occ_en,
+	pDpeConfig->Dpe_InBuf_SrcImg_Y_L, pDpeConfig->Dpe_InBuf_SrcImg_Y_R,
+	pDpeConfig->Dpe_InBuf_ValidMap_L, pDpeConfig->Dpe_InBuf_ValidMap_R,
+	pDpeConfig->Dpe_OutBuf_CONF, pDpeConfig->Dpe_OutBuf_OCC, pDpeConfig->use_fd);
 	LOG_DBG(
-	"Dpe_InBuf_SrcImg_Y_L: (0x%lx), Dpe_InBuf_SrcImg_Y_R(0x%lx), Dpe_InBuf_ValidMap_L(0x%lx), Dpe_InBuf_ValidMap_R(0x%lx), Dpe_OutBuf_CONF(0x%lx), Dpe_OutBuf_OCC(0x%lx)\n",
+	"Dpe_InBuf_SrcImg_Y_L: (0x%08x), Dpe_InBuf_SrcImg_Y_R(0x%08x), Dpe_InBuf_ValidMap_L(0x%08x), Dpe_InBuf_ValidMap_R(0x%08x), Dpe_OutBuf_CONF(0x%08x), Dpe_OutBuf_OCC(0x%08x)\n",
 	pDpeConfig->Dpe_InBuf_SrcImg_Y_L, pDpeConfig->Dpe_InBuf_SrcImg_Y_R,
 	pDpeConfig->Dpe_InBuf_ValidMap_L, pDpeConfig->Dpe_InBuf_ValidMap_R,
 	pDpeConfig->Dpe_OutBuf_CONF, pDpeConfig->Dpe_OutBuf_OCC);
@@ -1620,16 +1555,16 @@ if (pDpeConfig->Dpe_engineSelect == MODE_DVS_DVP_BOTH) {
 	} else
 		LOG_ERR("No Right Valid Map!\n");
 
-
-//pConfigToKernel->DVS_SRC_21_INTER_MEDV =
-//((uintptr_t)g_dpewb_dvme_int_Buffer_pa & 0x00000000ffffffff);
-
+#ifdef KERNEL_DMA_BUFFER
+pConfigToKernel->DVS_SRC_21_INTER_MEDV =
+((uintptr_t)g_dpewb_dvme_int_Buffer_pa & 0xffffffff);
+#else
 	if (pDpeConfig->DVS_SRC_21_INTER_MEDV != 0x0) {
 		pConfigToKernel->DVS_SRC_21_INTER_MEDV =
 		pDpeConfig->DVS_SRC_21_INTER_MEDV;
 	} else
 		LOG_ERR("No DVS DVS_SRC_21_INTER_MEDV Buffer!\n");
-
+#endif
 	if (pDpeConfig->Dpe_OutBuf_OCC != 0x0) {
 		pConfigToKernel->DVS_SRC_26_OCCDV0 =
 		pDpeConfig->Dpe_OutBuf_OCC;
@@ -1642,15 +1577,16 @@ if (pDpeConfig->Dpe_engineSelect == MODE_DVS_DVP_BOTH) {
 	} else
 		LOG_ERR("No DVS CONF Output Buffer!\n");
 
+#ifdef KERNEL_DMA_BUFFER
+pConfigToKernel->DVS_SRC_34_DCV_L_FRM0 =
+((uintptr_t)g_dpewb_cost_int_Buffer_pa & 0xffffffff);
+#else
 	if (pDpeConfig->DVS_SRC_34_DCV_L_FRM0 != 0x0) {
 		pConfigToKernel->DVS_SRC_34_DCV_L_FRM0 =
 		pDpeConfig->DVS_SRC_34_DCV_L_FRM0;
 	} else
 		LOG_ERR("No DVS DVS_SRC_34_DCV_L_FRM0 Buffer!\n");
-
-//pConfigToKernel->DVS_SRC_34_DCV_L_FRM0 =
-//((uintptr_t)g_dpewb_cost_int_Buffer_pa & 0x00000000ffffffff);
-
+#endif
 
 	if (pDpeConfig->Dpe_is16BitMode != 0) {
 		if (pDpeConfig->Dpe_OutBuf_OCC_Ext != 0x0) {
@@ -1708,10 +1644,14 @@ void DPE_Config_DVP(struct DPE_Config *pDpeConfig,
 	engStart_offset_C = engStart_offset_Y >> 1;
 
 	LOG_INF(
-	"DVP param: frm w/h(%d/%d), engstart X/Y(%d/%d), eng w/h(%d/%d), occ w/h(%d/%d), occstart X/Y(%d/%d), pitch(%d), eng start offset Y/C(0x%x/0x%x)\n",
+	"DVP param: frm w/h(%d/%d), engstart X/Y(%d/%d), eng w/h(%d/%d), occ w/h(%d/%d), occstart X/Y(%d/%d), pitch(%d), eng start offset Y/C(0x%x/0x%x), Dpe_InBuf_SrcImg_Y: (0x%08x), Dpe_InBuf_SrcImg_C(0x%08x), Dpe_InBuf_OCC(0x%08x), Dpe_OutBuf_CRM(0x%08x), Dpe_OutBuf_ASF_RD(0x%08x), Dpe_OutBuf_ASF_HF(0x%08x), DVP_SRC_18_ASF_RMDV(0x%lx)\n",
 	frmWidth, frmHeight, engStartX, engStartY, engWidth, engHeight,
 	occWidth, occHeight, occStartX, occStartY, pitch,
-	engStart_offset_Y, engStart_offset_C);
+	engStart_offset_Y, engStart_offset_C,
+	pDpeConfig->Dpe_InBuf_SrcImg_Y, pDpeConfig->Dpe_InBuf_SrcImg_C,
+	pDpeConfig->Dpe_InBuf_OCC, pDpeConfig->Dpe_OutBuf_CRM,
+	pDpeConfig->Dpe_OutBuf_ASF_RD, pDpeConfig->Dpe_OutBuf_ASF_HF,
+	((uintptr_t)g_dpewb_asfrm_Buffer_pa & 0xffffffff));
 
 	if ((occWidth % 16 != 0))
 		LOG_ERR("occ width is not 16 byte align w (%d)\n", occWidth);
@@ -1795,16 +1735,16 @@ pConfigToKernel->DVP_CTRL04 =
 	} else
 		LOG_ERR("No CRM Output Buffer!\n");
 
+#ifdef KERNEL_DMA_BUFFER
+pConfigToKernel->DVP_SRC_18_ASF_RMDV =
+((uintptr_t)g_dpewb_asfrm_Buffer_pa & 0xffffffff);
+#else
 	if (pDpeConfig->DVP_SRC_18_ASF_RMDV != 0x0) {
 		pConfigToKernel->DVP_SRC_18_ASF_RMDV =
 		pDpeConfig->DVP_SRC_18_ASF_RMDV;
 	} else
 		LOG_ERR("No DVS DVP_SRC_18_ASF_RMDV Buffer!\n");
-
-//pConfigToKernel->DVP_SRC_18_ASF_RMDV = (unsigned int)DPEWB_ASFRM_PA;
-
-//pConfigToKernel->DVP_SRC_18_ASF_RMDV =
-//((uintptr_t)g_dpewb_asfrm_Buffer_pa & 0x00000000ffffffff);
+#endif
 
 	if (pDpeConfig->Dpe_OutBuf_ASF_RD != 0x0) {
 		pConfigToKernel->DVP_SRC_19_ASF_RDDV =
@@ -1820,15 +1760,17 @@ pConfigToKernel->DVP_CTRL04 =
 		LOG_ERR("No ASF Output Buffer!\n");
 
 if (pDpeConfig->Dpe_is16BitMode == 0) {
+
+	#ifdef KERNEL_DMA_BUFFER
+	pConfigToKernel->DVP_SRC_24_WMF_HFDV =
+	((uintptr_t)g_dpewb_wmfhf_Buffer_pa & 0xffffffff);
+	#else
 	if (pDpeConfig->DVP_SRC_24_WMF_HFDV != 0x0) {
 		pConfigToKernel->DVP_SRC_24_WMF_HFDV =
 		pDpeConfig->DVP_SRC_24_WMF_HFDV;
 	} else
 		LOG_ERR("No DVS DVP_SRC_24_WMF_HFDV Buffer!\n");
-
-//pConfigToKernel->DVP_SRC_24_WMF_HFDV = (unsigned int)DPEWB_WMFHF_PA;
-//pConfigToKernel->DVP_SRC_24_WMF_HFDV =
-//((uintptr_t)g_dpewb_wmfhf_Buffer_pa & 0x00000000ffffffff);
+	#endif
 
 	if (pDpeConfig->Dpe_OutBuf_WMF_FILT != 0x0) {
 		pConfigToKernel->DVP_SRC_25_WMF_DV0 =
@@ -1844,19 +1786,16 @@ if (pDpeConfig->Dpe_is16BitMode == 0) {
 			(unsigned int)pDpeConfig->Dpe_InBuf_OCC_Ext;
 		} else
 			LOG_ERR("No DVP Ext OCC Input Buffer!\n");
-
+#ifdef KERNEL_DMA_BUFFER
+pConfigToKernel->DVP_EXT_SRC_18_ASF_RMDV =
+((uintptr_t)g_dpewb_asfrmext_Buffer_pa & 0xffffffff);
+#else
 		if (pDpeConfig->DVP_EXT_SRC_18_ASF_RMDV != 0x0) {
 			pConfigToKernel->DVP_EXT_SRC_18_ASF_RMDV =
 			pDpeConfig->DVP_EXT_SRC_18_ASF_RMDV;
 		} else
 			LOG_ERR("No DVS DVP_EXT_SRC_18_ASF_RMDV Buffer!\n");
-
-//pConfigToKernel->DVP_EXT_SRC_18_ASF_RMDV =
-//(unsigned int)DPEWB_ASFRMExt_PA;
-
-//pConfigToKernel->DVP_EXT_SRC_18_ASF_RMDV =
-//((uintptr_t)g_dpewb_asfrmext_Buffer_pa & 0x00000000ffffffff);
-
+#endif
 
 		if (pDpeConfig->Dpe_OutBuf_ASF_RD_Ext != 0x0) {
 			pConfigToKernel->DVP_EXT_SRC_19_ASF_RDDV =
@@ -2140,7 +2079,8 @@ signed int CmdqDPEHW(struct frame *frame)
 
 	//cmdqRecSetEngine(handle, engineFlag);
 
-	cmdq_pkt_cl_create(&handle, dpe_clt);
+	//cmdq_pkt_cl_create(&handle, dpe_clt);
+	handle = cmdq_pkt_create(dpe_clt);
 
 #define CMDQWR(REG) \
 	cmdq_pkt_write(handle, dpe_clt_base, \
@@ -2383,7 +2323,7 @@ cmdq_pkt_write(handle, dpe_clt_base, DVS_CTRL00_HW, 0x00000000, 0x20000000);
 	/* non-blocking API, Please  use cmdqRecFlushAsync() */
 	//cmdq_task_flush_async_destroy(handle);
 	/* flush and destroy in cmdq */
-	cmdq_pkt_flush_threaded(dpe_clt, handle,
+	cmdq_pkt_flush_threaded(handle,
 	cmdq_cb_destroy, (void *)handle);
 
 	return 0;
@@ -2514,6 +2454,14 @@ static signed int DPE_DumpReg(void)
 	signed int Ret = 0;
 	/*  */
 	LOG_INF("- E.");
+
+	spin_lock(&(DPEInfo.SpinLockDPE));
+	if (g_u4EnableClockCount == 0) {
+		spin_unlock(&(DPEInfo.SpinLockDPE));
+		return 0;
+	}
+	spin_unlock(&(DPEInfo.SpinLockDPE));
+
 #if 1
 	/*  */
 	LOG_INF("DPE Config Info\n");
@@ -2526,6 +2474,8 @@ static signed int DPE_DumpReg(void)
 		(unsigned int)DPE_RD32(DVS_CTRL02_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_CTRL03_HW),
 		(unsigned int)DPE_RD32(DVS_CTRL03_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_CTRL06_HW),
+		(unsigned int)DPE_RD32(DVS_CTRL06_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_CTRL07_HW),
 		(unsigned int)DPE_RD32(DVS_CTRL07_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_IRQ_00_HW),
@@ -2536,6 +2486,8 @@ static signed int DPE_DumpReg(void)
 //		(unsigned int)DPE_RD32(DVS_CTRL_STATUS1_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_CTRL_STATUS2_HW),
 		(unsigned int)DPE_RD32(DVS_CTRL_STATUS2_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_IRQ_STATUS_HW),
+		(unsigned int)DPE_RD32(DVS_IRQ_STATUS_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_FRM_STATUS0_HW),
 		(unsigned int)DPE_RD32(DVS_FRM_STATUS0_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_FRM_STATUS1_HW),
@@ -2548,8 +2500,16 @@ static signed int DPE_DumpReg(void)
 		(unsigned int)DPE_RD32(DVS_CUR_STATUS_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_CTRL_HW),
 		(unsigned int)DPE_RD32(DVS_SRC_CTRL_REG));
-	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_CTRL00_HW),
-		(unsigned int)DPE_RD32(DVS_CTRL00_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_CRC_CTRL_HW),
+		(unsigned int)DPE_RD32(DVS_CRC_CTRL_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_CRC_IN_HW),
+		(unsigned int)DPE_RD32(DVS_CRC_IN_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_DRAM_STA0_HW),
+		(unsigned int)DPE_RD32(DVS_DRAM_STA0_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_DRAM_STA1_HW),
+		(unsigned int)DPE_RD32(DVS_DRAM_STA1_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_DRAM_ULT_HW),
+		(unsigned int)DPE_RD32(DVS_DRAM_ULT_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_DRAM_PITCH_HW),
 		(unsigned int)DPE_RD32(DVS_DRAM_PITCH_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_00_HW),
@@ -2562,6 +2522,139 @@ static signed int DPE_DumpReg(void)
 		(unsigned int)DPE_RD32(DVS_SRC_03_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_04_HW),
 		(unsigned int)DPE_RD32(DVS_SRC_04_REG));
+
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_05_L_FRM0_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_05_L_FRM0_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_06_L_FRM1_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_06_L_FRM1_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_07_L_FRM2_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_07_L_FRM2_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_08_L_FRM3_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_08_L_FRM3_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_09_R_FRM0_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_09_R_FRM0_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_10_R_FRM1_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_10_R_FRM1_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_11_R_FRM2_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_11_R_FRM2_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_12_R_FRM3_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_12_R_FRM3_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_13_L_VMAP0_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_13_L_VMAP0_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_14_L_VMAP1_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_14_L_VMAP1_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_15_L_VMAP2_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_15_L_VMAP2_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_16_L_VMAP3_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_16_L_VMAP3_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_17_R_VMAP0_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_17_R_VMAP0_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_18_R_VMAP1_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_18_R_VMAP1_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_19_R_VMAP2_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_19_R_VMAP2_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_20_R_VMAP3_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_20_R_VMAP3_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_21_INTER_MEDV_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_21_INTER_MEDV_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_26_OCCDV0_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_26_OCCDV0_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_27_OCCDV1_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_27_OCCDV1_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_28_OCCDV2_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_28_OCCDV2_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_29_OCCDV3_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_29_OCCDV3_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_30_DCV_CONF0_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_30_DCV_CONF0_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_31_DCV_CONF1_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_31_DCV_CONF1_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_32_DCV_CONF2_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_32_DCV_CONF2_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_33_DCV_CONF3_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_33_DCV_CONF3_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_34_DCV_L_FRM0_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_34_DCV_L_FRM0_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_42_OCCDV_EXT0_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_42_OCCDV_EXT0_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_43_OCCDV_EXT1_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_43_OCCDV_EXT1_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_44_OCCDV_EXT2_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_44_OCCDV_EXT2_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_SRC_45_OCCDV_EXT3_HW),
+		(unsigned int)DPE_RD32(DVS_SRC_45_OCCDV_EXT3_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_CRC_OUT_0_HW),
+		(unsigned int)DPE_RD32(DVS_CRC_OUT_0_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_CRC_OUT_1_HW),
+		(unsigned int)DPE_RD32(DVS_CRC_OUT_1_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_CRC_OUT_2_HW),
+		(unsigned int)DPE_RD32(DVS_CRC_OUT_2_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_CRC_OUT_3_HW),
+		(unsigned int)DPE_RD32(DVS_CRC_OUT_3_REG));
+
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_00_HW),
+		(unsigned int)DPE_RD32(DVS_ME_00_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_01_HW),
+		(unsigned int)DPE_RD32(DVS_ME_01_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_02_HW),
+		(unsigned int)DPE_RD32(DVS_ME_02_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_03_HW),
+		(unsigned int)DPE_RD32(DVS_ME_03_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_04_HW),
+		(unsigned int)DPE_RD32(DVS_ME_04_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_05_HW),
+		(unsigned int)DPE_RD32(DVS_ME_05_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_06_HW),
+		(unsigned int)DPE_RD32(DVS_ME_06_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_07_HW),
+		(unsigned int)DPE_RD32(DVS_ME_07_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_08_HW),
+		(unsigned int)DPE_RD32(DVS_ME_08_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_09_HW),
+		(unsigned int)DPE_RD32(DVS_ME_09_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_10_HW),
+		(unsigned int)DPE_RD32(DVS_ME_10_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_11_HW),
+		(unsigned int)DPE_RD32(DVS_ME_11_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_12_HW),
+		(unsigned int)DPE_RD32(DVS_ME_12_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_13_HW),
+		(unsigned int)DPE_RD32(DVS_ME_13_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_14_HW),
+		(unsigned int)DPE_RD32(DVS_ME_14_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_15_HW),
+		(unsigned int)DPE_RD32(DVS_ME_15_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_16_HW),
+		(unsigned int)DPE_RD32(DVS_ME_16_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_17_HW),
+		(unsigned int)DPE_RD32(DVS_ME_17_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_18_HW),
+		(unsigned int)DPE_RD32(DVS_ME_18_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_19_HW),
+		(unsigned int)DPE_RD32(DVS_ME_19_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_20_HW),
+		(unsigned int)DPE_RD32(DVS_ME_20_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_21_HW),
+		(unsigned int)DPE_RD32(DVS_ME_21_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_22_HW),
+		(unsigned int)DPE_RD32(DVS_ME_22_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_23_HW),
+		(unsigned int)DPE_RD32(DVS_ME_23_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_ME_24_HW),
+		(unsigned int)DPE_RD32(DVS_ME_24_REG));
+
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_OCC_PQ_0_HW),
+		(unsigned int)DPE_RD32(DVS_OCC_PQ_0_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_OCC_PQ_1_HW),
+		(unsigned int)DPE_RD32(DVS_OCC_PQ_1_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_OCC_PQ_2_HW),
+		(unsigned int)DPE_RD32(DVS_OCC_PQ_2_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_OCC_PQ_3_HW),
+		(unsigned int)DPE_RD32(DVS_OCC_PQ_3_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_OCC_PQ_4_HW),
+		(unsigned int)DPE_RD32(DVS_OCC_PQ_4_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVS_OCC_PQ_5_HW),
+		(unsigned int)DPE_RD32(DVS_OCC_PQ_5_REG));
 
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CTRL00_HW),
 		(unsigned int)DPE_RD32(DVP_CTRL00_REG));
@@ -2605,7 +2698,128 @@ static signed int DPE_DumpReg(void)
 		(unsigned int)DPE_RD32(DVP_SRC_03_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_04_HW),
 		(unsigned int)DPE_RD32(DVP_SRC_04_REG));
-
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_05_Y_FRM0_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_05_Y_FRM0_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_06_Y_FRM1_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_06_Y_FRM1_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_07_Y_FRM2_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_07_Y_FRM2_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_08_Y_FRM3_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_08_Y_FRM3_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_09_C_FRM0_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_09_C_FRM0_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_10_C_FRM1_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_10_C_FRM1_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_11_C_FRM2_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_11_C_FRM2_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_12_C_FRM3_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_12_C_FRM3_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_13_OCCDV0_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_13_OCCDV0_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_14_OCCDV1_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_14_OCCDV1_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_15_OCCDV2_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_15_OCCDV2_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_16_OCCDV3_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_16_OCCDV3_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_17_CRM_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_17_CRM_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_18_ASF_RMDV_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_18_ASF_RMDV_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_19_ASF_RDDV_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_19_ASF_RDDV_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_20_ASF_DV0_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_20_ASF_DV0_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_21_ASF_DV1_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_21_ASF_DV1_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_22_ASF_DV2_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_22_ASF_DV2_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_23_ASF_DV3_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_23_ASF_DV3_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_24_WMF_HFDV_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_24_WMF_HFDV_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_25_WMF_DV0_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_25_WMF_DV0_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_26_WMF_DV1_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_26_WMF_DV1_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_27_WMF_DV2_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_27_WMF_DV2_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_28_WMF_DV3_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_28_WMF_DV3_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CORE_00_HW),
+		(unsigned int)DPE_RD32(DVP_CORE_00_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CORE_01_HW),
+		(unsigned int)DPE_RD32(DVP_CORE_01_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CORE_02_HW),
+		(unsigned int)DPE_RD32(DVP_CORE_02_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CORE_03_HW),
+		(unsigned int)DPE_RD32(DVP_CORE_03_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CORE_04_HW),
+		(unsigned int)DPE_RD32(DVP_CORE_04_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CORE_05_HW),
+		(unsigned int)DPE_RD32(DVP_CORE_05_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CORE_06_HW),
+		(unsigned int)DPE_RD32(DVP_CORE_06_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CORE_07_HW),
+		(unsigned int)DPE_RD32(DVP_CORE_07_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CORE_08_HW),
+		(unsigned int)DPE_RD32(DVP_CORE_08_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CORE_09_HW),
+		(unsigned int)DPE_RD32(DVP_CORE_09_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CORE_10_HW),
+		(unsigned int)DPE_RD32(DVP_CORE_10_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CORE_11_HW),
+		(unsigned int)DPE_RD32(DVP_CORE_11_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CORE_12_HW),
+		(unsigned int)DPE_RD32(DVP_CORE_12_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CORE_13_HW),
+		(unsigned int)DPE_RD32(DVP_CORE_13_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CORE_14_HW),
+		(unsigned int)DPE_RD32(DVP_CORE_14_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CORE_15_HW),
+		(unsigned int)DPE_RD32(DVP_CORE_15_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_SRC_CTRL_HW),
+		(unsigned int)DPE_RD32(DVP_SRC_CTRL_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CRC_OUT_0_HW),
+		(unsigned int)DPE_RD32(DVP_CRC_OUT_0_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CRC_OUT_1_HW),
+		(unsigned int)DPE_RD32(DVP_CRC_OUT_1_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CRC_OUT_2_HW),
+		(unsigned int)DPE_RD32(DVP_CRC_OUT_2_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CRC_CTRL_HW),
+		(unsigned int)DPE_RD32(DVP_CRC_CTRL_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CRC_OUT_HW),
+		(unsigned int)DPE_RD32(DVP_CRC_OUT_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CRC_IN_HW),
+		(unsigned int)DPE_RD32(DVP_CRC_IN_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_DRAM_STA_HW),
+		(unsigned int)DPE_RD32(DVP_DRAM_STA_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_DRAM_ULT_HW),
+		(unsigned int)DPE_RD32(DVP_DRAM_ULT_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_DRAM_PITCH_HW),
+		(unsigned int)DPE_RD32(DVP_DRAM_PITCH_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_CORE_CRC_IN_HW),
+		(unsigned int)DPE_RD32(DVP_CORE_CRC_IN_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_EXT_SRC_13_OCCDV0_HW),
+		(unsigned int)DPE_RD32(DVP_EXT_SRC_13_OCCDV0_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_EXT_SRC_14_OCCDV1_HW),
+		(unsigned int)DPE_RD32(DVP_EXT_SRC_14_OCCDV1_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_EXT_SRC_15_OCCDV2_HW),
+		(unsigned int)DPE_RD32(DVP_EXT_SRC_15_OCCDV2_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_EXT_SRC_16_OCCDV3_HW),
+		(unsigned int)DPE_RD32(DVP_EXT_SRC_16_OCCDV3_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_EXT_SRC_18_ASF_RMDV_HW),
+		(unsigned int)DPE_RD32(DVP_EXT_SRC_18_ASF_RMDV_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_EXT_SRC_19_ASF_RDDV_HW),
+		(unsigned int)DPE_RD32(DVP_EXT_SRC_19_ASF_RDDV_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_EXT_SRC_20_ASF_DV0_HW),
+		(unsigned int)DPE_RD32(DVP_EXT_SRC_20_ASF_DV0_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_EXT_SRC_21_ASF_DV1_HW),
+		(unsigned int)DPE_RD32(DVP_EXT_SRC_21_ASF_DV1_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_EXT_SRC_22_ASF_DV2_HW),
+		(unsigned int)DPE_RD32(DVP_EXT_SRC_22_ASF_DV2_REG));
+	LOG_INF("[0x%08X %08X]\n", (unsigned int)(DVP_EXT_SRC_23_ASF_DV3_HW),
+		(unsigned int)DPE_RD32(DVP_EXT_SRC_23_ASF_DV3_REG));
 #endif
 	LOG_INF("- X.");
 	/*  */
@@ -2621,7 +2835,8 @@ static inline void DPE_Prepare_Enable_ccf_clock(void)
 	ret = clk_prepare_enable(dpe_clk.CG_TOP_MUX_DPE);
 	if (ret)
 		LOG_ERR("cannot prepare and enable CG_TOP_MUX_DPE clock\n");
-	smi_bus_prepare_enable(SMI_LARB7, DPE_DEV_NAME);
+	smi_bus_prepare_enable(SMI_LARB19, DPE_DEV_NAME);
+	smi_bus_prepare_enable(SMI_LARB20, DPE_DEV_NAME);
 	ret = clk_prepare_enable(dpe_clk.CG_IPESYS_DPE);
 	if (ret)
 		LOG_ERR("cannot prepare and enable CG_IPESYS_DPE clock\n");
@@ -2631,11 +2846,70 @@ static inline void DPE_Prepare_Enable_ccf_clock(void)
 static inline void DPE_Disable_Unprepare_ccf_clock(void)
 {
 	clk_disable_unprepare(dpe_clk.CG_IPESYS_DPE);
-	smi_bus_disable_unprepare(SMI_LARB7, DPE_DEV_NAME);
+	smi_bus_disable_unprepare(SMI_LARB19, DPE_DEV_NAME);
+	smi_bus_disable_unprepare(SMI_LARB20, DPE_DEV_NAME);
 	clk_disable_unprepare(dpe_clk.CG_TOP_MUX_DPE);
 }
 #endif
 
+#ifdef CONFIG_MTK_IOMMU_V2
+static inline int m4u_control_iommu_port(void)
+{
+	struct M4U_PORT_STRUCT sPort;
+	int ret = 0;
+
+	/* LARB19 */
+	int count_of_ports = 0;
+	int i = 0;
+
+#if (MTK_DPE_VER == 0)
+	count_of_ports = M4U_PORT_L19_IPE_DVP_WDMA_DISP -
+		M4U_PORT_L19_IPE_DVS_RDMA_DISP + 1;
+
+	for (i = 0; i < count_of_ports; i++) {
+		sPort.ePortID = M4U_PORT_L19_IPE_DVS_RDMA_DISP+i;
+		sPort.Virtuality = DPE_MEM_USE_VIRTUL;
+		//LOG_INF("config M4U Port ePortID=%d\n", sPort.ePortID);
+		#if defined(CONFIG_MTK_M4U) || defined(CONFIG_MTK_PSEUDO_M4U)
+		ret = m4u_config_port(&sPort);
+		if (ret == 0) {
+			//LOG_INF("config M4U Port %s to %s SUCCESS\n",
+			//iommu_get_port_name(M4U_PORT_L19_IPE_DVS_RDMA_DISP+i),
+			//DPE_MEM_USE_VIRTUL ? "virtual" : "physical");
+		} else {
+			LOG_INF("config M4U Port %s to %s FAIL(ret=%d)\n",
+			iommu_get_port_name(M4U_PORT_L19_IPE_DVS_RDMA_DISP+i),
+			DPE_MEM_USE_VIRTUL ? "virtual" : "physical", ret);
+			ret = -1;
+		}
+		#endif
+	}
+#else
+	count_of_ports = M4U_PORT_L19_IPE_DVP_WDMA -
+		M4U_PORT_L19_IPE_DVS_RDMA + 1;
+
+	for (i = 0; i < count_of_ports; i++) {
+		sPort.ePortID = M4U_PORT_L19_IPE_DVS_RDMA+i;
+		sPort.Virtuality = DPE_MEM_USE_VIRTUL;
+		//LOG_INF("config M4U Port ePortID=%d\n", sPort.ePortID);
+		#if defined(CONFIG_MTK_M4U) || defined(CONFIG_MTK_PSEUDO_M4U)
+		ret = m4u_config_port(&sPort);
+		if (ret == 0) {
+			//LOG_INF("config M4U Port %s to %s SUCCESS\n",
+			//iommu_get_port_name(M4U_PORT_L19_IPE_DVS_RDMA+i),
+			//DPE_MEM_USE_VIRTUL ? "virtual" : "physical");
+		} else {
+			LOG_INF("config M4U Port %s to %s FAIL(ret=%d)\n",
+			iommu_get_port_name(M4U_PORT_L19_IPE_DVS_RDMA+i),
+			DPE_MEM_USE_VIRTUL ? "virtual" : "physical", ret);
+			ret = -1;
+		}
+		#endif
+	}
+#endif
+	return ret;
+}
+#endif
 /**************************************************************
  *
  **************************************************************/
@@ -2645,10 +2919,17 @@ static void DPE_EnableClock(bool En)
 	unsigned int setReg;
 #endif
 
+#ifdef CONFIG_MTK_IOMMU_V2
+	int ret = 0;
+#endif
+
 	if (En) {		/* Enable clock. */
 /* LOG_DBG("clock enbled. g_u4EnableClockCount: %d.", g_u4EnableClockCount); */
+		spin_lock(&(DPEInfo.SpinLockDPE));
 		switch (g_u4EnableClockCount) {
 		case 0:
+			g_u4EnableClockCount++;
+			spin_unlock(&(DPEInfo.SpinLockDPE));
 #if !defined(CONFIG_MTK_LEGACY) && defined(CONFIG_COMMON_CLK) /*CCF*/
 #ifndef EP_NO_CLKMGR
 			DPE_Prepare_Enable_ccf_clock();
@@ -2657,6 +2938,7 @@ static void DPE_EnableClock(bool En)
 			 * 1. CAMSYS_CG_CLR (0x1A000008) = 0xffffffff;
 			 * 2. IMG_CG_CLR (0x15000008) = 0xffffffff;
 			 */
+			LOG_ERR("[Debug] It's LDVT load, EP_NO_CLKMGR");
 			setReg = 0xFFFFFFFF;
 			DPE_WR32(IPESYS_REG_CG_CLR, setReg);
 #endif
@@ -2672,11 +2954,22 @@ static void DPE_EnableClock(bool En)
 #endif	/* #if !defined(CONFIG_MTK_LEGACY) && defined(CONFIG_COMMON_CLK)  */
 			break;
 		default:
+			g_u4EnableClockCount++;
+			spin_unlock(&(DPEInfo.SpinLockDPE));
 			break;
 		}
+
+#ifdef CONFIG_MTK_IOMMU_V2
 		spin_lock(&(DPEInfo.SpinLockDPE));
-		g_u4EnableClockCount++;
-		spin_unlock(&(DPEInfo.SpinLockDPE));
+		if (g_u4EnableClockCount == 1) {
+			spin_unlock(&(DPEInfo.SpinLockDPE));
+			ret = m4u_control_iommu_port();
+			if (ret)
+				LOG_ERR("cannot config M4U IOMMU PORTS\n");
+		} else {
+			spin_unlock(&(DPEInfo.SpinLockDPE));
+		}
+#endif
 	} else {		/* Disable clock. */
 
 		/* LOG_DBG("Dpe clock disabled. g_u4EnableClockCount: %d.",
@@ -2684,9 +2977,10 @@ static void DPE_EnableClock(bool En)
 		 */
 		spin_lock(&(DPEInfo.SpinLockDPE));
 		g_u4EnableClockCount--;
-		spin_unlock(&(DPEInfo.SpinLockDPE));
+
 		switch (g_u4EnableClockCount) {
 		case 0:
+			spin_unlock(&(DPEInfo.SpinLockDPE));
 #if !defined(CONFIG_MTK_LEGACY) && defined(CONFIG_COMMON_CLK) /*CCF*/
 #ifndef EP_NO_CLKMGR
 			DPE_Disable_Unprepare_ccf_clock();
@@ -2711,6 +3005,7 @@ static void DPE_EnableClock(bool En)
 #endif
 			break;
 		default:
+			spin_unlock(&(DPEInfo.SpinLockDPE));
 			break;
 		}
 	}
@@ -2724,13 +3019,13 @@ static inline void DPE_Reset(void)
 	LOG_DBG("- E.");
 
 	LOG_DBG(" DPE Reset start!\n");
-	spin_lock(&(DPEInfo.SpinLockDPERef));
+	mutex_lock(&(MutexDPERef));
 
 	if (DPEInfo.UserCount > 1) {
-		spin_unlock(&(DPEInfo.SpinLockDPERef));
+		mutex_unlock(&(MutexDPERef));
 		LOG_DBG("Curr UserCount(%d) users exist", DPEInfo.UserCount);
 	} else {
-		spin_unlock(&(DPEInfo.SpinLockDPERef));
+		mutex_unlock(&(MutexDPERef));
 
 		/* Reset DPE flow */
 		DPE_MASKWR(DVS_CTRL01_REG, 0x70000000, 0x70000000);
@@ -2740,160 +3035,6 @@ static inline void DPE_Reset(void)
 
 		LOG_DBG(" DPE Reset end!\n");
 	}
-}
-
-/*******************************************************************************
- *
- ******************************************************************************/
-static signed int DPE_ReadReg(struct DPE_REG_IO_STRUCT *pRegIo)
-{
-	unsigned int i;
-	signed int Ret = 0;
-	/*  */
-	struct DPE_REG_STRUCT reg;
-	/* unsigned int* pData = (unsigned int*)pRegIo->Data; */
-	struct DPE_REG_STRUCT *pData = (struct DPE_REG_STRUCT *) pRegIo->pData;
-
-	if ((pRegIo->pData == NULL) ||
-		(pRegIo->Count == 0) ||
-		(pRegIo->Count > DPE_MAX_REG_CNT)) {
-		LOG_ERR("ERROR: pRegIo->pData is NULL or Count:%d\n",
-			pRegIo->Count);
-		Ret = -EFAULT;
-		goto EXIT;
-	}
-
-	for (i = 0; i < pRegIo->Count; i++) {
-		if (get_user(reg.Addr, (unsigned int *) &pData->Addr) != 0) {
-			LOG_ERR("get_user failed");
-			Ret = -EFAULT;
-			goto EXIT;
-		}
-		/* pData++; */
-		/*  */
-		if ((ISP_DPE_BASE + reg.Addr >= ISP_DPE_BASE)
-		    && (ISP_DPE_BASE + reg.Addr <
-						(ISP_DPE_BASE + DPE_REG_RANGE))
-			&& ((reg.Addr & 0x3) == 0)) {
-			reg.Val = DPE_RD32(ISP_DPE_BASE + reg.Addr);
-		} else {
-			LOG_ERR(
-			"Wrong address(0x%p)", (ISP_DPE_BASE + reg.Addr));
-			reg.Val = 0;
-		}
-		/*  */
-
-		if (put_user(reg.Val, (unsigned int *) &(pData->Val)) != 0) {
-			LOG_ERR("put_user failed");
-			Ret = -EFAULT;
-			goto EXIT;
-		}
-		pData++;
-		/*  */
-	}
-	/*  */
-EXIT:
-	return Ret;
-}
-
-
-/*******************************************************************************
- *
- ******************************************************************************/
-static signed int DPE_WriteRegToHw(struct DPE_REG_STRUCT *pReg,
-							unsigned int Count)
-{
-	signed int Ret = 0;
-	unsigned int i;
-	bool dbgWriteReg;
-
-	spin_lock(&(DPEInfo.SpinLockDPE));
-	dbgWriteReg = DPEInfo.DebugMask & DPE_DBG_WRITE_REG;
-	spin_unlock(&(DPEInfo.SpinLockDPE));
-
-	/*  */
-	if (dbgWriteReg)
-		LOG_DBG("- E.\n");
-
-	/*  */
-	for (i = 0; i < Count; i++) {
-		if (dbgWriteReg) {
-			LOG_DBG("Addr(0x%lx), Val(0x%x)\n",
-				(unsigned long)(ISP_DPE_BASE + pReg[i].Addr),
-				(unsigned int) (pReg[i].Val));
-		}
-
-		if (((ISP_DPE_BASE + pReg[i].Addr) <
-						(ISP_DPE_BASE + DPE_REG_RANGE))
-			&& ((pReg[i].Addr & 0x3) == 0)) {
-			DPE_WR32(ISP_DPE_BASE + pReg[i].Addr, pReg[i].Val);
-		} else {
-			LOG_ERR("wrong address(0x%lx)\n",
-				(unsigned long)(ISP_DPE_BASE + pReg[i].Addr));
-		}
-	}
-
-	/*  */
-	return Ret;
-}
-
-
-
-/*******************************************************************************
- *
- ******************************************************************************/
-static signed int DPE_WriteReg(struct DPE_REG_IO_STRUCT *pRegIo)
-{
-	signed int Ret = 0;
-	/*
-	 *  signed int TimeVd = 0;
-	 *  signed int TimeExpdone = 0;
-	 *  signed int TimeTasklet = 0;
-	 */
-	/* unsigned char* pData = NULL; */
-	struct DPE_REG_STRUCT *pData = NULL;
-	/*  */
-	if (DPEInfo.DebugMask & DPE_DBG_WRITE_REG)
-		LOG_DBG("Data(0x%p), Count(%d)\n", (pRegIo->pData),
-							(pRegIo->Count));
-	/*  */
-	if ((pRegIo->pData == NULL) ||
-		(pRegIo->Count == 0) ||
-		(pRegIo->Count > DPE_MAX_REG_CNT)) {
-		LOG_ERR("ERROR: pRegIo->pData is NULL or Count:%d\n",
-			pRegIo->Count);
-		Ret = -EFAULT;
-		goto EXIT;
-	}
-
-	pData = kmalloc((pRegIo->Count) *
-		sizeof(struct DPE_REG_STRUCT),
-		GFP_KERNEL); /* Use GFP_KERNEL instead of GFP_ATOMIC */
-if (pData == NULL) {
-	LOG_INF("ERROR: kmalloc failed, (process, pid, tgid)=(%s, %d, %d)\n",
-		current->comm,
-		current->pid,
-		current->tgid);
-		Ret = -ENOMEM;
-		goto EXIT;
-}
-
-	if (copy_from_user(pData,
-		(void __user *)(pRegIo->pData),
-		pRegIo->Count * sizeof(struct DPE_REG_STRUCT)) != 0) {
-		LOG_ERR("copy_from_user failed\n");
-		Ret = -EFAULT;
-		goto EXIT;
-	}
-	/*  */
-	Ret = DPE_WriteRegToHw(pData, pRegIo->Count);
-	/*  */
-EXIT:
-	if (pData != NULL) {
-		kfree(pData);
-		pData = NULL;
-	}
-	return Ret;
 }
 
 
@@ -2914,6 +3055,7 @@ static signed int DPE_WaitIrq(struct DPE_WAIT_IRQ_STRUCT *WaitIrq)
 	struct timeval time_getrequest;
 	unsigned long long sec = 0;
 	unsigned long usec = 0;
+	unsigned int p;
 
 	/* do_gettimeofday(&time_getrequest); */
 	sec = cpu_clock(0);	/* ns */
@@ -2998,6 +3140,7 @@ static signed int DPE_WaitIrq(struct DPE_WAIT_IRQ_STRUCT *WaitIrq)
 						   DPE_MsToJiffies(
 							WaitIrq->Timeout));
 
+	p = WaitIrq->ProcessID % IRQ_USER_NUM_MAX;
 	/* check if user is interrupted by system signal */
 	if ((Timeout != 0) &&
 		(!DPE_GetIRQState(WaitIrq->Type, WaitIrq->UserKey,
@@ -3022,8 +3165,9 @@ static signed int DPE_WaitIrq(struct DPE_WAIT_IRQ_STRUCT *WaitIrq)
 		     WaitIrq->Timeout, WaitIrq->Clear, WaitIrq->Type, irqStatus,
 			WaitIrq->Status, WaitIrq->UserKey);
 		LOG_ERR(
-		"WaitIrq Timeout:whichReq(%d),ProcID(%d) DpeIrqCnt(0x%08X) WriteReq(0x%08X) ReadReq(0x%08X)\n",
-		     whichReq, WaitIrq->ProcessID, DPEInfo.IrqInfo.DpeIrqCnt,
+		"WaitIrq Timeout:whichReq(%d),ProcID(%d) DpeIrqCnt[%d](0x%08X) WriteReq(0x%08X) ReadReq(0x%08X)\n",
+			whichReq, WaitIrq->ProcessID,
+			p, DPEInfo.IrqInfo.DpeIrqCnt[p],
 			DPEInfo.WriteReqIdx, DPEInfo.ReadReqIdx);
 
 		if (WaitIrq->bDumpReg) {
@@ -3048,8 +3192,8 @@ static signed int DPE_WaitIrq(struct DPE_WAIT_IRQ_STRUCT *WaitIrq)
 									flags);
 
 			if (WaitIrq->Status & DPE_INT_ST) {
-				DPEInfo.IrqInfo.DpeIrqCnt--;
-				if (DPEInfo.IrqInfo.DpeIrqCnt == 0)
+				DPEInfo.IrqInfo.DpeIrqCnt[p]--;
+				if (DPEInfo.IrqInfo.DpeIrqCnt[p] == 0)
 					DPEInfo.IrqInfo.Status[WaitIrq->Type] &=
 							(~WaitIrq->Status);
 			} else {
@@ -3084,7 +3228,6 @@ static long DPE_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 	signed int Ret = 0;
 
 	/*unsigned int pid = 0;*/
-	struct DPE_REG_IO_STRUCT RegIo;
 	struct DPE_WAIT_IRQ_STRUCT IrqInfo;
 	struct DPE_CLEAR_IRQ_STRUCT ClearIrq;
 	struct DPE_Config dpe_DpeConfig;
@@ -3139,30 +3282,6 @@ static long DPE_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 								_LOG_INF);
 			IRQ_LOG_PRINTER(DPE_IRQ_TYPE_INT_DVP_ST, currentPPB,
 								_LOG_ERR);
-			break;
-		}
-	case DPE_READ_REGISTER:
-		{
-			if (copy_from_user(&RegIo, (void *)Param,
-				sizeof(struct DPE_REG_IO_STRUCT)) == 0) {
-				Ret = DPE_ReadReg(&RegIo);
-			} else {
-				LOG_ERR(
-				"DPE_READ_REGISTER copy_from_user failed");
-				Ret = -EFAULT;
-			}
-			break;
-		}
-	case DPE_WRITE_REGISTER:
-		{
-			if (copy_from_user(&RegIo, (void *)Param,
-				sizeof(struct DPE_REG_IO_STRUCT)) == 0) {
-				Ret = DPE_WriteReg(&RegIo);
-			} else {
-				LOG_ERR(
-				"DPE_WRITE_REGISTER copy_from_user failed");
-				Ret = -EFAULT;
-			}
 			break;
 		}
 	case DPE_WAIT_IRQ:
@@ -3612,35 +3731,6 @@ EXIT:
 /*******************************************************************************
  *
  ******************************************************************************/
-static int compat_get_DPE_read_register_data(
-			struct compat_DPE_REG_IO_STRUCT __user *data32,
-					struct DPE_REG_IO_STRUCT __user *data)
-{
-	compat_uint_t count;
-	compat_uptr_t uptr;
-	int err;
-
-	err = get_user(uptr, &data32->pData);
-	err |= put_user(compat_ptr(uptr), &data->pData);
-	err |= get_user(count, &data32->Count);
-	err |= put_user(count, &data->Count);
-	return err;
-}
-
-static int compat_put_DPE_read_register_data(
-			struct compat_DPE_REG_IO_STRUCT __user *data32,
-					struct DPE_REG_IO_STRUCT __user *data)
-{
-	compat_uint_t count;
-	/*compat_uptr_t uptr;*/
-	int err = 0;
-	/* Assume data pointer is unchanged. */
-	/* err = get_user(compat_ptr(uptr), &data->pData); */
-	/* err |= put_user(uptr, &data32->pData); */
-	err |= get_user(count, &data->Count);
-	err |= put_user(count, &data32->Count);
-	return err;
-}
 
 static int compat_get_DPE_enque_req_data(
 			struct compat_DPE_Request __user *data32,
@@ -3716,53 +3806,6 @@ static long DPE_ioctl_compat(struct file *filp, unsigned int cmd,
 		return -ENOTTY;
 	}
 	switch (cmd) {
-	case COMPAT_DPE_READ_REGISTER:
-		{
-			struct compat_DPE_REG_IO_STRUCT __user *data32;
-			struct DPE_REG_IO_STRUCT __user *data;
-			int err;
-
-			data32 = compat_ptr(arg);
-			data = compat_alloc_user_space(sizeof(*data));
-			if (data == NULL)
-				return -EFAULT;
-
-			err = compat_get_DPE_read_register_data(data32, data);
-			if (err) {
-				LOG_INF("compat_get_read_register_data err.\n");
-				return err;
-			}
-			ret =
-			    filp->f_op->unlocked_ioctl(filp, DPE_READ_REGISTER,
-						       (unsigned long)data);
-			err = compat_put_DPE_read_register_data(data32, data);
-			if (err) {
-				LOG_INF("compat_put_read_register_data err.\n");
-				return err;
-			}
-			return ret;
-		}
-	case COMPAT_DPE_WRITE_REGISTER:
-		{
-			struct compat_DPE_REG_IO_STRUCT __user *data32;
-			struct DPE_REG_IO_STRUCT __user *data;
-			int err;
-
-			data32 = compat_ptr(arg);
-			data = compat_alloc_user_space(sizeof(*data));
-			if (data == NULL)
-				return -EFAULT;
-
-			err = compat_get_DPE_read_register_data(data32, data);
-			if (err) {
-				LOG_INF("COMPAT_DPE_WRITE_REGISTER error!!!\n");
-				return err;
-			}
-			ret =
-			    filp->f_op->unlocked_ioctl(filp, DPE_WRITE_REGISTER,
-						       (unsigned long)data);
-			return ret;
-		}
 	case COMPAT_DPE_ENQUE_REQ:
 		{
 			struct compat_DPE_Request __user *data32;
@@ -3848,8 +3891,7 @@ static signed int DPE_open(struct inode *pInode, struct file *pFile)
 
 
 	/*  */
-	spin_lock(&(DPEInfo.SpinLockDPERef));
-
+	mutex_lock(&(MutexDPERef));
 	pFile->private_data = NULL;
 	pFile->private_data = kmalloc(sizeof(struct DPE_USER_INFO_STRUCT),
 								GFP_ATOMIC);
@@ -3858,98 +3900,67 @@ static signed int DPE_open(struct inode *pInode, struct file *pFile)
 								current->comm,
 						current->pid, current->tgid);
 		Ret = -ENOMEM;
+		mutex_unlock(&(MutexDPERef));
+		goto EXIT;
 	} else {
 		pUserInfo = (struct DPE_USER_INFO_STRUCT *) pFile->private_data;
-		pUserInfo->Pid = current->pid;
+		pUserInfo->Pid = DPEInfo.UserCount;
 		pUserInfo->Tid = current->tgid;
 	}
 	/*  */
 	if (DPEInfo.UserCount > 0) {
 		DPEInfo.UserCount++;
-		spin_unlock(&(DPEInfo.SpinLockDPERef));
+		mutex_unlock(&(MutexDPERef));
 		LOG_DBG("Cur Usr(%d), (proc, pid, tgid)=(%s, %d, %d), exist",
 			DPEInfo.UserCount, current->comm, current->pid,
 								current->tgid);
 		goto EXIT;
 	} else {
 		DPEInfo.UserCount++;
-		spin_unlock(&(DPEInfo.SpinLockDPERef));
+
+		/* do wait queue head init when re-enter in camera */
+		/*  */
+		for (i = 0; i < _SUPPORT_MAX_DPE_REQUEST_RING_SIZE_; i++) {
+			/* DPE */
+			g_DPE_ReqRing.DPEReq_Struct[i].processID = 0x0;
+			g_DPE_ReqRing.DPEReq_Struct[i].callerID = 0x0;
+			g_DPE_ReqRing.DPEReq_Struct[i].enqueReqNum = 0x0;
+			/* g_DPE_ReqRing.DPEReq_Struct[i].enqueIdx = 0x0; */
+			g_DPE_ReqRing.DPEReq_Struct[i].State =
+				DPE_REQUEST_STATE_EMPTY;
+			g_DPE_ReqRing.DPEReq_Struct[i].FrameWRIdx = 0x0;
+			g_DPE_ReqRing.DPEReq_Struct[i].RrameRDIdx = 0x0;
+			for (j = 0; j < _SUPPORT_MAX_DPE_FRAME_REQUEST_; j++) {
+				g_DPE_ReqRing.DPEReq_Struct[i].DpeFrameStatus[
+					j] = DPE_FRAME_STATUS_EMPTY;
+			}
+
+		}
+		g_DPE_ReqRing.WriteIdx = 0x0;
+		g_DPE_ReqRing.ReadIdx = 0x0;
+		g_DPE_ReqRing.HWProcessIdx = 0x0;
+
+		for (i = 0; i < DPE_IRQ_TYPE_AMOUNT; i++)
+			DPEInfo.IrqInfo.Status[i] = 0;
+
+		for (i = 0; i < _SUPPORT_MAX_DPE_FRAME_REQUEST_; i++)
+			DPEInfo.ProcessID[i] = 0;
+
+		DPEInfo.WriteReqIdx = 0;
+		DPEInfo.ReadReqIdx = 0;
+		/* DPEInfo.IrqInfo.DpeIrqCnt = 0; */
+		for (i = 0; i < IRQ_USER_NUM_MAX; i++)
+			DPEInfo.IrqInfo.DpeIrqCnt[i] = 0;
+
+		/*  */
+		dpe_register_requests(&dpe_reqs, sizeof(struct DPE_Config));
+		dpe_set_engine_ops(&dpe_reqs, &dpe_ops);
+		mutex_unlock(&(MutexDPERef));
+
 		LOG_DBG("Cur Usr(%d), (proc, pid, tgid)=(%s, %d, %d), 1st user",
 			DPEInfo.UserCount, current->comm, current->pid,
 								current->tgid);
 	}
-
-	/* do wait queue head init when re-enter in camera */
-	/*  */
-	for (i = 0; i < _SUPPORT_MAX_DPE_REQUEST_RING_SIZE_; i++) {
-		/* DPE */
-		g_DPE_ReqRing.DPEReq_Struct[i].processID = 0x0;
-		g_DPE_ReqRing.DPEReq_Struct[i].callerID = 0x0;
-		g_DPE_ReqRing.DPEReq_Struct[i].enqueReqNum = 0x0;
-		/* g_DPE_ReqRing.DPEReq_Struct[i].enqueIdx = 0x0; */
-		g_DPE_ReqRing.DPEReq_Struct[i].State = DPE_REQUEST_STATE_EMPTY;
-		g_DPE_ReqRing.DPEReq_Struct[i].FrameWRIdx = 0x0;
-		g_DPE_ReqRing.DPEReq_Struct[i].RrameRDIdx = 0x0;
-		for (j = 0; j < _SUPPORT_MAX_DPE_FRAME_REQUEST_; j++) {
-			g_DPE_ReqRing.DPEReq_Struct[i].DpeFrameStatus[j] =
-			    DPE_FRAME_STATUS_EMPTY;
-		}
-
-	}
-	g_DPE_ReqRing.WriteIdx = 0x0;
-	g_DPE_ReqRing.ReadIdx = 0x0;
-	g_DPE_ReqRing.HWProcessIdx = 0x0;
-
-#ifdef USING_ION_MEMORY
-	LOG_DBG("[Gasper] Allocate ION MEMORY\n");
-	g_dpe_imem_buf.handle = NULL;
-	g_dpe_imem_buf.ion_fd = 0;
-	g_dpe_imem_buf.va = 0;
-	g_dpe_imem_buf.pa = 0;
-	g_dpe_imem_buf.length = WB_TOTAL_SIZE;
-	dpe_ion_client = NULL;
-	if ((dpe_ion_client == NULL) && (g_ion_device))
-		dpe_ion_client = ion_client_create(g_ion_device, "dpe");
-	if (dpe_ion_client == NULL) {
-		LOG_ERR("invalid dpe_ion_client client!\n");
-	} else {
-		if (dpe_allocbuf(&g_dpe_imem_buf) >= 0)
-			g_bIonBufferAllocated = MTRUE;
-		else
-			LOG_ERR("Allocate Buffer Fail!");
-	}
-	LOG_DBG("[Gasper] Allocate BUFFER SUCCESS\n");
-if (g_bIonBufferAllocated == MTRUE) {
-	g_dpewb_dvme_int_Buffer_va =
-		(unsigned int *)(uintptr_t)(g_dpe_imem_buf.va);
-	g_dpewb_dvme_int_Buffer_pa =
-		(unsigned int *)(uintptr_t)(g_dpe_imem_buf.pa);
-	g_dpewb_cost_int_Buffer_va =
-		(unsigned int *)(((uintptr_t)g_dpewb_dvme_int_Buffer_va) +
-		WB_INT_MEDV_SIZE);
-	g_dpewb_cost_int_Buffer_pa =
-		(unsigned int *)(((uintptr_t)g_dpewb_dvme_int_Buffer_pa) +
-		WB_INT_MEDV_SIZE);
-	g_dpewb_asfrm_Buffer_va =
-		(unsigned int *)(((uintptr_t)g_dpewb_cost_int_Buffer_va) +
-		WB_DCV_L_SIZE);
-	g_dpewb_asfrm_Buffer_pa =
-		(unsigned int *)(((uintptr_t)g_dpewb_cost_int_Buffer_pa) +
-		WB_DCV_L_SIZE);
-	g_dpewb_asfrmext_Buffer_va =
-		(unsigned int *)(((uintptr_t)g_dpewb_asfrm_Buffer_va) +
-		WB_ASFRM_SIZE);
-	g_dpewb_asfrmext_Buffer_pa =
-		(unsigned int *)(((uintptr_t)g_dpewb_asfrm_Buffer_pa) +
-		WB_ASFRM_SIZE);
-	g_dpewb_wmfhf_Buffer_va =
-		(unsigned int *)(((uintptr_t)g_dpewb_asfrmext_Buffer_va) +
-		WB_ASFRMExt_SIZE);
-	g_dpewb_wmfhf_Buffer_pa =
-		(unsigned int *)(((uintptr_t)g_dpewb_asfrmext_Buffer_pa) +
-		WB_ASFRMExt_SIZE);
-}
-#endif
 
 	/* Enable clock */
 	DPE_EnableClock(MTRUE);
@@ -3957,24 +3968,20 @@ if (g_bIonBufferAllocated == MTRUE) {
 	LOG_INF("DPE open g_u4EnableClockCount: %d", g_u4EnableClockCount);
 	/*  */
 
-	for (i = 0; i < DPE_IRQ_TYPE_AMOUNT; i++)
-		DPEInfo.IrqInfo.Status[i] = 0;
-
-	for (i = 0; i < _SUPPORT_MAX_DPE_FRAME_REQUEST_; i++)
-		DPEInfo.ProcessID[i] = 0;
-
-	DPEInfo.WriteReqIdx = 0;
-	DPEInfo.ReadReqIdx = 0;
-	DPEInfo.IrqInfo.DpeIrqCnt = 0;
+	LOG_INF(
+	"g_dpewb_dvme_int_Buffer_pa(0x%lx), g_dpewb_cost_int_Buffer_pa(0x%lx), g_dpewb_asfrm_Buffer_pa(0x%lx), g_dpewb_asfrmext_Buffer_pa(0x%lx), g_dpewb_wmfhf_Buffer_pa(0x%lx)\n",
+	((uintptr_t)g_dpewb_dvme_int_Buffer_pa & 0xffffffff),
+	((uintptr_t)g_dpewb_cost_int_Buffer_pa & 0xffffffff),
+	((uintptr_t)g_dpewb_asfrm_Buffer_pa & 0xffffffff),
+	((uintptr_t)g_dpewb_asfrmext_Buffer_pa & 0xffffffff),
+	((uintptr_t)g_dpewb_wmfhf_Buffer_pa & 0xffffffff));
 
 /*#define KERNEL_LOG*/
 #ifdef KERNEL_LOG
     /* In EP, Add DPE_DBG_WRITE_REG for debug. Should remove it after EP */
 	DPEInfo.DebugMask = (DPE_DBG_INT | DPE_DBG_DBGLOG | DPE_DBG_WRITE_REG);
 #endif
-	/*  */
-	dpe_register_requests(&dpe_reqs, sizeof(struct DPE_Config));
-	dpe_set_engine_ops(&dpe_reqs, &dpe_ops);
+
 
 
 EXIT:
@@ -4005,56 +4012,29 @@ static signed int DPE_release(struct inode *pInode, struct file *pFile)
 		pFile->private_data = NULL;
 	}
 	/*  */
-	spin_lock(&(DPEInfo.SpinLockDPERef));
+	mutex_lock(&(MutexDPERef));
 	DPEInfo.UserCount--;
 
 	if (DPEInfo.UserCount > 0) {
-		spin_unlock(&(DPEInfo.SpinLockDPERef));
+		mutex_unlock(&(MutexDPERef));
 		LOG_DBG("Cur UsrCnt(%d), (proc, pid, tgid)=(%s, %d, %d), exist",
 			DPEInfo.UserCount, current->comm, current->pid,
 								current->tgid);
 		goto EXIT;
-	} else
-		spin_unlock(&(DPEInfo.SpinLockDPERef));
+	} else {
+		dpe_unregister_requests(&dpe_reqs);
+		mutex_unlock(&(MutexDPERef));
+	}
 	/*  */
 	LOG_INF("Curr UsrCnt(%d), (process, pid, tgid)=(%s, %d, %d), last user",
 		DPEInfo.UserCount, current->comm, current->pid, current->tgid);
 
-#ifdef USING_ION_MEMORY
-	if (g_bIonBufferAllocated == MTRUE) {
-		dpe_freebuf(&g_dpe_imem_buf);
-		g_dpe_imem_buf.handle = NULL;
-		g_dpe_imem_buf.ion_fd = 0;
-		g_dpe_imem_buf.va = 0;
-		g_dpe_imem_buf.pa = 0;
-		g_bIonBufferAllocated = MFALSE;
-		g_dpewb_dvme_int_Buffer_pa = NULL;
-		g_dpewb_dvme_int_Buffer_va = NULL;
-		g_dpewb_cost_int_Buffer_pa = NULL;
-		g_dpewb_cost_int_Buffer_va = NULL;
-		g_dpewb_asfrm_Buffer_pa = NULL;
-		g_dpewb_asfrm_Buffer_va = NULL;
-		g_dpewb_asfrmext_Buffer_pa = NULL;
-		g_dpewb_asfrmext_Buffer_va = NULL;
-		g_dpewb_wmfhf_Buffer_pa = NULL;
-		g_dpewb_wmfhf_Buffer_va = NULL;
-	}
-
-	if (dpe_ion_client != NULL) {
-		ion_client_destroy(dpe_ion_client);
-			dpe_ion_client = NULL;
-	} else {
-		LOG_ERR("dpe_ion_client is NULL!!\n");
-	}
-
-#endif
-
 	/* Disable clock. */
 	DPE_EnableClock(MFALSE);
-	LOG_DBG("DPE release g_u4EnableClockCount: %d", g_u4EnableClockCount);
+	LOG_INF("DPE release g_u4EnableClockCount: %d", g_u4EnableClockCount);
 
 	/*  */
-	dpe_unregister_requests(&dpe_reqs);
+
 
 
 EXIT:
@@ -4064,46 +4044,6 @@ EXIT:
 	return 0;
 }
 
-
-/*******************************************************************************
- *
- ******************************************************************************/
-static signed int DPE_mmap(struct file *pFile, struct vm_area_struct *pVma)
-{
-	long length = 0;
-	unsigned int pfn = 0x0;
-
-	length = pVma->vm_end - pVma->vm_start;
-	/*  */
-	pVma->vm_page_prot = pgprot_noncached(pVma->vm_page_prot);
-	pfn = pVma->vm_pgoff << PAGE_SHIFT;
-
-	LOG_INF(
-		"mmap:vm_pgoff(0x%lx) pfn(0x%x) phy(0x%lx) vm_start(0x%lx) vm_end(0x%lx) length(0x%lx)",
-		pVma->vm_pgoff, pfn, pVma->vm_pgoff << PAGE_SHIFT,
-			pVma->vm_start, pVma->vm_end, length);
-
-	switch (pfn) {
-	case DPE_BASE_HW:
-		if (length > DPE_REG_RANGE) {
-			LOG_ERR("mmap err:mod:0x%x len(0x%lx),REG_RANGE(0x%x)!",
-				pfn, length, DPE_REG_RANGE);
-			return -EAGAIN;
-		}
-		break;
-	default:
-		LOG_ERR("Illegal starting HW addr for mmap!");
-		return -EAGAIN;
-	}
-	if (remap_pfn_range
-	    (pVma, pVma->vm_start, pVma->vm_pgoff,
-					pVma->vm_end - pVma->vm_start,
-							pVma->vm_page_prot)) {
-		return -EAGAIN;
-	}
-	/*  */
-	return 0;
-}
 
 /*******************************************************************************
  *
@@ -4118,7 +4058,7 @@ static const struct file_operations DPEFileOper = {
 	.open = DPE_open,
 	.release = DPE_release,
 	/* .flush   = mt_DPE_flush, */
-	.mmap = DPE_mmap,
+	/* .mmap = DPE_mmap, */
 	.unlocked_ioctl = DPE_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl = DPE_ioctl_compat,
@@ -4205,6 +4145,7 @@ unsigned int dpe_fop_poll(struct file *file, poll_table *wait)
 	struct DPE_USER_INFO_STRUCT *pUserInfo;
 	unsigned int buf_rdy;
 	unsigned long flags;
+	unsigned int p;
 
 	pUserInfo = (struct DPE_USER_INFO_STRUCT *) (file->private_data);
 	poll_wait(file, &DPEInfo.WaitQueueHead, wait);
@@ -4213,12 +4154,13 @@ unsigned int dpe_fop_poll(struct file *file, poll_table *wait)
 				DPE_INT_ST, DPE_PROCESS_ID_DPE,
 				pUserInfo->Pid);
 
-	LOG_INF("buf_rdy = %d\n", buf_rdy);
+	p = pUserInfo->Pid % IRQ_USER_NUM_MAX;
+	//LOG_INF("buf_rdy = %d\n", buf_rdy);
 	if (buf_rdy) {
 		spin_lock_irqsave
 		(&(DPEInfo.SpinLockIrq[DPE_IRQ_TYPE_INT_DVP_ST]), flags);
-		DPEInfo.IrqInfo.DpeIrqCnt--;
-if (DPEInfo.IrqInfo.DpeIrqCnt == 0)
+		DPEInfo.IrqInfo.DpeIrqCnt[p]--;
+if (DPEInfo.IrqInfo.DpeIrqCnt[p] == 0)
 	DPEInfo.IrqInfo.Status[DPE_IRQ_TYPE_INT_DVP_ST] &= (~DPE_INT_ST);
 spin_unlock_irqrestore(&(DPEInfo.SpinLockIrq[DPE_IRQ_TYPE_INT_DVP_ST]), flags);
 
@@ -4252,7 +4194,7 @@ static int vidioc_qbuf(struct file *file, void *priv, struct v4l2_buffer *p)
 	unsigned long flags;
 	unsigned int m_real_ReqNum, f;
 
-	LOG_INF("[%s]buf address/len = 0x%lx/0x%x\n",
+	LOG_DBG("[%s]buf address/len = 0x%lx/0x%x\n",
 		__func__, p->m.userptr,  p->length);
 	pUserInfo = (struct DPE_USER_INFO_STRUCT *) (file->private_data);
 
@@ -4266,7 +4208,7 @@ static int vidioc_qbuf(struct file *file, void *priv, struct v4l2_buffer *p)
 
 	if (ureq.m_pDpeConfig == NULL)
 		goto EXIT;
-	ret = copy_from_user(cfgs, (void __user *)ureq.m_pDpeConfig,
+	ret = copy_from_user(&cfgs[0], (void __user *)ureq.m_pDpeConfig,
 				ureq.m_ReqNum * sizeof(struct DPE_Config));
 	if (ret != 0)
 		goto EXIT;
@@ -4286,7 +4228,8 @@ static int vidioc_qbuf(struct file *file, void *priv, struct v4l2_buffer *p)
 	//kreq.m_ReqNum = ureq.m_ReqNum;
 
 	mutex_lock(&gDpeMutex);	/* Protect the Multi Process */
-spin_lock_irqsave(&(DPEInfo.SpinLockIrq[DPE_IRQ_TYPE_INT_DVP_ST]), flags);
+	spin_lock_irqsave(&(DPEInfo.SpinLockIrq[DPE_IRQ_TYPE_INT_DVP_ST]),
+			       flags);
 	dpe_enque_request(&dpe_reqs, kreq.m_ReqNum, &kreq, pUserInfo->Pid);
 	spin_unlock_irqrestore(&(DPEInfo.SpinLockIrq[DPE_IRQ_TYPE_INT_DVP_ST]),
 			       flags);
@@ -4348,7 +4291,7 @@ spin_unlock_irqrestore(&(DPEInfo.SpinLockIrq[DPE_IRQ_TYPE_INT_DVP_ST]),
 		Ret = -EFAULT;
 	}
 
-	LOG_ERR("[%s]buf address/len = 0x%lx/0x%x\n",
+	LOG_DBG("[%s]buf address/len = 0x%lx/0x%x\n",
 		__func__, p->m.userptr,  p->length);
 EXIT:
 	return 0;
@@ -4360,11 +4303,11 @@ static int vidioc_querycap(struct file *file, void  *priv,
 	struct DPE_device *dev = video_drvdata(file);
 	/*struct video_device *vdev = video_devdata(file);*/
 
-	strcpy(cap->driver, "dpe");
-	strcpy(cap->card, "dpe");
+	strlcpy(cap->driver, "dpe", sizeof(cap->driver));
+	strlcpy(cap->card, "dpe", sizeof(cap->card));
 	snprintf(cap->bus_info, sizeof(cap->bus_info),
 			"platform:%s", dev->v4l2_dev.name);
-	LOG_ERR("[%s]\n", __func__);
+	LOG_DBG("[%s]\n", __func__);
 cap->device_caps =
 	V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING | V4L2_CAP_READWRITE;
 	cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
@@ -4440,7 +4383,7 @@ static signed int DPE_probe(struct platform_device *pDev)
 
 	nr_DPE_devs += 1;
 	_dpe_dev = krealloc(DPE_devs, sizeof(struct DPE_device) * nr_DPE_devs,
-								GFP_KERNEL);
+							GFP_KERNEL|__GFP_ZERO);
 	if (!_dpe_dev) {
 		dev_dbg(&pDev->dev, "Unable to allocate DPE_devs\n");
 		return -ENOMEM;
@@ -4458,6 +4401,14 @@ static signed int DPE_probe(struct platform_device *pDev)
 			nr_DPE_devs, pDev->dev.of_node->name);
 		return -ENOMEM;
 	}
+
+#if defined(CONFIG_MTK_IOMMU_PGTABLE_EXT) && \
+	(CONFIG_MTK_IOMMU_PGTABLE_EXT > 32)
+		*(DPE_dev->dev->dma_mask) =
+			(u64)DMA_BIT_MASK(CONFIG_MTK_IOMMU_PGTABLE_EXT);
+		DPE_dev->dev->coherent_dma_mask =
+			(u64)DMA_BIT_MASK(CONFIG_MTK_IOMMU_PGTABLE_EXT);
+#endif
 
 	LOG_INF("nr_DPE_devs=%d, devnode(%s), map_addr=0x%lx\n", nr_DPE_devs,
 		pDev->dev.of_node->name, (unsigned long)DPE_dev->regs);
@@ -4590,8 +4541,35 @@ if (DPE_dev->irq > 0) {
 			goto EXIT;
 		}
 
+#ifdef KERNEL_DMA_BUFFER
+	gdev = &pDev->dev;
+	kernel_dpebuf =
+	vb2_dc_alloc(gdev, DMA_ATTR_WRITE_BARRIER, WB_TOTAL_SIZE,
+	DMA_FROM_DEVICE, 0);
+	dbuf = vb2_dc_get_dmabuf(kernel_dpebuf, O_RDWR);
+	refcount_dec(&kernel_dpebuf->refcount);
+	dpebuf =
+	vb2_dc_attach_dmabuf(gdev, dbuf, WB_TOTAL_SIZE, DMA_FROM_DEVICE);
+
+	if (vb2_dc_map_dmabuf(dpebuf) != 0)
+		LOG_ERR("Allocate Buffer Fail!");
+
+	g_dpewb_dvme_int_Buffer_pa = (unsigned int *)dpebuf->dma_addr;
+	g_dpewb_cost_int_Buffer_pa =
+		(unsigned int *)(((uintptr_t)g_dpewb_dvme_int_Buffer_pa) +
+		WB_INT_MEDV_SIZE);
+	g_dpewb_asfrm_Buffer_pa =
+		(unsigned int *)(((uintptr_t)g_dpewb_cost_int_Buffer_pa) +
+		WB_DCV_L_SIZE);
+	g_dpewb_asfrmext_Buffer_pa =
+		(unsigned int *)(((uintptr_t)g_dpewb_asfrm_Buffer_pa) +
+		WB_ASFRM_SIZE);
+	g_dpewb_wmfhf_Buffer_pa =
+		(unsigned int *)(((uintptr_t)g_dpewb_asfrmext_Buffer_pa) +
+		WB_ASFRMExt_SIZE);
+#endif
+
 		/* Init spinlocks */
-		spin_lock_init(&(DPEInfo.SpinLockDPERef));
 		spin_lock_init(&(DPEInfo.SpinLockDPE));
 		for (n = 0; n < DPE_IRQ_TYPE_AMOUNT; n++)
 			spin_lock_init(&(DPEInfo.SpinLockIrq[n]));
@@ -4614,9 +4592,9 @@ if (DPE_dev->irq > 0) {
 
 
 		/* Init DPEInfo */
-		spin_lock(&(DPEInfo.SpinLockDPERef));
+		mutex_lock(&(MutexDPERef));
 		DPEInfo.UserCount = 0;
-		spin_unlock(&(DPEInfo.SpinLockDPERef));
+		mutex_unlock(&(MutexDPERef));
 		/*  */
 		DPEInfo.IrqInfo.Mask[DPE_IRQ_TYPE_INT_DVP_ST] = INT_ST_MASK_DPE;
 
@@ -4650,7 +4628,7 @@ if (DPE_dev->irq > 0) {
 		 */
 		vfd->lock = &DPE_dev->mutex;
 		video_set_drvdata(vfd, DPE_dev);
-		Ret = video_register_device(vfd, VFL_TYPE_GRABBER, 5);
+		Ret = video_register_device(vfd, VFL_TYPE_GRABBER, -1);
 
 		if (Ret < 0) {
 			video_unregister_device(vfd);
@@ -4695,6 +4673,17 @@ static signed int DPE_remove(struct platform_device *pDev)
 	/* kill tasklet */
 	for (i = 0; i < DPE_IRQ_TYPE_AMOUNT; i++)
 		tasklet_kill(DPE_tasklet[i].pDPE_tkt);
+
+#ifdef KERNEL_DMA_BUFFER
+	vb2_dc_unmap_dmabuf(dpebuf);
+	vb2_dc_detach_dmabuf(dpebuf);
+	vb2_dc_put(kernel_dpebuf);
+	dpebuf = NULL;
+	kernel_dpebuf = NULL;
+	dbuf = NULL;
+	gdev = NULL;
+#endif
+
 #if 0
 	/* free all registered irq(child nodes) */
 	DPE_UnRegister_AllregIrq();
@@ -4875,6 +4864,8 @@ static struct platform_driver DPEDriver = {
 
 static int dpe_dump_read(struct seq_file *m, void *v)
 {
+/* fix unexpected close clock issue */
+#if 0
 	int i, j;
 
 	if (DPEInfo.UserCount <= 0)
@@ -4970,7 +4961,7 @@ static int dpe_dump_read(struct seq_file *m, void *v)
 	}
 
 	seq_puts(m, "\n============ dpe dump debug ============\n");
-
+#endif
 	return 0;
 }
 
@@ -4989,6 +4980,8 @@ static const struct file_operations dpe_dump_proc_fops = {
 
 static int dpe_reg_read(struct seq_file *m, void *v)
 {
+/* fix unexpected close clock issue */
+#if 0
 	unsigned int i;
 
 	if (DPEInfo.UserCount <= 0)
@@ -5006,7 +4999,7 @@ static int dpe_reg_read(struct seq_file *m, void *v)
 				(unsigned int)(DPE_BASE_HW + i),
 				(unsigned int)DPE_RD32(ISP_DPE_BASE + i));
 	}
-
+#endif
 	return 0;
 }
 
@@ -5024,6 +5017,13 @@ static ssize_t dpe_reg_write(struct file *file, const char __user *buffer,
 
 	if (DPEInfo.UserCount <= 0)
 		return 0;
+
+	spin_lock(&(DPEInfo.SpinLockDPE));
+	if (g_u4EnableClockCount == 0) {
+		spin_unlock(&(DPEInfo.SpinLockDPE));
+		return 0;
+	}
+	spin_unlock(&(DPEInfo.SpinLockDPE));
 
 	len = (count < (sizeof(desc) - 1)) ? count : (sizeof(desc) - 1);
 	if (copy_from_user(desc, buffer, len))
@@ -5134,6 +5134,32 @@ static const struct file_operations dpe_reg_proc_fops = {
 	.write = dpe_reg_write,
 };
 
+/**************************************************************
+ *
+ **************************************************************/
+#ifdef CONFIG_MTK_IOMMU_V2
+enum mtk_iommu_callback_ret_t DPE_M4U_TranslationFault_callback(int port,
+	unsigned long mva, void *data)
+#else
+enum m4u_callback_ret_t DPE_M4U_TranslationFault_callback(int port,
+	unsigned int mva, void *data)
+#endif
+{
+
+	pr_info("[ISP_M4U]fault call port=%d, mva=0x%lx", port, mva);
+
+	switch (port) {
+	default:
+		DPE_DumpReg();
+	break;
+	}
+#ifdef CONFIG_MTK_IOMMU_V2
+	return MTK_IOMMU_CALLBACK_HANDLED;
+#else
+	return M4U_CALLBACK_HANDLED;
+#endif
+}
+
 
 /*******************************************************************************
  *
@@ -5181,9 +5207,10 @@ static signed int __init DPE_Init(void)
 	void *tmp;
 	/* FIX-ME: linux-3.10 procfs API changed */
 	/* use proc_create */
+#if 0
 	struct proc_dir_entry *proc_entry;
 	struct proc_dir_entry *isp_dpe_dir;
-
+#endif
 
 	int i;
 	/*  */
@@ -5211,6 +5238,7 @@ static signed int __init DPE_Init(void)
 	LOG_DBG("ISP_DPE_BASE: %lx\n", ISP_DPE_BASE);
 #endif
 
+#if 0
 	isp_dpe_dir = proc_mkdir("dpe", NULL);
 	if (!isp_dpe_dir) {
 		LOG_ERR("[%s]: fail to mkdir /proc/dpe\n", __func__);
@@ -5223,7 +5251,7 @@ static signed int __init DPE_Init(void)
 
 	proc_entry = proc_create("dpe_reg", 0644, isp_dpe_dir,
 							&dpe_reg_proc_fops);
-
+#endif
 
 	/* isr log */
 	if (PAGE_SIZE <
@@ -5270,6 +5298,48 @@ static signed int __init DPE_Init(void)
 			   DPE_DumpCallback, DPE_ResetCallback,
 							DPE_ClockOffCallback);
 #endif
+
+#ifdef CONFIG_MTK_IOMMU_V2
+	#if (MTK_DPE_VER == 0)
+	mtk_iommu_register_fault_callback(M4U_PORT_L19_IPE_DVP_WDMA_DISP,
+					  DPE_M4U_TranslationFault_callback,
+					  NULL);
+	mtk_iommu_register_fault_callback(M4U_PORT_L19_IPE_DVP_RDMA_DISP,
+					  DPE_M4U_TranslationFault_callback,
+					  NULL);
+	mtk_iommu_register_fault_callback(M4U_PORT_L19_IPE_DVS_WDMA_DISP,
+					  DPE_M4U_TranslationFault_callback,
+					  NULL);
+	mtk_iommu_register_fault_callback(M4U_PORT_L19_IPE_DVS_RDMA_DISP,
+					  DPE_M4U_TranslationFault_callback,
+					  NULL);
+	#else
+	mtk_iommu_register_fault_callback(M4U_PORT_L19_IPE_DVP_WDMA,
+					  DPE_M4U_TranslationFault_callback,
+					  NULL);
+	mtk_iommu_register_fault_callback(M4U_PORT_L19_IPE_DVP_RDMA,
+					  DPE_M4U_TranslationFault_callback,
+					  NULL);
+	mtk_iommu_register_fault_callback(M4U_PORT_L19_IPE_DVS_WDMA,
+					  DPE_M4U_TranslationFault_callback,
+					  NULL);
+	mtk_iommu_register_fault_callback(M4U_PORT_L19_IPE_DVS_RDMA,
+					  DPE_M4U_TranslationFault_callback,
+					  NULL);
+	#endif
+#else
+	#if (MTK_DPE_VER == 0)
+	m4u_register_fault_callback(M4U_PORT_DVS_RDMA,
+			DPE_M4U_TranslationFault_callback, NULL);
+	m4u_register_fault_callback(M4U_PORT_DVS_WDMA,
+			DPE_M4U_TranslationFault_callback, NULL);
+	m4u_register_fault_callback(M4U_PORT_DVP_RDMA,
+			DPE_M4U_TranslationFault_callback, NULL);
+	m4u_register_fault_callback(M4U_PORT_DVP_WDMA,
+			DPE_M4U_TranslationFault_callback, NULL);
+	#endif
+#endif
+
 	LOG_DBG("- X. Ret: %d.", Ret);
 	return Ret;
 }
@@ -5316,6 +5386,7 @@ static irqreturn_t ISP_Irq_DVP(signed int Irq, void *DeviceId)
 	bool bResulst = MFALSE;
 	bool isDvpDone = MFALSE;
 	pid_t ProcessID;
+	unsigned int p = 0;
 
 	DvsStatus = DPE_RD32(DVS_CTRL_STATUS0_REG);	/* DVS Status */
 	DvpStatus = DPE_RD32(DVP_CTRL_STATUS0_REG);	/* DVP Status */
@@ -5343,11 +5414,12 @@ static irqreturn_t ISP_Irq_DVP(signed int Irq, void *DeviceId)
 			/* schedule_work(&DPEInfo.ScheduleDpeWork); */
 			queue_work(DPEInfo.wkqueue, &DPEInfo.ScheduleDpeWork);
 			#endif
+			p = ProcessID % IRQ_USER_NUM_MAX;
 			DPEInfo.IrqInfo.Status[DPE_IRQ_TYPE_INT_DVP_ST] |=
 				DPE_INT_ST;
-			DPEInfo.IrqInfo.ProcessID[DPE_PROCESS_ID_DPE] =
+			DPEInfo.IrqInfo.ProcessID[p] =
 				ProcessID;
-			DPEInfo.IrqInfo.DpeIrqCnt++;
+			DPEInfo.IrqInfo.DpeIrqCnt[p]++;
 			DPEInfo.ProcessID[DPEInfo.WriteReqIdx] = ProcessID;
 			DPEInfo.WriteReqIdx =
 				(DPEInfo.WriteReqIdx + 1) %
@@ -5379,8 +5451,8 @@ static irqreturn_t ISP_Irq_DVP(signed int Irq, void *DeviceId)
 		DPE_IRQ_TYPE_INT_DVP_ST,
 		m_CurrentPPB,
 		_LOG_INF,
-		"IrqCnt:0x%x,WReq:0x%x,RReq:0x%x\n",
-		DPEInfo.IrqInfo.DpeIrqCnt,
+		"IrqCnt[%d]:0x%x,WReq:0x%x,RReq:0x%x\n",
+		p, DPEInfo.IrqInfo.DpeIrqCnt[p],
 		DPEInfo.WriteReqIdx,
 		DPEInfo.ReadReqIdx);
 
@@ -5404,6 +5476,7 @@ static irqreturn_t ISP_Irq_DVS(signed int Irq, void *DeviceId)
 	bool bResulst = MFALSE;
 	bool isDvsDone = MFALSE;
 	pid_t ProcessID;
+	unsigned int p = 0;
 
 	DvsStatus = DPE_RD32(DVS_CTRL_STATUS0_REG);	/* DVS Status */
 	DvpStatus = DPE_RD32(DVP_CTRL_STATUS0_REG);	/* DVP Status */
@@ -5431,11 +5504,12 @@ static irqreturn_t ISP_Irq_DVS(signed int Irq, void *DeviceId)
 			/* schedule_work(&DPEInfo.ScheduleDpeWork); */
 			queue_work(DPEInfo.wkqueue, &DPEInfo.ScheduleDpeWork);
 			#endif
+			p = ProcessID % IRQ_USER_NUM_MAX;
 			DPEInfo.IrqInfo.Status[DPE_IRQ_TYPE_INT_DVP_ST] |=
 				DPE_INT_ST;
-			DPEInfo.IrqInfo.ProcessID[DPE_PROCESS_ID_DPE] =
+			DPEInfo.IrqInfo.ProcessID[p] =
 				ProcessID;
-			DPEInfo.IrqInfo.DpeIrqCnt++;
+			DPEInfo.IrqInfo.DpeIrqCnt[p]++;
 			DPEInfo.ProcessID[DPEInfo.WriteReqIdx] = ProcessID;
 			DPEInfo.WriteReqIdx =
 				(DPEInfo.WriteReqIdx + 1) %
@@ -5467,8 +5541,8 @@ static irqreturn_t ISP_Irq_DVS(signed int Irq, void *DeviceId)
 		DPE_IRQ_TYPE_INT_DVS_ST,
 		m_CurrentPPB,
 		_LOG_INF,
-		"IrqCnt:0x%x,WReq:0x%x,RReq:0x%x\n",
-		DPEInfo.IrqInfo.DpeIrqCnt,
+		"IrqCnt[%d]:0x%x,WReq:0x%x,RReq:0x%x\n",
+		p, DPEInfo.IrqInfo.DpeIrqCnt[p],
 		DPEInfo.WriteReqIdx,
 		DPEInfo.ReadReqIdx);
 

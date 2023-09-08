@@ -49,14 +49,20 @@
 
 #define IPC_L4C_MSG_ID_LEN   (0x40)
 
-/* offset in whole share memory region */
-#define CCCI_SMEM_OFFSET_EXCEPTION 0
-#define CCCI_SMEM_OFFSET_EPON_UMOLY (CCCI_SMEM_OFFSET_EXCEPTION+0x1830)
-
 /* feature option, always try using platform info first! */
 #define FEATURE_SCP_CCCI_SUPPORT
 /*#define ENABLE_EMI_PROTECTION*/
 #define ENABLE_32K_CLK_LESS
 /*#define CCCI_LOG_LEVEL     1*/
+//define CCCI_ENABLE_MPU_MEMORY_API
+#define ENABLE_MD_SEC_SMEM
+#define ENABLE_SECURITY_SHARE_MEMORY
+#define CUST_FT_DUMP_BUF_FROM_DT
+#define CUST_FT_CARKIT_ENABLE
+#define CUST_FT_BIGDATA
+#define CUST_FT_EE_TRIGGER_REBOOT
+#define CUST_FT_BUS_TIMEOUT_DEBUG
+#define CUST_FT_EMI_DUMP_EN
+#define CUST_FT_DEVAPC_MD_DEBUG
 
 #endif

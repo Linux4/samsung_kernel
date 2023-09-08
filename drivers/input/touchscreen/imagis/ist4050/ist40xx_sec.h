@@ -16,7 +16,7 @@
 #ifndef __IST40XX_SEC_H__
 #define __IST40XX_SEC_H__
 
-#define SEC_MISCAL_SPEC		50
+#define SEC_MISCAL_SPEC		100
 
 /* Factory Test for Reliability Test Group */
 enum ist40xx_reliability_commands {

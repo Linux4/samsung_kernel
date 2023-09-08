@@ -6,12 +6,20 @@ ifneq ($(CONFIG_USB_MTU3_PLAT_PHONE),)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/
 ccflags-y += -I$(srctree)/drivers/power/supply/mediatek/misc/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/typec/tcpc/
+ifeq ($(CONFIG_MACH_MT6877),y)
+ccflags-y += -I$(srctree)/drivers/usb/mtu3/mt6877/
+else
 ccflags-y += -I$(srctree)/drivers/usb/mtu3/$(CONFIG_MTK_PLATFORM)/
+endif
 endif
 
 ifneq ($(CONFIG_USB_MTU3_PLAT_PHONE),)
 
+ifeq ($(CONFIG_MACH_MT6877),y)
+obj-y += $(subst ",,mt6877)/
+else
 obj-y += $(subst ",,$(CONFIG_MTK_PLATFORM))/
+endif
 obj-y += mtu3_debugfs_v2.o
 
 obj-$(CONFIG_USB_MTU3)	+= musb_hdrc.o
@@ -31,6 +39,13 @@ ifneq ($(CONFIG_USB_MTU3_DUAL_ROLE),)
 endif
 
 else
+
+subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat
+
+ifneq ($(filter y,$(CONFIG_MACH_MT8168)),)
+subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/mt8168/
+endif
+
 
 obj-$(CONFIG_USB_MTU3) += mtu3.o
 

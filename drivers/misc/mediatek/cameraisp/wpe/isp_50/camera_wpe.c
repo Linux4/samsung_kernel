@@ -97,7 +97,9 @@ static unsigned long __read_mostly tracing_mark_write_addr;
 
 /*  #include "smi_common.h" */
 
+#ifdef CONFIG_PM_SLEEP
 #include <linux/pm_wakeup.h>
+#endif
 
 /* DPE Command Queue */
 /* #include "../../cmdq/mt6797/cmdq_record.h" */
@@ -250,8 +252,10 @@ static struct Tasklet_table WPE_tasklet[WPE_IRQ_TYPE_AMOUNT] = {
 	{ISP_TaskletFunc_WPE, &Wpetkt[WPE_IRQ_TYPE_INT_WPEB_ST]},
 };
 
+#ifdef CONFIG_PM_SLEEP
 struct wakeup_source WPE_wake_lock;
-
+struct wakeup_source WPE_MDP_wake_lock;
+#endif
 
 static DEFINE_MUTEX(gWpeMutex);
 static DEFINE_MUTEX(gWpeDequeMutex);
@@ -296,40 +300,40 @@ static unsigned int g_u4WpeCnt;
 
 
 enum WPE_FRAME_STATUS_ENUM {
-	WPE_FRAME_STATUS_EMPTY,	/* 0 */
-	WPE_FRAME_STATUS_ENQUE,	/* 1 */
-	WPE_FRAME_STATUS_RUNNING,	/* 2 */
-	WPE_FRAME_STATUS_FINISHED,	/* 3 */
+	WPE_FRAME_STATUS_EMPTY,    /* 0 */
+	WPE_FRAME_STATUS_ENQUE,    /* 1 */
+	WPE_FRAME_STATUS_RUNNING,  /* 2 */
+	WPE_FRAME_STATUS_FINISHED, /* 3 */
 	WPE_FRAME_STATUS_TOTAL
 };
 
 
 enum WPE_REQUEST_STATE_ENUM {
-	WPE_REQUEST_STATE_EMPTY,	/* 0 */
-	WPE_REQUEST_STATE_PENDING,	/* 1 */
-	WPE_REQUEST_STATE_RUNNING,	/* 2 */
-	WPE_REQUEST_STATE_FINISHED,	/* 3 */
+	WPE_REQUEST_STATE_EMPTY,    /* 0 */
+	WPE_REQUEST_STATE_PENDING,  /* 1 */
+	WPE_REQUEST_STATE_RUNNING,  /* 2 */
+	WPE_REQUEST_STATE_FINISHED, /* 3 */
 	WPE_REQUEST_STATE_TOTAL
 };
 
 
 struct WPE_REQUEST_STRUCT {
 	enum WPE_REQUEST_STATE_ENUM State;
-	pid_t processID;	/* caller process ID */
-	unsigned int callerID;	/* caller thread ID */
+	pid_t processID;            /* caller process ID */
+	unsigned int callerID;      /* caller thread ID */
 	unsigned int enqueReqNum;
 		/* to judge it belongs to which frame package */
-	signed int FrameWRIdx;	/* Frame write Index */
-	signed int FrameRDIdx;	/* Frame read Index */
+	unsigned int FrameWRIdx;    /* Frame write Index */
+	unsigned int FrameRDIdx;    /* Frame read Index */
 	enum WPE_FRAME_STATUS_ENUM
 			WpeFrameStatus[_SUPPORT_MAX_WPE_FRAME_REQUEST_];
 	struct WPE_Config WpeFrameConfig[_SUPPORT_MAX_WPE_FRAME_REQUEST_];
 };
 
 struct WPE_REQUEST_RING_STRUCT {
-	signed int WriteIdx;	/* enque how many request  */
-	signed int ReadIdx;		/* read which request index */
-	signed int HWProcessIdx;	/* HWWriteIdx */
+	unsigned int WriteIdx;      /* enque how many request  */
+	unsigned int ReadIdx;       /* read which request index */
+	unsigned int HWProcessIdx;  /* HWWriteIdx */
 	struct WPE_REQUEST_STRUCT
 		WPEReq_Struct[_SUPPORT_MAX_WPE_REQUEST_RING_SIZE_];
 };
@@ -520,7 +524,7 @@ static struct SV_LOG_STR gSvLog[WPE_IRQ_TYPE_AMOUNT];
 	struct SV_LOG_STR *pSrc = &gSvLog[irq];\
 	char *ptr;\
 	unsigned int i;\
-	signed int ppb = 0;\
+	unsigned int ppb = 0;\
 	signed int logT = 0;\
 	if (ppb_in > 1) {\
 		ppb = 1;\
@@ -1374,7 +1378,7 @@ static inline unsigned int WPE_JiffiesToMs(unsigned int Jiffies)
 }
 
 
-static bool ConfigWPERequest(signed int ReqIdx)
+static bool ConfigWPERequest(unsigned int ReqIdx)
 {
 #ifdef WPE_USE_GCE
 	unsigned int j;
@@ -3541,7 +3545,7 @@ EXIT:
 	return Ret;
 }
 
-static inline unsigned int WPE_GetFrameState(signed int WPEReadIdx)
+static inline unsigned int WPE_GetFrameState(unsigned int WPEReadIdx)
 {
 	unsigned int j;
 	unsigned int ret = 0;
@@ -3585,8 +3589,8 @@ static long WPE_ioctl(struct file *pFile,
 	struct WPE_CLEAR_IRQ_STRUCT ClearIrq;
 	struct WPE_Config wpe_WpeConfig;
 	struct WPE_Request wpe_WpeReq;
-	signed int WPEWriteIdx = 0;
-	signed int WPEReadIdx = -1;
+	unsigned int WPEWriteIdx = 0;
+	unsigned int WPEReadIdx = 0;
 	int idx;
 	struct WPE_USER_INFO_STRUCT *pUserInfo;
 	int enqueNum;
@@ -4866,8 +4870,14 @@ static signed int WPE_open(struct inode *pInode, struct file *pFile)
 	g_WPE_ReqRing.HWProcessIdx = 0x0;
 
 	/* Enable clock */
+#ifdef CONFIG_PM_SLEEP
+	__pm_stay_awake(&WPE_wake_lock);
+#endif
 	WPE_EnableClock(MTRUE);
 	g_u4WpeCnt = 0;
+#ifdef CONFIG_PM_SLEEP
+	__pm_relax(&WPE_wake_lock);
+#endif
 	LOG_INF("WPE open g_u4EnableClockCount: %d", g_u4EnableClockCount);
 	/*  */
 
@@ -4940,7 +4950,13 @@ static signed int WPE_release(struct inode *pInode, struct file *pFile)
 		current->tgid);
 
 	/* Disable clock. */
+#ifdef CONFIG_PM_SLEEP
+	__pm_stay_awake(&WPE_wake_lock);
+#endif
 	WPE_EnableClock(MFALSE);
+#ifdef CONFIG_PM_SLEEP
+	__pm_relax(&WPE_wake_lock);
+#endif
 	LOG_INF("WPE release g_u4EnableClockCount: %d", g_u4EnableClockCount);
 
 	/*  */
@@ -5235,7 +5251,10 @@ static signed int WPE_probe(struct platform_device *pDev)
 		init_waitqueue_head(&WPEInfo.WaitQueueHead);
 		INIT_WORK(&WPEInfo.ScheduleWpeWork, WPE_ScheduleWork);
 
+#ifdef CONFIG_PM_SLEEP
 		wakeup_source_init(&WPE_wake_lock, "WPE_lock_wakelock");
+		wakeup_source_init(&WPE_MDP_wake_lock, "WPE_MDP_wake_lock");
+#endif
 
 		for (i = 0; i < WPE_IRQ_TYPE_AMOUNT; i++)
 			tasklet_init(WPE_tasklet[i].pWPE_tkt,
@@ -5582,7 +5601,7 @@ static ssize_t wpe_reg_write(
 		loff_t *data)
 {
 	char desc[128];
-	int len = 0;
+	unsigned int len = 0;
 	/*char *pEnd; */
 	char addrSzBuf[24];
 	char valSzBuf[24];
@@ -5707,6 +5726,9 @@ int32_t WPE_ClockOnCallback(uint64_t engineFlag)
 	/* LOG_DBG("WPE_ClockOnCallback"); */
 	/* LOG_DBG("+CmdqEn:%d", g_u4EnableClockCount); */
 	/* WPE_EnableClock(MTRUE); */
+#ifdef CONFIG_PM_SLEEP
+	__pm_stay_awake(&WPE_MDP_wake_lock);
+#endif
 	WPE_EnableClock(1);
 	return 0;
 }
@@ -5734,6 +5756,9 @@ int32_t WPE_ClockOffCallback(uint64_t engineFlag)
 	/* WPE_EnableClock(MFALSE); */
 	/* LOG_DBG("-CmdqEn:%d", g_u4EnableClockCount); */
 	WPE_EnableClock(0);
+#ifdef CONFIG_PM_SLEEP
+	__pm_relax(&WPE_MDP_wake_lock);
+#endif
 	return 0;
 }
 

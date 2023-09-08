@@ -105,7 +105,6 @@ source "drivers/misc/mediatek/partition/Kconfig"
 source "drivers/misc/mediatek/blocktag/Kconfig"
 source "drivers/misc/mediatek/io_boost/Kconfig"
 source "drivers/misc/mediatek/pidmap/Kconfig"
-source "drivers/misc/mediatek/keyhint/Kconfig"
 source "drivers/misc/mediatek/nand/Kconfig"
 
 endmenu  # Storage
@@ -115,6 +114,7 @@ menu "Power, PMIC, Battery & Low Power related configs"
 source "drivers/misc/mediatek/pmic/Kconfig"
 source "drivers/misc/mediatek/pmic_wrap/Kconfig"
 source "drivers/misc/mediatek/power/Kconfig"
+source "drivers/misc/mediatek/subpmic/Kconfig"
 
 config MTK_BASE_POWER
 	bool "MediaTek power management"
@@ -129,6 +129,7 @@ source "drivers/misc/mediatek/base/power/Kconfig"
 source "drivers/misc/mediatek/hdmi/Kconfig"
 source "drivers/misc/mediatek/power/Kconfig"
 source "drivers/misc/mediatek/thermal/Kconfig"
+source "drivers/misc/mediatek/pmsr/Kconfig"
 
 config MTK_SPMTWAM
 	tristate "Mediatek Signal profiling tool"
@@ -138,16 +139,6 @@ config MTK_SPMTWAM
 	  Profiling several hw signals for debug purposes.
 	  Select "y" if you want to use.
 	  Select "n" if you are not sure.
-
-config MTK_MEMORY_LOWPOWER
-	bool "Support Mediatek memory lowpower technology"
-	depends on CMA && ZONE_MOVABLE_CMA
-	default n
-	help
-	  Mediatek DRAM low power technology.
-	  It tries to safe DRAM power by switching
-	  different DRAM mode dynamically. It's a
-	  platform-dependent feature.
 
 config MTK_LOW_POWER_MODULE
         bool "Meditaek Low Power Module"
@@ -180,8 +171,6 @@ config CUSTOM_KERNEL_CAM_CAL_DRV
 config MTK_SEC_VIDEO_PATH_SUPPORT
 	bool "Enable MTK Secure Video Path Support"
 	default n
-	depends on MTK_IN_HOUSE_TEE_SUPPORT || TRUSTONIC_TEE_SUPPORT || \
-	           MTK_GOOGLE_TRUSTY_SUPPORT || MICROTRUST_TEE_SUPPORT
 	help
 	  This enable MTK Secure Video Path function of Widevine Level1,
 	  HW protect the online secure video streaming by ARM/Trustzone
@@ -192,6 +181,17 @@ config MTK_SEC_VIDEO_PATH_SUPPORT
 	  relative options including: MTK_TEE_SUPPORT, MTK_GP_SUPPORT,
 	  MTK_DRM_L1_SUPPORT, MTK_PERSIST_PARTITION_SUPPORT,
 	  MTK_DRM_KEY_MNG_SUPPORT.
+
+config MTK_SVP_ON_MTEE_SUPPORT
+	bool "Enable MTK SVP on MTEE"
+	help
+	  This enable MTK TEE function of Widevine Level1,
+	  relative modules include: DRM, vdec, venc, cmdq, m4u, display,
+	  tplay/DXCC,ssvp, secmem, TEE frameworks, keyinstall, DAPC, MPU,
+	  ION, gralloc,RPMB, DXCC, mediacodec, WFD, MDP.etc
+	  relative options including: MTK_TEE_SUPPORT, MTK_GP_SUPPORT,
+	  MTK_DRM_L1_SUPPORT, MTK_PERSIST_PARTITION_SUPPORT,
+	  MTK_DRM_KEY_MNG_SUPPORT
 
 config MTK_DRM_KEY_MNG_SUPPORT
 	bool "Enable MTK DRM Key Manager Support"
@@ -204,14 +204,24 @@ config MTK_DRM_KEY_MNG_SUPPORT
 	  relative options including: MTK_SEC_VIDEO_PATH_SUPPORT and
 	  MTK_PERSIST_PARTITION_SUPPORT.
 
+config MTK_MT6382_BDG
+	bool "Support Bridge IC 6382"
+	help
+	  This config decide if device with BridgeIC 6382
+	  BridgeIC 6382 can support VESA-1.2 DSC, compressing display framedata
+	  Normal project will disable it first
+	  If you are not sure about this, do not set it to y
+
 source "drivers/misc/mediatek/cameraisp/Kconfig"
 source "drivers/misc/mediatek/cam_cal/Kconfig"
+source "drivers/misc/mediatek/cam_ois/Kconfig"
 source "drivers/misc/mediatek/cmdq/Kconfig"
 source "drivers/misc/mediatek/imgsensor/Kconfig"
 source "drivers/misc/mediatek/jpeg/Kconfig"
 source "drivers/misc/mediatek/smi/Kconfig"
 source "drivers/misc/mediatek/lcm/Kconfig"
 source "drivers/misc/mediatek/video/Kconfig"
+source "drivers/misc/mediatek/vdec_fmt/Kconfig"
 source "drivers/misc/mediatek/ext_disp/Kconfig"
 source "drivers/misc/mediatek/mmp/Kconfig"
 source "drivers/misc/mediatek/hifi_dsp/Kconfig"
@@ -232,17 +242,17 @@ config MTK_SENSOR_SUPPORT
 	  with mediatek sensor architecture.
 	  If unsure, say N.
 
-config MTK_SENSORS_1_0
-	bool "MTK SENSORs driver 1.0 SUPPORT"
+config MTK_SENSOR_ARCHITECTURE
+	string "MTK SENSOR ARCHITECTURE"
+	default "dummy"
 	help
-	  This is an option for MTK SENSOR 1.0 driver.
-	  we use BIO architecture instead of linux input
-	  architecture, BIO means boost io transfer data
-	  between kernel space and user space.
-	  And we support loadble drivers
+	  Sensor config for sensor architecture in project.
+	  Please set 1.0/2.0/3.0 etc if you want to support sensor
+	  with mediatek sensor architecture.
+	  If unsure, set dummy.
 
 source "drivers/misc/mediatek/sensors-1.0/Kconfig"
-
+source "drivers/misc/mediatek/sensor/2.0/Kconfig"
 endmenu  # Sensors
 
 menu "Modem & Connectivity"
@@ -252,16 +262,24 @@ source "drivers/misc/mediatek/ccmni/Kconfig"
 source "drivers/misc/mediatek/eccci/Kconfig"
 source "drivers/misc/mediatek/conn_md/Kconfig"
 source "drivers/misc/mediatek/btif/Kconfig"
+source "drivers/misc/mediatek/mddp/Kconfig"
 source "drivers/misc/mediatek/nfc/Kconfig"
 
 endmenu  # CONN
 
 menu "Security"
 
+config TEEGRIS_TEE_SUPPORT
+       bool "Enable TEEGRIS TEE Support"
+       default n
+       ---help---
+         Enable TEEGRIS TEE Support,
+         mainly for all kernel drivers
+         that are built for TEEGRIS TEE,
+         such as SVP and TZDEV.
 config MTK_TEE_GP_SUPPORT
 	bool "Enable MTK GlobalPlatform support in TEE related modules"
 	default n
-	depends on (TRUSTONIC_TEE_SUPPORT) || (MICROTRUST_TEE_SUPPORT)
 	help
 	  GlobalPlatform defines common/consistent APIs and this option
 	  enables TEE related modules to use GPAPIs. (depending on
@@ -274,6 +292,7 @@ source "drivers/misc/mediatek/tkcore/Kconfig"
 source "drivers/misc/mediatek/trusted_mem/Kconfig"
 source "drivers/misc/mediatek/geniezone/Kconfig"
 source "drivers/misc/mediatek/tee_sanity/Kconfig"
+source "drivers/misc/mediatek/tui/Kconfig"
 
 source "drivers/misc/mediatek/masp/Kconfig"
 source "drivers/misc/mediatek/mtee/Kconfig"
@@ -283,6 +302,8 @@ menu "Other Peripherals"
 
 source "drivers/misc/mediatek/accdet/Kconfig"
 source "drivers/misc/mediatek/dramc/Kconfig"
+source "drivers/misc/mediatek/dbgtop/Kconfig"
+source "drivers/misc/mediatek/l3c_part/Kconfig"
 source "drivers/misc/mediatek/emi/Kconfig"
 source "drivers/misc/mediatek/emi_bwl/Kconfig"
 source "drivers/misc/mediatek/emi_mpu/Kconfig"
@@ -299,6 +320,7 @@ source "drivers/misc/mediatek/flashlight/Kconfig"
 source "drivers/misc/mediatek/flashlight/richtek/Kconfig"
 source "drivers/misc/mediatek/scp/Kconfig"
 source "drivers/misc/mediatek/leds/Kconfig"
+source "drivers/misc/mediatek/gate_ic/Kconfig"
 source "drivers/misc/mediatek/irtx/Kconfig"
 source "drivers/misc/mediatek/pwm/Kconfig"
 source "drivers/misc/mediatek/systracker/Kconfig"
@@ -318,6 +340,7 @@ source "drivers/misc/mediatek/mu3d/Kconfig"
 source "drivers/misc/mediatek/mu3phy/Kconfig"
 source "drivers/misc/mediatek/rtc/Kconfig"
 source "drivers/misc/mediatek/xo/Kconfig"
+source "drivers/misc/mediatek/dcxo/Kconfig"
 source "drivers/misc/mediatek/rt-regmap/Kconfig"
 source "drivers/misc/mediatek/typec/Kconfig"
 source "drivers/misc/mediatek/irrx/Kconfig"
@@ -344,6 +367,26 @@ config MTK_LOWMEM_HINT
 	  is occurs via uevent per second. The system in
 	  userspace can use the hint to make memory health
 	  improvement immediately.
+
+config MTK_SKB_OWNER
+	bool "MTK network performance index support"
+	depends on MTK_PERF_TRACKER
+	help
+	  MTK_SKB_OWNER supports network performance index via tracepoint.
+	  Add tracepoint in protocol layer, find out TCP/UDP packet
+	  belong to which process. Add RTT information per TCP session,
+	  which helps identify network latency between client and server.
+
+config MTK_CORE_CTL
+	bool "MTK Core Control with CPU Isolation"
+	help
+	  This config is for the core control policy with CPU isolation.
+	  The core control online and offline CPU cores based on task
+	  utilizations from scheduler information automatically.
+	  If you are not sure about whether to enable it or not,
+	  please set n.
+
+source "drivers/misc/mediatek/task_turbo/Kconfig"
 endmenu # PPT
 
 menu "Memory configs"
@@ -370,7 +413,7 @@ config MTK_AMMS
 
 config DMAUSER_PAGES
 	bool "allocate highuser movable pages from dma zone"
-	depends on MTK_LM_MODE && !MTK_MEMORY_LOWPOWER
+	depends on MTK_LM_MODE
 	help
 	  An internal debug kernel config for testing large memory mode.
 	  To test if kernel drivers are fully compatible to large
@@ -381,7 +424,7 @@ config DMAUSER_PAGES
 config NORMALKERNEL_PAGES
 	bool "allocate kernel pages from normal zone"
 	default n
-	depends on MTK_LM_MODE && !MTK_MEMORY_LOWPOWER && DMAUSER_PAGES
+	depends on MTK_LM_MODE && DMAUSER_PAGES
 	help
 	  An internal debug kernel config for testing large memory mode.
 	  To test if kernel drivers are fully compatible to large
@@ -397,10 +440,31 @@ source "drivers/misc/mediatek/Kconfig.default"
 source "drivers/misc/mediatek/timer/Kconfig"
 source "drivers/misc/mediatek/cmo/Kconfig"
 source "drivers/misc/mediatek/debug_latch/Kconfig"
+source "drivers/misc/mediatek/debug_tracer/Kconfig"
 
 config MTK_DM_VERITY_OFF
 	bool "Disable dm-verity"
 	default n
+
+config MTK_HIGH_FRAME_RATE
+	bool "high frame rate,for 90hz or 120hz display"
+	default n
+
+config MTK_GCOV_KERNEL
+	bool "Enable GCOV on Mediatek Modules"
+	default n
+	select GCOV_KERNEL
+	help
+	  Enable GCOV on Mediatek Modules
+	  It depends on GCOV_KERNEL
+	  Select "Y" if you want to use.
+	  Select "N" if you are not sure.
+
+config MTK_TC10_FEATURE
+	bool "MTK_TC10_FEATURE"
+	default n
+	help
+	  MTK_TC10_FEATURE is defined specifically for TC10 customer
 
 source "drivers/misc/mediatek/freqhopping/Kconfig"
 source "drivers/misc/mediatek/sspm/Kconfig"
@@ -417,19 +481,12 @@ source "drivers/misc/mediatek/vow/Kconfig"
 source "drivers/misc/mediatek/log_store/Kconfig"
 source "drivers/misc/mediatek/mtprintk/Kconfig"
 source "drivers/misc/mediatek/mlog/Kconfig"
+source "drivers/misc/mediatek/cache-auditor/Kconfig"
 source "drivers/misc/mediatek/mcupm/Kconfig"
-
-config MTK_TC10_FEATURE
-	bool "MTK_TC10_FEATURE"
-	default n
-	help
-	  MTK_TC10_FEATURE is defined specifically for TC10 customer
-
-config MTK_TC10_IN_HOUSE
-	bool "MTK_TC10_IN_HOUSE"
-	default n
-	help
-	  MTK_TC10_IN_HOUSE is defined for TC10 customer in-house projects
+source "drivers/misc/mediatek/udi/Kconfig"
+source "drivers/misc/mediatek/hdmi/Kconfig"
+source "drivers/misc/mediatek/otp/Kconfig"
+source "drivers/misc/mediatek/sda/Kconfig"
 
 endmenu    # Misc
 

@@ -47,16 +47,33 @@ struct cm_mgr_data {
 #define IPI_CM_MGR_LOADING_ENABLE 19
 #define IPI_CM_MGR_LOADING_LEVEL 20
 #define IPI_CM_MGR_EMI_DEMAND_CHECK 21
+#define IPI_CM_MGR_OPP_FREQ_SET 22
+#define IPI_CM_MGR_OPP_VOLT_SET 23
+#define IPI_CM_MGR_BCPU_WEIGHT_MAX_SET 24
+#define IPI_CM_MGR_BCPU_WEIGHT_MIN_SET 25
+#define IPI_CM_MGR_BBCPU_WEIGHT_MAX_SET 26
+#define IPI_CM_MGR_BBCPU_WEIGHT_MIN_SET 27
+#define IPI_CM_MGR_DSU_DEBOUNCE_UP_SET 28
+#define IPI_CM_MGR_DSU_DEBOUNCE_DOWN_SET 29
+#define IPI_CM_MGR_DSU_DIFF_PWR_UP_SET 30
+#define IPI_CM_MGR_DSU_DIFF_PWR_DOWN_SET 31
+#define IPI_CM_MGR_DSU_PWR_RATIO_SET 31
+#define IPI_CM_MGR_DSU_L_PWR_RATIO_SET 32
+#define IPI_CM_MGR_DSU_B_PWR_RATIO_SET 33
+#define IPI_CM_MGR_DSU_BB_PWR_RATIO_SET 34
+#define IPI_CM_MGR_BCPU_MIN_OPP_WEIGHT_SET 35
+#define IPI_CM_MGR_BCPU_LOW_OPP_WEIGHT_SET 36
+#define IPI_CM_MGR_BCPU_LOW_OPP_BOUND_SET 37
 
 extern spinlock_t cm_mgr_lock;
 extern int cm_mgr_disable_fb;
 extern int cm_mgr_blank_status;
-extern int cpu_power_ratio_up[CM_MGR_EMI_OPP];
-extern int cpu_power_ratio_down[CM_MGR_EMI_OPP];
-extern int vcore_power_ratio_up[CM_MGR_EMI_OPP];
-extern int vcore_power_ratio_down[CM_MGR_EMI_OPP];
-extern int debounce_times_up_adb[CM_MGR_EMI_OPP];
-extern int debounce_times_down_adb[CM_MGR_EMI_OPP];
+extern unsigned int cpu_power_ratio_up[CM_MGR_EMI_OPP];
+extern unsigned int cpu_power_ratio_down[CM_MGR_EMI_OPP];
+extern unsigned int vcore_power_ratio_up[CM_MGR_EMI_OPP];
+extern unsigned int vcore_power_ratio_down[CM_MGR_EMI_OPP];
+extern unsigned int debounce_times_up_adb[CM_MGR_EMI_OPP];
+extern unsigned int debounce_times_down_adb[CM_MGR_EMI_OPP];
 extern int debounce_times_reset_adb;
 extern int debounce_times_perf_down;
 extern int debounce_times_perf_force_down;
@@ -68,6 +85,15 @@ extern int light_load_cps;
 extern int cm_mgr_loading_level;
 extern int cm_mgr_loading_enable;
 extern int cm_mgr_emi_demand_check;
+#ifdef USE_CPU_TO_DRAM_MAP
+extern int cm_mgr_cpu_map_dram_enable;
+#endif /* USE_CPU_TO_DRAM_MAP */
+#ifdef USE_CPU_TO_DRAM_MAP_NEW
+extern int cm_mgr_cpu_map_emi_opp;
+extern int cm_mgr_cpu_map_skip_cpu_opp;
+extern int cm_mgr_cpu_opp_to_dram[CM_MGR_CPU_OPP_SIZE];
+extern void cm_mgr_cpu_map_update_table(void);
+#endif /* USE_CPU_TO_DRAM_MAP_NEW */
 
 extern void cm_mgr_perf_set_status(int status);
 extern void cm_mgr_perf_set_force_status(int status);

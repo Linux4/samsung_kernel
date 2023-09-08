@@ -229,7 +229,6 @@ static int mtkfb_release(struct fb_info *info, int user)
 	NOT_REFERENCED(info);
 	NOT_REFERENCED(user);
 	DISPFUNC();
-
 	MSG_FUNC_ENTER();
 	MSG_FUNC_LEAVE();
 	return 0;
@@ -268,9 +267,10 @@ static int mtkfb1_blank(int blank_mode, struct fb_info *info)
 static int mtkfb_blank(int blank_mode, struct fb_info *info)
 {
 	enum mtkfb_power_mode prev_pm = primary_display_get_power_mode();
-
+#if defined(CONFIG_SMCDSD_PANEL)
 	pr_info("%s + blank_mode: %d, %s\n",
 			__func__, blank_mode, blank_mode == FB_BLANK_UNBLANK ? "UNBLANK" : "POWERDOWN");
+#endif
 
 	switch (blank_mode) {
 	case FB_BLANK_UNBLANK:
@@ -307,9 +307,9 @@ static int mtkfb_blank(int blank_mode, struct fb_info *info)
 	default:
 		return -EINVAL;
 	}
-
+#if defined(CONFIG_SMCDSD_PANEL)
 	pr_info("%s - blank_mode: %d\n", __func__, blank_mode);
-
+#endif
 	return 0;
 }
 
@@ -590,6 +590,7 @@ static int mtkfb_pan_display_impl(struct fb_var_screeninfo *var,
 		return -1;
 	}
 
+	session_input->config_layer_num = 0;
 	/* pan display use layer 0 */
 	input = &session_input->config[0];
 	input->layer_id = 0;
@@ -973,7 +974,7 @@ unsigned int mtkfb_fm_auto_test(void)
 	}
 
 	if (idle_state_backup) {
-		primary_display_idlemgr_kick(__func__, 0);
+		primary_display_idlemgr_kick(__func__, 1);
 		disp_helper_set_option(DISP_OPT_IDLEMGR_ENTER_ULPS, 0);
 	}
 	fbVirAddr = (unsigned long)fbdev->fb_va_base;
@@ -1007,7 +1008,7 @@ unsigned int mtkfb_fm_auto_test(void)
 
 	mtkfb_pan_display_impl(&mtkfb_fbi->var, mtkfb_fbi);
 	msleep(100);
-	primary_display_idlemgr_kick(__func__, 0);
+	primary_display_idlemgr_kick(__func__, 1);
 	result = primary_display_lcm_ATA();
 
 	if (idle_state_backup)
@@ -1028,7 +1029,7 @@ int mtkfb_aod_mode_switch(enum mtkfb_aod_power_mode aod_pm)
 	enum mtkfb_power_mode prev_pm = primary_display_get_power_mode();
 
 	DISPCHECK("AOD: ioctl: %s\n",
-		aod_pm ? "AOD_DOZE_SUSPEND" : "AOD_DOZE");
+		(aod_pm != 0) ? "AOD_DOZE_SUSPEND" : "AOD_DOZE");
 	if (!primary_is_aod_supported()) {
 		DISPCHECK("AOD: feature not support\n");
 		return ret;
@@ -1061,7 +1062,8 @@ int mtkfb_aod_mode_switch(enum mtkfb_aod_power_mode aod_pm)
 	}
 	if (ret < 0)
 		DISPERR("AOD: set %s failed\n",
-			aod_pm ? "AOD_SUSPEND" : "AOD_RESUME");
+			(aod_pm != MTKFB_AOD_DOZE) ? "AOD_SUSPEND"
+			: "AOD_RESUME");
 	return ret;
 }
 
@@ -2532,11 +2534,6 @@ static int mtkfb_probe(struct platform_device *pdev)
 	int init_state;
 	int r = 0;
 
-#ifdef CONFIG_MTK_IOMMU_V2
-	struct ion_client *ion_display_client = NULL;
-	struct ion_handle *ion_display_handle = NULL;
-	size_t temp_va = 0;
-#endif
 	/* struct platform_device *pdev; */
 
 	DISPMSG("%s name [%s]  = [%s][%p]\n", __func__,
@@ -2574,40 +2571,13 @@ static int mtkfb_probe(struct platform_device *pdev)
 
 	DISPMSG("%s: fb_pa = %pa\n", __func__, &fb_base);
 
-#ifdef CONFIG_MTK_IOMMU_V2
-	temp_va = (size_t)ioremap_wc(fb_base,
-		(fb_base + vramsize - fb_base));
-	fbdev->fb_va_base = (void *)temp_va;
-	ion_display_client = disp_ion_create("disp_fb0");
-	if (ion_display_client == NULL) {
-		DISPERR("%s: fail to create ion\n", __func__);
-		r = -1;
-		goto cleanup;
-	}
-
-	ion_display_handle = disp_ion_alloc(ion_display_client,
-		ION_HEAP_MULTIMEDIA_PA2MVA_MASK, fb_base,
-		(fb_base + vramsize - fb_base));
-	if (r != 0) {
-		DISPERR("%s: fail to allocate buffer\n", __func__);
-		r = -1;
-		goto cleanup;
-	}
-
-	disp_ion_get_mva(ion_display_client,
-		ion_display_handle,
-		&fb_pa, 0,
-		DISP_M4U_PORT_DISP_OVL0);
-#else
 	disp_hal_allocate_framebuffer(fb_base, (fb_base + vramsize - 1),
 		(unsigned long *)(&fbdev->fb_va_base), &fb_pa);
-#endif
 	fbdev->fb_pa_base = fb_base;
 
 	primary_display_set_frame_buffer_address(
 		(unsigned long)(fbdev->fb_va_base), fb_pa, fb_base);
 	primary_display_init(mtkfb_find_lcm_driver(), lcd_fps, is_lcm_inited);
-
 	init_state++;		/* 1 */
 	MTK_FB_XRES = DISP_GetScreenWidth();
 	MTK_FB_YRES = DISP_GetScreenHeight();
@@ -2642,7 +2612,7 @@ static int mtkfb_probe(struct platform_device *pdev)
 	}
 	init_state++;		/* 4 */
 	DISPMSG("\nmtkfb_fbinfo_init done\n");
-#if !defined(CONFIG_SMCDSD_PANEL)
+
 	if (disp_helper_get_stage() == DISP_HELPER_STAGE_NORMAL) {
 		/* dal_init should after mtkfb_fbinfo_init, otherwise layer
 		 * 3 will show dal background color
@@ -2657,7 +2627,7 @@ static int mtkfb_probe(struct platform_device *pdev)
 		ret = DAL_Init(fbVA, fbPA);
 		DISPMSG("DAL_Init done\n");
 	}
-#endif
+
 	if (disp_helper_get_stage() != DISP_HELPER_STAGE_NORMAL)
 		_mtkfb_internal_test((unsigned long)(fbdev->fb_va_base),
 			MTK_FB_XRES, MTK_FB_YRES);
@@ -2694,13 +2664,6 @@ static int mtkfb_probe(struct platform_device *pdev)
 	if (disp_helper_get_stage() != DISP_HELPER_STAGE_NORMAL)
 		primary_display_diagnose();
 
-
-	/* this function will get fb_heap base address to ion
-	 * for management frame buffer
-	 */
-#ifdef MTK_FB_ION_SUPPORT
-	ion_drv_create_FB_heap(mtkfb_get_fb_base(), mtkfb_get_fb_size());
-#endif
 	fbdev->state = MTKFB_ACTIVE;
 
 	if (!strcmp(mtkfb_find_lcm_driver(),
@@ -2759,15 +2722,12 @@ static int mtkfb_resume(struct platform_device *pdev)
 	MSG_FUNC_LEAVE();
 	return 0;
 }
-
 #if defined(CONFIG_SMCDSD_PANEL)
 static void mtkfb_shutdown(struct platform_device *pdev)
 {
-	enum mtkfb_power_mode prev_pm = primary_display_get_power_mode();
 	struct mtkfb_device *fbdev = dev_get_drvdata(&pdev->dev);
 
-	DISPMSG("%s: ++\n", __func__);
-	MTKFB_LOG("[FB Driver] %s()\n", __func__);
+	MTKFB_LOG("[FB Driver] mtkfb_shutdown()\n");
 	pr_info("%s: ++\n", __func__);
 
 	if (!lock_fb_info((fbdev->fb_info))) {
@@ -2784,19 +2744,17 @@ static void mtkfb_shutdown(struct platform_device *pdev)
 	primary_display_set_power_mode(FB_SUSPEND);
 	primary_display_suspend();
 
-	debug_print_power_mode_check(prev_pm, FB_SUSPEND);
 	smcdsd_simple_notifier_call_chain(FB_EVENT_BLANK, FB_BLANK_POWERDOWN);
 	unlock_fb_info(fbdev->fb_info);
 
+	MTKFB_LOG("[FB Driver] leave mtkfb_shutdown\n");
 	pr_info("%s: --\n", __func__);
-	MTKFB_LOG("[FB Driver] leave %s\n", __func__);
-	DISPMSG("%s: --\n", __func__);
 }
+
 #else
 static void mtkfb_shutdown(struct platform_device *pdev)
 {
 	MTKFB_LOG("[FB Driver] %s()\n", __func__);
-
 	if (primary_display_is_sleepd()) {
 		MTKFB_LOG("mtkfb has been power off\n");
 		return;
@@ -2806,7 +2764,6 @@ static void mtkfb_shutdown(struct platform_device *pdev)
 	MTKFB_LOG("[FB Driver] leave %s\n", __func__);
 }
 #endif
-
 bool mtkfb_is_suspend(void)
 {
 	return primary_display_is_sleepd();
@@ -2878,7 +2835,6 @@ static void mtkfb_late_resume(void)
 	DISPMSG("[FB Driver] enter late_resume\n");
 
 	ret = primary_display_resume();
-
 	if (ret) {
 		DISPERR("primary display resume failed\n");
 		return;

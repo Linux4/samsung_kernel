@@ -233,6 +233,9 @@ static ssize_t show_available_freqs(struct cpufreq_policy *policy, char *buf,
 {
 	ssize_t count = 0;
 	struct cpufreq_frequency_table *pos, *table = policy->freq_table;
+#if IS_ENABLED(CONFIG_SEC_PM)
+	struct cpufreq_frequency_table *prev_pos = NULL;
+#endif
 
 	if (!table)
 		return -ENODEV;
@@ -252,6 +255,12 @@ static ssize_t show_available_freqs(struct cpufreq_policy *policy, char *buf,
 		if (show_boost ^ (pos->flags & CPUFREQ_BOOST_FREQ))
 			continue;
 
+#if IS_ENABLED(CONFIG_SEC_PM)
+		if (prev_pos && prev_pos->frequency == pos->frequency)
+			continue;
+
+		prev_pos = pos;
+#endif
 		count += sprintf(&buf[count], "%d ", pos->frequency);
 	}
 	count += sprintf(&buf[count], "\n");

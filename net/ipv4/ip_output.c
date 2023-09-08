@@ -900,7 +900,8 @@ static int __ip_append_data(struct sock *sk,
 	skb = skb_peek_tail(queue);
 
 	exthdrlen = !skb ? rt->dst.header_len : 0;
-	mtu = cork->fragsize;
+	mtu = cork->gso_size ? IP_MAX_MTU : cork->fragsize;
+
 	if (cork->tx_flags & SKBTX_ANY_SW_TSTAMP &&
 	    sk->sk_tsflags & SOF_TIMESTAMPING_OPT_ID)
 		tskey = sk->sk_tskey++;
@@ -924,7 +925,7 @@ static int __ip_append_data(struct sock *sk,
 	if (transhdrlen &&
 	    length + fragheaderlen <= mtu &&
 	    rt->dst.dev->features & (NETIF_F_HW_CSUM | NETIF_F_IP_CSUM) &&
-	    !(flags & MSG_MORE) &&
+	    (!(flags & MSG_MORE) || cork->gso_size) &&
 	    !exthdrlen)
 		csummode = CHECKSUM_PARTIAL;
 
@@ -1139,13 +1140,19 @@ static int ip_setup_cork(struct sock *sk, struct inet_cork *cork,
 	rt = *rtp;
 	if (unlikely(!rt))
 		return -EFAULT;
-	/*
-	 * We steal reference to this route, caller should not release it
-	 */
-	*rtp = NULL;
+
 	cork->fragsize = ip_sk_use_pmtu(sk) ?
-			 dst_mtu(&rt->dst) : rt->dst.dev->mtu;
+			 dst_mtu(&rt->dst) : READ_ONCE(rt->dst.dev->mtu);
+
+	if (!inetdev_valid_mtu(cork->fragsize))
+		return -ENETUNREACH;
+
+	cork->gso_size = sk->sk_type == SOCK_DGRAM ? ipc->gso_size : 0;
+
 	cork->dst = &rt->dst;
+	/* We stole this route, caller should not release it. */
+	*rtp = NULL;
+
 	cork->length = 0;
 	cork->ttl = ipc->ttl;
 	cork->tos = ipc->tos;
@@ -1224,7 +1231,7 @@ ssize_t	ip_append_page(struct sock *sk, struct flowi4 *fl4, struct page *page,
 		return -EOPNOTSUPP;
 
 	hh_len = LL_RESERVED_SPACE(rt->dst.dev);
-	mtu = cork->fragsize;
+	mtu = cork->gso_size ? IP_MAX_MTU : cork->fragsize;
 
 	fragheaderlen = sizeof(struct iphdr) + (opt ? opt->optlen : 0);
 	maxfraglen = ((mtu - fragheaderlen) & ~7) + fragheaderlen;
@@ -1480,9 +1487,8 @@ struct sk_buff *ip_make_skb(struct sock *sk,
 					int len, int odd, struct sk_buff *skb),
 			    void *from, int length, int transhdrlen,
 			    struct ipcm_cookie *ipc, struct rtable **rtp,
-			    unsigned int flags)
+			    struct inet_cork *cork, unsigned int flags)
 {
-	struct inet_cork cork;
 	struct sk_buff_head queue;
 	int err;
 
@@ -1491,22 +1497,22 @@ struct sk_buff *ip_make_skb(struct sock *sk,
 
 	__skb_queue_head_init(&queue);
 
-	cork.flags = 0;
-	cork.addr = 0;
-	cork.opt = NULL;
-	err = ip_setup_cork(sk, &cork, ipc, rtp);
+	cork->flags = 0;
+	cork->addr = 0;
+	cork->opt = NULL;
+	err = ip_setup_cork(sk, cork, ipc, rtp);
 	if (err)
 		return ERR_PTR(err);
 
-	err = __ip_append_data(sk, fl4, &queue, &cork,
+	err = __ip_append_data(sk, fl4, &queue, cork,
 			       &current->task_frag, getfrag,
 			       from, length, transhdrlen, flags);
 	if (err) {
-		__ip_flush_pending_frames(sk, &queue, &cork);
+		__ip_flush_pending_frames(sk, &queue, cork);
 		return ERR_PTR(err);
 	}
 
-	return __ip_make_skb(sk, fl4, &queue, &cork);
+	return __ip_make_skb(sk, fl4, &queue, cork);
 }
 
 /*

@@ -203,28 +203,28 @@ int ccci_md_register(struct ccci_modem *modem);
 
 static inline struct ccci_modem *ccci_md_get_modem_by_id(int md_id)
 {
-	if (md_id >= MAX_MD_NUM)
+	if (md_id >= MAX_MD_NUM || md_id < 0)
 		return NULL;
 	return modem_sys[md_id];
 }
 
 static inline struct device *ccci_md_get_dev_by_id(int md_id)
 {
-	if (md_id >= MAX_MD_NUM)
+	if (md_id >= MAX_MD_NUM || md_id < 0)
 		return NULL;
 	return &modem_sys[md_id]->plat_dev->dev;
 }
 
 static inline int ccci_md_in_ee_dump(int md_id)
 {
-	if (md_id >= MAX_MD_NUM)
+	if (md_id >= MAX_MD_NUM || md_id < 0)
 		return -CCCI_ERR_MD_INDEX_NOT_FOUND;
 	return modem_sys[md_id]->per_md_data.is_in_ee_dump;
 }
 
 static inline void *ccci_md_get_hw_info(int md_id)
 {
-	if (md_id >= MAX_MD_NUM)
+	if (md_id >= MAX_MD_NUM || md_id < 0)
 		return NULL;
 	return modem_sys[md_id]->hw_info;
 }
@@ -272,5 +272,9 @@ extern u32 mt_irq_get_pending(unsigned int irq);
 extern int gf_port_list_reg[GF_PORT_LIST_MAX];
 extern int gf_port_list_unreg[GF_PORT_LIST_MAX];
 extern int ccci_ipc_set_garbage_filter(struct ccci_modem *md, int reg);
+/* mp1 1, mp2 0, ro 1 */
 extern void spm_ap_mdsrc_req(u8 lock);
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
+extern int ccci_get_ap_debug_level(void);
+#endif
 #endif	/* __CCCI_MODEM_H__ */

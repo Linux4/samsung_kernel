@@ -65,6 +65,14 @@ ifeq ($(CONFIG_MACH_MT6767),y)
   ccflags-y += -DPLATFORM_MT6768
 endif
 
+ifeq (y, $(filter y,$(CONFIG_MACH_MT6885) $(CONFIG_MACH_MT6893)))
+  ccflags-y += -DJPEG_HYBRID_DEC_DRIVER
+endif
+
+ifeq (,$(filter y,$(CONFIG_MACH_MT6885) $(CONFIG_MACH_MT6893)))
+  ccflags-y += -DJPEG_ENC_DRIVER
+endif
+
 ifeq ($(CONFIG_MACH_MT8163),y)
   ccflags-y += -DJPEG_PM_DOMAIN_ENABLE
 endif
@@ -74,14 +82,29 @@ ifeq ($(CONFIG_MACH_MT8173),y)
   ccflags-y += -DJPEG_PM_DOMAIN_ENABLE
 endif
 
+ifeq ($(CONFIG_MACH_MT8168),y)
+  ccflags-y += -DJPEG_ENC_DRIVER
+  ccflags-y += -DJPEG_PM_DOMAIN_ENABLE
+ifeq ($(CONFIG_MTK_IN_HOUSE_TEE_SUPPORT),y)
+  ccflags-y += -DCONFIG_MTK_SEC_JPEG_SUPPORT
+endif
+endif
+
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/smi/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/smi/$(MTK_PLATFORM)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/mmdvfs
-
+ccflags-y += -I$(srctree)/drivers/staging/android/ion
+ccflags-y += -I$(srctree)/drivers/staging/android/ion/mtk
 #obj-$(CONFIG_MTK_JPEG) += jpeg_driver.o
 obj-y += jpeg_driver.o
 
+ifdef CONFIG_MTK_PSEUDO_M4U
+  ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include
+  ccflags-y += -I$(srctree)/drivers/iommu/
+  ccflags-y += -I$(srctree)/drivers/misc/mediatek/smi/$(MTK_PLATFORM)
+endif
+
 #jpeg_driver-objs := jpeg_cmdq.o jpeg_drv_enc.o jpeg_drv_dec.o jpeg_drv.o
-jpeg_driver-objs := jpeg_drv_enc.o jpeg_drv_dec.o jpeg_drv.o
+jpeg_driver-objs := jpeg_drv_enc.o jpeg_drv_dec.o jpeg_drv.o jpeg_ion.o
 
 # EOF

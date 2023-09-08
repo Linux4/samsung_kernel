@@ -15,21 +15,43 @@ ccflags-y += \
 	-I$(srctree)/drivers/misc/mediatek/include/mt-plat/	\
 	-I$(srctree)/drivers/misc/mediatek/base/power/include/	\
 	-I$(srctree)/drivers/misc/mediatek/base/power/include/swpm_v1/			\
-	-I$(srctree)/drivers/misc/mediatek/base/power/swpm_v1/$(CONFIG_MTK_PLATFORM)/	\
 	-I$(srctree)/drivers/misc/mediatek/dramc/$(CONFIG_MTK_PLATFORM)/		\
 
 ifeq ($(CONFIG_MTK_TINYSYS_SSPM_SUPPORT), y)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/v1
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/$(CONFIG_MTK_PLATFORM)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/v2/
+ifneq ($(CONFIG_MTK_TINYSYS_SSPM_VERSION),"")
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/$(CONFIG_MTK_TINYSYS_SSPM_VERSION)/
+else
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/$(CONFIG_MTK_PLATFORM)/
+endif
 endif
 ifeq ($(CONFIG_MTK_GPU_SWPM_SUPPORT), y)
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/gpu/gpu_mali/mali_bifrost/mali-r16p0/drivers/gpu/arm/midgard/platform/mtk_platform_common/
+MTK_GPU_VERSION = $(subst ",,$(CONFIG_MTK_GPU_VERSION))
+$(info *MTK_GPU_VERSION 2 = $(word 2,$(MTK_GPU_VERSION)))
+$(info *MTK_GPU_VERSION 3 = $(word 3,$(MTK_GPU_VERSION)))
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/gpu/gpu_mali/mali_$(word 2,$(MTK_GPU_VERSION))/mali-$(word 3,$(MTK_GPU_VERSION))/drivers/gpu/arm/midgard/platform/mtk_platform_common/
 endif
+
+ifeq ($(CONFIG_MACH_MT6833), y)
+ccflags-y += \
+	-I$(srctree)/drivers/misc/mediatek/base/power/swpm_v1/mt6833/
+	obj-y += $(subst ",,mt6833)/
+else ifeq ($(CONFIG_MACH_MT6893), y)
+ccflags-y += \
+	-I$(srctree)/drivers/misc/mediatek/base/power/swpm_v1/mt6893/
+	obj-y += $(subst ",,mt6893)/
+else ifeq ($(CONFIG_MACH_MT6877), y)
+ccflags-y += \
+	-I$(srctree)/drivers/misc/mediatek/base/power/swpm_v1/mt6877/
+	obj-y += $(subst ",,mt6877)/
+else
+ccflags-y += \
+	-I$(srctree)/drivers/misc/mediatek/base/power/swpm_v1/$(CONFIG_MTK_PLATFORM)/
+	obj-y += $(subst ",,$(CONFIG_MTK_PLATFORM))/
+endif
+
 ifneq ($(CONFIG_FPGA_EARLY_PORTING),y)
 obj-y += mtk_swpm.o
-obj-y += $(subst ",,$(CONFIG_MTK_PLATFORM))/
-else
-# dummy driver to avoid build error
-obj-y := mtk_swpm_dummy.o
+obj-y += mtk_swpm_common.o
 endif

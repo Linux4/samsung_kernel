@@ -65,7 +65,7 @@
 #include "ddp_info.h"
 #include "ddp_m4u.h"
 #include "display_recorder.h"
-
+#include "ddp_disp_bdg.h"
 /* #define DISP_NO_DPI */
 #ifndef DISP_NO_DPI
 #include "ddp_dpi_reg.h"
@@ -409,18 +409,24 @@ static inline unsigned int gic_irq(struct irq_data *d)
 static inline unsigned int virq_to_hwirq(unsigned int virq)
 {
 	struct irq_desc *desc;
-	unsigned int hwirq;
+	unsigned int hwirq = 0;
 
 	desc = irq_to_desc(virq);
 
-	WARN_ON(!desc);
+	if (!desc) {
+		WARN_ON(1);
+		return 0;
+	}
 
-	hwirq = gic_irq(&desc->irq_data);
+		hwirq = gic_irq(&desc->irq_data);
 
 	return hwirq;
 }
 /* end for irq check */
 
+#ifdef CONFIG_MTK_MT6382_BDG
+extern void disp_init_bdg_gce_obj(void);
+#endif
 static int disp_probe_1(void)
 {
 	int ret = 0;
@@ -555,6 +561,11 @@ static int disp_probe_1(void)
 #endif
 	ddp_path_init();
 	disp_m4u_init();
+
+#ifdef CONFIG_MTK_MT6382_BDG
+	if (bdg_is_bdg_connected() == 1)
+		disp_init_bdg_gce_obj();
+#endif
 
 	pr_info("disp driver(1) %s end\n", __func__);
 	/* NOT_REFERENCED(class_dev); */

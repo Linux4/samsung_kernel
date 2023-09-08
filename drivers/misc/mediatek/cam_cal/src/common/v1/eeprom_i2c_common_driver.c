@@ -53,10 +53,26 @@ static struct i2c_client *g_pstI2CclientG;
 #define I2C_MASK_FLAG	(0x00ff)
 #endif
 
+#define I2C_WRITE_ID 0x6E
+#define dump_en
+
 #define EEPROM_I2C_MSG_SIZE_READ 2
 #ifndef EEPROM_I2C_READ_MSG_LENGTH_MAX
 #define EEPROM_I2C_READ_MSG_LENGTH_MAX 32
 #endif
+#ifndef EEPROM_I2C_WRITE_MSG_LENGTH_MAX
+#define EEPROM_I2C_WRITE_MSG_LENGTH_MAX 32
+#endif
+#ifndef EEPROM_WRITE_EN
+#define EEPROM_WRITE_EN 1
+#endif
+
+void set_global_i2c_client(struct i2c_client *client)
+{
+	spin_lock(&g_spinLock);
+	g_pstI2CclientG = client;
+	spin_unlock(&g_spinLock);
+}
 
 static int Read_I2C_CAM_CAL(u16 a_u2Addr, u32 ui4_length, u8 *a_puBuff)
 {
@@ -147,11 +163,12 @@ int iReadData_CAM_CAL(unsigned int ui4_offset,
 
 	return 0;
 }
-
-unsigned int Common_read_region(struct i2c_client *client, unsigned int addr,
-				unsigned char *data, unsigned int size)
+unsigned int Common_read_region(struct i2c_client *client, struct stCAM_CAL_INFO_STRUCT *sensor_info,
+				unsigned int addr, unsigned char *data, unsigned int size)
 {
+	spin_lock(&g_spinLock);
 	g_pstI2CclientG = client;
+	spin_unlock(&g_spinLock);
 	if (iReadData_CAM_CAL(addr, size, data) == 0)
 		return size;
 	else

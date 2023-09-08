@@ -18,25 +18,30 @@
 #include <linux/of.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
-#ifdef CONFIG_MT_GZ_TRUSTY_DEBUGFS
+#if IS_ENABLED(CONFIG_MT_GZ_TRUSTY_DEBUGFS)
 #include <linux/random.h>
 #endif
 #include <linux/slab.h>
 #include <linux/stat.h>
 #include <linux/string.h>
+#include <linux/kthread.h>
 #include <gz-trusty/smcall.h>
 #include <gz-trusty/sm_err.h>
 #include <gz-trusty/trusty.h>
-
+#include <uapi/linux/sched/types.h>
 #include <linux/string.h>
 
-#ifdef CONFIG_MTK_RAM_CONSOLE
+#define enable_code 0 /*replace #if 0*/
+
+#if enable_code /*#if 0*/
+#if IS_ENABLED(CONFIG_MTK_RAM_CONSOLE)
 #include "trusty-ramconsole.h"
+#endif
 #endif
 
 /* #define TRUSTY_SMC_DEBUG */
 
-#ifdef TRUSTY_SMC_DEBUG
+#if IS_ENABLED(TRUSTY_SMC_DEBUG)
 #define trusty_dbg(fmt...) dev_dbg(fmt)
 #define trusty_info(fmt...) dev_info(fmt)
 #define trusty_err(fmt...) dev_info(fmt)
@@ -46,7 +51,7 @@
 #define trusty_err(fmt...) dev_info(fmt)
 #endif
 
-#ifdef CONFIG_ARM64
+#if IS_ENABLED(CONFIG_ARM64)
 #define SMC_ARG0		"x0"
 #define SMC_ARG1		"x1"
 #define SMC_ARG2		"x2"
@@ -101,7 +106,7 @@ s32 trusty_fast_call32(struct device *dev, u32 smcnr, u32 a0, u32 a1, u32 a2)
 }
 EXPORT_SYMBOL(trusty_fast_call32);
 
-#ifdef CONFIG_64BIT
+#if IS_ENABLED(CONFIG_64BIT)
 s64 trusty_fast_call64(struct device *dev, u64 smcnr, u64 a0, u64 a1, u64 a2)
 {
 	struct trusty_state *s = platform_get_drvdata(to_platform_device(dev));
@@ -122,8 +127,7 @@ static inline bool is_busy(int ret)
 
 static inline bool is_nop_call(u32 smc_nr)
 {
-	return (smc_nr == SMC_SC_GZ_NOP ||
-		smc_nr == MTEE_SMCNR_TID(SMCF_SC_NOP, 0) ||
+	return (smc_nr == MTEE_SMCNR_TID(SMCF_SC_NOP, 0) ||
 		smc_nr == MTEE_SMCNR_TID(SMCF_SC_NOP, 1));
 }
 
@@ -184,8 +188,7 @@ static ulong trusty_std_call_helper(struct device *dev, ulong smcnr,
 			 * 0 means NOP, 1 means STDCALL
 			 * a1 = cpu core (get after local IRQ is disabled)
 			 */
-			if (smcnr == SMC_SC_GZ_RESTART_LAST ||
-			    smcnr == MTEE_SMCNR_TID(SMCF_SC_RESTART_LAST, 0) ||
+			if (smcnr == MTEE_SMCNR_TID(SMCF_SC_RESTART_LAST, 0) ||
 			    smcnr == MTEE_SMCNR_TID(SMCF_SC_RESTART_LAST, 1))
 				a1 = smp_processor_id();
 		}
@@ -280,8 +283,6 @@ static int nebula_interrupted_loop(struct trusty_state *s, u32 smcnr, int ret)
 	return ret;
 }
 
-static DEFINE_MUTEX(multi_lock);
-
 s32 trusty_std_call32(struct device *dev, u32 smcnr, u32 a0, u32 a1, u32 a2)
 {
 	int ret;
@@ -295,9 +296,8 @@ s32 trusty_std_call32(struct device *dev, u32 smcnr, u32 a0, u32 a1, u32 a2)
 	WARN_ON(SMC_IS_FASTCALL(smcnr));
 	WARN_ON(SMC_IS_SMC64(smcnr));
 
-	if (smcnr != SMC_SC_GZ_NOP && smcnr != MTEE_SMCNR_TID(SMCF_SC_NOP, 0) &&
+	if (smcnr != MTEE_SMCNR_TID(SMCF_SC_NOP, 0) &&
 	    smcnr != MTEE_SMCNR_TID(SMCF_SC_NOP, 1)) {
-		//mutex_lock(&multi_lock);
 		mutex_lock(&s->smc_lock);
 		reinit_completion(&s->cpu_idle_completion);
 	}
@@ -317,12 +317,11 @@ s32 trusty_std_call32(struct device *dev, u32 smcnr, u32 a0, u32 a1, u32 a2)
 
 	WARN_ONCE(ret == SM_ERR_PANIC, "trusty crashed");
 
-	if (smcnr == SMC_SC_GZ_NOP || smcnr == MTEE_SMCNR_TID(SMCF_SC_NOP, 0) ||
+	if (smcnr == MTEE_SMCNR_TID(SMCF_SC_NOP, 0) ||
 	    smcnr == MTEE_SMCNR_TID(SMCF_SC_NOP, 1))
 		complete(&s->cpu_idle_completion);
 	else {
 		mutex_unlock(&s->smc_lock);
-		//mutex_unlock(&multi_lock);
 	}
 
 	return ret;
@@ -354,6 +353,66 @@ int trusty_call_notifier_unregister(struct device *dev,
 }
 EXPORT_SYMBOL(trusty_call_notifier_unregister);
 
+int trusty_callback_notifier_register(struct device *dev,
+				struct notifier_block *n)
+{
+	struct trusty_state *s;
+
+	if (IS_ERR_OR_NULL(dev))
+		return -EINVAL;
+
+	s = platform_get_drvdata(to_platform_device(dev));
+	return blocking_notifier_chain_register(&s->callback, n);
+}
+EXPORT_SYMBOL(trusty_callback_notifier_register);
+
+int trusty_callback_notifier_unregister(struct device *dev,
+				struct notifier_block *n)
+{
+	struct trusty_state *s;
+
+	if (IS_ERR_OR_NULL(dev))
+		return -EINVAL;
+
+	s = platform_get_drvdata(to_platform_device(dev));
+	return blocking_notifier_chain_unregister(&s->callback, n);
+}
+EXPORT_SYMBOL(trusty_callback_notifier_unregister);
+
+int trusty_adjust_task_attr(struct device *dev,
+				struct trusty_task_attr *manual_task_attr)
+{
+	struct trusty_state *s;
+
+	if (IS_ERR_OR_NULL(dev))
+		return -EINVAL;
+
+	s = platform_get_drvdata(to_platform_device(dev));
+
+	blocking_notifier_call_chain(&s->callback,
+			TRUSTY_CALLBACK_VIRTIO_WQ_ATTR, manual_task_attr);
+
+	return 0;
+}
+EXPORT_SYMBOL(trusty_adjust_task_attr);
+
+int trusty_dump_systrace(struct device *dev, void *data)
+{
+#if ENABLE_GZ_TRACE_DUMP
+	struct trusty_state *s;
+
+	if (IS_ERR_OR_NULL(dev))
+		return -EINVAL;
+
+	s = platform_get_drvdata(to_platform_device(dev));
+
+	blocking_notifier_call_chain(&s->callback,
+			TRUSTY_CALLBACK_SYSTRACE, data);
+#endif
+	return 0;
+}
+EXPORT_SYMBOL(trusty_dump_systrace);
+
 static int trusty_remove_child(struct device *dev, void *data)
 {
 	platform_device_unregister(to_platform_device(dev));
@@ -372,29 +431,34 @@ static ssize_t trusty_version_store(struct device *dev,
 			   struct device_attribute *attr, const char *buf,
 			   size_t n)
 {
-
 	return n;
 }
-
 DEVICE_ATTR_RW(trusty_version);
 
-#ifdef CONFIG_MTK_RAM_CONSOLE
+#if enable_code /*#if 0*/
+#if IS_ENABLED(CONFIG_MTK_RAM_CONSOLE)
 static void init_gz_ramconsole(struct device *dev)
 {
 	u32 low, high;
+#ifdef SRAM_TEST
+
+	low = 0x0011E000;
+	high = 0x00000000;
+#else
 	unsigned long *gz_irq_pa;
 
 	gz_irq_pa = aee_rr_rec_gz_irq_pa();
-	trusty_info(dev, "ram console get PA 0x%llx\n",
-		    (unsigned long)gz_irq_pa);
+	trusty_info(dev, "ram console: get PA %p\n", gz_irq_pa);
 
 	low = (u32) (((u64) gz_irq_pa << 32) >> 32);
 	high = (u32) ((u64) gz_irq_pa >> 32);
+#endif
 
-	trusty_info(dev, "send ram console PA from kernel to GZ\n");
-	trusty_std_call32(dev, MTEE_SMCNR(MT_SMCF_SC_SET_RAMCONSOLE, dev),
-			  low, high, 0);
+	trusty_info(dev,
+		"ram console: send ram console PA from kernel to GZ\n");
+	trusty_std_call32(dev, MT_SMC_SC_SET_RAMCONSOLE, low, high, 0);
 }
+#endif
 #endif
 
 const char *trusty_version_str_get(struct device *dev)
@@ -422,7 +486,7 @@ static void trusty_init_version(struct trusty_state *s, struct device *dev)
 
 	version_str_len = ret;
 
-	s->version_str = kmalloc(version_str_len + 1, GFP_KERNEL);
+	s->version_str = devm_kzalloc(dev, version_str_len + 1, GFP_KERNEL);
 
 	if (!s->version_str)
 		goto err_nomem;
@@ -445,7 +509,7 @@ static void trusty_init_version(struct trusty_state *s, struct device *dev)
 
 err_create_file:
 err_get_char:
-	kfree(s->version_str);
+	devm_kfree(dev, s->version_str);
 	s->version_str = NULL;
 err_nomem:
 err_get_size:
@@ -488,13 +552,10 @@ static int trusty_init_api_version(struct trusty_state *s, struct device *dev)
 	return 0;
 }
 
-static bool dequeue_nop(struct trusty_state *s, u32 *args)
+static bool dequeue_nop(struct trusty_state *s, u32 *args, struct list_head *nop_queue)
 {
 	unsigned long flags;
 	struct trusty_nop *nop = NULL;
-	struct list_head *nop_queue;
-
-	nop_queue = &s->nop_queue;
 
 	spin_lock_irqsave(&s->nop_lock, flags);
 
@@ -515,11 +576,10 @@ static bool dequeue_nop(struct trusty_state *s, u32 *args)
 	return nop;
 }
 
-static void locked_nop_work_func(struct work_struct *work)
+static void locked_nop_work_func(struct nop_task_info *nop_ti)
 {
 	int ret;
-	struct trusty_work *tw = container_of(work, struct trusty_work, work);
-	struct trusty_state *s = tw->ts;
+	struct trusty_state *s = nop_ti->ts;
 	u32 smcnr_locked_nop = MTEE_SMCNR_TID(SMCF_SC_LOCKED_NOP, s->tee_id);
 
 	ret = trusty_std_call32(s->dev, smcnr_locked_nop, 0, 0, 0);
@@ -529,19 +589,18 @@ static void locked_nop_work_func(struct work_struct *work)
 			    __func__, ret);
 }
 
-static void nop_work_func(struct work_struct *work)
+static void nop_work_func(struct nop_task_info *nop_ti)
 {
-	struct trusty_work *tw = container_of(work, struct trusty_work, work);
-	struct trusty_state *s = tw->ts;
+	struct trusty_state *s = nop_ti->ts;
 	bool next;
 	enum tee_id_t tee_id = s->tee_id;
 	int ret;
 	u32 args[3];
 	u32 smcnr_nop = MTEE_SMCNR_TID(SMCF_SC_NOP, tee_id);
 
-	trusty_dbg(s->dev, "%s:\n", __func__);
+	trusty_dbg(s->dev, "%s: idx %d\n", __func__, nop_ti->idx);
 
-	dequeue_nop(s, args);
+	dequeue_nop(s, args, &nop_ti->nop_queue);
 
 	do {
 		trusty_dbg(s->dev, "%s: %x %x %x\n",
@@ -558,7 +617,7 @@ static void nop_work_func(struct work_struct *work)
 			smcnr_nop = MTEE_SMCNR_TID(SMCF_SC_NOP, 0);
 
 
-		next = dequeue_nop(s, args);
+		next = dequeue_nop(s, args, &nop_ti->nop_queue);
 
 		if (ret == SM_ERR_NBL_NOP_INTERRUPTED ||
 		    ret == SM_ERR_GZ_NOP_INTERRUPTED ||
@@ -572,12 +631,15 @@ static void nop_work_func(struct work_struct *work)
 	} while (next);
 
 	trusty_dbg(s->dev, "%s: done\n", __func__);
+
+	blocking_notifier_call_chain(&s->callback, TRUSTY_CALLBACK_SYSTRACE, NULL);
+
 }
 
-void trusty_enqueue_nop(struct device *dev, struct trusty_nop *nop)
+void trusty_enqueue_nop(struct device *dev, struct trusty_nop *nop, int cpu)
 {
 	unsigned long flags;
-	struct trusty_work *tw;
+	struct nop_task_info *nop_ti;
 	struct trusty_state *s;
 
 	if (IS_ERR_OR_NULL(dev))
@@ -586,17 +648,21 @@ void trusty_enqueue_nop(struct device *dev, struct trusty_nop *nop)
 	s = platform_get_drvdata(to_platform_device(dev));
 
 	preempt_disable();
-	tw = this_cpu_ptr(s->nop_works);
+	if (cpu_possible(cpu))
+		nop_ti = per_cpu_ptr(s->nop_tasks_info, cpu);
+	else
+		nop_ti = this_cpu_ptr(s->nop_tasks_info);
 
 	if (nop) {
 		WARN_ON(s->api_version < TRUSTY_API_VERSION_SMP_NOP);
 
 		spin_lock_irqsave(&s->nop_lock, flags);
 		if (list_empty(&nop->node))
-			list_add_tail(&nop->node, &s->nop_queue);
+			list_add_tail(&nop->node, &nop_ti->nop_queue);
 		spin_unlock_irqrestore(&s->nop_lock, flags);
 	}
-	queue_work(s->nop_wq, &tw->work);
+
+	complete(&nop_ti->run);
 	preempt_enable();
 
 	return;
@@ -625,11 +691,231 @@ void trusty_dequeue_nop(struct device *dev, struct trusty_nop *nop)
 }
 EXPORT_SYMBOL(trusty_dequeue_nop);
 
+static int trusty_task_nop(void *data)
+{
+	struct nop_task_info *nop_ti = (struct nop_task_info *)data;
+	struct trusty_state *s;
+	long timeout = MAX_SCHEDULE_TIMEOUT;
+	int idx;
+
+	if (!nop_ti)
+		return -ENOMEM;
+
+	s = nop_ti->ts;
+	if (!s)
+		return -ENOMEM;
+
+	complete(&nop_ti->rdy);
+
+	idx = nop_ti->idx;
+
+	trusty_info(s->dev, "tee%d/%s_%d ->\n", s->tee_id, __func__, idx);
+
+	while (!kthread_should_stop()) {
+		wait_for_completion_interruptible_timeout(&nop_ti->run, timeout);
+
+		if (nop_ti->idx >= 0) {
+			nop_ti->nop_func(nop_ti);
+			// blocking_notifier_call_chain(
+			//	&s->callback, TRUSTY_CALLBACK_SYSTRACE, NULL);
+		} else
+			break;
+
+		if (unlikely(smp_processor_id() != idx)) {
+			/* self migrate */
+			if (cpu_online(idx)) {
+				struct cpumask cpu_mask;
+
+				cpumask_clear(&cpu_mask);
+				cpumask_set_cpu(idx, &cpu_mask);
+				set_cpus_allowed_ptr(current, &cpu_mask);
+				trusty_info(s->dev, "%s migrate to cpu %d\n",
+					    __func__, idx);
+			} else
+				trusty_info(s->dev, "%s cpu %d is offline\n",
+					    __func__, idx);
+		}
+	}
+
+	trusty_info(s->dev, "tee%d/%s_%d -<\n", s->tee_id, __func__, idx);
+
+	return 0;
+}
+
+static int trusty_nop_thread_free(struct trusty_state *s)
+{
+	unsigned int cpu;
+
+	for_each_possible_cpu(cpu) {
+		struct nop_task_info *nop_ti = per_cpu_ptr(s->nop_tasks_info, cpu);
+		struct task_struct *ts = per_cpu_ptr(s->nop_tasks_fd, cpu);
+
+		if (IS_ERR_OR_NULL(nop_ti) || IS_ERR_OR_NULL(ts))
+			continue;
+
+		nop_ti->idx = -1;
+		complete(&nop_ti->run);
+		//kthread_stop(ts);
+		trusty_info(s->dev, "tee%d %s cpu=%u\n", s->tee_id, __func__, cpu);
+	}
+
+	return 0;
+}
+
+static int trusty_nop_thread_create(struct trusty_state *s)
+{
+	unsigned int cpu;
+	int ret;
+
+	s->nop_tasks_fd = devm_alloc_percpu(s->dev, struct task_struct);
+	if (!s->nop_tasks_fd) {
+		trusty_info(s->dev, "Failed to allocate nop_tasks_fd\n");
+		return -ENOMEM;
+	}
+
+	s->nop_tasks_info = devm_alloc_percpu(s->dev, struct nop_task_info);
+	if (!s->nop_tasks_info) {
+		trusty_info(s->dev, "Failed to allocate nop_tasks_info\n");
+		return -ENOMEM;
+	}
+
+	for_each_possible_cpu(cpu) {
+		struct task_struct *ts = per_cpu_ptr(s->nop_tasks_fd, cpu);
+		struct nop_task_info *nop_ti = per_cpu_ptr(s->nop_tasks_info, cpu);
+
+		nop_ti->idx = cpu;
+		nop_ti->ts = s;
+		if (s->api_version < TRUSTY_API_VERSION_SMP)
+			nop_ti->nop_func = locked_nop_work_func;
+		else
+			nop_ti->nop_func = nop_work_func;
+
+		init_completion(&nop_ti->run);
+		init_completion(&nop_ti->rdy);
+		INIT_LIST_HEAD(&nop_ti->nop_queue);
+
+		ts = kthread_create_on_node(trusty_task_nop, (void *)nop_ti,
+					    cpu_to_node(cpu), "id%d_trusty_n/%d",
+					    s->tee_id, cpu);
+		if (IS_ERR(ts)) {
+			trusty_info(s->dev, "%s unable create kthread\n", __func__);
+			ret = PTR_ERR(ts);
+			goto err_thread_create;
+		}
+		set_user_nice(ts, PRIO_TO_NICE(MAX_USER_RT_PRIO) + 1);
+		kthread_bind(ts, cpu);
+
+		wake_up_process(ts);
+	}
+
+	for_each_possible_cpu(cpu) {
+		struct nop_task_info *nop_ti = per_cpu_ptr(s->nop_tasks_info, cpu);
+
+		ret = wait_for_completion_timeout(&nop_ti->rdy, msecs_to_jiffies(5000));
+		if (ret <= 0)
+			goto err_thread_rdy;
+	}
+
+	return 0;
+
+err_thread_rdy:
+err_thread_create:
+	trusty_nop_thread_free(s);
+	return ret;
+}
+
+static int trusty_poll_notify(struct notifier_block *nb, unsigned long action,
+		       void *data)
+{
+	struct trusty_state *s;
+
+	if (action != TRUSTY_CALL_RETURNED)
+		return NOTIFY_DONE;
+
+	s = container_of(nb, struct trusty_state, poll_notifier);
+
+	if (s->api_version < TRUSTY_API_VERSION_SMP_NOP)
+		return NOTIFY_DONE;
+
+	kthread_queue_work(&s->poll_worker, &s->poll_work);
+
+	return NOTIFY_OK;
+}
+
+static void trusty_poll_work(struct kthread_work *work)
+{
+	struct trusty_state *s = container_of(work, struct trusty_state, poll_work);
+	uint32_t cpu_mask;
+
+	cpu_mask = (uint32_t)trusty_fast_call32(s->dev,
+						SMC_FC_GZ_GET_CPU_REQUEST,
+						0, 0, 0);
+
+	if (cpu_mask == SM_ERR_UNDEFINED_SMC) {
+		trusty_info(s->dev, "%s get error cpu mask!\n", __func__);
+		return;
+	}
+
+	if (cpu_mask > 0) {
+		int cpu;
+
+		for_each_online_cpu(cpu) {
+			if ((cpu < 32) && (cpu_mask & (1 << cpu))) {
+				trusty_info(s->dev, "%s send nop for cpu %d\n",
+						__func__, cpu);
+				trusty_enqueue_nop(s->dev, NULL, cpu);
+			}
+		}
+	}
+}
+
+static int trusty_poll_create(struct trusty_state *s)
+{
+	// int ret;
+	struct sched_param param = { .sched_priority = MAX_RT_PRIO - 1 };
+
+	s->poll_notifier.notifier_call = trusty_poll_notify;
+	s->poll_notifier.priority = -1;
+	/* ret = trusty_call_notifier_register(s->dev, &s->poll_notifier);
+	if (ret) {
+		trusty_info(s->dev,
+			 "%s: failed (%d) to register notifier\n",
+			 __func__, ret);
+		return ret;
+	}
+	*/
+
+	kthread_init_work(&s->poll_work, trusty_poll_work);
+	kthread_init_worker(&s->poll_worker);
+	s->poll_task = kthread_create(kthread_worker_fn, (void *)&s->poll_worker,
+				      "trusty_poll_task");
+	if (IS_ERR(s->poll_task)) {
+		trusty_info(s->dev, "%s: unable create trusty_poll_worker\n",
+			    __func__, s->tee_id);
+		return PTR_ERR(s->poll_task);
+	}
+
+	sched_setscheduler(s->poll_task, SCHED_RR, &param);
+	set_user_nice(s->poll_task, PRIO_TO_NICE(100));
+
+	wake_up_process(s->poll_task);
+
+	return 0;
+}
+
+static int trusty_poll_free(struct trusty_state *s)
+{
+	kthread_flush_worker(&s->poll_worker);
+	kthread_stop(s->poll_task);
+
+	trusty_call_notifier_unregister(s->dev, &s->poll_notifier);
+
+	return 0;
+}
+
 static int trusty_probe(struct platform_device *pdev)
 {
-	int ret, tee_id;
-	unsigned int cpu;
-	work_func_t work_func;
+	int ret, tee_id = 0;
 	struct trusty_state *s;
 	struct device_node *node = pdev->dev.of_node;
 
@@ -649,11 +935,9 @@ static int trusty_probe(struct platform_device *pdev)
 
 	dev_info(&pdev->dev, "--- init trusty-smc for MTEE %d ---\n", tee_id);
 
-	s = kzalloc(sizeof(*s), GFP_KERNEL);
-	if (!s) {
-		ret = -ENOMEM;
-		goto err_allocate_state;
-	}
+	s = devm_kzalloc(&pdev->dev, sizeof(*s), GFP_KERNEL);
+	if (!s)
+		return -ENOMEM;
 
 	/* set tee_id as early as possible */
 	pdev->id = tee_id;
@@ -662,9 +946,9 @@ static int trusty_probe(struct platform_device *pdev)
 	s->dev = &pdev->dev;
 	spin_lock_init(&s->nop_lock);
 
-	INIT_LIST_HEAD(&s->nop_queue);
 	mutex_init(&s->smc_lock);
 	ATOMIC_INIT_NOTIFIER_HEAD(&s->notifier);
+	BLOCKING_INIT_NOTIFIER_HEAD(&s->callback);
 	init_completion(&s->cpu_idle_completion);
 	platform_set_drvdata(pdev, s);
 
@@ -681,93 +965,63 @@ static int trusty_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto err_api_version;
 
-	s->nop_wq = alloc_workqueue("trusty-nop-wq", WQ_CPU_INTENSIVE, 0);
-	if (!s->nop_wq) {
-		ret = -ENODEV;
-		trusty_info(&pdev->dev, "Failed create trusty-nop-wq\n");
-		goto err_create_nop_wq;
-	}
+	ret = trusty_nop_thread_create(s);
+	if (ret < 0)
+		goto err_nop_thread_create;
 
-	s->nop_works = alloc_percpu(struct trusty_work);
-	if (!s->nop_works) {
-		ret = -ENOMEM;
-		trusty_info(&pdev->dev, "Failed to allocate works\n");
-		goto err_alloc_works;
-	}
-
-	if (s->api_version < TRUSTY_API_VERSION_SMP)
-		work_func = locked_nop_work_func;
-	else
-		work_func = nop_work_func;
-
-	for_each_possible_cpu(cpu) {
-		struct trusty_work *tw = per_cpu_ptr(s->nop_works, cpu);
-
-		tw->ts = s;
-		INIT_WORK(&tw->work, work_func);
-	}
+	ret = trusty_poll_create(s);
+	if (ret)
+		goto err_poll_create;
 
 	ret = of_platform_populate(pdev->dev.of_node, NULL, NULL, &pdev->dev);
 	if (ret < 0) {
 		trusty_info(&pdev->dev, "Failed to add children: %d\n", ret);
 		goto err_add_children;
 	}
-#ifdef CONFIG_MT_GZ_TRUSTY_DEBUGFS
+
+#if IS_ENABLED(CONFIG_MT_GZ_TRUSTY_DEBUGFS)
 	mtee_create_debugfs(s, &pdev->dev);
 #else
 	trusty_info(&pdev->dev, "%s, Not MT_GZ_TRUSTY_DEBUGFS\n", __func__);
 #endif
 
-#ifdef CONFIG_MTK_RAM_CONSOLE
-	if (s->tee_id == TEE_ID_TRUSTY)
-		init_gz_ramconsole(&pdev->dev);
+#if enable_code /*#if 0*/
+#if IS_ENABLED(CONFIG_MTK_RAM_CONSOLE)
+	init_gz_ramconsole(&pdev->dev);
+#endif
 #endif
 	return 0;
 
 err_add_children:
-	for_each_possible_cpu(cpu) {
-		struct trusty_work *tw = per_cpu_ptr(s->nop_works, cpu);
-
-		flush_work(&tw->work);
-	}
-	free_percpu(s->nop_works);
-err_alloc_works:
-	destroy_workqueue(s->nop_wq);
-err_create_nop_wq:
-err_smcall_table:
+	trusty_poll_free(s);
+err_poll_create:
+	trusty_nop_thread_free(s);
+err_nop_thread_create:
 err_api_version:
 	if (s->version_str) {
 		device_remove_file(&pdev->dev, &dev_attr_trusty_version);
-		kfree(s->version_str);
 	}
+err_smcall_table:
 	device_for_each_child(&pdev->dev, NULL, trusty_remove_child);
 	mutex_destroy(&s->smc_lock);
-	kfree(s);
-err_allocate_state:
 	return ret;
 }
 
 static int trusty_remove(struct platform_device *pdev)
 {
-	unsigned int cpu;
 	struct trusty_state *s = platform_get_drvdata(pdev);
 
 	device_for_each_child(&pdev->dev, NULL, trusty_remove_child);
 
-	for_each_possible_cpu(cpu) {
-		struct trusty_work *tw = per_cpu_ptr(s->nop_works, cpu);
+	trusty_poll_free(s);
 
-		flush_work(&tw->work);
-	}
-	free_percpu(s->nop_works);
-	destroy_workqueue(s->nop_wq);
+	trusty_nop_thread_free(s);
 
 	mutex_destroy(&s->smc_lock);
 	if (s->version_str) {
 		device_remove_file(&pdev->dev, &dev_attr_trusty_version);
-		kfree(s->version_str);
 	}
-	kfree(s);
+
 	return 0;
 }
 
@@ -829,5 +1083,9 @@ static void __exit trusty_driver_exit(void)
 	platform_driver_unregister(&nebula_driver);
 }
 
+//subsys_initcall(trusty_driver_init);
 arch_initcall(trusty_driver_init);
 module_exit(trusty_driver_exit);
+
+MODULE_LICENSE("GPL");
+

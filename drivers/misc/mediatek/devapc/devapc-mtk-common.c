@@ -249,11 +249,15 @@ static void start_devapc(void)
 	} else
 		DEVAPC_MSG("No violation happened before booting kernel\n");
 
-	for (i = 0; i < mtk_devapc_ctx->soc->ndevices; i++)
+	DEVAPC_MSG("Number of devices: %u\n", mtk_devapc_ctx->soc->ndevices);
+
+	for (i = 0; i < mtk_devapc_ctx->soc->ndevices; i++) {
 		if (true == device_info[i].enable_vio_irq) {
-			clear_infra_vio_status(i);
 			unmask_infra_module_irq(i);
-		}
+			clear_infra_vio_status(i);
+		} else
+			mask_infra_module_irq(i);
+	}
 
 	print_vio_mask_sta();
 
@@ -501,6 +505,10 @@ uint32_t devapc_vio_check(void)
 }
 EXPORT_SYMBOL(devapc_vio_check);
 
+/*
+ * dump_dbg_info - dump all vio dbg info
+ *
+ */
 void dump_dbg_info(void)
 {
 	uint32_t dbg0 = 0;
@@ -528,6 +536,8 @@ void dump_dbg_info(void)
 
 			dbg0 = readl(vio_dbg0_reg);
 			vio_info->vio_dbg1 = readl(vio_dbg1_reg);
+			DEVAPC_DBG_MSG("%s vio_dbg0=0x%x, vio_dbg1=0x%x\n",
+					__func__, dbg0, vio_info->vio_dbg1);
 
 			vio_info->master_id =
 				(dbg0 & vio_dbgs->infra_vio_dbg_mstid)
@@ -562,22 +572,77 @@ void dump_dbg_info(void)
 }
 EXPORT_SYMBOL(dump_dbg_info);
 
+/*
+ * devapc_extract_vio_dbg - get vio dbg info after sync_vio_dbg
+ *
+ */
+static void devapc_extract_vio_dbg(void)
+{
+	uint32_t dbg0 = 0;
+	uint32_t write_vio, read_vio;
+	uint32_t vio_addr_high;
+	void __iomem *vio_dbg0_reg, *vio_dbg1_reg;
+	const struct mtk_infra_vio_dbg_desc *vio_dbgs;
+	struct mtk_devapc_vio_info *vio_info;
+
+	vio_dbg0_reg = mtk_devapc_pd_get(VIO_DBG0,
+			mtk_devapc_ctx->soc->devapc_pds, 0);
+
+	vio_dbg1_reg = mtk_devapc_pd_get(VIO_DBG1,
+			mtk_devapc_ctx->soc->devapc_pds, 0);
+
+	vio_dbgs = mtk_devapc_ctx->soc->vio_dbgs;
+	vio_info = mtk_devapc_ctx->soc->vio_info;
+
+	dbg0 = readl(vio_dbg0_reg);
+	vio_info->vio_dbg1 = readl(vio_dbg1_reg);
+
+	vio_info->master_id =
+		(dbg0 & vio_dbgs->infra_vio_dbg_mstid)
+		>> vio_dbgs->infra_vio_dbg_mstid_start_bit;
+	vio_info->domain_id =
+		(dbg0 & vio_dbgs->infra_vio_dbg_dmnid)
+		>> vio_dbgs->infra_vio_dbg_dmnid_start_bit;
+	write_vio = (dbg0 & vio_dbgs->infra_vio_dbg_w_vio)
+		>> vio_dbgs->infra_vio_dbg_w_vio_start_bit;
+	read_vio = (dbg0 & vio_dbgs->infra_vio_dbg_r_vio)
+		>> vio_dbgs->infra_vio_dbg_r_vio_start_bit;
+	vio_addr_high = (dbg0 & vio_dbgs->infra_vio_addr_high)
+		>> vio_dbgs->infra_vio_addr_high_start_bit;
+
+	/* violation information */
+	DEVAPC_MSG("%s%s%s%s%x %s%x, %s%x, %s%x\n",
+			"Violation(",
+			read_vio == 1?" R":"",
+			write_vio == 1?" W ) - ":" ) - ",
+			"Vio Addr:0x", vio_info->vio_dbg1,
+			"High:0x", vio_addr_high,
+			"Bus ID:0x", vio_info->master_id,
+			"Dom ID:0x", vio_info->domain_id);
+
+	DEVAPC_MSG("%s - %s%s, %s%i\n",
+			"Violation",
+			"Current Process:", current->comm,
+			"PID:", current->pid);
+}
+
 void handle_sramrom_vio(void)
 {
-	size_t sramrom_vio_sta, sramrom_vio_addr;
+	size_t sramrom_vio_sta;
 	int rw, sramrom_vio;
-	uint32_t master_id, domain_id, dbg1;
 	struct arm_smccc_res res;
 	const struct mtk_sramrom_sec_vio_desc *sramrom_vios;
+	struct mtk_devapc_vio_info *vio_info;
 
 	sramrom_vios = mtk_devapc_ctx->soc->sramrom_sec_vios;
+	vio_info = mtk_devapc_ctx->soc->vio_info;
 
 	arm_smccc_smc(MTK_SIP_KERNEL_CLR_SRAMROM_VIO,
 			0, 0, 0, 0, 0, 0, 0, &res);
 
 	sramrom_vio = res.a0;
 	sramrom_vio_sta = res.a1;
-	sramrom_vio_addr = res.a2;
+	vio_info->vio_dbg1 = res.a2;
 
 	if (sramrom_vio == SRAM_VIOLATION)
 		DEVAPC_MSG("%s, SRAM violation is triggered\n", __func__);
@@ -588,22 +653,21 @@ void handle_sramrom_vio(void)
 		return;
 	}
 
-	master_id =
+	vio_info->master_id =
 		(sramrom_vio_sta & sramrom_vios->sramrom_sec_vio_id_mask) >>
 			sramrom_vios->sramrom_sec_vio_id_shift;
-	domain_id =
+	vio_info->domain_id =
 		(sramrom_vio_sta & sramrom_vios->sramrom_sec_vio_domain_mask) >>
 			sramrom_vios->sramrom_sec_vio_domain_shift;
 	rw =
 		(sramrom_vio_sta & sramrom_vios->sramrom_sec_vio_rw_mask) >>
 			sramrom_vios->sramrom_sec_vio_rw_shift;
-	dbg1 = sramrom_vio_addr;
 
 	DEVAPC_MSG("%s, %s: 0x%x, %s: 0x%x, rw: %s, vio addr: 0x%x\n",
-		__func__, "master_id", master_id,
-		"domain_id", domain_id,
+		__func__, "master_id", vio_info->master_id,
+		"domain_id", vio_info->domain_id,
 		rw ? "Write" : "Read",
-		dbg1
+		vio_info->vio_dbg1
 	);
 }
 
@@ -615,9 +679,12 @@ static irqreturn_t devapc_violation_irq(int irq_number, void *dev_id)
 	struct pt_regs *regs = get_irq_regs();
 	const struct mtk_device_info *device_info;
 	struct mtk_devapc_vio_info *vio_info;
+	uint32_t shift_bit, vio_shift_sta;
+	uint32_t (*shift_group_get)(uint32_t vio_idx);
 
 	device_info = mtk_devapc_ctx->soc->device_info;
 	vio_info = mtk_devapc_ctx->soc->vio_info;
+	shift_group_get = mtk_devapc_ctx->soc->shift_group_get;
 
 	if (irq_number != mtk_devapc_ctx->devapc_irq) {
 		DEVAPC_MSG("(ERROR) irq_number %d is not registered\n",
@@ -625,8 +692,10 @@ static irqreturn_t devapc_violation_irq(int irq_number, void *dev_id)
 
 		return IRQ_NONE;
 	}
+
 	print_vio_mask_sta();
-	dump_dbg_info();
+	if (!shift_group_get)
+		dump_dbg_info();
 
 	device_count = mtk_devapc_ctx->soc->ndevices;
 
@@ -634,6 +703,39 @@ static irqreturn_t devapc_violation_irq(int irq_number, void *dev_id)
 	for (i = 0; i < device_count; i++) {
 		if (device_info[i].enable_vio_irq == true
 			&& check_infra_vio_status(i) == VIOLATION_TRIGGERED) {
+
+			/* check vio_shift when enable_vio_irq and vio triggerd */
+			if (shift_group_get) {
+				vio_shift_sta = devapc_vio_check();
+				shift_bit = shift_group_get(i);
+
+				DEVAPC_DBG_MSG("%s:0x%x, %s:%d, %s:%d\n",
+						"vio_shift_sta", vio_shift_sta,
+						"shift_bit", shift_bit,
+						"vio_shift_max_bit", vio_info->vio_shift_max_bit);
+
+				if ((shift_bit <= vio_info->vio_shift_max_bit) &&
+					(vio_shift_sta & (0x1 << shift_bit))) {
+					DEVAPC_MSG("%s:0x%x is matched with %s:%d\n",
+							"vio_shift_sta", vio_shift_sta,
+							"shift_bit", shift_bit);
+
+					if (!sync_vio_dbg(shift_bit))
+						continue;
+
+					devapc_extract_vio_dbg();
+
+					/*
+					 * Ensure that violation info are written before
+					 * further operations
+					 */
+					smp_mb();
+
+				} else
+					DEVAPC_MSG("%s:0x%x is not matched with %s:%d\n",
+							"vio_shift_sta", vio_shift_sta,
+							"shift_bit", shift_bit);
+			}
 
 			clear_infra_vio_status(i);
 			perm = get_permission(i, vio_info->domain_id);
@@ -734,6 +836,119 @@ static void devapc_ut(uint32_t cmd)
 	}
 }
 
+#ifdef CONFIG_DEVAPC_SWP_SUPPORT
+static struct devapc_swp_context {
+	void __iomem *devapc_swp_base;
+	bool swp_enable;
+	bool swp_clr;
+	bool swp_rw;
+	uint32_t swp_phy_addr;
+	uint32_t swp_rg;
+	uint32_t swp_wr_val;
+	uint32_t swp_wr_mask;
+} devapc_swp_ctx[1];
+
+static ssize_t set_swp_addr_show(struct device_driver *driver, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE,
+		"%s:%s\n\t%s:%s\n\t%s:0x%x\n\t%s:0x%x\n\t%s:0x%x\n\t%s:0x%x\n",
+			"devapc_swp",
+			devapc_swp_ctx->swp_enable ? "enable" : "disable",
+			"swp_rw",
+			devapc_swp_ctx->swp_rw ? "write" : "read",
+			"swp_physical_addr", devapc_swp_ctx->swp_phy_addr,
+			"swp_rg", devapc_swp_ctx->swp_rg,
+			"swp_wr_val", devapc_swp_ctx->swp_wr_val,
+			"swp_wr_mask", devapc_swp_ctx->swp_wr_mask
+		       );
+}
+
+static ssize_t set_swp_addr_store(struct device_driver *driver,
+		const char *buf, size_t count)
+{
+	char *cmd_str, *param_str;
+	unsigned int param;
+	int err;
+
+	pr_info(PFX "buf: %s", buf);
+
+	cmd_str = strsep((char **)&buf, " ");
+	if (!cmd_str)
+		return -EINVAL;
+
+	param_str = strsep((char **)&buf, " ");
+	if (!param_str)
+		return -EINVAL;
+
+	err = kstrtou32(param_str, 16, &param);
+	if (err)
+		return err;
+
+	if (!strncmp(cmd_str, "enable_swp", sizeof("enable_swp"))) {
+		devapc_swp_ctx->swp_enable = (param != 0);
+		pr_info(PFX "devapc_swp_enable = %s\n",
+			devapc_swp_ctx->swp_enable ? "enable" : "disable");
+
+		writel(param, devapc_swp_ctx->devapc_swp_base);
+		if (!devapc_swp_ctx->swp_enable)
+			devapc_swp_ctx->swp_phy_addr = 0x0;
+
+	} else if (!strncmp(cmd_str, "set_swp_clr", sizeof("set_swp_clr"))) {
+		pr_info(PFX "set swp clear: 0x%x\n", param);
+		devapc_swp_ctx->swp_clr = (param != 0);
+
+		if (devapc_swp_ctx->swp_clr)
+			writel(0x1 << DEVAPC_SWP_CON_CLEAR,
+			       devapc_swp_ctx->devapc_swp_base);
+
+	} else if (!strncmp(cmd_str, "set_swp_rw", sizeof("set_swp_rw"))) {
+		pr_info(PFX "set swp r/w: %s\n", param ? "write" : "read");
+		devapc_swp_ctx->swp_rw = (param != 0);
+
+		if (devapc_swp_ctx->swp_rw)
+			writel(0x1 << DEVAPC_SWP_CON_RW,
+			       devapc_swp_ctx->devapc_swp_base);
+
+	} else if (!strncmp(cmd_str, "set_swp_addr", sizeof("set_swp_addr"))) {
+		pr_info(PFX "set swp physical addr: 0x%x\n", param);
+		devapc_swp_ctx->swp_phy_addr = param;
+
+		writel(devapc_swp_ctx->swp_phy_addr,
+		       devapc_swp_ctx->devapc_swp_base + DEVAPC_SWP_SA_OFFSET);
+
+	} else if (!strncmp(cmd_str, "set_swp_rg", sizeof("set_swp_rg"))) {
+		pr_info(PFX "set swp range: 0x%x\n", param);
+		devapc_swp_ctx->swp_rg = param;
+
+		writel(devapc_swp_ctx->swp_rg,
+		       devapc_swp_ctx->devapc_swp_base + DEVAPC_SWP_RG_OFFSET);
+
+	} else if (!strncmp(cmd_str, "set_swp_wr_val",
+				sizeof("set_swp_wr_val"))) {
+		pr_info(PFX "set swp write value: 0x%x\n", param);
+		devapc_swp_ctx->swp_wr_val = param;
+
+		writel(devapc_swp_ctx->swp_wr_val,
+		       devapc_swp_ctx->devapc_swp_base +
+		       DEVAPC_SWP_WR_VAL_OFFSET);
+
+	} else if (!strncmp(cmd_str, "set_swp_wr_mask",
+				sizeof("set_swp_wr_mask"))) {
+		pr_info(PFX "set swp write mask: 0x%x\n", param);
+		devapc_swp_ctx->swp_wr_mask = param;
+
+		writel(devapc_swp_ctx->swp_wr_mask,
+		       devapc_swp_ctx->devapc_swp_base +
+		       DEVAPC_SWP_WR_MASK_OFFSET);
+
+	} else
+		return -EINVAL;
+
+	return count;
+}
+static DRIVER_ATTR_RW(set_swp_addr);
+#endif /* CONFIG_DEVAPC_SWP_SUPPORT */
+
 int mtk_devapc_probe(struct platform_device *pdev,
 		struct mtk_devapc_soc *soc)
 {
@@ -752,6 +967,8 @@ int mtk_devapc_probe(struct platform_device *pdev,
 			DT_DEVAPC_PD_IDX);
 	mtk_devapc_ctx->devapc_ao_base = of_iomap(node,
 			DT_DEVAPC_AO_IDX);
+	mtk_devapc_ctx->sramrom_base = of_iomap(node,
+			DT_SRAMROM_IDX);
 	mtk_devapc_ctx->devapc_irq = irq_of_parse_and_map(node,
 			DT_DEVAPC_PD_IDX);
 
@@ -759,32 +976,47 @@ int mtk_devapc_probe(struct platform_device *pdev,
 			mtk_devapc_ctx->devapc_pd_base,
 			mtk_devapc_ctx->devapc_irq);
 
+	/* CCF (Common Clock Framework) */
+	mtk_devapc_ctx->devapc_infra_clk = devm_clk_get(&pdev->dev,
+			"devapc-infra-clock");
+
+	if (IS_ERR(mtk_devapc_ctx->devapc_infra_clk))
+		pr_info(PFX "(Infra) Cannot get devapc clock from CCF, error(%ld)\n",
+				PTR_ERR(mtk_devapc_ctx->devapc_infra_clk));
+
+	if (!IS_ERR(mtk_devapc_ctx->devapc_infra_clk)) {
+		if (clk_prepare_enable(mtk_devapc_ctx->devapc_infra_clk)) {
+			pr_err(PFX "Cannot enable devapc clock\n");
+			return -EINVAL;
+		}
+	}
+
+	start_devapc();
+
 	ret = request_irq(mtk_devapc_ctx->devapc_irq,
 			(irq_handler_t)devapc_violation_irq,
-			IRQF_TRIGGER_LOW, "devapc", NULL);
+			IRQF_TRIGGER_NONE, "devapc", NULL);
 	if (ret) {
 		pr_err(PFX "Failed to request devapc irq, ret(%d)\n", ret);
 		return ret;
 	}
 
-	/* CCF (Common Clock Framework) */
-	mtk_devapc_ctx->devapc_infra_clk = devm_clk_get(&pdev->dev,
-			"devapc-infra-clock");
-
-	if (IS_ERR(mtk_devapc_ctx->devapc_infra_clk)) {
-		pr_err(PFX "(Infra) Cannot get devapc clock from CCF.\n");
-		return PTR_ERR(mtk_devapc_ctx->devapc_infra_clk);
-	}
-
-	clk_prepare_enable(mtk_devapc_ctx->devapc_infra_clk);
-	start_devapc();
+#ifdef CONFIG_DEVAPC_SWP_SUPPORT
+	devapc_swp_ctx->devapc_swp_base = of_iomap(node, DT_DEVAPC_SWP_IDX);
+	ret = driver_create_file(pdev->dev.driver,
+			&driver_attr_set_swp_addr);
+	if (ret)
+		pr_info(PFX "create SWP sysfs file failed, ret:%d\n", ret);
+#endif
 
 	return 0;
 }
 
 int mtk_devapc_remove(struct platform_device *dev)
 {
-	clk_disable_unprepare(mtk_devapc_ctx->devapc_infra_clk);
+	if (!IS_ERR(mtk_devapc_ctx->devapc_infra_clk))
+		clk_disable_unprepare(mtk_devapc_ctx->devapc_infra_clk);
+
 	return 0;
 }
 
@@ -822,8 +1054,8 @@ ssize_t mtk_devapc_dbg_write(struct file *file, const char __user *buffer,
 	char *parm_str = NULL;
 	char *pinput = NULL;	/* pointer to input */
 	unsigned long param = 0;
-	uint32_t ret;
-	int err = 0, len = 0, apc_set_idx;
+	uint32_t ret, len;
+	int err = 0, apc_set_idx;
 	long slave_type = 0, domain = 0, index = 0;
 	struct arm_smccc_res res;
 	struct mtk_devapc_dbg_status *dbg_stat;
@@ -833,7 +1065,6 @@ ssize_t mtk_devapc_dbg_write(struct file *file, const char __user *buffer,
 		pr_err(PFX "%s:%d NULL pointer\n", __func__, __LINE__);
 		return -EINVAL;
 	}
-
 
 	len = (count < (sizeof(input) - 1)) ? count : (sizeof(input) - 1);
 	if (copy_from_user(input, buffer, len)) {

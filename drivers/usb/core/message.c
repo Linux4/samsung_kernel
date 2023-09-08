@@ -147,7 +147,10 @@ int usb_control_msg(struct usb_device *dev, unsigned int pipe, __u8 request,
 	dr->wValue = cpu_to_le16(value);
 	dr->wIndex = cpu_to_le16(index);
 	dr->wLength = cpu_to_le16(size);
-
+#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
+	if (dev && dev->reset_resume == 1)
+		timeout = 500;
+#endif
 	ret = usb_internal_control_msg(dev, pipe, dr, data, size, timeout);
 
 	/* Linger a bit, prior to the next control message. */
@@ -586,12 +589,13 @@ void usb_sg_cancel(struct usb_sg_request *io)
 	int i, retval;
 
 	spin_lock_irqsave(&io->lock, flags);
-	if (io->status) {
+	if (io->status || io->count == 0) {
 		spin_unlock_irqrestore(&io->lock, flags);
 		return;
 	}
 	/* shut everything down */
 	io->status = -ECONNRESET;
+	io->count++;		/* Keep the request alive until we're done */
 	spin_unlock_irqrestore(&io->lock, flags);
 
 	for (i = io->entries - 1; i >= 0; --i) {
@@ -605,6 +609,12 @@ void usb_sg_cancel(struct usb_sg_request *io)
 			dev_warn(&io->dev->dev, "%s, unlink --> %d\n",
 				 __func__, retval);
 	}
+
+	spin_lock_irqsave(&io->lock, flags);
+	io->count--;
+	if (!io->count)
+		complete(&io->complete);
+	spin_unlock_irqrestore(&io->lock, flags);
 }
 EXPORT_SYMBOL_GPL(usb_sg_cancel);
 
@@ -1075,11 +1085,11 @@ void usb_disable_endpoint(struct usb_device *dev, unsigned int epaddr,
 
 	if (usb_endpoint_out(epaddr)) {
 		ep = dev->ep_out[epnum];
-		if (reset_hardware)
+		if (reset_hardware && epnum != 0)
 			dev->ep_out[epnum] = NULL;
 	} else {
 		ep = dev->ep_in[epnum];
-		if (reset_hardware)
+		if (reset_hardware && epnum != 0)
 			dev->ep_in[epnum] = NULL;
 	}
 	if (ep) {
@@ -1173,7 +1183,13 @@ void usb_disable_device(struct usb_device *dev, int skip_ep0)
 			dev_dbg(&dev->dev, "unregistering interface %s\n",
 				dev_name(&interface->dev));
 			remove_intf_ep_devs(interface);
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+			dev_info(&dev->dev, "%s device del+\n", __func__);
+#endif
 			device_del(&interface->dev);
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+			dev_info(&dev->dev, "%s device del-\n", __func__);
+#endif
 		}
 
 		/* Now that the interfaces are unbound, nobody should
@@ -1294,7 +1310,8 @@ void usb_enable_interface(struct usb_device *dev,
  * Return: Zero on success, or else the status code returned by the
  * underlying usb_control_msg() call.
  */
-int usb_set_interface(struct usb_device *dev, int interface, int alternate)
+int usb_set_interface_timeout(struct usb_device *dev, int interface,
+	int alternate, unsigned long timeout_ms)
 {
 	struct usb_interface *iface;
 	struct usb_host_interface *alt;
@@ -1358,7 +1375,7 @@ int usb_set_interface(struct usb_device *dev, int interface, int alternate)
 	else
 		ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0),
 				   USB_REQ_SET_INTERFACE, USB_RECIP_INTERFACE,
-				   alternate, interface, NULL, 0, 5000);
+				   alternate, interface, NULL, 0, timeout_ms);
 
 	/* 9.4.10 says devices don't need this and are free to STALL the
 	 * request if the interface only has one alternate setting.
@@ -1429,6 +1446,12 @@ int usb_set_interface(struct usb_device *dev, int interface, int alternate)
 		create_intf_ep_devs(iface);
 	}
 	return 0;
+}
+EXPORT_SYMBOL_GPL(usb_set_interface_timeout);
+
+int usb_set_interface(struct usb_device *dev, int interface, int alternate)
+{
+	return usb_set_interface_timeout(dev, interface, alternate, 5000);
 }
 EXPORT_SYMBOL_GPL(usb_set_interface);
 

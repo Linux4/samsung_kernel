@@ -27,6 +27,7 @@
 #include <linux/types.h>
 #include <linux/mm.h>
 #include <linux/slab.h>
+#include <linux/swap.h>
 
 /*
  * rbincache: a cleancache API implementation
@@ -45,9 +46,6 @@
  *
  * The implementation borrows pretty much concepts from Zcache.
  */
-
-static bool rbincache_enabled __read_mostly;
-module_param_named(enabled, rbincache_enabled, bool, 0444);
 
 /* statistics */
 extern unsigned long totalrbin_pages;
@@ -83,13 +81,13 @@ static atomic_t rc_num_succ_flush_fs = ATOMIC_INIT(0);
 /* One rbincache pool per filesystem mount instance */
 struct rc_pool {
 	struct rb_root rbtree;
-	rwlock_t rb_lock;			/* Protects rbtree */
+	rwlock_t rb_lock;	/* Protects rbtree */
 };
 
 /* Manage all rbincache pools */
 struct rbincache {
 	struct rc_pool *pools[MAX_RC_POOLS];
-	u32 num_pools;			/* current number of rbincache pools */
+	u32 num_pools;		/* current number of rbincache pools */
 	spinlock_t pool_lock;	/* Protects pools[] and num_pools */
 };
 struct rbincache rbincache;
@@ -102,7 +100,7 @@ struct rc_rbnode {
 	struct rb_node rb_node;
 	int rb_index;
 	struct radix_tree_root ratree;	/* Page radix tree per inode rbtree */
-	spinlock_t ra_lock;				/* Protects radix tree */
+	spinlock_t ra_lock;		/* Protects radix tree */
 	struct kref refcount;
 };
 /* rbincache data structures end */
@@ -125,8 +123,9 @@ static void rc_rbnode_cache_destroy(void)
 /*
  * The caller should hold rb_lock
  */
-static struct rc_rbnode *rc_find_rbnode(struct rb_root *rbtree,
-	int index, struct rb_node **rb_parent, struct rb_node ***rb_link)
+static struct rc_rbnode *rc_find_rbnode(struct rb_root *rbtree, int index,
+					struct rb_node **rb_parent,
+					struct rb_node ***rb_link)
 {
 	struct rc_rbnode *entry;
 	struct rb_node **__rb_link, *__rb_parent, *rb_prev;
@@ -154,7 +153,7 @@ static struct rc_rbnode *rc_find_rbnode(struct rb_root *rbtree,
 }
 
 static struct rc_rbnode *rc_find_get_rbnode(struct rc_pool *rcpool,
-		int rb_index)
+					    int rb_index)
 {
 	unsigned long flags;
 	struct rc_rbnode *rbnode;
@@ -298,7 +297,7 @@ static int rc_store_handle(int pool_id, int rb_index, int ra_index, void *handle
  * from rcpool->rbtree also.
  */
 static struct rr_handle *rc_load_del_handle(int pool_id,
-		int rb_index, int ra_index)
+					    int rb_index, int ra_index)
 {
 	struct rc_pool *rcpool;
 	struct rc_rbnode *rbnode;
@@ -360,11 +359,14 @@ out:
  * guarantee the stored pages to be preserved.
  */
 static void rc_store_page(int pool_id, struct cleancache_filekey key,
-				     pgoff_t index, struct page *src)
+			  pgoff_t index, struct page *src)
 {
 	struct rr_handle *handle;
 	int ret;
 	bool zero;
+
+	if (!current_is_kswapd())
+		return;
 
 	atomic_inc(&rc_num_puts);
 	zero = is_zero_page(src);
@@ -393,7 +395,7 @@ out_zero:
  * function for cleancache_ops->get_page
  */
 static int rc_load_page(int pool_id, struct cleancache_filekey key,
-				    pgoff_t index, struct page *dst)
+			pgoff_t index, struct page *dst)
 {
 	struct rr_handle *handle;
 	int ret = -EINVAL;
@@ -423,7 +425,7 @@ out:
 }
 
 static void rc_flush_page(int pool_id, struct cleancache_filekey key,
-				       pgoff_t index)
+			  pgoff_t index)
 {
 	struct rr_handle *handle;
 
@@ -442,8 +444,7 @@ static void rc_flush_page(int pool_id, struct cleancache_filekey key,
 /*
  * Callers must hold the lock
  */
-static int rc_flush_ratree(struct rc_pool *rcpool,
-		struct rc_rbnode *rbnode)
+static int rc_flush_ratree(struct rc_pool *rcpool, struct rc_rbnode *rbnode)
 {
 	unsigned long index = 0;
 	int count, i, total_count = 0;
@@ -503,10 +504,6 @@ static void rc_flush_inode(int pool_id, struct cleancache_filekey key)
 	if (rc_rbnode_empty(rbnode))
 		/* When arrvied here, we already hold rb_lock */
 		rc_rbnode_isolate(rcpool, rbnode);
-	else {
-		pr_err("ra_tree flushed but not emptied\n");
-		BUG();
-	}
 
 	spin_unlock_irqrestore(&rbnode->ra_lock, flags2);
 	kref_put(&rbnode->refcount, rc_rbnode_release);
@@ -592,6 +589,10 @@ static int rc_init_fs(size_t pagesize)
 	for (ret = 0; ret < MAX_RC_POOLS; ret++)
 		if (!rbincache.pools[ret])
 			break;
+	if (ret == MAX_RC_POOLS) {
+		ret = -ENOMEM;
+		goto out_unlock;
+	}
 	rbincache.pools[ret] = rcpool;
 	rbincache.num_pools++;
 	pr_info("New pool created id:%d\n", ret);
@@ -601,6 +602,8 @@ static int rc_init_fs(size_t pagesize)
 
 out_unlock:
 	spin_unlock(&rbincache.pool_lock);
+	if (ret < 0)
+		kfree(rcpool);
 out:
 	return ret;
 }
@@ -674,7 +677,7 @@ error:
  */
 #ifdef CONFIG_SYSFS
 static ssize_t stats_show(struct kobject *kobj,
-				    struct kobj_attribute *attr, char *buf)
+			  struct kobj_attribute *attr, char *buf)
 {
 	return sprintf(buf,
 			"total_pages      : %8lu\n"
@@ -718,8 +721,8 @@ static ssize_t stats_show(struct kobject *kobj,
 }
 
 static ssize_t stats_store(struct kobject *kobj,
-				     struct kobj_attribute *attr,
-				     const char *buf, size_t count)
+			   struct kobj_attribute *attr,
+			   const char *buf, size_t count)
 {
 	return count;
 }

@@ -104,15 +104,10 @@
 #endif
 
 #define	INFINITY_LIFE_TIME	0xFFFFFFFF
+#define	RTR_SOLICITS_MAX	3
 
 #define IPV6_MAX_STRLEN \
 	sizeof("ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255")
-
-#ifdef CONFIG_MTK_SRIL_SUPPORT
-#define NET_IF_NAME	"rmnet"
-#else
-#define NET_IF_NAME	"ccmni"
-#endif
 
 static inline u32 cstamp_delta(unsigned long cstamp)
 {
@@ -209,6 +204,7 @@ static struct ipv6_devconf ipv6_devconf __read_mostly = {
 	.forwarding		= 0,
 	.hop_limit		= IPV6_DEFAULT_HOPLIMIT,
 	.mtu6			= IPV6_MIN_MTU,
+	.ra_mtu			= 0,
 	.accept_ra		= 1,
 	.accept_redirects	= 1,
 	.autoconf		= 1,
@@ -264,6 +260,7 @@ static struct ipv6_devconf ipv6_devconf_dflt __read_mostly = {
 	.forwarding		= 0,
 	.hop_limit		= IPV6_DEFAULT_HOPLIMIT,
 	.mtu6			= IPV6_MIN_MTU,
+	.ra_mtu                 = 0,
 	.accept_ra		= 1,
 	.accept_redirects	= 1,
 	.autoconf		= 1,
@@ -318,25 +315,17 @@ static struct ipv6_devconf ipv6_devconf_dflt __read_mostly = {
 /* this is save current operator value */
 int sysctl_optr __read_mostly;
 
-/* this operator is vzw ? */
-int ip6_operator_isop12(void)
-{
-#ifdef CONFIG_MTK_IPV6_VZW
-	return 1;
-#endif
-	return (sysctl_optr == 12);
-}
-
 /*Fill skb for  no ra  msg*/
 static int inet6_fill_nora(struct sk_buff *skb, struct inet6_dev *idev,
-			   u32 portid, u32 seq, int event, unsigned int flags)
+			   u32 portid, u32 seq, int event)
 {
 	struct nlmsghdr *nlh;
 
 	unsigned int flag = 1;
 	struct in6_addr addr;
 
-	if (ip6_operator_isop12()) {
+	if (sysctl_optr == MTK_IPV6_VZW_ALL ||
+	    sysctl_optr == MTK_IPV6_EX_RS_INTERVAL) {
 		/*This ifi_flags refers to the dev flag in kernel,
 		 *but hereI use it as a valid flag. When ifi_flags
 		 *is zero , it means RA refesh Fail, And When
@@ -345,10 +334,10 @@ static int inet6_fill_nora(struct sk_buff *skb, struct inet6_dev *idev,
 		/*hdr->ifi_flags = dev_get_flags(dev); */
 		if (idev->if_flags & IF_RS_VZW_SENT) {
 			flag = 0;
-			pr_info("[mtk_net][vzw]RA refresh Fail\n");
+			pr_info("[mtk_net][IPv6] RA refresh Fail\n");
 		} else {
 			flag = 1;
-			pr_info("[mtk_net][vzw]RA init Fail\n");
+			pr_info("[mtk_net][IPv6] RA init Fail\n");
 		}
 	}
 
@@ -389,7 +378,7 @@ static void inet6_no_ra_notify(int event, struct inet6_dev *idev)
 	if (!skb)
 		goto errout;
 
-	err = inet6_fill_nora(skb, idev, 0, 0, event, 0);
+	err = inet6_fill_nora(skb, idev, 0, 0, event);
 	if (err < 0) {
 		/* -EMSGSIZE implies BUG in inet6_prefix_nlmsg_size() */
 		WARN_ON(err == -EMSGSIZE);
@@ -2296,9 +2285,6 @@ static int addrconf_ifid_ip6tnl(u8 *eui, struct net_device *dev)
 
 static int ipv6_generate_eui64(u8 *eui, struct net_device *dev)
 {
-	/* MTK_NET_CHANGES */
-	if (strncmp(dev->name, NET_IF_NAME, 2) == 0)
-		return -1;
 	switch (dev->type) {
 	case ARPHRD_ETHER:
 	case ARPHRD_FDDI:
@@ -3303,6 +3289,10 @@ static void addrconf_addr_gen(struct inet6_dev *idev, bool prefix_route)
 	if (netif_is_l3_master(idev->dev))
 		return;
 
+	/* no link local addresses on devices flagged as slaves */
+	if (idev->dev->flags & IFF_SLAVE)
+		return;
+
 	ipv6_addr_set(&addr, htonl(0xFE800000), 0, 0, 0);
 
 	switch (idev->cnf.addr_gen_mode) {
@@ -3350,13 +3340,21 @@ static void addrconf_dev_config(struct net_device *dev)
 	    (dev->type != ARPHRD_IPGRE) &&
 	    (dev->type != ARPHRD_TUNNEL) &&
 	    (dev->type != ARPHRD_NONE) &&
-	    (dev->type != ARPHRD_PUREIP)) {
+	    (dev->type != ARPHRD_RAWIP)) {
 		/* Alas, we support only Ethernet autoconfiguration. */
+		idev = __in6_dev_get(dev);
+		if (!IS_ERR_OR_NULL(idev) && dev->flags & IFF_UP &&
+		    dev->flags & IFF_MULTICAST)
+			ipv6_mc_up(idev);
 		return;
 	}
 
 	idev = addrconf_add_dev(dev);
 	if (IS_ERR(idev))
+		return;
+
+	/* mobile device doesn't need auto-linklocal addr */
+	if (dev->type == ARPHRD_RAWIP)
 		return;
 
 	/* this device type has no EUI support */
@@ -3880,6 +3878,12 @@ static void addrconf_rs_timer(unsigned long data)
 	if (idev->if_flags & IF_RA_RCVD)
 		goto out;
 
+	if (idev->rs_probes == RTR_SOLICITS_MAX && (idev->if_flags & IF_RS_VZW_SENT)) {
+		idev->if_flags &= ~IF_RS_VZW_SENT;
+		inet6_no_ra_notify(RTM_DELADDR, idev);
+		goto out;
+	}
+
 	if (idev->rs_probes++ < idev->cnf.rtr_solicits || idev->cnf.rtr_solicits < 0) {
 		write_unlock(&idev->lock);
 		if (!ipv6_get_lladdr(dev, &lladdr, IFA_F_TENTATIVE))
@@ -3889,8 +3893,8 @@ static void addrconf_rs_timer(unsigned long data)
 			goto put;
 
 		write_lock(&idev->lock);
-		if (ip6_operator_isop12() &&
-		    (strncmp(dev->name, NET_IF_NAME, 2) == 0))
+		if (sysctl_optr == MTK_IPV6_VZW_ALL &&
+		    (strncmp(dev->name, "ccmni", 2) == 0))
 			idev->rs_interval = idev->cnf.rtr_solicit_interval;
 		else
 			idev->rs_interval = rfc3315_s14_backoff_update(
@@ -3902,11 +3906,6 @@ static void addrconf_rs_timer(unsigned long data)
 				      idev->cnf.rtr_solicit_delay :
 				      idev->rs_interval);
 	} else {
-		inet6_no_ra_notify(RTM_DELADDR, idev);
-		if (ip6_operator_isop12()) {
-			if (idev->if_flags & IF_RS_VZW_SENT)
-				idev->if_flags &= ~IF_RS_VZW_SENT;
-		}
 		/*
 		 * Note: we do not support deprecated "all on-link"
 		 * assumption any longer.
@@ -4212,8 +4211,8 @@ static void addrconf_dad_completed(struct inet6_ifaddr *ifp, bool bump_id,
 
 		write_lock_bh(&ifp->idev->lock);
 		spin_lock(&ifp->lock);
-		if (ip6_operator_isop12() &&
-		    (strncmp(dev->name, NET_IF_NAME, 2) == 0)) {
+		if (sysctl_optr == MTK_IPV6_VZW_ALL &&
+		    (strncmp(dev->name, "ccmni", 2) == 0)) {
 			ifp->idev->rs_interval =
 				ifp->idev->cnf.rtr_solicit_interval;
 		} else {
@@ -4430,14 +4429,15 @@ static void inet6_send_rs_vzw(struct inet6_ifaddr *ifp)
 	struct net_device *dev = ifp->idev->dev;
 
 	/*struct inet6_ifaddr *linklocal_ifp = NULL;*/
-	pr_info("[VzW] [%s] dev name:%s\n", __func__, dev->name);
+	pr_info("[mtk_net][IPv6][%s] dev name:%s\n", __func__, dev->name);
 
 	/*because of using link local address will triger KE
 	 *so this first using global address
 	 */
 	if (ipv6_accept_ra(ifp->idev) &&
 	    (dev->flags & IFF_LOOPBACK) == 0) {
-		pr_info("[VzW] send rs :dev name:%s\n", dev->name);
+		pr_info("[mtk_net][IPv6][%s] send refresh rs: dev name:%s\n",
+			__func__, dev->name);
 		ndisc_send_rs(ifp->idev->dev, &ifp->addr,
 			      &in6addr_linklocal_allrouters);
 
@@ -4451,7 +4451,7 @@ static void inet6_send_rs_vzw(struct inet6_ifaddr *ifp)
 		ifp->idev->if_flags |= IF_RS_VZW_SENT;
 
 		if (ifp->idev->if_flags & IF_RA_RCVD) {
-			pr_info("ifp: has IF_RA_RCVD flag, and will clear it\n");
+			pr_info("[mtk_net][IPv6] ifp: has IF_RA_RCVD flag, and will clear it\n");
 			ifp->idev->if_flags &= ~IF_RA_RCVD;
 		}
 		/*Kernel3.10 addrconf_mod_timer
@@ -4482,20 +4482,20 @@ struct rt6_info *calc_lft_vzw(struct inet6_ifaddr *ifp,
 }
 
 static void calc_next_vzw(struct inet6_ifaddr *ifp, struct rt6_info *rt,
-			  unsigned long next, unsigned long age,
+			  unsigned long *next, unsigned long age,
 			  int is_expires, u32 minimum_lft)
 {
-	if (strncmp(ifp->idev->dev->name, NET_IF_NAME, 2) == 0) {
+	if (strncmp(ifp->idev->dev->name, "ccmni", 2) == 0) {
 		if (is_expires || (rt && (rt->rt6i_flags & RTF_EXPIRES))) {
 			if (!(ifp->idev->if_flags & IF_RS_VZW_SENT) &&
 			    age >= (minimum_lft * 3 / 4))
 				inet6_send_rs_vzw(ifp);
-			pr_info("[mtk_net]RA: min_lft %lld, age %lld\n",
-				(u64)minimum_lft, (u64)age);
+			pr_info("[mtk_net][IPv6] min_lft %lld, age %lld, is_expires %d\n",
+				(u64)minimum_lft, (u64)age, is_expires);
 			if (!(ifp->idev->if_flags & IF_RS_VZW_SENT) &&
 			    time_before(ifp->tstamp +
-			    ((minimum_lft * 3 / 4) * HZ), next))
-				next = ifp->tstamp +
+			    ((minimum_lft * 3 / 4) * HZ), *next))
+				*next = ifp->tstamp +
 					((minimum_lft * 3 / 4) * HZ);
 		}
 	}
@@ -4526,7 +4526,8 @@ restart:
 			u32 min_lft;
 			struct rt6_info *rt = NULL;
 
-			if (ip6_operator_isop12())
+			if (sysctl_optr == MTK_IPV6_VZW_ALL ||
+			    sysctl_optr == MTK_IPV6_EX_RS_INTERVAL)
 				rt = calc_lft_vzw(ifp, &min_lft);
 
 			/* When setting preferred_lft to a value not zero or
@@ -4548,14 +4549,15 @@ restart:
 				ipv6_del_addr(ifp);
 				goto restart;
 			} else if (ifp->prefered_lft == INFINITY_LIFE_TIME) {
-				if (ip6_operator_isop12()) {
+				if (sysctl_optr == MTK_IPV6_VZW_ALL ||
+				    sysctl_optr == MTK_IPV6_EX_RS_INTERVAL) {
 					/*Patch for VzW
 					 *prefered_lft is INFINITY
 					 *scenario ccmni interface will
 					 *send RS when time flow
 					 *reaches 75% of route_lft
 					 */
-					calc_next_vzw(ifp, rt, next, age,
+					calc_next_vzw(ifp, rt, &next, age,
 						      0, min_lft);
 				}
 
@@ -4614,7 +4616,8 @@ restart:
 				/* ifp->prefered_lft <= ifp->valid_lft */
 				if (time_before(ifp->tstamp + ifp->prefered_lft * HZ, next))
 					next = ifp->tstamp + ifp->prefered_lft * HZ;
-				if (ip6_operator_isop12()) {
+				if (sysctl_optr == MTK_IPV6_VZW_ALL ||
+				    sysctl_optr == MTK_IPV6_EX_RS_INTERVAL) {
 					/*patch for VzW
 					 *prefered_lft is NOT INFINITY
 					 *scenario ccmni interface will
@@ -4622,7 +4625,7 @@ restart:
 					 *75% of min{prefered_lft,
 					 *route_lft
 					 */
-					calc_next_vzw(ifp, rt, next, age,
+					calc_next_vzw(ifp, rt, &next, age,
 						      1, min_lft);
 				}
 
@@ -5259,6 +5262,7 @@ static inline void ipv6_store_devconf(struct ipv6_devconf *cnf,
 	array[DEVCONF_FORWARDING] = cnf->forwarding;
 	array[DEVCONF_HOPLIMIT] = cnf->hop_limit;
 	array[DEVCONF_MTU6] = cnf->mtu6;
+	array[DEVCONF_RA_MTU] = cnf->ra_mtu;
 	array[DEVCONF_ACCEPT_RA] = cnf->accept_ra;
 	array[DEVCONF_ACCEPT_REDIRECTS] = cnf->accept_redirects;
 	array[DEVCONF_AUTOCONF] = cnf->autoconf;
@@ -5514,8 +5518,8 @@ update_lft:
 
 	if (update_rs) {
 		idev->if_flags |= IF_RS_SENT;
-		if (ip6_operator_isop12() &&
-		    (strncmp(dev->name, NET_IF_NAME, 2) == 0))
+		if (sysctl_optr == MTK_IPV6_VZW_ALL &&
+		    (strncmp(dev->name, "ccmni", 2) == 0))
 			idev->rs_interval = idev->cnf.rtr_solicit_interval;
 		else
 			idev->rs_interval = rfc3315_s14_backoff_init(
@@ -5801,13 +5805,20 @@ static void __ipv6_ifa_notify(int event, struct inet6_ifaddr *ifp)
 	switch (event) {
 	case RTM_NEWADDR:
 		/*
-		 * If the address was optimistic
-		 * we inserted the route at the start of
-		 * our DAD process, so we don't need
-		 * to do it again
+		 * If the address was optimistic we inserted the route at the
+		 * start of our DAD process, so we don't need to do it again.
+		 * If the device was taken down in the middle of the DAD
+		 * cycle there is a race where we could get here without a
+		 * host route, so nothing to insert. That will be fixed when
+		 * the device is brought up.
 		 */
-		if (!rcu_access_pointer(ifp->rt->rt6i_node))
+		if (ifp->rt && !rcu_access_pointer(ifp->rt->rt6i_node)) {
 			ip6_ins_rt(ifp->rt);
+		} else if (!ifp->rt && (ifp->idev->dev->flags & IFF_UP)) {
+			pr_warn("BUG: Address %pI6c on device %s is missing its host route.\n",
+				&ifp->addr, ifp->idev->dev->name);
+		}
+
 		if (ifp->idev->cnf.forwarding)
 			addrconf_join_anycast(ifp);
 		if (!ipv6_addr_any(&ifp->peer_addr))
@@ -6281,6 +6292,13 @@ static const struct ctl_table addrconf_sysctl[] = {
 		.maxlen		= sizeof(int),
 		.mode		= 0644,
 		.proc_handler	= addrconf_sysctl_mtu,
+	},
+	{
+		.procname	= "ra_mtu",
+		.data		= &ipv6_devconf.ra_mtu,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
 	},
 	{
 		.procname	= "accept_ra",

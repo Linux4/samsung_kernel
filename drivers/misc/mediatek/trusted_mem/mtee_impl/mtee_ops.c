@@ -178,7 +178,12 @@ static int mtee_alloc(u32 alignment, u32 size, u32 *refcount, u32 *sec_handle,
 					     sec_handle, alignment, size);
 	}
 
-	if (ret != 0) {
+	if (*sec_handle == 0) {
+		pr_err("%s:%d out of memory, ret=%d!\n", __func__, __LINE__,
+		       ret);
+		MTEE_SESSION_UNLOCK();
+		return -ENOMEM;
+	} else if (ret != 0) {
 		pr_err("[%d] MTEE alloc chunk memory failed:%d\n",
 		       mtee_dev_desc->kern_tmem_type, ret);
 		MTEE_SESSION_UNLOCK();
@@ -243,6 +248,9 @@ static int mtee_mem_reg_add(u64 pa, u32 size, void *peer_data, void *dev_desc)
 		MTEE_SESSION_UNLOCK();
 		return TMEM_MTEE_APPEND_MEMORY_FAILED;
 	}
+
+	pr_debug("[%d] MTEE append reg mem PASS: PA=0x%lx, size=0x%lx\n",
+		       mtee_dev_desc->kern_tmem_type, pa, size);
 
 	if (mtee_dev_desc->notify_remote && mtee_dev_desc->notify_remote_fn) {
 		ret = mtee_dev_desc->notify_remote_fn(

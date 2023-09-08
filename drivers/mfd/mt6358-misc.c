@@ -32,6 +32,8 @@
 #include <linux/mfd/mt6359/registers.h>
 #elif defined(CONFIG_MTK_PMIC_CHIP_MT6359P)
 #include <linux/mfd/mt6359p/registers.h>
+#elif defined(CONFIG_MTK_PMIC_CHIP_MT6390)
+#include <linux/mfd/mt6390/registers.h>
 #endif
 
 
@@ -713,6 +715,60 @@ static int pmic_config_interface(unsigned int RegNum, unsigned int val,
 	return ret;
 }
 
+void rtc_enable_32k1v8_1(void)
+{
+#if defined(CONFIG_MTK_PMIC_CHIP_MT6390)
+	unsigned int reg_val = 0;
+	int ret;
+
+#ifdef IPIMB
+	ret = regmap_read(pmic_regmap, PMIC_SWCID_ADDR, &reg_val);
+#else
+	ret = regmap_read(rtc_misc->regmap, PMIC_SWCID_ADDR, &reg_val);
+#endif
+	if (ret < 0)
+		return;
+	else if (((reg_val >> PMIC_SWCID_SHIFT) & PMIC_SWCID_MASK) == 0x90) {
+		pmic_config_interface(PMIC_XO_RESERVED3_ADDR, 1,
+					PMIC_XO_RESERVED3_MASK,
+					PMIC_XO_RESERVED3_SHIFT);
+		pmic_config_interface(PMIC_RG_RTC_32K1V8_1_SEL_ADDR, 0,
+					PMIC_RG_RTC_32K1V8_1_SEL_MASK,
+					PMIC_RG_RTC_32K1V8_1_SEL_SHIFT);
+		pmic_config_interface(PMIC_RG_RTC32K_1V8_1_PDN_ADDR, 0,
+					PMIC_RG_RTC32K_1V8_1_PDN_MASK,
+					PMIC_RG_RTC32K_1V8_1_PDN_SHIFT);
+	}
+#endif
+}
+
+void rtc_disable_32k1v8_1(void)
+{
+#if defined(CONFIG_MTK_PMIC_CHIP_MT6390)
+	unsigned int reg_val = 0;
+	int ret;
+
+#ifdef IPIMB
+	ret = regmap_read(pmic_regmap, PMIC_SWCID_ADDR, &reg_val);
+#else
+	ret = regmap_read(rtc_misc->regmap, PMIC_SWCID_ADDR, &reg_val);
+#endif
+	if (ret < 0)
+		return;
+	else if (((reg_val >> PMIC_SWCID_SHIFT) & PMIC_SWCID_MASK) == 0x90) {
+		pmic_config_interface(PMIC_XO_RESERVED3_ADDR, 0,
+			 PMIC_XO_RESERVED3_MASK,
+			 PMIC_XO_RESERVED3_SHIFT);
+		pmic_config_interface(PMIC_RG_RTC_32K1V8_1_SEL_ADDR, 1,
+				PMIC_RG_RTC_32K1V8_1_SEL_MASK,
+				PMIC_RG_RTC_32K1V8_1_SEL_SHIFT);
+		pmic_config_interface(PMIC_RG_RTC32K_1V8_1_PDN_ADDR, 1,
+				PMIC_RG_RTC32K_1V8_1_PDN_MASK,
+				PMIC_RG_RTC32K_1V8_1_PDN_SHIFT);
+	}
+#endif
+}
+
 static void mtk_rtc_enable_k_eosc_revised(void)
 {
 	u32 td;
@@ -724,6 +780,14 @@ static void mtk_rtc_enable_k_eosc_revised(void)
 	pmic_config_interface(PMIC_SCK_TOP_CKPDN_CON0_CLR_ADDR, 1,
 					PMIC_RG_RTC_EOSC32_CK_PDN_MASK,
 					PMIC_RG_RTC_EOSC32_CK_PDN_SHIFT);
+
+	/* We use solution 2 of eosc cali to fix mt6359p 32k */
+	ret = rtc_update_bits(RTC_AL_YEA, RTC_K_EOSC_RSV_2, RTC_K_EOSC_RSV_2);
+	if (ret < 0)
+		goto exit;
+	ret = rtc_write_trigger();
+	if (ret < 0)
+		goto exit;
 
 	if (rtc_eosc_cali_td) {
 		pr_notice("%s: rtc_eosc_cali_td = %d\n",
@@ -1008,6 +1072,7 @@ static int mt6358_misc_probe(struct platform_device *pdev)
 }
 
 static const struct of_device_id mt6358_misc_of_match[] = {
+	{ .compatible = "mediatek,mt6357-misc", },
 	{ .compatible = "mediatek,mt6358-misc", },
 	{ .compatible = "mediatek,mt6359-misc", },
 	{ .compatible = "mediatek,mt6359p-misc", .data = &mt6359p_cdata},

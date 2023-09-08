@@ -183,6 +183,7 @@ extern u32 aee_rr_curr_spm_suspend_val(void);
 extern void aee_rr_rec_vcore_dvfs_status(u32 val);
 extern u32 aee_rr_curr_vcore_dvfs_status(void);
 extern unsigned int *aee_rr_rec_mcdi_wfi(void);
+extern void aee_rr_rec_mcdi_val(int id, u32 val);
 extern void aee_rr_rec_vcore_dvfs_opp(u32 val);
 extern u32 aee_rr_curr_vcore_dvfs_opp(void);
 extern void aee_rr_rec_ocp_target_limit(int id, u32 val);
@@ -200,6 +201,7 @@ extern u8 aee_rr_curr_gpu_dvfs_vgpu(void);
 extern void aee_rr_rec_gpu_dvfs_oppidx(u8 val);
 extern void aee_rr_rec_gpu_dvfs_status(u8 val);
 extern u8 aee_rr_curr_gpu_dvfs_status(void);
+extern void aee_rr_rec_gpu_dvfs_power_count(int val);
 extern void aee_rr_rec_hang_detect_timeout_count(unsigned int val);
 extern int aee_rr_curr_fiq_step(void);
 extern void aee_rr_rec_fiq_step(u8 i);
@@ -219,11 +221,11 @@ extern void aee_rr_rec_last_sync_func(unsigned long val);
 extern void aee_rr_rec_last_async_func(unsigned long val);
 extern void aee_rr_rec_set_bit_pmic_ext_buck(int bit, int loc);
 extern void aee_rr_init_thermal_temp(int num);
-extern void aee_rr_rec_thermal_temp(int index, s8 val);
+extern void aee_rr_rec_thermal_temp(int index, s16 val);
 extern void aee_rr_rec_thermal_status(u8 val);
 extern void aee_rr_rec_thermal_ATM_status(u8 val);
 extern void aee_rr_rec_thermal_ktime(u64 val);
-extern s8 aee_rr_curr_thermal_temp(int index);
+extern s16 aee_rr_curr_thermal_temp(int index);
 extern u8 aee_rr_curr_thermal_status(void);
 extern u8 aee_rr_curr_thermal_ATM_status(void);
 extern u64 aee_rr_curr_thermal_ktime(void);
@@ -785,6 +787,10 @@ static inline unsigned int *aee_rr_rec_mcdi_wfi(void)
 	return NULL;
 }
 
+static inline void aee_rr_rec_mcdi_val(int id, u32 val)
+{
+}
+
 static inline void aee_rr_rec_vcore_dvfs_opp(u32 val)
 {
 }
@@ -856,6 +862,10 @@ static inline void aee_rr_rec_gpu_dvfs_status(u8 val)
 static inline u8 aee_rr_curr_gpu_dvfs_status(void)
 {
 	return 0;
+}
+
+static inline void aee_rr_rec_gpu_dvfs_power_count(int val)
+{
 }
 
 static inline void aee_rr_rec_hang_detect_timeout_count(unsigned int val)
@@ -935,7 +945,7 @@ static inline void aee_rr_init_thermal_temp(int num)
 {
 }
 
-static inline void aee_rr_rec_thermal_temp(int index, s8 val)
+static inline void aee_rr_rec_thermal_temp(int index, s16 val)
 {
 }
 
@@ -951,7 +961,7 @@ static inline void aee_rr_rec_thermal_ktime(u64 val)
 {
 }
 
-static inline s8 aee_rr_curr_thermal_temp(int index)
+static inline s16 aee_rr_curr_thermal_temp(int index)
 {
 	return 0;
 }

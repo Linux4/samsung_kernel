@@ -21,36 +21,35 @@ unsigned long long big_cpu_eff_tp = 1024;
 #endif
 
 #if defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758)
- #ifdef CONFIG_MTK_SCHED_EAS_POWER_SUPPORT
+/* cpu7 is L+ */
+int l_plus_cpu = 7;
+#else
+int l_plus_cpu = -1;
+#endif
+
+
+#ifdef CONFIG_MTK_SCHED_EAS_POWER_SUPPORT
+
+#if defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758)
 /* MT6763: 2 gears. cluster 0 & 1 is buck shared. */
 static int share_buck[3] = {1, 0, 2};
-/* cpu7 is L+ */
- #endif
-int l_plus_cpu = 7;
 #elif defined(CONFIG_MACH_MT6799)
- #ifdef CONFIG_MTK_SCHED_EAS_POWER_SUPPORT
 /* MT6799: 3 gears. cluster 0 & 2 is buck shared. */
 static int share_buck[3] = {2, 1, 0};
- #endif
-/* No L+ */
-int l_plus_cpu = -1;
 #elif defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6762)
- #ifdef CONFIG_MTK_SCHED_EAS_POWER_SUPPORT
 static int share_buck[3] = {1, 0, 2};
- #endif
-int l_plus_cpu = -1;
 #elif defined(CONFIG_MACH_MT6779)
- #ifdef CONFIG_MTK_SCHED_EAS_POWER_SUPPORT
 static int share_buck[2] = {2, 1};
 #define ARM_V8_2
- #endif
 int l_plus_cpu = -1;
+#elif defined(CONFIG_MACH_MT6893) || \
+	(defined(CONFIG_MACH_MT6885) && defined(CONFIG_MTK_SCHED_MULTI_GEARS))
+static int share_buck[3] = {0, 2, 1};
 #else
- #ifdef CONFIG_MTK_SCHED_EAS_POWER_SUPPORT
 /* no buck shared */
 static int share_buck[3] = {0, 1, 2};
- #endif
-int l_plus_cpu = -1;
+#endif
+
 #endif
 
 #define CCI_ID (arch_get_nr_clusters())
@@ -61,10 +60,10 @@ update_system_overutilized(struct lb_env *env)
 {
 	unsigned long group_util;
 	bool intra_overutil = false;
-	unsigned long max_capacity;
+	unsigned long min_capacity;
 	struct sched_group *group = env->sd->groups;
 	int this_cpu;
-	int max_cap_orig_cpu;
+	int min_cap_orig_cpu;
 	bool overutilized =  sd_overutilized(env->sd);
 	int i;
 
@@ -72,11 +71,11 @@ update_system_overutilized(struct lb_env *env)
 		return;
 
 	this_cpu = smp_processor_id();
-	max_cap_orig_cpu = cpu_rq(this_cpu)->rd->max_cap_orig_cpu;
-	if (max_cap_orig_cpu > -1)
-		max_capacity = capacity_orig_of(max_cap_orig_cpu);
+	min_cap_orig_cpu = cpu_rq(this_cpu)->rd->min_cap_orig_cpu;
+	if (min_cap_orig_cpu > -1)
+		min_capacity = capacity_orig_of(min_cap_orig_cpu);
 	else
-		max_capacity = cpu_rq(this_cpu)->rd->max_cpu_capacity.val;
+		return;
 
 	do {
 
@@ -88,12 +87,6 @@ update_system_overutilized(struct lb_env *env)
 				continue;
 
 			group_util += cpu_util(i);
-			if (cpu_overutilized(i)) {
-				if (capacity_orig_of(i) < max_capacity) {
-					intra_overutil = true;
-					break;
-				}
-			}
 		}
 
 		/*
@@ -105,7 +98,7 @@ update_system_overutilized(struct lb_env *env)
 		 * that considers whole cluster not single cpu
 		 */
 		if (group->group_weight > 1 && (group->sgc->capacity * 1024 <
-						group_util * 1280))  {
+					group_util * capacity_margin)) {
 			intra_overutil = true;
 			break;
 		}
@@ -230,19 +223,17 @@ int select_max_spare_capacity(struct task_struct *p, int target)
  */
 int find_best_idle_cpu(struct task_struct *p, bool prefer_idle)
 {
-	int iter_cpu;
+	int i;
 	int best_idle_cpu = -1;
 	struct cpumask *tsk_cpus_allow = &p->cpus_allowed;
 	struct hmp_domain *domain;
+	int domain_order = 0;
+	int prefer_big = prefer_idle && (task_util(p) > stune_task_threshold);
 
 	for_each_hmp_domain_L_first(domain) {
-		for_each_cpu(iter_cpu, &domain->possible_cpus) {
+		for_each_cpu(i, &domain->possible_cpus) {
 
 			/* tsk with prefer idle to find bigger idle cpu */
-			int i = ((prefer_idle &&
-				(task_util(p) > stune_task_threshold)))
-				?  nr_cpu_ids-iter_cpu-1 : iter_cpu;
-
 			if (!cpu_online(i) || cpu_isolated(i) ||
 					!cpumask_test_cpu(i, tsk_cpus_allow))
 				continue;
@@ -258,10 +249,21 @@ int find_best_idle_cpu(struct task_struct *p, bool prefer_idle)
 			 */
 			if (idle_cpu(i)) {
 				best_idle_cpu = i;
-				break;
+				if (!prefer_big) {
+					goto find_idle_cpu;
+				} else {
+#ifdef CONFIG_MTK_SCHED_BL_FIRST
+					if (domain_order == 1)
+						goto find_idle_cpu;
+#endif
+				}
 			}
 		}
+
+		domain_order++;
 	}
+
+find_idle_cpu:
 
 	return best_idle_cpu;
 }
@@ -366,7 +368,7 @@ migrate_running_task(int this_cpu, struct task_struct *p, struct rq *target)
 }
 #endif
 
-inline unsigned long cluster_max_capacity(void)
+unsigned long cluster_max_capacity(void)
 {
 	struct hmp_domain *domain;
 	unsigned int max_capacity = 0;
@@ -396,7 +398,7 @@ inline unsigned long task_uclamped_min_w_ceiling(struct task_struct *p)
 /* Calculte util with DVFS margin */
 inline unsigned int freq_util(unsigned long util)
 {
-	return util * 10 >> 3;
+	return util * capacity_margin / SCHED_CAPACITY_SCALE;
 }
 
 #ifdef CONFIG_MTK_IDLE_BALANCE_ENHANCEMENT
@@ -438,6 +440,14 @@ static struct sched_entity
 	src_capacity = capacity_orig_of(cpu);
 	cfs_rq = &cpu_rq(cpu)->cfs;
 	se = __pick_first_entity(cfs_rq);
+#ifdef CONFIG_FAIR_GROUP_SCHED
+	if (!se && cfs_rq->h_nr_running > 1) {
+		se = cfs_rq->curr;
+		if (se && group_cfs_rq(se)) {
+			se = __pick_first_entity(group_cfs_rq(se));
+		}
+	}
+#endif	/* CONFIG_FAIR_GROUP_SCHED */
 	while (num_tasks && se) {
 		if (entity_is_task(se) &&
 		    cpumask_intersects(hmp_target_mask,
@@ -753,7 +763,9 @@ migrate_runnable_task(struct task_struct *p, int dst_cpu,
 	int moved = 0;
 	int src_cpu = cpu_of(rq);
 
-	raw_spin_lock(&p->pi_lock);
+	if (!raw_spin_trylock(&p->pi_lock))
+		return moved;
+
 	rq_lock(rq, &rf);
 
 	/* Are both target and busiest cpu online */
@@ -810,7 +822,11 @@ static unsigned int aggressive_idle_pull(int this_cpu)
 		}
 	} else {
 		hmp_fastest_idle_prefer_pull(this_cpu, &p, &target);
+#ifdef CONFIG_PRIO_LIMIT_HMP_BOOST
+		if (p && should_hmp(this_cpu) && !task_low_priority(p->prio)) {
+#else
 		if (p) {
+#endif
 			trace_sched_hmp_migrate(p, this_cpu, 0x10);
 			moved = migrate_runnable_task(p, this_cpu, target);
 			if (moved)
@@ -840,7 +856,453 @@ static unsigned int aggressive_idle_pull(int this_cpu)
 }
 #endif
 
+#ifdef CONFIG_UCLAMP_TASK
+static __always_inline
+unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util,
+					struct task_struct *p)
+{
+	unsigned long min_util = rq->uclamp.value[UCLAMP_MIN];
+	unsigned long max_util = rq->uclamp.value[UCLAMP_MAX];
+
+	if (p) {
+		min_util = max_t(unsigned long, min_util,
+		  (unsigned long)uclamp_task_effective_util(p, UCLAMP_MIN));
+		max_util = max_t(unsigned long, max_util,
+		  (unsigned long)uclamp_task_effective_util(p, UCLAMP_MAX));
+	}
+
+	/*
+	 * Since CPU's {min,max}_util clamps are MAX aggregated considering
+	 * RUNNABLE tasks with_different_ clamps, we can end up with an
+	 * inversion. Fix it now when the clamps are applied.
+	 */
+	if (unlikely(min_util >= max_util))
+		return min_util;
+
+	return clamp(util, min_util, max_util);
+}
+#endif
+
 #ifdef CONFIG_MTK_SCHED_EAS_POWER_SUPPORT
+#define fits_capacity(cap, max) ((cap) * capacity_margin < (max) * 1024)
+
+
+static unsigned long __cpu_norm_sumutil(unsigned long util,
+					unsigned long capacity)
+{
+	return  (util << SCHED_CAPACITY_SHIFT)/capacity;
+}
+
+struct sg_state {
+	int cid;
+	int cap_idx;
+	unsigned long cap;
+	unsigned long volt;
+	unsigned long max_util;
+	unsigned long sum_util;
+};
+
+/*
+ * compute_energy(): Estimates the energy that @pd would consume if @p was
+ * migrated to @dst_cpu. compute_energy() predicts what will be the utilization
+ * landscape of @pd's CPUs after the task migration, and uses the Energy Model
+ * to compute what would be the energy if we decided to actually migrate that
+ * task.
+ */
+static int
+update_sg_util(struct task_struct *p, int dst_cpu,
+		const struct cpumask *sg_mask, struct sg_state *sg_env)
+{
+	int cpu = cpumask_first(sg_mask);
+	struct sched_domain *sd;
+	const struct sched_group *sg;
+	const struct sched_group_energy *sge;
+	unsigned long new_util;
+	int idx, max_idx;
+
+	sg_env->sum_util = 0;
+	sg_env->max_util = 0;
+
+	sge = cpu_core_energy(cpu); /* for CPU */
+	/*
+	 * The capacity state of CPUs of the current rd can be driven by CPUs
+	 * of another rd if they belong to the same pd. So, account for the
+	 * utilization of these CPUs too by masking pd with cpu_online_mask
+	 * instead of the rd span.
+	 *
+	 * If an entire pd is outside of the current rd, it will not appear in
+	 * its pd list and will not be accounted by compute_energy().
+	 */
+	for_each_cpu_and(cpu, sg_mask, cpu_online_mask) {
+		unsigned long cpu_util, cpu_boosted_util;
+		struct task_struct *tsk = cpu == dst_cpu ? p : NULL;
+
+		cpu_util = cpu_util_without(cpu, p);
+		cpu_boosted_util = uclamp_rq_util_with(cpu_rq(cpu), cpu_util, p);
+
+		if (tsk)
+			cpu_util += task_util_est(p);
+
+		sg_env->sum_util += cpu_util;
+		sg_env->max_util = max(sg_env->max_util, cpu_boosted_util);
+	}
+
+	/* default is max_cap if we don't find a match */
+	max_idx = sge->nr_cap_states - 1;
+	sg_env->cap_idx = max_idx;
+	sg_env->cap = sge->cap_states[max_idx].cap;
+
+	new_util = sg_env->max_util * capacity_margin >>  SCHED_CAPACITY_SHIFT;
+	new_util = min_t(unsigned long, new_util,
+		(unsigned long) sge->cap_states[sge->nr_cap_states-1].cap);
+
+	for (idx = 0; idx < sge->nr_cap_states; idx++) {
+		if (sge->cap_states[idx].cap >= new_util) {
+			/* Keep track of SG's capacity */
+			sg_env->cap_idx	= idx;
+			sg_env->cap = sge->cap_states[idx].cap;
+			sg_env->volt = sge->cap_states[idx].volt;
+			break;
+		}
+	}
+
+	mt_sched_printf(sched_eas_energy_calc,
+		"dst_cpu=%d mask=0x%lx sum_util=%lu max_util=%lu new_util=%lu (idx=%d cap=%ld volt=%ld)",
+		dst_cpu, sg_mask->bits[0], sg_env->sum_util, sg_env->max_util,
+		new_util, sg_env->cap_idx, sg_env->cap, sg_env->volt);
+
+	return 1;
+}
+
+unsigned int share_buck_lkg_idx(const struct sched_group_energy *_sge,
+				int cpu_idx, unsigned long v_max)
+{
+	int co_buck_lkg_idx = _sge->nr_cap_states - 1;
+	int idx;
+
+	for (idx = cpu_idx; idx < _sge->nr_cap_states; idx++) {
+		if (_sge->cap_states[idx].volt >= v_max) {
+			co_buck_lkg_idx = idx;
+			break;
+		}
+	}
+
+	return co_buck_lkg_idx;
+}
+
+#define VOLT_SCALE 10
+void calc_pwr(int sd_level, const struct sched_group_energy *_sge,
+		int cap_idx, unsigned long volt, unsigned long co_volt,
+		unsigned long *dyn_pwr, unsigned long *lkg_pwr)
+{
+	unsigned long int volt_factor = 1;
+
+	if (co_volt > volt) {
+		/*
+		 * calculated power with share-buck impact
+		 *
+		 * dynamic power = F*V^2
+		 *
+		 * dyn_pwr  = current_power * (v_max/v_min)^2
+		 * lkg_pwr = tlb[idx of v_max].leak;
+		 */
+		unsigned long v_max = co_volt;
+		unsigned long v_min = volt;
+		int lkg_idx = _sge->lkg_idx;
+		int co_buck_lkg_idx;
+
+		volt_factor = ((v_max*v_max) << VOLT_SCALE) /
+				(v_min*v_min);
+		*dyn_pwr = (_sge->cap_states[cap_idx].dyn_pwr *
+				volt_factor) >> VOLT_SCALE;
+		co_buck_lkg_idx = share_buck_lkg_idx(_sge, cap_idx, v_max);
+		*lkg_pwr = _sge->cap_states[co_buck_lkg_idx].lkg_pwr[lkg_idx];
+
+		trace_sched_busy_power(sd_level, cap_idx,
+				_sge->cap_states[cap_idx].dyn_pwr, volt_factor,
+				*dyn_pwr, co_buck_lkg_idx, *lkg_pwr,
+				*dyn_pwr + *lkg_pwr);
+	} else {
+		/* No share buck impact */
+		int lkg_idx = _sge->lkg_idx;
+
+		*dyn_pwr = _sge->cap_states[cap_idx].dyn_pwr;
+		*lkg_pwr = _sge->cap_states[cap_idx].lkg_pwr[lkg_idx];
+
+		trace_sched_busy_power(sd_level, cap_idx, *dyn_pwr,
+					volt_factor, *dyn_pwr, cap_idx,
+					*lkg_pwr, *dyn_pwr + *lkg_pwr);
+
+	}
+}
+
+/**
+ * em_sg_energy() - Estimates the energy consumed by the CPUs of a perf. domain
+ * @sd		: performance domain for which energy has to be estimated
+ * @max_util	: highest utilization among CPUs of the domain
+ * @sum_util	: sum of the utilization of all CPUs in the domain
+ *
+ * Return: the sum of the energy consumed by the CPUs of the domain assuming
+ * a capacity state satisfying the max utilization of the domain.
+ */
+static inline unsigned long compute_energy_sg(const struct cpumask *sg_cpus,
+			struct sg_state *sg_env, struct sg_state *share_env)
+{
+	int cpu;
+	const struct sched_group_energy *_sge;
+	unsigned long dyn_pwr, lkg_pwr;
+	unsigned long dyn_egy, lkg_egy;
+	unsigned long total_energy;
+	unsigned long sg_util;
+
+	cpu = cpumask_first(sg_cpus);
+	_sge = cpu_core_energy(cpu); /* for CPU */
+	calc_pwr(0, _sge,
+		sg_env->cap_idx, sg_env->volt, share_env->volt,
+		&dyn_pwr, &lkg_pwr);
+
+	sg_util = __cpu_norm_sumutil(sg_env->sum_util, sg_env->cap);
+	dyn_egy = sg_util * dyn_pwr;
+	lkg_egy = SCHED_CAPACITY_SCALE * lkg_pwr;
+	total_energy = dyn_egy + lkg_egy;
+
+	mt_sched_printf(sched_eas_energy_calc,
+			"sg_util=%lu dyn_egy=%d lkg_egy=%d (cost=%d) mask=0x%lx",
+			sg_util,
+			(int)dyn_egy, (int)lkg_egy, (int)total_energy,
+			sg_cpus->bits[0]);
+
+	return total_energy;
+}
+
+bool is_share_buck(int cid, int *co_buck_cid)
+{
+	bool ret = false;
+
+	if (share_buck[cid] != cid) {
+		*co_buck_cid = share_buck[cid];
+		ret = true;
+	}
+
+	return ret;
+}
+
+static long
+compute_energy_enhanced(struct task_struct *p, int dst_cpu,
+				struct sched_group *sg)
+{
+	int cid, share_cid, cpu;
+	struct sg_state sg_env, share_env;
+	const struct cpumask *sg_cpus;
+	struct cpumask share_cpus;
+	unsigned long total_energy = 0;
+
+	share_env.volt = 0;
+	sg_cpus = sched_group_span(sg);
+	cpu = cpumask_first(sg_cpus);
+#ifdef CONFIG_ARM64
+	cid = cpu_topology[cpu].cluster_id;
+#else
+	cid = cpu_topology[cpu].socket_id;
+#endif
+	if (!update_sg_util(p, dst_cpu, sg_cpus, &sg_env))
+		return 0;
+
+	if (is_share_buck(cid, &share_cid)) {
+		arch_get_cluster_cpus(&share_cpus, share_cid);
+		if (!update_sg_util(p, dst_cpu, &share_cpus, &share_env))
+			return 0;
+
+		total_energy += compute_energy_sg(&share_cpus, &share_env,
+							&sg_env);
+	}
+
+	total_energy += compute_energy_sg(sg_cpus, &sg_env, &share_env);
+
+	return total_energy;
+}
+
+static int find_energy_efficient_cpu_enhanced(struct task_struct *p,
+					int this_cpu, int prev_cpu, int sync)
+{
+	unsigned long prev_energy = 0;
+	unsigned long prev_delta = ULONG_MAX, best_delta = ULONG_MAX;
+	int max_spare_cap_cpu_ls = prev_cpu;
+	long max_spare_cap_ls = LONG_MIN;
+	unsigned long target_cap, cpu_cap, util, wake_util;
+	bool boosted, prefer_idle = false;
+	unsigned int min_exit_lat = UINT_MAX;
+	long sys_max_spare_cap = LONG_MIN;
+	int sys_max_spare_cap_cpu = -1;
+	int best_energy_cpu = prev_cpu;
+	struct cpuidle_state *idle;
+	struct sched_domain *sd;
+	struct sched_group *sg;
+
+	if (sysctl_sched_sync_hint_enable && sync) {
+		if (cpumask_test_cpu(this_cpu, &p->cpus_allowed) &&
+			!cpu_isolated(this_cpu)) {
+			return this_cpu;
+		}
+	}
+
+	sd = rcu_dereference(per_cpu(sd_ea, this_cpu));
+	if (!sd)
+		return -1;
+
+	if (!boosted_task_util(p))
+		return -1;
+
+	prefer_idle = schedtune_prefer_idle(p);
+	boosted = (schedtune_task_boost(p) > 0) || (uclamp_task_effective_util(p, UCLAMP_MIN) > 0);
+	target_cap = boosted ? 0 : ULONG_MAX;
+
+	sg = sd->groups;
+	do {
+		unsigned long cur_energy = 0, cur_delta = 0;
+		unsigned long base_energy_sg;
+		long spare_cap, max_spare_cap = LONG_MIN;
+		int max_spare_cap_cpu = -1, best_idle_cpu = -1;
+		int cpu;
+
+		/* compute the ''base' energy of the sg, without @p*/
+		base_energy_sg = compute_energy_enhanced(p, -1, sg);
+		for_each_cpu_and(cpu, &p->cpus_allowed, sched_group_span(sg)) {
+
+			if (cpu_isolated(cpu))
+				continue;
+#ifdef CONFIG_MTK_SCHED_INTEROP
+			if (cpu_rq(cpu)->rt.rt_nr_running &&
+				likely(!is_rt_throttle(cpu)))
+				continue;
+#endif
+
+			/* Skip CPUs that will be overutilized. */
+			wake_util = (prefer_idle && idle_cpu(cpu)) ? 0 : cpu_util_without(cpu, p);
+			util = wake_util + task_util_est(p);
+			cpu_cap = capacity_of(cpu);
+			spare_cap = cpu_cap - util;
+			if (spare_cap > sys_max_spare_cap) {
+				sys_max_spare_cap = spare_cap;
+				sys_max_spare_cap_cpu = cpu;
+			}
+
+			/*
+			 * Skip CPUs that cannot satisfy the capacity request.
+			 * IOW, placing the task there would make the CPU
+			 * overutilized. Take uclamp into account to see how
+			 * much capacity we can get out of the CPU; this is
+			 * aligned with schedutil_cpu_util().
+			 */
+			util = uclamp_rq_util_with(cpu_rq(cpu), util, p);
+			if (!fits_capacity(util, cpu_cap))
+				continue;
+
+			/* Always use prev_cpu as a candidate. */
+			if (cpu == prev_cpu &&
+			    (!prefer_idle || (prefer_idle && idle_cpu(cpu)))) {
+				prev_energy = compute_energy_enhanced(p,
+								prev_cpu, sg);
+				prev_delta = prev_energy - base_energy_sg;
+				best_delta = min(best_delta, prev_delta);
+			}
+
+			/*
+			 * Find the CPU with the maximum spare capacity in
+			 * the performance domain
+			 */
+			spare_cap = cpu_cap - util;
+			if (spare_cap > max_spare_cap) {
+				max_spare_cap = spare_cap;
+				max_spare_cap_cpu = cpu;
+			}
+
+			if (!prefer_idle)
+				continue;
+
+			if (idle_cpu(cpu)) {
+				cpu_cap = capacity_orig_of(cpu);
+				if (!boosted && cpu_cap > target_cap)
+					continue;
+				idle = idle_get_state(cpu_rq(cpu));
+				if (idle && idle->exit_latency >= min_exit_lat &&
+						cpu_cap == target_cap)
+					continue;
+
+				if (idle)
+					min_exit_lat = idle->exit_latency;
+				target_cap = cpu_cap;
+				best_idle_cpu = cpu;
+
+			} else if (spare_cap > max_spare_cap_ls) {
+				max_spare_cap_ls = spare_cap;
+				max_spare_cap_cpu_ls = cpu;
+			}
+		}
+
+		if (!prefer_idle && max_spare_cap_cpu >= 0 &&
+					max_spare_cap_cpu != prev_cpu) {
+			cur_energy = compute_energy_enhanced(p,
+							max_spare_cap_cpu, sg);
+			cur_delta = cur_energy - base_energy_sg;
+			if (cur_delta < best_delta) {
+				best_delta = cur_delta;
+				best_energy_cpu = max_spare_cap_cpu;
+			}
+		}
+
+		if (prefer_idle && best_idle_cpu >= 0 &&
+					best_idle_cpu != prev_cpu) {
+			cur_energy = compute_energy_enhanced(p,
+							best_idle_cpu, sg);
+			cur_delta = cur_energy - base_energy_sg;
+			if (cur_delta < best_delta) {
+				best_delta = cur_delta;
+				best_energy_cpu = best_idle_cpu;
+			}
+		}
+
+		mt_sched_printf(sched_eas_energy_calc,
+		    "prev_cpu=%d base_energy=%lu prev_energy=%lu prev_delta=%d",
+		    prev_cpu, base_energy_sg, prev_energy, (int)prev_delta);
+
+		mt_sched_printf(sched_eas_energy_calc,
+		    "max_spare_cap_cpu=%d best_idle_cpu=%d cur_energy=%lu cur_delta=%d",
+			max_spare_cap_cpu, best_idle_cpu, cur_energy, (int)cur_delta);
+
+	} while (sg = sg->next, sg != sd->groups);
+
+	/*
+	 * Pick the best CPU if prev_cpu cannot be used, or it it saves energy
+	 * used by prev_cpu.
+	 */
+	if (prev_delta == ULONG_MAX) {
+		/* All cpu failed on !fit_capacity, use sys_max_spare_cap_cpu */
+		if (best_energy_cpu == prev_cpu)
+			return sys_max_spare_cap_cpu;
+		else
+			return best_energy_cpu;
+	}
+
+	if ((prev_delta - best_delta) > 0)
+		return best_energy_cpu;
+
+	return prev_cpu;
+}
+
+static int __find_energy_efficient_cpu(struct sched_domain *sd,
+				     struct task_struct *p,
+				     int cpu, int prev_cpu,
+				     int sync)
+{
+	int num_cluster = arch_get_nr_clusters();
+
+	if (num_cluster <= 2)
+		return find_energy_efficient_cpu(sd, p, cpu, prev_cpu, sync);
+	else
+		return find_energy_efficient_cpu_enhanced(p, cpu, prev_cpu, sync);
+}
+
 /*
  * group_norm_util() returns the approximated group util relative to it's
  * current capacity (busy ratio) in the range [0..SCHED_CAPACITY_SCALE] for use
@@ -926,7 +1388,6 @@ mtk_cluster_max_usage(int cid, struct energy_env *eenv, int cpu_idx,
 	return max_util;
 }
 
-unsigned int capacity_margin_dvfs = 1280;
 void mtk_cluster_capacity_idx(int cid, struct energy_env *eenv, int cpu_idx)
 {
 	int cpu;
@@ -958,7 +1419,7 @@ void mtk_cluster_capacity_idx(int cid, struct energy_env *eenv, int cpu_idx)
 	eenv->cpu[cpu_idx].cap[cid] = sge->cap_states[max_idx].cap;
 
 	/* OPP idx to refer capacity margin */
-	new_capacity = util * capacity_margin_dvfs >> SCHED_CAPACITY_SHIFT;
+	new_capacity = util * capacity_margin >> SCHED_CAPACITY_SHIFT;
 	new_capacity = min(new_capacity,
 		(unsigned long) sge->cap_states[sge->nr_cap_states-1].cap);
 
@@ -972,27 +1433,15 @@ void mtk_cluster_capacity_idx(int cid, struct energy_env *eenv, int cpu_idx)
 	}
 
 	mt_sched_printf(sched_eas_energy_calc,
-		"cpu_idx=%d cid=%d max_cpu=%d (util=%ld new=%ld) max_opp=%d (cap=%d)",
-		cpu_idx, cid, cpu, util, new_capacity,
+		"cpu_idx=%d dst_cpu=%d cid=%d max_cpu=%d (util=%ld new=%ld) max_opp=%d (cap=%d)",
+		cpu_idx, eenv->cpu[cpu_idx].cpu_id,
+		cid, cpu, util, new_capacity,
 		eenv->cpu[cpu_idx].cap_idx[cid],
 		eenv->cpu[cpu_idx].cap[cid]);
 }
 
-#define VOLT_SCALE 10
-
-bool is_share_buck(int cid, int *co_buck_cid)
-{
-	bool ret = false;
-
-	if (share_buck[cid] != cid) {
-		*co_buck_cid = share_buck[cid];
-		ret = true;
-	}
-
-	return ret;
-}
-
-#ifdef ARM_V8_2
+#if defined(ARM_V8_2) && defined(CONFIG_MTK_UNIFY_POWER)
+struct sched_group_energy cci_tbl;
 const struct sched_group_energy * const cci_energy(void)
 {
 	struct sched_group_energy *sge = &cci_tbl;
@@ -1011,63 +1460,73 @@ const struct sched_group_energy * const cci_energy(void)
 }
 
 extern unsigned int mt_cpufreq_get_cur_cci_freq_idx(void);
-int get_cci_cap_idx(void)
+void get_cci_volt(struct sg_state *cci)
 {
 	const struct sched_group_energy *_sge;
 	static int CCI_nr_cap_stats;
 
+	_sge = cci_energy();
+
 	if (CCI_nr_cap_stats == 0) {
-#ifdef CONFIG_MTK_UNIFY_POWER
-		_sge = cci_energy();
 		CCI_nr_cap_stats = _sge->nr_cap_states;
-#endif
 	}
 
-	return CCI_nr_cap_stats - mt_cpufreq_get_cur_cci_freq_idx();
+	cci->cap_idx = CCI_nr_cap_stats - mt_cpufreq_get_cur_cci_freq_idx();
+	cci->volt = _sge->cap_states[cci->cap_idx].volt;
+}
+#else
+void get_cci_volt(struct sg_state *cci)
+{
 }
 #endif
 
-int share_buck_cap_idx(struct energy_env *eenv, int cpu_idx,
-			int cid, int *co_buck_cid)
+void share_buck_volt(struct energy_env *eenv, int cpu_idx, int cid,
+			struct sg_state *co_buck)
 {
-	int cap_idx = eenv->cpu[cpu_idx].cap_idx[cid];
-	int co_buck_cap_idx = -1;
-
-	if (is_share_buck(cid, co_buck_cid)) {
+	if (is_share_buck(cid, &(co_buck->cid))) {
 		int num_cluster = arch_get_nr_clusters();
+		int cap_idx = eenv->cpu[cpu_idx].cap_idx[cid];
 
-		if (*co_buck_cid < num_cluster)
-			co_buck_cap_idx =
-				eenv->cpu[cpu_idx].cap_idx[*co_buck_cid];
-#ifdef ARM_V8_2
-		else if (*co_buck_cid ==  CCI_ID)    /* CCI + DSU */
-			co_buck_cap_idx = get_cci_cap_idx();
+		if (co_buck->cid < num_cluster) {
+			struct cpumask cls_cpus;
+			const struct sched_group_energy *sge_core;
+			int cpu;
+
+			arch_get_cluster_cpus(&cls_cpus, co_buck->cid);
+			cpu = cpumask_first(&cls_cpus);
+			sge_core = cpu_core_energy(cpu);
+			co_buck->cap_idx =
+				eenv->cpu[cpu_idx].cap_idx[co_buck->cid];
+			co_buck->volt =
+				sge_core->cap_states[co_buck->cap_idx].volt;
+#if defined(ARM_V8_2) && defined(CONFIG_MTK_UNIFY_POWER)
+		} else if (co_buck->cid ==  CCI_ID) {    /* CCI + DSU */
+			get_cci_volt(co_buck);
 #endif
-		trace_sched_share_buck(cpu_idx, cid, cap_idx, *co_buck_cid,
-					co_buck_cap_idx);
-	}
+		}
 
-	return co_buck_cap_idx;
+		trace_sched_share_buck(cpu_idx, cid, cap_idx, co_buck->cid,
+				co_buck->cap_idx, co_buck->volt);
+	}
 }
 
 int
 mtk_idle_power(int cpu_idx, int idle_state, int cpu, void *argu, int sd_level)
 {
-	int energy_cost = 0;
-	struct sched_domain *sd;
+	struct energy_env *eenv = (struct energy_env *)argu;
 	const struct sched_group_energy *_sge, *sge_core, *sge_clus;
+	struct sched_domain *sd;
+	unsigned long volt;
+	int energy_cost = 0;
 #ifdef CONFIG_ARM64
 	int cid = cpu_topology[cpu].cluster_id;
 #else
 	int cid = cpu_topology[cpu].socket_id;
 #endif
-	struct energy_env *eenv = (struct energy_env *)argu;
 	int cap_idx = eenv->cpu[cpu_idx].cap_idx[cid];
-	int co_buck_cid = -1, co_buck_cap_idx;
-	int only_lv1 = 0;
+	struct sg_state co_buck =  {-1, -1, 0};
 
 	sd = rcu_dereference_check_sched_domain(cpu_rq(cpu)->sd);
-
 	/* [FIXME] racing with hotplug */
 	if (!sd)
 		return 0;
@@ -1076,30 +1535,20 @@ mtk_idle_power(int cpu_idx, int idle_state, int cpu, void *argu, int sd_level)
 	if (cap_idx == -1)
 		return 0;
 
-	co_buck_cap_idx = share_buck_cap_idx(eenv, cpu_idx, cid, &co_buck_cid);
-	cap_idx = max(cap_idx, co_buck_cap_idx);
+	_sge = cpu_core_energy(cpu);
+	volt =  _sge->cap_states[cap_idx].volt;
+	share_buck_volt(eenv, cpu_idx, cid, &co_buck);
+
+	if (co_buck.volt > volt)
+		cap_idx = share_buck_lkg_idx(_sge, cap_idx, co_buck.volt);
 
 	_sge = sge_core = sge_clus = NULL;
-
 	/* To handle only 1 CPU in cluster by HPS */
 	if (unlikely(!sd->child &&
 	   (rcu_dereference(per_cpu(sd_scs, cpu)) == NULL))) {
+		struct upower_tbl_row *cpu_pwr_tbl, *clu_pwr_tbl;
 		sge_core = cpu_core_energy(cpu);
 		sge_clus = cpu_cluster_energy(cpu);
-
-		only_lv1 = 1;
-	} else {
-		if (sd_level == 0)
-			_sge = cpu_core_energy(cpu); /* for cpu */
-		else
-			_sge = cpu_cluster_energy(cpu); /* for cluster */
-	}
-
-	idle_state = 0;
-
-	/* active idle: WFI */
-	if (only_lv1) {
-		struct upower_tbl_row *cpu_pwr_tbl, *clu_pwr_tbl;
 
 		cpu_pwr_tbl = &sge_core->cap_states[cap_idx];
 		clu_pwr_tbl = &sge_clus->cap_states[cap_idx];
@@ -1120,6 +1569,11 @@ mtk_idle_power(int cpu_idx, int idle_state, int cpu, void *argu, int sd_level)
 		struct upower_tbl_row *pwr_tbl;
 		unsigned long lkg_pwr;
 
+		if (sd_level == 0)
+			_sge = cpu_core_energy(cpu); /* for cpu */
+		else
+			_sge = cpu_cluster_energy(cpu); /* for cluster */
+
 		pwr_tbl =  &_sge->cap_states[cap_idx];
 		lkg_pwr = pwr_tbl->lkg_pwr[_sge->lkg_idx];
 		energy_cost = lkg_pwr;
@@ -1127,8 +1581,10 @@ mtk_idle_power(int cpu_idx, int idle_state, int cpu, void *argu, int sd_level)
 		trace_sched_idle_power(sd_level, cap_idx, lkg_pwr, energy_cost);
 	}
 
-#ifdef ARM_V8_2
-	if ((sd_level != 0) && (co_buck_cid == CCI_ID)) {
+	idle_state = 0;
+
+#if defined(ARM_V8_2) && defined(CONFIG_MTK_UNIFY_POWER)
+	if ((sd_level != 0) && (co_buck.cid == CCI_ID)) {
 		struct upower_tbl_row *CCI_pwr_tbl;
 		unsigned long lkg_pwr;
 
@@ -1137,7 +1593,6 @@ mtk_idle_power(int cpu_idx, int idle_state, int cpu, void *argu, int sd_level)
 		CCI_pwr_tbl = &_sge->cap_states[cap_idx];
 		lkg_pwr = CCI_pwr_tbl->lkg_pwr[_sge->lkg_idx];
 		energy_cost += lkg_pwr;
-
 		trace_sched_idle_power(sd_level, cap_idx, lkg_pwr, energy_cost);
 	}
 #endif
@@ -1146,61 +1601,21 @@ mtk_idle_power(int cpu_idx, int idle_state, int cpu, void *argu, int sd_level)
 }
 
 int calc_busy_power(const struct sched_group_energy *_sge, int cap_idx,
-				int co_buck_cap_idx, int sd_level)
+				unsigned long co_volt, int sd_level)
 {
-	int energy_cost;
-	unsigned long int volt_factor = 1;
+	unsigned long dyn_pwr, lkg_pwr;
+	unsigned long volt;
 
-	if (co_buck_cap_idx > cap_idx) {
-		/*
-		 * calculated power with share-buck impact
-		 *
-		 * dynamic power = F*V^2
-		 *
-		 * dyn_pwr  = current_power * (v_max/v_min)^2
-		 * lkg_pwr = tlb[idx of v_max].leak;
-		 */
-		unsigned long v_max = _sge->cap_states[co_buck_cap_idx].volt;
-		unsigned long v_min = _sge->cap_states[cap_idx].volt;
-		unsigned long dyn_pwr;
-		unsigned long lkg_pwr;
-		int lkg_idx = _sge->lkg_idx;
+	volt = _sge->cap_states[cap_idx].volt;
+	calc_pwr(sd_level, _sge, cap_idx, volt, co_volt, &dyn_pwr, &lkg_pwr);
 
-		volt_factor = ((v_max*v_max) << VOLT_SCALE) /
-				(v_min*v_min);
-
-		dyn_pwr = (_sge->cap_states[cap_idx].dyn_pwr *
-				volt_factor) >> VOLT_SCALE;
-		lkg_pwr = _sge->cap_states[co_buck_cap_idx].lkg_pwr[lkg_idx];
-		energy_cost = dyn_pwr + lkg_pwr;
-
-		trace_sched_busy_power(sd_level, cap_idx,
-				_sge->cap_states[cap_idx].dyn_pwr, volt_factor,
-				dyn_pwr, co_buck_cap_idx, lkg_pwr,
-				energy_cost);
-
-	} else {
-		/* No share buck impact */
-		unsigned long dyn_pwr;
-		unsigned long lkg_pwr;
-		int lkg_idx = _sge->lkg_idx;
-
-		dyn_pwr = _sge->cap_states[cap_idx].dyn_pwr;
-		lkg_pwr = _sge->cap_states[cap_idx].lkg_pwr[lkg_idx];
-		energy_cost = dyn_pwr + lkg_pwr;
-
-		trace_sched_busy_power(sd_level, cap_idx, dyn_pwr,
-					volt_factor, dyn_pwr, cap_idx, lkg_pwr,
-					energy_cost);
-
-	}
-
-	return energy_cost;
+	return dyn_pwr + lkg_pwr;
 }
 
 int mtk_busy_power(int cpu_idx, int cpu, void *argu, int sd_level)
 {
 	struct energy_env *eenv = (struct energy_env *)argu;
+	const struct sched_group_energy *_sge;
 	struct sched_domain *sd;
 	int energy_cost = 0;
 #ifdef CONFIG_ARM64
@@ -1209,9 +1624,7 @@ int mtk_busy_power(int cpu_idx, int cpu, void *argu, int sd_level)
 	int cid = cpu_topology[cpu].socket_id;
 #endif
 	int cap_idx = eenv->cpu[cpu_idx].cap_idx[cid];
-	int co_cap_idx = -1;
-	int co_buck_cid = -1;
-	unsigned long int volt_factor = 1;
+	struct sg_state co_buck = {-1, -1, 0};
 
 	sd = rcu_dereference_check_sched_domain(cpu_rq(cpu)->sd);
 	/* [FIXME] racing with hotplug */
@@ -1222,107 +1635,38 @@ int mtk_busy_power(int cpu_idx, int cpu, void *argu, int sd_level)
 	if (cap_idx == -1)
 		return 0;
 
-	co_cap_idx = share_buck_cap_idx(eenv, cpu_idx, cid, &co_buck_cid);
-
+	share_buck_volt(eenv, cpu_idx, cid, &co_buck);
 	/* To handle only 1 CPU in cluster by HPS */
 	if (unlikely(!sd->child &&
 		(rcu_dereference(per_cpu(sd_scs, cpu)) == NULL))) {
 		/* fix HPS defeats: only one CPU in this cluster */
-		const struct sched_group_energy *sge_core;
-		const struct sched_group_energy *sge_clus;
 
-		sge_core = cpu_core_energy(cpu);
-		sge_clus = cpu_cluster_energy(cpu);
-
-		if (co_cap_idx > cap_idx) {
-			unsigned long v_max;
-			unsigned long v_min;
-			unsigned long clu_dyn_pwr, cpu_dyn_pwr;
-			unsigned long clu_lkg_pwr, cpu_lkg_pwr;
-			struct upower_tbl_row *cpu_pwr_tbl, *clu_pwr_tbl;
-
-			v_max = sge_core->cap_states[co_cap_idx].volt;
-			v_min = sge_core->cap_states[cap_idx].volt;
-
-			/*
-			 * dynamic power = F*V^2
-			 *
-			 * dyn_pwr  = current_power * (v_max/v_min)^2
-			 * lkg_pwr = tlb[idx of v_max].leak;
-			 *
-			 */
-			volt_factor = ((v_max*v_max) << VOLT_SCALE)
-						/ (v_min*v_min);
-
-			cpu_dyn_pwr = sge_core->cap_states[cap_idx].dyn_pwr;
-			clu_dyn_pwr = sge_clus->cap_states[cap_idx].dyn_pwr;
-
-			energy_cost = ((cpu_dyn_pwr+clu_dyn_pwr)*volt_factor)
-						>> VOLT_SCALE;
-
-			/* + leak power of co_buck_cid's opp */
-			cpu_pwr_tbl = &sge_core->cap_states[co_cap_idx];
-			clu_pwr_tbl = &sge_clus->cap_states[co_cap_idx];
-			cpu_lkg_pwr = cpu_pwr_tbl->lkg_pwr[sge_core->lkg_idx];
-			clu_lkg_pwr = clu_pwr_tbl->lkg_pwr[sge_clus->lkg_idx];
-			energy_cost += (cpu_lkg_pwr + clu_lkg_pwr);
-
-			mt_sched_printf(sched_eas_energy_calc,
-				"%s: %s lv=%d tlb[%d].dyn_pwr=(cpu:%d,clu:%d) tlb[%d].leak=(cpu:%d,clu:%d) vlt_f=%ld",
-				__func__, "share_buck/only1CPU", sd_level,
-				cap_idx,
-				sge_core->cap_states[cap_idx].dyn_pwr,
-				sge_clus->cap_states[cap_idx].dyn_pwr,
-				co_cap_idx,
-				cpu_pwr_tbl->lkg_pwr[sge_core->lkg_idx],
-				clu_pwr_tbl->lkg_pwr[sge_clus->lkg_idx],
-				volt_factor);
-			mt_sched_printf(sched_eas_energy_calc,
-				"%s: %s total=%d",
-				__func__, "share_buck/only1CPU", energy_cost);
-		} else {
-			struct upower_tbl_row *cpu_pwr_tbl, *clu_pwr_tbl;
-
-			cpu_pwr_tbl = &sge_core->cap_states[cap_idx];
-			clu_pwr_tbl = &sge_clus->cap_states[cap_idx];
-
-			energy_cost = cpu_pwr_tbl->dyn_pwr +
-					cpu_pwr_tbl->lkg_pwr[sge_core->lkg_idx];
-
-			energy_cost += clu_pwr_tbl->dyn_pwr +
-					clu_pwr_tbl->lkg_pwr[sge_clus->lkg_idx];
-
-			mt_sched_printf(sched_eas_energy_calc,
-				"%s: %s lv=%d tlb_core[%d].dyn_pwr=(%d,%d) tlb_clu[%d]=(%d,%d) total=%d",
-				__func__, "only1CPU", sd_level,
-				cap_idx,
-				cpu_pwr_tbl->dyn_pwr,
-				cpu_pwr_tbl->lkg_pwr[sge_core->lkg_idx],
-				cap_idx,
-				clu_pwr_tbl->dyn_pwr,
-				clu_pwr_tbl->lkg_pwr[sge_clus->lkg_idx],
-				energy_cost);
-		}
+		_sge = cpu_core_energy(cpu); /* for CPU */
+		energy_cost = calc_busy_power(_sge, cap_idx, co_buck.volt,
+							0);
+		_sge = cpu_cluster_energy(cpu); /* for cluster */
+		energy_cost += calc_busy_power(_sge, cap_idx, co_buck.volt,
+							1);
 	} else {
-		const struct sched_group_energy *_sge;
-
 		if (sd_level == 0)
 			_sge = cpu_core_energy(cpu); /* for CPU */
 		else
 			_sge = cpu_cluster_energy(cpu); /* for cluster */
 
-		energy_cost = calc_busy_power(_sge, cap_idx, co_cap_idx,
+		energy_cost = calc_busy_power(_sge, cap_idx, co_buck.volt,
 							sd_level);
-
 	}
 
-#ifdef ARM_V8_2
-	if ((sd_level != 0) && (co_buck_cid == CCI_ID)) {
+#if defined(ARM_V8_2) && defined(CONFIG_MTK_UNIFY_POWER)
+	if ((sd_level != 0) && (co_buck.cid == CCI_ID)) {
 		/* CCI + DSU */
-		const struct sched_group_energy *_sge;
+		unsigned long volt;
+
+		_sge = cpu_core_energy(cpu); /* for CPU */
+		volt =  _sge->cap_states[cap_idx].volt;
 
 		_sge = cci_energy();
-		energy_cost += calc_busy_power(_sge, co_cap_idx, cap_idx,
+		energy_cost += calc_busy_power(_sge, co_buck.cap_idx, volt,
 							sd_level);
 	}
 #endif
@@ -1352,6 +1696,14 @@ void mtk_update_new_capacity(struct energy_env *eenv)
 void mtk_update_new_capacity(struct energy_env *eenv)
 {
 }
+
+static int __find_energy_efficient_cpu(struct sched_domain *sd,
+				     struct task_struct *p,
+				     int cpu, int prev_cpu,
+				     int sync)
+{
+	return find_energy_efficient_cpu(sd, p, cpu, prev_cpu, sync);
+}
 #endif
 
 #ifdef CONFIG_MTK_SCHED_BOOST
@@ -1364,13 +1716,14 @@ static void select_task_prefer_cpu_fair(struct task_struct *p, int *result)
 
 	cpu = (*result & LB_CPU_MASK);
 
-	if (task_prefer_match(p, cpu))
-		return;
-
 	new_cpu = select_task_prefer_cpu(p, cpu);
 
-	if ((new_cpu >= 0)  && (new_cpu != cpu))
-		*result = new_cpu | LB_HINT;
+	if ((new_cpu >= 0)  && (new_cpu != cpu)) {
+		if (task_prefer_match(p, cpu))
+			*result = new_cpu | LB_THERMAL;
+		else
+			*result = new_cpu | LB_HINT;
+	}
 }
 
 #else
@@ -1387,12 +1740,14 @@ task_match_on_dst_cpu(struct task_struct *p, int src_cpu, int target_cpu)
 	struct task_struct *target_tsk;
 	struct rq *rq = cpu_rq(target_cpu);
 
+#ifdef CONFIG_MTK_SCHED_BOOST
 	if (task_prefer_match(p, src_cpu))
 		return 0;
 
 	target_tsk = rq->curr;
 	if (task_prefer_fit(target_tsk, target_cpu))
 		return 0;
+#endif
 
 	return 1;
 }
@@ -1415,30 +1770,6 @@ static int check_freq_turning(void)
 	return false;
 }
 
-static int collect_cluster_info(int cpu, int *total_nr_running, int *cpu_count)
-{
-	struct sched_domain *sd;
-	struct sched_group *sg;
-	int i;
-
-	/* Find SD for the start CPU */
-	sd = rcu_dereference(per_cpu(sd_ea, cpu));
-	if (!sd)
-		return 0;
-
-	*total_nr_running = 0;
-	/* Scan CPUs in all SDs */
-	sg = sd->groups;
-
-	*cpu_count = cpumask_weight(sched_group_span(sg));
-	for_each_cpu(i, sched_group_span(sg)) {
-		struct rq *rq = cpu_rq(i);
-		*total_nr_running += rq->nr_running;
-	}
-
-	return 1;
-}
-
 struct task_rotate_work {
 	struct work_struct w;
 	struct task_struct *src_task;
@@ -1448,25 +1779,66 @@ struct task_rotate_work {
 };
 
 static DEFINE_PER_CPU(struct task_rotate_work, task_rotate_works);
+struct task_rotate_reset_uclamp_work task_rotate_reset_uclamp_works;
 unsigned int sysctl_sched_rotation_enable;
+bool set_uclamp;
 
 void set_sched_rotation_enable(bool enable)
 {
 	sysctl_sched_rotation_enable = enable;
 }
 
+bool is_min_capacity_cpu(int cpu)
+{
+	struct root_domain *rd = cpu_rq(smp_processor_id())->rd;
+
+	if (rd->min_cap_orig_cpu < 0)
+		return false;
+
+	if (capacity_orig_of(cpu) == capacity_orig_of(rd->min_cap_orig_cpu))
+		return true;
+
+	return false;
+}
+
 static void task_rotate_work_func(struct work_struct *work)
 {
 	struct task_rotate_work *wr = container_of(work,
 				struct task_rotate_work, w);
+	int ret = -1;
+	struct rq *src_rq, *dst_rq;
 
-	migrate_swap(wr->src_task, wr->dst_task);
+	ret = migrate_swap(wr->src_task, wr->dst_task);
+
+	if (ret == 0) {
+		update_eas_uclamp_min(EAS_UCLAMP_KIR_BIG_TASK, CGROUP_TA,
+				scale_to_percent(SCHED_CAPACITY_SCALE));
+		set_uclamp = true;
+		trace_sched_big_task_rotation(wr->src_cpu, wr->dst_cpu,
+						wr->src_task->pid,
+						wr->dst_task->pid,
+						true, set_uclamp);
+	}
 
 	put_task_struct(wr->src_task);
 	put_task_struct(wr->dst_task);
 
-	clear_reserved(wr->src_cpu);
-	clear_reserved(wr->dst_cpu);
+	src_rq = cpu_rq(wr->src_cpu);
+	dst_rq = cpu_rq(wr->dst_cpu);
+
+	local_irq_disable();
+	double_rq_lock(src_rq, dst_rq);
+	src_rq->active_balance = 0;
+	dst_rq->active_balance = 0;
+	double_rq_unlock(src_rq, dst_rq);
+	local_irq_enable();
+}
+
+static void task_rotate_reset_uclamp_work_func(struct work_struct *work)
+{
+	update_eas_uclamp_min(EAS_UCLAMP_KIR_BIG_TASK, CGROUP_TA, 0);
+	set_uclamp = false;
+	trace_sched_big_task_rotation_reset(set_uclamp);
 }
 
 void task_rotate_work_init(void)
@@ -1478,6 +1850,9 @@ void task_rotate_work_init(void)
 
 		INIT_WORK(&wr->w, task_rotate_work_func);
 	}
+
+	INIT_WORK(&task_rotate_reset_uclamp_works.w,
+			task_rotate_reset_uclamp_work_func);
 }
 
 void task_check_for_rotation(struct rq *src_rq)
@@ -1488,6 +1863,7 @@ void task_check_for_rotation(struct rq *src_rq)
 	struct rq *dst_rq;
 	struct task_rotate_work *wr = NULL;
 	int heavy_task = 0;
+	int force = 0;
 
 	if (!sysctl_sched_rotation_enable)
 		return;
@@ -1511,8 +1887,8 @@ void task_check_for_rotation(struct rq *src_rq)
 	for_each_possible_cpu(i) {
 		struct rq *rq = cpu_rq(i);
 
-		if (is_max_capacity_cpu(i))
-			break;
+		if (!is_min_capacity_cpu(i))
+			continue;
 
 		if (is_reserved(i))
 			continue;
@@ -1534,7 +1910,7 @@ void task_check_for_rotation(struct rq *src_rq)
 	for_each_possible_cpu(i) {
 		struct rq *rq = cpu_rq(i);
 
-		if (!is_max_capacity_cpu(i))
+		if (capacity_orig_of(i) <= capacity_orig_of(src_cpu))
 			continue;
 
 		if (is_reserved(i))
@@ -1564,24 +1940,38 @@ void task_check_for_rotation(struct rq *src_rq)
 
 	double_rq_lock(src_rq, dst_rq);
 	if (dst_rq->curr->sched_class == &fair_sched_class) {
-		get_task_struct(src_rq->curr);
-		get_task_struct(dst_rq->curr);
 
-		mark_reserved(src_cpu);
-		mark_reserved(dst_cpu);
-		wr = &per_cpu(task_rotate_works, src_cpu);
+		if (!cpumask_test_cpu(dst_cpu,
+					&(src_rq->curr)->cpus_allowed) ||
+			!cpumask_test_cpu(src_cpu,
+					&(dst_rq->curr)->cpus_allowed)) {
+			double_rq_unlock(src_rq, dst_rq);
+			return;
+		}
 
-		wr->src_task = src_rq->curr;
-		wr->dst_task = dst_rq->curr;
+		if (!src_rq->active_balance && !dst_rq->active_balance) {
+			src_rq->active_balance = MIGR_ROTATION;
+			dst_rq->active_balance = MIGR_ROTATION;
 
-		wr->src_cpu = src_cpu;
-		wr->dst_cpu = dst_cpu;
+			get_task_struct(src_rq->curr);
+			get_task_struct(dst_rq->curr);
+
+			wr = &per_cpu(task_rotate_works, src_cpu);
+
+			wr->src_task = src_rq->curr;
+			wr->dst_task = dst_rq->curr;
+
+			wr->src_cpu = src_rq->cpu;
+			wr->dst_cpu = dst_rq->cpu;
+			force = 1;
+		}
 	}
 	double_rq_unlock(src_rq, dst_rq);
 
-	if (wr) {
+	if (force) {
 		queue_work_on(src_cpu, system_highpri_wq, &wr->w);
-		trace_sched_big_task_rotation(src_cpu, dst_cpu,
-					src_rq->curr->pid, dst_rq->curr->pid);
+		trace_sched_big_task_rotation(wr->src_cpu, wr->dst_cpu,
+					wr->src_task->pid, wr->dst_task->pid,
+					false, set_uclamp);
 	}
 }

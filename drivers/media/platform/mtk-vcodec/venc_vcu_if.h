@@ -47,8 +47,11 @@ struct venc_vcu_inst {
 	struct mtk_vcodec_ctx *ctx;
 	struct platform_device *dev;
 	bool abort;
+	int daemon_pid;
+	ipi_handler_t handler;
+	struct mutex *ctx_ipi_binding;
 };
-
+int vcu_enc_ipi_handler(void *data, unsigned int len, void *priv);
 int vcu_enc_init(struct venc_vcu_inst *vcu);
 int vcu_enc_query_cap(struct venc_vcu_inst *vcu, unsigned int id, void *out);
 int vcu_enc_set_param(struct venc_vcu_inst *vcu,
@@ -59,7 +62,4 @@ int vcu_enc_encode(struct venc_vcu_inst *vcu, unsigned int bs_mode,
 				   struct mtk_vcodec_mem *bs_buf,
 				   unsigned int *bs_size);
 int vcu_enc_deinit(struct venc_vcu_inst *vcu);
-int vcu_enc_set_ctx_for_gce(struct venc_vcu_inst *vcu);
-int vcu_enc_clear_ctx_for_gce(struct venc_vcu_inst *vcu);
-
 #endif

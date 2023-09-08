@@ -22,9 +22,6 @@ enum { sysctl_hung_task_timeout_secs = 0 };
 extern unsigned int sysctl_sched_latency;
 extern unsigned int sysctl_sched_min_granularity;
 extern unsigned int sysctl_sched_sync_hint_enable;
-#ifdef CONFIG_PRIO_PINNED_BOOST
-extern unsigned int sysctl_sched_pinned_boost_enable;
-#endif
 extern unsigned int sysctl_sched_cstate_aware;
 extern unsigned int sysctl_sched_wakeup_granularity;
 extern unsigned int sysctl_sched_child_runs_first;

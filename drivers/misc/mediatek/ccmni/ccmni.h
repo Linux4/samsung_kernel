@@ -40,9 +40,7 @@
  * NAPI with GRO:      MODEM_CAP_NAPI=1, ENABLE_NAPI_GRO=1, ENABLE_WQ_GRO=0
  */
 /* #define ENABLE_NAPI_GRO */
-#ifdef CONFIG_MTK_ECCCI_C2K
 #define ENABLE_WQ_GRO
-#endif
 
 #define  CCMNI_MTU              1500
 #define  CCMNI_TX_QUEUE         1000
@@ -59,13 +57,15 @@
 #define  SIOCFWDFILTER          (SIOCDEVPRIVATE + 2)
 /* disable ack first mechanism */
 #define  SIOCACKPRIO          (SIOCDEVPRIVATE + 3)
+/* push the queued packet to stack */
+#define  SIOPUSHPENDING       (SIOCDEVPRIVATE + 4)
 
 
 
 #define  IS_CCMNI_LAN(dev)      \
 	(strncmp(dev->name, "ccmni-lan", 9) == 0)
 #define  CCMNI_TX_PRINT_F	(0x1 << 0)
-#define MDT_TAG_PATTERN         0x46464646
+#define  MDDP_TAG_PATTERN       0x4646
 #define  CCMNI_FLT_NUM          32
 
 /* #define CCMNI_MET_DEBUG */
@@ -146,6 +146,10 @@ struct ccmni_instance {
 #endif
 	struct timespec    flush_time;
 	void               *priv_data;
+
+	/* For queue packet before ready */
+	struct workqueue_struct *worker;
+	struct delayed_work pkt_queue_work;
 };
 
 struct ccmni_ccci_ops {
@@ -189,15 +193,24 @@ struct ccmni_dev_ops {
 	int (*is_ack_skb)(int md_id, struct sk_buff *skb);
 };
 
-struct md_drt_tag {
-	u8  in_netif_id;
-	u8  out_netif_id;
-	u16 port;
-};
-
 struct md_tag_packet {
-	u32 guard_pattern;
-	struct md_drt_tag info;
+	u_int16_t   guard_pattern; /* 0x4646 */
+	u_int8_t    version;
+	u_int8_t    tag_len;       /*total len*/
+	union {
+		struct {
+			u_int8_t    in_netif_id;
+			u_int8_t    out_netif_id;
+			u_int16_t   port;
+		} v1;
+		struct {
+			u_int8_t    tag_info;
+			u_int8_t    reserved;
+			u_int16_t   port;
+			u_int32_t   lan_netif_id;
+			u_int32_t   ip;
+		} v2;
+	};
 };
 
 enum {

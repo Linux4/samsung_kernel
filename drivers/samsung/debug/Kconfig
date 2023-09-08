@@ -35,6 +35,14 @@ config SEC_DEBUG_LAST_KMSG
 	help
 	  This option enables /proc/last_kmsg support.
 
+config SEC_DEBUG_INIT_LOG
+	bool "support hooking of init task log"
+	depends on SEC_DEBUG
+	default y
+	help
+	  This option enables hooking of init task log. 
+	  It can be used for debugging purpose in case of booting failure or something else.
+
 config SEC_DEBUG_AUTO_COMMENT
 	bool "Enable Samsung kernel fault auto comment"
 	depends on PRINTK
@@ -45,19 +53,19 @@ config SEC_DEBUG_AUTO_COMMENT
 	  This option also requires bootloader change that enables auto comment
 	  extraction along with ramdump.
 
+config SEC_DEBUG_HIST_LOG
+	bool "support storing debug history log"
+	depends on SEC_DEBUG
+	default y
+	help
+	  This option enables to store debug history log.
+
 config SEC_DEBUG_LIMIT_BACKTRACE
 	bool "Forcely break infinity backtrace"
 	depends on SEC_DEBUG
 	default n
 	help
 	  Forcely break dump_backtrace to avoid infinity backtrace
-
-config SEC_LOG_HOOK_PMSG
-	bool "Enable hooking android platform log for ramdump"
-	depends on SEC_EXT && PSTORE_PMSG
-	default y
-	help
-	  This option enables hooking android platform log.
 
 config SEC_DEBUG_INIT_EXIT_PANIC
 	bool "Trigger panic when exiting init task group"
@@ -67,3 +75,17 @@ config SEC_DEBUG_INIT_EXIT_PANIC
 	  This option enables early panic when it attempt to kill init tasks.
 	  It may happen before init task stack is destroyed for debugging.
 
+config SEC_DEBUG_SOFTDOG_PWDT
+	bool "Enable Soft Watchdog for Platform"
+	default n
+	depends on WATCHDOG
+	help
+	  This option enables soft watchdog device and soft_panic.
+
+config SEC_DEBUG_SOFTDOG
+	bool "Enable enhanced softdog info"
+	depends on SEC_DEBUG && SOFT_WATCHDOG
+	default y
+	help
+	  This option enables enhanced softdog info.
+	  Select the option to show related task info.

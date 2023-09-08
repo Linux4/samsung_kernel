@@ -23,6 +23,7 @@
 
 #ifdef CONFIG_MTK_AUDIODSP_SUPPORT
 #include <adsp_ipi.h>
+#include <adsp_helper.h>
 #endif
 
 #include <adsp_ipi_queue.h>
@@ -176,12 +177,16 @@ bool check_print_msg_info(const struct ipi_msg_t *p_ipi_msg)
 		return false;
 
 #ifdef CONFIG_SND_SOC_MTK_AUDIO_DSP
-	if (p_ipi_msg->msg_id == AUDIO_DSP_TASK_HWPARAM ||
+	if (p_ipi_msg->msg_id == AUDIO_DSP_TASK_OPEN ||
+	    p_ipi_msg->msg_id == AUDIO_DSP_TASK_CLOSE ||
+	    p_ipi_msg->msg_id == AUDIO_DSP_TASK_HWPARAM ||
 	    p_ipi_msg->msg_id == AUDIO_DSP_TASK_PCM_HWPARAM ||
 	    p_ipi_msg->msg_id == AUDIO_DSP_TASK_HWFREE ||
 	    p_ipi_msg->msg_id == AUDIO_DSP_TASK_PCM_HWFREE ||
 	    p_ipi_msg->msg_id == AUDIO_DSP_TASK_PREPARE ||
-	    p_ipi_msg->msg_id == AUDIO_DSP_TASK_PCM_PREPARE)
+	    p_ipi_msg->msg_id == AUDIO_DSP_TASK_PCM_PREPARE ||
+	    p_ipi_msg->msg_id == AUDIO_DSP_TASK_START ||
+	    p_ipi_msg->msg_id == AUDIO_DSP_TASK_STOP)
 		return false;
 
 	if (p_ipi_msg->task_scene == TASK_SCENE_PRIMARY &&
@@ -198,6 +203,14 @@ bool check_print_msg_info(const struct ipi_msg_t *p_ipi_msg)
 
 	if (p_ipi_msg->task_scene == TASK_SCENE_CAPTURE_UL1 &&
 	    p_ipi_msg->msg_id == AUDIO_DSP_TASK_ULCOPY)
+		return false;
+
+	if (p_ipi_msg->task_scene == TASK_SCENE_CAPTURE_RAW &&
+	    p_ipi_msg->msg_id == AUDIO_DSP_TASK_ULCOPY)
+		return false;
+
+	if (p_ipi_msg->task_scene == TASK_SCENE_FAST &&
+	    p_ipi_msg->msg_id == AUDIO_DSP_TASK_DLCOPY)
 		return false;
 #endif
 
@@ -469,6 +482,7 @@ int audio_send_ipi_buf_to_dsp(
 	struct ipi_msg_t *p_ipi_msg,
 	uint8_t task_scene, /* task_scene_t */
 	uint16_t msg_id,
+	uint32_t param2,
 	void    *data_buffer,
 	uint32_t data_size)
 {
@@ -480,7 +494,7 @@ int audio_send_ipi_buf_to_dsp(
 		       AUDIO_IPI_MSG_NEED_ACK,
 		       msg_id,
 		       data_size,
-		       0,
+		       param2,
 		       data_buffer);
 }
 
@@ -489,6 +503,7 @@ int audio_recv_ipi_buf_from_dsp(
 	struct ipi_msg_t *p_ipi_msg,
 	uint8_t task_scene,
 	uint16_t msg_id,
+	uint32_t param2,
 	void    *data_buffer,
 	uint32_t max_data_size,
 	uint32_t *data_size)
@@ -527,6 +542,7 @@ int audio_recv_ipi_buf_from_dsp(
 	p_ipi_msg->ack_type     = AUDIO_IPI_MSG_NEED_ACK;
 	p_ipi_msg->msg_id       = msg_id;
 	p_ipi_msg->payload_size = sizeof(struct aud_data_t);
+	p_ipi_msg->param2       = param2;
 
 	/* alloc shared DRAM & put the addr info into payload */
 	if (p_ipi_msg->payload_size > MAX_IPI_MSG_PAYLOAD_SIZE) {

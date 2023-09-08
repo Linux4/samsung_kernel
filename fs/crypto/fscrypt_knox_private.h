@@ -11,14 +11,14 @@
 #ifdef CONFIG_DDAR
 #include <sdp/dd.h>
 #endif
-
+/*
 #define FSCRYPT_KNOX_FLG_DDAR_SHIFT					8
 #define FSCRYPT_KNOX_FLG_DDAR_MASK					0x0000FF00
 #define FSCRYPT_KNOX_FLG_DDAR_ENABLED				(DD_POLICY_ENABLED << FSCRYPT_KNOX_FLG_DDAR_SHIFT)
 #define FSCRYPT_KNOX_FLG_DDAR_USER_SPACE_CRYPTO		(DD_POLICY_USER_SPACE_CRYPTO << FSCRYPT_KNOX_FLG_DDAR_SHIFT)
 #define FSCRYPT_KNOX_FLG_DDAR_KERNEL_CRYPTO			(DD_POLICY_KERNEL_CRYPTO << FSCRYPT_KNOX_FLG_DDAR_SHIFT)
 #define FSCRYPT_KNOX_FLG_DDAR_GID_RESTRICTION		(DD_POLICY_GID_RESTRICTION << FSCRYPT_KNOX_FLG_DDAR_SHIFT)
-
+*/
 #define FSCRYPT_KNOX_FLG_SDP_MASK					0xFFFF0000
 #define FSCRYPT_KNOX_FLG_SDP_ENABLED             	0x00100000
 #define FSCRYPT_KNOX_FLG_SDP_IS_SENSITIVE           0x00200000
@@ -32,6 +32,10 @@
 #define FSCRYPT_KNOX_FLG_SDP_IS_CHAMBER_DIR         0x20000000
 #define FSCRYPT_KNOX_FLG_SDP_IS_DIRECTORY           0x40000000
 #define FSCRYPT_KNOX_FLG_SDP_IS_PROTECTED           0x80000000
+#ifdef CONFIG_SDP_KEY_DUMP
+#define FSCRYPT_KNOX_FLG_SDP_IS_TRACED              0x00000001
+#define FSCRYPT_KNOX_FLG_SDP_TRACE_MASK             0x000000FF
+#endif
 
 //static inline int fscrypt_dd_flg_enabled(int flags) {
 //	return (flags & FSCRYPT_KNOX_FLG_DDAR_ENABLED) ? 1:0;
@@ -49,10 +53,10 @@
 //	return (flags & FSCRYPT_KNOX_FLG_DDAR_GID_RESTRICTION) ? 1:0;
 //}
 
-struct fscrypt_context;
-
+union fscrypt_context;
+/*
 int dd_test_and_inherit_context(
-		struct fscrypt_context *ctx,
+		union fscrypt_context *ctx,
 		struct inode *parent, struct inode *child,
 		struct fscrypt_info *ci);
 
@@ -61,5 +65,5 @@ int dd_test_and_inherit_context(
 //		const struct dd_policy *policy);
 
 void *dd_get_info(const struct inode *inode);
-
+*/
 #endif /* FS_CRYPTO_FSCRYPT_KNOX_PRIVATE_H_ */

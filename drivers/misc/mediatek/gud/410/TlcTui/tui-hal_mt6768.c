@@ -45,6 +45,7 @@ struct tui_mempool {
 };
 
 static int g_tbuff_alloc;
+static bool g_in_tui_session;
 static int tsp_irq_num = 718;	// default value
 
 #if defined(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX)
@@ -187,6 +188,7 @@ uint32_t hal_tui_alloc(
 	}
 #endif
 
+    g_in_tui_session = true;
 	ret = ssmr_offline(&pa, &size, true, SSMR_FEAT_TUI);
 
 	pr_debug("%s(%d): required size 0x%zx, acquired size=0x%lx\n",
@@ -202,6 +204,7 @@ uint32_t hal_tui_alloc(
 			allocbuffer[1].pa, allocbuffer[2].pa,
 			TUI_EXTRA_MEM_SIZE);
 	} else {
+        g_in_tui_session = false;
 		pr_notice("%s(%d): tui_region_offline failed!\n",
 			 __func__, __LINE__);
 		return TUI_DCI_ERR_INTERNAL_ERROR;
@@ -221,9 +224,19 @@ void hal_tui_free(void)
 {
 	pr_debug("[TUI-HAL] %s\n", __func__);
 	if (g_tbuff_alloc) {
+        g_in_tui_session = false;
 		ssmr_online(SSMR_FEAT_TUI);
 		g_tbuff_alloc = 0;
 	}
+}
+
+/**
+ * hal_in_tui() - for other modules to know if TUI session is true or not
+ */
+bool hal_in_tui(void)
+{
+	pr_notice("[TUI-HAL] %s - %d\n", __func__, g_in_tui_session);
+	return g_in_tui_session;
 }
 
 /**

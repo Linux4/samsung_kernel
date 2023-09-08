@@ -900,6 +900,7 @@ static int ext_disp_init_hdmi(unsigned int session)
 	struct disp_ddp_path_config *data_config = NULL;
 	enum EXT_DISP_STATUS ret;
 	enum DISP_MODULE_ENUM dst_module = 0;
+	int isVideoMode = 0;
 
 	EXTDFUNC();
 	ret = EXT_DISP_STATUS_OK;
@@ -948,7 +949,13 @@ static int ext_disp_init_hdmi(unsigned int session)
 
 	EXTDINFO("ext_disp display START cmdq trigger loop finished\n");
 
-	dpmgr_path_set_video_mode(pgc->dpmgr_handle, ext_disp_is_video_mode());
+	isVideoMode = ext_disp_is_video_mode();
+	if (isVideoMode != -1)
+		dpmgr_path_set_video_mode(pgc->dpmgr_handle,
+			isVideoMode);
+	else
+		return -1;
+
 	dpmgr_path_init(pgc->dpmgr_handle, CMDQ_DISABLE);
 	dpmgr_path_reset(pgc->dpmgr_handle, CMDQ_DISABLE);
 
@@ -2114,7 +2121,7 @@ int ext_disp_is_sleepd(void)
 
 	/* EXTDFUNC(); */
 	_ext_disp_path_lock(__func__);
-	temp = !pgc->state;
+	temp = (pgc->state == 0) ? 1 : 0;
 	_ext_disp_path_unlock(__func__);
 
 	return temp;

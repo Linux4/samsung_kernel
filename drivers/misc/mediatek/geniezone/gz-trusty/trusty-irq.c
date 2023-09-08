@@ -28,6 +28,13 @@
 #include <linux/of_irq.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 
+#define ENABLE_IRQ_DEBUG_LOG (0)
+#if ENABLE_IRQ_DEBUG_LOG
+#define IRQ_DEBUG_LOG_EN
+#endif
+
+#define enable_code 0 /*replace #if 0*/
+
 struct trusty_irq {
 	struct trusty_irq_state *is;
 	struct hlist_node node;
@@ -68,9 +75,11 @@ static void trusty_irq_enable_pending_irqs(struct trusty_irq_state *is,
 	struct trusty_irq *trusty_irq;
 
 	hlist_for_each_entry_safe(trusty_irq, n, &irqset->pending, node) {
+#ifdef IRQ_DEBUG_LOG_EN
 		dev_dbg(is->dev,
 			"%s: enable pending irq %d, percpu %d, cpu %d\n",
 			__func__, trusty_irq->irq, percpu, smp_processor_id());
+#endif
 		if (percpu)
 			enable_percpu_irq(trusty_irq->irq, 0);
 		else
@@ -93,8 +102,10 @@ static void trusty_irq_enable_irqset(struct trusty_irq_state *is,
 				 __func__, trusty_irq->irq, smp_processor_id());
 			continue;
 		}
+#ifdef IRQ_DEBUG_LOG_EN
 		dev_dbg(is->dev, "%s: enable percpu irq %d, cpu %d\n",
 			__func__, trusty_irq->irq, smp_processor_id());
+#endif
 		enable_percpu_irq(trusty_irq->irq, 0);
 		trusty_irq->enable = true;
 	}
@@ -114,9 +125,11 @@ static void trusty_irq_disable_irqset(struct trusty_irq_state *is,
 				 smp_processor_id());
 			continue;
 		}
+#ifdef IRQ_DEBUG_LOG_EN
 		dev_dbg(is->dev, "%s: disable irq %d, percpu %d, cpu %d\n",
 			__func__, trusty_irq->irq, trusty_irq->percpu,
 			smp_processor_id());
+#endif
 		trusty_irq->enable = false;
 		if (trusty_irq->percpu)
 			disable_percpu_irq(trusty_irq->irq);
@@ -130,10 +143,12 @@ static void trusty_irq_disable_irqset(struct trusty_irq_state *is,
 				 trusty_irq->irq, trusty_irq->percpu,
 				 smp_processor_id());
 		}
+#ifdef IRQ_DEBUG_LOG_EN
 		dev_dbg(is->dev,
 			"%s: disable pending irq %d, percpu %d, cpu %d\n",
 			__func__, trusty_irq->irq, trusty_irq->percpu,
 			smp_processor_id());
+#endif
 		trusty_irq->enable = false;
 		hlist_del(&trusty_irq->node);
 		hlist_add_head(&trusty_irq->node, &irqset->inactive);
@@ -166,9 +181,11 @@ irqreturn_t trusty_irq_handler(int irq, void *data)
 	struct trusty_irq_state *is = trusty_irq->is;
 	struct trusty_irq_irqset *irqset;
 
+#ifdef IRQ_DEBUG_LOG_EN
 	dev_dbg(is->dev, "%s: irq %d, percpu %d, cpu %d, enable %d\n",
 		__func__, irq, trusty_irq->irq, smp_processor_id(),
 		trusty_irq->enable);
+#endif
 
 	if (trusty_irq->percpu) {
 		disable_percpu_irq(irq);
@@ -185,17 +202,24 @@ irqreturn_t trusty_irq_handler(int irq, void *data)
 	}
 	spin_unlock(&is->normal_irqs_lock);
 
-	trusty_enqueue_nop(is->trusty_dev, NULL);
+	trusty_enqueue_nop(is->trusty_dev, NULL, smp_processor_id());
 
+#ifdef IRQ_DEBUG_LOG_EN
 	dev_dbg(is->dev, "%s: irq %d done\n", __func__, irq);
+#endif
 
 	return IRQ_HANDLED;
 }
 
 void handle_trusty_ipi(int ipinr)
 {
+	if (ipinr < 0 || ipinr >= 16)
+		return;
+
 	if (trusty_ipi_init[ipinr] == 0)
 		return;
+
+	/*for kernel-4.14*/
 
 	irq_enter();
 	trusty_irq_handler(ipinr, this_cpu_ptr(trusty_ipi_data[ipinr]));
@@ -208,7 +232,9 @@ static int trusty_irq_cpu_up(unsigned int cpu, struct hlist_node *node)
 	struct trusty_irq_state *is;
 
 	is = container_of(node, struct trusty_irq_state, cpuhp_node);
+#ifdef IRQ_DEBUG_LOG_EN
 	dev_dbg(is->dev, "%s: cpu %d\n", __func__, cpu);
+#endif
 
 	local_irq_save(irq_flags);
 	trusty_irq_enable_irqset(is, this_cpu_ptr(is->percpu_irqs));
@@ -223,7 +249,9 @@ static int trusty_irq_cpu_down(unsigned int cpu, struct hlist_node *node)
 	struct trusty_irq_state *is;
 
 	is = container_of(node, struct trusty_irq_state, cpuhp_node);
+#ifdef IRQ_DEBUG_LOG_EN
 	dev_dbg(is->dev, "%s: cpu %d\n", __func__, cpu);
+#endif
 
 	local_irq_save(irq_flags);
 	trusty_irq_disable_irqset(is, this_cpu_ptr(is->percpu_irqs));
@@ -232,7 +260,7 @@ static int trusty_irq_cpu_down(unsigned int cpu, struct hlist_node *node)
 	return 0;
 }
 
-#if 0
+#if enable_code /*#if 0*/
 static int trusty_irq_create_irq_mapping(struct trusty_irq_state *is, int irq)
 {
 	int ret;
@@ -321,9 +349,11 @@ static int trusty_irq_init_normal_irq(struct trusty_irq_state *is, int tirq)
 	unsigned long irq_flags;
 	struct trusty_irq *trusty_irq;
 
+#ifdef IRQ_DEBUG_LOG_EN
 	dev_dbg(is->dev, "%s: irq %d\n", __func__, tirq);
+#endif
 
-#if 0
+#if enable_code /*#if 0*/
 	irq = trusty_irq_create_irq_mapping(is, tirq);
 	if (irq < 0) {
 		dev_info(is->dev,
@@ -366,9 +396,11 @@ static int trusty_irq_init_normal_irq(struct trusty_irq_state *is, int tirq)
 	hlist_add_head(&trusty_irq->node, &is->normal_irqs.inactive);
 	spin_unlock_irqrestore(&is->normal_irqs_lock, irq_flags);
 
+#ifdef IRQ_DEBUG_LOG_EN
 	dev_dbg(is->dev, "%s: tirq=%d, virq=%d\n", __func__, tirq, irq);
+#endif
 
-	ret = request_irq(irq, trusty_irq_handler, IRQF_NO_THREAD,
+	ret = request_irq(irq, trusty_irq_handler, IRQF_NO_THREAD | IRQF_SHARED | IRQF_PROBE_SHARED,
 			  "trusty", trusty_irq);
 	if (ret) {
 		dev_info(is->dev, "request_irq failed %d\n", ret);
@@ -392,8 +424,10 @@ static int trusty_irq_init_per_cpu_irq(struct trusty_irq_state *is, int tirq)
 	unsigned int cpu;
 	struct trusty_irq __percpu *trusty_irq_handler_data;
 
+#ifdef IRQ_DEBUG_LOG_EN
 	dev_dbg(is->dev, "%s: irq %d\n", __func__, tirq);
-#if 0
+#endif
+#if enable_code /*#if 0*/
 	irq = trusty_irq_create_irq_mapping(is, tirq);
 	if (irq <= 0) {
 		dev_info(is->dev,
@@ -420,7 +454,7 @@ static int trusty_irq_init_per_cpu_irq(struct trusty_irq_state *is, int tirq)
 		trusty_irq->percpu_ptr = trusty_irq_handler_data;
 	}
 
-	if (irq < 16) {		/* IPI (SGI) */
+	if (irq >= 0 && irq < 16) {		/* IPI (SGI) */
 		trusty_ipi_data[irq] = trusty_irq_handler_data;
 		trusty_ipi_init[irq] = 1;
 		return 0;
@@ -451,7 +485,9 @@ static int trusty_irq_init_per_cpu_irq(struct trusty_irq_state *is, int tirq)
 			per_cpu_ptr(trusty_irq_handler_data, cpu)->irq = irq;
 	}
 
+#ifdef IRQ_DEBUG_LOG_EN
 	dev_dbg(is->dev, "%s: tirq=%d, virq=%d\n", __func__, tirq, irq);
+#endif
 
 	ret = request_percpu_irq(irq, trusty_irq_handler, "trusty",
 				 trusty_irq_handler_data);
@@ -511,7 +547,9 @@ static void trusty_irq_free_irqs(struct trusty_irq_state *is)
 	unsigned int cpu;
 
 	hlist_for_each_entry_safe(irq, n, &is->normal_irqs.inactive, node) {
+#ifdef IRQ_DEBUG_LOG_EN
 		dev_dbg(is->dev, "%s: irq %d\n", __func__, irq->irq);
+#endif
 		free_irq(irq->irq, irq);
 		hlist_del(&irq->node);
 		kfree(irq);
@@ -521,7 +559,9 @@ static void trusty_irq_free_irqs(struct trusty_irq_state *is)
 				  node) {
 		struct trusty_irq __percpu *trusty_irq_handler_data;
 
+#ifdef IRQ_DEBUG_LOG_EN
 		dev_dbg(is->dev, "%s: percpu irq %d\n", __func__, irq->irq);
+#endif
 		trusty_irq_handler_data = irq->percpu_ptr;
 		free_percpu_irq(irq->irq, trusty_irq_handler_data);
 		for_each_possible_cpu(cpu) {
@@ -643,7 +683,9 @@ static int trusty_irq_remove(struct platform_device *pdev)
 	unsigned long irq_flags;
 	struct trusty_irq_state *is = platform_get_drvdata(pdev);
 
+#ifdef IRQ_DEBUG_LOG_EN
 	dev_dbg(&pdev->dev, "%s\n", __func__);
+#endif
 
 	ret = cpuhp_state_remove_instance(trusty_irq_cpuhp_slot,
 					  &is->cpuhp_node);
@@ -740,3 +782,5 @@ static void __exit trusty_irq_driver_exit(void)
 
 module_init(trusty_irq_driver_init);
 module_exit(trusty_irq_driver_exit);
+MODULE_LICENSE("GPL");
+

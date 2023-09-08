@@ -45,6 +45,16 @@
 
 static struct SENINF gseninf;
 
+extern MUINT32 Switch_Tg_For_Stagger(MUINT16 camtg)
+{
+#ifdef _CAM_MUX_SWITCH
+	return _switch_tg_for_stagger(camtg, &gseninf);
+#else
+	return 0;
+#endif
+}
+EXPORT_SYMBOL(Switch_Tg_For_Stagger);
+
 #if 1
 MINT32 seninf_dump_reg(void)
 {
@@ -123,9 +133,12 @@ MINT32 seninf_dump_reg(void)
 
 static irqreturn_t seninf_irq(MINT32 Irq, void *DeviceId)
 {
-#if 0
+#ifdef SENINF_IRQ
+	_seninf_irq(Irq, DeviceId, &gseninf);
+#else
 	seninf_dump_reg();
 #endif
+
 	return IRQ_HANDLED;
 }
 
@@ -150,10 +163,8 @@ static MINT32 seninf_release(struct inode *pInode, struct file *pFile)
 {
 #if SENINF_CLK_CONTROL
 	struct SENINF *pseninf = &gseninf;
-#endif
 
 	mutex_lock(&pseninf->seninf_mutex);
-#if SENINF_CLK_CONTROL
 	if (atomic_dec_and_test(&pseninf->seninf_open_cnt))
 		seninf_clk_release(&pseninf->clk);
 #endif
@@ -161,9 +172,12 @@ static MINT32 seninf_release(struct inode *pInode, struct file *pFile)
 #ifdef IMGSENSOR_DFS_CTRL_ENABLE
 		imgsensor_dfs_ctrl(DFS_RELEASE, NULL);
 #endif
+
+#if SENINF_CLK_CONTROL
 	PK_DBG("%s %d\n", __func__,
 	       atomic_read(&pseninf->seninf_open_cnt));
 	mutex_unlock(&pseninf->seninf_mutex);
+#endif
 
 	return 0;
 }
@@ -171,7 +185,7 @@ static MINT32 seninf_release(struct inode *pInode, struct file *pFile)
 static MINT32 seninf_mmap(struct file *pFile, struct vm_area_struct *pVma)
 {
 	unsigned long length = 0;
-	MUINT32 pfn = 0x0;
+	unsigned long pfn = 0x0;
 
 	/*PK_DBG("- E."); */
 	length = (pVma->vm_end - pVma->vm_start);
@@ -188,30 +202,30 @@ static MINT32 seninf_mmap(struct file *pFile, struct vm_area_struct *pVma)
 	case SENINF_MAP_BASE_REG:
 		if (length > SENINF_MAP_LENGTH_REG) {
 			PK_PR_ERR(
-			"mmap range error :module(0x%x),length(0x%lx),SENINF_BASE_RANGE(0x%x)!\n",
+			"mmap range error :module(0x%lx),length(0x%lx),SENINF_BASE_RANGE(0x%x)!\n",
 			pfn, length, SENINF_MAP_LENGTH_REG);
-			return -EAGAIN;
+			return -EINVAL;
 		}
 		break;
 	case SENINF_MAP_BASE_ANA:
 		if (length > SENINF_MAP_LENGTH_ANA) {
 			PK_PR_ERR(
-			"mmap range error :module(0x%x),length(0x%lx),MIPI_RX_RANGE(0x%x)!\n",
+			"mmap range error :module(0x%lx),length(0x%lx),MIPI_RX_RANGE(0x%x)!\n",
 			pfn, length, SENINF_MAP_LENGTH_ANA);
-			return -EAGAIN;
+			return -EINVAL;
 		}
 		break;
 	case SENINF_MAP_BASE_GPIO:
 		if (length > SENINF_MAP_LENGTH_GPIO) {
 			PK_PR_ERR(
-			"mmap range error :module(0x%x),length(0x%lx),GPIO_RX_RANGE(0x%x)!\n",
+			"mmap range error :module(0x%lx),length(0x%lx),GPIO_RX_RANGE(0x%x)!\n",
 			pfn, length, SENINF_MAP_LENGTH_GPIO);
-			return -EAGAIN;
+			return -EINVAL;
 		}
 		break;
 	default:
 		PK_PR_ERR("Illegal starting HW addr for mmap!\n");
-		return -EAGAIN;
+		return -EINVAL;
 
 	}
 
@@ -221,7 +235,7 @@ static MINT32 seninf_mmap(struct file *pFile, struct vm_area_struct *pVma)
 		pVma->vm_pgoff,
 		pVma->vm_end - pVma->vm_start,
 		pVma->vm_page_prot))
-		return -EAGAIN;
+		return -EINVAL;
 
 	return 0;
 }
@@ -250,12 +264,12 @@ static long seninf_ioctl(struct file *pfile,
 		if (_IOC_WRITE & _IOC_DIR(cmd)) {
 			if (copy_from_user(pbuff,
 						(void *)arg, _IOC_SIZE(cmd))) {
-				kfree(pbuff);
 				PK_DBG("ioctl copy from user failed\n");
 				ret = -EFAULT;
 				goto SENINF_IOCTL_EXIT;
 			}
-		}
+		} else
+			memset(pbuff, 0, _IOC_SIZE(cmd));
 	} else {
 		ret = -EFAULT;
 		goto SENINF_IOCTL_EXIT;
@@ -310,24 +324,31 @@ static long seninf_ioctl(struct file *pfile,
 			ret = ERROR_TEE_CA_TA_FAIL;
 		break;
 #endif
-
+	case KDSENINFIOC_SET_CAM_MUX_FOR_SWITCH:
+#ifdef _CAM_MUX_SWITCH
+		ret = _seninf_set_tg_for_switch(
+			(*(unsigned int *)pbuff) >> 16, (*(unsigned int *)pbuff) & 0xFFFF);
+#endif
+		break;
 	default:
 		PK_DBG("No such command %d\n", cmd);
 		ret = -EPERM;
+		goto SENINF_IOCTL_EXIT;
 		break;
 	}
 
 	if ((_IOC_READ & _IOC_DIR(cmd)) && copy_to_user((void __user *)arg,
 			pbuff, _IOC_SIZE(cmd))) {
-		kfree(pbuff);
 		PK_DBG("[CAMERA SENSOR] ioctl copy to user failed\n");
 		ret = -EFAULT;
 		goto SENINF_IOCTL_EXIT;
 	}
 
-	kfree(pbuff);
-
 SENINF_IOCTL_EXIT:
+	if (pbuff != NULL) {
+		kfree(pbuff);
+		pbuff = NULL;
+	}
 
 	return ret;
 }

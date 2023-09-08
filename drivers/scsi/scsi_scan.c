@@ -303,6 +303,11 @@ static struct scsi_device *scsi_alloc_sdev(struct scsi_target *starget,
 		}
 	}
 
+#ifdef CONFIG_BLK_TURBO_WRITE
+	if (!strncmp(shost->hostt->name, "ufshcd", 6))
+		scsi_alloc_tw(sdev);
+#endif
+
 	return sdev;
 
 out_device_destroy:

@@ -12,14 +12,20 @@
  * GNU General Public License for more details.
  *
  */
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 #include <linux/usb/typec/common/pdic_notifier.h>
+#include <linux/usb/typec/common/pdic_core.h>
+#endif
 #include <linux/usb/typec/slsi/common/s2m_pdic_notifier.h>
 #include <linux/usb/typec/slsi/common/usbpd_msg.h>
-#include <linux/usb/typec/common/pdic_core.h>
-#if defined(CONFIG_TYPEC)
+#if IS_ENABLED(CONFIG_TYPEC)
 #include <linux/usb/typec.h>
 #endif
 #include <linux/power_supply.h>
+#include <linux/pm_wakeup.h>
+#if defined(CONFIG_S2MU106_PDIC_TRY_SNK)
+#include <linux/alarmtimer.h>
+#endif
 
 #ifndef __USBPD_S2MU106_H__
 #define __USBPD_S2MU106_H__
@@ -44,22 +50,25 @@
 #define S2MU106_WATER_CHK_INTERVAL_TIME        (300)
 #define S2MU106_ATTACH_STATE_CHECK_TIME        (1000)
 
-//#define S2MU106_WATER_THRESHOLD_MV			(600)
-//#define S2MU106_DRY_THRESHOLD_MV			(600)
-#define S2MU106_WATER_DRY_THRESHOLD_MV		(1500)
+#define S2MU106_WATER_THRESHOLD_MV (pdic_data->water_th)
+#define S2MU106_WATER_POST (pdic_data->water_post)
+#define S2MU106_DRY_THRESHOLD_MV (pdic_data->dry_th)
+#define S2MU106_DRY_THRESHOLD_POST_MV (pdic_data->dry_th_post)
+#define S2MU106_WATER_DELAY_MS (pdic_data->water_delay)
+#define S2MU106_WATER_THRESHOLD_RA_MV (pdic_data->water_th_ra)
 
-//#define S2MU106_WATER_THRESHOLD_POST_MV        (300)
-//#define S2MU106_DRY_THRESHOLD_POST_MV        (300)
+#define S2MU106_WATER_GPADC_SHORT (pdic_data->water_gpadc_short)
+#define PD_GPADC_SHORT(x) ((x) >= S2MU106_WATER_GPADC_SHORT)
 
 #define WATER_CHK_RETRY_CNT    2
-#define IS_CC_WATER(pd1, pd2)    \
-	((pd1 <= S2MU106_WATER_THRESHOLD_MV) || (pd2 <= S2MU106_WATER_THRESHOLD_MV))
-#define IS_CC_WATER_POST(pd1, pd2)    \
-	((pd1 >= S2MU106_WATER_THRESHOLD_POST_MV) || (pd2 >= S2MU106_WATER_THRESHOLD_POST_MV))
-#if 0
-#define IS_CC_DRY(pd1, pd2)    \
-	((pd1 > S2MU106_WATER_DRY_THRESHOLD_MV) && (pd2 > S2MU106_WATER_DRY_THRESHOLD_MV))
-#endif
+
+#define IS_CC_OR_UNDER_RA(cc1, cc2)\
+	((cc1 <= S2MU106_WATER_THRESHOLD_RA_MV) || (cc2 <= S2MU106_WATER_THRESHOLD_RA_MV))
+#define IS_CC_AND_UNDER_WATER(cc1, cc2)\
+	((cc1 <= S2MU106_WATER_THRESHOLD_MV) && (cc2 <= S2MU106_WATER_THRESHOLD_MV))
+
+#define IS_CC_WATER(cc1, cc2)\
+	((cc1 <= S2MU106_WATER_THRESHOLD_MV) && (cc2 >= (cc1*S2MU106_WATER_POST/10)))
 #define IS_CC_DRY(pd1, pd2)    \
 	((pd1 > S2MU106_DRY_THRESHOLD_MV) && (pd2 > S2MU106_DRY_THRESHOLD_MV))
 #define IS_CC_DRY_POST(pd1, pd2)    \
@@ -212,7 +221,10 @@
 #define S2MU106_REG_PLUG_CTRL_PD2_MANUAL_EN_SHIFT    (6)
 
 #define S2MU106_REG_PLUG_CTRL_FSM_MANUAL_INPUT_MASK    (0xf)
+#define S2MU106_REG_PLUG_CTRL_FSM_UNATTACHED_SNK        (0)
+#define S2MU106_REG_PLUG_CTRL_FSM_ATTACHWAIT_SNK        (1)
 #define S2MU106_REG_PLUG_CTRL_FSM_ATTACHED_SNK        (2)
+#define S2MU106_REG_PLUG_CTRL_FSM_UNATTACHED_SRC        (4)
 #define S2MU106_REG_PLUG_CTRL_FSM_ATTACHED_SRC        (6)
 #define S2MU106_REG_PLUG_CTRL_PD_MANUAL_EN \
 	(0x1 << S2MU106_REG_PLUG_CTRL_PD_MANUAL_EN_SHIFT) /* 0x10 */
@@ -372,8 +384,7 @@
 						S2MU106_REG_INT_STATUS1_MSG_PR_SWAP)
 #define ENABLED_INT_2    (S2MU106_REG_INT_STATUS2_MSG_VCONN_SWAP |\
 						S2MU106_REG_INT_STATUS2_MSG_WAIT |\
-						S2MU106_REG_INT_STATUS2_MSG_REQUEST |\
-						S2MU106_REG_INT_STATUS2_MSG_SOFTRESET)
+						S2MU106_REG_INT_STATUS2_MSG_REQUEST)
 #define ENABLED_INT_2_WAKEUP    (S2MU106_REG_INT_STATUS2_MSG_VCONN_SWAP |\
 						S2MU106_REG_INT_STATUS2_MSG_WAIT |\
 						S2MU106_REG_INT_STATUS2_MSG_SOFTRESET |\
@@ -386,19 +397,6 @@
 #define ENABLED_INT_4_WATER    (S2MU106_REG_INT_STATUS4_MSG_PASS |\
 				S2MU106_REG_INT_STATUS4_MSG_ERROR)
 #define ENABLED_INT_5    (S2MU106_REG_INT_STATUS5_HARD_RESET)
-
-#if defined(CONFIG_PM_S2M_WATER)
-#define tWaterCheck1	5000 //us
-#define tWaterCheck2	5000
-#define tWaterPullup	5000
-#define tWaterPulldown	5000
-
-#define WaterCap1	100 //mV
-#define WaterCap2	100
-#define CC_GND_THRESHOLD 500
-
-#define CC_WATER_VER	00
-#endif
 
 /* S2MU106 I2C registers */
 enum s2mu106_usbpd_reg {
@@ -511,76 +509,56 @@ enum s2mu106_usbpd_reg {
 };
 
 typedef enum {
-	S2MU106_THRESHOLD_42MV		= 0,
-	S2MU106_THRESHOLD_85MV		= 1,
-	S2MU106_THRESHOLD_128MV		= 2,
-	S2MU106_THRESHOLD_171MV		= 3,
-	S2MU106_THRESHOLD_214MV		= 4,
-	S2MU106_THRESHOLD_257MV		= 5,
-	S2MU106_THRESHOLD_300MV		= 6,
-	S2MU106_THRESHOLD_342MV		= 7,
-	S2MU106_THRESHOLD_385MV		= 8,
-	S2MU106_THRESHOLD_428MV		= 9,
+	S2MU106_THRESHOLD_128MV = 2,
+	S2MU106_THRESHOLD_171MV = 3,
+	S2MU106_THRESHOLD_214MV = 4,
+	S2MU106_THRESHOLD_257MV = 5,
+	S2MU106_THRESHOLD_300MV = 6,
+	S2MU106_THRESHOLD_342MV = 7,
+	S2MU106_THRESHOLD_385MV = 8,
+	S2MU106_THRESHOLD_428MV = 9,
+	S2MU106_THRESHOLD_450MV = 10,
+	S2MU106_THRESHOLD_471MV = 11,
+	S2MU106_THRESHOLD_492MV = 12,
+	S2MU106_THRESHOLD_514MV = 13,
+	S2MU106_THRESHOLD_535MV = 14,
+	S2MU106_THRESHOLD_557MV = 15,
+	S2MU106_THRESHOLD_578MV = 16,
+	S2MU106_THRESHOLD_600MV = 17,
+	S2MU106_THRESHOLD_621MV = 18,
+	S2MU106_THRESHOLD_642MV = 19,
+	S2MU106_THRESHOLD_685MV = 20,
+	S2MU106_THRESHOLD_814MV = 23,
+	S2MU106_THRESHOLD_1000MV = 27,
 
-	S2MU106_THRESHOLD_450MV		= 10,
-	S2MU106_THRESHOLD_471MV		= 11,
-	S2MU106_THRESHOLD_492MV		= 12,
-	S2MU106_THRESHOLD_514MV		= 13,
-	S2MU106_THRESHOLD_535MV		= 14,
-	S2MU106_THRESHOLD_557MV		= 15,
-	S2MU106_THRESHOLD_578MV		= 16,
-	S2MU106_THRESHOLD_600MV		= 17,
-	S2MU106_THRESHOLD_621MV		= 18,
-	S2MU106_THRESHOLD_642MV		= 19,
+	S2MU106_THRESHOLD_1200MV = 32,
+	S2MU106_THRESHOLD_1242MV = 33,
+	S2MU106_THRESHOLD_1285MV = 34,
+	S2MU106_THRESHOLD_1328MV = 35,
+	S2MU106_THRESHOLD_1371MV = 36,
+	S2MU106_THRESHOLD_1414MV = 37,
+	S2MU106_THRESHOLD_1457MV = 38,
+	S2MU106_THRESHOLD_1500MV = 39,
+	S2MU106_THRESHOLD_1542MV = 40,
+	S2MU106_THRESHOLD_1587MV = 41,
+	S2MU106_THRESHOLD_1628MV = 42,
+	S2MU106_THRESHOLD_1671MV = 43,
+	S2MU106_THRESHOLD_1714MV = 44,
+	S2MU106_THRESHOLD_1757MV = 45,
+	S2MU106_THRESHOLD_1799MV = 46,
+	S2MU106_THRESHOLD_1842MV = 47,
+	S2MU106_THRESHOLD_1885MV = 48,
+	S2MU106_THRESHOLD_1928MV = 49,
+	S2MU106_THRESHOLD_1971MV = 50,
+	S2MU106_THRESHOLD_2014MV = 51,
+	S2MU106_THRESHOLD_2057MV = 52,
+	S2MU106_THRESHOLD_2099MV = 53,
+	S2MU106_THRESHOLD_2142MV = 54,
+	S2MU106_THRESHOLD_2185MV = 55,
+	S2MU106_THRESHOLD_2228MV = 56,
+	S2MU106_THRESHOLD_2271MV = 57,
 
-	S2MU106_THRESHOLD_685MV		= 20,
-	S2MU106_THRESHOLD_728MV		= 21,
-	S2MU106_THRESHOLD_771MV		= 22,
-	S2MU106_THRESHOLD_814MV		= 23,
-	S2MU106_THRESHOLD_857MV		= 24,
-	S2MU106_THRESHOLD_900MV		= 25,
-	S2MU106_THRESHOLD_942MV		= 26,
-	S2MU106_THRESHOLD_985MV		= 27,
-	S2MU106_THRESHOLD_1028MV	= 28,
-	S2MU106_THRESHOLD_1071MV	= 29,
-
-	S2MU106_THRESHOLD_1114MV	= 30,
-	S2MU106_THRESHOLD_1157MV	= 31,
-	S2MU106_THRESHOLD_1200MV	= 32,
-	S2MU106_THRESHOLD_1242MV	= 33,
-	S2MU106_THRESHOLD_1285MV	= 34,
-	S2MU106_THRESHOLD_1328MV	= 35,
-	S2MU106_THRESHOLD_1371MV	= 36,
-	S2MU106_THRESHOLD_1414MV	= 37,
-	S2MU106_THRESHOLD_1457MV	= 38,
-	S2MU106_THRESHOLD_1500MV	= 39,
-
-	S2MU106_THRESHOLD_1542MV	= 40,
-	S2MU106_THRESHOLD_1587MV	= 41,
-	S2MU106_THRESHOLD_1628MV	= 42,
-	S2MU106_THRESHOLD_1671MV	= 43,
-	S2MU106_THRESHOLD_1714MV	= 44,
-	S2MU106_THRESHOLD_1757MV	= 45,
-	S2MU106_THRESHOLD_1799MV	= 46,
-	S2MU106_THRESHOLD_1842MV	= 47,
-	S2MU106_THRESHOLD_1885MV	= 48,
-	S2MU106_THRESHOLD_1928MV	= 49,
-
-	S2MU106_THRESHOLD_1971MV	= 50,
-	S2MU106_THRESHOLD_2014MV	= 51,
-	S2MU106_THRESHOLD_2057MV	= 52,
-	S2MU106_THRESHOLD_2099MV	= 53,
-	S2MU106_THRESHOLD_2142MV	= 54,
-	S2MU106_THRESHOLD_2185MV	= 55,
-	S2MU106_THRESHOLD_2228MV	= 56,
-	S2MU106_THRESHOLD_2271MV	= 57,
-	S2MU106_THRESHOLD_2314MV	= 58,
-	S2MU106_THRESHOLD_2357MV	= 59,
-
-	S2MU106_THRESHOLD_2399MV	= 60,
-	S2MU106_THRESHOLD_2485MV	= 61,
-	S2MU106_THRESHOLD_2571MV	= 62,
-	S2MU106_THRESHOLD_MAX		= 63
+	S2MU106_THRESHOLD_MAX     = 63
 } PDIC_THRESHOLD_SEL;
 
 typedef enum {
@@ -651,6 +629,24 @@ typedef enum {
 	PD_WATER_DEFAULT,
 } PDIC_WATER_STATUS;
 
+enum s2m_water_treshold {
+	TH_PD_WATER,		//0
+	TH_PD_WATER_POST,	//1
+	TH_PD_DRY,		//2
+	TH_PD_DRY_POST,		//3
+	TH_PD_WATER_DELAY,	//4
+	TH_PD_WATER_RA,		//5
+	TH_PD_GPADC_SHORT,	//6
+	TH_PD_GPADC_POWEROFF,	//7
+	TH_PM_RWATER,		//8
+	TH_PM_VWATER,		//9
+	TH_PM_RDRY,		//10
+	TH_PM_VDRY,		//11
+	TH_PM_DRY_TIMER,	//12
+	TH_PM_WATER_DELAY,	//13
+	TH_MAX,			//14
+};
+
 enum s2mu106_power_role {
 	PDIC_SINK,
 	PDIC_SOURCE
@@ -684,7 +680,8 @@ typedef enum {
 struct s2mu106_usbpd_data {
 	struct device *dev;
 	struct i2c_client *i2c;
-#if defined(CONFIG_PDIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+	ppdic_data_t ppdic_data;
 	struct workqueue_struct *pdic_wq;
 #endif
 	struct mutex _mutex;
@@ -726,7 +723,8 @@ struct s2mu106_usbpd_data {
 	int is_client;
 	int is_attached;
 	int is_killer;
-#if defined(CONFIG_DUAL_ROLE_USB_INTF)
+	int vbus_dischg_gpio;
+#if IS_ENABLED(CONFIG_DUAL_ROLE_USB_INTF)
 	struct dual_role_phy_instance *dual_role;
 	struct dual_role_phy_desc *desc;
 	struct completion reverse_completion;
@@ -734,8 +732,7 @@ struct s2mu106_usbpd_data {
 	struct delayed_work role_swap_work;
 	int data_role_dual; /* data_role for dual role swap */
 	int power_role_dual; /* power_role for dual role swap */
-#endif
-#if defined(CONFIG_TYPEC)
+#elif IS_ENABLED(CONFIG_TYPEC)
 	struct typec_port *port;
 	struct typec_partner *partner;
 	struct usb_pd_identity partner_identity;
@@ -753,10 +750,7 @@ struct s2mu106_usbpd_data {
 	struct workqueue_struct *pdic_queue;
 	struct delayed_work plug_work;
 	struct s2m_pdic_notifier_struct pdic_notifier;
-	struct delayed_work water_detect_handler;
-	struct delayed_work ta_water_detect_handler;
-	struct delayed_work water_dry_handler;
-	struct delayed_work check_facwater;
+	struct delayed_work vbus_dischg_off_work;
 	int facwater_check_cnt;
 	int pm_cc1;
 	int pm_cc2;
@@ -765,35 +759,61 @@ struct s2mu106_usbpd_data {
 	struct power_supply_desc pdic_desc;
 	struct power_supply *psy_pm;
 	struct power_supply *psy_pdic;
+	struct power_supply *psy_muic;
 	int cc1_val;
 	int cc2_val;
 	int cc_instead_of_vbus;
-	bool water_detected;
 	bool checking_pm_water;
-	int killer_check_done;
-	int water_check_done;
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+	struct delayed_work check_facwater;
 	int water_status;
 	int water_cc;
 	int power_off_water_detected;
-	int pdic_notifier_init_done;
-#if defined(CONFIG_PM_S2M_WATER)
-	struct delayed_work s2m_water_wq;
+
+	int water_th;
+	int water_post;
+	int dry_th;
+	int dry_th_post;
+	int water_delay;
+	int water_th_ra;
+
+	int water_gpadc_short;
+	int water_gpadc_poweroff;
+
+	struct mutex plug_mutex;
+#endif
+
+#if IS_ENABLED(CONFIG_ARCH_QCOM)
+	struct wakeup_source	*water_wake;
+	struct wakeup_source	*water_irq_wake;
+	struct delayed_work	water_wake_work;
 #endif
 
 	struct regulator *regulator;
 	int rprd_mode;
+	int first_goodcrc;
+
+	void (*rprd_mode_change)(void *data, u8 mode);
+	void (*vbus_turn_on_ctrl)(void *data, bool enable);
+
+#if defined(CONFIG_S2MU106_PDIC_TRY_SNK)
+	struct alarm srcdet_alarm;
+	struct alarm snkdet_alarm;
+	bool srcdet_expired;
+	bool snkdet_expired;
+#endif
 };
 
 extern int s2mu106_usbpd_get_adc(void);
 extern void s2mu106_usbpd_set_muic_type(int type);
-#if defined(CONFIG_PDIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 extern void s2mu106_control_option_command(struct s2mu106_usbpd_data *usbpd_data, int cmd);
 #endif
-#if defined(CONFIG_SEC_FACTORY)
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
 extern int s2mu106_sys_power_off_water_check(struct s2mu106_usbpd_data *pdic_data);
 #endif
-extern void s2mu106_rprd_mode_change(struct s2mu106_usbpd_data *usbpd_data, u8 mode);
-extern void s2mu106_vbus_turn_on_ctrl(struct s2mu106_usbpd_data *usbpd_data, bool enable);
+extern void s2mu106_rprd_mode_change(void *data, u8 mode);
+extern void s2mu106_vbus_turn_on_ctrl(void *data, bool enable);
 extern int s2mu106_set_lpm_mode(struct s2mu106_usbpd_data *pdic_data);
 extern int s2mu106_set_normal_mode(struct s2mu106_usbpd_data *pdic_data);
 #endif /* __USBPD_S2MU106_H__ */

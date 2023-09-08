@@ -42,6 +42,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/debugfs.h>
+#include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 
 #include <linux/uaccess.h>
@@ -649,6 +650,31 @@ void pm_qos_trace_dbg_show_request(int pm_qos_class)
 	spin_unlock_irqrestore(&pm_qos_lock, flags);
 }
 
+void pm_qos_trace_dbg_dump(int pm_qos_class)
+{
+	struct pm_qos_constraints *c;
+	struct pm_qos_request *req;
+	unsigned long flags;
+	struct list_head *l;
+
+	if (pm_qos_class < PM_QOS_RESERVED
+		|| pm_qos_class >= PM_QOS_NUM_CLASSES)
+		return;
+
+	c = pm_qos_array[pm_qos_class]->constraints;
+
+	spin_lock_irqsave(&pm_qos_lock, flags);
+	/* dump owner information*/
+	list_for_each(l, &c->req_list) {
+		req = list_entry(l, struct pm_qos_request, list_node);
+		if ((req->node).prio != c->default_value)
+			pr_info("[PMQOS] = %d, %s, %d\n",
+				req->pm_qos_class,
+				req->owner,
+				req->node.prio);
+	}
+	spin_unlock_irqrestore(&pm_qos_lock, flags);
+}
 
 
 static inline int pm_qos_get_value(struct pm_qos_constraints *c);
@@ -729,6 +755,20 @@ static int pm_qos_dbg_open(struct inode *inode, struct file *file)
 
 static const struct file_operations pm_qos_debug_fops = {
 	.open           = pm_qos_dbg_open,
+	.read           = seq_read,
+	.llseek         = seq_lseek,
+	.release        = single_release,
+};
+
+static int pm_qos_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, pm_qos_dbg_show_requests,
+			   PDE_DATA(inode));
+}
+
+static const struct file_operations pm_qos_proc_fops = {
+	.owner          = THIS_MODULE,
+	.open           = pm_qos_proc_open,
 	.read           = seq_read,
 	.llseek         = seq_lseek,
 	.release        = single_release,
@@ -1128,6 +1168,32 @@ static int register_pm_qos_misc(struct pm_qos_object *qos, struct dentry *d)
 	return misc_register(&qos->pm_qos_power_miscdev);
 }
 
+/* User space interface to PM QoS classes via misc devices */
+static int register_pm_qos_debug(struct pm_qos_object *qos, struct dentry *d)
+{
+	qos->pm_qos_power_miscdev.minor = MISC_DYNAMIC_MINOR;
+	qos->pm_qos_power_miscdev.name = qos->name;
+	qos->pm_qos_power_miscdev.fops = &pm_qos_power_fops;
+
+	if (d) {
+		(void)debugfs_create_file(qos->name, 0444, d,
+					  (void *)qos, &pm_qos_debug_fops);
+	}
+
+	return 0;
+}
+
+/* User space interface to PM QoS classes via misc devices */
+static int register_pm_qos_proc(struct pm_qos_object *qos, struct proc_dir_entry *d)
+{
+	if (d) {
+		proc_create_data(qos->name, 0444, d,
+			&pm_qos_proc_fops, (void *)qos);
+	}
+
+	return 0;
+}
+
 static int find_pm_qos_object_by_minor(int minor)
 {
 	int pm_qos_class;
@@ -1219,6 +1285,7 @@ static int __init pm_qos_power_init(void)
 	int ret = 0;
 	int i;
 	struct dentry *d;
+	struct proc_dir_entry *proc_root = NULL;
 
 	BUILD_BUG_ON(ARRAY_SIZE(pm_qos_array) != PM_QOS_NUM_CLASSES);
 
@@ -1226,8 +1293,14 @@ static int __init pm_qos_power_init(void)
 	if (IS_ERR_OR_NULL(d))
 		d = NULL;
 
+	proc_root = proc_mkdir("mtk_pm_qos", NULL);
+
 	for (i = PM_QOS_CPU_DMA_LATENCY; i < PM_QOS_NUM_CLASSES; i++) {
-		ret = register_pm_qos_misc(pm_qos_array[i], d);
+		if (i > PM_QOS_MEMORY_BANDWIDTH) {
+			ret = register_pm_qos_debug(pm_qos_array[i], d);
+			register_pm_qos_proc(pm_qos_array[i], proc_root);
+		} else
+			ret = register_pm_qos_misc(pm_qos_array[i], d);
 		if (ret < 0) {
 			printk(KERN_ERR "pm_qos_param: %s setup failed\n",
 			       pm_qos_array[i]->name);

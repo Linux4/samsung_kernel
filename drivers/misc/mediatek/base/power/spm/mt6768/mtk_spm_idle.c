@@ -313,8 +313,8 @@ void mtk_idle_post_process_by_chip(
 /********************************************************************
  * mtk idle output log
  *******************************************************************/
-#define IDLE_TIMER_OUT_CRITERIA (32)     /* 1 ms (32k/sec)*/
-#define IDLE_PRINT_LOG_DURATION (60000)  /* 60 seconds */
+#define IDLE_TIMER_OUT_CRITERIA (32)    /* 1 ms (32k/sec)*/
+#define IDLE_PRINT_LOG_DURATION (5000)  /* 5 seconds */
 
 static bool check_print_log_duration(void)
 {

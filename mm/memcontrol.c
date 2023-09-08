@@ -725,7 +725,7 @@ static struct mem_cgroup *get_mem_cgroup_from_mm(struct mm_struct *mm)
 			if (unlikely(!memcg))
 				memcg = root_mem_cgroup;
 		}
-	} while (!css_tryget_online(&memcg->css));
+	} while (!css_tryget(&memcg->css));
 	rcu_read_unlock();
 	return memcg;
 }
@@ -2352,6 +2352,16 @@ int memcg_kmem_charge_memcg(struct page *page, gfp_t gfp, int order,
 
 	if (!cgroup_subsys_on_dfl(memory_cgrp_subsys) &&
 	    !page_counter_try_charge(&memcg->kmem, nr_pages, &counter)) {
+
+		/*
+		 * Enforce __GFP_NOFAIL allocation because callers are not
+		 * prepared to see failures and likely do not have any failure
+		 * handling code.
+		 */
+		if (gfp & __GFP_NOFAIL) {
+			page_counter_charge(&memcg->kmem, nr_pages);
+			return 0;
+		}
 		cancel_charge(memcg, nr_pages);
 		return -ENOMEM;
 	}
@@ -2794,6 +2804,42 @@ static void tree_events(struct mem_cgroup *memcg, unsigned long *events)
 	}
 }
 
+#ifdef CONFIG_MEMCG_HEIMDALL
+static ssize_t mem_cgroup_force_shrink_write(struct kernfs_open_file *of,
+					    char *buf, size_t nbytes,
+					    loff_t off)
+{
+	int type;
+	unsigned long size;
+	char *str;
+	int ret = -EINVAL;
+	struct mem_cgroup *memcg = mem_cgroup_from_css(of_css(of));
+
+	if (mem_cgroup_is_root(memcg))
+		goto error;
+
+	buf = strstrip(buf);
+	str = strchr(buf, ',');
+	if (str == NULL)
+		goto error;
+
+	*str = '\0';
+	ret = kstrtoul(str+1, 10, &size);
+	if (ret)
+		goto error;
+
+	ret = kstrtoint(buf, 10, &type);
+	if (ret)
+		goto error;
+
+	if (type > 0 && type <= MEMCG_HEIMDALL_SHRINK_FILE)
+		forced_shrink_node_memcg(NODE_DATA(0), memcg, type, size / PAGE_SIZE);
+
+error:
+	return ret ?: nbytes;
+}
+#endif
+
 #ifndef CONFIG_MTK_GMO_RAM_OPTIMIZE
 static unsigned long mem_cgroup_usage(struct mem_cgroup *memcg, bool swap)
 {
@@ -2809,10 +2855,16 @@ static unsigned long mem_cgroup_usage(struct mem_cgroup *memcg, bool swap)
 				val += memcg_page_state(iter, MEMCG_SWAP);
 		}
 	} else {
+#ifdef CONFIG_MEMCG_HEIMDALL
+		val = memcg_page_state(memcg, MEMCG_RSS);
+		if (swap)
+			val += memcg_page_state(memcg, MEMCG_SWAP);
+#else
 		if (!swap)
 			val = page_counter_read(&memcg->memory);
 		else
 			val = page_counter_read(&memcg->memsw);
+#endif
 	}
 	return val;
 }
@@ -2838,10 +2890,16 @@ static unsigned long mem_cgroup_usage(struct mem_cgroup *memcg, bool swap)
 			       total_swapcache_pages();
 		}
 	} else {
+#ifdef CONFIG_MEMCG_HEIMDALL
+		val = memcg_page_state(memcg, MEMCG_RSS);
+		if (swap)
+			val += memcg_page_state(memcg, MEMCG_SWAP);
+#else
 		if (!swap)
 			val = page_counter_read(&memcg->memory);
 		else
 			val = page_counter_read(&memcg->memsw);
+#endif
 	}
 	return val;
 }
@@ -3541,7 +3599,7 @@ static void __mem_cgroup_usage_unregister_event(struct mem_cgroup *memcg,
 	struct mem_cgroup_thresholds *thresholds;
 	struct mem_cgroup_threshold_ary *new;
 	unsigned long usage;
-	int i, j, size;
+	int i, j, size, entries;
 
 	mutex_lock(&memcg->thresholds_lock);
 
@@ -3561,13 +3619,19 @@ static void __mem_cgroup_usage_unregister_event(struct mem_cgroup *memcg,
 	__mem_cgroup_threshold(memcg, type == _MEMSWAP);
 
 	/* Calculate new number of threshold */
-	size = 0;
+	size = entries = 0;
 	for (i = 0; i < thresholds->primary->size; i++) {
 		if (thresholds->primary->entries[i].eventfd != eventfd)
 			size++;
+		else
+			entries++;
 	}
 
 	new = thresholds->spare;
+
+	/* If no items related to eventfd have been cleared, nothing to do */
+	if (!entries)
+		goto unlock;
 
 	/* Set thresholds array to NULL if we don't have thresholds */
 	if (!size) {
@@ -4076,6 +4140,12 @@ static struct cftype mem_cgroup_legacy_files[] = {
 	{
 		.name = "numa_stat",
 		.seq_show = memcg_numa_stat_show,
+	},
+#endif
+#ifdef CONFIG_MEMCG_HEIMDALL
+	{
+		.name = "force_shrink",
+		.write = mem_cgroup_force_shrink_write,
 	},
 #endif
 	{
@@ -5892,19 +5962,9 @@ void mem_cgroup_sk_alloc(struct sock *sk)
 	if (!mem_cgroup_sockets_enabled)
 		return;
 
-	/*
-	 * Socket cloning can throw us here with sk_memcg already
-	 * filled. It won't however, necessarily happen from
-	 * process context. So the test for root memcg given
-	 * the current task's memcg won't help us in this case.
-	 *
-	 * Respecting the original socket's memcg is a better
-	 * decision in this case.
-	 */
-	if (sk->sk_memcg) {
-		css_get(&sk->sk_memcg->css);
+	/* Do not associate the sock with unrelated interrupted task's memcg. */
+	if (in_interrupt())
 		return;
-	}
 
 	rcu_read_lock();
 	memcg = mem_cgroup_from_task(current);

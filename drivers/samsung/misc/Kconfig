@@ -19,10 +19,17 @@ config SEC_BOOTSTAT
 
 config SEC_DEVICE_BOOTSTAT
 	bool "Enable Samsung Device Bootstat logging"
-	default n
-	depends on SEC_EXT
+	default y
+	depends on SEC_EXT && !SAMSUNG_PRODUCT_SHIP
 	help
 	  Samsung TN Device Bootstat Feature.
+
+config SEC_LOG_HOOK_PMSG
+	bool "Enable hooking android platform log for ramdump"
+	depends on SEC_EXT && PSTORE_PMSG
+	default y
+	help
+	  This option enables hooking android platform log.
 
 config SEC_AVC_LOG
 	default n

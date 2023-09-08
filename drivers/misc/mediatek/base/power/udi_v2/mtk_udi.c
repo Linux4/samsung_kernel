@@ -42,8 +42,13 @@
 #include <mt-plat/sync_write.h>
 #include "mtk_udi_internal.h"
 
-static unsigned int func_lv_mask_udi;
+#ifdef CONFIG_OF
+#define DEVICE_GPIO "mediatek,gpio"
+/* 0x10005000 0x1000, UDI pinmux reg */
+static void __iomem  *udipin_base;
+#endif
 
+static unsigned int func_lv_mask_udi;
 
 /*-----------------------------------------*/
 /* Reused code start                       */
@@ -85,6 +90,65 @@ unsigned int tck_bit, tdi_bit, tms_bit, ntrst_bit, tdo_bit;
 #define CTOI(char_ascii) \
 	((char_ascii <= 0x39) ? (char_ascii - 0x30) :	\
 	((char_ascii <= 0x46) ? (char_ascii - 55) : (char_ascii - 87)))
+
+
+unsigned int udi_reg_read(unsigned int addr)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(MTK_SIP_KERNEL_UDI_READ,
+		addr,
+		0, 0, 0, 0, 0, 0, &res);
+	return res.a0;
+}
+
+void udi_reg_write(unsigned int addr, unsigned int val)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(MTK_SIP_KERNEL_UDI_WRITE,
+		addr,
+		val,
+		0, 0, 0, 0, 0, &res);
+
+}
+
+unsigned int udi_jtag_clock(unsigned int sw_tck,
+				unsigned int i_trst,
+				unsigned int i_tms,
+				unsigned int i_tdi,
+				unsigned int count)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(MTK_SIP_KERNEL_UDI_JTAG_CLOCK,
+		(((1 << (sw_tck & 0x03)) << 3) |
+		((i_trst & 0x01) << 2) |
+		((i_tms & 0x01) << 1) |
+		(i_tdi & 0x01)),
+		count,
+		(sw_tck & 0x04),
+		0, 0, 0, 0, &res);
+	return res.a0;
+}
+
+unsigned int udi_bit_ctrl(unsigned int sw_tck,
+				unsigned int i_tdi,
+				unsigned int i_tms,
+				unsigned int i_trst)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(MTK_SIP_KERNEL_UDI_BIT_CTRL,
+		((sw_tck & 0x0f) << 3) |
+		((i_trst & 0x01) << 2) |
+		((i_tms & 0x01) << 1) |
+		(i_tdi & 0x01),
+		(sw_tck & 0x04),
+		0, 0, 0, 0, 0, &res);
+	return res.a0;
+}
+
 
 int udi_jtag_clock_read(void)
 {

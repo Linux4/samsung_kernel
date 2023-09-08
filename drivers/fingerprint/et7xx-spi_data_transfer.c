@@ -17,12 +17,12 @@
 #include <linux/gpio.h>
 #include "et7xx.h"
 
-int etspi_io_read_register(struct etspi_data *etspi, u8 *addr, u8 *buf)
+int et7xx_io_read_register(struct et7xx_data *etspi, u8 *addr, u8 *buf)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status = 0;
+	int retval = 0;
 	struct spi_message m;
 	int read_len = 1;
 
@@ -39,43 +39,40 @@ int etspi_io_read_register(struct etspi_data *etspi, u8 *addr, u8 *buf)
 
 	if (copy_from_user(&addrval, (const u8 __user *) (uintptr_t) addr
 		, read_len)) {
-		pr_err("%s buffer copy_from_user fail\n", __func__);
-		status = -EFAULT;
-		return status;
+		pr_err("buffer copy_from_user fail\n");
+		return -EFAULT;
 	}
 
 	*(etspi->buf + 1) = addrval;
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0) {
-		pr_err("%s read data error status = %d\n", __func__, status);
-		return status;
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0) {
+		pr_err("read data error retval = %d\n", retval);
+		return retval;
 	}
 
 	val = *(etspi->buf + 2);
 
-	pr_debug("%s len = %d addr = %x val = %x\n", __func__,
-			read_len, addrval, val);
+	pr_debug("len = %d addr = %x val = %x\n", read_len, addrval, val);
 
 	if (copy_to_user((u8 __user *) (uintptr_t) buf, &val, read_len)) {
-		pr_err("%s buffer copy_to_user fail status\n", __func__);
-		status = -EFAULT;
-		return status;
+		pr_err("buffer copy_to_user fail retval\n");
+		return -EFAULT;
 	}
 
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_io_burst_read_register(struct etspi_data *etspi,
+int et7xx_io_burst_read_register(struct et7xx_data *etspi,
 									struct egis_ioc_transfer *ioc)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status = 0;
+	int retval = 0;
 	struct spi_message m;
 	struct spi_transfer xfer = {
 		.tx_buf = etspi->buf,
@@ -84,8 +81,8 @@ int etspi_io_burst_read_register(struct etspi_data *etspi,
 	};
 
 	if (ioc->len <= 0 || ioc->len + 2 > etspi->bufsiz) {
-		status = -ENOMEM;
-		pr_err("%s error status = %d\n", __func__, status);
+		retval = -ENOMEM;
+		pr_err("error retval = %d\n", retval);
 		goto end;
 	}
 
@@ -93,40 +90,40 @@ int etspi_io_burst_read_register(struct etspi_data *etspi,
 	*etspi->buf = OP_REG_R_S;
 	if (copy_from_user(etspi->buf + 1,
 			(const u8 __user *) (uintptr_t) ioc->tx_buf, 1)) {
-		pr_err("%s buffer copy_from_user fail\n", __func__);
-		status = -EFAULT;
+		pr_err("buffer copy_from_user fail\n");
+		retval = -EFAULT;
 		goto end;
 	}
-	pr_debug("%s tx_buf = %p op = %x reg = %x, len = %d\n", __func__,
+	pr_debug("tx_buf = %p op = %x reg = %x, len = %d\n",
 			ioc->tx_buf, *etspi->buf, *(etspi->buf + 1), xfer.len);
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
+	retval = spi_sync(etspi->spi, &m);
 
-	if (status < 0) {
-		status = -ENOMEM;
-		pr_err("%s error status = %d\n", __func__, status);
+	if (retval < 0) {
+		retval = -ENOMEM;
+		pr_err("error retval = %d\n", retval);
 		goto end;
 	}
 
 	if (copy_to_user((u8 __user *) (uintptr_t)ioc->rx_buf, etspi->buf + 2,
 				ioc->len)) {
-		status = -EFAULT;
-		pr_err("%s buffer copy_to_user fail status\n", __func__);
+		retval = -EFAULT;
+		pr_err("buffer copy_to_user fail retval\n");
 		goto end;
 	}
 end:
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_io_burst_read_register_backward(struct etspi_data *etspi,
+int et7xx_io_burst_read_register_backward(struct et7xx_data *etspi,
 											struct egis_ioc_transfer *ioc)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status = 0;
+	int retval = 0;
 	struct spi_message m;
 	struct spi_transfer xfer = {
 		.tx_buf = etspi->buf,
@@ -135,8 +132,8 @@ int etspi_io_burst_read_register_backward(struct etspi_data *etspi,
 	};
 
 	if (ioc->len <= 0 || ioc->len + 2 > etspi->bufsiz) {
-		status = -ENOMEM;
-		pr_err("%s error status = %d\n", __func__, status);
+		retval = -ENOMEM;
+		pr_err("error retval = %d\n", retval);
 		goto end;
 	}
 
@@ -144,39 +141,39 @@ int etspi_io_burst_read_register_backward(struct etspi_data *etspi,
 	*etspi->buf = OP_REG_R_S_BW;
 	if (copy_from_user(etspi->buf + 1,
 			(const u8 __user *) (uintptr_t)ioc->tx_buf, 1)) {
-		pr_err("%s buffer copy_from_user fail\n", __func__);
-		status = -EFAULT;
+		pr_err("buffer copy_from_user fail\n");
+		retval = -EFAULT;
 		goto end;
 	}
-	pr_debug("%s tx_buf = %p op = %x reg = %x, len = %d\n", __func__,
+	pr_debug("tx_buf = %p op = %x reg = %x, len = %d\n",
 			ioc->tx_buf, *etspi->buf, *(etspi->buf + 1), xfer.len);
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
+	retval = spi_sync(etspi->spi, &m);
 
-	if (status < 0) {
-		status = -ENOMEM;
-		pr_err("%s error status = %d\n", __func__, status);
+	if (retval < 0) {
+		retval = -ENOMEM;
+		pr_err("error retval = %d\n", retval);
 		goto end;
 	}
 
 	if (copy_to_user((u8 __user *) (uintptr_t)ioc->rx_buf, etspi->buf + 2,
 			ioc->len)) {
-		status = -EFAULT;
-		pr_err("%s buffer copy_to_user fail status\n", __func__);
+		retval = -EFAULT;
+		pr_err("buffer copy_to_user fail retval\n");
 		goto end;
 	}
 end:
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_io_write_register(struct etspi_data *etspi, u8 *buf)
+int et7xx_io_write_register(struct et7xx_data *etspi, u8 *buf)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status = 0;
+	int retval = 0;
 	int write_len = 2;
 	struct spi_message m;
 
@@ -192,12 +189,11 @@ int etspi_io_write_register(struct etspi_data *etspi, u8 *buf)
 
 	if (copy_from_user(val, (const u8 __user *) (uintptr_t) buf,
 			write_len)) {
-		pr_err("%s buffer copy_from_user fail\n", __func__);
-		status = -EFAULT;
-		return status;
+		pr_err("buffer copy_from_user fail\n");
+		return -EFAULT;
 	}
 
-	pr_debug("%s write_len = %d addr = %x data = %x\n", __func__,
+	pr_debug("write_len = %d addr = %x data = %x\n",
 			write_len, val[0], val[1]);
 
 	*(etspi->buf + 1) = val[0];
@@ -205,23 +201,23 @@ int etspi_io_write_register(struct etspi_data *etspi, u8 *buf)
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0) {
-		pr_err("%s read data error status = %d\n", __func__, status);
-		return status;
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0) {
+		pr_err("read data error retval = %d\n", retval);
+		return retval;
 	}
 
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_io_burst_write_register(struct etspi_data *etspi,
+int et7xx_io_burst_write_register(struct et7xx_data *etspi,
 									struct egis_ioc_transfer *ioc)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status = 0;
+	int retval = 0;
 	struct spi_message m;
 	struct spi_transfer xfer = {
 		.tx_buf = etspi->buf,
@@ -229,8 +225,8 @@ int etspi_io_burst_write_register(struct etspi_data *etspi,
 	};
 
 	if (ioc->len <= 0 || ioc->len + 2 > etspi->bufsiz) {
-		status = -ENOMEM;
-		pr_err("%s error status = %d\n", __func__, status);
+		retval = -ENOMEM;
+		pr_err("error retval = %d\n", retval);
 		goto end;
 	}
 
@@ -239,32 +235,32 @@ int etspi_io_burst_write_register(struct etspi_data *etspi,
 	if (copy_from_user(etspi->buf + 1,
 			(const u8 __user *) (uintptr_t) ioc->tx_buf,
 			ioc->len)) {
-		pr_err("%s buffer copy_from_user fail\n", __func__);
-		status = -EFAULT;
+		pr_err("buffer copy_from_user fail\n");
+		retval = -EFAULT;
 		goto end;
 	}
-	pr_debug("%s tx_buf = %p op = %x reg = %x, len = %d\n", __func__,
+	pr_debug("tx_buf = %p op = %x reg = %x, len = %d\n",
 			ioc->tx_buf, *etspi->buf, *(etspi->buf + 1), xfer.len);
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
+	retval = spi_sync(etspi->spi, &m);
 
-	if (status < 0) {
-		pr_err("%s error status = %d\n", __func__, status);
+	if (retval < 0) {
+		pr_err("error retval = %d\n", retval);
 		goto end;
 	}
 end:
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_io_burst_write_register_backward(struct etspi_data *etspi,
+int et7xx_io_burst_write_register_backward(struct et7xx_data *etspi,
 											struct egis_ioc_transfer *ioc)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status = 0;
+	int retval = 0;
 	struct spi_message m;
 	struct spi_transfer xfer = {
 		.tx_buf = etspi->buf,
@@ -272,8 +268,8 @@ int etspi_io_burst_write_register_backward(struct etspi_data *etspi,
 	};
 
 	if (ioc->len <= 0 || ioc->len + 2 > etspi->bufsiz) {
-		status = -ENOMEM;
-		pr_err("%s error status = %d\n", __func__, status);
+		retval = -ENOMEM;
+		pr_err("error retval = %d\n", retval);
 		goto end;
 	}
 
@@ -281,31 +277,31 @@ int etspi_io_burst_write_register_backward(struct etspi_data *etspi,
 	*etspi->buf = OP_REG_W_S_BW;
 	if (copy_from_user(etspi->buf + 1,
 		(const u8 __user *) (uintptr_t)ioc->tx_buf, ioc->len)) {
-		pr_err("%s buffer copy_from_user fail\n", __func__);
-		status = -EFAULT;
+		pr_err("buffer copy_from_user fail\n");
+		retval = -EFAULT;
 		goto end;
 	}
-	pr_debug("%s tx_buf = %p op = %x reg = %x, len = %d\n", __func__,
+	pr_debug("tx_buf = %p op = %x reg = %x, len = %d\n",
 		ioc->tx_buf, *etspi->buf, *(etspi->buf + 1), xfer.len);
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
+	retval = spi_sync(etspi->spi, &m);
 
-	if (status < 0) {
-		pr_err("%s error status = %d\n", __func__, status);
+	if (retval < 0) {
+		pr_err("error retval = %d\n", retval);
 		goto end;
 	}
 end:
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_io_read_efuse(struct etspi_data *etspi, struct egis_ioc_transfer *ioc)
+int et7xx_io_read_efuse(struct et7xx_data *etspi, struct egis_ioc_transfer *ioc)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status;
+	int retval;
 	struct spi_message m;
 	u8 *buf = NULL;
 
@@ -329,35 +325,35 @@ int etspi_io_read_efuse(struct etspi_data *etspi, struct egis_ioc_transfer *ioc)
 	xfer.tx_buf = xfer.rx_buf = buf;
 	buf[0] = OP_EF_R;
 
-	pr_debug("%s len = %d, xfer.len = %d, buf = %p, rx_buf = %p\n",
-			__func__, ioc->len, xfer.len, buf, ioc->rx_buf);
+	pr_debug("len = %d, xfer.len = %d, buf = %p, rx_buf = %p\n",
+			ioc->len, xfer.len, buf, ioc->rx_buf);
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0) {
-		pr_err("%s read data error status = %d\n", __func__, status);
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0) {
+		pr_err("read data error retval = %d\n", retval);
 		goto end;
 	}
 
 	if (copy_to_user((u8 __user *) (uintptr_t) ioc->rx_buf, buf + 1,
 			ioc->len)) {
-		pr_err("%s buffer copy_to_user fail status\n", __func__);
-		status = -EFAULT;
+		pr_err("buffer copy_to_user fail retval\n");
+		retval = -EFAULT;
 	}
 end:
 	kfree(buf);
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_io_write_efuse(struct etspi_data *etspi,
+int et7xx_io_write_efuse(struct et7xx_data *etspi,
 							struct egis_ioc_transfer *ioc)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status;
+	int retval;
 	struct spi_message m;
 	u8 *buf = NULL;
 
@@ -379,35 +375,35 @@ int etspi_io_write_efuse(struct etspi_data *etspi,
 
 	if (copy_from_user((u8 __user *) (uintptr_t) buf + 1, ioc->tx_buf,
 			ioc->len)) {
-		pr_err("buffer copy_from_user fail status\n");
-		status = -EFAULT;
+		pr_err("buffer copy_from_user fail retval\n");
+		retval = -EFAULT;
 		goto end;
 	}
 
 	xfer.tx_buf = xfer.rx_buf = buf;
 	buf[0] = OP_EF_W;
 
-	pr_debug("%s len = %d, xfer.len = %d, buf = %p, tx_buf = %p\n",
-			 __func__, ioc->len, xfer.len, buf, ioc->tx_buf);
+	pr_debug("len = %d, xfer.len = %d, buf = %p, tx_buf = %p\n",
+			 ioc->len, xfer.len, buf, ioc->tx_buf);
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
+	retval = spi_sync(etspi->spi, &m);
 
-	if (status < 0)
-		pr_err("%s write data error status = %d\n", __func__, status);
+	if (retval < 0)
+		pr_err("write data error retval = %d\n", retval);
 end:
 	kfree(buf);
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_io_get_frame(struct etspi_data *etspi, u8 *fr, u32 size)
+int et7xx_io_get_frame(struct et7xx_data *etspi, u8 *fr, u32 size)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status;
+	int retval;
 	struct spi_message m;
 	u8 *buf = NULL;
 
@@ -431,33 +427,33 @@ int etspi_io_get_frame(struct etspi_data *etspi, u8 *fr, u32 size)
 	xfer.tx_buf = xfer.rx_buf = buf;
 	buf[0] = OP_FB_R;
 
-	pr_debug("%s size = %d, xfer.len = %d, buf = %p, fr = %p\n", __func__,
+	pr_debug("size = %d, xfer.len = %d, buf = %p, fr = %p\n",
 		size, xfer.len, buf, fr);
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0) {
-		pr_err("%s read data error status = %d\n", __func__, status);
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0) {
+		pr_err("read data error retval = %d\n", retval);
 		goto end;
 	}
 
 	if (copy_to_user((u8 __user *) (uintptr_t) fr, buf + 1, size)) {
-		pr_err("%s buffer copy_to_user fail status\n", __func__);
-		status = -EFAULT;
+		pr_err("buffer copy_to_user fail retval\n");
+		retval = -EFAULT;
 	}
 end:
 	kfree(buf);
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_io_write_frame(struct etspi_data *etspi, u8 *fr, u32 size)
+int et7xx_io_write_frame(struct et7xx_data *etspi, u8 *fr, u32 size)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status;
+	int retval;
 	struct spi_message m;
 	u8 *buf = NULL;
 
@@ -479,36 +475,36 @@ int etspi_io_write_frame(struct etspi_data *etspi, u8 *fr, u32 size)
 		return -ENOMEM;
 
 	if (copy_from_user((u8 __user *)(uintptr_t)buf + 1, fr, size)) {
-		pr_err("buffer copy_from_user fail status\n");
-		status = -EFAULT;
+		pr_err("buffer copy_from_user fail retval\n");
+		retval = -EFAULT;
 		goto end;
 	}
 
 	xfer.tx_buf = xfer.rx_buf = buf;
 	buf[0] = OP_FB_W;
 
-	pr_debug("%s size = %d, xfer.len = %d, buf = %p, fr = %p\n", __func__,
+	pr_debug("size = %d, xfer.len = %d, buf = %p, fr = %p\n",
 		size, xfer.len, buf, fr);
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
+	retval = spi_sync(etspi->spi, &m);
 
-	if (status < 0)
-		pr_err("%s write data error status = %d\n", __func__, status);
+	if (retval < 0)
+		pr_err("write data error retval = %d\n", retval);
 
 end:
 	kfree(buf);
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_io_get_zone_average(struct etspi_data *etspi, u8 *fr, u32 size)
+int et7xx_io_get_zone_average(struct et7xx_data *etspi, u8 *fr, u32 size)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status;
+	int retval;
 	struct spi_message m;
 	u8 *buf = NULL;
 
@@ -532,33 +528,33 @@ int etspi_io_get_zone_average(struct etspi_data *etspi, u8 *fr, u32 size)
 	xfer.tx_buf = xfer.rx_buf = buf;
 	buf[0] = OP_ZAVG_R;
 
-	pr_debug("%s size = %d, xfer.len = %d, buf = %p, fr = %p\n", __func__,
+	pr_debug("size = %d, xfer.len = %d, buf = %p, fr = %p\n",
 		size, xfer.len, buf, fr);
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0) {
-		pr_err("%s read data error status = %d\n", __func__, status);
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0) {
+		pr_err("read data error retval = %d\n", retval);
 		goto end;
 	}
 
 	if (copy_to_user((u8 __user *) (uintptr_t) fr, buf + 1, size)) {
-		pr_err("%s buffer copy_to_user fail status\n", __func__);
-		status = -EFAULT;
+		pr_err("buffer copy_to_user fail retval\n");
+		retval = -EFAULT;
 	}
 end:
 	kfree(buf);
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_io_get_histogram(struct etspi_data *etspi, u8 *fr, u32 size)
+int et7xx_io_get_histogram(struct et7xx_data *etspi, u8 *fr, u32 size)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status;
+	int retval;
 	struct spi_message m;
 	u8 *buf = NULL;
 
@@ -582,34 +578,34 @@ int etspi_io_get_histogram(struct etspi_data *etspi, u8 *fr, u32 size)
 	xfer.tx_buf = xfer.rx_buf = buf;
 	buf[0] = OP_HSTG_R;
 
-	pr_debug("%s size = %d, xfer.len = %d, buf = %p, fr = %p\n", __func__,
+	pr_debug("size = %d, xfer.len = %d, buf = %p, fr = %p\n",
 		size, xfer.len, buf, fr);
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0) {
-		pr_err("%s read data error status = %d\n", __func__, status);
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0) {
+		pr_err("read data error retval = %d\n", retval);
 		goto end;
 	}
 
 	if (copy_to_user((u8 __user *) (uintptr_t) fr, buf + 1, size)) {
-		pr_err("%s buffer copy_to_user fail status\n", __func__);
-		status = -EFAULT;
+		pr_err("buffer copy_to_user fail retval\n");
+		retval = -EFAULT;
 	}
 end:
 	kfree(buf);
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_io_read_cis_register(struct etspi_data *etspi, u8 *addr, u8 *buf)
+int et7xx_io_read_cis_register(struct et7xx_data *etspi, u8 *addr, u8 *buf)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
 #define CIS_READ_TIMEOUT 1000
-	int status = 0, read_len = 2, try_time = 0;
+	int retval = 0, read_len = 2, try_time = 0;
 	struct spi_message m;
 
 	u8 tr[] = { OP_CIS_ADDR_R, 0x24, 0x00, 0x00, 0x00, 0x00};
@@ -626,43 +622,38 @@ int etspi_io_read_cis_register(struct etspi_data *etspi, u8 *addr, u8 *buf)
 
 	if (copy_from_user(&tr[2], (const u8 __user *) (uintptr_t) addr
 		, read_len)) {
-		pr_err("%s buffer copy_from_user fail. addr(%p)\n"
-				, __func__, addr);
-		status = -EFAULT;
-		return status;
+		pr_err("buffer copy_from_user fail. addr(%p)\n", addr);
+		return -EFAULT;
 	}
 	tr[5] = tr[0] + tr[1] + tr[2] + tr[3] + tr[4];
-	pr_info("%s len(%d) addr(%p) i2c(%x) addrH(%x) addrL(%x) crc(%x) buf(%p)\n",
-		__func__, read_len, addr, tr[1], tr[2], tr[3], tr[5], buf);
+	pr_info("len(%d) addr(%p) i2c(%x) addrH(%x) addrL(%x) crc(%x) buf(%p)\n",
+		read_len, addr, tr[1], tr[2], tr[3], tr[5], buf);
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer_addr, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0) {
-		pr_err("%s read data (0x71) error status = %d\n"
-				, __func__, status);
-		return status;
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0) {
+		pr_err("read data (0x71) error retval = %d\n", retval);
+		return retval;
 	}
 
 	while (try_time < CIS_READ_TIMEOUT) {
 		tr[0] = 0x00;
 		spi_message_init(&m);
 		spi_message_add_tail(&xfer_data, &m);
-		status = spi_sync(etspi->spi, &m);
-		if (status < 0) {
-			pr_err("%s read data error status = %d\n"
-					, __func__, status);
-			return status;
+		retval = spi_sync(etspi->spi, &m);
+		if (retval < 0) {
+			pr_err("read data error retval = %d\n", retval);
+			return retval;
 		}
 		if (tr[0] == 0xAA) {
-			pr_info("%s tr[0] = %x, try_time(%d)\n",
-						__func__, tr[0], try_time);
+			pr_info("tr[0] = %x, try_time(%d)\n", tr[0], try_time);
 			break;
 		}
 		usleep_range(10, 20);
 		try_time++;
 	}
 	if (try_time >= CIS_READ_TIMEOUT)
-		pr_err("%s TIMEOUT!! try_time >= CIS_READ_TIMEOUT(1000)\n", __func__);
+		pr_err("TIMEOUT!! try_time >= CIS_READ_TIMEOUT(1000)\n");
 
 	tr[0] = 0x81;
 	tr[1] = 0x24;
@@ -670,48 +661,45 @@ int etspi_io_read_cis_register(struct etspi_data *etspi, u8 *addr, u8 *buf)
 	tr[3] = 0x00;
 	tr[4] = 0x00;
 	tr[5] = tr[0] + tr[1] + tr[2] + tr[3] + tr[4];
-	pr_info("%s op(%d) i2c(%x) crc(%d)\n", __func__, tr[0], tr[1], tr[5]);
+	pr_info("op(%d) i2c(%x) crc(%d)\n", tr[0], tr[1], tr[5]);
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer_addr, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0) {
-		pr_err("%s read data (0x81) error status = %d\n"
-				, __func__, status);
-		return status;
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0) {
+		pr_err("read data (0x81) error retval = %d\n", retval);
+		return retval;
 	}
 
 	tr[0] = 0x00;
-	pr_info("%s get data(0x81) tr[0] = %x\n", __func__, tr[0]);
+	pr_info("get data(0x81) tr[0] = %x\n", tr[0]);
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer_data, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0) {
-		pr_err("%s read data error status = %d\n"
-				, __func__, status);
-		return status;
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0) {
+		pr_err("read data error retval = %d\n", retval);
+		return retval;
 	}
 
 	val = tr[0];
-	pr_info("%s val = %x\n", __func__, val);
+	pr_info("val = %x\n", val);
 	if (copy_to_user((u8 __user *) (uintptr_t) buf, &val, 1)) {
-		pr_err("%s buffer copy_to_user fail status\n", __func__);
-		status = -EFAULT;
-		return status;
+		pr_err("buffer copy_to_user fail retval\n");
+		return -EFAULT;
 	}
 
 	if (try_time >= CIS_READ_TIMEOUT)
 		return -ETIME;
 	else
-		return status;
+		return retval;
 #endif
 }
 
-int etspi_io_write_cis_register(struct etspi_data *etspi, u8 *buf)
+int et7xx_io_write_cis_register(struct et7xx_data *etspi, u8 *buf)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status = 0, write_len = 3, try_time = 0;
+	int retval = 0, write_len = 3, try_time = 0;
 	struct spi_message m;
 	u8 tx[] = {OP_CIS_REG_W, 0x24, 0x00, 0x00, 0x00, 0x00}, val[3];
 
@@ -727,13 +715,11 @@ int etspi_io_write_cis_register(struct etspi_data *etspi, u8 *buf)
 
 	if (copy_from_user(val, (const u8 __user *) (uintptr_t) buf
 		, write_len)) {
-		pr_err("%s buffer copy_from_user fail. buf(%p)\n",
-				__func__, buf);
-		status = -EFAULT;
-		return status;
+		pr_err("buffer copy_from_user fail. buf(%p)\n", buf);
+		return -EFAULT;
 	}
-	pr_info("%s write_len = %d addrH = %x addrL = %x data = %x buf = %p\n",
-		__func__, write_len, val[0], val[1], val[2], buf);
+	pr_info("write_len = %d addrH = %x addrL = %x data = %x buf = %p\n",
+		write_len, val[0], val[1], val[2], buf);
 
 	tx[2] = val[0];
 	tx[3] = val[1];
@@ -742,44 +728,41 @@ int etspi_io_write_cis_register(struct etspi_data *etspi, u8 *buf)
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0) {
-		pr_err("%s write data (0x70) error status = %d\n",
-				__func__, status);
-		return status;
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0) {
+		pr_err("write data (0x70) error retval = %d\n", retval);
+		return retval;
 	}
 
 	while (try_time < 2000) {
 		tx[0] = 0x00;
 		spi_message_init(&m);
 		spi_message_add_tail(&xfer_data, &m);
-		status = spi_sync(etspi->spi, &m);
-		if (status < 0) {
-			pr_err("%s read data error status = %d\n"
-					, __func__, status);
-			return status;
+		retval = spi_sync(etspi->spi, &m);
+		if (retval < 0) {
+			pr_err("read data error retval = %d\n", retval);
+			return retval;
 		}
 		if (tx[0] == 0xAA) {
-			pr_info("%s tx[0] == 0xAA, try_time = %d\n", __func__, try_time);
+			pr_info("tx[0] == 0xAA, try_time = %d\n", try_time);
 			break;
 		}
 		usleep_range(10, 20);
 		try_time++;
 	}
 	if (try_time >= 2000)
-		pr_err("%s -------------    try_time >= 2000    ---------------\n",
-				__func__);
+		pr_err("-------------    try_time >= 2000    ---------------\n");
 
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_io_pre_capture(struct etspi_data *etspi)
+int et7xx_io_pre_capture(struct et7xx_data *etspi)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status = 0;
+	int retval = 0;
 	struct spi_message m;
 	u8 tx[] = {OP_PRE_CAPTURE, 0x00, 0x00, 0x00, 0x00, 0x00};
 	int try_time = 0;
@@ -793,54 +776,49 @@ int etspi_io_pre_capture(struct etspi_data *etspi)
 		.len = 1,
 	};
 
-	pr_info("%s tx[0] = %d\n", __func__, tx[0]);
+	pr_info("tx[0] = %d\n", tx[0]);
 
 	tx[5] = tx[0] + tx[1] + tx[2] + tx[3] + tx[4];
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0) {
-		pr_err("%s set pre capture error status = %d\n",
-				__func__, status);
-		return status;
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0) {
+		pr_err("set pre capture error retval = %d\n", retval);
+		return retval;
 	}
 
 	while (try_time < 8000) {
 		tx[0] = 0x00;
-		//pr_info("%s tr[0] = %x\n", __func__, tr[0]);
 		spi_message_init(&m);
 		spi_message_add_tail(&xfer_data, &m);
-		status = spi_sync(etspi->spi, &m);
-		if (status < 0) {
-			pr_err("%s read data error status = %d\n"
-					, __func__, status);
-			return status;
+		retval = spi_sync(etspi->spi, &m);
+		if (retval < 0) {
+			pr_err("read data error retval = %d\n", retval);
+			return retval;
 		}
 		if (tx[0] == 0xAA) {
-			pr_info("%s tx[0] == 0xAA, try_time = %d\n", __func__, try_time);
+			pr_info("tx[0] == 0xAA, try_time = %d\n", try_time);
 			break;
 		}
 		usleep_range(10, 20);
 		try_time++;
 	}
 	if (try_time >= 8000) {
-		pr_err("%s -------------    try_time >= 8000    ---------------\n",
-				__func__);
+		pr_err("-------------    try_time >= 8000    ---------------\n");
 		return -ETIME;
 	}
 
-
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_io_get_cis_frame(struct etspi_data *etspi, u8 *fr, u32 size)
+int et7xx_io_get_cis_frame(struct et7xx_data *etspi, u8 *fr, u32 size)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status;
+	int retval;
 	struct spi_message m;
 	u8 *buf = NULL;
 	u8 tx[] = { OP_GET_FRAME, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -860,48 +838,44 @@ int etspi_io_get_cis_frame(struct etspi_data *etspi, u8 *fr, u32 size)
 	if (buf == NULL)
 		return -ENOMEM;
 
-	pr_info("%s size = %d,  buf = %p, fr = %p\n", __func__, size, buf, fr);
+	pr_info("size = %d,  buf = %p, fr = %p\n", size, buf, fr);
 	/*read sector 0.*/
 	xfer_data.rx_buf = buf;
 	xfer_data.len = 60*1024;
 
 	tx[4] = 60;
 	tx[5] = tx[0] + tx[1] + tx[2] + tx[3] + tx[4];
-	pr_info("%s (0) xfer_data.len = %d, rx_buf = %p, tx[2](%x), tx[3](%x), tx[4](%x)\n",
-		__func__, xfer_data.len,
-		xfer_data.rx_buf, tx[2], tx[3], tx[4]);
+	pr_info("(0) xfer_data.len = %d, rx_buf = %p, tx[2](%x), tx[3](%x), tx[4](%x)\n",
+		xfer_data.len, xfer_data.rx_buf, tx[2], tx[3], tx[4]);
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer_op, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0) {
-		pr_err("%s set sector(0) error status = %d\n",
-			       __func__, status);
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0) {
+		pr_err("set sector(0) error retval = %d\n", retval);
 		goto end;
 	}
 
 	/*read sector 0.*/
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer_data, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0) {
-		pr_err("%s read data(0) error status = %d\n", __func__, status);
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0) {
+		pr_err("read data(0) error retval = %d\n", retval);
 		goto end;
 	}
 
 	tx[2] = 60;
 	tx[4] = 43;
 	tx[5] = tx[0] + tx[1] + tx[2] + tx[3] + tx[4];
-	pr_info("%s (1) xfer_data.len = %d, rx_buf = %p, tx[2](%x), tx[3](%x), tx[4](%x)\n",
-		__func__, size_et736 - 60 * 1024,
-		buf + 60 * 1024, tx[2], tx[3], tx[4]);
+	pr_info("(1) xfer_data.len = %d, rx_buf = %p, tx[2](%x), tx[3](%x), tx[4](%x)\n",
+		size_et736 - 60 * 1024, buf + 60 * 1024, tx[2], tx[3], tx[4]);
 	usleep_range(10 * 1000, 12 * 1000);
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer_op, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0) {
-		pr_err("%s set sector(0) error status = %d\n",
-			       __func__, status);
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0) {
+		pr_err("set sector(0) error retval = %d\n", retval);
 		goto end;
 	}
 
@@ -911,33 +885,32 @@ int etspi_io_get_cis_frame(struct etspi_data *etspi, u8 *fr, u32 size)
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer_data, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0) {
-		pr_err("%s read data(0) error status = %d\n", __func__, status);
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0) {
+		pr_err("read data(0) error retval = %d\n", retval);
 		goto end;
 	}
 
-	pr_info("%s (1) xfer_data.len = %d, rx_buf = %p, tx[1](%x), tx[2](%x), tx[3](%x)\n",
-			__func__, xfer_data.len,
-			xfer_data.rx_buf, tx[1], tx[2], tx[3]);
+	pr_info("(1) xfer_data.len = %d, rx_buf = %p, tx[1](%x), tx[2](%x), tx[3](%x)\n",
+			xfer_data.len, xfer_data.rx_buf, tx[1], tx[2], tx[3]);
 
 	if (copy_to_user((u8 __user *) (uintptr_t) fr, buf, size)) {
 		pr_err("buffer copy_to_user fail.\n");
-		status = -EFAULT;
+		retval = -EFAULT;
 	}
 end:
 	kfree(buf);
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_io_transfer_command(struct etspi_data *etspi, u8 *tx, u8 *rx,
+int et7xx_io_transfer_command(struct et7xx_data *etspi, u8 *tx, u8 *rx,
 								u32 size)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status = 0;
+	int retval = 0;
 	struct spi_message m;
 	u8 *tr;
 
@@ -945,7 +918,7 @@ int etspi_io_transfer_command(struct etspi_data *etspi, u8 *tx, u8 *rx,
 	    .len = size,
 	};
 
-	pr_info("%s tx(%p), rx(%p), size(%d)\n", __func__, tx, rx, size);
+	pr_info("tx(%p), rx(%p), size(%d)\n", tx, rx, size);
 	tr = kzalloc(size, GFP_KERNEL);
 	if (tr == NULL)
 		return -ENOMEM;
@@ -953,39 +926,39 @@ int etspi_io_transfer_command(struct etspi_data *etspi, u8 *tx, u8 *rx,
 	xfer.tx_buf = xfer.rx_buf = tr;
 
 	if (copy_from_user(tr, (const u8 __user *)(uintptr_t)tx, size)) {
-		pr_err("%s buffer copy_from_user fail. tr(%p), tx(%p)\n", __func__, tr,
+		pr_err("buffer copy_from_user fail. tr(%p), tx(%p)\n", tr,
 		       tx);
-		status = -EFAULT;
+		retval = -EFAULT;
 		goto out;
 	}
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0) {
-		pr_err("%s status = %d\n", __func__, status);
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0) {
+		pr_err("retval = %d\n", retval);
 		goto out;
 	}
 
 	if (copy_to_user(rx, (const u8 __user *)(uintptr_t)tr, size)) {
-		pr_err("%s buffer copy_to_user fail. tr(%p) rx(%p)\n", __func__, tr,
+		pr_err("buffer copy_to_user fail. tr(%p) rx(%p)\n", tr,
 		       rx);
-		status = -EFAULT;
+		retval = -EFAULT;
 		goto out;
 	}
 
 out:
 	kfree(tr);
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_write_register(struct etspi_data *etspi, u8 addr, u8 buf)
+int et7xx_write_register(struct et7xx_data *etspi, u8 addr, u8 buf)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status;
+	int retval;
 	struct spi_message m;
 
 	u8 tx[] = {OP_REG_W, addr, buf};
@@ -998,25 +971,24 @@ int etspi_write_register(struct etspi_data *etspi, u8 addr, u8 buf)
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
+	retval = spi_sync(etspi->spi, &m);
 
-	if (status == 0) {
-		DEBUG_PRINT("%s address = %x result = %x %x\n"
-					__func__, addr, result[1], result[2]);
+	if (retval == 0) {
+		pr_info("address = %x\n", addr);
 	} else {
-		pr_err("%s read data error status = %d\n", __func__, status);
+		pr_err("read data error retval = %d\n", retval);
 	}
 
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_read_register(struct etspi_data *etspi, u8 addr, u8 *buf)
+int et7xx_read_register(struct et7xx_data *etspi, u8 addr, u8 *buf)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status;
+	int retval;
 	struct spi_message m;
 
 	u8 read_value[] = {OP_REG_R, addr, 0x00};
@@ -1030,17 +1002,16 @@ int etspi_read_register(struct etspi_data *etspi, u8 addr, u8 *buf)
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
+	retval = spi_sync(etspi->spi, &m);
 
-	if (status == 0) {
+	if (retval == 0) {
 		*buf = result[2];
-		DEBUG_PRINT("%s address = %x result = %x %x\n"
-					__func__, addr, result[1], result[2]);
+		pr_info("address = %x result = %x %x\n", addr, result[1], result[2]);
 	} else {
-		pr_err("%s read data error status = %d\n", __func__, status);
+		pr_err("read data error retval = %d\n", retval);
 	}
 
-	return status;
+	return retval;
 #endif
 }
 
@@ -1066,12 +1037,12 @@ int etspi_read_register(struct etspi_data *etspi, u8 addr, u8 *buf)
 /* Wait to write/erase finish */
 #define MICROCHIP_SST_STATUS_MAX_RETRY_COUNT 100
 
-int etspi_eeprom_rdsr(struct etspi_data *etspi, u8 *eeprom_status)
+int et7xx_eeprom_rdsr(struct et7xx_data *etspi, u8 *eeprom_status)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status;
+	int retval;
 	struct spi_message m;
 	u8 buf[2];
 
@@ -1086,28 +1057,28 @@ int etspi_eeprom_rdsr(struct etspi_data *etspi, u8 *eeprom_status)
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0) {
-		pr_err("%s spi_sync error status = %d\n", __func__, status);
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0) {
+		pr_err("spi_sync error retval = %d\n", retval);
 	} else {
 		if (copy_to_user((u8 __user *) (uintptr_t) eeprom_status,
 				buf + 1, 1)) {
-			pr_err("%s buffer copy_to_user fail\n", __func__);
-			status = -EFAULT;
+			pr_err("buffer copy_to_user fail\n");
+			retval = -EFAULT;
 		}
-		pr_info("%s eeprom_status  = %d\n", __func__, buf[1]);
+		pr_info("eeprom_status  = %d\n", buf[1]);
 	}
 
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_eeprom_read_status_internal(struct etspi_data *etspi, u8 *eeprom_status)
+int et7xx_eeprom_read_status_internal(struct et7xx_data *etspi, u8 *eeprom_status)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status;
+	int retval;
 	struct spi_message m;
 	u8 buf[2];
 
@@ -1122,24 +1093,24 @@ int etspi_eeprom_read_status_internal(struct etspi_data *etspi, u8 *eeprom_statu
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0) {
-		pr_err("%s spi_sync error status = %d\n", __func__, status);
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0) {
+		pr_err("spi_sync error retval = %d\n", retval);
 	} else {
 		*eeprom_status = buf[1];
-		pr_info("%s eeprom_status  = %d\n", __func__, *eeprom_status);
+		pr_info("eeprom_status  = %d\n", *eeprom_status);
 	}
 
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_eeprom_chip_erase(struct etspi_data *etspi)
+int et7xx_eeprom_chip_erase(struct et7xx_data *etspi)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status;
+	int retval;
 	struct spi_message m;
 	u8 buf[1];
 
@@ -1154,22 +1125,21 @@ int etspi_eeprom_chip_erase(struct etspi_data *etspi)
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0)
-		pr_err("%s spi_sync error status = %d\n",
-			__func__, status);
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0)
+		pr_err("spi_sync error retval = %d\n", retval);
 
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_eeprom_sector_erase(struct etspi_data *etspi, struct egis_ioc_transfer *ioc)
+int et7xx_eeprom_sector_erase(struct et7xx_data *etspi, struct egis_ioc_transfer *ioc)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
 	struct spi_message m;
-	int status;
+	int retval;
 	u8 *buf = NULL;
 	struct spi_transfer xfer = {
 		.tx_buf = NULL,
@@ -1178,26 +1148,26 @@ int etspi_eeprom_sector_erase(struct etspi_data *etspi, struct egis_ioc_transfer
 	};
 
 	if (ioc->len > MICROCHIP_SST_PAGE_PROGRAM_LIMITATION) {
-		pr_err("%s len EINVAL\n", __func__);
-		status = -EINVAL;
+		pr_err("len EINVAL\n");
+		retval = -EINVAL;
 	}
 
 	buf = kzalloc(ioc->len + 1, GFP_KERNEL);
 	if (buf == NULL) {
-		pr_err("%s buf kzalloc fail\n", __func__);
-		status = -ENOMEM;
+		pr_err("buf kzalloc fail\n");
+		retval = -ENOMEM;
 		goto end;
 	}
 
 	if (copy_from_user(buf + 1, (const u8 __user *) (uintptr_t) ioc->tx_buf
 		, ioc->len)) {
-		pr_err("%s buffer copy_from_user fail\n", __func__);
-		status = -EFAULT;
+		pr_err("buffer copy_from_user fail\n");
+		retval = -EFAULT;
 		goto end;
 	}
 
-	pr_info("%s Init ioc->len = %d, buf[1] = 0x%x buf[2] = 0x%x, buf[3] = 0x%x\n",
-		__func__, ioc->len, buf[1], buf[2], buf[3]);
+	pr_info("Init ioc->len = %d, buf[1] = 0x%x buf[2] = 0x%x, buf[3] = 0x%x\n",
+		ioc->len, buf[1], buf[2], buf[3]);
 
 	xfer.len = ioc->len + 1; /* OP code */
 	xfer.tx_buf = buf;
@@ -1206,25 +1176,25 @@ int etspi_eeprom_sector_erase(struct etspi_data *etspi, struct egis_ioc_transfer
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
+	retval = spi_sync(etspi->spi, &m);
 
 end:
 
 	if (buf)
 		kfree(buf);
 
-	return status;
+	return retval;
 
 #endif
 }
 
-int etspi_eeprom_block_erase(struct etspi_data *etspi, struct egis_ioc_transfer *ioc)
+int et7xx_eeprom_block_erase(struct et7xx_data *etspi, struct egis_ioc_transfer *ioc)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
 	struct spi_message m;
-	int status;
+	int retval;
 	u8 *buf = NULL;
 	struct spi_transfer xfer = {
 		.tx_buf = NULL,
@@ -1233,26 +1203,26 @@ int etspi_eeprom_block_erase(struct etspi_data *etspi, struct egis_ioc_transfer 
 	};
 
 	if (ioc->len > MICROCHIP_SST_PAGE_PROGRAM_LIMITATION) {
-		pr_err("%s len EINVAL\n", __func__);
-		status = -EINVAL;
+		pr_err("len EINVAL\n");
+		retval = -EINVAL;
 	}
 
 	buf = kzalloc(ioc->len + 1, GFP_KERNEL);
 	if (buf == NULL) {
-		pr_err("%s buf kzalloc fail\n", __func__);
-		status = -ENOMEM;
+		pr_err("buf kzalloc fail\n");
+		retval = -ENOMEM;
 		goto end;
 	}
 
 	if (copy_from_user(buf + 1, (const u8 __user *) (uintptr_t) ioc->tx_buf
 		, ioc->len)) {
-		pr_err("%s buffer copy_from_user fail\n", __func__);
-		status = -EFAULT;
+		pr_err("buffer copy_from_user fail\n");
+		retval = -EFAULT;
 		goto end;
 	}
 
-	pr_info("%s Init ioc->len = %d, buf[1] = 0x%x buf[2] = 0x%x, buf[3] = 0x%x\n",
-		__func__, ioc->len, buf[1], buf[2], buf[3]);
+	pr_info("Init ioc->len = %d, buf[1] = 0x%x buf[2] = 0x%x, buf[3] = 0x%x\n",
+		ioc->len, buf[1], buf[2], buf[3]);
 
 	xfer.len = ioc->len + 1; /* OP code */
 	xfer.tx_buf = buf;
@@ -1261,24 +1231,23 @@ int etspi_eeprom_block_erase(struct etspi_data *etspi, struct egis_ioc_transfer 
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
+	retval = spi_sync(etspi->spi, &m);
 
 end:
-
 	if (buf)
 		kfree(buf);
 
-	return status;
+	return retval;
 
 #endif
 }
 
-int etspi_eeprom_write_controller(struct etspi_data *etspi, int enable)
+int et7xx_eeprom_write_controller(struct et7xx_data *etspi, int enable)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
-	int status;
+	int retval;
 	struct spi_message m;
 	u8 buf[1];
 	struct spi_transfer xfer = {
@@ -1295,21 +1264,21 @@ int etspi_eeprom_write_controller(struct etspi_data *etspi, int enable)
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0)
-		pr_err("%s spi_sync error status = %d\n", __func__, status);
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0)
+		pr_err("spi_sync error retval = %d\n", retval);
 
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_eeprom_read(struct etspi_data *etspi, struct egis_ioc_transfer *ioc)
+int et7xx_eeprom_read(struct et7xx_data *etspi, struct egis_ioc_transfer *ioc)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
 	struct spi_message m;
-	int status;
+	int retval;
 	u8 *buf = NULL, addr[MICROCHIP_SST_ADDRESS_SIZE];
 	struct spi_transfer xfer = {
 		.tx_buf = NULL,
@@ -1317,13 +1286,12 @@ int etspi_eeprom_read(struct etspi_data *etspi, struct egis_ioc_transfer *ioc)
 		.len = 0,
 	};
 
-	pr_info("%s Version is 1128-3", __func__);
+	pr_info("Version is 1128-3");
 
 	if (copy_from_user(addr, (const u8 __user *) (uintptr_t) ioc->tx_buf
 		, MICROCHIP_SST_ADDRESS_SIZE)) {
-		pr_err("%s buffer copy_from_user fail\n", __func__);
-		status = -EFAULT;
-		return status;
+		pr_err("buffer copy_from_user fail\n");
+		return -EFAULT;
 	}
 
 	xfer.len = ioc->len + MICROCHIP_SST_RW_OFFSET;
@@ -1333,12 +1301,12 @@ int etspi_eeprom_read(struct etspi_data *etspi, struct egis_ioc_transfer *ioc)
 				(xfer.len % DIVISION_OF_IMAGE));
 	}
 
-	pr_info("%s xfer.len = %d, addr[0] = 0x%x addr[1] = 0x%x, addr[2] = 0x%x\n",
-		__func__, xfer.len, addr[0], addr[1], addr[2]);
+	pr_info("xfer.len = %d, addr[0] = 0x%x addr[1] = 0x%x, addr[2] = 0x%x\n",
+		xfer.len, addr[0], addr[1], addr[2]);
 
 	buf = kzalloc(xfer.len, GFP_KERNEL);
 	if (buf == NULL) {
-		pr_err("%s buf kzalloc fail\n", __func__);
+		pr_err("buf kzalloc fail\n");
 		return -ENOMEM;
 	}
 	memset(buf, 0x0, xfer.len);
@@ -1347,40 +1315,37 @@ int etspi_eeprom_read(struct etspi_data *etspi, struct egis_ioc_transfer *ioc)
 	buf[0] = MICROCHIP_SST_READ;
 	memcpy(buf + 1, addr, MICROCHIP_SST_ADDRESS_SIZE);
 
-	pr_info("%s ioc->len = %d, xfer.len = %d, buf = %p ", __func__,
-		ioc->len, xfer.len, buf);
+	pr_info("ioc->len = %d, xfer.len = %d, buf = %p ", ioc->len, xfer.len, buf);
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0) {
-		pr_err("%s spi_sync error status = %d\n", __func__,
-			status);
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0) {
+		pr_err("spi_sync error retval = %d\n", retval);
 		goto end;
 	}
 
 	if (copy_to_user((u8 __user *) (uintptr_t) ioc->rx_buf,
 			buf + MICROCHIP_SST_RW_OFFSET, ioc->len)) {
-		pr_err("%s buffer copy_to_user fail\n", __func__);
-		status = -EFAULT;
+		pr_err("buffer copy_to_user fail\n");
+		retval = -EFAULT;
 	}
 
 end:
-
 	if (buf)
 		kfree(buf);
 
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_eeprom_high_speed_read(struct etspi_data *etspi, struct egis_ioc_transfer *ioc)
+int et7xx_eeprom_high_speed_read(struct et7xx_data *etspi, struct egis_ioc_transfer *ioc)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
 	struct spi_message m;
-	int status;
+	int retval;
 	u8 *buf = NULL, addr[MICROCHIP_SST_ADDRESS_SIZE];
 	struct spi_transfer xfer = {
 		.tx_buf = NULL,
@@ -1388,13 +1353,12 @@ int etspi_eeprom_high_speed_read(struct etspi_data *etspi, struct egis_ioc_trans
 		.len = 0,
 	};
 
-	pr_info("%s Version is 1124-5", __func__);
+	pr_info("Version is 1124-5");
 
 	if (copy_from_user(addr, (const u8 __user *) (uintptr_t) ioc->tx_buf
 		, MICROCHIP_SST_ADDRESS_SIZE)) {
-		pr_err("%s buffer copy_from_user fail\n", __func__);
-		status = -EFAULT;
-		return status;
+		pr_err("buffer copy_from_user fail\n");
+		return -EFAULT;
 	}
 
 	xfer.len = ioc->len + MICROCHIP_SST_RW_OFFSET;
@@ -1404,13 +1368,13 @@ int etspi_eeprom_high_speed_read(struct etspi_data *etspi, struct egis_ioc_trans
 				(xfer.len % DIVISION_OF_IMAGE));
 	}
 
-	pr_info("%s xfer.len = %d, addr[0] = 0x%x addr[1] = 0x%x, addr[2] = 0x%x\n",
-		__func__, xfer.len, addr[0], addr[1], addr[2]);
+	pr_info("xfer.len = %d, addr[0] = 0x%x addr[1] = 0x%x, addr[2] = 0x%x\n",
+		xfer.len, addr[0], addr[1], addr[2]);
 
 	buf = kzalloc(xfer.len + MICROCHIP_SST_HIGH_SPEED_READ_DUMMY_LEN,
 		GFP_KERNEL);
 	if (buf == NULL) {
-		pr_err("%s buf kzalloc fail\n", __func__);
+		pr_err("buf kzalloc fail\n");
 		return -ENOMEM;
 	}
 	memset(buf, 0x0, xfer.len);
@@ -1419,41 +1383,39 @@ int etspi_eeprom_high_speed_read(struct etspi_data *etspi, struct egis_ioc_trans
 	buf[0] = MICROCHIP_SST_READ;
 	memcpy(buf + 1, addr, MICROCHIP_SST_ADDRESS_SIZE);
 
-	pr_info("%s ioc->len = %d, xfer.len = %d, buf = %p ", __func__,
+	pr_info("ioc->len = %d, xfer.len = %d, buf = %p ",
 		ioc->len, xfer.len, buf);
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
-	if (status < 0) {
-		pr_err("%s spi_sync error status = %d\n", __func__,
-			status);
+	retval = spi_sync(etspi->spi, &m);
+	if (retval < 0) {
+		pr_err("spi_sync error retval = %d\n", retval);
 		goto end;
 	}
 
 	if (copy_to_user((u8 __user *) (uintptr_t) ioc->rx_buf,
 			buf + MICROCHIP_SST_RW_OFFSET +
 			MICROCHIP_SST_HIGH_SPEED_READ_DUMMY_LEN, ioc->len)) {
-		pr_err("%s buffer copy_to_user fail\n", __func__);
-		status = -EFAULT;
+		pr_err("buffer copy_to_user fail\n");
+		retval = -EFAULT;
 	}
 
 end:
-
 	if (buf)
 		kfree(buf);
 
-	return status;
+	return retval;
 #endif
 }
 
-int etspi_eeprom_write(struct etspi_data *etspi, struct egis_ioc_transfer *ioc)
+int et7xx_eeprom_write(struct et7xx_data *etspi, struct egis_ioc_transfer *ioc)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
 	struct spi_message m;
-	int status;
+	int retval;
 	u8 *buf = NULL;
 	struct spi_transfer xfer = {
 		.tx_buf = NULL,
@@ -1462,26 +1424,26 @@ int etspi_eeprom_write(struct etspi_data *etspi, struct egis_ioc_transfer *ioc)
 	};
 
 	if (ioc->len > MICROCHIP_SST_PAGE_PROGRAM_LIMITATION) {
-		pr_err("%s len EINVAL\n", __func__);
-		status = -EINVAL;
+		pr_err("len EINVAL\n");
+		retval = -EINVAL;
 	}
 
 	buf = kzalloc(ioc->len + 1, GFP_KERNEL);
 	if (buf == NULL) {
-		pr_err("%s buf kzalloc fail\n", __func__);
-		status = -ENOMEM;
+		pr_err("buf kzalloc fail\n");
+		retval = -ENOMEM;
 		goto end;
 	}
 
 	if (copy_from_user(buf + 1, (const u8 __user *) (uintptr_t) ioc->tx_buf
 		, ioc->len)) {
-		pr_err("%s buffer copy_from_user fail\n", __func__);
-		status = -EFAULT;
+		pr_err("buffer copy_from_user fail\n");
+		retval = -EFAULT;
 		goto end;
 	}
 
-	pr_info("%s Init ioc->len = %d, buf[1] = 0x%x buf[2] = 0x%x, buf[3] = 0x%x\n",
-		__func__, ioc->len, buf[1], buf[2], buf[3]);
+	pr_info("Init ioc->len = %d, buf[1] = 0x%x buf[2] = 0x%x, buf[3] = 0x%x\n",
+		ioc->len, buf[1], buf[2], buf[3]);
 
 	xfer.len = ioc->len + 1; /* OP code */
 	xfer.tx_buf = buf;
@@ -1490,33 +1452,32 @@ int etspi_eeprom_write(struct etspi_data *etspi, struct egis_ioc_transfer *ioc)
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
+	retval = spi_sync(etspi->spi, &m);
 
 end:
-
 	if (buf)
 		kfree(buf);
 
-	return status;
+	return retval;
 
 #endif
 }
 
-void etspi_eeprom_finish_operation(struct etspi_data *etspi)
+void et7xx_eeprom_finish_operation(struct et7xx_data *etspi)
 {
-	pr_info("%s\n", __func__);
+	pr_info("Entry\n");
 	gpio_set_value(etspi->sleepPin, 1);
 	usleep_range(1050, 1100);
 	gpio_set_value(etspi->sleepPin, 0);
 }
 
-int etspi_eeprom_write_in_non_tz(struct etspi_data *etspi, struct egis_ioc_transfer *ioc)
+int et7xx_eeprom_write_in_non_tz(struct et7xx_data *etspi, struct egis_ioc_transfer *ioc)
 {
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	return 0;
 #else
 	struct spi_message m;
-	int status, page_count, index = 0, address_64bits, current_len,
+	int retval, page_count, index = 0, address_64bits, current_len,
 		status_retry_count = 0;
 	u8 *buf = NULL, *data = NULL, eeprom_status = 0x0;
 	struct spi_transfer xfer = {
@@ -1525,70 +1486,65 @@ int etspi_eeprom_write_in_non_tz(struct etspi_data *etspi, struct egis_ioc_trans
 		.len = 0,
 	};
 
-	etspi_eeprom_finish_operation(etspi);
+	et7xx_eeprom_finish_operation(etspi);
 
-	status = etspi_eeprom_write_controller(etspi, 1);
-	if (status < 0) {
-		pr_err("%s Write enable fail status = %d\n", __func__,
-			status);
-		return status;
+	retval = et7xx_eeprom_write_controller(etspi, 1);
+	if (retval < 0) {
+		pr_err("Write enable fail retval = %d\n", retval);
+		return retval;
 	}
 
-	etspi_eeprom_finish_operation(etspi);
+	et7xx_eeprom_finish_operation(etspi);
 
-	status = etspi_eeprom_chip_erase(etspi);
-	if (status < 0) {
-		pr_err("%s erase full fail status = %d\n", __func__,
-			status);
-		return status;
+	retval = et7xx_eeprom_chip_erase(etspi);
+	if (retval < 0) {
+		pr_err("erase full fail retval = %d\n", retval);
+		return retval;
 	}
 
-	etspi_eeprom_finish_operation(etspi);
+	et7xx_eeprom_finish_operation(etspi);
 
 	do {
 		usleep_range(500, 1000);
-		status = etspi_eeprom_read_status_internal(etspi, &eeprom_status);
-		etspi_eeprom_finish_operation(etspi);
-		if (status < 0) {
-			pr_err("%s get eeprom status fail status = %d\n",
-				__func__, status);
+		retval = et7xx_eeprom_read_status_internal(etspi, &eeprom_status);
+		et7xx_eeprom_finish_operation(etspi);
+		if (retval < 0) {
+			pr_err("get eeprom_status fail retval = %d\n", retval);
 			goto end;
 		}
 
 		if (++status_retry_count > MICROCHIP_SST_STATUS_MAX_RETRY_COUNT) {
-			pr_err("%s not finish erase eeprom\n", __func__);
+			pr_err("not finish erase eeprom\n");
 			break;
 		}
 	} while ((eeprom_status & 0x01) != 0);
 
-	status = etspi_eeprom_write_controller(etspi, 0);
-	if (status < 0) {
-		pr_err("%s Write disable fail status = %d\n",
-			__func__, status);
-		return status;
+	retval = et7xx_eeprom_write_controller(etspi, 0);
+	if (retval < 0) {
+		pr_err("Write disable fail retval = %d\n", retval);
+		return retval;
 	}
 
-	etspi_eeprom_finish_operation(etspi);
+	et7xx_eeprom_finish_operation(etspi);
 
 	data = kzalloc(ioc->len, GFP_KERNEL);
 	if (data == NULL) {
-		pr_err("%s data kzalloc fail\n", __func__);
-		status = -ENOMEM;
-		return status;
+		pr_err("data kzalloc fail\n");
+		return -ENOMEM;
 	}
 
 	buf = kzalloc(MICROCHIP_SST_RW_OFFSET +
 		MICROCHIP_SST_PAGE_PROGRAM_LIMITATION, GFP_KERNEL);
 	if (buf == NULL) {
-		pr_err("%s buf kzalloc fail\n", __func__);
-		status = -ENOMEM;
+		pr_err("buf kzalloc fail\n");
+		retval = -ENOMEM;
 		goto end;
 	}
 
 	if (copy_from_user(data, (const u8 __user *) (uintptr_t) ioc->tx_buf
 		, ioc->len)) {
-		pr_err("%s buffer copy_from_user fail\n", __func__);
-		status = -EFAULT;
+		pr_err("buffer copy_from_user fail\n");
+		retval = -EFAULT;
 		goto end;
 	}
 
@@ -1599,21 +1555,20 @@ int etspi_eeprom_write_in_non_tz(struct etspi_data *etspi, struct egis_ioc_trans
 		MICROCHIP_SST_PAGE_PROGRAM_LIMITATION != 0)
 		page_count++;
 
-	pr_info("%s Init data : ioc->len = %d, page_count = %d\n",
-		__func__, ioc->len, page_count);
-	pr_info("%s Init ioc->len = %d, address = 0x%x address[1] = 0x%x address[2] = 0x%x, address[3] = 0x%x\n",
-		__func__, ioc->len, address_64bits, data[0], data[1], data[2]);
+	pr_info("Init data : ioc->len = %d, page_count = %d\n",
+		ioc->len, page_count);
+	pr_info("Init ioc->len = %d, address = 0x%x address[1] = 0x%x address[2] = 0x%x, address[3] = 0x%x\n",
+		ioc->len, address_64bits, data[0], data[1], data[2]);
 
 write_eeprom:
 
-	status = etspi_eeprom_write_controller(etspi, 1);
-	if (status < 0) {
-		pr_err("%s Write enable fail status = %d\n", __func__,
-			status);
+	retval = et7xx_eeprom_write_controller(etspi, 1);
+	if (retval < 0) {
+		pr_err("Write enable fail retval = %d\n", retval);
 		goto end;
 	}
 
-	etspi_eeprom_finish_operation(etspi);
+	et7xx_eeprom_finish_operation(etspi);
 
 	if (index >= (page_count - 1)) {
 		current_len = (ioc->len - MICROCHIP_SST_ADDRESS_SIZE) %
@@ -1624,8 +1579,8 @@ write_eeprom:
 		current_len = MICROCHIP_SST_PAGE_PROGRAM_LIMITATION;
 	}
 
-	pr_info("%s Run data : ioc->len = %d, page_count = %d\n",
-		__func__, ioc->len, page_count);
+	pr_info("Run data : ioc->len = %d, page_count = %d\n",
+		ioc->len, page_count);
 
 	xfer.len = MICROCHIP_SST_RW_OFFSET + current_len;
 	xfer.tx_buf = buf;
@@ -1637,18 +1592,17 @@ write_eeprom:
 	memcpy(buf + MICROCHIP_SST_RW_OFFSET, data + MICROCHIP_SST_ADDRESS_SIZE +
 		(index * MICROCHIP_SST_PAGE_PROGRAM_LIMITATION), current_len);
 
-	pr_info("%s Run index = %d page_count = %d current_len = %d, xfer.len = %d\n",
-		__func__, index, page_count, current_len, xfer.len);
-	pr_info("%s Run address = 0x%x address[1] = 0x%x address[2] = 0x%x, address[3] = 0x%x\n",
-		__func__, address_64bits, buf[1], buf[2], buf[3]);
+	pr_info("Run index = %d page_count = %d current_len = %d, xfer.len = %d\n",
+		index, page_count, current_len, xfer.len);
+	pr_info("Run address = 0x%x address[1] = 0x%x address[2] = 0x%x, address[3] = 0x%x\n",
+		address_64bits, buf[1], buf[2], buf[3]);
 
 	spi_message_init(&m);
 	spi_message_add_tail(&xfer, &m);
-	status = spi_sync(etspi->spi, &m);
-	etspi_eeprom_finish_operation(etspi);
-	if (status < 0) {
-		pr_err("%s spi_sync error status = %d\n", __func__,
-			status);
+	retval = spi_sync(etspi->spi, &m);
+	et7xx_eeprom_finish_operation(etspi);
+	if (retval < 0) {
+		pr_err("spi_sync error retval = %d\n", retval);
 		goto end;
 	}
 
@@ -1656,28 +1610,26 @@ write_eeprom:
 	eeprom_status = 0x0;
 	do {
 		usleep_range(500, 1000);
-		status = etspi_eeprom_read_status_internal(etspi, &eeprom_status);
-		etspi_eeprom_finish_operation(etspi);
-		if (status < 0) {
-			pr_err("%s get eeprom status fail status = %d\n",
-				__func__, status);
+		retval = et7xx_eeprom_read_status_internal(etspi, &eeprom_status);
+		et7xx_eeprom_finish_operation(etspi);
+		if (retval < 0) {
+			pr_err("get eeprom_status fail retval = %d\n", retval);
 			goto end;
 		}
 
 		if (++status_retry_count > MICROCHIP_SST_STATUS_MAX_RETRY_COUNT) {
-			pr_err("%s not finish writing eeprom\n", __func__);
+			pr_err("not finish writing eeprom\n");
 			break;
 		}
 	} while ((eeprom_status & 0x01) != 0);
 
-	status = etspi_eeprom_write_controller(etspi, 0);
-	if (status < 0) {
-		pr_err("%s Write disable fail status = %d\n",
-			__func__, status);
+	retval = et7xx_eeprom_write_controller(etspi, 0);
+	if (retval < 0) {
+		pr_err("Write disable fail retval = %d\n", retval);
 		goto end;
 	}
 
-	etspi_eeprom_finish_operation(etspi);
+	et7xx_eeprom_finish_operation(etspi);
 
 	if (++index < page_count) {
 		address_64bits += MICROCHIP_SST_PAGE_PROGRAM_LIMITATION;
@@ -1685,7 +1637,6 @@ write_eeprom:
 	}
 
 end:
-
 	gpio_set_value(etspi->sleepPin, 1);
 
 	if (buf)
@@ -1694,6 +1645,6 @@ end:
 	if (data)
 		kfree(data);
 
-	return status;
+	return retval;
 #endif
 }

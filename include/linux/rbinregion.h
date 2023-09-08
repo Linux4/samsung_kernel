@@ -68,7 +68,6 @@ bool handle_is_valid(struct rr_handle *handle);
 /* helper function declaration end */
 
 /* ion_rbin_heap apis */
-#define ION_RBIN_ALLOCATE_FAIL -1
 phys_addr_t ion_rbin_allocate(unsigned long size);
 void ion_rbin_free(phys_addr_t addr, unsigned long size);
 int init_rbinregion(unsigned long base, unsigned long size);

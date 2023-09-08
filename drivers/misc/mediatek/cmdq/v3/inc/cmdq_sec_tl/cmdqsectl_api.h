@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2015 MediaTek Inc.
  */
 
 #ifndef __CMDQSECTL_API_H__
@@ -23,6 +15,15 @@
 #define CMD_CMDQ_TL_PATH_RES_ALLOCATE 4
 /* destroy globacl resource for secure path */
 #define CMD_CMDQ_TL_PATH_RES_RELEASE  5
+
+#ifdef CONFIG_MTK_IN_HOUSE_TEE_SUPPORT
+/* create shared memory in Normal and Secure world */
+#define CMD_CMDQ_TL_INIT_SHARED_MEMORY 6
+/* register secure irq */
+#define CMD_CMDQ_TL_REGISTER_SECURE_IRQ 8
+#define CMD_CMDQ_TL_DUMP_SMI_LARB	9
+#endif
+
 
 /* entry cmdqSecTl, and do nothing */
 #define CMD_CMDQ_TL_TEST_HELLO_TL	(4000)

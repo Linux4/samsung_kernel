@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2015 MediaTek Inc.
  */
 
 #ifndef __CMDQ_MDP_COMMON_H__
@@ -18,7 +10,6 @@
 #include "cmdq_helper_ext.h"
 #include <linux/types.h>
 #ifdef CONFIG_MTK_SMI_EXT
-
 /* translate port */
 typedef uint32_t (*CmdqTranslatePort) (uint32_t engineId);
 
@@ -33,6 +24,28 @@ typedef void (*CmdqInitPmqosMdp) (s32 index, struct plist_head *owner_list);
 typedef void (*CmdqInitPmqosIsp) (s32 index, struct plist_head *owner_list);
 
 #endif	/* CONFIG_MTK_SMI_EXT */
+
+enum MEM_TYPE {
+	MEM_SVP = 0,
+	MEM_SEC = MEM_SVP,
+	MEM_PROT = 1,
+	MEM_WFD = 2,
+	MEM_2D_FR = 3,
+	MEM_SDSP_SHARED = 4,
+	MEM_SDSP_FIRMWARE = 5,
+	MEM_HAPP_ELF = 6,
+	MEM_HAPP_EXTRA = 7,
+
+	MEM_TYPE_MAX
+};
+
+enum mtk_iommu_sec_id {
+	SEC_ID_SEC_CAM = 0,
+	SEC_ID_SVP,
+	SEC_ID_SDSP,
+	SEC_ID_WFD,
+	SEC_ID_COUNT
+};
 
 /* dump mmsys config */
 typedef void (*CmdqDumpMMSYSConfig) (void);
@@ -98,6 +111,12 @@ typedef void (*CmdqCheckHwStatus) (struct cmdqRecStruct *handle);
 
 typedef u64(*CmdqMdpGetSecEngine) (u64 engine_flag);
 
+typedef void (*CmdqMdpComposeReadback) (struct cmdqRecStruct *handle,
+	u16 engine, dma_addr_t dma, u32 param);
+
+typedef void (*CmdqMdpReadbackEngine) (struct cmdqRecStruct *handle,
+	u16 engine, phys_addr_t base, dma_addr_t pa, u32 param);
+
 struct cmdqMDPFuncStruct {
 #ifdef CONFIG_MTK_SMI_EXT
 	CmdqTranslatePort translatePort;
@@ -136,6 +155,9 @@ struct cmdqMDPFuncStruct {
 	CmdqEndTaskCB endISPTask;
 	CmdqCheckHwStatus CheckHwStatus;
 	CmdqMdpGetSecEngine mdpGetSecEngine;
+	CmdqMdpComposeReadback mdpComposeReadback;
+	CmdqMdpReadbackEngine mdpReadbackAal;
+	CmdqMdpReadbackEngine mdpReadbackHdr;
 };
 
 struct mdp_pmqos_record {
@@ -185,6 +207,8 @@ void cmdq_mdp_set_resource_callback(enum cmdq_event res_event,
 	CmdqResourceAvailableCB res_available,
 	CmdqResourceReleaseCB res_release);
 void cmdq_mdp_unlock_thread(struct cmdqRecStruct *handle);
+void cmdq_mdp_op_readback(struct cmdqRecStruct *handle, u16 engine,
+	dma_addr_t addr, u32 param);
 s32 cmdq_mdp_flush_async(struct cmdqCommandStruct *desc, bool user_space,
 	struct cmdqRecStruct **handle_out);
 s32 cmdq_mdp_flush_async_impl(struct cmdqRecStruct *handle);
@@ -197,6 +221,18 @@ void cmdq_mdp_resume(void);
 void cmdq_mdp_release_task_by_file_node(void *file_node);
 void cmdq_mdp_init(void);
 void cmdq_mdp_deinit_pmqos(void);
+s32 cmdq_mdp_handle_create(struct cmdqRecStruct **handle_out);
+s32 cmdq_mdp_handle_flush(struct cmdqRecStruct *handle);
+s32 cmdq_mdp_handle_sec_setup(struct cmdqSecDataStruct *secData,
+			struct cmdqRecStruct *handle);
+
+struct op_meta;
+struct mdp_submit;
+s32 cmdq_mdp_update_sec_addr_index(struct cmdqRecStruct *handle,
+	u32 sec_handle, u32 index, u32 instr_index);
+u32 cmdq_mdp_handle_get_instr_count(struct cmdqRecStruct *handle);
+void cmdq_mdp_meta_replace_sec_addr(struct op_meta *metas,
+	struct mdp_submit *user_job, struct cmdqRecStruct *handle);
 
 /* Platform dependent function */
 
@@ -252,6 +288,9 @@ u32 cmdq_mdp_wrot_get_reg_offset_dst_addr(void);
 u32 cmdq_mdp_wdma_get_reg_offset_dst_addr(void);
 
 void testcase_clkmgr_mdp(void);
+
+u32 cmdq_mdp_get_hw_reg(enum MDP_ENG_BASE base, u16 offset);
+u32 cmdq_mdp_get_hw_port(enum MDP_ENG_BASE base);
 
 /* Platform virtual function setting */
 void cmdq_mdp_platform_function_setting(void);

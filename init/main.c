@@ -103,18 +103,18 @@
 #include <asm/sections.h>
 #include <asm/cacheflush.h>
 
-#ifdef CONFIG_SECURITY_DEFEX
-#include <linux/defex.h>
-void __init __weak defex_load_rules(void) { }
-#endif
-
 #ifdef CONFIG_UH
 #include <linux/uh.h>
 #ifdef CONFIG_UH_RKP
 #include <linux/rkp.h>
+#elif defined(CONFIG_RUSTUH_RKP)
+#include <linux/rustrkp.h>
 #endif
 #ifdef CONFIG_KDP_CRED
 #include <linux/kdp.h>
+#endif
+#ifdef CONFIG_RUSTUH_KDP
+#include <linux/rustkdp.h>
 #endif
 #endif
 #ifdef CONFIG_MTK_RAM_CONSOLE
@@ -124,39 +124,7 @@ void __init __weak defex_load_rules(void) { }
 static int kernel_init(void *);
 
 extern void init_IRQ(void);
-extern void fork_init(void);
 extern void radix_tree_init(void);
-
-#ifdef CONFIG_DEFERRED_INITCALLS
-extern initcall_t __deferred_initcall_start[], __deferred_initcall_end[];
-
-/* call deferred init routines */
-static void __ref do_deferred_initcalls(struct work_struct *work)
-{
-	initcall_t *call;
-	static bool already_run;
-
-	if (already_run) {
-		pr_warn("%s() has already run\n", __func__);
-		return;
-	}
-
-	already_run = true;
-
-	pr_err("Running %s()\n", __func__);
-
-	for (call = __deferred_initcall_start;
-			call < __deferred_initcall_end; call++)
-		do_one_initcall(*call);
-
-	free_initmem();
-#ifdef CONFIG_UH_RKP
-	rkp_deferred_init();
-#endif
-}
-
-static DECLARE_WORK(deferred_initcall_work, do_deferred_initcalls);
-#endif
 
 /*
  * Debug helper: via this flag we know that we are in 'early bootup code'
@@ -568,6 +536,29 @@ void __init __weak thread_stack_cache_init(void)
 
 void __init __weak mem_encrypt_init(void) { }
 
+/* Report memory auto-initialization states for this boot. */
+static void __init report_meminit(void)
+{
+	const char *stack;
+
+	if (IS_ENABLED(CONFIG_INIT_STACK_ALL))
+		stack = "all";
+	else if (IS_ENABLED(CONFIG_GCC_PLUGIN_STRUCTLEAK_BYREF_ALL))
+		stack = "byref_all";
+	else if (IS_ENABLED(CONFIG_GCC_PLUGIN_STRUCTLEAK_BYREF))
+		stack = "byref";
+	else if (IS_ENABLED(CONFIG_GCC_PLUGIN_STRUCTLEAK_USER))
+		stack = "__user";
+	else
+		stack = "off";
+
+	pr_info("mem auto-init: stack:%s, heap alloc:%s, heap free:%s\n",
+		stack, want_init_on_alloc(GFP_KERNEL) ? "on" : "off",
+		want_init_on_free() ? "on" : "off");
+	if (want_init_on_free())
+		pr_info("mem auto-init: clearing system memory may take some time...\n");
+}
+
 /*
  * Set up kernel memory allocators
  */
@@ -579,7 +570,9 @@ static void __init mm_init(void)
 	 * bigger than MAX_ORDER unless SPARSEMEM.
 	 */
 	page_ext_init_flatmem();
+	report_meminit();
 	mem_init();
+	set_memsize_kernel_type(MEMSIZE_KERNEL_STOP);
 	kmem_cache_init();
 	pgtable_init();
 	vmalloc_init();
@@ -588,7 +581,6 @@ static void __init mm_init(void)
 	init_espfix_bsp();
 	/* Should be run after espfix64 is set up. */
 	pti_init();
-	set_memsize_kernel_type(MEMSIZE_KERNEL_OTHERS);
 }
 
 #ifdef CONFIG_UH_RKP
@@ -633,7 +625,9 @@ static void __init rkp_robuffer_init(void)
 #define VERITY_PARAM_LENGTH 20
 static char verifiedbootstate[VERITY_PARAM_LENGTH];
 int __check_verifiedboot __kdp_ro = 0;
-#ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
+
+#if (defined CONFIG_KDP_CRED && defined CONFIG_SAMSUNG_PRODUCT_SHIP)
+extern int selinux_enforcing __kdp_ro;
 extern int ss_initialized __kdp_ro;
 #endif
 
@@ -674,7 +668,11 @@ void kdp_init(void)
 	cred.bp_cred_secptr 	= rkp_get_offset_bp_cred();
 	cred.verifiedbootstate	= (u64)verifiedbootstate;
 #ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
+	cred.selinux.selinux_enforcing_va  = (u64)&selinux_enforcing;
 	cred.selinux.ss_initialized_va	= (u64)&ss_initialized;
+#else
+	cred.selinux.selinux_enforcing_va  = 0;
+	cred.selinux.ss_initialized_va	= 0;
 #endif
 	uh_call(UH_APP_RKP, RKP_KDP_X40, (u64)&cred, 0, 0, 0);
 }
@@ -702,7 +700,7 @@ asmlinkage __visible void __init start_kernel(void)
 	boot_cpu_init();
 	page_address_init();
 	pr_notice("%s", linux_banner);
-#ifdef CONFIG_UH_RKP
+#if defined(CONFIG_UH_RKP) || defined(CONFIG_RUSTUH_RKP)
 	rkp_robuffer_init();
 #endif
 	setup_arch(&command_line);
@@ -745,16 +743,19 @@ asmlinkage __visible void __init start_kernel(void)
 	sort_main_extable();
 	trap_init();
 	mm_init();
-#ifdef CONFIG_UH_RKP
+#if defined(CONFIG_UH_RKP) || defined(CONFIG_RUSTUH_RKP)
 	rkp_init();
+#endif
+#ifdef CONFIG_RUSTUH_KDP
+	kdp_enable = 1;
 #endif
 #ifdef CONFIG_KDP_CRED
 	rkp_cred_enable = 1;
 #endif
 
-	#if defined(CONFIG_SEC_BOOTSTAT)
-		sec_boot_stat_get_start_kernel();
-	#endif
+#if defined(CONFIG_SEC_BOOTSTAT)
+	sec_boot_stat_get_start_kernel();
+#endif
 
 	ftrace_init();
 
@@ -866,7 +867,10 @@ asmlinkage __visible void __init start_kernel(void)
 	if (rkp_cred_enable)
 	    kdp_init();
 #endif
-
+#ifdef CONFIG_RUSTUH_KDP
+	if (kdp_enable)
+		kdp_init();
+#endif
 	cred_init();
 	fork_init();
 	proc_caches_init();
@@ -894,9 +898,10 @@ asmlinkage __visible void __init start_kernel(void)
 		efi_free_boot_services();
 	}
 
-	set_memsize_kernel_type(MEMSIZE_KERNEL_STOP);
 	/* Do the rest non-__init'ed, we're now alive */
 	rest_init();
+
+	prevent_tail_call_optimization();
 }
 
 /* Call all constructor functions linked into the kernel. */
@@ -1014,8 +1019,7 @@ static int __init_or_module do_one_initcall_sec_debug(initcall_t fn)
 
 	return ret;
 }
-#endif
-
+#else
 static int __init_or_module do_one_initcall_debug(initcall_t fn)
 {
 	ktime_t calltime, delta, rettime;
@@ -1033,6 +1037,8 @@ static int __init_or_module do_one_initcall_debug(initcall_t fn)
 
 	return ret;
 }
+#endif
+
 #ifdef CONFIG_MTPROF
 #include <bootprof.h>
 #else
@@ -1055,7 +1061,10 @@ int __init_or_module do_one_initcall(initcall_t fn)
 #ifdef CONFIG_MTK_RAM_CONSOLE
 	aee_rr_rec_last_init_func((unsigned long)fn);
 #endif
+
 	TIME_LOG_START();
+
+	
 #ifdef CONFIG_SEC_DEVICE_BOOTSTAT
 	if (initcall_sec_debug)
 		ret = do_one_initcall_sec_debug(fn);
@@ -1133,9 +1142,9 @@ static void __init do_initcall_level(int level)
 	for (fn = initcall_levels[level]; fn < initcall_levels[level+1]; fn++)
 		do_one_initcall(*fn);
 
-	#if defined(CONFIG_SEC_BOOTSTAT)
-		sec_boot_stat_add_initcall(initcall_level_names[level]);
-	#endif
+#if defined(CONFIG_SEC_BOOTSTAT)
+	sec_boot_stat_add_initcall(initcall_level_names[level]);
+#endif
 }
 
 static void __init do_initcalls(void)
@@ -1260,9 +1269,7 @@ static int __ref kernel_init(void *unused)
 	/* need to finish all async __init code before freeing the memory */
 	async_synchronize_full();
 	ftrace_free_init_mem();
-#ifndef CONFIG_DEFERRED_INITCALLS
 	free_initmem();
-#endif
 	mark_readonly();
 	system_state = SYSTEM_RUNNING;
 	numa_default_policy();
@@ -1274,11 +1281,11 @@ static int __ref kernel_init(void *unused)
 	if (ramdisk_execute_command) {
 		ret = run_init_process(ramdisk_execute_command);
 		if (!ret) {
-#ifdef CONFIG_DEFERRED_INITCALLS
-			schedule_work(&deferred_initcall_work);
+#ifdef CONFIG_RUSTUH_RKP
+			rkp_deferred_init();
 #endif
+}
 			return 0;
-		}
 		pr_err("Failed to execute %s (error %d)\n",
 		       ramdisk_execute_command, ret);
 	}
@@ -1291,12 +1298,8 @@ static int __ref kernel_init(void *unused)
 	 */
 	if (execute_command) {
 		ret = run_init_process(execute_command);
-		if (!ret) {
-#ifdef CONFIG_DEFERRED_INITCALLS
-			schedule_work(&deferred_initcall_work);
-#endif
+		if (!ret)
 			return 0;
-		}
 		panic("Requested init %s failed (error %d).",
 		      execute_command, ret);
 	}
@@ -1375,8 +1378,4 @@ static noinline void __init kernel_init_freeable(void)
 
 	integrity_load_keys();
 	load_default_modules();
-#ifdef CONFIG_SECURITY_DEFEX
-	defex_load_rules();
-#endif
-
 }

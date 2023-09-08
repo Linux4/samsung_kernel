@@ -33,13 +33,9 @@
 #include <tmp_bts.h>
 #include <linux/slab.h>
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
+#include <linux/of.h>
 #include <linux/iio/consumer.h>
 #include <linux/iio/iio.h>
-#endif
-#ifdef MTK_SW_WORKAROUND
-#ifdef CONFIG_OF
-#include <linux/of.h>
-#endif
 #endif
 /*=============================================================
  *Weak functions
@@ -109,11 +105,12 @@ do {                                    \
 } while (0)
 
 #define mtkts_btsmdpa_printk(fmt, args...) \
-pr_debug("[Thermal/TZ/BTSMDPA]" fmt, ##args)
+pr_notice("[Thermal/TZ/BTSMDPA]" fmt, ##args)
 
 
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
 struct iio_channel *thermistor_ch1;
+static int g_ADC_channel;
 #endif
 
 /* #define INPUT_PARAM_FROM_USER_AP */
@@ -141,11 +138,6 @@ struct BTSMDPA_TEMPERATURE {
 	__s32 BTSMDPA_Temp;
 	__s32 TemperatureR;
 };
-
-/* Add HW version check to avoid reading AP AUXADC for bringup phone */
-#ifdef MTK_SW_WORKAROUND
-static unsigned int hw_version;
-#endif
 
 static int g_RAP_pull_up_R = BTSMDPA_RAP_PULL_UP_R;
 static int g_TAP_over_critical_low = BTSMDPA_TAP_OVER_CRITICAL_LOW;
@@ -505,21 +497,30 @@ static struct BTSMDPA_TEMPERATURE BTSMDPA_Temperature_Table7[] = {
 
 
 /* convert register to temperature  */
-static __s16 mtkts_btsmdpa_thermistor_conver_temp(__s32 Res)
+static __s32 mtkts_btsmdpa_thermistor_conver_temp(__s32 Res)
 {
 	int i = 0;
 	int asize = 0;
 	__s32 RES1 = 0, RES2 = 0;
 	__s32 TAP_Value = -200, TMP1 = 0, TMP2 = 0;
 
+#ifdef APPLY_PRECISE_BTS_TEMP
+	TAP_Value = TAP_Value * 1000;
+#endif
 	asize = (ntc_tbl_size / sizeof(struct BTSMDPA_TEMPERATURE));
 	/* mtkts_btsmdpa_dprintk("%s() :
 	 * asize = %d, Res = %d\n", __func__,asize,Res);
 	 */
 	if (Res >= BTSMDPA_Temperature_Table[0].TemperatureR) {
 		TAP_Value = -40;	/* min */
+#ifdef APPLY_PRECISE_BTS_TEMP
+		TAP_Value = TAP_Value * 1000;
+#endif
 	} else if (Res <= BTSMDPA_Temperature_Table[asize - 1].TemperatureR) {
 		TAP_Value = 125;	/* max */
+#ifdef APPLY_PRECISE_BTS_TEMP
+		TAP_Value = TAP_Value * 1000;
+#endif
 	} else {
 		RES1 = BTSMDPA_Temperature_Table[0].TemperatureR;
 		TMP1 = BTSMDPA_Temperature_Table[0].BTSMDPA_Temp;
@@ -546,8 +547,13 @@ static __s16 mtkts_btsmdpa_thermistor_conver_temp(__s32 Res)
 			 */
 		}
 
+#ifdef APPLY_PRECISE_BTS_TEMP
+		TAP_Value = mult_frac((((Res - RES2) * TMP1) +
+			((RES1 - Res) * TMP2)), 1000, (RES1 - RES2));
+#else
 		TAP_Value = (((Res - RES2) * TMP1) + ((RES1 - Res) * TMP2))
 								/ (RES1 - RES2);
+#endif
 	}
 
 #if 0
@@ -576,7 +582,7 @@ static __s16 mtkts_btsmdpa_thermistor_conver_temp(__s32 Res)
 
 /* convert ADC_AP_temp_volt to register */
 /*Volt to Temp formula same with 6589*/
-static __s16 mtk_ts_btsmdpa_volt_to_temp(__u32 dwVolt)
+static __s32 mtk_ts_btsmdpa_volt_to_temp(__u32 dwVolt)
 {
 	__s32 TRes;
 	__u64 dwVCriAP = 0;
@@ -596,6 +602,16 @@ static __s16 mtk_ts_btsmdpa_volt_to_temp(__u32 dwVolt)
 	do_div(dwVCriAP, dwVCriAP2);
 
 
+#ifdef APPLY_PRECISE_BTS_TEMP
+	if ((dwVolt / 100) > ((__u32)dwVCriAP)) {
+		TRes = g_TAP_over_critical_low;
+	} else {
+		/* TRes = (39000*dwVolt) / (1800-dwVolt); */
+		/* TRes = (RAP_PULL_UP_R*dwVolt) / (RAP_PULL_UP_VOLT-dwVolt); */
+		TRes = ((long long)g_RAP_pull_up_R * dwVolt) /
+					(g_RAP_pull_up_voltage * 100 - dwVolt);
+	}
+#else
 	if (dwVolt > ((__u32)dwVCriAP)) {
 		TRes = g_TAP_over_critical_low;
 	} else {
@@ -605,6 +621,7 @@ static __s16 mtk_ts_btsmdpa_volt_to_temp(__u32 dwVolt)
 		TRes = (g_RAP_pull_up_R * dwVolt)
 				/ (g_RAP_pull_up_voltage - dwVolt);
 	}
+#endif
 	/* ------------------------------------------------------------------ */
 
 	g_btsmdpa_TemperatureR = TRes;
@@ -624,11 +641,19 @@ static int get_hw_btsmdpa_temp(void)
 	int ret = 0, data[4], i, ret_value = 0, ret_temp = 0, output;
 	int times = 1, Channel = g_RAP_ADC_channel; /* 6752=0(AUX_IN1_NTC) */
 	static int valid_temp;
+	#if defined(APPLY_AUXADC_CALI_DATA)
+	int auxadc_cali_temp;
+	#endif
 #endif
+#ifdef CONFIG_OF
+	struct device_node *dev_node;
 
-#ifdef MTK_SW_WORKAROUND
-	if (hw_version == 0)
-		return 40;
+	dev_node = of_find_compatible_node(NULL, NULL, "mediatek,mtboard-thermistor1");
+	if (dev_node) {
+		if (of_property_read_bool(dev_node, "fixed_thermal")) {
+			return 40;
+		}
+	}
 #endif
 
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
@@ -640,14 +665,14 @@ static int get_hw_btsmdpa_temp(void)
 		return ret;
 	}
 
+#ifdef APPLY_PRECISE_BTS_TEMP
+	/*val * 1500 * 100 / 4096 = (val * 9375) >>  8 */
+	ret = (val * 9375) >> 8;
+#else
 	/*val * 1500 / 4096*/
 	ret = (val * 1500) >> 12;
-#else
-
-#if defined(APPLY_AUXADC_CALI_DATA)
-	int auxadc_cali_temp;
 #endif
-
+#else
 	if (IMM_IsAdcInitReady() == 0) {
 		mtkts_btsmdpa_printk(
 			"[thermal_auxadc_get_data]: AUXADC is not ready\n");
@@ -705,7 +730,11 @@ static int get_hw_btsmdpa_temp(void)
 	/* #define AUXADC_PRECISE      4096 // 12 bits */
 #if defined(APPLY_AUXADC_CALI_DATA)
 #else
+#ifdef APPLY_PRECISE_BTS_TEMP
+	ret = ret * 9375 >> 8;
+#else
 	ret = ret * 1500 / 4096;
+#endif
 #endif
 #endif /*CONFIG_MEDIATEK_MT6577_AUXADC*/
 
@@ -713,7 +742,6 @@ static int get_hw_btsmdpa_temp(void)
 	mtkts_btsmdpa_dprintk("APtery output mV = %d\n", ret);
 	output = mtk_ts_btsmdpa_volt_to_temp(ret);
 	mtkts_btsmdpa_dprintk("BTSMDPA output temperature = %d\n", output);
-
 	return output;
 }
 
@@ -732,7 +760,9 @@ int mtkts_btsmdpa_get_hw_temp(void)
 	/* get HW AP temp (TSAP) */
 	/* cat /sys/class/power_supply/AP/AP_temp */
 	t_ret = get_hw_btsmdpa_temp();
+#ifndef APPLY_PRECISE_BTS_TEMP
 	t_ret = t_ret * 1000;
+#endif
 
 #if MTKTS_BTSMDPA_SW_FILTER
 	if ((t_ret > 100000) || (t_ret < -30000)) {
@@ -756,8 +786,10 @@ int mtkts_btsmdpa_get_hw_temp(void)
 
 	mutex_unlock(&BTSMDPA_lock);
 
+#ifndef CONFIG_SEC_PM
 	if (t_ret > 40000)	/* abnormal high temp */
 		mtkts_btsmdpa_printk("T_btsmdpa=%d\n", t_ret);
+#endif
 
 	mtkts_btsmdpa_dprintk("[%s] T_btsmdpa, %d\n", __func__,
 									t_ret);
@@ -1206,11 +1238,11 @@ static int mtkts_btsmdpa_param_read(struct seq_file *m, void *v)
 	seq_printf(m, "%d\n", g_RAP_pull_up_voltage);
 	seq_printf(m, "%d\n", g_TAP_over_critical_low);
 	seq_printf(m, "%d\n", g_RAP_ntc_table);
-	seq_printf(m, "%d\n", g_RAP_ADC_channel);
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
-	seq_printf(m, "%d\n", thermistor_ch1->channel->channel);
+	seq_printf(m, "%d\n", g_ADC_channel);
+#else
+	seq_printf(m, "%d\n", g_RAP_ADC_channel);
 #endif
-
 	return 0;
 }
 
@@ -1452,6 +1484,11 @@ static int mtkts_btsmdpa_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	g_ADC_channel = thermistor_ch1->channel->channel;
+	mtkts_btsmdpa_printk("[%s]get auxadc iio ch: %d\n", __func__,
+		thermistor_ch1->channel->channel);
+
+
 	return err;
 }
 
@@ -1487,28 +1524,6 @@ static int __init mtkts_btsmdpa_init(void)
 #endif
 
 	mtkts_btsmdpa_dprintk("[%s]\n", __func__);
-
-	/* Get HW version from device tree */
-#ifdef MTK_SW_WORKAROUND
-	{
-		struct device_node *root = of_find_node_by_path("/");
-		int ret;
-
-		if (IS_ERR_OR_NULL(root)) {
-			mtkts_btsmdpa_printk("root dev node is NULL\n");
-			return -1;
-		}
-
-		ret = of_property_read_u32(root, "dtbo-hw_rev", &hw_version);
-		if (ret < 0) {
-			mtkts_btsmdpa_printk("get dtbo-hw_rev fail:%d\n", ret);
-			hw_version = 0;
-		} else {
-			mtkts_btsmdpa_printk("Get HW version = %d\n",
-				hw_version);
-		}
-	}
-#endif
 
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
 	err = platform_driver_register(&mtk_thermal_btsmdpa_driver);

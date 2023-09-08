@@ -70,6 +70,14 @@ static int mtk_afe_fm_i2s_probe(struct snd_soc_platform *platform);
 
 static unsigned int mfm_i2s_Volume = 0x10000;
 static bool mPrepareDone;
+static const char * const afe_off_on_str[] = {
+	"Off", "On"
+};
+
+static const struct soc_enum afe_misc_enum[] = {
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(afe_off_on_str),
+			    afe_off_on_str),
+};
 
 static int Audio_fm_i2s_Volume_Get(struct snd_kcontrol *kcontrol,
 				   struct snd_ctl_elem_value *ucontrol)
@@ -91,10 +99,42 @@ static int Audio_fm_i2s_Volume_Set(struct snd_kcontrol *kcontrol,
 
 	return 0;
 }
+/* in port define >= 32 */
+#define I_32_OFFSET 32
+#define I_CONNSYS_I2S_CH1 (34 - I_32_OFFSET)
+#define I_CONNSYS_I2S_CH2 (35 - I_32_OFFSET)
+
+/* afe customize setting */
+static int Audio_fm_mute_get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	return 0;
+}
+int Audio_fm_mute_event(unsigned int value)
+{
+	if (value == 1)
+		SetFmOnlyConnection(Soc_Aud_InterCon_DisConnect);
+	else
+		SetFmOnlyConnection(Soc_Aud_InterCon_Connection);
+
+	pr_info("%s fm_mute (%d)\n", __func__, value);
+
+	return 0;
+}
+
+static int Audio_fm_mute_set(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	unsigned int value = ucontrol->value.integer.value[0];
+
+	return Audio_fm_mute_event(value);
+}
 
 static const struct snd_kcontrol_new Audio_snd_fm_i2s_controls[] = {
 	SOC_SINGLE_EXT("Audio FM I2S Volume", SND_SOC_NOPM, 0, 0x80000, 0,
 		       Audio_fm_i2s_Volume_Get, Audio_fm_i2s_Volume_Set),
+	SOC_ENUM_EXT("Fm_mute_Setting", afe_misc_enum[0],
+		     Audio_fm_mute_get, Audio_fm_mute_set),
 };
 
 static struct snd_pcm_hardware mtk_fm_i2s_hardware = {
@@ -330,8 +370,12 @@ static struct snd_soc_platform_driver mtk_fm_i2s_soc_platform = {
 
 static int mtk_fm_i2s_probe(struct platform_device *pdev)
 {
-	if (pdev->dev.of_node)
+	if (pdev->dev.of_node) {
 		dev_set_name(&pdev->dev, "%s", MT_SOC_FM_I2S_PCM);
+		pdev->name = pdev->dev.kobj.name;
+	} else {
+		pr_debug("%s(), pdev->dev.of_node = NULL!!!\n", __func__);
+	}
 
 	pr_debug("%s: dev name %s\n", __func__, dev_name(&pdev->dev));
 	return snd_soc_register_platform(&pdev->dev, &mtk_fm_i2s_soc_platform);

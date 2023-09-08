@@ -21,8 +21,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
  */
-#include <linux/muic/muic_notifier.h>
-#include <linux/muic/muic.h>
+#include <linux/muic/common/muic_notifier.h>
+#include <linux/muic/common/muic.h>
 #ifndef __S2M_PDIC_NOTIFIER_H__
 #define __S2M_PDIC_NOTIFIER_H__
 

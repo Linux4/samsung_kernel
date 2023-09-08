@@ -15,8 +15,17 @@
 #include "gpiolib.h"
 #include "../pinctrl/mediatek/pinctrl-paris.h"
 
-/* GPIO Number of MT6768 */
+#if IS_ENABLED(CONFIG_MACH_MT6739)
+#define AP_GPIO_COUNT   164
+#elif IS_ENABLED(CONFIG_MACH_MT6768)
 #define AP_GPIO_COUNT   180
+#elif IS_ENABLED(CONFIG_MACH_MT6833)
+#define AP_GPIO_COUNT   201
+#elif IS_ENABLED(CONFIG_MACH_MT6853)
+#define AP_GPIO_COUNT   203
+#elif IS_ENABLED(CONFIG_MACH_MT6877)
+#define AP_GPIO_COUNT   209
+#endif
 
 #define GET_RESULT_GPIO(a, b, c)        \
 	((a<<4 & 0xF0) | (b<<1 & 0xE) | (c & 0x1))

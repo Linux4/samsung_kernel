@@ -91,10 +91,14 @@ static int mtk_smi_debug_res_init(struct mtk_smi_dbg *dbgmng)
 			break;
 		pdev = of_find_device_by_node(m4u_dev_node);
 		of_node_put(m4u_dev_node);
+		if (!pdev)
+			return -ENODEV;
 		m4u = &dbgmng->m4u[m4uidx];
 
 		m4u->dev = &pdev->dev;
 		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+		if (!res)
+			return -ENODEV;
 		m4u->base = devm_ioremap_nocache(m4u->dev, res->start,
 						 0x1000);
 		if (IS_ERR(m4u->base))
@@ -318,7 +322,7 @@ static void smi_larb_monitor_start(struct device *dev, void __iomem *base,
 
 	reg = 0x1 << 9;
 	reg |= (mode & 0x3) << 2; /* read/write.*/
-	writel_relaxed(portid, base + 0x40c);
+	writel_relaxed(reg, base + 0x40c);
 	writel(0x1, base + 0x400); /* start */
 }
 

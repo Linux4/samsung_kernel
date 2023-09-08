@@ -186,6 +186,7 @@ static int pe_increase_ta_vchr(struct charger_manager *pinfo, u32 vchr_target)
 	int vchr_before, vchr_after;
 	u32 retry_cnt = 0;
 	bool chg2_chip_enabled = false;
+	u32 ibus_before = 0, ibus_after = 0;
 
 	do {
 		if (pinfo->chg2_dev) {
@@ -196,25 +197,39 @@ static int pe_increase_ta_vchr(struct charger_manager *pinfo, u32 vchr_target)
 		}
 
 		vchr_before = pe_get_vbus();
+		ret = charger_dev_get_ibus(pinfo->chg1_dev, &ibus_before);
+		if (ret < 0)
+			chr_err("%s: get ibus fail\n", __func__);
+
 		__pe_increase_ta_vchr(pinfo);
 		vchr_after = pe_get_vbus();
+		ret = charger_dev_get_ibus(pinfo->chg1_dev, &ibus_after);
+		if (ret < 0)
+			chr_err("%s: get ibus fail\n", __func__);
 
 		if (abs(vchr_after - vchr_target) <= 1000000) {
 			chr_info("%s: OK\n", __func__);
+			ret = 0;
 			return ret;
 		}
-		chr_err("%s: retry, cnt = %d, vchr = (%d, %d), vchr_target = %d\n",
-			__func__, retry_cnt, vchr_before / 1000,
-			vchr_after / 1000, vchr_target / 1000);
+
+		if (abs(vchr_after - vchr_before) >= 500000) {
+			chr_err("%s: V drop out of range, ibus = (%d, %d), skip pe\n",
+				__func__, ibus_before / 1000, ibus_after / 1000);
+			break;
+		}
+		chr_err("%s: retry, cnt = %d, vchr = (%d, %d), ibus = (%d, %d), vchr_target = %d\n",
+			__func__, retry_cnt, vchr_before / 1000, vchr_after / 1000,
+			ibus_before / 1000, ibus_after / 1000, vchr_target / 1000);
 
 		retry_cnt++;
 	} while (mt_get_charger_type() != CHARGER_UNKNOWN && retry_cnt < 3 &&
 		pinfo->enable_hv_charging && cancel_pe(pinfo) != true);
 
 	ret = -EIO;
-	chr_err("%s: failed, vchr = (%d, %d), vchr_target = %d\n",
-		__func__, vchr_before / 1000, vchr_after / 1000,
-		vchr_target / 1000);
+	chr_err("%s: retry, cnt = %d, vchr = (%d, %d), ibus = (%d, %d), vchr_target = %d\n",
+		__func__, retry_cnt, vchr_before / 1000, vchr_after / 1000,
+		ibus_before / 1000, ibus_after / 1000, vchr_target / 1000);
 
 	return ret;
 }

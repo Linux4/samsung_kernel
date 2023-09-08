@@ -4921,6 +4921,10 @@ static unsigned int pmic_buck_get_mode(struct regulator_dev *rdev)
 	struct mtk_regulator *mreg = rdev_get_drvdata(rdev);
 	unsigned int mode;
 
+	if (mreg == NULL) {
+		pr_notice("regulator info null pointer\n");
+		return -EINVAL;
+	}
 	if (pmic_get_register_value(mreg->modeset_reg) == 1)
 		mode = REGULATOR_MODE_FAST;
 	else if (pmic_get_register_value(mreg->lp_mode_reg) == 1)
@@ -4935,6 +4939,10 @@ static int pmic_buck_set_mode(struct regulator_dev *rdev, unsigned int mode)
 	struct mtk_regulator *mreg = rdev_get_drvdata(rdev);
 	int curr_mode;
 
+	if (mreg == NULL) {
+		pr_notice("regulator info null pointer\n");
+		return -EINVAL;
+	}
 	curr_mode = pmic_buck_get_mode(rdev);
 	switch (mode) {
 	case REGULATOR_MODE_FAST:
@@ -5425,7 +5433,7 @@ static ssize_t show_regulator_status(
 					struct device_attribute *attr,
 					char *buf)
 {
-	struct mtk_regulator *mreg;
+	struct mtk_regulator *mreg = NULL;
 	unsigned int ret_value = 0;
 
 	mreg = container_of(attr, struct mtk_regulator, en_att);
@@ -5456,11 +5464,11 @@ static ssize_t show_regulator_voltage(
 					struct device_attribute *attr,
 					char *buf)
 {
-	struct mtk_regulator *mreg;
-	const int *pVoltage;
-	const int *pVoltidx;
+	struct mtk_regulator *mreg = NULL;
+	const int *pVoltage = NULL;
+	const int *pVoltidx = NULL;
 
-	unsigned short regVal;
+	unsigned short regVal = 0;
 	unsigned int ret_value = 0, i = 0, ret = 0;
 
 	mreg = container_of(attr, struct mtk_regulator, voltage_att);

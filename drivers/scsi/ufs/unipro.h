@@ -152,12 +152,21 @@
 #define PA_SLEEPNOCONFIGTIME	0x15A2
 #define PA_STALLNOCONFIGTIME	0x15A3
 #define PA_SAVECONFIGTIME	0x15A4
+#define PA_TXHSADAPTTYPE        0x15D4
 #define PA_LOCALTXLCCENABLE	0x155E /* MTK PATCH */
+
+/* Adpat type for PA_TXHSADAPTTYPE attribute */
+#define PA_REFRESH_ADAPT       0x00
+#define PA_INITIAL_ADAPT       0x01
+#define PA_NO_ADAPT            0x03
 
 #define PA_TACTIVATE_TIME_UNIT_US	10
 #define PA_HIBERN8_TIME_UNIT_US		100
 
 /*Other attributes*/
+#define VS_DME_PWRMODIND	0xD040 /* MTK PATCH */
+#define VS_DEBUGPWRCHG		0xD096 /* MTK PATCH */
+#define VS_DEBUGSTATES		0xD097 /* MTK PATCH */
 #define VS_MPHYCFGUPDT		0xD085
 #define VS_DEBUGOMC		0xD09E
 #define VS_POWERSTATE		0xD083
@@ -199,6 +208,7 @@ enum ufs_hs_gear_tag {
 	UFS_HS_G1,		/* HS Gear 1 (default for reset) */
 	UFS_HS_G2,		/* HS Gear 2 */
 	UFS_HS_G3,		/* HS Gear 3 */
+	UFS_HS_G4,		/* HS Gear 4 */
 };
 
 enum ufs_unipro_ver {

@@ -109,7 +109,9 @@ enum {
 	EXT_BUF247_EN,
 };
 
+#if defined(CONFIG_MACH_MT6768)
 #define CLKBUF_USE_BBLPM
+#endif
 
 void clk_buf_post_init(void);
 void clk_buf_init_pmic_clkbuf(void);
@@ -117,5 +119,6 @@ void clk_buf_init_pmic_wrap(void);
 void clk_buf_init_pmic_swctrl(void);
 bool clk_buf_ctrl_combine(enum clk_buf_id id, bool onoff);
 void clk_buf_ctrl_bblpm_hw(short on);
+void clk_buf_disp_ctrl(bool onoff);
 #endif
 

@@ -17,23 +17,28 @@
 #ifdef CONFIG_OF
 extern struct musb *mtk_musb;
 
+#ifdef USB2_PHY_V2
+#define USB_PHY_OFFSET 0x300
+#else
+#define USB_PHY_OFFSET 0x800
+#endif
+
 #define USBPHY_READ8(offset) \
 	readb((void __iomem *)\
 		(((unsigned long)\
-		mtk_musb->xceiv->io_priv)+0x800+offset))
+		mtk_musb->xceiv->io_priv)+USB_PHY_OFFSET+offset))
 #define USBPHY_WRITE8(offset, value)  writeb(value, (void __iomem *)\
-		(((unsigned long)mtk_musb->xceiv->io_priv)+0x800+offset))
+		(((unsigned long)mtk_musb->xceiv->io_priv)+USB_PHY_OFFSET+offset))
 #define USBPHY_SET8(offset, mask) \
 	USBPHY_WRITE8(offset, (USBPHY_READ8(offset)) | (mask))
 #define USBPHY_CLR8(offset, mask) \
 	USBPHY_WRITE8(offset, (USBPHY_READ8(offset)) & (~(mask)))
-
 #define USBPHY_READ32(offset) \
 	readl((void __iomem *)(((unsigned long)\
-		mtk_musb->xceiv->io_priv)+0x800+offset))
+		mtk_musb->xceiv->io_priv)+USB_PHY_OFFSET+offset))
 #define USBPHY_WRITE32(offset, value) \
 	writel(value, (void __iomem *)\
-		(((unsigned long)mtk_musb->xceiv->io_priv)+0x800+offset))
+		(((unsigned long)mtk_musb->xceiv->io_priv)+USB_PHY_OFFSET+offset))
 #define USBPHY_SET32(offset, mask) \
 	USBPHY_WRITE32(offset, (USBPHY_READ32(offset)) | (mask))
 #define USBPHY_CLR32(offset, mask) \
@@ -48,18 +53,18 @@ extern struct musb *mtk_musb;
 #include <mach/mt_reg_base.h>
 
 #define USBPHY_READ8(offset) \
-		readb((void __iomem *)(USB_SIF_BASE+0x800+offset))
+		readb((void __iomem *)(USB_SIF_BASE+USB_PHY_OFFSET+offset))
 #define USBPHY_WRITE8(offset, value) \
-		writeb(value, (void __iomem *)(USB_SIF_BASE+0x800+offset))
+		writeb(value, (void __iomem *)(USB_SIF_BASE+USB_PHY_OFFSET+offset))
 #define USBPHY_SET8(offset, mask) \
 	USBPHY_WRITE8(offset, (USBPHY_READ8(offset)) | (mask))
 #define USBPHY_CLR8(offset, mask) \
 	USBPHY_WRITE8(offset, (USBPHY_READ8(offset)) & (~mask))
 
 #define USBPHY_READ32(offset) \
-		readl((void __iomem *)(USB_SIF_BASE+0x800+offset))
+		readl((void __iomem *)(USB_SIF_BASE+USB_PHY_OFFSET+offset))
 #define USBPHY_WRITE32(offset, value) \
-		writel(value, (void __iomem *)(USB_SIF_BASE+0x800+offset))
+		writel(value, (void __iomem *)(USB_SIF_BASE+USB_PHY_OFFSET+offset))
 #define USBPHY_SET32(offset, mask) \
 		USBPHY_WRITE32(offset, (USBPHY_READ32(offset)) | (mask))
 #define USBPHY_CLR32(offset, mask) \
@@ -77,7 +82,7 @@ enum usb_state_enum {
 /* USB phy and clock */
 extern bool usb_pre_clock(bool enable);
 extern void usb_phy_poweron(void);
-extern void usb_phy_recover(bool is_host);
+extern void usb_phy_recover(struct musb *musb);
 extern void usb_phy_savecurrent(void);
 extern void usb_phy_context_restore(void);
 extern void usb_phy_context_save(void);

@@ -74,7 +74,6 @@ extern void mt_gpufreq_enable_CG(void);
 extern void mt_gpufreq_disable_CG(void);
 extern void mt_gpufreq_enable_MTCMOS(void);
 extern void mt_gpufreq_disable_MTCMOS(void);
-extern int mt_gpufreq_get_immed_gpu_temp(void);
 
 #ifdef CONFIG_MTK_RAM_CONSOLE
 extern void aee_rr_rec_gpu_dvfs_vgpu(u8 val);
@@ -94,5 +93,10 @@ extern void mt_gpufreq_power_limit_notify_registerCB(gpufreq_power_limit_notify 
  ******************/
 typedef void (*gpufreq_input_boost_notify)(unsigned int);
 extern void mt_gpufreq_input_boost_notify_registerCB(gpufreq_input_boost_notify pCB);
+
+/**
+ * GED_SKI_SUPPORT
+ */
+extern int mt_gpufreq_get_immed_gpu_temp(void);
 
 #endif /* _MT_GPUFREQ_H_ */

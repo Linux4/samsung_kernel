@@ -83,8 +83,11 @@ static unsigned long cl_kshutdown_state[MAX_NUM_INSTANCE_MTK_COOLER_KSHUTDOWN]
 		mtk_cooler_kshutdown_dprintk(
 				"%s %s invokes machine_power_off\n", __func__,
 				cdev->type);
-
+#ifdef CONFG_SEC_PM
+		BUG();
+#else
 		machine_power_off();
+#endif
 	}
 
 	return 0;

@@ -45,8 +45,9 @@
 #include "kd_imgsensor.h"
 #include "kd_imgsensor_define.h"
 #include "kd_imgsensor_errcode.h"
+#include "kd_imgsensor_sysfs_adapter.h"
 
-#include "sysfs/imgsensor_sysfs.h"
+#include "imgsensor_sysfs.h"
 
 #include "imx582mipiraw_Sensor.h"
 #include "imx582_eeprom.h"
@@ -76,7 +77,10 @@ BYTE imx582_LRC_data[384] = {0};
 
 static DEFINE_SPINLOCK(imgsensor_drv_lock);
 
-//static bool qsc_write = false;
+#define SENSOR_IMX582_COARSE_INTEGRATION_TIME_MAX_MARGIN       (5)
+#define SENSOR_IMX582_MAX_COARSE_INTEGRATION_TIME              (65535)
+
+static kal_bool sIsNightHyperlapse = KAL_FALSE;
 
 
 static struct imgsensor_info_struct imgsensor_info = {
@@ -155,14 +159,14 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.custom1 = { /*reg_K */
 		.pclk = 863200000,
 		.linelength = 2912,
-		.framelength = 2470,
+		.framelength = 4940,
 		.startx = 0,
 		.starty = 0,
 		.grabwindow_width = 2000,
 		.grabwindow_height = 1500,
 		.mipi_data_lp2hs_settle_dc = 85,
 		.mipi_pixel_rate = 739200000,
-		.max_framerate = 1200,
+		.max_framerate = 600,
 	},
 
 	.custom2 = { /* reg_A */
@@ -175,7 +179,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.grabwindow_height = 6000,
 		.mipi_data_lp2hs_settle_dc = 85,
 		.mipi_pixel_rate = 823200000,
-		.max_framerate = 300,
+		.max_framerate = 150,
 	},
 
 	.margin = 48,		/* sensor framelength & shutter margin */
@@ -200,7 +204,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.slim_video_delay_frame = 2,	/* enter slim video delay frame num */
 	.custom1_delay_frame = 2,	/* enter custom1 delay frame num */
 	.custom2_delay_frame = 2,	/* enter custom2 delay frame num */
-	.isp_driving_current = ISP_DRIVING_4MA,
+	.isp_driving_current = ISP_DRIVING_6MA,
 	.sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,
 	/* .mipi_sensor_type = MIPI_OPHY_NCSI2, */
 	/* 0,MIPI_OPHY_NCSI2;  1,MIPI_OPHY_CSI2 */
@@ -293,14 +297,14 @@ static struct imgsensor_info_struct imgsensor_info_rev5 = {
 	.custom1 = { /*reg_K */
 		.pclk = 863200000,
 		.linelength = 2912,
-		.framelength = 2470,
+		.framelength = 4940,
 		.startx = 0,
 		.starty = 0,
 		.grabwindow_width = 2000,
 		.grabwindow_height = 1500,
 		.mipi_data_lp2hs_settle_dc = 85,
 		.mipi_pixel_rate = 739200000,
-		.max_framerate = 1200,
+		.max_framerate = 600,
 	},
 
 	.custom2 = { /*reg_A */
@@ -313,7 +317,7 @@ static struct imgsensor_info_struct imgsensor_info_rev5 = {
 		.grabwindow_height = 6000,
 		.mipi_data_lp2hs_settle_dc = 85,
 		.mipi_pixel_rate = 823200000,
-		.max_framerate = 300,
+		.max_framerate = 150,
 	},
 
 	.margin = 48,		/* sensor framelength & shutter margin */
@@ -338,7 +342,7 @@ static struct imgsensor_info_struct imgsensor_info_rev5 = {
 	.slim_video_delay_frame = 2,	/* enter slim video delay frame num */
 	.custom1_delay_frame = 2,	/* enter custom1 delay frame num */
 	.custom2_delay_frame = 2,	/* enter custom2 delay frame num */
-	.isp_driving_current = ISP_DRIVING_4MA,
+	.isp_driving_current = ISP_DRIVING_6MA,
 	.sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,
 	/* .mipi_sensor_type = MIPI_OPHY_NCSI2, */
 	/* 0,MIPI_OPHY_NCSI2;  1,MIPI_OPHY_CSI2 */
@@ -431,14 +435,14 @@ static struct imgsensor_info_struct imgsensor_info_rev6 = {
 	.custom1 = { /*reg_K */
 		.pclk = 863200000,
 		.linelength = 2912,
-		.framelength = 2470,
+		.framelength = 4940,
 		.startx = 0,
 		.starty = 0,
 		.grabwindow_width = 2000,
 		.grabwindow_height = 1500,
 		.mipi_data_lp2hs_settle_dc = 85,
 		.mipi_pixel_rate = 739200000,
-		.max_framerate = 1200, /*120fps*/
+		.max_framerate = 600, /*120fps -> 60fps*/
 	},
 
 	.custom2 = { /* reg_A */
@@ -451,7 +455,7 @@ static struct imgsensor_info_struct imgsensor_info_rev6 = {
 		.grabwindow_height = 6000,
 		.mipi_data_lp2hs_settle_dc = 85,
 		.mipi_pixel_rate = 823200000,
-		.max_framerate = 300,
+		.max_framerate = 150,
 	},
 
 	.margin = 48,		/* sensor framelength & shutter margin */
@@ -476,7 +480,7 @@ static struct imgsensor_info_struct imgsensor_info_rev6 = {
 	.slim_video_delay_frame = 2,	/* enter slim video delay frame num */
 	.custom1_delay_frame = 2,	/* enter custom1 delay frame num */
 	.custom2_delay_frame = 2,	/* enter custom2 delay frame num */
-	.isp_driving_current = ISP_DRIVING_4MA,
+	.isp_driving_current = ISP_DRIVING_6MA,
 	.sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,
 	/* .mipi_sensor_type = MIPI_OPHY_NCSI2, */
 	/* 0,MIPI_OPHY_NCSI2;  1,MIPI_OPHY_CSI2 */
@@ -515,13 +519,13 @@ static struct imgsensor_struct imgsensor = {
 /* Sensor output window information */
 static struct SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[8] = {
 	{8000, 6000, 0000, 0000, 8000, 6000, 4000, 3000,
-	 0000, 0000, 4000, 3000,    0,    0, 4000, 3000}, /* Preview */
+	0000, 0000, 4000, 3000,    0,    0, 4000, 3000},/* Preview */
 	{8000, 6000, 0000, 0000, 8000, 6000, 4000, 3000,
-	 0000, 0000, 4000, 3000,    0,    0, 4000, 3000}, 
+	0000, 0000, 4000, 3000,    0,    0, 4000, 3000},
 	{8000, 6000, 0000, 0000, 8000, 6000, 4000, 3000,
-	 0000,  372, 4000, 2256,    0,    0, 4000, 2256}, /* video */
-	{8000, 6000, 0000, 0000, 8000, 6000, 4000, 3000,
-	 0000, 0000, 2000, 1500,    0,    0, 2000, 1500}, /* high speed video */
+	 0000,  372, 4000, 2256,    0,    0, 4000, 2256},/* video */
+	{8000, 6000, 0000, 0000, 8000, 6000, 2000, 1500,
+	 0000,  186, 2000, 1128,    0,    0, 2000, 1128}, /* high speed video */
 	{8000, 6000, 0000, 0000, 8000, 6000, 2000, 1500,
 	 0000, 0000, 2000, 1500,    0,    0, 2000, 1500}, /* slim */
 	{8000, 6000, 0000, 0000, 8000, 6000, 2000, 1500,
@@ -667,7 +671,7 @@ static kal_int32 burst_table_write_cmos_sensor(kal_uint16 start_addr, kal_uint8 
 		puSendCmd[tosend++] = (char)(data & 0xFF);
 	}
 
-	ret = iBurstWriteReg_multi( puSendCmd, tosend,
+	ret = iBurstWriteReg_multi(puSendCmd, tosend,
 					imgsensor.i2c_write_id, tosend, imgsensor_info.i2c_speed);
 	if (ret < 0) {
 		pr_err("%s: fail!\n", __func__);
@@ -686,6 +690,7 @@ static void set_dummy(void)
 	/* return;*/ /* for test */
 	write_cmos_sensor_8(0x0104, 0x01);
 
+	write_cmos_sensor_8(0x3100, 0x00);
 	write_cmos_sensor_8(0x0340, imgsensor.frame_length >> 8);
 	write_cmos_sensor_8(0x0341, imgsensor.frame_length & 0xFF);
 	write_cmos_sensor_8(0x0342, imgsensor.line_length >> 8);
@@ -755,11 +760,26 @@ static void set_max_framerate(UINT16 framerate, kal_bool min_framelength_en)
 static void write_shutter(kal_uint32 shutter)
 {
 	kal_uint16 realtime_fps = 0;
-	#ifdef VENDOR_EDIT
+	kal_uint32 target_exp = 0;
+	kal_uint32 target_frame_duration = 0;
+	kal_uint32 frame_length_lines = 0;
+	kal_uint32 cit_lshift_val = 0;
+	kal_uint32 cit_lshift_count = 0;
+
+	kal_uint32 min_fine_int = 0;
+	kal_uint32 vt_pic_clk_freq_mhz = 0;
+	kal_uint32 line_length_pck = 0;
+
+	vt_pic_clk_freq_mhz = imgsensor.pclk / (1000 * 1000);
+	line_length_pck = imgsensor.line_length;
+	min_fine_int = 0x0100;
+
+	target_exp = ((shutter * line_length_pck) + min_fine_int) / vt_pic_clk_freq_mhz;
+#ifdef VENDOR_EDIT
 	/*Yijun.Tan@camera.driver,20180116,add for slow shutter */
 	int longexposure_times = 0;
 	static int long_exposure_status;
-	#endif
+#endif
 
 	spin_lock(&imgsensor_drv_lock);
 	if (shutter > imgsensor.min_frame_length - imgsensor_info.margin)
@@ -772,32 +792,70 @@ static void write_shutter(kal_uint32 shutter)
 	if (shutter < imgsensor_info.min_shutter)
 		shutter = imgsensor_info.min_shutter;
 
-	if (imgsensor.autoflicker_en) {
-		realtime_fps = imgsensor.pclk / imgsensor.line_length * 10
-				/ imgsensor.frame_length;
-		if (realtime_fps >= 297 && realtime_fps <= 305)
-			set_max_framerate(296, 0);
-		else if (realtime_fps >= 147 && realtime_fps <= 150)
-			set_max_framerate(146, 0);
-		else {
-		/* Extend frame length*/
-		write_cmos_sensor_8(0x0104, 0x01);
-		write_cmos_sensor_8(0x0340, imgsensor.frame_length >> 8);
-		write_cmos_sensor_8(0x0341, imgsensor.frame_length & 0xFF);
-		write_cmos_sensor_8(0x0104, 0x00);
-		}
-	} else {
-		/* Extend frame length*/
-		write_cmos_sensor_8(0x0104, 0x01);
-		write_cmos_sensor_8(0x0340, imgsensor.frame_length >> 8);
-		write_cmos_sensor_8(0x0341, imgsensor.frame_length & 0xFF);
-		write_cmos_sensor_8(0x0104, 0x00);
-
-		LOG_INF("(else)imgsensor.frame_length = %d\n",
-			imgsensor.frame_length);
-
+	if (sIsNightHyperlapse) {
+		// fps = 1/1.5 (Frame Duration : 1.5sec)
+		// frame_length = pclk / (line_length * fps)
+		imgsensor.frame_length = (((imgsensor.pclk / (1000 * 1000)) * (1500000))/imgsensor.line_length);
 	}
-	#ifdef VENDOR_EDIT
+	target_frame_duration = ((imgsensor.frame_length * imgsensor.line_length) / (imgsensor.pclk / 1000000));
+
+	if (target_frame_duration > 100000) {
+		int max_coarse_integration_time =
+			SENSOR_IMX582_MAX_COARSE_INTEGRATION_TIME - SENSOR_IMX582_COARSE_INTEGRATION_TIME_MAX_MARGIN;
+
+		cit_lshift_val = (kal_uint32)(target_frame_duration / 100000);
+		while (cit_lshift_val > 1) {
+			cit_lshift_val /= 2;
+			target_frame_duration /= 2;
+			target_exp /= 2;
+			cit_lshift_count++;
+		}
+		if (cit_lshift_count > 7) //Max. CIT_LSHIFT = 7(128times)
+			cit_lshift_count = 7;
+
+		frame_length_lines = (kal_uint32)((vt_pic_clk_freq_mhz * target_frame_duration) / line_length_pck);
+		imgsensor.frame_length = frame_length_lines;
+
+		shutter = ((target_exp * vt_pic_clk_freq_mhz) - min_fine_int) / line_length_pck;
+		if (shutter > max_coarse_integration_time)
+			shutter = max_coarse_integration_time;
+
+		write_cmos_sensor_8(0x0104, 0x01);
+		write_cmos_sensor_8(0x3100, cit_lshift_count & 0x07);
+		write_cmos_sensor_8(0x0340, imgsensor.frame_length >> 8);
+		write_cmos_sensor_8(0x0341, imgsensor.frame_length & 0xFF);
+		write_cmos_sensor_8(0x0104, 0x00);
+
+	} else {
+		if (imgsensor.autoflicker_en) {
+			realtime_fps = imgsensor.pclk / imgsensor.line_length * 10
+					/ imgsensor.frame_length;
+			if (realtime_fps >= 297 && realtime_fps <= 305)
+				set_max_framerate(296, 0);
+			else if (realtime_fps >= 147 && realtime_fps <= 150)
+				set_max_framerate(146, 0);
+			else {
+				/* Extend frame length*/
+				write_cmos_sensor_8(0x0104, 0x01);
+				write_cmos_sensor_8(0x3100, 0x00);
+				write_cmos_sensor_8(0x0340, imgsensor.frame_length >> 8);
+				write_cmos_sensor_8(0x0341, imgsensor.frame_length & 0xFF);
+				write_cmos_sensor_8(0x0104, 0x00);
+			}
+		} else {
+			/* Extend frame length*/
+			write_cmos_sensor_8(0x0104, 0x01);
+			write_cmos_sensor_8(0x3100, 0x00);
+			write_cmos_sensor_8(0x0340, imgsensor.frame_length >> 8);
+			write_cmos_sensor_8(0x0341, imgsensor.frame_length & 0xFF);
+			write_cmos_sensor_8(0x0104, 0x00);
+
+			LOG_INF("(else)imgsensor.frame_length = %d\n",
+				imgsensor.frame_length);
+
+		}
+	}
+#ifdef VENDOR_EDIT
 	/*Yijun.Tan@camera.driver,20180116,add for slow shutter */
 	while (shutter >= 65535) {
 		shutter = shutter / 2;
@@ -824,7 +882,7 @@ static void write_shutter(kal_uint32 shutter)
 
 		LOG_INF("exit long exposure mode");
 	}
-	#endif
+#endif
 	/* Update Shutter */
 	write_cmos_sensor_8(0x0104, 0x01);
 	write_cmos_sensor_8(0x0202, (shutter >> 8) & 0xFF);
@@ -871,8 +929,8 @@ static void set_shutter(kal_uint32 shutter)
  *	for frame & 3A sync
  *
  *************************************************************************/
-static void set_shutter_frame_length(kal_uint16 shutter,
-				     kal_uint16 frame_length)
+static void set_shutter_frame_length(UINT32 shutter,
+				     UINT32 frame_length)
 {
 	unsigned long flags;
 	kal_uint16 realtime_fps = 0;
@@ -2263,8 +2321,8 @@ static kal_uint16 imx582_custom1_setting[] = {
 	0x0343,	0x60,
 
 	/*Frame Length Lines Setting*/
-	0x0340,	0x09,
-	0x0341,	0xA6,
+	0x0340,	0x13, //0x09A6 * 2
+	0x0341,	0x4C,
 
 	/*ROI Setting*/
 	0x0344,	0x00,
@@ -3251,8 +3309,8 @@ static kal_uint16 imx582_custom1_setting_rev6[] = {
 	0x0343, 0x60,
 
 	/*Frame Length Lines Setting*/
-	0x0340, 0x09,
-	0x0341, 0xA6,
+	0x0340, 0x13, //0x09A6 * 2
+	0x0341, 0x4C,
 
 	/*ROI Setting*/
 	0x0344, 0x00,
@@ -3397,7 +3455,7 @@ static void sensor_init(void)
 			sizeof(imx582_init_setting)/sizeof(kal_uint16));
 	}
 
-	if(ret != 0) {
+	if (ret != 0) {
 		imgsensor_sec_get_hw_param(&hw_param, SENSOR_POSITION_REAR);
 		if (hw_param)
 			hw_param->i2c_sensor_err_cnt++;
@@ -3408,13 +3466,7 @@ static void sensor_init(void)
 	LOG_INF("X");
 }	/*	  sensor_init  */
 
-#if WRITE_SENSOR_CAL_FOR_LRC || WRITE_SENSOR_CAL_FOR_QSC
-extern int imgsensor_get_cal_buf_by_sensor_idx(int sensor_idx, char **buf);
-#endif
-
 #if WRITE_SENSOR_CAL_FOR_LRC
-#define SENSOR_IMX582_LRC_CAL_BASE_REAR           (0x09D0)
-#define SENSOR_IMX582_LRC_CAL_SIZE                (384)
 #define SENSOR_IMX582_LRC_REG_ADDR                (0x7B10)
 
 static void sensor_LRC_write(void)
@@ -3423,66 +3475,105 @@ static void sensor_LRC_write(void)
 	int i = 0;
 #endif
 	char *rom_cal_buf = NULL;
-	char cal_data[SENSOR_IMX582_LRC_CAL_SIZE] = {0};
+	const struct rom_cal_addr *lrc_cal_addr;
 
-	int start_addr = SENSOR_IMX582_LRC_REG_ADDR;
-	int data_size = SENSOR_IMX582_LRC_CAL_SIZE;
+	int lrc_addr, lrc_size;
 
 	// TODO : sensor_dev_id needs to be updated according to actual id.
 	int sensor_dev_id = IMGSENSOR_SENSOR_IDX_MAIN;
 
 	pr_debug("%s", __func__);
 
-	if( imgsensor_get_cal_buf_by_sensor_idx(sensor_dev_id, &rom_cal_buf) ) {
-		pr_err("%s : cal data is NULL", __func__);
+	lrc_cal_addr = IMGSENSOR_GET_CAL_ADDR_BY_SENSOR_IDX(sensor_dev_id, GET_CAL_CROSSTALK);
+	if (lrc_cal_addr == NULL) {
+		pr_err("[%s] lrc_cal_addr is NULL");
 		return;
 	}
-	rom_cal_buf += SENSOR_IMX582_LRC_CAL_BASE_REAR;
-	memcpy(cal_data, &rom_cal_buf, SENSOR_IMX582_LRC_CAL_SIZE);
+
+	while (1) {
+		if (lrc_cal_addr == NULL) {
+			pr_err("[%s] crosstalk cal is NULL", __func__);
+			return;
+		}
+
+		if (lrc_cal_addr->name == CROSSTALK_CAL_LRC) {
+			lrc_addr = lrc_cal_addr->addr;
+			lrc_size = lrc_cal_addr->size;
+			break;
+		}
+
+		lrc_cal_addr = lrc_cal_addr->next;
+	}
+
+	pr_info("[%s] addr: %x, size: %x", __func__, lrc_addr, lrc_size);
+
+	if (IMGSENSOR_GET_CAL_BUF_BY_SENSOR_IDX(sensor_dev_id, &rom_cal_buf)) {
+		pr_err("%s : cal data is NULL, sensor_dev_id: %d", __func__, sensor_dev_id);
+		return;
+	}
+	rom_cal_buf += lrc_addr;
+
 #if INDIRECT_BURST
-	burst_table_write_cmos_sensor(start_addr, rom_cal_buf, data_size);
+	burst_table_write_cmos_sensor(SENSOR_IMX582_LRC_REG_ADDR, rom_cal_buf, lrc_size);
 #else
-	for (i = 0; i < data_size ; i++)
-		write_cmos_sensor_8(start_addr+i, rom_cal_buf[i]);
+	for (i = 0; i < lrc_size ; i++)
+		write_cmos_sensor_8(SENSOR_IMX582_LRC_REG_ADDR+i, rom_cal_buf[i]);
 #endif
-	pr_info("%s done writing %d bytes", __func__, data_size);
+	pr_info("%s done writing %d bytes", __func__, lrc_size);
 }
 #endif
 
 #if WRITE_SENSOR_CAL_FOR_QSC
-#define SENSOR_IMX582_QSC_CAL_BASE_REAR           (0x0B50)
-#define SENSOR_IMX582_QSC_CAL_SIZE                (2304)
 #define SENSOR_IMX582_QSC_REG_ADDR                (0xC500)
 
 static void sensor_QSC_write(void)
 {
 #if INDIRECT_BURST == 0
-	int i=0;
+	int i = 0;
 #endif
 	char *rom_cal_buf = NULL;
-	char cal_data[SENSOR_IMX582_QSC_CAL_SIZE] = {0};
+	const struct rom_cal_addr *qsc_cal_addr;
 
-	int start_addr = SENSOR_IMX582_QSC_REG_ADDR;
-	int data_size = SENSOR_IMX582_QSC_CAL_SIZE;
+	int qsc_addr, qsc_size;
 
 	// TODO : sensor_dev_id needs to be updated according to actual id.
 	int sensor_dev_id = IMGSENSOR_SENSOR_IDX_MAIN;
 
 	pr_debug("%s", __func__);
 
-	if( imgsensor_get_cal_buf_by_sensor_idx(sensor_dev_id, &rom_cal_buf) ) {
-		pr_err("%s : cal data is NULL", __func__);
+	qsc_cal_addr = IMGSENSOR_GET_CAL_ADDR_BY_SENSOR_IDX(sensor_dev_id, GET_CAL_CROSSTALK);
+
+	while (1) {
+		if (qsc_cal_addr == NULL) {
+			pr_err("[%s] crosstalk cal is NULL", __func__);
+			return;
+		}
+
+		if (qsc_cal_addr->name == CROSSTALK_CAL_QSC) {
+			qsc_addr = qsc_cal_addr->addr;
+			qsc_size = qsc_cal_addr->size;
+			break;
+		}
+
+		qsc_addr = qsc_cal_addr->addr;
+		qsc_size = qsc_cal_addr->size;
+		qsc_cal_addr = qsc_cal_addr->next;
+	}
+
+	pr_info("[%s] addr: %x, size: %x", __func__, qsc_addr, qsc_size);
+
+	if (IMGSENSOR_GET_CAL_BUF_BY_SENSOR_IDX(sensor_dev_id, &rom_cal_buf)) {
+		pr_err("%s : cal data is NULL, sensor_dev_id %d", __func__, sensor_dev_id);
 		return;
 	}
-	rom_cal_buf += SENSOR_IMX582_QSC_CAL_BASE_REAR;
-	memcpy(cal_data, &rom_cal_buf, SENSOR_IMX582_QSC_CAL_SIZE);
+	rom_cal_buf += qsc_addr;
 #if INDIRECT_BURST
-	burst_table_write_cmos_sensor(start_addr, rom_cal_buf, data_size);
+	burst_table_write_cmos_sensor(SENSOR_IMX582_QSC_REG_ADDR, rom_cal_buf, qsc_size);
 #else
-	for (i = 0; i < data_size ; i++)
-		write_cmos_sensor_8(start_addr+i, rom_cal_buf[i]);
+	for (i = 0; i < qsc_size ; i++)
+		write_cmos_sensor_8(SENSOR_IMX582_QSC_REG_ADDR+i, rom_cal_buf[i]);
 #endif
-	pr_info("%s done writing %d bytes", __func__, data_size);
+	pr_info("%s done writing %d bytes", __func__, qsc_size);
 }
 #endif
 
@@ -3694,35 +3785,9 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
  *************************************************************************/
 static kal_uint32 open(void)
 {
-	kal_uint8 i = 0;
-	kal_uint8 retry = 2;
-	kal_uint16 sensor_id = 0;
+	kal_uint32 sensor_id = 0;
 
-	/*sensor have two i2c address 0x6c 0x6d & 0x21 0x20,
-	 *we should detect the module used i2c address
-	 */
-	while (imgsensor_info.i2c_addr_table[i] != 0xff) {
-		spin_lock(&imgsensor_drv_lock);
-		imgsensor.i2c_write_id = imgsensor_info.i2c_addr_table[i];
-		spin_unlock(&imgsensor_drv_lock);
-		do {
-			sensor_id = ((read_cmos_sensor_8(0x0016) << 8)
-					| read_cmos_sensor_8(0x0017));
-			if (sensor_id == imgsensor_info.sensor_id) {
-				LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n",
-					imgsensor.i2c_write_id, sensor_id);
-				break;
-			}
-			LOG_INF("Read sensor id fail, id: 0x%x\n",
-				imgsensor.i2c_write_id);
-			retry--;
-		} while (retry > 0);
-		i++;
-		if (sensor_id == imgsensor_info.sensor_id)
-			break;
-		retry = 2;
-	}
-	if (imgsensor_info.sensor_id != sensor_id)
+	if (get_imgsensor_id(&sensor_id) == ERROR_SENSOR_CONNECT_FAIL)
 		return ERROR_SENSOR_CONNECT_FAIL;
 
 	/* initail sequence write in  */
@@ -3777,6 +3842,8 @@ static kal_uint32 open(void)
 static kal_uint32 close(void)
 {
 	LOG_INF("E\n");
+
+	sIsNightHyperlapse = KAL_FALSE;
 
 	/*No Need to implement this function*/
 
@@ -4515,7 +4582,11 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		 set_shutter(*feature_data);
 		break;
 	case SENSOR_FEATURE_SET_NIGHTMODE:
-		 /* night_mode((BOOL) *feature_data); */
+		pr_info("SENSOR_FEATURE_SET_NIGHTMODE = %d, data=%d\n", feature_id, *feature_data);
+		if (*feature_data)
+			sIsNightHyperlapse = KAL_TRUE;
+		else
+			sIsNightHyperlapse = KAL_FALSE;
 		break;
 	#ifdef VENDOR_EDIT
 	case SENSOR_FEATURE_CHECK_MODULE_ID:
@@ -4694,8 +4765,8 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 			(UINT16)*(feature_data+2));
 		break;
 	case SENSOR_FEATURE_SET_SHUTTER_FRAME_TIME:
-		set_shutter_frame_length((UINT16) (*feature_data),
-					(UINT16) (*(feature_data + 1)));
+		set_shutter_frame_length((UINT32) (*feature_data),
+					(UINT32) (*(feature_data + 1)));
 		break;
 	case SENSOR_FEATURE_SET_AWB_GAIN:
 		imx582_awb_gain(
@@ -4703,7 +4774,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		break;
 	case SENSOR_FEATURE_SET_HDR_SHUTTER:
 		LOG_INF("SENSOR_FEATURE_SET_HDR_SHUTTER LE=%d, SE=%d\n",
-			(UINT16)*feature_data, (UINT16)*(feature_data+1));
+			(UINT32)*feature_data, (UINT32)*(feature_data+1));
 		#if 0
 		ihdr_write_shutter((UINT16)*feature_data,
 				   (UINT16)*(feature_data+1));
@@ -4899,7 +4970,7 @@ static void imx582_check_setfile_ver(void)
 		imx582_setfile_ver = IMGSENSOR_IMX582_SETFILE_VER_5;
 		break;
 	}
-	LOG_INF("IMX582 setfile version: %#x", imx582_setfile_ver);
+	pr_info("IMX582 setfile version: %#x", imx582_setfile_ver);
 }
 
 

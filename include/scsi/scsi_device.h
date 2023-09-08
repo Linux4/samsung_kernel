@@ -235,6 +235,8 @@ struct scsi_device {
 	struct mutex		state_mutex;
 	enum scsi_device_state sdev_state;
 	unsigned long		sdev_data[0];
+	bool support_tw_lu;
+	u8 bootlunID;
 } __attribute__((aligned(sizeof(unsigned long))));
 
 #define	to_scsi_device(d)	\

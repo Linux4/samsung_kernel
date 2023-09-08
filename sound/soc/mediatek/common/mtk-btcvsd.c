@@ -7,6 +7,7 @@
 
 #include <linux/mfd/syscon.h>
 #include <linux/module.h>
+#include <linux/timer.h>
 #include <linux/of_address.h>
 #include <linux/sched/clock.h>
 
@@ -19,8 +20,8 @@
 #define BT_CVSD_INTERRUPT	BIT(31)
 
 #define BT_CVSD_CLEAR \
-	(BT_CVSD_TX_NREADY | BT_CVSD_RX_READY | BT_CVSD_TX_UNDERFLOW |\
-	 BT_CVSD_RX_OVERFLOW | BT_CVSD_INTERRUPT)
+	(BT_CVSD_TX_NREADY | BT_CVSD_RX_READY | BT_CVSD_RX_OVERFLOW |\
+	 BT_CVSD_INTERRUPT)
 
 /* TX */
 #define SCO_TX_ENCODE_SIZE (60)
@@ -135,6 +136,8 @@ struct mtk_btcvsd_snd {
 	struct mtk_btcvsd_snd_stream *rx;
 	u8 tx_packet_buf[BTCVSD_TX_BUF_SIZE];
 	u8 rx_packet_buf[BTCVSD_RX_BUF_SIZE];
+	u8 disable_write_silence;
+	u8 write_tx:1;
 
 	enum BT_SCO_BAND band;
 };
@@ -205,10 +208,8 @@ static void mtk_btcvsd_snd_set_state(struct mtk_btcvsd_snd *bt,
 				     struct mtk_btcvsd_snd_stream *bt_stream,
 				     int state)
 {
-	dev_dbg(bt->dev, "%s(), stream %d, state %d, tx->state %d, rx->state %d, irq_disabled %d\n",
-		__func__,
-		bt_stream->stream, state,
-		bt->tx->state, bt->rx->state, bt->irq_disabled);
+	int pre_state = bt_stream->state;
+	int pre_irq_disabled = bt->irq_disabled;
 
 	bt_stream->state = state;
 
@@ -226,6 +227,11 @@ static void mtk_btcvsd_snd_set_state(struct mtk_btcvsd_snd *bt,
 			bt->irq_disabled = 0;
 		}
 	}
+	dev_dbg(bt->dev,
+		"%s(), stream %d, state %d->%d, tx->state %d, rx->state %d, irq_disabled %d->%d\n"
+		, __func__,
+		bt_stream->stream, pre_state, state, bt->tx->state,
+		bt->rx->state, pre_irq_disabled, bt->irq_disabled);
 }
 
 static int mtk_btcvsd_snd_tx_init(struct mtk_btcvsd_snd *bt)
@@ -316,7 +322,8 @@ static void mtk_btcvsd_snd_data_transfer(enum bt_sco_direct dir,
 /* write encoded mute data to bt sram */
 static int btcvsd_tx_clean_buffer(struct mtk_btcvsd_snd *bt)
 {
-	unsigned int i;
+	void *dst;
+	unsigned long connsys_addr_tx, ap_addr_tx;
 	unsigned int num_valid_addr;
 	unsigned long flags;
 	enum BT_SCO_BAND band = bt->band;
@@ -338,20 +345,29 @@ static int btcvsd_tx_clean_buffer(struct mtk_btcvsd_snd *bt)
 	dev_info(bt->dev, "%s(), band %d, num_valid_addr %u\n",
 		 __func__, band, num_valid_addr);
 
-	for (i = 0; i < num_valid_addr; i++) {
-		void *dst;
+	connsys_addr_tx = *bt->bt_reg_pkt_w;
+	ap_addr_tx = (unsigned long)bt->bt_sram_bank2_base +
+		     (connsys_addr_tx & 0xFFFF);
 
-		dev_info(bt->dev, "%s(), clean addr 0x%lx\n", __func__,
-			 bt->tx->buffer_info.bt_sram_addr[i]);
-
-		dst = (void *)bt->tx->buffer_info.bt_sram_addr[i];
-
-		mtk_btcvsd_snd_data_transfer(BT_SCO_DIRECT_ARM2BT,
-					     bt->tx->temp_packet_buf, dst,
-					     bt->tx->buffer_info.packet_length,
-					     bt->tx->buffer_info.packet_num);
+	if (connsys_addr_tx == 0xdeadfeed) {
+		/* bt return 0xdeadfeed if read register during bt sleep */
+		dev_warn(bt->dev, "%s(), connsys_addr_tx == 0xdeadfeed\n",
+			 __func__);
+		spin_unlock_irqrestore(&bt->tx_lock, flags);
+		return -EIO;
 	}
+
+	dst = (void *)ap_addr_tx;
+
+	dev_info(bt->dev, "%s(), clean addr 0x%lx\n", __func__, ap_addr_tx);
+
+	mtk_btcvsd_snd_data_transfer(BT_SCO_DIRECT_ARM2BT,
+				     bt->tx->temp_packet_buf, dst,
+				     bt->tx->buffer_info.packet_length,
+				     bt->tx->buffer_info.packet_num);
+
 	spin_unlock_irqrestore(&bt->tx_lock, flags);
+	bt->write_tx = 1;
 
 	return 0;
 }
@@ -379,7 +395,7 @@ static int mtk_btcvsd_read_from_bt(struct mtk_btcvsd_snd *bt,
 
 	if (connsys_addr_rx == 0xdeadfeed) {
 		/* bt return 0xdeadfeed if read register during bt sleep */
-		dev_warn(bt->dev, "%s(), connsys_addr_rx == 0xdeadfeed",
+		dev_warn(bt->dev, "%s(), connsys_addr_rx == 0xdeadfeed\n",
 			 __func__);
 		return -EIO;
 	}
@@ -423,6 +439,7 @@ int mtk_btcvsd_write_to_bt(struct mtk_btcvsd_snd *bt,
 	u8 *dst;
 	unsigned long connsys_addr_tx, ap_addr_tx;
 	bool new_ap_addr_tx = true;
+	unsigned int codec_id;
 
 	if (bt->bypass_bt_access)
 		return -EIO;
@@ -451,11 +468,14 @@ int mtk_btcvsd_write_to_bt(struct mtk_btcvsd_snd *bt,
 	spin_unlock_irqrestore(&bt->tx_lock, flags);
 
 	dst = (u8 *)ap_addr_tx;
-
-	if (!bt->tx->mute) {
+	//codec_id: 0 default, 1 CVSD codec, 2 MSBC codec
+	codec_id = (*bt->bt_reg_ctl >> 25) & 3;
+	if ((!bt->tx->mute) &&
+	    ((codec_id == 0) || codec_id == bt->band + 1)) {
 		mtk_btcvsd_snd_data_transfer(BT_SCO_DIRECT_ARM2BT,
 					     bt->tx->temp_packet_buf, dst,
 					     packet_length, packet_num);
+		bt->write_tx = 1;
 	}
 
 	/* store bt tx buffer sram info */
@@ -494,7 +514,9 @@ static irqreturn_t mtk_btcvsd_snd_irq_handler(int irq_id, void *dev)
 	static DEFINE_RATELIMIT_STATE(_rs, 2 * HZ, 1);
 
 	if (__ratelimit(&_rs))
-		dev_info(bt->dev, "%s()\n", __func__);
+		dev_info(bt->dev, "%s(), irq_id=%d\n", __func__, irq_id);
+
+	bt->write_tx = 0;
 
 	if (bt->bypass_bt_access)
 		goto irq_handler_exit;
@@ -629,7 +651,11 @@ static irqreturn_t mtk_btcvsd_snd_irq_handler(int irq_id, void *dev)
 	}
 
 	*bt->bt_reg_ctl &= ~BT_CVSD_CLEAR;
-
+	if (bt->tx->state == BT_SCO_STATE_IDLE || bt->write_tx == 0) {
+		*bt->bt_reg_ctl |= BT_CVSD_TX_UNDERFLOW;
+		dev_info(bt->dev, "%s(), tx underflow, state = %d, write_tx = %d\n",
+			 __func__, bt->tx->state, bt->write_tx);
+	}
 	if (bt->rx->state == BT_SCO_STATE_RUNNING ||
 	    bt->rx->state == BT_SCO_STATE_ENDING) {
 		bt->rx->wait_flag = 1;
@@ -645,7 +671,11 @@ static irqreturn_t mtk_btcvsd_snd_irq_handler(int irq_id, void *dev)
 
 	return IRQ_HANDLED;
 irq_handler_exit:
+	*bt->bt_reg_ctl |= BT_CVSD_TX_UNDERFLOW;
 	*bt->bt_reg_ctl &= ~BT_CVSD_CLEAR;
+	dev_warn(bt->dev, "%s(), irq_handler_exit, bt_reg_ctl = 0x%lx\n",
+		 __func__, *bt->bt_reg_ctl);
+
 	return IRQ_HANDLED;
 }
 
@@ -657,11 +687,13 @@ static int wait_for_bt_irq(struct mtk_btcvsd_snd *bt,
 	unsigned long long timeout_limit = 22500000;
 	int max_timeout_trial = 2;
 	int ret;
+	struct timespec64 ts64;
 
 	bt_stream->wait_flag = 0;
 
 	while (max_timeout_trial && !bt_stream->wait_flag) {
-		t1 = sched_clock();
+		ktime_get_ts64(&ts64);
+		t1 = timespec64_to_ns(&ts64);
 		if (bt_stream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 			ret = wait_event_interruptible_timeout(bt->tx_wait,
 				bt_stream->wait_flag,
@@ -672,7 +704,8 @@ static int wait_for_bt_irq(struct mtk_btcvsd_snd *bt,
 				nsecs_to_jiffies(timeout_limit));
 		}
 
-		t2 = sched_clock();
+		ktime_get_ts64(&ts64);
+		t2 = timespec64_to_ns(&ts64);
 		t2 = t2 - t1; /* in ns (10^9) */
 
 		if (t2 > timeout_limit) {
@@ -719,6 +752,7 @@ ssize_t mtk_btcvsd_snd_read(struct mtk_btcvsd_snd *bt,
 	unsigned long avail;
 	unsigned long flags;
 	unsigned int packet_size = bt->rx->packet_size;
+	struct timespec64 ts64;
 
 	while (count) {
 		spin_lock_irqsave(&bt->rx_lock, flags);
@@ -779,7 +813,8 @@ ssize_t mtk_btcvsd_snd_read(struct mtk_btcvsd_snd *bt,
 	 * save current timestamp & buffer time in times_tamp and
 	 * buf_data_equivalent_time
 	 */
-	bt->rx->time_stamp = sched_clock();
+	ktime_get_ts64(&ts64);
+	bt->rx->time_stamp = timespec64_to_ns(&ts64);
 	bt->rx->buf_data_equivalent_time =
 		(unsigned long long)(bt->rx->packet_w - bt->rx->packet_r) *
 		SCO_RX_PLC_SIZE * 16 * 1000 / 2 / 64;
@@ -799,12 +834,14 @@ ssize_t mtk_btcvsd_snd_write(struct mtk_btcvsd_snd *bt,
 	unsigned int cur_buf_ofs = 0;
 	unsigned long flags;
 	unsigned int packet_size = bt->tx->packet_size;
+	struct timespec64 ts64;
 
 	/*
 	 * save current timestamp & buffer time in time_stamp and
 	 * buf_data_equivalent_time
 	 */
-	bt->tx->time_stamp = sched_clock();
+	ktime_get_ts64(&ts64);
+	bt->tx->time_stamp = timespec64_to_ns(&ts64);
 	bt->tx->buf_data_equivalent_time =
 		(unsigned long long)(bt->tx->packet_w - bt->tx->packet_r) *
 		packet_size * 16 * 1000 / 2 / 64;
@@ -823,7 +860,7 @@ ssize_t mtk_btcvsd_snd_write(struct mtk_btcvsd_snd *bt,
 		spin_unlock_irqrestore(&bt->tx_lock, flags);
 
 		if (!avail) {
-			int ret = wait_for_bt_irq(bt, bt->rx);
+			int ret = wait_for_bt_irq(bt, bt->tx);
 
 			if (ret)
 				return written_size;
@@ -930,6 +967,7 @@ static int mtk_pcm_btcvsd_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct mtk_btcvsd_snd *bt = snd_soc_platform_get_drvdata(rtd->platform);
+	dev_dbg(bt->dev, "%s(), stream %d\n", __func__, substream->stream);
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK &&
 	    params_buffer_bytes(hw_params) % bt->tx->packet_size != 0) {
@@ -947,8 +985,11 @@ static int mtk_pcm_btcvsd_hw_free(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct mtk_btcvsd_snd *bt = snd_soc_platform_get_drvdata(rtd->platform);
+	dev_dbg(bt->dev, "%s(), stream %d, bt->disable_write_silence %d\n",
+		__func__, substream->stream, bt->disable_write_silence);
 
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+	if ((substream->stream == SNDRV_PCM_STREAM_PLAYBACK) &&
+	    (bt->disable_write_silence == 0))
 		btcvsd_tx_clean_buffer(bt);
 
 	return 0;
@@ -1052,6 +1093,7 @@ static int mtk_pcm_btcvsd_copy(struct snd_pcm_substream *substream,
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct mtk_btcvsd_snd *bt = snd_soc_platform_get_drvdata(rtd->platform);
 
+	/* count: bytes */
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 		mtk_btcvsd_snd_write(bt, buf, count);
 	else
@@ -1328,6 +1370,7 @@ static int mtk_btcvsd_snd_probe(struct platform_device *pdev)
 	u32 offset[5] = {0, 0, 0, 0, 0};
 	struct mtk_btcvsd_snd *btcvsd;
 	struct device *dev = &pdev->dev;
+	u32 disable_write_silence = 0;
 
 	/* init btcvsd private data */
 	btcvsd = devm_kzalloc(dev, sizeof(*btcvsd), GFP_KERNEL);
@@ -1362,7 +1405,7 @@ static int mtk_btcvsd_snd_probe(struct platform_device *pdev)
 	}
 
 	ret = devm_request_irq(dev, irq_id, mtk_btcvsd_snd_irq_handler,
-			       IRQF_TRIGGER_LOW, "BTCVSD_ISR_Handle",
+			       IRQF_TRIGGER_NONE, "BTCVSD_ISR_Handle",
 			       (void *)btcvsd);
 	if (ret) {
 		dev_err(dev, "could not request_irq for BTCVSD_ISR_Handle\n");
@@ -1397,9 +1440,18 @@ static int mtk_btcvsd_snd_probe(struct platform_device *pdev)
 					 offset,
 					 ARRAY_SIZE(offset));
 	if (ret) {
-		dev_warn(dev, "%s(), get offest fail, ret %d\n", __func__, ret);
+		dev_warn(dev, "%s(), get offset fail, ret %d\n", __func__, ret);
 		return ret;
 	}
+	/* get disable_write_silence */
+	ret = of_property_read_u32(dev->of_node, "disable_write_silence",
+				     &disable_write_silence);
+	if (ret) {
+		dev_dbg(dev,
+			"%s(), get disable_write_silence fail %d, set 0\n"
+			, __func__, ret);
+	}
+
 	btcvsd->infra_misc_offset = offset[0];
 	btcvsd->conn_bt_cvsd_mask = offset[1];
 	btcvsd->cvsd_mcu_read_offset = offset[2];
@@ -1412,6 +1464,7 @@ static int mtk_btcvsd_snd_probe(struct platform_device *pdev)
 			       btcvsd->cvsd_mcu_write_offset;
 	btcvsd->bt_reg_ctl = btcvsd->bt_pkv_base +
 			     btcvsd->cvsd_packet_indicator;
+	btcvsd->disable_write_silence = (u8) disable_write_silence;
 
 	/* init state */
 	mtk_btcvsd_snd_set_state(btcvsd, btcvsd->tx, BT_SCO_STATE_IDLE);

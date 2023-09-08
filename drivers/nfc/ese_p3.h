@@ -15,7 +15,14 @@
 #define DEFAULT_BUFFER_SIZE 260
 
 #define FEATURE_ESE_WAKELOCK
-#define FEATURE_ESE_SPI_DUMMY_ENABLE
+/* #define FEATURE_ESE_SPI_DUMMY_ENABLE */
+
+enum coldrst_type {
+	COLDRST_NONE,
+	COLDRST_GPIO,
+	COLDRST_POWER_ONOFF,
+	COLDRST_ERR
+};
 
 #define P3_MAGIC 0xED
 #define P3_SET_PWR _IOW(P3_MAGIC, 0x01, unsigned long)
@@ -46,6 +53,10 @@
 /* To swing(shake) cs */
 #define P3_SWING_CS _IOW(P3_MAGIC, 0x0D, unsigned long)
 
+#ifdef CONFIG_ESE_COLDRESET
+#define P3_WR_RESET _IOW(P3_MAGIC, 0xE, __s32)
+#endif
+
 #ifdef CONFIG_COMPAT
 /*#define P3_RW_SPI_DATA_32 _IOWR(P3_MAGIC, 0x07, unsigned int)*/
 struct spip3_ioc_transfer_32 {
@@ -65,3 +76,6 @@ struct p3_spi_platform_data {
 	unsigned int irq_gpio;
 	unsigned int rst_gpio;
 };
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && !defined(CONFIG_NFC_PVDD_LATE_ENABLE) && !IS_ENABLED(CONFIG_SAMSUNG_ESE_ONLY)
+extern unsigned int lpcharge; /*for power off charge*/
+#endif

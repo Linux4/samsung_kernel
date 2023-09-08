@@ -18,7 +18,9 @@
 #include <linux/module.h>
 #include <linux/sec_debug.h>
 
+#if !defined(CONFIG_BATTERY_GKI)
 extern unsigned int lpcharge;
+#endif
 extern int charging_night_mode;
 extern int fg_reset;
 extern int factory_mode;

@@ -43,6 +43,7 @@ int reboot_default = 1;
 int reboot_cpu;
 enum reboot_type reboot_type = BOOT_ACPI;
 int reboot_force;
+/* @fs.sec -- d1fbf05204832e38d0dd3c9d4c98160a -- */
 // To prevent kernel panic by EIO during shutdown
 int ignore_fs_panic;
 

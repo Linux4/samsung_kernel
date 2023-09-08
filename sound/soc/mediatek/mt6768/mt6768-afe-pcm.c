@@ -127,7 +127,7 @@ int mt6768_fe_trigger(struct snd_pcm_substream *substream, int cmd,
 	unsigned int counter = runtime->period_size;
 	unsigned int rate = runtime->rate;
 	int fs;
-	int ret;
+	int ret = 0;
 
 	dev_info(afe->dev, "%s(), %s cmd %d, irq_id %d\n",
 		 __func__, memif->data->name, cmd, irq_id);
@@ -490,7 +490,7 @@ static int mt6768_irq_cnt1_set(struct snd_kcontrol *kcontrol,
 	int memif_num = MT6768_PRIMARY_MEMIF;
 	struct mtk_base_afe_memif *memif = &afe->memif[memif_num];
 	int irq_id = memif->irq_usage;
-	int irq_cnt = afe_priv->irq_cnt[memif_num];
+	unsigned int irq_cnt = afe_priv->irq_cnt[memif_num];
 
 	dev_info(afe->dev, "%s(), irq_id %d, irq_cnt = %d, value = %ld\n",
 		 __func__,
@@ -540,7 +540,7 @@ static int mt6768_irq_cnt2_set(struct snd_kcontrol *kcontrol,
 	int memif_num = MT6768_RECORD_MEMIF;
 	struct mtk_base_afe_memif *memif = &afe->memif[memif_num];
 	int irq_id = memif->irq_usage;
-	int irq_cnt = afe_priv->irq_cnt[memif_num];
+	unsigned int irq_cnt = afe_priv->irq_cnt[memif_num];
 
 	dev_info(afe->dev, "%s(), irq_id %d, irq_cnt = %d, value = %ld\n",
 		 __func__,
@@ -589,7 +589,7 @@ static int mt6768_deep_irq_cnt_set(struct snd_kcontrol *kcontrol,
 	int memif_num = MT6768_DEEP_MEMIF;
 	struct mtk_base_afe_memif *memif = &afe->memif[memif_num];
 	int irq_id = memif->irq_usage;
-	int irq_cnt = afe_priv->irq_cnt[memif_num];
+	unsigned int irq_cnt = afe_priv->irq_cnt[memif_num];
 
 	dev_info(afe->dev, "%s(), irq_id %d, irq_cnt = %d, value = %ld\n",
 		 __func__,
@@ -638,7 +638,7 @@ static int mt6768_voip_rx_irq_cnt_set(struct snd_kcontrol *kcontrol,
 	int memif_num = MT6768_VOIP_MEMIF;
 	struct mtk_base_afe_memif *memif = &afe->memif[memif_num];
 	int irq_id = memif->irq_usage;
-	int irq_cnt = afe_priv->irq_cnt[memif_num];
+	unsigned int irq_cnt = afe_priv->irq_cnt[memif_num];
 
 	dev_info(afe->dev, "%s(), irq_id %d, irq_cnt = %d, value = %ld\n",
 		 __func__,
@@ -849,11 +849,10 @@ static int mt6768_sram_size_get(struct snd_kcontrol *kcontrol,
 {
 	struct snd_soc_component *cmpnt = snd_soc_kcontrol_component(kcontrol);
 	struct mtk_base_afe *afe = snd_soc_component_get_drvdata(cmpnt);
+	struct mtk_audio_sram *sram = afe->sram;
 
 	ucontrol->value.integer.value[0] =
-		mtk_audio_sram_get_size(afe->sram, MTK_AUDIO_SRAM_NORMAL_MODE);
-	ucontrol->value.integer.value[1] =
-		mtk_audio_sram_get_size(afe->sram, MTK_AUDIO_SRAM_COMPACT_MODE);
+		mtk_audio_sram_get_size(sram, sram->prefer_mode);
 
 	return 0;
 }
@@ -1080,8 +1079,8 @@ static int mt6768_mmap_dl_scene_set(struct snd_kcontrol *kcontrol,
 	afe_priv->mmap_playback_state = ucontrol->value.integer.value[0];
 
 	if (afe_priv->mmap_playback_state == 1) {
-		unsigned long phy_addr;
-		void *vir_addr;
+		unsigned long phy_addr = 0;
+		void *vir_addr = NULL;
 
 		mtk_get_mmap_dl_buffer(&phy_addr, &vir_addr);
 
@@ -1118,8 +1117,8 @@ static int mt6768_mmap_ul_scene_set(struct snd_kcontrol *kcontrol,
 	afe_priv->mmap_record_state = ucontrol->value.integer.value[0];
 
 	if (afe_priv->mmap_record_state == 1) {
-		unsigned long phy_addr;
-		void *vir_addr;
+		unsigned long phy_addr = 0;
+		void *vir_addr = NULL;
 
 		mtk_get_mmap_ul_buffer(&phy_addr, &vir_addr);
 
@@ -1212,7 +1211,7 @@ static const struct snd_kcontrol_new mt6768_pcm_kcontrols[] = {
 		       mt6768_primary_scene_get, mt6768_primary_scene_set),
 	SOC_SINGLE_EXT("voip_rx_scenario", SND_SOC_NOPM, 0, 0x1, 0,
 		       mt6768_voip_scene_get, mt6768_voip_scene_set),
-	SOC_DOUBLE_EXT("sram_size", SND_SOC_NOPM, 0, 1, 0xffffffff, 0,
+	SOC_SINGLE_EXT("sram_size", SND_SOC_NOPM, 0, 0xffffffff, 0,
 		       mt6768_sram_size_get, NULL),
 #if defined(CONFIG_MTK_VOW_BARGE_IN_SUPPORT)
 	SOC_SINGLE_EXT("vow_barge_in_irq_id", SND_SOC_NOPM, 0, 0x3ffff, 0,
@@ -1322,7 +1321,7 @@ static const struct snd_kcontrol_new memif_ul2_ch2_mix[] = {
 	SOC_DAPM_SINGLE_AUTODISABLE("DL1_CH2", AFE_CONN6,
 				    I_DL1_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL12_CH2", AFE_CONN6,
-				    I_DL12_CH1, 1, 0),
+				    I_DL12_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL2_CH2", AFE_CONN6,
 				    I_DL2_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL3_CH2", AFE_CONN6,
@@ -2089,12 +2088,12 @@ static const struct regmap_config mt6768_afe_regmap_config = {
 static irqreturn_t mt6768_afe_irq_handler(int irq_id, void *dev)
 {
 	struct mtk_base_afe *afe = dev;
-	struct mtk_base_afe_irq *irq;
-	unsigned int status;
-	unsigned int status_mcu;
-	unsigned int mcu_en;
-	int ret;
-	int i;
+	struct mtk_base_afe_irq *irq = NULL;
+	unsigned int status = 0;
+	unsigned int status_mcu = 0;
+	unsigned int mcu_en = 0;
+	int ret = 0;
+	int i = 0;
 
 	/* get irq that is sent to MCU */
 	regmap_read(afe->regmap, AFE_IRQ_MCU_EN, &mcu_en);
@@ -2138,7 +2137,7 @@ err_irq:
 static int mt6768_afe_runtime_suspend(struct device *dev)
 {
 	struct mtk_base_afe *afe = dev_get_drvdata(dev);
-	unsigned int value;
+	unsigned int value = 0;
 	int ret;
 
 	dev_info(afe->dev, "%s()\n", __func__);
@@ -2164,6 +2163,7 @@ static int mt6768_afe_runtime_suspend(struct device *dev)
 
 	/* reset sgen */
 	regmap_write(afe->regmap, AFE_SINEGEN_CON0, 0x0);
+
 	/* cache only */
 	regcache_cache_only(afe->regmap, true);
 	regcache_mark_dirty(afe->regmap);
@@ -2249,6 +2249,7 @@ const struct snd_soc_platform_driver mt6768_afe_pcm_platform = {
 	.probe = mt6768_afe_pcm_platform_probe,
 };
 
+#ifdef CONFIG_DEBUG_FS
 static ssize_t mt6768_debugfs_read(struct file *file, char __user *buf,
 				    size_t count, loff_t *pos)
 {
@@ -3224,6 +3225,7 @@ static const struct file_operations mt6768_debugfs_ops = {
 	.write = mtk_afe_debugfs_write,
 	.read = mt6768_debugfs_read,
 };
+#endif
 
 static const struct snd_soc_component_driver mt6768_afe_pcm_component = {
 	.name = "mt6768-afe-pcm-dai",
@@ -3265,12 +3267,12 @@ static int mt6768_afe_pcm_dev_probe(struct platform_device *pdev)
 {
 	int ret, i;
 #if !defined(CONFIG_FPGA_EARLY_PORTING)
-	int irq_id;
+	int irq_id = 0;
 #endif
-	struct mtk_base_afe *afe;
-	struct mt6768_afe_private *afe_priv;
-	struct resource *res;
-	struct device *dev;
+	struct mtk_base_afe *afe = NULL;
+	struct mt6768_afe_private *afe_priv = NULL;
+	struct resource *res = NULL;
+	struct device *dev = NULL;
 
 	ret = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(34));
 	if (ret)
@@ -3344,6 +3346,7 @@ static int mt6768_afe_pcm_dev_probe(struct platform_device *pdev)
 	}
 
 	/* init memif */
+	afe->memif_32bit_supported = 0;
 	afe->memif_size = MT6768_MEMIF_NUM;
 	afe->memif = devm_kcalloc(dev, afe->memif_size, sizeof(*afe->memif),
 				  GFP_KERNEL);
@@ -3424,12 +3427,13 @@ static int mt6768_afe_pcm_dev_probe(struct platform_device *pdev)
 	afe->request_dram_resource = mt6768_afe_dram_request;
 	afe->release_dram_resource = mt6768_afe_dram_release;
 
+#ifdef CONFIG_DEBUG_FS
 	/* debugfs */
 	afe->debug_cmds = mt6768_debug_cmds;
 	afe->debugfs = debugfs_create_file("mtksocaudio",
 					   S_IFREG | 0444, NULL,
 					   afe, &mt6768_debugfs_ops);
-
+#endif
 	/* register platform */
 	ret = devm_snd_soc_register_platform(&pdev->dev,
 					     &mt6768_afe_pcm_platform);

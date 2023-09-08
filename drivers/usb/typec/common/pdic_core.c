@@ -21,7 +21,7 @@
 
 #include <linux/device.h>
 #include <linux/module.h>
-#if defined(CONFIG_DRV_SAMSUNG)
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 #include <linux/sec_class.h>
 #endif
 #include <linux/power_supply.h>
@@ -29,17 +29,16 @@
 #include <linux/regulator/consumer.h>
 #include <linux/usb/typec/common/pdic_core.h>
 #include <linux/usb/typec/common/pdic_sysfs.h>
-
-#ifndef CONFIG_SWITCH
-#error "ERROR: CONFIG_SWITCH is not set."
-#endif /* CONFIG_SWITCH */
-
+#if IS_ENABLED(CONFIG_ANDROID_SWITCH) || IS_ENABLED(CONFIG_SWITCH)
 #include <linux/switch.h>
+#endif
 
 static struct device *pdic_device;
+#if IS_ENABLED(CONFIG_ANDROID_SWITCH) || IS_ENABLED(CONFIG_SWITCH)
 static struct switch_dev switch_dock = {
 	.name = "ccic_dock",
 };
+#endif
 
 int pdic_core_init(void);
 struct device *get_pdic_device(void)
@@ -54,6 +53,8 @@ int pdic_register_switch_device(int mode)
 {
 	int ret = 0;
 
+	pr_info("%s:%d\n", __func__, mode);
+#if IS_ENABLED(CONFIG_ANDROID_SWITCH) || IS_ENABLED(CONFIG_SWITCH)
 	if (mode) {
 		ret = switch_dev_register(&switch_dock);
 		if (ret < 0) {
@@ -64,14 +65,20 @@ int pdic_register_switch_device(int mode)
 	} else {
 		switch_dev_unregister(&switch_dock);
 	}
-	return 0;
+	pr_info("%s-\n", __func__);
+#endif
+	return ret;
 }
+EXPORT_SYMBOL(pdic_register_switch_device);
 
 void pdic_send_dock_intent(int type)
 {
 	pr_info("%s: PDIC dock type(%d)", __func__, type);
+#if IS_ENABLED(CONFIG_ANDROID_SWITCH) || IS_ENABLED(CONFIG_SWITCH)
 	switch_set_state(&switch_dock, type);
+#endif
 }
+EXPORT_SYMBOL(pdic_send_dock_intent);
 
 void pdic_send_dock_uevent(u32 vid, u32 pid, int state)
 {
@@ -79,7 +86,7 @@ void pdic_send_dock_uevent(u32 vid, u32 pid, int state)
 	char pd_ids_string[32];
 	char *envp[3] = { switch_string, pd_ids_string, NULL };
 
-	pr_info("%s: PDIC dock : USBPD_IPS=%04x:%04x SWITCH_STATE=%d\n",
+	pr_info("%s: PDIC dock : USBPD_IDS=%04x:%04x SWITCH_STATE=%d\n",
 		__func__, le16_to_cpu(vid), le16_to_cpu(pid), state);
 
 	if (IS_ERR(pdic_device)) {
@@ -93,12 +100,13 @@ void pdic_send_dock_uevent(u32 vid, u32 pid, int state)
 		le16_to_cpu(vid), le16_to_cpu(pid));
 	kobject_uevent_env(&pdic_device->kobj, KOBJ_CHANGE, envp);
 }
+EXPORT_SYMBOL(pdic_send_dock_uevent);
 
 int pdic_core_register_chip(ppdic_data_t ppdic_data)
 {
 	int ret = 0;
 
-	pr_info("%s\n", __func__);
+	pr_info("%s+\n", __func__);
 	if (IS_ERR(pdic_device)) {
 		pr_err("%s pdic_device is not present try again\n", __func__);
 		ret = -ENODEV;
@@ -111,20 +119,24 @@ int pdic_core_register_chip(ppdic_data_t ppdic_data)
 	ret = sysfs_create_group(&pdic_device->kobj, &pdic_sysfs_group);
 	if (ret)
 		pr_err("%s: pdic sysfs fail, ret %d", __func__, ret);
+	pr_info("%s-\n", __func__);
 out:
 	return ret;
 }
+EXPORT_SYMBOL(pdic_core_register_chip);
 
 void pdic_core_unregister_chip(void)
 {
-	pr_info("%s\n", __func__);
+	pr_info("%s+\n", __func__);
 	if (IS_ERR(pdic_device)) {
 		pr_err("%s pdic_device is not present try again\n", __func__);
 		return;
 	}
 	sysfs_remove_group(&pdic_device->kobj, &pdic_sysfs_group);
 	dev_set_drvdata(pdic_device, NULL);
+	pr_info("%s-\n", __func__);
 }
+EXPORT_SYMBOL(pdic_core_unregister_chip);
 
 int pdic_core_init(void)
 {
@@ -135,7 +147,10 @@ int pdic_core_init(void)
 
 	pr_info("%s\n", __func__);
 
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 	pdic_device = sec_device_create(NULL, "ccic");
+#endif
+
 	if (IS_ERR(pdic_device)) {
 		pr_err("%s Failed to create device(switch)!\n", __func__);
 		ret = -ENODEV;
@@ -161,5 +176,7 @@ void *pdic_core_get_drvdata(void)
 		pr_err("%s drv data is null in pdic device\n", __func__);
 		return NULL;
 	}
+	pr_info("%s-\n", __func__);
+
 	return (ppdic_data->drv_data);
 }

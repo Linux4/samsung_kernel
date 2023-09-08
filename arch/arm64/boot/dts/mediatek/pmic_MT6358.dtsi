@@ -1,0 +1,296 @@
+#if 0 && 0
+&mt_pmic_vdram2_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vsim1_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vibr_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vrf12_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vio18_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vusb_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vcamio_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vcamd_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vcn18_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vfe28_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vsram_proc11_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vcn28_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vsram_others_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vsram_gpu_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vxo22_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vefuse_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vaux18_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vmch_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vbif28_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vsram_proc12_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vcama1_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vemc_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vio28_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_va12_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vrf18_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vcn33_bt_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vcn33_wifi_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vcama2_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vmc_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vldo28_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vaud28_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vsim2_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_va09_ldo_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+     
+     
+};
+#endif

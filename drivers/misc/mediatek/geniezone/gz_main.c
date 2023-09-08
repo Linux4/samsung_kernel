@@ -11,12 +11,14 @@
  * GNU General Public License for more details.
  */
 
+
 #include <linux/delay.h>
 #include <linux/kthread.h>
 #include <linux/miscdevice.h>
 #include <linux/module.h>
 #include <linux/of_platform.h>
 #include <linux/slab.h>
+#include <linux/pm_wakeup.h>
 #include <gz-trusty/smcall.h>
 #include <gz-trusty/trusty.h>
 #include <gz-trusty/trusty_ipc.h>
@@ -26,47 +28,30 @@
 #include <tz_cross/ta_system.h>
 #include <tz_cross/ta_test.h>
 #include <tz_cross/trustzone.h>
+#include <linux/vmalloc.h>
 
 #include "gz_main.h"
-#include "gz_ut.h"
+#include "mtee_ut/gz_ut.h"
+#include "mtee_ut/gz_shmem_ut.h"
+#include "mtee_ut/gz_chmem_ut.h"
+#include "mtee_ut/gz_vreg_ut.h"
 #include "unittest.h"
-#include <mtk_mcdi_api.h>
+
+#if IS_ENABLED(CONFIG_MTK_DEVAPC) && !IS_ENABLED(CONFIG_DEVAPC_LEGACY)
+#include <mt-plat/devapc_public.h>
+#endif
 
 /* FIXME: MTK_PPM_SUPPORT is disabled temporarily */
 #ifdef MTK_PPM_SUPPORT
-#ifdef CONFIG_MACH_MT6758
+#if IS_ENABLED(CONFIG_MACH_MT6758)
 #include "legacy_controller.h"
 #else
 #include "mtk_ppm_platform.h"
 #endif
 #endif
 
-#ifdef CONFIG_GZ_VPU_WITH_M4U
-#include <m4u.h>
-#include <m4u_port.h>
-#include <kree/sdsp_m4u_mva.h>
-#include <gz-trusty/smcall.h>
-#include <linux/dma-mapping.h>
-#include <linux/dmapool.h>
-
-struct sg_table sg_sdsp_elf;
-struct m4u_client_t *m4u_gz_client;
-#endif
-
-#if defined(CONFIG_GZ_VPU_WITH_M4U)
-uint32_t sdsp_elf_size[2] = { 0, 0 };
-uint64_t sdsp_elf_pa[2] = { 0, 0 };
-#endif
-
-#define MTEE_kernel_UT_RUN 1
-#if MTEE_kernel_UT_RUN		//add tmp
-#include "gz_shmem_ut.h"
-#include "gz_chmem_ut.h"
-#include "gz_rkp_ut.h"
-#include "gz_sec_storage_ut.h"
-#endif
-
-#define KREE_DEBUG(fmt...) pr_debug("[KREE]" fmt)
+//#define KREE_DEBUG(fmt...) pr_debug("[KREE]" fmt)
+#define KREE_DEBUG(fmt...) pr_info("[KREE]" fmt)
 #define KREE_INFO(fmt...) pr_info("[KREE]" fmt)
 #define KREE_ERR(fmt...) pr_info("[KREE][ERR]" fmt)
 
@@ -74,7 +59,7 @@ static const struct file_operations fops = {.owner = THIS_MODULE,
 	.open = gz_dev_open,
 	.release = gz_dev_release,
 	.unlocked_ioctl = gz_ioctl,
-#if defined(CONFIG_COMPAT)
+#if IS_ENABLED(CONFIG_COMPAT)
 	.compat_ioctl = gz_compat_ioctl,
 #endif
 };
@@ -106,6 +91,11 @@ static ssize_t gz_test_store(struct device *dev,
 	char c;
 	struct task_struct *th;
 
+	if (n <= 0 || n > 50) {
+		KREE_DEBUG("err: n > 50\n");
+		return n;
+	}
+
 	strncpy(tmp, buf, 1);
 	tmp[n - 1] = '\0';
 	c = tmp[0];
@@ -117,53 +107,27 @@ static ssize_t gz_test_store(struct device *dev,
 		th = kthread_run(get_gz_version, NULL, "GZ version");
 		break;
 	case '1':
-		KREE_DEBUG("test tipc\n");
-		th = kthread_run(gz_tipc_test, NULL, "GZ tipc test");
+		KREE_DEBUG("test simple ut\n");
+		th = kthread_run(simple_ut, NULL, "Simple test");
 		break;
 	case '2':
-		KREE_DEBUG("test general functions\n");
-		th = kthread_run(gz_test, NULL, "GZ KREE test");
+		KREE_DEBUG("test_gz_syscall\n"); /*ReeServiceCall*/
+		th = kthread_run(test_gz_syscall, NULL, "test_gz_syscall");
 		break;
 	case '3':
-		KREE_DEBUG("test shared memory functions\n");
-		th = kthread_run(gz_test_shm, NULL, "GZ KREE test");
+		KREE_DEBUG("gz_test_shm\n");
+		th = kthread_run(gz_test_shm, NULL, "test_shm");
 		break;
 	case '4':
-		KREE_DEBUG("test GenieZone abort\n");
-		th = kthread_run(gz_abort_test, NULL, "GZ KREE test");
+		KREE_DEBUG("gz_test_chm\n");
+		th = kthread_run(gz_test_chm, NULL, "test_chm");
 		break;
 	case '5':
-		KREE_DEBUG("test chunk memory\n");
-		th = kthread_run(chunk_memory_ut, NULL, "MCM UT");
-		break;
-	case '6':
-		KREE_DEBUG("test VReg\n");
-		th = kthread_run(vreg_test, NULL, "VReg test");
-		break;
-	case '7':
-		KREE_DEBUG("test RKP\n");
-		th = kthread_run(test_rkp_by_buffer, NULL, "RKP test");
-		break;
-	case '8':
-		KREE_DEBUG("test RKP\n");
-		th = kthread_run(test_rkp_by_gzdriver, NULL, "RKP test");
-		break;
-	case '9':
-		KREE_DEBUG("test RKP_GZKM\n");
-		th = kthread_run(test_rkp_gzkernel_memory, NULL, "RKP_GZKM");
-		break;
-	case 'a':
-		KREE_DEBUG("test RKP\n");
-		th = kthread_run(test_rkp, NULL, "RKP_LinuxKM");
-		break;
-	case 'C':
-		KREE_DEBUG("test GZ Secure Storage\n");
-		th = kthread_run(test_SecureStorageBasic, NULL,
-				 "sec_storage_ut");
+		KREE_DEBUG("gz_test_vreg\n");
+		th = kthread_run(gz_test_vreg, NULL, "test_vreg");
 		break;
 	default:
 		KREE_DEBUG("err: unknown test case\n");
-
 		break;
 	}
 	return n;
@@ -430,27 +394,10 @@ int mtee_sdsp_enable(u32 on)
 			on, 0, 0);
 }
 
-atomic_t get_gz_bind_cpu_allowed = ATOMIC_INIT(0);
-void set_gz_bind_cpu(int state)
-{
-	atomic_set(&get_gz_bind_cpu_allowed, state);
-}
-
-int get_gz_bind_cpu(void)
-{
-	return atomic_read(&get_gz_bind_cpu_allowed);
-}
-
 int gz_get_cpuinfo_thread(void *data)
 {
 #ifdef MTK_PPM_SUPPORT
 	struct cpufreq_policy curr_policy;
-#endif
-#ifdef CONFIG_GZ_VPU_WITH_M4U
-	int ret;
-	uint32_t sdsp_elf_buf_mva;
-	uint32_t sdsp_elf_buf_size;
-	struct sg_table *sg;
 #endif
 
 	if (platform_driver_register(&tz_system_driver))
@@ -458,7 +405,7 @@ int gz_get_cpuinfo_thread(void *data)
 
 	KREE_DEBUG("%s driver register done\n", __func__);
 
-#ifdef CONFIG_MACH_MT6758
+#if IS_ENABLED(CONFIG_MACH_MT6758)
 	msleep(3000);
 #else
 	msleep(1000);
@@ -476,282 +423,42 @@ int gz_get_cpuinfo_thread(void *data)
 		  cpus_cluster_freq[1].max_freq, cpus_cluster_freq[1].min_freq);
 #endif
 
-#ifdef CONFIG_GZ_VPU_WITH_M4U
-	if (!m4u_gz_client)
-		m4u_gz_client = m4u_create_client();
-	KREE_DEBUG("m4u_gz_client(%p)\n", m4u_gz_client);
-
-	sdsp_elf_buf_mva = SDSP_VPU0_ELF_MVA;
-	if ((sdsp_elf_size[1]) &&
-	    ((sdsp_elf_pa[0] + sdsp_elf_size[0]) == sdsp_elf_pa[1])) {
-		sdsp_elf_buf_size = sdsp_elf_size[0] + sdsp_elf_size[1];
-	} else {
-		sdsp_elf_buf_size = sdsp_elf_size[0];
-		KREE_ERR("vpu0,vpu1 pa/size(0x%llx/0x%x)(0x%llx/0x%x)\n",
-			 sdsp_elf_pa[0], sdsp_elf_size[0],
-			 sdsp_elf_pa[1], sdsp_elf_size[1]);
-	}
-	sg = &sg_sdsp_elf;
-	ret = sg_alloc_table(sg, 1, GFP_KERNEL);
-	KREE_DEBUG("%s elf sg_alloc_table %s(%d)\n",
-		   __func__, ret == 0 ? "done" : "fail", ret);
-	if (!ret) {
-		sg_dma_address(sg->sgl) = sdsp_elf_pa[0];
-		sg_dma_len(sg->sgl) = sdsp_elf_buf_size;
-		ret = m4u_alloc_mva(m4u_gz_client,
-				    M4U_PORT_VPU,
-				    0, sg, sdsp_elf_buf_size,
-				    M4U_PROT_READ | M4U_PROT_WRITE,
-				    M4U_FLAGS_START_FROM, &sdsp_elf_buf_mva);
-		KREE_INFO("%s elf m4u_alloc_mva(0x%x) %s(%d)\n",
-			  __func__, sdsp_elf_buf_mva,
-			  ret == 0 ? "done" : "fail", ret);
-	}
-#endif
-
 	perf_boost_cnt = 0;
 	mutex_init(&perf_boost_lock);
 
-#ifdef CONFIG_PM_WAKELOCKS
+#if IS_ENABLED(CONFIG_PM_SLEEP)
+	/*kernel-4.14*/
 	wakeup_source_init(&TeeServiceCall_wake_lock, "KREE_TeeServiceCall");
-#else
-	wake_lock_init(&TeeServiceCall_wake_lock, WAKE_LOCK_SUSPEND,
-		"KREE_TeeServiceCall");
 #endif
 
 	return 0;
 }
-
-#if defined(CONFIG_GZ_VPU_WITH_M4U) && defined(CONFIG_OF_RESERVED_MEM)
-static int __init store_sdsp_fw1_setup(struct reserved_mem *rmem)
-{
-	KREE_DEBUG("%s %s base(0x%llx) size(0x%llx)\n",
-		   __func__, rmem->name, rmem->base, rmem->size);
-	sdsp_elf_pa[0] = rmem->base;
-	sdsp_elf_size[0] = rmem->size;
-	return 0;
-}
-
-static int __init store_sdsp_fw2_setup(struct reserved_mem *rmem)
-{
-	KREE_DEBUG("%s %s base(%pa) size(%pa)\n",
-		   __func__, rmem->name, &rmem->base, &rmem->size);
-	sdsp_elf_pa[1] = rmem->base;
-	sdsp_elf_size[1] = rmem->size;
-	return 0;
-}
-
-RESERVEDMEM_OF_DECLARE(store_sdsp_fw1, "mediatek,gz-sdsp1-fw",
-	store_sdsp_fw1_setup);
-RESERVEDMEM_OF_DECLARE(store_sdsp_fw2, "mediatek,gz-sdsp2-fw",
-	store_sdsp_fw2_setup);
-#endif
-
-#ifdef CONFIG_GZ_VPU_WITH_M4U
-#include <mtee_regions.h>
-struct gz_mva_map_table_t {
-	const uint32_t region_id;
-	const uint32_t mva;
-	KREE_SHAREDMEM_HANDLE handle;
-	uint32_t size;
-	void *pa;
-	struct sg_table sg;
-};
-
-#define MAX_GZ_MVA_MAP 1
-struct gz_mva_map_table_t gz_mva_map_table[MAX_GZ_MVA_MAP] = {
-	{
-#if defined(CONFIG_MTK_SDSP_SHARED_PERM_VPU_TEE)
-	 .region_id = MTEE_MCHUNKS_SDSP_SHARED_VPU_TEE,
-#elif defined(CONFIG_MTK_SDSP_SHARED_PERM_MTEE_TEE)
-	 .region_id = MTEE_MCHUNKS_SDSP_SHARED_MTEE_TEE,
-#elif defined(CONFIG_MTK_SDSP_SHARED_PERM_VPU_MTEE_TEE)
-	 .region_id = MTEE_MCHUNKS_SDSP_SHARED_VPU_MTEE_TEE,
-#else
-	 .region_id = 0xFFFFFFFF,
-#endif
-	 .mva = SDSP_VPU0_DTA_MVA,
-	 .handle = 0,
-	 .size = 0,
-	 .pa = NULL}
-};
-
-int gz_do_m4u_map(KREE_SHAREDMEM_HANDLE handle, phys_addr_t pa, uint32_t size,
-	uint32_t region_id)
-{
-	uint32_t i;
-	uint32_t map_mva;
-	int ret;
-	struct sg_table *sg;
-
-	if (!m4u_gz_client) {
-		KREE_ERR("%s not create m4u_gz_client\n", __func__);
-		return -1;
-	}
-
-	for (i = 0; i < MAX_GZ_MVA_MAP; i++) {
-		if (gz_mva_map_table[i].region_id == region_id) {
-			if (gz_mva_map_table[i].handle != 0) {
-				KREE_ERR("%s region has been MAP\n", __func__);
-				return -1;
-			}
-			map_mva = gz_mva_map_table[i].mva;
-			sg = &(gz_mva_map_table[i].sg);
-			ret = sg_alloc_table(sg, 1, GFP_KERNEL);
-			if (ret) {
-				KREE_ERR("%s region%u alloc sg fail\n",
-				__func__, gz_mva_map_table[i].region_id);
-
-				return ret;
-			}
-			sg_dma_address(sg->sgl) = (dma_addr_t) pa;
-			sg_dma_len(sg->sgl) = size;
-			ret = m4u_alloc_mva(m4u_gz_client, M4U_PORT_VPU,
-					0, sg, size,
-					M4U_PROT_READ | M4U_PROT_WRITE,
-					M4U_FLAGS_START_FROM, &map_mva);
-			if (ret || map_mva != gz_mva_map_table[i].mva) {
-				KREE_ERR("%s mva alloc fail\n", __func__);
-				return -1;
-			}
-			gz_mva_map_table[i].handle = handle;
-			gz_mva_map_table[i].size = size;
-			gz_mva_map_table[i].pa = pa;
-			KREE_DEBUG("%s map pa(%p) size(%x) to mva(0x%x)\n",
-				__func__, gz_mva_map_table[i].pa,
-				gz_mva_map_table[i].size,
-				gz_mva_map_table[i].mva);
-			return 0;
-		}
-	}
-	return 0;
-}
-
-int gz_do_m4u_umap(KREE_SHAREDMEM_HANDLE handle)
-{
-	uint32_t i;
-	int ret;
-	struct sg_table *sg;
-
-	if (m4u_gz_client == NULL) {
-		KREE_ERR("%s not create m4u_gz_client\n", __func__);
-		return -1;
-	}
-
-	for (i = 0; i < MAX_GZ_MVA_MAP; i++) {
-		if (gz_mva_map_table[i].handle == handle) {
-			if (!gz_mva_map_table[i].handle) {
-				KREE_ERR("%s region no any MAP\n", __func__);
-				return -1;
-			}
-			ret = m4u_dealloc_mva(m4u_gz_client,
-					M4U_PORT_VPU,
-					gz_mva_map_table[i].mva);
-			if (ret) {
-				KREE_ERR("%s mva dealloc fail\n", __func__);
-				return ret;
-			}
-			sg = &(gz_mva_map_table[i].sg);
-			sg_free_table(sg);
-			KREE_DEBUG("%s ummap mva(0x%x) for region(%u)\n",
-				__func__, gz_mva_map_table[i].mva,
-				gz_mva_map_table[i].region_id);
-			gz_mva_map_table[i].handle = 0;
-			gz_mva_map_table[i].size = 0;
-			gz_mva_map_table[i].pa = 0;
-			return 0;
-		}
-	}
-
-	return 0;
-}
-#endif
-
-static LIST_HEAD(fp_deepidle_list);
-
-struct deepidle_counter_state {
-	uint64_t fp;
-	uint32_t fp_mcdi_counter;
-	struct list_head node;
-};
-
-uint32_t gz_mcdi_pause_state;
-struct mutex fp_mcdi_state_mux;
-
-static int _init_deepidle_counter(struct file *fp)
-{
-	struct deepidle_counter_state *ddc_state;
-
-	ddc_state = kzalloc(sizeof(struct deepidle_counter_state), GFP_KERNEL);
-	if (!ddc_state) {
-		KREE_ERR("kzalloc deepidle_counter_state failed!\n");
-		return TZ_RESULT_ERROR_OUT_OF_MEMORY;
-	}
-
-	mutex_lock(&fp_mcdi_state_mux);
-	ddc_state->fp = (uint64_t)fp;
-	ddc_state->fp_mcdi_counter = 0;
-	list_add_tail(&ddc_state->node, &fp_deepidle_list);
-	mutex_unlock(&fp_mcdi_state_mux);
-
-	return TZ_RESULT_SUCCESS;
-}
-
-static void _free_deepidle_counter(struct file *fp)
-{
-	struct deepidle_counter_state *ddc_state;
-
-	mutex_lock(&fp_mcdi_state_mux);
-
-	list_for_each_entry(ddc_state, &fp_deepidle_list, node) {
-		if (ddc_state->fp == (uint64_t)fp) {
-			list_del(&ddc_state->node);
-			kfree(ddc_state);
-			break;
-		}
-	}
-
-	if (list_empty_careful(&fp_deepidle_list) && gz_mcdi_pause_state != 0) {
-		mcdi_pause(MCDI_PAUSE_BY_GZ, false);
-		gz_mcdi_pause_state = 0;
-	}
-
-	mutex_unlock(&fp_mcdi_state_mux);
-}
-
 
 static int gz_dev_open(struct inode *inode, struct file *filp)
 {
-	int rc = 0;
-
-	rc = _init_deepidle_counter(filp);
-	if (rc) {
-		KREE_ERR("_init_deepidle_counter failed, rc (%d)\n", rc);
-		return rc;
-	}
 	return _init_session_info(filp);
 }
 
 static int gz_dev_release(struct inode *inode, struct file *filp)
 {
-	_free_deepidle_counter(filp);
 	return _free_session_info(filp);
 }
+
 
 /**************************************************************************
  *  DEV DRIVER IOCTL
  *  Ported from trustzone driver
  **************************************************************************/
-static long tz_client_open_session(struct file *filep, unsigned long arg)
+static long tz_client_open_session(struct file *filep, void __user *arg)
 {
 	struct kree_session_cmd_param param;
 	unsigned long cret;
-	char uuid[40];
+	char uuid[MAX_UUID_LEN];
 	long len;
 	TZ_RESULT ret;
 	KREE_SESSION_HANDLE handle = 0;
 
-	cret = copy_from_user(&param, (void *)arg, sizeof(param));
+	cret = copy_from_user(&param, arg, sizeof(param));
 	if (cret)
 		return -EFAULT;
 
@@ -760,7 +467,7 @@ static long tz_client_open_session(struct file *filep, unsigned long arg)
 		return -EFAULT;
 
 	KREE_DEBUG("%s: uuid addr = 0x%llx\n", __func__, param.data);
-	len = strncpy_from_user(uuid, (void *)(unsigned long)param.data,
+	len = strncpy_from_user(uuid, (void *)param.data,
 		sizeof(uuid));
 	if (len <= 0)
 		return -EFAULT;
@@ -779,20 +486,20 @@ static long tz_client_open_session(struct file *filep, unsigned long arg)
 tz_client_open_session_end:
 	param.ret = ret;
 	param.handle = handle;
-	cret = copy_to_user((void *)arg, &param, sizeof(param));
+	cret = copy_to_user(arg, &param, sizeof(param));
 	if (cret)
 		return cret;
 
 	return 0;
 }
 
-static long tz_client_close_session(struct file *filep, unsigned long arg)
+static long tz_client_close_session(struct file *filep, void __user *arg)
 {
 	struct kree_session_cmd_param param;
 	unsigned long cret;
 	TZ_RESULT ret;
 
-	cret = copy_from_user(&param, (void *)arg, sizeof(param));
+	cret = copy_from_user(&param, arg, sizeof(param));
 	if (cret)
 		return -EFAULT;
 
@@ -809,27 +516,27 @@ static long tz_client_close_session(struct file *filep, unsigned long arg)
 
 _tz_client_close_session_end:
 	param.ret = ret;
-	cret = copy_to_user((void *)arg, &param, sizeof(param));
+	cret = copy_to_user(arg, &param, sizeof(param));
 	if (cret)
 		return -EFAULT;
 
 	return 0;
 }
 
-static long tz_client_tee_service(struct file *file, unsigned long arg,
+static long tz_client_tee_service(struct file *file, void __user *arg,
 	unsigned int compat)
 {
-	struct kree_tee_service_cmd_param cparam;
+	struct kree_tee_service_cmd_param cparam = { 0 };
 	unsigned long cret;
 	uint32_t tmpTypes;
 	union MTEEC_PARAM param[4], oparam[4];
-	int i;
+	uint i;
 	TZ_RESULT ret;
 	KREE_SESSION_HANDLE handle;
 	void __user *ubuf;
 	uint32_t ubuf_sz;
 
-	cret = copy_from_user(&cparam, (void *)arg, sizeof(cparam));
+	cret = copy_from_user(&cparam, arg, sizeof(cparam));
 	if (cret) {
 		KREE_ERR("%s: copy_from_user(msg) failed\n", __func__);
 		return -EFAULT;
@@ -873,7 +580,7 @@ static long tz_client_tee_service(struct file *file, unsigned long arg,
 		case TZPT_MEM_INPUT:
 		case TZPT_MEM_OUTPUT:
 		case TZPT_MEM_INOUT:
-#ifdef CONFIG_COMPAT
+#if IS_ENABLED(CONFIG_COMPAT)
 			if (compat) {
 				ubuf = compat_ptr(oparam[i].mem32.buffer);
 				ubuf_sz = oparam[i].mem32.size;
@@ -944,10 +651,8 @@ static long tz_client_tee_service(struct file *file, unsigned long arg,
 		}
 	}
 
-	KREE_SESSION_LOCK(handle);
-	ret = KREE_TeeServiceCall(handle, cparam.command, cparam.paramTypes,
-			param);
-	KREE_SESSION_UNLOCK(handle);
+	ret = KREE_TeeServiceCallPlus(handle, cparam.command, cparam.paramTypes,
+				      param, cparam.cpumask);
 
 	cparam.ret = ret;
 	tmpTypes = cparam.paramTypes;
@@ -972,7 +677,7 @@ static long tz_client_tee_service(struct file *file, unsigned long arg,
 		case TZPT_MEM_INPUT:
 		case TZPT_MEM_OUTPUT:
 		case TZPT_MEM_INOUT:
-#ifdef CONFIG_COMPAT
+#if IS_ENABLED(CONFIG_COMPAT)
 			if (compat)
 				ubuf = compat_ptr(oparam[i].mem32.buffer);
 			else
@@ -1004,7 +709,7 @@ static long tz_client_tee_service(struct file *file, unsigned long arg,
 	}
 
 
-	cret = copy_to_user((void *)arg, &cparam, sizeof(cparam));
+	cret = copy_to_user(arg, &cparam, sizeof(cparam));
 	if (cret) {
 		KREE_ERR("%s: copy_to_user(msg) failed\n", __func__);
 		return -EFAULT;
@@ -1031,166 +736,11 @@ error:
 	return cret;
 }
 
-static long _sc_test_cp_chm2shm(struct file *filep, unsigned long arg)
-{
-
-	struct kree_user_sc_param cparam;
-	int ret;
-	KREE_ION_HANDLE ION_Handle = 0;
-	KREE_SECUREMEM_HANDLE shm_handle;
-	KREE_SESSION_HANDLE cp_session;
-	uint32_t size;
-
-	/* copy param from user */
-	ret = copy_from_user(&cparam, (void *)arg, sizeof(cparam));
-
-	if (ret < 0) {
-		KREE_ERR("%s: copy_from_user failed(%d)\n", __func__, ret);
-		return ret;
-	}
-
-	/*input params */
-	shm_handle = cparam.other_handle;
-	ION_Handle = cparam.ION_handle;	/*need to transform to mem_handle */
-	size = cparam.size;	/*alloc size */
-	cp_session = cparam.chmp.alloc_chm_session;
-
-	KREE_DEBUG("[%s] input: cp_session=0x%x, shm_handle=0x%x\n",
-		__func__, cp_session, shm_handle);
-	KREE_DEBUG("[%s] input: ION_Handle=0x%x, size=0x%x\n",
-		__func__, ION_Handle, size);
-
-	ret = KREE_ION_CP_Chm2Shm(cp_session, ION_Handle, shm_handle, size);
-
-	if (ret != TZ_RESULT_SUCCESS)
-		KREE_ERR("[%s] KREE_ION_CP_Chm2Shm Fail. ret=0x%x\n", __func__,
-			ret);
-	else
-		KREE_DEBUG("[OK]KREE_ION_CP_Chm2Shm done\n");
-
-	return ret;
-}
-
-static long _sc_test_upt_chmdata(struct file *filep, unsigned long arg)
-{
-	struct kree_user_sc_param cparam;
-	int ret;
-	KREE_ION_HANDLE ION_Handle = 0;
-	KREE_SECUREMEM_HANDLE shm_handle;
-	KREE_SESSION_HANDLE echo_session = 0;
-	union MTEEC_PARAM param[4];
-	uint32_t size;
-
-	/* copy param from user */
-	ret = copy_from_user(&cparam, (void *)arg, sizeof(cparam));
-
-	if (ret < 0) {
-		KREE_ERR("%s: copy_from_user failed(%d)\n", __func__, ret);
-		return ret;
-	}
-
-	/*input params */
-	shm_handle = cparam.other_handle;
-	ION_Handle = cparam.ION_handle;
-	size = cparam.size;
-
-	/*create session for echo */
-	ret = KREE_CreateSession(echo_srv_name, &echo_session);
-	if (ret != TZ_RESULT_SUCCESS) {
-		KREE_ERR
-		("echo_srv CreateSession (echo_session:0x%x) Error: %d\n",
-		(uint32_t) echo_session, ret);
-		return ret;
-	}
-	KREE_DEBUG("[OK] create echo_session=0x%x.\n", (uint32_t) echo_session);
-
-	param[0].value.a = ION_Handle; /*need to transform to mem_handle */
-	param[1].value.a = size;       /*alloc size */
-
-	KREE_DEBUG("[%s] input: shm_handle=0x%x. ION_Handle=0x%x\n", __func__,
-		param[0].value.b, param[0].value.a);
-
-	/*test: modify chm memory data */
-	/*TZCMD_TEST_CHM_UPT_DATA */
-	ret = KREE_ION_AccessChunkmem(echo_session, param, 0x9989);
-	if (ret != TZ_RESULT_SUCCESS)
-		KREE_ERR("[%s] modify chm memory data Fail. ret=0x%x\n",
-			__func__, ret);
-	else
-		KREE_DEBUG("[OK]modify chm memory data done\n");
-
-	ret = KREE_CloseSession(echo_session);
-	if (ret != TZ_RESULT_SUCCESS)
-		KREE_ERR("KREE_CloseSession Error:echo_session=0x%x, ret=%d\n",
-			 (uint32_t) echo_session, ret);
-	else
-		KREE_DEBUG("[OK] close session OK. echo_session=0x%x\n",
-			   (uint32_t) echo_session);
-
-	return ret;
-}
-
-TZ_RESULT gz_deep_idle_mask(struct file *fp)
-{
-	struct deepidle_counter_state *ddc_state;
-
-	mutex_lock(&fp_mcdi_state_mux);
-
-	if (gz_mcdi_pause_state == 0)
-		mcdi_pause(MCDI_PAUSE_BY_GZ, true);
-	else
-		KREE_INFO("mcdi already disable!!!!!!!\n");
-
-	list_for_each_entry(ddc_state, &fp_deepidle_list, node) {
-		if (ddc_state->fp == (uint64_t)fp) {
-			ddc_state->fp_mcdi_counter++;
-			gz_mcdi_pause_state++;
-			break;
-		}
-	}
-	mutex_unlock(&fp_mcdi_state_mux);
-
-	return TZ_RESULT_SUCCESS;
-}
-
-TZ_RESULT gz_deep_idle_unmask(struct file *fp)
-{
-	TZ_RESULT rc = TZ_RESULT_SUCCESS;
-	struct deepidle_counter_state *ddc_state;
-	uint32_t tmp_counter = 0;
-
-	mutex_lock(&fp_mcdi_state_mux);
-
-	if (gz_mcdi_pause_state == 0) {
-		KREE_INFO("mcdi already enable!!!!!!!\n");
-		rc = TZ_RESULT_ERROR_BAD_STATE;
-		goto _err_mcdi_state;
-	}
-
-	list_for_each_entry(ddc_state, &fp_deepidle_list, node) {
-		if (ddc_state->fp == (uint64_t)fp) {
-			ddc_state->fp_mcdi_counter--;
-			gz_mcdi_pause_state--;
-		}
-		tmp_counter += ddc_state->fp_mcdi_counter;
-	}
-
-	if (tmp_counter == 0) {
-		mcdi_pause(MCDI_PAUSE_BY_GZ, false);
-		gz_mcdi_pause_state = 0;
-	}
-
-_err_mcdi_state:
-	mutex_unlock(&fp_mcdi_state_mux);
-
-	return rc;
-}
-
 #define SZ_32KB (32*1024)
 static TZ_RESULT _reg_shmem_from_userspace(
 	uint32_t session, uint32_t region_id,
 	struct user_shm_param *shm_data,
-	KREE_SHAREDMEM_HANDLE *shm_handle)
+	uint32_t *shm_handle)
 {
 	unsigned long cret;
 	struct page **page;
@@ -1236,13 +786,14 @@ static TZ_RESULT _reg_shmem_from_userspace(
 	/*check alloc size if <= 32KB*/
 	pin_sz = sizeof(struct MTIOMMU_PIN_RANGE_T);
 	if (pin_sz >= SZ_32KB) {
-		KREE_ERR("[%s]alloc fail:pin sz(0x%llx)>=32KB\n",
+		KREE_INFO("[%s]alloc pin sz(0x%llx)>=32KB\n",
 			__func__, pin_sz);
-		return TZ_RESULT_ERROR_OUT_OF_MEMORY;
+		//return TZ_RESULT_ERROR_OUT_OF_MEMORY;
 	}
 
 	/*pin = kzalloc(sizeof(struct MTIOMMU_PIN_RANGE_T), GFP_KERNEL);*/
-	pin = vmalloc(pin_sz);
+	/*pin = vmalloc(pin_sz);*/
+	pin = kvmalloc(pin_sz, GFP_KERNEL);
 	if (!pin) {
 		KREE_DEBUG("[%s]zalloc fail: pin is null.\n", __func__);
 		cret = TZ_RESULT_ERROR_OUT_OF_MEMORY;
@@ -1250,8 +801,9 @@ static TZ_RESULT _reg_shmem_from_userspace(
 	}
 
 	pin->pageArray = NULL;
-	cret = _map_user_pages(pin, (unsigned long)(*shm_data).param.buffer,
-			(*shm_data).param.size, 0);
+	cret = _map_user_pages(pin,
+		untagged_addr((unsigned long)(*shm_data).param.buffer),
+		(*shm_data).param.size, 0);
 	if (cret) {
 		pin->pageArray = NULL;
 		KREE_DEBUG("[%s]_map_user_pages fail. map user pages = 0x%x\n",
@@ -1270,14 +822,15 @@ static TZ_RESULT _reg_shmem_from_userspace(
 	/*check alloc size if <= 32KB*/
 	map_p_sz = sizeof(uint64_t) * (pin->nrPages + 1);
 	if (map_p_sz >= SZ_32KB) {
-		KREE_ERR("[%s]alloc fail:map_p sz(0x%llx)>=32KB\n",
+		KREE_INFO("[%s]alloc map_p sz(0x%llx)>=32KB\n",
 			__func__, map_p_sz);
-		cret = TZ_RESULT_ERROR_OUT_OF_MEMORY;
-		goto us_map_fail;
+		//cret = TZ_RESULT_ERROR_OUT_OF_MEMORY;
+		//goto us_map_fail;
 	}
 
 	/*map_p = kzalloc(map_p_sz, GFP_KERNEL);*/
-	map_p = vmalloc(map_p_sz);
+	/*map_p = vmalloc(map_p_sz);*/
+	map_p = kvmalloc(map_p_sz, GFP_KERNEL);
 	if (!map_p) {
 		KREE_DEBUG("[%s]alloc fail: map_p is null.\n", __func__);
 		cret = TZ_RESULT_ERROR_OUT_OF_MEMORY;
@@ -1307,12 +860,13 @@ static TZ_RESULT _reg_shmem_from_userspace(
 	KREE_DEBUG("[%s]reg shmem ret hd=0x%x\n", __func__, *shm_handle);
 	if ((cret != TZ_RESULT_SUCCESS) || (*shm_handle == 0)) {
 		KREE_ERR("[%s]RegisterSharedmem fail\n", __func__);
-		KREE_ERR("ret=0x%x, shm_hd=0x%x)\n", cret, *shm_handle);
+		KREE_ERR("ret=0x%lx, shm_hd=0x%x)\n", cret, *shm_handle);
 	}
 
 	/*after reg. shmem, free PA list array*/
 	if (map_p != NULL)
-		vfree(map_p);
+		kvfree(map_p);
+		//vfree(map_p);
 		/*kfree(map_p);*/
 
 us_map_fail:
@@ -1326,37 +880,75 @@ us_map_fail:
 			kfree(pin->pageArray);
 		}
 		/*kfree(pin);*/
-		vfree(pin);
+		//vfree(pin);
+		kvfree(pin);
 	}
 
 	return cret;
 }
 
+int gz_adjust_task_attr(struct trusty_task_attr *manual_task_attr)
+{
+	if (IS_ERR_OR_NULL(tz_system_dev)) {
+		KREE_ERR("GZ KREE is still not initialized!\n");
+		return -EINVAL;
+	}
 
-static long _gz_ioctl(struct file *filep, unsigned int cmd, unsigned long arg,
+	return trusty_adjust_task_attr(tz_system_dev->dev.parent, manual_task_attr);
+}
+
+TZ_RESULT gz_manual_adjust_trusty_wq_attr(void __user *user_req)
+{
+	int err;
+	char str[32];
+	struct trusty_task_attr manual_task_attr;
+
+	err = copy_from_user(&str, user_req, sizeof(str));
+	if (err) {
+		KREE_ERR("[%s]copy_from_user fail(0x%x)\n", __func__,
+			err);
+		return err;
+	}
+	str[31] = '\0';
+	KREE_DEBUG("%s cmd=%s\n", __func__, str);
+
+	memset(&manual_task_attr, 0, sizeof(manual_task_attr));
+	err = sscanf(str, "0x%x %d 0x%x %d",
+			&manual_task_attr.mask[TRUSTY_TASK_KICK_ID],
+			&manual_task_attr.pri[TRUSTY_TASK_KICK_ID],
+			&manual_task_attr.mask[TRUSTY_TASK_CHK_ID],
+			&manual_task_attr.pri[TRUSTY_TASK_CHK_ID]);
+	if (err != 4)
+		return -EINVAL;
+
+	KREE_DEBUG("%s 0x%x %d 0x%x %d\n", __func__,
+		manual_task_attr.mask[TRUSTY_TASK_KICK_ID],
+		manual_task_attr.pri[TRUSTY_TASK_KICK_ID],
+		manual_task_attr.mask[TRUSTY_TASK_CHK_ID],
+		manual_task_attr.pri[TRUSTY_TASK_CHK_ID]);
+
+	tipc_set_default_cpumask(manual_task_attr.mask[TRUSTY_TASK_KICK_ID]);
+
+	return gz_adjust_task_attr(&manual_task_attr);
+}
+
+static long _gz_ioctl(struct file *filep, unsigned int cmd, void __user *arg,
 	unsigned int compat)
 {
 	int err;
 	TZ_RESULT ret = 0;
-	char __user *user_req;
 	struct user_shm_param shm_data;
-	struct kree_user_sc_param cparam;
 	KREE_SHAREDMEM_HANDLE shm_handle = 0;
 
 	if (_IOC_TYPE(cmd) != MTEE_IOC_MAGIC)
 		return -EINVAL;
 
-	if (compat)
-		user_req = (char __user *)compat_ptr(arg);
-	else
-		user_req = (char __user *)arg;
-
 	switch (cmd) {
 	case MTEE_CMD_SHM_REG:
 		KREE_DEBUG("[%s]cmd=MTEE_CMD_SHM_REG(0x%x)\n", __func__, cmd);
 		/* copy param from user */
-		err = copy_from_user(&shm_data, user_req, sizeof(shm_data));
-		if (err < 0) {
+		err = copy_from_user(&shm_data, arg, sizeof(shm_data));
+		if (err) {
 			KREE_ERR("[%s]copy_from_user fail(0x%x)\n", __func__,
 				err);
 			return err;
@@ -1379,16 +971,12 @@ static long _gz_ioctl(struct file *filep, unsigned int cmd, unsigned long arg,
 
 		/* copy result back to user */
 		shm_data.session = ret;
-		err = copy_to_user(user_req, &shm_data, sizeof(shm_data));
-		if (err < 0) {
+		err = copy_to_user(arg, &shm_data, sizeof(shm_data));
+		if (err) {
 			KREE_ERR("[%s]copy_to_user fail(0x%x)\n", __func__,
 				err);
 			return err;
 		}
-		break;
-
-	case MTEE_CMD_SHM_UNREG:
-		/* do nothing */
 		break;
 
 	case MTEE_CMD_OPEN_SESSION:
@@ -1418,41 +1006,6 @@ static long _gz_ioctl(struct file *filep, unsigned int cmd, unsigned long arg,
 			cmd);
 		return tz_client_tee_service(filep, arg, compat);
 
-	case MTEE_CMD_SC_TEST_CP_CHM2SHM:	/*Secure Camera Test */
-		KREE_DEBUG("[%s]cmd=MTEE_CMD_SC_TEST_CP_CHM2SHM(0x%x)\n",
-			__func__, cmd);
-		return _sc_test_cp_chm2shm(filep, arg);
-
-	case MTEE_CMD_SC_TEST_UPT_CHMDATA:	/*Secure Camera Test */
-		KREE_DEBUG("[%s]cmd=MTEE_CMD_SC_TEST_UPT_CHMDATA(0x%x)\n",
-			__func__, cmd);
-		return _sc_test_upt_chmdata(filep, arg);
-
-	case MTEE_CMD_SC_CHMEM_HANDLE:
-		KREE_DEBUG("[%s]cmd=MTEE_CMD_SC_CHMEM_HANDLE(0x%x)\n", __func__,
-			cmd);
-		err = copy_from_user(&cparam, user_req, sizeof(cparam));
-		if (err < 0) {
-			KREE_ERR("[%s]copy_from_user fail(0x%x)\n", __func__,
-				err);
-			return err;
-		}
-		ret =
-			_IONHandle2MemHandle(cparam.ION_handle,
-			&(cparam.other_handle));
-		if (ret != TZ_RESULT_SUCCESS) {
-			KREE_ERR("[%s]_IONHandle2MemHandle fail(0x%x)\n",
-				__func__, ret);
-			return ret;
-		}
-		err = copy_to_user(user_req, &cparam, sizeof(cparam));
-		if (err < 0) {
-			KREE_ERR("[%s]copy_to_user fail(0x%x)\n", __func__,
-				err);
-			return err;
-		}
-		break;
-
 #ifndef CONFIG_MTK_GZ_SUPPORT_SDSP
 	case MTEE_CMD_FOD_TEE_SHM_ON:
 		KREE_DEBUG("====> MTEE_CMD_FOD_TEE_SHM_ON ====\n");
@@ -1465,12 +1018,8 @@ static long _gz_ioctl(struct file *filep, unsigned int cmd, unsigned long arg,
 		break;
 #endif
 
-	case MTEE_CMD_DEEP_IDLE_MASK:
-		ret = gz_deep_idle_mask(filep);
-		break;
-
-	case MTEE_CMD_DEEP_IDLE_UNMASK:
-		ret = gz_deep_idle_unmask(filep);
+	case MTEE_CMD_ADJUST_WQ_ATTR:
+		ret = gz_manual_adjust_trusty_wq_attr(arg);
 		break;
 
 	default:
@@ -1485,64 +1034,44 @@ static long _gz_ioctl(struct file *filep, unsigned int cmd, unsigned long arg,
 static long gz_ioctl(struct file *filep, unsigned int cmd, unsigned long arg)
 {
 	long ret;
+	void __user *user_req = (void __user *)arg;
 
-	set_gz_bind_cpu(1);
-	ret = _gz_ioctl(filep, cmd, arg, 0);
-	set_gz_bind_cpu(0);
+	ret = _gz_ioctl(filep, cmd, user_req, 0);
 	return ret;
 }
 
-#if defined(CONFIG_COMPAT)
+#if IS_ENABLED(CONFIG_COMPAT)
 static long gz_compat_ioctl(struct file *filep, unsigned int cmd,
 	unsigned long arg)
 {
 	long ret;
+	void __user *user_req = (void __user *)compat_ptr(arg);
 
-	set_gz_bind_cpu(1);
-	ret = _gz_ioctl(filep, cmd, arg, 1);
-	set_gz_bind_cpu(0);
+	ret = _gz_ioctl(filep, cmd, user_req, 1);
 	return ret;
 }
 #endif
 
-static int find_big_core(int *big_core_first, int *big_core_last)
+#if IS_ENABLED(CONFIG_MTK_DEVAPC) && !IS_ENABLED(CONFIG_DEVAPC_LEGACY)
+static void gz_devapc_vio_dump(void)
 {
-	struct device_node *cpus = NULL, *cpu = NULL;
-	struct property *cpu_pp = NULL;
+	pr_debug("%s:%d GZ devapc is triggered!\n", __func__, __LINE__);
 
-	int cpu_num = 0, big_start_num = 0, big_type = 0, cpu_type = 0;
-	char *compat_val;
-	int compat_len, i;
-
-	cpus = of_find_node_by_path("/cpus");
-	if (cpus == NULL)
-		return -1;
-
-	for_each_child_of_node(cpus, cpu) {
-		if (of_node_cmp(cpu->type, "cpu"))
-			continue;
-
-		cpu_num++;
-
-		for_each_property_of_node(cpu, cpu_pp) {
-			if (strcmp(cpu_pp->name, "compatible") == 0) {
-				compat_val = (char *)cpu_pp->value;
-				compat_len = strlen(compat_val);
-				i = kstrtoint(compat_val + (compat_len - 2), 10,
-					      &cpu_type);
-				if (big_type < cpu_type) {
-					big_type = cpu_type;
-					big_start_num = cpu_num - 1;
-				}
-			}
-		}
+	if (IS_ERR_OR_NULL(tz_system_dev)) {
+		KREE_ERR("GZ KREE is still not initialized!\n");
+		return;
 	}
 
-	*big_core_first = big_start_num;
-	*big_core_last = cpu_num - 1;
-
-	return 0;
+	trusty_fast_call32(tz_system_dev->dev.parent,
+		MTEE_SMCNR(MT_SMCF_FC_DEVAPC_VIO, tz_system_dev->dev.parent),
+		0, 0, 0);
 }
+
+static struct devapc_vio_callbacks gz_devapc_vio_handle = {
+	.id = INFRA_SUBSYS_GZ,
+	.debug_dump = gz_devapc_vio_dump,
+};
+#endif
 
 /************ kernel module init entry ***************/
 static int __init gz_init(void)
@@ -1556,32 +1085,6 @@ static int __init gz_init(void)
 		KREE_DEBUG("create sysfs failed: %d\n", res);
 	} else {
 		struct task_struct *gz_get_cpuinfo_task;
-		struct task_struct *ree_dummy_task;
-		int big_core_first = 1;
-		int big_core_last = 1;
-		int ret = 0;
-		struct cpumask ree_dummy_cmask;
-
-		cpumask_clear(&trusty_all_cmask);
-		cpumask_setall(&trusty_all_cmask);
-		cpumask_clear(&trusty_big_cmask);
-		cpumask_clear(&ree_dummy_cmask);
-
-		ret = find_big_core(&big_core_first, &big_core_last);
-		if (ret)
-			KREE_ERR("no any big core\n");
-
-		if (2 == (big_core_last-big_core_first+1)) {
-			cpumask_set_cpu(6, &trusty_big_cmask);
-			cpumask_set_cpu(7, &ree_dummy_cmask);
-		} else if (4 == (big_core_last-big_core_first+1)) {
-			cpumask_set_cpu(4, &ree_dummy_cmask);
-			cpumask_set_cpu(5, &trusty_big_cmask);
-			cpumask_set_cpu(6, &trusty_big_cmask);
-		} else {
-			cpumask_set_cpu(0, &trusty_big_cmask);
-			cpumask_set_cpu(1, &ree_dummy_cmask);
-		}
 
 		gz_get_cpuinfo_task =
 		    kthread_create(gz_get_cpuinfo_thread, NULL,
@@ -1592,21 +1095,13 @@ static int __init gz_init(void)
 			res = PTR_ERR(gz_get_cpuinfo_task);
 		} else
 			wake_up_process(gz_get_cpuinfo_task);
-
-		ree_dummy_task =
-		kthread_create(ree_dummy_thread, NULL, "ree_dummy_task");
-		if (IS_ERR(ree_dummy_task)) {
-			KREE_ERR("Unable to start kernel thread %s\n",
-				__func__);
-			res = PTR_ERR(ree_dummy_task);
-		} else {
-			set_cpus_allowed_ptr(ree_dummy_task, &ree_dummy_cmask);
-			set_user_nice(ree_dummy_task, -20);
-			wake_up_process(ree_dummy_task);
-		}
 	}
 
-	mutex_init(&fp_mcdi_state_mux);
+#if IS_ENABLED(CONFIG_MTK_DEVAPC) && !IS_ENABLED(CONFIG_DEVAPC_LEGACY)
+	register_devapc_vio_callback(&gz_devapc_vio_handle);
+#endif
+
+
 	return res;
 }
 

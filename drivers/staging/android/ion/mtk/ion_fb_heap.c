@@ -26,7 +26,6 @@
 #include "ion_drv_priv.h"
 #include "mtk/ion_drv.h"
 #include "mtk/mtk_ion.h"
-
 //tablet
 #ifdef CONFIG_MTK_IOMMU
 #include "pseudo_m4u.h"
@@ -41,7 +40,6 @@
 #endif
 
 #define ION_FB_ALLOCATE_FAIL	-1
-
 /*fb heap base and size denamic access*/
 struct ion_fb_heap {
 	struct ion_heap heap;
@@ -49,9 +47,6 @@ struct ion_fb_heap {
 	ion_phys_addr_t base;
 	size_t size;
 };
-
-static int ion_fb_heap_debug_show(struct ion_heap *heap, struct seq_file *s,
-				  void *unused);
 
 struct sg_table *ion_fb_heap_map_dma(struct ion_heap *heap,
 				     struct ion_buffer *buffer)
@@ -115,15 +110,23 @@ static int ion_fb_heap_phys(struct ion_heap *heap, struct ion_buffer *buffer,
 	struct ion_fb_buffer_info *buffer_info =
 	    (struct ion_fb_buffer_info *)buffer->priv_virt;
 	struct port_mva_info_t port_info;
-
+	int domain_idx = 0;
 	if (!buffer_info) {
 		IONMSG("%s: Error. Invalid buffer.\n", __func__);
 		return -EFAULT;	/* Invalid buffer */
 	}
+#if defined(CONFIG_MTK_IOMMU_PGTABLE_EXT) && \
+	(CONFIG_MTK_IOMMU_PGTABLE_EXT > 32)
 	if (buffer_info->module_id == -1) {
 		IONMSG("%s: Error. Buffer not configured.\n", __func__);
-		return -EFAULT;	/* Buffer not configured. */
+		return -EDOM;
 	}
+#endif
+
+#ifdef MTK_ION_DMABUF_SUPPORT
+	if (buffer_info->module_id == M4U_PORT_GPU)
+		return 0;
+#endif
 
 	memset((void *)&port_info, 0, sizeof(port_info));
 	port_info.emoduleid = buffer_info->module_id;
@@ -131,10 +134,15 @@ static int ion_fb_heap_phys(struct ion_heap *heap, struct ion_buffer *buffer,
 	port_info.security = buffer_info->security;
 	port_info.buf_size = buffer->size;
 	port_info.flags = 0;
-
+	domain_idx = ion_get_domain_id(1, &port_info.emoduleid);
+	if (domain_idx < 0 || domain_idx >= DOMAIN_NUM) {
+		IONMSG("%s, skip map iova, dom:%d, port:0x%x\n",
+		       __func__, domain_idx, port_info.emoduleid);
+		return 0;
+	}
 	/*Allocate MVA */
 	mutex_lock(&buffer_info->lock);
-	if (buffer_info->MVA == 0) {
+	if (buffer_info->MVA[domain_idx] == 0) {
 #if (defined(CONFIG_MTK_M4U)) || defined(CONFIG_MTK_PSEUDO_M4U)
 		int ret = m4u_alloc_mva_sg(&port_info, buffer->sg_table);
 
@@ -144,10 +152,10 @@ static int ion_fb_heap_phys(struct ion_heap *heap, struct ion_buffer *buffer,
 			return -EFAULT;
 		}
 #endif
-		buffer_info->MVA = port_info.mva;
-		*addr = (ion_phys_addr_t)buffer_info->MVA;
+		buffer_info->MVA[domain_idx] = port_info.mva;
+		*addr = (ion_phys_addr_t)buffer_info->MVA[domain_idx];
 	} else {
-		*addr = (ion_phys_addr_t)buffer_info->MVA;
+		*addr = (ion_phys_addr_t)buffer_info->MVA[domain_idx];
 	}
 
 	mutex_unlock(&buffer_info->lock);
@@ -161,6 +169,7 @@ static int ion_fb_heap_allocate(struct ion_heap *heap,
 				unsigned long align, unsigned long flags)
 {
 	struct ion_fb_buffer_info *buffer_info = NULL;
+	int domain_idx = 0;
 	ion_phys_addr_t paddr;
 
 	if (align > PAGE_SIZE)
@@ -171,16 +180,25 @@ static int ion_fb_heap_allocate(struct ion_heap *heap,
 	/*create fb buffer info for it */
 	buffer_info = kzalloc(sizeof(*buffer_info), GFP_KERNEL);
 	if (IS_ERR_OR_NULL(buffer_info)) {
+		struct ion_fb_heap
+		*fb_heap = container_of(heap, struct ion_fb_heap, heap);
 		IONMSG(" %s: Error. Alloc ion_buffer failed.\n", __func__);
+		gen_pool_free(fb_heap->pool, paddr, size);
 		return -EFAULT;
 	}
 
 	buffer_info->priv_phys = paddr;
 	buffer_info->VA = 0;
-	buffer_info->MVA = 0;
-	buffer_info->FIXED_MVA = 0;
-	buffer_info->iova_start = 0;
-	buffer_info->iova_end = 0;
+	buffer_info->fix_module_id = -1;
+	buffer_info->pid = -1;
+	buffer_info->mva_cnt = 0;
+	for (domain_idx = 0; domain_idx < DOMAIN_NUM; domain_idx++) {
+		buffer_info->MVA[domain_idx] = 0;
+		buffer_info->FIXED_MVA[domain_idx] = 0;
+		buffer_info->iova_start[domain_idx] = 0;
+		buffer_info->iova_end[domain_idx] = 0;
+		buffer_info->port[domain_idx] = -1;
+	}
 	buffer_info->module_id = -1;
 	buffer_info->dbg_info.value1 = 0;
 	buffer_info->dbg_info.value2 = 0;
@@ -203,7 +221,7 @@ static void ion_fb_heap_free(struct ion_buffer *buffer)
 	struct ion_fb_buffer_info *buffer_info =
 	    (struct ion_fb_buffer_info *)buffer->priv_virt;
 	struct sg_table *table = buffer->sg_table;
-
+	int domain_idx = 0;
 	if (!buffer_info) {
 		IONMSG(" %s: Error: buffer_info is NULL.\n", __func__);
 		return;
@@ -211,9 +229,12 @@ static void ion_fb_heap_free(struct ion_buffer *buffer)
 
 	buffer->priv_virt = NULL;
 #if (defined(CONFIG_MTK_M4U)) || defined(CONFIG_MTK_PSEUDO_M4U)
-	if (buffer_info->MVA)
-		m4u_dealloc_mva_sg(buffer_info->module_id, table, buffer->size,
-				   buffer_info->MVA);
+	for (domain_idx = 0; domain_idx < DOMAIN_NUM; domain_idx++) {
+		if (buffer_info->MVA[domain_idx])
+			m4u_dealloc_mva_sg(buffer_info->module_id, table,
+					   buffer->size,
+					   buffer_info->MVA[domain_idx]);
+	}
 #endif
 	ion_fb_free(heap, buffer_info->priv_phys, buffer->size);
 	ion_fb_heap_unmap_dma(heap, buffer);
@@ -239,25 +260,25 @@ do {\
 	if (file)\
 		seq_printf(file, fmat, ##args);\
 	else\
-		pr_info(fmat, ##args);\
+		printk(fmat, ##args);\
 } while (0)
 
 static void ion_fb_chunk_show(struct gen_pool *pool,
 			      struct gen_pool_chunk *chunk, void *data)
 {
-	int order, nlongs, nbits, i;
+	unsigned int order, nlongs, nbits, i;
 	struct seq_file *s = (struct seq_file *)data;
 
 	order = pool->min_alloc_order;
 	nbits = (chunk->end_addr - chunk->start_addr) >> order;
 	nlongs = BITS_TO_LONGS(nbits);
 
-	seq_printf(s, "phys_addr=0x%x bits=", (unsigned int)chunk->phys_addr);
+	ION_DUMP(s, "phys_addr=0x%x bits=", (unsigned int)chunk->phys_addr);
 
 	for (i = 0; i < nlongs; i++)
-		seq_printf(s, "0x%x ", (unsigned int)chunk->bits[i]);
+		ION_DUMP(s, "0x%x ", (unsigned int)chunk->bits[i]);
 
-	seq_puts(s, "\n");
+	ION_DUMP(s, "\n");
 }
 
 static int ion_fb_heap_debug_show(struct ion_heap *heap, struct seq_file *s,
@@ -270,11 +291,11 @@ static int ion_fb_heap_debug_show(struct ion_heap *heap, struct seq_file *s,
 	total_size = gen_pool_size(fb_heap->pool);
 	size_avail = gen_pool_avail(fb_heap->pool);
 
-	seq_puts(s,
+	ION_DUMP(s,
 		 "********************************************************\n");
-	seq_printf(s, "total_size=0x%x, free=0x%x\n", (unsigned int)total_size,
-		   (unsigned int)size_avail);
-	seq_puts(s,
+	ION_DUMP(s, "total_size=0x%x, free=0x%x\n", (unsigned int)total_size,
+		 (unsigned int)size_avail);
+	ION_DUMP(s,
 		 "********************************************************\n");
 
 	gen_pool_for_each_chunk(fb_heap->pool, ion_fb_chunk_show, s);

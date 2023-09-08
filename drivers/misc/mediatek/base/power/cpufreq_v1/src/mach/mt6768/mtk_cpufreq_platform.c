@@ -260,6 +260,8 @@ void prepare_pll_addr(enum mt_cpu_dvfs_pll_id pll_id)
 {
 	struct pll_ctrl_t *pll_p = id_to_pll_ctrl(pll_id);
 
+	if (pll_p == NULL)
+		return;
 	pll_p->armpll_addr =
 	(unsigned int *)(pll_id == PLL_LL_CLUSTER ? ARMPLL_LL_CON1 :
 	pll_id == PLL_L_CLUSTER ? ARMPLL_L_CON1 : CCIPLL_CON1);
@@ -604,7 +606,8 @@ unsigned int _mt_cpufreq_get_cpu_level(void)
 		lv = CPU_LEVEL_1;
 
 	else if ((val == 0x90) || (val == 0x09) ||
-					(val == 0x50) || (val == 0x0A))
+			(val == 0x50) || (val == 0x0A) || (val == 0xA0) ||
+			(val == 0x05) || (val == 0x60) || (val == 0x06))
 		lv = CPU_LEVEL_6;
 
 	if (ptp_val <= 0x10 && lv == CPU_LEVEL_0)
@@ -613,8 +616,8 @@ unsigned int _mt_cpufreq_get_cpu_level(void)
 	if (ptp_val <= 0x10 && lv == CPU_LEVEL_1)
 		lv = CPU_LEVEL_4;
 
-	tag_pr_info("%d, %d, (%d, %d)\n",
-		lv, turbo_flag, UP_SRATE, DOWN_SRATE);
+	tag_pr_info("%d %d, %d, (%d, %d)\n",
+		val, lv, turbo_flag, UP_SRATE, DOWN_SRATE);
 
 	return lv;
 }

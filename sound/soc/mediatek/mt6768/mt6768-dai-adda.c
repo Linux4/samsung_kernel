@@ -366,12 +366,12 @@ static int mtk_stf_event(struct snd_soc_dapm_widget *w,
 	struct snd_soc_component *cmpnt = snd_soc_dapm_to_component(w->dapm);
 	struct mtk_base_afe *afe = snd_soc_component_get_drvdata(cmpnt);
 
-	size_t half_tap_num;
-	const uint16_t *stf_coeff_table;
-	unsigned int ul_rate;
+	size_t half_tap_num = 0;
+	const uint16_t *stf_coeff_table = NULL;
+	unsigned int ul_rate = 0;
 
-	uint32_t reg_value;
-	size_t coef_addr;
+	uint32_t reg_value = 0;
+	size_t coef_addr = 0;
 
 	regmap_read(afe->regmap, AFE_ADDA_UL_SRC_CON0, &ul_rate);
 	ul_rate = ul_rate >> UL_VOICE_MODE_CH1_CH2_CTL_SFT;
@@ -561,8 +561,8 @@ static const struct snd_soc_dapm_route mtk_dai_adda_routes[] = {
 static int set_mtkaif_rx(struct mtk_base_afe *afe)
 {
 	struct mt6768_afe_private *afe_priv = afe->platform_priv;
-	int delay_data;
-	int delay_cycle;
+	unsigned int delay_data = 0;
+	int delay_cycle = 0;
 
 	if (afe_priv->mtkaif_protocol == MTKAIF_PROTOCOL_2_CLK_P2) {
 		regmap_write(afe->regmap, AFE_AUD_PAD_TOP, 0x38);
@@ -671,12 +671,6 @@ static int mtk_dai_adda_hw_params(struct snd_pcm_substream *substream,
 		/* set mtkaif protocol */
 		set_mtkaif_rx(afe);
 
-		/* Using Internal ADC */
-		regmap_update_bits(afe->regmap,
-				   AFE_ADDA_TOP_CON0,
-				   0x1 << 0,
-				   0x0 << 0);
-
 		voice_mode = adda_ul_rate_transform(afe, rate);
 
 		ul_src_con0 |= (voice_mode << 17) & (0x7 << 17);
@@ -695,6 +689,12 @@ static int mtk_dai_adda_hw_params(struct snd_pcm_substream *substream,
 		regmap_write(afe->regmap, AFE_ADDA_IIR_COEF_10_09, 0x0000C048);
 
 		regmap_write(afe->regmap, AFE_ADDA_UL_SRC_CON0, ul_src_con0);
+
+		/* Using Internal ADC */
+		regmap_update_bits(afe->regmap,
+				   AFE_ADDA_TOP_CON0,
+				   0x1 << 0,
+				   0x0 << 0);
 
 		/* mtkaif_rxif_data_mode = 0, amic */
 		regmap_update_bits(afe->regmap,
@@ -748,7 +748,7 @@ static struct snd_soc_dai_driver mtk_dai_adda_driver[] = {
 
 int mt6768_dai_adda_register(struct mtk_base_afe *afe)
 {
-	struct mtk_base_afe_dai *dai;
+	struct mtk_base_afe_dai *dai = NULL;
 
 	dev_info(afe->dev, "%s()\n", __func__);
 

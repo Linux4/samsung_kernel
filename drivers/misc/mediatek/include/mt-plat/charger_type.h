@@ -20,9 +20,14 @@ enum charger_type {
 	CHARGING_HOST,
 	NONSTANDARD_CHARGER,	/* AC : 450mA~1A */
 	STANDARD_CHARGER,	/* AC : ~1A */
+	APPLE_2_4A_CHARGER, /* 2.4A apple charger */
 	APPLE_2_1A_CHARGER, /* 2.1A apple charger */
 	APPLE_1_0A_CHARGER, /* 1A apple charger */
 	APPLE_0_5A_CHARGER, /* 0.5A apple charger */
+#if defined(CONFIG_BATTERY_SAMSUNG)
+	SAMSUNG_CHARGER,
+	AFC_CHARGER,
+#endif
 	WIRELESS_CHARGER,
 };
 

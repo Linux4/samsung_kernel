@@ -46,7 +46,11 @@ endif
 
 ifeq ($(CONFIG_MTK_TINYSYS_SSPM_SUPPORT), y)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/
+ifneq ($(CONFIG_MTK_TINYSYS_SSPM_VERSION),"")
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/$(CONFIG_MTK_TINYSYS_SSPM_VERSION)
+else
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/$(MTK_PLATFORM)/
+endif
 endif
 
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/smi/
@@ -66,6 +70,11 @@ obj-y += mtk_spm_sleep.o
 obj-y += mtk_spm_sodi.o
 obj-y += mtk_spm_sodi3p0.o
 obj-y += mtk_spm_vcorefs_mt6771.o
+obj-y += mtk_lp_sysfs.o
+obj-y += mtk_lp_kernfs.o
+obj-y += mtk_idle_sysfs.o
+obj-y += mtk_lp_sysfs_procfs.o
+
 ifeq ($(CONFIG_MTK_TINYSYS_SSPM_SUPPORT), y)
 obj-y += mtk_spm_vcorefs_ipi_mt6771.o
 endif
@@ -83,6 +92,11 @@ obj-y += mtk_spm_sleep.o
 obj-y += mtk_spm_sodi.o
 obj-y += mtk_spm_sodi3p0.o
 obj-y += mtk_spm_vcorefs.o
+obj-y += mtk_lp_sysfs.o
+obj-y += mtk_lp_kernfs.o
+obj-y += mtk_idle_sysfs.o
+obj-y += mtk_lp_sysfs_procfs.o
+
 endif
 
 ifeq ($(CONFIG_MACH_MT6763), y)

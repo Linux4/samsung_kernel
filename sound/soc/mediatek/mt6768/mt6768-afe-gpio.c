@@ -88,6 +88,8 @@ int mt6768_afe_gpio_init(struct mtk_base_afe *afe)
 	/* gpio status init */
 	mt6768_afe_gpio_request(afe, false, MT6768_DAI_ADDA, 0);
 	mt6768_afe_gpio_request(afe, false, MT6768_DAI_ADDA, 1);
+	mt6768_afe_gpio_request(afe, false, MT6768_DAI_I2S_1, 0);
+	mt6768_afe_gpio_request(afe, false, MT6768_DAI_I2S_2, 0);
 
 	return 0;
 }

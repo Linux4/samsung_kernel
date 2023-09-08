@@ -34,13 +34,13 @@
 
 #include <trace/events/mtk_idle_event.h>
 
-#define BOOT_TIME_LIMIT             10      /* sec */
+#define BOOT_TIME_LIMIT             60      /* sec */
 #define TMR_RESIDENCY_US           200
 
 #define GET_STATE_RES(cpu, state) ({					\
 		unsigned int res = 0;					\
 									\
-		if ((state) < NF_MCDI_STATE)				\
+		if (((state) >= 0) && ((state) < NF_MCDI_STATE))	\
 			res = (mcdi_state_tbl_get(cpu))			\
 				->states[state].target_residency;	\
 		res;							\

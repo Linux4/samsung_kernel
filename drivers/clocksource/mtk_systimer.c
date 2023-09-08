@@ -50,7 +50,9 @@ static uint64_t     t_hdl_in;
 static uint64_t     t_hdl_out;
 static uint64_t     t_setevt_ticks;
 
+#ifdef CONFIG_MTK_RAM_CONSOLE
 static DEFINE_SPINLOCK(systimer_lock);
+#endif
 
 #define aee_log(fmt, ...) \
 do { \
@@ -160,7 +162,6 @@ void mtk_timer_clkevt_aee_dump(void)
 	 * Notice: print function cannot be used during AEE
 	 * flow to avoid lock issues.
 	 */
-	int cpu_bound;
 	struct mtk_stmr_device *dev =
 		mtk_stmr_id_to_dev(STMR_CLKEVT_ID);
 
@@ -198,10 +199,8 @@ void mtk_timer_clkevt_aee_dump(void)
 	aee_log("VAL: 0x%x\n",
 		__raw_readl(dev->base_addr + STMR_VAL));
 
-	cpu_bound = mt_irq_dump_cpu(mtk_stmr_clkevt.irq);
-
-	aee_log("irq affinity (bc, gic): %d, %d\n",
-		mtk_stmr_clkevt.irq_affinity_on, cpu_bound);
+	aee_log("irq affinity (bc): %d\n",
+		mtk_stmr_clkevt.irq_affinity_on);
 #endif
 }
 
@@ -222,11 +221,15 @@ static irqreturn_t mtk_stmr_handler(int irq, void *dev_id)
 	dev = mtk_stmr_id_to_dev(id);
 
 	if (likely(dev)) {
+#ifdef CONFIG_MTK_RAM_CONSOLE
 		spin_lock(&systimer_lock);
+#endif
 
 		mtk_stmr_ack_irq(dev);
 
+#ifdef CONFIG_MTK_RAM_CONSOLE
 		spin_unlock(&systimer_lock);
+#endif
 
 		if (likely(stmr_handlers[id]))
 			stmr_handlers[id]((unsigned long)dev_id);
@@ -247,12 +250,6 @@ static void mtk_stmr_reset(struct mtk_stmr_device *dev)
 	/* Clear IRQ */
 	mt_reg_sync_writel(STMR_CON_IRQ_CLR | STMR_CON_EN,
 		dev->base_addr + STMR_CON);
-
-	/* Reset counter */
-	mt_reg_sync_writel(0, dev->base_addr + STMR_VAL);
-
-	/* Disable timer */
-	mt_reg_sync_writel(0, dev->base_addr + STMR_CON);
 }
 
 static void mtk_stmr_ack_irq(struct mtk_stmr_device *dev)
@@ -308,7 +305,9 @@ static int mtk_stmr_clkevt_next_event(unsigned long ticks,
 	 * by old compare value.
 	 */
 
+#ifdef CONFIG_MTK_RAM_CONSOLE
 	spin_lock(&systimer_lock);
+#endif
 
 	mtk_stmr_reset(dev);
 
@@ -319,7 +318,9 @@ static int mtk_stmr_clkevt_next_event(unsigned long ticks,
 	mt_reg_sync_writel(STMR_CON_EN | STMR_CON_IRQ_EN,
 		dev->base_addr + STMR_CON);
 
+#ifdef CONFIG_MTK_RAM_CONSOLE
 	spin_unlock(&systimer_lock);
+#endif
 
 #if (defined MTK_TIMER_DBG_AEE_DUMP && defined CONFIG_MTK_RAM_CONSOLE)
 	t_setevt_out = sched_clock();

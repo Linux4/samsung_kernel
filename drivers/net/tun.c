@@ -73,6 +73,18 @@
 #include <linux/seq_file.h>
 #include <linux/uio.h>
 #include <linux/skb_array.h>
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+#include <linux/types.h>
+#include <linux/udp.h>
+#include <linux/tcp.h>
+#include <linux/ip.h>
+#include <net/ip.h>
+
+#define META_MARK_BASE_LOWER 100
+#define META_MARK_BASE_UPPER 500
+
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
+
 #include <linux/bpf.h>
 #include <linux/bpf_trace.h>
 
@@ -122,7 +134,30 @@ do {								\
 
 #define TUN_FEATURES (IFF_NO_PI | IFF_ONE_QUEUE | IFF_VNET_HDR | \
 		      IFF_MULTI_QUEUE)
+
 #define GOODCOPY_LEN 128
+
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+/* The KNOX framework marks packets intended to a VPN client for special processing differently.
+ * The marked packets hit special IP table rules and are routed back to user space using the TUN driver
+ * for policy based treatment by the VPN client.
+ * Some VPN clients can make more intelligent decisions based on the UID/PID information.
+ * For such clients, we mark packets to be in the range >= META_MARK_BASE_LOWER and < META_MARK_BASE_UPPER.
+ * When such packets are seen, we update the IP headers to carry UID/PID information
+ * in the IP options - all other packets are ignored.
+ * Also, see the comments above the individual steps taken in the code for details
+ */
+
+/* Metadata header structure */
+
+struct knox_meta_param {
+    uid_t uid;
+    pid_t pid;
+};
+
+#define TUN_META_HDR_SZ sizeof(struct knox_meta_param)
+#define TUN_META_MARK_OFFSET offsetof(struct knox_meta_param, uid)
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 
 #define FLT_EXACT_COUNT 8
 struct tap_filter {
@@ -630,7 +665,8 @@ static void tun_detach_all(struct net_device *dev)
 		module_put(THIS_MODULE);
 }
 
-static int tun_attach(struct tun_struct *tun, struct file *file, bool skip_filter)
+static int tun_attach(struct tun_struct *tun, struct file *file,
+		      bool skip_filter, bool publish_tun)
 {
 	struct tun_file *tfile = file->private_data;
 	struct net_device *dev = tun->dev;
@@ -672,7 +708,8 @@ static int tun_attach(struct tun_struct *tun, struct file *file, bool skip_filte
 
 	tfile->queue_index = tun->numqueues;
 	tfile->socket.sk->sk_shutdown &= ~RCV_SHUTDOWN;
-	rcu_assign_pointer(tfile->tun, tun);
+	if (publish_tun)
+		rcu_assign_pointer(tfile->tun, tun);
 	rcu_assign_pointer(tun->tfiles[tun->numqueues], tfile);
 	tun->numqueues++;
 
@@ -1132,6 +1169,13 @@ static void tun_net_init(struct net_device *dev)
 	dev->max_mtu = MAX_MTU - dev->hard_header_len;
 }
 
+static bool tun_sock_writeable(struct tun_struct *tun, struct tun_file *tfile)
+{
+	struct sock *sk = tfile->socket.sk;
+
+	return (tun->dev->flags & IFF_UP) && sock_writeable(sk);
+}
+
 /* Character device part */
 
 /* Poll */
@@ -1154,10 +1198,14 @@ static unsigned int tun_chr_poll(struct file *file, poll_table *wait)
 	if (!skb_array_empty(&tfile->tx_array))
 		mask |= POLLIN | POLLRDNORM;
 
-	if (tun->dev->flags & IFF_UP &&
-	    (sock_writeable(sk) ||
-	     (!test_and_set_bit(SOCKWQ_ASYNC_NOSPACE, &sk->sk_socket->flags) &&
-	      sock_writeable(sk))))
+	/* Make sure SOCKWQ_ASYNC_NOSPACE is set if not writable to
+	 * guarantee EPOLLOUT to be raised by either here or
+	 * tun_sock_write_space(). Then process could get notification
+	 * after it writes to a down device and meets -EIO.
+	 */
+	if (tun_sock_writeable(tun, tfile) ||
+	    (!test_and_set_bit(SOCKWQ_ASYNC_NOSPACE, &sk->sk_socket->flags) &&
+	     tun_sock_writeable(tun, tfile)))
 		mask |= POLLOUT | POLLWRNORM;
 
 	if (tun->dev->reg_state != NETREG_REGISTERED)
@@ -1495,16 +1543,6 @@ drop:
 		return -EINVAL;
 	}
 
-	//gro on: clatd checksum fail patch
-	//if is nornal and gro packet, not calculate tcp's checksum
-	if (pi.flags & htons(0xF000)) {  //this is normal packet or GRO packet
-		skb->ip_summed = CHECKSUM_UNNECESSARY;
-		if (pi.flags & htons(0x0F00)) {  //this is GRO packet
-			skb_shinfo(skb)->gso_size = 1;
-			skb_shinfo(skb)->gso_type = 1;
-		}
-	}
-
 	switch (tun->flags & TUN_TYPE_MASK) {
 	case IFF_TUN:
 		if (tun->flags & IFF_NO_PI) {
@@ -1609,6 +1647,41 @@ static ssize_t tun_chr_write_iter(struct kiocb *iocb, struct iov_iter *from)
 	return result;
 }
 
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+static int get_meta_param_values(struct sk_buff *skb, struct knox_meta_param *metalocal) {
+
+	struct skb_shared_info *knox_shinfo = NULL;
+
+	if (skb != NULL)
+		knox_shinfo = skb_shinfo(skb);
+	else {
+#ifdef TUN_DEBUG
+		pr_err("KNOX: NULL SKB in knoxvpn_process_uidpid");
+#endif
+		return 1;
+	}
+
+	if (knox_shinfo == NULL) {
+#ifdef TUN_DEBUG
+		pr_err("KNOX: knox_shinfo value is null");
+#endif
+		return 1;
+	}
+
+	if (knox_shinfo->knox_mark >= META_MARK_BASE_LOWER && knox_shinfo->knox_mark <= META_MARK_BASE_UPPER) {
+		metalocal->uid = knox_shinfo->uid;
+		metalocal->pid = knox_shinfo->pid;
+	}
+
+	if (knox_shinfo != NULL) {
+		knox_shinfo->uid = knox_shinfo->pid = 0;
+		knox_shinfo->knox_mark = 0;
+	}
+
+	return 0;
+}
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
+
 /* Put packet to the user space buffer */
 static ssize_t tun_put_user(struct tun_struct *tun,
 			    struct tun_file *tfile,
@@ -1616,6 +1689,10 @@ static ssize_t tun_put_user(struct tun_struct *tun,
 			    struct iov_iter *iter)
 {
 	struct tun_pi pi = { 0, skb->protocol };
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+	struct knox_meta_param metalocal = { 0, 0 };
+	int meta_param_get_status = 0;
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 	struct tun_pcpu_stats *stats;
 	ssize_t total;
 	int vlan_offset = 0;
@@ -1644,6 +1721,29 @@ static ssize_t tun_put_user(struct tun_struct *tun,
 			return -EFAULT;
 	}
 
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+	meta_param_get_status = get_meta_param_values(skb, &metalocal);
+	if (meta_param_get_status == 1) {
+#ifdef TUN_DEBUG
+		pr_err("KNOX: Error obtaining meta param values");
+#endif
+	} else {
+
+		if (tun->flags & TUN_META_HDR) {
+#ifdef TUN_DEBUG
+			pr_err("KNOX: Appending uid: %d and pid: %d", metalocal.uid,
+			       metalocal.pid);
+#endif
+			if (iov_iter_count(iter) < sizeof(struct knox_meta_param)) {
+				return -EINVAL;
+			}
+
+			total += sizeof(struct knox_meta_param);
+			if (copy_to_iter(&metalocal, sizeof(struct knox_meta_param), iter) != sizeof(struct knox_meta_param))
+				return -EFAULT;
+		}
+	}
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 	if (vnet_hdr_sz) {
 		struct virtio_net_hdr gso;
 
@@ -1945,7 +2045,9 @@ static struct proto tun_proto = {
 
 static int tun_flags(struct tun_struct *tun)
 {
-	return tun->flags & (TUN_FEATURES | IFF_PERSIST | IFF_TUN | IFF_TAP);
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+	return tun->flags & (TUN_FEATURES | IFF_PERSIST | IFF_TUN | IFF_TAP | IFF_META_HDR);
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 }
 
 static ssize_t tun_show_flags(struct device *dev, struct device_attribute *attr,
@@ -2021,7 +2123,7 @@ static int tun_set_iff(struct net *net, struct file *file, struct ifreq *ifr)
 		if (err < 0)
 			return err;
 
-		err = tun_attach(tun, file, ifr->ifr_flags & IFF_NOFILTER);
+		err = tun_attach(tun, file, ifr->ifr_flags & IFF_NOFILTER, true);
 		if (err < 0)
 			return err;
 
@@ -2110,18 +2212,29 @@ static int tun_set_iff(struct net *net, struct file *file, struct ifreq *ifr)
 				       NETIF_F_HW_VLAN_STAG_TX);
 
 		INIT_LIST_HEAD(&tun->disabled);
-		err = tun_attach(tun, file, false);
+		err = tun_attach(tun, file, false, false);
 		if (err < 0)
 			goto err_free_flow;
 
 		err = register_netdevice(tun->dev);
 		if (err < 0)
 			goto err_detach;
+		/* free_netdev() won't check refcnt, to aovid race
+		 * with dev_put() we need publish tun after registration.
+		 */
+		rcu_assign_pointer(tfile->tun, tun);
 	}
 
 	netif_carrier_on(tun->dev);
 
 	tun_debug(KERN_INFO, tun, "tun_set_iff\n");
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+	if (ifr->ifr_flags & IFF_META_HDR) {
+		tun->flags |= TUN_META_HDR;
+	} else {
+		tun->flags &= ~TUN_META_HDR;
+	}
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 
 	tun->flags = (tun->flags & ~TUN_FEATURES) |
 		(ifr->ifr_flags & TUN_FEATURES);
@@ -2262,7 +2375,7 @@ static int tun_set_queue(struct file *file, struct ifreq *ifr)
 		ret = security_tun_dev_attach_queue(tun->security);
 		if (ret < 0)
 			goto unlock;
-		ret = tun_attach(tun, file, false);
+		ret = tun_attach(tun, file, false, true);
 	} else if (ifr->ifr_flags & IFF_DETACH_QUEUE) {
 		tun = rtnl_dereference(tfile->tun);
 		if (!tun || !(tun->flags & IFF_MULTI_QUEUE) || tfile->detached)
@@ -2291,12 +2404,11 @@ static long __tun_chr_ioctl(struct file *file, unsigned int cmd,
 	unsigned int ifindex;
 	int le;
 	int ret;
-
-#ifdef CONFIG_ANDROID_PARANOID_NETWORK
-	if (cmd != TUNGETIFF && !capable(CAP_NET_ADMIN)) {
-		return -EPERM;
-	}
-#endif
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+	int knox_flag = 0;
+	int tun_meta_param;
+	int tun_meta_value;
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 
 	if (cmd == TUNSETIFF || cmd == TUNSETQUEUE || _IOC_TYPE(cmd) == SOCK_IOC_TYPE) {
 		if (copy_from_user(&ifr, argp, ifreq_len))
@@ -2309,8 +2421,11 @@ static long __tun_chr_ioctl(struct file *file, unsigned int cmd,
 		 * This is needed because we never checked for invalid flags on
 		 * TUNSETIFF.
 		 */
-		return put_user(IFF_TUN | IFF_TAP | TUN_FEATURES,
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+		knox_flag |= IFF_META_HDR;
+		return put_user(IFF_TUN | IFF_TAP | TUN_FEATURES | knox_flag,
 				(unsigned int __user*)argp);
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 	} else if (cmd == TUNSETQUEUE)
 		return tun_set_queue(file, &ifr);
 
@@ -2490,6 +2605,37 @@ static long __tun_chr_ioctl(struct file *file, unsigned int cmd,
 			ret = -EFAULT;
 		break;
 
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+	case TUNGETMETAPARAM:
+
+		if (copy_from_user(&tun_meta_param, argp,
+				   sizeof(tun_meta_param))) {
+			ret = -EFAULT;
+			break;
+		}
+
+		ret = 0;
+		switch (tun_meta_param) {
+		case TUN_GET_META_HDR_SZ:
+			tun_meta_value = TUN_META_HDR_SZ;
+			break;
+
+		case TUN_GET_META_MARK_OFFSET:
+			tun_meta_value = TUN_META_MARK_OFFSET;
+			break;
+
+		default:
+			ret = -EINVAL;
+			break;
+		}
+
+		if (!ret) {
+			if (copy_to_user(argp, &tun_meta_value,
+					 sizeof(tun_meta_value)))
+				ret = -EFAULT;
+		}
+		break;
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 	case TUNSETVNETHDRSZ:
 		if (copy_from_user(&vnet_hdr_sz, argp, sizeof(vnet_hdr_sz))) {
 			ret = -EFAULT;

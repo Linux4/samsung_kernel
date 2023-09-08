@@ -45,7 +45,7 @@
 #include "kd_camera_typedef.h"
 //#include "imgsensor_ca.h"
 
-#include "sysfs/imgsensor_sysfs.h"
+#include "imgsensor_sysfs.h"
 
 #define PFX "s5k4hayx_camera_sensor"
 #define LOG_INF(format, args...) pr_debug(PFX "[%s] " format, __func__, ##args)
@@ -1062,8 +1062,8 @@ static void sensor_init(void)
 	struct cam_hw_param *hw_param = NULL;
 	ret = table_write_cmos_sensor(s5k4hayx_init_setting,
 		sizeof(s5k4hayx_init_setting) / sizeof(kal_uint16));
-	
-	if(ret != 0) {
+
+	if (ret != 0) {
 		imgsensor_sec_get_hw_param(&hw_param, SENSOR_POSITION_REAR2);
 		if (hw_param)
 			hw_param->i2c_sensor_err_cnt++;

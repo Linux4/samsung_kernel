@@ -721,6 +721,19 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 		},
 	},
 #endif
+#if defined(S5KGW3_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_S5KGW3_MIPI_RAW,
+		{
+			{RST, Vol_Low, 0},
+			{DVDD, Vol_1100, 0},
+			{AVDD, Vol_2800, 0},
+			{DOVDD, Vol_1800, 1},
+			{RST, Vol_High, 5},
+			{SensorMCLK, Vol_High, 5}
+		},
+	},
+#endif
 	/* add new sensor before this line */
 	{NULL,},
 };

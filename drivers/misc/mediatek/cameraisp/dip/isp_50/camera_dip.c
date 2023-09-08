@@ -85,10 +85,8 @@
 /*  */
 /* #include "smi_common.h" */
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 #include <linux/pm_wakeup.h>
-#else
-#include <linux/wakelock.h>
 #endif
 
 #ifdef CONFIG_OF
@@ -225,6 +223,136 @@ static const struct of_device_id dip_of_ids[] = {
 };
 
 #endif
+
+struct Dip_Init_Array {
+	unsigned int ofset;
+	unsigned int val;
+};
+
+#define DIP_INIT_ARRAY_COUNT  118
+const struct Dip_Init_Array DIP_INIT_ARY[DIP_INIT_ARRAY_COUNT] = {
+	{0x00A0, 0x1},   //DIP_X_CTL_TOP_DCM_DIS
+	{0x0020, 0x0},   //DIP_X_REG_CTL_INT_EN
+	{0x0024, 0x0},   //DIP_X_REG_CTL_CQ_INT_EN
+	{0x0028, 0x0},   //DIP_X_REG_CTL_CQ_INT2_EN
+	{0x002C, 0x0},   //DIP_X_REG_CTL_CQ_INT3_EN
+	{0x0204, 0x11},   //DIP_X_CQ_THR0_CTL
+	{0x0210, 0x11},   //DIP_X_CQ_THR1_CTL
+	{0x021C, 0x11},   //DIP_X_CQ_THR2_CTL
+	{0x0228, 0x11},   //DIP_X_CQ_THR3_CTL
+	{0x0234, 0x11},   //DIP_X_CQ_THR4_CTL
+	{0x0240, 0x11},   //DIP_X_CQ_THR5_CTL
+	{0x024C, 0x11},   //DIP_X_CQ_THR6_CTL
+	{0x0258, 0x11},   //DIP_X_CQ_THR7_CTL
+	{0x0264, 0x11},   //DIP_X_CQ_THR8_CTL
+	{0x0270, 0x11},   //DIP_X_CQ_THR9_CTL
+	{0x027C, 0x11},   //DIP_X_CQ_THR10_CTL
+	{0x0288, 0x11},   //DIP_X_CQ_THR11_CTL
+	{0x0294, 0x11},   //DIP_X_CQ_THR12_CTL
+	{0x02A0, 0x11},   //DIP_X_CQ_THR13_CTL
+	{0x02AC, 0x11},   //DIP_X_CQ_THR14_CTL
+	{0x02B8, 0x11},   //DIP_X_CQ_THR15_CTL
+	{0x02C4, 0x11},   //DIP_X_CQ_THR16_CTL
+	{0x02D0, 0x11},   //DIP_X_CQ_THR17_CTL
+	{0x02DC, 0x11},   //DIP_X_CQ_THR18_CTL
+	{0x020C, 0x308},    //DIP_X_CQ_THR0_DESC_SIZE
+	{0x0218, 0x308},    //DIP_X_CQ_THR1_DESC_SIZE
+	{0x0224, 0x308},    //DIP_X_CQ_THR2_DESC_SIZE
+	{0x0230, 0x308},    //DIP_X_CQ_THR3_DESC_SIZE
+	{0x023C, 0x308},    //DIP_X_CQ_THR4_DESC_SIZE
+	{0x0248, 0x308},    //DIP_X_CQ_THR5_DESC_SIZE
+	{0x0254, 0x308},    //DIP_X_CQ_THR6_DESC_SIZE
+	{0x0260, 0x308},    //DIP_X_CQ_THR7_DESC_SIZE
+	{0x026C, 0x308},    //DIP_X_CQ_THR8_DESC_SIZE
+	{0x0278, 0x308},    //DIP_X_CQ_THR9_DESC_SIZE
+	{0x0284, 0x308},    //DIP_X_CQ_THR10_DESC_SIZE
+	{0x0290, 0x308},    //DIP_X_CQ_THR11_DESC_SIZE
+	{0x029C, 0x308},    //DIP_X_CQ_THR12_DESC_SIZE
+	{0x02A8, 0x308},    //DIP_X_CQ_THR13_DESC_SIZE
+	{0x02B4, 0x308},    //DIP_X_CQ_THR14_DESC_SIZE
+	{0x02C0, 0x308},    //DIP_X_CQ_THR15_DESC_SIZE
+	{0x02CC, 0x308},    //DIP_X_CQ_THR16_DESC_SIZE
+	{0x02D8, 0x308},    //DIP_X_CQ_THR17_DESC_SIZE
+	{0x02E4, 0x308},    //DIP_X_CQ_THR18_DESC_SIZE
+	{0x34C, 0x80000040},    //DIP_X_IMG2O_CON
+	{0x350, 0x00400040},    //DIP_X_IMG2O_CON2
+	{0x354, 0x00150015},    //DIP_X_IMG2O_CON3
+	{0x37C, 0x80000040},    //DIP_X_IMG2BO_CON
+	{0x380, 0x00400040},    //DIP_X_IMG2bO_CON2
+	{0x384, 0x00150015},    //DIP_X_IMG2bO_CON3
+	{0x3AC, 0x80000040},    //DIP_X_IMG3O_CON
+	{0x3B0, 0x00400040},    //DIP_X_IMG3O_CON2
+	{0x3B4, 0x00150015},    //DIP_X_IMG3O_CON3
+	{0x3DC, 0x80000020},    //DIP_X_IMG3BO_CON
+	{0x3E0, 0x00200020},    //DIP_X_IMG3BO_CON2
+	{0x3E4, 0x000A000A},    //DIP_X_IMG3BO_CON3
+	{0x40C, 0x80000020},    //DIP_X_IMG3CO_CON
+	{0x410, 0x00200020},    //DIP_X_IMG3CO_CON2
+	{0x414, 0x000A000A},    //DIP_X_IMG3CO_CON3
+	{0x43C, 0x80000040},    //DIP_X_FEO_CON
+	{0x440, 0x00400040},    //DIP_X_FEO_CON2
+	{0x444, 0x00150015},    //DIP_X_FEO_CON3
+	{0x46C, 0x80000040},    //DIP_X_PAK2O_CON
+	{0x470, 0x00400040},    //DIP_X_PAK2O_CON2
+	{0x474, 0x00150015},    //DIP_X_PAK2O_CON3
+	{0x51C, 0x80000080},    //DIP_X_IMGI_CON
+	{0x520, 0x00800080},    //DIP_X_IMGI_CON2
+	{0x524, 0x002A002A},    //DIP_X_IMGI_CON3
+	{0x54C, 0x80000040},    //DIP_X_IMGBI_CON
+	{0x550, 0x00400040},    //DIP_X_IMGBI_CON2
+	{0x554, 0x00150015},    //DIP_X_IMGBI_CON3
+	{0x57C, 0x80000040},    //DIP_X_IMGCI_CON
+	{0x580, 0x00400040},    //DIP_X_IMGCI_CON2
+	{0x584, 0x00150015},    //DIP_X_IMGCI_CON3
+	{0x5AC, 0x80000080},    //DIP_X_VIPI_CON
+	{0x5B0, 0x00800080},    //DIP_X_VIPI_CON2
+	{0x5B4, 0x002A002A},    //DIP_X_VIPI_CON3
+	{0x5DC, 0x80000040},    //DIP_X_VIP2I_CON
+	{0x5E0, 0x00400040},    //DIP_X_VIP2I_CON2
+	{0x5E4, 0x00150015},    //DIP_X_VIP2I_CON3
+	{0x60C, 0x80000040},    //DIP_X_VIP3I_CON
+	{0x610, 0x00400040},    //DIP_X_VIP3I_CON2
+	{0x614, 0x00150015},    //DIP_X_VIP3I_CON3
+	{0x63C, 0x80000020},    //DIP_X_DMGI_CON
+	{0x640, 0x00200020},    //DIP_X_DMGI_CON2
+	{0x644, 0x000A000A},    //DIP_X_DMGI_CON3
+	{0x66C, 0x80000020},    //DIP_X_DEPI_CON
+	{0x670, 0x00200020},    //DIP_X_DEPI_CON2
+	{0x674, 0x000A000A},    //DIP_X_DEPI_CON3
+	{0x69C, 0x80000020},    //DIP_X_LCEI_CON
+	{0x6A0, 0x00200020},    //DIP_X_LCEI_CON2
+	{0x6A4, 0x000A000A},    //DIP_X_LCEI_CON3
+	{0x6CC, 0x80000020},    //DIP_X_UFDI_CON
+	{0x6D0, 0x00200020},    //DIP_X_UFDI_CON2
+	{0x6D4, 0x000A000A},    //DIP_X_UFDI_CON3
+	{0x7EC, 0x80000040},    //DIP_X_SMX1O_CON
+	{0x7F0, 0x00400040},    //DIP_X_SMX1O_CON2
+	{0x7F4, 0x00400040},    //DIP_X_SMX1O_CON3
+	{0x81C, 0x80000040},    //DIP_X_SMX2O_CON
+	{0x820, 0x00400040},    //DIP_X_SMX2O_CON2
+	{0x824, 0x00400040},    //DIP_X_SMX2O_CON3
+	{0x84C, 0x80000040},    //DIP_X_SMX3O_CON
+	{0x850, 0x00400040},    //DIP_X_SMX3O_CON2
+	{0x854, 0x00400040},    //DIP_X_SMX3O_CON3
+	{0x87C, 0x80000040},    //DIP_X_SMX4O_CON
+	{0x880, 0x00400040},    //DIP_X_SMX4O_CON2
+	{0x884, 0x00400040},    //DIP_X_SMX4O_CON3
+	{0x8AC, 0x80000040},    //DIP_A_SMX1I_CON
+	{0x8B0, 0x00400040},    //DIP_A_SMX1I_CON2
+	{0x8B4, 0x00400040},    //DIP_A_SMX1I_CON3
+	{0x8DC, 0x80000040},    //DIP_A_SMX2I_CON
+	{0x8E0, 0x00400040},    //DIP_A_SMX2I_CON2
+	{0x8E4, 0x00400040},    //DIP_A_SMX2I_CON3
+	{0x90C, 0x80000040},    //DIP_A_SMX3I_CON
+	{0x910, 0x00400040},    //DIP_A_SMX3I_CON2
+	{0x914, 0x00400040},    //DIP_A_SMX3I_CON3
+	{0x93C, 0x80000040},    //DIP_A_SMX4I_CON
+	{0x940, 0x00400040},    //DIP_A_SMX4I_CON2
+	{0x944, 0x00400040}     //DIP_A_SMX4I_CON3
+};
+
+
+
 /**************************************************************
  *
  **************************************************************/
@@ -322,11 +450,8 @@ static struct DIP_MEM_INFO_STRUCT g_TpipeBaseAddrInfo = {0x0, 0x0, NULL, 0x0};
 static struct DIP_MEM_INFO_STRUCT g_CmdqBaseAddrInfo = {0x0, 0x0, NULL, 0x0};
 static unsigned int m_CurrentPPB;
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 struct wakeup_source dip_wake_lock;
-struct wakeup_source isp_mdp_wake_lock;
-#else
-struct wake_lock dip_wake_lock;
 struct wakeup_source isp_mdp_wake_lock;
 #endif
 static int g_bWaitLock;
@@ -688,8 +813,8 @@ pr_debug(IRQTag fmt,  ##args)
 	struct SV_LOG_STR *pSrc = &gSvLog[irq];\
 	char *ptr;\
 	unsigned int i;\
-	signed int ppb = 0;\
-	signed int logT = 0;\
+	unsigned int ppb = 0;\
+	unsigned int logT = 0;\
 	if (ppb_in > 1) {\
 		ppb = 1;\
 	} else{\
@@ -1008,11 +1133,21 @@ static signed int DIP_DumpDIPReg(void)
 		DIP_RD32(DIP_A_BASE + 0x00D8), DIP_RD32(DIP_A_BASE + 0x00DC));
 	CMDQ_ERR("dip: 150220F4(0x%x)-150220F8(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x00F4), DIP_RD32(DIP_A_BASE + 0x00F8));
-	CMDQ_ERR("dip: 0x150220A4(0x%x)-0x150220A8(0x%x)\n",
+
+
+	CMDQ_ERR("dcm: 15022090(0x%x)-15022094(0x%x)-15022098(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0090), DIP_RD32(DIP_A_BASE + 0x0094),
+		DIP_RD32(DIP_A_BASE + 0x0098));
+	CMDQ_ERR("dcm: 1502209C(0x%x)-150220A0(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x009C), DIP_RD32(DIP_A_BASE + 0x00A0));
+	CMDQ_ERR("dcm: 0x150220A4(0x%x)-0x150220A8(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x00A4), DIP_RD32(DIP_A_BASE + 0x00A8));
-	CMDQ_ERR("dip: 0x150220AC(0x%x)-0x150220B0(0x%x)\n",
+	CMDQ_ERR("dcm: 0x150220AC(0x%x)-0x150220B0(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x00AC), DIP_RD32(DIP_A_BASE + 0x00B0));
-	CMDQ_ERR("dip: 0x150220B4(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x00B4));
+	CMDQ_ERR("dcm: 0x150220B4(0x%x)-0x150220F0(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x00B4), DIP_RD32(DIP_A_BASE + 0x00F0));
+
+
 	/*CQ_THR info*/
 	CMDQ_ERR("dip: 15022204(0x%x)-15022208(0x%x)-1502220C(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x0204), DIP_RD32(DIP_A_BASE + 0x0208),
@@ -1022,6 +1157,24 @@ static signed int DIP_DumpDIPReg(void)
 	CMDQ_ERR("dip: 15022218(0x%x)-0x1502231C(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x0218), DIP_RD32(DIP_A_BASE + 0x031C));
 
+	CMDQ_ERR("nbc2: 15026800(0x%x)-15026804(0x%x)-15026808(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x4800), DIP_RD32(DIP_A_BASE + 0x4804),
+		DIP_RD32(DIP_A_BASE + 0x4808));
+	CMDQ_ERR("nbc2: 15026810(0x%x)-15026814(0x%x)-15026818(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x4810), DIP_RD32(DIP_A_BASE + 0x4814),
+		DIP_RD32(DIP_A_BASE + 0x4818));
+	CMDQ_ERR("nbc2: 15026830(0x%x)-15026834(0x%x)-15026838(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x4830), DIP_RD32(DIP_A_BASE + 0x4834),
+		DIP_RD32(DIP_A_BASE + 0x4838));
+	CMDQ_ERR("nbc2: 15026840(0x%x)-15026844(0x%x)-15026848(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x4840), DIP_RD32(DIP_A_BASE + 0x4844),
+		DIP_RD32(DIP_A_BASE + 0x4848));
+	CMDQ_ERR("nbc2: 1502684C(0x%x)-15026850(0x%x)-15026854(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x484C), DIP_RD32(DIP_A_BASE + 0x4850),
+		DIP_RD32(DIP_A_BASE + 0x4854));
+	CMDQ_ERR("nbc2: 15026858(0x%x)-1502685C(0x%x)-15026874(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x4858), DIP_RD32(DIP_A_BASE + 0x485C),
+		DIP_RD32(DIP_A_BASE + 0x4874));
 	/* 0080, 0x15022080, DIP_A_CTL_DBG_SET */
 	DIP_WR32(DIP_A_BASE + 0x80, 0x0);
 	CMDQ_ERR("0x0007BC : dip: 0x150227BC(0x%x)\n",
@@ -1150,12 +1303,6 @@ static signed int DIP_DumpDIPReg(void)
 	CMDQ_ERR("hfg crop: 0x150272B0(0x%x)-0x150272B4(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x52B0), DIP_RD32(DIP_A_BASE + 0x52B4));
 
-	CMDQ_ERR("dcm: 0x150220A4(0x%x)-0x150220A8(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x0A4), DIP_RD32(DIP_A_BASE + 0x0A8));
-	CMDQ_ERR("dcm: 0x150220AC(0x%x)-0x150220B0(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x0AC), DIP_RD32(DIP_A_BASE + 0x0B0));
-	CMDQ_ERR("dcm: 0x150220B4(0x%x)-0x150220F0(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x0B4), DIP_RD32(DIP_A_BASE + 0x0F0));
 	/* IMG3O DMA*/
 	CMDQ_ERR("img3o: 0x15022390(0x%x)-0x15022398(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x390), DIP_RD32(DIP_A_BASE + 0x0398));
@@ -1887,6 +2034,7 @@ EXIT:
 /**************************************************************
  *
  **************************************************************/
+/*
 static signed int DIP_WriteRegToHw(
 	struct DIP_REG_STRUCT *pReg,
 	unsigned int         Count)
@@ -1897,8 +2045,6 @@ static signed int DIP_WriteRegToHw(
 	unsigned int module;
 	void __iomem *regBase;
 
-	/* Use local variable to store IspInfo.DebugMask & */
-	/* DIP_DBG_WRITE_REG for saving lock time*/
 	spin_lock(&(IspInfo.SpinLockIsp));
 	dbgWriteReg = IspInfo.DebugMask & DIP_DBG_WRITE_REG;
 	spin_unlock(&(IspInfo.SpinLockIsp));
@@ -1915,11 +2061,9 @@ static signed int DIP_WriteRegToHw(
 		return -EFAULT;
 	}
 
-	/*  */
 	if (dbgWriteReg)
 		LOG_DBG("- E.\n");
 
-	/*  */
 	for (i = 0; i < Count; i++) {
 		if (dbgWriteReg)
 			LOG_DBG("mod(%d),base(0x%lx),Addr(0x%lx),Val(0x%x)\n",
@@ -1936,25 +2080,19 @@ static signed int DIP_WriteRegToHw(
 
 	}
 
-	/*  */
 	return Ret;
 }
-
-
+*/
 
 /**************************************************************
  *
  **************************************************************/
+/*
 static signed int DIP_WriteReg(struct DIP_REG_IO_STRUCT *pRegIo)
 {
 	signed int Ret = 0;
-	/*    signed int TimeVd = 0;*/
-	/*    signed int TimeExpdone = 0;*/
-	/*    signed int TimeTasklet = 0;*/
-	/* unsigned char* pData = NULL; */
 	struct DIP_REG_STRUCT *pData = NULL;
 
-	/*  */
 	if (IspInfo.DebugMask & DIP_DBG_WRITE_REG)
 		LOG_DBG("Data(0x%p), Count(%d)\n",
 			(pRegIo->pData),
@@ -1970,7 +2108,7 @@ static signed int DIP_WriteReg(struct DIP_REG_IO_STRUCT *pRegIo)
 	}
 	pData = kmalloc((pRegIo->Count) *
 		sizeof(struct DIP_REG_STRUCT),
-		GFP_KERNEL); /* Use GFP_KERNEL instead of GFP_ATOMIC */
+		GFP_KERNEL);
 	if (pData == NULL) {
 		LOG_INF("ERROR:kmalloc failed,(process,pid,tgid)=(%s,%d,%d)\n",
 		current->comm,
@@ -1979,7 +2117,6 @@ static signed int DIP_WriteReg(struct DIP_REG_IO_STRUCT *pRegIo)
 	Ret = -ENOMEM;
 	goto EXIT;
 	}
-	/*  */
 	if (copy_from_user(pData,
 		(void __user *)(pRegIo->pData),
 		pRegIo->Count * sizeof(struct DIP_REG_STRUCT)) != 0) {
@@ -1988,11 +2125,11 @@ static signed int DIP_WriteReg(struct DIP_REG_IO_STRUCT *pRegIo)
 		goto EXIT;
 	}
 
-	/*  */
+
 	Ret = DIP_WriteRegToHw(
 		      pData,
 		      pRegIo->Count);
-	/*  */
+
 EXIT:
 	if (pData != NULL) {
 		kfree(pData);
@@ -2000,7 +2137,7 @@ EXIT:
 	}
 	return Ret;
 }
-
+*/
 /**************************************************************
  *
  **************************************************************/
@@ -2319,14 +2456,21 @@ static signed int DIP_P2_BufQue_Update_ListCIdx
 	enum DIP_P2_BUFQUE_LIST_TAG listTag)
 {
 	signed int ret = 0;
-	signed int tmpIdx = 0;
+	unsigned int tmpIdx = 0;
 	signed int cnt = 0;
 	bool stop = false;
 	int i = 0;
 	enum DIP_P2_BUF_STATE_ENUM cIdxSts = DIP_P2_BUF_STATE_NONE;
 
+	if (property < 0)
+		return MFALSE;
+
 	switch (listTag) {
 	case DIP_P2_BUFQUE_LIST_TAG_UNIT:
+		if (P2_FrameUnit_List_Idx[property].curr < 0) {
+			LOG_ERR("curr is negative!(%d)\n", P2_FrameUnit_List_Idx[property].curr);
+			return MFALSE;
+		}
 		/* [1] check global pointer current sts */
 		cIdxSts = P2_FrameUnit_List[property]
 			[P2_FrameUnit_List_Idx[property].curr].bufSts;
@@ -2420,7 +2564,7 @@ static signed int DIP_P2_BufQue_Update_ListCIdx
  *
  **************************************************************/
 static signed int DIP_P2_BufQue_Erase
-	(enum DIP_P2_BUFQUE_PROPERTY property,
+	(enum DIP_P2_BUFQUE_PROPERTY enum_property,
 	enum DIP_P2_BUFQUE_LIST_TAG listTag,
 	signed int idx)
 {
@@ -2428,11 +2572,28 @@ static signed int DIP_P2_BufQue_Erase
 	bool stop = false;
 	int i = 0;
 	signed int cnt = 0;
-	int tmpIdx = 0;
+	unsigned int tmpIdx = 0;
+	unsigned int property = 0;
+
+	if (enum_property >= DIP_P2_BUFQUE_PROPERTY_NUM ||
+		enum_property < DIP_P2_BUFQUE_PROPERTY_DIP) {
+		LOG_ERR("property err(%d)\n", enum_property);
+		return -EINVAL;
+	}
+	if (idx ==  -1) {
+		LOG_ERR("idx can't be negative!!");
+		ret =  -EINVAL;
+		return ret;
+	}
+	property = (unsigned int)enum_property;
 
 	switch (listTag) {
 	case DIP_P2_BUFQUE_LIST_TAG_PACKAGE:
 	tmpIdx = P2_FramePack_List_Idx[property].start;
+	if (tmpIdx < 0) {
+		LOG_ERR("tmpIdx is negative\n");
+		return MFALSE;
+	}
 	/* [1] clear buffer status */
 	P2_FramePackage_List[property][idx].processID = 0x0;
 	P2_FramePackage_List[property][idx].callerID = 0x0;
@@ -2479,6 +2640,10 @@ static signed int DIP_P2_BufQue_Erase
 	break;
 	case DIP_P2_BUFQUE_LIST_TAG_UNIT:
 	tmpIdx = P2_FrameUnit_List_Idx[property].start;
+	if (tmpIdx < 0) {
+		LOG_ERR("tmpIdx is negative\n");
+		return MFALSE;
+	}
 	/* [1] clear buffer status */
 	P2_FrameUnit_List[property][idx].processID = 0x0;
 	P2_FrameUnit_List[property][idx].callerID = 0x0;
@@ -2545,7 +2710,7 @@ static signed int DIP_P2_BufQue_GetMatchIdx
 {
 	int idx = -1;
 	int i = 0;
-	int property;
+	unsigned int property;
 
 	if (param.property >= DIP_P2_BUFQUE_PROPERTY_NUM) {
 		LOG_ERR("property err(%d)\n", param.property);
@@ -2760,6 +2925,8 @@ static inline unsigned int DIP_P2_BufQue_WaitEventState(
 		return ret;
 	}
 	property = param.property;
+	if (property < 0)
+		return MFALSE;
 	/*  */
 	switch (type) {
 	case DIP_P2_BUFQUE_MATCH_TYPE_WAITDQ:
@@ -2774,6 +2941,10 @@ static inline unsigned int DIP_P2_BufQue_WaitEventState(
 	case DIP_P2_BUFQUE_MATCH_TYPE_WAITFM:
 		spin_lock(&(SpinLock_P2FrameList));
 		index = *idx;
+		if (index < 0) {
+			spin_unlock(&(SpinLock_P2FrameList));
+			return MFALSE;
+		}
 		if (P2_FramePackage_List[property][index].dequedNum ==
 			P2_FramePackage_List[property][index].frameNum)
 			ret = MTRUE;
@@ -2830,7 +3001,7 @@ static signed int DIP_P2_BufQue_CTRL_FUNC(
 	int i = 0, q = 0;
 	int idx =  -1, idx2 =  -1;
 	signed int restTime = 0;
-	int property;
+	unsigned int property;
 
 	if (param.property >= DIP_P2_BUFQUE_PROPERTY_NUM) {
 		LOG_ERR("property err(%d)\n", param.property);
@@ -2957,6 +3128,20 @@ static signed int DIP_P2_BufQue_CTRL_FUNC(
 				(P2_FrameUnit_List_Idx[property].end + 1) %
 				_MAX_SUPPORT_P2_FRAME_NUM_;
 		}
+		if (P2_FrameUnit_List_Idx[property].curr < 0) {
+			spin_unlock(&(SpinLock_P2FrameList));
+			LOG_ERR("p2 frame curr idx is negative(%d)!!",
+			P2_FrameUnit_List_Idx[property].curr);
+			ret =  -EFAULT;
+			return ret;
+		}
+		if (P2_FrameUnit_List_Idx[property].end < 0) {
+			spin_unlock(&(SpinLock_P2FrameList));
+			LOG_ERR("p2 frame idx is negative(%d)!!",
+			P2_FrameUnit_List_Idx[property].end);
+			ret =  -EFAULT;
+			return ret;
+		}
 		P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property]
 			.end].processID = param.processID;
 		P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property]
@@ -2984,6 +3169,13 @@ static signed int DIP_P2_BufQue_CTRL_FUNC(
 				P2_FramePack_List_Idx[property].end =
 				(P2_FramePack_List_Idx[property].end + 1) %
 				_MAX_SUPPORT_P2_PACKAGE_NUM_;
+			}
+			if (P2_FramePack_List_Idx[property].end < 0) {
+				spin_unlock(&(SpinLock_P2FrameList));
+				LOG_ERR("p2 package idx is negative(%d)!!",
+				P2_FramePack_List_Idx[property].end);
+				ret =  -EFAULT;
+				return ret;
 			}
 			P2_FramePackage_List[property]
 				[P2_FramePack_List_Idx[property].end]
@@ -3145,6 +3337,14 @@ static signed int DIP_P2_BufQue_CTRL_FUNC(
 			DIP_P2_BUFQUE_MATCH_TYPE_WAITFMEQD,
 			&idx),
 			DIP_UsToJiffies(15 * 1000000));
+		if (idx ==  -1) {
+			LOG_ERR("can't find buf idx(pty/pid/cid:%d/0x%x/0x%x)",
+			param.property,
+			param.processID,
+			param.callerID);
+			ret =  -EFAULT;
+			return ret;
+		}
 		if (restTime == 0) {
 			LOG_ERR("could not find match buffer restTime(%d)",
 				restTime);
@@ -3362,20 +3562,16 @@ static long DIP_ioctl(
 		} else {
 			if (wakelock_ctrl == 1) {    /* Enable     wakelock */
 				if (g_bWaitLock == 0) {
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 					__pm_stay_awake(&dip_wake_lock);
-#else
-					wake_lock(&dip_wake_lock);
 #endif
 					g_bWaitLock = 1;
 					LOG_DBG("wakelock enable!!\n");
 				}
 			} else {        /* Disable wakelock */
 				if (g_bWaitLock == 1) {
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 					__pm_relax(&dip_wake_lock);
-#else
-					wake_unlock(&dip_wake_lock);
 #endif
 					g_bWaitLock = 0;
 					LOG_DBG("wakelock disable!!\n");
@@ -3411,7 +3607,9 @@ static long DIP_ioctl(
 			(void *)Param,
 			sizeof(struct DIP_REG_IO_STRUCT)) == 0) {
 /* 2nd layer behavoir of copy from user is implemented in DIP_WriteReg(...) */
-			Ret = DIP_WriteReg(&RegIo);
+			/* Ret = DIP_WriteReg(&RegIo);*/
+			LOG_ERR("Not Support Wrire Reg.\n");
+			Ret = -EFAULT;
 		} else {
 			LOG_ERR("copy_from_user failed\n");
 			Ret = -EFAULT;
@@ -3809,6 +4007,20 @@ static long DIP_ioctl_compat(
 
 #endif
 
+
+/**************************************************************
+ *
+ **************************************************************/
+static inline void DIP_Load_InitialSettings(void)
+{
+	unsigned int i = 0;
+
+	for (i = 0 ; i < DIP_INIT_ARRAY_COUNT ; i++) {
+		DIP_WR32(DIP_A_BASE + DIP_INIT_ARY[i].ofset,
+				DIP_INIT_ARY[i].val);
+	}
+}
+
 /**************************************************************
  *
  **************************************************************/
@@ -4005,17 +4217,16 @@ static signed int DIP_open(
 	}
 
 	/* Enable clock */
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 	__pm_stay_awake(&dip_wake_lock);
-#else
-	wake_lock(&dip_wake_lock);
 #endif
 	DIP_EnableClock(MTRUE);
+	/* Initial HW default value */
+	if (G_u4DipEnClkCnt == 1)
+		DIP_Load_InitialSettings();
 	g_u4DipCnt = 0;
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 	__pm_relax(&dip_wake_lock);
-#else
-	wake_unlock(&dip_wake_lock);
 #endif
 	LOG_DBG("dip open G_u4DipEnClkCnt: %d\n", G_u4DipEnClkCnt);
 #ifdef KERNEL_LOG
@@ -4086,10 +4297,8 @@ static signed int DIP_release(
 		DIP_pr_detect_count);
 
 	if (g_bWaitLock == 1) {
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 		__pm_relax(&dip_wake_lock);
-#else
-		wake_unlock(&dip_wake_lock);
 #endif
 		g_bWaitLock = 0;
 	}
@@ -4169,16 +4378,12 @@ static signed int DIP_release(
 	}
 #endif
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 	__pm_stay_awake(&dip_wake_lock);
-#else
-	wake_lock(&dip_wake_lock);
 #endif
 	DIP_EnableClock(MFALSE);
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 	__pm_relax(&dip_wake_lock);
-#else
-	wake_unlock(&dip_wake_lock);
 #endif
 	LOG_DBG("dip release G_u4DipEnClkCnt: %d", G_u4DipEnClkCnt);
 EXIT:
@@ -4193,26 +4398,17 @@ EXIT:
 /**************************************************************
  *
  **************************************************************/
+/*
 static signed int DIP_mmap(
 	struct file *pFile, struct vm_area_struct *pVma)
 {
 	unsigned long length = 0;
 	unsigned int pfn = 0x0;
 
-	/*LOG_DBG("- E.");*/
 	length = (pVma->vm_end - pVma->vm_start);
-	/*  */
+
 	pVma->vm_page_prot = pgprot_noncached(pVma->vm_page_prot);
 	pfn = pVma->vm_pgoff << PAGE_SHIFT;
-
-	/*LOG_INF("DIP_mmap: vm_pgoff(0x%lx),pfn(0x%x),phy(0x%lx), */
-		/* vm_start(0x%lx),vm_end(0x%lx),length(0x%lx)\n", */
-		/* pVma->vm_pgoff, */
-		/* pfn, */
-		/* pVma->vm_pgoff << PAGE_SHIFT, */
-		/* pVma->vm_start, */
-		/* pVma->vm_end, */
-		/* ength); */
 
 
 	switch (pfn) {
@@ -4235,10 +4431,9 @@ static signed int DIP_mmap(
 		pVma->vm_page_prot))
 		return -EAGAIN;
 
-	/*  */
 	return 0;
 }
-
+*/
 /**************************************************************
  *
  **************************************************************/
@@ -4252,7 +4447,7 @@ static const struct file_operations IspFileOper = {
 	.open = DIP_open,
 	.release = DIP_release,
 	/* .flush       = mt_dip_flush, */
-	.mmap = DIP_mmap,
+	/*  .mmap = DIP_mmap, */
 	.unlocked_ioctl = DIP_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl = DIP_ioctl_compat,
@@ -4427,10 +4622,11 @@ static signed int DIP_probe(struct platform_device *pDev)
 
 		if (i >= DIP_IRQ_TYPE_AMOUNT)
 			LOG_INF("No corresponding ISR!!\n");
+		else
 			LOG_INF("nr_dip_devs=%d, devnode(%s), irq=%d\n",
-				nr_dip_devs,
-				pDev->dev.of_node->name,
-				dip_dev->irq);
+			nr_dip_devs,
+			pDev->dev.of_node->name,
+			dip_dev->irq);
 
 
 	} else {
@@ -4509,16 +4705,9 @@ static signed int DIP_probe(struct platform_device *pDev)
 		for (i = 0 ; i < DIP_IRQ_TYPE_AMOUNT; i++)
 			init_waitqueue_head(&IspInfo.WaitQueueHead[i]);
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 		wakeup_source_init(&dip_wake_lock, "dip_lock_wakelock");
 		wakeup_source_init(&isp_mdp_wake_lock, "isp_mdp_wakelock");
-#else
-		wake_lock_init(&dip_wake_lock,
-			WAKE_LOCK_SUSPEND,
-			"dip_lock_wakelock");
-		wake_lock_init(&isp_mdp_wake_lock,
-			WAKE_LOCK_SUSPEND,
-			"isp_mdp_wakelock");
 #endif
 
 		/* enqueue/dequeue control in ihalpipe wrapper */
@@ -4652,6 +4841,8 @@ static signed int DIP_resume(struct platform_device *pDev)
 {
 	if (g_u4DipCnt > 0) {
 		DIP_EnableClock(MTRUE);
+		if (G_u4DipEnClkCnt == 1)
+			DIP_Load_InitialSettings();
 		g_u4DipCnt--;
 	}
 	return 0;
@@ -4829,6 +5020,7 @@ static const struct file_operations dip_p2_ke_dump_proc_fops = {
 	.owner = THIS_MODULE,
 	.open = proc_dip_p2_ke_dump_open,
 	.read = seq_read,
+	.release = single_release,
 };
 
 /**************************************************************
@@ -4945,6 +5137,7 @@ static const struct file_operations dip_p2_dump_proc_fops = {
 	.owner = THIS_MODULE,
 	.open = proc_dip_p2_dump_open,
 	.read = seq_read,
+	.release = single_release,
 };
 /**************************************************************
  *
@@ -4953,6 +5146,13 @@ static int dip_dump_read(struct seq_file *m, void *v)
 {
 
 	int i;
+
+	spin_lock(&(IspInfo.SpinLockClock));
+	if (G_u4DipEnClkCnt == 0) {
+		spin_unlock(&(IspInfo.SpinLockClock));
+		return 0;
+	}
+	spin_unlock(&(IspInfo.SpinLockClock));
 
 	seq_puts(m, "\n============ dip dump register============\n");
 	seq_puts(m, "dip top control\n");
@@ -5022,6 +5222,7 @@ static const struct file_operations dip_dump_proc_fops = {
 	.owner = THIS_MODULE,
 	.open = proc_dip_dump_open,
 	.read = seq_read,
+	.release = single_release,
 };
 /**************************************************************
  *
@@ -5069,11 +5270,11 @@ static signed int __init DIP_Init(void)
 		return 0;
 	}
 	proc_entry = proc_create("dip_dump",
-		0444, dip_p2_dir, &dip_dump_proc_fops);
+		0440, dip_p2_dir, &dip_dump_proc_fops);
 	proc_entry = proc_create("isp_p2_dump",
-		0444, dip_p2_dir, &dip_p2_dump_proc_fops);
+		0440, dip_p2_dir, &dip_p2_dump_proc_fops);
 	proc_entry = proc_create("isp_p2_kedump",
-		0444, dip_p2_dir, &dip_p2_ke_dump_proc_fops);
+		0440, dip_p2_dir, &dip_p2_ke_dump_proc_fops);
 	for (j = 0; j < DIP_IRQ_TYPE_AMOUNT; j++) {
 		switch (j) {
 		default:
@@ -5194,10 +5395,8 @@ int32_t DIP_MDPClockOnCallback(uint64_t engineFlag)
 {
 	/* LOG_DBG("DIP_MDPClockOnCallback"); */
 	/*LOG_DBG("+MDPEn:%d", G_u4DipEnClkCnt);*/
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 	__pm_stay_awake(&isp_mdp_wake_lock);
-#else
-	wake_lock(&isp_mdp_wake_lock);
 #endif
 	DIP_EnableClock(MTRUE);
 
@@ -5225,10 +5424,8 @@ int32_t DIP_MDPClockOffCallback(uint64_t engineFlag)
 {
 	/* LOG_DBG("DIP_MDPClockOffCallback"); */
 	DIP_EnableClock(MFALSE);
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 	__pm_relax(&isp_mdp_wake_lock);
-#else
-	wake_unlock(&isp_mdp_wake_lock);
 #endif
 	/*LOG_DBG("-MDPEn:%d", G_u4DipEnClkCnt);*/
 	return 0;

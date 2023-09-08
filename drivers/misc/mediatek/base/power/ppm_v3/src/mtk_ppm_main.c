@@ -102,8 +102,10 @@ int ppm_main_freq_to_idx(unsigned int cluster_id,
 	FUNC_ENTER(FUNC_LV_MAIN);
 
 	if (!p->cluster_info[cluster_id].dvfs_tbl) {
+#ifdef FIXME
 		ppm_err("@%s: DVFS table of cluster %d is not exist!\n",
 			__func__, cluster_id);
+#endif
 		idx = (relation == CPUFREQ_RELATION_L)
 			? get_cluster_min_cpufreq_idx(cluster_id)
 			: get_cluster_max_cpufreq_idx(cluster_id);
@@ -648,13 +650,14 @@ int mt_ppm_main(void)
 	list_for_each_entry(pos, &ppm_main_info.policy_list, link) {
 		if ((pos->is_activated)
 			&& pos->update_limit_cb) {
+/*  For performance removing CONFIG_MTK_SCHED_TRACERS
 			int idx;
-
+*/
 			ppm_lock(&pos->lock);
 			policy_mask |= 1 << pos->policy;
 			pos->update_limit_cb();
 			pos->is_limit_updated = true;
-
+/*  For performance removing CONFIG_MTK_SCHED_TRACERS
 			for (idx = 0; idx < pos->req.cluster_num; idx++) {
 				trace_ppm_user_setting(
 					pos->policy,
@@ -663,7 +666,7 @@ int mt_ppm_main(void)
 					pos->req.limit[idx].max_cpufreq_idx
 				);
 			}
-
+*/
 			ppm_unlock(&pos->lock);
 		}
 	}
@@ -707,13 +710,13 @@ int mt_ppm_main(void)
 					c_req->cpu_limit[i].advise_cpu_core
 				);
 		}
-
+/*  For performance removing CONFIG_MTK_SCHED_TRACERS
 #ifndef NO_MTK_TRACE
 		trace_ppm_update(policy_mask,
 			ppm_main_info.min_power_budget,
 				c_req->root_cluster, buf);
 #endif
-
+*/
 #ifdef CONFIG_MTK_RAM_CONSOLE
 		for (i = 0; i < c_req->cluster_num; i++) {
 			aee_rr_rec_ppm_cluster_limit(i,

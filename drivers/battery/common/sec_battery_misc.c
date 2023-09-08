@@ -1,23 +1,13 @@
  /*
- * sec_battery_misc.c
- * Samsung Mobile Battery Misc Driver
- * Author: Yeongmi Ha <yeongmi86.ha@samsung.com>
- * 
- * Copyright (C) 2019 Samsung Electronics, Inc.
+ *  sec_battery_misc.c
+ *  Samsung Mobile Battery Misc Driver
+ *  Author: Yeongmi Ha <yeongmi86.ha@samsung.com>
+ *  Copyright (C) 2018 Samsung Electronics
  *
- * This program is free software: you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 #include <linux/miscdevice.h>
 #include <linux/fs.h>
@@ -28,8 +18,8 @@
 #include <linux/device.h>
 #include <linux/poll.h>
 
-#include "include/sec_battery.h"
-#include "include/sec_battery_misc.h"
+#include "sec_battery.h"
+#include "sec_battery_misc.h"
 
 static struct sec_bat_misc_dev *c_dev;
 

@@ -30,6 +30,10 @@
 #define QUEUE_NUM   8
 #endif
 
+/* speciall for user: ccci_fsd data[0] */
+#define CCCI_FS_AP_CCCI_WAKEUP (0x40000000)
+#define CCCI_FS_REQ_SEND_AGAIN 0x80000000
+
 /*#define FLOW_CTRL_ENABLE*/
 #define FLOW_CTRL_HEAD		0x464C4F57	/*FLOW*/
 #define FLOW_CTRL_TAIL		0x4354524C	/*CTRL*/
@@ -89,6 +93,7 @@ struct md_ccif_ctrl {
 
 	unsigned long channel_id;	/* CCIF channel */
 	unsigned int ccif_irq_id;
+	atomic_t ccif_ap_data_enabled;
 	unsigned int sram_size;
 	struct ccif_sram_layout *ccif_sram_layout;
 	struct work_struct ccif_sram_work;
@@ -232,10 +237,21 @@ static inline int ccci_ccif_hif_set_wakeup_src(unsigned char hif_id, int value)
 {
 	struct md_ccif_ctrl *md_ctrl =
 		(struct md_ccif_ctrl *)ccci_hif_get_by_id(hif_id);
+	unsigned int ccif_rx_ch = 0;
 
-	if (md_ctrl)
+	if (md_ctrl) {
+
+		if (md_ctrl->ccif_ap_base)
+			ccif_rx_ch = ccif_read32(md_ctrl->ccif_ap_base,
+					APCCIF_RCHNUM);
+		CCCI_NORMAL_LOG(0, "WK", "CCIF RX bitmap:0x%x\r\n",
+				ccif_rx_ch);
+#if (MD_GENERATION >= 6297)
+		if (ccif_rx_ch & AP_MD_CCB_WAKEUP)
+			mtk_ccci_ccb_info_peek();
+#endif
 		return atomic_set(&md_ctrl->wakeup_src, value);
-	else
+	} else
 		return -1;
 }
 
@@ -250,7 +266,8 @@ int md_ccif_ring_buf_init(unsigned char hif_id);
 void md_ccif_switch_ringbuf(unsigned char hif_id, enum ringbuf_id rb_id);
 
 int md_ccif_send(unsigned char hif_id, int channel_id);
-
+void ccif_set_irq_on_poweron(unsigned char hif_id);
+void ccif_set_irq_on_poweroff(unsigned char hif_id);
 /* always keep this in mind:
  * what if there are more than 1 modems using CLDMA...
  */

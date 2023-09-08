@@ -417,6 +417,9 @@ static void snd_complete_urb(struct urb *urb)
 		}
 
 		prepare_outbound_urb(ep, ctx);
+		/* can be stopped during prepare callback */
+		if (unlikely(!test_bit(EP_FLAG_RUNNING, &ep->flags)))
+			goto exit_clear;
 	} else {
 		retire_inbound_urb(ep, ctx);
 		/* can be stopped during retire callback */
@@ -539,7 +542,7 @@ __exit_unlock:
  */
 static int wait_clear_urbs(struct snd_usb_endpoint *ep)
 {
-	unsigned long end_time = jiffies + msecs_to_jiffies(1000);
+	unsigned long end_time = jiffies + msecs_to_jiffies(1500);
 	int alive;
 
 	do {

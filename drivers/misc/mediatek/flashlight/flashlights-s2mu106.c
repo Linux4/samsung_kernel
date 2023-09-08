@@ -33,10 +33,10 @@
 #include "flashlight-dt.h"
 
 /* MUIC header file */
-#include <linux/muic/muic.h>
-#include <linux/muic/s2mu106-muic.h>
-#include <linux/muic/s2mu106-muic-hv.h>
 #include <linux/usb/typec/slsi/common/usbpd_ext.h>
+#include <linux/muic/slsi/s2mu106/s2mu106-muic.h>
+
+
 
 #define S2MU106_NAME "flashlights-s2mu106"
 
@@ -48,6 +48,7 @@
 #define VOLTAGE_DECREASE 0
 #define VOLTAGE_INCREASE 1
 #define VOLTAGE_NONE 2
+#define VOLTAGE_PRE_ON_DONE 3
 
 /* define mutex and work queue */
 static DEFINE_MUTEX(s2mu106_mutex);
@@ -105,7 +106,6 @@ static void s2mu106_adjust_voltage()
         pr_info("[%s]%d Down Voltage set Clear \n" ,__func__,__LINE__);
     }
 }
-
 /******************************************************************************
  * Timer and work queue
  *****************************************************************************/
@@ -168,16 +168,23 @@ static int s2mu106_ioctl(unsigned int cmd, unsigned long arg)
             //0 based indexing for level
             if(s2mu106_is_torch(s2mu106_current_level)) {
                 pr_debug("TORCH MODE");
-                s2mu106_enable_external(1, (s2mu106_current_level + 1) * 50);
+#ifdef CONFIG_MTK_A41_JPN_PRJ
+                if(s2mu106_current_level == 0) {
+                    pr_debug("A41 JPN VIDEO TORCH MODE - SPECIAL CASE");
+                    s2mu106_enable_external(1, 60);
+                }
+                else
+#endif
+               s2mu106_enable_external(1, (s2mu106_current_level + 1) * 50);
             }
             else {
                 pr_debug("FLASH MODE");
-                s2mu106_enable_external(2, (s2mu106_current_level + 1) * 50);
+               s2mu106_enable_external(2, (s2mu106_current_level + 1) * 50);
             }
         } else {
             s2mu106_enable_external(0, 0);
             hrtimer_cancel(&s2mu106_timer);
-            if(volt_direction == VOLTAGE_DECREASE) {
+            if(volt_direction == VOLTAGE_PRE_ON_DONE) {
                 volt_direction = VOLTAGE_INCREASE;
                 schedule_work(&s2mu106_voltage_work);
             }
@@ -186,8 +193,9 @@ static int s2mu106_ioctl(unsigned int cmd, unsigned long arg)
     
     case FLASH_IOC_PRE_ON:
         pr_debug("FLASH_IOC_PRE_ON(%d)\n", channel);
-        volt_direction = VOLTAGE_DECREASE;
-        schedule_work(&s2mu106_voltage_work);
+	if(volt_direction == VOLTAGE_DECREASE) {
+	    volt_direction = VOLTAGE_PRE_ON_DONE;
+	}
         break;
 
     case FLASH_IOC_GET_DUTY_NUMBER:
@@ -210,6 +218,20 @@ static int s2mu106_ioctl(unsigned int cmd, unsigned long arg)
     case FLASH_IOC_GET_HW_TIMEOUT:
         pr_debug("FLASH_IOC_GET_HW_TIMEOUT(%d)\n", channel);
         fl_arg->arg = S2MU106_HW_TIMEOUT;
+        break;
+
+    case FLASH_IOC_SET_SCENARIO:
+        pr_debug("FLASH_IOC_SET_SCENARIO(%d)\n", channel);
+        if(volt_direction == VOLTAGE_DECREASE) {
+            volt_direction = VOLTAGE_INCREASE;
+            schedule_work(&s2mu106_voltage_work);
+        }
+        break;
+
+    case FLASH_IOC_SET_VOLTAGE:
+        pr_err("FLASH_IOC_SET_VOLTAGE(%d)\n", channel);
+	volt_direction = VOLTAGE_DECREASE;
+	schedule_work(&s2mu106_voltage_work);
         break;
 
     default:
@@ -243,7 +265,7 @@ static int s2mu106_set_driver(int set)
     } else {
         use_count--;
         if (!use_count)
-            s2mu106_enable_external(0, 0); //disable
+            s2mu106_enable_external(0, 0);
         if (use_count < 0)
             use_count = 0;
         pr_debug("Unset driver: %d\n", use_count);

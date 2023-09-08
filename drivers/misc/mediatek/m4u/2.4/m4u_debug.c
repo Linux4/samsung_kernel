@@ -35,6 +35,7 @@
 int gM4U_log_to_uart = 2;
 int gM4U_log_level = 2;
 
+#if IS_ENABLED(CONFIG_DEBUG_FS) || IS_ENABLED(CONFIG_PROC_FS)
 unsigned int gM4U_seed_mva;
 
 int m4u_test_alloc_dealloc(int id, unsigned int size)
@@ -60,22 +61,27 @@ int m4u_test_alloc_dealloc(int id, unsigned int size)
 	M4UINFO("test va=0x%lx,size=0x%x\n", va, size);
 
 	client = m4u_create_client();
-	if (IS_ERR_OR_NULL(client))
+	if (IS_ERR_OR_NULL(client)) {
 		M4UMSG("create client fail!\n");
+		goto err;
+	}
 
 	ret = m4u_alloc_mva(client, M4U_PORT_DISP_OVL0, va, NULL, size,
 			    M4U_PROT_READ | M4U_PROT_CACHE, 0, &mva);
 	if (ret) {
-		M4UMSG(
-			"alloc mva fail:va=0x%lx,size=0x%x,ret=%d\n",
-			va, size, ret);
-		return -1;
+		m4u_info("alloc mva fail:va=0x%lx,size=0x%x,ret=%d\n",
+			 va, size, ret);
+		goto out;
 	}
 	m4u_dump_pgtable(m4u_get_domain_by_port(M4U_PORT_DISP_OVL0), NULL);
 
 	ret = m4u_dealloc_mva(client, M4U_PORT_DISP_OVL0, mva);
 	m4u_dump_pgtable(m4u_get_domain_by_port(M4U_PORT_DISP_OVL0), NULL);
 
+out:
+	/* clean */
+	m4u_destroy_client(client);
+err:
 	if (id == 1)
 		kfree((void *)va);
 	else if (id == 2)
@@ -88,8 +94,6 @@ int m4u_test_alloc_dealloc(int id, unsigned int size)
 			M4UMSG("do_munmap failed\n");
 	}
 
-/* clean */
-	m4u_destroy_client(client);
 	return 0;
 }
 
@@ -121,8 +125,10 @@ int m4u_test_reclaim(unsigned int size)
 		m4u_test_callback, NULL);
 
 	client = m4u_create_client();
-	if (IS_ERR_OR_NULL(client))
-		M4UMSG("createclientfail!\n");
+	if (IS_ERR_OR_NULL(client)) {
+		m4u_info("createclientfail!\n");
+		return -ENOMEM;
+	}
 
 	buf_size = size;
 	for (i = 0; i < 10; i++) {
@@ -133,14 +139,12 @@ int m4u_test_reclaim(unsigned int size)
 				NULL, buf_size,
 				M4U_PROT_READ | M4U_PROT_CACHE, 0, &mva);
 		if (ret) {
-			M4UMSG(
-				"alloc using kmalloc fail:va=0x%p,size=0x%x\n",
-				va[i], buf_size);
+			m4u_info("alloc using kmalloc fail:va=0x%p,size=0x%x\n",
+				 va[i], buf_size);
 			return -1;
 		}
-		M4UINFO(
-			"alloc mva:va=0x%p,mva=0x%x,size=0x%x\n",
-			va[i], mva, buf_size);
+		m4u_debug("alloc mva:va=0x%p,mva=0x%x,size=0x%x\n",
+			  va[i], mva, buf_size);
 
 		buf_size += size;
 	}
@@ -176,27 +180,28 @@ static int m4u_test_map_kernel(void)
 		0, &populate, NULL);
 	up_write(&current->mm->mmap_sem);
 
-	M4UINFO("test va=0x%lx,size=0x%x\n", va, size);
+	m4u_debug("test va=0x%lx,size=0x%x\n", va, size);
 
 	for (i = 0; i < size; i += 4)
 		*(int *)(va + i) = i;
 
 	client = m4u_create_client();
-	if (IS_ERR_OR_NULL(client))
-		M4UMSG("createclientfail!\n");
+	if (IS_ERR_OR_NULL(client)) {
+		m4u_info("createclientfail!\n");
+		return -ENOMEM;
+	}
 
 	ret = m4u_alloc_mva(client, M4U_PORT_DISP_OVL0, va, NULL, size,
 		M4U_PROT_READ | M4U_PROT_CACHE, 0, &mva);
 	if (ret) {
-		M4UMSG(
-			"alloc using kmalloc fail:va=0x%lx,size=0x%x\n",
-			va, size);
+		m4u_info("alloc using kmalloc fail:va=0x%lx,size=0x%x\n",
+			 va, size);
 		return -1;
 	}
 
 	ret = m4u_mva_map_kernel(mva, size, &kernel_va, &kernel_size);
 	if (ret) {
-		M4UMSG("map kernel fail!\n");
+		m4u_info("map kernel fail!\n");
 		return -1;
 	}
 	for (i = 0; i < size; i += 4) {
@@ -228,6 +233,11 @@ int m4u_test_ddp(unsigned int prot)
 	struct M4U_PORT_STRUCT port;
 	struct m4u_client_t *client = m4u_create_client();
 
+	if (IS_ERR_OR_NULL(client)) {
+		m4u_info("%s #%d create client fail!\n", __func__, __LINE__);
+		return -ENOMEM;
+	}
+
 	pSrc = vmalloc(size);
 	pDst = vmalloc(size);
 
@@ -237,9 +247,8 @@ int m4u_test_ddp(unsigned int prot)
 	m4u_alloc_mva(client, M4U_PORT_DISP_OVL0, (unsigned long)pDst, NULL,
 		      size, prot, 0, &dst_pa);
 
-	M4UINFO(
-		"pSrc=0x%p, pDst=0x%p, src_pa=0x%x, dst_pa=0x%x\n",
-		pSrc, pDst, src_pa, dst_pa);
+	m4u_debug("pSrc=0x%p, pDst=0x%p, src_pa=0x%x, dst_pa=0x%x\n",
+		  pSrc, pDst, src_pa, dst_pa);
 
 	port.ePortID = M4U_PORT_DISP_OVL0;
 	port.Direction = 0;
@@ -290,6 +299,11 @@ int m4u_test_tf(unsigned int prot)
 	struct m4u_client_t *client = m4u_create_client();
 	int data = 88;
 
+	if (IS_ERR_OR_NULL(client)) {
+		m4u_info("%s #%d create client fail!\n", __func__, __LINE__);
+		return -ENOMEM;
+	}
+
 	m4u_register_fault_callback(M4U_PORT_DISP_OVL0,
 		test_fault_callback, &data);
 	m4u_register_fault_callback(M4U_PORT_DISP_WDMA0,
@@ -304,9 +318,8 @@ int m4u_test_tf(unsigned int prot)
 	m4u_alloc_mva(client, M4U_PORT_DISP_OVL0, (unsigned long)pDst, NULL,
 		      size / 2, prot, 0, &dst_pa);
 
-	M4UINFO(
-		"pSrc=0x%p, pDst=0x%p, src_pa=0x%x, dst_pa=0x%x\n",
-		pSrc, pDst, src_pa, dst_pa);
+	m4u_debug("pSrc=0x%p, pDst=0x%p, src_pa=0x%x, dst_pa=0x%x\n",
+		  pSrc, pDst, src_pa, dst_pa);
 
 	port.ePortID = M4U_PORT_DISP_OVL0;
 	port.Direction = 0;
@@ -421,6 +434,9 @@ static int m4u_debug_set(void *data, u64 val)
 		unsigned int mva = 0x4000;
 
 		page = alloc_pages(GFP_KERNEL, get_order(page_num));
+		if (!page)
+			break;
+
 		sg_alloc_table(sg_table, page_num, GFP_KERNEL);
 		for_each_sg(sg_table->sgl, sg, sg_table->nents, i)
 			sg_set_page(sg, page + i, PAGE_SIZE, 0);
@@ -663,10 +679,15 @@ static int m4u_debug_set(void *data, u64 val)
 	break;
 	case 24:
 	{
-		unsigned int *pSrc;
+		void *pSrc;
 		unsigned int mva = 0;
 		unsigned long pa;
 		struct m4u_client_t *client = m4u_create_client();
+
+		if (IS_ERR_OR_NULL(client)) {
+			m4u_info("%s #%d create client fail!\n", __func__, __LINE__);
+			return -ENOMEM;
+		}
 
 		pSrc = vmalloc(128);
 		m4u_alloc_mva(client, M4U_PORT_DISP_OVL0,
@@ -680,6 +701,7 @@ static int m4u_debug_set(void *data, u64 val)
 		pa = m4u_mva_to_pa(NULL, 0, mva);
 		M4UMSG("(2) mva:0x%x pa:0x%lx\n", mva, pa);
 		m4u_destroy_client(client);
+		vfree(pSrc);
 	}
 	break;
 	case 25:
@@ -824,16 +846,19 @@ static int m4u_debug_set(void *data, u64 val)
 		unsigned long va = 0;
 
 		size = 0x500000;
-		va = (unsigned long)vmalloc(size);
 		client = m4u_create_client();
-		if (IS_ERR_OR_NULL(client))
-			M4UMSG("create client fail!\n");
+		if (IS_ERR_OR_NULL(client)) {
+			m4u_info("%s #%d create client fail!\n", __func__, __LINE__);
+			return -ENOMEM;
+		}
+
+		va = (unsigned long)vmalloc(size);
 		ret = m4u_alloc_mva(client, M4U_PORT_DISP_OVL0, va, NULL, size,
 				    M4U_PROT_READ | M4U_PROT_CACHE, 0, &mva);
 		if (ret) {
-			M4UMSG(
-				"alloc mva fail: va=0x%lx size=0x%x,ret=%d\n",
-				va, size, ret);
+			m4u_info("alloc mva fail: va=0x%lx size=0x%x,ret=%d\n",
+				 va, size, ret);
+			vfree((void *)va);
 			return -1;
 		}
 		m4u_dump_pgtable_for_debug(mva, size);
@@ -930,7 +955,20 @@ static int m4u_debug_get(void *data, u64 *val)
 	return 0;
 }
 
-DEFINE_SIMPLE_ATTRIBUTE(m4u_debug_fops, m4u_debug_get, m4u_debug_set, "%llu\n");
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+DEFINE_SIMPLE_ATTRIBUTE(m4u_debug_fops,
+	m4u_debug_get,
+	m4u_debug_set,
+	"%llu\n");
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+DEFINE_PROC_ATTRIBUTE(m4u_proc_fops,
+	m4u_debug_get,
+	m4u_debug_set,
+	"%llu\n");
+#endif
+
 
 #if (M4U_DVT != 0)
 static void m4u_test_init(void)
@@ -1551,7 +1589,19 @@ static int m4u_test_get(void *data, u64 *val)
 	return 0;
 }
 
-DEFINE_SIMPLE_ATTRIBUTE(m4u_test_fops, m4u_test_get, m4u_test_set, "%llu\n");
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+DEFINE_SIMPLE_ATTRIBUTE(m4u_debug_test_fops,
+	m4u_test_get,
+	m4u_test_set,
+	"%llu\n");
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+DEFINE_PROC_ATTRIBUTE(m4u_proc_test_fops,
+	m4u_test_get,
+	m4u_test_set,
+	"%llu\n");
+#endif
 #endif
 
 static int m4u_log_level_set(void *data, u64 val)
@@ -1571,8 +1621,19 @@ static int m4u_log_level_get(void *data, u64 *val)
 	return 0;
 }
 
-DEFINE_SIMPLE_ATTRIBUTE(m4u_log_level_fops,
-	m4u_log_level_get, m4u_log_level_set, "%llu\n");
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+DEFINE_SIMPLE_ATTRIBUTE(m4u_debug_log_level_fops,
+	m4u_log_level_get,
+	m4u_log_level_set,
+	"%llu\n");
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+DEFINE_PROC_ATTRIBUTE(m4u_proc_log_level_fops,
+	m4u_log_level_get,
+	m4u_log_level_set,
+	"%llu\n");
+#endif
 
 static int m4u_debug_freemva_set(void *data, u64 val)
 {
@@ -1594,8 +1655,19 @@ static int m4u_debug_freemva_get(void *data, u64 *val)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 DEFINE_SIMPLE_ATTRIBUTE(m4u_debug_freemva_fops,
-	m4u_debug_freemva_get, m4u_debug_freemva_set, "%llu\n");
+	m4u_debug_freemva_get,
+	m4u_debug_freemva_set,
+	"%llu\n");
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+DEFINE_PROC_ATTRIBUTE(m4u_proc_freemva_fops,
+	m4u_debug_freemva_get,
+	m4u_debug_freemva_set,
+	"%llu\n");
+#endif
 
 int m4u_debug_port_show(struct seq_file *s, void *unused)
 {
@@ -1603,6 +1675,7 @@ int m4u_debug_port_show(struct seq_file *s, void *unused)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 int m4u_debug_port_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, m4u_debug_port_show, inode->i_private);
@@ -1614,6 +1687,21 @@ const struct file_operations m4u_debug_port_fops = {
 	.llseek = seq_lseek,
 	.release = single_release,
 };
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+int m4u_proc_port_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, m4u_debug_port_show, PDE_DATA(inode));
+}
+
+const struct file_operations m4u_proc_port_fops = {
+	.open = m4u_proc_port_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+#endif
 
 int m4u_debug_mva_show(struct seq_file *s, void *unused)
 {
@@ -1621,6 +1709,7 @@ int m4u_debug_mva_show(struct seq_file *s, void *unused)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 int m4u_debug_mva_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, m4u_debug_mva_show, inode->i_private);
@@ -1632,6 +1721,21 @@ const struct file_operations m4u_debug_mva_fops = {
 	.llseek = seq_lseek,
 	.release = single_release,
 };
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+int m4u_proc_mva_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, m4u_debug_mva_show, PDE_DATA(inode));
+}
+
+const struct file_operations m4u_proc_mva_fops = {
+	.open = m4u_proc_mva_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+#endif
 
 int m4u_debug_buf_show(struct seq_file *s, void *unused)
 {
@@ -1639,6 +1743,7 @@ int m4u_debug_buf_show(struct seq_file *s, void *unused)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 int m4u_debug_buf_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, m4u_debug_buf_show, inode->i_private);
@@ -1650,6 +1755,21 @@ const struct file_operations m4u_debug_buf_fops = {
 	.llseek = seq_lseek,
 	.release = single_release,
 };
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+int m4u_proc_buf_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, m4u_debug_buf_show, PDE_DATA(inode));
+}
+
+const struct file_operations m4u_proc_buf_fops = {
+	.open = m4u_proc_buf_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+#endif
 
 int m4u_debug_monitor_show(struct seq_file *s, void *unused)
 {
@@ -1657,6 +1777,7 @@ int m4u_debug_monitor_show(struct seq_file *s, void *unused)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 int m4u_debug_monitor_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, m4u_debug_monitor_show, inode->i_private);
@@ -1668,6 +1789,21 @@ const struct file_operations m4u_debug_monitor_fops = {
 	.llseek = seq_lseek,
 	.release = single_release,
 };
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+int m4u_proc_monitor_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, m4u_debug_monitor_show, PDE_DATA(inode));
+}
+
+const struct file_operations m4u_proc_monitor_fops = {
+	.open = m4u_proc_monitor_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+#endif
 
 int m4u_debug_register_show(struct seq_file *s, void *unused)
 {
@@ -1675,6 +1811,7 @@ int m4u_debug_register_show(struct seq_file *s, void *unused)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 int m4u_debug_register_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, m4u_debug_register_show, inode->i_private);
@@ -1686,12 +1823,34 @@ const struct file_operations m4u_debug_register_fops = {
 	.llseek = seq_lseek,
 	.release = single_release,
 };
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+int m4u_proc_register_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, m4u_debug_register_show, PDE_DATA(inode));
+}
+
+const struct file_operations m4u_proc_register_fops = {
+	.open = m4u_proc_register_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+#endif
 
 int m4u_debug_init(struct m4u_device *m4u_dev)
 {
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	struct dentry *debug_file;
+#endif
+#if IS_ENABLED(CONFIG_PROC_FS)
+	struct proc_dir_entry *proc_file;
+#endif
+
 	struct m4u_domain *domain = m4u_get_domain_by_id(0);
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	m4u_dev->debug_root = debugfs_create_dir("m4u", NULL);
 
 	if (IS_ERR_OR_NULL(m4u_dev->debug_root))
@@ -1708,8 +1867,8 @@ int m4u_debug_init(struct m4u_device *m4u_dev)
 		M4UMSG("m4u: failed to create debug files 2.\n");
 
 #if (M4U_DVT != 0)
-	debug_file = debugfs_create_file("test", 0644,
-		m4u_dev->debug_root, domain, &m4u_test_fops);
+	debug_file = debugfs_create_file("test", 0644, m4u_dev->debug_root,
+					 domain, &m4u_debug_test_fops);
 	if (IS_ERR_OR_NULL(debug_file))
 		M4UMSG("m4u: failed to create debug files 3.\n");
 #endif
@@ -1720,7 +1879,8 @@ int m4u_debug_init(struct m4u_device *m4u_dev)
 		M4UMSG("m4u: failed to create debug files 4.\n");
 
 	debug_file = debugfs_create_file("log_level", 0644,
-		m4u_dev->debug_root, domain, &m4u_log_level_fops);
+					 m4u_dev->debug_root, domain,
+					 &m4u_debug_log_level_fops);
 	if (IS_ERR_OR_NULL(debug_file))
 		M4UMSG("m4u: failed to create debug files 5.\n");
 
@@ -1743,7 +1903,88 @@ int m4u_debug_init(struct m4u_device *m4u_dev)
 		m4u_dev->debug_root, domain, &m4u_debug_mva_fops);
 	if (IS_ERR_OR_NULL(debug_file))
 		M4UMSG("m4u: failed to create debug files 9.\n");
+#endif
 
+#if IS_ENABLED(CONFIG_PROC_FS)
+		m4u_dev->proc_root = proc_mkdir("m4u_dbg", NULL);
+
+		if (IS_ERR_OR_NULL(m4u_dev->proc_root))
+			M4UMSG("m4u: failed to create proc dir.\n");
+
+		proc_file = proc_create_data("buffer",
+					     S_IFREG | 0644,
+					     m4u_dev->proc_root,
+					     &m4u_proc_buf_fops,
+					     domain);
+		if (IS_ERR_OR_NULL(proc_file))
+			M4UMSG("m4u: failed to create proc files 1.\n");
+
+		proc_file = proc_create_data("debug",
+					     S_IFREG | 0644,
+					     m4u_dev->proc_root,
+					     &m4u_proc_fops,
+					     domain);
+		if (IS_ERR_OR_NULL(proc_file))
+			M4UMSG("m4u: failed to create proc files 2.\n");
+
+#if (M4U_DVT != 0)
+		proc_file = proc_create_data("test",
+					     S_IFREG | 0644,
+					     m4u_dev->proc_root,
+					     &m4u_proc_test_fops,
+					     domain);
+		if (IS_ERR_OR_NULL(proc_file))
+			M4UMSG("m4u: failed to create proc files 3.\n");
+#endif
+
+		proc_file = proc_create_data("port",
+					     S_IFREG | 0644,
+					     m4u_dev->proc_root,
+					     &m4u_proc_port_fops,
+					     domain);
+		if (IS_ERR_OR_NULL(proc_file))
+			M4UMSG("m4u: failed to create proc files 4.\n");
+
+		proc_file = proc_create_data("log_level",
+					     S_IFREG | 0644,
+					     m4u_dev->proc_root,
+					     &m4u_proc_log_level_fops,
+					     domain);
+		if (IS_ERR_OR_NULL(proc_file))
+			M4UMSG("m4u: failed to create proc files 5.\n");
+
+		proc_file = proc_create_data("monitor",
+					     S_IFREG | 0644,
+					     m4u_dev->proc_root,
+					     &m4u_proc_monitor_fops,
+					     domain);
+		if (IS_ERR_OR_NULL(proc_file))
+			M4UMSG("m4u: failed to create proc files 6.\n");
+
+		proc_file = proc_create_data("register",
+					     S_IFREG | 0644,
+					     m4u_dev->proc_root,
+					     &m4u_proc_register_fops,
+					     domain);
+		if (IS_ERR_OR_NULL(proc_file))
+			M4UMSG("m4u: failed to create proc files 7.\n");
+
+		proc_file = proc_create_data("freemva",
+					     S_IFREG | 0644,
+					     m4u_dev->proc_root,
+					     &m4u_proc_freemva_fops,
+					     domain);
+		if (IS_ERR_OR_NULL(proc_file))
+			M4UMSG("m4u: failed to create proc files 8.\n");
+
+		proc_file = proc_create_data("mva",
+					     S_IFREG | 0644,
+					     m4u_dev->proc_root,
+					     &m4u_proc_mva_fops,
+					     domain);
+		if (IS_ERR_OR_NULL(proc_file))
+			M4UMSG("m4u: failed to create proc files 9.\n");
+#endif
 
 	return 0;
 }
@@ -1752,3 +1993,14 @@ void m4u_dump_pgtable_for_debug(unsigned int mva, unsigned int mva_size)
 {
 	m4u_dump_pgtable_in_range(m4u_get_domain_by_id(0), mva, mva_size);
 }
+#else
+int m4u_debug_init(struct m4u_device *m4u_dev)
+{
+	/* do nothing */
+}
+
+void m4u_dump_pgtable_for_debug(unsigned int mva, unsigned int mva_size)
+{
+	/* do nothing */
+}
+#endif

@@ -141,7 +141,12 @@ static int normal_tx_ring2queue[NORMAL_TXQ_NUM] = {
 	&& ((1<<qno) & NET_RX_QUEUE_MASK))
 #endif
 
+/* mp1 1, mp2 0, ro 1 */
+#define UIDMASK 0x80000000
+
 #define TAG "cldma"
+
+static unsigned int g_cd_uid_mask_count;
 
 /*for mt6763 ao_misc_cfg RW type set/clear register issue*/
 static inline void cldma_write32_ao_misc(struct md_cd_ctrl *md_ctrl,
@@ -376,6 +381,10 @@ void md_cd_traffic_monitor_func(unsigned long data)
 	unsigned long q_rx_rem_nsec[CLDMA_RXQ_NUM] = {0};
 	unsigned long isr_rem_nsec;
 
+	CCCI_ERROR_LOG(-1, TAG,
+		"[%s] g_cd_uid_mask_count = %u\n",
+		__func__, g_cd_uid_mask_count);
+
 	ccci_port_dump_status(md_ctrl->md_id);
 	CCCI_REPEAT_LOG(md_ctrl->md_id, TAG,
 		"Tx active %d\n", md_ctrl->txq_active);
@@ -581,10 +590,8 @@ static int cldma_gpd_rx_collect(struct md_cd_queue *queue,
 	int over_budget = 0, skb_handled = 0, retry = 0;
 	unsigned long long skb_bytes = 0;
 	unsigned long flags;
-	char is_net_queue = IS_NET_QUE(md_ctrl->md_id, queue->index);
-	char using_napi = is_net_queue ?
-		(ccci_md_get_cap_by_id(md_ctrl->md_id) & MODEM_CAP_NAPI)
-		: 0;
+	char using_napi = (ccci_md_get_cap_by_id(md_ctrl->md_id) & MODEM_CAP_NAPI);
+
 	unsigned int L2RISAR0 = 0;
 	unsigned long time_limit = jiffies + 2;
 	unsigned int l2qe_s_offset = CLDMA_RX_QE_OFFSET;
@@ -622,8 +629,7 @@ again:
 			break;
 		}
 
-		new_skb = ccci_alloc_skb(queue->tr_ring->pkt_size,
-		!is_net_queue, blocking);
+		new_skb = ccci_alloc_skb(queue->tr_ring->pkt_size, 0, blocking);
 		if (unlikely(!new_skb)) {
 			CCCI_ERROR_LOG(md_ctrl->md_id, TAG,
 				"alloc skb fail on q%d, retry!\n",
@@ -649,9 +655,7 @@ again:
 		skb_put(skb, rgpd->data_buff_len);
 		skb_bytes = skb->len;
 #ifdef ENABLE_FAST_HEADER
-		if (!is_net_queue) {
-			ccci_h = *((struct ccci_header *)skb->data);
-		} else if (queue->fast_hdr.gpd_count == 0) {
+		if (queue->fast_hdr.gpd_count == 0) {
 			ccci_h = *((struct ccci_header *)skb->data);
 			queue->fast_hdr =
 				*((struct ccci_fast_header *)skb->data);
@@ -696,10 +700,7 @@ again:
 			ccci_h.reserved, queue->index,
 			rgpd->data_buff_len);
 		/* upload skb */
-		if (!is_net_queue) {
-			ret = ccci_md_recv_skb(md_ctrl->md_id,
-					md_ctrl->hif_id, skb);
-		} else if (using_napi) {
+		if (using_napi) {
 			ccci_md_recv_skb(md_ctrl->md_id,
 					md_ctrl->hif_id, skb);
 			ret = 0;
@@ -917,7 +918,7 @@ static int cldma_net_rx_push_thread(void *arg)
 	int count = 0;
 	int ret;
 
-	while (1) {
+	while (!kthread_should_stop()) {
 		if (skb_queue_empty(&queue->skb_list.skb_list)) {
 			cldma_queue_broadcast_state(md_ctrl, RX_FLUSH,
 				IN, queue->index);
@@ -925,10 +926,9 @@ static int cldma_net_rx_push_thread(void *arg)
 			ret = wait_event_interruptible(queue->rx_wq,
 				!skb_queue_empty(&queue->skb_list.skb_list));
 			if (ret == -ERESTARTSYS)
-				continue;	/* FIXME */
+				continue;
 		}
-		if (kthread_should_stop())
-			break;
+
 		skb = ccci_skb_dequeue(&queue->skb_list);
 		if (!skb)
 			continue;
@@ -1370,7 +1370,22 @@ static void cldma_rx_ring_init(struct md_cd_ctrl *md_ctrl,
 			kzalloc(sizeof(struct cldma_request), GFP_KERNEL);
 			item->gpd = dma_pool_alloc(md_ctrl->gpd_dmapool,
 				GFP_KERNEL, &item->gpd_addr);
+			if (item->gpd == NULL) {
+				CCCI_ERROR_LOG(md_ctrl->md_id, TAG,
+					"%s:dma_pool_alloc fail\n", __func__);
+				kfree(item);
+				return;
+			}
 			item->skb = ccci_alloc_skb(ring->pkt_size, 1, 1);
+			if (item->skb == NULL) {
+				CCCI_ERROR_LOG(md_ctrl->md_id, TAG,
+					"%s:alloc skb fail,stop init\n",
+					__func__);
+				dma_pool_free(md_ctrl->gpd_dmapool,
+					item->gpd, item->gpd_addr);
+				kfree(item);
+				return;
+			}
 			gpd = (struct cldma_rgpd *)item->gpd;
 			memset(gpd, 0, sizeof(struct cldma_rgpd));
 			spin_lock_irqsave(&md_ctrl->cldma_timeout_lock, flags);
@@ -1429,6 +1444,12 @@ static void cldma_tx_ring_init(struct md_cd_ctrl *md_ctrl,
 				GFP_KERNEL);
 			item->gpd = dma_pool_alloc(md_ctrl->gpd_dmapool,
 				GFP_KERNEL, &item->gpd_addr);
+			if (item->gpd == NULL) {
+				CCCI_ERROR_LOG(md_ctrl->md_id, TAG,
+					"%s-%d:dma_pool_alloc fail\n", __func__, __LINE__);
+				kfree(item);
+				return;
+			}
 			tgpd = (struct cldma_tgpd *)item->gpd;
 			memset(tgpd, 0, sizeof(struct cldma_tgpd));
 			tgpd->gpd_flags = 0x80;	/* IOC */
@@ -1450,6 +1471,12 @@ static void cldma_tx_ring_init(struct md_cd_ctrl *md_ctrl,
 				GFP_KERNEL);
 			item->gpd = dma_pool_alloc(md_ctrl->gpd_dmapool,
 				GFP_KERNEL, &item->gpd_addr);
+			if (item->gpd == NULL) {
+				CCCI_ERROR_LOG(md_ctrl->md_id, TAG,
+					"%s-%d:dma_pool_alloc fail\n", __func__, __LINE__);
+				kfree(item);
+				return;
+			}
 			tgpd = (struct cldma_tgpd *)item->gpd;
 			memset(tgpd, 0, sizeof(struct cldma_tgpd));
 			tgpd->gpd_flags = 0x82;	/* IOC|BDP */
@@ -1470,6 +1497,13 @@ static void cldma_tx_ring_init(struct md_cd_ctrl *md_ctrl,
 				bd_item->gpd = dma_pool_alloc(
 					md_ctrl->gpd_dmapool,
 					GFP_KERNEL, &bd_item->gpd_addr);
+				if (bd_item->gpd == NULL) {
+					CCCI_ERROR_LOG(md_ctrl->md_id, TAG,
+						"%s-%d:dma_pool_alloc fail\n", __func__, __LINE__);
+					kfree(item);
+					kfree(bd_item);
+					return;
+				}
 				bd = (struct cldma_tbd *)bd_item->gpd;
 				memset(bd, 0, sizeof(struct cldma_tbd));
 				if (j == 0)
@@ -2386,6 +2420,11 @@ void md_cd_clear_all_queue(unsigned char hif_id, enum DIRECTION dir)
 					req->skb = ccci_alloc_skb(
 						queue->tr_ring->pkt_size,
 						1, 1);
+					if (req->skb == NULL) {
+						CCCI_ERROR_LOG(md_ctrl->md_id, TAG,
+							"%s:ccci_alloc_skb fail\n", __func__);
+						return;
+					}
 					req->data_buffer_ptr_saved =
 						dma_map_single(
 						ccci_md_get_dev_by_id(
@@ -2736,6 +2775,12 @@ static int cldma_gpd_bd_handle_tx_request(struct md_cd_queue *queue,
 #if MD_GENERATION >= (6293)
 	cldma_write8(&tgpd->netif, 0, ccci_h->data[0]);
 #endif
+	/* mp1 1, mp2 0, ro 1 */
+	if (skb->mark & UIDMASK) {
+		g_cd_uid_mask_count++;
+		tgpd->psn = 0x1000;
+	}
+
 	tgpd->non_used = 1;
 	/* set HWO */
 	spin_lock(&md_ctrl->cldma_timeout_lock);
@@ -3249,6 +3294,11 @@ int md_cd_late_init(unsigned char hif_id)
 	md_ctrl->gpd_dmapool = dma_pool_create("cldma_request_DMA",
 		ccci_md_get_dev_by_id(md_ctrl->md_id),
 		sizeof(struct cldma_tgpd), 16, 0);
+	if (md_ctrl->gpd_dmapool == NULL) {
+		CCCI_ERROR_LOG(md_ctrl->md_id, TAG,
+			"%s-%d:dma_pool_create fail\n", __func__, __LINE__);
+		return -1;
+	}
 	for (i = 0; i < NET_TXQ_NUM; i++) {
 		INIT_LIST_HEAD(&md_ctrl->net_tx_ring[i].gpd_ring);
 		md_ctrl->net_tx_ring[i].length =

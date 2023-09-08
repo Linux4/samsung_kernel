@@ -250,14 +250,8 @@ void msdc_emmc_power(struct msdc_host *host, u32 on)
 		msdc_set_rdsel(host, MSDC_TDRDSEL_1V8, 0);
 	}
 
-	/* emmc power always on at sleep */
-	if (!msdc_emmc_pwr_ao(host)) {
-		msdc_ldo_power(on, host->mmc->supply.vmmc,
-				VOL_3000, &host->power_flash);
-	} else if(msdc_emmc_pwr_ao(host) && on) {
-		msdc_ldo_power(on, host->mmc->supply.vmmc,
-				VOL_3000, &host->power_flash);
-	}
+	msdc_ldo_power(on, host->mmc->supply.vmmc,
+		VOL_3000, &host->power_flash);
 #endif
 #ifdef MTK_MSDC_BRINGUP_DEBUG
 	msdc_dump_ldo_sts(NULL, 0, NULL, host);
@@ -277,9 +271,33 @@ void msdc_sd_power(struct msdc_host *host, u32 on)
 		if (host->hw->flags & MSDC_SD_NEED_POWER)
 			card_on = 1;
 
+		/* Disable VMCH OC */
+		if (!card_on)
+			pmic_enable_interrupt(INT_VMCH_OC, 0, "sdcard");
+
 		/* VMCH VOLSEL */
-		msdc_ldo_power(card_on, host->mmc->supply.vmmc, VOL_2950,
+		msdc_ldo_power(card_on, host->mmc->supply.vmmc, VOL_3000,
 			&host->power_flash);
+
+		if (card_on) {
+			if (host->hw->cd_level == 1) {
+				/* 1: high; 0: low, vmch fast off
+				 * hw_det default high active
+				 */
+				pmic_set_register_value(PMIC_RG_LDO_VMCH_SD_POL,
+							0);
+			}
+			pmic_set_register_value(PMIC_RG_LDO_VMCH_SD_EN, 1);
+		} else {
+			udelay(1500);
+			pmic_set_register_value(PMIC_RG_LDO_VMCH_SD_EN, 0);
+		}
+
+		/* Enable VMCH OC */
+		if (card_on) {
+			mdelay(3);
+			pmic_enable_interrupt(INT_VMCH_OC, 1, "sdcard");
+		}
 
 		/* VMC VOLSEL */
 		/* rollback to 0mv in REG_VMC_VOSEL_CAL
@@ -455,7 +473,7 @@ int msdc_get_ccf_clk_pointer(struct platform_device *pdev,
 		pr_notice("[msdc%d] can not get clock control\n", pdev->id);
 		return 1;
 	}
-	if (clk_prepare(host->clk_ctl)) {
+	if (clk_prepare_enable(host->clk_ctl)) {
 		pr_notice("[msdc%d] can not prepare clock control\n", pdev->id);
 		return 1;
 	}
@@ -464,13 +482,13 @@ int msdc_get_ccf_clk_pointer(struct platform_device *pdev,
 		pr_notice("[msdc%d] can not get clock control\n", pdev->id);
 		return 1;
 	}
-	if (hclk_names[pdev->id] && clk_prepare(host->hclk_ctl)) {
+	if (hclk_names[pdev->id] && clk_prepare_enable(host->hclk_ctl)) {
 		pr_notice("[msdc%d] can not prepare hclock control\n",
 			pdev->id);
 		return 1;
 	}
 
-#ifdef CONFIG_MTK_HW_FDE
+#if defined(CONFIG_MTK_HW_FDE) || defined(CONFIG_MMC_CRYPTO)
 	if (pdev->id == 0) {
 		host->aes_clk_ctl = devm_clk_get(&pdev->dev,
 			MSDC0_AES_CLK_NAME);
@@ -480,7 +498,7 @@ int msdc_get_ccf_clk_pointer(struct platform_device *pdev,
 			WARN_ON(1);
 			return 1;
 		}
-		if (clk_prepare(host->aes_clk_ctl)) {
+		if (clk_prepare_enable(host->aes_clk_ctl)) {
 			pr_notice(
 				"[msdc%d] can not prepare aes clock control\n",
 				pdev->id);
@@ -521,7 +539,7 @@ static void msdc_dump_clock_sts_core(char **buff, unsigned long *size,
 			topckgen_base + 0x70,
 			MSDC_READ32(topckgen_base + 0x70));
 
-#ifdef CONFIG_MTK_HW_FDE
+#if defined(CONFIG_MTK_HW_FDE) || defined(CONFIG_MMC_CRYPTO)
 		buf_ptr += sprintf(buf_ptr,
 		" topckgen [0x%p]=0x%x(AES:should bit[26:24]=001b, bit[31]=0)\n",
 			topckgen_base + 0xa0,
@@ -534,7 +552,7 @@ static void msdc_dump_clock_sts_core(char **buff, unsigned long *size,
 			infracfg_ao_base + 0x94,
 			MSDC_READ32(infracfg_ao_base + 0x94));
 
-#ifdef CONFIG_MTK_HW_FDE
+#if defined(CONFIG_MTK_HW_FDE) || defined(CONFIG_MMC_CRYPTO)
 		buf_ptr += sprintf(buf_ptr,
 		" infracfg_ao [0x%p]=0x%x(should bit[29]=0b)\n",
 			infracfg_ao_base + 0xac,
@@ -1116,7 +1134,7 @@ int msdc_of_parse(struct platform_device *pdev, struct mmc_host *mmc)
 	struct msdc_host *host = mmc_priv(mmc);
 	int ret = 0;
 	int len = 0;
-	u8 id;
+	u8 id = 0;
 	const char *dup_name;
 
 	np = mmc->parent->of_node; /* mmcx node in project dts */
@@ -1140,6 +1158,20 @@ int msdc_of_parse(struct platform_device *pdev, struct mmc_host *mmc)
 	host->mmc = mmc;
 	host->hw = kzalloc(sizeof(struct msdc_hw), GFP_KERNEL);
 
+	if (of_property_read_s32(np, "req_vcore", &host->vcore_opp)) {
+		pr_notice("%s: failed to get req_vcore", __func__);
+		host->vcore_opp = -1;
+	} else {
+		pr_notice("msdc%d:get req_vcore:%d", host->id, host->vcore_opp);
+		/* init VCORE QOS */
+		host->req_vcore = devm_kzalloc(&pdev->dev,
+			sizeof(*host->req_vcore), GFP_KERNEL);
+		if (!host->req_vcore)
+			return -ENOMEM;
+
+		pm_qos_add_request(host->req_vcore, PM_QOS_VCORE_OPP,
+			PM_QOS_VCORE_OPP_DEFAULT_VALUE);
+	}
 	/* iomap register */
 	host->base = of_iomap(np, 0);
 	if (!host->base) {
@@ -1177,11 +1209,6 @@ int msdc_of_parse(struct platform_device *pdev, struct mmc_host *mmc)
 	if (of_property_read_u8(np, "cd_level", &host->hw->cd_level))
 		pr_notice("[msdc%d] cd_level isn't found in device tree\n",
 			host->id);
-
-	if (of_find_property(np, "emmc_power_ao", &len))
-		msdc_set_emmc_pwr_ao(host);
-	else
-		msdc_clr_emmc_pwr_ao(host);
 
 	msdc_get_register_settings(host, np);
 

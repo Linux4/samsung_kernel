@@ -30,6 +30,7 @@
 #include "mtk_sd.h"
 #include "dbg.h"
 #include "card.h"
+#include "cqhci-crypto.h"
 
 #define DCMD_SLOT 31
 #define NUM_SLOTS 32
@@ -44,11 +45,6 @@ static inline struct mmc_request *get_req_by_tag(struct cmdq_host *cq_host,
 					  unsigned int tag)
 {
 	return cq_host->mrq_slot[tag];
-}
-
-static inline u8 *get_desc(struct cmdq_host *cq_host, u8 tag)
-{
-	return cq_host->desc_base + (tag * cq_host->slot_sz);
 }
 
 static inline u8 *get_link_desc(struct cmdq_host *cq_host, u8 tag)
@@ -178,7 +174,6 @@ void cmdq_dumpregs(struct cmdq_host *cq_host)
 	/* do not recover system if test mode is enabled */
 	BUG();
 #endif
-
 }
 
 /**
@@ -306,6 +301,9 @@ static int cmdq_enable(struct mmc_host *mmc)
 	cqcfg = ((cq_host->caps & CMDQ_TASK_DESC_SZ_128 ? CQ_TASK_DESC_SZ : 0) |
 			(dcmd_enable ? CQ_DCMD : 0));
 
+	if (cqhci_crypto_enable(cq_host))
+		cqcfg |= CQHCI_CRYPTO_ENABLE;
+
 	cmdq_writel(cq_host, cqcfg, CQCFG);
 	/* enable CQ_HOST */
 	cmdq_writel(cq_host,
@@ -340,8 +338,8 @@ static int cmdq_enable(struct mmc_host *mmc)
 
 	/* disable write protection violation indication */
 	cmdq_writel(cq_host,
-			cmdq_readl(cq_host, CQRMEM) & ~(WP_VIOLATION | WP_ERASE_SKIP),
-			CQRMEM);
+				cmdq_readl(cq_host, CQRMEM) & ~(WP_VIOLATION | WP_ERASE_SKIP),
+				CQRMEM);
 
 	/* ensure the writes are done before enabling CQE */
 	mb();
@@ -351,6 +349,7 @@ static int cmdq_enable(struct mmc_host *mmc)
 out:
 	if (err)
 		mmc_cmdq_error_logging(mmc->card, NULL, CQ_EN_DIS_ERR);
+
 	return err;
 }
 
@@ -667,7 +666,11 @@ static int cmdq_request(struct mmc_host *mmc, struct mmc_request *mrq)
 			    (mrq->cmdq_req->cmdq_req_flags & QBR));
 	*task_desc = cpu_to_le64(data);
 
-	cmdq_prep_crypto_desc(cq_host, task_desc, hci_ce_ctx);
+	/* inline crypto */
+	if (mmc->caps2 & MMC_CAP2_CRYPTO)
+		cqhci_prep_crypto_desc(mrq, task_desc);
+	else
+		cmdq_prep_crypto_desc(cq_host, task_desc, hci_ce_ctx);
 
 	err = cmdq_prep_tran_desc(mrq, cq_host, tag);
 	if (err) {
@@ -745,8 +748,9 @@ static void cmdq_finish_data(struct mmc_host *mmc, unsigned int tag)
 
 irqreturn_t cmdq_irq(struct mmc_host *mmc, int err)
 {
-	u32 status = 0;
-	unsigned long tag = 0, comp_status = 0, cmd_idx = 0;
+	u32 status = 0, task_mask = 0;
+	unsigned long comp_status = 0, cmd_idx = 0;
+	unsigned int tag = 0;
 	struct cmdq_host *cq_host = (struct cmdq_host *)mmc_cmdq_private(mmc);
 	unsigned long err_info = 0;
 	struct mmc_request *mrq = NULL;
@@ -775,9 +779,11 @@ _err:
 		 * handling all the errors.
 		 */
 		ret = cmdq_halt_poll(mmc, true);
-		if (ret)
+		if (ret) {
 			pr_notice("%s: %s: halt failed ret = %d\n",
 					mmc_hostname(mmc), __func__, ret);
+			mmc_cmdq_error_logging(mmc->card, NULL, HALT_UNHALT_ERR);
+		}
 
 		/*
 		 * Clear the CQIS after halting incase of error. This is done
@@ -799,7 +805,6 @@ _err:
 		if (err_info & CQ_RMEFV) {
 			cmd_idx = GET_CMD_ERR_CMDIDX(err_info);
 			if (cmd_idx == MMC_SEND_STATUS) {
-				u32 task_mask;
 				/*
 				 * since CMD13 does not belong to
 				 * any tag, just find an active
@@ -809,12 +814,15 @@ _err:
 				task_mask = cmdq_readl(cq_host, CQTCN);
 				if (!task_mask)
 					task_mask = cmdq_readl(cq_host, CQTDBR);
-				tag = uffs(task_mask) - 1;
-				pr_notice("%s: cmd%lu err tag: %lu\n",
+				if (task_mask == 0)
+					tag = 0;
+				else
+					tag = uffs(task_mask) - 1;
+				pr_notice("%s: cmd%lu err tag: %u\n",
 					__func__, cmd_idx, tag);
 			} else {
 				tag = GET_CMD_ERR_TAG(err_info);
-				pr_notice("%s: cmd err tag: %lu\n",
+				pr_notice("%s: cmd err tag: %u\n",
 					__func__, tag);
 			}
 			mrq = get_req_by_tag(cq_host, tag);
@@ -825,10 +833,37 @@ _err:
 				mrq->data->error = err;
 		} else if (err_info & CQ_DTEFV) {
 			tag = GET_DAT_ERR_TAG(err_info);
-			pr_notice("%s: dat err  tag: %lu\n", __func__, tag);
+			pr_notice("%s: dat err  tag: %u\n", __func__, tag);
 
 			mrq = get_req_by_tag(cq_host, tag);
 			mrq->data->error = err;
+		} else {
+			/*
+			 * It may so happen sometimes for few errors(like QSR)
+			 * Thus below is a HW WA for recovering from such
+			 * scenario.
+			 * - To halt/disable CQE and do reset_all.
+			 *   Since there is no way to know which tag would
+			 *   have caused such error, so check for any first
+			 *   bit set in doorbell and proceed with an error.
+			 */
+			task_mask = cmdq_readl(cq_host, CQTDBR);
+			if (!task_mask) {
+				pr_notice("%s: spurious/force error interrupt\n",
+						mmc_hostname(mmc));
+				cmdq_halt_poll(mmc, false);
+				mmc_host_clr_halt(mmc);
+				return IRQ_HANDLED;
+			}
+
+			tag = uffs(task_mask) - 1;
+			pr_notice("%s: error tag selected: tag = %u\n",
+					mmc_hostname(mmc), tag);
+			mrq = get_req_by_tag(cq_host, tag);
+			if (mrq->data)
+				mrq->data->error = err;
+			else
+				mrq->cmd->error = err;
 		}
 
 		/*
@@ -1011,6 +1046,9 @@ static int cmdq_halt(struct mmc_host *mmc, bool halt)
 			cq_host->ops->pre_cqe_enable(mmc, true);
 	}
 
+	if (ret)
+		mmc_cmdq_error_logging(mmc->card, NULL, HALT_UNHALT_ERR);
+
 	return ret;
 }
 
@@ -1081,6 +1119,7 @@ int cmdq_init(struct cmdq_host *cq_host, struct mmc_host *mmc,
 	      bool dma64)
 {
 	int err = 0;
+	struct msdc_host *msdc_host = mmc_priv(mmc);
 
 	cq_host->dma64 = dma64;
 	cq_host->mmc = mmc;
@@ -1097,6 +1136,14 @@ int cmdq_init(struct cmdq_host *cq_host, struct mmc_host *mmc,
 				sizeof(cq_host->mrq_slot), GFP_KERNEL);
 	if (!cq_host->mrq_slot)
 		return -ENOMEM;
+
+	msdc_clk_prepare_enable(msdc_host);
+	err = cqhci_host_init_crypto(cq_host);
+	if (err) {
+		dev_info(mmc->parent, "CQHCI crypto initialization failed\n");
+		WARN_ON(1);
+	}
+	msdc_clk_disable_unprepare(msdc_host);
 
 	init_completion(&cq_host->halt_comp);
 	return err;

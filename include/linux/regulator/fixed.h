@@ -50,6 +50,9 @@ struct fixed_voltage_config {
 	const char *input_supply;
 	int microvolts;
 	int gpio;
+#ifdef CONFIG_SEC_PM
+	bool skip_gpio_request;
+#endif /* CONFIG_SEC_PM */
 	unsigned startup_delay;
 	unsigned gpio_is_open_drain:1;
 	unsigned enable_high:1;

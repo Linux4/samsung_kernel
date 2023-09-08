@@ -112,19 +112,19 @@ int mtk_lpm_irqremain_get(struct mtk_lpm_irqremain **irq)
 	tar = kcalloc(1, sizeof(**irq), GFP_KERNEL);
 
 	if (!tar)
-		goto mtk_lpm_irqremain_release;
+		goto mtk_lpm_tar_fail;
 
 	tar->irqs = kcalloc(count,
 				sizeof(*tar->irqs), GFP_KERNEL);
 
 	if (!tar->irqs)
-		goto mtk_lpm_irqremain_release;
+		goto mtk_lpm_irq_fail;
 
 	tar->wakeup_src_cat = kcalloc(count,
 		sizeof(*tar->wakeup_src_cat), GFP_KERNEL);
 
 	if (!tar->wakeup_src_cat)
-		goto mtk_lpm_irqremain_release;
+		goto mtk_lpm_wakeup_src_cat_fail;
 
 	tar->wakeup_src = kcalloc(count,
 				sizeof(*tar->irqs), GFP_KERNEL);
@@ -148,11 +148,17 @@ int mtk_lpm_irqremain_get(struct mtk_lpm_irqremain **irq)
 	return 0;
 
 mtk_lpm_irqremain_release:
+	if (tar)
+		kfree(tar->wakeup_src);
+mtk_lpm_wakeup_src_cat_fail:
+	if (tar)
+		kfree(tar->wakeup_src_cat);
+mtk_lpm_irq_fail:
 	if (tar) {
 		kfree(tar->irqs);
-		kfree(tar->wakeup_src);
 		kfree(tar);
 	}
+mtk_lpm_tar_fail:
 	mtk_lpm_system_unlock(flag);
 
 	return -ENOMEM;
@@ -259,16 +265,31 @@ int __init mtk_lpm_irqremain_parsing(struct device_node *parent)
 	}
 
 	mtk_lpm_smc_cpu_pm(IRQ_REMAIN_LIST_ALLOC, remain_count, 0, 0);
-
+	mtk_lpm_smc_cpu_pm_lp(IRQS_REMAIN_ALLOC, MT_LPM_SMC_ACT_SET,
+			      remain_count, 0);
 	remain_count = 0;
 	FOR_EACH_IRQ_REMAIN(irqnode) {
 		mtk_lpm_smc_cpu_pm(IRQ_REMAIN_IRQ_ADD,
 				   PLAT_COVERT_IRQ_NUM(irqnode->irq),
 				   irqnode->wakeup_src_cat,
 				   irqnode->wakeup_src);
+
+		mtk_lpm_smc_cpu_pm_lp(IRQS_REMAIN_IRQ,
+				   MT_LPM_SMC_ACT_SET,
+				   PLAT_COVERT_IRQ_NUM(irqnode->irq), 0);
+		mtk_lpm_smc_cpu_pm_lp(IRQS_REMAIN_WAKEUP_CAT,
+				   MT_LPM_SMC_ACT_SET,
+				   irqnode->wakeup_src_cat, 0);
+		mtk_lpm_smc_cpu_pm_lp(IRQS_REMAIN_WAKEUP_SRC,
+				   MT_LPM_SMC_ACT_SET,
+				   irqnode->wakeup_src, 0);
+		mtk_lpm_smc_cpu_pm_lp(IRQS_REMAIN_CTRL,
+				   MT_LPM_SMC_ACT_PUSH, 0, 0);
 		remain_count++;
 	}
 	mtk_lpm_smc_cpu_pm(IRQ_REMAIN_IRQ_SUBMIT, 0, 0, 0);
+	mtk_lpm_smc_cpu_pm_lp(IRQS_REMAIN_CTRL,
+			      MT_LPM_SMC_ACT_SUBMIT, 0, 0);
 	return ret;
 }
 

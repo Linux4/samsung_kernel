@@ -1,28 +1,145 @@
 /*
  * sec_battery_dt.c
- * Samsung Mobile Battery Driver, device tree parsing file
+ * Samsung Mobile Battery Driver
  *
- * Copyright (C) 2019 Samsung Electronics, Inc.
+ * Copyright (C) 2018 Samsung Electronics
  *
- * This program is free software: you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
-#include "include/sec_battery.h"
-#include "include/sec_battery_dt.h"
-
+#include "sec_battery.h"
+#include "sec_battery_dt.h"
 
 #ifdef CONFIG_OF
+#define PROPERTY_NAME_SIZE 128
+int sec_bat_parse_dt_siop(
+	struct sec_battery_info *battery, struct device_node *np)
+{
+	sec_battery_platform_data_t *pdata = battery->pdata;
+	int ret = 0, len = 0;
+
+	ret = of_property_read_u32(np, "battery,siop_input_limit_current",
+			&pdata->siop_input_limit_current);
+	if (ret)
+		pdata->siop_input_limit_current = SIOP_INPUT_LIMIT_CURRENT;
+
+	ret = of_property_read_u32(np, "battery,siop_charging_limit_current",
+			&pdata->siop_charging_limit_current);
+	if (ret)
+		pdata->siop_charging_limit_current = SIOP_CHARGING_LIMIT_CURRENT;
+
+	ret = of_property_read_u32(np, "battery,siop_hv_12v_input_limit_current",
+			&pdata->siop_hv_12v_input_limit_current);
+	if (ret)
+		pdata->siop_hv_12v_input_limit_current = SIOP_HV_12V_INPUT_LIMIT_CURRENT;
+
+	ret = of_property_read_u32(np, "battery,siop_hv_12v_charging_limit_current",
+			&pdata->siop_hv_12v_charging_limit_current);
+	if (ret)
+		pdata->siop_hv_12v_charging_limit_current = SIOP_HV_12V_CHARGING_LIMIT_CURRENT;
+
+	ret = of_property_read_u32(np, "battery,siop_hv_input_limit_current",
+			&pdata->siop_hv_input_limit_current);
+	if (ret)
+		pdata->siop_hv_input_limit_current = SIOP_HV_INPUT_LIMIT_CURRENT;
+
+	ret = of_property_read_u32(np, "battery,siop_hv_input_limit_current_2nd",
+			&pdata->siop_hv_input_limit_current_2nd);
+	if (ret)
+		pdata->siop_hv_input_limit_current_2nd = SIOP_HV_INPUT_LIMIT_CURRENT;
+
+	ret = of_property_read_u32(np, "battery,input_current_by_siop_20", &pdata->input_current_by_siop_20);
+	if (ret) {
+		pr_info("%s : input_current_by_siop_20 is Empty\n", __func__);
+		pdata->input_current_by_siop_20 = 0;
+	}
+
+	ret = of_property_read_u32(np, "battery,siop_hv_charging_limit_current",
+			&pdata->siop_hv_charging_limit_current);
+	if (ret)
+		pdata->siop_hv_charging_limit_current = SIOP_HV_CHARGING_LIMIT_CURRENT;
+
+	ret = of_property_read_u32(np, "battery,siop_apdo_input_limit_current",
+			&pdata->siop_apdo_input_limit_current);
+	if (ret)
+		pdata->siop_apdo_input_limit_current = SIOP_APDO_INPUT_LIMIT_CURRENT;
+
+	ret = of_property_read_u32(np, "battery,siop_apdo_charging_limit_current",
+			&pdata->siop_apdo_charging_limit_current);
+	if (ret)
+		pdata->siop_apdo_charging_limit_current = SIOP_APDO_CHARGING_LIMIT_CURRENT;
+
+	ret = of_property_read_u32(np, "battery,siop_wireless_input_limit_current",
+			&pdata->siop_wireless_input_limit_current);
+	if (ret)
+		pdata->siop_wireless_input_limit_current = SIOP_WIRELESS_INPUT_LIMIT_CURRENT;
+
+	ret = of_property_read_u32(np, "battery,siop_wireless_charging_limit_current",
+			&pdata->siop_wireless_charging_limit_current);
+	if (ret)
+		pdata->siop_wireless_charging_limit_current = SIOP_WIRELESS_CHARGING_LIMIT_CURRENT;
+
+	ret = of_property_read_u32(np, "battery,siop_hv_wireless_input_limit_current",
+			&pdata->siop_hv_wireless_input_limit_current);
+	if (ret)
+		pdata->siop_hv_wireless_input_limit_current = SIOP_HV_WIRELESS_INPUT_LIMIT_CURRENT;
+
+	ret = of_property_read_u32(np, "battery,siop_hv_wireless_charging_limit_current",
+			&pdata->siop_hv_wireless_charging_limit_current);
+	if (ret)
+		pdata->siop_hv_wireless_charging_limit_current = SIOP_HV_WIRELESS_CHARGING_LIMIT_CURRENT;
+
+	len = of_property_count_u32_elems(np, "battery,siop_scenarios");
+	if (len > 0) {
+		int siop_scenarios[SIOP_SCENARIO_NUM_MAX];
+
+		pdata->siop_scenarios_num = (len > SIOP_SCENARIO_NUM_MAX) ? SIOP_SCENARIO_NUM_MAX : len;
+		ret = of_property_read_u32_array(np, "battery,siop_scenarios",
+					(u32 *)siop_scenarios, pdata->siop_scenarios_num);
+
+		ret = of_property_read_u32(np, "battery,siop_curr_type_num",
+				&pdata->siop_curr_type_num);
+		if (ret) {
+			pdata->siop_scenarios_num = 0;
+			pdata->siop_curr_type_num = 0;
+			goto parse_siop_next;
+		}
+
+		pdata->siop_curr_type_num =
+			(pdata->siop_curr_type_num > SIOP_CURR_TYPE_MAX) ? SIOP_CURR_TYPE_MAX : pdata->siop_curr_type_num;
+
+		if (pdata->siop_curr_type_num > 0) {
+			int i, j, siop_level;
+			char prop_name[PROPERTY_NAME_SIZE];
+
+			for (i = 0; i < pdata->siop_scenarios_num; ++i) {
+				siop_level = siop_scenarios[i];
+				pdata->siop_table[i].level = siop_level;
+
+				snprintf(prop_name, PROPERTY_NAME_SIZE, "battery,siop_icl_%d", siop_level);
+				ret = of_property_read_u32_array(np, prop_name,
+							(u32 *)pdata->siop_table[i].icl, pdata->siop_curr_type_num);
+
+				snprintf(prop_name, PROPERTY_NAME_SIZE, "battery,siop_fcc_%d", siop_level);
+				ret = of_property_read_u32_array(np, prop_name,
+							(u32 *)pdata->siop_table[i].fcc, pdata->siop_curr_type_num);
+
+				for (j = 0; j < pdata->siop_curr_type_num; ++j)
+					pr_info("%s: level=%d, [%d].siop_icl[%d]=%d, [%d].siop_fcc[%d]=%d\n",
+						__func__, pdata->siop_table[i].level,
+						i, j, pdata->siop_table[i].icl[j],
+						i, j, pdata->siop_table[i].fcc[j]);
+			}
+		}
+	}
+
+parse_siop_next:
+
+	return ret;
+}
+
 int sec_bat_parse_dt(struct device *dev,
 		struct sec_battery_info *battery)
 {
@@ -100,7 +217,46 @@ int sec_bat_parse_dt(struct device *dev,
 
 	if (ret)
 		pr_info("%s : battery_full_capacity is Empty\n", __func__);
-#if defined(CONFIG_BATTERY_CISD)	
+
+#ifdef CONFIG_SEC_FACTORY
+	ret = of_property_read_u32(np, "battery,factory_chg_limit_max",
+		&pdata->store_mode_charging_max);
+	if (ret) {
+		pr_info("%s :factory_chg_limit_max is Empty\n", __func__);
+		pdata->store_mode_charging_max = 80;
+	}
+
+	ret = of_property_read_u32(np, "battery,factory_chg_limit_min",
+		&pdata->store_mode_charging_min);
+	if (ret) {
+		pr_info("%s :factory_chg_limit_min is Empty\n", __func__);
+		pdata->store_mode_charging_min = 70;
+	}
+#else
+	ret = of_property_read_u32(np, "battery,store_mode_charging_max",
+		&pdata->store_mode_charging_max);
+	if (ret) {
+		pr_info("%s :factory_chg_limit_max is Empty\n", __func__);
+		pdata->store_mode_charging_max = 70;
+	}
+
+	ret = of_property_read_u32(np, "battery,store_mode_charging_min",
+		&pdata->store_mode_charging_min);
+	if (ret) {
+		pr_info("%s :factory_chg_limit_min is Empty\n", __func__);
+		pdata->store_mode_charging_min = 60;
+	}
+#if !defined(CONFIG_ARCH_EXYNOS)
+	/* VZW's prepaid devices has "VPP" as sales_code, not "VZW" */
+	if (sales_code_is("VZW") || sales_code_is("VPP")) {
+		dev_err(battery->dev, "%s: Sales is VZW or VPP\n", __func__);
+
+		pdata->store_mode_charging_max = 35;
+		pdata->store_mode_charging_min = 30;
+	}
+#endif
+#endif /*CONFIG_SEC_FACTORY */
+#if defined(CONFIG_BATTERY_CISD)
 	else {
 		pr_info("%s : battery_full_capacity : %d\n", __func__, pdata->battery_full_capacity);
 		pdata->cisd_cap_high_thr = pdata->battery_full_capacity + 1000; /* battery_full_capacity + 1000 */
@@ -182,8 +338,17 @@ int sec_bat_parse_dt(struct device *dev,
 	else
 		pdata->support_fgsrc_change = true;
 
-	pdata->dcdc_issue_soc_concept = of_property_read_bool(np,
-		"battery,dcdc_issue_soc_concept");
+	pdata->chg_vbus_control_after_fullcharged = of_property_read_bool(np,
+						"battery,chg_vbus_control_after_fullcharged");
+
+	pdata->volt_from_pmic = of_property_read_bool(np,
+						     "battery,volt_from_pmic");
+
+	pdata->pd_comm_cap = of_property_read_bool(np,
+						     "battery,pd_comm_cap");
+
+	pdata->dynamic_cv_factor = of_property_read_bool(np,
+						     "battery,dynamic_cv_factor");
 
 	ret = of_property_read_string(np,
 		"battery,chip_vendor", (char const **)&pdata->chip_vendor);
@@ -197,6 +362,8 @@ int sec_bat_parse_dt(struct device *dev,
 
 	ret = of_property_read_u32(np,
 		"battery,wireless_cc_cv", &pdata->wireless_cc_cv);
+	if (ret)
+		pr_info("%s : wireless_cc_cv is Empty\n", __func__);
 
 	pdata->fake_capacity = of_property_read_bool(np,
 						     "battery,fake_capacity");
@@ -218,7 +385,8 @@ int sec_bat_parse_dt(struct device *dev,
 	if (ret)
 		pr_info("%s : Thermal source is Empty\n", __func__);
 
-	if (pdata->thermal_source == SEC_BATTERY_THERMAL_SOURCE_ADC) {
+	if ((pdata->thermal_source == SEC_BATTERY_THERMAL_SOURCE_ADC) ||
+		(pdata->thermal_source == SEC_BATTERY_THERMAL_SOURCE_FG_ADC)) {
 		p = of_get_property(np, "battery,temp_table_adc", &len);
 		if (!p)
 			return 1;
@@ -235,7 +403,7 @@ int sec_bat_parse_dt(struct device *dev,
 			kzalloc(sizeof(sec_bat_adc_table_data_t) *
 				pdata->temp_adc_table_size, GFP_KERNEL);
 
-		for(i = 0; i < pdata->temp_adc_table_size; i++) {
+		for (i = 0; i < pdata->temp_adc_table_size; i++) {
 			ret = of_property_read_u32_index(np,
 					 "battery,temp_table_adc", i, &temp);
 			pdata->temp_adc_table[i].adc = (int)temp;
@@ -265,6 +433,7 @@ int sec_bat_parse_dt(struct device *dev,
 					__func__);
 		}
 	}
+
 	ret = of_property_read_u32(np, "battery,temp_check_type",
 		&pdata->temp_check_type);
 	if (ret)
@@ -294,7 +463,7 @@ int sec_bat_parse_dt(struct device *dev,
 			kzalloc(sizeof(sec_bat_adc_table_data_t) *
 				pdata->usb_temp_adc_table_size, GFP_KERNEL);
 
-		for(i = 0; i < pdata->usb_temp_adc_table_size; i++) {
+		for (i = 0; i < pdata->usb_temp_adc_table_size; i++) {
 			ret = of_property_read_u32_index(np,
 							 "battery,usb_temp_table_adc", i, &temp);
 			pdata->usb_temp_adc_table[i].adc = (int)temp;
@@ -334,7 +503,7 @@ int sec_bat_parse_dt(struct device *dev,
 			kzalloc(sizeof(sec_bat_adc_table_data_t) *
 				pdata->chg_temp_adc_table_size, GFP_KERNEL);
 
-		for(i = 0; i < pdata->chg_temp_adc_table_size; i++) {
+		for (i = 0; i < pdata->chg_temp_adc_table_size; i++) {
 			ret = of_property_read_u32_index(np,
 							 "battery,chg_temp_table_adc", i, &temp);
 			pdata->chg_temp_adc_table[i].adc = (int)temp;
@@ -350,82 +519,10 @@ int sec_bat_parse_dt(struct device *dev,
 					__func__);
 		}
 	}
-
 	ret = of_property_read_u32(np, "battery,chg_temp_check_type",
 		&pdata->chg_temp_check_type);
 	if (ret)
 		pr_info("%s : chg_temp_check_type is Empty\n", __func__);
-
-	if (pdata->chg_temp_check_type) {
-/*
-		ret = of_property_read_u32(np, "battery,chg_heating_prevention_method",
-			&pdata->chg_heating_prevention_method);
-		if (ret) {
-			pr_info("%s : chg_heating_prevention_method is Empty\n", __func__);
-			pdata->chg_heating_prevention_method = 0;
-		}
-*/
-		ret = of_property_read_u32(np, "battery,chg_12v_high_temp",
-					   &temp);
-		pdata->chg_12v_high_temp = (int)temp;
-		if (ret)
-			pr_info("%s : chg_12v_high_temp is Empty\n", __func__);
-
-		ret = of_property_read_u32(np, "battery,chg_high_temp",
-					   &temp);
-		pdata->chg_high_temp = (int)temp;
-		if (ret)
-			pr_info("%s : chg_high_temp is Empty\n", __func__);
-
-		ret = of_property_read_u32(np, "battery,chg_high_temp_recovery",
-					   &temp);
-		pdata->chg_high_temp_recovery = (int)temp;
-		if (ret)
-			pr_info("%s : chg_temp_recovery is Empty\n", __func__);
-
-		ret = of_property_read_u32(np, "battery,chg_charging_limit_current",
-					   &pdata->chg_charging_limit_current);
-		if (ret)
-			pr_info("%s : chg_charging_limit_current is Empty\n", __func__);
-		
-		ret = of_property_read_u32(np, "battery,chg_input_limit_current",
-					   &pdata->chg_input_limit_current);
-		if (ret)
-			pr_info("%s : chg_input_limit_current is Empty\n", __func__);
-
-#if defined(CONFIG_DIRECT_CHARGING)
-		ret = of_property_read_u32(np, "battery,dchg_charging_limit_current",
-					   &pdata->dchg_charging_limit_current);
-		if (ret) {
-			pr_info("%s : dchg_charging_limit_current is Empty\n", __func__);
-			pdata->dchg_charging_limit_current = pdata->chg_charging_limit_current;
-		}
-
-		ret = of_property_read_u32(np, "battery,dchg_input_limit_current",
-					   &pdata->dchg_input_limit_current);
-		if (ret) {
-			pr_info("%s : dchg_input_limit_current is Empty\n", __func__);
-			pdata->dchg_input_limit_current = pdata->chg_input_limit_current;
-		}
-#endif
-		ret = of_property_read_u32(np, "battery,mix_high_temp",
-					   &temp);
-		pdata->mix_high_temp = (int)temp;
-		if (ret)
-			pr_info("%s : mix_high_temp is Empty\n", __func__);
-
-		ret = of_property_read_u32(np, "battery,mix_high_chg_temp",
-					   &temp);
-		pdata->mix_high_chg_temp = (int)temp;
-		if (ret)
-			pr_info("%s : mix_high_chg_temp is Empty\n", __func__);
-
-		ret = of_property_read_u32(np, "battery,mix_high_temp_recovery",
-					   &temp);
-		pdata->mix_high_temp_recovery = (int)temp;
-		if (ret)
-			pr_info("%s : mix_high_temp_recovery is Empty\n", __func__);
-	}
 
 #if defined(CONFIG_DIRECT_CHARGING)
 	/* direct chg thermistor */
@@ -447,7 +544,7 @@ int sec_bat_parse_dt(struct device *dev,
 			kzalloc(sizeof(sec_bat_adc_table_data_t) *
 				pdata->dchg_temp_adc_table_size, GFP_KERNEL);
 
-		for(i = 0; i < pdata->dchg_temp_adc_table_size; i++) {
+		for (i = 0; i < pdata->dchg_temp_adc_table_size; i++) {
 			ret = of_property_read_u32_index(np,
 							 "battery,dchg_temp_table_adc", i, &temp);
 			pdata->dchg_temp_adc_table[i].adc = (int)temp;
@@ -467,6 +564,9 @@ int sec_bat_parse_dt(struct device *dev,
 		&pdata->dchg_temp_check_type);
 	if (ret)
 		pr_info("%s : dchg_temp_check_type is Empty\n", __func__);
+
+	pdata->dctp_by_cgtp = of_property_read_bool(np,
+						     "battery,dctp_by_cgtp");
 
 	ret = of_property_read_u32(np, "battery,dchg_high_temp", &temp);
 	pdata->dchg_high_temp = (int)temp;
@@ -516,7 +616,7 @@ int sec_bat_parse_dt(struct device *dev,
 				kzalloc(sizeof(sec_bat_adc_table_data_t) *
 					pdata->wpc_temp_adc_table_size, GFP_KERNEL);
 
-			for(i = 0; i < pdata->wpc_temp_adc_table_size; i++) {
+			for (i = 0; i < pdata->wpc_temp_adc_table_size; i++) {
 				ret = of_property_read_u32_index(np,
 								 "battery,wpc_temp_table_adc", i, &temp);
 				pdata->wpc_temp_adc_table[i].adc = (int)temp;
@@ -557,7 +657,7 @@ int sec_bat_parse_dt(struct device *dev,
 				kzalloc(sizeof(sec_bat_adc_table_data_t) *
 					pdata->sub_bat_temp_adc_table_size, GFP_KERNEL);
 
-			for(i = 0; i < pdata->sub_bat_temp_adc_table_size; i++) {
+			for (i = 0; i < pdata->sub_bat_temp_adc_table_size; i++) {
 				ret = of_property_read_u32_index(np,
 								 "battery,sub_bat_temp_table_adc", i, &temp);
 				pdata->sub_bat_temp_adc_table[i].adc = (int)temp;
@@ -598,7 +698,7 @@ int sec_bat_parse_dt(struct device *dev,
 			kzalloc(sizeof(sec_bat_adc_table_data_t) *
 				pdata->slave_chg_temp_adc_table_size, GFP_KERNEL);
 
-		for(i = 0; i < pdata->slave_chg_temp_adc_table_size; i++) {
+		for (i = 0; i < pdata->slave_chg_temp_adc_table_size; i++) {
 			ret = of_property_read_u32_index(np,
 							 "battery,slave_chg_temp_table_adc", i, &temp);
 			pdata->slave_chg_temp_adc_table[i].adc = (int)temp;
@@ -638,7 +738,7 @@ int sec_bat_parse_dt(struct device *dev,
 			kzalloc(sizeof(sec_bat_adc_table_data_t) *
 				pdata->blkt_temp_adc_table_size, GFP_KERNEL);
 
-		for(i = 0; i < pdata->blkt_temp_adc_table_size; i++) {
+		for (i = 0; i < pdata->blkt_temp_adc_table_size; i++) {
 			ret = of_property_read_u32_index(np,
 							 "battery,blkt_temp_table_adc", i, &temp);
 			pdata->blkt_temp_adc_table[i].adc = (int)temp;
@@ -658,6 +758,68 @@ int sec_bat_parse_dt(struct device *dev,
 		&pdata->blkt_temp_check_type);
 	if (ret)
 		pr_info("%s : blkt_temp_check_type is Empty\n", __func__);
+
+	if (pdata->chg_temp_check_type) {
+		ret = of_property_read_u32(np, "battery,chg_12v_high_temp",
+					   &temp);
+		pdata->chg_12v_high_temp = (int)temp;
+		if (ret)
+			pr_info("%s : chg_12v_high_temp is Empty\n", __func__);
+
+		ret = of_property_read_u32(np, "battery,chg_high_temp",
+					   &temp);
+		pdata->chg_high_temp = (int)temp;
+		if (ret)
+			pr_info("%s : chg_high_temp is Empty\n", __func__);
+
+		ret = of_property_read_u32(np, "battery,chg_high_temp_recovery",
+					   &temp);
+		pdata->chg_high_temp_recovery = (int)temp;
+		if (ret)
+			pr_info("%s : chg_temp_recovery is Empty\n", __func__);
+
+		ret = of_property_read_u32(np, "battery,chg_charging_limit_current",
+					   &pdata->chg_charging_limit_current);
+		if (ret)
+			pr_info("%s : chg_charging_limit_current is Empty\n", __func__);
+		
+		ret = of_property_read_u32(np, "battery,chg_input_limit_current",
+					   &pdata->chg_input_limit_current);
+		if (ret)
+			pr_info("%s : chg_input_limit_current is Empty\n", __func__);
+
+		ret = of_property_read_u32(np, "battery,dchg_charging_limit_current",
+					   &pdata->dchg_charging_limit_current);
+		if (ret) {
+			pr_info("%s : dchg_charging_limit_current is Empty\n", __func__);
+			pdata->dchg_charging_limit_current = pdata->chg_charging_limit_current;
+		}
+
+		ret = of_property_read_u32(np, "battery,dchg_input_limit_current",
+					   &pdata->dchg_input_limit_current);
+		if (ret) {
+			pr_info("%s : dchg_input_limit_current is Empty\n", __func__);
+			pdata->dchg_input_limit_current = pdata->chg_input_limit_current;
+		}
+
+		ret = of_property_read_u32(np, "battery,mix_high_temp",
+					   &temp);
+		pdata->mix_high_temp = (int)temp;
+		if (ret)
+			pr_info("%s : mix_high_temp is Empty\n", __func__);
+
+		ret = of_property_read_u32(np, "battery,mix_high_chg_temp",
+					   &temp);
+		pdata->mix_high_chg_temp = (int)temp;
+		if (ret)
+			pr_info("%s : mix_high_chg_temp is Empty\n", __func__);
+
+		ret = of_property_read_u32(np, "battery,mix_high_temp_recovery",
+					   &temp);
+		pdata->mix_high_temp_recovery = (int)temp;
+		if (ret)
+			pr_info("%s : mix_high_temp_recovery is Empty\n", __func__);
+	}
 
 	if (pdata->wpc_temp_check_type) {
 		ret = of_property_read_u32(np, "battery,wpc_temp_control_source",
@@ -760,7 +922,7 @@ int sec_bat_parse_dt(struct device *dev,
 			kzalloc(sizeof(sec_bat_adc_table_data_t) *
 					pdata->inbat_adc_table_size, GFP_KERNEL);
 
-		for(i = 0; i < pdata->inbat_adc_table_size; i++) {
+		for (i = 0; i < pdata->inbat_adc_table_size; i++) {
 			ret = of_property_read_u32_index(np,
 							 "battery,inbat_voltage_table_adc", i, &temp);
 			pdata->inbat_adc_table[i].adc = (int)temp;
@@ -782,6 +944,13 @@ int sec_bat_parse_dt(struct device *dev,
 	if (ret) {
 		pr_info("%s : pre_afc_input_current is Empty\n", __func__);
 		pdata->pre_afc_input_current = 1000;
+	}
+
+	ret = of_property_read_u32(np, "battery,select_pd_input_current",
+		&pdata->select_pd_input_current);
+	if (ret) {
+		pr_info("%s : select_pd_input_current is Empty\n", __func__);
+		pdata->select_pd_input_current = 1000;
 	}
 
 	ret = of_property_read_u32(np, "battery,pre_afc_work_delay",
@@ -1075,6 +1244,13 @@ int sec_bat_parse_dt(struct device *dev,
 		pdata->low_temp_float = 4350;
 	}
 
+	ret = of_property_read_u32(np, "battery,buck_recovery_margin", &temp);
+	pdata->buck_recovery_margin = (int)temp;
+	if (ret) {
+		pr_info("%s : buck_recovery_margin is Empty\n", __func__);
+		pdata->buck_recovery_margin = 50;
+	}
+
 	ret = of_property_read_u32(np, "battery,recharge_condition_vcell", &pdata->recharge_condition_vcell);
 	if (ret) {
 		pr_info("%s : recharge_condition_vcell is Empty\n", __func__);
@@ -1170,8 +1346,8 @@ int sec_bat_parse_dt(struct device *dev,
 	if (ret)
 		pr_info("%s : Full check count is Empty\n", __func__);
 
-        ret = of_property_read_u32(np, "battery,chg_gpio_full_check",
-                &pdata->chg_gpio_full_check);
+	ret = of_property_read_u32(np, "battery,chg_gpio_full_check",
+		&pdata->chg_gpio_full_check);
 	if (ret)
 		pr_info("%s : Chg gpio full check is Empty\n", __func__);
 
@@ -1263,49 +1439,6 @@ int sec_bat_parse_dt(struct device *dev,
 		pdata->chg_float_voltage_conv = 1;
 	}
 
-#if defined(CONFIG_CALC_TIME_TO_FULL)
-	ret = of_property_read_u32(np, "battery,ttf_hv_12v_charge_current",
-					&pdata->ttf_hv_12v_charge_current);
-	if (ret) {
-		pdata->ttf_hv_12v_charge_current =
-			pdata->charging_current[SEC_BATTERY_CABLE_12V_TA].fast_charging_current;
-		pr_info("%s: ttf_hv_12v_charge_current is Empty, Defualt value %d \n",
-			__func__, pdata->ttf_hv_12v_charge_current);
-	}
-	ret = of_property_read_u32(np, "battery,ttf_hv_charge_current",
-					&pdata->ttf_hv_charge_current);
-	if (ret) {
-		pdata->ttf_hv_charge_current =
-			pdata->charging_current[SEC_BATTERY_CABLE_9V_TA].fast_charging_current;
-		pr_info("%s: ttf_hv_charge_current is Empty, Defualt value %d \n",
-			__func__, pdata->ttf_hv_charge_current);
-	}
-
-	ret = of_property_read_u32(np, "battery,ttf_hv_wireless_charge_current",
-					&pdata->ttf_hv_wireless_charge_current);
-	if (ret) {
-		pr_info("%s: ttf_hv_wireless_charge_current is Empty, Defualt value 0 \n", __func__);
-		pdata->ttf_hv_wireless_charge_current =
-			pdata->charging_current[SEC_BATTERY_CABLE_HV_WIRELESS].fast_charging_current - 300;
-	}
-
-	ret = of_property_read_u32(np, "battery,ttf_hv_12v_wireless_charge_current",
-					&pdata->ttf_hv_12v_wireless_charge_current);
-	if (ret) {
-		pr_info("%s: ttf_hv_12v_wireless_charge_current is Empty, Defualt value 0 \n", __func__);
-		pdata->ttf_hv_12v_wireless_charge_current =
-			pdata->charging_current[SEC_BATTERY_CABLE_HV_WIRELESS_20].fast_charging_current - 300;
-	}
-
-	ret = of_property_read_u32(np, "battery,ttf_wireless_charge_current",
-					&pdata->ttf_wireless_charge_current);
-	if (ret) {
-		pr_info("%s: ttf_wireless_charge_current is Empty, Defualt value 0 \n", __func__);
-		pdata->ttf_wireless_charge_current =
-			pdata->charging_current[SEC_BATTERY_CABLE_WIRELESS].input_current_limit;
-	}
-#endif
-
 	/* wpc_en */
 	ret = pdata->wpc_en = of_get_named_gpio(np, "battery,wpc_en", 0);
 	if (ret < 0) {
@@ -1327,16 +1460,16 @@ int sec_bat_parse_dt(struct device *dev,
 			battery->pdata->num_age_step = 0;
 		}
 		pr_err("%s num_age_step : %d\n", __func__, battery->pdata->num_age_step);
-#if defined(CONFIG_STEP_CHARGING)		
+#if defined(CONFIG_BATTERY_AGE_FORECAST_B2B)
 		for (len = 0; len < battery->pdata->num_age_step; ++len) {
-			pr_err("[%d/%d]cycle:%d, float:%d, full_v:%d, recharge_v:%d, soc:%d, step charging condition:%d\n",
+			pr_err("[%d/%d]cycle:%d, float:%d, full_v:%d, recharge_v:%d, soc:%d, max_c:%d\n",
 				len, battery->pdata->num_age_step-1,
 				battery->pdata->age_data[len].cycle,
 				battery->pdata->age_data[len].float_voltage,
 				battery->pdata->age_data[len].full_condition_vcell,
 				battery->pdata->age_data[len].recharge_condition_vcell,
 				battery->pdata->age_data[len].full_condition_soc,
-				battery->pdata->age_data[len].step_charging_condition);
+				battery->pdata->age_data[len].max_charging_current);
 		}
 #else
 		for (len = 0; len < battery->pdata->num_age_step; ++len) {
@@ -1377,106 +1510,7 @@ int sec_bat_parse_dt(struct device *dev,
 		pr_err("%s there is not health_condition, len(%d)\n", __func__, len);
 	}
 
-	ret = of_property_read_u32(np, "battery,siop_input_limit_current",
-			&pdata->siop_input_limit_current);
-	if (ret)
-		pdata->siop_input_limit_current = SIOP_INPUT_LIMIT_CURRENT;
-
-	ret = of_property_read_u32(np, "battery,siop_charging_limit_current",
-			&pdata->siop_charging_limit_current);
-	if (ret)
-		pdata->siop_charging_limit_current = SIOP_CHARGING_LIMIT_CURRENT;
-
-	ret = of_property_read_u32(np, "battery,siop_hv_12v_input_limit_current",
-			&pdata->siop_hv_12v_input_limit_current);
-	if (ret)
-		pdata->siop_hv_12v_input_limit_current = SIOP_HV_12V_INPUT_LIMIT_CURRENT;
-
-	ret = of_property_read_u32(np, "battery,siop_hv_12v_charging_limit_current",
-			&pdata->siop_hv_12v_charging_limit_current);
-	if (ret)
-		pdata->siop_hv_12v_charging_limit_current = SIOP_HV_12V_CHARGING_LIMIT_CURRENT;
-
-	ret = of_property_read_u32(np, "battery,siop_hv_input_limit_current",
-			&pdata->siop_hv_input_limit_current);
-	if (ret)
-		pdata->siop_hv_input_limit_current = SIOP_HV_INPUT_LIMIT_CURRENT;
-
-	ret = of_property_read_u32(np, "battery,siop_hv_input_limit_current_2nd",
-			&pdata->siop_hv_input_limit_current_2nd);
-	if (ret)
-		pdata->siop_hv_input_limit_current_2nd = SIOP_HV_INPUT_LIMIT_CURRENT;
-
-	ret = of_property_read_u32(np, "battery,siop_hv_charging_limit_current",
-			&pdata->siop_hv_charging_limit_current);
-	if (ret)
-		pdata->siop_hv_charging_limit_current = SIOP_HV_CHARGING_LIMIT_CURRENT;
-
-	ret = of_property_read_u32(np, "battery,siop_apdo_input_limit_current",
-			&pdata->siop_apdo_input_limit_current);
-	if (ret)
-		pdata->siop_apdo_input_limit_current = SIOP_APDO_INPUT_LIMIT_CURRENT;
-
-	ret = of_property_read_u32(np, "battery,siop_apdo_charging_limit_current",
-			&pdata->siop_apdo_charging_limit_current);
-	if (ret)
-		pdata->siop_apdo_charging_limit_current = SIOP_APDO_CHARGING_LIMIT_CURRENT;
-
-	ret = of_property_read_u32(np, "battery,siop_wireless_input_limit_current",
-			&pdata->siop_wireless_input_limit_current);
-	if (ret)
-		pdata->siop_wireless_input_limit_current = SIOP_WIRELESS_INPUT_LIMIT_CURRENT;
-
-	ret = of_property_read_u32(np, "battery,siop_wireless_charging_limit_current",
-			&pdata->siop_wireless_charging_limit_current);
-	if (ret)
-		pdata->siop_wireless_charging_limit_current = SIOP_WIRELESS_CHARGING_LIMIT_CURRENT;
-
-	ret = of_property_read_u32(np, "battery,siop_hv_wireless_input_limit_current",
-			&pdata->siop_hv_wireless_input_limit_current);
-	if (ret)
-		pdata->siop_hv_wireless_input_limit_current = SIOP_HV_WIRELESS_INPUT_LIMIT_CURRENT;
-
-	ret = of_property_read_u32(np, "battery,siop_hv_wireless_charging_limit_current",
-			&pdata->siop_hv_wireless_charging_limit_current);
-	if (ret)
-		pdata->siop_hv_wireless_charging_limit_current = SIOP_HV_WIRELESS_CHARGING_LIMIT_CURRENT;
-
-	ret = of_property_read_u32(np, "battery,input_current_by_siop_20", &pdata->input_current_by_siop_20);
-	if (ret) {
-		pr_info("%s : input_current_by_siop_20 is Empty\n", __func__);
-		pdata->input_current_by_siop_20 = 0;
-	}
-
-	ret = of_property_read_u32(np, "battery,hv_input_current_by_siop_20", &pdata->hv_input_current_by_siop_20);
-	if (ret) {
-		pr_info("%s : hv_input_current_by_siop_20 is Empty\n", __func__);
-		pdata->hv_input_current_by_siop_20 = 0;
-	}
-
-	ret = of_property_read_u32(np, "battery,input_current_by_siop_10", &pdata->input_current_by_siop_10);
-	if (ret) {
-		pr_info("%s : input_current_by_siop_10 is Empty\n", __func__);
-		pdata->input_current_by_siop_10 = 0;
-	}
-
-	ret = of_property_read_u32(np, "battery,hv_input_current_by_siop_10", &pdata->hv_input_current_by_siop_10);
-	if (ret) {
-		pr_info("%s : hv_input_current_by_siop_10 is Empty\n", __func__);
-		pdata->hv_input_current_by_siop_10 = 0;
-	}
-
-	ret = of_property_read_u32(np, "battery,input_current_by_siop_0", &pdata->input_current_by_siop_0);
-	if (ret) {
-		pr_info("%s : input_current_by_siop_0 is Empty\n", __func__);
-		pdata->input_current_by_siop_0 = 0;
-	}
-
-	ret = of_property_read_u32(np, "battery,hv_input_current_by_siop_0", &pdata->hv_input_current_by_siop_0);
-	if (ret) {
-		pr_info("%s : hv_input_current_by_siop_0 is Empty\n", __func__);
-		pdata->hv_input_current_by_siop_0 = 0;
-	}
+	sec_bat_parse_dt_siop(battery, np);
 
 	ret = of_property_read_u32(np, "battery,wireless_otg_input_current",
 			&pdata->wireless_otg_input_current);
@@ -1598,9 +1632,7 @@ int sec_bat_parse_dt(struct device *dev,
 		"check_adc_max : %d, check_adc_min : %d\n"
 		"ovp_uvlo_check_type : %d, thermal_source : %d\n"
 		"temp_check_type : %d, temp_check_count : %d, nv_charge_power : %d\n"
-		"full_condition_type : %d, recharge_condition_type : %d, full_check_type : %d\n"
-		"input_current_by_siop_20 : %d, hv_input_current_by_siop_20 : %d\n"
-		"input_current_by_siop_10 : %d, hv_input_current_by_siop_10 : %d\n",
+		"full_condition_type : %d, recharge_condition_type : %d, full_check_type : %d\n",
 		__func__,
 		pdata->vendor, pdata->technology,pdata->cable_check_type,
 		pdata->cable_source_type, pdata->temp_adc_type,
@@ -1608,11 +1640,15 @@ int sec_bat_parse_dt(struct device *dev,
 		pdata->check_count, pdata->check_adc_max, pdata->check_adc_min,
 		pdata->ovp_uvlo_check_type, pdata->thermal_source,
 		pdata->temp_check_type, pdata->temp_check_count, pdata->nv_charge_power,
-		pdata->full_condition_type, pdata->recharge_condition_type, pdata->full_check_type,
-		pdata->input_current_by_siop_20, pdata->hv_input_current_by_siop_20,
-		pdata->input_current_by_siop_10, pdata->hv_input_current_by_siop_10
+		pdata->full_condition_type, pdata->recharge_condition_type, pdata->full_check_type
 		);
 
+	ret = of_property_read_u32(np, "battery,batt_temp_adj_gap_inc",
+		&pdata->batt_temp_adj_gap_inc);
+	if (ret) {
+		pr_err("%s: batt_temp_adj_gap_inc is Empty\n", __func__);
+		pdata->batt_temp_adj_gap_inc = 0;
+	}
 #if defined(CONFIG_STEP_CHARGING)
 	sec_step_charging_init(battery, dev);
 #endif
@@ -1628,6 +1664,13 @@ int sec_bat_parse_dt(struct device *dev,
 	if (ret) {
 		pr_err("%s: max_charging_charge_power is Empty\n", __func__);
 		pdata->max_charging_charge_power = 25000;
+	}
+
+	ret = of_property_read_u32(np, "battery,apdo_max_volt",
+			&pdata->apdo_max_volt);
+	if (ret) {
+		pr_err("%s: apdo_max_volt is Empty\n", __func__);
+		pdata->apdo_max_volt = 11000; /* 11v */
 	}
 
 #if defined(CONFIG_DUAL_BATTERY)
@@ -1713,7 +1756,7 @@ int sec_bat_parse_dt(struct device *dev,
 			pdata->min_sub_charging_current = 450;
 		}
 		pr_info("%s : main rate:%d, sub rate:%d, recharge marging:%d, "
-				"max main curr:%d, min main curr:%d, max sub curr:%d, min sub curr:%d \n",
+				"max main curr:%d, min main curr:%d, max sub curr:%d, min sub curr:%d\n",
 				__func__, pdata->main_charging_rate, pdata->sub_charging_rate,
 				pdata->force_recharge_margin, pdata->max_main_charging_current, pdata->min_main_charging_current,
 				pdata->max_sub_charging_current, pdata->min_sub_charging_current);
@@ -1726,7 +1769,7 @@ int sec_bat_parse_dt(struct device *dev,
 	if (p) {
 		len = len / sizeof(u32);
 		ret = of_property_read_u32_array(np, "battery,ignore_cisd_index",
-	                     pdata->ignore_cisd_index, len);
+			pdata->ignore_cisd_index, len);
 	} else {
 		pr_info("%s : battery,ignore_cisd_index is Empty\n", __func__);
 	}
@@ -1736,7 +1779,7 @@ int sec_bat_parse_dt(struct device *dev,
 	if (p) {
 		len = len / sizeof(u32);
 		ret = of_property_read_u32_array(np, "battery,ignore_cisd_index_d",
-	                     pdata->ignore_cisd_index_d, len);
+			pdata->ignore_cisd_index_d, len);
 	} else {
 		pr_info("%s : battery,ignore_cisd_index_d is Empty\n", __func__);
 	}
@@ -1762,18 +1805,11 @@ void sec_bat_parse_mode_dt(struct sec_battery_info *battery)
 	}
 
 	if (battery->store_mode) {
-		ret = of_property_read_u32(np, "battery,store_mode_afc_input_current",
-			&pdata->store_mode_afc_input_current);
+		ret = of_property_read_u32(np, "battery,store_mode_max_input_power",
+			&pdata->store_mode_max_input_power);
 		if (ret) {
-			pr_info("%s : store_mode_afc_input_current is Empty\n", __func__);
-			pdata->store_mode_afc_input_current = 440;
-		}
-
-		ret = of_property_read_u32(np, "battery,store_mode_hv_wireless_input_current",
-			&pdata->store_mode_hv_wireless_input_current);
-		if (ret) {
-			pr_info("%s : store_mode_hv_wireless_input_current is Empty\n", __func__);
-			pdata->store_mode_hv_wireless_input_current = 400;
+			pr_info("%s : store_mode_max_input_power is Empty\n", __func__);
+			pdata->store_mode_max_input_power = 4000;
 		}
 
 		if (pdata->wpc_temp_check_type) {
@@ -1838,6 +1874,6 @@ void sec_bat_parse_mode_dt_work(struct work_struct *work)
 		sec_bat_set_charging_current(battery);
 	}
 
-	wake_unlock(&battery->parse_mode_dt_wake_lock);
+	__pm_relax(battery->parse_mode_dt_ws);
 }
 #endif

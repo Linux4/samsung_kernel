@@ -10,7 +10,7 @@
 
 /* uH_RKP Command ID */
 /*
-Add KDP call IDs 
+Add KDP call IDs
 */
 
 /***************** KDP_CRED *****************/
@@ -83,7 +83,7 @@ typedef struct kdp_init_struct {
 	u32 task_threadinfo;
 	u64 verifiedbootstate;
 	struct {
-		u64 :64;
+		u64 selinux_enforcing_va;
 		u64 ss_initialized_va;
 	} selinux;
 } kdp_init_t;
@@ -93,7 +93,7 @@ static inline u8 rkp_ro_page(unsigned long addr)
 {
 	if (!rkp_cred_enable)
 		return (u8)0;
-	if ((addr == ((unsigned long)&init_cred)) || 
+	if ((addr == ((unsigned long)&init_cred)) ||
 		(addr == ((unsigned long)&init_sec)))
 		return (u8)1;
 	else

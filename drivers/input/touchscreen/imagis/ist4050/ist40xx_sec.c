@@ -1699,6 +1699,54 @@ out:
 	sec->cmd_state = SEC_CMD_STATUS_FAIL;
 }
 
+void run_factory_miscalibration(void *dev_data)
+{
+	int ret = 0;
+	int max_val = 0;
+	char buf[16] = { 0 };
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)dev_data;
+	struct ist40xx_data *data = container_of(sec, struct ist40xx_data, sec);
+
+	sec_cmd_set_default_result(sec);
+
+	if (data->status.sys_mode != STATE_POWER_ON) {
+		input_err(true, &data->client->dev,
+			  "%s: now sys_mode status is STATE_POWER_OFF!\n",
+			  __func__);
+		goto out;
+	}
+
+	ret = ist40xx_miscalibrate(data);
+	if (ret) {
+		input_err(true, &data->client->dev, "%s: miscalibration fail!\n",
+			  __func__);
+		goto out;
+	}
+
+	max_val = data->status.miscalib_result;
+	if (max_val > SEC_MISCAL_SPEC) {
+		snprintf(buf, sizeof(buf), "NG,0,%d", max_val);
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	} else {
+		snprintf(buf, sizeof(buf), "OK,0,%d", max_val);
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+	}
+
+	sec_cmd_set_cmd_result(sec, buf, strnlen(buf, sizeof(buf)));
+
+	input_info(true, &data->client->dev, "%s: %s(%d)\n", __func__, buf,
+		   strnlen(buf, sizeof(buf)));
+
+	return;
+
+out:
+	snprintf(buf, sizeof(buf), "NG");
+	sec_cmd_set_cmd_result(sec, buf, strnlen(buf, sizeof(buf)));
+
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+}
+
+
 void run_miscalibration(void *dev_data)
 {
 	int ret = 0;
@@ -5240,6 +5288,7 @@ struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("run_force_calibration", run_force_calibration),},
 	{SEC_CMD("get_force_calibration", get_force_calibration),},
 	{SEC_CMD("run_mis_cal_read", run_miscalibration),},
+	{SEC_CMD("run_factory_miscalibration", run_factory_miscalibration),},
 	{SEC_CMD("run_mis_cal_read_all", run_miscalibration_all),},
 	{SEC_CMD("get_mis_cal", get_miscalibration_value),},
 	{SEC_CMD("get_mis_cal_info", get_mis_cal_info), },

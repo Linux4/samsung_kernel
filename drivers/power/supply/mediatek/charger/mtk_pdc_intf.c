@@ -127,7 +127,8 @@ static bool mtk_is_pdc_ready(struct charger_manager *info)
 		return true;
 
 	if (info->pd_type == MTK_PD_CONNECT_PE_READY_SNK_APDO &&
-		info->enable_pe_4 == false)
+		info->enable_pe_4 == false &&
+		info->enable_pe_5 == false)
 		return true;
 
 	return false;
@@ -436,7 +437,7 @@ int mtk_pdc_get_setting(struct charger_manager *info, int *newvbus, int *newcur,
 	int ibat = 0, chg1_ibat = 0, chg2_ibat = 0;
 	int chg2_watt = 0;
 	bool boost = false, buck = false;
-	struct adapter_power_cap *cap;
+	struct adapter_power_cap *cap = NULL;
 	unsigned int mivr1 = 0;
 	unsigned int mivr2 = 0;
 	bool chg1_mivr = false;

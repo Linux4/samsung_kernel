@@ -420,6 +420,7 @@ int scp_send_msg_to_queue(
 	const uint32_t k_max_try_cnt = 300; /* retry 3 sec for -ERESTARTSYS */
 	const uint32_t k_restart_sleep_min_us = 10 * 1000; /* 10 ms */
 	const uint32_t k_restart_sleep_max_us = (k_restart_sleep_min_us + 200);
+	struct ipi_msg_t *p_ipi_msg = NULL;
 
 
 	scp_debug("in, dsp_id: %u, ipi_id: %u, buf: %p, len: %u, wait_ms: %u",
@@ -507,8 +508,10 @@ int scp_send_msg_to_queue(
 			break;
 		}
 		if (retval == 0) { /* timeout */
-			pr_info("wait %u ms timeout, will still send to scp later!!",
-				wait_ms);
+			p_ipi_msg = (struct ipi_msg_t *)p_element->msg.buf;
+			pr_info("wait %u ms timeout, will still send to dsp later!! msg: 0x%x, task: %d",
+				wait_ms, p_ipi_msg->msg_id,
+				p_ipi_msg->task_scene);
 			break;
 		}
 		if (retval == -ERESTARTSYS) {
@@ -634,6 +637,7 @@ static void scp_dump_msg_in_queue(struct scp_msg_queue_t *msg_queue)
 	struct scp_msg_t *p_scp_msg = NULL;
 	uint32_t idx_dump = msg_queue->idx_r;
 	char dump_str[16] = {0};
+	int n = 0;
 
 	pr_info("dsp_id: %u, idx_r: %u, idx_w: %u, queue(%u/%u)",
 		msg_queue->dsp_id,
@@ -646,7 +650,10 @@ static void scp_dump_msg_in_queue(struct scp_msg_queue_t *msg_queue)
 		/* get head msg */
 		p_scp_msg = &msg_queue->element[idx_dump].msg;
 
-		snprintf(dump_str, sizeof(dump_str), "#element[%u]", idx_dump);
+		n = snprintf(dump_str, sizeof(dump_str), "#element[%u]", idx_dump);
+		if (n < 0 || n > sizeof(dump_str))
+			pr_info("error to get string dump_str\n");
+
 		DUMP_IPC_MSG(dump_str, p_scp_msg);
 
 		/* update dump index */
@@ -675,6 +682,7 @@ static int scp_push_msg(
 	struct scp_queue_element_t *p_element = NULL;
 
 	unsigned long flags = 0;
+	int n = 0;
 
 	if (msg_queue == NULL || buf == NULL ||
 	    p_idx_msg == NULL || p_queue_counter == NULL) {
@@ -685,11 +693,14 @@ static int scp_push_msg(
 
 	/* check queue full */
 	if (scp_check_queue_to_be_full(msg_queue) == true) {
-		snprintf(dump_str, sizeof(dump_str),
+		n = snprintf(dump_str, sizeof(dump_str),
 			 "dsp_id: %u, ipi_id: %u, queue overflow, idx_r: %u, idx_w: %u, drop it",
 			 msg_queue->dsp_id,
 			 ipi_id, msg_queue->idx_r,
 			 msg_queue->idx_w);
+		if (n < 0 || n > sizeof(dump_str))
+			pr_info("error to get string dump_str\n");
+
 		p_ipi_msg = (struct ipi_msg_t *)buf;
 		if (len >= IPI_MSG_HEADER_SIZE &&
 		    p_ipi_msg->magic == IPI_MSG_MAGIC_NUMBER)
@@ -913,7 +924,7 @@ static int scp_init_single_msg_queue(
 
 	char thread_name[32] = {0};
 
-	int i = 0;
+	int i = 0, n = 0;
 
 	if (msg_queue == NULL) {
 		pr_info("NULL!! msg_queue: %p", msg_queue);
@@ -967,14 +978,19 @@ static int scp_init_single_msg_queue(
 
 	if (scp_path == SCP_PATH_A2S) {
 		msg_queue->scp_process_msg_func = scp_send_msg_to_scp;
-		snprintf(thread_name,
+		n = snprintf(thread_name,
 			 sizeof(thread_name),
 			 "scp_send_thread_id_%u", dsp_id);
+		if (n < 0 || n > sizeof(thread_name))
+			pr_info("error to get string thread_name\n");
+
 	} else if (scp_path == SCP_PATH_S2A) {
 		msg_queue->scp_process_msg_func = scp_process_msg_from_scp;
-		snprintf(thread_name,
+		n = snprintf(thread_name,
 			 sizeof(thread_name),
 			 "scp_recv_thread_id_%u", dsp_id);
+		if (n < 0 || n > sizeof(thread_name))
+			pr_info("error to get string thread_name\n");
 	} else
 		WARN_ON(1);
 
@@ -1094,7 +1110,7 @@ static int scp_send_msg_to_scp(
 	const uint32_t k_sleep_max_us = (k_sleep_min_us + 10);
 
 	int retval = 0;
-
+	int n = 0;
 
 	if (msg_queue == NULL || p_scp_msg == NULL) {
 		pr_info("NULL!! msg_queue: %p, p_scp_msg: %p",
@@ -1160,12 +1176,12 @@ static int scp_send_msg_to_scp(
 			   (enum dsp_id_t)dsp_id == AUDIO_OPENDSP_USE_HIFI3_B) {
 #ifdef CONFIG_MTK_AUDIODSP_SUPPORT
 			the_adsp_ipi_id = (enum adsp_ipi_id)p_scp_msg->ipi_id;
-			retval = adsp_ipi_send_ipc(
+			retval = adsp_send_message(
 					 the_adsp_ipi_id,
 					 p_scp_msg->buf,
 					 p_scp_msg->len,
 					 1, /* wait until sent or timeout */
-					 ADSP_A_ID);
+					 dsp_id - AUDIO_OPENDSP_USE_HIFI3_A);
 #endif
 		}
 
@@ -1189,15 +1205,19 @@ static int scp_send_msg_to_scp(
 			continue;
 		}
 		if (is_audio_dsp_ready(dsp_id) == false) {
-			snprintf(dump_str, sizeof(dump_str),
+			n = snprintf(dump_str, sizeof(dump_str),
 				 "dsp_id %u dead!!", dsp_id);
+			if (n < 0 || n > sizeof(dump_str))
+				pr_info("error to get string dump_str\n");
 			DUMP_IPC_MSG(dump_str, p_scp_msg);
 			retval = 0;
 			break;
 		}
 		if (retval == ipi_error_val) { /* fail */
-			snprintf(dump_str, sizeof(dump_str),
+			n = snprintf(dump_str, sizeof(dump_str),
 				 "dsp_id %u error!!", dsp_id);
+			if (n < 0 || n > sizeof(dump_str))
+				pr_info("error to get string dump_str\n");
 			DUMP_IPC_MSG(dump_str, p_scp_msg);
 			retval = -1;
 			break;
@@ -1214,13 +1234,18 @@ static int scp_send_msg_to_scp(
 	}
 
 	if (retry_flag == true) {
-		if (retval == 0)
-			snprintf(dump_str, sizeof(dump_str),
+		if (retval == 0) {
+			n = snprintf(dump_str, sizeof(dump_str),
 				 "dsp_id %u retry %u pass", dsp_id, try_cnt);
-		else
-			snprintf(dump_str, sizeof(dump_str),
+			if (n < 0 || n > sizeof(dump_str))
+				pr_info("error to get string dump_str\n");
+		} else {
+			n = snprintf(dump_str, sizeof(dump_str),
 				 "dsp_id %u retry %u err ret %d",
 				 dsp_id, try_cnt, retval);
+			if (n < 0 || n > sizeof(dump_str))
+				pr_info("error to get string dump_str\n");
+		}
 		DUMP_IPC_MSG(dump_str, p_scp_msg);
 	}
 

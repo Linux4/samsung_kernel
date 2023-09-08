@@ -59,7 +59,7 @@ int check_proc_write(int *data, const char *ubuf, size_t cnt)
 	return 0;
 }
 
-int check_boot_boost_proc_write(int *cgroup, int *data,
+int check_group_proc_write(int *cgroup, int *data,
 		const char *ubuf, size_t cnt)
 {
 	char buf[128];
@@ -85,11 +85,11 @@ static inline void __mt_update_tracing_mark_write_addr(void)
 			kallsyms_lookup_name("tracing_mark_write");
 }
 
-#ifdef CONFIG_MTK_BASE_POWER
 void perfmgr_trace_count(int val, const char *fmt, ...)
 {
-	char log[32];
+	char log[128];
 	va_list args;
+	int len;
 
 	if (!strstr(CONFIG_MTK_PLATFORM, "mt8")) {
 		if (powerhal_tid <= 0)
@@ -98,8 +98,13 @@ void perfmgr_trace_count(int val, const char *fmt, ...)
 
 	memset(log, ' ', sizeof(log));
 	va_start(args, fmt);
-	vsnprintf(log, sizeof(log), fmt, args);
+	len = vsnprintf(log, sizeof(log), fmt, args);
 	va_end(args);
+
+	if (unlikely(len < 0))
+		return;
+	else if (unlikely(len == 128))
+		log[127] = '\0';
 
 	__mt_update_tracing_mark_write_addr();
 	preempt_disable();
@@ -114,7 +119,6 @@ void perfmgr_trace_count(int val, const char *fmt, ...)
 
 	preempt_enable();
 }
-#endif
 
 void perfmgr_trace_printk(char *module, char *string)
 {

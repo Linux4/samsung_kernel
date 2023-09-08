@@ -50,7 +50,7 @@
 #define IST40XX_BIN_NAME		"ist40xx.bin"
 #define IST40XX_IUM_NAME		"ist40xx_ium.bin"
 
-#define SPU_FW_SIGNED
+//#define SPU_FW_SIGNED
 #ifdef SPU_FW_SIGNED
 #include <linux/spu-verify.h>
 #endif

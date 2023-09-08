@@ -451,6 +451,51 @@ static int upower_update_tbl_ref(void)
 	return ret;
 }
 
+#if defined(CONFIG_MACH_MT6893) || defined(TRIGEAR_LEAKAGE)
+static void get_pwr_efficiency(void)
+{
+#ifndef DISABLE_TP
+	int i, j;
+	unsigned int max = 0;
+	unsigned int min = ~0U;
+	unsigned long long sum;
+	struct upower_tbl *tbl;
+
+	for (j = 0; j < NR_UPOWER_BANK - 1; j++) {
+		max = 0;
+		min = ~0U;
+		sum = 0;
+		for (i = 0; i < UPOWER_OPP_NUM; i++) {
+			tbl = &upower_tbl_ref[j];
+			sum = (unsigned long long)(tbl->row[i].lkg_pwr[LKG_IDX]
+				+ tbl->row[i].dyn_pwr);
+#if defined(__LP64__) || defined(_LP64)
+			tbl->row[i].pwr_efficiency =
+				sum / (unsigned long long)tbl->row[i].cap;
+#else
+			tbl->row[i].pwr_efficiency =
+				div64_u64(sum,
+					(unsigned long long)tbl->row[i].cap);
+#endif
+			upower_debug("[%d] eff = %d dyn = %d lkg = %d cap = %d\n",
+				i, tbl->row[i].pwr_efficiency,
+				tbl->row[i].dyn_pwr,
+				tbl->row[i].lkg_pwr[LKG_IDX],
+				tbl->row[i].cap
+			);
+			if (tbl->row[i].pwr_efficiency > max)
+				max = tbl->row[i].pwr_efficiency;
+			if (tbl->row[i].pwr_efficiency < min)
+				min = tbl->row[i].pwr_efficiency;
+		}
+		tbl->max_efficiency = max;
+		tbl->min_efficiency = min;
+	}
+#endif
+}
+
+#else
+
 static void get_L_pwr_efficiency(void)
 {
 
@@ -508,8 +553,14 @@ static void get_LL_pwr_efficiency(void)
 	for (i = 0; i < UPOWER_OPP_NUM; i++) {
 		LL_pwr = (unsigned long long)(tbl->row[i].lkg_pwr[LKG_IDX] +
 				tbl->row[i].dyn_pwr);
+#if defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6873) \
+	|| defined(CONFIG_MACH_MT6853) || defined(CONFIG_MACH_MT6893) \
+	|| defined(CONFIG_MACH_MT6833) || defined(CONFIG_MACH_MT6877)
+		CCI_pwr = 0;
+#else
 		CCI_pwr = (unsigned long long)(ctbl->row[i].lkg_pwr[LKG_IDX] +
 				ctbl->row[i].dyn_pwr);
+#endif
 		sum = (unsigned long long)LL_CORE_NUM * LL_pwr + CCI_pwr;
 #if defined(__LP64__) || defined(_LP64)
 		tbl->row[i].pwr_efficiency =
@@ -538,6 +589,8 @@ static void get_LL_pwr_efficiency(void)
 	tbl->min_efficiency = min;
 #endif
 }
+#endif
+
 static int upower_cal_turn_point(void)
 {
 	int i;
@@ -800,6 +853,10 @@ static int __init upower_init(void)
 	return 0;
 #endif
 
+#ifdef SUPPORT_UPOWER_DCONFIG
+	upower_by_doe();
+#endif
+
 /* PTP has no efuse, so volt will be set to orig data
  * before upower_init_volt(), PTP has called upower_update_volt_by_eem()
  */
@@ -830,8 +887,12 @@ static int __init upower_init(void)
 
 	upower_update_dyn_pwr();
 	upower_update_lkg_pwr();
+#if defined(CONFIG_MACH_MT6893) || defined(TRIGEAR_LEAKAGE)
+	get_pwr_efficiency();
+#else
 	get_L_pwr_efficiency();
 	get_LL_pwr_efficiency();
+#endif
 	turn = upower_cal_turn_point();
 	set_sched_turn_point_cap();
 	upower_debug("@@~turn point is %d\n", turn);

@@ -131,12 +131,14 @@ static const struct file_operations char_dev_fops = {
 int fsm_monitor_send_message(int md_id, enum CCCI_MD_MSG msg, u32 resv)
 {
 	struct sk_buff *skb = NULL;
-	struct ccci_header *ccci_h;
+	struct ccci_header *ccci_h = NULL;
 	struct ccci_fsm_ctl *ctl = fsm_get_entity_by_md_id(md_id);
-	struct ccci_fsm_monitor *monitor_ctl = &ctl->monitor_ctl;
+	struct ccci_fsm_monitor *monitor_ctl = NULL;
 
 	if (!ctl)
 		return -CCCI_ERR_INVALID_PARAM;
+
+	monitor_ctl = &ctl->monitor_ctl;
 
 	if (unlikely(in_interrupt())) {
 		CCCI_ERROR_LOG(monitor_ctl->md_id, FSM,
@@ -146,6 +148,11 @@ int fsm_monitor_send_message(int md_id, enum CCCI_MD_MSG msg, u32 resv)
 	}
 
 	skb = ccci_alloc_skb(sizeof(struct ccci_header), 1, 1);
+	if (skb == NULL) {
+		CCCI_ERROR_LOG(monitor_ctl->md_id, FSM,
+			"%s:ccci_alloc_skb fail\n", __func__);
+		return -CCCI_ERR_ASSERT_ERR;
+	}
 	ccci_h =
 	(struct ccci_header *)skb_put(skb, sizeof(struct ccci_header));
 	ccci_h->data[0] = CCCI_MAGIC_NUM;
@@ -164,6 +171,11 @@ int fsm_monitor_init(struct ccci_fsm_monitor *monitor_ctl)
 	int ret = 0;
 
 	monitor_ctl->md_id = ctl->md_id;
+	if (monitor_ctl->md_id < 0 || monitor_ctl->md_id >= MAX_MD_NUM) {
+		CCCI_ERROR_LOG(-1, FSM,
+			"invalid md_id = %d\n", monitor_ctl->md_id);
+		return -1;
+	}
 	ccci_skb_queue_init(&monitor_ctl->rx_skb_list, 16, 1024, 0);
 	init_waitqueue_head(&monitor_ctl->rx_wq);
 	atomic_set(&monitor_ctl->usage_cnt, 0);

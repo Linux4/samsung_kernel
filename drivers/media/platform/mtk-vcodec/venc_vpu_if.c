@@ -168,6 +168,10 @@ int vpu_enc_set_param(struct venc_vpu_inst *vpu,
 		out.data_item = 1;
 		out.data[0] = enc_param->nonrefp;
 		break;
+	case VENC_SET_PARAM_ENABLE_DUMMY_NAL:
+		out.data_item = 1;
+		out.data[0] = enc_param->dummynal;
+		break;
 	default:
 		mtk_vcodec_err(vpu, "id %d not supported", id);
 		return -EINVAL;
@@ -197,9 +201,10 @@ int vpu_enc_encode(struct venc_vpu_inst *vpu, unsigned int bs_mode,
 	out.vpu_inst_addr = vpu->inst_addr;
 	out.bs_mode = bs_mode;
 	if (frm_buf) {
-		if ((frm_buf->fb_addr[0].dma_addr % 16 == 0) &&
+		if ((vpu->ctx->enc_params.svp_mode) ||
+			((frm_buf->fb_addr[0].dma_addr % 16 == 0) &&
 			(frm_buf->fb_addr[1].dma_addr % 16 == 0) &&
-			(frm_buf->fb_addr[2].dma_addr % 16 == 0)) {
+			(frm_buf->fb_addr[2].dma_addr % 16 == 0))) {
 			out.input_addr[0] = frm_buf->fb_addr[0].dma_addr;
 			out.input_addr[1] = frm_buf->fb_addr[1].dma_addr;
 			out.input_addr[2] = frm_buf->fb_addr[2].dma_addr;

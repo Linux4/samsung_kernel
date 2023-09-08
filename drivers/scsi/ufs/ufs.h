@@ -73,7 +73,12 @@ enum {
 	UFS_UPIU_RPMB_WLUN		= 0xC4,
 };
 
-#if defined(CONFIG_UFSHPB)
+/* WriteBooster buffer mode */
+enum {
+	WB_BUF_MODE_LU_DEDICATED	= 0x0,
+	WB_BUF_MODE_SHARED		= 0x1,
+};
+
 /**
  * ufs_is_valid_unit_desc_lun - checks if the given LUN has a unit descriptor
  * @lun: LU number to check
@@ -83,7 +88,6 @@ static inline bool ufs_is_valid_unit_desc_lun(u8 lun)
 {
 	return (lun == UFS_UPIU_RPMB_WLUN || (lun < UFS_UPIU_MAX_GENERAL_LUN));
 }
-#endif
 
 /*
  * UFS Protocol Information Unit related definitions
@@ -126,6 +130,12 @@ enum {
 	UPIU_CMD_FLAGS_READ	= 0x40,
 };
 
+/* UPIU Command Priority flags */
+enum {
+	UPIU_CMD_PRIO_NONE	= 0x00,
+	UPIU_CMD_PRIO_HIGH	= 0x04,
+};
+
 /* UPIU Task Attributes */
 enum {
 	UPIU_TASK_ATTR_SIMPLE	= 0x00,
@@ -147,6 +157,12 @@ enum flag_idn {
 	QUERY_FLAG_IDN_BKOPS_EN         = 0x04,
 	/* MTK PATCH: flag for fw update feasibility check */
 	QUERY_FLAG_IDN_PERMANENTLY_DISABLE_FW_UPDATE = 0xB,
+	QUERY_FLAG_IDN_TW_EN				= 0x0E,
+	QUERY_FLAG_IDN_TW_BUF_FLUSH_EN			= 0x0F,
+	QUERY_FLAG_IDN_TW_FLUSH_DURING_HIBERN = 0x10,
+#if defined(CONFIG_SCSI_SKHPB)
+	QUERY_FLAG_IDN_HPB_RESET	= 0x11,  /* JEDEC version */
+#endif
 };
 
 /* Attribute idn for Query requests */
@@ -159,6 +175,16 @@ enum attr_idn {
 	QUERY_ATTR_IDN_EE_STATUS	= 0x0E,
 	/* MTK PATCH: attribute for FFU status check */
 	QUERY_ATTR_IDN_DEVICE_FFU_STATUS = 0x14,
+#if defined(CONFIG_UFSTW)
+	QUERY_ATTR_IDN_TW_FLUSH_STATUS		= 0x1C,
+	QUERY_ATTR_IDN_TW_BUF_SIZE		= 0x1D,
+	QUERY_ATTR_IDN_TW_BUF_LIFETIME_EST	= 0x1E,
+	QUERY_ATTR_CUR_TW_BUF_SIZE		= 0x1F,
+#endif
+	QUERY_ATTR_IDN_AVL_TW_BUF_SIZE	= 0x1D,
+#if defined(CONFIG_UFSFEATURE)
+	QUERY_ATTR_IDN_SUP_VENDOR_OPTIONS	= 0xFF,
+#endif
 };
 
 /* MTK PATCH: status of FFU */
@@ -201,6 +227,11 @@ enum ufs_desc_def_size {
 	QUERY_DESC_GEOMETRY_DEF_SIZE		= 0x48,
 	QUERY_DESC_POWER_DEF_SIZE		= 0x62,
 	QUERY_DESC_HEALTH_MAX_SIZE		= 0x25, /* MTK PATCH */
+	/*
+	 * Max. 126 UNICODE characters (2 bytes per character) plus 2 bytes
+	 * of descriptor header.
+	 */
+	QUERY_DESC_STRING_DEF_SIZE		= 0xFE,
 };
 
 /* MTK PATCH: Read Geometry Descriptor for RPMB initialization */
@@ -208,12 +239,6 @@ enum geometry_desc_param_offset {
 	GEOMETRY_DESC_LEN		= 0x0,
 	GEOMETRY_DESC_TYPE		= 0x1,
 	GEOMETRY_DESC_RPMB_RW_SIZE	= 0x17,
-#if defined(CONFIG_UFSHPB)
-	GEOMETRY_DESC_HPB_REGION_SIZE			= 0x48,
-	GEOMETRY_DESC_HPB_NUMBER_LU			= 0x49,
-	GEOMETRY_DESC_HPB_SUBREGION_SIZE		= 0x4A,
-	GEOMETRY_DESC_HPB_DEVICE_MAX_ACTIVE_REGIONS	= 0x4B,
-#endif
 };
 
 /* Unit descriptor parameters offsets in bytes*/
@@ -234,11 +259,15 @@ enum unit_desc_param {
 	UNIT_DESC_PARAM_PHY_MEM_RSRC_CNT	= 0x18,
 	UNIT_DESC_PARAM_CTX_CAPABILITIES	= 0x20,
 	UNIT_DESC_PARAM_LARGE_UNIT_SIZE_M1	= 0x22,
-#if defined(CONFIG_UFSHPB)
+#if defined(CONFIG_UFSHPB) || defined(CONFIG_SCSI_SKHPB)
 	UNIT_DESC_HPB_LU_MAX_ACTIVE_REGIONS		= 0x23,
 	UNIT_DESC_HPB_LU_PIN_REGION_START_OFFSET	= 0x25,
 	UNIT_DESC_HPB_LU_NUM_PIN_REGIONS		= 0x27,
 #endif
+#if defined(CONFIG_UFSTW)
+	UNIT_DESC_TW_LU_MAX_BUF_SIZE			= 0x29,
+#endif
+	UNIT_DESC_PARAM_TW_BUF_ALLOC_UNIT		= 0x29,
 };
 
 /* Device descriptor parameters offsets in bytes*/
@@ -270,13 +299,38 @@ enum device_desc_param {
 	DEVICE_DESC_PARAM_UD_LEN		= 0x1B,
 	DEVICE_DESC_PARAM_RTT_CAP		= 0x1C,
 	DEVICE_DESC_PARAM_FRQ_RTC		= 0x1D,
-#if defined(CONFIG_UFSHPB)
 	DEVICE_DESC_PARAM_FEAT_SUP		= 0x1F,
-#endif
 	/* MTK PATCH: Product Revision Level index in String Descriptor */
 	DEVICE_DESC_PARAM_PRDCT_REV		= 0x2A,
-#if defined(CONFIG_UFSHPB)
+#if defined(CONFIG_UFSHPB) || defined(CONFIG_SCSI_SKHPB)
 	DEVICE_DESC_PARAM_HPB_VER		= 0x40,
+	DEVICE_DESC_PARAM_HPB_CONTROL		= 0x42, /* JEDEC version */
+#endif
+	DEVICE_DESC_PARAM_EX_FEAT_SUP		= 0x4F,
+#if defined(CONFIG_UFSTW)
+	DEVICE_DESC_PARAM_TW_RETURN_TO_USER	= 0x53,
+#endif
+	DEVICE_DESC_PARAM_TW_BUF_TYPE		= 0x54,
+#if defined(CONFIG_UFSTW)
+	DEVICE_DESC_PARAM_NUM_SHARED_WB_BUF_AU	= 0x55, /* JEDEC version */
+#endif
+};
+
+enum geometry_desc_param {
+	GEOMETRY_DESC_SEGMENT_SIZE = 0x0D,
+#if defined(CONFIG_UFSHPB) || defined(CONFIG_SCSI_SKHPB)
+	GEOMETRY_DESC_HPB_REGION_SIZE			= 0x48,
+	GEOMETRY_DESC_HPB_NUMBER_LU			= 0x49,
+	GEOMETRY_DESC_HPB_SUBREGION_SIZE		= 0x4A,
+	GEOMETRY_DESC_HPB_DEVICE_MAX_ACTIVE_REGIONS	= 0x4B,
+#endif
+#if defined(CONFIG_UFSTW)
+	GEOMETRY_DESC_TW_MAX_SIZE			= 0x4F,
+	GEOMETRY_DESC_TW_NUMBER_LU			= 0x53,
+	GEOMETRY_DESC_TW_CAP_ADJ_FAC			= 0x54,
+	GEOMETRY_DESC_TW_SUPPORT_USER_REDUCTION_TYPES	= 0x55,
+	GEOMETRY_DESC_TW_SUPPORT_BUF_TYPE		= 0x56,
+	GEOMETRY_DESC_TW_GROUP_NUM_CAP			= 0x57,
 #endif
 };
 
@@ -319,9 +373,21 @@ enum power_desc_param_offset {
 
 /* Exception event mask values */
 enum {
-	MASK_EE_STATUS		= 0xFFFF,
+	/* disable tw event [bit 5] as default */
+	MASK_EE_STATUS		= 0xFFDF,
 	MASK_EE_URGENT_BKOPS	= (1 << 2),
+#if defined(CONFIG_UFSTW)
+	MASK_EE_TW		= (1 << 5),
+#endif
 };
+
+#if defined(CONFIG_UFSTW)
+/* TW buffer type */
+enum {
+	WB_LU_DEDICATED_BUFFER_TYPE	= 0x0,
+	WB_SINGLE_SHARE_BUFFER_TYPE	= 0x1
+};
+#endif
 
 /* Background operation status */
 enum bkops_status {
@@ -360,6 +426,15 @@ enum {
 	QUERY_RESULT_GENERAL_FAILURE            = 0xFF,
 };
 
+enum health_device_desc_param {
+	HEALTH_DEVICE_DESC_PARAM_LEN	= 0x0,
+	HEALTH_DEVICE_DESC_PARAM_IDN	=0x1,
+	HEALTH_DEVICE_DESC_PARAM_INFO	=0x2,
+	HEALTH_DEVICE_DESC_PARAM_LIFETIMEA	=0x3,
+	HEALTH_DEVICE_DESC_PARAM_LIFETIMEB	=0x4,
+	HEALTH_DEVICE_DESC_PARAM_RESERVED	=0x5,
+};
+
 /* UTP Transfer Request Command Type (CT) */
 enum {
 	UPIU_COMMAND_SET_TYPE_SCSI	= 0x0,
@@ -381,6 +456,9 @@ enum {
 	MASK_RSP_UPIU_DATA_SEG_LEN	= 0xFFFF,
 	MASK_RSP_EXCEPTION_EVENT        = 0x10000,
 	MASK_TM_SERVICE_RESP		= 0xFF,
+#if defined(CONFIG_UFSHPB) || defined(CONFIG_SCSI_SKHPB)
+	MASK_RSP_UPIU_HPB_UPDATE_ALERT	= 0x20000, /* JEDEC version */
+#endif
 };
 
 /* Task management service response */
@@ -598,6 +676,7 @@ struct ufs_dev_info {
 struct ufs_dev_desc {
 	u16 wmanufacturerid;
 	char model[MAX_MODEL_LEN + 1];
+	u32 dextfeatsupport;
 	char prl[MAX_PRL_LEN + 1]; /* MTK PATCH */
 };
 

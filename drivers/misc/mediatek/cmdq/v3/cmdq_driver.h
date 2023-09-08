@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2015 MediaTek Inc.
  */
 
 #ifndef __CMDQ_DRIVER_H__
@@ -106,5 +98,12 @@ struct cmdqWriteAddressStruct {
 /* input int is same as EngineFlag. */
 /*  */
 #define CMDQ_IOCTL_NOTIFY_ENGINE _IOW(CMDQ_IOCTL_MAGIC_NUMBER, 12, uint64_t)
+
+s32 cmdq_driver_ioctl_query_usage(struct file *pf, unsigned long param);
+s32 cmdq_driver_ioctl_query_cap_bits(unsigned long param);
+s32 cmdq_driver_ioctl_query_dts(unsigned long param);
+s32 cmdq_driver_ioctl_notify_engine(unsigned long param);
+
+void cmdq_driver_dump_readback(u32 *ids, u32 *addrs, u32 count, u32 *values);
 
 #endif				/* __CMDQ_DRIVER_H__ */

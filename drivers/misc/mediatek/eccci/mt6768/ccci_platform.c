@@ -31,6 +31,14 @@
 #include <mt-plat/mtk_lpae.h>
 #endif
 
+#include "modem_secure_base.h"
+
+#include <linux/arm-smccc.h>
+#include <linux/soc/mediatek/mtk_sip_svc.h>
+
+#define MTK_SIP_CCCI_CONTROL_ARCH32		0x82000505
+#define MTK_SIP_CCCI_CONTROL_ARCH64		0xC2000505
+
 #define TAG "plat"
 
 int Is_MD_EMI_voilation(void)
@@ -51,15 +59,35 @@ unsigned int ccci_get_md_debug_mode(struct ccci_modem *md)
 }
 EXPORT_SYMBOL(ccci_get_md_debug_mode);
 
-void ccci_get_platform_version(char *ver)
+int ccci_get_md_sec_smem_size_and_update(void)
 {
-#ifdef ENABLE_CHIP_VER_CHECK
-	sprintf(ver, "MT%04x_S%02x",
-		get_chip_hw_ver_code(), (get_chip_hw_subcode() & 0xFF));
+#ifdef ENABLE_MD_SEC_SMEM
+	struct arm_smccc_res res;
+	
+	CCCI_NORMAL_LOG(-1, TAG,
+		"%s:ENABLE_MD_SEC_SMEM is enable\n", __func__);
+
+
+#ifdef __aarch64__
+	arm_smccc_smc(MTK_SIP_CCCI_CONTROL_ARCH64,
+				UPDATE_MD_SEC_SMEM, 0, 0, 0, 0, 0, 0, &res);
 #else
-	sprintf(ver, "MT6735_S00");
+	arm_smccc_smc(MTK_SIP_CCCI_CONTROL_ARCH32,
+				UPDATE_MD_SEC_SMEM, 0, 0, 0, 0, 0, 0, &res);
+#endif
+
+	CCCI_NORMAL_LOG(-1, TAG,
+		"%s:size=0x%x\n", __func__, (int)res.a0);
+		
+	return (int)res.a0;
+#else
+
+	CCCI_NORMAL_LOG(-1, TAG,
+		"%s:ENABLE_MD_SEC_SMEM is disable\n", __func__);
+	return 0;
 #endif
 }
+EXPORT_SYMBOL(ccci_get_md_sec_smem_size_and_update);
 
 #ifdef FEATURE_LOW_BATTERY_SUPPORT
 static int ccci_md_low_power_notify(struct ccci_modem *md,
@@ -247,7 +275,7 @@ int ccci_platform_init(struct ccci_modem *md)
 #define MD_META_PAGE_SIZE (65*1024)
 #define MD_META_PAGE_NUM (8)
 
-#define AP_META_PAGE_SIZE (65*1024)
+#define AP_META_PAGE_SIZE (63*1024)
 #define AP_META_PAGE_NUM (8)
 
 struct ccci_ccb_config ccb_configs[] = {

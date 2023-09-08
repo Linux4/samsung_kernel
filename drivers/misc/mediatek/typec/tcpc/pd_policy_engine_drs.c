@@ -68,6 +68,8 @@ void pe_drs_ufp_dfp_change_to_dfp_entry(struct pd_port *pd_port)
 #endif	/* CONFIG_USB_PD_RESET_CABLE */
 
 	pd_dpm_drs_change_role(pd_port, PD_ROLE_DFP);
+	dpm_reaction_set(pd_port, DPM_REACTION_DISCOVER_ID
+				| DPM_REACTION_DISCOVER_SVID);
 }
 
 void pe_drs_ufp_dfp_send_dr_swap_entry(struct pd_port *pd_port)

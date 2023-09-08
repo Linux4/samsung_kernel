@@ -12,7 +12,6 @@
 #include <linux/spinlock.h>
 #include <asm/bug.h>
 #include <asm/cacheflush.h>
-#include <asm/memory.h>
 #include <asm/set_memory.h>
 
 /* Compiler-defined handler names */
@@ -24,12 +23,30 @@
 #define cfi_slowpath_handler	__cfi_slowpath
 #endif /* CONFIG_CFI_PERMISSIVE */
 
+#define CONFIG_CFI_TARGET_PTR_DBG	(1)
+
 static inline void handle_cfi_failure(void *ptr)
 {
+#if CONFIG_CFI_TARGET_PTR_DBG
+	uint32_t opcode, imm26, signextend;
+	uint64_t func_addr;
+	uint64_t *vptr = ptr;
+
+	opcode = (uint32_t)*vptr;
+	signextend = 0x10000000;
+	imm26 = opcode & 0x3FFFFFF;
+	func_addr = (uintptr_t)ptr + (imm26 << 2) - signextend;
+#endif
+
 #ifdef CONFIG_CFI_PERMISSIVE
 	WARN_RATELIMIT(1, "CFI failure (target: [<%px>] %pF):\n", ptr, ptr);
 #else
+
+#if CONFIG_CFI_TARGET_PTR_DBG
+	pr_err("CFI failure (target: [<%llx>] %pF):\n", func_addr, ptr);
+#else
 	pr_err("CFI failure (target: [<%px>] %pF):\n", ptr, ptr);
+#endif
 	BUG();
 #endif
 }
@@ -229,7 +246,6 @@ static inline cfi_check_fn ptr_to_check_fn(const struct cfi_shadow __rcu *s,
 	unsigned long ptr)
 {
 	int index;
-	unsigned long check;
 
 	if (unlikely(!s))
 		return NULL; /* No shadow available */

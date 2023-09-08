@@ -1217,7 +1217,8 @@ check_loop_fn(struct Qdisc *q, unsigned long cl, struct qdisc_walker *w)
  */
 
 const struct nla_policy rtm_tca_policy[TCA_MAX + 1] = {
-	[TCA_KIND]		= { .type = NLA_STRING },
+	[TCA_KIND]		= { .type = NLA_NUL_STRING,
+				    .len = IFNAMSIZ - 1 },
 	[TCA_RATE]		= { .type = NLA_BINARY,
 				    .len = sizeof(struct tc_estimator) },
 	[TCA_STAB]		= { .type = NLA_NESTED },
@@ -1292,6 +1293,34 @@ static int tc_get_qdisc(struct sk_buff *skb, struct nlmsghdr *n,
 	return 0;
 }
 
+/*
+ * enable/disable flow on qdisc.
+ */
+void
+tc_qdisc_flow_control(struct net_device *dev, u32 tcm_handle, int enable_flow)
+{
+	struct Qdisc *q;
+	struct __qdisc_change_req {
+		struct nlattr attr;
+		struct tc_prio_qopt data;
+	} req =	{
+		.attr = {sizeof(struct __qdisc_change_req), TCA_OPTIONS},
+		.data = {3, {1, 2, 2, 2, 1, 2, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1}, 1}
+		};
+
+	/* override flow bit */
+	req.data.enable_flow = enable_flow;
+
+	/* look up using tcm handle */
+	q = qdisc_lookup(dev, tcm_handle);
+
+	/* call registered change function */
+	if (q) {
+		if (q->ops->change(q, &(req.attr)) != 0)
+			pr_err("tc_qdisc_flow_control: qdisc change failed");
+	}
+}
+EXPORT_SYMBOL(tc_qdisc_flow_control);
 /*
  * Create/change qdisc.
  */
@@ -1693,6 +1722,8 @@ static void tc_bind_tclass(struct Qdisc *q, u32 portid, u32 clid,
 
 	cl = cops->find(q, portid);
 	if (!cl)
+		return;
+	if (!cops->tcf_block)
 		return;
 	block = cops->tcf_block(q, cl);
 	if (!block)

@@ -17,6 +17,7 @@
 #include <linux/skbuff.h>
 #include "ccif_hif_platform.h"
 #include <mt-plat/mtk_secure_api.h>
+#include "ccci_platform.h"
 
 /* this is the platform header file for CLDMA MODEM, not just CLDMA! */
 
@@ -169,7 +170,6 @@ struct md_pll_reg {
 struct md_hw_info {
 	/* HW info - Register Address */
 	unsigned long md_rgu_base;
-	unsigned long l1_rgu_base;
 	unsigned long ap_mixed_base;
 	void __iomem *ap_topclkgen_base;
 	unsigned long md_boot_slave_Vector;

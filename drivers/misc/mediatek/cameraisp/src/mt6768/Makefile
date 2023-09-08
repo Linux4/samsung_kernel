@@ -21,8 +21,6 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/mmdvfs/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/timer/timesync/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/ccu/inc/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/ccu/src/
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/imgsensor/src/common/v1/
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/imgsensor/inc/
 
 ifeq ($(CONFIG_MACH_MT6761),y)
     ccflags-y += -I$(srctree)/drivers/misc/mediatek/cmdq/v3/mt6768/

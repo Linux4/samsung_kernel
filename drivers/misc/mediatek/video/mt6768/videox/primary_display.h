@@ -64,6 +64,9 @@ extern unsigned int round_corner_offset_enable;
 extern int def_data_rate;
 extern int def_dsi_hbp;
 
+extern bool g_force_cfg;
+extern unsigned int g_force_cfg_id;
+
 struct DISP_LAYER_INFO {
 	unsigned int id;
 	unsigned int curr_en;
@@ -227,9 +230,9 @@ enum mtkfb_power_mode {
 
 struct display_primary_path_context {
 	enum DISP_POWER_STATE state;
-	unsigned int lcm_fps;
+	unsigned int lcm_fps;/*real fps * 100*/
 	unsigned int dynamic_fps;
-	int lcm_refresh_rate;
+	unsigned int lcm_refresh_rate; /*real fps*/
 	int max_layer;
 	int need_trigger_overlay;
 	int need_trigger_ovl1to2;
@@ -271,8 +274,8 @@ struct display_primary_path_context {
 #if defined(CONFIG_SMCDSD_PANEL)
 	wait_queue_head_t framedone_wait;
 	ktime_t framedone_timestamp;
+	bool need_framedone_notify;
 #endif
-
 	int is_primary_sec;
 	int primary_display_scenario;
 #ifdef CONFIG_MTK_DISPLAY_120HZ_SUPPORT
@@ -280,19 +283,19 @@ struct display_primary_path_context {
 #endif
 	enum mtkfb_power_mode pm;
 	enum lcm_power_state lcm_ps;
-};
 
-#define LCM_FPS_ARRAY_SIZE	32
-struct lcm_fps_ctx_t {
-	int is_inited;
-	struct mutex lock;
-	unsigned int dsi_mode;
-	unsigned int head_idx;
-	unsigned int num;
-	unsigned long long last_ns;
-	unsigned long long array[LCM_FPS_ARRAY_SIZE];
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
+	/*DynFPS start*/
+	int active_cfg;
+	struct mutex dynfps_lock;
+	struct multi_configs multi_cfg_table;
+	cmdqBackupSlotHandle config_id_slot;
+	unsigned int first_cfg;
+	/*DynFPS end*/
+#endif
+	/* change vfp for ap dsi and 6382 at same time */
+	bool vfp_chg_sync_bdg;
 };
-
 
 static inline char *lcm_power_state_to_string(enum lcm_power_state ps)
 {
@@ -418,8 +421,8 @@ int primary_display_setbacklight_nolock(unsigned int level);
 int primary_display_set_lcm_hbm(bool en);
 int primary_display_hbm_wait(bool en);
 int primary_display_setlcm_func_call(
-	void (*func4)(void *, void *, void *, void *),
-	void *data1, void *data2, void *data3, void *data4);
+void (*func4)(void *, void *, void *, void *),
+void *data1, void *data2, void *data3, void *data4);
 int primary_display_pause(PRIMARY_DISPLAY_CALLBACK callback,
 	unsigned int user_data);
 int primary_display_switch_dst_mode(int mode);
@@ -432,7 +435,9 @@ int primary_display_get_lcm_refresh_rate(void);
 int _display_set_lcm_refresh_rate(int fps);
 void primary_display_idlemgr_kick(const char *source, int need_lock);
 void primary_display_idlemgr_enter_idle(int need_lock);
-void primary_display_update_present_fence(unsigned int fence_idx);
+void primary_display_update_present_fence(struct cmdqRecStruct *cmdq_handle,
+	unsigned int fence_idx);
+void primary_display_wakeup_pf_thread(void);
 void primary_display_switch_esd_mode(int mode);
 int primary_display_cmdq_set_reg(unsigned int addr, unsigned int val);
 int primary_display_vsync_switch(int method);
@@ -500,19 +505,14 @@ int dynamic_debug_msg_print(unsigned int mva, int w, int h, int pitch,
 
 int display_enter_tui(void);
 int display_exit_tui(void);
+bool primary_display_is_tui_started(void);
 
 int primary_display_config_full_roi(struct disp_ddp_path_config *pconfig,
 	disp_path_handle disp_handle,
 		struct cmdqRecStruct *cmdq_handle);
 int primary_display_set_scenario(int scenario);
-int primary_display_dsi_set_withcmdq(unsigned int cmd, unsigned char count,
-		unsigned char *para_list, unsigned char force_update);
-int primary_display_dsi_set_withrawcmdq(unsigned int *pdata,
-	unsigned int queue_size, unsigned char force_update);
-int primary_display_dsi_read_cmdq_cmd(unsigned int data_id,
-	unsigned int offset, unsigned int cmd, unsigned char *buffer,
-	unsigned char size);
 enum DISP_MODULE_ENUM _get_dst_module_by_lcm(struct disp_lcm_handle *plcm);
+void set_cam_max_bw(int bw);
 extern void check_mm0_clk_sts(void);
 
 extern unsigned int dump_output;
@@ -520,9 +520,32 @@ extern unsigned int dump_output_comp;
 extern void *composed_buf;
 extern struct completion dump_buf_comp;
 
-extern struct lcm_fps_ctx_t lcm_fps_ctx;
-int lcm_fps_ctx_init(struct lcm_fps_ctx_t *fps_ctx);
-int lcm_fps_ctx_reset(struct lcm_fps_ctx_t *fps_ctx);
-int lcm_fps_ctx_update(struct lcm_fps_ctx_t *fps_ctx,
-				unsigned long long cur_ns);
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
+/**************function for DynFPS start************************/
+#if defined(CONFIG_SMCDSD_PANEL)
+bool primary_display_is_chg_fps(int cfg_id);
+#endif
+unsigned int primary_display_is_support_DynFPS(void);
+unsigned int primary_display_get_default_disp_fps(int need_lock);
+unsigned int primary_display_get_def_timing_fps(int need_lock);
+int primary_display_get_cfg_fps(
+	int config_id, unsigned int *fps, unsigned int *vact_timing_fps);
+unsigned int primary_display_get_current_cfg_id(void);
+void primary_display_update_cfg_id(int cfg_id);
+void primary_display_init_multi_cfg_info(void);
+int primary_display_get_multi_configs(struct multi_configs *p_cfgs);
+void primary_display_dynfps_chg_fps(int cfg_id);
+void primary_display_dynfps_get_vfp_info(
+	unsigned int *vfp, unsigned int *vfp_for_lp);
+
+#if 0
+bool primary_display_need_update_golden_fps(
+	unsigned int last_fps, unsigned int new_fps);
+bool primary_display_need_update_hrt_fps(
+	unsigned int last_fps, unsigned int new_fps);
+#endif
+
+/**************function for DynFPS end************************/
+#endif
+
 #endif

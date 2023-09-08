@@ -95,10 +95,10 @@
 #include <linux/posix-timers.h>
 #include <linux/cpufreq_times.h>
 #include <linux/task_integrity.h>
-#include <linux/proca.h>
 #ifdef CONFIG_HARDWALL
 #include <asm/hardwall.h>
 #endif
+#include <linux/cn_proc.h>
 #include <trace/events/oom.h>
 #include "internal.h"
 #include "fd.h"
@@ -518,7 +518,7 @@ static int proc_pid_ioinfo(struct seq_file *m, struct pid_namespace *ns,
 #ifdef CONFIG_TASK_IO_ACCOUNTING
 		   (unsigned long long)acct.read_bytes,
 #else
- 		   (unsigned long long)0,                 
+ 		   (unsigned long long)0,
 #endif
 		   (unsigned long long)delayacct_blkio_nsecs(task));
 
@@ -1640,8 +1640,10 @@ static ssize_t comm_write(struct file *file, const char __user *buf,
 	if (!p)
 		return -ESRCH;
 
-	if (same_thread_group(current, p))
+	if (same_thread_group(current, p)) {
 		set_task_comm(p, buffer);
+		proc_comm_connector(p);
+	}
 	else
 		count = -EINVAL;
 
@@ -3035,7 +3037,7 @@ static int proc_integrity_reset_cause(struct seq_file *m,
 				struct pid_namespace *ns,
 				struct pid *pid, struct task_struct *task)
 {
-	if (task->integrity->reset_cause)
+	if (task->integrity->reset_cause != CAUSE_UNSET)
 		seq_printf(m, "%s\n", tint_reset_cause_to_string(
 			task->integrity->reset_cause));
 	else
@@ -3071,45 +3073,11 @@ static int proc_integrity_reset_file(struct seq_file *m,
 	return 0;
 }
 
-#ifdef CONFIG_PROCA_DEBUG
-static int proc_get_proca_cert(struct seq_file *m,
-		struct pid_namespace *ns, struct pid *pid,
-		struct task_struct *task)
-{
-	const char *cert;
-	size_t cert_size;
-
-	if (!proca_get_task_cert(task, &cert, &cert_size)) {
-		size_t remaining_len;
-		char *buffer = NULL;
-		size_t data_len = cert_size * 2;
-
-		seq_printf(m, "%zu\n", data_len);
-		remaining_len = seq_get_buf(m, &buffer);
-
-		if (data_len && remaining_len > 1) {
-			size_t size = min(data_len, remaining_len);
-
-			bin2hex(buffer, cert, size / 2);
-			seq_commit(m, size);
-			seq_putc(m, '\n');
-		}
-	} else {
-		seq_printf(m, "%d\n", -1);
-	}
-
-	return 0;
-}
-#endif
-
 static const struct pid_entry integrity_dir_stuff[] = {
 	ONE("value", S_IRUGO, proc_integrity_value_read),
 	ONE("label", S_IRUGO, proc_integrity_label_read),
 	ONE("reset_cause", S_IRUGO, proc_integrity_reset_cause),
 	ONE("reset_file", S_IRUGO, proc_integrity_reset_file),
-#ifdef CONFIG_PROCA_DEBUG
-	ONE("proca_certificate", S_IRUGO, proc_get_proca_cert),
-#endif
 };
 
 static int
@@ -3240,6 +3208,26 @@ static int proc_pid_patch_state(struct seq_file *m, struct pid_namespace *ns,
 }
 #endif /* CONFIG_LIVEPATCH */
 
+#ifdef CONFIG_MTK_TASK_TURBO
+static int proc_turbo_task_show(struct seq_file *m, struct pid_namespace *ns,
+		struct pid *pid, struct task_struct *p)
+{
+	unsigned int is_turbo;
+	unsigned int is_inherit_turbo;
+
+	if (!p)
+		return -ESRCH;
+	task_lock(p);
+	is_turbo = p->turbo;
+	is_inherit_turbo = atomic_read(&p->inherit_types);
+	seq_printf(m, "tid=%d turbo = %d,inherit turbo = %d prio=%d bk_prio=%d\n",
+			p->pid, is_turbo, is_inherit_turbo,
+			p->prio, NICE_TO_PRIO(p->nice_backup));
+	task_unlock(p);
+	return 0;
+}
+#endif
+
 /*
  * Thread groups
  */
@@ -3354,12 +3342,12 @@ static const struct pid_entry tgid_base_stuff[] = {
 #ifdef CONFIG_LIVEPATCH
 	ONE("patch_state",  S_IRUSR, proc_pid_patch_state),
 #endif
+#ifdef CONFIG_CPU_FREQ_TIMES
+	ONE("time_in_state", 0444, proc_time_in_state_show),
+#endif
 #ifdef CONFIG_FIVE
 	DIR("integrity", S_IRUGO|S_IXUGO, proc_integrity_inode_operations,
 			proc_integrity_operations),
-#endif
-#ifdef CONFIG_CPU_FREQ_TIMES
-	ONE("time_in_state", 0444, proc_time_in_state_show),
 #endif
 };
 
@@ -3374,6 +3362,15 @@ static const struct file_operations proc_tgid_base_operations = {
 	.iterate_shared	= proc_tgid_base_readdir,
 	.llseek		= generic_file_llseek,
 };
+
+struct pid *tgid_pidfd_to_pid(const struct file *file)
+{
+	if (!d_is_dir(file->f_path.dentry) ||
+	    (file->f_op != &proc_tgid_base_operations))
+		return ERR_PTR(-EBADF);
+
+	return proc_pid(file_inode(file));
+}
 
 static struct dentry *proc_tgid_base_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 {
@@ -3682,12 +3679,12 @@ static const struct pid_entry tid_base_stuff[] = {
 	REG("cmdline",   S_IRUGO, proc_pid_cmdline_ops),
 	ONE("stat",      S_IRUGO, proc_tid_stat),
 	ONE("statm",     S_IRUGO, proc_pid_statm),
-	REG("maps",      S_IRUGO, proc_tid_maps_operations),
+	REG("maps",      S_IRUGO, proc_pid_maps_operations),
 #ifdef CONFIG_PROC_CHILDREN
 	REG("children",  S_IRUGO, proc_tid_children_operations),
 #endif
 #ifdef CONFIG_NUMA
-	REG("numa_maps", S_IRUGO, proc_tid_numa_maps_operations),
+	REG("numa_maps", S_IRUGO, proc_pid_numa_maps_operations),
 #endif
 	REG("mem",       S_IRUSR|S_IWUSR, proc_mem_operations),
 	LNK("cwd",       proc_cwd_link),
@@ -3697,7 +3694,7 @@ static const struct pid_entry tid_base_stuff[] = {
 	REG("mountinfo",  S_IRUGO, proc_mountinfo_operations),
 #ifdef CONFIG_PROC_PAGE_MONITOR
 	REG("clear_refs", S_IWUSR, proc_clear_refs_operations),
-	REG("smaps",     S_IRUGO, proc_tid_smaps_operations),
+	REG("smaps",     S_IRUGO, proc_pid_smaps_operations),
 	REG("smaps_rollup", S_IRUGO, proc_pid_smaps_rollup_operations),
 	REG("pagemap",    S_IRUSR, proc_pagemap_operations),
 #endif
@@ -3753,6 +3750,9 @@ static const struct pid_entry tid_base_stuff[] = {
 #endif
 #ifdef CONFIG_CPU_FREQ_TIMES
 	ONE("time_in_state", 0444, proc_time_in_state_show),
+#endif
+#ifdef CONFIG_MTK_TASK_TURBO
+	ONE("turbo", 0444, proc_turbo_task_show),
 #endif
 };
 

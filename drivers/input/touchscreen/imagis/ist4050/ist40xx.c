@@ -233,10 +233,10 @@ int ist40xx_set_input_device(struct ist40xx_data *data)
 	set_bit(BTN_TOUCH, data->input_dev->keybit);
 	set_bit(BTN_TOOL_FINGER, data->input_dev->keybit);
 	set_bit(INPUT_PROP_DIRECT, data->input_dev->propbit);
-	set_bit(KEY_HOMEPAGE, data->input_dev->keybit);
+	set_bit(KEY_WAKEUP, data->input_dev->keybit);
 	set_bit(KEY_INT_CANCEL, data->input_dev->keybit);
+	set_bit(BTN_PALM, data->input_dev->keybit);
 
-	input_set_abs_params(data->input_dev, ABS_MT_CUSTOM, 0, 0xFFFFFFFF, 0, 0);
 	input_set_abs_params(data->input_dev, ABS_MT_POSITION_X, 0,
 				 data->tsp_info.width - 1, 0, 0);
 	input_set_abs_params(data->input_dev, ABS_MT_POSITION_Y, 0,
@@ -394,11 +394,11 @@ void ist40xx_special_cmd(struct ist40xx_data *data, int cmd)
 							"AOT Double Tap Trigger\n");
 
 					input_report_key(data->input_dev,
-							 KEY_HOMEPAGE,
+							 KEY_WAKEUP,
 							 true);
 					input_sync(data->input_dev);
 					input_report_key(data->input_dev,
-							 KEY_HOMEPAGE,
+							 KEY_WAKEUP,
 							 false);
 					input_sync(data->input_dev);
 					/* request from sensor team */
@@ -498,6 +498,9 @@ static void release_finger(struct ist40xx_data *data, int id)
 	input_mt_report_slot_state(data->input_dev, MT_TOOL_FINGER, false);
 	input_report_key(data->input_dev, BTN_TOUCH, 0);
 	input_report_key(data->input_dev, BTN_TOOL_FINGER, 0);
+	input_report_key(data->input_dev, BTN_PALM, false);
+	data->palm_flag = 0;
+
 	input_sync(data->input_dev);
 
 	input_info(true, &data->client->dev, "forced touch release: %d\n", id);
@@ -562,10 +565,13 @@ static void report_input_data(struct ist40xx_data *data)
                             coord_x);
                     input_report_abs(data->input_dev, ABS_MT_POSITION_Y,
                             coord_y);
-                    if (ttype == TOUCH_TYPE_PALM)
-                        input_report_abs(data->input_dev, ABS_MT_CUSTOM, true);
-                    else
-                        input_report_abs(data->input_dev, ABS_MT_CUSTOM, false);
+
+					if (ttype == TOUCH_TYPE_PALM)
+						data->palm_flag |= (1 << id);
+					else
+						data->palm_flag &= ~(1 << id);
+					input_report_key(data->input_dev, BTN_PALM, data->palm_flag);
+
                     input_report_abs(data->input_dev, ABS_MT_TOUCH_MAJOR,
                             data->fingers[idx].Major);
                     input_report_abs(data->input_dev, ABS_MT_TOUCH_MINOR,
@@ -619,10 +625,12 @@ static void report_input_data(struct ist40xx_data *data)
                             coord_x);
                     input_report_abs(data->input_dev, ABS_MT_POSITION_Y,
                             coord_y);
-                    if (ttype == TOUCH_TYPE_PALM)
-                        input_report_abs(data->input_dev, ABS_MT_CUSTOM, true);
-                    else
-                        input_report_abs(data->input_dev, ABS_MT_CUSTOM, false);
+					if (ttype == TOUCH_TYPE_PALM)
+						data->palm_flag |= (1 << id);
+					else
+						data->palm_flag &= ~(1 << id);
+					input_report_key(data->input_dev, BTN_PALM, data->palm_flag);
+
                     input_report_abs(data->input_dev, ABS_MT_TOUCH_MAJOR,
                             data->fingers[idx].Major);
                     input_report_abs(data->input_dev, ABS_MT_TOUCH_MINOR,
@@ -756,6 +764,8 @@ static void report_input_data(struct ist40xx_data *data)
 		input_report_key(data->input_dev, BTN_TOUCH, 1);
 		input_report_key(data->input_dev, BTN_TOOL_FINGER, 1);
 	} else if (data->touch_pressed_num == 0){
+		input_report_key(data->input_dev, BTN_PALM, false);
+		data->palm_flag = 0;
 		input_report_key(data->input_dev, BTN_TOUCH, 0);
 		input_report_key(data->input_dev, BTN_TOOL_FINGER, 0);
 	}
@@ -1208,6 +1218,21 @@ static int ist40xx_suspend(struct device *dev)
 	mutex_lock(&data->lock);
 	if (data->lpm_mode || data->ed_enable || data->pocket_enable ||
 		data->fod_lp_mode) {
+
+		if (data->prox_power_off) {
+			u32 write_data;
+			int ret;
+
+			mutex_lock(&data->aod_lock);
+			write_data = ((u32)data->fod_property << 16) | (u32)data->lpm_mode;
+			write_data &= ~IST40XX_DOUBLETAP_WAKEUP;
+			write_data &= ~IST40XX_SINGLETAP;
+			ret = ist40xx_write_buf(data->client, eHCOM_SET_SPONGE_FEATURE, (u32 *)&write_data, 1);
+			if (ret)
+				input_err(true, &data->client->dev, "%s: fail to write sponge reg: %d\n", __func__, ret);
+			mutex_unlock(&data->aod_lock);
+		}
+
 		ist40xx_cmd_gesture(data, IST40XX_ENABLE);
 
 		if (device_may_wakeup(&data->client->dev))
@@ -1253,6 +1278,8 @@ static int ist40xx_resume(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct ist40xx_data *data = i2c_get_clientdata(client);
+	u32 write_data;
+	int ret;
 
 #ifdef CONFIG_TRUSTONIC_TRUSTED_UI
 	msleep(100);
@@ -1291,6 +1318,14 @@ static int ist40xx_resume(struct device *dev)
 			disable_irq_wake(data->client->irq);
 
 		data->status.sys_mode = STATE_POWER_ON;
+
+		mutex_lock(&data->aod_lock);
+		write_data = ((u32)data->fod_property << 16) | (u32)data->lpm_mode;
+		ret = ist40xx_write_buf(data->client, eHCOM_SET_SPONGE_FEATURE, (u32 *)&write_data, 1);
+		if (ret)
+			input_err(true, &data->client->dev, "%s: fail to write sponge reg: %d\n", __func__, ret);
+		mutex_unlock(&data->aod_lock);
+
 	} else {
 #ifdef IST40XX_PINCTRL
 		if (data->pinctrl) {
@@ -1355,6 +1390,53 @@ static int ist40xx_ts_open(struct input_dev *dev)
 
 	return ist40xx_resume(&data->client->dev);
 }
+
+static ssize_t enabled_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ist40xx_data *data = dev_get_drvdata(dev);
+
+	input_info(true, &data->client->dev, "%s: %d\n", __func__, data->enabled);
+	return scnprintf(buf, PAGE_SIZE, "%d", data->enabled);
+}
+
+static ssize_t enabled_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	struct ist40xx_data *data = dev_get_drvdata(dev);
+	int value;
+	int err;
+
+	err = kstrtoint(buf, 10, &value);
+	if (err < 0) {
+		input_info(true, &data->client->dev, "%s: invalid string: %d\n", __func__, err);
+		return err;
+	}
+
+	if (data->enabled == value)
+		input_info(true, &data->client->dev, "%s: already %s\n", __func__, value ? "enabled" : "disabled");
+	if (value > 0) {
+		ist40xx_ts_open(data->input_dev);
+	} else {
+		ist40xx_ts_close(data->input_dev);
+	}
+
+	data->enabled = value;
+	return count;
+}
+
+static DEVICE_ATTR(enabled, 0664, enabled_show, enabled_store);
+
+static struct attribute *input_attributes[] = {
+	&dev_attr_enabled.attr,
+	NULL,
+};
+
+static struct attribute_group input_attr_group = {
+	.attrs = input_attributes,
+};
+
 #elif defined(CONFIG_HAS_EARLYSUSPEND)
 static void ist40xx_early_suspend(struct early_suspend *h)
 {
@@ -2106,7 +2188,7 @@ static void ist40xx_run_rawdata(struct ist40xx_data *data)
 #ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
 	data->tsp_dump_lock = 1;
 #endif
-	input_raw_data_clear();
+//	input_raw_data_clear();
 	input_raw_info(true, &data->client->dev, "%s start ##\n", __func__);
 	ist40xx_display_booting_dump_log(data);
 	input_raw_info(true, &data->client->dev, "%s done ##\n", __func__);
@@ -2310,10 +2392,6 @@ static int ist40xx_probe(struct i2c_client *client,
 #endif
 	INIT_DELAYED_WORK(&data->work_read_info, ist40xx_read_info_work);
 	INIT_DELAYED_WORK(&data->work_print_info, ist40xx_print_info_work);
-#ifdef USE_OPEN_CLOSE
-	input_dev->open = ist40xx_ts_open;
-	input_dev->close = ist40xx_ts_close;
-#endif
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	data->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 1;
 	data->early_suspend.suspend = ist40xx_early_suspend;
@@ -2412,7 +2490,11 @@ static int ist40xx_probe(struct i2c_client *client,
 	if (ret)
 		goto err_sec_sysfs;
 #endif
-
+#ifdef USE_OPEN_CLOSE
+	ret = sysfs_create_group(&data->input_dev->dev.kobj, &input_attr_group);
+	if (ret < 0)
+		input_err(true, &data->client->dev, "%s: Failed to create input_attr_group\n", __func__);
+#endif
 	input_info(true, &client->dev, "Create sysfs!!\n");
 
 	INIT_DELAYED_WORK(&data->work_reset_check, reset_work_func);

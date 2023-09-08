@@ -49,6 +49,7 @@
 #include <linux/sched/debug.h>
 #include <linux/sched/task_stack.h>
 #include <mt-plat/aee.h>
+#include <mt-plat/mtk_printk_ctrl.h>
 #include <linux/proc_fs.h>
 
 #include <linux/uaccess.h>
@@ -61,49 +62,10 @@
 #include "braille.h"
 #include "internal.h"
 
-/*
- * 0: uart printk enable
- * 1: uart printk disable
- * 2: uart printk always enable
- */
-int printk_disable_uart;
 #ifdef CONFIG_PRINTK_MT_PREFIX
 /* declare a variable for save the status of irqs_disabled() */
 static int isIrqsDisabled;
-#endif
-module_param_named(disable_uart, printk_disable_uart, int, 0644);
 
-bool mt_get_uartlog_status(void)
-{
-	if (printk_disable_uart == 1)
-		return false;
-	else if ((printk_disable_uart == 0) || (printk_disable_uart == 2))
-		return true;
-	return true;
-}
-
-void set_uartlog_status(bool value)
-{
-#ifdef CONFIG_MTK_ENG_BUILD
-	printk_disable_uart = value ? 0 : 1;
-	pr_info("set uart log status %d.\n", value);
-#endif
-}
-
-#ifdef CONFIG_MTK_PRINTK_UART_CONSOLE
-void mt_disable_uart(void)
-{
-	/* uart print not always enable */
-	if ((mt_need_uart_console != 1) && (printk_disable_uart != 2))
-		printk_disable_uart = 1;
-}
-void mt_enable_uart(void)
-{
-	printk_disable_uart = 0;
-}
-#endif
-
-#ifdef CONFIG_PRINTK_MT_PREFIX
 static DEFINE_PER_CPU(char, printk_state);
 #endif
 
@@ -149,7 +111,7 @@ enum devkmsg_log_masks {
 };
 
 /* Keep both the 'on' and 'off' bits clear, i.e. ratelimit by default: */
-#define DEVKMSG_LOG_MASK_DEFAULT	0
+#define DEVKMSG_LOG_MASK_DEFAULT	DEVKMSG_LOG_MASK_ON
 
 static unsigned int __read_mostly devkmsg_log = DEVKMSG_LOG_MASK_DEFAULT;
 
@@ -491,6 +453,7 @@ static u32 clear_idx;
 /* record buffer */
 #define LOG_ALIGN __alignof__(struct printk_log)
 #define __LOG_BUF_LEN (1 << CONFIG_LOG_BUF_SHIFT)
+#define LOG_BUF_LEN_MAX (u32)(1 << 31)
 static char __log_buf[__LOG_BUF_LEN] __aligned(LOG_ALIGN);
 static char *log_buf = __log_buf;
 static u32 log_buf_len = __LOG_BUF_LEN;
@@ -709,6 +672,14 @@ void register_set_auto_comm_buf(void (*func)(int type, const char *buf, size_t s
 }
 #endif
 
+#ifdef CONFIG_SEC_DEBUG_INIT_LOG
+static void (*func_hook_init_log)(const char *buf, size_t size);
+void register_init_log_hook_func(void (*func)(const char *buf, size_t size))
+{
+	func_hook_init_log = func;
+}
+#endif
+
 #ifdef CONFIG_SEC_EXT
 static size_t hook_size;
 static char hook_text[LOG_LINE_MAX + PREFIX_MAX];
@@ -720,7 +691,7 @@ void register_log_text_hook(void (*func)(const char *buf, size_t size))
 {
 	unsigned long flags;
 
-	raw_spin_lock_irqsave(&logbuf_lock, flags);
+	logbuf_lock_irqsave(flags);
 	/*
 	 * In register hooking function,  we should check messages already
 	 * printed on log_buf. If so, they will be copyied to backup
@@ -741,7 +712,7 @@ void register_log_text_hook(void (*func)(const char *buf, size_t size))
 		}
 	}
 	log_text_hook = func;
-	raw_spin_unlock_irqrestore(&logbuf_lock, flags);
+	logbuf_unlock_irqrestore(flags);
 }
 EXPORT_SYMBOL(register_log_text_hook);
 #endif
@@ -803,14 +774,14 @@ static int log_store(int facility, int level,
 		if (console_suspended == 0)
 			tlen = snprintf(tbuf,
 				sizeof(tbuf),
-				"%c(%x)[%d:%s] ",
+				"%c(%x)[%d:%s]",
 				state, this_cpu,
 				current->pid,
 				current->comm);
 		else
 			tlen = snprintf(tbuf,
 				sizeof(tbuf),
-				"%c(%x) ",
+				"%c(%x)",
 				state,
 				this_cpu);
 	}
@@ -883,9 +854,16 @@ static int log_store(int facility, int level,
 		hook_size = msg_print_text(msg,
 				true, hook_text, LOG_LINE_MAX + PREFIX_MAX);
 		log_text_hook(hook_text, hook_size);
+
 #ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
 		if (msg->for_auto_comment && func_hook_auto_comm)
 			func_hook_auto_comm(msg->type_auto_comment, hook_text, hook_size);
+#endif
+
+#ifdef CONFIG_SEC_DEBUG_INIT_LOG
+		if (task_pid_nr(current) == 1 && func_hook_init_log) {
+			func_hook_init_log(hook_text, hook_size);
+		}
 #endif
 	}
 #endif
@@ -1330,19 +1308,28 @@ void log_buf_vmcoreinfo_setup(void)
 static unsigned long __initdata new_log_buf_len;
 
 /* we practice scaling the ring buffer by powers of 2 */
-static void __init log_buf_len_update(unsigned size)
+static void __init log_buf_len_update(u64 size)
 {
+	if (size > (u64)LOG_BUF_LEN_MAX) {
+		size = (u64)LOG_BUF_LEN_MAX;
+		pr_err("log_buf over 2G is not supported.\n");
+	}
+
 	if (size)
 		size = roundup_pow_of_two(size);
 	if (size > log_buf_len)
-		new_log_buf_len = size;
+		new_log_buf_len = (unsigned long)size;
 }
 
 /* save requested log_buf_len since it's too early to process it */
 static int __init log_buf_len_setup(char *str)
 {
-	unsigned int size = memparse(str, &str);
+	u64 size;
 
+	if (!str)
+		return -EINVAL;
+
+	size = memparse(str, &str);
 	log_buf_len_update(size);
 
 	return 0;
@@ -1386,7 +1373,7 @@ void __init setup_log_buf(int early)
 {
 	unsigned long flags;
 	char *new_log_buf;
-	int free;
+	unsigned int free;
 
 	if (log_buf != __log_buf)
 		return;
@@ -1408,7 +1395,7 @@ void __init setup_log_buf(int early)
 	set_memsize_kernel_type(MEMSIZE_KERNEL_OTHERS);
 
 	if (unlikely(!new_log_buf)) {
-		pr_err("log_buf_len: %ld bytes not available\n",
+		pr_err("log_buf_len: %lu bytes not available\n",
 			new_log_buf_len);
 		return;
 	}
@@ -1421,8 +1408,8 @@ void __init setup_log_buf(int early)
 	memcpy(log_buf, __log_buf, __LOG_BUF_LEN);
 	logbuf_unlock_irqrestore(flags);
 
-	pr_info("log_buf_len: %d bytes\n", log_buf_len);
-	pr_info("early log buf free: %d(%d%%)\n",
+	pr_info("log_buf_len: %u bytes\n", log_buf_len);
+	pr_info("early log buf free: %u(%u%%)\n",
 		free, (free * 100) / __LOG_BUF_LEN);
 }
 
@@ -1543,7 +1530,7 @@ static size_t print_prefix(const struct printk_log *msg, bool syslog, char *buf)
 
 #ifdef CONFIG_PRINTK_MT_PREFIX
 	/* if uart printk enabled */
-	if (syslog == false && printk_disable_uart != 1) {
+	if (syslog == false && mt_get_uartlog_status()) {
 		if (buf)
 			len += sprintf(buf+len, "<%d>", smp_processor_id());
 		else
@@ -2014,7 +2001,7 @@ static void call_console_drivers(const char *ext_text, size_t ext_len,
 
 	for_each_console(con) {
 		/* if uart printk disabled */
-		if ((printk_disable_uart == 1) && (con->flags & CON_CONSDEV))
+		if (!mt_get_uartlog_status() && (con->flags & CON_CONSDEV))
 			continue;
 		if (exclusive_console && con != exclusive_console)
 			continue;
@@ -2240,7 +2227,7 @@ int vprintk_store(int facility, int level,
 		this_cpu_write(printk_state, '-');
 #ifdef CONFIG_MTK_PRINTK_UART_CONSOLE
 	/* if uart printk enabled */
-	else if (printk_disable_uart != 1)
+	else if (mt_get_uartlog_status())
 		this_cpu_write(printk_state, '.');
 #endif
 	else
@@ -2276,7 +2263,7 @@ asmlinkage int vprintk_emit(int facility, int level,
 	logbuf_unlock_irqrestore(flags);
 
 	/* If called from the scheduler, we can not call up(). */
-	if (!in_sched) {
+	if (!in_sched && cpu_online(raw_smp_processor_id())) {
 		/*
 		 * Try to acquire and then immediately release the console
 		 * semaphore.  The release will print out buffers and wake up
@@ -2832,10 +2819,10 @@ skip:
 			memset(conwrite_stat_struct.con_write_statbuf, 0x0,
 				sizeof(conwrite_stat_struct.con_write_statbuf)
 				- 1);
-			snprintf(conwrite_stat_struct.con_write_statbuf,
+			if (snprintf(conwrite_stat_struct.con_write_statbuf,
 				sizeof(conwrite_stat_struct.con_write_statbuf)
 				- 1,
-"cpu%d [%lu.%06lu]--[%lu.%06lu] 'ttyS' %lubytes %lu.%06lus, 'pstore' %lubytes %lu.%06lus\n",
+"cpu%d [%lu.%06lu]--[%lu.%06lu] 'ttyS' %lubytes %lu.%06lus, 'pstore' %lubytes %lu.%06lus, uart dump:%s\n",
 				smp_processor_id(),
 				(unsigned long)con_dura_time,
 				tmp_rem_nsec_start/1000,
@@ -2846,7 +2833,12 @@ skip:
 				rem_nsec_con_write_ttyS/1000,
 				(unsigned long)len_con_write_pstore,
 				(unsigned long)time_con_write_pstore,
-				rem_nsec_con_write_pstore/1000);
+				rem_nsec_con_write_pstore/1000,
+				mtk8250_uart_dump()) < 0) {
+			conwrite_stat_struct.con_write_statbuf[0] = 'N';
+			conwrite_stat_struct.con_write_statbuf[1] = 'A';
+			conwrite_stat_struct.con_write_statbuf[2] = '\0';
+			}
 			break;
 		}
 		/* print the uart status next time enter the console_unlock */
@@ -3729,7 +3721,7 @@ bool kmsg_dump_get_buffer(struct kmsg_dumper *dumper, bool syslog,
 	/* move first record forward until length fits into the buffer */
 	seq = dumper->cur_seq;
 	idx = dumper->cur_idx;
-	while (l > size && seq < dumper->next_seq) {
+	while (l >= size && seq < dumper->next_seq) {
 		struct printk_log *msg = log_from_idx(idx);
 
 		l -= msg_print_text(msg, true, NULL, 0);

@@ -107,7 +107,7 @@ enum _ENUM_BTIF_TEST_CASE_ {
 
 #define BTIF_TX_CTX BTIF_TX_USER_CTX	/* BTIF_TX_SINGLE_CTX */
 
-#define ENABLE_BTIF_RX_THREAD_RT_SCHED 0
+#define ENABLE_BTIF_RX_THREAD_RT_SCHED 1
 #define MAX_BTIF_RXD_TIME_REC 3
 
 /*Structure Defination*/
@@ -369,7 +369,7 @@ int _btif_restore_noirq(struct _mtk_btif_ *p_btif);
 int btif_lpbk_ctrl(struct _mtk_btif_ *p_btif, bool flag);
 int btif_log_buf_dmp_in(struct _btif_log_queue_t_ *p_log_que, const char *p_buf,
 			int len);
-int btif_dump_data(char *p_buf, int len);
+int btif_dump_data(const char *p_buf, int len);
 int btif_log_buf_dmp_out(struct _btif_log_queue_t_ *p_log_que);
 int btif_log_buf_enable(struct _btif_log_queue_t_ *p_log_que);
 int btif_log_buf_disable(struct _btif_log_queue_t_ *p_log_que);
@@ -390,5 +390,8 @@ int btif_rx_data_path_unlock(struct _mtk_btif_ *p_btif);
 int btif_rx_buf_has_pending_data(struct _mtk_btif_ *p_btif);
 int btif_rx_dma_has_pending_data(struct _mtk_btif_ *p_btif);
 int btif_tx_dma_has_pending_data(struct _mtk_btif_ *p_btif);
+void btif_dump_dma_vfifo(struct _mtk_btif_ *p_btif);
+bool btif_is_tx_complete(struct _mtk_btif_ *p_btif);
 struct task_struct *btif_rx_thread_get(struct _mtk_btif_ *p_btif);
+int btif_dump_array(const char *string, const char *p_buf, int len);
 #endif /*__MTK_BTIF_H_*/

@@ -17,8 +17,12 @@
 #include <linux/kthread.h>
 #include <linux/signal.h>
 #include <linux/sched/signal.h>	/* Linux kernel 4.14 */
+#include <linux/mutex.h>
 
 /*** Trusty MT test device attributes ***/
+#define GZ_CONCURRENT_TEST_ENABLE (0)
+#if GZ_CONCURRENT_TEST_ENABLE
+static DEFINE_MUTEX(gz_concurrent_lock);
 static struct task_struct *trusty_task;
 static struct task_struct *nebula_task;
 static struct device *mtee_dev[TEE_ID_END];
@@ -108,16 +112,18 @@ static ssize_t gz_concurrent_show(struct device *dev,
 {
 	char str[256], tmp[256];
 	int i = 0;
+	size_t ret = 0;
 
 	str[0] = '\0';
 
+	mutex_lock(&gz_concurrent_lock);
 	if (trusty_task) {
 		i = snprintf(tmp, 256,
 			"stress_trusty on CPU %d, succeed %lld, failed %lld\n",
 			cpu[0], s_cnt[0], f_cnt[0]);
 		tmp[i] = '\0';
-		strncat(str, tmp, 256);
-		strncat(str, "MTEE 1.0 :stress_trusty_thread Running\n", 256);
+		strncat(str, tmp, 255);
+		strncat(str, "MTEE 1.0 :stress_trusty_thread Running\n", 255);
 		pr_info("stress_trusty on CPU %d, succeed %lld, failed %lld\n",
 			cpu[0], s_cnt[0], f_cnt[0]);
 	}
@@ -127,8 +133,8 @@ static ssize_t gz_concurrent_show(struct device *dev,
 			"stress_nebula on CPU %d, succeed %lld, failed %lld\n",
 			cpu[1], s_cnt[1], f_cnt[1]);
 		tmp[i] = '\0';
-		strncat(str, tmp, 256);
-		strncat(str, "MTEE 2.0 :stress_nebula_thread Running\n", 256);
+		strncat(str, tmp, 255);
+		strncat(str, "MTEE 2.0 :stress_nebula_thread Running\n", 255);
 		pr_info("stress_nebula on CPU %d, succeed %lld, failed %lld\n",
 			cpu[1], s_cnt[1], f_cnt[1]);
 	}
@@ -136,20 +142,24 @@ static ssize_t gz_concurrent_show(struct device *dev,
 	if (!trusty_task && !nebula_task) {
 		strncat(str,
 			"Usage:\techo 1 > start default smc stress for gz33\n",
-			256);
-		strncat(str, "\techo 55 > both thread on cpu 5\n", 256);
+			255);
+		strncat(str, "\techo 55 > both thread on cpu 5\n", 255);
 		strncat(str,
 			"\techo 56 > one thread on cpu 5, another on cpu 6\n",
-			256);
-		strncat(str, "\techo 0 > to stop\n", 256);
+			255);
+		strncat(str, "\techo 0 > to stop\n", 255);
 	}
-	return scnprintf(buf, PAGE_SIZE, "%s", str);
+
+	ret = scnprintf(buf, 256, "%s", str);
+	mutex_unlock(&gz_concurrent_lock);
+
+	return ret;
 }
 
 static ssize_t gz_concurrent_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t n)
 {
-	unsigned long tmp;
+	unsigned long tmp = 0;
 
 	if (!buf)
 		return -EINVAL;
@@ -162,6 +172,7 @@ static ssize_t gz_concurrent_store(struct device *dev,
 	tmp %= 100;
 	pr_info("[%s] get number %lu\n", __func__, tmp);
 
+	mutex_lock(&gz_concurrent_lock);
 	if (tmp == 0) {
 		if (trusty_task) {
 			pr_info("[%s] Stop stress_trusty_thread", __func__);
@@ -173,11 +184,13 @@ static ssize_t gz_concurrent_store(struct device *dev,
 			kthread_stop(nebula_task);
 		}
 		trusty_task = nebula_task = NULL;
+		mutex_unlock(&gz_concurrent_lock);
 		return n;
 	}
 
 	if (trusty_task || nebula_task) {
 		pr_info("[%s] Start already!\n", __func__);
+		mutex_unlock(&gz_concurrent_lock);
 		return n;
 	}
 
@@ -197,28 +210,44 @@ static ssize_t gz_concurrent_store(struct device *dev,
 		cpu[1] = (tmp % 10) & (num_possible_cpus() - 1);
 	}
 
-	kthread_bind(trusty_task, cpu[0]);
 	if (IS_ERR(trusty_task))
 		pr_info("[%s] Unable to start on cpu %d: stress_trusty_thread",
 			__func__, cpu[0]);
 	else {
+		kthread_bind(trusty_task, cpu[0]);
 		pr_info("[%s] Start stress_trusty_thread on cpu %d",
 			__func__, cpu[0]);
 		wake_up_process(trusty_task);
 	}
 
-	kthread_bind(nebula_task, cpu[1]);
 	if (IS_ERR(nebula_task))
 		pr_info("[%s] Unable to start at cpu %d: stress_nebula_thread",
 			__func__, cpu[1]);
 	else {
+		kthread_bind(nebula_task, cpu[1]);
 		pr_info("[%s] Start stress_nebula_thread on cpu %d",
 			__func__, cpu[1]);
 		wake_up_process(nebula_task);
 	}
 
+	mutex_unlock(&gz_concurrent_lock);
+
 	return n;
 }
+#else
+static ssize_t gz_concurrent_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE,
+			 "Not support Geniezone concurrent test\n");
+}
+
+static ssize_t gz_concurrent_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t n)
+{
+	return n;
+}
+#endif // GZ_CONCURRENT_TEST_ENABLE
 DEVICE_ATTR_RW(gz_concurrent);
 
 static ssize_t trusty_add_show(struct device *dev,
@@ -352,7 +381,12 @@ static void trusty_create_debugfs(struct trusty_state *s, struct device *dev)
 
 	pr_info("%s-%s\n", __func__, get_tee_name(s->tee_id));
 
+	if (!is_trusty_tee(s->tee_id))
+		return;
+
+#if GZ_CONCURRENT_TEST_ENABLE
 	mtee_dev[s->tee_id] = dev;
+#endif
 
 	ret = device_create_file(dev, &dev_attr_gz_concurrent);
 	if (ret)
@@ -513,7 +547,12 @@ static void nebula_create_debugfs(struct trusty_state *s, struct device *dev)
 
 	pr_info("%s-%s\n", __func__, get_tee_name(s->tee_id));
 
+	if (!is_nebula_tee(s->tee_id))
+		return;
+
+#if GZ_CONCURRENT_TEST_ENABLE
 	mtee_dev[s->tee_id] = dev;
+#endif
 
 	ret = device_create_file(dev, &dev_attr_vmm_fast_add);
 	if (ret)

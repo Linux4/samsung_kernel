@@ -20,7 +20,7 @@
 #include <linux/usb/cdc.h>
 #include <linux/netdevice.h>
 
-#define QMULT_DEFAULT 10
+#define QMULT_DEFAULT 30
 
 /*
  * dev_addr: initial value
@@ -78,6 +78,7 @@ struct eth_dev {
 	struct work_struct	work;
 	struct work_struct	rx_work;
 	struct work_struct	rx_work1;
+	struct work_struct	rps_map_work;
 	unsigned long		todo;
 #define	WORK_RX_MEMORY		0
 

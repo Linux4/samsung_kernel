@@ -33,14 +33,20 @@
 #include "fstb.h"
 #include "eara_job_usedext.h"
 #include "mtk_upower.h"
+
+#if defined(CONFIG_MTK_APUSYS_SUPPORT)
+#include <linux/platform_device.h>
+#include "apusys_power.h"
+#include "apu_power_table.h"
+#else
+
 #if defined(CONFIG_MTK_VPU_SUPPORT)
 #include "vpu_dvfs.h"
 #endif
 #if defined(CONFIG_MTK_MDLA_SUPPORT)
 #include "mdla_dvfs.h"
 #endif
-
-#define API_READY 0
+#endif
 
 #define MAX_DEVICE 2
 struct EARA_NN_JOB {
@@ -85,21 +91,21 @@ struct ppm_cobra_basic_pwr_data {
 };
 
 #if !defined(CONFIG_MTK_VPU_SUPPORT)
-#define VPU_OPP_NUM 1
+#define APU_OPP_NUM 1
 #endif
 #if !defined(CONFIG_MTK_MDLA_SUPPORT)
-#define MDLA_OPP_NUM 1
+#define APU_OPP_NUM 1
 #endif
 struct eara_vpu_dvfs_info {
-	unsigned int freq[VPU_OPP_NUM];
-	unsigned int capacity_ratio[VPU_OPP_NUM];
-	unsigned int power[VPU_OPP_NUM];
+	unsigned int freq[APU_OPP_NUM];
+	unsigned int capacity_ratio[APU_OPP_NUM];
+	unsigned int power[APU_OPP_NUM];
 };
 
 struct eara_mdla_dvfs_info {
-	unsigned int freq[MDLA_OPP_NUM];
-	unsigned int capacity_ratio[MDLA_OPP_NUM];
-	unsigned int power[MDLA_OPP_NUM];
+	unsigned int freq[APU_OPP_NUM];
+	unsigned int capacity_ratio[APU_OPP_NUM];
+	unsigned int power[APU_OPP_NUM];
 };
 
 struct ppm_cobra_data {
@@ -141,7 +147,7 @@ static struct EARA_NN_JOB *eara_update_job_collect(int pid, int tid,
 		struct EARA_NN_JOB *new_nn_job;
 
 		new_nn_job = kmalloc(sizeof(struct EARA_NN_JOB), GFP_KERNEL);
-		if (!new_nn_job)
+		if (!new_nn_job || !arr_length)
 			goto out;
 
 		new_nn_job->pid = pid;
@@ -181,6 +187,41 @@ static struct EARA_NN_JOB *eara_update_job_collect(int pid, int tid,
 				arr_length * sizeof(__s32));
 			memcpy(iter->exec_time, exec_time,
 				arr_length * sizeof(__u64));
+		} else if (arr_length) {
+			kfree(iter->target_time);
+			kfree(iter->device);
+			kfree(iter->boost);
+			kfree(iter->exec_time);
+			iter->target_time =
+				kmalloc_array(
+					arr_length,
+					sizeof(__u64),
+					GFP_KERNEL);
+			iter->device =
+				kmalloc_array(
+					arr_length,
+					sizeof(__s32),
+					GFP_KERNEL);
+			iter->boost =
+				kmalloc_array(
+					arr_length,
+					sizeof(__s32),
+					GFP_KERNEL);
+			iter->exec_time =
+				kmalloc_array(
+					arr_length,
+					sizeof(__u64),
+					GFP_KERNEL);
+			memcpy(iter->device, device,
+				arr_length *sizeof(__s32));
+			memcpy(iter->boost, boost,
+				arr_length *sizeof(__s32));
+			memcpy(iter->exec_time, exec_time,
+				arr_length *sizeof(__u64));
+			memset(iter->target_time,
+				0, arr_length *sizeof(__u64));
+
+			iter->num_step = num_step;
 		}
 
 		iter->pid = pid;
@@ -269,7 +310,7 @@ static void eara_set_exec_time(unsigned int pid,
 	int i, j;
 
 	mutex_lock(&eara_lock);
-	fpsgo_systrace_c_fstb(-1000, pid, "pid");
+	fpsgo_systrace_c_fstb(-1000, 0, pid, "pid");
 	nn_job = eara_find_entry(pid, mid);
 
 	if (!nn_job)
@@ -291,8 +332,8 @@ static void eara_set_exec_time(unsigned int pid,
 			}
 		}
 
-	fpsgo_systrace_c_fstb(-1000, v_ttime, "v_ttime");
-	fpsgo_systrace_c_fstb(-1000, m_ttime, "m_ttime");
+	fpsgo_systrace_c_fstb(-1000, 0, v_ttime, "v_ttime");
+	fpsgo_systrace_c_fstb(-1000, 0, m_ttime, "m_ttime");
 out:
 	mutex_unlock(&eara_lock);
 
@@ -378,15 +419,15 @@ static int eara_job_qos_ind_cb(struct notifier_block *nb,
 	switch (val) {
 	case POB_QOS_IND_BWBOUND_FREE:
 			bw_bound = 0;
-			fpsgo_systrace_c_fstb(-500, bw_bound, "bw_bound");
+			fpsgo_systrace_c_fstb(-500, 0, bw_bound, "bw_bound");
 		break;
 	case POB_QOS_IND_BWBOUND_CONGESTIVE:
 			bw_bound = 0;
-			fpsgo_systrace_c_fstb(-500, bw_bound, "bw_bound");
+			fpsgo_systrace_c_fstb(-500, 0, bw_bound, "bw_bound");
 		break;
 	case POB_QOS_IND_BWBOUND_FULL:
 			bw_bound = 1;
-			fpsgo_systrace_c_fstb(-500, bw_bound, "bw_bound");
+			fpsgo_systrace_c_fstb(-500, 0, bw_bound, "bw_bound");
 		break;
 	default:
 		break;
@@ -458,7 +499,7 @@ int fpsgo_ctrl2eara_get_nn_priority(unsigned int pid,
 	else if (nn_job)
 		priority = nn_job->priority;
 
-	fpsgo_systrace_c_fstb(-1000,
+	fpsgo_systrace_c_fstb(-1000, 0,
 		priority, "hw_type");
 
 	mutex_unlock(&eara_lock);
@@ -475,7 +516,7 @@ void fpsgo_ctrl2eara_get_nn_ttime(unsigned int pid,
 	mutex_lock(&eara_lock);
 	nn_job = eara_find_entry(pid, mid);
 
-	if (!nn_job || ai_bench) {
+	if (!nn_job || ai_bench || nn_job->num_step != num_step) {
 		for (i = 0; i < num_step; i++)
 			for (j = 0; j < MAX_DEVICE; j++)
 				ttime[i * MAX_DEVICE + j] = 0;
@@ -591,7 +632,7 @@ static unsigned int get_v_opp(unsigned int capacity_ratio)
 {
 	int opp;
 
-	for (opp = 0; opp < VPU_OPP_NUM &&
+	for (opp = 0; opp < APU_OPP_NUM &&
 		capacity_ratio < eara_vpu_table.capacity_ratio[opp]; opp++)
 		;
 
@@ -605,7 +646,7 @@ static unsigned int get_m_opp(unsigned int capacity_ratio)
 {
 	int opp;
 
-	for (opp = 0; opp < MDLA_OPP_NUM &&
+	for (opp = 0; opp < APU_OPP_NUM &&
 		capacity_ratio < eara_mdla_table.capacity_ratio[opp]; opp++)
 		;
 
@@ -665,9 +706,9 @@ static int decrease_xpu_cap(long long *t_c_time,
 	new_mdla_time = m_time;
 	new_cpu_opp = get_c_opp(c_cap);
 	new_vpu_opp =
-		v_time ? get_v_opp(v_cap) : VPU_OPP_NUM - 1;
+		v_time ? get_v_opp(v_cap) : APU_OPP_NUM - 1;
 	new_mdla_opp =
-		m_time ? get_m_opp(m_cap) : MDLA_OPP_NUM - 1;
+		m_time ? get_m_opp(m_cap) : APU_OPP_NUM - 1;
 
 	ori_cpu_power = c_time / 1000 *
 		eara_cpu_table.power[new_cpu_opp];
@@ -679,8 +720,8 @@ static int decrease_xpu_cap(long long *t_c_time,
 	while ((new_cpu_time + new_vpu_time + new_mdla_time * 100) <
 			t_t_t *TARGET_TIME_MARGIN &&
 			(new_cpu_opp < NR_FREQ_CPU - 1 ||
-			 new_vpu_opp < VPU_OPP_NUM - 1 ||
-			 new_mdla_opp < MDLA_OPP_NUM - 1)) {
+			 new_vpu_opp < APU_OPP_NUM - 1 ||
+			 new_mdla_opp < APU_OPP_NUM - 1)) {
 
 		dbg_cnt++;
 
@@ -704,7 +745,7 @@ static int decrease_xpu_cap(long long *t_c_time,
 				ori_cpu_power - new_cpu_power;
 		}
 
-		if (new_vpu_opp < VPU_OPP_NUM - 1) {
+		if (new_vpu_opp < APU_OPP_NUM - 1) {
 			new_vpu_opp = new_vpu_opp + 1;
 			new_vpu_cap =
 				eara_vpu_table.capacity_ratio[
@@ -718,7 +759,7 @@ static int decrease_xpu_cap(long long *t_c_time,
 				ori_vpu_power - new_vpu_power;
 		}
 
-		if (new_mdla_opp < MDLA_OPP_NUM - 1) {
+		if (new_mdla_opp < APU_OPP_NUM - 1) {
 			new_mdla_opp = new_mdla_opp + 1;
 			new_mdla_cap =
 				eara_mdla_table.capacity_ratio[
@@ -821,21 +862,21 @@ static int decrease_xpu_cap(long long *t_c_time,
 	*t_v_time = new_vpu_time;
 	*t_m_time = new_mdla_time;
 
-	fpsgo_systrace_c_fstb(-500, (int)min_cpu_time, "min_cpu_time");
-	fpsgo_systrace_c_fstb(-500, (int)min_vpu_time, "min_vpu_time");
-	fpsgo_systrace_c_fstb(-500, (int)min_mdla_time, "min_mdla_time");
-	fpsgo_systrace_c_fstb(-500, (int)new_cpu_power, "new_c_power");
-	fpsgo_systrace_c_fstb(-500, (int)new_cpu_time, "new_c_time");
-	fpsgo_systrace_c_fstb(-500, (int)new_cpu_opp, "new_c_opp");
-	fpsgo_systrace_c_fstb(-500, (int)new_cpu_cap, "new_c_cap");
-	fpsgo_systrace_c_fstb(-500, (int)new_vpu_power, "new_v_power");
-	fpsgo_systrace_c_fstb(-500, (int)new_vpu_time, "new_v_time");
-	fpsgo_systrace_c_fstb(-500, (int)new_vpu_opp, "new_v_opp");
-	fpsgo_systrace_c_fstb(-500, (int)new_vpu_cap, "new_v_cap");
-	fpsgo_systrace_c_fstb(-500, (int)new_mdla_power, "new_m_power");
-	fpsgo_systrace_c_fstb(-500, (int)new_mdla_time, "new_m_time");
-	fpsgo_systrace_c_fstb(-500, (int)new_mdla_opp, "new_m_opp");
-	fpsgo_systrace_c_fstb(-500, (int)new_mdla_cap, "new_m_cap");
+	fpsgo_systrace_c_fstb(-500, 0, (int)min_cpu_time, "min_cpu_time");
+	fpsgo_systrace_c_fstb(-500, 0, (int)min_vpu_time, "min_vpu_time");
+	fpsgo_systrace_c_fstb(-500, 0, (int)min_mdla_time, "min_mdla_time");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_cpu_power, "new_c_power");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_cpu_time, "new_c_time");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_cpu_opp, "new_c_opp");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_cpu_cap, "new_c_cap");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_vpu_power, "new_v_power");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_vpu_time, "new_v_time");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_vpu_opp, "new_v_opp");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_vpu_cap, "new_v_cap");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_mdla_power, "new_m_power");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_mdla_time, "new_m_time");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_mdla_opp, "new_m_opp");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_mdla_cap, "new_m_cap");
 
 	return 0;
 }
@@ -960,7 +1001,9 @@ static int increase_xpu_cap(long long *t_c_time, long long *t_v_time,
 
 #if defined(CONFIG_MTK_VPU_SUPPORT)
 			if (power_diff_v != INT_MAX) {
-				new_vpu_opp++;
+				new_vpu_opp =
+					new_vpu_opp < APU_OPP_NUM - 1 ?
+					new_vpu_opp + 1 : APU_OPP_NUM - 1;
 				new_vpu_cap =
 					eara_vpu_table.capacity_ratio[
 					new_vpu_opp];
@@ -971,7 +1014,9 @@ static int increase_xpu_cap(long long *t_c_time, long long *t_v_time,
 
 #if defined(CONFIG_MTK_MDLA_SUPPORT)
 			if (power_diff_m != INT_MAX) {
-				new_mdla_opp++;
+				new_mdla_opp =
+					new_mdla_opp < APU_OPP_NUM - 1 ?
+					new_mdla_opp + 1 : APU_OPP_NUM - 1;
 				new_mdla_cap =
 					eara_mdla_table.capacity_ratio[
 					new_mdla_opp];
@@ -1038,21 +1083,21 @@ static int increase_xpu_cap(long long *t_c_time, long long *t_v_time,
 	*t_v_time = new_vpu_time;
 	*t_m_time = new_mdla_time;
 
-	fpsgo_systrace_c_fstb(-500, (int)min_cpu_time, "min_cpu_time");
-	fpsgo_systrace_c_fstb(-500, (int)min_vpu_time, "min_vpu_time");
-	fpsgo_systrace_c_fstb(-500, (int)min_mdla_time, "min_mdla_time");
-	fpsgo_systrace_c_fstb(-500, (int)new_cpu_power, "new_c_power");
-	fpsgo_systrace_c_fstb(-500, (int)new_cpu_time, "new_c_time");
-	fpsgo_systrace_c_fstb(-500, (int)new_cpu_opp, "new_c_opp");
-	fpsgo_systrace_c_fstb(-500, (int)new_cpu_cap, "new_c_cap");
-	fpsgo_systrace_c_fstb(-500, (int)new_vpu_power, "new_v_power");
-	fpsgo_systrace_c_fstb(-500, (int)new_vpu_time, "new_v_time");
-	fpsgo_systrace_c_fstb(-500, (int)new_vpu_opp, "new_v_opp");
-	fpsgo_systrace_c_fstb(-500, (int)new_vpu_cap, "new_v_cap");
-	fpsgo_systrace_c_fstb(-500, (int)new_mdla_power, "new_m_power");
-	fpsgo_systrace_c_fstb(-500, (int)new_mdla_time, "new_m_time");
-	fpsgo_systrace_c_fstb(-500, (int)new_mdla_opp, "new_m_opp");
-	fpsgo_systrace_c_fstb(-500, (int)new_mdla_cap, "new_m_cap");
+	fpsgo_systrace_c_fstb(-500, 0, (int)min_cpu_time, "min_cpu_time");
+	fpsgo_systrace_c_fstb(-500, 0, (int)min_vpu_time, "min_vpu_time");
+	fpsgo_systrace_c_fstb(-500, 0, (int)min_mdla_time, "min_mdla_time");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_cpu_power, "new_c_power");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_cpu_time, "new_c_time");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_cpu_opp, "new_c_opp");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_cpu_cap, "new_c_cap");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_vpu_power, "new_v_power");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_vpu_time, "new_v_time");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_vpu_opp, "new_v_opp");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_vpu_cap, "new_v_cap");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_mdla_power, "new_m_power");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_mdla_time, "new_m_time");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_mdla_opp, "new_m_opp");
+	fpsgo_systrace_c_fstb(-500, 0, (int)new_mdla_cap, "new_m_cap");
 
 	return 0;
 }
@@ -1071,16 +1116,16 @@ void fpsgo_fstb2eara_optimize_power(unsigned long long mid,
 		v_m_time = 0;
 		/*drops*/
 	} else if (c_time + v_time + m_time > t_t_t) {
-		fpsgo_systrace_c_fstb(-500, 1, "pframe_state");
+		fpsgo_systrace_c_fstb(-500, 0, 1, "pframe_state");
 		increase_xpu_cap(&v_c_time, &v_v_time, &v_m_time, t_t_t,
 			c_time, v_time, m_time, c_cap, v_cap, m_cap);
 	} else if ((c_time + v_time + m_time * 100LL) <
 		t_t_t *TARGET_TIME_MARGIN) {
-		fpsgo_systrace_c_fstb(-500, 2, "pframe_state");
+		fpsgo_systrace_c_fstb(-500, 0, 2, "pframe_state");
 		decrease_xpu_cap(&v_c_time, &v_v_time, &v_m_time, t_t_t,
 			c_time, v_time, m_time, c_cap, v_cap, m_cap);
 	} else {
-		fpsgo_systrace_c_fstb(-500, 0, "pframe_state");
+		fpsgo_systrace_c_fstb(-500, 0, 0, "pframe_state");
 		v_c_time = c_time;
 		v_v_time = v_time;
 		v_m_time = m_time;
@@ -1103,9 +1148,7 @@ static void get_pwr_tbl(void)
 	unsigned int temp2;
 	int cluster_num = 2;
 
-#if API_READY
 	cobra_tbl = ppm_cobra_pass_tbl();
-#endif
 	if (!cobra_tbl)
 		return;
 
@@ -1143,9 +1186,24 @@ static void get_pwr_tbl(void)
 	memcpy(&eara_cpu_table, &(cpu_dvfs[cluster_num - 1]),
 		sizeof(eara_cpu_table));
 
+#ifdef CONFIG_MTK_APUSYS_SUPPORT
+	if (!apusys_power_check())
+		return;
+#endif
+
 #if defined(CONFIG_MTK_VPU_SUPPORT)
-#if API_READY
-	for (opp = 0; opp < VPU_OPP_NUM; opp++) {
+	for (opp = 0; opp < APU_OPP_NUM; opp++) {
+#ifdef CONFIG_MTK_APUSYS_SUPPORT
+		eara_vpu_table.power[opp] =
+			vpu_power_table[opp].power;
+		eara_vpu_table.freq[opp] =
+			apusys_opp_to_freq(VPU0, opp);
+		if (apusys_opp_to_freq(VPU0, 0))
+			eara_vpu_table.capacity_ratio[opp] =
+				apusys_opp_to_freq(VPU0, opp) *
+				100 / apusys_opp_to_freq(VPU0, 0);
+#else
+#if 0
 		eara_vpu_table.power[opp] =
 			vpu_power_table[opp].power;
 		eara_vpu_table.freq[opp] =
@@ -1153,13 +1211,23 @@ static void get_pwr_tbl(void)
 		eara_vpu_table.capacity_ratio[opp] =
 			get_vpu_opp_to_freq(opp) *
 			100 / get_vpu_opp_to_freq(0);
-	}
 #endif
+#endif
+	}
 #endif
 
 #if defined(CONFIG_MTK_MDLA_SUPPORT)
-#if API_READY
-	for (opp = 0; opp < MDLA_OPP_NUM; opp++) {
+	for (opp = 0; opp < APU_OPP_NUM; opp++) {
+#ifdef CONFIG_MTK_APUSYS_SUPPORT
+		eara_mdla_table.power[opp] =
+			mdla_power_table[opp].power;
+		eara_mdla_table.freq[opp] =
+			apusys_opp_to_freq(MDLA0, opp);
+		if (apusys_opp_to_freq(MDLA0, 0))
+			eara_mdla_table.capacity_ratio[opp] =
+				apusys_opp_to_freq(MDLA0, opp) *
+				100 / apusys_opp_to_freq(MDLA0, 0);
+#else
 		eara_mdla_table.power[opp] =
 			mdla_power_table[opp].power;
 		eara_mdla_table.freq[opp] =
@@ -1167,8 +1235,8 @@ static void get_pwr_tbl(void)
 		eara_mdla_table.capacity_ratio[opp] =
 			get_mdla_opp_to_freq(opp) *
 			100 / get_mdla_opp_to_freq(0);
-	}
 #endif
+	}
 #endif
 }
 
@@ -1284,14 +1352,14 @@ static int eara_pwr_tbl_read(struct seq_file *m, void *v)
 				eara_cpu_table.power[opp]);
 
 	seq_puts(m, "VPU\n");
-	for (opp = 0; opp < VPU_OPP_NUM; opp++)
+	for (opp = 0; opp < APU_OPP_NUM; opp++)
 		seq_printf(m, "%d\t%d\t%d\n",
 				eara_vpu_table.freq[opp],
 				eara_vpu_table.capacity_ratio[opp],
 				eara_vpu_table.power[opp]);
 
 	seq_puts(m, "MDLA\n");
-	for (opp = 0; opp < MDLA_OPP_NUM; opp++)
+	for (opp = 0; opp < APU_OPP_NUM; opp++)
 		seq_printf(m, "%d\t%d\t%d\n",
 				eara_mdla_table.freq[opp],
 				eara_mdla_table.capacity_ratio[opp],

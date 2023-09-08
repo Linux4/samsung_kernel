@@ -321,16 +321,16 @@ struct MFB_REQUEST_STRUCT {
 	pid_t processID;	/* caller process ID */
 	unsigned int callerID;	/* caller thread ID */
 	unsigned int enqueReqNum;/* to judge it belongs to which frame package*/
-	signed int FrameWRIdx;	/* Frame write Index */
-	signed int RrameRDIdx;	/* Frame read Index */
+	unsigned int FrameWRIdx;	/* Frame write Index */
+	unsigned int RrameRDIdx;	/* Frame read Index */
 	enum MFB_FRAME_STATUS_ENUM
 		MfbFrameStatus[_SUPPORT_MAX_MFB_FRAME_REQUEST_];
 	MFB_Config MfbFrameConfig[_SUPPORT_MAX_MFB_FRAME_REQUEST_];
 };
 
 struct MFB_REQUEST_RING_STRUCT {
-	signed int WriteIdx;	/* enque how many request  */
-	signed int ReadIdx;		/* read which request index */
+	unsigned int WriteIdx;	/* enque how many request  */
+	unsigned int ReadIdx;		/* read which request index */
 	signed int HWProcessIdx;	/* HWWriteIdx */
 	struct MFB_REQUEST_STRUCT
 		MFBReq_Struct[_SUPPORT_MAX_MFB_REQUEST_RING_SIZE_];
@@ -422,6 +422,7 @@ static struct SV_LOG_STR gSvLog[MFB_IRQ_TYPE_AMOUNT];
  */
 #if 1
 #define IRQ_LOG_KEEPER(irq, ppb, logT, fmt, ...) do {\
+	int err_ret; \
 	char *ptr; \
 	char *pDes;\
 	unsigned int *ptr2 = &gSvLog[irq]._cnt[ppb][logT];\
@@ -437,7 +438,10 @@ static struct SV_LOG_STR gSvLog[MFB_IRQ_TYPE_AMOUNT];
 	} \
 	ptr = pDes = (char *)&(\
 	    gSvLog[irq]._str[ppb][logT][gSvLog[irq]._cnt[ppb][logT]]); \
-	sprintf((char *)(pDes), fmt, ##__VA_ARGS__);   \
+	err_ret = sprintf((char *)(pDes), fmt, ##__VA_ARGS__);   \
+	if (err_ret < 0) { \
+		log_err("sprintf return fail"); \
+	} \
 	if ('\0' != gSvLog[irq]._str[ppb][logT][str_leng - 1]) {\
 		log_err("log str over flow(%d)", irq);\
 	} \
@@ -456,8 +460,8 @@ static struct SV_LOG_STR gSvLog[MFB_IRQ_TYPE_AMOUNT];
 	struct SV_LOG_STR *pSrc = &gSvLog[irq];\
 	char *ptr;\
 	unsigned int i;\
-	signed int ppb = 0;\
-	signed int logT = 0;\
+	unsigned int ppb = 0;\
+	unsigned int logT = 0;\
 	if (ppb_in > 1) {\
 		ppb = 1;\
 	} else{\
@@ -938,7 +942,7 @@ static inline unsigned int MFB_JiffiesToMs(unsigned int Jiffies)
 }
 
 
-static bool ConfigMFBRequest(signed int ReqIdx)
+static bool ConfigMFBRequest(unsigned int ReqIdx)
 {
 #ifdef MFB_USE_GCE
 	unsigned int j;
@@ -1936,158 +1940,6 @@ static inline void MFB_Reset(void)
 
 }
 
-/******************************************************************************
- *
- ******************************************************************************/
-static signed int MFB_ReadReg(MFB_REG_IO_STRUCT *pRegIo)
-{
-	unsigned int i;
-	signed int Ret = 0;
-	/*  */
-	MFB_REG_STRUCT reg;
-	/* unsigned int* pData = (unsigned int*)pRegIo->Data; */
-	MFB_REG_STRUCT *pData = (MFB_REG_STRUCT *) pRegIo->pData;
-
-	for (i = 0; i < pRegIo->Count; i++) {
-		if (get_user(reg.Addr, (unsigned int *) &pData->Addr) != 0) {
-			log_err("get_user failed");
-			Ret = -EFAULT;
-			goto EXIT;
-		}
-		/* pData++; */
-		/*  */
-		if ((ISP_MFB_BASE + reg.Addr >= ISP_MFB_BASE)
-		    && (reg.Addr < MFB_REG_RANGE)
-			&& ((reg.Addr & 0x3) == 0)) {
-			reg.Val = MFB_RD32(ISP_MFB_BASE + reg.Addr);
-		} else {
-			log_err(
-			    "Wrong address(0x%p), MFB_BASE(0x%p), Addr(0x%lx)",
-			    (ISP_MFB_BASE + reg.Addr),
-			    ISP_MFB_BASE,
-			    (unsigned long)reg.Addr);
-			reg.Val = 0;
-		}
-		/*  */
-		/* printk("[KernelRDReg]addr(0x%x), */
-		/*	value()0x%x\n",MFB_ADDR_CAMINF + reg.Addr,reg.Val); */
-
-		if (put_user(reg.Val, (unsigned int *) &(pData->Val)) != 0) {
-			log_err("put_user failed");
-			Ret = -EFAULT;
-			goto EXIT;
-		}
-		pData++;
-		/*  */
-	}
-	/*  */
-EXIT:
-	return Ret;
-}
-
-
-/******************************************************************************
- *
- ******************************************************************************/
-/* Can write sensor's test model only, if need write to other modules,
- * need modify current code flow
- */
-static signed int MFB_WriteRegToHw(MFB_REG_STRUCT *pReg, unsigned int Count)
-{
-	signed int Ret = 0;
-	unsigned int i;
-	bool dbgWriteReg;
-
-	/* Use local variable to store MFBInfo.DebugMask & MFB_DBG_WRITE_REG
-	 * for saving lock time
-	 */
-	spin_lock(&(MFBInfo.SpinLockMFB));
-	dbgWriteReg = MFBInfo.DebugMask & MFB_DBG_WRITE_REG;
-	spin_unlock(&(MFBInfo.SpinLockMFB));
-
-	/*  */
-	if (dbgWriteReg)
-		log_dbg("- E.\n");
-
-	/*  */
-	for (i = 0; i < Count; i++) {
-		if (dbgWriteReg) {
-			log_dbg("Addr(0x%lx), Val(0x%x)\n",
-				(unsigned long)(ISP_MFB_BASE + pReg[i].Addr),
-				(unsigned int) (pReg[i].Val));
-		}
-
-		if ((pReg[i].Addr < MFB_REG_RANGE) &&
-		    ((pReg[i].Addr & 0x3) == 0)) {
-			MFB_WR32(ISP_MFB_BASE + pReg[i].Addr, pReg[i].Val);
-		} else {
-			log_err(
-			  "wrong address(0x%p), MFB_BASE(0x%p), Addr(0x%lx)\n",
-			  (ISP_MFB_BASE + pReg[i].Addr),
-			  ISP_MFB_BASE,
-			  (unsigned long)pReg[i].Addr);
-		}
-	}
-
-	/*  */
-	return Ret;
-}
-
-
-
-/******************************************************************************
- *
- ******************************************************************************/
-static signed int MFB_WriteReg(MFB_REG_IO_STRUCT *pRegIo)
-{
-	signed int Ret = 0;
-	/* unsigned char* pData = NULL; */
-	MFB_REG_STRUCT *pData = NULL;
-	/*	*/
-	if (MFBInfo.DebugMask & MFB_DBG_WRITE_REG)
-		log_dbg("Data(0x%p), Count(%d)\n",
-			(pRegIo->pData), (pRegIo->Count));
-
-	if ((pRegIo->pData == NULL) || (pRegIo->Count == 0) ||
-	    (pRegIo->Count > (MFB_REG_RANGE>>2))) {
-		log_err("ERROR: pRegIo->pData is NULL or Count:%d\n",
-		    pRegIo->Count);
-		Ret = -EFAULT;
-		goto EXIT;
-	}
-	/* pData = (unsigned char*)kmalloc(
-	 *	(pRegIo->Count)*sizeof(MFB_REG_STRUCT), GFP_ATOMIC);
-	 */
-	pData = kmalloc((pRegIo->Count) * sizeof(MFB_REG_STRUCT), GFP_KERNEL);
-	if (pData == NULL) {
-		#if 0
-		log_err(
-		  "ERROR: kmalloc failed, (process, pid, tgid)=(%s, %d, %d)\n",
-		  current->comm,
-		  current->pid,
-		  current->tgid);
-		#endif
-		Ret = -ENOMEM;
-		goto EXIT;
-	}
-	if (copy_from_user(pData, (void __user *)(pRegIo->pData),
-	    pRegIo->Count * sizeof(MFB_REG_STRUCT)) != 0) {
-		log_err("copy_from_user failed\n");
-		Ret = -EFAULT;
-		goto EXIT;
-	}
-	/*  */
-	Ret = MFB_WriteRegToHw(pData, pRegIo->Count);
-	/*  */
-EXIT:
-	if (pData != NULL) {
-		kfree(pData);
-		pData = NULL;
-	}
-	return Ret;
-}
-
-
 
 /******************************************************************************
  *
@@ -2316,12 +2168,11 @@ static long MFB_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 	signed int Ret = 0;
 
 	/*unsigned int pid = 0;*/
-	MFB_REG_IO_STRUCT RegIo;
 	MFB_WAIT_IRQ_STRUCT IrqInfo;
 	MFB_CLEAR_IRQ_STRUCT ClearIrq;
 	MFB_Config mfb_MfbConfig;
 	MFB_Request mfb_MfbReq;
-	signed int MfbWriteIdx = 0;
+	unsigned int MfbWriteIdx = 0;
 	int idx;
 	struct MFB_USER_INFO_STRUCT *pUserInfo;
 	int enqueNum;
@@ -2358,6 +2209,7 @@ static long MFB_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 			Ret = MFB_DumpReg();
 			break;
 		}
+	/*
 	case MFB_DUMP_ISR_LOG:
 		{
 			unsigned int currentPPB = m_CurrentPPB;
@@ -2376,34 +2228,7 @@ static long MFB_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 				MFB_IRQ_TYPE_INT_MFB_ST, currentPPB, _LOG_ERR);
 			break;
 		}
-	case MFB_READ_REGISTER:
-		{
-			if (copy_from_user(&RegIo, (void *)Param,
-			    sizeof(MFB_REG_IO_STRUCT)) == 0) {
-				/* 2nd layer behavoir of copy from user is
-				 * implemented in MFB_ReadReg(...)
-				 */
-				Ret = MFB_ReadReg(&RegIo);
-			} else {
-				log_err("MFB_READ_REGISTER copy_from_user failed");
-				Ret = -EFAULT;
-			}
-			break;
-		}
-	case MFB_WRITE_REGISTER:
-		{
-			if (copy_from_user(&RegIo,
-			    (void *)Param, sizeof(MFB_REG_IO_STRUCT)) == 0) {
-				/* 2nd layer behavoir of copy from user is
-				 * implemented in MFB_WriteReg(...)
-				 */
-				Ret = MFB_WriteReg(&RegIo);
-			} else {
-				log_err("MFB_WRITE_REGISTER copy_from_user failed");
-				Ret = -EFAULT;
-			}
-			break;
-		}
+	*/
 	case MFB_WAIT_IRQ:
 		{
 			if (copy_from_user(&IrqInfo, (void *)Param,
@@ -3021,35 +2846,6 @@ EXIT:
 /******************************************************************************
  *
  ******************************************************************************/
-static int compat_get_MFB_read_register_data(
-	compat_MFB_REG_IO_STRUCT __user *data32,
-	MFB_REG_IO_STRUCT __user *data)
-{
-	compat_uint_t count;
-	compat_uptr_t uptr;
-	int err;
-
-	err = get_user(uptr, &data32->pData);
-	err |= put_user(compat_ptr(uptr), &data->pData);
-	err |= get_user(count, &data32->Count);
-	err |= put_user(count, &data->Count);
-	return err;
-}
-
-static int compat_put_MFB_read_register_data(
-	compat_MFB_REG_IO_STRUCT __user *data32,
-	MFB_REG_IO_STRUCT __user *data)
-{
-	compat_uint_t count;
-	/*compat_uptr_t uptr;*/
-	int err = 0;
-	/* Assume data pointer is unchanged. */
-	/* err = get_user(compat_ptr(uptr), &data->pData); */
-	/* err |= put_user(uptr, &data32->pData); */
-	err |= get_user(count, &data->Count);
-	err |= put_user(count, &data32->Count);
-	return err;
-}
 
 static int compat_get_MFB_enque_req_data(
 	compat_MFB_Request __user *data32,
@@ -3122,55 +2918,6 @@ static long MFB_ioctl_compat(
 		return -ENOTTY;
 	}
 	switch (cmd) {
-	case COMPAT_MFB_READ_REGISTER:
-		{
-			compat_MFB_REG_IO_STRUCT __user *data32;
-			MFB_REG_IO_STRUCT __user *data;
-			int err;
-
-			data32 = compat_ptr(arg);
-			data = compat_alloc_user_space(sizeof(*data));
-			if (data == NULL)
-				return -EFAULT;
-
-			err = compat_get_MFB_read_register_data(data32, data);
-			if (err) {
-				log_inf(
-				    "compat_get_MFB_read_register_data error!!!\n");
-				return err;
-			}
-			ret =
-			    filp->f_op->unlocked_ioctl(filp, MFB_READ_REGISTER,
-						       (unsigned long)data);
-			err = compat_put_MFB_read_register_data(data32, data);
-			if (err) {
-				log_inf(
-				    "compat_put_MFB_read_register_data error!!!\n");
-				return err;
-			}
-			return ret;
-		}
-	case COMPAT_MFB_WRITE_REGISTER:
-		{
-			compat_MFB_REG_IO_STRUCT __user *data32;
-			MFB_REG_IO_STRUCT __user *data;
-			int err;
-
-			data32 = compat_ptr(arg);
-			data = compat_alloc_user_space(sizeof(*data));
-			if (data == NULL)
-				return -EFAULT;
-
-			err = compat_get_MFB_read_register_data(data32, data);
-			if (err) {
-				log_inf("COMPAT_MFB_WRITE_REGISTER error!!!\n");
-				return err;
-			}
-			ret =
-			    filp->f_op->unlocked_ioctl(filp, MFB_WRITE_REGISTER,
-						       (unsigned long)data);
-			return ret;
-		}
 	case COMPAT_MFB_ENQUE_REQ:
 		{
 			compat_MFB_Request __user *data32;
@@ -3232,7 +2979,7 @@ static long MFB_ioctl_compat(
 	case MFB_DEQUE:
 	case MFB_RESET:
 	case MFB_DUMP_REG:
-	case MFB_DUMP_ISR_LOG:
+	/* case MFB_DUMP_ISR_LOG: */
 		return filp->f_op->unlocked_ioctl(filp, cmd, arg);
 	default:
 		return -ENOIOCTLCMD;
@@ -3390,49 +3137,6 @@ EXIT:
 	return 0;
 }
 
-
-/******************************************************************************
- *
- ******************************************************************************/
-static signed int MFB_mmap(struct file *pFile, struct vm_area_struct *pVma)
-{
-	unsigned long length = 0;
-	unsigned int pfn = 0x0;
-
-	length = pVma->vm_end - pVma->vm_start;
-	/*  */
-	pVma->vm_page_prot = pgprot_noncached(pVma->vm_page_prot);
-	pfn = pVma->vm_pgoff << PAGE_SHIFT;
-
-	log_inf(
-	    "%s:vm_pgoff(0x%lx) pfn(0x%x) phy(0x%lx) vm_start(0x%lx) vm_end(0x%lx) length(0x%lx)",
-	    __func__,
-	    pVma->vm_pgoff,
-	    pfn, pVma->vm_pgoff << PAGE_SHIFT,
-	    pVma->vm_start, pVma->vm_end, length);
-
-	switch (pfn) {
-	case MFB_BASE_HW:
-		if (length > MFB_REG_RANGE) {
-			log_err("mmap range error :module:0x%x length(0x%lx),MFB_REG_RANGE(0x%x)!",
-				pfn, length, MFB_REG_RANGE);
-			return -EAGAIN;
-		}
-		break;
-	default:
-		log_err("Illegal starting HW addr for mmap!");
-		return -EAGAIN;
-	}
-	if (remap_pfn_range(
-		pVma, pVma->vm_start, pVma->vm_pgoff,
-		pVma->vm_end - pVma->vm_start,
-		pVma->vm_page_prot)) {
-		return -EAGAIN;
-	}
-	/*  */
-	return 0;
-}
-
 /******************************************************************************
  *
  ******************************************************************************/
@@ -3446,7 +3150,7 @@ static const struct file_operations MFBFileOper = {
 	.open = MFB_open,
 	.release = MFB_release,
 	/* .flush   = mt_MFB_flush, */
-	.mmap = MFB_mmap,
+	/* .mmap = MFB_mmap, */
 	.unlocked_ioctl = MFB_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl = MFB_ioctl_compat,
@@ -3974,7 +3678,7 @@ static struct platform_driver MFBDriver = {
 	}
 };
 
-
+#if 0
 static int mfb_dump_read(struct seq_file *m, void *v)
 {
 	int i, j;
@@ -4049,7 +3753,6 @@ static int mfb_dump_read(struct seq_file *m, void *v)
 	return 0;
 }
 
-
 static int proc_mfb_dump_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, mfb_dump_read, NULL);
@@ -4060,7 +3763,6 @@ static const struct file_operations mfb_dump_proc_fops = {
 	.open = proc_mfb_dump_open,
 	.read = seq_read,
 };
-
 
 static int mfb_reg_read(struct seq_file *m, void *v)
 {
@@ -4091,7 +3793,7 @@ static ssize_t mfb_reg_write(
 	size_t count, loff_t *data)
 {
 	char desc[128];
-	int len = 0;
+	unsigned int len = 0;
 	/*char *pEnd;*/
 	char addrSzBuf[24];
 	char valSzBuf[24];
@@ -4201,7 +3903,7 @@ static const struct file_operations mfb_reg_proc_fops = {
 	.read = seq_read,
 	.write = mfb_reg_write,
 };
-
+#endif
 
 /******************************************************************************
  *
@@ -4248,9 +3950,10 @@ static signed int __init MFB_Init(void)
 	void *tmp;
 	/* FIX-ME: linux-3.10 procfs API changed */
 	/* use proc_create */
-	struct proc_dir_entry *proc_entry;
+#if 0
+	/* struct proc_dir_entry *proc_entry; */
 	struct proc_dir_entry *isp_mfb_dir;
-
+#endif
 
 	int i;
 	/*  */
@@ -4278,6 +3981,7 @@ static signed int __init MFB_Init(void)
 	log_dbg("ISP_MFB_BASE: %lx\n", ISP_MFB_BASE);
 #endif
 
+#if 0
 	isp_mfb_dir = proc_mkdir("mfb", NULL);
 	if (!isp_mfb_dir) {
 		log_err("[%s]: fail to mkdir /proc/mfb\n", __func__);
@@ -4287,12 +3991,12 @@ static signed int __init MFB_Init(void)
 	/* proc_entry = proc_create("pll_test", 0644, */
 	/*	isp_mfb_dir, &pll_test_proc_fops); */
 
-	proc_entry = proc_create("mfb_dump", 0444,
-		isp_mfb_dir, &mfb_dump_proc_fops);
+	/* proc_entry = proc_create("mfb_dump", 0444, */
+	/*	isp_mfb_dir, &mfb_dump_proc_fops); */
 
-	proc_entry = proc_create("mfb_reg", 0644,
-		isp_mfb_dir, &mfb_reg_proc_fops);
-
+	/* proc_entry = proc_create("mfb_reg", 0644, */
+	/*	isp_mfb_dir, &mfb_reg_proc_fops); */
+#endif
 
 	/* isr log */
 	if (PAGE_SIZE <

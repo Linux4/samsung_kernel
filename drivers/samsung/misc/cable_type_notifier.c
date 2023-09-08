@@ -119,10 +119,13 @@ void cable_type_notifier_set_attached_dev(cable_type_attached_dev_t new_dev)
 		return;
 
 	if (cable_type_notifier.attached_dev != CABLE_TYPE_NONE)
-		cable_type_notifier_detach_attached_dev(cable_type_notifier.attached_dev);
+		pr_info("%s: attached_dev of cable_type_notifier(%d) != new cable_type_data(%d)\n",
+				__func__, cable_type_notifier.attached_dev, new_dev);
 
 	if (new_dev != CABLE_TYPE_NONE)
 		cable_type_notifier_attach_attached_dev(new_dev);
+	else
+		cable_type_notifier_detach_attached_dev(cable_type_notifier.attached_dev);
 }
 
 static int cable_type_notifier_init(void)

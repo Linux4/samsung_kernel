@@ -742,6 +742,11 @@ static int gs_start_io(struct gs_port *port)
 	 * configurations may use different endpoints with a given port;
 	 * and high speed vs full speed changes packet sizes too.
 	 */
+	if (!ep->enabled || !port->port_usb->in->enabled) {
+		pr_err("%s: ep is disabled.\n", __func__);
+		return -ENODEV;
+	}
+
 	status = gs_alloc_requests(ep, head, gs_read_complete,
 		&port->read_allocated);
 	if (status)
@@ -758,9 +763,12 @@ static int gs_start_io(struct gs_port *port)
 	port->n_read = 0;
 	started = gs_start_rx(port);
 
-	/* unblock any pending writes into our circular buffer */
-	if (started && port->port.tty) {
-		tty_wakeup(port->port.tty);
+	if (started) {
+		gs_start_tx(port);
+		/* Unblock any pending writes into our circular buffer, in case
+		 * we didn't in gs_start_tx() */
+		if (port->port.tty)
+			tty_wakeup(port->port.tty);
 	} else {
 		gs_free_requests(ep, head, &port->read_allocated);
 		gs_free_requests(port->port_usb->in, &port->write_pool,
@@ -1410,8 +1418,7 @@ int gserial_alloc_line(unsigned char *line_num)
 {
 	struct usb_cdc_line_coding	coding;
 	struct device			*tty_dev;
-	/* prevent issue fix */
-	int				ret = -EBUSY;
+	int				ret;
 	int				port_num;
 
 	coding.dwDTERate = cpu_to_le32(9600);
@@ -1419,12 +1426,7 @@ int gserial_alloc_line(unsigned char *line_num)
 	coding.bParityType = USB_CDC_NO_PARITY;
 	coding.bDataBits = USB_CDC_1_STOP_BITS;
 
-	if (*line_num)
-		port_num =  *line_num;
-	else
-		port_num = 0;
-
-	for (; port_num < MAX_U_SERIAL_PORTS; port_num++) {
+	for (port_num = 0; port_num < MAX_U_SERIAL_PORTS; port_num++) {
 		ret = gs_port_alloc(port_num, &coding);
 		if (ret == -EBUSY)
 			continue;
@@ -1445,8 +1447,10 @@ int gserial_alloc_line(unsigned char *line_num)
 				__func__, port_num, PTR_ERR(tty_dev));
 
 		ret = PTR_ERR(tty_dev);
+		mutex_lock(&ports[port_num].lock);
 		port = ports[port_num].port;
 		ports[port_num].port = NULL;
+		mutex_unlock(&ports[port_num].lock);
 		gserial_free_port(port);
 		goto err;
 	}

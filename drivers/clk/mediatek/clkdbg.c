@@ -32,6 +32,7 @@
 #include <linux/version.h>
 
 #include "clkdbg.h"
+#include "clkchk.h"
 
 #if defined(CONFIG_PM_DEBUG)
 #define CLKDBG_PM_DOMAIN	1
@@ -43,6 +44,8 @@
 #define CLKDBG_HACK_CLK		0
 #define CLKDBG_HACK_CLK_CORE	1
 
+#define MAX_CLK_NUM	1024
+#define MAX_PD_NUM	32
 
 #if !CLKDBG_CCF_API_4_4
 
@@ -230,16 +233,6 @@ static void setup_provider_clk(struct provider_clk *pvdck)
 	clkdbg_ops->setup_provider_clk(pvdck);
 }
 
-static bool is_valid_reg(void __iomem *addr)
-{
-#ifdef CONFIG_64BIT
-	return ((u64)addr & 0xf0000000) != 0UL ||
-			(((u64)addr >> 32U) & 0xf0000000) != 0UL;
-#else
-	return ((u32)addr & 0xf0000000) != 0U;
-#endif
-}
-
 enum clkdbg_opt {
 	CLKDBG_EN_SUSPEND_SAVE_1,
 	CLKDBG_EN_SUSPEND_SAVE_2,
@@ -344,12 +337,29 @@ void print_regs(void)
 static void seq_print_reg(const struct regname *rn, void *data)
 {
 	struct seq_file *s = data;
+	const char *pg = rn->base->pg;
+	struct clk *clk;
+	struct clk_hw *c_hw;
+	bool is_pwr_on = true;
 
 	if (!is_valid_reg(ADDR(rn)))
 		return;
 
-	seq_printf(s, "%-21s: [0x%08x][0x%p] = 0x%08x\n",
-		rn->name, PHYSADDR(rn), ADDR(rn), clk_readl(ADDR(rn)));
+	if (pg) {
+		clk = __clk_lookup(pg);
+		if (!clk)
+			return;
+		c_hw = __clk_get_hw(clk);
+		if (c_hw)
+			is_pwr_on = clk_hw_is_prepared(c_hw);
+	}
+
+	if (is_pwr_on)
+		seq_printf(s, "%-21s: [0x%08x][0x%p] = 0x%08x\n",
+			rn->name, PHYSADDR(rn), ADDR(rn), clk_readl(ADDR(rn)));
+	else
+		seq_printf(s, "%-21s: [0x%08x][0x%p] cannot read, pwr_off\n",
+			rn->name, PHYSADDR(rn), ADDR(rn));
 }
 
 static int seq_print_regs(struct seq_file *s, void *v)
@@ -382,8 +392,8 @@ static u32 read_spm_pwr_status(void)
 	static void __iomem *scpsys_base, *pwr_sta, *pwr_sta_2nd;
 
 	if (clkdbg_ops == NULL || clkdbg_ops->get_spm_pwr_status  == NULL) {
-		if (scpsys_base == NULL ||
-		    pwr_sta == NULL || pwr_sta_2nd == NULL) {
+		if (scpsys_base == NULL || pwr_sta == NULL
+				|| pwr_sta_2nd == NULL) {
 			scpsys_base = ioremap(0x10006000, PAGE_SIZE);
 			pwr_sta = scpsys_base + 0x60c;
 			pwr_sta_2nd = scpsys_base + 0x610;
@@ -394,31 +404,94 @@ static u32 read_spm_pwr_status(void)
 		return clkdbg_ops->get_spm_pwr_status();
 }
 
-static bool clk_hw_pwr_is_on(struct clk_hw *c_hw,
-			u32 spm_pwr_status, u32 pwr_mask)
+static s32 *read_spm_pwr_status_array(void)
 {
-	if ((spm_pwr_status & pwr_mask) != pwr_mask)
+	static void __iomem *scpsys_base, *pwr_sta, *pwr_sta_2nd;
+	static int pwr_sta_val[STA_NUM];
+
+	if (clkdbg_ops == NULL || clkdbg_ops->get_spm_pwr_status_array  == NULL)
+		return  ERR_PTR(-EINVAL);
+
+	return clkdbg_ops->get_spm_pwr_status_array();
+}
+
+static bool clk_hw_pwr_sta_is_on(struct clk_hw *c_hw,
+			u32 spm_pwr_status, struct provider_clk *pvdck)
+{
+	if (!pvdck || !pvdck->pwr_mask)
+		return 0;
+
+	if ((spm_pwr_status & pvdck->pwr_mask) != pvdck->pwr_mask)
 		return false;
 
 	return clk_hw_is_on(c_hw);
 }
 
-static bool pvdck_pwr_is_on(struct provider_clk *pvdck, u32 spm_pwr_status)
+static int clk_hw_pwr_is_on(struct clk_hw *c_hw, u32 *spm_pwr_status,
+		struct provider_clk *pvdck)
+{
+	if (!pvdck || !pvdck->pwr_mask)
+		return 0;
+
+	if (pvdck->sta_type == PWR_STA) {
+		if ((spm_pwr_status[PWR_STA] & pvdck->pwr_mask) != pvdck->pwr_mask &&
+				(spm_pwr_status[PWR_STA2] & pvdck->pwr_mask) != pvdck->pwr_mask)
+			return 0;
+		else if ((spm_pwr_status[PWR_STA] & pvdck->pwr_mask) == pvdck->pwr_mask &&
+				(spm_pwr_status[PWR_STA2] & pvdck->pwr_mask) == pvdck->pwr_mask)
+			return 1;
+		else
+			return -1;
+	} else if (pvdck->sta_type == XPU_PWR_STA) {
+		if ((spm_pwr_status[XPU_PWR_STA] & pvdck->pwr_mask) != pvdck->pwr_mask &&
+				(spm_pwr_status[XPU_PWR_STA2] & pvdck->pwr_mask) != pvdck->pwr_mask)
+			return 0;
+		else if ((spm_pwr_status[XPU_PWR_STA] & pvdck->pwr_mask) == pvdck->pwr_mask &&
+				(spm_pwr_status[XPU_PWR_STA2] & pvdck->pwr_mask) == pvdck->pwr_mask)
+			return 1;
+		else
+			return -1;
+	} else if (pvdck->sta_type == OTHER_PWR_STA) {
+		if ((spm_pwr_status[OTHER_PWR_STA] & pvdck->pwr_mask) != pvdck->pwr_mask)
+			return 0;
+		else
+			return 1;
+	}
+
+	return clk_hw_is_on(c_hw);
+}
+
+static bool pvdck_pwr_is_on(struct provider_clk *pvdck, u32 *spm_pwr_status, int array_size)
 {
 	struct clk *c = pvdck->ck;
 	struct clk_hw *c_hw = __clk_get_hw(c);
 
-	return clk_hw_pwr_is_on(c_hw, spm_pwr_status, pvdck->pwr_mask);
+	if (array_size == 1)
+		return clk_hw_pwr_sta_is_on(c_hw, spm_pwr_status, pvdck);
+
+	return clk_hw_pwr_is_on(c_hw, spm_pwr_status, pvdck);
 }
 
 static bool pvdck_is_on(struct provider_clk *pvdck)
 {
-	u32 spm_pwr_status = 0;
+	u32 *pval;
+	u32 val;
 
-	if (pvdck->pwr_mask != 0U)
-		spm_pwr_status = read_spm_pwr_status();
+	if (clkdbg_ops == NULL || clkdbg_ops->is_pwr_on == NULL) {
+		if (!pvdck || !pvdck->pwr_mask)
+			return false;
 
-	return pvdck_pwr_is_on(pvdck, spm_pwr_status);
+		pval = read_spm_pwr_status_array();
+		if (IS_ERR_OR_NULL(pval)) {
+			val = read_spm_pwr_status();
+			return pvdck_pwr_is_on(pvdck, &val, 1);
+		} else
+			return pvdck_pwr_is_on(pvdck, pval, 2);
+	}
+
+	val = clkdbg_ops->is_pwr_on(pvdck);
+
+	return val;
 }
 
 static const char *ccf_state(struct clk_hw *hw)
@@ -470,7 +543,7 @@ static const char *get_provider_name(struct device_node *node, u32 *cells)
 {
 	const char *name;
 	const char *p;
-	u32 cc;
+	u32 cc = 0;
 
 	if (of_property_read_u32(node, "#clock-cells", &cc) != 0)
 		cc = 0;
@@ -499,9 +572,9 @@ static const char *get_provider_name(struct device_node *node, u32 *cells)
 
 struct provider_clk *get_all_provider_clks(void)
 {
-	static struct provider_clk provider_clks[512];
+	static struct provider_clk provider_clks[MAX_CLK_NUM];
 	struct device_node *node = NULL;
-	int n = 0;
+	unsigned int n = 0;
 
 	if (provider_clks[0].ck != NULL)
 		return provider_clks;
@@ -550,7 +623,7 @@ struct provider_clk *get_all_provider_clks(void)
 				++n;
 			}
 		}
-	} while (node != NULL);
+	} while (node != NULL && n < MAX_CLK_NUM);
 
 	return provider_clks;
 }
@@ -565,7 +638,7 @@ static void dump_provider_clk(struct provider_clk *pvdck, struct seq_file *s)
 	seq_printf(s, "[%10s: %-17s: %3s, %3d, %3d, %10ld, %17s]\n",
 		pvdck->provider_name != NULL ? pvdck->provider_name : "/ ",
 		clk_hw_get_name(c_hw),
-		pvdck_is_on(pvdck) ? "ON" : "off",
+		pvdck_is_on(pvdck) > 0 ? "ON" : pvdck_is_on(pvdck) == 0 ? "OFF" : "ERR",
 		clk_hw_is_prepared(c_hw),
 		__clk_get_enable_count(c),
 		clk_hw_get_rate(c_hw),
@@ -1183,8 +1256,8 @@ static int clkdbg_clr_flag(struct seq_file *s, void *v)
 
 static struct generic_pm_domain **get_all_genpd(void)
 {
-	static struct generic_pm_domain *pds[20];
-	static int num_pds;
+	static struct generic_pm_domain *pds[MAX_PD_NUM];
+	static unsigned int num_pds;
 	const size_t maxpd = ARRAY_SIZE(pds);
 	struct device_node *node;
 #if CLKDBG_PM_DOMAIN_API_4_9
@@ -1202,6 +1275,8 @@ static struct generic_pm_domain **get_all_genpd(void)
 
 #if CLKDBG_PM_DOMAIN_API_4_9
 	pdev = platform_device_alloc("traverse", 0);
+	if (!pdev)
+		return NULL;
 #endif
 
 	for (num_pds = 0; num_pds < maxpd; num_pds++) {
@@ -1244,7 +1319,7 @@ static struct platform_device *pdev_from_name(const char *name)
 {
 	struct generic_pm_domain **pds = get_all_genpd();
 
-	for (; *pds != NULL; pds++) {
+	for (; pds != NULL && *pds != NULL; pds++) {
 		struct pm_domain_data *pdd;
 		struct generic_pm_domain *pd = *pds;
 
@@ -1267,7 +1342,7 @@ static struct generic_pm_domain *genpd_from_name(const char *name)
 {
 	struct generic_pm_domain **pds = get_all_genpd();
 
-	for (; *pds != NULL; pds++) {
+	for (; pds != NULL && *pds != NULL; pds++) {
 		struct generic_pm_domain *pd = *pds;
 
 		if (IS_ERR_OR_NULL(pd))
@@ -1302,7 +1377,7 @@ static void save_all_genpd_state(struct genpd_state *genpd_states,
 	struct genpd_dev_state *devst = genpd_dev_states;
 	struct generic_pm_domain **pds = get_all_genpd();
 
-	for (; *pds != NULL; pds++) {
+	for (; pds != NULL && *pds != NULL; pds++) {
 		struct pm_domain_data *pdd;
 		struct generic_pm_domain *pd = *pds;
 
@@ -1430,7 +1505,7 @@ static void dump_genpd_state(struct genpd_state *pdst, struct seq_file *s)
 static void seq_print_all_genpd(struct seq_file *s)
 {
 	static struct genpd_dev_state devst[100];
-	static struct genpd_state pdst[20];
+	static struct genpd_state pdst[MAX_PD_NUM];
 
 	save_all_genpd_state(pdst, devst);
 	dump_genpd_state(pdst, s);
@@ -1573,7 +1648,7 @@ static int genpd_op(const char *gpd_op_name, struct seq_file *s)
 	char *pd_name;
 	struct generic_pm_domain *genpd;
 	int gpd_op_id;
-	int (*gpd_op)(struct generic_pm_domain *);
+	int (*gpd_op)(struct generic_pm_domain *genpd);
 	int r = 0;
 
 	strncpy(cmd, last_cmd, sizeof(cmd));
@@ -1593,7 +1668,7 @@ static int genpd_op(const char *gpd_op_name, struct seq_file *s)
 	if (strcmp(pd_name, "all") == 0) {
 		struct generic_pm_domain **pds = get_all_genpd();
 
-		for (; *pds != NULL; pds++) {
+		for (; pds != NULL && *pds != NULL; pds++) {
 			genpd = *pds;
 
 			if (IS_ERR_OR_NULL(genpd))
@@ -1693,6 +1768,22 @@ static struct pdev_drv pderv[] = {
 	PDEV_DRV("clkdbg-pd13"),
 	PDEV_DRV("clkdbg-pd14"),
 	PDEV_DRV("clkdbg-pd15"),
+	PDEV_DRV("clkdbg-pd16"),
+	PDEV_DRV("clkdbg-pd17"),
+	PDEV_DRV("clkdbg-pd18"),
+	PDEV_DRV("clkdbg-pd19"),
+	PDEV_DRV("clkdbg-pd20"),
+	PDEV_DRV("clkdbg-pd21"),
+	PDEV_DRV("clkdbg-pd22"),
+	PDEV_DRV("clkdbg-pd23"),
+	PDEV_DRV("clkdbg-pd24"),
+	PDEV_DRV("clkdbg-pd25"),
+	PDEV_DRV("clkdbg-pd26"),
+	PDEV_DRV("clkdbg-pd27"),
+	PDEV_DRV("clkdbg-pd28"),
+	PDEV_DRV("clkdbg-pd29"),
+	PDEV_DRV("clkdbg-pd30"),
+	PDEV_DRV("clkdbg-pd31"),
 };
 
 static void reg_pdev_drv(const char *pdname, struct seq_file *s)
@@ -1702,7 +1793,7 @@ static void reg_pdev_drv(const char *pdname, struct seq_file *s)
 	bool allpd = (pdname == NULL || strcmp(pdname, "all") == 0);
 	int r;
 
-	for (i = 0; i < ARRAY_SIZE(pderv) && *pds != NULL; i++, pds++) {
+	for (i = 0; i < ARRAY_SIZE(pderv) && pds != NULL && *pds != NULL; i++, pds++) {
 		const char *name = pderv[i].pdrv.driver.name;
 		struct generic_pm_domain *pd = *pds;
 
@@ -1841,9 +1932,9 @@ struct provider_clk_state {
 
 struct save_point {
 	u32 spm_pwr_status;
-	struct provider_clk_state clks_states[512];
+	struct provider_clk_state clks_states[MAX_CLK_NUM];
 #if CLKDBG_PM_DOMAIN
-	struct genpd_state genpd_states[20];
+	struct genpd_state genpd_states[MAX_PD_NUM];
 	struct genpd_dev_state genpd_dev_states[100];
 #endif
 };
@@ -1852,13 +1943,13 @@ static struct save_point save_point_1;
 static struct save_point save_point_2;
 static struct save_point save_point_3;
 
-static void save_pwr_status(u32 *spm_pwr_status)
+static void save_pwr_status(u32 spm_pwr_status)
 {
-	*spm_pwr_status = read_spm_pwr_status();
+	spm_pwr_status = read_spm_pwr_status();
 }
 
 static void save_all_clks_state(struct provider_clk_state *clks_states,
-				u32 spm_pwr_status)
+				u32 *spm_pwr_status)
 {
 	struct provider_clk *pvdck = get_all_provider_clks();
 	struct provider_clk_state *st = clks_states;
@@ -1869,8 +1960,7 @@ static void save_all_clks_state(struct provider_clk_state *clks_states,
 
 		st->pvdck = pvdck;
 		st->prepared = clk_hw_is_prepared(c_hw);
-		st->enabled = clk_hw_pwr_is_on(c_hw, spm_pwr_status,
-							pvdck->pwr_mask);
+		st->enabled = clk_hw_pwr_is_on(c_hw, spm_pwr_status, pvdck);
 		st->enable_count = __clk_get_enable_count(c);
 		st->rate = clk_hw_get_rate(c_hw);
 		st->parent = IS_ERR_OR_NULL(c) ? NULL : clk_get_parent(c);
@@ -1929,7 +2019,7 @@ static void show_save_point(struct save_point *sp)
 
 static void store_save_point(struct save_point *sp)
 {
-	save_pwr_status(&sp->spm_pwr_status);
+	save_pwr_status(sp->spm_pwr_status);
 	save_all_clks_state(sp->clks_states, sp->spm_pwr_status);
 
 #if CLKDBG_PM_DOMAIN
@@ -2102,13 +2192,16 @@ void set_custom_cmds(const struct cmd_fn *cmds)
 static int clkdbg_cmds(struct seq_file *s, void *v);
 
 static const struct cmd_fn common_cmds[] = {
+#if !defined(CONFIG_MACH_MT6781)
 	CMDFN("dump_regs", seq_print_regs),
 	CMDFN("dump_regs2", clkdbg_dump_regs2),
-	CMDFN("dump_state", clkdbg_dump_state_all),
 	CMDFN("dump_clks", clkdbg_dump_provider_clks),
+#endif
+	CMDFN("dump_state", clkdbg_dump_state_all),
 	CMDFN("dump_muxes", clkdbg_dump_muxes),
 	CMDFN("fmeter", seq_print_fmeter_all),
 	CMDFN("pwr_status", clkdbg_pwr_status),
+#if defined(CONFIG_MTK_ENG_BUILD)
 	CMDFN("prepare", clkdbg_prepare),
 	CMDFN("unprepare", clkdbg_unprepare),
 	CMDFN("enable", clkdbg_enable),
@@ -2123,6 +2216,7 @@ static const struct cmd_fn common_cmds[] = {
 	CMDFN("reg_write", clkdbg_reg_write),
 	CMDFN("reg_set", clkdbg_reg_set),
 	CMDFN("reg_clr", clkdbg_reg_clr),
+#endif /* CONFIG_MTK_ENG_BUILD */
 	CMDFN("show_flags", clkdbg_show_flags),
 	CMDFN("set_flag", clkdbg_set_flag),
 	CMDFN("clr_flag", clkdbg_clr_flag),

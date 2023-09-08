@@ -891,7 +891,7 @@ static ssize_t sock_read_iter(struct kiocb *iocb, struct iov_iter *to)
 			     .msg_iocb = iocb};
 	ssize_t res;
 
-	if (file->f_flags & O_NONBLOCK)
+	if (file->f_flags & O_NONBLOCK || (iocb->ki_flags & IOCB_NOWAIT))
 		msg.msg_flags = MSG_DONTWAIT;
 
 	if (iocb->ki_pos != 0)
@@ -916,7 +916,7 @@ static ssize_t sock_write_iter(struct kiocb *iocb, struct iov_iter *from)
 	if (iocb->ki_pos != 0)
 		return -ESPIPE;
 
-	if (file->f_flags & O_NONBLOCK)
+	if (file->f_flags & O_NONBLOCK || (iocb->ki_flags & IOCB_NOWAIT))
 		msg.msg_flags = MSG_DONTWAIT;
 
 	if (sock->type == SOCK_SEQPACKET)
@@ -1207,6 +1207,7 @@ int __sock_create(struct net *net, int family, int type, int protocol,
 	int err;
 	struct socket *sock;
 	const struct net_proto_family *pf;
+	int max_try = 10;
 
 	/*
 	 *      Check protocol is in range
@@ -1227,7 +1228,19 @@ int __sock_create(struct net *net, int family, int type, int protocol,
 		family = PF_PACKET;
 	}
 
+repeat:
 	err = security_socket_create(family, type, protocol, kern);
+	if (err == -ENOMEM && max_try-- > 0) {
+		struct page *dummy_page = NULL;
+
+		dummy_page = alloc_page(GFP_KERNEL);
+		if (dummy_page) {
+			__free_page(dummy_page);
+			pr_err("%s: security_socket_create failed, rem_retry %d\n",
+			       __func__, max_try);
+			goto repeat;
+		}
+	}
 	if (err)
 		return err;
 
@@ -1288,7 +1301,21 @@ int __sock_create(struct net *net, int family, int type, int protocol,
 	 * module can have its refcnt decremented
 	 */
 	module_put(pf->owner);
+
+	max_try = 10;
+repeat2:
 	err = security_socket_post_create(sock, family, type, protocol, kern);
+	if (err == -ENOMEM && max_try-- > 0) {
+		struct page *dummy_page = NULL;
+
+		dummy_page = alloc_page(GFP_KERNEL);
+		if (dummy_page) {
+			__free_page(dummy_page);
+			pr_err("%s: security_socket_post_create failed, rem_retry %d\n",
+			       __func__, max_try);
+			goto repeat2;
+		}
+	}
 	if (err)
 		goto out_sock_release;
 	*res = sock;
@@ -3267,6 +3294,7 @@ static int compat_sock_ioctl_trans(struct file *file, struct socket *sock,
 	case SIOCSARP:
 	case SIOCGARP:
 	case SIOCDARP:
+	case SIOCOUTQNSD:
 	case SIOCATMARK:
 		return sock_do_ioctl(net, sock, cmd, arg);
 	}

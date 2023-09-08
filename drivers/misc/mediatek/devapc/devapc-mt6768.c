@@ -573,10 +573,6 @@ const char *bus_id_to_master(int bus_id, uint32_t vio_addr, int vio_idx)
 		DEVAPC_DBG_MSG("vio addr is from MFG\n");
 		master = topaxi_mi0_trans(bus_id);
 
-	} else if (h_byte == 0x12) {
-		DEVAPC_DBG_MSG("vio addr is from reserved region\n");
-		master = topaxi_mi0_trans(bus_id);
-
 	} else {
 		DEVAPC_MSG("[FAILED] Cannot decode vio addr\n");
 		master = "UNKNOWN_MASTER";
@@ -610,6 +606,23 @@ const char *index_to_subsys(uint32_t index)
 	else
 		return "OUT_OF_BOUND";
 }
+
+#ifdef CONFIG_DEVAPC_MMAP_DEBUG
+void devapc_catch_illegal_range(phys_addr_t phys_addr, size_t size)
+{
+	/*
+	 * Catch BROM addr mapped
+	 */
+	if (phys_addr >= 0x0 && phys_addr < SRAM_START_ADDR) {
+		pr_err(PFX "%s: %s %s:(%pa), %s:(0x%lx)\n",
+				"catch BROM address mapped!",
+				__func__, "phys_addr", &phys_addr,
+				"size", size);
+		BUG_ON(1);
+	}
+}
+EXPORT_SYMBOL(devapc_catch_illegal_range);
+#endif
 
 static ssize_t mt6768_devapc_dbg_read(struct file *file, char __user *buffer,
 	size_t count, loff_t *ppos)

@@ -51,13 +51,12 @@
 #include <asm/virt.h>
 #include <asm/mach/arch.h>
 #include <asm/mpu.h>
+#ifdef CONFIG_SEC_DEBUG
+#include <linux/sec_debug.h>
+#endif
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/ipi.h>
-
-#ifdef CONFIG_MTK_SCHED_MONITOR
-#include "mtk_sched_mon.h"
-#endif
 
 /*
  * as from 2.5, kernels no longer have an init_tasks structure
@@ -290,15 +289,13 @@ int __cpu_disable(void)
 	return 0;
 }
 
-static DECLARE_COMPLETION(cpu_died);
-
 /*
  * called on the thread which is asking for a CPU to be shutdown -
  * waits until shutdown has completed, or it is timed out.
  */
 void __cpu_die(unsigned int cpu)
 {
-	if (!wait_for_completion_timeout(&cpu_died, msecs_to_jiffies(5000))) {
+	if (!cpu_wait_death(cpu, 5)) {
 		pr_err("CPU%u: cpu didn't die\n", cpu);
 		return;
 	}
@@ -344,7 +341,7 @@ void arch_cpu_idle_dead(void)
 	 * this returns, power and/or clocks can be removed at any point
 	 * from this CPU and its cache by platform_cpu_kill().
 	 */
-	complete(&cpu_died);
+	(void)cpu_report_death();
 
 	/*
 	 * Ensure that the cache lines associated with that completion are
@@ -607,7 +604,11 @@ static DEFINE_RAW_SPINLOCK(stop_lock);
 /*
  * ipi_cpu_stop - handle IPI from smp_send_stop()
  */
+ #ifdef CONFIG_SEC_DEBUG
+static void ipi_cpu_stop(unsigned int cpu, struct pt_regs *regs)
+#else
 static void ipi_cpu_stop(unsigned int cpu)
+#endif
 {
 	if (system_state <= SYSTEM_RUNNING) {
 		raw_spin_lock(&stop_lock);
@@ -620,6 +621,10 @@ static void ipi_cpu_stop(unsigned int cpu)
 
 	local_fiq_disable();
 	local_irq_disable();
+
+#ifdef CONFIG_SEC_DEBUG
+	sec_save_context(_THIS_CPU, regs);
+#endif
 
 	while (1) {
 		cpu_relax();
@@ -652,30 +657,23 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 {
 	unsigned int cpu = smp_processor_id();
 	struct pt_regs *old_regs = set_irq_regs(regs);
+	unsigned long long ts = 0;
+	int count = 0;
 
 	if ((unsigned)ipinr < NR_IPI) {
+		check_start_time_preempt(ipi_note, count, ts, ipinr);
 		trace_ipi_entry_rcuidle(ipi_types[ipinr]);
 		__inc_irq_stat(cpu, ipi_irqs[ipinr]);
 	}
 
 	switch (ipinr) {
 	case IPI_WAKEUP:
-#ifdef CONFIG_MTK_SCHED_MONITOR
-		mt_trace_IPI_start(ipinr);
-		mt_trace_IPI_end(ipinr);
-#endif
 		break;
 
 #ifdef CONFIG_GENERIC_CLOCKEVENTS_BROADCAST
 	case IPI_TIMER:
 		irq_enter();
-#ifdef CONFIG_MTK_SCHED_MONITOR
-		mt_trace_IPI_start(ipinr);
-#endif
 		tick_receive_broadcast();
-#ifdef CONFIG_MTK_SCHED_MONITOR
-		mt_trace_IPI_end(ipinr);
-#endif
 		irq_exit();
 		break;
 #endif
@@ -686,24 +684,16 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 
 	case IPI_CALL_FUNC:
 		irq_enter();
-#ifdef CONFIG_MTK_SCHED_MONITOR
-		mt_trace_IPI_start(ipinr);
-#endif
 		generic_smp_call_function_interrupt();
-#ifdef CONFIG_MTK_SCHED_MONITOR
-		mt_trace_IPI_end(ipinr);
-#endif
 		irq_exit();
 		break;
 
 	case IPI_CPU_STOP:
 		irq_enter();
-#ifdef CONFIG_MTK_SCHED_MONITOR
-		mt_trace_IPI_start(ipinr);
-#endif
+#ifdef CONFIG_SEC_DEBUG
+		ipi_cpu_stop(cpu, regs);
+#else
 		ipi_cpu_stop(cpu);
-#ifdef CONFIG_MTK_SCHED_MONITOR
-		mt_trace_IPI_end(ipinr);
 #endif
 		irq_exit();
 		break;
@@ -711,39 +701,21 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 #ifdef CONFIG_IRQ_WORK
 	case IPI_IRQ_WORK:
 		irq_enter();
-#ifdef CONFIG_MTK_SCHED_MONITOR
-		mt_trace_IPI_start(ipinr);
-#endif
 		irq_work_run();
-#ifdef CONFIG_MTK_SCHED_MONITOR
-		mt_trace_IPI_end(ipinr);
-#endif
 		irq_exit();
 		break;
 #endif
 
 	case IPI_COMPLETION:
 		irq_enter();
-#ifdef CONFIG_MTK_SCHED_MONITOR
-		mt_trace_IPI_start(ipinr);
-#endif
 		ipi_complete(cpu);
-#ifdef CONFIG_MTK_SCHED_MONITOR
-		mt_trace_IPI_end(ipinr);
-#endif
 		irq_exit();
 		break;
 
 	case IPI_CPU_BACKTRACE:
 		printk_nmi_enter();
 		irq_enter();
-#ifdef CONFIG_MTK_SCHED_MONITOR
-		mt_trace_IPI_start(ipinr);
-#endif
 		nmi_cpu_backtrace(regs);
-#ifdef CONFIG_MTK_SCHED_MONITOR
-		mt_trace_IPI_end(ipinr);
-#endif
 		irq_exit();
 		printk_nmi_exit();
 		break;
@@ -754,8 +726,11 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 		break;
 	}
 
-	if ((unsigned)ipinr < NR_IPI)
+	if ((unsigned int)ipinr < NR_IPI) {
 		trace_ipi_exit_rcuidle(ipi_types[ipinr]);
+		check_process_time_preempt(ipi_note, count, "ipi %d %s", ts,
+					   ipinr, ipi_types[ipinr]);
+	}
 	set_irq_regs(old_regs);
 }
 

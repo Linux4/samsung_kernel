@@ -31,8 +31,34 @@
 #include <linux/virtio_ring.h>
 #include <linux/atomic.h>
 #include <linux/mod_devicetable.h>
+#include <linux/cpu.h>
+#include <linux/kthread.h>
+#include <linux/sched.h>
+#include <uapi/linux/sched/types.h>
 
 #define  RSC_DESCR_VER  1
+
+/* 0 is no bind */
+/* 1 is kick only */
+/* 2 is kick + chk */
+#define TRUSTY_TASK_DEFAULT_BIND_CPU 1
+
+/* 100 is nice -20 */
+/* 120 is nice 0 as default*/
+/* under 100 is real time */
+#define TRUSTY_TASK_PRI 100
+#define TRUSTY_TASK_SUPPORT_RT 0
+
+#define TRUSTY_TASK_KICK_NUM 3
+#define TRUSTY_TASK_CHK_NUM 1
+
+struct trusty_task_info {
+	int task_max;
+	atomic_t task_num;
+	struct completion run;
+	struct completion *rdy;
+	struct task_struct **fd;
+};
 
 struct trusty_vdev;
 
@@ -41,15 +67,12 @@ struct trusty_ctx {
 	struct device *trusty_dev;
 	void *shared_va;
 	size_t shared_sz;
-	struct work_struct check_vqs;
-	struct work_struct kick_vqs;
 	struct notifier_block call_notifier;
+	struct notifier_block callback_notifier;
 	struct list_head vdev_list;
 	struct mutex mlock;	/* protects vdev_list */
-	struct workqueue_struct *kick_wq;
-	struct workqueue_struct *check_wq;
-	struct workqueue_attrs *attrs;
 	enum tee_id_t tee_id;	/* For multiple TEEs */
+	struct trusty_task_info task_info[TRUSTY_TASK_MAX_ID];
 };
 
 struct trusty_vring {
@@ -80,19 +103,104 @@ struct trusty_vdev {
 
 #define vdev_to_tvdev(vd)  container_of((vd), struct trusty_vdev, vdev)
 
-static void check_all_vqs(struct work_struct *work)
+static void check_all_vqs(struct trusty_ctx *tctx)
 {
 	uint i;
-	struct trusty_ctx *tctx = container_of(work, struct trusty_ctx,
-					       check_vqs);
 	struct trusty_vdev *tvdev;
 
 	list_for_each_entry(tvdev, &tctx->vdev_list, node) {
 		for (i = 0; i < tvdev->vring_num; i++) {
-			/* vq->vq.callback(&vq->vq);  trusty_virtio_notify */
-			vring_interrupt(0, tvdev->vrings[i].vq);
+			if (tvdev->vrings[i].vq)
+				vring_interrupt(0, tvdev->vrings[i].vq);
 		}
 	}
+}
+
+static void trusty_task_adjust_pri_cpu(struct trusty_ctx *tctx,
+				uint32_t *mask, int32_t *pri)
+{
+	int task_cnt, task_id, task_max;
+	struct cpumask task_cmask;
+	bool need_bindcpu;
+	int cpu;
+	struct trusty_task_info *task_info;
+	struct sched_param param;
+
+/*
+ *	dev_info(tctx->dev, "%s mask/pri 0x%x/%d 0x%x/%d\n", __func__,
+ *		mask[TRUSTY_TASK_KICK_ID], pri[TRUSTY_TASK_KICK_ID],
+ *		mask[TRUSTY_TASK_CHK_ID], pri[TRUSTY_TASK_CHK_ID]);
+ */
+
+	for (task_id = 0 ; task_id < TRUSTY_TASK_MAX_ID ; task_id++) {
+		task_info = &tctx->task_info[task_id];
+		task_max = task_info->task_max;
+
+		cpumask_clear(&task_cmask);
+		for_each_possible_cpu(cpu) {
+			if (cpu > 31) {
+				dev_info(tctx->dev, "%s not support cpu# > 32\n", __func__);
+				continue;
+			}
+			if (mask[task_id] & (1<<cpu))
+				cpumask_set_cpu(cpu, &task_cmask);
+		}
+
+/*
+ *		dev_info(tctx->dev, "%s cmask[%d]=%*pbl\n", __func__, task_id,
+ *					cpumask_pr_args(&task_cmask));
+ */
+
+		need_bindcpu = !cpumask_empty(&task_cmask);
+		for (task_cnt = 0 ; task_cnt < task_max ; task_cnt++) {
+			if (!task_info->fd[task_cnt])
+				continue;
+
+			if (need_bindcpu) {
+				set_cpus_allowed_ptr(task_info->fd[task_cnt], &task_cmask);
+				dev_info(tctx->dev, "%s task[%d][%d]cmask=%*pbl\n", __func__,
+					task_id, task_cnt, cpumask_pr_args(&task_cmask));
+			}
+
+			if ((DEFAULT_PRIO + MAX_NICE) >= pri[task_id] &&
+				(DEFAULT_PRIO + MIN_NICE) <= pri[task_id]) {
+				param.sched_priority = 0;
+				sched_setscheduler(task_info->fd[task_cnt],
+						SCHED_NORMAL, &param);
+				set_user_nice(task_info->fd[task_cnt],
+						PRIO_TO_NICE(pri[task_id]));
+			} else if (pri[task_id] < (MAX_RT_PRIO - 1)) {
+#if TRUSTY_TASK_SUPPORT_RT
+				param.sched_priority = MAX_RT_PRIO - 1 - pri[task_id];
+				sched_setscheduler(task_info->fd[task_cnt],
+						SCHED_FIFO, &param);
+#else
+				dev_info(tctx->dev, "%s not support rt\n", __func__);
+#endif
+			}
+		}
+	}
+}
+
+static int trusty_callback_notifier(struct notifier_block *nb,
+			      unsigned long action, void *data)
+{
+	if (action == TRUSTY_CALLBACK_VIRTIO_WQ_ATTR) {
+		struct trusty_ctx *tctx;
+		struct trusty_task_attr *task_attr = (struct trusty_task_attr *)data;
+
+		uint32_t task_mask[TRUSTY_TASK_MAX_ID];
+		int32_t task_pri[TRUSTY_TASK_MAX_ID];
+
+		tctx = container_of(nb, struct trusty_ctx, callback_notifier);
+
+		memcpy(task_mask, task_attr->mask, sizeof(task_mask));
+		memcpy(task_pri, task_attr->pri, sizeof(task_pri));
+
+		trusty_task_adjust_pri_cpu(tctx, task_mask, task_pri);
+	}
+
+	return NOTIFY_OK;
 }
 
 static int trusty_call_notify(struct notifier_block *nb,
@@ -105,7 +213,7 @@ static int trusty_call_notify(struct notifier_block *nb,
 	if (action != TRUSTY_CALL_RETURNED)
 		return NOTIFY_DONE;
 
-	queue_work(tctx->check_wq, &tctx->check_vqs);
+	complete(&tctx->task_info[TRUSTY_TASK_CHK_ID].run);
 
 	return NOTIFY_OK;
 }
@@ -127,14 +235,10 @@ static void kick_vq(struct trusty_ctx *tctx,
 	}
 }
 
-static void kick_vqs(struct work_struct *work)
+static void kick_vqs(struct trusty_ctx *tctx)
 {
 	uint i;
 	struct trusty_vdev *tvdev;
-	struct trusty_ctx *tctx = container_of(work, struct trusty_ctx,
-					       kick_vqs);
-
-	set_user_nice(current, -20);
 
 	mutex_lock(&tctx->mlock);
 	list_for_each_entry(tvdev, &tctx->vdev_list, node) {
@@ -147,8 +251,22 @@ static void kick_vqs(struct work_struct *work)
 	}
 
 	mutex_unlock(&tctx->mlock);
+}
 
-	set_user_nice(current, 0);
+static int trusty_vqueue_to_cpu(struct trusty_ctx *tctx, struct virtqueue *vq)
+{
+	struct trusty_vring *tvr = vq->priv;
+	u32 api_ver = trusty_get_api_version(tctx->trusty_dev);
+	int cpu = -1;
+
+	if (unlikely(api_ver < TRUSTY_API_VERSION_MULTI_VQUEUE))
+		return -1;
+
+	/* TXVQs are binded on specific CPU */
+	if (tvr->notifyid >= TIPC_TXVQ_NOTIFYID_START)
+		cpu = tvr->notifyid - TIPC_TXVQ_NOTIFYID_START;
+
+	return cpu_possible(cpu) ? cpu : -1;
 }
 
 static bool trusty_virtio_notify(struct virtqueue *vq)
@@ -160,9 +278,10 @@ static bool trusty_virtio_notify(struct virtqueue *vq)
 
 	if (api_ver < TRUSTY_API_VERSION_SMP_NOP) {
 		atomic_set(&tvr->needs_kick, 1);
-		queue_work(tctx->kick_wq, &tctx->kick_vqs);
+		complete(&tctx->task_info[TRUSTY_TASK_KICK_ID].run);
 	} else {
-		trusty_enqueue_nop(tctx->trusty_dev, &tvr->kick_nop);
+		trusty_enqueue_nop(tctx->trusty_dev, &tvr->kick_nop,
+				   trusty_vqueue_to_cpu(tctx, vq));
 	}
 
 	return true;
@@ -206,7 +325,7 @@ static void trusty_virtio_stop(struct trusty_ctx *tctx, void *va, size_t sz)
 
 static int trusty_virtio_start(struct trusty_ctx *tctx, void *va, size_t sz)
 {
-	int ret;
+	int ret, cpu;
 	u32 smcnr_virtio_start = MTEE_SMCNR(SMCF_SC_VIRTIO_START,
 					    tctx->trusty_dev);
 
@@ -219,6 +338,13 @@ static int trusty_virtio_start(struct trusty_ctx *tctx, void *va, size_t sz)
 			 __func__, ret);
 		return -ENODEV;
 	}
+
+	/* Send NOP to secure world to init per-cpu resource */
+	for_each_online_cpu(cpu) {
+		dev_dbg(tctx->dev, "%s: init per cpu %d\n", __func__, cpu);
+		trusty_enqueue_nop(tctx->trusty_dev, NULL, cpu);
+	}
+
 	return 0;
 }
 
@@ -503,7 +629,7 @@ static int trusty_set_tee_name(struct trusty_ctx *tctx,
 	}
 
 	of_property_read_string(node, "tee-name", (const char **)&str);
-	strncpy(cfg->dev_name.tee_name, str, MAX_MINOR_NAME_LEN);
+	strncpy(cfg->dev_name.tee_name, str, MAX_MINOR_NAME_LEN - 1);
 	pr_info("[%s] set tee_name: %s\n", __func__, cfg->dev_name.tee_name);
 
 	return 0;
@@ -669,6 +795,14 @@ static int trusty_virtio_add_devices(struct trusty_ctx *tctx)
 		goto err_register_notifier;
 	}
 
+	ret = trusty_callback_notifier_register(tctx->trusty_dev,
+					    &tctx->callback_notifier);
+	if (ret) {
+		dev_info(tctx->dev, "%s: failed (%d) to register notifier\n",
+			 __func__, ret);
+		goto err_register_callback;
+	}
+
 	/* start virtio */
 	ret = trusty_virtio_start(tctx, descr_va, descr_sz);
 	if (ret) {
@@ -684,65 +818,208 @@ static int trusty_virtio_add_devices(struct trusty_ctx *tctx)
 	return 0;
 
 err_start_virtio:
+	trusty_callback_notifier_unregister(tctx->trusty_dev,
+					&tctx->callback_notifier);
+err_register_callback:
 	trusty_call_notifier_unregister(tctx->trusty_dev, &tctx->call_notifier);
-	cancel_work_sync(&tctx->check_vqs);
 err_register_notifier:
 err_parse_descr:
 	_remove_devices_locked(tctx);
 	mutex_unlock(&tctx->mlock);
-	cancel_work_sync(&tctx->kick_vqs);
 	trusty_virtio_stop(tctx, descr_va, descr_sz);
 err_load_descr:
 	free_pages_exact(descr_va, descr_buf_sz);
 	return ret;
 }
 
-/* parse dtsi to find big core and set to mask */
-static int bind_big_core(struct cpumask *mask)
+static int trusty_task_kick(void *data)
 {
-	struct device_node *cpus = NULL, *cpu = NULL;
-	struct property *cpu_pp = NULL;
+	int task_idx;
+	struct trusty_ctx *tctx = (struct trusty_ctx *)data;
+	long timeout = MAX_SCHEDULE_TIMEOUT;
 
-	int cpu_num = 0, big_start_num = 0, big_type = 0, cpu_type = 0;
-	char *compat_val;
-	int compat_len, i;
+	if (!tctx)
+		return -ENOMEM;
 
-	cpus = of_find_node_by_path("/cpus");
-	if (cpus == NULL)
-		return -1;
+	task_idx =
+		atomic_add_return(1, &tctx->task_info[TRUSTY_TASK_KICK_ID].task_num);
+	if (task_idx > TRUSTY_TASK_KICK_NUM)
+		return -EINVAL;
+	complete(&tctx->task_info[TRUSTY_TASK_KICK_ID].rdy[task_idx-1]);
+	pr_info("tee%d/%s_%d ->\n", tctx->tee_id, __func__, task_idx);
 
-	for_each_child_of_node(cpus, cpu) {
-		if (of_node_cmp(cpu->type, "cpu"))
-			continue;
+	while (!kthread_should_stop()) {
+		wait_for_completion_interruptible_timeout(
+				&tctx->task_info[TRUSTY_TASK_KICK_ID].run, timeout);
+		if (atomic_read(&tctx->task_info[TRUSTY_TASK_KICK_ID].task_num)) {
+			kick_vqs(tctx);
+			trusty_dump_systrace(tctx->trusty_dev, NULL);
+		} else
+			timeout = msecs_to_jiffies(1000);
+	}
+	pr_info("tee%d/%s_%d -<\n", tctx->tee_id, __func__, task_idx);
+	return 2;
+}
 
-		cpu_num++;
+static int trusty_task_chk(void *data)
+{
+	int task_idx = 0;
+	struct trusty_ctx *tctx = (struct trusty_ctx *)data;
+	long timeout = MAX_SCHEDULE_TIMEOUT;
 
-		for_each_property_of_node(cpu, cpu_pp) {
-			if (strcmp(cpu_pp->name, "compatible") == 0) {
-				compat_val = (char *)cpu_pp->value;
-				compat_len = strlen(compat_val);
-				i = kstrtoint(compat_val + (compat_len - 2), 10,
-					      &cpu_type);
-				if (i < 0) {
-					pr_info("[%s] Parse cpu_type error\n",
-						__func__);
-					break;
-				}
-				if (big_type < cpu_type) {
-					big_type = cpu_type;
-					big_start_num = cpu_num - 1;
-				}
+	if (!tctx)
+		return -ENOMEM;
+
+	task_idx =
+		atomic_add_return(1, &tctx->task_info[TRUSTY_TASK_CHK_ID].task_num);
+	if (task_idx > TRUSTY_TASK_CHK_NUM)
+		return -EINVAL;
+	complete(&tctx->task_info[TRUSTY_TASK_CHK_ID].rdy[task_idx-1]);
+	pr_info("tee%d/%s_%d ->\n", tctx->tee_id, __func__, task_idx);
+
+	while (!kthread_should_stop()) {
+		wait_for_completion_interruptible_timeout(
+					&tctx->task_info[TRUSTY_TASK_CHK_ID].run, timeout);
+		if (atomic_read(&tctx->task_info[TRUSTY_TASK_CHK_ID].task_num))
+			check_all_vqs(tctx);
+		else
+			timeout = msecs_to_jiffies(1000);
+	}
+	pr_info("tee%d/%s_%d -<\n", tctx->tee_id, __func__, task_idx);
+	return 2;
+}
+
+static void trusty_task_default_bind(struct trusty_ctx *tctx, int mode)
+{
+	uint32_t mask;
+	u32 smcnr_get_cmask = MTEE_SMCNR(SMCF_FC_GET_CMASK, tctx->trusty_dev);
+	uint32_t task_mask[TRUSTY_TASK_MAX_ID];
+	int32_t task_pri[TRUSTY_TASK_MAX_ID];
+
+	if (mode == 0) {
+		dev_info(tctx->dev, "%s not support\n", __func__);
+		return;
+	}
+
+	mask = (u32)trusty_fast_call32(tctx->trusty_dev, smcnr_get_cmask,
+			  0, 0, 0);
+	dev_info(tctx->dev, "%s mask=0x%x\n", __func__, mask);
+	if (mask == 0xffffffff)
+		mask = 0x0;
+
+	task_mask[TRUSTY_TASK_KICK_ID] = mask;
+	if (mode == 1)
+		task_mask[TRUSTY_TASK_CHK_ID] = 0;
+	else
+		task_mask[TRUSTY_TASK_CHK_ID] = mask;
+
+	task_pri[TRUSTY_TASK_KICK_ID] = TRUSTY_TASK_PRI;
+	task_pri[TRUSTY_TASK_CHK_ID] = TRUSTY_TASK_PRI;
+
+	trusty_task_adjust_pri_cpu(tctx, task_mask, task_pri);
+}
+
+static void free_trusty_kthread(struct trusty_ctx *tctx)
+{
+	int ret;
+	int task_cnt, task_id, task_max;
+	struct trusty_task_info *task_info;
+
+	for (task_id = 0 ; task_id < TRUSTY_TASK_MAX_ID ; task_id++) {
+		task_info = &tctx->task_info[task_id];
+		task_max = task_info->task_max;
+		atomic_set(&task_info->task_num, 0);
+		complete_all(&task_info->run);
+
+		for (task_cnt = 0 ; task_cnt < task_max ; task_cnt++) {
+			if (IS_ERR(task_info->fd[task_cnt]))
+				continue;
+
+			dev_info(tctx->dev, "%s tee%d task[%d][%d] stop\n",
+				__func__, tctx->tee_id, task_id, task_cnt);
+			ret = kthread_stop(task_info->fd[task_cnt]);
+			dev_info(tctx->dev, "%s tee%d task[%d][%d] ret=%d\n",
+				__func__, tctx->tee_id, task_id, task_cnt, ret);
+		}
+
+		kfree(task_info->rdy);
+		kfree(task_info->fd);
+	}
+}
+
+static int trusty_thread_create(struct trusty_ctx *tctx)
+{
+	int ret;
+	int task_cnt, task_id, task_max;
+	char task_name[16];
+	struct trusty_task_info *task_info;
+	char prefix;
+	int (*trusty_task_ptr)(void *data);
+
+	for (task_id = 0 ; task_id < TRUSTY_TASK_MAX_ID ; task_id++) {
+		if (task_id == TRUSTY_TASK_KICK_ID) {
+			trusty_task_ptr = trusty_task_kick;
+			prefix = 'k';
+		} else {
+			trusty_task_ptr = trusty_task_chk;
+			prefix = 'c';
+		}
+
+		task_info = &tctx->task_info[task_id];
+		task_max = task_info->task_max;
+		atomic_set(&task_info->task_num, 0);
+		init_completion(&task_info->run);
+
+		task_info->rdy = (struct completion *)
+			kcalloc(task_max, sizeof(struct completion), GFP_KERNEL);
+		if (!task_info->rdy)
+			return -ENOMEM;
+
+		task_info->fd = (struct task_struct **)
+			kcalloc(task_max, sizeof(struct task_struct *), GFP_KERNEL);
+		if (!task_info->fd)
+			return -ENOMEM;
+
+		for (task_cnt = 0 ; task_cnt < task_max ; task_cnt++) {
+			memset(task_name, '\0', 16);
+			ret = snprintf(task_name, 15, "id%d_trusty_%c/%d",
+						tctx->tee_id, prefix, task_cnt);
+			if (ret <= 0)
+				return ret;
+
+			init_completion(&task_info->rdy[task_cnt]);
+			task_info->fd[task_cnt] =
+				kthread_run(trusty_task_ptr, (void *)tctx, task_name);
+			if (IS_ERR(task_info->fd[task_cnt])) {
+				dev_info(tctx->dev, "%s unable create kthread\n", __func__);
+				ret = PTR_ERR(task_info->fd[task_cnt]);
+				return ret;
 			}
 		}
 	}
+	return 0;
+}
 
-	cpumask_clear(mask);
-	// final CPU is for TEE
-	for (i = big_start_num; i < cpu_num - 1; i++) {
-		/* dev_info(&pdev->dev, "%s bind cpu%d\n", __func__, i); */
-		cpumask_set_cpu(i, mask);
+static int trusty_thread_rdy(struct trusty_ctx *tctx)
+{
+	int ret;
+	int task_cnt, task_id, task_max;
+	struct trusty_task_info *task_info;
+
+	for (task_id = 0 ; task_id < TRUSTY_TASK_MAX_ID ; task_id++) {
+		task_info = &tctx->task_info[task_id];
+		task_max = task_info->task_max;
+
+		for (task_cnt = 0 ; task_cnt < task_max ; task_cnt++) {
+			ret = wait_for_completion_timeout(
+				&task_info->rdy[task_cnt], msecs_to_jiffies(5000));
+			if (ret <= 0) {
+				dev_info(tctx->dev, "%s task_id/%d_%d ret=%d\n",
+					__func__, task_id, task_cnt, ret);
+				return -1;
+			}
+		}
 	}
-
 	return 0;
 }
 
@@ -781,38 +1058,21 @@ static int trusty_virtio_probe(struct platform_device *pdev)
 	tctx->trusty_dev = pdev->dev.parent;
 	/* the notifier will call check_all_vqs */
 	tctx->call_notifier.notifier_call = trusty_call_notify;
+	tctx->callback_notifier.notifier_call = trusty_callback_notifier;
 	mutex_init(&tctx->mlock);
 	INIT_LIST_HEAD(&tctx->vdev_list);
-	INIT_WORK(&tctx->check_vqs, check_all_vqs);
-	INIT_WORK(&tctx->kick_vqs, kick_vqs);
 	platform_set_drvdata(pdev, tctx);
 
-	tctx->check_wq = alloc_workqueue("trusty-check-wq", WQ_UNBOUND, 0);
-	if (!tctx->check_wq) {
-		ret = -ENODEV;
-		dev_info(&pdev->dev, "Failed create trusty-check-wq\n");
-		goto err_create_check_wq;
-	}
+	tctx->task_info[TRUSTY_TASK_KICK_ID].task_max = TRUSTY_TASK_KICK_NUM;
+	tctx->task_info[TRUSTY_TASK_CHK_ID].task_max = TRUSTY_TASK_CHK_NUM;
 
-	tctx->kick_wq = alloc_workqueue("trusty-kick-wq",
-				WQ_HIGHPRI | WQ_UNBOUND | WQ_CPU_INTENSIVE, 0);
-	if (!tctx->kick_wq) {
-		ret = -ENODEV;
-		dev_info(&pdev->dev, "Failed create trusty-kick-wq\n");
-		goto err_create_kick_wq;
-	}
-
-	tctx->attrs = alloc_workqueue_attrs(GFP_KERNEL);
-	if (!tctx->attrs) {
-		ret = -ENOMEM;
-		goto err_free_workqueue;
-	}
-
-	ret = bind_big_core(tctx->attrs->cpumask);
+	ret = trusty_thread_create(tctx);
 	if (ret)
-		dev_info(&pdev->dev, "Failed to bind big cores\n");
+		goto err_thread_create;
 
-	apply_workqueue_attrs(tctx->kick_wq, tctx->attrs);
+	ret = trusty_thread_rdy(tctx);
+	if (ret)
+		goto err_thread_rdy;
 
 	ret = trusty_virtio_add_devices(tctx);
 
@@ -821,16 +1081,20 @@ static int trusty_virtio_probe(struct platform_device *pdev)
 		goto err_add_devices;
 	}
 
+/* 0 is no bind
+ * 1 is kick only
+ * 2 is kick + chk
+ * default is 1
+ */
+	trusty_task_default_bind(tctx, TRUSTY_TASK_DEFAULT_BIND_CPU);
+
 	dev_info(&pdev->dev, "initializing done\n");
 	return 0;
 
 err_add_devices:
-	destroy_workqueue(tctx->kick_wq);
-err_free_workqueue:
-	free_workqueue_attrs(tctx->attrs);
-err_create_kick_wq:
-	destroy_workqueue(tctx->check_wq);
-err_create_check_wq:
+err_thread_rdy:
+err_thread_create:
+	free_trusty_kthread(tctx);
 	kfree(tctx);
 	return ret;
 }
@@ -843,15 +1107,11 @@ static int trusty_virtio_remove(struct platform_device *pdev)
 
 	/* unregister call notifier and wait until workqueue is done */
 	trusty_call_notifier_unregister(tctx->trusty_dev, &tctx->call_notifier);
-	cancel_work_sync(&tctx->check_vqs);
+	trusty_callback_notifier_unregister(tctx->trusty_dev,
+					&tctx->callback_notifier);
 
 	/* remove virtio devices */
 	trusty_virtio_remove_devices(tctx);
-	cancel_work_sync(&tctx->kick_vqs);
-
-	/* destroy workqueues */
-	destroy_workqueue(tctx->kick_wq);
-	destroy_workqueue(tctx->check_wq);
 
 	/* notify remote that shared area goes away */
 	trusty_virtio_stop(tctx, tctx->shared_va, tctx->shared_sz);
@@ -859,8 +1119,8 @@ static int trusty_virtio_remove(struct platform_device *pdev)
 	/* free shared area */
 	free_pages_exact(tctx->shared_va, tctx->shared_sz);
 
-	/* free workqueue attrs */
-	free_workqueue_attrs(tctx->attrs);
+	/* kthread exit */
+	free_trusty_kthread(tctx);
 
 	/* free context */
 	kfree(tctx);

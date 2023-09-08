@@ -25,6 +25,23 @@ config MTK_PTPOD_GPU
           changed which will depended on chip.
           If unsure, say N.
 
+config MTK_CPU_MSSV
+	bool "MTK CPU MSSV SUPPORT"
+	---help---
+	  This kernel config can be used to enable cpu MSSV support.
+	  MSSV means Mediatek Software System Validation.
+	  When enable this option, cpu V/F get/set function will be enabled.
+	  This config should be enabled with corresponding MCUPM setting.
+	  If unsure, say N.
+
+config MTK_CPU_KORO
+	bool "MTK CPU KORO SUPPORT"
+	---help---
+	  This kernel config can be used to enable cpu KORO support.
+	  When enable this option, system will keep cpus power on while reset.
+	  This config should be enabled depend on platform.
+	  If unsure, say N.
+
 config MTK_STATIC_POWER
 	bool "MTK STATIC POWER"
 	default n
@@ -42,6 +59,23 @@ config MTK_UNIFY_POWER
 	  This table can provide power data and capacity to someone who
 	  need it.
 	  If unsure, say Y.
+
+config MTK_SLBC
+	bool "MTK SLBC"
+	---help---
+	  This kernel config can be used to enable SLBC. When enable
+	  this option, we will use system buffer to improve performance
+	  and power.
+	  If unsure, say N.
+
+config MTK_SLBC_MMSRAM
+	bool "MTK SLBC use MMSRAM"
+	select MTK_SLBC
+	---help---
+	  This kernel config can be used to enable SLBC MMSRAM. When enable
+	  this option, we will use system buffer to improve performance
+	  and power.
+	  If unsure, say N.
 
 config MTK_CM_MGR
 	bool "MTK CM MGR"
@@ -63,7 +97,6 @@ config MTK_SWPM
 
 config MTK_QOS_FRAMEWORK
 	bool "MTK QOS FRAMEWORK"
-	default n
 	---help---
 	  This kernel config can be used to enable MTK QOS FRAMEWORK.
 	  When enabling this option, BW Limiter and BW Bound Detector
@@ -82,6 +115,13 @@ config MTK_QOS_V1
 config MTK_QOS_V2
 	bool "MTK QOS Framework Ver 2.0"
 	default y if MACH_MT6785
+	default y if MACH_MT6885
+	default y if MACH_MT6873
+	default y if MACH_MT6853
+	default y if MACH_MT6893
+	default y if MACH_MT6833
+	default y if MACH_MT6877
+	default y if MACH_MT6781
 	select MTK_QOS_FRAMEWORK
 	---help---
 	  This version support QOS version 2.0 feature sets.

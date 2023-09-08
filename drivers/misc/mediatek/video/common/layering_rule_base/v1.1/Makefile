@@ -11,6 +11,11 @@
 # GNU General Public License for more details.
 #
 
+# separate mt6833 from family mt6853
+ifeq (y, $(filter y, $(CONFIG_MACH_MT6833)))
+	MTK_PLATFORM := mt6833
+endif
+
 obj-y += layering_rule_base.o
 
 ccflags-y += \
@@ -20,9 +25,6 @@ ccflags-y += \
                                 -I$(srctree)/drivers/misc/mediatek/video/$(MTK_PLATFORM)/videox \
                                 -I$(srctree)/drivers/misc/mediatek/sync/      \
                                 -I$(srctree)/drivers/misc/mediatek/lcm/inc/ \
-
-ccflags-y += \
                                 -I$(srctree)/drivers/misc/mediatek/cmdq/v3/ \
                                 -I$(srctree)/drivers/misc/mediatek/cmdq/v3/$(MTK_PLATFORM)/
-
 

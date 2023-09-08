@@ -31,10 +31,11 @@
 #include <linux/gpio.h>
 #include <linux/uaccess.h>
 #include <linux/regulator/consumer.h>
+#if defined(CONFIG_SPU_VERIFY)
 #include <linux/spu-verify.h>
-
+#endif
 #include <linux/input/mt.h>
-//#include <linux/sec_sysfs.h>
+#include <linux/sec_sysfs.h>
 #include <linux/input/sec_cmd.h>
 #include <linux/input/sec_tclm_v2.h>
 #include <linux/of_gpio.h>
@@ -43,9 +44,11 @@
 #ifdef CONFIG_BATTERY_SAMSUNG
 #include <linux/sec_batt.h>
 #endif
-#ifdef CONFIG_VBUS_NOTIFIER
-#include <linux/muic/muic.h>
-#include <linux/muic/muic_notifier.h>
+#if defined(CONFIG_MUIC_NOTIFIER)
+#include <linux/muic/common/muic.h>
+#include <linux/muic/common/muic_notifier.h>
+#endif
+#if defined(CONFIG_VBUS_NOTIFIER)
 #include <linux/vbus_notifier.h>
 #endif
 
@@ -59,8 +62,6 @@
 #define GLOVE_MODE
 
 #define MAX_FW_PATH 255
-
-#define SPU_FW_SIGNED
 
 #define TSP_PATH_EXTERNAL_FW		"/sdcard/Firmware/TSP/tsp.bin"
 #define TSP_PATH_EXTERNAL_FW_SIGNED	"/sdcard/Firmware/TSP/tsp_signed.bin"
@@ -492,7 +493,7 @@ enum zt_cover_id {
 #define	DEF_OPTIONAL_MODE_DUO_TOUCH		4
 #define DEF_OPTIONAL_MODE_TOUCHABLE_AREA		5
 #define DEF_OPTIONAL_MODE_EAR_DETECT		6
-#define DEF_OPTIONAL_MODE_REJECT_ZONE		7
+#define DEF_OPTIONAL_MODE_EAR_DETECT_MUTUAL		7
 #define DEF_OPTIONAL_MODE_POCKET_MODE		8
 
 /* end header file */
@@ -756,7 +757,8 @@ struct bt532_ts_info {
 	bool sleep_mode;
 	bool glove_touch;
 	u8 lpm_mode;
-	
+	int enabled;
+
 	u16 fod_mode_set;
 	u8 fod_info_vi_trx[2];
 	u16 fod_info_vi_data_len;
@@ -791,6 +793,8 @@ struct bt532_ts_info {
 	u16 pressed_x[MAX_SUPPORTED_FINGER_NUM];
 	u16 pressed_y[MAX_SUPPORTED_FINGER_NUM];
 	long prox_power_off;
+
+	u32 palm_flag;
 
 	bool ed_enable;
 	int pocket_enable;
@@ -2539,7 +2543,6 @@ static void clear_report_data(struct bt532_ts_info *info)
 #ifdef CONFIG_SEC_FACTORY
 			input_report_abs(info->input_dev, ABS_MT_PRESSURE, 0);
 #endif
-			input_report_abs(info->input_dev, ABS_MT_CUSTOM, 0);
 			input_mt_report_slot_state(info->input_dev, MT_TOOL_FINGER, 0);
 			reported = true;
 			if (!m_ts_debug_mode && TSP_NORMAL_EVENT_MSG) {
@@ -2573,6 +2576,9 @@ static void clear_report_data(struct bt532_ts_info *info)
 	input_report_switch(info->input_dev, SW_GLOVE, false);
 	info->glove_touch = 0;
 #endif
+
+	input_report_key(info->input_dev, BTN_PALM, false);
+	info->palm_flag = 0;
 
 	if (reported) {
 		input_sync(info->input_dev);
@@ -2648,6 +2654,7 @@ static irqreturn_t bt532_touch_work(int irq, void *data)
 	char pos[5];
 	char cur = 0;
 	char old = 0;
+	char tclm_buff[55];
 
 	if (info->sleep_mode) {
 		pm_wakeup_event(info->input_dev->dev.parent, 500);
@@ -2778,6 +2785,10 @@ static irqreturn_t bt532_touch_work(int irq, void *data)
 		if (!info->cur_coord[tid].palm && (info->cur_coord[tid].ttype == TOUCH_PALM))
 			info->cur_coord[tid].palm_count++;
 		info->cur_coord[tid].palm = (info->cur_coord[tid].ttype == TOUCH_PALM);
+		if (info->cur_coord[tid].palm)
+			info->palm_flag |= (1 << tid);
+		else
+			info->palm_flag &= ~(1 << tid);
 
 		if (info->cur_coord[tid].z <= 0)
 			info->cur_coord[tid].z = 1;
@@ -2884,12 +2895,12 @@ static irqreturn_t bt532_touch_work(int irq, void *data)
 
 				location_detect(info, location, x, y);
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
-				input_info(true, &client->dev, "[P] tID:%d,%d x:%d y:%d z:%d(st:%d) max:%d major:%d minor:%d loc:%s tc:%d touch_type:%x noise:%x\n",
-							i, info->input_dev->mt->trkid - 1, x, y, z, st, sen_max, info_major_w,
+				input_info(true, &client->dev, "[P] tID:%d.%d x:%d y:%d z:%d(st:%d) max:%d major:%d minor:%d loc:%s tc:%d touch_type:%x noise:%x\n",
+							i, (info->input_dev->mt->trkid) & TRKID_MAX, x, y, z, st, sen_max, info_major_w,
 							info_minor_w, location, info->finger_cnt1, info->cur_coord[i].ttype, info->cur_coord[i].noise);
 #else
-				input_info(true, &client->dev, "[P] tID:%d z:%d(st:%d) max:%d major:%d minor:%d loc:%s tc:%d touch_type:%x noise:%x\n",
-							i, z, st, sen_max, info_major_w,
+				input_info(true, &client->dev, "[P] tID:%d.%d z:%d(st:%d) max:%d major:%d minor:%d loc:%s tc:%d touch_type:%x noise:%x\n",
+							i, (info->input_dev->mt->trkid) & TRKID_MAX, z, st, sen_max, info_major_w,
 							info_minor_w, location, info->finger_cnt1, info->cur_coord[i].ttype, info->cur_coord[i].noise);
 #endif
 			} else if (info->cur_coord[i].touch_status == FINGER_MOVE) {
@@ -2909,7 +2920,7 @@ static irqreturn_t bt532_touch_work(int irq, void *data)
 
 			input_report_abs(info->input_dev, ABS_MT_POSITION_X, x);
 			input_report_abs(info->input_dev, ABS_MT_POSITION_Y, y);
-			input_report_abs(info->input_dev, ABS_MT_CUSTOM, info->cur_coord[i].palm);
+			input_report_key(info->input_dev, BTN_PALM, info->palm_flag);
 
 			input_report_key(info->input_dev, BTN_TOUCH, 1);
 		} else if (info->cur_coord[i].touch_status == FINGER_RELEASE) {
@@ -2919,30 +2930,41 @@ static irqreturn_t bt532_touch_work(int irq, void *data)
 
 			location_detect(info, location, info->cur_coord[i].x, info->cur_coord[i].y);
 
+#if IS_ENABLED(CONFIG_INPUT_TOUCHSCREEN_TCLMV2)
+			if (info->tdata && info->tdata->tclm_string)
+				snprintf(tclm_buff, sizeof(tclm_buff), "C%02XT%04X.%4s%s Cal_flag:%d fail_cnt:%d",
+						info->tdata->nvdata.cal_count, info->tdata->nvdata.tune_fix_ver,
+						info->tdata->tclm_string[info->tdata->nvdata.cal_position].f_name,
+						(info->tdata->tclm_level == TCLM_LEVEL_LOCKDOWN) ? ".L" : " ",
+						info->tdata->nvdata.cal_fail_falg, info->tdata->nvdata.cal_fail_cnt);
+			else
+				snprintf(tclm_buff, sizeof(tclm_buff), "TCLM data is empty");
+#else
+			snprintf(tclm_buff, sizeof(tclm_buff), "");
+#endif
+
+			if (info->cur_coord[i].palm_count > 0) {
+				input_info(true, &client->dev, "tID:%d ttype(P->N) : R\n", i);
+			}
+
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 			input_info(true, &client->dev,
-						"[R] tID:%d loc:%s dd:%d,%d mc:%d tc:%d lx:%d ly:%d p:%d v:%04X (%x,C%02XT%04X.%4s%s)\n",
+						"[R] tID:%d loc:%s dd:%d,%d mc:%d tc:%d lx:%d ly:%d p:%d v:%04X (%s)\n",
 						i, location,
 						info->cur_coord[i].x - info->pressed_x[i],
 						info->cur_coord[i].y - info->pressed_y[i],
 						info->move_count[i], info->finger_cnt1,
 						info->cur_coord[i].x,
 						info->cur_coord[i].y,
-						info->cur_coord[i].palm_count, fw_version,
-						info->test_result.data[0], info->tdata->nvdata.cal_count, info->tdata->nvdata.tune_fix_ver,
-						info->tdata->tclm_string[info->tdata->nvdata.cal_position].f_name,
-						(info->tdata->tclm_level == TCLM_LEVEL_LOCKDOWN) ? ".L" : " ");
+						info->cur_coord[i].palm_count, fw_version, tclm_buff);
 #else
 			input_info(true, &client->dev,
-						"[R] tID:%02d loc:%s dd:%d,%d mc:%d tc:%d p:%d v:%04X (%x,C%02XT%04X.%4s%s)\n",
+						"[R] tID:%02d loc:%s dd:%d,%d mc:%d tc:%d p:%d v:%04X (%s)\n",
 						i, location,
 						info->cur_coord[i].x - info->pressed_x[i],
 						info->cur_coord[i].y - info->pressed_y[i],
 						info->move_count[i], info->finger_cnt1,
-						info->cur_coord[i].palm_count, fw_version,
-						info->test_result.data[0], info->tdata->nvdata.cal_count, info->tdata->nvdata.tune_fix_ver,
-						info->tdata->tclm_string[info->tdata->nvdata.cal_position].f_name,
-						(info->tdata->tclm_level == TCLM_LEVEL_LOCKDOWN) ? ".L" : " ");
+						info->cur_coord[i].palm_count, fw_version, tclm_buff);
 #endif
 			if (info->finger_cnt1 > 0)
 				info->finger_cnt1--;
@@ -2953,8 +2975,11 @@ static irqreturn_t bt532_touch_work(int irq, void *data)
 			}
 
 			input_mt_slot(info->input_dev, i);
-			input_report_abs(info->input_dev, ABS_MT_CUSTOM, 0);
 			input_mt_report_slot_state(info->input_dev, MT_TOOL_FINGER, 0);
+
+			info->palm_flag &= ~(1 << i);
+			input_report_key(info->input_dev, BTN_PALM, info->palm_flag);
+
 			info->move_count[i] = 0;
 			memset(&info->cur_coord[i], 0, sizeof(struct ts_coordinate));
 		}
@@ -3002,12 +3027,6 @@ static int  bt532_ts_open(struct input_dev *dev)
 	}
 
 	input_info(true, &misc_info->client->dev, "%s, %d \n", __func__, __LINE__);
-
-	/* Clear Ear Detection event*/
-	 if (info->input_dev_proximity) {
-		 input_report_abs(info->input_dev_proximity, ABS_MT_CUSTOM, 0);
-		 input_sync(info->input_dev_proximity);
-	 }
 
 	if ((info->pdata->support_lpm_mode) && (info->sleep_mode)) {
 		down(&info->work_lock);
@@ -3116,6 +3135,10 @@ static void bt532_ts_close(struct input_dev *dev)
 #if ESD_TIMER_INTERVAL
 		esd_timer_stop(info);
 #endif
+
+		if (info->prox_power_off && info->aot_enable)
+			zinitix_bit_clr(info->lpm_mode, BIT_EVENT_AOT);
+
 		input_info(true, &misc_info->client->dev,
 				"%s: write lpm_mode 0x%02x (spay:%d, aod:%d, singletap:%d, aot:%d, fod:%d, fod_lp:%d)\n",
 				__func__, info->lpm_mode,
@@ -3129,11 +3152,11 @@ static void bt532_ts_close(struct input_dev *dev)
 		if (write_reg(info->client, ZT75XX_LPM_MODE_REG, info->lpm_mode) != I2C_SUCCESS)
 			input_info(true, &misc_info->client->dev, "%s, fail lpm mode set\n", __func__);
 
-		if (write_reg(info->client, ZT75XX_CALL_AOT_REG, info->prox_power_off) != I2C_SUCCESS)
-			input_info(true, &misc_info->client->dev, "%s, fail call aot set\n", __func__);
-
 		write_cmd(info->client, BT532_SLEEP_CMD);
 		info->sleep_mode = 1;
+
+		if (info->prox_power_off && info->aot_enable)
+			zinitix_bit_set(info->lpm_mode, BIT_EVENT_AOT);
 
 		/* clear garbage data */
 		for (i = 0; i < 2; i++) {
@@ -3753,11 +3776,12 @@ static void fw_update(void *device_data)
 		set_fs(old_fs);
 		input_info(true, &client->dev, "ums fw is loaded!!\n");
 
-#ifdef SPU_FW_SIGNED
+#if defined(CONFIG_SPU_VERIFY)
 		info->fw_data = (unsigned char *)buff;
 		if (!(ts_check_need_upgrade(info, info->cap_info.fw_version, info->cap_info.fw_minor_version,
 			info->cap_info.reg_data_version, info->cap_info.hw_id)) &&
 			(update_type == TSP_TYPE_SPU_FW_SIGNED)) {
+			sec->cmd_state = SEC_CMD_STATUS_OK;
 			input_info(true, &client->dev, "%s: skip ffu update\n", __func__);
 			goto fw_update_out;
 		}
@@ -4146,7 +4170,7 @@ static bool get_channel_test_result(struct bt532_ts_info *info, int skip_cnt)
 	struct i2c_client *client = info->client;
 	struct bt532_ts_platform_data *pdata = info->pdata;
 	int i;
-	int retry = 100;
+	int retry = 150;
 
 	disable_irq(info->irq);
 
@@ -4162,13 +4186,17 @@ static bool get_channel_test_result(struct bt532_ts_info *info, int skip_cnt)
 	info->work_state = RAW_DATA;
 
 	for (i = 0; i < skip_cnt; i++) {
-		while (gpio_get_value(pdata->gpio_int))
-			usleep_range(1 * 1000, 1 * 1000);
+		while (gpio_get_value(pdata->gpio_int)) {
+			usleep_range(7 * 1000, 7 * 1000);
+			if (--retry < 0)
+				break;
+		}
 
 		write_cmd(client, BT532_CLEAR_INT_STATUS_CMD);
 		usleep_range(1 * 1000, 1 * 1000);
 	}
 
+	retry = 100;
 	input_info(true, &client->dev, "%s: channel_test_result read\n", __func__);
 
 	while (gpio_get_value(pdata->gpio_int)) {
@@ -7179,6 +7207,7 @@ NG:
 #endif
 }
 
+#ifdef TCLM_CONCEPT
 static void get_pat_information(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -7580,6 +7609,7 @@ int bt532_tclm_data_write(struct i2c_client *client, int address)
 
 	return ret;
 }
+#endif
 
 #ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 static void ium_random_write(struct bt532_ts_info *info, u8 data)
@@ -8250,6 +8280,8 @@ int zt_tclm_execute_force_calibration(struct i2c_client *client, int cal_mode)
 
 	if (ts_hw_calibration(info) == false)
 		return -1;
+
+	mini_init_touch(info);
 
 	return 0;
 }
@@ -9145,16 +9177,24 @@ static void ear_detect_enable(void *device_data)
 
 	sec_cmd_set_default_result(sec);
 
-	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 1) {
+	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 3) {
 		snprintf(buff, sizeof(buff), "%s", "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	} else {
 		info->ed_enable = value;
 
-		if (value)
+		if (value == 3) {
+			/* Self_Proximity */
 			zinitix_bit_set(m_optional_mode.select_mode.flag, DEF_OPTIONAL_MODE_EAR_DETECT);
-		else
+			zinitix_bit_clr(m_optional_mode.select_mode.flag, DEF_OPTIONAL_MODE_EAR_DETECT_MUTUAL);
+		} else if (value == 1) {
+			/* Mutual_Proximity */
 			zinitix_bit_clr(m_optional_mode.select_mode.flag, DEF_OPTIONAL_MODE_EAR_DETECT);
+			zinitix_bit_set(m_optional_mode.select_mode.flag, DEF_OPTIONAL_MODE_EAR_DETECT_MUTUAL);
+		} else {
+			zinitix_bit_clr(m_optional_mode.select_mode.flag, DEF_OPTIONAL_MODE_EAR_DETECT);
+			zinitix_bit_clr(m_optional_mode.select_mode.flag, DEF_OPTIONAL_MODE_EAR_DETECT_MUTUAL);
+		}
 
 		bt532_set_optional_mode(info, false);
 
@@ -9525,7 +9565,9 @@ static ssize_t read_support_feature(struct device *dev,
 	u32 feature = 0;
 
 	if (info->pdata->support_aot)
-		feature |= INPUT_FEATURE_SUPPORT_AOT;
+		feature |= INPUT_FEATURE_ENABLE_SETTINGS_AOT;
+	if (info->pdata->support_open_short_test)
+		feature |= INPUT_FEATURE_SUPPORT_OPEN_SHORT_TEST;
 
 	snprintf(buff, sizeof(buff), "%d", feature);
 	input_info(true, &client->dev, "%s: %s\n", __func__, buff);
@@ -9561,18 +9603,26 @@ static ssize_t protos_event_store(struct device *dev,
 
 	input_info(true, &info->client->dev, "%s: %d\n", __func__, data);
 
-	if (data != 0 && data != 1) {
+	if (data < 0 || data > 3) {
 		input_err(true, &info->client->dev, "%s: incorrect data\n", __func__);
 		return -EINVAL;
 	}
 
 	info->ed_enable = data;
 	
-	if (info->ed_enable)
+	if (data == 3) {
+		/* Self_Proximity */
 		zinitix_bit_set(m_optional_mode.select_mode.flag, DEF_OPTIONAL_MODE_EAR_DETECT);
-	else
+		zinitix_bit_clr(m_optional_mode.select_mode.flag, DEF_OPTIONAL_MODE_EAR_DETECT_MUTUAL);
+	} else if (data == 1) {
+		/* Mutual_Proximity */
 		zinitix_bit_clr(m_optional_mode.select_mode.flag, DEF_OPTIONAL_MODE_EAR_DETECT);
-	
+		zinitix_bit_set(m_optional_mode.select_mode.flag, DEF_OPTIONAL_MODE_EAR_DETECT_MUTUAL);
+	} else {
+		zinitix_bit_clr(m_optional_mode.select_mode.flag, DEF_OPTIONAL_MODE_EAR_DETECT);
+		zinitix_bit_clr(m_optional_mode.select_mode.flag, DEF_OPTIONAL_MODE_EAR_DETECT_MUTUAL);
+	}
+
 	bt532_set_optional_mode(info, false);
 
 	return count;
@@ -9657,6 +9707,40 @@ static ssize_t store_write_reg(struct device *dev,
 	return size;
 }
 
+static ssize_t enabled_show(struct device *dev,
+					  struct device_attribute *attr, char *buf)
+{
+	struct bt532_ts_info *info = dev_get_drvdata(dev);
+
+	input_info(true, &info->client->dev, "%s: %d\n", __func__, info->enabled);
+	return scnprintf(buf, PAGE_SIZE, "%d", info->enabled);
+}
+
+static ssize_t enabled_store(struct device *dev,
+					  struct device_attribute *attr,
+					  const char *buf, size_t count)
+{
+	struct bt532_ts_info *info = dev_get_drvdata(dev);
+	int value;
+	int err;
+
+	err = kstrtoint(buf, 10, &value);
+
+	if (info->enabled == value) {
+		input_info(true, &info->client->dev, "%s: already %s\n",
+				__func__, value ? "enabled" : "disabled");
+		return count;
+	}
+
+	if (value > 0)
+		bt532_ts_open(info->input_dev);
+	else
+		bt532_ts_close(info->input_dev);
+
+	info->enabled = value;
+	return count;
+}
+
 static DEVICE_ATTR(scrub_pos, S_IRUGO, scrub_position_show, NULL);
 static DEVICE_ATTR(sensitivity_mode, S_IRUGO | S_IWUSR | S_IWGRP, sensitivity_mode_show, sensitivity_mode_store);
 static DEVICE_ATTR(ito_check, S_IRUGO | S_IWUSR | S_IWGRP, read_ito_check_show, clear_wet_mode_store);
@@ -9672,7 +9756,12 @@ static DEVICE_ATTR(fod_info, S_IRUGO, fod_info_show, NULL);
 static DEVICE_ATTR(fod_pos, S_IRUGO, fod_pos_show, NULL);
 static DEVICE_ATTR(read_reg_data, S_IRUGO | S_IWUSR | S_IWGRP, read_reg_show, store_read_reg);
 static DEVICE_ATTR(write_reg_data, S_IWUSR | S_IWGRP, NULL, store_write_reg);
+static DEVICE_ATTR(enabled, 0664, enabled_show, enabled_store);
 
+static struct attribute *input_attributes[] = {
+	&dev_attr_enabled.attr,
+	NULL,
+};
 static struct attribute *touchscreen_attributes[] = {
 	&dev_attr_scrub_pos.attr,
 	&dev_attr_sensitivity_mode.attr,
@@ -9692,6 +9781,9 @@ static struct attribute *touchscreen_attributes[] = {
 	NULL,
 };
 
+static struct attribute_group input_attr_group = {
+	.attrs = input_attributes,
+};
 static struct attribute_group touchscreen_attr_group = {
 	.attrs = touchscreen_attributes,
 };
@@ -10596,6 +10688,7 @@ static int bt532_ts_parse_dt(struct device_node *np,
 	pdata->support_aod = of_property_read_bool(np, "zinitix,aod");
 	pdata->support_aot = of_property_read_bool(np, "zinitix,aot");
 	pdata->support_ear_detect = of_property_read_bool(np, "support_ear_detect_mode");
+	pdata->support_open_short_test = of_property_read_bool(np, "support_open_short_test");
 	pdata->support_lpm_mode = (pdata->support_spay | pdata->support_aod | pdata->support_aot);
 	pdata->bringup = of_property_read_bool(np, "zinitix,bringup");
 	pdata->mis_cal_check = of_property_read_bool(np, "zinitix,mis_cal_check");
@@ -10982,9 +11075,30 @@ static void zt_read_info_work(struct work_struct *work)
 #ifdef TCLM_CONCEPT
 	get_zt_tsp_nvm_data(info, BT532_TS_NVM_OFFSET_FAC_RESULT, (u8 *)data, 2);
 	info->test_result.data[0] = data[0];
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_stop(info);
+	write_reg(info->client, BT532_PERIODICAL_INTERRUPT_INTERVAL, 0);
+	write_cmd(info->client, BT532_CLEAR_INT_STATUS_CMD);
+#endif
+
+	write_reg(info->client, BT532_INT_ENABLE_FLAG, 0x153F);
+	input_info(true, &info->client->dev, "%s: int disabled addr = 0x%x, val = 0x153F\r\n",
+		__func__, BT532_INT_ENABLE_FLAG);
+
 	ret = sec_tclm_check_cal_case(info->tdata);
 	input_info(true, &info->client->dev, "%s: sec_tclm_check_cal_case result %d; test result %X\n",
 				__func__, ret, info->test_result.data[0]);
+
+	write_reg(info->client, BT532_INT_ENABLE_FLAG, 0x113F);
+	input_info(true, &info->client->dev, "%s: int enabled addr = 0x%x, val = 0x113F\r\n",
+		__func__, BT532_INT_ENABLE_FLAG);
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_start(CHECK_ESD_TIMER, info);
+	write_reg(info->client, BT532_PERIODICAL_INTERRUPT_INTERVAL,
+		SCAN_RATE_HZ * ESD_TIMER_INTERVAL);
+#endif
 #endif
 	run_test_open_short(info);
 
@@ -11206,6 +11320,8 @@ static int bt532_ts_probe(struct i2c_client *client,
 	set_bit(KEY_INT_CANCEL, info->input_dev->keybit);
 	set_bit(EV_LED, info->input_dev->evbit);
 	set_bit(LED_MISC, info->input_dev->ledbit);
+	set_bit(BTN_PALM, info->input_dev->keybit);
+
 	if (pdata->support_touchkey){
 		for (i = 0; i < MAX_SUPPORTED_BUTTON_NUM; i++)
 			set_bit(BUTTON_MAPPING_KEY[i], info->input_dev->keybit);
@@ -11230,7 +11346,6 @@ static int bt532_ts_probe(struct i2c_client *client,
 		0, 255, 0, 0);
 	input_set_abs_params(info->input_dev, ABS_MT_TOUCH_MINOR,
 		0, 255, 0, 0);
-	input_set_abs_params(info->input_dev, ABS_MT_CUSTOM, 0, 0xFFFFFFFF, 0, 0);
 
 	set_bit(MT_TOOL_FINGER, info->input_dev->keybit);
 	input_mt_init_slots(info->input_dev, MAX_SUPPORTED_FINGER_NUM,
@@ -11289,11 +11404,6 @@ static int bt532_ts_probe(struct i2c_client *client,
 		__func__, info->irq);
 #endif
 
-#ifdef CONFIG_INPUT_ENABLED
-	info->input_dev->open = bt532_ts_open;
-	info->input_dev->close = bt532_ts_close;
-#endif
-
 	sema_init(&info->raw_data_lock, 1);
 #ifdef USE_MISC_DEVICE
 	ret = misc_register(&touch_misc_device);
@@ -11309,6 +11419,11 @@ static int bt532_ts_probe(struct i2c_client *client,
 
 		goto err_kthread_create_failed;
 	}
+#endif
+#ifdef CONFIG_INPUT_ENABLED
+	ret = sysfs_create_group(&info->input_dev->dev.kobj, &input_attr_group);
+	if (ret < 0)
+		input_err(true, &info->client->dev, "%s: Failed to create input_attr_group\n", __func__);
 #endif
 
 	info->register_cb = info->pdata->register_cb;

@@ -37,8 +37,7 @@
 /**********************************************************
  * PMIC related define
  ***********************************************************/
-#if !defined(CONFIG_FPGA_EARLY_PORTING) && defined(CONFIG_MTK_PMIC_WRAP_HAL)
-#include "pwrap_hal.h"
+#if !defined(CONFIG_FPGA_EARLY_PORTING)
 #define CONFIG_PMIC_HW_ACCESS_EN
 #endif
 
@@ -338,7 +337,12 @@ static long pmic_ftm_ioctl(struct file *file,
 				, __func__, adc_out_data[0]);
 		break;
 	case Get_IS_EXT_BUCK3_EXIST:
+#ifdef CONFIG_MTK_EXTBUCK
+		/* just for UI showing CONNECTED */
+		adc_out_data[0] = is_ext_buck2_exist();
+#else
 		adc_out_data[0] = 0;
+#endif
 		PMICLOG("[%s] Get_IS_EXT_BUCK3_EXIST:%d\n"
 				, __func__, adc_out_data[0]);
 		break;
@@ -588,6 +592,9 @@ static int pmic_mt_probe(struct platform_device *pdev)
 	/*get PMIC CID */
 	PMICLOG("PMIC CID = 0x%x\n", pmic_get_register_value(PMIC_SWCID));
 
+#if defined(CONFIG_MACH_MT6781)
+	record_is_pmic_new_power_grid(pdev);
+#endif
 	record_md_vosel();
 
 	PMIC_INIT_SETTING_V1();

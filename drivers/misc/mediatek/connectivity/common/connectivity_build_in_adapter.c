@@ -17,7 +17,7 @@
 #define DFT_TAG "[CONNADP]"
 #include "connectivity_build_in_adapter.h"
 
-#include "../../../../kernel/sched/sched.h"
+#include <kernel/sched/sched.h>
 
 /*device tree mode*/
 #ifdef CONFIG_OF
@@ -43,12 +43,17 @@
 #endif
 
 #ifdef CONNADP_HAS_CLOCK_BUF_CTRL
+#ifndef CONFIG_FPGA_EARLY_PORTING
 #include <mtk_clkbuf_ctl.h>
+#endif
 #endif
 
 /* PMIC */
 #if defined(CONFIG_MTK_PMIC_CHIP_MT6359)
 #include <mtk_pmic_api_buck.h>
+#endif
+#if defined(CONFIG_MTK_PMIC_CHIP_MT6359P)
+#include <pmic_api_buck.h>
 #endif
 #include <upmu_common.h>
 
@@ -87,11 +92,10 @@ EXPORT_SYMBOL(gConEmiPhyBase);
 unsigned long long gConEmiSize;
 EXPORT_SYMBOL(gConEmiSize);
 
-phys_addr_t gWifiRsvMemPhyBase;
-EXPORT_SYMBOL(gWifiRsvMemPhyBase);
-unsigned long long gWifiRsvMemSize;
-EXPORT_SYMBOL(gWifiRsvMemSize);
-
+phys_addr_t gGpsRsvMemPhyBase;
+EXPORT_SYMBOL(gGpsRsvMemPhyBase);
+unsigned long long gGpsRsvMemSize;
+EXPORT_SYMBOL(gGpsRsvMemSize);
 /*Reserved memory by device tree!*/
 
 int reserve_memory_consys_fn(struct reserved_mem *rmem)
@@ -107,17 +111,17 @@ int reserve_memory_consys_fn(struct reserved_mem *rmem)
 RESERVEDMEM_OF_DECLARE(reserve_memory_test, "mediatek,consys-reserve-memory",
 			reserve_memory_consys_fn);
 
-int reserve_memory_wifi_fn(struct reserved_mem *rmem)
+int reserve_memory_gps_fn(struct reserved_mem *rmem)
 {
 	pr_info(DFT_TAG "[W]%s: name: %s,base: 0x%llx,size: 0x%llx\n",
 		__func__, rmem->name, (unsigned long long)rmem->base,
 		(unsigned long long)rmem->size);
-	gWifiRsvMemPhyBase = rmem->base;
-	gWifiRsvMemSize = rmem->size;
+	gGpsRsvMemPhyBase = rmem->base;
+	gGpsRsvMemSize = rmem->size;
 	return 0;
 }
-RESERVEDMEM_OF_DECLARE(reserve_memory_wifi, "mediatek,wifi-reserve-memory",
-		       reserve_memory_wifi_fn);
+RESERVEDMEM_OF_DECLARE(reserve_memory_gps, "mediatek,gps-reserve-memory",
+			reserve_memory_gps_fn);
 
 void connectivity_export_show_stack(struct task_struct *tsk, unsigned long *sp)
 {
@@ -130,6 +134,18 @@ void connectivity_export_tracing_record_cmdline(struct task_struct *tsk)
 	tracing_record_cmdline(tsk);
 }
 EXPORT_SYMBOL(connectivity_export_tracing_record_cmdline);
+
+void connectivity_export_conap_scp_init(unsigned int chip_info, phys_addr_t emi_phy_addr)
+{
+}
+EXPORT_SYMBOL(connectivity_export_conap_scp_init);
+
+
+void connectivity_export_conap_scp_deinit(void)
+{
+}
+EXPORT_SYMBOL(connectivity_export_conap_scp_deinit);
+
 
 #ifdef CPU_BOOST
 bool connectivity_export_spm_resource_req(unsigned int user,
@@ -178,7 +194,11 @@ EXPORT_SYMBOL(connectivity_export_mt_ppm_sysboost_set_freq_limit);
 #ifdef CONNADP_HAS_CLOCK_BUF_CTRL
 void connectivity_export_clk_buf_ctrl(enum clk_buf_id id, bool onoff)
 {
+#if defined(CONFIG_MTK_BASE_POWER)
 	clk_buf_ctrl(id, onoff);
+#else
+	pr_info("[%s] not support now", __func__);
+#endif
 }
 EXPORT_SYMBOL(connectivity_export_clk_buf_ctrl);
 
@@ -187,8 +207,17 @@ void connectivity_export_clk_buf_show_status_info(void)
 #if defined(CONFIG_MACH_MT6768) || \
 	defined(CONFIG_MACH_MT6785) || \
 	defined(CONFIG_MACH_MT6771) || \
-	defined(CONFIG_MACH_MT6739)
+	defined(CONFIG_MACH_MT6739) || \
+	defined(CONFIG_MACH_MT6785) || \
+	defined(CONFIG_MACH_MT6873) || \
+	defined(CONFIG_MACH_MT6885) || \
+	defined(CONFIG_MACH_MT6893) || \
+	defined(CONFIG_MACH_MT6877)
+#if defined(CONFIG_MTK_BASE_POWER)
 	clk_buf_show_status_info();
+#else
+	pr_info("[%s] not support now", __func__);
+#endif
 #endif
 }
 EXPORT_SYMBOL(connectivity_export_clk_buf_show_status_info);
@@ -270,7 +299,8 @@ void connectivity_export_upmu_set_reg_value(unsigned int reg,
 }
 EXPORT_SYMBOL(connectivity_export_upmu_set_reg_value);
 
-#if defined(CONFIG_MTK_PMIC_CHIP_MT6359)
+#if defined(CONFIG_MTK_PMIC_CHIP_MT6359) || \
+	defined(CONFIG_MTK_PMIC_CHIP_MT6359P)
 int connectivity_export_pmic_ldo_vcn13_lp(int user,
 		int op_mode, unsigned char op_en, unsigned char op_cfg)
 {
@@ -284,6 +314,13 @@ int connectivity_export_pmic_ldo_vcn18_lp(int user,
 	return pmic_ldo_vcn18_lp(user, op_mode, op_en, op_cfg);
 }
 EXPORT_SYMBOL(connectivity_export_pmic_ldo_vcn18_lp);
+
+void connectivity_export_pmic_ldo_vfe28_lp(unsigned int user,
+		int op_mode, unsigned char op_en, unsigned char op_cfg)
+{
+	pmic_ldo_vfe28_lp(user, op_mode, op_en, op_cfg);
+}
+EXPORT_SYMBOL(connectivity_export_pmic_ldo_vfe28_lp);
 
 int connectivity_export_pmic_ldo_vcn33_1_lp(int user,
 		int op_mode, unsigned char op_en, unsigned char op_cfg)
@@ -306,26 +343,14 @@ int connectivity_export_mmc_io_rw_direct(struct mmc_card *card,
 				int write, unsigned int fn,
 				unsigned int addr, u8 in, u8 *out)
 {
-	return mmc_io_rw_direct(card, write, fn, addr, in, out);
-}
-EXPORT_SYMBOL(connectivity_export_mmc_io_rw_direct);
-
-void connectivity_flush_dcache_area(void *addr, size_t len)
-{
-#ifdef CONFIG_ARM64
-	__flush_dcache_area(addr, len);
+#if defined(CONFIG_MACH_MT6877)
+	pr_info("[%s] not support now", __func__);
+	return 0;
 #else
-	v7_flush_kern_dcache_area(addr, len);
+	return mmc_io_rw_direct(card, write, fn, addr, in, out);
 #endif
 }
-EXPORT_SYMBOL(connectivity_flush_dcache_area);
-
-void connectivity_arch_setup_dma_ops(struct device *dev, u64 dma_base, u64 size,
-				     struct iommu_ops *iommu, bool coherent)
-{
-	arch_setup_dma_ops(dev, dma_base, size, iommu, coherent);
-}
-EXPORT_SYMBOL(connectivity_arch_setup_dma_ops);
+EXPORT_SYMBOL(connectivity_export_mmc_io_rw_direct);
 
 /******************************************************************************
  * GPIO dump information

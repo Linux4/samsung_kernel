@@ -21,6 +21,8 @@
 #include <linux/of.h>
 #include <linux/io.h>
 #include <linux/miscdevice.h>   /* needed by miscdevice* */
+#include <linux/delay.h>
+#include <linux/kthread.h>
 #include "mcupm_ipi_id.h"
 #include "mcupm_ipi_table.h"
 #include "mcupm_driver.h"
@@ -28,6 +30,12 @@
 #include <linux/of_reserved_mem.h>
 #define MCUPM_MEM_RESERVED_KEY "mediatek,reserve-memory-mcupm_share"
 #endif
+/* debug API */
+#ifdef CONFIG_MEDIATEK_EMI
+#include <mt-plat/sync_write.h>
+#include <memory/mediatek/emi.h>
+#endif
+
 
 /* MCUPM RESERVED MEM */
 static phys_addr_t mcupm_mem_base_phys;
@@ -40,7 +48,7 @@ struct plt_ctrl_s {
 	unsigned int magic;
 	unsigned int size;
 	unsigned int mem_sz;
-#if MCUPM_LOGGER_SUPPORT
+#if (MCUPM_LOGGER_SUPPORT && MCUPM_ACCESS_DRAM_SUPPORT)
 	unsigned int logger_ofs;
 #endif
 };
@@ -63,6 +71,20 @@ static struct log_ctrl_s *log_ctl;
 static struct buffer_info_s *buf_info, *lbuf_info;
 static struct timer_list mcupm_log_timer;
 static DEFINE_MUTEX(mcupm_log_mutex);
+
+static struct mcupm_reserve_mblock mcupm_reserve_mblock[NUMS_MCUPM_MEM_ID] = {
+	{
+		.num = MCUPM_MEM_ID,
+		.size = 0x100 + MCUPM_PLT_LOGGER_BUF_LEN,
+		/* logger header + 1M log buffer */
+	},
+#if MCUPM_SYS_PI_SUPPORT
+	{
+		.num = MCUPM_SYS_PI_ID,
+		.size = MCUPM_SYS_PI_BUF_LEN,
+	},
+#endif
+};
 
 /* MCUPM RESERVED MEM */
 #ifdef CONFIG_OF_RESERVED_MEM
@@ -339,9 +361,9 @@ static unsigned int mcupm_log_enable_set(unsigned int enable)
 		mcupm_plt_ackdata = -1;
 
 		ret = mtk_ipi_send_compl(&mcupm_ipidev, CH_S_PLATFORM,
-					IPI_SEND_WAIT, &ipi_data,
-					sizeof(ipi_data) / MCUPM_MBOX_SLOT_SIZE,
-					0);
+			IPI_SEND_WAIT, &ipi_data,
+			sizeof(struct mcupm_ipi_data_s) / MCUPM_MBOX_SLOT_SIZE,
+			2000);
 		if (ret) {
 			pr_err("MCUPM: logger IPI fail ret=%d\n", ret);
 			goto error;
@@ -376,8 +398,7 @@ static ssize_t mcupm_mobile_log_show(struct device *kobj,
 static ssize_t mcupm_mobile_log_store(struct device *kobj,
 	struct device_attribute *attr, const char *buf, size_t n)
 {
-	unsigned int enable;
-
+	unsigned int enable = 0;
 
 	if (kstrtouint(buf, 0, &enable) != 0)
 		return -EINVAL;
@@ -465,7 +486,9 @@ static ssize_t mcupm_alive_show(struct device *kobj,
 	mcupm_plt_ackdata = 0;
 
 	ret = mtk_ipi_send_compl(&mcupm_ipidev, CH_S_PLATFORM, IPI_SEND_WAIT,
-		&ipi_data, sizeof(ipi_data) / MCUPM_MBOX_SLOT_SIZE, 10);
+		&ipi_data,
+		sizeof(struct mcupm_ipi_data_s) / MCUPM_MBOX_SLOT_SIZE,
+		2000);
 
 	return snprintf(buf, PAGE_SIZE, "%s\n",
 			mcupm_plt_ackdata ? "Alive" : "Dead");
@@ -474,21 +497,24 @@ DEVICE_ATTR(mcupm_alive, 0444, mcupm_alive_show, NULL);
 
 int __init mcupm_plt_init(void)
 {
+	int ret, i;
+#if MCUPM_ACCESS_DRAM_SUPPORT
 	phys_addr_t phys_addr, virt_addr, mem_sz;
 	struct mcupm_ipi_data_s ipi_data;
 	struct plt_ctrl_s *plt_ctl;
-	int ret, i;
 	unsigned int last_ofs;
-#if MCUPM_LOGGER_SUPPORT
+#if (MCUPM_LOGGER_SUPPORT && MCUPM_ACCESS_DRAM_SUPPORT)
 	unsigned int last_sz;
 #endif
 	unsigned int *mark;
 	unsigned char *b;
+#endif //MCUPM_ACCESS_DRAM_SUPPORT
 
 	ret = mcupm_sysfs_create_file(&dev_attr_mcupm_alive);
 	if (unlikely(ret != 0))
 		goto error;
 
+#if MCUPM_ACCESS_DRAM_SUPPORT
 	phys_addr = mcupm_reserve_mem_get_phys(MCUPM_MEM_ID);
 	if (phys_addr == 0) {
 		pr_err("MCUPM: Can't get logger phys mem\n");
@@ -525,9 +551,9 @@ int __init mcupm_plt_init(void)
 	last_ofs = plt_ctl->size;
 
 
-	pr_debug("MCUPM: %s(): after plt, ofs=%u\n", __func__, last_ofs);
+	pr_debug("MCUPM: %s(): after plt, ofs=0x%x\n", __func__, last_ofs);
 
-#if MCUPM_LOGGER_SUPPORT
+#if (MCUPM_LOGGER_SUPPORT && MCUPM_ACCESS_DRAM_SUPPORT)
 	plt_ctl->logger_ofs = last_ofs;
 	last_sz = mcupm_logger_init(virt_addr + last_ofs, mem_sz - last_ofs);
 
@@ -538,7 +564,7 @@ int __init mcupm_plt_init(void)
 	}
 
 	last_ofs += last_sz;
-	pr_debug("MCUPM: %s(): after logger, ofs=%u\n", __func__, last_ofs);
+	pr_debug("MCUPM: %s(): after logger, ofs=0x%x\n", __func__, last_ofs);
 #endif
 
 	ipi_data.cmd = MCUPM_PLT_INIT;
@@ -546,9 +572,10 @@ int __init mcupm_plt_init(void)
 	ipi_data.u.ctrl.size = mem_sz;
 	mcupm_plt_ackdata = 0;
 
-	ret = mtk_ipi_send_compl(&mcupm_ipidev, CH_S_PLATFORM,
-				 IPI_SEND_POLLING, &ipi_data,
-				 sizeof(ipi_data) / MCUPM_MBOX_SLOT_SIZE, 10);
+	ret = mtk_ipi_send_compl(&mcupm_ipidev, CH_S_PLATFORM, IPI_SEND_POLLING,
+		&ipi_data,
+		sizeof(struct mcupm_ipi_data_s) / MCUPM_MBOX_SLOT_SIZE,
+		2000);
 	if (ret) {
 		pr_err("MCUPM: plt IPI fail ret=%d, ackdata=%d\n",
 			ret, mcupm_plt_ackdata);
@@ -564,10 +591,11 @@ int __init mcupm_plt_init(void)
 	pr_info("MCUPM: plt IPI success ret=%d, ackdata=%d\n",
 		ret, mcupm_plt_ackdata);
 
-#if MCUPM_LOGGER_SUPPORT
+#if (MCUPM_LOGGER_SUPPORT && MCUPM_ACCESS_DRAM_SUPPORT)
 	mcupm_logger_init_done();
 #endif
 
+#endif //MCUPM_ACCESS_DRAM_SUPPORT
 	for (i = 0; i < MCUPM_MBOX_TOTAL; i++)
 		spin_lock_init(&mcupm_mbox_lock[i]);
 
@@ -644,13 +672,19 @@ static int mcupm_device_probe(struct platform_device *pdev)
 			ret = mtk_mbox_probe(pdev, mcupm_mbox_table[i].mbdev,
 						i);
 			if (ret) {
-				pr_err("[MCUPM] mbox probe fail on mbox-0, ret %d\n",
+				pr_err("[MCUPM] mbox(%d) probe fail on mbox-0, ret %d\n",
 					i, ret);
 				return -1;
 			}
 			continue;
 		}
-		snprintf(name, sizeof(name), "mbox%d_base", i);
+		ret = snprintf(name, sizeof(name), "mbox%d_base", i);
+		if (ret < 0 || ret >= sizeof(name)) {
+			pr_err("[MCUPM] snprintf failed for mbox%d_base, ret %d\n",
+				i, ret);
+			return -1;
+		}
+
 		res = platform_get_resource_byname(pdev,
 					IORESOURCE_MEM, name);
 		base = devm_ioremap_resource(dev, res);
@@ -686,6 +720,55 @@ static int mcupm_device_probe(struct platform_device *pdev)
 	pr_info("MCUPM is ready to service IPI\n");
 
 	return 0;
+}
+
+#if MCUPM_ALIVE_THREAD
+static struct task_struct *mcupm_task;
+int mcupm_thread(void *data)
+{
+	struct  mcupm_ipi_data_s ipi_data;
+	int ret;
+
+	ipi_data.cmd = 0xDEAD;
+	mcupm_plt_ackdata = 0;
+
+	/* an endless loop in which we are doing our work */
+	do {
+		ret = mtk_ipi_send_compl(&mcupm_ipidev, CH_S_PLATFORM,
+			IPI_SEND_WAIT, &ipi_data,
+			sizeof(struct mcupm_ipi_data_s) / MCUPM_MBOX_SLOT_SIZE,
+			2000);
+		if (ret) {
+			pr_info("MCUPM: alive ret=%d, ackdata=%d\n",
+				ret, mcupm_plt_ackdata);
+		} else {
+			pr_info("MCUPM is %s\n",
+				mcupm_plt_ackdata ? "Alive" : "Dead");
+		}
+		msleep(20000);
+	} while (!kthread_should_stop());
+	return 0;
+}
+#endif
+
+static char *pin_name[MCUPM_IPI_COUNT] = {
+	"PLATFORM",
+	"CPU_DVFS",
+	"FHCTL",
+	"MCDI",
+	"SUSPEND",
+};
+
+/* platform callback when ipi timeout */
+void mcupm_ipi_timeout_cb(int ipi_id)
+{
+	pr_info("Error: possible error IPI %d pin=%s\n",
+		ipi_id, pin_name[ipi_id]);
+
+	ipi_monitor_dump(&mcupm_ipidev);
+	mtk_emidbg_dump();
+
+	BUG_ON(1);
 }
 
 static const struct of_device_id mcupm_of_match[] = {
@@ -732,6 +815,11 @@ static int __init mcupm_init(void)
 	}
 #endif
 
+#if MCUPM_ALIVE_THREAD
+	mcupm_task = kthread_run(mcupm_thread, NULL,
+					"mcupm_task");
+#endif
+
 	pr_debug("[MCUPM] Helper Init\n");
 
 	mcupm_ready = 1;
@@ -764,3 +852,78 @@ static int __init mcupm_module_init(void)
 
 arch_initcall(mcupm_init);
 module_init(mcupm_module_init);
+
+#if MCUPM_SYS_PI_SUPPORT
+#ifdef CONFIG_MEDIATEK_EMI
+#define AP_MPU_DOMAIN_ID	0
+#define MUCPM_MPU_DOMAIN_ID	14
+#define MUCPM_MPU_REGION_ID	19
+
+#define SYS_PI_DEBUG		1
+
+#if SYS_PI_DEBUG
+static ssize_t mcupm_sys_pi_show(
+	struct device *kobj,
+	struct device_attribute *attr,
+	char *buf)
+{
+	char *ptr;
+
+	ptr = (char *)mcupm_reserve_mem_get_virt(MCUPM_SYS_PI_ID);
+	ptr = ptr - ((unsigned long)ptr & 0xFFF) + 0x1000;
+	return snprintf(buf, PAGE_SIZE, "%s", ptr);
+}
+
+
+DEVICE_ATTR(sys_pi, 0444, mcupm_sys_pi_show, NULL);
+#endif
+
+static unsigned long long mcupm_start;
+static unsigned long long mcupm_end;
+
+static void mcupm_set_emi_mpu(phys_addr_t base, phys_addr_t size)
+{
+	mcupm_start = base;
+	mcupm_end = base + size - 1;
+}
+
+static void mcupm_lock_emi_mpu(void)
+{
+	if (mcupm_mem_size > 0)
+		mcupm_set_emi_mpu(mcupm_mem_base_phys, mcupm_mem_size);
+}
+
+static int __init post_mcupm_set_emi_mpu(void)
+{
+	struct emimpu_region_t rg_info;
+	struct  mcupm_ipi_data_s ipi_data;
+	int ret;
+
+	mcupm_lock_emi_mpu();
+
+	mtk_emimpu_init_region(&rg_info, MUCPM_MPU_REGION_ID);
+
+	mtk_emimpu_set_addr(&rg_info, mcupm_start, mcupm_end);
+	mtk_emimpu_set_apc(&rg_info, AP_MPU_DOMAIN_ID, MTK_EMIMPU_NO_PROTECTION);
+	mtk_emimpu_set_apc(&rg_info, MUCPM_MPU_DOMAIN_ID, MTK_EMIMPU_NO_PROTECTION);
+	mtk_emimpu_set_protection(&rg_info);
+
+	mtk_emimpu_free_region(&rg_info);
+
+	ipi_data.cmd = MCUPM_SYS_PI_LOG_INIT;
+	ipi_data.u.ctrl.phys = mcupm_reserve_mem_get_phys(MCUPM_SYS_PI_ID);
+	ipi_data.u.ctrl.size = mcupm_reserve_mem_get_size(MCUPM_SYS_PI_ID);
+	ret = mtk_ipi_send_compl(&mcupm_ipidev, CH_S_PLATFORM,
+		IPI_SEND_WAIT, &ipi_data,
+		sizeof(struct mcupm_ipi_data_s) / MCUPM_MBOX_SLOT_SIZE,
+		2000);
+
+#if SYS_PI_DEBUG
+	ret = mcupm_sysfs_create_file(&dev_attr_sys_pi);
+#endif
+	return ret;
+}
+
+late_initcall(post_mcupm_set_emi_mpu);
+#endif
+#endif

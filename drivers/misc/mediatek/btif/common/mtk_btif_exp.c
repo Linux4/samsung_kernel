@@ -101,8 +101,8 @@ int mtk_wcn_btif_open(char *p_owner, unsigned long *p_id)
 
 /*check if btif is already opened or not, if yes, just return fail*/
 	if (!list_empty(p_user_list)) {
-		struct list_head *pos;
-		struct _mtk_btif_user_ *p_user;
+		struct list_head *pos = NULL;
+		struct _mtk_btif_user_ *p_user = NULL;
 
 		BTIF_ERR_FUNC("BTIF's user list is not empty\n");
 		list_for_each(pos, p_user_list) {
@@ -494,6 +494,9 @@ int mtk_wcn_btif_dbg_ctrl(unsigned long u_id, enum _ENUM_BTIF_DBG_ID_ flag)
 		btif_log_output_disable(&p_btif->tx_log);
 		btif_log_output_disable(&p_btif->rx_log);
 		break;
+	case BTIF_DUMP_DMA_VFIFO:
+		btif_dump_dma_vfifo(p_btif);
+		break;
 	default:
 		BTIF_INFO_FUNC("not supported flag:%d\n", flag);
 		i_ret = -2;
@@ -812,9 +815,12 @@ int mtk_btif_exp_rx_has_pending_data(unsigned long u_id)
 	}
 
 	/* Lock the data path to ensure that the current data path is
-	 * not processing data
+	 * not processing data. If fail to get lock, it means rx data
+	 * path is busy and we assume there has pending data to avoid
+	 * thread is blocked here.
 	 */
-	btif_rx_data_path_lock(p_btif);
+	if (btif_rx_data_path_lock(p_btif))
+		return 1;
 
 	has_pending_data = btif_rx_buf_has_pending_data(p_btif);
 	if (has_pending_data == 0)
@@ -838,6 +844,20 @@ int mtk_btif_exp_tx_has_pending_data(unsigned long u_id)
 	return btif_tx_dma_has_pending_data(p_btif);
 }
 EXPORT_SYMBOL(mtk_btif_exp_tx_has_pending_data);
+
+int mtk_btif_is_tx_complete(unsigned long u_id)
+{
+	struct _mtk_btif_ *p_btif = NULL;
+
+	p_btif = btif_exp_srh_id(u_id);
+	if (p_btif == NULL) {
+		BTIF_ERR_FUNC("E_BTIF_INVAL_PARAM\n");
+		return E_BTIF_INVAL_PARAM;
+	}
+
+	return btif_is_tx_complete(p_btif);
+}
+EXPORT_SYMBOL(mtk_btif_is_tx_complete);
 
 struct task_struct *mtk_btif_exp_rx_thread_get(unsigned long u_id)
 {

@@ -161,6 +161,11 @@ static void hal_dma_set_default_setting(enum _ENUM_DMA_DIR_ dma_dir)
 	unsigned int irq_info[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
 	unsigned int phy_base;
 
+	if (!g_btif[0].private_data) {
+		BTIF_INFO_FUNC("g_btif[0].private_data is NULL");
+		return;
+	}
+
 	if (dma_dir == DMA_DIR_RX) {
 		node = ((struct device *)(g_btif[0].private_data))->of_node;
 		if (node) {
@@ -407,7 +412,7 @@ int hal_btif_dma_clk_ctrl(struct _MTK_DMA_INFO_STR_ *p_dma_info,
 int hal_btif_dma_hw_init(struct _MTK_DMA_INFO_STR_ *p_dma_info)
 {
 	int i_ret = 0;
-	unsigned int dat = 0;
+	unsigned int dat = 0, count = 0;
 	unsigned long base = p_dma_info->base;
 	unsigned long addr_h = 0;
 	struct _DMA_VFIFO_ *p_vfifo = p_dma_info->p_vfifo;
@@ -422,7 +427,19 @@ int hal_btif_dma_hw_init(struct _MTK_DMA_INFO_STR_ *p_dma_info)
 		BTIF_SET_BIT(RX_DMA_RST(base), DMA_WARM_RST);
 		do {
 			dat = BTIF_READ32(RX_DMA_EN(base));
-		} while (0x01 & dat);
+			if ((0x01 & dat) == 0)
+				break;
+			udelay(100);
+			count++;
+		} while (count < 10);
+
+		/* If soft reset is failed, do hard reset. */
+		if (count >= 10) {
+			BTIF_SET_BIT(RX_DMA_RST(base), DMA_HARD_RST);
+			BTIF_CLR_BIT(RX_DMA_RST(base), DMA_HARD_RST);
+			BTIF_INFO_FUNC("RX dma hard reset\n");
+		}
+
 		/*write vfifo base address to VFF_ADDR*/
 		btif_reg_sync_writel(p_vfifo->phy_addr, RX_DMA_VFF_ADDR(base));
 		if (enable_4G())
@@ -455,7 +472,18 @@ int hal_btif_dma_hw_init(struct _MTK_DMA_INFO_STR_ *p_dma_info)
 		BTIF_SET_BIT(TX_DMA_RST(base), DMA_WARM_RST);
 		do {
 			dat = BTIF_READ32(TX_DMA_EN(base));
-		} while (0x01 & dat);
+			if ((0x01 & dat) == 0)
+				break;
+			udelay(100);
+			count++;
+		} while (count < 10);
+
+		/* If soft reset is failed, do hard reset. */
+		if (count >= 10) {
+			BTIF_SET_BIT(TX_DMA_RST(base), DMA_HARD_RST);
+			BTIF_CLR_BIT(TX_DMA_RST(base), DMA_HARD_RST);
+			BTIF_INFO_FUNC("TX dma hard reset\n");
+		}
 /*write vfifo base address to VFF_ADDR*/
 		btif_reg_sync_writel(p_vfifo->phy_addr, TX_DMA_VFF_ADDR(base));
 		if (enable_4G())
@@ -1318,6 +1346,21 @@ int hal_dma_dump_reg(struct _MTK_DMA_INFO_STR_ *p_dma_info,
 	return i_ret;
 }
 
+void hal_dma_dump_vfifo(struct _MTK_DMA_INFO_STR_ *p_dma_info)
+{
+	struct _DMA_VFIFO_ *p_vfifo;
+
+	if (!p_dma_info)
+		return;
+
+	p_vfifo = p_dma_info->p_vfifo;
+	if (!p_vfifo || !p_vfifo->p_vir_addr)
+		return;
+
+	btif_dump_array(p_dma_info->dir == DMA_DIR_RX ? "RX" : "TX",
+		p_vfifo->p_vir_addr, p_vfifo->vfifo_size);
+}
+
 static int _tx_dma_flush(struct _MTK_DMA_INFO_STR_ *p_dma_info)
 {
 	unsigned int i_ret = -1;
@@ -1567,9 +1610,11 @@ int hal_rx_dma_lock(bool enable)
 {
 	static unsigned long flag;
 
-	if (enable)
-		spin_lock_irqsave(&(g_clk_cg_spinlock), flag);
+	if (enable) {
+		if (!spin_trylock_irqsave(&g_clk_cg_spinlock, flag))
+			return E_BTIF_FAIL;
+	}
 	else
-		spin_unlock_irqrestore(&(g_clk_cg_spinlock), flag);
+		spin_unlock_irqrestore(&g_clk_cg_spinlock, flag);
 	return 0;
 }

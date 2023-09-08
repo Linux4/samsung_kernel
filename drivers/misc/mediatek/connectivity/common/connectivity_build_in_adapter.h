@@ -59,7 +59,12 @@
 	defined(CONFIG_MACH_MT6768) || \
 	defined(CONFIG_MACH_MT6785) || \
 	defined(CONFIG_MACH_KIBOPLUS) || \
-	defined(CONFIG_MACH_ELBRUS)
+	defined(CONFIG_MACH_MT6885) || \
+	defined(CONFIG_MACH_MT6853) || \
+	defined(CONFIG_MACH_MT6873) || \
+	defined(CONFIG_MACH_ELBRUS) || \
+	defined(CONFIG_MACH_MT6893) || \
+	defined(CONFIG_MACH_MT6877)
 #define CONNADP_HAS_CLOCK_BUF_CTRL
 #define KERNEL_CLK_BUF_CHIP_NOT_SUPPORT -7788
 #define KERNEL_clk_buf_ctrl connectivity_export_clk_buf_ctrl
@@ -89,11 +94,14 @@ int connectivity_export_clk_buf_get_xo_en_sta(/*enum xo_id id*/ int id);
 	connectivity_export_pmic_get_register_value
 #define KERNEL_upmu_set_reg_value \
 	connectivity_export_upmu_set_reg_value
-#if defined(CONFIG_MTK_PMIC_CHIP_MT6359)
+#if defined(CONFIG_MTK_PMIC_CHIP_MT6359) || \
+	defined(CONFIG_MTK_PMIC_CHIP_MT6359P)
 #define KERNEL_pmic_ldo_vcn13_lp \
 	connectivity_export_pmic_ldo_vcn13_lp
 #define KERNEL_pmic_ldo_vcn18_lp \
 	connectivity_export_pmic_ldo_vcn18_lp
+#define KERNEL_pmic_ldo_vfe28_lp \
+	connectivity_export_pmic_ldo_vfe28_lp
 #define KERNEL_pmic_ldo_vcn33_1_lp \
 	connectivity_export_pmic_ldo_vcn33_1_lp
 #define KERNEL_pmic_ldo_vcn33_2_lp \
@@ -112,10 +120,13 @@ void connectivity_export_pmic_set_register_value(int flagname,
 unsigned short connectivity_export_pmic_get_register_value(int flagname);
 void connectivity_export_upmu_set_reg_value(unsigned int reg,
 						unsigned int reg_val);
-#if defined(CONFIG_MTK_PMIC_CHIP_MT6359)
+#if defined(CONFIG_MTK_PMIC_CHIP_MT6359) || \
+	defined(CONFIG_MTK_PMIC_CHIP_MT6359P)
 int connectivity_export_pmic_ldo_vcn13_lp(int user,
 		int op_mode, unsigned char op_en, unsigned char op_cfg);
 int connectivity_export_pmic_ldo_vcn18_lp(int user,
+		int op_mode, unsigned char op_en, unsigned char op_cfg);
+void connectivity_export_pmic_ldo_vfe28_lp(unsigned int user,
 		int op_mode, unsigned char op_en, unsigned char op_cfg);
 int connectivity_export_pmic_ldo_vcn33_1_lp(int user,
 		int op_mode, unsigned char op_en, unsigned char op_cfg);
@@ -211,15 +222,13 @@ extern void mt_ppm_sysboost_set_freq_limit(enum ppm_sysboost_user user,
 extern bool spm_resource_req(unsigned int user, unsigned int req_mask);
 #endif
 
-#ifdef CONFIG_ARM64
-extern void __flush_dcache_area(void *addr, size_t len);
-#else
-extern void v7_flush_kern_dcache_area(void *addr, size_t len);
-#endif
-
 void connectivity_export_show_stack(struct task_struct *tsk, unsigned long *sp);
 void connectivity_export_dump_thread_state(const char *name);
 void connectivity_export_tracing_record_cmdline(struct task_struct *tsk);
+
+void connectivity_export_conap_scp_init(unsigned int chip_info, phys_addr_t emi_phy_addr);
+void connectivity_export_conap_scp_deinit(void);
+
 #ifdef CPU_BOOST
 void connectivity_export_mt_ppm_sysboost_freq(enum ppm_sysboost_user user,
 					      unsigned int freq);
@@ -236,9 +245,6 @@ void connectivity_export_mt_ppm_sysboost_set_freq_limit(
 bool connectivity_export_spm_resource_req(unsigned int user,
 				unsigned int req_mask);
 #endif
-void connectivity_flush_dcache_area(void *addr, size_t len);
-void connectivity_arch_setup_dma_ops(struct device *dev, u64 dma_base, u64 size,
-				     struct iommu_ops *iommu, bool coherent);
 
 /*********************************************
  * copy from

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 /* sma1303.c -- sma1303 ALSA SoC Audio driver
  *
- * r010, 2020.03.13	- initial version  sma1303
+ * r010_ps, 2020.05.18	- initial version  sma1303
  *
  * Copyright 2019 Silicon Mitus Corporation / Iron Device Corporation
  *
@@ -86,6 +86,7 @@ struct sma1303_priv {
 	unsigned int rev_num;
 	unsigned int last_over_temp;
 	unsigned int last_ocp_val;
+	unsigned int last_bclk;
 };
 
 static struct sma1303_pll_match sma1303_pll_matches[] = {
@@ -1875,7 +1876,7 @@ static int sma1303_clk_mon_time_sel_put(struct snd_kcontrol *kcontrol,
 }
 
 static const struct snd_kcontrol_new sma1303_snd_controls[] = {
-/* Sytem CTRL [0x00] */
+/* System CTRL [0x00] */
 SOC_SINGLE("I2C Reg Reset(1:reset_0:normal)",
 		SMA1303_00_SYSTEM_CTRL, 1, 1, 0),
 SOC_SINGLE_EXT("Power Up(1:Up_0:Down)", SND_SOC_NOPM, 0, 1, 0,
@@ -2362,17 +2363,14 @@ static const struct snd_soc_dapm_route sma1303_audio_map[] = {
 };
 
 static int sma1303_setup_pll(struct snd_soc_codec *codec,
-		struct snd_pcm_hw_params *params)
+		unsigned int bclk)
 {
 	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
 
 	int i = 0;
-	int calc_to_bclk = params_rate(params) * params_physical_width(params)
-					* params_channels(params);
 
-	dev_info(codec->dev, "%s : rate = %d : bit size = %d : channel = %d\n",
-		__func__, params_rate(params), params_physical_width(params),
-			params_channels(params));
+	dev_info(codec->dev, "%s : BCLK = %dHz\n",
+		__func__, bclk);
 
 	if (sma1303->sys_clk_id == SMA1303_PLL_CLKIN_MCLK) {
 		dev_info(codec->dev, "%s : MCLK is not supported\n",
@@ -2386,10 +2384,9 @@ static int sma1303_setup_pll(struct snd_soc_codec *codec,
 				PLL_OPERATION|PLL_SCK);
 
 		for (i = 0; i < sma1303->num_of_pll_matches; i++) {
-			if (sma1303->pll_matches[i].input_clk ==
-					calc_to_bclk)
+			if (sma1303->pll_matches[i].input_clk == bclk)
 				break;
-			}
+		}
 	}
 
 	regmap_write(sma1303->regmap, SMA1303_8B_PLL_POST_N,
@@ -2410,9 +2407,12 @@ static int sma1303_dai_hw_params_amp(struct snd_pcm_substream *substream,
 	struct snd_soc_codec *codec = dai->codec;
 	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
 	unsigned int input_format = 0;
+	unsigned int bclk = params_rate(params) * params_physical_width(params)
+		* params_channels(params);
 
-	dev_info(codec->dev, "%s : rate = %d : bit size = %d\n", __func__,
-		params_rate(params), params_width(params));
+	dev_info(codec->dev, "%s : rate = %d : bit size = %d : channel =%d\n",
+			__func__, params_rate(params), params_width(params),
+			params_channels(params));
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 
@@ -2420,9 +2420,17 @@ static int sma1303_dai_hw_params_amp(struct snd_pcm_substream *substream,
 		if (sma1303->force_amp_power_down == false &&
 			(sma1303->sys_clk_id == SMA1303_PLL_CLKIN_MCLK
 			|| sma1303->sys_clk_id == SMA1303_PLL_CLKIN_BCLK)) {
-			sma1303_shutdown(codec);
-			sma1303_setup_pll(codec, params);
-			sma1303_startup(codec);
+
+			if (sma1303->last_bclk != bclk) {
+				if (sma1303->amp_power_status) {
+					sma1303_shutdown(codec);
+					sma1303_setup_pll(codec, bclk);
+					sma1303_startup(codec);
+				} else
+					sma1303_setup_pll(codec, bclk);
+
+				sma1303->last_bclk = bclk;
+			}
 		}
 
 		switch (params_rate(params)) {
@@ -3123,7 +3131,7 @@ int sma1303_i2c_probe(struct i2c_client *client,
 	u32 value;
 	unsigned int device_info;
 
-	dev_info(&client->dev, "%s is here. Driver version REV010\n", __func__);
+	dev_info(&client->dev, "%s is here. Driver version REV010_PS\n", __func__);
 
 	sma1303 = devm_kzalloc(&client->dev, sizeof(struct sma1303_priv),
 							GFP_KERNEL);
@@ -3217,6 +3225,7 @@ int sma1303_i2c_probe(struct i2c_client *client,
 	sma1303->last_ocp_val = 0x0A;
 	sma1303->tsdw_cnt = 0;
 	sma1303->cur_vol = sma1303->init_vol;
+	sma1303->last_bclk = 0;
 
 	INIT_DELAYED_WORK(&sma1303->check_fault_work,
 		sma1303_check_fault_worker);
@@ -3279,7 +3288,7 @@ int sma1303_i2c_remove(struct i2c_client *client)
 	return 0;
 }
 
-/* 
+/*
  * register amp i2c driver at mtk common spk amp driver
  */
 #if 0

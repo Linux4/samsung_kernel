@@ -67,6 +67,12 @@ struct mt6370_pmu_chip {
 	uint8_t chip_vid;
 };
 
+#define RT5081_VENDOR_ID		(0x80)
+#define MT6370_VENDOR_ID		(0xE0)
+#define MT6371_VENDOR_ID		(0xF0)
+#define MT6372_VENDOR_ID		(0x90)
+#define MT6372C_VENDOR_ID		(0xB0)
+
 /* core control */
 #define MT6370_PMU_REG_DEVINFO		(0x00)
 #define MT6370_PMU_REG_CORECTRL1	(0x01)
@@ -268,6 +274,24 @@ static inline int mt6370_pmu_reg_clr_bit(struct mt6370_pmu_chip *chip, u8 addr,
 		u8 mask)
 {
 	return mt6370_pmu_reg_update_bits(chip, addr, mask, 0x00);
+}
+
+static inline int mt6370_pmu_reg_test_bit(
+	struct mt6370_pmu_chip *chip, u8 cmd, u8 shift, bool *is_one)
+{
+	int ret = 0;
+	u8 data = 0;
+
+	ret = mt6370_pmu_reg_read(chip, cmd);
+	if (ret < 0) {
+		*is_one = false;
+		return ret;
+	}
+
+	data = ret & (1 << shift);
+	*is_one = (data == 0 ? false : true);
+
+	return ret;
 }
 
 extern int mt6370_pmu_reg_block_read(struct mt6370_pmu_chip *chip, u8 addr,

@@ -24,13 +24,13 @@
 	no-sd;
 	no-sdio;
 	non-removable;
-	emmc_power_ao;
 	pinctl = <&msdc0_pins_default>;
 	pinctl_hs400 = <&msdc0_pins_hs400>;
 	pinctl_hs200 = <&msdc0_pins_hs200>;
 	register_setting = <&msdc0_register_setting_default>;
 	host_function = /bits/ 8 <MSDC_EMMC>;
 	bootable;
+	req_vcore = <1>;
 	status = "okay";
 
 #ifndef CONFIG_FPGA_EARLY_PORTING

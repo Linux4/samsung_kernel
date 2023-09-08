@@ -37,6 +37,7 @@ static inline int get_HW_cpuid(void)
 
 struct pt_regs;
 
+extern bool mrdump_ddr_reserve_ready;
 extern struct mrdump_rsvmem_block mrdump_sram_cb;
 extern struct mrdump_control_block *mrdump_cblock;
 extern const unsigned long kallsyms_addresses[] __weak;
@@ -47,7 +48,7 @@ extern const unsigned long kallsyms_markers[] __weak;
 extern const unsigned long kallsyms_num_syms
 __attribute__((weak, section(".rodata")));
 
-
+int aee_is_enable(void);
 int mrdump_hw_init(void);
 void mrdump_cblock_init(void);
 int mrdump_full_init(void);
@@ -55,30 +56,34 @@ int mrdump_wdt_init(void);
 
 void mrdump_save_control_register(void *creg);
 
-extern void dis_D_inner_flush_all(void);
-extern void __inner_flush_dcache_all(void);
+extern void __flush_dcache_area(void *addr, size_t len);
 extern void mrdump_mini_add_entry(unsigned long addr, unsigned long size);
 
 int aee_dump_stack_top_binary(char *buf, int buf_len, unsigned long bottom,
 				unsigned long top);
 
+#ifdef CONFIG_MTK_RAM_CONSOLE
 extern void aee_rr_rec_kaslr_offset(uint64_t offset);
+#endif
 #if defined(CONFIG_RANDOMIZE_BASE) && defined(CONFIG_ARM64)
-static inline void show_kaslr(void)
+static inline void show_kaslr(bool flag)
 {
 	u64 const kaslr_offset = kimage_vaddr - KIMAGE_VADDR;
 
-	pr_notice("Kernel Offset: 0x%llx from 0x%lx\n",
-			kaslr_offset, KIMAGE_VADDR);
-	pr_notice("PHYS_OFFSET: 0x%llx\n", PHYS_OFFSET);
+	if (flag) {
+		pr_notice("Kernel Offset: 0x%llx from 0x%lx\n",
+				kaslr_offset, KIMAGE_VADDR);
+		pr_notice("PHYS_OFFSET: 0x%llx\n", PHYS_OFFSET);
+	}
 #ifdef CONFIG_MTK_RAM_CONSOLE
 	aee_rr_rec_kaslr_offset(kaslr_offset);
 #endif
 }
 #else
-static inline void show_kaslr(void)
+static inline void show_kaslr(bool flag)
 {
-	pr_notice("Kernel Offset: disabled\n");
+	if (flag)
+		pr_notice("Kernel Offset: disabled\n");
 #ifdef CONFIG_MTK_RAM_CONSOLE
 	aee_rr_rec_kaslr_offset(0);
 #endif
@@ -89,12 +94,7 @@ int in_fiq_handler(void);
 
 void aee_disable_api(void);
 
-extern void mrdump_mini_per_cpu_regs(int cpu, struct pt_regs *regs,
-		struct task_struct *tsk);
 extern void mrdump_mini_ke_cpu_regs(struct pt_regs *regs);
-extern void mrdump_mini_add_misc(unsigned long addr, unsigned long size,
-		unsigned long start, char *name);
-extern int mrdump_task_info(unsigned char *buffer, size_t sz_buf);
 extern int mrdump_modules_info(unsigned char *buffer, size_t sz_buf);
 
 /* for WDT timeout case : dump timer/schedule/irq/softirq etc...

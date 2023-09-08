@@ -2289,7 +2289,7 @@ static const struct attribute_group cmd_attr_group = {
 int mms_sysfs_cmd_create(struct mms_ts_info *info)
 {
 	int retval;
-
+	return 0;
 	info->print_buf = kzalloc(sizeof(u8) * 4096, GFP_KERNEL);	
 
 	retval = sec_cmd_init(&info->sec, sec_cmds,

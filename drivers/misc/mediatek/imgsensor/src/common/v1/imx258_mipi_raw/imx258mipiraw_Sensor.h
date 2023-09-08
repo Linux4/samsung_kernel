@@ -39,6 +39,8 @@ enum IMGSENSOR_MODE {
 	IMGSENSOR_MODE_SLIM_VIDEO,
 	IMGSENSOR_MODE_CUSTOM1,
 	IMGSENSOR_MODE_CUSTOM2,
+	IMGSENSOR_MODE_CUSTOM3,
+	IMGSENSOR_MODE_CUSTOM4,
 };
 
 struct imgsensor_mode_struct {
@@ -62,7 +64,7 @@ struct imgsensor_mode_struct {
 
 	/*       following for GetDefaultFramerateByScenario()  */
 	kal_uint16 max_framerate;
-
+	kal_uint32 mipi_pixel_rate;
 };
 
 /* SENSOR PRIVATE STRUCT FOR VARIABLES*/
@@ -88,12 +90,14 @@ struct imgsensor_struct {
 	kal_uint16 current_fps;	/* current max fps */
 	kal_bool autoflicker_en; /* record autoflicker enable or disable */
 	kal_bool test_pattern;	/* record test pattern mode or not */
+
+	kal_uint16 frame_length_shifter;
+
 	enum MSDK_SCENARIO_ID_ENUM current_scenario_id;/* current scenario id */
 
-	/* HDR mODE : 0: disable HDR, 1:IHDR, 2:HDR, 9:ZHDR */
-	kal_uint8 hdr_mode;
+	/* ihdr mode 0: disable, 1: ihdr, 2:mVHDR, 9:zigzag */
+	kal_uint8 ihdr_mode;
 
-	kal_uint8 pdaf_mode;	/* PDAF enable or disable */
 	kal_uint8 i2c_write_id;	/* record current sensor's i2c write id */
 };
 
@@ -108,8 +112,6 @@ struct imgsensor_info_struct {
 	/* capture scenario relative information */
 	struct imgsensor_mode_struct cap;
 
-	struct imgsensor_mode_struct cap1;
-
 	/* normal video  scenario relative information */
 	struct imgsensor_mode_struct normal_video;
 
@@ -121,6 +123,8 @@ struct imgsensor_info_struct {
 
 	struct imgsensor_mode_struct custom1;
 	struct imgsensor_mode_struct custom2;
+	struct imgsensor_mode_struct custom3;
+	struct imgsensor_mode_struct custom4;
 
 	kal_uint8 ae_shut_delay_frame;	/* shutter delay frame for AE cycle */
 
@@ -145,12 +149,20 @@ struct imgsensor_info_struct {
 	kal_uint8 slim_video_delay_frame;
 
 	kal_uint8 custom1_delay_frame;	/* enter custom1 delay frame num */
-	kal_uint8 custom2_delay_frame;	/* enter custom1 delay frame num */
+	kal_uint8 custom2_delay_frame;	/* enter custom2 delay frame num */
+	kal_uint8 custom3_delay_frame;	/* enter custom3 delay frame num */
+	kal_uint8 custom4_delay_frame;	/* enter custom4 delay frame num */
 	kal_uint8 margin;	/* sensor framelength & shutter margin */
 	kal_uint32 min_shutter;	/* min shutter */
 
 	/* max framelength by sensor register's limitation */
 	kal_uint32 max_frame_length;
+	kal_uint32 min_gain;
+	kal_uint32 max_gain;
+	kal_uint32 min_gain_iso;
+	kal_uint32 gain_step;
+	kal_uint32 exp_step;
+	kal_uint32 gain_type;
 
 	kal_uint8 isp_driving_current;	/* mclk driving current */
 	kal_uint8 sensor_interface_type;	/* sensor_interface_type */
@@ -163,21 +175,29 @@ struct imgsensor_info_struct {
 
 	kal_uint8 mipi_lane_num;	/* mipi lane num */
 
-/* record sensor support all write id addr, only supprt 4must end with 0xff */
+	/* record sensor support all write id addr,
+	 * only supprt 4must end with 0xff
+	 */
+	kal_uint32 i2c_speed;
 	kal_uint8 i2c_addr_table[5];
-
-	kal_uint32 i2c_speed;	/* i2c speed */
 };
-
-
-extern bool read_imx258_eeprom(kal_uint16 addr, BYTE *data, kal_uint32 size);
-extern bool read_imx258_pdaf(kal_uint16 addr, BYTE *data, kal_uint32 size);
-
-extern bool read_imx258_eeprom_SPC(
-	kal_uint16 addr, BYTE *data, kal_uint32 size);
 
 extern int iReadRegI2C(u8 *a_pSendData, u16 a_sizeSendData,
 			   u8 *a_pRecvData, u16 a_sizeRecvData, u16 i2cId);
-
 extern int iWriteRegI2C(u8 *a_pSendData, u16 a_sizeSendData, u16 i2cId);
+
+extern int iReadReg(u16 a_u2Addr, u8 *a_puBuff, u16 i2cId);
+extern int iWriteReg(u16 a_u2Addr, u32 a_u4Data, u32 a_u4Bytes, u16 i2cId);
+
+
+extern int iReadRegI2CTiming(u8 *a_pSendData, u16 a_sizeSendData,
+				    u8 *a_pRecvData, u16 a_sizeRecvData,
+				    u16 i2cId, u16 timing);
+extern int iWriteRegI2CTiming(u8 *a_pSendData, u16 a_sizeSendData,
+				     u16 i2cId, u16 timing);
+
+
+extern int iBurstWriteReg_multi(u8 *pData, u32 bytes, u16 i2cId,
+					u16 transfer_length, u16 timing);
+
 #endif

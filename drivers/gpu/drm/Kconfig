@@ -250,6 +250,8 @@ source "drivers/gpu/drm/stm/Kconfig"
 
 source "drivers/gpu/drm/panel/Kconfig"
 
+source "drivers/gpu/drm/panel/smcdsd_panel/Kconfig"
+
 source "drivers/gpu/drm/bridge/Kconfig"
 
 source "drivers/gpu/drm/sti/Kconfig"

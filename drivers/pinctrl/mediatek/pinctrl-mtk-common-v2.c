@@ -20,7 +20,7 @@
 #include "pinctrl-mtk-common-v2.h"
 
 /* Some SOC provide more control register other than value register.
- * Generanll, a value register need read-modify-write is at offset 0xXXXXXXXX0.
+ * Generally, a value register need read-modify-write is at offset 0xXXXXXXXX0.
  * A corresponding SET register is at offset 0xXXXXXXX4. Write 1s' to some bits
  *  of SET register will set same bits in value register.
  * A corresponding CLR register is at offset 0xXXXXXXX8. Write 1s' to some bits
@@ -117,16 +117,13 @@ static int mtk_hw_pin_field_lookup(struct mtk_pinctrl *hw,
 {
 	const struct mtk_pin_field_calc *c, *e;
 	const struct mtk_pin_reg_calc *rc;
-	u32 bits, start = 0, end, found = 0, check;
+	u32 bits, found = 0;
+	int start = 0, end, check;
 
-	if (hw->soc->reg_cal && hw->soc->reg_cal[field].range) {
+	if (hw->soc->reg_cal && hw->soc->reg_cal[field].range)
 		rc = &hw->soc->reg_cal[field];
-	} else {
-		dev_dbg(hw->dev,
-			"Not support field %d for pin %d (%s)\n",
-			field, desc->number, desc->name);
+	else
 		return -ENOTSUPP;
-	}
 
 	end = rc->nranges - 1;
 	c = rc->range;
@@ -146,11 +143,8 @@ static int mtk_hw_pin_field_lookup(struct mtk_pinctrl *hw,
 			start = check + 1;
 	}
 
-	if (!found) {
-		dev_dbg(hw->dev, "Not support field %d for pin = %d (%s)\n",
-			field, desc->number, desc->name);
+	if (!found)
 		return -ENOTSUPP;
-	}
 
 	c = rc->range + check;
 
@@ -304,6 +298,59 @@ void mtk_hw_get_value_no_lookup(struct mtk_pinctrl *hw,
 		mtk_hw_read_cross_field(hw, pf, value);
 }
 
+void mtk_eh_ctrl(struct mtk_pinctrl *hw, const struct mtk_pin_desc *desc,
+		 u16 mode)
+{
+	const struct mtk_eh_pin_pinmux *p = hw->soc->eh_pin_pinmux;
+	u32 val = 0, on = 0;
+
+	while (p->pin != 0xffff) {
+		if (desc->number == p->pin) {
+			if (mode == p->pinmux) {
+				on = 1;
+				break;
+			} else if (desc->number != (p + 1)->pin) {
+				/*
+				 * If the target mode does not match
+				 * the mode in current entry.
+				 *
+				 * Check the next entry if the pin
+				 * number is the same.
+				 * Yes: target pin have more than one
+				 *    pinmux shall enable eh. Check the
+				 *    next entry.
+				 * No: target pin do not have other
+				 *    pinmux shall enable eh. Just disable
+				 *    the EH function.
+				 */
+				break;
+			}
+		}
+		/* It is possible that one pin may have more than one pinmux
+		 *   that shall enable eh.
+		 * Besides, we assume that hw->soc->eh_pin_pinmux is sorted
+		 *   according to field 'pin'.
+		 * So when desc->number < p->pin, it mean no match will be
+		 *   found and we can leave.
+		 */
+		if (desc->number < p->pin)
+			return;
+
+		p++;
+	}
+
+	/* If pin not found, just return */
+	if (p->pin == 0xffff)
+		return;
+
+	(void)mtk_hw_get_value(hw, desc, PINCTRL_PIN_REG_DRV_EH, &val);
+	if (on)
+		val |= on;
+	else
+		val &= 0xfffffffe;
+	(void)mtk_hw_set_value(hw, desc, PINCTRL_PIN_REG_DRV_EH, val);
+}
+
 static int mtk_xt_find_eint_num(struct mtk_pinctrl *hw, unsigned long eint_n,
 				unsigned int *virt_gpio)
 {
@@ -392,6 +439,9 @@ static int mtk_xt_set_gpio_as_eint(void *data, unsigned long eint_n)
 			       desc->eint.eint_m);
 	if (err)
 		return err;
+
+	if (hw->soc->eh_pin_pinmux)
+		mtk_eh_ctrl(hw, desc, desc->eint.eint_m);
 
 	err = mtk_hw_set_value(hw, desc, PINCTRL_PIN_REG_DIR, MTK_INPUT);
 	if (err)
@@ -1024,7 +1074,12 @@ int mtk_pinconf_adv_pull_set(struct mtk_pinctrl *hw,
 	 * general bias control.
 	 */
 	if (err == -ENOTSUPP) {
-		if (hw->soc->bias_set) {
+		if (hw->soc->bias_set_combo) {
+			err = hw->soc->bias_set_combo(hw,
+				desc, pullup, MTK_ENABLE);
+			if (err)
+				return err;
+		} else if (hw->soc->bias_set) {
 			err = hw->soc->bias_set(hw, desc, pullup);
 			if (err)
 				return err;
@@ -1049,7 +1104,9 @@ int mtk_pinconf_adv_pull_get(struct mtk_pinctrl *hw,
 	 * general bias control.
 	 */
 	if (err == -ENOTSUPP) {
-		if (hw->soc->bias_get) {
+		if (hw->soc->bias_get_combo) {
+			/* do nothing */
+		} else if (hw->soc->bias_get) {
 			err = hw->soc->bias_get(hw, desc, pullup, val);
 			if (err)
 				return err;
@@ -1074,6 +1131,71 @@ int mtk_pinconf_adv_pull_get(struct mtk_pinctrl *hw,
 		return err;
 
 	*val = (t | t2 << 1) & 0x7;
+
+	return 0;
+}
+
+int mtk_pinconf_adv_drive_set(struct mtk_pinctrl *hw,
+			      const struct mtk_pin_desc *desc, u32 arg)
+{
+	int err;
+	int en = arg & 1;
+	int e0 = !!(arg & 2);
+	int e1 = !!(arg & 4);
+
+	/*
+	 * Only one will be exist EH table or EN,E0,E1 table
+	 * Check EH table first
+	 */
+	err = mtk_hw_set_value(hw, desc, PINCTRL_PIN_REG_DRV_EH, arg);
+	if (!err)
+		return 0;
+
+	err = mtk_hw_set_value(hw, desc, PINCTRL_PIN_REG_DRV_EN, en);
+	if (err)
+		return err;
+
+	if (!en)
+		return err;
+
+	err = mtk_hw_set_value(hw, desc, PINCTRL_PIN_REG_DRV_E0, e0);
+	if (err)
+		return err;
+
+	err = mtk_hw_set_value(hw, desc, PINCTRL_PIN_REG_DRV_E1, e1);
+	if (err)
+		return err;
+
+	return err;
+}
+
+int mtk_pinconf_adv_drive_get(struct mtk_pinctrl *hw,
+			      const struct mtk_pin_desc *desc, u32 *val)
+{
+	u32 en, e0, e1;
+	int err;
+
+	/*
+	 * Only one will be exist EH table or EN,E0,E1 table
+	 * Check EH table first
+	 */
+	err = mtk_hw_get_value(hw, desc, PINCTRL_PIN_REG_DRV_EH, val);
+	if (!err)
+		return 0;
+
+	err = mtk_hw_get_value(hw, desc, PINCTRL_PIN_REG_DRV_EN, &en);
+	if (err)
+		return err;
+
+	err = mtk_hw_get_value(hw, desc, PINCTRL_PIN_REG_DRV_E0, &e0);
+	if (err)
+		return err;
+
+	err = mtk_hw_get_value(hw, desc, PINCTRL_PIN_REG_DRV_E1, &e1);
+	if (err)
+		return err;
+
+	*val = (en | e0 << 1 | e1 << 2) & 0x7;
 
 	return 0;
 }

@@ -1025,7 +1025,7 @@ static int show_iodevs(struct seq_file *seqf, void *v)
 	struct hd_struct *part;
 	char buf[BDEVNAME_SIZE];
 
-	/* Don't show non-partitionable removeable devices or empty devices */
+	/* Don't show non-partitionable removable devices or empty devices */
 	if (!get_capacity(sgp) || (!disk_max_parts(sgp) &&
 				(sgp->flags & GENHD_FL_REMOVABLE)))
 		return 0;
@@ -1236,7 +1236,7 @@ static DEVICE_ATTR(stat, S_IRUGO, part_stat_show, NULL);
 static DEVICE_ATTR(inflight, S_IRUGO, part_inflight_show, NULL);
 static DEVICE_ATTR(badblocks, S_IRUGO | S_IWUSR, disk_badblocks_show,
 		disk_badblocks_store);
-static DEVICE_ATTR(diskios, 0600, disk_ios_show, NULL);
+static DEVICE_ATTR(diskios, 0400, disk_ios_show, NULL);
 #ifdef CONFIG_FAIL_MAKE_REQUEST
 static struct device_attribute dev_attr_fail =
 	__ATTR(make-it-fail, S_IRUGO|S_IWUSR, part_fail_show, part_fail_store);
@@ -1380,31 +1380,6 @@ static void disk_release(struct device *dev)
 		blk_put_queue(disk->queue);
 	kfree(disk);
 }
-
-#ifdef CONFIG_USB_STORAGE_DETECT
-static int disk_uevent(struct device *dev, struct kobj_uevent_env *env)
-{
-	struct gendisk *disk = dev_to_disk(dev);
-	struct disk_part_iter piter;
-	struct hd_struct *part;
-	int cnt = 0;
-
-	if (disk->flags & GENHD_FL_IF_USB) {
-		disk_part_iter_init(&piter, disk, 0);
-		while ((part = disk_part_iter_next(&piter)))
-			cnt++;
-		disk_part_iter_exit(&piter);
-		add_uevent_var(env, "NPARTS=%u", cnt);
-		add_uevent_var(env, "MEDIAPRST=%d",
-			(disk->flags & GENHD_FL_MEDIA_PRESENT) ? 1 : 0);
-		pr_info("%s %d, disk flag media_present=%d, cnt=%d\n",
-			__func__, __LINE__,
-			(disk->flags & GENHD_FL_MEDIA_PRESENT), cnt);
-	}
-	return 0;
-}
-#endif
-
 struct class block_class = {
 	.name		= "block",
 };
@@ -1424,9 +1399,6 @@ static const struct device_type disk_type = {
 	.groups		= disk_attr_groups,
 	.release	= disk_release,
 	.devnode	= block_devnode,
-#ifdef CONFIG_USB_STORAGE_DETECT
-	.uevent		= disk_uevent,
-#endif
 };
 
 #ifdef CONFIG_PROC_FS
@@ -1516,6 +1488,10 @@ static int iostats_show(struct seq_file *seqf, void *v)
 	struct backing_dev_info *bdi;
 	unsigned int nread, nwrite;
 
+	unsigned long long uptime_s;
+	unsigned long long uptime_ms;
+	unsigned long long flight_tmp;
+
 	/* Enhanced diskstats for IOD V 2.2 */
 	global_dirty_limits(&bg_thresh, &thresh);
 
@@ -1525,7 +1501,13 @@ static int iostats_show(struct seq_file *seqf, void *v)
 		part_round_stats(gp->queue, cpu, hd);
 		part_stat_unlock();
 		uptime = ktime_to_ns(ktime_get());
-		uptime /= 1000000; /* in ms */
+		do_div(uptime, 1000000);
+		uptime_s = uptime;
+		uptime_ms = do_div(uptime_s, 1000);
+
+		flight_tmp = (unsigned long) gp->queue->in_flight_time;
+		do_div(flight_tmp, USEC_PER_MSEC);
+
 		bdi = gp->queue->backing_dev_info;
 		nread = part_in_flight_read(hd);
 		nwrite = part_in_flight_write(hd);
@@ -1534,7 +1516,7 @@ static int iostats_show(struct seq_file *seqf, void *v)
 				/* added */
 				"%lu %lu %lu %lu "
 				"%u %llu %lu %lu %lu %u "
-				"%lu.%03lu\n",
+				"%llu.%03llu\n",
 				MAJOR(part_devt(hd)), MINOR(part_devt(hd)),
 				disk_name(gp, hd->partno, buf),
 				part_stat_read(hd, ios[READ]),
@@ -1550,21 +1532,21 @@ static int iostats_show(struct seq_file *seqf, void *v)
 				nread + nwrite,
 				jiffies_to_msecs(part_stat_read(hd, io_ticks)),
 				jiffies_to_msecs(part_stat_read(hd, time_in_queue)),
-				/* followings are added */
+				/* following are added */
 				part_stat_read(hd, discard_ios),
 				part_stat_read(hd, discard_sectors),
 				part_stat_read(hd, flush_ios),
 				gp->queue->flush_ios,
 
 				nread,
-				gp->queue->in_flight_time / USEC_PER_MSEC,
+				flight_tmp,
 				PG2KB(thresh),
 				PG2KB(bdi->last_thresh),
 				PG2KB(bdi->last_nr_dirty),
 				jiffies_to_msecs(bdi->paused_total),
 
-				(unsigned long)(uptime / 1000),
-				(unsigned long)(uptime % 1000));
+				uptime_s,
+				uptime_ms);
 	}
 	disk_part_iter_exit(&piter);
 
@@ -2019,15 +2001,8 @@ static void disk_check_events(struct disk_events *ev,
 	unsigned long intv;
 	int nr_events = 0, i;
 
-#ifdef CONFIG_USB_STORAGE_DETECT
-	if (!(disk->flags & GENHD_FL_IF_USB))
-		/* check events */
-		events = disk->fops->check_events(disk, clearing);
-	else
-		events = 0;
-#else
+	/* check events */
 	events = disk->fops->check_events(disk, clearing);
-#endif
 
 	/* accumulate pending events and schedule next poll if necessary */
 	spin_lock_irq(&ev->lock);
@@ -2052,16 +2027,8 @@ static void disk_check_events(struct disk_events *ev,
 		if (events & disk->events & (1 << i))
 			envp[nr_events++] = disk_uevents[i];
 
-#ifdef CONFIG_USB_STORAGE_DETECT
-	if (!(disk->flags & GENHD_FL_IF_USB)) {
-		if (nr_events)
-			kobject_uevent_env(&disk_to_dev(disk)->kobj,
-					KOBJ_CHANGE, envp);
-	}
-#else
 	if (nr_events)
 		kobject_uevent_env(&disk_to_dev(disk)->kobj, KOBJ_CHANGE, envp);
-#endif
 }
 
 /*

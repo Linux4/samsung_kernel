@@ -30,10 +30,8 @@
 #include <linux/irqchip/mt-gic.h>
 #endif
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 #include <linux/pm_wakeup.h>
-#else
-#include <linux/wakelock.h>
 #endif
 
 #include <mt-plat/mtk_io.h>
@@ -51,10 +49,8 @@ struct cqdma_env_info {
 static struct cqdma_env_info *env_info;
 static u32 keep_clock_ao;
 static u32 nr_cqdma_channel;
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 struct wakeup_source *wk_lock;
-#else
-struct wake_lock *wk_lock;
 #endif
 
 /*
@@ -184,7 +180,7 @@ static DEFINE_SPINLOCK(dma_drv_lock);
  * @chan: specify a channel or not
  * Return channel number for success; return negative errot code for failure.
  */
-int mt_req_gdma(int chan)
+int mt_req_gdma(unsigned int chan)
 {
 	unsigned long flags;
 	int i;
@@ -204,10 +200,8 @@ int mt_req_gdma(int chan)
 				continue;
 			else {
 				dma_ctrl[i].in_use = 1;
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 				__pm_stay_awake(&wk_lock[i]);
-#else
-				wake_lock(&wk_lock[i]);
 #endif
 				break;
 			}
@@ -218,10 +212,8 @@ int mt_req_gdma(int chan)
 		else {
 			i = chan;
 			dma_ctrl[chan].in_use = 1;
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 			__pm_stay_awake(&wk_lock[chan]);
-#else
-			wake_lock(&wk_lock[chan]);
 #endif
 		}
 	}
@@ -246,7 +238,7 @@ EXPORT_SYMBOL(mt_req_gdma);
  * @channel: GDMA channel to start
  * Return 0 for success; return negative errot code for failure.
  */
-int mt_start_gdma(int channel)
+int mt_start_gdma(unsigned int channel)
 {
 	if ((channel < GDMA_START) ||
 			(channel >= (GDMA_START + nr_cqdma_channel)))
@@ -270,7 +262,7 @@ EXPORT_SYMBOL(mt_start_gdma);
  * Return 1 for timeout
  * return negative errot code for failure.
  */
-int mt_polling_gdma(int channel, unsigned long timeout)
+int mt_polling_gdma(unsigned int channel, unsigned long timeout)
 {
 	if (channel < GDMA_START)
 		return -DMA_ERR_INVALID_CH;
@@ -300,7 +292,7 @@ EXPORT_SYMBOL(mt_polling_gdma);
  * @channel: GDMA channel to stop
  * Return 0 for success; return negative errot code for failure.
  */
-int mt_stop_gdma(int channel)
+int mt_stop_gdma(unsigned int channel)
 {
 	if (channel < GDMA_START)
 		return -DMA_ERR_INVALID_CH;
@@ -329,7 +321,7 @@ EXPORT_SYMBOL(mt_stop_gdma);
  * @flag: ALL, SRC, DST, or SRC_AND_DST.
  * Return 0 for success; return negative errot code for failure.
  */
-int mt_config_gdma(int channel, struct mt_gdma_conf *config, int flag)
+int mt_config_gdma(unsigned int channel, struct mt_gdma_conf *config, int flag)
 {
 	unsigned int dma_con = 0x0, limiter = 0;
 
@@ -494,7 +486,7 @@ EXPORT_SYMBOL(mt_config_gdma);
  * @channel: channel to free
  * Return 0 for success; return negative errot code for failure.
  */
-int mt_free_gdma(int channel)
+int mt_free_gdma(unsigned int channel)
 {
 	if (channel < GDMA_START)
 		return -DMA_ERR_INVALID_CH;
@@ -511,10 +503,8 @@ int mt_free_gdma(int channel)
 	if (clk_cqdma && !keep_clock_ao)
 		clk_disable_unprepare(clk_cqdma);
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 	__pm_relax(&wk_lock[channel]);
-#else
-	wake_unlock(&wk_lock[channel]);
 #endif
 
 	dma_ctrl[channel].isr_cb = NULL;
@@ -530,7 +520,7 @@ EXPORT_SYMBOL(mt_free_gdma);
  * @channel: GDMA channel to dump registers
  * Return 0 for success; return negative errot code for failure.
  */
-int mt_dump_gdma(int channel)
+int mt_dump_gdma(unsigned int channel)
 {
 	unsigned int i;
 
@@ -549,7 +539,7 @@ EXPORT_SYMBOL(mt_dump_gdma);
  * @channel: GDMA channel to warm reset
  * Return 0 for success; return negative errot code for failure.
  */
-int mt_warm_reset_gdma(int channel)
+int mt_warm_reset_gdma(unsigned int channel)
 {
 	if (channel < GDMA_START)
 		return -DMA_ERR_INVALID_CH;
@@ -574,7 +564,7 @@ EXPORT_SYMBOL(mt_warm_reset_gdma);
  * @channel: GDMA channel to hard reset
  * Return 0 for success; return negative errot code for failure.
  */
-int mt_hard_reset_gdma(int channel)
+int mt_hard_reset_gdma(unsigned int channel)
 {
 	if (channel < GDMA_START)
 		return -DMA_ERR_INVALID_CH;
@@ -599,7 +589,7 @@ EXPORT_SYMBOL(mt_hard_reset_gdma);
  * @channel: GDMA channel to reset
  * Return 0 for success; return negative errot code for failure.
  */
-int mt_reset_gdma(int channel)
+int mt_reset_gdma(unsigned int channel)
 {
 	if (channel < GDMA_START)
 		return -DMA_ERR_INVALID_CH;
@@ -700,11 +690,8 @@ static int cqdma_probe(struct platform_device *pdev)
 	if (!env_info)
 		return -ENOMEM;
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 	wk_lock = kmalloc(sizeof(struct wakeup_source)*(nr_cqdma_channel),
-			GFP_KERNEL);
-#else
-	wk_lock = kmalloc(sizeof(struct wake_lock)*(nr_cqdma_channel),
 			GFP_KERNEL);
 #endif
 	if (!wk_lock)
@@ -733,11 +720,8 @@ static int cqdma_probe(struct platform_device *pdev)
 			pr_info("GDMA%d IRQ LINE NOT AVAILABLE,ret 0x%x!!\n",
 					i, ret);
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 		wakeup_source_init(&wk_lock[i], "cqdma_wakelock");
-#else
-		wake_lock_init(&wk_lock[i],
-				WAKE_LOCK_SUSPEND, "cqdma_wakelock");
 #endif
 	}
 

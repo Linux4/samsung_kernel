@@ -11,8 +11,6 @@
  * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
-/dts-v1/;
-/plugin/;
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/pinctrl/mt6768-pinfunc.h>
@@ -429,7 +427,7 @@
 	cd-gpios = <&pio 9 0>;
 };
 
-#include "cust_k68v1_64_titan-gpio00.dtsi"
-//#include "cust_mt6768_camera_titan.dtsi"
+//#include <k68v1_64_titan/cust.dtsi>
+//#include "mediatek/cust_mt6768_camera.dtsi"
+//#include "mediatek/cust_mt6768_touch_1080x2160.dtsi"
 /*End of this file, DO NOT ADD ANYTHING HERE*/
-

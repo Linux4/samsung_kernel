@@ -13,6 +13,7 @@
 
 #include <linux/proc_fs.h>
 #include <linux/uaccess.h>
+#include <linux/sched/clock.h>
 #include <linux/spinlock.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
@@ -24,8 +25,9 @@ static spinlock_t lockB;
 static spinlock_t lockC;
 static spinlock_t lockD;
 static struct mutex mutexA;
-static struct rw_semaphore	rw_semA;
+static struct rw_semaphore rw_semA;
 static struct timer_list lockdep_timer;
+static struct lockdep_map dep_mapA;
 
 void lockdep_test_recursive_lock(void)
 {
@@ -85,8 +87,6 @@ void lockdep_test_circular_deadlock(void)
 static void lockdep_test_timer(unsigned long arg)
 {
 	spin_lock(&lockA);
-	if (arg == 1)
-		mdelay(5000);
 	spin_unlock(&lockA);
 }
 
@@ -106,7 +106,7 @@ void lockdep_test_inconsistent_lock_b(void)
 	/* {IN-SOFTIRQ-W} */
 	setup_timer(&lockdep_timer, lockdep_test_timer, 0);
 	mod_timer(&lockdep_timer, jiffies + msecs_to_jiffies(10));
-	mdelay(100);
+	msleep(100);
 
 	/* {SOFTIRQ-ON-W} */
 	spin_lock(&lockA);
@@ -194,7 +194,7 @@ void lockdep_test_safe_to_unsafe(void)
 	mod_timer(&lockdep_timer, jiffies + msecs_to_jiffies(10));
 
 	/* wait for lockdep_test_timer to finish */
-	mdelay(200);
+	msleep(200);
 
 	/* safe and unconcerned */
 	spin_lock_irqsave(&lockA, flags);
@@ -236,16 +236,28 @@ void lockdep_test_held_lock_freed(void)
 	spinlock_t *lockE;
 
 	lockE = kmalloc(sizeof(spinlock_t), GFP_KERNEL);
+	if (lockE == NULL)
+		return;
 	spin_lock_init(lockE);
 	spin_lock(lockE);
 	kfree(lockE);
 	/* should do spin_unlock before free memory */
 }
 
+static void mspin(unsigned long long ms)
+{
+	unsigned long long start, spin_time;
+
+	start = sched_clock();
+	do {
+		spin_time = sched_clock() - start;
+	} while (spin_time < ms * 1000000ULL);
+}
+
 static int lockdep_test_thread(void *data)
 {
 	spin_lock(&lockA);
-	mdelay(8000);
+	mspin(8000);
 	spin_unlock(&lockA);
 	return 0;
 }
@@ -253,24 +265,50 @@ static int lockdep_test_thread(void *data)
 void lockdep_test_spin_time(void)
 {
 	kthread_run(lockdep_test_thread, NULL, "lockdep_test_spin_time");
-	mdelay(100);
+	msleep(100);
 	spin_lock(&lockA);
 	spin_unlock(&lockA);
 }
 
+static int lock_monitor_thread1(void *data)
+{
+	lock_map_acquire(&dep_mapA);
+	down_read(&rw_semA);
+	mutex_lock(&mutexA);
+	rcu_read_lock();
+
+	mspin(20000);
+
+	rcu_read_unlock();
+	mutex_unlock(&mutexA);
+	up_read(&rw_semA);
+	lock_map_release(&dep_mapA);
+	return 0;
+}
+
+static int lock_monitor_thread2(void *arg)
+{
+	lock_map_acquire(&dep_mapA);
+	mutex_lock(&mutexA);
+	mutex_unlock(&mutexA);
+	lock_map_release(&dep_mapA);
+	return 0;
+}
+
+static int lock_monitor_thread3(void *arg)
+{
+	down_write(&rw_semA);
+	up_write(&rw_semA);
+	return 0;
+}
+
 void lockdep_test_lock_monitor(void)
 {
-	mutex_lock(&mutexA);
-	down_read(&rw_semA);
-	rcu_read_lock();
-	spin_lock(&lockA);
-
-	mdelay(3000);
-
-	spin_unlock(&lockA);
-	rcu_read_unlock();
-	up_read(&rw_semA);
-	mutex_unlock(&mutexA);
+	kthread_run(lock_monitor_thread1, NULL, "test_thread1");
+	msleep(100);
+	kthread_run(lock_monitor_thread2, NULL, "test_thread2");
+	msleep(100);
+	kthread_run(lock_monitor_thread3, NULL, "test_thread3");
 }
 
 void lockdep_test_freeze_with_lock(void)
@@ -338,11 +376,14 @@ static const struct file_operations proc_lockdep_test_fops = {
 
 void lockdep_test_init(void)
 {
+	static struct lock_class_key key;
+
 	spin_lock_init(&lockA);
 	spin_lock_init(&lockB);
 	spin_lock_init(&lockC);
 	mutex_init(&mutexA);
 	init_rwsem(&rw_semA);
+	lockdep_init_map(&dep_mapA, "dep_mapA", &key, 0);
 
 	proc_create("lockdep_test", 0220, NULL, &proc_lockdep_test_fops);
 }

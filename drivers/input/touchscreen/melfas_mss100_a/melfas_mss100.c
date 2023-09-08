@@ -7,12 +7,6 @@
 
 #include "melfas_mss100.h"
 
-#ifdef CONFIG_BATTERY_SAMSUNG
-#include <linux/sec_batt.h>
-#endif
-
-#include <linux/vbus_notifier.h>
-
 #if MMS_USE_NAP_MODE
 struct wake_lock mms_wake_lock;
 #endif
@@ -1712,7 +1706,6 @@ static int mms_suspend(struct device *dev)
 
 	if (info->lowpower_mode)
 		reinit_completion(&info->resume_done);
-	mms_input_close(info->input_dev);
 
 	return 0;
 }
@@ -1723,7 +1716,6 @@ static int mms_resume(struct device *dev)
 
 	if (info->lowpower_mode)
 		complete_all(&info->resume_done);
-	mms_input_open(info->input_dev);
 
 	return 0;
 }

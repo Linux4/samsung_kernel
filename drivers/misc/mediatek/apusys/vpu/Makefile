@@ -11,11 +11,18 @@
 # GNU General Public License for more details.
 #
 
-ifneq (,$(filter $(strip $(PDIR)), mt6885))
+ifneq (,$(filter $(strip $(MTK_PLATFORM)), mt6885 mt6873 mt6893 mt6853 mt6877))
 
+ifeq (y, $(filter y, $(CONFIG_MACH_MT6893)))
+PDIR = mt6885
+else ifeq ($(CONFIG_MACH_MT6877),y)
+PDIR = mt6877
+else
 PDIR = $(MTK_PLATFORM)
+endif
+
+IPDIR = p1
 VDIR = 4.0
-MTK_VPU_CORE = 3
 
 # RemoteRPC
 ccflags-y += -I$(srctree)/drivers/remoteproc/
@@ -29,13 +36,17 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(PDIR)/include
 
 # APUSYS
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/apusys/debug
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/apusys/include
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/apusys/midware/1.1
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/apusys/power/2.0
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/apusys/power/2.0/$(PDIR)
 
 # VPU driver
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/apusys/vpu/$(VDIR)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/apusys/vpu/$(PDIR)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/apusys/vpu/$(IPDIR)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/apusys/util
 
 # power related
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/qos/$(PDIR)/
@@ -45,14 +56,12 @@ ccflags-y += -I$(srctree)/drivers/devfreq
 # SMI debug
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/smi/
 
-obj-m += vpu.o
+obj-y += vpu.o
 
-vpu-$(CONFIG_MTK_APUSYS_VPU_DEBUG) += $(VDIR)/vpu_debug.o
-vpu-y += $(VDIR)/vpu_main.o $(VDIR)/vpu_algo.o
-vpu-y += $(PDIR)/vpu_hw.o $(PDIR)/vpu_reg.o $(PDIR)/vpu_mem.o
-
-else
+vpu-$(CONFIG_MTK_APUSYS_VPU_DEBUG) += $(VDIR)/vpu_tag.o $(IPDIR)/vpu_met.o
+vpu-y += $(VDIR)/vpu_main.o $(VDIR)/vpu_algo.o $(VDIR)/vpu_cmd.o $(VDIR)/vpu_debug.o
+vpu-y += $(IPDIR)/vpu_hw.o $(IPDIR)/vpu_mem.o $(IPDIR)/vpu_power.o $(IPDIR)/vpu_dump.o
+vpu-y += $(PDIR)/vpu_cfg.o
 
 endif
 
-subdir-ccflags-y += -DMTK_VPU_CORE=$(MTK_VPU_CORE)

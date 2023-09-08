@@ -13,16 +13,19 @@
 #define __IF_CB_MANAGER_H__
 
 struct usb_ops {
-	/* do not used yet */
+	void (*usb_set_vbus_current)(void *data, int state);
 };
 
 struct muic_ops {
 	int (*muic_check_usb_killer)(void *data);
+	void (*muic_set_bypass)(void *data, int enable);
+	void (*muic_set_bc12)(void *data, int enable);
 };
 
 struct usbpd_ops {
 	int (*usbpd_sbu_test_read)(void *data);
 	void (*usbpd_set_host_on)(void *data, int mode);
+	void (*usbpd_hiccup_cc_command)(int is_off);
 };
 
 struct usb_dev {
@@ -49,8 +52,12 @@ struct if_cb_manager {
 extern struct if_cb_manager *register_usb(struct usb_dev *usb);
 extern struct if_cb_manager *register_muic(struct muic_dev *muic);
 extern struct if_cb_manager *register_usbpd(struct usbpd_dev *usbpd);
+extern void usb_set_vbus_current(struct if_cb_manager *man_core, int state);
 extern int muic_check_usb_killer(struct if_cb_manager *man_core);
+extern void muic_set_bypass(struct if_cb_manager *man_core, int enable);
+extern void muic_set_bc12(struct if_cb_manager *man_core, int enable);
 extern int usbpd_sbu_test_read(struct if_cb_manager *man_core);
 extern void usbpd_set_host_on(struct if_cb_manager *man_core, int mode);
+extern void usbpd_hiccup_cc_command(struct if_cb_manager *man_core, int is_off);
 
 #endif /* __IF_CB_MANAGER_H__ */

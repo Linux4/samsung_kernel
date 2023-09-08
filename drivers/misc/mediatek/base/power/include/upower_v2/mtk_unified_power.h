@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 MediaTek Inc.
+ * Copyright (C) 2020 MediaTek Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -56,7 +56,39 @@ extern "C" {
 #endif
 
 #if defined(CONFIG_MACH_MT6885)
+#if defined(CONFIG_MTK_SCHED_MULTI_GEARS)
+#include "mtk_unified_power_mt6893.h"
+#else
 #include "mtk_unified_power_mt6885.h"
+#endif
+#endif
+
+#if defined(CONFIG_MACH_MT6893)
+#include "mtk_unified_power_mt6893.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6873)
+#include "mtk_unified_power_mt6873.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6853)
+#include "mtk_unified_power_mt6853.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6833)
+#include "mtk_unified_power_mt6833.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6877)
+#include "mtk_unified_power_mt6877.h"
+#endif
+
+#if defined(CONFIG_MACH_MT8168)
+#include "mtk_unified_power_mt8168.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6781)
+#include "mtk_unified_power_mt6781.h"
 #endif
 
 #define UPOWER_TAG "[UPOWER]"
@@ -152,6 +184,11 @@ extern void upower_get_start_time_us(unsigned int type);
 extern void upower_get_diff_time_us(unsigned int type);
 extern void print_diff_results(unsigned int type);
 #endif
+
+#ifdef SUPPORT_UPOWER_DCONFIG
+extern void upower_by_doe(void);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

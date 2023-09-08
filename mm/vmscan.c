@@ -969,6 +969,7 @@ struct reclaim_stat {
 	unsigned nr_activate;
 	unsigned nr_ref_keep;
 	unsigned nr_unmap_fail;
+	unsigned nr_lazyfree_fail;
 };
 
 /*
@@ -992,6 +993,7 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 	unsigned nr_immediate = 0;
 	unsigned nr_ref_keep = 0;
 	unsigned nr_unmap_fail = 0;
+	unsigned nr_lazyfree_fail = 0;
 
 	cond_resched();
 
@@ -1199,11 +1201,14 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 		 */
 		if (page_mapped(page)) {
 			enum ttu_flags flags = ttu_flags | TTU_BATCH_FLUSH;
+			bool was_swapbacked = PageSwapBacked(page);
 
 			if (unlikely(PageTransHuge(page)))
 				flags |= TTU_SPLIT_HUGE_PMD;
 			if (!try_to_unmap(page, flags, sc->target_vma)) {
 				nr_unmap_fail++;
+				if (!was_swapbacked && PageSwapBacked(page))
+					nr_lazyfree_fail++;
 				goto activate_locked;
 			}
 		}
@@ -1383,6 +1388,7 @@ keep:
 		stat->nr_activate = pgactivate;
 		stat->nr_ref_keep = nr_ref_keep;
 		stat->nr_unmap_fail = nr_unmap_fail;
+		stat->nr_lazyfree_fail = nr_lazyfree_fail;
 	}
 	return nr_reclaimed;
 }
@@ -1397,7 +1403,8 @@ unsigned long reclaim_clean_pages_from_list(struct zone *zone,
 		/* Doesn't allow to write out dirty page */
 		.may_writepage = 0,
 	};
-	unsigned long ret;
+	struct reclaim_stat stat;
+	unsigned long nr_reclaimed;
 	struct page *page, *next;
 	LIST_HEAD(clean_pages);
 
@@ -1409,11 +1416,21 @@ unsigned long reclaim_clean_pages_from_list(struct zone *zone,
 		}
 	}
 
-	ret = shrink_page_list(&clean_pages, zone->zone_pgdat, &sc,
-			TTU_IGNORE_ACCESS, NULL, true);
+	nr_reclaimed = shrink_page_list(&clean_pages, zone->zone_pgdat, &sc,
+			TTU_IGNORE_ACCESS, &stat, true);
 	list_splice(&clean_pages, page_list);
-	mod_node_page_state(zone->zone_pgdat, NR_ISOLATED_FILE, -ret);
-	return ret;
+	mod_node_page_state(zone->zone_pgdat, NR_ISOLATED_FILE, -nr_reclaimed);
+	/*
+	 * Since lazyfree pages are isolated from file LRU from the beginning,
+	 * they will rotate back to anonymous LRU in the end if it failed to
+	 * discard so isolated count will be mismatched.
+	 * Compensate the isolated count for both LRU lists.
+	 */
+	mod_node_page_state(zone->zone_pgdat, NR_ISOLATED_ANON,
+			    stat.nr_lazyfree_fail);
+	mod_node_page_state(zone->zone_pgdat, NR_ISOLATED_FILE,
+			    -stat.nr_lazyfree_fail);
+	return nr_reclaimed;
 }
 
 #ifdef CONFIG_PROCESS_RECLAIM
@@ -2300,13 +2317,36 @@ enum mem_boost {
 	NO_BOOST,
 	BOOST_MID = 1,
 	BOOST_HIGH = 2,
+	BOOST_KILL = 3,
 };
 static int mem_boost_mode = NO_BOOST;
 static unsigned long last_mode_change;
+static bool am_app_launch = false;
 
 #define MEM_BOOST_MAX_TIME (5 * HZ) /* 5 sec */
 
 #ifdef CONFIG_SYSFS
+#define MB_TO_PAGES(x) ((x) << (20 - PAGE_SHIFT))
+#define GB_TO_PAGES(x) ((x) << (30 - PAGE_SHIFT))
+static unsigned long low_threshold;
+
+static inline bool is_too_low_file(void)
+{
+	unsigned long pgdatfile;
+	if (!low_threshold) {
+		if (totalram_pages > GB_TO_PAGES(2))
+			low_threshold = MB_TO_PAGES(300);
+		else if (totalram_pages > GB_TO_PAGES(1))
+			low_threshold = MB_TO_PAGES(200);
+		else
+			low_threshold = MB_TO_PAGES(100);
+	}
+
+	pgdatfile = global_node_page_state(NR_ACTIVE_FILE) +
+		    global_node_page_state(NR_INACTIVE_FILE);
+	return pgdatfile < low_threshold;
+}
+
 static ssize_t mem_boost_mode_show(struct kobject *kobj,
 				    struct kobj_attribute *attr, char *buf)
 {
@@ -2323,15 +2363,75 @@ static ssize_t mem_boost_mode_store(struct kobject *kobj,
 	int err;
 
 	err = kstrtoint(buf, 10, &mode);
-	if (err || mode > BOOST_HIGH || mode < NO_BOOST)
+	if (err || mode > BOOST_KILL || mode < NO_BOOST)
 		return -EINVAL;
 
 	mem_boost_mode = mode;
 	last_mode_change = jiffies;
 #ifdef CONFIG_ION_RBIN_HEAP
-	if (mem_boost_mode == BOOST_HIGH)
+	if (mem_boost_mode >= BOOST_HIGH)
 		wake_ion_rbin_heap_prereclaim();
 #endif
+	return count;
+}
+
+ATOMIC_NOTIFIER_HEAD(am_app_launch_notifier);
+
+int am_app_launch_notifier_register(struct notifier_block *nb)
+{
+	return atomic_notifier_chain_register(&am_app_launch_notifier, nb);
+}
+
+int am_app_launch_notifier_unregister(struct notifier_block *nb)
+{
+	return  atomic_notifier_chain_unregister(&am_app_launch_notifier, nb);
+}
+
+static ssize_t am_app_launch_show(struct kobject *kobj,
+				  struct kobj_attribute *attr, char *buf)
+{
+	int ret;
+
+	ret = am_app_launch ? 1 : 0;
+	return sprintf(buf, "%d\n", ret);
+}
+
+static int notify_app_launch_started(void)
+{
+	trace_printk("%s\n", "am_app_launch started");
+	atomic_notifier_call_chain(&am_app_launch_notifier, 1, NULL);
+	return 0;
+}
+
+static int notify_app_launch_finished(void)
+{
+	trace_printk("%s\n", "am_app_launch finished");
+	atomic_notifier_call_chain(&am_app_launch_notifier, 0, NULL);
+	return 0;
+}
+
+static ssize_t am_app_launch_store(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   const char *buf, size_t count)
+{
+	int mode;
+	int err;
+	bool am_app_launch_new;
+
+	err = kstrtoint(buf, 10, &mode);
+	if (err || (mode != 0 && mode != 1))
+		return -EINVAL;
+
+	am_app_launch_new = mode ? true : false;
+	trace_printk("am_app_launch %d -> %d\n", am_app_launch,
+		     am_app_launch_new);
+	if (am_app_launch != am_app_launch_new) {
+		if (am_app_launch_new)
+			notify_app_launch_started();
+		else
+			notify_app_launch_finished();
+	}
+	am_app_launch = am_app_launch_new;
 
 	return count;
 }
@@ -2340,14 +2440,16 @@ static ssize_t mem_boost_mode_store(struct kobject *kobj,
 	static struct kobj_attribute _name##_attr = \
 		__ATTR(_name, 0644, _name##_show, _name##_store)
 MEM_BOOST_ATTR(mem_boost_mode);
+MEM_BOOST_ATTR(am_app_launch);
 
-static struct attribute *mem_boost_attrs[] = {
+static struct attribute *vmscan_attrs[] = {
 	&mem_boost_mode_attr.attr,
+	&am_app_launch_attr.attr,
 	NULL,
 };
 
-static struct attribute_group mem_boost_attr_group = {
-	.attrs = mem_boost_attrs,
+static struct attribute_group vmscan_attr_group = {
+	.attrs = vmscan_attrs,
 	.name = "vmscan",
 };
 #endif
@@ -2369,26 +2471,15 @@ static inline bool mem_boost_pgdat_wmark(struct pglist_data *pgdat)
 	return false;
 }
 
-static inline bool need_memory_boosting(struct pglist_data *pgdat)
+inline bool need_memory_boosting(void)
 {
-	bool ret;
-
 	if (time_after(jiffies, last_mode_change + MEM_BOOST_MAX_TIME))
 		mem_boost_mode = NO_BOOST;
 
-	switch (mem_boost_mode) {
-	case BOOST_HIGH:
-		ret = true;
-		break;
-	case BOOST_MID:
-		ret = mem_boost_pgdat_wmark(pgdat) ? false : true;
-		break;
-	case NO_BOOST:
-	default:
-		ret = false;
-		break;
-	}
-	return ret;
+	if (mem_boost_mode >= BOOST_HIGH)
+		return true;
+	else
+		return false;
 }
 
 /*
@@ -2485,7 +2576,8 @@ static void get_scan_count(struct lruvec *lruvec, struct mem_cgroup *memcg,
 		}
 	}
 
-	if (current_is_kswapd() && need_memory_boosting(pgdat)) {
+	if (current_is_kswapd() && need_memory_boosting() &&
+	    !is_too_low_file()) {
 		scan_balance = SCAN_FILE;
 		goto out;
 	}
@@ -2582,10 +2674,13 @@ out:
 			/*
 			 * Scan types proportional to swappiness and
 			 * their relative recent reclaim efficiency.
-			 * Make sure we don't miss the last page
-			 * because of a round-off error.
+			 * Make sure we don't miss the last page on
+			 * the offlined memory cgroups because of a
+			 * round-off error.
 			 */
-			scan = DIV64_U64_ROUND_UP(scan * fraction[file],
+			scan = mem_cgroup_online(memcg) ?
+			       div64_u64(scan * fraction[file], denominator) :
+			       DIV64_U64_ROUND_UP(scan * fraction[file],
 						  denominator);
 			break;
 		case SCAN_FILE:
@@ -2615,6 +2710,65 @@ out:
  */
 static int scan_anon_priority = 4;
 module_param_named(scan_anon_prio, scan_anon_priority, int, 0644);
+#endif
+
+#ifdef CONFIG_MEMCG_HEIMDALL
+void forced_shrink_node_memcg(struct pglist_data *pgdat, struct mem_cgroup *memcg,
+			      int type, unsigned long nr_requested)
+{
+	struct lruvec *lruvec = mem_cgroup_lruvec(pgdat, memcg);
+	unsigned long nr[NR_LRU_LISTS] = {0,};
+	unsigned long nr_to_scan;
+	enum lru_list lru;
+	unsigned long nr_reclaimed = 0;
+	struct blk_plug plug;
+	unsigned long anon = 0, file = 0;
+	struct scan_control sc = {
+		.nr_to_reclaim = SWAP_CLUSTER_MAX,
+		.gfp_mask = GFP_KERNEL,
+		.reclaim_idx = MAX_NR_ZONES - 1,
+		.target_mem_cgroup = memcg,
+		.priority = DEF_PRIORITY,
+		.may_writepage = !laptop_mode,
+		.may_unmap = 1,
+		.may_swap = 1,
+	};
+
+	if (type == MEMCG_HEIMDALL_SHRINK_ANON) {
+		anon  = lruvec_lru_size(lruvec, LRU_ACTIVE_ANON, MAX_NR_ZONES) +
+			lruvec_lru_size(lruvec, LRU_INACTIVE_ANON, MAX_NR_ZONES);
+		nr[LRU_ACTIVE_ANON] = nr[LRU_INACTIVE_ANON] = anon;
+		nr[LRU_ACTIVE_FILE] = nr[LRU_INACTIVE_FILE] = 0;
+	} else if (type == MEMCG_HEIMDALL_SHRINK_FILE) {
+		file  = lruvec_lru_size(lruvec, LRU_ACTIVE_FILE, MAX_NR_ZONES) +
+			lruvec_lru_size(lruvec, LRU_INACTIVE_FILE, MAX_NR_ZONES);
+		nr[LRU_ACTIVE_ANON] = nr[LRU_INACTIVE_ANON] = 0;
+		nr[LRU_ACTIVE_FILE] = nr[LRU_INACTIVE_FILE] = file;
+	}
+
+	trace_printk("%s heimdall start %d %lu %lu %lu\n", __func__, type, nr_requested, anon, file);
+	blk_start_plug(&plug);
+	while (nr[LRU_INACTIVE_ANON] > 0 || nr[LRU_INACTIVE_FILE] > 0) {
+		for_each_evictable_lru(lru) {
+			if (nr[lru]) {
+				nr_to_scan = min(nr[lru], SWAP_CLUSTER_MAX);
+				nr[lru] -= nr_to_scan;
+
+				nr_reclaimed += shrink_list(lru, nr_to_scan,
+							    lruvec, &sc);
+			}
+		}
+
+		if (nr_reclaimed >= nr_requested)
+			break;
+
+		cond_resched();
+	}
+	blk_finish_plug(&plug);
+	sc.nr_reclaimed += nr_reclaimed;
+	trace_printk("%s end %d %lu %lu %lu\n", __func__, type, nr_reclaimed,
+		nr[LRU_INACTIVE_ANON], nr[LRU_INACTIVE_FILE]);
+}
 #endif
 
 /*
@@ -2749,6 +2903,9 @@ static void shrink_node_memcg(struct pglist_data *pgdat, struct mem_cgroup *memc
 	}
 	blk_finish_plug(&plug);
 	sc->nr_reclaimed += nr_reclaimed;
+
+	if (need_memory_boosting())
+		return;
 
 	/*
 	 * Even if we did not try to evict anon pages at all, we want to
@@ -3830,7 +3987,7 @@ static void kswapd_try_to_sleep(pg_data_t *pgdat, int alloc_order, int reclaim_o
 	finish_wait(&pgdat->kswapd_wait, &wait);
 }
 
-#if CONFIG_KSWAPD_CPU
+#ifdef CONFIG_KSWAPD_CPU
 static struct cpumask kswapd_cpumask;
 static void init_kswapd_cpumask(void)
 {
@@ -3867,7 +4024,7 @@ static int kswapd(void *p)
 	struct reclaim_state reclaim_state = {
 		.reclaimed_slab = 0,
 	};
-#if CONFIG_KSWAPD_CPU
+#ifdef CONFIG_KSWAPD_CPU
 	const struct cpumask *cpumask = &kswapd_cpumask;
 #else
 	const struct cpumask *cpumask = cpumask_of_node(pgdat->node_id);
@@ -4032,7 +4189,7 @@ static int kswapd_cpu_online(unsigned int cpu)
 		pg_data_t *pgdat = NODE_DATA(nid);
 		const struct cpumask *mask;
 
-#if CONFIG_KSWAPD_CPU
+#ifdef CONFIG_KSWAPD_CPU
 		mask = &kswapd_cpumask;
 #else
 		mask = cpumask_of_node(pgdat->node_id);
@@ -4086,7 +4243,7 @@ static int __init kswapd_init(void)
 {
 	int nid, ret;
 
-#if CONFIG_KSWAPD_CPU
+#ifdef CONFIG_KSWAPD_CPU
 	init_kswapd_cpumask();
 #endif
 	swap_setup();
@@ -4097,8 +4254,8 @@ static int __init kswapd_init(void)
 					NULL);
 	WARN_ON(ret < 0);
 #ifdef CONFIG_SYSFS
-	if (sysfs_create_group(mm_kobj, &mem_boost_attr_group))
-		pr_err("vmscan: register mem boost sysfs failed\n");
+	if (sysfs_create_group(mm_kobj, &vmscan_attr_group))
+		pr_err("vmscan: register sysfs failed\n");
 #endif
 	return 0;
 }

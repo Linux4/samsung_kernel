@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2017-2019 Samsung Electronics
+ * Copyright (C) 2017-2020 Samsung Electronics
  *
  * Author:Wookwang Lee. <wookwang.lee@samsung.com>,
- * Author:Guneet Singh Khurana  <gs.khurana@samsung.com>,
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -54,6 +53,7 @@ typedef enum {
 	TRY_ROLE_SWAP_PR = 1, /* pr_swap */
 	TRY_ROLE_SWAP_DR = 2, /* dr_swap */
 	TRY_ROLE_SWAP_TYPE = 3, /* type */
+	TRY_ROLE_SWAP_VC = 4, /* vconn swap */
 } PDIC_ROLE_SWAP_MODE;
 
 #define TRY_ROLE_SWAP_WAIT_MS 5000
@@ -80,14 +80,20 @@ typedef enum {
 #define DEXPAD_PRODUCT_ID		0xA029
 #define MPA_PRODUCT_ID			0x2122
 #define FRIENDS_PRODUCT_ID		0xB002
+
 /* Samsung UVDM structure */
 #define SEC_UVDM_SHORT_DATA		0x0
 #define SEC_UVDM_LONG_DATA		0x1
 #define SEC_UVDM_ININIATOR		0x0
+#define SEC_UVDM_RESPONDER_INIT	0x0
 #define SEC_UVDM_RESPONDER_ACK	0x1
 #define SEC_UVDM_RESPONDER_NAK	0x2
 #define SEC_UVDM_RESPONDER_BUSY	0x3
+#define SEC_UVDM_RX_HEADER_BUSY	0x2
 #define SEC_UVDM_UNSTRUCTURED_VDM	0x4
+#define SEC_UVDM_RX_HEADER_ACK	0x0
+#define SEC_UVDM_RX_HEADER_NAK	0x1
+
 
 #define SEC_UVDM_ALIGN (4)
 #define SEC_UVDM_MAXDATA_FIRST (12)
@@ -102,6 +108,8 @@ typedef enum {
 #define DP_PIN_ASSIGNMENT_D	0x00000008	/* ( 1 << 3 ) */
 #define DP_PIN_ASSIGNMENT_E	0x00000010	/* ( 1 << 4 ) */
 #define DP_PIN_ASSIGNMENT_F	0x00000020	/* ( 1 << 5 ) */
+
+#define MAX_BUF_DATA 256
 
 typedef union {
 	u16 word;
@@ -207,7 +215,7 @@ enum usbpd_port_vconn_role {
 	USBPD_VCONN_ON,
 };
 
-#if defined(CONFIG_PDIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 struct pdic_state_work {
 	struct work_struct pdic_work;
 	int dest;
@@ -265,6 +273,31 @@ struct pdic_misc_dev {
 	int (*uvdm_read)(void *data);
 	int (*uvdm_ready)(void);
 	void (*uvdm_close)(void);
+	bool (*pps_control)(int en);
+};
+
+struct pdic_misc_data {
+	void *fw_buf;
+	size_t offset;
+	size_t fw_buf_size;
+	int is_error;
+};
+
+struct pdic_data {
+	int (*firmware_update)(void *data,
+		void *fw_bin, size_t fw_size);
+	size_t (*get_prev_fw_size)(void *data);
+	void *data;
+};
+
+struct pdic_fwupdate_data {
+	struct pdic_misc_data *misc_data;
+	struct pdic_data *ic_data;
+};
+
+struct pdic_misc_core {
+	struct pdic_misc_dev c_dev;
+	struct pdic_fwupdate_data fw_data;
 };
 
 typedef struct _pdic_data_t {
@@ -273,8 +306,13 @@ typedef struct _pdic_data_t {
 	void *drv_data;
 	void (*set_enable_alternate_mode)(int);
 	struct pdic_misc_dev *misc_dev;
+	struct pdic_data fw_data;
 } pdic_data_t, *ppdic_data_t;
 
+/* ----------------------------------
+ *          pdic_core.c functions
+ *-----------------------------------
+ */
 int pdic_core_init(void);
 int pdic_core_register_chip(ppdic_data_t ppdic_data);
 void pdic_core_unregister_chip(void);
@@ -282,17 +320,21 @@ int pdic_register_switch_device(int mode);
 void pdic_send_dock_intent(int type);
 void pdic_send_dock_uevent(u32 vid, u32 pid, int state);
 void *pdic_core_get_drvdata(void);
+/* ----------------------------------
+ *          pdic_misc.c functions
+ *-----------------------------------
+ */
 int pdic_misc_init(ppdic_data_t ppdic_data);
 void pdic_misc_exit(void);
 /* SEC UVDM Utility function */
-void set_endian(char *src, char *dest, int size);
-int get_checksum(char *data, int start_addr, int size);
+int get_checksum(const char *data, int start_addr, int size);
+int get_data_size(bool is_first_data, int data_size);
+int set_endian(const char *src, char *dest, int size);
 int set_uvdmset_count(int size);
 void set_msg_header(void *data, int msg_type, int obj_num);
 void set_uvdm_header(void *data, int vid, int vdm_type);
 void set_sec_uvdm_header(void *data, int pid, bool data_type, int cmd_type,
 		bool dir, int total_set_num, uint8_t received_data);
-int get_data_size(int first_set, int remained_data_size);
 void set_sec_uvdm_tx_header(void *data, int first_set, int cur_set, int total_size,
 		int remained_size);
 void set_sec_uvdm_tx_tailer(void *data);

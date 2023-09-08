@@ -45,7 +45,9 @@
 #include <linux/jiffies.h>
 #include <linux/workqueue.h>
 #include <linux/io.h>
+#ifdef CONFIG_SEC_LOG_HOOK_PMSG
 #include <linux/sec_debug.h>
+#endif
 
 #include "internal.h"
 
@@ -699,7 +701,7 @@ static int pstore_write_user_compat(struct pstore_record *record,
 	}
 
 #ifdef CONFIG_SEC_LOG_HOOK_PMSG		
-		sec_log_hook_pmsg((char *)buf, record->size);
+	sec_log_hook_pmsg((char *)buf, record->size);
 #endif
 
 	ret = record->psi->write(record);

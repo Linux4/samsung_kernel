@@ -48,7 +48,7 @@
 
 /* respond timeout for MCP notification, in secs */
 #define MCP_TIMEOUT		10
-#define MCP_RETRIES		3
+#define MCP_RETRIES		5
 #define MCP_NF_QUEUE_SZ		8
 
 static struct {
@@ -302,10 +302,7 @@ static inline int wait_mcp_notification(void)
 	}
 
 	mc_dev_err(ret, "timed out waiting for MCP notification");
-	//nq_signal_tee_hung();
-	nq_dump_status();
-	panic("tbase halt");
-
+	nq_signal_tee_hung();
 	return ret;
 }
 

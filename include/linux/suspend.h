@@ -562,7 +562,7 @@ static inline void page_key_write(void *address) {}
 
 #ifdef CONFIG_SEC_PM
 int wakeup_sources_stats_active(void);
-#endif
+#endif /* CONFIG_SEC_PM */
 
 #endif /* !CONFIG_ARCH_SAVE_PAGE_KEYS */
 

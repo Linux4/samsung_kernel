@@ -42,7 +42,6 @@
 #include <mtk_spm_vcore_dvfs.h>
 
 /* #include <mach/mt_wtd.h> */
-#include <mach/wd_api.h>
 #include <mtk_gpu_utility.h>
 #include <linux/time.h>
 
@@ -53,6 +52,11 @@
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
 #endif
+
+#if (CONFIG_THERMAL_AEE_RR_REC == 1)
+#include <mtk_ram_console.h>
+#endif
+
 #define __MT_MTK_TS_CPU_C__
 
 #if MTK_TS_CPU_RT
@@ -63,7 +67,9 @@
 #if defined(ATM_USES_PPM)
 #include "mtk_ppm_api.h"
 #else
+#ifndef CONFIG_MACH_MT8168
 #include "mt_cpufreq.h"
+#endif
 #endif
 
 #include <linux/uidgid.h>
@@ -71,6 +77,9 @@
 #include "mtk_auxadc.h"
 
 #include <ap_thermal_limit.h>
+#if defined(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
+#include "mtk_thermal_ipi.h"
+#endif
 
 #if !defined(CFG_THERM_LVTS)
 #define CFG_THERM_LVTS		0
@@ -78,6 +87,10 @@
 
 #if !defined(CFG_LVTS_DOMINATOR)
 #define CFG_LVTS_DOMINATOR	0
+#endif
+
+#if !defined(CFG_LVTS_MCU_INTERRUPT_HANDLER)
+#define CFG_LVTS_MCU_INTERRUPT_HANDLER	0
 #endif
 
 #if !defined(CONFIG_LVTS_ERROR_AEE_WARNING)
@@ -113,7 +126,7 @@ u32 thermal_irq_number;
 void __iomem *thermal_base;
 void __iomem *auxadc_ts_base;
 void __iomem *infracfg_ao_base;
-
+u32 thermal_mcu_irq_number;
 
 void __iomem *th_apmixed_base;
 void __iomem *INFRACFG_AO_base;
@@ -218,15 +231,11 @@ struct regulator *vcore_reg_id;
 static void _mt_thermal_aee_init(void)
 {
 	int i;
-#if defined(THERMAL_AEE_SELECTED_TS)
-	aee_rr_init_thermal_temp(THERMAL_AEE_MAX_SELECTED_TS);
-	for (i = 0; i < THERMAL_AEE_MAX_SELECTED_TS; i++)
-		aee_rr_rec_thermal_temp(i, 0xFF);
-#else
+
 	aee_rr_init_thermal_temp(TS_ENUM_MAX);
 	for (i = 0; i < TS_ENUM_MAX; i++)
-		aee_rr_rec_thermal_temp(i, 0xFF);
-#endif
+		aee_rr_rec_thermal_temp(i, 0xFFFF);
+
 	aee_rr_rec_thermal_status(0xFF);
 	aee_rr_rec_thermal_ATM_status(0xFF);
 	aee_rr_rec_thermal_ktime(0xFFFFFFFFFFFFFFFF);
@@ -264,6 +273,7 @@ EXPORT_SYMBOL(tscpu_met_unlock);
 static int g_is_temp_valid;
 static void temp_valid_lock(unsigned long *flags);
 static void temp_valid_unlock(unsigned long *flags);
+static int g_is_TempOutsideNormalRange;
 /*=============================================================
  *Weak functions
  *=============================================================
@@ -303,7 +313,9 @@ mt_cpufreq_thermal_protect(unsigned int limited_power)
 	bool __attribute__ ((weak))
 mtk_get_gpu_loading(unsigned int *pLoading)
 {
+#ifdef CONFIG_MTK_GPU_SUPPORT
 	pr_notice("E_WF: %s doesn't exist\n", __func__);
+#endif
 	return 0;
 }
 
@@ -367,6 +379,7 @@ long long int thermal_get_current_time_us(void)
 	return temp;
 }
 
+#if !defined(CFG_THERM_NO_AUXADC)
 static void tscpu_fast_initial_sw_workaround(void)
 {
 	int i = 0;
@@ -383,6 +396,7 @@ static void tscpu_fast_initial_sw_workaround(void)
 	g_is_temp_valid = 0;
 	temp_valid_unlock(&flags);
 }
+#endif
 
 #if CFG_THERM_LVTS == (0)
 int tscpu_max_temperature(void)
@@ -614,6 +628,7 @@ static int tscpu_get_temp
 #else
 	curr_temp = tscpu_get_curr_temp();
 #endif
+
 	tscpu_dprintk("%s CPU T=%d\n", __func__, curr_temp);
 
 	if ((curr_temp > (trip_temp[0] - 15000))
@@ -1113,6 +1128,47 @@ static ssize_t tscpu_write_log
 	return -EINVAL;
 }
 
+#if defined(THERMAL_SSPM_THERMAL_THROTTLE_SWITCH)
+static int tscpu_read_sspm_thermal_throttle(struct seq_file *m, void *v)
+{
+	seq_printf(m, "tscpu_sspm_thermal_throttle:%d\n",
+				tscpu_sspm_thermal_throttle);
+	return 0;
+}
+
+static ssize_t tscpu_write_sspm_thermal_throttle
+(struct file *file, const char __user *buffer, size_t count, loff_t *data)
+{
+	char desc[32];
+	int sspm_thermal_throttle_switch;
+	int len = 0;
+
+	tscpu_warn("%s\n", __func__);
+
+	len = (count < (sizeof(desc) - 1)) ? count : (sizeof(desc) - 1);
+	if (copy_from_user(desc, buffer, len))
+		return 0;
+
+	desc[len] = '\0';
+
+	if (kstrtoint(desc, 10, &sspm_thermal_throttle_switch) == 0) {
+		tscpu_sspm_thermal_throttle =
+			sspm_thermal_throttle_switch;
+
+		tscpu_warn("%s , %d\n", __func__,
+			tscpu_sspm_thermal_throttle);
+
+		lvts_ipi_send_sspm_thermal_thtottle();
+
+		return count;
+	}
+
+	tscpu_warn("%s bad argument\n", __func__);
+	return -EINVAL;
+}
+#endif
+
+
 #if MTKTSCPU_FAST_POLLING
 static int tscpu_read_fastpoll(struct seq_file *m, void *v)
 {
@@ -1227,14 +1283,24 @@ static ssize_t tscpu_write
 			tscpu_dprintk("%s bad argument\n", __func__);
 			kfree(ptr_mtktscpu_data);
 			return -EINVAL;
+		} else if (num_trip == 1) {
+			tscpu_printk("%s only 1 reset cooler is binded!\n",
+				__func__);
 		}
 
 		/* modify for PTPOD, if disable Thermal,
 		 * PTPOD still need to use this function for getting temperature
 		 */
 
+		/* avoid thermal reboot after unbinding coolers
+		 * during HT stress
+		 */
 #if defined(CONFIG_ARCH_MT6797)
 		apthermolmt_set_general_cpu_power_limit(900);
+#endif
+#if defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6893)
+		if (tscpu_g_curr_temp > 85000)
+			apthermolmt_set_general_cpu_power_limit(500);
 #endif
 
 		down(&sem_mutex);
@@ -1377,8 +1443,13 @@ static ssize_t tscpu_write
 				g_bind5, g_bind6, g_bind7, g_bind8, g_bind9);
 
 
-		for (i = 0; i < num_trip; i++)
+		for (i = 0; i < num_trip; i++) {
 			trip_temp[i] = ptr_mtktscpu_data->trip[i];
+			if (i != 0 && trip_temp[i] > 57000)
+				tscpu_printk(
+				"%s trip temp %d is over 57'C (%d)!\n",
+				__func__, i, trip_temp[i]);
+		}
 
 		interval = ptr_mtktscpu_data->time_msec;
 
@@ -1416,7 +1487,8 @@ static ssize_t tscpu_write
 		tscpu_register_thermal();
 		up(&sem_mutex);
 
-#if defined(CONFIG_ARCH_MT6797)
+#if defined(CONFIG_ARCH_MT6797) || defined(CONFIG_MACH_MT6885) || \
+defined(CONFIG_MACH_MT6893)
 		apthermolmt_set_general_cpu_power_limit(0);
 #endif
 		proc_write_flag = 1;
@@ -1464,20 +1536,140 @@ static void tscpu_clear_all_temp(void)
 	/* GPU_TS_MCU1_T=26111; */
 	/* LTE_TS_MCU3_T=26111; */
 	int i, j;
-
+#if !defined(CFG_THERM_NO_AUXADC)
 	for (i = 0; i < ARRAY_SIZE(tscpu_g_tc); i++)
 		for (j = 0; j < tscpu_g_tc[i].ts_number; j++)
 			tscpu_ts_temp[tscpu_g_tc[i].ts[j]] = CLEAR_TEMP;
+#else
+	for (i = 0; i < ARRAY_SIZE(lvts_tscpu_g_tc); i++)
+		for (j = 0; j < lvts_tscpu_g_tc[i].ts_number; j++)
+			tscpu_ts_lvts_temp[lvts_tscpu_g_tc[i].ts[j]] =
+				CLEAR_TEMP;
+#endif
 }
 
+
+#if defined(CFG_THERM_NO_AUXADC)
+static void check_temp_range(void)
+{
+	int i, j, temp;
+
+
+	for (i = 0; i < ARRAY_SIZE(lvts_tscpu_g_tc); i++) {
+		for (j = 0; j < lvts_tscpu_g_tc[i].ts_number; j++) {
+
+			temp = tscpu_ts_lvts_temp[lvts_tscpu_g_tc[i].ts[j]];
+
+			if (temp >= 130000) {
+				g_is_TempOutsideNormalRange |= 0x01;
+				/*Tag thermal controller*/
+				g_is_TempOutsideNormalRange |= (i << 16);
+				g_is_TempOutsideNormalRange |= (j << 8);
+				tscpu_printk(TSCPU_LOG_TAG"ONRT=%d,0x%x\n",
+					temp, g_is_TempOutsideNormalRange);
+				dump_lvts_error_info();
+			}
+
+			if (temp <= -30000) {
+				g_is_TempOutsideNormalRange |= 0x10;
+				g_is_TempOutsideNormalRange |= (i << 16);
+				g_is_TempOutsideNormalRange |= (j << 8);
+				tscpu_printk(TSCPU_LOG_TAG"ONRT=%d,0x%x\n",
+					temp, g_is_TempOutsideNormalRange);
+			}
+		}
+	}
+}
+#endif
+
+static void read_all_tc_temperature(void)
+{
+#if CFG_THERM_LVTS
+#if !defined(CFG_THERM_NO_AUXADC)
+	read_all_tc_tsmcu_temperature();
+	read_all_tc_lvts_temperature();
+	combine_lvts_tsmcu_temp();
+#else
+	int ret = 0;
+	int cunt = 0;
+
+	while (ret == 0 && cunt < 20) {
+		read_all_tc_lvts_temperature();
+		check_temp_range();
+
+		ret = tscpu_is_temp_valid();
+		if (ret)
+			break;
+		cunt++;
+		mdelay(2);
+		tscpu_printk("%s, %d,%d,%d\n", __func__,
+			cunt, ret, g_is_temp_valid);
+	}
+
+	if (cunt == 20) {
+		/* Still not wait valid temperature ready,
+		 * trigger data abort to reset the system
+		 * for notify TC dead.
+		 */
+		tscpu_printk("0 raw over 20*2 msec, LVTS status error\n");
+#ifdef CONFIG_LVTS_DYNAMIC_ENABLE_REBOOT
+		if (lvts_hw_protect_enabled) {
+			dump_lvts_error_info();
+			tscpu_printk("thermal_hw_protect_en\n");
+			BUG();
+		} else {
+			tscpu_printk("thermal_hw_protect_dis\n");
+		}
+#else
+		dump_lvts_error_info();
+		BUG();
+#endif
+
+	}
+
+
+#endif
+#else
+	int i = 0, j = 0;
+
+	for (i = 0; i < ARRAY_SIZE(tscpu_g_tc); i++)
+		for (j = 0; j < tscpu_g_tc[i].ts_number; j++)
+			tscpu_thermal_read_tc_temp(i, tscpu_g_tc[i].ts[j], j);
+
+	tscpu_is_temp_valid();
+#endif
+}
+
+int tscpu_kernel_status(void)
+{
+	/* default=0,read temp */
+	return g_tc_resume;
+}
+
+static void tscpu_thermal_shutdown(struct platform_device *dev)
+{
+	tscpu_printk("%s\n", __func__);
+
+#if defined(THERMAL_KERNEL_SUSPEND_RESUME_NOTIFY)
+	lvts_ipi_send_sspm_thermal_suspend_resume(1);
+#endif
+}
+
+
 /*tscpu_thermal_suspend spend 1000us~1310us*/
+#if defined(CFG_THERM_SUSPEND_RESUME_NOIRQ)
+static int tscpu_thermal_suspend_noirq(struct device *dev)
+#else
 static int tscpu_thermal_suspend
 (struct platform_device *dev, pm_message_t state)
+
+#endif
 {
+#if !defined(CFG_THERM_NO_AUXADC)
 	int cnt = 0;
 	int temp = 0;
-
-	tscpu_printk("%s\n", __func__);
+#endif
+	tscpu_printk("%s, %d\n", __func__, talking_flag);
 #if THERMAL_PERFORMANCE_PROFILE
 	struct timeval begin, end;
 	unsigned long val;
@@ -1489,6 +1681,12 @@ static int tscpu_thermal_suspend
 
 	if (talking_flag == false) {
 		tscpu_dprintk("%s no talking\n", __func__);
+
+#if defined(THERMAL_KERNEL_SUSPEND_RESUME_NOTIFY) && \
+	!defined(THERMAL_KERNEL_SUSPEND_RESUME_NOTIFY_ONLY_AT_SHUTDOWN)
+	lvts_ipi_send_sspm_thermal_suspend_resume(1);
+#endif
+
 
 #if (CONFIG_THERMAL_AEE_RR_REC == 1)
 		aee_rr_rec_thermal_status(TSCPU_SUSPEND);
@@ -1508,6 +1706,8 @@ static int tscpu_thermal_suspend
 			cnt++;
 		} while (temp != 0x0 && cnt < 50);
 #else
+
+#if !defined(CFG_THERM_NO_AUXADC)
 		thermal_pause_all_periodoc_temp_sensing(); /* TEMPMSRCTL1 */
 
 		do {
@@ -1519,15 +1719,20 @@ static int tscpu_thermal_suspend
 			udelay(2);
 			cnt++;
 		} while (temp != 0x0 && cnt < 50);
+#endif
+
 #if CFG_THERM_LVTS
 		lvts_disable_all_sensing_points();
 		lvts_wait_for_all_sensing_point_idle();
 		lvts_reset_device_and_stop_clk();
 #endif
+#if !defined(CFG_THERM_NO_AUXADC)
 		/* disable periodic temp measurement on sensor 0~2 */
 		thermal_disable_all_periodoc_temp_sensing(); /* TEMPMONCTL0 */
 #endif
+#endif
 
+#if !defined(CFG_THERM_NO_AUXADC)
 		/*TSCON1[5:4]=2'b11, Buffer off */
 		/*
 		 *mt6768 TSCON0[29:28]=2'b11, Buffer off
@@ -1535,6 +1740,7 @@ static int tscpu_thermal_suspend
 		/* turn off the sensor buffer to save power */
 		mt_reg_sync_writel(readl(TS_CONFIGURE) | TS_TURN_OFF,
 								TS_CONFIGURE);
+#endif
 #if defined(THERMAL_EBABLE_TC_CG)
 		tscpu_thermal_clock_off();
 #endif
@@ -1551,13 +1757,19 @@ static int tscpu_thermal_suspend
 }
 
 /*tscpu_thermal_suspend spend 3000us~4000us*/
+#if defined(CFG_THERM_SUSPEND_RESUME_NOIRQ)
+static int tscpu_thermal_resume_noirq(struct device *dev)
+#else
 static int tscpu_thermal_resume(struct platform_device *dev)
+#endif
 {
+#if !defined(CFG_THERM_NO_AUXADC)
 	int temp = 0;
 	int cnt = 0;
+#endif
+	tscpu_printk("%s, %d\n", __func__, talking_flag);
 
-	tscpu_printk("%s\n", __func__);
-
+	g_is_temp_valid = 0;
 	g_tc_resume = 1; /* set "1", don't read temp during start resume */
 
 	if (talking_flag == false) {
@@ -1567,13 +1779,18 @@ static int tscpu_thermal_resume(struct platform_device *dev)
 #if defined(THERMAL_EBABLE_TC_CG)
 		tscpu_thermal_clock_on();
 #endif
+#if CFG_THERM_LVTS
+		lvts_tscpu_reset_thermal();
+#else
 		tscpu_reset_thermal();
+#endif
 		/*
 		 *  TS_CON0[29:28] default is 0x03, this is buffer off
 		 *  we should turn on this buffer berore we use thermal sensor,
 		 *  or this buffer off will let TC read a very small value
 		 *  from auxadc and this small value will trigger thermal reboot
 		 */
+#if !defined(CFG_THERM_NO_AUXADC)
 		temp = readl(TS_CONFIGURE);
 
 
@@ -1596,12 +1813,20 @@ static int tscpu_thermal_resume(struct platform_device *dev)
 		 * to RGU
 		 */
 		tscpu_fast_initial_sw_workaround();
-
+#endif
 #if CFG_THERM_LVTS
 		lvts_device_identification();
 		lvts_Device_Enable_Init_all_Devices();
 #if LVTS_DEVICE_AUTO_RCK == 0
+		/* Resume don't need to do RCK,
+		 * bootup g_count_rc_now can be reused.
+		 * TBD: can be remove in next project???
+		 */
+#if defined(CFG_THERM_USE_BOOTUP_COUNT_RC)
+		lvts_device_read_count_RC_N_resume();
+#else
 		lvts_device_read_count_RC_N();
+#endif
 #else
 		lvts_device_enable_auto_rck();
 #endif
@@ -1622,6 +1847,8 @@ static int tscpu_thermal_resume(struct platform_device *dev)
 			cnt++;
 		} while (temp != 0x0 && cnt < 50);
 #else
+
+#if !defined(CFG_THERM_NO_AUXADC)
 		thermal_pause_all_periodoc_temp_sensing(); /* TEMPMSRCTL1 */
 
 		do {
@@ -1637,11 +1864,15 @@ static int tscpu_thermal_resume(struct platform_device *dev)
 		/* TEMPMONCTL0 */
 		thermal_disable_all_periodoc_temp_sensing();
 #endif
+#endif
+
+#if !defined(CFG_THERM_NO_AUXADC)
 		tscpu_thermal_initial_all_tc();
 
 		/* must release before start */
 		thermal_release_all_periodoc_temp_sensing();
 
+#endif
 		tscpu_clear_all_temp();
 #if CFG_THERM_LVTS
 		lvts_disable_all_sensing_points();
@@ -1656,6 +1887,11 @@ static int tscpu_thermal_resume(struct platform_device *dev)
 #else
 		tscpu_config_all_tc_hw_protect(trip_temp[0], tc_mid_trip);
 #endif
+
+#if defined(THERMAL_KERNEL_SUSPEND_RESUME_NOTIFY) && \
+	!defined(THERMAL_KERNEL_SUSPEND_RESUME_NOTIFY_ONLY_AT_SHUTDOWN)
+	lvts_ipi_send_sspm_thermal_suspend_resume(0);
+#endif
 	}
 
 	g_tc_resume = 2;	/* set "2", resume finish,can read temp */
@@ -1663,16 +1899,28 @@ static int tscpu_thermal_resume(struct platform_device *dev)
 	return 0;
 }
 
+#if defined(CFG_THERM_SUSPEND_RESUME_NOIRQ)
+static const struct dev_pm_ops lvts_pm_ops = {
+	.suspend_noirq = tscpu_thermal_suspend_noirq,
+	.resume_noirq = tscpu_thermal_resume_noirq,
+};
+#endif
+
 static struct platform_driver mtk_thermal_driver = {
 	.remove = NULL,
-	.shutdown = NULL,
+	.shutdown = tscpu_thermal_shutdown,
 	.probe = tscpu_thermal_probe,
+#if !defined(CFG_THERM_SUSPEND_RESUME_NOIRQ)
 	.suspend = tscpu_thermal_suspend,
 	.resume = tscpu_thermal_resume,
+#endif
 	.driver = {
 		.name = THERMAL_NAME,
 #ifdef CONFIG_OF
 		.of_match_table = mt_thermal_of_match,
+#endif
+#if defined(CFG_THERM_SUSPEND_RESUME_NOIRQ)
+		.pm = &lvts_pm_ops,
 #endif
 	},
 };
@@ -1926,6 +2174,24 @@ static const struct file_operations mtktscpu_talking_flag_fops = {
 	.release = single_release,
 };
 
+
+#if defined(THERMAL_SSPM_THERMAL_THROTTLE_SWITCH)
+static int tscpu_sspm_thermal_throttle_open
+(struct inode *inode, struct file *file)
+{
+	return single_open(file, tscpu_read_sspm_thermal_throttle, NULL);
+}
+
+static const struct file_operations mtktscpu_sspm_thermal_throttle = {
+	.owner = THIS_MODULE,
+	.open = tscpu_sspm_thermal_throttle_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.write = tscpu_write_sspm_thermal_throttle,
+	.release = single_release,
+};
+#endif
+
 #if MTKTSCPU_FAST_POLLING
 static int tscpu_fastpoll_open(struct inode *inode, struct file *file)
 {
@@ -2029,10 +2295,12 @@ static void temp_valid_unlock(unsigned long *flags)
 	spin_unlock_irqrestore(&temp_valid_spinlock, *flags);
 }
 
+
 static void check_all_temp_valid(void)
 {
 	int i, j, raw;
 
+#if !defined(CFG_THERM_NO_AUXADC)
 	for (i = 0; i < ARRAY_SIZE(tscpu_g_tc); i++) {
 		for (j = 0; j < tscpu_g_tc[i].ts_number; j++) {
 			raw = tscpu_ts_temp_r[tscpu_g_tc[i].ts[j]];
@@ -2041,8 +2309,22 @@ static void check_all_temp_valid(void)
 				return;	/* The temperature is not valid. */
 		}
 	}
+#else
+	for (i = 0; i < ARRAY_SIZE(lvts_tscpu_g_tc); i++) {
+		for (j = 0; j < lvts_tscpu_g_tc[i].ts_number; j++) {
+			raw = tscpu_ts_lvts_temp_r[lvts_tscpu_g_tc[i].ts[j]];
 
+			if (raw == 0)
+				return;	/* The temperature is not valid. */
+		}
+	}
+#endif
 	g_is_temp_valid = 1;
+}
+
+int tscpu_get_temperature_range(void)
+{
+	return g_is_TempOutsideNormalRange;
 }
 
 int tscpu_is_temp_valid(void)
@@ -2064,22 +2346,7 @@ int tscpu_is_temp_valid(void)
 	return is_valid;
 }
 
-static void read_all_tc_temperature(void)
-{
-#if CFG_THERM_LVTS
-	read_all_tc_tsmcu_temperature();
-	read_all_tc_lvts_temperature();
-	combine_lvts_tsmcu_temp();
-#else
-	int i = 0, j = 0;
 
-	for (i = 0; i < ARRAY_SIZE(tscpu_g_tc); i++)
-		for (j = 0; j < tscpu_g_tc[i].ts_number; j++)
-			tscpu_thermal_read_tc_temp(i, tscpu_g_tc[i].ts[j], j);
-
-#endif
-	tscpu_is_temp_valid();
-}
 
 void tscpu_update_tempinfo(void)
 {
@@ -2093,13 +2360,8 @@ void tscpu_update_tempinfo(void)
 		g_tc_resume = 0;
 
 #if (CONFIG_THERMAL_AEE_RR_REC == 1)
-#if defined(THERMAL_AEE_SELECTED_TS)
-	for (i = 0; i < THERMAL_AEE_MAX_SELECTED_TS; i++)
-		aee_rr_rec_thermal_temp(i, get_aee_selected_tsX[i]() / 1000);
-#else
 	for (i = 0; i < TS_ENUM_MAX; i++)
 		aee_rr_rec_thermal_temp(i, get_immediate_tsX[i]() / 1000);
-#endif
 	aee_rr_rec_thermal_status(TSCPU_NORMAL);
 	aee_rr_rec_thermal_ktime(ktime_to_us(now));
 #endif
@@ -2219,8 +2481,10 @@ static void tscpu_start_thermal_timer(void)
 
 static void init_thermal(void)
 {
+#if !defined(CFG_THERM_NO_AUXADC)
 	int temp = 0;
 	int cnt = 0;
+#endif
 
 #if (CONFIG_THERMAL_AEE_RR_REC == 1)
 	_mt_thermal_aee_init();
@@ -2228,12 +2492,21 @@ static void init_thermal(void)
 	aee_rr_rec_thermal_status(TSCPU_INIT);
 #endif
 
+#if !defined(CFG_THERM_NO_AUXADC)
 	tscpu_thermal_cal_prepare();
 	tscpu_thermal_cal_prepare_2(0);
 
 	tscpu_reset_thermal();
+#endif
 
 #if CFG_THERM_LVTS
+	lvts_tscpu_reset_thermal();
+#endif
+
+#if CFG_THERM_LVTS
+#if DUMP_LVTS_REGISTER_FOR_ZERO_RAW_ISSUE
+	clear_lvts_register_value_array();
+#endif
 	lvts_thermal_cal_prepare();
 	lvts_device_identification();
 	lvts_Device_Enable_Init_all_Devices();
@@ -2245,6 +2518,7 @@ static void init_thermal(void)
 	lvts_efuse_setting();
 #endif
 
+#if !defined(CFG_THERM_NO_AUXADC)
 	/*
 	 *  TS_CON1 default is 0x30, this is buffer off
 	 *  we should turn on this buffer berore we use thermal sensor,
@@ -2315,13 +2589,20 @@ static void init_thermal(void)
 
 	/* TEMPMSRCTL1 must release before start */
 	thermal_release_all_periodoc_temp_sensing();
+#endif
 
 #if CFG_THERM_LVTS
 	lvts_disable_all_sensing_points();
 	lvts_tscpu_thermal_initial_all_tc();
 	lvts_enable_all_sensing_points();
-#endif
+
 	read_all_tc_temperature();
+#if defined(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
+#if THERMAL_ENABLE_TINYSYS_SSPM || THERMAL_ENABLE_ONLY_TZ_SSPM
+	lvts_ipi_send_efuse_data();
+#endif
+#endif
+#endif
 }
 
 static void tscpu_create_fs(void)
@@ -2388,6 +2669,13 @@ static void tscpu_create_fs(void)
 		if (entry)
 			proc_set_user(entry, uid, gid);
 #endif
+#if defined(THERMAL_SSPM_THERMAL_THROTTLE_SWITCH)
+		entry = proc_create("sspm_thermal_throttle",
+				0644, mtktscpu_dir,
+				&mtktscpu_sspm_thermal_throttle);
+		if (entry)
+			proc_set_user(entry, uid, gid);
+#endif
 	}
 }
 
@@ -2415,6 +2703,10 @@ static int tscpu_thermal_probe(struct platform_device *dev)
 		return PTR_ERR(therm_main);
 	}
 	tscpu_dprintk("therm-main Ptr=%p", therm_main);
+#endif
+
+#if CFG_THERMAL_KERNEL_IGNORE_HOT_SENSOR
+	tscpu_check_cpu_segment();
 #endif
 
 	tscpu_thermal_clock_on();
@@ -2445,10 +2737,31 @@ static int tscpu_thermal_probe(struct platform_device *dev)
 #else
 				tscpu_thermal_all_tc_interrupt_handler,
 #endif /* CFG_LVTS_DOMINATOR */
-				IRQF_TRIGGER_LOW, THERMAL_NAME, NULL);
+				IRQF_TRIGGER_NONE, THERMAL_NAME, NULL);
 
 	if (err)
 		tscpu_warn("tscpu_init IRQ register fail\n");
+
+#ifdef CFG_THERM_MCU_LVTS
+	err = request_irq(thermal_mcu_irq_number,
+				lvts_tscpu_thermal_all_tc_interrupt_handler,
+				IRQF_TRIGGER_NONE, THERMAL_NAME, NULL);
+#endif
+#if CFG_LVTS_MCU_INTERRUPT_HANDLER
+	err = request_irq(thermal_mcu_irq_number,
+#if CFG_LVTS_DOMINATOR
+#if CFG_THERM_LVTS
+				lvts_tscpu_thermal_all_tc_interrupt_handler,
+#endif /* CFG_THERM_LVTS */
+#else
+				tscpu_thermal_all_tc_interrupt_handler,
+#endif /* CFG_LVTS_DOMINATOR */
+				IRQF_TRIGGER_NONE, THERMAL_NAME, NULL);
+
+	if (err)
+		tscpu_warn("tscpu_init mcu IRQ register fail\n");
+#endif /* CFG_LVTS_MCU_INTERRUPT_HANDLER */
+
 #else
 	err = request_irq(THERM_CTRL_IRQ_BIT_ID,
 #if CFG_LVTS_DOMINATOR
@@ -2486,7 +2799,16 @@ static int tscpu_thermal_probe(struct platform_device *dev)
 		tscpu_warn("regulator_get vcore_reg_id failed\n");
 #endif
 #endif
-	return err;
+
+	err = tscpu_register_thermal();
+	if (err) {
+		tscpu_warn("tscpu_register_thermal fail\n");
+		return err;
+	}
+
+	tscpu_create_fs();
+
+	return 0;
 }
 
 static int __init tscpu_init(void)
@@ -2504,19 +2826,7 @@ static int __init tscpu_init(void)
 		return err;
 	}
 
-	err = tscpu_register_thermal();
-	if (err) {
-		tscpu_warn("tscpu_register_thermal fail\n");
-		goto err_unreg;
-	}
-
-	tscpu_create_fs();
-
-
 	return 0;
-
-err_unreg:
-	return err;
 }
 
 

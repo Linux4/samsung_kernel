@@ -4,6 +4,8 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 
+#define LCD_TYPE_VENDOR		"SDC"
+
 #define EXTEND_BRIGHTNESS	365
 #define UI_MAX_BRIGHTNESS	255
 #define UI_DEFAULT_BRIGHTNESS	128
@@ -218,7 +220,6 @@ static unsigned char SEQ_VSYNC_SET[] = {
 	0x01
 };
 
-#if defined(CONFIG_SEC_FACTORY)
 static unsigned char SEQ_ASWIRE_OFF[] = {
 	0xD5,
 	0x80, 0xFF, 0x5A, 0xCC, 0xBF, 0x89, 0x11
@@ -228,7 +229,6 @@ static unsigned char SEQ_ASWIRE_OFF_FD_OFF[] = {
 	0xD5,
 	0x80, 0xFF, 0x5A, 0xCC, 0xBF, 0x89, 0x21
 };
-#endif
 
 static unsigned char SEQ_PCD_SET_DET_LOW[] = {
 	0xE3,

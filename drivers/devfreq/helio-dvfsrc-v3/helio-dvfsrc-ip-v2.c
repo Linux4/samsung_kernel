@@ -85,18 +85,22 @@ static void dvfsrc_set_vcore_request(int data, int mask, int shift)
 
 static void dvfsrc_get_timestamp(char *p)
 {
+	int ret = 0;
 	u64 sec = local_clock();
 	u64 usec = do_div(sec, 1000000000);
 
 	do_div(usec, 1000);
-	snprintf(p, TIME_STAMP_SIZE, "%llu.%06llu",
+	ret = snprintf(p, TIME_STAMP_SIZE, "%llu.%06llu",
 		sec, usec);
+	if (ret < 0)
+		pr_info("dvfsrc snprintf fail\n");
 }
 
 static void dvfsrc_get_sys_stamp(char *p)
 {
 	u64 sys_time;
 	u64 kernel_time;
+	int ret = 0;
 
 	kernel_time = sched_clock_get_cyc(&sys_time);
 #if defined(CONFIG_MTK_QOS_V2)
@@ -110,8 +114,10 @@ static void dvfsrc_get_sys_stamp(char *p)
 		sys_time >> 32);
 #endif
 	if (p) {
-		snprintf(p, TIME_STAMP_SIZE, "0x%llx, 0x%llx",
+		ret = snprintf(p, TIME_STAMP_SIZE, "0x%llx, 0x%llx",
 			kernel_time, sys_time);
+		if (ret < 0)
+			pr_info("dvfsrc snprintf fail\n");
 	}
 }
 
@@ -276,8 +282,13 @@ int commit_data(int type, int data, int check_spmfw)
 		break;
 	case DVFSRC_QOS_VCORE_OPP:
 		spin_lock_irqsave(&force_req_lock, flags);
-		if (data >= VCORE_OPP_NUM || data < 0)
+		if (data >= VCORE_OPP_NUM)
 			data = VCORE_OPP_NUM - 1;
+
+		if (data < 0) {
+			pr_info("VCORE OPP = %d\n", data);
+			data = 0;
+		}
 
 		opp = data;
 		level = VCORE_OPP_NUM - data - 1;
@@ -408,7 +419,7 @@ int commit_data(int type, int data, int check_spmfw)
 	if (ret < 0) {
 		pr_info("%s: type: 0x%x, data: 0x%x, opp: %d, level: %d\n",
 				__func__, type, data, opp, level);
-		dvfsrc_dump_reg(NULL);
+		dvfsrc_dump_reg(NULL, 0);
 		aee_kernel_warning("DVFSRC", "%s: failed.", __func__);
 	}
 
@@ -445,7 +456,48 @@ static irqreturn_t helio_dvfsrc_interrupt(int irq, void *dev_id)
 static int dvfsrc_resume(struct helio_dvfsrc *dvfsrc)
 {
 	dvfsrc_get_sys_stamp(sys_stamp);
+#ifdef DVFSRC_SUSPEND_SUPPORT
+	dvfsrc_resume_cb(dvfsrc);
+#endif
 	return 0;
+}
+
+static int dvfsrc_suspend(struct helio_dvfsrc *dvfsrc)
+{
+#ifdef DVFSRC_SUSPEND_SUPPORT
+	dvfsrc_suspend_cb(dvfsrc);
+#endif
+	return 0;
+}
+
+int get_sw_req_vcore_opp(void)
+{
+	int opp = -1;
+	int sw_req = -1;
+	int scp_req = VCORE_OPP_NUM - 1;
+
+	/* return opp 0, if dvfsrc not enable */
+	if (!is_dvfsrc_enabled())
+		return 0;
+	/* return opp 0, if dvfsrc pmqos not ready */
+	if (!is_dvfsrc_qos_enabled())
+		return 0;
+
+	/* 1st get sw req opp  no lock protect is ok*/
+	if (!is_dvfsrc_forced()) {
+		sw_req = (dvfsrc_read(DVFSRC_SW_REQ3) >> VCORE_SW_AP_SHIFT);
+		sw_req = sw_req & VCORE_SW_AP_MASK;
+		sw_req = VCORE_OPP_NUM - sw_req - 1;
+		if (vcorefs_get_scp_req_status()) {
+			scp_req = ((dvfsrc_read(DVFSRC_VCORE_REQUEST)
+				>> VCORE_SCP_GEAR_SHIFT) & VCORE_SCP_GEAR_MASK);
+			scp_req = VCORE_OPP_NUM - scp_req - 1;
+		}
+		/* return sw_request, as vcore floor level*/
+		return (sw_req > scp_req) ? scp_req : sw_req;
+	}
+	opp = get_cur_vcore_opp();
+	return opp; /* return opp , as vcore fixed level*/
 }
 
 int helio_dvfsrc_config(struct helio_dvfsrc *dvfsrc)
@@ -459,10 +511,11 @@ int helio_dvfsrc_config(struct helio_dvfsrc *dvfsrc)
 
 	dvfsrc_get_sys_stamp(sys_stamp);
 #ifdef CONFIG_MTK_WATCHDOG_COMMON
-	mtk_rgu_cfg_dvfsrc(1);
+	dvfsrc_latch_register(1);
 #endif
 	helio_dvfsrc_enable(1);
 	helio_dvfsrc_platform_init(dvfsrc);
+	helio_dvfsrc_qos_init_done();
 
 #if IS_ENABLED(CONFIG_MMPROFILE)
 	mmprofile_enable(1);
@@ -484,6 +537,7 @@ int helio_dvfsrc_config(struct helio_dvfsrc *dvfsrc)
 		pr_info("dvfsrc interrupt no use\n");
 
 	dvfsrc->resume = dvfsrc_resume;
+	dvfsrc->suspend = dvfsrc_suspend;
 
 	return 0;
 }
@@ -673,6 +727,18 @@ u32 vcorefs_get_hrt_bw_ddr(void)
 
 	return val;
 }
+
+u32 vcorefs_get_md_imp_ddr(void)
+{
+	u32 val;
+
+	val = dvfsrc_read(DVFSRC_DEBUG_STA_4);
+	val = (val >> MD_EMI_MD_IMP_SHIFT)
+		& MD_EMI_MD_IMP_MASK;
+
+	return val;
+}
+
 #endif
 
 #if defined(DVFSRC_IP_V2_1)
@@ -854,15 +920,15 @@ void get_dvfsrc_reg(char *p)
 	p += sprintf(p, "%-16s: 0x%08x\n",
 			"TARGET_LEVEL",
 			dvfsrc_read(DVFSRC_TARGET_LEVEL));
-	p += sprintf(p, "%-16s: %s\n",
+	p += sprintf(p, "%-16s: %.40s\n",
 			"Current Tstamp", timestamp);
-	p += sprintf(p, "%-16s: %s\n",
+	p += sprintf(p, "%-16s: %.40s\n",
 			"ForceS Tstamp", force_start_stamp);
-	p += sprintf(p, "%-16s: %s\n",
+	p += sprintf(p, "%-16s: %.40s\n",
 			"ForceE Tstamp", force_end_stamp);
-	p += sprintf(p, "%-16s: %s\n",
+	p += sprintf(p, "%-16s: %.40s\n",
 			"Timeout Tstamp", timeout_stamp);
-	p += sprintf(p, "%-16s: %s\n",
+	p += sprintf(p, "%-16s: %.40s\n",
 			"Sys Tstamp", sys_stamp);
 }
 

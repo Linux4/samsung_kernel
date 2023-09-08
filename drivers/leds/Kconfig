@@ -152,6 +152,19 @@ config LEDS_MT6323
 	  This option enables support for on-chip LED drivers found on
 	  Mediatek MT6323 PMIC.
 
+config LEDS_MT6362
+	tristate "MT6362 SPMI LEDS driver"
+	depends on LEDS_CLASS_FLASH && OF
+	depends on V4L2_FLASH_LED_CLASS || !V4L2_FLASH_LED_CLASS
+	depends on MFD_MT6362
+	help
+	  Say yes here to have support for the MT6362 LEDS
+	  Provide strobe and torch mode with flashlight, and
+	  indicator and moonlight with rgbled.
+
+	  The driver can also be build as a module.
+	  If so, the module will be called leds_mt6362
+
 config LEDS_S3C24XX
 	tristate "LED Support for Samsung S3C24XX GPIO LEDs"
 	depends on LEDS_CLASS
@@ -677,6 +690,16 @@ config LEDS_MLXCPLD
 	  This option enabled support for the LEDs on the Mellanox
 	  boards. Say Y to enabled these.
 
+config LEDS_SM5714
+	bool "LED support for the SM5714"
+	depends on LEDS_CLASS && MFD_SM5714
+	help
+	  This option enables support for SM5714 led chip.
+	  Say yes here to enable this.
+
+	  This driver is invoked from SM5714 PMIC.
+	  This driver will be called sm5714-fled
+
 config LEDS_USER
 	tristate "Userspace LED support"
 	depends on LEDS_CLASS
@@ -695,14 +718,12 @@ config LEDS_NIC78BX
 
 	  To compile this driver as a module, choose M here: the module
 	  will be called leds-nic78bx.
-
 config LEDS_S2MU106_FLASH
     bool "FLASH LED support for the S2MU106"
     depends on (MFD_S2MU106) && I2C
     help
       If you say yes here you will get support for
       for the LEDS_S2MU106_FLASH led chip.
-
 
 comment "LED Triggers"
 source "drivers/leds/trigger/Kconfig"

@@ -1,18 +1,26 @@
 #
 # Makefile for the DSMS
 #
+DSMS_PREBOOT_BUFFER = true
 
-obj-y := dsms_kernel_api.o
-obj-y += dsms_access_control.o
-obj-y += dsms_rate_limit.o
-obj-y += dsms_policy.o
-obj-y += dsms_init.o
-obj-y += dsms_debug.o
+ccflags-y := -Wformat
+ccflags-y += -DDSMS_ALLOWLIST_IGNORE_NAME_SUFFIXES_ENABLE
+ccflags-y += -I$(srctree)/$(src)
 
-EXTRA_CFLAGS += -DDSMS_WHITELIST_IGNORE_NAME_SUFFIXES_ENABLE
+obj-$(CONFIG_SECURITY_DSMS) := dsms_access_control.o
+obj-$(CONFIG_SECURITY_DSMS) += dsms_init.o
+obj-$(CONFIG_SECURITY_DSMS) += dsms_kernel_api.o
+obj-$(CONFIG_SECURITY_DSMS) += dsms_policy.o
+obj-$(CONFIG_SECURITY_DSMS) += dsms_rate_limit.o
+obj-$(CONFIG_SECURITY_DSMS) += dsms_netlink.o
 
-# Debugging options:
+ifeq ($(DSMS_PREBOOT_BUFFER), true)
+    ccflags-y += -DDSMS_PREBOOT_BUFFER_ENABLE
+    obj-$(CONFIG_SECURITY_DSMS) += dsms_preboot_buffer.o
+endif
 
-ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
-#    CFLAGS_dsms_debug.o := -DDEBUG
+# kunit tests options:
+ifeq ($(CONFIG_SEC_KUNIT), y)
+    GCOV_PROFILE := y
+    ccflags-y += -DDSMS_KUNIT_ENABLED
 endif

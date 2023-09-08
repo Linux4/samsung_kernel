@@ -250,13 +250,12 @@ unsigned int __spm_output_wake_reason(
 
 		log_size += scnprintf(log_buf + log_size,
 			LOG_BUF_OUT_SZ - log_size,
-	                "raw_ext_sta = 0x%x, wake_misc = 0x%x, pcm_flag = 0x%x 0x%x, req = 0x%x, latch = 0x%x, ",
-                        wakesta->raw_ext_sta,
-                        wakesta->wake_misc,
-                        spm_read(SPM_SW_FLAG),
-                        spm_read(SPM_SW_RSV_2),
-                        spm_read(SPM_SRC_REQ),
-                        spm_read(WDT_LATCH_SPARE0_FIX));
+			"raw_ext_sta = 0x%x, wake_misc = 0x%x, pcm_flag = 0x%x 0x%x, req = 0x%x, ",
+			wakesta->raw_ext_sta,
+			wakesta->wake_misc,
+			spm_read(SPM_SW_FLAG),
+			spm_read(SPM_SW_RSV_2),
+			spm_read(SPM_SRC_REQ));
 
 		log_size += scnprintf(log_buf + log_size,
 			LOG_BUF_OUT_SZ - log_size,
@@ -309,7 +308,6 @@ u32 __spm_get_wake_period(int pwake_time, unsigned int last_wr)
 		/* use FG to get the period of 1% battery decrease */
 		period = get_dynamic_period(last_wr != WR_PCM_TIMER
 				? 1 : 0, SPM_WAKE_PERIOD, 1);
-		pr_info("[SPM] get_dynamic_period from FG = 0x%x\n", period);
 		if (period <= 0) {
 			printk_deferred("[name:spm&][SPM] CANNOT GET PERIOD FROM FUEL GAUGE\n");
 			period = SPM_WAKE_PERIOD;

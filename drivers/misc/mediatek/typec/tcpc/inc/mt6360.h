@@ -120,6 +120,7 @@ enum mt6360_id_rupsel {
 
 #define MT6360_REG_DEBOUNCE_CTRL4			(0xE5)
 #define MT6360_REG_CTD_CTRL2				(0xEC)
+#define MT6360_REG_CC_CTRL5				(0xED)
 
 /*
  * Device ID
@@ -209,6 +210,7 @@ enum mt6360_id_rupsel {
  * MT6360_REG_MT_MASK1				(0x91)
  */
 
+#define MT6360_M_VBUS_VALID			BIT(5)
 #define MT6360_M_VCONN_SHT_GND			BIT(3)
 #define MT6360_M_VBUS_SAFE0V			BIT(1)
 #define MT6360_M_WAKEUP				BIT(0)
@@ -261,6 +263,7 @@ enum mt6360_id_rupsel {
  * MT6360_REG_MT_ST1				(0x9B)
  */
 
+#define MT6360_ST_VBUS_VALID			BIT(5)
 #define MT6360_ST_VCONN_SHT_GND			BIT(3)
 #define MT6360_ST_VBUS_SAFE0V			BIT(1)
 
@@ -350,6 +353,11 @@ enum mt6360_id_rupsel {
 	(time & MT6360_WD_SLEEP_TIME)
 
 /*
+ * MT6360_REG_WD_DET_CTRL7			(0xC6)
+ */
+#define MT6360_DRP_AUTO_EN			BIT(7)
+
+/*
  * MT6360_REG_RX_CTRL2				(0xCF)
  */
 
@@ -385,6 +393,11 @@ enum mt6360_id_rupsel {
  */
 #define MT6360_DIS_RPDET			BIT(7)
 #define MT6360_RPDET_ONESHOT			BIT(6)
+
+/*
+ * MT6360_REG_CC_CTRL5				(0xED)
+ */
+#define MT6360_MASK_LPWR_RPRD_CC2_CC1		(0xF0)
 
 #if ENABLE_MT6360_DBG
 #define MT6360_INFO(format, args...) \

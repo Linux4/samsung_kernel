@@ -43,8 +43,6 @@
 
 #ifdef CONFIG_MTK_AUDIODSP_SUPPORT
 #include <adsp_helper.h>
-#include <adsp_ipi.h>
-#include <adsp_service.h>
 #endif
 
 
@@ -64,11 +62,6 @@
 
 #ifdef CONFIG_MTK_AURISYS_PHONE_CALL_SUPPORT
 #include <audio_ipi_client_phone_call.h>
-#endif
-
-
-#ifdef CONFIG_MTK_AUDIO_TUNNELING_SUPPORT
-#include "audio_ipi_client_playback.h"
 #endif
 
 
@@ -228,6 +221,11 @@ static int parsing_ipi_msg_from_user_space(
 	}
 	if (ipi_msg.data_type != data_type) { /* double check */
 		pr_notice("data_type %d != %d", ipi_msg.data_type, data_type);
+		retval = -1;
+		goto parsing_exit;
+	}
+	if (ipi_msg.source_layer != AUDIO_IPI_LAYER_FROM_HAL) {
+		pr_notice("source_layer %d != %d", ipi_msg.source_layer, AUDIO_IPI_LAYER_FROM_HAL);
 		retval = -1;
 		goto parsing_exit;
 	}
@@ -727,7 +725,7 @@ static int __init audio_ipi_driver_init(void)
 	}
 
 #if defined(CONFIG_MTK_AUDIODSP_SUPPORT) && defined(CFG_RECOVERY_SUPPORT)
-	adsp_A_register_notify(&audio_ctrl_notifier);
+	adsp_register_notify(&audio_ctrl_notifier);
 #endif
 
 #if defined(CONFIG_MTK_AUDIO_CM4_SUPPORT) && defined(SCP_RECOVERY_SUPPORT)

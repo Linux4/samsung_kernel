@@ -30,6 +30,8 @@ enum __RKP_CMD_ID{
 	RKP_GET_RKP_GET_BUFFER_BITMAP = 0x15,
 	/* dynamic load */
 	RKP_DYNAMIC_LOAD = 0x20,
+	RKP_MODULE_LOAD = 0x21,
+	RKP_BFP_LOAD = 0x22,
 	/* and KDP cmds */
 #ifdef CONFIG_RKP_TEST
 	CMD_ID_TEST_GET_PAR = 0x81,
@@ -56,6 +58,9 @@ enum __RKP_CMD_ID{
 #define RKP_DYN_FIMC_COMBINED		0x03
 #define RKP_DYN_MODULE				0x04
 
+#define RKP_MODULE_PXN_CLEAR	0x1
+#define RKP_MODULE_PXN_SET		0x2
+
 struct rkp_init { //copy from uh (app/rkp/rkp.h)
 	u32 magic;
 	u64 vmalloc_start;
@@ -78,6 +83,16 @@ struct rkp_init { //copy from uh (app/rkp/rkp.h)
 	u32 large_memory;
 	u64 tramp_pgd;
 	u64 tramp_valias;
+};
+
+struct module_info {
+	u64 base_va;
+	u64 vm_size;
+	u64 core_base_va;
+	u64 core_text_size;
+	u64 core_ro_size;
+	u64 init_base_va;
+	u64 init_text_size;
 };
 
 typedef struct sparse_bitmap_for_kernel {
@@ -154,7 +169,17 @@ static inline unsigned int is_rkp_ro_page(u64 va) {
 }
 
 static inline u8 rkp_is_pg_protected(u64 va) {
-	return rkp_check_bitmap(__pa(va), rkp_s_bitmap_ro, 1, 0);
+	if (rkp_started == 1)
+		return rkp_check_bitmap(__pa(va), rkp_s_bitmap_ro, 1, 0);
+	else
+		return 0;
+	/* The fixmap is used in early stage
+	 * so __pa() prints "warning message" about "non-linear address".
+	 * It leads "infinity reboot".
+	 * RKP can use "trap way" instead of uh_call
+	 * even though below check function doesn't work.
+	 */
+	 //return rkp_check_bitmap(__pa(va), rkp_s_bitmap_ro, 1, 0);
 }
 
 static inline u8 rkp_is_pg_dbl_mapped(u64 pa) {

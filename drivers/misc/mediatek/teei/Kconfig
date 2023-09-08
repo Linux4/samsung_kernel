@@ -25,15 +25,26 @@ config MICROTRUST_TEE_SUPPORT
 config MICROTRUST_TEE_VERSION
 	string "MICROTRUST TEE Version"
 	depends on MICROTRUST_TEE_SUPPORT
-	default "300"
+	default "400"
 	---help---
 	  Enables the support of Microtrust new version.
 	  All Microtrust related TEE drivers will depend on this option.
-	  Say 300 if you would like to enable this feature.
-	  If unsure, say 300.
+	  Say 400 if you would like to enable this feature.
+	  If unsure, say 400.
 
 config MICROTRUST_TZ_DRIVER
 	tristate "Microtrust TEEI Driver"
+	depends on MICROTRUST_TEE_SUPPORT
+	default y
+	---help---
+	  Enables the support of Microtrust trustzone linux driver.
+	  This driver in charge of all initial process, creating
+	  communication channels and connections with secure world.
+	  Say Y if you would like to enable the driver.
+	  If unsure, say Y.
+
+config MICROTRUST_DYNAMIC_CORE
+	tristate "Microtrust TEEI Dynamic Core"
 	depends on MICROTRUST_TEE_SUPPORT
 	default y
 	---help---
@@ -98,17 +109,6 @@ config MICROTRUST_KEYMASTER_DRIVER
 	  to communicate with keymaster trusted application.
 	  Say Y if you would like to enable the helper driver.
 	  If unsure, say Y.
-
-config MICROTRUST_TUI_DRIVER
-	bool "Enable Microtrust TUI Support"
-	depends on MICROTRUST_TEE_SUPPORT
-	default n
-	---help---
-	  Enables support of Microtrust TUI helper driver.
-	  This driver provides IOCTL interface for TUI manager to
-	  communicate with TUI server in secure world.
-	  Say Y if you would like to enable the helper driver.
-	  If unsure, say N.
 
 config MICROTRUST_DEBUG
 	bool "Enable Microtrust Debug Message"

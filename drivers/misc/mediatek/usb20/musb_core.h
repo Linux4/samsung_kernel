@@ -45,14 +45,10 @@
 #include <linux/version.h>
 #include <linux/clk.h>
 #include <mt-plat/charger_type.h>
+#include <linux/workqueue.h>
 
 #if defined(CONFIG_MTK_CHARGER)
 extern enum charger_type mt_get_charger_type(void);
-#endif
-
-/* to prevent 32 bit project misuse */
-#if defined(CONFIG_MTK_MUSB_DRV_36BIT) && !defined(CONFIG_64BIT)
-#error
 #endif
 
 #ifdef CONFIG_MTK_MUSB_QMU_SUPPORT
@@ -198,6 +194,12 @@ enum musb_g_ep0_state {
 	MUSB_EP0_STAGE_ACKWAIT,	/* after zlp, before statusin */
 } __packed;
 
+/* to check usb connection for Android auto */
+enum {
+	RELEASE	= 0,
+	NOTIFY	= 1,
+};
+
 /*
  * OTG protocol constants.  See USB OTG 1.3 spec,
  * sections 5.5 "Device Timings" and 6.6.5 "Timers".
@@ -275,6 +277,7 @@ struct musb_platform_ops {
 	void (*disable_clk)(struct musb *musb);
 	void (*prepare_clk)(struct musb *musb);
 	void (*unprepare_clk)(struct musb *musb);
+	void (*enable_wakeup)(struct musb *musb, bool enable);
 };
 
 /*
@@ -489,7 +492,7 @@ struct musb {
 	enum musb_g_ep0_state ep0_state;
 	struct usb_gadget g;	/* the gadget */
 	struct usb_gadget_driver *gadget_driver;	/* its driver */
-	struct wakeup_source usb_lock;
+	struct wakeup_source *usb_lock;
 
 	/*
 	 * FIXME: Remove this flag.
@@ -525,7 +528,20 @@ struct musb {
 #ifdef CONFIG_DUAL_ROLE_USB_INTF
 	struct dual_role_phy_instance *dr_usb;
 #endif /* CONFIG_DUAL_ROLE_USB_INTF */
+	/* host suspend */
+	bool host_suspend;
+
+	/* to check usb connection for Android auto */
+	struct delayed_work usb_event_work;
+	ktime_t rst_time_before;
+	ktime_t rst_time_first;
+	int rst_err_cnt;
+	bool rst_err_noti;
+	bool event_state;
 };
+
+/* to check usb connection for Android auto */
+#define ERR_RESET_CNT	3
 
 static inline struct musb *gadget_to_musb(struct usb_gadget *g)
 {
@@ -669,6 +685,18 @@ static inline void musb_platform_unprepare_clk(struct musb *musb)
 		musb->ops->unprepare_clk(musb);
 }
 
+static inline void musb_platform_enable_wakeup(struct musb *musb)
+{
+	if (musb->ops->enable_wakeup)
+		musb->ops->enable_wakeup(musb, true);
+}
+
+static inline void musb_platform_disable_wakeup(struct musb *musb)
+{
+	if (musb->ops->enable_wakeup)
+		musb->ops->enable_wakeup(musb, false);
+}
+
 /* #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0) */
 #if 1
 static inline const char *otg_state_string(enum usb_otg_state state)
@@ -680,7 +708,9 @@ enum {
 	USB_DPIDLE_ALLOWED = 0,
 	USB_DPIDLE_FORBIDDEN,
 	USB_DPIDLE_SRAM,
-	USB_DPIDLE_TIMER
+	USB_DPIDLE_TIMER,
+	USB_DPIDLE_SUSPEND,
+	USB_DPIDLE_RESUME
 };
 extern void usb_hal_dpidle_request(int mode);
 extern void register_usb_hal_dpidle_request(void (*function)(int));

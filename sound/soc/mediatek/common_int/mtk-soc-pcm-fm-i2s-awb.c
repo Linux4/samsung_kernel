@@ -89,6 +89,37 @@ static struct snd_pcm_hardware mtk_mgrrx_awb_hardware = {
 	.fifo_size = 0,
 };
 
+#ifdef CONFIG_MTK_TC10_FEATURE
+static uint32_t mfm_i2s_RecordVol = 0x10000;
+
+static int FM_i2s_RecordVol_Get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	pr_info("%s mfm_i2s_RecordVol = 0x%x\n", __func__, mfm_i2s_RecordVol);
+	ucontrol->value.integer.value[0] = mfm_i2s_RecordVol;
+	return 0;
+
+}
+
+static int FM_i2s_RecordVol_Set(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	mfm_i2s_RecordVol = ucontrol->value.integer.value[0];
+	pr_info("%s mfm_i2s_RecordVol = 0x%x\n", __func__, mfm_i2s_RecordVol);
+
+	if (GetFmI2sInPathEnable() == true)
+		SetHwDigitalGain(Soc_Aud_Digital_Block_HW_GAIN2,
+						 mfm_i2s_RecordVol);
+
+	return 0;
+}
+
+static const struct snd_kcontrol_new Audio_snd_i2s_awb_controls[] = {
+	SOC_SINGLE_EXT("FM I2S RecordVol", SND_SOC_NOPM, 0, 0x80000, 0,
+			FM_i2s_RecordVol_Get, FM_i2s_RecordVol_Set)
+};
+#endif
+
 static void StopAudioFMI2SAWBHardware(struct snd_pcm_substream *substream)
 {
 	SetMemoryPathEnable(fm_capture_mem_blk, false);
@@ -123,6 +154,14 @@ static void StartAudioFMI2SAWBHardware(struct snd_pcm_substream *substream)
 
 	/* here to turn off digital part */
 	SetFmAwbConnection(Soc_Aud_InterCon_Connection);
+
+#ifdef CONFIG_MTK_TC10_FEATURE
+	/* Set HW_GAIN */
+	SetHwDigitalGainMode(Soc_Aud_Digital_Block_HW_GAIN2,
+			     substream->runtime->rate, 0x40);
+	SetHwDigitalGainEnable(Soc_Aud_Digital_Block_HW_GAIN2, true);
+	SetHwDigitalGain(Soc_Aud_Digital_Block_HW_GAIN2, mfm_i2s_RecordVol);
+#endif
 
 	if (GetFmI2sInPathEnable() == false) {
 		/* set merge interface */
@@ -327,8 +366,12 @@ static int mtk_fm_i2s_awb_probe(struct platform_device *pdev)
 
 	pr_debug("%s(), mem_blk %d\n", __func__, fm_capture_mem_blk);
 
-	if (pdev->dev.of_node)
+	if (pdev->dev.of_node) {
 		dev_set_name(&pdev->dev, "%s", MT_SOC_FM_I2S_AWB_PCM);
+		pdev->name = pdev->dev.kobj.name;
+	} else {
+		pr_debug("%s(), pdev->dev.of_node = NULL!!!\n", __func__);
+	}
 
 	pr_debug("%s: dev name %s\n", __func__, dev_name(&pdev->dev));
 	return snd_soc_register_platform(&pdev->dev, &mtk_soc_platform);
@@ -339,6 +382,10 @@ static int mtk_afe_fm_i2s_awb_probe(struct snd_soc_platform *platform)
 	AudDrv_Allocate_mem_Buffer(platform->dev, fm_capture_mem_blk,
 				   FM_I2S_MAX_BUFFER_SIZE);
 	Awb_Capture_dma_buf = Get_Mem_Buffer(fm_capture_mem_blk);
+#ifdef CONFIG_MTK_TC10_FEATURE
+	snd_soc_add_platform_controls(platform, Audio_snd_i2s_awb_controls,
+				      ARRAY_SIZE(Audio_snd_i2s_awb_controls));
+#endif
 	return 0;
 }
 

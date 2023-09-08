@@ -10,6 +10,7 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/blkdev.h>
+#include <linux/backing-dev.h>
 #include <linux/freezer.h>
 #include <linux/kthread.h>
 #include <linux/scatterlist.h>
@@ -28,7 +29,10 @@
 #include "queue.h"
 #include "block.h"
 #include "core.h"
+#include "crypto.h"
 #include "card.h"
+#include "mmc_crypto.h"
+#include "cqhci-crypto.h"
 
 /*
  * Prepare a MMC request. This just filters out odd stuff.
@@ -214,7 +218,9 @@ static int mmc_queue_thread(void *d)
 	down(&mq->thread_sem);
 	mt_bio_queue_alloc(current, q);
 
+#if defined(CONFIG_MTK_IO_BOOST)
 	mtk_iobst_register_tid(current->pid);
+#endif
 
 	do {
 		struct request *req;
@@ -448,9 +454,6 @@ void mmc_cmdq_setup_queue(struct mmc_queue *mq, struct mmc_card *card)
 						host->max_req_size / 512));
 	blk_queue_max_segment_size(mq->queue, host->max_seg_size);
 	blk_queue_max_segments(mq->queue, host->max_segs);
-
-	if (host->caps2 & MMC_CAP2_INLINECRYPT)
-		queue_flag_set_unlocked(QUEUE_FLAG_INLINECRYPT, mq->queue);
 }
 #endif
 
@@ -518,6 +521,8 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
 						mmc_hostname(host), ret);
 					ret = PTR_ERR(mq->thread);
 				}
+				/* inline crypto */
+				mmc_crypto_setup_queue(host, mq->queue);
 
 				return ret;
 			}
@@ -562,7 +567,8 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
 
 	mq->queue->cmd_size = sizeof(struct mmc_queue_req);
 	mq->queue->queuedata = mq;
-	mq->queue->backing_dev_info->ra_pages = 128;
+	/*Block read_ahead_kb change*/
+	//mq->queue->backing_dev_info->ra_pages = 128;
 	atomic_set(&mq->qcnt, 0);
 	ret = blk_init_allocated_queue(mq->queue);
 	if (ret) {
@@ -580,8 +586,6 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
 	blk_queue_prep_rq(mq->queue, mmc_prep_request);
 	queue_flag_set_unlocked(QUEUE_FLAG_NONROT, mq->queue);
 	queue_flag_clear_unlocked(QUEUE_FLAG_ADD_RANDOM, mq->queue);
-	if (host->caps2 & MMC_CAP2_INLINECRYPT)
-		queue_flag_set_unlocked(QUEUE_FLAG_INLINECRYPT, mq->queue);
 	if (mmc_can_erase(card))
 		mmc_queue_setup_discard(mq->queue, card);
 
@@ -608,8 +612,35 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
 
 	sema_init(&mq->thread_sem, 1);
 
+	/* sw-cqhci inline crypto */
+	mmc_crypto_setup_queue(host, mq->queue);
+
 	mq->thread = kthread_run(mmc_queue_thread, mq, "mmcqd/%d%s",
 		host->index, subname ? subname : "");
+
+	if (mmc_card_sd(card)) {
+		/* decrease max # of requests to 32. The goal of this tuning is
+		 * reducing the time for draining elevator when elevator_switch
+		 * function is called. It is effective for slow external sdcard.
+		 */
+		mq->queue->nr_requests = BLKDEV_MAX_RQ / 8;
+		if (mq->queue->nr_requests < 32)
+			mq->queue->nr_requests = 32;
+
+#ifdef CONFIG_LARGE_DIRTY_BUFFER
+		/* apply more throttle on external sdcard */
+		mq->queue->backing_dev_info->capabilities |= BDI_CAP_STRICTLIMIT;
+		bdi_set_min_ratio(mq->queue->backing_dev_info, 30);
+		bdi_set_max_ratio(mq->queue->backing_dev_info, 60);
+#endif
+
+		pr_info("Parameters for external-sdcard: min/max_ratio: %u/%u "
+			"strictlimit: on nr_requests: %lu read_ahead_kb: %lu\n",
+			mq->queue->backing_dev_info->min_ratio,
+			mq->queue->backing_dev_info->max_ratio,
+			mq->queue->nr_requests,
+			mq->queue->backing_dev_info->ra_pages * 4);
+	}
 
 	if (IS_ERR(mq->thread)) {
 		ret = PTR_ERR(mq->thread);
@@ -637,11 +668,18 @@ void mmc_cleanup_queue(struct mmc_queue *mq)
 	struct request_queue *q = mq->queue;
 	unsigned long flags;
 
+
 	/* Make sure the queue isn't suspended, as that will deadlock */
 	mmc_queue_resume(mq);
 
 	/* Then terminate our worker thread */
 	kthread_stop(mq->thread);
+
+#ifdef CONFIG_LARGE_DIRTY_BUFFER
+	/* Restore bdi min/max ratio before device removal */
+	bdi_set_min_ratio(q->backing_dev_info, 0);
+	bdi_set_max_ratio(q->backing_dev_info, 100);
+#endif
 
 	/* Empty the queue */
 	spin_lock_irqsave(q->queue_lock, flags);
@@ -734,7 +772,7 @@ int mmc_cmdq_init(struct mmc_queue *mq, struct mmc_card *card)
 	init_completion(&mq->cmdq_pending_req_done);
 
 	blk_queue_rq_timed_out(mq->queue, mmc_cmdq_rq_timed_out);
-	blk_queue_rq_timeout(mq->queue, 10 * HZ);
+	blk_queue_rq_timeout(mq->queue, 20 * HZ);
 	card->cqe_init = true;
 
 	goto out;
@@ -858,6 +896,7 @@ int mmc_queue_suspend(struct mmc_queue *mq, int wait)
 
 			spin_unlock_irqrestore(q->queue_lock, flags);
 			mutex_unlock(&q->sysfs_lock);
+
 			if (rc) {
 				down(&mq->thread_sem);
 				rc = 0;

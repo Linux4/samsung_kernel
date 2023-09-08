@@ -53,7 +53,11 @@ struct tipc_dn_chan {
 	u32 session;
 	struct mutex sess_lock;
 	enum tee_id_t tee_id;
+	int port_id;
+	int32_t cpumask;
 };
+
+int tipc_set_default_cpumask(uint32_t cpumask);
 
 struct tipc_chan *tipc_create_channel(struct device *dev,
 				      const struct tipc_chan_ops *ops,
@@ -113,12 +117,6 @@ ssize_t tipc_k_read(struct tipc_k_handle *h, void *buf, size_t buf_len,
 		    unsigned int flags);
 ssize_t tipc_k_write(struct tipc_k_handle *h, void *buf, size_t len,
 		     unsigned int flags);
-
-extern uint64_t pa_tipc_chan_queue_msg;
-extern uint64_t pa_tipc_create_channel;
-extern uint64_t pa_tipc_k_connect;
-extern uint64_t pa_tipc_k_write;
-extern uint64_t pa_rxbuf;
 
 /* port_lookup_tid() - indicate the tee_id from service port name.
  * @port: service name

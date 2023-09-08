@@ -102,18 +102,6 @@ config SCSI_UFS_QCOM
 	  Select this if you have UFS controller on QCOM chipset.
 	  If unsure, say N.
 
-config UFSHPB
-	bool "UFSHPB (EXPERIMENTAL)"
-	depends on SCSI_UFSHCD
-	---help---
-	  This selects the UFSHPB v1.0 test driver.
-	  HPB can improve UFS storage random read performance over 1G.
-	  This is the new feature for UFS.
-
-	  Say Y if you want to use UFSHPB as default support.
-
-	  If unsure, say N.
-
 config MTK_UFS_SUPPORT
 	bool "MTK specific hooks to UFS controller platform driver"
 	depends on SCSI_UFSHCD_PLATFORM
@@ -138,3 +126,50 @@ config MTK_UFS_BLOCK_IO_LOG
 	  Say Y if you want to have IO trace.
 
 	  If unsure, say N
+
+config SCSI_UFS_TEST_MODE
+	bool "Samsung UFS TEST feature"
+	depends on SCSI_UFSHCD && SCSI_UFSHCD_PLATFORM
+	---help---
+	This selects support for test mode for debugging.
+	Select this option if this feature is needed on working.
+
+config UFSFEATURE
+	bool "UFS feature activate"
+	depends on SCSI_UFSHCD
+	---help---
+	UFS feature activate such as hpb, tw and etc.
+
+config UFSHPB
+	bool "UFSHPB"
+	depends on SCSI_UFSHCD && UFSFEATURE
+	---help---
+	UFS HPB Feature Enable
+
+config UFSTW
+	bool "UFSTW"
+	depends on SCSI_UFSHCD && UFSFEATURE
+	---help---
+	UFS TW Feature Enable
+
+config UFSTW_IGNORE_GUARANTEE_BIT
+	bool "UFSTW_IGNORE_GUARANTEE_BIT"
+	default n
+	depends on SCSI_UFSHCD && UFSFEATURE && UFSTW
+	---help---
+	ignore the guarantee bit[31] of dTurboWriteBufferLifeTimeEst for PoC
+
+config SCSI_SKHPB
+	bool "Activate HPB Host-aware Performance Booster"
+	depends on SCSI_UFSHCD
+	help
+	  Activate or deactive SKHPB driver
+
+config SCSI_UFS_CRYPTO
+	bool "UFS Crypto Engine Support"
+	depends on SCSI_UFSHCD && BLK_INLINE_ENCRYPTION
+	help
+	  Enable Crypto Engine Support in UFS.
+	  Enabling this makes it possible for the kernel to use the crypto
+	  capabilities of the UFS device (if present) to perform crypto
+	  operations on data being transferred to/from the device.

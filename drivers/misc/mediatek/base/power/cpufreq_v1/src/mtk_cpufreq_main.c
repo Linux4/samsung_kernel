@@ -24,7 +24,6 @@
 #include "mtk_cpufreq_opp_table.h"
 
 #define DCM_ENABLE 1
-
 #ifdef CONFIG_CPU_FREQ_LIMIT
 #include <linux/cpufreq_limit.h>
 #endif
@@ -1151,6 +1150,7 @@ static unsigned int _calc_new_opp_idx(struct mt_cpu_dvfs *p, int new_opp_idx)
 	return new_opp_idx;
 }
 
+
 static void ppm_limit_callback(struct ppm_client_req req)
 {
 	struct ppm_client_req *ppm = (struct ppm_client_req *)&req;
@@ -1166,6 +1166,7 @@ static void ppm_limit_callback(struct ppm_client_req req)
 			cpuhvfs_set_min_max(i,
 				ppm->cpu_limit[i].min_cpufreq_idx,
 				ppm->cpu_limit[i].max_cpufreq_idx);
+		cpuhvfs_write_advise_freq(i, ppm->cpu_limit[i].has_advise_freq);
 	}
 #else
 	unsigned long flags;
@@ -1386,7 +1387,12 @@ static struct freq_attr *_mt_cpufreq_attr[] = {
 };
 
 static struct cpufreq_driver _mt_cpufreq_driver = {
+#if defined(CONFIG_MTK_PLAT_MT6885_EMULATION) || defined(CONFIG_MACH_MT6893) \
+	|| defined(CONFIG_MACH_MT6833) || defined(CONFIG_MACH_MT6781)
+	.flags = CPUFREQ_ASYNC_NOTIFICATION | CPUFREQ_HAVE_GOVERNOR_PER_POLICY,
+#else
 	.flags = CPUFREQ_ASYNC_NOTIFICATION,
+#endif
 	.verify = _mt_cpufreq_verify,
 	.target = _mt_cpufreq_target,
 	.init = _mt_cpufreq_init,
@@ -1492,7 +1498,6 @@ static void _hps_request_wrapper(struct mt_cpu_dvfs *p,
 #endif
 			aee_record_cpu_dvfs_cb(9);
 #endif
-			act_p->mt_policy = NULL;
 			aee_record_cpu_dvfs_cb(10);
 		}
 		break;
@@ -1649,7 +1654,9 @@ static int cpuhp_cpufreq_offline(unsigned int cpu)
 static enum cpuhp_state hp_online;
 static int _mt_cpufreq_pdrv_probe(struct platform_device *pdev)
 {
+
 	unsigned int lv = _mt_cpufreq_get_cpu_level();
+
 	unsigned int ret;
 	struct mt_cpu_dvfs *p;
 	int j;
@@ -1665,16 +1672,20 @@ static int _mt_cpufreq_pdrv_probe(struct platform_device *pdev)
 	cpufreq_procfs_init();
 	_mt_cpufreq_aee_init();
 
+	ret = mt_cpufreq_regulator_map(pdev);
+	if (ret)
+		tag_pr_notice("%s regulator map fail\n", __func__);
+
 #ifdef CONFIG_HYBRID_CPU_DVFS
-	/* For SSPM probe */
+#ifdef INIT_MCUPM_VOLTAGE_SETTING
+	cpuhvfs_set_init_volt();
+#endif
+	/* For SSPM/MCUPM probe */
 	cpuhvfs_set_init_sta();
 	/* Default disable schedule assist DVFS */
 	cpuhvfs_set_sched_dvfs_disable(1);
 #endif
 
-	ret = mt_cpufreq_regulator_map(pdev);
-	if (ret)
-		tag_pr_notice("regulator map fail\n");
 
 	/* Prepare OPP table for PPM in probe to avoid nested lock */
 	for_each_cpu_dvfs(j, p) {
@@ -1702,9 +1713,7 @@ static int _mt_cpufreq_pdrv_probe(struct platform_device *pdev)
 		}
 #endif
 	}
-
 	cpufreq_register_driver(&_mt_cpufreq_driver);
-
 	hp_online = cpuhp_setup_state_nocalls(CPUHP_AP_ONLINE_DYN,
 						   "cpu_dvfs:online",
 						   cpuhp_cpufreq_online,
@@ -1716,10 +1725,9 @@ static int _mt_cpufreq_pdrv_probe(struct platform_device *pdev)
 		if (j != MT_CPU_DVFS_CCI)
 			mt_ppm_set_dvfs_table(p->cpu_id,
 			p->freq_tbl_for_cpufreq, p->nr_opp_tbl, lv);
+
 	}
-
 	mt_ppm_register_client(PPM_CLIENT_DVFS, &ppm_limit_callback);
-
 	pm_notifier(_mt_cpufreq_pm_callback, 0);
 
 	FUNC_EXIT(FUNC_LV_MODULE);

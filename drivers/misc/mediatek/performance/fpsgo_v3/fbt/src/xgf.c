@@ -19,12 +19,14 @@
 #include <linux/rbtree.h>
 #include <linux/preempt.h>
 #include <linux/proc_fs.h>
-#include <linux/debugfs.h>
 #include <linux/vmalloc.h>
-#include <linux/trace_events.h>
+#include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/sched/clock.h>
 #include <linux/cpumask.h>
+#include <linux/sched/task.h>
+#include <linux/sched/cputime.h>
+#include <linux/bitops.h>
 
 #include <mt-plat/fpsgo_common.h>
 
@@ -32,35 +34,74 @@
 #include <trace/events/sched.h>
 #include <trace/events/ipi.h>
 #include <trace/events/irq.h>
-#include <trace/events/mtk_events.h>
+#include <trace/events/timer.h>
 
 #include "xgf.h"
 #include "fpsgo_base.h"
-
-FPSFO_DECLARE_SYSTRACE(x, irq_handler_entry)
-FPSFO_DECLARE_SYSTRACE(x, irq_handler_exit)
-FPSFO_DECLARE_SYSTRACE(x, softirq_entry)
-FPSFO_DECLARE_SYSTRACE(x, softirq_exit)
-FPSFO_DECLARE_SYSTRACE(x, ipi_raise)
-FPSFO_DECLARE_SYSTRACE(x, ipi_entry)
-FPSFO_DECLARE_SYSTRACE(x, ipi_exit)
-FPSFO_DECLARE_SYSTRACE(x, sched_wakeup)
-FPSFO_DECLARE_SYSTRACE(x, sched_wakeup_new)
-FPSFO_DECLARE_SYSTRACE(x, sched_switch)
+#include "fpsgo_sysfs.h"
 
 static DEFINE_MUTEX(xgf_main_lock);
 static int xgf_enable;
 static int xgf_ko_ready;
-static struct dentry *debugfs_xgf_dir;
+static struct kobject *xgf_kobj;
 static unsigned long long last_check2recycle_ts;
 static atomic_t xgf_atomic_val_0 = ATOMIC_INIT(0);
 static atomic_t xgf_atomic_val_1 = ATOMIC_INIT(0);
 static unsigned long long last_update2spid_ts;
 static char *xgf_sp_name = SP_ALLOW_NAME;
+static int xgf_extra_sub;
+static int xgf_force_no_extra_sub;
+static int cur_xgf_extra_sub;
+static int xgf_dep_frames = XGF_DEP_FRAMES_MIN;
+static int xgf_prev_dep_frames = XGF_DEP_FRAMES_MIN;
+static int xgf_spid_sub = XGF_DO_SP_SUB;
+static int xgf_ema_dividend = EMA_DIVIDEND;
+static int xgf_spid_ck_period = NSEC_PER_SEC;
+static int xgf_sp_name_id;
+static int xgf_uboost = XGF_UBOOST;
+static int xgf_stddev_multi = XGF_UBOOST_STDDEV_M;
+static int xgf_spid_list_length;
+static int xgf_wspid_list_length;
+static int xgf_cfg_spid;
+int fstb_frame_num;
+EXPORT_SYMBOL(fstb_frame_num);
+int fstb_no_stable_thr;
+EXPORT_SYMBOL(fstb_no_stable_thr);
+int fstb_no_stable_multiple;
+EXPORT_SYMBOL(fstb_no_stable_multiple);
+int fstb_no_stable_multiple_eara;
+EXPORT_SYMBOL(fstb_no_stable_multiple_eara);
+int fstb_is_eara_active;
+EXPORT_SYMBOL(fstb_is_eara_active);
+int fstb_can_update_thr;
+EXPORT_SYMBOL(fstb_can_update_thr);
+int fstb_target_fps_margin_low_fps;
+EXPORT_SYMBOL(fstb_target_fps_margin_low_fps);
+int fstb_target_fps_margin_high_fps;
+EXPORT_SYMBOL(fstb_target_fps_margin_high_fps);
+int fstb_separate_runtime_enable;
+EXPORT_SYMBOL(fstb_separate_runtime_enable);
+int fstb_fps_num;
+EXPORT_SYMBOL(fstb_fps_num);
+int fstb_fps_choice[10] = {20, 25, 30, 40, 45, 60, 90, 120, 144, 240};
+EXPORT_SYMBOL(fstb_fps_choice);
+
 module_param(xgf_sp_name, charp, 0644);
+module_param(xgf_extra_sub, int, 0644);
+module_param(xgf_force_no_extra_sub, int, 0644);
+module_param(xgf_dep_frames, int, 0644);
+module_param(xgf_spid_sub, int, 0644);
+module_param(xgf_ema_dividend, int, 0644);
+module_param(xgf_spid_ck_period, int, 0644);
+module_param(xgf_sp_name_id, int, 0644);
+module_param(xgf_uboost, int, 0644);
+module_param(xgf_stddev_multi, int, 0644);
+module_param(xgf_cfg_spid, int, 0644);
 
 HLIST_HEAD(xgf_renders);
 HLIST_HEAD(xgf_hw_events);
+HLIST_HEAD(xgf_spid_list);
+HLIST_HEAD(xgf_wspid_list);
 
 int (*xgf_est_runtime_fp)(
 	pid_t r_pid,
@@ -70,8 +111,55 @@ int (*xgf_est_runtime_fp)(
 	);
 EXPORT_SYMBOL(xgf_est_runtime_fp);
 
-int (*xgf_stat_xchg_fp)(int enable);
-EXPORT_SYMBOL(xgf_stat_xchg_fp);
+int (*fpsgo_xgf2ko_calculate_target_fps_fp)(
+	int pid,
+	unsigned long long bufID,
+	int *target_fps_margin,
+	unsigned long long cur_dequeue_start_ts,
+	unsigned long long cur_queue_end_ts
+	);
+EXPORT_SYMBOL(fpsgo_xgf2ko_calculate_target_fps_fp);
+
+void (*fpsgo_xgf2ko_do_recycle_fp)(
+	int pid,
+	unsigned long long bufID
+	);
+EXPORT_SYMBOL(fpsgo_xgf2ko_do_recycle_fp);
+
+static int (*xgf_stat_xchg_fp)(int enable);
+
+int (*xgff_est_runtime_fp)(
+	pid_t r_pid,
+	struct xgf_render *render,
+	unsigned long long *runtime,
+	unsigned long long ts
+	);
+EXPORT_SYMBOL(xgff_est_runtime_fp);
+int (*xgff_update_start_prev_index_fp)(struct xgf_render *render);
+EXPORT_SYMBOL(xgff_update_start_prev_index_fp);
+
+long long (*xgf_ema2_predict_fp)(struct xgf_ema2_predictor *pt, long long X);
+EXPORT_SYMBOL(xgf_ema2_predict_fp);
+void (*xgf_ema2_init_fp)(struct xgf_ema2_predictor *pt);
+EXPORT_SYMBOL(xgf_ema2_init_fp);
+
+void xgff_clean_deps_list(struct xgf_render *render, int pos)
+{
+}
+EXPORT_SYMBOL(xgff_clean_deps_list);
+
+int xgff_dep_frames_mod(struct xgf_render *render, int pos)
+{
+	return 0;
+}
+EXPORT_SYMBOL(xgff_dep_frames_mod);
+
+struct xgf_dep *xgff_get_dep(
+	pid_t tid, struct xgf_render *render, int pos, int force)
+{
+	return NULL;
+}
+EXPORT_SYMBOL(xgff_get_dep);
 
 static inline void xgf_lock(const char *tag)
 {
@@ -88,6 +176,20 @@ void xgf_lockprove(const char *tag)
 	WARN_ON(!mutex_is_locked(&xgf_main_lock));
 }
 EXPORT_SYMBOL(xgf_lockprove);
+
+static int xgf_tracepoint_probe_register(struct tracepoint *tp,
+					void *probe,
+					void *data)
+{
+	return tracepoint_probe_register(tp, probe, data);
+}
+
+static int xgf_tracepoint_probe_unregister(struct tracepoint *tp,
+					void *probe,
+					void *data)
+{
+	return tracepoint_probe_unregister(tp, probe, data);
+}
 
 void xgf_trace(const char *fmt, ...)
 {
@@ -133,6 +235,18 @@ void *xgf_atomic_val_assign(int select)
 		return (void *)(&xgf_atomic_val_1);
 }
 EXPORT_SYMBOL(xgf_atomic_val_assign);
+
+int *xgf_extra_sub_assign(void)
+{
+	return (int *)(&cur_xgf_extra_sub);
+}
+EXPORT_SYMBOL(xgf_extra_sub_assign);
+
+int *xgf_spid_sub_assign(void)
+{
+	return (int *)(&xgf_spid_sub);
+}
+EXPORT_SYMBOL(xgf_spid_sub_assign);
 
 int xgf_atomic_read(atomic_t *val)
 {
@@ -182,18 +296,36 @@ long xgf_get_task_state(struct task_struct *t)
 }
 EXPORT_SYMBOL(xgf_get_task_state);
 
-unsigned long xgf_lookup_name(const char *name)
-{
-	return kallsyms_lookup_name(name);
-}
-EXPORT_SYMBOL(xgf_lookup_name);
-
 static inline int xgf_ko_is_ready(void)
 {
 	xgf_lockprove(__func__);
 
 	return xgf_ko_ready;
 }
+
+int xgf_get_display_rate(void)
+{
+	return 0;
+}
+EXPORT_SYMBOL(xgf_get_display_rate);
+
+int xgf_get_process_id(int pid)
+{
+	return -EINVAL;
+}
+EXPORT_SYMBOL(xgf_get_process_id);
+
+int xgf_check_main_sf_pid(int pid, int process_id)
+{
+	return 0;
+}
+EXPORT_SYMBOL(xgf_check_main_sf_pid);
+
+int xgf_check_specific_pid(int pid)
+{
+	return 0;
+}
+EXPORT_SYMBOL(xgf_check_specific_pid);
 
 static inline int xgf_is_enable(void)
 {
@@ -212,6 +344,265 @@ unsigned long long xgf_get_time(void)
 	return temp;
 }
 EXPORT_SYMBOL(xgf_get_time);
+
+int set_xgf_spid_list(char *proc_name,
+		char *thrd_name, int action)
+{
+	struct xgf_spid *new_xgf_spid;
+	int retval = 0;
+
+	xgf_lock(__func__);
+
+	if (!strncmp("0", proc_name, 1) &&
+			!strncmp("0", thrd_name, 1)) {
+
+		struct xgf_spid *iter;
+		struct hlist_node *t;
+
+		hlist_for_each_entry_safe(iter, t, &xgf_spid_list, hlist) {
+			hlist_del(&iter->hlist);
+			xgf_free(iter);
+		}
+
+		xgf_spid_list_length = 0;
+		goto out;
+	}
+
+	if (xgf_spid_list_length >= XGF_MAX_SPID_LIST_LENGTH) {
+		retval = -ENOMEM;
+		goto out;
+	}
+
+	new_xgf_spid = xgf_alloc(sizeof(*new_xgf_spid));
+	if (!new_xgf_spid) {
+		retval = -ENOMEM;
+		goto out;
+	}
+
+	if (!strncpy(new_xgf_spid->process_name, proc_name, 16)) {
+		xgf_free(new_xgf_spid);
+		retval = -ENOMEM;
+		goto out;
+	}
+	new_xgf_spid->process_name[15] = '\0';
+
+	if (!strncpy(new_xgf_spid->thread_name,	thrd_name, 16)) {
+		xgf_free(new_xgf_spid);
+		retval = -ENOMEM;
+		goto out;
+	}
+	new_xgf_spid->thread_name[15] = '\0';
+
+	new_xgf_spid->pid = 0;
+	new_xgf_spid->rpid = 0;
+	new_xgf_spid->tid = 0;
+	new_xgf_spid->bufID = 0;
+	new_xgf_spid->action = action;
+
+	hlist_add_head(&new_xgf_spid->hlist, &xgf_spid_list);
+
+	xgf_spid_list_length++;
+
+out:
+	xgf_unlock(__func__);
+
+	return retval;
+}
+
+static ssize_t xgf_spid_list_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct xgf_spid *xgf_spid_iter = NULL;
+	char temp[FPSGO_SYSFS_MAX_BUFF_SIZE] = "";
+	int pos = 0;
+	int length;
+
+	length = scnprintf(temp + pos, FPSGO_SYSFS_MAX_BUFF_SIZE - pos,
+		"%s\t%s\t%s\n",
+		"process_name",
+		"thread_name",
+		"action");
+	pos += length;
+
+	hlist_for_each_entry(xgf_spid_iter, &xgf_spid_list, hlist) {
+		length = scnprintf(temp + pos, FPSGO_SYSFS_MAX_BUFF_SIZE - pos,
+			"%s\t%s\t%d\n",
+			xgf_spid_iter->process_name,
+			xgf_spid_iter->thread_name,
+			xgf_spid_iter->action);
+		pos += length;
+	}
+
+	length = scnprintf(temp + pos, FPSGO_SYSFS_MAX_BUFF_SIZE - pos,
+		"\n%s\t%s\t%s\t%s\t%s\t%s\n",
+		"process_name",
+		"thread_name",
+		"render",
+		"pid",
+		"tid",
+		"action");
+	pos += length;
+
+	hlist_for_each_entry(xgf_spid_iter, &xgf_wspid_list, hlist) {
+		length = scnprintf(temp + pos, FPSGO_SYSFS_MAX_BUFF_SIZE - pos,
+			"%s\t%s\t%d\t%d\t%d\n",
+			xgf_spid_iter->process_name,
+			xgf_spid_iter->thread_name,
+			xgf_spid_iter->rpid,
+			xgf_spid_iter->pid,
+			xgf_spid_iter->tid,
+			xgf_spid_iter->action);
+		pos += length;
+	}
+
+	return scnprintf(buf, PAGE_SIZE, "%s", temp);
+}
+
+static ssize_t xgf_spid_list_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	char acBuffer[FPSGO_SYSFS_MAX_BUFF_SIZE];
+	int ret = count;
+	char proc_name[16], thrd_name[16];
+	int action;
+
+	if ((count > 0) && (count < FPSGO_SYSFS_MAX_BUFF_SIZE)) {
+		if (scnprintf(acBuffer, FPSGO_SYSFS_MAX_BUFF_SIZE, "%s", buf)) {
+			acBuffer[count] = '\0';
+			if (sscanf(acBuffer, "%15s %15s %d",
+				proc_name, thrd_name, &action) != 3)
+				goto err;
+
+			if (set_xgf_spid_list(proc_name, thrd_name, action))
+				goto err;
+		}
+	}
+
+err:
+	return ret;
+}
+
+static KOBJ_ATTR_RW(xgf_spid_list);
+
+static void xgf_reset_wspid_list(void)
+{
+	struct xgf_spid *xgf_spid_iter;
+	struct hlist_node *t;
+
+	xgf_lockprove(__func__);
+
+	hlist_for_each_entry_safe(xgf_spid_iter, t, &xgf_wspid_list, hlist) {
+		hlist_del(&xgf_spid_iter->hlist);
+		xgf_free(xgf_spid_iter);
+		xgf_wspid_list_length--;
+	}
+}
+
+static void xgf_render_reset_wspid_list(struct xgf_render *render)
+{
+	struct xgf_spid *xgf_spid_iter;
+	struct hlist_node *t;
+
+	hlist_for_each_entry_safe(xgf_spid_iter, t, &xgf_wspid_list, hlist) {
+		if (xgf_spid_iter->rpid == render->render
+			&& xgf_spid_iter->bufID == render->bufID) {
+			hlist_del(&xgf_spid_iter->hlist);
+			xgf_free(xgf_spid_iter);
+			xgf_wspid_list_length--;
+		}
+	}
+}
+
+static int xgf_render_setup_wspid_list(struct xgf_render *render)
+{
+	int ret = 1;
+	struct xgf_spid *xgf_spid_iter;
+	struct task_struct *gtsk, *sib;
+	struct xgf_spid *new_xgf_spid;
+	int tlen = 0;
+
+	rcu_read_lock();
+	gtsk = find_task_by_vpid(render->parent);
+	if (gtsk) {
+		get_task_struct(gtsk);
+		list_for_each_entry(sib, &gtsk->thread_group, thread_group) {
+
+			get_task_struct(sib);
+
+			hlist_for_each_entry(xgf_spid_iter, &xgf_spid_list, hlist) {
+				if (strncmp(gtsk->comm, xgf_spid_iter->process_name, 16))
+					continue;
+
+				tlen = strlen(xgf_spid_iter->thread_name);
+
+				if (!strncmp(sib->comm, xgf_spid_iter->thread_name, tlen)) {
+					new_xgf_spid = xgf_alloc(sizeof(*new_xgf_spid));
+					if (!new_xgf_spid) {
+						ret = -ENOMEM;
+						put_task_struct(sib);
+						goto out;
+					}
+
+					if (!strncpy(new_xgf_spid->process_name,
+							xgf_spid_iter->process_name, 16)) {
+						xgf_free(new_xgf_spid);
+						ret = -ENOMEM;
+						put_task_struct(sib);
+						goto out;
+					}
+					new_xgf_spid->process_name[15] = '\0';
+
+					if (!strncpy(new_xgf_spid->thread_name,
+							xgf_spid_iter->thread_name, 16)) {
+						xgf_free(new_xgf_spid);
+						ret = -ENOMEM;
+						put_task_struct(sib);
+						goto out;
+					}
+					new_xgf_spid->thread_name[15] = '\0';
+
+					new_xgf_spid->pid = gtsk->pid;
+					new_xgf_spid->rpid = render->render;
+					new_xgf_spid->tid = sib->pid;
+					new_xgf_spid->bufID = render->bufID;
+					new_xgf_spid->action = xgf_spid_iter->action;
+					hlist_add_head(&new_xgf_spid->hlist, &xgf_wspid_list);
+					xgf_wspid_list_length++;
+				}
+			}
+			put_task_struct(sib);
+		}
+out:
+		put_task_struct(gtsk);
+	}
+	rcu_read_unlock();
+	return ret;
+}
+
+static inline int xgf_ull_multi_add_overflow
+	(int cmd, unsigned long long a, unsigned long long b)
+{
+	int ret = 0;
+	unsigned long long result_after_sub, div_after_multi;
+
+	if (!a || !b)
+		goto out;
+
+	if (cmd) {
+		/* check add */
+		result_after_sub = ((a+b)-b);
+		if (a != result_after_sub)
+			ret = 1;
+	} else {
+		/* check multi */
+		div_after_multi = div_s64((a*b), b);
+		if (a != div_after_multi)
+			ret = 1;
+	}
+
+out:
+	return ret;
+}
 
 static void xgf_reset_render_sector(struct xgf_render *render)
 {
@@ -298,6 +689,27 @@ void xgf_clean_deps_list(struct xgf_render *render, int pos)
 }
 EXPORT_SYMBOL(xgf_clean_deps_list);
 
+int xgf_dep_frames_mod(struct xgf_render *render, int pos)
+{
+	int ret = 0;
+	int pre_dep_frames;
+
+	xgf_lockprove(__func__);
+
+	pre_dep_frames = render->dep_frames - 1;
+
+	if (pos == PREVI_DEPS) {
+		if (render->frame_count == 0)
+			ret = INT_MAX%pre_dep_frames;
+		else
+			ret = (render->frame_count - 1)%pre_dep_frames;
+	} else
+		ret = render->frame_count%pre_dep_frames;
+
+	return ret;
+}
+EXPORT_SYMBOL(xgf_dep_frames_mod);
+
 struct xgf_dep *xgf_get_dep(
 	pid_t tid, struct xgf_render *render, int pos, int force)
 {
@@ -352,6 +764,7 @@ struct xgf_dep *xgf_get_dep(
 
 	xd->tid = tid;
 	xd->render_dep = 1;
+	xd->frame_idx = xgf_dep_frames_mod(render, pos);
 
 	rb_link_node(&xd->rb_node, parent, p);
 	rb_insert_color(&xd->rb_node, r);
@@ -685,7 +1098,8 @@ static int xgf_hw_event_collect(int event_type, int tid,
 	return ret;
 }
 
-static int xgf_get_render(pid_t rpid, struct xgf_render **ret, int force)
+static int xgf_get_render(pid_t rpid, unsigned long long bufID,
+	struct xgf_render **ret, int force)
 {
 	struct xgf_render *iter;
 
@@ -693,6 +1107,9 @@ static int xgf_get_render(pid_t rpid, struct xgf_render **ret, int force)
 
 	hlist_for_each_entry(iter, &xgf_renders, hlist) {
 		if (iter->render != rpid)
+			continue;
+
+		if (iter->bufID != bufID)
 			continue;
 
 		if (ret)
@@ -726,6 +1143,7 @@ static int xgf_get_render(pid_t rpid, struct xgf_render **ret, int force)
 		iter->render = rpid;
 		put_task_struct(tsk);
 
+		iter->bufID = bufID;
 		iter->sector_nr = 0;
 		iter->curr_index = 0;
 		iter->curr_ts = 0;
@@ -733,12 +1151,19 @@ static int xgf_get_render(pid_t rpid, struct xgf_render **ret, int force)
 		iter->prev_ts = 0;
 		iter->event_count = 0;
 		iter->frame_count = 0;
+		iter->u_wake_r = 0;
+		iter->u_wake_r_count = 0;
 		iter->queue.start_ts = 0;
 		iter->queue.end_ts = 0;
 		iter->deque.start_ts = 0;
 		iter->deque.end_ts = 0;
 		iter->ema_runtime = 0;
+		iter->pre_u_runtime = 0;
+		iter->u_avg_runtime = 0;
+		iter->u_runtime_sd = 0;
+		iter->u_runtime_idx = 0;
 		iter->spid = 0;
+		iter->dep_frames = xgf_prev_dep_frames;
 	}
 
 	INIT_HLIST_HEAD(&iter->sector_head);
@@ -781,14 +1206,21 @@ static inline unsigned long long xgf_ema_cal(
 {
 	unsigned long long ret = 0;
 	unsigned long long curr_new, prev_new;
+	int xgf_ema_rest_dividend;
 
 	if (!prev) {
 		ret = curr;
 		return ret;
 	}
 
-	curr_new = xgf_runtime_pro_rata(curr, EMA_DIVIDEND, EMA_DIVISOR);
-	prev_new = xgf_runtime_pro_rata(prev, EMA_REST_DIVIDEND, EMA_DIVISOR);
+	if (xgf_ema_dividend > 9 || xgf_ema_dividend < 1)
+		xgf_ema_dividend = EMA_DIVIDEND;
+
+	xgf_ema_rest_dividend = EMA_DIVISOR - xgf_ema_dividend;
+
+	curr_new = xgf_runtime_pro_rata(curr, xgf_ema_dividend, EMA_DIVISOR);
+	prev_new =
+		xgf_runtime_pro_rata(prev, xgf_ema_rest_dividend, EMA_DIVISOR);
 
 	if (prev_new > (ULLONG_MAX - curr_new))
 		ret = ULLONG_MAX; /* overflow */
@@ -808,6 +1240,118 @@ void xgf_epoll_igather_timer(
 	const void * const timer, ktime_t *expires, int fire)
 {}
 
+int xgf_uboost_case(struct xgf_render *render)
+{
+	int quarter, ret = 0, shift = 2;
+
+	quarter = render->frame_count >> shift;
+	if (quarter < render->u_wake_r_count)
+		ret = 1;
+
+	return ret;
+}
+
+static void xgf_add_pid2prev_dep(struct xgf_render *render, int tid)
+{
+	struct xgf_dep *xd;
+	int curr_frame_index;
+
+	if (!tid || !render || tid < 0)
+		return;
+
+	curr_frame_index = xgf_dep_frames_mod(render, PREVI_DEPS);
+	xd = xgf_get_dep(tid, render, PREVI_DEPS, 0);
+	if (xd)
+		xd->frame_idx = curr_frame_index;
+	else
+		xd = xgf_get_dep(tid, render, PREVI_DEPS, 1);
+}
+
+static void xgf_wspid_list_add2prev(struct xgf_render *render)
+{
+	struct xgf_spid *xgf_spid_iter;
+	struct hlist_node *t;
+
+	xgf_lockprove(__func__);
+
+	hlist_for_each_entry_safe(xgf_spid_iter, t, &xgf_wspid_list, hlist) {
+		if (xgf_spid_iter->rpid == render->render
+			&& xgf_spid_iter->bufID == render->bufID)
+			xgf_add_pid2prev_dep(render, xgf_spid_iter->tid);
+	}
+}
+
+int uboost2xgf_get_info(int pid, unsigned long long bufID,
+	unsigned long long *timer_period, int *frame_idx)
+{
+	int ret = 0;
+	struct xgf_render *render_iter;
+	struct hlist_node *n;
+
+	if (!xgf_uboost || !pid)
+		goto out;
+
+	xgf_lock(__func__);
+
+	hlist_for_each_entry_safe(render_iter, n, &xgf_renders, hlist) {
+		if (render_iter->render != pid)
+			continue;
+
+		if (render_iter->bufID != bufID)
+			continue;
+
+		if (!xgf_uboost_case(render_iter))
+			continue;
+
+		*frame_idx = render_iter->frame_count;
+
+		fpsgo_systrace_c_xgf(render_iter->render,
+			render_iter->bufID, render_iter->u_avg_runtime, "ub_avg");
+		fpsgo_systrace_c_xgf(render_iter->render,
+			render_iter->bufID, render_iter->u_runtime_sd, "ub_stddev");
+
+		if ((xgf_ull_multi_add_overflow(
+			0, render_iter->u_runtime_sd, xgf_stddev_multi))
+			|| (xgf_ull_multi_add_overflow(
+			1, render_iter->u_avg_runtime,
+			(xgf_stddev_multi*render_iter->u_runtime_sd)))) {
+			*timer_period = 0; /* overflow */
+		} else {
+			*timer_period =
+				render_iter->u_avg_runtime +
+				xgf_stddev_multi*render_iter->u_runtime_sd;
+			ret = 1;
+		}
+	}
+
+	xgf_unlock(__func__);
+
+out:
+	return ret;
+}
+
+static int xgf_tid_overlap(int tid, int rpid, int uboost)
+{
+	int ret = 0;
+	struct xgf_render *render_iter;
+	struct hlist_node *n;
+
+	if (!tid || tid < 0 || uboost)
+		goto out;
+
+	hlist_for_each_entry_safe(render_iter, n, &xgf_renders, hlist) {
+		if (render_iter->render == rpid)
+			continue;
+
+		if (render_iter->render == tid || render_iter->parent == tid) {
+			ret = 1;
+			goto out;
+		}
+	}
+out:
+	return ret;
+}
+
 int has_xgf_dep(pid_t tid)
 {
 	struct xgf_dep *out_xd, *prev_xd;
@@ -821,6 +1365,14 @@ int has_xgf_dep(pid_t tid)
 	query_tid = tid;
 
 	hlist_for_each_entry_safe(render_iter, n, &xgf_renders, hlist) {
+
+		/* prevent minitop release ceil at sp sub condition */
+		if (xgf_spid_sub && xgf_sp_name_id && query_tid
+			&& query_tid == render_iter->spid) {
+			ret = 1;
+			break;
+		}
+
 		out_xd = xgf_get_dep(query_tid, render_iter, OUTER_DEPS, 0);
 		prev_xd = xgf_get_dep(query_tid, render_iter, PREVI_DEPS, 0);
 
@@ -839,7 +1391,7 @@ int has_xgf_dep(pid_t tid)
 	return ret;
 }
 
-int fpsgo_fteh2xgf_get_dep_list_num(int pid)
+int gbe2xgf_get_dep_list_num(int pid, unsigned long long bufID)
 {
 	struct xgf_render *render_iter;
 	struct hlist_node *n;
@@ -848,6 +1400,7 @@ int fpsgo_fteh2xgf_get_dep_list_num(int pid)
 	struct xgf_dep *out_iter;
 	struct xgf_dep *pre_iter;
 	int counts = 0;
+	int xgf_r_uboost = 0;
 
 	if (!pid)
 		goto out;
@@ -855,8 +1408,23 @@ int fpsgo_fteh2xgf_get_dep_list_num(int pid)
 	xgf_lock(__func__);
 
 	hlist_for_each_entry_safe(render_iter, n, &xgf_renders, hlist) {
+		xgf_r_uboost = 0;
+
 		if (render_iter->render != pid)
 			continue;
+
+		if (render_iter->bufID != bufID)
+			continue;
+
+		xgf_r_uboost = xgf_uboost_case(render_iter);
+		if (xgf_r_uboost && xgf_uboost)
+			xgf_add_pid2prev_dep(render_iter, render_iter->parent);
+
+		if (render_iter->spid)
+			xgf_add_pid2prev_dep(render_iter, render_iter->spid);
+
+		if (xgf_cfg_spid)
+			xgf_wspid_list_add2prev(render_iter);
 
 		out_rbn = rb_first(&render_iter->out_deps_list);
 		pre_rbn = rb_first(&render_iter->prev_deps_list);
@@ -866,16 +1434,18 @@ int fpsgo_fteh2xgf_get_dep_list_num(int pid)
 			pre_iter = rb_entry(pre_rbn, struct xgf_dep, rb_node);
 
 			if (out_iter->tid < pre_iter->tid) {
-				if (out_iter->render_dep)
+				if (out_iter->render_dep
+					&& !xgf_tid_overlap(out_iter->tid, pid, xgf_r_uboost))
 					counts++;
 				out_rbn = rb_next(out_rbn);
 			} else if (out_iter->tid > pre_iter->tid) {
-				if (pre_iter->render_dep)
+				if (pre_iter->render_dep
+					&& !xgf_tid_overlap(pre_iter->tid, pid, xgf_r_uboost))
 					counts++;
 				pre_rbn = rb_next(pre_rbn);
 			} else {
-				if (out_iter->render_dep
-						|| pre_iter->render_dep)
+				if ((out_iter->render_dep || pre_iter->render_dep)
+					&& !xgf_tid_overlap(out_iter->tid, pid, xgf_r_uboost))
 					counts++;
 				out_rbn = rb_next(out_rbn);
 				pre_rbn = rb_next(pre_rbn);
@@ -884,14 +1454,16 @@ int fpsgo_fteh2xgf_get_dep_list_num(int pid)
 
 		while (out_rbn != NULL) {
 			out_iter = rb_entry(out_rbn, struct xgf_dep, rb_node);
-			if (out_iter->render_dep)
+			if (out_iter->render_dep
+				&& !xgf_tid_overlap(out_iter->tid, pid, xgf_r_uboost))
 				counts++;
 			out_rbn = rb_next(out_rbn);
 		}
 
 		while (pre_rbn != NULL) {
 			pre_iter = rb_entry(pre_rbn, struct xgf_dep, rb_node);
-			if (pre_iter->render_dep)
+			if (pre_iter->render_dep
+				&& !xgf_tid_overlap(pre_iter->tid, pid, xgf_r_uboost))
 				counts++;
 			pre_rbn = rb_next(pre_rbn);
 		}
@@ -903,7 +1475,8 @@ out:
 	return counts;
 }
 
-int fpsgo_fteh2xgf_get_dep_list(int pid, int count, struct fpsgo_loading *arr)
+
+int fpsgo_fbt2xgf_get_dep_list_num(int pid, unsigned long long bufID)
 {
 	struct xgf_render *render_iter;
 	struct hlist_node *n;
@@ -911,16 +1484,32 @@ int fpsgo_fteh2xgf_get_dep_list(int pid, int count, struct fpsgo_loading *arr)
 	struct rb_node *pre_rbn;
 	struct xgf_dep *out_iter;
 	struct xgf_dep *pre_iter;
-	int index = 0;
+	int counts = 0;
+	int xgf_r_uboost = 0;
 
-	if (!pid || !count)
-		return 0;
+	if (!pid)
+		goto out;
 
 	xgf_lock(__func__);
 
 	hlist_for_each_entry_safe(render_iter, n, &xgf_renders, hlist) {
+		xgf_r_uboost = 0;
+
 		if (render_iter->render != pid)
 			continue;
+
+		if (render_iter->bufID != bufID)
+			continue;
+
+		xgf_r_uboost = xgf_uboost_case(render_iter);
+		if (xgf_r_uboost && xgf_uboost)
+			xgf_add_pid2prev_dep(render_iter, render_iter->parent);
+
+		if (render_iter->spid)
+			xgf_add_pid2prev_dep(render_iter, render_iter->spid);
+
+		if (xgf_cfg_spid)
+			xgf_wspid_list_add2prev(render_iter);
 
 		out_rbn = rb_first(&render_iter->out_deps_list);
 		pre_rbn = rb_first(&render_iter->prev_deps_list);
@@ -930,21 +1519,108 @@ int fpsgo_fteh2xgf_get_dep_list(int pid, int count, struct fpsgo_loading *arr)
 			pre_iter = rb_entry(pre_rbn, struct xgf_dep, rb_node);
 
 			if (out_iter->tid < pre_iter->tid) {
-				if (out_iter->render_dep && index < count) {
+				if (out_iter->render_dep
+					&& !xgf_tid_overlap(out_iter->tid, pid, xgf_r_uboost))
+					counts++;
+				out_rbn = rb_next(out_rbn);
+			} else if (out_iter->tid > pre_iter->tid) {
+				if (pre_iter->render_dep
+					&& !xgf_tid_overlap(pre_iter->tid, pid, xgf_r_uboost))
+					counts++;
+				pre_rbn = rb_next(pre_rbn);
+			} else {
+				if ((out_iter->render_dep || pre_iter->render_dep)
+					&& !xgf_tid_overlap(out_iter->tid, pid, xgf_r_uboost))
+					counts++;
+				out_rbn = rb_next(out_rbn);
+				pre_rbn = rb_next(pre_rbn);
+			}
+		}
+
+		while (out_rbn != NULL) {
+			out_iter = rb_entry(out_rbn, struct xgf_dep, rb_node);
+			if (out_iter->render_dep
+				&& !xgf_tid_overlap(out_iter->tid, pid, xgf_r_uboost))
+				counts++;
+			out_rbn = rb_next(out_rbn);
+		}
+
+		while (pre_rbn != NULL) {
+			pre_iter = rb_entry(pre_rbn, struct xgf_dep, rb_node);
+			if (pre_iter->render_dep
+				&& !xgf_tid_overlap(pre_iter->tid, pid, xgf_r_uboost))
+				counts++;
+			pre_rbn = rb_next(pre_rbn);
+		}
+	}
+
+	xgf_unlock(__func__);
+
+out:
+	return counts;
+}
+
+int gbe2xgf_get_dep_list(int pid, int count,
+	struct gbe_runtime *arr, unsigned long long bufID)
+{
+	struct xgf_render *render_iter;
+	struct hlist_node *n;
+	struct rb_node *out_rbn;
+	struct rb_node *pre_rbn;
+	struct xgf_dep *out_iter;
+	struct xgf_dep *pre_iter;
+	int index = 0;
+	int xgf_r_uboost = 0;
+
+	if (!pid || !count)
+		return 0;
+
+	xgf_lock(__func__);
+
+	hlist_for_each_entry_safe(render_iter, n, &xgf_renders, hlist) {
+		xgf_r_uboost = 0;
+
+		if (render_iter->render != pid)
+			continue;
+
+		if (render_iter->bufID != bufID)
+			continue;
+
+		xgf_r_uboost = xgf_uboost_case(render_iter);
+		if (xgf_r_uboost && xgf_uboost)
+			xgf_add_pid2prev_dep(render_iter, render_iter->parent);
+
+		if (render_iter->spid)
+			xgf_add_pid2prev_dep(render_iter, render_iter->spid);
+
+		if (xgf_cfg_spid)
+			xgf_wspid_list_add2prev(render_iter);
+
+		out_rbn = rb_first(&render_iter->out_deps_list);
+		pre_rbn = rb_first(&render_iter->prev_deps_list);
+
+		while (out_rbn != NULL && pre_rbn != NULL) {
+			out_iter = rb_entry(out_rbn, struct xgf_dep, rb_node);
+			pre_iter = rb_entry(pre_rbn, struct xgf_dep, rb_node);
+
+			if (out_iter->tid < pre_iter->tid) {
+				if (out_iter->render_dep && index < count
+					&& !xgf_tid_overlap(out_iter->tid, pid, xgf_r_uboost)) {
 					arr[index].pid = out_iter->tid;
 					index++;
 				}
 				out_rbn = rb_next(out_rbn);
 			} else if (out_iter->tid > pre_iter->tid) {
-				if (pre_iter->render_dep && index < count) {
+				if (pre_iter->render_dep && index < count
+					&& !xgf_tid_overlap(pre_iter->tid, pid, xgf_r_uboost)) {
 					arr[index].pid = pre_iter->tid;
 					index++;
 				}
 				pre_rbn = rb_next(pre_rbn);
 			} else {
-				if ((out_iter->render_dep
-						|| pre_iter->render_dep)
-						&& index < count) {
+				if ((out_iter->render_dep || pre_iter->render_dep)
+					&& !xgf_tid_overlap(out_iter->tid, pid, xgf_r_uboost)
+					&& index < count) {
 					arr[index].pid = out_iter->tid;
 					index++;
 				}
@@ -955,7 +1631,8 @@ int fpsgo_fteh2xgf_get_dep_list(int pid, int count, struct fpsgo_loading *arr)
 
 		while (out_rbn != NULL) {
 			out_iter = rb_entry(out_rbn, struct xgf_dep, rb_node);
-			if (out_iter->render_dep && index < count) {
+			if (out_iter->render_dep && index < count
+				&& !xgf_tid_overlap(out_iter->tid, pid, xgf_r_uboost)) {
 				arr[index].pid = out_iter->tid;
 				index++;
 			}
@@ -964,7 +1641,104 @@ int fpsgo_fteh2xgf_get_dep_list(int pid, int count, struct fpsgo_loading *arr)
 
 		while (pre_rbn != NULL) {
 			pre_iter = rb_entry(pre_rbn, struct xgf_dep, rb_node);
-			if (pre_iter->render_dep && index < count) {
+			if (pre_iter->render_dep && index < count
+				&& !xgf_tid_overlap(pre_iter->tid, pid, xgf_r_uboost)) {
+				arr[index].pid = pre_iter->tid;
+				index++;
+			}
+			pre_rbn = rb_next(pre_rbn);
+		}
+	}
+
+	xgf_unlock(__func__);
+
+	return index;
+}
+
+
+int fpsgo_fbt2xgf_get_dep_list(int pid, int count,
+	struct fpsgo_loading *arr, unsigned long long bufID)
+{
+	struct xgf_render *render_iter;
+	struct hlist_node *n;
+	struct rb_node *out_rbn;
+	struct rb_node *pre_rbn;
+	struct xgf_dep *out_iter;
+	struct xgf_dep *pre_iter;
+	int index = 0;
+	int xgf_r_uboost = 0;
+
+	if (!pid || !count)
+		return 0;
+
+	xgf_lock(__func__);
+
+	hlist_for_each_entry_safe(render_iter, n, &xgf_renders, hlist) {
+		xgf_r_uboost = 0;
+
+		if (render_iter->render != pid)
+			continue;
+
+		if (render_iter->bufID != bufID)
+			continue;
+
+		xgf_r_uboost = xgf_uboost_case(render_iter);
+		if (xgf_r_uboost && xgf_uboost)
+			xgf_add_pid2prev_dep(render_iter, render_iter->parent);
+
+		if (render_iter->spid)
+			xgf_add_pid2prev_dep(render_iter, render_iter->spid);
+
+		if (xgf_cfg_spid)
+			xgf_wspid_list_add2prev(render_iter);
+
+		out_rbn = rb_first(&render_iter->out_deps_list);
+		pre_rbn = rb_first(&render_iter->prev_deps_list);
+
+		while (out_rbn != NULL && pre_rbn != NULL) {
+			out_iter = rb_entry(out_rbn, struct xgf_dep, rb_node);
+			pre_iter = rb_entry(pre_rbn, struct xgf_dep, rb_node);
+
+			if (out_iter->tid < pre_iter->tid) {
+				if (out_iter->render_dep && index < count
+					&& !xgf_tid_overlap(out_iter->tid, pid, xgf_r_uboost)) {
+					arr[index].pid = out_iter->tid;
+					index++;
+				}
+				out_rbn = rb_next(out_rbn);
+			} else if (out_iter->tid > pre_iter->tid) {
+				if (pre_iter->render_dep && index < count
+					&& !xgf_tid_overlap(pre_iter->tid, pid, xgf_r_uboost)) {
+					arr[index].pid = pre_iter->tid;
+					index++;
+				}
+				pre_rbn = rb_next(pre_rbn);
+			} else {
+				if ((out_iter->render_dep || pre_iter->render_dep)
+					&& !xgf_tid_overlap(out_iter->tid, pid, xgf_r_uboost)
+					&& index < count) {
+					arr[index].pid = out_iter->tid;
+					index++;
+				}
+				out_rbn = rb_next(out_rbn);
+				pre_rbn = rb_next(pre_rbn);
+			}
+		}
+
+		while (out_rbn != NULL) {
+			out_iter = rb_entry(out_rbn, struct xgf_dep, rb_node);
+			if (out_iter->render_dep && index < count
+				&& !xgf_tid_overlap(out_iter->tid, pid, xgf_r_uboost)) {
+				arr[index].pid = out_iter->tid;
+				index++;
+			}
+			out_rbn = rb_next(out_rbn);
+		}
+
+		while (pre_rbn != NULL) {
+			pre_iter = rb_entry(pre_rbn, struct xgf_dep, rb_node);
+			if (pre_iter->render_dep && index < count
+				&& !xgf_tid_overlap(pre_iter->tid, pid, xgf_r_uboost)) {
 				arr[index].pid = pre_iter->tid;
 				index++;
 			}
@@ -993,10 +1767,9 @@ void xgf_reset_renders(void)
 		hlist_del(&r_iter->hlist);
 		xgf_free(r_iter);
 	}
-
+	xgf_reset_wspid_list();
 	xgf_clean_hw_events();
 }
-EXPORT_SYMBOL(xgf_reset_renders);
 
 void fpsgo_ctrl2xgf_nn_job_begin(unsigned int tid, unsigned long long mid)
 {
@@ -1080,6 +1853,15 @@ void fpsgo_fstb2xgf_do_recycle(int fstb_active)
 		goto out;
 	}
 
+	if (xgf_prev_dep_frames != xgf_dep_frames) {
+		if (xgf_dep_frames < XGF_DEP_FRAMES_MIN
+			|| xgf_dep_frames > XGF_DEP_FRAMES_MAX)
+			xgf_dep_frames = XGF_DEP_FRAMES_MIN;
+		xgf_prev_dep_frames = xgf_dep_frames;
+		xgf_reset_renders();
+		goto out;
+	}
+
 	if (diff < 0LL || diff < check_period)
 		goto done;
 
@@ -1145,6 +1927,7 @@ static void xgf_print_debug_log(int rpid,
 	char total_pid_list[1024] = {"\0"};
 	char pid[20] = {"\0"};
 	int overflow = 0;
+	int len = 0;
 
 	struct xgf_render_sector *xrs;
 	struct hlist_node *s, *p;
@@ -1154,9 +1937,12 @@ static void xgf_print_debug_log(int rpid,
 
 	hlist_for_each_entry_safe(xrs, s, &render->sector_head, hlist) {
 		if (strlen(total_pid_list) == 0)
-			snprintf(pid, sizeof(pid), "%d", xrs->sector_id);
+			len = snprintf(pid, sizeof(pid), "%d", xrs->sector_id);
 		else
-			snprintf(pid, sizeof(pid), "-%d", xrs->sector_id);
+			len = snprintf(pid, sizeof(pid), "-%d", xrs->sector_id);
+
+		if (len < 0 || len >= sizeof(pid))
+			goto error;
 
 		overflow = 0;
 		xgf_strcat(total_pid_list, pid,
@@ -1167,7 +1953,10 @@ static void xgf_print_debug_log(int rpid,
 
 		hlist_for_each_entry_safe(pids_iter, p,
 			&xrs->path_head, hlist) {
-			snprintf(pid, sizeof(pid), ",%d", pids_iter->pid);
+			len = snprintf(pid, sizeof(pid), ",%d", pids_iter->pid);
+
+			if (len < 0 || len >= sizeof(pid))
+				goto error;
 
 			overflow = 0;
 			xgf_strcat(total_pid_list, pid,
@@ -1184,6 +1973,13 @@ out:
 	else
 		xgf_log_trace("xgf_debug_log r:%d runtime:%llu pid_list:%s",
 		rpid, runtime, total_pid_list);
+
+	return;
+
+error:
+	xgf_log_trace("xgf_debug_log(pid of) r:%d runtime:%llu",
+		rpid, runtime);
+	return;
 }
 
 static int xgf_enter_est_runtime(int rpid, struct xgf_render *render,
@@ -1201,25 +1997,77 @@ static int xgf_enter_est_runtime(int rpid, struct xgf_render *render,
 	return ret;
 }
 
+static void xgf_get_runtime(pid_t tid, u64 *runtime)
+{
+	struct task_struct *p;
+
+	if (unlikely(!tid))
+		return;
+
+	rcu_read_lock();
+	p = find_task_by_vpid(tid);
+	if (!p) {
+		xgf_trace(" %5d not found to erase", tid);
+		rcu_read_unlock();
+		return;
+	}
+	get_task_struct(p);
+	rcu_read_unlock();
+
+	*runtime = (u64)task_sched_runtime(p);
+	put_task_struct(p);
+}
+
 static int xgf_get_spid(struct xgf_render *render)
 {
 	struct rb_root *r;
 	struct rb_node *rbn;
 	struct xgf_dep *iter;
-	int ret = 0;
+	int len, ret = 0;
 	unsigned long long now_ts = xgf_get_time();
 	long long diff, scan_period;
+	unsigned long long spid_runtime, t_spid_runtime;
 
 	xgf_lockprove(__func__);
 
-	scan_period = NSEC_PER_SEC;
+	if (xgf_spid_ck_period > NSEC_PER_SEC || xgf_spid_ck_period < 0)
+		xgf_spid_ck_period = NSEC_PER_SEC;
+
+	scan_period = xgf_spid_ck_period;
+
 	diff = (long long)now_ts - (long long)last_update2spid_ts;
 
 	if (diff < 0LL || diff < scan_period)
 		return -1;
 
-	if (!strlen(xgf_sp_name))
+	/* reset and build spid list*/
+	if (xgf_cfg_spid) {
+		xgf_render_reset_wspid_list(render);
+		xgf_render_setup_wspid_list(render);
+	}
+
+	if (xgf_sp_name_id > 1 || xgf_sp_name_id < 0)
+		xgf_sp_name_id = 0;
+
+	if (!xgf_sp_name_id)
+		xgf_sp_name = SP_ALLOW_NAME;
+	else
+		xgf_sp_name = SP_ALLOW_NAME2;
+
+	len = strlen(xgf_sp_name);
+
+	if (!len)
 		return 0;
+
+	if (xgf_sp_name[len - 1] == '\n') {
+		len--;
+		xgf_trace("xgf_sp_name len:%d has a change line terminal", len);
+	}
+
+	spid_runtime = 0;
+
+	if (render->spid && xgf_sp_name_id)
+		xgf_get_runtime(render->spid, &spid_runtime);
 
 	r = &render->deps_list;
 	for (rbn = rb_first(r); rbn != NULL; rbn = rb_next(rbn)) {
@@ -1239,8 +2087,14 @@ static int xgf_get_spid(struct xgf_render *render)
 				goto tsk_out;
 
 			if (!strncmp(tsk->comm, xgf_sp_name,
-				strlen(xgf_sp_name))) {
-				ret = task_pid_nr(tsk);
+				len)) {
+				if (xgf_sp_name_id) {
+					t_spid_runtime = (u64)task_sched_runtime(tsk);
+					if (t_spid_runtime > spid_runtime)
+						ret = task_pid_nr(tsk);
+				} else
+					ret = task_pid_nr(tsk);
+
 				put_task_struct(tsk);
 				goto out;
 			}
@@ -1250,10 +2104,128 @@ tsk_out:
 	}
 out:
 	last_update2spid_ts = now_ts;
+
+	if (!ret && render->spid && xgf_sp_name_id && spid_runtime)
+		ret = render->spid;
+
 	return ret;
 }
 
-int fpsgo_comp2xgf_qudeq_notify(int rpid, int cmd,
+static void xgf_update_u_runtime_list(struct xgf_render *render,
+	unsigned long long prev_qe_ts, unsigned long long qe_ts,
+	unsigned long long pprev_u_runtime, unsigned long long prev_u_runtime)
+{
+	unsigned long long u_runtime;
+	unsigned long long q2q_time;
+	unsigned long long normal_u_runtime;
+
+	if ((qe_ts <= prev_qe_ts) ||
+		(prev_u_runtime <= pprev_u_runtime) || !pprev_u_runtime)
+		goto out;
+
+	if (render->frame_count < UB_SKIP_FRAME)
+		goto out;
+
+	u_runtime = prev_u_runtime - pprev_u_runtime;
+	q2q_time = qe_ts - prev_qe_ts;
+
+	if (u_runtime > q2q_time)
+		goto out;
+
+	render->u_runtime[render->u_runtime_idx] = u_runtime;
+
+	/* handle u_runtime extreme value */
+	normal_u_runtime = render->u_avg_runtime + 2*render->u_runtime_sd;
+	if (u_runtime > normal_u_runtime &&
+		render->u_avg_runtime && render->u_runtime_sd)
+		render->u_runtime[render->u_runtime_idx] = normal_u_runtime;
+
+	render->u_runtime_idx++;
+
+	if (render->u_runtime_idx == XGF_MAX_UFRMAES)
+		render->u_runtime_idx = 0;
+
+out:
+	return;
+}
+
+static unsigned long long xgf_sqrt(unsigned long long x)
+{
+	unsigned long long b, m, y = 0;
+
+	if (x <= 1)
+		return x;
+
+	m = 1UL << (__fls(x) & ~1UL);
+	while (m != 0) {
+		b = y + m;
+		y >>= 1;
+
+		if (x >= b) {
+			x -= b;
+			y += m;
+		}
+		m >>= 2;
+	}
+
+	return y;
+}
+
+static void xgf_calculate_u_avg2sd(struct xgf_render *render)
+{
+	int i, interval, divisor;
+	unsigned long long diff, total, avg, stddev;
+
+	if (render->frame_count < 2)
+		return;
+
+	/* First calculate the average */
+	divisor = 0;
+	total = 0;
+	if (render->frame_count <= XGF_MAX_UFRMAES)
+		interval = render->frame_count - 1;
+	else
+		interval = XGF_MAX_UFRMAES;
+
+	for (i = 0; i < interval; i++) {
+		if (xgf_ull_multi_add_overflow(1, total, render->u_runtime[i])) {
+			total = ULLONG_MAX;
+			divisor++;
+			break;
+		}
+
+		total += render->u_runtime[i];
+		divisor++;
+	}
+	if (divisor > 0) {
+		avg = div_u64(total, divisor);
+		render->u_avg_runtime = avg;
+	}
+
+	/* Then try to determine standard deviation */
+	stddev = 0;
+	for (i = 0; i < interval; i++) {
+		if (render->u_runtime[i] > avg)
+			diff = render->u_runtime[i] - avg;
+		else
+			diff = avg - render->u_runtime[i];
+
+		if ((xgf_ull_multi_add_overflow(0, diff, diff))
+			|| (xgf_ull_multi_add_overflow(1, stddev, (diff * diff)))) {
+			stddev = ULLONG_MAX;
+			break;
+		}
+
+		stddev += diff * diff;
+	}
+	if (divisor > 0) {
+		stddev = div_u64(stddev, divisor);
+		stddev = xgf_sqrt(stddev);
+		render->u_runtime_sd = stddev;
+	}
+}
+
+int fpsgo_comp2xgf_qudeq_notify(int rpid, unsigned long long bufID, int cmd,
 	unsigned long long *run_time, unsigned long long *mid,
 	unsigned long long ts)
 {
@@ -1262,7 +2234,14 @@ int fpsgo_comp2xgf_qudeq_notify(int rpid, int cmd,
 	struct xgf_hw_rec *hr_iter;
 	struct hlist_node *hr;
 	unsigned long long raw_runtime = 0;
+	unsigned long long u_runtime = 0;
 	int new_spid;
+	unsigned long long t_dequeue_time = 0;
+	int do_extra_sub = 0;
+	unsigned long long q2q_time = 0;
+
+	if (rpid <= 0 || ts == 0)
+		return XGF_PARAM_ERR;
 
 	xgf_lock(__func__);
 	if (!xgf_is_enable()) {
@@ -1274,7 +2253,7 @@ int fpsgo_comp2xgf_qudeq_notify(int rpid, int cmd,
 
 	case XGF_QUEUE_START:
 		rrender = &r;
-		if (xgf_get_render(rpid, rrender, 0)) {
+		if (xgf_get_render(rpid, bufID, rrender, 0)) {
 			ret = XGF_THREAD_NOT_FOUND;
 			goto qudeq_notify_err;
 		}
@@ -1284,29 +2263,59 @@ int fpsgo_comp2xgf_qudeq_notify(int rpid, int cmd,
 
 	case XGF_QUEUE_END:
 		rrender = &r;
-		if (xgf_get_render(rpid, rrender, 1)) {
+		if (xgf_get_render(rpid, bufID, rrender, 1)) {
 			ret = XGF_THREAD_NOT_FOUND;
 			goto qudeq_notify_err;
 		}
+		if (xgf_uboost) {
+			xgf_get_runtime(r->parent, &u_runtime);
+			/* store pre-frmae u runtime */
+			xgf_update_u_runtime_list(r, r->queue.end_ts,
+				ts, r->pre_u_runtime, u_runtime);
+			xgf_calculate_u_avg2sd(r);
+			r->pre_u_runtime = u_runtime;
+		}
+		q2q_time = ts - r->queue.end_ts;
 		r->queue.end_ts = ts;
+		cur_xgf_extra_sub = xgf_extra_sub;
 
 		new_spid = xgf_get_spid(r);
 		if (new_spid != -1) {
 			xgf_trace("xgf spid:%d => %d", r->spid, new_spid);
 			r->spid = new_spid;
+			fpsgo_systrace_c_fbt(rpid, bufID, new_spid, "spid");
 		}
+
+		t_dequeue_time = r->deque.end_ts - r->deque.start_ts;
+		if (r->deque.start_ts && r->deque.end_ts
+			&& (r->deque.end_ts > r->deque.start_ts)
+			&& (t_dequeue_time > 2500000)
+			&& !cur_xgf_extra_sub && !xgf_force_no_extra_sub) {
+			do_extra_sub = 1;
+			cur_xgf_extra_sub = 1;
+			xgf_trace("xgf extra_sub:%d => %llu", rpid, t_dequeue_time);
+		}
+
 		ret = xgf_enter_est_runtime(rpid, r, &raw_runtime, ts);
+
+		if (do_extra_sub)
+			cur_xgf_extra_sub = 0;
 
 		if (!raw_runtime)
 			*run_time = raw_runtime;
 		else {
+			xgf_trace("xgf raw_runtime:%llu q2qtime:%llu", raw_runtime, q2q_time);
+			/* error handling for raw_t_cpu */
+			if (q2q_time && raw_runtime > q2q_time)
+				raw_runtime = q2q_time;
+
 			r->ema_runtime =
 				xgf_ema_cal(raw_runtime, r->ema_runtime);
 
 			*run_time = r->ema_runtime;
 		}
 
-		fpsgo_systrace_c_fbt(rpid, raw_runtime, "raw_t_cpu");
+		fpsgo_systrace_c_fbt(rpid, bufID, raw_runtime, "raw_t_cpu");
 
 		/* hw event for fbt */
 		hlist_for_each_entry_safe(hr_iter, hr, &r->hw_head, hlist) {
@@ -1321,7 +2330,7 @@ int fpsgo_comp2xgf_qudeq_notify(int rpid, int cmd,
 
 	case XGF_DEQUEUE_START:
 		rrender = &r;
-		if (xgf_get_render(rpid, rrender, 0)) {
+		if (xgf_get_render(rpid, bufID, rrender, 0)) {
 			ret = XGF_THREAD_NOT_FOUND;
 			goto qudeq_notify_err;
 		}
@@ -1330,7 +2339,7 @@ int fpsgo_comp2xgf_qudeq_notify(int rpid, int cmd,
 
 	case XGF_DEQUEUE_END:
 		rrender = &r;
-		if (xgf_get_render(rpid, rrender, 0)) {
+		if (xgf_get_render(rpid, bufID, rrender, 0)) {
 			ret = XGF_THREAD_NOT_FOUND;
 			goto qudeq_notify_err;
 		}
@@ -1343,32 +2352,38 @@ int fpsgo_comp2xgf_qudeq_notify(int rpid, int cmd,
 	}
 
 qudeq_notify_err:
+	xgf_trace("xgf result:%d at rpid:%d cmd:%d", ret, rpid, cmd);
 	xgf_unlock(__func__);
 	return ret;
 }
 
-#define FPSGO_DEBUGFS_ENTRY(name) \
-static int fpsgo_##name##_open(struct inode *i, struct file *file) \
-{ \
-	return single_open(file, fpsgo_##name##_show, i->i_private); \
-} \
-\
-static const struct file_operations fpsgo_##name##_fops = { \
-	.owner = THIS_MODULE, \
-	.open = fpsgo_##name##_open, \
-	.read = seq_read, \
-	.write = fpsgo_##name##_write, \
-	.llseek = seq_lseek, \
-	.release = single_release, \
-}
+void xgf_set_logical_render_runtime(int pid, unsigned long long bufID,
+	unsigned long long l_runtime, unsigned long long r_runtime) { }
+EXPORT_SYMBOL(xgf_set_logical_render_runtime);
 
-static int fpsgo_deplist_show(struct seq_file *m, void *unused)
+void xgf_set_logical_render_info(int pid, unsigned long long bufID,
+	int *l_arr, int l_num, int *r_arr, int r_num,
+	unsigned long long l_start_ts,
+	unsigned long long f_start_ts) { }
+EXPORT_SYMBOL(xgf_set_logical_render_info);
+
+void xgf_set_timer_info(int pid, unsigned long long bufID, int hrtimer_pid, int hrtimer_flag,
+	unsigned long long hrtimer_ts, unsigned long long prev_queue_end_ts)
+{ }
+EXPORT_SYMBOL(xgf_set_timer_info);
+
+static ssize_t deplist_show(struct kobject *kobj,
+		struct kobj_attribute *attr,
+		char *buf)
 {
 	struct xgf_render *r_iter;
 	struct hlist_node *r_tmp;
 	struct rb_root *r;
 	struct xgf_dep *iter;
 	struct rb_node *n;
+	char temp[FPSGO_SYSFS_MAX_BUFF_SIZE] = "";
+	int pos = 0;
+	int length;
 
 	xgf_lock(__func__);
 
@@ -1376,52 +2391,606 @@ static int fpsgo_deplist_show(struct seq_file *m, void *unused)
 		r = &r_iter->deps_list;
 		for (n = rb_first(r); n != NULL; n = rb_next(n)) {
 			iter = rb_entry(n, struct xgf_dep, rb_node);
-			seq_printf(m, "render tid:%d inner_deps_tid:%d\n",
-				   r_iter->render, iter->tid);
+			length = scnprintf(temp + pos,
+				FPSGO_SYSFS_MAX_BUFF_SIZE - pos,
+				"rtid:%d bid:0x%llx itid:%d idx:%d\n",
+				r_iter->render, r_iter->bufID,
+				iter->tid, iter->frame_idx);
+			pos += length;
 		}
 
 		r = &r_iter->out_deps_list;
 		for (n = rb_first(r); n != NULL; n = rb_next(n)) {
 			iter = rb_entry(n, struct xgf_dep, rb_node);
-			seq_printf(m, "render tid:%d out_deps_tid:%d\n",
-				   r_iter->render, iter->tid);
+
+			length = scnprintf(temp + pos,
+				FPSGO_SYSFS_MAX_BUFF_SIZE - pos,
+				"rtid:%d bid:0x%llx otid:%d idx:%d\n",
+				 r_iter->render, r_iter->bufID,
+				 iter->tid, iter->frame_idx);
+			pos += length;
 		}
 
 		r = &r_iter->prev_deps_list;
 		for (n = rb_first(r); n != NULL; n = rb_next(n)) {
 			iter = rb_entry(n, struct xgf_dep, rb_node);
-			seq_printf(m, "render tid:%d prev_deps_tid:%d\n",
-				   r_iter->render, iter->tid);
+			length = scnprintf(temp + pos,
+				FPSGO_SYSFS_MAX_BUFF_SIZE - pos,
+				"rtid:%d bid:0x%llx ptid:%d idx:%d\n",
+				 r_iter->render, r_iter->bufID,
+				 iter->tid, iter->frame_idx);
+			pos += length;
 		}
 	}
 
 	xgf_unlock(__func__);
+	return scnprintf(buf, PAGE_SIZE, "%s", temp);
+}
+
+struct xgf_trace_event *xgf_event_data;
+EXPORT_SYMBOL(xgf_event_data);
+
+static int xgf_nr_cpus __read_mostly;
+
+void *xgf_event_index;
+EXPORT_SYMBOL(xgf_event_index);
+void *xgf_ko_enabled;
+EXPORT_SYMBOL(xgf_ko_enabled);
+int xgf_max_events;
+EXPORT_SYMBOL(xgf_max_events);
+
+struct fstb_trace_event *fstb_event_data;
+EXPORT_SYMBOL(fstb_event_data);
+atomic_t fstb_event_data_idx;
+EXPORT_SYMBOL(fstb_event_data_idx);
+int fstb_event_buffer_size;
+EXPORT_SYMBOL(fstb_event_buffer_size);
+
+#define MAX_XGF_EVENTS (xgf_max_events)
+#define MAX_EVENT_NUM fstb_event_buffer_size
+
+static void xgf_buffer_update(int cpu, int event, int data, int note,
+				unsigned long long ts)
+{
+	int index;
+	struct xgf_trace_event *xte;
+
+	if (!xgf_atomic_read(xgf_ko_enabled))
+		return;
+
+Reget:
+	index = xgf_atomic_inc_return(xgf_event_index);
+
+	/* protection for if xgf_nr_cpus in error condition */
+	if (unlikely(index < 0)) {
+		xgf_atomic_set(xgf_event_index, 0);
+		return;
+	}
+
+	/* prevent the thread that supposed to set */
+	/* xgf_event_index to zero is preempted and then cases HWT */
+	if (unlikely(index > (MAX_XGF_EVENTS + (xgf_nr_cpus << 1)))) {
+		xgf_atomic_set(xgf_event_index, 0);
+		return;
+	}
+
+	if (unlikely(index == MAX_XGF_EVENTS))
+		xgf_atomic_set(xgf_event_index, 0);
+	else if (unlikely(index > MAX_XGF_EVENTS))
+		goto Reget;
+
+	index -= 1;
+
+	xte = &xgf_event_data[index];
+	xte->ts = ts;
+	xte->cpu = cpu;
+	xte->event = event;
+	xte->note = note;
+	switch (event) {
+	case SCHED_SWITCH:
+		xte->prev_pid = data;
+		break;
+
+	case SCHED_WAKEUP:
+		xte->pid = data;
+		break;
+
+	case IPI_RAISE:
+		xte->target_cpu = data;
+		break;
+
+	case IRQ_ENTRY:
+	case IRQ_EXIT:
+	case SOFTIRQ_ENTRY:
+	case SOFTIRQ_EXIT:
+		xte->irqnr = data;
+		break;
+
+	default: // IPI_ENTRY, IPI_EXIT
+		xte->none = 0;
+		break;
+	}
+}
+
+static void xgf_irq_handler_entry_tracer(void *ignore,
+					int irqnr,
+					struct irqaction *irq_action)
+{
+	unsigned long long ts = xgf_get_time();
+	int c_wake_cpu = xgf_get_task_wake_cpu(current);
+	int c_pid = xgf_get_task_pid(current);
+
+	xgf_buffer_update(c_wake_cpu, IRQ_ENTRY, irqnr, c_pid, ts);
+}
+
+static void xgf_irq_handler_exit_tracer(void *ignore,
+					int irqnr,
+					struct irqaction *irq_action,
+					int ret)
+{
+	unsigned long long ts = xgf_get_time();
+	int c_wake_cpu = xgf_get_task_wake_cpu(current);
+	int c_pid = xgf_get_task_pid(current);
+
+	xgf_buffer_update(c_wake_cpu, IRQ_EXIT, irqnr, c_pid, ts);
+}
+
+static void xgf_softirq_entry_tracer(void *ignore, unsigned int vec_nr)
+{
+	unsigned long long ts = xgf_get_time();
+	int c_wake_cpu = xgf_get_task_wake_cpu(current);
+	int c_pid = xgf_get_task_pid(current);
+
+	xgf_buffer_update(c_wake_cpu, SOFTIRQ_ENTRY, vec_nr, c_pid, ts);
+}
+
+static void xgf_softirq_exit_tracer(void *ignore, unsigned int vec_nr)
+{
+	unsigned long long ts = xgf_get_time();
+	int c_wake_cpu = xgf_get_task_wake_cpu(current);
+	int c_pid = xgf_get_task_pid(current);
+
+	xgf_buffer_update(c_wake_cpu, SOFTIRQ_EXIT, vec_nr, c_pid, ts);
+}
+
+static void xgf_ipi_raise_tracer(void *ignore, const struct cpumask *mask,
+				const char *reason)
+{
+	unsigned int i;
+	unsigned long long ts = xgf_get_time();
+	int c_wake_cpu = xgf_get_task_wake_cpu(current);
+	int c_pid = xgf_get_task_pid(current);
+
+	if (xgf_nr_cpus == 1)
+		xgf_buffer_update(c_wake_cpu, IPI_RAISE, 0, c_pid, ts);
+	else {
+		for (i = -1; i = xgf_cpumask_next(i, mask), i < xgf_nr_cpus;)
+			xgf_buffer_update(c_wake_cpu, IPI_RAISE, i, c_pid, ts);
+	}
+}
+
+static void xgf_ipi_entry_tracer(void *ignore, const char *reason)
+{
+	unsigned long long ts = xgf_get_time();
+	int c_wake_cpu = xgf_get_task_wake_cpu(current);
+	int c_pid = xgf_get_task_pid(current);
+
+	xgf_buffer_update(c_wake_cpu, IPI_ENTRY, 0, c_pid, ts);
+}
+
+static void xgf_ipi_exit_tracer(void *ignore, const char *reason)
+{
+	unsigned long long ts = xgf_get_time();
+	int c_wake_cpu = xgf_get_task_wake_cpu(current);
+	int c_pid = xgf_get_task_pid(current);
+
+	xgf_buffer_update(c_wake_cpu, IPI_EXIT, 0, c_pid, ts);
+}
+
+static void xgf_sched_wakeup_tracer(void *ignore, struct task_struct *p)
+{
+	unsigned long long ts = xgf_get_time();
+	int c_wake_cpu = xgf_get_task_wake_cpu(current);
+	int c_pid = xgf_get_task_pid(current);
+	int p_pid = xgf_get_task_pid(p);
+
+	xgf_buffer_update(c_wake_cpu, SCHED_WAKEUP, p_pid, c_pid, ts);
+}
+
+static void xgf_sched_wakeup_new_tracer(void *ignore, struct task_struct *p)
+{
+	unsigned long long ts = xgf_get_time();
+	int c_wake_cpu = xgf_get_task_wake_cpu(current);
+	int c_pid = xgf_get_task_pid(current);
+	int p_pid = xgf_get_task_pid(p);
+
+	xgf_buffer_update(c_wake_cpu, SCHED_WAKEUP, p_pid, c_pid, ts);
+}
+
+static inline long xgf_trace_sched_switch_state(bool preempt,
+				struct task_struct *p)
+{
+	long state = xgf_get_task_state(p);
+
+	if (preempt)
+		state = TASK_RUNNING | TASK_STATE_MAX;
+
+	return state;
+}
+
+static void xgf_sched_switch_tracer(void *ignore,
+				bool preempt,
+				struct task_struct *prev,
+				struct task_struct *next)
+{
+	long prev_state;
+	long temp_state;
+	int skip = 0;
+	unsigned long long ts = xgf_get_time();
+	int c_wake_cpu = xgf_get_task_wake_cpu(current);
+	int prev_pid = xgf_get_task_pid(prev);
+
+	prev_state = xgf_trace_sched_switch_state(preempt, prev);
+	temp_state = prev_state & (TASK_STATE_MAX-1);
+
+	if (!temp_state)
+		skip = 1;
+
+	xgf_buffer_update(c_wake_cpu, SCHED_SWITCH, prev_pid, skip, ts);
+}
+
+static void xgf_sched_waking_tracer(void *ignore, struct task_struct *p) { }
+
+static void xgf_hrtimer_expire_entry_tracer(void *ignore,
+	struct hrtimer *hrtimer, ktime_t *now) { }
+
+static void xgf_hrtimer_expire_exit_tracer(void *ignore, struct hrtimer *hrtimer) { }
+
+struct tracepoints_table {
+	const char *name;
+	void *func;
+	struct tracepoint *tp;
+	bool registered;
+};
+
+static struct tracepoints_table xgf_tracepoints[] = {
+	{.name = "irq_handler_entry", .func = xgf_irq_handler_entry_tracer},
+	{.name = "irq_handler_exit", .func = xgf_irq_handler_exit_tracer},
+	{.name = "softirq_entry", .func = xgf_softirq_entry_tracer},
+	{.name = "softirq_exit", .func = xgf_softirq_exit_tracer},
+	{.name = "ipi_raise", .func = xgf_ipi_raise_tracer},
+	{.name = "ipi_entry", .func = xgf_ipi_entry_tracer},
+	{.name = "ipi_exit", .func = xgf_ipi_exit_tracer},
+	{.name = "sched_wakeup", .func = xgf_sched_wakeup_tracer},
+	{.name = "sched_wakeup_new", .func = xgf_sched_wakeup_new_tracer},
+	{.name = "sched_switch", .func = xgf_sched_switch_tracer},
+	{.name = "sched_waking", .func = xgf_sched_waking_tracer},
+	{.name = "hrtimer_expire_entry", .func = xgf_hrtimer_expire_entry_tracer},
+	{.name = "hrtimer_expire_exit", .func = xgf_hrtimer_expire_exit_tracer},
+};
+
+#define FOR_EACH_INTEREST_MAX \
+	(sizeof(xgf_tracepoints) / sizeof(struct tracepoints_table))
+
+#define FOR_EACH_INTEREST(i) \
+	for (i = 0; i < FOR_EACH_INTEREST_MAX; i++)
+
+static void lookup_tracepoints(struct tracepoint *tp, void *ignore)
+{
+	int i;
+
+	FOR_EACH_INTEREST(i) {
+		if (strcmp(xgf_tracepoints[i].name, tp->name) == 0)
+			xgf_tracepoints[i].tp = tp;
+	}
+}
+
+static void xgf_cleanup(void)
+{
+	int i;
+
+	FOR_EACH_INTEREST(i) {
+		if (xgf_tracepoints[i].registered) {
+			xgf_tracepoint_probe_unregister(xgf_tracepoints[i].tp,
+						xgf_tracepoints[i].func, NULL);
+			xgf_tracepoints[i].registered = false;
+		}
+	}
+}
+
+static void __nocfi xgf_tracing_register(void)
+{
+	int ret;
+
+	xgf_nr_cpus = xgf_num_possible_cpus();
+	xgf_atomic_set(xgf_event_index, 0);
+	atomic_set(&fstb_event_data_idx, 0);
+
+	/* xgf_irq_handler_entry_tracer */
+	ret = xgf_tracepoint_probe_register(xgf_tracepoints[0].tp,
+						xgf_tracepoints[0].func,  NULL);
+
+	if (ret) {
+		pr_info("irq_handler_entry: Couldn't activate tracepoint probe to irq_handler_entry\n");
+		goto fail_reg_irq_handler_entry;
+	}
+	xgf_tracepoints[0].registered = true;
+
+	/* xgf_irq_handler_exit_tracer */
+	ret = xgf_tracepoint_probe_register(xgf_tracepoints[1].tp,
+						xgf_tracepoints[1].func,  NULL);
+
+	if (ret) {
+		pr_info("irq_handler_exit: Couldn't activate tracepoint probe to irq_handler_exit\n");
+		goto fail_reg_irq_handler_exit;
+	}
+	xgf_tracepoints[1].registered = true;
+
+	/* xgf_softirq_entry_tracer */
+	ret = xgf_tracepoint_probe_register(xgf_tracepoints[2].tp,
+						xgf_tracepoints[2].func,  NULL);
+
+	if (ret) {
+		pr_info("softirq_entry: Couldn't activate tracepoint probe to softirq_entry\n");
+		goto fail_reg_softirq_entry;
+	}
+	xgf_tracepoints[2].registered = true;
+
+	/* xgf_softirq_exit_tracer */
+	ret = xgf_tracepoint_probe_register(xgf_tracepoints[3].tp,
+						xgf_tracepoints[3].func,  NULL);
+
+	if (ret) {
+		pr_info("softirq_exit: Couldn't activate tracepoint probe to softirq_exit\n");
+		goto fail_reg_softirq_exit;
+	}
+	xgf_tracepoints[3].registered = true;
+
+	/* xgf_ipi_raise_tracer */
+	ret = xgf_tracepoint_probe_register(xgf_tracepoints[4].tp,
+						xgf_tracepoints[4].func,  NULL);
+
+	if (ret) {
+		pr_info("ipi_raise: Couldn't activate tracepoint probe to ipi_raise\n");
+		goto fail_reg_ipi_raise;
+	}
+	xgf_tracepoints[4].registered = true;
+
+	/* xgf_ipi_entry_tracer */
+	ret = xgf_tracepoint_probe_register(xgf_tracepoints[5].tp,
+						xgf_tracepoints[5].func,  NULL);
+
+	if (ret) {
+		pr_info("ipi_entry: Couldn't activate tracepoint probe to ipi_entry\n");
+		goto fail_reg_ipi_entry;
+	}
+	xgf_tracepoints[5].registered = true;
+
+	/* xgf_ipi_exit_tracer */
+	ret = xgf_tracepoint_probe_register(xgf_tracepoints[6].tp,
+						xgf_tracepoints[6].func,  NULL);
+
+	if (ret) {
+		pr_info("ipi_exit: Couldn't activate tracepoint probe to ipi_exit\n");
+		goto fail_reg_ipi_exit;
+	}
+	xgf_tracepoints[6].registered = true;
+
+	/* xgf_sched_wakeup_tracer */
+	ret = xgf_tracepoint_probe_register(xgf_tracepoints[7].tp,
+						xgf_tracepoints[7].func,  NULL);
+
+	if (ret) {
+		pr_info("wakeup trace: Couldn't activate tracepoint probe to kernel_sched_wakeup\n");
+		goto fail_reg_sched_wakeup;
+	}
+	xgf_tracepoints[7].registered = true;
+
+	/* xgf_sched_wakeup_new_tracer */
+	ret = xgf_tracepoint_probe_register(xgf_tracepoints[8].tp,
+						xgf_tracepoints[8].func,  NULL);
+
+	if (ret) {
+		pr_info("wakeup trace: Couldn't activate tracepoint probe to kernel_sched_wakeup_new\n");
+		goto fail_reg_sched_wakeup_new;
+	}
+	xgf_tracepoints[8].registered = true;
+
+	/* xgf_sched_switch_tracer */
+	ret = xgf_tracepoint_probe_register(xgf_tracepoints[9].tp,
+						xgf_tracepoints[9].func,  NULL);
+
+	if (ret) {
+		pr_info("sched trace: Couldn't activate tracepoint probe to kernel_sched_switch\n");
+		goto fail_reg_sched_switch;
+	}
+	xgf_tracepoints[9].registered = true;
+
+	/* xgf_sched_waking_tracer */
+	ret = xgf_tracepoint_probe_register(xgf_tracepoints[10].tp,
+						xgf_tracepoints[10].func,  NULL);
+
+	if (ret) {
+		pr_info("sched trace: Couldn't activate tracepoint probe to kernel_sched_waking\n");
+		goto fail_reg_sched_waking;
+	}
+	xgf_tracepoints[10].registered = true;
+
+	/* xgf_hrtimer_expire_entry_tracer */
+	ret = xgf_tracepoint_probe_register(xgf_tracepoints[11].tp,
+						xgf_tracepoints[11].func,  NULL);
+
+	if (ret) {
+		pr_info("hrtimer_entry trace: Couldn't activate tracepoint probe to kernel_hrtimer_expire_entry\n");
+		goto fail_reg_hrtimer_expire_entry;
+	}
+	xgf_tracepoints[11].registered = true;
+
+	/* xgf_hrtimer_expire_exit_tracer */
+	ret = xgf_tracepoint_probe_register(xgf_tracepoints[12].tp,
+						xgf_tracepoints[12].func,  NULL);
+
+	if (ret) {
+		pr_info("hrtimer_exit trace: Couldn't activate tracepoint probe to kernel_hrtimer_expire_exit\n");
+		goto fail_reg_hrtimer_expire_exit;
+	}
+	xgf_tracepoints[12].registered = true;
+
+	xgf_atomic_set(xgf_event_index, 0);
+	atomic_set(&fstb_event_data_idx, 0);
+	return; /* successful registered all */
+
+fail_reg_hrtimer_expire_exit:
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[12].tp,
+					xgf_tracepoints[12].func,  NULL);
+fail_reg_hrtimer_expire_entry:
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[11].tp,
+					xgf_tracepoints[11].func,  NULL);
+fail_reg_sched_waking:
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[10].tp,
+					xgf_tracepoints[10].func,  NULL);
+fail_reg_sched_switch:
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[9].tp,
+					xgf_tracepoints[9].func,  NULL);
+	xgf_tracepoints[9].registered = false;
+fail_reg_sched_wakeup_new:
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[8].tp,
+					xgf_tracepoints[8].func,  NULL);
+	xgf_tracepoints[8].registered = false;
+fail_reg_sched_wakeup:
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[7].tp,
+					xgf_tracepoints[7].func,  NULL);
+	xgf_tracepoints[7].registered = false;
+fail_reg_ipi_exit:
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[6].tp,
+					xgf_tracepoints[6].func,  NULL);
+	xgf_tracepoints[6].registered = false;
+fail_reg_ipi_entry:
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[5].tp,
+					xgf_tracepoints[5].func,  NULL);
+	xgf_tracepoints[5].registered = false;
+fail_reg_ipi_raise:
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[4].tp,
+					xgf_tracepoints[4].func,  NULL);
+	xgf_tracepoints[4].registered = false;
+fail_reg_softirq_exit:
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[3].tp,
+					xgf_tracepoints[3].func,  NULL);
+	xgf_tracepoints[3].registered = false;
+fail_reg_softirq_entry:
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[2].tp,
+					xgf_tracepoints[2].func,  NULL);
+	xgf_tracepoints[2].registered = false;
+fail_reg_irq_handler_exit:
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[1].tp,
+					xgf_tracepoints[1].func,  NULL);
+	xgf_tracepoints[1].registered = false;
+fail_reg_irq_handler_entry:
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[0].tp,
+					xgf_tracepoints[0].func,  NULL);
+	xgf_tracepoints[0].registered = false;
+
+	xgf_atomic_set(xgf_ko_enabled, 0);
+	xgf_atomic_set(xgf_event_index, 0);
+	atomic_set(&fstb_event_data_idx, 0);
+}
+
+static void __nocfi xgf_tracing_unregister(void)
+{
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[0].tp,
+					xgf_tracepoints[0].func,  NULL);
+	xgf_tracepoints[0].registered = false;
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[1].tp,
+					xgf_tracepoints[1].func,  NULL);
+	xgf_tracepoints[1].registered = false;
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[2].tp,
+					xgf_tracepoints[2].func,  NULL);
+	xgf_tracepoints[2].registered = false;
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[3].tp,
+					xgf_tracepoints[3].func,  NULL);
+	xgf_tracepoints[3].registered = false;
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[4].tp,
+					xgf_tracepoints[4].func,  NULL);
+	xgf_tracepoints[4].registered = false;
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[5].tp,
+					xgf_tracepoints[5].func,  NULL);
+	xgf_tracepoints[5].registered = false;
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[6].tp,
+					xgf_tracepoints[6].func,  NULL);
+	xgf_tracepoints[6].registered = false;
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[7].tp,
+					xgf_tracepoints[7].func,  NULL);
+	xgf_tracepoints[7].registered = false;
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[8].tp,
+					xgf_tracepoints[8].func,  NULL);
+	xgf_tracepoints[8].registered = false;
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[9].tp,
+					xgf_tracepoints[9].func,  NULL);
+	xgf_tracepoints[9].registered = false;
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[10].tp,
+					xgf_tracepoints[10].func,  NULL);
+	xgf_tracepoints[10].registered = false;
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[11].tp,
+					xgf_tracepoints[11].func,  NULL);
+	xgf_tracepoints[11].registered = false;
+	xgf_tracepoint_probe_unregister(xgf_tracepoints[12].tp,
+					xgf_tracepoints[12].func,  NULL);
+	xgf_tracepoints[12].registered = false;
+	xgf_atomic_set(xgf_event_index, 0);
+	atomic_set(&fstb_event_data_idx, 0);
+}
+
+int xgf_stat_xchg(int xgf_enable)
+{
+	int ret = -1;
+
+	if (xgf_enable) {
+		xgf_tracing_register();
+		ret = 1;
+		xgf_atomic_set(xgf_ko_enabled, 1);
+	} else {
+		xgf_tracing_unregister();
+		ret = 0;
+		xgf_atomic_set(xgf_ko_enabled, 0);
+	}
+
+	return ret;
+}
+
+int __init init_xgf_ko(void)
+{
+	int i;
+
+	for_each_kernel_tracepoint(lookup_tracepoints, NULL);
+
+	FOR_EACH_INTEREST(i) {
+		if (xgf_tracepoints[i].tp == NULL) {
+			pr_debug("XGF KO Error, %s not found\n",
+					xgf_tracepoints[i].name);
+			xgf_cleanup();
+			return -1;
+		}
+	}
+
+	xgf_event_index = xgf_atomic_val_assign(0);
+	atomic_set(&fstb_event_data_idx, 0);
+	xgf_ko_enabled = xgf_atomic_val_assign(1);
+
+	xgf_stat_xchg_fp = xgf_stat_xchg;
+
 	return 0;
 }
 
-static ssize_t fpsgo_deplist_write(struct file *flip,
-			const char *ubuf, size_t cnt, loff_t *data)
-{
-	return cnt;
-}
-
-FPSGO_DEBUGFS_ENTRY(deplist);
+static KOBJ_ATTR_RO(deplist);
 
 int __init init_xgf(void)
 {
-	if (!fpsgo_debugfs_dir)
-		return -ENODEV;
+	init_xgf_ko();
 
-	debugfs_xgf_dir = debugfs_create_dir("xgf",
-					     fpsgo_debugfs_dir);
-	if (!debugfs_xgf_dir)
-		return -ENODEV;
-
-	debugfs_create_file("deplist",
-			    0664,
-			    debugfs_xgf_dir,
-			    NULL,
-			    &fpsgo_deplist_fops);
+	if (!fpsgo_sysfs_create_dir(NULL, "xgf", &xgf_kobj)) {
+		fpsgo_sysfs_create_file(xgf_kobj, &kobj_attr_deplist);
+		fpsgo_sysfs_create_file(xgf_kobj, &kobj_attr_xgf_spid_list);
+	}
 
 	return 0;
 }

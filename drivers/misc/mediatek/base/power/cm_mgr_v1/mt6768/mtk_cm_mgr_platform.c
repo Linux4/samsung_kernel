@@ -223,7 +223,7 @@ void cm_mgr_update_met(void)
 }
 
 #include <linux/cpu_pm.h>
-static int cm_mgr_idle_mask = CLUSTER0_MASK;
+static unsigned int cm_mgr_idle_mask = CLUSTER0_MASK;
 
 void __iomem *mcucfg_mp0_counter_base;
 
@@ -494,29 +494,37 @@ static void init_cpu_stall_counter(int cluster)
 
 static int cm_mgr_cpuhp_online(unsigned int cpu)
 {
+#ifdef CONFIG_MTK_DRAMC
 	unsigned long spinlock_save_flags;
 
 	spin_lock_irqsave(&cm_mgr_cpu_mask_lock, spinlock_save_flags);
+#endif /* CONFIG_MTK_DRAMC */
 
 	if (((cm_mgr_idle_mask & CLUSTER0_MASK) == 0x0) &&
 			(cpu < CM_MGR_CPU_LIMIT))
 		init_cpu_stall_counter(0);
 	cm_mgr_idle_mask |= (1 << cpu);
 
+#ifdef CONFIG_MTK_DRAMC
 	spin_unlock_irqrestore(&cm_mgr_cpu_mask_lock, spinlock_save_flags);
+#endif /* CONFIG_MTK_DRAMC */
 
 	return 0;
 }
 
 static int cm_mgr_cpuhp_offline(unsigned int cpu)
 {
+#ifdef CONFIG_MTK_DRAMC
 	unsigned long spinlock_save_flags;
 
 	spin_lock_irqsave(&cm_mgr_cpu_mask_lock, spinlock_save_flags);
+#endif /* CONFIG_MTK_DRAMC */
 
 	cm_mgr_idle_mask &= ~(1 << cpu);
 
+#ifdef CONFIG_MTK_DRAMC
 	spin_unlock_irqrestore(&cm_mgr_cpu_mask_lock, spinlock_save_flags);
+#endif /* CONFIG_MTK_DRAMC */
 
 	return 0;
 }
@@ -570,7 +578,7 @@ static int cm_mgr_fb_notifier_callback(struct notifier_block *self,
 	case FB_BLANK_POWERDOWN:
 		pr_info("#@# %s(%d) SCREEN OFF\n", __func__, __LINE__);
 		cm_mgr_blank_status = 1;
-		cm_mgr_set_dram_level(0);
+		cm_mgr_set_dram_level(-1);
 #if defined(CONFIG_MTK_TINYSYS_SSPM_SUPPORT) && defined(USE_CM_MGR_AT_SSPM)
 		cm_mgr_to_sspm_command(IPI_CM_MGR_BLANK, 1);
 #endif /* CONFIG_MTK_TINYSYS_SSPM_SUPPORT */
@@ -613,28 +621,6 @@ static struct notifier_block cm_mgr_idle_notify = {
 };
 #endif /* USE_IDLE_NOTIFY */
 
-#if 0
-static int cm_mgr_is_lp_flavor(void)
-{
-	int r = 0;
-
-#if defined(CONFIG_ARM64)
-	int len;
-
-	len = sizeof(CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES);
-
-	if (strncmp(&CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES[len - 4],
-				"_lp", 3) == 0)
-		r = 1;
-
-	pr_info("flavor check: %s, is_lp: %d\n",
-			CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES, r);
-#endif /* CONFIG_ARM64 */
-
-	return r;
-}
-#endif /* 0 */
-
 struct timer_list cm_mgr_ratio_timer;
 #define CM_MGR_RATIO_TIMER_MS	msecs_to_jiffies(1)
 
@@ -643,7 +629,7 @@ static void cm_mgr_ratio_timer_fn(unsigned long data)
 	int i;
 
 	for (i = 0; i < CM_MGR_CPU_COUNT; i++) {
-		trace_CM_MGR__stall_raio(
+		trace_CM_MGR__stall_ratio(
 				(int)i,
 				(unsigned int)cm_mgr_read(
 					CPU_AVG_STALL_RATIO(i)));
@@ -822,11 +808,6 @@ int cm_mgr_platform_init(void)
 	mtk_idle_notifier_register(&cm_mgr_idle_notify);
 #endif /* USE_IDLE_NOTIFY */
 
-#if 0
-	if (cm_mgr_is_lp_flavor())
-		cm_mgr_enable = 1;
-#endif /* 0 */
-
 	init_timer_deferrable(&cm_mgr_ratio_timer);
 	cm_mgr_ratio_timer.function = cm_mgr_ratio_timer_fn;
 	cm_mgr_ratio_timer.data = 0;
@@ -854,7 +835,7 @@ void cm_mgr_set_dram_level(int level)
 {
 	int dram_level;
 
-	if (cm_mgr_disable_fb == 1 && cm_mgr_blank_status == 1 && level != 0)
+	if ((cm_mgr_disable_fb == 1 && cm_mgr_blank_status == 1) || (level < 0))
 		dram_level = 0;
 	else
 		dram_level = level;

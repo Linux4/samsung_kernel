@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) Samsung Electronics Co., Ltd.
  *
@@ -820,7 +821,7 @@ static ssize_t color_lens_store(struct device *dev,
 }
 
 #ifdef CONFIG_SMCDSD_HMD
-static ssize_t hmdColorTemp_show(struct device *dev,
+static ssize_t hmd_color_temperature_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct mdnie_info *mdnie = dev_get_drvdata(dev);
@@ -828,7 +829,7 @@ static ssize_t hmdColorTemp_show(struct device *dev,
 	return sprintf(buf, "%d\n", mdnie->hmd_mode);
 }
 
-static ssize_t hmdColorTemp_store(struct device *dev,
+static ssize_t hmd_color_temperature_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct mdnie_info *mdnie = dev_get_drvdata(dev);
@@ -850,21 +851,21 @@ static ssize_t hmdColorTemp_store(struct device *dev,
 }
 #endif
 
-static DEVICE_ATTR(mode, 0664, mode_show, mode_store);
-static DEVICE_ATTR(scenario, 0664, scenario_show, scenario_store);
-static DEVICE_ATTR(accessibility, 0664, accessibility_show, accessibility_store);
-static DEVICE_ATTR(color_correct, 0444, color_correct_show, NULL);
+static DEVICE_ATTR_RW(mode);
+static DEVICE_ATTR_RW(scenario);
+static DEVICE_ATTR_RW(accessibility);
+static DEVICE_ATTR_RO(color_correct);
 static DEVICE_ATTR(color_coordinate, 0000, color_coordinate_show, color_coordinate_store);
-static DEVICE_ATTR(bypass, 0664, bypass_show, bypass_store);
+static DEVICE_ATTR_RW(bypass);
 static DEVICE_ATTR(lux, 0000, lux_show, lux_store);
-static DEVICE_ATTR(sensorRGB, 0664, sensorRGB_show, sensorRGB_store);
-static DEVICE_ATTR(whiteRGB, 0664, whiteRGB_show, whiteRGB_store);
-static DEVICE_ATTR(night_mode, 0664, night_mode_show, night_mode_store);
-static DEVICE_ATTR(mdnie_ldu, 0664, mdnie_ldu_show, mdnie_ldu_store);
-static DEVICE_ATTR(light_notification, 0664, light_notification_show, light_notification_store);
-static DEVICE_ATTR(color_lens, 0664, color_lens_show, color_lens_store);
+static DEVICE_ATTR_RW(sensorRGB);
+static DEVICE_ATTR_RW(whiteRGB);
+static DEVICE_ATTR_RW(night_mode);
+static DEVICE_ATTR_RW(mdnie_ldu);
+static DEVICE_ATTR_RW(light_notification);
+static DEVICE_ATTR_RW(color_lens);
 #ifdef CONFIG_SMCDSD_HMD
-static DEVICE_ATTR(hmd_color_temperature, 0664, hmdColorTemp_show, hmdColorTemp_store);
+static DEVICE_ATTR(hmd_color_temperature);
 #endif
 
 

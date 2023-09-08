@@ -178,6 +178,9 @@ void mt_accdet_remove(void);
 void mt_accdet_suspend(void);
 void mt_accdet_resume(void);
 int mt_accdet_probe(struct platform_device *dev);
+#ifdef CONFIG_SND_SOC_SAMSUNG_AUDIO
+u32 accdet_get_adc(void);
+#endif
 
 #endif
 

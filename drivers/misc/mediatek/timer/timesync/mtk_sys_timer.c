@@ -33,12 +33,24 @@
 #include <mt-plat/sync_write.h>
 #include <mt-plat/mtk_sys_timer.h>
 #include <mtk_sys_timer_typedefs.h>
+#if defined(CONFIG_MTK_TINYSYS_MCUPM_SUPPORT) || \
+defined(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
+#include <mtk_sys_timer_mbox.h>
+#endif
+
 
 #ifdef CONFIG_MTK_TINYSYS_SSPM_SUPPORT
 #include <mtk_sys_timer_mbox.h>
 #include <sspm_define.h>
-#include <v1/sspm_ipi.h>
-#include <v1/sspm_mbox.h>
+
+#ifndef SSPM_V2
+#include <sspm_ipi.h>
+#include <sspm_mbox.h>
+#else
+#include <sspm_ipi_id.h>
+#include <sspm_mbox_pin.h>
+#endif
+
 #endif
 
 #ifdef CONFIG_MTK_AUDIODSP_SUPPORT
@@ -85,16 +97,38 @@ void sys_timer_timesync_print_base(void)
 	pr_info(" base_ver : %d\n", timesync_cxt.base_ver);
 }
 
-#ifdef CONFIG_MTK_TINYSYS_SSPM_SUPPORT
+#if defined(CONFIG_MTK_TINYSYS_MCUPM_SUPPORT) || \
+defined(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
 static int sys_timer_mbox_write(unsigned int id, unsigned int val)
 {
-	return sspm_mbox_write(SYS_TIMER_MBOX, id, (void *)&val, 1);
+	int res;
+#ifndef SSPM_V2
+#ifdef CONFIG_MTK_TINYSYS_SSPM_SUPPORT
+	res = sspm_mbox_write(SYS_TIMER_MBOX,
+			      SYS_TIMER_MBOX_OFFSET_BASE + id,
+			      (void *)&val, 1);
+#endif
+#else
+#ifdef CONFIG_MTK_TINYSYS_MCUPM_SUPPORT
+	res = mcupm_mbox_write(SYS_TIMER_MCUPM_MBOX,
+			 SYS_TIMER_MCUPM_MBOX_OFFSET_BASE + id,
+			 (void *)&val, 1);
+#endif
+#ifdef CONFIG_MTK_TINYSYS_SSPM_SUPPORT
+	res = mtk_mbox_write(&sspm_mboxdev, SYS_TIMER_MBOX,
+		       SYS_TIMER_MBOX_OFFSET_BASE + id,
+		       (void *)&val, 1);
+#endif
+#endif
+	return res;
 }
 
+#if !defined(SSPM_V2) && defined(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
 static int sys_timer_mbox_read(unsigned int id, unsigned int *val)
 {
 	return sspm_mbox_read(SYS_TIMER_MBOX, id, val, 1);
 }
+#endif
 
 static u8 sys_timer_timesync_inc_ver(void)
 {
@@ -124,7 +158,7 @@ static void sys_timer_timesync_update_sspm(int suspended,
 	/* update tick, h -> l */
 	val = (tick >> 32) & 0xFFFFFFFF;
 	val |= header;
-	sys_timer_mbox_write(SYS_TIMER_MBOX_TICK_H, val);
+	sys_timer_mbox_write(MBOX_TICK_H, val);
 
 	sys_timer_print("%s: tick_h=0x%x\n", __func__, val);
 
@@ -132,7 +166,7 @@ static void sys_timer_timesync_update_sspm(int suspended,
 	mb();
 
 	val = tick & 0xFFFFFFFF;
-	sys_timer_mbox_write(SYS_TIMER_MBOX_TICK_L, val);
+	sys_timer_mbox_write(MBOX_TICK_L, val);
 
 	sys_timer_print("%s: tick_l=0x%x\n", __func__, val);
 
@@ -141,7 +175,7 @@ static void sys_timer_timesync_update_sspm(int suspended,
 
 	/* update ts, l -> h */
 	val = ts & 0xFFFFFFFF;
-	sys_timer_mbox_write(SYS_TIMER_MBOX_TS_L, val);
+	sys_timer_mbox_write(MBOX_TS_L, val);
 
 	sys_timer_print("%s: ts_l=0x%x\n", __func__, val);
 
@@ -150,7 +184,7 @@ static void sys_timer_timesync_update_sspm(int suspended,
 
 	val = (ts >> 32) & 0xFFFFFFFF;
 	val |= header;
-	sys_timer_mbox_write(SYS_TIMER_MBOX_TS_H, val);
+	sys_timer_mbox_write(MBOX_TS_H, val);
 
 	sys_timer_print("%s: ts_h=0x%x\n", __func__, val);
 
@@ -160,14 +194,17 @@ static void sys_timer_timesync_update_sspm(int suspended,
 
 void sys_timer_timesync_verify_sspm(void)
 {
+#ifdef CONFIG_MTK_TINYSYS_SSPM_SUPPORT
 	struct plt_ipi_data_s ipi_data;
+#ifndef SSPM_V2
 	int ackdata = 0;
+#endif
 	u32 ts_h = 0, ts_l = 0;
 	u64 ts_sspm, ts_ap1, ts_ap2, temp_u64[2];
 
 	/* reset debug mbox before test */
-	sys_timer_mbox_write(SYS_TIMER_MBOX_DEBUG_TS_L, 0);
-	sys_timer_mbox_write(SYS_TIMER_MBOX_DEBUG_TS_H, 0);
+	sys_timer_mbox_write(MBOX_DEBUG_TS_L, 0);
+	sys_timer_mbox_write(MBOX_DEBUG_TS_H, 0);
 
 	ts_ap1 = sched_clock();
 
@@ -178,13 +215,14 @@ void sys_timer_timesync_verify_sspm(void)
 	/* send ipi to sspm to trigger test */
 	ipi_data.cmd = PLT_TIMESYNC_SRAM_TEST;
 
+#ifndef SSPM_V2
 	sspm_ipi_send_sync(IPI_ID_PLATFORM, IPI_OPT_WAIT,
 		&ipi_data, sizeof(ipi_data) / SSPM_MBOX_SLOT_SIZE, &ackdata, 1);
 
 	/* wait until sspm writes sspm-view timestamp to sram */
 	while (1) {
-		sys_timer_mbox_read(SYS_TIMER_MBOX_DEBUG_TS_L, &ts_l);
-		sys_timer_mbox_read(SYS_TIMER_MBOX_DEBUG_TS_H, &ts_h);
+		sys_timer_mbox_read(MBOX_DEBUG_TS_L, &ts_l);
+		sys_timer_mbox_read(MBOX_DEBUG_TS_H, &ts_h);
 
 		if (ts_l || ts_h)
 			break;
@@ -192,6 +230,7 @@ void sys_timer_timesync_verify_sspm(void)
 		pr_info("verify-sspm:polling sspm mbox ...\n");
 		cpu_relax();
 	}
+#endif
 
 	ts_ap2 = sched_clock();
 
@@ -209,6 +248,7 @@ void sys_timer_timesync_verify_sspm(void)
 		pr_info("verify-sspm:ERROR!");
 
 	sys_timer_timesync_print_base();
+#endif
 }
 
 #else
@@ -261,15 +301,9 @@ sys_timer_timesync_sync_base_internal(unsigned int flag)
 	}
 
 #ifdef CONFIG_MTK_AUDIODSP_SUPPORT
-	if (freeze == 0 && unfreeze == 0) {
 	/* sync with adsp */
-		adsp_enable_dsp_clk(true);
-
-		sys_timer_timesync_update_ram(ADSP_A_OSTIMER_BUFFER,
-			freeze, tick, ts);
-
-		adsp_enable_dsp_clk(false);
-	}
+	sys_timer_timesync_update_ram(ADSP_OSTIMER_BUFFER,
+		freeze, tick, ts);
 #endif
 	/* sync with sspm */
 	sys_timer_timesync_update_sspm(freeze, tick, ts);
@@ -279,39 +313,6 @@ sys_timer_timesync_sync_base_internal(unsigned int flag)
 	pr_debug("update base: ts=%llu, tick=0x%llx, fz=%d, ver=%d\n",
 		ts, tick, freeze, timesync_cxt.base_ver);
 }
-
-/* Todo: This api is used for adsp when suspend/resume, which
- * sram cannot be accessed and will cause system hang. This should
- * be refined by suspend/resume time_sync flow to make timesync at
- * the beginning of suspend and at the end of resume, then this api
- * can be removed
- */
-void sys_timer_timesync_sync_adsp(unsigned int flag)
-{
-	u64 tick, ts;
-	unsigned long irq_flags = 0;
-	int freeze;
-
-	spin_lock_irqsave(&timesync_cxt.lock, irq_flags);
-
-	ts = sched_clock_get_cyc(&tick);
-
-	timesync_cxt.base_tick = tick;
-	timesync_cxt.base_ts = ts;
-	sys_timer_timesync_inc_ver();
-
-	freeze = (flag & SYS_TIMER_TIMESYNC_FLAG_FREEZE) ? 1 : 0;
-#ifdef CONFIG_MTK_AUDIODSP_SUPPORT
-	/* sync with adsp */
-	sys_timer_timesync_update_ram(ADSP_A_OSTIMER_BUFFER,
-		freeze, tick, ts);
-#endif
-	spin_unlock_irqrestore(&timesync_cxt.lock, irq_flags);
-
-	pr_debug("update base (adsp): ts=%llu, tick=0x%llx, fz=%d, ver=%d\n",
-		ts, tick, freeze, timesync_cxt.base_ver);
-}
-EXPORT_SYMBOL(sys_timer_timesync_sync_adsp);
 
 u64 sys_timer_timesync_tick_to_sched_clock(u64 tick)
 {

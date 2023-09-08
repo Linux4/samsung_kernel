@@ -91,6 +91,7 @@ static void trusted_mem_device_chunk_free(enum TRUSTED_MEM_TYPE mem_type)
 		g_common_mem_handle[mem_type] = 0;
 }
 
+#if defined(CONFIG_MTK_ION)
 static unsigned int get_ion_heap_mask_id(enum TRUSTED_MEM_TYPE mem_type)
 {
 	switch (mem_type) {
@@ -114,6 +115,7 @@ static unsigned int get_ion_heap_mask_id(enum TRUSTED_MEM_TYPE mem_type)
 		return ION_HEAP_MULTIMEDIA_SEC_MASK;
 	}
 }
+#endif
 
 static void trusted_mem_device_ion_alloc_free(enum TRUSTED_MEM_TYPE mem_type)
 {
@@ -306,7 +308,7 @@ static ssize_t tmem_write(struct file *file, const char __user *buffer,
 			  size_t count, loff_t *data)
 {
 	char desc[32];
-	int len = 0;
+	unsigned int len = 0;
 	long cmd;
 
 	len = (count < (sizeof(desc) - 1)) ? count : (sizeof(desc) - 1);

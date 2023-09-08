@@ -30,12 +30,27 @@ static unsigned int aggressive_idle_pull(int this_cpu);
 bool idle_lb_enhance(struct task_struct *p, int cpu);
 static int
 ___select_idle_sibling(struct task_struct *p, int prev_cpu, int new_cpu);
+static int __find_energy_efficient_cpu(struct sched_domain *sd,
+		struct task_struct *p, int cpu, int prev_cpu, int sync);
 extern int find_best_idle_cpu(struct task_struct *p, bool prefer_idle);
 
 static int start_cpu(struct task_struct *p, bool prefer_idle,
-				bool boosted, bool *t);
+				bool boosted);
 static int
 migrate_running_task(int this_cpu, struct task_struct *p, struct rq *target);
+
+#ifdef CONFIG_UCLAMP_TASK
+static __always_inline
+unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util,
+					struct task_struct *p);
+#else
+
+inline unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util,
+					struct task_struct *p)
+{
+	return util;
+}
+#endif
 
 #ifdef CONFIG_MTK_UNIFY_POWER
 extern int
@@ -47,8 +62,6 @@ int mtk_busy_power(int cpu_idx, int cpu, void *argu, int sd_level);
 extern
 const struct sched_group_energy * const cci_energy(void);
 #endif
-static int collect_cluster_info(int cpu, int *total_nr_running, int *cpu_count);
-
 
 /*#define DEBUG_EENV_DECISIONS*/
 
@@ -146,8 +159,5 @@ extern unsigned int hmp_cpu_is_fastest(int cpu);
 static int check_freq_turning(void);
 struct rq *__migrate_task(struct rq *rq, struct rq_flags *rf,
 				struct task_struct *p, int dest_cpu);
-int sched_forked_ramup_factor(void);
 
-#ifdef CONFIG_MTK_TC10_FEATURE
 int sched_forked_ramup_factor(void);
-#endif

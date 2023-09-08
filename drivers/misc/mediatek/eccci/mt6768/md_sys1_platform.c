@@ -21,6 +21,7 @@
 #include "ccci_config.h"
 #include <linux/clk.h>
 #include <mach/mtk_pbm.h>
+#include <clk-mt6768-pg.h>
 
 #define FEATURE_CLK_BUF
 #ifdef FEATURE_CLK_BUF
@@ -62,7 +63,7 @@ static struct ccci_clk_node clk_table[] = {
 static struct pinctrl *mdcldma_pinctrl;
 #endif
 
-unsigned int devapc_check_flag = 1;
+unsigned int devapc_check_flag;
 
 static void __iomem *md_sram_pd_psmcusys_base;
 static void __iomem *md_cldma_misc_base;
@@ -110,6 +111,31 @@ void md_cldma_hw_reset(unsigned char md_id)
 	ccci_write32(infra_ao_base, INFRA_CLDMA_CTRL_REG, reg_value);
 	CCCI_DEBUG_LOG(md_id, TAG, "set cldma ctrl reg as:0x%x\n", reg_value);
 }
+
+void md1_subsys_debug_dump(enum subsys_id sys)
+{
+	struct ccci_modem *md = NULL;
+
+	if (sys != SYS_MD1)
+		return;
+		/* add debug dump */
+
+	CCCI_NORMAL_LOG(0, TAG, "%s\n", __func__);
+	md = ccci_md_get_modem_by_id(0);
+	if (md != NULL) {
+		CCCI_NORMAL_LOG(0, TAG, "%s dump start\n", __func__);
+		md->ops->dump_info(md, DUMP_FLAG_CCIF_REG | DUMP_FLAG_CCIF |
+			DUMP_FLAG_REG | DUMP_FLAG_QUEUE_0_1 |
+			DUMP_MD_BOOTUP_STATUS, NULL, 0);
+		mdelay(1000);
+		md->ops->dump_info(md, DUMP_FLAG_REG, NULL, 0);
+	}
+	CCCI_NORMAL_LOG(0, TAG, "%s exit\n", __func__);
+}
+
+struct pg_callbacks md1_subsys_handle = {
+	.debug_dump = md1_subsys_debug_dump,
+};
 
 int md_cd_get_modem_hw_info(struct platform_device *dev_ptr,
 	struct ccci_dev_cfg *dev_cfg, struct md_hw_info *hw_info)
@@ -297,7 +323,7 @@ int md_cd_get_modem_hw_info(struct platform_device *dev_ptr,
 		"cldma_irq:%d,ccif_irq0:%d,ccif_irq1:%d,md_wdt_irq:%d\n",
 		cldma_hw->cldma_irq_id, hw_info->ap_ccif_irq0_id,
 		hw_info->ap_ccif_irq1_id, hw_info->md_wdt_irq_id);
-
+	register_pg_callback(&md1_subsys_handle);
 	return 0;
 }
 
@@ -335,7 +361,6 @@ int md_cd_io_remap_md_side_register(struct ccci_modem *md)
 		md->hw_info->md_boot_slave_En, 0x4);
 	md_info->md_rgu_base = ioremap_nocache(
 		md->hw_info->md_rgu_base, 0x300);
-	md_info->l1_rgu_base = ioremap_nocache(md->hw_info->l1_rgu_base, 0x40);
 	md_info->md_global_con0 = ioremap_nocache(MD_GLOBAL_CON0, 0x4);
 
 

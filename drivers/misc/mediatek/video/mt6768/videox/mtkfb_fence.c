@@ -34,6 +34,8 @@
 #include "ddp_mmp.h"
 #include "primary_display.h"
 #include "mtk_disp_mgr.h"
+#include "ion_priv.h"
+#include "mtk_ion.h"
 /************************* log*********************/
 
 static bool mtkfb_fence_on;
@@ -333,7 +335,7 @@ static void mtkfb_ion_init(void)
  * @return ion handle
  */
 static struct ion_handle *mtkfb_ion_import_handle(struct ion_client *client,
-	int fd)
+						int fd, int *type)
 {
 	struct ion_handle *handle = NULL;
 	struct ion_mm_data mm_data;
@@ -357,18 +359,20 @@ static struct ion_handle *mtkfb_ion_import_handle(struct ion_client *client,
 		pr_info("import ion handle failed!\n");
 		return NULL;
 	}
-	mm_data.mm_cmd = ION_MM_CONFIG_BUFFER;
-	mm_data.config_buffer_param.kernel_handle = handle;
-	mm_data.config_buffer_param.module_id = 0;
-	mm_data.config_buffer_param.security = 0;
-	mm_data.config_buffer_param.coherent = 0;
+	*type = handle->buffer->heap->type;
+	if (*type != ION_HEAP_TYPE_MULTIMEDIA) {
+		mm_data.mm_cmd = ION_MM_CONFIG_BUFFER;
+		mm_data.config_buffer_param.kernel_handle = handle;
+		mm_data.config_buffer_param.module_id = 0;
+		mm_data.config_buffer_param.security = 0;
+		mm_data.config_buffer_param.coherent = 0;
 
-	if (ion_kernel_ioctl(ion_client, ION_CMD_MULTIMEDIA,
-		(unsigned long)&mm_data))
-		pr_info("configure ion buffer failed!\n");
-
-	MTKFB_FENCE_LOG("import ion handle fd=%d,hnd=0x%p\n",
-		fd, handle);
+		if (ion_kernel_ioctl(ion_client, ION_CMD_MULTIMEDIA,
+					 (unsigned long)&mm_data))
+			pr_info("configure ion buffer failed!\n");
+	}
+	MTKFB_FENCE_LOG("import ion handle fd=%d,hnd=0x%p type=%d\n",
+		fd, handle, *type);
 
 	return handle;
 }
@@ -389,10 +393,11 @@ static void mtkfb_ion_free_handle(struct ion_client *client,
 }
 
 static size_t mtkfb_ion_phys_mmu_addr(struct ion_client *client,
-	struct ion_handle *handle, unsigned int *mva)
+	struct ion_handle *handle, unsigned int *mva, int type)
 {
-	size_t size;
+	size_t size = 0;
 	ion_phys_addr_t phy_addr = 0;
+	struct ion_mm_data mm_data;
 
 	if (!ion_client) {
 		pr_info("invalid ion client!\n");
@@ -400,6 +405,23 @@ static size_t mtkfb_ion_phys_mmu_addr(struct ion_client *client,
 	}
 	if (!handle)
 		return 0;
+
+	if (type == ION_HEAP_TYPE_MULTIMEDIA) {
+		/* use get_iova replace config_buffer & get_phys*/
+		memset((void *)&mm_data, 0, sizeof(mm_data));
+		mm_data.mm_cmd = ION_MM_GET_IOVA;
+		mm_data.get_phys_param.kernel_handle = handle;
+		mm_data.get_phys_param.module_id = 0;
+
+		if (ion_kernel_ioctl(ion_client, ION_CMD_MULTIMEDIA,
+			(unsigned long)&mm_data))
+			pr_info("configure ion buffer failed!\n");
+
+		*mva = (unsigned int)mm_data.get_phys_param.phy_addr;
+		MTKFB_FENCE_LOG("alloc mmu addr hnd=0x%p,mva=0x%08x mm\n",
+			handle, (unsigned int)*mva);
+		return (size_t)mm_data.get_phys_param.len;
+	}
 
 	ion_phys(client, handle, &phy_addr, &size);
 	*mva = (unsigned int)phy_addr;
@@ -495,6 +517,11 @@ unsigned int mtkfb_query_buf_va(unsigned int session_id, unsigned int layer_id,
 	ASSERT(layer_id < DISP_SESSION_TIMELINE_COUNT);
 
 	session_info = _get_session_sync_info(session_id);
+	if (session_info == NULL) {
+		DISPERR("cant get sync info for session_id:0x%08x\n",
+			session_id);
+		return 0;
+	}
 	layer_info = &(session_info->session_layer_info[layer_id]);
 	if (layer_id != layer_info->layer_id) {
 		pr_info("wrong layer id %d(rt), %d(in)!\n",
@@ -527,10 +554,17 @@ unsigned int mtkfb_query_release_idx(unsigned int session_id,
 	struct mtkfb_fence_buf_info *buf = NULL;
 	struct mtkfb_fence_buf_info *pre_buf = NULL;
 	unsigned int idx = 0x0;
-	struct disp_session_sync_info *session_info =
-		_get_session_sync_info(session_id);
-	struct disp_sync_info *layer_info =
-		&(session_info->session_layer_info[layer_id]);
+	struct disp_session_sync_info *session_info = NULL;
+	struct disp_sync_info *layer_info = NULL;
+
+	session_info = _get_session_sync_info(session_id);
+	if (session_info == NULL) {
+		DISPERR("cant get sync info for session_id:0x%08x\n",
+			session_id);
+		return 0;
+	}
+
+	layer_info = &(session_info->session_layer_info[layer_id]);
 
 	if (layer_id != layer_info->layer_id) {
 		pr_info("wrong layer id %d(rt), %d(in)!\n",
@@ -598,6 +632,11 @@ unsigned int mtkfb_update_buf_ticket(unsigned int session_id,
 	}
 
 	session_info = _get_session_sync_info(session_id);
+	if (session_info == NULL) {
+		DISPERR("cant get sync info for session_id:0x%08x\n",
+			session_id);
+		return 0;
+	}
 	layer_info = &(session_info->session_layer_info[layer_id]);
 
 	if (layer_id != layer_info->layer_id) {
@@ -619,20 +658,26 @@ unsigned int mtkfb_update_buf_ticket(unsigned int session_id,
 	return mva;
 }
 
-unsigned int mtkfb_query_idx_by_ticket(unsigned int session_id,
+int mtkfb_query_idx_by_ticket(unsigned int session_id,
 	unsigned int layer_id, unsigned int ticket)
 {
 	struct mtkfb_fence_buf_info *buf = NULL;
 	int idx = -1;
-	struct disp_session_sync_info *session_info =
-		_get_session_sync_info(session_id);
-	struct disp_sync_info *layer_info =
-		&(session_info->session_layer_info[layer_id]);
+	struct disp_session_sync_info *session_info = NULL;
+	struct disp_sync_info *layer_info = NULL;
 
+	session_info = _get_session_sync_info(session_id);
+	if (session_info == NULL) {
+		DISPERR("cant get sync info for session_id:0x%08x\n",
+			session_id);
+		return idx;
+	}
+
+	layer_info = &(session_info->session_layer_info[layer_id]);
 	if (layer_id != layer_info->layer_id) {
 		DISPERR("wrong layer id %d(rt), %d(in)!\n",
 			layer_info->layer_id, layer_id);
-		return 0;
+		return idx;
 	}
 
 	mutex_lock(&layer_info->sync_lock);
@@ -660,6 +705,12 @@ bool mtkfb_update_buf_info_new(unsigned int session_id,
 	}
 
 	session_info = _get_session_sync_info(session_id);
+	if (session_info == NULL) {
+		DISPERR("cant get sync info for session_id:0x%08x\n",
+			session_id);
+		return 0;
+	}
+
 	layer_info = &(session_info->session_layer_info[buf_info->layer_id]);
 	if (buf_info->layer_id != layer_info->layer_id) {
 		DISPERR("wrong layer id %d(rt), %d(in)!\n",
@@ -694,6 +745,11 @@ unsigned int mtkfb_query_buf_info(unsigned int session_id,
 	int query_info = 0;
 
 	session_info = _get_session_sync_info(session_id);
+	if (session_info == NULL) {
+		DISPERR("cant get sync info for session_id:0x%08x\n",
+			session_id);
+		return 0;
+	}
 	layer_info = &(session_info->session_layer_info[layer_id]);
 	if (layer_id != layer_info->layer_id) {
 		DISPERR("wrong layer id %d(rt), %d(in)!\n",
@@ -1149,12 +1205,13 @@ static int prepare_ion_buf(struct disp_buffer_info *buf,
 {
 	unsigned int mva = 0x0;
 	struct ion_handle *handle = NULL;
+	int type = 0;
 
 #if defined(MTK_FB_ION_SUPPORT)
-	handle = mtkfb_ion_import_handle(ion_client, buf->ion_fd);
+	handle = mtkfb_ion_import_handle(ion_client, buf->ion_fd, &type);
 	if (handle)
 		buf_info->size =
-			mtkfb_ion_phys_mmu_addr(ion_client, handle, &mva);
+			mtkfb_ion_phys_mmu_addr(ion_client, handle, &mva, type);
 	else
 		DISPERR("can't import ion handle for fd:%d\n",
 			buf->ion_fd);
@@ -1480,3 +1537,31 @@ int disp_sync_get_debug_info(char *stringbuf, int buf_len)
 
 	return len;
 }
+
+struct ion_handle *disp_snyc_get_ion_handle(unsigned int session_id,
+	unsigned int timeline_id, unsigned int idx)
+{
+	struct mtkfb_fence_buf_info *buf = NULL;
+	struct disp_sync_info *layer_info = NULL;
+	struct ion_handle *handle = NULL;
+
+	layer_info = _get_sync_info(session_id, timeline_id);
+	if (layer_info == NULL) {
+		DISPERR("layer_info is null, layer_info=%p\n", layer_info);
+		return 0;
+	}
+
+	mutex_lock(&layer_info->sync_lock);
+	list_for_each_entry(buf, &layer_info->buf_list, list) {
+		if (buf->idx == idx) {
+			/* use local variable here to avoid polluted pointer */
+			handle = buf->hnd;
+			DISPMSG("%s, get handle", __func__);
+			break;
+		}
+	}
+	mutex_unlock(&layer_info->sync_lock);
+
+	return handle;
+}
+

@@ -17,13 +17,17 @@
 #include <linux/types.h>
 #include <ged_type.h>
 
-/* Must be the same as region_num in gralloc_extra/ge_config.h */
-#define GE_ALLOC_STRUCT_NUM 10
+/* Must be the same as item number in region_sizes[], which in
+ * /vendor/mediatek/proprietary/hardware/gralloc_extra/ge_misc.cpp
+ */
+#define GE_ALLOC_STRUCT_NUM 18
 
-int ged_ge_init(void);
+GED_ERROR ged_ge_init(void);
 int ged_ge_exit(void);
 int ged_ge_alloc(int region_num, uint32_t *region_sizes);
-int ged_ge_get(int ge_fd, int region_id, int u32_offset, int u32_size, uint32_t *output_data);
-int ged_ge_set(int ge_fd, int region_id, int u32_offset, int u32_size, uint32_t *input_data);
+int ged_ge_get(int ge_fd, int region_id, int u32_offset,
+	int u32_size, uint32_t *output_data);
+int ged_ge_set(int ge_fd, int region_id, int u32_offset,
+	int u32_size, uint32_t *input_data);
 
 #endif

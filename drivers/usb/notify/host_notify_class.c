@@ -1,12 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  *  drivers/usb/notify/host_notify_class.c
  *
- * Copyright (C) 2011-2017 Samsung, Inc.
+ * Copyright (C) 2011-2021 Samsung, Inc.
  * Author: Dongrak Shin <dongrak.shin@samsung.com>
  *
  */
 
- /* usb notify layer v3.3 */
+ /* usb notify layer v3.6 */
 
 #include <linux/module.h>
 #include <linux/types.h>
@@ -148,8 +149,8 @@ error:
 	return ret;
 }
 
-static DEVICE_ATTR(mode, 0664, mode_show, mode_store);
-static DEVICE_ATTR(booster, 0664, booster_show, booster_store);
+static DEVICE_ATTR_RW(mode);
+static DEVICE_ATTR_RW(booster);
 
 static struct attribute *host_notify_attrs[] = {
 	&dev_attr_mode.attr,
@@ -226,11 +227,11 @@ int host_state_notify(struct host_notify_dev *ndev, int state)
 			ndev->host_state = state;
 			ndev->host_change = 1;
 			kobject_uevent(&ndev->dev->kobj, KOBJ_CHANGE);
+			ndev->host_change = 0;
 #if defined(CONFIG_USB_HW_PARAM)
 			if (state == NOTIFY_HOST_ADD)
-				inc_hw_param_host(ndev, USB_PDIC_OTG_USE_COUNT);
+				inc_hw_param_host(ndev, USB_CCIC_OTG_USE_COUNT);
 #endif
-			ndev->host_change = 0;
 		}
 	} else if (type == NOTIFY_POWER_STATE) {
 		if (ndev->power_state != state) {
@@ -240,11 +241,11 @@ int host_state_notify(struct host_notify_dev *ndev, int state)
 			ndev->power_state = state;
 			ndev->power_change = 1;
 			kobject_uevent(&ndev->dev->kobj, KOBJ_CHANGE);
+			ndev->power_change = 0;
 #if defined(CONFIG_USB_HW_PARAM)
 			if (state == NOTIFY_HOST_OVERCURRENT)
-				inc_hw_param_host(ndev, USB_PDIC_OVC_COUNT);
+				inc_hw_param_host(ndev, USB_CCIC_OVC_COUNT);
 #endif
-			ndev->power_change = 0;
 		}
 	} else {
 		ndev->host_state = state;
@@ -339,7 +340,7 @@ int host_notify_dev_register(struct host_notify_dev *ndev)
 
 	ndev->index = atomic_inc_return(&host_notify.device_count);
 	ndev->dev = device_create(host_notify.host_notify_class, NULL,
-		MKDEV(0, ndev->index), NULL, ndev->name);
+		MKDEV(0, ndev->index), NULL, "%s", ndev->name);
 	if (IS_ERR(ndev->dev))
 		return PTR_ERR(ndev->dev);
 
@@ -352,7 +353,7 @@ int host_notify_dev_register(struct host_notify_dev *ndev)
 
 	dev_set_drvdata(ndev->dev, ndev);
 	ndev->host_state = NOTIFY_HOST_NONE;
-	ndev->power_state = NOTIFY_HOST_NONE;
+	ndev->power_state = NOTIFY_HOST_SINK;
 	return 0;
 }
 EXPORT_SYMBOL_GPL(host_notify_dev_register);
@@ -360,7 +361,7 @@ EXPORT_SYMBOL_GPL(host_notify_dev_register);
 void host_notify_dev_unregister(struct host_notify_dev *ndev)
 {
 	ndev->host_state = NOTIFY_HOST_NONE;
-	ndev->power_state = NOTIFY_HOST_NONE;
+	ndev->power_state = NOTIFY_HOST_SINK;
 	sysfs_remove_group(&ndev->dev->kobj, &host_notify_attr_grp);
 	dev_set_drvdata(ndev->dev, NULL);
 	device_destroy(host_notify.host_notify_class, MKDEV(0, ndev->index));
@@ -368,19 +369,12 @@ void host_notify_dev_unregister(struct host_notify_dev *ndev)
 }
 EXPORT_SYMBOL_GPL(host_notify_dev_unregister);
 
-static int __init notify_class_init(void)
+int notify_class_init(void)
 {
 	return create_notify_class();
 }
 
-static void __exit notify_class_exit(void)
+void notify_class_exit(void)
 {
 	class_destroy(host_notify.host_notify_class);
 }
-
-module_init(notify_class_init);
-module_exit(notify_class_exit);
-
-MODULE_AUTHOR("Dongrak Shin <dongrak.shin@samsung.com>");
-MODULE_DESCRIPTION("Usb host notify driver");
-MODULE_LICENSE("GPL");

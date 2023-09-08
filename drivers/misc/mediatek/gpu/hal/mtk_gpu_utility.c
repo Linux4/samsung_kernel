@@ -20,6 +20,7 @@
 #if 0
 #include "ged_monitor_3D_fence.h"
 #endif
+#include "ged_gpu_tuner.h"
 
 unsigned int (*mtk_get_gpu_memory_usage_fp)(void) = NULL;
 EXPORT_SYMBOL(mtk_get_gpu_memory_usage_fp);
@@ -411,7 +412,7 @@ bool mtk_gpu_dvfs_set_mode(int eMode)
 EXPORT_SYMBOL(mtk_gpu_dvfs_set_mode);
 
 //-----------------------------------------------------------------------------
-void (*mtk_dump_gpu_memory_usage_fp)(void) = NULL;
+bool (*mtk_dump_gpu_memory_usage_fp)(void) = NULL;
 EXPORT_SYMBOL(mtk_dump_gpu_memory_usage_fp);
 
 bool mtk_dump_gpu_memory_usage(void)
@@ -857,3 +858,57 @@ bool mtk_get_timer_base_dvfs_margin(int *pi32MarginValue)
 	return false;
 }
 EXPORT_SYMBOL(mtk_get_timer_base_dvfs_margin);
+
+bool mtk_gpu_tuner_hint_set(char *packagename, enum GPU_TUNER_FEATURE eFeature)
+{
+	return ged_gpu_tuner_hint_set(packagename, eFeature);
+}
+EXPORT_SYMBOL(mtk_gpu_tuner_hint_set);
+
+bool mtk_gpu_tuner_hint_restore(char *packagename,
+	enum GPU_TUNER_FEATURE eFeature)
+{
+	return ged_gpu_tuner_hint_restore(packagename, eFeature);
+}
+EXPORT_SYMBOL(mtk_gpu_tuner_hint_restore);
+
+bool mtk_gpu_tuner_get_stauts_by_packagename(char *packagename, int *feature)
+{
+	struct GED_GPU_TUNER_ITEM item;
+	GED_ERROR err = ged_gpu_get_stauts_by_packagename(packagename, &item);
+
+	if (err == GED_OK)
+		*feature = item.status.feature;
+
+	return err;
+}
+EXPORT_SYMBOL(mtk_gpu_tuner_get_stauts_by_packagename);
+
+/* ------------------------------------------------------------------------ */
+void (*mtk_dvfs_loading_mode_fp)(int i32LoadingMode) = NULL;
+EXPORT_SYMBOL(mtk_dvfs_loading_mode_fp);
+
+bool mtk_dvfs_loading_mode(int i32LoadingMode)
+{
+	if (mtk_dvfs_loading_mode_fp != NULL) {
+		mtk_dvfs_loading_mode_fp(i32LoadingMode);
+		return true;
+	}
+	return false;
+}
+EXPORT_SYMBOL(mtk_dvfs_loading_mode);
+
+int (*mtk_get_dvfs_loading_mode_fp)(void) = NULL;
+EXPORT_SYMBOL(mtk_get_dvfs_loading_mode_fp);
+
+bool mtk_get_dvfs_loading_mode(unsigned int *pui32LoadingMode)
+{
+	if ((mtk_get_dvfs_loading_mode_fp != NULL) &&
+		(pui32LoadingMode != NULL)) {
+
+		*pui32LoadingMode = mtk_get_dvfs_loading_mode_fp();
+		return true;
+	}
+	return false;
+}
+EXPORT_SYMBOL(mtk_get_dvfs_loading_mode);

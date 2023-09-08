@@ -60,16 +60,12 @@
 #include <mach/mt_clkmgr.h>
 #endif
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 #include <linux/pm_wakeup.h>
-#else
-#include <linux/wakelock.h>
 #endif
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 struct wakeup_source fdvt_wake_lock;
-#else
-struct wake_lock fdvt_wake_lock;
 #endif
 
 #include <smi_public.h>
@@ -283,7 +279,7 @@ void FDVT_basic_config(void)
 	FDVT_WR32(0x66553520, FDVT_INVG0);
 	FDVT_WR32(0xB8A28D79, FDVT_INVG1);
 	FDVT_WR32(0xFFF4E7CF, FDVT_INVG2);
-	FDVT_WR32(0x01D10203, FD_FNUM_0);
+	FDVT_WR32(0x02310231, FD_FNUM_0);
 	FDVT_WR32(0x02A10213, FD_FNUM_1);
 	FDVT_WR32(0x03F102B1, FD_FNUM_2);
 	FDVT_WR32(0x046103C1, FD_FNUM_3);
@@ -291,7 +287,7 @@ void FDVT_basic_config(void)
 	FDVT_WR32(0x01D70173, VT_FNUM_1);
 	FDVT_WR32(0x02C201E2, VT_FNUM_2);
 	FDVT_WR32(0x031002A0, VT_FNUM_3);
-	FDVT_WR32(0x00600060, FE_FNUM_0);
+	FDVT_WR32(0x00180018, FE_FNUM_0);
 	FDVT_WR32(0x00000000, FE_FNUM_1);
 	FDVT_WR32(0x00000000, FE_FNUM_2);
 	FDVT_WR32(0x00000000, FE_FNUM_3);
@@ -304,7 +300,7 @@ void FDVT_basic_config(void)
 	FDVT_WR32(0x00000000, LD_BADR_6);
 	FDVT_WR32(0x00000000, LD_BADR_7);
 	FDVT_WR32(0x3F000000, FDVT_RMAP_0);
-	FDVT_WR32(0x01230101, FDVT_RMAP_1);
+	FDVT_WR32(0x05230401, FDVT_RMAP_1);
 	FDVT_WR32(0x000F010B, FDVT_FD_SET);
 	FDVT_WR32(0x00000000, FDVT_FD_CON_BASE_ADR);
 	FDVT_WR32(0x00000011, FDVT_GFD_SKIP);
@@ -426,7 +422,7 @@ static int mt_fdvt_clk_ctrl(int en)
 
 void FaceDetecteConfig(void)
 {
-	FDVT_WR32(0x01D10203, FD_FNUM_0);
+	FDVT_WR32(0x02310231, FD_FNUM_0);
 	FDVT_WR32(0x02A10213, FD_FNUM_1);
 	FDVT_WR32(0x03F102B1, FD_FNUM_2);
 	FDVT_WR32(0x046103C1, FD_FNUM_3);
@@ -434,7 +430,7 @@ void FaceDetecteConfig(void)
 	FDVT_WR32(0x01D70173, VT_FNUM_1);
 	FDVT_WR32(0x02C201E2, VT_FNUM_2);
 	FDVT_WR32(0x031002A0, VT_FNUM_3);
-	FDVT_WR32(0x00600060, FE_FNUM_0);
+	FDVT_WR32(0x00180018, FE_FNUM_0);
 	FDVT_WR32(0x00000000, FE_FNUM_1);
 	FDVT_WR32(0x00000000, FE_FNUM_2);
 	FDVT_WR32(0x00000000, FE_FNUM_3);
@@ -923,18 +919,14 @@ static int FDVT_open(struct inode *inode, struct file *file)
 	g_drvOpened = 1;
 	spin_unlock(&g_spinLock);
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 	__pm_stay_awake(&fdvt_wake_lock);
-#else
-	wake_lock(&fdvt_wake_lock);
 #endif
 
 	mt_fdvt_clk_ctrl(1);
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 	__pm_relax(&fdvt_wake_lock);
-#else
-	wake_unlock(&fdvt_wake_lock);
 #endif
 
 	if (pBuff != NULL)
@@ -993,18 +985,14 @@ static int FDVT_release(struct inode *inode, struct file *file)
 	FDVT_WR32(0x00000000, FDVT_INT_EN);
 	g_FDVTIRQ = ioread32((void *)FDVT_INT);
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 	__pm_stay_awake(&fdvt_wake_lock);
-#else
-	wake_lock(&fdvt_wake_lock);
 #endif
 
 	mt_fdvt_clk_ctrl(0);
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 	__pm_relax(&fdvt_wake_lock);
-#else
-	wake_unlock(&fdvt_wake_lock);
 #endif
 
 	spin_lock(&g_spinLock);
@@ -1215,13 +1203,8 @@ static int FDVT_probe(struct platform_device *dev)
 	/* Initialize waitqueue */
 	init_waitqueue_head(&g_FDVTWQ);
 
-#ifdef CONFIG_PM_WAKELOCKS
-			wakeup_source_init(&fdvt_wake_lock,
-							"fdvt_lock_wakelock");
-#else
-			wake_lock_init(&fdvt_wake_lock,
-							WAKE_LOCK_SUSPEND,
-							"fdvt_lock_wakelock");
+#ifdef CONFIG_PM_SLEEP
+	wakeup_source_init(&fdvt_wake_lock, "fdvt_lock_wakelock");
 #endif
 
 	log_dbg("[FDVT_DEBUG] %s Done\n", __func__);
@@ -1237,18 +1220,14 @@ static int FDVT_remove(struct platform_device *dev)
 	FDVT_WR32(0x00000000, FDVT_INT_EN);
 	g_FDVTIRQ = ioread32((void *)FDVT_INT);
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 	__pm_stay_awake(&fdvt_wake_lock);
-#else
-	wake_lock(&fdvt_wake_lock);
 #endif
 
 	mt_fdvt_clk_ctrl(0);
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 	__pm_relax(&fdvt_wake_lock);
-#else
-	wake_unlock(&fdvt_wake_lock);
 #endif
 
 	device_destroy(FDVT_class, FDVT_devno);

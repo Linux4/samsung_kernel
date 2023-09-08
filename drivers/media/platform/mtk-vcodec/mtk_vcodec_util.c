@@ -22,6 +22,11 @@
 #include "mtk_vcodec_util.h"
 #include "mtk_vcu.h"
 #include "mtk_vcodec_dec.h"
+#include "vdec_drv_if.h"
+#include "venc_drv_if.h"
+
+#define LOG_INFO_SIZE 64
+#define MAX_SUPPORTED_LOG_PARAMS_COUNT 12
 
 /* For encoder, this will enable logs in venc/*/
 bool mtk_vcodec_dbg;
@@ -116,23 +121,24 @@ void mtk_vcodec_mem_free(struct mtk_vcodec_ctx *data,
 EXPORT_SYMBOL(mtk_vcodec_mem_free);
 
 void mtk_vcodec_set_curr_ctx(struct mtk_vcodec_dev *dev,
-	struct mtk_vcodec_ctx *ctx)
+	struct mtk_vcodec_ctx *ctx, unsigned int hw_id)
 {
 	unsigned long flags;
 
 	spin_lock_irqsave(&dev->irqlock, flags);
-	dev->curr_ctx = ctx;
+	dev->curr_dec_ctx[hw_id] = ctx;
 	spin_unlock_irqrestore(&dev->irqlock, flags);
 }
 EXPORT_SYMBOL(mtk_vcodec_set_curr_ctx);
 
-struct mtk_vcodec_ctx *mtk_vcodec_get_curr_ctx(struct mtk_vcodec_dev *dev)
+struct mtk_vcodec_ctx *mtk_vcodec_get_curr_ctx(struct mtk_vcodec_dev *dev,
+	unsigned int hw_id)
 {
 	unsigned long flags;
 	struct mtk_vcodec_ctx *ctx;
 
 	spin_lock_irqsave(&dev->irqlock, flags);
-	ctx = dev->curr_ctx;
+	ctx = dev->curr_dec_ctx[hw_id];
 	spin_unlock_irqrestore(&dev->irqlock, flags);
 	return ctx;
 }
@@ -143,7 +149,7 @@ struct vdec_fb *mtk_vcodec_get_fb(struct mtk_vcodec_ctx *ctx)
 {
 	struct vb2_buffer *dst_buf, *src_buf;
 	struct vdec_fb *pfb;
-	struct mtk_video_dec_buf *dst_buf_info, *src_buf_info;
+	struct mtk_video_dec_buf *dst_buf_info;
 	struct vb2_v4l2_buffer *dst_vb2_v4l2, *src_vb2_v4l2;
 	int i;
 
@@ -155,11 +161,10 @@ struct vdec_fb *mtk_vcodec_get_fb(struct mtk_vcodec_ctx *ctx)
 	/* for getting timestamp*/
 	src_buf = v4l2_m2m_next_src_buf(ctx->m2m_ctx);
 	src_vb2_v4l2 = container_of(src_buf, struct vb2_v4l2_buffer, vb2_buf);
-	src_buf_info = container_of(src_vb2_v4l2, struct mtk_video_dec_buf, vb);
 
 	mtk_v4l2_debug_enter();
 	dst_buf = v4l2_m2m_next_dst_buf(ctx->m2m_ctx);
-	if (dst_buf) {
+	if (dst_buf != NULL) {
 		dst_vb2_v4l2 = container_of(
 			dst_buf, struct vb2_v4l2_buffer, vb2_buf);
 		dst_buf_info = container_of(
@@ -168,6 +173,7 @@ struct vdec_fb *mtk_vcodec_get_fb(struct mtk_vcodec_ctx *ctx)
 		pfb->num_planes = dst_vb2_v4l2->vb2_buf.num_planes;
 		pfb->index = dst_buf->index;
 
+		mutex_lock(&ctx->buf_lock);
 		for (i = 0; i < dst_vb2_v4l2->vb2_buf.num_planes; i++) {
 			pfb->fb_base[i].va = vb2_plane_vaddr(dst_buf, i);
 #ifdef CONFIG_VB2_MEDIATEK_DMA_SG
@@ -180,29 +186,31 @@ struct vdec_fb *mtk_vcodec_get_fb(struct mtk_vcodec_ctx *ctx)
 			pfb->fb_base[i].size = ctx->picinfo.fb_sz[i];
 			pfb->fb_base[i].length = dst_buf->planes[i].length;
 			pfb->fb_base[i].dmabuf = dst_buf->planes[i].dbuf;
+			if (dst_buf_info->used == false) {
+				get_file(dst_buf->planes[i].dbuf->file);
+				mtk_v4l2_debug(4, "[Ref cnt] id=%d Ref get dma %p", dst_buf->index,
+					dst_buf->planes[i].dbuf);
+			}
 		}
-
 		pfb->status = 0;
-		mtk_v4l2_debug(1, "[%d] idx=%d pfb=0x%p VA=%p dma_addr[0]=%p ad dma_addr[1]=%p Size=%zx fd:%x",
-				ctx->id, dst_buf->index, pfb,
-				pfb->fb_base[0].va,
-				&pfb->fb_base[0].dma_addr,
-				&pfb->fb_base[1].dma_addr,
-				pfb->fb_base[0].size,
-				dst_buf->planes[0].m.fd);
-
-		dst_buf_info->vb.vb2_buf.timestamp
-			= src_buf_info->vb.vb2_buf.timestamp;
-		dst_buf_info->vb.timecode
-			= src_buf_info->vb.timecode;
-		mutex_lock(&ctx->buf_lock);
 		dst_buf_info->used = true;
 		mutex_unlock(&ctx->buf_lock);
-		dst_buf = v4l2_m2m_dst_buf_remove(ctx->m2m_ctx);
-		mtk_v4l2_debug(8, "[%d] index=%d, num_rdy_bufs=%d\n", ctx->id,
-			dst_buf->index,
-			v4l2_m2m_num_dst_bufs_ready(ctx->m2m_ctx));
 
+		mtk_v4l2_debug(1, "[%d] id=%d pfb=0x%p %llx VA=%p dma_addr[0]=%lx dma_addr[1]=%lx Size=%zx fd:%x, dma_general_buf = %p, general_buf_fd = %d",
+				ctx->id, dst_buf->index, pfb, (unsigned long long)pfb,
+				pfb->fb_base[0].va,
+				(unsigned long)pfb->fb_base[0].dma_addr,
+				(unsigned long)pfb->fb_base[1].dma_addr,
+				pfb->fb_base[0].size,
+				dst_buf->planes[0].m.fd,
+				pfb->dma_general_buf,
+				pfb->general_buf_fd);
+
+		dst_buf = v4l2_m2m_dst_buf_remove(ctx->m2m_ctx);
+		if (dst_buf != NULL)
+			mtk_v4l2_debug(8, "[%d] index=%d, num_rdy_bufs=%d\n",
+				ctx->id, dst_buf->index,
+				v4l2_m2m_num_dst_bufs_ready(ctx->m2m_ctx));
 	} else {
 		mtk_v4l2_err("[%d] No free framebuffer in v4l2!!\n", ctx->id);
 		pfb = NULL;
@@ -212,4 +220,94 @@ struct vdec_fb *mtk_vcodec_get_fb(struct mtk_vcodec_ctx *ctx)
 	return pfb;
 }
 EXPORT_SYMBOL(mtk_vcodec_get_fb);
+
+
+void v4l2_m2m_buf_queue_check(struct v4l2_m2m_ctx *m2m_ctx,
+		void *vbuf)
+{
+	struct v4l2_m2m_buffer *b = container_of(vbuf,
+				struct v4l2_m2m_buffer, vb);
+	mtk_v4l2_debug(8, "[Debug] b %p b->list.next %p prev %p %p %p\n",
+		b, b->list.next, b->list.prev,
+		LIST_POISON1, LIST_POISON2);
+
+	if (WARN_ON(IS_ERR_OR_NULL(m2m_ctx) ||
+		(b->list.next != LIST_POISON1 && b->list.next) ||
+		(b->list.prev != LIST_POISON2 && b->list.prev))) {
+		v4l2_aee_print("b %p next %p prev %p already in rdyq %p %p\n",
+			b, b->list.next, b->list.prev,
+			LIST_POISON1, LIST_POISON2);
+		return;
+	}
+	v4l2_m2m_buf_queue(m2m_ctx, vbuf);
+}
+EXPORT_SYMBOL(v4l2_m2m_buf_queue_check);
+
+void mtk_vcodec_set_log(struct mtk_vcodec_ctx *ctx, char *val)
+{
+	int i, argc = 0;
+	//char argv[MAX_SUPPORTED_LOG_PARAMS_COUNT * 2][LOG_INFO_SIZE] = {0};
+	char *argv[MAX_SUPPORTED_LOG_PARAMS_COUNT * 2];
+	char *temp = NULL;
+	char *token = NULL;
+	int max_cpy_len = 0;
+	long temp_val = 0;
+	char vcu_log[LOG_INFO_SIZE] = {0};
+	struct venc_enc_param enc_prm;
+
+	pr_info("%s: %s", __func__, val);
+
+	if (val == NULL) {
+		mtk_v4l2_err("cannot set log due to input is null");
+		return;
+	}
+
+	for (i = 0; i < MAX_SUPPORTED_LOG_PARAMS_COUNT * 2; i++)
+		argv[i] = kzalloc(LOG_INFO_SIZE, GFP_KERNEL);
+
+	temp = val;
+	for (token = strsep(&temp, " "); token != NULL; token = strsep(&temp, " ")) {
+		max_cpy_len = strnlen(token, LOG_INFO_SIZE - 1);
+		strncpy(argv[argc], token, max_cpy_len);
+		argv[argc][max_cpy_len] = '\0';
+		argc++;
+	}
+
+	for (i = 0; i < (argc >= MAX_SUPPORTED_LOG_PARAMS_COUNT * 2
+			? MAX_SUPPORTED_LOG_PARAMS_COUNT * 2 : argc); i++) {
+		if (strcmp("-mtk_vcodec_dbg", argv[i]) == 0) {
+			if (kstrtol(argv[++i], 0, &temp_val) == 0)
+				mtk_vcodec_dbg = temp_val;
+		} else if (strcmp("-mtk_vcodec_perf", argv[i]) == 0) {
+			if (kstrtol(argv[++i], 0, &temp_val) == 0)
+				mtk_vcodec_perf = temp_val;
+		} else if (strcmp("-mtk_v4l2_dbg_level", argv[i]) == 0) {
+			if (kstrtol(argv[++i], 0, &temp_val) == 0)
+				mtk_v4l2_dbg_level = temp_val;
+		} else {
+			memset(vcu_log, 0x00, LOG_INFO_SIZE);
+			snprintf(vcu_log, LOG_INFO_SIZE, "%s %s", argv[i], argv[i+1]);
+			if (ctx->type == MTK_INST_DECODER) {
+				vdec_if_init(ctx, V4L2_CID_MPEG_MTK_LOG);
+				vdec_if_set_param(ctx, SET_PARAM_DEC_LOG, vcu_log);
+			} else {
+				memset(&enc_prm, 0, sizeof(enc_prm));
+				enc_prm.log = vcu_log;
+				venc_if_init(ctx, V4L2_CID_MPEG_MTK_LOG);
+				venc_if_set_param(ctx, VENC_SET_PARAM_LOG, &enc_prm);
+			}
+			i++;
+		}
+	}
+
+	for (i = 0; i < MAX_SUPPORTED_LOG_PARAMS_COUNT * 2; i++) {
+		if (argv[i] != NULL)
+			kfree(argv[i]);
+	}
+
+	pr_info("----------------Debug Config ----------------\n");
+	pr_info("mtk_vcodec_dbg: %d\n", mtk_vcodec_dbg);
+	pr_info("mtk_vcodec_perf: %d\n", mtk_vcodec_perf);
+	pr_info("mtk_v4l2_dbg_level: %d\n", mtk_v4l2_dbg_level);
+}
 

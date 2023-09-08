@@ -57,10 +57,6 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/timer.h>
 
-#ifdef CONFIG_MTK_SCHED_MONITOR
-#include "mtk_sched_mon.h"
-#endif
-
 #ifdef CONFIG_DEBUG_OBJECTS_TIMERS
 #include <mt-plat/aee.h>
 
@@ -1304,6 +1300,7 @@ static void call_timer_fn(struct timer_list *timer, void (*fn)(unsigned long),
 			  unsigned long data)
 {
 	int count = preempt_count();
+	unsigned long long ts;
 
 #ifdef CONFIG_LOCKDEP
 	/*
@@ -1325,13 +1322,9 @@ static void call_timer_fn(struct timer_list *timer, void (*fn)(unsigned long),
 	lock_map_acquire(&lockdep_map);
 
 	trace_timer_expire_entry(timer);
-#ifdef CONFIG_MTK_SCHED_MONITOR
-	mt_trace_sft_start(fn);
-#endif
+	check_start_time(ts);
 	fn(data);
-#ifdef CONFIG_MTK_SCHED_MONITOR
-	mt_trace_sft_end(fn);
-#endif
+	check_process_time("timer %ps", ts, fn);
 	trace_timer_expire_exit(timer);
 
 	lock_map_release(&lockdep_map);
@@ -1600,21 +1593,23 @@ void timer_clear_idle(void)
 static int collect_expired_timers(struct timer_base *base,
 				  struct hlist_head *heads)
 {
+	unsigned long now = READ_ONCE(jiffies);
+
 	/*
 	 * NOHZ optimization. After a long idle sleep we need to forward the
 	 * base to current jiffies. Avoid a loop by searching the bitfield for
 	 * the next expiring timer.
 	 */
-	if ((long)(jiffies - base->clk) > 2) {
+	if ((long)(now - base->clk) > 2) {
 		unsigned long next = __next_timer_interrupt(base);
 
 		/*
 		 * If the next timer is ahead of time forward to current
 		 * jiffies, otherwise forward to the next expiry time:
 		 */
-		if (time_after(next, jiffies)) {
+		if (time_after(next, now)) {
 			/* The call site will increment clock! */
-			base->clk = jiffies - 1;
+			base->clk = now - 1;
 			return 0;
 		}
 		base->clk = next;

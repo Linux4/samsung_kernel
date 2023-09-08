@@ -351,7 +351,8 @@ int __filemap_fdatawrite_range(struct address_space *mapping, loff_t start,
 		.range_end = end,
 	};
 
-	if (!mapping_cap_writeback_dirty(mapping))
+	if (!mapping_cap_writeback_dirty(mapping) ||
+	    !mapping_tagged(mapping, PAGECACHE_TAG_DIRTY))
 		return 0;
 
 	wbc_attach_fdatawrite_inode(&wbc, mapping->host);
@@ -2425,9 +2426,9 @@ static noinline void tracing_mark_write(bool start, struct file *file, pgoff_t o
 #define trace_fault_file_path_end(...) tracing_mark_write(0, ##__VA_ARGS__)
 
 #if CONFIG_MMAP_READAROUND_LIMIT == 0
-int mmap_readaround_limit = (VM_MAX_READAHEAD / 4); 		/* page */
+int mmap_readaround_limit = (VM_MAX_READAHEAD / 4);		/* page */
 #else
-int mmap_readaround_limit = CONFIG_MMAP_READAROUND_LIMIT; 	/* page */
+int mmap_readaround_limit = CONFIG_MMAP_READAROUND_LIMIT;	/* page */
 #endif
 
 /*
@@ -2991,6 +2992,9 @@ inline ssize_t generic_write_checks(struct kiocb *iocb, struct iov_iter *from)
 	struct inode *inode = file->f_mapping->host;
 	unsigned long limit = rlimit(RLIMIT_FSIZE);
 	loff_t pos;
+
+	if (IS_SWAPFILE(inode))
+		return -ETXTBSY;
 
 	if (!iov_iter_count(from))
 		return 0;

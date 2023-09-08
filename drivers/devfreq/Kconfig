@@ -103,7 +103,8 @@ config ARM_TEGRA_DEVFREQ
 
 config ARM_RK3399_DMC_DEVFREQ
 	tristate "ARM RK3399 DMC DEVFREQ Driver"
-	depends on ARCH_ROCKCHIP
+	depends on (ARCH_ROCKCHIP && HAVE_ARM_SMCCC) || \
+		(COMPILE_TEST && HAVE_ARM_SMCCC)
 	select DEVFREQ_EVENT_ROCKCHIP_DFI
 	select DEVFREQ_GOV_SIMPLE_ONDEMAND
 	select PM_DEVFREQ_EVENT
@@ -119,6 +120,30 @@ config MTK_QOS_SUPPORT
 	---help---
 	  This kernel config can be used to enable MTK QOS support.
 	  If unsure, say N.
+
+config MTK_DVFSRC_MT6833_PRETEST
+	tristate "MTK_DVFSRC_MT6833_PRETEST"
+	help
+	  This is test for pre-testing for mt6833 on MT6853 phone
+	  It just for test, and it will remove after mt6833 chip
+	  is ready.
+	  If unsure, say N.
+
+config MTK_DVFSRC_MT6877_PRETEST
+	tristate "MTK_DVFSRC_MT6877_PRETEST"
+	help
+	  This is test for pre-testing for mt6877 on MT6853 phone
+	  It just for test, and it will remove after mt6877 chip
+	  is ready.
+	  If unsure, say N.
+
+config MTK_DVFSRC_MT6781_PRETEST
+	tristate "MTK_DVFSRC_MT6781_PRETEST"
+	help
+	  This is test for pre-testing for mt6781 on MT6785 phone
+	  It just for test, and it will remove after mt6781 chip
+	  is ready.
+	  If unsure, say N
 
 source "drivers/devfreq/event/Kconfig"
 

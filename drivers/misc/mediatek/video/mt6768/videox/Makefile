@@ -36,7 +36,8 @@ obj-$(CONFIG_MTK_FB) += mtkfb_console.o		\
 			disp_partial.o		\
 			mtk_ovl.o		\
 			layering_rule.o \
-			frame_queue.o
+			frame_queue.o \
+			mtk_notify.o
 
 #ifneq ($(CONFIG_MTK_FB), y) # already in video/common/
 #obj-y += mtkfb_dummy.o
@@ -54,9 +55,14 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/video/include/     \
              -I$(srctree)/drivers/misc/mediatek/base/power/include \
              -I$(srctree)/drivers/misc/mediatek/base/power/include/spm_v2 \
              -I$(srctree)/drivers/misc/mediatek/smi/ \
+	     -I$(srctree)/drivers/misc/mediatek/mmdvfs/ \
              -I$(srctree)/drivers/misc/mediatek/dramc/$(MTK_PLATFORM) \
              -I$(srctree)/drivers/misc/mediatek/gpu/ged/include/ \
              -I$(srctree)/drivers/iommu/
+
+ifeq ($(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM),y)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/trusted_mem/public/
+endif
 
 subdir-ccflags-y += -I$(srctree)/drivers/staging/android/ion \
 		    -I$(srctree)/drivers/staging/android/ion/mtk
@@ -102,7 +108,5 @@ endif
 ifeq ($(MTK_MIRAVISION_SUPPORT), yes)
     ccflags-y += -DCONFIG_FOR_SOURCE_PQ
 endif
-
-ccflags-y += -DLCM_SET_DISPLAY_ON_DELAY
 
 ccflags-$(CONFIG_MTK_LCM_DEVICE_TREE_SUPPORT) += -DMTK_LCM_DEVICE_TREE_SUPPORT

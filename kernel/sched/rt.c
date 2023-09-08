@@ -1543,7 +1543,9 @@ select_task_rq_rt(struct task_struct *p, int cpu, int sd_flag, int flags,
 	rcu_read_unlock();
 
 out:
+#ifdef CONFIG_MTK_SCHED_BOOST
 	cpu = select_task_prefer_cpu(p, cpu);
+#endif
 	return cpu;
 }
 
@@ -2587,9 +2589,12 @@ const struct sched_class rt_sched_class = {
 #ifdef CONFIG_UCLAMP_TASK
 	.uclamp_enabled		= 1,
 #endif
+
+#ifdef CONFIG_SCHED_WALT
+	.fixup_cumulative_runnable_avg = walt_fixup_cumulative_runnable_avg,
+#endif
 };
 
-#ifdef CONFIG_RT_GROUP_SCHED
 /*
  * Ensure that the real time constraints are schedulable.
  */
@@ -2603,7 +2608,7 @@ bool is_rt_throttle(int cpu)
 	bool rt_throttle = false;
 
 	for_each_rt_rq(rt_rq, iter, rq) {
-		if (rt_rq->rt_throttled) {
+		if (rt_rq_throttled(rt_rq)) {
 			rt_throttle = true;
 			break;
 		}
@@ -2612,6 +2617,7 @@ bool is_rt_throttle(int cpu)
 }
 #endif
 
+#ifdef CONFIG_RT_GROUP_SCHED
 /* Must be called with tasklist_lock held */
 static inline int tg_has_rt_tasks(struct task_group *tg)
 {

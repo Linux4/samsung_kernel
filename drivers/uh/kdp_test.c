@@ -1,12 +1,18 @@
 #include <linux/module.h>
 #include <linux/proc_fs.h>
 #include <linux/mm.h>
-#include <linux/rkp.h>
 #include <linux/uh.h>
 #include <linux/nsproxy.h>
 #include <linux/security.h>
 #include <../../fs/mount.h>
 #include <linux/sched/signal.h>
+#ifdef CONFIG_RUSTUH_KDP
+#include <linux/rustkdp.h>
+#else
+#include <linux/kdp.h>
+#endif
+/* Never enable this flag*/
+//#define CONFIG_KDP_SEC_TEST
 
 struct task_security_struct {
 	u32 osid;               /* SID prior to last execve */
@@ -18,143 +24,164 @@ struct task_security_struct {
 	void *bp_cred;
 };
 
-enum kdp_test{
+enum __KDP_TEST {
 	CMD_ID_CRED = 0,
 	CMD_ID_SEC_CONTEXT,
 	CMD_ID_NS,
 };
 
-#define KDP_BUF_SIZE	4096*2
+#define KDP_PA_READ		0
+#define KDP_PA_WRITE	1
+
+/* BUF define */
+#define KDP_BUF_SIZE	8192
 #define KDP_LINE_MAX	80
+static char kdp_test_buf[KDP_BUF_SIZE];
+static unsigned long kdp_test_len = 0;
 
-/* Never enable this flag*/
-//#define CONFIG_KDP_SEC_TEST
+static DEFINE_RAW_SPINLOCK(par_lock);
+static u64 *ha1;
 
-char kdp_test_buf[KDP_BUF_SIZE];
-unsigned long kdp_test_len = 0;
-
-void kdp_print(const char *fmt, ...)
+static void kdp_print(const char *fmt, ...)
 {
 	va_list aptr;
 
-	if (kdp_test_len > KDP_BUF_SIZE-KDP_LINE_MAX)
+	if (kdp_test_len > KDP_BUF_SIZE - KDP_LINE_MAX)
 		return;
+
 	va_start(aptr, fmt);
-	kdp_test_len += vsprintf(kdp_test_buf+kdp_test_len, fmt, aptr);
+	kdp_test_len += vsprintf(kdp_test_buf + kdp_test_len, fmt, aptr);
 	va_end(aptr);
 }
 
-#ifdef CONFIG_RKP_NS_PROT
-struct vfsmount *get_vfsmnt(struct task_struct *p)
+static struct vfsmount *get_vfsmnt(struct task_struct *p)
 {
-	if(!p || !(p->nsproxy) 
-		||!(p->nsproxy->mnt_ns) 
-		||!(p->nsproxy->mnt_ns->root))
+	if(!p || !(p->nsproxy) ||
+		!(p->nsproxy->mnt_ns) ||
+		!(p->nsproxy->mnt_ns->root))
 		return NULL;
 
 	return p->nsproxy->mnt_ns->root->mnt;
 }
-#endif /* CONFIG_RKP_NS_PROT */ 
+#ifdef CONFIG_RUSTUH_KDP
+static bool hyp_check_page_ro(u64 va)
+{
+	unsigned long flags;
+	u64 par = 0;
 
+	raw_spin_lock_irqsave(&par_lock, flags);
+
+	uh_call(UH_APP_KDP, TEST_GET_PAR, (unsigned long)va, KDP_PA_WRITE, 0, 0);
+	par = *ha1;
+	raw_spin_unlock_irqrestore(&par_lock, flags);
+
+	return (par & 0x1)? true: false;
+}
+#else
 extern bool hyp_check_page_ro(u64 va);
+#endif
 static int test_case_kdp_ro(int cmd_id)
 {
 	struct task_struct *p = NULL;
-	u64 ro = 0, rw = 0,dst;
+	u64 ro = 0, rw = 0, dst;
 
 	for_each_process(p) {
 		switch(cmd_id) {
-		case CMD_ID_CRED: 
-			/*Here dst points to struct cred*/
-			dst =(u64)__task_cred(p);
+		case CMD_ID_CRED:
+			/* Here dst points to struct cred */
+			dst = (u64)__task_cred(p);
 			break;
-		case CMD_ID_SEC_CONTEXT: 
-			/*Here dst points to process security context*/
-			dst =(u64)__task_cred(p)->security;
+		case CMD_ID_SEC_CONTEXT:
+			/* Here dst points to process security context */
+			dst = (u64)__task_cred(p)->security;
 			break;
-#ifdef CONFIG_RKP_NS_PROT
-		case CMD_ID_NS: 
-			/*Here dst points to process security context*/
+		case CMD_ID_NS:
+			/* Here dst points to process security context */
 			dst = (u64)get_vfsmnt(p);
 			break;
-#endif /* CONFIG_RKP_NS_PROT */ 
 		}
-		if(!dst)
-		    continue;
 
-		if (hyp_check_page_ro((u64)dst)) {
+		if(!dst)
+			continue;
+
+		if (hyp_check_page_ro(dst))
 			ro++;
-		} else {
+		else
 			rw++;
-		}
 	}
-	kdp_print("ro =%llu, rw =%llu\n", ro, rw);
-	return rw ? 1 : 0;
+
+	kdp_print("ro: %llu, rw: %llu\n", ro, rw);
+	return rw? 1: 0;
 }
 
+static int cred_match(struct task_struct *p, const struct cred *cred)
+{
+	struct mm_struct *mm = p->mm;
+	pgd_t *tgt = NULL;
+
+	if(cred->bp_task != p) {
+		kdp_print("KDP_WARN task: #%s# cred: %p, task: %p bp_task: %p\n",
+					p->comm,cred, p,cred->bp_task);
+		return 0;
+	}
+
+	if(!(in_interrupt() || in_softirq()))
+		return 1;
+
+	tgt = mm? mm->pgd: init_mm.pgd;
+	if(cred->bp_pgd != tgt) {
+		kdp_print("KDP_WARN task: #%s# cred: %p, mm: %p, init_mm: %p, pgd: %p bp_pgd: %p \n",
+					p->comm,cred,mm,init_mm.pgd,tgt,cred->bp_pgd);
+		return 0;
+	}
+
+	return 1;
+}
+
+static int sec_context_match(const struct cred *cred)
+{
+	struct task_security_struct *tsec = (struct task_security_struct *)cred->security;
+
+	if((u64)tsec->bp_cred != (u64)cred)
+		return 0;
+
+	return 1;
+}
+
+static int test_case_match_bp(int cmd_id)
+{
+	struct task_struct *p = NULL;
+	u64 match = 0, mismatch = 0 , ret = 0;
+
+	for_each_process(p) {
+		switch(cmd_id) {
+		case CMD_ID_CRED:
+			/*Here dst points to struct cred*/
+			ret = cred_match(p,__task_cred(p));
+			break;
+		case CMD_ID_SEC_CONTEXT:
+			/*Here dst points to process security context*/
+			ret = sec_context_match(__task_cred(p));
+			break;
+		}
+		ret? match++: mismatch++;
+	}
+	kdp_print("match: %llu, mismatch: %llu\n", match, mismatch);
+	return mismatch? 1: 0;
+}
 
 static int test_case_cred_ro(void)
 {
 	kdp_print("CRED PROTECTION ");
 	return test_case_kdp_ro(CMD_ID_CRED);
 }
+
 static int test_case_sec_context_ro(void)
 {
 	kdp_print("SECURITY CONTEXT PROTECTION ");
 	return test_case_kdp_ro(CMD_ID_SEC_CONTEXT);
 }
 
-
-static int cred_match(struct task_struct *p,const struct cred *cred) 
-{
-	struct mm_struct *mm = p->mm;
-	pgd_t *tgt = NULL;
-
-	if(cred->bp_task != p) {
-		kdp_print("KDP_WARN task= #%s# cred=%p,task = %p bp_task = %p\n",p->comm,cred, p,cred->bp_task);
-		return 0;
-	}
-	if(!( in_interrupt() || in_softirq())) {
-		return 1;
-	}
-	tgt = mm?mm->pgd:init_mm.pgd;
-	if(cred->bp_pgd != tgt) {
-		kdp_print("KDP_WARN task= #%s# cred=%p,mm = %p,init_mm = %p,pgd = %p bp_pgd= %p \n",p->comm,cred,mm,init_mm.pgd,tgt,cred->bp_pgd);
-		return 0;
-	}
-	return 1;
-}
-
-static int sec_context_match(const struct cred *cred) 
-{
-	struct task_security_struct *tsec = (struct task_security_struct *)cred->security;
-    
-	if((u64)tsec->bp_cred != (u64)cred) {
-		return 0;
-	}
-	return 1;
-}
-static int test_case_match_bp(int cmd_id)
-{
-	struct task_struct *p = NULL;
-	u64  match = 0, mismatch = 0 , ret  = 0;
-
-	for_each_process(p) {
-		switch(cmd_id) {
-		case CMD_ID_CRED: 
-			/*Here dst points to struct cred*/
-			ret = cred_match(p,__task_cred(p));
-			break;
-		case CMD_ID_SEC_CONTEXT: 
-			/*Here dst points to process security context*/
-			ret = sec_context_match(__task_cred(p));
-			break;
-		}
-		ret ? match++ : mismatch++;
-	}
-	kdp_print("match =%llu, mismatch =%llu\n", match, mismatch);
-	return mismatch ? 1 : 0;
-}
 static int test_case_cred_match_bp(void)
 {
 	kdp_print("CRED Back Poiner check ");
@@ -167,25 +194,20 @@ static int test_case_sec_context_match_bp(void)
 	return test_case_match_bp(CMD_ID_SEC_CONTEXT);
 }
 
-
-#ifdef CONFIG_RKP_NS_PROT
 static int test_case_ns_ro(void)
 {
 	kdp_print("NAMESPACE PROTECTION ");
 	return test_case_kdp_ro(CMD_ID_NS);
 }
-#endif /* CONFIG_RKP_NS_PROT */ 
 
 #ifdef CONFIG_KDP_SEC_TEST
-enum 
-{
+enum {
 	CMD_ID_COMMIT_CRED,
 	CMD_ID_OVERRIDE_CRED,
 	CMD_ID_REVERT_CRED,
 };
 
-enum 
-{
+enum {
 	CMD_ID_SEC_WRITE_CRED,
 	CMD_ID_SEC_WRITE_SP,
 	CMD_ID_SEC_DIRECT_PE,
@@ -194,17 +216,16 @@ enum
 	CMD_ID_SEC_INDIRECT_PE_REVERT,
 };
 
-
 #define PROCFS_MAX_SIZE	64
-void write_ro(u64 *p) 
+void write_ro(u64 *p)
 {
 	memcpy(p,"c",1);
 }
-static void sec_test_cred(void) 
+static void sec_test_cred(void)
 {
 	write_ro((u64 *)current_cred());
 }
-static void sec_test_sp(void) 
+static void sec_test_sp(void)
 {
 	write_ro((u64 *)current_cred()->security);
 }
@@ -221,19 +242,21 @@ struct cred *get_root_cred(void)
 
 	return cred;
 }
-static void sec_test_cred_direct_pe(void) 
+static void sec_test_cred_direct_pe(void)
 {
 	struct cred *rcred;
 
 	rcred = get_root_cred();
 	current->cred = rcred;
 }
-static void sec_test_cred_indirect_pe(int cmd_id) 
+
+static void sec_test_cred_indirect_pe(int cmd_id)
 {
 	struct cred *rcred;
 
 	rcred = get_root_cred();
-	printk("RKP_SEC_TEST #%d# BEFORE current cred uid = %llx euid = %llx gid = %llx egid = %llx Root Cred%llx\n",cmd_id,current->cred->uid.val,current->cred->euid.val,current->cred->gid.val,current->cred->egid.val,(u64)rcred);
+	printk("RKP_SEC_TEST #%d# BEFORE current cred uid = %llx euid = %llx gid = %llx egid = %llx Root Cred%llx\n",
+			cmd_id,current->cred->uid.val,current->cred->euid.val,current->cred->gid.val,current->cred->egid.val,(u64)rcred);
 
 	switch(cmd_id) {
 	case CMD_ID_COMMIT_CRED:
@@ -247,8 +270,10 @@ static void sec_test_cred_indirect_pe(int cmd_id)
 	break;
 	}
 
-	printk("RKP_SEC_TEST#%d# AFTER current cred uid = %llx euid = %llx gid = %llx egid = %llx  Root Cred %llx\n",cmd_id,current->cred->uid.val,current->cred->euid.val,current->cred->gid.val,current->cred->egid.val,(u64)rcred);
+	printk("RKP_SEC_TEST#%d# AFTER current cred uid = %llx euid = %llx gid = %llx egid = %llx  Root Cred %llx\n",
+			cmd_id,current->cred->uid.val,current->cred->euid.val,current->cred->gid.val,current->cred->egid.val,(u64)rcred);
 }
+
 ssize_t kdp_write(struct file *filep, const char __user *buffer, size_t len, loff_t *offset)
 {
 	char procfs_buffer[PROCFS_MAX_SIZE];
@@ -284,45 +309,42 @@ ssize_t kdp_write(struct file *filep, const char __user *buffer, size_t len, lof
 	return len;
 }
 #endif /* CONFIG_KDP_SEC_TEST*/
-ssize_t	kdp_read(struct file *filep, char __user *buffer, size_t count, loff_t *ppos)
+
+ssize_t kdp_read(struct file *filep, char __user *buffer, size_t count, loff_t *ppos)
 {
 	int ret = 0, temp_ret = 0, i = 0;
-	struct test_case_struct kdp_test_case[] = {
+	struct uh_app_test_case tc_funcs[] = {
 		{test_case_cred_ro,		"TEST TASK_CRED_RO"},
 		{test_case_sec_context_ro,	"TEST TASK_SECURITY_CONTEXT_RO"},
 		{test_case_cred_match_bp,	"TEST CRED_MATCH_BACKPOINTERS"},
 		{test_case_sec_context_match_bp,"TEST TASK_SEC_CONTEXT_BACKPOINTER"},
-#ifdef CONFIG_RKP_NS_PROT
 		{test_case_ns_ro,	"TEST NAMESPACE_RO"},
-#endif /* CONFIG_RKP_NS_PROT */ 
 	};
-	int tc_num = sizeof(kdp_test_case)/sizeof(struct test_case_struct);
+	int tc_num = sizeof(tc_funcs)/sizeof(struct uh_app_test_case);
 
 	static bool done = false;
 	if (done)
 		return 0;
 	done = true;
 
-
 	for (i = 0; i < tc_num; i++) {
-		kdp_print( "KDP_TEST_CASE %d ===========> RUNNING %s\n", i, kdp_test_case[i].describe);
-		temp_ret = kdp_test_case[i].fn();
+		kdp_print( "KDP_TEST_CASE %d ===========> RUNNING %s\n", i, tc_funcs[i].describe);
+		temp_ret = tc_funcs[i].fn();
 
 		if (temp_ret) {
-			kdp_print("KDP_TEST_CASE %d ===========> %s FAILED WITH %d ERRORS\n", 
-				i, kdp_test_case[i].describe, temp_ret);
+			kdp_print("KDP_TEST_CASE %d ===========> %s FAILED WITH %d ERRORS\n",
+					i, tc_funcs[i].describe, temp_ret);
 		} else {
-		kdp_print("KDP_TEST_CASE %d ===========> %s PASSED\n", i, kdp_test_case[i].describe);
+			kdp_print("KDP_TEST_CASE %d ===========> %s PASSED\n", i, tc_funcs[i].describe);
 		}
 
 		ret += temp_ret;
 	}
 
-	if (ret) {
+	if (ret)
 		kdp_print("KDP_TEST SUMMARY: FAILED WITH %d ERRORS\n", ret);
-	} else {
+	else
 		kdp_print("KDP_TEST SUMMARY: PASSED\n");
-	}
 
 	return simple_read_from_buffer(buffer, count, ppos, kdp_test_buf, kdp_test_len);
 }
@@ -336,6 +358,8 @@ static const struct file_operations kdp_proc_fops = {
 
 static int __init kdp_test_init(void)
 {
+	u64 va;
+
 #ifndef CONFIG_KDP_SEC_TEST
 	if (proc_create("kdp_test", 0444, NULL, &kdp_proc_fops) == NULL) {
 #else
@@ -345,11 +369,24 @@ static int __init kdp_test_init(void)
 		return -1;
 	}
 
+#ifdef CONFIG_RUSTUH_KDP
+	va = __get_free_page(GFP_KERNEL | __GFP_ZERO);
+	if (!va)
+		return -1;
+
+	uh_call(UH_APP_KDP, TEST_INIT, va, 0, 0, 0);
+	ha1 = (u64 *)va;
+#endif
 	return 0;
 }
 
 static void __exit kdp_test_exit(void)
 {
+#ifdef CONFIG_RUSTUH_KDP
+	uh_call(UH_APP_KDP, TEST_EXIT, (u64)ha1, 0, 0, 0);
+
+	free_page((unsigned long)ha1);
+#endif
 	remove_proc_entry("kdp_test", NULL);
 }
 

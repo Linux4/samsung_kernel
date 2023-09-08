@@ -1,18 +1,16 @@
 /*
- * Copyright (C) 2017 Samsung Electronics. All rights reserved.
+ *  Copyright (C) 2017, Samsung Electronics Co. Ltd. All Rights Reserved.
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * version 2 as published by the Free Software Foundation.
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
- */
-
-/*
- *  fingerprint sysfs class
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
  */
 
 #include "fingerprint_sysfs.h"
@@ -30,7 +28,7 @@ void set_fingerprint_attr(struct device *dev,
 
 	for (i = 0; attributes[i] != NULL; i++)
 		if ((device_create_file(dev, attributes[i])) < 0)
-			pr_err("%s: fail device_create_file (dev, attributes[%d])\n", __func__, i);
+			pr_err("%s: fail device_create_file! %d\n", __func__, i);
 }
 
 int fingerprint_register(struct device *dev, void *drvdata,
@@ -48,7 +46,7 @@ int fingerprint_register(struct device *dev, void *drvdata,
 
 	if (IS_ERR(dev)) {
 		ret = PTR_ERR(dev);
-		pr_err("%s: device_create failed! [%d]\n", __func__, ret);
+		pr_err("%s: device_create failed! %d\n", __func__, ret);
 		return ret;
 	}
 
@@ -83,8 +81,8 @@ static int __init fingerprint_class_init(void)
 	fingerprint_class = class_create(THIS_MODULE, "fingerprint");
 
 	if (IS_ERR(fingerprint_class)) {
-		pr_err("%s, create fingerprint_class is failed.\n",
-			__func__);
+		pr_err("%s, create fingerprint_class is failed.(err=%d)\n",
+			__func__, IS_ERR(fingerprint_class));
 		return PTR_ERR(fingerprint_class);
 	}
 

@@ -36,8 +36,13 @@ void sec_debug_auto_comment_log_disable(int type)
 
 void sec_debug_auto_comment_log_once(int type)
 {
+#ifdef CONFIG_MACH_MT6739
+	if (atomic_read(&(ac_idx[type].logging_entry)))
+		sec_debug_auto_comment_log_disable(type);
+#else
 	if (atomic64_read(&(ac_idx[type].logging_entry)))
 		sec_debug_auto_comment_log_disable(type);
+#endif
 	else
 		atomic_inc(&(ac_idx[type].logging_entry));
 }
@@ -47,15 +52,26 @@ static inline void sec_debug_hook_auto_comm(int type, const char *buf, size_t si
 	struct sec_debug_auto_comm_buf *p = &auto_comment_info->auto_comm_buf[type];
 	unsigned int offset = p->offset;
 
+#ifdef CONFIG_MACH_MT6739
+	if (atomic_read(&(ac_idx[type].logging_disable)))
+		return;
+#else
 	if (atomic64_read(&(ac_idx[type].logging_disable)))
 		return;
+#endif
 
 	if (offset + size > SZ_4K)
 		return;
 
+#ifdef CONFIG_MACH_MT6739
+	if (init_data[type].max_count &&
+	    (atomic_read(&(ac_idx[type].logging_count)) > init_data[type].max_count))
+		return;
+#else
 	if (init_data[type].max_count &&
 	    (atomic64_read(&(ac_idx[type].logging_count)) > init_data[type].max_count))
 		return;
+#endif
 
 	if (!(auto_comment_info->fault_flag & 1 << type)) {
 		auto_comment_info->fault_flag |= 1 << type;
@@ -75,7 +91,7 @@ static inline void sec_debug_hook_auto_comm(int type, const char *buf, size_t si
 static int sec_debug_auto_comment_init_print_buf(void)
 {
 	auto_comment_buf = (char *)phys_to_virt(sec_auto_comment_base);
-	auto_comment_info = (struct sec_debug_auto_comment *)(phys_to_virt(sec_auto_comment_base) + SZ_4K);
+	auto_comment_info = (struct sec_debug_auto_comment *)(phys_to_virt(sec_auto_comment_base) + SZ_8K);
 
 	if (!auto_comment_buf || !auto_comment_info) {
 		pr_crit("%s: no buffer for auto comment\n", __func__);
@@ -222,12 +238,7 @@ static ssize_t sec_debug_auto_comment_proc_read(struct file *file, char __user *
 		return -ENODEV;
 	}
 
-	if (reset_reason >= RR_R && reset_reason <= RR_N) {
-		pr_err("%s : reset_reason %d\n", __func__, reset_reason);
-		return -ENOENT;
-	}
-
-	if (pos >= AC_SIZE) {
+	if (pos > AC_SIZE) {
 		pr_err("%s : pos 0x%llx\n", __func__, pos);
 		return 0;
 	}

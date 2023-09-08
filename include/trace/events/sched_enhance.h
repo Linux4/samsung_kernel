@@ -94,9 +94,10 @@ TRACE_EVENT(group_norm_util,
 TRACE_EVENT(sched_share_buck,
 
 	TP_PROTO(int cpu_idx, int cid, int cap_idx, int co_buck_cid,
-			int co_buck_cap_idx),
+			int co_buck_cap_idx, unsigned long co_buck_volt),
 
-	TP_ARGS(cpu_idx, cid, cap_idx, co_buck_cid, co_buck_cap_idx),
+	TP_ARGS(cpu_idx, cid, cap_idx, co_buck_cid, co_buck_cap_idx,
+		co_buck_volt),
 
 	TP_STRUCT__entry(
 		__field(int, cpu_idx)
@@ -104,6 +105,7 @@ TRACE_EVENT(sched_share_buck,
 		__field(int, cap_idx)
 		__field(int, co_buck_cid)
 		__field(int, co_buck_cap_idx)
+		__field(unsigned long, co_buck_volt)
 	),
 
 	TP_fast_assign(
@@ -112,11 +114,13 @@ TRACE_EVENT(sched_share_buck,
 		__entry->cap_idx        = cap_idx;
 		__entry->co_buck_cid    = co_buck_cid;
 		__entry->co_buck_cap_idx = co_buck_cap_idx;
+		__entry->co_buck_volt   = co_buck_volt;
 	),
 
-	TP_printk("cpu_idx=%d cid%d=%d co_cid%d=%d",
+	TP_printk("cpu_idx=%d cid%d=%d co_cid%d=%d co_volt=%lu",
 		__entry->cpu_idx, __entry->cid, __entry->cap_idx,
-		__entry->co_buck_cid, __entry->co_buck_cap_idx)
+		__entry->co_buck_cid, __entry->co_buck_cap_idx,
+		__entry->co_buck_volt)
 );
 
 /*
@@ -737,15 +741,18 @@ TRACE_EVENT(sched_select_task_rq,
  */
 TRACE_EVENT(sched_big_task_rotation,
 
-	TP_PROTO(int src_cpu, int dst_cpu, int src_pid, int dst_pid),
+	TP_PROTO(int src_cpu, int dst_cpu, int src_pid, int dst_pid,
+		int fin, int set_uclamp),
 
-	TP_ARGS(src_cpu, dst_cpu, src_pid, dst_pid),
+	TP_ARGS(src_cpu, dst_cpu, src_pid, dst_pid, fin, set_uclamp),
 
 	TP_STRUCT__entry(
 		__field(int, src_cpu)
 		__field(int, dst_cpu)
 		__field(int, src_pid)
 		__field(int, dst_pid)
+		__field(int, fin)
+		__field(int, set_uclamp)
 	),
 
 	TP_fast_assign(
@@ -753,9 +760,53 @@ TRACE_EVENT(sched_big_task_rotation,
 		__entry->dst_cpu	= dst_cpu;
 		__entry->src_pid	= src_pid;
 		__entry->dst_pid	= dst_pid;
+		__entry->fin		= fin;
+		__entry->set_uclamp	= set_uclamp;
 	),
 
-	TP_printk("src_cpu=%d dst_cpu=%d src_pid=%d dst_pid=%d",
+	TP_printk("src_cpu=%d dst_cpu=%d src_pid=%d dst_pid=%d fin=%d set=%d",
 		__entry->src_cpu, __entry->dst_cpu,
-		__entry->src_pid, __entry->dst_pid)
+		__entry->src_pid, __entry->dst_pid,
+		__entry->fin, __entry->set_uclamp)
 );
+
+TRACE_EVENT(sched_big_task_rotation_reset,
+
+	TP_PROTO(int set_uclamp),
+
+	TP_ARGS(set_uclamp),
+
+	TP_STRUCT__entry(
+		__field(int, set_uclamp)
+	),
+
+	TP_fast_assign(
+		__entry->set_uclamp	= set_uclamp;
+	),
+
+	TP_printk("set_uclamp=%d",
+		__entry->set_uclamp)
+);
+
+#ifdef CONFIG_MTK_TASK_TURBO
+TRACE_EVENT(sched_set_user_nice,
+	TP_PROTO(struct task_struct *task, int prio, int is_turbo),
+	TP_ARGS(task, prio, is_turbo),
+	TP_STRUCT__entry(
+		__field(int, pid)
+		__array(char, comm, TASK_COMM_LEN)
+		__field(int, prio)
+		__field(int, is_turbo)
+	),
+
+	TP_fast_assign(
+		memcpy(__entry->comm, task->comm, TASK_COMM_LEN);
+		__entry->pid	  = task->pid;
+		__entry->prio	  = prio;
+		__entry->is_turbo = is_turbo;
+	),
+
+	TP_printk("comm=%s pid=%d prio=%d is_turbo=%d",
+		__entry->comm, __entry->pid, __entry->prio, __entry->is_turbo)
+)
+#endif

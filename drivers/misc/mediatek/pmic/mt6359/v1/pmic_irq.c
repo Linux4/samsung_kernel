@@ -43,7 +43,12 @@ irqreturn_t key_int_handler(int irq, void *data)
 {
 #if !defined(CONFIG_FPGA_EARLY_PORTING) && defined(CONFIG_KPD_PWRKEY_USE_PMIC)
 	struct irq_desc *desc = irq_to_desc(irq);
-	unsigned int hwirq = irqd_to_hwirq(&desc->irq_data);
+	unsigned int hwirq;
+
+	if (desc)
+		hwirq = irqd_to_hwirq(&desc->irq_data);
+	else
+		return IRQ_HANDLED;
 
 	switch (hwirq) {
 	case INT_PWRKEY:
@@ -124,8 +129,8 @@ void pmic_enable_interrupt(enum PMIC_IRQ_ENUM intNo, unsigned int en, char *str)
 	} else if (en == 0 && pmic_cb->has_requested)
 		disable_irq_nosync(irq);
 	desc = irq_to_desc(irq);
-	pr_info("[%s] intNo=%d, en=%d, depth=%d\n",
-		__func__, intNo, en, desc->depth);
+	IRQLOG("[%s] intNo=%d, en=%d, depth=%d\n",
+		__func__, intNo, en, desc ? desc->depth : -1);
 }
 
 void pmic_register_interrupt_callback(enum PMIC_IRQ_ENUM intNo,
@@ -344,6 +349,7 @@ void register_all_oc_interrupts(void)
 static void vio18_oc_int_handler(void)
 {
 	static unsigned int times;
+	int len = 0;
 #if defined(CONFIG_MTK_AEE_FEATURE)
 	char oc_str[30] = "";
 #endif
@@ -373,7 +379,10 @@ static void vio18_oc_int_handler(void)
 	pr_notice("XO_FPM_ISEL_M=0x%x\n",
 		pmic_get_register_value(PMIC_XO_FPM_ISEL_M));
 #if defined(CONFIG_MTK_AEE_FEATURE)
-	snprintf(oc_str, 30, "PMIC OC:%s", "INT_VIO18_OC");
+	len = snprintf(oc_str, 30, "PMIC OC:%s", "INT_VIO18_OC");
+	if (len < 0)
+		pr_err("[%s] error: snprintf return len < 0\n", __func__);
+
 	aee_kernel_warning(oc_str,
 			   "\nCRDISPATCH_KEY:PMIC OC\nOC Interrupt: %s",
 			   "INT_VIO18_OC");

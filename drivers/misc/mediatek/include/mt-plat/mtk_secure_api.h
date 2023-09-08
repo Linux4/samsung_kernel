@@ -243,6 +243,10 @@
 #define MTK_SIP_KERNEL_MCSI_NS_ACCESS \
 	(0x8200028B | MTK_SIP_SMC_AARCH_BIT)
 
+/* MST SMC call */
+#define MTK_SIP_KERNEL_MST_TEST_TRANSMIT \
+	(0x82000290 | MTK_SIP_SMC_AARCH_BIT)
+
 /* Pheripheral related SMC call */
 #define MTK_SIP_KERNEL_I2C_SEC_WRITE \
 	(0x820002A0 | MTK_SIP_SMC_AARCH_BIT)
@@ -254,6 +258,10 @@
 /* APU related SMC call */
 #define MTK_APU_VCORE_CG_CTL \
 	(0x820002B1 | MTK_SIP_SMC_AARCH_BIT)
+
+/* GIC related SMC call */
+#define MTK_SIP_GIC_CONTROL \
+	(0x82000501 | MTK_SIP_SMC_AARCH_BIT)
 
 /* Debug related SMC call */
 #define MTK_SIP_CCCI_CONTROL \
@@ -267,6 +275,10 @@
 #define MTK_SIP_KERNEL_TEE_CONTROL \
 	(0x82000516 | MTK_SIP_SMC_AARCH_BIT)
 
+/* AUDIO related SMC call */
+#define MTK_SIP_AUDIO_CONTROL \
+	(0x82000517 | MTK_SIP_SMC_AARCH_BIT)
+
 /* cmdq related SMC call */
 #define MTK_SIP_CMDQ_CONTROL \
 	(0x82000518 | MTK_SIP_SMC_AARCH_BIT)
@@ -275,17 +287,32 @@
 #define MTK_SIP_APUSYS_MNOC_CONTROL \
 	(0x82000519 | MTK_SIP_SMC_AARCH_BIT)
 
+#define MTK_SIP_MMSRAM_CONTROL \
+	(0x8200051D | MTK_SIP_SMC_AARCH_BIT)
+
+/* APUSYS control related SMC call */
+#define MTK_SIP_APUSYS_CONTROL \
+	(0x8200051E | MTK_SIP_SMC_AARCH_BIT)
+
+/* CACHE control related SMC call */
+#define MTK_SIP_CACHE_CONTROL \
+	(0x8200051F | MTK_SIP_SMC_AARCH_BIT)
+
+/* TMEM */
+#define MTK_SIP_TMEM_CONTROL \
+	(0x82000524 | MTK_SIP_SMC_AARCH_BIT)
+
+/* APUPWR control related SMC call */
+#define MTK_SIP_APUPWR_CONTROL \
+	(0x82000526 | MTK_SIP_SMC_AARCH_BIT)
+
 /* OEMFLAG WRITE SMC call */
 #define MTK_SIP_OEM_FLAG_WRITE \
 	(0x82000525 | MTK_SIP_SMC_AARCH_BIT)
-	
+
 /* OEMFLAG READ SMC call */
 #define MTK_SIP_OEM_FLAG_READ \
 	(0x82000526 | MTK_SIP_SMC_AARCH_BIT)
-
-/* MST SMC call */
-#define MTK_SIP_KERNEL_MST_TEST_TRANSMIT \
-	(0x82000527 | MTK_SIP_SMC_AARCH_BIT)
 
 extern size_t mt_secure_call_all(size_t function_id,
 	size_t arg0, size_t arg1, size_t arg2,

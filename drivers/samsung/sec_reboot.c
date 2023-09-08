@@ -41,11 +41,23 @@
 	}	\
 }
 
+#if defined(CONFIG_SEC_DUMP_SINK)
+void sec_set_reboot_magic(int magic)
+{
+	int tmp;
+
+	tmp = LAST_RR_VAL(reboot_magic);
+	pr_info("%s: prev: %x\n", __func__, tmp);
+	tmp = magic;
+	pr_info("%s: set as: %x\n", __func__, tmp);
+	LAST_RR_SET(reboot_magic, tmp);
+}
+#endif
+
 static void sec_power_off(void)
 {
-	int poweroff_try = 0;
 	unsigned short released;
-	union power_supply_propval ac_val, usb_val, wc_val;
+	union power_supply_propval ac_val = {0, }, usb_val = {0, }, wc_val = {0, };
 	struct power_supply *ac_psy = power_supply_get_by_name("ac");
 	struct power_supply *usb_psy = power_supply_get_by_name("usb");
 	struct power_supply *wc_psy = power_supply_get_by_name("wireless");
@@ -63,27 +75,11 @@ static void sec_power_off(void)
 	__inner_flush_dcache_all();
 
 	while (1) {
-		/* Check reboot charging */
-		if (ac_val.intval || usb_val.intval || wc_val.intval || (poweroff_try >= 5)) {
-			pr_emerg("%s: charger connected or power off "
-					"failed(%d), reboot!\n",
-					__func__, poweroff_try);
-			/* To enter LP charging */
-			LAST_RR_SET(is_power_reset, SEC_POWER_OFF);
-			LAST_RR_SET(power_reset_reason, SEC_RESET_REASON_IN_OFFSEQ);
-			wdt_arch_reset(1);
-			while (1);
-		}
-
 		/* wait for power button release */
 		released = pmic_get_register_value_nolock(PMIC_PWRKEY_DEB);
 		if (released) {
 			pr_info("%s: PowerButton was released(%d)\n", __func__, released);
 			mt_power_off();
-			++poweroff_try;
-			pr_emerg
-			    ("%s: Should not reach here! (poweroff_try:%d)\n",
-			     __func__, poweroff_try);
 		} else {
 		/* if power button is not released, wait and check TA again */
 			pr_info("%s: PowerButton wasn't released(%d)\n", __func__, released);
@@ -103,7 +99,7 @@ static void sec_reboot(enum reboot_mode reboot_mode, const char *cmd)
 
 	if (cmd) {
 		unsigned long value;
-		if (!strcmp(cmd, "fota"))
+		if (!strcmp(cmd, "recovery-update"))
 			LAST_RR_SET(power_reset_reason, SEC_RESET_REASON_FOTA);
 		else if (!strcmp(cmd, "fota_bl"))
 			LAST_RR_SET(power_reset_reason, SEC_RESET_REASON_FOTA_BL);
@@ -111,6 +107,8 @@ static void sec_reboot(enum reboot_mode reboot_mode, const char *cmd)
 			LAST_RR_SET(power_reset_reason, SEC_RESET_REASON_RECOVERY);
 		else if (!strcmp(cmd, "download"))
 			LAST_RR_SET(power_reset_reason, SEC_RESET_REASON_DOWNLOAD);
+		else if (!strcmp(cmd, "bootloader"))
+			LAST_RR_SET(power_reset_reason, SEC_RESET_REASON_BOOTLOADER);
 		else if (!strcmp(cmd, "upload"))
 			LAST_RR_SET(power_reset_reason, SEC_RESET_REASON_UPLOAD);
 		else if (!strcmp(cmd, "secure"))
@@ -126,6 +124,10 @@ static void sec_reboot(enum reboot_mode reboot_mode, const char *cmd)
 		else if (!strncmp(cmd, "debug", 5)
 			 && !kstrtoul(cmd + 5, 0, &value))
 			LAST_RR_SET(power_reset_reason, SEC_RESET_SET_DEBUG | value);
+#if defined(CONFIG_SEC_DUMP_SINK)
+		else if (!strncmp(cmd, "dump_sink", 9) && !kstrtoul(cmd + 9, 0, &value))
+			LAST_RR_SET(power_reset_reason, SEC_RESET_SET_DUMPSINK | (SEC_DUMPSINK_MASK & value));
+#endif
 		else if (!strncmp(cmd, "swsel", 5)
 			 && !kstrtoul(cmd + 5, 0, &value))
 			LAST_RR_SET(power_reset_reason, SEC_RESET_SET_SWSEL | value);

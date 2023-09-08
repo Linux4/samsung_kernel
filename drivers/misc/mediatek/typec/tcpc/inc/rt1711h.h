@@ -1,8 +1,6 @@
 /*
  * Copyright (C) 2016 MediaTek Inc.
  *
- * Power Delivery Process Event For VDM
- *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
@@ -23,6 +21,8 @@
 #define ENABLE_RT1711_DBG	0
 
 /* RT1711H Private RegMap */
+
+#define RT1711H_REG_CONFIG_GPIO0			(0x71)
 
 #define RT1711H_REG_PHY_CTRL1				(0x80)
 
@@ -49,6 +49,10 @@
 #define RT1711H_REG_DRP_TOGGLE_CYCLE		(0xA2)
 #define RT1711H_REG_DRP_DUTY_CTRL			(0xA3)
 #define RT1711H_REG_BMCIO_RXDZEN			(0xAF)
+
+#define RT1711H_REG_UNLOCK_PW_2				(0xF0)
+#define RT1711H_REG_UNLOCK_PW_1				(0xF1)
+#define RT1711H_REG_EFUSE5				(0xF6)
 
 /*
  * Device ID
@@ -140,6 +144,14 @@
 #define RT1711H_REG_ENEXTMSG				(1<<4)
 #define RT1711H_REG_AUTOIDLE_EN				(1<<3)
 
+/*
+ * RT1711H_REG_EFUSE5					(0xF6)
+ */
+
+#define RT1711H_REG_M_VBUS_CAL				GENMASK(7, 5)
+#define RT1711H_REG_S_VBUS_CAL				5
+#define RT1711H_REG_MIN_VBUS_CAL			-4
+
 /* timeout = (tout*2+1) * 6.4ms */
 
 #ifdef CONFIG_USB_PD_REV30
@@ -182,7 +194,7 @@
 	((en << 7) | (tout & 0x0f))
 
 #if ENABLE_RT1711_DBG
-#define RT1711H_INFO(format, args...) \
+#define RT1711_INFO(format, args...) \
 	pd_dbg_info("%s() line-%d: " format,\
 	__func__, __LINE__, ##args)
 #else

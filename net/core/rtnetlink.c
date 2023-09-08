@@ -59,15 +59,17 @@
 #include <net/rtnetlink.h>
 #include <net/net_namespace.h>
 
-#ifdef CONFIG_MTK_NET_LOGGING
+/* #ifdef CONFIG_MTK_NET_LOGGING */
 #include <linux/stacktrace.h>
+#include <linux/sched/debug.h>
 #define RTNL_DEBUG_ADDRS_COUNT 10
 #define RTNL_LOCK_MAX_HOLD_TIME 3
 
 struct rtnl_debug_btrace_t {
-	char *process_name;
+	struct task_struct *task;
 	int    pid;
-	unsigned long long when;
+	unsigned long long start;
+	unsigned long long end;
 	unsigned long addrs[RTNL_DEBUG_ADDRS_COUNT];
 	unsigned int entry_nr;
 	char flag;/*1 get rtnl_lock,0 : relase rtnl_lock*/
@@ -76,9 +78,10 @@ struct rtnl_debug_btrace_t {
 };
 
 static struct rtnl_debug_btrace_t rtnl_instance = {
-	.process_name = NULL,
+	.task = NULL,
 	.pid = 0,
-	.when = 0,
+	.start = 0,
+	.end = 0,
 	.entry_nr = 0,
 	.flag = 0,
 	.rtnl_lock_owner = NULL,
@@ -87,7 +90,7 @@ static struct rtnl_debug_btrace_t rtnl_instance = {
 static void rtnl_print_btrace(unsigned long data);
 static DEFINE_TIMER(rtnl_chk_timer, rtnl_print_btrace, 0, 0);
 
-void rtnl_get_btrace(void *who)
+void rtnl_get_btrace(struct task_struct *who)
 {
 	struct stack_trace debug_trace;
 
@@ -96,8 +99,9 @@ void rtnl_get_btrace(void *who)
 	debug_trace.entries = rtnl_instance.addrs;
 	debug_trace.skip = 0;
 	save_stack_trace(&debug_trace);
-	rtnl_instance.process_name = who;
-	rtnl_instance.when = sched_clock();
+	rtnl_instance.task = who;
+	rtnl_instance.start = sched_clock();
+	rtnl_instance.end = 0;
 	rtnl_instance.flag = 1;
 	rtnl_instance.pid = current->pid;
 	rtnl_instance.rtnl_lock_owner  = current;
@@ -114,10 +118,14 @@ void rtnl_print_btrace(unsigned long data)
 		show_trace.entries = rtnl_instance.addrs;
 		show_trace.max_entries = RTNL_DEBUG_ADDRS_COUNT;
 		pr_info("-----------%s start-----------\n", __func__);
-		pr_info("[mtk_net][rtnl_lock] %s[%d] hold lock more than 2 sec,start time: %lld\n",
-			rtnl_instance.process_name,
-			rtnl_instance.pid, rtnl_instance.when);
+		pr_info("[mtk_net][rtnl_lock] %s[%d][%c] hold lock more than 2 sec,start time: %lld\n",
+			rtnl_instance.task->comm,
+			rtnl_instance.pid,
+			task_state_to_char(rtnl_instance.task),
+			rtnl_instance.start);
+
 		print_stack_trace(&show_trace, 0);
+		show_stack(rtnl_instance.task, NULL);
 		pr_info("------------%s end-----------\n", __func__);
 	} else {
 		pr_info("[mtk_net][rtnl_lock]There is no process hold rtnl lock\n");
@@ -128,7 +136,8 @@ void rtnl_relase_btrace(void)
 {
 	rtnl_instance.flag = 0;
 }
-#endif
+
+/* #endif */
 
 struct rtnl_link {
 	rtnl_doit_func		doit;
@@ -141,9 +150,9 @@ static DEFINE_MUTEX(rtnl_mutex);
 void rtnl_lock(void)
 {
 	mutex_lock(&rtnl_mutex);
-#ifdef CONFIG_MTK_NET_LOGGING
-	rtnl_get_btrace(current->comm);
-#endif
+/* #ifdef CONFIG_MTK_NET_LOGGING */
+	rtnl_get_btrace(current);
+/* #endif */
 }
 EXPORT_SYMBOL(rtnl_lock);
 
@@ -163,6 +172,12 @@ void __rtnl_unlock(void)
 
 	defer_kfree_skb_list = NULL;
 
+	rtnl_instance.end = sched_clock();
+	if (rtnl_instance.end - rtnl_instance.start > 4000000000ULL)//4 second
+		pr_info("[mtk_net][rtnl_unlock] rtnl_lock is held by [%d] from [%llu] to [%llu]\n",
+			rtnl_instance.pid,
+			rtnl_instance.start, rtnl_instance.end);
+
 	mutex_unlock(&rtnl_mutex);
 
 	while (head) {
@@ -172,9 +187,9 @@ void __rtnl_unlock(void)
 		cond_resched();
 		head = next;
 	}
-#ifdef CONFIG_MTK_NET_LOGGING
+/* #ifdef CONFIG_MTK_NET_LOGGING */
 	rtnl_relase_btrace();
-#endif
+/* #endif */
 }
 
 void rtnl_unlock(void)
@@ -1844,6 +1859,8 @@ static int do_setvfinfo(struct net_device *dev, struct nlattr **tb)
 	if (tb[IFLA_VF_MAC]) {
 		struct ifla_vf_mac *ivm = nla_data(tb[IFLA_VF_MAC]);
 
+		if (ivm->vf >= INT_MAX)
+			return -EINVAL;
 		err = -EOPNOTSUPP;
 		if (ops->ndo_set_vf_mac)
 			err = ops->ndo_set_vf_mac(dev, ivm->vf,
@@ -1855,6 +1872,8 @@ static int do_setvfinfo(struct net_device *dev, struct nlattr **tb)
 	if (tb[IFLA_VF_VLAN]) {
 		struct ifla_vf_vlan *ivv = nla_data(tb[IFLA_VF_VLAN]);
 
+		if (ivv->vf >= INT_MAX)
+			return -EINVAL;
 		err = -EOPNOTSUPP;
 		if (ops->ndo_set_vf_vlan)
 			err = ops->ndo_set_vf_vlan(dev, ivv->vf, ivv->vlan,
@@ -1887,6 +1906,8 @@ static int do_setvfinfo(struct net_device *dev, struct nlattr **tb)
 		if (len == 0)
 			return -EINVAL;
 
+		if (ivvl[0]->vf >= INT_MAX)
+			return -EINVAL;
 		err = ops->ndo_set_vf_vlan(dev, ivvl[0]->vf, ivvl[0]->vlan,
 					   ivvl[0]->qos, ivvl[0]->vlan_proto);
 		if (err < 0)
@@ -1897,6 +1918,8 @@ static int do_setvfinfo(struct net_device *dev, struct nlattr **tb)
 		struct ifla_vf_tx_rate *ivt = nla_data(tb[IFLA_VF_TX_RATE]);
 		struct ifla_vf_info ivf;
 
+		if (ivt->vf >= INT_MAX)
+			return -EINVAL;
 		err = -EOPNOTSUPP;
 		if (ops->ndo_get_vf_config)
 			err = ops->ndo_get_vf_config(dev, ivt->vf, &ivf);
@@ -1915,6 +1938,8 @@ static int do_setvfinfo(struct net_device *dev, struct nlattr **tb)
 	if (tb[IFLA_VF_RATE]) {
 		struct ifla_vf_rate *ivt = nla_data(tb[IFLA_VF_RATE]);
 
+		if (ivt->vf >= INT_MAX)
+			return -EINVAL;
 		err = -EOPNOTSUPP;
 		if (ops->ndo_set_vf_rate)
 			err = ops->ndo_set_vf_rate(dev, ivt->vf,
@@ -1927,6 +1952,8 @@ static int do_setvfinfo(struct net_device *dev, struct nlattr **tb)
 	if (tb[IFLA_VF_SPOOFCHK]) {
 		struct ifla_vf_spoofchk *ivs = nla_data(tb[IFLA_VF_SPOOFCHK]);
 
+		if (ivs->vf >= INT_MAX)
+			return -EINVAL;
 		err = -EOPNOTSUPP;
 		if (ops->ndo_set_vf_spoofchk)
 			err = ops->ndo_set_vf_spoofchk(dev, ivs->vf,
@@ -1938,6 +1965,8 @@ static int do_setvfinfo(struct net_device *dev, struct nlattr **tb)
 	if (tb[IFLA_VF_LINK_STATE]) {
 		struct ifla_vf_link_state *ivl = nla_data(tb[IFLA_VF_LINK_STATE]);
 
+		if (ivl->vf >= INT_MAX)
+			return -EINVAL;
 		err = -EOPNOTSUPP;
 		if (ops->ndo_set_vf_link_state)
 			err = ops->ndo_set_vf_link_state(dev, ivl->vf,
@@ -1951,6 +1980,8 @@ static int do_setvfinfo(struct net_device *dev, struct nlattr **tb)
 
 		err = -EOPNOTSUPP;
 		ivrssq_en = nla_data(tb[IFLA_VF_RSS_QUERY_EN]);
+		if (ivrssq_en->vf >= INT_MAX)
+			return -EINVAL;
 		if (ops->ndo_set_vf_rss_query_en)
 			err = ops->ndo_set_vf_rss_query_en(dev, ivrssq_en->vf,
 							   ivrssq_en->setting);
@@ -1961,6 +1992,8 @@ static int do_setvfinfo(struct net_device *dev, struct nlattr **tb)
 	if (tb[IFLA_VF_TRUST]) {
 		struct ifla_vf_trust *ivt = nla_data(tb[IFLA_VF_TRUST]);
 
+		if (ivt->vf >= INT_MAX)
+			return -EINVAL;
 		err = -EOPNOTSUPP;
 		if (ops->ndo_set_vf_trust)
 			err = ops->ndo_set_vf_trust(dev, ivt->vf, ivt->setting);
@@ -1971,15 +2004,18 @@ static int do_setvfinfo(struct net_device *dev, struct nlattr **tb)
 	if (tb[IFLA_VF_IB_NODE_GUID]) {
 		struct ifla_vf_guid *ivt = nla_data(tb[IFLA_VF_IB_NODE_GUID]);
 
+		if (ivt->vf >= INT_MAX)
+			return -EINVAL;
 		if (!ops->ndo_set_vf_guid)
 			return -EOPNOTSUPP;
-
 		return handle_vf_guid(dev, ivt, IFLA_VF_IB_NODE_GUID);
 	}
 
 	if (tb[IFLA_VF_IB_PORT_GUID]) {
 		struct ifla_vf_guid *ivt = nla_data(tb[IFLA_VF_IB_PORT_GUID]);
 
+		if (ivt->vf >= INT_MAX)
+			return -EINVAL;
 		if (!ops->ndo_set_vf_guid)
 			return -EOPNOTSUPP;
 
@@ -2480,7 +2516,7 @@ int rtnl_configure_link(struct net_device *dev, const struct ifinfomsg *ifm)
 	}
 
 	if (dev->rtnl_link_state == RTNL_LINK_INITIALIZED) {
-		__dev_notify_flags(dev, old_flags, 0U);
+		__dev_notify_flags(dev, old_flags, (old_flags ^ dev->flags));
 	} else {
 		dev->rtnl_link_state = RTNL_LINK_INITIALIZED;
 		__dev_notify_flags(dev, old_flags, ~0U);
@@ -2522,8 +2558,17 @@ struct net_device *rtnl_create_link(struct net *net,
 	dev->rtnl_link_ops = ops;
 	dev->rtnl_link_state = RTNL_LINK_INITIALIZING;
 
-	if (tb[IFLA_MTU])
-		dev->mtu = nla_get_u32(tb[IFLA_MTU]);
+	if (tb[IFLA_MTU]) {
+		u32 mtu = nla_get_u32(tb[IFLA_MTU]);
+		int err;
+
+		err = dev_validate_mtu(dev, mtu);
+		if (err) {
+			free_netdev(dev);
+			return ERR_PTR(err);
+		}
+		dev->mtu = mtu;
+	}
 	if (tb[IFLA_ADDRESS]) {
 		memcpy(dev->dev_addr, nla_data(tb[IFLA_ADDRESS]),
 				nla_len(tb[IFLA_ADDRESS]));

@@ -16,6 +16,15 @@
 #include <mtk_gauge_class.h>
 #include <mtk_battery_internal.h>
 
+signed int __attribute__((weak)) battery_get_precise_soc(void)
+{
+	return 0;
+}
+
+signed int __attribute__((weak)) battery_get_precise_uisoc(void)
+{
+	return 0;
+}
 
 #if (CONFIG_MTK_GAUGE_VERSION != 30)
 signed int battery_get_bat_voltage(void)
@@ -95,7 +104,10 @@ signed int battery_get_bat_current_mA(void)
 
 signed int battery_get_soc(void)
 {
-	return get_mtk_battery()->soc;
+	if (get_mtk_battery() != NULL)
+		return get_mtk_battery()->soc;
+	else
+		return 50;
 }
 
 signed int battery_get_uisoc(void)
@@ -108,7 +120,10 @@ signed int battery_get_uisoc(void)
 		(boot_mode == ATE_FACTORY_BOOT))
 		return 75;
 
-	return get_mtk_battery()->ui_soc;
+	if (get_mtk_battery() != NULL)
+		return get_mtk_battery()->ui_soc;
+	else
+		return 50;
 }
 
 signed int battery_get_bat_temperature(void)

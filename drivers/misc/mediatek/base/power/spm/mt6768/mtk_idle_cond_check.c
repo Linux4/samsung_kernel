@@ -52,6 +52,7 @@ static void __iomem *apmixedsys_base;  /* APMIXEDSYS */
 #define APMIXEDSYS(ofs)     (apmixedsys_base + ofs)
 
 #undef SPM_PWR_STATUS
+#define SPM_PWR_STATUS_2ND  SPM_REG(0x0184)
 #define SPM_PWR_STATUS      SPM_REG(0x0180)
 #define	INFRA_SW_CG_0_STA   INFRA_REG(0x0094)
 #define	INFRA_SW_CG_1_STA   INFRA_REG(0x0090)
@@ -238,7 +239,7 @@ static void update_pll_state(void)
 
 /* dp/so3/so print blocking cond mask in debugfs */
 int mtk_idle_cond_append_info(
-	bool short_log, int idle_type, char *logptr, unsigned int logsize)
+	bool short_log, unsigned int idle_type, char *logptr, unsigned int logsize)
 {
 	int i;
 	char *p = logptr;
@@ -276,7 +277,7 @@ int mtk_idle_cond_append_info(
 
 /* dp/so3/so may update idle_cond_mask by debugfs */
 void mtk_idle_cond_update_mask(
-	int idle_type, unsigned int reg, unsigned int mask)
+	unsigned int idle_type, unsigned int reg, unsigned int mask)
 {
 	if (reg < NR_CG_GRPS)
 		idle_cond_mask[idle_type][reg] = mask;
@@ -354,7 +355,8 @@ void mtk_idle_cond_update_state(void)
 		idle_value[i] = clk[i] = 0;
 
 		/* check mtcmos, if off set idle_value and clk to 0 disable */
-		if (!(idle_readl(SPM_PWR_STATUS) & idle_cg_info[i].subsys_mask))
+		if (!(idle_readl(SPM_PWR_STATUS) & idle_cg_info[i].subsys_mask) ||
+			!(idle_readl(SPM_PWR_STATUS_2ND) & idle_cg_info[i].subsys_mask))
 			continue;
 		/* check clkmux */
 		if (check_clkmux_pdn(idle_cg_info[i].clkmux_id))
@@ -384,7 +386,7 @@ void mtk_idle_cond_update_state(void)
 }
 
 /* return final idle condition check result for each idle type */
-bool mtk_idle_cond_check(int idle_type)
+bool mtk_idle_cond_check(unsigned int idle_type)
 {
 	bool ret = false;
 

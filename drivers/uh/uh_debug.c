@@ -33,14 +33,14 @@ static ssize_t uh_call_write(struct file *file, const char __user *buf,
 			app_id, command, arg0, arg1, arg2, arg3);
 
 	switch (app_id) {
-		case APP_INIT:
-			uh_call(UH_APP_INIT, command, arg0, arg1, arg2, arg3);
-			break;
-		case APP_SAMPLE:
-			uh_call(UH_APP_SAMPLE, command, arg0, arg1, arg2, arg3);
-			break;
-		default:
-			break;
+	case APP_INIT:
+		uh_call(UH_APP_INIT, command, arg0, arg1, arg2, arg3);
+		break;
+	case APP_SAMPLE:
+		uh_call(UH_APP_SAMPLE, command, arg0, arg1, arg2, arg3);
+		break;
+	default:
+		break;
 	}
 
 	return count;

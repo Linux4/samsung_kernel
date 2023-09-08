@@ -21,6 +21,11 @@
 #include <linux/printk.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
+#include <log_store_kernel.h>
+
+#ifdef CONFIG_SEC_BOOTSTAT
+#include <linux/sec_ext.h>
+#endif
 
 #include "internal.h"
 #include "mtk_sched_mon.h"
@@ -28,6 +33,13 @@
 #define BOOT_STR_SIZE 256
 #define BUF_COUNT 12
 #define LOGS_PER_BUF 80
+#define MSG_SIZE 128
+
+#ifdef CONFIG_BOOTPROF_THRESHOLD_MS
+#define BOOTPROF_THRESHOLD (CONFIG_BOOTPROF_THRESHOLD_MS*1000000)
+#else
+#define BOOTPROF_THRESHOLD 15000000
+#endif
 
 struct log_t {
 	/* task cmdline for first 16 bytes
@@ -50,7 +62,7 @@ module_param_named(pl_t, bootprof_pl_t, int, 0644);
 module_param_named(lk_t, bootprof_lk_t, int, 0644);
 module_param_named(logo_t, bootprof_logo_t, int, 0644);
 
-#define MSG_SIZE 128
+
 
 #ifdef CONFIG_BOOTPROF_THRESHOLD_MS
 #define BOOTPROF_THRESHOLD (CONFIG_BOOTPROF_THRESHOLD_MS*1000000)
@@ -78,7 +90,7 @@ void log_boot(char *str)
 
 	mutex_lock(&bootprof_lock);
 	if (log_count >= (LOGS_PER_BUF * BUF_COUNT)) {
-		pr_info("[BOOTPROF] not enuough bootprof buffer\n");
+		pr_info("[BOOTPROF] Skip log, buf is full.\n");
 		goto out;
 	} else if (log_count && !(log_count % LOGS_PER_BUF)) {
 		bootprof[log_count / LOGS_PER_BUF] =
@@ -86,7 +98,7 @@ void log_boot(char *str)
 				GFP_ATOMIC | __GFP_NORETRY | __GFP_NOWARN);
 	}
 	if (!bootprof[log_count / LOGS_PER_BUF]) {
-		pr_info("no memory for bootprof\n");
+		pr_info("[BOOTPROF] no memory for bootprof\n");
 		goto out;
 	}
 	p = &bootprof[log_count / LOGS_PER_BUF][log_count % LOGS_PER_BUF];
@@ -108,16 +120,41 @@ out:
 	mutex_unlock(&bootprof_lock);
 }
 
+static void bootprof_bootloader(void)
+{
+	struct device_node *node;
+	int err = 0;
+
+	node = of_find_node_by_name(NULL, "bootprof");
+	if (node) {
+		err |= of_property_read_s32(node, "pl_t", &bootprof_pl_t);
+		err |= of_property_read_s32(node, "lk_t", &bootprof_lk_t);
+		err |= of_property_read_s32(node, "lk_logo_t",
+						&bootprof_logo_t);
+
+		pr_info("BOOTPROF: DT(Err:0x%x) pl_t=%d, lk_t=%d, lk_logo_t=%d\n",
+			err, bootprof_pl_t, bootprof_lk_t, bootprof_logo_t);
+
+#ifdef CONFIG_SEC_BOOTSTAT
+		sec_boot_stat_set_bl_boot_time(bootprof_pl_t, bootprof_lk_t);
+#endif		
+	}
+}
+
 void bootprof_initcall(initcall_t fn, unsigned long long ts)
 {
 	/* log more than threshold initcalls */
 	unsigned long msec_rem;
 	char msgbuf[MSG_SIZE];
+	int len;
 
 	if (ts > BOOTPROF_THRESHOLD) {
 		msec_rem = do_div(ts, NSEC_PER_MSEC);
-		snprintf(msgbuf, sizeof(msgbuf), "initcall: %ps %5llu.%06lums",
-			 fn, ts, msec_rem);
+		len = scnprintf(msgbuf, sizeof(msgbuf),
+			"initcall: %ps %5llu.%06lums",
+			fn, ts, msec_rem);
+		if (len < 0)
+			pr_info("BOOTPROF: initcall - Invalid argument.\n");
 		log_boot(msgbuf);
 	}
 }
@@ -128,25 +165,34 @@ void bootprof_probe(unsigned long long ts, struct device *dev,
 	/* log more than threshold probes*/
 	unsigned long msec_rem;
 	char msgbuf[MSG_SIZE];
-	int pos;
+	int pos, len;
 
 	if (ts <= BOOTPROF_THRESHOLD)
 		return;
 	msec_rem = do_div(ts, NSEC_PER_MSEC);
 
-	pos = snprintf(msgbuf, sizeof(msgbuf), "probe: probe=%ps",
+	pos = scnprintf(msgbuf, sizeof(msgbuf), "probe: probe=%ps",
 					(void *)probe);
-	if (drv)
-		pos += snprintf(msgbuf + pos, sizeof(msgbuf) - pos,
+	if (pos < 0)
+		pos = 0;
+
+	if (drv) {
+		len = scnprintf(msgbuf + pos, sizeof(msgbuf) - pos,
 				" drv=%s(%ps)", drv->name ? drv->name : "",
 				(void *)drv);
+		if (len >= 0)
+			pos += len;
+	}
 
-	if (dev && dev->init_name)
-		pos += snprintf(msgbuf + pos, sizeof(msgbuf) - pos,
+	if (dev && dev->init_name) {
+		len = scnprintf(msgbuf + pos, sizeof(msgbuf) - pos,
 				" dev=%s(%ps)", dev->init_name, (void *)dev);
+		if (len >= 0)
+			pos += len;
+	}
 
-	pos += snprintf(msgbuf + pos, sizeof(msgbuf) - pos,
-				" %5llu.%06lums", ts, msec_rem);
+	scnprintf(msgbuf + pos, sizeof(msgbuf) - pos,
+			" %5llu.%06lums", ts, msec_rem);
 	log_boot(msgbuf);
 }
 
@@ -155,23 +201,25 @@ void bootprof_pdev_register(unsigned long long ts, struct platform_device *pdev)
 	/* log more than threshold register*/
 	unsigned long msec_rem;
 	char msgbuf[MSG_SIZE];
+	int len;
 
 	if (ts <= BOOTPROF_THRESHOLD || !pdev)
 		return;
 	msec_rem = do_div(ts, NSEC_PER_MSEC);
-	snprintf(msgbuf, sizeof(msgbuf), "probe: pdev=%s(%ps) %5llu.%06lums",
-		 pdev->name, (void *)pdev, ts, msec_rem);
+	len = scnprintf(msgbuf, sizeof(msgbuf),
+			"probe: pdev=%s(%ps) %5llu.%06lums",
+			pdev->name, (void *)pdev, ts, msec_rem);
+	if (len < 0)
+		pr_info("BOOTPROF: pdev - Invalid argument.\n");
+
 	log_boot(msgbuf);
 }
 
 static void bootup_finish(void)
 {
 	initcall_debug = 0;
-#ifdef CONFIG_MTK_PRINTK_UART_CONSOLE
-	mt_disable_uart();
-#endif
-#ifdef CONFIG_MTK_SCHED_MON_DEFAULT_ENABLE
-	mt_sched_monitor_switch(1);
+#ifdef BOOT_UP_DISABLE_MRDUMPKEY
+	mrdump_key_shutdown(NULL);
 #endif
 }
 
@@ -192,6 +240,7 @@ static void mt_bootprof_switch(int on)
 			enabled = 0;
 			timestamp_off = ts;
 			boot_finish = true;
+			log_store_bootup();
 			bootup_finish();
 		}
 	}
@@ -222,19 +271,17 @@ mt_bootprof_write(struct file *filp, const char *ubuf, size_t cnt, loff_t *data)
 	log_boot(buf);
 
 	return cnt;
-
 }
 
 static int mt_bootprof_show(struct seq_file *m, void *v)
 {
-	int i;
+	unsigned int i;
 	struct log_t *p;
 
-	if (m == NULL) {
+	if (!m) {
 		pr_info("seq_file is Null.\n");
 		return 0;
 	}
-
 	seq_puts(m, "----------------------------------------\n");
 	seq_printf(m, "%d	    BOOT PROF (unit:msec)\n", enabled);
 	seq_puts(m, "----------------------------------------\n");
@@ -303,8 +350,12 @@ static int __init init_bootprof_buf(void)
 	memset(bootprof, 0, sizeof(struct log_t *) * BUF_COUNT);
 	bootprof[0] = kcalloc(LOGS_PER_BUF, sizeof(struct log_t),
 			      GFP_ATOMIC | __GFP_NORETRY | __GFP_NOWARN);
-	if (!bootprof[0])
+	if (!bootprof[0]) {
+		pr_info("[BOOTPROF] fail to allocate memory\n");
 		goto fail;
+	}
+
+	bootprof_bootloader();
 	mt_bootprof_switch(1);
 fail:
 	return 0;

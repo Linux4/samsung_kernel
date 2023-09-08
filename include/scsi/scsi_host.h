@@ -340,6 +340,7 @@ struct scsi_host_template {
 #define SCSI_ADAPTER_RESET	1
 #define SCSI_FIRMWARE_RESET	2
 
+	void (*tw_ctrl)(struct scsi_device *sdev, int en);
 
 	/*
 	 * Name of proc directory
@@ -731,9 +732,6 @@ struct Scsi_Host {
 	 * Needed just in case we have virtual hosts.
 	 */
 	struct device *dma_dev;
-#ifdef CONFIG_USB_STORAGE_DETECT
-	unsigned int  by_usb;
-#endif
 
 	/*
 	 * We should ensure that this is aligned, both for better performance
@@ -819,6 +817,9 @@ static inline int scsi_host_scan_allowed(struct Scsi_Host *shost)
 
 extern void scsi_unblock_requests(struct Scsi_Host *);
 extern void scsi_block_requests(struct Scsi_Host *);
+#ifdef CONFIG_BLK_TURBO_WRITE
+extern void scsi_reset_tw_state(struct Scsi_Host *);
+#endif
 
 struct class_container;
 

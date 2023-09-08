@@ -13,6 +13,7 @@
 
 #include "kd_imgsensor.h"
 #include "imgsensor_sensor_list.h"
+#include "cam_cal_define.h"
 
 /* Add Sensor Init function here
  * Note:
@@ -24,11 +25,6 @@
  */
 struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 	/*IMX*/
-#if defined(IMX616_MIPI_RAW)
-	{IMX616_SENSOR_ID,
-	SENSOR_DRVNAME_IMX616_MIPI_RAW,
-	IMX616_MIPI_RAW_SensorInit},
-#endif
 #if defined(IMX582_MIPI_RAW)
 	{IMX582_SENSOR_ID,
 	SENSOR_DRVNAME_IMX582_MIPI_RAW,
@@ -78,6 +74,11 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 	{IMX362_SENSOR_ID,
 	SENSOR_DRVNAME_IMX362_MIPI_RAW,
 	IMX362_MIPI_RAW_SensorInit},
+#endif
+#if defined(IMX355_MIPI_RAW)
+	{IMX355_SENSOR_ID,
+	SENSOR_DRVNAME_IMX355_MIPI_RAW,
+	IMX355_MIPI_RAW_SensorInit},
 #endif
 #if defined(IMX338_MIPI_RAW)
 	{IMX338_SENSOR_ID,
@@ -174,6 +175,11 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 	{OV13855_SENSOR_ID,
 	SENSOR_DRVNAME_OV13855_MIPI_RAW,
 	OV13855_MIPI_RAW_SensorInit},
+#endif
+#if defined(OV13855SUB_MIPI_RAW)
+	{OV13855SUB_SENSOR_ID,
+	SENSOR_DRVNAME_OV13855SUB_MIPI_RAW,
+	OV13855SUB_MIPI_RAW_SensorInit},
 #endif
 #if defined(OV13870_MIPI_RAW)
 	{OV13870_SENSOR_ID, SENSOR_DRVNAME_OV13870_MIPI_RAW,
@@ -284,6 +290,11 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 	SENSOR_DRVNAME_OV5647_RAW,
 	OV5647SensorInit},
 #endif
+#if defined(OV5645_MIPI_RAW)
+	{OV5645MIPI_SENSOR_ID,
+	SENSOR_DRVNAME_OV5645_MIPI_RAW,
+	OV5645_MIPI_RAW_SensorInit},
+#endif
 #if defined(OV5645_MIPI_YUV)
 	{OV5645MIPI_SENSOR_ID,
 	SENSOR_DRVNAME_OV5645_MIPI_YUV,
@@ -370,6 +381,9 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 	OV20880_MIPI_RAW_SensorInit},
 #endif
 	/*S5K*/
+#if defined(S5KJN1_MIPI_RAW)
+	{S5KJN1_SENSOR_ID, SENSOR_DRVNAME_S5KJN1_MIPI_RAW, S5KJN1_MIPI_RAW_SensorInit},
+#endif
 #if defined(S5K3P8SP_MIPI_RAW)
 	{S5K3P8SP_SENSOR_ID,
 	SENSOR_DRVNAME_S5K3P8SP_MIPI_RAW,
@@ -440,11 +454,6 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 	SENSOR_DRVNAME_S5K3H7Y_MIPI_RAW,
 	S5K3H7Y_MIPI_RAW_SensorInit},
 #endif
-#if defined(S5K4HAYX_MIPI_RAW)
-	{S5K4HAYX_SENSOR_ID,
-	SENSOR_DRVNAME_S5K4HAYX_MIPI_RAW,
-	S5K4HAYX_MIPI_RAW_SensorInit},
-#endif
 #if defined(S5K4H5YC_MIPI_RAW)
 	{S5K4H5YC_SENSOR_ID,
 	SENSOR_DRVNAME_S5K4H5YC_MIPI_RAW,
@@ -505,10 +514,35 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 	SENSOR_DRVNAME_S5K5E8YXREAR2_MIPI_RAW,
 	S5K5E8YXREAR2_MIPI_RAW_SensorInit},
 #endif
+#if defined(S5K4HAYX_MIPI_RAW)
+	{S5K4HAYX_SENSOR_ID,
+	SENSOR_DRVNAME_S5K4HAYX_MIPI_RAW,
+	S5K4HAYX_MIPI_RAW_SensorInit},
+#endif
+#if defined(S5K4HAYXF_MIPI_RAW)
+	{S5K4HAYXF_SENSOR_ID,
+	SENSOR_DRVNAME_S5K4HAYXF_MIPI_RAW,
+	S5K4HAYXF_MIPI_RAW_SensorInit},
+#endif
+#if defined(S5K5E9YX_MIPI_RAW)
+	{S5K5E9YX_SENSOR_ID,
+	SENSOR_DRVNAME_S5K5E9YX_MIPI_RAW,
+	S5K5E9YX_MIPI_RAW_SensorInit},
+#endif
 #if defined(S5KGM2_MIPI_RAW)
 	{S5KGM2_SENSOR_ID,
 	SENSOR_DRVNAME_S5KGM2_MIPI_RAW,
 	S5KGM2_MIPI_RAW_SensorInit},
+#endif
+#if defined(S5K2X5SP13_MIPI_RAW)
+	{S5K2X5SP13_SENSOR_ID,
+	SENSOR_DRVNAME_S5K2X5SP13_MIPI_RAW,
+	S5K2X5SP13_MIPI_RAW_SensorInit},
+#endif
+#if defined(S5KGW3_MIPI_RAW)
+	{S5KGW3_SENSOR_ID,
+	SENSOR_DRVNAME_S5KGW3_MIPI_RAW,
+	S5KGW3MIPI_RAW_SensorInit},
 #endif
 	/*HI*/
 #if defined(HI841_MIPI_RAW)
@@ -561,15 +595,20 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 	SENSOR_DRVNAME_HI253_YUV,
 	HI253_YUV_SensorInit},
 #endif
+#if defined(HI191_MIPI_RAW)
+	{HI191MIPI_SENSOR_ID,
+	SENSOR_DRVNAME_HI191_MIPI_RAW,
+	HI191MIPI_RAW_SensorInit},
+#endif
 #if defined(HI2021Q_MIPI_RAW)
 	{HI2021Q_SENSOR_ID,
 	SENSOR_DRVNAME_HI2021Q_MIPI_RAW,
 	HI2021Q_MIPI_RAW_SensorInit},
 #endif
-#if defined(HI191_MIPI_RAW)
-	{HI191MIPI_SENSOR_ID,
-	SENSOR_DRVNAME_HI191_MIPI_RAW,
-	HI191MIPI_RAW_SensorInit},
+#if defined(SR846D_MIPI_RAW)
+	{SR846D_SENSOR_ID,
+	SENSOR_DRVNAME_SR846D_MIPI_RAW,
+	SR846D_MIPI_RAW_SensorInit},
 #endif
 	/*MT*/
 #if defined(MT9P012_RAW)
@@ -623,13 +662,9 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 	MT9V115_YUV_SensorInit},
 #endif
 	/*GC*/
-#if defined(GC5035_MIPI_RAW)
-	{GC5035_SENSOR_ID, SENSOR_DRVNAME_GC5035_MIPI_RAW,
-		GC5035_MIPI_RAW_SensorInit},
-#endif
-#if defined(GC5035_MACRO_MIPI_RAW)
-	{GC5035_MACRO_SENSOR_ID, SENSOR_DRVNAME_GC5035_MACRO_MIPI_RAW,
-		GC5035_MACRO_MIPI_RAW_SensorInit},
+#if defined(GC2375_MIPI_RAW)
+	{GC2375_SENSOR_ID, SENSOR_DRVNAME_GC2375_MIPI_RAW,
+		GC2375_MIPI_RAW_SensorInit},
 #endif
 #if defined(GC2365_MIPI_RAW)
 	{GC2365_SENSOR_ID, SENSOR_DRVNAME_GC2365_MIPI_RAW,
@@ -674,7 +709,37 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 	SENSOR_DRVNAME_GC0310_YUV,
 	GC0310_YUV_SensorInit},
 #endif
+#if defined(GC5035_MIPI_RAW)
+	{GC5035_SENSOR_ID,
+	SENSOR_DRVNAME_GC5035_MIPI_RAW,
+	GC5035_MIPI_RAW_SensorInit},
+#endif
+#if defined(GC5035B_MIPI_RAW)
+	{GC5035B_SENSOR_ID,
+	SENSOR_DRVNAME_GC5035B_MIPI_RAW,
+	GC5035B_MIPI_RAW_SensorInit},
+#endif
+#if defined(GC8034_MIPI_RAW)
+	{GC8034_SENSOR_ID,
+	SENSOR_DRVNAME_GC8034_MIPI_RAW,
+	GC8034_MIPI_RAW_SensorInit},
+#endif
+#if defined(GC02M1_MIPI_RAW)
+	{GC02M1_SENSOR_ID,
+	SENSOR_DRVNAME_GC02M1_MIPI_RAW,
+	GC02M1_MIPI_RAW_SensorInit},
+#endif
+#if defined(GC02M1B_MIPI_RAW)
+	{GC02M1B_SENSOR_ID,
+	SENSOR_DRVNAME_GC02M1B_MIPI_RAW,
+	GC02M1B_MIPI_RAW_SensorInit},
+#endif
 	/*SP*/
+#if defined(SP2509_MIPI_RAW)
+	{SP2509_SENSOR_ID,
+	SENSOR_DRVNAME_SP2509_MIPI_RAW,
+	SP2509_MIPI_RAW_SensorInit},
+#endif
 #if defined(SP0A19_YUV)
 	{SP0A19_YUV_SENSOR_ID,
 	SENSOR_DRVNAME_SP0A19_YUV,
@@ -758,8 +823,81 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 		OV8856_MIPI_RAW_SensorInit},
 #endif
 
+#if defined(IMX214_MIPI_RAW)
+	{IMX214_SENSOR_ID, SENSOR_DRVNAME_IMX214_MIPI_RAW,
+		IMX214_MIPI_RAW_SensorInit},
+#endif
+#if defined(AR0543_MIPI_RAW)
+	{AR0543MIPI_SENSOR_ID, SENSOR_DRVNAME_AR0543_MIPI_RAW,
+		AR0543MIPI_RAW_SensorInit},
+#endif
+#if defined(GC5025_MIPI_RAW)
+	{GC5025MIPI_SENSOR_ID, SENSOR_DRVNAME_GC5025_MIPI_RAW,
+		GC5025MIPI_RAW_SensorInit},
+#endif
+
 	/*  ADD sensor driver before this line */
 	{0, {0}, NULL}, /* end of list */
 };
 /* e_add new sensor driver here */
 
+extern struct IMGSENSOR_SENSOR *imgsensor_sensor_get_inst(enum IMGSENSOR_SENSOR_IDX idx);
+unsigned int imgsensor_read_otp_cal(struct i2c_client *client,
+		struct stCAM_CAL_INFO_STRUCT *sensor_info, unsigned int addr, unsigned char *data, unsigned int size)
+{
+	int ret = 0;
+	struct IMGSENSOR_SENSOR *psensor = NULL;
+
+	psensor = imgsensor_sensor_get_inst(IMGSENSOR_SENSOR_IDX_MAP(sensor_info->deviceID));
+	if (psensor != NULL)
+		imgsensor_i2c_set_device(&psensor->inst.i2c_cfg);
+
+	pr_info("- E, sensor_id: %#06x", sensor_info->sensorID);
+	switch (sensor_info->sensorID) {
+#if defined(GC5035_MIPI_RAW)
+	case GC5035_SENSOR_ID:
+		ret = gc5035_read_otp_cal(addr, data, size);
+		break;
+#endif
+#if defined(GC5035B_MIPI_RAW)
+	case GC5035B_SENSOR_ID:
+		ret = gc5035b_read_otp_cal(addr, data, size);
+		break;
+#endif
+#if defined(SR846D_MIPI_RAW)
+	case SR846D_SENSOR_ID:
+		ret = sr846d_read_otp_cal(addr, data, size);
+		break;
+#endif
+#if defined(GC02M1B_MIPI_RAW)
+	case GC02M1B_SENSOR_ID:
+		ret = gc02m1b_read_otp_cal(addr, data, size);
+		break;
+#endif
+#if defined(HI2021Q_MIPI_RAW)
+	case HI2021Q_SENSOR_ID:
+		ret = hi2021q_read_otp_cal(addr, data, size);
+		break;
+#endif
+#if defined(S5K4HAYXF_MIPI_RAW)
+	case S5K4HAYXF_SENSOR_ID:
+		ret = s5k4hayxf_read_otp_cal(addr, data, size);
+		break;
+#endif
+	default:
+		pr_err("[%s] no searched otp cal\n", __func__);
+		ret = -1;
+		break;
+	}
+
+	if (psensor != NULL)
+		imgsensor_i2c_set_device(NULL);
+
+	if (ret < 0) {
+		pr_err("[%s] fail\n", __func__);
+		return 0;
+	}
+
+	pr_info("[%s] - X\n", __func__);
+	return ret;
+}

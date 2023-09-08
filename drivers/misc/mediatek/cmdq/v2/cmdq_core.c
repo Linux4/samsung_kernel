@@ -37,6 +37,7 @@
 #include <linux/atomic.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
+#include <linux/memblock.h>
 #include <linux/memory.h>
 #include <linux/ftrace.h>
 #include <sched/sched.h>
@@ -3304,6 +3305,113 @@ static struct TaskStruct *cmdq_core_find_free_task(void)
 	return pTask;
 }
 
+static bool cmdq_core_check_gpr_valid(const uint32_t gpr, const bool val)
+{
+	if (val)
+		switch (gpr) {
+		case CMDQ_DATA_REG_JPEG:
+		case CMDQ_DATA_REG_PQ_COLOR:
+		case CMDQ_DATA_REG_2D_SHARPNESS_0:
+		case CMDQ_DATA_REG_2D_SHARPNESS_1:
+		case CMDQ_DATA_REG_DEBUG:
+			return true;
+		default:
+			return false;
+		}
+	else
+		switch (gpr >> 16) {
+		case CMDQ_DATA_REG_JPEG_DST:
+		case CMDQ_DATA_REG_PQ_COLOR_DST:
+		case CMDQ_DATA_REG_2D_SHARPNESS_0:
+		case CMDQ_DATA_REG_2D_SHARPNESS_0_DST:
+		case CMDQ_DATA_REG_2D_SHARPNESS_1_DST:
+		case CMDQ_DATA_REG_DEBUG_DST:
+			return true;
+		default:
+			return false;
+		}
+	return false;
+}
+
+static bool cmdq_core_check_dma_addr_valid(const unsigned long pa)
+{
+	struct WriteAddrStruct *pWriteAddr = NULL;
+	unsigned long flagsWriteAddr = 0L;
+	phys_addr_t start = memblock_start_of_DRAM();
+	bool ret = false;
+
+	spin_lock_irqsave(&gCmdqWriteAddrLock, flagsWriteAddr);
+	list_for_each_entry(pWriteAddr, &gCmdqContext.writeAddrList, list_node)
+		if (pa < start || pa - (unsigned long)pWriteAddr->pa <
+			pWriteAddr->count << 2) {
+			ret = true;
+			break;
+		}
+	spin_unlock_irqrestore(&gCmdqWriteAddrLock, flagsWriteAddr);
+	return ret;
+}
+
+static bool cmdq_core_check_instr_valid(const uint64_t instr)
+{
+	u32 op = instr >> 56, option = (instr >> 53) & 0x7;
+	u32 argA = (instr >> 32) & 0x1FFFFF, argB = instr & 0xFFFFFFFF;
+
+	switch (op) {
+	case CMDQ_CODE_WRITE:
+		if (!option)
+			return true;
+		if (option == 0x4 && cmdq_core_check_gpr_valid(argA, false))
+			return true;
+	case CMDQ_CODE_READ:
+		if (option == 0x2 && cmdq_core_check_gpr_valid(argB, true))
+			return true;
+		if (option == 0x6 && cmdq_core_check_gpr_valid(argA, false) &&
+			cmdq_core_check_gpr_valid(argB, true))
+			return true;
+		break;
+	case CMDQ_CODE_MOVE:
+		if (!option && !argA)
+			return true;
+		if (option == 0x4 && cmdq_core_check_gpr_valid(argA, false) &&
+			cmdq_core_check_dma_addr_valid(argB))
+			return true;
+		break;
+	case CMDQ_CODE_JUMP:
+		if (!argA && argB == 0x8)
+			return true;
+		break;
+	default:
+		return true;
+	}
+	return false;
+}
+
+static bool cmdq_core_check_task_valid(struct TaskStruct *pTask)
+{
+
+	struct CmdBufferStruct *cmd_buffer = NULL;
+	int32_t cmd_size = CMDQ_CMD_BUFFER_SIZE;
+	uint64_t *va;
+	bool ret = true;
+
+	list_for_each_entry(cmd_buffer, &pTask->cmd_buffer_list, listEntry) {
+		if (list_is_last(&cmd_buffer->listEntry,
+			&pTask->cmd_buffer_list))
+			cmd_size -= pTask->buf_available_size;
+
+		for (va = (uint64_t *)cmd_buffer->pVABase; ret &&
+			(unsigned long)(va + 1) <
+			(unsigned long)cmd_buffer->pVABase + cmd_size; va++)
+			ret &= cmdq_core_check_instr_valid(*va);
+
+		if (ret && (*va >> 56) != CMDQ_CODE_JUMP)
+			ret &= cmdq_core_check_instr_valid(*va);
+		if (!ret)
+			break;
+	}
+	return ret;
+}
+
 static int32_t cmdq_core_insert_read_reg_command(
 	struct TaskStruct *pTask,
 	struct cmdqCommandStruct *pCommandDesc)
@@ -3316,8 +3424,7 @@ static int32_t cmdq_core_insert_read_reg_command(
 	enum CMDQ_DATA_REGISTER_ENUM valueRegId;
 	enum CMDQ_DATA_REGISTER_ENUM destRegId;
 	enum CMDQ_EVENT_ENUM regAccessToken;
-	const bool userSpaceRequest = cmdq_core_is_request_from_user_space(
-		pTask->scenario);
+	const bool userSpaceRequest = false;
 	bool postInstruction = false;
 
 	int32_t subsysCode;
@@ -3379,6 +3486,9 @@ static int32_t cmdq_core_insert_read_reg_command(
 	CMDQ_VERBOSE("CMDEnd: %p cmdSize: %d bufferSize: %u block size: %u\n",
 		pTask->pCMDEnd, pTask->commandSize,
 		pTask->bufferSize, pCommandDesc->blockSize);
+
+	if (userSpaceRequest && !cmdq_core_check_task_valid(pTask))
+		return -EFAULT;
 
 	/* If no read request, no post-process needed. Do verify and stop */
 	if (postInstruction == false) {
@@ -4501,7 +4611,7 @@ const char *cmdq_core_parse_subsys_from_reg_addr(uint32_t reg_addr)
 int32_t cmdq_core_subsys_from_phys_addr(uint32_t physAddr)
 {
 	int32_t msb;
-	int32_t subsysID = -1;
+	int32_t subsysID = CMDQ_SPECIAL_SUBSYS_ADDR;
 	uint32_t i;
 
 	for (i = 0; i < CMDQ_SUBSYS_MAX_COUNT; i++) {
@@ -4515,10 +4625,6 @@ int32_t cmdq_core_subsys_from_phys_addr(uint32_t physAddr)
 		}
 	}
 
-	if (-1 == subsysID) {
-		/* printf error message */
-		CMDQ_ERR("unrecognized subsys, physAddr:0x%08x\n", physAddr);
-	}
 	return subsysID;
 }
 

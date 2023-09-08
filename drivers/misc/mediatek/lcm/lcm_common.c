@@ -1356,21 +1356,13 @@ void lcm_common_scale(void *handle, enum LCM_SCALE_TYPE scale)
 
 }
 
-unsigned int lcm_common_read_by_cmdq(void *handle, unsigned int data_id,
-	unsigned int offest, unsigned int cmd, unsigned char *buffer,
-	unsigned char size)
-{
-	DISPFUNC();
 
-	return lcm_util.dsi_dcs_read_cmdq_lcm_reg_v2_1(handle, data_id, offset,
-		cmd, buffer, size);
-}
 
-/* send display on cmd (0x29h) here*/
-void lcm_common_set_display_on(void)
-{
-	DISPFUNC();
-}
+
+
+
+
+
 
 #define PARTIAL_WIDTH_ALIGN_LINE
 static inline int align_to(int value, int n, int lower_align)
@@ -1484,8 +1476,6 @@ struct LCM_DRIVER lcm_common_drv = {
 	.ata_check = lcm_common_ata_check,
 	.set_backlight_cmdq = lcm_common_setbacklight_cmdq,
 	.parse_dts = lcm_common_parse_dts,
-	.read_by_cmdq = lcm_common_read_by_cmdq,
-	.set_display_on = lcm_common_set_display_on,
 #if defined(R63419_WQHD_TRULY_PHANTOM_2K_CMD_OK)
 	.validate_roi = r63419_lcm_validate_roi,
 	.scale = lcm_common_scale,

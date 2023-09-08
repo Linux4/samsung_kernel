@@ -35,7 +35,6 @@
 #ifdef CONFIG_MTK_S2MU106_FLASHLIGHT
 #include <linux/leds-s2mu106.h>
 #endif
-
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
 #endif
@@ -70,6 +69,10 @@ static int pt_strict; /* always be zero in C standard */
 #endif
 
 static int pt_is_low(int pt_low_vol, int pt_low_bat, int pt_over_cur);
+#endif
+
+#ifdef CONFIG_MTK_SM5714_FLASHLIGHT
+extern bool sm5714_is_fd_in_use(void);
 #endif
 
 /******************************************************************************
@@ -546,7 +549,18 @@ static int flashlight_update_charger_status(struct flashlight_dev *fdev)
 /******************************************************************************
  * Power throttling
  *****************************************************************************/
+#ifdef CONFIG_MTK_FLASHLIGHT_DLPT
+void flashlight_kicker_pbm(bool status)
+{
+	kicker_pbm_by_flash(status);
+}
+#endif
 #ifdef CONFIG_MTK_FLASHLIGHT_PT
+int flashlight_pt_is_low(void)
+{
+	return pt_is_low(pt_low_vol, pt_low_bat, pt_over_cur);
+}
+
 static int pt_arg_verify(int pt_low_vol, int pt_low_bat, int pt_over_cur)
 {
 	if (pt_low_vol < LOW_BATTERY_LEVEL_0 ||
@@ -586,33 +600,26 @@ static int pt_is_low(int pt_low_vol, int pt_low_bat, int pt_over_cur)
 static int pt_trigger(void)
 {
 	struct flashlight_dev *fdev;
-	int is_flash_enable = 0;
 
 	mutex_lock(&fl_mutex);
 	list_for_each_entry(fdev, &flashlight_list, node) {
-		if (fdev->enable)
-			is_flash_enable = 1;
-	}
-	if (is_flash_enable) {
-		list_for_each_entry(fdev, &flashlight_list, node) {
-			if (!fdev->ops)
-				continue;
+		if (!fdev->ops)
+			continue;
 
-			fdev->ops->flashlight_open();
-			fdev->ops->flashlight_set_driver(1);
-			if (pt_strict) {
-				pr_info("PT trigger(%d,%d,%d) disable flashlight\n",
-					pt_low_vol, pt_low_bat, pt_over_cur);
-				fl_enable(fdev, 0);
-			} else {
-				pr_info("PT trigger(%d,%d,%d) decrease duty: %d\n",
-					pt_low_vol, pt_low_bat,
-					pt_over_cur, fdev->low_pt_level);
-				fl_set_level(fdev, fdev->low_pt_level);
-			}
-			fdev->ops->flashlight_set_driver(0);
-			fdev->ops->flashlight_release();
+		fdev->ops->flashlight_open();
+		fdev->ops->flashlight_set_driver(1);
+		if (pt_strict) {
+			pr_info_ratelimited("PT trigger(%d,%d,%d) disable flashlight\n",
+				pt_low_vol, pt_low_bat, pt_over_cur);
+			fl_enable(fdev, 0);
+		} else {
+			pr_info_ratelimited("PT trigger(%d,%d,%d) decrease duty: %d\n",
+				pt_low_vol, pt_low_bat,
+				pt_over_cur, fdev->low_pt_level);
+			fl_set_level(fdev, fdev->low_pt_level);
 		}
+		fdev->ops->flashlight_set_driver(0);
+		fdev->ops->flashlight_release();
 	}
 	mutex_unlock(&fl_mutex);
 
@@ -900,9 +907,12 @@ static int flashlight_release(struct inode *inode, struct file *file)
 	struct flashlight_dev *fdev;
 
 	mutex_lock(&fl_mutex);
-
 #ifdef CONFIG_MTK_S2MU106_FLASHLIGHT
-	if(!s2mu106_is_fd_in_use())
+	if (!s2mu106_is_fd_in_use())
+#endif	
+
+#ifdef CONFIG_MTK_SM5714_FLASHLIGHT
+	if (!sm5714_is_fd_in_use())
 #endif
 	{
 		list_for_each_entry(fdev, &flashlight_list, node) {
@@ -911,7 +921,8 @@ static int flashlight_release(struct inode *inode, struct file *file)
 
 			pr_debug("Release(%d,%d,%d)\n", fdev->dev_id.type,
 					fdev->dev_id.ct, fdev->dev_id.part);
-			fl_enable(fdev, 0);
+			if (fdev->enable != 0)
+				fl_enable(fdev, 0);
 			fdev->ops->flashlight_release();
 		}
 	}
@@ -1121,6 +1132,7 @@ static ssize_t flashlight_charger_show(
 	struct flashlight_dev *fdev;
 	char status[FLASHLIGHT_CHARGER_STATUS_BUF_SIZE];
 	char status_tmp[FLASHLIGHT_CHARGER_STATUS_TMPBUF_SIZE];
+	int ret;
 
 	pr_debug("Charger status show\n");
 
@@ -1132,11 +1144,14 @@ static ssize_t flashlight_charger_show(
 			continue;
 
 		flashlight_update_charger_status(fdev);
-		snprintf(status_tmp,
+		ret = snprintf(status_tmp,
 				FLASHLIGHT_CHARGER_STATUS_TMPBUF_SIZE,
 				"%d %d %d %d\n", fdev->dev_id.type,
 				fdev->dev_id.ct, fdev->dev_id.part,
 				fdev->charger_status);
+		if (ret < 0)
+			pr_info("snprintf failed\n");
+
 		strncat(status, status_tmp,
 				FLASHLIGHT_CHARGER_STATUS_TMPBUF_SIZE);
 	}
@@ -1240,6 +1255,7 @@ static ssize_t flashlight_capability_show(
 	int max_torch_duty;
 	char capability[FLASHLIGHT_CAPABILITY_BUF_SIZE];
 	char capability_tmp[FLASHLIGHT_CAPABILITY_TMPBUF_SIZE];
+	int ret;
 
 	pr_debug("Capability show\n");
 
@@ -1267,12 +1283,15 @@ static ssize_t flashlight_capability_show(
 				(unsigned long)&fl_dev_arg);
 		max_torch_duty = fl_dev_arg.arg;
 
-		snprintf(capability_tmp, FLASHLIGHT_CAPABILITY_TMPBUF_SIZE,
+		ret = snprintf(capability_tmp,
+				FLASHLIGHT_CAPABILITY_TMPBUF_SIZE,
 				"%d %d %d %s %d %d %d %d %d\n",
 				fdev->dev_id.type, fdev->dev_id.ct,
 				fdev->dev_id.part, fdev->dev_id.name,
 				fdev->dev_id.channel, fdev->dev_id.decouple,
 				hw_timeout, max_duty, max_torch_duty);
+		if (ret < 0)
+			pr_info("snprintf failed\n");
 		strncat(capability, capability_tmp,
 				FLASHLIGHT_CAPABILITY_TMPBUF_SIZE);
 	}
@@ -1290,7 +1309,7 @@ static ssize_t flashlight_current_show(
 {
 	struct flashlight_dev *fdev;
 	struct flashlight_dev_arg fl_dev_arg;
-	int i;
+	int i, ret;
 
 	/* flashlight current */
 	int duty_num = 0;
@@ -1314,9 +1333,11 @@ static ssize_t flashlight_current_show(
 				(unsigned long)&fl_dev_arg);
 		duty_num = fl_dev_arg.arg;
 
-		snprintf(duty_current, FLASHLIGHT_DUTY_CURRENT_BUF_SIZE,
+		ret = snprintf(duty_current, FLASHLIGHT_DUTY_CURRENT_BUF_SIZE,
 				"%d %d %d %d ", fdev->dev_id.type,
 				fdev->dev_id.ct, fdev->dev_id.part, duty_num);
+		if (ret < 0)
+			pr_info("snprintf failed\n");
 
 		for (i = 0; i < duty_num; i++) {
 			fl_dev_arg.arg = i;
@@ -1332,10 +1353,12 @@ static ssize_t flashlight_current_show(
 		}
 		duty_current[strlen(duty_current) - 1] = '\0';
 	} else {
-		snprintf(duty_current, FLASHLIGHT_DUTY_CURRENT_BUF_SIZE,
+		ret = snprintf(duty_current, FLASHLIGHT_DUTY_CURRENT_BUF_SIZE,
 				"%d %d %d %d ", duty_current_arg.type,
 				duty_current_arg.ct, duty_current_arg.part,
 				duty_num);
+		if (ret < 0)
+			pr_info("snprintf failed\n");
 	}
 
 	return scnprintf(buf, PAGE_SIZE,
@@ -1415,6 +1438,7 @@ static ssize_t flashlight_fault_show(
 	int fault_flag2;
 	char fault[FLASHLIGHT_FAULT_BUF_SIZE];
 	char fault_tmp[FLASHLIGHT_FAULT_TMPBUF_SIZE];
+	int ret;
 
 	pr_debug("Fault show\n");
 
@@ -1437,12 +1461,14 @@ static ssize_t flashlight_fault_show(
 				(unsigned long)&fl_dev_arg);
 		fault_flag2 = fl_dev_arg.arg;
 
-		snprintf(fault_tmp, FLASHLIGHT_FAULT_TMPBUF_SIZE,
+		ret = snprintf(fault_tmp, FLASHLIGHT_FAULT_TMPBUF_SIZE,
 				"%d %d %d %s %d %d %d %d\n",
 				fdev->dev_id.type, fdev->dev_id.ct,
 				fdev->dev_id.part, fdev->dev_id.name,
 				fdev->dev_id.channel, fdev->dev_id.decouple,
 				fault_flag1, fault_flag2);
+		if (ret < 0)
+			pr_info("snprintf failed\n");
 		strncat(fault, fault_tmp,
 				FLASHLIGHT_FAULT_TMPBUF_SIZE);
 	}
@@ -1461,6 +1487,7 @@ static ssize_t flashlight_sw_disable_show(
 	struct flashlight_dev *fdev;
 	char status[FLASHLIGHT_SW_DISABLE_STATUS_BUF_SIZE];
 	char status_tmp[FLASHLIGHT_SW_DISABLE_STATUS_TMPBUF_SIZE];
+	int ret;
 
 	pr_debug("Charger status show\n");
 
@@ -1471,10 +1498,12 @@ static ssize_t flashlight_sw_disable_show(
 		if (!fdev->ops)
 			continue;
 
-		snprintf(status_tmp,
+		ret = snprintf(status_tmp,
 				FLASHLIGHT_SW_DISABLE_STATUS_TMPBUF_SIZE,
 				"%d %d\n", fdev->dev_id.type,
 				fdev->sw_disable_status);
+		if (ret < 0)
+			pr_info("snprintf failed\n");
 		strncat(status, status_tmp,
 				FLASHLIGHT_SW_DISABLE_STATUS_TMPBUF_SIZE);
 	}
@@ -1578,7 +1607,8 @@ static int fl_uninit(void)
 		if (fdev->ops) {
 			fdev->ops->flashlight_open();
 			fdev->ops->flashlight_set_driver(1);
-			fl_enable(fdev, 0);
+			if (fdev->enable != 0)
+				fl_enable(fdev, 0);
 			fdev->ops->flashlight_set_driver(0);
 			fdev->ops->flashlight_release();
 		}

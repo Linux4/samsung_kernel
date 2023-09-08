@@ -572,7 +572,7 @@ void typec_unregister_partner(struct typec_partner *partner)
 	if (partner) {
 		pr_info("%s\n", __func__);
 		device_unregister(&partner->dev);
-#if defined(CONFIG_USB_NOTIFY_LAYER)	
+#if defined(CONFIG_USB_NOTIFY_LAYER)
 		if (o_notify)
 			send_otg_notify(o_notify, NOTIFY_EVENT_PD_CONTRACT, 0);
 #endif
@@ -1267,18 +1267,22 @@ void typec_set_pwr_opmode(struct typec_port *port,
 			send_otg_notify(o_notify, NOTIFY_EVENT_PD_CONTRACT, 0);
 	}
 #endif
+
 	pr_info("%s pwr_opmode=%d opmode=%d\n", __func__, port->pwr_opmode, opmode);
 	if (port->pwr_opmode == opmode)
 		return;
 
 	port->pwr_opmode = opmode;
-
 	sysfs_notify(&port->dev.kobj, NULL, "power_operation_mode");
+#if !IS_ENABLED(CONFIG_USB_HOST_SAMSUNG_FEATURE)
+	kobject_uevent(&port->dev.kobj, KOBJ_CHANGE);
+#endif
 
 	partner_dev = device_find_child(&port->dev, NULL, partner_match);
 	if (partner_dev) {
 		struct typec_partner *partner = to_typec_partner(partner_dev);
 
+		pr_info("%s usb_pd=%d\n", __func__, partner->usb_pd);
 		if (opmode == TYPEC_PWR_MODE_PD && !partner->usb_pd) {
 			partner->usb_pd = 1;
 			sysfs_notify(&partner_dev->kobj, NULL,
@@ -1287,8 +1291,10 @@ void typec_set_pwr_opmode(struct typec_port *port,
 		put_device(partner_dev);
 	}
 
-	pr_info("%s uevent\n", __func__);	
+#if IS_ENABLED(CONFIG_USB_HOST_SAMSUNG_FEATURE)
+	pr_info("%s uevent\n", __func__);
 	kobject_uevent(&port->dev.kobj, KOBJ_CHANGE);
+#endif
 }
 EXPORT_SYMBOL_GPL(typec_set_pwr_opmode);
 

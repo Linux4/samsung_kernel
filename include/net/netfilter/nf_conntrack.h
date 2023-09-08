@@ -84,7 +84,7 @@ struct nf_conn {
 	struct hlist_node	nat_bysource;
 #endif
 	/* all members below initialized via memset */
-	u8 __nfct_init_offset[0];
+	struct { } __nfct_init_offset;
 
 	/* If we were expected by an expectation, this will be it */
 	struct nf_conn *master;
@@ -133,6 +133,17 @@ struct nf_conn {
 	/* Atomic variable indicating end of intermediate flow */
 	atomic_t intermediateFlow;
 	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
+
+#ifdef CONFIG_HW_FORWARD
+	u32 packet_count;
+	bool forward_registered;
+	struct net_device *netdev;
+#endif
+#ifdef CONFIG_LINK_FORWARD
+	u32 packet_count;
+	bool linkforward_registered;
+	struct net_device *netdev;
+#endif
 };
 
 static inline struct nf_conn *

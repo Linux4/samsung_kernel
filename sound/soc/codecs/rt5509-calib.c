@@ -1,17 +1,14 @@
 /*
- *  sound/soc/codecs/rt5509-calib.c
+ * Copyright (C) 2019 MediaTek Inc.
  *
- *  Copyright (C) 2016 Richtek Technology Corp.
- *  cy_huang <cy_huang@richtek.com>
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License version 2 as
- *  published by the Free Software Foundation.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- *  See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 #include <linux/module.h>
@@ -76,7 +73,7 @@ static int rt5509_calib_chosen_db(struct rt5509_chip *chip, int choose)
 {
 	struct snd_soc_codec *codec = chip->codec;
 	u32 data = 0;
-	uint8_t mode_store;
+	uint8_t mode_store = 0;
 	int i = 0, ret = 0;
 
 	dev_info(chip->dev, "%s\n", __func__);
@@ -155,10 +152,10 @@ static int rt5509_calib_read_otp(struct rt5509_chip *chip)
 static int rt5509_calib_write_otp(struct rt5509_chip *chip)
 {
 	struct snd_soc_codec *codec = chip->codec;
-	uint8_t mode_store;
+	uint8_t mode_store = 0;
 	uint32_t param = chip->calib_dev.rspk;
-	uint32_t param_store;
-	uint32_t bst_th;
+	uint32_t param_store = 0;
+	uint32_t bst_th = 0;
 	int ret = 0;
 
 	ret = snd_soc_read(codec, RT5509_REG_BST_TH1);
@@ -295,7 +292,8 @@ static int rt5509_calib_end_process(struct rt5509_chip *chip)
 
 static int rt5509_calib_trigger_read(struct rt5509_calib_classdev *cdev)
 {
-	struct rt5509_chip *chip = dev_get_drvdata(cdev->dev->parent);
+	struct rt5509_chip *chip = container_of(cdev,
+						struct rt5509_chip, calib_dev);
 	int ret = 0;
 
 	dev_dbg(chip->dev, "%s\n", __func__);
@@ -340,7 +338,8 @@ out_trigger_read:
 
 static int rt5509_calib_trigger_write(struct rt5509_calib_classdev *cdev)
 {
-	struct rt5509_chip *chip = dev_get_drvdata(cdev->dev->parent);
+	struct rt5509_chip *chip = container_of(cdev,
+						struct rt5509_chip, calib_dev);
 	int ret = 0;
 
 	dev_dbg(chip->dev, "%s\n", __func__);
@@ -360,10 +359,10 @@ out_trigger_write:
 
 static int64_t rt5509_integer_dcr_calculation(int index, uint32_t n_db)
 {
-	int64_t a, x;
-	int64_t coeffi;
-	int i;
-	int64_t ret;
+	int64_t a = 0, x = 0;
+	int64_t coeffi = 0;
+	int i = 0;
+	int64_t ret = 0;
 
 	switch (index) {
 	case RT5509_CALIB_CTRL_N20DB:
@@ -392,11 +391,12 @@ static int64_t rt5509_integer_dcr_calculation(int index, uint32_t n_db)
 #define alpha_r (265)
 static int rt5509_calib_trigger_calculation(struct rt5509_calib_classdev *cdev)
 {
-	struct rt5509_chip *chip = dev_get_drvdata(cdev->dev->parent);
-	int64_t dcr_n15i, dcr_i;
-	int64_t alpha_rappi, rappi;
-	int64_t rspki;
-	int64_t rspk_mini, rspk_maxi;
+	struct rt5509_chip *chip = container_of(cdev,
+						struct rt5509_chip, calib_dev);
+	int64_t dcr_n15i = 0, dcr_i = 0;
+	int64_t alpha_rappi = 0, rappi = 0;
+	int64_t rspki = 0;
+	int64_t rspk_mini = 0, rspk_maxi = 0;
 
 	dev_info(chip->dev, "dcr_offset = 0x%08x\n", cdev->dcr_offset);
 	dev_info(chip->dev, "n15db reg = 0x%08x\n", cdev->n15db);
@@ -459,7 +459,7 @@ int rt5509_calib_create(struct rt5509_chip *chip)
 	pcalib_dev->trigger_read = rt5509_calib_trigger_read;
 	pcalib_dev->trigger_write = rt5509_calib_trigger_write;
 	pcalib_dev->trigger_calculation = rt5509_calib_trigger_calculation;
-	pcalib_dev->dev = device_create(rt5509_cal_class, chip->dev, 0,
+	pcalib_dev->dev = device_create(rt5509_cal_class, NULL, 0,
 				pcalib_dev, "rt5509.%d", chip->pdev->id);
 	if (IS_ERR(pcalib_dev->dev))
 		return -EINVAL;
@@ -551,7 +551,7 @@ static int calib_data_file_read(struct rt5509_chip *chip, char *buf)
 static int rt_dev_event_read(struct rt5509_chip *chip, char *buf)
 {
 	struct snd_soc_codec *codec = chip->codec;
-	int i, index = 0, ret = 0;
+	int i = 0, index = 0, ret = 0;
 
 	ret = snd_soc_read(codec, RT5509_REG_CHIPEN);
 	if (ret < 0)
@@ -627,8 +627,9 @@ static int rt_dev_event_read(struct rt5509_chip *chip, char *buf)
 static ssize_t rt_calib_dev_attr_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	struct rt5509_chip *chip = dev_get_drvdata(dev->parent);
 	struct rt5509_calib_classdev *calib_dev = dev_get_drvdata(dev);
+	struct rt5509_chip *chip = container_of(calib_dev,
+						struct rt5509_chip, calib_dev);
 	const ptrdiff_t offset = attr - rt5509_dev_attrs;
 	int ret = 0;
 

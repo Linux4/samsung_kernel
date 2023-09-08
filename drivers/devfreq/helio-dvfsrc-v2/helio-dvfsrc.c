@@ -108,11 +108,14 @@ static void dvfsrc_set_vcore_request(int data, int mask, int shift)
 
 static void dvfsrc_get_timestamp(char *p)
 {
+	int ret = 0;
 	u64 sec = local_clock();
 	u64 usec = do_div(sec, 1000000000);
 
 	do_div(usec, 1000000);
-	sprintf(p, "%llu.%llu", sec, usec);
+	ret = sprintf(p, "%llu.%llu", sec, usec);
+	if (ret < 0)
+		pr_info("sprintf fail\n");
 }
 
 static void dvfsrc_set_force_start(int data)
@@ -218,14 +221,6 @@ int get_sw_req_vcore_opp(void)
 		sw_req = (dvfsrc_read(DVFSRC_SW_REQ) >> VCORE_SW_AP_SHIFT);
 		sw_req = sw_req & VCORE_SW_AP_MASK;
 		sw_req = VCORE_OPP_NUM - sw_req - 1;
-		/* 2nd read current level to get current vcore opp */
-		opp = get_cur_vcore_opp();
-		if (opp > sw_req) {
-			/* should not happen */
-			dvfsrc_dump_reg(NULL);
-			aee_kernel_warning("DVFSRC",
-						"%s: failed.", __func__);
-		}
 		return sw_req;  /* return sw_request, as vcore floor level*/
 	}
 	opp = get_cur_vcore_opp();
@@ -304,7 +299,7 @@ static int commit_data(int type, int data, int check_spmfw)
 				if (vcore_uv < opp_uv) {
 					pr_info("DVFS FAIL = %d %d 0x%x\n",
 				vcore_uv, opp_uv, dvfsrc_read(DVFSRC_LEVEL));
-					dvfsrc_dump_reg(NULL);
+					dvfsrc_dump_reg(NULL, 0);
 					aee_kernel_warning("DVFSRC",
 						"%s: failed.", __func__);
 				}
@@ -382,7 +377,7 @@ static int commit_data(int type, int data, int check_spmfw)
 	if (ret < 0) {
 		pr_info("%s: type: 0x%x, data: 0x%x, opp: %d, level: %d\n",
 				__func__, type, data, opp, level);
-		dvfsrc_dump_reg(NULL);
+		dvfsrc_dump_reg(NULL, 0);
 		aee_kernel_warning("DVFSRC", "%s: failed.", __func__);
 	}
 
@@ -399,6 +394,7 @@ static void dvfsrc_restore(void)
 
 void helio_dvfsrc_enable(int dvfsrc_en)
 {
+	int ret = 0;
 	if (dvfsrc_en > 1 || dvfsrc_en < 0)
 		return;
 
@@ -417,8 +413,12 @@ void helio_dvfsrc_enable(int dvfsrc_en)
 	dvfsrc->qos_enabled = 1;
 	dvfsrc->dvfsrc_enabled = dvfsrc_en;
 	dvfsrc->opp_forced = 0;
-	sprintf(dvfsrc->force_start, "0");
-	sprintf(dvfsrc->force_end, "0");
+	ret = sprintf(dvfsrc->force_start, "0");
+	if (ret < 0)
+		pr_info("sprintf fail\n");
+	ret = sprintf(dvfsrc->force_end, "0");
+	if (ret < 0)
+		pr_info("sprintf fail\n");
 
 	dvfsrc_restore();
 	if (dvfsrc_en)
@@ -574,46 +574,52 @@ static void get_pm_qos_info(char *p)
 			"Force End Timestamp", dvfsrc->force_end);
 }
 
-char *dvfsrc_dump_reg(char *ptr)
+u32 dvfsrc_dump_reg(char *ptr, u32 count)
 {
 	char buf[1024];
+	u32 index = 0;
 
 	memset(buf, '\0', sizeof(buf));
 	get_opp_info(buf);
-	if (ptr)
-		ptr += sprintf(ptr, "%s\n", buf);
-	else
+	if (ptr) {
+		index += scnprintf(&ptr[index], (count - index - 1),
+		"%s\n", buf);
+	} else
 		pr_info("%s\n", buf);
 
 	memset(buf, '\0', sizeof(buf));
 	get_dvfsrc_reg(buf);
-	if (ptr)
-		ptr += sprintf(ptr, "%s\n", buf);
-	else
+	if (ptr) {
+		index += scnprintf(&ptr[index], (count - index - 1),
+		"%s\n", buf);
+	} else
 		pr_info("%s\n", buf);
 
 	memset(buf, '\0', sizeof(buf));
 	get_dvfsrc_record(buf);
-	if (ptr)
-		ptr += sprintf(ptr, "%s\n", buf);
-	else
+	if (ptr) {
+		index += scnprintf(&ptr[index], (count - index - 1),
+		"%s\n", buf);
+	} else
 		pr_info("%s\n", buf);
 
 	memset(buf, '\0', sizeof(buf));
 	get_spm_reg(buf);
-	if (ptr)
-		ptr += sprintf(ptr, "%s\n", buf);
-	else
+	if (ptr) {
+		index += scnprintf(&ptr[index], (count - index - 1),
+		"%s\n", buf);
+	} else
 		pr_info("%s\n", buf);
 
 	memset(buf, '\0', sizeof(buf));
 	get_pm_qos_info(buf);
-	if (ptr)
-		ptr += sprintf(ptr, "%s\n", buf);
-	else
+	if (ptr) {
+		index += scnprintf(&ptr[index], (count - index - 1),
+		"%s\n", buf);
+	} else
 		pr_info("%s\n", buf);
 
-	return ptr;
+	return index;
 }
 
 static struct devfreq_dev_profile helio_devfreq_profile = {

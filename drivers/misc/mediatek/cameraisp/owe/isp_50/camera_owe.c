@@ -299,17 +299,17 @@ struct OCC_REQUEST_STRUCT {
 	pid_t processID;	/* caller process ID */
 	unsigned int callerID;	/* caller thread ID */
 	unsigned int enqueReqNum;/* to judge it belongs to which frame package*/
-	signed int FrameWRIdx;	/* Frame write Index */
-	signed int FrameRDIdx;	/* Frame read Index */
+	unsigned int FrameWRIdx;	/* Frame write Index */
+	unsigned int FrameRDIdx;	/* Frame read Index */
 	enum OWE_FRAME_STATUS_ENUM
 			OccFrameStatus[_SUPPORT_MAX_OWE_FRAME_REQUEST_];
 	struct OWE_OCCConfig OccFrameConfig[_SUPPORT_MAX_OWE_FRAME_REQUEST_];
 };
 
 struct OCC_REQUEST_RING_STRUCT {
-	signed int WriteIdx;	/* enque how many request  */
-	signed int ReadIdx;		/* read which request index */
-	signed int HWProcessIdx;	/* HWWriteIdx */
+	unsigned int WriteIdx;	/* enque how many request  */
+	unsigned int ReadIdx;		/* read which request index */
+	unsigned int HWProcessIdx;	/* HWWriteIdx */
 	struct OCC_REQUEST_STRUCT
 			OCCReq_Struct[_SUPPORT_MAX_OWE_REQUEST_RING_SIZE_];
 };
@@ -329,17 +329,17 @@ struct WMFE_REQUEST_STRUCT {
 	pid_t processID;	/* caller process ID */
 	unsigned int callerID;	/* caller thread ID */
 	unsigned int enqueReqNum;/* to judge it belongs to which frame package*/
-	signed int FrameWRIdx;	/* Frame write Index */
-	signed int FrameRDIdx;	/* Frame read Index */
+	unsigned int FrameWRIdx;	/* Frame write Index */
+	unsigned int FrameRDIdx;	/* Frame read Index */
 	enum OWE_FRAME_STATUS_ENUM
 		WmfeFrameStatus[_SUPPORT_MAX_OWE_FRAME_REQUEST_];
 	struct OWE_WMFEConfig WmfeFrameConfig[_SUPPORT_MAX_OWE_FRAME_REQUEST_];
 };
 
 struct WMFE_REQUEST_RING_STRUCT {
-	signed int WriteIdx;	/* enque how many request  */
-	signed int ReadIdx;		/* read which request index */
-	signed int HWProcessIdx;	/* HWWriteIdx */
+	unsigned int WriteIdx;	/* enque how many request  */
+	unsigned int ReadIdx;		/* read which request index */
+	unsigned int HWProcessIdx;	/* HWWriteIdx */
 	struct WMFE_REQUEST_STRUCT
 		WMFEReq_Struct[_SUPPORT_MAX_OWE_REQUEST_RING_SIZE_];
 };
@@ -397,8 +397,8 @@ struct OWE_INFO_STRUCT {
 	unsigned int DebugMask;	/* Debug Mask */
 	signed int IrqNum;
 	struct OWE_IRQ_INFO_STRUCT IrqInfo;
-	signed int WriteReqIdx;
-	signed int ReadReqIdx;
+	unsigned int WriteReqIdx;
+	unsigned int ReadReqIdx;
 	pid_t ProcessID[_SUPPORT_MAX_OWE_FRAME_REQUEST_];
 };
 
@@ -444,6 +444,7 @@ static struct SV_LOG_STR gSvLog[OWE_IRQ_TYPE_AMOUNT];
 	unsigned int *ptr2 = &gSvLog[irq]._cnt[ppb][logT];\
 	unsigned int str_leng;\
 	unsigned int logi;\
+	int ret; \
 	struct SV_LOG_STR *pSrc = &gSvLog[irq];\
 	if (logT == _LOG_ERR) {\
 		str_leng = NORMAL_STR_LEN*ERR_PAGE; \
@@ -459,8 +460,11 @@ static struct SV_LOG_STR gSvLog[OWE_IRQ_TYPE_AMOUNT];
 			_cnt[ppb][logT]]);    \
 	avaLen = str_leng - 1 - gSvLog[irq]._cnt[ppb][logT];\
 	if (avaLen > 1) {\
-		snprintf((char *)(pDes), avaLen, fmt,\
+		ret = snprintf((char *)(pDes), avaLen, fmt,\
 			##__VA_ARGS__);   \
+		if (ret < 0) { \
+			LOG_ERR("snprintf fail(%d)\n", ret); \
+		} \
 		if ('\0' != gSvLog[irq]._str[ppb][logT][str_leng - 1]) {\
 			LOG_ERR("log str over flow(%d)", irq);\
 		} \
@@ -525,7 +529,10 @@ static struct SV_LOG_STR gSvLog[OWE_IRQ_TYPE_AMOUNT];
 			ptr = pDes = (char *)&(\
 			     pSrc->_str[ppb][logT][pSrc->_cnt[ppb][logT]]);\
 			ptr2 = &(pSrc->_cnt[ppb][logT]);\
-			snprintf((char *)(pDes), avaLen, fmt, ##__VA_ARGS__);\
+		ret = snprintf((char *)(pDes), avaLen, fmt, ##__VA_ARGS__);\
+		if (ret < 0) { \
+			LOG_ERR("snprintf fail(%d)\n", ret); \
+		} \
 			while (*ptr++ != '\0') {\
 				(*ptr2)++;\
 			} \
@@ -539,8 +546,8 @@ static struct SV_LOG_STR gSvLog[OWE_IRQ_TYPE_AMOUNT];
 	struct SV_LOG_STR *pSrc = &gSvLog[irq];\
 	char *ptr;\
 	unsigned int i;\
-	signed int ppb = 0;\
-	signed int logT = 0;\
+	unsigned int ppb = 0;\
+	unsigned int logT = 0;\
 	if (ppb_in > 1) {\
 		ppb = 1;\
 	} else{\
@@ -3076,13 +3083,13 @@ EXIT:
 /******************************************************************************
  *
  ******************************************************************************/
+/*
 static signed int OWE_mmap(struct file *pFile, struct vm_area_struct *pVma)
 {
 	unsigned long length = 0;
 	unsigned int pfn = 0x0;
 
 	length = pVma->vm_end - pVma->vm_start;
-	/*  */
 	pVma->vm_page_prot = pgprot_noncached(pVma->vm_page_prot);
 	pfn = pVma->vm_pgoff << PAGE_SHIFT;
 
@@ -3112,10 +3119,10 @@ static signed int OWE_mmap(struct file *pFile, struct vm_area_struct *pVma)
 		pVma->vm_page_prot)) {
 		return -EAGAIN;
 	}
-	/*  */
+
 	return 0;
 }
-
+*/
 /******************************************************************************
  *
  ******************************************************************************/
@@ -3129,7 +3136,7 @@ static const struct file_operations OWEFileOper = {
 	.open = OWE_open,
 	.release = OWE_release,
 	/* .flush   = mt_OWE_flush, */
-	.mmap = OWE_mmap,
+	/* .mmap = OWE_mmap, */
 	.unlocked_ioctl = OWE_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl = OWE_ioctl_compat,
@@ -3581,7 +3588,7 @@ static struct platform_driver OWEDriver = {
 	}
 };
 
-
+#ifdef OWE_PROCFS
 static int owe_dump_read(struct seq_file *m, void *v)
 {
 	int i, j;
@@ -3861,7 +3868,7 @@ static const struct file_operations owe_reg_proc_fops = {
 	.read = seq_read,
 	.write = owe_reg_write,
 };
-
+#endif
 
 /******************************************************************************
  *
@@ -3908,9 +3915,10 @@ static signed int __init OWE_Init(void)
 	void *tmp;
 	/* FIX-ME: linux-3.10 procfs API changed */
 	/* use proc_create */
+#ifdef OWE_PROCFS
 	struct proc_dir_entry *proc_entry;
 	struct proc_dir_entry *isp_owe_dir;
-
+#endif
 
 	int i;
 	/*  */
@@ -3938,6 +3946,8 @@ static signed int __init OWE_Init(void)
 	LOG_DBG("ISP_OWE_BASE: %lx\n", ISP_OWE_BASE);
 #endif
 
+
+#ifdef OWE_PROCFS
 	isp_owe_dir = proc_mkdir("owe", NULL);
 	if (!isp_owe_dir) {
 		LOG_ERR("[%s]: fail to mkdir /proc/owe\n", __func__);
@@ -3952,7 +3962,7 @@ static signed int __init OWE_Init(void)
 
 	proc_entry = proc_create("owe_reg", 0644,
 		isp_owe_dir, &owe_reg_proc_fops);
-
+#endif
 
 	/* isr log */
 	if (PAGE_SIZE < ((OWE_IRQ_TYPE_AMOUNT * NORMAL_STR_LEN * ((

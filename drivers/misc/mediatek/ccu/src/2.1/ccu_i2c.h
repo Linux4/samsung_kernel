@@ -19,8 +19,10 @@ enum CCU_I2C_CHANNEL {
 	CCU_I2C_CHANNEL_MIN      = 0x1,
 	CCU_I2C_CHANNEL_MAINCAM  = 0x1,
 	CCU_I2C_CHANNEL_MAINCAM2 = 0x2,
-	CCU_I2C_CHANNEL_SUBCAM   = 0x3,
-	CCU_I2C_CHANNEL_MAX      = 0x4
+	CCU_I2C_CHANNEL_MAINCAM3 = 0x3,
+	CCU_I2C_CHANNEL_SUBCAM   = 0x4,
+	CCU_I2C_CHANNEL_SUBCAM2  = 0x5,
+	CCU_I2C_CHANNEL_MAX      = 0x6
 };
 
 struct ccu_i2c_buf_mva_ioarg {
@@ -41,6 +43,6 @@ int ccu_get_i2c_dma_buf_addr(struct ccu_device_s *g_ccu_device,
 	struct ccu_i2c_buf_mva_ioarg *ioarg);
 int ccu_i2c_controller_init(enum CCU_I2C_CHANNEL i2c_controller_id);
 int ccu_i2c_controller_uninit_all(void);
-int ccu_i2c_free_dma_buf_mva_all(void);
+int ccu_i2c_free_dma_buf_mva_all(struct ccu_device_s *g_ccu_device);
 void ccu_i2c_dump_errr(void);
 #endif

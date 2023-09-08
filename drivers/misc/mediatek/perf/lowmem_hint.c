@@ -78,8 +78,9 @@ void trigger_lowmem_hint(long *out_avail_mem, long *out_free_mem)
 	free_mem_kb = K(*out_free_mem);
 
 	if (free_mem_kb <= mm_thrash_point_kb) {
+/*  For performance removing CONFIG_MTK_SCHED_TRACERS
 		trace_trigger_lowmem_hint(free_mem_kb, mm_thrash_point_kb);
-
+*/
 		/* is throttled ? */
 		if (!ktime_before(ktime_get(), mem_thrash_throttle)) {
 			if (wq)
@@ -104,8 +105,9 @@ void trigger_memory_thrash_event(void)
 	if (lowmem_hint_init)
 		ret = kobject_uevent_env(&mtk_perf_dev.this_device->kobj,
 				KOBJ_CHANGE, envp);
-
+/*  For performance removing CONFIG_MTK_SCHED_TRACERS
 	trace_lowmem_hint_uevent(ret);
+*/
 }
 
 static int mtk_perf_open(struct inode *inode, struct file *file)

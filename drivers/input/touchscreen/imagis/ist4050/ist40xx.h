@@ -28,9 +28,14 @@
 #undef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
 
 
-#if defined(CONFIG_VBUS_NOTIFIER) || defined(CONFIG_MUIC_NOTIFIER)
-#include <linux/muic/muic.h>
-#include <linux/muic/muic_notifier.h>
+#if defined(CONFIG_VBUS_NOTIFIER) || defined(CONFIG_MUIC_NOTIFIER) || defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#include <linux/notifier.h>
+#endif
+#if defined(CONFIG_MUIC_NOTIFIER)
+#include <linux/muic/common/muic.h>
+#include <linux/muic/common/muic_notifier.h>
+#endif
+#if defined(CONFIG_VBUS_NOTIFIER)
 #include <linux/vbus_notifier.h>
 #endif
 #if defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
@@ -757,6 +762,7 @@ struct ist40xx_data {
 	struct delayed_work work_read_info;
 	bool info_work_done;
 	u32 disassemble_count;
+	int enabled;
 
 	char pos[5];
 	struct delayed_work work_print_info;
@@ -875,6 +881,7 @@ struct ist40xx_data {
 	int ed_enable;
 	int pocket_enable;
 	int debug_string;
+	u32 palm_flag;
 
 };
 

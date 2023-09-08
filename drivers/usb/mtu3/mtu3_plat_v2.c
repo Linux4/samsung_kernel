@@ -40,29 +40,6 @@ MODULE_PARM_DESC(debug_level, "Debug Print Log Lvl");
  * 1: Super Speed
  */
 u32 mtu3_speed;
-static int set_musb_speed(const char *val, const struct kernel_param *kp)
-{
-	int ret;
-	u32 u3_en;
-
-	ret = kstrtou32(val, 10, &u3_en);
-	if (ret)
-		return ret;
-
-	if (u3_en != 0 && u3_en != 1)
-		return -EINVAL;
-
-	mtu3_speed = u3_en;
-
-	return 0;
-}
-static struct kernel_param_ops musb_speed_param_ops = {
-	.set = set_musb_speed,
-	.get = param_get_int,
-};
-module_param_cb(speed, &musb_speed_param_ops, &mtu3_speed, 0644);
-MODULE_PARM_DESC(debug, "USB speed configuration. default = 1, spuper speed.");
-
 
 #ifdef CONFIG_SYSFS
 const char *const mtu3_mode_str[CABLE_MODE_MAX] = { "CHRG_ONLY",
@@ -87,6 +64,7 @@ ssize_t musb_cmode_store(struct device *dev, struct device_attribute *attr,
 {
 	unsigned int cmode;
 	struct ssusb_mtk *ssusb;
+	struct extcon_dev *edev;
 
 	if (!dev) {
 		pr_info("dev is null!!\n");
@@ -99,6 +77,8 @@ ssize_t musb_cmode_store(struct device *dev, struct device_attribute *attr,
 		pr_info("ssusb is null!!\n");
 		return count;
 	}
+
+	edev = (&ssusb->otg_switch)->edev;
 
 	if (sscanf(buf, "%ud", &cmode) == 1) {
 		if (cmode >= CABLE_MODE_MAX)
@@ -121,8 +101,12 @@ ssize_t musb_cmode_store(struct device *dev, struct device_attribute *attr,
 				ssusb_set_mailbox(&ssusb->otg_switch,
 					MTU3_VBUS_VALID);
 			} else {	/* IPO bootup, enable USB */
-				ssusb_set_mailbox(&ssusb->otg_switch,
-					MTU3_CMODE_VBUS_VALID);
+				if (extcon_get_state(edev, EXTCON_USB_HOST))
+					ssusb_set_mailbox(&ssusb->otg_switch,
+						   MTU3_ID_GROUND);
+				else
+					ssusb_set_mailbox(&ssusb->otg_switch,
+						   MTU3_CMODE_VBUS_VALID);
 			}
 			msleep(200);
 		}
@@ -259,7 +243,7 @@ ssize_t musb_sib_enable_show(struct device *dev,
 ssize_t musb_sib_enable_store(struct device *dev, struct device_attribute *attr,
 			    const char *buf, size_t count)
 {
-	unsigned int mode;
+	unsigned int mode = 0;
 	struct ssusb_mtk *ssusb;
 
 	if (!dev) {
@@ -385,6 +369,14 @@ static int ssusb_rscs_init(struct ssusb_mtk *ssusb)
 {
 	int ret = 0;
 
+#ifdef CONFIG_FPGA_EARLY_PORTING
+	ret = ssusb_phy_init(ssusb);
+	ret |= ssusb_phy_power_on(ssusb);
+	if (ret)
+		dev_info(ssusb->dev, "failed to init phy on FPGA\n");
+
+	return 0;
+#else
 	ret = regulator_enable(ssusb->vusb33);
 	if (ret) {
 		dev_info(ssusb->dev, "failed to enable vusb33\n");
@@ -423,6 +415,7 @@ sys_clk_err:
 vusb33_err:
 
 	return ret;
+#endif
 }
 #endif
 
@@ -444,6 +437,19 @@ static void ssusb_ip_sw_reset(struct ssusb_mtk *ssusb)
 }
 #endif
 
+/* ignore the error if the clock does not exist */
+static struct clk *get_optional_clk(struct device *dev, const char *id)
+{
+	struct clk *opt_clk;
+
+	opt_clk = devm_clk_get(dev, id);
+	/* ignore error number except EPROBE_DEFER */
+	if (IS_ERR(opt_clk) && (PTR_ERR(opt_clk) != -EPROBE_DEFER))
+		opt_clk = NULL;
+
+	return opt_clk;
+}
+
 static int get_ssusb_rscs(struct platform_device *pdev, struct ssusb_mtk *ssusb)
 {
 	struct device_node *node = pdev->dev.of_node;
@@ -451,25 +457,50 @@ static int get_ssusb_rscs(struct platform_device *pdev, struct ssusb_mtk *ssusb)
 	struct device *dev = &pdev->dev;
 	struct resource *res;
 	int i;
+	int ret;
 
+#ifdef CONFIG_FPGA_EARLY_PORTING
+	ret = of_property_read_u32(node, "fpga_phy_ver", &ssusb->fpga_phy_ver);
+	if (ret)
+		dev_info(dev, "unknown FPGA phy version\n");
+#else
 	ssusb->vusb33 = devm_regulator_get(&pdev->dev, "vusb");
 	if (IS_ERR(ssusb->vusb33)) {
 		dev_info(dev, "failed to get vusb33\n");
 		return PTR_ERR(ssusb->vusb33);
 	}
 
-	ssusb->sys_clk = devm_clk_get(dev, "sys_ck");
+	ssusb->sys_clk = get_optional_clk(dev, "sys_ck");
 	if (IS_ERR(ssusb->sys_clk)) {
 		dev_info(dev, "failed to get sys clock\n");
 		return PTR_ERR(ssusb->sys_clk);
 	}
 
-	ssusb->ref_clk = devm_clk_get(dev, "rel_clk");
+	ssusb->ref_clk = get_optional_clk(dev, "rel_clk");
 	if (IS_ERR(ssusb->ref_clk)) {
 		dev_info(dev, "failed to get ref clock\n");
 		return PTR_ERR(ssusb->ref_clk);
 	}
 
+	ssusb->mcu_clk = get_optional_clk(dev, "mcu_ck");
+	if (IS_ERR(ssusb->mcu_clk)) {
+		dev_info(dev, "failed to get mcu clock\n");
+		return PTR_ERR(ssusb->mcu_clk);
+	}
+
+	ssusb->dma_clk = get_optional_clk(dev, "dma_ck");
+	if (IS_ERR(ssusb->dma_clk)) {
+		dev_info(dev, "failed to get dma clock\n");
+		return PTR_ERR(ssusb->dma_clk);
+	}
+
+	ssusb->host_clk = get_optional_clk(dev, "host_ck");
+	if (IS_ERR(ssusb->host_clk)) {
+		dev_info(dev, "failed to get host clock\n");
+		return PTR_ERR(ssusb->host_clk);
+	}
+
+#endif
 	ssusb->num_phys = of_count_phandle_with_args(node,
 			"phys", "#phy-cells");
 
@@ -492,6 +523,11 @@ static int get_ssusb_rscs(struct platform_device *pdev, struct ssusb_mtk *ssusb)
 	}
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "ippc");
+	if (IS_ERR_OR_NULL(res)) {
+		dev_info(dev, "failed to get resource for ippc\n");
+		return -ENOMEM;
+	}
+
 	ssusb->ippc_base = devm_ioremap(dev, res->start, resource_size(res));
 	if (IS_ERR(ssusb->ippc_base)) {
 		dev_info(dev, "failed to map memory for ippc\n");
@@ -506,9 +542,18 @@ static int get_ssusb_rscs(struct platform_device *pdev, struct ssusb_mtk *ssusb)
 
 	ssusb->force_vbus =
 		of_property_read_bool(node, "mediatek,force_vbus_det");
+	ssusb->noise_still_tr =
+		of_property_read_bool(node, "mediatek,noise_still_tr");
 
 	if (ssusb->dr_mode == USB_DR_MODE_PERIPHERAL)
 		return 0;
+
+	/* if host role is supported */
+	ret = ssusb_wakeup_of_property_parse(ssusb, node);
+	if (ret) {
+		dev_err(dev, "failed to parse uwk property\n");
+		return ret;
+	}
 
 	if (ssusb->dr_mode != USB_DR_MODE_OTG)
 		return 0;
@@ -519,6 +564,9 @@ static int get_ssusb_rscs(struct platform_device *pdev, struct ssusb_mtk *ssusb)
 	otg_sx->is_u3h_drd = of_property_read_bool(node,
 				"mediatek,usb3h-drd");
 
+#ifdef CONFIG_FPGA_EARLY_PORTING
+	/* May be no extcon in FPGA stage */
+#else
 	if (of_property_read_bool(node, "extcon")) {
 		otg_sx->edev = extcon_get_edev_by_phandle(ssusb->dev, 0);
 		if (IS_ERR(otg_sx->edev)) {
@@ -526,6 +574,7 @@ static int get_ssusb_rscs(struct platform_device *pdev, struct ssusb_mtk *ssusb)
 			return -EPROBE_DEFER;
 		}
 	}
+#endif
 
 	dev_info(dev, "dr_mode: %d, is_u3_dr: %d, is_u3h_dr: %d\n",
 		ssusb->dr_mode, otg_sx->is_u3_drd, otg_sx->is_u3h_drd);
@@ -555,6 +604,11 @@ static int mtu3_probe(struct platform_device *pdev)
 	ssusb->dev = dev;
 
 	dev_set_name(dev, "musb-hdrc");
+	/*
+	 * fix uaf(use afer free) issue:backup pdev->name,
+	 * device_rename will free pdev->name
+	 */
+	pdev->name = pdev->dev.kobj.name;
 
 	ret = get_ssusb_rscs(pdev, ssusb);
 	if (ret)
@@ -630,7 +684,7 @@ static int mtu3_probe(struct platform_device *pdev)
 #ifdef CONFIG_MTK_BOOT
 	if (get_boot_mode() == META_BOOT) {
 		dev_info(dev, "in special mode %d\n", get_boot_mode());
-		mtu3_cable_mode = CABLE_MODE_FORCEON;
+		/*mtu3_cable_mode = CABLE_MODE_FORCEON;*/
 	}
 #endif
 
@@ -695,7 +749,9 @@ static int __maybe_unused mtu3_suspend(struct device *dev)
 	ssusb_host_disable(ssusb, ssusb->is_host);
 	/* ssusb_phy_power_off(ssusb); */
 	ssusb_clk_off(ssusb, ssusb->is_host);
-	usb_wakeup_enable(ssusb);
+	ssusb_wakeup_mode_enable(ssusb);
+	ssusb_wakeup_set(ssusb, true);
+	ssusb_dpidle_request(USB_DPIDLE_SUSPEND);
 	return 0;
 }
 
@@ -709,7 +765,9 @@ static int __maybe_unused mtu3_resume(struct device *dev)
 	if (!ssusb->is_host)
 		return 0;
 
-	usb_wakeup_disable(ssusb);
+	ssusb_dpidle_request(USB_DPIDLE_RESUME);
+	ssusb_wakeup_set(ssusb, false);
+	ssusb_wakeup_mode_disable(ssusb);
 	ssusb_clk_on(ssusb, ssusb->is_host);
 	/* ssusb_phy_power_on(ssusb); */
 	ssusb_host_enable(ssusb);
@@ -725,6 +783,10 @@ static const struct dev_pm_ops mtu3_pm_ops = {
 #ifdef CONFIG_OF
 
 static const struct of_device_id mtu3_of_match[] = {
+	{.compatible = "mediatek,mt6885-mtu3",},
+	{.compatible = "mediatek,mt6853-mtu3",},
+	{.compatible = "mediatek,mt6877-mtu3",},
+	{.compatible = "mediatek,mt6873-mtu3",},
 	{.compatible = "mediatek,mt6785-mtu3",},
 	{.compatible = "mediatek,mt6771-mtu3",},
 	{},

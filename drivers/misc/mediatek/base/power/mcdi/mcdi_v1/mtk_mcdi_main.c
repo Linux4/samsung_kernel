@@ -72,7 +72,7 @@ static const char *ac_cpu_cond_name[NF_ANY_CORE_CPU_COND_INFO] = {
 static unsigned long long mcdi_heart_beat_log_prev;
 static DEFINE_SPINLOCK(mcdi_heart_beat_spin_lock);
 
-static unsigned int mcdi_heart_beat_log_dump_thd = 60000;          /* 60 sec */
+static unsigned int mcdi_heart_beat_log_dump_thd = 5000;          /* 5 sec */
 
 static bool mcdi_stress_en;
 static unsigned int mcdi_stress_us = 10 * 1000;
@@ -226,7 +226,7 @@ static ssize_t mcdi_state_read(struct file *filp,
 	int len = 0;
 	int i;
 	char *p = dbg_buf;
-	unsigned long ac_cpu_cond_info[NF_ANY_CORE_CPU_COND_INFO];
+	unsigned long ac_cpu_cond_info[NF_ANY_CORE_CPU_COND_INFO] = {0};
 	int latency_req = pm_qos_request(PM_QOS_CPU_DMA_LATENCY);
 
 	struct mcdi_feature_status feature_stat;
@@ -575,7 +575,7 @@ void mcdi_heart_beat_log_dump(void)
 	bool dump_log = false;
 	unsigned long mcdi_cnt;
 	unsigned long any_core_info = 0;
-	unsigned long ac_cpu_cond_info[NF_ANY_CORE_CPU_COND_INFO];
+	unsigned long ac_cpu_cond_info[NF_ANY_CORE_CPU_COND_INFO] = {0};
 	unsigned int cpu_mask = 0;
 	unsigned int cluster_mask = 0;
 	struct mcdi_feature_status feature_stat;

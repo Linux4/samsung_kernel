@@ -96,6 +96,13 @@
 #define BG_TYPICAL       0x0400
 #endif
 
+#define GC5035_OTP_CAL_MAX_SIZE     0xF0
+#define GC5035_OTP_CHECK_BANK       0x1000
+#define GC5035_OTP_BANK1_MARK       0x01
+#define GC5035_OTP_BANK2_MARK       0x03
+#define GC5035_OTP_BANK1_START_ADDR 0x1020
+#define GC5035_OTP_BANK2_START_ADDR 0x17C0
+
 struct gc5035_otp {
 	kal_uint8  dd_flag;
 	kal_uint16 dd_num;
@@ -120,6 +127,10 @@ enum {
 	IMGSENSOR_MODE_HIGH_SPEED_VIDEO,
 	IMGSENSOR_MODE_SLIM_VIDEO,
 	IMGSENSOR_MODE_CUSTOM1,
+	IMGSENSOR_MODE_CUSTOM2,
+	IMGSENSOR_MODE_CUSTOM3,
+	IMGSENSOR_MODE_CUSTOM4,
+	IMGSENSOR_MODE_CUSTOM5
 };
 
 struct imgsensor_mode_struct {
@@ -169,6 +180,10 @@ struct imgsensor_info_struct {
 	struct imgsensor_mode_struct hs_video;    /* high speed video scenario relative information */
 	struct imgsensor_mode_struct slim_video;  /* slim video for VT scenario relative information */
 	struct imgsensor_mode_struct custom1;     /* custom1 for stereo scenario relative information */
+	struct imgsensor_mode_struct custom2;     /* custom2 for stereo scenario relative information */
+	struct imgsensor_mode_struct custom3;     /* custom3 for stereo scenario relative information */
+	struct imgsensor_mode_struct custom4;     /* custom4 for stereo scenario relative information */
+	struct imgsensor_mode_struct custom5;     /* custom5 for stereo scenario relative information */
 	kal_uint8 ae_shut_delay_frame;            /* shutter delay frame for AE cycle */
 	kal_uint8 ae_sensor_gain_delay_frame;     /* sensor gain delay frame for AE cycle */
 	kal_uint8 ae_ispGain_delay_frame;         /* isp gain delay frame for AE cycle */
@@ -181,9 +196,19 @@ struct imgsensor_info_struct {
 	kal_uint8 hs_video_delay_frame;           /* enter high speed video  delay frame num */
 	kal_uint8 slim_video_delay_frame;         /* enter slim video delay frame num */
 	kal_uint8 custom1_delay_frame;            /* enter custom1 delay frame num */
+	kal_uint8 custom2_delay_frame;            /* enter custom2 delay frame num */
+	kal_uint8 custom3_delay_frame;            /* enter custom3 delay frame num */
+	kal_uint8 custom4_delay_frame;            /* enter custom4 delay frame num */
+	kal_uint8 custom5_delay_frame;            /* enter custom5 delay frame num */
 	kal_uint8 frame_time_delay_frame;         /* enter frame_time_delay_frame num */
 	kal_uint8 margin;                         /* sensor framelength & shutter margin */
 	kal_uint32 min_shutter;                   /* min shutter */
+	kal_uint32 min_gain;
+	kal_uint32 max_gain;
+	kal_uint32 min_gain_iso;
+	kal_uint32 exp_step;
+	kal_uint32 gain_step;
+	kal_uint32 gain_type;
 	kal_uint32 max_frame_length;              /* max framelength by sensor register's limitation */
 	kal_uint8 isp_driving_current;            /* mclk driving current */
 	kal_uint8 sensor_interface_type;          /* sensor_interface_type */
@@ -196,6 +221,7 @@ struct imgsensor_info_struct {
 	kal_uint8 mclk;                           /* mclk value, suggest 24 or 26 for 24Mhz or 26Mhz */
 	kal_uint8 mipi_lane_num;                  /* mipi lane num */
 	kal_uint8 i2c_addr_table[5];
+	kal_uint32 i2c_speed;
 	/* record sensor support all write id addr, only supprt 4must end with 0xff */
 };
 
@@ -204,5 +230,8 @@ extern int iWriteRegI2C(u8 *a_pSendData, u16 a_sizeSendData, u16 i2cId);
 extern int iWriteReg(u16 a_u2Addr, u32 a_u4Data, u32 a_u4Bytes, u16 i2cId);
 extern int iMultiReadReg(u16 a_u2Addr, u8 *a_puBuff, u16 i2cId, u8 number);
 extern int iBurstWriteReg(u8 *pData, u32 bytes, u16 i2cId);
+extern int iBurstWriteReg_multi(u8 *pData, u32 bytes, u16 i2cId, u16 transfer_length, u16 timing);
 
 #endif
+
+

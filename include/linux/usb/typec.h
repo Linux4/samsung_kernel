@@ -22,15 +22,9 @@ struct typec_port;
 struct fwnode_handle;
 
 enum typec_port_type {
-	TYPEC_PORT_SRC,
-	TYPEC_PORT_SNK,
-	TYPEC_PORT_DRP,
-};
-
-enum typec_port_data {
 	TYPEC_PORT_DFP,
 	TYPEC_PORT_UFP,
-	TYPEC_PORT_DRD,
+	TYPEC_PORT_DRP,
 };
 
 enum typec_plug_type {
@@ -203,14 +197,11 @@ struct typec_partner_desc {
  */
 struct typec_capability {
 	enum typec_port_type	type;
-	enum typec_port_data	data;
 	u16			revision; /* 0120H = "1.2" */
 	u16			pd_revision; /* 0300H = "3.0" */
 	int			prefer_role;
 	enum typec_accessory	accessory[TYPEC_MAX_ACCESSORY];
 
-	struct typec_switch	*sw;
-	struct typec_mux	*mux;
 	struct fwnode_handle	*fwnode;
 
 	int		(*try_role)(const struct typec_capability *,

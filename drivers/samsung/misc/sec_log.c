@@ -111,12 +111,54 @@ static inline void sec_log_save_old(unsigned int lastkbase, unsigned int lastksi
 }
 #endif /* CONFIG_SEC_DEBUG_LAST_KMSG */
 
+static ssize_t sec_log_read(struct file *file, char __user *buf,
+				  size_t len, loff_t *offset)
+{
+	loff_t pos = *offset;
+	ssize_t count;
+
+	if (pos >= seclog_size)
+		return 0;
+
+	count = min(len, (size_t) (seclog_size - pos));
+	if (copy_to_user(buf, sec_log_buf + pos, count))
+		return -EFAULT;
+
+	*offset += count;
+	return count;
+}
+
+static const struct file_operations sec_log_file_ops = {
+	.owner = THIS_MODULE,
+	.read = sec_log_read,
+};
+
+static int __init sec_log_init(void)
+{
+	struct proc_dir_entry *entry;
+
+	if (sec_log_buf == NULL)
+		return 0;
+
+	entry = proc_create("sec_log", S_IFREG | 0444,
+			NULL, &sec_log_file_ops);
+	if (!entry) {
+		pr_err("%s: failed to create proc entry\n", __func__);
+		return 0;
+	}
+
+	proc_set_size(entry, seclog_size);
+	return 0;
+}
+late_initcall(sec_log_init);
+
 static inline void sec_log_hook_logger(const char *text, size_t size)
 {
 	unsigned int pos = 0;
 
 	/* Remove flip possibility the upper bit of the 22nd bit*/
-	*sec_logger_pos &= (seclogger_size - 1);
+	*sec_logger_pos &= (SZ_4M - 1);
+
 	pos = *sec_logger_pos;
 
 	if (likely((unsigned int)size + pos <= sec_logger_size))

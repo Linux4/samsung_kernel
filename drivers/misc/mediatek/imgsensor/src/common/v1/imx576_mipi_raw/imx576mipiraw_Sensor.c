@@ -48,8 +48,9 @@
 #include "kd_imgsensor.h"
 #include "kd_imgsensor_define.h"
 #include "kd_imgsensor_errcode.h"
+#include "kd_imgsensor_sysfs_adapter.h"
 
-#include "sysfs/imgsensor_sysfs.h"
+#include "imgsensor_sysfs.h"
 
 #include "imx576mipiraw_Sensor.h"
 
@@ -58,10 +59,10 @@
 #define ENABLE_BURST_WRITE                      (1)
 #define DEBUG_IMX576_RECORD_29FPS
 #ifdef DEBUG_IMX576_RECORD_29FPS
-static int the_frame_length = 0;
-static int the_line_length = 0;
-static int the_pclk = 0;
-static int the_autoflicker_en = 0;
+static int the_frame_length;
+static int the_line_length;
+static int the_pclk;
+static int the_autoflicker_en;
 #endif
 
 #undef VENDOR_EDIT
@@ -256,7 +257,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.custom3_delay_frame = 2,
 	.custom4_delay_frame = 2,
 	.custom5_delay_frame = 2,
-	.isp_driving_current = ISP_DRIVING_6MA,
+	.isp_driving_current = ISP_DRIVING_8MA,
 	.sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,
 	.mipi_sensor_type = MIPI_OPHY_NCSI2,
 	/* 0,MIPI_OPHY_NCSI2;  1,MIPI_OPHY_CSI2 */
@@ -466,10 +467,10 @@ static void write_shutter(kal_uint16 shutter)
 		shutter = imgsensor_info.min_shutter;
 
 #ifdef DEBUG_IMX576_RECORD_29FPS
-		if((the_frame_length != imgsensor.frame_length) || (the_line_length != imgsensor.line_length) ||
-		   (the_pclk != imgsensor.pclk) || (the_autoflicker_en != imgsensor.autoflicker_en)) {
+		if ((the_frame_length != imgsensor.frame_length) || (the_line_length != imgsensor.line_length) ||
+		 (the_pclk != imgsensor.pclk) || (the_autoflicker_en != imgsensor.autoflicker_en)) {
 			int realtime_fps = 0;
-			if(imgsensor.line_length > 0 && imgsensor.frame_length > 0)
+			if (imgsensor.line_length > 0 && imgsensor.frame_length > 0)
 				realtime_fps = imgsensor.pclk / imgsensor.line_length * 10 / imgsensor.frame_length;
 			pr_err("%s imx576 shutter=%d, frame_length=%d->%d, line_length=%d->%d, pclk=%d->%d, autoflicker=%d->%d, realtime_fps=%d",
 				__func__, shutter, the_frame_length, imgsensor.frame_length, the_line_length, imgsensor.line_length,
@@ -747,7 +748,7 @@ static kal_int32 burst_write_cmos_sensor(kal_uint16 start_addr, kal_uint8 *para,
 		puSendCmd[tosend++] = (char)(data & 0xFF);
 	}
 
-	ret = iBurstWriteReg_multi( puSendCmd, tosend,
+	ret = iBurstWriteReg_multi(puSendCmd, tosend,
 					imgsensor.i2c_write_id, tosend, imgsensor_info.i2c_speed);
 	if (ret < 0) {
 		pr_err("%s: fail!\n", __func__);
@@ -2053,7 +2054,7 @@ static void sensor_init(void)
 	ret = imx576_table_write_cmos_sensor(imx576_init_setting,
 		sizeof(imx576_init_setting)/sizeof(kal_uint16));
 
-	if(ret != 0) {
+	if (ret != 0) {
 		imgsensor_sec_get_hw_param(&hw_param, SENSOR_POSITION_FRONT);
 		if (hw_param)
 			hw_param->i2c_sensor_err_cnt++;
@@ -2063,17 +2064,13 @@ static void sensor_init(void)
 	LOG_INF("%s X\n", __func__);
 }	/*	sensor_init  */
 
-#if WRITE_SENSOR_CAL_FOR_DPC || WRITE_SENSOR_CAL_FOR_QSC
-extern int imgsensor_get_cal_buf_by_sensor_idx(int sensor_idx, char **buf);
-#endif
-
 #if WRITE_SENSOR_CAL_FOR_DPC
 #define SENSOR_IMX576_DPC_CAL_BASE_REAR           (0x09D0)
 #define SENSOR_IMX576_DPC_CAL_SIZE                (2048)
 
 static void sensor_DPC_write(void)
 {
-	int i=0;
+	int i = 0;
 	char *rom_cal_buf = NULL;
 	char cal_data[SENSOR_IMX576_DPC_CAL_SIZE] = {0};
 
@@ -2085,8 +2082,8 @@ static void sensor_DPC_write(void)
 
 	pr_debug("%s", __func__);
 
-	if( imgsensor_get_cal_buf_by_sensor_idx(sensor_dev_id, &rom_cal_buf) ) {
-		pr_err("%s : cal data is NULL", __func__);
+	if (IMGSENSOR_GET_CAL_BUF_BY_SENSOR_IDX(sensor_dev_id, &rom_cal_buf)) {
+		pr_err("%s : cal data is NULL, sensor_dev_id: %d", __func__, sensor_dev_id);
 		return;
 	}
 	rom_cal_buf += SENSOR_IMX576_DPC_CAL_BASE_REAR;
@@ -2095,7 +2092,7 @@ static void sensor_DPC_write(void)
 	start_addr = ((rom_cal_buf[SENSOR_IMX576_DPC_CAL_SIZE-4] << 8) | rom_cal_buf[SENSOR_IMX576_DPC_CAL_SIZE-3]);
 	data_size = ((rom_cal_buf[SENSOR_IMX576_DPC_CAL_SIZE-2] << 8) | rom_cal_buf[SENSOR_IMX576_DPC_CAL_SIZE-1]);
 	pr_err("%s write addr=0x%X, size=%d", __func__, start_addr, data_size);
-	pr_err("%s write2 addr=0x%X,%X, size=%X,%X", __func__, 
+	pr_err("%s write2 addr=0x%X,%X, size=%X,%X", __func__,
 		rom_cal_buf[SENSOR_IMX576_DPC_CAL_SIZE-4], rom_cal_buf[SENSOR_IMX576_DPC_CAL_SIZE-3],
 		rom_cal_buf[SENSOR_IMX576_DPC_CAL_SIZE-2], rom_cal_buf[SENSOR_IMX576_DPC_CAL_SIZE-1]);
 	for (i = 0; i < data_size ; i++)
@@ -2108,12 +2105,12 @@ static void sensor_DPC_write(void)
 #define SENSOR_IMX576_QSC_CAL_BASE_REAR           (0x11D0)
 #define SENSOR_IMX576_QSC_CAL_SIZE                (1056)
 #define SENSOR_IMX576_QSC_REG_ADDR                (0x8000)
-static bool sensor_imx576_QSC_write_flag = false;
+static bool sensor_imx576_QSC_write_flag;
 
 static void sensor_QSC_write(void)
 {
 #if ENABLE_BURST_WRITE == 0
-	int i=0;
+	int i = 0;
 #endif
 	char *rom_cal_buf = NULL;
 
@@ -2125,8 +2122,8 @@ static void sensor_QSC_write(void)
 
 	pr_debug("%s", __func__);
 
-	if( imgsensor_get_cal_buf_by_sensor_idx(sensor_dev_id, &rom_cal_buf) ) {
-		pr_err("%s : cal data is NULL", __func__);
+	if (IMGSENSOR_GET_CAL_BUF_BY_SENSOR_IDX(sensor_dev_id, &rom_cal_buf)) {
+		pr_err("%s : cal data is NULL, sensor_dev_id: %d", __func__, sensor_dev_id);
 		return;
 	}
 	rom_cal_buf += SENSOR_IMX576_QSC_CAL_BASE_REAR;

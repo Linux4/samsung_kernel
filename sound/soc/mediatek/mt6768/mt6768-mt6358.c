@@ -22,9 +22,11 @@
  * mt6768_mt6358_spk_amp_event()
  */
 #define EXT_SPK_AMP_W_NAME "Ext_Speaker_Amp"
-#define EXT_HP_AMP_W_NAME "Ext_Headset_Amp"
 
 static const char *const mt6768_spk_type_str[] = {MTK_SPK_NOT_SMARTPA_STR,
+#ifdef CONFIG_SND_SOC_AW8896
+						  MTK_SPK_AWINIC_AW8896_STR,
+#endif
 #ifdef CONFIG_SND_SOC_SMA1303
 						  MTK_SPK_SILICON_SM1303_STR,
 #endif
@@ -96,32 +98,8 @@ static int mt6768_mt6358_spk_amp_event(struct snd_soc_dapm_widget *w,
 	return 0;
 };
 
-static int mt6768_mt6358_hp_amp_event(struct snd_soc_dapm_widget *w,
-				       struct snd_kcontrol *kcontrol,
-				       int event)
-{
-	struct snd_soc_dapm_context *dapm = w->dapm;
-	struct snd_soc_card *card = dapm->card;
-
-	dev_info(card->dev, "%s(), event %d\n", __func__, event);
-
-	switch (event) {
-	case SND_SOC_DAPM_POST_PMU:
-		/* Control EAR SW OUT pin for Open headset path  */
-		break;
-	case SND_SOC_DAPM_PRE_PMD:
-		/* Control EAR SW OUT pin for Close headset path  */
-		break;
-	default:
-		break;
-	}
-
-	return 0;
-};
-
 static const struct snd_soc_dapm_widget mt6768_mt6358_widgets[] = {
 	SND_SOC_DAPM_SPK(EXT_SPK_AMP_W_NAME, mt6768_mt6358_spk_amp_event),
-	SND_SOC_DAPM_SPK(EXT_HP_AMP_W_NAME, mt6768_mt6358_hp_amp_event),
 };
 
 static const struct snd_soc_dapm_route mt6768_mt6358_routes[] = {
@@ -129,16 +107,10 @@ static const struct snd_soc_dapm_route mt6768_mt6358_routes[] = {
 	{EXT_SPK_AMP_W_NAME, NULL, "LINEOUT L HSSPK"},
 	{EXT_SPK_AMP_W_NAME, NULL, "Headphone L Ext Spk Amp"},
 	{EXT_SPK_AMP_W_NAME, NULL, "Headphone R Ext Spk Amp"},
-	{EXT_HP_AMP_W_NAME, NULL, "Headphone L"},
-	{EXT_HP_AMP_W_NAME, NULL, "Headphone R"},
-	{EXT_HP_AMP_W_NAME, NULL, "LINEOUT L HSSPK"},
-	{EXT_HP_AMP_W_NAME, NULL, "Headphone L Ext Spk Amp"},
-	{EXT_HP_AMP_W_NAME, NULL, "Headphone R Ext Spk Amp"},
 };
 
 static const struct snd_kcontrol_new mt6768_mt6358_controls[] = {
 	SOC_DAPM_PIN_SWITCH(EXT_SPK_AMP_W_NAME),
-	SOC_DAPM_PIN_SWITCH(EXT_HP_AMP_W_NAME),
 	SOC_ENUM_EXT("MTK_SPK_TYPE_GET", mt6768_spk_type_enum[0],
 		     mt6768_spk_type_get, NULL),
 	SOC_ENUM_EXT("MTK_SPK_I2S_OUT_TYPE_GET", mt6768_spk_type_enum[1],
@@ -171,11 +143,11 @@ static int mt6768_mt6358_mtkaif_calibration(struct snd_soc_pcm_runtime *rtd)
 {
 	struct mtk_base_afe *afe = snd_soc_platform_get_drvdata(rtd->platform);
 	struct mt6768_afe_private *afe_priv = afe->platform_priv;
-	int phase;
-	unsigned int monitor;
-	int test_done_1, test_done_2;
-	int cycle_1, cycle_2, prev_cycle_1, prev_cycle_2;
-	int counter;
+	int phase = 0;
+	unsigned int monitor = 0;
+	int test_done_1, test_done_2 = 0;
+	int cycle_1, cycle_2, prev_cycle_1, prev_cycle_2 = 0;
+	int counter = 0;
 
 	dev_info(afe->dev, "%s(), start\n", __func__);
 
@@ -308,12 +280,11 @@ static int mt6768_mt6358_init(struct snd_soc_pcm_runtime *rtd)
 
 	/* disable ext amp connection */
 	snd_soc_dapm_disable_pin(dapm, EXT_SPK_AMP_W_NAME);
-	snd_soc_dapm_disable_pin(dapm, EXT_HP_AMP_W_NAME);
 
 	return 0;
 }
 
-#if !defined(CONFIG_SND_SOC_SMA1303)
+#if !defined(CONFIG_SND_SOC_SMA1303) && !defined(CONFIG_SND_SOC_AW8896)
 static int mt6768_i2s_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 				      struct snd_pcm_hw_params *params)
 {
@@ -343,8 +314,8 @@ static int mt6768_mt6358_vow_startup(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct mtk_base_afe *afe = snd_soc_platform_get_drvdata(rtd->platform);
-	struct snd_soc_component *component;
-	struct snd_soc_rtdcom_list *rtdcom;
+	struct snd_soc_component *component = NULL;
+	struct snd_soc_rtdcom_list *rtdcom = NULL;
 
 	dev_info(afe->dev, "%s(), start\n", __func__);
 	snd_soc_set_runtime_hwparams(substream, &mt6768_mt6358_vow_hardware);
@@ -363,8 +334,8 @@ static void mt6768_mt6358_vow_shutdown(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct mtk_base_afe *afe = snd_soc_platform_get_drvdata(rtd->platform);
-	struct snd_soc_component *component;
-	struct snd_soc_rtdcom_list *rtdcom;
+	struct snd_soc_component *component = NULL;
+	struct snd_soc_rtdcom_list *rtdcom = NULL;
 
 	dev_info(afe->dev, "%s(), end\n", __func__);
 	mt6768_afe_gpio_request(afe, false, MT6768_DAI_VOW, 0);
@@ -614,7 +585,7 @@ static struct snd_soc_dai_link mt6768_mt6358_dai_links[] = {
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.ignore_suspend = 1,
-#if !defined(CONFIG_SND_SOC_SMA1303)
+#if !defined(CONFIG_SND_SOC_SMA1303) && !defined(CONFIG_SND_SOC_AW8896)
 		.be_hw_params_fixup = mt6768_i2s_hw_params_fixup,
 #endif
 	},
@@ -626,7 +597,7 @@ static struct snd_soc_dai_link mt6768_mt6358_dai_links[] = {
 		.no_pcm = 1,
 		.dpcm_capture = 1,
 		.ignore_suspend = 1,
-#if !defined(CONFIG_SND_SOC_SMA1303)
+#if !defined(CONFIG_SND_SOC_SMA1303) && !defined(CONFIG_SND_SOC_AW8896)
 		.be_hw_params_fixup = mt6768_i2s_hw_params_fixup,
 #endif
 	},
@@ -638,7 +609,7 @@ static struct snd_soc_dai_link mt6768_mt6358_dai_links[] = {
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.ignore_suspend = 1,
-#if !defined(CONFIG_SND_SOC_SMA1303)
+#if !defined(CONFIG_SND_SOC_SMA1303) && !defined(CONFIG_SND_SOC_AW8896)
 		.be_hw_params_fixup = mt6768_i2s_hw_params_fixup,
 #endif
 	},
@@ -650,7 +621,7 @@ static struct snd_soc_dai_link mt6768_mt6358_dai_links[] = {
 		.no_pcm = 1,
 		.dpcm_capture = 1,
 		.ignore_suspend = 1,
-#if !defined(CONFIG_SND_SOC_SMA1303)
+#if !defined(CONFIG_SND_SOC_SMA1303) && !defined(CONFIG_SND_SOC_AW8896)
 		.be_hw_params_fixup = mt6768_i2s_hw_params_fixup,
 #endif
 	},
@@ -841,15 +812,46 @@ static struct snd_soc_card mt6768_mt6358_soc_card = {
 static int mt6768_mt6358_dev_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = &mt6768_mt6358_soc_card;
-	struct device_node *platform_node, *codec_node;
-	int ret;
-	int i;
+	struct device_node *platform_node, *codec_node, *spk_node = NULL;
+	struct snd_soc_dai_link *spk_out_dai_link, *spk_iv_dai_link = NULL;
+	int ret = 0;
+	int i = 0;
+	int spk_out_dai_link_idx, spk_iv_dai_link_idx = 0;
 
-	ret = mtk_spk_update_dai_link(card, pdev, &mt6768_mt6358_i2s_ops);
+	ret = mtk_spk_update_info(card, pdev,
+				  &spk_out_dai_link_idx, &spk_iv_dai_link_idx,
+				  &mt6768_mt6358_i2s_ops);
 	if (ret) {
-		dev_err(&pdev->dev, "%s(), mtk_spk_update_dai_link error\n",
+		dev_err(&pdev->dev, "%s(), mtk_spk_update_info error\n",
 			__func__);
 		return -EINVAL;
+	}
+
+	spk_out_dai_link = &mt6768_mt6358_dai_links[spk_out_dai_link_idx];
+	spk_iv_dai_link = &mt6768_mt6358_dai_links[spk_iv_dai_link_idx];
+	if (!spk_out_dai_link->codec_dai_name &&
+	    !spk_iv_dai_link->codec_dai_name) {
+		spk_node = of_get_child_by_name(pdev->dev.of_node,
+					"mediatek,speaker-codec");
+		if (!spk_node) {
+			dev_err(&pdev->dev,
+				"spk_codec of_get_child_by_name fail\n");
+			return -EINVAL;
+		}
+		ret = snd_soc_of_get_dai_link_codecs(
+				&pdev->dev, spk_node, spk_out_dai_link);
+		if (ret < 0) {
+			dev_err(&pdev->dev,
+				"i2s out get_dai_link_codecs fail\n");
+			return -EINVAL;
+		}
+		ret = snd_soc_of_get_dai_link_codecs(
+				&pdev->dev, spk_node, spk_iv_dai_link);
+		if (ret < 0) {
+			dev_err(&pdev->dev,
+				"i2s in get_dai_link_codecs fail\n");
+			return -EINVAL;
+		}
 	}
 
 	platform_node = of_parse_phandle(pdev->dev.of_node,
@@ -872,7 +874,9 @@ static int mt6768_mt6358_dev_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 	for (i = 0; i < card->num_links; i++) {
-		if (mt6768_mt6358_dai_links[i].codec_name)
+		if (mt6768_mt6358_dai_links[i].codec_name ||
+		    i == spk_out_dai_link_idx ||
+		    i == spk_iv_dai_link_idx)
 			continue;
 		mt6768_mt6358_dai_links[i].codec_of_node = codec_node;
 	}

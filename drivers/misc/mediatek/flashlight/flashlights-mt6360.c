@@ -51,11 +51,12 @@
 #define MT6360_ENABLE_TORCH 1
 #define MT6360_ENABLE_FLASH 2
 
-#define MT6360_LEVEL_NUM 32
+#define MT6360_LEVEL_NUM 38
 #define MT6360_LEVEL_TORCH 16
 #define MT6360_LEVEL_FLASH MT6360_LEVEL_NUM
 #define MT6360_WDT_TIMEOUT 1248 /* ms */
 #define MT6360_HW_TIMEOUT 400 /* ms */
+#define MT6360_FLASH_LIGHT_MAX 5
 
 /* define mutex, work queue and timer */
 static DEFINE_MUTEX(mt6360_mutex);
@@ -88,6 +89,19 @@ struct mt6360_platform_data {
 	struct flashlight_device_id *dev_id;
 };
 
+struct mt6360_fled_data {
+	int sysfs_input_data;
+	unsigned int flash_current;
+	unsigned int torch_current;
+	unsigned int factory_current;
+	unsigned int flashlight_current[MT6360_FLASH_LIGHT_MAX];
+};
+
+struct mt6360_fled_data *g_fled_data;
+#ifdef CONFIG_IMGSENSOR_SYSFS
+extern struct class *camera_class;
+#endif
+struct device *flash_dev;
 
 /******************************************************************************
  * mt6360 operations
@@ -96,11 +110,16 @@ static const int mt6360_current[MT6360_LEVEL_NUM] = {
 	  25,   50,  75, 100, 125, 150, 175,  200,  225,  250,
 	 275,  300, 325, 350, 375, 400, 450,  500,  550,  600,
 	 650,  700, 750, 800, 850, 900, 950, 1000, 1050, 1100,
-	1150, 1200
+	1150, 1200, 1250, 1300, 1350, 1400, 1450, 1500
 };
 
 static const unsigned char mt6360_torch_level[MT6360_LEVEL_TORCH] = {
-	0x00, 0x02, 0x04, 0x06, 0x08, 0x0A, 0x0C, 0x0E, 0x10, 0x12,
+#ifdef CONFIG_CAMERA_AAU_V22EX
+	0x03,//To Support 62.5mA for JPN Models
+#else
+	0x00,
+#endif
+	0x02, 0x04, 0x06, 0x08, 0x0A, 0x0C, 0x0E, 0x10, 0x12,
 	0x14, 0x16, 0x18, 0x1A, 0x1C, 0x1E
 };
 
@@ -109,7 +128,7 @@ static const unsigned char mt6360_strobe_level[MT6360_LEVEL_FLASH] = {
 	0x00, 0x04, 0x08, 0x0C, 0x10, 0x14, 0x18, 0x1C, 0x20, 0x24,
 	0x28, 0x2C, 0x30, 0x34, 0x38, 0x3C, 0x44, 0x4C, 0x54, 0x5C,
 	0x64, 0x6C, 0x74, 0x78, 0x7C, 0x80, 0x84, 0x88, 0x8C, 0x90,
-	0x94, 0x98
+	0x94, 0x98, 0x9C, 0xA0, 0xA4, 0xA8, 0xAC, 0xB0
 };
 
 static int mt6360_decouple_mode;
@@ -117,6 +136,27 @@ static int mt6360_en_ch1;
 static int mt6360_en_ch2;
 static int mt6360_level_ch1;
 static int mt6360_level_ch2;
+
+static int mt6360_set_voltage(void)
+{
+	if (!flashlight_charger_consumer) {
+		pr_info("Failed with no charger consumer handler.\n");
+		return -1;
+	}
+
+	mutex_lock(&mt6360_mutex);
+	if (!is_decrease_voltage) {
+#ifdef CONFIG_MTK_CHARGER
+		pr_info("Decrease voltage level.\n");
+		charger_manager_enable_high_voltage_charging(
+				flashlight_charger_consumer, false);
+#endif
+		is_decrease_voltage = 1;
+	}
+	mutex_unlock(&mt6360_mutex);
+
+	return 0;
+}
 
 static int mt6360_is_charger_ready(void)
 {
@@ -164,6 +204,7 @@ static int mt6360_enable(void)
 	int ret = 0;
 	enum flashlight_mode mode = FLASHLIGHT_MODE_TORCH;
 
+	pr_info("Ch1 Level - %d, Ch2 Level - %d\n", mt6360_level_ch1, mt6360_level_ch2);
 	if (!flashlight_dev_ch1 || !flashlight_dev_ch2) {
 		pr_info("Failed to enable since no flashlight device.\n");
 		return -1;
@@ -624,6 +665,10 @@ static int mt6360_ioctl(unsigned int cmd, unsigned long arg)
 		fl_arg->arg = MT6360_HW_TIMEOUT;
 		break;
 
+	case FLASH_IOC_SET_VOLTAGE:
+		pr_debug("FLASH_IOC_SET_VOLTAGE(%d)\n", channel);
+		mt6360_set_voltage();
+
 	default:
 		pr_info("No such command and arg(%d): (%d, %d)\n",
 				channel, _IOC_NR(cmd), (int)fl_arg->arg);
@@ -728,6 +773,118 @@ static struct flashlight_operations mt6360_ops = {
 	mt6360_set_driver
 };
 
+static ssize_t mt6360_rear_flash_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	int mode = -1;
+	int current_level = 0;
+	int value = 0;
+
+	pr_info("%s: rear_flash_store start\n", __func__);
+	if ((buf == NULL) || kstrtouint(buf, 10, &value))
+		return -1;
+
+	if ((value < 0)) {
+		pr_err("%s: value: %d\n", __func__, value);
+		pr_err("%s: Wrong mode.\n", __func__);
+		return -EFAULT;
+	}
+	g_fled_data->sysfs_input_data = value;
+
+	if (value <= 0) {
+		mode = MT6360_DISABLE;
+		mt6360_timeout_ms[MT6360_CHANNEL_CH1] = 600;
+		mt6360_timer_cancel(MT6360_CHANNEL_CH1);
+		mt6360_disable(MT6360_CHANNEL_CH1);		
+		/* setup strobe mode timeout as defualt : 400ms */
+		if (flashlight_set_strobe_timeout(flashlight_dev_ch1,
+				MT6360_HW_TIMEOUT, MT6360_HW_TIMEOUT + 200) < 0)
+			pr_info("Failed to set strobe timeout.\n");
+	} else if (value == 1) {
+		mode = MT6360_ENABLE;
+		current_level = g_fled_data->torch_current;
+	} else if (value == 2) {
+		mode = MT6360_ENABLE_FLASH;
+		current_level = g_fled_data->flash_current;
+	} else if (value == 100) {
+		/* Factory Torch*/
+		pr_info("%s: factory torch current [%d]\n", __func__, g_fled_data->factory_current);
+		current_level = g_fled_data->factory_current;
+		mode = MT6360_ENABLE;
+	} else if (value == 200) {
+		/* Factory Flash */
+		pr_info("%s: factory flash current [%d]\n", __func__, g_fled_data->factory_current);
+		/* setup strobe mode timeout : 700ms */
+		if (flashlight_set_strobe_timeout(flashlight_dev_ch1,
+				MT6360_HW_TIMEOUT + 300, MT6360_HW_TIMEOUT + 500) < 0)
+			pr_info("Failed to set strobe timeout.\n");
+		current_level = g_fled_data->factory_current;
+		mode = MT6360_ENABLE_FLASH;
+	} else if (value <= 1010 && value >= 1001) {
+		mode = MT6360_ENABLE;
+		/* (value) 1001, 1002, 1004, 1006, 1009 */
+		if (value <= 1001)
+			current_level = g_fled_data->flashlight_current[0];
+		else if (value <= 1002)
+			current_level = g_fled_data->flashlight_current[1];
+		else if (value <= 1004)
+			current_level = g_fled_data->flashlight_current[2];
+		else if (value <= 1006)
+			current_level = g_fled_data->flashlight_current[3];
+		else if (value <= 1009)
+			current_level = g_fled_data->flashlight_current[4];
+		else
+			current_level = g_fled_data->torch_current;
+	}
+
+	if (mode != MT6360_DISABLE) {
+		mt6360_timer_cancel(MT6360_CHANNEL_CH1);
+		mt6360_timeout_ms[MT6360_CHANNEL_CH1] = 0;
+		mt6360_set_scenario(FLASHLIGHT_SCENARIO_DECOUPLE);
+		mt6360_set_level(MT6360_CHANNEL_CH1, current_level);
+		mt6360_operate(MT6360_CHANNEL_CH1, mode);
+	}
+		
+	pr_info("%s: input value - %d\n", __func__, current_level);
+	pr_info("%s: rear_flash_store end\n", __func__);
+	return size;
+}
+
+static ssize_t mt6360_rear_flash_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", g_fled_data->sysfs_input_data);
+}
+
+
+static DEVICE_ATTR(rear_flash, 0664, mt6360_rear_flash_show, mt6360_rear_flash_store);
+
+int create_flash_sysfs(void)
+{
+	int err = -ENODEV;
+
+#ifdef CONFIG_IMGSENSOR_SYSFS
+	if (IS_ERR_OR_NULL(camera_class)) {
+		pr_err("flash_sysfs: error, camera class not exist\n");
+		return -ENODEV;
+	}
+
+	flash_dev = device_create(camera_class, NULL, 0, NULL, "flash");
+	if (IS_ERR(flash_dev)) {
+		pr_err("flash_sysfs: failed to create device(flash)\n");
+		return -ENODEV;
+	}
+#else
+	pr_err("flash_sysfs: failed to build sysfs\n");
+#endif
+	err = device_create_file(flash_dev, &dev_attr_rear_flash);
+	if (unlikely(err < 0)) {
+		pr_err("flash_sysfs: failed to create device file, %s\n",
+			dev_attr_rear_flash.attr.name);
+	}
+
+	return 0;
+}
 
 /******************************************************************************
  * Platform device and driver
@@ -738,6 +895,7 @@ static int mt6360_parse_dt(struct device *dev,
 	struct device_node *np, *cnp;
 	u32 decouple = 0;
 	int i = 0;
+	int ret = 0;
 
 	if (!dev || !dev->of_node || !pdata)
 		return -ENODEV;
@@ -753,6 +911,34 @@ static int mt6360_parse_dt(struct device *dev,
 
 	if (of_property_read_u32(np, "decouple", &decouple))
 		pr_info("Parse no dt, decouple.\n");
+
+	ret = of_property_read_u32(np, "flash_current",
+			&g_fled_data->flash_current);
+	if (ret < 0)
+		pr_err("%s : could not find flash_current\n", __func__);
+
+	ret = of_property_read_u32(np, "torch_current",
+			&g_fled_data->torch_current);
+	if (ret < 0)
+		pr_err("%s : could not find torch_current\n", __func__);
+
+	ret = of_property_read_u32(np, "factory_current",
+			&g_fled_data->factory_current);
+	if (ret < 0)
+		pr_err("%s : could not find factory_current\n", __func__);
+
+	ret = of_property_read_u32_array(np, "flashlight_current",
+			g_fled_data->flashlight_current, MT6360_FLASH_LIGHT_MAX);
+	if (ret < 0) {
+		pr_err("%s : could not find flashlight_current\n", __func__);
+
+		//default setting
+		g_fled_data->flashlight_current[0] = 2;
+		g_fled_data->flashlight_current[1] = 3;
+		g_fled_data->flashlight_current[2] = 4;
+		g_fled_data->flashlight_current[3] = 5;
+		g_fled_data->flashlight_current[4] = 6;
+	}
 
 	pdata->dev_id = devm_kzalloc(dev,
 			pdata->channel_num *
@@ -790,14 +976,19 @@ err_node_put:
 
 static int mt6360_probe(struct platform_device *pdev)
 {
-	struct mt6360_platform_data *pdata = dev_get_platdata(&pdev->dev);
+	struct mt6360_platform_data *pdata;
 	int ret;
 	int i;
 
+	if (!pdev || NULL == &pdev->dev)
+		return -EINVAL;
+	pdata = dev_get_platdata(&pdev->dev);
 	pr_debug("Probe start.\n");
 
 	/* parse dt */
 	if (!pdata) {
+		g_fled_data = devm_kzalloc(&pdev->dev,
+			sizeof(struct mt6360_fled_data), GFP_KERNEL);
 		pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
 		if (!pdata)
 			return -ENOMEM;
@@ -860,7 +1051,7 @@ static int mt6360_probe(struct platform_device *pdev)
 		if (flashlight_dev_register(MT6360_NAME, &mt6360_ops))
 			return -EFAULT;
 	}
-
+	create_flash_sysfs();
 	pr_debug("Probe done.\n");
 
 	return 0;

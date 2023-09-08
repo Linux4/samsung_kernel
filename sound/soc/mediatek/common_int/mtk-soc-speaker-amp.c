@@ -28,6 +28,9 @@
 #if defined(CONFIG_SND_SOC_RT5509)
 #include "../../codecs/rt5509.h"
 #endif
+#if defined(CONFIG_SND_SOC_AW8896)
+#include "../../codecs/aw8896.h"
+#endif
 #ifdef CONFIG_SND_SOC_MT6660
 #include "../../codecs/mt6660.h"
 #endif /* CONFIG_SND_SOC_MT6660 */
@@ -48,6 +51,14 @@ static struct mtk_spk_i2c_ctrl mtk_spk_list[MTK_SPK_TYPE_NUM] = {
 		.i2c_shutdown = rt5509_i2c_shutdown,
 		.codec_dai_name = "rt5509-aif1",
 		.codec_name = "RT5509_MT_0",
+	},
+#endif
+#if defined(CONFIG_SND_SOC_AW8896)
+	[MTK_SPK_AWINIC_AW8896] = {
+		.i2c_probe = aw8896_i2c_probe,
+		.i2c_remove = aw8896_i2c_remove,
+		.codec_dai_name = "aw8896-aif",
+		.codec_name = "aw8896_smartpa",
 	},
 #endif
 #if defined(CONFIG_SND_SOC_TAS5782M)

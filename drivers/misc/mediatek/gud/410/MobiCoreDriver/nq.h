@@ -67,9 +67,6 @@ int nq_unregister_tee_stop_notifier(struct notifier_block *nb);
 ssize_t nq_get_stop_message(char __user *buffer, size_t size);
 void nq_signal_tee_hung(void);
 
-// Samsung patch: export nq_dumpstatus()
-void nq_dump_status(void);
-
 /* SWd suspend/resume */
 int nq_suspend(void);
 int nq_resume(void);

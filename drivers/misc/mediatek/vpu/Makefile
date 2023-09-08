@@ -11,12 +11,25 @@
 # GNU General Public License for more details.
 #
 
-obj-y += $(subst ",,$(CONFIG_MTK_PLATFORM))/
+ifneq (,$(filter $(strip $(MTK_PLATFORM)), mt8168))
+obj-y += vp6/
+obj-y += vp6/$(subst ",,$(CONFIG_MTK_PLATFORM))/
+MTK_VPU_CORE := 1
+subdir-ccflags-y += -DMTK_VPU_SMI_DEBUG_ON
+else
+ifeq (y, $(filter y, $(CONFIG_MACH_MT6893)))
+PDIR = mt6885
+else
+PDIR = $(CONFIG_MTK_PLATFORM)
+endif
+obj-y += $(subst ",,$(PDIR))/
 obj-$(CONFIG_MACH_MT6771) += 2.0/
 obj-$(CONFIG_MACH_MT6785) += 3.0/
 #subdir-ccflags-y += -DMTK_VPU_EMULATOR
 
 MTK_VPU_CORE := 2
+endif
+
 #subdir-ccflags-y += -DMTK_VPU_SMI_DEBUG_ON
 subdir-ccflags-y += -DMTK_VPU_CORE=$(MTK_VPU_CORE)
 subdir-ccflags-y += -DMTK_VPU_DVT
@@ -42,16 +55,16 @@ ifeq ($(CONFIG_MTK_PERF_OBSERVER),y)
 subdir-ccflags-y += -DMTK_PERF_OBSERVER
 endif
 # HQA load
-ifeq ($(CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES),"mediatek/evb6779_64_hqact")
+ifeq ($(PROJECT_DTB_NAMES),"mediatek/evb6779_64_hqact")
 subdir-ccflags-y += -DHQA_LOAD
 endif
 
 # HQA load
-ifeq ($(CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES),"mediatek/k79v1_64_ctighten")
+ifeq ($(PROJECT_DTB_NAMES),"mediatek/k79v1_64_ctighten")
 subdir-ccflags-y += -DHQA_LOAD
 endif
 
 # AGING load
-ifeq ($(CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES),"mediatek/k85v1_64_aging")
+ifeq ($(PROJECT_DTB_NAMES),"mediatek/k85v1_64_aging")
 subdir-ccflags-y += -DAGING_MARGIN
 endif

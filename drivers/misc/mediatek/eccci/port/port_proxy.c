@@ -19,10 +19,15 @@
 #include <linux/wait.h>
 #include <linux/module.h>
 #include <linux/poll.h>
+#include <linux/proc_fs.h>
+#include <linux/icmpv6.h>
+#include <net/ip.h>
+#include <net/ipv6.h>
+#include <net/ndisc.h>
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
 #endif
-
+/* mp1 1, mp2 0, ro 1 */
 #ifdef CONFIG_MTK_SIM_LOCK_POWER_ON_WRITE_PROTECT
 #include <mt-plat/env.h>
 #endif
@@ -51,20 +56,232 @@ static struct port_proxy *proxy_table[MAX_MD_NUM];
 #define CHECK_HIF_ID(hif_id)
 #define CHECK_QUEUE_ID(queue_id)
 
+struct ccci_proc_user {
+	unsigned int busy;
+	int left_len;
+	void __iomem *curr_addr;
+};
+
+static spinlock_t file_lock;
+
+#if MD_GENERATION > (6295)
+int send_new_time_to_new_md(int md_id, int tz)
+{
+	struct timeval tv;
+	unsigned int timeinfo[4];
+	char ccci_time[45];
+	int ret;
+	int index;
+	char *name = "ccci_0_202";
+	int has_write;
+
+	do_gettimeofday(&tv);
+	timeinfo[0] = tv.tv_sec;
+	timeinfo[1] = sizeof(tv.tv_sec) > 4 ? tv.tv_sec >> 32 : 0;
+	timeinfo[2] = tz;
+	timeinfo[3] = sys_tz.tz_dsttime;
+
+	has_write = snprintf(ccci_time, sizeof(ccci_time), "%010u,%010u,%010u,%010u",
+			timeinfo[0], timeinfo[1], timeinfo[2], timeinfo[3]);
+	if (has_write < 0 || has_write >= sizeof(ccci_time)) {
+		CCCI_ERROR_LOG(-1, CHAR, "get ccci time fail, has_write = %d\n",
+			has_write);
+		return -1;
+	}
+	index = mtk_ccci_request_port(name);
+	ret = mtk_ccci_send_data(index, ccci_time, strlen(ccci_time) + 1);
+
+	return ret;
+}
+#endif
+
+int port_dev_kernel_read(struct port_t *port, char *buf, int size)
+{
+	int read_done = 0, ret = 0, read_len = 0, md_state;
+	struct sk_buff *skb = NULL;
+	unsigned long flags = 0;
+
+	CHECK_MD_ID(port->md_id);
+	md_state = ccci_fsm_get_md_state(port->md_id);
+	if (md_state != READY && port->tx_ch != CCCI_FS_TX &&
+		port->tx_ch != CCCI_RPC_TX) {
+		pr_info_ratelimited(
+			"port %s read data fail when md_state = %d\n",
+			port->name, md_state);
+		return -ENODEV;
+	}
+
+READ_START:
+	if (skb_queue_empty(&port->rx_skb_list)) {
+		spin_lock_irq(&port->rx_wq.lock);
+		ret = wait_event_interruptible_locked_irq(port->rx_wq,
+			!skb_queue_empty(&port->rx_skb_list));
+		spin_unlock_irq(&port->rx_wq.lock);
+		if (ret == -ERESTARTSYS) {
+			ret = -EINTR;
+			goto exit;
+		}
+	}
+	spin_lock_irqsave(&port->rx_skb_list.lock, flags);
+	if (skb_queue_empty(&port->rx_skb_list)) {
+		spin_unlock_irqrestore(&port->rx_skb_list.lock, flags);
+		goto READ_START;
+	}
+
+	skb = skb_peek(&port->rx_skb_list);
+	if (skb == NULL) {
+		ret = -EFAULT;
+		spin_unlock_irqrestore(&port->rx_skb_list.lock, flags);
+		goto exit;
+	}
+
+	read_len = skb->len;
+
+	if (size >= read_len) {
+		read_done = 1;
+		__skb_unlink(skb, &port->rx_skb_list);
+		/*
+		 * here we only ask for more request when rx list is empty.
+		 * no need to be too gready, because
+		 * for most of the case, queue will not stop
+		 * sending request to port.
+		 * actually we just need to ask by ourselves when
+		 * we rejected requests before. these
+		 * rejected requests will staty in queue's buffer and may
+		 * never get a chance to be handled again.
+		 */
+		if (port->rx_skb_list.qlen == 0)
+			port_ask_more_req_to_md(port);
+		if (port->rx_skb_list.qlen < 0) {
+			spin_unlock_irqrestore(&port->rx_skb_list.lock, flags);
+			CCCI_ERROR_LOG(-1, CHAR,
+				"%s:port->rx_skb_list.qlen < 0 %s\n",
+				__func__, port->name);
+			return -EFAULT;
+		}
+	} else {
+		read_len = size;
+	}
+	spin_unlock_irqrestore(&port->rx_skb_list.lock, flags);
+	if (port->flags & PORT_F_CH_TRAFFIC)
+		port_ch_dump(port, 0, skb->data, read_len);
+	/* 3. copy to user */
+	memcpy(buf, skb->data, read_len);
+	skb_pull(skb, read_len);
+	/* 4. free request */
+	if (read_done)
+		ccci_free_skb(skb);
+
+ exit:
+	return ret ? ret : read_len;
+}
+
+int mtk_ccci_send_data(int index, const char *buf, int size)
+{
+	int ret, actual_count, header_len, alloc_size = 0;
+	int md_state;
+	struct sk_buff *skb = NULL;
+	struct ccci_header *ccci_h = NULL;
+	struct port_t *tx_port = NULL;
+
+	if (size <= 0) {
+		CCCI_ERROR_LOG(-1, CHAR, "invalid size %d for port %d\n",
+				size, index);
+		return -EINVAL;
+	}
+	ret = find_port_by_channel(index, &tx_port);
+	if (ret < 0)
+		return -EINVAL;
+	if (!tx_port->name) {
+		CCCI_ERROR_LOG(-1, CHAR, "port name is null\n");
+		return -1;
+	}
+
+	CHECK_MD_ID(tx_port->md_id);
+	md_state = ccci_fsm_get_md_state(tx_port->md_id);
+	if (md_state != READY && tx_port->tx_ch != CCCI_FS_TX &&
+		tx_port->tx_ch != CCCI_RPC_TX) {
+		CCCI_ERROR_LOG(-1, CHAR,
+			"port %s send data fail when md_state = %d\n",
+			tx_port->name, md_state);
+		return -ENODEV;
+	}
+	header_len = sizeof(struct ccci_header) +
+		(tx_port->rx_ch == CCCI_FS_RX ? sizeof(unsigned int) : 0);
+	if (tx_port->flags & PORT_F_USER_HEADER) {
+		if (size > (CCCI_MTU + header_len)) {
+			CCCI_ERROR_LOG(-1, CHAR,
+			"size %d is larger than MTU for index %d",
+					size, index);
+			return -ENOMEM;
+		}
+		alloc_size = actual_count = size;
+	} else {
+		actual_count = size > CCCI_MTU ? CCCI_MTU : size;
+		alloc_size = actual_count + header_len;
+	}
+	skb = ccci_alloc_skb(alloc_size, 1, 1);
+	if (skb) {
+		if (!(tx_port->flags & PORT_F_USER_HEADER)) {
+			ccci_h = (struct ccci_header *)skb_put(skb,
+				sizeof(struct ccci_header));
+			ccci_h->data[0] = 0;
+			ccci_h->data[1] = actual_count +
+					sizeof(struct ccci_header);
+			ccci_h->channel = tx_port->tx_ch;
+			ccci_h->reserved = 0;
+		} else {
+			ccci_h = (struct ccci_header *)skb->data;
+		}
+		memcpy(skb_put(skb, actual_count), buf, actual_count);
+		ret = port_send_skb_to_md(tx_port, skb, 1);
+		if (ret) {
+			CCCI_ERROR_LOG(-1, CHAR,
+				"port %s send skb fail ret = %d\n",
+					tx_port->name, ret);
+			return ret;
+		}
+		return actual_count;
+	}
+	CCCI_ERROR_LOG(-1, CHAR,
+		"ccci alloc skb for port %s fail",
+		tx_port->name);
+	return -1;
+}
+
+int mtk_ccci_read_data(int index, char *buf, size_t count)
+{
+	int ret = 0;
+	struct port_t *rx_port = NULL;
+
+	ret = find_port_by_channel(index, &rx_port);
+	if (ret < 0)
+		return -EINVAL;
+
+	if (atomic_read(&rx_port->usage_cnt)) {
+		ret = port_dev_kernel_read(rx_port, buf, count);
+	} else {
+		CCCI_ERROR_LOG(-1, CHAR,  "open %s before read\n",
+				rx_port->name);
+		return -1;
+	}
+	return ret;
+}
+
 static inline void proxy_set_critical_user(struct port_proxy *proxy_p,
 	int user_id, int enabled)
 {
 	if (enabled)
-		proxy_p->critical_user_active |= (1 << user_id);
+		proxy_p->critical_user_active |= (1U << user_id);
 	else
-		proxy_p->critical_user_active &= ~(1 << user_id);
+		proxy_p->critical_user_active &= ~(1U << user_id);
 }
 
 static inline int proxy_get_critical_user(struct port_proxy *proxy_p,
 	int user_id)
 {
 	return ((proxy_p->critical_user_active &
-		(1 << user_id)) >> user_id);
+		(1U << user_id)) >> user_id);
 }
 
 /****************************************************************************/
@@ -79,6 +296,11 @@ int port_dev_open(struct inode *inode, struct file *file)
 	struct port_t *port;
 
 	port = port_get_by_node(major, minor);
+	if (!port) {
+		CCCI_ERROR_LOG(1, CHAR,
+			"%s:port_get_by_node fail\n", __func__);
+		return -ENODEV;
+	}
 	if (port->rx_ch != CCCI_CCB_CTRL && atomic_read(&port->usage_cnt)) {
 		CCCI_ERROR_LOG(port->md_id, CHAR,
 			"port %s open fail with EBUSY\n", port->name);
@@ -140,6 +362,7 @@ ssize_t port_dev_read(struct file *file, char *buf, size_t count, loff_t *ppos)
 	int ret = 0, read_len = 0, full_req_done = 0;
 	unsigned long flags = 0;
 	int md_id = port->md_id;
+	u64 ts_s, ts_1, ts_e;
 
 READ_START:
 	/* 1. get incoming request */
@@ -208,12 +431,15 @@ READ_START:
 	if (port->flags & PORT_F_CH_TRAFFIC)
 		port_ch_dump(port, 0, skb->data, read_len);
 	/* 3. copy to user */
+
+	ts_s = local_clock();
 	if (copy_to_user(buf, skb->data, read_len)) {
 		CCCI_ERROR_LOG(md_id, CHAR,
 			"read on %s, copy to user failed, %d/%zu\n",
 			port->name, read_len, count);
 		ret = -EFAULT;
 	}
+	ts_1 = local_clock();
 #ifdef CONFIG_MTK_SRIL_SUPPORT
 	if (port->rx_ch == CCCI_RIL_IPC0_RX || port->rx_ch == CCCI_RIL_IPC1_RX) {
 		print_hex_dump(KERN_INFO, "3. mif: RX: ",
@@ -224,6 +450,15 @@ READ_START:
 	/* 4. free request */
 	if (full_req_done)
 		ccci_free_skb(skb);
+
+	ts_e = local_clock();
+	if (ts_e - ts_s > 1000000000ULL)
+		CCCI_ERROR_LOG(md_id, CHAR,
+			"ts_s: %u; ts_1: %u; ts_e: %u;",
+			do_div(ts_s, 1000000),
+			do_div(ts_1, 1000000),
+			do_div(ts_e, 1000000));
+
 
  exit:
  	if (ret < 0 && (port->rx_ch == CCCI_RIL_IPC0_RX || port->rx_ch == CCCI_RIL_IPC1_RX))
@@ -362,6 +597,7 @@ long port_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	long ret = 0;
 	struct port_t *port = file->private_data;
+	struct ccci_smem_region *sub_smem = NULL;
 
 	switch (cmd) {
 	case CCCI_IOC_SET_HEADER:
@@ -369,6 +605,28 @@ long port_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 	case CCCI_IOC_CLR_HEADER:
 		port->flags &= ~PORT_F_USER_HEADER;
+		break;
+	case CCCI_IOC_SMEM_BASE:
+		if (port->rx_ch != CCCI_WIFI_RX)
+			return -EFAULT;
+		sub_smem = ccci_md_get_smem_by_user_id(port->md_id,
+						SMEM_USER_MD_WIFI_PROXY);
+
+		CCCI_NORMAL_LOG(port->md_id, TAG, "wifi smem phy =%lx\n",
+			(unsigned long)sub_smem->base_ap_view_phy);
+		ret = put_user((unsigned int)sub_smem->base_ap_view_phy,
+				(unsigned int __user *)arg);
+		break;
+	case CCCI_IOC_SMEM_LEN:
+		if (port->rx_ch != CCCI_WIFI_RX)
+			return -EFAULT;
+		sub_smem = ccci_md_get_smem_by_user_id(port->md_id,
+						SMEM_USER_MD_WIFI_PROXY);
+		sub_smem->size &= ~(PAGE_SIZE - 1);
+		CCCI_NORMAL_LOG(port->md_id, TAG, "wifi smem size =%lx(%d)\n",
+			(unsigned long)sub_smem->size, (int)PAGE_SIZE);
+		ret = put_user((unsigned int)sub_smem->size,
+				(unsigned int __user *)arg);
 		break;
 	default:
 		ret = -1;
@@ -409,6 +667,59 @@ long port_dev_compat_ioctl(struct file *filp, unsigned int cmd,
 }
 #endif
 
+
+int port_dev_mmap(struct file *fp, struct vm_area_struct *vma)
+{
+	struct port_t *port = fp->private_data;
+	int md_id = port->md_id;
+	int len, ret;
+	unsigned long pfn;
+	struct ccci_smem_region *wifi_smem = NULL;
+
+	if (port->rx_ch != CCCI_WIFI_RX)
+		return -EFAULT;
+
+	wifi_smem = ccci_md_get_smem_by_user_id(md_id,
+						SMEM_USER_MD_WIFI_PROXY);
+	wifi_smem->size &= ~(PAGE_SIZE - 1);
+	CCCI_NORMAL_LOG(md_id, CHAR,
+			"remap wifi smem addr:0x%llx len:%d  map-len:%lu\n",
+			(unsigned long long)wifi_smem->base_ap_view_phy,
+			wifi_smem->size, vma->vm_end - vma->vm_start);
+	if ((vma->vm_end - vma->vm_start) > wifi_smem->size) {
+		CCCI_ERROR_LOG(md_id, CHAR,
+			"invalid mm size request from %s\n",
+			port->name);
+		return -EINVAL;
+	}
+
+	len = (vma->vm_end - vma->vm_start) < wifi_smem->size ?
+		vma->vm_end - vma->vm_start : wifi_smem->size;
+	pfn = wifi_smem->base_ap_view_phy;
+	pfn >>= PAGE_SHIFT;
+	/* ensure that memory does not get swapped to disk */
+	vma->vm_flags |= VM_IO;
+	/* ensure non-cacheable */
+	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+	ret = remap_pfn_range(vma, vma->vm_start, pfn,
+				len, vma->vm_page_prot);
+	if (ret) {
+		CCCI_ERROR_LOG(md_id, CHAR,
+			"wifi smem remap failed %d/%lx, 0x%llx -> 0x%llx\n",
+			ret, pfn,
+			(unsigned long long)wifi_smem->base_ap_view_phy,
+			(unsigned long long)vma->vm_start);
+		return -EAGAIN;
+	}
+
+	CCCI_NORMAL_LOG(md_id, CHAR,
+		"wifi smem remap succeed %lx, 0x%llx -> 0x%llx\n", pfn,
+		(unsigned long long)wifi_smem->base_ap_view_phy,
+		(unsigned long long)vma->vm_start);
+
+	return 0;
+}
+
 /**************************************************************************/
 /* REGION: port common API implementation,
  * these APIs are valiable for every port
@@ -433,6 +744,42 @@ static inline void port_struct_init(struct port_t *port,
 	wakeup_source_init(&port->rx_wakelock, port->name);
 }
 
+static void port_dump_net(struct port_t *port, int dir,
+	void *msg_buf)
+{
+	int type = 0;
+	u64 ts_nsec;
+	unsigned long rem_nsec;
+	struct sk_buff *skb = (struct sk_buff *)msg_buf;
+	struct iphdr *iph = NULL;
+	struct ipv6hdr *ip6h = NULL;
+	struct icmp6hdr *icmp6h = NULL;
+
+	ts_nsec = local_clock();
+	rem_nsec = do_div(ts_nsec, 1000000000);
+	if (skb->protocol == htons(ETH_P_IP)) {
+		iph = ip_hdr(skb);
+		CCCI_HISTORY_LOG(port->md_id, TAG,
+			"[%5lu.%06lu]net(%d):%d,%d,(id:%x,src:%pI4,dst:%pI4)\n",
+			(unsigned long)ts_nsec, rem_nsec / 1000,
+			dir, port->flags, port->rx_ch, iph->id,
+			&iph->saddr, &iph->daddr);
+	}
+	if (skb->protocol == htons(ETH_P_IPV6)) {
+		ip6h = ipv6_hdr(skb);
+		if (ip6h->nexthdr == NEXTHDR_ICMP) {
+			icmp6h = icmp6_hdr(skb);
+			type = icmp6h->icmp6_type;
+		}
+		CCCI_HISTORY_LOG(port->md_id, TAG,
+		"[%5lu.%06lu]net(%d):%d,%d,(src:%pI6,dst:%pI6,len:%d,type:%d)\n",
+		(unsigned long)ts_nsec, rem_nsec / 1000,
+		dir, port->flags, port->rx_ch,
+		&ip6h->saddr, &ip6h->daddr, skb->len, type);
+	}
+
+}
+
 static void port_dump_string(struct port_t *port, int dir,
 	void *msg_buf, int len)
 {
@@ -442,7 +789,8 @@ static void port_dump_string(struct port_t *port, int dir,
 	int i, j;
 	u64 ts_nsec;
 	unsigned long rem_nsec;
-	char *replace_str;
+	char *replace_str = NULL;
+	int ret = 0;
 
 	for (i = 0, j = 0; i < len && i < DUMP_BUF_SIZE &&
 		j + 4 < DUMP_BUF_SIZE; i++) {
@@ -466,13 +814,18 @@ static void port_dump_string(struct port_t *port, int dir,
 				replace_str = "";
 				break;
 			}
-			snprintf(buf+j, DUMP_BUF_SIZE - j,
+			ret = snprintf(buf+j, DUMP_BUF_SIZE - j,
 				"%s", replace_str);
 			j += 2;
 		} else {
-			snprintf(buf+j, DUMP_BUF_SIZE - j,
+			ret = snprintf(buf+j, DUMP_BUF_SIZE - j,
 				"[%02X]", char_ptr[i]);
 			j += 4;
+		}
+		if (ret < 0) {
+			CCCI_ERROR_LOG(port->md_id, TAG,
+				"%s-%d:snprintf fail,ret = %d\n", __func__, __LINE__, ret);
+			break;
 		}
 	}
 	buf[j] = '\0';
@@ -497,7 +850,7 @@ static void port_dump_raw_data(struct port_t *port, int dir,
 {
 #define DUMP_RAW_DATA_SIZE 16
 	unsigned int *curr_p = (unsigned int *)msg_buf;
-	unsigned char *curr_ch_p;
+	unsigned char *curr_ch_p = NULL;
 	int _16_fix_num = len / 16;
 	int tail_num = len % 16;
 	char buf[16];
@@ -617,6 +970,8 @@ int port_recv_skb(struct port_t *port, struct sk_buff *skb)
 {
 	unsigned long flags;
 	struct ccci_header *ccci_h = (struct ccci_header *)skb->data;
+	unsigned long rem_nsec;
+	u64 ts_nsec;
 
 	spin_lock_irqsave(&port->rx_skb_list.lock, flags);
 	CCCI_DEBUG_LOG(port->md_id, TAG,
@@ -628,8 +983,18 @@ int port_recv_skb(struct port_t *port, struct sk_buff *skb)
 			port_adjust_skb(port, skb);
 		if (ccci_h->channel == CCCI_STATUS_RX)
 			port->skb_handler(port, skb);
-		else
+		else  {
 			__skb_queue_tail(&port->rx_skb_list, skb);
+			if (ccci_h->channel == CCCI_SYSTEM_RX) {
+				ts_nsec = sched_clock();
+				rem_nsec = do_div(ts_nsec, 1000000000);
+				CCCI_HISTORY_LOG(port->md_id, TAG,
+					"[%5lu.%06lu]sysmsg+%08x %08x %04x\n",
+					(unsigned long)ts_nsec, rem_nsec / 1000,
+					ccci_h->data[1], ccci_h->reserved,
+					ccci_h->seq_num);
+			}
+		}
 #ifdef CONFIG_MTK_SRIL_SUPPORT
 		if (ccci_h->channel == CCCI_RIL_IPC0_RX
 			|| ccci_h->channel == CCCI_RIL_IPC1_RX) {
@@ -653,13 +1018,9 @@ int port_recv_skb(struct port_t *port, struct sk_buff *skb)
 			"port %s Rx full, drop packet\n",
 			port->name);
 		goto drop;
-	} else {
-		__pm_wakeup_event(&port->rx_wakelock, jiffies_to_msecs(HZ/2));
-		spin_lock_irqsave(&port->rx_wq.lock, flags);
-		wake_up_all_locked(&port->rx_wq);
-		spin_unlock_irqrestore(&port->rx_wq.lock, flags);
+	} else
 		return -CCCI_ERR_PORT_RX_FULL;
-	}
+
  drop:
 	/* only return drop and caller do drop */
 	CCCI_NORMAL_LOG(port->md_id, TAG,
@@ -673,7 +1034,7 @@ int port_kthread_handler(void *arg)
 {
 	struct port_t *port = arg;
 	/* struct sched_param param = { .sched_priority = 1 }; */
-	struct sk_buff *skb;
+	struct sk_buff *skb = NULL;
 	unsigned long flags;
 	int ret = 0;
 	int md_id = port->md_id;
@@ -681,15 +1042,14 @@ int port_kthread_handler(void *arg)
 	CCCI_DEBUG_LOG(md_id, TAG,
 		"port %s's thread running\n", port->name);
 
-	while (1) {
+	while (!kthread_should_stop()) {
 		if (skb_queue_empty(&port->rx_skb_list)) {
 			ret = wait_event_interruptible(port->rx_wq,
 					!skb_queue_empty(&port->rx_skb_list));
 			if (ret == -ERESTARTSYS)
-				continue;	/* FIXME */
+				continue;
 		}
-		if (kthread_should_stop())
-			break;
+
 		CCCI_DEBUG_LOG(md_id, TAG, "read on %s\n", port->name);
 		/* 1. dequeue */
 		spin_lock_irqsave(&port->rx_skb_list.lock, flags);
@@ -713,6 +1073,8 @@ void port_ch_dump(struct port_t *port, int dir, void *msg_buf, int len)
 {
 	if (port->flags & PORT_F_DUMP_RAW_DATA)
 		port_dump_raw_data(port, dir, msg_buf, len);
+	else if (port->flags & PORT_F_NET_DUMP)
+		port_dump_net(port, dir, msg_buf);
 	else
 		port_dump_string(port, dir, msg_buf, len);
 }
@@ -745,6 +1107,11 @@ int port_user_register(struct port_t *port)
 	int rx_ch = port->rx_ch;
 	struct port_proxy *proxy_p;
 
+	if (md_id < 0 || md_id >= MAX_MD_NUM) {
+		CCCI_ERROR_LOG(-1, TAG,
+			"invalid md_id = %d\n", md_id);
+		return -ENODEV;
+	}
 	CHECK_MD_ID(md_id);
 	proxy_p = GET_PORT_PROXY(md_id);
 	if (rx_ch == CCCI_FS_RX)
@@ -767,6 +1134,11 @@ int port_user_unregister(struct port_t *port)
 	int md_id = port->md_id;
 	struct port_proxy *proxy_p;
 
+	if (md_id < 0 || md_id >= MAX_MD_NUM) {
+		CCCI_ERROR_LOG(-1, TAG,
+			"invalid md_id = %d\n", md_id);
+		return -ENODEV;
+	}
 	CHECK_MD_ID(md_id);
 	proxy_p = GET_PORT_PROXY(md_id);
 
@@ -819,7 +1191,7 @@ int port_send_skb_to_md(struct port_t *port, struct sk_buff *skb, int blocking)
 	if ((md_state == BOOT_WAITING_FOR_HS1 ||
 		md_state == BOOT_WAITING_FOR_HS2)
 		&& port->tx_ch != CCCI_FS_TX && port->tx_ch != CCCI_RPC_TX) {
-		CCCI_NORMAL_LOG(port->md_id, TAG,
+		CCCI_ERROR_LOG(port->md_id, TAG,
 			"port %s ch%d write fail when md_state=%d\n",
 			port->name, port->tx_ch, md_state);
 		return -ENODEV;
@@ -946,7 +1318,7 @@ static struct port_t *proxy_get_port(struct port_proxy *proxy_p, int minor,
 	enum CCCI_CH ch)
 {
 	int i;
-	struct port_t *port;
+	struct port_t *port = NULL;
 
 	if (proxy_p == NULL)
 		return NULL;
@@ -969,7 +1341,7 @@ static inline int proxy_send_msg_to_md(struct port_proxy *proxy_p,
 {
 	struct port_t *port = NULL;
 	struct sk_buff *skb = NULL;
-	struct ccci_header *ccci_h;
+	struct ccci_header *ccci_h = NULL;
 	int ret = 0;
 	int md_state;
 	int qno = -1;
@@ -1033,7 +1405,7 @@ static inline int proxy_dispatch_recv_skb(struct port_proxy *proxy_p,
 	int hif_id, struct sk_buff *skb, unsigned int flag)
 {
 	struct ccci_header *ccci_h = NULL;
-	struct lhif_header *lhif_h;
+	struct lhif_header *lhif_h = NULL;
 	struct ccmni_ch ccmni;
 	struct port_t *port = NULL;
 	struct list_head *port_list = NULL;
@@ -1113,10 +1485,16 @@ static inline int proxy_dispatch_recv_skb(struct port_proxy *proxy_p,
 static inline void proxy_dispatch_queue_status(struct port_proxy *proxy_p,
 	int hif, int qno, int dir, unsigned int state)
 {
-	struct port_t *port;
+	struct port_t *port = NULL;
 	int match = 0;
 	int i, matched = 0;
 
+	if (hif < CLDMA_HIF_ID || hif >= CCCI_HIF_NUM
+		|| qno >= MAX_QUEUE_NUM || qno < 0) {
+		CCCI_ERROR_LOG(proxy_p->md_id, CORE,
+			"%s:hif=%d or qno=%d is inval\n", __func__, hif, qno);
+		return;
+	}
 	/*EE then notify EE port*/
 	if (unlikely(ccci_fsm_get_md_state(proxy_p->md_id)
 		== EXCEPTION)) {
@@ -1172,7 +1550,7 @@ static inline void proxy_dispatch_md_status(struct port_proxy *proxy_p,
 	unsigned int state)
 {
 	int i;
-	struct port_t *port;
+	struct port_t *port = NULL;
 
 	for (i = 0; i < proxy_p->port_number; i++) {
 		port = proxy_p->ports + i;
@@ -1189,7 +1567,7 @@ static inline void proxy_dispatch_md_status(struct port_proxy *proxy_p,
 
 static inline void proxy_dump_status(struct port_proxy *proxy_p)
 {
-	struct port_t *port;
+	struct port_t *port = NULL;
 	/* hardcode, port number should not be larger than 64 */
 	unsigned long long port_full = 0;
 	unsigned int i;
@@ -1236,7 +1614,7 @@ static inline void proxy_init_all_ports(struct port_proxy *proxy_p)
 {
 	int i;
 	int md_id;
-	struct port_t *port;
+	struct port_t *port = NULL;
 
 	md_id = proxy_p->md_id;
 	for (i = 0; i < ARRAY_SIZE(proxy_p->rx_ch_ports); i++)
@@ -1254,6 +1632,7 @@ static inline void proxy_init_all_ports(struct port_proxy *proxy_p)
 		port->minor_base = proxy_p->minor_base;
 		if (port->ops->init)
 			port->ops->init(port);
+		spin_lock_init(&port->flag_lock);
 	}
 	proxy_setup_channel_mapping(proxy_p);
 }
@@ -1262,7 +1641,7 @@ static inline void proxy_set_traffic_flag(struct port_proxy *proxy_p,
 	unsigned int dump_flag)
 {
 	int idx;
-	struct port_t *port;
+	struct port_t *port = NULL;
 
 	proxy_p->traffic_dump_flag = dump_flag;
 	CCCI_NORMAL_LOG(proxy_p->md_id, TAG,
@@ -1307,7 +1686,7 @@ static inline void proxy_set_traffic_flag(struct port_proxy *proxy_p,
 static inline struct port_proxy *proxy_alloc(int md_id)
 {
 	int ret = 0;
-	struct port_proxy *proxy_p;
+	struct port_proxy *proxy_p = NULL;
 
 	/* Allocate port_proxy obj and set all member zero */
 	proxy_p = kzalloc(sizeof(struct port_proxy), GFP_KERNEL);
@@ -1340,12 +1719,22 @@ EXIT_FUN:
 
 struct port_t *port_get_by_minor(int md_id, int minor)
 {
+	if (md_id < 0 || md_id >= MAX_MD_NUM) {
+		CCCI_ERROR_LOG(-1, TAG,
+			"invalid md_id = %d\n", md_id);
+		return NULL;
+	}
 	CHECK_MD_ID(md_id);
 	return proxy_get_port(GET_PORT_PROXY(md_id), minor,
 			CCCI_INVALID_CH_ID);
 }
 struct port_t *port_get_by_channel(int md_id, enum CCCI_CH ch)
 {
+	if (md_id < 0 || md_id >= MAX_MD_NUM) {
+		CCCI_ERROR_LOG(-1, TAG,
+			"invalid md_id = %d\n", md_id);
+		return NULL;
+	}
 	CHECK_MD_ID(md_id);
 	return proxy_get_port(GET_PORT_PROXY(md_id), -1, ch);
 }
@@ -1369,6 +1758,11 @@ int port_send_msg_to_md(struct port_t *port, unsigned int msg,
 	int ch = port->tx_ch;
 	struct port_proxy *proxy_p;
 
+	if (md_id < 0 || md_id >= MAX_MD_NUM) {
+		CCCI_ERROR_LOG(-1, TAG,
+			"invalid md_id = %d\n", md_id);
+		return -ENODEV;
+	}
 	CHECK_MD_ID(md_id);
 	proxy_p = GET_PORT_PROXY(md_id);
 	return proxy_send_msg_to_md(port->port_proxy, ch,
@@ -1382,11 +1776,138 @@ int port_send_msg_to_md(struct port_t *port, unsigned int msg,
  * This API is called by ccci_modem,
  * and used to create all ccci port instance for per modem
  */
+
+static int ccci_lp_mem_open(struct inode *inode, struct file *file)
+{
+	struct ccci_proc_user *proc_user;
+
+	proc_user = kzalloc(sizeof(struct ccci_proc_user), GFP_KERNEL);
+	if (!proc_user) {
+		CCCI_ERROR_LOG(-1, TAG, "fail to open ccci_lp_mem\n");
+		return -1;
+	}
+
+	file->private_data = proc_user;
+	proc_user->busy = 0;
+	nonseekable_open(inode, file);
+
+	return 0;
+}
+
+static ssize_t ccci_lp_mem_read(struct file *file, char __user *buf,
+				size_t size, loff_t *ppos)
+{
+		int proc_size = 0, read_len = 0, has_closed = 0;
+		unsigned long flags;
+		void __iomem *user_start_addr = NULL;
+		struct ccci_proc_user *proc_user = file->private_data;
+		struct ccci_smem_region *ccci_user_region =
+			ccci_md_get_smem_by_user_id(0, SMEM_USER_LOW_POWER);
+
+		spin_lock_irqsave(&file_lock, flags);
+		proc_user = (struct ccci_proc_user *)file->private_data;
+		if (proc_user == NULL)
+			has_closed = 1;
+		else
+			proc_user->busy = 1;
+		spin_unlock_irqrestore(&file_lock, flags);
+
+		if (has_closed) {
+			CCCI_ERROR_LOG(-1, TAG,
+				"ccci_lp_proc has been already closed\n");
+			return 0;
+		}
+		if (!ccci_user_region) {
+			CCCI_ERROR_LOG(-1, TAG, "not found Low power region\n");
+			proc_user->busy = 0;
+			return -1;
+		}
+
+		user_start_addr = ccci_user_region->base_ap_view_vir;
+		proc_size = ccci_user_region->size;
+		if (proc_user->left_len)
+			read_len = size > proc_user->left_len ?
+					proc_user->left_len : size;
+		else
+			read_len = size > proc_size ? proc_size : size;
+		proc_user->curr_addr = proc_user->curr_addr ?
+				proc_user->curr_addr : user_start_addr;
+
+		if (proc_user->curr_addr < user_start_addr + proc_size) {
+			CCCI_ERROR_LOG(-1, TAG, "copy to user\n");
+			if (copy_to_user(buf, proc_user->curr_addr, read_len)) {
+				CCCI_ERROR_LOG(-1, TAG,
+				"read ccci_lp_mem fail, size %lu\n", size);
+				proc_user->busy = 0;
+				return -EFAULT;
+			}
+			proc_user->curr_addr = proc_user->curr_addr + read_len;
+			proc_user->left_len = proc_size - read_len;
+		} else {
+			proc_user->busy = 0;
+			return 0;
+		}
+		proc_user->busy = 0;
+
+		return read_len;
+}
+
+static int ccci_lp_mem_close(struct inode *inode, struct file *file)
+{
+	int need_wait = 0;
+	unsigned long flags;
+	struct ccci_proc_user *proc_user = file->private_data;
+
+	if (proc_user == NULL)
+		return -1;
+
+	do {
+		spin_lock_irqsave(&file_lock, flags);
+		if (proc_user->busy) {
+			need_wait = 1;
+		} else {
+			need_wait = 0;
+			file->private_data = NULL;
+		}
+		spin_unlock_irqrestore(&file_lock, flags);
+		if (need_wait)
+			msleep(20);
+	} while (need_wait);
+	if (proc_user != NULL)
+		kfree(proc_user);
+
+	return 0;
+}
+
+const struct file_operations ccci_dbm_ops = {
+	.open = ccci_lp_mem_open,
+	.read = ccci_lp_mem_read,
+	.release = ccci_lp_mem_close,
+};
+
+static void ccci_proc_init(void)
+{
+	struct proc_dir_entry *ccci_dbm_proc;
+
+	ccci_dbm_proc = proc_create("ccci_lp_mem", 0440, NULL, &ccci_dbm_ops);
+	if (ccci_dbm_proc == NULL)
+		CCCI_ERROR_LOG(-1, TAG, "fail to create ccci dbm proc\n");
+	spin_lock_init(&file_lock);
+	return;
+
+}
+
 int ccci_port_init(int md_id)
 {
-	struct port_proxy *proxy_p;
+	struct port_proxy *proxy_p = NULL;
 
+	if (md_id < 0 || md_id >= MAX_MD_NUM) {
+		CCCI_ERROR_LOG(-1, TAG,
+			"invalid md_id = %d\n", md_id);
+		return -1;
+	}
 	CHECK_MD_ID(md_id);
+	ccci_proc_init();
 	proxy_p = proxy_alloc(md_id);
 	if (proxy_p == NULL) {
 		CCCI_ERROR_LOG(md_id, TAG, "alloc port_proxy fail\n");
@@ -1404,6 +1925,11 @@ void ccci_port_dump_status(int md_id)
 {
 	struct port_proxy *proxy_p;
 
+	if (md_id < 0 || md_id >= MAX_MD_NUM) {
+		CCCI_ERROR_LOG(-1, TAG,
+			"invalid md_id = %d\n", md_id);
+		return;
+	}
 	CHECK_MD_ID(md_id);
 	proxy_p = GET_PORT_PROXY(md_id);
 	proxy_dump_status(proxy_p);
@@ -1449,6 +1975,11 @@ void ccci_port_md_status_notify(int md_id, unsigned int state)
 {
 	struct port_proxy *proxy_p;
 
+	if (md_id < 0 || md_id >= MAX_MD_NUM) {
+		CCCI_ERROR_LOG(-1, TAG,
+			"invalid md_id = %d\n", md_id);
+		return;
+	}
 	CHECK_MD_ID(md_id);
 	proxy_p = GET_PORT_PROXY(md_id);
 	proxy_dispatch_md_status(proxy_p, (unsigned int)state);
@@ -1466,6 +1997,11 @@ void ccci_port_queue_status_notify(int md_id, int hif_id, int qno,
 {
 	struct port_proxy *proxy_p;
 
+	if (md_id < 0 || md_id >= MAX_MD_NUM) {
+		CCCI_ERROR_LOG(-1, TAG,
+			"invalid md_id = %d\n", md_id);
+		return;
+	}
 	CHECK_MD_ID(md_id);
 	CHECK_HIF_ID(hif_id);
 	CHECK_QUEUE_ID(qno);
@@ -1483,6 +2019,11 @@ int ccci_port_recv_skb(int md_id, int hif_id, struct sk_buff *skb,
 {
 	struct port_proxy *proxy_p;
 
+	if (md_id < 0 || md_id >= MAX_MD_NUM) {
+		CCCI_ERROR_LOG(-1, TAG,
+			"invalid md_id = %d\n", md_id);
+		return -ENODEV;
+	}
 	CHECK_MD_ID(md_id);
 	proxy_p = GET_PORT_PROXY(md_id);
 	return proxy_dispatch_recv_skb(proxy_p, hif_id, skb, flag);
@@ -1496,9 +2037,35 @@ int ccci_port_check_critical_user(int md_id)
 {
 	struct port_proxy *proxy_p;
 
+	if (md_id < 0 || md_id >= MAX_MD_NUM) {
+		CCCI_ERROR_LOG(-1, TAG,
+			"invalid md_id = %d\n", md_id);
+		return -ENODEV;
+	}
 	CHECK_MD_ID(md_id);
 	proxy_p = GET_PORT_PROXY(md_id);
 	return proxy_check_critical_user(proxy_p);
+}
+
+/*
+ * This API is called by ccci fsm,
+ * and used to check critical user only ccci_fsd exited.
+ */
+int ccci_port_critical_user_only_fsd(int md_id)
+{
+	struct port_proxy *proxy_p;
+
+	if (md_id < 0 || md_id >= MAX_MD_NUM)
+		return 0;
+
+	proxy_p = GET_PORT_PROXY(md_id);
+	if (!proxy_p)
+		return 0;
+
+	if (proxy_p->critical_user_active == (1 << CRIT_USR_FS))
+		return 1;
+
+	return 0;
 }
 
 /*
@@ -1509,6 +2076,11 @@ int ccci_port_get_critical_user(int md_id, unsigned int user_id)
 {
 	struct port_proxy *proxy_p;
 
+	if (md_id < 0 || md_id >= MAX_MD_NUM) {
+		CCCI_ERROR_LOG(-1, TAG,
+			"invalid md_id = %d\n", md_id);
+		return -ENODEV;
+	}
 	CHECK_MD_ID(md_id);
 	proxy_p = GET_PORT_PROXY(md_id);
 	return proxy_get_critical_user(proxy_p, user_id);
@@ -1523,6 +2095,11 @@ int ccci_port_send_msg_to_md(int md_id, int ch, unsigned int msg,
 {
 	struct port_proxy *proxy_p;
 
+	if (md_id < 0 || md_id >= MAX_MD_NUM) {
+		CCCI_ERROR_LOG(-1, TAG,
+			"invalid md_id = %d\n", md_id);
+		return -ENODEV;
+	}
 	CHECK_MD_ID(md_id);
 	proxy_p = GET_PORT_PROXY(md_id);
 	return proxy_send_msg_to_md(proxy_p, ch, msg, resv, blocking);
@@ -1539,6 +2116,11 @@ void ccci_port_set_traffic_flag(int md_id, unsigned int dump_flag)
 {
 	struct port_proxy *proxy_p;
 
+	if (md_id < 0 || md_id >= MAX_MD_NUM) {
+		CCCI_ERROR_LOG(-1, TAG,
+			"invalid md_id = %d\n", md_id);
+		return;
+	}
 	CHECK_MD_ID(md_id);
 	proxy_p = GET_PORT_PROXY(md_id);
 	proxy_set_traffic_flag(proxy_p, dump_flag);
@@ -1618,7 +2200,7 @@ int modem_dcd_state(void)
 int ccci_c2k_rawbulk_intercept(int ch_id, unsigned int interception)
 {
 	int ret = 0;
-	struct port_proxy *proxy_p;
+	struct port_proxy *proxy_p = NULL;
 	struct port_t *port = NULL;
 	struct list_head *port_list = NULL;
 	char matched = 0;
@@ -1691,7 +2273,7 @@ int ccci_c2k_rawbulk_intercept(int ch_id, unsigned int interception)
 int ccci_c2k_buffer_push(int ch_id, void *buf, int count)
 {
 	int ret = 0;
-	struct port_proxy *proxy_p;
+	struct port_proxy *proxy_p = NULL;
 	struct port_t *port = NULL;
 	struct list_head *port_list = NULL;
 	struct sk_buff *skb = NULL;

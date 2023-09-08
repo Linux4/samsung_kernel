@@ -40,6 +40,10 @@
 #include <asm/tls.h>
 #include <asm/vdso.h>
 
+#ifdef CONFIG_SEC_DEBUG
+#include <linux/sec_debug.h>
+#endif
+
 #ifdef CONFIG_CC_STACKPROTECTOR
 #include <linux/stackprotector.h>
 unsigned long __stack_chk_guard __read_mostly;
@@ -190,6 +194,12 @@ void __show_regs(struct pt_regs *regs)
 #endif
 #endif
 
+#ifdef CONFIG_SEC_DEBUG
+	if (!user_mode(regs)) {
+		sec_save_context(_THIS_CPU, regs);
+	}
+#endif
+
 	show_regs_print_info(KERN_DEFAULT);
 
 	print_symbol("PC is at %s\n", instruction_pointer(regs));
@@ -263,6 +273,17 @@ void show_regs(struct pt_regs * regs)
 	__show_regs(regs);
 	dump_stack();
 }
+
+#ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
+void show_regs_auto_comment(struct pt_regs * regs, bool comm)
+{
+	__show_regs(regs);
+	if (comm)
+		dump_backtrace_auto_comment(regs, NULL);
+	else
+		dump_backtrace(regs, NULL);
+}
+#endif
 
 ATOMIC_NOTIFIER_HEAD(thread_notify_head);
 

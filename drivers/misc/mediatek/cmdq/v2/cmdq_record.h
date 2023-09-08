@@ -15,11 +15,18 @@
 #define __CMDQ_RECORD_H__
 
 #include <linux/types.h>
+#include <linux/uaccess.h>
 #include "cmdq_def.h"
 #include "cmdq_core.h"
 
 struct TaskStruct;
 typedef uint64_t CMDQ_VARIABLE;
+
+struct task_private {
+	void *node_private_data;
+	bool internal;		/* internal used only task */
+	bool ignore_timeout;	/* timeout is expected */
+};
 
 struct cmdqRecStruct {
 	uint64_t engineFlag;
@@ -34,7 +41,20 @@ struct cmdqRecStruct {
 	bool finalized;		/* set to true after flush() or startLoop() */
 	uint32_t prefetchCount;	/* maintenance prefetch instruction */
 
+	/* register backup at end of task */
+	u32 reg_count;
+	u32 *reg_values;
+	dma_addr_t reg_values_pa;
+	/* user space data */
+	u32 user_reg_count;
+	u32 user_token;
+	struct TaskStruct *mdp_meta_task;
+	bool get_meta_task;
+
 	struct cmdqSecDataStruct secData;	/* secure execution data */
+
+	/* Readback slot protection */
+	s32 slot_ids[8];
 
 	/* profile marker */
 #ifdef CMDQ_PROFILE_MARKER_SUPPORT
@@ -676,6 +696,66 @@ extern "C" {
 		struct cmdqRecStruct *handle,
 		enum CMDQ_EVENT_ENUM resourceEvent,
 		uint32_t addr, uint32_t value, uint32_t mask);
+
+/* MDP META use */
+	struct op_meta;
+	struct mdp_submit;
+
+	struct cmdq_command_buffer {
+		void *va_base;
+		u32 cmd_buf_size;
+		u32 avail_buf_size;
+	};
+	s32 cmdq_op_poll_ex(struct cmdqRecStruct *handle,
+		struct cmdq_command_buffer *cmd_buf, u32 addr,
+		CMDQ_VARIABLE value, u32 mask);
+	s32 cmdq_op_read_reg_to_mem_ex(struct cmdqRecStruct *handle,
+		struct cmdq_command_buffer *cmd_buf,
+		cmdqBackupSlotHandle h_backup_slot, u32 slot_index, u32 addr);
+	s32 cmdq_op_write_reg_ex(struct cmdqRecStruct *handle,
+		struct cmdq_command_buffer *cmd_buf, u32 addr,
+		CMDQ_VARIABLE value, u32 mask);
+	s32 cmdq_op_wait_ex(struct cmdqRecStruct *handle,
+		struct cmdq_command_buffer *cmd_buf, enum CMDQ_EVENT_ENUM event);
+	s32 cmdq_op_wait_no_clear_ex(struct cmdqRecStruct *handle,
+		struct cmdq_command_buffer *cmd_buf, enum CMDQ_EVENT_ENUM event);
+	s32 cmdq_op_clear_event_ex(struct cmdqRecStruct *handle,
+		struct cmdq_command_buffer *cmd_buf, enum CMDQ_EVENT_ENUM event);
+	s32 cmdq_op_set_event_ex(struct cmdqRecStruct *handle,
+		struct cmdq_command_buffer *cmd_buf, enum CMDQ_EVENT_ENUM event);
+	s32 cmdq_op_acquire_ex(struct cmdqRecStruct *handle,
+		struct cmdq_command_buffer *cmd_buf, enum CMDQ_EVENT_ENUM event);
+	s32 cmdq_op_write_from_reg_ex(struct cmdqRecStruct *handle,
+		struct cmdq_command_buffer *cmd_buf, u32 write_reg, u32 from_reg);
+	s32 cmdq_handle_flush_cmd_buf(struct cmdqRecStruct *handle,
+		struct cmdq_command_buffer *cmd_buf);
+	s32 cmdq_alloc_write_addr(u32 count, dma_addr_t *paStart,
+		u32 clt, void *fp);
+	s32 cmdq_free_write_addr(dma_addr_t paStart, u32 clt);
+	s32 cmdq_free_write_addr_by_node(u32 clt, void *fp);
+	s32 cmdq_mdp_handle_create(struct cmdqRecStruct **handle_out);
+	s32 cmdq_mdp_handle_flush(struct cmdqRecStruct *handle);
+	s32 cmdq_mdp_wait(struct cmdqRecStruct *handle, void *temp);
+	s32 cmdq_mdp_handle_sec_setup(struct cmdqSecDataStruct *secData,
+		struct cmdqRecStruct *handle);
+	void cmdq_mdp_release_task_by_file_node(void *file_node);
+	void cmdqCoreReadWriteAddressBatch(u32 *addrs, u32 count, u32 *val_out);
+	s32 cmdq_mdp_update_sec_addr_index(struct cmdqRecStruct *handle,
+		u32 sec_handle, u32 index, u32 instr_index);
+	u32 cmdq_mdp_handle_get_instr_count(struct cmdqRecStruct *handle);
+	void cmdq_mdp_meta_replace_sec_addr(struct op_meta *metas,
+		struct mdp_submit *user_job, struct cmdqRecStruct *handle);
+	void cmdq_mdp_op_readback(struct cmdqRecStruct *handle, u16 engine,
+		dma_addr_t addr, u32 param);
+
+#define CMDQ_CLT_MDP 0
+#define CMDQ_MAX_USER_PROP_SIZE		(1024)
+#define MDP_META_IN_LEGACY_V2
+#define CMDQ_SYSTRACE_BEGIN(fmt, args...) do { \
+} while (0)
+
+#define CMDQ_SYSTRACE_END() do { \
+} while (0)
 
 /* tablet use */
 /*

@@ -13,7 +13,6 @@
 #include <linux/sched.h>
 #include <linux/device.h>
 #include <linux/fault-inject.h>
-#include <linux/wakelock.h>
 
 #include <linux/mmc/core.h>
 #include <linux/mmc/card.h>
@@ -167,6 +166,7 @@ struct mmc_host_ops {
 					 int card_drv, int *drv_type);
 	void	(*hw_reset)(struct mmc_host *host);
 	void	(*card_event)(struct mmc_host *host);
+	void	(*remove_bad_sdcard)(struct mmc_host *host);
 
 	/*
 	 * Optional callback to support controllers with HW issues for multiple
@@ -248,6 +248,30 @@ struct mmc_cmdq_req {
 	u8			ctx_id;
 };
 #endif
+
+struct keyslot_mgmt_ll_ops;
+struct mmc_crypto_variant_ops {
+	void (*setup_rq_keyslot_manager)(struct mmc_host *host,
+					 struct request_queue *q);
+	void (*destroy_rq_keyslot_manager)(struct mmc_host *host,
+					   struct request_queue *q);
+	int (*init_crypto)(struct mmc_host *host,
+			       const struct keyslot_mgmt_ll_ops *ksm_ops);
+	void (*enable)(struct mmc_host *host);
+	void (*disable)(struct mmc_host *host);
+	int (*suspend)(struct mmc_host *host);
+	int (*resume)(struct mmc_host *host);
+	int (*debug)(struct mmc_host *host);
+	void (*host_init_crypto)(struct mmc_host *host);
+	int (*get_crypto_capabilities)(struct mmc_host *host);
+	int (*prepare_mqr_crypto)(struct mmc_host *host,
+		u64 data_unit_num, int ddir, int slot);
+	void (*host_program_key)(struct mmc_host *host,
+			u32 *key, u32 *tkey, u32 config);
+	int (*complete_mqr_crypto)(struct mmc_host *host);
+	void (*msdc_crypto_keyslot_evict)(struct mmc_host *host);
+	void *priv;
+};
 
 struct mmc_async_req {
 	/* active mmc request */
@@ -353,6 +377,65 @@ struct mmc_supply {
 	struct regulator *vqmmc;	/* Optional Vccq supply */
 };
 
+/* CCAP - Crypto Capability 100h */
+union swcqhci_crypto_capabilities {
+	__le32 reg_val;
+	struct {
+		u8 num_crypto_cap;
+		u8 config_count;
+		u8 reserved;
+		u8 config_array_ptr;
+	};
+};
+
+enum swcqhci_crypto_key_size {
+	SWCQHCI_CRYPTO_KEY_SIZE_128		= 0,
+	SWCQHCI_CRYPTO_KEY_SIZE_192		= 1,
+	SWCQHCI_CRYPTO_KEY_SIZE_256		= 2,
+	SWCQHCI_CRYPTO_KEY_SIZE_512		= 3,
+	SWCQHCI_CRYPTO_KEY_SIZE_INVALID	= 4,
+};
+
+enum swcqhci_crypto_alg {
+	SWCQHCI_CRYPTO_ALG_AES_XTS				= 4,
+	SWCQHCI_CRYPTO_ALG_BITLOCKER_AES_CBC	= 3,
+	SWCQHCI_CRYPTO_ALG_AES_ECB				= 2,
+	SWCQHCI_CRYPTO_ALG_ESSIV_AES_CBC		= 1,
+	SWCQHCI_CRYPTO_ALG_INVALID				= 0,
+};
+
+/* x-CRYPTOCAP - Crypto Capability X */
+union swcqhci_crypto_cap_entry {
+	__le32 reg_val;
+	struct {
+		u8 algorithm_id;
+		u8 sdus_mask; /* Supported data unit size mask */
+		u8 key_size;
+		u8 reserved;
+	};
+};
+
+/* Please note that enable bit @ bit15 for spec */
+#define MMC_CRYPTO_CONFIGURATION_ENABLE (1 << 7)
+#define MMC_CRYPTO_KEY_MAX_SIZE 64
+/* x-CRYPTOCFG - Crypto Configuration X */
+/* key info will be fill in here, find slot will use, # of array == # of slot */
+union swcqhci_crypto_cfg_entry {
+	__le32 reg_val[32];
+	struct {
+		u8 crypto_key[MMC_CRYPTO_KEY_MAX_SIZE];
+		/* 4KB/512 = 8 */
+		u8 data_unit_size;
+		u8 crypto_cap_idx;
+		u8 reserved_1;
+		u8 config_enable;
+		u8 reserved_multi_host;
+		u8 reserved_2;
+		u8 vsb[2];
+		u8 reserved_3[56];
+	};
+};
+
 struct mmc_host {
 	struct device		*parent;
 	struct device		class_dev;
@@ -431,7 +514,6 @@ struct mmc_host {
 #define MMC_CAP2_HS200_1_2V_SDR	(1 << 6)        /* can support */
 #define MMC_CAP2_HS200		(MMC_CAP2_HS200_1_8V_SDR | \
 				 MMC_CAP2_HS200_1_2V_SDR)
-#define MMC_CAP2_DETECT_ON_ERR  (1 << 8)        /* On I/O err check card removal */
 #define MMC_CAP2_CD_ACTIVE_HIGH	(1 << 10)	/* Card-detect signal active high */
 #define MMC_CAP2_RO_ACTIVE_HIGH	(1 << 11)	/* Write-protect signal active high */
 #define MMC_CAP2_NO_PRESCAN_POWERUP (1 << 14)	/* Don't power up before scan */
@@ -448,7 +530,8 @@ struct mmc_host {
 #define MMC_CAP2_NO_MMC		(1 << 22)	/* Do not send (e)MMC commands during initialization */
 #define MMC_CAP2_CQE		(1 << 23)	/* Has eMMC command queue engine */
 #define MMC_CAP2_CQE_DCMD	(1 << 24)	/* CQE can issue a direct command */
-#define MMC_CAP2_INLINECRYPT	(1 << 25)	/* Support inline encryption */
+#define MMC_CAP2_NMCARD		(1 << 26)
+#define MMC_CAP2_CRYPTO		(1 << 27)	/* Host supports inline encryption */
 
 	mmc_pm_flag_t		pm_caps;	/* supported pm features */
 
@@ -493,17 +576,11 @@ struct mmc_host {
 	int			claim_cnt;	/* "claim" nesting count */
 
 	struct delayed_work	detect;
-	struct wake_lock        detect_wake_lock;
-	const char              *wlock_name;
 	int			detect_change;	/* card detect flag */
 	struct mmc_slot		slot;
 
 	const struct mmc_bus_ops *bus_ops;	/* current bus driver */
 	unsigned int		bus_refs;	/* reference counter */
-
-	unsigned int		bus_resume_flags;
-#define MMC_BUSRESUME_MANUAL_RESUME	(1 << 0)
-#define MMC_BUSRESUME_NEEDS_RESUME	(1 << 1)
 
 	unsigned int		sdio_irqs;
 	struct task_struct	*sdio_irq_thread;
@@ -591,6 +668,7 @@ struct mmc_host {
 	int			cqe_qdepth;
 	bool			cqe_enabled;
 	bool			cqe_on;
+
 #ifdef CONFIG_MTK_EMMC_HW_CQ
 	const struct mmc_cmdq_host_ops *cmdq_ops;
 	struct mmc_cmdq_context_info	cmdq_ctx;
@@ -607,6 +685,17 @@ struct mmc_host {
 	struct mmc_request	*err_mrq;
 #endif
 
+#ifdef CONFIG_MMC_CRYPTO
+	/* crypto */
+	const struct mmc_crypto_variant_ops *crypto_vops;
+	union swcqhci_crypto_capabilities crypto_capabilities;
+	union swcqhci_crypto_cap_entry *crypto_cap_array;
+	u8 crypto_cfg_register;
+	union swcqhci_crypto_cfg_entry *crypto_cfgs;
+	struct keyslot_manager *ksm;
+#endif /* CONFIG_MMC_CRYPTO */
+
+
 #ifdef CONFIG_MMC_EMBEDDED_SDIO
 	struct {
 		struct sdio_cis			*cis;
@@ -616,8 +705,9 @@ struct mmc_host {
 	} embedded_sdio_data;
 #endif
 
-	unsigned int            card_detect_cnt;
 	int (*sdcard_uevent)(struct mmc_card *card);
+
+	unsigned int			card_detect_cnt;
 	unsigned long		private[0] ____cacheline_aligned;
 };
 
@@ -655,20 +745,6 @@ static inline void *mmc_cmdq_private(struct mmc_host *host)
 #define mmc_dev(x)	((x)->parent)
 #define mmc_classdev(x)	(&(x)->class_dev)
 #define mmc_hostname(x)	(dev_name(&(x)->class_dev))
-#define mmc_bus_needs_resume(host) ((host)->bus_resume_flags & \
-		MMC_BUSRESUME_NEEDS_RESUME) 
-#define mmc_bus_manual_resume(host) ((host)->bus_resume_flags & \
-		MMC_BUSRESUME_MANUAL_RESUME)
-
-static inline void mmc_set_bus_resume_policy(struct mmc_host *host, int manual)
-{
-	if (manual)
-		host->bus_resume_flags |= MMC_BUSRESUME_MANUAL_RESUME;
-	else
-		host->bus_resume_flags &= ~MMC_BUSRESUME_MANUAL_RESUME;
-}
-
-extern int mmc_resume_bus(struct mmc_host *host);
 
 int mmc_power_save_host(struct mmc_host *host);
 int mmc_power_restore_host(struct mmc_host *host);

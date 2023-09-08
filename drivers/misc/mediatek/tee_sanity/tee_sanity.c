@@ -16,6 +16,139 @@
 #include <linux/uaccess.h>
 #include <mt-plat/mtk_secure_api.h>
 #include <tee_sanity.h>
+#include <linux/sched/clock.h>
+#include <archcounter_timesync.h>
+#include <asm/arch_timer.h>
+#include <sched_ctl.h>
+
+#define CREATE_TRACE_POINTS
+#include <trace_tee.h>
+
+#define TEE_TASK_MIN_UTIL	30
+
+static u64 boot_to_kernel_ns;
+
+void mtk_set_prefer_bigcore(struct task_struct *current_task)
+{
+#ifdef CONFIG_MTK_SCHED_BOOST
+	sched_set_cpuprefer(current->pid, SCHED_PREFER_BIG);
+#endif
+}
+
+void mtk_set_task_basic_util(struct task_struct *current_task)
+{
+	set_task_util_min_pct(current->pid, TEE_TASK_MIN_UTIL);
+}
+
+static void set_boot_to_kernel_time(void)
+{
+	u64 gud_init_time;
+	u64 boot_time;
+
+	gud_init_time = sched_clock();
+	boot_time = mtk_get_archcounter_time(arch_counter_get_cntvct());
+
+	boot_to_kernel_ns = boot_time - gud_init_time;
+}
+
+static void convert_kernel_time(char *tee_timestamp, char *output,
+		size_t output_sz)
+{
+	u64 boot_to_kernel_us;
+	u64 kernel_time_us;
+	u64 tee_time_us;
+	u64 tee_time_s;
+	int err;
+
+	if (!tee_timestamp || !output || !output_sz) {
+		pr_err(PFX "param check failed\n");
+		return;
+	}
+
+	err = kstrtou64(tee_timestamp, 10, &tee_time_us);
+	if (err) {
+		pr_err(PFX "kstrtou64 failed\n");
+		return;
+	}
+
+	boot_to_kernel_us = div_u64(boot_to_kernel_ns, NSEC_PER_USEC);
+	kernel_time_us = tee_time_us - boot_to_kernel_us;
+
+	div_u64_rem(kernel_time_us, USEC_PER_SEC, (u32 *)&tee_time_us);
+	tee_time_s = div_u64(kernel_time_us, USEC_PER_SEC);
+
+	snprintf(output, output_sz, "%llu.%06u", tee_time_s, (u32)tee_time_us);
+}
+
+int32_t mtk_tee_log_tracing(u32 cpuid, u16 tee_pid, char *line, u32 line_len)
+{
+	struct tee_trace_struct tee_trace_info;
+	char ktimestamp[128] = {0};
+	char trace_buf[128] = {0};
+	char *trace_buf_ptr;
+	char delim[] = ":";
+	char *prefix;
+	char *postfix;
+	char *timestamp;
+
+	bool trace_start = false;
+	bool trace_end = false;
+
+	if (unlikely(line == NULL)) {
+		pr_err(PFX "%s:%d NULL pointer\n", __func__, __LINE__);
+		return TEE_TRACE_PREFIX_NOT_MATCH;
+	}
+
+	prefix = strstr(line, TEE_BEGIN_TRACE);
+	postfix = strstr(line, TEE_END_TRACE);
+
+	if (prefix) {
+		trace_start = true;
+		line = prefix;
+
+	} else if (postfix) {
+		trace_end = true;
+		line = postfix;
+
+	} else
+		return TEE_TRACE_PREFIX_NOT_MATCH;
+
+	strncpy(trace_buf, line, (line_len >= sizeof(trace_buf)) ?
+			sizeof(trace_buf) : line_len);
+
+	trace_buf_ptr = trace_buf;
+	prefix = strsep(&trace_buf_ptr, delim);
+	if (!prefix) {
+		pr_err(PFX "strsep prefix failed\n");
+		return TEE_TRACE_PARSE_FAILED;
+	}
+
+	timestamp = strsep(&trace_buf_ptr, delim);
+	if (!timestamp) {
+		pr_err(PFX "strsep timestamp failed\n");
+		return TEE_TRACE_PARSE_FAILED;
+	}
+
+	postfix = strsep(&trace_buf_ptr, delim);
+	if (!postfix) {
+		pr_err(PFX "strsep postfix failed\n");
+		return TEE_TRACE_PARSE_FAILED;
+	}
+
+	convert_kernel_time(timestamp, ktimestamp, sizeof(ktimestamp));
+
+	tee_trace_info.cpuid = cpuid;
+	tee_trace_info.ktimestamp = ktimestamp;
+	tee_trace_info.tee_pid = tee_pid;
+	tee_trace_info.tee_postfix = postfix;
+
+	if (trace_start)
+		trace_tee_sched_start(&tee_trace_info);
+	else if (trace_end)
+		trace_tee_sched_end(&tee_trace_info);
+
+	return TEE_TRACE_OK;
+}
 
 static bool enable_ut;
 static bool enable_read_hwirq;
@@ -25,7 +158,6 @@ static uint32_t tee_sanity_hwirq;
 static void tee_ut(uint32_t cmd)
 {
 	struct arm_smccc_res res;
-	uint32_t ret;
 
 	pr_info(PFX "%s, cmd=0x%x\n", __func__, cmd);
 	if (cmd == TEE_UT_READ_INTR) {
@@ -38,12 +170,7 @@ static void tee_ut(uint32_t cmd)
 		arm_smccc_smc(MTK_SIP_KERNEL_TEE_CONTROL, TEE_OP_ID_SET_PENDING,
 				0, 0, 0, 0, 0, 0, &res);
 
-		ret = res.a0;
-		if (ret)
-			pr_err(PFX "trigger interrupt failed, ret: 0x%x\n",
-					ret);
-		else
-			pr_info(PFX "trigger interrupt done!\n");
+		pr_info(PFX "trigger interrupt done!\n");
 
 	} else {
 		pr_err(PFX "%s, cmd=0x%x is not supported\n", __func__, cmd);
@@ -181,6 +308,9 @@ static int tee_sanity_probe(struct platform_device *pdev)
 	}
 
 	proc_create("tee_sanity", 0664, NULL, &tee_sanity_fops);
+
+	/* Init boot to kernel time */
+	set_boot_to_kernel_time();
 
 	return 0;
 }

@@ -15,6 +15,6 @@
 #define __CCU_H__
 
 
-#include "../1.1/ccu_drv.h"
+#include "../1.2/ccu_drv.h"
 
 #endif

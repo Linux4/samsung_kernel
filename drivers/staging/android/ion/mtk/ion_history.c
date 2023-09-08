@@ -25,7 +25,12 @@
 #include <linux/mutex.h>
 //#include <mmprofile.h>
 //#include <mmprofile_function.h>
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 #include <linux/debugfs.h>
+#endif
+#if IS_ENABLED(CONFIG_PROC_FS)
+#include <linux/proc_fs.h>
+#endif
 #include <linux/kthread.h>
 #include <linux/sched/signal.h>
 #include <linux/sched/clock.h>
@@ -41,6 +46,7 @@
 /* history record */
 /* ============================================== */
 
+#if IS_ENABLED(CONFIG_DEBUG_FS) || IS_ENABLED(CONFIG_PROC_FS)
 struct history_record {
 	void *record;
 	unsigned int record_num;
@@ -49,7 +55,12 @@ struct history_record {
 	unsigned int wrapped;
 	spinlock_t lock;	/*protect ion record info */
 	const char *name;
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	struct dentry *debug_file;
+#endif
+#if IS_ENABLED(CONFIG_PROC_FS)
+	struct proc_dir_entry *proc_file;
+#endif
 	int (*show)(struct seq_file *seq, void *record, void *priv);
 	int (*destroy_record)(void *record, void *priv);
 	void *private;
@@ -61,7 +72,7 @@ static inline unsigned long history_rec_test_busy(struct history_record
 						  unsigned int index)
 {
 	unsigned long *p = history_record->bitmap_busy + index / BITS_PER_LONG;
-	int bit_mask = 1UL << (index % BITS_PER_LONG);
+	unsigned int bit_mask = 1UL << (index % BITS_PER_LONG);
 
 	return *p & bit_mask;
 }
@@ -70,7 +81,8 @@ static inline void history_rec_set_busy(struct history_record
 					*history_record, unsigned int index)
 {
 	unsigned long *p = history_record->bitmap_busy + index / BITS_PER_LONG;
-	int bit_mask = 1UL << (index % BITS_PER_LONG);
+	unsigned int bit_mask = 1UL << (index % BITS_PER_LONG);
+
 	*p |= bit_mask;
 }
 
@@ -225,9 +237,9 @@ static const struct seq_operations seq_op = {
 	.show = history_rec_show,
 };
 
-static int history_rec_open(struct inode *inode, struct file *file)
+static int history_rec_open(void *data, struct file *file)
 {
-	struct history_record *history_record = inode->i_private;
+	struct history_record *history_record = (struct history_record *)data;
 	struct history_seq_priv *seq_priv;
 	int res = -ENOMEM;
 
@@ -259,12 +271,47 @@ static int history_rec_release(struct inode *inode, struct file *file)
 	return seq_release(inode, file);
 }
 
-static const struct file_operations history_rec_fops = {
-	.open = history_rec_open,
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+static int debug_history_rec_open(struct inode *inode, struct file *file)
+{
+	history_rec_open(inode->i_private, file);
+
+	return 0;
+}
+
+static int debug_history_rec_release(struct inode *inode, struct file *file)
+{
+	return history_rec_release(inode, file);
+}
+
+static const struct file_operations debug_history_rec_fops = {
+	.open = debug_history_rec_open,
 	.read = seq_read,
 	.llseek = seq_lseek,
-	.release = history_rec_release,
+	.release = debug_history_rec_release,
 };
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+static int proc_history_rec_open(struct inode *inode, struct file *file)
+{
+	history_rec_open(PDE_DATA(inode), file);
+
+	return 0;
+}
+
+static int proc_history_rec_release(struct inode *inode, struct file *file)
+{
+	return history_rec_release(inode, file);
+}
+
+static const struct file_operations proc_history_rec_fops = {
+	.open = proc_history_rec_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = proc_history_rec_release,
+};
+#endif
 
 struct history_record *history_rec_create(unsigned int record_num,
 					  unsigned int record_size,
@@ -274,7 +321,7 @@ struct history_record *history_rec_create(unsigned int record_num,
 					  int (*destroy_record)(void *record,
 								void *priv),
 					  void *priv, const char *name,
-					  struct dentry *debugfs_parent)
+					  struct ion_device *dev)
 {
 	struct history_record *history_record;
 	int num_align;
@@ -287,6 +334,11 @@ struct history_record *history_rec_create(unsigned int record_num,
 
 	size_align = record_num * record_size;
 	size_align = ALIGN(size_align, PAGE_SIZE);
+	if (!record_size) {
+		IONMSG("warning! record_size is 0\n");
+		return ERR_PTR(-EINVAL);
+	}
+
 	num_align = size_align / record_size;
 
 	bitmap_bytes = BITS_TO_LONGS(num_align) * sizeof(unsigned long);
@@ -313,10 +365,19 @@ struct history_record *history_rec_create(unsigned int record_num,
 	history_record->name = name;
 	spin_lock_init(&history_record->lock);
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	history_record->debug_file =
-	    debugfs_create_file(name, 0644, debugfs_parent, history_record,
-				&history_rec_fops);
+	    debugfs_create_file(name, 0644, dev->debug_root, history_record,
+				&debug_history_rec_fops);
+#endif
 
+#if IS_ENABLED(CONFIG_PROC_FS)
+	history_record->proc_file = proc_create_data(name,
+						     S_IFREG | 0664,
+						     dev->proc_root,
+						     &proc_history_rec_fops,
+						     history_record);
+#endif
 	return history_record;
 }
 
@@ -327,12 +388,18 @@ void history_rec_destroy(struct history_record *history_record)
 	    BITS_TO_LONGS(history_record->record_num);
 	unsigned int end;
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	debugfs_remove(history_record->debug_file);
+#endif
 
+#if IS_ENABLED(CONFIG_PROC_FS)
+	proc_remove(history_record->proc_file);
+#endif
+
+	spin_lock(&history_record->lock);
 	/* wait until no busy */
 	do {
 		busy = 0;
-		spin_lock(&history_record->lock);
 		for (i = 0; i < bitmap_longs; i++) {
 			if (history_record->bitmap_busy[i]) {
 				/* busy ! */
@@ -343,7 +410,6 @@ void history_rec_destroy(struct history_record *history_record)
 				break;
 			}
 		}
-		spin_unlock(&history_record->lock);
 	} while (busy);
 	/* we have history_record->lock locked here */
 
@@ -359,6 +425,7 @@ void history_rec_destroy(struct history_record *history_record)
 
 	vfree(history_record->record);
 	history_record->record = NULL;
+	spin_unlock(&history_record->lock);
 	kfree(history_record);
 }
 
@@ -374,7 +441,7 @@ static struct hlist_head ion_str_hash[STR_HASH_BUCKET_NUM];
 DEFINE_SPINLOCK(ion_str_hash_lock);
 
 /* as tested, simple add hash is better than RS_hash & BKDR_hash ! */
-static unsigned int add_hash(char *str, unsigned int len)
+static unsigned int add_hash(const char *str, unsigned int len)
 {
 	unsigned int hash = 0, i;
 
@@ -464,6 +531,7 @@ int string_hash_debug_show(struct seq_file *seq, void *unused)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 static int string_hash_debug_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, string_hash_debug_show, inode->i_private);
@@ -475,6 +543,21 @@ static const struct file_operations string_hash_debug_fops = {
 	.llseek = seq_lseek,
 	.release = single_release,
 };
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+static int string_hash_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, string_hash_debug_show, PDE_DATA(inode));
+}
+
+static const struct file_operations string_hash_proc_fops = {
+	.open = string_hash_proc_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+#endif
 
 /* ===== ion client history  ======= */
 
@@ -498,6 +581,10 @@ static int ion_client_record_show(struct seq_file *seq, void *record,
 {
 	struct ion_client_record *client_record = record;
 
+	if (!client_record || !client_record->client_name ||
+	    !client_record->dbg_name)
+		return 0;
+
 	if (client_record->address > CLIENT_ADDRESS_FLAG_MAX) {
 		char *client_name = "none", *dbg_name = "none";
 
@@ -505,7 +592,7 @@ static int ion_client_record_show(struct seq_file *seq, void *record,
 			client_name = client_record->client_name->str;
 		if (client_record->dbg_name)
 			dbg_name = client_record->dbg_name->str;
-		seq_printf(seq, "%16.s(%16.s) %16zu 0x%p\n", client_name,
+		seq_printf(seq, "  %16.s(%16.s) %16zu 0x%p\n", client_name,
 			   dbg_name, client_record->size,
 			   client_record->address);
 	} else {
@@ -521,8 +608,9 @@ static int ion_client_record_show(struct seq_file *seq, void *record,
 
 		t = client_record->time;
 		rem_ns = do_div(t, 1000000000ULL);
-		seq_printf(seq, "time(%lld.%lld)\t%s %16zu\n", t, rem_ns, name,
-			   client_record->size);
+		seq_printf(seq,
+			   "\n======== time(%lld.%lld)\t%s:%16zu Bytes =======\n",
+			   t, rem_ns, name, client_record->size);
 	}
 
 	return 0;
@@ -533,10 +621,14 @@ static int ion_client_destroy_record(void *record, void *priv)
 	struct ion_client_record *client_record = record;
 
 	if (client_record->address > CLIENT_ADDRESS_FLAG_MAX) {
-		if (client_record->client_name)
+		if (client_record->client_name) {
 			string_hash_put(client_record->client_name);
-		if (client_record->dbg_name)
+			client_record->client_name = NULL;
+		}
+		if (client_record->dbg_name) {
 			string_hash_put(client_record->dbg_name);
+			client_record->dbg_name = NULL;
+		}
 	}
 
 	return 0;
@@ -562,6 +654,8 @@ static int ion_client_write_record(struct history_record *client_history,
 	} else {
 		/* total/orphan record: reuse name field */
 		record->time = local_clock();
+		record->client_name = string_hash_get("ion_history");
+		record->dbg_name = string_hash_get("ion_history");
 	}
 
 	history_rec_put_record(client_history, record);
@@ -581,8 +675,8 @@ static int write_mm_page_pool(int high, int order, int cache, size_t size)
 {
 	char name[50];
 
-	snprintf(name, sizeof(name), "%smem order_%d pool",
-		 high ? "high" : "low", order);
+	snprintf(name, sizeof(name), "----%s order_%d pool",
+		 high ? "HIGH" : "NORMAL", order);
 	if (size)
 		ion_client_write_record(g_client_history, name,
 					cache ? "cache" : "nocache", size,
@@ -598,6 +692,7 @@ static int ion_history_record(void *data)
 	size_t total_size = 0;
 	int heap_id = 0;
 	int ret = 0;
+	unsigned long long start = 0, end = 0;
 
 	while (1) {
 		if (kthread_should_stop()) {
@@ -627,11 +722,6 @@ static int ion_history_record(void *data)
 				struct ion_buffer
 				*buffer = rb_entry(n, struct ion_buffer, node);
 				heap_id = buffer->heap->id;
-				if (heap_id ==
-					ION_HEAP_TYPE_MULTIMEDIA_MAP_MVA ||
-					heap_id ==
-					ION_HEAP_TYPE_MULTIMEDIA_PA2MVA)
-					continue;
 				total_size += buffer->size;
 				if (!buffer->handle_count)
 					total_orphaned_size += buffer->size;
@@ -642,13 +732,7 @@ static int ion_history_record(void *data)
 				continue;
 
 			if (g_client_history) {
-				int ret = -1;
-				/* record page pool info */
-				ret = ion_mm_heap_for_each_pool(
-					write_mm_page_pool);
-				if (ret < 0)
-					continue;
-
+				/* orphaned size with time stamp */
 				if (total_orphaned_size)
 					ion_client_write_record
 					    (g_client_history, NULL, NULL,
@@ -658,6 +742,9 @@ static int ion_history_record(void *data)
 				ion_client_write_record(g_client_history, NULL,
 							NULL, total_size,
 							CLIENT_ADDRESS_TOTAL);
+				/* record page pool info */
+				ion_mm_heap_for_each_pool(
+					write_mm_page_pool);
 			}
 		}
 
@@ -666,12 +753,25 @@ static int ion_history_record(void *data)
 		/* == client == */
 		if (g_client_history) {
 			down_read(&dev->lock);
+			start = sched_clock();
 			for (n = rb_first(&dev->clients); n; n = rb_next(n)) {
 				struct ion_client
 				*client = rb_entry(n, struct ion_client, node);
 				size_t size = 0;
 				struct rb_node *nh;
 
+				end = sched_clock();
+				if (end - start > 1000000000ULL) {/* 1s */
+					IONMSG(
+					       "warn: ion history hold:%lluns from:%llu\n",
+					       end - start, start);
+					ion_client_write_record
+					    (g_client_history,
+					     "ion history hold lock too long time",
+					     "cancel dump", end - start,
+					     CLIENT_ADDRESS_FLAG_MAX + 1);
+					break;
+				}
 				mutex_lock(&client->lock);
 				for (nh = rb_first(&client->handles); nh;
 				     nh = rb_next(nh)) {
@@ -719,15 +819,22 @@ int ion_history_init(void)
 					      ion_client_record_show,
 					      ion_client_destroy_record,
 					      NULL, "client_history",
-					      g_ion_device->debug_root);
+					      g_ion_device);
 
 	if (IS_ERR_OR_NULL(g_client_history)) {
 		IONMSG("create client history fail\n");
 		return (long)g_client_history;
 	}
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	debugfs_create_file("string_hash", 0644, g_ion_device->debug_root, NULL,
 			    &string_hash_debug_fops);
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+	proc_create("string_hash", S_IFREG | 0644, g_ion_device->proc_root,
+		    &string_hash_proc_fops);
+#endif
 
 	init_waitqueue_head(&ion_history_wq);
 	ion_history_kthread = kthread_run(ion_history_record, NULL, "%s",
@@ -749,3 +856,14 @@ void ion_history_count_kick(bool allc, size_t len)
 		wake_up_interruptible(&ion_history_wq);
 	}
 }
+#else
+int ion_history_init(void)
+{
+	return 0;
+}
+
+void ion_history_count_kick(bool allc, size_t len)
+{
+	/*do nothing */
+}
+#endif

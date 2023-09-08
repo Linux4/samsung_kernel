@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 MediaTek Inc.
+ * Copyright (C) 2020 MediaTek Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -54,7 +54,39 @@
 #endif
 
 #if defined(CONFIG_MACH_MT6885)
+#if !defined(TRIGEAR_LEAKAGE)
 #include "mtk_static_power_mt6885.h"
+#else
+#include "mtk_static_power_mt6893.h"
+#endif
+#endif
+
+#if defined(CONFIG_MACH_MT6893)
+#include "mtk_static_power_mt6893.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6873)
+#include "mtk_static_power_mt6873.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6853)
+#include "mtk_static_power_mt6853.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6833)
+#include "mtk_static_power_mt6833.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6877)
+#include "mtk_static_power_mt6877.h"
+#endif
+
+#if defined(CONFIG_MACH_MT8168)
+#include "mtk_static_power_mt8168.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6781)
+#include "mtk_static_power_mt6781.h"
 #endif
 
 /*
@@ -65,21 +97,6 @@
 
 #define MSB(range)	(1 ? range)
 #define LSB(range)	(0 ? range)
-/**
- * Genearte a mask wher MSB to LSB are all 0b1
- * @r:	Range in the form of MSB:LSB
- */
-#define BITMASK(r)	\
-	(((unsigned int) -1 >> (31 - MSB(r))) & ~((1U << LSB(r)) - 1))
-
-/**
- * Set value at MSB:LSB. For example, BITS(7:3, 0x5A)
- * will return a value where bit 3 to bit 7 is 0x5A
- * @r:	Range in the form of MSB:LSB
- */
-/* BITS(MSB:LSB, value) => Set value at MSB:LSB  */
-#define BITS(r, val)	((val << LSB(r)) & BITMASK(r))
-
 #define GET_BITS_VAL(_bits_, _val_) \
 	(((_val_) & (BITMASK(_bits_))) >> ((0) ? _bits_))
 
@@ -98,6 +115,5 @@ extern int mt_spower_get_leakage(int dev, unsigned int voltage, int degree);
 extern int mt_spower_get_efuse_lkg(int dev);
 
 extern int mt_spower_init(void);
-
 
 #endif

@@ -569,8 +569,6 @@ static void set_playback_gpio(bool enable)
 		Ana_Set_Reg(GPIO_MODE2_CLR, 0xffff, 0xffff);
 		Ana_Set_Reg(GPIO_MODE2_SET, 0x0249, 0xffff);
 		Ana_Set_Reg(GPIO_MODE2, 0x0249, 0xffff);
-		/* set gpio mosi SMT mode */
-		Ana_Set_Reg(SMT_CON1, 0x0ff0, 0x0ff0);
 	} else {
 		/* set pad_aud_*_mosi to GPIO mode and dir input
 		 * reason:
@@ -579,8 +577,6 @@ static void set_playback_gpio(bool enable)
 		Ana_Set_Reg(GPIO_MODE2_CLR, 0xffff, 0xffff);
 		Ana_Set_Reg(GPIO_MODE2, 0x0000, 0xffff);
 		Ana_Set_Reg(GPIO_DIR0, 0x0, 0xf << 8);
-		/* reset gpio mosi SMT mode */
-		Ana_Set_Reg(SMT_CON1, 0x0, 0x0ff0);
 	}
 }
 
@@ -1614,7 +1610,10 @@ static int mtk_calculate_impedance_formula(int pcm_offset, int aux_diff)
 	/* R = V /I */
 	/* V = auxDiff * (1800mv /auxResolution)  /TrimBufGain */
 	/* I =  pcmOffset * DAC_constant * Gsdm * Gibuf */
-	return DIV_ROUND_CLOSEST(3600000 / pcm_offset * aux_diff, 7832);
+
+	long val = 3600000 / pcm_offset * aux_diff;
+
+	return (int)DIV_ROUND_CLOSEST(val, 7832);
 }
 
 static int mtk_calculate_hp_impedance(int dc_init, int dc_input,
@@ -1656,6 +1655,7 @@ static int detect_impedance(void)
 	int detectsOffset[kDetectTimes];
 	int pick_impedance = 0, impedance = 0, phase_flag = 0;
 	int dcValue = 0;
+	int old_value_auxadc_con1 = Ana_Get_Reg(AUXADC_CON1);
 	struct mtk_hpdet_param hpdet_param;
 
 	if (enable_dc_compensation &&
@@ -1672,6 +1672,9 @@ static int detect_impedance(void)
 	mtk_read_hp_detection_parameter(&hpdet_param);
 
 	Ana_Set_Reg(AUXADC_CON10, AUXADC_AVG_64, 0x7);
+
+	/* Set AUXADC_SPL_NUM as 0xC for hp imp detect */
+	Ana_Set_Reg(AUXADC_CON1, 0xC << 6, 0xf << 6);
 
 	setOffsetTrimMux(AUDIO_OFFSET_TRIM_MUX_HPR);
 	setOffsetTrimBufferGain(3); /* HPDET trim. buffer gain : 18db */
@@ -1782,9 +1785,10 @@ static int detect_impedance(void)
 		usleep_range(1*200, 1*200);
 	}
 
-	pr_debug("%s(), phase %d [dc,detect]Sum %d times [%d,%d], hp_impedance %d, pick_impedance %d, AUXADC_CON10 0x%x\n",
+	pr_debug("%s(), phase %d [dc,detect]Sum %d times [%d,%d], hp_impedance %d, pick_impedance %d, AUXADC_CON1 0x%x, AUXADC_CON10 0x%x\n",
 		 __func__, phase_flag, kDetectTimes, dcSum, detectSum,
 		 impedance, pick_impedance,
+		 Ana_Get_Reg(AUXADC_CON1),
 		 Ana_Get_Reg(AUXADC_CON10));
 
 	/* Ramp-Down */
@@ -1801,6 +1805,9 @@ static int detect_impedance(void)
 	enable_dc_compensation(false);
 	setOffsetTrimMux(AUDIO_OFFSET_TRIM_MUX_GROUND);
 	EnableTrimbuffer(false);
+
+	/* Restore AUXADC_CON1 after hp imp detect */
+	Ana_Set_Reg(AUXADC_CON1, old_value_auxadc_con1, 0xffff);
 
 	return impedance;
 }
@@ -7662,6 +7669,13 @@ static void mt6358_codec_init_reg(struct snd_soc_codec *codec)
 	Ana_Set_Reg(AUDDEC_ANA_CON7, 0x1 << 4, 0x1 << 4);
 	/* gpio miso driving set to default 4mA */
 	Ana_Set_Reg(DRV_CON3, 0x8888, 0xffff);
+
+	/* Enable mtkaif gpio SMT mode */
+	Ana_Set_Reg(SMT_CON1, 0x0ff0, 0x0ff0);
+
+	/* Set HP_EINT trigger level to 2.0v */
+	Ana_Set_Reg(AUDENC_ANA_CON11, 0x1 << 10, 0x1 << 10);
+
 	/* set gpio */
 	set_playback_gpio(false);
 	set_capture_gpio(false);
@@ -7799,6 +7813,7 @@ static int mtk_mt6358_codec_dev_probe(struct platform_device *pdev)
 {
 	if (pdev->dev.of_node) {
 		dev_set_name(&pdev->dev, "%s", MT_SOC_CODEC_NAME);
+		pdev->name = pdev->dev.kobj.name;
 
 		/* check if use hp depop flow */
 		of_property_read_u32(pdev->dev.of_node,

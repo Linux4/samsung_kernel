@@ -1,30 +1,23 @@
 /*
- * sec_adc.c
- * Samsung Mobile Battery Driver, adc manipulation file
+ *  sec_adc.c
+ *  Samsung Mobile Battery Driver
  *
- * Copyright (C) 2019 Samsung Electronics, Inc.
+ *  Copyright (C) 2020 Samsung Electronics
  *
- * This program is free software: you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
-#include "include/sec_adc.h"
+
+#include "sec_adc.h"
 
 #define DEBUG
 
 struct adc_list {
 	const char *name;
 	struct iio_channel *channel;
+	int channel_idx;
 	bool is_used;
 	int prev_value;
 };
@@ -126,6 +119,82 @@ static int sec_bat_adc_ic_read(int channel)
 static void sec_bat_adc_ic_exit(void)
 {
 }
+
+static int sec_bat_legacy_channel_get(struct device *dev, const char *channel_name)
+{
+	struct device_node *np = dev->of_node;
+	struct of_phandle_args out_args;
+	int prop_idx = -1;
+	int channel_num = -1;
+
+	if (!np)
+		return -EINVAL;
+
+	prop_idx = of_property_match_string(np, "io-channel-names", channel_name);
+	if (prop_idx < 0)
+		return -EINVAL;
+
+	if (of_parse_phandle_with_fixed_args(np, "io-channels", 1, prop_idx, &out_args))
+		return -EINVAL;
+
+	channel_num = out_args.args[0];
+
+	return channel_num;
+}
+
+static void sec_bat_adc_ap_legacy_init(struct platform_device *pdev,
+		struct sec_battery_info *battery)
+{
+	int i = 0;
+	int ch_idx;
+
+	for (i = 0; i < SEC_BAT_ADC_CHANNEL_NUM; i++) {
+		ch_idx = sec_bat_legacy_channel_get(&pdev->dev, batt_adc_list[i].name);
+		batt_adc_list[i].channel_idx = ch_idx;
+		batt_adc_list[i].is_used = (ch_idx >= 0) ? true : false;
+	}
+
+	for (i = 0; i < SEC_BAT_ADC_CHANNEL_NUM; i++)
+		pr_info("%s %s - %s (%d)\n", __func__,
+			batt_adc_list[i].name, batt_adc_list[i].is_used ? "used" : "not used",
+			batt_adc_list[i].channel_idx);
+}
+
+#if defined(CONFIG_MTK_AUXADC)
+static int sec_bat_adc_ap_legacy_read(struct sec_battery_info *battery, int channel)
+{
+	int data = -1;
+	int retry_cnt = RETRY_CNT;
+	int ret = 0, data_table[4];
+
+	if (!batt_adc_list[channel].is_used)
+		return data;
+
+	do {
+		ret = IMM_GetOneChannelValue(batt_adc_list[channel].channel_idx, data_table, &data);
+		retry_cnt--;
+	} while ((retry_cnt > 0) && (ret < 0));
+
+	if (retry_cnt <= 0) {
+		pr_err("%s: Error in ADC\n", __func__);
+		data = batt_adc_list[channel].prev_value;
+	} else {
+		batt_adc_list[channel].prev_value = data;
+	}
+
+	return data;
+}
+#else
+static int sec_bat_adc_ap_legacy_read(struct sec_battery_info *battery, int channel)
+{
+	return 0;
+}
+#endif
+
+static void sec_bat_adc_ap_legacy_exit(void)
+{
+}
+
 static int adc_read_type(struct sec_battery_info *battery, int channel)
 {
 	int adc = 0;
@@ -139,6 +208,9 @@ static int adc_read_type(struct sec_battery_info *battery, int channel)
 		break;
 	case SEC_BATTERY_ADC_TYPE_IC:
 		adc = sec_bat_adc_ic_read(channel);
+		break;
+	case SEC_BATTERY_ADC_TYPE_AP_LEGACY:
+		adc = sec_bat_adc_ap_legacy_read(battery, channel);
 		break;
 	case SEC_BATTERY_ADC_TYPE_NUM:
 		break;
@@ -163,6 +235,9 @@ static void adc_init_type(struct platform_device *pdev,
 	case SEC_BATTERY_ADC_TYPE_IC:
 		sec_bat_adc_ic_init(pdev);
 		break;
+	case SEC_BATTERY_ADC_TYPE_AP_LEGACY:
+		sec_bat_adc_ap_legacy_init(pdev, battery);
+		break;
 	case SEC_BATTERY_ADC_TYPE_NUM:
 		break;
 	default:
@@ -181,6 +256,9 @@ static void adc_exit_type(struct sec_battery_info *battery)
 		break;
 	case SEC_BATTERY_ADC_TYPE_IC:
 		sec_bat_adc_ic_exit();
+		break;
+	case SEC_BATTERY_ADC_TYPE_AP_LEGACY:
+		sec_bat_adc_ap_legacy_exit();
 		break;
 	case SEC_BATTERY_ADC_TYPE_NUM:
 		break;
@@ -315,7 +393,7 @@ bool sec_bat_get_value_by_adc(
 	case SEC_BAT_ADC_CHANNEL_CHG_TEMP:
 		temp_adc_table = battery->pdata->chg_temp_adc_table;
 		temp_adc_table_size =
-			battery->pdata->chg_temp_adc_table_size;
+		battery->pdata->chg_temp_adc_table_size;
 		battery->chg_temp_adc = temp_adc;
 		break;
 	case SEC_BAT_ADC_CHANNEL_WPC_TEMP:
@@ -496,7 +574,7 @@ int sec_bat_get_thr_voltage(unsigned int adc_ch, int temp)
 		goto get_thr_voltage_goto;
 	}
 
- 	if (temp > 900 || temp < -200) {
+	if (temp > 900 || temp < -200) {
 		dev_err(local_battery->dev,
 			"%s: unsupported temperature\n", __func__);
 		goto get_thr_voltage_goto;
@@ -610,9 +688,8 @@ bool sec_bat_check_vf_adc(struct sec_battery_info *battery)
 	}
 }
 
-#if defined(CONFIG_DIRECT_CHARGING)
-int sec_bat_get_direct_chg_temp_adc(struct sec_battery_info *battery,
-			int adc_data, int count)
+int sec_bat_get_fg_temp_adc(struct sec_battery_info *battery,
+			int adc_data)
 {
 	int temp = 0;
 	int temp_adc;
@@ -621,6 +698,64 @@ int sec_bat_get_direct_chg_temp_adc(struct sec_battery_info *battery,
 	int mid = 0;
 	const sec_bat_adc_table_data_t *temp_adc_table = {0 , };
 	unsigned int temp_adc_table_size = 0;
+
+	temp_adc = adc_data;
+	if (temp_adc < 0)
+		return 0;
+
+	temp_adc_table = battery->pdata->temp_adc_table;
+	temp_adc_table_size =
+		battery->pdata->temp_adc_table_size;
+	battery->temp_adc = temp_adc;
+
+	if (temp_adc_table[0].adc >= temp_adc) {
+			temp = temp_adc_table[0].data;
+			goto fg_temp_goto;
+	} else if (temp_adc_table[temp_adc_table_size-1].adc <= temp_adc) {
+		temp = temp_adc_table[temp_adc_table_size-1].data;
+		goto fg_temp_goto;
+	}
+
+	high = temp_adc_table_size - 1;
+	while (low <= high) {
+		mid = (low + high) / 2;
+		if (temp_adc_table[mid].adc > temp_adc)
+			high = mid - 1;
+		else if (temp_adc_table[mid].adc < temp_adc)
+			low = mid + 1;
+		else {
+			temp = temp_adc_table[mid].data;
+			goto fg_temp_goto;
+		}
+	}
+
+	temp = temp_adc_table[high].data;
+	temp += ((temp_adc_table[low].data - temp_adc_table[high].data) *
+		 (temp_adc - temp_adc_table[high].adc)) /
+		(temp_adc_table[low].adc - temp_adc_table[high].adc);
+
+fg_temp_goto:
+	dev_info(battery->dev,
+			"%s: temp(%d), fg-temp-ADC(%d)\n",
+			__func__, temp, temp_adc);
+
+	return temp;
+}
+
+#if defined(CONFIG_DIRECT_CHARGING)
+int sec_bat_get_direct_chg_temp_adc(struct sec_battery_info *battery,
+			int adc_data, int count, int check_type)
+{
+	int temp = 0;
+	int temp_adc;
+	int low = 0;
+	int high = 0;
+	int mid = 0;
+	const sec_bat_adc_table_data_t *temp_adc_table = {0 , };
+	unsigned int temp_adc_table_size = 0;
+
+	if (check_type == SEC_BATTERY_TEMP_CHECK_FAKE)
+		return 300;
 
 	temp_adc = adc_data;
 	if (temp_adc < 0)

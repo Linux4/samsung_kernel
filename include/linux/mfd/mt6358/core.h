@@ -23,9 +23,6 @@ struct mt6358_chip {
 	unsigned int num_sps;
 	unsigned int num_pmic_irqs;
 	unsigned short top_int_status_reg;
-#ifdef CONFIG_SEC_PM
-	bool suspended;
-#endif
 };
 
 extern unsigned int mt6358_irq_get_virq(struct device *dev, unsigned int hwirq);

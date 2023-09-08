@@ -64,7 +64,7 @@ ion_phys_addr_t ion_dma_reserved_allocate(struct ion_heap *heap,
 {
 	struct ion_dma_reserved_heap
 	*dma_reserved_heap = container_of(heap,
-		struct ion_dma_reserved_heap, heap);
+					  struct ion_dma_reserved_heap, heap);
 	unsigned long offset = gen_pool_alloc(dma_reserved_heap->pool, size);
 
 	if (!offset)
@@ -78,7 +78,7 @@ void ion_dma_reserved_free(struct ion_heap *heap, ion_phys_addr_t addr,
 {
 	struct ion_dma_reserved_heap
 	*dma_reserved_heap = container_of(heap,
-			struct ion_dma_reserved_heap, heap);
+					  struct ion_dma_reserved_heap, heap);
 
 	if (addr == ION_DMA_RESERVED_ALLOCATE_FAIL)
 		return;
@@ -166,7 +166,7 @@ static int ion_dma_reserved_heap_allocate(struct ion_heap *heap,
 
 	paddr = ion_dma_reserved_allocate(heap, size, align);
 	if (paddr == ION_DMA_RESERVED_ALLOCATE_FAIL) {
-		pr_err("%s alloc fail size=%ld, details are:====>\n",
+		IONMSG("%s alloc fail size=%ld, details are:====>\n",
 		       __func__, size);
 		dump_heap_info_to_log(heap, LOGLEVEL_ERR);
 		ret = -ENOMEM;
@@ -233,10 +233,12 @@ static struct ion_heap_ops dma_reserved_heap_ops = {
 		.unmap_kernel = ion_heap_unmap_kernel,
 };
 
-#define ION_PRINT_LOG_OR_SEQ(seq_file, fmt, args...) \
+#define ION_DUMP(seq_files, fmt, args...) \
 		do {\
-			if (seq_file)\
-				seq_printf(seq_file, fmt, ##args);\
+			struct seq_file *file = (struct seq_file *)seq_files;\
+			char *fmat = fmt;\
+			if (file)\
+				seq_printf(file, fmat, ##args);\
 			else\
 				pr_info(fmt, ##args);\
 		} while (0)
@@ -252,12 +254,12 @@ static void ion_dma_reserved_chunk_show(struct gen_pool *pool,
 	nbits = (chunk->end_addr - chunk->start_addr) >> order;
 	nlongs = BITS_TO_LONGS(nbits);
 
-	seq_printf(s, "phys_addr=0x%x bits=", (unsigned int)chunk->phys_addr);
+	ION_DUMP(s, "phys_addr=0x%x bits=", (unsigned int)chunk->phys_addr);
 
 	for (i = 0; i < nlongs; i++)
-		seq_printf(s, "0x%x ", (unsigned int)chunk->bits[i]);
+		ION_DUMP(s, "0x%x ", (unsigned int)chunk->bits[i]);
 
-	seq_puts(s, "\n");
+	ION_DUMP(s, "\n");
 }
 
 static int ion_dma_reserved_heap_debug_show(struct ion_heap *heap,
@@ -266,24 +268,24 @@ static int ion_dma_reserved_heap_debug_show(struct ion_heap *heap,
 {
 	struct ion_dma_reserved_heap
 	*dma_reserved_heap = container_of(heap,
-			struct ion_dma_reserved_heap, heap);
+					  struct ion_dma_reserved_heap, heap);
 	size_t size_avail, total_size;
 
 	total_size = gen_pool_size(dma_reserved_heap->pool);
 	size_avail = gen_pool_avail(dma_reserved_heap->pool);
 
-	seq_puts(s, "***************************************************\n");
-	seq_printf(s, "total_size=0x%x, free=0x%x\n", (unsigned int)total_size,
-		   (unsigned int)size_avail);
-	seq_puts(s, "***************************************************\n");
+	ION_DUMP(s, "***************************************************\n");
+	ION_DUMP(s, "total_size=0x%x, free=0x%x\n", (unsigned int)total_size,
+		 (unsigned int)size_avail);
+	ION_DUMP(s, "***************************************************\n");
 
 	gen_pool_for_each_chunk(dma_reserved_heap->pool,
 				ion_dma_reserved_chunk_show, s);
 	return 0;
 }
 
-struct ion_heap *ion_dma_reserved_heap_create(
-		struct ion_platform_heap *heap_data)
+struct ion_heap *ion_dma_reserved_heap_create(struct ion_platform_heap
+					      *heap_data)
 {
 	struct ion_dma_reserved_heap *dma_reserved_heap;
 	int order = get_order(heap_data->size);
@@ -291,7 +293,7 @@ struct ion_heap *ion_dma_reserved_heap_create(
 	size_t len;
 	int i;
 
-	pr_info("%s size=%ld, order=%d\n", __func__, heap_data->size, order);
+	IONMSG("%s size=%ld, order=%d\n", __func__, heap_data->size, order);
 
 	dma_reserved_heap = kzalloc(sizeof(*dma_reserved_heap), GFP_KERNEL);
 	if (!dma_reserved_heap)
@@ -320,7 +322,7 @@ struct ion_heap *ion_dma_reserved_heap_create(
 	dma_reserved_heap->size = heap_data->size;
 	dma_reserved_heap->page = page;
 	dma_reserved_heap->heap.ops = &dma_reserved_heap_ops;
-	dma_reserved_heap->heap.type = ION_HEAP_TYPE_DMA_RESERVED;
+	dma_reserved_heap->heap.type = (unsigned int)ION_HEAP_TYPE_DMA_RESERVED;
 	dma_reserved_heap->heap.flags = 0;
 	dma_reserved_heap->heap.debug_show = ion_dma_reserved_heap_debug_show;
 

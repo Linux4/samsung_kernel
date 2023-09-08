@@ -16,8 +16,226 @@
 #include <linux/interrupt.h>
 #include <linux/delay.h>
 
-#include "spmtwam.h"
+#include <linux/proc_fs.h>
+#include <linux/uaccess.h>
 
+#include "spmtwam.h"
+#define CREATE_TRACE_POINTS
+#include "spmtwam_events.h"
+
+/* spmtwam node operations:
+ * 1. setup twam speed mode (optional, default high)
+ *    echo [0|1] > /proc/spmtwam/speed_mode
+ * 2. setup signal [0-3], id [0-31], and monitor type [0-3] for each channel
+ *    echo [0-3]  > /proc/spmtwam/ch0/signal
+ *    echo [0-31] > /proc/spmtwam/ch0/id
+ *    echo [0-3]  > /proc/spmtwam/ch0/monitor_type
+ * 3. start monitor (monitor up to 4 channels at the same time)
+ *    echo 1 > /proc/spmtwam/state
+ * 4. stop monitor (will clear all configs)
+ *    echo 0 > /proc/spmtwam/state
+ * 5. check current config state
+ *    cat /proc/spmtwam/state
+ */
+
+struct spmtwam_local_cfg {
+	bool enable;
+	struct spmtwam_cfg cfg;
+};
+
+static struct spmtwam_local_cfg cur;
+
+static void setup_default_cfg(struct spmtwam_local_cfg *c)
+{
+	int i;
+	struct spmtwam_cfg *cfg = &c->cfg;
+
+	c->enable = false;
+	cfg->spmtwam_speed_mode = DEFAULT_SPEED_MODE;
+	/* spmtwam_window_len will be updated according to speed mode */
+	cfg->spmtwam_window_len = 0;
+	for (i = 0 ; i < 4; i++) {
+		cfg->ch[i].signal = 0;
+		cfg->ch[i].id = 0xFFFFFFFF; /* default disabled */
+		cfg->ch[i].montype = DEFAULT_MONTYPE;
+	}
+}
+
+static void spmtwam_handler(struct spmtwam_result *r)
+{
+	int i;
+	struct spmtwam_cfg *cfg = &r->cfg;
+
+	trace_spmtwam(r->value[0], r->value[1], r->value[2], r->value[3]);
+
+	for (i = 0; i < 4; i++) {
+		if (cfg->ch[i].id < 32)
+			pr_info("spmtwam (sel%d:%d) ratio: %u/1000 %s, %u\n",
+				cfg->ch[i].signal, cfg->ch[i].id,
+				cfg->spmtwam_speed_mode ?
+					GET_EVENT_RATIO_SPEED(r->value[i]) :
+					GET_EVENT_RATIO_NORMAL(r->value[i]),
+				cfg->spmtwam_speed_mode ? "high" : "normal",
+				r->value[i]);
+	}
+}
+
+static void spmtwam_profile_enable(bool enable)
+{
+	int ret = 0;
+
+	/* verify local spmtwam config */
+	if (!enable)
+		setup_default_cfg(&cur);
+
+	ret = spmtwam_monitor(enable, &cur.cfg, spmtwam_handler);
+	if (ret == 0)
+		cur.enable = enable;
+}
+
+
+static char dbgbuf[1024] = {0};
+#define log2buf(p, s, fmt, args...) \
+	(p += scnprintf(p, sizeof(s) - strlen(s), fmt, ##args))
+#undef log
+#define log(fmt, args...)   log2buf(p, dbgbuf, fmt, ##args)
+
+static ssize_t dbg_read(struct file *filp, char __user *userbuf,
+	size_t count, loff_t *f_pos)
+{
+	int i, len = 0;
+	char *p = dbgbuf;
+	struct spmtwam_cfg *cfg = &cur.cfg;
+
+	p[0] = '\0';
+
+	log("spmtwam state:\n");
+	log("enable %d\n", cur.enable ? 1 : 0);
+	log("speed_mode %d (0: low, 1: high)\n",
+		cfg->spmtwam_speed_mode ? 1 : 0);
+	log("window_len %u (0x%x)\n",
+		cfg->spmtwam_window_len, cfg->spmtwam_window_len);
+	for (i = 0; i < 4; i++)
+		if (cfg->ch[i].id < 32)
+			log("ch%d: signal %u id %u montype %u (%s)\n",
+				i,
+				cfg->ch[i].signal,
+				cfg->ch[i].id,
+				cfg->ch[i].montype,
+				cfg->ch[i].montype == 0 ? "rising" :
+				cfg->ch[i].montype == 1 ? "falling" :
+				cfg->ch[i].montype == 2 ? "high level" :
+				cfg->ch[i].montype == 3 ? "low level" :
+				"unknown");
+		else
+			log("ch%d: off\n", i);
+
+	len = p - dbgbuf;
+
+	return simple_read_from_buffer(userbuf, count, f_pos, dbgbuf, len);
+}
+
+static ssize_t dbg_write(struct file *fp, const char __user *userbuf,
+	size_t count, loff_t *f_pos)
+{
+	unsigned int en = 0;
+
+	if (kstrtou32_from_user(userbuf, count, 10, &en))
+		return -EFAULT;
+
+	spmtwam_profile_enable(en ? true : false);
+
+	return count;
+}
+
+const static struct file_operations dbg_fops = {
+	.owner = THIS_MODULE,
+	.read = dbg_read,
+	.write = dbg_write,
+};
+
+static ssize_t var_read(struct file *fp, char __user *userbuf,
+	size_t count, loff_t *f_pos)
+{
+	unsigned int *v = PDE_DATA(file_inode(fp));
+	int len = 0;
+	char *p = dbgbuf;
+
+	p[0] = '\0';
+	log("%d\n", *v);
+	len = p - dbgbuf;
+
+	return simple_read_from_buffer(userbuf, count, f_pos, dbgbuf, len);
+}
+
+static ssize_t var_write(struct file *fp, const char __user *userbuf,
+	size_t count, loff_t *f_pos)
+{
+	unsigned int *v = PDE_DATA(file_inode(fp));
+
+	if (kstrtou32_from_user(userbuf, count, 10, v))
+		return -EFAULT;
+
+	return count;
+}
+
+const static struct file_operations var_fops = {
+	.owner = THIS_MODULE,
+	.read = var_read,
+	.write = var_write,
+};
+
+static struct proc_dir_entry *spmtwam_droot;
+
+static int spmtwam_procfs_init(void)
+{
+	int i;
+	struct proc_dir_entry *ch[4];
+	struct spmtwam_cfg *cfg = &cur.cfg;
+
+	/* setup local default spmtwam config*/
+	setup_default_cfg(&cur);
+
+	/* create debugfs for this test driver */
+	spmtwam_droot = proc_mkdir("spmtwam", NULL);
+
+	if (spmtwam_droot) {
+
+		proc_create("state", 0644, spmtwam_droot, &dbg_fops);
+		proc_create_data("speed_mode", 0644, spmtwam_droot, &var_fops,
+			(void *) &(cfg->spmtwam_speed_mode));
+		proc_create_data("window_len", 0644, spmtwam_droot, &var_fops,
+			(void *) &(cfg->spmtwam_window_len));
+
+		ch[0] =	proc_mkdir("ch0", spmtwam_droot);
+		ch[1] =	proc_mkdir("ch1", spmtwam_droot);
+		ch[2] =	proc_mkdir("ch2", spmtwam_droot);
+		ch[3] =	proc_mkdir("ch3", spmtwam_droot);
+
+		for (i = 0 ; i < 4; i++) {
+			if (ch[i]) {
+				proc_create_data("signal",
+					0644, ch[i], &var_fops,
+					(void *)&(cfg->ch[i].signal));
+				proc_create_data("id",
+					0644, ch[i], &var_fops,
+					(void *)&(cfg->ch[i].id));
+				proc_create_data("montype",
+					0644, ch[i], &var_fops,
+					(void *)&(cfg->ch[i].montype));
+			}
+		}
+	}
+	return 0;
+}
+
+static void spmtwam_procfs_exit(void)
+{
+	spmtwam_profile_enable(false);
+	remove_proc_entry("spmtwam", NULL);
+}
+
+/* ----------------------------------------------------------------------- */
 
 #define SPMTWAM_COMPATIBLE_STRING	"mediatek,spmtwam"
 static DEFINE_SPINLOCK(__spmtwam_lock);
@@ -98,11 +316,14 @@ static struct spmtwam_reg_pair reg[SPM_TWAM_MAXNUM] = {
 #define id(x)                       (cfg->ch[x].id)
 #define montype(x)                  (cfg->ch[x].montype)
 
-static spmtwam_handler_t spmtwam_handler;
+static bool spmtwam_channel_valid[4] = {false, false, false, false};
+static spmtwam_handler_t spmtwam_handler_ptr;
+
 int spmtwam_monitor(bool enable, struct spmtwam_cfg *cfg,
 	spmtwam_handler_t handler)
 {
 	unsigned long flags;
+	int i;
 
 	if (g_spmtwam_init == false) {
 		pr_info("spmtwam: no such device\n");
@@ -115,7 +336,7 @@ int spmtwam_monitor(bool enable, struct spmtwam_cfg *cfg,
 			return -EINVAL;
 		}
 
-		if (spmtwam_handler != NULL) {
+		if (spmtwam_handler_ptr != NULL) {
 			pr_info("spmtwam: already enable ?\n");
 			return -EAGAIN;
 		}
@@ -126,7 +347,10 @@ int spmtwam_monitor(bool enable, struct spmtwam_cfg *cfg,
 				WINDOW_LEN_SPEED : WINDOW_LEN_NORMAL;
 
 		spin_lock_irqsave(&__spmtwam_lock, flags);
-		spmtwam_handler = handler;
+		spmtwam_handler_ptr = handler;
+
+		for (i = 0; i < 4; i++)
+			spmtwam_channel_valid[i] = (id(i) < 32) ? true : false;
 
 		write32(REG(SPM_IRQ_MASK),
 			read32(REG(SPM_IRQ_MASK)) & ~ISRM_TWAM);
@@ -166,13 +390,17 @@ int spmtwam_monitor(bool enable, struct spmtwam_cfg *cfg,
 
 		spin_unlock_irqrestore(&__spmtwam_lock, flags);
 
-		pr_debug("spmtwam: enable TWAM %u/%u, %u/%u, %u/%u, %u/%u (%s)\n",
-			sig(0), id(0), sig(1), id(1),
-			sig(2), id(2), sig(3), id(3),
-			cfg->spmtwam_speed_mode ? "32k" : "high speed");
+		for (i = 0; i < 4 ; i++)
+			if (spmtwam_channel_valid[i])
+				pr_debug("spmtwam: enable TWAM %u/%u (%s)\n",
+					sig(i), id(i),
+					cfg->spmtwam_speed_mode ?
+					"32k" : "high speed");
 	} else {
 		spin_lock_irqsave(&__spmtwam_lock, flags);
-		spmtwam_handler = NULL;
+		spmtwam_handler_ptr = NULL;
+		for (i = 0; i < 4; i++)
+			spmtwam_channel_valid[i] = false;
 
 		write32(REG(SPM_TWAM_CON),
 			read32(REG(SPM_TWAM_CON)) & ~REG_TWAM_ENABLE_LSB);
@@ -197,16 +425,12 @@ static irqreturn_t spm_irq0_handler(int irq, void *dev_id)
 	struct spmtwam_cfg *cfg = &r.cfg;
 	u32 twam_idle_sel = 0;
 	u32 twam_con = 0;
+	int i;
 
 	spin_lock_irqsave(&__spmtwam_lock, flags);
 	/* get ISR status */
 	isr = read32(REG(SPM_IRQ_STA));
 	if (isr & ISRS_TWAM) {
-		/* return result */
-		r.value[0] = read32(REG(SPM_TWAM_LAST_STA0));
-		r.value[1] = read32(REG(SPM_TWAM_LAST_STA1));
-		r.value[2] = read32(REG(SPM_TWAM_LAST_STA2));
-		r.value[3] = read32(REG(SPM_TWAM_LAST_STA3));
 		/* return current configs */
 		twam_idle_sel = read32(REG(SPM_TWAM_IDLE_SEL));
 		cfg->ch[0].signal = ((twam_idle_sel & 0x00000060) >> 5);
@@ -223,8 +447,19 @@ static irqreturn_t spm_irq0_handler(int irq, void *dev_id)
 		cfg->ch[2].montype = ((twam_con & 0x300) >> 8);
 		cfg->ch[3].montype = ((twam_con & 0xc00) >> 10);
 		cfg->spmtwam_speed_mode =
-			(twam_con & REG_TWAM_SPEED_MODE_EN_LSB) ? true : false;
+			(twam_con & REG_TWAM_SPEED_MODE_EN_LSB) ? 1 : 0;
 		cfg->spmtwam_window_len = read32(REG(SPM_TWAM_WINDOW_LEN));
+		/* return result */
+		r.value[0] = read32(REG(SPM_TWAM_LAST_STA0));
+		r.value[1] = read32(REG(SPM_TWAM_LAST_STA1));
+		r.value[2] = read32(REG(SPM_TWAM_LAST_STA2));
+		r.value[3] = read32(REG(SPM_TWAM_LAST_STA3));
+		for (i = 0; i < 4 ; i++)
+			if (spmtwam_channel_valid[i] == false) {
+				cfg->ch[i].id = 0xFFFFFFFF;
+				r.value[i] = 0;
+			}
+
 		udelay(40); /* delay 1T @ 32K */
 	}
 	/* clean ISR status */
@@ -234,8 +469,8 @@ static irqreturn_t spm_irq0_handler(int irq, void *dev_id)
 
 	spin_unlock_irqrestore(&__spmtwam_lock, flags);
 
-	if ((isr & ISRS_TWAM) && spmtwam_handler)
-		spmtwam_handler(&r);
+	if ((isr & ISRS_TWAM) && spmtwam_handler_ptr)
+		spmtwam_handler_ptr(&r);
 
 	return IRQ_HANDLED;
 }
@@ -278,7 +513,7 @@ static int spmtwam_probe(struct platform_device *pdev)
 	}
 
 	ret = request_irq(irq0, spm_irq0_handler,
-		IRQF_TRIGGER_LOW | IRQF_NO_SUSPEND, "TWAM", NULL);
+			 (IRQF_TRIGGER_NONE | IRQF_NO_SUSPEND), "TWAM", NULL);
 	if (ret)
 		return ret;
 
@@ -308,6 +543,9 @@ static int __init spmtwam_init(void)
 	ret = platform_driver_register(&spmtwam_drv);
 	g_spmtwam_init = (ret == 0);
 
+	/* create debugfs node */
+	spmtwam_procfs_init();
+
 	return ret;
 }
 
@@ -315,6 +553,9 @@ module_init(spmtwam_init);
 
 static void __exit spmtwam_exit(void)
 {
+	/* remove debugfs node */
+	spmtwam_procfs_exit();
+
 	g_spmtwam_init = false;
 
 	return platform_driver_unregister(&spmtwam_drv);

@@ -28,7 +28,6 @@ enum IMGSENSOR_HW_PIN {
 	IMGSENSOR_HW_PIN_NONE = 0,
 	IMGSENSOR_HW_PIN_PDN,
 	IMGSENSOR_HW_PIN_RST,
-	// following indexes must be corresponded by enum REGULATOR_TYPE
 	IMGSENSOR_HW_PIN_AVDD,
 	IMGSENSOR_HW_PIN_DVDD,
 	IMGSENSOR_HW_PIN_DOVDD,
@@ -127,11 +126,6 @@ struct IMGSENSOR_HW_CFG {
 	    pwr_info[IMGSENSOR_HW_POWER_INFO_MAX];
 };
 
-struct IMGSENSOR_HW_CFG_LIST {
-	int revison;
-	struct IMGSENSOR_HW_CFG *p_imgsensor_custom_config_hw;
-};
-
 struct IMGSENSOR_HW_POWER_INFO {
 	enum IMGSENSOR_HW_PIN       pin;
 	enum IMGSENSOR_HW_PIN_STATE pin_state_on;
@@ -158,7 +152,7 @@ struct IMGSENSOR_HW_DEVICE {
 	enum IMGSENSOR_HW_ID    id;
 };
 
-extern struct IMGSENSOR_HW_CFG_LIST  imgsensor_custom_config_hw_list[];
+extern struct IMGSENSOR_HW_CFG       imgsensor_custom_config[];
 extern struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[];
 extern struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[];
 extern enum IMGSENSOR_RETURN

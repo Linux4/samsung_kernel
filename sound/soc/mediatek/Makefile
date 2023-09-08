@@ -12,34 +12,69 @@
 #
 subdir-ccflags-y += -Werror
 
-#scp smartpa related code
+# scp smartpa related code
 obj-$(CONFIG_SND_SOC_MTK_SCP_SMARTPA) += scp_spk/
 obj-$(CONFIG_SND_SOC_MTK_SCP_SMARTPA) += utility/
 
-#scp vow bargein related code
-obj-$(CONFIG_MTK_VOW_BARGE_IN_SUPPORT) += scp_vow/
+# scp vow bargein related code
+obj-$(CONFIG_MTK_VOW_SUPPORT) += scp_vow/
+
+#scp ultra sound related code
+obj-$(CONFIG_MTK_ULTRASND_PROXIMITY) += scp_ultra/
 
 # dsp related code
-obj-$(CONFIG_MTK_AUDIODSP_SUPPORT) += audio_dsp/
 obj-$(CONFIG_SND_SOC_MTK_AUDIO_DSP) += audio_dsp/
+obj-$(CONFIG_SND_SOC_MTK_AUDIO_DSP) += common_int/
 
 # btcvsd
 obj-$(CONFIG_SND_SOC_MTK_BTCVSD) += common/
-obj-$(CONFIG_MTK_AUDIO_TUNNELING_SUPPORT) += common_int/
 obj-$(CONFIG_SND_SOC_MEDIATEK) += common/
 obj-$(CONFIG_SND_SOC_MT2701) += mt2701/
 obj-$(CONFIG_SND_SOC_MT6768) += mt6768/
 obj-$(CONFIG_SND_SOC_MT8168) += mt8168/
 obj-$(CONFIG_SND_SOC_MT6785) += mt6785/
 obj-$(CONFIG_SND_SOC_MT8173) += mt8173/
+obj-$(CONFIG_SND_SOC_MT6877) += mt6877/
+obj-$(CONFIG_SND_SOC_MT6833) += mt6833/
+obj-$(CONFIG_SND_SOC_MT6853) += mt6853/
+obj-$(CONFIG_SND_SOC_MT6873) += mt6873/
 obj-$(CONFIG_SND_SOC_MT6885) += mt6885/
 obj-$(CONFIG_SND_SOC_MT8167) += mt8167/
+obj-$(CONFIG_SND_SOC_MT6781) += mt6781/
+
+# mtk new arch
+ifeq ($(CONFIG_MTK_SND_SOC_NEW_ARCH),)
+# MTK Codec Chip Support
+MTK_CODEC := $(subst ",,$(CONFIG_MTK_SND_SOC_CODEC))
+
+# PMIC include path
+ifneq  ($(MTK_CODEC),)
+subdir-ccflags-y += -Werror -Werror -Icodec/$(MTK_CODEC)/
+subdir-ccflags-y += -Werror -I$(src)/common_int
+
+# Update pmic built flow to avoid codec init later than codec probe
+obj-y += codec/$(MTK_CODEC)/
+obj-y += common_int/
+
+MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
+# flags for not ready feature, uncomment after ready
+subdir-ccflags-y += -D_GIT318_PMIC_READY
+subdir-ccflags-y += -DAUDIO_USING_WRAP_DRIVER
+subdir-ccflags-y += -Werror -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include
+subdir-ccflags-y += -Werror -I$(srctree)/drivers/misc/mediatek/include/
+endif
+endif
+
 # adsp
 ifeq ($(CONFIG_MTK_AURISYS_PHONE_CALL_SUPPORT),y)
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/audio_ipi/common/framework/
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/adsp/$(MTK_PLATFORM)/
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/audio_ipi/common/tasks/call/
 subdir-ccflags-y += -I$(srctree)/sound/soc/mediatek/audio_dsp
+endif
+
+ifeq ($(CONFIG_SND_SOC_MTK_AUDIO_DSP),y)
+subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/audio_ipi/common/tasks/audplayback/
 endif
 
 ifeq ($(CONFIG_SND_SOC_MTK_SMART_PHONE),y)
@@ -63,17 +98,23 @@ subdir-ccflags-y += -D_REG_SYNC_WRITE
 # include path
 subdir-ccflags-y += -Werror -I$(srctree)/drivers/misc/mediatek/accdet/mt6358
 subdir-ccflags-y += -Werror -I$(srctree)/drivers/misc/mediatek/include
+subdir-ccflags-${CONFIG_MACH_MT6833} += -Werror -I$(srctree)/drivers/misc/mediatek/include/mt-plat/mt6833/include
 subdir-ccflags-y += -Werror -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include
 subdir-ccflags-y += -Werror -I$(srctree)/drivers/misc/mediatek/include/mt-plat
 subdir-ccflags-y += -Werror -I$(srctree)/drivers/misc/mediatek/base/power/include
+subdir-ccflags-${CONFIG_MACH_MT6833} += -Werror -I$(srctree)/drivers/misc/mediatek/base/power/mt6833/
+subdir-ccflags-${CONFIG_MACH_MT6833} += -Werror -I$(srctree)/drivers/misc/mediatek/dramc/mt6833/
 subdir-ccflags-y += -Werror -I$(srctree)/drivers/misc/mediatek/base/power/$(MTK_PLATFORM)
 subdir-ccflags-y += -Werror -I$(srctree)/drivers/misc/mediatek/dramc/$(MTK_PLATFORM)/
 
+ifeq ($(CONFIG_MACH_MT6833),y)
+AUDIO_PLATFORM := mt6833
+else
 AUDIO_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
+endif
 
 subdir-ccflags-y += -Werror -I$(srctree)/drivers/misc/mediatek/scp/$(AUDIO_PLATFORM)/
 subdir-ccflags-y += -Werror -I$(srctree)/drivers/misc/mediatek/audio_ipi/$(AUDIO_PLATFORM)/
-
 
 # Common include path
 subdir-ccflags-y += -Werror -I$(src)/common_int

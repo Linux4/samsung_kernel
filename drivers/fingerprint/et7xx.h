@@ -15,28 +15,23 @@
 #define _ET7XX_LINUX_DRIVER_H_
 
 #include <linux/module.h>
-#include <linux/spi/spi.h>
-#include <linux/wakelock.h>
+#include <linux/kernel.h>
+#include <linux/uaccess.h>
+#include <linux/of.h>
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 #include <linux/clk.h>
 #include <linux/pm_runtime.h>
 #include <linux/spi/spidev.h>
-#include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/of_dma.h>
 #endif /* ENABLE_SENSORS_FPRINT_SECURE */
 
-#include <linux/cpufreq.h>
-
 #include <linux/regulator/consumer.h>
 #include <linux/pinctrl/consumer.h>
 #include "../pinctrl/core.h"
+#include "fingerprint_common.h"
 
-#ifdef ET7XX_SPI_DEBUG
-#define DEBUG_PRINT(fmt, args...) pr_err(fmt, ## args)
-#else
-#define DEBUG_PRINT(fmt, args...)
-#endif
+#define DISABLED_GPIO_PROTECTION
 
 #define VENDOR							"EGISTEC"
 #define CHIP_ID							"ET7XX"
@@ -45,6 +40,11 @@
 #define ET7XX_MAJOR						152
 /* ... up to 256 */
 #define N_SPI_MINORS					32
+static DECLARE_BITMAP(minors, N_SPI_MINORS);
+static LIST_HEAD(device_list);
+static DEFINE_MUTEX(device_list_lock);
+
+static unsigned int bufsiz = 1024;
 
 /* spi communication opcode */
 #define OP_REG_R						0x20
@@ -101,34 +101,26 @@
 #define FP_POWER_CONTROL				0x05
 #define FP_SET_SPI_CLOCK				0x06
 #define FP_RESET_CONTROL				0x07
-
-#ifdef ENABLE_SENSORS_FPRINT_SECURE
 #define FP_DISABLE_SPI_CLOCK			0x10
+#ifdef ENABLE_SENSORS_FPRINT_SECURE
 #define FP_CPU_SPEEDUP					0x11
 #define FP_SET_SENSOR_TYPE				0x14
 /* Do not use ioctl number 0x15 */
-#define FP_SET_LOCKSCREEN				0x16
-#define FP_SET_WAKE_UP_SIGNAL			0x17
 #endif
-#define FP_SENSOR_ORIENT				0x19
 #define FP_SPI_VALUE					0x1a
+#define FP_MODEL_INFO					0x1f
+#define INT_TRIGGER_READ				0xa6
+#define INT_TRIGGER_POLLING				0xa7
 #define FP_IOCTL_RESERVED_01			0x1b
 #define FP_IOCTL_RESERVED_02			0x1c
-#define FP_MODEL_INFO					0x1f
-/* trigger signal initial routine */
-#define INT_TRIGGER_INIT				0xa4
-/* trigger signal close routine */
-#define INT_TRIGGER_CLOSE				0xa5
-/* read trigger status */
-#define INT_TRIGGER_READ				0xa6
-/* polling trigger status */
-#define INT_TRIGGER_POLLING				0xa7
-/* polling abort */
-#define INT_TRIGGER_ABORT				0xa8
+#define FP_IOCTL_RESERVED_03			0xa4
+#define FP_IOCTL_RESERVED_04			0xa5
+#define FP_IOCTL_RESERVED_05			0xa8
+#define FP_IOCTL_RESERVED_06			0x16
+#define FP_IOCTL_RESERVED_07			0x17
+#define FP_IOCTL_RESERVED_08			0x19
 
 #define SLOW_BAUD_RATE					20000000
-#define DRDY_IRQ_ENABLE					1
-#define DRDY_IRQ_DISABLE				0
 #define DIVISION_OF_IMAGE 4
 #define LARGE_SPI_TRANSFER_BUFFER	64
 #define DETECT_ADM 1
@@ -145,33 +137,13 @@ struct egis_ioc_transfer {
 	__u8 pad[3];
 };
 
-/*
- *	If platform is 32bit and kernel is 64bit
- *	We will alloc egis_ioc_transfer for 64bit and 32bit
- *	We use ioc_32(32bit) to get data from user mode.
- *	Then copy the ioc_32 to ioc(64bit).
- */
-#ifdef CONFIG_SENSORS_FINGERPRINT_32BITS_PLATFORM_ONLY
-struct egis_ioc_transfer_32 {
-	__u32 tx_buf;
-	__u32 rx_buf;
-	__u32 len;
-	__u32 speed_hz;
-	__u16 delay_usecs;
-	__u8 bits_per_word;
-	__u8 cs_change;
-	__u8 opcode;
-	__u8 pad[3];
-};
-#endif
-
 #define EGIS_IOC_MAGIC			'k'
 #define EGIS_MSGSIZE(N) \
 	((((N)*(sizeof(struct egis_ioc_transfer))) < (1 << _IOC_SIZEBITS)) \
 		? ((N)*(sizeof(struct egis_ioc_transfer))) : 0)
 #define EGIS_IOC_MESSAGE(N) _IOW(EGIS_IOC_MAGIC, 0, char[EGIS_MSGSIZE(N)])
 
-struct etspi_data {
+struct et7xx_data {
 	dev_t devt;
 	spinlock_t spi_lock;
 	struct spi_device *spi;
@@ -182,99 +154,70 @@ struct etspi_data {
 	unsigned int users;
 	u8 *buf;/* tx buffer for sensor register read/write */
 	unsigned int bufsiz; /* MAX size of tx and rx buffer */
-	unsigned int drdyPin;	/* DRDY GPIO pin number */
 	unsigned int sleepPin;	/* Sleep GPIO pin number */
 	unsigned int ldo_pin;	/* Ldo GPIO pin number */
-    unsigned int min_cpufreq_limit;
-	unsigned int spi_cs;	/* spi cs pin <temporary gpio setting> */
 	const char *rb;
-
-	unsigned int drdy_irq_flag;	/* irq flag */
 	bool ldo_onoff;
 
-	/* For polling interrupt */
-	int int_count;
-	struct timer_list timer;
-	struct work_struct work_debug;
-	struct workqueue_struct *wq_dbg;
-	struct timer_list dbg_timer;
 	int sensortype;
 	u32 spi_value;
+	struct device *dev;
 	struct device *fp_device;
-#ifdef ENABLE_SENSORS_FPRINT_SECURE
-	bool enabled_clk;
-	struct wake_lock fp_spi_lock;
-#endif
-	struct wake_lock fp_signal_lock;
 	bool tz_mode;
-	int detect_period;
-	int detect_threshold;
-	bool finger_on;
 	const char *chipid;
 	const char *model_info;
 	const char *btp_vdd;
 	const char *sensor_position;
 	struct regulator *regulator_3p3;
-	unsigned int orient;
 	struct pinctrl *p;
-	struct pinctrl_state *spi0_miso_set_cfg;
-	struct pinctrl_state *spi0_miso_clr_cfg;
-	struct pinctrl_state *spi0_cs_set_cfg;
-	struct pinctrl_state *spi0_cs_clr_cfg;
-	struct pinctrl_state *spi0_mosi_set_cfg;
-	struct pinctrl_state *spi0_mosi_clr_cfg;
-	struct pinctrl_state *spi0_clk_set_cfg;
-	struct pinctrl_state *spi0_clk_clr_cfg;
-	struct pinctrl_state *btp_ldo;
-	struct pinctrl_state *btp_sleep;
+	struct pinctrl_state *pins_poweron;
+	struct pinctrl_state *pins_poweroff;
 	bool ldo_enabled;
+	struct spi_clk_setting *clk_setting;
+	struct boosting_config *boosting;
+	struct debug_logger *logger;
 };
 
-int etspi_io_read_cis_register(struct etspi_data *etspi, u8 *addr, u8 *buf);
-int etspi_io_write_cis_register(struct etspi_data *etspi, u8 *buf);
-int etspi_io_pre_capture(struct etspi_data *etspi);
-int etspi_io_get_cis_frame(struct etspi_data *etspi, u8 *fr, u32 size);
+int et7xx_io_read_cis_register(struct et7xx_data *etspi, u8 *addr, u8 *buf);
+int et7xx_io_write_cis_register(struct et7xx_data *etspi, u8 *buf);
+int et7xx_io_pre_capture(struct et7xx_data *etspi);
+int et7xx_io_get_cis_frame(struct et7xx_data *etspi, u8 *fr, u32 size);
 
-int etspi_io_read_register(struct etspi_data *etspi, u8 *addr, u8 *buf);
-int etspi_io_burst_read_register(struct etspi_data *etspi,
+int et7xx_io_read_register(struct et7xx_data *etspi, u8 *addr, u8 *buf);
+int et7xx_io_burst_read_register(struct et7xx_data *etspi,
 									struct egis_ioc_transfer *ioc);
-int etspi_io_burst_read_register_backward(struct etspi_data *etspi,
+int et7xx_io_burst_read_register_backward(struct et7xx_data *etspi,
 											struct egis_ioc_transfer *ioc);
-int etspi_io_write_register(struct etspi_data *etspi, u8 *buf);
-int etspi_io_burst_write_register(struct etspi_data *etspi,
+int et7xx_io_write_register(struct et7xx_data *etspi, u8 *buf);
+int et7xx_io_burst_write_register(struct et7xx_data *etspi,
 									struct egis_ioc_transfer *ioc);
-int etspi_io_burst_write_register_backward(struct etspi_data *etspi,
+int et7xx_io_burst_write_register_backward(struct et7xx_data *etspi,
 											struct egis_ioc_transfer *ioc);
-int etspi_io_read_efuse(struct etspi_data *etspi,
+int et7xx_io_read_efuse(struct et7xx_data *etspi,
 							struct egis_ioc_transfer *ioc);
-int etspi_io_write_efuse(struct etspi_data *etspi,
+int et7xx_io_write_efuse(struct et7xx_data *etspi,
 							struct egis_ioc_transfer *ioc);
-int etspi_io_get_frame(struct etspi_data *etspi, u8 *fr, u32 size);
-int etspi_io_write_frame(struct etspi_data *etspi, u8 *fr, u32 size);
-int etspi_io_get_zone_average(struct etspi_data *etspi, u8 *fr, u32 size);
-int etspi_io_get_histogram(struct etspi_data *etspi, u8 *fr, u32 size);
-int etspi_io_transfer_command(struct etspi_data *etspi, u8 *tx, u8 *rx,
+int et7xx_io_get_frame(struct et7xx_data *etspi, u8 *fr, u32 size);
+int et7xx_io_write_frame(struct et7xx_data *etspi, u8 *fr, u32 size);
+int et7xx_io_get_zone_average(struct et7xx_data *etspi, u8 *fr, u32 size);
+int et7xx_io_get_histogram(struct et7xx_data *etspi, u8 *fr, u32 size);
+int et7xx_io_transfer_command(struct et7xx_data *etspi, u8 *tx, u8 *rx,
 								u32 size);
 
-int etspi_read_register(struct etspi_data *etspi, u8 addr, u8 *buf);
-int etspi_write_register(struct etspi_data *etspi, u8 addr, u8 buf);
+int et7xx_read_register(struct et7xx_data *etspi, u8 addr, u8 *buf);
+int et7xx_write_register(struct et7xx_data *etspi, u8 addr, u8 buf);
 
-int etspi_eeprom_rdsr(struct etspi_data *etspi, u8 *value);
-int etspi_eeprom_read(struct etspi_data *etspi, struct egis_ioc_transfer *ioc);
-int etspi_eeprom_high_speed_read(struct etspi_data *etspi,
+int et7xx_eeprom_rdsr(struct et7xx_data *etspi, u8 *value);
+int et7xx_eeprom_read(struct et7xx_data *etspi, struct egis_ioc_transfer *ioc);
+int et7xx_eeprom_high_speed_read(struct et7xx_data *etspi,
 									struct egis_ioc_transfer *ioc);
-int etspi_eeprom_write(struct etspi_data *etspi, struct egis_ioc_transfer *ioc);
-int etspi_eeprom_chip_erase(struct etspi_data *etspi);
-int etspi_eeprom_sector_erase(struct etspi_data *etspi,
+int et7xx_eeprom_write(struct et7xx_data *etspi, struct egis_ioc_transfer *ioc);
+int et7xx_eeprom_chip_erase(struct et7xx_data *etspi);
+int et7xx_eeprom_sector_erase(struct et7xx_data *etspi,
 								struct egis_ioc_transfer *ioc);
-int etspi_eeprom_block_erase(struct etspi_data *etspi,
+int et7xx_eeprom_block_erase(struct et7xx_data *etspi,
 								struct egis_ioc_transfer *ioc);
-int etspi_eeprom_write_controller(struct etspi_data *etspi, int enable);
-int etspi_eeprom_write_in_non_tz(struct etspi_data *etspi,
+int et7xx_eeprom_write_controller(struct et7xx_data *etspi, int enable);
+int et7xx_eeprom_write_in_non_tz(struct et7xx_data *etspi,
 									struct egis_ioc_transfer *ioc);
-
-#ifdef ENABLE_SENSORS_FPRINT_SECURE
-extern void mt_spi_enable_master_clk(struct spi_device *spi);
-extern void mt_spi_disable_master_clk(struct spi_device *spi);
-#endif
 #endif

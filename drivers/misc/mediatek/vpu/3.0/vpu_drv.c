@@ -44,6 +44,7 @@
 #include "vpu_drv.h"
 #include "vpu_cmn.h"
 #include "vpu_dbg.h"
+#include "vpu_dump.h"
 
 #ifdef CONFIG_COMPAT
 /* 64 bit */
@@ -52,6 +53,7 @@
 #endif
 
 #define VPU_DEV_NAME            "vpu"
+//#define VPU_LOAD_FW_SUPPORT
 
 static struct vpu_device *vpu_device;
 static struct wakeup_source vpu_wake_lock;
@@ -312,13 +314,13 @@ int vpu_put_request_to_pool(struct vpu_user *user, struct vpu_request *req)
 			if (IS_ERR(handle)) {
 				LOG_WRN("[vpu_drv] %s=0x%p failed and return\n",
 					"import ion handle", handle);
-				if (cnt > 0)
-					for (k = 0; k < cnt; k++) {
-						ion_free(my_ion_client,
-							(struct ion_handle *)
-							((uintptr_t)(req->buf_ion_infos[cnt])));
-						LOG_WRN("free cnt[%d] ion handle\n", cnt);
-					}
+				for (k = 0; k < cnt; k++) {
+					if (!req->buf_ion_infos[k])
+						continue;
+					ion_free(my_ion_client,
+						(struct ion_handle *)
+						(req->buf_ion_infos[k]));
+				}
 				return -EINVAL;
 			} else {
 				if (g_vpu_log_level > Log_STATE_MACHINE)
@@ -341,6 +343,8 @@ int vpu_put_request_to_pool(struct vpu_user *user, struct vpu_request *req)
 		if (IS_ERR(handle)) {
 			LOG_WRN("[vpu_drv] %s=0x%p sett_ion_fd failed\n",
 				"import ion handle", handle);
+			ret = -EINVAL;
+			goto out;
 
 			} else {
 				/* import fd to handle for buffer ref count+1*/
@@ -403,6 +407,7 @@ int vpu_put_request_to_pool(struct vpu_user *user, struct vpu_request *req)
 	wake_up(&vpu_device->req_wait);
 	/*LOG_DBG("[vpu] vpu_push_request_to_queue ---\n");*/
 
+out:
 	return ret;
 }
 
@@ -1049,6 +1054,8 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 		struct vpu_request *req;
 		struct vpu_request *u_req;
 		unsigned int req_core;
+		int i;
+		uint8_t plane_count;
 
 		u_req = (struct vpu_request *) arg;
 
@@ -1148,18 +1155,43 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 			goto out;
 		}
 
-		if (ret)
+		if (ret) {
 			LOG_ERR("[ENQUE] get params failed, ret=%d\n", ret);
-		else if (req->buffer_count > VPU_MAX_NUM_PORTS) {
+			vpu_free_request(req);
+			ret = -EINVAL;
+			goto out;
+		} else if (req->buffer_count > VPU_MAX_NUM_PORTS) {
 			LOG_ERR("[ENQUE] %s, count=%d\n",
 				"wrong buffer count", req->buffer_count);
+			vpu_free_request(req);
+			ret = -EINVAL;
+			goto out;
 		} else if (copy_from_user(req->buffers, u_req->buffers,
 			    req->buffer_count * sizeof(struct vpu_buffer))) {
 			LOG_ERR("[ENQUE] %s, ret=%d\n",
 				"copy 'struct buffer' failed", ret);
-		} else if (copy_from_user(req->buf_ion_infos,
-				u_req->buf_ion_infos,
-				req->buffer_count * 3 * sizeof(uint64_t))) {
+			vpu_free_request(req);
+			ret = -EINVAL;
+			goto out;
+		}
+
+		/* Check if user plane_count is valid */
+		for (i = 0 ; i < req->buffer_count; i++) {
+			plane_count = req->buffers[i].plane_count;
+			if ((plane_count > VPU_MAX_NUM_PLANE) ||
+				(plane_count == 0)) {
+				vpu_free_request(req);
+				ret = -EINVAL;
+		LOG_ERR("[ENQUE] Buffer#%d plane_count:%d is invalid!\n",
+					i, plane_count);
+				goto out;
+			}
+		}
+
+		if (copy_from_user(req->buf_ion_infos,
+			u_req->buf_ion_infos,
+			req->buffer_count * VPU_MAX_NUM_PLANE
+			* sizeof(uint64_t))) {
 			LOG_ERR("[ENQUE] %s, ret=%d\n",
 				"copy 'buf_share_fds' failed", ret);
 		} else if (vpu_put_request_to_pool(user, req)) {
@@ -1310,6 +1342,7 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 	}
 		case VPU_IOCTL_CREATE_ALGO:
 	{
+#ifdef VPU_LOAD_FW_SUPPORT
 		struct vpu_create_algo *u_create_algo;
 		struct vpu_create_algo create_algo = {0};
 
@@ -1351,11 +1384,15 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 		}
 
 		vpu_add_algo_to_user(user, &create_algo);
-
+#else
+		ret = -EINVAL;
+		LOG_WRN("[CREATE_ALGO] was not support!\n");
+#endif
 		break;
 	}
 	case VPU_IOCTL_FREE_ALGO:
 	{
+#ifdef VPU_LOAD_FW_SUPPORT
 		struct vpu_create_algo *u_create_algo;
 		struct vpu_create_algo create_algo = {0};
 
@@ -1381,7 +1418,10 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 		create_algo.name[(sizeof(char)*32) - 1] = '\0';
 
 		vpu_free_algo_from_user(user, &create_algo);
-
+#else
+		ret = -EINVAL;
+		LOG_WRN("[FREE_ALGO] was not support!\n");
+#endif
 		break;
 	}
 
@@ -1660,7 +1700,7 @@ static int vpu_mmap(struct file *flip, struct vm_area_struct *vma)
 static dev_t vpu_devt;
 static struct cdev *vpu_chardev;
 static struct class *vpu_class;
-static int vpu_num_devs;
+static unsigned int vpu_num_devs;
 
 static inline void vpu_unreg_chardev(void)
 {
@@ -1715,7 +1755,7 @@ out:
 static int vpu_probe(struct platform_device *pdev)
 {
 	int ret = 0;
-	int core = 0;
+	unsigned int core = 0;
 	struct device *dev;
 	struct device_node *node;
 	unsigned int irq_info[3] = {0};
@@ -1897,6 +1937,8 @@ out:
 			vpu_unreg_chardev();
 	}
 
+	vpu_dmp_init(core);
+
 	LOG_DBG("probe vpu driver\n");
 
 	return ret;
@@ -1933,6 +1975,9 @@ static int vpu_remove(struct platform_device *pDev)
 	device_destroy(vpu_class, vpu_devt);
 	class_destroy(vpu_class);
 	vpu_class = NULL;
+
+	for (i = 0 ; i < MTK_VPU_CORE ; i++)
+		vpu_dmp_exit(i);
 	return 0;
 }
 
@@ -1949,6 +1994,29 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t mesg)
 static int vpu_resume(struct platform_device *pdev)
 {
 	return 0;
+}
+
+unsigned long vpu_bin_base(void)
+{
+	return (vpu_device) ? vpu_device->bin_base : 0;
+}
+
+unsigned long vpu_ctl_base(int core)
+{
+	if (core < 0 || core >= MTK_VPU_CORE || !vpu_device)
+		return 0;
+
+	return vpu_device->vpu_base[core];
+}
+
+unsigned long vpu_syscfg_base(void)
+{
+	return vpu_device->vpu_syscfg_base;
+}
+
+unsigned long vpu_vcore_base(void)
+{
+	return vpu_device->vpu_vcorecfg_base;
 }
 
 static int __init VPU_INIT(void)

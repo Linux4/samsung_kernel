@@ -21,7 +21,7 @@
 #include <linux/interrupt.h>
 #include <linux/of.h>
 #include "config.h"
-#include "rt-regmap.h"
+#include <mt-plat/rt-regmap.h>
 
 extern bool dbg_log_en;
 #define mt_dbg(dev, fmt, ...) \
@@ -40,7 +40,7 @@ enum {
 };
 
 struct mt6360_pmu_platform_data {
-	u32 int_ret;
+	u32 int_ret, disable_lpsd;
 	int irq_gpio;
 	void *dev_platform_data[MT6360_PMUDEV_MAX];
 	size_t dev_pdata_size[MT6360_PMUDEV_MAX];
@@ -96,7 +96,8 @@ struct mt6360_pmu_irq_desc {
 #define MT6360_PMU_DEVICE_TYPE			(0x22)
 #define MT6360_PMU_DCP_CONTROL			(0x24)
 #define MT6360_PMU_USB_STATUS1			(0x27)
-#define MT6360_PMU_DPDM_CTRL			(0x28)
+#define MT6360_PMU_DPDM_CTRL1			(0x28)
+#define MT6360_PMU_DPDM_CTRL2			(0x29)
 #define MT6360_PMU_CHG_PUMP			(0x2A)
 #define MT6360_PMU_CHG_CTRL17			(0x2B)
 #define MT6360_PMU_CHG_CTRL18			(0x2C)

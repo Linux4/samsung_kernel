@@ -263,8 +263,8 @@ static int s2mu106_i2c_probe(struct i2c_client *i2c,
 
 	i2c_set_clientdata(i2c, s2mu106);
 
-	ret = s2mu106_read_reg(s2mu106->i2c, S2MU106_REG_PMICID, &temp);
-	if (ret < 0)
+	s2mu106_read_reg(s2mu106->i2c, S2MU106_REG_PMICID, &temp);
+	if (temp < 0)
 		pr_err("[s2mu106 mfd] %s : i2c read error\n", __func__);
 
 	s2mu106->pmic_ver = temp & S2MU106_REG_PMICID_MASK;

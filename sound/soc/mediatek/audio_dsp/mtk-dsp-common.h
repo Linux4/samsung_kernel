@@ -15,6 +15,8 @@
 #ifndef AUDIO_DSP_COMMON_H
 #define AUDIO_DSP_COMMON_H
 
+#if defined(CONFIG_SND_SOC_MTK_AUDIO_DSP)
+
 #include <linux/delay.h>
 #include <linux/kernel.h>
 #include <sound/pcm.h>
@@ -59,6 +61,7 @@ struct snd_soc_dai;
 struct mtk_base_afe;
 struct audio_hw_buffer;
 struct platform_device;
+struct ipi_msg_t;
 
 int mtk_scp_ipi_send(int task_scene, int data_type, int ack_type,
 		     uint16_t msg_id, uint32_t param1, uint32_t param2,
@@ -67,6 +70,10 @@ int mtk_scp_ipi_send(int task_scene, int data_type, int ack_type,
 /* set priv data when receive IPI message */
 void *get_ipi_recv_private(void);
 void set_ipi_recv_private(void *priv);
+
+void mtk_dsp_pcm_ipi_recv(struct ipi_msg_t *ipi_msg);
+void mtk_dsp_handler(struct mtk_base_dsp *dsp,
+		     struct ipi_msg_t *ipi_msg);
 
 /* dsp dai id ==> task scene mapping */
 int get_dspscene_by_dspdaiid(int id);
@@ -101,6 +108,7 @@ int mtk_adsp_genpool_free_memory(unsigned char **vaddr,
 				 size_t *size, int id);
 int afe_get_pcmdir(int dir, struct audio_hw_buffer buf);
 int get_dsp_task_attr(int dsp_id, int task_attr);
+int get_dsp_task_id_from_str(const char *task_name);
 
 int audio_set_dsp_afe(struct mtk_base_afe *afe);
 struct mtk_base_afe *get_afe_base(void);
@@ -109,5 +117,8 @@ int mtk_dsp_register_feature(int id);
 int mtk_dsp_deregister_feature(int id);
 
 int mtk_audio_register_notify(void);
+int mtk_audio_set_adsp_reset_status(int status);
+bool mtk_audio_get_adsp_reset_status(void);
 
+#endif
 #endif

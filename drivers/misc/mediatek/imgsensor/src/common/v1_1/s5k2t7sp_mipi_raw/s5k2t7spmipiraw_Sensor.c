@@ -178,6 +178,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.ae_sensor_gain_delay_frame = 0,
 
 	.ae_ispGain_delay_frame = 2,	/* isp gain delay frame for AE cycle */
+	.frame_time_delay_frame = 2,
 	.ihdr_support = 0,	/* 1, support; 0,not support */
 	.ihdr_le_firstline = 0,	/* 1,le first ; 0, se first */
 	.sensor_mode_num = 5,	/* support sensor mode num */
@@ -237,7 +238,7 @@ static struct imgsensor_struct imgsensor = {
 		 * KAL_FALSE for in test pattern mode,
 		 * KAL_TRUE for normal output
 		 */
-	.test_pattern = KAL_FALSE,
+	.test_pattern = 0,
 
 	/* current scenario id */
 	.current_scenario_id = MSDK_SCENARIO_ID_CAMERA_PREVIEW,
@@ -284,10 +285,10 @@ static struct SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[5] = {
 	{ 5200, 3880,    8,    0, 5184, 3880, 2592, 1940,
 	     0,    0, 2592, 1940,    0,    0, 2592, 1940},
 
-	{ 5200, 3880,    1312,  1228, 2576, 1440, 1280, 720,
+	{ 5200, 3880,    1312,  1228, 2560, 1440, 1280, 720,
 	     4,    0, 1280, 720,    0,    0, 1280, 720},
 
-	{ 5200, 3896,    1320,    1220, 2576, 1440, 1280, 720,
+	{ 5200, 3880,    1320,    1220, 2560, 1440, 1280, 720,
 	     4,    0, 1280, 720,    0,    0, 1280, 720},
 };
 
@@ -478,7 +479,54 @@ static void set_shutter(kal_uint16 shutter)
 	write_shutter(shutter);
 }				/*      set_shutter */
 
+static void set_shutter_frame_length(
+	kal_uint16 shutter, kal_uint16 frame_length,
+	kal_bool auto_extend_en)
+{
+	unsigned long flags;
+	kal_uint16 realtime_fps = 0;
+	kal_int32 dummy_line = 0;
 
+	spin_lock_irqsave(&imgsensor_drv_lock, flags);
+	imgsensor.shutter = shutter;
+	spin_unlock_irqrestore(&imgsensor_drv_lock, flags);
+	spin_lock(&imgsensor_drv_lock);
+	/* Change frame time */
+	if (frame_length > 1)
+		dummy_line = frame_length - imgsensor.frame_length;
+	imgsensor.frame_length = imgsensor.frame_length + dummy_line;
+	if (shutter > imgsensor.frame_length - imgsensor_info.margin)
+		imgsensor.frame_length = shutter + imgsensor_info.margin;
+	if (imgsensor.frame_length > imgsensor_info.max_frame_length)
+		imgsensor.frame_length = imgsensor_info.max_frame_length;
+	spin_unlock(&imgsensor_drv_lock);
+	shutter = (shutter < imgsensor_info.min_shutter) ?
+			imgsensor_info.min_shutter : shutter;
+	shutter = (shutter >
+		(imgsensor_info.max_frame_length - imgsensor_info.margin)) ?
+		(imgsensor_info.max_frame_length - imgsensor_info.margin) :
+		shutter;
+	if (imgsensor.autoflicker_en) {
+		realtime_fps = imgsensor.pclk / imgsensor.line_length * 10 /
+			imgsensor.frame_length;
+		if (realtime_fps >= 297 && realtime_fps <= 305) {
+			set_max_framerate(296, 0);
+		} else if (realtime_fps >= 147 && realtime_fps <= 150) {
+			set_max_framerate(146, 0);
+		} else {
+			/* Extend frame length */
+			write_cmos_sensor(0x0340,
+				imgsensor.frame_length & 0xFFFF);
+		}
+	} else {
+		/* Extend frame length */
+		write_cmos_sensor(0x0340, imgsensor.frame_length & 0xFFFF);
+	}
+	/* Update Shutter */
+	write_cmos_sensor(0x0202, shutter & 0xFFFF);
+	pr_debug("shutter = %d, framelength = %d/%d, dummy_line= %d\n",
+		shutter, imgsensor.frame_length, frame_length, dummy_line);
+}			/*      set_shutter_frame_length */
 
 static kal_uint16 gain2reg(const kal_uint16 gain)
 {
@@ -1688,7 +1736,7 @@ static kal_uint32 open(void)
 	imgsensor.dummy_pixel = 0;
 	imgsensor.dummy_line = 0;
 	imgsensor.ihdr_mode = 0;
-	imgsensor.test_pattern = KAL_FALSE;
+	imgsensor.test_pattern = 0;
 	imgsensor.current_fps = imgsensor_info.pre.max_framerate;
 	spin_unlock(&imgsensor_drv_lock);
 
@@ -1964,6 +2012,8 @@ static kal_uint32 get_info(enum MSDK_SCENARIO_ID_ENUM scenario_id,
 
 	sensor_info->AEISPGainDelayFrame =
 				imgsensor_info.ae_ispGain_delay_frame;
+	sensor_info->FrameTimeDelayFrame =
+				imgsensor_info.frame_time_delay_frame;
 
 	sensor_info->IHDR_Support = imgsensor_info.ihdr_support;
 	sensor_info->IHDR_LE_FirstLine = imgsensor_info.ihdr_le_firstline;
@@ -2319,18 +2369,34 @@ static kal_uint32 get_default_framerate_by_scenario(
 	return ERROR_NONE;
 }
 
-static kal_uint32 set_test_pattern_mode(kal_bool enable)
+static kal_uint32 set_test_pattern_mode(kal_uint32 modes,
+	struct SET_SENSOR_PATTERN_SOLID_COLOR *pdata)
 {
-	pr_debug("enable: %d\n", enable);
+	kal_uint16 Color_R, Color_Gr, Color_Gb, Color_B;
 
-	if (enable) {
-/* 0 : Normal, 1 : Solid Color, 2 : Color Bar, 3 : Shade Color Bar, 4 : PN9 */
-		write_cmos_sensor(0x0600, 0x0002);
-	} else {
-		write_cmos_sensor(0x0600, 0x0000);
-	}
+	pr_debug("set_test_pattern enum: %d\n", modes);
+	if (modes) {
+		write_cmos_sensor(0x0600, modes);
+		if (modes == 1 && (pdata != NULL)) { //Solid Color
+			pr_debug("R=0x%x,Gr=0x%x,B=0x%x,Gb=0x%x",
+				pdata->COLOR_R, pdata->COLOR_Gr, pdata->COLOR_B, pdata->COLOR_Gb);
+			Color_R = (pdata->COLOR_R >> 22) & 0x3FF; //10bits depth color
+			Color_Gr = (pdata->COLOR_Gr >> 22) & 0x3FF;
+			Color_B = (pdata->COLOR_B >> 22) & 0x3FF;
+			Color_Gb = (pdata->COLOR_Gb >> 22) & 0x3FF;
+			//write_cmos_sensor(0x0603, (Color_R >> 8) & 0x3);
+			write_cmos_sensor(0x0602, Color_R & 0x3FF);
+			//write_cmos_sensor(0x0605, (Color_Gr >> 8) & 0x3);
+			write_cmos_sensor(0x0604, Color_Gr & 0x3FF);
+			//write_cmos_sensor(0x0607, (Color_B >> 8) & 0x3);
+			write_cmos_sensor(0x0606, Color_B & 0x3FF);
+			//write_cmos_sensor(0x0609, (Color_Gb >> 8) & 0x3);
+			write_cmos_sensor(0x0608, Color_Gb & 0x3FF);
+		}
+	} else
+		write_cmos_sensor(0x0600, 0x0000); /*No pattern*/
 	spin_lock(&imgsensor_drv_lock);
-	imgsensor.test_pattern = enable;
+	imgsensor.test_pattern = modes;
 	spin_unlock(&imgsensor_drv_lock);
 	return ERROR_NONE;
 }
@@ -2373,6 +2439,20 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 
 	/*pr_debug("feature_id = %d\n", feature_id);*/
 	switch (feature_id) {
+	case SENSOR_FEATURE_SET_SHUTTER_FRAME_TIME:
+		set_shutter_frame_length((UINT16)(*feature_data),
+				(UINT16)(*(feature_data + 1)),
+				(BOOL) (*(feature_data + 2)));
+		break;
+	case SENSOR_FEATURE_GET_FRAME_CTRL_INFO_BY_SCENARIO:
+		/*
+		 * 1, if driver support new sw frame sync
+		 * set_shutter_frame_length() support third para auto_extend_en
+		 */
+		*(feature_data + 1) = 1;
+		/* margin info by scenario */
+		*(feature_data + 2) = imgsensor_info.margin;
+		break;
 	case SENSOR_FEATURE_GET_PIXEL_CLOCK_FREQ_BY_SCENARIO:
 		switch (*feature_data) {
 		case MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG:
@@ -2496,7 +2576,8 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 			  (MUINT32 *) (uintptr_t) (*(feature_data + 1)));
 		break;
 	case SENSOR_FEATURE_SET_TEST_PATTERN:
-		set_test_pattern_mode((BOOL) (*feature_data));
+		set_test_pattern_mode((UINT32)*feature_data,
+		(struct SET_SENSOR_PATTERN_SOLID_COLOR *)(uintptr_t)(*(feature_data + 1)));
 		break;
 
 	/* for factory mode auto testing */

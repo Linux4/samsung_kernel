@@ -23,7 +23,8 @@
 #include <linux/uaccess.h>
 
 #include "lens_info.h"
-#include "imgsensor_sysfs.h"
+//#include "imgsensor_sysfs.h"
+//#include "kd_imgsensor_sysfs_adapter.h"
 
 #define AF_DRVNAME "FP5529AF_DRV"
 #define AF_I2C_SLAVE_ADDR 0x18
@@ -73,7 +74,6 @@ static int s4AF_ReadReg(unsigned short *a_pu2Result)
 static int s4AF_WriteReg(u8 a_u2Addr, u8 a_u2Data)
 {
 	int i4RetValue = 0;
-	int retry = 2;
 
 	char puSendCmd[2] = {(char)a_u2Addr, (char)a_u2Data};
 
@@ -81,18 +81,14 @@ static int s4AF_WriteReg(u8 a_u2Addr, u8 a_u2Data)
 
 	g_pstAF_I2Cclient->addr = g_pstAF_I2Cclient->addr >> 1;
 
-	do {
-		i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd, 2);
-		if (i4RetValue < 0) {
-			LOG_INF("I2C send failed!! (%d)\n", *g_pAF_Opened);
-			mdelay(2);
-		} else {
-			break;
-		}
-	} while ((retry--) > 0);
+	i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd, 2);
 
-	if (i4RetValue < 0)
+
+
+	if (i4RetValue < 0) {
+		LOG_INF("I2C send failed!!\n");
 		return -1;
+	}
 
 	return 0;
 }
@@ -132,13 +128,13 @@ static int i2c_read(u8 a_u2Addr, u8 *a_puBuff)
 	g_pstAF_I2Cclient->addr = g_pstAF_I2Cclient->addr >> 1;
 	i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puReadCmd, 1);
 	if (i4RetValue < 0) {
-		LOG_INF(" I2C send failed!! (%d)\n", *g_pAF_Opened);
+		LOG_INF(" I2C write failed!!\n");
 		return -1;
 	}
 
 	i4RetValue = i2c_master_recv(g_pstAF_I2Cclient, (char *)a_puBuff, 1);
 	if (i4RetValue < 0) {
-		LOG_INF(" I2C recv failed!! (%d)\n", *g_pAF_Opened);
+		LOG_INF(" I2C read failed!!\n");
 		return -1;
 	}
 
@@ -159,23 +155,36 @@ static u8 read_data(u8 addr)
 static int initAF(void)
 {
 	int ret = 0;
+#ifdef IMGSENSOR_HW_PARAM
 	struct cam_hw_param *hw_param = NULL;
+#endif
 	u8 data = 0xFF;
+	u8 ac_mode = 0xA2, ac_time = 0x3F;
 
 	LOG_INF("+\n");
 
-	mdelay(10);
-
+	// reduce delay to optimize entry time: 9900 -> 5000
+	// reference document: FP5529-Preliminary 0.1-JUL-2018.pdf
+	usleep_range(5000, 5500);
 	data = read_data(0x00);
 	LOG_INF("module id:%d\n", data);
-	ret = s4AF_WriteReg(0x02, 0x01);
+	ret |= s4AF_WriteReg(0x02, 0x01);
 	ret |= s4AF_WriteReg(0x02, 0x00);
-	mdelay(5);
+	usleep_range(5000, 5500);
 	ret |= s4AF_WriteReg(0x02, 0x02);//ring
-	ret |= s4AF_WriteReg(0x06, 0x60);//101__011 sac4 with /2
-	mdelay(5);
-	ret |= s4AF_WriteReg(0x07, 0x08);//00111111 SACT
-	mdelay(1);
+
+#if 0
+	if (!IMGSENSOR_GET_SAC_VALUE_BY_SENSOR_IDX(0, &ac_mode, &ac_time)) {
+		ret |= -1;
+		pr_err("[%s] FP5529: failed to get sac value\n", __func__);
+	}
+#endif
+	pr_info("[%s] FP5529 SAC setting (read from eeprom) - ac_mode: 0x%x, ac_time: 0x%x\n", __func__, ac_mode, ac_time);
+	s4AF_WriteReg(0x06, ac_mode);
+	// remove delay: usleep_range(4900, 5000);
+	s4AF_WriteReg(0x07, ac_time);
+
+	// remove delay: usleep_range(900, 1000);
 	ret |= s4AF_WriteReg(0x0A, 0x00);
 	ret |= s4AF_WriteReg(0x0B, 0x01);
 	ret |= s4AF_WriteReg(0x0C, 0xFF);
@@ -188,11 +197,13 @@ static int initAF(void)
 		spin_unlock(g_pAF_SpinLock);
 
 	}
-	if(ret != 0) {
+#ifdef IMGSENSOR_HW_PARAM
+	if (ret != 0) {
 		imgsensor_sec_get_hw_param(&hw_param, SENSOR_POSITION_REAR);
 		if (hw_param)
 			hw_param->i2c_af_err_cnt++;
 	}
+#endif
 	LOG_INF("-\n");
 
 	return 0;
@@ -203,15 +214,14 @@ static inline int moveAF(unsigned long a_u4Position)
 {
 	int ret = 0;
 
-		if (s4AF_WriteReg(0x03, (unsigned short)(a_u4Position>>8))
-		== 0 && s4AF_WriteReg(0x04, (unsigned short)(a_u4Position&0xff))
-		== 0) {
-			g_u4CurrPosition = a_u4Position;
-			ret = 0;
-		} else {
-			LOG_INF("set I2C failed when moving the motor\n");
-			ret = -1;
-		}
+	if (s4AF_WriteReg(0x03, (unsigned short)(a_u4Position>>8)) == 0 &&
+	s4AF_WriteReg(0x04, (unsigned short)(a_u4Position&0xff)) == 0) {
+		g_u4CurrPosition = a_u4Position;
+		ret = 0;
+	} else {
+		LOG_INF("set I2C failed when moving the motor\n");
+		ret = -1;
+	}
 
 	return ret;
 }
@@ -285,15 +295,12 @@ int FP5529AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 	int lowerSoundPos = 200;
 	int afSteps1 = 100;
 	int afSteps2 = 10;
-	int retry = 5;
 
 	LOG_INF("Start\n");
 
 	if (*g_pAF_Opened == 2) {
 		LOG_INF("Wait\n");
-		spin_lock(g_pAF_SpinLock);
-		*g_pAF_Opened = 3;
-		spin_unlock(g_pAF_SpinLock);
+	//	s4AF_WriteReg(0x80); /* Power down mode */
 	}
 
 	if (*g_pAF_Opened) {
@@ -301,14 +308,14 @@ int FP5529AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 
 	if (g_u4AF_INF < g_u4CurrPosition) {
 		int Position = g_u4CurrPosition;
+
 		LOG_INF("g_u4CurrPosition:%lu  g_u4AF_INF:%lu\n",
 		g_u4CurrPosition, g_u4AF_INF);
-
 
 		while (Position > g_u4AF_INF) {
 			if (Position > upperSoundPos) {
 				moveAF(upperSoundPos);
-				mdelay(2);
+				usleep_range(1900, 2000);
 				Position = upperSoundPos;
 				LOG_INF("write to upperSoundPos:%d\n",
 				upperSoundPos);
@@ -319,10 +326,7 @@ int FP5529AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 					Position -= afSteps2;
 
 				moveAF(Position);
-				//Check AF busy status
-				retry = 5;
-				while(read_data(0x05) != 0x00 && retry-- >= 0)
-					mdelay(2);
+				usleep_range(7900, 8000);
 				LOG_INF("write to Position:%d\n", Position);
 
 				if (Position != lowerSoundPos)
@@ -331,10 +335,7 @@ int FP5529AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 			} else {
 				Position -= (Position % afSteps1);
 				moveAF(Position);
-				//Check AF busy status
-				retry = 5;
-				while(read_data(0x05) != 0x00  && retry-- >= 0)
-					mdelay(2);
+				usleep_range(7900, 8000);
 				LOG_INF("write to Position:%d\n", Position);
 				Position -= afSteps1;
 				if (Position < 0)

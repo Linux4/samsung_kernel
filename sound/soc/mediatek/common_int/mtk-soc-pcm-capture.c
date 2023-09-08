@@ -497,15 +497,16 @@ static int mtk_capture_alsa_start(struct snd_pcm_substream *substream)
 {
 	pr_debug("%s\n", __func__);
 
+	/* set memory */
+	SetSampleRate(cap_mem_blk, substream->runtime->rate);
+	SetChannels(cap_mem_blk, substream->runtime->channels);
+	SetMemoryPathEnable(cap_mem_blk, true);
+	udelay(300);
 	/* here to set interrupt */
 	irq_add_substream_user(substream, irq_request_number(cap_mem_blk),
 			       substream->runtime->rate,
 			       substream->runtime->period_size);
 	irq_user_id = substream;
-	/* set memory */
-	SetSampleRate(cap_mem_blk, substream->runtime->rate);
-	SetChannels(cap_mem_blk, substream->runtime->channels);
-	SetMemoryPathEnable(cap_mem_blk, true);
 
 	EnableAfe(true);
 	return 0;
@@ -561,8 +562,12 @@ static struct snd_soc_platform_driver mtk_soc_platform = {
 
 static int mtk_capture_probe(struct platform_device *pdev)
 {
-	if (pdev->dev.of_node)
+	if (pdev->dev.of_node) {
 		dev_set_name(&pdev->dev, "%s", MT_SOC_UL1_PCM);
+		pdev->name = pdev->dev.kobj.name;
+	} else {
+		pr_debug("%s(), pdev->dev.of_node = NULL!!!\n", __func__);
+	}
 
 	pr_debug("%s: dev name %s\n", __func__, dev_name(&pdev->dev));
 	return snd_soc_register_platform(&pdev->dev, &mtk_soc_platform);

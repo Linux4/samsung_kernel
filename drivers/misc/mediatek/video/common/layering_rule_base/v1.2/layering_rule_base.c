@@ -561,10 +561,11 @@ static void print_disp_info_to_log_buffer(struct disp_layer_info *disp_info)
 		"Last hrt query data[start]\n");
 	for (i = 0; i < 2; i++) {
 		n += snprintf(status_buf + n, LOGGER_BUFFER_SIZE - n,
-			"HRT D%d/M%d/LN%d/hrt_num:%d/G(%d,%d)/fps:%d\n",
+			"HRT D%d/M%d/LN%d/hrt_num:%d/G(%d,%d)/fps:%d/config_id:%d\n",
 			i, disp_info->disp_mode[i], disp_info->layer_num[i],
 			disp_info->hrt_num, disp_info->gles_head[i],
-			disp_info->gles_tail[i], l_rule_info->primary_fps);
+			disp_info->gles_tail[i], l_rule_info->primary_fps,
+			disp_info->active_config_id[0]);
 
 		for (j = 0; j < disp_info->layer_num[i]; j++) {
 			layer_info = &disp_info->input_config[i][j];
@@ -602,6 +603,11 @@ void rollback_layer_to_GPU(struct disp_layer_info *disp_info, int disp_idx,
 void rollback_compress_layer_to_GPU(struct disp_layer_info *disp_info,
 	int disp_idx, int i)
 {
+	if (disp_idx < 0 || disp_idx > 1) {
+		DISPMSG("%s: error disp_idx:%d\n",
+			__func__, disp_idx);
+		return;
+	}
 	if (is_layer_id_valid(disp_info, disp_idx, i) == false)
 		return;
 
@@ -869,6 +875,9 @@ static int ext_id_tuning(struct disp_layer_info *info, int disp)
 	int rc_opt = get_round_corner_opt(LYE_OPT_ROUND_CORNER);
 	int rc_mode = get_round_corner_mode(rc_opt);
 #endif
+
+	if (disp < 0)
+		return -EFAULT;
 
 	if (info->layer_num[disp] <= 0)
 		return 0;
@@ -1739,7 +1748,10 @@ static int check_layering_result(struct disp_layer_info *info)
 
 int check_disp_info(struct disp_layer_info *disp_info)
 {
-	int disp_idx, ghead, gtail;
+	int disp_idx = 0;
+	int ghead = -1;
+	int gtail = -1;
+	int layer_num = 0;
 
 	if (disp_info == NULL) {
 		DISP_PR_ERR("[HRT]disp_info is empty\n");
@@ -1747,7 +1759,8 @@ int check_disp_info(struct disp_layer_info *disp_info)
 	}
 
 	for (disp_idx = 0; disp_idx < 2; disp_idx++) {
-		if (disp_info->layer_num[disp_idx] > 0 &&
+		layer_num = disp_info->layer_num[disp_idx];
+		if (layer_num > 0 &&
 		    disp_info->input_config[disp_idx] == NULL) {
 			DISP_PR_ERR(
 				"[HRT]input config is empty,disp:%d,l_num:%d\n",
@@ -1757,8 +1770,12 @@ int check_disp_info(struct disp_layer_info *disp_info)
 
 		ghead = disp_info->gles_head[disp_idx];
 		gtail = disp_info->gles_tail[disp_idx];
-		if ((ghead < 0 && gtail >= 0) || (gtail < 0 && ghead >= 0)) {
-			dump_disp_info(disp_info, DISP_DEBUG_LEVEL_ERR);
+		if ((!((ghead == -1) && (gtail == -1)) &&
+			!((ghead >= 0) && (gtail >= 0))) ||
+			(ghead >= layer_num) ||
+			(gtail >= layer_num) ||
+			(ghead > gtail)) {
+			//dump_disp_info(disp_info, DISP_DEBUG_LEVEL_ERR);
 			DISP_PR_ERR(
 				"[HRT]gles invalid,disp:%d,head:%d,tail:%d\n",
 				    disp_idx, disp_info->gles_head[disp_idx],
@@ -1909,6 +1926,14 @@ int layering_rule_start(struct disp_layer_info *disp_info_user, int debug_mode)
 		DISP_PR_INFO("Layering rule has not been initialize.\n");
 		return -EFAULT;
 	}
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
+	/*DynFPS, only primary display support*/
+	/*l_rule_info->active_config_id = disp_info_user->active_config_id[0];*/
+	if (g_force_cfg) {
+		disp_info_user->active_config_id[0] = g_force_cfg_id;
+	}
+	/*primary_display_update_cfg_id(disp_info_user->active_config_id[0]);*/
+#endif
 
 	if (check_disp_info(disp_info_user) < 0) {
 		DISP_PR_ERR("check_disp_info fail\n");
@@ -1928,7 +1953,8 @@ int layering_rule_start(struct disp_layer_info *disp_info_user, int debug_mode)
 	if (l_rule_info->hrt_idx == 0xffffffff)
 		l_rule_info->hrt_idx = 0;
 
-	l_rule_ops->copy_hrt_bound_table(0, g_emi_bound_table);
+	l_rule_ops->copy_hrt_bound_table(
+		0, g_emi_bound_table, disp_info_user->active_config_id[0]);
 
 	/* 1.Pre-distribution */
 	l_rule_info->dal_enable = is_DAL_Enabled();
@@ -2022,6 +2048,9 @@ int layering_rule_start(struct disp_layer_info *disp_info_user, int debug_mode)
 
 	ret = dispatch_ovl_id(&layering_info);
 
+	if (l_rule_ops->clear_layer)
+		l_rule_ops->clear_layer(&layering_info);
+
 	check_layering_result(&layering_info);
 
 	layering_info.hrt_idx = l_rule_info->hrt_idx;
@@ -2103,6 +2132,8 @@ static char *parse_hrt_data_value(char *start, long int *value)
 	int ret;
 
 	tok_start = strchr(start + 1, ']');
+	if (unlikely(!tok_start))
+		goto out;
 	tok_end = strchr(tok_start + 1, '[');
 	if (tok_end)
 		*tok_end = 0;
@@ -2110,7 +2141,7 @@ static char *parse_hrt_data_value(char *start, long int *value)
 	if (ret)
 		DISP_PR_INFO("Parsing error gles_num:%d, p:%s, ret:%d\n",
 			     (int)*value, tok_start + 1, ret);
-
+out:
 	return tok_end;
 }
 
@@ -2213,13 +2244,19 @@ static int load_hrt_test_data(struct disp_layer_info *disp_info)
 			if (!tok)
 				goto end;
 			tok = parse_hrt_data_value(tok, &disp_id);
+			if (!tok)
+				goto end;
 			for (i = 0; i < HRT_LAYER_DATA_NUM; i++) {
 				tok = parse_hrt_data_value(tok, &tmp_info);
+				if (!tok)
+					goto end;
 				debug_set_layer_data(disp_info, disp_id,
 					i, tmp_info);
 			}
 		} else if (strncmp(line_buf, "[test_start]", 12) == 0) {
 			tok = parse_hrt_data_value(line_buf, &test_case);
+			if (!tok)
+				goto end;
 			layering_rule_start(disp_info, 1);
 			is_test_pass = true;
 		} else if (strncmp(line_buf, "[test_end]", 10) == 0) {
@@ -2256,6 +2293,8 @@ static int load_hrt_test_data(struct disp_layer_info *disp_info)
 			if (!tok)
 				goto end;
 			tok = parse_hrt_data_value(tok, &layer_result);
+			if (!tok)
+				goto end;
 			if (layer_result != input_config->ext_sel_layer) {
 				DISP_PR_INFO(
 					"case:%d,ext_sel_layer wrong,%d/%d\n",

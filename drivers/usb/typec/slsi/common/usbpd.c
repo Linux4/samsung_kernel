@@ -9,62 +9,94 @@
 #include <linux/delay.h>
 #include <linux/workqueue.h>
 #include <linux/completion.h>
+#include <linux/pm_wakeup.h>
+#include <linux/version.h>
 
-#ifdef CONFIG_BATTERY_SAMSUNG
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#if IS_ENABLED(CONFIG_BATTERY_NOTIFIER)
 #include <linux/battery/battery_notifier.h>
+#else
+#include <linux/battery/sec_pd.h>
 #endif
-
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
-extern struct pdic_notifier_struct pd_noti;
-#endif
+struct usbpd_data *g_pd_data;
+EXPORT_SYMBOL(g_pd_data);
 #endif
 
 #define MS_TO_NS(msec)		((msec) * 1000 * 1000)
 
+void usbpd_timer_vdm_start(struct usbpd_data *pd_data)
+{
+	ktime_get_real_ts64(&pd_data->time_vdm);
+}
+EXPORT_SYMBOL(usbpd_timer_vdm_start);
+
+long long usbpd_check_timer_vdm(struct usbpd_data *pd_data)
+{
+	uint32_t ms = 0;
+	uint32_t sec = 0;
+	struct timespec64 time;
+
+	ktime_get_real_ts64(&time);
+
+    sec = time.tv_sec - pd_data->time_vdm.tv_sec;
+    ms = (time.tv_nsec - pd_data->time_vdm.tv_nsec) / 1000000;
+
+    return (sec * 1000) + ms;
+}
+EXPORT_SYMBOL(usbpd_check_timer_vdm);
+
 void usbpd_timer1_start(struct usbpd_data *pd_data)
 {
-	do_gettimeofday(&pd_data->time1);
-
-	pr_info("%s, sec = %lld, usec = %lld\n", __func__,
-							pd_data->time1.tv_sec, pd_data->time1.tv_usec);
+	ktime_get_real_ts64(&pd_data->time1);
 }
+EXPORT_SYMBOL(usbpd_timer1_start);
 
 long long usbpd_check_time1(struct usbpd_data *pd_data)
 {
-	long long ms = 0;
-	long long sec = 0;
-	struct timeval time;
+	uint32_t ms = 0;
+	uint32_t sec = 0;
+	struct timespec64 time;
 
-	do_gettimeofday(&time);
+	ktime_get_real_ts64(&time);
 
-	sec = time.tv_sec - pd_data->time1.tv_sec;
-	ms = (time.tv_usec - pd_data->time1.tv_usec) / 1000;
+    sec = time.tv_sec - pd_data->time1.tv_sec;
+    ms = (time.tv_nsec - pd_data->time1.tv_nsec) / 1000000;
 
-	pd_data->check_time.tv_sec = time.tv_sec;
-	pd_data->check_time.tv_usec = time.tv_usec;
+    pd_data->check_time.tv_sec = time.tv_sec;
+    pd_data->check_time.tv_nsec = time.tv_nsec;
 
-	return (sec * 1000) + ms;
+
+    /* for demon update after boot */
+    if ((sec > 100) | (sec < 0)) {
+        pr_info("%s, timer changed\n", __func__);
+        usbpd_timer1_start(pd_data);
+        return 0;
+    }
+
+    return (sec * 1000) + ms;
 }
+EXPORT_SYMBOL(usbpd_check_time1);
 
 void usbpd_timer2_start(struct usbpd_data *pd_data)
 {
-	do_gettimeofday(&pd_data->time2);
+	ktime_get_real_ts64(&pd_data->time2);
 }
+EXPORT_SYMBOL(usbpd_timer2_start);
 
 long long usbpd_check_time2(struct usbpd_data *pd_data)
 {
-	long long ms = 0;
-	long long sec = 0;
-	struct timeval time;
+    int ms = 0;
+    int sec = 0;
+    struct timespec64 time;
 
-	do_gettimeofday(&time);
+    ktime_get_real_ts64(&time);
 
-	sec = time.tv_sec - pd_data->time2.tv_sec;
-	ms = (time.tv_usec - pd_data->time2.tv_usec) / 1000;
+    sec = time.tv_sec - pd_data->time2.tv_sec;
+    ms = (time.tv_nsec - pd_data->time2.tv_nsec) / 1000000;
 
-	return (sec * 1000) + ms;
+    return (sec * 1000) + ms;
 }
+EXPORT_SYMBOL(usbpd_check_time2);
 
 static void increase_message_id_counter(struct usbpd_data *pd_data)
 {
@@ -115,6 +147,7 @@ void usbpd_init_protocol(struct usbpd_data *pd_data)
 	tx_layer_init(&pd_data->protocol_tx);
 	pd_data->msg_id = USBPD_nMessageIDCount + 1;
 }
+EXPORT_SYMBOL(usbpd_init_protocol);
 
 void usbpd_init_counters(struct usbpd_data *pd_data)
 {
@@ -128,12 +161,14 @@ void usbpd_init_counters(struct usbpd_data *pd_data)
 	pd_data->counter.swap_hard_reset_counter = 0;
 	pd_data->counter.discover_identity_counter = 0;
 }
+EXPORT_SYMBOL(usbpd_init_counters);
 
 void usbpd_policy_reset(struct usbpd_data *pd_data, unsigned flag)
 {
 	if (flag == HARDRESET_RECEIVED) {
 		pd_data->policy.rx_hardreset = 1;
 		dev_info(pd_data->dev, "%s Hard reset\n", __func__);
+		usbpd_manager_remove_new_cap(pd_data);
 	} else if (flag == SOFTRESET_RECEIVED) {
 		pd_data->policy.rx_softreset = 1;
 		dev_info(pd_data->dev, "%s Soft reset\n", __func__);
@@ -146,8 +181,11 @@ void usbpd_policy_reset(struct usbpd_data *pd_data, unsigned flag)
 		pd_data->policy.plug_valid = 0;
 		dev_info(pd_data->dev, "%s DETACHED\n", __func__);
 		pd_data->counter.hard_reset_counter = 0;
+		pd_data->source_get_sink_obj.object = 0;
+		usbpd_manager_remove_new_cap(pd_data);
 	}
 }
+EXPORT_SYMBOL(usbpd_policy_reset);
 
 protocol_state usbpd_protocol_tx_phy_layer_reset(struct protocol_data *tx)
 {
@@ -343,20 +381,35 @@ void usbpd_set_ops(struct device *dev, usbpd_phy_ops_type *ops)
 	pd_data->phy_ops.pr_swap = ops->pr_swap;
 	pd_data->phy_ops.vbus_on_check = ops->vbus_on_check;
 	pd_data->phy_ops.set_rp_control = ops->set_rp_control;
-#if defined(CONFIG_TYPEC)
+	pd_data->phy_ops.send_pd_info = ops->send_pd_info;
+	pd_data->phy_ops.set_chg_lv_mode = ops->set_chg_lv_mode;
+#if IS_ENABLED(CONFIG_TYPEC)
 	pd_data->phy_ops.set_pwr_opmode = ops->set_pwr_opmode;
 #endif
 	pd_data->phy_ops.pd_instead_of_vbus = ops->pd_instead_of_vbus;
 	pd_data->phy_ops.op_mode_clear = ops->op_mode_clear;
-	pd_data->phy_ops.pps_enable = ops->pps_enable;
-	pd_data->phy_ops.get_pps_enable = ops->get_pps_enable;
-	pd_data->phy_ops.send_psrdy = ops->send_psrdy;
-	pd_data->phy_ops.get_pps_voltage = ops->get_pps_voltage;
-#if defined(CONFIG_PDIC_PD30)
-	pd_data->phy_ops.send_hard_reset_dc = ops->send_hard_reset_dc;
-	pd_data->phy_ops.force_pps_disable = ops->force_pps_disable;
+
+#if IS_ENABLED(CONFIG_PDIC_PD30)
+	if (pd_data->ip_num == S2MU107_USBPD_IP) {
+		pd_data->phy_ops.pps_enable = ops->pps_enable;
+		pd_data->phy_ops.get_pps_enable = ops->get_pps_enable;
+		pd_data->phy_ops.get_pps_voltage = ops->get_pps_voltage;
+		pd_data->phy_ops.send_psrdy = ops->send_psrdy;
+		pd_data->phy_ops.send_hard_reset_dc = ops->send_hard_reset_dc;
+		pd_data->phy_ops.force_pps_disable = ops->force_pps_disable;
+	}
 #endif
+	pd_data->phy_ops.get_lpm_mode = ops->get_lpm_mode;
+	pd_data->phy_ops.set_lpm_mode = ops->set_lpm_mode;
+	pd_data->phy_ops.set_normal_mode = ops->set_normal_mode;
+	pd_data->phy_ops.get_rid = ops->get_rid;
+	pd_data->phy_ops.control_option_command = ops->control_option_command;
+#if defined(CONFIG_SEC_FACTORY)
+	pd_data->phy_ops.power_off_water_check = ops->power_off_water_check;
+#endif
+	pd_data->phy_ops.get_water_detect = ops->get_water_detect;
 }
+EXPORT_SYMBOL(usbpd_set_ops);
 
 protocol_state usbpd_protocol_rx_layer_reset_for_receive(struct protocol_data *rx)
 {
@@ -517,6 +570,7 @@ void usbpd_protocol_rx(struct usbpd_data *pd_data)
 */
 	rx->state = PRL_Rx_Wait_for_PHY_Message;
 }
+EXPORT_SYMBOL(usbpd_protocol_rx);
 
 void usbpd_read_msg(struct usbpd_data *pd_data)
 {
@@ -550,6 +604,7 @@ bool usbpd_send_msg(struct usbpd_data *pd_data, msg_header_type *header,
 	else
 		return false;
 }
+EXPORT_SYMBOL(usbpd_send_msg);
 
 inline bool usbpd_send_ctrl_msg(struct usbpd_data *d, msg_header_type *h,
 		unsigned msg, unsigned dr, unsigned pr)
@@ -560,6 +615,7 @@ inline bool usbpd_send_ctrl_msg(struct usbpd_data *d, msg_header_type *h,
 	h->num_data_objs = 0;
 	return usbpd_send_msg(d, h, 0);
 }
+EXPORT_SYMBOL(usbpd_send_ctrl_msg);
 
 /* return: 0 if timed out, positive is status */
 inline unsigned usbpd_wait_msg(struct usbpd_data *pd_data,
@@ -598,6 +654,7 @@ void usbpd_rx_hard_reset(struct device *dev)
 	usbpd_reinit(dev);
 	usbpd_policy_reset(pd_data, HARDRESET_RECEIVED);
 }
+EXPORT_SYMBOL(usbpd_rx_hard_reset);
 
 void usbpd_rx_soft_reset(struct usbpd_data *pd_data)
 {
@@ -615,8 +672,10 @@ void usbpd_reinit(struct device *dev)
 	usbpd_init_manager_val(pd_data);
 	reinit_completion(&pd_data->msg_arrived);
 	pd_data->wait_for_msg_arrived = 0;
+	pd_data->is_prswap = false;
 	complete(&pd_data->msg_arrived);
 }
+EXPORT_SYMBOL(usbpd_reinit);
 
 /*
  * usbpd_init - alloc usbpd data
@@ -639,12 +698,11 @@ int usbpd_init(struct device *dev, void *phy_driver_data)
 	pd_data->phy_driver_data = phy_driver_data;
 	dev_set_drvdata(dev, pd_data);
 
-#ifdef CONFIG_BATTERY_SAMSUNG
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
-	pd_noti.pusbpd = pd_data;
-	pd_noti.sink_status.current_pdo_num = 0;
-	pd_noti.sink_status.selected_pdo_num = 0;
-#endif
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+	g_pd_data = pd_data;
+	pd_data->pd_noti.pusbpd = pd_data;
+	pd_data->pd_noti.sink_status.current_pdo_num = 0;
+	pd_data->pd_noti.sink_status.selected_pdo_num = 0;
 #endif
 	usbpd_init_counters(pd_data);
 	usbpd_init_protocol(pd_data);
@@ -652,8 +710,16 @@ int usbpd_init(struct device *dev, void *phy_driver_data)
 	usbpd_init_manager(pd_data);
 
 	mutex_init(&pd_data->accept_mutex);
-
-	wake_lock_init(&pd_data->policy_wake, WAKE_LOCK_SUSPEND, "policy_wake");
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 188)
+	wakeup_source_init(pd_data->policy_wake, "policy_wake");   // 4.19 R
+	if (!(pd_data->policy_wake)) {
+		pd_data->policy_wake = wakeup_source_create("policy_wake"); // 4.19 Q
+		if (pd_data->policy_wake)
+			wakeup_source_add(pd_data->policy_wake);
+	}
+#else
+	pd_data->policy_wake = wakeup_source_register(NULL, "policy_wake"); // 5.4 R
+#endif
 
 	pd_data->policy_wqueue =
 		create_singlethread_workqueue(dev_name(dev));
@@ -666,3 +732,5 @@ int usbpd_init(struct device *dev, void *phy_driver_data)
 
 	return 0;
 }
+EXPORT_SYMBOL(usbpd_init);
+

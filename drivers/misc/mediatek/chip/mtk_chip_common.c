@@ -130,19 +130,6 @@ static const struct file_operations chip_proc_fops = {
 	.release = single_release,
 };
 
-#ifdef CONFIG_SEC_DEBUG_HW_PARAM
-u64 mtk_get_chip_info_version(void)
-{
-	u64 ver = 0x0;
-	ver |= (unsigned long)(__chip_info(CHIP_INFO_REG_HW_VER) & 0xFFFF) << 32;
-	ver |= (unsigned long)(__chip_info(CHIP_INFO_REG_SW_VER) & 0xFFFF) << 16;
-	ver |= (unsigned long)(__chip_info(CHIP_INFO_FUNCTION_CODE) & 0xFFFF);
-
-	return ver;
-}
-EXPORT_SYMBOL(mtk_get_chip_info_version);
-#endif
-
 static void __init create_procfs(void)
 {
 	int idx;

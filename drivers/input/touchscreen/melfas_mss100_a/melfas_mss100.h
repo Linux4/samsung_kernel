@@ -41,16 +41,15 @@
 
 #include "melfas_mss100_reg.h"
 
-#include <linux/sec_class.h>
-
+#include <linux/sec_sysfs.h>
 #ifdef CONFIG_BATTERY_SAMSUNG
-#include <linux/sec_batt.h>
+#include <linux/ssdev_in_mtk/sec_batt.h>
 #endif
 
 #ifdef CONFIG_VBUS_NOTIFIER
-#include <linux/muic/muic.h>
-#include <linux/muic/muic_notifier.h>
-#include <linux/vbus_notifier.h>
+#include <linux/ssdev_in_mtk/muic/muic.h>
+#include <linux/ssdev_in_mtk/muic/muic_notifier.h>
+#include <linux/ssdev_in_mtk/vbus_notifier.h>
 #endif
 
 #ifdef CONFIG_SEC_DEBUG_TSP_LOG
@@ -100,7 +99,7 @@ static struct delayed_work *p_ghost_check;
 //Features
 #define MMS_USE_NAP_MODE		0
 #define MMS_USE_TEST_MODE		1
-#define MMS_USE_CMD_MODE		1
+#define MMS_USE_CMD_MODE		0
 #ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
 #define MMS_USE_DEV_MODE		0
 #else
@@ -253,7 +252,7 @@ typedef enum {
 #define SW_GLOVE		0x0f	/* set = glove mode */
 #define SW_FLIP                 0x15    /* set = flip cover */
 #define SW_CERTIFYHALL          0x1b    /* set = certify_hall... */
-//#define SW_MAX			0x20
+#define SW_MAX			0x20
 #endif /* 1 */
 
 #define TWO_LEVEL_GRIP_CONCEPT

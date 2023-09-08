@@ -30,7 +30,9 @@
 	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
 	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT3967) || \
 	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT8168) || \
-	defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6785)
+	defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6785) || \
+	defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853) || \
+	defined(CONFIG_MACH_MT6833)
 
 #include <ddp_clkmgr.h>
 #endif
@@ -41,7 +43,8 @@
 #if defined(CONFIG_MACH_MT6758) || defined(CONFIG_MACH_MT6765) || \
 	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6771) || \
 	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6768) || \
-	defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6785)
+	defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6785) || \
+	defined(CONFIG_MACH_MT6873)
 
 #include <mtk_leds_drv.h>
 #include <mtk_leds_sw.h>
@@ -236,6 +239,7 @@ static void disp_pwm_query_backlight(char *debug_output)
 	const unsigned long reg_base = pwm_get_reg_base(DISP_PWM0);
 	int index = index_of_pwm(DISP_PWM0);
 	unsigned int high_width;
+	int error = 0;
 
 	if (atomic_read(&g_pwm_is_power_on[index]) == 1) {
 		if (g_pwm_led_mode == MT65XX_LED_MODE_CUST_BLS_PWM) {
@@ -257,16 +261,19 @@ static void disp_pwm_query_backlight(char *debug_output)
 
 	if (high_width > 0) {
 		/* print backlight status */
-		snprintf(temp_buf, buf_max_len,
+		error = snprintf(temp_buf, buf_max_len,
 			"backlight is on (%d), ddp_pwm power:(%d)",
 			high_width, atomic_read(&g_pwm_is_power_on[index]));
 	} else {
-		snprintf(temp_buf, buf_max_len,
+		error = snprintf(temp_buf, buf_max_len,
 			"backlight is off, ddp_pwm power:(%d)",
 			atomic_read(&g_pwm_is_power_on[index]));
 	}
 
-	PWM_NOTICE("%s", temp_buf);
+	if (error < 0)
+		PWM_NOTICE("snprintf fail");
+	else
+		PWM_NOTICE("%s", temp_buf);
 #endif
 }
 
@@ -458,6 +465,7 @@ static void disp_pwm_log(int level_1024, int log_type)
 	struct timeval pwm_time;
 	char buffer[LOGBUFFERSIZE] = "";
 	int print_log;
+	int error = 0;
 
 	do_gettimeofday(&pwm_time);
 
@@ -472,13 +480,17 @@ static void disp_pwm_log(int level_1024, int log_type)
 	print_log = 0;
 
 	if (g_pwm_log_index >= g_pwm_log_num || level_1024 == 0) {
-		sprintf(buffer + strlen(buffer), "(latest=%2u): ",
+		error = sprintf(buffer + strlen(buffer), "(latest=%2u): ",
 			g_pwm_log_index);
+		if (error < 0)
+			PWM_MSG("sprintf fail");
 		for (i = 0; i < g_pwm_log_index; i += 1) {
-			sprintf(buffer + strlen(buffer), "%5d(%4lu,%4lu)",
+			error = sprintf(buffer + strlen(buffer), "%5d(%4lu,%4lu)",
 				g_pwm_log_buffer[i].value,
 				g_pwm_log_buffer[i].tsec,
 				g_pwm_log_buffer[i].tusec);
+			if (error < 0)
+				PWM_MSG("sprintf fail");
 		}
 
 		g_pwm_log_index = 0;
@@ -657,7 +669,8 @@ static int ddp_pwm_power_on(enum DISP_MODULE_ENUM module, void *handle)
 	ddp_clk_prepare_enable(ddp_get_module_clk_id(module));
 	ddp_clk_prepare_enable(TOP_MUX_DISP_PWM);
 #elif defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6785) || \
-	defined(CONFIG_MACH_MT6885)
+	defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6873) || \
+	defined(CONFIG_MACH_MT6853) || defined(CONFIG_MACH_MT6833)
 	ddp_clk_prepare_enable(ddp_get_module_clk_id(module));
 	ddp_clk_prepare_enable(CLK_MUX_DISP_PWM);
 #else
@@ -718,7 +731,8 @@ static int ddp_pwm_power_off(enum DISP_MODULE_ENUM module, void *handle)
 	ddp_clk_disable_unprepare(ddp_get_module_clk_id(module));
 	ddp_clk_disable_unprepare(TOP_MUX_DISP_PWM);
 #elif defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6785) || \
-	defined(CONFIG_MACH_MT6885)
+	defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6873) || \
+	defined(CONFIG_MACH_MT6853) || defined(CONFIG_MACH_MT6833)
 	ddp_clk_disable_unprepare(ddp_get_module_clk_id(module));
 	ddp_clk_disable_unprepare(CLK_MUX_DISP_PWM);
 #else
@@ -795,7 +809,8 @@ bool disp_pwm_is_osc(void)
 	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6771) || \
 	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6768) || \
 	defined(CONFIG_MACH_MT8168) || defined(CONFIG_MACH_MT6885) || \
-	defined(CONFIG_MACH_MT6785)
+	defined(CONFIG_MACH_MT6785) || defined(CONFIG_MACH_MT6873) || \
+	defined(CONFIG_MACH_MT6853) || defined(CONFIG_MACH_MT6833)
 
 	is_osc = disp_pwm_mux_is_osc();
 #endif

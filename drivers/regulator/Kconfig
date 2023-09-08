@@ -550,6 +550,29 @@ config REGULATOR_MT6311
 	  This driver supports the control of different power rails of device
 	  through regulator interface.
 
+config REGULATOR_MT6315
+	tristate "MediaTek MT6315 PMIC"
+	depends on MTK_MFD_SPMI_PMIC
+	help
+	  Say y here to select this option to enable the power regulator of
+	  MediaTek MT6315 PMIC.
+	  This driver supports the control of different power rails of device
+	  through regulator interface.
+
+config REGULATOR_MT6317
+	tristate "Mediatek MT6317 regulator driver"
+	depends on I2C && GPIOLIB
+	select REGMAP
+	select CRC8
+	select OF_GPIO
+	select REGULATOR_FIXED_VOLTAGE
+	help
+	  MT6317 is an integrated chip. It includes 8 LDOs and 3 GPIOs that
+	  can be used to drive output high/low purpose. The dependency of the
+	  GPIO block is internally LDO1 voltage. If LDO1 voltage output disabled,
+	  GPIO cannot be used to drive output high. It need to pay more
+	  attention on the usage.
+
 config REGULATOR_MT6323
 	tristate "MediaTek MT6323 PMIC"
 	depends on MFD_MT6397
@@ -585,6 +608,16 @@ config REGULATOR_MT6359P
 	  MediaTek MT6359P PMIC.
 	  This driver supports the control of different power rails of device
 	  through regulator interface.
+
+config REGULATOR_MT6362
+	tristate "MT6362 SPMI Regulator driver"
+	depends on MFD_MT6362
+	help
+	  Say yes here to have support for the MT6362 Regulator
+	  Include six BUCKs and seven LDOs.
+
+	  The driver can also be build as a module.
+	  If so, the module will be called mt6362_regulator
 
 config REGULATOR_MT6380
 	tristate "MediaTek MT6380 PMIC"
@@ -756,19 +789,26 @@ config REGULATOR_RT5033
 	  RT5033 PMIC. The device supports multiple regulators like
 	  current source, LDO and Buck.
 
+config REGULATOR_RT5133
+	tristate "Richtek RT5133 regulator driver"
+	depends on I2C && GPIOLIB
+	select REGMAP
+	select CRC8
+	select OF_GPIO
+	select REGULATOR_FIXED_VOLTAGE
+	help
+	  RT5133 is an integrated chip. It includes 8 LDOs and 3 GPIOs that
+	  can be used to drive output high/low purpose. The dependency of the
+	  GPIO block is internally LDO1 voltage. If LDO1 voltage output disabled,
+	  GPIO cannot be used to drive output high. It need to pay more
+	  attention on the usage.
+
 config REGULATOR_S2MPA01
 	tristate "Samsung S2MPA01 voltage regulator"
 	depends on MFD_SEC_CORE
 	help
 	 This driver controls Samsung S2MPA01 voltage output regulator
 	 via I2C bus. S2MPA01 has 10 Bucks and 26 LDO outputs.
-
-config REGULATOR_S2MPB03
-	tristate "Samsung S2MPB03 regulator"
-	depends on I2C
-	help
-	 This driver controls a Samsung S2MPB03 regulator
-	 via I2C bus.
 
 config REGULATOR_S2MPS11
 	tristate "Samsung S2MPS11/13/14/15/S2MPU02 voltage regulator"
@@ -1000,12 +1040,6 @@ config REGULATOR_WM8994
 	help
 	  This driver provides support for the voltage regulators on the
 	  WM8994 CODEC.
-
-config DRV_SAMSUNG_PMIC
-        tristate "Samsung PMIC sysfs system"
-        depends on REGULATOR_S2MPB02 || REGULATOR_S2MPB03 || REGULATOR_S2DOS05
-        help
-          This driver supports a Samsung PMIC sysfs.
 
 endif
 

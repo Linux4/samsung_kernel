@@ -16,8 +16,6 @@
  *
  */
 
-#include <linux/usb/composite.h>
-
 #include "mtu3.h"
 
 /* ep0 is always mtu3->in_eps[0] */
@@ -302,6 +300,16 @@ static int handle_test_mode(struct mtu3 *mtu, struct usb_ctrlrequest *setup)
 	if (mtu->test_mode_nr == TEST_PACKET_MODE)
 		ep0_load_test_packet(mtu);
 
+	mtu3_writel(mbase, U3D_EP0CSR,
+				(mtu3_readl(mbase, U3D_EP0CSR) & EP0_W1C_BITS)
+				| EP0_SETUPPKTRDY | EP0_DATAEND);
+	mtu->ep0_state = MU3D_EP0_STATE_SETUP;
+
+	while ((mtu3_readl(mbase, U3D_EP0CSR) & EP0_DATAEND) != 0) {
+		/* Need to wait for status really loaded by host */
+		mdelay(1);/* Without this delay, it will fail. */
+	}
+
 	mtu3_writel(mbase, U3D_USB2_TEST_MODE, mtu->test_mode_nr);
 
 	mtu->ep0_state = MU3D_EP0_STATE_SETUP;
@@ -464,6 +472,13 @@ static int handle_standard_request(struct mtu3 *mtu,
 		handled = 1;
 		break;
 	case USB_REQ_SET_CONFIGURATION:
+#if defined(CONFIG_BATTERY_SAMSUNG)
+		if (mtu->g.speed == USB_SPEED_SUPER)
+			mtu->vbus_current = USB_CURRENT_SUPER_SPEED;
+		else
+			mtu->vbus_current = USB_CURRENT_HIGH_SPEED;
+		schedule_work(&mtu->set_vbus_current_work);
+#endif
 		if (state == USB_STATE_ADDRESS) {
 			usb_gadget_set_state(&mtu->g,
 					USB_STATE_CONFIGURED);
@@ -562,7 +577,7 @@ static void ep0_tx_state(struct mtu3 *mtu)
 	struct usb_request *req;
 	u32 csr;
 	u8 *src;
-	u8 count;
+	u16 count;
 	u32 maxp;
 
 	dev_dbg(mtu->dev, "%s\n", __func__);
@@ -639,6 +654,7 @@ __acquires(mtu->lock)
 	void __iomem *mbase = mtu->mac_base;
 	int handled = 0;
 
+	memset(&setup, 0, sizeof(setup));
 	ep0_read_setup(mtu, &setup);
 
 	if ((setup.bRequestType & USB_TYPE_MASK) == USB_TYPE_STANDARD)

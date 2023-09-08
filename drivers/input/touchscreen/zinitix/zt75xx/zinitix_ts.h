@@ -31,7 +31,8 @@
  *	bit	: feature
  *	0	: AOT -Doubletap wakeup in whole screen when LCD off.
  */
-#define INPUT_FEATURE_SUPPORT_AOT		(1 << 0)
+#define INPUT_FEATURE_ENABLE_SETTINGS_AOT	(1 << 0) /* Double tap wakeup settings */
+#define INPUT_FEATURE_SUPPORT_OPEN_SHORT_TEST	(1 << 8) /* open/short test support */
 
 /* TCLM_CONCEPT */
 #define BT532_TS_NVM_OFFSET_FAC_RESULT			0
@@ -139,6 +140,7 @@ struct bt532_ts_platform_data {
 	bool		support_aod;
 	bool		support_aot;
 	bool		support_ear_detect;
+	bool		support_open_short_test;
 	bool		support_lpm_mode;
 	bool		bringup;
 	bool		mis_cal_check;

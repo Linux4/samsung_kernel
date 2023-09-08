@@ -17,6 +17,8 @@
 #include <linux/irqdomain.h>
 #include <linux/of_irq.h>
 #include <linux/platform_device.h>
+#include <linux/syscore_ops.h>
+#include <linux/wakeup_reason.h>
 
 #include "mtk-eint.h"
 #include "pinctrl-mtk-common-v2.h"
@@ -110,6 +112,10 @@ static int mtk_eint_flip_edge(struct mtk_eint *eint, int hwirq)
 static void mtk_eint_mask(struct irq_data *d)
 {
 	struct mtk_eint *eint = irq_data_get_irq_chip_data(d);
+
+	if (!eint)
+		return;
+
 	u32 mask = BIT(d->hwirq & 0x1f);
 	void __iomem *reg = mtk_eint_get_offset(eint, d->hwirq,
 						eint->regs->mask_set);
@@ -460,49 +466,45 @@ int mtk_eint_set_debounce(struct mtk_eint *eint, unsigned long eint_num,
 	set_offset = (eint_num / 4) * 4 + eint->regs->dbnc_set;
 	clr_offset = (eint_num / 4) * 4 + eint->regs->dbnc_clr;
 
-	if (!mtk_eint_can_en_debounce(eint, eint_num)) {
-		dev_err(eint->dev, "mtk_eint_set_debounce failed\n");
+	if (!mtk_eint_can_en_debounce(eint, eint_num))
 		return -EINVAL;
+
+	dbnc = ARRAY_SIZE(debounce_time) - 1U;
+	for (i = 0; i < ARRAY_SIZE(debounce_time); i++) {
+		if (debounce <= debounce_time[i]) {
+			dbnc = i;
+			break;
+		}
+	}
+
+	if (!mtk_eint_get_mask(eint, eint_num)) {
+		mtk_eint_mask(d);
+		unmask = 1;
+	} else {
+		unmask = 0;
 	}
 
 	/*
 	 * Check eint number to avoid access out-of-range
 	 */
 	if (eint_num < eint->hw->db_cnt) {
-		dbnc = ARRAY_SIZE(debounce_time) - 1;
-		for (i = 0; i < ARRAY_SIZE(debounce_time); i++) {
-			if (debounce <= debounce_time[i]) {
-				dbnc = i;
-				break;
-			}
-		}
-
-		if (!mtk_eint_get_mask(eint, eint_num)) {
-			mtk_eint_mask(d);
-			unmask = 1;
-		} else {
-			unmask = 0;
-		}
-
 		clr_bit = 0xff << eint_offset;
 		writel(clr_bit, eint->base + clr_offset);
 
-		bit = ((dbnc << MTK_EINT_DBNC_SET_DBNC_BITS)
-			| MTK_EINT_DBNC_SET_EN) << eint_offset;
+		bit = ((dbnc << MTK_EINT_DBNC_SET_DBNC_BITS) |
+			MTK_EINT_DBNC_SET_EN) << eint_offset;
 		rst = MTK_EINT_DBNC_RST_BIT << eint_offset;
 		writel(rst | bit, eint->base + set_offset);
 
-		/*
+	/*
 		 * Delay should be (8T @ 32k) + de-bounce count-down time
 		 * from dbc rst to work correctly.
-		 */
+	 */
 		udelay(debounce_time[dbnc]+250);
 		if (unmask == 1)
 			mtk_eint_unmask(d);
-
-	} else {
+	} else
 		mtk_eint_set_sw_debounce(d, eint, debounce);
-	}
 
 	return 0;
 }
@@ -517,6 +519,38 @@ int mtk_eint_find_irq(struct mtk_eint *eint, unsigned long eint_n)
 
 	return irq;
 }
+
+static struct mtk_eint *g_eint;
+void mt_eint_show_resume_irq(void)
+{
+	unsigned int status, eint_num;
+	unsigned int offset;
+	const struct mtk_eint_regs *eint_offsets = g_eint->regs;
+	void __iomem *reg_base = mtk_eint_get_offset(g_eint, 0,
+		eint_offsets->stat);
+	unsigned int triggered_eint;
+
+	for (eint_num = 0; eint_num < g_eint->hw->ap_num;
+		reg_base += 4, eint_num += 32) {
+		/* read status register every 32 interrupts */
+		status = readl(reg_base);
+		if (!status)
+			continue;
+
+		while (status) {
+			offset = __ffs(status);
+			triggered_eint = eint_num + offset;
+			pr_info("EINT %d is pending\n", triggered_eint);
+			log_irq_wakeup_reason(irq_find_mapping(g_eint->domain,
+				triggered_eint));
+			status &= ~BIT(offset);
+		}
+	}
+}
+
+static struct syscore_ops mtk_eint_syscore_ops = {
+	.resume = mt_eint_show_resume_irq,
+};
 
 int mtk_eint_do_init(struct mtk_eint *eint)
 {
@@ -573,6 +607,10 @@ int mtk_eint_do_init(struct mtk_eint *eint)
 
 	irq_set_chained_handler_and_data(eint->irq, mtk_eint_irq_handler,
 					 eint);
+
+	g_eint = eint;
+
+	register_syscore_ops(&mtk_eint_syscore_ops);
 
 	return 0;
 }

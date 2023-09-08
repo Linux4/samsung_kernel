@@ -9,11 +9,8 @@
 #include <linux/scatterlist.h>
 
 #include <trace/events/block.h>
-#include <mt-plat/mtk_blocktag.h> /* MTK PATCH */
 
 #include "blk.h"
-
-#include <linux/hie.h>
 
 static struct bio *blk_bio_discard_split(struct request_queue *q,
 					 struct bio *bio,
@@ -302,13 +299,7 @@ void blk_recalc_rq_segments(struct request *rq)
 
 void blk_recount_segments(struct request_queue *q, struct bio *bio)
 {
-	unsigned short seg_cnt;
-
-	/* estimate segment number by bi_vcnt for non-cloned bio */
-	if (bio_flagged(bio, BIO_CLONED))
-		seg_cnt = bio_segments(bio);
-	else
-		seg_cnt = bio->bi_vcnt;
+	unsigned short seg_cnt = bio_segments(bio);
 
 	if (test_bit(QUEUE_FLAG_NO_SG_MERGE, &q->queue_flags) &&
 			(seg_cnt < queue_max_segments(q)))
@@ -419,9 +410,6 @@ static int __blk_bios_map_sg(struct request_queue *q, struct bio *bio,
 		bio_for_each_segment(bvec, bio, iter) {
 			__blk_segment_map_sg(q, &bvec, sglist, &bvprv, sg,
 					     &nsegs, &cluster);
-#ifdef CONFIG_MTK_BLOCK_TAG
-			mtk_btag_pidlog_map_sg(q, bio, &bvec);
-#endif
 		}
 
 	return nsegs;
@@ -517,6 +505,8 @@ int ll_back_merge_fn(struct request_queue *q, struct request *req,
 		req_set_nomerge(q, req);
 		return 0;
 	}
+	if (!bio_crypt_ctx_mergeable(req->bio, blk_rq_bytes(req), bio))
+		return 0;
 	if (!bio_flagged(req->biotail, BIO_SEG_VALID))
 		blk_recount_segments(q, req->biotail);
 	if (!bio_flagged(bio, BIO_SEG_VALID))
@@ -539,6 +529,8 @@ int ll_front_merge_fn(struct request_queue *q, struct request *req,
 		req_set_nomerge(q, req);
 		return 0;
 	}
+	if (!bio_crypt_ctx_mergeable(bio, bio->bi_iter.bi_size, req->bio))
+		return 0;
 	if (!bio_flagged(bio, BIO_SEG_VALID))
 		blk_recount_segments(q, bio);
 	if (!bio_flagged(req->bio, BIO_SEG_VALID))
@@ -615,6 +607,9 @@ static int ll_merge_requests_fn(struct request_queue *q, struct request *req,
 	if (blk_integrity_merge_rq(q, req, next) == false)
 		return 0;
 
+	if (!bio_crypt_ctx_mergeable(req->bio, blk_rq_bytes(req), next->bio))
+		return 0;
+
 	/* Merge is OK... */
 	req->nr_phys_segments = total_phys_segments;
 	return 1;
@@ -666,125 +661,32 @@ static void blk_account_io_merge(struct request *req)
 		part_stat_unlock();
 	}
 }
-
-
-static int crypto_try_merge_bio(struct bio *bio, struct bio *nxt, int type)
+/*
+ * Two cases of handling DISCARD merge:
+ * If max_discard_segments > 1, the driver takes every bio
+ * as a range and send them to controller together. The ranges
+ * needn't to be contiguous.
+ * Otherwise, the bios/requests will be handled as same as
+ * others which should be contiguous.
+ */
+static inline bool blk_discard_mergable(struct request *req)
 {
-	unsigned long iv_bio, iv_nxt;
-	struct bio_vec bv;
-	struct bvec_iter iter;
-	unsigned int count = 0;
-
-	iv_bio = bio_bc_iv_get(bio);
-	iv_nxt = bio_bc_iv_get(nxt);
-
-	if (iv_bio == BC_INVALID_IV || iv_nxt == BC_INVALID_IV)
-		return ELEVATOR_NO_MERGE;
-
-	bio_for_each_segment(bv, bio, iter)
-		count++;
-
-	if ((iv_bio + count) != iv_nxt)
-		return ELEVATOR_NO_MERGE;
-
-	return type;
+	if (req_op(req) == REQ_OP_DISCARD &&
+	    queue_max_discard_segments(req->q) > 1)
+		return true;
+	return false;
 }
 
-static int crypto_try_merge(struct request *rq, struct bio *bio, int type)
+enum elv_merge blk_try_req_merge(struct request *req, struct request *next)
 {
-	/* flag mismatch => don't merge */
-	if (rq->bio->bi_crypt_ctx.bc_flags != bio->bi_crypt_ctx.bc_flags)
-		return ELEVATOR_NO_MERGE;
-
-	/*
-	 * Check both sector and crypto iv here to make
-	 * sure blk_try_merge() allows merging only if crypto iv
-	 * is also allowed to fix below cases,
-	 *
-	 * rq and bio can do front-merge in sector view, but
-	 * not allowed by their crypto ivs.
-	 */
-	if (type == ELEVATOR_BACK_MERGE) {
-		if (blk_rq_pos(rq) + blk_rq_sectors(rq) !=
-		    bio->bi_iter.bi_sector)
-			return ELEVATOR_NO_MERGE;
-		return crypto_try_merge_bio(rq->biotail, bio, type);
-	} else if (type == ELEVATOR_FRONT_MERGE) {
-		if (bio->bi_iter.bi_sector + bio_sectors(bio) !=
-		    blk_rq_pos(rq))
-			return ELEVATOR_NO_MERGE;
-		return crypto_try_merge_bio(bio, rq->bio, type);
-	}
+	if (blk_discard_mergable(req))
+		return ELEVATOR_DISCARD_MERGE;
+	else if (blk_rq_pos(req) + blk_rq_sectors(req) == blk_rq_pos(next))
+		return ELEVATOR_BACK_MERGE;
 
 	return ELEVATOR_NO_MERGE;
 }
 
-static bool crypto_not_mergeable(struct request *req, struct bio *nxt)
-{
-	struct bio *bio = req->bio;
-
-	/* If neither is encrypted, no veto from us. */
-	if (~(bio->bi_crypt_ctx.bc_flags | nxt->bi_crypt_ctx.bc_flags) &
-	    BC_CRYPT) {
-		return false;
-	}
-
-	/* If one's encrypted and the other isn't, don't merge. */
-	/* If one's using page index as iv, and the other isn't don't merge */
-	if ((bio->bi_crypt_ctx.bc_flags ^ nxt->bi_crypt_ctx.bc_flags)
-	    & (BC_CRYPT | BC_IV_PAGE_IDX))
-		return true;
-
-	/* If both using page index as iv */
-	if (bio->bi_crypt_ctx.bc_flags & nxt->bi_crypt_ctx.bc_flags &
-		BC_IV_PAGE_IDX) {
-		/*
-		 * Must be the same file on the same mount.
-		 *
-		 * If the same, keys shall be the same as well since
-		 * keys are bound to inodes.
-		 */
-		if ((bio_bc_inode(bio) != bio_bc_inode(nxt)) ||
-		    (bio_bc_sb(bio) != bio_bc_sb(nxt)))
-			return true;
-		/*
-		 * Page index must be contiguous.
-		 *
-		 * Check both back and front direction because
-		 * req and nxt here are not promised any orders.
-		 *
-		 * For example, merge attempt from blk_attempt_plug_merge().
-		 */
-		if ((crypto_try_merge(req, nxt, ELEVATOR_BACK_MERGE) ==
-		     ELEVATOR_NO_MERGE) &&
-		    (crypto_try_merge(req, nxt, ELEVATOR_FRONT_MERGE) ==
-		     ELEVATOR_NO_MERGE))
-			return true;
-	} else {
-		/*
-		 * Not using page index as iv: allow merge bios belong to
-		 * different inodes if their keys are exactly the same.
-		 *
-		 * Above case could happen in hw-crypto path because
-		 * key is not derived for different inodes.
-		 *
-		 * Checking keys only is sufficient here since iv or
-		 * dun shall be physical sector number which shall be taken
-		 * care by blk_try_merge().
-		 */
-
-		/* Keys shall be the same if inodes are the same */
-		if ((bio_bc_inode(bio) == bio_bc_inode(nxt)) &&
-		    (bio_bc_sb(bio) == bio_bc_sb(nxt)))
-			return false;
-
-		/* Check keys if inodes are different */
-		if (!hie_key_verify(bio, nxt))
-			return true;
-	}
-
-	return false;
-}
 /*
  * For non-mq, this has to be called with the request spinlock acquired.
  * For mq with scheduling, the appropriate queue wide lock should be held.
@@ -801,12 +703,6 @@ static struct request *attempt_merge(struct request_queue *q,
 	if (req_op(req) != req_op(next))
 		return NULL;
 
-	/*
-	 * not contiguous
-	 */
-	if (blk_rq_pos(req) + blk_rq_sectors(req) != blk_rq_pos(next))
-		return NULL;
-
 	if (rq_data_dir(req) != rq_data_dir(next)
 	    || req->rq_disk != next->rq_disk
 	    || req_no_special_merge(next))
@@ -816,8 +712,6 @@ static struct request *attempt_merge(struct request_queue *q,
 	    !blk_write_same_mergeable(req->bio, next->bio))
 		return NULL;
 
-	if (crypto_not_mergeable(req, next->bio))
-		return NULL;
 	/*
 	 * Don't allow merge of different write hints, or for a hint with
 	 * non-hint IO.
@@ -832,11 +726,19 @@ static struct request *attempt_merge(struct request_queue *q,
 	 * counts here. Handle DISCARDs separately, as they
 	 * have separate settings.
 	 */
-	if (req_op(req) == REQ_OP_DISCARD) {
+
+	switch (blk_try_req_merge(req, next)) {
+	case ELEVATOR_DISCARD_MERGE:
 		if (!req_attempt_discard_merge(q, req, next))
 			return NULL;
-	} else if (!ll_merge_requests_fn(q, req, next))
+		break;
+	case ELEVATOR_BACK_MERGE:
+		if (!ll_merge_requests_fn(q, req, next))
+			return NULL;
+		break;
+	default:
 		return NULL;
+	}
 
 	/*
 	 * If failfast settings disagree or any of the two is already
@@ -865,13 +767,14 @@ static struct request *attempt_merge(struct request_queue *q,
 
 	req->__data_len += blk_rq_bytes(next);
 
-	if (req_op(req) != REQ_OP_DISCARD)
+	if (!blk_discard_mergable(req))
 		elv_merge_requests(q, req, next);
 
 	/*
 	 * 'next' is going away, so update stats accordingly
 	 */
 	blk_account_io_merge(next);
+	blk_queue_io_vol_merge(q, next->cmd_flags, -1, 0);
 
 	req->ioprio = ioprio_best(req->ioprio, next->ioprio);
 	if (blk_rq_cpu_valid(next))
@@ -949,8 +852,6 @@ bool blk_rq_merge_ok(struct request *rq, struct bio *bio)
 	    !blk_write_same_mergeable(rq->bio, bio))
 		return false;
 
-	if (crypto_not_mergeable(rq, bio))
-		return false;
 	/*
 	 * Don't allow merge of different write hints, or for a hint with
 	 * non-hint IO.
@@ -958,13 +859,16 @@ bool blk_rq_merge_ok(struct request *rq, struct bio *bio)
 	if (rq->write_hint != bio->bi_write_hint)
 		return false;
 
+	/* Only merge if the crypt contexts are compatible */
+	if (!bio_crypt_ctx_compatible(bio, rq->bio))
+		return false;
+
 	return true;
 }
 
 enum elv_merge blk_try_merge(struct request *rq, struct bio *bio)
 {
-	if (req_op(rq) == REQ_OP_DISCARD &&
-	    queue_max_discard_segments(rq->q) > 1)
+	if (blk_discard_mergable(rq))
 		return ELEVATOR_DISCARD_MERGE;
 	else if (blk_rq_pos(rq) + blk_rq_sectors(rq) == bio->bi_iter.bi_sector)
 		return ELEVATOR_BACK_MERGE;

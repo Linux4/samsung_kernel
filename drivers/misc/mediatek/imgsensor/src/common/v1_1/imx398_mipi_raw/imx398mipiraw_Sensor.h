@@ -91,7 +91,7 @@ struct imgsensor_struct {
 
 	kal_uint16 current_fps;	/* current max fps */
 	kal_bool autoflicker_en; /* record autoflicker enable or disable */
-	kal_bool test_pattern;	/* record test pattern mode or not */
+	kal_uint32 test_pattern;	/* record test pattern mode or not */
 	enum MSDK_SCENARIO_ID_ENUM current_scenario_id;/* current scenario id */
 	kal_uint8 ihdr_mode;	/* ihdr enable or disable */
 	kal_uint8 pdaf_mode;	/* ihdr enable or disable */
@@ -162,6 +162,11 @@ struct imgsensor_info_struct {
 
 	kal_uint8 margin;	/* sensor framelength & shutter margin */
 	kal_uint32 min_shutter;	/* min shutter */
+	kal_uint32 min_gain;
+	kal_uint32 max_gain;
+	kal_uint32 min_gain_iso;
+	kal_uint32 gain_step;
+	kal_uint32 gain_type;
 
 	/* max framelength by sensor register's limitation */
 	kal_uint32 max_frame_length;

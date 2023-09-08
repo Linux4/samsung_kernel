@@ -158,7 +158,8 @@ struct IMGSENSOR_HW_DEVICE {
 	enum IMGSENSOR_HW_ID    id;
 };
 
-extern struct IMGSENSOR_HW_CFG_LIST  imgsensor_custom_config_hw_list[];
+extern struct IMGSENSOR_HW_CFG       imgsensor_custom_config[];
+//extern struct IMGSENSOR_HW_CFG_LIST  imgsensor_custom_config_hw_list[];
 extern struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[];
 extern struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[];
 extern enum IMGSENSOR_RETURN

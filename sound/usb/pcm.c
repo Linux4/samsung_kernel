@@ -23,6 +23,8 @@
 #include <linux/usb/audio-v2.h>
 #include <linux/io.h>
 #include <linux/module.h>
+#include <linux/pm_qos.h>
+#include <linux/usb_notify.h>
 
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -41,21 +43,9 @@
 #define SUBSTREAM_FLAG_DATA_EP_STARTED	0
 #define SUBSTREAM_FLAG_SYNC_EP_STARTED	1
 
-#define MTK_SND_USB_DBG(fmt, args...) \
-	pr_notice("<%s(), %d> " fmt, __func__, __LINE__, ## args)
+#define MAX_SETALT_TIMEOUT_MS 1000
 
-#define mtk_pr_info(FREQ, fmt, args...) do {\
-	static DEFINE_RATELIMIT_STATE(ratelimit, HZ, FREQ);\
-	static int skip_cnt;\
-	\
-	if (__ratelimit(&ratelimit)) {\
-		MTK_SND_USB_DBG(fmt ", skip_cnt<%d>\n", ## args, skip_cnt);\
-		skip_cnt = 0;\
-	} else\
-		skip_cnt++;\
-} while (0)\
-
-int increase_stop_threshold = 1;
+int increase_stop_threshold;
 module_param(increase_stop_threshold, int, 0644);
 /* return the estimated delay based on USB frame counters */
 snd_pcm_uframes_t snd_usb_pcm_delay(struct snd_usb_substream *subs,
@@ -94,10 +84,12 @@ snd_pcm_uframes_t snd_usb_pcm_delay(struct snd_usb_substream *subs,
  */
 static snd_pcm_uframes_t snd_usb_pcm_pointer(struct snd_pcm_substream *substream)
 {
-	struct snd_usb_substream *subs;
+	struct snd_usb_substream *subs = substream->runtime->private_data;
 	unsigned int hwptr_done;
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	snd_pcm_uframes_t avail;
 
-	subs = (struct snd_usb_substream *)substream->runtime->private_data;
+
 	if (atomic_read(&subs->stream->chip->shutdown))
 		return SNDRV_PCM_POS_XRUN;
 	spin_lock(&subs->lock);
@@ -105,25 +97,19 @@ static snd_pcm_uframes_t snd_usb_pcm_pointer(struct snd_pcm_substream *substream
 	substream->runtime->delay = snd_usb_pcm_delay(subs,
 						substream->runtime->rate);
 
-	/* show notification if stop_threshold has been disabled */
-	if (substream->runtime->stop_threshold >
-			substream->runtime->buffer_size) {
-		snd_pcm_uframes_t avail;
-		struct snd_pcm_runtime *runtime = substream->runtime;
-
+	/* xrun debug */
+	if (runtime->status->state != SNDRV_PCM_STATE_DRAINING) {
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 			avail = snd_pcm_playback_avail(runtime);
 		else
 			avail = snd_pcm_capture_avail(runtime);
 
-		if (avail >= runtime->buffer_size)
-			mtk_pr_info(3, "dir<%d>,avail<%ld>,thld<%ld>,sz<%ld>,bound<%ld>",
-			substream->stream,
-			avail,
-			runtime->stop_threshold,
-			runtime->buffer_size,
-			runtime->boundary
-			);
+		if (avail >= runtime->stop_threshold)
+			usb_audio_info_ratelimited(subs->stream->chip,
+				"dir<%d>,avail<%ld>,thld<%ld>,sz<%ld>",
+				substream->stream, avail,
+				runtime->stop_threshold,
+				runtime->buffer_size);
 	}
 
 	spin_unlock(&subs->lock);
@@ -510,6 +496,7 @@ static int set_sync_endpoint(struct snd_usb_substream *subs,
 	}
 	ep = get_endpoint(alts, 1)->bEndpointAddress;
 	if (get_endpoint(alts, 0)->bLength >= USB_DT_ENDPOINT_AUDIO_SIZE &&
+	    get_endpoint(alts, 0)->bSynchAddress != 0 &&
 	    ((is_playback && ep != (unsigned int)(get_endpoint(alts, 0)->bSynchAddress | USB_DIR_IN)) ||
 	     (!is_playback && ep != (unsigned int)(get_endpoint(alts, 0)->bSynchAddress & ~USB_DIR_IN)))) {
 		dev_err(&dev->dev,
@@ -564,7 +551,8 @@ static int set_format(struct snd_usb_substream *subs, struct audioformat *fmt)
 
 	/* close the old interface */
 	if (subs->interface >= 0 && subs->interface != fmt->iface) {
-		err = usb_set_interface(subs->dev, subs->interface, 0);
+		err = usb_set_interface_timeout(subs->dev,
+				subs->interface, 0, MAX_SETALT_TIMEOUT_MS);
 		if (err < 0) {
 			dev_err(&dev->dev,
 				"%d:%d: return to setting 0 failed (%d)\n",
@@ -583,7 +571,8 @@ static int set_format(struct snd_usb_substream *subs, struct audioformat *fmt)
 		if (err < 0)
 			return -EIO;
 
-		err = usb_set_interface(dev, fmt->iface, fmt->altsetting);
+		err = usb_set_interface_timeout(dev, fmt->iface,
+				fmt->altsetting, MAX_SETALT_TIMEOUT_MS);
 		if (err < 0) {
 			dev_err(&dev->dev,
 				"%d:%d: usb_set_interface failed (%d)\n",
@@ -818,6 +807,19 @@ static int snd_usb_hw_params(struct snd_pcm_substream *substream,
 	subs->altset_idx = fmt->altset_idx;
 	subs->need_setup_ep = true;
 
+	/* add the qos request and set the latency */
+	if (pm_qos_request_active(&subs->pm_qos)) {
+		pm_qos_update_request(&subs->pm_qos,
+					US_PER_FRAME * PM_QOS_COUNT);
+		pr_info("%s: (pm_qos @%p) update\n",
+			   __func__, &subs->pm_qos);
+	} else {
+		pm_qos_add_request(&subs->pm_qos,
+			   PM_QOS_CPU_DMA_LATENCY, US_PER_FRAME * PM_QOS_COUNT);
+		pr_info("%s: (pm_qos @%p) request\n",
+			   __func__, &subs->pm_qos);
+	}
+
 	return 0;
 }
 
@@ -839,6 +841,16 @@ static int snd_usb_hw_free(struct snd_pcm_substream *substream)
 		snd_usb_endpoint_deactivate(subs->data_endpoint);
 		snd_usb_unlock_shutdown(subs->stream->chip);
 	}
+
+	/* remove the qos request */
+	if (pm_qos_request_active(&subs->pm_qos)) {
+		pm_qos_remove_request(&subs->pm_qos);
+		pr_info("%s: (pm_qos @%p) remove\n",
+			   __func__, &subs->pm_qos);
+	} else
+		pr_info("%s: (pm_qos @%p) remove again\n",
+			   __func__, &subs->pm_qos);
+
 	return snd_pcm_lib_free_vmalloc_buffer(substream);
 }
 
@@ -1303,6 +1315,16 @@ static int snd_usb_pcm_open(struct snd_pcm_substream *substream, int direction)
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct snd_usb_substream *subs = &as->substream[direction];
 
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+	int enable = 1, type = 0;
+
+	if (direction == SNDRV_PCM_STREAM_PLAYBACK)
+		type = NOTIFY_PCM_PLAYBACK;
+	else
+		type = NOTIFY_PCM_CAPTURE;
+	store_usblog_notify(type, (void *)&enable, NULL);
+#endif
+
 	subs->interface = -1;
 	subs->altset_idx = 0;
 	runtime->hw = snd_usb_hardware;
@@ -1322,6 +1344,16 @@ static int snd_usb_pcm_close(struct snd_pcm_substream *substream, int direction)
 {
 	struct snd_usb_stream *as = snd_pcm_substream_chip(substream);
 	struct snd_usb_substream *subs = &as->substream[direction];
+
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+		int enable = 0, type = 0;
+
+		if (direction == SNDRV_PCM_STREAM_PLAYBACK)
+			type = NOTIFY_PCM_PLAYBACK;
+		else
+			type = NOTIFY_PCM_CAPTURE;
+		store_usblog_notify(type, (void *)&enable, NULL);
+#endif
 
 	stop_endpoints(subs, true);
 

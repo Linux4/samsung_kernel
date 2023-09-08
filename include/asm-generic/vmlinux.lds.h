@@ -65,11 +65,11 @@
  * .data. We don't want to pull in .data..other sections, which Linux
  * has defined. Same for text and bss.
  */
-#ifdef CONFIG_LD_DEAD_CODE_DATA_ELIMINATION
+#if defined(CONFIG_LD_DEAD_CODE_DATA_ELIMINATION) || defined(CONFIG_LTO_CLANG)
 #define TEXT_MAIN .text .text.[0-9a-zA-Z_]*
 #define TEXT_CFI_MAIN .text.cfi .text.[0-9a-zA-Z_]*.cfi
-#define DATA_MAIN .data .data.[0-9a-zA-Z_]*
-#define BSS_MAIN .bss .bss.[0-9a-zA-Z_]*
+#define DATA_MAIN .data .data.[0-9a-zA-Z_]* .data..compoundliteral* .data..L*
+#define BSS_MAIN .bss .bss.[0-9a-zA-Z_]* .bss..compoundliteral* .bss..L*
 #else
 #define TEXT_MAIN .text
 #define TEXT_CFI_MAIN .text.cfi
@@ -796,16 +796,6 @@
 		KEEP(*(.initcall##level##.init))			\
 		KEEP(*(.initcall##level##s.init))			\
 
-#ifdef CONFIG_DEFERRED_INITCALLS
-#define DEFERRED_INITCALLS(level)					\
-		VMLINUX_SYMBOL(__deferred_initcall_start) = .;		\
-		KEEP(*(.deferred_initcall##level##.init))		\
-		KEEP(*(.deferred_initcall##level##s.init))		\
-		VMLINUX_SYMBOL(__deferred_initcall_end) = .;
-#else
-#define DEFERRED_INITCALLS(level)
-#endif
-
 #define INIT_CALLS							\
 		VMLINUX_SYMBOL(__initcall_start) = .;			\
 		KEEP(*(.initcallearly.init))				\
@@ -818,9 +808,7 @@
 		INIT_CALLS_LEVEL(rootfs)				\
 		INIT_CALLS_LEVEL(6)					\
 		INIT_CALLS_LEVEL(7)					\
-		VMLINUX_SYMBOL(__initcall_end) = .; 		\
-		DEFERRED_INITCALLS(0)
-
+		VMLINUX_SYMBOL(__initcall_end) = .;
 
 #define CON_INITCALL							\
 		VMLINUX_SYMBOL(__con_initcall_start) = .;		\

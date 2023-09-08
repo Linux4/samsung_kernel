@@ -83,6 +83,14 @@ int ion_heap_map_user(struct ion_heap *heap, struct ion_buffer *buffer,
 	int i;
 	int ret;
 
+#if defined(CONFIG_MTK_IOMMU_PGTABLE_EXT) && \
+	(CONFIG_MTK_IOMMU_PGTABLE_EXT > 32)
+	if (heap->ops->get_table)
+		heap->ops->get_table(buffer, table);
+	if (!table)
+		return -1;
+#endif
+
 	for_each_sg(table->sgl, sg, table->nents, i) {
 		struct page *page = sg_page(sg);
 		unsigned long remainder = vma->vm_end - addr;
@@ -100,8 +108,8 @@ int ion_heap_map_user(struct ion_heap *heap, struct ion_buffer *buffer,
 		ret = remap_pfn_range(vma, addr, page_to_pfn(page), len,
 				vma->vm_page_prot);
 		if (ret) {
-			IONMSG("%s remap fail 0x%p, %lu, %lu, %lu, %d.\n",
-			       __func__, vma, addr,
+			IONMSG("%s h:%d remap fail 0x%p, %lu, %lu, %lu, %d.\n",
+			       __func__, heap->id, vma, addr,
 			       page_to_pfn(page), len, ret);
 			return ret;
 		}
@@ -114,14 +122,14 @@ int ion_heap_map_user(struct ion_heap *heap, struct ion_buffer *buffer,
 
 static int ion_heap_clear_pages(struct page **pages, int num, pgprot_t pgprot)
 {
-	void *addr = vm_map_ram(pages, num, -1, pgprot);
+	void *addr = vmap(pages, num, VM_MAP, pgprot);
 
 	if (!addr) {
 		IONMSG("%s vm_map_ram failed addr is null.\n", __func__);
 		return -ENOMEM;
 	}
 	memset(addr, 0, PAGE_SIZE * num);
-	vm_unmap_ram(addr, num);
+	vunmap(addr);
 
 	return 0;
 }
@@ -176,18 +184,15 @@ int ion_heap_pages_zero(struct page *page, size_t size, pgprot_t pgprot)
 
 void ion_heap_freelist_add(struct ion_heap *heap, struct ion_buffer *buffer)
 {
-	static long nice;
+	long nice;
 	size_t free_list_size = 0;
 	size_t unit = 200 * 1024 * 1024; //200M
+
 	spin_lock(&heap->free_lock);
 	list_add(&buffer->list, &heap->free_list);
 	heap->free_list_size += buffer->size;
+
 	free_list_size = heap->free_list_size;
-	if (free_list_size > unit) {
-		IONMSG(
-			"[ion_dbg] warning: free_list_size=%zu, heap_id:%u, nice:%ld\n",
-			heap->free_list_size, heap->id, nice);
-	}
 	switch (free_list_size / unit) {
 	case 0:
 	case 1:
@@ -202,8 +207,15 @@ void ion_heap_freelist_add(struct ion_heap *heap, struct ion_buffer *buffer)
 		nice = -10;
 		break;
 	}
-	set_user_nice(heap->task, nice);
 	spin_unlock(&heap->free_lock);
+
+	if (free_list_size > unit) {
+		IONMSG(
+			"%s: free_size=%zu,heap_id:%u,nice:%ld\n",
+			__func__, heap->free_list_size, heap->id, nice);
+	}
+
+	set_user_nice(heap->task, nice);
 	wake_up(&heap->waitqueue);
 }
 

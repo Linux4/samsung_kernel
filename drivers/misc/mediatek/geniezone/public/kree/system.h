@@ -11,6 +11,7 @@
  * GNU General Public License for more details.
  */
 
+
 /*
  * Header files for basic KREE functions.
  */
@@ -18,14 +19,13 @@
 #ifndef __KREE_SYSTEM_H__
 #define __KREE_SYSTEM_H__
 
-#if defined(CONFIG_MTK_IN_HOUSE_TEE_SUPPORT)	\
-	|| defined(CONFIG_MTK_ENABLE_GENIEZONE)
+#if IS_ENABLED(CONFIG_MTK_IN_HOUSE_TEE_SUPPORT)	\
+	|| IS_ENABLED(CONFIG_MTK_ENABLE_GENIEZONE)
 
 #include <tz_cross/trustzone.h>
 #include <gz-trusty/trusty.h>
 
-void KREE_SESSION_LOCK(int32_t handle);
-void KREE_SESSION_UNLOCK(int32_t handle);
+#define MAX_UUID_LEN (40)
 
 int gz_get_cpuinfo_thread(void *data);
 void set_gz_bind_cpu(int on);
@@ -39,7 +39,7 @@ struct _cpus_cluster_freq {
 
 #include "mem.h"
 
-#ifdef CONFIG_GZ_VPU_WITH_M4U
+#if IS_ENABLED(CONFIG_GZ_VPU_WITH_M4U)
 int gz_do_m4u_map(KREE_SHAREDMEM_HANDLE handle,
 					phys_addr_t pa, uint32_t size,
 					uint32_t region_id);
@@ -58,21 +58,6 @@ int gz_do_m4u_umap(KREE_SHAREDMEM_HANDLE handle);
  */
 TZ_RESULT KREE_CreateSession(const char *ta_uuid, KREE_SESSION_HANDLE *pHandle);
 
-
-/**
- *  Create a new TEE sesssion with tag for debug purpose
- *
- * @param ta_uuid UUID of the TA to connect to.
- * @param pHandle Handle for the new session.
- *	  Return KREE_SESSION_HANDLE_FAIL if fail.
- * @param tag string can be printed when querying memory usage.
- * @return return code
- */
-/*fix mtee sync*/
-TZ_RESULT KREE_CreateSessionWithTag(const char *ta_uuid,
-				    KREE_SESSION_HANDLE *pHandle,
-				    const char *tag);
-
 /**
  * Close TEE session
  *
@@ -81,6 +66,20 @@ TZ_RESULT KREE_CreateSessionWithTag(const char *ta_uuid,
  */
 TZ_RESULT KREE_CloseSession(KREE_SESSION_HANDLE handle);
 
+/**
+ * Make a TEE service call and schedule on a CPU mask
+ *
+ * @param handle      Session handle to make the call
+ * @param command     The command to call.
+ * @param paramTypes  Types for the parameters, use TZ_ParamTypes() to
+ * consturct.
+ * @param param       The parameters to pass to TEE. Maximum 4 params.
+ * @param cpumask     CPU mask.
+ * @return            Return value from TEE service.
+ */
+TZ_RESULT KREE_TeeServiceCallPlus(KREE_SESSION_HANDLE handle, uint32_t command,
+				   uint32_t paramTypes, union MTEEC_PARAM param[4],
+				   int32_t cpumask);
 
 /**
  * Make a TEE service call

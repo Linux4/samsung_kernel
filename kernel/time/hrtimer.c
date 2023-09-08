@@ -60,10 +60,6 @@
 
 #include "tick-internal.h"
 
-#ifdef CONFIG_MTK_SCHED_MONITOR
-#include "mtk_sched_mon.h"
-#endif
-
 #ifdef CONFIG_DEBUG_OBJECTS_TIMERS
 #include <mt-plat/aee.h>
 
@@ -160,7 +156,7 @@ struct hrtimer_clock_base *lock_hrtimer_base(const struct hrtimer *timer,
 	struct hrtimer_clock_base *base;
 
 	for (;;) {
-		base = timer->base;
+		base = READ_ONCE(timer->base);
 		if (likely(base != &migration_base)) {
 			raw_spin_lock_irqsave(&base->cpu_base->lock, *flags);
 			if (likely(base == timer->base))
@@ -252,7 +248,7 @@ again:
 			return base;
 
 		/* See the comment in lock_hrtimer_base() */
-		timer->base = &migration_base;
+		WRITE_ONCE(timer->base, &migration_base);
 		raw_spin_unlock(&base->cpu_base->lock);
 		raw_spin_lock(&new_base->cpu_base->lock);
 
@@ -261,10 +257,10 @@ again:
 			raw_spin_unlock(&new_base->cpu_base->lock);
 			raw_spin_lock(&base->cpu_base->lock);
 			new_cpu_base = this_cpu_base;
-			timer->base = base;
+			WRITE_ONCE(timer->base, base);
 			goto again;
 		}
-		timer->base = new_base;
+		WRITE_ONCE(timer->base, new_base);
 	} else {
 		if (new_cpu_base != this_cpu_base &&
 		    hrtimer_check_target(timer, new_base)) {
@@ -879,11 +875,14 @@ EXPORT_SYMBOL_GPL(hrtimer_forward);
 static int enqueue_hrtimer(struct hrtimer *timer,
 			   struct hrtimer_clock_base *base)
 {
+	u8 state = timer->state;
+
 	debug_activate(timer);
 
 	base->cpu_base->active_bases |= 1 << base->index;
 
-	timer->state |= HRTIMER_STATE_ENQUEUED;
+	/* Pairs with the lockless read in hrtimer_is_queued() */
+	WRITE_ONCE(timer->state, state | HRTIMER_STATE_ENQUEUED);
 
 	return timerqueue_add(&base->active, &timer->node);
 }
@@ -903,8 +902,9 @@ static void __remove_hrtimer(struct hrtimer *timer,
 			     u8 newstate, int reprogram)
 {
 	struct hrtimer_cpu_base *cpu_base = base->cpu_base;
+	u8 state = timer->state;
 
-	if (!(timer->state & HRTIMER_STATE_ENQUEUED))
+	if (!(state & HRTIMER_STATE_ENQUEUED))
 		goto out;
 
 	if (!timerqueue_del(&base->active, &timer->node))
@@ -928,7 +928,8 @@ out:
 	 * We need to preserve PINNED state here, otherwise we may end up
 	 * migrating pinned hrtimers as well.
 	 */
-	timer->state = newstate | (timer->state & HRTIMER_STATE_PINNED);
+    /* Pairs with the lockless read in hrtimer_is_queued() */
+    WRITE_ONCE(timer->state, newstate | (state & HRTIMER_STATE_PINNED));
 }
 
 /*
@@ -937,8 +938,9 @@ out:
 static inline int
 remove_hrtimer(struct hrtimer *timer, struct hrtimer_clock_base *base, bool restart)
 {
-	if (hrtimer_is_queued(timer)) {
-		u8 state = timer->state;
+	u8 state = timer->state;
+
+	if (state & HRTIMER_STATE_ENQUEUED) {
 		int reprogram;
 
 		/*
@@ -1283,6 +1285,7 @@ static void __run_hrtimer(struct hrtimer_cpu_base *cpu_base,
 {
 	enum hrtimer_restart (*fn)(struct hrtimer *);
 	int restart;
+	unsigned long long ts;
 
 	lockdep_assert_held(&cpu_base->lock);
 
@@ -1315,15 +1318,11 @@ static void __run_hrtimer(struct hrtimer_cpu_base *cpu_base,
 	 * the timer base.
 	 */
 	raw_spin_unlock(&cpu_base->lock);
+	check_start_time(ts);
 	trace_hrtimer_expire_entry(timer, now);
-#ifdef CONFIG_MTK_SCHED_MONITOR
-	mt_trace_hrt_start(fn);
-#endif
 	restart = fn(timer);
-#ifdef CONFIG_MTK_SCHED_MONITOR
-	mt_trace_hrt_end(fn);
-#endif
 	trace_hrtimer_expire_exit(timer);
+	check_process_time("hrtimer %ps", ts, fn);
 	raw_spin_lock(&cpu_base->lock);
 
 	/*
@@ -1706,9 +1705,6 @@ int hrtimers_prepare_cpu(unsigned int cpu)
 	cpu_base->active_bases = 0;
 	cpu_base->cpu = cpu;
 	hrtimer_init_hres(cpu_base);
-
-	restore_pcpu_tick(cpu);
-
 	return 0;
 }
 
@@ -1798,7 +1794,6 @@ static void __migrate_hrtimers(unsigned int scpu, bool remove_pinned)
 int hrtimers_dead_cpu(unsigned int scpu)
 {
 	WARN_ON(cpu_online(scpu));
-	save_pcpu_tick(scpu);
 	tick_cancel_sched_timer(scpu);
 
 	__migrate_hrtimers(scpu, true);

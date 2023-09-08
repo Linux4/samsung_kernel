@@ -5,8 +5,7 @@
 
 #ifndef __HELIO_DVFSRC_COMMON_H__
 #define __HELIO_DVFSRC_COMMON_H__
-#if defined(CONFIG_MACH_MT6885)
-
+#if defined(DVFSRC_SMC_CONTROL)
 #include<linux/arm-smccc.h>
 #include <mt-plat/mtk_secure_api.h>
 
@@ -66,7 +65,5 @@ extern int spm_load_firmware_status(void);
 extern void mtk_spmfw_init(int dvfsrc_en, int skip_check);
 extern void spm_dvfs_pwrap_cmd(int pwrap_cmd, int pwrap_vcore);
 extern int spm_get_spmfw_idx(void);
-
-
 #endif
 

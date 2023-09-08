@@ -171,9 +171,8 @@ struct mmc_request {
 	struct list_head	hlist;
 #endif
 
-#if defined(CONFIG_MTK_HW_FDE) || defined(CONFIG_HIE) \
-	|| defined(CONFIG_MTK_EMMC_HW_CQ)
 	struct request		*req;
+#if defined(CONFIG_MTK_HW_FDE) || defined(CONFIG_MMC_CRYPTO)
 	bool		is_mmc_req; /* request is from mmc layer */
 #endif
 
@@ -185,7 +184,24 @@ struct mmc_request {
 	bool			cap_cmd_during_tfr;
 
 	int			tag;
+#ifdef CONFIG_MMC_CRYPTO
+	int crypto_key_slot;
+	u64 data_unit_num;
+	const struct blk_crypto_key *crypto_key;
+#endif
 };
+
+#ifdef CONFIG_MMC_CRYPTO
+static inline bool mmc_request_crypto_enabled(const struct mmc_request *mrq)
+{
+	return mrq->crypto_key != NULL;
+}
+#else
+static inline bool mmc_request_crypto_enabled(const struct mmc_request *mrq)
+{
+	return false;
+}
+#endif
 
 struct mmc_card;
 

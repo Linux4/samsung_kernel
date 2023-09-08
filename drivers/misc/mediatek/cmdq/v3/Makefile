@@ -13,7 +13,9 @@
 
 # common driver code for CMDQ
 
-MTK_PLATFORM := $(CONFIG_MTK_PLATFORM)
+ifeq (y, $(filter y, $(CONFIG_MACH_MT6833)))
+	MTK_PLATFORM := mt6833
+endif
 
 ccflags-$(CONFIG_MACH_MT6768) += -DCMDQ_MDP_ENABLE_SPR
 
@@ -30,7 +32,11 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/smi/ \
              -I$(srctree)/drivers/misc/mediatek/smi/$(MTK_PLATFORM)/ \
              -I$(srctree)/drivers/misc/mediatek/mmdvfs/ \
              -I$(srctree)/drivers/misc/mediatek/mmp/ \
-             -I$(srctree)/drivers/misc/mediatek/mach/$(MTK_PLATFORM)/include
+             -I$(srctree)/drivers/misc/mediatek/mdp/ \
+             -I$(srctree)/drivers/iommu/ \
+             -I$(srctree)/drivers/misc/mediatek/m4u/$(MTK_PLATFORM) \
+             -I$(srctree)/drivers/misc/mediatek/mach/$(MTK_PLATFORM)/include \
+             -I$(srctree)/drivers/misc/mediatek/cmdq/bridge
 
 ifneq ($(filter mt8168,$(shell echo $(MTK_PLATFORM)|tr A-Z a-z)),)
 ccflags-y += -DCMDQ_TABLET_ENABLE
@@ -46,36 +52,56 @@ else
 ccflags-y += -DCMDQ_COMMON_ENG_SUPPORT
 endif
 
-ifeq ($(CONFIG_MTK_ENG_BUILD),y)
 ccflags-y += -DCMDQ_TEST_PROC
+ifeq ($(CONFIG_MTK_ENG_BUILD),y)
 ccflags-y += -DCMDQ_PROFILE_LOCK
 ccflags-y += -DCMDQ_DEBUG_LOOP_IRQ
 endif
 
 # secure path
-ifeq ($(or $(strip $(CONFIG_TRUSTONIC_TEE_SUPPORT)), $(strip $(CONFIG_MICROTRUST_TEE_SUPPORT))),y)
 ifeq ($(or $(strip $(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT)), $(strip $(CONFIG_MTK_CAM_SECURITY_SUPPORT))),y)
-
 ifeq ($(CONFIG_TRUSTONIC_TEE_SUPPORT),y)
 include $(srctree)/drivers/misc/mediatek/gud/Makefile.include
+else ifeq ($(CONFIG_TEEGRIS_TEE_SUPPORT),y)
+include $(srctree)/drivers/misc/tzdev/Makefile.include
 endif
 
 ifeq ($(CONFIG_MICROTRUST_TEE_SUPPORT),y)
 include $(srctree)/drivers/misc/mediatek/teei/Makefile.include
-endif	# end of CONFIG_MICROTRUST_TEE_SUPPORT
+endif
 
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/cmdq/v3/inc/cmdq_sec_dr \
              -I$(srctree)/drivers/misc/mediatek/cmdq/v3/inc/cmdq_sec_tl
 
 ccflags-y += -DCMDQ_SECURE_PATH_SUPPORT
+obj-y += cmdq_sec.o
+
+ifeq ($(strip $(CONFIG_MTK_IN_HOUSE_TEE_SUPPORT)),y)
+ccflags-y += -DCMDQ_SECURE_TEE_SUPPORT
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/trustzone
+obj-y += cmdq_sec_trustzone.o
+endif
 
 ifeq ($(strip $(CONFIG_MTK_TEE_GP_SUPPORT)),y)
-ccflags-y += -DCMDQ_GP_SUPPORT
+ccflags-y += -DCMDQ_SECURE_TEE_SUPPORT
+obj-y += cmdq_sec_gp.o
+
+else ifeq ($(CONFIG_TRUSTONIC_TEE_SUPPORT),y)
+ccflags-y += -DCMDQ_SECURE_TEE_SUPPORT
+obj-y += cmdq_sec_trustonic.o
+endif
+
+ifeq ($(strip $(CONFIG_MTK_ENABLE_GENIEZONE)),y)
+ifeq ($(strip $(CONFIG_MTK_CAM_GENIEZONE_SUPPORT)),y)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/geniezone/public
+ccflags-y += -DCMDQ_SECURE_MTEE_SUPPORT
+ccflags-y += -DCMDQ_LATE_INIT_SUPPORT
+obj-y += cmdq_sec_mtee.o
+endif
 endif
 
 ccflags-y += -DCMDQ_EVENT_SVP_BACKUP
 endif	# end of CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT or CONFIG_MTK_CAM_SECURITY_SUPPORT
-endif	# end of CONFIG_TRUSTONIC_TEE_SUPPORT or CONFIG_MICROTRUST_TEE_SUPPORT
 
 # platform dependent definition
 ccflags-y += -DCMDQ_SPECIAL_ESD_PRIORITY
@@ -92,10 +118,13 @@ obj-y += cmdq_device.o
 obj-y += cmdq_driver.o
 obj-y += cmdq_mdp_common.o
 #obj-y += cmdq_prof.o
-obj-y += cmdq_test.o
 obj-y += cmdq_event_common.o
 obj-y += cmdq_subsys_common.o
 obj-y += cmdq_helper_ext.o
+
+ifneq ($(strip $(CONFIG_KASAN)),y)
+obj-y += cmdq_test.o
+endif
 
 ifeq ($(strip $(CONFIG_MMPROFILE)),y)
 obj-y += cmdq_mmp.o
@@ -105,14 +134,4 @@ ifeq ($(platformdir_exists), y)
 obj-y += $(subst ",,$(MTK_PLATFORM))/
 endif
 
-ifeq ($(or $(strip $(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT)), $(strip $(CONFIG_MTK_CAM_SECURITY_SUPPORT))),y)
-
-obj-y += cmdq_sec.o
-ifeq ($(strip $(CONFIG_MTK_TEE_GP_SUPPORT)),y)
-obj-y += cmdq_sec_gp.o
-else ifeq ($(CONFIG_TRUSTONIC_TEE_SUPPORT),y)
-obj-y += cmdq_sec_trustonic.o
-endif
-
-endif	# end of CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT or CONFIG_MTK_CAM_SECURITY_SUPPORT
-
+MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))

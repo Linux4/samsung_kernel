@@ -1,24 +1,5 @@
-/*
- * sec_battery_vote.c
- * Samsung Mobile Battery Driver, battery voter
- *
- * Copyright (C) 2019 Samsung Electronics, Inc.
- *
- * This program is free software: you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- */
-#include "include/sec_battery_vote.h"
+
+#include "sec_battery_vote.h"
 #include <linux/slab.h>
 #include <linux/mutex.h>
 #include <linux/debugfs.h>
@@ -56,7 +37,7 @@ struct sec_vote {
 const char * none_str = "None";
 const char * force_str = "Force";
 
-static int select_min(struct sec_voter * voter, int max, int * id, int * res)
+static int select_min(struct sec_voter *voter, int max, int *id, int *res)
 {
 	int i;
 	*res = INT_MAX;
@@ -69,7 +50,7 @@ static int select_min(struct sec_voter * voter, int max, int * id, int * res)
 	}
 	return 0;
 }
-static int select_max(struct sec_voter * voter, int max, int * id, int * res)
+static int select_max(struct sec_voter *voter, int max, int *id, int *res)
 {
 	int i;
 	*res = INT_MIN;
@@ -152,6 +133,61 @@ int get_sec_voter_status(struct sec_vote *vote, int id, int * v)
 	return (*v == INT_MIN) ? -EINVAL : 0;
 }
 EXPORT_SYMBOL(get_sec_voter_status);
+
+int show_sec_vote_status(char *buf, unsigned int p_size)
+{
+	struct sec_vote *vote;
+	int i, j = 0;
+	char *type_str = "Unkonwn";
+
+	if (list_empty(&vote_list)) {
+		j += scnprintf(buf + j, p_size - j, "No vote\n");
+		return j;
+	}
+
+	mutex_lock(&vote_lock);
+	list_for_each_entry(vote, &vote_list, list) {
+		mutex_lock(&vote->lock);
+		for (i = 0; i < vote->num; i++) {
+			if (vote->voter[i].enable) {
+				j += scnprintf(buf + j, p_size - j, "%s: %s:\t\t\ten=%d v=%d\n",
+						vote->name,
+						vote->voter_name[i],
+						vote->voter[i].enable,
+						vote->voter[i].value);
+			}
+		}
+		switch (vote->type) {
+		case SEC_VOTE_MIN:
+			type_str = "Min";
+			break;
+		case SEC_VOTE_MAX:
+			type_str = "Max";
+			break;
+		case SEC_VOTE_EN:
+			type_str = "Set_any";
+			break;
+		default:
+			type_str = "Invalid";
+		}
+		j += scnprintf(buf + j, p_size - j, "%s: INIT: v=%d\n",
+				vote->name, vote->init_val);
+		if (vote->force_set) {
+			j += scnprintf(buf + j, p_size - j, "%s: voter=%s type=%s v=%d\n",
+					vote->name, force_str, type_str, vote->force_val);
+		} else {
+			j += scnprintf(buf + j, p_size - j, "%s: voter=%s type=%s v=%d\n",
+					vote->name,
+					(vote->id >= 0) ? vote->voter_name[vote->id] : none_str,
+					type_str, vote->res);
+		}
+		mutex_unlock(&vote->lock);
+	}
+	mutex_unlock(&vote_lock);
+
+	return j;
+}
+EXPORT_SYMBOL(show_sec_vote_status);
 
 static int show_vote_clients(struct seq_file *m, void *data)
 {
@@ -301,9 +337,9 @@ static int force_set(void *data, u64 val)
 		goto out;
 
 	if (vote->force_set) {
-		vote->cb(vote->data, vote->force_val);
+		vote->res = vote->cb(vote->data, vote->force_val);
 	} else {
-		vote->cb(vote->data, vote->res);
+		vote->res = vote->cb(vote->data, vote->res);
 	}
 out:
 	mutex_unlock(&vote->lock);
@@ -321,8 +357,8 @@ struct sec_vote *find_vote(const char *name)
 	}
 	return NULL;
 }
-struct sec_vote * sec_vote_init(const char * name, int type, int num, int init_val,
-		const char ** voter_name, int(*cb)(void *data, int value), void * data)
+struct sec_vote *sec_vote_init(const char *name, int type, int num, int init_val,
+		const char **voter_name, int(*cb)(void *data, int value), void *data)
 {
 	static int init = false;
 	struct sec_vote * vote = NULL;
@@ -343,7 +379,7 @@ struct sec_vote * sec_vote_init(const char * name, int type, int num, int init_v
 		pr_info("%s: Please add voter name list \n", __func__);
 		goto err;
 	}
-		
+
 	vote = kzalloc(sizeof(struct sec_vote), GFP_KERNEL);
 	if (!vote) {
 		pr_info("%s: mem aloocate fail \n", __func__);
@@ -418,7 +454,7 @@ err:
 }
 EXPORT_SYMBOL(sec_vote_init);
 
-void sec_vote_destory(struct sec_vote * vote)
+void sec_vote_destroy(struct sec_vote *vote)
 {
 	pr_info("%s: %s\n", __func__, vote->name);
 	list_del(&vote->list);
@@ -428,12 +464,12 @@ void sec_vote_destory(struct sec_vote * vote)
 	mutex_destroy(&vote_lock);
 	kfree(vote);
 }
-EXPORT_SYMBOL(sec_vote_destory);
+EXPORT_SYMBOL(sec_vote_destroy);
 
-void sec_vote(struct sec_vote * vote, int event, int en, int value)
+void _sec_vote(struct sec_vote *vote, int event, int en, int value, const char *fname, int line)
 {
 	int id, res;
-	
+
 	if (event >= vote->num) {
 		pr_info("%s id Error(%d)\n", __func__, event);
 		return;
@@ -463,32 +499,42 @@ void sec_vote(struct sec_vote * vote, int event, int en, int value)
 	}
 
 	if (res != vote->res) {
-		pr_info("%s: %s (%s, %d) -> (%s, %d)\n", __func__, vote->name,
-				(vote->id >= 0)?vote->voter_name[vote->id]: none_str, vote->res,
-				(id>=0)? vote->voter_name[id] : none_str, res);
+		pr_info("%s(%s:%d): %s (%s, %d) -> (%s, %d)\n", __func__, fname, line, vote->name,
+				(vote->id >= 0) ? vote->voter_name[vote->id] : none_str, vote->res,
+				(id >= 0) ? vote->voter_name[id] : none_str, res);
 		vote->id = id;
 		vote->res = res;
 		if (vote->force_set)
 			pr_err("%s skip by force_set\n", __func__);
 		else
-			vote->cb(vote->data, res);
-	}
+			vote->res = vote->cb(vote->data, res);
+	} else if (!en && (vote->id == event))
+		vote->id = id;
 out:
 	mutex_unlock(&vote->lock);
 }
-EXPORT_SYMBOL(sec_vote);
+EXPORT_SYMBOL(_sec_vote);
 
-void sec_vote_refresh(struct sec_vote * vote)
+void sec_vote_refresh(struct sec_vote *vote)
 {
 	mutex_lock(&vote->lock);
-	pr_info("%s refresh (%s, %d)\n", vote->name,
-		(vote->id >= 0)?vote->voter_name[vote->id]: none_str, vote->res);
-	vote->cb(vote->data, vote->res);
+	if (vote->res == -EINVAL && vote->id == -EINVAL) {
+		pr_info("%s: skip. not used before\n", __func__);
+	} else {
+		if (vote->force_set) {
+			pr_info("%s: refresh (%s, %d)\n", vote->name, force_str, vote->force_val);
+			vote->res = vote->cb(vote->data, vote->force_val);
+		} else {
+			pr_info("%s: refresh (%s, %d)\n", vote->name,
+					(vote->id >= 0) ? vote->voter_name[vote->id] : none_str, vote->res);
+			vote->res = vote->cb(vote->data, vote->res);
+		}
+	}
 	mutex_unlock(&vote->lock);
 }
 EXPORT_SYMBOL(sec_vote_refresh);
 
-const char * get_sec_vote_name(struct sec_vote * vote)
+const char *get_sec_vote_name(struct sec_vote *vote)
 {
 	return vote->name;
 }

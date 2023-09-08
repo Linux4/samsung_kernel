@@ -68,6 +68,7 @@
 #include "disp_recovery.h"
 #include "disp_partial.h"
 #include "ddp_dsi.h"
+#include "ddp_disp_bdg.h"
 
 /* For abnormal check */
 static struct task_struct *primary_display_check_task;
@@ -203,6 +204,10 @@ int _esd_check_config_handle_vdo(struct cmdqRecStruct *qhandle)
 	/*cmdq_task_set_timeout(qhandle, 200);*/
 	/* wait stream eof first */
 	/* cmdqRecWait(qhandle, CMDQ_EVENT_DISP_RDMA0_EOF); */
+
+#ifdef CONFIG_MTK_MT6382_BDG
+	cmdqRecClearEventToken(qhandle, CMDQ_EVENT_DSI_TE);
+#endif
 	cmdqRecWait(qhandle, CMDQ_EVENT_MUTEX0_STREAM_EOF);
 
 	primary_display_manual_lock();
@@ -225,14 +230,12 @@ int _esd_check_config_handle_vdo(struct cmdqRecStruct *qhandle)
 	/* mutex sof wait*/
 	ddp_mutex_set_sof_wait(dpmgr_path_get_mutex(phandle), qhandle, 0);
 
-	primary_display_manual_unlock();
-
 	/* 6.flush instruction */
 	dprec_logger_start(DPREC_LOGGER_ESD_CMDQ, 0, 0);
 	ret = cmdqRecFlush(qhandle);
 	dprec_logger_done(DPREC_LOGGER_ESD_CMDQ, 0, 0);
-
 	DISPINFO("[ESD]%s ret=%d\n", __func__, ret);
+	primary_display_manual_unlock();
 
 	if (ret)
 		ret = 1;
@@ -310,8 +313,8 @@ int do_esd_check_read(void)
 		primary_display_is_video_mode(), GPIO_DSI_MODE);
 
 	/* only cmd mode read & with disable mmsys clk will kick */
-	if (disp_helper_get_option(DISP_OPT_IDLEMGR_ENTER_ULPS) &&
-	    !primary_display_is_video_mode())
+	if ((disp_helper_get_option(DISP_OPT_IDLEMGR_ENTER_ULPS) &&
+	    !primary_display_is_video_mode()))
 		primary_display_idlemgr_kick((char *)__func__, 1);
 
 	/* 0.create esd check cmdq */
@@ -368,7 +371,8 @@ int do_lcm_vdo_lp_read(struct ddp_lcm_read_cmd_table *read_table)
 	int ret = 0;
 	int i = 0;
 	struct cmdqRecStruct *handle;
-	static cmdqBackupSlotHandle read_Slot;
+	static cmdqBackupSlotHandle read_Slot[2] = {0, 0};
+	int h = 0;
 
 	primary_display_manual_lock();
 
@@ -380,10 +384,11 @@ int do_lcm_vdo_lp_read(struct ddp_lcm_read_cmd_table *read_table)
 
 	/* 0.create esd check cmdq */
 	cmdqRecCreate(CMDQ_SCENARIO_DISP_ESD_CHECK, &handle);
-	cmdqBackupAllocateSlot(&read_Slot, 3);
-	for (i = 0; i < 3; i++)
-		cmdqBackupWriteSlot(read_Slot, i, 0xff00ff00);
-
+	for (h = 0; h < 2; h++) {
+		cmdqBackupAllocateSlot(&read_Slot[h], 3);
+		for (i = 0; i < 3; i++)
+			cmdqBackupWriteSlot(read_Slot[h], i, 0xff00ff00);
+	}
 	/* 1.use cmdq to read from lcm */
 	if (primary_display_is_video_mode()) {
 
@@ -400,7 +405,7 @@ int do_lcm_vdo_lp_read(struct ddp_lcm_read_cmd_table *read_table)
 
 		/* 3.read from lcm */
 		ddp_dsi_read_lcm_cmdq(DISP_MODULE_DSI0,
-		&read_Slot, handle, read_table);
+		read_Slot, handle, read_table);
 
 		/* 4.start dsi vdo mode */
 		dpmgr_path_build_cmdq(primary_get_dpmgr_handle(),
@@ -436,16 +441,34 @@ int do_lcm_vdo_lp_read(struct ddp_lcm_read_cmd_table *read_table)
 		goto DISPTORY;
 	}
 
-	for (i = 0; i < 3; i++)
-		cmdqBackupReadSlot(read_Slot, i,
-		(uint32_t *)&read_table->data[i]);
+	for (i = 0; i < 3; i++) {
+		cmdqBackupReadSlot(read_Slot[0], i,
+			(uint32_t *)&read_table->data[i]);
 
-DISPTORY:
-	if (read_Slot) {
-		cmdqBackupFreeSlot(read_Slot);
-		read_Slot = 0;
+		cmdqBackupReadSlot(read_Slot[1], i,
+			(uint32_t *)&read_table->data1[i]);
+
+		DISPERR("%s: read_table->data1[%d] byte0~1=0x%x~0x%x\n",
+			__func__, i,
+			read_table->data[i].byte0, read_table->data[i].byte1);
+		DISPERR("%s: read_table->data1[%d] byte2~3=0x%x~0x%x\n",
+			__func__, i,
+			read_table->data[i].byte2, read_table->data[i].byte3);
+		DISPERR("%s: read_table->data1[%d] byte0~1=0x%x~0x%x\n",
+			__func__, i,
+			read_table->data1[i].byte0, read_table->data1[i].byte1);
+		DISPERR("%s: read_table->data1[%d] byte2~3=0x%x~0x%x\n",
+			__func__, i,
+			read_table->data1[i].byte2, read_table->data1[i].byte3);
 	}
 
+DISPTORY:
+	for (h = 0; h < 2; h++) {
+		if (read_Slot[h]) {
+			cmdqBackupFreeSlot(read_Slot[h]);
+			read_Slot[h] = 0;
+		}
+	}
 	/* 7.destroy esd config thread */
 	cmdqRecDestroy(handle);
 	primary_display_manual_unlock();
@@ -511,7 +534,6 @@ int do_lcm_vdo_lp_write(struct ddp_lcm_write_cmd_table *write_table,
 
 		/* 6.flush instruction */
 		ret = cmdqRecFlush(handle);
-
 	} else {
 		DISPINFO("Not support cmd mode\n");
 	}
@@ -607,7 +629,11 @@ int primary_display_esd_check(void)
 	mmprofile_log_ex(mmp_rd, MMPROFILE_FLAG_END, 0, ret);
 
 done:
-	DISPINFO("[ESD]ESD check %s\n", ret ? "fail" : "pass");
+	if (ret)
+		DISPERR("[ESD]ESD check fail!\n");
+	else
+		DISPINFO("[ESD]ESD check pass!\n");
+
 	mmprofile_log_ex(mmp_chk, MMPROFILE_FLAG_END, 0, ret);
 	dprec_logger_done(DPREC_LOGGER_ESD_CHECK, 0, 0);
 	return ret;
@@ -621,7 +647,6 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 	int esd_try_cnt = 5; /* 20; */
 	int recovery_done = 0;
 
-	DISPFUNC();
 	sched_setscheduler(current, SCHED_RR, &param);
 
 	while (1) {
@@ -712,9 +737,9 @@ int primary_display_esd_recovery(void)
 		primary_display_idlemgr_kick((char *)__func__, 0);
 		mmprofile_log_ex(mmp_r, MMPROFILE_FLAG_PULSE, 0, 2);
 
-		/* blocking flush before stop trigger loop */
-		_blocking_flush();
 	}
+	/* blocking flush before stop trigger loop */
+	_blocking_flush();
 
 	mmprofile_log_ex(mmp_r, MMPROFILE_FLAG_PULSE, 0, 3);
 
@@ -753,18 +778,49 @@ int primary_display_esd_recovery(void)
 
 	DISPDBG("[ESD]dsi power reset[begine]\n");
 	dpmgr_path_dsi_power_off(primary_get_dpmgr_handle(), NULL);
+	if (bdg_is_bdg_connected() == 1) {
+		struct disp_ddp_path_config *data_config = NULL;
+
+		bdg_common_deinit(DISP_BDG_DSI0, NULL);
+
+		if (pgc != NULL)
+			data_config = dpmgr_path_get_last_config(pgc->dpmgr_handle);
+		bdg_common_init(DISP_BDG_DSI0, data_config, NULL);
+		mipi_dsi_rx_mac_init(DISP_BDG_DSI0, data_config, NULL);
+	}
+
 	dpmgr_path_dsi_power_on(primary_get_dpmgr_handle(), NULL);
 	if (!primary_display_is_video_mode())
 		dpmgr_path_ioctl(primary_get_dpmgr_handle(), NULL,
 				DDP_DSI_ENABLE_TE, NULL);
+	dpmgr_path_reset(primary_get_dpmgr_handle(), CMDQ_DISABLE);
 	DISPCHECK("[ESD]dsi power reset[end]\n");
+	if (bdg_is_bdg_connected() == 1) {
+		struct disp_ddp_path_config *data_config = NULL;
 
+//		extern ddp_dsi_config(enum DISP_MODULE_ENUM module,
+//		struct disp_ddp_path_config *config, void *cmdq);
 
+		if (pgc != NULL)
+			data_config = dpmgr_path_get_last_config(pgc->dpmgr_handle);
 
+		if (data_config != NULL) {
+			data_config->dst_dirty = 1;
+			dpmgr_path_config(primary_get_dpmgr_handle(), data_config, NULL);
+//			ddp_dsi_config(DISP_MODULE_DSI0, data_config, NULL);
+
+			data_config->dst_dirty = 0;
+		}
+	}
 	DISPDBG("[ESD]lcm recover[begin]\n");
 	disp_lcm_esd_recover(primary_get_lcm());
 	DISPCHECK("[ESD]lcm recover[end]\n");
 	mmprofile_log_ex(mmp_r, MMPROFILE_FLAG_PULSE, 0, 8);
+	if (bdg_is_bdg_connected() == 1 && get_mt6382_init()) {
+		DISPCHECK("set 6382 mode start\n");
+		bdg_tx_set_mode(DISP_BDG_DSI0, NULL, get_bdg_tx_mode());
+		bdg_tx_start(DISP_BDG_DSI0, NULL);
+	}
 
 	DISPDBG("[ESD]start dpmgr path[begin]\n");
 	if (disp_partial_is_support()) {
@@ -812,6 +868,11 @@ int primary_display_esd_recovery(void)
 		cmdqCoreSetEvent(CMDQ_SYNC_TOKEN_CONFIG_DIRTY);
 		mdelay(40);
 	}
+
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
+	primary_display_update_cfg_id(0);
+	DISPCHECK("%s,cfg_id = 0\n", __func__);
+#endif
 
 done:
 	primary_display_manual_unlock();
@@ -879,6 +940,7 @@ void primary_display_check_recovery_init(void)
 
 void primary_display_esd_check_enable(int enable)
 {
+	DISPERR("[ESD]%s\n", __func__);
 	if (_need_do_esd_check()) {
 		if (enable) {
 			esd_check_enable = 1;

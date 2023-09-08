@@ -26,8 +26,8 @@
 #include <linux/hardirq.h>
 #include <linux/task_work.h>
 #include <linux/ima.h>
-#include <linux/task_integrity.h>
 #include <linux/swap.h>
+#include <linux/task_integrity.h>
 
 #include <linux/atomic.h>
 

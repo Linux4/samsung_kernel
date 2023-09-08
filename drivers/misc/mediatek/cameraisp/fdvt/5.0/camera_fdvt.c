@@ -109,10 +109,8 @@ static unsigned long __read_mostly tracing_mark_write_addr;
 /*  #include "smi_common.h" */
 
 //#include <linux/wakelock.h>
-#ifdef CONFIG_PM_WAKELOCKS // modified by gasper for build pass
+#ifdef CONFIG_PM_SLEEP // modified by gasper for build pass
 #include <linux/pm_wakeup.h>
-#else
-#include <linux/wakelock.h>
 #endif
 
 /* FDVT Command Queue */
@@ -273,10 +271,8 @@ static struct Tasklet_table FDVT_tasklet[FDVT_IRQ_TYPE_AMOUNT] = {
 };
 
 //struct wake_lock FDVT_wake_lock;
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 struct wakeup_source FDVT_wake_lock;
-#else
-struct wake_lock FDVT_wake_lock;
 #endif
 
 static DEFINE_MUTEX(gFdvtMutex);
@@ -342,17 +338,17 @@ struct FDVT_REQUEST_STRUCT {
 	unsigned int callerID; /* caller thread ID */
 	/* to judge it belongs to which frame package */
 	unsigned int enqueReqNum;
-	signed int FrameWRIdx; /* Frame write Index */
-	signed int RrameRDIdx; /* Frame read Index */
+	unsigned int FrameWRIdx; /* Frame write Index */
+	unsigned int RrameRDIdx; /* Frame read Index */
 	enum FDVT_FRAME_STATUS_ENUM
 	  FdvtFrameStatus[_SUPPORT_MAX_FDVT_FRAME_REQUEST_];
 	FDVT_Config FdvtFrameConfig[_SUPPORT_MAX_FDVT_FRAME_REQUEST_];
 };
 
 struct FDVT_REQUEST_RING_STRUCT {
-	signed int WriteIdx;	/* enque how many request  */
-	signed int ReadIdx;		/* read which request index */
-	signed int HWProcessIdx;	/* HWWriteIdx */
+	unsigned int WriteIdx;	/* enque how many request  */
+	unsigned int ReadIdx;		/* read which request index */
+	unsigned int HWProcessIdx;	/* HWWriteIdx */
 	struct FDVT_REQUEST_STRUCT
 	  FDVTReq_Struct[_SUPPORT_MAX_FDVT_REQUEST_RING_SIZE_];
 };
@@ -454,6 +450,7 @@ static struct SV_LOG_STR gSvLog[FDVT_IRQ_TYPE_AMOUNT];
 	unsigned int *ptr2 = &gSvLog[irq]._cnt[ppb][logT];\
 	unsigned int str_leng;\
 	unsigned int i = 0;\
+	int ret; \
 	struct SV_LOG_STR *pSrc = &gSvLog[irq];\
 	if (logT == _LOG_ERR) {\
 		str_leng = NORMAL_STR_LEN*ERR_PAGE;\
@@ -468,9 +465,12 @@ static struct SV_LOG_STR gSvLog[FDVT_IRQ_TYPE_AMOUNT];
 	(char *)&(gSvLog[irq]._str[ppb][logT][gSvLog[irq]._cnt[ppb][logT]]);\
 	avaLen = str_leng - 1 - gSvLog[irq]._cnt[ppb][logT];\
 	if (avaLen > 1) {\
-		snprintf((char *)(pDes), avaLen, "[%d.%06d]" fmt,\
+		ret = snprintf((char *)(pDes), avaLen, "[%d.%06d]" fmt,\
 		gSvLog[irq]._lastIrqTime.sec, gSvLog[irq]._lastIrqTime.usec,\
-		##__VA_ARGS__);   \
+		##__VA_ARGS__); \
+		if (ret < 0) { \
+			log_err("snprintf fail(%d)\n", ret); \
+		} \
 	if ('\0' != gSvLog[irq]._str[ppb][logT][str_leng - 1]) {\
 		log_err("log str over flow(%d)", irq);\
 	} \
@@ -523,7 +523,10 @@ static struct SV_LOG_STR gSvLog[FDVT_IRQ_TYPE_AMOUNT];
 		ptr = pDes = \
 		(char *)&(pSrc->_str[ppb][logT][pSrc->_cnt[ppb][logT]]);\
 		ptr2 = &(pSrc->_cnt[ppb][logT]);\
-		snprintf((char *)(pDes), avaLen, fmt, ##__VA_ARGS__);   \
+		ret = snprintf((char *)(pDes), avaLen, fmt, ##__VA_ARGS__);   \
+		if (ret < 0) { \
+			log_err("snprintf fail(%d)\n", ret); \
+		} \
 		while (*ptr++ != '\0') {\
 			(*ptr2)++;\
 		} \
@@ -540,8 +543,8 @@ pr_debug(IRQTag fmt,  ##args)
 	struct SV_LOG_STR *pSrc = &gSvLog[irq];\
 	char *ptr;\
 	unsigned int i;\
-	signed int ppb = 0;\
-	signed int logT = 0;\
+	unsigned int ppb = 0;\
+	unsigned int logT = 0;\
 	if (ppb_in > 1) {\
 		ppb = 1;\
 	} else{\
@@ -963,13 +966,14 @@ static inline int FDVT_switchCmdqToSecure(void *handle)
 
 	/*cmdq_engine = module_to_cmdq_engine(module);*/
 	cmdq_engine = CMDQ_ENG_FDVT;
-	/*cmdq_event	= CMDQ_EVENT_DVE_EOF;*/
 
 	cmdqRecSetSecure(handle, 1);
 	/* set engine as sec */
 	cmdqRecSecureEnablePortSecurity(handle, (1LL << cmdq_engine));
 	//cmdqRecSecureEnableDAPC(handle, (1LL << cmdq_engine));
-
+#ifdef CMDQ_MTEE
+	cmdq_task_set_mtee(handle, true);
+#endif
 	return 0;
 }
 
@@ -987,6 +991,9 @@ static inline int FDVT_switchPortToNonSecure(void)
 	cmdqRecSetEngine(handle, engineFlag);
 	//cmdq_task_secure_enable_dapc(handle, engineFlag);
 	cmdq_task_secure_enable_port_security(handle, engineFlag);
+#ifdef CMDQ_MTEE
+	cmdq_task_set_mtee(handle, true);
+#endif
 	cmdq_task_flush(handle);
 
 	return 0;
@@ -1560,21 +1567,21 @@ static signed int ConfigFDVTHW(FDVT_Config *pFdvtConfig)
 	if (pFdvtConfig->FDVT_IS_SECURE != 0) {
 		cmdqRecWriteSecure(handle,
 			FDVT_RSCON_BASE_ADR_HW,
-			CMDQ_SAM_H_2_MVA,
+			CMDQ_SAM_PH_2_MVA,
 			pFdvtConfig->FDVT_RSCON_BASE_ADR,
 			0,
 			pFdvtConfig->FDVT_RSCON_BUFSIZE,
 			M4U_PORT_FDVT_RDA);
 		cmdqRecWriteSecure(handle,
 			FDVT_FD_CON_BASE_ADR_HW,
-			CMDQ_SAM_H_2_MVA,
+			CMDQ_SAM_PH_2_MVA,
 			pFdvtConfig->FDVT_FD_CON_BASE_ADR,
 			0,
 			pFdvtConfig->FDVT_FD_CON_BUFSIZE,
 			M4U_PORT_FDVT_RDA);
 		cmdqRecWriteSecure(handle,
 			FDVT_YUV2RGBCON_BASE_ADR_HW,
-			CMDQ_SAM_H_2_MVA,
+			CMDQ_SAM_PH_2_MVA,
 			pFdvtConfig->FDVT_YUV2RGBCON_BASE_ADR,
 			0,
 			pFdvtConfig->FDVT_YUV2RGBCON_BUFSIZE,
@@ -1589,7 +1596,7 @@ static signed int ConfigFDVTHW(FDVT_Config *pFdvtConfig)
 		cmdqRecWrite(handle, FDVT_FD_RLT_BASE_ADR_HW,
 			0x0, CMDQ_REG_MASK);
 	}
-#if 1
+
 	if (pFdvtConfig->FDVT_IS_SECURE == 1) {
 		cmdq_task_set_secure_meta(
 			handle,
@@ -1597,7 +1604,7 @@ static signed int ConfigFDVTHW(FDVT_Config *pFdvtConfig)
 			&(pFdvtConfig->FDVT_METADATA_TO_GCE),
 			sizeof(pFdvtConfig->FDVT_METADATA_TO_GCE));
 	}
-#endif
+
 	cmdqRecWrite(handle, FDVT_START_HW, 0x1, CMDQ_REG_MASK);
 	cmdqRecWait(handle, CMDQ_EVENT_FDVT_DONE);
 	cmdqRecWrite(handle, FDVT_START_HW, 0x0, CMDQ_REG_MASK);
@@ -4176,12 +4183,8 @@ static signed int FDVT_probe(struct platform_device *pDev)
 		INIT_WORK(&FDVTInfo.ScheduleFdvtWork, FDVT_ScheduleWork);
 
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 		wakeup_source_init(&FDVT_wake_lock, "fdvt_lock_wakelock");
-#else
-		wake_lock_init(&FDVT_wake_lock,
-			WAKE_LOCK_SUSPEND,
-			"fdvt_lock_wakelock");
 #endif
 
 		// wake_lock_init(

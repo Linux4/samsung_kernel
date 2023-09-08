@@ -18,6 +18,7 @@
 #ifdef CONFIG_MTK_AEE_FEATURE
 #include <mt-plat/aee.h>
 #endif
+#include <linux/iopoll.h>
 
 #ifdef CONFIG_MTK_UAC_POWER_SAVING
 #define USB_AUDIO_DATA_OUT 0
@@ -144,7 +145,7 @@ static void *gpd_phys_to_virt(dma_addr_t paddr, u8 isRx, u32 num)
 }
 
 static void init_gpd_list(u8 isRx,
-	int num, struct TGPD *ptr, struct TGPD *io_ptr, u32 size)
+	u32 num, struct TGPD *ptr, struct TGPD *io_ptr, u32 size)
 {
 	if (isRx) {
 		Rx_gpd_List[num].pStart = ptr;
@@ -388,8 +389,10 @@ void gpd_switch_to_dram(struct device *dev)
 				(void *)(uintptr_t)Tx_gpd_Offset[index],
 				(void *)(uintptr_t)Tx_gpd_Offset_dram);
 		QMU_ERR("%s\n", string);
+#if 0
 #ifdef CONFIG_MTK_AEE_FEATURE
 		aee_kernel_warning(string, string);
+#endif
 #endif
 	}
 
@@ -779,6 +782,10 @@ void mtk_qmu_enable(struct musb *musb, u8 ep_num, u8 isRx)
 void mtk_qmu_stop(u8 ep_num, u8 isRx)
 {
 	void __iomem *base = qmu_base;
+	int ret;
+	u32 value = 0;
+
+	DBG(4, "ep_num=%d, isRx=%d\n", ep_num, isRx);
 
 	if (!isRx) {
 		if (MGC_ReadQMU16(base,
@@ -787,16 +794,28 @@ void mtk_qmu_stop(u8 ep_num, u8 isRx)
 				MGC_O_QMU_TQCSR(ep_num),
 				DQMU_QUE_STOP);
 			QMU_INFO("Stop TQ %d\n", ep_num);
+
+			ret = readl_poll_timeout_atomic(base+
+				MGC_O_QMU_TQCSR(ep_num), value,
+				!(value & DQMU_QUE_ACTIVE), 1, 1000);
+			if (ret)
+				QMU_ERR("Stop TQ %d failed\n", ep_num);
 		} else {
 			QMU_INFO("TQ %d already inactive\n", ep_num);
 		}
 	} else {
-		if (MGC_ReadQMU16(base
-				, MGC_O_QMU_RQCSR(ep_num)) & DQMU_QUE_ACTIVE) {
-			MGC_WriteQMU32(base
-				, MGC_O_QMU_RQCSR(ep_num)
-				, DQMU_QUE_STOP);
+		if (MGC_ReadQMU16(base,
+				MGC_O_QMU_RQCSR(ep_num)) & DQMU_QUE_ACTIVE) {
+			MGC_WriteQMU32(base,
+				MGC_O_QMU_RQCSR(ep_num),
+				DQMU_QUE_STOP);
 			QMU_INFO("Stop RQ %d\n", ep_num);
+
+			ret = readl_poll_timeout_atomic(base+
+				MGC_O_QMU_RQCSR(ep_num), value,
+				!(value & DQMU_QUE_ACTIVE), 1, 1000);
+			if (ret)
+				QMU_ERR("Stop RQ %d failed\n", ep_num);
 		} else {
 			QMU_INFO("RQ %d already inactive\n", ep_num);
 		}
@@ -910,6 +929,13 @@ void qmu_done_rx(struct musb *musb, u8 ep_num)
 		return;
 	}
 	request = &req->request;
+	if (!request) {
+		QMU_ERR(
+			"[RXD]%s Cannot get next usb_request of %d",
+			"but we should have next request and QMU has done.\n"
+			, __func__, ep_num);
+		return;
+	}
 
 	/*Transfer PHY addr got from QMU register to VIR addr */
 	gpd_current = (struct TGPD *)
@@ -1006,6 +1032,14 @@ void qmu_done_rx(struct musb *musb, u8 ep_num)
 		Rx_gpd_free_count[ep_num]++;
 		musb_g_giveback(musb_ep, request, 0);
 		req = next_request(musb_ep);
+
+		if (!req) {
+			QMU_ERR(
+				"[RXD]%s Cannot get next request of %d, but QMU has done.\n"
+				, __func__, ep_num);
+			return;
+		}
+
 		request = &req->request;
 	}
 
@@ -1626,10 +1660,11 @@ finished:
 			default:
 				break;
 			}
-
+#if 0
 #ifdef CONFIG_MTK_AEE_FEATURE
 			if (val && !skip_val)
 				aee_kernel_warning(string, string);
+#endif
 #endif
 		}
 #endif
@@ -1733,8 +1768,10 @@ finished:
 
 		sprintf(string, "USB20_HOST, TXQ<%d> ERR, CSR:%x", epnum, val);
 		QMU_ERR("%s\n", string);
+#if 0
 #ifdef CONFIG_MTK_AEE_FEATURE
 		aee_kernel_warning(string, string);
+#endif
 #endif
 	}
 

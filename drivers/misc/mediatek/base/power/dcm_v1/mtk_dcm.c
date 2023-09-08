@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/init.h>
@@ -145,7 +137,7 @@ void __attribute__((weak)) __iomem *mt_chn_emi_base_get(int chn)
  * 4. dcm_set_state(type) to set dcm state.
  * 5. dcm_dump_state(type) to show CURRENT_STATE.
  * 6. /sys/power/dcm_state interface:
- *			'restore', 'disable', 'dump', 'set'. 4 commands.
+ *	'restore', 'disable', 'dump', 'set'. 4 commands.
  *
  * spsecified APIs for workaround:
  * 1. (definitely no workaround now)
@@ -332,6 +324,22 @@ void dcm_dump_state(int type)
 	}
 }
 
+void dcm_sync_hw_state(void)
+{
+	int i;
+	struct DCM *dcm;
+
+	for (i = 0, dcm = &dcm_array[0]; i < NR_DCM_TYPE; i++, dcm++) {
+		if (dcm->func_is_on != NULL) {
+			dcm->current_state = dcm->func_is_on();
+			dcm_pr_info("[%-16s 0x%08x] sync hw state:%d (%d)\n",
+				 dcm->name, dcm->typeid, dcm->current_state,
+				 dcm->disable_refcnt);
+		}
+	}
+
+}
+
 #ifdef CONFIG_PM
 static ssize_t dcm_state_show(struct kobject *kobj, struct kobj_attribute *attr,
 				  char *buf)
@@ -479,6 +487,7 @@ int __init mt_dcm_init(void)
 #endif /* #ifndef DCM_DEFAULT_ALL_OFF */
 
 	dcm_dump_regs();
+	dcm_sync_hw_state();
 
 #ifdef CONFIG_PM
 	{

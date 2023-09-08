@@ -669,15 +669,19 @@ static int rndis_set_response(struct rndis_params *params,
 	rndis_set_cmplt_type *resp;
 	rndis_resp_t *r;
 
+	BufLength = le32_to_cpu(buf->InformationBufferLength);
+	BufOffset = le32_to_cpu(buf->InformationBufferOffset);
+	if ((BufLength > RNDIS_MAX_TOTAL_SIZE) ||
+	    (BufOffset > RNDIS_MAX_TOTAL_SIZE) ||
+		(BufOffset + 8 >= RNDIS_MAX_TOTAL_SIZE))
+			return -EINVAL;
+
 	r = rndis_add_response(params, sizeof(rndis_set_cmplt_type));
 	if (!r) {
 		pr_info("rndis_set_response, rndis_add_response return NULL\n");
 		return -ENOMEM;
 	}
 	resp = (rndis_set_cmplt_type *)r->buf;
-
-	BufLength = le32_to_cpu(buf->InformationBufferLength);
-	BufOffset = le32_to_cpu(buf->InformationBufferOffset);
 
 #ifdef	VERBOSE_DEBUG
 	pr_debug("%s: Length: %d\n", __func__, BufLength);
@@ -767,6 +771,7 @@ static int rndis_indicate_status_msg(struct rndis_params *params, u32 status)
 	rndis_indicate_status_msg_type *resp;
 	rndis_resp_t *r;
 
+	pr_info("%s - params->state:%d\n", __func__, params->state);
 	if (params->state == RNDIS_UNINITIALIZED)
 		return -ENOTSUPP;
 
@@ -852,13 +857,13 @@ int rndis_msg_parser(struct rndis_params *params, u8 *buf)
 	/* For USB: responses may take up to 10 seconds */
 	switch (MsgType) {
 	case RNDIS_MSG_INIT:
-		pr_debug("%s: RNDIS_MSG_INIT\n",
+		pr_info("%s: RNDIS_MSG_INIT\n",
 			__func__);
 		params->state = RNDIS_INITIALIZED;
 		return rndis_init_response(params, (rndis_init_msg_type *)buf);
 
 	case RNDIS_MSG_HALT:
-		pr_debug("%s: RNDIS_MSG_HALT\n",
+		pr_info("%s: RNDIS_MSG_HALT\n",
 			__func__);
 
 		params->state = RNDIS_UNINITIALIZED;
@@ -876,7 +881,7 @@ int rndis_msg_parser(struct rndis_params *params, u8 *buf)
 		return rndis_set_response(params, (rndis_set_msg_type *)buf);
 
 	case RNDIS_MSG_RESET:
-		pr_debug("%s: RNDIS_MSG_RESET\n",
+		pr_info("%s: RNDIS_MSG_RESET\n",
 			__func__);
 
 		return rndis_reset_response(params,
@@ -898,6 +903,8 @@ int rndis_msg_parser(struct rndis_params *params, u8 *buf)
 		 */
 		pr_warn("%s: unknown RNDIS message 0x%08X len %d\n",
 				__func__, MsgType, MsgLength);
+		if (MsgLength > 16)
+			MsgLength = 16;
 		{
 			unsigned int i;
 

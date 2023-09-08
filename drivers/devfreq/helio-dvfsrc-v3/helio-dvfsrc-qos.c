@@ -11,7 +11,6 @@
  * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
-#include <linux/devfreq.h>
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/kernel.h>
@@ -23,7 +22,6 @@
 #include <linux/spinlock.h>
 #include <linux/of.h>
 
-#include "governor.h"
 #include <spm/mtk_spm.h>
 
 
@@ -33,16 +31,11 @@
 
 #include <helio-dvfsrc-qos.h>
 
-#ifdef CONFIG_MTK_TINYSYS_SSPM_SUPPORT
-#include <v1/sspm_ipi.h>
-#include <sspm_ipi_pin.h>
-#endif
-
 struct helio_dvfsrc *dvfsrc;
 
 #define DVFSRC_REG(offset) (dvfsrc->regs + offset)
 
-#if defined(CONFIG_MACH_MT6885)
+#if defined(DVFSRC_SMC_CONTROL)
 #define SPM_REG(offset) (dvfsrc->spm_regs + offset)
 
 u32 spm_reg_read(u32 offset)
@@ -119,6 +112,7 @@ static void dvfsrc_restore(void)
 		}
 		commit_data(i, pm_qos_request(class_type), 0);
 	}
+	dvfsrc->qos_enabled = 1;
 }
 
 #ifdef CONFIG_MTK_TINYSYS_SSPM_SUPPORT
@@ -136,6 +130,7 @@ static void helio_dvfsrc_sspm_init(int dvfsrc_en)
 
 void helio_dvfsrc_enable(int dvfsrc_en)
 {
+	int ret = 0;
 	if (dvfsrc_en > 1 || dvfsrc_en < 0)
 		return;
 
@@ -152,8 +147,12 @@ void helio_dvfsrc_enable(int dvfsrc_en)
 
 	dvfsrc->dvfsrc_enabled = dvfsrc_en;
 	dvfsrc->opp_forced = 0;
-	sprintf(dvfsrc->force_start, "0");
-	sprintf(dvfsrc->force_end, "0");
+	ret = sprintf(dvfsrc->force_start, "0");
+	if (ret < 0)
+		pr_info("sprintf fail\n");
+	ret = sprintf(dvfsrc->force_end, "0");
+	if (ret < 0)
+		pr_info("sprintf fail\n");
 
 	dvfsrc_restore();
 	if (dvfsrc_en)
@@ -184,6 +183,14 @@ int is_dvfsrc_enabled(void)
 {
 	if (dvfsrc)
 		return dvfsrc->dvfsrc_enabled == 1;
+
+	return 0;
+}
+
+int is_dvfsrc_qos_enabled(void)
+{
+	if (dvfsrc)
+		return dvfsrc->qos_enabled == 1;
 
 	return 0;
 }
@@ -228,77 +235,58 @@ static void get_pm_qos_info(char *p)
 			pm_qos_request(PM_QOS_ISP_HRT_BANDWIDTH));
 }
 
-char *dvfsrc_dump_reg(char *ptr)
+u32 dvfsrc_dump_reg(char *ptr, u32 count)
 {
 	char buf[1024];
+	u32 index = 0;
 
 	memset(buf, '\0', sizeof(buf));
 	get_opp_info(buf);
-	if (ptr)
-		ptr += sprintf(ptr, "%s\n", buf);
-	else
+	if (ptr) {
+		index += scnprintf(&ptr[index], (count - index - 1),
+		"%s\n", buf);
+	} else
 		pr_info("%s\n", buf);
 
 	memset(buf, '\0', sizeof(buf));
 	get_dvfsrc_reg(buf);
-	if (ptr)
-		ptr += sprintf(ptr, "%s\n", buf);
-	else
+	if (ptr) {
+		index += scnprintf(&ptr[index], (count - index - 1),
+		"%s\n", buf);
+	} else
 		pr_info("%s\n", buf);
 
 	memset(buf, '\0', sizeof(buf));
 	get_dvfsrc_record(buf);
-	if (ptr)
-		ptr += sprintf(ptr, "%s\n", buf);
-	else
+	if (ptr) {
+		index += scnprintf(&ptr[index], (count - index - 1),
+		"%s\n", buf);
+	} else
 		pr_info("%s\n", buf);
 
 	memset(buf, '\0', sizeof(buf));
 	get_spm_reg(buf);
-	if (ptr)
-		ptr += sprintf(ptr, "%s\n", buf);
-	else
+	if (ptr) {
+		index += scnprintf(&ptr[index], (count - index - 1),
+		"%s\n", buf);
+	} else
 		pr_info("%s\n", buf);
 
 	memset(buf, '\0', sizeof(buf));
 	get_pm_qos_info(buf);
-	if (ptr)
-		ptr += sprintf(ptr, "%s\n", buf);
-	else
+	if (ptr) {
+		index += scnprintf(&ptr[index], (count - index - 1),
+		"%s\n", buf);
+	} else
 		pr_info("%s\n", buf);
 
-	return ptr;
+	return index;
 }
-
-static struct devfreq_dev_profile helio_devfreq_profile = {
-	.polling_ms	= 0,
-};
 
 void dvfsrc_set_power_model_ddr_request(unsigned int level)
 {
 	commit_data(DVFSRC_QOS_POWER_MODEL_DDR_REQUEST, level, 1);
 }
-
-static int helio_governor_event_handler(struct devfreq *devfreq,
-					unsigned int event, void *data)
-{
-	switch (event) {
-	case DEVFREQ_GOV_SUSPEND:
-		break;
-
-	case DEVFREQ_GOV_RESUME:
-		break;
-
-	default:
-		break;
-	}
-	return 0;
-}
-
-static struct devfreq_governor helio_dvfsrc_governor = {
-	.name = "helio_dvfsrc",
-	.event_handler = helio_governor_event_handler,
-};
 
 static int pm_qos_memory_bw_notify(struct notifier_block *b,
 		unsigned long l, void *v)
@@ -499,11 +487,6 @@ static int helio_dvfsrc_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, dvfsrc);
 	dvfsrc->dev = &pdev->dev;
 
-	dvfsrc->devfreq = devm_devfreq_add_device(&pdev->dev,
-						 &helio_devfreq_profile,
-						 "helio_dvfsrc",
-						 NULL);
-
 	ret = helio_dvfsrc_add_interface(&pdev->dev);
 	if (ret)
 		return ret;
@@ -516,6 +499,7 @@ static int helio_dvfsrc_probe(struct platform_device *pdev)
 		(u32 *) &dvfsrc->dvfsrc_flag))
 		dvfsrc->dvfsrc_flag = 0;
 
+	helio_dvfsrc_platform_pre_init(dvfsrc);
 	helio_dvfsrc_config(dvfsrc);
 
 	pr_info("%s: init done\n", __func__);
@@ -547,12 +531,6 @@ static __maybe_unused int helio_dvfsrc_suspend(struct device *dev)
 			return ret;
 	}
 
-	ret = devfreq_suspend_device(dvfsrc->devfreq);
-	if (ret < 0) {
-		dev_err(dev, "failed to suspend the devfreq devices\n");
-		return ret;
-	}
-
 	return 0;
 }
 
@@ -566,11 +544,6 @@ static __maybe_unused int helio_dvfsrc_resume(struct device *dev)
 			return ret;
 	}
 
-	ret = devfreq_resume_device(dvfsrc->devfreq);
-	if (ret < 0) {
-		dev_err(dev, "failed to resume the devfreq devices\n");
-		return ret;
-	}
 	return ret;
 }
 
@@ -591,29 +564,14 @@ static int __init helio_dvfsrc_init(void)
 {
 	int ret = 0;
 
-	ret = devfreq_add_governor(&helio_dvfsrc_governor);
-	if (ret) {
-		pr_err("%s: failed to add governor: %d\n", __func__, ret);
-		return ret;
-	}
-
 	ret = platform_driver_register(&helio_dvfsrc_driver);
-	if (ret)
-		devfreq_remove_governor(&helio_dvfsrc_governor);
-
 	return ret;
 }
 late_initcall_sync(helio_dvfsrc_init)
 
 static void __exit helio_dvfsrc_exit(void)
 {
-	int ret = 0;
-
 	platform_driver_unregister(&helio_dvfsrc_driver);
-
-	ret = devfreq_remove_governor(&helio_dvfsrc_governor);
-	if (ret)
-		pr_err("%s: failed to remove governor: %d\n", __func__, ret);
 }
 module_exit(helio_dvfsrc_exit)
 

@@ -158,7 +158,7 @@ static unsigned int fps_target_adjust;
 #endif
 
 #ifndef __GED_TYPE_H__
-enum GED_INFO_TAG {
+enum GED_INFO {
 GED_EVENT_GAS_MODE,
 GED_UNDEFINED
 };
@@ -177,7 +177,7 @@ disp_mgr_get_session_info(struct disp_session_info *info)
 }
 
 unsigned long  __attribute__ ((weak))
-ged_query_info(enum GED_INFO_TAG eType)
+ged_query_info(GED_INFO eType)
 {
 	pr_notice("E_WF: %s doesn't exist\n", __func__);
 	return 0;
@@ -186,7 +186,9 @@ ged_query_info(enum GED_INFO_TAG eType)
 bool  __attribute__ ((weak))
 mtk_get_gpu_loading(unsigned int *pLoading)
 {
+#ifdef CONFIG_MTK_GPU_SUPPORT
 	pr_notice("E_WF: %s doesn't exist\n", __func__);
+#endif
 	return 0;
 }
 

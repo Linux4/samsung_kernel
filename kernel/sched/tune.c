@@ -31,10 +31,7 @@ struct schedtune {
 
 	/* Boost value for tasks on that SchedTune CGroup */
 	int boost;
-#ifdef CONFIG_PRIO_PINNED_BOOST
-	/* Bosst value for schedboost on that SchedTune CGroup */
-	int pinned_boost;
-#endif
+
 	/* Hint to bias scheduling of tasks on that SchedTune CGroup
 	 * towards idle CPUs */
 	int prefer_idle;
@@ -85,9 +82,6 @@ struct uclamp_se *task_schedtune_uclamp(struct task_struct *tsk, int clamp_id)
 static struct schedtune
 root_schedtune = {
 	.boost	= 0,
-#ifdef CONFIG_PRIO_PINNED_BOOST
-	.pinned_boost = 0,
-#endif
 	.prefer_idle = 0,
 };
 
@@ -102,17 +96,18 @@ root_schedtune = {
  *    implementation especially for the computation of the per-CPU boost
  *    value
  */
-#ifdef CONFIG_MTK_IO_BOOST
-#define BOOSTGROUPS_COUNT 7
-#else
-#define BOOSTGROUPS_COUNT 6
-#endif
+#define BOOSTGROUPS_COUNT 10
 
 /* Array of configured boostgroups */
 static struct schedtune *allocated_group[BOOSTGROUPS_COUNT] = {
 	&root_schedtune,
 	NULL,
 };
+
+static inline bool is_group_idx_valid(int idx)
+{
+	return idx >= 0 && idx < BOOSTGROUPS_COUNT;
+}
 
 /* SchedTune boost groups
  * Keep track of all the boost groups which impact on CPU, for example when a
@@ -687,25 +682,6 @@ int schedtune_task_boost(struct task_struct *p)
 	return task_boost;
 }
 
-#ifdef CONFIG_PRIO_PINNED_BOOST
-int schedtune_task_pinned_boost(struct task_struct *p)
-{
-	struct schedtune *st;
-	int task_pinned_boost;
-
-	if (unlikely(!schedtune_initialized))
-		return 0;
-
-	/* Get task boost value */
-	rcu_read_lock();
-	st = task_schedtune(p);
-	task_pinned_boost = st->pinned_boost;
-	rcu_read_unlock();
-
-	return task_pinned_boost;
-}
-#endif
-
 int schedtune_prefer_idle(struct task_struct *p)
 {
 	struct schedtune *st;
@@ -786,30 +762,6 @@ boost_write(struct cgroup_subsys_state *css, struct cftype *cft,
 	return 0;
 }
 
-#ifdef CONFIG_PRIO_PINNED_BOOST
-static s64
-pinned_boost_read(struct cgroup_subsys_state *css, struct cftype *cft)
-{
-	struct schedtune *st = css_st(css);
-
-	return st->pinned_boost;
-}
-
-static int
-pinned_boost_write(struct cgroup_subsys_state *css, struct cftype *cft,
-	    s64 pinned_boost)
-{
-	struct schedtune *st = css_st(css);
-
-	if (pinned_boost < 0 || pinned_boost > 140)
-		return -EINVAL;
-
-	st->pinned_boost = pinned_boost;
-
-	return 0;
-}
-#endif
-
 static struct cftype files[] = {
 	{
 		.name = "boost",
@@ -821,13 +773,6 @@ static struct cftype files[] = {
 		.read_u64 = prefer_idle_read,
 		.write_u64 = prefer_idle_write,
 	},
-#ifdef CONFIG_PRIO_PINNED_BOOST
-	{
-		.name = "pinned_boost",
-		.read_s64 = pinned_boost_read,
-		.write_s64 = pinned_boost_write,
-	},
-#endif
 #if defined(CONFIG_UCLAMP_TASK_GROUP)
 	{
 		.name = "util.min",

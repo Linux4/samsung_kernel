@@ -11,14 +11,23 @@
  * GNU General Public License for more details.
  */
 
+
 #ifndef __SMCALL_TABLE_H__
 #define __SMCALL_TABLE_H__
 
 #include <gz-trusty/smcall_mtee.h>
 #include <gz-trusty/trusty.h>
 
-/* define all functions used by MTEE 1 and MTEE 2
- * The array index in gz_smcnr_table.
+/* enum smc_functions:
+ * Define all SMC functions of GenieZone.
+ * SMCF means SMC Function.
+ * The value of this enum corresponds to the array index of gz_smcnr_table.
+ * Steps of adding a new SMC number:
+ *   1. Define SMC number in smcall_mtee.h.
+ *   2. Create an element which should be named as SMCF_[SC/FC]_[function name]
+ *      in this enum.
+ *   2. Insert an element to gz_smcnr_table and set the SMC number for TEEs.
+ *   3. Access the SMC number by MTEE_SMCNR_TID or MTEE_SMCNR.
  */
 enum smc_functions {
 	SMCF_NONE = 0,
@@ -34,6 +43,8 @@ enum smc_functions {
 	SMCF_FC_AARCH_SWITCH,
 	SMCF_FC_GET_VERSION_STR,
 	SMCF_FC_API_VERSION,
+	SMCF_FC_GET_CMASK,
+	SMCF_FC_GET_CPU_REQUEST,
 	SMCF_SC_NS_RETURN,
 
 	MT_SMCF_SC_ADD,
@@ -46,8 +57,10 @@ enum smc_functions {
 	MT_SMCF_FC_HEAP_DUMP,
 	MT_SMCF_FC_APPS,
 	MT_SMCF_FC_MEM_USAGE,
+	MT_SMCF_FC_DEVAPC_VIO,
 	MT_SMCF_SC_SET_RAMCONSOLE,
 	MT_SMCF_SC_VPU,
+	MT_SMCF_FC_KTIME_ALIGN,
 
 	SMCF_FC_TEST_ADD,
 	SMCF_FC_TEST_MULTIPLY,
@@ -73,7 +86,7 @@ enum smc_functions {
 	SMCF_END
 };
 
-/* get GZ version for select smcnr table */
+/* get GZ SMC version for select smcnr table */
 int init_smcnr_table(struct device *dev, enum tee_id_t tee_id);
 
 /* Get SMC number, not suggest to directly use */

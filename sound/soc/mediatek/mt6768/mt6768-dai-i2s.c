@@ -133,9 +133,9 @@ static int mt6768_i2s_hd_set(struct snd_kcontrol *kcontrol,
 {
 	struct snd_soc_component *cmpnt = snd_soc_kcontrol_component(kcontrol);
 	struct mtk_base_afe *afe = snd_soc_component_get_drvdata(cmpnt);
-	struct mtk_afe_i2s_priv *i2s_priv;
+	struct mtk_afe_i2s_priv *i2s_priv = NULL;
 	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
-	int hd_en;
+	int hd_en = 0;
 
 	if (ucontrol->value.enumerated.item[0] >= e->items)
 		return -EINVAL;
@@ -335,7 +335,7 @@ static int mtk_mclk_en_event(struct snd_soc_dapm_widget *w,
 {
 	struct snd_soc_component *cmpnt = snd_soc_dapm_to_component(w->dapm);
 	struct mtk_base_afe *afe = snd_soc_component_get_drvdata(cmpnt);
-	struct mtk_afe_i2s_priv *i2s_priv;
+	struct mtk_afe_i2s_priv *i2s_priv = NULL;
 
 	dev_info(cmpnt->dev, "%s(), name %s, event 0x%x\n",
 		 __func__, w->name, event);
@@ -738,24 +738,23 @@ static int mtk_dai_connsys_i2s_hw_params(struct snd_pcm_substream *substream,
 
 	if (rate == 44100)
 		regmap_write(afe->regmap, AFE_ASRC_2CH_CON3, 0x001B9000);
+	else if (rate == 32000)
+		regmap_write(afe->regmap, AFE_ASRC_2CH_CON3, 0x140000);
 	else
 		regmap_write(afe->regmap, AFE_ASRC_2CH_CON3, 0x001E0000);
 
+	/* Calibration setting */
 	regmap_write(afe->regmap, AFE_ASRC_2CH_CON4, 0x00140000);
-	regmap_write(afe->regmap, AFE_ASRC_2CH_CON5, 0x00FF5987);
+	regmap_write(afe->regmap, AFE_ASRC_2CH_CON9, 0x00036000);
+	regmap_write(afe->regmap, AFE_ASRC_2CH_CON10, 0x0002FC00);
 	regmap_write(afe->regmap, AFE_ASRC_2CH_CON6, 0x00007EF4);
 	regmap_write(afe->regmap, AFE_ASRC_2CH_CON5, 0x00FF5986);
-	regmap_write(afe->regmap, AFE_ASRC_2CH_CON5, 0x00FF5987);
 
 	/* 0:Stereo 1:Mono */
 	regmap_update_bits(afe->regmap,
 			   AFE_ASRC_2CH_CON2,
 			   CHSET_IS_MONO_MASK_SFT,
-			   0x0);
-
-	/* Calibration setting */
-	regmap_write(afe->regmap, AFE_ASRC_2CH_CON9, 0x00036000);
-	regmap_write(afe->regmap, AFE_ASRC_2CH_CON10, 0x0002FC00);
+			   0x0 << CHSET_IS_MONO_SFT);
 
 	return 0;
 }
@@ -765,7 +764,6 @@ static int mtk_dai_connsys_i2s_trigger(struct snd_pcm_substream *substream,
 {
 	struct mtk_base_afe *afe = snd_soc_dai_get_drvdata(dai);
 	struct mt6768_afe_private *afe_priv = afe->platform_priv;
-	unsigned int need_disable_asm;
 
 	dev_info(afe->dev, "%s(), cmd %d, stream %d\n",
 		 __func__,
@@ -775,44 +773,52 @@ static int mtk_dai_connsys_i2s_trigger(struct snd_pcm_substream *substream,
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
-		/* asrc enable */
-		regmap_update_bits(afe->regmap,
-				   AFE_ASRC_2CH_CON0,
-				   (1 << 4) | (1 << 0),
-				   (1 << 4) | (1 << 0));
-
 		/* i2s enable */
 		regmap_update_bits(afe->regmap,
 				   AFE_CONNSYS_I2S_CON,
 				   I2S_EN_MASK_SFT,
-				   0x1);
+				   0x1 << I2S_EN_SFT);
+
+		/* calibrator enable */
+		regmap_update_bits(afe->regmap,
+				   AFE_ASRC_2CH_CON5,
+				   CALI_EN_MASK_SFT,
+				   0x1 << CALI_EN_SFT);
+
+		/* asrc enable */
+		regmap_update_bits(afe->regmap,
+				   AFE_ASRC_2CH_CON0,
+				   CON0_CHSET_STR_CLR_MASK_SFT,
+				   0x1 << CON0_CHSET_STR_CLR_SFT);
+		regmap_update_bits(afe->regmap,
+				   AFE_ASRC_2CH_CON0,
+				   CON0_ASM_ON_MASK_SFT,
+				   0x1 << CON0_ASM_ON_SFT);
 
 		afe_priv->dai_on[dai->id] = true;
 		return 0;
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
-		/* disable asrc */
-		regmap_read(afe->regmap,
-			    AFE_ASRC_2CH_CON0, &need_disable_asm);
+		regmap_update_bits(afe->regmap,
+				   AFE_ASRC_2CH_CON0,
+				   CON0_ASM_ON_MASK_SFT,
+				   0 << CON0_ASM_ON_SFT);
+		regmap_update_bits(afe->regmap,
+				   AFE_ASRC_2CH_CON5,
+				   CALI_EN_MASK_SFT,
+				   0 << CALI_EN_SFT);
 
-		need_disable_asm = (need_disable_asm & 0x0030) ? 1 : 0;
-
+		/* i2s disable */
 		regmap_update_bits(afe->regmap,
 				   AFE_CONNSYS_I2S_CON,
-				   (1 << 6 | need_disable_asm),
-				   0x0);
+				   I2S_EN_MASK_SFT,
+				   0x0 << I2S_EN_SFT);
 
 		/* bypass asrc */
 		regmap_update_bits(afe->regmap,
 				   AFE_CONNSYS_I2S_CON,
 				   I2S_BYPSRC_MASK_SFT,
 				   0x1 << I2S_BYPSRC_SFT);
-
-		/* i2s disable */
-		regmap_update_bits(afe->regmap,
-				   AFE_CONNSYS_I2S_CON,
-				   I2S_EN_MASK_SFT,
-				   0x0);
 
 		afe_priv->dai_on[dai->id] = false;
 		return 0;
@@ -1082,9 +1088,9 @@ int mt6768_dai_i2s_get_share(struct mtk_base_afe *afe)
 {
 	struct mt6768_afe_private *afe_priv = afe->platform_priv;
 	const struct device_node *of_node = afe->dev->of_node;
-	const char *of_str;
-	const char *property_name;
-	struct mtk_afe_i2s_priv *i2s_priv;
+	const char *of_str = NULL;
+	const char *property_name = NULL;
+	struct mtk_afe_i2s_priv *i2s_priv = NULL;
 	int i;
 
 	for (i = 0; i < DAI_I2S_NUM; i++) {
@@ -1101,7 +1107,7 @@ int mt6768_dai_i2s_get_share(struct mtk_base_afe *afe)
 int mt6768_dai_i2s_set_priv(struct mtk_base_afe *afe)
 {
 	struct mt6768_afe_private *afe_priv = afe->platform_priv;
-	struct mtk_afe_i2s_priv *i2s_priv;
+	struct mtk_afe_i2s_priv *i2s_priv = NULL;
 	int i;
 
 	for (i = 0; i < DAI_I2S_NUM; i++) {
@@ -1111,7 +1117,8 @@ int mt6768_dai_i2s_set_priv(struct mtk_base_afe *afe)
 		if (!i2s_priv)
 			return -ENOMEM;
 
-		memcpy(i2s_priv, &mt6768_i2s_priv[i],
+		memcpy(i2s_priv,
+		       &mt6768_i2s_priv[i],
 		       sizeof(struct mtk_afe_i2s_priv));
 
 		afe_priv->dai_priv[mt6768_i2s_priv[i].id] = i2s_priv;
@@ -1122,8 +1129,8 @@ int mt6768_dai_i2s_set_priv(struct mtk_base_afe *afe)
 
 int mt6768_dai_i2s_register(struct mtk_base_afe *afe)
 {
-	struct mtk_base_afe_dai *dai;
-	int ret;
+	struct mtk_base_afe_dai *dai = NULL;
+	int ret = 0;
 
 	dev_info(afe->dev, "%s()\n", __func__);
 

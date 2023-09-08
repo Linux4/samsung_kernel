@@ -188,6 +188,10 @@ dtc_cpp_flags  = -Wp,-MD,$(depfile).pre.tmp -nostdinc                    \
 modname-multi = $(sort $(foreach m,$(multi-used),\
 		$(if $(filter $(subst $(obj)/,,$*.o), $($(m:.o=-objs)) $($(m:.o=-y))),$(m:.o=))))
 
+ifeq ($(CONFIG_SEC_FACTORY),y)
+dtc_cpp_flags += -DCONFIG_SEC_FACTORY
+endif
+
 # Useful for describing the dependency of composite objects
 # Usage:
 #   $(call multi_depend, multi_used_targets, suffix_to_remove, suffix_to_add)
@@ -306,6 +310,20 @@ cmd_dt_S_dtb=						\
 	echo '.balign STRUCT_ALIGNMENT'; 		\
 ) > $@
 
+show_dtc_error =                                                          \
+(                                                                         \
+	cat $1;                                                           \
+	for err in "$$(cat $1 | grep 'Error:')"; do                       \
+	   echo "See more detail error as below:";                        \
+	   cat $$(echo $$err | cut -d':' -f2)                             \
+	   | awk '{printf("ERROR: %6d  %s\n"), NR, $$0}'                  \
+	   | head -n $$(echo $$err | grep -Eo ':[0-9]+' | cut -d':' -f2)  \
+	   | tail -n 2;                                                   \
+	done;                                                             \
+	rm $1;                                                            \
+	false;                                                            \
+)
+
 $(obj)/%.dtb.S: $(obj)/%.dtb
 	$(call cmd,dt_S_dtb)
 
@@ -314,7 +332,8 @@ cmd_dtc = mkdir -p $(dir ${dtc-tmp}) ; \
 	$(CPP) $(dtc_cpp_flags) -x assembler-with-cpp -o $(dtc-tmp) $< ; \
 	$(srctree)/scripts/dtc/dtc_overlay -@ -O dtb -o $@ -b 0 \
 		$(addprefix -i,$(dir $<) $(DTC_INCLUDE)) $(DTC_FLAGS) \
-		-d $(depfile).dtc.tmp $(dtc-tmp) ; \
+		-d $(depfile).dtc.tmp $(dtc-tmp) 2>$@.dtout || $(call show_dtc_error, $@.dtout) ;\
+	$(DTC) -q -O dts -I dtb -o $@.reverse.dts $@ ; \
 	cat $(depfile).pre.tmp $(depfile).dtc.tmp > $(depfile)
 
 $(obj)/%.dtb: $(src)/%.dts FORCE
@@ -368,7 +387,8 @@ cmd_lzo = (cat $(filter-out FORCE,$^) | \
 
 quiet_cmd_lz4 = LZ4     $@
 cmd_lz4 = (cat $(filter-out FORCE,$^) | \
-	lz4c -l -c1 stdin stdout && $(call size_append, $(filter-out FORCE,$^))) > $@ || \
+	lz4 -c -l -12 --favor-decSpeed stdin stdout && \
+	$(call size_append, $(filter-out FORCE,$^))) > $@ || \
 	(rm -f $@ ; false)
 
 # U-Boot mkimage

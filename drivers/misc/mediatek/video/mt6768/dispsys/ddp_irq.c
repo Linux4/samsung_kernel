@@ -221,22 +221,24 @@ irqreturn_t disp_irq_handler(int irq, void *dev_id)
 
 		DDPIRQ("%s irq_status = 0x%x\n",
 			ddp_get_module_name(module), reg_val);
+
+		if (reg_val & (1 << 2)) {
+			mmprofile_log_ex(ddp_mmp_get_events()->DSI_IRQ[index],
+				MMPROFILE_FLAG_PULSE, reg_val, 0);
+			if (!primary_display_is_video_mode() && primary_display_is_tui_started())
+				primary_display_wakeup_pf_thread();
+			//DDPMSG("DSI TE\n");
+		}
+
 		reg_temp_val = reg_val;
 		/* rd_rdy don't clear and wait for ESD &
 		 * Read LCM will clear the bit.
 		 */
 		if (disp_irq_esd_cust_get() == 1)
 			reg_temp_val = reg_val & 0xfffe;
-		if (module == DISP_MODULE_DSI0) {
+		if (module == DISP_MODULE_DSI0)
 			DISP_CPU_REG_SET(DISPSYS_DSI0_BASE + 0xC,
 				~reg_temp_val);
-			if (reg_val & (1 << 2) &&
-				lcm_fps_ctx.dsi_mode == 0) {
-				unsigned long long ext_te_time = sched_clock();
-
-				lcm_fps_ctx_update(&lcm_fps_ctx, ext_te_time);
-			}
-		}
 		else
 			DISP_CPU_REG_SET(DISPSYS_DSI1_BASE + 0xC,
 				~reg_temp_val);
@@ -364,12 +366,6 @@ irqreturn_t disp_irq_handler(int irq, void *dev_id)
 			rdma_end_time[index] = sched_clock();
 			DDPIRQ("IRQ: RDMA%d frame done!\n", index);
 			rdma_done_irq_cnt[index]++;
-			if (index == 0) {
-				if (lcm_fps_ctx.dsi_mode == 1) {
-					lcm_fps_ctx_update(&lcm_fps_ctx,
-						rdma_end_time[index]);
-				}
-			}
 		}
 		if (reg_val & (1 << 1)) {
 			mmprofile_log_ex(
@@ -379,6 +375,8 @@ irqreturn_t disp_irq_handler(int irq, void *dev_id)
 			rdma_start_time[index] = sched_clock();
 			DDPIRQ("IRQ: RDMA%d frame start!\n", index);
 			rdma_start_irq_cnt[index]++;
+			if (!primary_display_is_video_mode() && !primary_display_is_tui_started())
+				primary_display_wakeup_pf_thread();
 		}
 		if (reg_val & (1 << 3)) {
 			mmprofile_log_ex(

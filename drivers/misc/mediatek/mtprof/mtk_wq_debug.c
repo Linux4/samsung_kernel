@@ -385,7 +385,7 @@ static ssize_t
 mt_wq_debug_write(struct file *filp, const char *ubuf, size_t cnt, loff_t *data)
 {
 	int ret;
-	unsigned long val;
+	unsigned long val = 0;
 
 	ret = kstrtoul_from_user(ubuf, cnt, 10, &val);
 	if (ret)
@@ -417,7 +417,7 @@ static ssize_t
 mt_wq_selftest_write(struct file *filp, const char *ubuf, size_t cnt,
 		     loff_t *data)
 {
-	unsigned long val;
+	unsigned long val = 0;
 	int ret;
 
 	ret = kstrtoul_from_user(ubuf, cnt, 10, &val);
@@ -464,7 +464,7 @@ static int __init init_wq_debug(void)
 					    0, NULL);
 
 	if (work_info_cache) {
-		work_debug_enable(1);
+		work_debug_enable(0);
 		pe = proc_create("mtprof/wq_debug", 0664,
 			NULL, &mt_wq_debug_fops);
 		if (!pe)

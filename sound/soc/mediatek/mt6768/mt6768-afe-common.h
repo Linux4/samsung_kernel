@@ -172,7 +172,6 @@ struct mt6768_afe_private {
 	int speech_shm_init;
 	int speech_shm_usip;
 	int speech_shm_widx;
-	int speech_cust_param_init;
 };
 
 int mt6768_dai_adda_register(struct mtk_base_afe *afe);

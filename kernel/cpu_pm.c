@@ -21,6 +21,7 @@
 #include <linux/notifier.h>
 #include <linux/spinlock.h>
 #include <linux/syscore_ops.h>
+#include <linux/suspend.h>
 
 static ATOMIC_NOTIFIER_HEAD(cpu_pm_notifier_chain);
 
@@ -89,7 +90,7 @@ EXPORT_SYMBOL_GPL(cpu_pm_unregister_notifier);
  */
 int cpu_pm_enter(void)
 {
-	int nr_calls;
+	int nr_calls = 0;
 	int ret = 0;
 
 	ret = cpu_pm_notify(CPU_PM_ENTER, -1, &nr_calls);
@@ -140,7 +141,7 @@ EXPORT_SYMBOL_GPL(cpu_pm_exit);
  */
 int cpu_cluster_pm_enter(void)
 {
-	int nr_calls;
+	int nr_calls = 0;
 	int ret = 0;
 
 	ret = cpu_pm_notify(CPU_CLUSTER_PM_ENTER, -1, &nr_calls);
@@ -180,6 +181,12 @@ EXPORT_SYMBOL_GPL(cpu_cluster_pm_exit);
 static int cpu_pm_suspend(void)
 {
 	int ret;
+#ifdef CONFIG_SUSPEND
+	if (s2idle_state != S2IDLE_STATE_NONE) {
+		pr_info("skip cpu_pm_suspend when s2idle\n");
+		return 0;
+	}
+#endif
 
 	ret = cpu_pm_enter();
 	if (ret)
@@ -191,6 +198,12 @@ static int cpu_pm_suspend(void)
 
 static void cpu_pm_resume(void)
 {
+#ifdef CONFIG_SUSPEND
+	if (s2idle_state != S2IDLE_STATE_NONE) {
+		pr_info("skip cpu_pm_resume when s2idle\n");
+		return;
+	}
+#endif
 	cpu_cluster_pm_exit();
 	cpu_pm_exit();
 }

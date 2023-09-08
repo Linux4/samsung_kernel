@@ -130,7 +130,8 @@ typedef struct _ss_payload {
 #else
 #define DEK_LOGD(...)
 #endif /* DEK_DEBUG */
-#define DEK_LOGE(...) printk("dek: "__VA_ARGS__)
+#define DEK_LOGI(...) printk(KERN_INFO "dek: "__VA_ARGS__)
+#define DEK_LOGE(...) printk(KERN_ERR "dek: "__VA_ARGS__)
 
 void hex_key_dump(const char* tag, uint8_t *data, size_t data_len);
 void key_dump(unsigned char *buf, int len);

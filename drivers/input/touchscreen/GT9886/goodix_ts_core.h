@@ -51,12 +51,16 @@
 
 /* macros definition */
 /* mtk touch factory test: "mtk-tpd2" */
-#define GOODIX_CORE_DRIVER_NAME	"mtk-tpd2"
+#define GOODIX_CORE_DRIVER_NAME	"gt9886"
+#define GOODIX_INPUT_DEV_NAME	"mtk-tpd2"
 #define GOODIX_DRIVER_VERSION	"v1.2.0.1"
+#define GOODIX_TS_PID_GT9886	"9886"
+#define GOODIX_TS_PID_GT9885	"9885"
 #define GOODIX_BUS_RETRY_TIMES	3
+#define GOODIX_CHIPID_RETRY_TIMES	5
 #define GOODIX_MAX_TOUCH	10
 #define GOODIX_MAX_PEN		1
-#define GOODIX_MAX_KEY	3
+#define GOODIX_MAX_KEY		3
 #define GOODIX_PEN_MAX_KEY	2
 #define GOODIX_CFG_MAX_SIZE	1024
 #define GOODIX_ESD_TICK_WRITE_DATA 0xAA
@@ -68,56 +72,32 @@
 #define IC_TYPE_NONE		0
 #define IC_TYPE_NORMANDY	1
 #define IC_TYPE_NANJING		2
+#define PINCTRL_STATE_I2C_DEFAULT   "ts_i2c_mode"
 #define PINCTRL_STATE_INT_ACTIVE    "ts_int_active"
 #define PINCTRL_STATE_RST_ACTIVE    "ts_reset_active"
 #define PINCTRL_STATE_INT_SUSPEND   "ts_int_suspend"
 #define PINCTRL_STATE_RST_SUSPEND   "ts_reset_suspend"
 
-#define GOODIX_TOUCH_EVENT	    0x80
+#define GOODIX_TOUCH_EVENT	0x80
 #define GOODIX_REQUEST_EVENT	0x40
 #define GOODIX_GESTURE_EVENT	0x20
 #define GOODIX_HOTKNOT_EVENT	0x10
 
-/*touch rotate with lcm*/
-#ifndef LCM_UNREAR_RESOLUTION
-#define LCM_UNREAR_RESOLUTION
-#endif
-#ifndef TOUCHSCREEN_PHYSICAL_ROTATION_WITH_LCM
-#define TOUCHSCREEN_PHYSICAL_ROTATION_WITH_LCM
-#endif
-extern int tpd_res_max_x;
-extern int tpd_res_max_y;
-extern unsigned int DISP_GetScreenHeight(void);
-extern unsigned int DISP_GetScreenWidth(void);
+/* For MTK Internal Touch Begin */
 
-#ifdef CONFIG_MTK_LCM_PHYSICAL_ROTATION_HW
-#ifdef TOUCHSCREEN_PHYSICAL_ROTATION_WITH_LCM
-#define GTP_WARP_X_ON         1
-#define GTP_WARP_Y_ON         1
-#else   /* CONFIG_TOUCHSCREEN_PHYSICAL_ROTATION_WITH_LCM */
-#define GTP_WARP_X_ON         0
-#define GTP_WARP_Y_ON         0
-#endif  /* CONFIG_TOUCHSCREEN_PHYSICAL_ROTATION_WITH_LCM */
-#else   /* CONFIG_MTK_LCM_PHYSICAL_ROTATION_HW */
-#ifdef TOUCHSCREEN_PHYSICAL_ROTATION_WITH_LCM
-#define GTP_WARP_X_ON         0
-#define GTP_WARP_Y_ON         0
-#else   /* CONFIG_TOUCHSCREEN_PHYSICAL_ROTATION_WITH_LCM */
-#define GTP_WARP_X_ON         1
-#define GTP_WARP_Y_ON         1
-#endif  /* CONFIG_TOUCHSCREEN_PHYSICAL_ROTATION_WITH_LCM */
-#endif  /* CONFIG_MTK_LCM_PHYSICAL_ROTATION_HW */
+/* touch-filter Begin */
+struct tpd_filter_t {
+	int enable; /*0: disable, 1: enable*/
+	int pixel_density; /*XXX pixel/cm*/
+	int W_W[3][4];/*filter custom setting prameters*/
+	unsigned int VECLOCITY_THRESHOLD[3];/*filter speed custom settings*/
+};
 
-#if GTP_WARP_X_ON
-#define GTP_WARP_X(x_max, x) (x_max - 1 - x)
-#else
-#define GTP_WARP_X(x_max, x) x
-#endif
-
-#if GTP_WARP_Y_ON
-#define GTP_WARP_Y(y_max, y) (y_max - 1 - y)
-#else
-#define GTP_WARP_Y(y_max, y) y
+#define TOUCH_IOC_MAGIC 'A'
+#define TPD_GET_FILTER_PARA _IOWR(TOUCH_IOC_MAGIC, 2, struct tpd_filter_t)
+#ifdef CONFIG_COMPAT
+#define COMPAT_TPD_GET_FILTER_PARA _IOWR(TOUCH_IOC_MAGIC, \
+				2, struct tpd_filter_t)
 #endif
 
 /*
@@ -168,6 +148,11 @@ struct goodix_ts_board_data {
 	unsigned int power_on_delay_us;
 	unsigned int power_off_delay_us;
 
+	/* For MTK Internal Touch Begin */
+	unsigned int input_max_x;
+	unsigned int input_max_y;
+	/* For MTK Internal Touch End */
+
 	unsigned int swap_axis;
 	unsigned int panel_max_id; /*max touch id*/
 	unsigned int panel_max_x;
@@ -187,6 +172,7 @@ struct goodix_ts_board_data {
 	const char *cfg_bin_name;
 	bool esd_default_on;
 	struct device *pinctrl_dev;
+	struct tpd_filter_t tpd_filter;
 };
 
 /*
@@ -383,6 +369,7 @@ struct goodix_ts_device {
 struct goodix_ts_hw_ops {
 
 	int (*init)(struct goodix_ts_device *dev);
+	int (*dev_confirm)(struct goodix_ts_device *ts_dev);
 	int (*reset)(struct goodix_ts_device *dev);
 	int (*read)(struct goodix_ts_device *dev, unsigned int addr,
 			 unsigned char *data, unsigned int len);
@@ -405,6 +392,8 @@ struct goodix_ts_hw_ops {
 	int (*check_hw)(struct goodix_ts_device *dev);
 	int (*suspend)(struct goodix_ts_device *dev);
 	int (*resume)(struct goodix_ts_device *dev);
+	int (*read_pid)(struct goodix_ts_device *dev,
+			struct goodix_ts_version *version);
 };
 
 /*
@@ -449,6 +438,7 @@ struct goodix_ts_core {
 	struct regulator *avdd;
 #ifdef CONFIG_PINCTRL
 	struct pinctrl *pinctrl;
+	struct pinctrl_state *pin_i2c_mode_default;
 	struct pinctrl_state *pin_int_sta_active;
 	struct pinctrl_state *pin_int_sta_suspend;
 	struct pinctrl_state *pin_rst_sta_active;
@@ -676,16 +666,19 @@ static inline u32 checksum_be32(u8 *data, u32 size)
 #define ECHKSUM					1002
 #define EMEMCMP					1003
 
+#if 0
 #define CONFIG_GOODIX_DEBUG
+#endif
+
 /* log macro */
 #define ts_info(fmt, arg...)\
-	pr_info("[GTP9xx-INF][%s:%d] "fmt"\n", __func__, __LINE__, ##arg)
+	pr_info("[GT9886-INF][%s:%d] "fmt"\n", __func__, __LINE__, ##arg)
 #define	ts_err(fmt, arg...)\
-	pr_info("[GTP9xx-ERR][%s:%d] "fmt"\n", __func__, __LINE__, ##arg)
+	pr_info("[GT9886-ERR][%s:%d] "fmt"\n", __func__, __LINE__, ##arg)
 #define boot_log(fmt, arg...)	g_info(fmt, ##arg)
 #ifdef CONFIG_GOODIX_DEBUG
 #define ts_debug(fmt, arg...)\
-	pr_info("[GTP9xx-DBG][%s:%d] "fmt"\n", __func__, __LINE__, ##arg)
+	pr_info("[GT9886-DBG][%s:%d] "fmt"\n", __func__, __LINE__, ##arg)
 #else
 #define ts_debug(fmt, arg...)	do {} while (0)
 #endif
@@ -757,10 +750,18 @@ int goodix_generic_noti_callback(struct notifier_block *self,
 
 int goodix_ts_fb_notifier_callback(struct notifier_block *self,
 			unsigned long event, void *data);
-
+int goodix_ts_irq_enable(struct goodix_ts_core *core_data,
+			bool enable);
 extern void goodix_msg_printf(const char *fmt, ...);
 extern int i2c_touch_resume(void);
 extern int i2c_touch_suspend(void);
 extern int goodix_start_cfg_bin(struct goodix_ts_core *ts_core);
+int gt9886_touch_filter_register(void);
+int goodix_ts_core_init(void);
+
+#ifdef CONFIG_TRUSTONIC_TRUSTED_UI
+extern atomic_t gt9886_tui_flag;
+extern struct goodix_ts_core *resume_core_data;
+#endif
 
 #endif

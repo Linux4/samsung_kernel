@@ -44,13 +44,43 @@
 #define FLASHLIGHT_SW_DISABLE_ON	1
 #define FLASHLIGHT_SW_DISABLE_OFF	0
 
+#if defined(CONFIG_MTK_SM5714_FLASHLIGHT)
+/* max duty number */
+#define FLASHLIGHT_MAX_DUTY_NUM 60
+
+/* flashlight arguments */
+#define FLASHLIGHT_TYPE_MAX 1
+#define FLASHLIGHT_CT_MAX 1
+#define FLASHLIGHT_PART_MAX 1
+
+#elif defined(CONFIG_MTK_FLASHLIGHT_MT6360)
+/* max duty number */
+#define FLASHLIGHT_MAX_DUTY_NUM 40
+
+/* flashlight arguments */
+#define FLASHLIGHT_TYPE_MAX 2
+#define FLASHLIGHT_CT_MAX 3
+#define FLASHLIGHT_PART_MAX 2
+
+#elif defined(CONFIG_MTK_S2MU005_FLASHLIGHT)
 /* max duty number */
 #define FLASHLIGHT_MAX_DUTY_NUM 32
 
 /* flashlight arguments */
-#define FLASHLIGHT_TYPE_MAX 1 
+#define FLASHLIGHT_TYPE_MAX 1
 #define FLASHLIGHT_CT_MAX 1
 #define FLASHLIGHT_PART_MAX 1
+
+#else
+/* max duty number */
+#define FLASHLIGHT_MAX_DUTY_NUM 32
+
+/* flashlight arguments */
+#define FLASHLIGHT_TYPE_MAX 1
+#define FLASHLIGHT_CT_MAX 1
+#define FLASHLIGHT_PART_MAX 1
+#endif
+
 struct flashlight_user_arg {
 	int type_id;
 	int ct_id;
@@ -112,6 +142,9 @@ struct flashlight_user_arg {
 #define FLASH_IOC_GET_HW_TIMEOUT           _IOWR(FLASHLIGHT_MAGIC, 240, int)
 #define FLASH_IOC_GET_HW_FAULT             _IOR(FLASHLIGHT_MAGIC, 250, int)
 #define FLASH_IOC_GET_HW_FAULT2            _IOR(FLASHLIGHT_MAGIC, 251, int)
+
+/* SEC ioctl */
+#define FLASH_IOC_SET_VOLTAGE              _IOW(FLASHLIGHT_MAGIC, 260, int)
 
 #endif /* _FLASHLIGHT_H */
 

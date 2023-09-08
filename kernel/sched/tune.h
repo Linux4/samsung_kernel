@@ -14,9 +14,6 @@ struct target_nrg {
 
 int schedtune_cpu_boost(int cpu);
 int schedtune_task_boost(struct task_struct *tsk);
-#ifdef CONFIG_PRIO_PINNED_BOOST
-int schedtune_task_pinned_boost(struct task_struct *tsk);
-#endif
 
 int schedtune_prefer_idle(struct task_struct *tsk);
 

@@ -1,23 +1,25 @@
-#ifndef __USBPD_EXT_H__
-#define __USBPD_EXT_H__
-
-#if defined(CONFIG_PDIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 #include <linux/usb/typec/common/pdic_notifier.h>
 #endif
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
 #include <linux/usb/class-dual-role.h>
-#elif defined(CONFIG_TYPEC)
+#elif IS_ENABLED(CONFIG_TYPEC)
 #include <linux/usb/typec.h>
 #endif
 
-#ifdef CONFIG_BATTERY_SAMSUNG
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#if IS_ENABLED(CONFIG_BATTERY_NOTIFIER)
 #include <linux/battery/battery_notifier.h>
+#else
+#include <linux/battery/sec_pd.h>
 #endif
 #endif
 
-#if defined(CONFIG_BATTERY_SAMSUNG) && defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
-extern struct pdic_notifier_struct pd_noti;
+#ifndef __USBPD_EXT_H__
+#define __USBPD_EXT_H__
+
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+extern struct usbpd_data *g_pd_data;
 #endif
 
 /* Samsung Acc VID */
@@ -52,8 +54,8 @@ extern struct pdic_notifier_struct pd_noti;
 #define DP_PIN_ASSIGNMENT_E	0x00000010	/* ( 1 << 4 ) */
 #define DP_PIN_ASSIGNMENT_F	0x00000020	/* ( 1 << 5 ) */
 
-#if defined(CONFIG_PDIC_NOTIFIER)
-void pdic_event_work(void *data, int dest, int id, int attach, int event);
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+extern void pdic_event_work(void *data, int dest, int id, int attach, int event, int sub);
 extern void select_pdo(int num);
 extern int sec_pd_select_pps(int num, int ppsVol, int ppsCur);
 extern int sec_pd_get_apdo_max_power(unsigned int *pdo_pos,
@@ -73,11 +75,14 @@ extern int dual_role_set_prop(struct dual_role_phy_instance *dual_role,
 			      enum dual_role_property prop,
 			      const unsigned int *val);
 extern int dual_role_init(void *_data);
-#elif defined(CONFIG_TYPEC)
+#elif IS_ENABLED(CONFIG_TYPEC)
 extern void typec_role_swap_check(struct work_struct *wk);
-extern int typec_port_type_set(const struct typec_capability *cap,
-					enum typec_port_type port_type);
-extern int typec_get_pd_support(void *_data);
-extern int usbpd_typec_init(void *_data);
+#if IS_ENABLED(CONFIG_SUPPORT_USB_TYPEC_OPS)
+extern int typec_port_type_set(struct typec_port *_port, enum typec_port_type port_type);
+#else
+extern int typec_port_type_set(const struct typec_capability *cap, enum typec_port_type port_type);
 #endif
-#endif	/* __USBPD_EXT_H__ */
+extern int typec_get_pd_support(void *_data);
+extern int typec_init(void *_data);
+#endif
+#endif

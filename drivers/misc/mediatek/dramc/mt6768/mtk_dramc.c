@@ -267,7 +267,7 @@ int Binning_DRAM_complex_mem_test(void)
 	MEM32_BASE = (unsigned int *)ptr;
 	MEM_BASE = (unsigned int *)ptr;
 	/* dramc_info("Test DRAM start address 0x%lx\n", (unsigned long)ptr); */
-	dramc_info("Test DRAM start address %pK\n", ptr);
+	dramc_info("Test DRAM start address %p\n", ptr);
 	dramc_info("Test DRAM SIZE 0x%x\n", MEM_TEST_SIZE);
 	size = len >> 2;
 

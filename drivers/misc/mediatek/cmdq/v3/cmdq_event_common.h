@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2015 MediaTek Inc.
  */
 
 #ifndef CMDQ_EVENT_COMMON
@@ -585,6 +577,9 @@ enum cmdq_event {
 	CMDQ_SYNC_TOKEN_APPEND_THR21,			/* 691 */
 	CMDQ_SYNC_TOKEN_APPEND_THR22,			/* 692 */
 	CMDQ_SYNC_TOKEN_APPEND_THR23,			/* 693 */
+
+	/* secure world notify normal world task done */
+	CMDQ_SYNC_TOKEN_SEC_DONE,			/* 694 */
 
 	/* token after 700 sync user space header */
 

@@ -32,6 +32,8 @@
 #include <linux/mfd/mt6359/registers.h>
 #elif defined(CONFIG_MTK_PMIC_CHIP_MT6359P)
 #include <linux/mfd/mt6359p/registers.h>
+#elif defined(CONFIG_MTK_PMIC_CHIP_MT6390)
+#include <linux/mfd/mt6390/registers.h>
 #endif
 
 #define AUXADC_RDY_SHIFT		15
@@ -139,6 +141,20 @@ static const struct auxadc_regs mt6357_auxadc_regs_tbl[] = {
 	MT635x_AUXADC_REG(DCXO_TEMP, MT6357, AUXADC_RQST0, 4, AUXADC_ADC40),
 	MT635x_AUXADC_REG(VBIF, MT6357, AUXADC_RQST0, 11, AUXADC_ADC11),
 #endif
+#if defined(CONFIG_MTK_PMIC_CHIP_MT6390)
+	MT635x_AUXADC_REG(BATADC, MT6390, AUXADC_RQST0, 0, AUXADC_ADC0),
+	MT635x_AUXADC_REG(ISENSE, MT6390, AUXADC_RQST0, 1, AUXADC_ADC1),
+	MT635x_AUXADC_REG(VCDT, MT6390, AUXADC_RQST0, 2, AUXADC_ADC2),
+	MT635x_AUXADC_REG(BAT_TEMP, MT6390, AUXADC_RQST0, 3, AUXADC_ADC3),
+	MT635x_AUXADC_REG(CHIP_TEMP, MT6390, AUXADC_RQST0, 4, AUXADC_ADC4),
+	MT635x_AUXADC_REG(VCORE_TEMP, MT6390, AUXADC_RQST2, 5, AUXADC_ADC46),
+	MT635x_AUXADC_REG(VPROC_TEMP, MT6390, AUXADC_RQST2, 6, AUXADC_ADC47),
+	MT635x_AUXADC_REG(ACCDET, MT6390, AUXADC_RQST0, 5, AUXADC_ADC5),
+	MT635x_AUXADC_REG(TSX_TEMP, MT6390, AUXADC_RQST0, 7, AUXADC_ADC7),
+	MT635x_AUXADC_REG(HPOFS_CAL, MT6390, AUXADC_RQST0, 9, AUXADC_ADC9),
+	MT635x_AUXADC_REG(DCXO_TEMP, MT6390, AUXADC_RQST0, 4, AUXADC_ADC40),
+	MT635x_AUXADC_REG(VBIF, MT6390, AUXADC_RQST0, 11, AUXADC_ADC11),
+#endif
 };
 
 static const struct auxadc_regs mt6358_auxadc_regs_tbl[] = {
@@ -184,6 +200,11 @@ static const unsigned int mt6357_dbg_regs[] = {
 	MT6357_STRUP_CON6, MT6357_HK_TOP_RST_CON0,
 	MT6357_HK_TOP_CLK_CON0, MT6357_HK_TOP_CLK_CON1,
 #endif
+#if defined(CONFIG_MTK_PMIC_CHIP_MT6390)
+	MT6390_AUXADC_STA0, MT6390_AUXADC_STA1, MT6390_AUXADC_STA2,
+	MT6390_STRUP_CON6, MT6390_HK_TOP_RST_CON0,
+	MT6390_HK_TOP_CLK_CON0, MT6390_HK_TOP_CLK_CON1,
+#endif
 };
 
 static const unsigned int mt6358_dbg_regs[] = {
@@ -226,6 +247,17 @@ static const unsigned int mt6357_rst_setting[][3] = {
 		MT6357_AUXADC_RQST1, 0x400, 0x400,
 	}
 #endif
+#if defined(CONFIG_MTK_PMIC_CHIP_MT6390)
+	{
+		MT6390_HK_TOP_RST_CON0, 0x9, 0x9,
+	}, {
+		MT6390_HK_TOP_RST_CON0, 0x9, 0,
+	}, {
+		MT6390_AUXADC_RQST0, 0x80, 0x80,
+	}, {
+		MT6390_AUXADC_RQST1, 0x400, 0x400,
+	}
+#endif
 };
 
 static const unsigned int mt6358_rst_setting[][3] = {
@@ -265,12 +297,13 @@ static unsigned short get_auxadc_out(struct mt635x_auxadc_device *adc_dev,
 				     int channel);
 
 /* Exported function for chip init */
-void auxadc_set_convert_fn(int channel, void (*convert_fn)(unsigned char))
+void auxadc_set_convert_fn(unsigned int channel,
+			   void (*convert_fn)(unsigned char))
 {
 	auxadc_chans[channel].convert_fn = convert_fn;
 }
 
-void auxadc_set_cali_fn(int channel, int (*cali_fn)(int, int))
+void auxadc_set_cali_fn(unsigned int channel, int (*cali_fn)(int, int))
 {
 	auxadc_chans[channel].cali_fn = cali_fn;
 }
@@ -343,7 +376,7 @@ static void auxadc_reset(struct mt635x_auxadc_device *adc_dev)
 static void auxadc_timeout_handler(struct mt635x_auxadc_device *adc_dev,
 			    bool is_timeout, unsigned char ch_num)
 {
-	int i;
+	int i, ret;
 	unsigned char reg_log[631] = "", reg_str[21] = "";
 	unsigned int reg_val = 0;
 	static unsigned short timeout_times;
@@ -356,8 +389,10 @@ static void auxadc_timeout_handler(struct mt635x_auxadc_device *adc_dev,
 	for (i = 0; i < adc_dev->num_dbg_regs; i++) {
 		regmap_read(adc_dev->regmap,
 			    adc_dev->dbg_regs[i], &reg_val);
-		snprintf(reg_str, 20, "Reg[0x%x]=0x%x,",
-			adc_dev->dbg_regs[i], reg_val);
+		ret = snprintf(reg_str, 20, "Reg[0x%x]=0x%x,",
+			       adc_dev->dbg_regs[i], reg_val);
+		if (ret < 0)
+			break;
 		strncat(reg_log, reg_str, ARRAY_SIZE(reg_log) - 1);
 	}
 	dev_notice(adc_dev->dev,
@@ -419,9 +454,7 @@ static int mt635x_auxadc_read_raw(struct iio_dev *indio_dev,
 	const struct auxadc_channels *auxadc_chan;
 	unsigned short auxadc_out;
 	int ret;
-#ifndef CONFIG_SEC_PM
 	static DEFINE_RATELIMIT_STATE(ratelimit, 1 * HZ, 5);
-#endif
 
 	mutex_lock(&adc_dev->lock);
 	pm_stay_awake(adc_dev->dev);
@@ -447,14 +480,12 @@ static int mt635x_auxadc_read_raw(struct iio_dev *indio_dev,
 	default:
 		return -EINVAL;
 	}
-#ifndef CONFIG_SEC_PM
 	if (__ratelimit(&ratelimit)) {
 		dev_info(adc_dev->dev,
 			"name:%s, channel=%d, adc_out=0x%x, adc_result=%d\n",
 			auxadc_chan->ch_name, auxadc_chan->ch_num,
 			auxadc_out, *val);
 	}
-#endif
 	return ret;
 
 }

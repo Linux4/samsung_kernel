@@ -24,6 +24,4 @@ config MTK_LCM_DEVICE_TREE_SUPPORT
 	  If not define MTK_LCM_DEVICE_TREE_SUPPORT
 	  there will not connect between display driver and LCM devices.
 
-if CUSTOM_KERNEL_LCM="smcdsd_panel"
 source "drivers/misc/mediatek/lcm/smcdsd_panel/Kconfig"
-endif

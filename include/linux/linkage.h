@@ -39,6 +39,7 @@
 #define __page_aligned_data	__section(.data..page_aligned) __aligned(PAGE_SIZE)
 #define __page_aligned_bss	__section(.bss..page_aligned) __aligned(PAGE_SIZE)
 
+#ifndef CONFIG_RUSTUH_RKP
 #ifdef CONFIG_UH_RKP
 #define __page_aligned_rkp_bss		__section(.rkp_bss.page_aligned) __aligned(PAGE_SIZE)
 #define __rkp_ro				__section(.rkp_ro)
@@ -46,13 +47,16 @@
 #define __page_aligned_rkp_bss		__page_aligned_bss
 #define __rkp_ro
 #endif
+#endif
 
+#ifndef CONFIG_RUSTUH_KDP
 #ifdef CONFIG_KDP_CRED
 #define __kdp_ro __section(.kdp_ro)
 #define __lsm_ro_after_init_kdp	__section(.kdp_ro)
 #else
 #define __kdp_ro
 #define __lsm_ro_after_init_kdp __lsm_ro_after_init
+#endif
 #endif
 
 /*
