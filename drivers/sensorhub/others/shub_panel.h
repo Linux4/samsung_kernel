@@ -34,6 +34,9 @@
 void init_shub_panel(void);
 void remove_shub_panel(void);
 
+void init_shub_panel_callback(void);
+void remove_shub_panel_callback(void);
+
 bool is_lcd_changed(void);
 int save_panel_lcd_type(void);
 int get_panel_lcd_type(void);

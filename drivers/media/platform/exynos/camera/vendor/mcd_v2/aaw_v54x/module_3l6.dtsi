@@ -91,7 +91,7 @@
 					};
 				};
 
-					power_seq {
+				power_seq {
 					use = <1>;
 					gpio_mclk = <&gpg0 3 0x1>;
 					scenario_normal_on {
@@ -107,7 +107,7 @@
 						50 { pname = "on_i2c"; pin = <PIN_I2C 1 5000>; };
 						60 { pname = "pin"; pin = <PIN_FUNCTION 2 1500>; };
 						70 { pname = "MCLK"; pin = <PIN_MCLK 1 1500>; gpio = <&gpg0 3 0x1>; };
-						80 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpm3 0 0x1>; };
+						80 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 2000>; gpio = <&gpm3 0 0x1>; };
 					};
 
 					scenario_normal_off {
@@ -141,7 +141,7 @@
 						50 { pname = "on_i2c"; pin = <PIN_I2C 1 5000>; };
 						60 { pname = "pin"; pin = <PIN_FUNCTION 2 1500>; };
 						70 { pname = "MCLK"; pin = <PIN_MCLK 1 1500>; gpio = <&gpg0 3 0x1>; };
-						80 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpm3 0 0x1>; };
+						80 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 2000>; gpio = <&gpm3 0 0x1>; };
 					};
 
 					scenario_vision_off {

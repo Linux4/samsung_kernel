@@ -115,6 +115,7 @@ void is_sec_get_hw_param(struct cam_hw_param **hw_param, u32 position)
 		*hw_param = &cam_hwparam_collector.front_hwparam;
 		break;
 	default:
+		*hw_param = NULL;
 		need_update_to_file = false;
 		return;
 	}

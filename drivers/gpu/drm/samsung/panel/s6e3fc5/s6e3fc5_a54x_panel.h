@@ -15,21 +15,20 @@
 
 #include "../panel.h"
 #include "../panel_drv.h"
-#include "oled_common.h"
-#include "oled_common_cond.h"
+#include "oled_function.h"
 #include "s6e3fc5.h"
 #include "s6e3fc5_a54x.h"
 #include "s6e3fc5_dimming.h"
-#ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
+#ifdef CONFIG_USDM_MDNIE
 #include "s6e3fc5_a54x_panel_mdnie.h"
 #endif
 #include "s6e3fc5_a54x_panel_dimming.h"
-#ifdef CONFIG_SUPPORT_AOD_BL
+#ifdef CONFIG_USDM_PANEL_AOD_BL
 #include "s6e3fc5_a54x_panel_aod_dimming.h"
 #endif
 #include "s6e3fc5_a54x_resol.h"
 
-#ifdef CONFIG_MCD_PANEL_RCD
+#ifdef CONFIG_USDM_PANEL_RCD
 #include "s6e3fc5_a54x_rcd.h"
 #endif
 
@@ -246,19 +245,19 @@ static u8 a54x_irc_mode_table[][7] = {
 static u8 a54x_analog_gamma_table[S6E3FC5_TOTAL_STEP][S6E3FC5_ANALOG_GAMMA_LEN] = { 0, };
 
 static struct maptbl a54x_maptbl[MAX_MAPTBL] = {
-	[GAMMA_MODE2_MAPTBL] = DEFINE_2D_MAPTBL(a54x_brt_table, init_gamma_mode2_brt_table, getidx_gamma_mode2_brt_table, copy_common_maptbl),
-	[HBM_ONOFF_MAPTBL] = DEFINE_3D_MAPTBL(a54x_hbm_transition_table, init_common_table, getidx_hbm_transition_table, copy_common_maptbl),
-	[ACL_OPR_MAPTBL] = DEFINE_3D_MAPTBL(a54x_acl_opr_table, init_common_table, getidx_acl_opr_table, copy_common_maptbl),
-	[TSET_MAPTBL] = DEFINE_0D_MAPTBL(a54x_tset_table, init_common_table, NULL, copy_tset_maptbl),
-	[LPM_NIT_MAPTBL] = DEFINE_2D_MAPTBL(a54x_lpm_nit_table, init_lpm_brt_table, getidx_lpm_brt_table, copy_common_maptbl),
+	[GAMMA_MODE2_MAPTBL] = DEFINE_2D_MAPTBL(a54x_brt_table, &DDI_FUNC(S6E3FC5_MAPTBL_INIT_GAMMA_MODE2_BRT), &OLED_FUNC(OLED_MAPTBL_GETIDX_GM2_BRT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[HBM_ONOFF_MAPTBL] = DEFINE_3D_MAPTBL(a54x_hbm_transition_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC5_MAPTBL_GETIDX_HBM_TRANSITION), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[ACL_OPR_MAPTBL] = DEFINE_3D_MAPTBL(a54x_acl_opr_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC5_MAPTBL_GETIDX_ACL_OPR), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[TSET_MAPTBL] = DEFINE_0D_MAPTBL(a54x_tset_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), NULL, &OLED_FUNC(OLED_MAPTBL_COPY_TSET)),
+	[LPM_NIT_MAPTBL] = DEFINE_2D_MAPTBL(a54x_lpm_nit_table, &DDI_FUNC(S6E3FC5_MAPTBL_INIT_LPM_BRT), &DDI_FUNC(S6E3FC5_MAPTBL_GETIDX_LPM_BRT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
 #ifdef CONFIG_SUPPORT_XTALK_MODE
-	[VGH_MAPTBL] = DEFINE_2D_MAPTBL(a54x_vgh_table, init_common_table, getidx_vgh_table, copy_common_maptbl),
+	[VGH_MAPTBL] = DEFINE_2D_MAPTBL(a54x_vgh_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC5_MAPTBL_GETIDX_VGH), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
 #endif
-	[ANALOG_GAMMA_MAPTBL] = DEFINE_2D_MAPTBL(a54x_analog_gamma_table, init_analog_gamma_table, getidx_gamma_mode2_brt_table, copy_common_maptbl),
-	[TE_FRAME_SEL_MAPTBL] = DEFINE_2D_MAPTBL(a54x_te_frame_sel_table, init_common_table, getidx_vrr_table, copy_common_maptbl),
-	[FPS_MAPTBL] = DEFINE_2D_MAPTBL(a54x_fps_table, init_common_table, getidx_vrr_table, copy_common_maptbl),
-	[SET_FFC_MAPTBL] = DEFINE_2D_MAPTBL(a54x_ffc_table, init_common_table, s6e3fc5_getidx_ffc_table, copy_common_maptbl),
-	[IRC_MODE_MAPTBL] = DEFINE_2D_MAPTBL(a54x_irc_mode_table, init_common_table, getidx_irc_mode_table, copy_common_maptbl),
+	[ANALOG_GAMMA_MAPTBL] = DEFINE_2D_MAPTBL(a54x_analog_gamma_table, &DDI_FUNC(S6E3FC5_MAPTBL_INIT_ANALOG_GAMMA), &OLED_FUNC(OLED_MAPTBL_GETIDX_GM2_BRT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[TE_FRAME_SEL_MAPTBL] = DEFINE_2D_MAPTBL(a54x_te_frame_sel_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC5_MAPTBL_GETIDX_VRR), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[FPS_MAPTBL] = DEFINE_2D_MAPTBL(a54x_fps_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC5_MAPTBL_GETIDX_VRR), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[SET_FFC_MAPTBL] = DEFINE_2D_MAPTBL(a54x_ffc_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC5_MAPTBL_GETIDX_FFC), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[IRC_MODE_MAPTBL] = DEFINE_2D_MAPTBL(a54x_irc_mode_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(S6E3FC5_MAPTBL_GETIDX_IRC_MODE), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
 };
 
 /* ===================================================================================== */
@@ -350,7 +349,7 @@ static u8 A54X_LPM_NIT[] = { 0x53, 0x27 };
 static DEFINE_PKTUI(a54x_lpm_nit, &a54x_maptbl[LPM_NIT_MAPTBL], 1);
 static DEFINE_VARIABLE_PACKET(a54x_lpm_nit, DSI_PKT_TYPE_WR, A54X_LPM_NIT, 0x00);
 
-#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+#ifdef CONFIG_USDM_FACTORY_DSC_CRC_TEST
 static u8 A54X_DECODER_TEST_CASET[] = { 0x2A, 0x00, 0x00, 0x04, 0x37 };
 static DEFINE_STATIC_PACKET(a54x_decoder_test_caset, DSI_PKT_TYPE_WR, A54X_DECODER_TEST_CASET, 0x00);
 
@@ -393,13 +392,22 @@ static DEFINE_STATIC_PACKET(a54x_decoder_vddm_return_set_2, DSI_PKT_TYPE_WR, A54
 
 static DEFINE_PANEL_VSYNC_DELAY(a54x_wait_1_vsync, 1);
 static DEFINE_PANEL_FRAME_DELAY(a54x_wait_2_frame, 2);
-static DEFINE_COND(a54x_cond_is_60hz, s6e3fc5_is_60hz);
-static DEFINE_COND(a54x_cond_is_brightness_ge_260, s6e3fc5_is_brightness_ge_260);
-static DEFINE_COND(a54x_cond_is_120hz, s6e3fc5_is_120hz);
-static DEFINE_COND(a54x_cond_is_panel_refresh_rate_changed,
-		oled_cond_is_panel_refresh_rate_changed);
+static DEFINE_RULE_BASED_COND(a54x_cond_is_brightness_ge_260,
+		PANEL_BL_PROPERTY_BRIGHTNESS, GE, 260);
+/* 120hs, 60phs */
+static DEFINE_RULE_BASED_COND(a54x_cond_is_120hz,
+		PANEL_PROPERTY_PANEL_REFRESH_RATE, EQ, 120);
+/* 60hs */
+static DEFINE_RULE_BASED_COND(a54x_cond_is_60hz,
+		PANEL_PROPERTY_PANEL_REFRESH_RATE, EQ, 60);
+static DEFINE_FUNC_BASED_COND(a54x_cond_is_panel_refresh_rate_changed,
+		&OLED_FUNC(OLED_COND_IS_PANEL_REFRESH_RATE_CHANGED));
+static DEFINE_RULE_BASED_COND(a54x_cond_is_panel_state_not_lpm,
+		PANEL_PROPERTY_PANEL_STATE, NE, PANEL_STATE_ALPM);
+static DEFINE_RULE_BASED_COND(a54x_cond_is_panel_state_lpm,
+		PANEL_PROPERTY_PANEL_STATE, EQ, PANEL_STATE_ALPM);
 
-#ifdef CONFIG_SUPPORT_MASK_LAYER
+#ifdef CONFIG_USDM_PANEL_MASK_LAYER
 static DEFINE_PANEL_MDELAY(a54x_wait_1msec, 1);
 static DEFINE_PANEL_MDELAY(a54x_wait_9msec, 9);
 static DEFINE_PANEL_MDELAY(a54x_wait_7msec, 7);
@@ -633,7 +641,7 @@ static DEFINE_PANEL_TIMER_MDELAY(a54x_init_complete_delay, 30);
 static DEFINE_PANEL_TIMER_BEGIN(a54x_init_complete_delay,
 		TIMER_DLYINFO(&a54x_init_complete_delay));
 
-#ifdef CONFIG_SUPPORT_CCD_TEST
+#ifdef CONFIG_USDM_FACTORY_CCD_TEST
 static u8 A54X_CCD_ENABLE[] = {
 	0xCC,
 	0x01, 0x5C, 0x51
@@ -650,7 +658,7 @@ static DEFINE_STATIC_PACKET(a54x_ccd_disable, DSI_PKT_TYPE_WR, A54X_CCD_DISABLE,
 
 #endif
 
-#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+#ifdef CONFIG_USDM_FACTORY_DSC_CRC_TEST
 static u8 A54X_CRC_PATTERN_TEST_ON[] = {
 	0xBE,
 	0x05
@@ -681,7 +689,7 @@ static u8 A54X_CRC_READ_SETTING2[] = {
 };
 static DEFINE_STATIC_PACKET(a54x_crc_read_setting2, DSI_PKT_TYPE_WR, A54X_CRC_READ_SETTING2, 0x27);
 
-#ifdef CONFIG_SEC_FACTORY
+#ifdef CONFIG_USDM_FACTORY
 static u8 A54X_VDDM_LOW_SETTING[] = {
 	0xD7,
 	0x04
@@ -702,7 +710,7 @@ static DEFINE_STATIC_PACKET(a54x_vddm_return_setting, DSI_PKT_TYPE_WR, A54X_VDDM
 #endif
 
 
-#ifdef CONFIG_SUPPORT_ECC_TEST
+#ifdef CONFIG_USDM_FACTORY_ECC_TEST
 static u8 A54X_ECC_ENABLE[] = {
 	0xF8,
 	0x01
@@ -726,7 +734,7 @@ static DEFINE_VARIABLE_PACKET(a54x_te_frame_sel, DSI_PKT_TYPE_WR, A54X_TE_FRAME_
 
 static struct seqinfo SEQINFO(a54x_set_bl_param_seq);
 static struct seqinfo SEQINFO(a54x_set_fps_param_seq);
-#if defined(CONFIG_MCD_PANEL_FACTORY)
+#if defined(CONFIG_USDM_FACTORY)
 static struct seqinfo SEQINFO(a54x_res_init_seq);
 #endif
 
@@ -783,7 +791,7 @@ static void *a54x_init_cmdtbl[] = {
 	&DLYINFO(a54x_wait_sleep_out_90msec),
 	&SEQINFO(a54x_common_setting_seq),
 	&TIMER_DLYINFO_BEGIN(a54x_init_complete_delay),
-#if defined(CONFIG_MCD_PANEL_FACTORY)
+#if defined(CONFIG_USDM_FACTORY)
 	&SEQINFO(a54x_res_init_seq),
 #endif
 	&TIMER_DLYINFO(a54x_init_complete_delay),
@@ -800,8 +808,7 @@ static void *a54x_res_init_cmdtbl[] = {
 	&s6e3fc5_restbl[RES_DATE],
 	&s6e3fc5_restbl[RES_OCTA_ID],
 	&s6e3fc5_restbl[RES_ANALOG_GAMMA_120HS],
-#ifdef CONFIG_DISPLAY_USE_INFO
-	&s6e3fc5_restbl[RES_CHIP_ID],
+#ifdef CONFIG_USDM_PANEL_DPUI
 	&s6e3fc5_restbl[RES_SELF_DIAG],
 	&s6e3fc5_restbl[RES_ERR_FG],
 	&s6e3fc5_restbl[RES_DSI_ERR],
@@ -810,7 +817,7 @@ static void *a54x_res_init_cmdtbl[] = {
 	&KEYINFO(a54x_level2_key_disable),
 	&KEYINFO(a54x_level1_key_disable),
 };
-#if defined(CONFIG_MCD_PANEL_FACTORY)
+#if defined(CONFIG_USDM_FACTORY)
 static DEFINE_SEQINFO(a54x_res_init_seq, a54x_res_init_cmdtbl);
 #endif
 
@@ -859,9 +866,6 @@ static void *a54x_set_bl_cmdtbl[] = {
 	&KEYINFO(a54x_level1_key_disable),
 };
 
-static DEFINE_COND(a54x_cond_is_panel_state_not_lpm, is_panel_state_not_lpm);
-static DEFINE_COND(a54x_cond_is_panel_state_lpm, is_panel_state_lpm);
-
 static void *a54x_display_mode_cmdtbl[] = {
 	&CONDINFO_IF(a54x_cond_is_panel_state_not_lpm),
 		&KEYINFO(a54x_level1_key_enable),
@@ -908,7 +912,7 @@ static void *a54x_exit_cmdtbl[] = {
 	&KEYINFO(a54x_level1_key_enable),
 	&KEYINFO(a54x_level2_key_enable),
 	&KEYINFO(a54x_level3_key_enable),
-#ifdef CONFIG_DISPLAY_USE_INFO
+#ifdef CONFIG_USDM_PANEL_DPUI
 	&s6e3fc5_dmptbl[DUMP_RDDPM_SLEEP_IN],
 	&s6e3fc5_dmptbl[DUMP_RDDSM],
 	&s6e3fc5_dmptbl[DUMP_ERR],
@@ -1015,7 +1019,7 @@ static void *a54x_check_condition_cmdtbl[] = {
 	&KEYINFO(a54x_level1_key_disable),
 };
 
-#ifdef CONFIG_SUPPORT_MASK_LAYER
+#ifdef CONFIG_USDM_PANEL_MASK_LAYER
 static void *a54x_mask_layer_workaround_cmdtbl[] = {
 	&DLYINFO(a54x_wait_1_vsync),
 	&PKTINFO(a54x_wrdisbv),
@@ -1074,7 +1078,7 @@ static void *a54x_mask_layer_exit_br_cmdtbl[] = {
 };
 #endif
 
-#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+#ifdef CONFIG_USDM_FACTORY_DSC_CRC_TEST
 static void *a54x_decoder_test_cmdtbl[] = {
 	&KEYINFO(a54x_level2_key_enable),
 	&KEYINFO(a54x_level3_key_enable),
@@ -1112,7 +1116,7 @@ static void *a54x_decoder_test_cmdtbl[] = {
 };
 #endif
 
-#ifdef CONFIG_SUPPORT_CCD_TEST
+#ifdef CONFIG_USDM_FACTORY_CCD_TEST
 static void *a54x_ccd_test_cmdtbl[] = {
 	&KEYINFO(a54x_level2_key_enable),
 	&KEYINFO(a54x_level3_key_enable),
@@ -1125,7 +1129,7 @@ static void *a54x_ccd_test_cmdtbl[] = {
 };
 #endif
 
-#ifdef CONFIG_SUPPORT_ECC_TEST
+#ifdef CONFIG_USDM_FACTORY_ECC_TEST
 static void *a54x_ecc_test_cmdtbl[] = {
 	&KEYINFO(a54x_level2_key_enable),
 	&KEYINFO(a54x_level3_key_enable),
@@ -1153,7 +1157,7 @@ static struct seqinfo a54x_seqtbl[] = {
 	SEQINFO_INIT(PANEL_ALPM_SET_BL_SEQ, a54x_alpm_set_bl_cmdtbl),
 	SEQINFO_INIT(PANEL_ALPM_EXIT_SEQ, a54x_alpm_exit_cmdtbl),
 	SEQINFO_INIT(PANEL_ALPM_EXIT_AFTER_SEQ, a54x_alpm_exit_after_cmdtbl),
-#ifdef CONFIG_SUPPORT_MASK_LAYER
+#ifdef CONFIG_USDM_PANEL_MASK_LAYER
 	SEQINFO_INIT(PANEL_MASK_LAYER_STOP_DIMMING_SEQ, a54x_mask_layer_workaround_cmdtbl),
 	SEQINFO_INIT(PANEL_MASK_LAYER_ENTER_BR_SEQ, a54x_mask_layer_enter_br_cmdtbl), //temp br
 	SEQINFO_INIT(PANEL_MASK_LAYER_EXIT_BR_SEQ, a54x_mask_layer_exit_br_cmdtbl),
@@ -1161,13 +1165,13 @@ static struct seqinfo a54x_seqtbl[] = {
 	SEQINFO_INIT(PANEL_FFC_SEQ, a54x_ffc_cmdtbl),
 	SEQINFO_INIT(PANEL_DUMP_SEQ, a54x_dump_cmdtbl),
 	SEQINFO_INIT(PANEL_CHECK_CONDITION_SEQ, a54x_check_condition_cmdtbl),
-#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+#ifdef CONFIG_USDM_FACTORY_DSC_CRC_TEST
 	SEQINFO_INIT(PANEL_DECODER_TEST_SEQ, a54x_decoder_test_cmdtbl),
 #endif
-#ifdef CONFIG_SUPPORT_CCD_TEST
+#ifdef CONFIG_USDM_FACTORY_CCD_TEST
 	SEQINFO_INIT(PANEL_CCD_TEST_SEQ, a54x_ccd_test_cmdtbl),
 #endif
-#ifdef CONFIG_SUPPORT_ECC_TEST
+#ifdef CONFIG_USDM_FACTORY_ECC_TEST
 	SEQINFO_INIT(PANEL_ECC_TEST_SEQ, a54x_ecc_test_cmdtbl),
 #endif
 	SEQINFO_INIT(PANEL_DUMMY_SEQ, a54x_dummy_cmdtbl),
@@ -1193,16 +1197,17 @@ struct common_panel_info s6e3fc5_a54x_panel_info = {
 
 	.ddi_ops = {
 		.get_cell_id = s6e3fc5_get_cell_id,
+		.get_octa_id = s6e3fc5_get_octa_id,
 		.get_manufacture_code = s6e3fc5_get_manufacture_code,
 		.get_manufacture_date = s6e3fc5_get_manufacture_date,
-#ifdef CONFIG_SUPPORT_ECC_TEST
+#ifdef CONFIG_USDM_FACTORY_ECC_TEST
 		.ecc_test = s6e3fc5_ecc_test,
 #endif
-#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+#ifdef CONFIG_USDM_FACTORY_DSC_CRC_TEST
 		.decoder_test = s6e3fc5_decoder_test,
 #endif
 	},
-#if defined(CONFIG_PANEL_DISPLAY_MODE)
+#if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 	.common_panel_modes = &s6e3fc5_a54x_display_modes,
 #endif
 	.mres = {
@@ -1222,16 +1227,16 @@ struct common_panel_info s6e3fc5_a54x_panel_info = {
 	.dumpinfo = s6e3fc5_dmptbl,
 	.nr_dumpinfo = ARRAY_SIZE(s6e3fc5_dmptbl),
 
-#ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
+#ifdef CONFIG_USDM_MDNIE
 	.mdnie_tune = &s6e3fc5_a54x_mdnie_tune,
 #endif
 	.panel_dim_info = {
 		[PANEL_BL_SUBDEV_TYPE_DISP] = &s6e3fc5_a54x_panel_dimming_info,
-#ifdef CONFIG_SUPPORT_AOD_BL
+#ifdef CONFIG_USDM_PANEL_AOD_BL
 		[PANEL_BL_SUBDEV_TYPE_AOD] = &s6e3fc5_a54x_panel_aod_dimming_info,
 #endif
 	},
-#ifdef CONFIG_MCD_PANEL_RCD
+#ifdef CONFIG_USDM_PANEL_RCD
 	.rcd_data = &s6e3fc5_a54x_rcd,
 #endif
 };

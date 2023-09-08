@@ -389,11 +389,11 @@ static void __panic_handler_impl(void)
 
 static int __iommu_fault_handler(struct iommu_fault *fault, void *token)
 {
-	ICPU_ERR("in");
+	ICPU_INFO("in");
 
 	__panic_handler_impl();
 
-	ICPU_ERR("out");
+	ICPU_INFO("out");
 
 	return 0;
 }
@@ -401,14 +401,14 @@ static int __iommu_fault_handler(struct iommu_fault *fault, void *token)
 static void __teardown_core(struct platform_device *pdev);
 static int __reboot_handler(struct notifier_block *nb, ulong l, void *buf)
 {
-	ICPU_ERR("in");
+	ICPU_INFO("in");
 
 	__panic_handler_impl();
 
 	if (core)
 		__teardown_core(core->pdev);
 
-	ICPU_ERR("out");
+	ICPU_INFO("out");
 
 	return 0;
 }
@@ -419,11 +419,11 @@ static struct notifier_block __notify_reboot_block = {
 
 static int __panic_handler(struct notifier_block *nb, ulong l, void *buf)
 {
-	ICPU_ERR("in");
+	ICPU_INFO("in");
 
 	__panic_handler_impl();
 
-	ICPU_ERR("out");
+	ICPU_INFO("out");
 
 	return 0;
 }
@@ -434,11 +434,11 @@ static struct notifier_block __notify_panic_block = {
 
 static void __s2d_handler(void)
 {
-	ICPU_ERR("in");
+	ICPU_INFO("in");
 
 	__panic_handler_impl();
 
-	ICPU_ERR("out");
+	ICPU_INFO("out");
 }
 
 static void __teardown_core(struct platform_device *pdev)

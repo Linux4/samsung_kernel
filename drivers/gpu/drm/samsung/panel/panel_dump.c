@@ -16,7 +16,7 @@
  * create_dumpinfo - create a struct dumpinfo structure
  * @name: pointer to a string for the name of this dump.
  * @res: pointer to a resource.
- * @callback: callback function to be called when execute dump.
+ * @ops: function to be called when execute dump.
  * @expects: pointer to a expectation array to check panel register state.
  * @nr_expects: size of expectation array.
  *
@@ -28,13 +28,13 @@
  * making a call to destroy_dumpinfo().
  */
 struct dumpinfo *create_dumpinfo(char *name,
-		struct resinfo *res, int (*callback)(struct dumpinfo *),
+		struct resinfo *res, struct dump_ops *ops,
 		struct dump_expect *expects, unsigned int nr_expects)
 {
 	struct dumpinfo *dump;
 	int i;
 
-	if (!name || !res || !callback) {
+	if (!name || !res || !ops) {
 		panel_err("invalid parameter\n");
 		return NULL;
 	}
@@ -44,7 +44,7 @@ struct dumpinfo *create_dumpinfo(char *name,
 		return NULL;
 
 	dump->res = res;
-	dump->callback = callback;
+	memcpy(&dump->ops, ops, sizeof(*ops));
 	if (expects) {
 		dump->expects = kmemdup(expects,
 				sizeof(*expects) * nr_expects, GFP_KERNEL);
@@ -76,6 +76,7 @@ void destroy_dumpinfo(struct dumpinfo *dump)
 	free_pnobj_name(&dump->base);
 	for (i = 0; i < dump->nr_expects; i++)
 		kfree(dump->expects[i].msg);
+	kfree(dump->abd_print);
 	kfree(dump->expects);
 	kfree(dump);
 }

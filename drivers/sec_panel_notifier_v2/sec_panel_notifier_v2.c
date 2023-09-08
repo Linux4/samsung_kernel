@@ -12,6 +12,8 @@
 #include <linux/printk.h>
 #include <linux/sec_panel_notifier_v2.h>
 
+#if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2)
+
 static BLOCKING_NOTIFIER_HEAD(panel_notifier_list);
 
 /**
@@ -77,6 +79,8 @@ int panel_notifier_call_chain(unsigned long val, void *v)
 	return blocking_notifier_call_chain(&panel_notifier_list, val, v);
 }
 EXPORT_SYMBOL(panel_notifier_call_chain);
+
+#endif
 
 MODULE_DESCRIPTION("Samsung panel notifier");
 MODULE_LICENSE("GPL");

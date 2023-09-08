@@ -1912,10 +1912,17 @@ static void is_group_override_meta(struct is_group *group,
 			frame->shot->ctl.aa.ispHwTargetFpsRange[0] = 60;
 			frame->shot->ctl.aa.ispHwTargetFpsRange[1] = 60;
 		} else {
-			frame->shot->ctl.aa.ispHwTargetFpsRange[0] =
-				frame->shot->ctl.aa.aeTargetFpsRange[0];
-			frame->shot->ctl.aa.ispHwTargetFpsRange[1] =
-				frame->shot->ctl.aa.aeTargetFpsRange[1];
+			if (frame->shot->ctl.aa.vendor_fpsHintResult == 0) {
+				frame->shot->ctl.aa.ispHwTargetFpsRange[0] =
+					frame->shot->ctl.aa.aeTargetFpsRange[0];
+				frame->shot->ctl.aa.ispHwTargetFpsRange[1] =
+					frame->shot->ctl.aa.aeTargetFpsRange[1];
+			}  else {
+				frame->shot->ctl.aa.ispHwTargetFpsRange[0] =
+					frame->shot->ctl.aa.vendor_fpsHintResult;
+				frame->shot->ctl.aa.ispHwTargetFpsRange[1] =
+					frame->shot->ctl.aa.vendor_fpsHintResult;
+			}
 		}
 	}
 

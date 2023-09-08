@@ -998,6 +998,9 @@ void sc_remove_devfreq(struct sc_ctx *ctx)
 	if (ctx->sc_dev->min_bus_int_table_cnt != 0)
 		sc_pm_qos_remove_devfreq(&qos_req->bus_int_req);
 	sc_pm_qos_remove_devfreq(&qos_req->dev_req);
+
+	ctx->pm_qos_lv = -1;
+	ctx->mif_freq_req = 0;
 }
 
 #define BIT_SZ_OF_HEADER_UNIT	(4)
@@ -1189,8 +1192,10 @@ void sc_request_devfreq(struct sc_ctx *ctx, int lv)
 			bts_update_bw(bts_id, bw);
 
 		ctx->mif_freq_req = req_mif;
+
 		sc_pm_qos_update_devfreq(&qos_req->mif_req, PM_QOS_BUS_THROUGHPUT,
 					 req_mif);
+
 		if (sc->min_bus_int_table_cnt != 0) {
 			int min_bus_int;
 			int src_min_bus_int, dst_min_bus_int;
@@ -1208,6 +1213,7 @@ void sc_request_devfreq(struct sc_ctx *ctx, int lv)
 	}
 	if (lv != ctx->pm_qos_lv) {
 		ctx->pm_qos_lv = lv;
+
 		sc_pm_qos_update_devfreq(&qos_req->dev_req, sc->dvfs_class,
 					 qos_table[lv].freq_int);
 	}
@@ -1261,38 +1267,6 @@ static int sc_get_clock_khz(struct sc_ctx *ctx,
 		clk = INT_MAX;
 
 	return (int)clk;
-}
-
-static int sc_get_pm_qos_level_by_ppc(struct sc_ctx *ctx, int framerate)
-{
-	struct sc_dev *sc = ctx->sc_dev;
-	struct sc_qos_table *qos_table = sc->qos_table;
-	int time_us = 1000000 / framerate;
-	int src_clk, dst_clk, target_clk;
-	int i;
-
-	src_clk = sc_get_clock_khz(ctx, &ctx->s_frame, time_us);
-	dst_clk = sc_get_clock_khz(ctx, &ctx->d_frame, time_us);
-
-	target_clk = max(src_clk, dst_clk);
-
-	for (i = sc->qos_table_cnt - 1; i > 0; i--) {
-		if (qos_table[i].freq_mscl >= target_clk)
-			break;
-	}
-
-	return i;
-}
-
-static int sc_get_pm_qos_level(struct sc_ctx *ctx, int framerate)
-{
-	struct sc_dev *sc = ctx->sc_dev;
-
-	/* No need to calculate if no qos_table exists. */
-	if (!sc->qos_table)
-		return -1;
-
-	return sc_get_pm_qos_level_by_ppc(ctx, framerate);
 }
 
 static int sc_get_min_bus_int(struct sc_dev *sc, struct sc_frame *frame)
@@ -2167,6 +2141,92 @@ static struct vb2_sc_buffer *sc_get_sc_buf_from_v4l2_buf(struct sc_ctx *ctx, str
 	}
 
 	return sc_from_vb2_to_sc_buf(vb);
+}
+
+static s64 sc_calc_required_clk_of_ctx(struct sc_ctx *ctx, ktime_t cur_time)
+{
+	int src_clk, dst_clk;
+	s64 i_frame_clk = 0, target_clk = 0;
+	int ts_delta;
+	int i;
+
+	ts_delta = ktime_us_delta(ctx->ts_to_complete, cur_time);
+	if (ts_delta <= 0)
+		return -1;
+
+	if (sc_log_level >= 1) {
+		 pr_info("%s: ctx: %p, ts_delta: %d\n", __func__, ctx, ts_delta);
+		 sc_ctx_dump(ctx);
+	}
+
+	src_clk = sc_get_clock_khz(ctx, &ctx->s_frame, ts_delta);
+	dst_clk = sc_get_clock_khz(ctx, &ctx->d_frame, ts_delta);
+
+	i_frame_clk = 0;
+	for (i = 0; i < ctx->num_int_frame; i++)
+		i_frame_clk += sc_get_clock_khz(ctx, &ctx->i_frame[i]->frame, ts_delta);
+
+	target_clk += max(src_clk, dst_clk);
+	target_clk += i_frame_clk;
+
+	return target_clk;
+}
+
+static void sc_calc_and_request_qos(struct sc_dev *sc, struct sc_ctx *ctx_queued)
+{
+	struct sc_ctx *ctx;
+	ktime_t cur_time = ktime_get();
+	s64 ret_clk, target_clk;
+	int i;
+	int qos_lv = -1;
+	unsigned long flags;
+
+	/* No need to calculate if no qos_table exists. */
+	if (!sc->qos_table)
+		return;
+
+	if (ctx_queued == NULL) {
+		dev_err(sc->dev, "%s: ctx_queued is NULL\n", __func__);
+		return;
+	}
+
+	target_clk = 0;
+
+	if (sc_log_level >= 1)
+		dev_info(sc->dev, "%s: cur_time is %lld\n", __func__, cur_time);
+
+	spin_lock_irqsave(&sc->ctxlist_qos_lock, flags);
+	list_for_each_entry(ctx, &sc->ctxlist_qos, node_qos) {
+		ret_clk = sc_calc_required_clk_of_ctx(ctx, cur_time);
+		if (ret_clk < 0) {
+			spin_unlock_irqrestore(&sc->ctxlist_qos_lock, flags);
+			qos_lv = 0;
+			goto complete_get_qos_lv;
+		}
+
+		target_clk += ret_clk;
+	}
+
+	spin_unlock_irqrestore(&sc->ctxlist_qos_lock, flags);
+
+	if (sc_log_level >= 1)
+		 dev_info(sc->dev,
+			  "%s: target_clk is %lld\n", __func__, target_clk);
+
+	for (i = sc->qos_table_cnt - 1; i > 0; i--) {
+		if (sc->qos_table[i].freq_mscl >= target_clk)
+			break;
+	}
+	qos_lv = i;
+
+complete_get_qos_lv:
+	if (sc_log_level >= 1)
+		 dev_info(sc->dev, "%s: qos_lv is %d\n", __func__, qos_lv);
+
+	mutex_lock(&ctx_queued->pm_qos_lock);
+	sc_request_devfreq(ctx_queued, qos_lv);
+	mod_delayed_work(system_wq, &ctx_queued->qos_work, msecs_to_jiffies(50));
+	mutex_unlock(&ctx_queued->pm_qos_lock);
 }
 
 static int sc_v4l2_qbuf(struct file *file, void *fh,
@@ -3144,6 +3204,8 @@ static void sc_vb2_buf_finish(struct vb2_buffer *vb)
 {
 	struct vb2_sc_buffer *sc_buf = sc_from_vb2_to_sc_buf(vb);
 	struct dma_fence *fence;
+	struct sc_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
+	unsigned long flags;
 
 	do {
 		fence = sc_buf->in_fence;
@@ -3157,6 +3219,17 @@ static void sc_vb2_buf_finish(struct vb2_buffer *vb)
 		cancel_work_sync(&sc_buf->qbuf_work);
 	}
 
+	/*
+	 * node_qos should be deleted before calling buf_finish().
+	 * But, in case of calling __vb2_queue_cancel(),
+	 * the buffer will be aborted between QUEUED and RUNNING.
+	 * So, node_qos can be not deleted and it is handling this.
+	 */
+	spin_lock_irqsave(&ctx->sc_dev->ctxlist_qos_lock, flags);
+	if (!list_empty(&ctx->node_qos))
+		list_del_init(&ctx->node_qos);
+	spin_unlock_irqrestore(&ctx->sc_dev->ctxlist_qos_lock, flags);
+
 	if (sc_buf->out_sync_file)
 		sc_remove_out_fence(sc_buf);
 }
@@ -3164,7 +3237,53 @@ static void sc_vb2_buf_finish(struct vb2_buffer *vb)
 static void __sc_vb2_buf_queue(struct v4l2_m2m_ctx *m2m_ctx,
 			       struct vb2_v4l2_buffer *v4l2_buf)
 {
+	struct vb2_v4l2_buffer *src, *dst;
+	struct sc_ctx *ctx = m2m_ctx->priv;
+	unsigned long flags;
+
 	v4l2_m2m_buf_queue(m2m_ctx, v4l2_buf);
+
+	src = v4l2_m2m_next_src_buf(m2m_ctx);
+	dst = v4l2_m2m_next_dst_buf(m2m_ctx);
+
+	if (src && dst) {
+		struct sc_ctx *tmp_ctx;
+		bool skip_request_qos = false;
+		struct vb2_buffer *src_vb, *dst_vb;
+		struct vb2_sc_buffer *src_sc_buf, *dst_sc_buf;
+
+		src_vb = &(src->vb2_buf);
+		dst_vb = &(dst->vb2_buf);
+		src_sc_buf = sc_from_vb2_to_sc_buf(src_vb);
+		dst_sc_buf = sc_from_vb2_to_sc_buf(dst_vb);
+
+		if (!src_sc_buf->state && !dst_sc_buf->state) {
+			spin_lock_irqsave(&ctx->sc_dev->ctxlist_qos_lock, flags);
+
+			if (list_empty(&ctx->node_qos)) {
+				ctx->ts_to_complete = ktime_add_us(ktime_get(),
+						USEC_PER_SEC / ((ctx->framerate != 0) ? ctx->framerate
+								      : SC_FRAMERATE_DEFAULT));
+				/*
+				 * The jobs queued before this should be finished before this.
+				 * So, change the timestamp as this.
+				 */
+				list_for_each_entry(tmp_ctx, &ctx->sc_dev->ctxlist_qos, node_qos) {
+					if (tmp_ctx->ts_to_complete > ctx->ts_to_complete)
+						tmp_ctx->ts_to_complete = ctx->ts_to_complete;
+				}
+				list_add(&ctx->node_qos, &ctx->sc_dev->ctxlist_qos);
+			} else {
+				skip_request_qos = true;
+			}
+
+			spin_unlock_irqrestore(&ctx->sc_dev->ctxlist_qos_lock, flags);
+
+			if (!skip_request_qos)
+				sc_calc_and_request_qos(ctx->sc_dev, ctx);
+		}
+	}
+
 	v4l2_m2m_try_schedule(m2m_ctx);
 }
 
@@ -3351,39 +3470,6 @@ static bool sc_configure_rotation_degree(struct sc_ctx *ctx, int degree)
 	return true;
 }
 
-static void sc_set_framerate(struct sc_ctx *ctx, int framerate, bool max_lv_en)
-{
-	if (!ctx->sc_dev->qos_table)
-		return;
-
-	mutex_lock(&ctx->pm_qos_lock);
-	if (framerate != 0) {
-		int ret_qos_lv;
-
-		if (max_lv_en == true)
-			ret_qos_lv = 0;
-		else
-			/* No need to check return because of previous check */
-			ret_qos_lv = sc_get_pm_qos_level(ctx, framerate);
-
-		ctx->framerate = framerate;
-
-		sc_request_devfreq(ctx, ret_qos_lv);
-
-		mod_delayed_work(system_wq,
-				 &ctx->qos_work, msecs_to_jiffies(50));
-	} else {
-		if (ctx->framerate != 0) {
-			cancel_delayed_work(&ctx->qos_work);
-			sc_remove_devfreq(ctx);
-			ctx->framerate = 0;
-			ctx->pm_qos_lv = -1;
-			ctx->mif_freq_req = 0;
-		}
-	}
-	mutex_unlock(&ctx->pm_qos_lock);
-}
-
 static int sc_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct sc_ctx *ctx;
@@ -3440,11 +3526,7 @@ static int sc_s_ctrl(struct v4l2_ctrl *ctrl)
 		ctx->dnoise_ft.strength = ctrl->val;
 		break;
 	case SC_CID_FRAMERATE:
-		sc_set_framerate(ctx, ctrl->val, false);
-		break;
-	case SC_CID_MAX_PERF:
-		if (ctrl->val)
-			sc_set_framerate(ctx, SC_FRAMERATE_MAX, true);
+		ctx->framerate = ctrl->val;
 		break;
 	}
 
@@ -3544,17 +3626,7 @@ static const struct v4l2_ctrl_config sc_custom_ctrl[] = {
 		.step = 1,
 		.min = 0,
 		.max = SC_FRAMERATE_MAX,
-		.def = 0,
-	}, {
-		.ops = &sc_ctrl_ops,
-		.id = SC_CID_MAX_PERF,
-		.name = "Set QoS level as Max",
-		.type = V4L2_CTRL_TYPE_BOOLEAN,
-		.flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
-		.step = 1,
-		.min = 0,
-		.max = 1,
-		.def = 0,
+		.def = SC_FRAMERATE_DEFAULT,
 	}
 };
 
@@ -3659,16 +3731,10 @@ static int sc_ctrl_protection(struct sc_dev *sc, struct sc_ctx *ctx, bool en)
 
 static void sc_timeout_qos_work(struct work_struct *work)
 {
-	struct sc_ctx *ctx = container_of(work, struct sc_ctx,
-						qos_work.work);
+	struct sc_ctx *ctx = container_of(work, struct sc_ctx, qos_work.work);
 
 	mutex_lock(&ctx->pm_qos_lock);
-
 	sc_remove_devfreq(ctx);
-	ctx->framerate = 0;
-	ctx->pm_qos_lv = -1;
-	ctx->mif_freq_req = 0;
-
 	mutex_unlock(&ctx->pm_qos_lock);
 }
 
@@ -3695,6 +3761,7 @@ static int sc_open(struct file *file)
 	INIT_DELAYED_WORK(&ctx->qos_work, sc_timeout_qos_work);
 	ctx->pm_qos_lv = -1;
 	mutex_init(&ctx->pm_qos_lock);
+	INIT_LIST_HEAD(&ctx->node_qos);
 
 	ret = sc_add_ctrls(ctx);
 	if (ret)
@@ -3767,7 +3834,7 @@ static int sc_release(struct file *file)
 
 	destroy_intermediate_frame_all(ctx);
 
-	if (ctx->framerate)
+	if (ctx->pm_qos_lv != -1)
 		flush_delayed_work(&ctx->qos_work);
 
 	if (!IS_ERR(sc->aclk))
@@ -3878,6 +3945,10 @@ static void sc_job_finish(struct sc_dev *sc, struct sc_ctx *ctx)
 		dst_vb = v4l2_m2m_dst_buf_remove(ctx->m2m_ctx);
 
 		BUG_ON(!src_vb || !dst_vb);
+
+		spin_lock_irqsave(&sc->ctxlist_qos_lock, flags);
+		list_del_init(&ctx->node_qos);
+		spin_unlock_irqrestore(&sc->ctxlist_qos_lock, flags);
 
 		sc_buffer_done(src_vb, VB2_BUF_STATE_ERROR);
 		sc_buffer_done(dst_vb, VB2_BUF_STATE_ERROR);
@@ -4439,6 +4510,10 @@ static irqreturn_t sc_irq_handler(int irq, void *priv)
 			ctx->tws = NULL;
 		}
 
+		spin_lock(&sc->ctxlist_qos_lock);
+		list_del_init(&ctx->node_qos);
+		spin_unlock(&sc->ctxlist_qos_lock);
+
 		sc_buffer_done(src_vb,
 			       SCALER_INT_OK(irq_status) ? VB2_BUF_STATE_DONE
 							 : VB2_BUF_STATE_ERROR);
@@ -4523,6 +4598,7 @@ static void sc_m2m_device_run(void *priv)
 	struct vb2_buffer *src_vb, *dst_vb;
 	struct vb2_v4l2_buffer *src_vb_v4l2, *dst_vb_v4l2;
 	struct vb2_sc_buffer *src_sc_buf, *dst_sc_buf;
+	unsigned long flags;
 
 	s_frame = &ctx->s_frame;
 	d_frame = &ctx->d_frame;
@@ -4538,7 +4614,6 @@ static void sc_m2m_device_run(void *priv)
 		dst_vb_v4l2 = v4l2_m2m_dst_buf_remove(ctx->m2m_ctx);
 
 		if (dst_sc_buf->tws) {
-			unsigned long flags;
 
 			spin_lock_irqsave(&sc->tws_lock, flags);
 			list_add_tail(&dst_sc_buf->tws->node, &sc->tws_avail_list);
@@ -4548,6 +4623,10 @@ static void sc_m2m_device_run(void *priv)
 
 			dst_sc_buf->tws = NULL;
 		}
+
+		spin_lock_irqsave(&sc->ctxlist_qos_lock, flags);
+		list_del_init(&ctx->node_qos);
+		spin_unlock_irqrestore(&sc->ctxlist_qos_lock, flags);
 
 		sc_buffer_done(src_vb_v4l2, VB2_BUF_STATE_ERROR);
 		sc_buffer_done(dst_vb_v4l2, VB2_BUF_STATE_ERROR);
@@ -5188,6 +5267,8 @@ static int sc_probe(struct platform_device *pdev)
 	spin_lock_init(&sc->slock);
 	mutex_init(&sc->lock);
 	init_waitqueue_head(&sc->wait);
+	spin_lock_init(&sc->ctxlist_qos_lock);
+	INIT_LIST_HEAD(&sc->ctxlist_qos);
 
 	sc->fence_context = dma_fence_context_alloc(1);
 	spin_lock_init(&sc->fence_lock);
@@ -5247,6 +5328,7 @@ static int sc_probe(struct platform_device *pdev)
 	    sc->idx_idle_ip = -1;
     }
 #endif
+
 	pm_runtime_enable(&pdev->dev);
 
 	ret = sc_populate_dt(sc);

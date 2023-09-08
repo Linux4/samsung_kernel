@@ -557,6 +557,10 @@ static ssize_t exynos_bts_qos_write(struct file *file, const char __user *user_b
 	}
 
 	stat = info[index].stat;
+	if (stat == NULL) {
+		pr_err("%s: stat is NULL\n", __func__);
+		return -ENOMEM;
+	}
 
 	spin_lock(&btsdev->lock);
 
@@ -655,6 +659,10 @@ static ssize_t exynos_bts_mo_write(struct file *file, const char __user *user_bu
 	}
 
 	stat = info[index].stat;
+	if (stat == NULL) {
+		pr_err("%s: stat is NULL\n", __func__);
+		return -ENOMEM;
+	}
 
 	spin_lock(&btsdev->lock);
 
@@ -693,8 +701,9 @@ static int exynos_bts_urgent_open_show(struct seq_file *buf, void *d)
 
 		if (info[i].pd_on) {
 			ret = info[i].ops->get_urgent(info[i].va_base, &stat);
-			seq_printf(buf, "[%d] %s:   \tQUR(0x%X) TH_R 0x%.2X TH_W 0x%.2X\n",
-					i, info[i].name, stat.qurgent_on, stat.qurgent_th_r, stat.qurgent_th_w);
+			seq_printf(buf, "[%d] %s:   \tQUR(0x%X) Extern En: %d TH_R 0x%.2X TH_W 0x%.2X\n",
+					i, info[i].name, stat.qurgent_on,
+					stat.qurgent_ex, stat.qurgent_th_r, stat.qurgent_th_w);
 		} else {
 			seq_printf(buf, "[%d] %s:   \tLocal power off!\n",
 					i, info[i].name);
@@ -719,7 +728,7 @@ static ssize_t exynos_bts_urgent_write(struct file *file, const char __user *use
 
 	struct bts_info *info = btsdev->bts_list;
 	struct bts_stat *stat;
-	int ret, scen, index, on, th_r, th_w;
+	int ret, scen, index, on, ex, th_r, th_w;
 
 	buf_size = simple_write_to_buffer(buf, sizeof(buf) - 1, ppos, user_buf, count);
 	if (buf_size < 0)
@@ -727,8 +736,8 @@ static ssize_t exynos_bts_urgent_write(struct file *file, const char __user *use
 
 	buf[buf_size] = '\0';
 
-	ret = sscanf(buf, "%d %d %d %d %d\n", &scen, &index, &on, &th_r, &th_w);
-	if (ret != 5) {
+	ret = sscanf(buf, "%d %d %d %d %d %d\n", &scen, &index, &on, &ex, &th_r, &th_w);
+	if (ret != 6) {
 		pr_err("%s: sscanf failed. We need 5 inputs. <SCEN IP ON/OFF TH_R TH_W> count=(%d)\n",
 			__func__, ret);
 		return -EINVAL;
@@ -747,11 +756,16 @@ static ssize_t exynos_bts_urgent_write(struct file *file, const char __user *use
 	}
 
 	stat = info[index].stat;
+	if (stat == NULL) {
+		pr_err("%s: stat is NULL\n", __func__);
+		return -ENOMEM;
+	}
 
 	spin_lock(&btsdev->lock);
 
 	stat[scen].stat_on = true;
 	stat[scen].qurgent_on = on;
+	stat[scen].qurgent_ex = ex;
 	stat[scen].qurgent_th_r = th_r;
 	stat[scen].qurgent_th_w = th_w;
 
@@ -851,6 +865,10 @@ static ssize_t exynos_bts_blocking_write(struct file *file, const char __user *u
 	}
 
 	stat = info[index].stat;
+	if (stat == NULL) {
+		pr_err("%s: stat is NULL\n", __func__);
+		return -ENOMEM;
+	}
 
 	spin_lock(&btsdev->lock);
 
@@ -1055,6 +1073,11 @@ static ssize_t exynos_bts_drex_write(struct file *file, const char __user *user_
 	                        __func__, btsdev->num_scen - 1, scen);
 	        return -EINVAL;
 	}
+
+	if (&info[index] == NULL && &info[index].stat[scen] == NULL) {
+                pr_err("%s: info is NULL\n", __func__);
+                return -ENOMEM;
+        }
 
 	if(type == 0) { //drex
 		if(offset >= sizeof(struct drex_stat))
@@ -1281,6 +1304,9 @@ static int bts_parse_setting(struct device_node *np, struct bts_stat *stat)
 			stat->wmo = MAX_MO;
 
 		of_property_read_u32(np, "qurgent_on", &(stat->qurgent_on));
+
+		if (of_property_read_u32(np, "qurgent_ex", &(stat->qurgent_ex)))
+			stat->qurgent_ex = 0;
 
 		if (of_property_read_u32(np, "qurgent_th_r", &(stat->qurgent_th_r)))
 			stat->qurgent_th_r = MAX_QUTH;

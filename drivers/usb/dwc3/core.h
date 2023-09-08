@@ -34,6 +34,50 @@
 
 #include <linux/power_supply.h>
 
+/* defines the functions that call the spin lock */
+#define DWC3_GADGET_START_FUNC	1
+#define DWC3_GADGET_STOP_FUNC	2
+#define DWC3_GADGET_SET_SPEED_FUNC	3
+#define DWC3_GADGET_GIVEBACK_FUNC	4
+#define DWC3_GADGET_EP_ENABLE_FUNC	5
+#define DWC3_GADGET_EP_DISABLE_FUNC	6
+#define DWC3_GADGET_EP_QUEUE_FUNC	7
+#define DWC3_GADGET_EP_DEQUEUE_FUNC	8
+#define DWC3_GADGET_SET_SSP_FUNC	9
+#define DWC3_GADGET_ASYNC_FUNC		10
+#define DWC3_DISCONNECT_FUNC		11
+#define DWC3_SUSPEND_FUNC		12
+#define DWC3_RESUME_FUNC		13
+#define DWC3_RESET_FUNC			14
+#define DWC3_GADGET_WAKEUP_INTR		15
+#define DWC3_THREAD_INTR		16
+#define DWC3_GADGET_SUSPEND_FUNC	17
+#define DWC3_GADGET_EP_SET_HALT_FUNC	18
+#define DWC3_GADGET_EP_SET_WEDGE_FUNC	19
+#define DWC3_GADGET_WAKEUP_FUNC		20
+#define DWC3_GADGET_SELF_POWERED_FUNC	21
+#define DWC3_GADGET_SOFT_DISCONN_FUNC	22
+#define DWC3_SET_MODE_FUNC		23
+#define DWC3_DRD_SET_MODE_FUNC		24
+#define DWC3_SUSPEND_COMM_FUNC		25
+#define DWC3_RESUME_COMM_FUNC		26
+#define DWC3_GADGET_EP0_QUEUE_FUNC	27
+#define DWC3_GADGET_EP0_SET_HALT_FUNC	28
+#define DWC3_GADGET_EP0_DELEGATE_FUNC	29
+#define DWC3_EXYNOS_RUNTIME_SUSPEND_FUNC 30
+
+#define SPIN_INFO_ARRAY_NUM	64
+
+#define CORE_BIT(x) (x)
+#define LOCK_BIT(x) ((x) << 4)
+#define FUNCTION_BIT(x) ((x) << 5)
+
+struct spin_lock_info {
+	s64 time;
+	u32 spin_info;
+};
+/* ----------------------------------------------*/
+
 #define DWC3_MSG_MAX	500
 
 /* Global constants */
@@ -1554,7 +1598,7 @@ int dwc3_send_gadget_ep_cmd(struct dwc3_ep *dep, unsigned int cmd,
 int dwc3_send_gadget_generic_command(struct dwc3 *dwc, unsigned int cmd,
 		u32 param);
 void dwc3_gadget_clear_tx_fifos(struct dwc3 *dwc);
-void dwc3_remove_requests(struct dwc3 *dwc, struct dwc3_ep *dep, int status);
+void dwc3_lock_logging(int function_num, int lock);
 #else
 static inline int dwc3_gadget_init(struct dwc3 *dwc)
 { return 0; }

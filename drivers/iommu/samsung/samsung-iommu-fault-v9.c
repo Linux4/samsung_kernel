@@ -490,6 +490,9 @@ static void sysmmu_show_secure_fault_information(struct sysmmu_drvdata *drvdata,
 	unsigned int info0, info1, info2;
 	phys_addr_t pgtable;
 	unsigned int sfrbase = drvdata->secure_base;
+#if IS_ENABLED(CONFIG_SEC_DEBUG_EXTRA_INFO)
+	char temp_buf[SZ_128];
+#endif
 
 	pgtable = read_sec_info(MMU_VM_ADDR(sfrbase + REG_MMU_CONTEXT0_CFG_FLPT_BASE_VM, vmid));
 	pgtable <<= PAGE_SHIFT;
@@ -506,6 +509,14 @@ static void sysmmu_show_secure_fault_information(struct sysmmu_drvdata *drvdata,
 		port_name ? port_name : dev_name(drvdata->dev),
 		IS_READ_FAULT(info0) ? "READ" : "WRITE",
 		sysmmu_fault_name[intr_type], fault_addr, &pgtable);
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG_EXTRA_INFO)
+	snprintf(temp_buf, SZ_128, "%s %s %s at %#010lx (%pa)",
+		port_name ? port_name : dev_name(drvdata->dev),
+		IS_READ_FAULT(info0) ? "READ" : "WRITE",
+		sysmmu_fault_name[intr_type], fault_addr, &pgtable);
+	secdbg_exin_set_sysmmu(temp_buf);
+#endif
 
 	if (intr_type == SYSMMU_FAULT_UNKNOWN) {
 		pr_auto_name(iommu, "The fault is not caused by this System MMU.\n");
@@ -555,6 +566,9 @@ static void sysmmu_show_fault_info_simple(struct sysmmu_drvdata *drvdata, int in
 	const char *port_name = NULL;
 	phys_addr_t pgtable;
 	u32 info0;
+#if IS_ENABLED(CONFIG_SEC_DEBUG_EXTRA_INFO)
+	char temp_buf[SZ_128];
+#endif
 
 	pgtable = readl_relaxed(MMU_VM_ADDR(drvdata->sfrbase + REG_MMU_CONTEXT0_CFG_FLPT_BASE_VM,
 					    vmid));
@@ -568,6 +582,16 @@ static void sysmmu_show_fault_info_simple(struct sysmmu_drvdata *drvdata, int in
 		port_name ? port_name : dev_name(drvdata->dev),
 		IS_READ_FAULT(info0) ? "READ" : "WRITE",
 		sysmmu_fault_name[intr_type], fault_addr, &pgtable);
+#if IS_ENABLED(CONFIG_SEC_DEBUG_EXTRA_INFO)
+	/* only for called by sysmmu_show_fault_information */
+	if (pt) {
+		snprintf(temp_buf, SZ_128, "%s %s %s at %#010lx (%pa)\n",
+			port_name ? port_name : dev_name(drvdata->dev),
+			IS_READ_FAULT(info0) ? "READ" : "WRITE",
+			sysmmu_fault_name[intr_type], fault_addr, &pgtable);
+		secdbg_exin_set_sysmmu(temp_buf);
+	}
+#endif
 
 	if (pt)
 		*pt = pgtable;

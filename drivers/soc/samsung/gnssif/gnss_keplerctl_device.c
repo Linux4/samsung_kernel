@@ -544,7 +544,7 @@ int init_gnssctl_device(struct gnss_ctl *gc, struct gnss_pdata *pdata)
 		goto error;
 	}
 
-	gif_init_irq(&gc->irq_gnss_active, irq, "kepler_active_handler", IRQF_ONESHOT);
+	gif_init_irq(&gc->irq_gnss_active, irq, "kepler_active_handler", 0);
 	ret = gif_request_irq(&gc->irq_gnss_active, kepler_active_isr, gc);
 	if (ret) {
 		gif_err("Request irq fail - kepler_active_isr(%d)\n", ret);
@@ -561,7 +561,7 @@ int init_gnssctl_device(struct gnss_ctl *gc, struct gnss_pdata *pdata)
 		goto error;
 	}
 
-	gif_init_irq(&gc->irq_gnss_wdt, irq, "kepler_wdt_handler", IRQF_ONESHOT);
+	gif_init_irq(&gc->irq_gnss_wdt, irq, "kepler_wdt_handler", 0);
 	ret = gif_request_irq(&gc->irq_gnss_wdt, kepler_wdt_isr, gc);
 	if (ret) {
 		gif_err("Request irq fail - kepler_wdt_isr(%d)\n", ret);
@@ -587,7 +587,7 @@ int init_gnssctl_device(struct gnss_ctl *gc, struct gnss_pdata *pdata)
 			goto error;
 		}
 
-		gif_init_irq(&gc->irq_gnss_sw_init, irq, "kepler_sw_init_handler", IRQF_ONESHOT);
+		gif_init_irq(&gc->irq_gnss_sw_init, irq, "kepler_sw_init_handler", 0);
 		ret = gif_request_irq(&gc->irq_gnss_sw_init, kepler_sw_init_isr, gc);
 		if (ret) {
 			gif_err("Request irq fail - kepler_sw_init_isr(%d)\n", ret);

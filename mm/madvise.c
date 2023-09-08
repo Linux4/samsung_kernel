@@ -675,6 +675,55 @@ static long madvise_writeback(struct vm_area_struct *vma,
 	return 0;
 }
 
+static int madvise_prefetch_pte_range(pmd_t *pmd, unsigned long start,
+				      unsigned long end, struct mm_walk *walk)
+{
+	struct vm_area_struct *vma = walk->vma;
+	pte_t *orig_pte, pte;
+	spinlock_t *ptl;
+	swp_entry_t entry;
+	unsigned long index;
+
+	if (pmd_none_or_trans_huge_or_clear_bad(pmd))
+		return 0;
+
+	for (index = start; index != end; index += PAGE_SIZE) {
+		orig_pte = pte_offset_map_lock(vma->vm_mm, pmd, start, &ptl);
+		pte = *(orig_pte + ((index - start) / PAGE_SIZE));
+		pte_unmap_unlock(orig_pte, ptl);
+
+		if (pte_present(pte) || pte_none(pte))
+			continue;
+		entry = pte_to_swp_entry(pte);
+		if (unlikely(non_swap_entry(entry)))
+			continue;
+
+		zram_oem_fn_nocfi(ZRAM_PREFETCH_ENTRY, NULL, swp_offset(entry));
+	}
+	return 0;
+}
+
+static const struct mm_walk_ops prefetch_walk_ops = {
+	.pmd_entry = madvise_prefetch_pte_range,
+};
+
+static long madvise_prefetch(struct vm_area_struct *vma,
+				   struct vm_area_struct **prev,
+				   unsigned long addr, unsigned long end)
+{
+	*prev = vma;
+	if (!vma_is_anonymous(vma))
+		return 0;
+
+	walk_page_range(vma->vm_mm, addr, end, &prefetch_walk_ops, NULL);
+	return 0;
+}
+
+static bool madvise_rw_behavior(int behavior)
+{
+	return behavior == MADV_WRITEBACK || behavior == MADV_PREFETCH;
+}
+
 int do_madvise_writeback(struct mm_struct *mm, struct list_head *list,
 			 void *buf, unsigned long start, size_t len_in)
 {
@@ -684,6 +733,7 @@ int do_madvise_writeback(struct mm_struct *mm, struct list_head *list,
 	int error = -EINVAL;
 	size_t len;
 	struct blk_plug plug;
+	bool rw = buf ? WRITE : READ;
 
 	start = untagged_addr(start);
 
@@ -735,7 +785,10 @@ int do_madvise_writeback(struct mm_struct *mm, struct list_head *list,
 			tmp = end;
 
 		/* Here vma->vm_start <= start < tmp <= (end|vma->vm_end). */
-		error = madvise_writeback(vma, &prev, list, buf, start, tmp);
+		if (rw == WRITE)
+			error = madvise_writeback(vma, &prev, list, buf, start, tmp);
+		else
+			error = madvise_prefetch(vma, &prev, start, tmp);
 		if (error)
 			goto out;
 		start = tmp;
@@ -1311,6 +1364,7 @@ process_madvise_behavior_valid(int behavior)
 	case MADV_WILLNEED:
 #if IS_ENABLED(CONFIG_ZRAM)
 	case MADV_WRITEBACK:
+	case MADV_PREFETCH:
 #endif
 		return true;
 	default:
@@ -1579,7 +1633,7 @@ SYSCALL_DEFINE5(process_madvise, int, pidfd, const struct iovec __user *, vec,
 	LIST_HEAD(list);
 	void *buf = NULL;
 
-	if (behavior == MADV_WRITEBACK && !zram_oem_fn)
+	if (!zram_oem_fn && madvise_rw_behavior(behavior))
 		return -EINVAL;
 #endif
 	if (flags != 0) {
@@ -1636,7 +1690,7 @@ SYSCALL_DEFINE5(process_madvise, int, pidfd, const struct iovec __user *, vec,
 	while (iov_iter_count(&iter)) {
 		iovec = iov_iter_iovec(&iter);
 #if IS_ENABLED(CONFIG_ZRAM)
-		if (behavior == MADV_WRITEBACK)
+		if (madvise_rw_behavior(behavior))
 			ret = do_madvise_writeback(mm, &list, buf,
 				(unsigned long)iovec.iov_base, iovec.iov_len);
 		else
@@ -1649,10 +1703,15 @@ SYSCALL_DEFINE5(process_madvise, int, pidfd, const struct iovec __user *, vec,
 	}
 #if IS_ENABLED(CONFIG_ZRAM)
 	if (behavior == MADV_WRITEBACK) {
-		blk_start_plug(&plug);
-		zram_oem_fn_nocfi(ZRAM_WRITEBACK_LIST, &list, (unsigned long)buf);
-		blk_finish_plug(&plug);
-		zram_oem_fn_nocfi(ZRAM_FREE_WRITEBACK_BUFFER, buf, 0);
+		if (ret == 0) {
+			blk_start_plug(&plug);
+			ret = zram_oem_fn_nocfi(ZRAM_WRITEBACK_LIST,
+						&list, (unsigned long)buf);
+			blk_finish_plug(&plug);
+		}
+		zram_oem_fn_nocfi(ZRAM_FREE_WRITEBACK_BUFFER, &list, (unsigned long)buf);
+		if (ret < 0)
+			goto release_mm;
 	}
 #endif
 	ret = (total_len - iov_iter_count(&iter)) ? : ret;

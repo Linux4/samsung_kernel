@@ -2,7 +2,7 @@
 /*
  * Samsung Specific feature : sysfs-nodes
  *
- * Copyright (C) 2022 Samsung Electronics Co., Ltd.
+ * Copyright (C) 2023 Samsung Electronics Co., Ltd.
  *
  * Authors:
  *	Storage Driver <storage.sec@samsung.com>
@@ -13,7 +13,6 @@
 #include "ufs-sec-sysfs.h"
 
 #define get_vdi_member(member) ufs_sec_features.vdi->member
-#define get_wb_member(member) ufs_sec_features.ufs_wb->member
 
 /* sec specific vendor sysfs nodes */
 static struct device *sec_ufs_cmd_dev;
@@ -96,120 +95,44 @@ static struct attribute_group sec_ufs_info_attribute_group = {
 };
 /* UFS info nodes : end */
 
-/* UFS SEC WB : begin */
-static ssize_t ufs_sec_wb_support_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
+/* SEC next WB : begin */
+static void ufs_sec_wb_info_backup(struct ufs_sec_wb_info *backup)
 {
-	struct ufs_hba *hba = dev_get_drvdata(dev);
+	SEC_UFS_WB_INFO_BACKUP(enable_cnt);
+	SEC_UFS_WB_INFO_BACKUP(disable_cnt);
+	SEC_UFS_WB_INFO_BACKUP(amount_kb);
+	SEC_UFS_WB_INFO_BACKUP(err_cnt);
 
-	return sprintf(buf, "%s:%s\n",
-			get_wb_member(support) ? "Support" : "No support",
-			hba->dev_info.wb_enabled ? "on" : "off");
-}
-static DEVICE_ATTR(sec_wb_support, 0444, ufs_sec_wb_support_show, NULL);
-
-static ssize_t ufs_sec_wb_enable_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	struct ufs_hba *hba = dev_get_drvdata(dev);
-	unsigned long flags;
-	u32 value;
-
-	if (!get_wb_member(setup_done)) {
-		dev_err(hba->dev, "SEC WB is not ready yet.\n");
-		return -ENODEV;
-	}
-
-	if (!ufs_sec_is_wb_allowed()) {
-		pr_err("%s: not allowed.\n", __func__);
-		return -EPERM;
-	}
-
-	if (kstrtou32(buf, 0, &value))
-		return -EINVAL;
-
-	spin_lock_irqsave(hba->host->host_lock, flags);
-	value = !!value;
-
-	if (!value) {
-		if (atomic_inc_return(&get_wb_member(wb_off_cnt)) == 1) {
-			get_wb_member(wb_off) = true;
-			pr_err("disable SEC WB : state %d.\n", get_wb_member(state));
-		}
-	} else {
-		if (atomic_dec_and_test(&get_wb_member(wb_off_cnt))) {
-			get_wb_member(wb_off) = false;
-			pr_err("enable SEC WB.\n");
-		}
-	}
-	spin_unlock_irqrestore(hba->host->host_lock, flags);
-
-	return count;
+	backup->state_ts = jiffies;
 }
 
-static ssize_t ufs_sec_wb_enable_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
+static ssize_t ufs_sec_wb_info_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%s\n", get_wb_member(wb_off) ? "off" : "Enabled");
+	struct ufs_sec_wb_info *wb_info_backup = ufs_sec_features.ufs_wb_backup;
+	struct ufs_sec_wb_info *wb_info = ufs_sec_features.ufs_wb;
+	long hours = 0;
+	int len = 0;
+
+	wb_info->state_ts = jiffies;
+	hours = jiffies_to_msecs(wb_info->state_ts - wb_info_backup->state_ts) / 1000;	/* sec */
+	hours = (hours + 60) / (60 * 60);	/* round up to hours */
+
+	len = sprintf(buf, "\"TWCTRLCNT\":\"%llu\","
+			"\"TWCTRLERRCNT\":\"%llu\","
+			"\"TWDAILYMB\":\"%llu\","
+			"\"TWTOTALMB\":\"%llu\","
+			"\"TWhours\":\"%ld\"\n",
+			(wb_info->enable_cnt + wb_info->disable_cnt),
+			wb_info->err_cnt,    /* total error count */
+			(wb_info->amount_kb >> 10),         /* WB write daily : MB */
+			(wb_info_backup->amount_kb >> 10),    /* WB write total : MB */
+			hours);
+
+	ufs_sec_wb_info_backup(wb_info_backup);
+	return len;
 }
-static DEVICE_ATTR(sec_wb_enable, 0664, ufs_sec_wb_enable_show, ufs_sec_wb_enable_store);
-
-SEC_UFS_WB_DATA_ATTR(wb_up_threshold_block, "%d\n", up_threshold_block);
-SEC_UFS_WB_DATA_ATTR(wb_up_threshold_rqs, "%d\n", up_threshold_rqs);
-SEC_UFS_WB_DATA_ATTR(wb_down_threshold_block, "%d\n", down_threshold_block);
-SEC_UFS_WB_DATA_ATTR(wb_down_threshold_rqs, "%d\n", down_threshold_rqs);
-SEC_UFS_WB_DATA_ATTR(lp_wb_up_threshold_block, "%d\n", lp_up_threshold_block);
-SEC_UFS_WB_DATA_ATTR(lp_wb_up_threshold_rqs, "%d\n", lp_up_threshold_rqs);
-SEC_UFS_WB_DATA_ATTR(lp_wb_down_threshold_block, "%d\n", lp_down_threshold_block);
-SEC_UFS_WB_DATA_ATTR(lp_wb_down_threshold_rqs, "%d\n", lp_down_threshold_rqs);
-
-SEC_UFS_WB_TIME_ATTR(wb_on_delay_ms, "%d\n", on_delay);
-SEC_UFS_WB_TIME_ATTR(wb_off_delay_ms, "%d\n", off_delay);
-SEC_UFS_WB_TIME_ATTR(lp_wb_on_delay_ms, "%d\n", lp_on_delay);
-SEC_UFS_WB_TIME_ATTR(lp_wb_off_delay_ms, "%d\n", lp_off_delay);
-
-SEC_UFS_WB_DATA_RO_ATTR(wb_state, "%d,%u\n",
-		get_wb_member(state), jiffies_to_msecs(jiffies - get_wb_member(state_ts)));
-SEC_UFS_WB_DATA_RO_ATTR(wb_current_stat, "current : block %d, rqs %d, issued blocks %d\n",
-		get_wb_member(current_block), get_wb_member(current_rqs),
-		get_wb_member(curr_issued_block));
-SEC_UFS_WB_DATA_RO_ATTR(wb_current_min_max_stat, "current issued blocks : min %d, max %d.\n",
-		(get_wb_member(curr_issued_min_block) == INT_MAX) ?
-		0 : get_wb_member(curr_issued_min_block),
-		get_wb_member(curr_issued_max_block));
-SEC_UFS_WB_DATA_RO_ATTR(wb_total_stat, "total : %dMB\n\t<  4GB:%d\n\t<  8GB:%d\n\t< 16GB:%d\n\t>=16GB:%d\n",
-		get_wb_member(total_issued_mb),
-		get_wb_member(issued_size_cnt[0]),
-		get_wb_member(issued_size_cnt[1]),
-		get_wb_member(issued_size_cnt[2]),
-		get_wb_member(issued_size_cnt[3]));
-
-static struct attribute *sec_ufs_wb_attributes[] = {
-	&dev_attr_sec_wb_support.attr,
-	&dev_attr_sec_wb_enable.attr,
-	&dev_attr_wb_up_threshold_block.attr,
-	&dev_attr_wb_up_threshold_rqs.attr,
-	&dev_attr_wb_down_threshold_block.attr,
-	&dev_attr_wb_down_threshold_rqs.attr,
-	&dev_attr_lp_wb_up_threshold_block.attr,
-	&dev_attr_lp_wb_up_threshold_rqs.attr,
-	&dev_attr_lp_wb_down_threshold_block.attr,
-	&dev_attr_lp_wb_down_threshold_rqs.attr,
-	&dev_attr_wb_on_delay_ms.attr,
-	&dev_attr_wb_off_delay_ms.attr,
-	&dev_attr_lp_wb_on_delay_ms.attr,
-	&dev_attr_lp_wb_off_delay_ms.attr,
-	&dev_attr_wb_state.attr,
-	&dev_attr_wb_current_stat.attr,
-	&dev_attr_wb_current_min_max_stat.attr,
-	&dev_attr_wb_total_stat.attr,
-	NULL
-};
-
-static struct attribute_group sec_ufs_wb_attribute_group = {
-	.attrs	= sec_ufs_wb_attributes,
-};
-/* UFS SEC WB : end */
+static DEVICE_ATTR(SEC_UFS_TW_info, 0444, ufs_sec_wb_info_show, NULL);
+/* SEC next WB : end */
 
 /* SEC error info : begin */
 static ssize_t SEC_UFS_op_cnt_store(struct device *dev,
@@ -475,6 +398,7 @@ static struct attribute *sec_ufs_error_attributes[] = {
 	&dev_attr_sense_err_count.attr,
 	&dev_attr_sense_err_logging.attr,
 	&dev_attr_SEC_UFS_err_summary.attr,
+	&dev_attr_SEC_UFS_TW_info.attr,
 	NULL
 };
 
@@ -564,10 +488,6 @@ void ufs_sec_add_sysfs_nodes(struct ufs_hba *hba)
 		ufs_sec_create_sysfs_group(hba, &sec_ufs_cmd_dev,
 			&sec_ufs_info_attribute_group, "sec_ufs_info");
 
-		if (get_wb_member(setup_done))
-			ufs_sec_create_sysfs_group(hba, &sec_ufs_cmd_dev,
-				&sec_ufs_wb_attribute_group, "sec_ufs_wb");
-
 #if IS_ENABLED(CONFIG_SEC_UFS_CMD_LOGGING)
 		if (ufs_sec_is_cmd_log_allowed())
 			ufs_sec_create_sysfs_group(hba, &sec_ufs_cmd_dev,
@@ -583,9 +503,6 @@ void ufs_sec_remove_sysfs_nodes(struct ufs_hba *hba)
 	if (sec_ufs_cmd_dev) {
 		sysfs_remove_group(&sec_ufs_cmd_dev->kobj,
 				&sec_ufs_info_attribute_group);
-
-		sysfs_remove_group(&sec_ufs_cmd_dev->kobj,
-				&sec_ufs_wb_attribute_group);
 
 		sysfs_remove_group(&sec_ufs_cmd_dev->kobj,
 				&sec_ufs_cmd_log_attribute_group);

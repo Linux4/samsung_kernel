@@ -45,7 +45,7 @@ typedef struct json_reader json_reader_t;
 
 #define JEXPECT_STREQ(_r, _t, _str) \
 	JEXPECT_STRING((_r), _t); \
-	JEXPECT(get_jsonr_buf(_r), (_t), json_streq(get_jsonr_buf(_r), (_t), (_str)), "expected %s, but got %s", (_str), (_t)->start);
+	JEXPECT(get_jsonr_buf(_r), (_t), json_streq(get_jsonr_buf(_r), (_t), (_str)), "expected %s, but got %s", (_str), get_jsonr_buf(_r) + (_t)->start);
 
 int jsonr_parse(json_reader_t *r, char *buf);
 char *get_jsonr_buf(json_reader_t *r);

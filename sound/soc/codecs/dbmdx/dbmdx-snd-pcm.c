@@ -208,25 +208,26 @@ static void dbmdx_pcm_timer(struct timer_list *t)
 
 }
 
-static int dbmdx_pcm_hw_params(struct snd_pcm_substream *substream,
-			       struct snd_pcm_hw_params *hw_params)
+static int dbmdx_pcm_hw_params(struct snd_soc_component *component,
+				struct snd_pcm_substream *substream,
+				struct snd_pcm_hw_params *params)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
-
 
 	pr_debug("%s\n", __func__);
 
 	snd_pcm_set_runtime_buffer(substream, &substream->dma_buffer);
 
-	runtime->channels    = params_channels(hw_params);
-	runtime->dma_bytes   = params_buffer_bytes(hw_params);
-	runtime->buffer_size = params_buffer_size(hw_params);
-	runtime->rate = params_rate(hw_params);
+	runtime->channels    = params_channels(params);
+	runtime->dma_bytes   = params_buffer_bytes(params);
+	runtime->buffer_size = params_buffer_size(params);
+	runtime->rate = params_rate(params);
 
 	return 0;
 }
 
-static int dbmdx_pcm_prepare(struct snd_pcm_substream *substream)
+static int dbmdx_pcm_prepare(struct snd_soc_component *component,
+				struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	size_t	buf_bytes;
@@ -416,18 +417,19 @@ out:
 	pcm_command_in_progress(prtd, 0);
 }
 
-static int dbmdx_pcm_open(struct snd_pcm_substream *substream)
+static int dbmdx_pcm_open(struct snd_soc_component *component,
+				struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_component *component = rtd->components[0];
 	struct snd_dbmdx_runtime_data *prtd;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_component *substream_component = rtd->components[0];
 	struct timer_list *timer;
 	int ret;
 
 	pr_debug("%s\n", __func__);
 
-	if (dbmdx_component_lock(component)) {
+	if (dbmdx_component_lock(substream_component)) {
 		ret = -EBUSY;
 		goto out;
 	}
@@ -468,12 +470,13 @@ static int dbmdx_pcm_open(struct snd_pcm_substream *substream)
 out_free_prtd:
 	kfree(prtd);
 out_unlock:
-	dbmdx_component_unlock(component);
+	dbmdx_component_unlock(substream_component);
 out:
 	return ret;
 }
 
-static int dbmdx_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
+static int dbmdx_pcm_trigger(struct snd_soc_component *component,
+				struct snd_pcm_substream *substream, int cmd)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct snd_dbmdx_runtime_data *prtd;
@@ -532,12 +535,13 @@ static int dbmdx_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	return ret;
 }
 
-static int dbmdx_pcm_close(struct snd_pcm_substream *substream)
+static int dbmdx_pcm_close(struct snd_soc_component *component,
+				struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct snd_dbmdx_runtime_data *prtd = runtime->private_data;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_component *component = rtd->components[0];
+	struct snd_soc_component *substream_component = rtd->components[0];
 
 	pr_debug("%s\n", __func__);
 
@@ -553,12 +557,13 @@ static int dbmdx_pcm_close(struct snd_pcm_substream *substream)
 	kfree(prtd);
 	prtd = NULL;
 
-	dbmdx_component_unlock(component);
+	dbmdx_component_unlock(substream_component);
 
 	return 0;
 }
 
-static snd_pcm_uframes_t dbmdx_pcm_pointer(struct snd_pcm_substream *substream)
+static snd_pcm_uframes_t dbmdx_pcm_pointer(struct snd_soc_component *component,
+						struct snd_pcm_substream *substream)
 {
 	u32 pos;
 
@@ -568,16 +573,6 @@ static snd_pcm_uframes_t dbmdx_pcm_pointer(struct snd_pcm_substream *substream)
 	pos = stream_get_position(substream);
 	return bytes_to_frames(substream->runtime, pos);
 }
-
-static struct snd_pcm_ops dbmdx_pcm_ops = {
-	.open		= dbmdx_pcm_open,
-	.close		= dbmdx_pcm_close,
-	.ioctl		= snd_pcm_lib_ioctl,
-	.hw_params	= dbmdx_pcm_hw_params,
-	.prepare	= dbmdx_pcm_prepare,
-	.trigger	= dbmdx_pcm_trigger,
-	.pointer	= dbmdx_pcm_pointer,
-};
 
 static int dbmdx_pcm_preallocate_dma_buffer(struct snd_pcm *pcm, int stream)
 {
@@ -667,8 +662,8 @@ static int dbmdx_pcm_new(struct snd_soc_component *component,
 			goto out;
 	}
 
-	snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &dbmdx_pcm_ops);
-	snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, &dbmdx_pcm_ops);
+	//snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &dbmdx_pcm_ops);
+	//snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, &dbmdx_pcm_ops);
 out:
 	return ret;
 }
@@ -702,8 +697,14 @@ static void dbmdx_pcm_free(struct snd_soc_component *component,
 static const struct snd_soc_component_driver dbmdx_soc_component_drv = {
 	.probe		= &dbmdx_pcm_probe,
 	.remove		= &dbmdx_pcm_remove,
-	.pcm_construct	= dbmdx_pcm_new,
-	.pcm_destruct	= dbmdx_pcm_free,
+	.pcm_construct	= &dbmdx_pcm_new,
+	.pcm_destruct	= &dbmdx_pcm_free,
+	.open		= &dbmdx_pcm_open,
+	.close		= &dbmdx_pcm_close,
+	.hw_params	= &dbmdx_pcm_hw_params,
+	.prepare	= &dbmdx_pcm_prepare,
+	.trigger	= &dbmdx_pcm_trigger,
+	.pointer	= &dbmdx_pcm_pointer,
 };
 
 static int dbmdx_pcm_platform_probe(struct platform_device *pdev)

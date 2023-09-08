@@ -16,7 +16,9 @@
 
 __visible_for_testing int __init s6e3fc5_a54x_panel_init(void)
 {
+	s6e3fc5_init();
 	register_common_panel(&s6e3fc5_a54x_panel_info);
+
 	return 0;
 }
 

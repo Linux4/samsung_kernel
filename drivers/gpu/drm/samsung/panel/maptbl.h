@@ -4,6 +4,7 @@
 #include <linux/types.h>
 #include "util.h"
 #include "panel_obj.h"
+#include "panel_function.h"
 #include "panel.h"
 
 enum ndarray_dimen {
@@ -19,6 +20,9 @@ enum ndarray_dimen {
 };
 
 struct maptbl;
+typedef int (*maptbl_init_t)(struct maptbl *m);
+typedef int (*maptbl_getidx_t)(struct maptbl *m);
+typedef void (*maptbl_copy_t)(struct maptbl *m, u8 *dst);
 
 /*
  * indices of n-dimension
@@ -37,9 +41,9 @@ struct maptbl_shape {
 
 /* structure of mapping table */
 struct maptbl_ops {
-	int (*init)(struct maptbl *tbl);
-	int (*getidx)(struct maptbl *tbl);
-	void (*copy)(struct maptbl *tbl, u8 *dst);
+	struct pnobj_func *init;
+	struct pnobj_func *getidx;
+	struct pnobj_func *copy;
 };
 
 struct maptbl {
@@ -53,6 +57,18 @@ struct maptbl {
 };
 
 #define MAPINFO(_name_) (_name_)
+
+#define call_maptbl_init(_m) \
+	(((_m) && (_m)->ops.init && (_m)->ops.init->symaddr) ? \
+	  ((maptbl_init_t)(_m)->ops.init->symaddr)(_m) : -EINVAL)
+
+#define call_maptbl_getidx(_m) \
+	(((_m) && (_m)->ops.getidx && (_m)->ops.getidx->symaddr) ? \
+	  ((maptbl_getidx_t)(_m)->ops.getidx->symaddr)(_m) : -EINVAL)
+
+#define call_maptbl_copy(_m, _dst) \
+	(((_m) && (_m)->ops.copy && (_m)->ops.copy->symaddr) ? \
+	  ((maptbl_copy_t)(_m)->ops.copy->symaddr)(_m, _dst) : 0)
 
 static inline char *maptbl_get_name(struct maptbl *m)
 {

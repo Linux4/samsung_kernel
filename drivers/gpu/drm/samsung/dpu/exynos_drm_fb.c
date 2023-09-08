@@ -767,7 +767,7 @@ static void exynos_atomic_wait_for_framestart(struct drm_atomic_state *old_state
 	struct exynos_drm_crtc *exynos_crtc;
 	const struct exynos_drm_crtc_ops *ops;
 	struct exynos_drm_crtc_state *exynos_crtc_state;
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	struct drm_crtc_state *old_crtc_state;
 
 	for_each_oldnew_crtc_in_state(old_state, crtc, old_crtc_state,
@@ -796,7 +796,7 @@ static void exynos_atomic_wait_for_framestart(struct drm_atomic_state *old_state
 
 		if (ops->set_trigger)
 			ops->set_trigger(exynos_crtc, exynos_crtc_state);
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 		if (ops->set_fingerprint_mask)
 			ops->set_fingerprint_mask(exynos_crtc, old_crtc_state, 1);
 #endif

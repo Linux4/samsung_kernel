@@ -15,13 +15,14 @@
 
 #include <linux/types.h>
 #include <linux/kernel.h>
-#ifdef CONFIG_SUPPORT_DDI_FLASH
+#ifdef CONFIG_USDM_PANEL_DDI_FLASH
 #include "../panel_poc.h"
 #endif
 #include "../panel_drv.h"
 #include "../panel.h"
 #include "../maptbl.h"
-#include "oled_common_dump.h"
+#include "../panel_function.h"
+#include "oled_function.h"
 
 /*
  * OFFSET ==> OFS means N-param - 1
@@ -110,14 +111,14 @@
 #define S6E3FC5_DECODER_TEST4_OFS			0
 #define S6E3FC5_DECODER_TEST4_LEN			2
 
-#ifdef CONFIG_SUPPORT_CCD_TEST
+#ifdef CONFIG_USDM_FACTORY_CCD_TEST
 #define S6E3FC5_CCD_STATE_REG				0xCD
 #define S6E3FC5_CCD_STATE_OFS				0
 #define S6E3FC5_CCD_STATE_LEN				2
 #define S6E3FC5_CCD_STATE_PASS_LIST_LEN		2
 #endif
 
-#ifdef CONFIG_SUPPORT_ECC_TEST
+#ifdef CONFIG_USDM_FACTORY_ECC_TEST
 #define S6E3FC5_ECC_TEST_REG				0xF8
 #define S6E3FC5_ECC_TEST_OFS				0x04
 #define S6E3FC5_ECC_TEST_LEN				1
@@ -127,11 +128,36 @@
 #define S6E3FC5_ANALOG_GAMMA_OFS		(0xA6)
 #define S6E3FC5_ANALOG_GAMMA_LEN		(78)
 
-#ifdef CONFIG_SUPPORT_DDI_CMDLOG
+#ifdef CONFIG_USDM_DDI_CMDLOG
 #define S6E3FC5_CMDLOG_REG			0x9C
 #define S6E3FC5_CMDLOG_OFS			0
 #define S6E3FC5_CMDLOG_LEN			0x80
 #endif
+
+enum s6e3fc5_function {
+	S6E3FC5_MAPTBL_INIT_GAMMA_MODE2_BRT,
+	S6E3FC5_MAPTBL_GETIDX_HBM_TRANSITION,
+	S6E3FC5_MAPTBL_GETIDX_ACL_OPR,
+	S6E3FC5_MAPTBL_INIT_LPM_BRT,
+	S6E3FC5_MAPTBL_GETIDX_LPM_BRT,
+#ifdef CONFIG_SUPPORT_XTALK_MODE
+	S6E3FC5_MAPTBL_GETIDX_VGH,
+#endif
+#if defined(CONFIG_USDM_FACTORY) && defined(CONFIG_USDM_FACTORY_FAST_DISCHARGE)
+	S6E3FC5_MAPTBL_GETIDX_FAST_DISCHARGE,
+#endif
+	S6E3FC5_MAPTBL_GETIDX_VRR_FPS,
+	S6E3FC5_MAPTBL_GETIDX_VRR,
+	S6E3FC5_MAPTBL_GETIDX_FFC,
+	S6E3FC5_MAPTBL_INIT_ANALOG_GAMMA,
+	S6E3FC5_MAPTBL_GETIDX_IRC_MODE,
+	MAX_S6E3FC5_FUNCTION,
+};
+
+extern struct pnobj_func s6e3fc5_function_table[MAX_S6E3FC5_FUNCTION];
+
+#undef DDI_FUNC
+#define DDI_FUNC(_index) (s6e3fc5_function_table[_index])
 
 enum {
 	GAMMA_MAPTBL,
@@ -153,7 +179,7 @@ enum {
 	LPM_NIT_MAPTBL,
 	LPM_MODE_MAPTBL,
 	HBM_ONOFF_MAPTBL,
-#if defined(CONFIG_MCD_PANEL_FACTORY) && defined(CONFIG_SUPPORT_FAST_DISCHARGE)
+#if defined(CONFIG_USDM_FACTORY) && defined(CONFIG_USDM_FACTORY_FAST_DISCHARGE)
 	FAST_DISCHARGE_MAPTBL,
 #endif
 	SET_FFC_MAPTBL,
@@ -162,7 +188,7 @@ enum {
 };
 
 enum {
-#ifdef CONFIG_EXYNOS_DECON_LCD_COPR
+#ifdef CONFIG_USDM_PANEL_COPR
 	READ_COPR_SPI,
 	READ_COPR_DSI,
 #endif
@@ -176,7 +202,7 @@ enum {
 	READ_DATE,
 	READ_OCTA_ID_0,
 	READ_OCTA_ID_1,
-	READ_CHIP_ID,
+	/* READ_CHIP_ID, */
 	/* for brightness debugging */
 	READ_AOR,
 	READ_VINT,
@@ -192,27 +218,27 @@ enum {
 	READ_SELF_MASK_CHECKSUM,
 	READ_SELF_MASK_CRC,
 	READ_ANALOG_GAMMA_120HS,
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	READ_POC_SPI_READ,
 	READ_POC_SPI_STATUS1,
 	READ_POC_SPI_STATUS2,
 #endif
-#ifdef CONFIG_SUPPORT_POC_FLASH
+#ifdef CONFIG_USDM_PANEL_POC_FLASH
 	READ_POC_MCA_CHKSUM,
 #endif
-#ifdef CONFIG_SUPPORT_DDI_CMDLOG
+#ifdef CONFIG_USDM_DDI_CMDLOG
 	READ_CMDLOG,
 #endif
-#ifdef CONFIG_SUPPORT_CCD_TEST
+#ifdef CONFIG_USDM_FACTORY_CCD_TEST
 	READ_CCD_STATE,
 #endif
-#ifdef CONFIG_SUPPORT_ECC_TEST
+#ifdef CONFIG_USDM_FACTORY_ECC_TEST
 	READ_ECC_TEST,
 #endif
 #ifdef CONFIG_SUPPORT_GRAYSPOT_TEST
 	READ_GRAYSPOT_CAL,
 #endif
-#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+#ifdef CONFIG_USDM_FACTORY_DSC_CRC_TEST
 	READ_DECODER_TEST1,
 	READ_DECODER_TEST2,
 	READ_DECODER_TEST3,
@@ -222,7 +248,7 @@ enum {
 };
 
 enum {
-#ifdef CONFIG_EXYNOS_DECON_LCD_COPR
+#ifdef CONFIG_USDM_PANEL_COPR
 	RES_COPR_SPI,
 	RES_COPR_DSI,
 #endif
@@ -235,7 +261,7 @@ enum {
 	RES_MTP,
 	RES_DATE,
 	RES_OCTA_ID,
-	RES_CHIP_ID,
+	/* RES_CHIP_ID, */
 	/* for brightness debugging */
 	RES_AOR,
 	RES_VINT,
@@ -247,22 +273,22 @@ enum {
 	RES_ERR_FG,
 	RES_DSI_ERR,
 	RES_SELF_DIAG,
-#ifdef CONFIG_SUPPORT_DDI_CMDLOG
+#ifdef CONFIG_USDM_DDI_CMDLOG
 	RES_CMDLOG,
 #endif
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	RES_POC_SPI_READ,
 	RES_POC_SPI_STATUS1,
 	RES_POC_SPI_STATUS2,
 #endif
-#ifdef CONFIG_SUPPORT_POC_FLASH
+#ifdef CONFIG_USDM_PANEL_POC_FLASH
 	RES_POC_MCA_CHKSUM,
 #endif
-#ifdef CONFIG_SUPPORT_CCD_TEST
+#ifdef CONFIG_USDM_FACTORY_CCD_TEST
 	RES_CCD_STATE,
 	RES_CCD_CHKSUM_PASS_LIST,
 #endif
-#ifdef CONFIG_SUPPORT_ECC_TEST
+#ifdef CONFIG_USDM_FACTORY_ECC_TEST
 	RES_ECC_TEST,
 #endif
 #ifdef CONFIG_SUPPORT_GRAYSPOT_TEST
@@ -271,7 +297,7 @@ enum {
 	RES_SELF_MASK_CHECKSUM,
 	RES_SELF_MASK_CRC,
 	RES_ANALOG_GAMMA_120HS,
-#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+#ifdef CONFIG_USDM_FACTORY_DSC_CRC_TEST
 	RES_DECODER_TEST1,
 	RES_DECODER_TEST2,
 	RES_DECODER_TEST3,
@@ -316,17 +342,17 @@ static u8 S6E3FC5_SELF_MASK_CHECKSUM[S6E3FC5_SELF_MASK_CHECKSUM_LEN];
 static u8 S6E3FC5_SELF_MASK_CRC[S6E3FC5_SELF_MASK_CRC_LEN];
 static u8 S6E3FC5_ANALOG_GAMMA_120HS[S6E3FC5_ANALOG_GAMMA_LEN];
 
-#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+#ifdef CONFIG_USDM_FACTORY_DSC_CRC_TEST
 static u8 S6E3FC5_DECODER_TEST1[S6E3FC5_DECODER_TEST1_LEN];
 static u8 S6E3FC5_DECODER_TEST2[S6E3FC5_DECODER_TEST2_LEN];
 static u8 S6E3FC5_DECODER_TEST3[S6E3FC5_DECODER_TEST3_LEN];
 static u8 S6E3FC5_DECODER_TEST4[S6E3FC5_DECODER_TEST4_LEN];
 #endif
-#ifdef CONFIG_SUPPORT_CCD_TEST
+#ifdef CONFIG_USDM_FACTORY_CCD_TEST
 static u8 S6E3FC5_CCD_STATE[S6E3FC5_CCD_STATE_LEN];
 static u8 S6E3FC5_CCD_CHKSUM_PASS_LIST[S6E3FC5_CCD_STATE_PASS_LIST_LEN] = { 0x20, 0x00, };
 #endif
-#ifdef CONFIG_SUPPORT_ECC_TEST
+#ifdef CONFIG_USDM_FACTORY_ECC_TEST
 static u8 S6E3FC5_ECC_TEST[S6E3FC5_ECC_TEST_LEN];
 #endif
 
@@ -346,17 +372,17 @@ static struct rdinfo s6e3fc5_rditbl[MAX_READTBL] = {
 	[READ_SELF_MASK_CHECKSUM] = RDINFO_INIT(self_mask_checksum, DSI_PKT_TYPE_RD, S6E3FC5_SELF_MASK_CHECKSUM_REG, S6E3FC5_SELF_MASK_CHECKSUM_OFS, S6E3FC5_SELF_MASK_CHECKSUM_LEN),
 	[READ_SELF_MASK_CRC] = RDINFO_INIT(self_mask_crc, DSI_PKT_TYPE_RD, S6E3FC5_SELF_MASK_CRC_REG, S6E3FC5_SELF_MASK_CRC_OFS, S6E3FC5_SELF_MASK_CRC_LEN),
 	[READ_ANALOG_GAMMA_120HS] = RDINFO_INIT(analog_gamma_120hs, DSI_PKT_TYPE_RD, S6E3FC5_ANALOG_GAMMA_REG, S6E3FC5_ANALOG_GAMMA_OFS, S6E3FC5_ANALOG_GAMMA_LEN),
-#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+#ifdef CONFIG_USDM_FACTORY_DSC_CRC_TEST
 	[READ_DECODER_TEST1] = RDINFO_INIT(decoder_test1, DSI_PKT_TYPE_RD, S6E3FC5_DECODER_TEST1_REG, S6E3FC5_DECODER_TEST1_OFS, S6E3FC5_DECODER_TEST1_LEN),
 	[READ_DECODER_TEST2] = RDINFO_INIT(decoder_test2, DSI_PKT_TYPE_RD, S6E3FC5_DECODER_TEST2_REG, S6E3FC5_DECODER_TEST2_OFS, S6E3FC5_DECODER_TEST2_LEN),
 	[READ_DECODER_TEST3] = RDINFO_INIT(decoder_test3, DSI_PKT_TYPE_RD, S6E3FC5_DECODER_TEST3_REG, S6E3FC5_DECODER_TEST1_OFS, S6E3FC5_DECODER_TEST3_LEN),
 	[READ_DECODER_TEST4] = RDINFO_INIT(decoder_test4, DSI_PKT_TYPE_RD, S6E3FC5_DECODER_TEST4_REG, S6E3FC5_DECODER_TEST2_OFS, S6E3FC5_DECODER_TEST4_LEN),
 #endif
 
-#ifdef CONFIG_SUPPORT_CCD_TEST
+#ifdef CONFIG_USDM_FACTORY_CCD_TEST
 	[READ_CCD_STATE] = RDINFO_INIT(ccd_state, DSI_PKT_TYPE_RD, S6E3FC5_CCD_STATE_REG, S6E3FC5_CCD_STATE_OFS, S6E3FC5_CCD_STATE_LEN),
 #endif
-#ifdef CONFIG_SUPPORT_ECC_TEST
+#ifdef CONFIG_USDM_FACTORY_ECC_TEST
 	[READ_ECC_TEST] = RDINFO_INIT(ecc_test, DSI_PKT_TYPE_RD, S6E3FC5_ECC_TEST_REG, S6E3FC5_ECC_TEST_OFS, S6E3FC5_ECC_TEST_LEN),
 #endif
 };
@@ -385,16 +411,16 @@ static DEFINE_RESUI(self_diag, &s6e3fc5_rditbl[READ_SELF_DIAG], 0);
 static DEFINE_RESUI(self_mask_checksum, &s6e3fc5_rditbl[READ_SELF_MASK_CHECKSUM], 0);
 static DEFINE_RESUI(self_mask_crc, &s6e3fc5_rditbl[READ_SELF_MASK_CRC], 0);
 static DEFINE_RESUI(analog_gamma_120hs, &s6e3fc5_rditbl[READ_ANALOG_GAMMA_120HS], 0);
-#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+#ifdef CONFIG_USDM_FACTORY_DSC_CRC_TEST
 static DEFINE_RESUI(decoder_test1, &s6e3fc5_rditbl[READ_DECODER_TEST1], 0);
 static DEFINE_RESUI(decoder_test2, &s6e3fc5_rditbl[READ_DECODER_TEST2], 0);
 static DEFINE_RESUI(decoder_test3, &s6e3fc5_rditbl[READ_DECODER_TEST3], 0);
 static DEFINE_RESUI(decoder_test4, &s6e3fc5_rditbl[READ_DECODER_TEST4], 0);
 #endif
-#ifdef CONFIG_SUPPORT_CCD_TEST
+#ifdef CONFIG_USDM_FACTORY_CCD_TEST
 static DEFINE_RESUI(ccd_state, &s6e3fc5_rditbl[READ_CCD_STATE], 0);
 #endif
-#ifdef CONFIG_SUPPORT_ECC_TEST
+#ifdef CONFIG_USDM_FACTORY_ECC_TEST
 static DEFINE_RESUI(ecc_test, &s6e3fc5_rditbl[READ_ECC_TEST], 0);
 #endif
 
@@ -413,24 +439,17 @@ static struct resinfo s6e3fc5_restbl[MAX_RESTBL] = {
 	[RES_SELF_MASK_CHECKSUM] = RESINFO_INIT(self_mask_checksum, S6E3FC5_SELF_MASK_CHECKSUM, RESUI(self_mask_checksum)),
 	[RES_SELF_MASK_CRC] = RESINFO_INIT(self_mask_crc, S6E3FC5_SELF_MASK_CRC, RESUI(self_mask_crc)),
 	[RES_ANALOG_GAMMA_120HS] = RESINFO_INIT(analog_gamma_120hs, S6E3FC5_ANALOG_GAMMA_120HS, RESUI(analog_gamma_120hs)),
-#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+#ifdef CONFIG_USDM_FACTORY_DSC_CRC_TEST
 	[RES_DECODER_TEST1] = RESINFO_INIT(decoder_test1, S6E3FC5_DECODER_TEST1, RESUI(decoder_test1)),
 	[RES_DECODER_TEST2] = RESINFO_INIT(decoder_test2, S6E3FC5_DECODER_TEST2, RESUI(decoder_test2)),
 	[RES_DECODER_TEST3] = RESINFO_INIT(decoder_test3, S6E3FC5_DECODER_TEST3, RESUI(decoder_test3)),
 	[RES_DECODER_TEST4] = RESINFO_INIT(decoder_test4, S6E3FC5_DECODER_TEST4, RESUI(decoder_test4)),
 #endif
-#ifdef CONFIG_SUPPORT_CCD_TEST
+#ifdef CONFIG_USDM_FACTORY_CCD_TEST
 	[RES_CCD_STATE] = RESINFO_INIT(ccd_state, S6E3FC5_CCD_STATE, RESUI(ccd_state)),
-	[RES_CCD_CHKSUM_PASS_LIST] = {
-		.base = __PNOBJ_INITIALIZER(ccd_chksum_pass_list, CMD_TYPE_RES),
-		.state = RES_INITIALIZED,
-		.data = S6E3FC5_CCD_CHKSUM_PASS_LIST,
-		.dlen = ARRAY_SIZE(S6E3FC5_CCD_CHKSUM_PASS_LIST),
-		.resui = NULL,
-		.nr_resui = 0,
-	},
+	[RES_CCD_CHKSUM_PASS_LIST] = RESINFO_IMMUTABLE_INIT(ccd_chksum_pass_list, S6E3FC5_CCD_CHKSUM_PASS_LIST),
 #endif
-#ifdef CONFIG_SUPPORT_ECC_TEST
+#ifdef CONFIG_USDM_FACTORY_ECC_TEST
 	[RES_ECC_TEST] = RESINFO_INIT(ecc_test, S6E3FC5_ECC_TEST, RESUI(ecc_test)),
 #endif
 };
@@ -444,15 +463,15 @@ enum {
 	DUMP_DSI_ERR,
 	DUMP_SELF_DIAG,
 	DUMP_SELF_MASK_CRC,
-#ifdef CONFIG_SUPPORT_DDI_CMDLOG
+#ifdef CONFIG_USDM_DDI_CMDLOG
 	DUMP_CMDLOG,
 #endif
 };
 
-#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+#ifdef CONFIG_USDM_FACTORY_DSC_CRC_TEST
 int s6e3fc5_decoder_test(struct panel_device *panel, void *data, u32 len);
 #endif
-#ifdef CONFIG_SUPPORT_ECC_TEST
+#ifdef CONFIG_USDM_FACTORY_ECC_TEST
 int s6e3fc5_ecc_test(struct panel_device *panel, void *data, u32 len);
 #endif
 
@@ -512,7 +531,7 @@ static struct dump_expect self_diag_expects[] = {
 	{ .offset = 0, .mask = 0x40, .value = 0x40, .msg = "Panel Boosting Error" },
 };
 
-#ifdef CONFIG_SUPPORT_DDI_CMDLOG
+#ifdef CONFIG_USDM_DDI_CMDLOG
 static struct dump_expect cmdlog_expects[] = {
 };
 #endif
@@ -525,17 +544,17 @@ static struct dump_expect pcd_expects[] = {
 };
 
 static struct dumpinfo s6e3fc5_dmptbl[] = {
-	[DUMP_RDDPM] = DUMPINFO_INIT_V2(rddpm, &s6e3fc5_restbl[RES_RDDPM], show_rddpm, rddpm_after_display_on_expects),
-	[DUMP_RDDPM_SLEEP_IN] = DUMPINFO_INIT_V2(rddpm_sleep_in, &s6e3fc5_restbl[RES_RDDPM], show_rddpm_before_sleep_in, rddpm_before_sleep_in_expects),
-	[DUMP_RDDSM] = DUMPINFO_INIT_V2(rddsm, &s6e3fc5_restbl[RES_RDDSM], show_rddsm, rddsm_expects),
-	[DUMP_ERR] = DUMPINFO_INIT_V2(err, &s6e3fc5_restbl[RES_ERR], show_err, dsi_err_expects),
-	[DUMP_ERR_FG] = DUMPINFO_INIT_V2(err_fg, &s6e3fc5_restbl[RES_ERR_FG], show_err_fg, err_fg_expects),
-	[DUMP_DSI_ERR] = DUMPINFO_INIT_V2(dsi_err, &s6e3fc5_restbl[RES_DSI_ERR], show_dsi_err, dsie_cnt_expects),
-	[DUMP_SELF_DIAG] = DUMPINFO_INIT_V2(self_diag, &s6e3fc5_restbl[RES_SELF_DIAG], show_self_diag, self_diag_expects),
-#ifdef CONFIG_SUPPORT_DDI_CMDLOG
-	[DUMP_CMDLOG] = DUMPINFO_INIT_V2(cmdlog, &s6e3fc5_restbl[RES_CMDLOG], show_cmdlog, cmdlog_expects),
+	[DUMP_RDDPM] = DUMPINFO_INIT_V2(rddpm, &s6e3fc5_restbl[RES_RDDPM], &OLED_FUNC(OLED_DUMP_SHOW_RDDPM), rddpm_after_display_on_expects),
+	[DUMP_RDDPM_SLEEP_IN] = DUMPINFO_INIT_V2(rddpm_sleep_in, &s6e3fc5_restbl[RES_RDDPM], &OLED_FUNC(OLED_DUMP_SHOW_RDDPM_BEFORE_SLEEP_IN), rddpm_before_sleep_in_expects),
+	[DUMP_RDDSM] = DUMPINFO_INIT_V2(rddsm, &s6e3fc5_restbl[RES_RDDSM], &OLED_FUNC(OLED_DUMP_SHOW_RDDSM), rddsm_expects),
+	[DUMP_ERR] = DUMPINFO_INIT_V2(err, &s6e3fc5_restbl[RES_ERR], &OLED_FUNC(OLED_DUMP_SHOW_ERR), dsi_err_expects),
+	[DUMP_ERR_FG] = DUMPINFO_INIT_V2(err_fg, &s6e3fc5_restbl[RES_ERR_FG], &OLED_FUNC(OLED_DUMP_SHOW_ERR_FG), err_fg_expects),
+	[DUMP_DSI_ERR] = DUMPINFO_INIT_V2(dsi_err, &s6e3fc5_restbl[RES_DSI_ERR], &OLED_FUNC(OLED_DUMP_SHOW_DSI_ERR), dsie_cnt_expects),
+	[DUMP_SELF_DIAG] = DUMPINFO_INIT_V2(self_diag, &s6e3fc5_restbl[RES_SELF_DIAG], &OLED_FUNC(OLED_DUMP_SHOW_SELF_DIAG), self_diag_expects),
+#ifdef CONFIG_USDM_DDI_CMDLOG
+	[DUMP_CMDLOG] = DUMPINFO_INIT_V2(cmdlog, &s6e3fc5_restbl[RES_CMDLOG], &OLED_FUNC(OLED_DUMP_SHOW_CMDLOG), cmdlog_expects),
 #endif
-	[DUMP_SELF_MASK_CRC] = DUMPINFO_INIT_V2(self_mask_crc, &s6e3fc5_restbl[RES_SELF_MASK_CRC], show_self_mask_crc, self_mask_crc_expects),
+	[DUMP_SELF_MASK_CRC] = DUMPINFO_INIT_V2(self_mask_crc, &s6e3fc5_restbl[RES_SELF_MASK_CRC], &OLED_FUNC(OLED_DUMP_SHOW_SELF_MASK_CRC), self_mask_crc_expects),
 };
 
 /* Variable Refresh Rate */
@@ -555,14 +574,6 @@ enum {
 
 enum {
 	S6E3FC5_RESOL_1080x2340,
-};
-
-enum {
-	S6E3FC5_A54X_DISPLAY_MODE_1080x2340_120HS,
-	S6E3FC5_A54X_DISPLAY_MODE_1080x2340_60HS_120HS_TE_HW_SKIP_1,
-	S6E3FC5_A54X_DISPLAY_MODE_1080x2340_60HS,
-	S6E3FC5_A54X_DISPLAY_MODE_1080x2340_30NS,
-	MAX_S6E3FC5_A54X_DISPLAY_MODE,
 };
 
 enum {
@@ -602,43 +613,10 @@ enum {
 	MAX_S6E3FC5_HS_CLK
 };
 
-int init_common_table(struct maptbl *tbl);
-int init_gamma_mode2_brt_table(struct maptbl *tbl);
-int getidx_gamma_mode2_brt_table(struct maptbl *tbl);
-int getidx_hbm_transition_table(struct maptbl *tbl);
-
-
-int getidx_acl_opr_table(struct maptbl *tbl);
-
-int init_lpm_brt_table(struct maptbl *tbl);
-int getidx_lpm_brt_table(struct maptbl *tbl);
-
-void copy_common_maptbl(struct maptbl *tbl, u8 *dst);
-void copy_tset_maptbl(struct maptbl *tbl, u8 *dst);
-#ifdef CONFIG_SUPPORT_XTALK_MODE
-int getidx_vgh_table(struct maptbl *tbl);
-#endif
-#if defined(CONFIG_MCD_PANEL_FACTORY) && defined(CONFIG_SUPPORT_FAST_DISCHARGE)
-int getidx_fast_discharge_table(struct maptbl *tbl);
-#endif
-int getidx_vrr_fps_table(struct maptbl *tbl);
-int getidx_vrr_table(struct maptbl *tbl);
-
-#ifdef CONFIG_SUPPORT_MASK_LAYER
-bool s6e3fc5_is_120hz(struct panel_device *panel);
-bool s6e3fc5_is_60hz(struct panel_device *panel);
-#endif
-bool s6e3fc5_is_brightness_ge_260(struct panel_device *panel);
+int s6e3fc5_get_octa_id(struct panel_device *panel, void *buf);
 int s6e3fc5_get_cell_id(struct panel_device *panel, void *buf);
 int s6e3fc5_get_manufacture_code(struct panel_device *panel, void *buf);
 int s6e3fc5_get_manufacture_date(struct panel_device *panel, void *buf);
-
-int s6e3fc5_getidx_ffc_table(struct maptbl *tbl);
-int init_analog_gamma_table(struct maptbl *tbl);
-bool is_panel_state_not_lpm(struct panel_device *panel);
-static inline bool is_panel_state_lpm(struct panel_device *panel) {
-	return !is_panel_state_not_lpm(panel);
-};
-int getidx_irc_mode_table(struct maptbl *tbl);
+int s6e3fc5_init(void);
 
 #endif /* __S6E3FC5_H__ */

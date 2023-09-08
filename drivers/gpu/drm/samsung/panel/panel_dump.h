@@ -11,6 +11,9 @@
 #ifndef __PANEL_DUMP_H__
 #define __PANEL_DUMP_H__
 
+struct dumpinfo;
+typedef int (*dump_show_t)(struct dumpinfo *dump);
+
 struct dump_expect {
 	u32 offset;
 	u8 mask;
@@ -18,23 +21,32 @@ struct dump_expect {
 	char *msg;
 };
 
+struct dump_ops {
+	struct pnobj_func *show;
+};
+
 struct dumpinfo {
 	struct pnobj base;
 	struct resinfo *res;
-	int (*callback)(struct dumpinfo *info);
+	struct dump_ops ops;
 	struct dump_expect *expects;
 	unsigned int nr_expects;
+	char **abd_print;
 };
 
-#define DUMPINFO_INIT(_dumpname, _resource, _callback)	\
-	{ .base = __PNOBJ_INITIALIZER(_dumpname, CMD_TYPE_DMP) \
-	, .res = (_resource) \
-	, .callback = (_callback) }
+#define call_dump_func(_dump) \
+	((_dump) && (_dump)->ops.show && (_dump)->ops.show->symaddr ? \
+	 ((dump_show_t)(_dump)->ops.show->symaddr)(_dump) : -EINVAL)
 
-#define DUMPINFO_INIT_V2(_dumpname, _resource, _callback, _expects)	\
+#define DUMPINFO_INIT(_dumpname, _resource, _show)	\
 	{ .base = __PNOBJ_INITIALIZER(_dumpname, CMD_TYPE_DMP) \
 	, .res = (_resource) \
-	, .callback = (_callback) \
+	, .ops = { .show = (_show) }}
+
+#define DUMPINFO_INIT_V2(_dumpname, _resource, _show, _expects)	\
+	{ .base = __PNOBJ_INITIALIZER(_dumpname, CMD_TYPE_DMP) \
+	, .res = (_resource) \
+	, .ops = { .show = (_show) } \
 	, .expects = (_expects) \
 	, .nr_expects = ARRAY_SIZE(_expects) }
 
@@ -44,7 +56,7 @@ static inline char *get_dump_name(struct dumpinfo *dump)
 }
 
 struct dumpinfo *create_dumpinfo(char *name,
-		struct resinfo *res, int (*callback)(struct dumpinfo *),
+		struct resinfo *res, struct dump_ops *ops,
 		struct dump_expect *expects, unsigned int nr_expects);
 void destroy_dumpinfo(struct dumpinfo *dump);
 

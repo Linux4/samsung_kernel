@@ -31,7 +31,7 @@
 #if IS_ENABLED(CONFIG_SND_SOC_CS35L45)
 #include <sound/cirrus/core.h>
 #include <sound/cirrus/big_data.h>
-#include "../../codecs/bigdata_cs35l45_sysfs_cb.h"
+#include "../../codecs/bigdata_cirrus_sysfs_cb.h"
 
 #if IS_ENABLED(CONFIG_SEC_ABC)
 #include <linux/sti/abc_common.h>
@@ -80,7 +80,7 @@ static const struct snd_soc_ops wdma_ops = {
 };
 
 #if IS_ENABLED(CONFIG_SND_SOC_CS35L45)
-void franklin_i2c_fail_log(const char *suffix)
+void cirrus_i2c_fail_log(const char *suffix)
 {
 	pr_info("%s(%s)\n", __func__, suffix);
 #if IS_ENABLED(CONFIG_SEC_ABC)
@@ -92,7 +92,7 @@ void franklin_i2c_fail_log(const char *suffix)
 #endif
 }
 
-void cs35l45_amp_fail_event(const char *suffix)
+void cirrus_amp_fail_event(const char *suffix)
 {
 	pr_info("%s(%s)\n", __func__, suffix);
 #if IS_ENABLED(CONFIG_SEC_ABC)
@@ -109,21 +109,40 @@ static int uaif1_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_dai *codec_dai = asoc_rtd_to_codec(rtd, 0);
 	struct snd_soc_component *component = NULL;
-
+#if IS_ENABLED(CONFIG_SND_SOC_CS35L45)
+	struct snd_soc_dai *dai;
+	struct snd_soc_dapm_context *dapm;
+	int i;
+#endif
 	if (!codec_dai)
 		return 0;
 
 	component = codec_dai->component;
+	if (!component)
+		return 0;
+
 #if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_EXYNOS_TFA9878)
-	if ((component) && strstr(component->name, "tfa98xx"))
+	if (strstr(component->name, "tfa98xx"))
 		register_tfa98xx_bigdata_cb(component);
-#elif IS_ENABLED(CONFIG_SND_SOC_CS35L45)
-	if ((component) && strstr(component->name, "cs35l45")) {
+#endif
+#if IS_ENABLED(CONFIG_SND_SOC_CS35L45)
+	if (strstr(component->name, "cs35l45")) {
 		register_cirrus_bigdata_cb(component);
-		cirrus_amp_register_i2c_error_callback("", franklin_i2c_fail_log);
-		cirrus_amp_register_i2c_error_callback("_r", franklin_i2c_fail_log);
-		cirrus_amp_register_error_callback("", cs35l45_amp_fail_event);
-		cirrus_amp_register_error_callback("_r", cs35l45_amp_fail_event);
+		cirrus_amp_register_i2c_error_callback("", cirrus_i2c_fail_log);
+		cirrus_amp_register_i2c_error_callback("_r", cirrus_i2c_fail_log);
+		cirrus_amp_register_error_callback("", cirrus_amp_fail_event);
+		cirrus_amp_register_error_callback("_r", cirrus_amp_fail_event);
+
+		for_each_rtd_codec_dais(rtd, i, dai) {
+			dapm = snd_soc_component_get_dapm(dai->component);
+
+			snd_soc_dapm_ignore_suspend(dapm, "SPK");
+			snd_soc_dapm_ignore_suspend(dapm, "AP");
+			snd_soc_dapm_ignore_suspend(dapm, "AMP Enable");
+			snd_soc_dapm_ignore_suspend(dapm, "Entry");
+			snd_soc_dapm_ignore_suspend(dapm, "Exit");
+			snd_soc_dapm_sync(dapm);
+		}
 	}
 #endif
 
@@ -254,7 +273,6 @@ static int exynos_late_probe(struct snd_soc_card *card)
 				snd_soc_dapm_sync(dapm);
 			}
 		}
-
 
 		for_each_rtd_codec_dais(rtd, i, dai) {
 			dapm = snd_soc_component_get_dapm(dai->component);

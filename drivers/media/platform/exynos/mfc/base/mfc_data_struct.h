@@ -1465,6 +1465,9 @@ struct mfc_dev {
 	struct mutex mfc_mutex;
 	struct mutex mfc_migrate_mutex;
 
+	struct timer_list open_timer;
+	unsigned long open_sequence;
+
 	struct mfc_ctx *ctx[MFC_NUM_CONTEXTS];
 	struct mfc_ctx *move_ctx[MFC_NUM_CONTEXTS];
 	int move_ctx_cnt;

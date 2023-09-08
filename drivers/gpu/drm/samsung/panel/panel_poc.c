@@ -23,7 +23,7 @@
 #include "panel_debug.h"
 #include "panel_obj.h"
 #include "panel_poc.h"
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 #include "panel_spi.h"
 #endif
 
@@ -54,7 +54,7 @@ const char * const poc_op[MAX_POC_OP] = {
 	[POC_OP_DIM_READ_FROM_FILE] = "POC_OP_DIM_READ_FROM_FILE",
 	[POC_OP_MTP_READ] = "POC_OP_MTP_READ",
 	[POC_OP_MCD_READ] = "POC_OP_MCD_READ",
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	[POC_OP_SET_CONN_SRC] = "POC_OP_SET_CONN_SRC",
 	[POC_OP_SET_SPI_SPEED] = "POC_OP_SET_SPI_SPEED",
 	[POC_OP_READ_SPI_STATUS_REG] = "POC_OP_READ_SPI_STATUS_REG",
@@ -148,7 +148,7 @@ static int poc_get_poc_chksum(struct panel_device *panel)
 		return -EINVAL;
 	}
 
-	ret = resource_copy_by_name(panel, poc_info->poc_chksum, "poc_chksum");
+	ret = panel_resource_copy(panel, poc_info->poc_chksum, "poc_chksum");
 	if (unlikely(ret < 0)) {
 		panel_err("failed to copy resource(poc_chksum)\n");
 		return ret;
@@ -162,7 +162,7 @@ static int poc_get_poc_chksum(struct panel_device *panel)
 	return 0;
 }
 
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 int _spi_poc_erase(struct panel_device *panel, int addr, int len)
 {
 	struct panel_spi_dev *spi_dev = &panel->panel_spi_dev;
@@ -280,7 +280,7 @@ out_poc_erase:
 
 int poc_erase(struct panel_device *panel, int addr, int len)
 {
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	struct panel_poc_device *poc_dev = &panel->poc_dev;
 	struct panel_poc_info *poc_info = &poc_dev->poc_info;
 
@@ -290,7 +290,7 @@ int poc_erase(struct panel_device *panel, int addr, int len)
 	return _dsi_poc_erase(panel, addr, len);
 }
 
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 static int _spi_poc_read_data(struct panel_device *panel, u8 *buf, u32 addr, u32 len)
 {
 	struct panel_spi_dev *spi_dev = &panel->panel_spi_dev;
@@ -405,7 +405,7 @@ static int _dsi_poc_read_data(struct panel_device *panel,
 			goto out_poc_read;
 		}
 
-		ret = resource_copy_by_name(panel, &buf[i], "poc_data");
+		ret = panel_resource_copy(panel, &buf[i], "poc_data");
 		if (unlikely(ret < 0)) {
 			panel_err("failed to copy resource(poc_data)\n");
 			goto out_poc_read;
@@ -443,7 +443,7 @@ exit:
 
 int poc_read_data(struct panel_device *panel, u8 *buf, u32 addr, u32 len)
 {
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	struct panel_poc_device *poc_dev = &panel->poc_dev;
 	struct panel_poc_info *poc_info = &poc_dev->poc_info;
 
@@ -453,7 +453,7 @@ int poc_read_data(struct panel_device *panel, u8 *buf, u32 addr, u32 len)
 	return _dsi_poc_read_data(panel, buf, addr, len);
 }
 
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 static int _spi_poc_write_data(struct panel_device *panel, u8 *data, u32 addr, u32 size)
 {
 	struct panel_spi_dev *spi_dev = &panel->panel_spi_dev;
@@ -598,7 +598,7 @@ out_poc_write:
 
 int poc_write_data(struct panel_device *panel, u8 *data, u32 addr, u32 size)
 {
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	struct panel_poc_device *poc_dev = &panel->poc_dev;
 	struct panel_poc_info *poc_info = &poc_dev->poc_info;
 
@@ -611,7 +611,7 @@ int poc_write_data(struct panel_device *panel, u8 *data, u32 addr, u32 size)
 int poc_memory_initialize(struct panel_device *panel)
 {
 	int ret = 0;
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	struct panel_poc_device *poc_dev = &panel->poc_dev;
 	struct panel_poc_info *poc_info = &poc_dev->poc_info;
 	struct panel_spi_dev *spi_dev = &panel->panel_spi_dev;
@@ -631,7 +631,7 @@ int poc_memory_initialize(struct panel_device *panel)
 int poc_memory_uninitialize(struct panel_device *panel)
 {
 	int ret = 0;
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	struct panel_poc_device *poc_dev = &panel->poc_dev;
 	struct panel_poc_info *poc_info = &poc_dev->poc_info;
 	struct panel_spi_dev *spi_dev = &panel->panel_spi_dev;
@@ -656,7 +656,7 @@ static int poc_get_octa_poc(struct panel_device *panel)
 	u8 octa_id[PANEL_OCTA_ID_LEN] = { 0, };
 	int ret;
 
-	ret = resource_copy_by_name(panel, octa_id, "octa_id");
+	ret = panel_resource_copy(panel, octa_id, "octa_id");
 	if (unlikely(ret < 0)) {
 		panel_err("failed to copy resource(octa_id) (ret %d)\n", ret);
 		return ret;
@@ -689,7 +689,7 @@ static int poc_get_poc_ctrl(struct panel_device *panel)
 		return ret;
 	}
 
-	ret = resource_copy_by_name(panel, poc_info->poc_ctrl, "poc_ctrl");
+	ret = panel_resource_copy(panel, poc_info->poc_ctrl, "poc_ctrl");
 	if (unlikely(ret < 0)) {
 		panel_err("failed to copy resource(poc_ctrl)\n");
 		return ret;
@@ -1148,13 +1148,13 @@ int set_panel_poc(struct panel_poc_device *poc_dev, u32 cmd, void *arg)
 			panel_err("failed to initialize memory\n");
 			return ret;
 		}
-#ifdef CONFIG_DISPLAY_USE_INFO
+#ifdef CONFIG_USDM_PANEL_DPUI
 		poc_info->erase_trycount++;
 #endif
 		ret = poc_erase(panel, addr, len);
 		if (unlikely(ret < 0)) {
 			panel_err("failed to write poc-erase-seq\n");
-#ifdef CONFIG_DISPLAY_USE_INFO
+#ifdef CONFIG_USDM_PANEL_DPUI
 			poc_info->erase_failcount++;
 #endif
 			poc_info->erased = false;
@@ -1248,7 +1248,7 @@ int set_panel_poc(struct panel_poc_device *poc_dev, u32 cmd, void *arg)
 			return ret;
 		}
 		break;
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	case POC_OP_SET_CONN_SRC:
 		ret = sscanf((char *)arg, "%*d %d", &addr);
 		if (unlikely(ret < 1)) {
@@ -1318,7 +1318,7 @@ int set_panel_poc(struct panel_poc_device *poc_dev, u32 cmd, void *arg)
 };
 EXPORT_SYMBOL(set_panel_poc);
 
-#ifdef CONFIG_SUPPORT_POC_FLASH
+#ifdef CONFIG_USDM_PANEL_POC_FLASH
 static long panel_poc_ioctl(struct file *file, unsigned int cmd,
 			unsigned long arg)
 {
@@ -1690,10 +1690,10 @@ static const struct file_operations panel_poc_fops = {
 	.release = panel_poc_release,
 	.llseek	= generic_file_llseek,
 };
-#endif /* CONFIG_SUPPORT_POC_FLASH */
+#endif /* CONFIG_USDM_PANEL_POC_FLASH */
 
-#ifdef CONFIG_DISPLAY_USE_INFO
-#ifdef CONFIG_SUPPORT_POC_FLASH
+#ifdef CONFIG_USDM_PANEL_DPUI
+#ifdef CONFIG_USDM_PANEL_POC_FLASH
 #define EPOCEFS_IMGIDX (100)
 enum {
 	EPOCEFS_NOENT = 1,		/* No such file or directory */
@@ -1942,7 +1942,7 @@ static int poc_dpui_callback(struct panel_poc_device *poc_dev)
 }
 #else
 static int poc_dpui_callback(struct panel_poc_device *poc_dev) { return 0; }
-#endif /* CONFIG_SUPPORT_POC_FLASH */
+#endif /* CONFIG_USDM_PANEL_POC_FLASH */
 
 static int poc_notifier_callback(struct notifier_block *self,
 				 unsigned long event, void *data)
@@ -1960,7 +1960,7 @@ static int poc_notifier_callback(struct notifier_block *self,
 
 	return 0;
 }
-#endif /* CONFIG_DISPLAY_USE_INFO */
+#endif /* CONFIG_USDM_PANEL_DPUI */
 
 int panel_poc_probe(struct panel_device *panel, struct panel_poc_data *poc_data)
 {
@@ -1976,7 +1976,7 @@ int panel_poc_probe(struct panel_device *panel, struct panel_poc_data *poc_data)
 	}
 
 	if (!initialized) {
-#ifdef CONFIG_SUPPORT_POC_FLASH
+#ifdef CONFIG_USDM_PANEL_POC_FLASH
 		poc_dev->dev.minor = MISC_DYNAMIC_MINOR;
 		poc_dev->dev.name = "poc";
 		poc_dev->dev.fops = &panel_poc_fops;
@@ -1992,7 +1992,7 @@ int panel_poc_probe(struct panel_device *panel, struct panel_poc_data *poc_data)
 		INIT_LIST_HEAD(&poc_dev->maptbl_list);
 	}
 	poc_info->version = poc_data->version;
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	poc_info->conn_src = poc_data->conn_src;
 #endif
 	poc_info->wdata_len = poc_data->wdata_len;
@@ -2047,7 +2047,7 @@ int panel_poc_probe(struct panel_device *panel, struct panel_poc_data *poc_data)
 	poc_rd_img = (u8 *)devm_kzalloc(panel->dev,
 			poc_info->total_size * sizeof(u8), GFP_KERNEL);
 
-#ifdef CONFIG_DISPLAY_USE_INFO
+#ifdef CONFIG_USDM_PANEL_DPUI
 	poc_info->total_trycount = -1;
 	poc_info->total_failcount = -1;
 

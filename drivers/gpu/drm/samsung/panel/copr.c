@@ -205,6 +205,31 @@ static struct copr_reg_info copr_reg_v6_list[] = {
 	{ .name = "copr_roi5_x_e=", .offset = offsetof(struct copr_reg_v6, roi[4].roi_xe) },
 	{ .name = "copr_roi5_y_e=", .offset = offsetof(struct copr_reg_v6, roi[4].roi_ye) },
 };
+static struct copr_reg_info copr_reg_v0_1_list[] = {
+	{ .name = "copr_mask=", .offset = offsetof(struct copr_reg_v0_1, copr_mask) },
+	{ .name = "copr_pwr=", .offset = offsetof(struct copr_reg_v0_1, copr_pwr) },
+	{ .name = "copr_en=", .offset = offsetof(struct copr_reg_v0_1, copr_en) },
+	{ .name = "copr_roi_ctrl=", .offset = offsetof(struct copr_reg_v0_1, copr_roi_ctrl) },
+	{ .name = "copr_gamma_ctrl=", .offset = offsetof(struct copr_reg_v0_1, copr_gamma_ctrl) },
+	/* ROI1 */
+	{ .name = "copr_roi1_er=", .offset = offsetof(struct copr_reg_v0_1, roi[0].roi_er) },
+	{ .name = "copr_roi1_eg=", .offset = offsetof(struct copr_reg_v0_1, roi[0].roi_eg) },
+	{ .name = "copr_roi1_eb=", .offset = offsetof(struct copr_reg_v0_1, roi[0].roi_eb) },
+	/* ROI2 */
+	{ .name = "copr_roi2_er=", .offset = offsetof(struct copr_reg_v0_1, roi[1].roi_er) },
+	{ .name = "copr_roi2_eg=", .offset = offsetof(struct copr_reg_v0_1, roi[1].roi_eg) },
+	{ .name = "copr_roi2_eb=", .offset = offsetof(struct copr_reg_v0_1, roi[1].roi_eb) },
+	/* ROI1 */
+	{ .name = "copr_roi1_x_s=", .offset = offsetof(struct copr_reg_v0_1, roi[0].roi_xs) },
+	{ .name = "copr_roi1_y_s=", .offset = offsetof(struct copr_reg_v0_1, roi[0].roi_ys) },
+	{ .name = "copr_roi1_x_e=", .offset = offsetof(struct copr_reg_v0_1, roi[0].roi_xe) },
+	{ .name = "copr_roi1_y_e=", .offset = offsetof(struct copr_reg_v0_1, roi[0].roi_ye) },
+	/* ROI2 */
+	{ .name = "copr_roi2_x_s=", .offset = offsetof(struct copr_reg_v0_1, roi[1].roi_xs) },
+	{ .name = "copr_roi2_y_s=", .offset = offsetof(struct copr_reg_v0_1, roi[1].roi_ys) },
+	{ .name = "copr_roi2_x_e=", .offset = offsetof(struct copr_reg_v0_1, roi[1].roi_xe) },
+	{ .name = "copr_roi2_y_e=", .offset = offsetof(struct copr_reg_v0_1, roi[1].roi_ye) },
+};
 
 static int get_copr_ver(struct copr_info *copr)
 {
@@ -255,7 +280,7 @@ static void SET_COPR_REG_E(struct copr_info *copr, int r, int g, int b)
 		copr->props.reg.v5.copr_er = r;
 		copr->props.reg.v5.copr_eg = g;
 		copr->props.reg.v5.copr_eb = b;
-	} else if (version == COPR_VER_6) {
+	} else if ((version == COPR_VER_6) || (version == COPR_VER_0_1)) {
 		panel_warn("unsupprted in ver%d\n", version);
 	} else {
 		panel_warn("unsupprted in ver%d\n", version);
@@ -282,7 +307,7 @@ static void SET_COPR_REG_EC(struct copr_info *copr, int r, int g, int b)
 		copr->props.reg.v5.copr_erc = r;
 		copr->props.reg.v5.copr_egc = g;
 		copr->props.reg.v5.copr_ebc = b;
-	} else if (version == COPR_VER_6) {
+	} else if ((version == COPR_VER_6) || (version == COPR_VER_0_1)) {
 		panel_warn("unsupprted in ver%d\n", version);
 	} else {
 		panel_warn("unsupprted in ver%d\n", version);
@@ -376,6 +401,23 @@ static void SET_COPR_REG_ROI(struct copr_info *copr, struct copr_roi *roi, int n
 				props->reg.v6.roi_on |= 0x1 << i;
 			}
 		}
+	} else if (version == COPR_VER_0_1) {
+		if (roi == NULL) {
+			props->reg.v0_1.copr_roi_ctrl = 0;
+			memset(props->reg.v0_1.roi, 0, sizeof(props->reg.v0_1.roi));
+		} else {
+			props->reg.v0_1.copr_roi_ctrl = 0;
+			for (i = 0; i < min_t(int, ARRAY_SIZE(props->reg.v0_1.roi), nr_roi); i++) {
+				props->reg.v0_1.roi[i].roi_er = roi[i].roi_er;
+				props->reg.v0_1.roi[i].roi_eg = roi[i].roi_eg;
+				props->reg.v0_1.roi[i].roi_eb = roi[i].roi_eb;
+				props->reg.v0_1.roi[i].roi_xs = roi[i].roi_xs;
+				props->reg.v0_1.roi[i].roi_ys = roi[i].roi_ys;
+				props->reg.v0_1.roi[i].roi_xe = roi[i].roi_xe;
+				props->reg.v0_1.roi[i].roi_ye = roi[i].roi_ye;
+				props->reg.v0_1.copr_roi_ctrl |= 0x1 << i;
+			}
+		}
 	}
 }
 
@@ -396,6 +438,8 @@ int get_copr_reg_copr_en(struct copr_info *copr)
 		copr_en = copr->props.reg.v5.copr_en;
 	else if (version == COPR_VER_6)
 		copr_en = copr->props.reg.v6.copr_en;
+	else if (version == COPR_VER_0_1)
+		copr_en = copr->props.reg.v0_1.copr_en;
 	else
 		panel_warn("unsupprted in ver%d\n", version);
 
@@ -416,6 +460,9 @@ int get_copr_reg_size(int version)
 		return ARRAY_SIZE(copr_reg_v5_list);
 	else if (version == COPR_VER_6)
 		return ARRAY_SIZE(copr_reg_v6_list);
+	else if (version == COPR_VER_0_1)
+		return ARRAY_SIZE(copr_reg_v0_1_list);
+
 	else
 		return 0;
 }
@@ -446,6 +493,8 @@ const char *get_copr_reg_name(int version, int index)
 		return copr_reg_v5_list[index].name;
 	else if (version == COPR_VER_6)
 		return copr_reg_v6_list[index].name;
+	else if (version == COPR_VER_0_1)
+		return copr_reg_v0_1_list[index].name;
 	else
 		return NULL;
 }
@@ -465,6 +514,8 @@ int get_copr_reg_offset(int version, int index)
 		return copr_reg_v5_list[index].offset;
 	else if (version == COPR_VER_6)
 		return copr_reg_v6_list[index].offset;
+	else if (version == COPR_VER_0_1)
+		return copr_reg_v0_1_list[index].offset;
 	else
 		return -EINVAL;
 }
@@ -489,6 +540,8 @@ u32 *get_copr_reg_ptr(struct copr_reg *reg, int version, int index)
 		return (u32 *)((void *)&reg->v5 + offset);
 	else if (version == COPR_VER_6)
 		return (u32 *)((void *)&reg->v6 + offset);
+	else if (version == COPR_VER_0_1)
+		return (u32 *)((void *)&reg->v0_1 + offset);
 	else
 		return NULL;
 }
@@ -579,6 +632,32 @@ int copr_reg_to_byte_array(struct copr_reg *reg, int version, unsigned char *byt
 			byte_array[offset++] = (r->roi[i].roi_ye >> 8) & 0xF;
 			byte_array[offset++] = r->roi[i].roi_ye & 0xFF;
 		}
+	} else if (version == COPR_VER_0_1) {
+		struct copr_reg_v0_1 *r = &reg->v0_1;
+
+		byte_array[offset++] = (r->copr_mask << 4) | (r->copr_pwr << 1) | r->copr_en;
+		byte_array[offset++] = ((r->copr_gamma_ctrl & 0x3) << 4) | (r->copr_roi_ctrl & 0x3);
+
+		for (i = 0; i < 2; i++) {
+			byte_array[offset++] = (r->roi[i].roi_er >> 8) & 0x03;
+			byte_array[offset++] = r->roi[i].roi_er & 0xFF;
+			byte_array[offset++] = (r->roi[i].roi_eg >> 8) & 0x03;
+			byte_array[offset++] = r->roi[i].roi_eg & 0xFF;
+			byte_array[offset++] = (r->roi[i].roi_eb >> 8) & 0x03;
+			byte_array[offset++] = r->roi[i].roi_eb & 0xFF;
+		}
+
+		for (i = 0; i < 2; i++) {
+			byte_array[offset++] = (r->roi[i].roi_xs >> 8) & 0x3;
+			byte_array[offset++] = r->roi[i].roi_xs & 0xFF;
+			byte_array[offset++] = (r->roi[i].roi_ys >> 8) & 0x3;
+			byte_array[offset++] = r->roi[i].roi_ys & 0xFF;
+			byte_array[offset++] = (r->roi[i].roi_xe >> 8) & 0x3;
+			byte_array[offset++] = r->roi[i].roi_xe & 0xFF;
+			byte_array[offset++] = (r->roi[i].roi_ye >> 8) & 0x3;
+			byte_array[offset++] = r->roi[i].roi_ye & 0xFF;
+		}
+
 	}
 
 	return 0;
@@ -736,7 +815,7 @@ static int panel_clear_copr(struct copr_info *copr)
 }
 #endif
 
-#ifdef CONFIG_EXYNOS_DECON_LCD_SPI
+#ifdef CONFIG_USDM_COPR_SPI
 static int panel_read_copr_spi(struct copr_info *copr)
 {
 	u8 *buf = NULL;
@@ -745,7 +824,7 @@ static int panel_read_copr_spi(struct copr_info *copr)
 	struct panel_info *panel_data;
 	struct copr_properties *props = &copr->props;
 	u32 version = get_copr_ver(copr);
-	int max_color = (version == COPR_VER_6) ?
+	int max_color = (version == COPR_VER_6 || version == COPR_VER_0_1) ?
 		MAX_RGBW_COLOR : MAX_COLOR;
 
 	if (unlikely(!panel)) {
@@ -761,7 +840,7 @@ static int panel_read_copr_spi(struct copr_info *copr)
 		goto get_copr_error;
 	}
 
-	size = get_resource_size_by_name(panel, "copr_spi");
+	size = get_panel_resource_size(panel, "copr_spi");
 	if (size < 0) {
 		panel_err("failed to get copr size (ret %d)\n", size);
 		ret = -EINVAL;
@@ -774,7 +853,7 @@ static int panel_read_copr_spi(struct copr_info *copr)
 		goto get_copr_error;
 	}
 
-	ret = resource_copy_by_name(panel, (u8 *)buf, "copr_spi");
+	ret = panel_resource_copy(panel, (u8 *)buf, "copr_spi");
 	if (ret < 0) {
 		panel_err("failed to get copr (ret %d)\n", ret);
 		goto get_copr_error;
@@ -782,6 +861,24 @@ static int panel_read_copr_spi(struct copr_info *copr)
 
 	if (version == COPR_VER_6) {
 		for (i = 0; i < 5; i++) {
+			for (c = 0; c < max_color; c++) {
+				index = i * (max_color * 2) + c * 2;
+				if (i == 4 && c == RGBW_WHITE) {
+					/* COPR_ROI5_W:8bit */
+					props->copr_roi_r[i][c] = buf[index];
+				} else {
+					/* COPR_ROI1~5 RGBW:10bit */
+					props->copr_roi_r[i][c] = (buf[index] << 8) | buf[index + 1];
+				}
+			}
+			panel_dbg("copr_dsi: copr_roi_r[%d] %d %d %d %d\n",
+					i, props->copr_roi_r[i][RGBW_RED],
+					props->copr_roi_r[i][RGBW_GREEN],
+					props->copr_roi_r[i][RGBW_BLUE],
+					props->copr_roi_r[i][RGBW_WHITE]);
+		}
+	} else if (version == COPR_VER_0_1) {
+		for (i = 0; i < 2; i++) {
 			for (c = 0; c < max_color; c++) {
 				index = i * (max_color * 2) + c * 2;
 				if (i == 4 && c == RGBW_WHITE) {
@@ -861,7 +958,7 @@ static int panel_read_copr_dsi(struct copr_info *copr)
 	struct panel_info *panel_data;
 	struct copr_properties *props = &copr->props;
 	u32 version = get_copr_ver(copr);
-	int max_color = (version == COPR_VER_6) ?
+	int max_color = (version == COPR_VER_6 || version == COPR_VER_0_1) ?
 		MAX_RGBW_COLOR : MAX_COLOR;
 
 	if (unlikely(!panel)) {
@@ -877,7 +974,7 @@ static int panel_read_copr_dsi(struct copr_info *copr)
 		goto get_copr_error;
 	}
 
-	size = get_resource_size_by_name(panel, "copr_dsi");
+	size = get_panel_resource_size(panel, "copr_dsi");
 	if (size < 0) {
 		panel_err("failed to get copr size (ret %d)\n", size);
 		ret = -EINVAL;
@@ -890,7 +987,7 @@ static int panel_read_copr_dsi(struct copr_info *copr)
 		goto get_copr_error;
 	}
 
-	ret = resource_copy_by_name(panel, (u8 *)buf, "copr_dsi");
+	ret = panel_resource_copy(panel, (u8 *)buf, "copr_dsi");
 	if (ret < 0) {
 		panel_err("failed to get copr (ret %d)\n", ret);
 		goto get_copr_error;
@@ -898,6 +995,24 @@ static int panel_read_copr_dsi(struct copr_info *copr)
 
 	if (version == COPR_VER_6) {
 		for (i = 0; i < 5; i++) {
+			for (c = 0; c < max_color; c++) {
+				index = i * (max_color * 2) + c * 2;
+				if (i == 4 && c == RGBW_WHITE) {
+					/* COPR_ROI5_W:8bit */
+					props->copr_roi_r[i][c] = buf[index];
+				} else {
+					/* COPR_ROI1~5 RGBW:10bit */
+					props->copr_roi_r[i][c] = (buf[index] << 8) | buf[index + 1];
+				}
+			}
+			panel_dbg("copr_dsi: copr_roi_r[%d] %d %d %d %d\n",
+					i, props->copr_roi_r[i][RGBW_RED],
+					props->copr_roi_r[i][RGBW_GREEN],
+					props->copr_roi_r[i][RGBW_BLUE],
+					props->copr_roi_r[i][RGBW_WHITE]);
+		}
+	} else if (version == COPR_VER_0_1) {
+		for (i = 0; i < 2; i++) {
 			for (c = 0; c < max_color; c++) {
 				index = i * (max_color * 2) + c * 2;
 				if (i == 4 && c == RGBW_WHITE) {
@@ -989,7 +1104,7 @@ static int panel_get_copr(struct copr_info *copr)
 		goto get_copr_error;
 	}
 
-#ifdef CONFIG_EXYNOS_DECON_LCD_SPI
+#ifdef CONFIG_USDM_COPR_SPI
 	panel_read_copr_spi(copr);
 #else
 	panel_read_copr_dsi(copr);
@@ -1073,7 +1188,8 @@ int copr_update_average(struct copr_info *copr)
 	if (version == COPR_VER_2 ||
 		version == COPR_VER_3 ||
 		version == COPR_VER_5 ||
-		version == COPR_VER_6) {
+		version == COPR_VER_6 ||
+		version == COPR_VER_0_1) {
 #ifdef CONFIG_SUPPORT_COPR_AVG
 		ret = panel_clear_copr(copr);
 		if (unlikely(ret < 0))
@@ -1250,7 +1366,7 @@ int copr_cur_roi_get_value(struct copr_info *copr, struct copr_roi *roi, int siz
 {
 	struct copr_properties *props = &copr->props;
 	int i, c, max_size = 5, ret;
-	int max_color = (props->version == COPR_VER_6) ?
+	int max_color = (props->version == COPR_VER_6 || props->version == COPR_VER_0_1) ?
 		MAX_RGBW_COLOR : MAX_COLOR;
 
 	if (unlikely(!copr->props.support))
@@ -1322,7 +1438,8 @@ int copr_roi_get_value(struct copr_info *copr, struct copr_roi *roi, int size, u
 
 	if (version > COPR_VER_2 ||
 		version == COPR_VER_5 ||
-		version == COPR_VER_6)
+		version == COPR_VER_6 ||
+		version == COPR_VER_0_1)
 		return copr_cur_roi_get_value(copr, roi, size, out);
 	else
 		return copr_iter_roi_get_value(copr, roi, size, out);
@@ -1362,7 +1479,7 @@ int copr_get_average_and_clear(struct copr_info *copr)
 	return avg;
 }
 
-#ifdef CONFIG_EXYNOS_DECON_LCD_SPI
+#ifdef CONFIG_USDM_COPR_SPI
 static int set_spi_gpios(struct panel_device *panel, int en)
 {
 	int err_num = 0;
@@ -1476,7 +1593,7 @@ int copr_enable(struct copr_info *copr)
 		return 0;
 	}
 
-#ifdef CONFIG_EXYNOS_DECON_LCD_SPI
+#ifdef CONFIG_USDM_COPR_SPI
 	if (set_spi_gpios(panel, 1))
 		panel_err("failed to set spio gpio\n");
 #endif
@@ -1500,7 +1617,8 @@ int copr_enable(struct copr_info *copr)
 			version == COPR_VER_2 ||
 			version == COPR_VER_3 ||
 			version == COPR_VER_5 ||
-			version == COPR_VER_6) {
+			version == COPR_VER_6 ||
+			version == COPR_VER_0_1) {
 			ret = panel_clear_copr(copr);
 			if (unlikely(ret < 0))
 				panel_err("failed to reset copr\n");
@@ -1519,7 +1637,7 @@ int copr_enable(struct copr_info *copr)
 
 int copr_disable(struct copr_info *copr)
 {
-#ifdef CONFIG_EXYNOS_DECON_LCD_SPI
+#ifdef CONFIG_USDM_COPR_SPI
 	struct panel_device *panel = to_panel_device(copr);
 #endif
 	struct copr_properties *props = &copr->props;
@@ -1544,7 +1662,7 @@ int copr_disable(struct copr_info *copr)
 		props->state = COPR_UNINITIALIZED;
 	}
 	panel_mutex_unlock(&copr->lock);
-#ifdef CONFIG_EXYNOS_DECON_LCD_SPI
+#ifdef CONFIG_USDM_COPR_SPI
 	if (set_spi_gpios(panel, 0))
 		panel_err("failed to set spio gpio\n");
 #endif
@@ -1726,8 +1844,8 @@ int copr_unprepare(struct panel_device *panel)
 int copr_probe(struct panel_device *panel, struct panel_copr_data *copr_data)
 {
 	struct copr_info *copr;
-	struct pnobj *pnobj;
-	int i;
+//	struct pnobj *pnobj;
+//	int i;
 
 	if (!panel || !copr_data) {
 		panel_err("panel(%p) or copr_data(%p) not exist\n", panel, copr_data);
@@ -1740,7 +1858,7 @@ int copr_probe(struct panel_device *panel, struct panel_copr_data *copr_data)
 	init_waitqueue_head(&copr->wq.wait);
 	copr->props.support = true;
 	copr_register_fb(copr);
-#ifdef CONFIG_EXYNOS_DECON_LCD_SPI
+#ifdef CONFIG_USDM_COPR_SPI
 	get_spi_gpios_dt(panel);
 #endif
 

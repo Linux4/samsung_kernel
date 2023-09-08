@@ -355,6 +355,49 @@ static int writeback_check_swb(const struct writeback_device *wb,
 	return 0;
 }
 
+struct exynos_writeback_job {
+	int wb_type;
+};
+
+static int writeback_prepare_job(struct writeback_device *wb,
+				 struct drm_connector_state *conn_state)
+{
+	struct drm_writeback_job *job;
+	struct exynos_writeback_job *exynos_job;
+	struct exynos_drm_writeback_state *wb_state;
+	int ret = 0;
+
+	job = conn_state->writeback_job;
+	if (!job)
+		return ret;
+
+	wb_state = to_exynos_wb_state(conn_state);
+
+	exynos_job = kzalloc(sizeof(*exynos_job), GFP_KERNEL);
+	if (!exynos_job)
+		return -ENOMEM;
+
+	exynos_job->wb_type = wb_state->type;
+	ret = repeater_buf_acquire(wb, wb_state);
+	if (ret) {
+		kfree(exynos_job);
+		return ret;
+	}
+
+	job->priv = exynos_job;
+	job->prepared = true;
+
+	return ret;
+}
+
+static void writeback_cleanup_job(struct drm_writeback_connector *connector,
+				  struct drm_writeback_job *job)
+{
+	struct exynos_writeback_job *exynos_job = job->priv;
+
+	kfree(exynos_job);
+}
+
 static int writeback_atomic_check(struct drm_encoder *encoder,
 				struct drm_crtc_state *crtc_state,
 				struct drm_connector_state *conn_state)
@@ -385,7 +428,9 @@ static int writeback_atomic_check(struct drm_encoder *encoder,
 		return ret;
 
 	wb_state->type = wb_type;
-	conn_state->writeback_job->priv = wb_state;
+	ret = writeback_prepare_job(wb, conn_state);
+	if (ret)
+		goto err;
 
 	for (i = 0; i < wb->num_pixel_formats; i++)
 		if (fb->format->format == wb->pixel_formats[i])
@@ -407,15 +452,6 @@ err:
 				crtc_state->mode.vdisplay);
 
 	return ret;
-}
-
-static int writeback_prepare_job(struct drm_writeback_connector *connector,
-				     struct drm_writeback_job *job)
-{
-	struct writeback_device *wb = conn_to_wb_dev(&connector->base);
-	struct exynos_drm_writeback_state *wb_state = job->priv;
-
-	return repeater_buf_acquire(wb, wb_state);
 }
 
 #if IS_ENABLED(CONFIG_EXYNOS_CONTENT_PATH_PROTECTION)
@@ -488,7 +524,7 @@ static void writeback_atomic_commit(struct drm_connector *connector,
 static const struct drm_connector_helper_funcs wb_connector_helper_funcs = {
 	.get_modes = writeback_get_modes,
 	.atomic_commit = writeback_atomic_commit,
-	.prepare_writeback_job = writeback_prepare_job,
+	.cleanup_writeback_job = writeback_cleanup_job,
 };
 
 struct drm_connector_state *
@@ -953,9 +989,9 @@ static void cleanup_work(struct work_struct *work)
 	struct drm_writeback_job *job = container_of(work,
 						     struct drm_writeback_job,
 						     cleanup_work);
-	struct exynos_drm_writeback_state *wb_state = job->priv;
+	struct exynos_writeback_job *exynos_job = job->priv;
 
-	if (wb_state->type == EXYNOS_WB_CWB) {
+	if (exynos_job->wb_type == EXYNOS_WB_CWB) {
 		drm_gem_fb_begin_cpu_access(job->fb, DMA_FROM_DEVICE);
 		out_fence_signal(job, 0);
 	}

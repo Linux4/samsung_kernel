@@ -1693,7 +1693,7 @@
 		};
 
 		frt {
-			active-ratio = <0x19 0x64>;
+			active-ratio = <0x32 0x64>;
 		};
 
 		ontime {
@@ -3763,7 +3763,7 @@
 
 		icpu_fw_rmem {
 			compatible = "shared-dma-pool";
-			size = <0xc00000>;
+			size = <0x1c00000>;
 			alignment = <0x00 0x10000>;
 			reusable;
 			phandle = <0x17c>;

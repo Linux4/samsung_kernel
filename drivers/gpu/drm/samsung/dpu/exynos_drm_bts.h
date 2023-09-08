@@ -142,6 +142,7 @@ struct dpu_bts {
 	u32 vsa;
 	u32 fps;
 	u32 v_blank_t;
+	u32 bus_overhead;
 	/* includes writeback dpp */
 	struct dpu_bts_bw bw[BTS_DPP_MAX];
 

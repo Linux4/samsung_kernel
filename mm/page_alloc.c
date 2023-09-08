@@ -73,6 +73,7 @@
 #include <linux/padata.h>
 #include <linux/khugepaged.h>
 #include <linux/buffer_head.h>
+#include <linux/cma.h>
 #include <trace/hooks/mm.h>
 #include <asm/sections.h>
 #include <asm/tlbflush.h>
@@ -9169,6 +9170,41 @@ static inline void alloc_contig_dump_pages(struct list_head *page_list)
 }
 #endif
 
+static int is_dump_target_cma(struct cma *cma, void *data)
+{
+	struct page *page = (struct page *)data;
+	unsigned long start, end, addr;
+
+	if (strcmp(cma_get_name(cma), "secure_camera"))
+		return 0;
+
+	addr = page_to_phys(page);
+	start = cma_get_base(cma);
+	end = start + cma_get_size(cma);
+
+	if ((addr < start) || (end <= addr))
+		return 0;
+
+	return 1;
+}
+
+static void alloc_contig_dump_target_cma(struct list_head *page_list)
+{
+	static DEFINE_RATELIMIT_STATE(alloc_contig_dump_ratelimit, HZ * 10, 1);
+	struct page *page;
+
+	if (!__ratelimit(&alloc_contig_dump_ratelimit))
+		return;
+
+	/* Check once because all pages on list are in same cma */
+	page = list_first_entry(page_list, struct page, lru);
+	if (!cma_for_each_area(is_dump_target_cma, page))
+		return;
+
+	list_for_each_entry(page, page_list, lru)
+		dump_page(page, "migration failure for target pages");
+}
+
 /* [start, end) must belong to a single zone. */
 static int __alloc_contig_migrate_range(struct compact_control *cc,
 					unsigned long start, unsigned long end)
@@ -9231,6 +9267,7 @@ static int __alloc_contig_migrate_range(struct compact_control *cc,
 			struct page *page;
 
 			alloc_contig_dump_pages(&cc->migratepages);
+			alloc_contig_dump_target_cma(&cc->migratepages);
 			list_for_each_entry(page, &cc->migratepages, lru) {
 				/* The page will be freed by putback_movable_pages soon */
 				if (page_count(page) == 1)

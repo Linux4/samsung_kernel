@@ -2,7 +2,7 @@
 #include "panel_debug.h"
 #include "panel_obj.h"
 #include "panel_resource.h"
-
+#include "util.h"
 
 char *get_resource_name(struct resinfo *res)
 {
@@ -39,9 +39,66 @@ EXPORT_SYMBOL(is_valid_resource);
 
 bool is_resource_initialized(struct resinfo *res)
 {
+	if (!res)
+		return false;
+
 	return (res->state == RES_INITIALIZED);
 }
 EXPORT_SYMBOL(is_resource_initialized);
+
+bool is_resource_mutable(struct resinfo *res)
+{
+	if (!res)
+		return false;
+
+	return (res->resui != NULL);
+}
+EXPORT_SYMBOL(is_resource_mutable);
+
+void set_resource_state(struct resinfo *res, int state)
+{
+	if (!res)
+		return;
+
+	if (state < 0 || state >= MAX_RES_INIT_STATE) {
+		panel_err("invalid state(%u)\n", state);
+		return;
+	}
+	res->state = state;
+}
+
+int copy_resource_slice(u8 *dst, struct resinfo *res, u32 offset, u32 len)
+{
+	if (unlikely(!dst || !res || len == 0)) {
+		panel_warn("invalid parameter\n");
+		return -EINVAL;
+	}
+
+	if (unlikely(offset + len > get_resource_size(res))) {
+		panel_err("slice array[%d:%d] out of range [:%d]\n",
+				offset, offset + len, get_resource_size(res));
+		return -EINVAL;
+	}
+
+	memcpy(dst, &res->data[offset], len);
+	return 0;
+}
+EXPORT_SYMBOL(copy_resource_slice);
+
+int copy_resource(u8 *dst, struct resinfo *res)
+{
+	if (unlikely(!dst || !res)) {
+		panel_warn("invalid parameter\n");
+		return -EINVAL;
+	}
+
+	if (!is_resource_initialized(res)) {
+		panel_warn("%s not initialized\n", get_resource_name(res));
+		return -EINVAL;
+	}
+	return copy_resource_slice(dst, res, 0, get_resource_size(res));
+}
+EXPORT_SYMBOL(copy_resource);
 
 static int snprintf_resource_head(char *buf, size_t size, struct resinfo *res)
 {
@@ -101,7 +158,7 @@ void print_resource(struct resinfo *res)
 		return;
 
 	panel_info("resource:%s\n", get_resource_name(res));
-	print_data(res->data, get_resource_size(res));
+	usdm_info_bytes(res->data, get_resource_size(res));
 }
 EXPORT_SYMBOL(print_resource);
 

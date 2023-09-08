@@ -8,8 +8,10 @@
 
 #if IS_ENABLED(CONFIG_EXYNOS_CORESIGHT)
 int exynos_cs_stop_cpus(void);
+int exynos_cs_stop_cpu(unsigned int cpu);
 #else
 #define exynos_cs_stop_cpus()	do { } while (0)
+#define exynos_cs_stop_cpu(a)   do { } while (0)
 #endif
 
 

@@ -846,7 +846,7 @@ decon_seamless_set_mode(struct drm_crtc_state *crtc_state,
 	}
 }
 
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 static void decon_fingerprint_mask(struct exynos_drm_crtc *crtc,
 			struct drm_crtc_state *old_crtc_state, u32 after)
 {
@@ -983,7 +983,7 @@ static void decon_atomic_flush(struct exynos_drm_crtc *exynos_crtc,
 	} else if (exynos_crtc->crc_state == EXYNOS_DRM_CRC_STOP)
 		decon_reg_set_start_crc(decon->id, 0);
 
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	exynos_crtc->ops->set_fingerprint_mask(exynos_crtc, old_crtc_state, 0);
 #endif
 
@@ -993,8 +993,12 @@ static void decon_atomic_flush(struct exynos_drm_crtc *exynos_crtc,
 	if (exynos_crtc->ops->check_svsync_start)
 		exynos_crtc->ops->check_svsync_start(exynos_crtc);
 
+#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
+	if (!(mcd_drm_check_commit_skip(exynos_crtc, __func__) && (decon->config.mode.op_mode == DECON_VIDEO_MODE)))
+        decon_reg_start(decon->id, &decon->config);
+#else
 	decon_reg_start(decon->id, &decon->config);
-
+#endif
 	if (!new_crtc_state->no_vblank) {
 		if ((decon->config.out_type & DECON_OUT_DSI) &&
 			(decon->config.mode.op_mode == DECON_VIDEO_MODE)) {
@@ -1624,7 +1628,7 @@ static const struct exynos_drm_crtc_ops decon_crtc_ops = {
 	.check_svsync_start = decon_check_svsync_start,
 #endif
 	.dump_register = decon_dump,
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	.set_fingerprint_mask = decon_fingerprint_mask,
 #endif
 #if defined(CONFIG_EXYNOS_PLL_SLEEP)
@@ -1692,6 +1696,11 @@ static int decon_bind(struct device *dev, struct device *master, void *data)
 				decon_info(decon, "request qos for fb handover\n");
 				exynos_pm_qos_update_request(&decon->bts.disp_qos,
 						decon->bts.dfs_lv[0]);
+				if (exynos_pm_qos_request_active(&decon->bts.int_qos))
+					exynos_pm_qos_update_request(&decon->bts.int_qos,
+								533 * 1000);
+				else
+					decon_err(decon, "int qos setting error\n");
 			} else
 				decon_err(decon, "disp qos setting error\n");
 		}
@@ -1920,6 +1929,11 @@ static int decon_parse_bts_info(struct decon_device *decon, struct device_node *
 	if (of_property_read_u32(np, "rot_util", &bts->rot_util)) {
 		bts->rot_util = 60UL;
 		decon_warn(decon, "WARN: rot util is not defined in DT.\n");
+	}
+
+	if (of_property_read_u32(np, "bus_overhead", &bts->bus_overhead)) {
+		bts->bus_overhead = 0UL;
+		decon_info(decon, "Bus overhead is not defined in DT.\n");
 	}
 
 	dfs_lv_cnt = of_property_count_u32_elems(np, "dfs_lv");

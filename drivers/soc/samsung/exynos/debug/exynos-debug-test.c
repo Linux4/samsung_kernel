@@ -27,6 +27,7 @@
 #include <asm-generic/io.h>
 
 #include <soc/samsung/exynos/debug-snapshot.h>
+#include <soc/samsung/exynos/exynos-coresight.h>
 #include <soc/samsung/exynos-pmu-if.h>
 #include <soc/samsung/acpm_ipc_ctrl.h>
 
@@ -113,6 +114,7 @@ static const char *test_vector[] = {
 	"apmwdt",
 	"arraydump",
 	"halt",
+	"corehalt",
 	"scandump",
 	"dramfail",
 	"ecc",
@@ -626,6 +628,88 @@ static void simulate_HALT(char *arg)
 	dbg_snapshot_do_dpm_policy(GO_HALT_ID);
 }
 
+static void simulate_CORE_HALT_handler(void *info)
+{
+	int curr_cpu = raw_smp_processor_id();
+	dev_crit(exynos_debug_desc.dev, "HALT CPU%d\n",	curr_cpu);
+
+	if (!exynos_cs_stop_cpu(curr_cpu))
+		while (1)
+			wfi();
+}
+
+static void simulate_CORE_HALT(char *arg)
+{
+	int cpu;
+	int start = -1;
+	int end;
+	int curr_cpu = raw_smp_processor_id();
+
+	dev_crit(exynos_debug_desc.dev, "%s()\n", __func__);
+
+	if (!arg) {
+		start = 0;
+		end = exynos_debug_desc.nr_cpu;
+
+		for (cpu = start; cpu < end; cpu++) {
+			if (cpu == curr_cpu)
+				continue;
+			smp_call_function_single(cpu, simulate_CORE_HALT_handler, 0, 0);
+		}
+		simulate_CORE_HALT_handler(NULL);
+		return;
+	}
+
+	if (!strncmp(arg, "LITTLE", strlen("LITTLE"))) {
+		if (exynos_debug_desc.little_cpu_start < 0 ||
+				exynos_debug_desc.nr_little_cpu < 0) {
+			dev_info(exynos_debug_desc.dev, " no little cpu info\n");
+			return;
+		}
+		start = exynos_debug_desc.little_cpu_start;
+		end = start + exynos_debug_desc.nr_little_cpu - 1;
+	} else if (!strncmp(arg, "MID", strlen("MID"))) {
+		if (exynos_debug_desc.mid_cpu_start < 0 ||
+					exynos_debug_desc.nr_mid_cpu < 0) {
+			dev_info(exynos_debug_desc.dev, "no mid cpu info\n");
+			return;
+		}
+		start = exynos_debug_desc.mid_cpu_start;
+		end = start + exynos_debug_desc.nr_mid_cpu - 1;
+	} else if (!strncmp(arg, "BIG", strlen("BIG"))) {
+		if (exynos_debug_desc.big_cpu_start < 0 ||
+					exynos_debug_desc.nr_big_cpu < 0) {
+			dev_info(exynos_debug_desc.dev, "no big cpu info\n");
+			return;
+		}
+		start = exynos_debug_desc.big_cpu_start;
+		end = start + exynos_debug_desc.nr_big_cpu - 1;
+	}
+
+	if (start >= 0) {
+		for (cpu = start; cpu <= end; cpu++) {
+			if (cpu == curr_cpu)
+				continue;
+			smp_call_function_single(cpu,
+					simulate_CORE_HALT_handler, 0, 0);
+		}
+		if (curr_cpu >= start && curr_cpu <= end)
+			simulate_CORE_HALT_handler(NULL);
+		return;
+	}
+
+	if (kstrtoint(arg, 10, &cpu)) {
+		dev_err(exynos_debug_desc.dev, "%s() input is invalid\n", __func__);
+		return;
+	}
+
+	if (cpu < 0 || cpu >= exynos_debug_desc.nr_cpu) {
+		dev_err(exynos_debug_desc.dev, "%s() input is invalid\n", __func__);
+		return;
+	}
+	smp_call_function_single(cpu, simulate_CORE_HALT_handler, 0, 0);
+}
+
 static void simulate_SCANDUMP(char *arg)
 {
 	dev_crit(exynos_debug_desc.dev, "%s()\n", __func__);
@@ -909,6 +993,7 @@ static struct force_error_item force_error_vector[] = {
 	{"apmwdt",	&simulate_APM_WDT},
 	{"arraydump",	&simulate_ARRAYDUMP},
 	{"halt",	&simulate_HALT},
+	{"corehalt",	&simulate_CORE_HALT},
 	{"scandump",	&simulate_SCANDUMP},
 	{"dramfail",	&simulate_DRAMFAIL},
 	{"ecc",		&simulate_ECC},

@@ -679,7 +679,7 @@ static int cirrus_cal_cspl_start(void)
 	int amp;
 	struct reg_sequence *config;
 	struct regmap *regmap;
-	int ret;
+	int ret = 0;
 
 	for (amp = 0; amp < amp_group->num_amps; amp++) {
 		if (amp_group->amps[amp].calibration_disable)

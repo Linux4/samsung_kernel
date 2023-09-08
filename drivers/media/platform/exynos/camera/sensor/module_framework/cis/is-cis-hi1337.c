@@ -44,6 +44,8 @@
 #include "is-helper-ixc.h"
 #ifdef CONFIG_CAMERA_VENDER_MCD_V2
 #include "is-sec-define.h"
+#include "is-vender.h"
+#include "is-vender-specific.h"
 #endif
 
 #include "interface/is-interface-library.h"
@@ -63,6 +65,36 @@ static struct setfile_info *sensor_hi1337_setfile_fsync_info;
  *  Analog Gain Range = x1.0 to x16.0
  *
  *************************************************/
+
+int sensor_hi1337_cis_check_rev(struct is_cis *cis)
+{
+	int ret    = 0;
+	u16 data16 = 0;
+	struct i2c_client *client = NULL;
+
+	BUG_ON(!cis);
+	BUG_ON(!cis->cis_data);
+
+	client = cis->client;
+	if (unlikely(!client)) {
+		err("client is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	ret = cis->ixc_ops->read16(client, SENSOR_HI1337_MODEL_ID_ADDR, &data16);
+	if (ret < 0) {
+		err("is_sensor_read16 fail, (ret %d)", ret);
+		goto p_err;
+	}
+	dbg_sensor(1, "Model ID: %#x\n", data16);
+
+	//not used
+	//cis->cis_data->cis_rev = rev;
+
+p_err:
+	return ret;
+}
 
 u32 sensor_hi1337_cis_calc_again_code(u32 permile)
 {
@@ -103,6 +135,16 @@ int sensor_hi1337_cis_init(struct v4l2_subdev *subdev)
 	int ret = 0;
 	struct is_cis *cis = sensor_cis_get_cis(subdev);
 	ktime_t st = ktime_get();
+
+	probe_info("%s hi1337 init\n", __func__);
+	cis->rev_flag = false;
+
+	ret = sensor_hi1337_cis_check_rev(cis);
+	if (ret < 0) {
+		warn("sensor_hi1337_check_rev is fail when cis init");
+		cis->rev_flag = true;
+		ret = 0;
+	}
 
 	cis->cis_data->stream_on = false;
 	cis->cis_data->cur_width = cis->sensor_info->max_width;
@@ -269,6 +311,16 @@ int sensor_hi1337_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 		err("invalid mode(%d)!!", mode);
 		ret = -EINVAL;
 		goto p_err;
+	}
+
+	/* If check_rev(Model ID) of HI1337 fail when cis_init, one more check_rev in mode_change */
+	if (cis->rev_flag == true) {
+		cis->rev_flag = false;
+		ret = sensor_hi1337_cis_check_rev(cis);
+		if (ret < 0) {
+			err("sensor_hi1337_check_rev is fail");
+			goto p_err;
+		}
 	}
 
 	mode_info = cis->sensor_info->mode_infos[mode];
@@ -714,6 +766,91 @@ p_err:
 	return ret;
 }
 
+int sensor_hi1337_cis_compensate_gain_for_extremely_br(struct v4l2_subdev *subdev, u32 expo, u32 *again, u32 *dgain)
+{
+	int ret = 0;
+	struct is_cis *cis;
+	cis_shared_data *cis_data;
+	const struct sensor_cis_mode_info *mode_info;
+	u32 mode;
+	u64 pclk_khz = 0;
+	u32 llp = 0;
+	u32 min_fine_int = 0;
+	u16 cit = 0;
+	u32 again_input, again_comp = 0;
+	u32 dgain_input, dgain_comp = 0;
+	u64 expected_exp, real_cit_exp;
+
+	WARN_ON(!subdev);
+	WARN_ON(!again);
+	WARN_ON(!dgain);
+
+	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
+	if (!cis) {
+		err("cis is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	cis_data = cis->cis_data;
+
+	pclk_khz = cis_data->pclk / 1000;
+	llp = cis_data->line_length_pck;
+	min_fine_int = cis_data->min_fine_integration_time;
+
+	if (llp <= 0) {
+		err("[%s] invalid line_length_pck(%d)\n", __func__, llp);
+		goto p_err;
+	}
+
+	cit = ((expo * pclk_khz) / 1000 - min_fine_int) / llp;
+
+	/* keep backward compatibility for legacy driver */
+	if (cis->sensor_info) {
+		mode = cis_data->sens_config_index_cur;
+		mode_info = cis->sensor_info->mode_infos[mode];
+		cit = ALIGN_DOWN(cit, mode_info->align_cit);
+	}
+
+	if (cit < cis_data->min_coarse_integration_time) {
+		dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), long coarse(%d) min(%d)\n", cis->id, __func__,
+			cis_data->sen_vsync_count, cit, cis_data->min_coarse_integration_time);
+		cit = cis_data->min_coarse_integration_time;
+	}
+
+	if (cit <= 100) {
+		again_input = *again;
+		dgain_input = *dgain;
+
+		expected_exp = (expo * pclk_khz) / 1000 - min_fine_int;
+		real_cit_exp = llp * cit;
+
+		if (again_input >= cis_data->max_analog_gain[1]) {
+			again_comp = cis_data->max_analog_gain[1];
+			dgain_comp = dgain_input * expected_exp / real_cit_exp;
+		} else {
+			again_comp = again_input * expected_exp / real_cit_exp;
+			dgain_comp = dgain_input;
+
+			if (again_comp < cis_data->min_analog_gain[1]) {
+				again_comp = cis_data->min_analog_gain[1];
+			} else if (again_comp >= cis_data->max_analog_gain[1]) {
+				dgain_comp = dgain_input * again_comp / cis_data->max_analog_gain[1];
+				again_comp = cis_data->max_analog_gain[1];
+			}
+		}
+
+		*again = again_comp;
+		*dgain = dgain_comp;
+
+		dbg_sensor(1, "[%s] exp[%d] again[%d] dgain[%d] cit[%d] => compensated again[%d] dgain[%d]\n",
+			__func__, expo, again_input, dgain_input, cit, again_comp, dgain_comp);
+	}
+
+p_err:
+	return ret;
+}
+
 int sensor_hi1337_cis_set_totalgain(struct v4l2_subdev *subdev, struct ae_param *target_exposure,
 	struct ae_param *again, struct ae_param *dgain)
 {
@@ -724,6 +861,164 @@ int sensor_hi1337_cis_set_totalgain(struct v4l2_subdev *subdev, struct ae_param 
 
 	/* Set Analog & Digital gains */
 	ret |= sensor_hi1337_cis_set_analog_digital_gain(subdev, again, dgain);
+	return ret;
+}
+
+int sensor_hi1337_cis_get_otprom_data(struct v4l2_subdev *subdev, char *buf, bool camera_running, int rom_id) 
+{
+	int ret = 0;
+	u8 bank;
+	u16 read_addr;
+	u16 start_addr = 0;
+	struct is_cis *cis = sensor_cis_get_cis(subdev);
+
+	info("[%s] camera_running(%d)\n", __func__, camera_running);
+
+	/* 1. prepare to otp read : sensor initial settings */
+	if (camera_running == false)
+		ret = sensor_cis_set_registers_addr8(subdev, sensor_otp_hi1337_global, ARRAY_SIZE(sensor_otp_hi1337_global));
+
+	read_addr = 0x0308; /*OTP Bank data stored at 0x0308*/
+
+	ret = cis->ixc_ops->write8(cis->client, 0x0B00, 0x00); /* standby off */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0B00, 0x0000);
+		return ret;
+	}
+
+	usleep_range(10000, 10000); /* sleep 10msec */
+
+	ret = cis->ixc_ops->write8(cis->client, 0x0260, 0x10); /* OTP mode enable */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0260, 0x10);
+		return ret;
+	}
+
+	ret = cis->ixc_ops->write8(cis->client, 0x030F, 0x14); /* OTP status */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x030F, 0x14);
+		return ret;
+	}
+
+	ret = cis->ixc_ops->write8(cis->client, 0x0B00, 0x01); /* standby on */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0B00, 0x01);
+		return ret;
+	}
+	usleep_range(1000, 1000); /* sleep 1msec */
+
+	/* read otp bank */
+	ret = cis->ixc_ops->read8(cis->client, read_addr, &bank);
+	if (unlikely(ret)) {
+		err("failed to read OTP bank address (%d)\n", ret);
+		goto exit;
+	}
+
+	/* select start address */
+	switch (bank) {
+	case 0x01:
+		start_addr = HI1337_OTP_START_ADDR_BANK1;
+		break;
+	case 0x03:
+		start_addr = HI1337_OTP_START_ADDR_BANK2;
+		break;
+	case 0x07:
+		start_addr = HI1337_OTP_START_ADDR_BANK3;
+		break;
+	case 0x0F:
+		start_addr = HI1337_OTP_START_ADDR_BANK4;
+		break;
+	default:
+		start_addr = HI1337_OTP_START_ADDR_BANK1;
+		break;
+	}
+	info("%s: otp_bank = %d start_addr = %x\n", __func__, bank, start_addr);
+
+	/* OTP burst read */
+	ret = cis->ixc_ops->write8(cis->client, 0x030A, ((start_addr) >> 8) & 0xFF); /* upper 8bit */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x030A, ((start_addr) >> 8) & 0xFF);
+		return ret;
+	}
+	ret = cis->ixc_ops->write8(cis->client, 0x030B, start_addr & 0xFF); /* lower 8bit */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x030B, start_addr & 0xFF);
+		return ret;
+	}
+
+	ret = cis->ixc_ops->write8(cis->client, 0x031C, 0x00); /* OTP Signal */
+
+	ret = cis->ixc_ops->write8(cis->client, 0x031D, 0x00); /* OTP Signal */
+
+	ret = cis->ixc_ops->write8(cis->client, 0x0302, 0x01); /* read mode */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0302, 0x01);
+		return ret;
+	}
+	ret = cis->ixc_ops->write8(cis->client, 0x0712, 0x01); /* burst read register on */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0712, 0x01);
+		return ret;
+	}
+
+	info("Camera: I2C read cal data for rom_id:%d\n", rom_id);
+	ret = cis->ixc_ops->read8_size(cis->client, &buf[0], read_addr, IS_READ_MAX_HI1337_OTP_CAL_SIZE);
+	if (ret != IS_READ_MAX_HI1337_OTP_CAL_SIZE) {
+		err("failed to is_i2c_read (%d)\n", ret);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	ret = cis->ixc_ops->write8(cis->client, 0x0712, 0x00); /* burst read register off */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0712, 0x00);
+		return ret;
+	}
+
+
+exit:
+	/* streaming mode change */
+	ret = cis->ixc_ops->write8(cis->client, 0x0809, 0x00); /* stream off */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0809, 0x00);
+		return ret;
+	}
+	ret = cis->ixc_ops->write8(cis->client, 0x0b00, 0x00); /* stream off */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0b00, 0x00);
+		return ret;
+	}
+	usleep_range(10000, 10000); /* sleep 10msec */
+	ret = cis->ixc_ops->write8(cis->client, 0x0260, 0x00); /* OTP mode disable */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0260, 0x00);
+		return ret;
+	}
+	ret = cis->ixc_ops->write8(cis->client, 0x0809, 0x01); /* stream on */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0809, 0x01);
+		return ret;
+	}
+	ret = cis->ixc_ops->write8(cis->client, 0x0b00, 0x01); /* stream on */
+	if (ret < 0) {
+		err("is->ixc_ops->write8 fail, ret(%d), addr(%#x), data(%#x)\n",
+			ret, 0x0b00, 0x01);
+		return ret;
+	}
+	usleep_range(1000, 1000); /* sleep 1msec */
 	return ret;
 }
 
@@ -759,9 +1054,10 @@ static struct is_cis_ops cis_ops_hi1337 = {
 	.cis_calc_dgain_code = sensor_hi1337_cis_calc_dgain_code,
 	.cis_calc_dgain_permile = sensor_hi1337_cis_calc_dgain_permile,
 	.cis_set_totalgain = sensor_hi1337_cis_set_totalgain,
-	.cis_compensate_gain_for_extremely_br = sensor_cis_compensate_gain_for_extremely_br,
+	.cis_compensate_gain_for_extremely_br = sensor_hi1337_cis_compensate_gain_for_extremely_br,
 	.cis_data_calculation = sensor_cis_data_calculation,
 	.cis_check_rev_on_init = sensor_cis_check_rev_on_init,
+	.cis_get_otprom_data = sensor_hi1337_cis_get_otprom_data,
 };
 
 int cis_hi1337_probe(struct i2c_client *client,
@@ -783,11 +1079,9 @@ int cis_hi1337_probe(struct i2c_client *client,
 	cis->ctrl_delay = N_PLUS_TWO_FRAME;
 	cis->cis_ops = &cis_ops_hi1337;
 	/* belows are depend on sensor cis. MUST check sensor spec */
-#ifdef APPLY_MIRROR_VERTICAL_FLIP
+
 	cis->bayer_order = OTF_INPUT_ORDER_BAYER_GR_BG;
-#else
-	cis->bayer_order = OTF_INPUT_ORDER_BAYER_GB_RG;
-#endif
+
 	cis->use_total_gain = true;
 	cis->use_wb_gain = true;
 	cis->reg_addr = &sensor_hi1337_reg_addr;

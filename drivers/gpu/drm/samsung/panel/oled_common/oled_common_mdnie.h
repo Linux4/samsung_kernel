@@ -13,17 +13,17 @@
 
 #include "../maptbl.h"
 
-int getidx_mdnie_scenario_mode_maptbl(struct maptbl *tbl);
-#ifdef CONFIG_SUPPORT_HMD
-int getidx_mdnie_hmd_maptbl(struct maptbl *tbl);
+int oled_maptbl_getidx_mdnie_scenario_mode(struct maptbl *tbl);
+#ifdef CONFIG_USDM_PANEL_HMD
+int oled_maptbl_getidx_mdnie_hmd(struct maptbl *tbl);
 #endif
-int getidx_mdnie_hdr_maptbl(struct maptbl *tbl);
-int getidx_mdnie_trans_mode_maptbl(struct maptbl *tbl);
-int getidx_mdnie_night_mode_maptbl(struct maptbl *tbl);
-int getidx_color_lens_maptbl(struct maptbl *tbl);
-void copy_scr_white_maptbl(struct maptbl *tbl, u8 *dst);
-void copy_scr_cr_maptbl(struct maptbl *tbl, u8 *dst);
-#ifdef CONFIG_SUPPORT_AFC
-void copy_afc_maptbl(struct maptbl *tbl, u8 *dst);
+int oled_maptbl_getidx_mdnie_hdr(struct maptbl *tbl);
+int oled_maptbl_getidx_mdnie_trans_mode(struct maptbl *tbl);
+int oled_maptbl_getidx_mdnie_night_mode(struct maptbl *tbl);
+int oled_maptbl_getidx_color_lens(struct maptbl *tbl);
+void oled_maptbl_copy_scr_white(struct maptbl *tbl, u8 *dst);
+void oled_maptbl_copy_scr_cr(struct maptbl *tbl, u8 *dst);
+#ifdef CONFIG_USDM_MDNIE_AFC
+void oled_maptbl_copy_afc(struct maptbl *tbl, u8 *dst);
 #endif
 #endif /* __OLED_COMMON_MDNIE_H__ */

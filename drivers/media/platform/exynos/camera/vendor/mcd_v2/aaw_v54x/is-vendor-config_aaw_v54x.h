@@ -31,6 +31,8 @@
 
 #define READ_DUAL_CAL_FIRMWARE_DATA
 
+#define USE_CAMERA_HW_BIG_DATA
+
 #ifdef USE_KERNEL_VFS_READ_WRITE
 #define DUAL_CAL_DATA_PATH "/vendor/firmware/SetMultiCalInfo.bin"
 #else

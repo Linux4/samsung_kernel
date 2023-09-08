@@ -97,7 +97,7 @@ struct decon_device {
 	atomic_t pll_sleep_masked;
 #endif
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-#if defined(CONFIG_DISPLAY_USE_INFO)
+#if defined(CONFIG_USDM_PANEL_DPUI)
 	struct notifier_block dpui_notif;
 #endif
 #endif
@@ -191,7 +191,7 @@ static inline bool IS_DECON_HIBER_STATE(struct exynos_drm_crtc *exynos_crtc)
 }
 
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-#if defined(CONFIG_DISPLAY_USE_INFO)
+#if defined(CONFIG_USDM_PANEL_DPUI)
 void log_decon_bigdata(struct decon_device *decon);
 #endif
 #endif

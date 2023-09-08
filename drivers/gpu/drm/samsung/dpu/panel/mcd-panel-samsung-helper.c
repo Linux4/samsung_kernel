@@ -234,7 +234,7 @@ int exynos_display_mode_from_panel_display_mode(struct panel_display_mode *pdm, 
 	edm->dsc.slice_height = pdm->dsc_slice_h;
 	edm->mode_flags = MIPI_DSI_CLOCK_NON_CONTINUOUS | (pdm->panel_video_mode ? MIPI_DSI_MODE_VIDEO : 0);
 	edm->bpc = 8;
-#ifdef CONFIG_MCD_PANEL_LPM
+#ifdef CONFIG_USDM_PANEL_LPM
 	edm->is_lp_mode = (pdm->panel_refresh_rate <= 30);
 #else
 	edm->is_lp_mode = false;

@@ -1244,6 +1244,8 @@ static void muic_afc_retry_work(struct work_struct *work)
 	struct i2c_client *i2c = muic_data->i2c;
 	int ret = 0, vbvolt = 0;
 
+	mutex_lock(&muic_data->afc_mutex);
+
 	ret = sm5714_i2c_read_byte(i2c, SM5714_MUIC_REG_AFCSTATUS);
 	pr_info("[%s:%s]: Read REG_AFCSTATUS = [0x%02x]\n",
 			MUIC_DEV_NAME, __func__, ret);
@@ -1260,8 +1262,17 @@ static void muic_afc_retry_work(struct work_struct *work)
 			muic_notifier_detach_attached_dev(
 					muic_data->attached_dev);
 			muic_data->attached_dev = ATTACHED_DEV_NONE_MUIC;
-			return;
+			goto EOR;
 		}
+
+		if (muic_data->afc_dp_reset_count >= SM5714_AFC_DP_RESET_LIMIT){
+			muic_data->attached_dev = ATTACHED_DEV_TA_MUIC;
+			muic_notifier_attach_attached_dev(muic_data->attached_dev);
+			pr_info("[%s:%s] DP RESET skip\n",
+				MUIC_DEV_NAME, __func__);
+			goto EOR;
+		}
+		muic_data->afc_dp_reset_count++;
 
 		pr_info("[%s:%s] [MUIC] device type is afc prepare, DP_RESET\n",
 				MUIC_DEV_NAME, __func__);
@@ -1269,6 +1280,8 @@ static void muic_afc_retry_work(struct work_struct *work)
 		/* DP_RESET '1' */
 		sm5714_set_afc_ctrl_reg(muic_data, AFCCTRL_DP_RESET, 1);
 	}
+EOR:
+	mutex_unlock(&muic_data->afc_mutex);
 }
 
 #if IS_ENABLED(CONFIG_MUIC_SUPPORT_PDIC)

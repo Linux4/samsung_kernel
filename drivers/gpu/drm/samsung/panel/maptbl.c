@@ -375,7 +375,7 @@ int maptbl_init(struct maptbl *tbl)
 		return -EINVAL;
 	}
 
-	ret = tbl->ops.init(tbl);
+	ret = call_maptbl_init(tbl);
 	if (ret < 0) {
 		panel_err("%s:failed to init(ret:%d)\n",
 				maptbl_get_name(tbl), ret);
@@ -406,7 +406,7 @@ int maptbl_getidx(struct maptbl *tbl)
 		return -EINVAL;
 	}
 
-	index = tbl->ops.getidx(tbl);
+	index = call_maptbl_getidx(tbl);
 	if (index < 0) {
 		panel_err("%s:failed to getidx(ret:%d)\n", maptbl_get_name(tbl), index);
 		return -EINVAL;
@@ -437,7 +437,7 @@ int maptbl_copy(struct maptbl *tbl, u8 *dst)
 		return -EINVAL;
 	}
 
-	tbl->ops.copy(tbl, dst);
+	call_maptbl_copy(tbl, dst);
 
 	return 0;
 }

@@ -212,6 +212,7 @@ struct bts_stat {
 	unsigned int		rmo;
 	unsigned int		wmo;
 	unsigned int		qurgent_on;
+	unsigned int		qurgent_ex;
 	unsigned int		qurgent_th_r;
 	unsigned int		qurgent_th_w;
 	bool			blocking_on;

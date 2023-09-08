@@ -68,7 +68,7 @@ enum dpui_key {
 	DPUI_KEY_PNVLI1E,	/* panel VLIN1 error count */
 	DPUI_KEY_PNVLO3E,	/* panel VLOUT3 error count */
 	DPUI_KEY_PNSDRE,	/* panel OTP loading error count */
-#ifdef CONFIG_SUPPORT_POC_FLASH
+#ifdef CONFIG_USDM_PANEL_POC_FLASH
 	DPUI_KEY_PNPOCT,	/* panel POC try count */
 	DPUI_KEY_PNPOCF,	/* panel POC fail count */
 	DPUI_KEY_PNPOCI,	/* panel POC image index */
@@ -80,7 +80,7 @@ enum dpui_key {
 	DPUI_KEY_PNPOC_RD_TRY,	/* panel POC read try count */
 	DPUI_KEY_PNPOC_RD_FAIL,	/* panel POC read fail count */
 #endif
-#ifdef CONFIG_SUPPORT_DIM_FLASH
+#ifdef CONFIG_USDM_PANEL_DIM_FLASH
 	DPUI_KEY_PNGFLS,	/* panel gamma flash loading result */
 #endif
 	DPUI_KEY_UB_CON,		/* panel ub_con(con_det) pin interrupt count */
@@ -121,7 +121,7 @@ struct dpui_info {
 	struct dpui_field field[MAX_DPUI_KEY];
 };
 
-#ifdef CONFIG_DISPLAY_USE_INFO
+#ifdef CONFIG_USDM_PANEL_DPUI
 int dpui_logging_register(struct notifier_block *n, enum dpui_type type);
 int dpui_logging_unregister(struct notifier_block *n);
 void update_dpui_log(enum dpui_log_level level, enum dpui_type type);
@@ -141,5 +141,5 @@ static inline int set_dpui_field(enum dpui_key key, char *buf, int size) { retur
 static inline int set_dpui_u32_field(enum dpui_key key, u32 value) { return 0; }
 static inline int get_dpui_u32_field(enum dpui_key key, u32 *value) { return 0; }
 static inline int inc_dpui_u32_field(enum dpui_key key, u32 value) { return 0; }
-#endif /* CONFIG_DISPLAY_USE_INFO */
+#endif /* CONFIG_USDM_PANEL_DPUI */
 #endif /* __DPUI_H__ */

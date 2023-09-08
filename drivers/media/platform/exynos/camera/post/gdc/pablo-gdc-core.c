@@ -47,7 +47,7 @@
 #define V4L2_BUFFER_OUT_FLAGS	(V4L2_BUF_FLAG_PFRAME | V4L2_BUF_FLAG_BFRAME | \
 				 V4L2_BUF_FLAG_KEYFRAME | V4L2_BUF_FLAG_TIMECODE)
 
-static int gdc_log_level;
+static int gdc_log_level = 1;
 module_param_named(gdc_log_level, gdc_log_level, uint, S_IRUGO | S_IWUSR);
 
 static ulong debug_gdc;
@@ -1237,9 +1237,6 @@ static int queue_init(void *priv, struct vb2_queue *src_vq,
 
 static int gdc_alloc_pmio_mem(struct gdc_dev *gdc)
 {
-	if (atomic_read(&gdc->m2m.in_use))
-		return 0;
-
 	gdc->pb_c_loader_payload = CALL_PTR_MEMOP(&gdc->mem, alloc,
 						gdc->mem.priv, 0x8000,
 						NULL, 0);
@@ -1269,8 +1266,10 @@ static int gdc_alloc_pmio_mem(struct gdc_dev *gdc)
 	gdc->dva_c_loader_header = CALL_BUFOP(gdc->pb_c_loader_header,
 					dvaddr, gdc->pb_c_loader_header);
 
-	gdc_info("payload_dva(0x%lx) header_dva(0x%lx)\n",
+	gdc_info("payload_dva(0x%llx) header_dva(0x%llx)\n",
 		gdc->dva_c_loader_payload, gdc->dva_c_loader_header);
+	gdc_info("payload_kva(0x%llx) header_kva(0x%llx)\n",
+		gdc->kva_c_loader_payload, gdc->kva_c_loader_header);
 
 	return 0;
 }
@@ -1296,14 +1295,22 @@ static int gdc_open(struct file *file)
 		return -ENOMEM;
 	}
 
-	if (gdc->pmio_en) {
+	mutex_lock(&gdc->m2m.lock);
+
+	gdc_info("gdc open refcnt = %d\n", atomic_read(&gdc->m2m.in_use));
+
+	if (!atomic_read(&gdc->m2m.in_use) && gdc->pmio_en) {
 		ret = gdc_alloc_pmio_mem(gdc);
 		if (ret) {
 			dev_err(gdc->dev, "PMIO mem alloc failed\n");
+			mutex_unlock(&gdc->m2m.lock);
 			goto err_alloc_pmio_mem;
 		}
 	}
+
 	atomic_inc(&gdc->m2m.in_use);
+
+	mutex_unlock(&gdc->m2m.lock);
 
 	INIT_LIST_HEAD(&ctx->node);
 	ctx->gdc_dev = gdc;
@@ -1341,7 +1348,7 @@ static int gdc_open(struct file *file)
 		goto err_ctx;
 	}
 
-	gdc_dbg("gdc open = %d\n", ret);
+	gdc_info("X\n");
 	return 0;
 
 err_ctx:
@@ -1395,11 +1402,11 @@ static int gdc_release(struct file *file)
 	struct gdc_ctx *ctx = fh_to_gdc_ctx(file->private_data);
 	struct gdc_dev *gdc = ctx->gdc_dev;
 
-	gdc_dbg("refcnt= %d", atomic_read(&gdc->m2m.in_use));
+	mutex_lock(&gdc->m2m.lock);
+
+	gdc_info("gdc close refcnt = %d\n", atomic_read(&gdc->m2m.in_use));
 
 	atomic_dec(&gdc->m2m.in_use);
-
-	gdc_dbg("gdc close\n");
 
 	if (!atomic_read(&gdc->m2m.in_use) && test_bit(DEV_RUN, &gdc->state)) {
 		dev_err(gdc->dev, "%s, gdc is still running\n", __func__);
@@ -1409,6 +1416,8 @@ static int gdc_release(struct file *file)
 	if (!atomic_read(&gdc->m2m.in_use) && gdc->pmio_en)
 		gdc_free_pmio_mem(gdc);
 
+	mutex_unlock(&gdc->m2m.lock);
+
 	v4l2_m2m_ctx_release(ctx->m2m_ctx);
 	if (!IS_ERR(gdc->aclk))
 		clk_unprepare(gdc->aclk);
@@ -1417,6 +1426,8 @@ static int gdc_release(struct file *file)
 	v4l2_fh_del(&ctx->fh);
 	v4l2_fh_exit(&ctx->fh);
 	vfree(ctx);
+
+	gdc_info("X\n");
 
 	return 0;
 }
@@ -1577,6 +1588,9 @@ static void gdc_pmio_config(struct gdc_dev *gdc, struct c_loader_buffer* clb)
 
 		if (clb->num_of_pairs > 0)
 			clb->num_of_headers++;
+
+		pr_info("number of headers: %d\n", clb->num_of_headers);
+		pr_info("number of pairs: %d\n", clb->num_of_pairs);
 
 		if (unlikely(test_bit(GDC_DBG_DUMP_PMIO_CACHE, &debug_gdc))) {
 			pr_info("payload_dva(%pad) header_dva(%pad)\n",
@@ -2570,6 +2584,8 @@ static int gdc_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "%s: gdc pmio initialization failed", __func__);
 		goto err_pmio_init;
 	}
+
+	mutex_init(&gdc->m2m.lock);
 
 	gdc->variant = camerapp_hw_gdc_get_size_constraints(gdc->pmio);
 	gdc->version = gdc->variant->version;

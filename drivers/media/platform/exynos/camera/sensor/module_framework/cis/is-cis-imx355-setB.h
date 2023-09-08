@@ -17,7 +17,7 @@
 #include "is-cis.h"
 #include "is-cis-imx355.h"
 
-const u32 sensor_imx355_setfile_B_Global[] = {
+const u16 sensor_imx355_setfile_B_Global[] = {
 	0x0136, 0x1A, 0x01,
 	0x0137, 0x00, 0x01,
 	0x4348, 0x16, 0x01,
@@ -58,7 +58,7 @@ const u32 sensor_imx355_setfile_B_Global[] = {
 };
 
 /* 4:3, 16x10 margin */
-const u32 sensor_imx355_setfile_B_3264x2448_30fps_702mbps[] = {
+const u16 sensor_imx355_setfile_B_3264x2448_30fps_702mbps[] = {
 	0x0112, 0x0A, 0x01,
 	0x0113, 0x0A, 0x01,
 	0x0114, 0x03, 0x01,
@@ -114,7 +114,7 @@ const u32 sensor_imx355_setfile_B_3264x2448_30fps_702mbps[] = {
 	0x0B06, 0x00, 0x01,
 };
 
-const u32 sensor_imx355_setfile_B_3264x2448_30fps_715mbps[] = {
+const u16 sensor_imx355_setfile_B_3264x2448_30fps_715mbps[] = {
 	0x0112, 0x0A, 0x01,
 	0x0113, 0x0A, 0x01,
 	0x0114, 0x03, 0x01,
@@ -170,7 +170,7 @@ const u32 sensor_imx355_setfile_B_3264x2448_30fps_715mbps[] = {
 	0x0B06, 0x00, 0x01,
 };
 
-const u32 sensor_imx355_setfile_B_3264x1836_30fps_702mbps[] = {
+const u16 sensor_imx355_setfile_B_3264x1836_30fps_702mbps[] = {
 	0x0112, 0x0A, 0x01,
 	0x0113, 0x0A, 0x01,
 	0x0114, 0x03, 0x01,
@@ -226,7 +226,7 @@ const u32 sensor_imx355_setfile_B_3264x1836_30fps_702mbps[] = {
 	0x0B06, 0x00, 0x01,
 };
 
-const u32 sensor_imx355_setfile_B_3264x1836_30fps_689mbps[] = {
+const u16 sensor_imx355_setfile_B_3264x1836_30fps_689mbps[] = {
 	0x0112, 0x0A, 0x01,
 	0x0113, 0x0A, 0x01,
 	0x0114, 0x03, 0x01,
@@ -282,7 +282,7 @@ const u32 sensor_imx355_setfile_B_3264x1836_30fps_689mbps[] = {
 	0x0B06, 0x00, 0x01,
 };
 
-const u32 sensor_imx355_setfile_B_2880x1980_30fps_702mbps[] = {
+const u16 sensor_imx355_setfile_B_2880x1980_30fps_702mbps[] = {
 	0x0112, 0x0A, 0x01,
 	0x0113, 0x0A, 0x01,
 	0x0114, 0x03, 0x01,
@@ -338,7 +338,7 @@ const u32 sensor_imx355_setfile_B_2880x1980_30fps_702mbps[] = {
 	0x0B06, 0x00, 0x01,
 };
 
-const u32 sensor_imx355_setfile_B_2640x1980_30fps_702mbps[] = {
+const u16 sensor_imx355_setfile_B_2640x1980_30fps_702mbps[] = {
 	0x0112, 0x0A, 0x01,
 	0x0113, 0x0A, 0x01,
 	0x0114, 0x03, 0x01,
@@ -394,7 +394,7 @@ const u32 sensor_imx355_setfile_B_2640x1980_30fps_702mbps[] = {
 	0x0B06, 0x00, 0x01,
 };
 
-const u32 sensor_imx355_setfile_B_1632x1224_30fps_702mbps[] = {
+const u16 sensor_imx355_setfile_B_1632x1224_30fps_702mbps[] = {
 	0x0112, 0x0A, 0x01,
 	0x0113, 0x0A, 0x01,
 	0x0114, 0x03, 0x01,
@@ -450,7 +450,7 @@ const u32 sensor_imx355_setfile_B_1632x1224_30fps_702mbps[] = {
 	0x0B06, 0x00, 0x01,
 };
 
-const u32 sensor_imx355_setfile_B_1632x916_30fps_702mbps[] = {
+const u16 sensor_imx355_setfile_B_1632x916_30fps_702mbps[] = {
 	0x0112, 0x0A, 0x01,
 	0x0113, 0x0A, 0x01,
 	0x0114, 0x03, 0x01,
@@ -506,7 +506,7 @@ const u32 sensor_imx355_setfile_B_1632x916_30fps_702mbps[] = {
 	0x0B06, 0x00, 0x01,
 };
 
-const u32 sensor_imx355_setfile_B_800x600_115fps[] = {
+const u16 sensor_imx355_setfile_B_800x600_115fps[] = {
 	0x0112, 0x0A, 0x01,
 	0x0113, 0x0A, 0x01,
 	0x0114, 0x03, 0x01,
@@ -562,7 +562,7 @@ const u32 sensor_imx355_setfile_B_800x600_115fps[] = {
 	0x0B06, 0x00, 0x01,
 };
 
-const u32 sensor_imx355_setfile_B_736x552_120fps[] = {
+const u16 sensor_imx355_setfile_B_736x552_120fps[] = {
 	0x0112, 0x0A, 0x01,
 	0x0113, 0x0A, 0x01,
 	0x0114, 0x03, 0x01,
@@ -618,123 +618,185 @@ const u32 sensor_imx355_setfile_B_736x552_120fps[] = {
 	0x0B06, 0x00, 0x01,
 };
 
-const struct sensor_pll_info_compact sensor_imx355_pllinfo_B_3264x2448_30fps_702mbps = {
-	EXT_CLK_Mhz * 1000 * 1000,	/* ext_clk */
-	702000000ULL,			/* mipi_datarate = OPSYCK */
-	140400000ULL,			/* pclk = VTPXCK*/
-	2548,				/* frame_length_lines */
-	3672,				/* line_length_pck */
+const struct sensor_cis_mode_info sensor_imx355_mode_info_B_3264x2448_30fps_702mbps = {
+	.setfile_index = SENSOR_IMX355_3264X2448_30FPS_702MBPS,
+	.setfile = SENSOR_REGS(sensor_imx355_setfile_B_3264x2448_30fps_702mbps),
+
+	.pclk = 280800000,		/* pclk = VTPXCK of Clock Information */
+	.frame_length_lines = 2548,	/* frame_length_lines */
+	.line_length_pck = 3672,	/* line_length_pck */
+
+	.max_analog_gain = 0x3C0,	/* x16.0 */
+	.max_digital_gain = 0x0FFF,	/* x15.99 */
+	.min_cit = 1,
+	.max_cit_margin = 0xA,
+	.align_cit = 1,
 };
 
-const struct sensor_pll_info_compact sensor_imx355_pllinfo_B_3264x2448_30fps_715mbps = {
-	EXT_CLK_Mhz * 1000 * 1000,	/* ext_clk */
-	715000000ULL,			/* mipi_datarate = OPSYCK */
-	143000000ULL,			/* pclk = VTPXCK*/
-	2594,				/* frame_length_lines */
-	3672,				/* line_length_pck */
+const struct sensor_cis_mode_info sensor_imx355_mode_info_B_3264x2448_30fps_715mbps = {
+	.setfile_index = SENSOR_IMX355_3264X2448_30FPS_715MBPS,
+	.setfile = SENSOR_REGS(sensor_imx355_setfile_B_3264x2448_30fps_715mbps),
+
+	.pclk = 286000000,		/* pclk = VTPXCK of Clock Information */
+	.frame_length_lines = 2594,	/* frame_length_lines */
+	.line_length_pck = 3672,	/* line_length_pck */
+
+	.max_analog_gain = 0x3C0,	/* x16.0 */
+	.max_digital_gain = 0x0FFF,	/* x15.99 */
+	.min_cit = 1,
+	.max_cit_margin = 0xA,
+	.align_cit = 1,
 };
 
-const struct sensor_pll_info_compact sensor_imx355_pllinfo_B_3264x1836_30fps_702mbps = {
-	EXT_CLK_Mhz * 1000 * 1000,	/* ext_clk */
-	702000000ULL,			/* mipi_datarate = OPSYCK */
-	140400000ULL,			/* pclk = VTPXCK*/
-	2548,				/* frame_length_lines */
-	3672,				/* line_length_pck */
+const struct sensor_cis_mode_info sensor_imx355_mode_info_B_3264x1836_30fps_702mbps = {
+	.setfile_index = SENSOR_IMX355_3264X1836_30FPS_702MBPS,
+	.setfile = SENSOR_REGS(sensor_imx355_setfile_B_3264x1836_30fps_702mbps),
+
+	.pclk = 280800000,		/* pclk = VTPXCK of Clock Information */
+	.frame_length_lines = 2548,	/* frame_length_lines */
+	.line_length_pck = 3672,	/* line_length_pck */
+
+	.max_analog_gain = 0x3C0,	/* x16.0 */
+	.max_digital_gain = 0x0FFF,	/* x15.99 */
+	.min_cit = 1,
+	.max_cit_margin = 0xA,
+	.align_cit = 1,
 };
 
-const struct sensor_pll_info_compact sensor_imx355_pllinfo_B_3264x1836_30fps_689mbps = {
-	EXT_CLK_Mhz * 1000 * 1000,	/* ext_clk */
-	689000000ULL,			/* mipi_datarate = OPSYCK */
-	137800000ULL,			/* pclk = VTPXCK*/
-	2500,				/* frame_length_lines */
-	3672,				/* line_length_pck */
+const struct sensor_cis_mode_info sensor_imx355_mode_info_B_3264x1836_30fps_689mbps = {
+	.setfile_index = SENSOR_IMX355_3264X1836_30FPS_689MBPS,
+	.setfile = SENSOR_REGS(sensor_imx355_setfile_B_3264x1836_30fps_689mbps),
+
+	.pclk = 275600000,		/* pclk = VTPXCK of Clock Information */
+	.frame_length_lines = 2500,	/* frame_length_lines */
+	.line_length_pck = 3672,	/* line_length_pck */
+
+	.max_analog_gain = 0x3C0,	/* x16.0 */
+	.max_digital_gain = 0x0FFF,	/* x15.99 */
+	.min_cit = 1,
+	.max_cit_margin = 0xA,
+	.align_cit = 1,
 };
 
-const struct sensor_pll_info_compact sensor_imx355_pllinfo_B_2880x1980_30fps_702mbps = {
-	EXT_CLK_Mhz * 1000 * 1000,	/* ext_clk */
-	702000000ULL,			/* mipi_datarate = OPSYCK */
-	140400000ULL,			/* pclk = VTPXCK*/
-	2548,				/* frame_length_lines */
-	3672,				/* line_length_pck */
+const struct sensor_cis_mode_info sensor_imx355_mode_info_B_2880x1980_30fps_702mbps = {
+	.setfile_index = SENSOR_IMX355_2880X1980_30FPS_702MBPS,
+	.setfile = SENSOR_REGS(sensor_imx355_setfile_B_2880x1980_30fps_702mbps),
+
+	.pclk = 280800000,		/* pclk = VTPXCK of Clock Information */
+	.frame_length_lines = 2548,	/* frame_length_lines */
+	.line_length_pck = 3672,	/* line_length_pck */
+
+	.max_analog_gain = 0x3C0,	/* x16.0 */
+	.max_digital_gain = 0x0FFF,	/* x15.99 */
+	.min_cit = 1,
+	.max_cit_margin = 0xA,
+	.align_cit = 1,
 };
 
-const struct sensor_pll_info_compact sensor_imx355_pllinfo_B_2640x1980_30fps_702mbps = {
-	EXT_CLK_Mhz * 1000 * 1000,	/* ext_clk */
-	702000000ULL,			/* mipi_datarate = OPSYCK */
-	140400000ULL,			/* pclk = VTPXCK*/
-	2548,				/* frame_length_lines */
-	3672,				/* line_length_pck */
+const struct sensor_cis_mode_info sensor_imx355_mode_info_B_2640x1980_30fps_702mbps = {
+	.setfile_index = SENSOR_IMX355_2640X1980_30FPS_702MBPS,
+	.setfile = SENSOR_REGS(sensor_imx355_setfile_B_2640x1980_30fps_702mbps),
+
+	.pclk = 280800000,		/* pclk = VTPXCK of Clock Information */
+	.frame_length_lines = 2548,	/* frame_length_lines */
+	.line_length_pck = 3672,	/* line_length_pck */
+
+	.max_analog_gain = 0x3C0,	/* x16.0 */
+	.max_digital_gain = 0x0FFF,	/* x15.99 */
+	.min_cit = 1,
+	.max_cit_margin = 0xA,
+	.align_cit = 1,
 };
 
-const struct sensor_pll_info_compact sensor_imx355_pllinfo_B_1632x1224_30fps_702mbps = {
-	EXT_CLK_Mhz * 1000 * 1000,	/* ext_clk */
-	702000000ULL,			/* mipi_datarate = OPSYCK */
-	140400000ULL,			/* pclk = VTPXCK*/
-	5096,				/* frame_length_lines */
-	1836,				/* line_length_pck */
+const struct sensor_cis_mode_info sensor_imx355_mode_info_B_1632x1224_30fps_702mbps = {
+	.setfile_index = SENSOR_IMX355_1632X1224_30FPS_702MBPS,
+	.setfile = SENSOR_REGS(sensor_imx355_setfile_B_1632x1224_30fps_702mbps),
+
+	.pclk = 280800000,		/* pclk = VTPXCK of Clock Information */
+	.frame_length_lines = 5096,	/* frame_length_lines */
+	.line_length_pck = 1836,	/* line_length_pck */
+
+	.max_analog_gain = 0x3C0,	/* x16.0 */
+	.max_digital_gain = 0x0FFF,	/* x15.99 */
+	.min_cit = 1,
+	.max_cit_margin = 0xA,
+	.align_cit = 1,
 };
 
-const struct sensor_pll_info_compact sensor_imx355_pllinfo_B_1632x916_30fps_702mbps = {
-	EXT_CLK_Mhz * 1000 * 1000,	/* ext_clk */
-	702000000ULL,			/* mipi_datarate = OPSYCK */
-	140400000ULL,			/* pclk = VTPXCK*/
-	5096,				/* frame_length_lines */
-	1836,				/* line_length_pck */
+const struct sensor_cis_mode_info sensor_imx355_mode_info_B_1632x916_30fps_702mbps = {
+	.setfile_index = SENSOR_IMX355_1632X916_30FPS_702MBPS,
+	.setfile = SENSOR_REGS(sensor_imx355_setfile_B_1632x916_30fps_702mbps),
+
+	.pclk = 280800000,		/* pclk = VTPXCK of Clock Information */
+	.frame_length_lines = 5096,	/* frame_length_lines */
+	.line_length_pck = 1836,	/* line_length_pck */
+
+	.max_analog_gain = 0x3C0,	/* x16.0 */
+	.max_digital_gain = 0x0FFF,	/* x15.99 */
+	.min_cit = 1,
+	.max_cit_margin = 0xA,
+	.align_cit = 1,
 };
 
-const struct sensor_pll_info_compact sensor_imx355_pllinfo_B_800x600_115fps = {
-	EXT_CLK_Mhz * 1000 * 1000,	/* ext_clk */
-	720000000ULL,			/* mipi_datarate = OPSYCK */
-	143870000ULL,			/* pclk = VTPXCK*/
-	680,				/* frame_length_lines */
-	3672,				/* line_length_pck */
+const struct sensor_cis_mode_info sensor_imx355_mode_info_B_800x600_115fps = {
+	.setfile_index = SENSOR_IMX355_800X600_115FPS,
+	.setfile = SENSOR_REGS(sensor_imx355_setfile_B_800x600_115fps),
+
+	.pclk = 287740000,		/* pclk = VTPXCK of Clock Information */
+	.frame_length_lines = 680,	/* frame_length_lines */
+	.line_length_pck = 3672,	/* line_length_pck */
+
+	.max_analog_gain = 0x3C0,	/* x16.0 */
+	.max_digital_gain = 0x0FFF,	/* x15.99 */
+	.min_cit = 1,
+	.max_cit_margin = 0xA,
+	.align_cit = 1,
 };
 
-const struct sensor_pll_info_compact sensor_imx355_pllinfo_B_736x552_120fps = {
-	EXT_CLK_Mhz * 1000 * 1000,	/* ext_clk */
-	702000000ULL,			/* mipi_datarate = OPSYCK */
-	140400000ULL,			/* pclk = VTPXCK*/
-	636,				/* frame_length_lines */
-	3672,				/* line_length_pck */
+const struct sensor_cis_mode_info sensor_imx355_mode_info_B_736x552_120fps = {
+	.setfile_index = SENSOR_IMX355_736X552_120FPS,
+	.setfile = SENSOR_REGS(sensor_imx355_setfile_B_736x552_120fps),
+
+	.pclk = 280800000,		/* pclk = VTPXCK of Clock Information */
+	.frame_length_lines = 636,	/* frame_length_lines */
+	.line_length_pck = 3672,	/* line_length_pck */
+
+	.max_analog_gain = 0x3C0,	/* x16.0 */
+	.max_digital_gain = 0x0FFF,	/* x15.99 */
+	.min_cit = 1,
+	.max_cit_margin = 0xA,
+	.align_cit = 1,
 };
 
-static const u32 *sensor_imx355_setfiles_B[] = {
-	sensor_imx355_setfile_B_3264x2448_30fps_702mbps,
-	sensor_imx355_setfile_B_3264x2448_30fps_715mbps,
-	sensor_imx355_setfile_B_3264x1836_30fps_702mbps,
-	sensor_imx355_setfile_B_3264x1836_30fps_689mbps,
-	sensor_imx355_setfile_B_800x600_115fps,
-	sensor_imx355_setfile_B_2880x1980_30fps_702mbps,
-	sensor_imx355_setfile_B_2640x1980_30fps_702mbps,
-	sensor_imx355_setfile_B_1632x1224_30fps_702mbps,
-	sensor_imx355_setfile_B_1632x916_30fps_702mbps,
-	sensor_imx355_setfile_B_736x552_120fps,
+static const struct sensor_cis_mode_info *sensor_imx355_mode_infos_B[] = {
+	&sensor_imx355_mode_info_B_3264x2448_30fps_702mbps,
+	&sensor_imx355_mode_info_B_3264x2448_30fps_715mbps,
+	&sensor_imx355_mode_info_B_3264x1836_30fps_702mbps,
+	&sensor_imx355_mode_info_B_3264x1836_30fps_689mbps,
+	&sensor_imx355_mode_info_B_800x600_115fps,
+	&sensor_imx355_mode_info_B_2880x1980_30fps_702mbps,
+	&sensor_imx355_mode_info_B_2640x1980_30fps_702mbps,
+	&sensor_imx355_mode_info_B_1632x1224_30fps_702mbps,
+	&sensor_imx355_mode_info_B_1632x916_30fps_702mbps,
+	&sensor_imx355_mode_info_B_736x552_120fps,
 };
 
-static const u32 sensor_imx355_setfile_B_sizes[] = {
-	ARRAY_SIZE(sensor_imx355_setfile_B_3264x2448_30fps_702mbps),
-	ARRAY_SIZE(sensor_imx355_setfile_B_3264x2448_30fps_715mbps),
-	ARRAY_SIZE(sensor_imx355_setfile_B_3264x1836_30fps_702mbps),
-	ARRAY_SIZE(sensor_imx355_setfile_B_3264x1836_30fps_689mbps),
-	ARRAY_SIZE(sensor_imx355_setfile_B_800x600_115fps),
-	ARRAY_SIZE(sensor_imx355_setfile_B_2880x1980_30fps_702mbps),
-	ARRAY_SIZE(sensor_imx355_setfile_B_2640x1980_30fps_702mbps),
-	ARRAY_SIZE(sensor_imx355_setfile_B_1632x1224_30fps_702mbps),
-	ARRAY_SIZE(sensor_imx355_setfile_B_1632x916_30fps_702mbps),
-	ARRAY_SIZE(sensor_imx355_setfile_B_736x552_120fps),
+static const struct sensor_imx355_private_data sensor_imx355_private_data_B = {
+	.global = SENSOR_REGS(sensor_imx355_setfile_B_Global),
 };
 
-static const struct sensor_pll_info_compact *sensor_imx355_pllinfos_B[] = {
-	&sensor_imx355_pllinfo_B_3264x2448_30fps_702mbps,
-	&sensor_imx355_pllinfo_B_3264x2448_30fps_715mbps,
-	&sensor_imx355_pllinfo_B_3264x1836_30fps_702mbps,
-	&sensor_imx355_pllinfo_B_3264x1836_30fps_689mbps,
-	&sensor_imx355_pllinfo_B_800x600_115fps,
-	&sensor_imx355_pllinfo_B_2880x1980_30fps_702mbps,
-	&sensor_imx355_pllinfo_B_2640x1980_30fps_702mbps,
-	&sensor_imx355_pllinfo_B_1632x1224_30fps_702mbps,
-	&sensor_imx355_pllinfo_B_1632x916_30fps_702mbps,
-	&sensor_imx355_pllinfo_B_736x552_120fps,
+static const struct sensor_cis_info sensor_imx355_info_B = {
+	.name = "IMX355",
+	.version = "v4.00-3.01_211217",
+	.max_width = 3264,
+	.max_height = 2448,
+	.min_analog_gain = 0x0, /* x1.0 */
+	.min_digital_gain = 0x100, /* x1.0 */
+	.fine_integration_time = 0x054C,
+	.cit_compensation_threshold = 15,
+	.mode_infos = sensor_imx355_mode_infos_B,
+	.mode_count = ARRAY_SIZE(sensor_imx355_mode_infos_B),
+	.priv = (void *)&sensor_imx355_private_data_B,
 };
 
 #endif

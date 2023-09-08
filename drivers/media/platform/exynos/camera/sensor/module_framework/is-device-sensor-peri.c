@@ -189,6 +189,44 @@ void is_sensor_deinit_sensor_thread(struct is_device_sensor_peri *sensor_peri)
 	}
 }
 
+void is_sensor_ois_set_init_work(struct work_struct *data)
+{
+	int ret = 0;
+	struct is_ois *ois;
+	struct is_device_sensor_peri *sensor_peri;
+
+	WARN_ON(!data);
+
+	ois = container_of(data, struct is_ois, ois_set_init_work);
+
+	info("[%s] E\n", __func__);
+
+	sensor_peri = ois->sensor_peri;
+
+	/* For dual camera project to reduce power consumption of ois */
+	ret = CALL_OISOPS(sensor_peri->mcu->ois, ois_set_power_mode, sensor_peri->subdev_mcu);
+	if (ret < 0)
+		err("v4l2_subdev_call(ois_set_power_mode) is fail(%d)", ret);
+#if defined(CONFIG_CAMERA_USE_INTERNAL_MCU)
+	ret = CALL_OISOPS(sensor_peri->mcu->ois, ois_init, sensor_peri->subdev_mcu);
+	if (ret < 0)
+		err("v4l2_subdev_call(ois_init) is fail(%d)", ret);
+#endif
+	ret = CALL_OISOPS(sensor_peri->mcu->ois, ois_set_mode, sensor_peri->subdev_mcu,
+		sensor_peri->mcu->ois->ois_mode);
+	if (ret < 0)
+		err("v4l2_subdev_call(ois_set_mode) is fail(%d)", ret);
+
+#if defined(USE_TELE_OIS_AF_COMMON_INTERFACE) || defined(USE_TELE2_OIS_AF_COMMON_INTERFACE)
+	if (sensor_peri->mcu->mcu_ctrl_actuator) {
+		ret = CALL_OISOPS(sensor_peri->mcu->ois, ois_set_af_active, sensor_peri->subdev_mcu, 1);
+		if (ret < 0)
+			err("ois set af active fail");
+	}
+#endif
+	info("[%s] X\n", __func__);
+}
+
 int is_sensor_mode_change(struct is_cis *cis, u32 mode)
 {
 	int ret = 0;
@@ -206,6 +244,9 @@ int is_sensor_mode_change(struct is_cis *cis, u32 mode)
 	CALL_CISOPS(cis, cis_data_calculation, cis->subdev, cis->cis_data->sens_config_index_cur);
 
 	schedule_work(&sensor_peri->cis.mode_setting_work);
+
+	if (sensor_peri->mcu && sensor_peri->mcu->ois)
+		schedule_work(&sensor_peri->mcu->ois->ois_set_init_work);
 
 	return ret;
 }
@@ -632,44 +673,6 @@ void is_sensor_actuator_active_off_work(struct work_struct *data)
 			err("[%s] actuator set_active fail\n", sensor_name);
 	}
 
-	info("[%s] X\n", __func__);
-}
-
-void is_sensor_ois_set_init_work(struct work_struct *data)
-{
-	int ret = 0;
-	struct is_ois *ois;
-	struct is_device_sensor_peri *sensor_peri;
-
-	WARN_ON(!data);
-
-	ois = container_of(data, struct is_ois, ois_set_init_work);
-
-	info("[%s] E\n", __func__);
-
-	sensor_peri = ois->sensor_peri;
-
-	/* For dual camera project to reduce power consumption of ois */
-	ret = CALL_OISOPS(sensor_peri->mcu->ois, ois_set_power_mode, sensor_peri->subdev_mcu);
-	if (ret < 0)
-		err("v4l2_subdev_call(ois_set_power_mode) is fail(%d)", ret);
-#if defined(CONFIG_CAMERA_USE_INTERNAL_MCU)
-	ret = CALL_OISOPS(sensor_peri->mcu->ois, ois_init, sensor_peri->subdev_mcu);
-	if (ret < 0)
-		err("v4l2_subdev_call(ois_init) is fail(%d)", ret);
-#endif
-	ret = CALL_OISOPS(sensor_peri->mcu->ois, ois_set_mode, sensor_peri->subdev_mcu,
-		sensor_peri->mcu->ois->ois_mode);
-	if (ret < 0)
-		err("v4l2_subdev_call(ois_set_mode) is fail(%d)", ret);
-
-#if defined(USE_TELE_OIS_AF_COMMON_INTERFACE) || defined(USE_TELE2_OIS_AF_COMMON_INTERFACE)
-	if (sensor_peri->mcu->mcu_ctrl_actuator) {
-		ret = CALL_OISOPS(sensor_peri->mcu->ois, ois_set_af_active, sensor_peri->subdev_mcu, 1);
-		if (ret < 0)
-			err("ois set af active fail");
-	}
-#endif
 	info("[%s] X\n", __func__);
 }
 
@@ -1775,11 +1778,6 @@ int is_sensor_peri_s_stream(struct is_device_sensor *device,
 #endif
 		}
 
-		if (!skip_sub_device_mcu) {
-			if (sensor_peri->mcu && sensor_peri->mcu->ois)
-				schedule_work(&sensor_peri->mcu->ois->ois_set_init_work);
-		}
-
 		/* If sensor setting @work is queued or executing,
 		   wait for it to finish execution when working s_format */
 		flush_work(&cis->mode_setting_work);
@@ -2796,6 +2794,7 @@ int is_sensor_peri_actuator_softlanding(struct is_device_sensor_peri *device)
 	struct is_actuator_interface *actuator_itf;
 	struct is_actuator_softlanding_table *soft_landing_table;
 	struct v4l2_control v4l2_ctrl;
+	const char *sensor_name;
 
 	FIMC_BUG(!device);
 
@@ -2803,6 +2802,8 @@ int is_sensor_peri_actuator_softlanding(struct is_device_sensor_peri *device)
 		dbg_sensor(1, "%s: IS_SENSOR_ACTUATOR_NOT_AVAILABLE\n", __func__);
 		return ret;
 	}
+
+	sensor_name = device->module->sensor_name;
 
 	actuator_itf = &device->sensor_interface.actuator_itf;
 	actuator = device->actuator;
@@ -2814,6 +2815,11 @@ int is_sensor_peri_actuator_softlanding(struct is_device_sensor_peri *device)
 		soft_landing_table->step_delay = 200;
 		soft_landing_table->hw_table[0] = 0;
 	}
+
+	ret = CALL_ACTUATOROPS(device->actuator, nrc_soft_landing,
+			       device->subdev_actuator);
+	if (ret)
+		err("[%s] actuator soft_landing_on_recording fail\n", sensor_name);
 
 	ret = is_sensor_peri_actuator_check_move_done(device);
 	if (ret) {

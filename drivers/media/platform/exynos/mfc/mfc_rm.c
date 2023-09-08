@@ -1290,6 +1290,7 @@ int mfc_rm_instance_init(struct mfc_dev *dev, struct mfc_ctx *ctx)
 
 	mfc_ctx_debug_enter();
 
+	dev->open_sequence |= (1 << 0);
 	mfc_get_corelock_ctx(ctx);
 
 	/*
@@ -1306,12 +1307,14 @@ int mfc_rm_instance_init(struct mfc_dev *dev, struct mfc_ctx *ctx)
 		}
 
 		if (!(core->fw.status & MFC_FW_ALLOC)) {
+			dev->open_sequence |= (1 << 1);
 			ret = mfc_alloc_firmware(core);
 			if (ret)
 				goto err_inst_init;
 		}
 
 		if (!(core->fw.status & MFC_CTX_ALLOC)) {
+			dev->open_sequence |= (1 << 2);
 			ret = mfc_alloc_common_context(core);
 			if (ret)
 				goto err_inst_init;
@@ -1325,6 +1328,7 @@ int mfc_rm_instance_init(struct mfc_dev *dev, struct mfc_ctx *ctx)
 	else
 		ctx->op_core_num[MFC_CORE_MAIN] = MFC_ENC_DEFAULT_CORE;
 
+	dev->open_sequence |= (1 << 3);
 	core = mfc_get_main_core(dev, ctx);
 	if (!core) {
 		mfc_ctx_err("[RM] There is no main core\n");
@@ -1340,6 +1344,7 @@ int mfc_rm_instance_init(struct mfc_dev *dev, struct mfc_ctx *ctx)
 		mfc_ctx_err("[RM] Failed to init\n");
 	}
 
+	dev->open_sequence |= (1 << 4);
 	/*
 	 * QoS portion data should be allocated
 	 * only once per instance after maincore is determined.

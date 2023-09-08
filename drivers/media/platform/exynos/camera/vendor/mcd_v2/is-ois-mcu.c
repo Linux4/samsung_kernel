@@ -176,7 +176,7 @@ static int ois_mcu_runtime_resume(struct device *dev)
 
 	ret = ois_mcu_clk_enable(mcu);
 
-	__is_mcu_pmu_control(1);
+	ret |= __is_mcu_pmu_control(1);
 	usleep_range(1000, 1100);
 
 	ret |= __is_mcu_qch_control(mcu->regs[OM_REG_CSIS], 1);
@@ -223,9 +223,9 @@ static int ois_mcu_runtime_suspend(struct device *dev)
 
 	/* P221226-00253 (Qch should be enabled after everything is fully done. To make it sure, add 1ms delay) */
 	usleep_range(1000, 1100);
-	ret = __is_mcu_qch_control(mcu->regs[OM_REG_CSIS], 0);
+	ret |= __is_mcu_qch_control(mcu->regs[OM_REG_CSIS], 0);
 
-	__is_mcu_pmu_control(0);
+	ret |= __is_mcu_pmu_control(0);
 
 	set_bit(OM_HW_SUSPENDED, &mcu->state);
 
@@ -3439,6 +3439,7 @@ int ois_mcu_get_hall_data(struct v4l2_subdev *subdev, struct is_ois_hall_data *h
 	int i = 0;
 	int valid_cnt = 0;
 	int valid_num = 0;
+	int mcu_condition = 0;
 	u64 prev_timestampboot = timestampboot;
 
 	WARN_ON(!subdev);
@@ -3452,6 +3453,17 @@ int ois_mcu_get_hall_data(struct v4l2_subdev *subdev, struct is_ois_hall_data *h
 
 	if (!test_bit(OM_HW_RUN, &mcu->state)) {
 		err("%s, mcu turned off. Skip get_hall_data", __func__);
+		ret = -EINVAL;
+		return ret;
+	}
+
+	/*
+	 *	Issue : ITMON from 0x151FE004 happened
+	 *	solution : Get halldata only when OIS PMU powers up and OIS_MCU clock is supplied while QCH for OIS_MCU disables
+	 */
+	__is_mcu_mcu_state(mcu->regs[OM_REG_CSIS], &mcu_condition);
+	if (!mcu_condition) {
+		err_mcu("MCU state is abnormal");
 		ret = -EINVAL;
 		return ret;
 	}

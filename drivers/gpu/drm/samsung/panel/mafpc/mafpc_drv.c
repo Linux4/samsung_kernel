@@ -11,6 +11,9 @@
  */
 
 
+#include <linux/of.h>
+#include <linux/of_reserved_mem.h>
+
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -20,6 +23,10 @@
 #include "../panel_drv.h"
 #include "mafpc_drv.h"
 
+#if IS_ENABLED(CONFIG_LPD_OLED_COMPENSATION)
+#include <soc/samsung/exynos/exynos-lpd.h>
+#endif
+
 static int abc_fops_open(struct inode *inode, struct file *file)
 {
 	int ret = 0;
@@ -27,77 +34,155 @@ static int abc_fops_open(struct inode *inode, struct file *file)
 	struct mafpc_device *mafpc = container_of(miscdev, struct mafpc_device, miscdev);
 
 	file->private_data = mafpc;
+	panel_info("was called\n");
 
 	return ret;
 }
 
-static ssize_t abc_fops_write(struct file *file, const char __user *buf,
-		  size_t count, loff_t *ppos)
-{
-	char header;
-	bool scale_factor = false;
-	struct mafpc_device *mafpc = file->private_data;
-	int ctrl_sz, img_sz, scale_sz;
-	int cp_offset;
 
-	ctrl_sz = mafpc->ctrl_cmd_len;
-	img_sz = mafpc->comp_img_len;
-	scale_sz = mafpc->scale_len;
+static ssize_t write_comp_image(struct mafpc_device *mafpc, const char __user *buf, size_t count)
+{
+	bool scale_factor = false;
+	int offset = MAFPC_HEADER_SIZE;
+
+	if ((mafpc == NULL) || (buf == NULL)) {
+		panel_err("invalid param\n");
+		return -EINVAL;
+	}
 
 	if ((!mafpc->comp_img_buf) || (!mafpc->scale_buf)) {
 		panel_err("invalid buffer");
-		goto exit_write;
+		return -EINVAL;
 	}
 
-	if (count == (MAFPC_HEADER_SIZE + ctrl_sz + img_sz)) {
+	if (count == (MAFPC_HEADER_SIZE + mafpc->ctrl_cmd_len + mafpc->comp_img_len)) {
 		panel_info("Write size: %ld, without scale factor\n", count);
-	} else if (count == (MAFPC_HEADER_SIZE + ctrl_sz + img_sz + scale_sz)) {
+	} else if (count == (MAFPC_HEADER_SIZE + mafpc->ctrl_cmd_len + mafpc->comp_img_len + mafpc->scale_len)) {
 		panel_info("Write size: %ld, with scale factor\n", count);
 		scale_factor = true;
 	} else {
 		panel_err("invalid count: %ld\n", count);
-		goto exit_write;
+		return -EINVAL;
 	}
 
-	if (copy_from_user(&header, buf, MAFPC_HEADER_SIZE)) {
+	if (copy_from_user(mafpc->ctrl_cmd, buf + offset, mafpc->ctrl_cmd_len)) {
 		panel_err("failed to get user's header\n");
-		goto exit_write;
+		goto exit_comp_write;
 	}
-	cp_offset = MAFPC_HEADER_SIZE;
+	print_hex_dump(KERN_ERR, "COMP_IMG", DUMP_PREFIX_ADDRESS, 32, 4, mafpc->ctrl_cmd, mafpc->ctrl_cmd_len, false);
 
-	panel_info("header : %c\n", header);
-	if (header != MAFPC_HEADER) {
-		panel_err("wrong header : %c\n", header);
-		goto exit_write;
-	}
-
-	if (copy_from_user(mafpc->ctrl_cmd, buf + cp_offset, mafpc->ctrl_cmd_len)) {
-		panel_err("failed to get user's header\n");
-		goto exit_write;
-	}
-	cp_offset += mafpc->ctrl_cmd_len;
-
-	print_hex_dump(KERN_ERR, "", DUMP_PREFIX_ADDRESS, 32, 4,
-		mafpc->ctrl_cmd, mafpc->ctrl_cmd_len, false);
-
-	if (copy_from_user(mafpc->comp_img_buf, buf + cp_offset, mafpc->comp_img_len)) {
+	offset += mafpc->ctrl_cmd_len;
+	if (copy_from_user(mafpc->comp_img_buf, buf + offset, mafpc->comp_img_len)) {
 		panel_err("failed to get comp img\n");
-		goto exit_write;
+		goto exit_comp_write;
 	}
-	cp_offset += mafpc->comp_img_len;
 
 	if (scale_factor) {
-		if (copy_from_user(mafpc->scale_buf, buf + cp_offset, mafpc->scale_len)) {
+		offset += mafpc->comp_img_len;
+		if (copy_from_user(mafpc->scale_buf, buf + offset, mafpc->scale_len)) {
 			panel_err("failed to get comp img\n");
-			goto exit_write;
+			goto exit_comp_write;
 		}
-		print_hex_dump(KERN_ERR, "", DUMP_PREFIX_ADDRESS, 32, 4,
+		print_hex_dump(KERN_ERR, "SCALE_FACTOR", DUMP_PREFIX_ADDRESS, 32, 4,
 			mafpc->scale_buf, mafpc->scale_len, false);
 	}
 	mafpc->written |= MAFPC_UPDATED_FROM_SVC;
 
-exit_write:
+exit_comp_write:
 	return count;
+}
+
+
+#if IS_ENABLED(CONFIG_LPD_OLED_COMPENSATION)
+
+#define MAX_LUT_TABLE		(256 * 4 * 3)
+
+/* header(1byte) + lut_type(1byte) + reserved + reserved
+ * lut_type => 0,  grey ^ coeff [0]: 0, [1] : 1
+ * lut_type => 1,  grey/255 ^ coeff  [0] : 0, [255] : 1
+ */
+static ssize_t write_lut_table(struct mafpc_device *mafpc, const char __user *buf, size_t count)
+{
+	int ret;
+	unsigned int header;
+	void *lut_buf;
+	struct comp_mem_info *comp_mem;
+
+	if ((mafpc == NULL) || (buf == NULL)) {
+		panel_err("invalid param\n");
+		return -EINVAL;
+	}
+
+	comp_mem = &mafpc->comp_mem;
+	panel_info("lut buf size: %d, count: %d\n", comp_mem->lut_size, count);
+	if (comp_mem->lut_size != count) {
+		panel_err("invalid lut size: %d\n");
+		return -EINVAL;
+	}
+
+	lut_buf = (void *)phys_to_virt(comp_mem->lut_base);
+	if (lut_buf == NULL) {
+		panel_err("null lut buf\n");
+		return -EINVAL;
+	}
+
+	ret = copy_from_user(&header, buf, LPD_COMP_LUT_HEADER_SZ);
+	if (ret) {
+		panel_err("failed to get user's header\n");
+		return ret;
+	}
+	panel_info("header : %c, lut_type: %d\n", header, (header >> 8) & 0xff);
+
+	ret = copy_from_user(lut_buf, buf, count);
+	if (ret) {
+		panel_err("failed to get user's header\n");
+		return ret;
+	}
+
+	return count;
+
+}
+#endif
+
+
+static ssize_t abc_fops_write(struct file *file, const char __user *buf,  size_t count, loff_t *ppos)
+{
+	int ret = 0;
+	char header[MAFPC_HEADER_SIZE];
+	struct mafpc_device *mafpc = file->private_data;
+
+	ret = copy_from_user(header, buf, MAFPC_HEADER_SIZE);
+	if (ret) {
+		panel_err("failed to get user's header\n");
+		return ret;
+	}
+
+	panel_info("write cnt: %d, header : %c\n", count, header[MAFPC_DATA_IDENTIFIER]);
+
+	switch (header[MAFPC_DATA_IDENTIFIER]) {
+	case 'M':
+		ret = write_comp_image(mafpc, buf, count);
+		if (ret < 0) {
+			panel_err("failed to write compensation image\n");
+			return 0;
+		}
+		break;
+#if IS_ENABLED(CONFIG_LPD_OLED_COMPENSATION)
+	case 'L':
+		ret = write_lut_table(mafpc, buf, count);
+		if (ret < 0) {
+			panel_err("failed to write lut table\n");
+			return 0;
+		}
+		break;
+#endif
+	default:
+		panel_err("known identifier: %d\n", header[MAFPC_DATA_IDENTIFIER]);
+		return 0;
+	}
+
+	return count;
+
 }
 
 static int mafpc_instant_on(struct mafpc_device *mafpc)
@@ -118,7 +203,7 @@ static int mafpc_instant_on(struct mafpc_device *mafpc)
 		goto exit_write;
 	}
 
-	if (panel->state.cur_state == PANEL_STATE_ALPM) {
+	if (panel_get_cur_state(panel) == PANEL_STATE_ALPM) {
 		panel_err("gct not supported on LPM\n");
 		goto exit_write;
 	}
@@ -128,7 +213,7 @@ static int mafpc_instant_on(struct mafpc_device *mafpc)
 	 * 1. Send compensation image for mAFPC to DDI, as soon as transmitted the instant_on ioctl.
 	 * 2. Send instant_on command to DDI, after frame done
 	 */
-	panel_err("++ PANEL_MAFPC_IMG_SEQ ++\n");
+	panel_info("++ PANEL_MAFPC_IMG_SEQ ++\n");
 	ret = panel_do_seqtbl_by_name(panel, PANEL_MAFPC_IMG_SEQ);
 	if (unlikely(ret < 0)) {
 		panel_err("failed to write init seqtbl\n");
@@ -139,7 +224,7 @@ static int mafpc_instant_on(struct mafpc_device *mafpc)
 	mafpc->req_instant_on = true;
 
 exit_write:
-	panel_err("-- PANEL_MAFPC_IMG_SEQ -- \n");
+	panel_info("-- PANEL_MAFPC_IMG_SEQ -- \n");
 	panel_mutex_unlock(&mafpc->mafpc_lock);
 	mafpc->req_update = false;
 	return ret;
@@ -157,7 +242,7 @@ static int mafpc_instant_off(struct mafpc_device *mafpc)
 		goto err;
 	}
 
-	if (panel->state.cur_state == PANEL_STATE_ALPM) {
+	if (panel_get_cur_state(panel) == PANEL_STATE_ALPM) {
 		panel_err("gct not supported on LPM\n");
 		goto err;
 	}
@@ -172,11 +257,51 @@ err:
 	return ret;
 }
 
+
+static int mafpc_clear_image_buffer(struct mafpc_device *mafpc)
+{
+
+	void *image_buf;
+	struct comp_mem_info *comp_mem;
+
+	if (mafpc == NULL) {
+		panel_err("null mafpc\n");
+		return -EINVAL;
+	}
+
+	comp_mem = &mafpc->comp_mem;
+	if (comp_mem->reserved == false) {
+		panel_err("does not supprot read ops\n");
+		return 0;
+	}
+
+	if (comp_mem->image_size == 0) {
+		panel_err("wrong buffer size\n");
+		return 0;
+	}
+
+	image_buf = (void *)phys_to_virt(comp_mem->image_base);
+	if (image_buf == NULL) {
+		panel_err("failed to get virtual address\n");
+		return 0;
+	}
+
+	memset(image_buf, 0x00, comp_mem->image_size);
+
+	return 0;
+
+}
+
+
 static long abc_fops_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
 	struct mafpc_device *mafpc = file->private_data;
 
+	if (mafpc == NULL) {
+		panel_err("null mafpc\n");
+		return -EINVAL;
+	}
 	switch (cmd) {
 	case IOCTL_MAFPC_ON:
 		panel_info("mAFPC on\n");
@@ -200,12 +325,61 @@ static long abc_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		if (ret)
 			panel_info("failed to instant off\n");
 		break;
+	case IOCTL_CLEAR_IMAGE_BUFFER:
+		panel_info("mAFPC clear image buffer\n");
+		ret = mafpc_clear_image_buffer(mafpc);
+		if (ret)
+			panel_info("failed to clear image buffer\n");
+		break;
 	default:
 		panel_info("Invalid Command\n");
 		break;
 	}
 
 	return ret;
+}
+
+static ssize_t abc_fops_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
+{
+	int ret;
+	void *image_buf;
+	struct comp_mem_info *comp_mem;
+	struct mafpc_device *mafpc = file->private_data;
+
+	panel_info("count:%d\n", count);
+
+	if (mafpc == NULL) {
+		panel_err("null mafpc\n");
+		return -EINVAL;
+	}
+
+	comp_mem = &mafpc->comp_mem;
+	if (comp_mem->reserved == false) {
+		panel_err("does not supprot read ops\n");
+		return 0;
+	}
+
+	if (count >= comp_mem->image_size) {
+		panel_err("wrong buffer size\n");
+		return 0;
+	}
+
+	image_buf = (void *)phys_to_virt(comp_mem->image_base);
+	if (image_buf == NULL) {
+		panel_err("failed to get virtual address\n");
+		return 0;
+	}
+
+	print_hex_dump(KERN_ERR, "image_base", DUMP_PREFIX_ADDRESS, 32, 4, image_buf, 32, false);
+
+	ret = copy_to_user(buf, image_buf, count);
+	if (ret) {
+		panel_err("failed to copy to user\n");
+		return ret;
+	}
+
+	return count;
+
 }
 
 static int abc_fops_release(struct inode *inode, struct file *file)
@@ -219,74 +393,11 @@ static const struct file_operations abc_drv_fops = {
 	.owner = THIS_MODULE,
 	.open = abc_fops_open,
 	.write = abc_fops_write,
+	.read = abc_fops_read,
+	.compat_ioctl = abc_fops_ioctl,
 	.unlocked_ioctl = abc_fops_ioctl,
 	.release = abc_fops_release,
 };
-
-#if 0
-static int transmit_mafpc_data(struct mafpc_device *mafpc)
-{
-	int ret = 0;
-	s64 time_diff;
-	ktime_t timestamp;
-	struct panel_device *panel = mafpc->panel;
-
-	timestamp = ktime_get();
-#if 0
-	decon_systrace(get_decon_drvdata(0), 'C', "mafpc", 1);
-
-	ret = panel_do_seqtbl_by_name(panel, PANEL_MAFPC_IMG_SEQ);
-	if (unlikely(ret < 0)) {
-		panel_err("failed to write init seqtbl\n");
-	}
-#endif
-
-#if 0
-	ret = panel_do_seqtbl_by_name(panel, PANEL_MAFPC_ON_SEQ);
-	if (unlikely(ret < 0)) {
-		panel_err("failed to write init seqtbl\n");
-	}
-
-	decon_systrace(get_decon_drvdata(0), 'C', "mafpc", 0);
-#endif
-
-	time_diff = ktime_to_us(ktime_sub(ktime_get(), timestamp));
-	panel->mafpc_write_time = time_diff;
-	panel_info("time for mAFPC : %llu\n", time_diff);
-
-	return ret;
-}
-
-static int mafpc_thread(void *data)
-{
-	int ret;
-	struct mafpc_device *mafpc = data;
-
-	while (!kthread_should_stop()) {
-		ret = wait_event_interruptible(mafpc->wq_wait, mafpc->req_update);
-		panel_mutex_lock(&mafpc->mafpc_lock);
-		panel_info("was called\n");
-		transmit_mafpc_data(mafpc);
-		mafpc->req_update = false;
-		panel_mutex_unlock(&mafpc->mafpc_lock);
-	}
-	return 0;
-}
-
-
-static int mafpc_create_thread(struct mafpc_device *mafpc)
-{
-	init_waitqueue_head(&mafpc->wq_wait);
-
-	mafpc->thread = kthread_run(mafpc_thread, mafpc, "mafpc-thread");
-	if (IS_ERR_OR_NULL(mafpc->thread)) {
-		panel_err("failed to create mafpc thread\n");
-		return PTR_ERR(mafpc->thread);
-	}
-
-	return 0;
-}
-#endif
 
 static int mafpc_v4l2_probe(struct mafpc_device *mafpc, void *arg)
 {
@@ -475,6 +586,64 @@ struct mafpc_device *get_mafpc_device(struct panel_device *panel)
 }
 EXPORT_SYMBOL(get_mafpc_device);
 
+
+#if IS_ENABLED(CONFIG_LPD_OLED_COMPENSATION)
+
+int parse_lpd_rmem(struct mafpc_device *mafpc, struct device *dev)
+{
+	struct device_node *np;
+	struct device_node *node;
+	struct reserved_mem *rmem;
+	struct comp_mem_info *comp_mem;
+	unsigned int canvas_size;
+	phys_addr_t canvas_base;
+
+	if ((mafpc == NULL) || (dev == NULL)) {
+		panel_err("invalid param");
+		return -EINVAL;
+	}
+
+	node = dev->of_node;
+	if (node == NULL) {
+		panel_err("null node\n");
+		return -EINVAL;
+	}
+
+	np = of_parse_phandle(node, "memory-region", 0);
+	if (np == NULL) {
+		panel_err("failed to parse reserved mem for burnin\n");
+		return -EINVAL;
+	}
+
+	rmem = of_reserved_mem_lookup(np);
+	if (rmem == NULL) {
+		panel_err("failed to get reserved mem for burnin\n");
+		return -EINVAL;
+	}
+
+	comp_mem = &mafpc->comp_mem;
+
+	comp_mem->image_size = LPD_COMP_IMAGE_SIZE;
+	canvas_size = LPD_COMP_CANVAS_SIZE;
+	comp_mem->lut_size = LPD_COMP_LUT_SIZE;
+
+	comp_mem->image_base = rmem->base + rmem->size - LPD_MAX_COMP_MEMORY;
+	canvas_base = comp_mem->image_base + comp_mem->image_size;
+	comp_mem->lut_base = canvas_base + canvas_size;
+
+	comp_mem->reserved = true;
+
+	panel_info("LPD DRAM is reserved at addr %x total size %x\n", rmem->base, rmem->size);
+
+	panel_info("image base: %x, size: %x, lut base: %x, size: %x, total rmem: %x\n",
+		comp_mem->image_base, comp_mem->image_size, comp_mem->lut_base, comp_mem->lut_size, rmem->size);
+
+	return 0;
+}
+
+#endif
+
+
 static int mafpc_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -507,6 +676,16 @@ static int mafpc_probe(struct platform_device *pdev)
 		panel_err("failed to register mafpc drv\n");
 		return ret;
 	}
+
+	mafpc->comp_mem.reserved = false;
+
+#if IS_ENABLED(CONFIG_LPD_OLED_COMPENSATION)
+	ret = parse_lpd_rmem(mafpc, dev);
+	if (ret) {
+		panel_err("failed to parse lpd mem\n");
+		return ret;
+	}
+#endif
 
 	panel_info("MCD:ABC: probed done\n");
 

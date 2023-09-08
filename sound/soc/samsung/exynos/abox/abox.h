@@ -98,7 +98,7 @@
 		| SNDRV_PCM_FMTBIT_S32)
 
 #define ABOX_SUPPLEMENT_SIZE (SZ_128)
-#define ABOX_IPC_QUEUE_SIZE (SZ_128)
+#define ABOX_IPC_QUEUE_SIZE (SZ_256)
 
 #define CALLIOPE_VERSION(class, year, month, minor) \
 		((class << 24) | \
@@ -506,6 +506,7 @@ struct abox_data {
 	struct device *dev_udma_rd[4];
 	struct device *dev_udma_wr[4];
 	struct workqueue_struct *ipc_workqueue;
+	struct workqueue_struct *dbg_workqueue;
 	struct work_struct ipc_work;
 	struct abox_ipc ipc_queue[ABOX_IPC_QUEUE_SIZE];
 	int ipc_queue_start;
@@ -557,6 +558,7 @@ struct abox_data {
 	struct notifier_block qos_nb;
 	struct notifier_block pm_nb;
 	struct notifier_block itmon_nb;
+	struct notifier_block dbg_nb;
 	int pm_qos_int[5];
 	int pm_qos_aud[16];
 	unsigned int pm_qos_stable_min;

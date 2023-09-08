@@ -61,7 +61,7 @@ struct panel_blic_dev {
 
 	u32 i2c_match[3];
 	u32 i2c_reg;
-#ifdef CONFIG_MCD_PANEL_I2C
+#ifdef CONFIG_USDM_BLIC_I2C
 	struct panel_i2c_dev *i2c_dev;
 #endif
 	struct panel_blic_gpio gpios[MAX_PANEL_BLIC_GPIO];
@@ -77,8 +77,8 @@ int panel_blic_prepare(struct panel_device *panel, struct common_panel_info *inf
 int panel_blic_unprepare(struct panel_device *panel);
 int panel_blic_probe(struct panel_device *panel);
 struct panel_gpio *panel_blic_gpio_list_find_by_name(struct panel_blic_dev *blic_dev, const char *name);
-bool panel_blic_power_control_exists(struct panel_blic_dev *blic, const char *name);
-int panel_blic_power_control_execute(struct panel_blic_dev *blic, const char *name);
+bool panel_blic_power_ctrl_exists(struct panel_blic_dev *blic, const char *name);
+int panel_blic_power_ctrl_execute(struct panel_blic_dev *blic, const char *name);
 int panel_blic_brightness(struct panel_device *panel, bool need_lock);
 
 #endif /* __PANEL_BLIC_H__ */

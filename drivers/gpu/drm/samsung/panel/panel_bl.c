@@ -13,14 +13,18 @@
 #include "panel_kunit.h"
 #include "panel.h"
 #include "panel_bl.h"
-#ifdef CONFIG_EXYNOS_DECON_LCD_COPR
+#ifdef CONFIG_USDM_PANEL_TESTMODE
+#include "panel_testmode.h"
+#endif
+#include "panel_property.h"
+#ifdef CONFIG_USDM_PANEL_COPR
 #include "copr.h"
 #endif
 
 #include "timenval.h"
 #include "panel_debug.h"
 
-#ifdef CONFIG_PANEL_AID_DIMMING
+#ifdef CONFIG_USDM_PANEL_DIMMING
 #include "dimming.h"
 #include "panel_dimming.h"
 #endif
@@ -33,6 +37,63 @@ static char *dim_type_str[MAX_DIM_TYPE_STR] = {
 	[DIM_TYPE_STR_FLASH] = "flash",
 	[DIM_TYPE_STR_GM2] = "gm2",
 };
+
+static struct panel_property panel_bl_mandatory_property[] = {
+	__PANEL_PROPERTY_U32_INITIALIZER(PANEL_BL_PROPERTY_SMOOTH_TRANSITION,
+			SMOOTH_TRANS_ON, SMOOTH_TRANS_OFF, SMOOTH_TRANS_MAX - 1),
+	__PANEL_PROPERTY_U32_INITIALIZER(PANEL_BL_PROPERTY_ACL_OPR,
+			ACL_OPR_03P, ACL_OPR_OFF, ACL_OPR_MAX - 1),
+	__PANEL_PROPERTY_U32_INITIALIZER(PANEL_BL_PROPERTY_ACL_PWRSAVE,
+			ACL_PWRSAVE_OFF, ACL_PWRSAVE_OFF, MAX_ACL_PWRSAVE - 1),
+	__PANEL_PROPERTY_U32_INITIALIZER(PANEL_BL_PROPERTY_BRIGHTNESS,
+			UI_DEF_BRIGHTNESS, 0, 1000000000),
+	__PANEL_PROPERTY_U32_INITIALIZER(PANEL_BL_PROPERTY_PREV_BRIGHTNESS,
+			UI_DEF_BRIGHTNESS, 0, 1000000000),
+};
+
+int panel_bl_set_property(struct panel_bl_device *panel_bl,
+		int *property, unsigned int value)
+{
+	struct panel_device *panel;
+	char *propname = NULL;
+
+	if (!panel_bl) {
+		panel_err("panel_bl is null\n");
+		return -EINVAL;
+	}
+	panel = to_panel_device(panel_bl);
+
+	if (!property) {
+		panel_err("property is null\n");
+		return -EINVAL;
+	}
+
+	if (property == &panel_bl->props.brightness)
+		propname = PANEL_BL_PROPERTY_BRIGHTNESS;
+	if (property == &panel_bl->props.prev_brightness)
+		propname = PANEL_BL_PROPERTY_PREV_BRIGHTNESS;
+	else if (property == &panel_bl->props.smooth_transition)
+		propname = PANEL_BL_PROPERTY_SMOOTH_TRANSITION;
+	else if (property == &panel_bl->props.acl_opr)
+		propname = PANEL_BL_PROPERTY_ACL_OPR;
+	else if (property == &panel_bl->props.acl_pwrsave)
+		propname = PANEL_BL_PROPERTY_ACL_PWRSAVE;
+
+	if (!propname) {
+		panel_err("unknown property\n");
+		return 0;
+	}
+
+	if (panel_property_set_value(&panel->prop_list,
+				propname, value) < 0) {
+		panel_warn("failed to set property(%s) %d\n",
+				propname, value);
+		return -EINVAL;
+	}
+	*property = value;
+
+	return 0;
+}
 
 #ifdef DEBUG_PAC
 static void print_tbl(int *tbl, int sz)
@@ -212,7 +273,7 @@ int search_tbl(int *tbl, int sz, enum SEARCH_TYPE type, int value)
 	return -1;
 }
 
-#ifdef CONFIG_PANEL_AID_DIMMING
+#ifdef CONFIG_USDM_PANEL_DIMMING
 static int search_brt_tbl(struct brightness_table *brt_tbl, int brightness)
 {
 	if (unlikely(!brt_tbl || !brt_tbl->brt)) {
@@ -480,7 +541,7 @@ int get_actual_brightness_interpolation(struct panel_bl_device *panel_bl, int br
 	return get_subdev_actual_brightness_interpolation(panel_bl,
 			panel_bl->props.id, brightness);
 }
-#endif /* CONFIG_PANEL_AID_DIMMING */
+#endif /* CONFIG_USDM_PANEL_DIMMING */
 
 void panel_bl_update_acl_state(struct panel_bl_device *panel_bl)
 {
@@ -490,24 +551,24 @@ void panel_bl_update_acl_state(struct panel_bl_device *panel_bl)
 	panel = to_panel_device(panel_bl);
 	panel_data = &panel->panel_data;
 
-#ifdef CONFIG_SUPPORT_HMD
+#ifdef CONFIG_USDM_PANEL_HMD
 	if (panel_bl->props.id == PANEL_BL_SUBDEV_TYPE_HMD) {
-		panel_bl->props.acl_opr = 0;
-		panel_bl->props.acl_pwrsave = ACL_PWRSAVE_OFF;
+		panel_bl_set_property(panel_bl, &panel_bl->props.acl_opr, ACL_OPR_OFF);
+		panel_bl_set_property(panel_bl, &panel_bl->props.acl_pwrsave, ACL_PWRSAVE_OFF);
 		return;
 	}
 #endif
-#ifdef CONFIG_SUPPORT_AOD_BL
+#ifdef CONFIG_USDM_PANEL_AOD_BL
 	if (panel_bl->props.id == PANEL_BL_SUBDEV_TYPE_AOD) {
-		panel_bl->props.acl_opr = 0;
-		panel_bl->props.acl_pwrsave = ACL_PWRSAVE_OFF;
+		panel_bl_set_property(panel_bl, &panel_bl->props.acl_opr, ACL_OPR_OFF);
+		panel_bl_set_property(panel_bl, &panel_bl->props.acl_pwrsave, ACL_PWRSAVE_OFF);
 		return;
 	}
 #endif
-#ifdef CONFIG_SUPPORT_MASK_LAYER
+#ifdef CONFIG_USDM_PANEL_MASK_LAYER
 	if (panel_bl->props.mask_layer_br_hook == MASK_LAYER_HOOK_ON) {
-		panel_bl->props.acl_opr = 0;
-		panel_bl->props.acl_pwrsave = ACL_PWRSAVE_OFF;
+		panel_bl_set_property(panel_bl, &panel_bl->props.acl_opr, ACL_OPR_OFF);
+		panel_bl_set_property(panel_bl, &panel_bl->props.acl_pwrsave, ACL_PWRSAVE_OFF);
 		return;
 	}
 #endif
@@ -515,10 +576,11 @@ void panel_bl_update_acl_state(struct panel_bl_device *panel_bl)
 		panel_warn("invalid range %d\n", panel_data->props.adaptive_control);
 		return;
 	}
-	panel_bl->props.acl_opr = panel_data->props.adaptive_control;
-	panel_bl->props.acl_pwrsave =
+	panel_bl_set_property(panel_bl, &panel_bl->props.acl_opr,
+			panel_data->props.adaptive_control);
+	panel_bl_set_property(panel_bl, &panel_bl->props.acl_pwrsave,
 		(panel_data->props.adaptive_control == 0) ?
-		ACL_PWRSAVE_OFF : ACL_PWRSAVE_ON;
+		ACL_PWRSAVE_OFF : ACL_PWRSAVE_ON);
 }
 
 int panel_bl_get_acl_pwrsave(struct panel_bl_device *panel_bl)
@@ -752,7 +814,7 @@ int panel_bl_irc_interpolation(struct panel_bl_device *panel_bl, int id, struct 
 }
 EXPORT_SYMBOL(panel_bl_irc_interpolation);
 
-#ifdef CONFIG_MCD_PANEL_I2C
+#ifdef CONFIG_USDM_BLIC_I2C
 /*
  * If blic cmd should be sent when brightness change,
  * Use this func and add [PANEL_BLIC_I2C_BRIGHTNESS_SEQ] on blic seqtbl.
@@ -771,7 +833,8 @@ int panel_bl_set_brightness_blic(struct panel_bl_device *panel_bl)
 #endif
 
 //void g_tracing_mark_write(char id, char *str1, int value);
-int panel_bl_set_brightness(struct panel_bl_device *panel_bl, int id, u32 send_cmd)
+DEFINE_REDIRECT_MOCKABLE(panel_bl_set_brightness, RETURNS(int), PARAMS(struct panel_bl_device *, int, u32));
+int REAL_ID(panel_bl_set_brightness)(struct panel_bl_device *panel_bl, int id, u32 send_cmd)
 {
 	int ret = 0, ilum = 0, luminance = 0, brightness, step;
 	char *seqname = PANEL_SET_BL_SEQ;
@@ -815,8 +878,9 @@ int panel_bl_set_brightness(struct panel_bl_device *panel_bl, int id, u32 send_c
 	}
 	luminance_interp = get_actual_brightness_interpolation(panel_bl, brightness);
 
-	panel_bl->props.prev_brightness = panel_bl->props.brightness;
-	panel_bl->props.brightness = brightness;
+	panel_bl_set_property(panel_bl, &panel_bl->props.prev_brightness,
+			panel_bl->props.brightness);
+	panel_bl_set_property(panel_bl, &panel_bl->props.brightness, brightness);
 	panel_bl->props.actual_brightness = luminance;
 	panel_bl->props.actual_brightness_index = ilum;
 	panel_bl->props.actual_brightness_intrp = luminance_interp;
@@ -825,7 +889,7 @@ int panel_bl_set_brightness(struct panel_bl_device *panel_bl, int id, u32 send_c
 	panel_bl_update_acl_state(panel_bl);
 
 	dim_type = DIM_TYPE_STR_TABLE;
-#ifdef CONFIG_SUPPORT_DIM_FLASH
+#ifdef CONFIG_USDM_PANEL_DIM_FLASH
 	if (panel->panel_data.props.cur_dim_type)
 		dim_type = DIM_TYPE_STR_FLASH;
 #endif
@@ -846,7 +910,7 @@ int panel_bl_set_brightness(struct panel_bl_device *panel_bl, int id, u32 send_c
 		goto set_br_exit;
 	}
 
-#if defined(CONFIG_PANEL_DISPLAY_MODE)
+#if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 	if (panel_vrr_is_supported(panel) && panel->panel_data.props.vrr_updated == true) {
 		panel->panel_data.props.vrr_updated = false;
 		need_update_display_mode = true;
@@ -854,22 +918,22 @@ int panel_bl_set_brightness(struct panel_bl_device *panel_bl, int id, u32 send_c
 #endif
 
 	//g_tracing_mark_write('C', "lcd_br", luminance);
-#ifdef CONFIG_SUPPORT_HMD
+#ifdef CONFIG_USDM_PANEL_HMD
 	if (id == PANEL_BL_SUBDEV_TYPE_HMD)
 		seqname = PANEL_HMD_BL_SEQ;
 #endif
-#ifdef CONFIG_SUPPORT_AOD_BL
+#ifdef CONFIG_USDM_PANEL_AOD_BL
 	if (id == PANEL_BL_SUBDEV_TYPE_AOD)
 		seqname = PANEL_ALPM_SET_BL_SEQ;
 #endif
 
-#ifdef CONFIG_EVASION_DISP_DET
-	if (panel->state.cur_state == PANEL_STATE_NORMAL)
+#ifdef CONFIG_USDM_PANEL_EVASION_DISP_DET
+	if (panel_get_cur_state(panel) == PANEL_STATE_NORMAL)
 		panel_disable_irq(panel, PANEL_IRQ_DISP_DET);
 #endif
 
 	if (!strcmp(seqname, PANEL_SET_BL_SEQ) && need_update_display_mode) {
-#if defined(CONFIG_PANEL_DISPLAY_MODE)
+#if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 		ret = panel_set_display_mode_nolock(panel, panel->panel_data.props.panel_mode);
 		if (unlikely(ret < 0)) {
 			panel_err("failed to panel_set_display_mode\n");
@@ -883,7 +947,7 @@ int panel_bl_set_brightness(struct panel_bl_device *panel_bl, int id, u32 send_c
 			panel_err("failed to write set_bl seqtbl %s\n", seqname);
 			goto set_br_exit;
 		}
-#ifdef CONFIG_MCD_PANEL_I2C
+#ifdef CONFIG_USDM_BLIC_I2C
 		ret = panel_bl_set_brightness_blic(panel_bl);
 		if (unlikely(ret < 0)) {
 			panel_err("failed to write panel_bl_set_brightness_blic\n");
@@ -898,8 +962,8 @@ int panel_bl_set_brightness(struct panel_bl_device *panel_bl, int id, u32 send_c
 	wake_up_interruptible_all(&panel_bl->wq.wait);
 	panel_bl_inc_brightness_set_count(panel_bl);
 
-#ifdef CONFIG_EVASION_DISP_DET
-	if (panel->state.cur_state == PANEL_STATE_NORMAL)
+#ifdef CONFIG_USDM_PANEL_EVASION_DISP_DET
+	if (panel_get_cur_state(panel) == PANEL_STATE_NORMAL)
 		panel_enable_irq(panel, PANEL_IRQ_DISP_DET);
 #endif
 	panel_bl_set_saved_flag(panel_bl, false);
@@ -931,6 +995,26 @@ static int panel_get_brightness(struct backlight_device *bd)
 	return get_actual_brightness(panel_bl, bd->props.brightness);
 }
 
+int panel_update_subdev_brightness(struct panel_device *panel, u32 subdev_id, u32 brightness)
+{
+	struct panel_bl_device *panel_bl;
+
+	if (!panel) {
+		panel_err("panel is null\n");
+		return -EINVAL;
+	}
+	panel_bl = &panel->panel_bl;
+
+	if (subdev_id >= MAX_PANEL_BL_SUBDEV) {
+		panel_err("invalid subdev id %u\n", subdev_id);
+		return -EINVAL;
+	}
+	panel_bl->subdev[subdev_id].brightness =
+		panel_bl_subdev_get_valid_brightness(panel_bl, subdev_id, brightness);
+
+	return 0;
+}
+
 int _panel_update_brightness_nolock(struct panel_device *panel, u32 send_cmd)
 {
 	int ret = 0;
@@ -943,8 +1027,15 @@ int _panel_update_brightness_nolock(struct panel_device *panel, u32 send_cmd)
 		return -ENODEV;
 	}
 
-	if (panel->state.cur_state == PANEL_POWER_OFF ||
-		panel->state.cur_state == PANEL_POWER_ON)
+#ifdef CONFIG_USDM_PANEL_TESTMODE
+	if (panel_testmode_is_on(panel)) {
+		panel_info("testmode is running. ignore brightness updates.");
+		return 0;
+	}
+#endif
+
+	if (panel_get_cur_state(panel) == PANEL_STATE_OFF ||
+		panel_get_cur_state(panel) == PANEL_STATE_ON)
 		send_cmd = SKIP_CMD;
 
 	brightness = bd->props.brightness;
@@ -953,7 +1044,7 @@ int _panel_update_brightness_nolock(struct panel_device *panel, u32 send_cmd)
 		brightness = 0;
 	}
 
-#ifdef CONFIG_SUPPORT_MASK_LAYER
+#ifdef CONFIG_USDM_PANEL_MASK_LAYER
 	if (panel_bl->props.mask_layer_br_hook == MASK_LAYER_HOOK_ON) {
 		brightness = panel_bl->props.mask_layer_br_target;
 		panel_info("mask_layer_br_hook (%d)->(%d), skip brighntess\n",
@@ -962,15 +1053,15 @@ int _panel_update_brightness_nolock(struct panel_device *panel, u32 send_cmd)
 	}
 #endif
 
-	panel_bl->subdev[PANEL_BL_SUBDEV_TYPE_DISP].brightness =
-		panel_bl_subdev_get_valid_brightness(panel_bl, PANEL_BL_SUBDEV_TYPE_DISP, brightness);
-#ifdef CONFIG_SUPPORT_AOD_BL
-	panel_bl->subdev[PANEL_BL_SUBDEV_TYPE_AOD].brightness =
-		panel_bl_subdev_get_valid_brightness(panel_bl, PANEL_BL_SUBDEV_TYPE_AOD, brightness);
+	panel_update_subdev_brightness(panel, PANEL_BL_SUBDEV_TYPE_DISP,
+		panel_bl_subdev_get_valid_brightness(panel_bl, PANEL_BL_SUBDEV_TYPE_DISP, brightness));
+#ifdef CONFIG_USDM_PANEL_AOD_BL
+	panel_update_subdev_brightness(panel, PANEL_BL_SUBDEV_TYPE_AOD,
+		panel_bl_subdev_get_valid_brightness(panel_bl, PANEL_BL_SUBDEV_TYPE_AOD, brightness));
 #endif
 
 	id = panel_bl->props.id;
-#ifdef CONFIG_SUPPORT_HMD
+#ifdef CONFIG_USDM_PANEL_HMD
 	if (id == PANEL_BL_SUBDEV_TYPE_HMD) {
 		panel_info("keep plat_br:%d\n", brightness);
 		ret = -EINVAL;
@@ -1043,7 +1134,7 @@ static int panel_bl_thread(void *data)
 	struct panel_notifier_event_data evt_data;
 #endif
 	int ret, brightness, acl_state;
-#ifdef CONFIG_SUPPORT_MASK_LAYER
+#ifdef CONFIG_USDM_PANEL_MASK_LAYER
 	int mask_layer_br_hook;
 #endif
 	bool should_stop = false;
@@ -1051,14 +1142,14 @@ static int panel_bl_thread(void *data)
 	while (!kthread_should_stop()) {
 		brightness = panel_bl->props.brightness;
 		acl_state = panel_bl->props.acl_pwrsave;
-#ifdef CONFIG_SUPPORT_MASK_LAYER
+#ifdef CONFIG_USDM_PANEL_MASK_LAYER
 		mask_layer_br_hook = panel_bl->props.mask_layer_br_hook;
 #endif
 		ret = wait_event_interruptible(panel_bl->wq.wait,
 				(should_stop = panel_bl->wq.should_stop || kthread_should_stop()) ||
 				(brightness != panel_bl->props.brightness) ||
 				(acl_state != panel_bl->props.acl_pwrsave)
-#ifdef CONFIG_SUPPORT_MASK_LAYER
+#ifdef CONFIG_USDM_PANEL_MASK_LAYER
 				|| (mask_layer_br_hook != panel_bl->props.mask_layer_br_hook)
 #endif
 				);
@@ -1073,7 +1164,8 @@ static int panel_bl_thread(void *data)
 			panel_bl->props.aor_ratio : 0;
 		evt_data.d.bl.acl_status =
 			(panel_bl->props.acl_pwrsave == ACL_PWRSAVE_OFF) ? 0 : 1;
-#ifdef CONFIG_SUPPORT_MASK_LAYER
+		evt_data.d.bl.gradual_acl_val = panel_bl->props.acl_opr;
+#ifdef CONFIG_USDM_PANEL_MASK_LAYER
 		evt_data.d.bl.finger_mask_hbm_on =
 			(panel_bl->props.mask_layer_br_hook == MASK_LAYER_HOOK_ON);
 #endif
@@ -1141,14 +1233,28 @@ __visible_for_testing const char *panel_bl_get_name(struct panel_bl_device *pane
 
 __visible_for_testing int panel_bl_init_property(struct panel_bl_device *panel_bl)
 {
+	struct panel_device *panel;
+	int ret;
+
 	if (!panel_bl)
 		return -EINVAL;
 
+	panel = to_panel_device(panel_bl);
+
 	panel_bl->props.id = PANEL_BL_SUBDEV_TYPE_DISP;
 	panel_bl->props.brightness = UI_DEF_BRIGHTNESS;
+	panel_bl->props.prev_brightness = UI_DEF_BRIGHTNESS;
 	panel_bl->props.acl_pwrsave = ACL_PWRSAVE_OFF;
 	panel_bl->props.acl_opr = 1;
 	panel_bl->props.smooth_transition = SMOOTH_TRANS_ON;
+
+	ret = panel_property_add_prop_array(&panel->prop_list,
+			panel_bl_mandatory_property,
+			ARRAY_SIZE(panel_bl_mandatory_property));
+	if (ret < 0) {
+		panel_err("failed to add prop_array\n");
+		return ret;
+	}
 
 	return 0;
 }
@@ -1285,12 +1391,15 @@ static inline int panel_bl_free_brt_cache(struct panel_bl_device *panel_bl) { re
 
 int panel_bl_probe(struct panel_bl_device *panel_bl)
 {
+	struct panel_device *panel;
 	int ret;
 
 	if (!panel_bl)
 		return -EINVAL;
 
+	panel = to_panel_device(panel_bl);
 	panel_mutex_lock(&panel_bl->lock);
+	panel_mutex_lock(&panel->op_lock);
 	ret = panel_bl_init_backlight_device_property(panel_bl);
 	if (ret < 0) {
 		panel_err("failed to init backlight device property\n");
@@ -1303,13 +1412,10 @@ int panel_bl_probe(struct panel_bl_device *panel_bl)
 		goto err;
 	}
 
-	panel_mutex_unlock(&panel_bl->lock);
-
 	panel_info("panel_bl probe success\n");
 
-	return 0;
-
 err:
+	panel_mutex_unlock(&panel->op_lock);
 	panel_mutex_unlock(&panel_bl->lock);
 
 	return ret;
@@ -1317,9 +1423,12 @@ err:
 
 int panel_bl_remove(struct panel_bl_device *panel_bl)
 {
+	struct panel_device *panel;
+
 	if (!panel_bl)
 		return -EINVAL;
 
+	panel = to_panel_device(panel_bl);
 	panel_mutex_lock(&panel_bl->lock);
 	panel_bl_free_brt_cache(panel_bl);
 	panel_mutex_unlock(&panel_bl->lock);

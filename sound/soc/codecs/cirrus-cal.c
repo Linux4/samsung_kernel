@@ -28,7 +28,6 @@
 #include <linux/workqueue.h>
 #include <linux/power_supply.h>
 #include <linux/fs.h>
-#include <linux/pm_runtime.h>
 
 #include <sound/cirrus/core.h>
 #include <sound/cirrus/calibration.h>

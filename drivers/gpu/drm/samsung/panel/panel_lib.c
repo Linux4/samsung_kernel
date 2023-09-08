@@ -53,7 +53,7 @@ struct rdinfo *panel_lib_rdinfo_create(u32 type, char *name, u32 addr, u32 offse
 		return NULL;
 	}
 
-	if (!IS_CMD_TYPE_RX_PKT(type)) {
+	if (!IS_RX_PKT_TYPE(type)) {
 		panel_err("invalid type(%d)\n", type);
 		return NULL;
 	}
@@ -62,7 +62,8 @@ struct rdinfo *panel_lib_rdinfo_create(u32 type, char *name, u32 addr, u32 offse
 	if (!rdi)
 		return NULL;
 
-	pnobj_init(&rdi->base, type, name);
+	pnobj_init(&rdi->base, CMD_TYPE_RX_PACKET, name);
+	rdi->type = type;
 	rdi->addr = addr;
 	rdi->offset = offset;
 	rdi->len = len;
@@ -113,8 +114,8 @@ int panel_lib_rdinfo_copy(struct rdinfo *dst, struct rdinfo *src)
 		return  -EINVAL;
 	}
 
-	if (!IS_CMD_TYPE_RX_PKT(get_rdinfo_type(src))) {
-		panel_err("invalid type(%d)\n", get_rdinfo_type(src));
+	if (!is_valid_rdinfo(src)) {
+		panel_err("invalid rdinfo\n");
 		return  -EINVAL;
 	}
 
@@ -303,48 +304,3 @@ err:
 	return ret;
 }
 EXPORT_SYMBOL(panel_lib_resinfo_copy);
-
-struct dumpinfo *panel_lib_dumpinfo_create(char *name, struct resinfo *res, dump_cb_t callback)
-{
-	struct dumpinfo *dump;
-
-	if (unlikely(!name) || unlikely(!res) || unlikely(!callback)) {
-		panel_err("invalid parameter\n");
-		return NULL;
-	}
-
-	dump = kzalloc(sizeof(*dump), GFP_KERNEL);
-	if (!dump)
-		return NULL;
-
-	pnobj_init(&dump->base, CMD_TYPE_DMP, name);
-	dump->res = res;
-	dump->callback = callback;
-
-	return dump;
-}
-EXPORT_SYMBOL(panel_lib_dumpinfo_create);
-
-void panel_lib_dumpinfo_destroy(struct dumpinfo *m)
-{
-	if (!m)
-		return;
-
-	free_pnobj_name(&m->base);
-	kfree(m);
-}
-EXPORT_SYMBOL(panel_lib_dumpinfo_destroy);
-
-int panel_lib_dumpinfo_copy(struct dumpinfo *dst, struct dumpinfo *src)
-{
-	if (!dst || !src)
-		return -EINVAL;
-
-	if (dst == src)
-		return -EINVAL;
-
-	memcpy(dst, src, sizeof(struct dumpinfo));
-
-	return 0;
-}
-EXPORT_SYMBOL(panel_lib_dumpinfo_copy);

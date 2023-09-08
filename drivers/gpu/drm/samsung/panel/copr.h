@@ -56,6 +56,7 @@ enum COPR_VER {
 	COPR_VER_3,
 	COPR_VER_5,
 	COPR_VER_6,
+	COPR_VER_0_1,			// watch
 	MAX_COPR_VER,
 };
 
@@ -176,6 +177,15 @@ struct copr_reg_v6 {
 	struct copr_roi roi[5];
 };
 
+struct copr_reg_v0_1 {
+	u32 copr_en;
+	u32 copr_pwr;
+	u32 copr_mask;
+	u32 copr_roi_ctrl;
+	u32 copr_gamma_ctrl;
+	struct copr_roi roi[2];
+};
+
 struct copr_reg {
 	union {
 		struct copr_reg_v0 v0;
@@ -184,6 +194,7 @@ struct copr_reg {
 		struct copr_reg_v3 v3;
 		struct copr_reg_v5 v5;
 		struct copr_reg_v6 v6;
+		struct copr_reg_v0_1 v0_1;
 	};
 };
 
@@ -238,7 +249,7 @@ struct panel_copr_data {
 	int nr_roi;
 };
 
-#ifdef CONFIG_EXYNOS_DECON_LCD_COPR
+#ifdef CONFIG_USDM_PANEL_COPR
 bool copr_is_enabled(struct copr_info *copr);
 int copr_enable(struct copr_info *copr);
 int copr_disable(struct copr_info *copr);

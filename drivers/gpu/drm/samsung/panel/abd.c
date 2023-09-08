@@ -46,7 +46,7 @@
 #endif
 
 #include "abd.h"
-#if defined(CONFIG_USDM_PANEL)
+#if defined(CONFIG_SMCDSD_PANEL)
 #include "usdm_board.h"
 #include "usdm_notify.h"
 #include "usdm_panel.h"
@@ -62,7 +62,7 @@
 #define STRNEQ(a, b)			((strncmp((a), (b), (strlen(a))) == 0))
 
 #ifdef CONFIG_UML
-#define rtc_time_to_tm(...)
+#define rtc_time_to_tm(a, b)	(memset(b, 0, sizeof(struct rtc_time)))
 #else
 #define rtc_time_to_tm(a, b)	rtc_time64_to_tm(a, b)
 #endif
@@ -73,7 +73,7 @@
 
 static LIST_HEAD(pending_list);
 
-#if !defined(CONFIG_USDM_PANEL)
+#if !defined(CONFIG_SMCDSD_PANEL)
 struct mipi_dsi_lcd_common {
 	struct platform_device		*pdev;
 	struct mipi_dsi_lcd_driver	*drv;
@@ -217,7 +217,7 @@ static void set_mipi_rw_bypass(struct abd_protect *abd, unsigned int bypass)
 
 static inline int get_boot_lcdtype(void)
 {
-	return get_lcd_info("id");
+	return get_lk_boot_panel_id();
 }
 
 static inline unsigned int get_boot_lcdconnected(void)
@@ -233,7 +233,7 @@ static void save_boot_lcd_information(struct abd_protect *abd)
 		usdm_abd_save_str(abd, "islcmconnected abnormal");
 }
 
-#if defined(CONFIG_USDM_PANEL)
+#if defined(CONFIG_SMCDSD_PANEL)
 static int usdm_abd_con_set_dummy(struct abd_protect *abd, unsigned int dummy)
 {
 	struct mipi_dsi_lcd_common *container = get_abd_container_of(abd);
@@ -282,7 +282,13 @@ static int usdm_abd_simple_write_to_buffer(char *ibuf, size_t sizeof_ibuf,
 
 	ibuf = strim(ibuf);
 
-	if (ibuf[0] && !isalnum(ibuf[0]))
+	if (!ibuf[0])
+		return -EFAULT;
+
+	if (!isascii(ibuf[0]))
+		return -EFAULT;
+
+	if (!isalnum(ibuf[0]))
 		return -EFAULT;
 
 	return 0;
@@ -1079,7 +1085,7 @@ int usdm_abd_pin_register_handler(struct abd_protect *abd, int id, irq_handler_t
 	return 0;
 }
 
-#if defined(CONFIG_USDM_PANEL)
+#if defined(CONFIG_SMCDSD_PANEL)
 static int usdm_abd_con_fb_notifier_callback(struct notifier_block *this,
 			unsigned long event, void *data)
 {
@@ -1471,7 +1477,7 @@ exit:
 	return ret;
 }
 
-#if defined(CONFIG_USDM_PANEL)
+#if defined(CONFIG_SMCDSD_PANEL)
 static int usdm_abd_pin_early_notifier_callback(struct notifier_block *this,
 			unsigned long event, void *data)
 {
