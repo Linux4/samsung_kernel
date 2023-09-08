@@ -7,6 +7,8 @@
 #include "eeprom_i2c_common_driver.h"
 #include "eeprom_i2c_custom_driver.h"
 #include "kd_imgsensor.h"
+/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 start*/
+#ifdef CONFIG_HQ_PROJECT_OT8
 #include "eeprom_i2c_hi846_driver.h"
 #include "eeprom_i2c_gc8054_driver.h"
 #include "eeprom_i2c_gc8054_cxt_driver.h"
@@ -16,6 +18,8 @@
 /*  TabA7 Lite code for SR-AX3565-01-907 by chenjun at 2022/02/21 start */
 #include "eeprom_i2c_s5k4h7_hlt_driver.h"
 /*  TabA7 Lite code for SR-AX3565-01-907 by chenjun at 2022/02/21 end */
+#endif
+/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
 #ifdef CONFIG_HQ_PROJECT_HS03S
 #include "eeprom_i2c_hi556_txd_driver.h"
 #include "eeprom_i2c_gc5035_ly_driver.h"
@@ -32,9 +36,19 @@
 #include "eeprom_i2c_sc500cs_dd_driver.h"
 #endif
 
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 start*/
+#ifdef CONFIG_HQ_PROJECT_HS04
+#include "eeprom_i2c_o2101_hi556txd_front_driver.h"
+#include "eeprom_i2c_o2103_sc520syx_front_driver.h"
+#include "eeprom_i2c_o2104_hi556wtxd_front_driver.h"
+#endif
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 end*/
+
 #define MAX_EEPROM_SIZE_16K 0x4000
 
 struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
+/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 start*/
+#ifdef CONFIG_HQ_PROJECT_OT8
 /*TabA7 Lite code for SR-AX3565-01-320 by liuchengfei at 20201127 start*/
 	{HI846_SJC_SENSOR_ID, 0xB0, Common_read_region},
         {HI846_TXD_SENSOR_ID, 0x42, hi846_read_region},
@@ -60,6 +74,7 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 /*TabA7 Lite code for SR-AX3565-01-320 by wangqi at 20210107 start*/
 	{GC02M1SUB_CXT_SENSOR_ID, 0x6E, gc02m1sub_cxt_read_region},
 /*TabA7 Lite code for SR-AX3565-01-320 by wangqi at 20210107 end*/
+#endif
 #ifdef CONFIG_HQ_PROJECT_HS03S
 	/*Below is commom sensor */
 	/* A03s code for CAM-AL5625-01-247 by lisizhou at 2021/04/28 start */
@@ -96,6 +111,18 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 /*hs03s code for DEVAL5625-2576 by majunfeng at 2022/04/08 end*/
 /*hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 end*/
 #endif
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 start*/
+#ifdef CONFIG_HQ_PROJECT_HS04
+	{O2101_SC1300CSLY_BACK_SENSOR_ID, 0xA0, Common_read_region},
+	{O2102_HI1336TXD_BACK_SENSOR_ID, 0xA0, Common_read_region},
+	{O2103_OV13B10HLT_BACK_SENSOR_ID, 0xB0, Common_read_region},
+	{O2104_HI1336SJC_BACK_SENSOR_ID, 0xA0, Common_read_region},
+	{O2101_HI556TXD_FRONT_SENSOR_ID, 0x50, o2101_hi556txd_front_read_region},
+	{O2102_OV05A10HLT_FRONT_SENSOR_ID, 0xA0, Common_read_region},
+	{O2103_SC520SYX_FRONT_SENSOR_ID, 0x6C, o2103_sc520syx_front_read_region},
+	{O2104_HI556WTXD_FRONT_SENSOR_ID, 0x50, o2104_hi556wtxd_front_read_region},
+#endif
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 end*/
 	{IMX230_SENSOR_ID, 0xA0, Common_read_region},
 	{S5K2T7SP_SENSOR_ID, 0xA4, Common_read_region},
 	{IMX338_SENSOR_ID, 0xA0, Common_read_region},

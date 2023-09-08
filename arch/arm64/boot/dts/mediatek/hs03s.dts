@@ -580,7 +580,7 @@
 &mt6370_chg {
 	bc12_sel = <1>;
 };
-
+/* #include <hs03s/cust.dtsi> */
 #include "mediatek/hs03s/cust.dtsi"
 #include "mediatek/hs03s/hs03s-common.dtsi"
 #include "mediatek/cust_mt6765_camera.dtsi"

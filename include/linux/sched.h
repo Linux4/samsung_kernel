@@ -328,6 +328,13 @@ struct sched_info {
 # define SCHED_CAPACITY_SHIFT		SCHED_FIXEDPOINT_SHIFT
 # define SCHED_CAPACITY_SCALE		(1L << SCHED_CAPACITY_SHIFT)
 
+static inline unsigned int scale_from_percent(unsigned int pct)
+{
+	WARN_ON(pct > 100);
+
+	return ((SCHED_FIXEDPOINT_SCALE * pct) / 100);
+}
+
 struct load_weight {
 	unsigned long			weight;
 	u32				inv_weight;
@@ -707,6 +714,7 @@ struct task_struct {
 	int				boost;
 	u64				boost_period;
 	u64				boost_expires;
+	u64				last_enqueued_ts;
 
 #ifdef CONFIG_CGROUP_SCHED
 	struct task_group		*sched_task_group;
@@ -1318,6 +1326,13 @@ struct task_struct {
 
 	ANDROID_KABI_RESERVE(7);
 	ANDROID_KABI_RESERVE(8);
+#ifdef CONFIG_MTK_TASK_TURBO
+	unsigned short turbo:1;
+	unsigned short render:1;
+	unsigned short inherit_cnt:14;
+	short nice_backup;
+	atomic_t inherit_types;
+#endif
 
 	/*
 	 * New fields for task_struct should be added above here, so that

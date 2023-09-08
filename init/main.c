@@ -107,6 +107,11 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/initcall.h>
 
+#ifdef CONFIG_SECURITY_DEFEX
+#include <linux/defex.h>
+void __init __weak defex_load_rules(void) { }
+#endif
+
 static int kernel_init(void *);
 
 extern void init_IRQ(void);
@@ -560,6 +565,7 @@ static void __init mm_init(void)
 	page_ext_init_flatmem();
 	report_meminit();
 	mem_init();
+	set_memsize_kernel_type(MEMSIZE_KERNEL_STOP);
 	kmem_cache_init();
 	pgtable_init();
 	vmalloc_init();
@@ -568,7 +574,6 @@ static void __init mm_init(void)
 	init_espfix_bsp();
 	/* Should be run after espfix64 is set up. */
 	pti_init();
-	set_memsize_kernel_type(MEMSIZE_KERNEL_OTHERS);
 }
 
 asmlinkage __visible void __init start_kernel(void)
@@ -788,7 +793,6 @@ asmlinkage __visible void __init start_kernel(void)
 		efi_free_boot_services();
 	}
 
-	set_memsize_kernel_type(MEMSIZE_KERNEL_STOP);
 	/* Do the rest non-__init'ed, we're now alive */
 	rest_init();
 
@@ -875,6 +879,58 @@ static bool __init_or_module initcall_blacklisted(initcall_t fn)
 #endif
 __setup("initcall_blacklist=", initcall_blacklist);
 
+#ifdef CONFIG_SEC_DEVICE_BOOTSTAT
+static bool __init_or_module initcall_sec_debug = true;
+
+static int __init_or_module do_one_initcall_sec_debug(initcall_t fn)
+{
+	ktime_t calltime, delta, rettime;
+	unsigned long long duration;
+	int ret;
+	struct device_init_time_entry *entry;
+
+	calltime = ktime_get();
+	ret = fn();
+	rettime = ktime_get();
+	delta = ktime_sub(rettime, calltime);
+	duration = (unsigned long long) ktime_to_ns(delta) >> 10;
+	if (duration > DEVICE_INIT_TIME_100MS) {
+		entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+		if (!entry)
+			return -ENOMEM;
+		entry->buf = kasprintf(GFP_KERNEL, "%pf", fn);
+		if (!entry->buf) {
+			kfree(entry);
+			return -ENOMEM;
+		}
+		entry->duration = duration;
+		list_add(&entry->next, &device_init_time_list);
+		printk(KERN_DEBUG "initcall %pF returned %d after %lld usecs\n",
+			 fn, ret, duration);
+	}
+
+	return ret;
+}
+#else
+static int __init_or_module do_one_initcall_debug(initcall_t fn)
+{
+	ktime_t calltime, delta, rettime;
+	unsigned long long duration;
+	int ret;
+
+	printk(KERN_DEBUG "calling  %pF @ %i\n", fn, task_pid_nr(current));
+	calltime = ktime_get();
+	ret = fn();
+	rettime = ktime_get();
+	delta = ktime_sub(rettime, calltime);
+	duration = (unsigned long long) ktime_to_ns(delta) >> 10;
+	printk(KERN_DEBUG "initcall %pF returned %d after %lld usecs\n",
+		 fn, ret, duration);
+
+	return ret;
+}
+#endif
+
 static __init_or_module void
 trace_initcall_start_cb(void *data, initcall_t fn)
 {
@@ -947,7 +1003,15 @@ int __init_or_module do_one_initcall(initcall_t fn)
 
 	do_trace_initcall_start(fn);
 	BOOTPROF_TIME_LOG_START(ts);
-	ret = fn();
+#ifdef CONFIG_SEC_DEVICE_BOOTSTAT
+	if (initcall_sec_debug)
+		ret = do_one_initcall_sec_debug(fn);
+#else
+	if (initcall_debug)
+		ret = do_one_initcall_debug(fn);
+#endif
+	else 
+		ret = fn();
 	BOOTPROF_TIME_LOG_END(ts);
 	bootprof_initcall(fn, ts);
 	do_trace_initcall_finish(fn, ret);
@@ -1249,4 +1313,8 @@ static noinline void __init kernel_init_freeable(void)
 
 	integrity_load_keys();
 	load_default_modules();
+#ifdef CONFIG_SECURITY_DEFEX
+	defex_load_rules();
+#endif
+
 }

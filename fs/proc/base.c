@@ -2995,6 +2995,26 @@ static int proc_pid_patch_state(struct seq_file *m, struct pid_namespace *ns,
 }
 #endif /* CONFIG_LIVEPATCH */
 
+#ifdef CONFIG_MTK_TASK_TURBO
+static int proc_turbo_task_show(struct seq_file *m, struct pid_namespace *ns,
+		struct pid *pid, struct task_struct *p)
+{
+	unsigned int is_turbo;
+	unsigned int is_inherit_turbo;
+
+	if (!p)
+		return -ESRCH;
+	task_lock(p);
+	is_turbo = p->turbo;
+	is_inherit_turbo = atomic_read(&p->inherit_types);
+	seq_printf(m, "tid=%d turbo = %d,inherit turbo = %d prio=%d bk_prio=%d\n",
+			p->pid, is_turbo, is_inherit_turbo,
+			p->prio, NICE_TO_PRIO(p->nice_backup));
+	task_unlock(p);
+	return 0;
+}
+#endif
+
 /*
  * Thread groups
  */
@@ -3031,6 +3051,7 @@ static const struct pid_entry tgid_base_stuff[] = {
 	REG("maps",       S_IRUGO, proc_pid_maps_operations),
 #ifdef CONFIG_PAGE_BOOST
 	REG("filemap_list",       S_IRUGO, proc_pid_filemap_list_operations),
+	REG("filemap_info",       S_IRUGO|S_IWUGO, proc_pid_filemap_info_operations),
 	ONE("ioinfo",  S_IRUGO, proc_pid_ioinfo),
 #ifdef CONFIG_PAGE_BOOST_RECORDING
 	REG("io_record_control",      S_IRUGO|S_IWUGO, proc_pid_io_record_operations),
@@ -3498,6 +3519,9 @@ static const struct pid_entry tid_base_stuff[] = {
 #endif
 #ifdef CONFIG_CPU_FREQ_TIMES
 	ONE("time_in_state", 0444, proc_time_in_state_show),
+#endif
+#ifdef CONFIG_MTK_TASK_TURBO
+	ONE("turbo", 0444, proc_turbo_task_show),
 #endif
 };
 

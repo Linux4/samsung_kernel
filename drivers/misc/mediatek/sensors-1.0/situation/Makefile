@@ -14,3 +14,9 @@ obj-$(CONFIG_MTK_MOTION_DETECT_HUB)			+=	motion_detect/
 obj-$(CONFIG_MTK_TILTDETECTHUB)				+=	tilt_detector/
 obj-$(CONFIG_MTK_FLAT_HUB)				+=	flat/
 obj-$(CONFIG_MTK_SAR_HUB)				+=	sar/
+#hs14 code for SR-AL6528A-01-779 by xiongxiaoliang at 2022/11/23 start
+obj-$(CONFIG_MTK_WAKE_UP_MOTION)		+=	wakeup_motion/
+#hs14 code for SR-AL6528A-01-779 by xiongxiaoliang at 2022/11/23 end
+#hs14 code for SR-AL6528A-01-778 by xiongxiaoliang at 2022/11/26 start
+obj-$(CONFIG_MTK_SMARTALERT_HUB)		+=	smart_alert/
+#hs14 code for SR-AL6528A-01-778 by xiongxiaoliang at 2022/11/26 end

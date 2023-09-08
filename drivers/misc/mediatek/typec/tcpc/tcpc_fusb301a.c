@@ -34,6 +34,9 @@
 #include <inc/tcpc_fusb301a.h>
 #include <linux/switch.h>
 #include <inc/tcpm.h>
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
+#include <linux/hardinfo_charger.h>
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 end*/
 
 #undef  __CONST_FFS
 #define __CONST_FFS(_x) \
@@ -1874,6 +1877,11 @@ static int fusb301_probe(struct i2c_client *client,
 	g_fusb301_chip = chip;
 
 	enable_irq_wake(chip->irq_gpio);
+
+	/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
+	set_hardinfo_charger_data(TCPC_INFO, "FUSB301");
+	/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20210607 end*/
+
 	dev_info(cdev, "fusb301_probe SUCESS!\n");
 
 	return 0;

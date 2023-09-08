@@ -18,7 +18,7 @@
 #include <linux/sched/clock.h>
 
 #ifdef PLL_HOPPING_READY
-#include <mt_freqhopping_drv.h>
+#include <mtk_freqhopping_drv.h>
 #endif
 
 #if defined(USE_MEDIATEK_EMI)
@@ -44,7 +44,6 @@
 #include "mmdvfs_events.h"
 
 #include <linux/soc/mediatek/mtk_dvfsrc.h>
-#include <linux/soc/mediatek/mtk-pm-qos.h>
 #include <dvfsrc-exp.h>
 
 #ifdef MMDVFS_MMP
@@ -52,9 +51,15 @@
 #include "mmprofile_function.h"
 #endif
 
+#if !(defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6779))
+#include <helio-dvfsrc-opp.h>
+#endif
+
 #ifdef QOS_BOUND_DETECT
 #include "mtk_qos_bound.h"
 #endif
+
+#include "swpm_me.h"
 
 #include <linux/regulator/consumer.h>
 static struct regulator *vcore_reg_id;
@@ -179,7 +184,9 @@ static struct mtk_pm_qos_request smi_freq_request[MAX_COMM_NUM];
 static DEFINE_MUTEX(step_mutex);
 static DEFINE_MUTEX(bw_mutex);
 static s32 total_hrt_bw = UNINITIALIZED_VALUE;
+static s32 total_ui_only_hrt_bw = UNINITIALIZED_VALUE;
 static BLOCKING_NOTIFIER_HEAD(hrt_bw_throttle_notifier);
+static BLOCKING_NOTIFIER_HEAD(cam_max_bw_notifier);
 
 
 static int mm_freq_notify(struct notifier_block *nb,
@@ -447,6 +454,9 @@ static void mm_apply_clk_for_all(u32 pm_qos_class, s32 src_mux_id,
 		freq[i] = set_freq_for_log(
 			freq[i], all_freqs[i]->current_step, i);
 	}
+	set_swpm_me_freq(all_freqs[3]->step_config[step].freq_step,
+			all_freqs[2]->step_config[step].freq_step,
+			all_freqs[1]->step_config[step].freq_step);
 	first_log = (pm_qos_class << 16) | step;
 
 #ifdef MMDVFS_MMP
@@ -706,6 +716,8 @@ static s32 channel_disp_hrt_cnt[MAX_COMM_NUM][MAX_CH_COUNT] = {};
 
 #define MULTIPLY_BW_THRESH_HIGH(value) ((value)*1/2)
 #define MULTIPLY_BW_THRESHOLD_LOW(value) ((value)*2/5)
+#define MULTIPLY_RATIO(value) ((value)*1000)
+#define DIVIDE_RATIO(value) ((value)/1000)
 static s32 current_hrt_bw;
 static u32 camera_max_bw;
 static s32 get_cam_hrt_bw(void)
@@ -736,11 +748,16 @@ static bool is_camera_larb(u32 master_id)
 
 static s32 get_total_used_hrt_bw(void)
 {
+	s32 cam_hrt_bw;
+	s32 disp_hrt_bw;
+	s32 md_hrt_bw;
+
 	/* HRT Write BW should multiply a weight */
-	s32 cam_hrt_bw = dram_write_weight(get_cam_hrt_bw());
-	s32 disp_hrt_bw =
-		larb_req[SMI_PMQOS_LARB_DEC(PORT_VIRTUAL_DISP)].total_hrt_data;
-	s32 md_hrt_bw =
+	cam_hrt_bw = dram_write_weight(MULTIPLY_RATIO(get_cam_hrt_bw())/cam_occ_ratio());
+	disp_hrt_bw =
+		MULTIPLY_RATIO(larb_req[SMI_PMQOS_LARB_DEC(PORT_VIRTUAL_DISP)].total_hrt_data)
+		/disp_occ_ratio();
+	md_hrt_bw =
 		larb_req[SMI_PMQOS_LARB_DEC(PORT_VIRTUAL_MD)].total_hrt_data;
 	return (cam_hrt_bw + disp_hrt_bw + md_hrt_bw);
 }
@@ -752,7 +769,7 @@ static s32 get_io_width(void)
 	s32 ddr_type = mtk_dramc_get_ddr_type();
 
 	if (ddr_type == TYPE_LPDDR4 || ddr_type == TYPE_LPDDR4X
-	    || ddr_type == TYPE_LPDDR4P)
+	    || ddr_type == TYPE_LPDDR4P || ddr_type == TYPE_LPDDR5)
 		io_width = 2;
 	else
 		io_width = 4;
@@ -1023,6 +1040,11 @@ s32 mm_qos_set_request(struct mm_qos_request *req, u32 bw_value,
 	u32 comm, comm_port;
 	struct mm_qos_request *enum_req = NULL;
 	bool hrt_port = false;
+#if defined(USE_MEDIATEK_EMI)
+#if IS_ENABLED(CONFIG_MACH_MT6877)
+	s32 ddr_type = mtk_dramc_get_ddr_type();
+#endif
+#endif
 
 	if (!req)
 		return -EINVAL;
@@ -1152,7 +1174,16 @@ s32 mm_qos_set_request(struct mm_qos_request *req, u32 bw_value,
 		if (larb_req[larb].is_max_ostd)
 			req->ostd = max_ostd;
 	}
-
+#if defined(USE_MEDIATEK_EMI)
+#if IS_ENABLED(CONFIG_MACH_MT6877)
+	if (ddr_type == TYPE_LPDDR5) {
+		if (larb == 16 && port == 15)
+			req->ostd = 4;
+		if (larb == 17 && port == 15)
+			req->ostd = 4;
+	}
+#endif
+#endif
 	list_for_each_entry(enum_req, &(req->port_node), port_node)
 		enum_req->ostd = req->ostd;
 
@@ -1419,29 +1450,42 @@ s32 mm_hrt_get_available_hrt_bw(u32 master_id)
 {
 	s32 total_used_hrt_bw = get_total_used_hrt_bw();
 	s32 src_hrt_bw = larb_req[SMI_PMQOS_LARB_DEC(master_id)].total_hrt_data;
-	s32 cam_bw;
+	s32 cam_occ_bw;
+	s32 cam_occ_max_bw;
 	s32 result;
 
 	if (total_hrt_bw == UNINITIALIZED_VALUE)
 		return UNINITIALIZED_VALUE;
+	if (total_ui_only_hrt_bw == UNINITIALIZED_VALUE)
+		return UNINITIALIZED_VALUE;
 
+	cam_occ_bw = dram_write_weight(MULTIPLY_RATIO(get_cam_hrt_bw())/cam_occ_ratio());
 	if (is_camera_larb(master_id))
-		src_hrt_bw = dram_write_weight(get_cam_hrt_bw());
+		src_hrt_bw = cam_occ_bw;
+	else
+		src_hrt_bw = MULTIPLY_RATIO(src_hrt_bw)/disp_occ_ratio();
 
-	result = total_hrt_bw - total_used_hrt_bw + src_hrt_bw;
+	if (camera_max_bw > 0)
+		result = total_hrt_bw - total_used_hrt_bw + src_hrt_bw;
+	else
+		result = total_ui_only_hrt_bw - total_used_hrt_bw + src_hrt_bw;
 
 	if (SMI_PMQOS_LARB_DEC(master_id) ==
 			SMI_PMQOS_LARB_DEC(PORT_VIRTUAL_DISP)) {
 		/* Consider worst camera bw if camera is on */
-		if (camera_max_bw > 0) {
-			cam_bw = dram_write_weight(get_cam_hrt_bw());
-			result = result + cam_bw - camera_max_bw;
-		}
+		cam_occ_max_bw = MULTIPLY_RATIO(camera_max_bw)/cam_occ_ratio();
+		if (cam_occ_max_bw > 0)
+			result = result + cam_occ_bw - cam_occ_max_bw;
 
 		if (disp_bw_ceiling > 0 && !wait_next_max_cam_bw_set
 			&& disp_bw_ceiling < result)
 			result = disp_bw_ceiling;
 	}
+
+	if (is_camera_larb(master_id))
+		result = DIVIDE_RATIO(result * cam_occ_ratio());
+	else
+		result = DIVIDE_RATIO(result * disp_occ_ratio());
 	return ((result < 0)?0:result);
 }
 EXPORT_SYMBOL_GPL(mm_hrt_get_available_hrt_bw);
@@ -1461,6 +1505,22 @@ s32 mm_hrt_remove_bw_throttle_notifier(struct notifier_block *nb)
 				nb);
 }
 EXPORT_SYMBOL_GPL(mm_hrt_remove_bw_throttle_notifier);
+
+s32 add_cam_max_bw_notifier(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(
+				&cam_max_bw_notifier,
+				nb);
+}
+EXPORT_SYMBOL_GPL(add_cam_max_bw_notifier);
+
+s32 remove_cam_max_bw_notifier(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(
+				&cam_max_bw_notifier,
+				nb);
+}
+EXPORT_SYMBOL_GPL(remove_cam_max_bw_notifier);
 
 #ifdef HRT_MECHANISM
 static int notify_bw_throttle(void *data)
@@ -1518,8 +1578,60 @@ static void delay_work_handler(struct work_struct *work)
 static DECLARE_DELAYED_WORK(g_delay_work, delay_work_handler);
 #endif /* HRT_MECHANISM */
 
+#ifdef SMI_TAL
+static int notify_bw_throttle(void *data)
+{
+	u64 start_jiffies = jiffies;
+
+	blocking_notifier_call_chain(&cam_max_bw_notifier,
+		camera_max_bw, NULL);
+
+	pr_notice("notify_time=%u\n",
+		jiffies_to_msecs(jiffies-start_jiffies));
+	return 0;
+}
+
+static u32 camera_overlap_bw;
+static void set_camera_max_bw(u32 occ_bw)
+{
+	struct task_struct *pKThread;
+
+	camera_max_bw = occ_bw;
+	wait_next_max_cam_bw_set = false;
+	pr_notice("set cam max occupy_bw=%d\n", occ_bw);
+	pKThread = kthread_run(notify_bw_throttle,
+		NULL, "notify bw throttle");
+}
+static void delay_work_handler(struct work_struct *work)
+{
+	set_camera_max_bw(camera_overlap_bw);
+}
+static DECLARE_DELAYED_WORK(g_delay_work, delay_work_handler);
+#endif /* SMI_TAL */
+
+
+#define MULTIPLY_W_DRAM_WEIGHT(value) ((value)*6/5) /* Write DRAM Weight*/
+
 void mmdvfs_set_max_camera_hrt_bw(u32 bw)
 {
+#ifdef SMI_TAL
+	u32 mw_hrt_bw;
+
+	cancel_delayed_work_sync(&g_delay_work);
+
+	mw_hrt_bw = MULTIPLY_W_DRAM_WEIGHT(bw);
+	if (mw_hrt_bw < camera_max_bw) {
+		camera_overlap_bw = mw_hrt_bw;
+		schedule_delayed_work(&g_delay_work, 2 * HZ);
+	} else {
+		camera_overlap_bw = 0;
+		set_camera_max_bw(mw_hrt_bw);
+	}
+
+	pr_notice("middleware set max camera hrt bw:%d\n", bw);
+
+#endif
+
 #ifdef HRT_MECHANISM
 	u32 mw_hrt_bw;
 
@@ -1542,7 +1654,7 @@ void mmdvfs_set_max_camera_hrt_bw(u32 bw)
 }
 EXPORT_SYMBOL_GPL(mmdvfs_set_max_camera_hrt_bw);
 
-static s32 get_total_hrt_bw(void)
+static s32 get_total_hrt_bw(bool ui_only)
 {
 	s32 result = 0;
 #if defined(USE_MEDIATEK_EMI)
@@ -1550,7 +1662,10 @@ static s32 get_total_hrt_bw(void)
 	s32 ch_num = mtk_emicen_get_ch_cnt();
 	s32 io_width = get_io_width();
 
-	result = MULTIPLY_BW_THRESH_HIGH(max_freq * ch_num * io_width);
+	if (ui_only)
+		result = DIVIDE_RATIO(max_freq * ch_num * io_width * emi_occ_ui_only());
+	else
+		result = DIVIDE_RATIO(max_freq * ch_num * io_width * emi_occ_ratio());
 #elif defined(USE_MTK_DRAMC)
 	s32 max_freq = dram_steps_freq(0);
 	s32 ch_num = get_emi_ch_num();
@@ -1642,7 +1757,7 @@ static void mmdvfs_get_larb_node(struct device *dev, u32 larb_id)
 
 	ret = snprintf(larb_name, MAX_LARB_NAME, "larb%d", larb_id);
 	if (ret < 0)
-		pr_notice("snprintf return error, ret:%d\n", ret);
+		pr_notice("snprintf return error, ret:%d, larb_id:%d\n", ret, larb_id);
 	of_property_for_each_u32(dev->of_node, larb_name, prop, p, value) {
 		if (count >= MAX_PORT_COUNT) {
 			pr_notice("port size is over (%d)\n", MAX_PORT_COUNT);
@@ -2055,7 +2170,9 @@ static int __init mmdvfs_pmqos_late_init(void)
 	mmdvfs_qos_force_step(-1);
 	pr_notice("force flip step0 when late_init\n");
 #endif
-	total_hrt_bw = get_total_hrt_bw();
+	total_hrt_bw = get_total_hrt_bw(false);
+	total_ui_only_hrt_bw = get_total_hrt_bw(true);
+	init_me_swpm();
 	return 0;
 }
 
@@ -2196,6 +2313,11 @@ int mmdvfs_qos_force_step(int step)
 		return -EINVAL;
 	}
 	force_step = step;
+#if defined(CONFIG_MACH_MT6785) || defined(CONFIG_MACH_MT6768)
+#if (defined(CONFIG_MTK_MT6382_BDG) && defined(CONFIG_MTK_MT6382_VDO_MODE))
+	force_step = 0;
+#endif
+#endif
 	update_step(PM_QOS_NUM_CLASSES, -1);
 	return 0;
 }

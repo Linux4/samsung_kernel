@@ -47,9 +47,15 @@
 			/*HS03s for SR-AL5625-01-374 by wenyaqi at 20210429 end*/
 			enable_te;
 			enable_wdt;
-			#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
 			enable_otg_wdt;
-			#endif
+#endif
+#ifdef CONFIG_HQ_PROJECT_O22
+			enable_otg_wdt;
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+			enable_otg_wdt;
+#endif
 			lbp_hys_sel = <1>;	/* 0: 100mV, 1: 200mV */
 			lbp_dt = <1>;		/* 0: 10ms, 1: 20ms */
 						/* 2: 40ms, 3: 500us */
@@ -151,6 +157,12 @@
 #ifdef CONFIG_HQ_PROJECT_HS03S
 			mt,chan_en  = <0xC>; /* bit 0 1 2 3 -> chan 1 2 3 4 */
 #endif
+#ifdef CONFIG_HQ_PROJECT_O22
+			mt,chan_en  = <0xC>; /* bit 0 1 2 3 -> chan 1 2 3 4 */
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+			mt,chan_en  = <0xC>; /* bit 0 1 2 3 -> chan 1 2 3 4 */
+#endif
 			/* HS03S code added for SR-AL5625-01-357 by gaozhengwei at 20210423 end */
 			mt,map_linear;
 			mt,bl_ovp_level = <3>;	/* 0: 17v */
@@ -193,6 +205,12 @@
  			mt,max_bled_brightness = <1501>; /* maximum 2047 */
 #endif
 #ifdef CONFIG_HQ_PROJECT_HS03S
+			mt,max_bled_brightness = <1570>; /* maximum 2047 */
+#endif
+#ifdef CONFIG_HQ_PROJECT_O22
+			mt,max_bled_brightness = <1570>; /* maximum 2047 */
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
 			mt,max_bled_brightness = <1570>; /* maximum 2047 */
 #endif
 			/* HS03S code added for SR-AL5625-01-357 by gaozhengwei at 20210423 end */

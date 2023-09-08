@@ -90,6 +90,11 @@ enum LCM_IOCTL {
 	LCM_IOCTL_NULL = 0,
 };
 
+enum LCM_Send_Cmd_Mode {
+	LCM_SEND_IN_CMD = 0,
+	LCM_SEND_IN_VDO
+};
+
 /* DBI related enumerations */
 
 enum LCM_DBI_CLOCK_FREQ {
@@ -196,8 +201,10 @@ enum LCM_LANE_NUM {
 
 enum LCM_DSI_FORMAT {
 	LCM_DSI_FORMAT_RGB565 = 0,
-	LCM_DSI_FORMAT_RGB666 = 1,
-	LCM_DSI_FORMAT_RGB888 = 2
+	LCM_DSI_FORMAT_RGB666_LOOSELY = 1,
+	LCM_DSI_FORMAT_RGB666 = 2,
+	LCM_DSI_FORMAT_RGB888 = 3,
+	LCM_DSI_FORMAT_RGB101010 = 4,
 };
 
 
@@ -371,6 +378,42 @@ struct LCM_UFOE_CONFIG_PARAMS {
 };
 /* ------------------------------------------------------------------------- */
 
+#ifdef CONFIG_MTK_MT6382_BDG
+struct LCM_DSC_CONFIG_PARAMS {
+	unsigned int ver; /* [7:4] major [3:0] minor */
+	unsigned int slice_width;
+	unsigned int bit_per_pixel;
+	unsigned int slice_mode;
+	unsigned int rgb_swap;
+	unsigned int dsc_cfg;
+	unsigned int dsc_line_buf_depth;
+	unsigned int bit_per_channel;
+	unsigned int rct_on;
+	unsigned int bp_enable;
+	unsigned int pic_height; /* need to check */
+	unsigned int pic_width;  /* need to check */
+	unsigned int slice_height;
+	unsigned int chunk_size;
+	unsigned int dec_delay;
+	unsigned int xmit_delay;
+	unsigned int scale_value;
+	unsigned int increment_interval;
+	unsigned int line_bpg_offset;
+	unsigned int decrement_interval;
+	unsigned int nfl_bpg_offset;
+	unsigned int slice_bpg_offset;
+	unsigned int initial_offset;
+	unsigned int final_offset;
+	unsigned int flatness_minqp;
+	unsigned int flatness_maxqp;
+	unsigned int rc_model_size;
+	unsigned int rc_edge_factor;
+	unsigned int rc_quant_incr_limit0;
+	unsigned int rc_quant_incr_limit1;
+	unsigned int rc_tgt_offset_hi;
+	unsigned int rc_tgt_offset_lo;
+};
+#else
 struct LCM_DSC_CONFIG_PARAMS {
 	unsigned int slice_width;
 	unsigned int slice_hight;
@@ -399,6 +442,7 @@ struct LCM_DSC_CONFIG_PARAMS {
 	unsigned int flatness_maxqp;
 	unsigned int rc_mode1_size;
 };
+#endif
 
 
 struct LCM_DBI_PARAMS {
@@ -524,6 +568,11 @@ struct dynamic_fps_info {
 	/*unsigned int idle_check_interval;*//*ms*/
 };
 
+struct vsync_trigger_time {
+	unsigned int fps;
+	unsigned int trigger_after_te;
+	unsigned int config_expense_time;
+};
 
 /*DynFPS*/
 enum DynFPS_LEVEL {
@@ -667,6 +716,8 @@ struct LCM_DSI_PARAMS {
 	unsigned int cont_clock;
 	unsigned int ufoe_enable;
 	unsigned int dsc_enable;
+	unsigned int bdg_dsc_enable;
+	unsigned int bdg_ssc_disable;
 	struct LCM_UFOE_CONFIG_PARAMS ufoe_params;
 	struct LCM_DSC_CONFIG_PARAMS dsc_params;
 	unsigned int edp_panel;
@@ -728,6 +779,7 @@ struct LCM_DSI_PARAMS {
 	/*for ARR*/
 	unsigned int dynamic_fps_levels;
 	struct dynamic_fps_info dynamic_fps_table[DYNAMIC_FPS_LEVELS];
+	struct vsync_trigger_time vsync_after_te[DFPS_LEVELS];
 
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
 	/****DynFPS start****/
@@ -784,6 +836,10 @@ struct LCM_PARAMS {
 	unsigned int min_luminance;
 	unsigned int average_luminance;
 	unsigned int max_luminance;
+
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
+	enum LCM_Send_Cmd_Mode sendmode;
+#endif
 
 	unsigned int hbm_en_time;
 	unsigned int hbm_dis_time;
@@ -885,8 +941,8 @@ struct LCM_DTS {
 struct LCM_setting_table_V3 {
 	unsigned char id;
 	unsigned char cmd;
-	unsigned char count;
-	unsigned char para_list[128];
+	unsigned int count;
+	unsigned char para_list[512];
 };
 
 /*
@@ -921,11 +977,11 @@ struct LCM_UTIL_FUNCS {
 
 	void (*dsi_set_cmdq_V3)(struct LCM_setting_table_V3 *para_list,
 			unsigned int size, unsigned char force_update);
-	void (*dsi_set_cmdq_V2)(unsigned int cmd, unsigned char count,
+	void (*dsi_set_cmdq_V2)(unsigned int cmd, unsigned int count,
 			unsigned char *para_list, unsigned char force_update);
 	void (*dsi_set_cmdq)(unsigned int *pdata, unsigned int queue_size,
 			unsigned char force_update);
-	void (*dsi_set_null)(unsigned int cmd, unsigned char count,
+	void (*dsi_set_null)(unsigned int cmd, unsigned int count,
 			unsigned char *para_list, unsigned char force_update);
 	void (*dsi_write_cmd)(unsigned int cmd);
 	void (*dsi_write_regs)(unsigned int addr, unsigned int *para,
@@ -945,11 +1001,11 @@ struct LCM_UTIL_FUNCS {
 	void (*dsi_set_cmdq_V11)(void *cmdq, unsigned int *pdata,
 			unsigned int queue_size, unsigned char force_update);
 	void (*dsi_set_cmdq_V22)(void *cmdq, unsigned int cmd,
-			unsigned char count, unsigned char *para_list,
+			unsigned int count, unsigned char *para_list,
 			unsigned char force_update);
 	void (*dsi_swap_port)(int swap);
 	void (*dsi_set_cmdq_V23)(void *cmdq, unsigned int cmd,
-		unsigned char count, unsigned char *para_list,
+		unsigned int count, unsigned char *para_list,
 		unsigned char force_update);	/* dual */
 	void (*mipi_dsi_cmds_tx)(void *cmdq, struct dsi_cmd_desc *cmds);
 	unsigned int (*mipi_dsi_cmds_rx)(char *out,
@@ -957,8 +1013,8 @@ struct LCM_UTIL_FUNCS {
 	/*Dynfps*/
 	void (*dsi_dynfps_send_cmd)(
 		void *cmdq, unsigned int cmd,
-		unsigned char count, unsigned char *para_list,
-		unsigned char force_update);
+		unsigned int count, unsigned char *para_list,
+		unsigned char force_update, enum LCM_Send_Cmd_Mode sendmode);
 
 };
 enum LCM_DRV_IOCTL_CMD {
@@ -1027,9 +1083,9 @@ struct LCM_DRIVER {
 
 	/* /////////////DynFPS///////////////////////////// */
 	void (*dfps_send_lcm_cmd)(void *cmdq_handle,
-		unsigned int from_level, unsigned int to_level);
+		unsigned int from_level, unsigned int to_level, struct LCM_PARAMS *params);
 	bool (*dfps_need_send_cmd)(
-	unsigned int from_level, unsigned int to_level);
+	unsigned int from_level, unsigned int to_level, struct LCM_PARAMS *params);
 
 	/* /////////////suspend////////////////////////// */
 	void (*disable)(void);
@@ -1069,5 +1125,46 @@ extern struct pinctrl_state *lcd_disp_pwm_gpio;
 /* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 start */
 /* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 end */
 #endif
+#ifdef CONFIG_HQ_PROJECT_O22
 
+#define GPIO_OUT_LOW 0
+#define GPIO_OUT_ONE 1
+#define GPIO_OUT_ZERO 0
+extern void lcm_set_gpio_output(unsigned int GPIO, unsigned int output);
+extern unsigned int GPIO_LCD_RST;
+extern unsigned int GPIO_TSP_RST;
+extern struct pinctrl *lcd_pinctrl1;
+extern struct pinctrl_state *lcd_disp_pwm;
+extern struct pinctrl_state *lcd_disp_pwm_gpio;
+
+/*hs14 code for SR-AL6528A-01-423 by duanyaoming at 20220910 start*/
+extern struct pinctrl_state *tp_rst_low;
+extern struct pinctrl_state *tp_rst_high;
+extern bool g_system_is_shutdown;
+/*hs14 code for SR-AL6528A-01-423 by duanyaoming at 20220910 end*/
+/*hs14 code for SR-AL6528A-01-457 by duanyaoming at 20220911 start*/
+extern bool smart_wakeup_open_flag;
+/*hs14 code for SR-AL6528A-01-457 by duanyaoming at 20220911 end*/
+/* A14 code for AL6528A-4 by duanyaoming at 20220829 end */
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+
+/* HS03S code added for SR-AL5625-01-310 by gaozhengwei at 20210423 start */
+#define GPIO_OUT_LOW 0
+#define GPIO_OUT_ONE 1
+#define GPIO_OUT_ZERO 0
+extern void lcm_set_gpio_output(unsigned int GPIO, unsigned int output);
+extern unsigned int GPIO_LCD_RST;
+/* hs03s_NM code added for SR-AL5625-01-609 by fengzhigang at 20220424 start */
+extern unsigned int GPIO_TSP_RST;
+/* hs03s_NM code added for SR-AL5625-01-609 by fengzhigang at 20220424 end */
+extern struct pinctrl *lcd_pinctrl1;
+extern struct pinctrl_state *lcd_disp_pwm;
+extern struct pinctrl_state *lcd_disp_pwm_gpio;
+
+/* HS03S code added for SR-AL5625-01-310 by gaozhengwei at 20210423 end */
+
+/* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 start */
+/* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 end */
+#endif
 #endif /* __LCM_DRV_H__ */

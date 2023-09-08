@@ -36,6 +36,9 @@
 
 #include "sgm41513_reg.h"
 #include "sgm41513.h"
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
+#include <linux/hardinfo_charger.h>
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 end*/
 
 struct sgm41513 {
     struct device *dev;
@@ -747,6 +750,63 @@ static int sgm41513_register_interrupt(struct sgm41513 *sgm)
     return 0;
 }
 
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+#if defined(CONFIG_HQ_PROJECT_HS04)
+static int sgm41513_set_shipmode(struct charger_device *chg_dev, bool en)
+{
+    int ret;
+    u8 val;
+    struct sgm41513 *sgm = dev_get_drvdata(&chg_dev->dev);
+
+    if (en) {
+        val = REG07_BATFET_OFF << REG07_BATFET_DIS_SHIFT;
+        ret = sgm41513_update_bits(sgm, SGM41513_REG_07, REG07_BATFET_DIS_MASK, val);
+    } else {
+        val = REG07_BATFET_ON << REG07_BATFET_DIS_SHIFT;
+        ret = sgm41513_update_bits(sgm, SGM41513_REG_07, REG07_BATFET_DIS_MASK, val);
+    }
+
+    pr_err("%s shipmode %s\n", en ? "enable" : "disable",
+            !ret ? "successfully" : "failed");
+
+    return ret;
+}
+
+static int sgm41513_get_shipmode(struct charger_device *chg_dev)
+{
+    int ret;
+    u8 val;
+    struct sgm41513 *sgm = dev_get_drvdata(&chg_dev->dev);
+
+    msleep(100);
+    ret = sgm41513_read_byte(sgm, SGM41513_REG_07, &val);
+    if (ret == 0){
+        pr_err("Reg[%.2x] = 0x%.2x\n", SGM41513_REG_07, val);
+    } else {
+        pr_err("%s: get shipmode reg fail! \n",__func__);
+    }
+
+    ret = (val & REG07_BATFET_DIS_MASK) >> REG07_BATFET_DIS_SHIFT;
+    pr_err("%s:shipmode %s\n",__func__, ret ? "enabled" : "disabled");
+
+    return ret;
+}
+
+static int sgm41513_disable_battfet_rst(struct sgm41513 *sgm)
+{
+    int ret;
+    u8 val;
+
+    val = REG07_BATFET_RST_DISABLE << REG07_BATFET_RST_EN_SHIFT;
+    ret = sgm41513_update_bits(sgm, SGM41513_REG_07, REG07_BATFET_RST_EN_MASK, val);
+
+    pr_err("disable BATTFET_RST_EN %s\n", !ret ? "successfully" : "failed");
+
+    return ret;
+}
+#endif
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end*/
+
 static int sgm41513_init_device(struct sgm41513 *sgm)
 {
     int ret;
@@ -787,6 +847,13 @@ static int sgm41513_init_device(struct sgm41513 *sgm)
     if (ret)
         pr_err("Failed to set vindpm and iindpm int mask\n");
 
+    /* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+#if defined(CONFIG_HQ_PROJECT_HS04)
+    ret = sgm41513_disable_battfet_rst(sgm);
+    if (ret)
+        pr_err("Failed to disable_battfet\n");
+#endif
+    /* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
     return 0;
 }
 
@@ -1314,6 +1381,12 @@ static struct charger_ops sgm41513_chg_ops = {
     .get_chr_status = sgm41513_get_charging_status,
     .set_hiz_mode = sgm41513_set_hiz_mode,
     .get_hiz_mode = sgm41513_get_hiz_mode,
+    /* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+#if defined(CONFIG_HQ_PROJECT_HS04)
+    .get_ship_mode = sgm41513_get_shipmode,
+    .set_ship_mode = sgm41513_set_shipmode,
+#endif
+    /* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end */
 };
 
 static struct of_device_id sgm41513_charger_match_table[] = {
@@ -1507,6 +1580,10 @@ static int sgm41513_charger_probe(struct i2c_client *client,
         dev_notice(&client->dev, "Fail to register power supply dev\n");
         ret = PTR_ERR(sgm->psy);
     }
+
+	/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
+	set_hardinfo_charger_data(CHG_INFO, "SGM41513");
+	/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 end*/
 
     pr_err("sgm41513 probe successfully, Part Num:%d\n!",
             sgm->part_no);

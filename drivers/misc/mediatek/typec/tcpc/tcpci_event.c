@@ -18,6 +18,7 @@
 #include "inc/tcpci.h"
 #include "inc/pd_policy_engine.h"
 #include "inc/pd_dpm_core.h"
+#include <mt-plat/mtk_boot.h>
 
 #ifdef CONFIG_USB_PD_POSTPONE_VDM
 static void postpone_vdm_event(struct tcpc_device *tcpc)
@@ -762,8 +763,19 @@ void pd_put_cc_detached_event(struct tcpc_device *tcpc)
 #endif /* CONFIG_USB_PD_WAIT_BC12 */
 #endif /* CONFIG_USB_POWER_DELIVERY */
 
+#ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
+	if ((tcpc->pd_port.error_recovery_once == 1) &&
+		(tcpc->bootmode == KERNEL_POWER_OFF_CHARGING_BOOT ||
+		tcpc->bootmode == LOW_POWER_OFF_CHARGING_BOOT))
+		tcpci_notify_hard_reset_state(tcpc,
+			TCP_ERROR_RECOVERY_KPOC);
+	else
+		tcpci_notify_hard_reset_state(
+			tcpc, TCP_HRESET_RESULT_FAIL);
+#else
 	tcpci_notify_hard_reset_state(
 		tcpc, TCP_HRESET_RESULT_FAIL);
+#endif /*CONFIG_KPOC_GET_SOURCE_CAP_TRY*/
 
 	__pd_event_buf_reset(tcpc, TCP_DPM_RET_DROP_CC_DETACH);
 	__pd_put_hw_event(tcpc, PD_HW_CC_DETACHED);
@@ -1065,8 +1077,16 @@ void pd_notify_pe_error_recovery(struct pd_port *pd_port)
 
 	mutex_lock(&tcpc->access_lock);
 
-	tcpci_notify_hard_reset_state(
-		tcpc, TCP_HRESET_RESULT_FAIL);
+#ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
+	if (pd_port->error_recovery_once == 1 &&
+		(tcpc->bootmode == KERNEL_POWER_OFF_CHARGING_BOOT ||
+		tcpc->bootmode == LOW_POWER_OFF_CHARGING_BOOT))
+		tcpci_notify_hard_reset_state(
+			tcpc, TCP_ERROR_RECOVERY_KPOC);
+	else
+#endif /*CONFIG_KPOC_GET_SOURCE_CAP_TRY*/
+		tcpci_notify_hard_reset_state(
+			tcpc, TCP_HRESET_RESULT_FAIL);
 
 	tcpc->pd_wait_pr_swap_complete = false;
 	__tcp_event_buf_reset(tcpc, TCP_DPM_RET_DROP_ERROR_REOCVERY);

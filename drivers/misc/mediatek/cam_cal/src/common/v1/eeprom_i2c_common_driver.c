@@ -45,12 +45,18 @@ static struct i2c_client *g_pstI2CclientG;
 #define I2C_MASK_FLAG	(0x00ff)
 #endif
 
+#define I2C_WRITE_ID 0x6E
+#define dump_en
+
 #define EEPROM_I2C_MSG_SIZE_READ 2
 #ifndef EEPROM_I2C_READ_MSG_LENGTH_MAX
 #define EEPROM_I2C_READ_MSG_LENGTH_MAX 32
 #endif
 #ifndef EEPROM_I2C_WRITE_MSG_LENGTH_MAX
 #define EEPROM_I2C_WRITE_MSG_LENGTH_MAX 32
+#endif
+#ifndef EEPROM_WRITE_EN
+#define EEPROM_WRITE_EN 1
 #endif
 
 static int Read_I2C_CAM_CAL(u16 a_u2Addr, u32 ui4_length, u8 *a_puBuff)
@@ -471,3 +477,68 @@ unsigned int Otp_read_region_GC02M1B(struct i2c_client *client,
 	}
 	return size;
 }
+unsigned int Otp_read_region_GC5035_A01(struct i2c_client *client,
+	unsigned int addr, unsigned char *data, unsigned int size)
+{
+	u8 OTP_clk_en_rd = 0;
+	u8 OTP_clk_en_wr = 0;
+	u8 OTP_read_pulse = 0;
+	u8 do_read_opt = 0;
+	u8 checkflag = 0;
+
+	u32 OTP_addr = addr*8 + 0x1020;
+	/* u32 OTP_addr = addr*8 + 0x1080; */
+	u32 OTP_addr_1 = OTP_addr&0xFF;
+	u32 OTP_addr_2 = (OTP_addr>>8)&0xFF;
+	u16 i = 0;
+	u32 readsize = size;
+	u8 *read_data = data;
+
+	g_pstI2CclientG = client;
+	pr_debug("readsize: 0x%x\n", size);
+	pr_debug("addr: 0x%x\n", addr);
+
+	//Initial setting
+	OTP_clk_en_rd = read_otp(0xfa);
+	OTP_clk_en_wr = (OTP_clk_en_rd | 0x10);
+	write_otp(0xfa, OTP_clk_en_wr);
+	OTP_clk_en_rd = read_otp(0xfa);
+
+	write_otp(0xf5, 0xe9);
+	write_otp(0xfe, 0x02);
+	write_otp(0x67, 0xc0);
+	write_otp(0x59, 0x3f);
+	write_otp(0x55, 0x80);
+	write_otp(0x65, 0x80);
+	write_otp(0x66, 0x03);
+
+	for (; i < readsize; i++) {
+		//Set page
+		write_otp(0xfe, 0x02);
+
+		//OTP access address
+		write_otp(0x69, OTP_addr_2);
+		write_otp(0x6a, OTP_addr_1);
+
+		OTP_addr = OTP_addr + 8;
+		OTP_addr_1 = OTP_addr&0xFF;
+		OTP_addr_2 = (OTP_addr>>8)&0xFF;
+
+		mdelay(1);
+
+		//Do read OTP
+		OTP_read_pulse = read_otp(0xf3);
+		do_read_opt = (OTP_read_pulse | 0x20);
+		write_otp(0xf3, do_read_opt);
+
+		while (1) {
+			checkflag = read_otp(0x6f);
+			if ((checkflag & 0x04) != 1)
+				break;
+			mdelay(1);
+		}
+		*(read_data+i) = read_otp(0x6c);
+	}
+	return size;
+}
+

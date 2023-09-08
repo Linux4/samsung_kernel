@@ -118,6 +118,7 @@
 // SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
 #include <net/ncm.h>
 // SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
+#include <net/udp_tunnel.h>
 
 struct udp_table udp_table __read_mostly;
 EXPORT_SYMBOL(udp_table);
@@ -130,6 +131,7 @@ EXPORT_SYMBOL(udp_memory_allocated);
 
 #define MAX_UDP_PORTS 65536
 #define PORTS_PER_CHAIN (MAX_UDP_PORTS / UDP_HTABLE_SIZE_MIN)
+#define UDP_GRO_DISABLED 5
 
 /* IPCB reference means this can not be used from early demux */
 static bool udp_lib_exact_dif_match(struct net *net, struct sk_buff *skb)
@@ -1751,6 +1753,10 @@ try_again:
 			BPF_CGROUP_RUN_PROG_UDP4_RECVMSG_LOCK(sk,
 							(struct sockaddr *)sin);
 	}
+
+	if (udp_sk(sk)->gro_enabled)
+		udp_cmsg_recv(msg, sk, skb);
+
 	if (inet->cmsg_flags)
 		ip_cmsg_recv_offset(msg, sk, skb, sizeof(struct udphdr), off);
 
@@ -1927,7 +1933,7 @@ static int __udp_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
 	return 0;
 }
 
-static DEFINE_STATIC_KEY_FALSE(udp_encap_needed_key);
+DEFINE_STATIC_KEY_FALSE(udp_encap_needed_key);
 void udp_encap_enable(void)
 {
 	static_branch_enable(&udp_encap_needed_key);
@@ -1942,7 +1948,7 @@ EXPORT_SYMBOL(udp_encap_enable);
  * Note that in the success and error cases, the skb is assumed to
  * have either been requeued or freed.
  */
-static int udp_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
+static int udp_queue_rcv_one_skb(struct sock *sk, struct sk_buff *skb)
 {
 	struct udp_sock *up = udp_sk(sk);
 	int is_udplite = IS_UDPLITE(sk);
@@ -2043,6 +2049,27 @@ drop:
 	atomic_inc(&sk->sk_drops);
 	kfree_skb(skb);
 	return -1;
+}
+
+static int udp_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
+{
+	struct sk_buff *next, *segs;
+	int ret;
+
+	if (likely(!udp_unexpected_gso(sk, skb)))
+		return udp_queue_rcv_one_skb(sk, skb);
+
+	BUILD_BUG_ON(sizeof(struct udp_skb_cb) > SKB_SGO_CB_OFFSET);
+	__skb_push(skb, -skb_mac_offset(skb));
+	segs = udp_rcv_segment(sk, skb, true);
+	for (skb = segs; skb; skb = next) {
+		next = skb->next;
+		__skb_pull(skb, skb_transport_offset(skb));
+		ret = udp_queue_rcv_one_skb(sk, skb);
+		if (ret > 0)
+			ip_protocol_deliver_rcu(dev_net(skb->dev), skb, -ret);
+	}
+	return 0;
 }
 
 /* For TCP sockets, sk_rx_dst is protected by socket lock
@@ -2617,6 +2644,19 @@ int udp_lib_setsockopt(struct sock *sk, int level, int optname,
 		up->gso_size = val;
 		break;
 
+	case UDP_GRO:
+		lock_sock(sk);
+		if (val == 0xEAEA) {
+			up->gro_disabled = UDP_GRO_DISABLED;
+		} else {
+			up->gro_disabled = 0;
+			if (valbool)
+				udp_tunnel_encap_enable(sk->sk_socket);
+			up->gro_enabled = valbool;
+		}
+		release_sock(sk);
+		break;
+
 	/*
 	 * 	UDP-Lite's partial checksum coverage (RFC 3828).
 	 */
@@ -2719,6 +2759,13 @@ int udp_lib_getsockopt(struct sock *sk, int level, int optname,
 
 	case UDPLITE_RECV_CSCOV:
 		val = up->pcrlen;
+		break;
+
+	case UDP_GRO:
+		if (up->gro_disabled == UDP_GRO_DISABLED)
+			val = 0xEAEA;
+		else
+			val = -1;
 		break;
 
 	default:

@@ -26,7 +26,13 @@ struct alspshub_ipi_data {
 
 	/*data */
 	u16		als;
+#ifdef CONFIG_HQ_PROJECT_O22
+	/* hs14 code for SR-AL6528A-01-363 by xiongxiaoliang at 2022/09/05 start */
+	u16		ps;
+	/* hs14 code for SR-AL6528A-01-363 by xiongxiaoliang at 2022/09/05 end */
+#else
 	u8		ps;
+#endif
 	int		ps_cali;
 	atomic_t	als_cali;
 	atomic_t	ps_thd_val_high;
@@ -73,8 +79,13 @@ enum {
 	CMC_TRC_CVT_PS = 0x0040,
 	CMC_TRC_DEBUG = 0x8000,
 } CMC_TRC;
-
+#ifdef CONFIG_HQ_PROJECT_O22
+/* hs14 code for SR-AL6528A-01-363 by xiongxiaoliang at 2022/09/05 start */
+long alspshub_read_ps(u16 *ps)
+/* hs14 code for SR-AL6528A-01-363 by xiongxiaoliang at 2022/09/05 end */
+#else
 long alspshub_read_ps(u8 *ps)
+#endif
 {
 	long res;
 	struct alspshub_ipi_data *obj = obj_ipi_data;
@@ -179,10 +190,16 @@ static ssize_t ps_show(struct device_driver *ddri, char *buf)
 		return 0;
 	}
 	res = alspshub_read_ps(&obj->ps);
+	/* hs14 code for SR-AL6528A-01-363 by xiongxiaoliang at 2022/09/05 start */
 	if (res)
 		return snprintf(buf, PAGE_SIZE, "ERROR: %d\n", (int)res);
 	else
+#ifdef CONFIG_HQ_PROJECT_O22
+		return snprintf(buf, PAGE_SIZE, "%d\n", obj->ps);
+#else
 		return snprintf(buf, PAGE_SIZE, "0x%04X\n", obj->ps);
+#endif
+	/* hs14 code for SR-AL6528A-01-363 by xiongxiaoliang at 2022/09/05 end */
 }
 
 static ssize_t reg_show(struct device_driver *ddri, char *buf)
@@ -276,6 +293,95 @@ static ssize_t ps_rawdata_show(struct device_driver *ddri, char *buf)
 
     return sprintf(buf, "%s:%u\n", ps_devinfo.name, ps_rawdata);
 }
+
+#ifdef CONFIG_HQ_PROJECT_O22
+/*hs14 code for AL6528A-18 by xiongxiaoliang at 2022/09/06 start*/
+static int ps_dynamic_set_threshold(int32_t thresh_high, int32_t thresh_low)
+{
+	int err = 0;
+	int32_t cfg_data[2] = {0};
+
+	if ((thresh_high < thresh_low) || (thresh_high <= 0) || (thresh_low <= 0)) {
+		pr_err("PS set threshold fail! invalid value:[%d, %d]\n", thresh_high, thresh_low);
+		return -1;
+	}
+
+	cfg_data[0] = thresh_high;
+	cfg_data[1] = thresh_low;
+
+	pr_err("%s cfg_data[0] = %ld, cfg_data[1] = %ld\n", __func__, cfg_data[0], cfg_data[1]);
+	err = sensor_cfg_to_hub(ID_PROXIMITY, (uint8_t *)cfg_data, sizeof(cfg_data));
+	if (err < 0) {
+		pr_err("sensor_cfg_to_hub fail\n");
+	}
+
+	ps_cali_report(cfg_data);
+
+	return err;
+}
+
+static int pshub_factory_get_raw_data(int32_t *data);
+uint16_t g_pdata_no_cover = 0;
+uint16_t g_pdata_2cm = 0;
+uint16_t g_pdata_6cm = 0;
+bool g_ps_cali_status = false;
+#define SAVE_PDATA_0CM    0
+#define SAVE_PDATA_2CM    1
+#define SAVE_PDATA_6CM    2
+/* hs14 code for AL6528A-35 by xiongxiaoliang at 2022/09/14 start */
+#define INPUT_NUM   2
+static ssize_t ps_mmi_cali_store(struct device_driver *ddri, const char *buf,
+				size_t tCount)
+{
+	int enable = 0;
+	int pdata_factory = 0;
+	int ret = 0;
+
+	int32_t pthresh_high = 0;
+	int32_t pthresh_low = 0;
+	g_ps_cali_status = false;
+
+	if (sscanf(buf, "%d,%d", &enable, &pdata_factory) != INPUT_NUM) {
+		pr_err("%s param error: ret = %d\n", __func__, ret);
+		return tCount;
+	}
+
+	pr_err("%s enable = %d, pdata_factory = %d\n", __func__, enable, pdata_factory);
+
+	if (enable == SAVE_PDATA_0CM) {
+		g_pdata_no_cover = pdata_factory;
+		g_ps_cali_status = true;
+	} else if (enable == SAVE_PDATA_2CM) {
+		g_pdata_2cm = pdata_factory;
+		g_ps_cali_status = true;
+	} else if (enable == SAVE_PDATA_6CM) {
+		g_pdata_6cm = pdata_factory;
+		g_ps_cali_status = true;
+	} else {
+		g_ps_cali_status = false;
+		pr_err("%s please input enable 0/1/2 > ps_dynamic_cali\n", __func__);
+	}
+
+	if (enable == SAVE_PDATA_6CM) {
+		pthresh_high = ((g_pdata_no_cover << 16) | g_pdata_2cm);
+		pthresh_low = g_pdata_6cm;
+		pr_err("%s [inf, 2cm, 6cm] = [%d, %d, %d]\n", __func__, g_pdata_no_cover, g_pdata_2cm, g_pdata_6cm);
+		ret = ps_dynamic_set_threshold(pthresh_high, pthresh_low);
+		if (ret < 0) {
+			g_ps_cali_status = false;
+		}
+	}
+
+	return tCount;
+}
+
+static ssize_t ps_cali_status_show(struct device_driver *ddri, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n", g_ps_cali_status);
+}
+/* hs14 code for AL6528A-35 by xiongxiaoliang at 2022/09/14 end */
+#endif
+
 static DRIVER_ATTR_RO(als);
 static DRIVER_ATTR_RO(ps);
 static DRIVER_ATTR_RO(alslv);
@@ -286,6 +392,10 @@ static DRIVER_ATTR_WO(test_cali);
 static DRIVER_ATTR_RO(cali);
 static DRIVER_ATTR_RO(cali_status);
 static DRIVER_ATTR_RO(ps_rawdata);
+#ifdef CONFIG_HQ_PROJECT_O22
+static DRIVER_ATTR_WO(ps_mmi_cali);
+static DRIVER_ATTR_RO(ps_cali_status);
+#endif
 static struct driver_attribute *alspshub_attr_list[] = {
 	&driver_attr_als,
 	&driver_attr_ps,
@@ -297,11 +407,15 @@ static struct driver_attribute *alspshub_attr_list[] = {
 	&driver_attr_cali,
 	&driver_attr_cali_status,
 	&driver_attr_ps_rawdata,
-
+#ifdef CONFIG_HQ_PROJECT_O22
+	&driver_attr_ps_mmi_cali,
+	&driver_attr_ps_cali_status,
+#endif
 
 };
 /* hs03s code for SR-AL5625-01-49 by xiongxiaoliang at 2021/05/06 end */
 /* hs03s code for SR-AL5625-01-143 by xiongxiaoliang at 2021/04/25 end */
+/*hs14 code for AL6528A-18 by xiongxiaoliang at 2022/09/06 end*/
 
 static int alspshub_create_attr(struct device_driver *driver)
 {
@@ -793,7 +907,57 @@ static int als_set_cali(uint8_t *data, uint8_t count)
     return sensor_cfg_to_hub(ID_LIGHT, data, 3);
 }
 /* hs03s code for DEVAL5625-928 by xiongxiaoliang at 2021/06/02 end */
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+/* hs03s code for DEVAL5625-928 by xiongxiaoliang at 2021/06/02 start */
+/* hs04 code for DEAL6398A-1878 by duxinqi at 2022/10/20 start */
+static int als_set_cali(uint8_t *data, uint8_t count)
+{
+    int32_t *buf = (int32_t *)data;
+    struct alspshub_ipi_data *obj = obj_ipi_data;
+
+    char *command_line = saved_command_line;
+    pr_info("command_line = %s\n", command_line);
+
+    spin_lock(&calibration_lock);
+    atomic_set(&obj->als_cali, buf[0]);
+    if(atomic_read(&obj->als_cali) == 0){
+        atomic_set(&obj->als_cali, 1000);
+    }
+    pr_info("%d\n", atomic_read(&obj->als_cali));
+    spin_unlock(&calibration_lock);
+
+    if (NULL != strstr(command_line, "lcd_jd9365t_txd_ctc_mipi_hdp_video")){
+        pr_info("Main supply lcd");
+        data[2] = 1;
+    }
+    else if (NULL != strstr(command_line, "lcd_gc7202_ls_hsd_mipi_hdp_video")){
+        pr_info("Two supply lcd");
+        data[2] = 2;
+    }
+    else if (NULL != strstr(command_line, "lcd_jd9365t_txd_boe_mipi_hdp_video")){
+        pr_info("Three supply lcd");
+        data[2] = 3;
+    }
+    else if (NULL != strstr(command_line, "lcd_nl9911c_hlt_hkc_mipi_hdp_video")){
+        pr_info("Four supply lcd");
+        data[2] = 4;
+    }
+    else if (NULL != strstr(command_line, "lcd_nl9911c_hr_hr_mipi_hdp_video")){
+        pr_info("Five supply lcd");
+        data[2] = 5;
+    }
+    else{
+        pr_info("can't find covers!");
+        data[2] = 0;
+    }
+
+    return sensor_cfg_to_hub(ID_LIGHT, data, 3);
+}
+/* hs04 code for DEAL6398A-1878 by duxinqi at 2022/10/20 end */
+/* hs03s code for DEVAL5625-928 by xiongxiaoliang at 2021/06/02 end */
+#endif
+#ifdef CONFIG_HQ_PROJECT_OT8
 /*TabA7 Lite code for OT8-3912|SR-AX3565-01-853|SR-AX3565-01-870 by Hujincan at 20210531 start*/
 static int als_set_cali(uint8_t *data, uint8_t count)
 {
@@ -877,6 +1041,54 @@ static int als_set_cali(uint8_t *data, uint8_t count)
     return sensor_cfg_to_hub(ID_LIGHT, data, 3);
 }
 /*TabA7 Lite code for OT8-3912|SR-AX3565-01-853|SR-AX3565-01-870 by Hujincan at 20210531 end*/
+#endif
+
+#ifdef CONFIG_HQ_PROJECT_O22
+/* hs03s code for DEVAL5625-928 by xiongxiaoliang at 2021/06/02 start */
+/* hs14 code for SR-AL6528A-01-437|AL6528A-190 by houxin at 2022/09/28 start */
+struct lcd_id_info lcd_info[] = {
+    {LCD_FIRST, "hwid:0x13"},
+    {LCD_SECOND, "hwid:0x23"},
+    {LCD_THIRD, "hwid:0x33"},
+    {LCD_FOURTH, "hwid:0x43"},
+};
+static void lcd_info_judge(uint8_t *data)
+{
+    int i = 0;
+    char *command_line = saved_command_line;
+    data[2] = LCD_NONE;
+
+    pr_info("command_line = %s\n", command_line);
+    for (i = 0; i < sizeof(lcd_info) / sizeof(lcd_info[0]); i++) {
+        if (NULL != strstr(command_line, lcd_info[i].lcd_strdata)) {
+            pr_info("find lcd : %d!\n", lcd_info[i].hwid);
+            data[2] = lcd_info[i].hwid;
+            break;
+        }
+    }
+
+    if (data[2] == LCD_NONE) {
+        pr_info("can't find lcd!\n");
+    }
+}
+
+static int als_set_cali(uint8_t *data, uint8_t count)
+{
+    int32_t *buf = (int32_t *)data;
+    struct alspshub_ipi_data *obj = obj_ipi_data;
+
+    spin_lock(&calibration_lock);
+    atomic_set(&obj->als_cali, buf[0]);
+    if(atomic_read(&obj->als_cali) == 0){
+        atomic_set(&obj->als_cali, 1000);
+    }
+    lcd_info_judge(data);
+    pr_info("%d\n", atomic_read(&obj->als_cali));
+    spin_unlock(&calibration_lock);
+    return sensor_cfg_to_hub(ID_LIGHT, data, 3);
+}
+/* hs14 code for SR-AL6528A-01-437|AL6528A-190 by houxin at 2022/09/28 end */
+/* hs03s code for DEVAL5625-928 by xiongxiaoliang at 2021/06/02 end */
 #endif
 
 static int rgbw_enable(int en)

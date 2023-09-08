@@ -64,34 +64,41 @@ struct thermal_cooling_device *cdev, unsigned long *state)
 static int sysrst_cpu_set_cur_state(
 struct thermal_cooling_device *cdev, unsigned long state)
 {
+#ifdef CONFIG_LVTS_DYNAMIC_ENABLE_REBOOT
+	int tpcb = mtk_thermal_get_temp(MTK_THERMAL_SENSOR_AP);
+#endif
+
 	cl_dev_sysrst_state = state;
 
 	if (cl_dev_sysrst_state == 1) {
-		tscpu_printk("%s = 1\n", __func__);
+		tscpu_printk("%s, CPU T=%d, BTS T=%d\n", __func__,
+			mtk_thermal_get_temp(MTK_THERMAL_SENSOR_CPU),
+			mtk_thermal_get_temp(MTK_THERMAL_SENSOR_AP));
 		tscpu_printk("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
 		tscpu_printk("*****************************************\n");
 		tscpu_printk("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
 
-
+#ifdef CONFIG_LVTS_DYNAMIC_ENABLE_REBOOT
+		if (tpcb > DYNAMIC_REBOOT_TRIP_TEMP) {
+			tscpu_printk("SW reset! tpcb = %d\n", tpcb);
+			/* hs14 code for SR-AL6528A-01-336 by shanxinkai at 2022/09/15 start */
+			#ifndef HQ_D85_BUILD
+			BUG();
+			#endif
+			/* hs14 code for SR-AL6528A-01-336 by shanxinkai at 2022/09/15 end */
+		} else {
+			tscpu_printk("Skip SW reset! tpcb = %d\n", tpcb);
+		}
+#else
 		/* To trigger data abort to reset the system
 		 * for thermal protection.
 		 */
-#ifdef CONFIG_HS03S_SUPPORT
-    /* modify code for O6 */
-		/*HS03s for SR-AL5625-01-248 by wenyaqi at 20210615 start*/
+		/* hs14 code for SR-AL6528A-01-336 by shanxinkai at 2022/09/15 start */
 		#if !defined(HQ_D85_BUILD)
 		BUG();
 		#endif
-		/*HS03s for SR-AL5625-01-248 by wenyaqi at 20210615 end*/
-#else
-    /* modify code for OT8 */
-		/*TabA7 Lite code for P210511-00533 by wenyaqi at 20210713 start*/
-		#if defined(HQ_FACTORY_BUILD) && (!defined(HQ_D85_BUILD))
-		BUG();
-		#endif
-		/*TabA7 Lite code for P210511-00533 by wenyaqi at 20210713 end*/
+		/* hs14 code for SR-AL6528A-01-336 by shanxinkai at 2022/09/15 end */
 #endif
-
 
 	}
 	return 0;
@@ -120,22 +127,11 @@ struct thermal_cooling_device *cdev, unsigned long *state)
 		/* To trigger data abort to reset the system
 		 * for thermal protection.
 		 */
-#ifdef CONFIG_HS03S_SUPPORT
-    /* modify code for O6 */
 		/*HS03s for SR-AL5625-01-248 by wenyaqi at 20210615 start*/
 		#if !defined(HQ_D85_BUILD)
 		BUG();
 		#endif
 		/*HS03s for SR-AL5625-01-248 by wenyaqi at 20210615 end*/
-#else
-    /* modify code for OT8 */
-		/*TabA7 Lite code for P210511-00533 by wenyaqi at 20210713 start*/
-		#if defined(HQ_FACTORY_BUILD) && (!defined(HQ_D85_BUILD))
-		BUG();
-		#endif
-		/*TabA7 Lite code for P210511-00533 by wenyaqi at 20210713 end*/
-#endif
-
 	}
 	return 0;
 }
@@ -155,21 +151,12 @@ struct thermal_cooling_device *cdev, unsigned long state)
 		/* To trigger data abort to reset the system
 		 * for thermal protection.
 		 */
-#ifdef CONFIG_HS03S_SUPPORT
-    /* modify code for O6 */
-		/*HS03s for SR-AL5625-01-248 by wenyaqi at 20210615 start*/
+		/* hs14 code for SR-AL6528A-01-336 by shanxinkai at 2022/09/15 start */
 		#if !defined(HQ_D85_BUILD)
 		BUG();
 		#endif
-		/*HS03s for SR-AL5625-01-248 by wenyaqi at 20210615 end*/
-#else
-    /* modify code for OT8 */
-		/*TabA7 Lite code for P210511-00533 by wenyaqi at 20210713 start*/
-		#if defined(HQ_FACTORY_BUILD) && (!defined(HQ_D85_BUILD))
-		BUG();
-		#endif
-		/*TabA7 Lite code for P210511-00533 by wenyaqi at 20210713 end*/
-#endif
+		/* hs14 code for SR-AL6528A-01-336 by shanxinkai at 2022/09/15 end */
+
 
 	}
 	return 0;
@@ -206,21 +193,12 @@ struct thermal_cooling_device *cdev, unsigned long state)
 		/* To trigger data abort to reset the system
 		 * for thermal protection.
 		 */
-#ifdef CONFIG_HS03S_SUPPORT
-    /* modify code for O6 */
-		/*HS03s for SR-AL5625-01-248 by wenyaqi at 20210615 start*/
+		/* hs14 code for SR-AL6528A-01-336 by shanxinkai at 2022/09/15 start */
 		#if !defined(HQ_D85_BUILD)
 		BUG();
 		#endif
-		/*HS03s for SR-AL5625-01-248 by wenyaqi at 20210615 end*/
-#else
-    /* modify code for OT8 */
-		/*TabA7 Lite code for P210511-00533 by wenyaqi at 20210713 start*/
-		#if defined(HQ_FACTORY_BUILD) && (!defined(HQ_D85_BUILD))
-		BUG();
-		#endif
-		/*TabA7 Lite code for P210511-00533 by wenyaqi at 20210713 end*/
-#endif
+		/* hs14 code for SR-AL6528A-01-336 by shanxinkai at 2022/09/15 end */
+
 	}
 	return 0;
 }
@@ -256,21 +234,11 @@ struct thermal_cooling_device *cdev, unsigned long state)
 		/* To trigger data abort to reset the system
 		 * for thermal protection.
 		 */
-#ifdef CONFIG_HS03S_SUPPORT
-    /* modify code for O6 */
-		/*HS03s for SR-AL5625-01-248 by wenyaqi at 20210615 start*/
+		/* hs14 code for SR-AL6528A-01-336 by shanxinkai at 2022/09/15 start */
 		#if !defined(HQ_D85_BUILD)
 		BUG();
 		#endif
-		/*HS03s for SR-AL5625-01-248 by wenyaqi at 20210615 end*/
-#else
-    /* modify code for OT8 */
-		/*TabA7 Lite code for P210511-00533 by wenyaqi at 20210713 start*/
-		#if defined(HQ_FACTORY_BUILD) && (!defined(HQ_D85_BUILD))
-		BUG();
-		#endif
-		/*TabA7 Lite code for P210511-00533 by wenyaqi at 20210713 end*/
-#endif
+		/* hs14 code for SR-AL6528A-01-336 by shanxinkai at 2022/09/15 end */
 
 	}
 	return 0;

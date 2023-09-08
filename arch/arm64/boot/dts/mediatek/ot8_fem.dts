@@ -585,7 +585,7 @@
 	};
 };
 /* FLASHLIGHT end */
-
+/* #include <ot8/cust.dtsi> */
 #include "ot8/cust_fem.dtsi"
 #include "mediatek/cust_mt8768_camera.dtsi"
 
@@ -593,23 +593,14 @@
 	cd_level = /bits/ 8 <MSDC_CD_HIGH>;
 };
 
-#ifdef CONFIG_HS03S_SUPPORT
-/* modify code for O6 */
-&mtk_charger_type {
-	bc12_active = <1>;
-};
 
-&usb {
-	charger = <&mtk_charger_type>;
-};
-#else
  /* modify code for O8 */
 /*TabA7 Lite code for OT8-3701 by wenyaqi at 20210309 start*/
 &mt6370_chg {
 	bc12_sel = <1>;
 };
 /*TabA7 Lite code for OT8-3701 by wenyaqi at 20210309 end*/
-#endif
+
 &mt6370_pmu {
 	mt6370,intr_gpio_num = <11>; /* direct defined GPIO num */
 	mt6370,intr_gpio = <&pio 11 0x0>;

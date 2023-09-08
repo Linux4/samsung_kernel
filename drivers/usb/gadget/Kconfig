@@ -605,4 +605,3 @@ config USB_CONFIGFS_F_TCM
 source "drivers/usb/gadget/legacy/Kconfig"
 
 endif # USB_GADGET
-

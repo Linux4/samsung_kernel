@@ -52,11 +52,17 @@ struct mtk_charger;
 #define BATTERY_CV 4400000
 /*HS03s for SR-AL5625-01-261 by wenyaqi at 20210425 end*/
 //#define V_CHARGER_MAX 6500000 /* 6.5 V */
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
  /* modify code for O6 */
 #define V_CHARGER_MAX 10400000 /* 10.4 V */
 #define V_CHARGER_MIN 4600000 /* 4.6 V */
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+ /* modify code for O6 */
+#define V_CHARGER_MAX 10400000 /* 10.4 V */
+#define V_CHARGER_MIN 4600000 /* 4.6 V */
+#endif
+#ifdef CONFIG_HQ_PROJECT_OT8
  /* modify code for OT8 */
 #define V_CHARGER_MAX 6500000 /* 6.5 V */
 #define V_CHARGER_MIN 4600000 /* 4.6 V */
@@ -147,7 +153,7 @@ struct range_data {
 	u32 value;
 };
 #endif
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
  /* modify code for O6 */
 /*HS03s for SR-AL5625-01-293 by wenyaqi at 20210426 end*/
 /* sw jeita */
@@ -176,7 +182,38 @@ struct range_data {
 #define TEMP_T0_THRES_PLUS_X_DEGREE  2
 #define TEMP_NEG_10_THRES	         0
 /*HS03s for SR-AL5625-01-261 by wenyaqi at 20210425 end*/
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+ /* modify code for O6 */
+/*HS03s for SR-AL5625-01-293 by wenyaqi at 20210426 end*/
+/* sw jeita */
+/*HS03s for SR-AL5625-01-261 by wenyaqi at 20210425 start*/
+#define JEITA_TEMP_ABOVE_T4_CV       4200000
+#define JEITA_TEMP_T3_TO_T4_CV       4200000
+#define JEITA_TEMP_T2_TO_T3_CV       4400000
+#define JEITA_TEMP_T1_TO_T2_CV       4400000
+#define JEITA_TEMP_T0_TO_T1_CV       4400000
+#define JEITA_TEMP_BELOW_T0_CV       4400000
+#define JEITA_TEMP_ABOVE_T4_CUR      0
+#define JEITA_TEMP_T3_TO_T4_CUR      1750000
+#define JEITA_TEMP_T2_TO_T3_CUR      2000000
+#define JEITA_TEMP_T1_TO_T2_CUR      1500000
+#define JEITA_TEMP_T0_TO_T1_CUR      500000
+#define JEITA_TEMP_BELOW_T0_CUR      0
+#define TEMP_T4_THRES                50
+#define TEMP_T4_THRES_MINUS_X_DEGREE 48
+#define TEMP_T3_THRES                45
+#define TEMP_T3_THRES_MINUS_X_DEGREE 43
+#define TEMP_T2_THRES                12
+#define TEMP_T2_THRES_PLUS_X_DEGREE  14
+#define TEMP_T1_THRES                5
+#define TEMP_T1_THRES_PLUS_X_DEGREE  7
+#define TEMP_T0_THRES                0
+#define TEMP_T0_THRES_PLUS_X_DEGREE  2
+#define TEMP_NEG_10_THRES	         0
+/*HS03s for SR-AL5625-01-261 by wenyaqi at 20210425 end*/
+#endif
+#ifdef CONFIG_HQ_PROJECT_OT8
 #define JEITA_TEMP_ABOVE_T4_CV	4100000
 #define JEITA_TEMP_T3_TO_T4_CV	4400000
 #define JEITA_TEMP_T2_TO_T3_CV	4400000
@@ -325,7 +362,7 @@ enum chg_data_idx_enum {
 	CHG2_SETTING,
 	CHGS_SETTING_MAX,
 };
-#ifdef HQ_PROJECT_HS03S
+#if 0
 struct mtk_charger {
 	struct platform_device *pdev;
 	struct charger_device *chg1_dev;
@@ -392,7 +429,7 @@ struct mtk_charger {
 	bool safety_timeout;
 	bool vbusov_stat;
 	bool is_chg_done;
-#ifndef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_OT8
 /*TabA7 Lite code for OT8-384 fix confliction between input_suspend and sw_ovp by wenyaqi at 20201224 start*/
 	bool input_suspend;
 	/*TabA7 Lite code for OT8-384 fix confliction between input_suspend and sw_ovp by wenyaqi at 20201224 end*/
@@ -460,7 +497,7 @@ struct mtk_charger {
 
 	bool enable_dynamic_mivr;
 
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
     /* modify code for O6 */
 	/* HS03s code for SR-AL5625-01-35 by wenyaqi at 20210420 start */
 	bool input_suspend;
@@ -490,7 +527,39 @@ struct mtk_charger {
 	#ifndef HQ_FACTORY_BUILD	//ss version
 	struct delayed_work poweroff_dwork;
 	#endif
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+    /* modify code for O6 */
+	/* HS03s code for SR-AL5625-01-35 by wenyaqi at 20210420 start */
+	bool input_suspend;
+	/* A03s code for SR-AL5625-01-35 by wenyaqi at 20210420 end */
+	/*HS03s for SR-AL5625-01-249 by wenyaqi at 20210425 start*/
+	#ifdef CONFIG_AFC_CHARGER
+	struct afc_dev afc;
+	bool enable_afc;
+	int hv_disable;
+	int afc_sts;
+	#endif
+	/*HS03s for SR-AL5625-01-249 by wenyaqi at 20210425 end*/
+	bool ovp_disable;
+	int ss_vchr;
+	/*HS03s for SR-AL5625-01-277 by wenyaqi at 20210427 start*/
+	#ifndef HQ_FACTORY_BUILD	//ss version
+	bool batt_store_mode;
+	struct wakeup_source *charger_wakelock_app;
+	struct delayed_work retail_app_status_change_work;
+	#endif
+	/*HS03s for SR-AL5625-01-277 by wenyaqi at 20210427 end*/
+	/*HS03s for SR-AL5625-01-272 by wenyaqi at 20210427 start*/
+	#ifdef HQ_FACTORY_BUILD //factory version
+	bool batt_cap_control;
+	#endif
+	/*HS03s for SR-AL5625-01-272 by wenyaqi at 20210427 end*/
+	#ifndef HQ_FACTORY_BUILD	//ss version
+	struct delayed_work poweroff_dwork;
+	#endif
+#endif
+#ifdef CONFIG_HQ_PROJECT_OT8
 	int ss_vchr;
     /*TabA7 Lite  code for SR-AX3565-01-107 by gaoxugang at 20201124 start*/
 	#if !defined(HQ_FACTORY_BUILD)
@@ -502,7 +571,7 @@ struct mtk_charger {
 	#endif
 #endif
 
-#ifndef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_OT8
 /* modify code for O8 */
 	/*TabA7 Lite  code for SR-AX3565-01-109 by gaoxugang at 20201124 start*/
 	#if !defined(HQ_FACTORY_BUILD)
@@ -520,7 +589,7 @@ struct mtk_charger {
 	/*TabA7 Lite  code for SR-AX3565-01-109 by gaoxugang at 20201124 end*/
 #endif
 };
-#else
+#endif
 struct mtk_charger {
 	struct platform_device *pdev;
 	struct charger_device *chg1_dev;
@@ -690,7 +759,7 @@ struct mtk_charger {
 	/*TabA7 Lite code for P210511-00511 by wenyaqi at 20210518 end*/
 	int capacity;
 };
-#endif
+
 
 /* functions which framework needs*/
 extern int mtk_basic_charger_init(struct mtk_charger *info);
@@ -719,7 +788,7 @@ extern void _wake_up_charger(struct mtk_charger *info);
 /* functions for afc */
 extern void afc_set_is_enable(struct mtk_charger *pinfo, bool enable);
 extern int afc_check_charger(struct mtk_charger *pinfo);
-#ifndef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_OT8
 /* modify code for O8 */
 extern int afc_start_algorithm(struct mtk_charger *pinfo);
 #endif

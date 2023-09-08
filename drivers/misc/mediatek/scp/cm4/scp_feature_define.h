@@ -6,7 +6,7 @@
 #ifndef __SCP_FEATURE_DEFINE_H__
 #define __SCP_FEATURE_DEFINE_H__
 
-#include <include/scp.h>
+#include "scp.h"
 
 /* scp platform configs*/
 #define SCP_BOOT_TIME_OUT_MONITOR	(1)
@@ -15,7 +15,11 @@
 #else
 #define SCP_LOGGER_ENABLE		(0)
 #endif
+#ifdef CONFIG_MACH_MT6785
+#define SCP_DVFS_INIT_ENABLE		(0)
+#else
 #define SCP_DVFS_INIT_ENABLE		(1)
+#endif
 #define SCP_RESERVED_MEM		(1)
 /* scp rescovery feature option*/
 #define SCP_RECOVERY_SUPPORT		(1)
@@ -33,12 +37,8 @@
 #define SCP_REGISTER_SUB_SENSOR		(1)
 
 /* emi mpu define, depends on legacy emi config option */
-#ifdef CONFIG_MTK_EMI
 #define ENABLE_SCP_EMI_PROTECTION	(1)
-#else
-#define ENABLE_SCP_EMI_PROTECTION	(0)
-#endif
-#define MPU_REGION_ID_SCP_SMEM		(6)
+
 #define MPU_DOMAIN_D0                    0
 #define MPU_DOMAIN_D3                    3
 

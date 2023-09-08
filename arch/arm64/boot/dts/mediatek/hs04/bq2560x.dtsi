@@ -1,0 +1,26 @@
+&i2c5 {
+	clock-frequency = <100000>;
+	bq2560x: bq2560x@6B {
+		compatible = "ti,bq25601";
+		reg = <0x6B>;
+		status = "okay";
+
+		interrupt-parent = <&pio>;
+		interrupts = <123 IRQ_TYPE_EDGE_FALLING>;
+		charger_name = "primary_chg";
+
+		ti,bq2560x,charge-detect-enable;
+		ti,bq2560x,usb-vlim = <4600>;
+		ti,bq2560x,usb-ilim = <500>;
+		ti,bq2560x,usb-vreg = <4400>;
+		ti,bq2560x,usb-ichg = <500>;
+
+		ti,bq2560x,precharge-current = <480>;
+		ti,bq2560x,termination-current = <180>;
+		ti,bq2560x,boost-voltage = <4998>;
+		ti,bq2560x,boost-current = <1200>;
+		ti,bq2560x,enable_term;
+		ti,bq2560x,stat-pin-ctrl = <3>;
+		ti,bq2560x,vac-ovp-threshold = <6500>;
+	};
+};

@@ -12,4 +12,7 @@ source "drivers/misc/mediatek/sensors-1.0/sensorfusion/Kconfig"
 # hs03s code for SR-AL5625-01-168 by xiongxiaoliang at 2021/06/09 start
 source "drivers/misc/mediatek/sensors-1.0/sar/Kconfig"
 # hs03s code for SR-AL5625-01-168 by xiongxiaoliang at 2021/06/09 end
+#hs14 code for SR-AL6528A-01-376 by xiongxiaoliang at 2022/09/02 start
+source "drivers/misc/mediatek/sensors-1.0/o22_sar/Kconfig"
+#hs14 code for SR-AL6528A-01-376 by xiongxiaoliang at 2022/09/02 end
 #TabA7 Lite code for SR-AX3565-01-101 by Hujincan at 20201123 end

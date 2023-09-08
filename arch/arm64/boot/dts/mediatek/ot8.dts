@@ -578,55 +578,9 @@ FINGERPRINT end */
 		};
 	};
 };
-#ifdef CONFIG_HS03S_SUPPORT
-  /* modify code for O6 */
-/* FLASHLIGHT end */
 
-#include "ot8/cust.dtsi"
-#include "mediatek/cust_mt8768_camera.dtsi"
-
-&msdc1 {
-	cd_level = /bits/ 8 <MSDC_CD_HIGH>;
-};
-
-/*TabA7 Lite code for OT8-3701 by wenyaqi at 20210309 start*/
-&mt6370_chg {
-	bc12_sel = <1>;
-};
-/*TabA7 Lite code for OT8-3701 by wenyaqi at 20210309 end*/
-
-&mt6370_pmu {
-	mt6370,intr_gpio_num = <11>; /* direct defined GPIO num */
-	mt6370,intr_gpio = <&pio 11 0x0>;
-};
-
-&mt6370_typec {
-	mt6370pd,intr_gpio_num = <41>; /* direct defined GPIO num */
-	mt6370pd,intr_gpio = <&pio 41 0x0>;
-};
-
-&u2port0 {
-	mediatek,eye-src = <5>;
-	mediatek,eye-vrt = <4>;
-	mediatek,eye-term = <4>;
-	mediatek,eye-rev6 = <1>;
-	mediatek,eye-disc = <15>;
-	mediatek,host-eye-src = <5>;
-	mediatek,host-eye-vrt = <4>;
-	mediatek,host-eye-term = <4>;
-	mediatek,host-eye-rev6 = <1>;
-	mediatek,host-eye-disc = <15>;
-};
-/*End of this file, DO NOT ADD ANYTHING HERE*/
-
-/*TabA7 Lite code by baichanghao at 20220224 start*/
-//#include "mediatek/TabA7_Lite/AX3565-OT8-common.dtsi"
-/*TabA7 Lite code by baichanghao at 20220224 end*/
-
-
-//#include "mediatek/ot8-tp.dtsi"
-#else
- /* modify code for O8 */
+/* #include <ot8/cust.dtsi> */
+/* modify code for O8 */
 /* FLASHLIGHT end */
 
 #include "mediatek/ot8/cust.dtsi"
@@ -652,4 +606,4 @@ FINGERPRINT end */
 	mt6370pd,intr_gpio = <&pio 41 0x0>;
 };
 /*End of this file, DO NOT ADD ANYTHING HERE*/
-#endif
+

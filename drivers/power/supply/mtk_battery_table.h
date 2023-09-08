@@ -433,10 +433,14 @@ int g_temperature[MAX_TABLE] = {
 #define BAT_NTC_47 0
 
 #if (BAT_NTC_10 == 1)
-#ifdef CONFIG_HS03S_SUPPORT
+#if defined(CONFIG_HQ_PROJECT_HS03S)
 #define RBAT_PULL_UP_R             16900
-#else
+#elif defined(CONFIG_HQ_PROJECT_HS04)
+#define RBAT_PULL_UP_R             16900
+#elif defined(CONFIG_HQ_PROJECT_OT8)
 #define RBAT_PULL_UP_R             390000
+#else
+#define RBAT_PULL_UP_R             24000
 #endif
 #endif
 
@@ -449,7 +453,7 @@ int g_temperature[MAX_TABLE] = {
 #define BIF_NTC_R 16000
 
 #if (BAT_NTC_10 == 1)
-#ifdef CONFIG_HS03S_SUPPORT
+#if defined(CONFIG_HQ_PROJECT_HS03S)
 struct fuelgauge_temperature Fg_Temperature_Table[21] = {
 		{-40 , 205200},
 		{-35 , 154800},
@@ -473,7 +477,31 @@ struct fuelgauge_temperature Fg_Temperature_Table[21] = {
 		{55	 , 3543  },
 		{60	 , 3027  }
 };
-#else
+#elif defined(CONFIG_HQ_PROJECT_HS04)
+struct fuelgauge_temperature Fg_Temperature_Table[21] = {
+		{-40 , 205200},
+		{-35 , 154800},
+		{-30 , 117900},
+		{-25 , 90690 },
+		{-20 , 70370 },
+		{-15 , 55070 },
+		{-10 , 43440 },
+		{-5	 , 34530 },
+		{0	 , 27640 },
+		{5	 , 22270 },
+		{10	 , 18060 },
+		{15	 , 14740 },
+		{20	 , 12110 },
+		{25	 , 10000 },
+		{30	 , 8309  },
+		{35	 , 6941  },
+		{40	 , 5828  },
+		{45	 , 4916  },
+		{50	 , 4165  },
+		{55	 , 3543  },
+		{60	 , 3027  }
+};
+#elif defined(CONFIG_HQ_PROJECT_OT8)
 struct fuelgauge_temperature Fg_Temperature_Table[25] = {
 		{-40, 4397100},
 		{-35, 3088600},
@@ -500,7 +528,56 @@ struct fuelgauge_temperature Fg_Temperature_Table[25] = {
 		{70, 15184},
 		{75, 12635},
 		{80, 10566}
-
+};
+#elif defined(CONFIG_HQ_PROJECT_O22)
+/* hs14 code for  SR-AL6528A-01-313 by zhouyuhang at 20220907 start*/
+struct fuelgauge_temperature Fg_Temperature_Table[21] = {
+		{-40, 205200},
+		{-35, 154800},
+		{-30, 117900},
+		{-25, 90690},
+		{-20, 70370},
+		{-15, 55070},
+		{-10, 43440},
+		{-5, 34530},
+		{0, 27640},
+		{5, 22270},
+		{10, 18060},
+		{15, 14740},
+		{20, 12110},
+		{25, 10000},
+		{30, 8309},
+		{35, 6941},
+		{40, 5828},
+		{45, 4916},
+		{50, 4165},
+		{55, 3543},
+		{60, 3027}
+};
+/* hs14 code for  SR-AL6528A-01-313 by zhouyuhang at 20220907 end*/
+#else
+struct fuelgauge_temperature Fg_Temperature_Table[21] = {
+		{-40, 195652},
+		{-35, 148171},
+		{-30, 113347},
+		{-25, 87559},
+		{-20, 68237},
+		{-15, 53650},
+		{-10, 42506},
+		{-5, 33892},
+		{0, 27219},
+		{5, 22021},
+		{10, 17926},
+		{15, 14674},
+		{20, 12081},
+		{25, 10000},
+		{30, 8315},
+		{35, 6948},
+		{40, 5834},
+		{45, 4917},
+		{50, 4161},
+		{55, 3535},
+		{60, 3014}
 };
 #endif
 #endif

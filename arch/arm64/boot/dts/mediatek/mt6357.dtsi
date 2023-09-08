@@ -38,7 +38,7 @@
 		/* moisture SW mode config end */
 		status = "okay";
 	};
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
 	mt6357keys: mt6357keys {
 		compatible = "mediatek,mt6357-keys";
 		mediatek,long-press-mode = <2>;
@@ -52,7 +52,38 @@
 			linux,keycodes = <114>;
 		};
 	};
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_O22
+	mt6357keys: mt6357keys {
+		compatible = "mediatek,mt6357-keys";
+		mediatek,long-press-mode = <2>;
+		power-off-time-sec = <0>;
+
+		power {
+			linux,keycodes = <116>;
+			wakeup-source;
+		};
+		home {
+			linux,keycodes = <114>;
+		};
+	};
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+	mt6357keys: mt6357keys {
+		compatible = "mediatek,mt6357-keys";
+		mediatek,long-press-mode = <2>;
+		power-off-time-sec = <0>;
+
+		power {
+			linux,keycodes = <116>;
+			wakeup-source;
+		};
+		home {
+			linux,keycodes = <114>;
+		};
+	};
+#endif
+#ifdef CONFIG_HQ_PROJECT_OT8
 	mt6357keys: mt6357keys {
 		compatible = "mediatek,mt6357-keys";
 		mediatek,long-press-mode = <2>;
@@ -127,7 +158,7 @@
 			channel = <AUXADC_IMIX_R>;
 		};
 	};
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
 	mtk_gauge: mtk_gauge {
 		compatible = "mediatek,mt6357-gauge";
 		charger = <&mt6370_chg>;
@@ -145,7 +176,46 @@
 		nvmem-cells = <&fg_init>, <&fg_soc>;
 		nvmem-cell-names = "initialization", "state-of-charge";
 	};
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_O22
+	mtk_gauge: mtk_gauge {
+		compatible = "mediatek,mt6357-gauge";
+		charger = <&mt6370_chg>;
+		bootmode = <&chosen>;
+		io-channels = <&pmic_auxadc AUXADC_BAT_TEMP>,
+				<&pmic_auxadc AUXADC_ISENSE>,
+				<&pmic_auxadc AUXADC_VBIF>,
+				<&pmic_auxadc AUXADC_IMP>,
+				<&pmic_auxadc AUXADC_IMIX_R>;
+		io-channel-names = "pmic_battery_temp",
+				"pmic_battery_voltage",
+				"pmic_bif_voltage",
+				"pmic_ptim_voltage",
+				"pmic_ptim_r";
+		nvmem-cells = <&fg_init>, <&fg_soc>;
+		nvmem-cell-names = "initialization", "state-of-charge";
+	};
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+	mtk_gauge: mtk_gauge {
+		compatible = "mediatek,mt6357-gauge";
+		charger = <&mt6370_chg>;
+		bootmode = <&chosen>;
+		io-channels = <&pmic_auxadc AUXADC_BAT_TEMP>,
+				<&pmic_auxadc AUXADC_ISENSE>,
+				<&pmic_auxadc AUXADC_VBIF>,
+				<&pmic_auxadc AUXADC_IMP>,
+				<&pmic_auxadc AUXADC_IMIX_R>;
+		io-channel-names = "pmic_battery_temp",
+				"pmic_battery_voltage",
+				"pmic_bif_voltage",
+				"pmic_ptim_voltage",
+				"pmic_ptim_r";
+		nvmem-cells = <&fg_init>, <&fg_soc>;
+		nvmem-cell-names = "initialization", "state-of-charge";
+	};
+#endif
+#ifdef CONFIG_HQ_PROJECT_OT8
 	mtk_gauge: mtk_gauge {
 		compatible = "mediatek,mt6357-gauge";
 		charger = <&mt6370_chg>;
@@ -492,9 +562,16 @@
 		use_hp_depop_flow = <0>; /* select 1: use, 0: not use */
 		use_ul_260k = <0>; /* select 1: use, 0: not use */
 
+/*hs04 code for SR-AL6398A-01-121 by hujincan at 2022/07/05 start*/
+#ifdef CONFIG_HQ_PROJECT_HS03S
 		/* hs03s code for SR-AL5625-01-247 by zhuqiang at 2021/04/23 start */
 		ctrl-mod = <&pio 51 0x0>;
 		/* hs03s code for SR-AL5625-01-247 by zhuqiang at 2021/04/23 end */
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+		ctrl-mod = <&pio 159 0x0>;
+#endif
+/*hs04 code for SR-AL6398A-01-121 by hujincan at 2022/07/05 end*/
 	};
 
 

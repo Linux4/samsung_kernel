@@ -66,11 +66,13 @@ static void write_cmos_sensor(u16 addr, u8 para)
 
 static void s5k4h7_hlt_otp_init(void)
 {
+	/*TabA7 Lite code for SR-AL5628-01-55 by zhongquan at 2022/11/26 start*/
 	write_cmos_sensor(0x0100, 0x01);
-	mdelay(5);
+	mdelay(2);
 	write_cmos_sensor(0x0A02, 0x00);
 	write_cmos_sensor(0x0A00, 0x01);
-	mdelay(5);
+	mdelay(2);
+	/*TabA7 Lite code for SR-AL5628-01-55 by zhongquan at 2022/11/26 end*/
 }
 
 
@@ -107,7 +109,9 @@ static u16 s5k4h7_hlt_otp_read_group(u32 addr, u8 *data, int length)
 		write_cmos_sensor(0x0A02, curr_page);
 		/*otp enable read*/
 		write_cmos_sensor(0x0A00, 0x01);
-		mdelay(5);
+		/*TabA7 Lite code for SR-AL5628-01-55 by zhongquan at 2022/11/26 start*/
+		mdelay(1);
+		/*TabA7 Lite code for SR-AL5628-01-55 by zhongquan at 2022/11/26 end*/
 		while(curr_addr<=S5K4H7_HLT_PAGE_FINAL_ADDR){
 			data[i] = read_cmos_sensor(curr_addr);
 			calc_checksum += data[i];
@@ -152,7 +156,9 @@ int s5k4h7_hlt_iReadData(unsigned int ui4_offset,
 
 	i4RetValue = s5k4h7_hlt_otp_read_group(u4CurrentOffset, pBuff, i4ResidueDataLength);
 	write_cmos_sensor(0x0A00, 0x00);
-	mdelay(5);
+	/*TabA7 Lite code for SR-AL5628-01-55 by zhongquan at 2022/11/26 start*/
+	mdelay(2);
+	/*TabA7 Lite code for SR-AL5628-01-55 by zhongquan at 2022/11/26 end*/
 	if (i4RetValue != 0) {
 		pr_debug("I2C iReadData failed!!\n");
 		return -1;

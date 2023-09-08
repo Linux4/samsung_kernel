@@ -623,6 +623,16 @@ static int fgauge_get_info(struct mtk_gauge *gauge,
 			bm_err("[%s]:GAUGE_PROP_SHUTDOWN_CAR: sign:%d, tmp_val:%d\n",
 			__func__, sign_bit, tmp_val);
 		}
+		/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+		#ifdef CONFIG_HQ_PROJECT_HS04
+		else if (sign_bit == 0) {
+			*value = tmp_val;
+			bm_err("[%s]:GAUGE_PROP_SHUTDOWN_CAR: sign:%d, tmp_val:%d\n",
+			 __func__, sign_bit, tmp_val);
+		}
+		#endif
+		/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end */
+
 	}
 
 	bm_debug("[%s]info:%d v:%d\n", __func__, ginfo, *value);
@@ -1902,7 +1912,7 @@ static int nafg_c_dltv_get(struct mtk_gauge *gauge,
 
 	return 0;
 }
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
     /* modify code for O6 */
 static int zcv_get(struct mtk_gauge *gauge_dev,
 	struct mtk_gauge_sysfs_field_info *attr, int *zcv)
@@ -1925,7 +1935,32 @@ static int zcv_get(struct mtk_gauge *gauge_dev,
 	*zcv = adc_result;
 	return 0;
 }
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+    /* modify code for O6 */
+static int zcv_get(struct mtk_gauge *gauge_dev,
+	struct mtk_gauge_sysfs_field_info *attr, int *zcv)
+{
+	signed int adc_result_reg = 0;
+	signed int adc_result = 0;
+
+	regmap_read(gauge_dev->regmap,
+		PMIC_AUXADC_ADC_OUT_FGADC_PCHR_ADDR,
+		&adc_result_reg);
+	adc_result_reg =
+		(adc_result_reg & (PMIC_AUXADC_ADC_OUT_FGADC_PCHR_MASK
+		<< PMIC_AUXADC_ADC_OUT_FGADC_PCHR_SHIFT))
+		>> PMIC_AUXADC_ADC_OUT_FGADC_PCHR_SHIFT;
+
+	adc_result = reg_to_mv_value(adc_result_reg);
+	bm_err("[oam] %s BATSNS  (pchr):adc_result_reg=%d, adc_result=%d\n",
+		 __func__, adc_result_reg, adc_result);
+
+	*zcv = adc_result;
+	return 0;
+}
+#endif
+#ifdef CONFIG_HQ_PROJECT_OT8
     /* modify code for OT8 */
 static int zcv_get(struct mtk_gauge *gauge_dev,
 	struct mtk_gauge_sysfs_field_info *attr, int *zcv)

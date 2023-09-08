@@ -9,6 +9,7 @@
 
 #include <linux/i2c.h>
 #include <linux/mutex.h>
+#include <linux/pinctrl/pinctrl.h>
 
 #ifndef NO_I2C_MTK
 #include "i2c-mtk.h"
@@ -40,6 +41,11 @@ struct IMGSENSOR_I2C_INST {
 	struct IMGSENSOR_I2C_STATUS status;
 	struct i2c_client   *pi2c_client;
 	struct i2c_msg       msg[IMGSENSOR_I2C_CMD_LENGTH_MAX];
+	struct pinctrl *pi2c_pinctrl;
+	struct pinctrl_state *pi2c_state_on;
+	struct pinctrl_state *pi2c_state_off;
+	struct mutex lock;
+	int refcnt;
 };
 
 struct IMGSENSOR_I2C_CFG {

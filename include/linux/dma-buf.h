@@ -312,6 +312,8 @@ struct dma_buf_ops {
 				      enum dma_data_direction,
 				      unsigned int offset, unsigned int len);
 
+	void *(*map_atomic)(struct dma_buf *dmabuf, unsigned long page_num);
+	void (*unmap_atomic)(struct dma_buf *dma_buf, unsigned long page_num, void *vaddr);
 	void *(*map)(struct dma_buf *, unsigned long);
 	void (*unmap)(struct dma_buf *, unsigned long, void *);
 
@@ -429,6 +431,7 @@ typedef int (*dma_buf_destructor)(struct dma_buf *dmabuf, void *dtor_data);
  * Device DMA access is handled by the separate &struct dma_buf_attachment.
  */
 struct dma_buf {
+	atomic_t ref_dbg;
 	size_t size;
 	struct file *file;
 	struct list_head attachments;
@@ -438,8 +441,9 @@ struct dma_buf {
 	void *vmap_ptr;
 	const char *exp_name;
 	const char *name;
-	spinlock_t name_lock;
+	spinlock_t name_lock; /* spinlock to protect name access */
 	struct module *owner;
+	struct list_head node;
 	struct list_head list_node;
 	void *priv;
 	struct reservation_object *resv;
@@ -529,9 +533,11 @@ struct dma_buf_export_info {
  */
 static inline void get_dma_buf(struct dma_buf *dmabuf)
 {
+	atomic_inc(&dmabuf->ref_dbg);
 	get_file(dmabuf->file);
 }
 
+int is_dma_buf_file(struct file *file);
 struct dma_buf_attachment *dma_buf_attach(struct dma_buf *dmabuf,
 							struct device *dev);
 void dma_buf_detach(struct dma_buf *dmabuf,

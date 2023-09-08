@@ -148,6 +148,8 @@
 /* ((UINT32P)(APMIXED_BASE+0x02C8)) */
 #define MDPLL1_CON0		0x3A0
 
+#define SCP_SMEM_KEY			(0x5343505f534d454d) /* SCP_SMEM magic key */
+
 struct ccci_clk_node {
 	struct clk *clk_ref;
 	unsigned char *clk_name;
@@ -217,13 +219,13 @@ struct md_hw_info {
 };
 
 
-//int ccci_modem_remove(struct platform_device *dev);
-//void ccci_modem_shutdown(struct platform_device *dev);
-//int ccci_modem_suspend(struct platform_device *dev, pm_message_t state);
-//int ccci_modem_resume(struct platform_device *dev);
-//int ccci_modem_pm_suspend(struct device *device);
-//int ccci_modem_pm_resume(struct device *device);
-//int ccci_modem_pm_restore_noirq(struct device *device);
+int ccci_modem_remove(struct platform_device *dev);
+void ccci_modem_shutdown(struct platform_device *dev);
+int ccci_modem_suspend(struct platform_device *dev, pm_message_t state);
+int ccci_modem_resume(struct platform_device *dev);
+int ccci_modem_pm_suspend(struct device *device);
+int ccci_modem_pm_resume(struct device *device);
+int ccci_modem_pm_restore_noirq(struct device *device);
 //int md_cd_power_on(struct ccci_modem *md);
 //int md_cd_power_off(struct ccci_modem *md, unsigned int timeout);
 //int md_cd_soft_power_off(struct ccci_modem *md, unsigned int mode);
@@ -246,6 +248,7 @@ int md_cd_get_modem_hw_info(struct platform_device *dev_ptr,
 //void md_cldma_hw_reset(unsigned char md_id);
 int md_cd_pccif_send(struct ccci_modem *md, int channel_id);
 void md_cd_dump_pccif_reg(struct ccci_modem *md);
+void ccci_notify_set_scpmem(void);
 //int md_cd_vcore_config(unsigned int md_id, unsigned int hold_req);
 
 /* ADD_SYS_CORE */

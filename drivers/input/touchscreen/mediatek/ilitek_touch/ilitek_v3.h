@@ -140,11 +140,12 @@
 #define CHARGER_NOTIFIER_CALLBACK	DISABLE
 #define ENABLE_EDGE_PALM_PARA		DISABLE
 #define MULTI_REPORT_RATE		DISABLE
-#ifdef HQ_PROJECT_OT8
+#ifdef CONFIG_HQ_PROJECT_OT8
 /*TabA7 Lite code for SR-AX3565-01-740 by fengzhigang at 20210126 start*/
 #define AXIS_PACKET			ENABLE
 /*TabA7 Lite code for SR-AX3565-01-740 by fengzhigang at 20210126 end*/
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS03S
 /*TabA7 Lite code for SR-AX3565-01-740 by fengzhigang at 20210126 start*/
 #define AXIS_PACKET			DISABLE
 /*TabA7 Lite code for SR-AX3565-01-740 by fengzhigang at 20210126 end*/
@@ -175,10 +176,11 @@
 #define DEBUG_DATA_FILE_SIZE		(10*K)
 #define DEBUG_DATA_FILE_PATH		"/sdcard/ILITEK_log.csv"
 
-#ifdef HQ_PROJECT_OT8
+#ifdef CONFIG_HQ_PROJECT_OT8
     /* modify code for OT8 */
 	#define CSV_LCM_ON_PATH			"/sdcard/tpdata"
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS03S
     /* modify code for O6 */
 	/* HS03S code for DEVAL5625-2101 by gaozhengwei at 2021/07/14 start */
 	#define CSV_LCM_ON_PATH			"/data/tpdata"

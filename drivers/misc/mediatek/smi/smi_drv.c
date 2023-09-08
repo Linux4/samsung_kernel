@@ -25,8 +25,10 @@
 #include <smi_public.h>
 #include <smi_pmqos.h>
 #include <mmdvfs_pmqos.h>
-#if IS_ENABLED(CONFIG_MTK_EMI)
-#include <plat_debug_api.h>
+#if IS_ENABLED(CONFIG_MEDIATEK_EMI)
+#include <memory/mediatek/emi.h>
+#elif IS_ENABLED(CONFIG_MTK_EMI)
+//#include <plat_debug_api.h>
 #elif IS_ENABLED(CONFIG_MTK_EMI_BWL)
 #include <emi_mbw.h>
 #endif
@@ -40,13 +42,16 @@
 #endif
 
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
-#if IS_ENABLED(CONFIG_MACH_MT6885)
+#include <sspm_define.h>
+#if IS_ENABLED(SMI_SSPM)
+#include <sspm_reservedmem_define.h>
 #include <sspm_ipi_id.h>
+static bool smi_sspm_ipi_register;
 #else
 #include <sspm_ipi.h>
-#include <sspm_define.h>
 //#include <sspm_reservedmem_define.h>
 #if IS_ENABLED(CONFIG_MACH_MT6761)
+#include <clk-mt6761-pg.h>
 #include <sspm_reservedmem_define_mt6761.h>
 #elif IS_ENABLED(CONFIG_MACH_MT6779)
 #include <sspm_reservedmem_define_mt6779.h>
@@ -60,7 +65,16 @@
 
 #define SMIDBG(string, args...) pr_debug(string, ##args)
 
-#if IS_ENABLED(CONFIG_MTK_CMDQ)
+#if IS_ENABLED(CONFIG_MTK_CMDQ_MBOX_EXT)
+#include <cmdq-util.h>
+#define SMIWRN(cmdq, string, args...) \
+	do { \
+		if (cmdq != 0) \
+			cmdq_util_msg(string, ##args); \
+		else \
+			pr_info(string, ##args); \
+	} while (0)
+#elif IS_ENABLED(CONFIG_MTK_CMDQ)
 #include <cmdq_helper_ext.h>
 #define SMIWRN(cmdq, string, args...) \
 	do { \
@@ -169,44 +183,121 @@ s32 smi_bus_prepare_enable(const u32 id, const char *user)
 	} else if (id < SMI_LARB_NUM) {
 		smi_clk_record(id, true, user);
 	}
-#if IS_ENABLED(CONFIG_MACH_MT6885)
+
+	if (!smi_dev[id]) {
+		SMIERR("SMI %s: %d is not ready.\n", __func__, id);
+		return -EPROBE_DEFER;
+	}
+
+#if IS_ENABLED(CONFIG_MACH_MT6885) || IS_ENABLED(CONFIG_MACH_MT6893)
+	if (id == 6 || id == 10 || id == 12) {
+		SMIDBG("Invalid id:%u user:%s\n", id, user);
+		return -EINVAL;
+	}
+
 	switch (id) {
 	case 0:
 	case 1:
+	case 5:
 	case 7:
 	case 14:
 	case 17:
-		ret = smi_unit_prepare_enable(SMI_LARB_NUM); // disp
+		ret = smi_unit_prepare_enable(21); // disp
 		if (ret)
 			return ret;
-		ret = smi_unit_prepare_enable(SMI_LARB_NUM + 2); // sysram
+		ret = smi_unit_prepare_enable(24); // disp-subcom
 		if (ret)
 			return ret;
-		break;
-	case 5:
-	case 11:
-	case 19:
-	case 20:
-		ret = smi_unit_prepare_enable(SMI_LARB_NUM); // disp
+		ret = smi_unit_prepare_enable(25); // disp-subcom1
 		if (ret)
 			return ret;
 		break;
 	case 2:
 	case 3:
+	case 4:
 	case 8:
+	case 9:
 	case 13:
 	case 16:
 	case 18:
-		ret = smi_unit_prepare_enable(SMI_LARB_NUM + 1); // mdp
+		ret = smi_unit_prepare_enable(22); // mdp
 		if (ret)
 			return ret;
-		ret = smi_unit_prepare_enable(SMI_LARB_NUM + 2); // sysram
+		ret = smi_unit_prepare_enable(26); // mdp-subcom
+		if (ret)
+			return ret;
+		ret = smi_unit_prepare_enable(27); // mdp-subcom1
 		if (ret)
 			return ret;
 		break;
-	case 4:
-	case 9:
-		ret = smi_unit_prepare_enable(SMI_LARB_NUM + 1); // mdp
+	case 11:
+	case 19:
+	case 20:
+		ret = smi_unit_prepare_enable(21); // disp
+		if (ret)
+			return ret;
+		ret = smi_unit_prepare_enable(24); // disp-subcom
+		if (ret)
+			return ret;
+		ret = smi_unit_prepare_enable(25); // disp-subcom1
+		if (ret)
+			return ret;
+		ret = smi_unit_prepare_enable(22); // mdp
+		if (ret)
+			return ret;
+		ret = smi_unit_prepare_enable(26); // mdp-subcom
+		if (ret)
+			return ret;
+		ret = smi_unit_prepare_enable(27); // mdp-subcom1
+		if (ret)
+			return ret;
+		break;
+	}
+
+	switch (id) {
+	case 2:
+	case 3:
+	case 7:
+	case 8:
+		ret = smi_unit_prepare_enable(23); // sysram
+		if (ret)
+			return ret;
+		break;
+	case 13:
+		ret = smi_unit_prepare_enable(23); // sysram
+		if (ret)
+			return ret;
+		ret = smi_unit_prepare_enable(29); // cam-subcom
+		if (ret)
+			return ret;
+		ret = smi_unit_prepare_enable(31); // cam-subcom2
+		if (ret)
+			return ret;
+		break;
+	case 14:
+		ret = smi_unit_prepare_enable(23); // sysram
+		if (ret)
+			return ret;
+		ret = smi_unit_prepare_enable(30); // cam-subcom1
+		if (ret)
+			return ret;
+		ret = smi_unit_prepare_enable(31); // cam-subcom2
+		if (ret)
+			return ret;
+		break;
+	case 16:
+	case 17:
+	case 18:
+		ret = smi_unit_prepare_enable(23); // sysram
+		if (ret)
+			return ret;
+		ret = smi_unit_prepare_enable(31); // cam-subcom2
+		if (ret)
+			return ret;
+		break;
+	case 19:
+	case 20:
+		ret = smi_unit_prepare_enable(28); // ipe-subcom
 		if (ret)
 			return ret;
 		break;
@@ -216,6 +307,14 @@ s32 smi_bus_prepare_enable(const u32 id, const char *user)
 	if (ret || id == SMI_LARB_NUM)
 		return ret;
 
+#endif
+
+#if IS_ENABLED(SMI_5G)
+	if (id == 4) {
+		ret = smi_unit_prepare_enable(5);
+		if (ret)
+			return ret;
+	}
 #endif
 	return smi_unit_prepare_enable(id);
 }
@@ -229,11 +328,16 @@ static inline void smi_unit_disable_unprepare(const u32 id)
 
 s32 smi_bus_disable_unprepare(const u32 id, const char *user)
 {
+	if (!smi_dev[id]) {
+		SMIERR("SMI %s: %d is not ready.\n", __func__, id);
+		return -EPROBE_DEFER;
+	}
+
 	if (id >= SMI_DEV_NUM) {
 		SMIDBG("Invalid id:%u, SMI_DEV_NUM=%u, user=%s\n",
 			id, SMI_DEV_NUM, user);
 		return -EINVAL;
-	} else if (id >= SMI_LARB_NUM) {
+	} else if (id == SMI_LARB_NUM) {
 		smi_unit_disable_unprepare(id);
 		return 0;
 	} else if (id < SMI_LARB_NUM) {
@@ -242,36 +346,81 @@ s32 smi_bus_disable_unprepare(const u32 id, const char *user)
 
 	if (ATOMR_CLK(id) == 1 && readl(smi_dev[id]->base + SMI_LARB_STAT))
 		SMIWRN(1, "LARB%u OFF by %s but busy\n", id, user);
+#if IS_ENABLED(CONFIG_MACH_MT6885) || IS_ENABLED(CONFIG_MACH_MT6893)
+	if (id == 6 || id == 10 || id == 12) {
+		SMIDBG("Invalid id:%u user:%s\n", id, user);
+		return -EINVAL;
+	}
+#endif
 	smi_unit_disable_unprepare(id);
+#if IS_ENABLED(SMI_5G)
+	if (id == 4)
+		smi_unit_disable_unprepare(5);
+#endif
 
-#if IS_ENABLED(CONFIG_MACH_MT6885)
+#if IS_ENABLED(CONFIG_MACH_MT6885) || IS_ENABLED(CONFIG_MACH_MT6893)
+	switch (id) {
+	case 2:
+	case 3:
+	case 7:
+	case 8:
+		smi_unit_disable_unprepare(23); // sysram
+		break;
+	case 13:
+		smi_unit_disable_unprepare(31); // cam-subcom2
+		smi_unit_disable_unprepare(29); // cam-subcom
+		smi_unit_disable_unprepare(23); // sysram
+		break;
+	case 14:
+		smi_unit_disable_unprepare(31); // cam-subcom2
+		smi_unit_disable_unprepare(30); // cam-subcom1
+		smi_unit_disable_unprepare(23); // sysram
+		break;
+	case 16:
+	case 17:
+	case 18:
+		smi_unit_disable_unprepare(31); // cam-subcom2
+		smi_unit_disable_unprepare(23); // sysram
+		break;
+	case 19:
+	case 20:
+		smi_unit_disable_unprepare(28); // ipe-subcom
+		break;
+	}
+
 	switch (id) {
 	case 0:
 	case 1:
+	case 5:
 	case 7:
 	case 14:
 	case 17:
-		smi_unit_disable_unprepare(SMI_LARB_NUM + 2); // sysram
-		smi_unit_disable_unprepare(SMI_LARB_NUM); // disp
-		break;
-	case 5:
-	case 11:
-	case 19:
-	case 20:
-		smi_unit_disable_unprepare(SMI_LARB_NUM); // disp
+		smi_unit_disable_unprepare(25); // disp-subcom1
+		smi_unit_disable_unprepare(24); // disp-subcom
+		smi_unit_disable_unprepare(21); // disp
 		break;
 	case 2:
 	case 3:
+	case 4:
 	case 8:
+	case 9:
 	case 13:
 	case 16:
 	case 18:
-		smi_unit_disable_unprepare(SMI_LARB_NUM + 2); // sysram
-		smi_unit_disable_unprepare(SMI_LARB_NUM + 1); // mdp
+		smi_unit_disable_unprepare(27); // mdp-subcom1
+		smi_unit_disable_unprepare(26); // mdp-subcom
+		smi_unit_disable_unprepare(22); // mdp
 		break;
-	case 4:
-	case 9:
-		smi_unit_disable_unprepare(SMI_LARB_NUM + 1); // mdp
+	case 11:
+	case 19:
+	case 20:
+		smi_unit_disable_unprepare(27); // mdp-subcom1
+		smi_unit_disable_unprepare(26); // mdp-subcom
+		smi_unit_disable_unprepare(22); // mdp
+
+		smi_unit_disable_unprepare(25); // disp-subcom1
+		smi_unit_disable_unprepare(24); // disp-subcom
+		smi_unit_disable_unprepare(21); // disp
 		break;
 	}
 #else // !CONFIG_MACH_MT6885
@@ -291,8 +440,7 @@ smi_bwl_update(const u32 id, const u32 bwl, const bool soft, const char *user)
 			id, SMI_COMM_MASTER_NUM);
 		return;
 	}
-
-#if IS_ENABLED(CONFIG_MACH_MT6885)
+#if IS_ENABLED(CONFIG_MACH_MT6885) || IS_ENABLED(CONFIG_MACH_MT6893)
 	comm = id >> 16;
 #endif
 	val = (soft ? 0x1000 : 0x3000) | SMI_PMQOS_BWL_MASK(bwl);
@@ -314,6 +462,13 @@ void smi_ostd_update(const struct plist_head *head, const char *user)
 
 	if (plist_head_empty(head))
 		return;
+#if defined (CONFIG_MACH_MT6833)
+// TODO Migration
+	if (smi_dev[larb] == NULL){
+                 pr_notice("[SMI 6833] ERROR smi_ostd_update larb not ready \n");
+		return;
+	}
+#endif
 
 	plist_for_each_entry(req, head, owner_node) {
 		larb = SMI_PMQOS_LARB_DEC(req->master_id);
@@ -342,7 +497,7 @@ EXPORT_SYMBOL_GPL(smi_ostd_update);
 
 s32 smi_sysram_enable(const u32 master_id, const bool enable, const char *user)
 {
-#if IS_ENABLED(CONFIG_MACH_MT6885)
+#if IS_ENABLED(CONFIG_MACH_MT6885) || IS_ENABLED(CONFIG_MACH_MT6893)
 	u32 larb = MTK_IOMMU_TO_LARB(master_id);
 	u32 port = MTK_IOMMU_TO_PORT(master_id);
 	u32 ostd[2], val;
@@ -354,6 +509,7 @@ s32 smi_sysram_enable(const u32 master_id, const bool enable, const char *user)
 		aee_kernel_exception(user,
 			"%s set larb%u port%u sysram %d failed ostd:%u %u\n",
 			user, larb, port, enable, ostd[0], ostd[1]);
+		smi_bus_disable_unprepare(larb, user);
 		return (ostd[1] << 16) | ostd[0];
 	}
 
@@ -406,6 +562,9 @@ static s32 smi_debug_dumper(const bool gce, const bool off, const u32 id)
 	void __iomem *base;
 	u32 nr_debugs, *debugs, temp[MAX_INPUT];
 	s32 i, j;
+#if IS_ENABLED(CONFIG_MACH_MT6761)
+	unsigned long flags = 0;
+#endif
 
 	if (id > SMI_DEV_NUM) {
 		SMIDBG("Invalid id:%u, SMI_DEV_NUM=%u\n", id, SMI_DEV_NUM);
@@ -431,8 +590,14 @@ static s32 smi_debug_dumper(const bool gce, const bool off, const u32 id)
 		return 0;
 	}
 
+#if IS_ENABLED(CONFIG_MACH_MT6761)
+	mtk_mtcmos_lock(flags);
+#endif
 	for (i = 0; i < nr_debugs && ATOMR_CLK(j) > 0; i++)
 		temp[i] = readl(base + debugs[i]);
+#if IS_ENABLED(CONFIG_MACH_MT6761)
+	mtk_mtcmos_unlock(flags);
+#endif
 	if (i < nr_debugs) {
 		SMIWRN(gce, "======== %s%u OFF ========\n", name, id);
 		return 0;
@@ -470,19 +635,36 @@ s32 smi_debug_bus_hang_detect(const bool gce, const char *user)
 {
 	u32 time = 5, busy[SMI_DEV_NUM] = {0};
 	s32 i, j, ret = 0;
-
-#if IS_ENABLED(CONFIG_MTK_EMI) || IS_ENABLED(CONFIG_MTK_EMI_BWL)
-	dump_emi_outstanding();
+#if IS_ENABLED(CONFIG_MACH_MT6761)
+	unsigned long flags = 0;
 #endif
+
+#if IS_ENABLED(CONFIG_MEDIATEK_EMI)
+	mtk_emidbg_dump();
+#endif
+
 #if IS_ENABLED(CONFIG_MTK_IOMMU_V2)
 	//mtk_dump_reg_for_hang_issue();
 #elif IS_ENABLED(CONFIG_MTK_M4U)
 	//m4u_dump_reg_for_smi_hang_issue();
 #endif
+
+	if (!smi_dev[0]) {
+		SMIERR("SMI %s is not ready.\n", __func__);
+		return 0;
+	}
+
 	for (i = 0; i < time; i++) {
-		for (j = 0; j < SMI_LARB_NUM; j++)
+		for (j = 0; j < SMI_LARB_NUM; j++) {
+#if IS_ENABLED(CONFIG_MACH_MT6761)
+			mtk_mtcmos_lock(flags);
+#endif
 			busy[j] += ((ATOMR_CLK(j) > 0 &&
 			readl(smi_dev[j]->base + SMI_LARB_STAT)) ? 1 : 0);
+#if IS_ENABLED(CONFIG_MACH_MT6761)
+			mtk_mtcmos_unlock(flags);
+#endif
+		}
 		/* COMM */
 		for (j = SMI_LARB_NUM; j < SMI_DEV_NUM; j++)
 			busy[j] += ((ATOMR_CLK(j) > 0 &&
@@ -532,6 +714,13 @@ static inline void smi_larb_port_set(const struct mtk_smi_dev *smi)
 		i < smi_larb_bw_thrt_en_port[smi->id][1]; i++)
 		writel(readl(smi->base + SMI_LARB_NON_SEC_CON(i)) | 0x8,
 			smi->base + SMI_LARB_NON_SEC_CON(i));
+#if IS_ENABLED(CONFIG_MACH_MT6853)
+		if (readl(smi->base + SMI_LARB_NON_SEC_CON(i)) & 0x4)
+			pr_info("[SMI LOG]smi_larb%d, port%d[2]:%#x\n",
+				smi->id, i,
+				readl(smi->base + SMI_LARB_NON_SEC_CON(i)));
+#endif
+
 
 #if IS_ENABLED(CONFIG_MACH_MT6765) || IS_ENABLED(CONFIG_MACH_MT6768) || \
 	IS_ENABLED(CONFIG_MACH_MT6771)
@@ -539,6 +728,34 @@ static inline void smi_larb_port_set(const struct mtk_smi_dev *smi)
 		writel(0x780000, smi_mmsys_base + MMSYS_HW_DCM_1ST_DIS_SET0);
 #endif
 }
+
+s32 smi_larb_port_check(void)
+{
+#if IS_ENABLED(CONFIG_MACH_MT6853)
+	s32 i;
+
+	mtk_smi_clk_enable(smi_dev[2]);
+
+	for (i = smi_larb_bw_thrt_en_port[2][0];
+		i < smi_larb_bw_thrt_en_port[2][1]; i++)
+		if (readl(smi_dev[2]->base + SMI_LARB_NON_SEC_CON(i)) & 0x4) {
+			pr_info("[SMI LOG]cmdq smi_larb2 port%d:%#x\n",
+				i, readl(smi_dev[2]->base
+				+ SMI_LARB_NON_SEC_CON(i)));
+			writel(readl(smi_dev[2]->base + SMI_LARB_NON_SEC_CON(i))
+				& 0xFFFFFFFB,
+				smi_dev[2]->base + SMI_LARB_NON_SEC_CON(i));
+			pr_info("[SMI LOG]new cmdq smi_larb2 port%d:%#x\n",
+				i, readl(smi_dev[2]->base
+				+ SMI_LARB_NON_SEC_CON(i)));
+		}
+
+	mtk_smi_clk_disable(smi_dev[2]);
+#endif
+	return 0;
+}
+EXPORT_SYMBOL_GPL(smi_larb_port_check);
+
 
 static s32 smi_bwc_conf(const struct MTK_SMI_BWC_CONF *conf)
 {
@@ -945,7 +1162,7 @@ static inline void smi_subsys_sspm_ipi(const bool ena, const u32 subsys)
 {
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT) && IS_ENABLED(SMI_SSPM)
 	struct smi_ipi_data_s ipi_data;
-	s32 ackdata;
+	s32 ret;
 
 	spin_lock(&(smi_drv.lock));
 	smi_subsys_on = ena ?
@@ -954,16 +1171,24 @@ static inline void smi_subsys_sspm_ipi(const bool ena, const u32 subsys)
 
 	ipi_data.cmd = SMI_IPI_ENABLE;
 	ipi_data.u.logger.enable = smi_subsys_on;
-#if IS_ENABLED(CONFIG_MACH_MT6885)
+#if IS_ENABLED(SMI_SSPM)
+	if (!smi_sspm_ipi_register)
+		return;
+
 	do {
-		mtk_ipi_send_compl(&sspm_ipidev, IPIS_C_SMI, IPI_SEND_POLLING,
-			&ipi_data, sizeof(ipi_data) / SSPM_MBOX_SLOT_SIZE, 10);
+		ret = mtk_ipi_send_compl(&sspm_ipidev, IPIS_C_SMI,
+			IPI_SEND_POLLING, &ipi_data,
+			sizeof(ipi_data) / SSPM_MBOX_SLOT_SIZE, 2000);
 	} while (smi_dram.ackdata);
+/*
+ *	SMIDBG("ena:%d subsys:%#x smi_subsys_on:%#x ackdata:%d\n",
+ *		ena, subsys, smi_subsys_on, smi_dram.ackdata);
+ */
 #else
 	do {
-		sspm_ipi_send_sync(IPI_ID_SMI, IPI_OPT_POLLING, &ipi_data,
-			sizeof(ipi_data) / MBOX_SLOT_SIZE, &ackdata, 1);
-	} while (ackdata);
+		ret = sspm_ipi_send_sync(IPI_ID_SMI, IPI_OPT_POLLING, &ipi_data,
+		sizeof(ipi_data) / MBOX_SLOT_SIZE, &smi_dram.ackdata, 1);
+	} while (smi_dram.ackdata);
 #endif
 #endif
 }
@@ -973,16 +1198,55 @@ static void smi_subsys_after_on(enum subsys_id sys)
 	u32 subsys = smi_subsys_to_larbs[sys];
 	u32 smi_scen = smi_scen_map[smi_drv.scen];
 	s32 i;
+#if IS_ENABLED(CONFIG_MACH_MT6781)
+	s32 j;
+#endif
 
 	if (!subsys)
 		return;
+
+#if IS_ENABLED(CONFIG_MACH_MT6781)
+	for (i = SMI_DEV_NUM - 1; i >= 0; i--) {
+		if (subsys & (1 << i)) {
+			smi_clk_record(i, true, NULL);
+			mtk_smi_clk_enable(smi_dev[i]);
+
+			//larb enable
+			if (smi_dev[i]->comm_reset) {
+				//power reset
+				for (j = 0; (j < MAX_LARB_FOR_CLAMP)
+					&& smi_dev[i]->power_reset_reg[j]; j++) {
+					writel(smi_dev[i]->power_reset_value[j],
+						smi_dev[i]->power_reset_reg[j]);
+					writel(0, smi_dev[i]->power_reset_reg[j]);
+				}
+				//common reset
+				for (j = 0; (j < MAX_LARB_FOR_CLAMP)
+					&& smi_dev[i]->comm_reset_reg[j]; j++) {
+					writel(smi_dev[i]->comm_reset_value[j],
+						smi_dev[i]->comm_reset_reg[j]
+						+ SMI_COMMON_CLAMP_EN_CLR);
+				}
+			}
+			//common enable
+			for (j = 0; (j < MAX_LARB_FOR_CLAMP)
+						&& smi_dev[i]->comm_clamp_value[j]; j++) {
+				writel(smi_dev[i]->comm_clamp_value[j],
+					smi_dev[i]->base + SMI_COMMON_CLAMP_EN_SET);
+			}
+		}
+	}
+#endif
+
 #if IS_ENABLED(CONFIG_MMPROFILE)
 	//mmprofile_log(smi_mmp_event[sys], MMPROFILE_FLAG_START);
 #endif
 	for (i = SMI_DEV_NUM - 1; i >= 0; i--)
 		if (subsys & (1 << i)) {
+#if !IS_ENABLED(CONFIG_MACH_MT6781)
 			smi_clk_record(i, true, NULL);
 			mtk_smi_clk_enable(smi_dev[i]);
+#endif
 			mtk_smi_conf_set(smi_dev[i], smi_scen);
 			smi_larb_port_set(smi_dev[i]);
 		}
@@ -993,6 +1257,9 @@ static void smi_subsys_before_off(enum subsys_id sys)
 {
 	u32 subsys = smi_subsys_to_larbs[sys];
 	s32 i;
+#if IS_ENABLED(CONFIG_MACH_MT6781)
+	s32 j;
+#endif
 
 	if (!subsys)
 		return;
@@ -1000,14 +1267,36 @@ static void smi_subsys_before_off(enum subsys_id sys)
 	smi_subsys_sspm_ipi(false, subsys);
 	for (i = 0; i < SMI_DEV_NUM; i++)
 		if (subsys & (1 << i)) {
-			if (sys != SYS_DIS || !(smi_mm_first & subsys))
-				mtk_smi_clk_disable(smi_dev[i]);
 			smi_clk_record(i, false, NULL);
+			if ((smi_mm_first & subsys) && sys == SYS_DIS)
+				continue;
+#if IS_ENABLED(CONFIG_MACH_MT6885) || IS_ENABLED(CONFIG_MACH_MT6893)
+			if ((smi_mm_first & subsys) && sys == SYS_MDP)
+				continue;
+#endif
+#if !IS_ENABLED(CONFIG_MACH_MT6781)
+			mtk_smi_clk_disable(smi_dev[i]);
+#endif
 		}
-	if (sys == SYS_DIS && (smi_mm_first & subsys))
-		smi_mm_first &= ~subsys;
+	smi_mm_first &= ~subsys;
 #if IS_ENABLED(CONFIG_MMPROFILE)
 	//mmprofile_log(smi_mmp_event[sys], MMPROFILE_FLAG_END);
+#endif
+#if IS_ENABLED(CONFIG_MACH_MT6781)
+	for (i = SMI_DEV_NUM - 1; i >= 0; i--) {
+		if (subsys & (1 << i)) {
+			if (smi_dev[i]->comm_reset) {
+				for (j = 0; (j < MAX_LARB_FOR_CLAMP)
+						&& smi_dev[i]->comm_reset_reg[j]; j++) {
+					//larb disable
+					writel(smi_dev[i]->comm_reset_value[j],
+						smi_dev[i]->comm_reset_reg[j] +
+						SMI_COMMON_CLAMP_EN_SET);
+				}
+			}
+			mtk_smi_clk_disable(smi_dev[i]);
+		}
+	}
 #endif
 }
 
@@ -1105,6 +1394,9 @@ s32 smi_register(void)
 	/* init */
 	spin_lock(&(smi_drv.lock));
 	smi_subsys_on = smi_subsys_to_larbs[SYS_DIS];
+#if IS_ENABLED(CONFIG_MACH_MT6885) || IS_ENABLED(CONFIG_MACH_MT6893)
+	smi_subsys_on |= smi_subsys_to_larbs[SYS_MDP];
+#endif
 	spin_unlock(&(smi_drv.lock));
 	for (i = SMI_DEV_NUM - 1; i >= 0; i--) {
 		smi_conf_get(i);
@@ -1174,15 +1466,16 @@ static inline void smi_dram_init(void)
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT) && IS_ENABLED(SMI_SSPM)
 	phys_addr_t phys = sspm_reserve_mem_get_phys(SMI_MEM_ID);
 	struct smi_ipi_data_s ipi_data;
-	s32 ackdata, ret;
+	s32 ret;
 
-#if IS_ENABLED(CONFIG_MACH_MT6885)
-	ret = mtk_ipi_register(
-		&sspm_ipidev, IPIS_C_SMI, NULL, NULL, (void *)smi_dram.ackdata);
+#if IS_ENABLED(SMI_SSPM)
+	ret = mtk_ipi_register(&sspm_ipidev, IPIS_C_SMI, NULL, NULL,
+		(void *)&smi_dram.ackdata);
 	if (ret) {
 		SMIERR("mtk_ipi_register:%d failed:%d\n", IPIS_C_SMI, ret);
-		return ret;
+		return;
 	}
+	smi_sspm_ipi_register = true;
 #endif
 	smi_dram.size = sspm_reserve_mem_get_size(SMI_MEM_ID);
 	smi_dram.virt = ioremap_wc(phys, smi_dram.size);
@@ -1193,12 +1486,12 @@ static inline void smi_dram_init(void)
 	ipi_data.cmd = SMI_IPI_INIT;
 	ipi_data.u.ctrl.phys = phys;
 	ipi_data.u.ctrl.size = smi_dram.size;
-#if IS_ENABLED(CONFIG_MACH_MT6885)
+#if IS_ENABLED(SMI_SSPM)
 	ret = mtk_ipi_send_compl(&sspm_ipidev, IPIS_C_SMI, IPI_SEND_POLLING,
-		&ipi_data, sizeof(ipi_data) / SSPM_MBOX_SLOT_SIZE, 10);
+		&ipi_data, sizeof(ipi_data) / SSPM_MBOX_SLOT_SIZE, 2000);
 #else
-	ret = sspm_ipi_send_sync(IPI_ID_SMI, IPI_OPT_POLLING,
-		&ipi_data, sizeof(ipi_data) / MBOX_SLOT_SIZE, &ackdata, 1);
+	ret = sspm_ipi_send_sync(IPI_ID_SMI, IPI_OPT_POLLING, &ipi_data,
+		sizeof(ipi_data) / MBOX_SLOT_SIZE, &smi_dram.ackdata, 1);
 #endif
 
 #if IS_ENABLED(CONFIG_MTK_ENG_BUILD)
@@ -1206,12 +1499,12 @@ static inline void smi_dram_init(void)
 #endif
 	ipi_data.cmd = SMI_IPI_ENABLE;
 	ipi_data.u.logger.enable = (smi_dram.dump << 31) | smi_subsys_on;
-#if IS_ENABLED(CONFIG_MACH_MT6885)
+#if IS_ENABLED(SMI_SSPM)
 	ret = mtk_ipi_send_compl(&sspm_ipidev, IPIS_C_SMI, IPI_SEND_POLLING,
-		&ipi_data, sizeof(ipi_data) / SSPM_MBOX_SLOT_SIZE, 10);
+		&ipi_data, sizeof(ipi_data) / SSPM_MBOX_SLOT_SIZE, 2000);
 #else
-	ret = sspm_ipi_send_sync(IPI_ID_SMI, IPI_OPT_POLLING,
-		&ipi_data, sizeof(ipi_data) / MBOX_SLOT_SIZE, &ackdata, 1);
+	ret = sspm_ipi_send_sync(IPI_ID_SMI, IPI_OPT_POLLING, &ipi_data,
+		sizeof(ipi_data) / MBOX_SLOT_SIZE, &smi_dram.ackdata, 1);
 #endif
 #endif
 	smi_dram.node = debugfs_create_file(
@@ -1259,9 +1552,9 @@ int smi_dram_dump_set(const char *val, const struct kernel_param *kp)
 		ipi_data.cmd = SMI_IPI_ENABLE;
 		ipi_data.u.logger.enable =
 			(smi_dram.dump << 31) | smi_subsys_on;
-#if IS_ENABLED(CONFIG_MACH_MT6885)
+#if IS_ENABLED(SMI_SSPM)
 		mtk_ipi_send_compl(&sspm_ipidev, IPIS_C_SMI, IPI_SEND_WAIT,
-			&ipi_data, sizeof(ipi_data) / SSPM_MBOX_SLOT_SIZE, 10);
+		&ipi_data, sizeof(ipi_data) / SSPM_MBOX_SLOT_SIZE, 2000);
 #else
 		sspm_ipi_send_sync(IPI_ID_SMI, IPI_OPT_WAIT,
 			&ipi_data, sizeof(ipi_data) / MBOX_SLOT_SIZE, &ret, 1);

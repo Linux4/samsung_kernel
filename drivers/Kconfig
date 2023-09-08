@@ -227,10 +227,10 @@ source "drivers/interconnect/Kconfig"
 
 source "drivers/energy_model/Kconfig"
 
-source "drivers/muic/Kconfig"
-
 source "drivers/switch/Kconfig"
 
 source "drivers/samsung/Kconfig"
+
+source "drivers/battery/Kconfig"
 
 endmenu

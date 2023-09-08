@@ -515,9 +515,18 @@ static int mt6577_auxadc_remove(struct platform_device *pdev)
 	return 0;
 }
 
+/* hs14 code for SR-AL6528A-60 by shanxinkai at 2022/09/29 start*/
+#if defined(CONFIG_HQ_PROJECT_O22)
+static const struct dev_pm_ops mt6577_auxadc_pm_ops = {
+	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(mt6577_auxadc_suspend,
+			      mt6577_auxadc_resume)
+};
+#else
 static SIMPLE_DEV_PM_OPS(mt6577_auxadc_pm_ops,
 			 mt6577_auxadc_suspend,
 			 mt6577_auxadc_resume);
+#endif
+/* hs14 code for SR-AL6528A-60 by shanxinkai at 2022/09/29 end*/
 
 static const struct of_device_id mt6577_auxadc_of_match[] = {
 	{ .compatible = "mediatek,mt2701-auxadc", .data = &mt8173_compat},
@@ -525,6 +534,7 @@ static const struct of_device_id mt6577_auxadc_of_match[] = {
 	{ .compatible = "mediatek,mt7622-auxadc", .data = &mt8173_compat},
 	{ .compatible = "mediatek,mt8173-auxadc", .data = &mt8173_compat},
 	{ .compatible = "mediatek,mt6765-auxadc", .data = &mt6765_compat},
+	{ .compatible = "mediatek,mt6768-auxadc", .data = &mt6765_compat},
 	{ }
 };
 MODULE_DEVICE_TABLE(of, mt6577_auxadc_of_match);
@@ -538,7 +548,19 @@ static struct platform_driver mt6577_auxadc_driver = {
 	.probe	= mt6577_auxadc_probe,
 	.remove	= mt6577_auxadc_remove,
 };
-module_platform_driver(mt6577_auxadc_driver);
+
+static int __init mt6577_auxadc_init(void)
+{
+	return platform_driver_register(&mt6577_auxadc_driver);
+}
+
+static void __exit mt6577_auxadc_exit(void)
+{
+	platform_driver_unregister(&mt6577_auxadc_driver);
+}
+
+subsys_initcall(mt6577_auxadc_init);
+module_exit(mt6577_auxadc_exit);
 
 MODULE_AUTHOR("Zhiyong Tao <zhiyong.tao@mediatek.com>");
 MODULE_DESCRIPTION("MTK AUXADC Device Driver");

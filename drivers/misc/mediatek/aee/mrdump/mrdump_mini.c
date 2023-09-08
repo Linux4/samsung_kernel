@@ -266,6 +266,9 @@ void mrdump_mini_add_misc_pa(unsigned long va, unsigned long pa,
 	int i;
 	struct elf_note *note;
 
+	if (!mrdump_mini_ehdr)
+		return;
+
 	for (i = 0; i < MRDUMP_MINI_NR_MISC; i++) {
 		note = &mrdump_mini_ehdr->misc[i].note;
 		if (note->n_type == NT_IPANIC_MISC) {
@@ -288,7 +291,7 @@ void mrdump_mini_add_misc_pa(unsigned long va, unsigned long pa,
 }
 EXPORT_SYMBOL(mrdump_mini_add_misc_pa);
 
-static void mrdump_mini_add_misc(unsigned long addr, unsigned long size,
+void mrdump_mini_add_misc(unsigned long addr, unsigned long size,
 		unsigned long start, char *name)
 {
 	if (!mrdump_virt_addr_valid((void *)addr))

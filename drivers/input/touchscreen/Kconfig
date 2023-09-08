@@ -9,6 +9,10 @@ menuconfig INPUT_TOUCHSCREEN
 
 	  If unsure, say Y.
 
+source "drivers/input/touchscreen/mediatek/Kconfig"
+
+source "drivers/input/touchscreen/NT36672C/Kconfig"
+
 if INPUT_TOUCHSCREEN
 
 config TOUCHSCREEN_PROPERTIES
@@ -1368,4 +1372,10 @@ config TOUCHSCREEN_MTK_TOUCH
 
 source "drivers/input/touchscreen/synaptics_tcm/Kconfig"
 source "drivers/input/touchscreen/new_tddi_9881x/Kconfig"
+source "drivers/input/touchscreen/melfas_mip4/Kconfig"
+source "drivers/input/touchscreen/himax/himax_ic_hx83102/Kconfig"
+source "drivers/input/touchscreen/nt36525b_i2c/Kconfig"
+source "drivers/input/touchscreen/synaptics_tcm2/Kconfig"
+source "drivers/input/touchscreen/himax/himax_ic_hx83102j/Kconfig"
+source "drivers/input/touchscreen/gt9895/Kconfig"
 endif

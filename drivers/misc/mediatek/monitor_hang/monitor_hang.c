@@ -18,6 +18,7 @@
 #include <linux/sched.h>
 #include <linux/sched/clock.h>
 #include <linux/sched/debug.h>
+#include <linux/sched/mm.h>
 #include <linux/sched/rt.h>
 #include <linux/sched/task.h>
 #include <uapi/linux/sched/types.h>
@@ -243,9 +244,11 @@ static int monitor_hang_show(struct seq_file *m, void *v)
 {
 	struct name_list *pList = NULL;
 #ifdef CONFIG_MTK_HANG_DETECT_DB
-	SEQ_printf(m, "[Hang_Detect] show Hang_info size %d\n ",
-			(int)strlen(Hang_Info));
-	SEQ_printf(m, "%s", Hang_Info);
+	SEQ_printf(m, "[Hang_Detect] show hang_detect_raw\n");
+	if (Hang_Info)
+		SEQ_printf(m, "%s", Hang_Info);
+	else
+		SEQ_printf(m, "hang_detect_raw buffer is not ready\n");
 #endif
 	raw_spin_lock(&white_list_lock);
 	pList = white_list;
@@ -424,12 +427,8 @@ static long monitor_hang_ioctl(struct file *file, unsigned int cmd,
 #ifdef CONFIG_MTK_HANG_DETECT_DB
 	if (cmd == HANG_SET_REBOOT) {
 		reboot_flag = true;
-#ifdef CONFIG_MTK_ENG_BUILD
-		hang_detect_counter = 3;
-#else
-		hang_detect_counter = 1;
-#endif
-		hd_timeout = 3;
+		hang_detect_counter = 5;
+		hd_timeout = 5;
 		hd_detect_enabled = true;
 		pr_info("hang_detect: %s set reboot command.\n", current->comm);
 		return ret;
@@ -897,7 +896,7 @@ static int DumpThreadNativeMaps_log(pid_t pid, struct task_struct *current_task)
 		return -1;
 	}
 
-	if (!current_task->mm) {
+	if (!get_task_mm(current_task)) {
 		pr_info(" %s,%d:%s: current_task->mm == NULL",
 			__func__, pid, current_task->comm);
 		return -1;
@@ -956,6 +955,7 @@ static int DumpThreadNativeMaps_log(pid_t pid, struct task_struct *current_task)
 		mapcount++;
 	}
 	up_read(&current_task->mm->mmap_sem);
+	mmput(current_task->mm);
 
 	return 0;
 }
@@ -1970,9 +1970,11 @@ static int hang_detect_thread(void *arg)
 #ifdef BOOT_UP_HANG
 		if (hd_detect_enabled)
 #else
+#ifndef HQ_FACTORY_BUILD
 		if (hd_detect_enabled && CheckWhiteList() &&
 			(hq_get_boot_mode() != KERNEL_POWER_OFF_CHARGING_BOOT) &&
 			(hq_get_boot_mode() != LOW_POWER_OFF_CHARGING_BOOT))
+#endif
 #endif
 		{
 

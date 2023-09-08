@@ -18,6 +18,21 @@
 static int h_pre_disable = 1;
 module_param(h_pre_disable, int, 0644);
 
+static void musb_lock_wakelock(struct musb *musb)
+{
+	if (!musb->usb_lock->active) {
+		__pm_stay_awake(musb->usb_lock);
+		DBG(0, "wake lock\n");
+	} else
+		DBG(1, "wake lock already active\n");
+}
+
+static void musb_release_wakelock(struct musb *musb)
+{
+	DBG(0, "wake unlock\n");
+	__pm_relax(musb->usb_lock);
+}
+
 static void musb_host_check_disconnect(struct musb *musb)
 {
 	u8 opstate = musb_readb(musb->mregs, MUSB_OPSTATE);
@@ -78,6 +93,9 @@ int musb_port_suspend(struct musb *musb, bool do_suspend)
 				mod_timer(&musb->otg_timer, jiffies
 				+ msecs_to_jiffies(OTG_TIME_A_AIDL_BDIS));
 			musb_platform_try_idle(musb, 0);
+
+			if (musb->host_suspend)
+				musb_release_wakelock(musb);
 			break;
 		case OTG_STATE_B_HOST:
 			musb->xceiv->otg->state = OTG_STATE_B_WAIT_ACON;
@@ -98,6 +116,9 @@ int musb_port_suspend(struct musb *musb, bool do_suspend)
 		/* later, GetPortStatus will stop RESUME signaling */
 		musb->port1_status |= MUSB_PORT_STAT_RESUME;
 		musb->rh_timer = jiffies + msecs_to_jiffies(20);
+
+		if (musb->host_suspend)
+			musb_lock_wakelock(musb);
 	}
 	return 0;
 }
@@ -201,6 +222,9 @@ void musb_root_disconnect(struct musb *musb)
 
 	DBG(0, "host disconnect (%s)\n",
 		otg_state_string(musb->xceiv->otg->state));
+
+	if (musb->host_suspend)
+		musb_release_wakelock(musb);
 
 	switch (musb->xceiv->otg->state) {
 	case OTG_STATE_A_SUSPEND:

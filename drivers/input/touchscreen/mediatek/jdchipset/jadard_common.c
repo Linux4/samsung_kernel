@@ -36,7 +36,7 @@ uint8_t jd_gest_event[JD_GEST_SUP_NUM] = {
 };
 
 uint16_t jd_gest_key_def[JD_GEST_SUP_NUM] = {
-	KEY_POWER, 251, 252, 253, 254, 255, 256, 257,
+	KEY_WAKEUP, 251, 252, 253, 254, 255, 256, 257,
 	258, 259, 260, 261, 262, 263, 264, 265,
 	266, 267, 268, 269, 270, 271, 272
 };
@@ -1247,7 +1247,7 @@ int jadard_input_register(struct jadard_ts_data *ts)
 	set_bit(EV_KEY, ts->input_dev->evbit);
 
 #if defined(JD_SMART_WAKEUP)
-	set_bit(KEY_POWER, ts->input_dev->keybit);
+	set_bit(KEY_WAKEUP, ts->input_dev->keybit);
 
 	for (i = 1; i < JD_GEST_SUP_NUM; i++) {
 		set_bit(jd_gest_key_def[i], ts->input_dev->keybit);
@@ -1488,7 +1488,9 @@ int jadard_chip_common_init(void)
 #ifdef JD_ZERO_FLASH
 	ts->jadard_0f_upgrade_wq = create_singlethread_workqueue("JD_0f_update_reuqest");
 	INIT_DELAYED_WORK(&ts->work_0f_upgrade, g_module_fp.fp_0f_operation);
-	queue_delayed_work(ts->jadard_0f_upgrade_wq, &ts->work_0f_upgrade, msecs_to_jiffies(5000));
+	/*hs03s code for DEVAL5626-1004 by huangzhongjie at 20220720 start*/
+	queue_delayed_work(ts->jadard_0f_upgrade_wq, &ts->work_0f_upgrade, msecs_to_jiffies(3000));
+	/*hs03s code for DEVAL5626-1004 by huangzhongjie at 20220720 end*/
 #endif
 
 	g_module_fp.fp_touch_info_set();

@@ -24,7 +24,7 @@
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/host.h>
 #include <linux/mmc/card.h>
-
+#include "mtk-msdc.h"
 #include "cqhci.h"
 #include "cqhci-crypto.h"
 
@@ -304,6 +304,7 @@ static void __cqhci_enable(struct cqhci_host *cq_host)
 	cqhci_writel(cq_host, upper_32_bits(cq_host->desc_dma_base),
 		     CQHCI_TDLBAU);
 
+	cqhci_writel(cq_host, 0x40, CQHCI_SSC1);
 	cqhci_writel(cq_host, cq_host->rca, CQHCI_SSC2);
 
 	cqhci_set_irqs(cq_host, 0);
@@ -311,6 +312,9 @@ static void __cqhci_enable(struct cqhci_host *cq_host)
 	cqcfg |= CQHCI_ENABLE;
 
 	cqhci_writel(cq_host, cqcfg, CQHCI_CFG);
+
+	if (cqhci_readl(cq_host, CQHCI_CTL) & CQHCI_HALT)
+		cqhci_writel(cq_host, 0, CQHCI_CTL);
 
 	mmc->cqe_on = true;
 
@@ -367,8 +371,10 @@ static int cqhci_enable(struct mmc_host *mmc, struct mmc_card *card)
 	cq_host->rca = card->rca;
 
 	err = cqhci_host_alloc_tdl(cq_host);
-	if (err)
+	if (err) {
+		mmc_card_error_logging(mmc->card, NULL, CQ_EN_DIS_ERR);
 		return err;
+	}
 
 	__cqhci_enable(cq_host);
 
@@ -404,8 +410,10 @@ static void cqhci_off(struct mmc_host *mmc)
 
 	err = readx_poll_timeout(cqhci_read_ctl, cq_host, reg,
 				 reg & CQHCI_HALT, 0, CQHCI_OFF_TIMEOUT);
-	if (err < 0)
+	if (err < 0) {
 		pr_err("%s: cqhci: CQE stuck on\n", mmc_hostname(mmc));
+		mmc_card_error_logging(mmc->card, NULL, HALT_UNHALT_ERR);
+	}
 	else
 		pr_debug("%s: cqhci: CQE off\n", mmc_hostname(mmc));
 
@@ -635,6 +643,7 @@ static int cqhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 		if (cqhci_readl(cq_host, CQHCI_CTL) && CQHCI_HALT) {
 			pr_err("%s: cqhci: CQE failed to exit halt state\n",
 			       mmc_hostname(mmc));
+			mmc_card_error_logging(mmc->card, NULL, HALT_UNHALT_ERR);
 		}
 		if (cq_host->ops->enable)
 			cq_host->ops->enable(mmc);
@@ -970,8 +979,10 @@ static bool cqhci_halt(struct mmc_host *mmc, unsigned int timeout)
 
 	ret = cqhci_halted(cq_host);
 
-	if (!ret)
+	if (!ret) {
 		pr_debug("%s: cqhci: Failed to halt\n", mmc_hostname(mmc));
+		mmc_card_error_logging(mmc->card, NULL, HALT_UNHALT_ERR);
+	}
 
 	return ret;
 }
@@ -997,7 +1008,6 @@ static void cqhci_recovery_start(struct mmc_host *mmc)
 	if (cq_host->ops->disable)
 		cq_host->ops->disable(mmc, true);
 
-	mmc->cqe_on = false;
 }
 
 static int cqhci_error_from_flags(unsigned int flags)
@@ -1100,7 +1110,6 @@ static void cqhci_recovery_finish(struct mmc_host *mmc)
 	spin_lock_irqsave(&cq_host->lock, flags);
 	cq_host->qcnt = 0;
 	cq_host->recovery_halt = false;
-	mmc->cqe_on = false;
 	spin_unlock_irqrestore(&cq_host->lock, flags);
 
 	/* Ensure all writes are done before interrupts are re-enabled */

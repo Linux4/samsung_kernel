@@ -149,7 +149,7 @@ static int EEPROM_get_cmd_info(unsigned int sensorID,
 	return 0;
 
 }
-
+/*  hs14 code for SR-AL6528-01-70 by pengxutao at 2022/10/28 start */
 static struct stCAM_CAL_CMD_INFO_STRUCT *EEPROM_get_cmd_info_ex
 	(unsigned int sensorID, unsigned int deviceID)
 {
@@ -157,7 +157,7 @@ static struct stCAM_CAL_CMD_INFO_STRUCT *EEPROM_get_cmd_info_ex
 
 	/* To check device ID */
 	for (i = 0; i < IMGSENSOR_SENSOR_IDX_MAX_NUM; i++) {
-		if (g_camCalDrvInfo[i].deviceID == deviceID)
+		if (g_camCalDrvInfo[i].deviceID == deviceID && g_camCalDrvInfo[i].sensorID == sensorID)
 			break;
 	}
 	/* To check cmd from Sensor ID */
@@ -187,6 +187,7 @@ static struct stCAM_CAL_CMD_INFO_STRUCT *EEPROM_get_cmd_info_ex
 		return &g_camCalDrvInfo[i];
 	}
 }
+/*  hs14 code for SR-AL6528-01-70 by pengxutao at 2022/10/28 end */
 
 /**************************************************
  * EEPROM_HW_i2c_probe
@@ -426,10 +427,10 @@ static int compat_put_cal_info_struct
 	err |= put_user(i, &data32->deviceID);
 
 	/* Assume pointer is not change */
-
+#if 1
 	err |= get_user(p, (compat_uptr_t *) &data->pu1Params);
 	err |= put_user(p, &data32->pu1Params);
-
+#endif
 	return err;
 }
 
@@ -520,6 +521,13 @@ static long EEPROM_drv_compat_ioctl
 
 #endif
 
+int ov8856_af_mac;
+int ov8856_af_inf;
+int ov8856_af_lsb;
+
+int s5k4h7_af_mac;
+int s5k4h7_af_inf;
+int s5k4h7_af_lsb;
 #define NEW_UNLOCK_IOCTL
 #ifndef NEW_UNLOCK_IOCTL
 static int EEPROM_drv_ioctl(struct inode *a_pstInode,
@@ -686,12 +694,33 @@ static long EEPROM_drv_ioctl(struct file *file,
 		}
 
 		if (pcmdInf != NULL) {
-			if (pcmdInf->readCMDFunc != NULL)
-				i4RetValue =
-					pcmdInf->readCMDFunc(pcmdInf->client,
+			if (pcmdInf->readCMDFunc != NULL) {
+				if ((ptempbuf->sensorID == 0x885a)
+				&& (ptempbuf->u4Offset == 0x7500))
+					*pu1Params = i4RetValue = ov8856_af_inf;
+				else if ((ptempbuf->sensorID == 0x885a)
+				&& (ptempbuf->u4Offset == 0x7501))
+					*pu1Params = i4RetValue = ov8856_af_mac;
+				else if ((ptempbuf->sensorID == 0x885a)
+				&& (ptempbuf->u4Offset == 0x7502))
+					*pu1Params = i4RetValue = ov8856_af_lsb;
+				else if ((ptempbuf->sensorID == 0x487b)
+				&& (ptempbuf->u4Offset == 0x7500))
+					*pu1Params = i4RetValue = s5k4h7_af_inf;
+				else if ((ptempbuf->sensorID == 0x487b)
+				&& (ptempbuf->u4Offset == 0x7501))
+					*pu1Params = i4RetValue = s5k4h7_af_mac;
+				else if ((ptempbuf->sensorID == 0x487b)
+				&& (ptempbuf->u4Offset == 0x7502))
+					*pu1Params = i4RetValue = s5k4h7_af_lsb;
+				else
+					i4RetValue =
+						pcmdInf->readCMDFunc(
+							  pcmdInf->client,
 							  ptempbuf->u4Offset,
 							  pu1Params,
 							  ptempbuf->u4Length);
+			}
 			else {
 				pr_debug("pcmdInf->readCMDFunc == NULL\n");
 				kfree(pBuff);

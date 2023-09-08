@@ -2692,6 +2692,22 @@ static void fsg_disable(struct usb_function *f)
 {
 	struct fsg_dev *fsg = fsg_from_func(f);
 
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+#ifdef CONFIG_HQ_PROJECT_HS04
+	/* Disable the endpoints */
+	if (fsg->bulk_in_enabled) {
+		pr_err("%s():usb_ep_disable bulk_in\n", __func__);
+		usb_ep_disable(fsg->bulk_in);
+		fsg->bulk_in_enabled = 0;
+	}
+	if (fsg->bulk_out_enabled) {
+		pr_err("%s(): usb_ep_disable bulk_out\n", __func__);
+		usb_ep_disable(fsg->bulk_out);
+		fsg->bulk_out_enabled = 0;
+	}
+#endif
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end*/
+
 	__raise_exception(fsg->common, FSG_STATE_CONFIG_CHANGE, NULL);
 }
 

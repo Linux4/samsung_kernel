@@ -2086,6 +2086,7 @@ struct spi_controller *__devm_spi_alloc_controller(struct device *dev,
 
 	ctlr = __spi_alloc_controller(dev, size, slave);
 	if (ctlr) {
+		ctlr->devm_allocated = true;
 		*ptr = ctlr;
 		devres_add(dev, ptr);
 	} else {
@@ -2346,11 +2347,6 @@ int devm_spi_register_controller(struct device *dev,
 }
 EXPORT_SYMBOL_GPL(devm_spi_register_controller);
 
-static int devm_spi_match_controller(struct device *dev, void *res, void *ctlr)
-{
-	return *(struct spi_controller **)res == ctlr;
-}
-
 static int __unregister(struct device *dev, void *null)
 {
 	spi_unregister_device(to_spi_device(dev));
@@ -2397,8 +2393,7 @@ void spi_unregister_controller(struct spi_controller *ctlr)
 	/* Release the last reference on the controller if its driver
 	 * has not yet been converted to devm_spi_alloc_master/slave().
 	 */
-	if (!devres_find(ctlr->dev.parent, devm_spi_release_controller,
-			 devm_spi_match_controller, ctlr))
+	if (!ctlr->devm_allocated)
 		put_device(&ctlr->dev);
 
 	/* free bus id */
@@ -2896,14 +2891,14 @@ int spi_setup(struct spi_device *spi)
 	if (!spi->max_speed_hz)
 		spi->max_speed_hz = spi->controller->max_speed_hz;
 	
-	#ifdef HQ_PROJECT_OT8
+#if 0
 	mutex_lock(&spi->controller->io_mutex);
-	#endif
+#endif
 
 	if (spi->controller->setup)
 		status = spi->controller->setup(spi);
 
-#ifdef HQ_PROJECT_OT8
+#if 0
 	if (spi->controller->auto_runtime_pm && spi->controller->set_cs) {
         status = pm_runtime_get_sync(spi->controller->dev.parent);
         if (status < 0) {
@@ -2930,7 +2925,7 @@ int spi_setup(struct spi_device *spi)
     }
 
 	mutex_unlock(&spi->controller->io_mutex);
-#else
+#endif
 	if (spi->master->auto_runtime_pm && spi->master->set_cs) {
 		status = pm_runtime_get_sync(spi->master->dev.parent);
 		if (status < 0) {
@@ -2946,7 +2941,7 @@ int spi_setup(struct spi_device *spi)
 		spi_set_cs(spi, false);
 	}
 	
-#endif
+
 	dev_dbg(&spi->dev, "setup mode %d, %s%s%s%s%u bits/w, %u Hz max --> %d\n",
 			(int) (spi->mode & (SPI_CPOL | SPI_CPHA)),
 			(spi->mode & SPI_CS_HIGH) ? "cs_high, " : "",

@@ -219,13 +219,18 @@ static int get_devinfo(void)
 		eem_error("%s fail to get device node\n", __func__);
 		return 0;
 	}
+
 	pdev = of_device_alloc(node, NULL, NULL);
+	if (pdev == NULL){
+		eem_error("%s failed to get pdev\n",__func__);
+		goto get_devinfo_end;
+	}
 	nvmem_dev = nvmem_device_get(&pdev->dev, "mtk_efuse");
 
 	if (IS_ERR(nvmem_dev)) {
 		eem_error("%s ptpod failed to get mtk_efuse device\n",
 				__func__);
-		return 0;
+		goto get_devinfo_end;
 	}
 
 	/* FTPGM */
@@ -378,6 +383,12 @@ static int get_devinfo(void)
 #if (EEM_FAKE_EFUSE)
 	eem_checkEfuse = 1;
 #endif
+
+get_devinfo_end:
+	if (pdev != NULL) {
+		of_platform_device_destroy(&pdev->dev, NULL);
+		of_dev_put(pdev);
+	}
 
 	FUNC_EXIT(FUNC_LV_HELP);
 	return ret;

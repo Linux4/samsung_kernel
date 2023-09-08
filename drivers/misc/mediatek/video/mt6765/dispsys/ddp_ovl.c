@@ -966,69 +966,7 @@ static inline int ovl_switch_to_sec(enum DISP_MODULE_ENUM module, void *handle)
 int ovl_switch_to_nonsec(enum DISP_MODULE_ENUM module, void *handle)
 {
 	unsigned int ovl_idx = ovl_to_index(module);
-	enum CMDQ_ENG_ENUM cmdq_engine;
-	enum CMDQ_EVENT_ENUM cmdq_event_nonsec_end;
 
-	cmdq_engine = ovl_to_cmdq_engine(module);
-
-	if (ovl_is_sec[ovl_idx] == 1) {
-		/* ovl is in sec stat, we need to switch it to nonsec */
-		struct cmdqRecStruct *nonsec_switch_handle;
-		int ret;
-
-		ret = cmdqRecCreate(
-			CMDQ_SCENARIO_DISP_PRIMARY_DISABLE_SECURE_PATH,
-			&(nonsec_switch_handle));
-		if (ret)
-			DDPAEE("[SVP]fail to create disable handle %s ret=%d\n",
-				__func__, ret);
-
-		cmdqRecReset(nonsec_switch_handle);
-
-		if (module != DISP_MODULE_OVL1_2L) {
-			/* Primary Mode */
-			if (primary_display_is_decouple_mode())
-				cmdqRecWaitNoClear(nonsec_switch_handle,
-					CMDQ_EVENT_DISP_WDMA0_EOF);
-			else
-				_cmdq_insert_wait_frame_done_token_mira(
-					nonsec_switch_handle);
-		} else {
-			/* External Mode */
-			cmdqRecWaitNoClear(nonsec_switch_handle,
-				CMDQ_SYNC_DISP_EXT_STREAM_EOF);
-		}
-		cmdqRecSetSecure(nonsec_switch_handle, 1);
-
-		/*
-		 * we should disable ovl before new (nonsec) setting takes
-		 * effect, or translation fault may happen.
-		 * if we switch ovl to nonsec BUT its setting is still sec
-		 */
-		disable_ovl_layers(module, nonsec_switch_handle);
-
-		/* in fact, dapc/port_sec will be disabled by cmdq */
-		//cmdqRecSecureEnablePortSecurity(
-		//	nonsec_switch_handle, (1LL << cmdq_engine));
-
-		if (handle != NULL) {
-			/* Async Flush method */
-			cmdq_event_nonsec_end =
-				ovl_to_cmdq_event_nonsec_end(module);
-			cmdqRecSetEventToken(
-				nonsec_switch_handle, cmdq_event_nonsec_end);
-			cmdqRecFlushAsync(nonsec_switch_handle);
-			cmdqRecWait(handle, cmdq_event_nonsec_end);
-		} else {
-			/* Sync Flush method */
-			cmdqRecFlush(nonsec_switch_handle);
-		}
-
-		cmdqRecDestroy(nonsec_switch_handle);
-		DDPSVPMSG("[SVP] switch ovl%d to nonsec\n", ovl_idx);
-		mmprofile_log_ex(ddp_mmp_get_events()->svp_module[module],
-				 MMPROFILE_FLAG_END, 0, 0);
-	}
 	ovl_is_sec[ovl_idx] = 0;
 
 	return 0;

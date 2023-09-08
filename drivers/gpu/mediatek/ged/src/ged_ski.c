@@ -184,8 +184,14 @@ ssize_t gpu_model_show(struct kobject *kobj,
 {
 #if defined(CONFIG_MACH_MT6765)
 	return scnprintf(buf, PAGE_SIZE, "PowerVR Rogue GE8320\n");
+#elif defined(CONFIG_MACH_MT6768)
+	return scnprintf(buf, PAGE_SIZE, "Mali-G52 MC2\n");
 #elif defined(CONFIG_MACH_MT6853)
 	return scnprintf(buf, PAGE_SIZE, "Mali-G57 MC3\n");
+#elif defined(CONFIG_MACH_MT6833)
+	return scnprintf(buf, PAGE_SIZE, "Mali-G57 MC2\n");
+#elif defined(CONFIG_MACH_MT6877)
+	return scnprintf(buf, PAGE_SIZE, "Mali-G68 MC4\n");
 #else
 	return scnprintf(buf, PAGE_SIZE, "Default\n");
 #endif

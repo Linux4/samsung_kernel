@@ -15,6 +15,8 @@
 #include "xhci.h"
 #include "xhci-trace.h"
 
+#include "xhci-mtk.h"
+
 #define	PORT_WAKE_BITS	(PORT_WKOC_E | PORT_WKDISC_E | PORT_WKCONN_E)
 #define	PORT_RWC_BITS	(PORT_CSC | PORT_PEC | PORT_WRC | PORT_OCC | \
 			 PORT_RC | PORT_PLC | PORT_PE)
@@ -448,7 +450,16 @@ static int xhci_stop_device(struct xhci_hcd *xhci, int slot_id, int suspend)
 	    cmd->status == COMP_COMMAND_RING_STOPPED) {
 		xhci_warn(xhci, "Timeout while waiting for stop endpoint command\n");
 		ret = -ETIME;
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+		goto cmd_cleanup;
+#endif
 	}
+
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	ret = xhci_vendor_sync_dev_ctx(xhci, slot_id);
+	if (ret)
+		xhci_warn(xhci, "Sync device context failed, ret=%d\n", ret);
+#endif
 
 cmd_cleanup:
 	xhci_free_command(xhci, cmd);
@@ -1495,6 +1506,18 @@ int xhci_hub_status_data(struct usb_hcd *hcd, char *buf)
 
 #ifdef CONFIG_PM
 
+static bool xhci_all_ports_suspended(struct xhci_hcd *xhci)
+{
+	if (xhci->xhc_state & XHCI_STATE_REMOVING)
+		return true;
+
+	if (xhci->main_hcd->state != HC_STATE_SUSPENDED ||
+			xhci->shared_hcd->state != HC_STATE_SUSPENDED)
+		return false;
+	else
+		return true;
+}
+
 int xhci_bus_suspend(struct usb_hcd *hcd)
 {
 	struct xhci_hcd	*xhci = hcd_to_xhci(hcd);
@@ -1621,6 +1644,15 @@ retry:
 	if (bus_state->bus_suspended)
 		usleep_range(5000, 10000);
 
+	if (xhci_all_ports_suspended(xhci) &&
+			hcd->self.root_hub->do_remote_wakeup == 1) {
+		struct xhci_hcd_mtk *mtk = hcd_to_mtk(hcd);
+
+		dev_info(&hcd->self.root_hub->dev, "%s %d\n",
+			__func__, hcd->self.root_hub->do_remote_wakeup);
+		mtk_xhci_wakelock_unlock(mtk);
+	}
+
 	return 0;
 }
 
@@ -1722,6 +1754,14 @@ int xhci_bus_resume(struct usb_hcd *hcd)
 		/* disable wake for all ports, write new link state if needed */
 		portsc &= ~(PORT_RWC_BITS | PORT_CEC | PORT_WAKE_BITS);
 		writel(portsc, ports[port_index]->addr);
+	}
+
+	if (hcd->self.root_hub->do_remote_wakeup == 1) {
+		struct xhci_hcd_mtk *mtk = hcd_to_mtk(hcd);
+
+		dev_info(&hcd->self.root_hub->dev, "%s %d\n",
+			__func__, hcd->self.root_hub->do_remote_wakeup);
+		mtk_xhci_wakelock_lock(mtk);
 	}
 
 	/* USB2 specific resume signaling delay and U0 link state transition */
