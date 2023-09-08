@@ -694,6 +694,7 @@ int sde_rsc_hw_register_v3(struct sde_rsc_priv *rsc)
 	rsc->hw_ops.debug_show = sde_rsc_debug_show;
 	rsc->hw_ops.mode_ctrl = rsc_hw_mode_ctrl;
 	rsc->hw_ops.debug_dump = rsc_hw_debug_dump;
+	rsc->hw_ops.debug_log = sde_rsc_debug_log;
 	if (rsc->profiling_supp) {
 		rsc->hw_ops.setup_counters = rsc_hw_profiling_counter_ctrl;
 		rsc->hw_ops.get_counters = rsc_hw_get_profiling_counter_status;

@@ -128,6 +128,9 @@ case "${KERNEL_TARGET}" in
   taro)
     KERNEL_TARGET="waipio"
     ;;
+  crow)
+    KERNEL_TARGET="kalama"
+    ;;
 esac
 
 ################################################################################
@@ -221,8 +224,17 @@ if [ "${RECOMPILE_ABL}" == "1" -o "${COPY_ABL_NEEDED}" == "1" ]; then
   rm -rf ${ANDROID_ABL_OUT_DIR}/abl-${TARGET_BUILD_VARIANT}
 fi
 
+KP_DELIVERS_ABL=$(
+  cd ${ROOT_DIR}
+  OUT_DIR=${TEMP_KP_OUT_DIR}
+  source build/_setup_env.sh
+  echo ${ABL_SRC:+1}
+)
+
+
 ################################################################################
-if [ "${RECOMPILE_ABL}" == "1" -a -n "${TARGET_BUILD_VARIANT}" ]; then
+if [ "${RECOMPILE_ABL}" == "1" -a "${KP_DELIVERS_ABL}" == "1"  -a -n \
+   "${TARGET_BUILD_VARIANT}" ]; then
   echo
   echo "  Recompiling edk2"
 
@@ -312,6 +324,10 @@ if [ "${COPY_NEEDED}" == "1" ]; then
   if [ -e ${ANDROID_KP_OUT_DIR}/dist/system_dlkm.modules.blocklist ]; then
     cp ${ANDROID_KP_OUT_DIR}/dist/system_dlkm.modules.blocklist \
       ${ANDROID_KERNEL_OUT}/vendor_dlkm/system_dlkm.modules.blocklist
+  fi
+
+  if [ -e "${ANDROID_KP_OUT_DIR}/dist/extra_cmdline" ]; then
+    cp "${ANDROID_KP_OUT_DIR}/dist/extra_cmdline" "${ANDROID_KERNEL_OUT}/"
   fi
 
   for file in Image vmlinux System.map .config Module.symvers kernel-uapi-headers.tar.gz ; do

@@ -8,7 +8,7 @@
 #include "fips140_test.h"
 #endif
 
-#define SKC_VERSION_TEXT "SKC v2.3"
+#define SKC_VERSION_TEXT "Samsung Kernel Cryptographic Module v2.3"
 #define FIPS140_ERR 1
 #define FIPS140_NO_ERR 0
 
@@ -25,6 +25,9 @@ extern const volatile struct first_last integrity_crypto_addrs[FIPS_CRYPTO_ADDRS
 extern const volatile uint8_t buildtime_crypto_hmac[FIPS_HMAC_SIZE];
 
 extern int do_integrity_check(void);
+
+uint32_t skc_is_approved_service(const char *alg_name);
+const char *skc_module_get_version(void);
 
 #ifdef CONFIG_CRYPTO_SKC_FIPS_FUNC_TEST
 void reset_in_fips_err(void);

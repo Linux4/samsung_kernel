@@ -151,20 +151,10 @@ static void sdfat_setattr_copy(struct inode *inode, struct iattr *attr)
 {
 	setattr_copy(&init_user_ns, inode, attr);
 }
-
-static u32 sdfat_make_inode_generation(void)
-{
-	return prandom_u32();
-}
 #else
 static void sdfat_setattr_copy(struct inode *inode, struct iattr *attr)
 {
 	setattr_copy(inode, attr);
-}
-
-static u32 sdfat_make_inode_generation(void)
-{
-	return (u32)get_seconds();
 }
 #endif
 
@@ -213,9 +203,35 @@ static inline int wbc_to_write_flags(struct writeback_control *wbc)
 }
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+static inline struct bio *__sdfat_write_bio_alloc(struct block_device *bdev,
+		struct writeback_control *wbc,
+		unsigned short nr_vecs, gfp_t gfp_mask)
+{
+	int write_flags = wbc_to_write_flags(wbc);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
-static inline void __sdfat_submit_bio_write(struct bio *bio,
+	return bio_alloc(bdev, nr_vecs, REQ_OP_WRITE | write_flags, gfp_mask);
+}
+
+static inline void __sdfat_write_submit_bio(struct bio *bio,
+					    struct writeback_control *wbc)
+{
+	submit_bio(bio);
+}
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
+static inline struct bio *__sdfat_write_bio_alloc(struct block_device *bdev,
+		struct writeback_control *wbc,
+		unsigned short nr_vecs, gfp_t gfp_mask)
+{
+	struct bio *bio = bio_alloc(gfp_mask, nr_vecs);
+
+	if (bio)
+		bio_set_dev(bio, bdev);
+
+	return bio;
+}
+
+static inline void __sdfat_write_submit_bio(struct bio *bio,
 					    struct writeback_control *wbc)
 {
 	int write_flags = wbc_to_write_flags(wbc);
@@ -223,7 +239,29 @@ static inline void __sdfat_submit_bio_write(struct bio *bio,
 	bio_set_op_attrs(bio, REQ_OP_WRITE, write_flags);
 	submit_bio(bio);
 }
+#else /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0) */
+static inline struct bio *__sdfat_write_bio_alloc(struct block_device *bdev,
+		struct writeback_control *wbc,
+		unsigned short nr_vecs, gfp_t gfp_mask)
+{
+	struct bio *bio = bio_alloc(gfp_mask, nr_vecs);
 
+	if (bio)
+		bio_set_dev(bio, bdev);
+
+	return bio;
+}
+
+static inline void __sdfat_write_submit_bio(struct bio *bio,
+					    struct writeback_control *wbc)
+{
+	int write_flags = wbc_to_write_flags(wbc);
+
+	submit_bio(WRITE | write_flags, bio);
+}
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
 static inline unsigned int __sdfat_full_name_hash(const struct dentry *dentry, const char *name, unsigned int len)
 {
 	return full_name_hash(dentry, name, len);
@@ -234,14 +272,6 @@ static inline unsigned long __sdfat_init_name_hash(const struct dentry *dentry)
 	return init_name_hash(dentry);
 }
 #else /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0) */
-static inline void __sdfat_submit_bio_write(struct bio *bio,
-					    struct writeback_control *wbc)
-{
-	int write_flags = wbc_to_write_flags(wbc);
-
-	submit_bio(WRITE | write_flags, bio);
-}
-
 static inline unsigned int __sdfat_full_name_hash(const struct dentry *unused, const char *name, unsigned int len)
 {
 	return full_name_hash(name, len);
@@ -900,6 +930,23 @@ static int sdfat_file_fsync(struct file *filp, int datasync)
 /*************************************************************************
  * MORE FUNCTIONS WHICH HAS KERNEL VERSION DEPENDENCY
  *************************************************************************/
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+static u32 sdfat_make_inode_generation(void)
+{
+	return get_random_u32();
+}
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
+static u32 sdfat_make_inode_generation(void)
+{
+	return prandom_u32();
+}
+#else /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 12, 0) */
+static u32 sdfat_make_inode_generation(void)
+{
+	return (u32)get_seconds();
+}
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
 static int sdfat_getattr(struct user_namespace *mnt_uerns,
 		const struct path *path, struct kstat *stat,
@@ -3627,6 +3674,15 @@ unlock_ret:
 	return err;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+static int sdfat_read_folio(struct file *file, struct folio *folio)
+{
+	int ret;
+
+	ret =  mpage_read_folio(folio, sdfat_get_block);
+	return ret;
+}
+#else
 static int sdfat_readpage(struct file *file, struct page *page)
 {
 	int ret;
@@ -3634,6 +3690,7 @@ static int sdfat_readpage(struct file *file, struct page *page)
 	ret =  mpage_readpage(page, sdfat_get_block);
 	return ret;
 }
+#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 static void sdfat_readahead(struct readahead_control *rac)
@@ -3667,9 +3724,8 @@ static inline void sdfat_submit_fullpage_bio(struct block_device *bdev,
 	 *
 	 * #define GFP_NOIO	(__GFP_WAIT)
 	 */
-	bio = bio_alloc(GFP_NOIO, 1);
+	bio = __sdfat_write_bio_alloc(bdev, wbc, 1, GFP_NOIO);
 
-	bio_set_dev(bio, bdev);
 	bio->bi_vcnt = 1;
 	bio->bi_io_vec[0].bv_page = page;	/* Inline vec */
 	bio->bi_io_vec[0].bv_len = length;	/* PAGE_SIZE */
@@ -3677,7 +3733,7 @@ static inline void sdfat_submit_fullpage_bio(struct block_device *bdev,
 	__sdfat_set_bio_iterate(bio, sector, length, 0, 0);
 
 	bio->bi_end_io = sdfat_writepage_end_io;
-	__sdfat_submit_bio_write(bio, wbc);
+	__sdfat_write_submit_bio(bio, wbc);
 }
 
 static int sdfat_writepage(struct page *page, struct writeback_control *wbc)
@@ -3899,8 +3955,13 @@ static int __sdfat_write_begin(struct file *file, struct address_space *mapping,
 		return ret;
 
 	*pagep = NULL;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+	ret = cont_write_begin(file, mapping, pos, len, pagep, fsdata,
+					get_block, bytes);
+#else
 	ret = cont_write_begin(file, mapping, pos, len, flags, pagep, fsdata,
 					get_block, bytes);
+#endif
 
 	if (ret < 0)
 		sdfat_write_failed(mapping, pos+len);
@@ -3908,7 +3969,28 @@ static int __sdfat_write_begin(struct file *file, struct address_space *mapping,
 	return ret;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+static int sdfat_da_write_begin(struct file *file, struct address_space *mapping,
+				 loff_t pos, unsigned int len,
+				 struct page **pagep, void **fsdata)
+{
+	return __sdfat_write_begin(file, mapping, pos, len, 0,
+				pagep, fsdata, sdfat_da_prep_block,
+				&SDFAT_I(mapping->host)->i_size_aligned,
+				__func__);
+}
 
+
+static int sdfat_write_begin(struct file *file, struct address_space *mapping,
+				 loff_t pos, unsigned int len,
+				 struct page **pagep, void **fsdata)
+{
+	return __sdfat_write_begin(file, mapping, pos, len, 0,
+				pagep, fsdata, sdfat_get_block,
+				&SDFAT_I(mapping->host)->i_size_ondisk,
+				__func__);
+}
+#else /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0) */
 static int sdfat_da_write_begin(struct file *file, struct address_space *mapping,
 				 loff_t pos, unsigned int len, unsigned int flags,
 				 struct page **pagep, void **fsdata)
@@ -3929,6 +4011,7 @@ static int sdfat_write_begin(struct file *file, struct address_space *mapping,
 				&SDFAT_I(mapping->host)->i_size_ondisk,
 				__func__);
 }
+#endif
 
 static int sdfat_write_end(struct file *file, struct address_space *mapping,
 				   loff_t pos, unsigned int len, unsigned int copied,
@@ -3994,7 +4077,19 @@ static inline ssize_t __sdfat_direct_IO(int rw, struct kiocb *iocb,
 }
 
 static const struct address_space_operations sdfat_aops = {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+	.dirty_folio = block_dirty_folio,
+	.invalidate_folio = block_invalidate_folio,
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 14, 0)
+	.set_page_dirty = __set_page_dirty_buffers,
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+	.read_folio  = sdfat_read_folio,
+#else
 	.readpage    = sdfat_readpage,
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 	.readahead   = sdfat_readahead,
 #else
@@ -4009,7 +4104,19 @@ static const struct address_space_operations sdfat_aops = {
 };
 
 static const struct address_space_operations sdfat_da_aops = {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+	.dirty_folio    = block_dirty_folio,
+	.invalidate_folio = block_invalidate_folio,
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 14, 0)
+	.set_page_dirty = __set_page_dirty_buffers,
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+	.read_folio     = sdfat_read_folio,
+#else
 	.readpage    = sdfat_readpage,
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 	.readahead   = sdfat_readahead,
 #else
@@ -4713,10 +4820,19 @@ static struct attribute *sdfat_attrs[] = {
 	NULL,
 };
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+ATTRIBUTE_GROUPS(sdfat);
+
+static struct kobj_type sdfat_ktype = {
+	.default_groups = sdfat_groups,
+	.sysfs_ops     = &sdfat_attr_ops,
+};
+#else
 static struct kobj_type sdfat_ktype = {
 	.default_attrs = sdfat_attrs,
 	.sysfs_ops     = &sdfat_attr_ops,
 };
+#endif
 
 static ssize_t version_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buff)
@@ -4796,6 +4912,26 @@ static const match_table_t sdfat_tokens = {
 	{Opt_adj_req, "adj_req"},
 	{Opt_err, NULL}
 };
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+static inline bool __sdfat_can_support_discard(struct block_device *bdev)
+{
+	if (!bdev_max_discard_sectors(bdev))
+		return false;
+
+	return true;
+}
+#else
+static inline bool __sdfat_can_support_discard(struct block_device *bdev)
+{
+	struct request_queue *q = bdev_get_queue(bdev);
+
+	if (!blk_queue_discard(q))
+		return false;
+
+	return true;
+}
+#endif
 
 static int parse_options(struct super_block *sb, char *options, int silent,
 				int *debug, struct sdfat_mount_options *opts)
@@ -4981,9 +5117,7 @@ out:
 	}
 
 	if (opts->discard) {
-		struct request_queue *q = bdev_get_queue(sb->s_bdev);
-
-		if (!blk_queue_discard(q))
+		if (!__sdfat_can_support_discard(sb->s_bdev))
 			sdfat_msg(sb, KERN_WARNING,
 				"mounting with \"discard\" option, but "
 				"the device does not support discard");

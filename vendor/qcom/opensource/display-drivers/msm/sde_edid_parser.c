@@ -646,7 +646,7 @@ void sde_get_edid(struct drm_connector *connector,
 	edid_ctrl->edid = drm_get_edid(connector, adapter);
 #if defined(CONFIG_SECDP)
 	if (edid_ctrl->edid) {
-		int i, num_extension;
+		u8 i, num_extension;
 
 		if (edid_ctrl->custom_edid) {
 			pr_info("[secdp] use custom edid\n");
@@ -655,7 +655,7 @@ void sde_get_edid(struct drm_connector *connector,
 
 		num_extension = edid_ctrl->edid->extensions;
 		for (i = 0; i <= num_extension; i++) {
-			print_hex_dump(KERN_DEBUG, "secdp_EDID: ",
+			print_hex_dump(KERN_DEBUG, "EDID: ",
 				DUMP_PREFIX_NONE, 16, 1, edid_ctrl->edid + i,
 				EDID_LENGTH, false);
 			secdp_logger_hex_dump(edid_ctrl->edid + i,

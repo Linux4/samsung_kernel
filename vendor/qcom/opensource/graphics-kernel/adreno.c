@@ -378,12 +378,8 @@ void adreno_hang_int_callback(struct adreno_device *adreno_dev, int bit)
 				"MISC: GPU hang detected\n");
 
 #if IS_ENABLED(CONFIG_SEC_ABC)
-#if IS_ENABLED(CONFIG_SEC_FACTORY)
-	sec_abc_send_event("MODULE=gpu_qc@INFO=gpu_fault");
-#else
 	sec_abc_send_event("MODULE=gpu_qc@WARN=gpu_fault");
 #endif
-#endif 
 
 	adreno_irqctrl(adreno_dev, 0);
 
@@ -534,7 +530,16 @@ static struct {
 
 static int adreno_get_chipid(struct platform_device *pdev, u32 *chipid)
 {
-	return of_property_read_u32(pdev->dev.of_node, "qcom,chipid", chipid);
+	u32 id;
+
+	if (!of_property_read_u32(pdev->dev.of_node, "qcom,chipid", chipid))
+		return 0;
+
+	id = socinfo_get_partinfo_chip_id(SOCINFO_PART_GPU);
+	if (id)
+		*chipid = id;
+
+	return id ? 0 : -EINVAL;
 }
 
 static void
@@ -711,7 +716,6 @@ static void adreno_of_get_initial_pwrlevels(struct kgsl_pwrctrl *pwr,
 	if (level < 0 || level >= pwr->num_pwrlevels || level < pwr->default_pwrlevel)
 		level = pwr->num_pwrlevels - 1;
 
-	pwr->min_render_pwrlevel = level;
 	pwr->min_pwrlevel = level;
 }
 
@@ -1022,14 +1026,22 @@ const char *adreno_get_gpu_model(struct kgsl_device *device)
 	of_node_put(node);
 
 	if (!ret)
-		strlcpy(gpu_model, model, sizeof(gpu_model));
-	else
-		scnprintf(gpu_model, sizeof(gpu_model), "Adreno%d%d%dv%d",
-			ADRENO_CHIPID_CORE(ADRENO_DEVICE(device)->chipid),
-			ADRENO_CHIPID_MAJOR(ADRENO_DEVICE(device)->chipid),
-			ADRENO_CHIPID_MINOR(ADRENO_DEVICE(device)->chipid),
-			ADRENO_CHIPID_PATCH(ADRENO_DEVICE(device)->chipid) + 1);
+		goto done;
 
+	model = socinfo_get_partinfo_part_name(SOCINFO_PART_GPU);
+	if (model)
+		goto done;
+
+	scnprintf(gpu_model, sizeof(gpu_model), "Adreno%d%d%dv%d",
+		ADRENO_CHIPID_CORE(ADRENO_DEVICE(device)->chipid),
+		ADRENO_CHIPID_MAJOR(ADRENO_DEVICE(device)->chipid),
+		ADRENO_CHIPID_MINOR(ADRENO_DEVICE(device)->chipid),
+		ADRENO_CHIPID_PATCH(ADRENO_DEVICE(device)->chipid) + 1);
+
+	return gpu_model;
+
+done:
+	strscpy(gpu_model, model, sizeof(gpu_model));
 	return gpu_model;
 }
 
@@ -1037,6 +1049,8 @@ static u32 adreno_get_vk_device_id(struct kgsl_device *device)
 {
 	struct device_node *node;
 	static u32 device_id;
+	u32 vk_id;
+	int ret;
 
 	if (device_id)
 		return device_id;
@@ -1045,10 +1059,13 @@ static u32 adreno_get_vk_device_id(struct kgsl_device *device)
 	if (!node)
 		node = of_node_get(device->pdev->dev.of_node);
 
-	if (of_property_read_u32(node, "qcom,vk-device-id", &device_id))
-		device_id = ADRENO_DEVICE(device)->chipid;
-
+	ret = of_property_read_u32(node, "qcom,vk-device-id", &device_id);
 	of_node_put(node);
+	if (!ret)
+		return device_id;
+
+	vk_id = socinfo_get_partinfo_vulkan_id(SOCINFO_PART_GPU);
+	device_id = vk_id ? vk_id : ADRENO_DEVICE(device)->chipid;
 
 	return device_id;
 }
@@ -1238,6 +1255,13 @@ int adreno_device_probe(struct platform_device *pdev,
 
 	if (ADRENO_FEATURE(adreno_dev, ADRENO_IOCOHERENT))
 		kgsl_mmu_set_feature(device, KGSL_MMU_IO_COHERENT);
+
+	/*
+	 * Support VBOs on hardware where HLOS has access to PRR registers
+	 * configuration.
+	 */
+	if (!adreno_is_a650(adreno_dev))
+		kgsl_mmu_set_feature(device, KGSL_MMU_SUPPORT_VBO);
 
 	device->pwrctrl.bus_width = adreno_dev->gpucore->bus_width;
 
@@ -3387,7 +3411,7 @@ module_exit(kgsl_3d_exit);
 
 MODULE_DESCRIPTION("3D Graphics driver");
 MODULE_LICENSE("GPL v2");
-MODULE_SOFTDEP("pre: qcom-arm-smmu-mod nvmem_qfprom");
+MODULE_SOFTDEP("pre: arm_smmu nvmem_qfprom socinfo");
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0))
 MODULE_IMPORT_NS(DMA_BUF);
 #endif

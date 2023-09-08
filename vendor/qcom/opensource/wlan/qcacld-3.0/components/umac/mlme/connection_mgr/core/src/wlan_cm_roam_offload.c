@@ -1899,6 +1899,60 @@ cm_populate_roam_chan_list(struct wlan_objmgr_vdev *vdev,
 	return QDF_STATUS_SUCCESS;
 }
 
+void
+cm_update_tried_candidate_freq_list(struct wlan_objmgr_psoc *psoc,
+				    struct wlan_objmgr_vdev *vdev,
+				    struct wlan_cm_connect_resp *connect_rsp)
+{
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+	struct rso_config *rso_cfg;
+	struct wlan_chan_list *tried_freq_list;
+	enum band_info band;
+	uint32_t band_cap;
+
+	if (!connect_rsp->freq || (connect_rsp->reason != CM_JOIN_TIMEOUT &&
+	    connect_rsp->reason != CM_AUTH_TIMEOUT &&
+	    connect_rsp->reason != CM_ASSOC_TIMEOUT))
+		return;
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj)
+		return;
+
+	band_cap = mlme_obj->cfg.gen.band_capability;
+	if (!band_cap) {
+		mlme_err("vdev: %d Invalid band_cap(%d)", connect_rsp->vdev_id,
+			 band_cap);
+		return;
+	}
+
+	band = wlan_reg_band_bitmap_to_band_info(band_cap);
+	if (cm_is_dfs_unsafe_extra_band_chan(vdev, mlme_obj,
+					     connect_rsp->freq, band))
+		return;
+
+	rso_cfg = wlan_cm_get_rso_config(vdev);
+	if (!rso_cfg)
+		return;
+
+	tried_freq_list = &rso_cfg->tried_candidate_freq_list;
+
+	if (tried_freq_list->num_chan >= CFG_VALID_CHANNEL_LIST_LEN)
+		return;
+
+	if (wlan_is_channel_present_in_list(tried_freq_list->freq_list,
+					    tried_freq_list->num_chan,
+					    connect_rsp->freq))
+		return;
+
+	tried_freq_list->freq_list[tried_freq_list->num_chan++] =
+						connect_rsp->freq;
+
+	mlme_debug("vdev: %d added freq:%d, total num freq %d",
+		   connect_rsp->vdev_id, connect_rsp->freq,
+		   tried_freq_list->num_chan);
+}
+
 static QDF_STATUS
 cm_fetch_ch_lst_from_ini(struct wlan_objmgr_vdev *vdev,
 			 struct wlan_mlme_psoc_ext_obj *mlme_obj,
@@ -2098,6 +2152,29 @@ cm_fetch_valid_ch_lst(struct wlan_objmgr_vdev *vdev,
 }
 
 static void
+cm_update_rso_freq_list(struct rso_config *rso_cfg,
+			struct wlan_roam_scan_channel_list *chan_info)
+{
+	struct wlan_chan_list *tried_freq_list;
+	uint8_t i;
+
+	tried_freq_list = &rso_cfg->tried_candidate_freq_list;
+
+	if (!tried_freq_list->num_chan)
+		return;
+
+	for (i = 0; i < tried_freq_list->num_chan &&
+	     chan_info->chan_count < CFG_VALID_CHANNEL_LIST_LEN; i++) {
+		if (wlan_is_channel_present_in_list(chan_info->chan_freq_list,
+						chan_info->chan_count,
+						tried_freq_list->freq_list[i]))
+			continue;
+		chan_info->chan_freq_list[chan_info->chan_count++] =
+					tried_freq_list->freq_list[i];
+	}
+}
+
+static void
 cm_fill_rso_channel_list(struct wlan_objmgr_psoc *psoc,
 			 struct wlan_objmgr_vdev *vdev,
 			 struct rso_config *rso_cfg,
@@ -2146,6 +2223,14 @@ cm_fill_rso_channel_list(struct wlan_objmgr_psoc *psoc,
 			 */
 			cm_add_ch_lst_from_roam_scan_list(vdev, mlme_obj,
 							  chan_info, rso_cfg);
+
+			/*
+			 * update the roam channel list on the top of entries
+			 * present in the scan db which gets stored in the rso
+			 * config during connect resp failure in
+			 * wlan_cm_send_connect_rsp
+			 */
+			cm_update_rso_freq_list(rso_cfg, chan_info);
 		}
 	} else {
 		/*
@@ -2756,6 +2841,12 @@ cm_update_btm_offload_config(struct wlan_objmgr_psoc *psoc,
 	/* Return if INI is disabled */
 	if (!(*btm_offload_config))
 		return;
+
+	if (!wlan_cm_get_assoc_btm_cap(vdev)) {
+		mlme_debug("BTM not supported, disable BTM offload");
+		*btm_offload_config = 0;
+		return;
+	}
 
 	vdev_id = wlan_vdev_get_id(vdev);
 	wlan_cm_roam_cfg_get_value(psoc, vdev_id, HS_20_AP, &temp);
@@ -6798,6 +6889,11 @@ cm_roam_beacon_loss_disconnect_event(struct wlan_objmgr_psoc *psoc,
 	if (!vdev) {
 		mlme_err("Vdev[%d] is null", vdev_id);
 		return QDF_STATUS_E_FAILURE;
+	}
+
+	if (wlan_vdev_mlme_get_opmode(vdev) != QDF_STA_MODE) {
+		wlan_objmgr_vdev_release_ref(vdev, WLAN_MLME_CM_ID);
+		return status;
 	}
 
 	qdf_mem_zero(&wlan_diag_event, sizeof(wlan_diag_event));

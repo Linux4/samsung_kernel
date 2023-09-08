@@ -1311,6 +1311,38 @@ int dsi_display_link_clk_force_update_ctrl(void *handle)
 	return rc;
 }
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+#include <linux/clk-provider.h>
+
+int dsi_display_is_core_clk_on(void *handle)
+{
+	struct dsi_clk_client_info *c = handle;
+	struct dsi_clk_mngr *mngr;
+	struct dsi_core_clks *clks;
+	struct dsi_core_clks *m_clks;
+
+	if (!c)
+		return -ENODEV;
+
+	/* check only refcount managed by display driver */
+	if (c->core_refcount > 0 || c->core_clk_state != DSI_CLK_OFF)
+		return 1;
+
+	/* check clock further */
+	mngr = c->mngr;
+	if (!mngr)
+		return -ENODEV;
+
+	clks = mngr->core_clks;
+	m_clks = &clks[mngr->master_ndx];
+
+	if (__clk_is_enabled(m_clks->clks.mdp_core_clk))
+		return 1;
+
+	return 0;
+}
+#endif
+
 int dsi_display_clk_ctrl(void *handle,
 	u32 clk_type, u32 clk_state)
 {

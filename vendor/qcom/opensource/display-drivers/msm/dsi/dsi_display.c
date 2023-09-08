@@ -6162,6 +6162,52 @@ static const struct component_ops dsi_display_comp_ops = {
 	.unbind = dsi_display_unbind,
 };
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+/* check display core clock in pm suspend */
+static int dsi_display_suspend(struct device *dev)
+{
+	struct dsi_display *display = dev_get_drvdata(dev);
+	struct samsung_display_driver_data *vdd = NULL;
+	int is_core_clk_on;
+
+	if (!display) {
+		DSI_ERR("%s: fail to get display\n", __func__);
+		return 0;
+	}
+
+	if (!display->panel) {
+		DSI_DEBUG("No panel\n", __func__);
+		return 0;
+	}
+
+	vdd = display->panel->panel_private;
+	if (IS_ERR_OR_NULL(vdd)) {
+		DSI_ERR("%s: fail to get vdd\n", __func__);
+		return 0;
+	}
+
+	/*
+	 * Flush sde_normal_clk_work does not mean clock is off.
+	 * This function should be called before msm_pm_suspend -> sde_kms_pm_suspend.
+	 * sde_kms_pm_suspend can gaurantee all the SDE resource off.
+	 */
+	flush_delayed_work(&vdd->sde_normal_clk_work);
+
+	LCD_INFO(vdd, "dsi_display_suspend\n");
+
+	is_core_clk_on = dsi_display_is_core_clk_on(display->dsi_clk_handle);
+
+	if (is_core_clk_on == 1)
+		DSI_ERR("SDE: %s: display core clock is on in suspend\n", __func__);
+	
+	return 0;
+}
+
+static const struct dev_pm_ops dsi_display_pm_ops = {
+	.suspend = dsi_display_suspend,
+};
+#endif
+
 static struct platform_driver dsi_display_driver = {
 	.probe = dsi_display_dev_probe,
 	.remove = dsi_display_dev_remove,
@@ -6169,6 +6215,9 @@ static struct platform_driver dsi_display_driver = {
 		.name = "msm-dsi-display",
 		.of_match_table = dsi_display_dt_match,
 		.suppress_bind_attrs = true,
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+		.pm = &dsi_display_pm_ops
+#endif
 	},
 };
 
@@ -8749,11 +8798,12 @@ static int dsi_display_qsync(struct dsi_display *display, bool enable)
 	int rc = 0;
 
 	mutex_lock(&display->display_lock);
+	display->queue_cmd_waits = true;
 
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	SDE_ATRACE_BEGIN(enable ? "qsync_on" : "qsync_off");
-	display->queue_cmd_waits = true;
 #endif
+
 	display_for_each_ctrl(i, display) {
 		if (enable) {
 			/* send the commands to enable qsync */
@@ -8775,10 +8825,12 @@ static int dsi_display_qsync(struct dsi_display *display, bool enable)
 	}
 
 exit:
+
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	display->queue_cmd_waits = false;
 	SDE_ATRACE_END(enable ? "qsync_on" : "qsync_off");
 #endif
+
+	display->queue_cmd_waits = false;
 	SDE_EVT32(enable, display->panel->qsync_caps.qsync_min_fps, rc);
 	mutex_unlock(&display->display_lock);
 	return rc;

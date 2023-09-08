@@ -194,6 +194,44 @@ err:
 	return size;
 }
 
+static ssize_t cirrus_cal_irq_enable_show(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	return sprintf(buf, "\n");
+}
+
+static ssize_t cirrus_cal_irq_enable_store(struct device *dev,
+					struct device_attribute *attr,
+					const char *buf, size_t size)
+{
+	int irq_enable, i;
+	int ret = kstrtos32(buf, 10, &irq_enable);
+
+	if (amp_group->cal_running) {
+		dev_err(amp_group->cal_dev,
+			"cirrus_cal measurement in progress\n");
+		return size;
+	}
+
+	if (ret == 0) {
+		mutex_lock(&amp_group->cal_lock);
+
+		for (i = 0; i < amp_group->num_amps; i++) {
+			if (amp_group->amps[i].irq != 0) {
+				if (irq_enable)
+					enable_irq(amp_group->amps[i].irq);
+				else
+					disable_irq(amp_group->amps[i].irq);
+			}
+		}
+
+		mutex_unlock(&amp_group->cal_lock);
+	}
+
+	return size;
+}
+
 #ifdef CONFIG_SND_SOC_CIRRUS_REINIT_SYSFS
 static ssize_t cirrus_cal_reinit_show(struct device *dev,
 					struct device_attribute *attr,
@@ -487,6 +525,8 @@ static DEVICE_ATTR(status, 0664, cirrus_cal_status_show,
 				cirrus_cal_status_store);
 static DEVICE_ATTR(v_status, 0664, cirrus_cal_v_status_show,
 				cirrus_cal_v_status_store);
+static DEVICE_ATTR(irq_enable, 0664, cirrus_cal_irq_enable_show,
+				cirrus_cal_irq_enable_store);
 #ifdef CONFIG_SND_SOC_CIRRUS_REINIT_SYSFS
 static DEVICE_ATTR(reinit, 0664, cirrus_cal_reinit_show,
 				cirrus_cal_reinit_store);
@@ -550,6 +590,7 @@ static struct attribute *cirrus_cal_attr_base[] = {
 	&dev_attr_version.attr,
 	&dev_attr_status.attr,
 	&dev_attr_v_status.attr,
+	&dev_attr_irq_enable.attr,
 #ifdef CONFIG_SND_SOC_CIRRUS_REINIT_SYSFS
 	&dev_attr_reinit.attr,
 #endif /* CONFIG_SND_SOC_CIRRUS_REINIT_SYSFS */

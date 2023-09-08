@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -548,15 +548,13 @@ static void reg_modify_chan_list_for_indoor_channels(
 			if (!(REGULATORY_CHAN_DISABLED &
 			      chan_list[chan_enum].chan_flags) &&
 			    (REGULATORY_CHAN_INDOOR_ONLY &
-			     chan_list[chan_enum].chan_flags)) {
+			     chan_list[chan_enum].chan_flags) &&
+			    !(pdev_priv_obj->p2p_indoor_ch_support &&
+			      reg_is_5ghz_ch_freq(chan_list[chan_enum].center_freq))) {
 				chan_list[chan_enum].state =
 					CHANNEL_STATE_DFS;
-				if (!(pdev_priv_obj->
-				      sta_sap_scc_on_indoor_channel &&
-				      reg_is_5ghz_ch_freq(
-					    chan_list[chan_enum].center_freq)))
-					chan_list[chan_enum].chan_flags |=
-							REGULATORY_CHAN_NO_IR;
+				chan_list[chan_enum].chan_flags |=
+					REGULATORY_CHAN_NO_IR;
 			}
 		}
 	}
@@ -575,8 +573,70 @@ static void reg_modify_chan_list_for_indoor_channels(
 		}
 	}
 }
+
+/**
+ * reg_modify_chan_list_for_indoor_concurrency() - Enable/Disable the indoor
+ * channels for SAP operation based on the indoor concurrency list
+ *
+ * @pdev_priv_obj: Pointer to regulatory private pdev structure.
+ *
+ * Return: None
+ */
+static void reg_modify_chan_list_for_indoor_concurrency(
+		struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj)
+{
+	struct indoor_concurrency_list *indoor_list = NULL;
+	struct regulatory_channel *chan_list = pdev_priv_obj->cur_chan_list;
+	enum channel_enum chan, min_enum, max_enum;
+	uint8_t i;
+
+	if (pdev_priv_obj->indoor_chan_enabled ||
+	    pdev_priv_obj->p2p_indoor_ch_support ||
+	    !pdev_priv_obj->sta_sap_scc_on_indoor_channel)
+		return;
+
+	indoor_list = pdev_priv_obj->indoor_list;
+
+	if (!indoor_list)
+		return;
+
+	for (i = 0; i < MAX_INDOOR_LIST_SIZE; i++, indoor_list++) {
+		if (indoor_list->freq == 0 &&
+		    indoor_list->vdev_id == INVALID_VDEV_ID)
+			continue;
+
+		if (!indoor_list->chan_range) {
+			min_enum =
+				reg_get_chan_enum_for_freq(indoor_list->freq);
+			max_enum = min_enum;
+		} else {
+			min_enum =
+				reg_get_chan_enum_for_freq(
+					indoor_list->chan_range->start_freq);
+			max_enum =
+				reg_get_chan_enum_for_freq(
+					indoor_list->chan_range->end_freq);
+		}
+
+		if (min_enum == NUM_CHANNELS || max_enum == NUM_CHANNELS)
+			continue;
+
+		for (chan = min_enum; chan <= max_enum; chan++) {
+			if (chan_list[chan].chan_flags & REGULATORY_CHAN_INDOOR_ONLY &&
+			    !(chan_list[chan].chan_flags & REGULATORY_CHAN_DISABLED)) {
+				chan_list[chan].chan_flags &= ~REGULATORY_CHAN_NO_IR;
+			}
+		}
+	}
+}
+
 #else
 static void reg_modify_chan_list_for_indoor_channels(
+		struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj)
+{
+}
+
+static void reg_modify_chan_list_for_indoor_concurrency(
 		struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj)
 {
 }
@@ -2365,6 +2425,33 @@ static void reg_accumulate_pwr_type(
 	super_chan_list[chn_idx].power_types |= BIT(supp_pwr_mode);
 }
 
+#ifdef CONFIG_REG_CLIENT
+/**
+ * reg_is_ap_sp_supp_pwr_mode() - Check if the input supported power mode is
+ * a AP SP power mode
+ * @supp_pwr_mode: 6G supported power mode
+ *
+ * Return: bool
+ */
+static bool
+reg_is_ap_sp_supp_pwr_mode(enum supported_6g_pwr_types supp_pwr_mode)
+{
+	return (supp_pwr_mode == REG_AP_SP);
+}
+
+/**
+ * reg_is_sp_pwr_mode_allowed_in_supchan() - Check if the input supported power
+ * mode is SP power mode
+ * @supp_pwr_mode: 6G supported power mode
+ *
+ * Return: bool
+ */
+static bool
+reg_is_sp_pwr_mode_allowed_in_supchan(enum supported_6g_pwr_types supp_pwr_mode)
+{
+	return reg_is_ap_sp_supp_pwr_mode(supp_pwr_mode);
+}
+#else
 /**
  * reg_is_sp_supp_pwr_mode() - Check if the input supported power mode is a
  * SP power mode
@@ -2379,6 +2466,13 @@ reg_is_sp_supp_pwr_mode(enum supported_6g_pwr_types supp_pwr_mode)
 		(supp_pwr_mode == REG_CLI_DEF_SP) ||
 		(supp_pwr_mode == REG_CLI_SUB_SP));
 }
+
+static bool
+reg_is_sp_pwr_mode_allowed_in_supchan(enum supported_6g_pwr_types supp_pwr_mode)
+{
+	return reg_is_sp_supp_pwr_mode(supp_pwr_mode);
+}
+#endif
 
 /**
  * reg_fill_best_pwr_mode() - Fill the best power mode
@@ -2409,7 +2503,7 @@ reg_fill_best_pwr_mode(struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj,
 	if (client_type != curr_6g_client_type)
 		return;
 
-	if (reg_is_sp_supp_pwr_mode(supp_pwr_mode) &&
+	if (reg_is_sp_pwr_mode_allowed_in_supchan(supp_pwr_mode) &&
 	    !wlan_reg_is_afc_power_event_received(pdev_priv_obj->pdev_ptr))
 		return;
 
@@ -2532,7 +2626,7 @@ static void reg_update_sup_ch_entry_for_mode(
 	 * If AFC is invalid, copy from Regulatory SP channel list.
 	 * If AFC is valid, copy from AFC response channel list.
 	 */
-	if (reg_is_sp_supp_pwr_mode(supp_pwr_mode)) {
+	if (reg_is_sp_pwr_mode_allowed_in_supchan(supp_pwr_mode)) {
 		if (wlan_reg_is_afc_power_event_received(pdev))
 			reg_assign_afc_chan_entry_to_mas_chan(pdev_priv_obj,
 							      &mas_chan,
@@ -2661,6 +2755,8 @@ void reg_compute_pdev_current_chan_list(struct wlan_regulatory_pdev_priv_obj
 	reg_modify_chan_list_for_nol_list(pdev_priv_obj->cur_chan_list);
 
 	reg_modify_chan_list_for_indoor_channels(pdev_priv_obj);
+
+	reg_modify_chan_list_for_indoor_concurrency(pdev_priv_obj);
 
 	reg_modify_chan_list_for_fcc_channel(pdev_priv_obj);
 

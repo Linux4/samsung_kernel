@@ -1081,7 +1081,7 @@ int sde_connector_pre_kickoff(struct drm_connector *connector)
 				CONNECTOR_PROP_FINGERPRINT_MASK);
 		vdd->finger_mask_updated = false;
 		if (finger_mask_state != vdd->finger_mask) {
-			SDE_ERROR("[FINGER MASK]updated finger mask mode %d\n", finger_mask_state);
+			SDE_INFO("[FINGER MASK]updated finger mask mode %d\n", finger_mask_state);
 			vdd->finger_mask_updated = true;
 			vdd->finger_mask = finger_mask_state;
 		}
@@ -3563,7 +3563,8 @@ int sde_connector_register_custom_event(struct sde_kms *kms,
 		break;
 	case DRM_EVENT_SDE_HW_RECOVERY:
 		ret = _sde_conn_enable_hw_recovery(conn_drm);
-		sde_dbg_update_dump_mode(val);
+		if (SDE_DBG_DEFAULT_DUMP_MODE != SDE_DBG_DUMP_IN_LOG_LIMITED)
+			sde_dbg_update_dump_mode(val);
 		break;
 	default:
 		break;

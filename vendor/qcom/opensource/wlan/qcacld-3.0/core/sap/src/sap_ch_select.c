@@ -418,8 +418,6 @@ static bool sap_chan_sel_init(mac_handle_t mac_handle,
 	bool include_dfs_ch = true;
 	uint8_t sta_sap_scc_on_dfs_chnl_config_value;
 	bool ch_support_puncture;
-	bool is_sta_sap_scc;
-	bool sta_sap_scc_on_indoor_channel;
 
 	pSpectInfoParams->numSpectChans =
 		mac->scan.base_channels.numChannels;
@@ -444,9 +442,6 @@ static bool sap_chan_sel_init(mac_handle_t mac_handle,
 	if (!mac->mlme_cfg->dfs_cfg.dfs_master_capable ||
 	    ACS_DFS_MODE_DISABLE == sap_ctx->dfs_mode)
 		include_dfs_ch = false;
-
-	sta_sap_scc_on_indoor_channel =
-		policy_mgr_get_sta_sap_scc_allowed_on_indoor_chnl(mac->psoc);
 
 	/* Fill the channel number in the spectrum in the operating freq band */
 	for (channelnum = 0;
@@ -508,12 +503,9 @@ static bool sap_chan_sel_init(mac_handle_t mac_handle,
 			continue;
 
 		/* Skip indoor channels for non-scc indoor scenario*/
-		is_sta_sap_scc = policy_mgr_is_sta_sap_scc(mac->psoc,
-							   *pChans);
-		if (!(is_sta_sap_scc && sta_sap_scc_on_indoor_channel) &&
-		    !policy_mgr_sap_allowed_on_indoor_freq(mac->psoc,
-							   mac->pdev,
-							   *pChans)) {
+		if (!policy_mgr_is_sap_allowed_on_indoor(mac->pdev,
+							 sap_ctx->sessionId,
+							 *pChans)) {
 			sap_debug("Do not allow SAP on indoor frequency %u",
 				  *pChans);
 			continue;

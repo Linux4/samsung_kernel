@@ -32,43 +32,39 @@ static DECLARE_WAIT_QUEUE_HEAD(avb_class_b_msg_wq);
 
 static int strlcmp(const char *s, const char *t, size_t n)
 {
-	int ret;
-
 	while (n-- && *t != '\0') {
 		if (*s != *t) {
-			ret = ((unsigned char)*s - (unsigned char)*t);
-			n = 0;
+			return ((unsigned char)*s - (unsigned char)*t);
 		} else {
 			++s, ++t;
-			ret = (unsigned char)*s;
 		}
 	}
-	return ret;
+	return (unsigned char)*s;
 }
 
-static void align_target_time_reg(u32 ch, void __iomem *ioaddr,
+static void align_target_time_reg(u32 ch, struct stmmac_priv *priv,
 				  struct pps_cfg *eth_pps_cfg,
 				  unsigned int align_ns)
 {
 	unsigned int system_s, system_ns, temp_system_s;
 
-	system_s = readl_relaxed(ioaddr + 0xb00 + PTP_STSR);
-	system_ns = readl_relaxed(ioaddr + 0xb00 + PTP_STNSR);
-	temp_system_s = readl_relaxed(ioaddr + 0xb00 + PTP_STSR);
+	system_s = readl_relaxed(priv->ptpaddr + PTP_STSR);
+	system_ns = readl_relaxed(priv->ptpaddr + PTP_STNSR);
+	temp_system_s = readl_relaxed(priv->ptpaddr + PTP_STSR);
 
 	if (temp_system_s != system_s) { // second roll over
-		system_s = readl_relaxed(ioaddr + 0xb00 + PTP_STSR);
-		system_ns = readl_relaxed(ioaddr + 0xb00 + PTP_STNSR);
+		system_s = readl_relaxed(priv->ptpaddr + PTP_STSR);
+		system_ns = readl_relaxed(priv->ptpaddr + PTP_STNSR);
 	}
 
 	system_ns += PPS_START_DELAY;
 	if (system_ns >= align_ns)
 		system_s += 1;
 
-	writel_relaxed(system_s, ioaddr +
+	writel_relaxed(system_s, priv->ioaddr +
 		       MAC_PPSX_TARGET_TIME_SEC(eth_pps_cfg->ppsout_ch));
 
-	writel_relaxed(align_ns, ioaddr +
+	writel_relaxed(align_ns, priv->ioaddr +
 		       MAC_PPSX_TARGET_TIME_NSEC(eth_pps_cfg->ppsout_ch));
 }
 
@@ -245,7 +241,7 @@ int ppsout_config(struct stmmac_priv *priv, struct pps_cfg *eth_pps_cfg)
 		else
 			align_ns -= PPS_ADJUST_NS;
 		align_target_time_reg(eth_pps_cfg->ppsout_ch,
-				      priv->ioaddr, eth_pps_cfg, align_ns);
+				      priv, eth_pps_cfg, align_ns);
 	}
 
 	writel_relaxed(interval, ioaddr +
@@ -269,7 +265,6 @@ int ethqos_init_pps(void *priv_n)
 
 	priv = priv_n;
 
-	priv->ptpaddr = priv->ioaddr + PTP_GMAC4_OFFSET;
 	value = (PTP_TCR_TSENA | PTP_TCR_TSCFUPDT | PTP_TCR_TSUPDT);
 	priv->hw->ptp->config_hw_tstamping(priv->ptpaddr, value);
 	priv->hw->ptp->init_systime(priv->ptpaddr, 0, 0);

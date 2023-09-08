@@ -24,6 +24,7 @@ struct pca9481_platform_data {
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	unsigned int fpdo_dc_iin_topoff;	/* FPDO DC Input Topoff current - uA unit */
 	unsigned int fpdo_dc_vnow_topoff;	/* FPDO DC Vnow Topoff condition - uV unit */
+	unsigned int fpdo_dc_iin_lowest_limit;	/* FPDO DC IIN lowest limit condition - uA unit */
 #endif
 	unsigned int snsres;		/* External sense resistor value for IBAT measurement, 0 - 1mOhm, 1 - 2mOhm, 2 - 5mOhm */
 	unsigned int snsres_cfg;	/* External sense resistor loacation, 0 - bottom side, 1 - top side */
@@ -319,6 +320,7 @@ struct pca9481_platform_data {
 
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 #define PCA9481_SEC_DENOM_U_M		1000 // 1000, denominator
+#define PCA9481_SEC_FPDO_DC_IV		9	// 9V
 #define PCA9481_BATT_WDT_CONTROL_T		30000	// 30s
 #endif
 
@@ -439,6 +441,7 @@ enum {
 #define DISABLE_DELAY_T	100		// DC Disable waiting time for sw_freq change - 100ms
 #define REVERSE_WAIT_T	10		// Reverse mode waiting time - 10ms
 #define REVERSE_CHECK_T	5000	// Reverse mode polling timer - 5000ms
+#define IIN_CFG_WAIT_T	150		// Input regulation settle time for soft start - 150ms
 
 /* Battery minimum voltage Threshold for direct charging */
 #define DC_VBAT_MIN				3100000	// 3100000uV

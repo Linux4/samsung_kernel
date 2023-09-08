@@ -333,7 +333,7 @@ QDF_STATUS policy_mgr_update_connection_info(struct wlan_objmgr_psoc *psoc,
 					uint32_t vdev_id)
 {
 	QDF_STATUS status = QDF_STATUS_E_FAILURE;
-	uint32_t conn_index = 0, ch_freq;
+	uint32_t conn_index = 0, ch_freq, cur_freq;
 	bool found = false;
 	struct policy_mgr_vdev_entry_info conn_table_entry;
 	enum policy_mgr_chain_mode chain_mask = POLICY_MGR_ONE_ONE;
@@ -380,6 +380,8 @@ QDF_STATUS policy_mgr_update_connection_info(struct wlan_objmgr_psoc *psoc,
 		return QDF_STATUS_E_FAILURE;
 	}
 
+	cur_freq = pm_conc_connection_list[conn_index].freq;
+
 	mode = policy_mgr_get_mode(conn_table_entry.type,
 					conn_table_entry.sub_type);
 	ch_freq = conn_table_entry.mhz;
@@ -410,6 +412,13 @@ QDF_STATUS policy_mgr_update_connection_info(struct wlan_objmgr_psoc *psoc,
 	policy_mgr_check_n_start_opportunistic_timer(psoc);
 	policy_mgr_handle_ml_sta_links_on_vdev_up_csa(psoc,
 				policy_mgr_get_qdf_mode_from_pm(mode), vdev_id);
+
+	if (policy_mgr_is_conc_sap_present_on_sta_freq(psoc, mode, cur_freq))
+		policy_mgr_update_indoor_concurrency(psoc, vdev_id, 0,
+						     SWITCH_WITH_CONCURRENCY);
+	else
+		policy_mgr_update_indoor_concurrency(psoc, vdev_id, cur_freq,
+						     SWITCH_WITHOUT_CONCURRENCY);
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -1631,8 +1640,6 @@ bool policy_mgr_is_sap_restart_required_after_sta_disconnect(
 		policy_mgr_is_sta_sap_scc_allowed_on_dfs_chan(psoc);
 	bool sta_sap_scc_on_lte_coex_chan =
 		policy_mgr_sta_sap_scc_on_lte_coex_chan(psoc);
-	bool sta_sap_scc_on_indoor_channel =
-		policy_mgr_get_sta_sap_scc_allowed_on_indoor_chnl(psoc);
 	uint8_t sta_sap_scc_on_dfs_chnl_config_value = 0;
 	uint32_t cc_count, i, go_index_start, pcl_len = 0;
 	uint32_t op_ch_freq_list[MAX_NUMBER_OF_CONC_CONNECTIONS * 2];
@@ -1645,9 +1652,12 @@ bool policy_mgr_is_sap_restart_required_after_sta_disconnect(
 	QDF_STATUS status;
 	uint32_t sta_gc_present = 0;
 	qdf_freq_t user_config_freq = 0;
+	tQDF_MCC_TO_SCC_SWITCH_MODE cc_mode =
+				policy_mgr_get_mcc_to_scc_switch_mode(psoc);
 
 	if (intf_ch_freq)
 		*intf_ch_freq = 0;
+
 	pm_ctx = policy_mgr_get_context(psoc);
 	if (!pm_ctx) {
 		policy_mgr_err("Invalid pm context");
@@ -1721,18 +1731,38 @@ bool policy_mgr_is_sap_restart_required_after_sta_disconnect(
 		 * 2. The frequency is not allowed in the indoor
 		 * channel.
 		 */
-		if (sta_sap_scc_on_indoor_channel &&
-		    wlan_reg_is_freq_indoor(pm_ctx->pdev, op_ch_freq_list[i]) &&
-		    pm_ctx->last_disconn_sta_freq == op_ch_freq_list[i]) {
+		if (pm_ctx->last_disconn_sta_freq == op_ch_freq_list[i] &&
+		    !policy_mgr_is_sap_allowed_on_indoor(pm_ctx->pdev,
+							 sap_vdev_id,
+							 op_ch_freq_list[i])) {
 			curr_sap_freq = op_ch_freq_list[i];
 			policy_mgr_debug("indoor sap_ch_freq %u",
 					 curr_sap_freq);
 			break;
 		}
 
+		/*
+		 * STA got disconnected & SAP has previously moved to 2.4 GHz
+		 * due to concurrency, then move SAP back to user configured
+		 * frequency.
+		 * if SCC to MCC switch mode is
+		 * QDF_MCC_TO_SCC_SWITCH_WITH_FAVORITE_CHANNEL, then move SAP to
+		 * user configured frequency whenever standalone SAP is
+		 * currently not on the user configured frequency.
+		 * else move the SAP only when SAP is on 2.4 GHz band and user
+		 * configured frequency is on any other bands.
+		 */
 		if (!sta_gc_present && user_config_freq &&
-		    WLAN_REG_IS_24GHZ_CH_FREQ(op_ch_freq_list[i]) &&
-		    WLAN_REG_IS_5GHZ_CH_FREQ(user_config_freq)) {
+		    cc_mode == QDF_MCC_TO_SCC_SWITCH_WITH_FAVORITE_CHANNEL &&
+		    !wlan_reg_is_same_band_freqs(user_config_freq,
+						 op_ch_freq_list[i])) {
+			curr_sap_freq = op_ch_freq_list[i];
+			policy_mgr_debug("Move sap to user configured freq: %d",
+					 user_config_freq);
+			break;
+		} else if (!sta_gc_present && user_config_freq &&
+			   WLAN_REG_IS_24GHZ_CH_FREQ(op_ch_freq_list[i]) &&
+			   !WLAN_REG_IS_24GHZ_CH_FREQ(user_config_freq)) {
 			curr_sap_freq = op_ch_freq_list[i];
 			policy_mgr_debug("Move sap to user configured freq: %d",
 					 user_config_freq);
@@ -1770,17 +1800,17 @@ bool policy_mgr_is_sap_restart_required_after_sta_disconnect(
 		    wlan_reg_is_dfs_for_freq(pm_ctx->pdev, pcl_channels[i]))
 			continue;
 
-		/* SAP moved to 2G, due to STA on DFS or Indoor where
+		/* SAP moved to 2.4 GHz, due to STA on DFS or Indoor where
 		 * concurrency is not allowed, now that there is no
-		 * STA/GC in 5G band, move 2.g SAP to 5G band if SAP
-		 * was initially started on 5G band.
+		 * STA/GC in 5 GHz band, move 2.4 GHz SAP to 5 GHz band if SAP
+		 * was initially started on 5 GHz band.
 		 * Checking again here as pcl_channels[0] could be
 		 * on indoor which is not removed in policy_mgr_get_pcl
 		 */
 		if (!sta_gc_present &&
-		    !policy_mgr_sap_allowed_on_indoor_freq(pm_ctx->psoc,
-							   pm_ctx->pdev,
-							   pcl_channels[i])) {
+		    !policy_mgr_is_sap_allowed_on_indoor(pm_ctx->pdev,
+							 sap_vdev_id,
+							 pcl_channels[i])) {
 			policy_mgr_debug("Do not allow SAP on indoor frequency, STA is absent");
 			continue;
 		}
@@ -2513,23 +2543,6 @@ static bool policy_mgr_get_srd_enable_for_vdev(
 	return enable_srd_channel;
 }
 
-bool policy_mgr_sap_allowed_on_indoor_freq(struct wlan_objmgr_psoc *psoc,
-					   struct wlan_objmgr_pdev *pdev,
-					   uint32_t sap_ch_freq)
-{
-	bool include_indoor_channel = 0;
-
-	ucfg_mlme_get_indoor_channel_support(psoc, &include_indoor_channel);
-
-	if (!include_indoor_channel &&
-	    wlan_reg_is_freq_indoor(pdev, sap_ch_freq)) {
-		policy_mgr_debug("No more operation on indoor channel");
-		return false;
-	}
-
-	return true;
-}
-
 QDF_STATUS
 policy_mgr_valid_sap_conc_channel_check(struct wlan_objmgr_psoc *psoc,
 					uint32_t *con_ch_freq,
@@ -2631,10 +2644,9 @@ policy_mgr_valid_sap_conc_channel_check(struct wlan_objmgr_psoc *psoc,
 		find_alternate = true;
 		policymgr_nofl_debug("sap not capable on SRD con ch_freq %d",
 				     ch_freq);
-	} else if (!policy_mgr_sap_allowed_on_indoor_freq(psoc, pm_ctx->pdev,
-							  ch_freq) &&
-		   !(is_sta_sap_scc && sta_sap_scc_on_indoor_channel &&
-		     wlan_reg_is_freq_indoor(pm_ctx->pdev, ch_freq))) {
+	} else if (!policy_mgr_is_sap_allowed_on_indoor(pm_ctx->pdev,
+							sap_vdev_id,
+							ch_freq)) {
 		policymgr_nofl_debug("sap not capable on indoor con ch_freq %d is_sta_sap_scc:%d",
 				     ch_freq, is_sta_sap_scc);
 		find_alternate = true;

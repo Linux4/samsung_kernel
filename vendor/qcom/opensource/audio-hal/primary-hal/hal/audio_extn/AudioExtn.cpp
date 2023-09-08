@@ -850,6 +850,10 @@ bool AudioExtn::is_karaoke_mode() {
 
     return false;
 }
+
+void AudioExtn::karaoke_init() {
+    karaoke_stream_handle = NULL;
+}
 #endif
 
 // END: KARAOKE ====================================================================

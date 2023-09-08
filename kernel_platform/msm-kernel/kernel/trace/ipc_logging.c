@@ -36,7 +36,7 @@
 #define FEATURE_PROC 0x01000
 
 static int minidump_buf_cnt;
-static LIST_HEAD(ipc_log_context_list);
+static struct list_head *ipc_log_context_list;
 static DEFINE_RWLOCK(context_list_lock_lha1);
 static void *get_deserialization_func(struct ipc_log_context *ilctxt,
 				      int type);
@@ -143,10 +143,9 @@ static void register_minidump(u64 vaddr, u64 size,
 	struct md_region md_entry;
 	int ret;
 
-	if (msm_minidump_enabled()
-	    && (minidump_buf_cnt < MAX_MINIDUMP_BUFFERS)) {
-		scnprintf(md_entry.name, sizeof(md_entry.name), "%s_%d",
-			  buf_name, index);
+	if (minidump_buf_cnt < MAX_MINIDUMP_BUFFERS) {
+		scnprintf(md_entry.name, sizeof(md_entry.name), "%d_%s",
+			  index, buf_name);
 		md_entry.virt_addr = vaddr;
 		md_entry.phys_addr = virt_to_phys((void *)vaddr);
 		md_entry.size = size;
@@ -847,9 +846,24 @@ static void *__ipc_log_context_create(int max_num_pages,
 	unsigned long flags;
 	int enable_minidump;
 
+	write_lock_irqsave(&context_list_lock_lha1, flags);
+	if (!ipc_log_context_list) {
+		ipc_log_context_list = kzalloc(sizeof(struct list_head), GFP_ATOMIC);
+		if (!ipc_log_context_list) {
+			write_unlock_irqrestore(&context_list_lock_lha1, flags);
+			pr_err("Failed to allocate memory for ipc_log_context_list\n");
+			return NULL;
+		}
+		INIT_LIST_HEAD(ipc_log_context_list);
+
+		register_minidump((u64)ipc_log_context_list, sizeof(struct list_head),
+				"ipc_log_ctxt_list", minidump_buf_cnt);
+	}
+	write_unlock_irqrestore(&context_list_lock_lha1, flags);
+
 	/* check if ipc ctxt already exists */
 	read_lock_irq(&context_list_lock_lha1);
-	list_for_each_entry(tmp, &ipc_log_context_list, list)
+	list_for_each_entry(tmp, ipc_log_context_list, list)
 		if (!strcmp(tmp->name, mod_name)) {
 			ctxt = tmp;
 			break;
@@ -924,9 +938,9 @@ static void *__ipc_log_context_create(int max_num_pages,
 
 	write_lock_irqsave(&context_list_lock_lha1, flags);
 	if (enable_minidump  && (minidump_buf_cnt < MAX_MINIDUMP_BUFFERS))
-		list_add(&ctxt->list, &ipc_log_context_list);
+		list_add(&ctxt->list, ipc_log_context_list);
 	else
-		list_add_tail(&ctxt->list, &ipc_log_context_list);
+		list_add_tail(&ctxt->list, ipc_log_context_list);
 	write_unlock_irqrestore(&context_list_lock_lha1, flags);
 
 	return (void *)ctxt;
@@ -1086,14 +1100,13 @@ static int __init ipc_logging_init(void)
 
 	net_ipc_log_init();
 
-	register_minidump((u64)&ipc_log_context_list, sizeof(struct list_head),
-			  "ipc_log_ctxt_list", minidump_buf_cnt);
 
 	return 0;
 }
 
 static void __exit ipc_logging_exit(void)
 {
+	kfree(ipc_log_context_list);
 	net_ipc_log_exit();
 
 	__destory_dummy_ipc_context();

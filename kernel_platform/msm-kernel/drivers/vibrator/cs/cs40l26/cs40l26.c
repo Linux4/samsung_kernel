@@ -2333,6 +2333,46 @@ static bool samsung_is_valid_vmon(struct cs40l26_private *cs40l26, u32 vmon)
 	return false;
 }
 
+static int samsung_get_i2c_test(struct input_dev *dev)
+{
+	struct sec_vib_inputff_drvdata *ddata = input_get_drvdata(dev);
+	struct cs40l26_private *cs40l26 = ddata->private_data;
+	int ret = 0;
+	int i;
+	u32 val;
+
+	/* i2c operation to wake up FW from hibernation mode, it exits instantly once i2c successes */
+	for (i = 0; i < 100; i++) {
+		ret = regmap_read(cs40l26->regmap, CS40L26_DEVID, &val);
+		if (ret)
+			dev_err(cs40l26->dev, "%s: Failed to read device ID(%d)\n", __func__, i + 1);
+		else {
+			dev_info(cs40l26->dev, "%s: DEVID: 0x%X, hibernation exit confirmed\n", __func__, val);
+			break;
+		}
+
+		usleep_range(CS40L26_DSP_TIMEOUT_US_MIN,
+			CS40L26_DSP_TIMEOUT_US_MAX);
+	}
+
+	/* i2c operation to check i2c operation, it will only return success if it successes 5 times all */
+	for (i = 0; i < 5; i++) {
+		ret = regmap_read(cs40l26->regmap, CS40L26_DEVID, &val);
+		if (ret) {
+			dev_err(cs40l26->dev, "%s: Failed to read device ID, ret: %d\n", __func__, ret);
+			return 0;
+		} else
+			dev_info(cs40l26->dev, "%s: DEVID: 0x%X(%d)\n", __func__, val, i + 1);
+
+		usleep_range(CS40L26_DSP_TIMEOUT_US_MIN,
+			CS40L26_DSP_TIMEOUT_US_MAX);
+	}
+
+	dev_info(cs40l26->dev, "%s: i2c test success\n", __func__);
+
+	return 1;
+}
+
 static int samsung_get_i2s_test(struct input_dev *dev)
 {
 	struct sec_vib_inputff_drvdata *ddata = input_get_drvdata(dev);
@@ -2624,7 +2664,6 @@ static void samsung_recovery(struct cs40l26_private *cs40l26)
 		cancel_work_sync(&cs40l26->vibe_start_work);
 		cancel_work_sync(&cs40l26->vibe_stop_work);
 		cancel_work_sync(&cs40l26->set_gain_work);
-		cancel_work_sync(&cs40l26->upload_work);
 		cancel_work_sync(&cs40l26->erase_work);
 	}
 
@@ -3497,6 +3536,9 @@ static int cs40l26_index_mapping(int sep_index)
 	case 119 ... 124:
 		cirrus_index = sep_index + 16;
 		break;
+	case 126 ... 127:
+		cirrus_index = sep_index + 15;
+		break;
 	default:
 		cirrus_index = sep_index + 9;
 		break;
@@ -4023,6 +4065,7 @@ static const struct sec_vib_inputff_ops cs40l26_vib_ops = {
 	.playback = cs40l26_playback_effect,
 	.set_gain = cs40l26_set_gain,
 	.erase = cs40l26_erase_effect,
+	.get_i2c_test = samsung_get_i2c_test,
 	.get_i2s_test = samsung_get_i2s_test,
 	.fw_load = samsung_fw_load,
 	.set_trigger_cal = samsung_set_trigger_cal,
@@ -4036,9 +4079,6 @@ static const struct sec_vib_inputff_ops cs40l26_vib_ops = {
 };
 
 static struct attribute_group *cs40l26_dev_attr_groups[] = {
-	&cs40l26_dev_attr_group,
-	&cs40l26_dev_attr_cal_group,
-	&cs40l26_dev_attr_dbc_group,
 	NULL
 };
 
@@ -5611,12 +5651,16 @@ static int cs40l26_no_wait_ram_indices_get(struct cs40l26_private *cs40l26,
 	ret = of_property_read_u32_array(np, "cirrus,no-wait-ram-indices",
 			cs40l26->no_wait_ram_indices, cs40l26->num_no_wait_ram_indices);
 	if (ret)
-		return ret;
+		goto err_free;
 
 	for (i = 0; i < cs40l26->num_no_wait_ram_indices; i++)
 		cs40l26->no_wait_ram_indices[i] += CS40L26_RAM_INDEX_START;
 
 	return 0;
+err_free:
+	devm_kfree(cs40l26->dev, cs40l26->no_wait_ram_indices);
+	cs40l26->num_no_wait_ram_indices = 0;
+	return ret;
 }
 
 static int cs40l26_handle_platform_data(struct cs40l26_private *cs40l26)

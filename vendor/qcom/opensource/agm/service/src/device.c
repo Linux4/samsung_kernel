@@ -600,6 +600,12 @@ int device_close(struct device_obj *dev_obj)
             AGM_LOGE("PCM device %u close failed, ret = %d\n",
                      obj->pcm_id, ret);
         }
+// { SEC_AUDIO_ADD_FOR_DEBUG
+        else {
+            AGM_LOGI("PCM device %u closed\n", obj->pcm_id);
+        }
+// } SEC_AUDIO_ADD_FOR_DEBUG
+
         obj->state = DEV_CLOSED;
         obj->refcnt.prepare = 0;
         obj->refcnt.start = 0;

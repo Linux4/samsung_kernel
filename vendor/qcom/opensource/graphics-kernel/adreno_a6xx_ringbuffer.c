@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "adreno.h"
@@ -384,10 +384,16 @@ static u32 a6xx_get_alwayson_context(u32 *cmds, u64 gpuaddr)
 static u64 a6xx_get_user_profiling_ib(struct adreno_ringbuffer *rb,
 		struct kgsl_drawobj_cmd *cmdobj, u32 target_offset, u32 *cmds)
 {
-	u32 offset = rb->profile_index * (PROFILE_IB_DWORDS << 2);
-	u32 *ib = rb->profile_desc->hostptr + offset;
-	u64 gpuaddr = rb->profile_desc->gpuaddr + offset;
-	u32 dwords = a6xx_get_alwayson_counter(ib,
+	u32 offset, *ib, dwords;
+	u64 gpuaddr;
+
+	if (IS_ERR(rb->profile_desc))
+		return 0;
+
+	offset = rb->profile_index * (PROFILE_IB_DWORDS << 2);
+	ib = rb->profile_desc->hostptr + offset;
+	gpuaddr = rb->profile_desc->gpuaddr + offset;
+	dwords = a6xx_get_alwayson_counter(ib,
 		cmdobj->profiling_buffer_gpuaddr + target_offset);
 
 	cmds[0] = cp_type7_packet(CP_INDIRECT_BUFFER_PFE, 3);
@@ -405,6 +411,7 @@ static int a6xx_drawctxt_switch(struct adreno_device *adreno_dev,
 		struct adreno_context *drawctxt)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	int ret;
 
 	if (rb->drawctxt_active == drawctxt)
 		return 0;
@@ -415,9 +422,13 @@ static int a6xx_drawctxt_switch(struct adreno_device *adreno_dev,
 	if (!_kgsl_context_get(&drawctxt->base))
 		return -ENOENT;
 
-	trace_adreno_drawctxt_switch(rb, drawctxt);
+	ret = a6xx_rb_context_switch(adreno_dev, rb, drawctxt);
+	if (ret) {
+		kgsl_context_put(&drawctxt->base);
+		return ret;
+	}
 
-	a6xx_rb_context_switch(adreno_dev, rb, drawctxt);
+	trace_adreno_drawctxt_switch(rb, drawctxt);
 
 	/* Release the current drawctxt as soon as the new one is switched */
 	adreno_put_drawctxt_on_timestamp(device, rb->drawctxt_active,

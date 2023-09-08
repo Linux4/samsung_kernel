@@ -1153,6 +1153,12 @@
                 <!-- DEVICEPP_RX - DEVICEPP_RX_DEFAULT -->
                 <graph_kv key="0xAC000000" value="0xAC000001"/>
             </keys_and_values>
+            <keys_and_values StreamType="PAL_STREAM_VOIP_RX">
+                <!-- DEVICERX - HDMI_RX -->
+                <graph_kv key="0xA2000000" value="0xA2000006"/>
+                <!-- DEVICEPP_RX - DEVICEPP_RX_VOIP_DIAMONDVOICE -->
+                <graph_kv key="0xAC000000" value="0x0AC00021"/>
+            </keys_and_values>
         </devicepp>
         <!-- OUT USB device and USB Headset DevicePPs -->
         <devicepp id="PAL_DEVICE_OUT_USB_DEVICE,PAL_DEVICE_OUT_USB_HEADSET">
@@ -1543,6 +1549,12 @@
                 <graph_kv key="0xA3000000" value="0xA3000001"/>
                 <!-- DEVICEPP_TX - DEVICEPP_TX_VOIP_ECNS_TV -->
                 <graph_kv key="0xAD000000" value="0x0AD00047"/>
+            </keys_and_values>
+            <keys_and_values StreamType="PAL_STREAM_VOIP_TX" CustomConfig="voip_smonitor">
+                <!-- DEVICETX - SPEAKER_MIC -->
+                <graph_kv key="0xA3000000" value="0xA3000001"/>
+                <!-- DEVICEPP_TX - DEVICEPP_TX_VOIP_ECNS_SMONITOR -->
+                <graph_kv key="0xAD000000" value="0x0AD0004C"/>
             </keys_and_values>
             <keys_and_values StreamType="PAL_STREAM_VOIP_TX" CustomConfig="wifi_call">
                 <!-- DEVICETX - SPEAKER_MIC -->

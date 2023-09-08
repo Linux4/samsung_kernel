@@ -798,6 +798,14 @@ else
 	WLAN_WARN_ON_ASSERT := n
 endif
 
+# Case 05940062 : SS request add disable PANIC_ON_BUG in USER build as SS specific.
+CONFIG_WLAN_SAMSUNG_FEATURE=y
+ifeq ($(CONFIG_WLAN_SAMSUNG_FEATURE), y)
+    ifeq ($(TARGET_BUILD_VARIANT),user)
+        PANIC_ON_BUG := n
+    endif
+endif
+
 # Compile all log levels by default
 CONFIG_WLAN_LOG_FATAL := y
 CONFIG_WLAN_LOG_ERROR := y
@@ -1152,6 +1160,9 @@ CONFIG_WLAN_BCN_RECV_FEATURE := y
 #Flag to enable LTE COEX feature
 CONFIG_LTE_COEX := y
 
+#Flag to enable delayed peer obj free
+CONFIG_FEATURE_DELAYED_PEER_OBJ_DESTROY := y
+
 #Flag to enable/disable TARGET 11d scan
 CONFIG_TARGET_11D_SCAN := y
 
@@ -1181,8 +1192,6 @@ CONFIG_CP_STATS := y
 CONFIG_FEATURE_INTEROP_ISSUES_AP := y
 
 CONFIG_FEATURE_WLAN_WAPI := y
-
-CONFIG_AGEIE_ON_SCAN_RESULTS := y
 
 #Flag to enable FW log parsing support feature
 CONFIG_FEATURE_FW_LOG_PARSING := y
@@ -1299,8 +1308,6 @@ ifeq ($(CONFIG_CNSS2_DEBUG), y)
 	CONFIG_ENABLE_QDF_PTR_HASH_DEBUG := y
 	CONFIG_HAL_DEBUG := y
 	CONFIG_ATH_DIAG_EXT_DIRECT := y
-	CONFIG_WLAN_OBJMGR_DEBUG:= y
-	CONFIG_WLAN_OBJMGR_REF_ID_TRACE := y
 endif
 
 	CONFIG_HIF_DEBUG := y
@@ -1350,6 +1357,10 @@ ifeq (y,$(filter y,$(CONFIG_LITHIUM) $(CONFIG_BERYLLIUM)))
 	CONFIG_WLAN_TRACEPOINTS := y
 	ENABLE_CE4_COMP_DISABLE_HTT_HTC_MISC_LIST := y
 endif
+
+#Flag to enable ref ID print
+CONFIG_WLAN_OBJMGR_DEBUG:= y
+CONFIG_WLAN_OBJMGR_REF_ID_TRACE := y
 
 #Flag to enable hdd memory dump feature
 CONFIG_FEATURE_MEMDUMP_ENABLE := y

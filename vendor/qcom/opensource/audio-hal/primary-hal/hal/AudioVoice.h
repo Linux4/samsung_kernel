@@ -90,6 +90,12 @@ public:
             bool hac;
 #endif
     };
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+    struct voice_t {
+            voice_session_t session[MAX_VOICE_SESSIONS];
+            bool in_call;
+    };
+#else
     struct voice_t {
             voice_session_t session[MAX_VOICE_SESSIONS];
             bool mic_mute;
@@ -98,6 +104,7 @@ public:
             bool in_call;
             uint32_t volume_steps;
     };
+#endif
     voice_t voice_;
     audio_mode_t mode_;
     std::shared_ptr<StreamOutPrimary> stream_out_primary_;
@@ -127,8 +134,13 @@ public:
     int StopCall();
     AudioVoice();
     ~AudioVoice();
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+    pal_device_id_t pal_voice_tx_device_id_ = PAL_DEVICE_NONE;
+    pal_device_id_t pal_voice_rx_device_id_ = PAL_DEVICE_NONE;
+#else
     pal_device_id_t pal_voice_tx_device_id_;
     pal_device_id_t pal_voice_rx_device_id_;
+#endif
     std::shared_ptr<StreamInPrimary> stream_in_primary_;
 
 #ifdef SEC_AUDIO_COMMON

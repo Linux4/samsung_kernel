@@ -1247,6 +1247,8 @@ struct dp_soc_stats {
 			uint32_t rx_flush_count;
 			/* Rx invalid tid count */
 			uint32_t rx_invalid_tid_err;
+			/* decrypt error drop */
+			uint32_t decrypt_err_drop;
 		} err;
 
 		/* packet count per core - per ring */
@@ -3473,6 +3475,8 @@ struct dp_vdev {
 	/* per vdev nbuf queue for traffic end indication packets */
 	qdf_nbuf_queue_t end_ind_pkt_q;
 #endif
+	/* QDF VDEV operating mode  */
+	enum QDF_OPMODE qdf_opmode;
 };
 
 enum {
@@ -4313,6 +4317,8 @@ struct dp_fisa_reo_mismatch_stats {
 struct dp_fisa_stats {
 	/* flow index invalid from RX HW TLV */
 	uint32_t invalid_flow_index;
+	/* workqueue deferred due to suspend */
+	uint32_t update_deferred;
 	struct dp_fisa_reo_mismatch_stats reo_mismatch;
 };
 
@@ -4439,7 +4445,8 @@ struct dp_rx_fst {
 	qdf_event_t cmem_resp_event;
 	bool flow_deletion_supported;
 	bool fst_in_cmem;
-	bool pm_suspended;
+	qdf_atomic_t pm_suspended;
+	bool fst_wq_defer;
 };
 
 #endif /* WLAN_SUPPORT_RX_FISA */

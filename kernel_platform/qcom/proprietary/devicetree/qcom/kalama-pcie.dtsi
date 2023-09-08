@@ -109,13 +109,13 @@
 		qcom,boot-option = <0x1>;
 		qcom,aux-clk-freq = <20>; /* 19.2 MHz */
 		qcom,drv-name = "lpass";
-		qcom,no-l0s-supported;
 		qcom,drv-l1ss-timeout-us = <5000>;
 		qcom,l1-2-th-scale = <2>;
 		qcom,l1-2-th-value = <150>;
 		qcom,slv-addr-space-size = <0x4000000>;
 		qcom,ep-latency = <10>;
 		qcom,num-parf-testbus-sel = <0xb9>;
+		qcom,config-recovery;
 
 		qcom,pcie-phy-ver = <101>;
 		qcom,phy-status-offset = <0x214>;

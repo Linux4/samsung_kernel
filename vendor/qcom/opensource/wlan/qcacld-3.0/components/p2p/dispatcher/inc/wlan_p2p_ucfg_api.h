@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2018, 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -464,4 +464,16 @@ bool ucfg_p2p_is_roam_config_disabled(struct wlan_objmgr_psoc *psoc)
 {
 	return cfg_p2p_is_roam_config_disabled(psoc);
 }
+
+/**
+ * ucfg_p2p_get_indoor_ch_support() - Get indoor channel support
+ * for P2P GO
+ *
+ * @psoc: pointer to psoc obj
+ *
+ * Get the indoor channel support for P2P GO
+ *
+ * Return: p2p go supported on indoor channel
+ */
+bool ucfg_p2p_get_indoor_ch_support(struct wlan_objmgr_psoc *psoc);
 #endif /* _WLAN_P2P_UCFG_API_H_ */

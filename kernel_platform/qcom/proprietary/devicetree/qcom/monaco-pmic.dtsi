@@ -54,6 +54,12 @@
 			linux,can-disable;
 		};
 	};
+
+	pmic-pon-log {
+		compatible = "qcom,pmic-pon-log";
+		nvmem = <&pm5100_sdam_5>;
+		nvmem-names = "pon_log";
+	};
 };
 
 &pm5100_adc {
@@ -97,12 +103,10 @@
 };
 
 &thermal_zones {
-	xo-therm-usr {
+	xo-therm {
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-governor = "user_space";
 		thermal-sensors = <&pm5100_adc PM5100_ADC5_GEN3_AMUX1_THM_100K_PU>;
-		wake-capable-sensor;
 		trips {
 			active-config0 {
 				temperature = <125000>;
@@ -112,12 +116,10 @@
 		};
 	};
 
-	pa-therm0-usr {
+	pa-therm0 {
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-governor = "user_space";
 		thermal-sensors = <&pm5100_adc PM5100_ADC5_GEN3_AMUX4_THM_100K_PU>;
-		wake-capable-sensor;
 		trips {
 			active-config0 {
 				temperature = <125000>;
@@ -127,12 +129,10 @@
 		};
 	};
 
-	quiet-therm-usr {
+	quiet-therm {
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-governor = "user_space";
 		thermal-sensors = <&pm5100_adc PM5100_ADC5_GEN3_AMUX5_THM_100K_PU>;
-		wake-capable-sensor;
 		trips {
 			active-config0 {
 				temperature = <125000>;
@@ -142,12 +142,10 @@
 		};
 	};
 
-	sdm-skin-therm-usr {
+	sdm-skin-therm {
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-governor = "user_space";
 		thermal-sensors = <&pm5100_adc PM5100_ADC5_GEN3_AMUX6_THM_100K_PU>;
-		wake-capable-sensor;
 		trips {
 			active-config0 {
 				temperature = <125000>;
@@ -167,6 +165,9 @@
 
 	monaco_batterydata: qcom,battery-data {
 		qcom,batt-id-range-pct = <15>;
+		#include "qbg-battery-profile-alium-860-89032-0000-3600mAh.dtsi"
+		#include "qbg-battery-profile-qrd-zwd-520mAh.dtsi"
+		#include "qbg-battery-profile-305mAh.dtsi"
 	};
 };
 
@@ -174,8 +175,8 @@
 	status = "okay";
 	qcom,battery-data = <&monaco_batterydata>;
 	dpdm-supply = <&usb2_phy0>;
-	nvmem-cell-names = "charger_debug_mask";
-	nvmem-cells = <&charger_debug_mask>;
+	nvmem-cell-names = "charger_debug_mask", "charger_soc";
+	nvmem-cells = <&charger_debug_mask>, <&charger_soc>;
 	qcom,auto-recharge-soc = <98>;
 	qcom,suspend-input-on-debug-batt;
 	qcom,chg-term-src = <1>;
