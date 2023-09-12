@@ -413,7 +413,6 @@ static int cam_mem_util_get_dma_buf_fd(size_t len,
 	struct dma_buf **buf,
 	int *fd)
 {
-	struct dma_buf *dmabuf = NULL;
 	int rc = 0;
 
 	if (!buf || !fd) {
@@ -424,6 +423,12 @@ static int cam_mem_util_get_dma_buf_fd(size_t len,
 	*buf = ion_alloc(len, heap_id_mask, flags);
 	if (IS_ERR_OR_NULL(*buf))
 		return -ENOMEM;
+	/*
+	 * increment the ref count so that ref count becomes 2 here
+	 * when we close fd, refcount becomes 1 and when we do
+	 * dmap_put_buf, ref count becomes 0 and memory will be freed.
+	 */
+	get_dma_buf(*buf);
 
 	*fd = dma_buf_fd(*buf, O_CLOEXEC);
 	if (*fd < 0) {
@@ -431,18 +436,6 @@ static int cam_mem_util_get_dma_buf_fd(size_t len,
 		rc = -EINVAL;
 		goto get_fd_fail;
 	}
-
-	/*
-	 * increment the ref count so that ref count becomes 2 here
-	 * when we close fd, refcount becomes 1 and when we do
-	 * dmap_put_buf, ref count becomes 0 and memory will be freed.
-	 */
-	dmabuf = dma_buf_get(*fd);
-	if (IS_ERR_OR_NULL(dmabuf)) {
-		CAM_ERR(CAM_MEM, "dma_buf_get failed, *fd=%d", *fd);
-		rc = -EINVAL;
-	}
-
 	return rc;
 
 get_fd_fail:
