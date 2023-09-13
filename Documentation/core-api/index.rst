@@ -21,25 +21,16 @@ Core utilities
    local_ops
    workqueue
    genericirq
-   xarray
+   flexible-arrays
    librs
    genalloc
    errseq
-   packing
    printk-formats
    circular-buffers
-   generic-radix-tree
-   memory-allocation
    mm-api
    gfp_mask-from-fs-io
    timekeeping
    boot-time-mm
-   memory-hotplug
-   protection-keys
-   ../RCU/index
-   gcc-plugins
-   symbol-namespaces
-
 
 Interfaces for kernel debugging
 ===============================
@@ -50,7 +41,7 @@ Interfaces for kernel debugging
    debug-objects
    tracepoint
 
-.. only:: subproject and html
+.. only::  subproject
 
    Indices
    =======

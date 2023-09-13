@@ -1,10 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * IPV6 GSO/GRO offload support
  * Linux INET implementation
  *
  * Copyright (C) 2016 secunet Security Networks AG
  * Author: Steffen Klassert <steffen.klassert@secunet.com>
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2, as published by the Free Software Foundation.
  *
  * ESP GRO support
  */
@@ -65,28 +68,27 @@ static struct sk_buff *esp6_gro_receive(struct list_head *head,
 
 	xo = xfrm_offload(skb);
 	if (!xo || !(xo->flags & CRYPTO_DONE)) {
-		struct sec_path *sp = secpath_set(skb);
-
-		if (!sp)
+		err = secpath_set(skb);
+		if (err)
 			goto out;
 
-		if (sp->len == XFRM_MAX_DEPTH)
-			goto out_reset;
+		if (skb->sp->len == XFRM_MAX_DEPTH)
+			goto out;
 
 		x = xfrm_state_lookup(dev_net(skb->dev), skb->mark,
 				      (xfrm_address_t *)&ipv6_hdr(skb)->daddr,
 				      spi, IPPROTO_ESP, AF_INET6);
 		if (!x)
-			goto out_reset;
+			goto out;
 
-		skb->mark = xfrm_smark_get(skb->mark, x);
-
-		sp->xvec[sp->len++] = x;
-		sp->olen++;
+		skb->sp->xvec[skb->sp->len++] = x;
+		skb->sp->olen++;
 
 		xo = xfrm_offload(skb);
-		if (!xo)
-			goto out_reset;
+		if (!xo) {
+			xfrm_state_put(x);
+			goto out;
+		}
 	}
 
 	xo->flags |= XFRM_GRO;
@@ -106,8 +108,6 @@ static struct sk_buff *esp6_gro_receive(struct list_head *head,
 	xfrm_input(skb, IPPROTO_ESP, spi, -2);
 
 	return ERR_PTR(-EINPROGRESS);
-out_reset:
-	secpath_reset(skb);
 out:
 	skb_push(skb, offset);
 	NAPI_GRO_CB(skb)->same_flow = 0;
@@ -125,7 +125,7 @@ static void esp6_gso_encap(struct xfrm_state *x, struct sk_buff *skb)
 
 	skb_push(skb, -skb_network_offset(skb));
 
-	if (x->outer_mode.encap == XFRM_MODE_TRANSPORT) {
+	if (x->outer_mode->encap == XFRM_MODE_TRANSPORT) {
 		__be16 frag;
 
 		ipv6_skip_exthdr(skb, sizeof(struct ipv6hdr), &proto, &frag);
@@ -140,44 +140,6 @@ static void esp6_gso_encap(struct xfrm_state *x, struct sk_buff *skb)
 	xo->proto = proto;
 }
 
-static struct sk_buff *xfrm6_tunnel_gso_segment(struct xfrm_state *x,
-						struct sk_buff *skb,
-						netdev_features_t features)
-{
-	__skb_push(skb, skb->mac_len);
-	return skb_mac_gso_segment(skb, features);
-}
-
-static struct sk_buff *xfrm6_transport_gso_segment(struct xfrm_state *x,
-						   struct sk_buff *skb,
-						   netdev_features_t features)
-{
-	const struct net_offload *ops;
-	struct sk_buff *segs = ERR_PTR(-EINVAL);
-	struct xfrm_offload *xo = xfrm_offload(skb);
-
-	skb->transport_header += x->props.header_len;
-	ops = rcu_dereference(inet6_offloads[xo->proto]);
-	if (likely(ops && ops->callbacks.gso_segment))
-		segs = ops->callbacks.gso_segment(skb, features);
-
-	return segs;
-}
-
-static struct sk_buff *xfrm6_outer_mode_gso_segment(struct xfrm_state *x,
-						    struct sk_buff *skb,
-						    netdev_features_t features)
-{
-	switch (x->outer_mode.encap) {
-	case XFRM_MODE_TUNNEL:
-		return xfrm6_tunnel_gso_segment(x, skb, features);
-	case XFRM_MODE_TRANSPORT:
-		return xfrm6_transport_gso_segment(x, skb, features);
-	}
-
-	return ERR_PTR(-EOPNOTSUPP);
-}
-
 static struct sk_buff *esp6_gso_segment(struct sk_buff *skb,
 				        netdev_features_t features)
 {
@@ -186,7 +148,6 @@ static struct sk_buff *esp6_gso_segment(struct sk_buff *skb,
 	struct crypto_aead *aead;
 	netdev_features_t esp_features = features;
 	struct xfrm_offload *xo = xfrm_offload(skb);
-	struct sec_path *sp;
 
 	if (!xo)
 		return ERR_PTR(-EINVAL);
@@ -194,8 +155,7 @@ static struct sk_buff *esp6_gso_segment(struct sk_buff *skb,
 	if (!(skb_shinfo(skb)->gso_type & SKB_GSO_ESP))
 		return ERR_PTR(-EINVAL);
 
-	sp = skb_sec_path(skb);
-	x = sp->xvec[sp->len - 1];
+	x = skb->sp->xvec[skb->sp->len - 1];
 	aead = x->data;
 	esph = ip_esp_hdr(skb);
 
@@ -210,15 +170,13 @@ static struct sk_buff *esp6_gso_segment(struct sk_buff *skb,
 	skb->encap_hdr_csum = 1;
 
 	if (!(features & NETIF_F_HW_ESP) || x->xso.dev != skb->dev)
-		esp_features = features & ~(NETIF_F_SG | NETIF_F_CSUM_MASK |
-					    NETIF_F_SCTP_CRC);
+		esp_features = features & ~(NETIF_F_SG | NETIF_F_CSUM_MASK);
 	else if (!(features & NETIF_F_HW_ESP_TX_CSUM))
-		esp_features = features & ~(NETIF_F_CSUM_MASK |
-					    NETIF_F_SCTP_CRC);
+		esp_features = features & ~NETIF_F_CSUM_MASK;
 
 	xo->flags |= XFRM_GSO_SEGMENT;
 
-	return xfrm6_outer_mode_gso_segment(x, skb, esp_features);
+	return x->outer_mode->gso_segment(x, skb, esp_features);
 }
 
 static int esp6_input_tail(struct xfrm_state *x, struct sk_buff *skb)
@@ -345,7 +303,9 @@ static int __init esp6_offload_init(void)
 
 static void __exit esp6_offload_exit(void)
 {
-	xfrm_unregister_type_offload(&esp6_type_offload, AF_INET6);
+	if (xfrm_unregister_type_offload(&esp6_type_offload, AF_INET6) < 0)
+		pr_info("%s: can't remove xfrm type offload\n", __func__);
+
 	inet6_del_offload(&esp6_offload, IPPROTO_ESP);
 }
 

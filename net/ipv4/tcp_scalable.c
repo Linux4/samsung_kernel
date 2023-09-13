@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /* Tom Kelly's Scalable TCP
  *
  * See http://www.deneholme.net/tom/scalable/

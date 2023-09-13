@@ -8,19 +8,16 @@
 #include <rdma/ib_umem.h>
 #include "hns_roce_device.h"
 
-int hns_roce_db_map_user(struct hns_roce_ucontext *context,
-			 struct ib_udata *udata, unsigned long virt,
+int hns_roce_db_map_user(struct hns_roce_ucontext *context, unsigned long virt,
 			 struct hns_roce_db *db)
 {
-	unsigned long page_addr = virt & PAGE_MASK;
 	struct hns_roce_user_db_page *page;
-	unsigned int offset;
 	int ret = 0;
 
 	mutex_lock(&context->page_mutex);
 
 	list_for_each_entry(page, &context->page_list, list)
-		if (page->user_virt == page_addr)
+		if (page->user_virt == (virt & PAGE_MASK))
 			goto found;
 
 	page = kmalloc(sizeof(*page), GFP_KERNEL);
@@ -30,8 +27,9 @@ int hns_roce_db_map_user(struct hns_roce_ucontext *context,
 	}
 
 	refcount_set(&page->refcount, 1);
-	page->user_virt = page_addr;
-	page->umem = ib_umem_get(udata, page_addr, PAGE_SIZE, 0, 0);
+	page->user_virt = (virt & PAGE_MASK);
+	page->umem = ib_umem_get(&context->ibucontext, virt & PAGE_MASK,
+				 PAGE_SIZE, 0, 0);
 	if (IS_ERR(page->umem)) {
 		ret = PTR_ERR(page->umem);
 		kfree(page);
@@ -41,9 +39,10 @@ int hns_roce_db_map_user(struct hns_roce_ucontext *context,
 	list_add(&page->list, &context->page_list);
 
 found:
-	offset = virt - page_addr;
-	db->dma = sg_dma_address(page->umem->sg_head.sgl) + offset;
-	db->virt_addr = sg_virt(page->umem->sg_head.sgl) + offset;
+	db->dma = sg_dma_address(page->umem->sg_head.sgl) +
+		  (virt & ~PAGE_MASK);
+	page->umem->sg_head.sgl->offset = virt & ~PAGE_MASK;
+	db->virt_addr = sg_virt(page->umem->sg_head.sgl);
 	db->u.user_page = page;
 	refcount_inc(&page->refcount);
 
@@ -52,6 +51,7 @@ out:
 
 	return ret;
 }
+EXPORT_SYMBOL(hns_roce_db_map_user);
 
 void hns_roce_db_unmap_user(struct hns_roce_ucontext *context,
 			    struct hns_roce_db *db)
@@ -67,6 +67,7 @@ void hns_roce_db_unmap_user(struct hns_roce_ucontext *context,
 
 	mutex_unlock(&context->page_mutex);
 }
+EXPORT_SYMBOL(hns_roce_db_unmap_user);
 
 static struct hns_roce_db_pgdir *hns_roce_alloc_db_pgdir(
 					struct device *dma_device)
@@ -77,8 +78,7 @@ static struct hns_roce_db_pgdir *hns_roce_alloc_db_pgdir(
 	if (!pgdir)
 		return NULL;
 
-	bitmap_fill(pgdir->order1,
-		    HNS_ROCE_DB_PER_PAGE / HNS_ROCE_DB_TYPE_COUNT);
+	bitmap_fill(pgdir->order1, HNS_ROCE_DB_PER_PAGE / 2);
 	pgdir->bits[0] = pgdir->order0;
 	pgdir->bits[1] = pgdir->order1;
 	pgdir->page = dma_alloc_coherent(dma_device, PAGE_SIZE,
@@ -116,7 +116,7 @@ found:
 	db->u.pgdir	= pgdir;
 	db->index	= i;
 	db->db_record	= pgdir->page + db->index;
-	db->dma		= pgdir->db_dma  + db->index * HNS_ROCE_DB_UNIT_SIZE;
+	db->dma		= pgdir->db_dma  + db->index * 4;
 	db->order	= order;
 
 	return 0;
@@ -150,6 +150,7 @@ out:
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(hns_roce_alloc_db);
 
 void hns_roce_free_db(struct hns_roce_dev *hr_dev, struct hns_roce_db *db)
 {
@@ -169,8 +170,7 @@ void hns_roce_free_db(struct hns_roce_dev *hr_dev, struct hns_roce_db *db)
 	i >>= o;
 	set_bit(i, db->u.pgdir->bits[o]);
 
-	if (bitmap_full(db->u.pgdir->order1,
-			HNS_ROCE_DB_PER_PAGE / HNS_ROCE_DB_TYPE_COUNT)) {
+	if (bitmap_full(db->u.pgdir->order1, HNS_ROCE_DB_PER_PAGE / 2)) {
 		dma_free_coherent(hr_dev->dev, PAGE_SIZE, db->u.pgdir->page,
 				  db->u.pgdir->db_dma);
 		list_del(&db->u.pgdir->list);
@@ -179,3 +179,4 @@ void hns_roce_free_db(struct hns_roce_dev *hr_dev, struct hns_roce_db *db)
 
 	mutex_unlock(&hr_dev->pgdir_mutex);
 }
+EXPORT_SYMBOL_GPL(hns_roce_free_db);

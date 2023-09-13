@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 menu "LPDDR & LPDDR2 PCM memory drivers"
 	depends on MTD
 

@@ -1,9 +1,23 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * This file is part of wlcore
  *
  * Copyright (C) 2008-2010 Nokia Corporation
  * Copyright (C) 2011-2013 Texas Instruments Inc.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA
+ *
  */
 
 #include <linux/module.h>
@@ -13,7 +27,6 @@
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/pm_runtime.h>
-#include <linux/pm_wakeirq.h>
 
 #include "wlcore.h"
 #include "debug.h"
@@ -483,7 +496,7 @@ static int wlcore_fw_status(struct wl1271 *wl, struct wl_fw_status *status)
 	}
 
 	/* update the host-chipset time offset */
-	wl->time_offset = (ktime_get_boottime_ns() >> 10) -
+	wl->time_offset = (ktime_get_boot_ns() >> 10) -
 		(s64)(status->fw_localtime);
 
 	wl->fw_fast_lnk_map = status->link_fast_bitmap;
@@ -2862,8 +2875,21 @@ static int wlcore_join(struct wl1271 *wl, struct wl12xx_vif *wlvif)
 
 	if (is_ibss)
 		ret = wl12xx_cmd_role_start_ibss(wl, wlvif);
-	else
+	else {
+		if (wl->quirks & WLCORE_QUIRK_START_STA_FAILS) {
+			/*
+			 * TODO: this is an ugly workaround for wl12xx fw
+			 * bug - we are not able to tx/rx after the first
+			 * start_sta, so make dummy start+stop calls,
+			 * and then call start_sta again.
+			 * this should be fixed in the fw.
+			 */
+			wl12xx_cmd_role_start_sta(wl, wlvif);
+			wl12xx_cmd_role_stop_sta(wl, wlvif);
+		}
+
 		ret = wl12xx_cmd_role_start_sta(wl, wlvif);
+	}
 
 	return ret;
 }
@@ -3645,10 +3671,8 @@ void wlcore_regdomain_config(struct wl1271 *wl)
 		goto out;
 
 	ret = pm_runtime_get_sync(wl->dev);
-	if (ret < 0) {
-		pm_runtime_put_autosuspend(wl->dev);
+	if (ret < 0)
 		goto out;
-	}
 
 	ret = wlcore_cmd_regdomain_config_locked(wl);
 	if (ret < 0) {
@@ -5738,8 +5762,7 @@ static void wlcore_roc_complete_work(struct work_struct *work)
 		ieee80211_remain_on_channel_expired(wl->hw);
 }
 
-static int wlcore_op_cancel_remain_on_channel(struct ieee80211_hw *hw,
-					      struct ieee80211_vif *vif)
+static int wlcore_op_cancel_remain_on_channel(struct ieee80211_hw *hw)
 {
 	struct wl1271 *wl = hw->priv;
 
@@ -6607,24 +6630,12 @@ static void wlcore_nvs_cb(const struct firmware *fw, void *context)
 	}
 
 #ifdef CONFIG_PM
-	device_init_wakeup(wl->dev, true);
-
 	ret = enable_irq_wake(wl->irq);
 	if (!ret) {
 		wl->irq_wake_enabled = true;
+		device_init_wakeup(wl->dev, 1);
 		if (pdev_data->pwr_in_suspend)
 			wl->hw->wiphy->wowlan = &wlcore_wowlan_support;
-	}
-
-	res = platform_get_resource(pdev, IORESOURCE_IRQ, 1);
-	if (res) {
-		wl->wakeirq = res->start;
-		wl->wakeirq_flags = res->flags & IRQF_TRIGGER_MASK;
-		ret = dev_pm_set_dedicated_wake_irq(wl->dev, wl->wakeirq);
-		if (ret)
-			wl->wakeirq = -ENODEV;
-	} else {
-		wl->wakeirq = -ENODEV;
 	}
 #endif
 	disable_irq(wl->irq);
@@ -6653,9 +6664,6 @@ out_unreg:
 	wl1271_unregister_hw(wl);
 
 out_irq:
-	if (wl->wakeirq >= 0)
-		dev_pm_clear_wake_irq(wl->dev);
-	device_init_wakeup(wl->dev, false);
 	free_irq(wl->irq, wl);
 
 out_free_nvs:
@@ -6820,16 +6828,10 @@ int wlcore_remove(struct platform_device *pdev)
 	if (!wl->initialized)
 		return 0;
 
-	if (wl->wakeirq >= 0) {
-		dev_pm_clear_wake_irq(wl->dev);
-		wl->wakeirq = -ENODEV;
-	}
-
-	device_init_wakeup(wl->dev, false);
-
-	if (wl->irq_wake_enabled)
+	if (wl->irq_wake_enabled) {
+		device_init_wakeup(wl->dev, 0);
 		disable_irq_wake(wl->irq);
-
+	}
 	wl1271_unregister_hw(wl);
 
 	pm_runtime_put_sync(wl->dev);

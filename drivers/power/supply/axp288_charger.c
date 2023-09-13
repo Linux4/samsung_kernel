@@ -1,14 +1,21 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * axp288_charger.c - X-power AXP288 PMIC Charger driver
  *
  * Copyright (C) 2016-2017 Hans de Goede <hdegoede@redhat.com>
  * Copyright (C) 2014 Intel Corporation
  * Author: Ramakrishna Pallala <ramakrishna.pallala@intel.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #include <linux/acpi.h>
-#include <linux/bitops.h>
 #include <linux/module.h>
 #include <linux/device.h>
 #include <linux/regmap.h>
@@ -23,17 +30,17 @@
 #include <linux/extcon.h>
 #include <linux/dmi.h>
 
-#define PS_STAT_VBUS_TRIGGER		BIT(0)
-#define PS_STAT_BAT_CHRG_DIR		BIT(2)
-#define PS_STAT_VBAT_ABOVE_VHOLD	BIT(3)
-#define PS_STAT_VBUS_VALID		BIT(4)
-#define PS_STAT_VBUS_PRESENT		BIT(5)
+#define PS_STAT_VBUS_TRIGGER		(1 << 0)
+#define PS_STAT_BAT_CHRG_DIR		(1 << 2)
+#define PS_STAT_VBAT_ABOVE_VHOLD	(1 << 3)
+#define PS_STAT_VBUS_VALID		(1 << 4)
+#define PS_STAT_VBUS_PRESENT		(1 << 5)
 
-#define CHRG_STAT_BAT_SAFE_MODE		BIT(3)
-#define CHRG_STAT_BAT_VALID		BIT(4)
-#define CHRG_STAT_BAT_PRESENT		BIT(5)
-#define CHRG_STAT_CHARGING		BIT(6)
-#define CHRG_STAT_PMIC_OTP		BIT(7)
+#define CHRG_STAT_BAT_SAFE_MODE		(1 << 3)
+#define CHRG_STAT_BAT_VALID		(1 << 4)
+#define CHRG_STAT_BAT_PRESENT		(1 << 5)
+#define CHRG_STAT_CHARGING		(1 << 6)
+#define CHRG_STAT_PMIC_OTP		(1 << 7)
 
 #define VBUS_ISPOUT_CUR_LIM_MASK	0x03
 #define VBUS_ISPOUT_CUR_LIM_BIT_POS	0
@@ -41,38 +48,38 @@
 #define VBUS_ISPOUT_CUR_LIM_1500MA	0x1	/* 1500mA */
 #define VBUS_ISPOUT_CUR_LIM_2000MA	0x2	/* 2000mA */
 #define VBUS_ISPOUT_CUR_NO_LIM		0x3	/* 2500mA */
-#define VBUS_ISPOUT_VHOLD_SET_MASK	0x38
+#define VBUS_ISPOUT_VHOLD_SET_MASK	0x31
 #define VBUS_ISPOUT_VHOLD_SET_BIT_POS	0x3
 #define VBUS_ISPOUT_VHOLD_SET_OFFSET	4000	/* 4000mV */
 #define VBUS_ISPOUT_VHOLD_SET_LSB_RES	100	/* 100mV */
-#define VBUS_ISPOUT_VHOLD_SET_4400MV	0x4	/* 4400mV */
-#define VBUS_ISPOUT_VBUS_PATH_DIS	BIT(7)
+#define VBUS_ISPOUT_VHOLD_SET_4300MV	0x3	/* 4300mV */
+#define VBUS_ISPOUT_VBUS_PATH_DIS	(1 << 7)
 
 #define CHRG_CCCV_CC_MASK		0xf		/* 4 bits */
 #define CHRG_CCCV_CC_BIT_POS		0
 #define CHRG_CCCV_CC_OFFSET		200		/* 200mA */
 #define CHRG_CCCV_CC_LSB_RES		200		/* 200mA */
-#define CHRG_CCCV_ITERM_20P		BIT(4)		/* 20% of CC */
+#define CHRG_CCCV_ITERM_20P		(1 << 4)	/* 20% of CC */
 #define CHRG_CCCV_CV_MASK		0x60		/* 2 bits */
 #define CHRG_CCCV_CV_BIT_POS		5
 #define CHRG_CCCV_CV_4100MV		0x0		/* 4.10V */
 #define CHRG_CCCV_CV_4150MV		0x1		/* 4.15V */
 #define CHRG_CCCV_CV_4200MV		0x2		/* 4.20V */
 #define CHRG_CCCV_CV_4350MV		0x3		/* 4.35V */
-#define CHRG_CCCV_CHG_EN		BIT(7)
+#define CHRG_CCCV_CHG_EN		(1 << 7)
 
 #define CNTL2_CC_TIMEOUT_MASK		0x3	/* 2 bits */
 #define CNTL2_CC_TIMEOUT_OFFSET		6	/* 6 Hrs */
 #define CNTL2_CC_TIMEOUT_LSB_RES	2	/* 2 Hrs */
 #define CNTL2_CC_TIMEOUT_12HRS		0x3	/* 12 Hrs */
-#define CNTL2_CHGLED_TYPEB		BIT(4)
-#define CNTL2_CHG_OUT_TURNON		BIT(5)
+#define CNTL2_CHGLED_TYPEB		(1 << 4)
+#define CNTL2_CHG_OUT_TURNON		(1 << 5)
 #define CNTL2_PC_TIMEOUT_MASK		0xC0
 #define CNTL2_PC_TIMEOUT_OFFSET		40	/* 40 mins */
 #define CNTL2_PC_TIMEOUT_LSB_RES	10	/* 10 mins */
 #define CNTL2_PC_TIMEOUT_70MINS		0x3
 
-#define CHRG_ILIM_TEMP_LOOP_EN		BIT(3)
+#define CHRG_ILIM_TEMP_LOOP_EN		(1 << 3)
 #define CHRG_VBUS_ILIM_MASK		0xf0
 #define CHRG_VBUS_ILIM_BIT_POS		4
 #define CHRG_VBUS_ILIM_100MA		0x0	/* 100mA */
@@ -88,7 +95,7 @@
 #define CHRG_VLTFC_0C			0xA5	/* 0 DegC */
 #define CHRG_VHTFC_45C			0x1F	/* 45 DegC */
 
-#define FG_CNTL_OCV_ADJ_EN		BIT(3)
+#define FG_CNTL_OCV_ADJ_EN		(1 << 3)
 
 #define CV_4100MV			4100	/* 4100mV */
 #define CV_4150MV			4150	/* 4150mV */
@@ -548,15 +555,14 @@ out:
 
 /*
  * The HP Pavilion x2 10 series comes in a number of variants:
- * Bay Trail SoC    + AXP288 PMIC, Micro-USB, DMI_BOARD_NAME: "8021"
- * Bay Trail SoC    + AXP288 PMIC, Type-C,    DMI_BOARD_NAME: "815D"
- * Cherry Trail SoC + AXP288 PMIC, Type-C,    DMI_BOARD_NAME: "813E"
- * Cherry Trail SoC + TI PMIC,     Type-C,    DMI_BOARD_NAME: "827C" or "82F4"
+ * Bay Trail SoC    + AXP288 PMIC, DMI_BOARD_NAME: "815D"
+ * Cherry Trail SoC + AXP288 PMIC, DMI_BOARD_NAME: "813E"
+ * Cherry Trail SoC + TI PMIC,     DMI_BOARD_NAME: "827C" or "82F4"
  *
- * The variants with the AXP288 + Type-C connector are all kinds of special:
+ * The variants with the AXP288 PMIC are all kinds of special:
  *
- * 1. They use a Type-C connector which the AXP288 does not support, so when
- * using a Type-C charger it is not recognized. Unlike most AXP288 devices,
+ * 1. All variants use a Type-C connector which the AXP288 does not support, so
+ * when using a Type-C charger it is not recognized. Unlike most AXP288 devices,
  * this model actually has mostly working ACPI AC / Battery code, the ACPI code
  * "solves" this by simply setting the input_current_limit to 3A.
  * There are still some issues with the ACPI code, so we use this native driver,
@@ -579,17 +585,12 @@ out:
  */
 static const struct dmi_system_id axp288_hp_x2_dmi_ids[] = {
 	{
+		/*
+		 * Bay Trail model has "Hewlett-Packard" as sys_vendor, Cherry
+		 * Trail model has "HP", so we only match on product_name.
+		 */
 		.matches = {
-			DMI_EXACT_MATCH(DMI_SYS_VENDOR, "Hewlett-Packard"),
-			DMI_EXACT_MATCH(DMI_PRODUCT_NAME, "HP Pavilion x2 Detachable"),
-			DMI_EXACT_MATCH(DMI_BOARD_NAME, "815D"),
-		},
-	},
-	{
-		.matches = {
-			DMI_EXACT_MATCH(DMI_SYS_VENDOR, "HP"),
-			DMI_EXACT_MATCH(DMI_PRODUCT_NAME, "HP Pavilion x2 Detachable"),
-			DMI_EXACT_MATCH(DMI_BOARD_NAME, "813E"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "HP Pavilion x2 Detachable"),
 		},
 	},
 	{} /* Terminating entry */
@@ -744,16 +745,6 @@ static int charger_init_hw_regs(struct axp288_chrg_info *info)
 		ret = axp288_charger_vbus_path_select(info, true);
 		if (ret < 0)
 			return ret;
-	} else {
-		/* Set Vhold to the factory default / recommended 4.4V */
-		val = VBUS_ISPOUT_VHOLD_SET_4400MV << VBUS_ISPOUT_VHOLD_SET_BIT_POS;
-		ret = regmap_update_bits(info->regmap, AXP20X_VBUS_IPSOUT_MGMT,
-					 VBUS_ISPOUT_VHOLD_SET_MASK, val);
-		if (ret < 0) {
-			dev_err(&info->pdev->dev, "register(%x) write error(%d)\n",
-				AXP20X_VBUS_IPSOUT_MGMT, ret);
-			return ret;
-		}
 	}
 
 	/* Read current charge voltage and current limit */

@@ -1,9 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Xtensa Performance Monitor Module driver
  * See Tensilica Debug User's Guide for PMU registers documentation.
  *
  * Copyright (C) 2015 Cadence Design Systems Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/interrupt.h>
@@ -401,7 +404,7 @@ static struct pmu xtensa_pmu = {
 	.read = xtensa_pmu_read,
 };
 
-static int xtensa_pmu_setup(unsigned int cpu)
+static int xtensa_pmu_setup(int cpu)
 {
 	unsigned i;
 

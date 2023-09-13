@@ -847,7 +847,8 @@ static void poll_vortex(struct net_device *dev)
 
 static int vortex_suspend(struct device *dev)
 {
-	struct net_device *ndev = dev_get_drvdata(dev);
+	struct pci_dev *pdev = to_pci_dev(dev);
+	struct net_device *ndev = pci_get_drvdata(pdev);
 
 	if (!ndev || !netif_running(ndev))
 		return 0;
@@ -860,7 +861,8 @@ static int vortex_suspend(struct device *dev)
 
 static int vortex_resume(struct device *dev)
 {
-	struct net_device *ndev = dev_get_drvdata(dev);
+	struct pci_dev *pdev = to_pci_dev(dev);
+	struct net_device *ndev = pci_get_drvdata(pdev);
 	int err;
 
 	if (!ndev || !netif_running(ndev))
@@ -1149,7 +1151,7 @@ static int vortex_probe1(struct device *gendev, void __iomem *ioaddr, int irq,
 
 	print_info = (vortex_debug > 1);
 	if (print_info)
-		pr_info("See Documentation/networking/device_drivers/3com/vortex.txt\n");
+		pr_info("See Documentation/networking/vortex.txt\n");
 
 	pr_info("%s: 3Com %s %s at %p.\n",
 	       print_name,
@@ -1954,7 +1956,7 @@ vortex_error(struct net_device *dev, int status)
 				   dev->name, tx_status);
 			if (tx_status == 0x82) {
 				pr_err("Probably a duplex mismatch.  See "
-						"Documentation/networking/device_drivers/3com/vortex.txt\n");
+						"Documentation/networking/vortex.txt\n");
 			}
 			dump_tx_ring(dev);
 		}
@@ -2173,7 +2175,7 @@ boomerang_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 			dma_addr = skb_frag_dma_map(vp->gendev, frag,
 						    0,
-						    skb_frag_size(frag),
+						    frag->size,
 						    DMA_TO_DEVICE);
 			if (dma_mapping_error(vp->gendev, dma_addr)) {
 				for(i = i-1; i >= 0; i--)
@@ -2305,7 +2307,7 @@ _vortex_interrupt(int irq, struct net_device *dev)
 				dma_unmap_single(vp->gendev, vp->tx_skb_dma, (vp->tx_skb->len + 3) & ~3, DMA_TO_DEVICE);
 				pkts_compl++;
 				bytes_compl += vp->tx_skb->len;
-				dev_consume_skb_irq(vp->tx_skb); /* Release the transferred buffer */
+				dev_kfree_skb_irq(vp->tx_skb); /* Release the transferred buffer */
 				if (ioread16(ioaddr + TxFree) > 1536) {
 					/*
 					 * AKPM: FIXME: I don't think we need this.  If the queue was stopped due to
@@ -2447,7 +2449,7 @@ _boomerang_interrupt(int irq, struct net_device *dev)
 #endif
 					pkts_compl++;
 					bytes_compl += skb->len;
-					dev_consume_skb_irq(skb);
+					dev_kfree_skb_irq(skb);
 					vp->tx_skbuff[entry] = NULL;
 				} else {
 					pr_debug("boomerang_interrupt: no skb!\n");

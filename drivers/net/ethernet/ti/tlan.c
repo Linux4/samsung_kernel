@@ -69,9 +69,7 @@ MODULE_AUTHOR("Maintainer: Samuel Chessman <chessman@tux.org>");
 MODULE_DESCRIPTION("Driver for TI ThunderLAN based ethernet PCI adapters");
 MODULE_LICENSE("GPL");
 
-/* Turn on debugging.
- * See Documentation/networking/device_drivers/ti/tlan.txt for details
- */
+/* Turn on debugging. See Documentation/networking/tlan.txt for details */
 static  int		debug;
 module_param(debug, int, 0);
 MODULE_PARM_DESC(debug, "ThunderLAN debug mask");
@@ -314,8 +312,9 @@ static void tlan_remove_one(struct pci_dev *pdev)
 	pci_release_regions(pdev);
 #endif
 
-	cancel_work_sync(&priv->tlan_tqueue);
 	free_netdev(dev);
+
+	cancel_work_sync(&priv->tlan_tqueue);
 }
 
 static void tlan_start(struct net_device *dev)
@@ -672,6 +671,7 @@ module_exit(tlan_exit);
 static void  __init tlan_eisa_probe(void)
 {
 	long	ioaddr;
+	int	rc = -ENODEV;
 	int	irq;
 	u16	device_id;
 
@@ -736,7 +736,8 @@ static void  __init tlan_eisa_probe(void)
 
 
 		/* Setup the newly found eisa adapter */
-		tlan_probe1(NULL, ioaddr, irq, 12, NULL);
+		rc = tlan_probe1(NULL, ioaddr, irq,
+				 12, NULL);
 		continue;
 
 out:
@@ -852,6 +853,7 @@ static int tlan_init(struct net_device *dev)
 		       dev->name);
 		return -ENOMEM;
 	}
+	memset(priv->dma_storage, 0, dma_size);
 	priv->rx_list = (struct tlan_list *)
 		ALIGN((unsigned long)priv->dma_storage, 8);
 	priv->rx_list_dma = ALIGN(priv->dma_storage_dma, 8);

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Keystone NetCP Core driver
  *
@@ -9,6 +8,15 @@
  *		Santosh Shilimkar <santosh.shilimkar@ti.com>
  *		Murali Karicheri <m-karicheri2@ti.com>
  *		Wingman Kwok <w-kwok2@ti.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation version 2.
+ *
+ * This program is distributed "as is" WITHOUT ANY WARRANTY of any
+ * kind, whether express or implied; without even the implied warranty
+ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #include <linux/io.h>
@@ -217,6 +225,17 @@ static int emac_arch_get_mac_addr(char *x, void __iomem *efuse_mac, u32 swap)
 	return 0;
 }
 
+static const char *netcp_node_name(struct device_node *node)
+{
+	const char *name;
+
+	if (of_property_read_string(node, "label", &name) < 0)
+		name = node->name;
+	if (!name)
+		name = "unknown";
+	return name;
+}
+
 /* Module management routines */
 static int netcp_register_interface(struct netcp_intf *netcp)
 {
@@ -248,13 +267,8 @@ static int netcp_module_probe(struct netcp_device *netcp_device,
 	}
 
 	for_each_available_child_of_node(devices, child) {
-		const char *name;
-		char node_name[32];
+		const char *name = netcp_node_name(child);
 
-		if (of_property_read_string(child, "label", &name) < 0) {
-			snprintf(node_name, sizeof(node_name), "%pOFn", child);
-			name = node_name;
-		}
 		if (!strcasecmp(module->name, name))
 			break;
 	}
@@ -1116,7 +1130,7 @@ netcp_tx_map_skb(struct sk_buff *skb, struct netcp_intf *netcp)
 	for (i = 0; i < skb_shinfo(skb)->nr_frags; i++) {
 		skb_frag_t *frag = &skb_shinfo(skb)->frags[i];
 		struct page *page = skb_frag_page(frag);
-		u32 page_offset = skb_frag_off(frag);
+		u32 page_offset = frag->page_offset;
 		u32 buf_len = skb_frag_size(frag);
 		dma_addr_t desc_dma;
 		u32 desc_dma_32;
@@ -1350,9 +1364,9 @@ int netcp_txpipe_open(struct netcp_tx_pipe *tx_pipe)
 	tx_pipe->dma_queue = knav_queue_open(name, tx_pipe->dma_queue_id,
 					     KNAV_QUEUE_SHARED);
 	if (IS_ERR(tx_pipe->dma_queue)) {
-		ret = PTR_ERR(tx_pipe->dma_queue);
 		dev_err(dev, "Could not open DMA queue for channel \"%s\": %d\n",
 			name, ret);
+		ret = PTR_ERR(tx_pipe->dma_queue);
 		goto err;
 	}
 
@@ -2037,7 +2051,7 @@ static int netcp_create_interface(struct netcp_device *netcp_device,
 		devm_release_mem_region(dev, res.start, size);
 	} else {
 		mac_addr = of_get_mac_address(node_interface);
-		if (!IS_ERR(mac_addr))
+		if (mac_addr)
 			ether_addr_copy(ndev->dev_addr, mac_addr);
 		else
 			eth_random_addr(ndev->dev_addr);
@@ -2195,8 +2209,8 @@ static int netcp_probe(struct platform_device *pdev)
 	for_each_available_child_of_node(interfaces, child) {
 		ret = netcp_create_interface(netcp_device, child);
 		if (ret) {
-			dev_err(dev, "could not create interface(%pOFn)\n",
-				child);
+			dev_err(dev, "could not create interface(%s)\n",
+				child->name);
 			goto probe_quit_interface;
 		}
 	}

@@ -22,9 +22,13 @@ enum{
 	};
 
 /*
- * When we want to enable write operation, we should change to pwr on state.
- * When we stop write, we should switch to 500k mode and disable LDO 2.5V.
+ * Function:	efuse_power_switch
+ *
+ * Overview:	When we want to enable write operation, we should change to
+ *				pwr on state. When we stop write, we should switch to 500k mode
+ *				and disable LDO 2.5V.
  */
+
 void efuse_power_switch(struct adapter *pAdapter, u8 write, u8 pwrstate)
 {
 	u8 tempval;
@@ -37,7 +41,7 @@ void efuse_power_switch(struct adapter *pAdapter, u8 write, u8 pwrstate)
 		tmpv16 = usb_read16(pAdapter, REG_SYS_ISO_CTRL);
 		if (!(tmpv16 & PWC_EV12V)) {
 			tmpv16 |= PWC_EV12V;
-			usb_write16(pAdapter, REG_SYS_ISO_CTRL, tmpv16);
+			 usb_write16(pAdapter, REG_SYS_ISO_CTRL, tmpv16);
 		}
 		/*  Reset: 0x0000h[28], default valid */
 		tmpv16 =  usb_read16(pAdapter, REG_SYS_FUNC_EN);
@@ -82,22 +86,16 @@ efuse_phymap_to_logical(u8 *phymap, u16 _offset, u16 _size_byte, u8  *pbuf)
 	u16	**eFuseWord = NULL;
 	u16	efuse_utilized = 0;
 	u8 u1temp = 0;
-	void **tmp = NULL;
 
 	efuseTbl = kzalloc(EFUSE_MAP_LEN_88E, GFP_KERNEL);
 	if (!efuseTbl)
 		return;
 
-	tmp = kcalloc(EFUSE_MAX_SECTION_88E,
-		      sizeof(void *) + EFUSE_MAX_WORD_UNIT * sizeof(u16),
-		      GFP_KERNEL);
-	if (!tmp) {
+	eFuseWord = (u16 **)rtw_malloc2d(EFUSE_MAX_SECTION_88E, EFUSE_MAX_WORD_UNIT, sizeof(u16));
+	if (!eFuseWord) {
 		DBG_88E("%s: alloc eFuseWord fail!\n", __func__);
 		goto eFuseWord_failed;
 	}
-	for (i = 0; i < EFUSE_MAX_SECTION_88E; i++)
-		tmp[i] = ((char *)(tmp + EFUSE_MAX_SECTION_88E)) + i * EFUSE_MAX_WORD_UNIT * sizeof(u16);
-	eFuseWord = (u16 **)tmp;
 
 	/*  0. Refresh efuse init map as all oxFF. */
 	for (i = 0; i < EFUSE_MAX_SECTION_88E; i++)
@@ -108,7 +106,7 @@ efuse_phymap_to_logical(u8 *phymap, u16 _offset, u16 _size_byte, u8  *pbuf)
 	/*  1. Read the first byte to check if efuse is empty!!! */
 	/*  */
 	/*  */
-	rtemp8 = *(phymap + eFuse_Addr);
+	rtemp8 = *(phymap+eFuse_Addr);
 	if (rtemp8 != 0xFF) {
 		efuse_utilized++;
 		eFuse_Addr++;
@@ -124,10 +122,10 @@ efuse_phymap_to_logical(u8 *phymap, u16 _offset, u16 _size_byte, u8  *pbuf)
 		/*  Check PG header for section num. */
 		if ((rtemp8 & 0x1F) == 0x0F) {		/* extended header */
 			u1temp = (rtemp8 & 0xE0) >> 5;
-			rtemp8 = *(phymap + eFuse_Addr);
+			rtemp8 = *(phymap+eFuse_Addr);
 			if ((rtemp8 & 0x0F) == 0x0F) {
 				eFuse_Addr++;
-				rtemp8 = *(phymap + eFuse_Addr);
+				rtemp8 = *(phymap+eFuse_Addr);
 
 				if (rtemp8 != 0xFF && (eFuse_Addr < EFUSE_REAL_CONTENT_LEN_88E))
 					eFuse_Addr++;
@@ -147,13 +145,13 @@ efuse_phymap_to_logical(u8 *phymap, u16 _offset, u16 _size_byte, u8  *pbuf)
 			for (i = 0; i < EFUSE_MAX_WORD_UNIT; i++) {
 				/*  Check word enable condition in the section */
 				if (!(wren & 0x01)) {
-					rtemp8 = *(phymap + eFuse_Addr);
+					rtemp8 = *(phymap+eFuse_Addr);
 					eFuse_Addr++;
 					efuse_utilized++;
 					eFuseWord[offset][i] = (rtemp8 & 0xff);
 					if (eFuse_Addr >= EFUSE_REAL_CONTENT_LEN_88E)
 						break;
-					rtemp8 = *(phymap + eFuse_Addr);
+					rtemp8 = *(phymap+eFuse_Addr);
 					eFuse_Addr++;
 					efuse_utilized++;
 					eFuseWord[offset][i] |= (((u16)rtemp8 << 8) & 0xff00);
@@ -165,7 +163,7 @@ efuse_phymap_to_logical(u8 *phymap, u16 _offset, u16 _size_byte, u8  *pbuf)
 			}
 		}
 		/*  Read next PG header */
-		rtemp8 = *(phymap + eFuse_Addr);
+		rtemp8 = *(phymap+eFuse_Addr);
 
 		if (rtemp8 != 0xFF && (eFuse_Addr < EFUSE_REAL_CONTENT_LEN_88E)) {
 			efuse_utilized++;
@@ -178,8 +176,8 @@ efuse_phymap_to_logical(u8 *phymap, u16 _offset, u16 _size_byte, u8  *pbuf)
 	/*  */
 	for (i = 0; i < EFUSE_MAX_SECTION_88E; i++) {
 		for (j = 0; j < EFUSE_MAX_WORD_UNIT; j++) {
-			efuseTbl[(i * 8) + (j * 2)] = (eFuseWord[i][j] & 0xff);
-			efuseTbl[(i * 8) + ((j * 2) + 1)] = ((eFuseWord[i][j] >> 8) & 0xff);
+			efuseTbl[(i*8)+(j*2)] = (eFuseWord[i][j] & 0xff);
+			efuseTbl[(i*8)+((j*2)+1)] = ((eFuseWord[i][j] >> 8) & 0xff);
 		}
 	}
 
@@ -187,7 +185,7 @@ efuse_phymap_to_logical(u8 *phymap, u16 _offset, u16 _size_byte, u8  *pbuf)
 	/*  4. Copy from Efuse map to output pointer memory!!! */
 	/*  */
 	for (i = 0; i < _size_byte; i++)
-		pbuf[i] = efuseTbl[_offset + i];
+		pbuf[i] = efuseTbl[_offset+i];
 
 	/*  */
 	/*  5. Calculate Efuse utilization. */
@@ -218,16 +216,16 @@ static void efuse_read_phymap_from_txpktbuf(
 	u8 *pos = content;
 
 	if (bcnhead < 0) /* if not valid */
-		bcnhead = usb_read8(adapter, REG_TDECTRL + 1);
+		bcnhead = usb_read8(adapter, REG_TDECTRL+1);
 
 	DBG_88E("%s bcnhead:%d\n", __func__, bcnhead);
 
 	usb_write8(adapter, REG_PKT_BUFF_ACCESS_CTRL, TXPKT_BUF_SELECT);
 
-	dbg_addr = bcnhead * 128 / 8; /* 8-bytes addressing */
+	dbg_addr = bcnhead*128/8; /* 8-bytes addressing */
 
 	while (1) {
-		usb_write16(adapter, REG_PKTBUF_DBG_ADDR, dbg_addr + i);
+		usb_write16(adapter, REG_PKTBUF_DBG_ADDR, dbg_addr+i);
 
 		usb_write8(adapter, REG_TXPKTBUF_DBG, 0);
 		start = jiffies;
@@ -246,34 +244,34 @@ static void efuse_read_phymap_from_txpktbuf(
 			u16 aaa;
 
 			lenc[0] = usb_read8(adapter, REG_PKTBUF_DBG_DATA_L);
-			lenc[1] = usb_read8(adapter, REG_PKTBUF_DBG_DATA_L + 1);
+			lenc[1] = usb_read8(adapter, REG_PKTBUF_DBG_DATA_L+1);
 
 			aaabak = le16_to_cpup((__le16 *)lenc);
 			lenbak = le16_to_cpu(*((__le16 *)lenc));
 			aaa = le16_to_cpup((__le16 *)&lo32);
 			len = le16_to_cpu(*((__le16 *)&lo32));
 
-			limit = min_t(u16, len - 2, limit);
+			limit = min_t(u16, len-2, limit);
 
 			DBG_88E("%s len:%u, lenbak:%u, aaa:%u, aaabak:%u\n", __func__, len, lenbak, aaa, aaabak);
 
-			memcpy(pos, ((u8 *)&lo32) + 2, (limit >= count + 2) ? 2 : limit - count);
-			count += (limit >= count + 2) ? 2 : limit - count;
-			pos = content + count;
+			memcpy(pos, ((u8 *)&lo32)+2, (limit >= count+2) ? 2 : limit-count);
+			count += (limit >= count+2) ? 2 : limit-count;
+			pos = content+count;
 
 		} else {
-			memcpy(pos, ((u8 *)&lo32), (limit >= count + 4) ? 4 : limit - count);
-			count += (limit >= count + 4) ? 4 : limit - count;
-			pos = content + count;
+			memcpy(pos, ((u8 *)&lo32), (limit >= count+4) ? 4 : limit-count);
+			count += (limit >= count+4) ? 4 : limit-count;
+			pos = content+count;
 		}
 
-		if (limit > count && len - 2 > count) {
-			memcpy(pos, (u8 *)&hi32, (limit >= count + 4) ? 4 : limit - count);
-			count += (limit >= count + 4) ? 4 : limit - count;
-			pos = content + count;
+		if (limit > count && len-2 > count) {
+			memcpy(pos, (u8 *)&hi32, (limit >= count+4) ? 4 : limit-count);
+			count += (limit >= count+4) ? 4 : limit-count;
+			pos = content+count;
 		}
 
-		if (limit <= count || len - 2 <= count)
+		if (limit <= count || len-2 <= count)
 			break;
 		i++;
 	}
@@ -288,7 +286,7 @@ static s32 iol_read_efuse(struct adapter *padapter, u8 txpktbuf_bndy, u16 offset
 	u8 physical_map[512];
 	u16 size = 512;
 
-	usb_write8(padapter, REG_TDECTRL + 1, txpktbuf_bndy);
+	usb_write8(padapter, REG_TDECTRL+1, txpktbuf_bndy);
 	memset(physical_map, 0xFF, 512);
 	usb_write8(padapter, REG_PKT_BUFF_ACCESS_CTRL, TXPKT_BUF_SELECT);
 	status = iol_execute(padapter, CMD_READ_EFUSE_MAP);
@@ -323,7 +321,7 @@ u8 Efuse_WordEnableDataWrite(struct adapter *pAdapter, u16 efuse_addr, u8 word_e
 		efuse_OneByteWrite(pAdapter, start_addr++, data[1]);
 
 		efuse_OneByteRead(pAdapter, tmpaddr, &tmpdata[0]);
-		efuse_OneByteRead(pAdapter, tmpaddr + 1, &tmpdata[1]);
+		efuse_OneByteRead(pAdapter, tmpaddr+1, &tmpdata[1]);
 		if ((data[0] != tmpdata[0]) || (data[1] != tmpdata[1]))
 			badworden &= (~BIT(0));
 	}
@@ -333,7 +331,7 @@ u8 Efuse_WordEnableDataWrite(struct adapter *pAdapter, u16 efuse_addr, u8 word_e
 		efuse_OneByteWrite(pAdapter, start_addr++, data[3]);
 
 		efuse_OneByteRead(pAdapter, tmpaddr, &tmpdata[2]);
-		efuse_OneByteRead(pAdapter, tmpaddr + 1, &tmpdata[3]);
+		efuse_OneByteRead(pAdapter, tmpaddr+1, &tmpdata[3]);
 		if ((data[2] != tmpdata[2]) || (data[3] != tmpdata[3]))
 			badworden &= (~BIT(1));
 	}
@@ -343,7 +341,7 @@ u8 Efuse_WordEnableDataWrite(struct adapter *pAdapter, u16 efuse_addr, u8 word_e
 		efuse_OneByteWrite(pAdapter, start_addr++, data[5]);
 
 		efuse_OneByteRead(pAdapter, tmpaddr, &tmpdata[4]);
-		efuse_OneByteRead(pAdapter, tmpaddr + 1, &tmpdata[5]);
+		efuse_OneByteRead(pAdapter, tmpaddr+1, &tmpdata[5]);
 		if ((data[4] != tmpdata[4]) || (data[5] != tmpdata[5]))
 			badworden &= (~BIT(2));
 	}
@@ -353,7 +351,7 @@ u8 Efuse_WordEnableDataWrite(struct adapter *pAdapter, u16 efuse_addr, u8 word_e
 		efuse_OneByteWrite(pAdapter, start_addr++, data[7]);
 
 		efuse_OneByteRead(pAdapter, tmpaddr, &tmpdata[6]);
-		efuse_OneByteRead(pAdapter, tmpaddr + 1, &tmpdata[7]);
+		efuse_OneByteRead(pAdapter, tmpaddr+1, &tmpdata[7]);
 		if ((data[6] != tmpdata[6]) || (data[7] != tmpdata[7]))
 			badworden &= (~BIT(3));
 	}
@@ -362,16 +360,18 @@ u8 Efuse_WordEnableDataWrite(struct adapter *pAdapter, u16 efuse_addr, u8 word_e
 
 static u16 Efuse_GetCurrentSize(struct adapter *pAdapter)
 {
+	int	bContinual = true;
 	u16	efuse_addr = 0;
 	u8 hoffset = 0, hworden = 0;
 	u8 efuse_data, word_cnts = 0;
 
 	rtw_hal_get_hwreg(pAdapter, HW_VAR_EFUSE_BYTES, (u8 *)&efuse_addr);
 
-	while (efuse_OneByteRead(pAdapter, efuse_addr, &efuse_data) &&
+	while (bContinual &&
+	       efuse_OneByteRead(pAdapter, efuse_addr, &efuse_data) &&
 	       AVAILABLE_EFUSE_ADDR(efuse_addr)) {
 		if (efuse_data != 0xFF) {
-			if ((efuse_data & 0x1F) == 0x0F) {		/* extended header */
+			if ((efuse_data&0x1F) == 0x0F) {		/* extended header */
 				hoffset = efuse_data;
 				efuse_addr++;
 				efuse_OneByteRead(pAdapter, efuse_addr, &efuse_data);
@@ -383,14 +383,14 @@ static u16 Efuse_GetCurrentSize(struct adapter *pAdapter)
 					hworden = efuse_data & 0x0F;
 				}
 			} else {
-				hoffset = (efuse_data >> 4) & 0x0F;
+				hoffset = (efuse_data>>4) & 0x0F;
 				hworden =  efuse_data & 0x0F;
 			}
 			word_cnts = Efuse_CalculateWordCnts(hworden);
 			/* read next header */
-			efuse_addr = efuse_addr + (word_cnts * 2) + 1;
+			efuse_addr = efuse_addr + (word_cnts*2)+1;
 		} else {
-			break;
+			bContinual = false;
 		}
 	}
 
@@ -439,28 +439,28 @@ int Efuse_PgPacketRead(struct adapter *pAdapter, u8 offset, u8 *data)
 						continue;
 					}
 				} else {
-					hoffset = (efuse_data >> 4) & 0x0F;
+					hoffset = (efuse_data>>4) & 0x0F;
 					hworden =  efuse_data & 0x0F;
 				}
 				word_cnts = Efuse_CalculateWordCnts(hworden);
 				bDataEmpty = true;
 
 				if (hoffset == offset) {
-					for (tmpidx = 0; tmpidx < word_cnts * 2; tmpidx++) {
-						if (efuse_OneByteRead(pAdapter, efuse_addr + 1 + tmpidx, &efuse_data)) {
+					for (tmpidx = 0; tmpidx < word_cnts*2; tmpidx++) {
+						if (efuse_OneByteRead(pAdapter, efuse_addr+1+tmpidx, &efuse_data)) {
 							tmpdata[tmpidx] = efuse_data;
 							if (efuse_data != 0xff)
 								bDataEmpty = false;
 						}
 					}
-					if (!bDataEmpty) {
+					if (bDataEmpty == false) {
 						ReadState = PG_STATE_DATA;
 					} else {/* read next header */
-						efuse_addr = efuse_addr + (word_cnts * 2) + 1;
+						efuse_addr = efuse_addr + (word_cnts*2)+1;
 						ReadState = PG_STATE_HEADER;
 					}
 				} else {/* read next header */
-					efuse_addr = efuse_addr + (word_cnts * 2) + 1;
+					efuse_addr = efuse_addr + (word_cnts*2)+1;
 					ReadState = PG_STATE_HEADER;
 				}
 			} else {
@@ -469,7 +469,7 @@ int Efuse_PgPacketRead(struct adapter *pAdapter, u8 offset, u8 *data)
 		} else if (ReadState & PG_STATE_DATA) {
 			/*   Data section Read ------------- */
 			efuse_WordEnableDataRead(hworden, tmpdata, data);
-			efuse_addr = efuse_addr + (word_cnts * 2) + 1;
+			efuse_addr = efuse_addr + (word_cnts*2)+1;
 			ReadState = PG_STATE_HEADER;
 		}
 	}
@@ -491,7 +491,7 @@ static bool hal_EfuseFixHeaderProcess(struct adapter *pAdapter, u8 efuseType, st
 
 	if (Efuse_PgPacketRead(pAdapter, pFixPkt->offset, originaldata)) {
 		/* check if data exist */
-		badworden = Efuse_WordEnableDataWrite(pAdapter, efuse_addr + 1, pFixPkt->word_en, originaldata);
+		badworden = Efuse_WordEnableDataWrite(pAdapter, efuse_addr+1, pFixPkt->word_en, originaldata);
 
 		if (badworden != 0xf) {	/*  write fail */
 			PgWriteSuccess = Efuse_PgPacketWrite(pAdapter, pFixPkt->offset, badworden, originaldata);
@@ -501,10 +501,10 @@ static bool hal_EfuseFixHeaderProcess(struct adapter *pAdapter, u8 efuseType, st
 			else
 				efuse_addr = Efuse_GetCurrentSize(pAdapter);
 		} else {
-			efuse_addr = efuse_addr + (pFixPkt->word_cnts * 2) + 1;
+			efuse_addr = efuse_addr + (pFixPkt->word_cnts*2) + 1;
 		}
 	} else {
-		efuse_addr = efuse_addr + (pFixPkt->word_cnts * 2) + 1;
+		efuse_addr = efuse_addr + (pFixPkt->word_cnts*2) + 1;
 	}
 	*pAddr = efuse_addr;
 	return true;
@@ -512,7 +512,7 @@ static bool hal_EfuseFixHeaderProcess(struct adapter *pAdapter, u8 efuseType, st
 
 static bool hal_EfusePgPacketWrite2ByteHeader(struct adapter *pAdapter, u8 efuseType, u16 *pAddr, struct pgpkt *pTargetPkt)
 {
-	bool ret = false;
+	bool bRet = false;
 	u16 efuse_addr = *pAddr;
 	u16 efuse_max_available_len =
 		EFUSE_REAL_CONTENT_LEN_88E - EFUSE_OOB_PROTECT_BYTES_88E;
@@ -564,7 +564,7 @@ static bool hal_EfusePgPacketWrite2ByteHeader(struct adapter *pAdapter, u8 efuse
 				if (!hal_EfuseFixHeaderProcess(pAdapter, efuseType, &fixPkt, &efuse_addr))
 					return false;
 			} else {
-				ret = true;
+				bRet = true;
 				break;
 			}
 		} else if ((tmp_header & 0x1F) == 0x0F) {		/* wrong extended header */
@@ -574,12 +574,12 @@ static bool hal_EfusePgPacketWrite2ByteHeader(struct adapter *pAdapter, u8 efuse
 	}
 
 	*pAddr = efuse_addr;
-	return ret;
+	return bRet;
 }
 
 static bool hal_EfusePgPacketWrite1ByteHeader(struct adapter *pAdapter, u8 efuseType, u16 *pAddr, struct pgpkt *pTargetPkt)
 {
-	bool ret = false;
+	bool bRet = false;
 	u8 pg_header = 0, tmp_header = 0;
 	u16	efuse_addr = *pAddr;
 	u8 repeatcnt = 0;
@@ -597,11 +597,11 @@ static bool hal_EfusePgPacketWrite1ByteHeader(struct adapter *pAdapter, u8 efuse
 	}
 
 	if (pg_header == tmp_header) {
-		ret = true;
+		bRet = true;
 	} else {
 		struct pgpkt	fixPkt;
 
-		fixPkt.offset = (tmp_header >> 4) & 0x0F;
+		fixPkt.offset = (tmp_header>>4) & 0x0F;
 		fixPkt.word_en = tmp_header & 0x0F;
 		fixPkt.word_cnts = Efuse_CalculateWordCnts(fixPkt.word_en);
 		if (!hal_EfuseFixHeaderProcess(pAdapter, efuseType, &fixPkt, &efuse_addr))
@@ -609,7 +609,7 @@ static bool hal_EfusePgPacketWrite1ByteHeader(struct adapter *pAdapter, u8 efuse
 	}
 
 	*pAddr = efuse_addr;
-	return ret;
+	return bRet;
 }
 
 static bool hal_EfusePgPacketWriteData(struct adapter *pAdapter, u8 efuseType, u16 *pAddr, struct pgpkt *pTargetPkt)
@@ -619,7 +619,7 @@ static bool hal_EfusePgPacketWriteData(struct adapter *pAdapter, u8 efuseType, u
 	u32	PgWriteSuccess = 0;
 
 	badworden = 0x0f;
-	badworden = Efuse_WordEnableDataWrite(pAdapter, efuse_addr + 1, pTargetPkt->word_en, pTargetPkt->data);
+	badworden = Efuse_WordEnableDataWrite(pAdapter, efuse_addr+1, pTargetPkt->word_en, pTargetPkt->data);
 	if (badworden == 0x0F) {
 		/*  write ok */
 		return true;
@@ -639,14 +639,14 @@ hal_EfusePgPacketWriteHeader(
 				u16				*pAddr,
 				struct pgpkt *pTargetPkt)
 {
-	bool ret = false;
+	bool bRet = false;
 
 	if (pTargetPkt->offset >= EFUSE_MAX_SECTION_BASE)
-		ret = hal_EfusePgPacketWrite2ByteHeader(pAdapter, efuseType, pAddr, pTargetPkt);
+		bRet = hal_EfusePgPacketWrite2ByteHeader(pAdapter, efuseType, pAddr, pTargetPkt);
 	else
-		ret = hal_EfusePgPacketWrite1ByteHeader(pAdapter, efuseType, pAddr, pTargetPkt);
+		bRet = hal_EfusePgPacketWrite1ByteHeader(pAdapter, efuseType, pAddr, pTargetPkt);
 
-	return ret;
+	return bRet;
 }
 
 static bool wordEnMatched(struct pgpkt *pTargetPkt, struct pgpkt *pCurPkt,
@@ -678,19 +678,19 @@ static bool wordEnMatched(struct pgpkt *pTargetPkt, struct pgpkt *pCurPkt,
 
 static bool hal_EfuseCheckIfDatafollowed(struct adapter *pAdapter, u8 word_cnts, u16 startAddr)
 {
-	bool ret = false;
+	bool bRet = false;
 	u8 i, efuse_data;
 
-	for (i = 0; i < (word_cnts * 2); i++) {
-		if (efuse_OneByteRead(pAdapter, (startAddr + i), &efuse_data) && (efuse_data != 0xFF))
-			ret = true;
+	for (i = 0; i < (word_cnts*2); i++) {
+		if (efuse_OneByteRead(pAdapter, (startAddr+i), &efuse_data) && (efuse_data != 0xFF))
+			bRet = true;
 	}
-	return ret;
+	return bRet;
 }
 
 static bool hal_EfusePartialWriteCheck(struct adapter *pAdapter, u8 efuseType, u16 *pAddr, struct pgpkt *pTargetPkt)
 {
-	bool ret = false;
+	bool bRet = false;
 	u8 i, efuse_data = 0, cur_header = 0;
 	u8 matched_wden = 0, badworden = 0;
 	u16 startAddr = 0;
@@ -703,7 +703,7 @@ static bool hal_EfusePartialWriteCheck(struct adapter *pAdapter, u8 efuseType, u
 
 	while (1) {
 		if (startAddr >= efuse_max_available_len) {
-			ret = false;
+			bRet = false;
 			break;
 		}
 
@@ -713,7 +713,7 @@ static bool hal_EfusePartialWriteCheck(struct adapter *pAdapter, u8 efuseType, u
 				startAddr++;
 				efuse_OneByteRead(pAdapter, startAddr, &efuse_data);
 				if (ALL_WORDS_DISABLED(efuse_data)) {
-					ret = false;
+					bRet = false;
 					break;
 				} else {
 					curPkt.offset = ((cur_header & 0xE0) >> 5) | ((efuse_data & 0xF0) >> 1);
@@ -721,7 +721,7 @@ static bool hal_EfusePartialWriteCheck(struct adapter *pAdapter, u8 efuseType, u
 				}
 			} else {
 				cur_header  =  efuse_data;
-				curPkt.offset = (cur_header >> 4) & 0x0F;
+				curPkt.offset = (cur_header>>4) & 0x0F;
 				curPkt.word_en = cur_header & 0x0F;
 			}
 
@@ -729,10 +729,10 @@ static bool hal_EfusePartialWriteCheck(struct adapter *pAdapter, u8 efuseType, u
 			/*  if same header is found but no data followed */
 			/*  write some part of data followed by the header. */
 			if ((curPkt.offset == pTargetPkt->offset) &&
-			    (!hal_EfuseCheckIfDatafollowed(pAdapter, curPkt.word_cnts, startAddr + 1)) &&
+			    (!hal_EfuseCheckIfDatafollowed(pAdapter, curPkt.word_cnts, startAddr+1)) &&
 			    wordEnMatched(pTargetPkt, &curPkt, &matched_wden)) {
 				/*  Here to write partial data */
-				badworden = Efuse_WordEnableDataWrite(pAdapter, startAddr + 1, matched_wden, pTargetPkt->data);
+				badworden = Efuse_WordEnableDataWrite(pAdapter, startAddr+1, matched_wden, pTargetPkt->data);
 				if (badworden != 0x0F) {
 					u32	PgWriteSuccess = 0;
 					/*  if write fail on some words, write these bad words again */
@@ -740,32 +740,43 @@ static bool hal_EfusePartialWriteCheck(struct adapter *pAdapter, u8 efuseType, u
 					PgWriteSuccess = Efuse_PgPacketWrite(pAdapter, pTargetPkt->offset, badworden, pTargetPkt->data);
 
 					if (!PgWriteSuccess) {
-						ret = false;	/*  write fail, return */
+						bRet = false;	/*  write fail, return */
 						break;
 					}
 				}
 				/*  partial write ok, update the target packet for later use */
 				for (i = 0; i < 4; i++) {
-					if ((matched_wden & (0x1 << i)) == 0)	/*  this word has been written */
-						pTargetPkt->word_en |= (0x1 << i);	/*  disable the word */
+					if ((matched_wden & (0x1<<i)) == 0)	/*  this word has been written */
+						pTargetPkt->word_en |= (0x1<<i);	/*  disable the word */
 				}
 				pTargetPkt->word_cnts = Efuse_CalculateWordCnts(pTargetPkt->word_en);
 			}
 			/*  read from next header */
-			startAddr = startAddr + (curPkt.word_cnts * 2) + 1;
+			startAddr = startAddr + (curPkt.word_cnts*2) + 1;
 		} else {
 			/*  not used header, 0xff */
 			*pAddr = startAddr;
-			ret = true;
+			bRet = true;
 			break;
 		}
 	}
-	return ret;
+	return bRet;
+}
+
+static bool
+hal_EfusePgCheckAvailableAddr(
+		struct adapter *pAdapter,
+		u8 efuseType
+	)
+{
+	if (Efuse_GetCurrentSize(pAdapter) >= EFUSE_MAP_LEN_88E)
+		return false;
+	return true;
 }
 
 static void hal_EfuseConstructPGPkt(u8 offset, u8 word_en, u8 *pData, struct pgpkt *pTargetPkt)
 {
-	memset((void *)pTargetPkt->data, 0xFF, sizeof(u8) * 8);
+	memset((void *)pTargetPkt->data, 0xFF, sizeof(u8)*8);
 	pTargetPkt->offset = offset;
 	pTargetPkt->word_en = word_en;
 	efuse_WordEnableDataRead(word_en, pData, pTargetPkt->data);
@@ -778,7 +789,7 @@ bool Efuse_PgPacketWrite(struct adapter *pAdapter, u8 offset, u8 word_en, u8 *pD
 	u16			startAddr = 0;
 	u8 efuseType = EFUSE_WIFI;
 
-	if (Efuse_GetCurrentSize(pAdapter) >= EFUSE_MAP_LEN_88E)
+	if (!hal_EfusePgCheckAvailableAddr(pAdapter, efuseType))
 		return false;
 
 	hal_EfuseConstructPGPkt(offset, word_en, pData, &targetPkt);
@@ -815,13 +826,13 @@ u8 efuse_OneByteRead(struct adapter *pAdapter, u16 addr, u8 *data)
 	u8 tmpidx = 0;
 	u8 result;
 
-	usb_write8(pAdapter, EFUSE_CTRL + 1, (u8)(addr & 0xff));
-	usb_write8(pAdapter, EFUSE_CTRL + 2, ((u8)((addr >> 8) & 0x03)) |
-		   (usb_read8(pAdapter, EFUSE_CTRL + 2) & 0xFC));
+	usb_write8(pAdapter, EFUSE_CTRL+1, (u8)(addr & 0xff));
+	usb_write8(pAdapter, EFUSE_CTRL+2, ((u8)((addr>>8) & 0x03)) |
+		   (usb_read8(pAdapter, EFUSE_CTRL+2) & 0xFC));
 
-	usb_write8(pAdapter, EFUSE_CTRL + 3,  0x72);/* read cmd */
+	usb_write8(pAdapter, EFUSE_CTRL+3,  0x72);/* read cmd */
 
-	while (!(0x80 & usb_read8(pAdapter, EFUSE_CTRL + 3)) && (tmpidx < 100))
+	while (!(0x80 & usb_read8(pAdapter, EFUSE_CTRL+3)) && (tmpidx < 100))
 		tmpidx++;
 	if (tmpidx < 100) {
 		*data = usb_read8(pAdapter, EFUSE_CTRL);
@@ -838,15 +849,15 @@ u8 efuse_OneByteWrite(struct adapter *pAdapter, u16 addr, u8 data)
 	u8 tmpidx = 0;
 	u8 result;
 
-	usb_write8(pAdapter, EFUSE_CTRL + 1, (u8)(addr & 0xff));
-	usb_write8(pAdapter, EFUSE_CTRL + 2,
-		   (usb_read8(pAdapter, EFUSE_CTRL + 2) & 0xFC) |
-		   (u8)((addr >> 8) & 0x03));
+	usb_write8(pAdapter, EFUSE_CTRL+1, (u8)(addr&0xff));
+	usb_write8(pAdapter, EFUSE_CTRL+2,
+		   (usb_read8(pAdapter, EFUSE_CTRL+2) & 0xFC) |
+		   (u8)((addr>>8) & 0x03));
 	usb_write8(pAdapter, EFUSE_CTRL, data);/* data */
 
-	usb_write8(pAdapter, EFUSE_CTRL + 3, 0xF2);/* write cmd */
+	usb_write8(pAdapter, EFUSE_CTRL+3, 0xF2);/* write cmd */
 
-	while ((0x80 &  usb_read8(pAdapter, EFUSE_CTRL + 3)) && (tmpidx < 100))
+	while ((0x80 &  usb_read8(pAdapter, EFUSE_CTRL+3)) && (tmpidx < 100))
 		tmpidx++;
 
 	if (tmpidx < 100)
@@ -857,7 +868,9 @@ u8 efuse_OneByteWrite(struct adapter *pAdapter, u16 addr, u8 data)
 	return result;
 }
 
-/* Read allowed word in current efuse section data. */
+/*
+ * Overview:   Read allowed word in current efuse section data.
+ */
 void efuse_WordEnableDataRead(u8 word_en, u8 *sourdata, u8 *targetdata)
 {
 	if (!(word_en & BIT(0))) {
@@ -878,7 +891,9 @@ void efuse_WordEnableDataRead(u8 word_en, u8 *sourdata, u8 *targetdata)
 	}
 }
 
-/* Read All Efuse content */
+/*
+ * Overview:	Read All Efuse content
+ */
 static void Efuse_ReadAllMap(struct adapter *pAdapter, u8 efuseType, u8 *Efuse)
 {
 	efuse_power_switch(pAdapter, false, true);
@@ -888,8 +903,12 @@ static void Efuse_ReadAllMap(struct adapter *pAdapter, u8 efuseType, u8 *Efuse)
 	efuse_power_switch(pAdapter, false, false);
 }
 
-/* Transfer current EFUSE content to shadow init and modify map. */
-void EFUSE_ShadowMapUpdate(struct adapter *pAdapter, u8 efuseType)
+/*
+ * Overview:	Transfer current EFUSE content to shadow init and modify map.
+ */
+void EFUSE_ShadowMapUpdate(
+	struct adapter *pAdapter,
+	u8 efuseType)
 {
 	struct eeprom_priv *pEEPROM = GET_EEPROM_EFUSE_PRIV(pAdapter);
 

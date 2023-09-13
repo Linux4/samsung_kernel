@@ -18,11 +18,6 @@
 #define CG_PATH			"/foo"
 #define SOCKET_COOKIE_PROG	"./socket_cookie_prog.o"
 
-struct socket_cookie {
-	__u64 cookie_key;
-	__u32 cookie_value;
-};
-
 static int start_server(void)
 {
 	struct sockaddr_in6 addr;
@@ -94,7 +89,8 @@ static int validate_map(struct bpf_map *map, int client_fd)
 	__u32 cookie_expected_value;
 	struct sockaddr_in6 addr;
 	socklen_t len = sizeof(addr);
-	struct socket_cookie val;
+	__u32 cookie_value;
+	__u64 cookie_key;
 	int err = 0;
 	int map_fd;
 
@@ -105,7 +101,17 @@ static int validate_map(struct bpf_map *map, int client_fd)
 
 	map_fd = bpf_map__fd(map);
 
-	err = bpf_map_lookup_elem(map_fd, &client_fd, &val);
+	err = bpf_map_get_next_key(map_fd, NULL, &cookie_key);
+	if (err) {
+		log_err("Can't get cookie key from map");
+		goto out;
+	}
+
+	err = bpf_map_lookup_elem(map_fd, &cookie_key, &cookie_value);
+	if (err) {
+		log_err("Can't get cookie value from map");
+		goto out;
+	}
 
 	err = getsockname(client_fd, (struct sockaddr *)&addr, &len);
 	if (err) {
@@ -114,8 +120,8 @@ static int validate_map(struct bpf_map *map, int client_fd)
 	}
 
 	cookie_expected_value = (ntohs(addr.sin6_port) << 8) | 0xFF;
-	if (val.cookie_value != cookie_expected_value) {
-		log_err("Unexpected value in map: %x != %x", val.cookie_value,
+	if (cookie_value != cookie_expected_value) {
+		log_err("Unexpected value in map: %x != %x", cookie_value,
 			cookie_expected_value);
 		goto err;
 	}
@@ -142,7 +148,6 @@ static int run_test(int cgfd)
 	memset(&attr, 0, sizeof(attr));
 	attr.file = SOCKET_COOKIE_PROG;
 	attr.prog_type = BPF_PROG_TYPE_UNSPEC;
-	attr.prog_flags = BPF_F_TEST_RND_HI32;
 
 	err = bpf_prog_load_xattr(&attr, &pobj, &prog_fd);
 	if (err) {
@@ -153,8 +158,14 @@ static int run_test(int cgfd)
 	bpf_object__for_each_program(prog, pobj) {
 		prog_name = bpf_program__title(prog, /*needs_copy*/ false);
 
-		if (libbpf_attach_type_by_name(prog_name, &attach_type))
+		if (strcmp(prog_name, "cgroup/connect6") == 0) {
+			attach_type = BPF_CGROUP_INET6_CONNECT;
+		} else if (strcmp(prog_name, "sockops") == 0) {
+			attach_type = BPF_CGROUP_SOCK_OPS;
+		} else {
+			log_err("Unexpected prog: %s", prog_name);
 			goto err;
+		}
 
 		err = bpf_prog_attach(bpf_program__fd(prog), cgfd, attach_type,
 				      BPF_F_ALLOW_OVERRIDE);
@@ -195,7 +206,7 @@ int main(int argc, char **argv)
 		goto err;
 
 	cgfd = create_and_get_cgroup(CG_PATH);
-	if (cgfd < 0)
+	if (!cgfd)
 		goto err;
 
 	if (join_cgroup(CG_PATH))

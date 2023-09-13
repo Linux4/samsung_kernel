@@ -314,7 +314,6 @@ static void ftrace_syscall_enter(void *data, struct pt_regs *regs, long id)
 	struct ring_buffer_event *event;
 	struct ring_buffer *buffer;
 	unsigned long irq_flags;
-	unsigned long args[6];
 	int pc;
 	int syscall_nr;
 	int size;
@@ -348,15 +347,10 @@ static void ftrace_syscall_enter(void *data, struct pt_regs *regs, long id)
 
 	entry = ring_buffer_event_data(event);
 	entry->nr = syscall_nr;
-	syscall_get_arguments(current, regs, args);
-	memcpy(entry->args, args, sizeof(unsigned long) * sys_data->nb_args);
-#ifdef CONFIG_CORESIGHT_QGKI
-	event_trigger_unlock_commit(trace_file, buffer, event, entry,
-				    irq_flags, pc, 0);
-#else
+	syscall_get_arguments(current, regs, 0, sys_data->nb_args, entry->args);
+
 	event_trigger_unlock_commit(trace_file, buffer, event, entry,
 				    irq_flags, pc);
-#endif
 }
 
 static void ftrace_syscall_exit(void *data, struct pt_regs *regs, long ret)
@@ -401,13 +395,8 @@ static void ftrace_syscall_exit(void *data, struct pt_regs *regs, long ret)
 	entry->nr = syscall_nr;
 	entry->ret = syscall_get_return_value(current, regs);
 
-#ifdef CONFIG_CORESIGHT_QGKI
-	event_trigger_unlock_commit(trace_file, buffer, event, entry,
-				    irq_flags, pc, 0);
-#else
 	event_trigger_unlock_commit(trace_file, buffer, event, entry,
 				    irq_flags, pc);
-#endif
 }
 
 static int reg_event_syscall_enter(struct trace_event_file *file,
@@ -594,7 +583,6 @@ static void perf_syscall_enter(void *ignore, struct pt_regs *regs, long id)
 	struct syscall_metadata *sys_data;
 	struct syscall_trace_enter *rec;
 	struct hlist_head *head;
-	unsigned long args[6];
 	bool valid_prog_array;
 	int syscall_nr;
 	int rctx;
@@ -625,8 +613,8 @@ static void perf_syscall_enter(void *ignore, struct pt_regs *regs, long id)
 		return;
 
 	rec->nr = syscall_nr;
-	syscall_get_arguments(current, regs, args);
-	memcpy(&rec->args, args, sizeof(unsigned long) * sys_data->nb_args);
+	syscall_get_arguments(current, regs, 0, sys_data->nb_args,
+			       (unsigned long *)&rec->args);
 
 	if ((valid_prog_array &&
 	     !perf_call_bpf_enter(sys_data->enter_event, regs, sys_data, rec)) ||

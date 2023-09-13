@@ -1,7 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * QLogic iSCSI Offload Driver
  * Copyright (c) 2016 Cavium Inc.
+ *
+ * This software is available under the terms of the GNU General Public License
+ * (GPL) Version 2, available from the file COPYING in the main directory of
+ * this source tree.
  */
 
 #include <linux/module.h>
@@ -40,11 +43,6 @@ uint qedi_io_tracing;
 module_param(qedi_io_tracing, uint, 0644);
 MODULE_PARM_DESC(qedi_io_tracing,
 		 " Enable logging of SCSI requests/completions into trace buffer. (default off).");
-
-uint qedi_ll2_buf_size = 0x400;
-module_param(qedi_ll2_buf_size, uint, 0644);
-MODULE_PARM_DESC(qedi_ll2_buf_size,
-		 "parameter to set ping packet size, default - 0x400, Jumbo packets - 0x2400.");
 
 const struct qed_iscsi_ops *qedi_ops;
 static struct scsi_transport_template *qedi_scsi_transport;
@@ -230,7 +228,7 @@ static int __qedi_alloc_uio_rings(struct qedi_uio_dev *udev)
 	}
 
 	/* Allocating memory for Tx/Rx pkt buffer */
-	udev->ll2_buf_size = TX_RX_RING * qedi_ll2_buf_size;
+	udev->ll2_buf_size = TX_RX_RING * LL2_SINGLE_BUF_SIZE;
 	udev->ll2_buf_size = QEDI_PAGE_ALIGN(udev->ll2_buf_size);
 	udev->ll2_buf = (void *)__get_free_pages(GFP_KERNEL | __GFP_COMP |
 						 __GFP_ZERO, 2);
@@ -285,7 +283,7 @@ static int qedi_alloc_uio_rings(struct qedi_ctx *qedi)
 	qedi->udev = udev;
 
 	udev->tx_pkt = udev->ll2_buf;
-	udev->rx_pkt = udev->ll2_buf + qedi_ll2_buf_size;
+	udev->rx_pkt = udev->ll2_buf + LL2_SINGLE_BUF_SIZE;
 	return 0;
 
  err_uctrl:
@@ -631,7 +629,7 @@ static struct qedi_ctx *qedi_host_alloc(struct pci_dev *pdev)
 		goto exit_setup_shost;
 	}
 
-	shost->max_id = QEDI_MAX_ISCSI_CONNS_PER_HBA - 1;
+	shost->max_id = QEDI_MAX_ISCSI_CONNS_PER_HBA;
 	shost->max_channel = 0;
 	shost->max_lun = ~0;
 	shost->max_cmd_len = 16;
@@ -646,7 +644,8 @@ static struct qedi_ctx *qedi_host_alloc(struct pci_dev *pdev)
 	qedi->max_active_conns = ISCSI_MAX_SESS_PER_HBA;
 	qedi->max_sqes = QEDI_SQ_SIZE;
 
-	shost->nr_hw_queues = MIN_NUM_CPUS_MSIX(qedi);
+	if (shost_use_blk_mq(shost))
+		shost->nr_hw_queues = MIN_NUM_CPUS_MSIX(qedi);
 
 	pci_set_drvdata(pdev, qedi);
 
@@ -660,7 +659,7 @@ static int qedi_ll2_rx(void *cookie, struct sk_buff *skb, u32 arg1, u32 arg2)
 	struct qedi_uio_dev *udev;
 	struct qedi_uio_ctrl *uctrl;
 	struct skb_work_list *work;
-	struct ethhdr *eh;
+	u32 prod;
 
 	if (!qedi) {
 		QEDI_ERR(NULL, "qedi is NULL\n");
@@ -673,29 +672,6 @@ static int qedi_ll2_rx(void *cookie, struct sk_buff *skb, u32 arg1, u32 arg2)
 		kfree_skb(skb);
 		return 0;
 	}
-
-	eh = (struct ethhdr *)skb->data;
-	/* Undo VLAN encapsulation */
-	if (eh->h_proto == htons(ETH_P_8021Q)) {
-		memmove((u8 *)eh + VLAN_HLEN, eh, ETH_ALEN * 2);
-		eh = (struct ethhdr *)skb_pull(skb, VLAN_HLEN);
-		skb_reset_mac_header(skb);
-	}
-
-	/* Filter out non FIP/FCoE frames here to free them faster */
-	if (eh->h_proto != htons(ETH_P_ARP) &&
-	    eh->h_proto != htons(ETH_P_IP) &&
-	    eh->h_proto != htons(ETH_P_IPV6)) {
-		QEDI_INFO(&qedi->dbg_ctx, QEDI_LOG_LL2,
-			  "Dropping frame ethertype [0x%x] len [0x%x].\n",
-			  eh->h_proto, skb->len);
-		kfree_skb(skb);
-		return 0;
-	}
-
-	QEDI_INFO(&qedi->dbg_ctx, QEDI_LOG_LL2,
-		  "Allowed frame ethertype [0x%x] len [0x%x].\n",
-		  eh->h_proto, skb->len);
 
 	udev = qedi->udev;
 	uctrl = udev->uctrl;
@@ -719,10 +695,17 @@ static int qedi_ll2_rx(void *cookie, struct sk_buff *skb, u32 arg1, u32 arg2)
 
 	spin_lock_bh(&qedi->ll2_lock);
 	list_add_tail(&work->list, &qedi->ll2_skb_list);
+
+	++uctrl->hw_rx_prod_cnt;
+	prod = (uctrl->hw_rx_prod + 1) % RX_RING;
+	if (prod != uctrl->host_rx_cons) {
+		uctrl->hw_rx_prod = prod;
+		spin_unlock_bh(&qedi->ll2_lock);
+		wake_up_process(qedi->ll2_recv_thread);
+		return 0;
+	}
+
 	spin_unlock_bh(&qedi->ll2_lock);
-
-	wake_up_process(qedi->ll2_recv_thread);
-
 	return 0;
 }
 
@@ -737,7 +720,6 @@ static int qedi_ll2_process_skb(struct qedi_ctx *qedi, struct sk_buff *skb,
 	u32 rx_bd_prod;
 	void *pkt;
 	int len = 0;
-	u32 prod;
 
 	if (!qedi) {
 		QEDI_ERR(NULL, "qedi is NULL\n");
@@ -746,16 +728,12 @@ static int qedi_ll2_process_skb(struct qedi_ctx *qedi, struct sk_buff *skb,
 
 	udev = qedi->udev;
 	uctrl = udev->uctrl;
-
-	++uctrl->hw_rx_prod_cnt;
-	prod = (uctrl->hw_rx_prod + 1) % RX_RING;
-
-	pkt = udev->rx_pkt + (prod * qedi_ll2_buf_size);
-	len = min_t(u32, skb->len, (u32)qedi_ll2_buf_size);
+	pkt = udev->rx_pkt + (uctrl->hw_rx_prod * LL2_SINGLE_BUF_SIZE);
+	len = min_t(u32, skb->len, (u32)LL2_SINGLE_BUF_SIZE);
 	memcpy(pkt, skb->data, len);
 
 	memset(&rxbd, 0, sizeof(rxbd));
-	rxbd.rx_pkt_index = prod;
+	rxbd.rx_pkt_index = uctrl->hw_rx_prod;
 	rxbd.rx_pkt_len = len;
 	rxbd.vlan_id = vlan_id;
 
@@ -765,16 +743,6 @@ static int qedi_ll2_process_skb(struct qedi_ctx *qedi, struct sk_buff *skb,
 	p_rxbd += rx_bd_prod;
 
 	memcpy(p_rxbd, &rxbd, sizeof(rxbd));
-
-	QEDI_INFO(&qedi->dbg_ctx, QEDI_LOG_LL2,
-		  "hw_rx_prod [%d] prod [%d] hw_rx_bd_prod [%d] rx_pkt_idx [%d] rx_len [%d].\n",
-		  uctrl->hw_rx_prod, prod, uctrl->hw_rx_bd_prod,
-		  rxbd.rx_pkt_index, rxbd.rx_pkt_len);
-	QEDI_INFO(&qedi->dbg_ctx, QEDI_LOG_LL2,
-		  "host_rx_cons [%d] hw_rx_bd_cons [%d].\n",
-		  uctrl->host_rx_cons, uctrl->host_rx_bd_cons);
-
-	uctrl->hw_rx_prod = prod;
 
 	/* notify the iscsiuio about new packet */
 	uio_event_notify(&udev->qedi_uinfo);
@@ -828,7 +796,7 @@ static int qedi_set_iscsi_pf_param(struct qedi_ctx *qedi)
 	int rval = 0;
 
 
-	num_sq_pages = (MAX_OUTSTANDING_TASKS_PER_CON * 8) / QEDI_PAGE_SIZE;
+	num_sq_pages = (MAX_OUSTANDING_TASKS_PER_CON * 8) / PAGE_SIZE;
 
 	qedi->num_queues = MIN_NUM_CPUS_MSIX(qedi);
 
@@ -838,11 +806,11 @@ static int qedi_set_iscsi_pf_param(struct qedi_ctx *qedi)
 	memset(&qedi->pf_params.iscsi_pf_params, 0,
 	       sizeof(qedi->pf_params.iscsi_pf_params));
 
-	qedi->p_cpuq = dma_alloc_coherent(&qedi->pdev->dev,
+	qedi->p_cpuq = pci_alloc_consistent(qedi->pdev,
 			qedi->num_queues * sizeof(struct qedi_glbl_q_params),
-			&qedi->hw_p_cpuq, GFP_KERNEL);
+			&qedi->hw_p_cpuq);
 	if (!qedi->p_cpuq) {
-		QEDI_ERR(&qedi->dbg_ctx, "dma_alloc_coherent fail\n");
+		QEDI_ERR(&qedi->dbg_ctx, "pci_alloc_consistent fail\n");
 		rval = -1;
 		goto err_alloc_mem;
 	}
@@ -866,7 +834,7 @@ static int qedi_set_iscsi_pf_param(struct qedi_ctx *qedi)
 	qedi->pf_params.iscsi_pf_params.max_fin_rt = 2;
 
 	for (log_page_size = 0 ; log_page_size < 32 ; log_page_size++) {
-		if ((1 << log_page_size) == QEDI_PAGE_SIZE)
+		if ((1 << log_page_size) == PAGE_SIZE)
 			break;
 	}
 	qedi->pf_params.iscsi_pf_params.log_page_size = log_page_size;
@@ -903,7 +871,7 @@ static void qedi_free_iscsi_pf_param(struct qedi_ctx *qedi)
 
 	if (qedi->p_cpuq) {
 		size = qedi->num_queues * sizeof(struct qedi_glbl_q_params);
-		dma_free_coherent(&qedi->pdev->dev, size, qedi->p_cpuq,
+		pci_free_consistent(qedi->pdev, size, qedi->p_cpuq,
 				    qedi->hw_p_cpuq);
 	}
 
@@ -1313,20 +1281,13 @@ static void qedi_simd_int_handler(void *cookie)
 static void qedi_sync_free_irqs(struct qedi_ctx *qedi)
 {
 	int i;
-	u16 idx;
 
 	if (qedi->int_info.msix_cnt) {
 		for (i = 0; i < qedi->int_info.used_cnt; i++) {
-			idx = i * qedi->dev_info.common.num_hwfns +
-			qedi_ops->common->get_affin_hwfn_idx(qedi->cdev);
-
-			QEDI_INFO(&qedi->dbg_ctx, QEDI_LOG_INFO,
-				  "Freeing IRQ #%d vector_idx=%d.\n", i, idx);
-
-			synchronize_irq(qedi->int_info.msix[idx].vector);
-			irq_set_affinity_hint(qedi->int_info.msix[idx].vector,
+			synchronize_irq(qedi->int_info.msix[i].vector);
+			irq_set_affinity_hint(qedi->int_info.msix[i].vector,
 					      NULL);
-			free_irq(qedi->int_info.msix[idx].vector,
+			free_irq(qedi->int_info.msix[i].vector,
 				 &qedi->fp_array[i]);
 		}
 	} else {
@@ -1341,28 +1302,20 @@ static void qedi_sync_free_irqs(struct qedi_ctx *qedi)
 static int qedi_request_msix_irq(struct qedi_ctx *qedi)
 {
 	int i, rc, cpu;
-	u16 idx;
 
 	cpu = cpumask_first(cpu_online_mask);
 	for (i = 0; i < MIN_NUM_CPUS_MSIX(qedi); i++) {
-		idx = i * qedi->dev_info.common.num_hwfns +
-			  qedi_ops->common->get_affin_hwfn_idx(qedi->cdev);
-
-		QEDI_INFO(&qedi->dbg_ctx, QEDI_LOG_INFO,
-			  "dev_info: num_hwfns=%d affin_hwfn_idx=%d.\n",
-			  qedi->dev_info.common.num_hwfns,
-			  qedi_ops->common->get_affin_hwfn_idx(qedi->cdev));
-
-		rc = request_irq(qedi->int_info.msix[idx].vector,
+		rc = request_irq(qedi->int_info.msix[i].vector,
 				 qedi_msix_handler, 0, "qedi",
 				 &qedi->fp_array[i]);
+
 		if (rc) {
 			QEDI_WARN(&qedi->dbg_ctx, "request_irq failed.\n");
 			qedi_sync_free_irqs(qedi);
 			return rc;
 		}
 		qedi->int_info.used_cnt++;
-		rc = irq_set_affinity_hint(qedi->int_info.msix[idx].vector,
+		rc = irq_set_affinity_hint(qedi->int_info.msix[i].vector,
 					   get_cpu_mask(cpu));
 		cpu = cpumask_next(cpu, cpu_online_mask);
 	}
@@ -1407,9 +1360,12 @@ static void qedi_free_nvm_iscsi_cfg(struct qedi_ctx *qedi)
 
 static int qedi_alloc_nvm_iscsi_cfg(struct qedi_ctx *qedi)
 {
-	qedi->iscsi_image = dma_alloc_coherent(&qedi->pdev->dev,
-					       sizeof(struct qedi_nvm_iscsi_image),
-					       &qedi->nvm_buf_dma, GFP_KERNEL);
+	struct qedi_nvm_iscsi_image nvm_image;
+
+	qedi->iscsi_image = dma_zalloc_coherent(&qedi->pdev->dev,
+						sizeof(nvm_image),
+						&qedi->nvm_buf_dma,
+						GFP_KERNEL);
 	if (!qedi->iscsi_image) {
 		QEDI_ERR(&qedi->dbg_ctx, "Could not allocate NVM BUF.\n");
 		return -ENOMEM;
@@ -1426,7 +1382,7 @@ static void qedi_free_bdq(struct qedi_ctx *qedi)
 	int i;
 
 	if (qedi->bdq_pbl_list)
-		dma_free_coherent(&qedi->pdev->dev, QEDI_PAGE_SIZE,
+		dma_free_coherent(&qedi->pdev->dev, PAGE_SIZE,
 				  qedi->bdq_pbl_list, qedi->bdq_pbl_list_dma);
 
 	if (qedi->bdq_pbl)
@@ -1487,7 +1443,7 @@ static int qedi_alloc_bdq(struct qedi_ctx *qedi)
 
 	/* Alloc dma memory for BDQ page buffer list */
 	qedi->bdq_pbl_mem_size = QEDI_BDQ_NUM * sizeof(struct scsi_bd);
-	qedi->bdq_pbl_mem_size = ALIGN(qedi->bdq_pbl_mem_size, QEDI_PAGE_SIZE);
+	qedi->bdq_pbl_mem_size = ALIGN(qedi->bdq_pbl_mem_size, PAGE_SIZE);
 	qedi->rq_num_entries = qedi->bdq_pbl_mem_size / sizeof(struct scsi_bd);
 
 	QEDI_INFO(&qedi->dbg_ctx, QEDI_LOG_CONN, "rq_num_entries = %d.\n",
@@ -1522,10 +1478,9 @@ static int qedi_alloc_bdq(struct qedi_ctx *qedi)
 	}
 
 	/* Allocate list of PBL pages */
-	qedi->bdq_pbl_list = dma_alloc_coherent(&qedi->pdev->dev,
-						QEDI_PAGE_SIZE,
-						&qedi->bdq_pbl_list_dma,
-						GFP_KERNEL);
+	qedi->bdq_pbl_list = dma_zalloc_coherent(&qedi->pdev->dev, PAGE_SIZE,
+						 &qedi->bdq_pbl_list_dma,
+						 GFP_KERNEL);
 	if (!qedi->bdq_pbl_list) {
 		QEDI_ERR(&qedi->dbg_ctx,
 			 "Could not allocate list of PBL pages.\n");
@@ -1536,14 +1491,13 @@ static int qedi_alloc_bdq(struct qedi_ctx *qedi)
 	 * Now populate PBL list with pages that contain pointers to the
 	 * individual buffers.
 	 */
-	qedi->bdq_pbl_list_num_entries = qedi->bdq_pbl_mem_size /
-					 QEDI_PAGE_SIZE;
+	qedi->bdq_pbl_list_num_entries = qedi->bdq_pbl_mem_size / PAGE_SIZE;
 	list = (u64 *)qedi->bdq_pbl_list;
 	page = qedi->bdq_pbl_list_dma;
 	for (i = 0; i < qedi->bdq_pbl_list_num_entries; i++) {
 		*list = qedi->bdq_pbl_dma;
 		list++;
-		page += QEDI_PAGE_SIZE;
+		page += PAGE_SIZE;
 	}
 
 	return 0;
@@ -1553,7 +1507,7 @@ static int qedi_alloc_global_queues(struct qedi_ctx *qedi)
 {
 	u32 *list;
 	int i;
-	int status;
+	int status = 0, rc;
 	u32 *pbl;
 	dma_addr_t page;
 	int num_pages;
@@ -1564,14 +1518,14 @@ static int qedi_alloc_global_queues(struct qedi_ctx *qedi)
 	 */
 	if (!qedi->num_queues) {
 		QEDI_ERR(&qedi->dbg_ctx, "No MSI-X vectors available!\n");
-		return -ENOMEM;
+		return 1;
 	}
 
 	/* Make sure we allocated the PBL that will contain the physical
 	 * addresses of our queues
 	 */
 	if (!qedi->p_cpuq) {
-		status = -EINVAL;
+		status = 1;
 		goto mem_alloc_failure;
 	}
 
@@ -1586,13 +1540,13 @@ static int qedi_alloc_global_queues(struct qedi_ctx *qedi)
 		  "qedi->global_queues=%p.\n", qedi->global_queues);
 
 	/* Allocate DMA coherent buffers for BDQ */
-	status = qedi_alloc_bdq(qedi);
-	if (status)
+	rc = qedi_alloc_bdq(qedi);
+	if (rc)
 		goto mem_alloc_failure;
 
 	/* Allocate DMA coherent buffers for NVM_ISCSI_CFG */
-	status = qedi_alloc_nvm_iscsi_cfg(qedi);
-	if (status)
+	rc = qedi_alloc_nvm_iscsi_cfg(qedi);
+	if (rc)
 		goto mem_alloc_failure;
 
 	/* Allocate a CQ and an associated PBL for each MSI-X
@@ -1605,7 +1559,6 @@ static int qedi_alloc_global_queues(struct qedi_ctx *qedi)
 		if (!qedi->global_queues[i]) {
 			QEDI_ERR(&qedi->dbg_ctx,
 				 "Unable to allocation global queue %d.\n", i);
-			status = -ENOMEM;
 			goto mem_alloc_failure;
 		}
 
@@ -1622,10 +1575,10 @@ static int qedi_alloc_global_queues(struct qedi_ctx *qedi)
 		    (qedi->global_queues[i]->cq_pbl_size +
 		    (QEDI_PAGE_SIZE - 1));
 
-		qedi->global_queues[i]->cq = dma_alloc_coherent(&qedi->pdev->dev,
-								qedi->global_queues[i]->cq_mem_size,
-								&qedi->global_queues[i]->cq_dma,
-								GFP_KERNEL);
+		qedi->global_queues[i]->cq = dma_zalloc_coherent(&qedi->pdev->dev,
+								 qedi->global_queues[i]->cq_mem_size,
+								 &qedi->global_queues[i]->cq_dma,
+								 GFP_KERNEL);
 
 		if (!qedi->global_queues[i]->cq) {
 			QEDI_WARN(&qedi->dbg_ctx,
@@ -1633,10 +1586,10 @@ static int qedi_alloc_global_queues(struct qedi_ctx *qedi)
 			status = -ENOMEM;
 			goto mem_alloc_failure;
 		}
-		qedi->global_queues[i]->cq_pbl = dma_alloc_coherent(&qedi->pdev->dev,
-								    qedi->global_queues[i]->cq_pbl_size,
-								    &qedi->global_queues[i]->cq_pbl_dma,
-								    GFP_KERNEL);
+		qedi->global_queues[i]->cq_pbl = dma_zalloc_coherent(&qedi->pdev->dev,
+								     qedi->global_queues[i]->cq_pbl_size,
+								     &qedi->global_queues[i]->cq_pbl_dma,
+								     GFP_KERNEL);
 
 		if (!qedi->global_queues[i]->cq_pbl) {
 			QEDI_WARN(&qedi->dbg_ctx,
@@ -1704,16 +1657,16 @@ int qedi_alloc_sq(struct qedi_ctx *qedi, struct qedi_endpoint *ep)
 	ep->sq_pbl_size = (ep->sq_mem_size / QEDI_PAGE_SIZE) * sizeof(void *);
 	ep->sq_pbl_size = ep->sq_pbl_size + QEDI_PAGE_SIZE;
 
-	ep->sq = dma_alloc_coherent(&qedi->pdev->dev, ep->sq_mem_size,
-				    &ep->sq_dma, GFP_KERNEL);
+	ep->sq = dma_zalloc_coherent(&qedi->pdev->dev, ep->sq_mem_size,
+				     &ep->sq_dma, GFP_KERNEL);
 	if (!ep->sq) {
 		QEDI_WARN(&qedi->dbg_ctx,
 			  "Could not allocate send queue.\n");
 		rval = -ENOMEM;
 		goto out;
 	}
-	ep->sq_pbl = dma_alloc_coherent(&qedi->pdev->dev, ep->sq_pbl_size,
-					&ep->sq_pbl_dma, GFP_KERNEL);
+	ep->sq_pbl = dma_zalloc_coherent(&qedi->pdev->dev, ep->sq_pbl_size,
+					 &ep->sq_pbl_dma, GFP_KERNEL);
 	if (!ep->sq_pbl) {
 		QEDI_WARN(&qedi->dbg_ctx,
 			  "Could not allocate send queue PBL.\n");
@@ -2176,7 +2129,7 @@ qedi_show_boot_tgt_info(struct qedi_ctx *qedi, int type,
 			     chap_name);
 		break;
 	case ISCSI_BOOT_TGT_CHAP_SECRET:
-		rc = sprintf(buf, "%.*s\n", NVM_ISCSI_CFG_CHAP_PWD_MAX_LEN,
+		rc = sprintf(buf, "%.*s\n", NVM_ISCSI_CFG_CHAP_NAME_MAX_LEN,
 			     chap_secret);
 		break;
 	case ISCSI_BOOT_TGT_REV_CHAP_NAME:
@@ -2184,7 +2137,7 @@ qedi_show_boot_tgt_info(struct qedi_ctx *qedi, int type,
 			     mchap_name);
 		break;
 	case ISCSI_BOOT_TGT_REV_CHAP_SECRET:
-		rc = sprintf(buf, "%.*s\n", NVM_ISCSI_CFG_CHAP_PWD_MAX_LEN,
+		rc = sprintf(buf, "%.*s\n", NVM_ISCSI_CFG_CHAP_NAME_MAX_LEN,
 			     mchap_secret);
 		break;
 	case ISCSI_BOOT_TGT_FLAGS:
@@ -2250,13 +2203,14 @@ static void qedi_boot_release(void *data)
 static int qedi_get_boot_info(struct qedi_ctx *qedi)
 {
 	int ret = 1;
+	struct qedi_nvm_iscsi_image nvm_image;
 
 	QEDI_INFO(&qedi->dbg_ctx, QEDI_LOG_INFO,
 		  "Get NVM iSCSI CFG image\n");
 	ret = qedi_ops->common->nvm_get_image(qedi->cdev,
 					      QED_NVM_IMAGE_ISCSI_CFG,
 					      (char *)qedi->iscsi_image,
-					      sizeof(struct qedi_nvm_iscsi_image));
+					      sizeof(nvm_image));
 	if (ret)
 		QEDI_ERR(&qedi->dbg_ctx,
 			 "Could not get NVM image. ret = %d\n", ret);
@@ -2430,11 +2384,6 @@ static int __qedi_probe(struct pci_dev *pdev, int mode)
 	rc = qedi_ops->fill_dev_info(qedi->cdev, &qedi->dev_info);
 	if (rc)
 		goto free_host;
-
-	QEDI_INFO(&qedi->dbg_ctx, QEDI_LOG_INFO,
-		  "dev_info: num_hwfns=%d affin_hwfn_idx=%d.\n",
-		  qedi->dev_info.common.num_hwfns,
-		  qedi_ops->common->get_affin_hwfn_idx(qedi->cdev));
 
 	if (mode != QEDI_MODE_RECOVERY) {
 		rc = qedi_set_iscsi_pf_param(qedi);
@@ -2631,7 +2580,7 @@ static int __qedi_probe(struct pci_dev *pdev, int mode)
 			QEDI_ERR(&qedi->dbg_ctx,
 				 "Unable to start offload thread!\n");
 			rc = -ENODEV;
-			goto free_tmf_thread;
+			goto free_cid_que;
 		}
 
 		/* F/w needs 1st task context memory entry for performance */
@@ -2651,8 +2600,6 @@ static int __qedi_probe(struct pci_dev *pdev, int mode)
 
 	return 0;
 
-free_tmf_thread:
-	destroy_workqueue(qedi->tmf_thread);
 free_cid_que:
 	qedi_release_cid_que(qedi);
 free_uio:

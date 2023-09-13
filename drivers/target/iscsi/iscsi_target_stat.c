@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*******************************************************************************
  * Modern ConfigFS group context specific iSCSI statistics based on original
  * iscsi_target_mib.c code
@@ -7,6 +6,15 @@
  *
  * Author: Nicholas A. Bellinger <nab@linux-iscsi.org>
  *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  ******************************************************************************/
 
 #include <linux/configfs.h>
@@ -320,10 +328,10 @@ static ssize_t iscsi_stat_tgt_attr_fail_intr_name_show(struct config_item *item,
 {
 	struct iscsi_tiqn *tiqn = iscsi_tgt_attr_tiqn(item);
 	struct iscsi_login_stats *lstat = &tiqn->login_stats;
-	unsigned char buf[ISCSI_IQN_LEN];
+	unsigned char buf[224];
 
 	spin_lock(&lstat->lock);
-	snprintf(buf, ISCSI_IQN_LEN, "%s", lstat->last_intr_fail_name[0] ?
+	snprintf(buf, 224, "%s", lstat->last_intr_fail_name[0] ?
 				lstat->last_intr_fail_name : NONE);
 	spin_unlock(&lstat->lock);
 

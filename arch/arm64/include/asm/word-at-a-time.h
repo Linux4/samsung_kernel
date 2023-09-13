@@ -1,6 +1,17 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (C) 2013 ARM Ltd.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #ifndef __ASM_WORD_AT_A_TIME_H
 #define __ASM_WORD_AT_A_TIME_H
@@ -53,7 +64,7 @@ static inline unsigned long find_zero(unsigned long mask)
  */
 static inline unsigned long load_unaligned_zeropad(const void *addr)
 {
-	unsigned long ret, tmp;
+	unsigned long ret, offset;
 
 	/* Load word from unaligned pointer addr */
 	asm(
@@ -61,9 +72,9 @@ static inline unsigned long load_unaligned_zeropad(const void *addr)
 	"2:\n"
 	"	.pushsection .fixup,\"ax\"\n"
 	"	.align 2\n"
-	"3:	bic	%1, %2, #0x7\n"
-	"	ldr	%0, [%1]\n"
-	"	and	%1, %2, #0x7\n"
+	"3:	and	%1, %2, #0x7\n"
+	"	bic	%2, %2, #0x7\n"
+	"	ldr	%0, [%2]\n"
 	"	lsl	%1, %1, #0x3\n"
 #ifndef __AARCH64EB__
 	"	lsr	%0, %0, %1\n"
@@ -73,7 +84,7 @@ static inline unsigned long load_unaligned_zeropad(const void *addr)
 	"	b	2b\n"
 	"	.popsection\n"
 	_ASM_EXTABLE(1b, 3b)
-	: "=&r" (ret), "=&r" (tmp)
+	: "=&r" (ret), "=&r" (offset)
 	: "r" (addr), "Q" (*(unsigned long *)addr));
 
 	return ret;

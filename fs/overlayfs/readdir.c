@@ -1,7 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *
  * Copyright (C) 2011 Novell Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
  */
 
 #include <linux/fs.h>
@@ -286,7 +289,7 @@ static int ovl_check_whiteouts(struct dentry *dir, struct ovl_readdir_data *rdd)
 		}
 		inode_unlock(dir->d_inode);
 	}
-	ovl_revert_creds(rdd->dentry->d_sb, old_cred);
+	ovl_revert_creds(old_cred);
 
 	return err;
 }
@@ -784,7 +787,7 @@ static int ovl_iterate(struct file *file, struct dir_context *ctx)
 	}
 	err = 0;
 out:
-	ovl_revert_creds(dentry->d_sb, old_cred);
+	ovl_revert_creds(old_cred);
 	return err;
 }
 
@@ -836,7 +839,7 @@ static struct file *ovl_dir_open_realfile(struct file *file,
 
 	old_cred = ovl_override_creds(file_inode(file)->i_sb);
 	res = ovl_path_open(realpath, O_RDONLY | (file->f_flags & O_LARGEFILE));
-	ovl_revert_creds(file_inode(file)->i_sb, old_cred);
+	ovl_revert_creds(old_cred);
 
 	return res;
 }
@@ -945,7 +948,7 @@ int ovl_check_empty_dir(struct dentry *dentry, struct list_head *list)
 
 	old_cred = ovl_override_creds(dentry->d_sb);
 	err = ovl_dir_read_merged(dentry, list, &root);
-	ovl_revert_creds(dentry->d_sb, old_cred);
+	ovl_revert_creds(old_cred);
 	if (err)
 		return err;
 

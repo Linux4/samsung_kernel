@@ -1,6 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Copyright 2008 Michael Ellerman, IBM Corporation.
+ *
+ *  This program is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU General Public License
+ *  as published by the Free Software Foundation; either version
+ *  2 of the License, or (at your option) any later version.
  */
 
 #include <linux/kernel.h>
@@ -11,6 +15,7 @@
 #include <linux/cpuhotplug.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <linux/kprobes.h>
 
 #include <asm/pgtable.h>
 #include <asm/tlbflush.h>
@@ -21,9 +26,9 @@
 static int __patch_instruction(unsigned int *exec_addr, unsigned int instr,
 			       unsigned int *patch_addr)
 {
-	int err = 0;
+	int err;
 
-	__put_user_asm(instr, patch_addr, err, "stw");
+	__put_user_size(instr, patch_addr, 4, err);
 	if (err)
 		return err;
 
@@ -93,7 +98,8 @@ static int map_patch_area(void *addr, unsigned long text_poke_addr)
 	else
 		pfn = __pa_symbol(addr) >> PAGE_SHIFT;
 
-	err = map_kernel_page(text_poke_addr, (pfn << PAGE_SHIFT), PAGE_KERNEL);
+	err = map_kernel_page(text_poke_addr, (pfn << PAGE_SHIFT),
+				pgprot_val(PAGE_KERNEL));
 
 	pr_devel("Mapped addr %lx with pfn %lx:%d\n", text_poke_addr, pfn, err);
 	if (err)
@@ -199,6 +205,22 @@ int patch_branch(unsigned int *addr, unsigned long target, int flags)
 	return patch_instruction(addr, create_branch(addr, target, flags));
 }
 
+int patch_branch_site(s32 *site, unsigned long target, int flags)
+{
+	unsigned int *addr;
+
+	addr = (unsigned int *)((unsigned long)site + *site);
+	return patch_instruction(addr, create_branch(addr, target, flags));
+}
+
+int patch_instruction_site(s32 *site, unsigned int instr)
+{
+	unsigned int *addr;
+
+	addr = (unsigned int *)((unsigned long)site + *site);
+	return patch_instruction(addr, instr);
+}
+
 bool is_offset_in_branch_range(long offset)
 {
 	/*
@@ -219,11 +241,6 @@ bool is_offset_in_branch_range(long offset)
 	 *   (0xff800000 << 2) = 0xfe000000 = -0x2000000
 	 */
 	return (offset >= -0x2000000 && offset <= 0x1fffffc && !(offset & 0x3));
-}
-
-bool is_offset_in_cond_branch_range(long offset)
-{
-	return offset >= -0x8000 && offset <= 0x7fff && !(offset & 0x3);
 }
 
 /*
@@ -279,7 +296,7 @@ unsigned int create_cond_branch(const unsigned int *addr,
 		offset = offset - (unsigned long)addr;
 
 	/* Check we can represent the target in the instruction format */
-	if (!is_offset_in_cond_branch_range(offset))
+	if (offset < -0x8000 || offset > 0x7FFF || offset & 0x3)
 		return 0;
 
 	/* Mask out the flags and target, so they don't step on each other. */

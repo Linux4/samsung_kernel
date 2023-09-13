@@ -72,6 +72,8 @@
  */
 const char ib_hfi1_version[] = HFI1_DRIVER_VERSION "\n";
 
+DEFINE_SPINLOCK(hfi1_devs_lock);
+LIST_HEAD(hfi1_dev_list);
 DEFINE_MUTEX(hfi1_mutex);	/* general driver use */
 
 unsigned int hfi1_max_mtu = HFI1_DEFAULT_MAX_MTU;
@@ -173,11 +175,11 @@ int hfi1_count_active_units(void)
 {
 	struct hfi1_devdata *dd;
 	struct hfi1_pportdata *ppd;
-	unsigned long index, flags;
+	unsigned long flags;
 	int pidx, nunits_active = 0;
 
-	xa_lock_irqsave(&hfi1_dev_table, flags);
-	xa_for_each(&hfi1_dev_table, index, dd) {
+	spin_lock_irqsave(&hfi1_devs_lock, flags);
+	list_for_each_entry(dd, &hfi1_dev_list, list) {
 		if (!(dd->flags & HFI1_PRESENT) || !dd->kregbase1)
 			continue;
 		for (pidx = 0; pidx < dd->num_pports; ++pidx) {
@@ -188,7 +190,7 @@ int hfi1_count_active_units(void)
 			}
 		}
 	}
-	xa_unlock_irqrestore(&hfi1_dev_table, flags);
+	spin_unlock_irqrestore(&hfi1_devs_lock, flags);
 	return nunits_active;
 }
 
@@ -262,7 +264,7 @@ static void rcv_hdrerr(struct hfi1_ctxtdata *rcd, struct hfi1_pportdata *ppd,
 	    hfi1_dbg_fault_suppress_err(verbs_dev))
 		return;
 
-	if (packet->rhf & RHF_ICRC_ERR)
+	if (packet->rhf & (RHF_VCRC_ERR | RHF_ICRC_ERR))
 		return;
 
 	if (packet->etype == RHF_RCV_TYPE_BYPASS) {
@@ -514,9 +516,7 @@ bool hfi1_process_ecn_slowpath(struct rvt_qp *qp, struct hfi1_packet *pkt,
 	 */
 	do_cnp = prescan ||
 		(opcode >= IB_OPCODE_RC_RDMA_READ_RESPONSE_FIRST &&
-		 opcode <= IB_OPCODE_RC_ATOMIC_ACKNOWLEDGE) ||
-		opcode == TID_OP(READ_RESP) ||
-		opcode == TID_OP(ACK);
+		 opcode <= IB_OPCODE_RC_ATOMIC_ACKNOWLEDGE);
 
 	/* Call appropriate CNP handler */
 	if (!ignore_fecn && do_cnp && fecn)
@@ -1427,7 +1427,7 @@ static int hfi1_bypass_ingress_pkt_check(struct hfi1_packet *packet)
 	if ((!(hfi1_is_16B_mcast(packet->dlid))) &&
 	    (packet->dlid !=
 		opa_get_lid(be32_to_cpu(OPA_LID_PERMISSIVE), 16B))) {
-		if ((packet->dlid & ~((1 << ppd->lmc) - 1)) != ppd->lid)
+		if (packet->dlid != ppd->lid)
 			return -EINVAL;
 	}
 
@@ -1576,31 +1576,25 @@ drop:
 	return -EINVAL;
 }
 
-static void show_eflags_errs(struct hfi1_packet *packet)
+void handle_eflags(struct hfi1_packet *packet)
 {
 	struct hfi1_ctxtdata *rcd = packet->rcd;
 	u32 rte = rhf_rcv_type_err(packet->rhf);
 
-	dd_dev_err(rcd->dd,
-		   "receive context %d: rhf 0x%016llx, errs [ %s%s%s%s%s%s%s] rte 0x%x\n",
-		   rcd->ctxt, packet->rhf,
-		   packet->rhf & RHF_K_HDR_LEN_ERR ? "k_hdr_len " : "",
-		   packet->rhf & RHF_DC_UNC_ERR ? "dc_unc " : "",
-		   packet->rhf & RHF_DC_ERR ? "dc " : "",
-		   packet->rhf & RHF_TID_ERR ? "tid " : "",
-		   packet->rhf & RHF_LEN_ERR ? "len " : "",
-		   packet->rhf & RHF_ECC_ERR ? "ecc " : "",
-		   packet->rhf & RHF_ICRC_ERR ? "icrc " : "",
-		   rte);
-}
-
-void handle_eflags(struct hfi1_packet *packet)
-{
-	struct hfi1_ctxtdata *rcd = packet->rcd;
-
 	rcv_hdrerr(rcd, rcd->ppd, packet);
 	if (rhf_err_flags(packet->rhf))
-		show_eflags_errs(packet);
+		dd_dev_err(rcd->dd,
+			   "receive context %d: rhf 0x%016llx, errs [ %s%s%s%s%s%s%s%s] rte 0x%x\n",
+			   rcd->ctxt, packet->rhf,
+			   packet->rhf & RHF_K_HDR_LEN_ERR ? "k_hdr_len " : "",
+			   packet->rhf & RHF_DC_UNC_ERR ? "dc_unc " : "",
+			   packet->rhf & RHF_DC_ERR ? "dc " : "",
+			   packet->rhf & RHF_TID_ERR ? "tid " : "",
+			   packet->rhf & RHF_LEN_ERR ? "len " : "",
+			   packet->rhf & RHF_ECC_ERR ? "ecc " : "",
+			   packet->rhf & RHF_VCRC_ERR ? "vcrc " : "",
+			   packet->rhf & RHF_ICRC_ERR ? "icrc " : "",
+			   rte);
 }
 
 /*
@@ -1706,14 +1700,11 @@ static int kdeth_process_expected(struct hfi1_packet *packet)
 	if (unlikely(hfi1_dbg_should_fault_rx(packet)))
 		return RHF_RCV_CONTINUE;
 
-	if (unlikely(rhf_err_flags(packet->rhf))) {
-		struct hfi1_ctxtdata *rcd = packet->rcd;
+	if (unlikely(rhf_err_flags(packet->rhf)))
+		handle_eflags(packet);
 
-		if (hfi1_handle_kdeth_eflags(rcd, rcd->ppd, packet))
-			return RHF_RCV_CONTINUE;
-	}
-
-	hfi1_kdeth_expected_rcv(packet);
+	dd_dev_err(packet->rcd->dd,
+		   "Unhandled expected packet received. Dropping.\n");
 	return RHF_RCV_CONTINUE;
 }
 
@@ -1722,17 +1713,11 @@ static int kdeth_process_eager(struct hfi1_packet *packet)
 	hfi1_setup_9B_packet(packet);
 	if (unlikely(hfi1_dbg_should_fault_rx(packet)))
 		return RHF_RCV_CONTINUE;
+	if (unlikely(rhf_err_flags(packet->rhf)))
+		handle_eflags(packet);
 
-	trace_hfi1_rcvhdr(packet);
-	if (unlikely(rhf_err_flags(packet->rhf))) {
-		struct hfi1_ctxtdata *rcd = packet->rcd;
-
-		show_eflags_errs(packet);
-		if (hfi1_handle_kdeth_eflags(rcd, rcd->ppd, packet))
-			return RHF_RCV_CONTINUE;
-	}
-
-	hfi1_kdeth_eager_rcv(packet);
+	dd_dev_err(packet->rcd->dd,
+		   "Unhandled eager packet received. Dropping.\n");
 	return RHF_RCV_CONTINUE;
 }
 

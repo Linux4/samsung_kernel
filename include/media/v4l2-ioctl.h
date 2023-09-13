@@ -26,13 +26,19 @@ struct v4l2_fh;
  *	:ref:`VIDIOC_QUERYCAP <vidioc_querycap>` ioctl
  * @vidioc_enum_fmt_vid_cap: pointer to the function that implements
  *	:ref:`VIDIOC_ENUM_FMT <vidioc_enum_fmt>` ioctl logic
- *	for video capture in single and multi plane mode
+ *	for video capture in single plane mode
  * @vidioc_enum_fmt_vid_overlay: pointer to the function that implements
  *	:ref:`VIDIOC_ENUM_FMT <vidioc_enum_fmt>` ioctl logic
  *	for video overlay
  * @vidioc_enum_fmt_vid_out: pointer to the function that implements
  *	:ref:`VIDIOC_ENUM_FMT <vidioc_enum_fmt>` ioctl logic
- *	for video output in single and multi plane mode
+ *	for video output in single plane mode
+ * @vidioc_enum_fmt_vid_cap_mplane: pointer to the function that implements
+ *	:ref:`VIDIOC_ENUM_FMT <vidioc_enum_fmt>` ioctl logic
+ *	for video capture in multiplane mode
+ * @vidioc_enum_fmt_vid_out_mplane: pointer to the function that implements
+ *	:ref:`VIDIOC_ENUM_FMT <vidioc_enum_fmt>` ioctl logic
+ *	for video output in multiplane mode
  * @vidioc_enum_fmt_sdr_cap: pointer to the function that implements
  *	:ref:`VIDIOC_ENUM_FMT <vidioc_enum_fmt>` ioctl logic
  *	for Software Defined Radio capture
@@ -42,9 +48,6 @@ struct v4l2_fh;
  * @vidioc_enum_fmt_meta_cap: pointer to the function that implements
  *	:ref:`VIDIOC_ENUM_FMT <vidioc_enum_fmt>` ioctl logic
  *	for metadata capture
- * @vidioc_enum_fmt_meta_out: pointer to the function that implements
- *	:ref:`VIDIOC_ENUM_FMT <vidioc_enum_fmt>` ioctl logic
- *	for metadata output
  * @vidioc_g_fmt_vid_cap: pointer to the function that implements
  *	:ref:`VIDIOC_G_FMT <vidioc_g_fmt>` ioctl logic for video capture
  *	in single plane mode
@@ -77,8 +80,6 @@ struct v4l2_fh;
  *	Radio output
  * @vidioc_g_fmt_meta_cap: pointer to the function that implements
  *	:ref:`VIDIOC_G_FMT <vidioc_g_fmt>` ioctl logic for metadata capture
- * @vidioc_g_fmt_meta_out: pointer to the function that implements
- *	:ref:`VIDIOC_G_FMT <vidioc_g_fmt>` ioctl logic for metadata output
  * @vidioc_s_fmt_vid_cap: pointer to the function that implements
  *	:ref:`VIDIOC_S_FMT <vidioc_g_fmt>` ioctl logic for video capture
  *	in single plane mode
@@ -111,8 +112,6 @@ struct v4l2_fh;
  *	Radio output
  * @vidioc_s_fmt_meta_cap: pointer to the function that implements
  *	:ref:`VIDIOC_S_FMT <vidioc_g_fmt>` ioctl logic for metadata capture
- * @vidioc_s_fmt_meta_out: pointer to the function that implements
- *	:ref:`VIDIOC_S_FMT <vidioc_g_fmt>` ioctl logic for metadata output
  * @vidioc_try_fmt_vid_cap: pointer to the function that implements
  *	:ref:`VIDIOC_TRY_FMT <vidioc_g_fmt>` ioctl logic for video capture
  *	in single plane mode
@@ -147,8 +146,6 @@ struct v4l2_fh;
  *	Radio output
  * @vidioc_try_fmt_meta_cap: pointer to the function that implements
  *	:ref:`VIDIOC_TRY_FMT <vidioc_g_fmt>` ioctl logic for metadata capture
- * @vidioc_try_fmt_meta_out: pointer to the function that implements
- *	:ref:`VIDIOC_TRY_FMT <vidioc_g_fmt>` ioctl logic for metadata output
  * @vidioc_reqbufs: pointer to the function that implements
  *	:ref:`VIDIOC_REQBUFS <vidioc_reqbufs>` ioctl
  * @vidioc_querybuf: pointer to the function that implements
@@ -223,8 +220,12 @@ struct v4l2_fh;
  *	:ref:`VIDIOC_G_MODULATOR <vidioc_g_modulator>` ioctl
  * @vidioc_s_modulator: pointer to the function that implements
  *	:ref:`VIDIOC_S_MODULATOR <vidioc_g_modulator>` ioctl
- * @vidioc_g_pixelaspect: pointer to the function that implements
- *	the pixelaspect part of the :ref:`VIDIOC_CROPCAP <vidioc_cropcap>` ioctl
+ * @vidioc_cropcap: pointer to the function that implements
+ *	:ref:`VIDIOC_CROPCAP <vidioc_cropcap>` ioctl
+ * @vidioc_g_crop: pointer to the function that implements
+ *	:ref:`VIDIOC_G_CROP <vidioc_g_crop>` ioctl
+ * @vidioc_s_crop: pointer to the function that implements
+ *	:ref:`VIDIOC_S_CROP <vidioc_g_crop>` ioctl
  * @vidioc_g_selection: pointer to the function that implements
  *	:ref:`VIDIOC_G_SELECTION <vidioc_g_selection>` ioctl
  * @vidioc_s_selection: pointer to the function that implements
@@ -307,13 +308,15 @@ struct v4l2_ioctl_ops {
 					   struct v4l2_fmtdesc *f);
 	int (*vidioc_enum_fmt_vid_out)(struct file *file, void *fh,
 				       struct v4l2_fmtdesc *f);
+	int (*vidioc_enum_fmt_vid_cap_mplane)(struct file *file, void *fh,
+					      struct v4l2_fmtdesc *f);
+	int (*vidioc_enum_fmt_vid_out_mplane)(struct file *file, void *fh,
+					      struct v4l2_fmtdesc *f);
 	int (*vidioc_enum_fmt_sdr_cap)(struct file *file, void *fh,
 				       struct v4l2_fmtdesc *f);
 	int (*vidioc_enum_fmt_sdr_out)(struct file *file, void *fh,
 				       struct v4l2_fmtdesc *f);
 	int (*vidioc_enum_fmt_meta_cap)(struct file *file, void *fh,
-					struct v4l2_fmtdesc *f);
-	int (*vidioc_enum_fmt_meta_out)(struct file *file, void *fh,
 					struct v4l2_fmtdesc *f);
 
 	/* VIDIOC_G_FMT handlers */
@@ -343,8 +346,7 @@ struct v4l2_ioctl_ops {
 				    struct v4l2_format *f);
 	int (*vidioc_g_fmt_meta_cap)(struct file *file, void *fh,
 				     struct v4l2_format *f);
-	int (*vidioc_g_fmt_meta_out)(struct file *file, void *fh,
-				     struct v4l2_format *f);
+
 	/* VIDIOC_S_FMT handlers */
 	int (*vidioc_s_fmt_vid_cap)(struct file *file, void *fh,
 				    struct v4l2_format *f);
@@ -371,8 +373,6 @@ struct v4l2_ioctl_ops {
 	int (*vidioc_s_fmt_sdr_out)(struct file *file, void *fh,
 				    struct v4l2_format *f);
 	int (*vidioc_s_fmt_meta_cap)(struct file *file, void *fh,
-				     struct v4l2_format *f);
-	int (*vidioc_s_fmt_meta_out)(struct file *file, void *fh,
 				     struct v4l2_format *f);
 
 	/* VIDIOC_TRY_FMT handlers */
@@ -401,8 +401,6 @@ struct v4l2_ioctl_ops {
 	int (*vidioc_try_fmt_sdr_out)(struct file *file, void *fh,
 				      struct v4l2_format *f);
 	int (*vidioc_try_fmt_meta_cap)(struct file *file, void *fh,
-				       struct v4l2_format *f);
-	int (*vidioc_try_fmt_meta_out)(struct file *file, void *fh,
 				       struct v4l2_format *f);
 
 	/* Buffer handlers */
@@ -493,8 +491,12 @@ struct v4l2_ioctl_ops {
 	int (*vidioc_s_modulator)(struct file *file, void *fh,
 				  const struct v4l2_modulator *a);
 	/* Crop ioctls */
-	int (*vidioc_g_pixelaspect)(struct file *file, void *fh,
-				    int buf_type, struct v4l2_fract *aspect);
+	int (*vidioc_cropcap)(struct file *file, void *fh,
+			      struct v4l2_cropcap *a);
+	int (*vidioc_g_crop)(struct file *file, void *fh,
+			     struct v4l2_crop *a);
+	int (*vidioc_s_crop)(struct file *file, void *fh,
+			     const struct v4l2_crop *a);
 	int (*vidioc_g_selection)(struct file *file, void *fh,
 				  struct v4l2_selection *s);
 	int (*vidioc_s_selection)(struct file *file, void *fh,
@@ -601,8 +603,6 @@ struct v4l2_ioctl_ops {
 #define V4L2_DEV_DEBUG_STREAMING	0x08
 /* Log poll() */
 #define V4L2_DEV_DEBUG_POLL		0x10
-/* Log controls */
-#define V4L2_DEV_DEBUG_CTRL		0x20
 
 /*  Video standard functions  */
 

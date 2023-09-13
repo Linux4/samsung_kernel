@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * ngene.c: nGene PCIe bridge driver
  *
@@ -8,6 +7,20 @@
  *                         Modifications for new nGene firmware,
  *                         support for EEPROM-copying,
  *                         support for new dual DVB-S2 card prototype
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * version 2 only, as published by the Free Software Foundation.
+ *
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * To obtain the license, point your browser to
+ * http://www.gnu.org/copyleft/gpl.html
  */
 
 #include <linux/module.h>
@@ -385,7 +398,7 @@ static int ngene_command_config_free_buf(struct ngene *dev, u8 *config)
 
 	com.cmd.hdr.Opcode = CMD_CONFIGURE_FREE_BUFFER;
 	com.cmd.hdr.Length = 6;
-	memcpy(&com.cmd.ConfigureFreeBuffers.config, config, 6);
+	memcpy(&com.cmd.ConfigureBuffers.config, config, 6);
 	com.in_len = 6;
 	com.out_len = 0;
 
@@ -854,6 +867,8 @@ static int create_ring_buffer(struct pci_dev *pci_dev,
 	if (!Head)
 		return -ENOMEM;
 
+	memset(Head, 0, MemSize);
+
 	PARingBufferCur = PARingBufferHead;
 	Cur = Head;
 
@@ -904,6 +919,8 @@ static int AllocateRingBuffers(struct pci_dev *pci_dev,
 	PASCListMem = tmp;
 	if (SCListMem == NULL)
 		return -ENOMEM;
+
+	memset(SCListMem, 0, SCListMemSize);
 
 	pRingBuffer->SCListMem = SCListMem;
 	pRingBuffer->PASCListMem = PASCListMem;
@@ -997,7 +1014,7 @@ static int FillTSIdleBuffer(struct SRingBufferDescriptor *pIdleBuffer,
 	/* Point to first buffer entry */
 	struct SBufferHeader *Cur = pRingBuffer->Head;
 	int i;
-	/* Loop through all buffer and set Buffer 2 pointers to TSIdlebuffer */
+	/* Loop thru all buffer and set Buffer 2 pointers to TSIdlebuffer */
 	for (i = 0; i < n; i++) {
 		Cur->Buffer2 = pIdleBuffer->Head->Buffer1;
 		Cur->scList2 = pIdleBuffer->Head->scList1;

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright (c) 2006 ARM Ltd.
  * Copyright (c) 2010 ST-Ericsson SA
@@ -6,6 +5,19 @@
  *
  * Author: Peter Pearse <peter.pearse@arm.com>
  * Author: Linus Walleij <linus.walleij@linaro.org>
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * The full GNU General Public License is in this distribution in the file
+ * called COPYING.
  *
  * Documentation: ARM DDI 0196G == PL080
  * Documentation: ARM DDI 0218E == PL081
@@ -242,7 +254,6 @@ enum pl08x_dma_chan_state {
  * @slave: whether this channel is a device (slave) or for memcpy
  * @signal: the physical DMA request signal which this channel is using
  * @mux_use: count of descriptors using this DMA request signal setting
- * @waiting_at: time in jiffies when this channel moved to waiting state
  */
 struct pl08x_dma_chan {
 	struct virt_dma_chan vc;
@@ -256,7 +267,6 @@ struct pl08x_dma_chan {
 	bool slave;
 	int signal;
 	unsigned mux_use;
-	unsigned long waiting_at;
 };
 
 /**
@@ -865,7 +875,6 @@ static void pl08x_phy_alloc_and_start(struct pl08x_dma_chan *plchan)
 	if (!ch) {
 		dev_dbg(&pl08x->adev->dev, "no physical channel available for xfer on %s\n", plchan->name);
 		plchan->state = PL08X_CHAN_WAITING;
-		plchan->waiting_at = jiffies;
 		return;
 	}
 
@@ -904,29 +913,22 @@ static void pl08x_phy_free(struct pl08x_dma_chan *plchan)
 {
 	struct pl08x_driver_data *pl08x = plchan->host;
 	struct pl08x_dma_chan *p, *next;
-	unsigned long waiting_at;
+
  retry:
 	next = NULL;
-	waiting_at = jiffies;
 
-	/*
-	 * Find a waiting virtual channel for the next transfer.
-	 * To be fair, time when each channel reached waiting state is compared
-	 * to select channel that is waiting for the longest time.
-	 */
+	/* Find a waiting virtual channel for the next transfer. */
 	list_for_each_entry(p, &pl08x->memcpy.channels, vc.chan.device_node)
-		if (p->state == PL08X_CHAN_WAITING &&
-		    p->waiting_at <= waiting_at) {
+		if (p->state == PL08X_CHAN_WAITING) {
 			next = p;
-			waiting_at = p->waiting_at;
+			break;
 		}
 
 	if (!next && pl08x->has_slave) {
 		list_for_each_entry(p, &pl08x->slave.channels, vc.chan.device_node)
-			if (p->state == PL08X_CHAN_WAITING &&
-			    p->waiting_at <= waiting_at) {
+			if (p->state == PL08X_CHAN_WAITING) {
 				next = p;
-				waiting_at = p->waiting_at;
+				break;
 			}
 	}
 
@@ -2091,7 +2093,7 @@ static struct dma_async_tx_descriptor *pl08x_prep_slave_sg(
 static struct dma_async_tx_descriptor *pl08x_prep_dma_cyclic(
 		struct dma_chan *chan, dma_addr_t buf_addr, size_t buf_len,
 		size_t period_len, enum dma_transfer_direction direction,
-		unsigned long flags)
+		unsigned long flags, void *context)
 {
 	struct pl08x_dma_chan *plchan = to_pl08x_chan(chan);
 	struct pl08x_driver_data *pl08x = plchan->host;
@@ -2503,13 +2505,24 @@ static int pl08x_debugfs_show(struct seq_file *s, void *data)
 	return 0;
 }
 
-DEFINE_SHOW_ATTRIBUTE(pl08x_debugfs);
+static int pl08x_debugfs_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, pl08x_debugfs_show, inode->i_private);
+}
+
+static const struct file_operations pl08x_debugfs_operations = {
+	.open		= pl08x_debugfs_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
 
 static void init_pl08x_debugfs(struct pl08x_driver_data *pl08x)
 {
 	/* Expose a simple debugfs interface to view all clocks */
-	debugfs_create_file(dev_name(&pl08x->adev->dev), S_IFREG | S_IRUGO,
-			    NULL, pl08x, &pl08x_debugfs_fops);
+	(void) debugfs_create_file(dev_name(&pl08x->adev->dev),
+			S_IFREG | S_IRUGO, NULL, pl08x,
+			&pl08x_debugfs_operations);
 }
 
 #else

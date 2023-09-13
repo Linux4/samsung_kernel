@@ -1,9 +1,22 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
 #ifndef _LINUX_KPROBES_H
 #define _LINUX_KPROBES_H
 /*
  *  Kernel Probes (KProbes)
  *  include/linux/kprobes.h
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * Copyright (C) IBM Corporation, 2002, 2004
  *
@@ -155,8 +168,6 @@ struct kretprobe {
 	raw_spinlock_t lock;
 };
 
-#define KRETPROBE_MAX_DATA_SIZE	4096
-
 struct kretprobe_instance {
 	struct hlist_node hlist;
 	struct kretprobe *rp;
@@ -234,7 +245,7 @@ extern void kprobes_inc_nmissed_count(struct kprobe *p);
 extern bool arch_within_kprobe_blacklist(unsigned long addr);
 extern int arch_populate_kprobe_blacklist(void);
 extern bool arch_kprobe_on_func_entry(unsigned long offset);
-extern int kprobe_on_func_entry(kprobe_opcode_t *addr, const char *sym, unsigned long offset);
+extern bool kprobe_on_func_entry(kprobe_opcode_t *addr, const char *sym, unsigned long offset);
 
 extern bool within_kprobe_blacklist(unsigned long addr);
 extern int kprobe_add_ksym_blacklist(unsigned long entry);
@@ -371,15 +382,10 @@ void unregister_kretprobes(struct kretprobe **rps, int num);
 void kprobe_flush_task(struct task_struct *tk);
 void recycle_rp_inst(struct kretprobe_instance *ri, struct hlist_head *head);
 
-void kprobe_free_init_mem(void);
-
 int disable_kprobe(struct kprobe *kp);
 int enable_kprobe(struct kprobe *kp);
 
 void dump_kprobe(struct kprobe *kp);
-
-void *alloc_insn_page(void);
-void free_insn_page(void *page);
 
 #else /* !CONFIG_KPROBES: */
 
@@ -430,9 +436,6 @@ static inline void unregister_kretprobes(struct kretprobe **rps, int num)
 static inline void kprobe_flush_task(struct task_struct *tk)
 {
 }
-static inline void kprobe_free_init_mem(void)
-{
-}
 static inline int disable_kprobe(struct kprobe *kp)
 {
 	return -ENOSYS;
@@ -440,11 +443,6 @@ static inline int disable_kprobe(struct kprobe *kp)
 static inline int enable_kprobe(struct kprobe *kp)
 {
 	return -ENOSYS;
-}
-
-static inline bool within_kprobe_blacklist(unsigned long addr)
-{
-	return true;
 }
 #endif /* CONFIG_KPROBES */
 static inline int disable_kretprobe(struct kretprobe *rp)
@@ -468,24 +466,5 @@ static inline bool is_kprobe_optinsn_slot(unsigned long addr)
 	return false;
 }
 #endif
-
-/* Returns true if kprobes handled the fault */
-static nokprobe_inline bool kprobe_page_fault(struct pt_regs *regs,
-					      unsigned int trap)
-{
-	if (!kprobes_built_in())
-		return false;
-	if (user_mode(regs))
-		return false;
-	/*
-	 * To be potentially processing a kprobe fault and to be allowed
-	 * to call kprobe_running(), we have to be non-preemptible.
-	 */
-	if (preemptible())
-		return false;
-	if (!kprobe_running())
-		return false;
-	return kprobe_fault_handler(regs, trap);
-}
 
 #endif /* _LINUX_KPROBES_H */

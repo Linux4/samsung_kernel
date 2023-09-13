@@ -265,6 +265,7 @@ static int adiantum_hash_message(struct skcipher_request *req,
 	int err;
 
 	hash_desc->tfm = tctx->hash;
+	hash_desc->flags = 0;
 
 	err = crypto_shash_init(hash_desc);
 	if (err)
@@ -658,7 +659,7 @@ static void __exit adiantum_module_exit(void)
 	crypto_unregister_template(&adiantum_tmpl);
 }
 
-subsys_initcall(adiantum_module_init);
+module_init(adiantum_module_init);
 module_exit(adiantum_module_exit);
 
 MODULE_DESCRIPTION("Adiantum length-preserving encryption mode");

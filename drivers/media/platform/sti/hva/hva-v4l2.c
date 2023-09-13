@@ -257,8 +257,8 @@ static int hva_querycap(struct file *file, void *priv,
 	struct hva_ctx *ctx = fh_to_ctx(file->private_data);
 	struct hva_dev *hva = ctx_to_hdev(ctx);
 
-	strscpy(cap->driver, HVA_NAME, sizeof(cap->driver));
-	strscpy(cap->card, hva->vdev->name, sizeof(cap->card));
+	strlcpy(cap->driver, HVA_NAME, sizeof(cap->driver));
+	strlcpy(cap->card, hva->vdev->name, sizeof(cap->card));
 	snprintf(cap->bus_info, sizeof(cap->bus_info), "platform:%s",
 		 hva->pdev->name);
 
@@ -566,7 +566,6 @@ static int hva_qbuf(struct file *file, void *priv, struct v4l2_buffer *buf)
 		 */
 		struct vb2_queue *vq;
 		struct hva_stream *stream;
-		struct vb2_buffer *vb2_buf;
 
 		vq = v4l2_m2m_get_vq(ctx->fh.m2m_ctx, buf->type);
 
@@ -576,8 +575,7 @@ static int hva_qbuf(struct file *file, void *priv, struct v4l2_buffer *buf)
 			return -EINVAL;
 		}
 
-		vb2_buf = vb2_get_buffer(vq, buf->index);
-		stream = to_hva_stream(to_vb2_v4l2_buffer(vb2_buf));
+		stream = (struct hva_stream *)vq->bufs[buf->index];
 		stream->bytesused = buf->bytesused;
 	}
 

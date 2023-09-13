@@ -1,7 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2006 Patrick McHardy <kaber@trash.net>
  * Copyright © CC Computer Consultants GmbH, 2007 - 2008
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * This is a replacement of the old ipt_recent module, which carried the
  * following copyright notice:
@@ -152,8 +155,7 @@ static void recent_entry_remove(struct recent_table *t, struct recent_entry *e)
 /*
  * Drop entries with timestamps older then 'time'.
  */
-static void recent_entry_reap(struct recent_table *t, unsigned long time,
-			      struct recent_entry *working, bool update)
+static void recent_entry_reap(struct recent_table *t, unsigned long time)
 {
 	struct recent_entry *e;
 
@@ -161,12 +163,6 @@ static void recent_entry_reap(struct recent_table *t, unsigned long time,
 	 * The head of the LRU list is always the oldest entry.
 	 */
 	e = list_entry(t->lru_list.next, struct recent_entry, lru_list);
-
-	/*
-	 * Do not reap the entry which are going to be updated.
-	 */
-	if (e == working && update)
-		return;
 
 	/*
 	 * The last time stamp is the most recent.
@@ -310,8 +306,7 @@ recent_mt(const struct sk_buff *skb, struct xt_action_param *par)
 
 		/* info->seconds must be non-zero */
 		if (info->check_set & XT_RECENT_REAP)
-			recent_entry_reap(t, time, e,
-				info->check_set & XT_RECENT_UPDATE && ret);
+			recent_entry_reap(t, time);
 	}
 
 	if (info->check_set & XT_RECENT_SET ||
@@ -342,6 +337,7 @@ static int recent_mt_check(const struct xt_mtchk_param *par,
 	unsigned int nstamp_mask;
 	unsigned int i;
 	int ret = -EINVAL;
+	size_t sz;
 
 	net_get_random_once(&hash_rnd, sizeof(hash_rnd));
 
@@ -391,7 +387,8 @@ static int recent_mt_check(const struct xt_mtchk_param *par,
 		goto out;
 	}
 
-	t = kvzalloc(struct_size(t, iphash, ip_list_hash_size), GFP_KERNEL);
+	sz = sizeof(*t) + sizeof(t->iphash[0]) * ip_list_hash_size;
+	t = kvzalloc(sz, GFP_KERNEL);
 	if (t == NULL) {
 		ret = -ENOMEM;
 		goto out;

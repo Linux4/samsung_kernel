@@ -263,6 +263,7 @@ ath5k_bss_info_changed(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 		memcpy(common->curbssid, bss_conf->bssid, ETH_ALEN);
 		common->curaid = 0;
 		ath5k_hw_set_bssid(ah);
+		mmiowb();
 	}
 
 	if (changes & BSS_CHANGED_BEACON_INT)
@@ -521,12 +522,13 @@ ath5k_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
 		}
 		break;
 	case DISABLE_KEY:
-		ath_key_delete(common, key->hw_key_idx);
+		ath_key_delete(common, key);
 		break;
 	default:
 		ret = -EINVAL;
 	}
 
+	mmiowb();
 	mutex_unlock(&ah->lock);
 	return ret;
 }

@@ -24,7 +24,6 @@ enum bq27xxx_chip {
 	BQ27546,
 	BQ27742,
 	BQ27545, /* bq27545 */
-	BQ27411,
 	BQ27421, /* bq27421, bq27441, bq27621 */
 	BQ27425,
 	BQ27426,
@@ -50,6 +49,7 @@ struct bq27xxx_reg_cache {
 	int capacity;
 	int energy;
 	int flags;
+	int power_avg;
 	int health;
 };
 

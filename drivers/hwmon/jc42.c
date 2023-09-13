@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * jc42.c - driver for Jedec JC42.4 compliant temperature sensors
  *
@@ -7,6 +6,20 @@
  * Derived from lm77.c by Andras BALI <drewie@freemail.hu>.
  *
  * JC42.4 compliant temperature sensors are typically used on memory modules.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include <linux/bitops.h>
@@ -377,21 +390,21 @@ static umode_t jc42_is_visible(const void *_data, enum hwmon_sensor_types type,
 {
 	const struct jc42_data *data = _data;
 	unsigned int config = data->config;
-	umode_t mode = 0444;
+	umode_t mode = S_IRUGO;
 
 	switch (attr) {
 	case hwmon_temp_min:
 	case hwmon_temp_max:
 		if (!(config & JC42_CFG_EVENT_LOCK))
-			mode |= 0200;
+			mode |= S_IWUSR;
 		break;
 	case hwmon_temp_crit:
 		if (!(config & JC42_CFG_TCRIT_LOCK))
-			mode |= 0200;
+			mode |= S_IWUSR;
 		break;
 	case hwmon_temp_crit_hyst:
 		if (!(config & (JC42_CFG_EVENT_LOCK | JC42_CFG_TCRIT_LOCK)))
-			mode |= 0200;
+			mode |= S_IWUSR;
 		break;
 	case hwmon_temp_input:
 	case hwmon_temp_max_hyst:
@@ -438,12 +451,20 @@ static int jc42_detect(struct i2c_client *client, struct i2c_board_info *info)
 	return -ENODEV;
 }
 
+static const u32 jc42_temp_config[] = {
+	HWMON_T_INPUT | HWMON_T_MIN | HWMON_T_MAX | HWMON_T_CRIT |
+	HWMON_T_MAX_HYST | HWMON_T_CRIT_HYST |
+	HWMON_T_MIN_ALARM | HWMON_T_MAX_ALARM | HWMON_T_CRIT_ALARM,
+	0
+};
+
+static const struct hwmon_channel_info jc42_temp = {
+	.type = hwmon_temp,
+	.config = jc42_temp_config,
+};
+
 static const struct hwmon_channel_info *jc42_info[] = {
-	HWMON_CHANNEL_INFO(temp,
-			   HWMON_T_INPUT | HWMON_T_MIN | HWMON_T_MAX |
-			   HWMON_T_CRIT | HWMON_T_MAX_HYST |
-			   HWMON_T_CRIT_HYST | HWMON_T_MIN_ALARM |
-			   HWMON_T_MAX_ALARM | HWMON_T_CRIT_ALARM),
+	&jc42_temp,
 	NULL
 };
 

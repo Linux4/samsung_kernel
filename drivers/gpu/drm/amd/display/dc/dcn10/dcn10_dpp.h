@@ -1368,14 +1368,13 @@ enum dcn10_input_csc_select {
 
 void dpp1_set_cursor_attributes(
 		struct dpp *dpp_base,
-		struct dc_cursor_attributes *cursor_attributes);
+		enum dc_cursor_color_format color_format);
 
 void dpp1_set_cursor_position(
 		struct dpp *dpp_base,
 		const struct dc_cursor_position *pos,
 		const struct dc_cursor_mi_param *param,
-		uint32_t width,
-		uint32_t height);
+		uint32_t width);
 
 void dpp1_cnv_set_optional_cursor_attributes(
 			struct dpp *dpp_base,
@@ -1486,12 +1485,7 @@ void dpp1_cnv_setup (
 		enum surface_pixel_format format,
 		enum expansion_mode mode,
 		struct dc_csc_transform input_csc_color_matrix,
-#ifdef CONFIG_DRM_AMD_DC_DCN2_0
-		enum dc_color_space input_color_space,
-		struct cnv_alpha_2bit_lut *alpha_2bit_lut);
-#else
 		enum dc_color_space input_color_space);
-#endif
 
 void dpp1_full_bypass(struct dpp *dpp_base);
 

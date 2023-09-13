@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * custom_method.c - debugfs interface for customizing ACPI control method
  */
@@ -9,7 +8,6 @@
 #include <linux/uaccess.h>
 #include <linux/debugfs.h>
 #include <linux/acpi.h>
-#include <linux/security.h>
 
 #include "internal.h"
 
@@ -30,11 +28,6 @@ static ssize_t cm_write(struct file *file, const char __user * user_buf,
 
 	struct acpi_table_header table;
 	acpi_status status;
-	int ret;
-
-	ret = security_locked_down(LOCKDOWN_ACPI_TABLES);
-	if (ret)
-		return ret;
 
 	if (!(*ppos)) {
 		/* parse the table header to get the table length */
@@ -44,8 +37,6 @@ static ssize_t cm_write(struct file *file, const char __user * user_buf,
 				   sizeof(struct acpi_table_header)))
 			return -EFAULT;
 		uncopied_bytes = max_size = table.length;
-		/* make sure the buf is not allocated */
-		kfree(buf);
 		buf = kzalloc(max_size, GFP_KERNEL);
 		if (!buf)
 			return -ENOMEM;
@@ -59,7 +50,6 @@ static ssize_t cm_write(struct file *file, const char __user * user_buf,
 	    (*ppos + count < count) ||
 	    (count > uncopied_bytes)) {
 		kfree(buf);
-		buf = NULL;
 		return -EINVAL;
 	}
 
@@ -81,6 +71,7 @@ static ssize_t cm_write(struct file *file, const char __user * user_buf,
 		add_taint(TAINT_OVERRIDDEN_ACPI_TABLE, LOCKDEP_NOW_UNRELIABLE);
 	}
 
+	kfree(buf);
 	return count;
 }
 
@@ -91,14 +82,21 @@ static const struct file_operations cm_fops = {
 
 static int __init acpi_custom_method_init(void)
 {
+	if (acpi_debugfs_dir == NULL)
+		return -ENOENT;
+
 	cm_dentry = debugfs_create_file("custom_method", S_IWUSR,
 					acpi_debugfs_dir, NULL, &cm_fops);
+	if (cm_dentry == NULL)
+		return -ENODEV;
+
 	return 0;
 }
 
 static void __exit acpi_custom_method_exit(void)
 {
-	debugfs_remove(cm_dentry);
+	if (cm_dentry)
+		debugfs_remove(cm_dentry);
 }
 
 module_init(acpi_custom_method_init);

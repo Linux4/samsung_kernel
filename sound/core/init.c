@@ -1,7 +1,22 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Initialization routines
  *  Copyright (c) by Jaroslav Kysela <perex@perex.cz>
+ *
+ *
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation; either version 2 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program; if not, write to the Free Software
+ *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+ *
  */
 
 #include <linux/init.h>
@@ -34,7 +49,8 @@ static const struct file_operations snd_shutdown_f_ops;
 
 /* locked for registering/using */
 static DECLARE_BITMAP(snd_cards_lock, SNDRV_CARDS);
-static struct snd_card *snd_cards[SNDRV_CARDS];
+struct snd_card *snd_cards[SNDRV_CARDS];
+EXPORT_SYMBOL(snd_cards);
 
 static DEFINE_MUTEX(snd_card_mutex);
 
@@ -82,6 +98,31 @@ static int module_slot_match(struct module *module, int idx)
 #if IS_ENABLED(CONFIG_SND_MIXER_OSS)
 int (*snd_mixer_oss_notify_callback)(struct snd_card *card, int free_flag);
 EXPORT_SYMBOL(snd_mixer_oss_notify_callback);
+#endif
+
+#ifdef CONFIG_SND_PROC_FS
+static void snd_card_id_read(struct snd_info_entry *entry,
+			     struct snd_info_buffer *buffer)
+{
+	snd_iprintf(buffer, "%s\n", entry->card->id);
+}
+
+static int init_info_for_card(struct snd_card *card)
+{
+	struct snd_info_entry *entry;
+
+	entry = snd_info_create_card_entry(card, "id", card->proc_root);
+	if (!entry) {
+		dev_dbg(card->dev, "unable to create card entry\n");
+		return -ENOMEM;
+	}
+	entry->c.text.read = snd_card_id_read;
+	card->proc_id = entry;
+
+	return snd_info_card_register(card);
+}
+#else /* !CONFIG_SND_PROC_FS */
+#define init_info_for_card(card)
 #endif
 
 static int check_empty_slot(struct module *module, int slot)
@@ -215,9 +256,7 @@ int snd_card_new(struct device *parent, int idx, const char *xid,
 	init_waitqueue_head(&card->power_sleep);
 #endif
 	init_waitqueue_head(&card->remove_sleep);
-#ifdef CONFIG_AUDIO_QGKI
-	init_waitqueue_head(&card->offline_poll_wait);
-#endif
+
 	device_initialize(&card->card_dev);
 	card->card_dev.parent = parent;
 	card->card_dev.class = sound_class;
@@ -253,26 +292,6 @@ int snd_card_new(struct device *parent, int idx, const char *xid,
   	return err;
 }
 EXPORT_SYMBOL(snd_card_new);
-
-/**
- * snd_card_ref - Get the card object from the index
- * @idx: the card index
- *
- * Returns a card object corresponding to the given index or NULL if not found.
- * Release the object via snd_card_unref().
- */
-struct snd_card *snd_card_ref(int idx)
-{
-	struct snd_card *card;
-
-	mutex_lock(&snd_card_mutex);
-	card = snd_cards[idx];
-	if (card)
-		get_device(&card->card_dev);
-	mutex_unlock(&snd_card_mutex);
-	return card;
-}
-EXPORT_SYMBOL_GPL(snd_card_ref);
 
 /* return non-zero if a card is already locked */
 int snd_card_locked(int card)
@@ -386,8 +405,10 @@ int snd_card_disconnect(struct snd_card *card)
 		return 0;
 	}
 	card->shutdown = 1;
+	spin_unlock(&card->files_lock);
 
 	/* replace file->f_op with special dummy operations */
+	spin_lock(&card->files_lock);
 	list_for_each_entry(mfile, &card->files_list, list) {
 		/* it's critical part, use endless loop */
 		/* we have no room to fail */
@@ -470,6 +491,7 @@ static int snd_card_do_free(struct snd_card *card)
 	snd_device_free_all(card);
 	if (card->private_free)
 		card->private_free(card);
+	snd_info_free_entry(card->proc_id);
 	if (snd_info_card_free(card) < 0) {
 		dev_warn(card->dev, "unable to free card info\n");
 		/* Not fatal error */
@@ -773,10 +795,7 @@ int snd_card_register(struct snd_card *card)
 	}
 	snd_cards[card->number] = card;
 	mutex_unlock(&snd_card_mutex);
-	err = snd_info_card_register(card);
-	if (err < 0)
-		return err;
-
+	init_info_for_card(card);
 #if IS_ENABLED(CONFIG_SND_MIXER_OSS)
 	if (snd_mixer_oss_notify_callback)
 		snd_mixer_oss_notify_callback(card, SND_MIXER_OSS_NOTIFY_REGISTER);
@@ -980,37 +999,6 @@ int snd_card_file_remove(struct snd_card *card, struct file *file)
 	return 0;
 }
 EXPORT_SYMBOL(snd_card_file_remove);
-
-#ifdef CONFIG_AUDIO_QGKI
-/**
- * snd_card_change_online_state - mark card's online/offline state
- * @card: Card to mark
- * @online: whether online of offline
- *
- * Mutes the DAI DAC.
- */
-void snd_card_change_online_state(struct snd_card *card, int online)
-{
-	snd_printd("snd card %s state change %d -> %d\n",
-		card->shortname, !card->offline, online);
-	card->offline = !online;
-	/* make sure offline is updated prior to wake up */
-	wmb();
-	xchg(&card->offline_change, 1);
-	wake_up_interruptible(&card->offline_poll_wait);
-}
-EXPORT_SYMBOL(snd_card_change_online_state);
-
-/**
- * snd_card_is_online_state - return true if card is online state
- * @card: Card to query
- */
-bool snd_card_is_online_state(struct snd_card *card)
-{
-	return !card->offline;
-}
-EXPORT_SYMBOL(snd_card_is_online_state);
-#endif
 
 #ifdef CONFIG_PM
 /**

@@ -116,14 +116,10 @@ static struct net_device * __init ipddp_init(void)
  */
 static netdev_tx_t ipddp_xmit(struct sk_buff *skb, struct net_device *dev)
 {
-        struct rtable *rtable = skb_rtable(skb);
-        __be32 paddr = 0;
+	__be32 paddr = skb_rtable(skb)->rt_gateway;
         struct ddpehdr *ddp;
         struct ipddp_route *rt;
         struct atalk_addr *our_addr;
-
-	if (rtable->rt_gw_family == AF_INET)
-		paddr = rtable->rt_gw4;
 
 	spin_lock(&ipddp_route_lock);
 

@@ -377,7 +377,6 @@ void i40e_client_subtask(struct i40e_pf *pf)
 				clear_bit(__I40E_CLIENT_INSTANCE_OPENED,
 					  &cdev->state);
 				i40e_client_del_instance(pf);
-				return;
 			}
 		}
 	}
@@ -579,9 +578,11 @@ static int i40e_client_setup_qvlist(struct i40e_info *ldev,
 	struct i40e_hw *hw = &pf->hw;
 	struct i40e_qv_info *qv_info;
 	u32 v_idx, i, reg_idx, reg;
+	u32 size;
 
-	ldev->qvlist_info = kzalloc(struct_size(ldev->qvlist_info, qv_info,
-				    qvlist_info->num_vectors - 1), GFP_KERNEL);
+	size = sizeof(struct i40e_qvlist_info) +
+	       (sizeof(struct i40e_qv_info) * (qvlist_info->num_vectors - 1));
+	ldev->qvlist_info = kzalloc(size, GFP_KERNEL);
 	if (!ldev->qvlist_info)
 		return -ENOMEM;
 	ldev->qvlist_info->num_vectors = qvlist_info->num_vectors;

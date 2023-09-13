@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * AppArmor security module
  *
@@ -6,12 +5,17 @@
  *
  * Copyright (C) 1998-2008 Novell/SUSE
  * Copyright 2009-2010 Canonical Ltd.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation, version 2 of the
+ * License.
  */
 
 #include <linux/ctype.h>
 #include <linux/security.h>
 #include <linux/vmalloc.h>
-#include <linux/init.h>
+#include <linux/module.h>
 #include <linux/seq_file.h>
 #include <linux/uaccess.h>
 #include <linux/mount.h>
@@ -19,7 +23,6 @@
 #include <linux/capability.h>
 #include <linux/rcupdate.h>
 #include <linux/fs.h>
-#include <linux/fs_context.h>
 #include <linux/poll.h>
 #include <uapi/linux/major.h>
 #include <uapi/linux/magic.h>
@@ -120,20 +123,26 @@ static int aafs_show_path(struct seq_file *seq, struct dentry *dentry)
 	return 0;
 }
 
-static void aafs_free_inode(struct inode *inode)
+static void aafs_i_callback(struct rcu_head *head)
 {
+	struct inode *inode = container_of(head, struct inode, i_rcu);
 	if (S_ISLNK(inode->i_mode))
 		kfree(inode->i_link);
 	free_inode_nonrcu(inode);
 }
 
+static void aafs_destroy_inode(struct inode *inode)
+{
+	call_rcu(&inode->i_rcu, aafs_i_callback);
+}
+
 static const struct super_operations aafs_super_ops = {
 	.statfs = simple_statfs,
-	.free_inode = aafs_free_inode,
+	.destroy_inode = aafs_destroy_inode,
 	.show_path = aafs_show_path,
 };
 
-static int apparmorfs_fill_super(struct super_block *sb, struct fs_context *fc)
+static int fill_super(struct super_block *sb, void *data, int silent)
 {
 	static struct tree_descr files[] = { {""} };
 	int error;
@@ -146,25 +155,16 @@ static int apparmorfs_fill_super(struct super_block *sb, struct fs_context *fc)
 	return 0;
 }
 
-static int apparmorfs_get_tree(struct fs_context *fc)
+static struct dentry *aafs_mount(struct file_system_type *fs_type,
+				 int flags, const char *dev_name, void *data)
 {
-	return get_tree_single(fc, apparmorfs_fill_super);
-}
-
-static const struct fs_context_operations apparmorfs_context_ops = {
-	.get_tree	= apparmorfs_get_tree,
-};
-
-static int apparmorfs_init_fs_context(struct fs_context *fc)
-{
-	fc->ops = &apparmorfs_context_ops;
-	return 0;
+	return mount_single(fs_type, flags, data, fill_super);
 }
 
 static struct file_system_type aafs_ops = {
 	.owner = THIS_MODULE,
 	.name = AAFS_NAME,
-	.init_fs_context = apparmorfs_init_fs_context,
+	.mount = aafs_mount,
 	.kill_sb = kill_anon_super,
 };
 
@@ -1749,7 +1749,7 @@ static int ns_rmdir_op(struct inode *dir, struct dentry *dentry)
 	if (error)
 		return error;
 
-	parent = aa_get_ns(dir->i_private);
+	 parent = aa_get_ns(dir->i_private);
 	/* rmdir calls the generic securityfs functions to remove files
 	 * from the apparmor dir. It is up to the apparmor ns locking
 	 * to avoid races.
@@ -1959,6 +1959,9 @@ fail2:
 
 	return error;
 }
+
+
+#define list_entry_is_head(pos, head, member) (&pos->member == (head))
 
 /**
  * __next_ns - find the next namespace to list

@@ -1,8 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * ST SPEAr ADC driver
  *
  * Copyright 2012 Stefan Roese <sr@denx.de>
+ *
+ * Licensed under the GPL-2.
  */
 
 #include <linux/module.h>
@@ -301,6 +302,7 @@ static int spear_adc_probe(struct platform_device *pdev)
 
 	irq = platform_get_irq(pdev, 0);
 	if (irq <= 0) {
+		dev_err(dev, "failed getting interrupt resource\n");
 		ret = -EINVAL;
 		goto errout2;
 	}

@@ -1,8 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Event char devices, giving access to raw input device events.
  *
  * Copyright (c) 1999-2002 Vojtech Pavlik
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -25,6 +28,13 @@
 #include <linux/cdev.h>
 #include "input-compat.h"
 
+enum evdev_clock_type {
+	EV_CLK_REAL = 0,
+	EV_CLK_MONO,
+	EV_CLK_BOOT,
+	EV_CLK_MAX
+};
+
 struct evdev {
 	int open;
 	struct input_handle handle;
@@ -46,42 +56,12 @@ struct evdev_client {
 	struct fasync_struct *fasync;
 	struct evdev *evdev;
 	struct list_head node;
-	enum input_clock_type clk_type;
+	unsigned int clk_type;
 	bool revoked;
 	unsigned long *evmasks[EV_CNT];
 	unsigned int bufsize;
 	struct input_event buffer[];
 };
-
-#if IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER)
-#include <linux/notifier.h>
-#include <linux/input/input_booster.h>
-
-struct workqueue_struct *ib_unbound_highwq;
-spinlock_t ib_idx_lock;
-struct ib_event_work *ib_evt_work;
-int ib_work_cnt;
-
-static BLOCKING_NOTIFIER_HEAD(ib_notifier_list);
-
-int ib_notifier_register(struct notifier_block *nb)
-{
-	return blocking_notifier_chain_register(&ib_notifier_list, nb);
-}
-EXPORT_SYMBOL(ib_notifier_register);
-
-int ib_notifier_unregister(struct notifier_block *nb)
-{
-	return blocking_notifier_chain_unregister(&ib_notifier_list, nb);
-}
-EXPORT_SYMBOL(ib_notifier_unregister);
-
-int ib_notifier_call_chain(unsigned long val, void *v)
-{
-	return blocking_notifier_call_chain(&ib_notifier_list, val, v);
-}
-EXPORT_SYMBOL_GPL(ib_notifier_call_chain);
-#endif
 
 static size_t evdev_get_mask_cnt(unsigned int type)
 {
@@ -172,10 +152,17 @@ static void __evdev_flush_queue(struct evdev_client *client, unsigned int type)
 
 static void __evdev_queue_syn_dropped(struct evdev_client *client)
 {
-	ktime_t *ev_time = input_get_timestamp(client->evdev->handle.dev);
-	struct timespec64 ts = ktime_to_timespec64(ev_time[client->clk_type]);
 	struct input_event ev;
+	ktime_t time;
+	struct timespec64 ts;
 
+	time = client->clk_type == EV_CLK_REAL ?
+			ktime_get_real() :
+			client->clk_type == EV_CLK_MONO ?
+				ktime_get() :
+				ktime_get_boottime();
+
+	ts = ktime_to_timespec64(time);
 	ev.input_event_sec = ts.tv_sec;
 	ev.input_event_usec = ts.tv_nsec / NSEC_PER_USEC;
 	ev.type = EV_SYN;
@@ -204,18 +191,18 @@ static void evdev_queue_syn_dropped(struct evdev_client *client)
 static int evdev_set_clk_type(struct evdev_client *client, unsigned int clkid)
 {
 	unsigned long flags;
-	enum input_clock_type clk_type;
+	unsigned int clk_type;
 
 	switch (clkid) {
 
 	case CLOCK_REALTIME:
-		clk_type = INPUT_CLK_REAL;
+		clk_type = EV_CLK_REAL;
 		break;
 	case CLOCK_MONOTONIC:
-		clk_type = INPUT_CLK_MONO;
+		clk_type = EV_CLK_MONO;
 		break;
 	case CLOCK_BOOTTIME:
-		clk_type = INPUT_CLK_BOOT;
+		clk_type = EV_CLK_BOOT;
 		break;
 	default:
 		return -EINVAL;
@@ -315,18 +302,6 @@ static void evdev_pass_values(struct evdev_client *client,
 		wake_up_interruptible(&evdev->wait);
 }
 
-#if IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER)
-static void evdev_ib_trigger(struct work_struct *work)
-{
-	struct ib_event_work *ib_work = container_of(work, struct ib_event_work, evdev_work);
-	struct ib_event_data ib_data;
-
-	ib_data.evt_cnt = ib_work->evt_cnt;
-	ib_data.vals = ib_work->vals;
-	ib_notifier_call_chain(IB_EVENT_TOUCH_BOOSTER, &(ib_data));
-}
-#endif
-
 /*
  * Pass incoming events to all connected clients.
  */
@@ -335,26 +310,13 @@ static void evdev_events(struct input_handle *handle,
 {
 	struct evdev *evdev = handle->private;
 	struct evdev_client *client;
-#if IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER)
-	int cur_ib_idx;
-#endif
-	ktime_t *ev_time = input_get_timestamp(handle->dev);
+	ktime_t ev_time[EV_CLK_MAX];
 
-#if IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER)
-	spin_lock(&ib_idx_lock);
-	cur_ib_idx = ib_work_cnt++;
-	if (ib_work_cnt >= MAX_IB_COUNT) {
-		pr_info("[Input Booster] Ib_Work_Cnt(%d), Event_Cnt(%d)", ib_work_cnt, count);
-		ib_work_cnt = 0;
-	}
+	ev_time[EV_CLK_MONO] = ktime_get();
+	ev_time[EV_CLK_REAL] = ktime_mono_to_real(ev_time[EV_CLK_MONO]);
+	ev_time[EV_CLK_BOOT] = ktime_mono_to_any(ev_time[EV_CLK_MONO],
+						 TK_OFFS_BOOT);
 
-	if (ib_evt_work != NULL) {
-		ib_evt_work[cur_ib_idx].evt_cnt = count;
-		memcpy(ib_evt_work[cur_ib_idx].vals, vals, sizeof(struct input_value) * count);
-		queue_work(ib_unbound_highwq, &(ib_evt_work[cur_ib_idx].evdev_work));
-	}
-	spin_unlock(&ib_idx_lock);
-#endif
 	rcu_read_lock();
 
 	client = rcu_dereference(evdev->grab);
@@ -531,10 +493,14 @@ static int evdev_open(struct inode *inode, struct file *file)
 {
 	struct evdev *evdev = container_of(inode->i_cdev, struct evdev, cdev);
 	unsigned int bufsize = evdev_compute_buffer_size(evdev->handle.dev);
+	unsigned int size = sizeof(struct evdev_client) +
+					bufsize * sizeof(struct input_event);
 	struct evdev_client *client;
 	int error;
 
-	client = kvzalloc(struct_size(client, buffer, bufsize), GFP_KERNEL);
+	client = kzalloc(size, GFP_KERNEL | __GFP_NOWARN);
+	if (!client)
+		client = vzalloc(size);
 	if (!client)
 		return -ENOMEM;
 
@@ -548,7 +514,7 @@ static int evdev_open(struct inode *inode, struct file *file)
 		goto err_free_client;
 
 	file->private_data = client;
-	stream_open(inode, file);
+	nonseekable_open(inode, file);
 
 	return 0;
 
@@ -1490,18 +1456,6 @@ static struct input_handler evdev_handler = {
 
 static int __init evdev_init(void)
 {
-#if IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER)
-	int i;
-	ib_evt_work = kmalloc(sizeof(struct ib_event_work) * MAX_IB_COUNT, GFP_KERNEL);
-	if (ib_evt_work != NULL) {
-		for (i = 0; i < MAX_IB_COUNT; i++)
-			INIT_WORK(&(ib_evt_work[i].evdev_work), evdev_ib_trigger);
-	}
-	ib_work_cnt = 0;
-	spin_lock_init(&ib_idx_lock);
-	ib_unbound_highwq =
-		alloc_ordered_workqueue("ib_unbound_highwq", WQ_HIGHPRI);
-#endif
 	return input_register_handler(&evdev_handler);
 }
 

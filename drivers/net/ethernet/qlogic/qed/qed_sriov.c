@@ -96,7 +96,6 @@ static int qed_sp_vf_start(struct qed_hwfn *p_hwfn, struct qed_vf_info *p_vf)
 		p_ramrod->personality = PERSONALITY_ETH;
 		break;
 	case QED_PCI_ETH_ROCE:
-	case QED_PCI_ETH_IWARP:
 		p_ramrod->personality = PERSONALITY_RDMA_AND_ETH;
 		break;
 	default:
@@ -918,11 +917,10 @@ static u8 qed_iov_alloc_vf_igu_sbs(struct qed_hwfn *p_hwfn,
 		/* Configure igu sb in CAU which were marked valid */
 		qed_init_cau_sb_entry(p_hwfn, &sb_entry,
 				      p_hwfn->rel_pf_id, vf->abs_vf_id, 1);
-
 		qed_dmae_host2grc(p_hwfn, p_ptt,
 				  (u64)(uintptr_t)&sb_entry,
 				  CAU_REG_SB_VAR_MEMORY +
-				  p_block->igu_sb_id * sizeof(u64), 2, NULL);
+				  p_block->igu_sb_id * sizeof(u64), 2, 0);
 	}
 
 	vf->num_sbs = (u8) num_rx_queues;
@@ -1593,7 +1591,7 @@ static void qed_iov_vf_mbx_acquire(struct qed_hwfn *p_hwfn,
 			p_vfdev->eth_fp_hsi_minor = ETH_HSI_VER_NO_PKT_LEN_TUNN;
 		} else {
 			DP_INFO(p_hwfn,
-				"VF[%d] needs fastpath HSI %02x.%02x, which is incompatible with loaded FW's fastpath HSI %02x.%02x\n",
+				"VF[%d] needs fastpath HSI %02x.%02x, which is incompatible with loaded FW's faspath HSI %02x.%02x\n",
 				vf->abs_vf_id,
 				req->vfdev_info.eth_fp_hsi_major,
 				req->vfdev_info.eth_fp_hsi_minor,
@@ -2006,7 +2004,7 @@ static void qed_iov_vf_mbx_stop_vport(struct qed_hwfn *p_hwfn,
 	    (qed_iov_validate_active_txq(p_hwfn, vf))) {
 		vf->b_malicious = true;
 		DP_NOTICE(p_hwfn,
-			  "VF [%02x] - considered malicious; Unable to stop RX/TX queues\n",
+			  "VF [%02x] - considered malicious; Unable to stop RX/TX queuess\n",
 			  vf->abs_vf_id);
 		status = PFVF_STATUS_MALICIOUS;
 		goto out;
@@ -3003,16 +3001,12 @@ static int qed_iov_pre_update_vport(struct qed_hwfn *hwfn,
 	u8 mask = QED_ACCEPT_UCAST_UNMATCHED | QED_ACCEPT_MCAST_UNMATCHED;
 	struct qed_filter_accept_flags *flags = &params->accept_flags;
 	struct qed_public_vf_info *vf_info;
-	u16 tlv_mask;
-
-	tlv_mask = BIT(QED_IOV_VP_UPDATE_ACCEPT_PARAM) |
-		   BIT(QED_IOV_VP_UPDATE_ACCEPT_ANY_VLAN);
 
 	/* Untrusted VFs can't even be trusted to know that fact.
 	 * Simply indicate everything is configured fine, and trace
 	 * configuration 'behind their back'.
 	 */
-	if (!(*tlvs & tlv_mask))
+	if (!(*tlvs & BIT(QED_IOV_VP_UPDATE_ACCEPT_PARAM)))
 		return 0;
 
 	vf_info = qed_iov_get_public_vf_info(hwfn, vfid, true);
@@ -3027,13 +3021,6 @@ static int qed_iov_pre_update_vport(struct qed_hwfn *hwfn,
 		vf_info->tx_accept_mode = flags->tx_accept_filter;
 		if (!vf_info->is_trusted_configured)
 			flags->tx_accept_filter &= ~mask;
-	}
-
-	if (params->update_accept_any_vlan_flg) {
-		vf_info->accept_any_vlan = params->accept_any_vlan;
-
-		if (vf_info->forced_vlan && !vf_info->is_trusted_configured)
-			params->accept_any_vlan = false;
 	}
 
 	return 0;
@@ -3812,11 +3799,11 @@ bool qed_iov_mark_vf_flr(struct qed_hwfn *p_hwfn, u32 *p_disabled_vfs)
 	return found;
 }
 
-static int qed_iov_get_link(struct qed_hwfn *p_hwfn,
-			    u16 vfid,
-			    struct qed_mcp_link_params *p_params,
-			    struct qed_mcp_link_state *p_link,
-			    struct qed_mcp_link_capabilities *p_caps)
+static void qed_iov_get_link(struct qed_hwfn *p_hwfn,
+			     u16 vfid,
+			     struct qed_mcp_link_params *p_params,
+			     struct qed_mcp_link_state *p_link,
+			     struct qed_mcp_link_capabilities *p_caps)
 {
 	struct qed_vf_info *p_vf = qed_iov_get_vf_info(p_hwfn,
 						       vfid,
@@ -3824,7 +3811,7 @@ static int qed_iov_get_link(struct qed_hwfn *p_hwfn,
 	struct qed_bulletin_content *p_bulletin;
 
 	if (!p_vf)
-		return -EINVAL;
+		return;
 
 	p_bulletin = p_vf->bulletin.p_virt;
 
@@ -3834,7 +3821,6 @@ static int qed_iov_get_link(struct qed_hwfn *p_hwfn,
 		__qed_vf_get_link_state(p_hwfn, p_link, p_bulletin);
 	if (p_caps)
 		__qed_vf_get_link_caps(p_hwfn, p_caps, p_bulletin);
-	return 0;
 }
 
 static int
@@ -4463,13 +4449,6 @@ int qed_sriov_disable(struct qed_dev *cdev, bool pci_enabled)
 	if (cdev->p_iov_info && cdev->p_iov_info->num_vfs && pci_enabled)
 		pci_disable_sriov(cdev->pdev);
 
-	if (cdev->recov_in_prog) {
-		DP_VERBOSE(cdev,
-			   QED_MSG_IOV,
-			   "Skip SRIOV disable operations in the device since a recovery is in progress\n");
-		goto out;
-	}
-
 	for_each_hwfn(cdev, i) {
 		struct qed_hwfn *hwfn = &cdev->hwfns[i];
 		struct qed_ptt *ptt = qed_ptt_acquire(hwfn);
@@ -4509,7 +4488,7 @@ int qed_sriov_disable(struct qed_dev *cdev, bool pci_enabled)
 
 		qed_ptt_release(hwfn, ptt);
 	}
-out:
+
 	qed_iov_set_vfs_to_disable(cdev, false);
 
 	return 0;
@@ -4696,7 +4675,6 @@ static int qed_get_vf_config(struct qed_dev *cdev,
 	struct qed_public_vf_info *vf_info;
 	struct qed_mcp_link_state link;
 	u32 tx_rate;
-	int ret;
 
 	/* Sanitize request */
 	if (IS_VF(cdev))
@@ -4710,9 +4688,7 @@ static int qed_get_vf_config(struct qed_dev *cdev,
 
 	vf_info = qed_iov_get_public_vf_info(hwfn, vf_id, true);
 
-	ret = qed_iov_get_link(hwfn, vf_id, NULL, &link, NULL);
-	if (ret)
-		return ret;
+	qed_iov_get_link(hwfn, vf_id, NULL, &link, NULL);
 
 	/* Fill information about VF */
 	ivi->vf = vf_id;
@@ -4728,7 +4704,6 @@ static int qed_get_vf_config(struct qed_dev *cdev,
 	tx_rate = vf_info->tx_rate;
 	ivi->max_tx_rate = tx_rate ? tx_rate : link.speed;
 	ivi->min_tx_rate = qed_iov_get_vf_min_rate(hwfn, vf_id);
-	ivi->trusted = vf_info->is_trusted_request;
 
 	return 0;
 }
@@ -5159,12 +5134,6 @@ static void qed_iov_handle_trust_change(struct qed_hwfn *hwfn)
 
 		params.update_ctl_frame_check = 1;
 		params.mac_chk_en = !vf_info->is_trusted_configured;
-		params.update_accept_any_vlan_flg = 0;
-
-		if (vf_info->accept_any_vlan && vf_info->forced_vlan) {
-			params.update_accept_any_vlan_flg = 1;
-			params.accept_any_vlan = vf_info->accept_any_vlan;
-		}
 
 		if (vf_info->rx_accept_mode & mask) {
 			flags->update_rx_mode_config = 1;
@@ -5180,20 +5149,13 @@ static void qed_iov_handle_trust_change(struct qed_hwfn *hwfn)
 		if (!vf_info->is_trusted_configured) {
 			flags->rx_accept_filter &= ~mask;
 			flags->tx_accept_filter &= ~mask;
-			params.accept_any_vlan = false;
 		}
 
 		if (flags->update_rx_mode_config ||
 		    flags->update_tx_mode_config ||
-		    params.update_ctl_frame_check ||
-		    params.update_accept_any_vlan_flg) {
-			DP_VERBOSE(hwfn, QED_MSG_IOV,
-				   "vport update config for %s VF[abs 0x%x rel 0x%x]\n",
-				   vf_info->is_trusted_configured ? "trusted" : "untrusted",
-				   vf->abs_vf_id, vf->relative_vf_id);
+		    params.update_ctl_frame_check)
 			qed_sp_vport_update(hwfn, &params,
 					    QED_SPQ_MODE_EBLOCK, NULL);
-		}
 	}
 }
 

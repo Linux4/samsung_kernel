@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 #include <linux/errno.h>
 #include <linux/fs.h>
 #include <linux/quota.h>
@@ -128,7 +127,7 @@ static int v1_check_quota_file(struct super_block *sb, int type)
 {
 	struct inode *inode = sb_dqopt(sb)->files[type];
 	ulong blocks;
-	size_t off;
+	size_t off; 
 	struct v2_disk_dqheader dqhead;
 	ssize_t size;
 	loff_t isize;

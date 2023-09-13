@@ -35,7 +35,6 @@
 #define RXE_LOC_H
 
 /* rxe_av.c */
-void rxe_init_av(struct rdma_ah_attr *attr, struct rxe_av *av);
 
 int rxe_av_chk_attr(struct rxe_dev *rxe, struct rdma_ah_attr *attr);
 
@@ -53,12 +52,11 @@ int rxe_cq_chk_attr(struct rxe_dev *rxe, struct rxe_cq *cq,
 		    int cqe, int comp_vector);
 
 int rxe_cq_from_init(struct rxe_dev *rxe, struct rxe_cq *cq, int cqe,
-		     int comp_vector, struct ib_udata *udata,
+		     int comp_vector, struct ib_ucontext *context,
 		     struct rxe_create_cq_resp __user *uresp);
 
 int rxe_cq_resize_queue(struct rxe_cq *cq, int new_cqe,
-			struct rxe_resize_cq_resp __user *uresp,
-			struct ib_udata *udata);
+			struct rxe_resize_cq_resp __user *uresp);
 
 int rxe_cq_post(struct rxe_cq *cq, struct rxe_cqe *cqe, int solicited);
 
@@ -92,8 +90,10 @@ struct rxe_mmap_info {
 
 void rxe_mmap_release(struct kref *ref);
 
-struct rxe_mmap_info *rxe_create_mmap_info(struct rxe_dev *dev, u32 size,
-					   struct ib_udata *udata, void *obj);
+struct rxe_mmap_info *rxe_create_mmap_info(struct rxe_dev *dev,
+					   u32 size,
+					   struct ib_ucontext *context,
+					   void *obj);
 
 int rxe_mmap(struct ib_ucontext *context, struct vm_area_struct *vma);
 
@@ -144,7 +144,8 @@ void rxe_loopback(struct sk_buff *skb);
 int rxe_send(struct rxe_pkt_info *pkt, struct sk_buff *skb);
 struct sk_buff *rxe_init_packet(struct rxe_dev *rxe, struct rxe_av *av,
 				int paylen, struct rxe_pkt_info *pkt);
-int rxe_prepare(struct rxe_pkt_info *pkt, struct sk_buff *skb, u32 *crc);
+int rxe_prepare(struct rxe_dev *rxe, struct rxe_pkt_info *pkt,
+		struct sk_buff *skb, u32 *crc);
 enum rdma_link_layer rxe_link_layer(struct rxe_dev *rxe, unsigned int port_num);
 const char *rxe_parent_name(struct rxe_dev *rxe, unsigned int port_num);
 struct device *rxe_dma_device(struct rxe_dev *rxe);
@@ -157,7 +158,7 @@ int rxe_qp_chk_init(struct rxe_dev *rxe, struct ib_qp_init_attr *init);
 int rxe_qp_from_init(struct rxe_dev *rxe, struct rxe_qp *qp, struct rxe_pd *pd,
 		     struct ib_qp_init_attr *init,
 		     struct rxe_create_qp_resp __user *uresp,
-		     struct ib_pd *ibpd, struct ib_udata *udata);
+		     struct ib_pd *ibpd);
 
 int rxe_qp_to_init(struct rxe_qp *qp, struct ib_qp_init_attr *init);
 
@@ -195,7 +196,7 @@ static inline int qp_mtu(struct rxe_qp *qp)
 	if (qp->ibqp.qp_type == IB_QPT_RC || qp->ibqp.qp_type == IB_QPT_UC)
 		return qp->attr.path_mtu;
 	else
-		return IB_MTU_4096;
+		return RXE_PORT_MAX_MTU;
 }
 
 static inline int rcv_wqe_size(int max_sge)
@@ -223,14 +224,15 @@ int rxe_srq_chk_attr(struct rxe_dev *rxe, struct rxe_srq *srq,
 		     struct ib_srq_attr *attr, enum ib_srq_attr_mask mask);
 
 int rxe_srq_from_init(struct rxe_dev *rxe, struct rxe_srq *srq,
-		      struct ib_srq_init_attr *init, struct ib_udata *udata,
+		      struct ib_srq_init_attr *init,
+		      struct ib_ucontext *context,
 		      struct rxe_create_srq_resp __user *uresp);
 
 int rxe_srq_from_attr(struct rxe_dev *rxe, struct rxe_srq *srq,
 		      struct ib_srq_attr *attr, enum ib_srq_attr_mask mask,
-		      struct rxe_modify_srq_cmd *ucmd, struct ib_udata *udata);
+		      struct rxe_modify_srq_cmd *ucmd);
 
-void rxe_dealloc(struct ib_device *ib_dev);
+void rxe_release(struct kref *kref);
 
 int rxe_completer(void *arg);
 int rxe_requester(void *arg);
@@ -238,21 +240,22 @@ int rxe_responder(void *arg);
 
 u32 rxe_icrc_hdr(struct rxe_pkt_info *pkt, struct sk_buff *skb);
 
-void rxe_resp_queue_pkt(struct rxe_qp *qp, struct sk_buff *skb);
+void rxe_resp_queue_pkt(struct rxe_dev *rxe,
+			struct rxe_qp *qp, struct sk_buff *skb);
 
-void rxe_comp_queue_pkt(struct rxe_qp *qp, struct sk_buff *skb);
+void rxe_comp_queue_pkt(struct rxe_dev *rxe,
+			struct rxe_qp *qp, struct sk_buff *skb);
 
 static inline unsigned int wr_opcode_mask(int opcode, struct rxe_qp *qp)
 {
 	return rxe_wr_opcode_info[opcode].mask[qp->ibqp.qp_type];
 }
 
-static inline int rxe_xmit_packet(struct rxe_qp *qp, struct rxe_pkt_info *pkt,
-				  struct sk_buff *skb)
+static inline int rxe_xmit_packet(struct rxe_dev *rxe, struct rxe_qp *qp,
+				  struct rxe_pkt_info *pkt, struct sk_buff *skb)
 {
 	int err;
 	int is_request = pkt->mask & RXE_REQ_MASK;
-	struct rxe_dev *rxe = to_rdev(qp->ibqp.device);
 
 	if ((is_request && (qp->req.state != QP_STATE_READY)) ||
 	    (!is_request && (qp->resp.state != QP_STATE_READY))) {

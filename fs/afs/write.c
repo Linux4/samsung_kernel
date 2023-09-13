@@ -1,8 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /* handling of writes to regular files and writing back to the server
  *
  * Copyright (C) 2007 Red Hat, Inc. All Rights Reserved.
  * Written by David Howells (dhowells@redhat.com)
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version
+ * 2 of the License, or (at your option) any later version.
  */
 
 #include <linux/backing-dev.h>
@@ -29,22 +33,12 @@ static int afs_fill_page(struct afs_vnode *vnode, struct key *key,
 			 loff_t pos, unsigned int len, struct page *page)
 {
 	struct afs_read *req;
-	size_t p;
-	void *data;
 	int ret;
 
 	_enter(",,%llu", (unsigned long long)pos);
 
-	if (pos >= vnode->vfs_inode.i_size) {
-		p = pos & ~PAGE_MASK;
-		ASSERTCMP(p + len, <=, PAGE_SIZE);
-		data = kmap(page);
-		memset(data + p, 0, len);
-		kunmap(page);
-		return 0;
-	}
-
-	req = kzalloc(struct_size(req, array, 1), GFP_KERNEL);
+	req = kzalloc(sizeof(struct afs_read) + sizeof(struct page *),
+		      GFP_KERNEL);
 	if (!req)
 		return -ENOMEM;
 
@@ -87,7 +81,7 @@ int afs_write_begin(struct file *file, struct address_space *mapping,
 	pgoff_t index = pos >> PAGE_SHIFT;
 	int ret;
 
-	_enter("{%llx:%llu},{%lx},%u,%u",
+	_enter("{%x:%u},{%lx},%u,%u",
 	       vnode->fid.vid, vnode->fid.vnode, index, from, to);
 
 	/* We want to store information about how much of a page is altered in
@@ -187,7 +181,7 @@ int afs_write_end(struct file *file, struct address_space *mapping,
 	loff_t i_size, maybe_i_size;
 	int ret;
 
-	_enter("{%llx:%llu},{%lx}",
+	_enter("{%x:%u},{%lx}",
 	       vnode->fid.vid, vnode->fid.vnode, page->index);
 
 	maybe_i_size = pos + copied;
@@ -236,7 +230,7 @@ static void afs_kill_pages(struct address_space *mapping,
 	struct pagevec pv;
 	unsigned count, loop;
 
-	_enter("{%llx:%llu},%lx-%lx",
+	_enter("{%x:%u},%lx-%lx",
 	       vnode->fid.vid, vnode->fid.vnode, first, last);
 
 	pagevec_init(&pv);
@@ -279,7 +273,7 @@ static void afs_redirty_pages(struct writeback_control *wbc,
 	struct pagevec pv;
 	unsigned count, loop;
 
-	_enter("{%llx:%llu},%lx-%lx",
+	_enter("{%x:%u},%lx-%lx",
 	       vnode->fid.vid, vnode->fid.vnode, first, last);
 
 	pagevec_init(&pv);
@@ -309,46 +303,6 @@ static void afs_redirty_pages(struct writeback_control *wbc,
 }
 
 /*
- * completion of write to server
- */
-static void afs_pages_written_back(struct afs_vnode *vnode,
-				   pgoff_t first, pgoff_t last)
-{
-	struct pagevec pv;
-	unsigned long priv;
-	unsigned count, loop;
-
-	_enter("{%llx:%llu},{%lx-%lx}",
-	       vnode->fid.vid, vnode->fid.vnode, first, last);
-
-	pagevec_init(&pv);
-
-	do {
-		_debug("done %lx-%lx", first, last);
-
-		count = last - first + 1;
-		if (count > PAGEVEC_SIZE)
-			count = PAGEVEC_SIZE;
-		pv.nr = find_get_pages_contig(vnode->vfs_inode.i_mapping,
-					      first, count, pv.pages);
-		ASSERTCMP(pv.nr, ==, count);
-
-		for (loop = 0; loop < count; loop++) {
-			priv = page_private(pv.pages[loop]);
-			trace_afs_page_dirty(vnode, tracepoint_string("clear"),
-					     pv.pages[loop]->index, priv);
-			set_page_private(pv.pages[loop], 0);
-			end_page_writeback(pv.pages[loop]);
-		}
-		first += count;
-		__pagevec_release(&pv);
-	} while (first <= last);
-
-	afs_prune_wb_keys(vnode);
-	_leave("");
-}
-
-/*
  * write to a file
  */
 static int afs_store_data(struct address_space *mapping,
@@ -357,21 +311,16 @@ static int afs_store_data(struct address_space *mapping,
 {
 	struct afs_vnode *vnode = AFS_FS_I(mapping->host);
 	struct afs_fs_cursor fc;
-	struct afs_status_cb *scb;
 	struct afs_wb_key *wbk = NULL;
 	struct list_head *p;
 	int ret = -ENOKEY, ret2;
 
-	_enter("%s{%llx:%llu.%u},%lx,%lx,%x,%x",
+	_enter("%s{%x:%u.%u},%lx,%lx,%x,%x",
 	       vnode->volume->name,
 	       vnode->fid.vid,
 	       vnode->fid.vnode,
 	       vnode->fid.unique,
 	       first, last, offset, to);
-
-	scb = kzalloc(sizeof(struct afs_status_cb), GFP_NOFS);
-	if (!scb)
-		return -ENOMEM;
 
 	spin_lock(&vnode->wb_lock);
 	p = vnode->wb_keys.next;
@@ -391,7 +340,6 @@ try_next_key:
 
 	spin_unlock(&vnode->wb_lock);
 	afs_put_wb_key(wbk);
-	kfree(scb);
 	_leave(" = %d [no keys]", ret);
 	return ret;
 
@@ -402,19 +350,14 @@ found_key:
 	_debug("USE WB KEY %u", key_serial(wbk->key));
 
 	ret = -ERESTARTSYS;
-	if (afs_begin_vnode_operation(&fc, vnode, wbk->key, false)) {
-		afs_dataversion_t data_version = vnode->status.data_version + 1;
-
+	if (afs_begin_vnode_operation(&fc, vnode, wbk->key)) {
 		while (afs_select_fileserver(&fc)) {
 			fc.cb_break = afs_calc_vnode_cb_break(vnode);
-			afs_fs_store_data(&fc, mapping, first, last, offset, to, scb);
+			afs_fs_store_data(&fc, mapping, first, last, offset, to);
 		}
 
-		afs_check_for_remote_deletion(&fc, vnode);
-		afs_vnode_commit_status(&fc, vnode, fc.cb_break,
-					&data_version, scb);
-		if (fc.ac.error == 0)
-			afs_pages_written_back(vnode, first, last);
+		afs_check_for_remote_deletion(&fc, fc.vnode);
+		afs_vnode_commit_status(&fc, vnode, fc.cb_break);
 		ret = afs_end_vnode_operation(&fc);
 	}
 
@@ -439,7 +382,6 @@ found_key:
 	}
 
 	afs_put_wb_key(wbk);
-	kfree(scb);
 	_leave(" = %d", ret);
 	return ret;
 }
@@ -592,7 +534,6 @@ no_more:
 	case -ENOENT:
 	case -ENOMEDIUM:
 	case -ENXIO:
-		trace_afs_file_error(vnode, ret, afs_file_error_writeback_fail);
 		afs_kill_pages(mapping, first, last);
 		mapping_set_error(mapping, ret);
 		break;
@@ -726,6 +667,46 @@ int afs_writepages(struct address_space *mapping,
 }
 
 /*
+ * completion of write to server
+ */
+void afs_pages_written_back(struct afs_vnode *vnode, struct afs_call *call)
+{
+	struct pagevec pv;
+	unsigned long priv;
+	unsigned count, loop;
+	pgoff_t first = call->first, last = call->last;
+
+	_enter("{%x:%u},{%lx-%lx}",
+	       vnode->fid.vid, vnode->fid.vnode, first, last);
+
+	pagevec_init(&pv);
+
+	do {
+		_debug("done %lx-%lx", first, last);
+
+		count = last - first + 1;
+		if (count > PAGEVEC_SIZE)
+			count = PAGEVEC_SIZE;
+		pv.nr = find_get_pages_contig(vnode->vfs_inode.i_mapping,
+					      first, count, pv.pages);
+		ASSERTCMP(pv.nr, ==, count);
+
+		for (loop = 0; loop < count; loop++) {
+			priv = page_private(pv.pages[loop]);
+			trace_afs_page_dirty(vnode, tracepoint_string("clear"),
+					     pv.pages[loop]->index, priv);
+			set_page_private(pv.pages[loop], 0);
+			end_page_writeback(pv.pages[loop]);
+		}
+		first += count;
+		__pagevec_release(&pv);
+	} while (first <= last);
+
+	afs_prune_wb_keys(vnode);
+	_leave("");
+}
+
+/*
  * write to an AFS file
  */
 ssize_t afs_file_write(struct kiocb *iocb, struct iov_iter *from)
@@ -734,7 +715,7 @@ ssize_t afs_file_write(struct kiocb *iocb, struct iov_iter *from)
 	ssize_t result;
 	size_t count = iov_iter_count(from);
 
-	_enter("{%llx:%llu},{%zu},",
+	_enter("{%x.%u},{%zu},",
 	       vnode->fid.vid, vnode->fid.vnode, count);
 
 	if (IS_SWAPFILE(&vnode->vfs_inode)) {
@@ -762,7 +743,7 @@ int afs_fsync(struct file *file, loff_t start, loff_t end, int datasync)
 	struct inode *inode = file_inode(file);
 	struct afs_vnode *vnode = AFS_FS_I(inode);
 
-	_enter("{%llx:%llu},{n=%pD},%d",
+	_enter("{%x:%u},{n=%pD},%d",
 	       vnode->fid.vid, vnode->fid.vnode, file,
 	       datasync);
 
@@ -780,7 +761,7 @@ vm_fault_t afs_page_mkwrite(struct vm_fault *vmf)
 	struct afs_vnode *vnode = AFS_FS_I(inode);
 	unsigned long priv;
 
-	_enter("{{%llx:%llu}},{%lx}",
+	_enter("{{%x:%u}},{%lx}",
 	       vnode->fid.vid, vnode->fid.vnode, vmf->page->index);
 
 	sb_start_pagefault(inode->i_sb);

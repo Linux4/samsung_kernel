@@ -496,9 +496,7 @@ static int mlxreg_hotplug_set_irq(struct mlxreg_hotplug_priv_data *priv)
 {
 	struct mlxreg_core_hotplug_platform_data *pdata;
 	struct mlxreg_core_item *item;
-	struct mlxreg_core_data *data;
-	u32 regval;
-	int i, j, ret;
+	int i, ret;
 
 	pdata = dev_get_platdata(&priv->pdev->dev);
 	item = pdata->items;
@@ -509,25 +507,6 @@ static int mlxreg_hotplug_set_irq(struct mlxreg_hotplug_priv_data *priv)
 				   MLXREG_HOTPLUG_EVENT_OFF, 0);
 		if (ret)
 			goto out;
-
-		/*
-		 * Verify if hardware configuration requires to disable
-		 * interrupt capability for some of components.
-		 */
-		data = item->data;
-		for (j = 0; j < item->count; j++, data++) {
-			/* Verify if the attribute has capability register. */
-			if (data->capability) {
-				/* Read capability register. */
-				ret = regmap_read(priv->regmap,
-						  data->capability, &regval);
-				if (ret)
-					goto out;
-
-				if (!(regval & data->bit))
-					item->mask &= ~BIT(j);
-			}
-		}
 
 		/* Set group initial status as mask and unmask group event. */
 		if (item->inversed) {
@@ -642,8 +621,11 @@ static int mlxreg_hotplug_probe(struct platform_device *pdev)
 		priv->irq = pdata->irq;
 	} else {
 		priv->irq = platform_get_irq(pdev, 0);
-		if (priv->irq < 0)
+		if (priv->irq < 0) {
+			dev_err(&pdev->dev, "Failed to get platform irq: %d\n",
+				priv->irq);
 			return priv->irq;
+		}
 	}
 
 	priv->regmap = pdata->regmap;

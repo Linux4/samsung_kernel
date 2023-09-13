@@ -1,8 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /* rxrpc network namespace handling.
  *
  * Copyright (C) 2017 Red Hat, Inc. All Rights Reserved.
  * Written by David Howells (dhowells@redhat.com)
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public Licence
+ * as published by the Free Software Foundation; either version
+ * 2 of the Licence, or (at your option) any later version.
  */
 
 #include <linux/proc_fs.h>
@@ -98,9 +102,6 @@ static __net_init int rxrpc_init_net(struct net *net)
 	proc_create_net("conns", 0444, rxnet->proc_net,
 			&rxrpc_connection_seq_ops,
 			sizeof(struct seq_net_private));
-	proc_create_net("peers", 0444, rxnet->proc_net,
-			&rxrpc_peer_seq_ops,
-			sizeof(struct seq_net_private));
 	return 0;
 
 err_proc:
@@ -118,8 +119,6 @@ static __net_exit void rxrpc_exit_net(struct net *net)
 	rxnet->live = false;
 	del_timer_sync(&rxnet->peer_keepalive_timer);
 	cancel_work_sync(&rxnet->peer_keepalive_work);
-	/* Remove the timer again as the worker may have restarted it. */
-	del_timer_sync(&rxnet->peer_keepalive_timer);
 	rxrpc_destroy_all_calls(rxnet);
 	rxrpc_destroy_all_connections(rxnet);
 	rxrpc_destroy_all_peers(rxnet);

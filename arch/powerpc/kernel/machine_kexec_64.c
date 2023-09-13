@@ -1,10 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * PPC64 code to handle Linux booting another kernel.
  *
  * Copyright (C) 2004-2005, IBM Corp.
  *
  * Created by: Milton D Miller II
+ *
+ * This source code is licensed under the GNU General Public License,
+ * Version 2.  See the file COPYING for more details.
  */
 
 
@@ -29,8 +31,6 @@
 #include <asm/smp.h>
 #include <asm/hw_breakpoint.h>
 #include <asm/asm-prototypes.h>
-#include <asm/svm.h>
-#include <asm/ultravisor.h>
 
 int default_machine_kexec_prepare(struct kimage *image)
 {
@@ -317,8 +317,10 @@ void default_machine_kexec(struct kimage *image)
 	 * We setup preempt_count to avoid using VMX in memcpy.
 	 * XXX: the task struct will likely be invalid once we do the copy!
 	 */
-	current_thread_info()->flags = 0;
-	current_thread_info()->preempt_count = HARDIRQ_OFFSET;
+	kexec_stack.thread_info.task = current_thread_info()->task;
+	kexec_stack.thread_info.flags = 0;
+	kexec_stack.thread_info.preempt_count = HARDIRQ_OFFSET;
+	kexec_stack.thread_info.cpu = current_thread_info()->cpu;
 
 	/* We need a static PACA, too; copy this CPU's PACA over and switch to
 	 * it. Also poison per_cpu_offset and NULL lppaca to catch anyone using
@@ -329,13 +331,6 @@ void default_machine_kexec(struct kimage *image)
 #ifdef CONFIG_PPC_PSERIES
 	kexec_paca.lppaca_ptr = NULL;
 #endif
-
-	if (is_secure_guest() && !(image->preserve_context ||
-				   image->type == KEXEC_TYPE_CRASH)) {
-		uv_unshare_all_pages();
-		printk("kexec: Unshared all shared pages.\n");
-	}
-
 	paca_ptrs[kexec_paca.paca_index] = &kexec_paca;
 
 	setup_paca(&kexec_paca);

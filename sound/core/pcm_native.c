@@ -1,7 +1,22 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Digital Audio (PCM) abstract layer
  *  Copyright (c) by Jaroslav Kysela <perex@perex.cz>
+ *
+ *
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation; either version 2 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program; if not, write to the Free Software
+ *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+ *
  */
 
 #include <linux/mm.h>
@@ -70,30 +85,71 @@ static int snd_pcm_open(struct file *file, struct snd_pcm *pcm, int stream);
  *
  */
 
+static DEFINE_RWLOCK(snd_pcm_link_rwlock);
 static DECLARE_RWSEM(snd_pcm_link_rwsem);
 
-void snd_pcm_group_init(struct snd_pcm_group *group)
+/* Writer in rwsem may block readers even during its waiting in queue,
+ * and this may lead to a deadlock when the code path takes read sem
+ * twice (e.g. one in snd_pcm_action_nonatomic() and another in
+ * snd_pcm_stream_lock()).  As a (suboptimal) workaround, let writer to
+ * sleep until all the readers are completed without blocking by writer.
+ */
+static inline void down_write_nonfifo(struct rw_semaphore *lock)
 {
-	spin_lock_init(&group->lock);
-	mutex_init(&group->mutex);
-	INIT_LIST_HEAD(&group->substreams);
-	refcount_set(&group->refs, 1);
+	while (!down_write_trylock(lock))
+		msleep(1);
 }
 
-/* define group lock helpers */
-#define DEFINE_PCM_GROUP_LOCK(action, mutex_action) \
-static void snd_pcm_group_ ## action(struct snd_pcm_group *group, bool nonatomic) \
-{ \
-	if (nonatomic) \
-		mutex_ ## mutex_action(&group->mutex); \
-	else \
-		spin_ ## action(&group->lock); \
+#define PCM_LOCK_DEFAULT	0
+#define PCM_LOCK_IRQ	1
+#define PCM_LOCK_IRQSAVE	2
+
+static unsigned long __snd_pcm_stream_lock_mode(struct snd_pcm_substream *substream,
+						unsigned int mode)
+{
+	unsigned long flags = 0;
+	if (substream->pcm->nonatomic) {
+		down_read_nested(&snd_pcm_link_rwsem, SINGLE_DEPTH_NESTING);
+		mutex_lock(&substream->self_group.mutex);
+	} else {
+		switch (mode) {
+		case PCM_LOCK_DEFAULT:
+			read_lock(&snd_pcm_link_rwlock);
+			break;
+		case PCM_LOCK_IRQ:
+			read_lock_irq(&snd_pcm_link_rwlock);
+			break;
+		case PCM_LOCK_IRQSAVE:
+			read_lock_irqsave(&snd_pcm_link_rwlock, flags);
+			break;
+		}
+		spin_lock(&substream->self_group.lock);
+	}
+	return flags;
 }
 
-DEFINE_PCM_GROUP_LOCK(lock, lock);
-DEFINE_PCM_GROUP_LOCK(unlock, unlock);
-DEFINE_PCM_GROUP_LOCK(lock_irq, lock);
-DEFINE_PCM_GROUP_LOCK(unlock_irq, unlock);
+static void __snd_pcm_stream_unlock_mode(struct snd_pcm_substream *substream,
+					 unsigned int mode, unsigned long flags)
+{
+	if (substream->pcm->nonatomic) {
+		mutex_unlock(&substream->self_group.mutex);
+		up_read(&snd_pcm_link_rwsem);
+	} else {
+		spin_unlock(&substream->self_group.lock);
+
+		switch (mode) {
+		case PCM_LOCK_DEFAULT:
+			read_unlock(&snd_pcm_link_rwlock);
+			break;
+		case PCM_LOCK_IRQ:
+			read_unlock_irq(&snd_pcm_link_rwlock);
+			break;
+		case PCM_LOCK_IRQSAVE:
+			read_unlock_irqrestore(&snd_pcm_link_rwlock, flags);
+			break;
+		}
+	}
+}
 
 /**
  * snd_pcm_stream_lock - Lock the PCM stream
@@ -105,7 +161,7 @@ DEFINE_PCM_GROUP_LOCK(unlock_irq, unlock);
  */
 void snd_pcm_stream_lock(struct snd_pcm_substream *substream)
 {
-	snd_pcm_group_lock(&substream->self_group, substream->pcm->nonatomic);
+	__snd_pcm_stream_lock_mode(substream, PCM_LOCK_DEFAULT);
 }
 EXPORT_SYMBOL_GPL(snd_pcm_stream_lock);
 
@@ -117,7 +173,7 @@ EXPORT_SYMBOL_GPL(snd_pcm_stream_lock);
  */
 void snd_pcm_stream_unlock(struct snd_pcm_substream *substream)
 {
-	snd_pcm_group_unlock(&substream->self_group, substream->pcm->nonatomic);
+	__snd_pcm_stream_unlock_mode(substream, PCM_LOCK_DEFAULT, 0);
 }
 EXPORT_SYMBOL_GPL(snd_pcm_stream_unlock);
 
@@ -131,20 +187,9 @@ EXPORT_SYMBOL_GPL(snd_pcm_stream_unlock);
  */
 void snd_pcm_stream_lock_irq(struct snd_pcm_substream *substream)
 {
-	snd_pcm_group_lock_irq(&substream->self_group,
-			       substream->pcm->nonatomic);
+	__snd_pcm_stream_lock_mode(substream, PCM_LOCK_IRQ);
 }
 EXPORT_SYMBOL_GPL(snd_pcm_stream_lock_irq);
-
-static void snd_pcm_stream_lock_nested(struct snd_pcm_substream *substream)
-{
-	struct snd_pcm_group *group = &substream->self_group;
-
-	if (substream->pcm->nonatomic)
-		mutex_lock_nested(&group->mutex, SINGLE_DEPTH_NESTING);
-	else
-		spin_lock_nested(&group->lock, SINGLE_DEPTH_NESTING);
-}
 
 /**
  * snd_pcm_stream_unlock_irq - Unlock the PCM stream
@@ -154,19 +199,13 @@ static void snd_pcm_stream_lock_nested(struct snd_pcm_substream *substream)
  */
 void snd_pcm_stream_unlock_irq(struct snd_pcm_substream *substream)
 {
-	snd_pcm_group_unlock_irq(&substream->self_group,
-				 substream->pcm->nonatomic);
+	__snd_pcm_stream_unlock_mode(substream, PCM_LOCK_IRQ, 0);
 }
 EXPORT_SYMBOL_GPL(snd_pcm_stream_unlock_irq);
 
 unsigned long _snd_pcm_stream_lock_irqsave(struct snd_pcm_substream *substream)
 {
-	unsigned long flags = 0;
-	if (substream->pcm->nonatomic)
-		mutex_lock(&substream->self_group.mutex);
-	else
-		spin_lock_irqsave(&substream->self_group.lock, flags);
-	return flags;
+	return __snd_pcm_stream_lock_mode(substream, PCM_LOCK_IRQSAVE);
 }
 EXPORT_SYMBOL_GPL(_snd_pcm_stream_lock_irqsave);
 
@@ -180,10 +219,7 @@ EXPORT_SYMBOL_GPL(_snd_pcm_stream_lock_irqsave);
 void snd_pcm_stream_unlock_irqrestore(struct snd_pcm_substream *substream,
 				      unsigned long flags)
 {
-	if (substream->pcm->nonatomic)
-		mutex_unlock(&substream->self_group.mutex);
-	else
-		spin_unlock_irqrestore(&substream->self_group.lock, flags);
+	__snd_pcm_stream_unlock_mode(substream, PCM_LOCK_IRQSAVE, flags);
 }
 EXPORT_SYMBOL_GPL(snd_pcm_stream_unlock_irqrestore);
 
@@ -230,13 +266,13 @@ static bool hw_support_mmap(struct snd_pcm_substream *substream)
 {
 	if (!(substream->runtime->hw.info & SNDRV_PCM_INFO_MMAP))
 		return false;
-
-	if (substream->ops->mmap ||
-	    (substream->dma_buffer.dev.type != SNDRV_DMA_TYPE_DEV &&
-	     substream->dma_buffer.dev.type != SNDRV_DMA_TYPE_DEV_UC))
-		return true;
-
-	return dma_can_mmap(substream->dma_buffer.dev.dev);
+	/* architecture supports dma_mmap_coherent()? */
+#if defined(CONFIG_ARCH_NO_COHERENT_DMA_MMAP) || !defined(CONFIG_HAS_DMA)
+	if (!substream->ops->mmap &&
+	    substream->dma_buffer.dev.type == SNDRV_DMA_TYPE_DEV)
+		return false;
+#endif
+	return true;
 }
 
 static int constrain_mask_params(struct snd_pcm_substream *substream,
@@ -630,60 +666,33 @@ static int snd_pcm_hw_params_choose(struct snd_pcm_substream *pcm,
 	return 0;
 }
 
-/* acquire buffer_mutex; if it's in r/w operation, return -EBUSY, otherwise
- * block the further r/w operations
- */
-static int snd_pcm_buffer_access_lock(struct snd_pcm_runtime *runtime)
-{
-	if (!atomic_dec_unless_positive(&runtime->buffer_accessing))
-		return -EBUSY;
-	mutex_lock(&runtime->buffer_mutex);
-	return 0; /* keep buffer_mutex, unlocked by below */
-}
-
-/* release buffer_mutex and clear r/w access flag */
-static void snd_pcm_buffer_access_unlock(struct snd_pcm_runtime *runtime)
-{
-	mutex_unlock(&runtime->buffer_mutex);
-	atomic_inc(&runtime->buffer_accessing);
-}
-
-#if IS_ENABLED(CONFIG_SND_PCM_OSS)
-#define is_oss_stream(substream)	((substream)->oss.oss)
-#else
-#define is_oss_stream(substream)	false
-#endif
-
 static int snd_pcm_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params)
 {
 	struct snd_pcm_runtime *runtime;
-	int err = 0, usecs;
+	int err, usecs;
 	unsigned int bits;
 	snd_pcm_uframes_t frames;
 
 	if (PCM_RUNTIME_CHECK(substream))
 		return -ENXIO;
 	runtime = substream->runtime;
-	err = snd_pcm_buffer_access_lock(runtime);
-	if (err < 0)
-		return err;
 	snd_pcm_stream_lock_irq(substream);
 	switch (runtime->status->state) {
 	case SNDRV_PCM_STATE_OPEN:
 	case SNDRV_PCM_STATE_SETUP:
 	case SNDRV_PCM_STATE_PREPARED:
-		if (!is_oss_stream(substream) &&
-		    atomic_read(&substream->mmap_count))
-			err = -EBADFD;
 		break;
 	default:
-		err = -EBADFD;
-		break;
+		snd_pcm_stream_unlock_irq(substream);
+		return -EBADFD;
 	}
 	snd_pcm_stream_unlock_irq(substream);
-	if (err)
-		goto unlock;
+#if IS_ENABLED(CONFIG_SND_PCM_OSS)
+	if (!substream->oss.oss)
+#endif
+		if (atomic_read(&substream->mmap_count))
+			return -EBADFD;
 
 	params->rmask = ~0U;
 	err = snd_pcm_hw_refine(substream, params);
@@ -744,13 +753,8 @@ static int snd_pcm_hw_params(struct snd_pcm_substream *substream,
 		runtime->boundary *= 2;
 
 	/* clear the buffer for avoiding possible kernel info leaks */
-	if (runtime->dma_area && !substream->ops->copy_user) {
-		size_t size = runtime->dma_bytes;
-
-		if (runtime->info & SNDRV_PCM_INFO_MMAP)
-			size = PAGE_ALIGN(size);
-		memset(runtime->dma_area, 0, size);
-	}
+	if (runtime->dma_area && !substream->ops->copy_user)
+		memset(runtime->dma_area, 0, runtime->dma_bytes);
 
 	snd_pcm_timer_resolution_change(substream);
 	snd_pcm_set_state(substream, SNDRV_PCM_STATE_SETUP);
@@ -760,19 +764,14 @@ static int snd_pcm_hw_params(struct snd_pcm_substream *substream,
 	if ((usecs = period_to_usecs(runtime)) >= 0)
 		pm_qos_add_request(&substream->latency_pm_qos_req,
 				   PM_QOS_CPU_DMA_LATENCY, usecs);
-	err = 0;
+	return 0;
  _error:
-	if (err) {
-		/* hardware might be unusable from this time,
-		 * so we force application to retry to set
-		 * the correct hardware parameter settings
-		 */
-		snd_pcm_set_state(substream, SNDRV_PCM_STATE_OPEN);
-		if (substream->ops->hw_free != NULL)
-			substream->ops->hw_free(substream);
-	}
- unlock:
-	snd_pcm_buffer_access_unlock(runtime);
+	/* hardware might be unusable from this time,
+	   so we force application to retry to set
+	   the correct hardware parameter settings */
+	snd_pcm_set_state(substream, SNDRV_PCM_STATE_OPEN);
+	if (substream->ops->hw_free != NULL)
+		substream->ops->hw_free(substream);
 	return err;
 }
 
@@ -805,29 +804,22 @@ static int snd_pcm_hw_free(struct snd_pcm_substream *substream)
 	if (PCM_RUNTIME_CHECK(substream))
 		return -ENXIO;
 	runtime = substream->runtime;
-	result = snd_pcm_buffer_access_lock(runtime);
-	if (result < 0)
-		return result;
 	snd_pcm_stream_lock_irq(substream);
 	switch (runtime->status->state) {
 	case SNDRV_PCM_STATE_SETUP:
 	case SNDRV_PCM_STATE_PREPARED:
-		if (atomic_read(&substream->mmap_count))
-			result = -EBADFD;
 		break;
 	default:
-		result = -EBADFD;
-		break;
+		snd_pcm_stream_unlock_irq(substream);
+		return -EBADFD;
 	}
 	snd_pcm_stream_unlock_irq(substream);
-	if (result)
-		goto unlock;
+	if (atomic_read(&substream->mmap_count))
+		return -EBADFD;
 	if (substream->ops->hw_free)
 		result = substream->ops->hw_free(substream);
 	snd_pcm_set_state(substream, SNDRV_PCM_STATE_OPEN);
 	pm_qos_remove_request(&substream->latency_pm_qos_req);
- unlock:
-	snd_pcm_buffer_access_unlock(runtime);
 	return result;
 }
 
@@ -1064,17 +1056,15 @@ struct action_ops {
  */
 static int snd_pcm_action_group(const struct action_ops *ops,
 				struct snd_pcm_substream *substream,
-				int state, int stream_lock)
+				int state, int do_lock)
 {
 	struct snd_pcm_substream *s = NULL;
 	struct snd_pcm_substream *s1;
 	int res = 0, depth = 1;
 
 	snd_pcm_group_for_each_entry(s, substream) {
-		if (s != substream) {
-			if (!stream_lock)
-				mutex_lock_nested(&s->runtime->buffer_mutex, depth);
-			else if (s->pcm->nonatomic)
+		if (do_lock && s != substream) {
+			if (s->pcm->nonatomic)
 				mutex_lock_nested(&s->self_group.mutex, depth);
 			else
 				spin_lock_nested(&s->self_group.lock, depth);
@@ -1102,18 +1092,18 @@ static int snd_pcm_action_group(const struct action_ops *ops,
 		ops->post_action(s, state);
 	}
  _unlock:
-	/* unlock streams */
-	snd_pcm_group_for_each_entry(s1, substream) {
-		if (s1 != substream) {
-			if (!stream_lock)
-				mutex_unlock(&s1->runtime->buffer_mutex);
-			else if (s1->pcm->nonatomic)
-				mutex_unlock(&s1->self_group.mutex);
-			else
-				spin_unlock(&s1->self_group.lock);
+	if (do_lock) {
+		/* unlock streams */
+		snd_pcm_group_for_each_entry(s1, substream) {
+			if (s1 != substream) {
+				if (s1->pcm->nonatomic)
+					mutex_unlock(&s1->self_group.mutex);
+				else
+					spin_unlock(&s1->self_group.lock);
+			}
+			if (s1 == s)	/* end */
+				break;
 		}
-		if (s1 == s)	/* end */
-			break;
 	}
 	return res;
 }
@@ -1138,67 +1128,6 @@ static int snd_pcm_action_single(const struct action_ops *ops,
 	return res;
 }
 
-static void snd_pcm_group_assign(struct snd_pcm_substream *substream,
-				 struct snd_pcm_group *new_group)
-{
-	substream->group = new_group;
-	list_move(&substream->link_list, &new_group->substreams);
-}
-
-/*
- * Unref and unlock the group, but keep the stream lock;
- * when the group becomes empty and no longer referred, destroy itself
- */
-static void snd_pcm_group_unref(struct snd_pcm_group *group,
-				struct snd_pcm_substream *substream)
-{
-	bool do_free;
-
-	if (!group)
-		return;
-	do_free = refcount_dec_and_test(&group->refs);
-	snd_pcm_group_unlock(group, substream->pcm->nonatomic);
-	if (do_free)
-		kfree(group);
-}
-
-/*
- * Lock the group inside a stream lock and reference it;
- * return the locked group object, or NULL if not linked
- */
-static struct snd_pcm_group *
-snd_pcm_stream_group_ref(struct snd_pcm_substream *substream)
-{
-	bool nonatomic = substream->pcm->nonatomic;
-	struct snd_pcm_group *group;
-	bool trylock;
-
-	for (;;) {
-		if (!snd_pcm_stream_linked(substream))
-			return NULL;
-		group = substream->group;
-		/* block freeing the group object */
-		refcount_inc(&group->refs);
-
-		trylock = nonatomic ? mutex_trylock(&group->mutex) :
-			spin_trylock(&group->lock);
-		if (trylock)
-			break; /* OK */
-
-		/* re-lock for avoiding ABBA deadlock */
-		snd_pcm_stream_unlock(substream);
-		snd_pcm_group_lock(group, nonatomic);
-		snd_pcm_stream_lock(substream);
-
-		/* check the group again; the above opens a small race window */
-		if (substream->group == group)
-			break; /* OK */
-		/* group changed, try again */
-		snd_pcm_group_unref(group, substream);
-	}
-	return group;
-}
-
 /*
  *  Note: call with stream lock
  */
@@ -1206,15 +1135,28 @@ static int snd_pcm_action(const struct action_ops *ops,
 			  struct snd_pcm_substream *substream,
 			  int state)
 {
-	struct snd_pcm_group *group;
 	int res;
 
-	group = snd_pcm_stream_group_ref(substream);
-	if (group)
+	if (!snd_pcm_stream_linked(substream))
+		return snd_pcm_action_single(ops, substream, state);
+
+	if (substream->pcm->nonatomic) {
+		if (!mutex_trylock(&substream->group->mutex)) {
+			mutex_unlock(&substream->self_group.mutex);
+			mutex_lock(&substream->group->mutex);
+			mutex_lock(&substream->self_group.mutex);
+		}
 		res = snd_pcm_action_group(ops, substream, state, 1);
-	else
-		res = snd_pcm_action_single(ops, substream, state);
-	snd_pcm_group_unref(group, substream);
+		mutex_unlock(&substream->group->mutex);
+	} else {
+		if (!spin_trylock(&substream->group->lock)) {
+			spin_unlock(&substream->self_group.lock);
+			spin_lock(&substream->group->lock);
+			spin_lock(&substream->self_group.lock);
+		}
+		res = snd_pcm_action_group(ops, substream, state, 1);
+		spin_unlock(&substream->group->lock);
+	}
 	return res;
 }
 
@@ -1241,17 +1183,11 @@ static int snd_pcm_action_nonatomic(const struct action_ops *ops,
 {
 	int res;
 
-	/* Guarantee the group members won't change during non-atomic action */
 	down_read(&snd_pcm_link_rwsem);
-	res = snd_pcm_buffer_access_lock(substream->runtime);
-	if (res < 0)
-		goto unlock;
 	if (snd_pcm_stream_linked(substream))
 		res = snd_pcm_action_group(ops, substream, state, 0);
 	else
 		res = snd_pcm_action_single(ops, substream, state);
-	snd_pcm_buffer_access_unlock(substream->runtime);
- unlock:
 	up_read(&snd_pcm_link_rwsem);
 	return res;
 }
@@ -1265,7 +1201,6 @@ static int snd_pcm_pre_start(struct snd_pcm_substream *substream, int state)
 	if (runtime->status->state != SNDRV_PCM_STATE_PREPARED)
 		return -EBADFD;
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK &&
-	    !substream->hw_no_buffer &&
 	    !snd_pcm_playback_data(substream))
 		return -EPIPE;
 	runtime->trigger_tstamp_latched = false;
@@ -1326,21 +1261,6 @@ static int snd_pcm_start_lock_irq(struct snd_pcm_substream *substream)
 	return snd_pcm_action_lock_irq(&snd_pcm_action_start, substream,
 				       SNDRV_PCM_STATE_RUNNING);
 }
-
-#ifdef CONFIG_AUDIO_QGKI
-static int snd_user_ioctl(struct snd_pcm_substream *substream,
-				unsigned int cmd, void __user *arg)
-{
-	struct snd_pcm_runtime *runtime;
-	int err = 0;
-
-	if (PCM_RUNTIME_CHECK(substream))
-		return -ENXIO;
-	runtime = substream->runtime;
-	err = substream->ops->ioctl(substream, cmd, arg);
-	return err;
-}
-#endif
 
 /*
  * stop callbacks
@@ -1551,24 +1471,29 @@ static const struct action_ops snd_pcm_action_suspend = {
 	.post_action = snd_pcm_post_suspend
 };
 
-/*
+/**
  * snd_pcm_suspend - trigger SUSPEND to all linked streams
  * @substream: the PCM substream
  *
  * After this call, all streams are changed to SUSPENDED state.
  *
- * Return: Zero if successful, or a negative error code.
+ * Return: Zero if successful (or @substream is %NULL), or a negative error
+ * code.
  */
-static int snd_pcm_suspend(struct snd_pcm_substream *substream)
+int snd_pcm_suspend(struct snd_pcm_substream *substream)
 {
 	int err;
 	unsigned long flags;
+
+	if (! substream)
+		return 0;
 
 	snd_pcm_stream_lock_irqsave(substream, flags);
 	err = snd_pcm_action(&snd_pcm_action_suspend, substream, 0);
 	snd_pcm_stream_unlock_irqrestore(substream, flags);
 	return err;
 }
+EXPORT_SYMBOL(snd_pcm_suspend);
 
 /**
  * snd_pcm_suspend_all - trigger SUSPEND to all substreams in the given pcm
@@ -1718,25 +1643,21 @@ static int snd_pcm_do_reset(struct snd_pcm_substream *substream, int state)
 	int err = substream->ops->ioctl(substream, SNDRV_PCM_IOCTL1_RESET, NULL);
 	if (err < 0)
 		return err;
-	snd_pcm_stream_lock_irq(substream);
 	runtime->hw_ptr_base = 0;
 	runtime->hw_ptr_interrupt = runtime->status->hw_ptr -
 		runtime->status->hw_ptr % runtime->period_size;
 	runtime->silence_start = runtime->status->hw_ptr;
 	runtime->silence_filled = 0;
-	snd_pcm_stream_unlock_irq(substream);
 	return 0;
 }
 
 static void snd_pcm_post_reset(struct snd_pcm_substream *substream, int state)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
-	snd_pcm_stream_lock_irq(substream);
 	runtime->control->appl_ptr = runtime->status->hw_ptr;
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK &&
 	    runtime->silence_size > 0)
 		snd_pcm_playback_silence(substream, ULONG_MAX);
-	snd_pcm_stream_unlock_irq(substream);
 }
 
 static const struct action_ops snd_pcm_action_reset = {
@@ -1890,6 +1811,8 @@ static const struct action_ops snd_pcm_action_drain_init = {
 	.post_action = snd_pcm_post_drain_init
 };
 
+static int snd_pcm_drop(struct snd_pcm_substream *substream);
+
 /*
  * Drain the stream(s).
  * When the substream is linked, sync until the draining of all playback streams
@@ -1903,7 +1826,6 @@ static int snd_pcm_drain(struct snd_pcm_substream *substream,
 	struct snd_card *card;
 	struct snd_pcm_runtime *runtime;
 	struct snd_pcm_substream *s;
-	struct snd_pcm_group *group;
 	wait_queue_entry_t wait;
 	int result = 0;
 	int nonblock = 0;
@@ -1920,6 +1842,7 @@ static int snd_pcm_drain(struct snd_pcm_substream *substream,
 	} else if (substream->f_flags & O_NONBLOCK)
 		nonblock = 1;
 
+	down_read(&snd_pcm_link_rwsem);
 	snd_pcm_stream_lock_irq(substream);
 	/* resume pause */
 	if (runtime->status->state == SNDRV_PCM_STATE_PAUSED)
@@ -1944,7 +1867,6 @@ static int snd_pcm_drain(struct snd_pcm_substream *substream,
 		}
 		/* find a substream to drain */
 		to_check = NULL;
-		group = snd_pcm_stream_group_ref(substream);
 		snd_pcm_group_for_each_entry(s, substream) {
 			if (s->stream != SNDRV_PCM_STREAM_PLAYBACK)
 				continue;
@@ -1954,13 +1876,12 @@ static int snd_pcm_drain(struct snd_pcm_substream *substream,
 				break;
 			}
 		}
-		snd_pcm_group_unref(group, substream);
 		if (!to_check)
 			break; /* all drained */
 		init_waitqueue_entry(&wait, current);
-		set_current_state(TASK_INTERRUPTIBLE);
 		add_wait_queue(&to_check->sleep, &wait);
 		snd_pcm_stream_unlock_irq(substream);
+		up_read(&snd_pcm_link_rwsem);
 		if (runtime->no_period_wakeup)
 			tout = MAX_SCHEDULE_TIMEOUT;
 		else {
@@ -1971,18 +1892,10 @@ static int snd_pcm_drain(struct snd_pcm_substream *substream,
 			}
 			tout = msecs_to_jiffies(tout * 1000);
 		}
-		tout = schedule_timeout(tout);
-
+		tout = schedule_timeout_interruptible(tout);
+		down_read(&snd_pcm_link_rwsem);
 		snd_pcm_stream_lock_irq(substream);
-		group = snd_pcm_stream_group_ref(substream);
-		snd_pcm_group_for_each_entry(s, substream) {
-			if (s->runtime == to_check) {
-				remove_wait_queue(&to_check->sleep, &wait);
-				break;
-			}
-		}
-		snd_pcm_group_unref(group, substream);
-
+		remove_wait_queue(&to_check->sleep, &wait);
 		if (card->shutdown) {
 			result = -ENODEV;
 			break;
@@ -2002,6 +1915,7 @@ static int snd_pcm_drain(struct snd_pcm_substream *substream,
 
  unlock:
 	snd_pcm_stream_unlock_irq(substream);
+	up_read(&snd_pcm_link_rwsem);
 
 	return result;
 }
@@ -2040,19 +1954,13 @@ static int snd_pcm_drop(struct snd_pcm_substream *substream)
 static bool is_pcm_file(struct file *file)
 {
 	struct inode *inode = file_inode(file);
-	struct snd_pcm *pcm;
 	unsigned int minor;
 
 	if (!S_ISCHR(inode->i_mode) || imajor(inode) != snd_major)
 		return false;
 	minor = iminor(inode);
-	pcm = snd_lookup_minor_data(minor, SNDRV_DEVICE_TYPE_PCM_PLAYBACK);
-	if (!pcm)
-		pcm = snd_lookup_minor_data(minor, SNDRV_DEVICE_TYPE_PCM_CAPTURE);
-	if (!pcm)
-		return false;
-	snd_card_unref(pcm->card);
-	return true;
+	return snd_lookup_minor_data(minor, SNDRV_DEVICE_TYPE_PCM_PLAYBACK) ||
+		snd_lookup_minor_data(minor, SNDRV_DEVICE_TYPE_PCM_CAPTURE);
 }
 
 /*
@@ -2063,8 +1971,7 @@ static int snd_pcm_link(struct snd_pcm_substream *substream, int fd)
 	int res = 0;
 	struct snd_pcm_file *pcm_file;
 	struct snd_pcm_substream *substream1;
-	struct snd_pcm_group *group, *target_group;
-	bool nonatomic = substream->pcm->nonatomic;
+	struct snd_pcm_group *group;
 	struct fd f = fdget(fd);
 
 	if (!f.file)
@@ -2075,20 +1982,18 @@ static int snd_pcm_link(struct snd_pcm_substream *substream, int fd)
 	}
 	pcm_file = f.file->private_data;
 	substream1 = pcm_file->substream;
-
 	if (substream == substream1) {
 		res = -EINVAL;
 		goto _badf;
 	}
 
-	group = kzalloc(sizeof(*group), GFP_KERNEL);
+	group = kmalloc(sizeof(*group), GFP_KERNEL);
 	if (!group) {
 		res = -ENOMEM;
 		goto _nolock;
 	}
-	snd_pcm_group_init(group);
-
-	down_write(&snd_pcm_link_rwsem);
+	down_write_nonfifo(&snd_pcm_link_rwsem);
+	write_lock_irq(&snd_pcm_link_rwlock);
 	if (substream->runtime->status->state == SNDRV_PCM_STATE_OPEN ||
 	    substream->runtime->status->state != substream1->runtime->status->state ||
 	    substream->pcm->nonatomic != substream1->pcm->nonatomic) {
@@ -2099,24 +2004,23 @@ static int snd_pcm_link(struct snd_pcm_substream *substream, int fd)
 		res = -EALREADY;
 		goto _end;
 	}
-
-	snd_pcm_stream_lock_irq(substream);
 	if (!snd_pcm_stream_linked(substream)) {
-		snd_pcm_group_assign(substream, group);
-		group = NULL; /* assigned, don't free this one below */
+		substream->group = group;
+		group = NULL;
+		spin_lock_init(&substream->group->lock);
+		mutex_init(&substream->group->mutex);
+		INIT_LIST_HEAD(&substream->group->substreams);
+		list_add_tail(&substream->link_list, &substream->group->substreams);
+		substream->group->count = 1;
 	}
-	target_group = substream->group;
-	snd_pcm_stream_unlock_irq(substream);
-
-	snd_pcm_group_lock_irq(target_group, nonatomic);
-	snd_pcm_stream_lock_nested(substream1);
-	snd_pcm_group_assign(substream1, target_group);
-	refcount_inc(&target_group->refs);
-	snd_pcm_stream_unlock(substream1);
-	snd_pcm_group_unlock_irq(target_group, nonatomic);
+	list_add_tail(&substream1->link_list, &substream->group->substreams);
+	substream->group->count++;
+	substream1->group = substream->group;
  _end:
+	write_unlock_irq(&snd_pcm_link_rwlock);
 	up_write(&snd_pcm_link_rwsem);
  _nolock:
+	snd_card_unref(substream1->pcm->card);
 	kfree(group);
  _badf:
 	fdput(f);
@@ -2125,44 +2029,34 @@ static int snd_pcm_link(struct snd_pcm_substream *substream, int fd)
 
 static void relink_to_local(struct snd_pcm_substream *substream)
 {
-	snd_pcm_stream_lock_nested(substream);
-	snd_pcm_group_assign(substream, &substream->self_group);
-	snd_pcm_stream_unlock(substream);
+	substream->group = &substream->self_group;
+	INIT_LIST_HEAD(&substream->self_group.substreams);
+	list_add_tail(&substream->link_list, &substream->self_group.substreams);
 }
 
 static int snd_pcm_unlink(struct snd_pcm_substream *substream)
 {
-	struct snd_pcm_group *group;
-	bool nonatomic = substream->pcm->nonatomic;
-	bool do_free = false;
+	struct snd_pcm_substream *s;
 	int res = 0;
 
-	down_write(&snd_pcm_link_rwsem);
-
+	down_write_nonfifo(&snd_pcm_link_rwsem);
+	write_lock_irq(&snd_pcm_link_rwlock);
 	if (!snd_pcm_stream_linked(substream)) {
 		res = -EALREADY;
 		goto _end;
 	}
-
-	group = substream->group;
-	snd_pcm_group_lock_irq(group, nonatomic);
-
-	relink_to_local(substream);
-	refcount_dec(&group->refs);
-
-	/* detach the last stream, too */
-	if (list_is_singular(&group->substreams)) {
-		relink_to_local(list_first_entry(&group->substreams,
-						 struct snd_pcm_substream,
-						 link_list));
-		do_free = refcount_dec_and_test(&group->refs);
+	list_del(&substream->link_list);
+	substream->group->count--;
+	if (substream->group->count == 1) {	/* detach the last stream, too */
+		snd_pcm_group_for_each_entry(s, substream) {
+			relink_to_local(s);
+			break;
+		}
+		kfree(substream->group);
 	}
-
-	snd_pcm_group_unlock_irq(group, nonatomic);
-	if (do_free)
-		kfree(group);
-
+	relink_to_local(substream);
        _end:
+	write_unlock_irq(&snd_pcm_link_rwlock);
 	up_write(&snd_pcm_link_rwsem);
 	return res;
 }
@@ -2587,8 +2481,10 @@ static int snd_pcm_open_file(struct file *file,
 		return -ENOMEM;
 	}
 	pcm_file->substream = substream;
-	if (substream->ref_count == 1)
+	if (substream->ref_count == 1) {
+		substream->file = pcm_file;
 		substream->pcm_release = pcm_release_private;
+	}
 	file->private_data = pcm_file;
 
 	return 0;
@@ -3066,11 +2962,6 @@ static int snd_pcm_common_ioctl(struct file *file,
 		return snd_pcm_rewind_ioctl(substream, arg);
 	case SNDRV_PCM_IOCTL_FORWARD:
 		return snd_pcm_forward_ioctl(substream, arg);
-#ifdef CONFIG_AUDIO_QGKI
-	default:
-		if (((cmd >> 8) & 0xff) == 'U')
-			return snd_user_ioctl(substream, cmd, arg);
-#endif
 	}
 	pcm_dbg(substream->pcm, "unknown ioctl = 0x%x\n", cmd);
 	return -ENOTTY;
@@ -3080,15 +2971,10 @@ static long snd_pcm_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
 	struct snd_pcm_file *pcm_file;
-	unsigned char ioctl_magic;
 
 	pcm_file = file->private_data;
-	ioctl_magic = ((cmd >> 8) & 0xff);
-#ifdef CONFIG_AUDIO_QGKI
-	if (ioctl_magic != 'A' && ioctl_magic != 'U')
-#else
-	if (ioctl_magic != 'A')
-#endif
+
+	if (((cmd >> 8) & 0xff) != 'A')
 		return -ENOTTY;
 
 	return snd_pcm_common_ioctl(file, pcm_file->substream, cmd,
@@ -3505,8 +3391,7 @@ int snd_pcm_lib_default_mmap(struct snd_pcm_substream *substream,
 #endif /* CONFIG_GENERIC_ALLOCATOR */
 #ifndef CONFIG_X86 /* for avoiding warnings arch/x86/mm/pat.c */
 	if (IS_ENABLED(CONFIG_HAS_DMA) && !substream->ops->page &&
-	    (substream->dma_buffer.dev.type == SNDRV_DMA_TYPE_DEV ||
-	     substream->dma_buffer.dev.type == SNDRV_DMA_TYPE_DEV_UC))
+	    substream->dma_buffer.dev.type == SNDRV_DMA_TYPE_DEV)
 		return dma_mmap_coherent(substream->dma_buffer.dev.dev,
 					 area,
 					 substream->runtime->dma_area,

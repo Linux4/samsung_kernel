@@ -1,9 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *	Bridge per vlan tunnel port dst_metadata handling code
  *
  *	Authors:
  *	Roopa Prabhu		<roopa@cumulusnetworks.com>
+ *
+ *	This program is free software; you can redistribute it and/or
+ *	modify it under the terms of the GNU General Public License
+ *	as published by the Free Software Foundation; either version
+ *	2 of the License, or (at your option) any later version.
  */
 
 #include <linux/kernel.h>
@@ -30,6 +34,7 @@ static const struct rhashtable_params br_vlan_tunnel_rht_params = {
 	.key_offset = offsetof(struct net_bridge_vlan, tinfo.tunnel_id),
 	.key_len = sizeof(__be64),
 	.nelem_hint = 3,
+	.locks_mul = 1,
 	.obj_cmpfn = br_vlan_tunid_cmp,
 	.automatic_shrinking = true,
 };
@@ -41,33 +46,26 @@ static struct net_bridge_vlan *br_vlan_tunnel_lookup(struct rhashtable *tbl,
 				      br_vlan_tunnel_rht_params);
 }
 
-static void vlan_tunnel_info_release(struct net_bridge_vlan *vlan)
-{
-	struct metadata_dst *tdst = rtnl_dereference(vlan->tinfo.tunnel_dst);
-
-	WRITE_ONCE(vlan->tinfo.tunnel_id, 0);
-	RCU_INIT_POINTER(vlan->tinfo.tunnel_dst, NULL);
-	dst_release(&tdst->dst);
-}
-
 void vlan_tunnel_info_del(struct net_bridge_vlan_group *vg,
 			  struct net_bridge_vlan *vlan)
 {
-	if (!rcu_access_pointer(vlan->tinfo.tunnel_dst))
+	if (!vlan->tinfo.tunnel_dst)
 		return;
 	rhashtable_remove_fast(&vg->tunnel_hash, &vlan->tnode,
 			       br_vlan_tunnel_rht_params);
-	vlan_tunnel_info_release(vlan);
+	vlan->tinfo.tunnel_id = 0;
+	dst_release(&vlan->tinfo.tunnel_dst->dst);
+	vlan->tinfo.tunnel_dst = NULL;
 }
 
 static int __vlan_tunnel_info_add(struct net_bridge_vlan_group *vg,
 				  struct net_bridge_vlan *vlan, u32 tun_id)
 {
-	struct metadata_dst *metadata = rtnl_dereference(vlan->tinfo.tunnel_dst);
+	struct metadata_dst *metadata = NULL;
 	__be64 key = key32_to_tunnel_id(cpu_to_be32(tun_id));
 	int err;
 
-	if (metadata)
+	if (vlan->tinfo.tunnel_dst)
 		return -EEXIST;
 
 	metadata = __ip_tun_set_dst(0, 0, 0, 0, 0, TUNNEL_KEY,
@@ -76,8 +74,8 @@ static int __vlan_tunnel_info_add(struct net_bridge_vlan_group *vg,
 		return -EINVAL;
 
 	metadata->u.tun_info.mode |= IP_TUNNEL_INFO_TX | IP_TUNNEL_INFO_BRIDGE;
-	rcu_assign_pointer(vlan->tinfo.tunnel_dst, metadata);
-	WRITE_ONCE(vlan->tinfo.tunnel_id, key);
+	vlan->tinfo.tunnel_dst = metadata;
+	vlan->tinfo.tunnel_id = key;
 
 	err = rhashtable_lookup_insert_fast(&vg->tunnel_hash, &vlan->tnode,
 					    br_vlan_tunnel_rht_params);
@@ -86,7 +84,9 @@ static int __vlan_tunnel_info_add(struct net_bridge_vlan_group *vg,
 
 	return 0;
 out:
-	vlan_tunnel_info_release(vlan);
+	dst_release(&vlan->tinfo.tunnel_dst->dst);
+	vlan->tinfo.tunnel_dst = NULL;
+	vlan->tinfo.tunnel_id = 0;
 
 	return err;
 }
@@ -186,15 +186,12 @@ int br_handle_ingress_vlan_tunnel(struct sk_buff *skb,
 int br_handle_egress_vlan_tunnel(struct sk_buff *skb,
 				 struct net_bridge_vlan *vlan)
 {
-	struct metadata_dst *tunnel_dst;
-	__be64 tunnel_id;
 	int err;
 
-	if (!vlan)
+	if (!vlan || !vlan->tinfo.tunnel_id)
 		return 0;
 
-	tunnel_id = READ_ONCE(vlan->tinfo.tunnel_id);
-	if (!tunnel_id || unlikely(!skb_vlan_tag_present(skb)))
+	if (unlikely(!skb_vlan_tag_present(skb)))
 		return 0;
 
 	skb_dst_drop(skb);
@@ -202,9 +199,7 @@ int br_handle_egress_vlan_tunnel(struct sk_buff *skb,
 	if (err)
 		return err;
 
-	tunnel_dst = rcu_dereference(vlan->tinfo.tunnel_dst);
-	if (tunnel_dst && dst_hold_safe(&tunnel_dst->dst))
-		skb_dst_set(skb, &tunnel_dst->dst);
+	skb_dst_set(skb, dst_clone(&vlan->tinfo.tunnel_dst->dst));
 
 	return 0;
 }

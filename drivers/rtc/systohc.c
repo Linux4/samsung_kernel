@@ -1,4 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0
+/*
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ *
+ */
 #include <linux/rtc.h>
 #include <linux/time.h>
 
@@ -30,7 +35,8 @@ int rtc_set_ntp_time(struct timespec64 now, unsigned long *target_nsec)
 	if (!rtc)
 		goto out_err;
 
-	if (!rtc->ops || !rtc->ops->set_time)
+	if (!rtc->ops || (!rtc->ops->set_time && !rtc->ops->set_mmss64 &&
+			  !rtc->ops->set_mmss))
 		goto out_close;
 
 	/* Compute the value of tv_nsec we require the caller to supply in
@@ -52,6 +58,9 @@ int rtc_set_ntp_time(struct timespec64 now, unsigned long *target_nsec)
 
 	rtc_time64_to_tm(to_set.tv_sec, &tm);
 
+	/* rtc_hctosys exclusively uses UTC, so we call set_time here, not
+	 * set_mmss.
+	 */
 	err = rtc_set_time(rtc, &tm);
 
 out_close:

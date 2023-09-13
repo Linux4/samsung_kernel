@@ -1,7 +1,20 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *   Copyright (C) International Business Machines Corp., 2000-2004
  *   Portions Copyright (C) Christoph Hellwig, 2001-2002
+ *
+ *   This program is free software;  you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation; either version 2 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY;  without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See
+ *   the GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program;  if not, write to the Free Software
+ *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
 /*
@@ -1079,7 +1092,8 @@ int lmLogOpen(struct super_block *sb)
 	mutex_lock(&jfs_log_mutex);
 	list_for_each_entry(log, &jfs_external_logs, journal_list) {
 		if (log->bdev->bd_dev == sbi->logdev) {
-			if (!uuid_equal(&log->uuid, &sbi->loguuid)) {
+			if (memcmp(log->uuid, sbi->loguuid,
+				   sizeof(log->uuid))) {
 				jfs_warn("wrong uuid on JFS journal");
 				mutex_unlock(&jfs_log_mutex);
 				return -EINVAL;
@@ -1116,7 +1130,7 @@ int lmLogOpen(struct super_block *sb)
 	}
 
 	log->bdev = bdev;
-	uuid_copy(&log->uuid, &sbi->loguuid);
+	memcpy(log->uuid, sbi->loguuid, sizeof(log->uuid));
 
 	/*
 	 * initialize log:
@@ -1322,9 +1336,8 @@ int lmLogInit(struct jfs_log * log)
 			jfs_info("lmLogInit: inline log:0x%p base:0x%Lx size:0x%x",
 				 log, (unsigned long long)log->base, log->size);
 		} else {
-			if (!uuid_equal(&logsuper->uuid, &log->uuid)) {
+			if (memcmp(logsuper->uuid, log->uuid, 16)) {
 				jfs_warn("wrong uuid on JFS log device");
-				rc = -EINVAL;
 				goto errout20;
 			}
 			log->size = le32_to_cpu(logsuper->size);
@@ -1719,7 +1732,7 @@ static int lmLogFileSystem(struct jfs_log * log, struct jfs_sb_info *sbi,
 	int i;
 	struct logsuper *logsuper;
 	struct lbuf *bpsuper;
-	uuid_t *uuid = &sbi->uuid;
+	char *uuid = sbi->uuid;
 
 	/*
 	 * insert/remove file system device to log active file system list.
@@ -1730,8 +1743,8 @@ static int lmLogFileSystem(struct jfs_log * log, struct jfs_sb_info *sbi,
 	logsuper = (struct logsuper *) bpsuper->l_ldata;
 	if (activate) {
 		for (i = 0; i < MAX_ACTIVE; i++)
-			if (uuid_is_null(&logsuper->active[i].uuid)) {
-				uuid_copy(&logsuper->active[i].uuid, uuid);
+			if (!memcmp(logsuper->active[i].uuid, NULL_UUID, 16)) {
+				memcpy(logsuper->active[i].uuid, uuid, 16);
 				sbi->aggregate = i;
 				break;
 			}
@@ -1742,9 +1755,8 @@ static int lmLogFileSystem(struct jfs_log * log, struct jfs_sb_info *sbi,
 		}
 	} else {
 		for (i = 0; i < MAX_ACTIVE; i++)
-			if (uuid_equal(&logsuper->active[i].uuid, uuid)) {
-				uuid_copy(&logsuper->active[i].uuid,
-					  &uuid_null);
+			if (!memcmp(logsuper->active[i].uuid, uuid, 16)) {
+				memcpy(logsuper->active[i].uuid, NULL_UUID, 16);
 				break;
 			}
 		if (i == MAX_ACTIVE) {

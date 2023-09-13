@@ -1,8 +1,16 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * SuperH Timer Support - CMT
  *
  *  Copyright (C) 2008 Magnus Damm
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #include <linux/clk.h>
@@ -568,8 +576,7 @@ static int sh_cmt_start(struct sh_cmt_channel *ch, unsigned long flag)
 	ch->flags |= flag;
 
 	/* setup timeout if no clockevent */
-	if (ch->cmt->num_channels == 1 &&
-	    flag == FLAG_CLOCKSOURCE && (!(ch->flags & FLAG_CLOCKEVENT)))
+	if ((flag == FLAG_CLOCKSOURCE) && (!(ch->flags & FLAG_CLOCKEVENT)))
 		__sh_cmt_set_next(ch, ch->max_match_value);
  out:
 	raw_spin_unlock_irqrestore(&ch->lock, flags);
@@ -605,25 +612,20 @@ static struct sh_cmt_channel *cs_to_sh_cmt(struct clocksource *cs)
 static u64 sh_cmt_clocksource_read(struct clocksource *cs)
 {
 	struct sh_cmt_channel *ch = cs_to_sh_cmt(cs);
+	unsigned long flags;
 	u32 has_wrapped;
+	u64 value;
+	u32 raw;
 
-	if (ch->cmt->num_channels == 1) {
-		unsigned long flags;
-		u64 value;
-		u32 raw;
+	raw_spin_lock_irqsave(&ch->lock, flags);
+	value = ch->total_cycles;
+	raw = sh_cmt_get_counter(ch, &has_wrapped);
 
-		raw_spin_lock_irqsave(&ch->lock, flags);
-		value = ch->total_cycles;
-		raw = sh_cmt_get_counter(ch, &has_wrapped);
+	if (unlikely(has_wrapped))
+		raw += ch->match_value + 1;
+	raw_spin_unlock_irqrestore(&ch->lock, flags);
 
-		if (unlikely(has_wrapped))
-			raw += ch->match_value + 1;
-		raw_spin_unlock_irqrestore(&ch->lock, flags);
-
-		return value + raw;
-	}
-
-	return sh_cmt_get_counter(ch, &has_wrapped);
+	return value + raw;
 }
 
 static int sh_cmt_clocksource_enable(struct clocksource *cs)
@@ -686,7 +688,7 @@ static int sh_cmt_register_clocksource(struct sh_cmt_channel *ch,
 	cs->disable = sh_cmt_clocksource_disable;
 	cs->suspend = sh_cmt_clocksource_suspend;
 	cs->resume = sh_cmt_clocksource_resume;
-	cs->mask = CLOCKSOURCE_MASK(ch->cmt->info->width);
+	cs->mask = CLOCKSOURCE_MASK(sizeof(u64) * 8);
 	cs->flags = CLOCK_SOURCE_IS_CONTINUOUS;
 
 	dev_info(&ch->cmt->pdev->dev, "ch%u: used as clock source\n",
@@ -782,8 +784,11 @@ static int sh_cmt_register_clockevent(struct sh_cmt_channel *ch,
 	int ret;
 
 	irq = platform_get_irq(ch->cmt->pdev, ch->index);
-	if (irq < 0)
+	if (irq < 0) {
+		dev_err(&ch->cmt->pdev->dev, "ch%u: failed to get irq\n",
+			ch->index);
 		return irq;
+	}
 
 	ret = request_irq(irq, sh_cmt_interrupt,
 			  IRQF_TIMER | IRQF_IRQPOLL | IRQF_NOBALANCING,
@@ -924,40 +929,14 @@ static const struct platform_device_id sh_cmt_id_table[] = {
 MODULE_DEVICE_TABLE(platform, sh_cmt_id_table);
 
 static const struct of_device_id sh_cmt_of_table[] __maybe_unused = {
-	{
-		/* deprecated, preserved for backward compatibility */
-		.compatible = "renesas,cmt-48",
-		.data = &sh_cmt_info[SH_CMT_48BIT]
-	},
+	{ .compatible = "renesas,cmt-48", .data = &sh_cmt_info[SH_CMT_48BIT] },
 	{
 		/* deprecated, preserved for backward compatibility */
 		.compatible = "renesas,cmt-48-gen2",
 		.data = &sh_cmt_info[SH_CMT0_RCAR_GEN2]
 	},
-	{
-		.compatible = "renesas,r8a7740-cmt1",
-		.data = &sh_cmt_info[SH_CMT_48BIT]
-	},
-	{
-		.compatible = "renesas,sh73a0-cmt1",
-		.data = &sh_cmt_info[SH_CMT_48BIT]
-	},
-	{
-		.compatible = "renesas,rcar-gen2-cmt0",
-		.data = &sh_cmt_info[SH_CMT0_RCAR_GEN2]
-	},
-	{
-		.compatible = "renesas,rcar-gen2-cmt1",
-		.data = &sh_cmt_info[SH_CMT1_RCAR_GEN2]
-	},
-	{
-		.compatible = "renesas,rcar-gen3-cmt0",
-		.data = &sh_cmt_info[SH_CMT0_RCAR_GEN2]
-	},
-	{
-		.compatible = "renesas,rcar-gen3-cmt1",
-		.data = &sh_cmt_info[SH_CMT1_RCAR_GEN2]
-	},
+	{ .compatible = "renesas,rcar-gen2-cmt0", .data = &sh_cmt_info[SH_CMT0_RCAR_GEN2] },
+	{ .compatible = "renesas,rcar-gen2-cmt1", .data = &sh_cmt_info[SH_CMT1_RCAR_GEN2] },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, sh_cmt_of_table);

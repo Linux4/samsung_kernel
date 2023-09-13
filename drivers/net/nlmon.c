@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/netdevice.h>
@@ -6,6 +5,12 @@
 #include <net/net_namespace.h>
 #include <linux/if_arp.h>
 #include <net/rtnetlink.h>
+
+struct pcpu_lstats {
+	u64 packets;
+	u64 bytes;
+	struct u64_stats_sync syncp;
+};
 
 static netdev_tx_t nlmon_xmit(struct sk_buff *skb, struct net_device *dev)
 {

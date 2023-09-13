@@ -11,11 +11,10 @@
     |         arm: | TODO |
     |       arm64: |  ok  |
     |         c6x: |  ok  |
-    |        csky: |  ok  |
     |       h8300: |  ok  |
     |     hexagon: |  ok  |
     |        ia64: |  ok  |
-    |        m68k: |  ok  |
+    |        m68k: | TODO |
     |  microblaze: |  ok  |
     |        mips: |  ok  |
     |       nds32: |  ok  |

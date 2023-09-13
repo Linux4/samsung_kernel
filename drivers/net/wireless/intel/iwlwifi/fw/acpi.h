@@ -6,7 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2017        Intel Deutschland GmbH
- * Copyright(c) 2018 - 2019        Intel Corporation
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -16,6 +16,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program;
  *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
@@ -27,7 +30,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2017        Intel Deutschland GmbH
- * Copyright(c) 2018 - 2019       Intel Corporation
+ * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -67,8 +70,6 @@
 #define ACPI_WGDS_METHOD	"WGDS"
 #define ACPI_WRDD_METHOD	"WRDD"
 #define ACPI_SPLC_METHOD	"SPLC"
-#define ACPI_ECKV_METHOD	"ECKV"
-#define ACPI_PPAG_METHOD	"PPAG"
 
 #define ACPI_WIFI_DOMAIN	(0x07)
 
@@ -88,28 +89,16 @@
 #define ACPI_WGDS_WIFI_DATA_SIZE	19
 #define ACPI_WRDD_WIFI_DATA_SIZE	2
 #define ACPI_SPLC_WIFI_DATA_SIZE	2
-#define ACPI_ECKV_WIFI_DATA_SIZE	2
 
 #define ACPI_WGDS_NUM_BANDS		2
 #define ACPI_WGDS_TABLE_SIZE		3
-
-#define ACPI_PPAG_NUM_CHAINS		2
-#define ACPI_PPAG_NUM_SUB_BANDS		5
-#define ACPI_PPAG_WIFI_DATA_SIZE	((ACPI_PPAG_NUM_CHAINS * \
-					ACPI_PPAG_NUM_SUB_BANDS) + 3)
-
-/* PPAG gain value bounds in 1/8 dBm */
-#define ACPI_PPAG_MIN_LB -16
-#define ACPI_PPAG_MAX_LB 24
-#define ACPI_PPAG_MIN_HB -16
-#define ACPI_PPAG_MAX_HB 40
 
 #ifdef CONFIG_ACPI
 
 void *iwl_acpi_get_object(struct device *dev, acpi_string method);
 union acpi_object *iwl_acpi_get_wifi_pkg(struct device *dev,
 					 union acpi_object *data,
-					 int data_size, int *tbl_rev);
+					 int data_size);
 
 /**
  * iwl_acpi_get_mcc - read MCC from ACPI, if available
@@ -123,17 +112,6 @@ int iwl_acpi_get_mcc(struct device *dev, char *mcc);
 
 u64 iwl_acpi_get_pwr_limit(struct device *dev);
 
-/*
- * iwl_acpi_get_eckv - read external clock validation from ACPI, if available
- *
- * @dev: the struct device
- * @extl_clk: output var (2 bytes) that will get the clk indication.
- *
- * This function tries to read the external clock indication
- * from ACPI if available.
- */
-int iwl_acpi_get_eckv(struct device *dev, u32 *extl_clk);
-
 #else /* CONFIG_ACPI */
 
 static inline void *iwl_acpi_get_object(struct device *dev, acpi_string method)
@@ -143,8 +121,7 @@ static inline void *iwl_acpi_get_object(struct device *dev, acpi_string method)
 
 static inline union acpi_object *iwl_acpi_get_wifi_pkg(struct device *dev,
 						       union acpi_object *data,
-						       int data_size,
-						       int *tbl_rev)
+						       int data_size)
 {
 	return ERR_PTR(-ENOENT);
 }
@@ -157,11 +134,6 @@ static inline int iwl_acpi_get_mcc(struct device *dev, char *mcc)
 static inline u64 iwl_acpi_get_pwr_limit(struct device *dev)
 {
 	return 0;
-}
-
-static inline int iwl_acpi_get_eckv(struct device *dev, u32 *extl_clk)
-{
-	return -ENOENT;
 }
 
 #endif /* CONFIG_ACPI */

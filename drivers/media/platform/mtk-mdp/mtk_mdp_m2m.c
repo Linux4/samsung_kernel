@@ -1,8 +1,16 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2016 MediaTek Inc.
  * Author: Houlong Wei <houlong.wei@mediatek.com>
  *         Ming Hsiu Tsai <minghsiu.tsai@mediatek.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #include <linux/device.h>
@@ -402,12 +410,12 @@ static int mtk_mdp_m2m_start_streaming(struct vb2_queue *q, unsigned int count)
 	struct mtk_mdp_ctx *ctx = q->drv_priv;
 	int ret;
 
-	ret = pm_runtime_resume_and_get(&ctx->mdp_dev->pdev->dev);
+	ret = pm_runtime_get_sync(&ctx->mdp_dev->pdev->dev);
 	if (ret < 0)
-		mtk_mdp_dbg(1, "[%d] pm_runtime_resume_and_get failed:%d",
+		mtk_mdp_dbg(1, "[%d] pm_runtime_get_sync failed:%d",
 			    ctx->id, ret);
 
-	return ret;
+	return 0;
 }
 
 static void *mtk_mdp_m2m_buf_remove(struct mtk_mdp_ctx *ctx,
@@ -465,17 +473,20 @@ static void mtk_mdp_prepare_addr(struct mtk_mdp_ctx *ctx,
 static void mtk_mdp_m2m_get_bufs(struct mtk_mdp_ctx *ctx)
 {
 	struct mtk_mdp_frame *s_frame, *d_frame;
+	struct vb2_buffer *src_vb, *dst_vb;
 	struct vb2_v4l2_buffer *src_vbuf, *dst_vbuf;
 
 	s_frame = &ctx->s_frame;
 	d_frame = &ctx->d_frame;
 
-	src_vbuf = v4l2_m2m_next_src_buf(ctx->m2m_ctx);
-	mtk_mdp_prepare_addr(ctx, &src_vbuf->vb2_buf, s_frame, &s_frame->addr);
+	src_vb = v4l2_m2m_next_src_buf(ctx->m2m_ctx);
+	mtk_mdp_prepare_addr(ctx, src_vb, s_frame, &s_frame->addr);
 
-	dst_vbuf = v4l2_m2m_next_dst_buf(ctx->m2m_ctx);
-	mtk_mdp_prepare_addr(ctx, &dst_vbuf->vb2_buf, d_frame, &d_frame->addr);
+	dst_vb = v4l2_m2m_next_dst_buf(ctx->m2m_ctx);
+	mtk_mdp_prepare_addr(ctx, dst_vb, d_frame, &d_frame->addr);
 
+	src_vbuf = to_vb2_v4l2_buffer(src_vb);
+	dst_vbuf = to_vb2_v4l2_buffer(dst_vb);
 	dst_vbuf->vb2_buf.timestamp = src_vbuf->vb2_buf.timestamp;
 }
 
@@ -483,14 +494,17 @@ static void mtk_mdp_process_done(void *priv, int vb_state)
 {
 	struct mtk_mdp_dev *mdp = priv;
 	struct mtk_mdp_ctx *ctx;
-	struct vb2_v4l2_buffer *src_vbuf, *dst_vbuf;
+	struct vb2_buffer *src_vb, *dst_vb;
+	struct vb2_v4l2_buffer *src_vbuf = NULL, *dst_vbuf = NULL;
 
 	ctx = v4l2_m2m_get_curr_priv(mdp->m2m_dev);
 	if (!ctx)
 		return;
 
-	src_vbuf = v4l2_m2m_src_buf_remove(ctx->m2m_ctx);
-	dst_vbuf = v4l2_m2m_dst_buf_remove(ctx->m2m_ctx);
+	src_vb = v4l2_m2m_src_buf_remove(ctx->m2m_ctx);
+	src_vbuf = to_vb2_v4l2_buffer(src_vb);
+	dst_vb = v4l2_m2m_dst_buf_remove(ctx->m2m_ctx);
+	dst_vbuf = to_vb2_v4l2_buffer(dst_vb);
 
 	dst_vbuf->vb2_buf.timestamp = src_vbuf->vb2_buf.timestamp;
 	dst_vbuf->timecode = src_vbuf->timecode;
@@ -605,14 +619,14 @@ static int mtk_mdp_m2m_querycap(struct file *file, void *fh,
 	struct mtk_mdp_ctx *ctx = fh_to_ctx(fh);
 	struct mtk_mdp_dev *mdp = ctx->mdp_dev;
 
-	strscpy(cap->driver, MTK_MDP_MODULE_NAME, sizeof(cap->driver));
-	strscpy(cap->card, mdp->pdev->name, sizeof(cap->card));
-	strscpy(cap->bus_info, "platform:mt8173", sizeof(cap->bus_info));
+	strlcpy(cap->driver, MTK_MDP_MODULE_NAME, sizeof(cap->driver));
+	strlcpy(cap->card, mdp->pdev->name, sizeof(cap->card));
+	strlcpy(cap->bus_info, "platform:mt8173", sizeof(cap->bus_info));
 
 	return 0;
 }
 
-static int mtk_mdp_enum_fmt(struct v4l2_fmtdesc *f, u32 type)
+static int mtk_mdp_enum_fmt_mplane(struct v4l2_fmtdesc *f, u32 type)
 {
 	const struct mtk_mdp_fmt *fmt;
 
@@ -625,16 +639,16 @@ static int mtk_mdp_enum_fmt(struct v4l2_fmtdesc *f, u32 type)
 	return 0;
 }
 
-static int mtk_mdp_m2m_enum_fmt_vid_cap(struct file *file, void *priv,
-					struct v4l2_fmtdesc *f)
+static int mtk_mdp_m2m_enum_fmt_mplane_vid_cap(struct file *file, void *priv,
+				       struct v4l2_fmtdesc *f)
 {
-	return mtk_mdp_enum_fmt(f, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
+	return mtk_mdp_enum_fmt_mplane(f, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
 }
 
-static int mtk_mdp_m2m_enum_fmt_vid_out(struct file *file, void *priv,
-					struct v4l2_fmtdesc *f)
+static int mtk_mdp_m2m_enum_fmt_mplane_vid_out(struct file *file, void *priv,
+				       struct v4l2_fmtdesc *f)
 {
-	return mtk_mdp_enum_fmt(f, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
+	return mtk_mdp_enum_fmt_mplane(f, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
 }
 
 static int mtk_mdp_m2m_g_fmt_mplane(struct file *file, void *fh,
@@ -927,8 +941,8 @@ static int mtk_mdp_m2m_s_selection(struct file *file, void *fh,
 
 static const struct v4l2_ioctl_ops mtk_mdp_m2m_ioctl_ops = {
 	.vidioc_querycap		= mtk_mdp_m2m_querycap,
-	.vidioc_enum_fmt_vid_cap	= mtk_mdp_m2m_enum_fmt_vid_cap,
-	.vidioc_enum_fmt_vid_out	= mtk_mdp_m2m_enum_fmt_vid_out,
+	.vidioc_enum_fmt_vid_cap_mplane	= mtk_mdp_m2m_enum_fmt_mplane_vid_cap,
+	.vidioc_enum_fmt_vid_out_mplane	= mtk_mdp_m2m_enum_fmt_mplane_vid_out,
 	.vidioc_g_fmt_vid_cap_mplane	= mtk_mdp_m2m_g_fmt_mplane,
 	.vidioc_g_fmt_vid_out_mplane	= mtk_mdp_m2m_g_fmt_mplane,
 	.vidioc_try_fmt_vid_cap_mplane	= mtk_mdp_m2m_try_fmt_mplane,

@@ -1,8 +1,20 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * USB Network driver infrastructure
  * Copyright (C) 2000-2005 by David Brownell
  * Copyright (C) 2003-2005 David Hollis <dhollis@davehollis.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 /*
@@ -74,10 +86,6 @@ static u8	node_id [ETH_ALEN];
 static int msg_level = -1;
 module_param (msg_level, int, 0);
 MODULE_PARM_DESC (msg_level, "Override default message level");
-
-static int usb0_rx_skb_threshold = 500;
-module_param(usb0_rx_skb_threshold, int, 0644);
-MODULE_PARM_DESC(usb0_rx_skb_threshold, "Throttle rx traffic in USB3");
 
 /*-------------------------------------------------------------------------*/
 
@@ -658,13 +666,9 @@ block:
 		if (netif_running (dev->net) &&
 		    !test_bit (EVENT_RX_HALT, &dev->flags) &&
 		    state != unlink_start) {
-			if ((!(dev->driver_info->flags & FLAG_THROTTLE_RX)) ||
-				((dev->driver_info->flags & FLAG_THROTTLE_RX) &&
-				(dev->done.qlen < usb0_rx_skb_threshold))) {
-				rx_submit(dev, urb, GFP_ATOMIC);
-				usb_mark_last_busy(dev->udev);
-				return;
-			}
+			rx_submit (dev, urb, GFP_ATOMIC);
+			usb_mark_last_busy(dev->udev);
+			return;
 		}
 		usb_free_urb (urb);
 	}
@@ -807,7 +811,7 @@ static void usbnet_terminate_urbs(struct usbnet *dev)
 int usbnet_stop (struct net_device *net)
 {
 	struct usbnet		*dev = netdev_priv(net);
-	const struct driver_info *info = dev->driver_info;
+	struct driver_info	*info = dev->driver_info;
 	int			retval, pm, mpn;
 
 	clear_bit(EVENT_DEV_OPEN, &dev->flags);
@@ -870,7 +874,7 @@ int usbnet_open (struct net_device *net)
 {
 	struct usbnet		*dev = netdev_priv(net);
 	int			retval;
-	const struct driver_info *info = dev->driver_info;
+	struct driver_info	*info = dev->driver_info;
 
 	if ((retval = usb_autopm_get_interface(dev->intf)) < 0) {
 		netif_info(dev, ifup, dev->net,
@@ -1210,7 +1214,7 @@ fail_lowmem:
 	}
 
 	if (test_bit (EVENT_LINK_RESET, &dev->flags)) {
-		const struct driver_info *info = dev->driver_info;
+		struct driver_info	*info = dev->driver_info;
 		int			retval = 0;
 
 		clear_bit (EVENT_LINK_RESET, &dev->flags);
@@ -1340,11 +1344,11 @@ static int build_dma_sg(const struct sk_buff *skb, struct urb *urb)
 	total_len += skb_headlen(skb);
 
 	for (i = 0; i < skb_shinfo(skb)->nr_frags; i++) {
-		skb_frag_t *f = &skb_shinfo(skb)->frags[i];
+		struct skb_frag_struct *f = &skb_shinfo(skb)->frags[i];
 
 		total_len += skb_frag_size(f);
-		sg_set_page(&urb->sg[i + s], skb_frag_page(f), skb_frag_size(f),
-			    skb_frag_off(f));
+		sg_set_page(&urb->sg[i + s], f->page.p, f->size,
+				f->page_offset);
 	}
 	urb->transfer_buffer_length = total_len;
 
@@ -1358,7 +1362,7 @@ netdev_tx_t usbnet_start_xmit (struct sk_buff *skb,
 	unsigned int			length;
 	struct urb		*urb = NULL;
 	struct skb_data		*entry;
-	const struct driver_info *info = dev->driver_info;
+	struct driver_info	*info = dev->driver_info;
 	unsigned long		flags;
 	int retval;
 
@@ -1537,7 +1541,6 @@ static void usbnet_bh (struct timer_list *t)
 			continue;
 		case tx_done:
 			kfree(entry->urb->sg);
-			/* fall through */
 		case rx_cleanup:
 			usb_free_urb (entry->urb);
 			dev_kfree_skb (skb);
@@ -1579,13 +1582,6 @@ static void usbnet_bh (struct timer_list *t)
 		if (dev->txq.qlen < TX_QLEN (dev))
 			netif_wake_queue (dev->net);
 	}
-}
-
-static void usbnet_bh_tasklet(unsigned long data)
-{
-	struct timer_list *t = (struct timer_list *)data;
-
-	usbnet_bh(t);
 }
 
 
@@ -1664,7 +1660,7 @@ usbnet_probe (struct usb_interface *udev, const struct usb_device_id *prod)
 	struct usbnet			*dev;
 	struct net_device		*net;
 	struct usb_host_interface	*interface;
-	const struct driver_info	*info;
+	struct driver_info		*info;
 	struct usb_device		*xdev;
 	int				status;
 	const char			*name;
@@ -1680,7 +1676,7 @@ usbnet_probe (struct usb_interface *udev, const struct usb_device_id *prod)
 	}
 
 	name = udev->dev.driver->name;
-	info = (const struct driver_info *) prod->driver_info;
+	info = (struct driver_info *) prod->driver_info;
 	if (!info) {
 		dev_dbg (&udev->dev, "blacklisted by %s\n", name);
 		return -ENODEV;
@@ -1715,7 +1711,7 @@ usbnet_probe (struct usb_interface *udev, const struct usb_device_id *prod)
 	skb_queue_head_init (&dev->txq);
 	skb_queue_head_init (&dev->done);
 	skb_queue_head_init(&dev->rxq_pause);
-	dev->bh.func = usbnet_bh_tasklet;
+	dev->bh.func = (void (*)(unsigned long))usbnet_bh;
 	dev->bh.data = (unsigned long)&dev->delay;
 	INIT_WORK (&dev->kevent, usbnet_deferred_kevent);
 	init_usb_anchor(&dev->deferred);
@@ -1788,11 +1784,6 @@ usbnet_probe (struct usb_interface *udev, const struct usb_device_id *prod)
 	if (!dev->rx_urb_size)
 		dev->rx_urb_size = dev->hard_mtu;
 	dev->maxpacket = usb_maxpacket (dev->udev, dev->out, 1);
-	if (dev->maxpacket == 0) {
-		/* that is a broken device */
-		status = -ENODEV;
-		goto out4;
-	}
 
 	/* let userspace know we have a random address */
 	if (ether_addr_equal(net->dev_addr, node_id))
@@ -2002,7 +1993,7 @@ static int __usbnet_read_cmd(struct usbnet *dev, u8 cmd, u8 reqtype,
 		   cmd, reqtype, value, index, size);
 
 	if (size) {
-		buf = kmalloc(size, GFP_NOIO);
+		buf = kmalloc(size, GFP_KERNEL);
 		if (!buf)
 			goto out;
 	}
@@ -2034,7 +2025,7 @@ static int __usbnet_write_cmd(struct usbnet *dev, u8 cmd, u8 reqtype,
 		   cmd, reqtype, value, index, size);
 
 	if (data) {
-		buf = kmemdup(data, size, GFP_NOIO);
+		buf = kmemdup(data, size, GFP_KERNEL);
 		if (!buf)
 			goto out;
 	} else {
@@ -2135,7 +2126,7 @@ static void usbnet_async_cmd_cb(struct urb *urb)
 int usbnet_write_cmd_async(struct usbnet *dev, u8 cmd, u8 reqtype,
 			   u16 value, u16 index, const void *data, u16 size)
 {
-	struct usb_ctrlrequest *req;
+	struct usb_ctrlrequest *req = NULL;
 	struct urb *urb;
 	int err = -ENOMEM;
 	void *buf = NULL;
@@ -2153,7 +2144,7 @@ int usbnet_write_cmd_async(struct usbnet *dev, u8 cmd, u8 reqtype,
 		if (!buf) {
 			netdev_err(dev->net, "Error allocating buffer"
 				   " in %s!\n", __func__);
-			goto fail_free_urb;
+			goto fail_free;
 		}
 	}
 
@@ -2177,21 +2168,14 @@ int usbnet_write_cmd_async(struct usbnet *dev, u8 cmd, u8 reqtype,
 	if (err < 0) {
 		netdev_err(dev->net, "Error submitting the control"
 			   " message: status=%d\n", err);
-		goto fail_free_all;
+		goto fail_free;
 	}
 	return 0;
 
-fail_free_all:
-	kfree(req);
 fail_free_buf:
 	kfree(buf);
-	/*
-	 * avoid a double free
-	 * needed because the flag can be set only
-	 * after filling the URB
-	 */
-	urb->transfer_flags = 0;
-fail_free_urb:
+fail_free:
+	kfree(req);
 	usb_free_urb(urb);
 fail:
 	return err;

@@ -1,6 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018 Chelsio Communications, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * Written by: Atul Gupta (atul.gupta@chelsio.com)
  */
@@ -213,8 +216,8 @@ static int chtls_key_info(struct chtls_sock *csk,
 	unsigned char key[AES_KEYSIZE_128];
 	struct tls12_crypto_info_aes_gcm_128 *gcm_ctx;
 	unsigned char ghash_h[AEAD_H_SIZE];
+	struct crypto_cipher *cipher;
 	int ck_size, key_ctx_size;
-	struct crypto_aes_ctx aes;
 	int ret;
 
 	gcm_ctx = (struct tls12_crypto_info_aes_gcm_128 *)
@@ -234,13 +237,18 @@ static int chtls_key_info(struct chtls_sock *csk,
 	/* Calculate the H = CIPH(K, 0 repeated 16 times).
 	 * It will go in key context
 	 */
-	ret = aes_expandkey(&aes, key, keylen);
+	cipher = crypto_alloc_cipher("aes", 0, 0);
+	if (IS_ERR(cipher)) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	ret = crypto_cipher_setkey(cipher, key, keylen);
 	if (ret)
-		return ret;
+		goto out1;
 
 	memset(ghash_h, 0, AEAD_H_SIZE);
-	aes_encrypt(&aes, ghash_h, ghash_h);
-	memzero_explicit(&aes, sizeof(aes));
+	crypto_cipher_encrypt_one(cipher, ghash_h, ghash_h);
 	csk->tlshws.keylen = key_ctx_size;
 
 	/* Copy the Key context */
@@ -264,7 +272,10 @@ static int chtls_key_info(struct chtls_sock *csk,
 	/* erase key info from driver */
 	memset(gcm_ctx->key, 0, keylen);
 
-	return 0;
+out1:
+	crypto_free_cipher(cipher);
+out:
+	return ret;
 }
 
 static void chtls_set_scmd(struct chtls_sock *csk)
@@ -357,15 +368,11 @@ int chtls_setkey(struct chtls_sock *csk, u32 keylen, u32 optname)
 	if (ret)
 		goto out_notcb;
 
-	if (unlikely(csk_flag(sk, CSK_ABORT_SHUTDOWN)))
-		goto out_notcb;
-
 	set_wr_txq(skb, CPL_PRIORITY_DATA, csk->tlshws.txqid);
 	csk->wr_credits -= DIV_ROUND_UP(len, 16);
 	csk->wr_unacked += DIV_ROUND_UP(len, 16);
 	enqueue_wr(csk, skb);
 	cxgb4_ofld_send(csk->egress_dev, skb);
-	skb = NULL;
 
 	chtls_set_scmd(csk);
 	/* Clear quiesce for Rx key */

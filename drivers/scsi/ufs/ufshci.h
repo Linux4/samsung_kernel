@@ -64,6 +64,7 @@ enum {
 	REG_UTP_TRANSFER_REQ_DOOR_BELL		= 0x58,
 	REG_UTP_TRANSFER_REQ_LIST_CLEAR		= 0x5C,
 	REG_UTP_TRANSFER_REQ_LIST_RUN_STOP	= 0x60,
+	REG_UTP_TRANSFER_REQ_LIST_CNR	= 0x64,
 	REG_UTP_TASK_REQ_LIST_BASE_L		= 0x70,
 	REG_UTP_TASK_REQ_LIST_BASE_H		= 0x74,
 	REG_UTP_TASK_REQ_DOOR_BELL		= 0x78,
@@ -76,7 +77,7 @@ enum {
 
 	UFSHCI_REG_SPACE_SIZE			= 0xA0,
 
-	REG_UFS_CCAP				= 0x100,
+	REG_CRYPTO_CAPABILITY			= 0x100,
 	REG_UFS_CRYPTOCAP			= 0x104,
 
 	UFSHCI_CRYPTO_REG_SPACE_SIZE		= 0x400,
@@ -90,7 +91,6 @@ enum {
 	MASK_64_ADDRESSING_SUPPORT		= 0x01000000,
 	MASK_OUT_OF_ORDER_DATA_DELIVERY_SUPPORT	= 0x02000000,
 	MASK_UIC_DME_TEST_MODE_SUPPORT		= 0x04000000,
-	MASK_CRYPTO_SUPPORT			= 0x10000000,
 };
 
 #define UFS_MASK(mask, offset)		((mask) << (offset))
@@ -145,12 +145,9 @@ enum {
 #define DEVICE_FATAL_ERROR			0x800
 #define CONTROLLER_FATAL_ERROR			0x10000
 #define SYSTEM_BUS_FATAL_ERROR			0x20000
-#define CRYPTO_ENGINE_FATAL_ERROR		0x40000
 
-#define UFSHCD_UIC_HIBERN8_MASK	(UIC_HIBERNATE_ENTER |\
-				UIC_HIBERNATE_EXIT)
-
-#define UFSHCD_UIC_PWR_MASK	(UFSHCD_UIC_HIBERN8_MASK |\
+#define UFSHCD_UIC_PWR_MASK	(UIC_HIBERNATE_ENTER |\
+				UIC_HIBERNATE_EXIT |\
 				UIC_POWER_MODE)
 
 #define UFSHCD_UIC_MASK		(UIC_COMMAND_COMPL | UFSHCD_UIC_PWR_MASK)
@@ -159,12 +156,12 @@ enum {
 				DEVICE_FATAL_ERROR |\
 				CONTROLLER_FATAL_ERROR |\
 				SYSTEM_BUS_FATAL_ERROR |\
-				CRYPTO_ENGINE_FATAL_ERROR)
+				UIC_LINK_LOST)
 
 #define INT_FATAL_ERRORS	(DEVICE_FATAL_ERROR |\
 				CONTROLLER_FATAL_ERROR |\
 				SYSTEM_BUS_FATAL_ERROR |\
-				CRYPTO_ENGINE_FATAL_ERROR)
+				UIC_LINK_LOST)
 
 /* HCS - Host Controller Status 30h */
 #define DEVICE_PRESENT				0x1
@@ -188,44 +185,6 @@ enum {
 	PWR_FATAL_ERROR	= 0x05,
 };
 
-#ifdef CONFIG_SCSI_UFSHCD_QTI
-/* Host UIC error type */
-enum ufshcd_uic_err_type {
-	UFS_UIC_ERROR_PA,
-	UFS_UIC_ERROR_DL,
-	UFS_UIC_ERROR_DME,
-};
-/* Host UIC error code PHY adapter layer */
-enum ufshcd_ec_pa {
-	UFS_EC_PA_LANE_0,
-	UFS_EC_PA_LANE_1,
-	UFS_EC_PA_LANE_2,
-	UFS_EC_PA_LANE_3,
-	UFS_EC_PA_LINE_RESET,
-	UFS_EC_PA_MAX,
-};
-
-/* Host UIC error code data link layer */
-enum ufshcd_ec_dl {
-	UFS_EC_DL_NAC_RECEIVED,
-	UFS_EC_DL_TCx_REPLAY_TIMER_EXPIRED,
-	UFS_EC_DL_AFCx_REQUEST_TIMER_EXPIRED,
-	UFS_EC_DL_FCx_PROTECT_TIMER_EXPIRED,
-	UFS_EC_DL_CRC_ERROR,
-	UFS_EC_DL_RX_BUFFER_OVERFLOW,
-	UFS_EC_DL_MAX_FRAME_LENGTH_EXCEEDED,
-	UFS_EC_DL_WRONG_SEQUENCE_NUMBER,
-	UFS_EC_DL_AFC_FRAME_SYNTAX_ERROR,
-	UFS_EC_DL_NAC_FRAME_SYNTAX_ERROR,
-	UFS_EC_DL_EOF_SYNTAX_ERROR,
-	UFS_EC_DL_FRAME_SYNTAX_ERROR,
-	UFS_EC_DL_BAD_CTRL_SYMBOL_TYPE,
-	UFS_EC_DL_PA_INIT_ERROR,
-	UFS_EC_DL_PA_ERROR_IND_RECEIVED,
-	UFS_EC_DL_MAX,
-};
-#endif
-
 /* HCE - Host Controller Enable 34h */
 #define CONTROLLER_ENABLE	0x1
 #define CONTROLLER_DISABLE	0x0
@@ -235,12 +194,10 @@ enum ufshcd_ec_dl {
 #define UIC_PHY_ADAPTER_LAYER_ERROR			0x80000000
 #define UIC_PHY_ADAPTER_LAYER_ERROR_CODE_MASK		0x1F
 #define UIC_PHY_ADAPTER_LAYER_LANE_ERR_MASK		0xF
-#ifdef CONFIG_SCSI_UFSHCD_QTI
-#define UIC_PHY_ADAPTER_LAYER_GENERIC_ERROR		0x10
-#endif
+
 /* UECDL - Host UIC Error Code Data Link Layer 3Ch */
 #define UIC_DATA_LINK_LAYER_ERROR		0x80000000
-#define UIC_DATA_LINK_LAYER_ERROR_CODE_MASK	0xFFFF
+#define UIC_DATA_LINK_LAYER_ERROR_CODE_MASK	0x7FFF
 #define UIC_DATA_LINK_LAYER_ERROR_TCX_REP_TIMER_EXP	0x2
 #define UIC_DATA_LINK_LAYER_ERROR_AFCX_REQ_TIMER_EXP	0x4
 #define UIC_DATA_LINK_LAYER_ERROR_FCX_PRO_TIMER_EXP	0x8
@@ -363,61 +320,6 @@ enum {
 	INTERRUPT_MASK_ALL_VER_21	= 0x71FFF,
 };
 
-/* CCAP - Crypto Capability 100h */
-union ufs_crypto_capabilities {
-	__le32 reg_val;
-	struct {
-		u8 num_crypto_cap;
-		u8 config_count;
-		u8 reserved;
-		u8 config_array_ptr;
-	};
-};
-
-enum ufs_crypto_key_size {
-	UFS_CRYPTO_KEY_SIZE_INVALID	= 0x0,
-	UFS_CRYPTO_KEY_SIZE_128		= 0x1,
-	UFS_CRYPTO_KEY_SIZE_192		= 0x2,
-	UFS_CRYPTO_KEY_SIZE_256		= 0x3,
-	UFS_CRYPTO_KEY_SIZE_512		= 0x4,
-};
-
-enum ufs_crypto_alg {
-	UFS_CRYPTO_ALG_AES_XTS			= 0x0,
-	UFS_CRYPTO_ALG_BITLOCKER_AES_CBC	= 0x1,
-	UFS_CRYPTO_ALG_AES_ECB			= 0x2,
-	UFS_CRYPTO_ALG_ESSIV_AES_CBC		= 0x3,
-};
-
-/* x-CRYPTOCAP - Crypto Capability X */
-union ufs_crypto_cap_entry {
-	__le32 reg_val;
-	struct {
-		u8 algorithm_id;
-		u8 sdus_mask; /* Supported data unit size mask */
-		u8 key_size;
-		u8 reserved;
-	};
-};
-
-#define UFS_CRYPTO_CONFIGURATION_ENABLE (1 << 7)
-#define UFS_CRYPTO_KEY_MAX_SIZE 64
-/* x-CRYPTOCFG - Crypto Configuration X */
-union ufs_crypto_cfg_entry {
-	__le32 reg_val[32];
-	struct {
-		u8 crypto_key[UFS_CRYPTO_KEY_MAX_SIZE];
-		u8 data_unit_size;
-		u8 crypto_cap_idx;
-		u8 reserved_1;
-		u8 config_enable;
-		u8 reserved_multi_host;
-		u8 reserved_2;
-		u8 vsb[2];
-		u8 reserved_3[56];
-	};
-};
-
 /*
  * Request Descriptor Definitions
  */
@@ -439,7 +341,6 @@ enum {
 	UTP_NATIVE_UFS_COMMAND		= 0x10000000,
 	UTP_DEVICE_MANAGEMENT_FUNCTION	= 0x20000000,
 	UTP_REQ_DESC_INT_CMD		= 0x01000000,
-	UTP_REQ_DESC_CRYPTO_ENABLE_CMD	= 0x00800000,
 };
 
 /* UTP Transfer Request Data Direction (DD) */
@@ -459,9 +360,6 @@ enum {
 	OCS_PEER_COMM_FAILURE		= 0x5,
 	OCS_ABORTED			= 0x6,
 	OCS_FATAL_ERROR			= 0x7,
-	OCS_DEVICE_FATAL_ERROR		= 0x8,
-	OCS_INVALID_CRYPTO_CONFIG	= 0x9,
-	OCS_GENERAL_CRYPTO_ERROR	= 0xA,
 	OCS_INVALID_COMMAND_STATUS	= 0x0F,
 	MASK_OCS			= 0x0F,
 };
@@ -479,31 +377,53 @@ enum {
  * @size: size of physical segment DW-3
  */
 struct ufshcd_sg_entry {
-	__le32    base_addr;
-	__le32    upper_addr;
-	__le32    reserved;
-	__le32    size;
-	/*
-	 * followed by variant-specific fields if
-	 * hba->sg_entry_size != sizeof(struct ufshcd_sg_entry)
-	 */
+	__le32 base_addr;	/* des0 */
+	__le32 upper_addr;	/* des1 */
+	__le32 reserved;	/* des2 */
+	__le32 size;		/* des3 */
+#ifdef CONFIG_SCSI_UFS_EXYNOS_FMP
+	__le32 file_iv0;	/* des4 */
+	__le32 file_iv1;	/* des5 */
+	__le32 file_iv2;	/* des6 */
+	__le32 file_iv3;	/* des7 */
+	__le32 file_enckey0;	/* des8 */
+	__le32 file_enckey1;	/* des9 */
+	__le32 file_enckey2;	/* des10 */
+	__le32 file_enckey3;	/* des11 */
+	__le32 file_enckey4;	/* des12 */
+	__le32 file_enckey5;	/* des13 */
+	__le32 file_enckey6;	/* des14 */
+	__le32 file_enckey7;	/* des15 */
+	__le32 file_twkey0;	/* des16 */
+	__le32 file_twkey1;	/* des17 */
+	__le32 file_twkey2;	/* des18 */
+	__le32 file_twkey3;	/* des19 */
+	__le32 file_twkey4;	/* des20 */
+	__le32 file_twkey5;	/* des21 */
+	__le32 file_twkey6;	/* des22 */
+	__le32 file_twkey7;	/* des23 */
+	__le32 disk_iv0;	/* des24 */
+	__le32 disk_iv1;	/* des25 */
+	__le32 disk_iv2;	/* des26 */
+	__le32 disk_iv3;	/* des27 */
+	__le32 reserved0;	/* des28 */
+	__le32 reserved1;	/* des29 */
+	__le32 reserved2;	/* des30 */
+	__le32 reserved3;	/* des31 */
+#endif /* CONFIG_SCSI_UFS_EXYNOS_FMP */
 };
 
 /**
  * struct utp_transfer_cmd_desc - UFS Command Descriptor structure
  * @command_upiu: Command UPIU Frame address
  * @response_upiu: Response UPIU Frame address
- * @prd_table: Physical Region Descriptor: an array of SG_ALL struct
- *	ufshcd_sg_entry's.  Variant-specific fields may be present after each.
+ * @prd_table: Physical Region Descriptor
  */
 struct utp_transfer_cmd_desc {
 	u8 command_upiu[ALIGNED_UPIU_SIZE];
 	u8 response_upiu[ALIGNED_UPIU_SIZE];
-	u8 prd_table[];
+	struct ufshcd_sg_entry    prd_table[SG_ALL];
 };
-
-#define sizeof_utp_transfer_cmd_desc(hba)	\
-	(sizeof(struct utp_transfer_cmd_desc) + SG_UFS * (hba)->sg_entry_size)
 
 /**
  * struct request_desc_header - Descriptor Header common to both UTRD and UTMRD
@@ -547,25 +467,22 @@ struct utp_transfer_req_desc {
 	__le16  prd_table_offset;
 };
 
-/*
- * UTMRD structure.
+/**
+ * struct utp_task_req_desc - UTMRD structure
+ * @header: UTMRD header DW-0 to DW-3
+ * @task_req_upiu: Pointer to task request UPIU DW-4 to DW-11
+ * @task_rsp_upiu: Pointer to task response UPIU DW12 to DW-19
  */
 struct utp_task_req_desc {
+
 	/* DW 0-3 */
 	struct request_desc_header header;
 
-	/* DW 4-11 - Task request UPIU structure */
-	struct utp_upiu_header	req_header;
-	__be32			input_param1;
-	__be32			input_param2;
-	__be32			input_param3;
-	__be32			__reserved1[2];
+	/* DW 4-11 */
+	__le32 task_req_upiu[TASK_REQ_UPIU_SIZE_DWORDS];
 
-	/* DW 12-19 - Task Management Response UPIU structure */
-	struct utp_upiu_header	rsp_header;
-	__be32			output_param1;
-	__be32			output_param2;
-	__be32			__reserved2[3];
+	/* DW 12-19 */
+	__le32 task_rsp_upiu[TASK_RSP_UPIU_SIZE_DWORDS];
 };
 
 #endif /* End of Header */

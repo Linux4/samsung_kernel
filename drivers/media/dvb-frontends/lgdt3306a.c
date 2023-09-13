@@ -1,10 +1,19 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *    Support for LGDT3306A - 8VSB/QAM-B
  *
  *    Copyright (C) 2013 Fred Richter <frichter@hauppauge.com>
  *    - driver structure based on lgdt3305.[ch] by Michael Krufky
  *    - code based on LG3306_V0.35 API by LG Electronics Inc.
+ *
+ *    This program is free software; you can redistribute it and/or modify
+ *    it under the terms of the GNU General Public License as published by
+ *    the Free Software Foundation; either version 2 of the License, or
+ *    (at your option) any later version.
+ *
+ *    This program is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU General Public License for more details.
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -1676,10 +1685,7 @@ static int lgdt3306a_read_signal_strength(struct dvb_frontend *fe,
 	case QAM_256:
 	case QAM_AUTO:
 		/* need to know actual modulation to set proper SNR baseline */
-		ret = lgdt3306a_read_reg(state, 0x00a6, &val);
-		if (lg_chkerr(ret))
-			goto fail;
-
+		lgdt3306a_read_reg(state, 0x00a6, &val);
 		if(val & 0x04)
 			ref_snr = 2800; /* QAM-256 28dB */
 		else
@@ -2199,12 +2205,14 @@ static int lgdt3306a_probe(struct i2c_client *client,
 	struct dvb_frontend *fe;
 	int ret;
 
-	config = kmemdup(client->dev.platform_data,
-			 sizeof(struct lgdt3306a_config), GFP_KERNEL);
+	config = kzalloc(sizeof(struct lgdt3306a_config), GFP_KERNEL);
 	if (config == NULL) {
 		ret = -ENOMEM;
 		goto fail;
 	}
+
+	memcpy(config, client->dev.platform_data,
+			sizeof(struct lgdt3306a_config));
 
 	config->i2c_addr = client->addr;
 	fe = lgdt3306a_attach(config, client->adapter);

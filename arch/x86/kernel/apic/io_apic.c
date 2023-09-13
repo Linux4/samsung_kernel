@@ -47,7 +47,7 @@
 #include <linux/kthread.h>
 #include <linux/jiffies.h>	/* time_after() */
 #include <linux/slab.h>
-#include <linux/memblock.h>
+#include <linux/bootmem.h>
 
 #include <asm/irqdomain.h>
 #include <asm/io.h>
@@ -58,7 +58,6 @@
 #include <asm/acpi.h>
 #include <asm/dma.h>
 #include <asm/timer.h>
-#include <asm/time.h>
 #include <asm/i8259.h>
 #include <asm/setup.h>
 #include <asm/irq_remapping.h>
@@ -813,7 +812,6 @@ static int irq_polarity(int idx)
 		return IOAPIC_POL_HIGH;
 	case MP_IRQPOL_RESERVED:
 		pr_warn("IOAPIC: Invalid polarity: 2, defaulting to low\n");
-		/* fall through */
 	case MP_IRQPOL_ACTIVE_LOW:
 	default: /* Pointless default required due to do gcc stupidity */
 		return IOAPIC_POL_LOW;
@@ -861,7 +859,6 @@ static int irq_trigger(int idx)
 		return IOAPIC_EDGE;
 	case MP_IRQTRIG_RESERVED:
 		pr_warn("IOAPIC: Invalid trigger mode 2 defaulting to level\n");
-		/* fall through */
 	case MP_IRQTRIG_LEVEL:
 	default: /* Pointless default required due to do gcc stupidity */
 		return IOAPIC_LEVEL;
@@ -1046,16 +1043,6 @@ static int mp_map_pin_to_irq(u32 gsi, int idx, int ioapic, int pin,
 	if (idx >= 0 && test_bit(mp_irqs[idx].srcbus, mp_bus_not_pci)) {
 		irq = mp_irqs[idx].srcbusirq;
 		legacy = mp_is_legacy_irq(irq);
-		/*
-		 * IRQ2 is unusable for historical reasons on systems which
-		 * have a legacy PIC. See the comment vs. IRQ2 further down.
-		 *
-		 * If this gets removed at some point then the related code
-		 * in lapic_assign_system_vectors() needs to be adjusted as
-		 * well.
-		 */
-		if (legacy && irq == PIC_CASCADE_IR)
-			return -EINVAL;
 	}
 
 	mutex_lock(&ioapic_mutex);
@@ -1961,8 +1948,7 @@ static struct irq_chip ioapic_chip __read_mostly = {
 	.irq_set_affinity	= ioapic_set_affinity,
 	.irq_retrigger		= irq_chip_retrigger_hierarchy,
 	.irq_get_irqchip_state	= ioapic_irq_get_chip_state,
-	.flags			= IRQCHIP_SKIP_SET_WAKE |
-				  IRQCHIP_AFFINITY_PRE_STARTUP,
+	.flags			= IRQCHIP_SKIP_SET_WAKE,
 };
 
 static struct irq_chip ioapic_ir_chip __read_mostly = {
@@ -1975,8 +1961,7 @@ static struct irq_chip ioapic_ir_chip __read_mostly = {
 	.irq_set_affinity	= ioapic_set_affinity,
 	.irq_retrigger		= irq_chip_retrigger_hierarchy,
 	.irq_get_irqchip_state	= ioapic_irq_get_chip_state,
-	.flags			= IRQCHIP_SKIP_SET_WAKE |
-				  IRQCHIP_AFFINITY_PRE_STARTUP,
+	.flags			= IRQCHIP_SKIP_SET_WAKE,
 };
 
 static inline void init_IO_APIC_traps(void)
@@ -2145,9 +2130,6 @@ static inline void __init check_timer(void)
 	unsigned long flags;
 	int no_pin1 = 0;
 
-	if (!global_clock_event)
-		return;
-
 	local_irq_save(flags);
 
 	/*
@@ -2268,7 +2250,6 @@ static inline void __init check_timer(void)
 	legacy_pic->init(0);
 	legacy_pic->make_irq(0);
 	apic_write(APIC_LVT0, APIC_DM_EXTINT);
-	legacy_pic->unmask(0);
 
 	unlock_ExtINT_logic();
 
@@ -2342,12 +2323,12 @@ static int mp_irqdomain_create(int ioapic)
 	ip->irqdomain = irq_domain_create_linear(fn, hwirqs, cfg->ops,
 						 (void *)(long)ioapic);
 
-	if (!ip->irqdomain) {
-		/* Release fw handle if it was allocated above */
-		if (!cfg->dev)
-			irq_domain_free_fwnode(fn);
+	/* Release fw handle if it was allocated above */
+	if (!cfg->dev)
+		irq_domain_free_fwnode(fn);
+
+	if (!ip->irqdomain)
 		return -ENOMEM;
-	}
 
 	ip->irqdomain->parent = parent;
 
@@ -2361,13 +2342,8 @@ static int mp_irqdomain_create(int ioapic)
 
 static void ioapic_destroy_irqdomain(int idx)
 {
-	struct ioapic_domain_cfg *cfg = &ioapics[idx].irqdomain_cfg;
-	struct fwnode_handle *fn = ioapics[idx].irqdomain->fwnode;
-
 	if (ioapics[idx].irqdomain) {
 		irq_domain_remove(ioapics[idx].irqdomain);
-		if (!cfg->dev)
-			irq_domain_free_fwnode(fn);
 		ioapics[idx].irqdomain = NULL;
 	}
 }
@@ -2657,9 +2633,7 @@ static struct resource * __init ioapic_setup_resources(void)
 	n = IOAPIC_RESOURCE_NAME_SIZE + sizeof(struct resource);
 	n *= nr_ioapics;
 
-	mem = memblock_alloc(n, SMP_CACHE_BYTES);
-	if (!mem)
-		panic("%s: Failed to allocate %lu bytes\n", __func__, n);
+	mem = alloc_bootmem(n);
 	res = (void *)mem;
 
 	mem += sizeof(struct resource) * nr_ioapics;
@@ -2702,11 +2676,7 @@ void __init io_apic_init_mappings(void)
 #ifdef CONFIG_X86_32
 fake_ioapic_page:
 #endif
-			ioapic_phys = (unsigned long)memblock_alloc(PAGE_SIZE,
-								    PAGE_SIZE);
-			if (!ioapic_phys)
-				panic("%s: Failed to allocate %lu bytes align=0x%lx\n",
-				      __func__, PAGE_SIZE, PAGE_SIZE);
+			ioapic_phys = (unsigned long)alloc_bootmem_pages(PAGE_SIZE);
 			ioapic_phys = __pa(ioapic_phys);
 		}
 		set_fixmap_nocache(idx, ioapic_phys);

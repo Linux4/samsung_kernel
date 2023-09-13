@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * OPA362 analog video amplifier with output/power control
  *
@@ -9,6 +8,10 @@
  *
  * Copyright (C) 2013 Texas Instruments Incorporated - http://www.ti.com/
  * Author: Tomi Valkeinen <tomi.valkeinen@ti.com>
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
  */
 
 #include <linux/gpio/consumer.h>
@@ -20,45 +23,162 @@
 
 struct panel_drv_data {
 	struct omap_dss_device dssdev;
+	struct omap_dss_device *in;
 
 	struct gpio_desc *enable_gpio;
+
+	struct videomode vm;
 };
 
 #define to_panel_data(x) container_of(x, struct panel_drv_data, dssdev)
 
-static int opa362_connect(struct omap_dss_device *src,
-			  struct omap_dss_device *dst)
-{
-	return omapdss_device_connect(dst->dss, dst, dst->next);
-}
-
-static void opa362_disconnect(struct omap_dss_device *src,
-			      struct omap_dss_device *dst)
-{
-	omapdss_device_disconnect(dst, dst->next);
-}
-
-static void opa362_enable(struct omap_dss_device *dssdev)
+static int opa362_connect(struct omap_dss_device *dssdev,
+		struct omap_dss_device *dst)
 {
 	struct panel_drv_data *ddata = to_panel_data(dssdev);
+	struct omap_dss_device *in;
+	int r;
+
+	dev_dbg(dssdev->dev, "connect\n");
+
+	if (omapdss_device_is_connected(dssdev))
+		return -EBUSY;
+
+	in = omapdss_of_find_source_for_first_ep(dssdev->dev->of_node);
+	if (IS_ERR(in)) {
+		dev_err(dssdev->dev, "failed to find video source\n");
+		return PTR_ERR(in);
+	}
+
+	r = in->ops.atv->connect(in, dssdev);
+	if (r) {
+		omap_dss_put_device(in);
+		return r;
+	}
+
+	dst->src = dssdev;
+	dssdev->dst = dst;
+
+	ddata->in = in;
+	return 0;
+}
+
+static void opa362_disconnect(struct omap_dss_device *dssdev,
+		struct omap_dss_device *dst)
+{
+	struct panel_drv_data *ddata = to_panel_data(dssdev);
+	struct omap_dss_device *in = ddata->in;
+
+	dev_dbg(dssdev->dev, "disconnect\n");
+
+	WARN_ON(!omapdss_device_is_connected(dssdev));
+	if (!omapdss_device_is_connected(dssdev))
+		return;
+
+	WARN_ON(dst != dssdev->dst);
+	if (dst != dssdev->dst)
+		return;
+
+	dst->src = NULL;
+	dssdev->dst = NULL;
+
+	in->ops.atv->disconnect(in, &ddata->dssdev);
+
+	omap_dss_put_device(in);
+	ddata->in = NULL;
+}
+
+static int opa362_enable(struct omap_dss_device *dssdev)
+{
+	struct panel_drv_data *ddata = to_panel_data(dssdev);
+	struct omap_dss_device *in = ddata->in;
+	int r;
+
+	dev_dbg(dssdev->dev, "enable\n");
+
+	if (!omapdss_device_is_connected(dssdev))
+		return -ENODEV;
+
+	if (omapdss_device_is_enabled(dssdev))
+		return 0;
+
+	in->ops.atv->set_timings(in, &ddata->vm);
+
+	r = in->ops.atv->enable(in);
+	if (r)
+		return r;
 
 	if (ddata->enable_gpio)
 		gpiod_set_value_cansleep(ddata->enable_gpio, 1);
+
+	dssdev->state = OMAP_DSS_DISPLAY_ACTIVE;
+
+	return 0;
 }
 
 static void opa362_disable(struct omap_dss_device *dssdev)
 {
 	struct panel_drv_data *ddata = to_panel_data(dssdev);
+	struct omap_dss_device *in = ddata->in;
+
+	dev_dbg(dssdev->dev, "disable\n");
+
+	if (!omapdss_device_is_enabled(dssdev))
+		return;
 
 	if (ddata->enable_gpio)
 		gpiod_set_value_cansleep(ddata->enable_gpio, 0);
+
+	in->ops.atv->disable(in);
+
+	dssdev->state = OMAP_DSS_DISPLAY_DISABLED;
 }
 
-static const struct omap_dss_device_ops opa362_ops = {
+static void opa362_set_timings(struct omap_dss_device *dssdev,
+			       struct videomode *vm)
+{
+	struct panel_drv_data *ddata = to_panel_data(dssdev);
+	struct omap_dss_device *in = ddata->in;
+
+	dev_dbg(dssdev->dev, "set_timings\n");
+
+	ddata->vm = *vm;
+	dssdev->panel.vm = *vm;
+
+	in->ops.atv->set_timings(in, vm);
+}
+
+static void opa362_get_timings(struct omap_dss_device *dssdev,
+			       struct videomode *vm)
+{
+	struct panel_drv_data *ddata = to_panel_data(dssdev);
+
+	dev_dbg(dssdev->dev, "get_timings\n");
+
+	*vm = ddata->vm;
+}
+
+static int opa362_check_timings(struct omap_dss_device *dssdev,
+				struct videomode *vm)
+{
+	struct panel_drv_data *ddata = to_panel_data(dssdev);
+	struct omap_dss_device *in = ddata->in;
+
+	dev_dbg(dssdev->dev, "check_timings\n");
+
+	return in->ops.atv->check_timings(in, vm);
+}
+
+static const struct omapdss_atv_ops opa362_atv_ops = {
 	.connect	= opa362_connect,
 	.disconnect	= opa362_disconnect,
+
 	.enable		= opa362_enable,
 	.disable	= opa362_disable,
+
+	.check_timings	= opa362_check_timings,
+	.set_timings	= opa362_set_timings,
+	.get_timings	= opa362_get_timings,
 };
 
 static int opa362_probe(struct platform_device *pdev)
@@ -66,6 +186,7 @@ static int opa362_probe(struct platform_device *pdev)
 	struct panel_drv_data *ddata;
 	struct omap_dss_device *dssdev;
 	struct gpio_desc *gpio;
+	int r;
 
 	dev_dbg(&pdev->dev, "probe\n");
 
@@ -82,20 +203,17 @@ static int opa362_probe(struct platform_device *pdev)
 	ddata->enable_gpio = gpio;
 
 	dssdev = &ddata->dssdev;
-	dssdev->ops = &opa362_ops;
+	dssdev->ops.atv = &opa362_atv_ops;
 	dssdev->dev = &pdev->dev;
 	dssdev->type = OMAP_DISPLAY_TYPE_VENC;
+	dssdev->output_type = OMAP_DISPLAY_TYPE_VENC;
 	dssdev->owner = THIS_MODULE;
-	dssdev->of_ports = BIT(1) | BIT(0);
 
-	dssdev->next = omapdss_of_find_connected_device(pdev->dev.of_node, 1);
-	if (IS_ERR(dssdev->next)) {
-		if (PTR_ERR(dssdev->next) != -EPROBE_DEFER)
-			dev_err(&pdev->dev, "failed to find video sink\n");
-		return PTR_ERR(dssdev->next);
+	r = omapdss_register_output(dssdev);
+	if (r) {
+		dev_err(&pdev->dev, "Failed to register output\n");
+		return r;
 	}
-
-	omapdss_device_register(dssdev);
 
 	return 0;
 }
@@ -105,11 +223,15 @@ static int __exit opa362_remove(struct platform_device *pdev)
 	struct panel_drv_data *ddata = platform_get_drvdata(pdev);
 	struct omap_dss_device *dssdev = &ddata->dssdev;
 
-	if (dssdev->next)
-		omapdss_device_put(dssdev->next);
-	omapdss_device_unregister(&ddata->dssdev);
+	omapdss_unregister_output(&ddata->dssdev);
 
-	opa362_disable(dssdev);
+	WARN_ON(omapdss_device_is_enabled(dssdev));
+	if (omapdss_device_is_enabled(dssdev))
+		opa362_disable(dssdev);
+
+	WARN_ON(omapdss_device_is_connected(dssdev));
+	if (omapdss_device_is_connected(dssdev))
+		opa362_disconnect(dssdev, dssdev->dst);
 
 	return 0;
 }

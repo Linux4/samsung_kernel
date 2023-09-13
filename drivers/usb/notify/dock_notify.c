@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2015-2021 Samsung Electronics Co. Ltd.
+ * Copyright (C) 2015-2017 Samsung Electronics Co. Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -8,7 +8,7 @@
  * (at your option) any later version.
  */
 
- /* usb notify layer v3.6 */
+ /* usb notify layer v3.4 */
 
 #define pr_fmt(fmt) "usb_notify: " fmt
 
@@ -19,7 +19,7 @@
 #include <linux/notifier.h>
 #include <linux/version.h>
 #include <linux/usb_notify.h>
-#include <linux/usb/hcd.h>
+#include "../core/hub.h"
 
 #define SMARTDOCK_INDEX	1
 #define MMDOCK_INDEX	2
@@ -70,7 +70,7 @@ static struct dev_table update_autotimer_device_table[] = {
 
 static struct dev_table unsupport_device_table[] = {
 	{ .dev = { USB_DEVICE(0x1a0a, 0x0201), },
-	}, /* The device for usb certification */
+	},
 	{}
 };
 
@@ -150,7 +150,7 @@ skip:
 static int get_autosuspend_time(struct usb_device *dev)
 {
 	struct dev_table *id;
-	int ret = 1;
+	int ret = 0;
 
 	/* check VID, PID */
 	for (id = update_autotimer_device_table; id->dev.match_flags; id++) {
@@ -169,6 +169,7 @@ static int call_battery_notify(struct usb_device *dev, bool on)
 {
 	struct usb_device *hdev;
 	struct usb_device *udev;
+	struct usb_hub *hub;
 	struct otg_notify *o_notify = get_otg_notify();
 	int index = 0;
 	int count = 0;
@@ -177,19 +178,23 @@ static int call_battery_notify(struct usb_device *dev, bool on)
 	index = is_notify_hub(dev);
 	if (!index)
 		goto skip;
-	if (!check_essential_device(dev, index))
+	if (check_essential_device(dev, index))
 		goto skip;
 
 	hdev = dev->parent;
-	if (!hdev)
+	hub = usb_hub_to_struct_hub(hdev);
+	if (!hub)
 		goto skip;
 
-	usb_hub_for_each_child(hdev, port, udev) {
-		if (check_essential_device(udev, index)) {
-			if (!on && (udev == dev))
-				continue;
-			else
-				count++;
+	for (port = 1; port <= hdev->maxchild; port++) {
+		udev = hub->ports[port-1]->child;
+		if (udev) {
+			if (!check_essential_device(udev, index)) {
+				if (!on && (udev == dev))
+					continue;
+				else
+					count++;
+			}
 		}
 	}
 
@@ -219,32 +224,6 @@ skip:
 	return 0;
 }
 
-static void seek_usb_interface(struct usb_device *dev)
-{
-	struct usb_interface *intf;
-	int i;
-
-	if (!dev) {
-		pr_err("%s no dev\n", __func__);
-		goto done;
-	}
-
-	if (!dev->actconfig) {
-		pr_info("%s no set config\n", __func__);
-		goto done;
-	}
-
-	for (i = 0; i < dev->actconfig->desc.bNumInterfaces; i++) {
-		intf = dev->actconfig->interface[i];
-		/* You can use this function for various purposes */
-		store_usblog_notify(NOTIFY_PORT_CLASS,
-			(void *)&dev->descriptor.bDeviceClass,
-			(void *)&intf->cur_altsetting->desc.bInterfaceClass);
-	}
-done:
-	return;
-}
-
 static int call_device_notify(struct usb_device *dev, int connect)
 {
 	struct otg_notify *o_notify = get_otg_notify();
@@ -266,13 +245,6 @@ static int call_device_notify(struct usb_device *dev, int connect)
 			store_usblog_notify(NOTIFY_PORT_CONNECT,
 				(void *)&dev->descriptor.idVendor,
 				(void *)&dev->descriptor.idProduct);
-
-			seek_usb_interface(dev);
-
-			if (!usb_check_whitelist_for_mdm(dev)) {
-				pr_info("This deice will be noattached state.\n");
-				usb_set_device_state(dev, USB_STATE_NOTATTACHED);
-			}
 		} else
 			store_usblog_notify(NOTIFY_PORT_DISCONNECT,
 				(void *)&dev->descriptor.idVendor,
@@ -314,9 +286,9 @@ static void check_device_speed(struct usb_device *dev, bool on)
 	struct otg_notify *o_notify = get_otg_notify();
 	struct usb_device *hdev;
 	struct usb_device *udev;
+	struct usb_hub *hub;
 	int port = 0;
 	int speed = USB_SPEED_UNKNOWN;
-	int pr_speed = USB_SPEED_UNKNOWN;
 	static int hs_hub;
 	static int ss_hub;
 
@@ -325,21 +297,23 @@ static void check_device_speed(struct usb_device *dev, bool on)
 		return;
 	}
 
-	pr_speed = get_con_dev_max_speed(o_notify);
-
 	hdev = dev->parent;
 	if (!hdev)
 		return;
 
 	hdev = dev->bus->root_hub;
-	if (!hdev)
-		return;
 
-	usb_hub_for_each_child(hdev, port, udev) {
-		if (!on && (udev == dev))
-			continue;
-		if (udev->speed > speed)
-			speed = udev->speed;
+	hub = usb_hub_to_struct_hub(hdev);
+
+	/* check all ports */
+	for (port = 1; port <= hdev->maxchild; port++) {
+		udev = hub->ports[port-1]->child;
+		if (udev) {
+			if (!on && (udev == dev))
+				continue;
+			if (udev->speed > speed)
+				speed = udev->speed;
+		}
 	}
 
 	if (hdev->speed >= USB_SPEED_SUPER) {
@@ -357,16 +331,16 @@ static void check_device_speed(struct usb_device *dev, bool on)
 		;
 
 	if (ss_hub || hs_hub) {
-		if (speed > pr_speed)
-			set_con_dev_max_speed(o_notify, speed);
+		if (speed > o_notify->speed)
+			o_notify->speed = speed;
 	} else
-		set_con_dev_max_speed(o_notify, USB_SPEED_UNKNOWN);
+		o_notify->speed = USB_SPEED_UNKNOWN;
 
 	pr_info("%s : dev->speed %s %s\n", __func__,
 		usb_speed_string(dev->speed), on ? "on" : "off");
 
 	pr_info("%s : o_notify->speed %s\n", __func__,
-		usb_speed_string(get_con_dev_max_speed(o_notify)));
+		usb_speed_string(o_notify->speed));
 }
 
 #if defined(CONFIG_USB_HW_PARAM)

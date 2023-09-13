@@ -1,10 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Freescale SCFG MSI(-X) support
  *
  * Copyright (C) 2016 Freescale Semiconductor.
  *
  * Author: Minghuan Lian <Minghuan.Lian@nxp.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/kernel.h>
@@ -97,7 +100,7 @@ static void ls_scfg_msi_compose_msg(struct irq_data *data, struct msi_msg *msg)
 		msg->data |= cpumask_first(mask);
 	}
 
-	iommu_dma_compose_msi_msg(irq_data_get_msi_desc(data), msg);
+	iommu_dma_map_msi_msg(data->irq, msg);
 }
 
 static int ls_scfg_msi_set_affinity(struct irq_data *irq_data,
@@ -138,7 +141,6 @@ static int ls_scfg_msi_domain_irq_alloc(struct irq_domain *domain,
 					unsigned int nr_irqs,
 					void *args)
 {
-	msi_alloc_info_t *info = args;
 	struct ls_scfg_msi *msi_data = domain->host_data;
 	int pos, err = 0;
 
@@ -152,10 +154,6 @@ static int ls_scfg_msi_domain_irq_alloc(struct irq_domain *domain,
 		err = -ENOSPC;
 	spin_unlock(&msi_data->lock);
 
-	if (err)
-		return err;
-
-	err = iommu_dma_prepare_msi(info->desc, msi_data->msiir_addr);
 	if (err)
 		return err;
 

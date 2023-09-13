@@ -60,9 +60,14 @@ static const unsigned short cwRXBCNTSFOff[MAX_RATE] = {
 
 /*---------------------  Static Functions  --------------------------*/
 
-static void s_vCalculateOFDMRParameter(unsigned char byRate, u8 bb_type,
-				       unsigned char *pbyTxRate,
-				       unsigned char *pbyRsvTime);
+static
+void
+s_vCalculateOFDMRParameter(
+	unsigned char byRate,
+	u8 bb_type,
+	unsigned char *pbyTxRate,
+	unsigned char *pbyRsvTime
+);
 
 /*---------------------  Export Functions  --------------------------*/
 
@@ -409,11 +414,14 @@ bool CARDbSetBeaconPeriod(struct vnt_private *priv,
  *  Out:
  *      none
  *
+ * Return Value: true if success; otherwise false
  */
-void CARDbRadioPowerOff(struct vnt_private *priv)
+bool CARDbRadioPowerOff(struct vnt_private *priv)
 {
+	bool bResult = true;
+
 	if (priv->bRadioOff)
-		return;
+		return true;
 
 	switch (priv->byRFType) {
 	case RF_RFMD2959:
@@ -441,6 +449,7 @@ void CARDbRadioPowerOff(struct vnt_private *priv)
 	pr_debug("chester power off\n");
 	MACvRegBitsOn(priv->PortOffset, MAC_REG_GPIOCTL0,
 		      LED_ACTSET);  /* LED issue */
+	return bResult;
 }
 
 /*
@@ -497,7 +506,10 @@ bool CARDbRadioPowerOn(struct vnt_private *priv)
 	return bResult;
 }
 
-void CARDvSafeResetTx(struct vnt_private *priv)
+void
+CARDvSafeResetTx(
+	struct vnt_private *priv
+)
 {
 	unsigned int uu;
 	struct vnt_tx_desc *pCurrTD;

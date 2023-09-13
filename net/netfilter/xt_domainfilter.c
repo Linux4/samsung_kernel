@@ -113,8 +113,8 @@ domainfilter_mt(const struct sk_buff *skb, struct xt_action_param *par)
     }
 
     // check domain name match
-    if (SOCK_NPA_VENDOR_DATA_GET(sk)->domain_name != NULL && SOCK_NPA_VENDOR_DATA_GET(sk)->domain_name[0] != '\0') {
-        return matchHost(info->domain_name, SOCK_NPA_VENDOR_DATA_GET(sk)->domain_name);
+    if (sk->domain_name[0] != '\0') {
+        return matchHost(info->domain_name, sk->domain_name);
     }
 
     // didn't match

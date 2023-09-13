@@ -1,10 +1,21 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Driver for the Atmel Extensible DMA Controller (aka XDMAC on AT91 systems)
  *
  * Copyright (C) 2014 Atmel Corporation
  *
  * Author: Ludovic Desroches <ludovic.desroches@atmel.com>
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <asm/barrier.h>
@@ -89,7 +100,6 @@
 #define		AT_XDMAC_CNDC_NDE		(0x1 << 0)		/* Channel x Next Descriptor Enable */
 #define		AT_XDMAC_CNDC_NDSUP		(0x1 << 1)		/* Channel x Next Descriptor Source Update */
 #define		AT_XDMAC_CNDC_NDDUP		(0x1 << 2)		/* Channel x Next Descriptor Destination Update */
-#define		AT_XDMAC_CNDC_NDVIEW_MASK	GENMASK(28, 27)
 #define		AT_XDMAC_CNDC_NDVIEW_NDV0	(0x0 << 3)		/* Channel x Next Descriptor View 0 */
 #define		AT_XDMAC_CNDC_NDVIEW_NDV1	(0x1 << 3)		/* Channel x Next Descriptor View 1 */
 #define		AT_XDMAC_CNDC_NDVIEW_NDV2	(0x2 << 3)		/* Channel x Next Descriptor View 2 */
@@ -146,7 +156,7 @@
 #define		AT_XDMAC_CC_WRIP	(0x1 << 23)	/* Write in Progress (read only) */
 #define			AT_XDMAC_CC_WRIP_DONE		(0x0 << 23)
 #define			AT_XDMAC_CC_WRIP_IN_PROGRESS	(0x1 << 23)
-#define		AT_XDMAC_CC_PERID(i)	((0x7f & (i)) << 24)	/* Channel Peripheral Identifier */
+#define		AT_XDMAC_CC_PERID(i)	(0x7f & (i) << 24)	/* Channel Peripheral Identifier */
 #define AT_XDMAC_CDS_MSP	0x2C	/* Channel Data Stride Memory Set Pattern */
 #define AT_XDMAC_CSUS		0x30	/* Channel Source Microblock Stride */
 #define AT_XDMAC_CDUS		0x34	/* Channel Destination Microblock Stride */
@@ -221,15 +231,15 @@ struct at_xdmac {
 
 /* Linked List Descriptor */
 struct at_xdmac_lld {
-	u32 mbr_nda;	/* Next Descriptor Member */
-	u32 mbr_ubc;	/* Microblock Control Member */
-	u32 mbr_sa;	/* Source Address Member */
-	u32 mbr_da;	/* Destination Address Member */
-	u32 mbr_cfg;	/* Configuration Register */
-	u32 mbr_bc;	/* Block Control Register */
-	u32 mbr_ds;	/* Data Stride Register */
-	u32 mbr_sus;	/* Source Microblock Stride Register */
-	u32 mbr_dus;	/* Destination Microblock Stride Register */
+	dma_addr_t	mbr_nda;	/* Next Descriptor Member */
+	u32		mbr_ubc;	/* Microblock Control Member */
+	dma_addr_t	mbr_sa;		/* Source Address Member */
+	dma_addr_t	mbr_da;		/* Destination Address Member */
+	u32		mbr_cfg;	/* Configuration Register */
+	u32		mbr_bc;		/* Block Control Register */
+	u32		mbr_ds;		/* Data Stride Register */
+	u32		mbr_sus;	/* Source Microblock Stride Register */
+	u32		mbr_dus;	/* Destination Microblock Stride Register */
 };
 
 /* 64-bit alignment needed to update CNDA and CUBC registers in an atomic way. */
@@ -298,11 +308,6 @@ static inline int at_xdmac_csize(u32 maxburst)
 	return csize;
 };
 
-static inline bool at_xdmac_chan_is_peripheral_xfer(u32 cfg)
-{
-	return cfg & AT_XDMAC_CC_TYPE_PER_TRAN;
-}
-
 static inline u8 at_xdmac_get_dwidth(u32 cfg)
 {
 	return (cfg & AT_XDMAC_CC_DWIDTH_MASK) >> AT_XDMAC_CC_DWIDTH_OFFSET;
@@ -339,6 +344,9 @@ static void at_xdmac_start_xfer(struct at_xdmac_chan *atchan,
 
 	dev_vdbg(chan2dev(&atchan->chan), "%s: desc 0x%p\n", __func__, first);
 
+	if (at_xdmac_chan_is_enabled(atchan))
+		return;
+
 	/* Set transfer as active to not try to start it again. */
 	first->active_xfer = true;
 
@@ -354,8 +362,7 @@ static void at_xdmac_start_xfer(struct at_xdmac_chan *atchan,
 	 */
 	if (at_xdmac_chan_is_cyclic(atchan))
 		reg = AT_XDMAC_CNDC_NDVIEW_NDV1;
-	else if ((first->lld.mbr_ubc &
-		  AT_XDMAC_CNDC_NDVIEW_MASK) == AT_XDMAC_MBR_UBC_NDV3)
+	else if (first->lld.mbr_ubc & AT_XDMAC_MBR_UBC_NDV3)
 		reg = AT_XDMAC_CNDC_NDVIEW_NDV3;
 	else
 		reg = AT_XDMAC_CNDC_NDVIEW_NDV2;
@@ -382,13 +389,7 @@ static void at_xdmac_start_xfer(struct at_xdmac_chan *atchan,
 		 at_xdmac_chan_read(atchan, AT_XDMAC_CUBC));
 
 	at_xdmac_chan_write(atchan, AT_XDMAC_CID, 0xffffffff);
-	reg = AT_XDMAC_CIE_RBEIE | AT_XDMAC_CIE_WBEIE;
-	/*
-	 * Request Overflow Error is only for peripheral synchronized transfers
-	 */
-	if (at_xdmac_chan_is_peripheral_xfer(first->lld.mbr_cfg))
-		reg |= AT_XDMAC_CIE_ROIE;
-
+	reg = AT_XDMAC_CIE_RBEIE | AT_XDMAC_CIE_WBEIE | AT_XDMAC_CIE_ROIE;
 	/*
 	 * There is no end of list when doing cyclic dma, we need to get
 	 * an interrupt after each periods.
@@ -426,12 +427,13 @@ static dma_cookie_t at_xdmac_tx_submit(struct dma_async_tx_descriptor *tx)
 	spin_lock_irqsave(&atchan->lock, irqflags);
 	cookie = dma_cookie_assign(tx);
 
-	list_add_tail(&desc->xfer_node, &atchan->xfers_list);
-	spin_unlock_irqrestore(&atchan->lock, irqflags);
-
 	dev_vdbg(chan2dev(tx->chan), "%s: atchan 0x%p, add desc 0x%p to xfers_list\n",
 		 __func__, atchan, desc);
+	list_add_tail(&desc->xfer_node, &atchan->xfers_list);
+	if (list_is_singular(&atchan->xfers_list))
+		at_xdmac_start_xfer(atchan, desc);
 
+	spin_unlock_irqrestore(&atchan->lock, irqflags);
 	return cookie;
 }
 
@@ -1390,7 +1392,7 @@ at_xdmac_tx_status(struct dma_chan *chan, dma_cookie_t cookie,
 {
 	struct at_xdmac_chan	*atchan = to_at_xdmac_chan(chan);
 	struct at_xdmac		*atxdmac = to_at_xdmac(atchan->chan.device);
-	struct at_xdmac_desc	*desc, *_desc, *iter;
+	struct at_xdmac_desc	*desc, *_desc;
 	struct list_head	*descs_list;
 	enum dma_status		ret;
 	int			residue, retry;
@@ -1505,13 +1507,11 @@ at_xdmac_tx_status(struct dma_chan *chan, dma_cookie_t cookie,
 	 * microblock.
 	 */
 	descs_list = &desc->descs_list;
-	list_for_each_entry_safe(iter, _desc, descs_list, desc_node) {
-		dwidth = at_xdmac_get_dwidth(iter->lld.mbr_cfg);
-		residue -= (iter->lld.mbr_ubc & 0xffffff) << dwidth;
-		if ((iter->lld.mbr_nda & 0xfffffffc) == cur_nda) {
-			desc = iter;
+	list_for_each_entry_safe(desc, _desc, descs_list, desc_node) {
+		dwidth = at_xdmac_get_dwidth(desc->lld.mbr_cfg);
+		residue -= (desc->lld.mbr_ubc & 0xffffff) << dwidth;
+		if ((desc->lld.mbr_nda & 0xfffffffc) == cur_nda)
 			break;
-		}
 	}
 	residue += cur_ubc << dwidth;
 
@@ -1568,57 +1568,11 @@ static void at_xdmac_handle_cyclic(struct at_xdmac_chan *atchan)
 	struct at_xdmac_desc		*desc;
 	struct dma_async_tx_descriptor	*txd;
 
-	spin_lock_irq(&atchan->lock);
-	if (list_empty(&atchan->xfers_list)) {
-		spin_unlock_irq(&atchan->lock);
-		return;
-	}
-	desc = list_first_entry(&atchan->xfers_list, struct at_xdmac_desc,
-				xfer_node);
-	spin_unlock_irq(&atchan->lock);
+	desc = list_first_entry(&atchan->xfers_list, struct at_xdmac_desc, xfer_node);
 	txd = &desc->tx_dma_desc;
+
 	if (txd->flags & DMA_PREP_INTERRUPT)
 		dmaengine_desc_get_callback_invoke(txd, NULL);
-}
-
-static void at_xdmac_handle_error(struct at_xdmac_chan *atchan)
-{
-	struct at_xdmac		*atxdmac = to_at_xdmac(atchan->chan.device);
-	struct at_xdmac_desc	*bad_desc;
-
-	/*
-	 * The descriptor currently at the head of the active list is
-	 * broken. Since we don't have any way to report errors, we'll
-	 * just have to scream loudly and try to continue with other
-	 * descriptors queued (if any).
-	 */
-	if (atchan->irq_status & AT_XDMAC_CIS_RBEIS)
-		dev_err(chan2dev(&atchan->chan), "read bus error!!!");
-	if (atchan->irq_status & AT_XDMAC_CIS_WBEIS)
-		dev_err(chan2dev(&atchan->chan), "write bus error!!!");
-	if (atchan->irq_status & AT_XDMAC_CIS_ROIS)
-		dev_err(chan2dev(&atchan->chan), "request overflow error!!!");
-
-	spin_lock_bh(&atchan->lock);
-
-	/* Channel must be disabled first as it's not done automatically */
-	at_xdmac_write(atxdmac, AT_XDMAC_GD, atchan->mask);
-	while (at_xdmac_read(atxdmac, AT_XDMAC_GS) & atchan->mask)
-		cpu_relax();
-
-	bad_desc = list_first_entry(&atchan->xfers_list,
-				    struct at_xdmac_desc,
-				    xfer_node);
-
-	spin_unlock_bh(&atchan->lock);
-
-	/* Print bad descriptor's details if needed */
-	dev_dbg(chan2dev(&atchan->chan),
-		"%s: lld: mbr_sa=%pad, mbr_da=%pad, mbr_ubc=0x%08x\n",
-		__func__, &bad_desc->lld.mbr_sa, &bad_desc->lld.mbr_da,
-		bad_desc->lld.mbr_ubc);
-
-	/* Then continue with usual descriptor management */
 }
 
 static void at_xdmac_tasklet(unsigned long data)
@@ -1640,10 +1594,14 @@ static void at_xdmac_tasklet(unsigned long data)
 		   || (atchan->irq_status & error_mask)) {
 		struct dma_async_tx_descriptor  *txd;
 
-		if (atchan->irq_status & error_mask)
-			at_xdmac_handle_error(atchan);
+		if (atchan->irq_status & AT_XDMAC_CIS_RBEIS)
+			dev_err(chan2dev(&atchan->chan), "read bus error!!!");
+		if (atchan->irq_status & AT_XDMAC_CIS_WBEIS)
+			dev_err(chan2dev(&atchan->chan), "write bus error!!!");
+		if (atchan->irq_status & AT_XDMAC_CIS_ROIS)
+			dev_err(chan2dev(&atchan->chan), "request overflow error!!!");
 
-		spin_lock(&atchan->lock);
+		spin_lock_bh(&atchan->lock);
 		desc = list_first_entry(&atchan->xfers_list,
 					struct at_xdmac_desc,
 					xfer_node);
@@ -1657,7 +1615,7 @@ static void at_xdmac_tasklet(unsigned long data)
 		txd = &desc->tx_dma_desc;
 
 		at_xdmac_remove_xfer(atchan, desc);
-		spin_unlock(&atchan->lock);
+		spin_unlock_bh(&atchan->lock);
 
 		if (!at_xdmac_chan_is_cyclic(atchan)) {
 			dma_cookie_complete(txd);
@@ -1728,13 +1686,11 @@ static irqreturn_t at_xdmac_interrupt(int irq, void *dev_id)
 static void at_xdmac_issue_pending(struct dma_chan *chan)
 {
 	struct at_xdmac_chan *atchan = to_at_xdmac_chan(chan);
-	unsigned long flags;
 
 	dev_dbg(chan2dev(&atchan->chan), "%s\n", __func__);
 
-	spin_lock_irqsave(&atchan->lock, flags);
-	at_xdmac_advance_work(atchan);
-	spin_unlock_irqrestore(&atchan->lock, flags);
+	if (!at_xdmac_chan_is_cyclic(atchan))
+		at_xdmac_advance_work(atchan);
 
 	return;
 }
@@ -1848,11 +1804,6 @@ static int at_xdmac_alloc_chan_resources(struct dma_chan *chan)
 	for (i = 0; i < init_nr_desc_per_channel; i++) {
 		desc = at_xdmac_alloc_desc(chan, GFP_ATOMIC);
 		if (!desc) {
-			if (i == 0) {
-				dev_warn(chan2dev(chan),
-					 "can't allocate any descriptors\n");
-				return -EIO;
-			}
 			dev_warn(chan2dev(chan),
 				"only %d descriptors have been allocated\n", i);
 			break;

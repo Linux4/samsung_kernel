@@ -75,7 +75,6 @@ static const char *pci_bus_speed_strings[] = {
 	"5.0 GT/s PCIe",	/* 0x15 */
 	"8.0 GT/s PCIe",	/* 0x16 */
 	"16.0 GT/s PCIe",	/* 0x17 */
-	"32.0 GT/s PCIe",	/* 0x18 */
 };
 
 static ssize_t bus_speed_read(enum pci_bus_speed speed, char *buf)
@@ -304,19 +303,16 @@ placeholder:
 	slot_name = make_slot_name(name);
 	if (!slot_name) {
 		err = -ENOMEM;
-		kfree(slot);
 		goto err;
 	}
-
-	INIT_LIST_HEAD(&slot->list);
-	list_add(&slot->list, &parent->slots);
 
 	err = kobject_init_and_add(&slot->kobj, &pci_slot_ktype, NULL,
 				   "%s", slot_name);
-	if (err) {
-		kobject_put(&slot->kobj);
+	if (err)
 		goto err;
-	}
+
+	INIT_LIST_HEAD(&slot->list);
+	list_add(&slot->list, &parent->slots);
 
 	down_read(&pci_bus_sem);
 	list_for_each_entry(dev, &parent->devices, bus_list)
@@ -332,6 +328,7 @@ out:
 	mutex_unlock(&pci_slot_mutex);
 	return slot;
 err:
+	kfree(slot);
 	slot = ERR_PTR(err);
 	goto out;
 }
@@ -373,7 +370,7 @@ void pci_hp_create_module_link(struct pci_slot *pci_slot)
 
 	if (!slot || !slot->ops)
 		return;
-	kobj = kset_find_obj(module_kset, slot->mod_name);
+	kobj = kset_find_obj(module_kset, slot->ops->mod_name);
 	if (!kobj)
 		return;
 	ret = sysfs_create_link(&pci_slot->kobj, kobj, "module");
@@ -406,7 +403,7 @@ static int pci_slot_init(void)
 	pci_slots_kset = kset_create_and_add("slots", NULL,
 						&pci_bus_kset->kobj);
 	if (!pci_slots_kset) {
-		pr_err("PCI: Slot initialization failure\n");
+		printk(KERN_ERR "PCI: Slot initialization failure\n");
 		return -ENOMEM;
 	}
 	return 0;

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * This file contains the handling of command.
  * It prepares command and sends it to firmware when it is ready.

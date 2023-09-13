@@ -1,6 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * net/sched/cls_route.c	ROUTE4 classifier.
+ *
+ *		This program is free software; you can redistribute it and/or
+ *		modify it under the terms of the GNU General Public License
+ *		as published by the Free Software Foundation; either version
+ *		2 of the License, or (at your option) any later version.
  *
  * Authors:	Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
  */
@@ -272,8 +276,7 @@ static void route4_queue_work(struct route4_filter *f)
 	tcf_queue_work(&f->rwork, route4_delete_filter_work);
 }
 
-static void route4_destroy(struct tcf_proto *tp, bool rtnl_held,
-			   struct netlink_ext_ack *extack)
+static void route4_destroy(struct tcf_proto *tp, struct netlink_ext_ack *extack)
 {
 	struct route4_head *head = rtnl_dereference(tp->root);
 	int h1, h2;
@@ -309,7 +312,7 @@ static void route4_destroy(struct tcf_proto *tp, bool rtnl_held,
 }
 
 static int route4_delete(struct tcf_proto *tp, void *arg, bool *last,
-			 bool rtnl_held, struct netlink_ext_ack *extack)
+			 struct netlink_ext_ack *extack)
 {
 	struct route4_head *head = rtnl_dereference(tp->root);
 	struct route4_filter *f = arg;
@@ -390,7 +393,7 @@ static int route4_set_parms(struct net *net, struct tcf_proto *tp,
 	struct route4_bucket *b;
 	int err;
 
-	err = tcf_exts_validate(net, tp, tb, est, &f->exts, ovr, true, extack);
+	err = tcf_exts_validate(net, tp, tb, est, &f->exts, ovr, extack);
 	if (err < 0)
 		return err;
 
@@ -465,7 +468,7 @@ static int route4_set_parms(struct net *net, struct tcf_proto *tp,
 static int route4_change(struct net *net, struct sk_buff *in_skb,
 			 struct tcf_proto *tp, unsigned long base, u32 handle,
 			 struct nlattr **tca, void **arg, bool ovr,
-			 bool rtnl_held, struct netlink_ext_ack *extack)
+			 struct netlink_ext_ack *extack)
 {
 	struct route4_head *head = rtnl_dereference(tp->root);
 	struct route4_filter __rcu **fp;
@@ -480,8 +483,7 @@ static int route4_change(struct net *net, struct sk_buff *in_skb,
 	if (opt == NULL)
 		return handle ? -EINVAL : 0;
 
-	err = nla_parse_nested_deprecated(tb, TCA_ROUTE4_MAX, opt,
-					  route4_policy, NULL);
+	err = nla_parse_nested(tb, TCA_ROUTE4_MAX, opt, route4_policy, NULL);
 	if (err < 0)
 		return err;
 
@@ -494,7 +496,7 @@ static int route4_change(struct net *net, struct sk_buff *in_skb,
 	if (!f)
 		goto errout;
 
-	err = tcf_exts_init(&f->exts, net, TCA_ROUTE4_ACT, TCA_ROUTE4_POLICE);
+	err = tcf_exts_init(&f->exts, TCA_ROUTE4_ACT, TCA_ROUTE4_POLICE);
 	if (err < 0)
 		goto errout;
 
@@ -558,13 +560,15 @@ errout:
 	return err;
 }
 
-static void route4_walk(struct tcf_proto *tp, struct tcf_walker *arg,
-			bool rtnl_held)
+static void route4_walk(struct tcf_proto *tp, struct tcf_walker *arg)
 {
 	struct route4_head *head = rtnl_dereference(tp->root);
 	unsigned int h, h1;
 
-	if (head == NULL || arg->stop)
+	if (head == NULL)
+		arg->stop = 1;
+
+	if (arg->stop)
 		return;
 
 	for (h = 0; h <= 256; h++) {
@@ -593,7 +597,7 @@ static void route4_walk(struct tcf_proto *tp, struct tcf_walker *arg,
 }
 
 static int route4_dump(struct net *net, struct tcf_proto *tp, void *fh,
-		       struct sk_buff *skb, struct tcmsg *t, bool rtnl_held)
+		       struct sk_buff *skb, struct tcmsg *t)
 {
 	struct route4_filter *f = fh;
 	struct nlattr *nest;
@@ -604,7 +608,7 @@ static int route4_dump(struct net *net, struct tcf_proto *tp, void *fh,
 
 	t->tcm_handle = f->handle;
 
-	nest = nla_nest_start_noflag(skb, TCA_OPTIONS);
+	nest = nla_nest_start(skb, TCA_OPTIONS);
 	if (nest == NULL)
 		goto nla_put_failure;
 

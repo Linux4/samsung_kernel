@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  linux/arch/arm/kernel/irq.c
  *
@@ -8,6 +7,10 @@
  *  Support for Dynamic Tick Timer Copyright (C) 2004-2005 Nokia Corporation.
  *  Dynamic Tick Timer written by Tony Lindgren <tony@atomide.com> and
  *  Tuukka Tikkanen <tuukka.tikkanen@elektrobit.com>.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  *  This file contains the code used by various IRQ handling routines:
  *  asking for different IRQ's should be done through these routines

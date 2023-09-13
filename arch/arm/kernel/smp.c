@@ -1,8 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  linux/arch/arm/kernel/smp.c
  *
  *  Copyright (C) 2002 ARM Limited, All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 #include <linux/module.h>
 #include <linux/delay.h>
@@ -49,15 +52,8 @@
 #include <asm/mach/arch.h>
 #include <asm/mpu.h>
 
-#include <soc/qcom/lpm_levels.h>
-
 #define CREATE_TRACE_POINTS
 #include <trace/events/ipi.h>
-
-#ifdef CONFIG_QGKI_LPM_IPI_CHECK
-DEFINE_PER_CPU(bool, pending_ipi);
-EXPORT_PER_CPU_SYMBOL(pending_ipi);
-#endif /* CONFIG_QGKI_LPM_IPI_CHECK */
 
 /*
  * as from 2.5, kernels no longer have an init_tasks structure
@@ -65,6 +61,12 @@ EXPORT_PER_CPU_SYMBOL(pending_ipi);
  * where to place its SVC stack
  */
 struct secondary_data secondary_data;
+
+/*
+ * control for which core is the next to come out of the secondary
+ * boot "holding pen"
+ */
+volatile int pen_release = -1;
 
 enum ipi_msg_type {
 	IPI_WAKEUP,
@@ -247,10 +249,6 @@ int __cpu_disable(void)
 	if (ret)
 		return ret;
 
-#ifdef CONFIG_GENERIC_ARCH_TOPOLOGY
-	remove_cpu_topology(cpu);
-#endif
-
 	/*
 	 * Take this CPU offline.  Once we clear this, we can't return,
 	 * and we must not schedule until we're ready to give up the cpu.
@@ -275,13 +273,15 @@ int __cpu_disable(void)
 	return 0;
 }
 
+static DECLARE_COMPLETION(cpu_died);
+
 /*
  * called on the thread which is asking for a CPU to be shutdown -
  * waits until shutdown has completed, or it is timed out.
  */
 void __cpu_die(unsigned int cpu)
 {
-	if (!cpu_wait_death(cpu, 5)) {
+	if (!wait_for_completion_timeout(&cpu_died, msecs_to_jiffies(5000))) {
 		pr_err("CPU%u: cpu didn't die\n", cpu);
 		return;
 	}
@@ -328,7 +328,7 @@ void arch_cpu_idle_dead(void)
 	 * this returns, power and/or clocks can be removed at any point
 	 * from this CPU and its cache by platform_cpu_kill().
 	 */
-	(void)cpu_report_death();
+	complete(&cpu_died);
 
 	/*
 	 * Ensure that the cache lines associated with that completion are
@@ -381,7 +381,6 @@ static void smp_store_cpu_info(unsigned int cpuid)
 	cpu_info->cpuid = read_cpuid_id();
 
 	store_cpu_topology(cpuid);
-	check_cpu_icache_size(cpuid);
 }
 
 /*
@@ -530,13 +529,6 @@ static const char *ipi_types[NR_IPI] __tracepoint_string = {
 
 static void smp_cross_call(const struct cpumask *target, unsigned int ipinr)
 {
-#ifdef CONFIG_QGKI_LPM_IPI_CHECK
-	unsigned int cpu;
-
-	for_each_cpu(cpu, target)
-		per_cpu(pending_ipi, cpu) = true;
-#endif /* CONFIG_QGKI_LPM_IPI_CHECK */
-
 	trace_ipi_raise_rcuidle(target, ipi_types[ipinr]);
 	__smp_cross_call(target, ipinr);
 }
@@ -711,17 +703,11 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 
 	if ((unsigned)ipinr < NR_IPI)
 		trace_ipi_exit_rcuidle(ipi_types[ipinr]);
-
-#ifdef CONFIG_QGKI_LPM_IPI_CHECK
-	this_cpu_write(pending_ipi, false);
-#endif /* CONFIG_QGKI_LPM_IPI_CHECK */
-
 	set_irq_regs(old_regs);
 }
 
 void smp_send_reschedule(int cpu)
 {
-	update_ipi_history(cpu);
 	smp_cross_call(cpumask_of(cpu), IPI_RESCHEDULE);
 }
 
@@ -778,20 +764,15 @@ static int cpufreq_callback(struct notifier_block *nb,
 					unsigned long val, void *data)
 {
 	struct cpufreq_freqs *freq = data;
-	struct cpumask *cpus = freq->policy->cpus;
-	int cpu, first = cpumask_first(cpus);
-	unsigned int lpj;
+	int cpu = freq->cpu;
 
 	if (freq->flags & CPUFREQ_CONST_LOOPS)
 		return NOTIFY_OK;
 
-	if (!per_cpu(l_p_j_ref, first)) {
-		for_each_cpu(cpu, cpus) {
-			per_cpu(l_p_j_ref, cpu) =
-				per_cpu(cpu_data, cpu).loops_per_jiffy;
-			per_cpu(l_p_j_ref_freq, cpu) = freq->old;
-		}
-
+	if (!per_cpu(l_p_j_ref, cpu)) {
+		per_cpu(l_p_j_ref, cpu) =
+			per_cpu(cpu_data, cpu).loops_per_jiffy;
+		per_cpu(l_p_j_ref_freq, cpu) = freq->old;
 		if (!global_l_p_j_ref) {
 			global_l_p_j_ref = loops_per_jiffy;
 			global_l_p_j_ref_freq = freq->old;
@@ -803,11 +784,10 @@ static int cpufreq_callback(struct notifier_block *nb,
 		loops_per_jiffy = cpufreq_scale(global_l_p_j_ref,
 						global_l_p_j_ref_freq,
 						freq->new);
-
-		lpj = cpufreq_scale(per_cpu(l_p_j_ref, first),
-				    per_cpu(l_p_j_ref_freq, first), freq->new);
-		for_each_cpu(cpu, cpus)
-			per_cpu(cpu_data, cpu).loops_per_jiffy = lpj;
+		per_cpu(cpu_data, cpu).loops_per_jiffy =
+			cpufreq_scale(per_cpu(l_p_j_ref, cpu),
+					per_cpu(l_p_j_ref_freq, cpu),
+					freq->new);
 	}
 	return NOTIFY_OK;
 }

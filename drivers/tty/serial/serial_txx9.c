@@ -248,6 +248,7 @@ static void serial_txx9_initialize(struct uart_port *port)
 	sio_out(up, TXX9_SIFCR, TXX9_SIFCR_SWRST);
 	/* TX4925 BUG WORKAROUND.  Accessing SIOC register
 	 * immediately after soft reset causes bus error. */
+	mmiowb();
 	udelay(1);
 	while ((sio_in(up, TXX9_SIFCR) & TXX9_SIFCR_SWRST) && --tmout)
 		udelay(1);
@@ -648,8 +649,6 @@ serial_txx9_set_termios(struct uart_port *port, struct ktermios *termios,
 	case CS6:	/* not supported */
 	case CS8:
 		cval |= TXX9_SILCR_UMODE_8BIT;
-		termios->c_cflag &= ~CSIZE;
-		termios->c_cflag |= CS8;
 		break;
 	}
 
@@ -1285,9 +1284,6 @@ static int __init serial_txx9_init(void)
 
 #ifdef ENABLE_SERIAL_TXX9_PCI
 	ret = pci_register_driver(&serial_txx9_pci_driver);
-	if (ret) {
-		platform_driver_unregister(&serial_txx9_plat_driver);
-	}
 #endif
 	if (ret == 0)
 		goto out;

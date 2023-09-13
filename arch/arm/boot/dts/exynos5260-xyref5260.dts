@@ -19,7 +19,7 @@
 	};
 
 	chosen {
-		stdout-path = "serial2:115200n8";
+		bootargs = "console=ttySAC2,115200";
 	};
 
 	fin_pll: xxti {

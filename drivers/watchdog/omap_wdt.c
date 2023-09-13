@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * omap_wdt.c
  *
@@ -7,7 +6,10 @@
  * Author: MontaVista Software, Inc.
  *	 <gdavis@mvista.com> or <source@mvista.com>
  *
- * 2003 (c) MontaVista Software, Inc.
+ * 2003 (c) MontaVista Software, Inc. This file is licensed under the
+ * terms of the GNU General Public License version 2. This program is
+ * licensed "as is" without any warranty of any kind, whether express
+ * or implied.
  *
  * History:
  *
@@ -229,6 +231,7 @@ static const struct watchdog_ops omap_wdt_ops = {
 static int omap_wdt_probe(struct platform_device *pdev)
 {
 	struct omap_wd_timer_platform_data *pdata = dev_get_platdata(&pdev->dev);
+	struct resource *res;
 	struct omap_wdt_dev *wdev;
 	int ret;
 
@@ -242,7 +245,8 @@ static int omap_wdt_probe(struct platform_device *pdev)
 	mutex_init(&wdev->lock);
 
 	/* reserve static register mappings */
-	wdev->base = devm_platform_ioremap_resource(pdev, 0);
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	wdev->base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(wdev->base))
 		return PTR_ERR(wdev->base);
 
@@ -268,12 +272,8 @@ static int omap_wdt_probe(struct platform_device *pdev)
 			wdev->wdog.bootstatus = WDIOF_CARDRESET;
 	}
 
-	if (early_enable) {
-		omap_wdt_start(&wdev->wdog);
-		set_bit(WDOG_HW_RUNNING, &wdev->wdog.status);
-	} else {
+	if (!early_enable)
 		omap_wdt_disable(wdev);
-	}
 
 	ret = watchdog_register_device(&wdev->wdog);
 	if (ret) {

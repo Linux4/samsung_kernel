@@ -49,6 +49,8 @@
  */
 const char ib_qib_version[] = QIB_DRIVER_VERSION "\n";
 
+DEFINE_SPINLOCK(qib_devs_lock);
+LIST_HEAD(qib_dev_list);
 DEFINE_MUTEX(qib_mutex);	/* general driver use */
 
 unsigned qib_ibmtu;
@@ -94,11 +96,11 @@ int qib_count_active_units(void)
 {
 	struct qib_devdata *dd;
 	struct qib_pportdata *ppd;
-	unsigned long index, flags;
+	unsigned long flags;
 	int pidx, nunits_active = 0;
 
-	xa_lock_irqsave(&qib_dev_table, flags);
-	xa_for_each(&qib_dev_table, index, dd) {
+	spin_lock_irqsave(&qib_devs_lock, flags);
+	list_for_each_entry(dd, &qib_dev_list, list) {
 		if (!(dd->flags & QIB_PRESENT) || !dd->kregbase)
 			continue;
 		for (pidx = 0; pidx < dd->num_pports; ++pidx) {
@@ -110,7 +112,7 @@ int qib_count_active_units(void)
 			}
 		}
 	}
-	xa_unlock_irqrestore(&qib_dev_table, flags);
+	spin_unlock_irqrestore(&qib_devs_lock, flags);
 	return nunits_active;
 }
 
@@ -123,12 +125,13 @@ int qib_count_units(int *npresentp, int *nupp)
 {
 	int nunits = 0, npresent = 0, nup = 0;
 	struct qib_devdata *dd;
-	unsigned long index, flags;
+	unsigned long flags;
 	int pidx;
 	struct qib_pportdata *ppd;
 
-	xa_lock_irqsave(&qib_dev_table, flags);
-	xa_for_each(&qib_dev_table, index, dd) {
+	spin_lock_irqsave(&qib_devs_lock, flags);
+
+	list_for_each_entry(dd, &qib_dev_list, list) {
 		nunits++;
 		if ((dd->flags & QIB_PRESENT) && dd->kregbase)
 			npresent++;
@@ -139,7 +142,8 @@ int qib_count_units(int *npresentp, int *nupp)
 				nup++;
 		}
 	}
-	xa_unlock_irqrestore(&qib_dev_table, flags);
+
+	spin_unlock_irqrestore(&qib_devs_lock, flags);
 
 	if (npresentp)
 		*npresentp = npresent;

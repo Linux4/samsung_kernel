@@ -1,7 +1,19 @@
 // SPDX-License-Identifier: GPL-2.0
-/* Copyright (C) 2013-2019  B.A.T.M.A.N. contributors:
+/* Copyright (C) 2013-2018  B.A.T.M.A.N. contributors:
  *
  * Martin Hundebøll <martin@hundeboll.net>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of version 2 of the GNU General Public
+ * License as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "fragmentation.h"
@@ -391,7 +403,6 @@ out:
 
 /**
  * batadv_frag_create() - create a fragment from skb
- * @net_dev: outgoing device for fragment
  * @skb: skb to create fragment from
  * @frag_head: header to use in new fragment
  * @fragment_size: size of new fragment
@@ -402,25 +413,22 @@ out:
  *
  * Return: the new fragment, NULL on error.
  */
-static struct sk_buff *batadv_frag_create(struct net_device *net_dev,
-					  struct sk_buff *skb,
+static struct sk_buff *batadv_frag_create(struct sk_buff *skb,
 					  struct batadv_frag_packet *frag_head,
 					  unsigned int fragment_size)
 {
-	unsigned int ll_reserved = LL_RESERVED_SPACE(net_dev);
-	unsigned int tailroom = net_dev->needed_tailroom;
 	struct sk_buff *skb_fragment;
 	unsigned int header_size = sizeof(*frag_head);
 	unsigned int mtu = fragment_size + header_size;
 
-	skb_fragment = dev_alloc_skb(ll_reserved + mtu + tailroom);
+	skb_fragment = netdev_alloc_skb(NULL, mtu + ETH_HLEN);
 	if (!skb_fragment)
 		goto err;
 
 	skb_fragment->priority = skb->priority;
 
 	/* Eat the last mtu-bytes of the skb */
-	skb_reserve(skb_fragment, ll_reserved + header_size);
+	skb_reserve(skb_fragment, header_size + ETH_HLEN);
 	skb_split(skb, skb_fragment, skb->len - fragment_size);
 
 	/* Add the header */
@@ -443,12 +451,11 @@ int batadv_frag_send_packet(struct sk_buff *skb,
 			    struct batadv_orig_node *orig_node,
 			    struct batadv_neigh_node *neigh_node)
 {
-	struct net_device *net_dev = neigh_node->if_incoming->net_dev;
 	struct batadv_priv *bat_priv;
 	struct batadv_hard_iface *primary_if = NULL;
 	struct batadv_frag_packet frag_header;
 	struct sk_buff *skb_fragment;
-	unsigned int mtu = net_dev->mtu;
+	unsigned int mtu = neigh_node->if_incoming->net_dev->mtu;
 	unsigned int header_size = sizeof(frag_header);
 	unsigned int max_fragment_size, num_fragments;
 	int ret;
@@ -475,17 +482,6 @@ int batadv_frag_send_packet(struct sk_buff *skb,
 	primary_if = batadv_primary_if_get_selected(bat_priv);
 	if (!primary_if) {
 		ret = -EINVAL;
-		goto free_skb;
-	}
-
-	/* GRO might have added fragments to the fragment list instead of
-	 * frags[]. But this is not handled by skb_split and must be
-	 * linearized to avoid incorrect length information after all
-	 * batman-adv fragments were created and submitted to the
-	 * hard-interface
-	 */
-	if (skb_has_frag_list(skb) && __skb_linearize(skb)) {
-		ret = -ENOMEM;
 		goto free_skb;
 	}
 
@@ -519,7 +515,7 @@ int batadv_frag_send_packet(struct sk_buff *skb,
 			goto put_primary_if;
 		}
 
-		skb_fragment = batadv_frag_create(net_dev, skb, &frag_header,
+		skb_fragment = batadv_frag_create(skb, &frag_header,
 						  max_fragment_size);
 		if (!skb_fragment) {
 			ret = -ENOMEM;
@@ -538,14 +534,13 @@ int batadv_frag_send_packet(struct sk_buff *skb,
 		frag_header.no++;
 	}
 
-	/* make sure that there is at least enough head for the fragmentation
-	 * and ethernet headers
-	 */
-	ret = skb_cow_head(skb, ETH_HLEN + header_size);
-	if (ret < 0)
+	/* Make room for the fragment header. */
+	if (batadv_skb_head_push(skb, header_size) < 0 ||
+	    pskb_expand_head(skb, header_size + ETH_HLEN, 0, GFP_ATOMIC) < 0) {
+		ret = -ENOMEM;
 		goto put_primary_if;
+	}
 
-	skb_push(skb, header_size);
 	memcpy(skb->data, &frag_header, header_size);
 
 	/* Send the last fragment */

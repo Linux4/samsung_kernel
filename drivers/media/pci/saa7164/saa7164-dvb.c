@@ -1,8 +1,18 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Driver for the NXP SAA7164 PCIe bridge
  *
  *  Copyright (c) 2010-2015 Steven Toth <stoth@kernellabs.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *
+ *  GNU General Public License for more details.
  */
 
 #include "saa7164.h"
@@ -110,7 +120,7 @@ static int si2157_attach(struct saa7164_port *port, struct i2c_adapter *adapter,
 
 	memset(&bi, 0, sizeof(bi));
 
-	strscpy(bi.type, "si2157", I2C_NAME_SIZE);
+	strlcpy(bi.type, "si2157", I2C_NAME_SIZE);
 	bi.platform_data = cfg;
 	bi.addr = addr8bit >> 1;
 
@@ -519,7 +529,7 @@ int saa7164_dvb_unregister(struct saa7164_port *port)
 	return 0;
 }
 
-/* All the DVB attach calls go here, this function gets modified
+/* All the DVB attach calls go here, this function get's modified
  * for each new card.
  */
 int saa7164_dvb_register(struct saa7164_port *port)
@@ -633,7 +643,7 @@ int saa7164_dvb_register(struct saa7164_port *port)
 			si2168_config.fe = &port->dvb.frontend;
 			si2168_config.ts_mode = SI2168_TS_SERIAL;
 			memset(&info, 0, sizeof(struct i2c_board_info));
-			strscpy(info.type, "si2168", I2C_NAME_SIZE);
+			strlcpy(info.type, "si2168", I2C_NAME_SIZE);
 			info.addr = 0xc8 >> 1;
 			info.platform_data = &si2168_config;
 			request_module(info.type);
@@ -653,7 +663,7 @@ int saa7164_dvb_register(struct saa7164_port *port)
 			si2157_config.if_port = 1;
 			si2157_config.fe = port->dvb.frontend;
 			memset(&info, 0, sizeof(struct i2c_board_info));
-			strscpy(info.type, "si2157", I2C_NAME_SIZE);
+			strlcpy(info.type, "si2157", I2C_NAME_SIZE);
 			info.addr = 0xc0 >> 1;
 			info.platform_data = &si2157_config;
 			request_module(info.type);
@@ -678,7 +688,7 @@ int saa7164_dvb_register(struct saa7164_port *port)
 			si2168_config.fe = &port->dvb.frontend;
 			si2168_config.ts_mode = SI2168_TS_SERIAL;
 			memset(&info, 0, sizeof(struct i2c_board_info));
-			strscpy(info.type, "si2168", I2C_NAME_SIZE);
+			strlcpy(info.type, "si2168", I2C_NAME_SIZE);
 			info.addr = 0xcc >> 1;
 			info.platform_data = &si2168_config;
 			request_module(info.type);
@@ -698,7 +708,7 @@ int saa7164_dvb_register(struct saa7164_port *port)
 			si2157_config.fe = port->dvb.frontend;
 			si2157_config.if_port = 1;
 			memset(&info, 0, sizeof(struct i2c_board_info));
-			strscpy(info.type, "si2157", I2C_NAME_SIZE);
+			strlcpy(info.type, "si2157", I2C_NAME_SIZE);
 			info.addr = 0xc0 >> 1;
 			info.platform_data = &si2157_config;
 			request_module(info.type);

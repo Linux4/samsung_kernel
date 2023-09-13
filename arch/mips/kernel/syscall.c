@@ -80,7 +80,6 @@ SYSCALL_DEFINE6(mips_mmap2, unsigned long, addr, unsigned long, len,
 
 save_static_function(sys_fork);
 save_static_function(sys_clone);
-save_static_function(sys_clone3);
 
 SYSCALL_DEFINE1(set_thread_area, unsigned long, addr)
 {
@@ -102,12 +101,11 @@ static inline int mips_atomic_set(unsigned long addr, unsigned long new)
 	if (unlikely(addr & 3))
 		return -EINVAL;
 
-	if (unlikely(!access_ok((const void __user *)addr, 4)))
+	if (unlikely(!access_ok(VERIFY_WRITE, (const void __user *)addr, 4)))
 		return -EINVAL;
 
 	if (cpu_has_llsc && R10000_LLSC_WAR) {
 		__asm__ __volatile__ (
-		"	.set	push					\n"
 		"	.set	arch=r4000				\n"
 		"	li	%[err], 0				\n"
 		"1:	ll	%[old], (%[addr])			\n"
@@ -124,7 +122,7 @@ static inline int mips_atomic_set(unsigned long addr, unsigned long new)
 		"	"STR(PTR)"	1b, 4b				\n"
 		"	"STR(PTR)"	2b, 4b				\n"
 		"	.previous					\n"
-		"	.set	pop					\n"
+		"	.set	mips0					\n"
 		: [old] "=&r" (old),
 		  [err] "=&r" (err),
 		  [tmp] "=&r" (tmp)
@@ -133,9 +131,7 @@ static inline int mips_atomic_set(unsigned long addr, unsigned long new)
 		  [efault] "i" (-EFAULT)
 		: "memory");
 	} else if (cpu_has_llsc) {
-		loongson_llsc_mb();
 		__asm__ __volatile__ (
-		"	.set	push					\n"
 		"	.set	"MIPS_ISA_ARCH_LEVEL"			\n"
 		"	li	%[err], 0				\n"
 		"1:							\n"
@@ -154,7 +150,7 @@ static inline int mips_atomic_set(unsigned long addr, unsigned long new)
 		"	"STR(PTR)"	1b, 5b				\n"
 		"	"STR(PTR)"	2b, 5b				\n"
 		"	.previous					\n"
-		"	.set	pop					\n"
+		"	.set	mips0					\n"
 		: [old] "=&r" (old),
 		  [err] "=&r" (err),
 		  [tmp] "=&r" (tmp)
@@ -238,4 +234,13 @@ SYSCALL_DEFINE3(sysmips, long, cmd, long, arg1, long, arg2)
 SYSCALL_DEFINE3(cachectl, char *, addr, int, nbytes, int, op)
 {
 	return -ENOSYS;
+}
+
+/*
+ * If we ever come here the user sp is bad.  Zap the process right away.
+ * Due to the bad stack signaling wouldn't work.
+ */
+asmlinkage void bad_stack(void)
+{
+	do_exit(SIGSEGV);
 }

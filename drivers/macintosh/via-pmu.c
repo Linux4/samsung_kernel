@@ -318,8 +318,8 @@ int __init find_via_pmu(void)
 			PMU_INT_ADB |
 			PMU_INT_TICK;
 	
-	if (of_node_name_eq(vias->parent, "ohare") ||
-	    of_device_is_compatible(vias->parent, "ohare"))
+	if (vias->parent->name && ((strcmp(vias->parent->name, "ohare") == 0)
+	    || of_device_is_compatible(vias->parent, "ohare")))
 		pmu_kind = PMU_OHARE_BASED;
 	else if (of_device_is_compatible(vias->parent, "paddington"))
 		pmu_kind = PMU_PADDINGTON_BASED;
@@ -1464,7 +1464,7 @@ next:
 		pmu_pass_intr(data, len);
 		/* len == 6 is probably a bad check. But how do I
 		 * know what PMU versions send what events here? */
-		if (IS_ENABLED(CONFIG_ADB_PMU_EVENT) && len == 6) {
+		if (len == 6) {
 			via_pmu_event(PMU_EVT_POWER, !!(data[1]&8));
 			via_pmu_event(PMU_EVT_LID, data[1]&1);
 		}
@@ -1735,39 +1735,6 @@ pmu_enable_irled(int on)
 	pmu_request(&req, NULL, 2, PMU_POWER_CTRL, PMU_POW_IRLED |
 	    (on ? PMU_POW_ON : PMU_POW_OFF));
 	pmu_wait_complete(&req);
-}
-
-/* Offset between Unix time (1970-based) and Mac time (1904-based) */
-#define RTC_OFFSET	2082844800
-
-time64_t pmu_get_time(void)
-{
-	struct adb_request req;
-	u32 now;
-
-	if (pmu_request(&req, NULL, 1, PMU_READ_RTC) < 0)
-		return 0;
-	pmu_wait_complete(&req);
-	if (req.reply_len != 4)
-		pr_err("%s: got %d byte reply\n", __func__, req.reply_len);
-	now = (req.reply[0] << 24) + (req.reply[1] << 16) +
-	      (req.reply[2] << 8) + req.reply[3];
-	return (time64_t)now - RTC_OFFSET;
-}
-
-int pmu_set_rtc_time(struct rtc_time *tm)
-{
-	u32 now;
-	struct adb_request req;
-
-	now = lower_32_bits(rtc_tm_to_time64(tm) + RTC_OFFSET);
-	if (pmu_request(&req, NULL, 5, PMU_SET_RTC,
-	                now >> 24, now >> 16, now >> 8, now) < 0)
-		return -ENXIO;
-	pmu_wait_complete(&req);
-	if (req.reply_len != 0)
-		pr_err("%s: got %d byte reply\n", __func__, req.reply_len);
-	return 0;
 }
 
 void
@@ -2188,7 +2155,7 @@ pmu_read(struct file *file, char __user *buf,
 
 	if (count < 1 || !pp)
 		return -EINVAL;
-	if (!access_ok(buf, count))
+	if (!access_ok(VERIFY_WRITE, buf, count))
 		return -EFAULT;
 
 	spin_lock_irqsave(&pp->lock, flags);

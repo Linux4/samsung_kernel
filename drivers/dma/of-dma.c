@@ -1,10 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Device tree helpers for DMA request / controller
  *
  * Based on of_gpio.c
  *
  * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/device.h>
@@ -65,23 +68,18 @@ static struct dma_chan *of_dma_router_xlate(struct of_phandle_args *dma_spec,
 		return NULL;
 
 	ofdma_target = of_dma_find_controller(&dma_spec_target);
-	if (!ofdma_target) {
-		ofdma->dma_router->route_free(ofdma->dma_router->dev,
-					      route_data);
-		chan = ERR_PTR(-EPROBE_DEFER);
-		goto err;
-	}
+	if (!ofdma_target)
+		return NULL;
 
 	chan = ofdma_target->of_dma_xlate(&dma_spec_target, ofdma_target);
-	if (IS_ERR_OR_NULL(chan)) {
-		ofdma->dma_router->route_free(ofdma->dma_router->dev,
-					      route_data);
-	} else {
+	if (chan) {
 		chan->router = ofdma->dma_router;
 		chan->route_data = route_data;
+	} else {
+		ofdma->dma_router->route_free(ofdma->dma_router->dev,
+					      route_data);
 	}
 
-err:
 	/*
 	 * Need to put the node back since the ofdma->of_dma_route_allocate
 	 * has taken it for generating the new, translated dma_spec
@@ -230,6 +228,153 @@ static int of_dma_match_channel(struct device_node *np, const char *name,
 }
 
 /**
+ * of_dma_get_mcode_addr - Get the DMA micro code buffer address.
+ * @np:		device node of DMA controller
+ *
+ * Return the physical address.
+ */
+unsigned int of_dma_get_mcode_addr(struct device_node *np)
+{
+	unsigned int addr = 0;
+	const __be32	*prop;
+
+	prop = of_get_property(np, "#dma-mcode-addr", NULL);
+	if (prop)
+		addr = be32_to_cpup(prop);
+
+	return addr;
+}
+EXPORT_SYMBOL_GPL(of_dma_get_mcode_addr);
+
+/**
+ * of_dma_secure_dma_ch- Get the DMA micro code buffer address.
+ * @np:		device node of DMA controller
+ *
+ * Return the physical address.
+ */
+bool of_dma_secure_mode(struct device_node *np)
+{
+	bool ret = 0;
+	const __be32	*prop;
+
+	prop = of_get_property(np, "#dma-secure-mode", NULL);
+	if (prop)
+		ret = be32_to_cpup(prop);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(of_dma_secure_mode);
+
+/**
+ * of_dma_get_arwrapper_address - Get the DMA WAPPER AR address
+ * @np:		device node of DMA controller
+ * @num:	DMA channel thread number
+ *
+ * Return the virtual address.
+ */
+void __iomem *of_dma_get_arwrapper_address(struct device_node *np, unsigned int num)
+{
+	const __be32 *reg_list;
+	unsigned int length, count;
+
+	reg_list = of_get_property(np, "dma-arwrapper", &length);
+	count = (unsigned int)(length / sizeof(unsigned int));
+
+	if (!reg_list || num >= count)
+		return NULL;
+
+	return ioremap(be32_to_cpup(reg_list + num), SZ_32);
+}
+EXPORT_SYMBOL_GPL(of_dma_get_arwrapper_address);
+
+/**
+ * of_dma_get_arwrapper_address - Get the DMA WAPPER AW address
+ * @np:		device node of DMA controller
+ * @num:	DMA channel thread number
+ *
+ * Return the virtual address.
+ */
+void __iomem *of_dma_get_awwrapper_address(struct device_node *np, unsigned int num)
+{
+	const __be32 *reg_list;
+	unsigned int length, count;
+
+	reg_list = of_get_property(np, "dma-awwrapper", &length);
+	count = (unsigned int)(length / sizeof(unsigned int));
+
+	if (!reg_list || num >= count)
+		return NULL;
+
+	return ioremap(be32_to_cpup(reg_list + num), SZ_32);
+}
+EXPORT_SYMBOL_GPL(of_dma_get_awwrapper_address);
+
+/**
+ * of_dma_get_arwrapper_address - Get the DMA WAPPER AR address of DMA instruction
+ * @np:		device node of DMA controller
+ *
+ * Return the virtual address.
+ */
+void __iomem *of_dma_get_instwrapper_address(struct device_node *np)
+{
+	const __be32 *reg_list;
+	int ret = 0;
+
+	reg_list = of_get_property(np, "dma-instwrapper", NULL);
+
+	if (!reg_list)
+		return NULL;
+
+	ret = be32_to_cpup(reg_list);
+	if (!ret)
+		return NULL;
+
+	return ioremap(ret, SZ_32);
+}
+EXPORT_SYMBOL_GPL(of_dma_get_instwrapper_address);
+
+/**
+ * of_dma_get_arwrapper_address - Get the DMA WAPPER availableilable
+ * @np:		device node of DMA controller
+ *
+ */
+bool of_dma_get_wrapper_available(struct device_node *np)
+{
+	const __be32 *reg_list;
+	int ret = 0;
+
+	reg_list = of_get_property(np, "dma-instwrapper", NULL);
+
+	if (!reg_list)
+		return false;
+
+	ret = be32_to_cpup(reg_list);
+	if (ret)
+		return true;
+	else
+		return false;
+}
+EXPORT_SYMBOL_GPL(of_dma_get_wrapper_available);
+
+/**
+ * of_dma_get_arwrapper_address - Get the DMA WAPPER availableilable
+ * @np:		device node of DMA controller
+ *
+ */
+u64 of_dma_get_mask(struct device_node *np, char *name)
+{
+	int bit_cnt = 0;
+
+	of_property_read_u32(np, name, &bit_cnt);
+
+	if (bit_cnt)
+		return ((u64)1 << bit_cnt) - 1;
+	else
+		return -1;
+}
+EXPORT_SYMBOL_GPL(of_dma_get_mask);
+
+/**
  * of_dma_request_slave_channel - Get the DMA slave channel
  * @np:		device node to get DMA request from
  * @name:	name of desired channel
@@ -318,8 +463,8 @@ struct dma_chan *of_dma_simple_xlate(struct of_phandle_args *dma_spec,
 	if (count != 1)
 		return NULL;
 
-	return __dma_request_channel(&info->dma_cap, info->filter_fn,
-				     &dma_spec->args[0], dma_spec->np);
+	return dma_request_channel(info->dma_cap, info->filter_fn,
+			&dma_spec->args[0]);
 }
 EXPORT_SYMBOL_GPL(of_dma_simple_xlate);
 
@@ -357,3 +502,16 @@ struct dma_chan *of_dma_xlate_by_chan_id(struct of_phandle_args *dma_spec,
 	return dma_get_slave_channel(candidate);
 }
 EXPORT_SYMBOL_GPL(of_dma_xlate_by_chan_id);
+
+bool of_dma_multi_irq(struct device_node *np)
+{
+	bool ret = 0;
+	const __be32	*prop;
+
+	prop = of_get_property(np, "#dma-multi-irq", NULL);
+	if (prop)
+		ret = be32_to_cpup(prop);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(of_dma_multi_irq);

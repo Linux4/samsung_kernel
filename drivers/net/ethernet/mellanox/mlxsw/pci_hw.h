@@ -43,9 +43,6 @@
 #define MLXSW_PCI_DOORBELL(offset, type_offset, num)	\
 	((offset) + (type_offset) + (num) * 4)
 
-#define MLXSW_PCI_FREE_RUNNING_CLOCK_H(offset)	(offset)
-#define MLXSW_PCI_FREE_RUNNING_CLOCK_L(offset)	((offset) + 4)
-
 #define MLXSW_PCI_CQS_MAX	96
 #define MLXSW_PCI_EQS_COUNT	2
 #define MLXSW_PCI_EQ_ASYNC_NUM	0
@@ -225,7 +222,7 @@ MLXSW_ITEM32(pci, eqe, event_type, 0x0C, 24, 8);
 MLXSW_ITEM32(pci, eqe, event_sub_type, 0x0C, 16, 8);
 
 /* pci_eqe_cqn
- * Completion Queue that triggered this EQE.
+ * Completion Queue that triggeret this EQE.
  */
 MLXSW_ITEM32(pci, eqe, cqn, 0x0C, 8, 7);
 

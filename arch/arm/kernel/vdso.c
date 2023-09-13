@@ -1,9 +1,20 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Adapted from arm64 version.
  *
  * Copyright (C) 2012 ARM Limited
  * Copyright (C) 2015 Mentor Graphics Corporation.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <linux/cache.h>
@@ -276,25 +287,15 @@ static void vdso_write_end(struct vdso_data *vdata)
 	++vdso_data->seq_count;
 }
 
-#ifdef CONFIG_GENERIC_GETTIMEOFDAY
-static bool tk_clock_mode_is_archtimer(const struct timekeeper *tk)
-{
-	return
-	(tk->tkr_mono.clock->archdata.clock_mode == VDSO_CLOCKMODE_ARCHTIMER);
-}
-#else
-static bool tk_clock_mode_is_archtimer(const struct timekeeper *tk)
-{
-	return true;
-}
-#endif
-
 static bool tk_is_cntvct(const struct timekeeper *tk)
 {
 	if (!IS_ENABLED(CONFIG_ARM_ARCH_TIMER))
 		return false;
 
-	return tk_clock_mode_is_archtimer(tk);
+	if (!tk->tkr_mono.clock->archdata.vdso_direct)
+		return false;
+
+	return true;
 }
 
 /**

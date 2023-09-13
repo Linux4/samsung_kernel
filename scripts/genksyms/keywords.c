@@ -1,9 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0-only
 static struct resword {
 	const char *name;
 	int token;
 } keywords[] = {
-	{ "__GENKSYMS_EXPORT_SYMBOL", EXPORT_SYMBOL_KEYW },
+	{ "EXPORT_SYMBOL", EXPORT_SYMBOL_KEYW },
+	{ "EXPORT_SYMBOL_GPL", EXPORT_SYMBOL_KEYW },
+	{ "EXPORT_SYMBOL_GPL_FUTURE", EXPORT_SYMBOL_KEYW },
+	{ "EXPORT_UNUSED_SYMBOL", EXPORT_SYMBOL_KEYW },
+	{ "EXPORT_UNUSED_SYMBOL_GPL", EXPORT_SYMBOL_KEYW },
 	{ "__asm", ASM_KEYW },
 	{ "__asm__", ASM_KEYW },
 	{ "__attribute", ATTRIBUTE_KEYW },

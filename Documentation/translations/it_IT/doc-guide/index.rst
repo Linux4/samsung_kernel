@@ -12,9 +12,9 @@ Come scrivere la documentazione del kernel
 .. toctree::
    :maxdepth: 1
 
-   sphinx
-   kernel-doc
-   parse-headers
+   sphinx.rst
+   kernel-doc.rst
+   parse-headers.rst
 
 .. only::  subproject and html
 

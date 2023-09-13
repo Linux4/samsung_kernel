@@ -1,3 +1,23 @@
+/*
+ * vbus_notifier.c
+ * Samsung Mobile Vbus Notifier
+ *
+ * Copyright (C) 2019 Samsung Electronics, Inc.
+ *
+ * This program is free software: you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
 #include <linux/device.h>
 #include <linux/module.h>
 
@@ -38,7 +58,6 @@ int vbus_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 
 	return ret;
 }
-EXPORT_SYMBOL(vbus_notifier_register);
 
 int vbus_notifier_unregister(struct notifier_block *nb)
 {
@@ -54,7 +73,6 @@ int vbus_notifier_unregister(struct notifier_block *nb)
 
 	return ret;
 }
-EXPORT_SYMBOL(vbus_notifier_unregister);
 
 static int vbus_notifier_notify(void)
 {
@@ -102,21 +120,4 @@ void vbus_notifier_handle(vbus_status_t new_dev)
 	/* vbus attach broadcast */
 	vbus_notifier_notify();
 }
-EXPORT_SYMBOL(vbus_notifier_handle);
 
-static int __init vbus_notifier_init(void)
-{
-	return 0;
-}
-
-static void __exit vbus_notifier_exit(void)
-{
-	return;
-}
-
-module_init(vbus_notifier_init);
-module_exit(vbus_notifier_exit);
-
-MODULE_AUTHOR("Samsung USB Team");
-MODULE_DESCRIPTION("Vbus Notifier");
-MODULE_LICENSE("GPL");

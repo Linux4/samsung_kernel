@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 if USB && MEDIA_SUPPORT
 
 menuconfig MEDIA_USB_SUPPORT

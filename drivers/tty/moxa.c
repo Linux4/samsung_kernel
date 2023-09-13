@@ -221,8 +221,8 @@ static int MoxaPortRxQueue(struct moxa_port *);
 static int MoxaPortTxFree(struct moxa_port *);
 static void MoxaPortTxDisable(struct moxa_port *);
 static void MoxaPortTxEnable(struct moxa_port *);
-static int moxa_get_serial_info(struct tty_struct *, struct serial_struct *);
-static int moxa_set_serial_info(struct tty_struct *, struct serial_struct *);
+static int moxa_get_serial_info(struct moxa_port *, struct serial_struct __user *);
+static int moxa_set_serial_info(struct moxa_port *, struct serial_struct __user *);
 static void MoxaSetFifo(struct moxa_port *port, int enable);
 
 /*
@@ -375,6 +375,16 @@ copy:
 		}
 		break;
 	}
+	case TIOCGSERIAL:
+	        mutex_lock(&ch->port.mutex);
+		ret = moxa_get_serial_info(ch, argp);
+		mutex_unlock(&ch->port.mutex);
+		break;
+	case TIOCSSERIAL:
+	        mutex_lock(&ch->port.mutex);
+		ret = moxa_set_serial_info(ch, argp);
+		mutex_unlock(&ch->port.mutex);
+		break;
 	default:
 		ret = -ENOIOCTLCMD;
 	}
@@ -405,8 +415,6 @@ static const struct tty_operations moxa_ops = {
 	.break_ctl = moxa_break_ctl,
 	.tiocmget = moxa_tiocmget,
 	.tiocmset = moxa_tiocmset,
-	.set_serial = moxa_set_serial_info,
-	.get_serial = moxa_get_serial_info,
 };
 
 static const struct tty_port_operations moxa_port_ops = {
@@ -1385,7 +1393,7 @@ static int moxa_poll_port(struct moxa_port *p, unsigned int handle,
 		if (inited && !tty_throttled(tty) &&
 				MoxaPortRxQueue(p) > 0) { /* RX */
 			MoxaPortReadData(p);
-			tty_flip_buffer_push(&p->port);
+			tty_schedule_flip(&p->port);
 		}
 	} else {
 		clear_bit(EMPTYWAIT, &p->statusflags);
@@ -1410,7 +1418,7 @@ static int moxa_poll_port(struct moxa_port *p, unsigned int handle,
 
 	if (tty && (intr & IntrBreak) && !I_IGNBRK(tty)) { /* BREAK */
 		tty_insert_flip_char(&p->port, 0, TTY_BREAK);
-		tty_flip_buffer_push(&p->port);
+		tty_schedule_flip(&p->port);
 	}
 
 	if (intr & IntrLine)
@@ -2026,61 +2034,46 @@ static void MoxaPortTxEnable(struct moxa_port *port)
 	moxafunc(port->tableAddr, FC_SetXonState, Magic_code);
 }
 
-static int moxa_get_serial_info(struct tty_struct *tty,
-		struct serial_struct *ss)
+static int moxa_get_serial_info(struct moxa_port *info,
+		struct serial_struct __user *retinfo)
 {
-	struct moxa_port *info = tty->driver_data;
-
-	if (tty->index == MAX_PORTS)
-		return -EINVAL;
-	if (!info)
-		return -ENODEV;
-	mutex_lock(&info->port.mutex);
-	ss->type = info->type,
-	ss->line = info->port.tty->index,
-	ss->flags = info->port.flags,
-	ss->baud_base = 921600,
-	ss->close_delay = jiffies_to_msecs(info->port.close_delay) / 10;
-	mutex_unlock(&info->port.mutex);
-	return 0;
+	struct serial_struct tmp = {
+		.type = info->type,
+		.line = info->port.tty->index,
+		.flags = info->port.flags,
+		.baud_base = 921600,
+		.close_delay = info->port.close_delay
+	};
+	return copy_to_user(retinfo, &tmp, sizeof(*retinfo)) ? -EFAULT : 0;
 }
 
 
-static int moxa_set_serial_info(struct tty_struct *tty,
-		struct serial_struct *ss)
+static int moxa_set_serial_info(struct moxa_port *info,
+		struct serial_struct __user *new_info)
 {
-	struct moxa_port *info = tty->driver_data;
-	unsigned int close_delay;
+	struct serial_struct new_serial;
 
-	if (tty->index == MAX_PORTS)
-		return -EINVAL;
-	if (!info)
-		return -ENODEV;
+	if (copy_from_user(&new_serial, new_info, sizeof(new_serial)))
+		return -EFAULT;
 
-	if (ss->irq != 0 || ss->port != 0 ||
-			ss->custom_divisor != 0 ||
-			ss->baud_base != 921600)
+	if (new_serial.irq != 0 || new_serial.port != 0 ||
+			new_serial.custom_divisor != 0 ||
+			new_serial.baud_base != 921600)
 		return -EPERM;
 
-	close_delay = msecs_to_jiffies(ss->close_delay * 10);
-
-	mutex_lock(&info->port.mutex);
 	if (!capable(CAP_SYS_ADMIN)) {
-		if (close_delay != info->port.close_delay ||
-		    ss->type != info->type ||
-		    ((ss->flags & ~ASYNC_USR_MASK) !=
-		     (info->port.flags & ~ASYNC_USR_MASK))) {
-			mutex_unlock(&info->port.mutex);
+		if (((new_serial.flags & ~ASYNC_USR_MASK) !=
+		     (info->port.flags & ~ASYNC_USR_MASK)))
 			return -EPERM;
-		}
-	} else {
-		info->port.close_delay = close_delay;
+	} else
+		info->port.close_delay = new_serial.close_delay * HZ / 100;
 
-		MoxaSetFifo(info, ss->type == PORT_16550A);
+	new_serial.flags = (new_serial.flags & ~ASYNC_FLAGS);
+	new_serial.flags |= (info->port.flags & ASYNC_FLAGS);
 
-		info->type = ss->type;
-	}
-	mutex_unlock(&info->port.mutex);
+	MoxaSetFifo(info, new_serial.type == PORT_16550A);
+
+	info->type = new_serial.type;
 	return 0;
 }
 

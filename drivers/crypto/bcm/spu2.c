@@ -1,6 +1,17 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright 2016 Broadcom
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License, version 2, as
+ * published by the Free Software Foundation (the "GPL").
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License version 2 (GPLv2) for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * version 2 (GPLv2) along with this source code.
  */
 
 /*
@@ -38,21 +49,21 @@ enum spu2_proto_sel {
 	SPU2_DTLS_AEAD = 10
 };
 
-static char *spu2_cipher_type_names[] = { "None", "AES128", "AES192", "AES256",
+char *spu2_cipher_type_names[] = { "None", "AES128", "AES192", "AES256",
 	"DES", "3DES"
 };
 
-static char *spu2_cipher_mode_names[] = { "ECB", "CBC", "CTR", "CFB", "OFB",
-	"XTS", "CCM", "GCM"
+char *spu2_cipher_mode_names[] = { "ECB", "CBC", "CTR", "CFB", "OFB", "XTS",
+	"CCM", "GCM"
 };
 
-static char *spu2_hash_type_names[] = { "None", "AES128", "AES192", "AES256",
+char *spu2_hash_type_names[] = { "None", "AES128", "AES192", "AES256",
 	"Reserved", "Reserved", "MD5", "SHA1", "SHA224", "SHA256", "SHA384",
 	"SHA512", "SHA512/224", "SHA512/256", "SHA3-224", "SHA3-256",
 	"SHA3-384", "SHA3-512"
 };
 
-static char *spu2_hash_mode_names[] = { "CMAC", "CBC-MAC", "XCBC-MAC", "HMAC",
+char *spu2_hash_mode_names[] = { "CMAC", "CBC-MAC", "XCBC-MAC", "HMAC",
 	"Rabin", "CCM", "GCM", "Reserved"
 };
 

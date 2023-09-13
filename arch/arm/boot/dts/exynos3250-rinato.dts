@@ -116,13 +116,11 @@
 			cooling-maps {
 				map0 {
 					/* Corresponds to 500MHz */
-					cooling-device = <&cpu0 5 5>,
-							 <&cpu1 5 5>;
+					cooling-device = <&cpu0 5 5>;
 				};
 				map1 {
 					/* Corresponds to 200MHz */
-					cooling-device = <&cpu0 8 8>,
-							 <&cpu1 8 8>;
+					cooling-device = <&cpu0 8 8>;
 				};
 			};
 		};
@@ -244,11 +242,6 @@
 	};
 };
 
-&gpu {
-	mali-supply = <&buck3_reg>;
-	status = "okay";
-};
-
 &i2c_0 {
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -260,7 +253,7 @@
 	s2mps14_pmic@66 {
 		compatible = "samsung,s2mps14-pmic";
 		interrupt-parent = <&gpx0>;
-		interrupts = <7 IRQ_TYPE_LEVEL_LOW>;
+		interrupts = <7 IRQ_TYPE_NONE>;
 		reg = <0x66>;
 		wakeup-source;
 

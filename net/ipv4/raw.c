@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * INET		An implementation of the TCP/IP protocol suite for the LINUX
  *		operating system.  INET is implemented using the  BSD Socket
@@ -31,6 +30,11 @@
  *		Alan Cox	:	Added IP_HDRINCL option.
  *		Alan Cox	:	Skip broadcast check if BSDism set.
  *		David S. Miller	:	New socket lookup architecture.
+ *
+ *		This program is free software; you can redistribute it and/or
+ *		modify it under the terms of the GNU General Public License
+ *		as published by the Free Software Foundation; either version
+ *		2 of the License, or (at your option) any later version.
  */
 
 #include <linux/types.h>
@@ -127,7 +131,8 @@ struct sock *__raw_v4_lookup(struct net *net, struct sock *sk,
 		if (net_eq(sock_net(sk), net) && inet->inet_num == num	&&
 		    !(inet->inet_daddr && inet->inet_daddr != raddr) 	&&
 		    !(inet->inet_rcv_saddr && inet->inet_rcv_saddr != laddr) &&
-		    raw_sk_bound_dev_eq(net, sk->sk_bound_dev_if, dif, sdif))
+		    !(sk->sk_bound_dev_if && sk->sk_bound_dev_if != dif &&
+		      sk->sk_bound_dev_if != sdif))
 			goto found; /* gotcha */
 	}
 	sk = NULL;
@@ -332,7 +337,7 @@ int raw_rcv(struct sock *sk, struct sk_buff *skb)
 		kfree_skb(skb);
 		return NET_RX_DROP;
 	}
-	nf_reset_ct(skb);
+	nf_reset(skb);
 
 	skb_push(skb, skb->data - skb_network_header(skb));
 
@@ -375,7 +380,7 @@ static int raw_send_hdrinc(struct sock *sk, struct flowi4 *fl4,
 	skb_reserve(skb, hlen);
 
 	skb->priority = sk->sk_priority;
-	skb->mark = sockc->mark;
+	skb->mark = sk->sk_mark;
 	skb->tstamp = sockc->transmit_time;
 	skb_dst_set(skb, &rt->dst);
 	*rtp = NULL;
@@ -386,7 +391,7 @@ static int raw_send_hdrinc(struct sock *sk, struct flowi4 *fl4,
 
 	skb->ip_summed = CHECKSUM_NONE;
 
-	skb_setup_tx_timestamp(skb, sockc->tsflags);
+	sock_tx_timestamp(sk, sockc->tsflags, &skb_shinfo(skb)->tx_flags);
 
 	if (flags & MSG_CONFIRM)
 		skb_set_dst_pending_confirm(skb, 1);
@@ -603,7 +608,7 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 		tos |= RTO_ONLINK;
 
 	if (ipv4_is_multicast(daddr)) {
-		if (!ipc.oif || netif_index_is_l3_master(sock_net(sk), ipc.oif))
+		if (!ipc.oif)
 			ipc.oif = inet->mc_index;
 		if (!saddr)
 			saddr = inet->mc_addr;
@@ -623,7 +628,7 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 		}
 	}
 
-	flowi4_init_output(&fl4, ipc.oif, ipc.sockc.mark, tos,
+	flowi4_init_output(&fl4, ipc.oif, sk->sk_mark, tos,
 			   RT_SCOPE_UNIVERSE,
 			   hdrincl ? IPPROTO_RAW : sk->sk_protocol,
 			   inet_sk_flowi_flags(sk) |
@@ -720,7 +725,6 @@ static int raw_bind(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	int ret = -EINVAL;
 	int chk_addr_ret;
 
-	lock_sock(sk);
 	if (sk->sk_state != TCP_CLOSE || addr_len < sizeof(struct sockaddr_in))
 		goto out;
 
@@ -740,9 +744,7 @@ static int raw_bind(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 		inet->inet_saddr = 0;  /* Use device */
 	sk_dst_reset(sk);
 	ret = 0;
-out:
-	release_sock(sk);
-	return ret;
+out:	return ret;
 }
 
 /*
@@ -803,7 +805,7 @@ out:
 	return copied;
 }
 
-static int raw_sk_init(struct sock *sk)
+static int raw_init(struct sock *sk)
 {
 	struct raw_sock *rp = raw_sk(sk);
 
@@ -968,7 +970,7 @@ struct proto raw_prot = {
 	.connect	   = ip4_datagram_connect,
 	.disconnect	   = __udp_disconnect,
 	.ioctl		   = raw_ioctl,
-	.init		   = raw_sk_init,
+	.init		   = raw_init,
 	.setsockopt	   = raw_setsockopt,
 	.getsockopt	   = raw_getsockopt,
 	.sendmsg	   = raw_sendmsg,
@@ -1075,7 +1077,7 @@ static void raw_sock_seq_show(struct seq_file *seq, struct sock *sp, int i)
 	      srcp  = inet->inet_num;
 
 	seq_printf(seq, "%4d: %08X:%04X %08X:%04X"
-		" %02X %08X:%08X %02X:%08lX %08X %5u %8d %lu %d %pK %u\n",
+		" %02X %08X:%08X %02X:%08lX %08X %5u %8d %lu %d %pK %d\n",
 		i, src, srcp, dest, destp, sp->sk_state,
 		sk_wmem_alloc_get(sp),
 		sk_rmem_alloc_get(sp),
@@ -1132,27 +1134,3 @@ void __init raw_proc_exit(void)
 	unregister_pernet_subsys(&raw_net_ops);
 }
 #endif /* CONFIG_PROC_FS */
-
-static void raw_sysctl_init_net(struct net *net)
-{
-#ifdef CONFIG_NET_L3_MASTER_DEV
-	net->ipv4.sysctl_raw_l3mdev_accept = 1;
-#endif
-}
-
-static int __net_init raw_sysctl_init(struct net *net)
-{
-	raw_sysctl_init_net(net);
-	return 0;
-}
-
-static struct pernet_operations __net_initdata raw_sysctl_ops = {
-	.init	= raw_sysctl_init,
-};
-
-void __init raw_init(void)
-{
-	raw_sysctl_init_net(&init_net);
-	if (register_pernet_subsys(&raw_sysctl_ops))
-		panic("RAW: failed to init sysctl parameters.\n");
-}

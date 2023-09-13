@@ -1085,11 +1085,8 @@ static int octeon_mgmt_open(struct net_device *netdev)
 	/* Set the mode of the interface, RGMII/MII. */
 	if (OCTEON_IS_MODEL(OCTEON_CN6XXX) && netdev->phydev) {
 		union cvmx_agl_prtx_ctl agl_prtx_ctl;
-		int rgmii_mode =
-			(linkmode_test_bit(ETHTOOL_LINK_MODE_1000baseT_Half_BIT,
-					   netdev->phydev->supported) |
-			 linkmode_test_bit(ETHTOOL_LINK_MODE_1000baseT_Full_BIT,
-					   netdev->phydev->supported)) != 0;
+		int rgmii_mode = (netdev->phydev->supported &
+				  (SUPPORTED_1000baseT_Half | SUPPORTED_1000baseT_Full)) != 0;
 
 		agl_prtx_ctl.u64 = cvmx_read_csr(p->agl_prt_ctl);
 		agl_prtx_ctl.s.mode = rgmii_mode ? 0 : 1;
@@ -1222,7 +1219,7 @@ static int octeon_mgmt_open(struct net_device *netdev)
 	 */
 	if (netdev->phydev) {
 		netif_carrier_off(netdev);
-		phy_start(netdev->phydev);
+		phy_start_aneg(netdev->phydev);
 	}
 
 	netif_wake_queue(netdev);
@@ -1250,10 +1247,8 @@ static int octeon_mgmt_stop(struct net_device *netdev)
 	napi_disable(&p->napi);
 	netif_stop_queue(netdev);
 
-	if (netdev->phydev) {
-		phy_stop(netdev->phydev);
+	if (netdev->phydev)
 		phy_disconnect(netdev->phydev);
-	}
 
 	netif_carrier_off(netdev);
 
@@ -1510,8 +1505,8 @@ static int octeon_mgmt_probe(struct platform_device *pdev)
 
 	mac = of_get_mac_address(pdev->dev.of_node);
 
-	if (!IS_ERR(mac))
-		ether_addr_copy(netdev->dev_addr, mac);
+	if (mac)
+		memcpy(netdev->dev_addr, mac, ETH_ALEN);
 	else
 		eth_hw_addr_random(netdev);
 

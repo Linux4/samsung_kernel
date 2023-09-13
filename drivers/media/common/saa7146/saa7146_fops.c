@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <media/drv-intf/saa7146_vv.h>
@@ -106,7 +105,7 @@ void saa7146_buffer_finish(struct saa7146_dev *dev,
 	}
 
 	q->curr->vb.state = state;
-	q->curr->vb.ts = ktime_get_ns();
+	v4l2_get_timestamp(&q->curr->vb.ts);
 	wake_up(&q->curr->vb.done);
 
 	q->curr = NULL;
@@ -525,7 +524,7 @@ int saa7146_vv_init(struct saa7146_dev* dev, struct saa7146_ext_vv *ext_vv)
 		ERR("out of memory. aborting.\n");
 		kfree(vv);
 		v4l2_ctrl_handler_free(hdl);
-		return -ENOMEM;
+		return -1;
 	}
 
 	saa7146_video_uops.init(dev,vv);
@@ -607,16 +606,7 @@ int saa7146_register_device(struct video_device *vfd, struct saa7146_dev *dev,
 	vfd->tvnorms = 0;
 	for (i = 0; i < dev->ext_vv_data->num_stds; i++)
 		vfd->tvnorms |= dev->ext_vv_data->stds[i].id;
-	strscpy(vfd->name, name, sizeof(vfd->name));
-	vfd->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_VIDEO_OVERLAY |
-			   V4L2_CAP_READWRITE | V4L2_CAP_STREAMING;
-	vfd->device_caps |= dev->ext_vv_data->capabilities;
-	if (type == VFL_TYPE_GRABBER)
-		vfd->device_caps &=
-			~(V4L2_CAP_VBI_CAPTURE | V4L2_CAP_SLICED_VBI_OUTPUT);
-	else
-		vfd->device_caps &=
-			~(V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_VIDEO_OVERLAY | V4L2_CAP_AUDIO);
+	strlcpy(vfd->name, name, sizeof(vfd->name));
 	video_set_drvdata(vfd, dev);
 
 	err = video_register_device(vfd, type, -1);

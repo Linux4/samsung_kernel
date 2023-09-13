@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Driver for SiliconFile SR030PC30 VGA (1/10-Inch) Image Sensor with ISP
  *
@@ -10,6 +9,11 @@
  *
  * Based on mt9v011 Micron Digital Image Sensor driver
  * Copyright (c) 2009 Mauro Carvalho Chehab
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  */
 
 #include <linux/i2c.h>
@@ -565,7 +569,7 @@ static int sr030pc30_base_config(struct v4l2_subdev *sd)
 	if (!ret)
 		ret = sr030pc30_pwr_ctrl(sd, false, false);
 
-	if (ret)
+	if (!ret && !info->pdata)
 		return ret;
 
 	expmin = EXPOS_MIN_MS * info->pdata->clk_rate / (8 * 1000);
@@ -699,6 +703,7 @@ static int sr030pc30_probe(struct i2c_client *client,
 		return -ENOMEM;
 
 	sd = &info->sd;
+	strcpy(sd->name, MODULE_NAME);
 	info->pdata = client->dev.platform_data;
 
 	v4l2_i2c_subdev_init(sd, client, &sr030pc30_ops);

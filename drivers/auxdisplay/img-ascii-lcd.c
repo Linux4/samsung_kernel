@@ -1,7 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright (C) 2016 Imagination Technologies
  * Author: Paul Burton <paul.burton@mips.com>
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the
+ * Free Software Foundation; either version 2 of the License, or (at your
+ * option) any later version.
  */
 
 #include <generated/utsrelease.h>
@@ -279,16 +283,6 @@ static int img_ascii_lcd_display(struct img_ascii_lcd_ctx *ctx,
 	/* if the string ends with a newline, trim it */
 	if (msg[count - 1] == '\n')
 		count--;
-
-	if (!count) {
-		/* clear the LCD */
-		devm_kfree(&ctx->pdev->dev, ctx->message);
-		ctx->message = NULL;
-		ctx->message_len = 0;
-		memset(ctx->curr, ' ', ctx->cfg->num_chars);
-		ctx->cfg->update(ctx);
-		return 0;
-	}
 
 	new_msg = devm_kmalloc(&ctx->pdev->dev, count + 1, GFP_KERNEL);
 	if (!new_msg)

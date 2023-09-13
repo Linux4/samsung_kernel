@@ -9,17 +9,8 @@
  * pcpu_block_md is the metadata block struct.
  * Each chunk's bitmap is split into a number of full blocks.
  * All units are in terms of bits.
- *
- * The scan hint is the largest known contiguous area before the contig hint.
- * It is not necessarily the actual largest contig hint though.  There is an
- * invariant that the scan_hint_start > contig_hint_start iff
- * scan_hint == contig_hint.  This is necessary because when scanning forward,
- * we don't know if a new contig hint would be better than the current one.
  */
 struct pcpu_block_md {
-	int			scan_hint;	/* scan hint for block */
-	int			scan_hint_start; /* block relative starting
-						    position of the scan hint */
 	int                     contig_hint;    /* contig hint for block */
 	int                     contig_hint_start; /* block relative starting
 						      position of the contig hint */
@@ -28,7 +19,6 @@ struct pcpu_block_md {
 	int                     right_free;     /* size of free space along
 						   the right side of the block */
 	int                     first_free;     /* block position of first free */
-	int			nr_bits;	/* total bits responsible for */
 };
 
 struct pcpu_chunk {
@@ -39,7 +29,9 @@ struct pcpu_chunk {
 
 	struct list_head	list;		/* linked to pcpu_slot lists */
 	int			free_bytes;	/* free bytes in the chunk */
-	struct pcpu_block_md	chunk_md;
+	int			contig_bits;	/* max contiguous size hint */
+	int			contig_bits_start; /* contig_bits starting
+						      offset */
 	void			*base_addr;	/* base address of this chunk */
 
 	unsigned long		*alloc_map;	/* allocation map */
@@ -47,6 +39,7 @@ struct pcpu_chunk {
 	struct pcpu_block_md	*md_blocks;	/* metadata blocks */
 
 	void			*data;		/* chunk data */
+	int			first_bit;	/* no free below this */
 	bool			immutable;	/* no [de]population allowed */
 	int			start_offset;	/* the overlap with the previous
 						   region to have a page aligned

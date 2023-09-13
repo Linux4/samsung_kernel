@@ -6,10 +6,8 @@
  * Author: Brendan Higgins <brendanhiggins@google.com>
  */
 
-#include <linux/klist.h>
 #include <linux/platform_device_mock.h>
 #include <linux/of_platform.h>
-#include "base.h"
 
 struct device_node *of_fake_node(struct test *test, const char *name)
 {
@@ -26,7 +24,7 @@ struct device_node *of_fake_node(struct test *test, const char *name)
 
 struct platform_device *
 of_fake_probe_platform(struct test *test,
-		       struct platform_driver *driver,
+		       const struct platform_driver *driver,
 		       const char *node_name)
 {
 	struct platform_device *pdev;
@@ -44,12 +42,6 @@ of_fake_probe_platform(struct test *test,
 
 	test_info(test, "Probing");
 	ret = driver->probe(pdev);
-	if (ret)
-		return ERR_PTR(ret);
-
-	pdev->dev.driver = &driver->driver;
-	klist_add_tail(&pdev->dev.p->knode_driver,
-		       &pdev->dev.driver->p->klist_devices);
 	if (ret)
 		return ERR_PTR(ret);
 

@@ -1,8 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0-only
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Pinctrl for Cirrus Logic Madera codecs
  *
  * Copyright (C) 2016-2018 Cirrus Logic
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by the
+ * Free Software Foundation; version 2.
  */
 
 #include <linux/err.h>
@@ -10,7 +14,6 @@
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/slab.h>
-#include <linux/pinctrl/machine.h>
 #include <linux/pinctrl/pinctrl.h>
 #include <linux/pinctrl/pinmux.h>
 #include <linux/pinctrl/pinconf.h>
@@ -996,7 +999,7 @@ static struct pinctrl_desc madera_pin_desc = {
 static int madera_pin_probe(struct platform_device *pdev)
 {
 	struct madera *madera = dev_get_drvdata(pdev->dev.parent);
-	const struct madera_pdata *pdata = &madera->pdata;
+	const struct madera_pdata *pdata = dev_get_platdata(madera->dev);
 	struct madera_pin_private *priv;
 	int ret;
 
@@ -1032,7 +1035,6 @@ static int madera_pin_probe(struct platform_device *pdev)
 		if (IS_ENABLED(CONFIG_PINCTRL_CS47L90))
 			priv->chip = &cs47l90_pin_chip;
 		break;
-	case CS42L92:
 	case CS47L92:
 	case CS47L93:
 		if (IS_ENABLED(CONFIG_PINCTRL_CS47L92))
@@ -1057,7 +1059,7 @@ static int madera_pin_probe(struct platform_device *pdev)
 	}
 
 	/* if the configuration is provided through pdata, apply it */
-	if (pdata->gpio_configs) {
+	if (pdata && pdata->gpio_configs) {
 		ret = pinctrl_register_mappings(pdata->gpio_configs,
 						pdata->n_gpio_configs);
 		if (ret) {

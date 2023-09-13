@@ -46,7 +46,7 @@ static int s390_call__parse(struct arch *arch, struct ins_operands *ops,
 }
 
 static int call__scnprintf(struct ins *ins, char *bf, size_t size,
-			   struct ins_operands *ops, int max_ins_name);
+			   struct ins_operands *ops);
 
 static struct ins_ops s390_call_ops = {
 	.parse	   = s390_call__parse,
@@ -100,6 +100,8 @@ out_free_source:
 	return -1;
 }
 
+static int mov__scnprintf(struct ins *ins, char *bf, size_t size,
+			  struct ins_operands *ops);
 
 static struct ins_ops s390_mov_ops = {
 	.parse	   = s390_mov__parse,
@@ -164,10 +166,8 @@ static int s390__annotate_init(struct arch *arch, char *cpuid __maybe_unused)
 	if (!arch->initialized) {
 		arch->initialized = true;
 		arch->associate_instruction_ops = s390__associate_ins_ops;
-		if (cpuid) {
-			if (s390__cpuid_parse(arch, cpuid))
-				err = SYMBOL_ANNOTATE_ERRNO__ARCH_INIT_CPUID_PARSING;
-		}
+		if (cpuid)
+			err = s390__cpuid_parse(arch, cpuid);
 	}
 
 	return err;

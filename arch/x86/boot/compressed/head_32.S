@@ -141,7 +141,7 @@ ENTRY(startup_32)
 /*
  * Jump to the relocated address.
  */
-	leal	.Lrelocated(%ebx), %eax
+	leal	relocated(%ebx), %eax
 	jmp	*%eax
 ENDPROC(startup_32)
 
@@ -210,7 +210,7 @@ ENDPROC(efi32_stub_entry)
 #endif
 
 	.text
-.Lrelocated:
+relocated:
 
 /*
  * Clear BSS (stack is currently empty)

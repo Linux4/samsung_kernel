@@ -1,6 +1,9 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * tlv320aic32x4.h
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 
@@ -13,7 +16,6 @@ struct regmap_config;
 extern const struct regmap_config aic32x4_regmap_config;
 int aic32x4_probe(struct device *dev, struct regmap *regmap);
 int aic32x4_remove(struct device *dev);
-int aic32x4_register_clocks(struct device *dev, const char *mclk_name);
 
 /* tlv320aic32x4 register space (in decimal to match datasheet) */
 
@@ -75,8 +77,6 @@ int aic32x4_register_clocks(struct device *dev, const char *mclk_name);
 
 #define AIC32X4_PWRCFG		AIC32X4_REG(1, 1)
 #define AIC32X4_LDOCTL		AIC32X4_REG(1, 2)
-#define AIC32X4_LPLAYBACK	AIC32X4_REG(1, 3)
-#define AIC32X4_RPLAYBACK	AIC32X4_REG(1, 4)
 #define AIC32X4_OUTPWRCTL	AIC32X4_REG(1, 9)
 #define AIC32X4_CMMODE		AIC32X4_REG(1, 10)
 #define AIC32X4_HPLROUTE	AIC32X4_REG(1, 12)
@@ -195,7 +195,6 @@ int aic32x4_register_clocks(struct device *dev, const char *mclk_name);
 /* AIC32X4_MICBIAS */
 #define AIC32X4_MICBIAS_LDOIN		BIT(3)
 #define AIC32X4_MICBIAS_2075V		0x60
-#define AIC32x4_MICBIAS_MASK            GENMASK(6, 3)
 
 /* AIC32X4_LMICPGANIN */
 #define AIC32X4_LMICPGANIN_IN2R_10K	0x10
@@ -204,15 +203,5 @@ int aic32x4_register_clocks(struct device *dev, const char *mclk_name);
 /* AIC32X4_RMICPGANIN */
 #define AIC32X4_RMICPGANIN_IN1L_10K	0x10
 #define AIC32X4_RMICPGANIN_CM1R_10K	0x40
-
-/* Common mask and enable for all of the dividers */
-#define AIC32X4_DIVEN           BIT(7)
-#define AIC32X4_DIV_MASK        GENMASK(6, 0)
-
-/* Clock Limits */
-#define AIC32X4_MAX_DOSR_FREQ		6200000
-#define AIC32X4_MIN_DOSR_FREQ		2800000
-#define AIC32X4_MAX_CODEC_CLKIN_FREQ    110000000
-#define AIC32X4_MAX_PLL_CLKIN		20000000
 
 #endif				/* _TLV320AIC32X4_H */

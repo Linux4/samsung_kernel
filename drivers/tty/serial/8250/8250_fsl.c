@@ -1,8 +1,4 @@
 // SPDX-License-Identifier: GPL-2.0
-#if defined(CONFIG_SERIAL_8250_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
-#define SUPPORT_SYSRQ
-#endif
-
 #include <linux/serial_reg.h>
 #include <linux/serial_8250.h>
 
@@ -79,7 +75,7 @@ int fsl8250_handle_irq(struct uart_port *port)
 		serial8250_tx_chars(up);
 
 	up->lsr_saved_flags = orig_lsr;
-	uart_unlock_and_check_sysrq(&up->port, flags);
+	spin_unlock_irqrestore(&up->port.lock, flags);
 	return 1;
 }
 EXPORT_SYMBOL_GPL(fsl8250_handle_irq);

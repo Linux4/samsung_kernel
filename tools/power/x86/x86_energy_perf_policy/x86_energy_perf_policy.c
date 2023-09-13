@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * x86_energy_perf_policy -- set the energy versus performance
  * policy preference bias on recent X86 processors.
@@ -6,6 +5,8 @@
 /*
  * Copyright (c) 2010 - 2017 Intel Corporation.
  * Len Brown <len.brown@intel.com>
+ *
+ * This program is released under GPL v2
  */
 
 #define _GNU_SOURCE

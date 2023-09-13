@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * INET		An implementation of the TCP/IP protocol suite for the LINUX
  *		operating system.  INET is implemented using the  BSD Socket
@@ -8,6 +7,11 @@
  *
  * Authors:	Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
  *		Thomas Graf <tgraf@suug.ch>
+ *
+ *		This program is free software; you can redistribute it and/or
+ *		modify it under the terms of the GNU General Public License
+ *		as published by the Free Software Foundation; either version
+ *		2 of the License, or (at your option) any later version.
  *
  * Fixes:
  *		Rani Assaf	:	local_rule cannot be deleted
@@ -27,7 +31,6 @@
 #include <net/route.h>
 #include <net/tcp.h>
 #include <net/ip_fib.h>
-#include <net/nexthop.h>
 #include <net/fib_rules.h>
 
 struct fib4_rule {
@@ -137,16 +140,13 @@ static int fib4_rule_action(struct fib_rule *rule, struct flowi *flp,
 	return err;
 }
 
-static bool fib4_rule_suppress(struct fib_rule *rule, int flags, struct fib_lookup_arg *arg)
+static bool fib4_rule_suppress(struct fib_rule *rule, struct fib_lookup_arg *arg)
 {
 	struct fib_result *result = (struct fib_result *) arg->result;
 	struct net_device *dev = NULL;
 
-	if (result->fi) {
-		struct fib_nh_common *nhc = fib_info_nhc(result->fi, 0);
-
-		dev = nhc->nhc_dev;
-	}
+	if (result->fi)
+		dev = result->fi->fib_dev;
 
 	/* do not accept result if the route does
 	 * not meet the required prefix length
@@ -198,15 +198,11 @@ static int fib4_rule_match(struct fib_rule *rule, struct flowi *fl, int flags)
 
 static struct fib_table *fib_empty_table(struct net *net)
 {
-	u32 id = 1;
+	u32 id;
 
-	while (1) {
+	for (id = 1; id <= RT_TABLE_MAX; id++)
 		if (!fib_get_table(net, id))
 			return fib_new_table(net, id);
-
-		if (id++ == RT_TABLE_MAX)
-			break;
-	}
 	return NULL;
 }
 
@@ -258,7 +254,7 @@ static int fib4_rule_configure(struct fib_rule *rule, struct sk_buff *skb,
 	if (tb[FRA_FLOW]) {
 		rule4->tclassid = nla_get_u32(tb[FRA_FLOW]);
 		if (rule4->tclassid)
-			atomic_inc(&net->ipv4.fib_num_tclassid_users);
+			net->ipv4.fib_num_tclassid_users++;
 	}
 #endif
 
@@ -290,7 +286,7 @@ static int fib4_rule_delete(struct fib_rule *rule)
 
 #ifdef CONFIG_IP_ROUTE_CLASSID
 	if (((struct fib4_rule *)rule)->tclassid)
-		atomic_dec(&net->ipv4.fib_num_tclassid_users);
+		net->ipv4.fib_num_tclassid_users--;
 #endif
 	net->ipv4.fib_has_custom_rules = true;
 

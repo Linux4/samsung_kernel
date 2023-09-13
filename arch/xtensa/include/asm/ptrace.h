@@ -39,8 +39,6 @@
  *		+-----------------------+ --------
  */
 
-#define NO_SYSCALL (-1)
-
 #ifndef __ASSEMBLY__
 
 #include <asm/coprocessor.h>
@@ -80,7 +78,7 @@ struct pt_regs {
 	unsigned long areg[16];
 };
 
-#include <asm/core.h>
+#include <variant/core.h>
 
 # define arch_has_single_step()	(1)
 # define task_pt_regs(tsk) ((struct pt_regs*) \
@@ -101,11 +99,6 @@ struct pt_regs {
 # endif
 
 #define user_stack_pointer(regs) ((regs)->areg[1])
-
-static inline unsigned long regs_return_value(struct pt_regs *regs)
-{
-	return regs->areg[2];
-}
 
 #else	/* __ASSEMBLY__ */
 

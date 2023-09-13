@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 
 menuconfig TARGET_CORE
 	tristate "Generic Target Core Mod (TCM) and ConfigFS Infrastructure"

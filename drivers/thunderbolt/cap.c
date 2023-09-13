@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Thunderbolt driver - capabilities lookup
+ * Thunderbolt Cactus Ridge driver - capabilities lookup
  *
  * Copyright (c) 2014 Andreas Noever <andreas.noever@gmail.com>
- * Copyright (C) 2018, Intel Corporation
  */
 
 #include <linux/slab.h>
@@ -13,7 +12,6 @@
 
 #define CAP_OFFSET_MAX		0xff
 #define VSE_CAP_OFFSET_MAX	0xffff
-#define TMU_ACCESS_EN		BIT(20)
 
 struct tb_cap_any {
 	union {
@@ -23,53 +21,28 @@ struct tb_cap_any {
 	};
 } __packed;
 
-static int tb_port_enable_tmu(struct tb_port *port, bool enable)
+/**
+ * tb_port_find_cap() - Find port capability
+ * @port: Port to find the capability for
+ * @cap: Capability to look
+ *
+ * Returns offset to start of capability or %-ENOENT if no such
+ * capability was found. Negative errno is returned if there was an
+ * error.
+ */
+int tb_port_find_cap(struct tb_port *port, enum tb_port_cap cap)
 {
-	struct tb_switch *sw = port->sw;
-	u32 value, offset;
-	int ret;
+	u32 offset;
 
 	/*
-	 * Legacy devices need to have TMU access enabled before port
-	 * space can be fully accessed.
+	 * DP out adapters claim to implement TMU capability but in
+	 * reality they do not so we hard code the adapter specific
+	 * capability offset here.
 	 */
-	if (tb_switch_is_lr(sw))
-		offset = 0x26;
-	else if (tb_switch_is_er(sw))
-		offset = 0x2a;
+	if (port->config.type == TB_TYPE_DP_HDMI_OUT)
+		offset = 0x39;
 	else
-		return 0;
-
-	ret = tb_sw_read(sw, &value, TB_CFG_SWITCH, offset, 1);
-	if (ret)
-		return ret;
-
-	if (enable)
-		value |= TMU_ACCESS_EN;
-	else
-		value &= ~TMU_ACCESS_EN;
-
-	return tb_sw_write(sw, &value, TB_CFG_SWITCH, offset, 1);
-}
-
-static void tb_port_dummy_read(struct tb_port *port)
-{
-	/*
-	 * When reading from next capability pointer location in port
-	 * config space the read data is not cleared on LR. To avoid
-	 * reading stale data on next read perform one dummy read after
-	 * port capabilities are walked.
-	 */
-	if (tb_switch_is_lr(port->sw)) {
-		u32 dummy;
-
-		tb_port_read(port, &dummy, TB_CFG_PORT, 0, 1);
-	}
-}
-
-static int __tb_port_find_cap(struct tb_port *port, enum tb_port_cap cap)
-{
-	u32 offset = 1;
+		offset = 0x1;
 
 	do {
 		struct tb_cap_any header;
@@ -86,31 +59,6 @@ static int __tb_port_find_cap(struct tb_port *port, enum tb_port_cap cap)
 	} while (offset);
 
 	return -ENOENT;
-}
-
-/**
- * tb_port_find_cap() - Find port capability
- * @port: Port to find the capability for
- * @cap: Capability to look
- *
- * Returns offset to start of capability or %-ENOENT if no such
- * capability was found. Negative errno is returned if there was an
- * error.
- */
-int tb_port_find_cap(struct tb_port *port, enum tb_port_cap cap)
-{
-	int ret;
-
-	ret = tb_port_enable_tmu(port, true);
-	if (ret)
-		return ret;
-
-	ret = __tb_port_find_cap(port, cap);
-
-	tb_port_dummy_read(port);
-	tb_port_enable_tmu(port, false);
-
-	return ret;
 }
 
 static int tb_switch_find_cap(struct tb_switch *sw, enum tb_switch_cap cap)

@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 
 INCLUDEDIR := -I. -I../../../../../drivers/staging/android/uapi/ -I../../../../../usr/include/
 CFLAGS := $(CFLAGS) $(INCLUDEDIR) -Wall -O2 -g

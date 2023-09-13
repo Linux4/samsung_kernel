@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 
 menuconfig CONNECTOR
 	tristate "Connector - unified userspace <-> kernelspace linker"
@@ -19,13 +18,5 @@ config PROC_EVENTS
 	---help---
 	  Provide a connector that reports process events to userspace. Send
 	  events such as fork, exec, id change (uid, gid, suid, etc), and exit.
-
-config PROC_CONNECTOR_SELECT_EVENTS
-	bool "Let client select which process events to receive"
-	depends on PROC_EVENTS=y
-	default y
-	---help---
-	  By enabling this config, kernel stops sending unnecessary process
-	  events to userspace clients.
 
 endif # CONNECTOR

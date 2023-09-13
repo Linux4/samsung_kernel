@@ -152,27 +152,18 @@ static inline void initialize_SCp(struct scsi_cmnd *cmd)
 
 	if (scsi_bufflen(cmd)) {
 		cmd->SCp.buffer = scsi_sglist(cmd);
+		cmd->SCp.buffers_residual = scsi_sg_count(cmd) - 1;
 		cmd->SCp.ptr = sg_virt(cmd->SCp.buffer);
 		cmd->SCp.this_residual = cmd->SCp.buffer->length;
 	} else {
 		cmd->SCp.buffer = NULL;
+		cmd->SCp.buffers_residual = 0;
 		cmd->SCp.ptr = NULL;
 		cmd->SCp.this_residual = 0;
 	}
 
 	cmd->SCp.Status = 0;
 	cmd->SCp.Message = 0;
-}
-
-static inline void advance_sg_buffer(struct scsi_cmnd *cmd)
-{
-	struct scatterlist *s = cmd->SCp.buffer;
-
-	if (!cmd->SCp.this_residual && s && !sg_is_last(s)) {
-		cmd->SCp.buffer = sg_next(s);
-		cmd->SCp.ptr = sg_virt(cmd->SCp.buffer);
-		cmd->SCp.this_residual = cmd->SCp.buffer->length;
-	}
 }
 
 /**
@@ -284,8 +275,9 @@ mrs[] = {
 static void NCR5380_print(struct Scsi_Host *instance)
 {
 	struct NCR5380_hostdata *hostdata = shost_priv(instance);
-	unsigned char status, basr, mr, icr, i;
+	unsigned char status, data, basr, mr, icr, i;
 
+	data = NCR5380_read(CURRENT_SCSI_DATA_REG);
 	status = NCR5380_read(STATUS_REG);
 	mr = NCR5380_read(MODE_REG);
 	icr = NCR5380_read(INITIATOR_COMMAND_REG);
@@ -1208,7 +1200,7 @@ static bool NCR5380_select(struct Scsi_Host *instance, struct scsi_cmnd *cmd)
 
 out:
 	if (!hostdata->selecting)
-		return false;
+		return NULL;
 	hostdata->selecting = NULL;
 	return ret;
 }
@@ -1683,7 +1675,12 @@ static void NCR5380_information_transfer(struct Scsi_Host *instance)
 			    sun3_dma_setup_done != cmd) {
 				int count;
 
-				advance_sg_buffer(cmd);
+				if (!cmd->SCp.this_residual && cmd->SCp.buffers_residual) {
+					++cmd->SCp.buffer;
+					--cmd->SCp.buffers_residual;
+					cmd->SCp.this_residual = cmd->SCp.buffer->length;
+					cmd->SCp.ptr = sg_virt(cmd->SCp.buffer);
+				}
 
 				count = sun3scsi_dma_xfer_len(hostdata, cmd);
 
@@ -1733,11 +1730,15 @@ static void NCR5380_information_transfer(struct Scsi_Host *instance)
 				 * scatter-gather list, move onto the next one.
 				 */
 
-				advance_sg_buffer(cmd);
-				dsprintk(NDEBUG_INFORMATION, instance,
-					"this residual %d, sg ents %d\n",
-					cmd->SCp.this_residual,
-					sg_nents(cmd->SCp.buffer));
+				if (!cmd->SCp.this_residual && cmd->SCp.buffers_residual) {
+					++cmd->SCp.buffer;
+					--cmd->SCp.buffers_residual;
+					cmd->SCp.this_residual = cmd->SCp.buffer->length;
+					cmd->SCp.ptr = sg_virt(cmd->SCp.buffer);
+					dsprintk(NDEBUG_INFORMATION, instance, "%d bytes and %d buffers left\n",
+					         cmd->SCp.this_residual,
+					         cmd->SCp.buffers_residual);
+				}
 
 				/*
 				 * The preferred transfer method is going to be
@@ -1765,8 +1766,10 @@ static void NCR5380_information_transfer(struct Scsi_Host *instance)
 						scmd_printk(KERN_INFO, cmd,
 							"switching to slow handshake\n");
 						cmd->device->borken = 1;
-						do_reset(instance);
-						bus_reset_cleanup(instance);
+						sink = 1;
+						do_abort(instance);
+						cmd->result = DID_ERROR << 16;
+						/* XXX - need to source or sink data here, as appropriate */
 					}
 				} else {
 					/* Transfer a small chunk so that the
@@ -1927,13 +1930,13 @@ static void NCR5380_information_transfer(struct Scsi_Host *instance)
 					if (!hostdata->connected)
 						return;
 
-					/* Reject message */
-					/* Fall through */
-				default:
+					/* Fall through to reject message */
+
 					/*
 					 * If we get something weird that we aren't expecting,
-					 * log it.
+					 * reject it.
 					 */
+				default:
 					if (tmp == EXTENDED_MESSAGE)
 						scmd_printk(KERN_INFO, cmd,
 						            "rejecting unknown extended message code %02x, length %d\n",
@@ -2130,7 +2133,12 @@ static void NCR5380_reselect(struct Scsi_Host *instance)
 	if (sun3_dma_setup_done != tmp) {
 		int count;
 
-		advance_sg_buffer(tmp);
+		if (!tmp->SCp.this_residual && tmp->SCp.buffers_residual) {
+			++tmp->SCp.buffer;
+			--tmp->SCp.buffers_residual;
+			tmp->SCp.this_residual = tmp->SCp.buffer->length;
+			tmp->SCp.ptr = sg_virt(tmp->SCp.buffer);
+		}
 
 		count = sun3scsi_dma_xfer_len(hostdata, tmp);
 

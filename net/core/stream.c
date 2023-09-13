@@ -32,7 +32,7 @@ void sk_stream_write_space(struct sock *sk)
 	struct socket *sock = sk->sk_socket;
 	struct socket_wq *wq;
 
-	if (__sk_stream_is_writeable(sk, 1) && sock) {
+	if (sk_stream_is_writeable(sk) && sock) {
 		clear_bit(SOCK_NOSPACE, &sock->flags);
 
 		rcu_read_lock();
@@ -194,6 +194,9 @@ void sk_stream_kill_queues(struct sock *sk)
 {
 	/* First the read buffer. */
 	__skb_queue_purge(&sk->sk_receive_queue);
+
+	/* Next, the error queue. */
+	__skb_queue_purge(&sk->sk_error_queue);
 
 	/* Next, the write queue. */
 	WARN_ON(!skb_queue_empty(&sk->sk_write_queue));

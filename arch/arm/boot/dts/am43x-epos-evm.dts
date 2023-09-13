@@ -1,6 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2013 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 /* AM43x EPOS EVM */
@@ -77,7 +80,6 @@
 		pinctrl-names = "default", "sleep";
 		pinctrl-0 = <&matrix_keypad_default>;
 		pinctrl-1 = <&matrix_keypad_sleep>;
-		wakeup-source;
 
 		row-gpios = <&gpio0 12 GPIO_ACTIVE_HIGH		/* Bank0, pin12 */
 			     &gpio0 13 GPIO_ACTIVE_HIGH		/* Bank0, pin13 */
@@ -573,23 +575,22 @@
 	pinctrl-0 = <&davinci_mdio_default>;
 	pinctrl-1 = <&davinci_mdio_sleep>;
 	status = "okay";
-
-	ethphy0: ethernet-phy@16 {
-		reg = <16>;
-	};
 };
 
 &cpsw_emac0 {
-	phy-handle = <&ethphy0>;
+	phy_id = <&davinci_mdio>, <16>;
 	phy-mode = "rmii";
-	phys = <&phy_gmii_sel 1 1>;
+};
+
+&phy_sel {
+	rmii-clock-ext;
 };
 
 &i2c0 {
 	status = "okay";
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2c0_pins>;
-	clock-frequency = <100000>;
+	clock-frequency = <400000>;
 
 	tps65218: tps65218@24 {
 		reg = <0x24>;
@@ -618,12 +619,6 @@
 			regulator-name = "vdcdc3";
 			regulator-boot-on;
 			regulator-always-on;
-			regulator-state-mem {
-				regulator-on-in-suspend;
-			};
-			regulator-state-disk {
-				regulator-off-in-suspend;
-			};
 		};
 
 		dcdc4: regulator-dcdc4 {
@@ -638,16 +633,12 @@
 			regulator-name = "v1_0bat";
 			regulator-min-microvolt = <1000000>;
 			regulator-max-microvolt = <1000000>;
-			regulator-boot-on;
-			regulator-always-on;
 		};
 
 		dcdc6: regulator-dcdc6 {
 			regulator-name = "v1_8bat";
 			regulator-min-microvolt = <1800000>;
 			regulator-max-microvolt = <1800000>;
-			regulator-boot-on;
-			regulator-always-on;
 		};
 
 		ldo1: regulator-ldo1 {
@@ -848,7 +839,7 @@
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&spi0_pins_default>;
 	pinctrl-1 = <&spi0_pins_sleep>;
-	ti,pindir-d0-out-d1-in;
+	ti,pindir-d0-out-d1-in = <1>;
 };
 
 &spi1 {
@@ -856,7 +847,7 @@
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&spi1_pins_default>;
 	pinctrl-1 = <&spi1_pins_sleep>;
-	ti,pindir-d0-out-d1-in;
+	ti,pindir-d0-out-d1-in = <1>;
 };
 
 &usb2_phy1 {

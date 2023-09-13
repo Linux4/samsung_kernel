@@ -223,10 +223,8 @@ static int machxo2_write_init(struct fpga_manager *mgr,
 		goto fail;
 
 	get_status(spi, &status);
-	if (test_bit(FAIL, &status)) {
-		ret = -EINVAL;
+	if (test_bit(FAIL, &status))
 		goto fail;
-	}
 	dump_status_reg(&status);
 
 	spi_message_init(&msg);
@@ -312,7 +310,6 @@ static int machxo2_write_complete(struct fpga_manager *mgr,
 	dump_status_reg(&status);
 	if (!test_bit(DONE, &status)) {
 		machxo2_cleanup(mgr);
-		ret = -EINVAL;
 		goto fail;
 	}
 
@@ -334,7 +331,6 @@ static int machxo2_write_complete(struct fpga_manager *mgr,
 			break;
 		if (++refreshloop == MACHXO2_MAX_REFRESH_LOOP) {
 			machxo2_cleanup(mgr);
-			ret = -EINVAL;
 			goto fail;
 		}
 	} while (1);
@@ -360,20 +356,25 @@ static int machxo2_spi_probe(struct spi_device *spi)
 {
 	struct device *dev = &spi->dev;
 	struct fpga_manager *mgr;
+	int ret;
 
 	if (spi->max_speed_hz > MACHXO2_MAX_SPEED) {
 		dev_err(dev, "Speed is too high\n");
 		return -EINVAL;
 	}
 
-	mgr = devm_fpga_mgr_create(dev, "Lattice MachXO2 SPI FPGA Manager",
-				   &machxo2_ops, spi);
+	mgr = fpga_mgr_create(dev, "Lattice MachXO2 SPI FPGA Manager",
+			      &machxo2_ops, spi);
 	if (!mgr)
 		return -ENOMEM;
 
 	spi_set_drvdata(spi, mgr);
 
-	return fpga_mgr_register(mgr);
+	ret = fpga_mgr_register(mgr);
+	if (ret)
+		fpga_mgr_free(mgr);
+
+	return ret;
 }
 
 static int machxo2_spi_remove(struct spi_device *spi)

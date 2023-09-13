@@ -1,17 +1,21 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Poly1305 authenticator algorithm, RFC7539, SIMD glue code
  *
  * Copyright (C) 2015 Martin Willi
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  */
 
 #include <crypto/algapi.h>
 #include <crypto/internal/hash.h>
-#include <crypto/internal/simd.h>
 #include <crypto/poly1305.h>
 #include <linux/crypto.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <asm/fpu/api.h>
 #include <asm/simd.h>
 
 struct poly1305_simd_desc_ctx {
@@ -122,7 +126,7 @@ static int poly1305_simd_update(struct shash_desc *desc,
 	unsigned int bytes;
 
 	/* kernel_fpu_begin/end is costly, use fallback for small updates */
-	if (srclen <= 288 || !crypto_simd_usable())
+	if (srclen <= 288 || !may_use_simd())
 		return crypto_poly1305_update(desc, src, srclen);
 
 	kernel_fpu_begin();

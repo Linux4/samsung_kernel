@@ -1,8 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * L2TP subsystem debugfs
  *
  * Copyright (c) 2010 Katalix Systems Ltd
+ *
+ *	This program is free software; you can redistribute it and/or
+ *	modify it under the terms of the GNU General Public License
+ *	as published by the Free Software Foundation; either version
+ *	2 of the License, or (at your option) any later version.
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -31,6 +35,7 @@
 #include "l2tp_core.h"
 
 static struct dentry *rootdir;
+static struct dentry *tunnels;
 
 struct l2tp_dfs_seq_data {
 	struct net *net;
@@ -325,18 +330,32 @@ static const struct file_operations l2tp_dfs_fops = {
 
 static int __init l2tp_debugfs_init(void)
 {
-	rootdir = debugfs_create_dir("l2tp", NULL);
+	int rc = 0;
 
-	debugfs_create_file("tunnels", 0600, rootdir, NULL, &l2tp_dfs_fops);
+	rootdir = debugfs_create_dir("l2tp", NULL);
+	if (IS_ERR(rootdir)) {
+		rc = PTR_ERR(rootdir);
+		rootdir = NULL;
+		goto out;
+	}
+
+	tunnels = debugfs_create_file("tunnels", 0600, rootdir, NULL, &l2tp_dfs_fops);
+	if (tunnels == NULL)
+		rc = -EIO;
 
 	pr_info("L2TP debugfs support\n");
 
-	return 0;
+out:
+	if (rc)
+		pr_warn("unable to init\n");
+
+	return rc;
 }
 
 static void __exit l2tp_debugfs_exit(void)
 {
-	debugfs_remove_recursive(rootdir);
+	debugfs_remove(tunnels);
+	debugfs_remove(rootdir);
 }
 
 module_init(l2tp_debugfs_init);

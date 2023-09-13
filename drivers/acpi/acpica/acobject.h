@@ -3,7 +3,7 @@
  *
  * Name: acobject.h - Definition of union acpi_operand_object  (Internal object only)
  *
- * Copyright (C) 2000 - 2019, Intel Corp.
+ * Copyright (C) 2000 - 2018, Intel Corp.
  *
  *****************************************************************************/
 
@@ -153,8 +153,8 @@ struct acpi_object_method {
 	} dispatch;
 
 	u32 aml_length;
-	acpi_owner_id owner_id;
 	u8 thread_count;
+	acpi_owner_id owner_id;
 };
 
 /* Flags for info_flags field above */
@@ -239,7 +239,6 @@ struct acpi_object_region_field {
 	union acpi_operand_object *region_obj;	/* Containing op_region object */
 	u8 *resource_buffer;	/* resource_template for serial regions/fields */
 	u16 pin_number_index;	/* Index relative to previous Connection/Template */
-	u8 *internal_pcc_buffer;	/* Internal buffer for fields associated with PCC */
 };
 
 struct acpi_object_bank_field {
@@ -283,7 +282,6 @@ struct acpi_object_addr_handler {
 	acpi_adr_space_handler handler;
 	struct acpi_namespace_node *node;	/* Parent device */
 	void *context;
-	acpi_mutex context_mutex;
 	acpi_adr_space_setup setup;
 	union acpi_operand_object *region_list;	/* Regions using this handler */
 	union acpi_operand_object *next;

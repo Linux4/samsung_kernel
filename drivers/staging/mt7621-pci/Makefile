@@ -1,2 +1,1 @@
-# SPDX-License-Identifier: GPL-2.0
-obj-$(CONFIG_PCI_MT7621)       += pci-mt7621.o
+obj-$(CONFIG_SOC_MT7621)       += pci-mt7621.o

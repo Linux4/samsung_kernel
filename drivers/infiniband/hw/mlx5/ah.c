@@ -32,8 +32,9 @@
 
 #include "mlx5_ib.h"
 
-static void create_ib_ah(struct mlx5_ib_dev *dev, struct mlx5_ib_ah *ah,
-			 struct rdma_ah_attr *ah_attr)
+static struct ib_ah *create_ib_ah(struct mlx5_ib_dev *dev,
+				  struct mlx5_ib_ah *ah,
+				  struct rdma_ah_attr *ah_attr)
 {
 	enum ib_gid_type gid_type;
 
@@ -66,19 +67,21 @@ static void create_ib_ah(struct mlx5_ib_dev *dev, struct mlx5_ib_ah *ah,
 		ah->av.fl_mlid = rdma_ah_get_path_bits(ah_attr) & 0x7f;
 		ah->av.stat_rate_sl |= (rdma_ah_get_sl(ah_attr) & 0xf);
 	}
+
+	return &ah->ibah;
 }
 
-int mlx5_ib_create_ah(struct ib_ah *ibah, struct rdma_ah_attr *ah_attr,
-		      u32 flags, struct ib_udata *udata)
+struct ib_ah *mlx5_ib_create_ah(struct ib_pd *pd, struct rdma_ah_attr *ah_attr,
+				struct ib_udata *udata)
 
 {
-	struct mlx5_ib_ah *ah = to_mah(ibah);
-	struct mlx5_ib_dev *dev = to_mdev(ibah->device);
+	struct mlx5_ib_ah *ah;
+	struct mlx5_ib_dev *dev = to_mdev(pd->device);
 	enum rdma_ah_attr_type ah_type = ah_attr->type;
 
 	if ((ah_type == RDMA_AH_ATTR_TYPE_ROCE) &&
 	    !(rdma_ah_get_ah_flags(ah_attr) & IB_AH_GRH))
-		return -EINVAL;
+		return ERR_PTR(-EINVAL);
 
 	if (ah_type == RDMA_AH_ATTR_TYPE_ROCE && udata) {
 		int err;
@@ -87,18 +90,21 @@ int mlx5_ib_create_ah(struct ib_ah *ibah, struct rdma_ah_attr *ah_attr,
 				   sizeof(resp.dmac);
 
 		if (udata->outlen < min_resp_len)
-			return -EINVAL;
+			return ERR_PTR(-EINVAL);
 
 		resp.response_length = min_resp_len;
 
 		memcpy(resp.dmac, ah_attr->roce.dmac, ETH_ALEN);
 		err = ib_copy_to_udata(udata, &resp, resp.response_length);
 		if (err)
-			return err;
+			return ERR_PTR(err);
 	}
 
-	create_ib_ah(dev, ah, ah_attr);
-	return 0;
+	ah = kzalloc(sizeof(*ah), GFP_ATOMIC);
+	if (!ah)
+		return ERR_PTR(-ENOMEM);
+
+	return create_ib_ah(dev, ah, ah_attr); /* never fails */
 }
 
 int mlx5_ib_query_ah(struct ib_ah *ibah, struct rdma_ah_attr *ah_attr)
@@ -125,7 +131,8 @@ int mlx5_ib_query_ah(struct ib_ah *ibah, struct rdma_ah_attr *ah_attr)
 	return 0;
 }
 
-void mlx5_ib_destroy_ah(struct ib_ah *ah, u32 flags)
+int mlx5_ib_destroy_ah(struct ib_ah *ah)
 {
-	return;
+	kfree(to_mah(ah));
+	return 0;
 }

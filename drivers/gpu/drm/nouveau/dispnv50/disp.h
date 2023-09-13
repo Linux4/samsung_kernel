@@ -46,8 +46,6 @@ struct nv50_disp_interlock {
 
 void corec37d_ntfy_init(struct nouveau_bo *, u32);
 
-void head907d_olut_load(struct drm_color_lut *, int size, void __iomem *);
-
 struct nv50_chan {
 	struct nvif_object user;
 	struct nvif_device *device;
@@ -70,7 +68,7 @@ struct nv50_dmac {
 
 int nv50_dmac_create(struct nvif_device *device, struct nvif_object *disp,
 		     const s32 *oclass, u8 head, void *data, u32 size,
-		     s64 syncbuf, struct nv50_dmac *dmac);
+		     u64 syncbuf, struct nv50_dmac *dmac);
 void nv50_dmac_destroy(struct nv50_dmac *);
 
 u32 *evo_wait(struct nv50_dmac *, int nr);

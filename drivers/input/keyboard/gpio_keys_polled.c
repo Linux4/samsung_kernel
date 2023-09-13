@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  Driver for buttons on GPIO lines not capable of generating interrupts
  *
@@ -10,6 +9,10 @@
  *
  *  also was based on: /drivers/input/keyboard/gpio_keys.c
  *	Copyright 2005 Phil Blundell
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  published by the Free Software Foundation.
  */
 
 #include <linux/kernel.h>
@@ -165,8 +168,6 @@ gpio_keys_polled_get_devtree_pdata(struct device *dev)
 	pdata->rep = device_property_present(dev, "autorepeat");
 	device_property_read_u32(dev, "poll-interval", &pdata->poll_interval);
 
-	device_property_read_string(dev, "label", &pdata->name);
-
 	device_for_each_child_node(dev, child) {
 		if (fwnode_property_read_u32(child, "linux,code",
 					     &button->code)) {
@@ -234,6 +235,7 @@ static int gpio_keys_polled_probe(struct platform_device *pdev)
 	struct gpio_keys_polled_dev *bdev;
 	struct input_polled_dev *poll_dev;
 	struct input_dev *input;
+	size_t size;
 	int error;
 	int i;
 
@@ -248,8 +250,9 @@ static int gpio_keys_polled_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	bdev = devm_kzalloc(dev, struct_size(bdev, data, pdata->nbuttons),
-			    GFP_KERNEL);
+	size = sizeof(struct gpio_keys_polled_dev) +
+			pdata->nbuttons * sizeof(struct gpio_keys_button_data);
+	bdev = devm_kzalloc(dev, size, GFP_KERNEL);
 	if (!bdev) {
 		dev_err(dev, "no memory for private data\n");
 		return -ENOMEM;
@@ -269,7 +272,7 @@ static int gpio_keys_polled_probe(struct platform_device *pdev)
 
 	input = poll_dev->input;
 
-	input->name = pdata->name ?: pdev->name;
+	input->name = pdev->name;
 	input->phys = DRV_NAME"/input0";
 
 	input->id.bustype = BUS_HOST;

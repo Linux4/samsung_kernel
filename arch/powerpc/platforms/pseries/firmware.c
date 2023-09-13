@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  pSeries firmware setup code.
  *
@@ -15,6 +14,11 @@
  *    Copyright (C) 2005 Stephen Rothwell, IBM Corporation
  *
  *  Copyright 2006 IBM Corporation.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version
+ * 2 of the License, or (at your option) any later version.
  */
 
 
@@ -61,8 +65,6 @@ hypertas_fw_features_table[] = {
 	{FW_FEATURE_SET_MODE,		"hcall-set-mode"},
 	{FW_FEATURE_BEST_ENERGY,	"hcall-best-energy-1*"},
 	{FW_FEATURE_HPT_RESIZE,		"hcall-hpt-resize"},
-	{FW_FEATURE_BLOCK_REMOVE,	"hcall-block-remove"},
-	{FW_FEATURE_PAPR_SCM,		"hcall-scm"},
 };
 
 /* Build up the firmware features bitmask using the contents of

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *	sp5100_tco :	TCO timer driver for sp5100 chipsets
  *
@@ -8,6 +7,11 @@
  *	(c) Copyright 2000 kernel concepts <nils@kernelconcepts.de>, All Rights
  *	Reserved.
  *				http://www.kernelconcepts.de
+ *
+ *	This program is free software; you can redistribute it and/or
+ *	modify it under the terms of the GNU General Public License
+ *	as published by the Free Software Foundation; either version
+ *	2 of the License, or (at your option) any later version.
  *
  *	See AMD Publication 43009 "AMD SB700/710/750 Register Reference Guide",
  *	    AMD Publication 45482 "AMD SB800-Series Southbridges Register
@@ -391,7 +395,9 @@ static int sp5100_tco_probe(struct platform_device *pdev)
 	wdd->min_timeout = 1;
 	wdd->max_timeout = 0xffff;
 
-	watchdog_init_timeout(wdd, heartbeat, NULL);
+	if (watchdog_init_timeout(wdd, heartbeat, NULL))
+		dev_info(dev, "timeout value invalid, using %d\n",
+			 wdd->timeout);
 	watchdog_set_nowayout(wdd, nowayout);
 	watchdog_stop_on_reboot(wdd);
 	watchdog_stop_on_unregister(wdd);
@@ -402,8 +408,10 @@ static int sp5100_tco_probe(struct platform_device *pdev)
 		return ret;
 
 	ret = devm_watchdog_register_device(dev, wdd);
-	if (ret)
+	if (ret) {
+		dev_err(dev, "cannot register watchdog device (err=%d)\n", ret);
 		return ret;
+	}
 
 	/* Show module parameters */
 	dev_info(dev, "initialized. heartbeat=%d sec (nowayout=%d)\n",

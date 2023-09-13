@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  NSA Security-Enhanced Linux (SELinux) security module
  *
@@ -13,6 +12,10 @@
  *
  *  Copyright (C) 2005 International Business Machines Corporation
  *  Copyright (C) 2006 Trusted Computer Solutions, Inc.
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License version 2,
+ *	as published by the Free Software Foundation.
  */
 
 /*
@@ -76,7 +79,7 @@ static int selinux_xfrm_alloc_user(struct xfrm_sec_ctx **ctxp,
 				   gfp_t gfp)
 {
 	int rc;
-	const struct task_security_struct *tsec = selinux_cred(current_cred());
+	const struct task_security_struct *tsec = current_security();
 	struct xfrm_sec_ctx *ctx = NULL;
 	u32 str_len;
 
@@ -135,7 +138,7 @@ static void selinux_xfrm_free(struct xfrm_sec_ctx *ctx)
  */
 static int selinux_xfrm_delete(struct xfrm_sec_ctx *ctx)
 {
-	const struct task_security_struct *tsec = selinux_cred(current_cred());
+	const struct task_security_struct *tsec = current_security();
 
 	if (!ctx)
 		return 0;
@@ -227,7 +230,7 @@ static int selinux_xfrm_skb_sid_ingress(struct sk_buff *skb,
 					u32 *sid, int ckall)
 {
 	u32 sid_session = SECSID_NULL;
-	struct sec_path *sp = skb_sec_path(skb);
+	struct sec_path *sp = skb->sp;
 
 	if (sp) {
 		int i;
@@ -346,7 +349,7 @@ int selinux_xfrm_state_alloc_acquire(struct xfrm_state *x,
 	int rc;
 	struct xfrm_sec_ctx *ctx;
 	char *ctx_str = NULL;
-	u32 str_len;
+	int str_len;
 
 	if (!polsec)
 		return 0;
@@ -405,7 +408,7 @@ int selinux_xfrm_sock_rcv_skb(u32 sk_sid, struct sk_buff *skb,
 			      struct common_audit_data *ad)
 {
 	int i;
-	struct sec_path *sp = skb_sec_path(skb);
+	struct sec_path *sp = skb->sp;
 	u32 peer_sid = SECINITSID_UNLABELED;
 
 	if (sp) {

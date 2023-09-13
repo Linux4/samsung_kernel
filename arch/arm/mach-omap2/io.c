@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * linux/arch/arm/mach-omap2/io.c
  *
@@ -12,6 +11,10 @@
  *	Syed Khasim <x0khasim@ti.com>
  *
  * Added OMAP4 support - Santosh Shilimkar <santosh.shilimkar@ti.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -408,9 +411,14 @@ static int _set_hwmod_postsetup_state(struct omap_hwmod *oh, void *data)
 
 static void __init __maybe_unused omap_hwmod_init_postsetup(void)
 {
-	u8 postsetup_state = _HWMOD_STATE_DEFAULT;
+	u8 postsetup_state;
 
 	/* Set the default postsetup state for all hwmods */
+#ifdef CONFIG_PM
+	postsetup_state = _HWMOD_STATE_IDLE;
+#else
+	postsetup_state = _HWMOD_STATE_ENABLED;
+#endif
 	omap_hwmod_for_each(_set_hwmod_postsetup_state, &postsetup_state);
 }
 

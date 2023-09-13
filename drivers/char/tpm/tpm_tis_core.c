@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2005, 2006 IBM Corporation
  * Copyright (C) 2014, 2015 Intel Corporation
@@ -14,6 +13,11 @@
  *
  * This device driver implements the TPM interface as defined in
  * the TCG TPM Interface Spec version 1.2, revision 1.0.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation, version 2 of the
+ * License.
  */
 #include <linux/init.h>
 #include <linux/module.h>
@@ -125,8 +129,7 @@ static bool check_locality(struct tpm_chip *chip, int l)
 	if (rc < 0)
 		return false;
 
-	if ((access & (TPM_ACCESS_ACTIVE_LOCALITY | TPM_ACCESS_VALID
-		       | TPM_ACCESS_REQUEST_USE)) ==
+	if ((access & (TPM_ACCESS_ACTIVE_LOCALITY | TPM_ACCESS_VALID)) ==
 	    (TPM_ACCESS_ACTIVE_LOCALITY | TPM_ACCESS_VALID)) {
 		priv->locality = l;
 		return true;
@@ -135,13 +138,58 @@ static bool check_locality(struct tpm_chip *chip, int l)
 	return false;
 }
 
+static bool locality_inactive(struct tpm_chip *chip, int l)
+{
+	struct tpm_tis_data *priv = dev_get_drvdata(&chip->dev);
+	int rc;
+	u8 access;
+
+	rc = tpm_tis_read8(priv, TPM_ACCESS(l), &access);
+	if (rc < 0)
+		return false;
+
+	if ((access & (TPM_ACCESS_VALID | TPM_ACCESS_ACTIVE_LOCALITY))
+	    == TPM_ACCESS_VALID)
+		return true;
+
+	return false;
+}
+
 static int release_locality(struct tpm_chip *chip, int l)
 {
 	struct tpm_tis_data *priv = dev_get_drvdata(&chip->dev);
+	unsigned long stop, timeout;
+	long rc;
 
 	tpm_tis_write8(priv, TPM_ACCESS(l), TPM_ACCESS_ACTIVE_LOCALITY);
 
-	return 0;
+	stop = jiffies + chip->timeout_a;
+
+	if (chip->flags & TPM_CHIP_FLAG_IRQ) {
+again:
+		timeout = stop - jiffies;
+		if ((long)timeout <= 0)
+			return -1;
+
+		rc = wait_event_interruptible_timeout(priv->int_queue,
+						      (locality_inactive(chip, l)),
+						      timeout);
+
+		if (rc > 0)
+			return 0;
+
+		if (rc == -ERESTARTSYS && freezing(current)) {
+			clear_thread_flag(TIF_SIGPENDING);
+			goto again;
+		}
+	} else {
+		do {
+			if (locality_inactive(chip, l))
+				return 0;
+			tpm_msleep(TPM_TIMEOUT);
+		} while (time_before(jiffies, stop));
+	}
+	return -1;
 }
 
 static int request_locality(struct tpm_chip *chip, int l)
@@ -428,7 +476,11 @@ static int tpm_tis_send_main(struct tpm_chip *chip, const u8 *buf, size_t len)
 	if (chip->flags & TPM_CHIP_FLAG_IRQ) {
 		ordinal = be32_to_cpu(*((__be32 *) (buf + 6)));
 
-		dur = tpm_calc_ordinal_duration(chip, ordinal);
+		if (chip->flags & TPM_CHIP_FLAG_TPM2)
+			dur = tpm2_calc_ordinal_duration(chip, ordinal);
+		else
+			dur = tpm_calc_ordinal_duration(chip, ordinal);
+
 		if (wait_for_tpm_stat
 		    (chip, TPM_STS_DATA_AVAIL | TPM_STS_VALID, dur,
 		     &priv->read_queue, false) < 0) {
@@ -476,38 +528,35 @@ static const struct tis_vendor_timeout_override vendor_timeout_overrides[] = {
 			(TIS_SHORT_TIMEOUT*1000), (TIS_SHORT_TIMEOUT*1000) } },
 };
 
-static void tpm_tis_update_timeouts(struct tpm_chip *chip,
+static bool tpm_tis_update_timeouts(struct tpm_chip *chip,
 				    unsigned long *timeout_cap)
 {
 	struct tpm_tis_data *priv = dev_get_drvdata(&chip->dev);
 	int i, rc;
 	u32 did_vid;
 
-	chip->timeout_adjusted = false;
-
 	if (chip->ops->clk_enable != NULL)
 		chip->ops->clk_enable(chip, true);
 
 	rc = tpm_tis_read32(priv, TPM_DID_VID(0), &did_vid);
-	if (rc < 0) {
-		dev_warn(&chip->dev, "%s: failed to read did_vid: %d\n",
-			 __func__, rc);
+	if (rc < 0)
 		goto out;
-	}
 
 	for (i = 0; i != ARRAY_SIZE(vendor_timeout_overrides); i++) {
 		if (vendor_timeout_overrides[i].did_vid != did_vid)
 			continue;
 		memcpy(timeout_cap, vendor_timeout_overrides[i].timeout_us,
 		       sizeof(vendor_timeout_overrides[i].timeout_us));
-		chip->timeout_adjusted = true;
+		rc = true;
 	}
+
+	rc = false;
 
 out:
 	if (chip->ops->clk_enable != NULL)
 		chip->ops->clk_enable(chip, false);
 
-	return;
+	return rc;
 }
 
 /*
@@ -618,20 +667,12 @@ static int tpm_tis_gen_interrupt(struct tpm_chip *chip)
 	const char *desc = "attempting to generate an interrupt";
 	u32 cap2;
 	cap_t cap;
-	int ret;
-
-	ret = request_locality(chip, 0);
-	if (ret < 0)
-		return ret;
 
 	if (chip->flags & TPM_CHIP_FLAG_TPM2)
-		ret = tpm2_get_tpm_pt(chip, 0x100, &cap2, desc);
+		return tpm2_get_tpm_pt(chip, 0x100, &cap2, desc);
 	else
-		ret = tpm1_getcap(chip, TPM_CAP_PROP_TIS_TIMEOUT, &cap, desc, 0);
-
-	release_locality(chip, 0);
-
-	return ret;
+		return tpm_getcap(chip, TPM_CAP_PROP_TIS_TIMEOUT, &cap, desc,
+				  0);
 }
 
 /* Register the IRQ and issue a command that will cause an interrupt. If an
@@ -877,21 +918,9 @@ int tpm_tis_core_init(struct device *dev, struct tpm_tis_data *priv, int irq,
 	intmask |= TPM_INTF_CMD_READY_INT | TPM_INTF_LOCALITY_CHANGE_INT |
 		   TPM_INTF_DATA_AVAIL_INT | TPM_INTF_STS_VALID_INT;
 	intmask &= ~TPM_GLOBAL_INT_ENABLE;
-
-	rc = request_locality(chip, 0);
-	if (rc < 0) {
-		rc = -ENODEV;
-		goto out_err;
-	}
-
 	tpm_tis_write32(priv, TPM_INT_ENABLE(priv->locality), intmask);
-	release_locality(chip, 0);
 
-	rc = tpm_chip_start(chip);
-	if (rc)
-		goto out_err;
 	rc = tpm2_probe(chip);
-	tpm_chip_stop(chip);
 	if (rc)
 		goto out_err;
 
@@ -945,21 +974,11 @@ int tpm_tis_core_init(struct device *dev, struct tpm_tis_data *priv, int irq,
 	init_waitqueue_head(&priv->read_queue);
 	init_waitqueue_head(&priv->int_queue);
 	if (irq != -1) {
-		/*
-		 * Before doing irq testing issue a command to the TPM in polling mode
+		/* Before doing irq testing issue a command to the TPM in polling mode
 		 * to make sure it works. May as well use that command to set the
 		 * proper timeouts for the driver.
 		 */
-
-		rc = request_locality(chip, 0);
-		if (rc < 0)
-			goto out_err;
-
-		rc = tpm_get_timeouts(chip);
-
-		release_locality(chip, 0);
-
-		if (rc) {
+		if (tpm_get_timeouts(chip)) {
 			dev_err(dev, "Could not get TPM timeouts and durations\n");
 			rc = -ENODEV;
 			goto out_err;
@@ -988,7 +1007,7 @@ int tpm_tis_core_init(struct device *dev, struct tpm_tis_data *priv, int irq,
 
 	return 0;
 out_err:
-	if (chip->ops->clk_enable != NULL)
+	if ((chip->ops != NULL) && (chip->ops->clk_enable != NULL))
 		chip->ops->clk_enable(chip, false);
 
 	tpm_tis_remove(chip);
@@ -1043,19 +1062,11 @@ int tpm_tis_resume(struct device *dev)
 	if (ret)
 		return ret;
 
-	/*
-	 * TPM 1.2 requires self-test on resume. This function actually returns
+	/* TPM 1.2 requires self-test on resume. This function actually returns
 	 * an error code but for unknown reason it isn't handled.
 	 */
-	if (!(chip->flags & TPM_CHIP_FLAG_TPM2)) {
-		ret = request_locality(chip, 0);
-		if (ret < 0)
-			return ret;
-
-		tpm1_do_selftest(chip);
-
-		release_locality(chip, 0);
-	}
+	if (!(chip->flags & TPM_CHIP_FLAG_TPM2))
+		tpm_do_selftest(chip);
 
 	return 0;
 }

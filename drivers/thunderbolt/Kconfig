@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 menuconfig THUNDERBOLT
 	tristate "Thunderbolt support"
 	depends on PCI

@@ -1,9 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * AD5721, AD5721R, AD5761, AD5761R, Voltage Output Digital to Analog Converter
  *
  * Copyright 2016 Qtechnology A/S
  * 2016 Ricardo Ribalda <ricardo.ribalda@gmail.com>
+ *
+ * Licensed under the GPL-2.
  */
 #include <linux/kernel.h>
 #include <linux/module.h>

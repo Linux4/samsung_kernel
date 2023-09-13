@@ -6,7 +6,7 @@
  * Author: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
  */
 
-#include <linux/bits.h>
+#include <linux/bitops.h>
 #include <linux/err.h>
 #include <linux/io.h>
 #include <linux/module.h>
@@ -476,34 +476,6 @@ static void __iomem *mrfld_get_bufcfg(struct mrfld_pinctrl *mp, unsigned int pin
 	return family->regs + BUFCFG_OFFSET + bufno * 4;
 }
 
-static int mrfld_read_bufcfg(struct mrfld_pinctrl *mp, unsigned int pin, u32 *value)
-{
-	void __iomem *bufcfg;
-
-	if (!mrfld_buf_available(mp, pin))
-		return -EBUSY;
-
-	bufcfg = mrfld_get_bufcfg(mp, pin);
-	*value = readl(bufcfg);
-
-	return 0;
-}
-
-static void mrfld_update_bufcfg(struct mrfld_pinctrl *mp, unsigned int pin,
-				u32 bits, u32 mask)
-{
-	void __iomem *bufcfg;
-	u32 value;
-
-	bufcfg = mrfld_get_bufcfg(mp, pin);
-	value = readl(bufcfg);
-
-	value &= ~mask;
-	value |= bits & mask;
-
-	writel(value, bufcfg);
-}
-
 static int mrfld_get_groups_count(struct pinctrl_dev *pctldev)
 {
 	struct mrfld_pinctrl *mp = pinctrl_dev_get_drvdata(pctldev);
@@ -533,14 +505,16 @@ static void mrfld_pin_dbg_show(struct pinctrl_dev *pctldev, struct seq_file *s,
 			       unsigned int pin)
 {
 	struct mrfld_pinctrl *mp = pinctrl_dev_get_drvdata(pctldev);
+	void __iomem *bufcfg;
 	u32 value, mode;
-	int ret;
 
-	ret = mrfld_read_bufcfg(mp, pin, &value);
-	if (ret) {
+	if (!mrfld_buf_available(mp, pin)) {
 		seq_puts(s, "not available");
 		return;
 	}
+
+	bufcfg = mrfld_get_bufcfg(mp, pin);
+	value = readl(bufcfg);
 
 	mode = (value & BUFCFG_PINMODE_MASK) >> BUFCFG_PINMODE_SHIFT;
 	if (!mode)
@@ -583,6 +557,21 @@ static int mrfld_get_function_groups(struct pinctrl_dev *pctldev,
 	*groups = mp->functions[function].groups;
 	*ngroups = mp->functions[function].ngroups;
 	return 0;
+}
+
+static void mrfld_update_bufcfg(struct mrfld_pinctrl *mp, unsigned int pin,
+				u32 bits, u32 mask)
+{
+	void __iomem *bufcfg;
+	u32 value;
+
+	bufcfg = mrfld_get_bufcfg(mp, pin);
+	value = readl(bufcfg);
+
+	value &= ~mask;
+	value |= bits & mask;
+
+	writel(value, bufcfg);
 }
 
 static int mrfld_pinmux_set_mux(struct pinctrl_dev *pctldev,
@@ -648,12 +637,11 @@ static int mrfld_config_get(struct pinctrl_dev *pctldev, unsigned int pin,
 	enum pin_config_param param = pinconf_to_config_param(*config);
 	u32 value, term;
 	u16 arg = 0;
-	int ret;
 
-	ret = mrfld_read_bufcfg(mp, pin, &value);
-	if (ret)
+	if (!mrfld_buf_available(mp, pin))
 		return -ENOTSUPP;
 
+	value = readl(mrfld_get_bufcfg(mp, pin));
 	term = (value & BUFCFG_PUPD_VAL_MASK) >> BUFCFG_PUPD_VAL_SHIFT;
 
 	switch (param) {
@@ -741,10 +729,6 @@ static int mrfld_config_set_pin(struct mrfld_pinctrl *mp, unsigned int pin,
 		mask |= BUFCFG_Px_EN_MASK | BUFCFG_PUPD_VAL_MASK;
 		bits |= BUFCFG_PU_EN;
 
-		/* Set default strength value in case none is given */
-		if (arg == 1)
-			arg = 20000;
-
 		switch (arg) {
 		case 50000:
 			bits |= BUFCFG_PUPD_VAL_50K << BUFCFG_PUPD_VAL_SHIFT;
@@ -764,10 +748,6 @@ static int mrfld_config_set_pin(struct mrfld_pinctrl *mp, unsigned int pin,
 	case PIN_CONFIG_BIAS_PULL_DOWN:
 		mask |= BUFCFG_Px_EN_MASK | BUFCFG_PUPD_VAL_MASK;
 		bits |= BUFCFG_PD_EN;
-
-		/* Set default strength value in case none is given */
-		if (arg == 1)
-			arg = 20000;
 
 		switch (arg) {
 		case 50000:
@@ -893,6 +873,7 @@ static int mrfld_pinctrl_probe(struct platform_device *pdev)
 {
 	struct mrfld_family *families;
 	struct mrfld_pinctrl *mp;
+	struct resource *mem;
 	void __iomem *regs;
 	size_t nfamilies;
 	unsigned int i;
@@ -904,7 +885,8 @@ static int mrfld_pinctrl_probe(struct platform_device *pdev)
 	mp->dev = &pdev->dev;
 	raw_spin_lock_init(&mp->lock);
 
-	regs = devm_platform_ioremap_resource(pdev, 0);
+	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	regs = devm_ioremap_resource(&pdev->dev, mem);
 	if (IS_ERR(regs))
 		return PTR_ERR(regs);
 

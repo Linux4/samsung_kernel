@@ -51,18 +51,13 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-
-#include <linux/export.h>
-#include <linux/interrupt.h>	/* For task queue support */
-#include <linux/pci.h>
-#include <linux/vgaarb.h>
-
-#include <drm/drm.h>
-#include <drm/drm_device.h>
-#include <drm/drm_drv.h>
 #include <drm/drm_irq.h>
-#include <drm/drm_print.h>
-#include <drm/drm_vblank.h>
+#include <drm/drmP.h>
+
+#include <linux/interrupt.h>	/* For task queue support */
+
+#include <linux/vgaarb.h>
+#include <linux/export.h>
 
 #include "drm_internal.h"
 
@@ -108,6 +103,9 @@ int drm_irq_install(struct drm_device *dev, int irq)
 	int ret;
 	unsigned long sh_flags = 0;
 
+	if (!drm_core_check_feature(dev, DRIVER_HAVE_IRQ))
+		return -EINVAL;
+
 	if (irq == 0)
 		return -EINVAL;
 
@@ -125,8 +123,8 @@ int drm_irq_install(struct drm_device *dev, int irq)
 	if (dev->driver->irq_preinstall)
 		dev->driver->irq_preinstall(dev);
 
-	/* PCI devices require shared interrupts. */
-	if (dev->pdev)
+	/* Install handler */
+	if (drm_core_check_feature(dev, DRIVER_IRQ_SHARED))
 		sh_flags = IRQF_SHARED;
 
 	ret = request_irq(irq, dev->driver->irq_handler,
@@ -176,6 +174,9 @@ int drm_irq_uninstall(struct drm_device *dev)
 	bool irq_enabled;
 	int i;
 
+	if (!drm_core_check_feature(dev, DRIVER_HAVE_IRQ))
+		return -EINVAL;
+
 	irq_enabled = dev->irq_enabled;
 	dev->irq_enabled = false;
 
@@ -218,7 +219,6 @@ int drm_irq_uninstall(struct drm_device *dev)
 }
 EXPORT_SYMBOL(drm_irq_uninstall);
 
-#if IS_ENABLED(CONFIG_DRM_LEGACY)
 int drm_legacy_irq_control(struct drm_device *dev, void *data,
 			   struct drm_file *file_priv)
 {
@@ -259,4 +259,3 @@ int drm_legacy_irq_control(struct drm_device *dev, void *data,
 		return -EINVAL;
 	}
 }
-#endif

@@ -1,6 +1,18 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2016 Avago Technologies.  All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of version 2 of the GNU General Public License as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful.
+ * ALL EXPRESS OR IMPLIED CONDITIONS, REPRESENTATIONS AND WARRANTIES,
+ * INCLUDING ANY IMPLIED WARRANTY OF MERCHANTABILITY, FITNESS FOR A
+ * PARTICULAR PURPOSE, OR NON-INFRINGEMENT, ARE DISCLAIMED, EXCEPT TO
+ * THE EXTENT THAT SUCH DISCLAIMERS ARE HELD TO BE LEGALLY INVALID.
+ * See the GNU General Public License for more details, a copy of which
+ * can be found in the file COPYING included with this package
+ *
  */
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 #include <linux/module.h>
@@ -8,13 +20,12 @@
 #include <uapi/scsi/fc/fc_fs.h>
 #include <uapi/scsi/fc/fc_els.h>
 #include <linux/delay.h>
-#include <linux/overflow.h>
 
 #include "nvme.h"
 #include "fabrics.h"
 #include <linux/nvme-fc-driver.h>
 #include <linux/nvme-fc.h>
-#include <scsi/scsi_transport_fc.h>
+
 
 /* *************************** Data Structures/Defines ****************** */
 
@@ -93,12 +104,6 @@ struct nvme_fc_fcp_op {
 	struct nvme_fc_ersp_iu	rsp_iu;
 };
 
-struct nvme_fcp_op_w_sgl {
-	struct nvme_fc_fcp_op	op;
-	struct scatterlist	sgl[SG_CHUNK_SIZE];
-	uint8_t			priv[0];
-};
-
 struct nvme_fc_lport {
 	struct nvme_fc_local_port	localport;
 
@@ -117,7 +122,6 @@ struct nvme_fc_rport {
 	struct list_head		endp_list; /* for lport->endp_list */
 	struct list_head		ctrl_list;
 	struct list_head		ls_req_list;
-	struct list_head		disc_list;
 	struct device			*dev;	/* physical device for dma */
 	struct nvme_fc_lport		*lport;
 	spinlock_t			lock;
@@ -204,13 +208,11 @@ static DEFINE_IDA(nvme_fc_ctrl_cnt);
 
 static struct workqueue_struct *nvme_fc_wq;
 
-static bool nvme_fc_waiting_to_unload;
-static DECLARE_COMPLETION(nvme_fc_unload_proceed);
-
 /*
  * These items are short-term. They will eventually be moved into
  * a generic FC class. See comments in module init.
  */
+static struct class *fc_class;
 static struct device *fc_udev_device;
 
 
@@ -232,8 +234,6 @@ nvme_fc_free_lport(struct kref *ref)
 	/* remove from transport list */
 	spin_lock_irqsave(&nvme_fc_lock, flags);
 	list_del(&lport->port_list);
-	if (nvme_fc_waiting_to_unload && list_empty(&nvme_fc_lport_list))
-		complete(&nvme_fc_unload_proceed);
 	spin_unlock_irqrestore(&nvme_fc_lock, flags);
 
 	ida_simple_remove(&nvme_fc_local_port_cnt, lport->localport.port_num);
@@ -319,7 +319,7 @@ out_done:
  * @template:  LLDD entrypoints and operational parameters for the port
  * @dev:       physical hardware device node port corresponds to. Will be
  *             used for DMA mappings
- * @portptr:   pointer to a local port pointer. Upon success, the routine
+ * @lport_p:   pointer to a local port pointer. Upon success, the routine
  *             will allocate a nvme_fc_local_port structure and place its
  *             address in the local port pointer. Upon failure, local port
  *             pointer will be set to 0.
@@ -427,7 +427,8 @@ EXPORT_SYMBOL_GPL(nvme_fc_register_localport);
  * nvme_fc_unregister_localport - transport entry point called by an
  *                              LLDD to deregister/remove a previously
  *                              registered a NVME host FC port.
- * @portptr: pointer to the (registered) local port that is to be deregistered.
+ * @localport: pointer to the (registered) local port that is to be
+ *             deregistered.
  *
  * Returns:
  * a completion status. Must be 0 upon success; a negative errno
@@ -508,7 +509,6 @@ nvme_fc_free_rport(struct kref *ref)
 	list_del(&rport->endp_list);
 	spin_unlock_irqrestore(&nvme_fc_lock, flags);
 
-	WARN_ON(!list_empty(&rport->disc_list));
 	ida_simple_remove(&lport->endp_cnt, rport->remoteport.port_num);
 
 	kfree(rport);
@@ -633,7 +633,7 @@ __nvme_fc_set_dev_loss_tmo(struct nvme_fc_rport *rport,
  * @localport: pointer to the (registered) local port that the remote
  *             subsystem port is connected to.
  * @pinfo:     pointer to information about the port to be registered
- * @portptr:   pointer to a remote port pointer. Upon success, the routine
+ * @rport_p:   pointer to a remote port pointer. Upon success, the routine
  *             will allocate a nvme_fc_remote_port structure and place its
  *             address in the remote port pointer. Upon failure, remote port
  *             pointer will be set to 0.
@@ -696,7 +696,6 @@ nvme_fc_register_remoteport(struct nvme_fc_local_port *localport,
 	INIT_LIST_HEAD(&newrec->endp_list);
 	INIT_LIST_HEAD(&newrec->ctrl_list);
 	INIT_LIST_HEAD(&newrec->ls_req_list);
-	INIT_LIST_HEAD(&newrec->disc_list);
 	kref_init(&newrec->ref);
 	atomic_set(&newrec->act_ctrl_cnt, 0);
 	spin_lock_init(&newrec->lock);
@@ -810,8 +809,8 @@ nvme_fc_ctrl_connectivity_loss(struct nvme_fc_ctrl *ctrl)
  * nvme_fc_unregister_remoteport - transport entry point called by an
  *                              LLDD to deregister/remove a previously
  *                              registered a NVME subsystem FC port.
- * @portptr: pointer to the (registered) remote port that is to be
- *           deregistered.
+ * @remoteport: pointer to the (registered) remote port that is to be
+ *              deregistered.
  *
  * Returns:
  * a completion status. Must be 0 upon success; a negative errno
@@ -1388,7 +1387,7 @@ nvme_fc_disconnect_assoc_done(struct nvmefc_ls_req *lsreq, int status)
 
 	__nvme_fc_finish_ls_req(lsop);
 
-	/* fc-nvme initiator doesn't care about success or failure of cmd */
+	/* fc-nvme iniator doesn't care about success or failure of cmd */
 
 	kfree(lsop);
 }
@@ -1608,13 +1607,9 @@ nvme_fc_fcpio_done(struct nvmefc_fcp_req *req)
 				sizeof(op->rsp_iu), DMA_FROM_DEVICE);
 
 	if (opstate == FCPOP_STATE_ABORTED)
-		status = cpu_to_le16(NVME_SC_HOST_ABORTED_CMD << 1);
-	else if (freq->status) {
-		status = cpu_to_le16(NVME_SC_HOST_PATH_ERROR << 1);
-		dev_info(ctrl->ctrl.device,
-			"NVME-FC{%d}: io failed due to lldd error %d\n",
-			ctrl->cnum, freq->status);
-	}
+		status = cpu_to_le16(NVME_SC_ABORT_REQ << 1);
+	else if (freq->status)
+		status = cpu_to_le16(NVME_SC_INTERNAL << 1);
 
 	/*
 	 * For the linux implementation, if we have an unsuccesful
@@ -1641,13 +1636,8 @@ nvme_fc_fcpio_done(struct nvmefc_fcp_req *req)
 		 * no payload in the CQE by the transport.
 		 */
 		if (freq->transferred_length !=
-		    be32_to_cpu(op->cmd_iu.data_len)) {
-			status = cpu_to_le16(NVME_SC_HOST_PATH_ERROR << 1);
-			dev_info(ctrl->ctrl.device,
-				"NVME-FC{%d}: io failed due to bad transfer "
-				"length: %d vs expected %d\n",
-				ctrl->cnum, freq->transferred_length,
-				be32_to_cpu(op->cmd_iu.data_len));
+			be32_to_cpu(op->cmd_iu.data_len)) {
+			status = cpu_to_le16(NVME_SC_INTERNAL << 1);
 			goto done;
 		}
 		result.u64 = 0;
@@ -1664,17 +1654,7 @@ nvme_fc_fcpio_done(struct nvmefc_fcp_req *req)
 					freq->transferred_length ||
 			     op->rsp_iu.status_code ||
 			     sqe->common.command_id != cqe->command_id)) {
-			status = cpu_to_le16(NVME_SC_HOST_PATH_ERROR << 1);
-			dev_info(ctrl->ctrl.device,
-				"NVME-FC{%d}: io failed due to bad NVMe_ERSP: "
-				"iu len %d, xfr len %d vs %d, status code "
-				"%d, cmdid %d vs %d\n",
-				ctrl->cnum, be16_to_cpu(op->rsp_iu.iu_len),
-				be32_to_cpu(op->rsp_iu.xfrd_len),
-				freq->transferred_length,
-				op->rsp_iu.status_code,
-				sqe->common.command_id,
-				cqe->command_id);
+			status = cpu_to_le16(NVME_SC_INTERNAL << 1);
 			goto done;
 		}
 		result = cqe->result;
@@ -1682,11 +1662,7 @@ nvme_fc_fcpio_done(struct nvmefc_fcp_req *req)
 		break;
 
 	default:
-		status = cpu_to_le16(NVME_SC_HOST_PATH_ERROR << 1);
-		dev_info(ctrl->ctrl.device,
-			"NVME-FC{%d}: io failed due to odd NVMe_xRSP iu "
-			"len %d\n",
-			ctrl->cnum, freq->rcv_rsplen);
+		status = cpu_to_le16(NVME_SC_INTERNAL << 1);
 		goto done;
 	}
 
@@ -1715,8 +1691,6 @@ __nvme_fc_init_request(struct nvme_fc_ctrl *ctrl,
 		struct nvme_fc_queue *queue, struct nvme_fc_fcp_op *op,
 		struct request *rq, u32 rqno)
 {
-	struct nvme_fcp_op_w_sgl *op_w_sgl =
-		container_of(op, typeof(*op_w_sgl), op);
 	struct nvme_fc_cmd_iu *cmdiu = &op->cmd_iu;
 	int ret = 0;
 
@@ -1726,6 +1700,8 @@ __nvme_fc_init_request(struct nvme_fc_ctrl *ctrl,
 	op->fcp_req.rspaddr = &op->rsp_iu;
 	op->fcp_req.rsplen = sizeof(op->rsp_iu);
 	op->fcp_req.done = nvme_fc_fcpio_done;
+	op->fcp_req.first_sgl = (struct scatterlist *)&op[1];
+	op->fcp_req.private = &op->fcp_req.first_sgl[SG_CHUNK_SIZE];
 	op->ctrl = ctrl;
 	op->queue = queue;
 	op->rq = rq;
@@ -1740,7 +1716,7 @@ __nvme_fc_init_request(struct nvme_fc_ctrl *ctrl,
 	if (fc_dma_mapping_error(ctrl->lport->dev, op->fcp_req.cmddma)) {
 		dev_err(ctrl->dev,
 			"FCP Op failed - cmdiu dma mapping failed.\n");
-		ret = -EFAULT;
+		ret = EFAULT;
 		goto out_on_error;
 	}
 
@@ -1750,7 +1726,7 @@ __nvme_fc_init_request(struct nvme_fc_ctrl *ctrl,
 	if (fc_dma_mapping_error(ctrl->lport->dev, op->fcp_req.rspdma)) {
 		dev_err(ctrl->dev,
 			"FCP Op failed - rspiu dma mapping failed.\n");
-		ret = -EFAULT;
+		ret = EFAULT;
 	}
 
 	atomic_set(&op->state, FCPOP_STATE_IDLE);
@@ -1763,18 +1739,12 @@ nvme_fc_init_request(struct blk_mq_tag_set *set, struct request *rq,
 		unsigned int hctx_idx, unsigned int numa_node)
 {
 	struct nvme_fc_ctrl *ctrl = set->driver_data;
-	struct nvme_fcp_op_w_sgl *op = blk_mq_rq_to_pdu(rq);
+	struct nvme_fc_fcp_op *op = blk_mq_rq_to_pdu(rq);
 	int queue_idx = (set == &ctrl->tag_set) ? hctx_idx + 1 : 0;
 	struct nvme_fc_queue *queue = &ctrl->queues[queue_idx];
-	int res;
 
-	res = __nvme_fc_init_request(ctrl, queue, &op->op, rq, queue->rqcnt++);
-	if (res)
-		return res;
-	op->op.fcp_req.first_sgl = &op->sgl[0];
-	op->op.fcp_req.private = &op->priv[0];
 	nvme_req(rq)->ctrl = &ctrl->ctrl;
-	return res;
+	return __nvme_fc_init_request(ctrl, queue, op, rq, queue->rqcnt++);
 }
 
 static int
@@ -1804,6 +1774,7 @@ nvme_fc_init_aen_ops(struct nvme_fc_ctrl *ctrl)
 		}
 
 		aen_op->flags = FCOP_FLAGS_AEN;
+		aen_op->fcp_req.first_sgl = NULL; /* no sg list */
 		aen_op->fcp_req.private = private;
 
 		memset(sqe, 0, sizeof(*sqe));
@@ -1820,7 +1791,6 @@ nvme_fc_term_aen_ops(struct nvme_fc_ctrl *ctrl)
 	struct nvme_fc_fcp_op *aen_op;
 	int i;
 
-	cancel_work_sync(&ctrl->ctrl.async_event_work);
 	aen_op = ctrl->aen_ops;
 	for (i = 0; i < NVME_NR_AEN_COMMANDS; i++, aen_op++) {
 		if (!aen_op->fcp_req.private)
@@ -1992,7 +1962,7 @@ nvme_fc_connect_io_queues(struct nvme_fc_ctrl *ctrl, u16 qsize)
 					(qsize / 5));
 		if (ret)
 			break;
-		ret = nvmf_connect_io_queue(&ctrl->ctrl, i, false);
+		ret = nvmf_connect_io_queue(&ctrl->ctrl, i);
 		if (ret)
 			break;
 
@@ -2030,7 +2000,6 @@ nvme_fc_ctrl_free(struct kref *ref)
 
 	blk_mq_unquiesce_queue(ctrl->ctrl.admin_q);
 	blk_cleanup_queue(ctrl->ctrl.admin_q);
-	blk_cleanup_queue(ctrl->ctrl.fabrics_q);
 	blk_mq_free_tag_set(&ctrl->admin_tag_set);
 
 	kfree(ctrl->queues);
@@ -2132,26 +2101,27 @@ nvme_fc_map_data(struct nvme_fc_ctrl *ctrl, struct request *rq,
 		struct nvme_fc_fcp_op *op)
 {
 	struct nvmefc_fcp_req *freq = &op->fcp_req;
+	enum dma_data_direction dir;
 	int ret;
 
 	freq->sg_cnt = 0;
 
-	if (!blk_rq_nr_phys_segments(rq))
+	if (!blk_rq_payload_bytes(rq))
 		return 0;
 
 	freq->sg_table.sgl = freq->first_sgl;
 	ret = sg_alloc_table_chained(&freq->sg_table,
-			blk_rq_nr_phys_segments(rq), freq->sg_table.sgl,
-			SG_CHUNK_SIZE);
+			blk_rq_nr_phys_segments(rq), freq->sg_table.sgl);
 	if (ret)
 		return -ENOMEM;
 
 	op->nents = blk_rq_map_sg(rq->q, rq, freq->sg_table.sgl);
 	WARN_ON(op->nents > blk_rq_nr_phys_segments(rq));
+	dir = (rq_data_dir(rq) == WRITE) ? DMA_TO_DEVICE : DMA_FROM_DEVICE;
 	freq->sg_cnt = fc_dma_map_sg(ctrl->lport->dev, freq->sg_table.sgl,
-				op->nents, rq_dma_dir(rq));
+				op->nents, dir);
 	if (unlikely(freq->sg_cnt <= 0)) {
-		sg_free_table_chained(&freq->sg_table, SG_CHUNK_SIZE);
+		sg_free_table_chained(&freq->sg_table, true);
 		freq->sg_cnt = 0;
 		return -EFAULT;
 	}
@@ -2172,11 +2142,12 @@ nvme_fc_unmap_data(struct nvme_fc_ctrl *ctrl, struct request *rq,
 		return;
 
 	fc_dma_unmap_sg(ctrl->lport->dev, freq->sg_table.sgl, op->nents,
-			rq_dma_dir(rq));
+				((rq_data_dir(rq) == WRITE) ?
+					DMA_TO_DEVICE : DMA_FROM_DEVICE));
 
 	nvme_cleanup_cmd(rq);
 
-	sg_free_table_chained(&freq->sg_table, SG_CHUNK_SIZE);
+	sg_free_table_chained(&freq->sg_table, true);
 
 	freq->sg_cnt = 0;
 }
@@ -2342,25 +2313,46 @@ nvme_fc_queue_rq(struct blk_mq_hw_ctx *hctx,
 	if (ret)
 		return ret;
 
-	/*
-	 * nvme core doesn't quite treat the rq opaquely. Commands such
-	 * as WRITE ZEROES will return a non-zero rq payload_bytes yet
-	 * there is no actual payload to be transferred.
-	 * To get it right, key data transmission on there being 1 or
-	 * more physical segments in the sg list. If there is no
-	 * physical segments, there is no payload.
-	 */
-	if (blk_rq_nr_phys_segments(rq)) {
-		data_len = blk_rq_payload_bytes(rq);
+	data_len = blk_rq_payload_bytes(rq);
+	if (data_len)
 		io_dir = ((rq_data_dir(rq) == WRITE) ?
 					NVMEFC_FCP_WRITE : NVMEFC_FCP_READ);
-	} else {
-		data_len = 0;
+	else
 		io_dir = NVMEFC_FCP_NODATA;
-	}
-
 
 	return nvme_fc_start_fcp_op(ctrl, queue, op, data_len, io_dir);
+}
+
+static struct blk_mq_tags *
+nvme_fc_tagset(struct nvme_fc_queue *queue)
+{
+	if (queue->qnum == 0)
+		return queue->ctrl->admin_tag_set.tags[queue->qnum];
+
+	return queue->ctrl->tag_set.tags[queue->qnum - 1];
+}
+
+static int
+nvme_fc_poll(struct blk_mq_hw_ctx *hctx, unsigned int tag)
+
+{
+	struct nvme_fc_queue *queue = hctx->driver_data;
+	struct nvme_fc_ctrl *ctrl = queue->ctrl;
+	struct request *req;
+	struct nvme_fc_fcp_op *op;
+
+	req = blk_mq_tag_to_rq(nvme_fc_tagset(queue), tag);
+	if (!req)
+		return 0;
+
+	op = blk_mq_rq_to_pdu(req);
+
+	if ((atomic_read(&op->state) == FCPOP_STATE_ACTIVE) &&
+		 (ctrl->lport->ops->poll_queue))
+		ctrl->lport->ops->poll_queue(&ctrl->lport->localport,
+						 queue->lldd_handle);
+
+	return ((atomic_read(&op->state) != FCPOP_STATE_ACTIVE));
 }
 
 static void
@@ -2415,7 +2407,7 @@ nvme_fc_complete_rq(struct request *rq)
  * status. The done path will return the io request back to the block
  * layer with an error status.
  */
-static bool
+static void
 nvme_fc_terminate_exchange(struct request *req, void *data, bool reserved)
 {
 	struct nvme_ctrl *nctrl = data;
@@ -2423,7 +2415,6 @@ nvme_fc_terminate_exchange(struct request *req, void *data, bool reserved)
 	struct nvme_fc_fcp_op *op = blk_mq_rq_to_pdu(req);
 
 	__nvme_fc_abort_op(ctrl, op);
-	return true;
 }
 
 
@@ -2433,6 +2424,7 @@ static const struct blk_mq_ops nvme_fc_mq_ops = {
 	.init_request	= nvme_fc_init_request,
 	.exit_request	= nvme_fc_exit_request,
 	.init_hctx	= nvme_fc_init_hctx,
+	.poll		= nvme_fc_poll,
 	.timeout	= nvme_fc_timeout,
 };
 
@@ -2462,11 +2454,12 @@ nvme_fc_create_io_queues(struct nvme_fc_ctrl *ctrl)
 	ctrl->tag_set.ops = &nvme_fc_mq_ops;
 	ctrl->tag_set.queue_depth = ctrl->ctrl.opts->queue_size;
 	ctrl->tag_set.reserved_tags = 1; /* fabric connect */
-	ctrl->tag_set.numa_node = ctrl->ctrl.numa_node;
+	ctrl->tag_set.numa_node = NUMA_NO_NODE;
 	ctrl->tag_set.flags = BLK_MQ_F_SHOULD_MERGE;
-	ctrl->tag_set.cmd_size =
-		struct_size((struct nvme_fcp_op_w_sgl *)NULL, priv,
-			    ctrl->lport->ops->fcprqst_priv_sz);
+	ctrl->tag_set.cmd_size = sizeof(struct nvme_fc_fcp_op) +
+					(SG_CHUNK_SIZE *
+						sizeof(struct scatterlist)) +
+					ctrl->lport->ops->fcprqst_priv_sz;
 	ctrl->tag_set.driver_data = ctrl;
 	ctrl->tag_set.nr_hw_queues = ctrl->ctrl.queue_count - 1;
 	ctrl->tag_set.timeout = NVME_IO_TIMEOUT;
@@ -2513,7 +2506,6 @@ static int
 nvme_fc_recreate_io_queues(struct nvme_fc_ctrl *ctrl)
 {
 	struct nvmf_ctrl_options *opts = ctrl->ctrl.opts;
-	u32 prior_ioq_cnt = ctrl->ctrl.queue_count - 1;
 	unsigned int nr_io_queues;
 	int ret;
 
@@ -2524,13 +2516,6 @@ nvme_fc_recreate_io_queues(struct nvme_fc_ctrl *ctrl)
 		dev_info(ctrl->ctrl.device,
 			"set_queue_count failed: %d\n", ret);
 		return ret;
-	}
-
-	if (!nr_io_queues && prior_ioq_cnt) {
-		dev_info(ctrl->ctrl.device,
-			"Fail Reconnect: At least 1 io queue "
-			"required (was %d)\n", prior_ioq_cnt);
-		return -ENOSPC;
 	}
 
 	ctrl->ctrl.queue_count = nr_io_queues + 1;
@@ -2546,10 +2531,6 @@ nvme_fc_recreate_io_queues(struct nvme_fc_ctrl *ctrl)
 	if (ret)
 		goto out_delete_hw_queues;
 
-	if (prior_ioq_cnt != nr_io_queues)
-		dev_info(ctrl->ctrl.device,
-			"reconnect: revising io queue count from %d to %d\n",
-			prior_ioq_cnt, nr_io_queues);
 	blk_mq_update_nr_hw_queues(&ctrl->tag_set, nr_io_queues);
 
 	return 0;
@@ -2635,12 +2616,6 @@ nvme_fc_create_association(struct nvme_fc_ctrl *ctrl)
 	if (nvme_fc_ctlr_active_on_rport(ctrl))
 		return -ENOTUNIQ;
 
-	dev_info(ctrl->ctrl.device,
-		"NVME-FC{%d}: create association : host wwpn 0x%016llx "
-		" rport wwpn 0x%016llx: NQN \"%s\"\n",
-		ctrl->cnum, ctrl->lport->localport.port_name,
-		ctrl->rport->remoteport.port_name, ctrl->ctrl.opts->subsysnqn);
-
 	/*
 	 * Create the admin queue
 	 */
@@ -2655,6 +2630,8 @@ nvme_fc_create_association(struct nvme_fc_ctrl *ctrl)
 	if (ret)
 		goto out_delete_hw_queue;
 
+	blk_mq_unquiesce_queue(ctrl->ctrl.admin_q);
+
 	ret = nvmf_connect_admin_queue(&ctrl->ctrl);
 	if (ret)
 		goto out_disconnect_admin_queue;
@@ -2668,14 +2645,22 @@ nvme_fc_create_association(struct nvme_fc_ctrl *ctrl)
 	 * prior connection values
 	 */
 
-	ret = nvme_enable_ctrl(&ctrl->ctrl);
+	ret = nvmf_reg_read64(&ctrl->ctrl, NVME_REG_CAP, &ctrl->ctrl.cap);
+	if (ret) {
+		dev_err(ctrl->ctrl.device,
+			"prop_get NVME_REG_CAP failed\n");
+		goto out_disconnect_admin_queue;
+	}
+
+	ctrl->ctrl.sqsize =
+		min_t(int, NVME_CAP_MQES(ctrl->ctrl.cap), ctrl->ctrl.sqsize);
+
+	ret = nvme_enable_ctrl(&ctrl->ctrl, ctrl->ctrl.cap);
 	if (ret)
 		goto out_disconnect_admin_queue;
 
 	ctrl->ctrl.max_hw_sectors =
 		(ctrl->lport->ops->max_sgl_segments - 1) << (PAGE_SHIFT - 9);
-
-	blk_mq_unquiesce_queue(ctrl->ctrl.admin_q);
 
 	ret = nvme_init_identify(&ctrl->ctrl);
 	if (ret)
@@ -2786,7 +2771,6 @@ nvme_fc_delete_association(struct nvme_fc_ctrl *ctrl)
 		nvme_stop_queues(&ctrl->ctrl);
 		blk_mq_tagset_busy_iter(&ctrl->tag_set,
 				nvme_fc_terminate_exchange, &ctrl->ctrl);
-		blk_mq_tagset_wait_completed_request(&ctrl->tag_set);
 	}
 
 	/*
@@ -2809,7 +2793,6 @@ nvme_fc_delete_association(struct nvme_fc_ctrl *ctrl)
 	blk_mq_quiesce_queue(ctrl->ctrl.admin_q);
 	blk_mq_tagset_busy_iter(&ctrl->admin_tag_set,
 				nvme_fc_terminate_exchange, &ctrl->ctrl);
-	blk_mq_tagset_wait_completed_request(&ctrl->admin_tag_set);
 
 	/* kill the aens as they are a separate path */
 	nvme_fc_abort_aen_ops(ctrl);
@@ -3077,10 +3060,6 @@ nvme_fc_init_ctrl(struct device *dev, struct nvmf_ctrl_options *opts,
 
 	ctrl->ctrl.opts = opts;
 	ctrl->ctrl.nr_reconnects = 0;
-	if (lport->dev)
-		ctrl->ctrl.numa_node = dev_to_node(lport->dev);
-	else
-		ctrl->ctrl.numa_node = NUMA_NO_NODE;
 	INIT_LIST_HEAD(&ctrl->ctrl_list);
 	ctrl->lport = lport;
 	ctrl->rport = rport;
@@ -3121,10 +3100,11 @@ nvme_fc_init_ctrl(struct device *dev, struct nvmf_ctrl_options *opts,
 	ctrl->admin_tag_set.ops = &nvme_fc_admin_mq_ops;
 	ctrl->admin_tag_set.queue_depth = NVME_AQ_MQ_TAG_DEPTH;
 	ctrl->admin_tag_set.reserved_tags = 2; /* fabric connect + Keep-Alive */
-	ctrl->admin_tag_set.numa_node = ctrl->ctrl.numa_node;
-	ctrl->admin_tag_set.cmd_size =
-		struct_size((struct nvme_fcp_op_w_sgl *)NULL, priv,
-			    ctrl->lport->ops->fcprqst_priv_sz);
+	ctrl->admin_tag_set.numa_node = NUMA_NO_NODE;
+	ctrl->admin_tag_set.cmd_size = sizeof(struct nvme_fc_fcp_op) +
+					(SG_CHUNK_SIZE *
+						sizeof(struct scatterlist)) +
+					ctrl->lport->ops->fcprqst_priv_sz;
 	ctrl->admin_tag_set.driver_data = ctrl;
 	ctrl->admin_tag_set.nr_hw_queues = 1;
 	ctrl->admin_tag_set.timeout = ADMIN_TIMEOUT;
@@ -3135,16 +3115,10 @@ nvme_fc_init_ctrl(struct device *dev, struct nvmf_ctrl_options *opts,
 		goto out_free_queues;
 	ctrl->ctrl.admin_tagset = &ctrl->admin_tag_set;
 
-	ctrl->ctrl.fabrics_q = blk_mq_init_queue(&ctrl->admin_tag_set);
-	if (IS_ERR(ctrl->ctrl.fabrics_q)) {
-		ret = PTR_ERR(ctrl->ctrl.fabrics_q);
-		goto out_free_admin_tag_set;
-	}
-
 	ctrl->ctrl.admin_q = blk_mq_init_queue(&ctrl->admin_tag_set);
 	if (IS_ERR(ctrl->ctrl.admin_q)) {
 		ret = PTR_ERR(ctrl->ctrl.admin_q);
-		goto out_cleanup_fabrics_q;
+		goto out_free_admin_tag_set;
 	}
 
 	/*
@@ -3171,7 +3145,10 @@ nvme_fc_init_ctrl(struct device *dev, struct nvmf_ctrl_options *opts,
 		goto fail_ctrl;
 	}
 
+	nvme_get_ctrl(&ctrl->ctrl);
+
 	if (!queue_delayed_work(nvme_wq, &ctrl->connect_work, 0)) {
+		nvme_put_ctrl(&ctrl->ctrl);
 		dev_err(ctrl->ctrl.device,
 			"NVME-FC{%d}: failed to schedule initial connect\n",
 			ctrl->cnum);
@@ -3196,7 +3173,6 @@ fail_ctrl:
 
 	/* initiate nvme ctrl ref counting teardown */
 	nvme_uninit_ctrl(&ctrl->ctrl);
-	nvme_put_ctrl(&ctrl->ctrl);
 
 	/* Remove core ctrl ref. */
 	nvme_put_ctrl(&ctrl->ctrl);
@@ -3214,8 +3190,6 @@ fail_ctrl:
 
 out_cleanup_admin_q:
 	blk_cleanup_queue(ctrl->ctrl.admin_q);
-out_cleanup_fabrics_q:
-	blk_cleanup_queue(ctrl->ctrl.fabrics_q);
 out_free_admin_tag_set:
 	blk_mq_free_tag_set(&ctrl->admin_tag_set);
 out_free_queues:
@@ -3260,7 +3234,7 @@ nvme_fc_parse_traddr(struct nvmet_fc_traddr *traddr, char *buf, size_t blen)
 	substring_t wwn = { name, &name[sizeof(name)-1] };
 	int nnoffset, pnoffset;
 
-	/* validate if string is one of the 2 allowed formats */
+	/* validate it string one of the 2 allowed formats */
 	if (strnlen(buf, blen) == NVME_FC_TRADDR_MAXLENGTH &&
 			!strncmp(buf, "nn-0x", NVME_FC_TRADDR_OXNNLEN) &&
 			!strncmp(&buf[NVME_FC_TRADDR_MAX_PN_OFFSET],
@@ -3319,14 +3293,12 @@ nvme_fc_create_ctrl(struct device *dev, struct nvmf_ctrl_options *opts)
 	spin_lock_irqsave(&nvme_fc_lock, flags);
 	list_for_each_entry(lport, &nvme_fc_lport_list, port_list) {
 		if (lport->localport.node_name != laddr.nn ||
-		    lport->localport.port_name != laddr.pn ||
-		    lport->localport.port_state != FC_OBJSTATE_ONLINE)
+		    lport->localport.port_name != laddr.pn)
 			continue;
 
 		list_for_each_entry(rport, &lport->endp_list, endp_list) {
 			if (rport->remoteport.node_name != raddr.nn ||
-			    rport->remoteport.port_name != raddr.pn ||
-			    rport->remoteport.port_state != FC_OBJSTATE_ONLINE)
+			    rport->remoteport.port_name != raddr.pn)
 				continue;
 
 			/* if fail to get reference fall through. Will error */
@@ -3357,90 +3329,6 @@ static struct nvmf_transport_ops nvme_fc_transport = {
 	.create_ctrl	= nvme_fc_create_ctrl,
 };
 
-/* Arbitrary successive failures max. With lots of subsystems could be high */
-#define DISCOVERY_MAX_FAIL	20
-
-static ssize_t nvme_fc_nvme_discovery_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	unsigned long flags;
-	LIST_HEAD(local_disc_list);
-	struct nvme_fc_lport *lport;
-	struct nvme_fc_rport *rport;
-	int failcnt = 0;
-
-	spin_lock_irqsave(&nvme_fc_lock, flags);
-restart:
-	list_for_each_entry(lport, &nvme_fc_lport_list, port_list) {
-		list_for_each_entry(rport, &lport->endp_list, endp_list) {
-			if (!nvme_fc_lport_get(lport))
-				continue;
-			if (!nvme_fc_rport_get(rport)) {
-				/*
-				 * This is a temporary condition. Upon restart
-				 * this rport will be gone from the list.
-				 *
-				 * Revert the lport put and retry.  Anything
-				 * added to the list already will be skipped (as
-				 * they are no longer list_empty).  Loops should
-				 * resume at rports that were not yet seen.
-				 */
-				nvme_fc_lport_put(lport);
-
-				if (failcnt++ < DISCOVERY_MAX_FAIL)
-					goto restart;
-
-				pr_err("nvme_discovery: too many reference "
-				       "failures\n");
-				goto process_local_list;
-			}
-			if (list_empty(&rport->disc_list))
-				list_add_tail(&rport->disc_list,
-					      &local_disc_list);
-		}
-	}
-
-process_local_list:
-	while (!list_empty(&local_disc_list)) {
-		rport = list_first_entry(&local_disc_list,
-					 struct nvme_fc_rport, disc_list);
-		list_del_init(&rport->disc_list);
-		spin_unlock_irqrestore(&nvme_fc_lock, flags);
-
-		lport = rport->lport;
-		/* signal discovery. Won't hurt if it repeats */
-		nvme_fc_signal_discovery_scan(lport, rport);
-		nvme_fc_rport_put(rport);
-		nvme_fc_lport_put(lport);
-
-		spin_lock_irqsave(&nvme_fc_lock, flags);
-	}
-	spin_unlock_irqrestore(&nvme_fc_lock, flags);
-
-	return count;
-}
-static DEVICE_ATTR(nvme_discovery, 0200, NULL, nvme_fc_nvme_discovery_store);
-
-static struct attribute *nvme_fc_attrs[] = {
-	&dev_attr_nvme_discovery.attr,
-	NULL
-};
-
-static struct attribute_group nvme_fc_attr_group = {
-	.attrs = nvme_fc_attrs,
-};
-
-static const struct attribute_group *nvme_fc_attr_groups[] = {
-	&nvme_fc_attr_group,
-	NULL
-};
-
-static struct class fc_class = {
-	.name = "fc",
-	.dev_groups = nvme_fc_attr_groups,
-	.owner = THIS_MODULE,
-};
-
 static int __init nvme_fc_init_module(void)
 {
 	int ret;
@@ -3463,16 +3351,17 @@ static int __init nvme_fc_init_module(void)
 	 * put in place, this code will move to a more generic
 	 * location for the class.
 	 */
-	ret = class_register(&fc_class);
-	if (ret) {
+	fc_class = class_create(THIS_MODULE, "fc");
+	if (IS_ERR(fc_class)) {
 		pr_err("couldn't register class fc\n");
+		ret = PTR_ERR(fc_class);
 		goto out_destroy_wq;
 	}
 
 	/*
 	 * Create a device for the FC-centric udev events
 	 */
-	fc_udev_device = device_create(&fc_class, NULL, MKDEV(0, 0), NULL,
+	fc_udev_device = device_create(fc_class, NULL, MKDEV(0, 0), NULL,
 				"fc_udev_device");
 	if (IS_ERR(fc_udev_device)) {
 		pr_err("couldn't create fc_udev device!\n");
@@ -3487,68 +3376,28 @@ static int __init nvme_fc_init_module(void)
 	return 0;
 
 out_destroy_device:
-	device_destroy(&fc_class, MKDEV(0, 0));
+	device_destroy(fc_class, MKDEV(0, 0));
 out_destroy_class:
-	class_unregister(&fc_class);
+	class_destroy(fc_class);
 out_destroy_wq:
 	destroy_workqueue(nvme_fc_wq);
 
 	return ret;
 }
 
-static void
-nvme_fc_delete_controllers(struct nvme_fc_rport *rport)
-{
-	struct nvme_fc_ctrl *ctrl;
-
-	spin_lock(&rport->lock);
-	list_for_each_entry(ctrl, &rport->ctrl_list, ctrl_list) {
-		dev_warn(ctrl->ctrl.device,
-			"NVME-FC{%d}: transport unloading: deleting ctrl\n",
-			ctrl->cnum);
-		nvme_delete_ctrl(&ctrl->ctrl);
-	}
-	spin_unlock(&rport->lock);
-}
-
-static void
-nvme_fc_cleanup_for_unload(void)
-{
-	struct nvme_fc_lport *lport;
-	struct nvme_fc_rport *rport;
-
-	list_for_each_entry(lport, &nvme_fc_lport_list, port_list) {
-		list_for_each_entry(rport, &lport->endp_list, endp_list) {
-			nvme_fc_delete_controllers(rport);
-		}
-	}
-}
-
 static void __exit nvme_fc_exit_module(void)
 {
-	unsigned long flags;
-	bool need_cleanup = false;
-
-	spin_lock_irqsave(&nvme_fc_lock, flags);
-	nvme_fc_waiting_to_unload = true;
-	if (!list_empty(&nvme_fc_lport_list)) {
-		need_cleanup = true;
-		nvme_fc_cleanup_for_unload();
-	}
-	spin_unlock_irqrestore(&nvme_fc_lock, flags);
-	if (need_cleanup) {
-		pr_info("%s: waiting for ctlr deletes\n", __func__);
-		wait_for_completion(&nvme_fc_unload_proceed);
-		pr_info("%s: ctrl deletes complete\n", __func__);
-	}
+	/* sanity check - all lports should be removed */
+	if (!list_empty(&nvme_fc_lport_list))
+		pr_warn("%s: localport list not empty\n", __func__);
 
 	nvmf_unregister_transport(&nvme_fc_transport);
 
 	ida_destroy(&nvme_fc_local_port_cnt);
 	ida_destroy(&nvme_fc_ctrl_cnt);
 
-	device_destroy(&fc_class, MKDEV(0, 0));
-	class_unregister(&fc_class);
+	device_destroy(fc_class, MKDEV(0, 0));
+	class_destroy(fc_class);
 	destroy_workqueue(nvme_fc_wq);
 }
 

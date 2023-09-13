@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 obj-$(CONFIG_X86_INTEL_MID) += intel-mid.o intel_mid_vrtc.o pwr.o
 
 # SFI specific code

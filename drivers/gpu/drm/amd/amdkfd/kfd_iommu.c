@@ -20,10 +20,6 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <linux/kconfig.h>
-
-#if IS_REACHABLE(CONFIG_AMD_IOMMU_V2)
-
 #include <linux/printk.h>
 #include <linux/device.h>
 #include <linux/slab.h>
@@ -70,8 +66,16 @@ int kfd_iommu_device_init(struct kfd_dev *kfd)
 
 	top_dev = kfd_topology_device_by_id(kfd->id);
 
-	if (!kfd->device_info->needs_iommu_device)
+	/*
+	 * Overwrite ATS capability according to needs_iommu_device to fix
+	 * potential missing corresponding bit in CRAT of BIOS.
+	 */
+	if (!kfd->device_info->needs_iommu_device) {
+		top_dev->node_props.capability &= ~HSA_CAP_ATS_PRESENT;
 		return 0;
+	}
+
+	top_dev->node_props.capability |= HSA_CAP_ATS_PRESENT;
 
 	iommu_info.flags = 0;
 	err = amd_iommu_device_info(kfd->pdev, &iommu_info);
@@ -362,5 +366,3 @@ int kfd_iommu_add_perf_counters(struct kfd_topology_device *kdev)
 
 	return 0;
 }
-
-#endif

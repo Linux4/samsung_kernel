@@ -1,8 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0+
 /*
  * AD7150 capacitive sensor driver supporting AD7150/1/6
  *
  * Copyright 2010-2011 Analog Devices Inc.
+ *
+ * Licensed under the GPL-2 or later.
  */
 
 #include <linux/bitfield.h>
@@ -45,9 +46,6 @@
 #define AD7150_SN1                 21
 #define AD7150_SN0                 22
 #define AD7150_ID                  23
-
-/* AD7150 masks */
-#define AD7150_THRESHTYPE_MSK			GENMASK(6, 5)
 
 /**
  * struct ad7150_chip_info - instance specific chip data
@@ -105,19 +103,18 @@ static int ad7150_read_raw(struct iio_dev *indio_dev,
 {
 	int ret;
 	struct ad7150_chip_info *chip = iio_priv(indio_dev);
-	int channel = chan->channel;
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
 		ret = i2c_smbus_read_word_data(chip->client,
-					       ad7150_addresses[channel][0]);
+					ad7150_addresses[chan->channel][0]);
 		if (ret < 0)
 			return ret;
 		*val = swab16(ret);
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_AVERAGE_RAW:
 		ret = i2c_smbus_read_word_data(chip->client,
-					       ad7150_addresses[channel][1]);
+					ad7150_addresses[chan->channel][1]);
 		if (ret < 0)
 			return ret;
 		*val = swab16(ret);
@@ -141,7 +138,7 @@ static int ad7150_read_event_config(struct iio_dev *indio_dev,
 	if (ret < 0)
 		return ret;
 
-	threshtype = FIELD_GET(AD7150_THRESHTYPE_MSK, ret);
+	threshtype = (ret >> 5) & 0x03;
 
 	/*check if threshold mode is fixed or adaptive*/
 	thrfixed = FIELD_GET(AD7150_CFG_FIX, ret);
@@ -165,8 +162,7 @@ static int ad7150_read_event_config(struct iio_dev *indio_dev,
 	return -EINVAL;
 }
 
-/* state_lock should be held to ensure consistent state*/
-
+/* lock should be held */
 static int ad7150_write_event_params(struct iio_dev *indio_dev,
 				     unsigned int chan,
 				     enum iio_event_type type,
@@ -189,8 +185,8 @@ static int ad7150_write_event_params(struct iio_dev *indio_dev,
 	case IIO_EV_TYPE_THRESH:
 		value = chip->threshold[rising][chan];
 		return i2c_smbus_write_word_data(chip->client,
-						 ad7150_addresses[chan][3],
-						 swab16(value));
+						ad7150_addresses[chan][3],
+						swab16(value));
 	case IIO_EV_TYPE_MAG_ADAPTIVE:
 		sens = chip->mag_sensitivity[rising][chan];
 		timeout = chip->mag_timeout[rising][chan];
@@ -205,11 +201,16 @@ static int ad7150_write_event_params(struct iio_dev *indio_dev,
 	ret = i2c_smbus_write_byte_data(chip->client,
 					ad7150_addresses[chan][4],
 					sens);
-	if (ret)
+	if (ret < 0)
 		return ret;
-	return i2c_smbus_write_byte_data(chip->client,
+
+	ret = i2c_smbus_write_byte_data(chip->client,
 					ad7150_addresses[chan][5],
 					timeout);
+	if (ret < 0)
+		return ret;
+
+	return 0;
 }
 
 static int ad7150_write_event_config(struct iio_dev *indio_dev,
@@ -352,8 +353,8 @@ static ssize_t ad7150_show_timeout(struct device *dev,
 
 	/* use the event code for consistency reasons */
 	int chan = IIO_EVENT_CODE_EXTRACT_CHAN(this_attr->address);
-	int rising = (IIO_EVENT_CODE_EXTRACT_DIR(this_attr->address)
-		      == IIO_EV_DIR_RISING) ? 1 : 0;
+	int rising = !!(IIO_EVENT_CODE_EXTRACT_DIR(this_attr->address)
+			== IIO_EV_DIR_RISING);
 
 	switch (IIO_EVENT_CODE_EXTRACT_TYPE(this_attr->address)) {
 	case IIO_EV_TYPE_MAG_ADAPTIVE:
@@ -467,20 +468,29 @@ static const struct iio_event_spec ad7150_events[] = {
 	},
 };
 
-#define AD7150_CAPACITANCE_CHAN(_chan)	{			\
-		.type = IIO_CAPACITANCE,			\
-		.indexed = 1,					\
-		.channel = _chan,				\
-		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |	\
-		BIT(IIO_CHAN_INFO_AVERAGE_RAW),			\
-		.event_spec = ad7150_events,			\
-		.num_event_specs = ARRAY_SIZE(ad7150_events),	\
-	}
-
 static const struct iio_chan_spec ad7150_channels[] = {
-	AD7150_CAPACITANCE_CHAN(0),
-	AD7150_CAPACITANCE_CHAN(1)
+	{
+		.type = IIO_CAPACITANCE,
+		.indexed = 1,
+		.channel = 0,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
+		BIT(IIO_CHAN_INFO_AVERAGE_RAW),
+		.event_spec = ad7150_events,
+		.num_event_specs = ARRAY_SIZE(ad7150_events),
+	}, {
+		.type = IIO_CAPACITANCE,
+		.indexed = 1,
+		.channel = 1,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
+		BIT(IIO_CHAN_INFO_AVERAGE_RAW),
+		.event_spec = ad7150_events,
+		.num_event_specs = ARRAY_SIZE(ad7150_events),
+	},
 };
+
+/*
+ * threshold events
+ */
 
 static irqreturn_t ad7150_event_handler(int irq, void *private)
 {
@@ -569,6 +579,10 @@ static const struct iio_info ad7150_info = {
 	.read_event_value = &ad7150_read_event_value,
 	.write_event_value = &ad7150_write_event_value,
 };
+
+/*
+ * device probe and remove
+ */
 
 static int ad7150_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)

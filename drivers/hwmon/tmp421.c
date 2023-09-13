@@ -1,9 +1,18 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /* tmp421.c
  *
  * Copyright (C) 2009 Andre Prendel <andre.prendel@gmx.de>
  * Preliminary support by:
  * Melvin Rook, Raymond Ng
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 /*
@@ -61,7 +70,7 @@ static const struct i2c_device_id tmp421_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, tmp421_id);
 
-static const struct of_device_id __maybe_unused tmp421_of_match[] = {
+static const struct of_device_id tmp421_of_match[] = {
 	{
 		.compatible = "ti,tmp421",
 		.data = (void *)2
@@ -100,17 +109,23 @@ struct tmp421_data {
 	s16 temp[4];
 };
 
-static int temp_from_raw(u16 reg, bool extended)
+static int temp_from_s16(s16 reg)
 {
 	/* Mask out status bits */
 	int temp = reg & ~0xf;
 
-	if (extended)
-		temp = temp - 64 * 256;
-	else
-		temp = (s16)temp;
+	return (temp * 1000 + 128) / 256;
+}
 
-	return DIV_ROUND_CLOSEST(temp * 1000, 256);
+static int temp_from_u16(u16 reg)
+{
+	/* Mask out status bits */
+	int temp = reg & ~0xf;
+
+	/* Add offset for extended temperature range. */
+	temp -= 64 * 256;
+
+	return (temp * 1000 + 128) / 256;
 }
 
 static struct tmp421_data *tmp421_update_device(struct device *dev)
@@ -147,15 +162,17 @@ static int tmp421_read(struct device *dev, enum hwmon_sensor_types type,
 
 	switch (attr) {
 	case hwmon_temp_input:
-		*val = temp_from_raw(tmp421->temp[channel],
-				     tmp421->config & TMP421_CONFIG_RANGE);
+		if (tmp421->config & TMP421_CONFIG_RANGE)
+			*val = temp_from_u16(tmp421->temp[channel]);
+		else
+			*val = temp_from_s16(tmp421->temp[channel]);
 		return 0;
 	case hwmon_temp_fault:
 		/*
-		 * Any of OPEN or /PVLD bits indicate a hardware mulfunction
-		 * and the conversion result may be incorrect
+		 * The OPEN bit signals a fault. This is bit 0 of the temperature
+		 * register (low byte).
 		 */
-		*val = !!(tmp421->temp[channel] & 0x03);
+		*val = tmp421->temp[channel] & 0x01;
 		return 0;
 	default:
 		return -EOPNOTSUPP;
@@ -168,8 +185,11 @@ static umode_t tmp421_is_visible(const void *data, enum hwmon_sensor_types type,
 {
 	switch (attr) {
 	case hwmon_temp_fault:
+		if (channel == 0)
+			return 0;
+		return S_IRUGO;
 	case hwmon_temp_input:
-		return 0444;
+		return S_IRUGO;
 	default:
 		return 0;
 	}
@@ -206,10 +226,8 @@ static int tmp421_detect(struct i2c_client *client,
 {
 	enum chips kind;
 	struct i2c_adapter *adapter = client->adapter;
-	static const char * const names[] = {
-		"TMP421", "TMP422", "TMP423",
-		"TMP441", "TMP442"
-	};
+	const char * const names[] = { "TMP421", "TMP422", "TMP423",
+				       "TMP441", "TMP442" };
 	int addr = client->addr;
 	u8 reg;
 

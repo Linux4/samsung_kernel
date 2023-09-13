@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2014, The Linux Foundation. All rights reserved.
  * Debug helper to dump the current kernel pagetables of the system
@@ -8,6 +7,11 @@
  * (C) Copyright 2008 Intel Corporation
  *
  * Author: Arjan van de Ven <arjan@linux.intel.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; version 2
+ * of the License.
  */
 #include <linux/debugfs.h>
 #include <linux/errno.h>
@@ -25,26 +29,15 @@
 #include <asm/pgtable-hwdef.h>
 #include <asm/ptdump.h>
 
-
-enum address_markers_idx {
-	PAGE_OFFSET_NR = 0,
-	PAGE_END_NR,
+static const struct addr_marker address_markers[] = {
 #ifdef CONFIG_KASAN
-	KASAN_START_NR,
-#endif
-};
-
-static struct addr_marker address_markers[] = {
-	{ PAGE_OFFSET,			"Linear Mapping start" },
-	{ 0 /* PAGE_END */,		"Linear Mapping end" },
-#ifdef CONFIG_KASAN
-	{ 0 /* KASAN_SHADOW_START */,	"Kasan shadow start" },
+	{ KASAN_SHADOW_START,		"Kasan shadow start" },
 	{ KASAN_SHADOW_END,		"Kasan shadow end" },
 #endif
 	{ MODULES_VADDR,		"Modules start" },
 	{ MODULES_END,			"Modules end" },
-	{ VMALLOC_START,		"vmalloc() area" },
-	{ VMALLOC_END,			"vmalloc() end" },
+	{ VMALLOC_START,		"vmalloc() Area" },
+	{ VMALLOC_END,			"vmalloc() End" },
 	{ FIXADDR_START,		"Fixmap start" },
 	{ FIXADDR_TOP,			"Fixmap end" },
 	{ PCI_IO_START,			"PCI I/O start" },
@@ -53,6 +46,7 @@ static struct addr_marker address_markers[] = {
 	{ VMEMMAP_START,		"vmemmap start" },
 	{ VMEMMAP_START + VMEMMAP_SIZE,	"vmemmap end" },
 #endif
+	{ PAGE_OFFSET,			"Linear Mapping" },
 	{ -1,				NULL },
 };
 
@@ -292,73 +286,74 @@ static void note_page(struct pg_state *st, unsigned long addr, unsigned level,
 
 }
 
-static void walk_pte(struct pg_state *st, pmd_t *pmdp, unsigned long start,
-		     unsigned long end)
+static void walk_pte(struct pg_state *st, pmd_t *pmdp, unsigned long start)
 {
-	unsigned long addr = start;
-	pte_t *ptep = pte_offset_kernel(pmdp, start);
+	pte_t *ptep = pte_offset_kernel(pmdp, 0UL);
+	unsigned long addr;
+	unsigned i;
 
-	do {
+	for (i = 0; i < PTRS_PER_PTE; i++, ptep++) {
+		addr = start + i * PAGE_SIZE;
 		note_page(st, addr, 4, READ_ONCE(pte_val(*ptep)));
-	} while (ptep++, addr += PAGE_SIZE, addr != end);
+	}
 }
 
-static void walk_pmd(struct pg_state *st, pud_t *pudp, unsigned long start,
-		     unsigned long end)
+static void walk_pmd(struct pg_state *st, pud_t *pudp, unsigned long start)
 {
-	unsigned long next, addr = start;
-	pmd_t *pmdp = pmd_offset(pudp, start);
+	pmd_t *pmdp = pmd_offset(pudp, 0UL);
+	unsigned long addr;
+	unsigned i;
 
-	do {
+	for (i = 0; i < PTRS_PER_PMD; i++, pmdp++) {
 		pmd_t pmd = READ_ONCE(*pmdp);
-		next = pmd_addr_end(addr, end);
 
+		addr = start + i * PMD_SIZE;
 		if (pmd_none(pmd) || pmd_sect(pmd)) {
 			note_page(st, addr, 3, pmd_val(pmd));
 		} else {
 			BUG_ON(pmd_bad(pmd));
-			walk_pte(st, pmdp, addr, next);
+			walk_pte(st, pmdp, addr);
 		}
-	} while (pmdp++, addr = next, addr != end);
+	}
 }
 
-static void walk_pud(struct pg_state *st, pgd_t *pgdp, unsigned long start,
-		     unsigned long end)
+static void walk_pud(struct pg_state *st, pgd_t *pgdp, unsigned long start)
 {
-	unsigned long next, addr = start;
-	pud_t *pudp = pud_offset(pgdp, start);
+	pud_t *pudp = pud_offset(pgdp, 0UL);
+	unsigned long addr;
+	unsigned i;
 
-	do {
+	for (i = 0; i < PTRS_PER_PUD; i++, pudp++) {
 		pud_t pud = READ_ONCE(*pudp);
-		next = pud_addr_end(addr, end);
 
+		addr = start + i * PUD_SIZE;
 		if (pud_none(pud) || pud_sect(pud)) {
 			note_page(st, addr, 2, pud_val(pud));
 		} else {
 			BUG_ON(pud_bad(pud));
-			walk_pmd(st, pudp, addr, next);
+			walk_pmd(st, pudp, addr);
 		}
-	} while (pudp++, addr = next, addr != end);
+	}
 }
 
 static void walk_pgd(struct pg_state *st, struct mm_struct *mm,
 		     unsigned long start)
 {
-	unsigned long end = (start < TASK_SIZE_64) ? TASK_SIZE_64 : 0;
-	unsigned long next, addr = start;
-	pgd_t *pgdp = pgd_offset(mm, start);
+	pgd_t *pgdp = pgd_offset(mm, 0UL);
+	unsigned i;
+	unsigned long addr;
 
-	do {
+	for (i = 0; i < PTRS_PER_PGD; i++, pgdp++) {
 		pgd_t pgd = READ_ONCE(*pgdp);
-		next = pgd_addr_end(addr, end);
 
+		addr = start + i * PGDIR_SIZE;
 		if (pgd_none(pgd)) {
 			note_page(st, addr, 1, pgd_val(pgd));
 		} else {
 			BUG_ON(pgd_bad(pgd));
-			walk_pud(st, pgdp, addr, next);
+			walk_pud(st, pgdp, addr);
 		}
-	} while (pgdp++, addr = next, addr != end);
+	}
 }
 
 void ptdump_walk_pgd(struct seq_file *m, struct ptdump_info *info)
@@ -386,7 +381,7 @@ static void ptdump_initialize(void)
 static struct ptdump_info kernel_ptdump_info = {
 	.mm		= &init_mm,
 	.markers	= address_markers,
-	.base_addr	= PAGE_OFFSET,
+	.base_addr	= VA_START,
 };
 
 void ptdump_check_wx(void)
@@ -400,7 +395,7 @@ void ptdump_check_wx(void)
 		.check_wx = true,
 	};
 
-	walk_pgd(&st, &init_mm, PAGE_OFFSET);
+	walk_pgd(&st, &init_mm, VA_START);
 	note_page(&st, 0, 0, 0);
 	if (st.wx_pages || st.uxn_pages)
 		pr_warn("Checked W+X mappings: FAILED, %lu W+X pages found, %lu non-UXN pages found\n",
@@ -411,12 +406,8 @@ void ptdump_check_wx(void)
 
 static int ptdump_init(void)
 {
-	address_markers[PAGE_END_NR].start_address = PAGE_END;
-#ifdef CONFIG_KASAN
-	address_markers[KASAN_START_NR].start_address = KASAN_SHADOW_START;
-#endif
 	ptdump_initialize();
-	ptdump_debugfs_register(&kernel_ptdump_info, "kernel_page_tables");
-	return 0;
+	return ptdump_debugfs_register(&kernel_ptdump_info,
+					"kernel_page_tables");
 }
 device_initcall(ptdump_init);

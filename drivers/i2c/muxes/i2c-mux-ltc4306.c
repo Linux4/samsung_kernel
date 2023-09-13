@@ -1,8 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Linear Technology LTC4306 and LTC4305 I2C multiplexer/switch
  *
  * Copyright (C) 2017 Analog Devices Inc.
+ *
+ * Licensed under the GPL-2.
  *
  * Based on: i2c-mux-pca954x.c
  *
@@ -207,7 +208,7 @@ MODULE_DEVICE_TABLE(of, ltc4306_of_match);
 
 static int ltc4306_probe(struct i2c_client *client)
 {
-	struct i2c_adapter *adap = client->adapter;
+	struct i2c_adapter *adap = to_i2c_adapter(client->dev.parent);
 	const struct chip_desc *chip;
 	struct i2c_mux_core *muxc;
 	struct ltc4306 *data;

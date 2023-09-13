@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /* Low-level parallel port routines for the Multiface 3 card
  *
  * Author: Joerg Dorchain <joerg@dorchain.net>

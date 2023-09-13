@@ -65,7 +65,6 @@ struct ent {
 	u32               id;
 	char              name[IDMAP_NAMESZ];
 	char              authname[IDMAP_NAMESZ];
-	struct rcu_head	  rcu_head;
 };
 
 /* Common entry handling */
@@ -83,14 +82,14 @@ ent_init(struct cache_head *cnew, struct cache_head *citm)
 	new->type = itm->type;
 
 	strlcpy(new->name, itm->name, sizeof(new->name));
-	strlcpy(new->authname, itm->authname, sizeof(new->authname));
+	strlcpy(new->authname, itm->authname, sizeof(new->name));
 }
 
 static void
 ent_put(struct kref *ref)
 {
 	struct ent *map = container_of(ref, struct ent, h.ref);
-	kfree_rcu(map, rcu_head);
+	kfree(map);
 }
 
 static struct cache_head *
@@ -265,8 +264,8 @@ out:
 static struct ent *
 idtoname_lookup(struct cache_detail *cd, struct ent *item)
 {
-	struct cache_head *ch = sunrpc_cache_lookup_rcu(cd, &item->h,
-							idtoname_hash(item));
+	struct cache_head *ch = sunrpc_cache_lookup(cd, &item->h,
+						    idtoname_hash(item));
 	if (ch)
 		return container_of(ch, struct ent, h);
 	else
@@ -423,8 +422,8 @@ out:
 static struct ent *
 nametoid_lookup(struct cache_detail *cd, struct ent *item)
 {
-	struct cache_head *ch = sunrpc_cache_lookup_rcu(cd, &item->h,
-							nametoid_hash(item));
+	struct cache_head *ch = sunrpc_cache_lookup(cd, &item->h,
+						    nametoid_hash(item));
 	if (ch)
 		return container_of(ch, struct ent, h);
 	else
@@ -634,7 +633,7 @@ nfsd_map_name_to_uid(struct svc_rqst *rqstp, const char *name, size_t namelen,
 		return nfserr_inval;
 
 	status = do_name_to_id(rqstp, IDMAP_TYPE_USER, name, namelen, &id);
-	*uid = make_kuid(nfsd_user_namespace(rqstp), id);
+	*uid = make_kuid(&init_user_ns, id);
 	if (!uid_valid(*uid))
 		status = nfserr_badowner;
 	return status;
@@ -651,7 +650,7 @@ nfsd_map_name_to_gid(struct svc_rqst *rqstp, const char *name, size_t namelen,
 		return nfserr_inval;
 
 	status = do_name_to_id(rqstp, IDMAP_TYPE_GROUP, name, namelen, &id);
-	*gid = make_kgid(nfsd_user_namespace(rqstp), id);
+	*gid = make_kgid(&init_user_ns, id);
 	if (!gid_valid(*gid))
 		status = nfserr_badowner;
 	return status;
@@ -660,13 +659,13 @@ nfsd_map_name_to_gid(struct svc_rqst *rqstp, const char *name, size_t namelen,
 __be32 nfsd4_encode_user(struct xdr_stream *xdr, struct svc_rqst *rqstp,
 			 kuid_t uid)
 {
-	u32 id = from_kuid_munged(nfsd_user_namespace(rqstp), uid);
+	u32 id = from_kuid(&init_user_ns, uid);
 	return encode_name_from_id(xdr, rqstp, IDMAP_TYPE_USER, id);
 }
 
 __be32 nfsd4_encode_group(struct xdr_stream *xdr, struct svc_rqst *rqstp,
 			  kgid_t gid)
 {
-	u32 id = from_kgid_munged(nfsd_user_namespace(rqstp), gid);
+	u32 id = from_kgid(&init_user_ns, gid);
 	return encode_name_from_id(xdr, rqstp, IDMAP_TYPE_GROUP, id);
 }

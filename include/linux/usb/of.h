@@ -24,6 +24,7 @@ bool usb_of_has_combined_node(struct usb_device *udev);
 struct device_node *usb_of_get_interface_node(struct usb_device *udev,
 		u8 config, u8 ifnum);
 struct device *usb_of_get_companion_dev(struct device *dev);
+unsigned int of_usb_get_suspend_clk_freq(struct device *dev);
 #else
 static inline enum usb_dr_mode
 of_usb_get_dr_mode_by_phy(struct device_node *np, int arg0)

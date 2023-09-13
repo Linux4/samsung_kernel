@@ -74,7 +74,7 @@ struct mbxfb_info {
 
 	u32 pseudo_palette[MAX_PALETTES];
 #ifdef CONFIG_FB_MBX_DEBUG
-	struct dentry *debugfs_dir;
+	void *debugfs_data;
 #endif
 
 };
@@ -899,8 +899,10 @@ static int mbxfb_probe(struct platform_device *dev)
 	}
 
 	fbi = framebuffer_alloc(sizeof(struct mbxfb_info), &dev->dev);
-	if (!fbi)
+	if (fbi == NULL) {
+		dev_err(&dev->dev, "framebuffer_alloc failed\n");
 		return -ENOMEM;
+	}
 
 	mfbi = fbi->par;
 	fbi->pseudo_palette = mfbi->pseudo_palette;

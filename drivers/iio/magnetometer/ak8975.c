@@ -1,10 +1,23 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * A sensor driver for the magnetometer AK8975.
  *
  * Magnetic compass sensor driver for monitoring magnetic flux information.
  *
  * Copyright (c) 2010, NVIDIA Corporation.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA	02110-1301, USA.
  */
 
 #include <linux/module.h>
@@ -368,12 +381,6 @@ struct ak8975_data {
 	struct iio_mount_matrix orientation;
 	struct regulator	*vdd;
 	struct regulator	*vid;
-
-	/* Ensure natural alignment of timestamp */
-	struct {
-		s16 channels[3];
-		s64 ts __aligned(8);
-	} scan;
 };
 
 /* Enable attached power regulator if any. */
@@ -391,7 +398,6 @@ static int ak8975_power_on(const struct ak8975_data *data)
 	if (ret) {
 		dev_warn(&data->client->dev,
 			 "Failed to enable specified Vid supply\n");
-		regulator_disable(data->vdd);
 		return ret;
 	}
 	/*
@@ -740,14 +746,12 @@ static const struct iio_mount_matrix *
 ak8975_get_mount_matrix(const struct iio_dev *indio_dev,
 			const struct iio_chan_spec *chan)
 {
-	struct ak8975_data *data = iio_priv(indio_dev);
-
-	return &data->orientation;
+	return &((struct ak8975_data *)iio_priv(indio_dev))->orientation;
 }
 
 static const struct iio_chan_spec_ext_info ak8975_ext_info[] = {
 	IIO_MOUNT_MATRIX(IIO_SHARED_BY_DIR, ak8975_get_mount_matrix),
-	{ }
+	{ },
 };
 
 #define AK8975_CHANNEL(axis, index)					\
@@ -786,9 +790,8 @@ static const struct acpi_device_id ak_acpi_match[] = {
 	{"INVN6500", AK8963},
 	{"AK009911", AK09911},
 	{"AK09911", AK09911},
-	{"AKM9911", AK09911},
 	{"AK09912", AK09912},
-	{ }
+	{ },
 };
 MODULE_DEVICE_TABLE(acpi, ak_acpi_match);
 #endif
@@ -812,6 +815,7 @@ static void ak8975_fill_buffer(struct iio_dev *indio_dev)
 	const struct i2c_client *client = data->client;
 	const struct ak_def *def = data->def;
 	int ret;
+	s16 buff[8]; /* 3 x 16 bits axis values + 1 aligned 64 bits timestamp */
 	__le16 fval[3];
 
 	mutex_lock(&data->lock);
@@ -834,13 +838,12 @@ static void ak8975_fill_buffer(struct iio_dev *indio_dev)
 	mutex_unlock(&data->lock);
 
 	/* Clamp to valid range. */
-	data->scan.channels[0] = clamp_t(s16, le16_to_cpu(fval[0]), -def->range, def->range);
-	data->scan.channels[1] = clamp_t(s16, le16_to_cpu(fval[1]), -def->range, def->range);
-	data->scan.channels[2] = clamp_t(s16, le16_to_cpu(fval[2]), -def->range, def->range);
+	buff[0] = clamp_t(s16, le16_to_cpu(fval[0]), -def->range, def->range);
+	buff[1] = clamp_t(s16, le16_to_cpu(fval[1]), -def->range, def->range);
+	buff[2] = clamp_t(s16, le16_to_cpu(fval[2]), -def->range, def->range);
 
-	iio_push_to_buffers_with_timestamp(indio_dev, &data->scan,
+	iio_push_to_buffers_with_timestamp(indio_dev, buff,
 					   iio_get_time_ns(indio_dev));
-
 	return;
 
 unlock:
@@ -907,8 +910,9 @@ static int ak8975_probe(struct i2c_client *client,
 	data->eoc_irq = 0;
 
 	if (!pdata) {
-		err = iio_read_mount_matrix(&client->dev, "mount-matrix",
-					    &data->orientation);
+		err = of_iio_read_mount_matrix(&client->dev,
+					       "mount-matrix",
+					       &data->orientation);
 		if (err)
 			return err;
 	} else

@@ -1,11 +1,17 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * ff-pcm.c - a part of driver for RME Fireface series
  *
  * Copyright (c) 2015-2017 Takashi Sakamoto
+ *
+ * Licensed under the terms of the GNU General Public License, version 2.
  */
 
 #include "ff.h"
+
+static inline unsigned int get_multiplier_mode_with_index(unsigned int index)
+{
+	return ((int)index - 1) / 2;
+}
 
 static int hw_rule_rate(struct snd_pcm_hw_params *params,
 			struct snd_pcm_hw_rule *rule)
@@ -18,16 +24,10 @@ static int hw_rule_rate(struct snd_pcm_hw_params *params,
 	struct snd_interval t = {
 		.min = UINT_MAX, .max = 0, .integer = 1
 	};
-	unsigned int i;
+	unsigned int i, mode;
 
 	for (i = 0; i < ARRAY_SIZE(amdtp_rate_table); i++) {
-		enum snd_ff_stream_mode mode;
-		int err;
-
-		err = snd_ff_stream_get_multiplier_mode(i, &mode);
-		if (err < 0)
-			continue;
-
+		mode = get_multiplier_mode_with_index(i);
 		if (!snd_interval_test(c, pcm_channels[mode]))
 			continue;
 
@@ -49,16 +49,10 @@ static int hw_rule_channels(struct snd_pcm_hw_params *params,
 	struct snd_interval t = {
 		.min = UINT_MAX, .max = 0, .integer = 1
 	};
-	unsigned int i;
+	unsigned int i, mode;
 
 	for (i = 0; i < ARRAY_SIZE(amdtp_rate_table); i++) {
-		enum snd_ff_stream_mode mode;
-		int err;
-
-		err = snd_ff_stream_get_multiplier_mode(i, &mode);
-		if (err < 0)
-			continue;
-
+		mode = get_multiplier_mode_with_index(i);
 		if (!snd_interval_test(r, amdtp_rate_table[i]))
 			continue;
 
@@ -72,6 +66,7 @@ static int hw_rule_channels(struct snd_pcm_hw_params *params,
 static void limit_channels_and_rates(struct snd_pcm_hardware *hw,
 				     const unsigned int *pcm_channels)
 {
+	unsigned int mode;
 	unsigned int rate, channels;
 	int i;
 
@@ -81,12 +76,7 @@ static void limit_channels_and_rates(struct snd_pcm_hardware *hw,
 	hw->rate_max = 0;
 
 	for (i = 0; i < ARRAY_SIZE(amdtp_rate_table); i++) {
-		enum snd_ff_stream_mode mode;
-		int err;
-
-		err = snd_ff_stream_get_multiplier_mode(i, &mode);
-		if (err < 0)
-			continue;
+		mode = get_multiplier_mode_with_index(i);
 
 		channels = pcm_channels[mode];
 		if (pcm_channels[mode] == 0)
@@ -198,8 +188,8 @@ static int pcm_close(struct snd_pcm_substream *substream)
 	return 0;
 }
 
-static int pcm_hw_params(struct snd_pcm_substream *substream,
-			 struct snd_pcm_hw_params *hw_params)
+static int pcm_capture_hw_params(struct snd_pcm_substream *substream,
+				 struct snd_pcm_hw_params *hw_params)
 {
 	struct snd_ff *ff = substream->private_data;
 	int err;
@@ -210,26 +200,58 @@ static int pcm_hw_params(struct snd_pcm_substream *substream,
 		return err;
 
 	if (substream->runtime->status->state == SNDRV_PCM_STATE_OPEN) {
-		unsigned int rate = params_rate(hw_params);
-
 		mutex_lock(&ff->mutex);
-		err = snd_ff_stream_reserve_duplex(ff, rate);
-		if (err >= 0)
-			++ff->substreams_counter;
+		ff->substreams_counter++;
 		mutex_unlock(&ff->mutex);
 	}
 
-	return err;
+	return 0;
 }
 
-static int pcm_hw_free(struct snd_pcm_substream *substream)
+static int pcm_playback_hw_params(struct snd_pcm_substream *substream,
+				  struct snd_pcm_hw_params *hw_params)
+{
+	struct snd_ff *ff = substream->private_data;
+	int err;
+
+	err = snd_pcm_lib_alloc_vmalloc_buffer(substream,
+					       params_buffer_bytes(hw_params));
+	if (err < 0)
+		return err;
+
+	if (substream->runtime->status->state == SNDRV_PCM_STATE_OPEN) {
+		mutex_lock(&ff->mutex);
+		ff->substreams_counter++;
+		mutex_unlock(&ff->mutex);
+	}
+
+	return 0;
+}
+
+static int pcm_capture_hw_free(struct snd_pcm_substream *substream)
 {
 	struct snd_ff *ff = substream->private_data;
 
 	mutex_lock(&ff->mutex);
 
 	if (substream->runtime->status->state != SNDRV_PCM_STATE_OPEN)
-		--ff->substreams_counter;
+		ff->substreams_counter--;
+
+	snd_ff_stream_stop_duplex(ff);
+
+	mutex_unlock(&ff->mutex);
+
+	return snd_pcm_lib_free_vmalloc_buffer(substream);
+}
+
+static int pcm_playback_hw_free(struct snd_pcm_substream *substream)
+{
+	struct snd_ff *ff = substream->private_data;
+
+	mutex_lock(&ff->mutex);
+
+	if (substream->runtime->status->state != SNDRV_PCM_STATE_OPEN)
+		ff->substreams_counter--;
 
 	snd_ff_stream_stop_duplex(ff);
 
@@ -342,8 +364,8 @@ int snd_ff_create_pcm_devices(struct snd_ff *ff)
 		.open		= pcm_open,
 		.close		= pcm_close,
 		.ioctl		= snd_pcm_lib_ioctl,
-		.hw_params	= pcm_hw_params,
-		.hw_free	= pcm_hw_free,
+		.hw_params	= pcm_capture_hw_params,
+		.hw_free	= pcm_capture_hw_free,
 		.prepare	= pcm_capture_prepare,
 		.trigger	= pcm_capture_trigger,
 		.pointer	= pcm_capture_pointer,
@@ -354,8 +376,8 @@ int snd_ff_create_pcm_devices(struct snd_ff *ff)
 		.open		= pcm_open,
 		.close		= pcm_close,
 		.ioctl		= snd_pcm_lib_ioctl,
-		.hw_params	= pcm_hw_params,
-		.hw_free	= pcm_hw_free,
+		.hw_params	= pcm_playback_hw_params,
+		.hw_free	= pcm_playback_hw_free,
 		.prepare	= pcm_playback_prepare,
 		.trigger	= pcm_playback_trigger,
 		.pointer	= pcm_playback_pointer,

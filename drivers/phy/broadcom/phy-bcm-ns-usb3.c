@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Broadcom Northstar USB 3.0 PHY Driver
  *
@@ -8,6 +7,10 @@
  * All magic values used for initialization (and related comments) were obtained
  * from Broadcom's SDK:
  * Copyright (c) Broadcom Corp, 2012
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/bcma/bcma.h>

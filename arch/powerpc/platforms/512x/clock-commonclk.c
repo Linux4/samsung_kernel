@@ -1,10 +1,14 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright (C) 2013 DENX Software Engineering
  *
  * Gerhard Sittig, <gsi@denx.de>
  *
  * common clock driver support for the MPC512x platform
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  */
 
 #include <linux/bitops.h>
@@ -235,7 +239,6 @@ static inline struct clk *mpc512x_clk_divider(
 	const char *name, const char *parent_name, u8 clkflags,
 	u32 __iomem *reg, u8 pos, u8 len, int divflags)
 {
-	divflags |= CLK_DIVIDER_BIG_ENDIAN;
 	return clk_register_divider(NULL, name, parent_name, clkflags,
 				    reg, pos, len, divflags, &clklock);
 }
@@ -247,7 +250,7 @@ static inline struct clk *mpc512x_clk_divtable(
 {
 	u8 divflags;
 
-	divflags = CLK_DIVIDER_BIG_ENDIAN;
+	divflags = 0;
 	return clk_register_divider_table(NULL, name, parent_name, 0,
 					  reg, pos, len, divflags,
 					  divtab, &clklock);
@@ -258,12 +261,10 @@ static inline struct clk *mpc512x_clk_gated(
 	u32 __iomem *reg, u8 pos)
 {
 	int clkflags;
-	u8 gateflags;
 
 	clkflags = CLK_SET_RATE_PARENT;
-	gateflags = CLK_GATE_BIG_ENDIAN;
 	return clk_register_gate(NULL, name, parent_name, clkflags,
-				 reg, pos, gateflags, &clklock);
+				 reg, pos, 0, &clklock);
 }
 
 static inline struct clk *mpc512x_clk_muxed(const char *name,
@@ -274,7 +275,7 @@ static inline struct clk *mpc512x_clk_muxed(const char *name,
 	u8 muxflags;
 
 	clkflags = CLK_SET_RATE_PARENT;
-	muxflags = CLK_MUX_BIG_ENDIAN;
+	muxflags = 0;
 	return clk_register_mux(NULL, name,
 				parent_names, parent_count, clkflags,
 				reg, pos, len, muxflags, &clklock);

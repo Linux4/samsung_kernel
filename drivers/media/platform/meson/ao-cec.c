@@ -601,14 +601,20 @@ static const struct cec_adap_ops meson_ao_cec_ops = {
 static int meson_ao_cec_probe(struct platform_device *pdev)
 {
 	struct meson_ao_cec_device *ao_cec;
-	struct device *hdmi_dev;
+	struct platform_device *hdmi_dev;
+	struct device_node *np;
 	struct resource *res;
 	int ret, irq;
 
-	hdmi_dev = cec_notifier_parse_hdmi_phandle(&pdev->dev);
+	np = of_parse_phandle(pdev->dev.of_node, "hdmi-phandle", 0);
+	if (!np) {
+		dev_err(&pdev->dev, "Failed to find hdmi node\n");
+		return -ENODEV;
+	}
 
-	if (IS_ERR(hdmi_dev))
-		return PTR_ERR(hdmi_dev);
+	hdmi_dev = of_find_device_by_node(np);
+	if (hdmi_dev == NULL)
+		return -EPROBE_DEFER;
 
 	ao_cec = devm_kzalloc(&pdev->dev, sizeof(*ao_cec), GFP_KERNEL);
 	if (!ao_cec)
@@ -616,13 +622,21 @@ static int meson_ao_cec_probe(struct platform_device *pdev)
 
 	spin_lock_init(&ao_cec->cec_reg_lock);
 
+	ao_cec->notify = cec_notifier_get(&hdmi_dev->dev);
+	if (!ao_cec->notify)
+		return -ENOMEM;
+
 	ao_cec->adap = cec_allocate_adapter(&meson_ao_cec_ops, ao_cec,
 					    "meson_ao_cec",
-					    CEC_CAP_DEFAULTS |
-					    CEC_CAP_CONNECTOR_INFO,
+					    CEC_CAP_LOG_ADDRS |
+					    CEC_CAP_TRANSMIT |
+					    CEC_CAP_RC |
+					    CEC_CAP_PASSTHROUGH,
 					    1); /* Use 1 for now */
-	if (IS_ERR(ao_cec->adap))
-		return PTR_ERR(ao_cec->adap);
+	if (IS_ERR(ao_cec->adap)) {
+		ret = PTR_ERR(ao_cec->adap);
+		goto out_probe_notify;
+	}
 
 	ao_cec->adap->owner = THIS_MODULE;
 
@@ -667,31 +681,28 @@ static int meson_ao_cec_probe(struct platform_device *pdev)
 	ao_cec->pdev = pdev;
 	platform_set_drvdata(pdev, ao_cec);
 
-	ao_cec->notify = cec_notifier_cec_adap_register(hdmi_dev, NULL,
-							ao_cec->adap);
-	if (!ao_cec->notify) {
-		ret = -ENOMEM;
+	ret = cec_register_adapter(ao_cec->adap, &pdev->dev);
+	if (ret < 0) {
+		cec_notifier_put(ao_cec->notify);
 		goto out_probe_clk;
 	}
-
-	ret = cec_register_adapter(ao_cec->adap, &pdev->dev);
-	if (ret < 0)
-		goto out_probe_notify;
 
 	/* Setup Hardware */
 	writel_relaxed(CEC_GEN_CNTL_RESET,
 		       ao_cec->base + CEC_GEN_CNTL_REG);
 
-	return 0;
+	cec_register_cec_notifier(ao_cec->adap, ao_cec->notify);
 
-out_probe_notify:
-	cec_notifier_cec_adap_unregister(ao_cec->notify);
+	return 0;
 
 out_probe_clk:
 	clk_disable_unprepare(ao_cec->core);
 
 out_probe_adapter:
 	cec_delete_adapter(ao_cec->adap);
+
+out_probe_notify:
+	cec_notifier_put(ao_cec->notify);
 
 	dev_err(&pdev->dev, "CEC controller registration failed\n");
 
@@ -704,8 +715,9 @@ static int meson_ao_cec_remove(struct platform_device *pdev)
 
 	clk_disable_unprepare(ao_cec->core);
 
-	cec_notifier_cec_adap_unregister(ao_cec->notify);
 	cec_unregister_adapter(ao_cec->adap);
+
+	cec_notifier_put(ao_cec->notify);
 
 	return 0;
 }

@@ -1,8 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *	linux/kernel/softirq.c
  *
  *	Copyright (C) 1992 Linus Torvalds
+ *
+ *	Distribute under GPLv2.
  *
  *	Rewritten. Old one was good in 2.2, but in 2.3 it was immoral. --ANK (990903)
  */
@@ -25,13 +26,12 @@
 #include <linux/smpboot.h>
 #include <linux/tick.h>
 #include <linux/irq.h>
+#include <linux/debug-snapshot.h>
+#include <linux/sched/clock.h>
+#include <linux/nmi.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/irq.h>
-
-#if IS_ENABLED(CONFIG_SEC_DEBUG_SCHED_LOG)
-#include <linux/sec_debug.h>
-#endif
 
 /*
    - No shared variables, all the data are CPU local.
@@ -60,13 +60,6 @@ static struct softirq_action softirq_vec[NR_SOFTIRQS] __cacheline_aligned_in_smp
 
 DEFINE_PER_CPU(struct task_struct *, ksoftirqd);
 
-/*
- * active_softirqs -- per cpu, a mask of softirqs that are being handled,
- * with the expectation that approximate answers are acceptable and therefore
- * no synchronization.
- */
-DEFINE_PER_CPU(__u32, active_softirqs);
-
 const char * const softirq_to_name[NR_SOFTIRQS] = {
 	"HI", "TIMER", "NET_TX", "NET_RX", "BLOCK", "IRQ_POLL",
 	"TASKLET", "SCHED", "HRTIMER", "RCU"
@@ -85,6 +78,21 @@ static void wakeup_softirqd(void)
 
 	if (tsk && tsk->state != TASK_RUNNING)
 		wake_up_process(tsk);
+}
+
+/*
+ * If ksoftirqd is scheduled, we do not want to process pending softirqs
+ * right now. Let ksoftirqd handle this at its own rate, to get fairness,
+ * unless we're doing some of the synchronous softirqs.
+ */
+#define SOFTIRQ_NOW_MASK ((1 << HI_SOFTIRQ) | (1 << TASKLET_SOFTIRQ))
+static bool ksoftirqd_running(unsigned long pending)
+{
+	struct task_struct *tsk = __this_cpu_read(ksoftirqd);
+
+	if (pending & SOFTIRQ_NOW_MASK)
+		return false;
+	return tsk && (tsk->state == TASK_RUNNING);
 }
 
 /*
@@ -241,44 +249,33 @@ static inline bool lockdep_softirq_start(void) { return false; }
 static inline void lockdep_softirq_end(bool in_hardirq) { }
 #endif
 
-#define softirq_deferred_for_rt(pending)		\
-({							\
-	__u32 deferred = 0;				\
-	if (cpupri_check_rt()) {			\
-		deferred = pending & LONG_SOFTIRQ_MASK; \
-		pending &= ~LONG_SOFTIRQ_MASK;		\
-	}						\
-	deferred;					\
-})
-
 asmlinkage __visible void __softirq_entry __do_softirq(void)
 {
 	unsigned long end = jiffies + MAX_SOFTIRQ_TIME;
 	unsigned long old_flags = current->flags;
+	unsigned long long start_time;
 	int max_restart = MAX_SOFTIRQ_RESTART;
 	struct softirq_action *h;
 	bool in_hardirq;
-	__u32 deferred;
 	__u32 pending;
 	int softirq_bit;
 
 	/*
-	 * Mask out PF_MEMALLOC as the current task context is borrowed for the
-	 * softirq. A softirq handled, such as network RX, might set PF_MEMALLOC
-	 * again if the socket is related to swapping.
+	 * Mask out PF_MEMALLOC s current task context is borrowed for the
+	 * softirq. A softirq handled such as network RX might set PF_MEMALLOC
+	 * again if the socket is related to swap
 	 */
 	current->flags &= ~PF_MEMALLOC;
 
 	pending = local_softirq_pending();
-	deferred = softirq_deferred_for_rt(pending);
 	account_irq_enter_time(current);
+
 	__local_bh_disable_ip(_RET_IP_, SOFTIRQ_OFFSET);
 	in_hardirq = lockdep_softirq_start();
 
 restart:
 	/* Reset the pending bitmask before enabling irqs */
-	set_softirq_pending(deferred);
-	__this_cpu_write(active_softirqs, pending);
+	set_softirq_pending(0);
 
 	local_irq_enable();
 
@@ -295,15 +292,18 @@ restart:
 
 		kstat_incr_softirqs_this_cpu(vec_nr);
 
-#if IS_ENABLED(CONFIG_SEC_DEBUG_SCHED_LOG)
-		sec_debug_softirq_sched_log(vec_nr, h->action, "softirq", SOFTIRQ_ENTRY);
-#endif
 		trace_softirq_entry(vec_nr);
+		dbg_snapshot_irq_var(start_time);
+		dbg_snapshot_irq(DSS_FLAG_SOFTIRQ, h->action, NULL, 0, DSS_FLAG_IN);
+#ifdef CONFIG_SEC_DEBUG_LOCKUP_INFO
+		sl_softirq_entry(softirq_to_name[vec_nr], h->action);
 		h->action(h);
-		trace_softirq_exit(vec_nr);
-#if IS_ENABLED(CONFIG_SEC_DEBUG_SCHED_LOG)
-		sec_debug_softirq_sched_log(vec_nr, h->action, "softirq", SOFTIRQ_EXIT);
+		sl_softirq_exit();
+#else
+		h->action(h);
 #endif
+		dbg_snapshot_irq(DSS_FLAG_SOFTIRQ, h->action, NULL, start_time, DSS_FLAG_OUT);
+		trace_softirq_exit(vec_nr);
 		if (unlikely(prev_count != preempt_count())) {
 			pr_err("huh, entered softirq %u %s %p with preempt_count %08x, exited with %08x?\n",
 			       vec_nr, softirq_to_name[vec_nr], h->action,
@@ -314,22 +314,18 @@ restart:
 		pending >>= softirq_bit;
 	}
 
-	__this_cpu_write(active_softirqs, 0);
-	if (__this_cpu_read(ksoftirqd) == current)
-		rcu_softirq_qs();
+	rcu_bh_qs();
 	local_irq_disable();
 
 	pending = local_softirq_pending();
-	deferred = softirq_deferred_for_rt(pending);
-
 	if (pending) {
 		if (time_before(jiffies, end) && !need_resched() &&
 		    --max_restart)
 			goto restart;
+
+		wakeup_softirqd();
 	}
 
-	if (pending | deferred)
-		wakeup_softirqd();
 	lockdep_softirq_end(in_hardirq);
 	account_irq_exit_time(current);
 	__local_bh_enable(SOFTIRQ_OFFSET);
@@ -349,7 +345,7 @@ asmlinkage __visible void do_softirq(void)
 
 	pending = local_softirq_pending();
 
-	if (pending)
+	if (pending && !ksoftirqd_running(pending))
 		do_softirq_own_stack();
 
 	local_irq_restore(flags);
@@ -376,6 +372,9 @@ void irq_enter(void)
 
 static inline void invoke_softirq(void)
 {
+	if (ksoftirqd_running(local_softirq_pending()))
+		return;
+
 	if (!force_irqthreads) {
 #ifdef CONFIG_HAVE_IRQ_EXIT_ON_IRQ_STACK
 		/*
@@ -428,9 +427,6 @@ void irq_exit(void)
 	tick_irq_exit();
 	rcu_irq_exit();
 	trace_hardirq_exit(); /* must be last! */
-#if IS_ENABLED(CONFIG_SEC_DEBUG_MSG_LOG)
-	sec_debug_msg_log("hardirq exit");
-#endif
 }
 
 /*
@@ -519,6 +515,7 @@ static void tasklet_action_common(struct softirq_action *a,
 				  unsigned int softirq_nr)
 {
 	struct tasklet_struct *list;
+	unsigned long long start_time;
 
 	local_irq_disable();
 	list = tl_head->head;
@@ -536,15 +533,24 @@ static void tasklet_action_common(struct softirq_action *a,
 				if (!test_and_clear_bit(TASKLET_STATE_SCHED,
 							&t->state))
 					BUG();
-#if IS_ENABLED(CONFIG_SEC_DEBUG_SCHED_LOG)
-				sec_debug_softirq_sched_log(-1, t->func, "tasklet_action", SOFTIRQ_ENTRY);
-#endif
-				trace_tasklet_entry(t->func);
+				dbg_snapshot_irq_var(start_time);
+				dbg_snapshot_irq(DSS_FLAG_SOFTIRQ_TASKLET,
+						t->func, NULL, 0, DSS_FLAG_IN);
+#ifdef CONFIG_SEC_DEBUG_LOCKUP_INFO
+				if(softirq_nr == TASKLET_SOFTIRQ) {
+					sl_softirq_entry(softirq_to_name[TASKLET_SOFTIRQ], t->func);
+					t->func(t->data);
+					sl_softirq_exit();
+				} else{
+					sl_softirq_entry(softirq_to_name[HI_SOFTIRQ], t->func);
+					t->func(t->data);
+					sl_softirq_exit();
+				}
+#else
 				t->func(t->data);
-				trace_tasklet_exit(t->func);
-#if IS_ENABLED(CONFIG_SEC_DEBUG_SCHED_LOG)
-				sec_debug_softirq_sched_log(-1, t->func, "tasklet_action", SOFTIRQ_EXIT);
 #endif
+				dbg_snapshot_irq(DSS_FLAG_SOFTIRQ_TASKLET,
+						t->func, NULL, start_time, DSS_FLAG_OUT);
 				tasklet_unlock(t);
 				continue;
 			}
@@ -595,6 +601,57 @@ void tasklet_kill(struct tasklet_struct *t)
 	clear_bit(TASKLET_STATE_SCHED, &t->state);
 }
 EXPORT_SYMBOL(tasklet_kill);
+
+/*
+ * tasklet_hrtimer
+ */
+
+/*
+ * The trampoline is called when the hrtimer expires. It schedules a tasklet
+ * to run __tasklet_hrtimer_trampoline() which in turn will call the intended
+ * hrtimer callback, but from softirq context.
+ */
+static enum hrtimer_restart __hrtimer_tasklet_trampoline(struct hrtimer *timer)
+{
+	struct tasklet_hrtimer *ttimer =
+		container_of(timer, struct tasklet_hrtimer, timer);
+
+	tasklet_hi_schedule(&ttimer->tasklet);
+	return HRTIMER_NORESTART;
+}
+
+/*
+ * Helper function which calls the hrtimer callback from
+ * tasklet/softirq context
+ */
+static void __tasklet_hrtimer_trampoline(unsigned long data)
+{
+	struct tasklet_hrtimer *ttimer = (void *)data;
+	enum hrtimer_restart restart;
+
+	restart = ttimer->function(&ttimer->timer);
+	if (restart != HRTIMER_NORESTART)
+		hrtimer_restart(&ttimer->timer);
+}
+
+/**
+ * tasklet_hrtimer_init - Init a tasklet/hrtimer combo for softirq callbacks
+ * @ttimer:	 tasklet_hrtimer which is initialized
+ * @function:	 hrtimer callback function which gets called from softirq context
+ * @which_clock: clock id (CLOCK_MONOTONIC/CLOCK_REALTIME)
+ * @mode:	 hrtimer mode (HRTIMER_MODE_ABS/HRTIMER_MODE_REL)
+ */
+void tasklet_hrtimer_init(struct tasklet_hrtimer *ttimer,
+			  enum hrtimer_restart (*function)(struct hrtimer *),
+			  clockid_t which_clock, enum hrtimer_mode mode)
+{
+	hrtimer_init(&ttimer->timer, which_clock, mode);
+	ttimer->timer.function = __hrtimer_tasklet_trampoline;
+	tasklet_init(&ttimer->tasklet, __tasklet_hrtimer_trampoline,
+		     (unsigned long)ttimer);
+	ttimer->function = function;
+}
+EXPORT_SYMBOL_GPL(tasklet_hrtimer_init);
 
 void __init softirq_init(void)
 {
@@ -673,7 +730,7 @@ static int takeover_tasklets(unsigned int cpu)
 	/* Find end, append list for that CPU. */
 	if (&per_cpu(tasklet_vec, cpu).head != per_cpu(tasklet_vec, cpu).tail) {
 		*__this_cpu_read(tasklet_vec.tail) = per_cpu(tasklet_vec, cpu).head;
-		__this_cpu_write(tasklet_vec.tail, per_cpu(tasklet_vec, cpu).tail);
+		this_cpu_write(tasklet_vec.tail, per_cpu(tasklet_vec, cpu).tail);
 		per_cpu(tasklet_vec, cpu).head = NULL;
 		per_cpu(tasklet_vec, cpu).tail = &per_cpu(tasklet_vec, cpu).head;
 	}

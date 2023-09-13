@@ -23,8 +23,7 @@ bool __should_failslab(struct kmem_cache *s, gfp_t gfpflags)
 	if (gfpflags & __GFP_NOFAIL)
 		return false;
 
-	if (failslab.ignore_gfp_reclaim &&
-			(gfpflags & __GFP_DIRECT_RECLAIM))
+	if (failslab.ignore_gfp_reclaim && (gfpflags & __GFP_RECLAIM))
 		return false;
 
 	if (failslab.cache_filter && !(s->flags & SLAB_FAILSLAB))
@@ -49,12 +48,18 @@ static int __init failslab_debugfs_init(void)
 	if (IS_ERR(dir))
 		return PTR_ERR(dir);
 
-	debugfs_create_bool("ignore-gfp-wait", mode, dir,
-			    &failslab.ignore_gfp_reclaim);
-	debugfs_create_bool("cache-filter", mode, dir,
-			    &failslab.cache_filter);
+	if (!debugfs_create_bool("ignore-gfp-wait", mode, dir,
+				&failslab.ignore_gfp_reclaim))
+		goto fail;
+	if (!debugfs_create_bool("cache-filter", mode, dir,
+				&failslab.cache_filter))
+		goto fail;
 
 	return 0;
+fail:
+	debugfs_remove_recursive(dir);
+
+	return -ENOMEM;
 }
 
 late_initcall(failslab_debugfs_init);

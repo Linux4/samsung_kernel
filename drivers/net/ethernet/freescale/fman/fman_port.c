@@ -1756,7 +1756,6 @@ static int fman_port_probe(struct platform_device *of_dev)
 	struct fman_port *port;
 	struct fman *fman;
 	struct device_node *fm_node, *port_node;
-	struct platform_device *fm_pdev;
 	struct resource res;
 	struct resource *dev_res;
 	u32 val;
@@ -1781,17 +1780,11 @@ static int fman_port_probe(struct platform_device *of_dev)
 		goto return_err;
 	}
 
-	fm_pdev = of_find_device_by_node(fm_node);
+	fman = dev_get_drvdata(&of_find_device_by_node(fm_node)->dev);
 	of_node_put(fm_node);
-	if (!fm_pdev) {
-		err = -EINVAL;
-		goto return_err;
-	}
-
-	fman = dev_get_drvdata(&fm_pdev->dev);
 	if (!fman) {
 		err = -EINVAL;
-		goto put_device;
+		goto return_err;
 	}
 
 	err = of_property_read_u32(port_node, "cell-index", &val);
@@ -1799,7 +1792,7 @@ static int fman_port_probe(struct platform_device *of_dev)
 		dev_err(port->dev, "%s: reading cell-index for %pOF failed\n",
 			__func__, port_node);
 		err = -EINVAL;
-		goto put_device;
+		goto return_err;
 	}
 	port_id = (u8)val;
 	port->dts_params.id = port_id;
@@ -1833,7 +1826,7 @@ static int fman_port_probe(struct platform_device *of_dev)
 	}  else {
 		dev_err(port->dev, "%s: Illegal port type\n", __func__);
 		err = -EINVAL;
-		goto put_device;
+		goto return_err;
 	}
 
 	port->dts_params.type = port_type;
@@ -1847,7 +1840,7 @@ static int fman_port_probe(struct platform_device *of_dev)
 			dev_err(port->dev, "%s: incorrect qman-channel-id\n",
 				__func__);
 			err = -EINVAL;
-			goto put_device;
+			goto return_err;
 		}
 		port->dts_params.qman_channel_id = qman_channel_id;
 	}
@@ -1857,7 +1850,7 @@ static int fman_port_probe(struct platform_device *of_dev)
 		dev_err(port->dev, "%s: of_address_to_resource() failed\n",
 			__func__);
 		err = -ENOMEM;
-		goto put_device;
+		goto return_err;
 	}
 
 	port->dts_params.fman = fman;
@@ -1882,8 +1875,6 @@ static int fman_port_probe(struct platform_device *of_dev)
 
 	return 0;
 
-put_device:
-	put_device(&fm_pdev->dev);
 return_err:
 	of_node_put(port_node);
 free_port:

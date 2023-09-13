@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * sgiseeq.c: Seeq8003 ethernet driver for SGI machines.
  *

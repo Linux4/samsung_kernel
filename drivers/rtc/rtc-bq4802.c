@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /* rtc-bq4802.c: TI BQ4802 RTC driver.
  *
  * Copyright (C) 2008 David S. Miller <davem@davemloft.net>

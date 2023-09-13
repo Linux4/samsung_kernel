@@ -61,7 +61,7 @@ struct netns_ipv4 {
 #endif
 	bool			fib_has_custom_local_routes;
 #ifdef CONFIG_IP_ROUTE_CLASSID
-	atomic_t		fib_num_tclassid_users;
+	int			fib_num_tclassid_users;
 #endif
 	struct hlist_head	*fib_table_hash;
 	bool			fib_offload_disabled;
@@ -72,7 +72,7 @@ struct netns_ipv4 {
 
 	struct inet_peer_base	*peers;
 	struct sock  * __percpu	*tcp_sk;
-	struct fqdir		*fqdir;
+	struct netns_frags	frags;
 #ifdef CONFIG_NETFILTER
 	struct xt_table		*iptable_filter;
 	struct xt_table		*iptable_mangle;
@@ -104,9 +104,6 @@ struct netns_ipv4 {
 	/* Shall we try to damage output packets if routing dev changes? */
 	int sysctl_ip_dynaddr;
 	int sysctl_ip_early_demux;
-#ifdef CONFIG_NET_L3_MASTER_DEV
-	int sysctl_raw_l3mdev_accept;
-#endif
 	int sysctl_tcp_early_demux;
 	int sysctl_udp_early_demux;
 
@@ -116,7 +113,6 @@ struct netns_ipv4 {
 	int sysctl_tcp_l3mdev_accept;
 #endif
 	int sysctl_tcp_mtu_probing;
-	int sysctl_tcp_mtu_probe_floor;
 	int sysctl_tcp_base_mss;
 	int sysctl_tcp_min_snd_mss;
 	int sysctl_tcp_probe_threshold;
@@ -197,7 +193,6 @@ struct netns_ipv4 {
 
 #ifdef CONFIG_SYSCTL
 	unsigned long *sysctl_local_reserved_ports;
-	unsigned long *sysctl_local_unbindable_ports;
 	int sysctl_ip_prot_sock;
 #endif
 

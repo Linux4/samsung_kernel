@@ -9,7 +9,6 @@
 #include <linux/hardirq.h>
 #include <linux/perf_event.h>
 #include <linux/tracepoint.h>
-#include <linux/coresight-stm.h>
 
 struct trace_array;
 struct trace_buffer;
@@ -143,7 +142,6 @@ enum print_line_t {
 enum print_line_t trace_handle_return(struct trace_seq *s);
 
 void tracing_generic_entry_update(struct trace_entry *entry,
-				  unsigned short type,
 				  unsigned long flags,
 				  int pc);
 struct trace_event_file;
@@ -217,12 +215,8 @@ struct trace_event_buffer {
 void *trace_event_buffer_reserve(struct trace_event_buffer *fbuffer,
 				  struct trace_event_file *trace_file,
 				  unsigned long len);
-#ifdef CONFIG_CORESIGHT_QGKI
-void trace_event_buffer_commit(struct trace_event_buffer *fbuffer,
-			       unsigned long len);
-#else
+
 void trace_event_buffer_commit(struct trace_event_buffer *fbuffer);
-#endif
 
 enum {
 	TRACE_EVENT_FL_FILTERED_BIT,
@@ -321,14 +315,6 @@ trace_event_name(struct trace_event_call *call)
 		return call->tp ? call->tp->name : NULL;
 	else
 		return call->name;
-}
-
-static inline struct list_head *
-trace_get_fields(struct trace_event_call *event_call)
-{
-	if (!event_call->class->get_fields)
-		return &event_call->class->fields;
-	return event_call->class->get_fields(event_call);
 }
 
 struct trace_array;
@@ -442,44 +428,6 @@ enum event_trigger_type {
 	ETT_HIST_ENABLE		= (1 << 5),
 };
 
-#ifdef CONFIG_KPROBES_DEBUG
-struct dyn_event_operations;
-
-/**
- * struct dyn_event - Dynamic event list header
- *
- * The dyn_event structure encapsulates a list and a pointer to the operators
- * for making a global list of dynamic events.
- * User must includes this in each event structure, so that those events can
- * be added/removed via dynamic_events interface.
- */
-struct dyn_event {
-	struct list_head		list;
-	struct dyn_event_operations	*ops;
-};
-
-struct synth_field {
-	char *type;
-	char *name;
-	size_t size;
-	bool is_signed;
-	bool is_string;
-};
-
-struct synth_event {
-	struct dyn_event			devent;
-	int					ref;
-	char					*name;
-	struct synth_field			**fields;
-	unsigned int				n_fields;
-	unsigned int				n_u64;
-	struct trace_event_class		class;
-	struct trace_event_call			call;
-	struct tracepoint			*tp;
-};
-extern struct synth_event *find_synth_event(const char *name);
-#endif
-
 extern int filter_match_preds(struct event_filter *filter, void *rec);
 
 extern enum event_trigger_type
@@ -523,8 +471,7 @@ void perf_event_detach_bpf_prog(struct perf_event *event);
 int perf_event_query_prog_array(struct perf_event *event, void __user *info);
 int bpf_probe_register(struct bpf_raw_event_map *btp, struct bpf_prog *prog);
 int bpf_probe_unregister(struct bpf_raw_event_map *btp, struct bpf_prog *prog);
-struct bpf_raw_event_map *bpf_get_raw_tracepoint(const char *name);
-void bpf_put_raw_tracepoint(struct bpf_raw_event_map *btp);
+struct bpf_raw_event_map *bpf_find_raw_tracepoint(const char *name);
 int bpf_get_perf_event_info(const struct perf_event *event, u32 *prog_id,
 			    u32 *fd_type, const char **buf,
 			    u64 *probe_offset, u64 *probe_addr);
@@ -555,12 +502,9 @@ static inline int bpf_probe_unregister(struct bpf_raw_event_map *btp, struct bpf
 {
 	return -EOPNOTSUPP;
 }
-static inline struct bpf_raw_event_map *bpf_get_raw_tracepoint(const char *name)
+static inline struct bpf_raw_event_map *bpf_find_raw_tracepoint(const char *name)
 {
 	return NULL;
-}
-static inline void bpf_put_raw_tracepoint(struct bpf_raw_event_map *btp)
-{
 }
 static inline int bpf_get_perf_event_info(const struct perf_event *event,
 					  u32 *prog_id, u32 *fd_type,
@@ -585,13 +529,14 @@ extern int trace_event_raw_init(struct trace_event_call *call);
 extern int trace_define_field(struct trace_event_call *call, const char *type,
 			      const char *name, int offset, int size,
 			      int is_signed, int filter_type);
+extern int trace_add_event_call_nolock(struct trace_event_call *call);
+extern int trace_remove_event_call_nolock(struct trace_event_call *call);
 extern int trace_add_event_call(struct trace_event_call *call);
 extern int trace_remove_event_call(struct trace_event_call *call);
 extern int trace_event_get_offsets(struct trace_event_call *call);
 
 #define is_signed_type(type)	(((type)(-1)) < (type)1)
 
-int ftrace_set_clr_event(struct trace_array *tr, char *buf, int set);
 int trace_set_clr_event(const char *system, const char *event, int set);
 
 /*
@@ -632,8 +577,7 @@ extern int bpf_get_kprobe_info(const struct perf_event *event,
 			       bool perf_type_tracepoint);
 #endif
 #ifdef CONFIG_UPROBE_EVENTS
-extern int  perf_uprobe_init(struct perf_event *event,
-			     unsigned long ref_ctr_offset, bool is_retprobe);
+extern int  perf_uprobe_init(struct perf_event *event, bool is_retprobe);
 extern void perf_uprobe_destroy(struct perf_event *event);
 extern int bpf_get_uprobe_info(const struct perf_event *event,
 			       u32 *fd_type, const char **filename,

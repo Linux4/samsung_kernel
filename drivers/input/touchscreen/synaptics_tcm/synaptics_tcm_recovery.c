@@ -1,9 +1,13 @@
 /*
  * Synaptics TCM touchscreen driver
  *
- * Copyright (C) 2017-2019 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
  *
- * Copyright (C) 2017-2019 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2018-2019 Ian Su <ian.su@tw.synaptics.com>
+ * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@synaptics.com>
+ * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@synaptics.com>
+ * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,7 +38,7 @@
 
 #define SET_UP_RECOVERY_MODE true
 
-#define ENABLE_SYSFS_INTERFACE true
+#define ENABLE_SYSFS_RECOVERY true
 
 #define SYSFS_DIR_NAME "recovery"
 
@@ -68,6 +72,32 @@
 
 #define F35_READ_FLASH_STATUS_COMMAND 1
 
+#define BINARY_FILE_MAGIC_VALUE 0xaa55
+
+#define FLASH_PAGE_SIZE 256
+
+#define STATUS_CHECK_US_MIN 5000
+
+#define STATUS_CHECK_US_MAX 10000
+
+#define STATUS_CHECK_RETRY 50
+
+#define DATA_ROMBOOT_BUF_SIZE (512 * 256)
+
+struct block_data {
+	const unsigned char *data;
+	unsigned int size;
+	unsigned int flash_addr;
+};
+
+struct image_info {
+	unsigned int packrat_number;
+	struct block_data boot_config;
+	struct block_data app_firmware;
+	struct block_data app_config;
+	struct block_data disp_config;
+};
+
 struct rmi_pdt_entry {
 	unsigned char query_base_addr;
 	unsigned char command_base_addr;
@@ -96,21 +126,44 @@ struct recovery_hcd {
 	unsigned int ihex_size;
 	unsigned int ihex_records;
 	unsigned int data_entries;
+	struct image_info image_info;
 	struct kobject *sysfs_dir;
 	struct rmi_addr f35_addr;
 	struct syna_tcm_hcd *tcm_hcd;
 };
 
+enum flash_command {
+	JEDEC_PAGE_PROGRAM = 0x02,
+	JEDEC_READ_STATUS = 0x05,
+	JEDEC_WRITE_ENABLE = 0x06,
+	JEDEC_CHIP_ERASE = 0xc7,
+};
+
+struct flash_param {
+	unsigned char spi_param;
+	unsigned char clk_div;
+	unsigned char mode;
+	unsigned short read_size;
+	unsigned char jedec_cmd;
+} __packed;
+
 DECLARE_COMPLETION(recovery_remove_complete);
 
 static struct recovery_hcd *recovery_hcd;
 
-static int recovery_do_recovery(void);
+static void recovery_do_romboot_recovery(struct syna_tcm_hcd *tcm_hcd);
 
-STORE_PROTOTYPE(recovery, recovery);
+static int recovery_do_f35_recovery(void);
+
+static int recovery_add_romboot_data_entry(unsigned char data);
+
+STORE_PROTOTYPE(recovery, f35_recovery)
+STORE_PROTOTYPE(recovery, romboot_recovery)
+
 
 static struct device_attribute *attrs[] = {
-	ATTRIFY(recovery),
+	ATTRIFY(f35_recovery),
+	ATTRIFY(romboot_recovery),
 };
 
 static ssize_t recovery_sysfs_ihex_store(struct file *data_file,
@@ -120,20 +173,372 @@ static ssize_t recovery_sysfs_ihex_store(struct file *data_file,
 static struct bin_attribute bin_attr = {
 	.attr = {
 		.name = "ihex",
-		.mode = 0220,
+		.mode = (S_IWUSR | S_IWGRP),
 	},
 	.size = 0,
 	.write = recovery_sysfs_ihex_store,
 };
 
-static ssize_t recovery_sysfs_recovery_store(struct device *dev,
+static ssize_t recovery_sysfs_romboot_recovery_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	int retval;
 	unsigned int input;
 	struct syna_tcm_hcd *tcm_hcd = recovery_hcd->tcm_hcd;
 
-	if (kstrtouint(buf, 10, &input))
+	if (sscanf(buf, "%u", &input) != 1)
+		return -EINVAL;
+
+	if (input)
+		recovery_do_romboot_recovery(tcm_hcd);
+
+	return retval;
+}
+
+static int recovery_parse_romboot_ihex(void)
+{
+	int retval;
+	unsigned char colon;
+	unsigned char *buf;
+	unsigned int addr;
+	unsigned int type;
+	unsigned int addrl;
+	unsigned int addrh;
+	unsigned int data0;
+	unsigned int data1;
+	unsigned int count;
+	unsigned int words;
+	unsigned int offset;
+	unsigned int record;
+	struct syna_tcm_hcd *tcm_hcd = recovery_hcd->tcm_hcd;
+	struct image_info *image_info = &recovery_hcd->image_info;
+
+	if (!(recovery_hcd->ihex_buf)) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"No ihex data\n");
+		return -ENOBUFS;
+	}
+
+	words = 0;
+	offset = 0;
+	buf = recovery_hcd->ihex_buf;
+	recovery_hcd->data_entries = 0;
+	recovery_hcd->ihex_records = recovery_hcd->ihex_size / IHEX_RECORD_SIZE;
+	memset(recovery_hcd->data_buf, 0xff, DATA_ROMBOOT_BUF_SIZE);
+
+	for (record = 0; record < recovery_hcd->ihex_records; record++) {
+		buf[(record + 1) * IHEX_RECORD_SIZE - 1] = 0x00;
+		retval = sscanf(&buf[record * IHEX_RECORD_SIZE],
+				"%c%02x%02x%02x%02x%02x%02x",
+				&colon,
+				&count,
+				&addrh,
+				&addrl,
+				&type,
+				&data0,
+				&data1);
+		if (retval != 7) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to read ihex record\n");
+			return -EINVAL;
+		}
+
+		if (type == 0x00) {
+			addr = (addrh << 8) + addrl;
+			addr += offset;
+
+			recovery_hcd->data_entries = addr;
+
+			retval = recovery_add_romboot_data_entry(data0);
+			if (retval < 0) {
+				LOGE(tcm_hcd->pdev->dev.parent,
+						"Failed to add data entry for data0\n");
+				return retval;
+			}
+
+			retval = recovery_add_romboot_data_entry(data1);
+			if (retval < 0) {
+				LOGE(tcm_hcd->pdev->dev.parent,
+						"Failed to add data entry for data1\n");
+				return retval;
+			}
+
+			words++;
+		} else if (type == 0x02) {
+			offset = (data0 << 8) + data1;
+			offset <<= 4;
+
+			recovery_hcd->data_entries = offset;
+		}
+	}
+
+	image_info->app_firmware.size = DATA_ROMBOOT_BUF_SIZE;
+	image_info->app_firmware.data = recovery_hcd->data_buf;
+
+	return 0;
+}
+
+static int recovery_flash_romboot_command(struct syna_tcm_hcd *tcm_hcd,
+		unsigned char flash_command, unsigned char *out,
+		unsigned int out_size, unsigned char *in,
+		unsigned int in_size)
+{
+	int retval;
+	unsigned char *payld_buf = NULL;
+	unsigned char *resp_buf = NULL;
+	unsigned int resp_buf_size;
+	unsigned int resp_length;
+	struct flash_param flash_param = {1, 0x19, 0, 0, 0};
+
+	flash_param.read_size = in_size;
+
+	flash_param.jedec_cmd = flash_command;
+
+	resp_buf = NULL;
+	resp_buf_size = 0;
+
+	payld_buf = kzalloc(sizeof(flash_param) + out_size,
+			GFP_KERNEL);
+
+	memcpy(payld_buf, &flash_param, sizeof(flash_param));
+
+	memcpy(payld_buf + sizeof(flash_param), out, out_size);
+
+	retval = tcm_hcd->write_message(tcm_hcd,
+			CMD_SPI_MASTER_WRITE_THEN_READ_EXTENDED,
+			payld_buf,
+			sizeof(flash_param) + out_size,
+			&resp_buf,
+			&resp_buf_size,
+			&resp_length,
+			NULL,
+			20);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write command CMD_SPI_MASTER_WRITE_THEN_READ_EXTENDED");
+		goto exit;
+	}
+
+	if (in_size && (in_size <= resp_length))
+		memcpy(in, resp_buf, in_size);
+
+exit:
+	kfree(payld_buf);
+	kfree(resp_buf);
+	return retval;
+}
+
+static int recovery_flash_romboot_status(struct syna_tcm_hcd *tcm_hcd)
+{
+	int retval;
+	int idx;
+	unsigned char status;
+
+	for (idx = 0; idx < STATUS_CHECK_RETRY; idx++) {
+		retval = recovery_flash_romboot_command(tcm_hcd,
+				JEDEC_READ_STATUS, NULL, 0,
+				&status, sizeof(status));
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to write JEDEC_READ_STATUS");
+			return retval;
+		}
+
+		usleep_range(STATUS_CHECK_US_MIN, STATUS_CHECK_US_MAX);
+
+		if (!status)
+			break;
+	}
+
+	if (status)
+		retval = -EIO;
+	else
+		retval = status;
+
+	return retval;
+}
+
+static int recovery_flash_romboot_erase(struct syna_tcm_hcd *tcm_hcd)
+{
+	int retval;
+
+	LOGN(tcm_hcd->pdev->dev.parent,
+			"%s", __func__);
+
+	retval = recovery_flash_romboot_command(tcm_hcd, JEDEC_WRITE_ENABLE,
+			NULL, 0, NULL, 0);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write JEDEC_WRITE_ENABLE");
+		return retval;
+	}
+
+	retval = recovery_flash_romboot_command(tcm_hcd, JEDEC_CHIP_ERASE,
+			NULL, 0, NULL, 0);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write JEDEC_CHIP_ERASE");
+		return retval;
+	}
+
+	retval = recovery_flash_romboot_status(tcm_hcd);
+	if (retval < 0)
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to get correct status: %d", retval);
+
+	return retval;
+}
+
+static int recovery_flash_romboot_reprogram(struct syna_tcm_hcd *tcm_hcd,
+		unsigned char *image_buf, unsigned int image_size)
+{
+	int retval;
+	int idx;
+	unsigned short img_header;
+	unsigned int pages;
+	unsigned char buf[FLASH_PAGE_SIZE + 3];
+
+	img_header = image_buf[0] | image_buf[1] << 8;
+	if ((image_size % FLASH_PAGE_SIZE) ||
+			(img_header != BINARY_FILE_MAGIC_VALUE)) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Wrong image file");
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"image_size = %d, img_header = 0x%04x",
+				image_size, img_header);
+		return -EINVAL;
+	}
+
+	pages = image_size / FLASH_PAGE_SIZE;
+
+	LOGE(tcm_hcd->pdev->dev.parent,
+			"image_size = %d, img_header = 0x%04x, pages = %d",
+			image_size, img_header, pages);
+
+	for (idx = 0; idx < pages; idx++) {
+		retval = recovery_flash_romboot_command(tcm_hcd,
+				JEDEC_WRITE_ENABLE, NULL, 0, NULL, 0);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to write JEDEC_WRITE_ENABLE");
+			return retval;
+		}
+
+		buf[0] = FLASH_PAGE_SIZE * idx >> 16;
+		buf[1] = FLASH_PAGE_SIZE * idx >> 8;
+		buf[2] = FLASH_PAGE_SIZE * idx;
+
+		memcpy(buf + 3, image_buf + FLASH_PAGE_SIZE * idx,
+				FLASH_PAGE_SIZE);
+
+		retval = recovery_flash_romboot_command(tcm_hcd,
+				JEDEC_PAGE_PROGRAM, buf, sizeof(buf), NULL, 0);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to write JEDEC_READ_STATUS");
+			return retval;
+		}
+
+		retval = recovery_flash_romboot_status(tcm_hcd);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to get correct status: %d",
+					retval);
+			return retval;
+		}
+
+	}
+
+	return retval;
+}
+
+static void recovery_do_romboot_recovery(struct syna_tcm_hcd *tcm_hcd)
+{
+	int retval;
+	unsigned int image_size;
+	unsigned char *out_buf = NULL;
+
+	LOGN(tcm_hcd->pdev->dev.parent,
+			"%s\n", __func__);
+
+	mutex_lock(&tcm_hcd->extif_mutex);
+
+	pm_stay_awake(&tcm_hcd->pdev->dev);
+
+	if (tcm_hcd->id_info.mode != MODE_ROMBOOTLOADER) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Not in romboot\n");
+		goto do_program_exit;
+	}
+
+	retval = recovery_parse_romboot_ihex();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to parse ihex data\n");
+		goto do_program_exit;
+	}
+
+	image_size = (unsigned int)recovery_hcd->image_info.app_firmware.size;
+	out_buf = kzalloc(image_size, GFP_KERNEL);
+
+	retval = secure_memcpy(out_buf,
+			recovery_hcd->image_info.app_firmware.size,
+			recovery_hcd->image_info.app_firmware.data,
+			recovery_hcd->image_info.app_firmware.size,
+			recovery_hcd->image_info.app_firmware.size);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to copy payload\n");
+		goto do_program_exit;
+	}
+
+	LOGN(tcm_hcd->pdev->dev.parent,
+			"image_size = %d\n",
+			image_size);
+
+	retval = recovery_flash_romboot_erase(tcm_hcd);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to erase chip");
+		goto do_program_exit;
+	}
+
+	LOGN(tcm_hcd->pdev->dev.parent,
+			"Do recovery_flash_romboot_reprogram");
+	retval = recovery_flash_romboot_reprogram(tcm_hcd, out_buf, image_size);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to program chip");
+		goto do_program_exit;
+	}
+
+	LOGN(tcm_hcd->pdev->dev.parent,
+			"Do reset and re-init");
+	retval = tcm_hcd->reset_n_reinit(tcm_hcd, true, true);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to reset");
+	}
+
+do_program_exit:
+
+	pm_relax(&tcm_hcd->pdev->dev);
+
+	mutex_unlock(&tcm_hcd->extif_mutex);
+
+	kfree(out_buf);
+
+	return;
+}
+
+static ssize_t recovery_sysfs_f35_recovery_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int retval;
+	unsigned int input;
+	struct syna_tcm_hcd *tcm_hcd = recovery_hcd->tcm_hcd;
+
+	if (sscanf(buf, "%u", &input) != 1)
 		return -EINVAL;
 
 	if (input == 1)
@@ -161,7 +566,7 @@ static ssize_t recovery_sysfs_recovery_store(struct device *dev,
 
 	recovery_hcd->ihex_records = recovery_hcd->ihex_size / IHEX_RECORD_SIZE;
 
-	retval = recovery_do_recovery();
+	retval = recovery_do_f35_recovery();
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to do recovery\n");
@@ -248,6 +653,21 @@ static int recovery_add_data_entry(unsigned char data)
 	return 0;
 }
 
+static int recovery_add_romboot_data_entry(unsigned char data)
+{
+	struct syna_tcm_hcd *tcm_hcd = recovery_hcd->tcm_hcd;
+
+	if (recovery_hcd->data_entries >= DATA_ROMBOOT_BUF_SIZE) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Reached data buffer size limit\n");
+		return -EINVAL;
+	}
+
+	recovery_hcd->data_buf[recovery_hcd->data_entries++] = data;
+
+	return 0;
+}
+
 static int recovery_add_padding(unsigned int *words)
 {
 	int retval;
@@ -279,7 +699,7 @@ static int recovery_add_padding(unsigned int *words)
 	return 0;
 }
 
-static int recovery_parse_ihex(void)
+static int recovery_parse_f35_ihex(void)
 {
 	int retval;
 	unsigned char colon;
@@ -330,14 +750,14 @@ static int recovery_parse_ihex(void)
 				retval = recovery_add_data_entry(addr);
 				if (retval < 0) {
 					LOGE(tcm_hcd->pdev->dev.parent,
-						"Failed to add data entry\n");
+							"Failed to add data entry\n");
 					return retval;
 				}
 
 				retval = recovery_add_data_entry(addr >> 8);
 				if (retval < 0) {
 					LOGE(tcm_hcd->pdev->dev.parent,
-						"Failed to add data entry\n");
+							"Failed to add data entry\n");
 					return retval;
 				}
 			}
@@ -459,7 +879,7 @@ static int recovery_write_flash(void)
 	retval = recovery_check_status();
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
-			"Failed to get no error recovery mode status\n");
+				"Failed to get no error recovery mode status\n");
 		return retval;
 	}
 
@@ -499,7 +919,7 @@ static int recovery_poll_erase_completion(void)
 					sizeof(command));
 			if (retval < 0) {
 				LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to read command status\n");
+						"Failed to read command status\n");
 				return retval;
 			}
 
@@ -573,7 +993,7 @@ static int recovery_erase_flash(void)
 		retval = recovery_poll_erase_completion();
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to wait for erase completion\n");
+					"Failed to wait for erase completion\n");
 			return retval;
 		}
 	} else {
@@ -583,7 +1003,7 @@ static int recovery_erase_flash(void)
 	retval = recovery_check_status();
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
-			"Failed to get no error recovery mode status\n");
+				"Failed to get no error recovery mode status\n");
 		return retval;
 	}
 
@@ -603,11 +1023,11 @@ static int recovery_set_up_recovery_mode(void)
 		return retval;
 	}
 
-	if (tcm_hcd->id_info.mode == MODE_APPLICATION) {
+	if (tcm_hcd->id_info.mode == MODE_APPLICATION_FIRMWARE) {
 		retval = tcm_hcd->switch_mode(tcm_hcd, FW_MODE_BOOTLOADER);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to enter bootloader mode\n");
+					"Failed to enter bootloader mode\n");
 			return retval;
 		}
 	}
@@ -633,13 +1053,13 @@ static int recovery_set_up_recovery_mode(void)
 	return 0;
 }
 
-static int recovery_do_recovery(void)
+static int recovery_do_f35_recovery(void)
 {
 	int retval;
 	struct rmi_pdt_entry p_entry;
 	struct syna_tcm_hcd *tcm_hcd = recovery_hcd->tcm_hcd;
 
-	retval = recovery_parse_ihex();
+	retval = recovery_parse_f35_ihex();
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to parse ihex data\n");
@@ -655,7 +1075,9 @@ static int recovery_do_recovery(void)
 		}
 	}
 
+#ifdef WATCHDOG_SW
 	tcm_hcd->update_watchdog(tcm_hcd, false);
+#endif
 
 	retval = syna_tcm_rmi_read(tcm_hcd,
 			PDT_START_ADDR,
@@ -714,7 +1136,9 @@ static int recovery_do_recovery(void)
 	if (recovery_hcd->set_up_recovery_mode)
 		return 0;
 
+#ifdef WATCHDOG_SW
 	tcm_hcd->update_watchdog(tcm_hcd, true);
+#endif
 
 	retval = tcm_hcd->enable_irq(tcm_hcd, true, NULL);
 	if (retval < 0) {
@@ -730,7 +1154,7 @@ static int recovery_do_recovery(void)
 		return retval;
 	}
 
-	if (tcm_hcd->id_info.mode != MODE_APPLICATION) {
+	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode)) {
 		retval = tcm_hcd->switch_mode(tcm_hcd, FW_MODE_APPLICATION);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
@@ -744,7 +1168,7 @@ static int recovery_do_recovery(void)
 
 static int recovery_init(struct syna_tcm_hcd *tcm_hcd)
 {
-	int retval = 0;
+	int retval;
 	int idx;
 
 	recovery_hcd = kzalloc(sizeof(*recovery_hcd), GFP_KERNEL);
@@ -757,14 +1181,14 @@ static int recovery_init(struct syna_tcm_hcd *tcm_hcd)
 	recovery_hcd->ihex_buf = kzalloc(IHEX_BUF_SIZE, GFP_KERNEL);
 	if (!recovery_hcd->ihex_buf) {
 		LOGE(tcm_hcd->pdev->dev.parent,
-			"Failed to allocate memory for ihex_buf\n");
+				"Failed to allocate memory for recovery_hcd->ihex_buf\n");
 		goto err_allocate_ihex_buf;
 	}
 
 	recovery_hcd->data_buf = kzalloc(DATA_BUF_SIZE, GFP_KERNEL);
 	if (!recovery_hcd->data_buf) {
 		LOGE(tcm_hcd->pdev->dev.parent,
-			"Failed to allocate memory for data_buf\n");
+				"Failed to allocate memory for recovery_hcd->data_buf\n");
 		goto err_allocate_data_buf;
 	}
 
@@ -776,8 +1200,8 @@ static int recovery_init(struct syna_tcm_hcd *tcm_hcd)
 	recovery_hcd->out_buf[1] = 0;
 	recovery_hcd->out_buf[2] = 0;
 
-	if (!ENABLE_SYSFS_INTERFACE)
-		return 0;
+	if (ENABLE_SYSFS_RECOVERY == false)
+		goto init_finished;
 
 	recovery_hcd->sysfs_dir = kobject_create_and_add(SYSFS_DIR_NAME,
 			tcm_hcd->sysfs_dir);
@@ -805,6 +1229,7 @@ static int recovery_init(struct syna_tcm_hcd *tcm_hcd)
 		goto err_sysfs_create_bin_file;
 	}
 
+init_finished:
 	return 0;
 
 err_sysfs_create_bin_file:
@@ -832,7 +1257,7 @@ static int recovery_remove(struct syna_tcm_hcd *tcm_hcd)
 	if (!recovery_hcd)
 		goto exit;
 
-	if (ENABLE_SYSFS_INTERFACE) {
+	if (ENABLE_SYSFS_RECOVERY == true) {
 		sysfs_remove_bin_file(recovery_hcd->sysfs_dir, &bin_attr);
 
 		for (idx = 0; idx < ARRAY_SIZE(attrs); idx++) {
@@ -854,7 +1279,7 @@ exit:
 	return 0;
 }
 
-static int recovery_reset(struct syna_tcm_hcd *tcm_hcd)
+static int recovery_reinit(struct syna_tcm_hcd *tcm_hcd)
 {
 	int retval;
 
@@ -871,8 +1296,10 @@ static struct syna_tcm_module_cb recovery_module = {
 	.init = recovery_init,
 	.remove = recovery_remove,
 	.syncbox = NULL,
+#ifdef REPORT_NOTIFIER
 	.asyncbox = NULL,
-	.reset = recovery_reset,
+#endif
+	.reinit = recovery_reinit,
 	.suspend = NULL,
 	.resume = NULL,
 	.early_suspend = NULL,
@@ -888,6 +1315,8 @@ static void __exit recovery_module_exit(void)
 	syna_tcm_add_module(&recovery_module, false);
 
 	wait_for_completion(&recovery_remove_complete);
+
+	return;
 }
 
 module_init(recovery_module_init);

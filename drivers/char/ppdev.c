@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * linux/drivers/char/ppdev.c
  *
@@ -6,6 +5,11 @@
  * application to use the parport subsystem.
  *
  * Copyright (C) 1998-2000, 2002 Tim Waugh <tim@cyberelk.net>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version
+ * 2 of the License, or (at your option) any later version.
  *
  * A /dev/parportx device node represents an arbitrary device
  * on port 'x'.  The following operations are possible:
@@ -745,7 +749,7 @@ static int pp_release(struct inode *inode, struct file *file)
 			"negotiated back to compatibility mode because user-space forgot\n");
 	}
 
-	if ((pp->flags & PP_CLAIMED) && pp->pdev) {
+	if (pp->flags & PP_CLAIMED) {
 		struct ieee1284_info *info;
 
 		info = &pp->pdev->port->ieee1284;

@@ -1,7 +1,16 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
+
 #include <linux/clk.h>
 #include <linux/slab.h>
 #include <linux/bitops.h>
@@ -340,8 +349,7 @@ struct nandc_regs {
  * @data_buffer:		our local DMA buffer for page read/writes,
  *				used when we can't use the buffer provided
  *				by upper layers directly
- * @buf_size/count/start:	markers for chip->legacy.read_buf/write_buf
- *				functions
+ * @buf_size/count/start:	markers for chip->read_buf/write_buf functions
  * @reg_read_buf:		local buffer for reading back registers via DMA
  * @reg_read_dma:		contains dma address for register read buffer
  * @reg_read_pos:		marker for data read in reg_read_buf
@@ -458,13 +466,11 @@ struct qcom_nand_host {
  * among different NAND controllers.
  * @ecc_modes - ecc mode for NAND
  * @is_bam - whether NAND controller is using BAM
- * @is_qpic - whether NAND CTRL is part of qpic IP
  * @dev_cmd_reg_start - NAND_DEV_CMD_* registers starting offset
  */
 struct qcom_nandc_props {
 	u32 ecc_modes;
 	bool is_bam;
-	bool is_qpic;
 	u32 dev_cmd_reg_start;
 };
 
@@ -1148,8 +1154,8 @@ static void config_nand_cw_write(struct qcom_nand_controller *nandc)
 }
 
 /*
- * the following functions are used within chip->legacy.cmdfunc() to
- * perform different NAND_CMD_* commands
+ * the following functions are used within chip->cmdfunc() to perform different
+ * NAND_CMD_* commands
  */
 
 /* sets up descriptors for NAND_CMD_PARAM */
@@ -1429,14 +1435,15 @@ static void post_command(struct qcom_nand_host *host, int command)
 }
 
 /*
- * Implements chip->legacy.cmdfunc. It's  only used for a limited set of
- * commands. The rest of the commands wouldn't be called by upper layers.
- * For example, NAND_CMD_READOOB would never be called because we have our own
- * versions of read_oob ops for nand_ecc_ctrl.
+ * Implements chip->cmdfunc. It's  only used for a limited set of commands.
+ * The rest of the commands wouldn't be called by upper layers. For example,
+ * NAND_CMD_READOOB would never be called because we have our own versions
+ * of read_oob ops for nand_ecc_ctrl.
  */
-static void qcom_nandc_command(struct nand_chip *chip, unsigned int command,
+static void qcom_nandc_command(struct mtd_info *mtd, unsigned int command,
 			       int column, int page_addr)
 {
+	struct nand_chip *chip = mtd_to_nand(mtd);
 	struct qcom_nand_host *host = to_qcom_nand_host(chip);
 	struct nand_ecc_ctrl *ecc = &chip->ecc;
 	struct qcom_nand_controller *nandc = get_qcom_nand_controller(chip);
@@ -1569,8 +1576,6 @@ static int check_flash_errors(struct qcom_nand_host *host, int cw_cnt)
 	struct qcom_nand_controller *nandc = get_qcom_nand_controller(chip);
 	int i;
 
-	nandc_read_buffer_sync(nandc, true);
-
 	for (i = 0; i < cw_cnt; i++) {
 		u32 flash = le32_to_cpu(nandc->reg_read_buf[i]);
 
@@ -1675,12 +1680,14 @@ check_for_erased_page(struct qcom_nand_host *host, u8 *data_buf,
 	u8 *cw_data_buf, *cw_oob_buf;
 	int cw, data_size, oob_size, ret = 0;
 
-	if (!data_buf)
-		data_buf = nand_get_data_buf(chip);
+	if (!data_buf) {
+		data_buf = chip->data_buf;
+		chip->pagebuf = -1;
+	}
 
 	if (!oob_buf) {
-		nand_get_data_buf(chip);
 		oob_buf = chip->oob_poi;
+		chip->pagebuf = -1;
 	}
 
 	for_each_set_bit(cw, &uncorrectable_cws, ecc->steps) {
@@ -1941,8 +1948,8 @@ static int copy_last_cw(struct qcom_nand_host *host, int page)
 }
 
 /* implements ecc->read_page() */
-static int qcom_nandc_read_page(struct nand_chip *chip, uint8_t *buf,
-				int oob_required, int page)
+static int qcom_nandc_read_page(struct mtd_info *mtd, struct nand_chip *chip,
+				uint8_t *buf, int oob_required, int page)
 {
 	struct qcom_nand_host *host = to_qcom_nand_host(chip);
 	struct qcom_nand_controller *nandc = get_qcom_nand_controller(chip);
@@ -1958,10 +1965,10 @@ static int qcom_nandc_read_page(struct nand_chip *chip, uint8_t *buf,
 }
 
 /* implements ecc->read_page_raw() */
-static int qcom_nandc_read_page_raw(struct nand_chip *chip, uint8_t *buf,
+static int qcom_nandc_read_page_raw(struct mtd_info *mtd,
+				    struct nand_chip *chip, uint8_t *buf,
 				    int oob_required, int page)
 {
-	struct mtd_info *mtd = nand_to_mtd(chip);
 	struct qcom_nand_host *host = to_qcom_nand_host(chip);
 	struct nand_ecc_ctrl *ecc = &chip->ecc;
 	int cw, ret;
@@ -1981,7 +1988,8 @@ static int qcom_nandc_read_page_raw(struct nand_chip *chip, uint8_t *buf,
 }
 
 /* implements ecc->read_oob() */
-static int qcom_nandc_read_oob(struct nand_chip *chip, int page)
+static int qcom_nandc_read_oob(struct mtd_info *mtd, struct nand_chip *chip,
+			       int page)
 {
 	struct qcom_nand_host *host = to_qcom_nand_host(chip);
 	struct qcom_nand_controller *nandc = get_qcom_nand_controller(chip);
@@ -1998,8 +2006,8 @@ static int qcom_nandc_read_oob(struct nand_chip *chip, int page)
 }
 
 /* implements ecc->write_page() */
-static int qcom_nandc_write_page(struct nand_chip *chip, const uint8_t *buf,
-				 int oob_required, int page)
+static int qcom_nandc_write_page(struct mtd_info *mtd, struct nand_chip *chip,
+				 const uint8_t *buf, int oob_required, int page)
 {
 	struct qcom_nand_host *host = to_qcom_nand_host(chip);
 	struct qcom_nand_controller *nandc = get_qcom_nand_controller(chip);
@@ -2068,11 +2076,10 @@ static int qcom_nandc_write_page(struct nand_chip *chip, const uint8_t *buf,
 }
 
 /* implements ecc->write_page_raw() */
-static int qcom_nandc_write_page_raw(struct nand_chip *chip,
-				     const uint8_t *buf, int oob_required,
-				     int page)
+static int qcom_nandc_write_page_raw(struct mtd_info *mtd,
+				     struct nand_chip *chip, const uint8_t *buf,
+				     int oob_required, int page)
 {
-	struct mtd_info *mtd = nand_to_mtd(chip);
 	struct qcom_nand_host *host = to_qcom_nand_host(chip);
 	struct qcom_nand_controller *nandc = get_qcom_nand_controller(chip);
 	struct nand_ecc_ctrl *ecc = &chip->ecc;
@@ -2147,9 +2154,9 @@ static int qcom_nandc_write_page_raw(struct nand_chip *chip,
  * since ECC is calculated for the combined codeword. So update the OOB from
  * chip->oob_poi, and pad the data area with OxFF before writing.
  */
-static int qcom_nandc_write_oob(struct nand_chip *chip, int page)
+static int qcom_nandc_write_oob(struct mtd_info *mtd, struct nand_chip *chip,
+				int page)
 {
-	struct mtd_info *mtd = nand_to_mtd(chip);
 	struct qcom_nand_host *host = to_qcom_nand_host(chip);
 	struct qcom_nand_controller *nandc = get_qcom_nand_controller(chip);
 	struct nand_ecc_ctrl *ecc = &chip->ecc;
@@ -2189,9 +2196,9 @@ static int qcom_nandc_write_oob(struct nand_chip *chip, int page)
 	return nand_prog_page_end_op(chip);
 }
 
-static int qcom_nandc_block_bad(struct nand_chip *chip, loff_t ofs)
+static int qcom_nandc_block_bad(struct mtd_info *mtd, loff_t ofs)
 {
-	struct mtd_info *mtd = nand_to_mtd(chip);
+	struct nand_chip *chip = mtd_to_nand(mtd);
 	struct qcom_nand_host *host = to_qcom_nand_host(chip);
 	struct qcom_nand_controller *nandc = get_qcom_nand_controller(chip);
 	struct nand_ecc_ctrl *ecc = &chip->ecc;
@@ -2227,8 +2234,9 @@ err:
 	return bad;
 }
 
-static int qcom_nandc_block_markbad(struct nand_chip *chip, loff_t ofs)
+static int qcom_nandc_block_markbad(struct mtd_info *mtd, loff_t ofs)
 {
+	struct nand_chip *chip = mtd_to_nand(mtd);
 	struct qcom_nand_host *host = to_qcom_nand_host(chip);
 	struct qcom_nand_controller *nandc = get_qcom_nand_controller(chip);
 	struct nand_ecc_ctrl *ecc = &chip->ecc;
@@ -2269,13 +2277,14 @@ static int qcom_nandc_block_markbad(struct nand_chip *chip, loff_t ofs)
 }
 
 /*
- * the three functions below implement chip->legacy.read_byte(),
- * chip->legacy.read_buf() and chip->legacy.write_buf() respectively. these
- * aren't used for reading/writing page data, they are used for smaller data
- * like reading	id, status etc
+ * the three functions below implement chip->read_byte(), chip->read_buf()
+ * and chip->write_buf() respectively. these aren't used for
+ * reading/writing page data, they are used for smaller data like reading
+ * id, status etc
  */
-static uint8_t qcom_nandc_read_byte(struct nand_chip *chip)
+static uint8_t qcom_nandc_read_byte(struct mtd_info *mtd)
 {
+	struct nand_chip *chip = mtd_to_nand(mtd);
 	struct qcom_nand_host *host = to_qcom_nand_host(chip);
 	struct qcom_nand_controller *nandc = get_qcom_nand_controller(chip);
 	u8 *buf = nandc->data_buffer;
@@ -2295,8 +2304,9 @@ static uint8_t qcom_nandc_read_byte(struct nand_chip *chip)
 	return ret;
 }
 
-static void qcom_nandc_read_buf(struct nand_chip *chip, uint8_t *buf, int len)
+static void qcom_nandc_read_buf(struct mtd_info *mtd, uint8_t *buf, int len)
 {
+	struct nand_chip *chip = mtd_to_nand(mtd);
 	struct qcom_nand_controller *nandc = get_qcom_nand_controller(chip);
 	int real_len = min_t(size_t, len, nandc->buf_count - nandc->buf_start);
 
@@ -2304,9 +2314,10 @@ static void qcom_nandc_read_buf(struct nand_chip *chip, uint8_t *buf, int len)
 	nandc->buf_start += real_len;
 }
 
-static void qcom_nandc_write_buf(struct nand_chip *chip, const uint8_t *buf,
+static void qcom_nandc_write_buf(struct mtd_info *mtd, const uint8_t *buf,
 				 int len)
 {
+	struct nand_chip *chip = mtd_to_nand(mtd);
 	struct qcom_nand_controller *nandc = get_qcom_nand_controller(chip);
 	int real_len = min_t(size_t, len, nandc->buf_count - nandc->buf_start);
 
@@ -2316,8 +2327,9 @@ static void qcom_nandc_write_buf(struct nand_chip *chip, const uint8_t *buf,
 }
 
 /* we support only one external chip for now */
-static void qcom_nandc_select_chip(struct nand_chip *chip, int chipnr)
+static void qcom_nandc_select_chip(struct mtd_info *mtd, int chipnr)
 {
+	struct nand_chip *chip = mtd_to_nand(mtd);
 	struct qcom_nand_controller *nandc = get_qcom_nand_controller(chip);
 
 	if (chipnr <= 0)
@@ -2754,8 +2766,7 @@ static int qcom_nandc_setup(struct qcom_nand_controller *nandc)
 	u32 nand_ctrl;
 
 	/* kill onenand */
-	if (!nandc->props->is_qpic)
-		nandc_write(nandc, SFLASHC_BURST_CFG, 0);
+	nandc_write(nandc, SFLASHC_BURST_CFG, 0);
 	nandc_write(nandc, dev_cmd_reg_addr(nandc, NAND_DEV_CMD_VLD),
 		    NAND_DEV_CMD_VLD_VAL);
 
@@ -2797,13 +2808,13 @@ static int qcom_nand_host_init_and_register(struct qcom_nand_controller *nandc,
 	mtd->owner = THIS_MODULE;
 	mtd->dev.parent = dev;
 
-	chip->legacy.cmdfunc	= qcom_nandc_command;
-	chip->legacy.select_chip	= qcom_nandc_select_chip;
-	chip->legacy.read_byte	= qcom_nandc_read_byte;
-	chip->legacy.read_buf	= qcom_nandc_read_buf;
-	chip->legacy.write_buf	= qcom_nandc_write_buf;
-	chip->legacy.set_features	= nand_get_set_features_notsupp;
-	chip->legacy.get_features	= nand_get_set_features_notsupp;
+	chip->cmdfunc		= qcom_nandc_command;
+	chip->select_chip	= qcom_nandc_select_chip;
+	chip->read_byte		= qcom_nandc_read_byte;
+	chip->read_buf		= qcom_nandc_read_buf;
+	chip->write_buf		= qcom_nandc_write_buf;
+	chip->set_features	= nand_get_set_features_notsupp;
+	chip->get_features	= nand_get_set_features_notsupp;
 
 	/*
 	 * the bad block marker is readable only when we read the last codeword
@@ -2813,8 +2824,8 @@ static int qcom_nand_host_init_and_register(struct qcom_nand_controller *nandc,
 	 * and block_markbad helpers until we permanently switch to using
 	 * MTD_OPS_RAW for all drivers (with the help of badblockbits)
 	 */
-	chip->legacy.block_bad		= qcom_nandc_block_bad;
-	chip->legacy.block_markbad	= qcom_nandc_block_markbad;
+	chip->block_bad		= qcom_nandc_block_bad;
+	chip->block_markbad	= qcom_nandc_block_markbad;
 
 	chip->controller = &nandc->controller;
 	chip->options |= NAND_NO_SUBPAGE_WRITE | NAND_USE_BOUNCE_BUFFER |
@@ -2849,7 +2860,7 @@ static int qcom_probe_nand_devices(struct qcom_nand_controller *nandc)
 	struct device *dev = nandc->dev;
 	struct device_node *dn = dev->of_node, *child;
 	struct qcom_nand_host *host;
-	int ret = -ENODEV;
+	int ret;
 
 	for_each_available_child_of_node(dn, child) {
 		host = devm_kzalloc(dev, sizeof(*host), GFP_KERNEL);
@@ -2867,7 +2878,10 @@ static int qcom_probe_nand_devices(struct qcom_nand_controller *nandc)
 		list_add_tail(&host->node, &nandc->host_list);
 	}
 
-	return ret;
+	if (list_empty(&nandc->host_list))
+		return -ENODEV;
+
+	return 0;
 }
 
 /* parse custom DT properties here */
@@ -2943,6 +2957,10 @@ static int qcom_nandc_probe(struct platform_device *pdev)
 	if (!nandc->base_dma)
 		return -ENXIO;
 
+	ret = qcom_nandc_alloc(nandc);
+	if (ret)
+		goto err_nandc_alloc;
+
 	ret = clk_prepare_enable(nandc->core_clk);
 	if (ret)
 		goto err_core_clk;
@@ -2950,10 +2968,6 @@ static int qcom_nandc_probe(struct platform_device *pdev)
 	ret = clk_prepare_enable(nandc->aon_clk);
 	if (ret)
 		goto err_aon_clk;
-
-	ret = qcom_nandc_alloc(nandc);
-	if (ret)
-		goto err_nandc_alloc;
 
 	ret = qcom_nandc_setup(nandc);
 	if (ret)
@@ -2966,14 +2980,15 @@ static int qcom_nandc_probe(struct platform_device *pdev)
 	return 0;
 
 err_setup:
-	qcom_nandc_unalloc(nandc);
-err_nandc_alloc:
 	clk_disable_unprepare(nandc->aon_clk);
 err_aon_clk:
 	clk_disable_unprepare(nandc->core_clk);
 err_core_clk:
+	qcom_nandc_unalloc(nandc);
+err_nandc_alloc:
 	dma_unmap_resource(dev, res->start, resource_size(res),
 			   DMA_BIDIRECTIONAL, 0);
+
 	return ret;
 }
 
@@ -3007,14 +3022,12 @@ static const struct qcom_nandc_props ipq806x_nandc_props = {
 static const struct qcom_nandc_props ipq4019_nandc_props = {
 	.ecc_modes = (ECC_BCH_4BIT | ECC_BCH_8BIT),
 	.is_bam = true,
-	.is_qpic = true,
 	.dev_cmd_reg_start = 0x0,
 };
 
 static const struct qcom_nandc_props ipq8074_nandc_props = {
 	.ecc_modes = (ECC_BCH_4BIT | ECC_BCH_8BIT),
 	.is_bam = true,
-	.is_qpic = true,
 	.dev_cmd_reg_start = 0x7000,
 };
 

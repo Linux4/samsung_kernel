@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * A driver for the Griffin Technology, Inc. "PowerMate" USB controller dial.
  *

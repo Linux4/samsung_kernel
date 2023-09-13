@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * INET		An implementation of the TCP/IP protocol suite for the LINUX
  *		operating system.  INET is implemented using the  BSD Socket
@@ -14,6 +13,7 @@
  *		Stefan Becker, <stefanb@yello.ping.de>
  *		Jorge Cwik, <jorge@laser.satlink.net>
  *		Arnt Gulbrandsen, <agulbra@nvg.unit.no>
+ *
  *
  * Fixes:
  *		Alan Cox	:	Commented a couple of minor bits of surplus code
@@ -96,6 +96,8 @@
  *		Jos Vos		:	Do accounting *before* call_in_firewall
  *	Willy Konynenberg	:	Transparent proxying support
  *
+ *
+ *
  * To Fix:
  *		IP fragmentation wants rewriting cleanly. The RFC815 algorithm is much more efficient
  *		and could be made very efficient with the addition of some virtual memory hacks to permit
@@ -104,6 +106,11 @@
  *		interleaved copy algorithm so that fragmenting has a one copy overhead. Actual packet
  *		output should probably do its own fragmentation at the UDP/RAW layer. TCP shouldn't cause
  *		fragmentation anyway.
+ *
+ *		This program is free software; you can redistribute it and/or
+ *		modify it under the terms of the GNU General Public License
+ *		as published by the Free Software Foundation; either version
+ *		2 of the License, or (at your option) any later version.
  */
 
 #define pr_fmt(fmt) "IPv4: " fmt
@@ -123,7 +130,6 @@
 #include <linux/inetdevice.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
-#include <linux/indirect_call_wrapper.h>
 
 #include <net/snmp.h>
 #include <net/ip.h>
@@ -182,53 +188,52 @@ bool ip_call_ra_chain(struct sk_buff *skb)
 	return false;
 }
 
-INDIRECT_CALLABLE_DECLARE(int udp_rcv(struct sk_buff *));
-INDIRECT_CALLABLE_DECLARE(int tcp_v4_rcv(struct sk_buff *));
-void ip_protocol_deliver_rcu(struct net *net, struct sk_buff *skb, int protocol)
-{
-	const struct net_protocol *ipprot;
-	int raw, ret;
-
-resubmit:
-	raw = raw_local_deliver(skb, protocol);
-
-	ipprot = rcu_dereference(inet_protos[protocol]);
-	if (ipprot) {
-		if (!ipprot->no_policy) {
-			if (!xfrm4_policy_check(NULL, XFRM_POLICY_IN, skb)) {
-				kfree_skb(skb);
-				return;
-			}
-			nf_reset_ct(skb);
-		}
-		ret = INDIRECT_CALL_2(ipprot->handler, tcp_v4_rcv, udp_rcv,
-				      skb);
-		if (ret < 0) {
-			protocol = -ret;
-			goto resubmit;
-		}
-		__IP_INC_STATS(net, IPSTATS_MIB_INDELIVERS);
-	} else {
-		if (!raw) {
-			if (xfrm4_policy_check(NULL, XFRM_POLICY_IN, skb)) {
-				__IP_INC_STATS(net, IPSTATS_MIB_INUNKNOWNPROTOS);
-				icmp_send(skb, ICMP_DEST_UNREACH,
-					  ICMP_PROT_UNREACH, 0);
-			}
-			kfree_skb(skb);
-		} else {
-			__IP_INC_STATS(net, IPSTATS_MIB_INDELIVERS);
-			consume_skb(skb);
-		}
-	}
-}
-
 static int ip_local_deliver_finish(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
 	__skb_pull(skb, skb_network_header_len(skb));
 
 	rcu_read_lock();
-	ip_protocol_deliver_rcu(net, skb, ip_hdr(skb)->protocol);
+	{
+		int protocol = ip_hdr(skb)->protocol;
+		const struct net_protocol *ipprot;
+		int raw;
+
+	resubmit:
+		raw = raw_local_deliver(skb, protocol);
+
+		ipprot = rcu_dereference(inet_protos[protocol]);
+		if (ipprot) {
+			int ret;
+
+			if (!ipprot->no_policy) {
+				if (!xfrm4_policy_check(NULL, XFRM_POLICY_IN, skb)) {
+					kfree_skb(skb);
+					goto out;
+				}
+				nf_reset(skb);
+			}
+			ret = ipprot->handler(skb);
+			if (ret < 0) {
+				protocol = -ret;
+				goto resubmit;
+			}
+			__IP_INC_STATS(net, IPSTATS_MIB_INDELIVERS);
+		} else {
+			if (!raw) {
+				if (xfrm4_policy_check(NULL, XFRM_POLICY_IN, skb)) {
+					__IP_INC_STATS(net, IPSTATS_MIB_INUNKNOWNPROTOS);
+					DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_INUNKNOWNPROTOS);
+					icmp_send(skb, ICMP_DEST_UNREACH,
+						  ICMP_PROT_UNREACH, 0);
+				}
+				kfree_skb(skb);
+			} else {
+				__IP_INC_STATS(net, IPSTATS_MIB_INDELIVERS);
+				consume_skb(skb);
+			}
+		}
+	}
+ out:
 	rcu_read_unlock();
 
 	return 0;
@@ -268,6 +273,7 @@ static inline bool ip_rcv_options(struct sk_buff *skb, struct net_device *dev)
 	*/
 	if (skb_cow(skb, skb_headroom(skb))) {
 		__IP_INC_STATS(dev_net(dev), IPSTATS_MIB_INDISCARDS);
+		DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_INDISCARDS6);
 		goto drop;
 	}
 
@@ -277,6 +283,7 @@ static inline bool ip_rcv_options(struct sk_buff *skb, struct net_device *dev)
 
 	if (ip_options_compile(dev_net(dev), opt, skb)) {
 		__IP_INC_STATS(dev_net(dev), IPSTATS_MIB_INHDRERRORS);
+		DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_INHDRERRORS);
 		goto drop;
 	}
 
@@ -302,8 +309,6 @@ drop:
 	return true;
 }
 
-INDIRECT_CALLABLE_DECLARE(int udp_v4_early_demux(struct sk_buff *));
-INDIRECT_CALLABLE_DECLARE(int tcp_v4_early_demux(struct sk_buff *));
 static int ip_rcv_finish_core(struct net *net, struct sock *sk,
 			      struct sk_buff *skb, struct net_device *dev)
 {
@@ -321,8 +326,7 @@ static int ip_rcv_finish_core(struct net *net, struct sock *sk,
 
 		ipprot = rcu_dereference(inet_protos[protocol]);
 		if (ipprot && (edemux = READ_ONCE(ipprot->early_demux))) {
-			err = INDIRECT_CALL_2(edemux, tcp_v4_early_demux,
-					      udp_v4_early_demux, skb);
+			err = edemux(skb);
 			if (unlikely(err))
 				goto drop_error;
 			/* must reload iph, skb->head might have changed */
@@ -393,6 +397,7 @@ drop:
 drop_error:
 	if (err == -EXDEV)
 		__NET_INC_STATS(net, LINUX_MIB_IPRPFILTER);
+	DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_INTRUNCATEDPKTS2);
 	goto drop;
 }
 
@@ -427,6 +432,7 @@ static struct sk_buff *ip_rcv_core(struct sk_buff *skb, struct net *net)
 	 */
 	if (skb->pkt_type == PACKET_OTHERHOST)
 		goto drop;
+
 
 	__IP_UPD_PO_STATS(net, IPSTATS_MIB_IN, skb->len);
 
@@ -473,6 +479,7 @@ static struct sk_buff *ip_rcv_core(struct sk_buff *skb, struct net *net)
 	len = ntohs(iph->tot_len);
 	if (skb->len < len) {
 		__IP_INC_STATS(net, IPSTATS_MIB_INTRUNCATEDPKTS);
+		DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_INTRUNCATEDPKTS2);
 		goto drop;
 	} else if (len < (iph->ihl*4))
 		goto inhdr_error;
@@ -483,6 +490,7 @@ static struct sk_buff *ip_rcv_core(struct sk_buff *skb, struct net *net)
 	 */
 	if (pskb_trim_rcsum(skb, len)) {
 		__IP_INC_STATS(net, IPSTATS_MIB_INDISCARDS);
+		DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_INDISCARDS7);
 		goto drop;
 	}
 
@@ -500,8 +508,10 @@ static struct sk_buff *ip_rcv_core(struct sk_buff *skb, struct net *net)
 
 csum_error:
 	__IP_INC_STATS(net, IPSTATS_MIB_CSUMERRORS);
+	DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_CSUMERRORS);
 inhdr_error:
 	__IP_INC_STATS(net, IPSTATS_MIB_INHDRERRORS);
+	DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_INHDRERRORS1);
 drop:
 	kfree_skb(skb);
 out:
@@ -519,7 +529,6 @@ int ip_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt,
 	skb = ip_rcv_core(skb, net);
 	if (skb == NULL)
 		return NET_RX_DROP;
-
 	return NF_HOOK(NFPROTO_IPV4, NF_INET_PRE_ROUTING,
 		       net, NULL, skb, dev, NULL,
 		       ip_rcv_finish);
@@ -530,7 +539,11 @@ static void ip_sublist_rcv_finish(struct list_head *head)
 	struct sk_buff *skb, *next;
 
 	list_for_each_entry_safe(skb, next, head, list) {
-		skb_list_del_init(skb);
+		list_del(&skb->list);
+		/* Handle ip{6}_forward case, as sch_direct_xmit have
+		 * another kind of SKB-list usage (see validate_xmit_skb_list)
+		 */
+		skb->next = NULL;
 		dst_input(skb);
 	}
 }

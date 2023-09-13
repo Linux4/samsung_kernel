@@ -565,8 +565,14 @@ retry:
 	sge = &ss->sge;
 	while (dwords) {
 		u32 dw;
-		u32 len = rvt_get_sge_length(sge, dwords << 2);
+		u32 len;
 
+		len = dwords << 2;
+		if (len > sge->length)
+			len = sge->length;
+		if (len > sge->sge_length)
+			len = sge->sge_length;
+		BUG_ON(len == 0);
 		dw = (len + 3) >> 2;
 		addr = dma_map_single(&ppd->dd->pcidev->dev, sge->vaddr,
 				      dw << 2, DMA_TO_DEVICE);
@@ -589,7 +595,24 @@ retry:
 			descqp = &ppd->sdma_descq[0].qw[0];
 			++ppd->sdma_generation;
 		}
-		rvt_update_sge(ss, len, false);
+		sge->vaddr += len;
+		sge->length -= len;
+		sge->sge_length -= len;
+		if (sge->sge_length == 0) {
+			if (--ss->num_sge)
+				*sge = *ss->sg_list++;
+		} else if (sge->length == 0 && sge->mr->lkey) {
+			if (++sge->n >= RVT_SEGSZ) {
+				if (++sge->m >= sge->mr->mapsz)
+					break;
+				sge->n = 0;
+			}
+			sge->vaddr =
+				sge->mr->map[sge->m]->segs[sge->n].vaddr;
+			sge->length =
+				sge->mr->map[sge->m]->segs[sge->n].length;
+		}
+
 		dwoffset += dw;
 		dwords -= dw;
 	}
@@ -630,7 +653,7 @@ unmap:
 		if (ib_rvt_state_ops[qp->state] & RVT_PROCESS_RECV_OK)
 			rvt_error_qp(qp, IB_WC_GENERAL_ERR);
 	} else if (qp->s_wqe)
-		rvt_send_complete(qp, qp->s_wqe, IB_WC_GENERAL_ERR);
+		qib_send_complete(qp, qp->s_wqe, IB_WC_GENERAL_ERR);
 	spin_unlock(&qp->s_lock);
 	spin_unlock(&qp->r_lock);
 	/* return zero to process the next send work request */

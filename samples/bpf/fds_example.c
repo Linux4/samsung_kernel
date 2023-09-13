@@ -14,8 +14,8 @@
 
 #include <bpf/bpf.h>
 
-#include "libbpf.h"
 #include "bpf_insn.h"
+#include "bpf_load.h"
 #include "sock_example.h"
 
 #define BPF_F_PIN	(1 << 0)
@@ -29,8 +29,6 @@
 #define BPF_M_UNSPEC	0
 #define BPF_M_MAP	1
 #define BPF_M_PROG	2
-
-char bpf_log_buf[BPF_LOG_BUF_SIZE];
 
 static void usage(void)
 {
@@ -59,13 +57,10 @@ static int bpf_prog_create(const char *object)
 		BPF_EXIT_INSN(),
 	};
 	size_t insns_cnt = sizeof(insns) / sizeof(struct bpf_insn);
-	struct bpf_object *obj;
-	int prog_fd;
 
 	if (object) {
-		assert(!bpf_prog_load(object, BPF_PROG_TYPE_UNSPEC,
-				      &obj, &prog_fd));
-		return prog_fd;
+		assert(!load_bpf_file((char *)object));
+		return prog_fd[0];
 	} else {
 		return bpf_load_program(BPF_PROG_TYPE_SOCKET_FILTER,
 					insns, insns_cnt, "GPL", 0,

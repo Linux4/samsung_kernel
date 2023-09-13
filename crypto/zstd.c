@@ -1,8 +1,16 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Cryptographic API.
  *
  * Copyright (c) 2017-present, Facebook, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
  */
 #include <linux/crypto.h>
 #include <linux/init.h>
@@ -206,7 +214,6 @@ static int zstd_sdecompress(struct crypto_scomp *tfm, const u8 *src,
 
 static struct crypto_alg alg = {
 	.cra_name		= "zstd",
-	.cra_driver_name	= "zstd-generic",
 	.cra_flags		= CRYPTO_ALG_TYPE_COMPRESS,
 	.cra_ctxsize		= sizeof(struct zstd_ctx),
 	.cra_module		= THIS_MODULE,
@@ -250,7 +257,7 @@ static void __exit zstd_mod_fini(void)
 	crypto_unregister_scomp(&scomp);
 }
 
-subsys_initcall(zstd_mod_init);
+module_init(zstd_mod_init);
 module_exit(zstd_mod_fini);
 
 MODULE_LICENSE("GPL");

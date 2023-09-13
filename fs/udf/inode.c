@@ -45,13 +45,6 @@
 
 #define EXTENT_MERGE_SIZE 5
 
-#define FE_MAPPED_PERMS	(FE_PERM_U_READ | FE_PERM_U_WRITE | FE_PERM_U_EXEC | \
-			 FE_PERM_G_READ | FE_PERM_G_WRITE | FE_PERM_G_EXEC | \
-			 FE_PERM_O_READ | FE_PERM_O_WRITE | FE_PERM_O_EXEC)
-
-#define FE_DELETE_PERMS	(FE_PERM_U_DELETE | FE_PERM_G_DELETE | \
-			 FE_PERM_O_DELETE)
-
 static umode_t udf_convert_permissions(struct fileEntry *);
 static int udf_update_inode(struct inode *, int);
 static int udf_sync_inode(struct inode *inode);
@@ -139,24 +132,21 @@ void udf_evict_inode(struct inode *inode)
 	struct udf_inode_info *iinfo = UDF_I(inode);
 	int want_delete = 0;
 
-	if (!is_bad_inode(inode)) {
-		if (!inode->i_nlink) {
-			want_delete = 1;
-			udf_setsize(inode, 0);
-			udf_update_inode(inode, IS_SYNC(inode));
-		}
-		if (iinfo->i_alloc_type != ICBTAG_FLAG_AD_IN_ICB &&
-		    inode->i_size != iinfo->i_lenExtents) {
-			udf_warn(inode->i_sb,
-				 "Inode %lu (mode %o) has inode size %llu different from extent length %llu. Filesystem need not be standards compliant.\n",
-				 inode->i_ino, inode->i_mode,
-				 (unsigned long long)inode->i_size,
-				 (unsigned long long)iinfo->i_lenExtents);
-		}
+	if (!inode->i_nlink && !is_bad_inode(inode)) {
+		want_delete = 1;
+		udf_setsize(inode, 0);
+		udf_update_inode(inode, IS_SYNC(inode));
 	}
 	truncate_inode_pages_final(&inode->i_data);
 	invalidate_inode_buffers(inode);
 	clear_inode(inode);
+	if (iinfo->i_alloc_type != ICBTAG_FLAG_AD_IN_ICB &&
+	    inode->i_size != iinfo->i_lenExtents) {
+		udf_warn(inode->i_sb, "Inode %lu (mode %o) has inode size %llu different from extent length %llu. Filesystem need not be standards compliant.\n",
+			 inode->i_ino, inode->i_mode,
+			 (unsigned long long)inode->i_size,
+			 (unsigned long long)iinfo->i_lenExtents);
+	}
 	kfree(iinfo->i_ext.i_data);
 	iinfo->i_ext.i_data = NULL;
 	udf_clear_extent_cache(inode);
@@ -258,6 +248,10 @@ int udf_expand_file_adinicb(struct inode *inode)
 	char *kaddr;
 	struct udf_inode_info *iinfo = UDF_I(inode);
 	int err;
+	struct writeback_control udf_wbc = {
+		.sync_mode = WB_SYNC_NONE,
+		.nr_to_write = 1,
+	};
 
 	WARN_ON_ONCE(!inode_is_locked(inode));
 	if (!iinfo->i_lenAlloc) {
@@ -301,10 +295,8 @@ int udf_expand_file_adinicb(struct inode *inode)
 		iinfo->i_alloc_type = ICBTAG_FLAG_AD_LONG;
 	/* from now on we have normal address_space methods */
 	inode->i_data.a_ops = &udf_aops;
-	set_page_dirty(page);
-	unlock_page(page);
 	up_write(&iinfo->i_data_sem);
-	err = filemap_fdatawrite(inode->i_mapping);
+	err = inode->i_data.a_ops->writepage(page, &udf_wbc);
 	if (err) {
 		/* Restore everything back so that we don't lose data... */
 		lock_page(page);
@@ -316,7 +308,6 @@ int udf_expand_file_adinicb(struct inode *inode)
 		unlock_page(page);
 		iinfo->i_alloc_type = ICBTAG_FLAG_AD_IN_ICB;
 		inode->i_data.a_ops = &udf_adinicb_aops;
-		iinfo->i_lenAlloc = inode->i_size;
 		up_write(&iinfo->i_data_sem);
 	}
 	put_page(page);
@@ -546,14 +537,11 @@ static int udf_do_extend_file(struct inode *inode,
 
 		udf_write_aext(inode, last_pos, &last_ext->extLocation,
 				last_ext->extLength, 1);
-
 		/*
-		 * We've rewritten the last extent. If we are going to add
-		 * more extents, we may need to enter possible following
-		 * empty indirect extent.
+		 * We've rewritten the last extent but there may be empty
+		 * indirect extent after it - enter it.
 		 */
-		if (new_block_bytes || prealloc_len)
-			udf_next_aext(inode, last_pos, &tmploc, &tmplen, 0);
+		udf_next_aext(inode, last_pos, &tmploc, &tmplen, 0);
 	}
 
 	/* Managed to do everything necessary? */
@@ -1281,10 +1269,8 @@ set_size:
 		truncate_setsize(inode, newsize);
 		down_write(&iinfo->i_data_sem);
 		udf_clear_extent_cache(inode);
-		err = udf_truncate_extents(inode);
+		udf_truncate_extents(inode);
 		up_write(&iinfo->i_data_sem);
-		if (err)
-			return err;
 	}
 update_time:
 	inode->i_mtime = inode->i_ctime = current_time(inode);
@@ -1470,8 +1456,6 @@ reread:
 	else
 		inode->i_mode = udf_convert_permissions(fe);
 	inode->i_mode &= ~sbi->s_umask;
-	iinfo->i_extraPerms = le32_to_cpu(fe->permissions) & ~FE_MAPPED_PERMS;
-
 	read_unlock(&sbi->s_cred_lock);
 
 	link_count = le16_to_cpu(fe->fileLinkCount);
@@ -1499,8 +1483,6 @@ reread:
 		iinfo->i_lenEAttr = le32_to_cpu(fe->lengthExtendedAttr);
 		iinfo->i_lenAlloc = le32_to_cpu(fe->lengthAllocDescs);
 		iinfo->i_checkpoint = le32_to_cpu(fe->checkpoint);
-		iinfo->i_streamdir = 0;
-		iinfo->i_lenStreams = 0;
 	} else {
 		inode->i_blocks = le64_to_cpu(efe->logicalBlocksRecorded) <<
 		    (inode->i_sb->s_blocksize_bits - 9);
@@ -1514,16 +1496,6 @@ reread:
 		iinfo->i_lenEAttr = le32_to_cpu(efe->lengthExtendedAttr);
 		iinfo->i_lenAlloc = le32_to_cpu(efe->lengthAllocDescs);
 		iinfo->i_checkpoint = le32_to_cpu(efe->checkpoint);
-
-		/* Named streams */
-		iinfo->i_streamdir = (efe->streamDirectoryICB.extLength != 0);
-		iinfo->i_locStreamdir =
-			lelb_to_cpu(efe->streamDirectoryICB.extLocation);
-		iinfo->i_lenStreams = le64_to_cpu(efe->objectSize);
-		if (iinfo->i_lenStreams >= inode->i_size)
-			iinfo->i_lenStreams -= inode->i_size;
-		else
-			iinfo->i_lenStreams = 0;
 	}
 	inode->i_generation = iinfo->i_unique;
 
@@ -1645,23 +1617,6 @@ static umode_t udf_convert_permissions(struct fileEntry *fe)
 	return mode;
 }
 
-void udf_update_extra_perms(struct inode *inode, umode_t mode)
-{
-	struct udf_inode_info *iinfo = UDF_I(inode);
-
-	/*
-	 * UDF 2.01 sec. 3.3.3.3 Note 2:
-	 * In Unix, delete permission tracks write
-	 */
-	iinfo->i_extraPerms &= ~FE_DELETE_PERMS;
-	if (mode & 0200)
-		iinfo->i_extraPerms |= FE_PERM_U_DELETE;
-	if (mode & 0020)
-		iinfo->i_extraPerms |= FE_PERM_G_DELETE;
-	if (mode & 0002)
-		iinfo->i_extraPerms |= FE_PERM_O_DELETE;
-}
-
 int udf_write_inode(struct inode *inode, struct writeback_control *wbc)
 {
 	return udf_update_inode(inode, wbc->sync_mode == WB_SYNC_ALL);
@@ -1734,7 +1689,10 @@ static int udf_update_inode(struct inode *inode, int do_sync)
 		   ((inode->i_mode & 0070) << 2) |
 		   ((inode->i_mode & 0700) << 4);
 
-	udfperms |= iinfo->i_extraPerms;
+	udfperms |= (le32_to_cpu(fe->permissions) &
+		    (FE_PERM_O_DELETE | FE_PERM_O_CHATTR |
+		     FE_PERM_G_DELETE | FE_PERM_G_CHATTR |
+		     FE_PERM_U_DELETE | FE_PERM_U_CHATTR));
 	fe->permissions = cpu_to_le32(udfperms);
 
 	if (S_ISDIR(inode->i_mode) && inode->i_nlink > 0)
@@ -1800,18 +1758,8 @@ static int udf_update_inode(struct inode *inode, int do_sync)
 		       iinfo->i_ext.i_data,
 		       inode->i_sb->s_blocksize -
 					sizeof(struct extendedFileEntry));
-		efe->objectSize =
-			cpu_to_le64(inode->i_size + iinfo->i_lenStreams);
+		efe->objectSize = cpu_to_le64(inode->i_size);
 		efe->logicalBlocksRecorded = cpu_to_le64(lb_recorded);
-
-		if (iinfo->i_streamdir) {
-			struct long_ad *icb_lad = &efe->streamDirectoryICB;
-
-			icb_lad->extLocation =
-				cpu_to_lelb(iinfo->i_locStreamdir);
-			icb_lad->extLength =
-				cpu_to_le32(inode->i_sb->s_blocksize);
-		}
 
 		udf_adjust_time(iinfo, inode->i_atime);
 		udf_adjust_time(iinfo, inode->i_mtime);

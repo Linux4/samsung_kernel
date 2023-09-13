@@ -453,6 +453,9 @@ struct ip_vs_protocol {
 	int (*dnat_handler)(struct sk_buff *skb, struct ip_vs_protocol *pp,
 			    struct ip_vs_conn *cp, struct ip_vs_iphdr *iph);
 
+	int (*csum_check)(int af, struct sk_buff *skb,
+			  struct ip_vs_protocol *pp);
+
 	const char *(*state_name)(int state);
 
 	void (*state_transition)(struct ip_vs_conn *cp, int direction,
@@ -600,10 +603,6 @@ struct ip_vs_dest_user_kern {
 
 	/* Address family of addr */
 	u16			af;
-
-	u16			tun_type;	/* tunnel type */
-	__be16			tun_port;	/* tunnel port */
-	u16			tun_flags;	/* tunnel flags */
 };
 
 
@@ -664,9 +663,6 @@ struct ip_vs_dest {
 	atomic_t		conn_flags;	/* flags to copy to conn */
 	atomic_t		weight;		/* server weight */
 	atomic_t		last_weight;	/* server latest weight */
-	__u16			tun_type;	/* tunnel type */
-	__be16			tun_port;	/* tunnel port */
-	__u16			tun_flags;	/* tunnel flags */
 
 	refcount_t		refcnt;		/* reference counter */
 	struct ip_vs_stats      stats;          /* statistics */
@@ -1409,9 +1405,6 @@ bool ip_vs_has_real_service(struct netns_ipvs *ipvs, int af, __u16 protocol,
 struct ip_vs_dest *
 ip_vs_find_real_service(struct netns_ipvs *ipvs, int af, __u16 protocol,
 			const union nf_inet_addr *daddr, __be16 dport);
-struct ip_vs_dest *ip_vs_find_tunnel(struct netns_ipvs *ipvs, int af,
-				     const union nf_inet_addr *daddr,
-				     __be16 tun_port);
 
 int ip_vs_use_count_inc(void);
 void ip_vs_use_count_dec(void);
@@ -1504,9 +1497,6 @@ static inline int ip_vs_todrop(struct netns_ipvs *ipvs)
 #else
 static inline int ip_vs_todrop(struct netns_ipvs *ipvs) { return 0; }
 #endif
-
-#define IP_VS_DFWD_METHOD(dest) (atomic_read(&(dest)->conn_flags) & \
-				 IP_VS_CONN_F_FWD_MASK)
 
 /* ip_vs_fwd_tag returns the forwarding tag of the connection */
 #define IP_VS_FWD_METHOD(cp)  (cp->flags & IP_VS_CONN_F_FWD_MASK)
@@ -1624,16 +1614,18 @@ static inline void ip_vs_conn_drop_conntrack(struct ip_vs_conn *cp)
 }
 #endif /* CONFIG_IP_VS_NFCT */
 
-/* Using old conntrack that can not be redirected to another real server? */
-static inline bool ip_vs_conn_uses_old_conntrack(struct ip_vs_conn *cp,
-						 struct sk_buff *skb)
+/* Really using conntrack? */
+static inline bool ip_vs_conn_uses_conntrack(struct ip_vs_conn *cp,
+					     struct sk_buff *skb)
 {
 #ifdef CONFIG_IP_VS_NFCT
 	enum ip_conntrack_info ctinfo;
 	struct nf_conn *ct;
 
+	if (!(cp->flags & IP_VS_CONN_F_NFCT))
+		return false;
 	ct = nf_ct_get(skb, &ctinfo);
-	if (ct && nf_ct_is_confirmed(ct))
+	if (ct)
 		return true;
 #endif
 	return false;

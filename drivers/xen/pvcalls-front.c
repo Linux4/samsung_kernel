@@ -1,6 +1,15 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * (c) 2017 Stefano Stabellini <stefano@aporeto.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #include <linux/module.h>
@@ -337,8 +346,8 @@ static void free_active_ring(struct sock_mapping *map)
 	if (!map->active.ring)
 		return;
 
-	free_pages_exact(map->active.data.in,
-			 PAGE_SIZE << map->active.ring->ring_order);
+	free_pages((unsigned long)map->active.data.in,
+			map->active.ring->ring_order);
 	free_page((unsigned long)map->active.ring);
 }
 
@@ -352,8 +361,8 @@ static int alloc_active_ring(struct sock_mapping *map)
 		goto out;
 
 	map->active.ring->ring_order = PVCALLS_RING_ORDER;
-	bytes = alloc_pages_exact(PAGE_SIZE << PVCALLS_RING_ORDER,
-				  GFP_KERNEL | __GFP_ZERO);
+	bytes = (void *)__get_free_pages(GFP_KERNEL | __GFP_ZERO,
+					PVCALLS_RING_ORDER);
 	if (!bytes)
 		goto out;
 

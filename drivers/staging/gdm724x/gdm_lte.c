@@ -76,15 +76,14 @@ static void tx_complete(void *arg)
 
 static int gdm_lte_rx(struct sk_buff *skb, struct nic *nic, int nic_type)
 {
-	int ret, len;
+	int ret;
 
-	len = skb->len + ETH_HLEN;
 	ret = netif_rx_ni(skb);
 	if (ret == NET_RX_DROP) {
 		nic->stats.rx_dropped++;
 	} else {
 		nic->stats.rx_packets++;
-		nic->stats.rx_bytes += len;
+		nic->stats.rx_bytes += skb->len + ETH_HLEN;
 	}
 
 	return 0;
@@ -612,12 +611,10 @@ static void gdm_lte_netif_rx(struct net_device *dev, char *buf,
 						  * bytes (99,130,83,99 dec)
 						  */
 			} __packed;
-			int offset = sizeof(struct iphdr) +
-				     sizeof(struct udphdr) +
-				     offsetof(struct dhcp_packet, chaddr);
-			if (offset + ETH_ALEN > len)
-				return;
-			ether_addr_copy(nic->dest_mac_addr, buf + offset);
+			void *addr = buf + sizeof(struct iphdr) +
+				sizeof(struct udphdr) +
+				offsetof(struct dhcp_packet, chaddr);
+			ether_addr_copy(nic->dest_mac_addr, addr);
 		}
 	}
 
@@ -680,7 +677,6 @@ static void gdm_lte_multi_sdu_pkt(struct phy_dev *phy_dev, char *buf, int len)
 	struct sdu *sdu = NULL;
 	u8 endian = phy_dev->get_endian(phy_dev->priv_dev);
 	u8 *data = (u8 *)multi_sdu->data;
-	int copied;
 	u16 i = 0;
 	u16 num_packet;
 	u16 hci_len;
@@ -692,12 +688,6 @@ static void gdm_lte_multi_sdu_pkt(struct phy_dev *phy_dev, char *buf, int len)
 	num_packet = gdm_dev16_to_cpu(endian, multi_sdu->num_packet);
 
 	for (i = 0; i < num_packet; i++) {
-		copied = data - multi_sdu->data;
-		if (len < copied + sizeof(*sdu)) {
-			pr_err("rx prevent buffer overflow");
-			return;
-		}
-
 		sdu = (struct sdu *)data;
 
 		cmd_evt  = gdm_dev16_to_cpu(endian, sdu->cmd_evt);
@@ -708,8 +698,7 @@ static void gdm_lte_multi_sdu_pkt(struct phy_dev *phy_dev, char *buf, int len)
 			pr_err("rx sdu wrong hci %04x\n", cmd_evt);
 			return;
 		}
-		if (hci_len < 12 ||
-		    len < copied + sizeof(*sdu) + (hci_len - 12)) {
+		if (hci_len < 12) {
 			pr_err("rx sdu invalid len %d\n", hci_len);
 			return;
 		}
@@ -882,6 +871,7 @@ int register_lte_device(struct phy_dev *phy_dev,
 		net = alloc_netdev(sizeof(struct nic), pdn_dev_name,
 				   NET_NAME_UNKNOWN, ether_setup);
 		if (!net) {
+			pr_err("alloc_netdev failed\n");
 			ret = -ENOMEM;
 			goto err;
 		}

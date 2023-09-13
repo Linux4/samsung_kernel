@@ -168,23 +168,6 @@ struct typec_partner_desc {
 	struct usb_pd_identity	*identity;
 };
 
-/**
- * struct typec_operations - USB Type-C Port Operations
- * @try_role: Set data role preference for DRP port
- * @dr_set: Set Data Role
- * @pr_set: Set Power Role
- * @vconn_set: Source VCONN
- * @port_type_set: Set port type
- */
-struct typec_operations {
-	int (*try_role)(struct typec_port *port, int role);
-	int (*dr_set)(struct typec_port *port, enum typec_data_role role);
-	int (*pr_set)(struct typec_port *port, enum typec_role role);
-	int (*vconn_set)(struct typec_port *port, enum typec_role role);
-	int (*port_type_set)(struct typec_port *port,
-			     enum typec_port_type type);
-};
-
 /*
  * struct typec_capability - USB Type-C Port Capabilities
  * @type: Supported power role of the port
@@ -196,8 +179,11 @@ struct typec_operations {
  * @sw: Cable plug orientation switch
  * @mux: Multiplexer switch for Alternate/Accessory Modes
  * @fwnode: Optional fwnode of the port
- * @driver_data: Private pointer for driver specific info
- * @ops: Port operations vector
+ * @try_role: Set data role preference for DRP port
+ * @dr_set: Set Data Role
+ * @pr_set: Set Power Role
+ * @vconn_set: Set VCONN Role
+ * @port_type_set: Set port type
  *
  * Static capabilities of a single USB Type-C port.
  */
@@ -212,9 +198,18 @@ struct typec_capability {
 	struct typec_switch	*sw;
 	struct typec_mux	*mux;
 	struct fwnode_handle	*fwnode;
-	void			*driver_data;
 
-	const struct typec_operations	*ops;
+	int		(*try_role)(const struct typec_capability *,
+				    int role);
+
+	int		(*dr_set)(const struct typec_capability *,
+				  enum typec_data_role);
+	int		(*pr_set)(const struct typec_capability *,
+				  enum typec_role);
+	int		(*vconn_set)(const struct typec_capability *,
+				     enum typec_role);
+	int		(*port_type_set)(const struct typec_capability *,
+					 enum typec_port_type);
 };
 
 /* Specific to try_role(). Indicates the user want's to clear the preference. */
@@ -245,8 +240,6 @@ int typec_set_orientation(struct typec_port *port,
 			  enum typec_orientation orientation);
 enum typec_orientation typec_get_orientation(struct typec_port *port);
 int typec_set_mode(struct typec_port *port, int mode);
-
-void *typec_get_drvdata(struct typec_port *port);
 
 int typec_find_port_power_role(const char *name);
 int typec_find_power_role(const char *name);

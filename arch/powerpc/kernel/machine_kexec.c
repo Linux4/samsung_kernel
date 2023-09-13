@@ -1,10 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Code to handle transition of Linux booting another kernel.
  *
  * Copyright (C) 2002-2003 Eric Biederman  <ebiederm@xmission.com>
  * GameCube/ppc32 port Copyright (C) 2004 Albert Herranz
  * Copyright (C) 2005 IBM Corporation.
+ *
+ * This source code is licensed under the GNU General Public License,
+ * Version 2.  See the file COPYING for more details.
  */
 
 #include <linux/kexec.h>
@@ -146,18 +148,11 @@ void __init reserve_crashkernel(void)
 	if (!crashk_res.start) {
 #ifdef CONFIG_PPC64
 		/*
-		 * On the LPAR platform place the crash kernel to mid of
-		 * RMA size (512MB or more) to ensure the crash kernel
-		 * gets enough space to place itself and some stack to be
-		 * in the first segment. At the same time normal kernel
-		 * also get enough space to allocate memory for essential
-		 * system resource in the first segment. Keep the crash
-		 * kernel starts at 128MB offset on other platforms.
+		 * On 64bit we split the RMO in half but cap it at half of
+		 * a small SLB (128MB) since the crash kernel needs to place
+		 * itself and some stacks to be in the first segment.
 		 */
-		if (firmware_has_feature(FW_FEATURE_LPAR))
-			crashk_res.start = ppc64_rma_size / 2;
-		else
-			crashk_res.start = min(0x8000000ULL, (ppc64_rma_size / 2));
+		crashk_res.start = min(0x8000000ULL, (ppc64_rma_size / 2));
 #else
 		crashk_res.start = KDUMP_KERNELBASE;
 #endif

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * drivers/media/platform/s5p-mfc/s5p_mfc_opr.c
  *
@@ -7,6 +6,10 @@
  *
  * Kamil Debski, Copyright (c) 2012 Samsung Electronics Co., Ltd.
  * http://www.samsung.com/
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include "s5p_mfc_debug.h"

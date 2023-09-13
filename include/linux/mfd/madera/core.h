@@ -1,8 +1,12 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
+// SPDX-License-Identifier: GPL-2.0
 /*
  * MFD internals for Cirrus Logic Madera codecs
  *
  * Copyright (C) 2015-2018 Cirrus Logic
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by the
+ * Free Software Foundation; version 2.
  */
 
 #ifndef MADERA_CORE_H
@@ -26,7 +30,6 @@ enum madera_type {
 	CS47L93 = 6,
 	WM1840 = 7,
 	CS47L15 = 8,
-	CS42L92 = 9,
 };
 
 #define MADERA_MAX_CORE_SUPPLIES	2
@@ -187,11 +190,13 @@ struct madera {
 	unsigned int num_micbias;
 	unsigned int num_childbias[MADERA_MAX_MICBIAS];
 
+	unsigned int out_clamp[MADERA_MAX_OUTPUT];
+	unsigned int out_shorted[MADERA_MAX_OUTPUT];
+	unsigned int hp_ena;
+	unsigned int hp_impedance_x100[MADERA_MAX_ACCESSORY];
+
 	struct snd_soc_dapm_context *dapm;
 	struct mutex dapm_ptr_lock;
-	unsigned int hp_ena;
-	bool out_clamp[MADERA_MAX_HP_OUTPUT];
-	bool out_shorted[MADERA_MAX_HP_OUTPUT];
 
 	struct blocking_notifier_head notifier;
 };

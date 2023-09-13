@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Miscellaneous procedures for dealing with the PowerMac hardware.
  * Contains support for the backlight.

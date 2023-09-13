@@ -26,7 +26,6 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/slab.h>
-#include <linux/sysfs.h>
 
 /* multiplexer per channel data */
 struct i2c_mux_priv {
@@ -244,7 +243,8 @@ struct i2c_mux_core *i2c_mux_alloc(struct i2c_adapter *parent,
 {
 	struct i2c_mux_core *muxc;
 
-	muxc = devm_kzalloc(dev, struct_size(muxc, adapter, max_adapters)
+	muxc = devm_kzalloc(dev, sizeof(*muxc)
+			    + max_adapters * sizeof(muxc->adapter[0])
 			    + sizeof_priv, GFP_KERNEL);
 	if (!muxc)
 		return NULL;
@@ -310,18 +310,12 @@ int i2c_mux_add_adapter(struct i2c_mux_core *muxc,
 		else
 			priv->algo.master_xfer = __i2c_mux_master_xfer;
 	}
-	if (parent->algo->master_xfer_atomic)
-		priv->algo.master_xfer_atomic = priv->algo.master_xfer;
-
 	if (parent->algo->smbus_xfer) {
 		if (muxc->mux_locked)
 			priv->algo.smbus_xfer = i2c_mux_smbus_xfer;
 		else
 			priv->algo.smbus_xfer = __i2c_mux_smbus_xfer;
 	}
-	if (parent->algo->smbus_xfer_atomic)
-		priv->algo.smbus_xfer_atomic = priv->algo.smbus_xfer;
-
 	priv->algo.functionality = i2c_mux_functionality;
 
 	/* Now fill out new adapter structure */

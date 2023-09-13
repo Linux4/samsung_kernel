@@ -4,14 +4,13 @@
 
 #include <linux/hardirq.h>
 #include <linux/uaccess.h>
-#include <linux/refcount.h>
 
 /* Buffer handling */
 
 #define RING_BUFFER_WRITABLE		0x01
 
 struct ring_buffer {
-	refcount_t			refcount;
+	atomic_t			refcount;
 	struct rcu_head			rcu_head;
 #ifdef CONFIG_PERF_USE_VMALLOC
 	struct work_struct		work;
@@ -24,7 +23,7 @@ struct ring_buffer {
 	atomic_t			poll;		/* POLL_ for wakeups */
 
 	local_t				head;		/* write position    */
-	unsigned int			nest;		/* nested writers    */
+	local_t				nest;		/* nested writers    */
 	local_t				events;		/* event limit       */
 	local_t				wakeup;		/* wakeup stamp      */
 	local_t				lost;		/* nr records lost   */
@@ -41,7 +40,7 @@ struct ring_buffer {
 
 	/* AUX area */
 	long				aux_head;
-	unsigned int			aux_nest;
+	local_t				aux_nest;
 	long				aux_wakeup;	/* last aux_watermark boundary crossed by aux_head */
 	unsigned long			aux_pgoff;
 	int				aux_nr_pages;
@@ -49,7 +48,7 @@ struct ring_buffer {
 	atomic_t			aux_mmap_count;
 	unsigned long			aux_mmap_locked;
 	void				(*free_aux)(void *);
-	refcount_t			aux_refcount;
+	atomic_t			aux_refcount;
 	void				**aux_pages;
 	void				*aux_priv;
 
@@ -210,7 +209,7 @@ static inline int get_recursion_context(int *recursion)
 		rctx = 3;
 	else if (in_irq())
 		rctx = 2;
-	else if (in_serving_softirq())
+	else if (in_softirq())
 		rctx = 1;
 	else
 		rctx = 0;

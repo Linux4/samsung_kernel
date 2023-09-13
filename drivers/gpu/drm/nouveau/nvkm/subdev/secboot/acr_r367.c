@@ -22,7 +22,6 @@
 
 #include "acr_r367.h"
 #include "acr_r361.h"
-#include "acr_r370.h"
 
 #include <core/gpuobj.h>
 
@@ -101,8 +100,6 @@ struct acr_r367_lsf_wpr_header {
 struct ls_ucode_img_r367 {
 	struct ls_ucode_img base;
 
-	const struct acr_r352_lsf_func *func;
-
 	struct acr_r367_lsf_wpr_header wpr_header;
 	struct acr_r367_lsf_lsb_header lsb_header;
 };
@@ -114,7 +111,6 @@ acr_r367_ls_ucode_img_load(const struct acr_r352 *acr,
 			   enum nvkm_secboot_falcon falcon_id)
 {
 	const struct nvkm_subdev *subdev = acr->base.subdev;
-	const struct acr_r352_ls_func *func = acr->func->ls_func[falcon_id];
 	struct ls_ucode_img_r367 *img;
 	int ret;
 
@@ -124,15 +120,13 @@ acr_r367_ls_ucode_img_load(const struct acr_r352 *acr,
 
 	img->base.falcon_id = falcon_id;
 
-	ret = func->load(sb, func->version_max, &img->base);
-	if (ret < 0) {
+	ret = acr->func->ls_func[falcon_id]->load(sb, &img->base);
+	if (ret) {
 		kfree(img->base.ucode_data);
 		kfree(img->base.sig);
 		kfree(img);
 		return ERR_PTR(ret);
 	}
-
-	img->func = func->version[ret];
 
 	/* Check that the signature size matches our expectations... */
 	if (img->base.sig_size != sizeof(img->lsb_header.signature)) {
@@ -164,7 +158,8 @@ acr_r367_ls_img_fill_headers(struct acr_r352 *acr,
 	struct acr_r367_lsf_wpr_header *whdr = &img->wpr_header;
 	struct acr_r367_lsf_lsb_header *lhdr = &img->lsb_header;
 	struct ls_ucode_img_desc *desc = &_img->ucode_desc;
-	const struct acr_r352_lsf_func *func = img->func;
+	const struct acr_r352_ls_func *func =
+					    acr->func->ls_func[_img->falcon_id];
 
 	/* Fill WPR header */
 	whdr->falcon_id = _img->falcon_id;
@@ -274,8 +269,8 @@ acr_r367_ls_write_wpr(struct acr_r352 *acr, struct list_head *imgs,
 	u8 *gdesc;
 
 	list_for_each_entry(_img, imgs, node) {
-		struct ls_ucode_img_r367 *img = ls_ucode_img_r367(_img);
-		const struct acr_r352_lsf_func *ls_func = img->func;
+		const struct acr_r352_ls_func *ls_func =
+					    acr->func->ls_func[_img->falcon_id];
 
 		max_desc_size = max(max_desc_size, ls_func->bl_desc_size);
 	}
@@ -288,7 +283,8 @@ acr_r367_ls_write_wpr(struct acr_r352 *acr, struct list_head *imgs,
 
 	list_for_each_entry(_img, imgs, node) {
 		struct ls_ucode_img_r367 *img = ls_ucode_img_r367(_img);
-		const struct acr_r352_lsf_func *ls_func = img->func;
+		const struct acr_r352_ls_func *ls_func =
+					    acr->func->ls_func[_img->falcon_id];
 
 		nvkm_gpuobj_memcpy_to(wpr_blob, pos, &img->wpr_header,
 				      sizeof(img->wpr_header));
@@ -382,17 +378,6 @@ acr_r367_fixup_hs_desc(struct acr_r352 *acr, struct nvkm_secboot *sb,
 	}
 }
 
-static const struct acr_r352_ls_func
-acr_r367_ls_sec2_func = {
-	.load = acr_ls_ucode_load_sec2,
-	.post_run = acr_ls_sec2_post_run,
-	.version_max = 1,
-	.version = {
-		&acr_r361_ls_sec2_func_0,
-		&acr_r370_ls_sec2_func_0,
-	}
-};
-
 const struct acr_r352_func
 acr_r367_func = {
 	.fixup_hs_desc = acr_r367_fixup_hs_desc,
@@ -406,7 +391,7 @@ acr_r367_func = {
 		[NVKM_SECBOOT_FALCON_FECS] = &acr_r361_ls_fecs_func,
 		[NVKM_SECBOOT_FALCON_GPCCS] = &acr_r361_ls_gpccs_func,
 		[NVKM_SECBOOT_FALCON_PMU] = &acr_r361_ls_pmu_func,
-		[NVKM_SECBOOT_FALCON_SEC2] = &acr_r367_ls_sec2_func,
+		[NVKM_SECBOOT_FALCON_SEC2] = &acr_r361_ls_sec2_func,
 	},
 };
 

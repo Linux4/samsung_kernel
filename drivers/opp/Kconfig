@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 config PM_OPP
 	bool
 	select SRCU
@@ -11,4 +10,4 @@ config PM_OPP
 	  OPP layer organizes the data internally using device pointers
 	  representing individual voltage domains and provides SOC
 	  implementations a ready to use framework to manage OPPs.
-	  For more information, read <file:Documentation/power/opp.rst>
+	  For more information, read <file:Documentation/power/opp.txt>

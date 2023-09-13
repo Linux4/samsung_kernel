@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 config DVB_TTUSB_DEC
 	tristate "Technotrend/Hauppauge USB DEC devices"
 	depends on DVB_CORE && USB && INPUT && PCI

@@ -1,8 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0-only
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Core MFD support for Cirrus Logic Madera codecs
  *
  * Copyright (C) 2015-2018 Cirrus Logic
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by the
+ * Free Software Foundation; version 2.
  */
 
 #include <linux/device.h>
@@ -182,8 +186,6 @@ const char *madera_name_from_type(enum madera_type type)
 		return "CS47L90";
 	case CS47L91:
 		return "CS47L91";
-	case CS42L92:
-		return "CS42L92";
 	case CS47L92:
 		return "CS47L92";
 	case CS47L93:
@@ -202,7 +204,7 @@ EXPORT_SYMBOL_GPL(madera_name_from_type);
 static int madera_wait_for_boot(struct madera *madera)
 {
 	ktime_t timeout;
-	unsigned int val = 0;
+	unsigned int val;
 	int ret = 0;
 
 	/*
@@ -273,7 +275,7 @@ static void madera_disable_hard_reset(struct madera *madera)
 		return;
 
 	gpiod_set_raw_value_cansleep(madera->pdata.reset, 1);
-	usleep_range(1000, 2000);
+	usleep_range(2000, 3000);
 }
 
 static int __maybe_unused madera_runtime_resume(struct device *dev)
@@ -291,6 +293,8 @@ static int __maybe_unused madera_runtime_resume(struct device *dev)
 
 	regcache_cache_only(madera->regmap, false);
 	regcache_cache_only(madera->regmap_32bit, false);
+
+	usleep_range(2000, 3000);
 
 	ret = madera_wait_for_boot(madera);
 	if (ret)
@@ -347,7 +351,6 @@ const struct of_device_id madera_of_match[] = {
 	{ .compatible = "cirrus,cs47l85", .data = (void *)CS47L85 },
 	{ .compatible = "cirrus,cs47l90", .data = (void *)CS47L90 },
 	{ .compatible = "cirrus,cs47l91", .data = (void *)CS47L91 },
-	{ .compatible = "cirrus,cs42l92", .data = (void *)CS42L92 },
 	{ .compatible = "cirrus,cs47l92", .data = (void *)CS47L92 },
 	{ .compatible = "cirrus,cs47l93", .data = (void *)CS47L93 },
 	{ .compatible = "cirrus,wm1840", .data = (void *)WM1840 },
@@ -414,7 +417,6 @@ static void madera_set_micbias_info(struct madera *madera)
 		madera->num_childbias[0] = 4;
 		madera->num_childbias[1] = 4;
 		return;
-	case CS42L92:
 	case CS47L92:
 	case CS47L93:
 		madera->num_micbias = 2;
@@ -472,7 +474,6 @@ int madera_dev_init(struct madera *madera)
 	case CS47L35:
 	case CS47L90:
 	case CS47L91:
-	case CS42L92:
 	case CS47L92:
 	case CS47L93:
 		break;
@@ -530,10 +531,19 @@ int madera_dev_init(struct madera *madera)
 	regcache_cache_only(madera->regmap, false);
 	regcache_cache_only(madera->regmap_32bit, false);
 
-	/*
-	 * Now we can power up and verify that this is a chip we know about
-	 * before we start doing any writes to its registers.
-	 */
+	/* If we don't have a reset GPIO use a soft reset */
+	if (!madera->pdata.reset) {
+		ret = madera_soft_reset(madera);
+		if (ret)
+			goto err_reset;
+	}
+
+	ret = madera_wait_for_boot(madera);
+	if (ret) {
+		dev_err(madera->dev, "Device failed initial boot: %d\n", ret);
+		goto err_reset;
+	}
+
 	ret = regmap_read(madera->regmap, MADERA_SOFTWARE_RESET, &hwid);
 	if (ret) {
 		dev_err(dev, "Failed to read ID register: %d\n", ret);
@@ -545,7 +555,7 @@ int madera_dev_init(struct madera *madera)
 		if (IS_ENABLED(CONFIG_MFD_CS47L15)) {
 			switch (madera->type) {
 			case CS47L15:
-				patch_fn = &cs47l15_patch;
+				patch_fn = cs47l15_patch;
 				mfd_devs = cs47l15_devs;
 				n_devs = ARRAY_SIZE(cs47l15_devs);
 				break;
@@ -598,7 +608,6 @@ int madera_dev_init(struct madera *madera)
 	case CS47L92_SILICON_ID:
 		if (IS_ENABLED(CONFIG_MFD_CS47L92)) {
 			switch (madera->type) {
-			case CS42L92:
 			case CS47L92:
 			case CS47L93:
 				patch_fn = cs47l92_patch;
@@ -620,22 +629,6 @@ int madera_dev_init(struct madera *madera)
 		dev_err(madera->dev, "Device ID 0x%x not a %s\n", hwid,
 			madera->type_name);
 		ret = -ENODEV;
-		goto err_reset;
-	}
-
-	/*
-	 * It looks like a device we support. If we don't have a hard reset
-	 * we can now attempt a soft reset.
-	 */
-	if (!madera->pdata.reset) {
-		ret = madera_soft_reset(madera);
-		if (ret)
-			goto err_reset;
-	}
-
-	ret = madera_wait_for_boot(madera);
-	if (ret) {
-		dev_err(madera->dev, "Device failed initial boot: %d\n", ret);
 		goto err_reset;
 	}
 

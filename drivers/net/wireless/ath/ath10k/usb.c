@@ -1,8 +1,19 @@
-// SPDX-License-Identifier: ISC
 /*
  * Copyright (c) 2007-2011 Atheros Communications Inc.
  * Copyright (c) 2011-2012,2017 Qualcomm Atheros, Inc.
  * Copyright (c) 2016-2017 Erik Stromdahl <erik.stromdahl@gmail.com>
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
 #include <linux/module.h>
@@ -525,7 +536,7 @@ static int ath10k_usb_submit_ctrl_in(struct ath10k *ar,
 			      req,
 			      USB_DIR_IN | USB_TYPE_VENDOR |
 			      USB_RECIP_DEVICE, value, index, buf,
-			      size, 2000);
+			      size, 2 * HZ);
 
 	if (ret < 0) {
 		ath10k_warn(ar, "Failed to read usb control message: %d\n",
@@ -704,8 +715,7 @@ static void ath10k_usb_hif_send_complete_check(struct ath10k *ar,
 {
 }
 
-static int ath10k_usb_hif_power_up(struct ath10k *ar,
-				   enum ath10k_firmware_mode fw_mode)
+static int ath10k_usb_hif_power_up(struct ath10k *ar)
 {
 	return 0;
 }
@@ -865,11 +875,6 @@ static int ath10k_usb_setup_pipe_resources(struct ath10k *ar,
 				   le16_to_cpu(endpoint->wMaxPacketSize),
 				   endpoint->bInterval);
 		}
-
-		/* Ignore broken descriptors. */
-		if (usb_endpoint_maxp(endpoint) == 0)
-			continue;
-
 		urbcount = 0;
 
 		pipe_num =
@@ -987,7 +992,7 @@ static int ath10k_usb_probe(struct usb_interface *interface,
 	struct usb_device *dev = interface_to_usbdev(interface);
 	int ret, vendor_id, product_id;
 	enum ath10k_hw_rev hw_rev;
-	struct ath10k_bus_params bus_params = {};
+	u32 chip_id;
 
 	/* Assumption: All USB based chipsets (so far) are QCA9377 based.
 	 * If there will be newer chipsets that does not use the hw reg
@@ -1014,30 +1019,24 @@ static int ath10k_usb_probe(struct usb_interface *interface,
 
 	ar_usb = ath10k_usb_priv(ar);
 	ret = ath10k_usb_create(ar, interface);
-	if (ret)
-		goto err;
 	ar_usb->ar = ar;
 
 	ar->dev_id = product_id;
 	ar->id.vendor = vendor_id;
 	ar->id.device = product_id;
 
-	bus_params.dev_type = ATH10K_DEV_TYPE_HL;
 	/* TODO: don't know yet how to get chip_id with USB */
-	bus_params.chip_id = 0;
-	ret = ath10k_core_register(ar, &bus_params);
+	chip_id = 0;
+	ret = ath10k_core_register(ar, chip_id);
 	if (ret) {
 		ath10k_warn(ar, "failed to register driver core: %d\n", ret);
-		goto err_usb_destroy;
+		goto err;
 	}
 
 	/* TODO: remove this once USB support is fully implemented */
 	ath10k_warn(ar, "Warning: ath10k USB support is incomplete, don't expect anything to work!\n");
 
 	return 0;
-
-err_usb_destroy:
-	ath10k_usb_destroy(ar);
 
 err:
 	ath10k_core_destroy(ar);

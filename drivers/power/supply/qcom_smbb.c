@@ -1,5 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2014, Sony Mobile Communications Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
  * This driver is for the multi-block Switch-Mode Battery Charger and Boost
  * (SMBB) hardware, found in Qualcomm PM8941 PMICs.  The charger is an
@@ -90,12 +98,6 @@
 #define STATUS_CHG_FAST		BIT(7) /* Fast charging */
 #define STATUS_CHG_GONE		BIT(8) /* No charger is connected */
 
-#define IMAX_NORMAL		2000000
-#define IMAX_FAST		4000000
-#define IMAX_FLASH		6000000
-#define IMAX_TURBE		10000000
-#define IMAX_SUPER		12000000
-
 enum smbb_attr {
 	ATTR_BAT_ISAFE,
 	ATTR_BAT_IMAX,
@@ -117,7 +119,6 @@ struct smbb_charger {
 
 	bool dc_disabled;
 	bool jeita_ext_temp;
-	bool pd_verifed;
 	unsigned long status;
 	struct mutex statlock;
 
@@ -492,58 +493,6 @@ static const struct smbb_irq {
 	{ "dc-valid", smbb_dc_valid_handler },
 };
 
-struct quick_charge {
-	enum power_supply_type adap_type;
-	enum power_supply_quick_charge_type adap_cap;
-};
-
-static struct quick_charge adapter_cap[10] = {
-	{ POWER_SUPPLY_TYPE_USB,		QUICK_CHARGE_NORMAL },
-	{ POWER_SUPPLY_TYPE_USB_DCP,		QUICK_CHARGE_NORMAL },
-	{ POWER_SUPPLY_TYPE_USB_CDP,		QUICK_CHARGE_NORMAL },
-	{ POWER_SUPPLY_TYPE_USB_ACA,		QUICK_CHARGE_NORMAL },
-	{ POWER_SUPPLY_TYPE_USB_FLOAT,		QUICK_CHARGE_NORMAL },
-	{ POWER_SUPPLY_TYPE_USB_PD,		QUICK_CHARGE_FAST },
-	{ POWER_SUPPLY_TYPE_USB_HVDCP,		QUICK_CHARGE_FAST },
-	{ POWER_SUPPLY_TYPE_USB_HVDCP_3,	QUICK_CHARGE_FAST },
-	{ POWER_SUPPLY_TYPE_USB_HVDCP_3P5,	QUICK_CHARGE_FAST },
-	{0, 0},
-};
-
-static int get_quick_charge_type(struct smbb_charger *chg)
-{
-	union power_supply_propval prop = {0, };
-	int charger_type, rc;
-	int i = 0;
-
-	rc = power_supply_get_property(chg->bat_psy,
-			POWER_SUPPLY_PROP_STATUS, &prop);
-	if (rc < 0)
-		return rc;
-	if (prop.intval == POWER_SUPPLY_STATUS_DISCHARGING)
-		return 0;
-
-	rc = power_supply_get_property(chg->usb_psy,
-			POWER_SUPPLY_PROP_USB_TYPE, &prop);
-	if (rc < 0)
-		return rc;
-	charger_type = prop.intval;
-
-	/* when pd adapter is authenticated successfully */
-	if ((charger_type == POWER_SUPPLY_TYPE_USB_PD) && chg->pd_verifed) {
-		return QUICK_CHARGE_TURBE;
-	}
-
-	while (adapter_cap[i].adap_type != 0) {
-		if (charger_type == adapter_cap[i].adap_type) {
-			return adapter_cap[i].adap_cap;
-		}
-		i++;
-	}
-
-	return 0;
-}
-
 static int smbb_usbin_get_property(struct power_supply *psy,
 		enum power_supply_property psp,
 		union power_supply_propval *val)
@@ -563,9 +512,6 @@ static int smbb_usbin_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT_MAX:
 		val->intval = 2500000;
-		break;
-	case POWER_SUPPLY_PROP_QUICK_CHARGE_TYPE:
-		val->intval = get_quick_charge_type(chg);
 		break;
 	default:
 		rc = -EINVAL;
@@ -724,27 +670,11 @@ static int smbb_battery_set_property(struct power_supply *psy,
 		const union power_supply_propval *val)
 {
 	struct smbb_charger *chg = power_supply_get_drvdata(psy);
-	int charger_type, bat_imax;
 	int rc;
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
-		charger_type = get_quick_charge_type(chg);
-		if (charger_type == QUICK_CHARGE_NORMAL)
-			bat_imax = IMAX_NORMAL;
-		else if (charger_type == QUICK_CHARGE_FAST)
-			bat_imax = IMAX_FAST;
-		else if (charger_type == QUICK_CHARGE_FLASH)
-			bat_imax = IMAX_FLASH;
-		else if (charger_type == QUICK_CHARGE_TURBE)
-			bat_imax = IMAX_TURBE;
-		else if (charger_type == QUICK_CHARGE_SUPER)
-			bat_imax = IMAX_SUPER;
-		else
-			bat_imax = IMAX_NORMAL;
-
-		bat_imax = min(val->intval, bat_imax);
-		rc = smbb_charger_attr_write(chg, ATTR_BAT_IMAX, bat_imax);
+		rc = smbb_charger_attr_write(chg, ATTR_BAT_IMAX, val->intval);
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
 		rc = smbb_charger_attr_write(chg, ATTR_BAT_VMAX, val->intval);
@@ -773,7 +703,6 @@ static enum power_supply_property smbb_charger_properties[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 	POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT,
 	POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT_MAX,
-	POWER_SUPPLY_PROP_QUICK_CHARGE_TYPE,
 };
 
 static enum power_supply_property smbb_battery_properties[] = {

@@ -52,7 +52,6 @@ enum {
 	INTERCEPT_MWAIT,
 	INTERCEPT_MWAIT_COND,
 	INTERCEPT_XSETBV,
-	INTERCEPT_RDPRU,
 };
 
 
@@ -118,8 +117,6 @@ struct __attribute__ ((__packed__)) vmcb_control_area {
 
 #define V_IGN_TPR_SHIFT 20
 #define V_IGN_TPR_MASK (1 << V_IGN_TPR_SHIFT)
-
-#define V_IRQ_INJECTION_BITS_MASK (V_IRQ_MASK | V_INTR_PRIO_MASK | V_IGN_TPR_MASK)
 
 #define V_INTR_MASKING_SHIFT 24
 #define V_INTR_MASKING_MASK (1 << V_INTR_MASKING_SHIFT)
@@ -292,5 +289,12 @@ struct __attribute__ ((__packed__)) vmcb {
 #define SVM_EXITINFO_REG_MASK 0x0F
 
 #define SVM_CR0_SELECTIVE_MASK (X86_CR0_TS | X86_CR0_MP)
+
+#define SVM_VMLOAD ".byte 0x0f, 0x01, 0xda"
+#define SVM_VMRUN  ".byte 0x0f, 0x01, 0xd8"
+#define SVM_VMSAVE ".byte 0x0f, 0x01, 0xdb"
+#define SVM_CLGI   ".byte 0x0f, 0x01, 0xdd"
+#define SVM_STGI   ".byte 0x0f, 0x01, 0xdc"
+#define SVM_INVLPGA ".byte 0x0f, 0x01, 0xdf"
 
 #endif

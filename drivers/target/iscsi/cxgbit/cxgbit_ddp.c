@@ -1,6 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016 Chelsio Communications, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include "cxgbit.h"
@@ -260,18 +263,17 @@ out:
 	r2t->targ_xfer_tag = ttinfo->tag;
 }
 
-void cxgbit_unmap_cmd(struct iscsi_conn *conn, struct iscsi_cmd *cmd)
+void cxgbit_release_cmd(struct iscsi_conn *conn, struct iscsi_cmd *cmd)
 {
 	struct cxgbit_cmd *ccmd = iscsit_priv_cmd(cmd);
 
 	if (ccmd->release) {
-		if (cmd->se_cmd.se_cmd_flags & SCF_PASSTHROUGH_SG_TO_MEM_NOALLOC) {
-			put_page(sg_page(&ccmd->sg));
-		} else {
+		struct cxgbi_task_tag_info *ttinfo = &ccmd->ttinfo;
+
+		if (ttinfo->sgl) {
 			struct cxgbit_sock *csk = conn->context;
 			struct cxgbit_device *cdev = csk->com.cdev;
 			struct cxgbi_ppm *ppm = cdev2ppm(cdev);
-			struct cxgbi_task_tag_info *ttinfo = &ccmd->ttinfo;
 
 			/* Abort the TCP conn if DDP is not complete to
 			 * avoid any possibility of DDP after freeing
@@ -281,14 +283,14 @@ void cxgbit_unmap_cmd(struct iscsi_conn *conn, struct iscsi_cmd *cmd)
 				     cmd->se_cmd.data_length))
 				cxgbit_abort_conn(csk);
 
-			if (unlikely(ttinfo->sgl)) {
-				dma_unmap_sg(&ppm->pdev->dev, ttinfo->sgl,
-					     ttinfo->nents, DMA_FROM_DEVICE);
-				ttinfo->nents = 0;
-				ttinfo->sgl = NULL;
-			}
 			cxgbi_ppm_ppod_release(ppm, ttinfo->idx);
+
+			dma_unmap_sg(&ppm->pdev->dev, ttinfo->sgl,
+				     ttinfo->nents, DMA_FROM_DEVICE);
+		} else {
+			put_page(sg_page(&ccmd->sg));
 		}
+
 		ccmd->release = false;
 	}
 }
@@ -316,10 +318,8 @@ int cxgbit_ddp_init(struct cxgbit_device *cdev)
 
 	ret = cxgbi_ppm_init(lldi->iscsi_ppm, cdev->lldi.ports[0],
 			     cdev->lldi.pdev, &cdev->lldi, &tformat,
-			     lldi->vr->iscsi.size, lldi->iscsi_llimit,
-			     lldi->vr->iscsi.start, 2,
-			     lldi->vr->ppod_edram.start,
-			     lldi->vr->ppod_edram.size);
+			     ppmax, lldi->iscsi_llimit,
+			     lldi->vr->iscsi.start, 2);
 	if (ret >= 0) {
 		struct cxgbi_ppm *ppm = (struct cxgbi_ppm *)(*lldi->iscsi_ppm);
 

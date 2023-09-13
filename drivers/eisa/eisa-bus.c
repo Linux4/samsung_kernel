@@ -1,8 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * EISA bus support functions for sysfs.
  *
  * (C) 2002, 2003 Marc Zyngier <maz@wild-wind.fr.eu.org>
+ *
+ * This code is released under the GPL version 2.
  */
 
 #include <linux/kernel.h>

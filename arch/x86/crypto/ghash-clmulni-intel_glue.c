@@ -1,10 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Accelerated GHASH implementation with Intel PCLMULQDQ-NI
  * instructions. This file contains glue code.
  *
  * Copyright (c) 2009 Intel Corp.
  *   Author: Huang Ying <ying.huang@intel.com>
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published
+ * by the Free Software Foundation.
  */
 
 #include <linux/err.h>
@@ -16,9 +19,8 @@
 #include <crypto/cryptd.h>
 #include <crypto/gf128mul.h>
 #include <crypto/internal/hash.h>
-#include <crypto/internal/simd.h>
+#include <asm/fpu/api.h>
 #include <asm/cpu_device_id.h>
-#include <asm/simd.h>
 
 #define GHASH_BLOCK_SIZE	16
 #define GHASH_DIGEST_SIZE	16
@@ -169,6 +171,7 @@ static int ghash_async_init(struct ahash_request *req)
 	struct crypto_shash *child = cryptd_ahash_child(cryptd_tfm);
 
 	desc->tfm = child;
+	desc->flags = req->base.flags;
 	return crypto_shash_init(desc);
 }
 
@@ -179,7 +182,7 @@ static int ghash_async_update(struct ahash_request *req)
 	struct ghash_async_ctx *ctx = crypto_ahash_ctx(tfm);
 	struct cryptd_ahash *cryptd_tfm = ctx->cryptd_tfm;
 
-	if (!crypto_simd_usable() ||
+	if (!irq_fpu_usable() ||
 	    (in_atomic() && cryptd_ahash_queued(cryptd_tfm))) {
 		memcpy(cryptd_req, req, sizeof(*req));
 		ahash_request_set_tfm(cryptd_req, &cryptd_tfm->base);
@@ -197,7 +200,7 @@ static int ghash_async_final(struct ahash_request *req)
 	struct ghash_async_ctx *ctx = crypto_ahash_ctx(tfm);
 	struct cryptd_ahash *cryptd_tfm = ctx->cryptd_tfm;
 
-	if (!crypto_simd_usable() ||
+	if (!irq_fpu_usable() ||
 	    (in_atomic() && cryptd_ahash_queued(cryptd_tfm))) {
 		memcpy(cryptd_req, req, sizeof(*req));
 		ahash_request_set_tfm(cryptd_req, &cryptd_tfm->base);
@@ -238,7 +241,7 @@ static int ghash_async_digest(struct ahash_request *req)
 	struct ahash_request *cryptd_req = ahash_request_ctx(req);
 	struct cryptd_ahash *cryptd_tfm = ctx->cryptd_tfm;
 
-	if (!crypto_simd_usable() ||
+	if (!irq_fpu_usable() ||
 	    (in_atomic() && cryptd_ahash_queued(cryptd_tfm))) {
 		memcpy(cryptd_req, req, sizeof(*req));
 		ahash_request_set_tfm(cryptd_req, &cryptd_tfm->base);
@@ -248,6 +251,7 @@ static int ghash_async_digest(struct ahash_request *req)
 		struct crypto_shash *child = cryptd_ahash_child(cryptd_tfm);
 
 		desc->tfm = child;
+		desc->flags = req->base.flags;
 		return shash_ahash_digest(req, desc);
 	}
 }
@@ -357,5 +361,6 @@ module_init(ghash_pclmulqdqni_mod_init);
 module_exit(ghash_pclmulqdqni_mod_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("GHASH hash function, accelerated by PCLMULQDQ-NI");
+MODULE_DESCRIPTION("GHASH Message Digest Algorithm, "
+		   "accelerated by PCLMULQDQ-NI");
 MODULE_ALIAS_CRYPTO("ghash");

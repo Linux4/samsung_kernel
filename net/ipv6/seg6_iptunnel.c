@@ -1,9 +1,14 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  SR-IPv6 implementation
  *
  *  Author:
  *  David Lebrun <david.lebrun@uclouvain.be>
+ *
+ *
+ *  This program is free software; you can redistribute it and/or
+ *        modify it under the terms of the GNU General Public License
+ *        as published by the Free Software Foundation; either version
+ *        2 of the License, or (at your option) any later version.
  */
 
 #include <linux/types.h>
@@ -143,14 +148,6 @@ int seg6_do_srh_encap(struct sk_buff *skb, struct ipv6_sr_hdr *osrh, int proto)
 		hdr->hop_limit = ip6_dst_hoplimit(skb_dst(skb));
 
 		memset(IP6CB(skb), 0, sizeof(*IP6CB(skb)));
-
-		/* the control block has been erased, so we have to set the
-		 * iif once again.
-		 * We read the receiving interface index directly from the
-		 * skb->skb_iif as it is done in the IPv4 receiving path (i.e.:
-		 * ip_rcv_core(...)).
-		 */
-		IP6CB(skb)->iif = skb->skb_iif;
 	}
 
 	hdr->nexthdr = NEXTHDR_ROUTING;
@@ -170,8 +167,6 @@ int seg6_do_srh_encap(struct sk_buff *skb, struct ipv6_sr_hdr *osrh, int proto)
 			return err;
 	}
 #endif
-
-	hdr->payload_len = htons(skb->len - sizeof(struct ipv6hdr));
 
 	skb_postpush_rcsum(skb, hdr, tot_len);
 
@@ -224,8 +219,6 @@ int seg6_do_srh_inline(struct sk_buff *skb, struct ipv6_sr_hdr *osrh)
 			return err;
 	}
 #endif
-
-	hdr->payload_len = htons(skb->len - sizeof(struct ipv6hdr));
 
 	skb_postpush_rcsum(skb, hdr, sizeof(struct ipv6hdr) + hdrlen);
 
@@ -288,6 +281,7 @@ static int seg6_do_srh(struct sk_buff *skb)
 		break;
 	}
 
+	ipv6_hdr(skb)->payload_len = htons(skb->len - sizeof(struct ipv6hdr));
 	skb_set_transport_header(skb, sizeof(struct ipv6hdr));
 
 	return 0;
@@ -402,8 +396,8 @@ static int seg6_build_state(struct nlattr *nla,
 	if (family != AF_INET && family != AF_INET6)
 		return -EINVAL;
 
-	err = nla_parse_nested_deprecated(tb, SEG6_IPTUNNEL_MAX, nla,
-					  seg6_iptunnel_policy, extack);
+	err = nla_parse_nested(tb, SEG6_IPTUNNEL_MAX, nla,
+			       seg6_iptunnel_policy, extack);
 
 	if (err < 0)
 		return err;

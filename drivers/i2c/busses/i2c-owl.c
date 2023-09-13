@@ -179,9 +179,6 @@ static irqreturn_t owl_i2c_interrupt(int irq, void *_dev)
 	fifostat = readl(i2c_dev->base + OWL_I2C_REG_FIFOSTAT);
 	if (fifostat & OWL_I2C_FIFOSTAT_RNB) {
 		i2c_dev->err = -ENXIO;
-		/* Clear NACK error bit by writing "1" */
-		owl_i2c_update_reg(i2c_dev->base + OWL_I2C_REG_FIFOSTAT,
-				   OWL_I2C_FIFOSTAT_RNB, true);
 		goto stop;
 	}
 
@@ -189,9 +186,6 @@ static irqreturn_t owl_i2c_interrupt(int irq, void *_dev)
 	stat = readl(i2c_dev->base + OWL_I2C_REG_STAT);
 	if (stat & OWL_I2C_STAT_BEB) {
 		i2c_dev->err = -EIO;
-		/* Clear BUS error bit by writing "1" */
-		owl_i2c_update_reg(i2c_dev->base + OWL_I2C_REG_STAT,
-				   OWL_I2C_STAT_BEB, true);
 		goto stop;
 	}
 
@@ -481,7 +475,6 @@ disable_clk:
 }
 
 static const struct of_device_id owl_i2c_of_match[] = {
-	{ .compatible = "actions,s700-i2c" },
 	{ .compatible = "actions,s900-i2c" },
 	{ /* sentinel */ }
 };

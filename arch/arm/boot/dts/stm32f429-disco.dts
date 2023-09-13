@@ -60,7 +60,6 @@
 	};
 
 	memory {
-		device_type = "memory";
 		reg = <0x90000000 0x800000>;
 	};
 
@@ -79,10 +78,12 @@
 		};
 	};
 
-	gpio-keys {
+	gpio_keys {
 		compatible = "gpio-keys";
+		#address-cells = <1>;
+		#size-cells = <0>;
 		autorepeat;
-		button-0 {
+		button@0 {
 			label = "User";
 			linux,code = <KEY_HOME>;
 			gpios = <&gpioa 0 0>;

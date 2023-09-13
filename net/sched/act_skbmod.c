@@ -1,19 +1,21 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * net/sched/act_skbmod.c  skb data modifier
  *
  * Copyright (c) 2016 Jamal Hadi Salim <jhs@mojatatu.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
 */
 
 #include <linux/module.h>
-#include <linux/if_arp.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/skbuff.h>
 #include <linux/rtnetlink.h>
 #include <net/netlink.h>
 #include <net/pkt_sched.h>
-#include <net/pkt_cls.h>
 
 #include <linux/tc_act/tc_skbmod.h>
 #include <net/tc_act/tc_skbmod.h>
@@ -34,19 +36,16 @@ static int tcf_skbmod_act(struct sk_buff *skb, const struct tc_action *a,
 	tcf_lastuse_update(&d->tcf_tm);
 	bstats_cpu_update(this_cpu_ptr(d->common.cpu_bstats), skb);
 
-	action = READ_ONCE(d->tcf_action);
-	if (unlikely(action == TC_ACT_SHOT))
-		goto drop;
-
-	if (!skb->dev || skb->dev->type != ARPHRD_ETHER)
-		return action;
-
 	/* XXX: if you are going to edit more fields beyond ethernet header
 	 * (example when you add IP header replacement or vlan swap)
 	 * then MAX_EDIT_LEN needs to change appropriately
 	*/
 	err = skb_ensure_writable(skb, MAX_EDIT_LEN);
 	if (unlikely(err)) /* best policy is to drop on the floor */
+		goto drop;
+
+	action = READ_ONCE(d->tcf_action);
+	if (unlikely(action == TC_ACT_SHOT))
 		goto drop;
 
 	p = rcu_dereference_bh(d->skbmod_p);
@@ -83,13 +82,11 @@ static const struct nla_policy skbmod_policy[TCA_SKBMOD_MAX + 1] = {
 static int tcf_skbmod_init(struct net *net, struct nlattr *nla,
 			   struct nlattr *est, struct tc_action **a,
 			   int ovr, int bind, bool rtnl_held,
-			   struct tcf_proto *tp,
 			   struct netlink_ext_ack *extack)
 {
 	struct tc_action_net *tn = net_generic(net, skbmod_net_id);
 	struct nlattr *tb[TCA_SKBMOD_MAX + 1];
 	struct tcf_skbmod_params *p, *p_old;
-	struct tcf_chain *goto_ch = NULL;
 	struct tc_skbmod *parm;
 	u32 lflags = 0, index;
 	struct tcf_skbmod *d;
@@ -102,8 +99,7 @@ static int tcf_skbmod_init(struct net *net, struct nlattr *nla,
 	if (!nla)
 		return -EINVAL;
 
-	err = nla_parse_nested_deprecated(tb, TCA_SKBMOD_MAX, nla,
-					  skbmod_policy, NULL);
+	err = nla_parse_nested(tb, TCA_SKBMOD_MAX, nla, skbmod_policy, NULL);
 	if (err < 0)
 		return err;
 
@@ -158,24 +154,21 @@ static int tcf_skbmod_init(struct net *net, struct nlattr *nla,
 		tcf_idr_release(*a, bind);
 		return -EEXIST;
 	}
-	err = tcf_action_check_ctrlact(parm->action, tp, &goto_ch, extack);
-	if (err < 0)
-		goto release_idr;
 
 	d = to_skbmod(*a);
 
 	p = kzalloc(sizeof(struct tcf_skbmod_params), GFP_KERNEL);
 	if (unlikely(!p)) {
-		err = -ENOMEM;
-		goto put_chain;
+		tcf_idr_release(*a, bind);
+		return -ENOMEM;
 	}
 
 	p->flags = lflags;
+	d->tcf_action = parm->action;
 
 	if (ovr)
 		spin_lock_bh(&d->tcf_lock);
 	/* Protected by tcf_lock if overwriting existing action. */
-	goto_ch = tcf_action_set_ctrlact(*a, parm->action, goto_ch);
 	p_old = rcu_dereference_protected(d->skbmod_p, 1);
 
 	if (lflags & SKBMOD_F_DMAC)
@@ -191,16 +184,10 @@ static int tcf_skbmod_init(struct net *net, struct nlattr *nla,
 
 	if (p_old)
 		kfree_rcu(p_old, rcu);
-	if (goto_ch)
-		tcf_chain_put_by_act(goto_ch);
 
+	if (ret == ACT_P_CREATED)
+		tcf_idr_insert(tn, *a);
 	return ret;
-put_chain:
-	if (goto_ch)
-		tcf_chain_put_by_act(goto_ch);
-release_idr:
-	tcf_idr_release(*a, bind);
-	return err;
 }
 
 static void tcf_skbmod_cleanup(struct tc_action *a)
@@ -265,7 +252,8 @@ static int tcf_skbmod_walker(struct net *net, struct sk_buff *skb,
 	return tcf_generic_walker(tn, skb, cb, type, ops, extack);
 }
 
-static int tcf_skbmod_search(struct net *net, struct tc_action **a, u32 index)
+static int tcf_skbmod_search(struct net *net, struct tc_action **a, u32 index,
+			     struct netlink_ext_ack *extack)
 {
 	struct tc_action_net *tn = net_generic(net, skbmod_net_id);
 
@@ -274,7 +262,7 @@ static int tcf_skbmod_search(struct net *net, struct tc_action **a, u32 index)
 
 static struct tc_action_ops act_skbmod_ops = {
 	.kind		=	"skbmod",
-	.id		=	TCA_ACT_SKBMOD,
+	.type		=	TCA_ACT_SKBMOD,
 	.owner		=	THIS_MODULE,
 	.act		=	tcf_skbmod_act,
 	.dump		=	tcf_skbmod_dump,

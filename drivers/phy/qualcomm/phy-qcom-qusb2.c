@@ -152,31 +152,6 @@ static const struct qusb2_phy_init_tbl msm8996_init_tbl[] = {
 	QUSB2_PHY_INIT_CFG(QUSB2PHY_PLL_PWR_CTRL, 0x00),
 };
 
-static const unsigned int msm8998_regs_layout[] = {
-	[QUSB2PHY_PLL_CORE_INPUT_OVERRIDE] = 0xa8,
-	[QUSB2PHY_PLL_STATUS]              = 0x1a0,
-	[QUSB2PHY_PORT_TUNE1]              = 0x23c,
-	[QUSB2PHY_PORT_TUNE2]              = 0x240,
-	[QUSB2PHY_PORT_TUNE3]              = 0x244,
-	[QUSB2PHY_PORT_TUNE4]              = 0x248,
-	[QUSB2PHY_PORT_TEST1]              = 0x24c,
-	[QUSB2PHY_PORT_TEST2]              = 0x250,
-	[QUSB2PHY_PORT_POWERDOWN]          = 0x210,
-	[QUSB2PHY_INTR_CTRL]               = 0x22c,
-};
-
-static const struct qusb2_phy_init_tbl msm8998_init_tbl[] = {
-	QUSB2_PHY_INIT_CFG(QUSB2PHY_PLL_ANALOG_CONTROLS_TWO, 0x13),
-	QUSB2_PHY_INIT_CFG(QUSB2PHY_PLL_CLOCK_INVERTERS, 0x7c),
-	QUSB2_PHY_INIT_CFG(QUSB2PHY_PLL_CMODE, 0x80),
-	QUSB2_PHY_INIT_CFG(QUSB2PHY_PLL_LOCK_DELAY, 0x0a),
-
-	QUSB2_PHY_INIT_CFG_L(QUSB2PHY_PORT_TUNE1, 0xa5),
-	QUSB2_PHY_INIT_CFG_L(QUSB2PHY_PORT_TUNE2, 0x09),
-
-	QUSB2_PHY_INIT_CFG(QUSB2PHY_PLL_DIGITAL_TIMERS_TWO, 0x19),
-};
-
 static const unsigned int sdm845_regs_layout[] = {
 	[QUSB2PHY_PLL_CORE_INPUT_OVERRIDE] = 0xa8,
 	[QUSB2PHY_PLL_STATUS]		= 0x1a0,
@@ -244,18 +219,6 @@ static const struct qusb2_phy_cfg msm8996_phy_cfg = {
 	.disable_ctrl	= (CLAMP_N_EN | FREEZIO_N | POWER_DOWN),
 	.mask_core_ready = PLL_LOCKED,
 	.autoresume_en	 = BIT(3),
-};
-
-static const struct qusb2_phy_cfg msm8998_phy_cfg = {
-	.tbl            = msm8998_init_tbl,
-	.tbl_num        = ARRAY_SIZE(msm8998_init_tbl),
-	.regs           = msm8998_regs_layout,
-
-	.disable_ctrl   = POWER_DOWN,
-	.mask_core_ready = CORE_READY_STATUS,
-	.has_pll_override = true,
-	.autoresume_en   = BIT(0),
-	.update_tune1_with_efuse = true,
 };
 
 static const struct qusb2_phy_cfg sdm845_phy_cfg = {
@@ -432,7 +395,7 @@ static void qusb2_phy_set_tune2_param(struct qusb2_phy *qphy)
 {
 	struct device *dev = &qphy->phy->dev;
 	const struct qusb2_phy_cfg *cfg = qphy->cfg;
-	u8 *val, hstx_trim;
+	u8 *val;
 
 	/* efuse register is optional */
 	if (!qphy->cell)
@@ -446,13 +409,7 @@ static void qusb2_phy_set_tune2_param(struct qusb2_phy *qphy)
 	 * set while configuring the phy.
 	 */
 	val = nvmem_cell_read(qphy->cell, NULL);
-	if (IS_ERR(val)) {
-		dev_dbg(dev, "failed to read a valid hs-tx trim value\n");
-		return;
-	}
-	hstx_trim = val[0];
-	kfree(val);
-	if (!hstx_trim) {
+	if (IS_ERR(val) || !val[0]) {
 		dev_dbg(dev, "failed to read a valid hs-tx trim value\n");
 		return;
 	}
@@ -460,14 +417,15 @@ static void qusb2_phy_set_tune2_param(struct qusb2_phy *qphy)
 	/* Fused TUNE1/2 value is the higher nibble only */
 	if (cfg->update_tune1_with_efuse)
 		qusb2_write_mask(qphy->base, cfg->regs[QUSB2PHY_PORT_TUNE1],
-				 hstx_trim << HSTX_TRIM_SHIFT, HSTX_TRIM_MASK);
+				 val[0] << HSTX_TRIM_SHIFT,
+				 HSTX_TRIM_MASK);
 	else
 		qusb2_write_mask(qphy->base, cfg->regs[QUSB2PHY_PORT_TUNE2],
-				 hstx_trim << HSTX_TRIM_SHIFT, HSTX_TRIM_MASK);
+				 val[0] << HSTX_TRIM_SHIFT,
+				 HSTX_TRIM_MASK);
 }
 
-static int qusb2_phy_set_mode(struct phy *phy,
-			      enum phy_mode mode, int submode)
+static int qusb2_phy_set_mode(struct phy *phy, enum phy_mode mode)
 {
 	struct qusb2_phy *qphy = phy_get_drvdata(phy);
 
@@ -775,9 +733,6 @@ static const struct of_device_id qusb2_phy_of_match_table[] = {
 		.compatible	= "qcom,msm8996-qusb2-phy",
 		.data		= &msm8996_phy_cfg,
 	}, {
-		.compatible	= "qcom,msm8998-qusb2-phy",
-		.data		= &msm8998_phy_cfg,
-	}, {
 		.compatible	= "qcom,sdm845-qusb2-phy",
 		.data		= &sdm845_phy_cfg,
 	},
@@ -826,9 +781,14 @@ static int qusb2_phy_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	qphy->iface_clk = devm_clk_get_optional(dev, "iface");
-	if (IS_ERR(qphy->iface_clk))
-		return PTR_ERR(qphy->iface_clk);
+	qphy->iface_clk = devm_clk_get(dev, "iface");
+	if (IS_ERR(qphy->iface_clk)) {
+		ret = PTR_ERR(qphy->iface_clk);
+		if (ret == -EPROBE_DEFER)
+			return ret;
+		qphy->iface_clk = NULL;
+		dev_dbg(dev, "failed to get iface clk, %d\n", ret);
+	}
 
 	qphy->phy_reset = devm_reset_control_get_by_index(&pdev->dev, 0);
 	if (IS_ERR(qphy->phy_reset)) {
@@ -842,9 +802,7 @@ static int qusb2_phy_probe(struct platform_device *pdev)
 
 	ret = devm_regulator_bulk_get(dev, num, qphy->vregs);
 	if (ret) {
-		if (ret != -EPROBE_DEFER)
-			dev_err(dev, "failed to get regulator supplies: %d\n",
-				ret);
+		dev_err(dev, "failed to get regulator supplies\n");
 		return ret;
 	}
 

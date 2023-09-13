@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Linux driver for TerraTec DMX 6Fire USB
  *
@@ -7,6 +6,11 @@
  * Author:	Torsten Schenk <torsten.schenk@zoho.com>
  * Created:	Jan 01, 2011
  * Copyright:	(C) Torsten Schenk
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  */
 
 #include <linux/firmware.h>
@@ -162,7 +166,7 @@ static int usb6fire_fw_ezusb_write(struct usb_device *device,
 
 	ret = usb_control_msg(device, usb_sndctrlpipe(device, 0), type,
 			USB_DIR_OUT | USB_TYPE_VENDOR | USB_RECIP_DEVICE,
-			value, 0, data, len, 1000);
+			value, 0, data, len, HZ);
 	if (ret < 0)
 		return ret;
 	else if (ret != len)
@@ -175,7 +179,7 @@ static int usb6fire_fw_ezusb_read(struct usb_device *device,
 {
 	int ret = usb_control_msg(device, usb_rcvctrlpipe(device, 0), type,
 			USB_DIR_IN | USB_TYPE_VENDOR | USB_RECIP_DEVICE, value,
-			0, data, len, 1000);
+			0, data, len, HZ);
 	if (ret < 0)
 		return ret;
 	else if (ret != len)
@@ -190,7 +194,7 @@ static int usb6fire_fw_fpga_write(struct usb_device *device,
 	int ret;
 
 	ret = usb_bulk_msg(device, usb_sndbulkpipe(device, FPGA_EP), data, len,
-			&actual_len, 1000);
+			&actual_len, HZ);
 	if (ret < 0)
 		return ret;
 	else if (actual_len != len)

@@ -1,15 +1,28 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * dwarf-aux.c : libdw auxiliary interfaces
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *
  */
 
 #include <errno.h>
 #include <inttypes.h>
 #include <stdbool.h>
-#include <stdlib.h>
+#include "util.h"
 #include "debug.h"
 #include "dwarf-aux.h"
-#include "strbuf.h"
 #include "string2.h"
 
 /**
@@ -319,20 +332,12 @@ bool die_is_func_def(Dwarf_Die *dw_die)
 int die_entrypc(Dwarf_Die *dw_die, Dwarf_Addr *addr)
 {
 	Dwarf_Addr base, end;
-	Dwarf_Attribute attr;
 
 	if (!addr)
 		return -EINVAL;
 
 	if (dwarf_entrypc(dw_die, addr) == 0)
 		return 0;
-
-	/*
-	 *  Since the dwarf_ranges() will return 0 if there is no
-	 * DW_AT_ranges attribute, we should check it first.
-	 */
-	if (!dwarf_attr(dw_die, DW_AT_ranges, &attr))
-		return -ENOENT;
 
 	return dwarf_ranges(dw_die, 0, &base, addr, &end) < 0 ? -ENOENT : 0;
 }

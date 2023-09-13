@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * 'traps.c' handles hardware traps and faults after we have saved some
  * state in 'entry.S'.
@@ -7,6 +6,10 @@
  *                  Copyright (C) 2000 Philipp Rumpf
  *                  Copyright (C) 2000 David Howells
  *                  Copyright (C) 2002 - 2010 Paul Mundt
+ *
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
  */
 #include <linux/kernel.h>
 #include <linux/ptrace.h>
@@ -533,7 +536,7 @@ uspace_segv:
 		       "access (PC %lx PR %lx)\n", current->comm, regs->pc,
 		       regs->pr);
 
-		force_sig_fault(SIGBUS, si_code, (void __user *)address);
+		force_sig_fault(SIGBUS, si_code, (void __user *)address, current);
 	} else {
 		inc_unaligned_kernel_access();
 
@@ -603,7 +606,7 @@ asmlinkage void do_divide_error(unsigned long r4)
 		/* Let gcc know unhandled cases don't make it past here */
 		return;
 	}
-	force_sig_fault(SIGFPE, code, NULL);
+	force_sig_fault(SIGFPE, code, NULL, current);
 }
 #endif
 
@@ -611,6 +614,7 @@ asmlinkage void do_reserved_inst(void)
 {
 	struct pt_regs *regs = current_pt_regs();
 	unsigned long error_code;
+	struct task_struct *tsk = current;
 
 #ifdef CONFIG_SH_FPU_EMU
 	unsigned short inst = 0;
@@ -632,7 +636,7 @@ asmlinkage void do_reserved_inst(void)
 		/* Enable DSP mode, and restart instruction. */
 		regs->sr |= SR_DSP;
 		/* Save DSP mode */
-		current->thread.dsp_status.status |= SR_DSP;
+		tsk->thread.dsp_status.status |= SR_DSP;
 		return;
 	}
 #endif
@@ -640,7 +644,7 @@ asmlinkage void do_reserved_inst(void)
 	error_code = lookup_exception_vector();
 
 	local_irq_enable();
-	force_sig(SIGILL);
+	force_sig(SIGILL, tsk);
 	die_if_no_fixup("reserved instruction", regs, error_code);
 }
 
@@ -696,6 +700,7 @@ asmlinkage void do_illegal_slot_inst(void)
 {
 	struct pt_regs *regs = current_pt_regs();
 	unsigned long inst;
+	struct task_struct *tsk = current;
 
 	if (kprobe_handle_illslot(regs->pc) == 0)
 		return;
@@ -714,7 +719,7 @@ asmlinkage void do_illegal_slot_inst(void)
 	inst = lookup_exception_vector();
 
 	local_irq_enable();
-	force_sig(SIGILL);
+	force_sig(SIGILL, tsk);
 	die_if_no_fixup("illegal slot instruction", regs, inst);
 }
 

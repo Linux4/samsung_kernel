@@ -158,8 +158,7 @@ static int rds_pin_pages(unsigned long user_addr, unsigned int nr_pages,
 {
 	int ret;
 
-	ret = get_user_pages_fast(user_addr, nr_pages, write ? FOLL_WRITE : 0,
-				  pages);
+	ret = get_user_pages_fast(user_addr, nr_pages, write, pages);
 
 	if (ret >= 0 && ret < nr_pages) {
 		while (ret--)
@@ -532,9 +531,6 @@ int rds_rdma_extra_size(struct rds_rdma_args *args,
 	if (args->nr_local == 0)
 		return -EINVAL;
 
-	if (args->nr_local > UIO_MAXIOV)
-		return -EMSGSIZE;
-
 	iov->iov = kcalloc(args->nr_local,
 			   sizeof(struct rds_iovec),
 			   GFP_KERNEL);
@@ -628,8 +624,8 @@ int rds_cmsg_rdma_args(struct rds_sock *rs, struct rds_message *rm,
 	op->op_recverr = rs->rs_recverr;
 	WARN_ON(!nr_pages);
 	op->op_sg = rds_message_alloc_sgs(rm, nr_pages);
-	if (IS_ERR(op->op_sg)) {
-		ret = PTR_ERR(op->op_sg);
+	if (!op->op_sg) {
+		ret = -ENOMEM;
 		goto out_pages;
 	}
 
@@ -646,6 +642,16 @@ int rds_cmsg_rdma_args(struct rds_sock *rs, struct rds_message *rm,
 		}
 		op->op_notifier->n_user_token = args->user_token;
 		op->op_notifier->n_status = RDS_RDMA_SUCCESS;
+
+		/* Enable rmda notification on data operation for composite
+		 * rds messages and make sure notification is enabled only
+		 * for the data operation which follows it so that application
+		 * gets notified only after full message gets delivered.
+		 */
+		if (rm->data.op_sg) {
+			rm->rdma.op_notify = 0;
+			rm->data.op_notify = !!(args->flags & RDS_RDMA_NOTIFY_ME);
+		}
 	}
 
 	/* The cookie contains the R_Key of the remote memory region, and
@@ -834,8 +840,8 @@ int rds_cmsg_atomic(struct rds_sock *rs, struct rds_message *rm,
 	rm->atomic.op_active = 1;
 	rm->atomic.op_recverr = rs->rs_recverr;
 	rm->atomic.op_sg = rds_message_alloc_sgs(rm, 1);
-	if (IS_ERR(rm->atomic.op_sg)) {
-		ret = PTR_ERR(rm->atomic.op_sg);
+	if (!rm->atomic.op_sg) {
+		ret = -ENOMEM;
 		goto err;
 	}
 

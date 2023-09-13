@@ -1,17 +1,28 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __PERF_SORT_H
 #define __PERF_SORT_H
+#include "../builtin.h"
+
 #include <regex.h>
-#include <stdbool.h>
+
+#include "color.h"
 #include <linux/list.h>
+#include "cache.h"
 #include <linux/rbtree.h>
-#include "map_symbol.h"
-#include "symbol_conf.h"
+#include "symbol.h"
+#include "string.h"
 #include "callchain.h"
 #include "values.h"
-#include "hist.h"
 
-struct option;
+#include "../perf.h"
+#include "debug.h"
+#include "header.h"
+
+#include <subcmd/parse-options.h>
+#include "parse-events.h"
+#include "hist.h"
+#include "srcline.h"
+
 struct thread;
 
 extern regex_t parent_regex;
@@ -34,12 +45,6 @@ extern struct sort_entry sort_sym_to;
 extern struct sort_entry sort_srcline;
 extern enum sort_type sort__first_dimension;
 extern const char default_mem_sort_order[];
-
-struct res_sample {
-	u64 time;
-	int cpu;
-	int tid;
-};
 
 struct he_stat {
 	u64			period;
@@ -67,9 +72,6 @@ struct hist_entry_diff {
 
 		/* HISTC_WEIGHTED_DIFF */
 		s64	wdiff;
-
-		/* PERF_HPP_DIFF__CYCLES */
-		s64	cycles;
 	};
 };
 
@@ -132,14 +134,10 @@ struct hist_entry {
 	char			*srcfile;
 	struct symbol		*parent;
 	struct branch_info	*branch_info;
-	long			time;
 	struct hists		*hists;
 	struct mem_info		*mem_info;
-	struct block_info	*block_info;
 	void			*raw_data;
 	u32			raw_size;
-	int			num_res;
-	struct res_sample	*res_samples;
 	void			*trace_output;
 	struct perf_hpp_list	*hpp_list;
 	struct hist_entry	*parent_he;
@@ -147,8 +145,8 @@ struct hist_entry {
 	union {
 		/* this is for hierarchical entry structure */
 		struct {
-			struct rb_root_cached	hroot_in;
-			struct rb_root_cached   hroot_out;
+			struct rb_root	hroot_in;
+			struct rb_root  hroot_out;
 		};				/* non-leaf entries */
 		struct rb_root	sorted_chain;	/* leaf entry has callchains */
 	};
@@ -192,6 +190,18 @@ static inline float hist_entry__get_percent_limit(struct hist_entry *he)
 	return period * 100.0 / total_period;
 }
 
+static inline u64 cl_address(u64 address)
+{
+	/* return the cacheline of the address */
+	return (address & ~(cacheline_size() - 1));
+}
+
+static inline u64 cl_offset(u64 address)
+{
+	/* return the cacheline of the address */
+	return (address & (cacheline_size() - 1));
+}
+
 enum sort_mode {
 	SORT_MODE__NORMAL,
 	SORT_MODE__BRANCH,
@@ -219,8 +229,6 @@ enum sort_type {
 	SORT_SYM_SIZE,
 	SORT_DSO_SIZE,
 	SORT_CGROUP_ID,
-	SORT_SYM_IPC_NULL,
-	SORT_TIME,
 
 	/* branch stack specific sort keys */
 	__SORT_BRANCH_STACK,
@@ -234,7 +242,6 @@ enum sort_type {
 	SORT_CYCLES,
 	SORT_SRCLINE_FROM,
 	SORT_SRCLINE_TO,
-	SORT_SYM_IPC,
 
 	/* memory mode specific sort keys */
 	__SORT_MEMORY_MODE,
@@ -265,27 +272,16 @@ struct sort_entry {
 	u8	se_width_idx;
 };
 
-struct block_hist {
-	struct hists		block_hists;
-	struct perf_hpp_list	block_list;
-	struct perf_hpp_fmt	block_fmt;
-	int			block_idx;
-	bool			valid;
-	struct hist_entry	he;
-};
-
 extern struct sort_entry sort_thread;
 extern struct list_head hist_entry__sort_list;
 
-struct evlist;
+struct perf_evlist;
 struct tep_handle;
-int setup_sorting(struct evlist *evlist);
+int setup_sorting(struct perf_evlist *evlist);
 int setup_output_field(void);
 void reset_output_field(void);
 void sort__setup_elide(FILE *fp);
 void perf_hpp__set_elide(int idx, bool elide);
-
-const char *sort_help(const char *prefix);
 
 int report_parse_ignore_callees_opt(const struct option *opt, const char *arg, int unset);
 
@@ -294,7 +290,7 @@ bool is_strict_order(const char *order);
 int hpp_dimension__add_output(unsigned col);
 void reset_dimensions(void);
 int sort_dimension__add(struct perf_hpp_list *list, const char *tok,
-			struct evlist *evlist,
+			struct perf_evlist *evlist,
 			int level);
 int output_field_add(struct perf_hpp_list *list, char *tok);
 int64_t

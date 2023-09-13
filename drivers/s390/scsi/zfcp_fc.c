@@ -325,7 +325,7 @@ static void zfcp_fc_incoming_logo(struct zfcp_fsf_req *req)
 
 /**
  * zfcp_fc_incoming_els - handle incoming ELS
- * @fsf_req: request which contains incoming ELS
+ * @fsf_req - request which contains incoming ELS
  */
 void zfcp_fc_incoming_els(struct zfcp_fsf_req *fsf_req)
 {
@@ -521,8 +521,6 @@ static void zfcp_fc_adisc_handler(void *data)
 		goto out;
 	}
 
-	/* re-init to undo drop from zfcp_fc_adisc() */
-	port->d_id = ntoh24(adisc_resp->adisc_port_id);
 	/* port is good, unblock rport without going through erp */
 	zfcp_scsi_schedule_rport_register(port);
  out:
@@ -536,7 +534,6 @@ static int zfcp_fc_adisc(struct zfcp_port *port)
 	struct zfcp_fc_req *fc_req;
 	struct zfcp_adapter *adapter = port->adapter;
 	struct Scsi_Host *shost = adapter->scsi_host;
-	u32 d_id;
 	int ret;
 
 	fc_req = kmem_cache_zalloc(zfcp_fc_req_cache, GFP_ATOMIC);
@@ -561,15 +558,7 @@ static int zfcp_fc_adisc(struct zfcp_port *port)
 	fc_req->u.adisc.req.adisc_cmd = ELS_ADISC;
 	hton24(fc_req->u.adisc.req.adisc_port_id, fc_host_port_id(shost));
 
-	d_id = port->d_id; /* remember as destination for send els below */
-	/*
-	 * Force fresh GID_PN lookup on next port recovery.
-	 * Must happen after request setup and before sending request,
-	 * to prevent race with port->d_id re-init in zfcp_fc_adisc_handler().
-	 */
-	port->d_id = 0;
-
-	ret = zfcp_fsf_send_els(adapter, d_id, &fc_req->ct_els,
+	ret = zfcp_fsf_send_els(adapter, port->d_id, &fc_req->ct_els,
 				ZFCP_FC_CTELS_TMO);
 	if (ret)
 		kmem_cache_free(zfcp_fc_req_cache, fc_req);
@@ -621,48 +610,6 @@ void zfcp_fc_test_link(struct zfcp_port *port)
 		put_device(&port->dev);
 }
 
-/**
- * zfcp_fc_sg_free_table - free memory used by scatterlists
- * @sg: pointer to scatterlist
- * @count: number of scatterlist which are to be free'ed
- * the scatterlist are expected to reference pages always
- */
-static void zfcp_fc_sg_free_table(struct scatterlist *sg, int count)
-{
-	int i;
-
-	for (i = 0; i < count; i++, sg = sg_next(sg))
-		if (sg)
-			free_page((unsigned long) sg_virt(sg));
-		else
-			break;
-}
-
-/**
- * zfcp_fc_sg_setup_table - init scatterlist and allocate, assign buffers
- * @sg: pointer to struct scatterlist
- * @count: number of scatterlists which should be assigned with buffers
- * of size page
- *
- * Returns: 0 on success, -ENOMEM otherwise
- */
-static int zfcp_fc_sg_setup_table(struct scatterlist *sg, int count)
-{
-	void *addr;
-	int i;
-
-	sg_init_table(sg, count);
-	for (i = 0; i < count; i++, sg = sg_next(sg)) {
-		addr = (void *) get_zeroed_page(GFP_KERNEL);
-		if (!addr) {
-			zfcp_fc_sg_free_table(sg, i);
-			return -ENOMEM;
-		}
-		sg_set_buf(sg, addr, PAGE_SIZE);
-	}
-	return 0;
-}
-
 static struct zfcp_fc_req *zfcp_fc_alloc_sg_env(int buf_num)
 {
 	struct zfcp_fc_req *fc_req;
@@ -671,7 +618,7 @@ static struct zfcp_fc_req *zfcp_fc_alloc_sg_env(int buf_num)
 	if (!fc_req)
 		return NULL;
 
-	if (zfcp_fc_sg_setup_table(&fc_req->sg_rsp, buf_num)) {
+	if (zfcp_sg_setup_table(&fc_req->sg_rsp, buf_num)) {
 		kmem_cache_free(zfcp_fc_req_cache, fc_req);
 		return NULL;
 	}
@@ -829,7 +776,7 @@ void zfcp_fc_scan_ports(struct work_struct *work)
 				break;
 		}
 	}
-	zfcp_fc_sg_free_table(&fc_req->sg_rsp, buf_num);
+	zfcp_sg_free_table(&fc_req->sg_rsp, buf_num);
 	kmem_cache_free(zfcp_fc_req_cache, fc_req);
 out:
 	zfcp_fc_wka_port_put(&adapter->gs->ds);

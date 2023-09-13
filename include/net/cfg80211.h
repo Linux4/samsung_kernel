@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 #ifndef __NET_CFG80211_H
 #define __NET_CFG80211_H
 /*
@@ -7,7 +6,11 @@
  * Copyright 2006-2010	Johannes Berg <johannes@sipsolutions.net>
  * Copyright 2013-2014 Intel Mobile Communications GmbH
  * Copyright 2015-2017	Intel Deutschland GmbH
- * Copyright (C) 2018-2019 Intel Corporation
+ * Copyright (C) 2018 Intel Corporation
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/netdevice.h>
@@ -36,15 +39,6 @@
  * use restrictions.
  */
 
-
-/* Indicate backport support for key configuration for Beacon protection*/
-#define CFG80211_BIGTK_CONFIGURATION_SUPPORT 1
-
-/* Indicate backport support for supported AKM advertisement per interface*/
-#define CFG80211_IFTYPE_AKM_SUITES_SUPPORT 1
-
-/* Indicate backport support for configuring PMKSA timer params*/
-#define CFG80211_CONFIG_PMKSA_TIMER_PARAMS_SUPPORT 1
 
 /**
  * DOC: Device registration
@@ -135,7 +129,6 @@ enum ieee80211_channel_flags {
  * with cfg80211.
  *
  * @center_freq: center frequency in MHz
- * @freq_offset: offset from @center_freq, in KHz
  * @hw_value: hardware-specific value for the channel
  * @flags: channel flags from &enum ieee80211_channel_flags.
  * @orig_flags: channel flags at registration time, used by regulatory
@@ -156,8 +149,7 @@ enum ieee80211_channel_flags {
  */
 struct ieee80211_channel {
 	enum nl80211_band band;
-	u32 center_freq;
-	u16 freq_offset;
+	u16 center_freq;
 	u16 hw_value;
 	u32 flags;
 	int max_antenna_gain;
@@ -258,32 +250,6 @@ struct ieee80211_rate {
 };
 
 /**
- * struct ieee80211_he_obss_pd - AP settings for spatial reuse
- *
- * @enable: is the feature enabled.
- * @min_offset: minimal tx power offset an associated station shall use
- * @max_offset: maximum tx power offset an associated station shall use
- */
-struct ieee80211_he_obss_pd {
-	bool enable;
-	u8 min_offset;
-	u8 max_offset;
-};
-
-/**
- * struct cfg80211_he_bss_color - AP settings for BSS coloring
- *
- * @color: the current color.
- * @disabled: is the feature disabled.
- * @partial: define the AID equation.
- */
-struct cfg80211_he_bss_color {
-	u8 color;
-	bool disabled;
-	bool partial;
-};
-
-/**
  * struct ieee80211_sta_ht_cap - STA's HT capabilities
  *
  * This structure describes most essential parameters needed
@@ -348,67 +314,10 @@ struct ieee80211_sta_he_cap {
  *
  * @types_mask: interface types mask
  * @he_cap: holds the HE capabilities
- * @he_6ghz_capa: HE 6 GHz capabilities, must be filled in for a
- *	6 GHz band channel (and 0 may be valid value).
  */
 struct ieee80211_sband_iftype_data {
 	u16 types_mask;
 	struct ieee80211_sta_he_cap he_cap;
-	struct ieee80211_he_6ghz_capa he_6ghz_capa;
-};
-
-/**
- * enum ieee80211_edmg_bw_config - allowed channel bandwidth configurations
- *
- * @IEEE80211_EDMG_BW_CONFIG_4: 2.16GHz
- * @IEEE80211_EDMG_BW_CONFIG_5: 2.16GHz and 4.32GHz
- * @IEEE80211_EDMG_BW_CONFIG_6: 2.16GHz, 4.32GHz and 6.48GHz
- * @IEEE80211_EDMG_BW_CONFIG_7: 2.16GHz, 4.32GHz, 6.48GHz and 8.64GHz
- * @IEEE80211_EDMG_BW_CONFIG_8: 2.16GHz and 2.16GHz + 2.16GHz
- * @IEEE80211_EDMG_BW_CONFIG_9: 2.16GHz, 4.32GHz and 2.16GHz + 2.16GHz
- * @IEEE80211_EDMG_BW_CONFIG_10: 2.16GHz, 4.32GHz, 6.48GHz and 2.16GHz+2.16GHz
- * @IEEE80211_EDMG_BW_CONFIG_11: 2.16GHz, 4.32GHz, 6.48GHz, 8.64GHz and
- *	2.16GHz+2.16GHz
- * @IEEE80211_EDMG_BW_CONFIG_12: 2.16GHz, 2.16GHz + 2.16GHz and
- *	4.32GHz + 4.32GHz
- * @IEEE80211_EDMG_BW_CONFIG_13: 2.16GHz, 4.32GHz, 2.16GHz + 2.16GHz and
- *	4.32GHz + 4.32GHz
- * @IEEE80211_EDMG_BW_CONFIG_14: 2.16GHz, 4.32GHz, 6.48GHz, 2.16GHz + 2.16GHz
- *	and 4.32GHz + 4.32GHz
- * @IEEE80211_EDMG_BW_CONFIG_15: 2.16GHz, 4.32GHz, 6.48GHz, 8.64GHz,
- *	2.16GHz + 2.16GHz and 4.32GHz + 4.32GHz
- */
-enum ieee80211_edmg_bw_config {
-	IEEE80211_EDMG_BW_CONFIG_4	= 4,
-	IEEE80211_EDMG_BW_CONFIG_5	= 5,
-	IEEE80211_EDMG_BW_CONFIG_6	= 6,
-	IEEE80211_EDMG_BW_CONFIG_7	= 7,
-	IEEE80211_EDMG_BW_CONFIG_8	= 8,
-	IEEE80211_EDMG_BW_CONFIG_9	= 9,
-	IEEE80211_EDMG_BW_CONFIG_10	= 10,
-	IEEE80211_EDMG_BW_CONFIG_11	= 11,
-	IEEE80211_EDMG_BW_CONFIG_12	= 12,
-	IEEE80211_EDMG_BW_CONFIG_13	= 13,
-	IEEE80211_EDMG_BW_CONFIG_14	= 14,
-	IEEE80211_EDMG_BW_CONFIG_15	= 15,
-};
-
-/**
- * struct ieee80211_edmg - EDMG configuration
- *
- * This structure describes most essential parameters needed
- * to describe 802.11ay EDMG configuration
- *
- * @channels: bitmap that indicates the 2.16 GHz channel(s)
- *	that are allowed to be used for transmissions.
- *	Bit 0 indicates channel 1, bit 1 indicates channel 2, etc.
- *	Set to 0 indicate EDMG not supported.
- * @bw_config: Channel BW Configuration subfield encodes
- *	the allowed channel bandwidth configurations
- */
-struct ieee80211_edmg {
-	u8 channels;
-	enum ieee80211_edmg_bw_config bw_config;
 };
 
 /**
@@ -427,7 +336,6 @@ struct ieee80211_edmg {
  * @n_bitrates: Number of bitrates in @bitrates
  * @ht_cap: HT capabilities in this band
  * @vht_cap: VHT capabilities in this band
- * @edmg_cap: EDMG capabilities in this band
  * @n_iftype_data: number of iftype data entries
  * @iftype_data: interface type data entries.  Note that the bits in
  *	@types_mask inside this structure cannot overlap (i.e. only
@@ -442,7 +350,6 @@ struct ieee80211_supported_band {
 	int n_bitrates;
 	struct ieee80211_sta_ht_cap ht_cap;
 	struct ieee80211_sta_vht_cap vht_cap;
-	struct ieee80211_edmg edmg_cap;
 	u16 n_iftype_data;
 	const struct ieee80211_sband_iftype_data *iftype_data;
 };
@@ -475,26 +382,6 @@ ieee80211_get_sband_iftype_data(const struct ieee80211_supported_band *sband,
 }
 
 /**
- * ieee80211_get_he_iftype_cap - return HE capabilities for an sband's iftype
- * @sband: the sband to search for the iftype on
- * @iftype: enum nl80211_iftype
- *
- * Return: pointer to the struct ieee80211_sta_he_cap, or NULL is none found
- */
-static inline const struct ieee80211_sta_he_cap *
-ieee80211_get_he_iftype_cap(const struct ieee80211_supported_band *sband,
-			    u8 iftype)
-{
-	const struct ieee80211_sband_iftype_data *data =
-		ieee80211_get_sband_iftype_data(sband, iftype);
-
-	if (data && data->he_cap.has_he)
-		return &data->he_cap;
-
-	return NULL;
-}
-
-/**
  * ieee80211_get_he_sta_cap - return HE capabilities for an sband's STA
  * @sband: the sband to search for the STA on
  *
@@ -503,27 +390,13 @@ ieee80211_get_he_iftype_cap(const struct ieee80211_supported_band *sband,
 static inline const struct ieee80211_sta_he_cap *
 ieee80211_get_he_sta_cap(const struct ieee80211_supported_band *sband)
 {
-	return ieee80211_get_he_iftype_cap(sband, NL80211_IFTYPE_STATION);
-}
-
-/**
- * ieee80211_get_he_6ghz_capa - return HE 6 GHz capabilities
- * @sband: the sband to search for the STA on
- * @iftype: the iftype to search for
- *
- * Return: the 6GHz capabilities
- */
-static inline __le16
-ieee80211_get_he_6ghz_capa(const struct ieee80211_supported_band *sband,
-			   enum nl80211_iftype iftype)
-{
 	const struct ieee80211_sband_iftype_data *data =
-		ieee80211_get_sband_iftype_data(sband, iftype);
+		ieee80211_get_sband_iftype_data(sband, NL80211_IFTYPE_STATION);
 
-	if (WARN_ON(!data || !data->he_cap.has_he))
-		return 0;
+	if (data && data->he_cap.has_he)
+		return &data->he_cap;
 
-	return data->he_6ghz_capa.capa;
+	return NULL;
 }
 
 /**
@@ -612,17 +485,13 @@ struct vif_params {
  *	with the get_key() callback, must be in little endian,
  *	length given by @seq_len.
  * @seq_len: length of @seq.
- * @vlan_id: vlan_id for VLAN group key (if nonzero)
- * @mode: key install mode (RX_TX, NO_TX or SET_TX)
  */
 struct key_params {
 	const u8 *key;
 	const u8 *seq;
 	int key_len;
 	int seq_len;
-	u16 vlan_id;
 	u32 cipher;
-	enum nl80211_key_mode mode;
 };
 
 /**
@@ -632,47 +501,12 @@ struct key_params {
  * @center_freq1: center frequency of first segment
  * @center_freq2: center frequency of second segment
  *	(only with 80+80 MHz)
- * @edmg: define the EDMG channels configuration.
- *	If edmg is requested (i.e. the .channels member is non-zero),
- *	chan will define the primary channel and all other
- *	parameters are ignored.
- * @freq1_offset: offset from @center_freq1, in KHz
  */
 struct cfg80211_chan_def {
 	struct ieee80211_channel *chan;
 	enum nl80211_chan_width width;
 	u32 center_freq1;
 	u32 center_freq2;
-	struct ieee80211_edmg edmg;
-	u16 freq1_offset;
-};
-
-/**
- * struct cfg80211_tid_cfg - TID specific configuration
- * @config_override: Flag to notify driver to reset TID configuration
- *	of the peer.
- * @tids: bitmap of TIDs to modify
- * @mask: bitmap of attributes indicating which parameter changed,
- *	similar to &nl80211_tid_config_supp.
- * @noack: noack configuration value for the TID
- */
-struct cfg80211_tid_cfg {
-	bool config_override;
-	u8 tids;
-	u32 mask;
-	enum nl80211_tid_config noack;
-};
-
-/**
- * struct cfg80211_tid_config - TID configuration
- * @peer: Station's MAC address
- * @n_tid_conf: Number of TID specific configurations to be applied
- * @tid_conf: Configuration change info
- */
-struct cfg80211_tid_config {
-	const u8 *peer;
-	u32 n_tid_conf;
-	struct cfg80211_tid_cfg tid_conf[];
 };
 
 /**
@@ -727,21 +561,7 @@ cfg80211_chandef_identical(const struct cfg80211_chan_def *chandef1,
 	return (chandef1->chan == chandef2->chan &&
 		chandef1->width == chandef2->width &&
 		chandef1->center_freq1 == chandef2->center_freq1 &&
-		chandef1->freq1_offset == chandef2->freq1_offset &&
 		chandef1->center_freq2 == chandef2->center_freq2);
-}
-
-/**
- * cfg80211_chandef_is_edmg - check if chandef represents an EDMG channel
- *
- * @chandef: the channel definition
- *
- * Return: %true if EDMG defined, %false otherwise.
- */
-static inline bool
-cfg80211_chandef_is_edmg(const struct cfg80211_chan_def *chandef)
-{
-	return chandef->edmg.channels || chandef->edmg.bw_config;
 }
 
 /**
@@ -848,7 +668,6 @@ ieee80211_chandef_max_power(struct cfg80211_chan_def *chandef)
  * @SURVEY_INFO_TIME_RX: receive time was filled in
  * @SURVEY_INFO_TIME_TX: transmit time was filled in
  * @SURVEY_INFO_TIME_SCAN: scan time was filled in
- * @SURVEY_INFO_TIME_BSS_RX: local BSS receive time was filled in
  *
  * Used by the driver to indicate which info in &struct survey_info
  * it has filled in during the get_survey().
@@ -862,7 +681,6 @@ enum survey_info_flags {
 	SURVEY_INFO_TIME_RX		= BIT(5),
 	SURVEY_INFO_TIME_TX		= BIT(6),
 	SURVEY_INFO_TIME_SCAN		= BIT(7),
-	SURVEY_INFO_TIME_BSS_RX		= BIT(8),
 };
 
 /**
@@ -879,7 +697,6 @@ enum survey_info_flags {
  * @time_rx: amount of time the radio spent receiving data
  * @time_tx: amount of time the radio spent transmitting data
  * @time_scan: amount of time the radio spent for scanning
- * @time_bss_rx: amount of time the radio spent receiving data on a local BSS
  *
  * Used by dump_survey() to report back per-channel survey information.
  *
@@ -894,7 +711,6 @@ struct survey_info {
 	u64 time_rx;
 	u64 time_tx;
 	u64 time_scan;
-	u64 time_bss_rx;
 	u32 filled;
 	s8 noise;
 };
@@ -924,9 +740,6 @@ struct survey_info {
  *	CFG80211_MAX_WEP_KEYS WEP keys
  * @wep_tx_key: key index (0..3) of the default TX static WEP key
  * @psk: PSK (for devices supporting 4-way-handshake offload)
- * @sae_pwd: password for SAE authentication (for devices supporting SAE
- *	offload)
- * @sae_pwd_len: length of SAE password (for devices supporting SAE offload)
  */
 struct cfg80211_crypto_settings {
 	u32 wpa_versions;
@@ -942,8 +755,6 @@ struct cfg80211_crypto_settings {
 	struct key_params *wep_keys;
 	int wep_tx_key;
 	const u8 *psk;
-	const u8 *sae_pwd;
-	u8 sae_pwd_len;
 };
 
 /**
@@ -964,14 +775,6 @@ struct cfg80211_crypto_settings {
  * @assocresp_ies_len: length of assocresp_ies in octets
  * @probe_resp_len: length of probe response template (@probe_resp)
  * @probe_resp: probe response template (AP mode only)
- * @ftm_responder: enable FTM responder functionality; -1 for no change
- *	(which also implies no change in LCI/civic location data)
- * @lci: Measurement Report element content, starting with Measurement Token
- *	(measurement type 8)
- * @civicloc: Measurement Report element content, starting with Measurement
- *	Token (measurement type 11)
- * @lci_len: LCI data length
- * @civicloc_len: Civic location data length
  */
 struct cfg80211_beacon_data {
 	const u8 *head, *tail;
@@ -979,17 +782,12 @@ struct cfg80211_beacon_data {
 	const u8 *proberesp_ies;
 	const u8 *assocresp_ies;
 	const u8 *probe_resp;
-	const u8 *lci;
-	const u8 *civicloc;
-	s8 ftm_responder;
 
 	size_t head_len, tail_len;
 	size_t beacon_ies_len;
 	size_t proberesp_ies_len;
 	size_t assocresp_ies_len;
 	size_t probe_resp_len;
-	size_t lci_len;
-	size_t civicloc_len;
 };
 
 struct mac_address {
@@ -1025,17 +823,6 @@ struct cfg80211_bitrate_mask {
 };
 
 /**
- * enum cfg80211_ap_settings_flags - AP settings flags
- *
- * Used by cfg80211_ap_settings
- *
- * @AP_SETTINGS_EXTERNAL_AUTH_SUPPORT: AP supports external authentication
- */
-enum cfg80211_ap_settings_flags {
-	AP_SETTINGS_EXTERNAL_AUTH_SUPPORT = BIT(0),
-};
-
-/**
  * struct cfg80211_ap_settings - AP configuration
  *
  * Used to configure an AP interface.
@@ -1062,13 +849,8 @@ enum cfg80211_ap_settings_flags {
  * @beacon_rate: bitrate to be used for beacons
  * @ht_cap: HT capabilities (or %NULL if HT isn't enabled)
  * @vht_cap: VHT capabilities (or %NULL if VHT isn't enabled)
- * @he_cap: HE capabilities (or %NULL if HE isn't enabled)
  * @ht_required: stations must support HT
  * @vht_required: stations must support VHT
- * @twt_responder: Enable Target Wait Time
- * @flags: flags, as defined in enum cfg80211_ap_settings_flags
- * @he_obss_pd: OBSS Packet Detection settings
- * @he_bss_color: BSS Color settings
  */
 struct cfg80211_ap_settings {
 	struct cfg80211_chan_def chandef;
@@ -1092,12 +874,7 @@ struct cfg80211_ap_settings {
 
 	const struct ieee80211_ht_cap *ht_cap;
 	const struct ieee80211_vht_cap *vht_cap;
-	const struct ieee80211_he_cap_elem *he_cap;
 	bool ht_required, vht_required;
-	bool twt_responder;
-	u32 flags;
-	struct ieee80211_he_obss_pd he_obss_pd;
-	struct cfg80211_he_bss_color he_bss_color;
 };
 
 /**
@@ -1168,27 +945,6 @@ enum station_parameters_apply_mask {
 	STATION_PARAM_APPLY_UAPSD = BIT(0),
 	STATION_PARAM_APPLY_CAPABILITY = BIT(1),
 	STATION_PARAM_APPLY_PLINK_STATE = BIT(2),
-	STATION_PARAM_APPLY_STA_TXPOWER = BIT(3),
-};
-
-/**
- * struct sta_txpwr - station txpower configuration
- *
- * Used to configure txpower for station.
- *
- * @power: tx power (in dBm) to be used for sending data traffic. If tx power
- *	is not provided, the default per-interface tx power setting will be
- *	overriding. Driver should be picking up the lowest tx power, either tx
- *	power per-interface or per-station.
- * @type: In particular if TPC %type is NL80211_TX_POWER_LIMITED then tx power
- *	will be less than or equal to specified from userspace, whereas if TPC
- *	%type is NL80211_TX_POWER_AUTOMATIC then it indicates default tx power.
- *	NL80211_TX_POWER_FIXED is not a valid configuration option for
- *	per peer TPC.
- */
-struct sta_txpwr {
-	s16 power;
-	enum nl80211_tx_power_setting type;
 };
 
 /**
@@ -1206,7 +962,6 @@ struct sta_txpwr {
  *	(bitmask of BIT(%NL80211_STA_FLAG_...))
  * @listen_interval: listen interval or -1 for no change
  * @aid: AID or zero for no change
- * @vlan_id: VLAN ID for station (if nonzero)
  * @peer_aid: mesh peer AID or zero for no change
  * @plink_action: plink action to take
  * @plink_state: set the peer link state for a station
@@ -1233,8 +988,6 @@ struct sta_txpwr {
  * @support_p2p_ps: information if station supports P2P PS mechanism
  * @he_capa: HE capabilities of station
  * @he_capa_len: the length of the HE capabilities
- * @airtime_weight: airtime scheduler weight for this station
- * @he_6ghz_capa: HE 6 GHz Band capabilities of station
  */
 struct station_parameters {
 	const u8 *supported_rates;
@@ -1243,7 +996,6 @@ struct station_parameters {
 	u32 sta_modify_mask;
 	int listen_interval;
 	u16 aid;
-	u16 vlan_id;
 	u16 peer_aid;
 	u8 supported_rates_len;
 	u8 plink_action;
@@ -1265,9 +1017,6 @@ struct station_parameters {
 	int support_p2p_ps;
 	const struct ieee80211_he_cap_elem *he_capa;
 	u8 he_capa_len;
-	u16 airtime_weight;
-	struct sta_txpwr txpwr;
-	const struct ieee80211_he_6ghz_capa *he_6ghz_capa;
 };
 
 /**
@@ -1341,17 +1090,15 @@ int cfg80211_check_station_change(struct wiphy *wiphy,
  * @RATE_INFO_FLAGS_MCS: mcs field filled with HT MCS
  * @RATE_INFO_FLAGS_VHT_MCS: mcs field filled with VHT MCS
  * @RATE_INFO_FLAGS_SHORT_GI: 400ns guard interval
- * @RATE_INFO_FLAGS_DMG: 60GHz MCS
+ * @RATE_INFO_FLAGS_60G: 60GHz MCS
  * @RATE_INFO_FLAGS_HE_MCS: HE MCS information
- * @RATE_INFO_FLAGS_EDMG: 60GHz MCS in EDMG mode
  */
 enum rate_info_flags {
 	RATE_INFO_FLAGS_MCS			= BIT(0),
 	RATE_INFO_FLAGS_VHT_MCS			= BIT(1),
 	RATE_INFO_FLAGS_SHORT_GI		= BIT(2),
-	RATE_INFO_FLAGS_DMG			= BIT(3),
+	RATE_INFO_FLAGS_60G			= BIT(3),
 	RATE_INFO_FLAGS_HE_MCS			= BIT(4),
-	RATE_INFO_FLAGS_EDMG			= BIT(5),
 };
 
 /**
@@ -1391,7 +1138,6 @@ enum rate_info_bw {
  * @he_dcm: HE DCM value
  * @he_ru_alloc: HE RU allocation (from &enum nl80211_he_ru_alloc,
  *	only valid if bw is %RATE_INFO_BW_HE_RU)
- * @n_bonded_ch: In case of EDMG the number of bonded channels (1-4)
  */
 struct rate_info {
 	u8 flags;
@@ -1402,7 +1148,6 @@ struct rate_info {
 	u8 he_gi;
 	u8 he_dcm;
 	u8 he_ru_alloc;
-	u8 n_bonded_ch;
 };
 
 /**
@@ -1498,7 +1243,6 @@ struct cfg80211_tid_stats {
  *	indicate the relevant values in this struct for them
  * @connected_time: time(in secs) since a station is last connected
  * @inactive_time: time since last station activity (tx/rx) in milliseconds
- * @assoc_at: bootime (ns) of the last association
  * @rx_bytes: bytes (size of MPDUs) received from this station
  * @tx_bytes: bytes (size of MPDUs) transmitted to this station
  * @llid: mesh local link id
@@ -1539,27 +1283,18 @@ struct cfg80211_tid_stats {
  * @rx_beacon: number of beacons received from this peer
  * @rx_beacon_signal_avg: signal strength average (in dBm) for beacons received
  *	from this peer
- * @connected_to_gate: true if mesh STA has a path to mesh gate
  * @rx_duration: aggregate PPDU duration(usecs) for all the frames from a peer
- * @tx_duration: aggregate PPDU duration(usecs) for all the frames to a peer
- * @airtime_weight: current airtime scheduling weight
  * @pertid: per-TID statistics, see &struct cfg80211_tid_stats, using the last
  *	(IEEE80211_NUM_TIDS) index for MSDUs not encapsulated in QoS-MPDUs.
  *	Note that this doesn't use the @filled bit, but is used if non-NULL.
  * @ack_signal: signal strength (in dBm) of the last ACK frame.
  * @avg_ack_signal: average rssi value of ack packet for the no of msdu's has
  *	been sent.
- * @rx_mpdu_count: number of MPDUs received from this station
- * @fcs_err_count: number of packets (MPDUs) received from this station with
- *	an FCS error. This counter should be incremented only when TA of the
- *	received packet with an FCS error matches the peer MAC address.
- * @airtime_link_metric: mesh airtime link metric.
  */
 struct station_info {
 	u64 filled;
 	u32 connected_time;
 	u32 inactive_time;
-	u64 assoc_at;
 	u64 rx_bytes;
 	u64 tx_bytes;
 	u16 llid;
@@ -1595,22 +1330,12 @@ struct station_info {
 
 	u32 expected_throughput;
 
-	u64 tx_duration;
-	u64 rx_duration;
 	u64 rx_beacon;
+	u64 rx_duration;
 	u8 rx_beacon_signal_avg;
-	u8 connected_to_gate;
-
 	struct cfg80211_tid_stats *pertid;
 	s8 ack_signal;
 	s8 avg_ack_signal;
-
-	u16 airtime_weight;
-
-	u32 rx_mpdu_count;
-	u32 fcs_err_count;
-
-	u32 airtime_link_metric;
 };
 
 #if IS_ENABLED(CONFIG_CFG80211)
@@ -1672,8 +1397,6 @@ enum monitor_flags {
  * @MPATH_INFO_DISCOVERY_TIMEOUT: @discovery_timeout filled
  * @MPATH_INFO_DISCOVERY_RETRIES: @discovery_retries filled
  * @MPATH_INFO_FLAGS: @flags filled
- * @MPATH_INFO_HOP_COUNT: @hop_count filled
- * @MPATH_INFO_PATH_CHANGE: @path_change_count filled
  */
 enum mpath_info_flags {
 	MPATH_INFO_FRAME_QLEN		= BIT(0),
@@ -1683,8 +1406,6 @@ enum mpath_info_flags {
 	MPATH_INFO_DISCOVERY_TIMEOUT	= BIT(4),
 	MPATH_INFO_DISCOVERY_RETRIES	= BIT(5),
 	MPATH_INFO_FLAGS		= BIT(6),
-	MPATH_INFO_HOP_COUNT		= BIT(7),
-	MPATH_INFO_PATH_CHANGE		= BIT(8),
 };
 
 /**
@@ -1704,8 +1425,6 @@ enum mpath_info_flags {
  *	This number should increase every time the list of mesh paths
  *	changes, i.e. when a station is added or removed, so that
  *	userspace can tell whether it got a consistent snapshot.
- * @hop_count: hops to destination
- * @path_change_count: total number of path changes to destination
  */
 struct mpath_info {
 	u32 filled;
@@ -1716,8 +1435,6 @@ struct mpath_info {
 	u32 discovery_timeout;
 	u8 discovery_retries;
 	u8 flags;
-	u8 hop_count;
-	u32 path_change_count;
 
 	int generation;
 };
@@ -1822,10 +1539,6 @@ struct bss_parameters {
  * @plink_timeout: If no tx activity is seen from a STA we've established
  *	peering with for longer than this time (in seconds), then remove it
  *	from the STA's list of peers.  Default is 30 minutes.
- * @dot11MeshConnectedToMeshGate: if set to true, advertise that this STA is
- *      connected to a mesh gate in mesh formation info.  If false, the
- *      value in mesh formation is determined by the presence of root paths
- *      in the mesh path table
  */
 struct mesh_config {
 	u16 dot11MeshRetryTimeout;
@@ -1845,7 +1558,6 @@ struct mesh_config {
 	u16 dot11MeshHWMPperrMinInterval;
 	u16 dot11MeshHWMPnetDiameterTraversalTime;
 	u8 dot11MeshHWMPRootMode;
-	bool dot11MeshConnectedToMeshGate;
 	u16 dot11MeshHWMPRannInterval;
 	bool dot11MeshGateAnnouncementProtocol;
 	bool dot11MeshForwarding;
@@ -2062,19 +1774,11 @@ static inline void get_random_mask_addr(u8 *buf, const u8 *addr, const u8 *mask)
  * @bssid: BSSID to be matched; may be all-zero BSSID in case of SSID match
  *	or no match (RSSI only)
  * @rssi_thold: don't report scan results below this threshold (in s32 dBm)
- * @per_band_rssi_thold: Minimum rssi threshold for each band to be applied
- *	for filtering out scan results received. Drivers advertize this support
- *	of band specific rssi based filtering through the feature capability
- *	%NL80211_EXT_FEATURE_SCHED_SCAN_BAND_SPECIFIC_RSSI_THOLD. These band
- *	specific rssi thresholds take precedence over rssi_thold, if specified.
- *	If not specified for any band, it will be assigned with rssi_thold of
- *	corresponding matchset.
  */
 struct cfg80211_match_set {
 	struct cfg80211_ssid ssid;
 	u8 bssid[ETH_ALEN];
 	s32 rssi_thold;
-	s32 per_band_rssi_thold[NUM_NL80211_BANDS];
 };
 
 /**
@@ -2213,7 +1917,7 @@ enum cfg80211_signal_type {
  *	received by the device (not just by the host, in case it was
  *	buffered on the device) and be accurate to about 10ms.
  *	If the frame isn't buffered, just passing the return value of
- *	ktime_get_boottime_ns() is likely appropriate.
+ *	ktime_get_boot_ns() is likely appropriate.
  * @parent_tsf: the time at the start of reception of the first octet of the
  *	timestamp field of the frame. The time is the TSF of the BSS specified
  *	by %parent_bssid.
@@ -2273,15 +1977,9 @@ struct cfg80211_bss_ies {
  *	a BSS that hides the SSID in its beacon, this points to the BSS struct
  *	that holds the beacon data. @beacon_ies is still valid, of course, and
  *	points to the same data as hidden_beacon_bss->beacon_ies in that case.
- * @transmitted_bss: pointer to the transmitted BSS, if this is a
- *	non-transmitted one (multi-BSSID support)
- * @nontrans_list: list of non-transmitted BSS, if this is a transmitted one
- *	(multi-BSSID support)
  * @signal: signal strength value (type depends on the wiphy's signal_type)
  * @chains: bitmask for filled values in @chain_signal.
  * @chain_signal: per-chain signal strength of last received BSS in dBm.
- * @bssid_index: index in the multiple BSS set
- * @max_bssid_indicator: max number of members in the BSS set
  * @priv: private area for driver use, has at least wiphy->bss_priv_size bytes
  */
 struct cfg80211_bss {
@@ -2293,8 +1991,6 @@ struct cfg80211_bss {
 	const struct cfg80211_bss_ies __rcu *proberesp_ies;
 
 	struct cfg80211_bss *hidden_beacon_bss;
-	struct cfg80211_bss *transmitted_bss;
-	struct list_head nontrans_list;
 
 	s32 signal;
 
@@ -2305,36 +2001,19 @@ struct cfg80211_bss {
 	u8 chains;
 	s8 chain_signal[IEEE80211_MAX_CHAINS];
 
-	u8 bssid_index;
-	u8 max_bssid_indicator;
-
 	u8 priv[0] __aligned(sizeof(void *));
 };
 
 /**
- * ieee80211_bss_get_elem - find element with given ID
- * @bss: the bss to search
- * @id: the element ID
- *
- * Note that the return value is an RCU-protected pointer, so
- * rcu_read_lock() must be held when calling this function.
- * Return: %NULL if not found.
- */
-const struct element *ieee80211_bss_get_elem(struct cfg80211_bss *bss, u8 id);
-
-/**
  * ieee80211_bss_get_ie - find IE with given ID
  * @bss: the bss to search
- * @id: the element ID
+ * @ie: the IE ID
  *
  * Note that the return value is an RCU-protected pointer, so
  * rcu_read_lock() must be held when calling this function.
  * Return: %NULL if not found.
  */
-static inline const u8 *ieee80211_bss_get_ie(struct cfg80211_bss *bss, u8 id)
-{
-	return (void *)ieee80211_bss_get_elem(bss, id);
-}
+const u8 *ieee80211_bss_get_ie(struct cfg80211_bss *bss, u8 ie);
 
 
 /**
@@ -2606,9 +2285,6 @@ struct cfg80211_bss_selection {
  * @fils_erp_rrk_len: Length of @fils_erp_rrk in octets.
  * @want_1x: indicates user-space supports and wants to use 802.1X driver
  *	offload of 4-way handshake.
- * @edmg: define the EDMG channels.
- *	This may specify multiple channels and bonding options for the driver
- *	to choose from, based on BSS configuration.
  */
 struct cfg80211_connect_params {
 	struct ieee80211_channel *channel;
@@ -2642,7 +2318,6 @@ struct cfg80211_connect_params {
 	const u8 *fils_erp_rrk;
 	size_t fils_erp_rrk_len;
 	bool want_1x;
-	struct ieee80211_edmg edmg;
 };
 
 /**
@@ -2686,8 +2361,6 @@ enum wiphy_params_flags {
 	WIPHY_PARAM_TXQ_QUANTUM		= 1 << 8,
 };
 
-#define IEEE80211_DEFAULT_AIRTIME_WEIGHT	256
-
 /**
  * struct cfg80211_pmksa - PMK Security Association
  *
@@ -2706,17 +2379,6 @@ enum wiphy_params_flags {
  * @cache_id: 2-octet cache identifier advertized by a FILS AP identifying the
  *	scope of PMKSA. This is valid only if @ssid_len is non-zero (may be
  *	%NULL).
- * @pmk_lifetime: Maximum lifetime for PMKSA in seconds
- *	(dot11RSNAConfigPMKLifetime) or 0 if not specified.
- *	The configured PMKSA must not be used for PMKSA caching after
- *	expiration and any keys derived from this PMK become invalid on
- *	expiration, i.e., the current association must be dropped if the PMK
- *	used for it expires.
- * @pmk_reauth_threshold: Threshold time for reauthentication (percentage of
- *	PMK lifetime, dot11RSNAConfigPMKReauthThreshold) or 0 if not specified.
- *	Drivers are expected to trigger a full authentication instead of using
- *	this PMKSA for caching when reassociating to a new BSS after this
- *	threshold to generate a new PMK before the current one expires.
  */
 struct cfg80211_pmksa {
 	const u8 *bssid;
@@ -2726,8 +2388,6 @@ struct cfg80211_pmksa {
 	const u8 *ssid;
 	size_t ssid_len;
 	const u8 *cache_id;
-	u32 pmk_lifetime;
-	u8 pmk_reauth_threshold;
 };
 
 /**
@@ -3125,7 +2785,6 @@ struct cfg80211_pmk_conf {
  *	use %WLAN_STATUS_UNSPECIFIED_FAILURE if user space cannot give you
  *	the real status code for failures. Used only for the authentication
  *	response command interface (user space to driver).
- * @pmkid: The identifier to refer a PMKSA.
  */
 struct cfg80211_external_auth_params {
 	enum nl80211_external_auth_action action;
@@ -3133,251 +2792,6 @@ struct cfg80211_external_auth_params {
 	struct cfg80211_ssid ssid;
 	unsigned int key_mgmt_suite;
 	u16 status;
-	const u8 *pmkid;
-};
-
-/**
- * struct cfg80211_ftm_responder_stats - FTM responder statistics
- *
- * @filled: bitflag of flags using the bits of &enum nl80211_ftm_stats to
- *	indicate the relevant values in this struct for them
- * @success_num: number of FTM sessions in which all frames were successfully
- *	answered
- * @partial_num: number of FTM sessions in which part of frames were
- *	successfully answered
- * @failed_num: number of failed FTM sessions
- * @asap_num: number of ASAP FTM sessions
- * @non_asap_num: number of  non-ASAP FTM sessions
- * @total_duration_ms: total sessions durations - gives an indication
- *	of how much time the responder was busy
- * @unknown_triggers_num: number of unknown FTM triggers - triggers from
- *	initiators that didn't finish successfully the negotiation phase with
- *	the responder
- * @reschedule_requests_num: number of FTM reschedule requests - initiator asks
- *	for a new scheduling although it already has scheduled FTM slot
- * @out_of_window_triggers_num: total FTM triggers out of scheduled window
- */
-struct cfg80211_ftm_responder_stats {
-	u32 filled;
-	u32 success_num;
-	u32 partial_num;
-	u32 failed_num;
-	u32 asap_num;
-	u32 non_asap_num;
-	u64 total_duration_ms;
-	u32 unknown_triggers_num;
-	u32 reschedule_requests_num;
-	u32 out_of_window_triggers_num;
-};
-
-/**
- * struct cfg80211_pmsr_ftm_result - FTM result
- * @failure_reason: if this measurement failed (PMSR status is
- *	%NL80211_PMSR_STATUS_FAILURE), this gives a more precise
- *	reason than just "failure"
- * @burst_index: if reporting partial results, this is the index
- *	in [0 .. num_bursts-1] of the burst that's being reported
- * @num_ftmr_attempts: number of FTM request frames transmitted
- * @num_ftmr_successes: number of FTM request frames acked
- * @busy_retry_time: if failure_reason is %NL80211_PMSR_FTM_FAILURE_PEER_BUSY,
- *	fill this to indicate in how many seconds a retry is deemed possible
- *	by the responder
- * @num_bursts_exp: actual number of bursts exponent negotiated
- * @burst_duration: actual burst duration negotiated
- * @ftms_per_burst: actual FTMs per burst negotiated
- * @lci_len: length of LCI information (if present)
- * @civicloc_len: length of civic location information (if present)
- * @lci: LCI data (may be %NULL)
- * @civicloc: civic location data (may be %NULL)
- * @rssi_avg: average RSSI over FTM action frames reported
- * @rssi_spread: spread of the RSSI over FTM action frames reported
- * @tx_rate: bitrate for transmitted FTM action frame response
- * @rx_rate: bitrate of received FTM action frame
- * @rtt_avg: average of RTTs measured (must have either this or @dist_avg)
- * @rtt_variance: variance of RTTs measured (note that standard deviation is
- *	the square root of the variance)
- * @rtt_spread: spread of the RTTs measured
- * @dist_avg: average of distances (mm) measured
- *	(must have either this or @rtt_avg)
- * @dist_variance: variance of distances measured (see also @rtt_variance)
- * @dist_spread: spread of distances measured (see also @rtt_spread)
- * @num_ftmr_attempts_valid: @num_ftmr_attempts is valid
- * @num_ftmr_successes_valid: @num_ftmr_successes is valid
- * @rssi_avg_valid: @rssi_avg is valid
- * @rssi_spread_valid: @rssi_spread is valid
- * @tx_rate_valid: @tx_rate is valid
- * @rx_rate_valid: @rx_rate is valid
- * @rtt_avg_valid: @rtt_avg is valid
- * @rtt_variance_valid: @rtt_variance is valid
- * @rtt_spread_valid: @rtt_spread is valid
- * @dist_avg_valid: @dist_avg is valid
- * @dist_variance_valid: @dist_variance is valid
- * @dist_spread_valid: @dist_spread is valid
- */
-struct cfg80211_pmsr_ftm_result {
-	const u8 *lci;
-	const u8 *civicloc;
-	unsigned int lci_len;
-	unsigned int civicloc_len;
-	enum nl80211_peer_measurement_ftm_failure_reasons failure_reason;
-	u32 num_ftmr_attempts, num_ftmr_successes;
-	s16 burst_index;
-	u8 busy_retry_time;
-	u8 num_bursts_exp;
-	u8 burst_duration;
-	u8 ftms_per_burst;
-	s32 rssi_avg;
-	s32 rssi_spread;
-	struct rate_info tx_rate, rx_rate;
-	s64 rtt_avg;
-	s64 rtt_variance;
-	s64 rtt_spread;
-	s64 dist_avg;
-	s64 dist_variance;
-	s64 dist_spread;
-
-	u16 num_ftmr_attempts_valid:1,
-	    num_ftmr_successes_valid:1,
-	    rssi_avg_valid:1,
-	    rssi_spread_valid:1,
-	    tx_rate_valid:1,
-	    rx_rate_valid:1,
-	    rtt_avg_valid:1,
-	    rtt_variance_valid:1,
-	    rtt_spread_valid:1,
-	    dist_avg_valid:1,
-	    dist_variance_valid:1,
-	    dist_spread_valid:1;
-};
-
-/**
- * struct cfg80211_pmsr_result - peer measurement result
- * @addr: address of the peer
- * @host_time: host time (use ktime_get_boottime() adjust to the time when the
- *	measurement was made)
- * @ap_tsf: AP's TSF at measurement time
- * @status: status of the measurement
- * @final: if reporting partial results, mark this as the last one; if not
- *	reporting partial results always set this flag
- * @ap_tsf_valid: indicates the @ap_tsf value is valid
- * @type: type of the measurement reported, note that we only support reporting
- *	one type at a time, but you can report multiple results separately and
- *	they're all aggregated for userspace.
- */
-struct cfg80211_pmsr_result {
-	u64 host_time, ap_tsf;
-	enum nl80211_peer_measurement_status status;
-
-	u8 addr[ETH_ALEN];
-
-	u8 final:1,
-	   ap_tsf_valid:1;
-
-	enum nl80211_peer_measurement_type type;
-
-	union {
-		struct cfg80211_pmsr_ftm_result ftm;
-	};
-};
-
-/**
- * struct cfg80211_pmsr_ftm_request_peer - FTM request data
- * @requested: indicates FTM is requested
- * @preamble: frame preamble to use
- * @burst_period: burst period to use
- * @asap: indicates to use ASAP mode
- * @num_bursts_exp: number of bursts exponent
- * @burst_duration: burst duration
- * @ftms_per_burst: number of FTMs per burst
- * @ftmr_retries: number of retries for FTM request
- * @request_lci: request LCI information
- * @request_civicloc: request civic location information
- *
- * See also nl80211 for the respective attribute documentation.
- */
-struct cfg80211_pmsr_ftm_request_peer {
-	enum nl80211_preamble preamble;
-	u16 burst_period;
-	u8 requested:1,
-	   asap:1,
-	   request_lci:1,
-	   request_civicloc:1;
-	u8 num_bursts_exp;
-	u8 burst_duration;
-	u8 ftms_per_burst;
-	u8 ftmr_retries;
-};
-
-/**
- * struct cfg80211_pmsr_request_peer - peer data for a peer measurement request
- * @addr: MAC address
- * @chandef: channel to use
- * @report_ap_tsf: report the associated AP's TSF
- * @ftm: FTM data, see &struct cfg80211_pmsr_ftm_request_peer
- */
-struct cfg80211_pmsr_request_peer {
-	u8 addr[ETH_ALEN];
-	struct cfg80211_chan_def chandef;
-	u8 report_ap_tsf:1;
-	struct cfg80211_pmsr_ftm_request_peer ftm;
-};
-
-/**
- * struct cfg80211_pmsr_request - peer measurement request
- * @cookie: cookie, set by cfg80211
- * @nl_portid: netlink portid - used by cfg80211
- * @drv_data: driver data for this request, if required for aborting,
- *	not otherwise freed or anything by cfg80211
- * @mac_addr: MAC address used for (randomised) request
- * @mac_addr_mask: MAC address mask used for randomisation, bits that
- *	are 0 in the mask should be randomised, bits that are 1 should
- *	be taken from the @mac_addr
- * @list: used by cfg80211 to hold on to the request
- * @timeout: timeout (in milliseconds) for the whole operation, if
- *	zero it means there's no timeout
- * @n_peers: number of peers to do measurements with
- * @peers: per-peer measurement request data
- */
-struct cfg80211_pmsr_request {
-	u64 cookie;
-	void *drv_data;
-	u32 n_peers;
-	u32 nl_portid;
-
-	u32 timeout;
-
-	u8 mac_addr[ETH_ALEN] __aligned(2);
-	u8 mac_addr_mask[ETH_ALEN] __aligned(2);
-
-	struct list_head list;
-
-	struct cfg80211_pmsr_request_peer peers[];
-};
-
-/**
- * struct cfg80211_update_owe_info - OWE Information
- *
- * This structure provides information needed for the drivers to offload OWE
- * (Opportunistic Wireless Encryption) processing to the user space.
- *
- * Commonly used across update_owe_info request and event interfaces.
- *
- * @peer: MAC address of the peer device for which the OWE processing
- *	has to be done.
- * @status: status code, %WLAN_STATUS_SUCCESS for successful OWE info
- *	processing, use %WLAN_STATUS_UNSPECIFIED_FAILURE if user space
- *	cannot give you the real status code for failures. Used only for
- *	OWE update request command interface (user space to driver).
- * @ie: IEs obtained from the peer or constructed by the user space. These are
- *	the IEs of the remote peer in the event from the host driver and
- *	the constructed IEs by the user space in the request interface.
- * @ie_len: Length of IEs in octets.
- */
-struct cfg80211_update_owe_info {
-	u8 peer[ETH_ALEN] __aligned(2);
-	u16 status;
-	const u8 *ie;
-	size_t ie_len;
 };
 
 /**
@@ -3427,8 +2841,6 @@ struct cfg80211_update_owe_info {
  * @set_default_key: set the default key on an interface
  *
  * @set_default_mgmt_key: set the default management frame key on an interface
-
- * @set_default_beacon_key: set the default Beacon frame key on an interface
  *
  * @set_rekey_data: give the data necessary for GTK rekeying to the driver
  *
@@ -3717,22 +3129,6 @@ struct cfg80211_update_owe_info {
  *
  * @tx_control_port: TX a control port frame (EAPoL).  The noencrypt parameter
  *	tells the driver that the frame should not be encrypted.
- *
- * @get_ftm_responder_stats: Retrieve FTM responder statistics, if available.
- *	Statistics should be cumulative, currently no way to reset is provided.
- * @start_pmsr: start peer measurement (e.g. FTM)
- * @abort_pmsr: abort peer measurement
- *
- * @update_owe_info: Provide updated OWE info to driver. Driver implementing SME
- *	but offloading OWE processing to the user space will get the updated
- *	DH IE through this interface.
- *
- * @probe_mesh_link: Probe direct Mesh peer's link quality by sending data frame
- *	and overrule HWMP path selection algorithm.
- * @set_tid_config: TID specific configuration, this can be peer or BSS specific
- *	This callback may sleep.
- * @reset_tid_config: Reset TID specific configuration for the peer, for the
- *	given TIDs. This callback may sleep.
  */
 struct cfg80211_ops {
 	int	(*suspend)(struct wiphy *wiphy, struct cfg80211_wowlan *wow);
@@ -3766,9 +3162,6 @@ struct cfg80211_ops {
 	int	(*set_default_mgmt_key)(struct wiphy *wiphy,
 					struct net_device *netdev,
 					u8 key_index);
-	int	(*set_default_beacon_key)(struct wiphy *wiphy,
-					  struct net_device *netdev,
-					  u8 key_index);
 
 	int	(*start_ap)(struct wiphy *wiphy, struct net_device *dev,
 			    struct cfg80211_ap_settings *settings);
@@ -4043,23 +3436,6 @@ struct cfg80211_ops {
 				   const u8 *buf, size_t len,
 				   const u8 *dest, const __be16 proto,
 				   const bool noencrypt);
-
-	int	(*get_ftm_responder_stats)(struct wiphy *wiphy,
-				struct net_device *dev,
-				struct cfg80211_ftm_responder_stats *ftm_stats);
-
-	int	(*start_pmsr)(struct wiphy *wiphy, struct wireless_dev *wdev,
-			      struct cfg80211_pmsr_request *request);
-	void	(*abort_pmsr)(struct wiphy *wiphy, struct wireless_dev *wdev,
-			      struct cfg80211_pmsr_request *request);
-	int	(*update_owe_info)(struct wiphy *wiphy, struct net_device *dev,
-				   struct cfg80211_update_owe_info *owe_info);
-	int	(*probe_mesh_link)(struct wiphy *wiphy, struct net_device *dev,
-				   const u8 *buf, size_t len);
-	int     (*set_tid_config)(struct wiphy *wiphy, struct net_device *dev,
-				  struct cfg80211_tid_config *tid_conf);
-	int	(*reset_tid_config)(struct wiphy *wiphy, struct net_device *dev,
-				    const u8 *peer, u8 tids);
 };
 
 /*
@@ -4390,8 +3766,6 @@ struct sta_opmode_info {
 	u8 rx_nss;
 };
 
-#define VENDOR_CMD_RAW_DATA ((const struct nla_policy *)(long)(-ENODATA))
-
 /**
  * struct wiphy_vendor_command - vendor command definition
  * @info: vendor command identifying information, as used in nl80211
@@ -4402,10 +3776,6 @@ struct sta_opmode_info {
  * @dumpit: dump callback, for transferring bigger/multiple items. The
  *	@storage points to cb->args[5], ie. is preserved over the multiple
  *	dumpit calls.
- * @policy: policy pointer for attributes within %NL80211_ATTR_VENDOR_DATA.
- *	Set this to %VENDOR_CMD_RAW_DATA if no policy can be given and the
- *	attribute is just raw data (e.g. a firmware command).
- * @maxattr: highest attribute number in policy
  * It's recommended to not have the same sub command with both @doit and
  * @dumpit, so that userspace can assume certain ones are get and others
  * are used with dump requests.
@@ -4418,8 +3788,6 @@ struct wiphy_vendor_command {
 	int (*dumpit)(struct wiphy *wiphy, struct wireless_dev *wdev,
 		      struct sk_buff *skb, const void *data, int data_len,
 		      unsigned long *storage);
-	const struct nla_policy *policy;
-	unsigned int maxattr;
 };
 
 /**
@@ -4441,57 +3809,6 @@ struct wiphy_iftype_ext_capab {
 };
 
 /**
- * struct cfg80211_pmsr_capabilities - cfg80211 peer measurement capabilities
- * @max_peers: maximum number of peers in a single measurement
- * @report_ap_tsf: can report assoc AP's TSF for radio resource measurement
- * @randomize_mac_addr: can randomize MAC address for measurement
- * @ftm.supported: FTM measurement is supported
- * @ftm.asap: ASAP-mode is supported
- * @ftm.non_asap: non-ASAP-mode is supported
- * @ftm.request_lci: can request LCI data
- * @ftm.request_civicloc: can request civic location data
- * @ftm.preambles: bitmap of preambles supported (&enum nl80211_preamble)
- * @ftm.bandwidths: bitmap of bandwidths supported (&enum nl80211_chan_width)
- * @ftm.max_bursts_exponent: maximum burst exponent supported
- *	(set to -1 if not limited; note that setting this will necessarily
- *	forbid using the value 15 to let the responder pick)
- * @ftm.max_ftms_per_burst: maximum FTMs per burst supported (set to 0 if
- *	not limited)
- */
-struct cfg80211_pmsr_capabilities {
-	unsigned int max_peers;
-	u8 report_ap_tsf:1,
-	   randomize_mac_addr:1;
-
-	struct {
-		u32 preambles;
-		u32 bandwidths;
-		s8 max_bursts_exponent;
-		u8 max_ftms_per_burst;
-		u8 supported:1,
-		   asap:1,
-		   non_asap:1,
-		   request_lci:1,
-		   request_civicloc:1;
-	} ftm;
-};
-
-/**
- * struct wiphy_iftype_akm_suites - This structure encapsulates supported akm
- * suites for interface types defined in @iftypes_mask. Each type in the
- * @iftypes_mask must be unique across all instances of iftype_akm_suites.
- *
- * @iftypes_mask: bitmask of interfaces types
- * @akm_suites: points to an array of supported akm suites
- * @n_akm_suites: number of supported AKM suites
- */
-struct wiphy_iftype_akm_suites {
-	u16 iftypes_mask;
-	const u32 *akm_suites;
-	int n_akm_suites;
-};
-
-/**
  * struct wiphy - wireless hardware description
  * @reg_notifier: the driver's regulatory notification callback,
  *	note that if your driver uses wiphy_apply_custom_regulatory()
@@ -4503,16 +3820,6 @@ struct wiphy_iftype_akm_suites {
  * @signal_type: signal type reported in &struct cfg80211_bss.
  * @cipher_suites: supported cipher suites
  * @n_cipher_suites: number of supported cipher suites
- * @akm_suites: supported AKM suites. These are the default AKMs supported if
- *	the supported AKMs not advertized for a specific interface type in
- *	iftype_akm_suites.
- * @n_akm_suites: number of supported AKM suites
- * @iftype_akm_suites: array of supported akm suites info per interface type.
- *	Note that the bits in @iftypes_mask inside this structure cannot
- *	overlap (i.e. only one occurrence of each type is allowed across all
- *	instances of iftype_akm_suites).
- * @num_iftype_akm_suites: number of interface types for which supported akm
- *	suites are specified separately.
  * @retry_short: Retry limit for short frames (dot11ShortRetryLimit)
  * @retry_long: Retry limit for long frames (dot11LongRetryLimit)
  * @frag_threshold: Fragmentation threshold (dot11FragmentationThreshold);
@@ -4657,6 +3964,7 @@ struct wiphy_iftype_akm_suites {
  *	by the driver in the .connect() callback. The bit position maps to the
  *	attribute indices defined in &enum nl80211_bss_select_attr.
  *
+ * @cookie_counter: unique generic cookie counter, used to identify objects.
  * @nan_supported_bands: bands supported by the device in NAN mode, a
  *	bitmap of &enum nl80211_band values.  For instance, for
  *	NL80211_BAND_2GHZ, bit 0 would be set
@@ -4665,20 +3973,6 @@ struct wiphy_iftype_akm_suites {
  * @txq_limit: configuration of internal TX queue frame limit
  * @txq_memory_limit: configuration internal TX queue memory limit
  * @txq_quantum: configuration of internal TX queue scheduler quantum
- *
- * @support_mbssid: can HW support association with nontransmitted AP
- * @support_only_he_mbssid: don't parse MBSSID elements if it is not
- *	HE AP, in order to avoid compatibility issues.
- *	@support_mbssid must be set for this to have any effect.
- *
- * @pmsr_capa: peer measurement capabilities
- *
- * @tid_config_support: describes the per-TID config support that the
- *	device has
- * @tid_config_support.vif: bitmap of attributes (configurations)
- *	supported by the driver for each vif
- * @tid_config_support.peer: bitmap of attributes (configurations)
- *	supported by the driver for each peer
  */
 struct wiphy {
 	/* assign these fields before you register the wiphy */
@@ -4722,12 +4016,6 @@ struct wiphy {
 
 	int n_cipher_suites;
 	const u32 *cipher_suites;
-
-	int n_akm_suites;
-	const u32 *akm_suites;
-
-	const struct wiphy_iftype_akm_suites *iftype_akm_suites;
-	unsigned int num_iftype_akm_suites;
 
 	u8 retry_short;
 	u8 retry_long;
@@ -4815,20 +4103,13 @@ struct wiphy {
 
 	u32 bss_select_support;
 
+	u64 cookie_counter;
+
 	u8 nan_supported_bands;
 
 	u32 txq_limit;
 	u32 txq_memory_limit;
 	u32 txq_quantum;
-
-	u8 support_mbssid:1,
-	   support_only_he_mbssid:1;
-
-	const struct cfg80211_pmsr_capabilities *pmsr_capa;
-
-	struct {
-		u64 peer, vif;
-	} tid_config_support;
 
 	char priv[0] __aligned(NETDEV_ALIGN);
 };
@@ -4999,17 +4280,6 @@ struct cfg80211_cqm_config;
  * @mesh_id_len: (private) Used by the internal configuration code
  * @mesh_id_up_len: (private) Used by the internal configuration code
  * @wext: (private) Used by the internal wireless extensions compat code
- * @wext.ibss: (private) IBSS data part of wext handling
- * @wext.connect: (private) connection handling data
- * @wext.keys: (private) (WEP) key data
- * @wext.ie: (private) extra elements for association
- * @wext.ie_len: (private) length of extra elements
- * @wext.bssid: (private) selected network BSSID
- * @wext.ssid: (private) selected network SSID
- * @wext.default_key: (private) selected default key index
- * @wext.default_mgmt_key: (private) selected default management key index
- * @wext.prev_bssid: (private) previous BSSID for reassociation
- * @wext.prev_bssid_valid: (private) previous BSSID validity
  * @use_4addr: indicates 4addr mode is used on this interface, must be
  *	set by driver (if supported) on add_interface BEFORE registering the
  *	netdev and may otherwise be used by driver read-only, will be update
@@ -5043,9 +4313,6 @@ struct cfg80211_cqm_config;
  * @owner_nlportid: (private) owner socket port ID
  * @nl_owner_dead: (private) owner socket went away
  * @cqm_config: (private) nl80211 RSSI monitor state
- * @pmsr_list: (private) peer measurement requests
- * @pmsr_lock: (private) peer measurements requests/results lock
- * @pmsr_free_wk: (private) peer measurements cleanup work
  */
 struct wireless_dev {
 	struct wiphy *wiphy;
@@ -5109,8 +4376,7 @@ struct wireless_dev {
 		struct cfg80211_cached_keys *keys;
 		const u8 *ie;
 		size_t ie_len;
-		u8 bssid[ETH_ALEN];
-		u8 prev_bssid[ETH_ALEN];
+		u8 bssid[ETH_ALEN], prev_bssid[ETH_ALEN];
 		u8 ssid[IEEE80211_MAX_SSID_LEN];
 		s8 default_key, default_mgmt_key;
 		bool prev_bssid_valid;
@@ -5118,10 +4384,6 @@ struct wireless_dev {
 #endif
 
 	struct cfg80211_cqm_config *cqm_config;
-
-	struct list_head pmsr_list;
-	spinlock_t pmsr_lock;
-	struct work_struct pmsr_free_wk;
 };
 
 static inline u8 *wdev_address(struct wireless_dev *wdev)
@@ -5157,106 +4419,29 @@ static inline void *wdev_priv(struct wireless_dev *wdev)
  */
 
 /**
- * ieee80211_channel_equal - compare two struct ieee80211_channel
- *
- * @a: 1st struct ieee80211_channel
- * @b: 2nd struct ieee80211_channel
- * Return: true if center frequency of @a == @b
- */
-static inline bool
-ieee80211_channel_equal(struct ieee80211_channel *a,
-			struct ieee80211_channel *b)
-{
-	return (a->center_freq == b->center_freq &&
-		a->freq_offset == b->freq_offset);
-}
-
-/**
- * ieee80211_channel_to_khz - convert ieee80211_channel to frequency in KHz
- * @chan: struct ieee80211_channel to convert
- * Return: The corresponding frequency (in KHz)
- */
-static inline u32
-ieee80211_channel_to_khz(const struct ieee80211_channel *chan)
-{
-	return MHZ_TO_KHZ(chan->center_freq) + chan->freq_offset;
-}
-
-/**
- * ieee80211_channel_to_freq_khz - convert channel number to frequency
- * @chan: channel number
- * @band: band, necessary due to channel number overlap
- * Return: The corresponding frequency (in KHz), or 0 if the conversion failed.
- */
-u32 ieee80211_channel_to_freq_khz(int chan, enum nl80211_band band);
-
-/**
  * ieee80211_channel_to_frequency - convert channel number to frequency
  * @chan: channel number
  * @band: band, necessary due to channel number overlap
  * Return: The corresponding frequency (in MHz), or 0 if the conversion failed.
  */
-static inline int
-ieee80211_channel_to_frequency(int chan, enum nl80211_band band)
-{
-	return KHZ_TO_MHZ(ieee80211_channel_to_freq_khz(chan, band));
-}
-
-/**
- * ieee80211_freq_khz_to_channel - convert frequency to channel number
- * @freq: center frequency in KHz
- * Return: The corresponding channel, or 0 if the conversion failed.
- */
-int ieee80211_freq_khz_to_channel(u32 freq);
+int ieee80211_channel_to_frequency(int chan, enum nl80211_band band);
 
 /**
  * ieee80211_frequency_to_channel - convert frequency to channel number
- * @freq: center frequency in MHz
+ * @freq: center frequency
  * Return: The corresponding channel, or 0 if the conversion failed.
  */
-static inline int
-ieee80211_frequency_to_channel(int freq)
-{
-	return ieee80211_freq_khz_to_channel(MHZ_TO_KHZ(freq));
-}
-
-/**
- * ieee80211_get_channel_khz - get channel struct from wiphy for specified
- * frequency
- * @wiphy: the struct wiphy to get the channel for
- * @freq: the center frequency (in KHz) of the channel
- * Return: The channel struct from @wiphy at @freq.
- */
-struct ieee80211_channel *
-ieee80211_get_channel_khz(struct wiphy *wiphy, u32 freq);
+int ieee80211_frequency_to_channel(int freq);
 
 /**
  * ieee80211_get_channel - get channel struct from wiphy for specified frequency
  *
  * @wiphy: the struct wiphy to get the channel for
- * @freq: the center frequency (in MHz) of the channel
+ * @freq: the center frequency of the channel
+ *
  * Return: The channel struct from @wiphy at @freq.
  */
-static inline struct ieee80211_channel *
-ieee80211_get_channel(struct wiphy *wiphy, int freq)
-{
-	return ieee80211_get_channel_khz(wiphy, MHZ_TO_KHZ(freq));
-}
-
-/**
- * cfg80211_channel_is_psc - Check if the channel is a 6 GHz PSC
- * @chan: control channel to check
- *
- * The Preferred Scanning Channels (PSC) are defined in
- * Draft IEEE P802.11ax/D5.0, 26.17.2.3.3
- */
-static inline bool cfg80211_channel_is_psc(struct ieee80211_channel *chan)
-{
-	if (chan->band != NL80211_BAND_6GHZ)
-		return false;
-
-	return ieee80211_frequency_to_channel(chan->center_freq) % 16 == 5;
-}
+struct ieee80211_channel *ieee80211_get_channel(struct wiphy *wiphy, int freq);
 
 /**
  * ieee80211_get_response_rate - get basic rate for a given rate
@@ -5422,9 +4607,6 @@ int ieee80211_data_to_8023_exthdr(struct sk_buff *skb, struct ethhdr *ehdr,
 				  const u8 *addr, enum nl80211_iftype iftype,
 				  u8 data_offset);
 
-int ieee80211_data_to_8023_exthdr_bool(struct sk_buff *skb, struct ethhdr *ehdr,
-				       const u8 *addr, enum nl80211_iftype iftype,
-				       u8 data_offset, bool is_amsdu);
 /**
  * ieee80211_data_to_8023 - convert an 802.11 data frame to 802.3
  * @skb: the 802.11 data frame
@@ -5469,33 +4651,6 @@ unsigned int cfg80211_classify8021d(struct sk_buff *skb,
 				    struct cfg80211_qos_map *qos_map);
 
 /**
- * cfg80211_find_elem_match - match information element and byte array in data
- *
- * @eid: element ID
- * @ies: data consisting of IEs
- * @len: length of data
- * @match: byte array to match
- * @match_len: number of bytes in the match array
- * @match_offset: offset in the IE data where the byte array should match.
- *	Note the difference to cfg80211_find_ie_match() which considers
- *	the offset to start from the element ID byte, but here we take
- *	the data portion instead.
- *
- * Return: %NULL if the element ID could not be found or if
- * the element is invalid (claims to be longer than the given
- * data) or if the byte array doesn't match; otherwise return the
- * requested element struct.
- *
- * Note: There are no checks on the element length other than
- * having to fit into the given data and being large enough for the
- * byte array to match.
- */
-const struct element *
-cfg80211_find_elem_match(u8 eid, const u8 *ies, unsigned int len,
-			 const u8 *match, unsigned int match_len,
-			 unsigned int match_offset);
-
-/**
  * cfg80211_find_ie_match - match information element and byte array in data
  *
  * @eid: element ID
@@ -5519,44 +4674,9 @@ cfg80211_find_elem_match(u8 eid, const u8 *ies, unsigned int len,
  * having to fit into the given data and being large enough for the
  * byte array to match.
  */
-static inline const u8 *
-cfg80211_find_ie_match(u8 eid, const u8 *ies, unsigned int len,
-		       const u8 *match, unsigned int match_len,
-		       unsigned int match_offset)
-{
-	/* match_offset can't be smaller than 2, unless match_len is
-	 * zero, in which case match_offset must be zero as well.
-	 */
-	if (WARN_ON((match_len && match_offset < 2) ||
-		    (!match_len && match_offset)))
-		return NULL;
-
-	return (void *)cfg80211_find_elem_match(eid, ies, len,
-						match, match_len,
-						match_offset ?
-							match_offset - 2 : 0);
-}
-
-/**
- * cfg80211_find_elem - find information element in data
- *
- * @eid: element ID
- * @ies: data consisting of IEs
- * @len: length of data
- *
- * Return: %NULL if the element ID could not be found or if
- * the element is invalid (claims to be longer than the given
- * data) or if the byte array doesn't match; otherwise return the
- * requested element struct.
- *
- * Note: There are no checks on the element length other than
- * having to fit into the given data.
- */
-static inline const struct element *
-cfg80211_find_elem(u8 eid, const u8 *ies, int len)
-{
-	return cfg80211_find_elem_match(eid, ies, len, NULL, 0, 0);
-}
+const u8 *cfg80211_find_ie_match(u8 eid, const u8 *ies, int len,
+				 const u8 *match, int match_len,
+				 int match_offset);
 
 /**
  * cfg80211_find_ie - find information element in data
@@ -5576,28 +4696,6 @@ cfg80211_find_elem(u8 eid, const u8 *ies, int len)
 static inline const u8 *cfg80211_find_ie(u8 eid, const u8 *ies, int len)
 {
 	return cfg80211_find_ie_match(eid, ies, len, NULL, 0, 0);
-}
-
-/**
- * cfg80211_find_ext_elem - find information element with EID Extension in data
- *
- * @ext_eid: element ID Extension
- * @ies: data consisting of IEs
- * @len: length of data
- *
- * Return: %NULL if the etended element could not be found or if
- * the element is invalid (claims to be longer than the given
- * data) or if the byte array doesn't match; otherwise return the
- * requested element struct.
- *
- * Note: There are no checks on the element length other than
- * having to fit into the given data.
- */
-static inline const struct element *
-cfg80211_find_ext_elem(u8 ext_eid, const u8 *ies, int len)
-{
-	return cfg80211_find_elem_match(WLAN_EID_EXTENSION, ies, len,
-					&ext_eid, 1, 0);
 }
 
 /**
@@ -5622,25 +4720,6 @@ static inline const u8 *cfg80211_find_ext_ie(u8 ext_eid, const u8 *ies, int len)
 }
 
 /**
- * cfg80211_find_vendor_elem - find vendor specific information element in data
- *
- * @oui: vendor OUI
- * @oui_type: vendor-specific OUI type (must be < 0xff), negative means any
- * @ies: data consisting of IEs
- * @len: length of data
- *
- * Return: %NULL if the vendor specific element ID could not be found or if the
- * element is invalid (claims to be longer than the given data); otherwise
- * return the element structure for the requested element.
- *
- * Note: There are no checks on the element length other than having to fit into
- * the given data.
- */
-const struct element *cfg80211_find_vendor_elem(unsigned int oui, int oui_type,
-						const u8 *ies,
-						unsigned int len);
-
-/**
  * cfg80211_find_vendor_ie - find vendor specific information element in data
  *
  * @oui: vendor OUI
@@ -5656,12 +4735,8 @@ const struct element *cfg80211_find_vendor_elem(unsigned int oui, int oui_type,
  * Note: There are no checks on the element length other than having to fit into
  * the given data.
  */
-static inline const u8 *
-cfg80211_find_vendor_ie(unsigned int oui, int oui_type,
-			const u8 *ies, unsigned int len)
-{
-	return (void *)cfg80211_find_vendor_elem(oui, oui_type, ies, len);
-}
+const u8 *cfg80211_find_vendor_ie(unsigned int oui, int oui_type,
+				  const u8 *ies, int len);
 
 /**
  * cfg80211_send_layer2_update - send layer 2 update frame
@@ -5736,32 +4811,6 @@ int regulatory_set_wiphy_regd_sync_rtnl(struct wiphy *wiphy,
 					struct ieee80211_regdomain *rd);
 
 /**
- * regulatory_hint_user - hint to the wireless core a regulatory domain
- * which the driver has received from an application
- * @alpha2: the ISO/IEC 3166 alpha2 the driver claims its regulatory domain
- *	should be in. If @rd is set this should be NULL. Note that if you
- *	set this to NULL you should still set rd->alpha2 to some accepted
- *	alpha2.
- * @user_reg_hint_type: the type of user regulatory hint.
- *
- * Wireless drivers can use this function to hint to the wireless core
- * the current regulatory domain as specified by trusted applications,
- * it is the driver's responsibilty to estbalish which applications it
- * trusts.
- *
- * The wiphy should be registered to cfg80211 prior to this call.
- * For cfg80211 drivers this means you must first use wiphy_register(),
- * for mac80211 drivers you must first use ieee80211_register_hw().
- *
- * Drivers should check the return value, its possible you can get
- * an -ENOMEM or an -EINVAL.
- *
- * Return: 0 on success. -ENOMEM, -EINVAL.
- */
-int regulatory_hint_user(const char *alpha2,
-			 enum nl80211_user_reg_hint_type user_reg_hint_type);
-
-/**
  * wiphy_apply_custom_regulatory - apply a custom driver regulatory domain
  * @wiphy: the wireless device we want to process the regulatory domain on
  * @regd: the custom regulatory domain to use for this wiphy
@@ -5808,14 +4857,6 @@ const struct ieee80211_reg_rule *freq_reg_info(struct wiphy *wiphy,
  * proper string representation.
  */
 const char *reg_initiator_name(enum nl80211_reg_initiator initiator);
-
-/**
- * regulatory_pre_cac_allowed - check if pre-CAC allowed in the current regdom
- * @wiphy: wiphy for which pre-CAC capability is checked.
- *
- * Pre-CAC is allowed only in some regdomains (notable ETSI).
- */
-bool regulatory_pre_cac_allowed(struct wiphy *wiphy);
 
 /**
  * DOC: Internal regulatory db functions
@@ -5939,49 +4980,6 @@ cfg80211_inform_bss_frame(struct wiphy *wiphy,
 
 	return cfg80211_inform_bss_frame_data(wiphy, &data, mgmt, len, gfp);
 }
-
-/**
- * cfg80211_gen_new_bssid - generate a nontransmitted BSSID for multi-BSSID
- * @bssid: transmitter BSSID
- * @max_bssid: max BSSID indicator, taken from Multiple BSSID element
- * @mbssid_index: BSSID index, taken from Multiple BSSID index element
- * @new_bssid: calculated nontransmitted BSSID
- */
-static inline void cfg80211_gen_new_bssid(const u8 *bssid, u8 max_bssid,
-					  u8 mbssid_index, u8 *new_bssid)
-{
-	u64 bssid_u64 = ether_addr_to_u64(bssid);
-	u64 mask = GENMASK_ULL(max_bssid - 1, 0);
-	u64 new_bssid_u64;
-
-	new_bssid_u64 = bssid_u64 & ~mask;
-
-	new_bssid_u64 |= ((bssid_u64 & mask) + mbssid_index) & mask;
-
-	u64_to_ether_addr(new_bssid_u64, new_bssid);
-}
-
-/**
- * cfg80211_is_element_inherited - returns if element ID should be inherited
- * @element: element to check
- * @non_inherit_element: non inheritance element
- */
-bool cfg80211_is_element_inherited(const struct element *element,
-				   const struct element *non_inherit_element);
-
-/**
- * cfg80211_merge_profile - merges a MBSSID profile if it is split between IEs
- * @ie: ies
- * @ielen: length of IEs
- * @mbssid_elem: current MBSSID element
- * @sub_elem: current MBSSID subelement (profile)
- * @merged_ie: location of the merged profile
- * @max_copy_len: max merged profile length
- */
-size_t cfg80211_merge_profile(const u8 *ie, size_t ielen,
-			      const struct element *mbssid_elem,
-			      const struct element *sub_elem,
-			      u8 *merged_ie, size_t max_copy_len);
 
 /**
  * enum cfg80211_bss_frame_type - frame type that the BSS data came from
@@ -6119,26 +5117,6 @@ void cfg80211_put_bss(struct wiphy *wiphy, struct cfg80211_bss *bss);
  */
 void cfg80211_unlink_bss(struct wiphy *wiphy, struct cfg80211_bss *bss);
 
-/**
- * cfg80211_bss_iter - iterate all BSS entries
- *
- * This function iterates over the BSS entries associated with the given wiphy
- * and calls the callback for the iterated BSS. The iterator function is not
- * allowed to call functions that might modify the internal state of the BSS DB.
- *
- * @wiphy: the wiphy
- * @chandef: if given, the iterator function will be called only if the channel
- *     of the currently iterated BSS is a subset of the given channel.
- * @iter: the iterator function to call
- * @iter_data: an argument to the iterator function
- */
-void cfg80211_bss_iter(struct wiphy *wiphy,
-		       struct cfg80211_chan_def *chandef,
-		       void (*iter)(struct wiphy *wiphy,
-				    struct cfg80211_bss *bss,
-				    void *data),
-		       void *iter_data);
-
 static inline enum nl80211_bss_scan_width
 cfg80211_chandef_to_scan_width(const struct cfg80211_chan_def *chandef)
 {
@@ -6188,12 +5166,10 @@ void cfg80211_auth_timeout(struct net_device *dev, const u8 *addr);
  * @dev: network device
  * @bss: the BSS that association was requested with, ownership of the pointer
  *	moves to cfg80211 in this call
- * @buf: (Re)Association Response frame (header + body)
+ * @buf: authentication frame (header + body)
  * @len: length of the frame data
  * @uapsd_queues: bitmap of queues configured for uapsd. Same format
  *	as the AC bitmap in the QoS info field
- * @req_ies: information elements from the (Re)Association Request frame
- * @req_ies_len: length of req_ies data
  *
  * After being asked to associate via cfg80211_ops::assoc() the driver must
  * call either this function or cfg80211_auth_timeout().
@@ -6203,8 +5179,7 @@ void cfg80211_auth_timeout(struct net_device *dev, const u8 *addr);
 void cfg80211_rx_assoc_resp(struct net_device *dev,
 			    struct cfg80211_bss *bss,
 			    const u8 *buf, size_t len,
-			    int uapsd_queues,
-			    const u8 *req_ies, size_t req_ies_len);
+			    int uapsd_queues);
 
 /**
  * cfg80211_assoc_timeout - notification of timed out association
@@ -6293,7 +5268,7 @@ void cfg80211_ibss_joined(struct net_device *dev, const u8 *bssid,
  * @dev: network device
  * @macaddr: the MAC address of the new candidate
  * @ie: information elements advertised by the peer candidate
- * @ie_len: length of the information elements buffer
+ * @ie_len: lenght of the information elements buffer
  * @gfp: allocation flags
  *
  * This function notifies cfg80211 that the mesh peer candidate has been
@@ -6301,8 +5276,7 @@ void cfg80211_ibss_joined(struct net_device *dev, const u8 *bssid,
  * cfg80211 then sends a notification to userspace.
  */
 void cfg80211_notify_new_peer_candidate(struct net_device *dev,
-		const u8 *macaddr, const u8 *ie, u8 ie_len,
-		int sig_dbm, gfp_t gfp);
+		const u8 *macaddr, const u8 *ie, u8 ie_len, gfp_t gfp);
 
 /**
  * DOC: RFkill integration
@@ -6366,7 +5340,6 @@ struct sk_buff *__cfg80211_alloc_event_skb(struct wiphy *wiphy,
 					   struct wireless_dev *wdev,
 					   enum nl80211_commands cmd,
 					   enum nl80211_attrs attr,
-					   unsigned int portid,
 					   int vendor_event_idx,
 					   int approxlen, gfp_t gfp);
 
@@ -6417,15 +5390,6 @@ cfg80211_vendor_cmd_alloc_reply_skb(struct wiphy *wiphy, int approxlen)
 int cfg80211_vendor_cmd_reply(struct sk_buff *skb);
 
 /**
- * cfg80211_vendor_cmd_get_sender
- * @wiphy: the wiphy
- *
- * Return the current netlink port ID in a vendor command handler.
- * Valid to call only there.
- */
-unsigned int cfg80211_vendor_cmd_get_sender(struct wiphy *wiphy);
-
-/**
  * cfg80211_vendor_event_alloc - allocate vendor-specific event skb
  * @wiphy: the wiphy
  * @wdev: the wireless device
@@ -6452,42 +5416,7 @@ cfg80211_vendor_event_alloc(struct wiphy *wiphy, struct wireless_dev *wdev,
 {
 	return __cfg80211_alloc_event_skb(wiphy, wdev, NL80211_CMD_VENDOR,
 					  NL80211_ATTR_VENDOR_DATA,
-					  0, event_idx, approxlen, gfp);
-}
-
-/**
- * cfg80211_vendor_event_alloc_ucast - alloc unicast vendor-specific event skb
- * @wiphy: the wiphy
- * @wdev: the wireless device
- * @event_idx: index of the vendor event in the wiphy's vendor_events
- * @portid: port ID of the receiver
- * @approxlen: an upper bound of the length of the data that will
- *	be put into the skb
- * @gfp: allocation flags
- *
- * This function allocates and pre-fills an skb for an event to send to
- * a specific (userland) socket. This socket would previously have been
- * obtained by cfg80211_vendor_cmd_get_sender(), and the caller MUST take
- * care to register a netlink notifier to see when the socket closes.
- *
- * If wdev != NULL, both the ifindex and identifier of the specified
- * wireless device are added to the event message before the vendor data
- * attribute.
- *
- * When done filling the skb, call cfg80211_vendor_event() with the
- * skb to send the event.
- *
- * Return: An allocated and pre-filled skb. %NULL if any errors happen.
- */
-static inline struct sk_buff *
-cfg80211_vendor_event_alloc_ucast(struct wiphy *wiphy,
-				  struct wireless_dev *wdev,
-				  unsigned int portid, int approxlen,
-				  int event_idx, gfp_t gfp)
-{
-	return __cfg80211_alloc_event_skb(wiphy, wdev, NL80211_CMD_VENDOR,
-					  NL80211_ATTR_VENDOR_DATA,
-					  portid, event_idx, approxlen, gfp);
+					  event_idx, approxlen, gfp);
 }
 
 /**
@@ -6587,7 +5516,7 @@ static inline struct sk_buff *
 cfg80211_testmode_alloc_event_skb(struct wiphy *wiphy, int approxlen, gfp_t gfp)
 {
 	return __cfg80211_alloc_event_skb(wiphy, NULL, NL80211_CMD_TESTMODE,
-					  NL80211_ATTR_TESTDATA, 0, -1,
+					  NL80211_ATTR_TESTDATA, -1,
 					  approxlen, gfp);
 }
 
@@ -6649,11 +5578,8 @@ struct cfg80211_fils_resp_params {
  *	case.
  * @bssid: The BSSID of the AP (may be %NULL)
  * @bss: Entry of bss to which STA got connected to, can be obtained through
- *	cfg80211_get_bss() (may be %NULL). But it is recommended to store the
- *	bss from the connect_request and hold a reference to it and return
- *	through this param to avoid a warning if the bss is expired during the
- *	connection, esp. for those drivers implementing connect op.
- *	Only one parameter among @bssid and @bss needs to be specified.
+ *	cfg80211_get_bss() (may be %NULL). Only one parameter among @bssid and
+ *	@bss needs to be specified.
  * @req_ie: Association request IEs (may be %NULL)
  * @req_ie_len: Association request IEs length
  * @resp_ie: Association response IEs (may be %NULL)
@@ -6701,12 +5627,8 @@ void cfg80211_connect_done(struct net_device *dev,
  *
  * @dev: network device
  * @bssid: the BSSID of the AP
- * @bss: Entry of bss to which STA got connected to, can be obtained through
- *	cfg80211_get_bss() (may be %NULL). But it is recommended to store the
- *	bss from the connect_request and hold a reference to it and return
- *	through this param to avoid a warning if the bss is expired during the
- *	connection, esp. for those drivers implementing connect op.
- *	Only one parameter among @bssid and @bss needs to be specified.
+ * @bss: entry of bss to which STA got connected to, can be obtained
+ *	through cfg80211_get_bss (may be %NULL)
  * @req_ie: association request IEs (maybe be %NULL)
  * @req_ie_len: association request IEs length
  * @resp_ie: association response IEs (may be %NULL)
@@ -6915,16 +5837,6 @@ void cfg80211_ready_on_channel(struct wireless_dev *wdev, u64 cookie,
 void cfg80211_remain_on_channel_expired(struct wireless_dev *wdev, u64 cookie,
 					struct ieee80211_channel *chan,
 					gfp_t gfp);
-
-/**
- * cfg80211_tx_mgmt_expired - tx_mgmt duration expired
- * @wdev: wireless device
- * @cookie: the requested cookie
- * @chan: The current channel (from tx_mgmt request)
- * @gfp: allocation flags
- */
-void cfg80211_tx_mgmt_expired(struct wireless_dev *wdev, u64 cookie,
-			      struct ieee80211_channel *chan, gfp_t gfp);
 
 /**
  * cfg80211_sinfo_alloc_tid_stats - allocate per-tid statistics.
@@ -7309,19 +6221,6 @@ bool ieee80211_operating_class_to_band(u8 operating_class,
 bool ieee80211_chandef_to_operating_class(struct cfg80211_chan_def *chandef,
 					  u8 *op_class);
 
-/**
- * ieee80211_chandef_to_khz - convert chandef to frequency in KHz
- *
- * @chandef: the chandef to convert
- *
- * Returns the center frequency of chandef (1st segment) in KHz.
- */
-static inline u32
-ieee80211_chandef_to_khz(const struct cfg80211_chan_def *chandef)
-{
-	return MHZ_TO_KHZ(chandef->center_freq1) + chandef->freq1_offset;
-}
-
 /*
  * cfg80211_tdls_oper_request - request userspace to perform TDLS operation
  * @dev: the device on which the operation is requested
@@ -7680,31 +6579,6 @@ int cfg80211_external_auth_request(struct net_device *netdev,
 				   gfp_t gfp);
 
 /**
- * cfg80211_pmsr_report - report peer measurement result data
- * @wdev: the wireless device reporting the measurement
- * @req: the original measurement request
- * @result: the result data
- * @gfp: allocation flags
- */
-void cfg80211_pmsr_report(struct wireless_dev *wdev,
-			  struct cfg80211_pmsr_request *req,
-			  struct cfg80211_pmsr_result *result,
-			  gfp_t gfp);
-
-/**
- * cfg80211_pmsr_complete - report peer measurement completed
- * @wdev: the wireless device reporting the measurement
- * @req: the original measurement request
- * @gfp: allocation flags
- *
- * Report that the entire measurement completed, after this
- * the request pointer will no longer be valid.
- */
-void cfg80211_pmsr_complete(struct wireless_dev *wdev,
-			    struct cfg80211_pmsr_request *req,
-			    gfp_t gfp);
-
-/**
  * cfg80211_iftype_allowed - check whether the interface can be allowed
  * @wiphy: the wiphy
  * @iftype: interface type
@@ -7740,11 +6614,6 @@ bool cfg80211_iftype_allowed(struct wiphy *wiphy, enum nl80211_iftype iftype,
 #define wiphy_info(wiphy, format, args...)			\
 	dev_info(&(wiphy)->dev, format, ##args)
 
-#define wiphy_err_ratelimited(wiphy, format, args...)		\
-	dev_err_ratelimited(&(wiphy)->dev, format, ##args)
-#define wiphy_warn_ratelimited(wiphy, format, args...)		\
-	dev_warn_ratelimited(&(wiphy)->dev, format, ##args)
-
 #define wiphy_debug(wiphy, format, args...)			\
 	wiphy_printk(KERN_DEBUG, wiphy, format, ##args)
 
@@ -7769,15 +6638,5 @@ bool cfg80211_iftype_allowed(struct wiphy *wiphy, enum nl80211_iftype iftype,
  */
 #define wiphy_WARN(wiphy, format, args...)			\
 	WARN(1, "wiphy: %s\n" format, wiphy_name(wiphy), ##args);
-
-/**
- * cfg80211_update_owe_info_event - Notify the peer's OWE info to user space
- * @netdev: network device
- * @owe_info: peer's owe info
- * @gfp: allocation flags
- */
-void cfg80211_update_owe_info_event(struct net_device *netdev,
-				    struct cfg80211_update_owe_info *owe_info,
-				    gfp_t gfp);
 
 #endif /* __NET_CFG80211_H */

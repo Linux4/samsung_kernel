@@ -1,6 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2016 Cavium, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of version 2 of the GNU General Public License
+ * as published by the Free Software Foundation.
  */
 
 #include "cptvf.h"
@@ -133,7 +136,7 @@ static inline int setup_sgio_list(struct cpt_vf *cptvf,
 
 	/* Setup gather (input) components */
 	g_sz_bytes = ((req->incnt + 3) / 4) * sizeof(struct sglist_component);
-	info->gather_components = kzalloc(g_sz_bytes, req->may_sleep ? GFP_KERNEL : GFP_ATOMIC);
+	info->gather_components = kzalloc(g_sz_bytes, GFP_KERNEL);
 	if (!info->gather_components) {
 		ret = -ENOMEM;
 		goto  scatter_gather_clean;
@@ -150,7 +153,7 @@ static inline int setup_sgio_list(struct cpt_vf *cptvf,
 
 	/* Setup scatter (output) components */
 	s_sz_bytes = ((req->outcnt + 3) / 4) * sizeof(struct sglist_component);
-	info->scatter_components = kzalloc(s_sz_bytes, req->may_sleep ? GFP_KERNEL : GFP_ATOMIC);
+	info->scatter_components = kzalloc(s_sz_bytes, GFP_KERNEL);
 	if (!info->scatter_components) {
 		ret = -ENOMEM;
 		goto  scatter_gather_clean;
@@ -167,7 +170,7 @@ static inline int setup_sgio_list(struct cpt_vf *cptvf,
 
 	/* Create and initialize DPTR */
 	info->dlen = g_sz_bytes + s_sz_bytes + SG_LIST_HDR_SIZE;
-	info->in_buffer = kzalloc(info->dlen, req->may_sleep ? GFP_KERNEL : GFP_ATOMIC);
+	info->in_buffer = kzalloc(info->dlen, GFP_KERNEL);
 	if (!info->in_buffer) {
 		ret = -ENOMEM;
 		goto  scatter_gather_clean;
@@ -195,7 +198,7 @@ static inline int setup_sgio_list(struct cpt_vf *cptvf,
 	}
 
 	/* Create and initialize RPTR */
-	info->out_buffer = kzalloc(COMPLETION_CODE_SIZE, req->may_sleep ? GFP_KERNEL : GFP_ATOMIC);
+	info->out_buffer = kzalloc(COMPLETION_CODE_SIZE, GFP_KERNEL);
 	if (!info->out_buffer) {
 		ret = -ENOMEM;
 		goto scatter_gather_clean;
@@ -220,7 +223,7 @@ scatter_gather_clean:
 	return ret;
 }
 
-static int send_cpt_command(struct cpt_vf *cptvf, union cpt_inst_s *cmd,
+int send_cpt_command(struct cpt_vf *cptvf, union cpt_inst_s *cmd,
 		     u32 qno)
 {
 	struct pci_dev *pdev = cptvf->pdev;
@@ -267,7 +270,7 @@ static int send_cpt_command(struct cpt_vf *cptvf, union cpt_inst_s *cmd,
 	return ret;
 }
 
-static void do_request_cleanup(struct cpt_vf *cptvf,
+void do_request_cleanup(struct cpt_vf *cptvf,
 			struct cpt_info_buffer *info)
 {
 	int i;
@@ -305,15 +308,25 @@ static void do_request_cleanup(struct cpt_vf *cptvf,
 		}
 	}
 
-	kzfree(info->scatter_components);
-	kzfree(info->gather_components);
-	kzfree(info->out_buffer);
-	kzfree(info->in_buffer);
-	kzfree((void *)info->completion_addr);
+	if (info->scatter_components)
+		kzfree(info->scatter_components);
+
+	if (info->gather_components)
+		kzfree(info->gather_components);
+
+	if (info->out_buffer)
+		kzfree(info->out_buffer);
+
+	if (info->in_buffer)
+		kzfree(info->in_buffer);
+
+	if (info->completion_addr)
+		kzfree((void *)info->completion_addr);
+
 	kzfree(info);
 }
 
-static void do_post_process(struct cpt_vf *cptvf, struct cpt_info_buffer *info)
+void do_post_process(struct cpt_vf *cptvf, struct cpt_info_buffer *info)
 {
 	struct pci_dev *pdev = cptvf->pdev;
 
@@ -421,7 +434,7 @@ int process_request(struct cpt_vf *cptvf, struct cpt_request_info *req)
 	struct cpt_vq_command vq_cmd;
 	union cpt_inst_s cptinst;
 
-	info = kzalloc(sizeof(*info), req->may_sleep ? GFP_KERNEL : GFP_ATOMIC);
+	info = kzalloc(sizeof(*info), GFP_KERNEL);
 	if (unlikely(!info)) {
 		dev_err(&pdev->dev, "Unable to allocate memory for info_buffer\n");
 		return -ENOMEM;
@@ -443,7 +456,7 @@ int process_request(struct cpt_vf *cptvf, struct cpt_request_info *req)
 	 * Get buffer for union cpt_res_s response
 	 * structure and its physical address
 	 */
-	info->completion_addr = kzalloc(sizeof(union cpt_res_s), req->may_sleep ? GFP_KERNEL : GFP_ATOMIC);
+	info->completion_addr = kzalloc(sizeof(union cpt_res_s), GFP_KERNEL);
 	if (unlikely(!info->completion_addr)) {
 		dev_err(&pdev->dev, "Unable to allocate memory for completion_addr\n");
 		ret = -ENOMEM;

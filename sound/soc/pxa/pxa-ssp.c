@@ -1,10 +1,14 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * pxa-ssp.c  --  ALSA Soc Audio Layer
  *
  * Copyright 2005,2008 Wolfson Microelectronics PLC.
  * Author: Liam Girdwood
  *         Mark Brown <broonie@opensource.wolfsonmicro.com>
+ *
+ *  This program is free software; you can redistribute  it and/or modify it
+ *  under  the terms of  the GNU General  Public License as published by the
+ *  Free Software Foundation;  either version 2 of the  License, or (at your
+ *  option) any later version.
  *
  * TODO:
  *  o Test network mode for > 16bit sample size
@@ -99,9 +103,6 @@ static int pxa_ssp_startup(struct snd_pcm_substream *substream,
 		pxa_ssp_disable(ssp);
 	}
 
-	if (priv->extclk)
-		clk_prepare_enable(priv->extclk);
-
 	dma = kzalloc(sizeof(struct snd_dmaengine_dai_dma_data), GFP_KERNEL);
 	if (!dma)
 		return -ENOMEM;
@@ -123,9 +124,6 @@ static void pxa_ssp_shutdown(struct snd_pcm_substream *substream,
 		pxa_ssp_disable(ssp);
 		clk_disable_unprepare(ssp->clk);
 	}
-
-	if (priv->extclk)
-		clk_disable_unprepare(priv->extclk);
 
 	kfree(snd_soc_dai_get_dma_data(cpu_dai, substream));
 	snd_soc_dai_set_dma_data(cpu_dai, substream, NULL);

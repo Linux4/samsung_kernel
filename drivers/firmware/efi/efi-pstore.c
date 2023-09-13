@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0+
-
 #include <linux/efi.h>
 #include <linux/module.h>
 #include <linux/pstore.h>

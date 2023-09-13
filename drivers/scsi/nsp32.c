@@ -1,9 +1,19 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * NinjaSCSI-32Bi Cardbus, NinjaSCSI-32UDE PCI/CardBus SCSI driver
  * Copyright (C) 2001, 2002, 2003
  *      YOKOTA Hiroshi <yokota@netlab.is.tsukuba.ac.jp>
  *      GOTO Masanori <gotom@debian.or.jp>, <gotom@debian.org>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
  *
  * Revision History:
  *   1.0: Initial Release.
@@ -264,7 +274,7 @@ static struct scsi_host_template nsp32_template = {
 	.sg_tablesize			= NSP32_SG_SIZE,
 	.max_sectors			= 128,
 	.this_id			= NSP32_HOST_SCSIID,
-	.dma_boundary			= PAGE_SIZE - 1,
+	.use_clustering			= DISABLE_CLUSTERING,
 	.eh_abort_handler		= nsp32_eh_abort,
 	.eh_host_reset_handler		= nsp32_eh_host_reset,
 /*	.highmem_io			= 1, */
@@ -2431,6 +2441,7 @@ static void nsp32_set_sync_entry(nsp32_hw_data *data,
 
 	period      = data->synct[entry].period_num;
 	ackwidth    = data->synct[entry].ackwidth;
+	offset      = offset;
 	sample_rate = data->synct[entry].sample_rate;
 
 	target->syncreg    = TO_SYNCREG(period, offset);
@@ -2627,7 +2638,7 @@ static int nsp32_detect(struct pci_dev *pdev)
 	/*
 	 * setup DMA 
 	 */
-	if (dma_set_mask(&pdev->dev, DMA_BIT_MASK(32)) != 0) {
+	if (pci_set_dma_mask(pdev, DMA_BIT_MASK(32)) != 0) {
 		nsp32_msg (KERN_ERR, "failed to set PCI DMA mask");
 		goto scsi_unregister;
 	}
@@ -2635,9 +2646,7 @@ static int nsp32_detect(struct pci_dev *pdev)
 	/*
 	 * allocate autoparam DMA resource.
 	 */
-	data->autoparam = dma_alloc_coherent(&pdev->dev,
-			sizeof(nsp32_autoparam), &(data->auto_paddr),
-			GFP_KERNEL);
+	data->autoparam = pci_alloc_consistent(pdev, sizeof(nsp32_autoparam), &(data->auto_paddr));
 	if (data->autoparam == NULL) {
 		nsp32_msg(KERN_ERR, "failed to allocate DMA memory");
 		goto scsi_unregister;
@@ -2646,8 +2655,8 @@ static int nsp32_detect(struct pci_dev *pdev)
 	/*
 	 * allocate scatter-gather DMA resource.
 	 */
-	data->sg_list = dma_alloc_coherent(&pdev->dev, NSP32_SG_TABLE_SIZE,
-			&data->sg_paddr, GFP_KERNEL);
+	data->sg_list = pci_alloc_consistent(pdev, NSP32_SG_TABLE_SIZE,
+					     &(data->sg_paddr));
 	if (data->sg_list == NULL) {
 		nsp32_msg(KERN_ERR, "failed to allocate DMA memory");
 		goto free_autoparam;
@@ -2752,11 +2761,11 @@ static int nsp32_detect(struct pci_dev *pdev)
 	free_irq(host->irq, data);
 
  free_sg_list:
-	dma_free_coherent(&pdev->dev, NSP32_SG_TABLE_SIZE,
+	pci_free_consistent(pdev, NSP32_SG_TABLE_SIZE,
 			    data->sg_list, data->sg_paddr);
 
  free_autoparam:
-	dma_free_coherent(&pdev->dev, sizeof(nsp32_autoparam),
+	pci_free_consistent(pdev, sizeof(nsp32_autoparam),
 			    data->autoparam, data->auto_paddr);
 	
  scsi_unregister:
@@ -2771,12 +2780,12 @@ static int nsp32_release(struct Scsi_Host *host)
 	nsp32_hw_data *data = (nsp32_hw_data *)host->hostdata;
 
 	if (data->autoparam) {
-		dma_free_coherent(&data->Pci->dev, sizeof(nsp32_autoparam),
+		pci_free_consistent(data->Pci, sizeof(nsp32_autoparam),
 				    data->autoparam, data->auto_paddr);
 	}
 
 	if (data->sg_list) {
-		dma_free_coherent(&data->Pci->dev, NSP32_SG_TABLE_SIZE,
+		pci_free_consistent(data->Pci, NSP32_SG_TABLE_SIZE,
 				    data->sg_list, data->sg_paddr);
 	}
 

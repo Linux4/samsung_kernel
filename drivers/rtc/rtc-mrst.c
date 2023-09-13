@@ -1,10 +1,14 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * rtc-mrst.c: Driver for Moorestown virtual RTC
  *
  * (C) Copyright 2009 Intel Corporation
  * Author: Jacob Pan (jacob.jun.pan@intel.com)
  *	   Feng Tang (feng.tang@intel.com)
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; version 2
+ * of the License.
  *
  * Note:
  * VRTC is emulated by system controller firmware, the real HW
@@ -86,7 +90,7 @@ static int mrst_read_time(struct device *dev, struct rtc_time *time)
 	unsigned long flags;
 
 	if (vrtc_is_updating())
-		msleep(20);
+		mdelay(20);
 
 	spin_lock_irqsave(&rtc_lock, flags);
 	time->tm_sec = vrtc_cmos_read(RTC_SECONDS);
@@ -257,10 +261,11 @@ static int mrst_rtc_alarm_irq_enable(struct device *dev, unsigned int enabled)
 
 static int mrst_procfs(struct device *dev, struct seq_file *seq)
 {
-	unsigned char	rtc_control;
+	unsigned char	rtc_control, valid;
 
 	spin_lock_irq(&rtc_lock);
 	rtc_control = vrtc_cmos_read(RTC_CONTROL);
+	valid = vrtc_cmos_read(RTC_VALID);
 	spin_unlock_irq(&rtc_lock);
 
 	seq_printf(seq,

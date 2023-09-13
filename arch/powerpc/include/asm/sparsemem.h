@@ -9,6 +9,17 @@
  * MAX_PHYSMEM_BITS		2^N: how much memory we can have in that space
  */
 #define SECTION_SIZE_BITS       24
+/*
+ * If we store section details in page->flags we can't increase the MAX_PHYSMEM_BITS
+ * if we increase SECTIONS_WIDTH we will not store node details in page->flags and
+ * page_to_nid does a page->section->node lookup
+ * Hence only increase for VMEMMAP.
+ */
+#ifdef CONFIG_SPARSEMEM_VMEMMAP
+#define MAX_PHYSMEM_BITS        47
+#else
+#define MAX_PHYSMEM_BITS        46
+#endif
 
 #endif /* CONFIG_SPARSEMEM */
 
@@ -17,9 +28,9 @@ extern int create_section_mapping(unsigned long start, unsigned long end, int ni
 extern int remove_section_mapping(unsigned long start, unsigned long end);
 
 #ifdef CONFIG_PPC_BOOK3S_64
-extern int resize_hpt_for_hotplug(unsigned long new_mem_size);
+extern void resize_hpt_for_hotplug(unsigned long new_mem_size);
 #else
-static inline int resize_hpt_for_hotplug(unsigned long new_mem_size) { return 0; }
+static inline void resize_hpt_for_hotplug(unsigned long new_mem_size) { }
 #endif
 
 #ifdef CONFIG_NUMA

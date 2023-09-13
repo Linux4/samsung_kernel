@@ -1,6 +1,9 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  *  linux/include/linux/mmc/card.h
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  *  Card driver specific definitions.
  */
@@ -9,6 +12,19 @@
 
 #include <linux/device.h>
 #include <linux/mod_devicetable.h>
+
+#define MAX_CNT_U64     0xFFFFFFFFFF
+#define MAX_CNT_U32     0x7FFFFFFF
+#define STATUS_MASK     (R1_ERROR | R1_CC_ERROR | R1_CARD_ECC_FAILED | R1_WP_VIOLATION | R1_OUT_OF_RANGE)
+
+/* Only [0:4] bits in response are reserved. The other bits shouldn't be used */
+#define HALT_UNHALT_ERR		0x00000001
+#define CQ_EN_DIS_ERR		0x00000002
+#define RPMB_SWITCH_ERR		0x00000004
+#define HW_RST		0x00000008
+#define STATUS_ERR_MASK		(HALT_UNHALT_ERR | CQ_EN_DIS_ERR | RPMB_SWITCH_ERR | HW_RST)
+
+struct mmc_blk_request;
 
 struct mmc_cid {
 	unsigned int		manfid;
@@ -85,10 +101,6 @@ struct mmc_ext_csd {
 	unsigned int            data_tag_unit_size;     /* DATA TAG UNIT size */
 	unsigned int		boot_ro_lock;		/* ro lock support */
 	bool			boot_ro_lockable;
-#if defined(CONFIG_SDC_QTI)
-	u8			raw_ext_csd_cmdq;	/* 15 */
-	u8			raw_ext_csd_cache_ctrl;	/* 33 */
-#endif
 	bool			ffu_capable;	/* Firmware upgrade support */
 	bool			cmdq_en;	/* Command Queue enabled */
 	bool			cmdq_support;	/* Command Queue supported */
@@ -99,13 +111,7 @@ struct mmc_ext_csd {
 	u8			raw_partition_support;	/* 160 */
 	u8			raw_rpmb_size_mult;	/* 168 */
 	u8			raw_erased_mem_count;	/* 181 */
-#if defined(CONFIG_SDC_QTI)
-	u8			raw_ext_csd_bus_width;	/* 183 */
-#endif
 	u8			strobe_support;		/* 184 */
-#if defined(CONFIG_SDC_QTI)
-	u8			raw_ext_csd_hs_timing;	/* 185 */
-#endif
 	u8			raw_ext_csd_structure;	/* 194 */
 	u8			raw_card_type;		/* 196 */
 	u8			raw_driver_strength;	/* 197 */
@@ -140,8 +146,6 @@ struct mmc_ext_csd {
 struct sd_scr {
 	unsigned char		sda_vsn;
 	unsigned char		sda_spec3;
-	unsigned char		sda_spec4;
-	unsigned char		sda_specx;
 	unsigned char		bus_widths;
 #define SD_SCR_BUS_WIDTH_1	(1<<0)
 #define SD_SCR_BUS_WIDTH_4	(1<<2)
@@ -247,10 +251,6 @@ struct mmc_part {
 #define MMC_BLK_DATA_AREA_RPMB	(1<<3)
 };
 
-#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC)
-#define MAX_CNT_U64     0xFFFFFFFFFF
-#define MAX_CNT_U32     0x7FFFFFFF
-#define STATUS_MASK     (R1_ERROR | R1_CC_ERROR | R1_CARD_ECC_FAILED | R1_WP_VIOLATION | R1_OUT_OF_RANGE)
 struct mmc_card_error_log {
 	char	type[5];	// sbc, cmd, data, stop, busy
 	int	err_type;
@@ -267,8 +267,8 @@ struct mmc_card_error_log {
 	u32     cq_cnt;         // cq enable / disable fail
 	u32     rpmb_cnt;       // RPMB switch fail
 	u32	noti_cnt;	// uevent notification count
+	u32	hw_rst_cnt;	// reset count
 };
-#endif
 
 /*
  * MMC device
@@ -277,14 +277,6 @@ struct mmc_card {
 	struct mmc_host		*host;		/* the host this device belongs to */
 	struct device		dev;		/* the device */
 	u32			ocr;		/* the current OCR setting */
-#if defined(CONFIG_SDC_QTI)
-	unsigned long		clk_scaling_lowest;	/* lowest scaleable
-							 * frequency
-							 */
-	unsigned long		clk_scaling_highest;	/* highest scaleable
-							 * frequency
-							 */
-#endif
 	unsigned int		rca;		/* relative card address of device */
 	unsigned int		type;		/* card type */
 #define MMC_TYPE_MMC		0		/* MMC card */
@@ -317,7 +309,6 @@ struct mmc_card {
  	unsigned int		erase_shift;	/* if erase unit is power 2 */
  	unsigned int		pref_erase;	/* in sectors */
 	unsigned int		eg_boundary;	/* don't cross erase-group boundaries */
-	unsigned int		erase_arg;	/* erase / trim / discard */
  	u8			erased_byte;	/* value of erased bytes */
 
 	u32			raw_cid[4];	/* raw card CID */
@@ -332,7 +323,6 @@ struct mmc_card {
 	struct sd_switch_caps	sw_caps;	/* switch (CMD6) caps */
 
 	unsigned int		sdio_funcs;	/* number of SDIO functions */
-	atomic_t		sdio_funcs_probed; /* number of probed SDIO funcs */
 	struct sdio_cccr	cccr;		/* common card info */
 	struct sdio_cis		cis;		/* common tuple info */
 	struct sdio_func	*sdio_func[SDIO_MAX_FUNCS]; /* SDIO functions (devices) */
@@ -348,16 +338,12 @@ struct mmc_card {
 	struct dentry		*debugfs_root;
 	struct mmc_part	part[MMC_NUM_PHY_PARTITION]; /* physical partitions */
 	unsigned int    nr_parts;
-#if defined(CONFIG_SDC_QTI)
-	unsigned int            part_curr;
-#endif
+
 	unsigned int		bouncesz;	/* Bounce buffer size */
 	struct workqueue_struct *complete_wq;	/* Private workqueue */
 
-#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC)
 	struct device_attribute error_count;
 	struct mmc_card_error_log err_log[10];
-#endif
 };
 
 static inline bool mmc_large_sector(struct mmc_card *card)
@@ -366,6 +352,7 @@ static inline bool mmc_large_sector(struct mmc_card *card)
 }
 
 bool mmc_card_is_blockaddr(struct mmc_card *card);
+void mmc_card_error_logging(struct mmc_card *card, struct mmc_blk_request *brq, u32 status);
 
 #define mmc_card_mmc(c)		((c)->type == MMC_TYPE_MMC)
 #define mmc_card_sd(c)		((c)->type == MMC_TYPE_SD)

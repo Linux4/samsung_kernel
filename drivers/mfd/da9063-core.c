@@ -1,12 +1,16 @@
-// SPDX-License-Identifier: GPL-2.0+
 /*
- * Device access for Dialog DA9063 modules
+ * da9063-core.c: Device access for Dialog DA9063 modules
  *
  * Copyright 2012 Dialog Semiconductors Ltd.
  * Copyright 2013 Philipp Zabel, Pengutronix
  *
  * Author: Krystian Garbaciak, Dialog Semiconductor
  * Author: Michal Hajduk, Dialog Semiconductor
+ *
+ *  This program is free software; you can redistribute  it and/or modify it
+ *  under  the terms of  the GNU General  Public License as published by the
+ *  Free Software Foundation;  either version 2 of the  License, or (at your
+ *  option) any later version.
  *
  */
 
@@ -22,6 +26,7 @@
 #include <linux/regmap.h>
 
 #include <linux/mfd/da9063/core.h>
+#include <linux/mfd/da9063/pdata.h>
 #include <linux/mfd/da9063/registers.h>
 
 #include <linux/proc_fs.h>
@@ -160,6 +165,7 @@ static int da9063_clear_fault_log(struct da9063 *da9063)
 
 int da9063_device_init(struct da9063 *da9063, unsigned int irq)
 {
+	struct da9063_pdata *pdata = da9063->dev->platform_data;
 	int model, variant_id, variant_code;
 	int ret;
 
@@ -167,9 +173,23 @@ int da9063_device_init(struct da9063 *da9063, unsigned int irq)
 	if (ret < 0)
 		dev_err(da9063->dev, "Cannot clear fault log\n");
 
-	da9063->flags = 0;
-	da9063->irq_base = -1;
+	if (pdata) {
+		da9063->flags = pdata->flags;
+		da9063->irq_base = pdata->irq_base;
+	} else {
+		da9063->flags = 0;
+		da9063->irq_base = -1;
+	}
 	da9063->chip_irq = irq;
+
+	if (pdata && pdata->init != NULL) {
+		ret = pdata->init(da9063);
+		if (ret != 0) {
+			dev_err(da9063->dev,
+				"Platform initialization failed.\n");
+			return ret;
+		}
+	}
 
 	ret = regmap_read(da9063->regmap, DA9063_REG_CHIP_ID, &model);
 	if (ret < 0) {

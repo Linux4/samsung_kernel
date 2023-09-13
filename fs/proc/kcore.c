@@ -22,7 +22,7 @@
 #include <linux/vmalloc.h>
 #include <linux/highmem.h>
 #include <linux/printk.h>
-#include <linux/memblock.h>
+#include <linux/bootmem.h>
 #include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
@@ -31,7 +31,6 @@
 #include <linux/ioport.h>
 #include <linux/memory.h>
 #include <linux/sched/task.h>
-#include <linux/security.h>
 #include <asm/sections.h>
 #include "internal.h"
 
@@ -193,6 +192,8 @@ kclist_add_private(unsigned long pfn, unsigned long nr_pages, void *arg)
 		return 1;
 
 	p = pfn_to_page(pfn);
+	if (!memmap_valid_within(pfn, p, page_zone(p)))
+		return 1;
 
 	ent = kmalloc(sizeof(*ent), GFP_KERNEL);
 	if (!ent)
@@ -544,13 +545,8 @@ out:
 
 static int open_kcore(struct inode *inode, struct file *filp)
 {
-	int ret = security_locked_down(LOCKDOWN_KCORE);
-
 	if (!capable(CAP_SYS_RAWIO))
 		return -EPERM;
-
-	if (ret)
-		return ret;
 
 	filp->private_data = kmalloc(PAGE_SIZE, GFP_KERNEL);
 	if (!filp->private_data)
@@ -619,7 +615,7 @@ static void __init proc_kcore_text_init(void)
 /*
  * MODULES_VADDR has no intersection with VMALLOC_ADDR.
  */
-static struct kcore_list kcore_modules;
+struct kcore_list kcore_modules;
 static void __init add_modules_range(void)
 {
 	if (MODULES_VADDR != VMALLOC_START && MODULES_END != VMALLOC_END) {

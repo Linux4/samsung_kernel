@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * linux/drivers/misc/xillybus_core.c
  *
@@ -11,6 +10,10 @@
  * file in the host. The number of such pipes and their attributes are
  * set up on the logic. This driver detects these automatically and
  * creates the device files accordingly.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the smems of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
  */
 
 #include <linux/list.h>

@@ -3,10 +3,12 @@
 #define _ASM_X86_FTRACE_H
 
 #ifdef CONFIG_FUNCTION_TRACER
-#ifndef CC_USING_FENTRY
-# error Compiler does not support fentry?
-#endif
+#ifdef CC_USING_FENTRY
 # define MCOUNT_ADDR		((unsigned long)(__fentry__))
+#else
+# define MCOUNT_ADDR		((unsigned long)(mcount))
+# define HAVE_FUNCTION_GRAPH_FP_TEST
+#endif
 #define MCOUNT_INSN_SIZE	5 /* sizeof mcount call */
 
 #ifdef CONFIG_DYNAMIC_FTRACE
@@ -16,6 +18,7 @@
 #define HAVE_FUNCTION_GRAPH_RET_ADDR_PTR
 
 #ifndef __ASSEMBLY__
+extern void mcount(void);
 extern atomic_t modifying_ftrace_code;
 extern void __fentry__(void);
 
@@ -73,7 +76,9 @@ static inline bool arch_syscall_match_sym_name(const char *sym, const char *name
 #define ARCH_TRACE_IGNORE_COMPAT_SYSCALLS 1
 static inline bool arch_trace_is_compat_syscall(struct pt_regs *regs)
 {
-	return in_32bit_syscall();
+	if (in_compat_syscall())
+		return true;
+	return false;
 }
 #endif /* CONFIG_FTRACE_SYSCALLS && CONFIG_IA32_EMULATION */
 #endif /* !COMPILE_OFFSETS */

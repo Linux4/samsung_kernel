@@ -29,7 +29,6 @@
 #include <linux/bug.h>
 #include <linux/ratelimit.h>
 #include <linux/uaccess.h>
-#include <linux/kdebug.h>
 
 #include <asm/assembly.h>
 #include <asm/io.h>
@@ -43,8 +42,6 @@
 #include <asm/unwind.h>
 #include <asm/tlbflush.h>
 #include <asm/cacheflush.h>
-#include <linux/kgdb.h>
-#include <linux/kprobes.h>
 
 #include "../math-emu/math-emu.h"	/* for handle_fpe() */
 
@@ -221,7 +218,7 @@ void die_if_kernel(char *str, struct pt_regs *regs, long err)
 		return;
 	}
 
-	bust_spinlocks(1);
+	oops_in_progress = 1;
 
 	oops_enter();
 
@@ -276,7 +273,7 @@ void die_if_kernel(char *str, struct pt_regs *regs, long err)
 static void handle_gdb_break(struct pt_regs *regs, int wot)
 {
 	force_sig_fault(SIGTRAP, wot,
-			(void __user *) (regs->iaoq[0] & ~3));
+			(void __user *) (regs->iaoq[0] & ~3), current);
 }
 
 static void handle_break(struct pt_regs *regs)
@@ -295,22 +292,6 @@ static void handle_break(struct pt_regs *regs)
 		die_if_kernel("Unknown kernel breakpoint", regs,
 			(tt == BUG_TRAP_TYPE_NONE) ? 9 : 0);
 	}
-
-#ifdef CONFIG_KPROBES
-	if (unlikely(iir == PARISC_KPROBES_BREAK_INSN)) {
-		parisc_kprobe_break_handler(regs);
-		return;
-	}
-
-#endif
-
-#ifdef CONFIG_KGDB
-	if (unlikely(iir == PARISC_KGDB_COMPILED_BREAK_INSN ||
-		iir == PARISC_KGDB_BREAK_INSN)) {
-		kgdb_handle_exception(9, SIGTRAP, 0, regs);
-		return;
-	}
-#endif
 
 	if (unlikely(iir != GDB_BREAK_INSN))
 		parisc_printk_ratelimited(0, regs,
@@ -415,8 +396,7 @@ void parisc_terminate(char *msg, struct pt_regs *regs, int code, unsigned long o
 {
 	static DEFINE_SPINLOCK(terminate_lock);
 
-	(void)notify_die(DIE_OOPS, msg, regs, 0, code, SIGTRAP);
-	bust_spinlocks(1);
+	oops_in_progress = 1;
 
 	set_eiem(0);
 	local_irq_disable();
@@ -450,8 +430,8 @@ void parisc_terminate(char *msg, struct pt_regs *regs, int code, unsigned long o
 	}
 
 	printk("\n");
-	pr_crit("%s: Code=%d (%s) at addr " RFMT "\n",
-		msg, code, trap_name(code), offset);
+	pr_crit("%s: Code=%d (%s) regs=%p (Addr=" RFMT ")\n",
+		msg, code, trap_name(code), regs, offset);
 	show_regs(regs);
 
 	spin_unlock(&terminate_lock);
@@ -538,19 +518,6 @@ void notrace handle_interruption(int code, struct pt_regs *regs)
 	case  3:
 		/* Recovery counter trap */
 		regs->gr[0] &= ~PSW_R;
-
-#ifdef CONFIG_KPROBES
-		if (parisc_kprobe_ss_handler(regs))
-			return;
-#endif
-
-#ifdef CONFIG_KGDB
-		if (kgdb_single_step) {
-			kgdb_handle_exception(0, SIGTRAP, 0, regs);
-			return;
-		}
-#endif
-
 		if (user_space(regs))
 			handle_gdb_break(regs, TRAP_TRACE);
 		/* else this must be the start of a syscall - just let it run */
@@ -611,13 +578,13 @@ void notrace handle_interruption(int code, struct pt_regs *regs)
 		si_code = ILL_PRVREG;
 	give_sigill:
 		force_sig_fault(SIGILL, si_code,
-				(void __user *) regs->iaoq[0]);
+				(void __user *) regs->iaoq[0], current);
 		return;
 
 	case 12:
 		/* Overflow Trap, let the userland signal handler do the cleanup */
 		force_sig_fault(SIGFPE, FPE_INTOVF,
-				(void __user *) regs->iaoq[0]);
+				(void __user *) regs->iaoq[0], current);
 		return;
 		
 	case 13:
@@ -629,7 +596,7 @@ void notrace handle_interruption(int code, struct pt_regs *regs)
 			 * to by si_addr.
 			 */
 			force_sig_fault(SIGFPE, FPE_CONDTRAP,
-					(void __user *) regs->iaoq[0]);
+					(void __user *) regs->iaoq[0], current);
 			return;
 		} 
 		/* The kernel doesn't want to handle condition codes */
@@ -741,7 +708,7 @@ void notrace handle_interruption(int code, struct pt_regs *regs)
 		force_sig_fault(SIGSEGV, SEGV_MAPERR,
 				(code == 7)?
 				((void __user *) regs->iaoq[0]) :
-				((void __user *) regs->ior));
+				((void __user *) regs->ior), current);
 		return;
 
 	case 28: 
@@ -756,7 +723,7 @@ void notrace handle_interruption(int code, struct pt_regs *regs)
 				task_pid_nr(current), current->comm);
 			/* SIGBUS, for lack of a better one. */
 			force_sig_fault(SIGBUS, BUS_OBJERR,
-					(void __user *)regs->ior);
+					(void __user *)regs->ior, current);
 			return;
 		}
 		pdc_chassis_send_status(PDC_CHASSIS_DIRECT_PANIC);
@@ -772,7 +739,7 @@ void notrace handle_interruption(int code, struct pt_regs *regs)
 				code, fault_space,
 				task_pid_nr(current), current->comm);
 		force_sig_fault(SIGSEGV, SEGV_MAPERR,
-				(void __user *)regs->ior);
+				(void __user *)regs->ior, current);
 		return;
 	    }
 	}
@@ -783,7 +750,7 @@ void notrace handle_interruption(int code, struct pt_regs *regs)
 	     * unless pagefault_disable() was called before.
 	     */
 
-	    if (faulthandler_disabled() || fault_space == 0)
+	    if (fault_space == 0 && !faulthandler_disabled())
 	    {
 		/* Clean up and return if in exception table. */
 		if (fixup_exception(regs))

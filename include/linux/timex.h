@@ -62,8 +62,6 @@
 #include <linux/types.h>
 #include <linux/param.h>
 
-unsigned long random_get_entropy_fallback(void);
-
 #include <asm/timex.h>
 
 #ifndef random_get_entropy
@@ -76,14 +74,8 @@ unsigned long random_get_entropy_fallback(void);
  *
  * By default we use get_cycles() for this purpose, but individual
  * architectures may override this in their asm/timex.h header file.
- * If a given arch does not have get_cycles(), then we fallback to
- * using random_get_entropy_fallback().
  */
-#ifdef get_cycles
-#define random_get_entropy()	((unsigned long)get_cycles())
-#else
-#define random_get_entropy()	random_get_entropy_fallback()
-#endif
+#define random_get_entropy()	get_cycles()
 #endif
 
 /*
@@ -159,9 +151,7 @@ extern unsigned long tick_nsec;		/* SHIFTED_HZ period (nsec) */
 #define NTP_INTERVAL_FREQ  (HZ)
 #define NTP_INTERVAL_LENGTH (NSEC_PER_SEC/NTP_INTERVAL_FREQ)
 
-extern int do_adjtimex(struct __kernel_timex *);
-extern int do_clock_adjtime(const clockid_t which_clock, struct __kernel_timex * ktx);
-
+extern int do_adjtimex(struct timex *);
 extern void hardpps(const struct timespec64 *, const struct timespec64 *);
 
 int read_current_timer(unsigned long *timer_val);

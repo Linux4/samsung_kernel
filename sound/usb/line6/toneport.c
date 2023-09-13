@@ -1,9 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Line 6 Linux USB driver
  *
  * Copyright (C) 2004-2010 Markus Grabner (grabner@icg.tugraz.at)
  *                         Emil Myhrman (emil.myhrman@gmail.com)
+ *
+ *	This program is free software; you can redistribute it and/or
+ *	modify it under the terms of the GNU General Public License as
+ *	published by the Free Software Foundation, version 2.
+ *
  */
 
 #include <linux/wait.h>
@@ -56,8 +60,6 @@ struct usb_line6_toneport {
 	/* LED instances */
 	struct toneport_led leds[2];
 };
-
-#define line6_to_toneport(x) container_of(x, struct usb_line6_toneport, line6)
 
 static int toneport_send_cmd(struct usb_device *usbdev, int cmd1, int cmd2);
 
@@ -128,7 +130,7 @@ static int toneport_send_cmd(struct usb_device *usbdev, int cmd1, int cmd2)
 
 	ret = usb_control_msg(usbdev, usb_sndctrlpipe(usbdev, 0), 0x67,
 			      USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_DIR_OUT,
-			      cmd1, cmd2, NULL, 0, LINE6_TIMEOUT);
+			      cmd1, cmd2, NULL, 0, LINE6_TIMEOUT * HZ);
 
 	if (ret < 0) {
 		dev_err(&usbdev->dev, "send failed (error %d)\n", ret);
@@ -209,8 +211,8 @@ static int snd_toneport_source_get(struct snd_kcontrol *kcontrol,
 				   struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_line6_pcm *line6pcm = snd_kcontrol_chip(kcontrol);
-	struct usb_line6_toneport *toneport = line6_to_toneport(line6pcm->line6);
-
+	struct usb_line6_toneport *toneport =
+	    (struct usb_line6_toneport *)line6pcm->line6;
 	ucontrol->value.enumerated.item[0] = toneport->source;
 	return 0;
 }
@@ -220,7 +222,8 @@ static int snd_toneport_source_put(struct snd_kcontrol *kcontrol,
 				   struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_line6_pcm *line6pcm = snd_kcontrol_chip(kcontrol);
-	struct usb_line6_toneport *toneport = line6_to_toneport(line6pcm->line6);
+	struct usb_line6_toneport *toneport =
+	    (struct usb_line6_toneport *)line6pcm->line6;
 	unsigned int source;
 
 	source = ucontrol->value.enumerated.item[0];
@@ -282,8 +285,8 @@ static bool toneport_has_led(struct usb_line6_toneport *toneport)
 	}
 }
 
-static const char * const toneport_led_colors[2] = { "red", "green" };
-static const int toneport_led_init_vals[2] = { 0x00, 0x26 };
+static const char * const led_colors[2] = { "red", "green" };
+static const int led_init_vals[2] = { 0x00, 0x26 };
 
 static void toneport_update_led(struct usb_line6_toneport *toneport)
 {
@@ -311,9 +314,9 @@ static int toneport_init_leds(struct usb_line6_toneport *toneport)
 
 		led->toneport = toneport;
 		snprintf(led->name, sizeof(led->name), "%s::%s",
-			 dev_name(dev), toneport_led_colors[i]);
+			 dev_name(dev), led_colors[i]);
 		leddev->name = led->name;
-		leddev->brightness = toneport_led_init_vals[i];
+		leddev->brightness = led_init_vals[i];
 		leddev->max_brightness = 0x26;
 		leddev->brightness_set = toneport_led_brightness_set;
 		err = led_classdev_register(dev, leddev);
@@ -394,7 +397,8 @@ static int toneport_setup(struct usb_line6_toneport *toneport)
 */
 static void line6_toneport_disconnect(struct usb_line6 *line6)
 {
-	struct usb_line6_toneport *toneport = line6_to_toneport(line6);
+	struct usb_line6_toneport *toneport =
+		(struct usb_line6_toneport *)line6;
 
 	if (toneport_has_led(toneport))
 		toneport_remove_leds(toneport);
@@ -408,7 +412,7 @@ static int toneport_init(struct usb_line6 *line6,
 			 const struct usb_device_id *id)
 {
 	int err;
-	struct usb_line6_toneport *toneport = line6_to_toneport(line6);
+	struct usb_line6_toneport *toneport =  (struct usb_line6_toneport *) line6;
 
 	toneport->type = id->driver_info;
 

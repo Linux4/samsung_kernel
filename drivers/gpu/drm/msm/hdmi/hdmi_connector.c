@@ -1,11 +1,21 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <linux/delay.h>
-#include <linux/gpio/consumer.h>
+#include <linux/gpio.h>
 #include <linux/pinctrl/consumer.h>
 
 #include "msm_kms.h"
@@ -69,21 +79,30 @@ static void msm_hdmi_phy_reset(struct hdmi *hdmi)
 
 static int gpio_config(struct hdmi *hdmi, bool on)
 {
+	struct device *dev = &hdmi->pdev->dev;
 	const struct hdmi_platform_config *config = hdmi->config;
-	int i;
+	int ret, i;
 
 	if (on) {
 		for (i = 0; i < HDMI_MAX_NUM_GPIO; i++) {
 			struct hdmi_gpio_data gpio = config->gpios[i];
 
-			if (gpio.gpiod) {
+			if (gpio.num != -1) {
+				ret = gpio_request(gpio.num, gpio.label);
+				if (ret) {
+					dev_err(dev,
+						"'%s'(%d) gpio_request failed: %d\n",
+						gpio.label, gpio.num, ret);
+					goto err;
+				}
+
 				if (gpio.output) {
-					gpiod_direction_output(gpio.gpiod,
-							       gpio.value);
+					gpio_direction_output(gpio.num,
+							      gpio.value);
 				} else {
-					gpiod_direction_input(gpio.gpiod);
-					gpiod_set_value_cansleep(gpio.gpiod,
-								 gpio.value);
+					gpio_direction_input(gpio.num);
+					gpio_set_value_cansleep(gpio.num,
+								gpio.value);
 				}
 			}
 		}
@@ -93,20 +112,29 @@ static int gpio_config(struct hdmi *hdmi, bool on)
 		for (i = 0; i < HDMI_MAX_NUM_GPIO; i++) {
 			struct hdmi_gpio_data gpio = config->gpios[i];
 
-			if (!gpio.gpiod)
+			if (gpio.num == -1)
 				continue;
 
 			if (gpio.output) {
 				int value = gpio.value ? 0 : 1;
 
-				gpiod_set_value_cansleep(gpio.gpiod, value);
+				gpio_set_value_cansleep(gpio.num, value);
 			}
+
+			gpio_free(gpio.num);
 		};
 
 		DBG("gpio off");
 	}
 
 	return 0;
+err:
+	while (i--) {
+		if (config->gpios[i].num != -1)
+			gpio_free(config->gpios[i].num);
+	}
+
+	return ret;
 }
 
 static void enable_hpd_clocks(struct hdmi *hdmi, bool enable)
@@ -128,7 +156,7 @@ static void enable_hpd_clocks(struct hdmi *hdmi, bool enable)
 
 			ret = clk_prepare_enable(hdmi->hpd_clks[i]);
 			if (ret) {
-				DRM_DEV_ERROR(dev,
+				dev_err(dev,
 					"failed to enable hpd clk: %s (%d)\n",
 					config->hpd_clk_names[i], ret);
 			}
@@ -152,7 +180,7 @@ int msm_hdmi_hpd_enable(struct drm_connector *connector)
 	for (i = 0; i < config->hpd_reg_cnt; i++) {
 		ret = regulator_enable(hdmi->hpd_regs[i]);
 		if (ret) {
-			DRM_DEV_ERROR(dev, "failed to enable hpd regulator: %s (%d)\n",
+			dev_err(dev, "failed to enable hpd regulator: %s (%d)\n",
 					config->hpd_reg_names[i], ret);
 			goto fail;
 		}
@@ -160,13 +188,13 @@ int msm_hdmi_hpd_enable(struct drm_connector *connector)
 
 	ret = pinctrl_pm_select_default_state(dev);
 	if (ret) {
-		DRM_DEV_ERROR(dev, "pinctrl state chg failed: %d\n", ret);
+		dev_err(dev, "pinctrl state chg failed: %d\n", ret);
 		goto fail;
 	}
 
 	ret = gpio_config(hdmi, true);
 	if (ret) {
-		DRM_DEV_ERROR(dev, "failed to configure GPIOs: %d\n", ret);
+		dev_err(dev, "failed to configure GPIOs: %d\n", ret);
 		goto fail;
 	}
 
@@ -294,7 +322,7 @@ static enum drm_connector_status detect_gpio(struct hdmi *hdmi)
 	const struct hdmi_platform_config *config = hdmi->config;
 	struct hdmi_gpio_data hpd_gpio = config->gpios[HPD_GPIO_INDEX];
 
-	return gpiod_get_value(hpd_gpio.gpiod) ?
+	return gpio_get_value(hpd_gpio.num) ?
 			connector_status_connected :
 			connector_status_disconnected;
 }
@@ -313,7 +341,7 @@ static enum drm_connector_status hdmi_connector_detect(
 	 * some platforms may not have hpd gpio. Rely only on the status
 	 * provided by REG_HDMI_HPD_INT_STATUS in this case.
 	 */
-	if (!hpd_gpio.gpiod)
+	if (hpd_gpio.num == -1)
 		return detect_reg(hdmi);
 
 	do {

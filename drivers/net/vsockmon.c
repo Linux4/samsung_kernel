@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/if_arp.h>
@@ -11,6 +10,12 @@
 /* Virtio transport max packet size plus header */
 #define DEFAULT_MTU (VIRTIO_VSOCK_MAX_PKT_BUF_SIZE + \
 		     sizeof(struct af_vsockmon_hdr))
+
+struct pcpu_lstats {
+	u64 rx_packets;
+	u64 rx_bytes;
+	struct u64_stats_sync syncp;
+};
 
 static int vsockmon_dev_init(struct net_device *dev)
 {
@@ -51,8 +56,8 @@ static netdev_tx_t vsockmon_xmit(struct sk_buff *skb, struct net_device *dev)
 	struct pcpu_lstats *stats = this_cpu_ptr(dev->lstats);
 
 	u64_stats_update_begin(&stats->syncp);
-	stats->bytes += len;
-	stats->packets++;
+	stats->rx_bytes += len;
+	stats->rx_packets++;
 	u64_stats_update_end(&stats->syncp);
 
 	dev_kfree_skb(skb);
@@ -75,8 +80,8 @@ vsockmon_get_stats64(struct net_device *dev, struct rtnl_link_stats64 *stats)
 
 		do {
 			start = u64_stats_fetch_begin_irq(&vstats->syncp);
-			tbytes = vstats->bytes;
-			tpackets = vstats->packets;
+			tbytes = vstats->rx_bytes;
+			tpackets = vstats->rx_packets;
 		} while (u64_stats_fetch_retry_irq(&vstats->syncp, start));
 
 		packets += tpackets;

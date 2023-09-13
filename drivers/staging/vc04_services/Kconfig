@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 menuconfig BCM_VIDEOCORE
 	tristate "Broadcom VideoCore support"
 	depends on OF

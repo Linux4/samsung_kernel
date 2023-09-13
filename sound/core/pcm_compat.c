@@ -1,7 +1,21 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *   32bit -> 64bit ioctl wrapper for PCM API
  *   Copyright (c) by Takashi Iwai <tiwai@suse.de>
+ *
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation; either version 2 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program; if not, write to the Free Software
+ *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+ *
  */
 
 /* This file included from pcm_native.c */
@@ -635,36 +649,6 @@ enum {
 #endif /* CONFIG_X86_X32 */
 };
 
-#ifdef CONFIG_AUDIO_QGKI
-static int snd_compressed_ioctl32(struct snd_pcm_substream *substream,
-				 unsigned int cmd, void __user *arg)
-{
-	struct snd_pcm_runtime *runtime;
-	int err = 0;
-
-	if (PCM_RUNTIME_CHECK(substream))
-		return -ENXIO;
-	runtime = substream->runtime;
-	if (substream->ops->compat_ioctl) {
-		err = substream->ops->compat_ioctl(substream, cmd, arg);
-	} else {
-		err = -ENOIOCTLCMD;
-		pr_err("%s failed cmd = %d\n", __func__, cmd);
-	}
-	pr_debug("%s called with cmd = %d\n", __func__, cmd);
-	return err;
-}
-
-static int snd_pcm_ioctl32_compat(struct snd_pcm_substream *substream,
-			unsigned int cmd, void __user *arg)
-{
-	if (_IOC_TYPE(cmd) == 'C' || _IOC_TYPE(cmd) == 'U')
-		return snd_compressed_ioctl32(substream, cmd, arg);
-
-	return 0;
-}
-#endif
-
 static long snd_pcm_ioctl_compat(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct snd_pcm_file *pcm_file;
@@ -742,10 +726,6 @@ static long snd_pcm_ioctl_compat(struct file *file, unsigned int cmd, unsigned l
 	case SNDRV_PCM_IOCTL_CHANNEL_INFO_X32:
 		return snd_pcm_ioctl_channel_info_x32(substream, argp);
 #endif /* CONFIG_X86_X32 */
-#ifdef CONFIG_AUDIO_QGKI
-	default:
-		return snd_pcm_ioctl32_compat(substream, cmd, argp);
-#endif
 	}
 
 	return -ENOIOCTLCMD;

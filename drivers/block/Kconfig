@@ -31,29 +31,13 @@ config BLK_DEV_FD
 	  If you want to use the floppy disk drive(s) of your PC under Linux,
 	  say Y. Information about this driver, especially important for IBM
 	  Thinkpad users, is contained in
-	  <file:Documentation/admin-guide/blockdev/floppy.rst>.
+	  <file:Documentation/blockdev/floppy.txt>.
 	  That file also contains the location of the Floppy driver FAQ as
 	  well as location of the fdutils package used to configure additional
 	  parameters of the driver at run time.
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called floppy.
-
-config BLK_DEV_FD_RAWCMD
-	bool "Support for raw floppy disk commands (DEPRECATED)"
-	depends on BLK_DEV_FD
-	help
-	  If you want to use actual physical floppies and expect to do
-	  special low-level hardware accesses to them (access and use
-	  non-standard formats, for example), then enable this.
-
-	  Note that the code enabled by this option is rarely used and
-	  might be unstable or insecure, and distros should not enable it.
-
-	  Note: FDRAWCMD is deprecated and will be removed from the kernel
-	  in the near future.
-
-	  If unsure, say N.
 
 config AMIGA_FLOPPY
 	tristate "Amiga floppy support"
@@ -112,7 +96,7 @@ config PARIDE
 	  your computer's parallel port. Most of them are actually IDE devices
 	  using a parallel port IDE adapter. This option enables the PARIDE
 	  subsystem which contains drivers for many of these external drives.
-	  Read <file:Documentation/admin-guide/blockdev/paride.rst> for more information.
+	  Read <file:Documentation/blockdev/paride.txt> for more information.
 
 	  If you have said Y to the "Parallel-port support" configuration
 	  option, you may share a single port between your printer and other
@@ -136,6 +120,18 @@ source "drivers/block/paride/Kconfig"
 source "drivers/block/mtip32xx/Kconfig"
 
 source "drivers/block/zram/Kconfig"
+
+config BLK_DEV_DAC960
+	tristate "Mylex DAC960/DAC1100 PCI RAID Controller support"
+	depends on PCI
+	help
+	  This driver adds support for the Mylex DAC960, AcceleRAID, and
+	  eXtremeRAID PCI RAID controllers.  See the file
+	  <file:Documentation/blockdev/README.DAC960> for further information
+	  about this driver.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called DAC960.
 
 config BLK_DEV_UMEM
 	tristate "Micro Memory MM5415 Battery Backed RAM support"
@@ -246,7 +242,7 @@ config BLK_DEV_LOOP_MIN_COUNT
 	  dynamically allocated with the /dev/loop-control interface.
 
 config BLK_DEV_CRYPTOLOOP
-	tristate "Cryptoloop Support (DEPRECATED)"
+	tristate "Cryptoloop Support"
 	select CRYPTO
 	select CRYPTO_CBC
 	depends on BLK_DEV_LOOP
@@ -258,7 +254,7 @@ config BLK_DEV_CRYPTOLOOP
 	  WARNING: This device is not safe for journaled file systems like
 	  ext3 or Reiserfs. Please use the Device Mapper crypto module
 	  instead, which can be configured to be on-disk compatible with the
-	  cryptoloop device.  cryptoloop support will be removed in Linux 5.16.
+	  cryptoloop device.
 
 source "drivers/block/drbd/Kconfig"
 
@@ -277,7 +273,7 @@ config BLK_DEV_NBD
 	  userland (making server and client physically the same computer,
 	  communicating using the loopback network device).
 
-	  Read <file:Documentation/admin-guide/blockdev/nbd.rst> for more information,
+	  Read <file:Documentation/blockdev/nbd.txt> for more information,
 	  especially about where to find the server code, which runs in user
 	  space and does not need special kernel support.
 
@@ -319,7 +315,7 @@ config BLK_DEV_RAM
 	  during the initial install of Linux.
 
 	  Note that the kernel command line option "ramdisk=XX" is now obsolete.
-	  For details, read <file:Documentation/admin-guide/blockdev/ramdisk.rst>.
+	  For details, read <file:Documentation/blockdev/ramdisk.txt>.
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called brd. An alias "rd" has been defined
@@ -363,7 +359,7 @@ config CDROM_PKTCDVD
 	  is possible.
 	  DVD-RW disks must be in restricted overwrite mode.
 
-	  See the file <file:Documentation/cdrom/packet-writing.rst>
+	  See the file <file:Documentation/cdrom/packet-writing.txt>
 	  for further information on the use of this driver.
 
 	  To compile this driver as a module, choose M here: the
@@ -448,15 +444,6 @@ config VIRTIO_BLK
 	  This is the virtual block driver for virtio.  It can be used with
           QEMU based VMMs (like KVM or Xen).  Say Y or M.
 
-config VIRTIO_BLK_QTI_CRYPTO
-	tristate "Vendor specific VIRTIO Crypto Engine Support"
-	depends on VIRTIO_BLK
-	help
-	 Enable storage inline crypto engine support for guest virtual machine.
-	 Enabling this allows kernel to use crypto operations defined
-	 and implemented by QTI.
-	 Say Y or M.
-
 config VIRTIO_BLK_SCSI
 	bool "SCSI passthrough request for the Virtio block driver"
 	depends on VIRTIO_BLK
@@ -474,6 +461,7 @@ config BLK_DEV_RBD
 	select LIBCRC32C
 	select CRYPTO_AES
 	select CRYPTO
+	default n
 	help
 	  Say Y here if you want include the Rados block device, which stripes
 	  a block device over objects stored in the Ceph distributed object
@@ -486,43 +474,11 @@ config BLK_DEV_RBD
 config BLK_DEV_RSXX
 	tristate "IBM Flash Adapter 900GB Full Height PCIe Device Driver"
 	depends on PCI
-	select CRC32
 	help
 	  Device driver for IBM's high speed PCIe SSD
 	  storage device: Flash Adapter 900GB Full Height.
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called rsxx.
-
-config NEURON_APP_BLOCK_CLIENT
-	tristate "Neuron block client"
-	depends on NEURON
-	select NEURON_PROT_BLOCK_CLIENT
-	help
-	  Neuron is a device-sharing framework which is used by guests of the
-	  haven hypervisor to serve or access shared I/O devices and other
-	  inter-VM services.
-
-	  This option enables the Neuron block client, which can access block
-	  devices that are shared via Neuron services. These shared devices can
-	  then be accessed as block device special files such as
-	  /dev/neuron-block0, either directly or by mounting filesystems
-	  on them.
-
-	  If unsure, say N.
-
-config NEURON_APP_BLOCK_SERVER
-	tristate "Neuron block server"
-	depends on NEURON
-	select NEURON_PROT_BLOCK_SERVER
-	help
-	  Neuron is a device-sharing framework which is used by guests of the
-	  haven hypervisors to serve or access shared I/O devices and other
-	  inter-VM services.
-
-	  This option enables the Neuron block device server, which exposes a
-	  specified block device to a client in another VM via a Neuron service.
-
-	  If unsure, say N.
 
 endif # BLK_DEV

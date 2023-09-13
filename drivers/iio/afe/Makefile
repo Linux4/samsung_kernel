@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 #
 # Makefile for industrial I/O Analog Front Ends (AFE)
 #

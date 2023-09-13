@@ -23,7 +23,7 @@
 #include <linux/mm.h>
 #include <linux/types.h>
 #include <linux/spinlock.h>
-#include <linux/memblock.h>
+#include <linux/bootmem.h>
 #include <linux/ioport.h>
 #include <linux/mc146818rtc.h>
 #include <linux/efi.h>
@@ -84,15 +84,13 @@ pgd_t * __init efi_call_phys_prolog(void)
 
 	if (!efi_enabled(EFI_OLD_MEMMAP)) {
 		efi_switch_mm(&efi_mm);
-		return efi_mm.pgd;
+		return NULL;
 	}
 
 	early_code_mapping_set_exec(1);
 
 	n_pgds = DIV_ROUND_UP((max_pfn << PAGE_SHIFT), PGDIR_SIZE);
 	save_pgd = kmalloc_array(n_pgds, sizeof(*save_pgd), GFP_KERNEL);
-	if (!save_pgd)
-		return NULL;
 
 	/*
 	 * Build 1:1 identity mapping for efi=old_map usage. Note that
@@ -140,11 +138,10 @@ pgd_t * __init efi_call_phys_prolog(void)
 		pgd_offset_k(pgd * PGDIR_SIZE)->pgd &= ~_PAGE_NX;
 	}
 
-	__flush_tlb_all();
-	return save_pgd;
 out:
-	efi_call_phys_epilog(save_pgd);
-	return NULL;
+	__flush_tlb_all();
+
+	return save_pgd;
 }
 
 void __init efi_call_phys_epilog(pgd_t *save_pgd)
@@ -217,30 +214,28 @@ int __init efi_alloc_page_tables(void)
 	gfp_mask = GFP_KERNEL | __GFP_ZERO;
 	efi_pgd = (pgd_t *)__get_free_pages(gfp_mask, PGD_ALLOCATION_ORDER);
 	if (!efi_pgd)
-		goto fail;
+		return -ENOMEM;
 
 	pgd = efi_pgd + pgd_index(EFI_VA_END);
 	p4d = p4d_alloc(&init_mm, pgd, EFI_VA_END);
-	if (!p4d)
-		goto free_pgd;
+	if (!p4d) {
+		free_page((unsigned long)efi_pgd);
+		return -ENOMEM;
+	}
 
 	pud = pud_alloc(&init_mm, p4d, EFI_VA_END);
-	if (!pud)
-		goto free_p4d;
+	if (!pud) {
+		if (pgtable_l5_enabled())
+			free_page((unsigned long) pgd_page_vaddr(*pgd));
+		free_pages((unsigned long)efi_pgd, PGD_ALLOCATION_ORDER);
+		return -ENOMEM;
+	}
 
 	efi_mm.pgd = efi_pgd;
 	mm_init_cpumask(&efi_mm);
 	init_new_context(NULL, &efi_mm);
 
 	return 0;
-
-free_p4d:
-	if (pgtable_l5_enabled())
-		free_page((unsigned long)pgd_page_vaddr(*pgd));
-free_pgd:
-	free_pages((unsigned long)efi_pgd, PGD_ALLOCATION_ORDER);
-fail:
-	return -ENOMEM;
 }
 
 /*
@@ -622,16 +617,18 @@ void __init efi_dump_pagetable(void)
 
 /*
  * Makes the calling thread switch to/from efi_mm context. Can be used
- * in a kernel thread and user context. Preemption needs to remain disabled
- * while the EFI-mm is borrowed. mmgrab()/mmdrop() is not used because the mm
- * can not change under us.
- * It should be ensured that there are no concurent calls to this function.
+ * for SetVirtualAddressMap() i.e. current->active_mm == init_mm as well
+ * as during efi runtime calls i.e current->active_mm == current_mm.
+ * We are not mm_dropping()/mm_grabbing() any mm, because we are not
+ * losing/creating any references.
  */
 void efi_switch_mm(struct mm_struct *mm)
 {
+	task_lock(current);
 	efi_scratch.prev_mm = current->active_mm;
 	current->active_mm = mm;
 	switch_mm(efi_scratch.prev_mm, mm, NULL);
+	task_unlock(current);
 }
 
 #ifdef CONFIG_EFI_MIXED

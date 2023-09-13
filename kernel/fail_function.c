@@ -152,13 +152,20 @@ static int fei_retval_get(void *data, u64 *val)
 DEFINE_DEBUGFS_ATTRIBUTE(fei_retval_ops, fei_retval_get, fei_retval_set,
 			 "%llx\n");
 
-static void fei_debugfs_add_attr(struct fei_attr *attr)
+static int fei_debugfs_add_attr(struct fei_attr *attr)
 {
 	struct dentry *dir;
 
 	dir = debugfs_create_dir(attr->kp.symbol_name, fei_debugfs_dir);
+	if (!dir)
+		return -ENOMEM;
 
-	debugfs_create_file("retval", 0600, dir, attr, &fei_retval_ops);
+	if (!debugfs_create_file("retval", 0600, dir, attr, &fei_retval_ops)) {
+		debugfs_remove_recursive(dir);
+		return -ENOMEM;
+	}
+
+	return 0;
 }
 
 static void fei_debugfs_remove_attr(struct fei_attr *attr)
@@ -166,7 +173,8 @@ static void fei_debugfs_remove_attr(struct fei_attr *attr)
 	struct dentry *dir;
 
 	dir = debugfs_lookup(attr->kp.symbol_name, fei_debugfs_dir);
-	debugfs_remove_recursive(dir);
+	if (dir)
+		debugfs_remove_recursive(dir);
 }
 
 static int fei_kprobe_handler(struct kprobe *kp, struct pt_regs *regs)
@@ -203,7 +211,7 @@ static int fei_seq_show(struct seq_file *m, void *v)
 {
 	struct fei_attr *attr = list_entry(v, struct fei_attr, list);
 
-	seq_printf(m, "%ps\n", attr->kp.addr);
+	seq_printf(m, "%pf\n", attr->kp.addr);
 	return 0;
 }
 
@@ -253,7 +261,7 @@ static ssize_t fei_write(struct file *file, const char __user *buffer,
 
 	if (copy_from_user(buf, buffer, count)) {
 		ret = -EFAULT;
-		goto out_free;
+		goto out;
 	}
 	buf[count] = '\0';
 	sym = strstrip(buf);
@@ -299,7 +307,7 @@ static ssize_t fei_write(struct file *file, const char __user *buffer,
 
 	ret = register_kprobe(&attr->kp);
 	if (!ret)
-		fei_debugfs_add_attr(attr);
+		ret = fei_debugfs_add_attr(attr);
 	if (ret < 0)
 		fei_attr_remove(attr);
 	else {
@@ -307,9 +315,8 @@ static ssize_t fei_write(struct file *file, const char __user *buffer,
 		ret = count;
 	}
 out:
-	mutex_unlock(&fei_lock);
-out_free:
 	kfree(buf);
+	mutex_unlock(&fei_lock);
 	return ret;
 }
 
@@ -331,13 +338,19 @@ static int __init fei_debugfs_init(void)
 		return PTR_ERR(dir);
 
 	/* injectable attribute is just a symlink of error_inject/list */
-	debugfs_create_symlink("injectable", dir, "../error_injection/list");
+	if (!debugfs_create_symlink("injectable", dir,
+				    "../error_injection/list"))
+		goto error;
 
-	debugfs_create_file("inject", 0600, dir, NULL, &fei_ops);
+	if (!debugfs_create_file("inject", 0600, dir, NULL, &fei_ops))
+		goto error;
 
 	fei_debugfs_dir = dir;
 
 	return 0;
+error:
+	debugfs_remove_recursive(dir);
+	return -ENOMEM;
 }
 
 late_initcall(fei_debugfs_init);

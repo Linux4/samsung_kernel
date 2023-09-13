@@ -4,8 +4,6 @@
 
 #include <sound/info.h>
 
-struct media_mixer_ctl;
-
 struct usbmix_connector_map {
 	u8 id;
 	u8 delegated_id;
@@ -35,13 +33,8 @@ struct usb_mixer_interface {
 	struct urb *rc_urb;
 	struct usb_ctrlrequest *rc_setup_packet;
 	u8 rc_buffer[6];
-	struct media_mixer_ctl *media_mixer_ctl;
 
 	bool disconnected;
-
-	void *private_data;
-	void (*private_free)(struct usb_mixer_interface *mixer);
-	void (*private_suspend)(struct usb_mixer_interface *mixer);
 };
 
 #define MAX_CHANNELS	16	/* max logical channels */
@@ -55,7 +48,6 @@ enum {
 	USB_MIXER_U16,
 	USB_MIXER_S32,
 	USB_MIXER_U32,
-	USB_MIXER_BESPOKEN,	/* non-standard type */
 };
 
 typedef void (*usb_mixer_elem_dump_func_t)(struct snd_info_buffer *buffer,

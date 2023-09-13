@@ -56,7 +56,6 @@
 	};
 
 	memory {
-		device_type = "memory";
 		reg = <0xC0000000 0x1000000>;
 	};
 
@@ -75,10 +74,12 @@
 		};
 	};
 
-	gpio-keys {
+	gpio_keys {
 		compatible = "gpio-keys";
+		#address-cells = <1>;
+		#size-cells = <0>;
 		autorepeat;
-		button-0 {
+		button@0 {
 			label = "User";
 			linux,code = <KEY_HOME>;
 			gpios = <&gpioa 0 GPIO_ACTIVE_HIGH>;
@@ -98,10 +99,6 @@
 		regulator-min-microvolt = <3300000>;
 		regulator-max-microvolt = <3300000>;
 	};
-};
-
-&rcc {
-	compatible = "st,stm32f769-rcc", "st,stm32f746-rcc", "st,stm32-rcc";
 };
 
 &cec {
@@ -129,7 +126,8 @@
 &sdio2 {
 	status = "okay";
 	vmmc-supply = <&mmc_vcard>;
-	cd-gpios = <&gpioi 15 GPIO_ACTIVE_LOW>;
+	cd-gpios = <&gpioi 15 GPIO_ACTIVE_HIGH>;
+	cd-inverted;
 	broken-cd;
 	pinctrl-names = "default", "opendrain";
 	pinctrl-0 = <&sdio_pins_b>;

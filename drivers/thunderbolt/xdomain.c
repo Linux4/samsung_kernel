@@ -1,10 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Thunderbolt XDomain discovery protocol support
  *
  * Copyright (C) 2017, Intel Corporation
  * Authors: Michael Jamet <michael.jamet@intel.com>
  *          Mika Westerberg <mika.westerberg@linux.intel.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/device.h>
@@ -18,7 +21,6 @@
 #include "tb.h"
 
 #define XDOMAIN_DEFAULT_TIMEOUT			5000 /* ms */
-#define XDOMAIN_UUID_RETRIES			10
 #define XDOMAIN_PROPERTIES_RETRIES		60
 #define XDOMAIN_PROPERTIES_CHANGED_RETRIES	10
 
@@ -221,50 +223,6 @@ static int tb_xdp_handle_error(const struct tb_xdp_header *hdr)
 	}
 
 	return 0;
-}
-
-static int tb_xdp_uuid_request(struct tb_ctl *ctl, u64 route, int retry,
-			       uuid_t *uuid)
-{
-	struct tb_xdp_uuid_response res;
-	struct tb_xdp_uuid req;
-	int ret;
-
-	memset(&req, 0, sizeof(req));
-	tb_xdp_fill_header(&req.hdr, route, retry % 4, UUID_REQUEST,
-			   sizeof(req));
-
-	memset(&res, 0, sizeof(res));
-	ret = __tb_xdomain_request(ctl, &req, sizeof(req),
-				   TB_CFG_PKG_XDOMAIN_REQ, &res, sizeof(res),
-				   TB_CFG_PKG_XDOMAIN_RESP,
-				   XDOMAIN_DEFAULT_TIMEOUT);
-	if (ret)
-		return ret;
-
-	ret = tb_xdp_handle_error(&res.hdr);
-	if (ret)
-		return ret;
-
-	uuid_copy(uuid, &res.src_uuid);
-	return 0;
-}
-
-static int tb_xdp_uuid_response(struct tb_ctl *ctl, u64 route, u8 sequence,
-				const uuid_t *uuid)
-{
-	struct tb_xdp_uuid_response res;
-
-	memset(&res, 0, sizeof(res));
-	tb_xdp_fill_header(&res.hdr, route, sequence, UUID_RESPONSE,
-			   sizeof(res));
-
-	uuid_copy(&res.src_uuid, uuid);
-	res.src_route_hi = upper_32_bits(route);
-	res.src_route_lo = lower_32_bits(route);
-
-	return __tb_xdomain_response(ctl, &res, sizeof(res),
-				     TB_CFG_PKG_XDOMAIN_RESP);
 }
 
 static int tb_xdp_error_response(struct tb_ctl *ctl, u64 route, u8 sequence,
@@ -557,14 +515,7 @@ static void tb_xdp_handle_request(struct work_struct *work)
 		break;
 	}
 
-	case UUID_REQUEST_OLD:
-	case UUID_REQUEST:
-		ret = tb_xdp_uuid_response(ctl, route, sequence, uuid);
-		break;
-
 	default:
-		tb_xdp_error_response(ctl, route, sequence,
-				      ERROR_NOT_SUPPORTED);
 		break;
 	}
 
@@ -576,11 +527,9 @@ static void tb_xdp_handle_request(struct work_struct *work)
 out:
 	kfree(xw->pkg);
 	kfree(xw);
-
-	tb_domain_put(tb);
 }
 
-static bool
+static void
 tb_xdp_schedule_request(struct tb *tb, const struct tb_xdp_header *hdr,
 			size_t size)
 {
@@ -588,18 +537,13 @@ tb_xdp_schedule_request(struct tb *tb, const struct tb_xdp_header *hdr,
 
 	xw = kmalloc(sizeof(*xw), GFP_KERNEL);
 	if (!xw)
-		return false;
+		return;
 
 	INIT_WORK(&xw->work, tb_xdp_handle_request);
 	xw->pkg = kmemdup(hdr, size, GFP_KERNEL);
-	if (!xw->pkg) {
-		kfree(xw);
-		return false;
-	}
-	xw->tb = tb_domain_get(tb);
+	xw->tb = tb;
 
-	schedule_work(&xw->work);
-	return true;
+	queue_work(tb->wq, &xw->work);
 }
 
 /**
@@ -636,7 +580,7 @@ static ssize_t key_show(struct device *dev, struct device_attribute *attr,
 	 * It should be null terminated but anything else is pretty much
 	 * allowed.
 	 */
-	return sprintf(buf, "%*pE\n", (int)strlen(svc->key), svc->key);
+	return sprintf(buf, "%*pEp\n", (int)strlen(svc->key), svc->key);
 }
 static DEVICE_ATTR_RO(key);
 
@@ -830,7 +774,6 @@ static void enumerate_services(struct tb_xdomain *xd)
 
 		id = ida_simple_get(&xd->service_ids, 0, 0, GFP_KERNEL);
 		if (id < 0) {
-			kfree(svc->key);
 			kfree(svc);
 			break;
 		}
@@ -890,55 +833,6 @@ static void tb_xdomain_restore_paths(struct tb_xdomain *xd)
 		dev_dbg(&xd->dev, "re-establishing DMA path\n");
 		tb_domain_approve_xdomain_paths(xd->tb, xd);
 	}
-}
-
-static void tb_xdomain_get_uuid(struct work_struct *work)
-{
-	struct tb_xdomain *xd = container_of(work, typeof(*xd),
-					     get_uuid_work.work);
-	struct tb *tb = xd->tb;
-	uuid_t uuid;
-	int ret;
-
-	ret = tb_xdp_uuid_request(tb->ctl, xd->route, xd->uuid_retries, &uuid);
-	if (ret < 0) {
-		if (xd->uuid_retries-- > 0) {
-			queue_delayed_work(xd->tb->wq, &xd->get_uuid_work,
-					   msecs_to_jiffies(100));
-		} else {
-			dev_dbg(&xd->dev, "failed to read remote UUID\n");
-		}
-		return;
-	}
-
-	if (uuid_equal(&uuid, xd->local_uuid)) {
-		dev_dbg(&xd->dev, "intra-domain loop detected\n");
-		return;
-	}
-
-	/*
-	 * If the UUID is different, there is another domain connected
-	 * so mark this one unplugged and wait for the connection
-	 * manager to replace it.
-	 */
-	if (xd->remote_uuid && !uuid_equal(&uuid, xd->remote_uuid)) {
-		dev_dbg(&xd->dev, "remote UUID is different, unplugging\n");
-		xd->is_unplugged = true;
-		return;
-	}
-
-	/* First time fill in the missing UUID */
-	if (!xd->remote_uuid) {
-		xd->remote_uuid = kmemdup(&uuid, sizeof(uuid_t), GFP_KERNEL);
-		if (!xd->remote_uuid)
-			return;
-	}
-
-	/* Now we can start the normal properties exchange */
-	queue_delayed_work(xd->tb->wq, &xd->properties_changed_work,
-			   msecs_to_jiffies(100));
-	queue_delayed_work(xd->tb->wq, &xd->get_properties_work,
-			   msecs_to_jiffies(1000));
 }
 
 static void tb_xdomain_get_properties(struct work_struct *work)
@@ -1147,29 +1041,21 @@ static void tb_xdomain_release(struct device *dev)
 
 static void start_handshake(struct tb_xdomain *xd)
 {
-	xd->uuid_retries = XDOMAIN_UUID_RETRIES;
 	xd->properties_retries = XDOMAIN_PROPERTIES_RETRIES;
 	xd->properties_changed_retries = XDOMAIN_PROPERTIES_CHANGED_RETRIES;
 
-	if (xd->needs_uuid) {
-		queue_delayed_work(xd->tb->wq, &xd->get_uuid_work,
-				   msecs_to_jiffies(100));
-	} else {
-		/* Start exchanging properties with the other host */
-		queue_delayed_work(xd->tb->wq, &xd->properties_changed_work,
-				   msecs_to_jiffies(100));
-		queue_delayed_work(xd->tb->wq, &xd->get_properties_work,
-				   msecs_to_jiffies(1000));
-	}
+	/* Start exchanging properties with the other host */
+	queue_delayed_work(xd->tb->wq, &xd->properties_changed_work,
+			   msecs_to_jiffies(100));
+	queue_delayed_work(xd->tb->wq, &xd->get_properties_work,
+			   msecs_to_jiffies(1000));
 }
 
 static void stop_handshake(struct tb_xdomain *xd)
 {
-	xd->uuid_retries = 0;
 	xd->properties_retries = 0;
 	xd->properties_changed_retries = 0;
 
-	cancel_delayed_work_sync(&xd->get_uuid_work);
 	cancel_delayed_work_sync(&xd->get_properties_work);
 	cancel_delayed_work_sync(&xd->properties_changed_work);
 }
@@ -1212,7 +1098,7 @@ EXPORT_SYMBOL_GPL(tb_xdomain_type);
  *	    other domain is reached).
  * @route: Route string used to reach the other domain
  * @local_uuid: Our local domain UUID
- * @remote_uuid: UUID of the other domain (optional)
+ * @remote_uuid: UUID of the other domain
  *
  * Allocates new XDomain structure and returns pointer to that. The
  * object must be released by calling tb_xdomain_put().
@@ -1231,7 +1117,6 @@ struct tb_xdomain *tb_xdomain_alloc(struct tb *tb, struct device *parent,
 	xd->route = route;
 	ida_init(&xd->service_ids);
 	mutex_init(&xd->lock);
-	INIT_DELAYED_WORK(&xd->get_uuid_work, tb_xdomain_get_uuid);
 	INIT_DELAYED_WORK(&xd->get_properties_work, tb_xdomain_get_properties);
 	INIT_DELAYED_WORK(&xd->properties_changed_work,
 			  tb_xdomain_properties_changed);
@@ -1240,14 +1125,9 @@ struct tb_xdomain *tb_xdomain_alloc(struct tb *tb, struct device *parent,
 	if (!xd->local_uuid)
 		goto err_free;
 
-	if (remote_uuid) {
-		xd->remote_uuid = kmemdup(remote_uuid, sizeof(uuid_t),
-					  GFP_KERNEL);
-		if (!xd->remote_uuid)
-			goto err_free_local_uuid;
-	} else {
-		xd->needs_uuid = true;
-	}
+	xd->remote_uuid = kmemdup(remote_uuid, sizeof(uuid_t), GFP_KERNEL);
+	if (!xd->remote_uuid)
+		goto err_free_local_uuid;
 
 	device_initialize(&xd->dev);
 	xd->dev.parent = get_device(parent);
@@ -1411,12 +1291,14 @@ static struct tb_xdomain *switch_find_xdomain(struct tb_switch *sw,
 		struct tb_port *port = &sw->ports[i];
 		struct tb_xdomain *xd;
 
+		if (tb_is_upstream_port(port))
+			continue;
+
 		if (port->xdomain) {
 			xd = port->xdomain;
 
 			if (lookup->uuid) {
-				if (xd->remote_uuid &&
-				    uuid_equal(xd->remote_uuid, lookup->uuid))
+				if (uuid_equal(xd->remote_uuid, lookup->uuid))
 					return xd;
 			} else if (lookup->link &&
 				   lookup->link == xd->link &&
@@ -1426,7 +1308,7 @@ static struct tb_xdomain *switch_find_xdomain(struct tb_switch *sw,
 				   lookup->route == xd->route) {
 				return xd;
 			}
-		} else if (tb_port_has_remote(port)) {
+		} else if (port->remote) {
 			xd = switch_find_xdomain(port->remote->sw, lookup);
 			if (xd)
 				return xd;
@@ -1543,8 +1425,10 @@ bool tb_xdomain_handle_request(struct tb *tb, enum tb_cfg_pkg_type type,
 	 * handlers in turn.
 	 */
 	if (uuid_equal(&hdr->uuid, &tb_xdp_uuid)) {
-		if (type == TB_CFG_PKG_XDOMAIN_REQ)
-			return tb_xdp_schedule_request(tb, hdr, size);
+		if (type == TB_CFG_PKG_XDOMAIN_REQ) {
+			tb_xdp_schedule_request(tb, hdr, size);
+			return true;
+		}
 		return false;
 	}
 

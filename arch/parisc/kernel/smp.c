@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
 ** SMP Support
 **
@@ -12,6 +11,10 @@
 ** Thanks to John Curry and Ullas Ponnadi. I learned a lot from their work.
 ** -grant (1/12/2001)
 **
+**	This program is free software; you can redistribute it and/or modify
+**	it under the terms of the GNU General Public License as published by
+**      the Free Software Foundation; either version 2 of the License, or
+**      (at your option) any later version.
 */
 #include <linux/types.h>
 #include <linux/spinlock.h>
@@ -29,7 +32,6 @@
 #include <linux/bitops.h>
 #include <linux/ftrace.h>
 #include <linux/cpu.h>
-#include <linux/kgdb.h>
 
 #include <linux/atomic.h>
 #include <asm/current.h>
@@ -72,10 +74,7 @@ enum ipi_message_type {
 	IPI_CALL_FUNC,
 	IPI_CPU_START,
 	IPI_CPU_STOP,
-	IPI_CPU_TEST,
-#ifdef CONFIG_KGDB
-	IPI_ENTER_KGDB,
-#endif
+	IPI_CPU_TEST
 };
 
 
@@ -113,7 +112,6 @@ halt_processor(void)
 	/* REVISIT : does PM *know* this CPU isn't available? */
 	set_cpu_online(smp_processor_id(), false);
 	local_irq_disable();
-	__pdc_cpu_rendezvous();
 	for (;;)
 		;
 }
@@ -157,7 +155,6 @@ ipi_interrupt(int irq, void *dev_id)
 
 			case IPI_CALL_FUNC:
 				smp_debug(100, KERN_DEBUG "CPU%d IPI_CALL_FUNC\n", this_cpu);
-				inc_irq_stat(irq_call_count);
 				generic_smp_call_function_interrupt();
 				break;
 
@@ -173,12 +170,7 @@ ipi_interrupt(int irq, void *dev_id)
 			case IPI_CPU_TEST:
 				smp_debug(100, KERN_DEBUG "CPU%d is alive!\n", this_cpu);
 				break;
-#ifdef CONFIG_KGDB
-			case IPI_ENTER_KGDB:
-				smp_debug(100, KERN_DEBUG "CPU%d ENTER_KGDB\n", this_cpu);
-				kgdb_nmicallback(raw_smp_processor_id(), get_irq_regs());
-				break;
-#endif
+
 			default:
 				printk(KERN_CRIT "Unknown IPI num on CPU%d: %lu\n",
 					this_cpu, which);
@@ -234,12 +226,6 @@ send_IPI_allbutself(enum ipi_message_type op)
 	}
 }
 
-#ifdef CONFIG_KGDB
-void kgdb_roundup_cpus(void)
-{
-	send_IPI_allbutself(IPI_ENTER_KGDB);
-}
-#endif
 
 inline void 
 smp_send_stop(void)	{ send_IPI_allbutself(IPI_CPU_STOP); }

@@ -154,7 +154,7 @@ static void *vb2_dc_alloc(struct device *dev, unsigned long attrs,
 	buf->cookie = dma_alloc_attrs(dev, size, &buf->dma_addr,
 					GFP_KERNEL | gfp_flags, buf->attrs);
 	if (!buf->cookie) {
-		dev_err(dev, "dma_alloc_coherent of size %lu failed\n", size);
+		dev_err(dev, "dma_alloc_coherent of size %ld failed\n", size);
 		kfree(buf);
 		return ERR_PTR(-ENOMEM);
 	}
@@ -186,6 +186,12 @@ static int vb2_dc_mmap(void *buf_priv, struct vm_area_struct *vma)
 		return -EINVAL;
 	}
 
+	/*
+	 * dma_mmap_* uses vm_pgoff as in-buffer offset, but we want to
+	 * map whole buffer
+	 */
+	vma->vm_pgoff = 0;
+
 	ret = dma_mmap_attrs(buf->dev, vma, buf->cookie,
 		buf->dma_addr, buf->size, buf->attrs);
 
@@ -200,9 +206,9 @@ static int vb2_dc_mmap(void *buf_priv, struct vm_area_struct *vma)
 
 	vma->vm_ops->open(vma);
 
-	pr_debug("%s: mapped dma addr 0x%08lx at 0x%08lx, size %lu\n",
-		 __func__, (unsigned long)buf->dma_addr, vma->vm_start,
-		 buf->size);
+	pr_debug("%s: mapped dma addr 0x%08lx at 0x%08lx, size %ld\n",
+		__func__, (unsigned long)buf->dma_addr, vma->vm_start,
+		buf->size);
 
 	return 0;
 }
@@ -267,14 +273,8 @@ static void vb2_dc_dmabuf_ops_detach(struct dma_buf *dbuf,
 
 	/* release the scatterlist cache */
 	if (attach->dma_dir != DMA_NONE)
-		/*
-		 * Cache sync can be skipped here, as the vb2_dc memory is
-		 * allocated from device coherent memory, which means the
-		 * memory locations do not require any explicit cache
-		 * maintenance prior or after being used by the device.
-		 */
-		dma_unmap_sg_attrs(db_attach->dev, sgt->sgl, sgt->orig_nents,
-				   attach->dma_dir, DMA_ATTR_SKIP_CPU_SYNC);
+		dma_unmap_sg(db_attach->dev, sgt->sgl, sgt->orig_nents,
+			attach->dma_dir);
 	sg_free_table(sgt);
 	kfree(attach);
 	db_attach->priv = NULL;
@@ -299,17 +299,14 @@ static struct sg_table *vb2_dc_dmabuf_ops_map(
 
 	/* release any previous cache */
 	if (attach->dma_dir != DMA_NONE) {
-		dma_unmap_sg_attrs(db_attach->dev, sgt->sgl, sgt->orig_nents,
-				   attach->dma_dir, DMA_ATTR_SKIP_CPU_SYNC);
+		dma_unmap_sg(db_attach->dev, sgt->sgl, sgt->orig_nents,
+			attach->dma_dir);
 		attach->dma_dir = DMA_NONE;
 	}
 
-	/*
-	 * mapping to the client with new direction, no cache sync
-	 * required see comment in vb2_dc_dmabuf_ops_detach()
-	 */
-	sgt->nents = dma_map_sg_attrs(db_attach->dev, sgt->sgl, sgt->orig_nents,
-				      dma_dir, DMA_ATTR_SKIP_CPU_SYNC);
+	/* mapping to the client with new direction */
+	sgt->nents = dma_map_sg(db_attach->dev, sgt->sgl, sgt->orig_nents,
+				dma_dir);
 	if (!sgt->nents) {
 		pr_err("failed to map scatterlist\n");
 		mutex_unlock(lock);
@@ -442,13 +439,41 @@ static void vb2_dc_put_userptr(void *buf_priv)
 				set_page_dirty_lock(pages[i]);
 		sg_free_table(sgt);
 		kfree(sgt);
-	} else {
-		dma_unmap_resource(buf->dev, buf->dma_addr, buf->size,
-				   buf->dma_dir, 0);
 	}
 	vb2_destroy_framevec(buf->vec);
 	kfree(buf);
 }
+
+/*
+ * For some kind of reserved memory there might be no struct page available,
+ * so all that can be done to support such 'pages' is to try to convert
+ * pfn to dma address or at the last resort just assume that
+ * dma address == physical address (like it has been assumed in earlier version
+ * of videobuf2-dma-contig
+ */
+
+#ifdef __arch_pfn_to_dma
+static inline dma_addr_t vb2_dc_pfn_to_dma(struct device *dev, unsigned long pfn)
+{
+	return (dma_addr_t)__arch_pfn_to_dma(dev, pfn);
+}
+#elif defined(__pfn_to_bus)
+static inline dma_addr_t vb2_dc_pfn_to_dma(struct device *dev, unsigned long pfn)
+{
+	return (dma_addr_t)__pfn_to_bus(pfn);
+}
+#elif defined(__pfn_to_phys)
+static inline dma_addr_t vb2_dc_pfn_to_dma(struct device *dev, unsigned long pfn)
+{
+	return (dma_addr_t)__pfn_to_phys(pfn);
+}
+#else
+static inline dma_addr_t vb2_dc_pfn_to_dma(struct device *dev, unsigned long pfn)
+{
+	/* really, we cannot do anything better at this point */
+	return (dma_addr_t)(pfn) << PAGE_SHIFT;
+}
+#endif
 
 static void *vb2_dc_get_userptr(struct device *dev, unsigned long vaddr,
 	unsigned long size, enum dma_data_direction dma_dir)
@@ -484,7 +509,8 @@ static void *vb2_dc_get_userptr(struct device *dev, unsigned long vaddr,
 	buf->dma_dir = dma_dir;
 
 	offset = lower_32_bits(offset_in_page(vaddr));
-	vec = vb2_create_framevec(vaddr, size);
+	vec = vb2_create_framevec(vaddr, size, dma_dir == DMA_FROM_DEVICE ||
+					       dma_dir == DMA_BIDIRECTIONAL);
 	if (IS_ERR(vec)) {
 		ret = PTR_ERR(vec);
 		goto fail_buf;
@@ -502,12 +528,7 @@ static void *vb2_dc_get_userptr(struct device *dev, unsigned long vaddr,
 		for (i = 1; i < n_pages; i++)
 			if (nums[i-1] + 1 != nums[i])
 				goto fail_pfnvec;
-		buf->dma_addr = dma_map_resource(buf->dev,
-				__pfn_to_phys(nums[0]), size, buf->dma_dir, 0);
-		if (dma_mapping_error(buf->dev, buf->dma_addr)) {
-			ret = -ENOMEM;
-			goto fail_pfnvec;
-		}
+		buf->dma_addr = vb2_dc_pfn_to_dma(buf->dev, nums[0]);
 		goto out;
 	}
 

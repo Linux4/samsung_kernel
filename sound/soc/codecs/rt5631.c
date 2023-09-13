@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * rt5631.c  --  RT5631 ALSA Soc Audio driver
  *
@@ -7,6 +6,11 @@
  * Author: flove <flove@realtek.com>
  *
  * Based on WM8753.c
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
  */
 #include <linux/module.h>
 #include <linux/moduleparam.h>
@@ -1691,8 +1695,6 @@ static const struct regmap_config rt5631_regmap_config = {
 	.reg_defaults = rt5631_reg,
 	.num_reg_defaults = ARRAY_SIZE(rt5631_reg),
 	.cache_type = REGCACHE_RBTREE,
-	.use_single_read = true,
-	.use_single_write = true,
 };
 
 static int rt5631_i2c_probe(struct i2c_client *i2c,

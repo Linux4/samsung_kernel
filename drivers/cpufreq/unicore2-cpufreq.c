@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * clock scaling for the UniCore-II
  *
@@ -6,6 +5,10 @@
  *
  *	Maintained by GUAN Xue-tao <gxt@mprc.pku.edu.cn>
  *	Copyright (C) 2001-2010 Guan Xuetao
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/err.h>
@@ -22,7 +25,7 @@ static struct cpufreq_driver ucv2_driver;
 /* make sure that only the "userspace" governor is run
  * -- anything else wouldn't make sense on this platform, anyway.
  */
-static int ucv2_verify_speed(struct cpufreq_policy_data *policy)
+static int ucv2_verify_speed(struct cpufreq_policy *policy)
 {
 	if (policy->cpu)
 		return -EINVAL;

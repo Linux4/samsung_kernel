@@ -20,7 +20,6 @@
 
 static char local_guest[] = "        ";
 static char all_guests[] = "*       ";
-static char *all_groups = all_guests;
 static char *guest_query;
 
 struct diag2fc_data {
@@ -63,11 +62,10 @@ static int diag2fc(int size, char* query, void *addr)
 
 	memcpy(parm_list.userid, query, NAME_LEN);
 	ASCEBC(parm_list.userid, NAME_LEN);
-	memcpy(parm_list.aci_grp, all_groups, NAME_LEN);
-	ASCEBC(parm_list.aci_grp, NAME_LEN);
-	parm_list.addr = (unsigned long)addr;
+	parm_list.addr = (unsigned long) addr ;
 	parm_list.size = size;
 	parm_list.fmt = 0x02;
+	memset(parm_list.aci_grp, 0x40, NAME_LEN);
 	rc = -1;
 
 	diag_stat_inc(DIAG_STAT_X2FC);
@@ -120,7 +118,7 @@ do { \
 		return PTR_ERR(rc); \
 } while(0)
 
-static int hypfs_vm_create_guest(struct dentry *systems_dir,
+static int hpyfs_vm_create_guest(struct dentry *systems_dir,
 				 struct diag2fc_data *data)
 {
 	char guest_name[NAME_LEN + 1] = {};
@@ -221,7 +219,7 @@ int hypfs_vm_create_files(struct dentry *root)
 	}
 
 	for (i = 0; i < count; i++) {
-		rc = hypfs_vm_create_guest(dir, &(data[i]));
+		rc = hpyfs_vm_create_guest(dir, &(data[i]));
 		if (rc)
 			goto failed;
 	}
@@ -281,8 +279,7 @@ int hypfs_vm_init(void)
 		guest_query = local_guest;
 	else
 		return -EACCES;
-	hypfs_dbfs_create_file(&dbfs_file_2fc);
-	return 0;
+	return hypfs_dbfs_create_file(&dbfs_file_2fc);
 }
 
 void hypfs_vm_exit(void)

@@ -20,18 +20,6 @@ config ANDROID_BINDER_IPC
 	  Android process, using Binder to identify, invoke and pass arguments
 	  between said processes.
 
-config ANDROID_BINDERFS
-	bool "Android Binderfs filesystem"
-	depends on ANDROID_BINDER_IPC
-	default n
-	---help---
-	  Binderfs is a pseudo-filesystem for the Android Binder IPC driver
-	  which can be mounted per-ipc namespace allowing to run multiple
-	  instances of Android.
-	  Each binderfs mount initially only contains a binder-control device.
-	  It can be used to dynamically allocate new binder IPC devices via
-	  ioctls.
-
 config ANDROID_BINDER_DEVICES
 	string "Android Binder devices"
 	depends on ANDROID_BINDER_IPC
@@ -53,15 +41,6 @@ config ANDROID_BINDER_IPC_SELFTEST
 	  Binder selftest checks the allocation and free of binder buffers
 	  exhaustively with combinations of various buffer sizes and
 	  alignments.
-
-config ANDROID_VENDOR_HOOKS
-	bool "Android Vendor Hooks"
-	depends on TRACEPOINTS
-	---help---
-	  Enable vendor hooks implemented as tracepoints
-
-	  Allow vendor modules to attach to tracepoint "hooks" defined via
-	  DECLARE_HOOK or DECLARE_RESTRICTED_HOOK.
 
 endif # if ANDROID
 

@@ -130,12 +130,16 @@ static int ak5558_hw_params(struct snd_pcm_substream *substream,
 	u8 bits;
 	int pcm_width = max(params_physical_width(params), ak5558->slot_width);
 
+	/* set master/slave audio interface */
+	bits = snd_soc_component_read32(component, AK5558_02_CONTROL1);
+	bits &= ~AK5558_BITS;
+
 	switch (pcm_width) {
 	case 16:
-		bits = AK5558_DIF_24BIT_MODE;
+		bits |= AK5558_DIF_24BIT_MODE;
 		break;
 	case 32:
-		bits = AK5558_DIF_32BIT_MODE;
+		bits |= AK5558_DIF_32BIT_MODE;
 		break;
 	default:
 		return -EINVAL;
@@ -164,15 +168,18 @@ static int ak5558_set_dai_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	}
 
 	/* set master/slave audio interface */
+	format = snd_soc_component_read32(component, AK5558_02_CONTROL1);
+	format &= ~AK5558_DIF;
+
 	switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
 	case SND_SOC_DAIFMT_I2S:
-		format = AK5558_DIF_I2S_MODE;
+		format |= AK5558_DIF_I2S_MODE;
 		break;
 	case SND_SOC_DAIFMT_LEFT_J:
-		format = AK5558_DIF_MSB_MODE;
+		format |= AK5558_DIF_MSB_MODE;
 		break;
 	case SND_SOC_DAIFMT_DSP_B:
-		format = AK5558_DIF_MSB_MODE;
+		format |= AK5558_DIF_MSB_MODE;
 		break;
 	default:
 		return -EINVAL;
@@ -239,7 +246,7 @@ static int ak5558_startup(struct snd_pcm_substream *substream,
 					  &ak5558_rate_constraints);
 }
 
-static const struct snd_soc_dai_ops ak5558_dai_ops = {
+static struct snd_soc_dai_ops ak5558_dai_ops = {
 	.startup        = ak5558_startup,
 	.hw_params	= ak5558_hw_params,
 
@@ -264,7 +271,7 @@ static void ak5558_power_off(struct ak5558_priv *ak5558)
 	if (!ak5558->reset_gpiod)
 		return;
 
-	gpiod_set_value_cansleep(ak5558->reset_gpiod, 1);
+	gpiod_set_value_cansleep(ak5558->reset_gpiod, 0);
 	usleep_range(1000, 2000);
 }
 
@@ -273,7 +280,7 @@ static void ak5558_power_on(struct ak5558_priv *ak5558)
 	if (!ak5558->reset_gpiod)
 		return;
 
-	gpiod_set_value_cansleep(ak5558->reset_gpiod, 0);
+	gpiod_set_value_cansleep(ak5558->reset_gpiod, 1);
 	usleep_range(1000, 2000);
 }
 
@@ -389,7 +396,6 @@ static const struct of_device_id ak5558_i2c_dt_ids[] = {
 	{ .compatible = "asahi-kasei,ak5558"},
 	{ }
 };
-MODULE_DEVICE_TABLE(of, ak5558_i2c_dt_ids);
 
 static struct i2c_driver ak5558_i2c_driver = {
 	.driver = {

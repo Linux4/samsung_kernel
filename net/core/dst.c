@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * net/core/dst.c	Protocol independent destination cache.
  *
@@ -27,6 +26,23 @@
 #include <net/dst.h>
 #include <net/dst_metadata.h>
 
+/*
+ * Theory of operations:
+ * 1) We use a list, protected by a spinlock, to add
+ *    new entries from both BH and non-BH context.
+ * 2) In order to keep spinlock held for a small delay,
+ *    we use a second list where are stored long lived
+ *    entries, that are handled by the garbage collect thread
+ *    fired by a workqueue.
+ * 3) This list is guarded by a mutex,
+ *    so that the gc_task and dst_dev_event() can be synchronized.
+ */
+
+/*
+ * We want to keep lock & list close together
+ * to dirty as few cache lines as possible in __dst_free().
+ * As this is not a very strong hint, we dont force an alignment on SMP.
+ */
 int dst_discard_out(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
 	kfree_skb(skb);
@@ -82,12 +98,8 @@ void *dst_alloc(struct dst_ops *ops, struct net_device *dev,
 	struct dst_entry *dst;
 
 	if (ops->gc && dst_entries_get_fast(ops) > ops->gc_thresh) {
-		if (ops->gc(ops)) {
-			printk_ratelimited(KERN_NOTICE "Route cache is full: "
-					   "consider increasing sysctl "
-					   "net.ipv[4|6].route.max_size.\n");
+		if (ops->gc(ops))
 			return NULL;
-		}
 	}
 
 	dst = kmem_cache_alloc(ops->kmem_cachep, GFP_ATOMIC);
@@ -160,7 +172,7 @@ void dst_dev_put(struct dst_entry *dst)
 		dst->ops->ifdown(dst, dev, true);
 	dst->input = dst_discard;
 	dst->output = dst_discard_out;
-	dst->dev = blackhole_netdev;
+	dst->dev = dev_net(dst->dev)->loopback_dev;
 	dev_hold(dst->dev);
 	dev_put(dev);
 }
@@ -172,7 +184,7 @@ void dst_release(struct dst_entry *dst)
 		int newrefcnt;
 
 		newrefcnt = atomic_dec_return(&dst->__refcnt);
-		if (WARN_ONCE(newrefcnt < 0, "dst_release underflow"))
+		if (unlikely(newrefcnt < 0))
 			net_warn_ratelimited("%s: dst:%p refcnt:%d\n",
 					     __func__, dst, newrefcnt);
 		if (!newrefcnt)
@@ -187,7 +199,7 @@ void dst_release_immediate(struct dst_entry *dst)
 		int newrefcnt;
 
 		newrefcnt = atomic_dec_return(&dst->__refcnt);
-		if (WARN_ONCE(newrefcnt < 0, "dst_release_immediate underflow"))
+		if (unlikely(newrefcnt < 0))
 			net_warn_ratelimited("%s: dst:%p refcnt:%d\n",
 					     __func__, dst, newrefcnt);
 		if (!newrefcnt)

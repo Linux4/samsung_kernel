@@ -1,10 +1,19 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-#include <linux/delay.h>
 
 #include "hdmi.h"
 
@@ -31,7 +40,7 @@ static void msm_hdmi_power_on(struct drm_bridge *bridge)
 	for (i = 0; i < config->pwr_reg_cnt; i++) {
 		ret = regulator_enable(hdmi->pwr_regs[i]);
 		if (ret) {
-			DRM_DEV_ERROR(dev->dev, "failed to enable pwr regulator: %s (%d)\n",
+			dev_err(dev->dev, "failed to enable pwr regulator: %s (%d)\n",
 					config->pwr_reg_names[i], ret);
 		}
 	}
@@ -40,7 +49,7 @@ static void msm_hdmi_power_on(struct drm_bridge *bridge)
 		DBG("pixclock: %lu", hdmi->pixclock);
 		ret = clk_set_rate(hdmi->pwr_clks[0], hdmi->pixclock);
 		if (ret) {
-			DRM_DEV_ERROR(dev->dev, "failed to set pixel clk: %s (%d)\n",
+			dev_err(dev->dev, "failed to set pixel clk: %s (%d)\n",
 					config->pwr_clk_names[0], ret);
 		}
 	}
@@ -48,7 +57,7 @@ static void msm_hdmi_power_on(struct drm_bridge *bridge)
 	for (i = 0; i < config->pwr_clk_cnt; i++) {
 		ret = clk_prepare_enable(hdmi->pwr_clks[i]);
 		if (ret) {
-			DRM_DEV_ERROR(dev->dev, "failed to enable pwr clk: %s (%d)\n",
+			dev_err(dev->dev, "failed to enable pwr clk: %s (%d)\n",
 					config->pwr_clk_names[i], ret);
 		}
 	}
@@ -73,7 +82,7 @@ static void power_off(struct drm_bridge *bridge)
 	for (i = 0; i < config->pwr_reg_cnt; i++) {
 		ret = regulator_disable(hdmi->pwr_regs[i]);
 		if (ret) {
-			DRM_DEV_ERROR(dev->dev, "failed to disable pwr regulator: %s (%d)\n",
+			dev_err(dev->dev, "failed to disable pwr regulator: %s (%d)\n",
 					config->pwr_reg_names[i], ret);
 		}
 	}
@@ -92,12 +101,11 @@ static void msm_hdmi_config_avi_infoframe(struct hdmi *hdmi)
 	u32 val;
 	int len;
 
-	drm_hdmi_avi_infoframe_from_display_mode(&frame.avi,
-						 hdmi->connector, mode);
+	drm_hdmi_avi_infoframe_from_display_mode(&frame.avi, mode, false);
 
 	len = hdmi_infoframe_pack(&frame, buffer, sizeof(buffer));
 	if (len < 0) {
-		DRM_DEV_ERROR(&hdmi->pdev->dev,
+		dev_err(&hdmi->pdev->dev,
 			"failed to configure avi infoframe\n");
 		return;
 	}
@@ -199,8 +207,8 @@ static void msm_hdmi_bridge_post_disable(struct drm_bridge *bridge)
 }
 
 static void msm_hdmi_bridge_mode_set(struct drm_bridge *bridge,
-		 const struct drm_display_mode *mode,
-		 const struct drm_display_mode *adjusted_mode)
+		 struct drm_display_mode *mode,
+		 struct drm_display_mode *adjusted_mode)
 {
 	struct hdmi_bridge *hdmi_bridge = to_hdmi_bridge(bridge);
 	struct hdmi *hdmi = hdmi_bridge->hdmi;

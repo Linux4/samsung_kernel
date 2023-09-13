@@ -1,10 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * watchdog driver for ZTE's zx2967 family
  *
  * Copyright (C) 2017 ZTE Ltd.
  *
  * Author: Baoyou Xie <baoyou.xie@linaro.org>
+ *
+ * License terms: GNU General Public License (GPL) version 2
  */
 
 #include <linux/clk.h>
@@ -187,15 +188,11 @@ static void zx2967_wdt_reset_sysctrl(struct device *dev)
 	of_node_put(out_args.np);
 }
 
-static void zx2967_clk_disable_unprepare(void *data)
-{
-	clk_disable_unprepare(data);
-}
-
 static int zx2967_wdt_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct zx2967_wdt *wdt;
+	struct resource *base;
 	int ret;
 	struct reset_control *rstc;
 
@@ -210,9 +207,10 @@ static int zx2967_wdt_probe(struct platform_device *pdev)
 	wdt->wdt_device.timeout = ZX2967_WDT_DEFAULT_TIMEOUT;
 	wdt->wdt_device.max_timeout = ZX2967_WDT_MAX_TIMEOUT;
 	wdt->wdt_device.min_timeout = ZX2967_WDT_MIN_TIMEOUT;
-	wdt->wdt_device.parent = dev;
+	wdt->wdt_device.parent = &pdev->dev;
 
-	wdt->reg_base = devm_platform_ioremap_resource(pdev, 0);
+	base = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	wdt->reg_base = devm_ioremap_resource(dev, base);
 	if (IS_ERR(wdt->reg_base))
 		return PTR_ERR(wdt->reg_base);
 
@@ -229,16 +227,13 @@ static int zx2967_wdt_probe(struct platform_device *pdev)
 		dev_err(dev, "failed to enable clock\n");
 		return ret;
 	}
-	ret = devm_add_action_or_reset(dev, zx2967_clk_disable_unprepare,
-				       wdt->clock);
-	if (ret)
-		return ret;
 	clk_set_rate(wdt->clock, ZX2967_WDT_CLK_FREQ);
 
 	rstc = devm_reset_control_get_exclusive(dev, NULL);
 	if (IS_ERR(rstc)) {
 		dev_err(dev, "failed to get rstc");
-		return PTR_ERR(rstc);
+		ret = PTR_ERR(rstc);
+		goto err;
 	}
 
 	reset_control_assert(rstc);
@@ -249,12 +244,26 @@ static int zx2967_wdt_probe(struct platform_device *pdev)
 			ZX2967_WDT_DEFAULT_TIMEOUT, dev);
 	watchdog_set_nowayout(&wdt->wdt_device, WATCHDOG_NOWAYOUT);
 
-	ret = devm_watchdog_register_device(dev, &wdt->wdt_device);
+	ret = watchdog_register_device(&wdt->wdt_device);
 	if (ret)
-		return ret;
+		goto err;
 
 	dev_info(dev, "watchdog enabled (timeout=%d sec, nowayout=%d)",
 		 wdt->wdt_device.timeout, WATCHDOG_NOWAYOUT);
+
+	return 0;
+
+err:
+	clk_disable_unprepare(wdt->clock);
+	return ret;
+}
+
+static int zx2967_wdt_remove(struct platform_device *pdev)
+{
+	struct zx2967_wdt *wdt = platform_get_drvdata(pdev);
+
+	watchdog_unregister_device(&wdt->wdt_device);
+	clk_disable_unprepare(wdt->clock);
 
 	return 0;
 }
@@ -267,6 +276,7 @@ MODULE_DEVICE_TABLE(of, zx2967_wdt_match);
 
 static struct platform_driver zx2967_wdt_driver = {
 	.probe		= zx2967_wdt_probe,
+	.remove		= zx2967_wdt_remove,
 	.driver		= {
 		.name	= "zx2967-wdt",
 		.of_match_table	= of_match_ptr(zx2967_wdt_match),

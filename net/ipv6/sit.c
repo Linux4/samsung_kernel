@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *	IPv6 over IPv4 tunnel device - Simple Internet Transition (SIT)
  *	Linux INET6 implementation
@@ -6,6 +5,11 @@
  *	Authors:
  *	Pedro Roque		<roque@di.fc.ul.pt>
  *	Alexey Kuznetsov	<kuznet@ms2.inr.ac.ru>
+ *
+ *	This program is free software; you can redistribute it and/or
+ *      modify it under the terms of the GNU General Public License
+ *      as published by the Free Software Foundation; either version
+ *      2 of the License, or (at your option) any later version.
  *
  *	Changes:
  * Roger Venning <r.venning@telstra.com>:	6to4 support
@@ -211,6 +215,8 @@ static int ipip6_tunnel_create(struct net_device *dev)
 
 	ipip6_tunnel_clone_6rd(dev, sitn);
 
+	dev_hold(dev);
+
 	ipip6_tunnel_link(sitn, t);
 	return 0;
 
@@ -310,7 +316,9 @@ static int ipip6_tunnel_get_prl(struct ip_tunnel *t,
 		kcalloc(cmax, sizeof(*kp), GFP_KERNEL | __GFP_NOWARN) :
 		NULL;
 
-	ca = min(t->prl_count, cmax);
+	rcu_read_lock();
+
+	ca = t->prl_count < cmax ? t->prl_count : cmax;
 
 	if (!kp) {
 		/* We don't try hard to allocate much memory for
@@ -325,7 +333,7 @@ static int ipip6_tunnel_get_prl(struct ip_tunnel *t,
 		}
 	}
 
-	rcu_read_lock();
+	c = 0;
 	for_each_prl_rcu(t->prl) {
 		if (c >= cmax)
 			break;
@@ -337,7 +345,7 @@ static int ipip6_tunnel_get_prl(struct ip_tunnel *t,
 		if (kprl.addr != htonl(INADDR_ANY))
 			break;
 	}
-
+out:
 	rcu_read_unlock();
 
 	len = sizeof(*kp) * c;
@@ -346,7 +354,7 @@ static int ipip6_tunnel_get_prl(struct ip_tunnel *t,
 		ret = -EFAULT;
 
 	kfree(kp);
-out:
+
 	return ret;
 }
 
@@ -526,13 +534,13 @@ static int ipip6_err(struct sk_buff *skb, u32 info)
 
 	if (type == ICMP_DEST_UNREACH && code == ICMP_FRAG_NEEDED) {
 		ipv4_update_pmtu(skb, dev_net(skb->dev), info,
-				 t->parms.link, iph->protocol);
+				 t->parms.link, 0, iph->protocol, 0);
 		err = 0;
 		goto out;
 	}
 	if (type == ICMP_REDIRECT) {
-		ipv4_redirect(skb, dev_net(skb->dev), t->parms.link,
-			      iph->protocol);
+		ipv4_redirect(skb, dev_net(skb->dev), t->parms.link, 0,
+			      iph->protocol, 0);
 		err = 0;
 		goto out;
 	}
@@ -896,17 +904,12 @@ static netdev_tx_t ipip6_tunnel_xmit(struct sk_buff *skb,
 			   RT_TOS(tos), RT_SCOPE_UNIVERSE, IPPROTO_IPV6,
 			   0, dst, tiph->saddr, 0, 0,
 			   sock_net_uid(tunnel->net, NULL));
+	rt = ip_route_output_flow(tunnel->net, &fl4, NULL);
 
-	rt = dst_cache_get_ip4(&tunnel->dst_cache, &fl4.saddr);
-	if (!rt) {
-		rt = ip_route_output_flow(tunnel->net, &fl4, NULL);
-		if (IS_ERR(rt)) {
-			dev->stats.tx_carrier_errors++;
-			goto tx_error_icmp;
-		}
-		dst_cache_set_ip4(&tunnel->dst_cache, &rt->dst, fl4.saddr);
+	if (IS_ERR(rt)) {
+		dev->stats.tx_carrier_errors++;
+		goto tx_error_icmp;
 	}
-
 	if (rt->rt_type != RTN_UNICAST) {
 		ip_rt_put(rt);
 		dev->stats.tx_carrier_errors++;
@@ -1084,6 +1087,7 @@ static void ipip6_tunnel_bind_dev(struct net_device *dev)
 	if (tdev && !netif_is_l3_master(tdev)) {
 		int t_hlen = tunnel->hlen + sizeof(struct iphdr);
 
+		dev->hard_header_len = tdev->hard_header_len + sizeof(struct iphdr);
 		dev->mtu = tdev->mtu - t_hlen;
 		if (dev->mtu < IPV6_MIN_MTU)
 			dev->mtu = IPV6_MIN_MTU;
@@ -1373,6 +1377,7 @@ static void ipip6_tunnel_setup(struct net_device *dev)
 	dev->priv_destructor	= ipip6_dev_free;
 
 	dev->type		= ARPHRD_SIT;
+	dev->hard_header_len	= LL_MAX_HEADER + t_hlen;
 	dev->mtu		= ETH_DATA_LEN - t_hlen;
 	dev->min_mtu		= IPV6_MIN_MTU;
 	dev->max_mtu		= IP6_MAX_MTU - t_hlen;
@@ -1404,7 +1409,7 @@ static int ipip6_tunnel_init(struct net_device *dev)
 		dev->tstats = NULL;
 		return err;
 	}
-	dev_hold(dev);
+
 	return 0;
 }
 
@@ -1420,6 +1425,7 @@ static void __net_init ipip6_fb_tunnel_init(struct net_device *dev)
 	iph->ihl		= 5;
 	iph->ttl		= 64;
 
+	dev_hold(dev);
 	rcu_assign_pointer(sitn->tunnels_wc[0], tunnel);
 }
 
@@ -1592,11 +1598,8 @@ static int ipip6_newlink(struct net *src_net, struct net_device *dev,
 	}
 
 #ifdef CONFIG_IPV6_SIT_6RD
-	if (ipip6_netlink_6rd_parms(data, &ip6rd)) {
+	if (ipip6_netlink_6rd_parms(data, &ip6rd))
 		err = ipip6_tunnel_update_6rd(nt, &ip6rd);
-		if (err < 0)
-			unregister_netdevice_queue(dev, NULL);
-	}
 #endif
 
 	return err;
@@ -1814,9 +1817,9 @@ static void __net_exit sit_destroy_tunnels(struct net *net,
 		if (dev->rtnl_link_ops == &sit_link_ops)
 			unregister_netdevice_queue(dev, head);
 
-	for (prio = 0; prio < 4; prio++) {
+	for (prio = 1; prio < 4; prio++) {
 		int h;
-		for (h = 0; h < (prio ? IP6_SIT_HASH_SIZE : 1); h++) {
+		for (h = 0; h < IP6_SIT_HASH_SIZE; h++) {
 			struct ip_tunnel *t;
 
 			t = rtnl_dereference(sitn->tunnels[prio][h]);
@@ -1874,6 +1877,7 @@ static int __net_init sit_init_net(struct net *net)
 	return 0;
 
 err_reg_dev:
+	ipip6_dev_free(sitn->fb_tunnel_dev);
 	free_netdev(sitn->fb_tunnel_dev);
 err_alloc_dev:
 	return err;

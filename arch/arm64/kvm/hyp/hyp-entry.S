@@ -1,7 +1,18 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (C) 2015-2018 - ARM Ltd
  * Author: Marc Zyngier <marc.zyngier@arm.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <linux/arm-smccc.h>
@@ -14,30 +25,6 @@
 #include <asm/kvm_asm.h>
 #include <asm/kvm_mmu.h>
 #include <asm/mmu.h>
-
-.macro save_caller_saved_regs_vect
-	/* x0 and x1 were saved in the vector entry */
-	stp	x2, x3,   [sp, #-16]!
-	stp	x4, x5,   [sp, #-16]!
-	stp	x6, x7,   [sp, #-16]!
-	stp	x8, x9,   [sp, #-16]!
-	stp	x10, x11, [sp, #-16]!
-	stp	x12, x13, [sp, #-16]!
-	stp	x14, x15, [sp, #-16]!
-	stp	x16, x17, [sp, #-16]!
-.endm
-
-.macro restore_caller_saved_regs_vect
-	ldp	x16, x17, [sp], #16
-	ldp	x14, x15, [sp], #16
-	ldp	x12, x13, [sp], #16
-	ldp	x10, x11, [sp], #16
-	ldp	x8, x9,   [sp], #16
-	ldp	x6, x7,   [sp], #16
-	ldp	x4, x5,   [sp], #16
-	ldp	x2, x3,   [sp], #16
-	ldp	x0, x1,   [sp], #16
-.endm
 
 	.text
 	.pushsection	.hyp.text, "ax"
@@ -55,6 +42,18 @@
 	blr	lr
 	ldr	lr, [sp], #16
 .endm
+
+ENTRY(__vhe_hyp_call)
+	do_el2_call
+	/*
+	 * We used to rely on having an exception return to get
+	 * an implicit isb. In the E2H case, we don't have it anymore.
+	 * rather than changing all the leaf functions, just do it here
+	 * before returning to the rest of the kernel.
+	 */
+	isb
+	ret
+ENDPROC(__vhe_hyp_call)
 
 el1_sync:				// Guest trapped into EL2
 
@@ -97,7 +96,6 @@ el1_sync:				// Guest trapped into EL2
 	do_el2_call
 
 	eret
-	sb
 
 el1_hvc_guest:
 	/*
@@ -113,7 +111,7 @@ el1_hvc_guest:
 	/* ARM_SMCCC_ARCH_WORKAROUND_2 handling */
 	eor	w1, w1, #(ARM_SMCCC_ARCH_WORKAROUND_1 ^ \
 			  ARM_SMCCC_ARCH_WORKAROUND_2)
-		cbz	w1, wa_epilogue
+	cbz	w1, wa_epilogue
 
 	eor	w1, w1, #(ARM_SMCCC_ARCH_WORKAROUND_2 ^ \
 			  ARM_SMCCC_ARCH_WORKAROUND_3)
@@ -152,7 +150,6 @@ wa_epilogue:
 	mov	x0, xzr
 	add	sp, sp, #16
 	eret
-	sb
 
 el1_trap:
 	get_vcpu_ptr	x1, x0
@@ -169,37 +166,29 @@ el1_error:
 	mov	x0, #ARM_EXCEPTION_EL1_SERROR
 	b	__guest_exit
 
-el2_sync:
-	/* Check for illegal exception return */
-	mrs	x0, spsr_el2
-	tbnz	x0, #20, 1f
-
-	save_caller_saved_regs_vect
-	stp     x29, x30, [sp, #-16]!
-	bl	kvm_unexpected_el2_exception
-	ldp     x29, x30, [sp], #16
-	restore_caller_saved_regs_vect
-
-	eret
-
-1:
-	/* Let's attempt a recovery from the illegal exception return */
-	get_vcpu_ptr	x1, x0
-	mov	x0, #ARM_EXCEPTION_IL
-	b	__guest_exit
-
-
 el2_error:
-	save_caller_saved_regs_vect
-	stp     x29, x30, [sp, #-16]!
+	ldp	x0, x1, [sp], #16
 
-	bl	kvm_unexpected_el2_exception
-
-	ldp     x29, x30, [sp], #16
-	restore_caller_saved_regs_vect
-
+	/*
+	 * Only two possibilities:
+	 * 1) Either we come from the exit path, having just unmasked
+	 *    PSTATE.A: change the return code to an EL2 fault, and
+	 *    carry on, as we're already in a sane state to handle it.
+	 * 2) Or we come from anywhere else, and that's a bug: we panic.
+	 *
+	 * For (1), x0 contains the original return code and x1 doesn't
+	 * contain anything meaningful at that stage. We can reuse them
+	 * as temp registers.
+	 * For (2), who cares?
+	 */
+	mrs	x0, elr_el2
+	adr	x1, abort_guest_exit_start
+	cmp	x0, x1
+	adr	x1, abort_guest_exit_end
+	ccmp	x0, x1, #4, ne
+	b.ne	__hyp_panic
+	mov	x0, #(1 << ARM_EXIT_WITH_SERROR_BIT)
 	eret
-	sb
 
 ENTRY(__hyp_do_panic)
 	mov	lr, #(PSR_F_BIT | PSR_I_BIT | PSR_A_BIT | PSR_D_BIT |\
@@ -208,7 +197,6 @@ ENTRY(__hyp_do_panic)
 	ldr	lr, =panic
 	msr	elr_el2, lr
 	eret
-	sb
 ENDPROC(__hyp_do_panic)
 
 ENTRY(__hyp_panic)
@@ -237,34 +225,17 @@ ENDPROC(\label)
 
 	.align 11
 
-.macro check_preamble_length start, end
-/* kvm_patch_vector_branch() generates code that jumps over the preamble. */
-.if ((\end-\start) != KVM_VECTOR_PREAMBLE)
-	.error "KVM vector preamble length mismatch"
-.endif
-.endm
-
 .macro valid_vect target
 	.align 7
-661:
-	esb
 	stp	x0, x1, [sp, #-16]!
-662:
 	b	\target
-
-check_preamble_length 661b, 662b
 .endm
 
 .macro invalid_vect target
 	.align 7
-661:
 	b	\target
-	nop
-662:
 	ldp	x0, x1, [sp], #16
 	b	\target
-
-check_preamble_length 661b, 662b
 .endm
 
 ENTRY(__kvm_hyp_vector)
@@ -273,7 +244,7 @@ ENTRY(__kvm_hyp_vector)
 	invalid_vect	el2t_fiq_invalid	// FIQ EL2t
 	invalid_vect	el2t_error_invalid	// Error EL2t
 
-	valid_vect	el2_sync		// Synchronous EL2h
+	invalid_vect	el2h_sync_invalid	// Synchronous EL2h
 	invalid_vect	el2h_irq_invalid	// IRQ EL2h
 	invalid_vect	el2h_fiq_invalid	// FIQ EL2h
 	valid_vect	el2_error		// Error EL2h
@@ -292,14 +263,13 @@ ENDPROC(__kvm_hyp_vector)
 #ifdef CONFIG_KVM_INDIRECT_VECTORS
 .macro hyp_ventry
 	.align 7
-1:	esb
-	.rept 26
+1:	.rept 27
 	nop
 	.endr
 /*
  * The default sequence is to directly branch to the KVM vectors,
  * using the computed offset. This applies for VHE as well as
- * !ARM64_HARDEN_EL2_VECTORS. The first vector must always run the preamble.
+ * !ARM64_HARDEN_EL2_VECTORS.
  *
  * For ARM64_HARDEN_EL2_VECTORS configurations, this gets replaced
  * with:
@@ -310,13 +280,12 @@ ENDPROC(__kvm_hyp_vector)
  * movk	x0, #((addr >> 32) & 0xffff), lsl #32
  * br	x0
  *
- * Where:
- * addr = kern_hyp_va(__kvm_hyp_vector) + vector-offset + KVM_VECTOR_PREAMBLE.
+ * Where addr = kern_hyp_va(__kvm_hyp_vector) + vector-offset + 4.
  * See kvm_patch_vector_branch for details.
  */
 alternative_cb	kvm_patch_vector_branch
-	stp	x0, x1, [sp, #-16]!
-	b	__kvm_hyp_vector + (1b - 0b + KVM_VECTOR_PREAMBLE)
+	b	__kvm_hyp_vector + (1b - 0b)
+	nop
 	nop
 	nop
 	nop
@@ -341,7 +310,6 @@ ENTRY(__bp_harden_hyp_vecs_end)
 	.popsection
 
 ENTRY(__smccc_workaround_1_smc_start)
-	esb
 	sub	sp, sp, #(8 * 4)
 	stp	x2, x3, [sp, #(8 * 0)]
 	stp	x0, x1, [sp, #(8 * 2)]

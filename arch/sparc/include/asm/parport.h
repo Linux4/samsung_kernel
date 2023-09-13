@@ -117,7 +117,7 @@ static int ecpp_probe(struct platform_device *op)
 	int slot, err;
 
 	parent = op->dev.of_node->parent;
-	if (of_node_name_eq(parent, "dma")) {
+	if (!strcmp(parent->name, "dma")) {
 		p = parport_pc_probe_port(base, base + 0x400,
 					  op->archdata.irqs[0], PARPORT_DMA_NOFIFO,
 					  op->dev.parent->parent, 0);

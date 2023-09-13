@@ -1,8 +1,16 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * VMware VMCI Driver
  *
  * Copyright (C) 2012 VMware, Inc. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the
+ * Free Software Foundation version 2 and no later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
  */
 
 #include <linux/vmw_vmci_defs.h>
@@ -55,13 +63,6 @@ struct vmci_guest_device {
 	void *notification_bitmap;
 	dma_addr_t notification_base;
 };
-
-static bool use_ppn64;
-
-bool vmci_use_ppn64(void)
-{
-	return use_ppn64;
-}
 
 /* vmci_dev singleton device and supporting data*/
 struct pci_dev *vmci_pdev;
@@ -168,7 +169,7 @@ static int vmci_check_host_caps(struct pci_dev *pdev)
 				VMCI_UTIL_NUM_RESOURCES * sizeof(u32);
 	struct vmci_datagram *check_msg;
 
-	check_msg = kzalloc(msg_size, GFP_KERNEL);
+	check_msg = kmalloc(msg_size, GFP_KERNEL);
 	if (!check_msg) {
 		dev_err(&pdev->dev, "%s: Insufficient memory\n", __func__);
 		return -ENOMEM;
@@ -431,7 +432,6 @@ static int vmci_guest_probe_device(struct pci_dev *pdev,
 	struct vmci_guest_device *vmci_dev;
 	void __iomem *iobase;
 	unsigned int capabilities;
-	unsigned int caps_in_use;
 	unsigned long cmd;
 	int vmci_err;
 	int error;
@@ -496,23 +496,6 @@ static int vmci_guest_probe_device(struct pci_dev *pdev,
 		error = -ENXIO;
 		goto err_free_data_buffer;
 	}
-	caps_in_use = VMCI_CAPS_DATAGRAM;
-
-	/*
-	 * Use 64-bit PPNs if the device supports.
-	 *
-	 * There is no check for the return value of dma_set_mask_and_coherent
-	 * since this driver can handle the default mask values if
-	 * dma_set_mask_and_coherent fails.
-	 */
-	if (capabilities & VMCI_CAPS_PPN64) {
-		dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
-		use_ppn64 = true;
-		caps_in_use |= VMCI_CAPS_PPN64;
-	} else {
-		dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(44));
-		use_ppn64 = false;
-	}
 
 	/*
 	 * If the hardware supports notifications, we will use that as
@@ -527,14 +510,14 @@ static int vmci_guest_probe_device(struct pci_dev *pdev,
 				 "Unable to allocate notification bitmap\n");
 		} else {
 			memset(vmci_dev->notification_bitmap, 0, PAGE_SIZE);
-			caps_in_use |= VMCI_CAPS_NOTIFICATIONS;
+			capabilities |= VMCI_CAPS_NOTIFICATIONS;
 		}
 	}
 
-	dev_info(&pdev->dev, "Using capabilities 0x%x\n", caps_in_use);
+	dev_info(&pdev->dev, "Using capabilities 0x%x\n", capabilities);
 
 	/* Let the host know which capabilities we intend to use. */
-	iowrite32(caps_in_use, vmci_dev->iobase + VMCI_CAPS_ADDR);
+	iowrite32(capabilities, vmci_dev->iobase + VMCI_CAPS_ADDR);
 
 	/* Set up global device so that we can start sending datagrams */
 	spin_lock_irq(&vmci_dev_spinlock);
@@ -546,13 +529,13 @@ static int vmci_guest_probe_device(struct pci_dev *pdev,
 	 * Register notification bitmap with device if that capability is
 	 * used.
 	 */
-	if (caps_in_use & VMCI_CAPS_NOTIFICATIONS) {
+	if (capabilities & VMCI_CAPS_NOTIFICATIONS) {
 		unsigned long bitmap_ppn =
 			vmci_dev->notification_base >> PAGE_SHIFT;
 		if (!vmci_dbell_register_notification_bitmap(bitmap_ppn)) {
 			dev_warn(&pdev->dev,
-				 "VMCI device unable to register notification bitmap with PPN 0x%lx\n",
-				 bitmap_ppn);
+				 "VMCI device unable to register notification bitmap with PPN 0x%x\n",
+				 (u32) bitmap_ppn);
 			error = -ENXIO;
 			goto err_remove_vmci_dev_g;
 		}
@@ -628,7 +611,7 @@ static int vmci_guest_probe_device(struct pci_dev *pdev,
 
 	/* Enable specific interrupt bits. */
 	cmd = VMCI_IMR_DATAGRAM;
-	if (caps_in_use & VMCI_CAPS_NOTIFICATIONS)
+	if (capabilities & VMCI_CAPS_NOTIFICATIONS)
 		cmd |= VMCI_IMR_NOTIFICATION;
 	iowrite32(cmd, vmci_dev->iobase + VMCI_IMR_ADDR);
 

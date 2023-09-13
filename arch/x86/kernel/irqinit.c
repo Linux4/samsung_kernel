@@ -91,8 +91,6 @@ void __init init_IRQ(void)
 	for (i = 0; i < nr_legacy_irqs(); i++)
 		per_cpu(vector_irq, 0)[ISA_IRQ_VECTOR(i)] = irq_to_desc(i);
 
-	BUG_ON(irq_init_percpu_irqstack(smp_processor_id()));
-
 	x86_init.irqs.intr_init();
 }
 
@@ -106,4 +104,6 @@ void __init native_init_IRQ(void)
 
 	if (!acpi_ioapic && !of_ioapic && nr_legacy_irqs())
 		setup_irq(2, &irq2);
+
+	irq_ctx_init(smp_processor_id());
 }

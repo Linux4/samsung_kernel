@@ -108,6 +108,7 @@ static void s626_mc_enable(struct comedi_device *dev,
 {
 	unsigned int val = (cmd << 16) | cmd;
 
+	mmiowb();
 	writel(val, dev->mmio + reg);
 }
 
@@ -115,6 +116,7 @@ static void s626_mc_disable(struct comedi_device *dev,
 			    unsigned int cmd, unsigned int reg)
 {
 	writel(cmd << 16, dev->mmio + reg);
+	mmiowb();
 }
 
 static bool s626_mc_test(struct comedi_device *dev,

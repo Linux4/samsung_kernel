@@ -1,10 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * AMD ACPI support for ACPI2platform device.
  *
  * Copyright (c) 2014,2015 AMD Corporation.
  * Authors: Ken Xue <Ken.Xue@amd.com>
  *	Wu, Jeff <Jeff.Wu@amd.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/clk-provider.h>
@@ -14,7 +17,6 @@
 #include <linux/clkdev.h>
 #include <linux/acpi.h>
 #include <linux/err.h>
-#include <linux/io.h>
 #include <linux/pm.h>
 
 #include "internal.h"
@@ -57,7 +59,7 @@ struct apd_private_data {
 static int acpi_apd_setup(struct apd_private_data *pdata)
 {
 	const struct apd_device_desc *dev_desc = pdata->dev_desc;
-	struct clk *clk;
+	struct clk *clk = ERR_PTR(-ENODEV);
 
 	if (dev_desc->fixed_clk_rate) {
 		clk = clk_register_fixed_rate(&pdata->adev->dev,
@@ -160,20 +162,9 @@ static const struct apd_device_desc hip08_i2c_desc = {
 	.setup = acpi_apd_setup,
 	.fixed_clk_rate = 250000000,
 };
-
 static const struct apd_device_desc thunderx2_i2c_desc = {
 	.setup = acpi_apd_setup,
 	.fixed_clk_rate = 125000000,
-};
-
-static const struct apd_device_desc nxp_i2c_desc = {
-	.setup = acpi_apd_setup,
-	.fixed_clk_rate = 350000000,
-};
-
-static const struct apd_device_desc hip08_spi_desc = {
-	.setup = acpi_apd_setup,
-	.fixed_clk_rate = 250000000,
 };
 #endif
 
@@ -243,8 +234,6 @@ static const struct acpi_device_id acpi_apd_device_ids[] = {
 	{ "CAV9007",  APD_ADDR(thunderx2_i2c_desc) },
 	{ "HISI02A1", APD_ADDR(hip07_i2c_desc) },
 	{ "HISI02A2", APD_ADDR(hip08_i2c_desc) },
-	{ "HISI0173", APD_ADDR(hip08_spi_desc) },
-	{ "NXP0001", APD_ADDR(nxp_i2c_desc) },
 #endif
 	{ }
 };

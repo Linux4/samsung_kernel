@@ -6,7 +6,8 @@
 #include <linux/atomic.h>
 #include <linux/refcount.h>
 #include <linux/ratelimit.h>
-#include <linux/android_kabi.h>
+
+struct key;
 
 /*
  * Some day this will be a full-fledged user tracking system..
@@ -29,20 +30,22 @@ struct user_struct {
 	unsigned long unix_inflight;	/* How many files in flight in unix sockets */
 	atomic_long_t pipe_bufs;  /* how many pages are allocated in pipe buffers */
 
+#ifdef CONFIG_KEYS
+	struct key *uid_keyring;	/* UID specific keyring */
+	struct key *session_keyring;	/* UID's default session keyring */
+#endif
+
 	/* Hash table maintenance information */
 	struct hlist_node uidhash_node;
 	kuid_t uid;
 
 #if defined(CONFIG_PERF_EVENTS) || defined(CONFIG_BPF_SYSCALL) || \
-    defined(CONFIG_NET) || defined(CONFIG_IO_URING)
+    defined(CONFIG_NET)
 	atomic_long_t locked_vm;
 #endif
 
 	/* Miscellaneous per-user rate limit */
 	struct ratelimit_state ratelimit;
-
-	ANDROID_KABI_RESERVE(1);
-	ANDROID_KABI_RESERVE(2);
 };
 
 extern int uids_sysfs_init(void);

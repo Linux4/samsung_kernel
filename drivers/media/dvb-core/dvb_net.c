@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * dvb_net.c
  *
@@ -14,6 +13,18 @@
  *                      and Wolfram Stering <wstering@cosy.sbg.ac.at>
  *
  * ULE Decaps according to RFC 4326.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * To obtain the license, point your browser to
+ * http://www.gnu.org/copyleft/gpl.html
  */
 
 /*
@@ -45,7 +56,6 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/netdevice.h>
-#include <linux/nospec.h>
 #include <linux/etherdevice.h>
 #include <linux/dvb/net.h>
 #include <linux/uio.h>
@@ -1463,20 +1473,14 @@ static int dvb_net_do_ioctl(struct file *file,
 		struct net_device *netdev;
 		struct dvb_net_priv *priv_data;
 		struct dvb_net_if *dvbnetif = parg;
-		int if_num = dvbnetif->if_num;
 
-		if (if_num >= DVB_NET_DEVICES_MAX) {
-			ret = -EINVAL;
-			goto ioctl_error;
-		}
-		if_num = array_index_nospec(if_num, DVB_NET_DEVICES_MAX);
-
-		if (!dvbnet->state[if_num]) {
+		if (dvbnetif->if_num >= DVB_NET_DEVICES_MAX ||
+		    !dvbnet->state[dvbnetif->if_num]) {
 			ret = -EINVAL;
 			goto ioctl_error;
 		}
 
-		netdev = dvbnet->device[if_num];
+		netdev = dvbnet->device[dvbnetif->if_num];
 
 		priv_data = netdev_priv(netdev);
 		dvbnetif->pid=priv_data->pid;
@@ -1529,20 +1533,14 @@ static int dvb_net_do_ioctl(struct file *file,
 		struct net_device *netdev;
 		struct dvb_net_priv *priv_data;
 		struct __dvb_net_if_old *dvbnetif = parg;
-		int if_num = dvbnetif->if_num;
 
-		if (if_num >= DVB_NET_DEVICES_MAX) {
-			ret = -EINVAL;
-			goto ioctl_error;
-		}
-		if_num = array_index_nospec(if_num, DVB_NET_DEVICES_MAX);
-
-		if (!dvbnet->state[if_num]) {
+		if (dvbnetif->if_num >= DVB_NET_DEVICES_MAX ||
+		    !dvbnet->state[dvbnetif->if_num]) {
 			ret = -EINVAL;
 			goto ioctl_error;
 		}
 
-		netdev = dvbnet->device[if_num];
+		netdev = dvbnet->device[dvbnetif->if_num];
 
 		priv_data = netdev_priv(netdev);
 		dvbnetif->pid=priv_data->pid;

@@ -1,8 +1,12 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Credentials management - see Documentation/security/credentials.rst
  *
  * Copyright (C) 2008 Red Hat, Inc. All Rights Reserved.
  * Written by David Howells (dhowells@redhat.com)
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public Licence
+ * as published by the Free Software Foundation; either version
+ * 2 of the Licence, or (at your option) any later version.
  */
 
 #ifndef _LINUX_CRED_H
@@ -11,14 +15,11 @@
 #include <linux/capability.h>
 #include <linux/init.h>
 #include <linux/key.h>
+#include <linux/selinux.h>
 #include <linux/atomic.h>
 #include <linux/uidgid.h>
 #include <linux/sched.h>
 #include <linux/sched/user.h>
-
-#ifdef CONFIG_KDP
-#include <linux/kdp.h>
-#endif
 
 struct cred;
 struct inode;
@@ -138,7 +139,7 @@ struct cred {
 #ifdef CONFIG_KEYS
 	unsigned char	jit_keyring;	/* default keyring to attach requested
 					 * keys to */
-	struct key	*session_keyring; /* keyring inherited over fork */
+	struct key __rcu *session_keyring; /* keyring inherited over fork */
 	struct key	*process_keyring; /* keyring private to this process */
 	struct key	*thread_keyring; /* keyring private to this thread */
 	struct key	*request_key_auth; /* assumed request_key authority */
@@ -156,16 +157,6 @@ struct cred {
 	};
 } __randomize_layout;
 
-#ifdef CONFIG_KDP
-struct cred_kdp {
-	struct cred cred;
-	atomic_t *use_cnt;
-	struct task_struct *bp_task;
-	void *bp_pgd;
-	unsigned long long type;
-};
-#endif
-
 extern void __put_cred(struct cred *);
 extern void exit_creds(struct task_struct *);
 extern int copy_creds(struct task_struct *, unsigned long);
@@ -182,7 +173,6 @@ extern int change_create_files_as(struct cred *, struct inode *);
 extern int set_security_override(struct cred *, u32);
 extern int set_security_override_from_ctx(struct cred *, const char *);
 extern int set_create_files_as(struct cred *, struct inode *);
-extern int cred_fscmp(const struct cred *, const struct cred *);
 extern void __init cred_init(void);
 
 /*
@@ -239,20 +229,18 @@ static inline bool cap_ambient_invariant_ok(const struct cred *cred)
  * Get a reference on the specified set of new credentials.  The caller must
  * release the reference.
  */
-#ifndef CONFIG_KDP_CRED
 static inline struct cred *get_new_cred(struct cred *cred)
 {
 	atomic_inc(&cred->usage);
 	return cred;
 }
-#endif
 
 /**
  * get_cred - Get a reference on a set of credentials
  * @cred: The credentials to reference
  *
  * Get a reference on the specified set of credentials.  The caller must
- * release the reference.  If %NULL is passed, it is returned with no action.
+ * release the reference.
  *
  * This is used to deal with a committed set of credentials.  Although the
  * pointer is const, this will temporarily discard the const and increment the
@@ -263,43 +251,9 @@ static inline struct cred *get_new_cred(struct cred *cred)
 static inline const struct cred *get_cred(const struct cred *cred)
 {
 	struct cred *nonconst_cred = (struct cred *) cred;
-	if (!cred)
-		return cred;
 	validate_creds(cred);
-#ifdef CONFIG_KDP_CRED
-	if (is_kdp_protect_addr((unsigned long)nonconst_cred))
-		GET_ROCRED_RCU(nonconst_cred)->non_rcu = 0;
-	else
-#endif
 	nonconst_cred->non_rcu = 0;
 	return get_new_cred(nonconst_cred);
-}
-
-static inline const struct cred *get_cred_rcu(const struct cred *cred)
-{
-	struct cred *nonconst_cred = (struct cred *) cred;
-	if (!cred)
-		return NULL;
-#ifdef CONFIG_KDP_CRED
-	if (nonconst_cred == &init_cred) {
-		if (!atomic_inc_not_zero(init_cred_kdp.use_cnt))
-			return NULL;
-	} else {
-		if (!atomic_inc_not_zero(((struct cred_kdp *)nonconst_cred)->use_cnt))
-			return NULL;
-	}
-#else
-	if (!atomic_inc_not_zero(&nonconst_cred->usage))
-		return NULL;
-#endif
-	validate_creds(cred);
-#ifdef CONFIG_KDP_CRED
-	if (is_kdp_protect_addr((unsigned long)nonconst_cred))
-		GET_ROCRED_RCU(nonconst_cred)->non_rcu = 0;
-	else
-#endif
-	nonconst_cred->non_rcu = 0;
-	return cred;
 }
 
 /**
@@ -307,24 +261,20 @@ static inline const struct cred *get_cred_rcu(const struct cred *cred)
  * @cred: The credentials to release
  *
  * Release a reference to a set of credentials, deleting them when the last ref
- * is released.  If %NULL is passed, nothing is done.
+ * is released.
  *
  * This takes a const pointer to a set of credentials because the credentials
  * on task_struct are attached by const pointers to prevent accidental
  * alteration of otherwise immutable credential sets.
  */
-#ifndef CONFIG_KDP_CRED
 static inline void put_cred(const struct cred *_cred)
 {
 	struct cred *cred = (struct cred *) _cred;
 
-	if (cred) {
-		validate_creds(cred);
-		if (atomic_dec_and_test(&(cred)->usage))
-			__put_cred(cred);
-	}
+	validate_creds(cred);
+	if (atomic_dec_and_test(&(cred)->usage))
+		__put_cred(cred);
 }
-#endif
 
 /**
  * current_cred - Access the current task's subjective credentials
@@ -424,6 +374,7 @@ static inline void put_cred(const struct cred *_cred)
 #define current_fsgid() 	(current_cred_xxx(fsgid))
 #define current_cap()		(current_cred_xxx(cap_effective))
 #define current_user()		(current_cred_xxx(user))
+#define current_security()	(current_cred_xxx(security))
 
 extern struct user_namespace init_user_ns;
 #ifdef CONFIG_USER_NS

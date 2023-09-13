@@ -106,8 +106,12 @@ void usb_serial_generic_deregister(void)
 int usb_serial_generic_open(struct tty_struct *tty, struct usb_serial_port *port)
 {
 	int result = 0;
+	unsigned long flags;
 
-	clear_bit(USB_SERIAL_THROTTLED, &port->flags);
+	spin_lock_irqsave(&port->lock, flags);
+	port->throttled = 0;
+	port->throttle_req = 0;
+	spin_unlock_irqrestore(&port->lock, flags);
 
 	if (port->bulk_in_size)
 		result = usb_serial_generic_submit_read_urbs(port, GFP_KERNEL);
@@ -371,6 +375,7 @@ void usb_serial_generic_read_bulk_callback(struct urb *urb)
 {
 	struct usb_serial_port *port = urb->context;
 	unsigned char *data = urb->transfer_buffer;
+	unsigned long flags;
 	bool stopped = false;
 	int status = urb->status;
 	int i;
@@ -424,10 +429,15 @@ void usb_serial_generic_read_bulk_callback(struct urb *urb)
 	if (stopped)
 		return;
 
-	if (test_bit(USB_SERIAL_THROTTLED, &port->flags))
-		return;
-
-	usb_serial_generic_submit_read_urb(port, i, GFP_ATOMIC);
+	/* Throttle the device if requested by tty */
+	spin_lock_irqsave(&port->lock, flags);
+	port->throttled = port->throttle_req;
+	if (!port->throttled) {
+		spin_unlock_irqrestore(&port->lock, flags);
+		usb_serial_generic_submit_read_urb(port, i, GFP_ATOMIC);
+	} else {
+		spin_unlock_irqrestore(&port->lock, flags);
+	}
 }
 EXPORT_SYMBOL_GPL(usb_serial_generic_read_bulk_callback);
 
@@ -463,9 +473,10 @@ void usb_serial_generic_write_bulk_callback(struct urb *urb)
 	default:
 		dev_err_console(port, "%s - nonzero urb status: %d\n",
 							__func__, status);
-		break;
+		goto resubmit;
 	}
 
+resubmit:
 	usb_serial_generic_write_start(port, GFP_ATOMIC);
 	usb_serial_port_softint(port);
 }
@@ -474,16 +485,23 @@ EXPORT_SYMBOL_GPL(usb_serial_generic_write_bulk_callback);
 void usb_serial_generic_throttle(struct tty_struct *tty)
 {
 	struct usb_serial_port *port = tty->driver_data;
+	unsigned long flags;
 
-	set_bit(USB_SERIAL_THROTTLED, &port->flags);
+	spin_lock_irqsave(&port->lock, flags);
+	port->throttle_req = 1;
+	spin_unlock_irqrestore(&port->lock, flags);
 }
 EXPORT_SYMBOL_GPL(usb_serial_generic_throttle);
 
 void usb_serial_generic_unthrottle(struct tty_struct *tty)
 {
 	struct usb_serial_port *port = tty->driver_data;
+	int was_throttled;
 
-	clear_bit(USB_SERIAL_THROTTLED, &port->flags);
+	spin_lock_irq(&port->lock);
+	was_throttled = port->throttled;
+	port->throttled = port->throttle_req = 0;
+	spin_unlock_irq(&port->lock);
 
 	/*
 	 * Matches the smp_mb__after_atomic() in
@@ -491,7 +509,8 @@ void usb_serial_generic_unthrottle(struct tty_struct *tty)
 	 */
 	smp_mb();
 
-	usb_serial_generic_submit_read_urbs(port, GFP_KERNEL);
+	if (was_throttled)
+		usb_serial_generic_submit_read_urbs(port, GFP_KERNEL);
 }
 EXPORT_SYMBOL_GPL(usb_serial_generic_unthrottle);
 

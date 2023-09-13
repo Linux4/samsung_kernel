@@ -1,9 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /* The industrial I/O core
  *
  * Copyright (c) 2008 Jonathan Cameron
  *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ *
  * Handling of buffer allocation / resizing.
+ *
  *
  * Things to look at here.
  * - Better memory allocation techniques?
@@ -339,12 +343,12 @@ static int iio_scan_mask_set(struct iio_dev *indio_dev,
 	}
 	bitmap_copy(buffer->scan_mask, trialmask, indio_dev->masklength);
 
-	bitmap_free(trialmask);
+	kfree(trialmask);
 
 	return 0;
 
 err_invalid_mask:
-	bitmap_free(trialmask);
+	kfree(trialmask);
 	return -EINVAL;
 }
 
@@ -665,7 +669,7 @@ static void iio_free_scan_mask(struct iio_dev *indio_dev,
 {
 	/* If the mask is dynamically allocated free it, otherwise do nothing */
 	if (!indio_dev->available_scan_masks)
-		bitmap_free(mask);
+		kfree(mask);
 }
 
 struct iio_device_config {
@@ -735,7 +739,8 @@ static int iio_verify_update(struct iio_dev *indio_dev,
 	}
 
 	/* What scan mask do we actually have? */
-	compound_mask = bitmap_zalloc(indio_dev->masklength, GFP_KERNEL);
+	compound_mask = kcalloc(BITS_TO_LONGS(indio_dev->masklength),
+				sizeof(long), GFP_KERNEL);
 	if (compound_mask == NULL)
 		return -ENOMEM;
 
@@ -760,7 +765,7 @@ static int iio_verify_update(struct iio_dev *indio_dev,
 				    indio_dev->masklength,
 				    compound_mask,
 				    strict_scanmask);
-		bitmap_free(compound_mask);
+		kfree(compound_mask);
 		if (scan_mask == NULL)
 			return -EINVAL;
 	} else {
@@ -845,12 +850,12 @@ static int iio_buffer_update_demux(struct iio_dev *indio_dev,
 				       indio_dev->masklength,
 				       in_ind + 1);
 		while (in_ind != out_ind) {
-			length = iio_storage_bytes_for_si(indio_dev, in_ind);
-			/* Make sure we are aligned */
-			in_loc = roundup(in_loc, length) + length;
 			in_ind = find_next_bit(indio_dev->active_scan_mask,
 					       indio_dev->masklength,
 					       in_ind + 1);
+			length = iio_storage_bytes_for_si(indio_dev, in_ind);
+			/* Make sure we are aligned */
+			in_loc = roundup(in_loc, length) + length;
 		}
 		length = iio_storage_bytes_for_si(indio_dev, in_ind);
 		out_loc = roundup(out_loc, length);
@@ -1301,8 +1306,9 @@ int iio_buffer_alloc_sysfs_and_mask(struct iio_dev *indio_dev)
 					channels[i].scan_index;
 		}
 		if (indio_dev->masklength && buffer->scan_mask == NULL) {
-			buffer->scan_mask = bitmap_zalloc(indio_dev->masklength,
-							  GFP_KERNEL);
+			buffer->scan_mask = kcalloc(BITS_TO_LONGS(indio_dev->masklength),
+						    sizeof(*buffer->scan_mask),
+						    GFP_KERNEL);
 			if (buffer->scan_mask == NULL) {
 				ret = -ENOMEM;
 				goto error_cleanup_dynamic;
@@ -1331,7 +1337,7 @@ int iio_buffer_alloc_sysfs_and_mask(struct iio_dev *indio_dev)
 	return 0;
 
 error_free_scan_mask:
-	bitmap_free(buffer->scan_mask);
+	kfree(buffer->scan_mask);
 error_cleanup_dynamic:
 	iio_free_chan_devattr_list(&buffer->scan_el_dev_attr_list);
 	kfree(indio_dev->buffer->buffer_group.attrs);
@@ -1344,7 +1350,7 @@ void iio_buffer_free_sysfs_and_mask(struct iio_dev *indio_dev)
 	if (!indio_dev->buffer)
 		return;
 
-	bitmap_free(indio_dev->buffer->scan_mask);
+	kfree(indio_dev->buffer->scan_mask);
 	kfree(indio_dev->buffer->buffer_group.attrs);
 	kfree(indio_dev->buffer->scan_el_group.attrs);
 	iio_free_chan_devattr_list(&indio_dev->buffer->scan_el_dev_attr_list);

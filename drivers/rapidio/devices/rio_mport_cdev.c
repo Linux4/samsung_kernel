@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * RapidIO mport character device
  *
@@ -9,6 +8,11 @@
  *    Jerry Jacobs <jerry.jacobs@prodrive-technologies.com>
  * Copyright (C) 2014 Texas Instruments Incorporated
  *    Aurelien Jacquiot <a-jacquiot@ti.com>
+ *
+ * This program is free software; you can redistribute  it and/or modify it
+ * under  the terms of  the GNU General  Public License as published by the
+ * Free Software Foundation;  either version 2 of the  License, or (at your
+ * option) any later version.
  */
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -864,25 +868,22 @@ rio_dma_transfer(struct file *filp, u32 transfer_mode,
 
 		pinned = get_user_pages_fast(
 				(unsigned long)xfer->loc_addr & PAGE_MASK,
-				nr_pages,
-				dir == DMA_FROM_DEVICE ? FOLL_WRITE : 0,
-				page_list);
+				nr_pages, dir == DMA_FROM_DEVICE, page_list);
 
 		if (pinned != nr_pages) {
 			if (pinned < 0) {
 				rmcd_error("get_user_pages_unlocked err=%ld",
 					   pinned);
 				nr_pages = 0;
-			} else {
+			} else
 				rmcd_error("pinned %ld out of %ld pages",
 					   pinned, nr_pages);
-				/*
-				 * Set nr_pages up to mean "how many pages to unpin, in
-				 * the error handler:
-				 */
-				nr_pages = pinned;
-			}
 			ret = -EFAULT;
+			/*
+			 * Set nr_pages up to mean "how many pages to unpin, in
+			 * the error handler:
+			 */
+			nr_pages = pinned;
 			goto err_pg;
 		}
 
@@ -1683,7 +1684,6 @@ static int rio_mport_add_riodev(struct mport_cdev_priv *priv,
 	struct rio_dev *rdev;
 	struct rio_switch *rswitch = NULL;
 	struct rio_mport *mport;
-	struct device *dev;
 	size_t size;
 	u32 rval;
 	u32 swpinfo = 0;
@@ -1698,10 +1698,8 @@ static int rio_mport_add_riodev(struct mport_cdev_priv *priv,
 	rmcd_debug(RDEV, "name:%s ct:0x%x did:0x%x hc:0x%x", dev_info.name,
 		   dev_info.comptag, dev_info.destid, dev_info.hopcount);
 
-	dev = bus_find_device_by_name(&rio_bus_type, NULL, dev_info.name);
-	if (dev) {
+	if (bus_find_device_by_name(&rio_bus_type, NULL, dev_info.name)) {
 		rmcd_debug(RDEV, "device %s already exists", dev_info.name);
-		put_device(dev);
 		return -EEXIST;
 	}
 
@@ -2158,7 +2156,6 @@ static void mport_release_mapping(struct kref *ref)
 	switch (map->dir) {
 	case MAP_INBOUND:
 		rio_unmap_inb_region(mport, map->phys_addr);
-		/* fall through */
 	case MAP_DMA:
 		dma_free_coherent(mport->dev.parent, map->size,
 				  map->virt_addr, map->phys_addr);
@@ -2388,6 +2385,13 @@ static struct mport_dev *mport_cdev_add(struct rio_mport *mport)
 	cdev_init(&md->cdev, &mport_fops);
 	md->cdev.owner = THIS_MODULE;
 
+	ret = cdev_device_add(&md->cdev, &md->dev);
+	if (ret) {
+		rmcd_error("Failed to register mport %d (err=%d)",
+		       mport->id, ret);
+		goto err_cdev;
+	}
+
 	INIT_LIST_HEAD(&md->doorbells);
 	spin_lock_init(&md->db_lock);
 	INIT_LIST_HEAD(&md->portwrites);
@@ -2407,13 +2411,6 @@ static struct mport_dev *mport_cdev_add(struct rio_mport *mport)
 #else
 	md->properties.transfer_mode |= RIO_TRANSFER_MODE_TRANSFER;
 #endif
-
-	ret = cdev_device_add(&md->cdev, &md->dev);
-	if (ret) {
-		rmcd_error("Failed to register mport %d (err=%d)",
-		       mport->id, ret);
-		goto err_cdev;
-	}
 	ret = rio_query_mport(mport, &attr);
 	if (!ret) {
 		md->properties.flags = attr.flags;

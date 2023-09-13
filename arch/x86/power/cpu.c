@@ -1,6 +1,7 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Suspend support specific for i386/x86-64.
+ *
+ * Distribute under GPLv2
  *
  * Copyright (c) 2007 Rafael J. Wysocki <rjw@sisk.pl>
  * Copyright (c) 2002 Pavel Machek <pavel@ucw.cz>
@@ -25,7 +26,6 @@
 #include <asm/cpu.h>
 #include <asm/mmu_context.h>
 #include <asm/cpu_device_id.h>
-#include <asm/microcode.h>
 
 #ifdef CONFIG_X86_32
 __visible unsigned long saved_context_ebx;
@@ -41,8 +41,7 @@ static void msr_save_context(struct saved_context *ctxt)
 	struct saved_msr *end = msr + ctxt->saved_msrs.num;
 
 	while (msr < end) {
-		if (msr->valid)
-			rdmsrl(msr->info.msr_no, msr->info.reg.q);
+		msr->valid = !rdmsrl_safe(msr->info.msr_no, &msr->info.reg.q);
 		msr++;
 	}
 }
@@ -125,6 +124,9 @@ static void __save_processor_state(struct saved_context *ctxt)
 	ctxt->cr2 = read_cr2();
 	ctxt->cr3 = __read_cr3();
 	ctxt->cr4 = __read_cr4();
+#ifdef CONFIG_X86_64
+	ctxt->cr8 = read_cr8();
+#endif
 	ctxt->misc_enable_saved = !rdmsrl_safe(MSR_IA32_MISC_ENABLE,
 					       &ctxt->misc_enable);
 	msr_save_context(ctxt);
@@ -207,6 +209,7 @@ static void notrace __restore_processor_state(struct saved_context *ctxt)
 #else
 /* CONFIG X86_64 */
 	wrmsrl(MSR_EFER, ctxt->efer);
+	write_cr8(ctxt->cr8);
 	__write_cr4(ctxt->cr4);
 #endif
 	write_cr3(ctxt->cr3);
@@ -264,32 +267,12 @@ static void notrace __restore_processor_state(struct saved_context *ctxt)
 	x86_platform.restore_sched_clock_state();
 	mtrr_bp_restore();
 	perf_restore_debug_store();
-
-	microcode_bsp_resume();
-
-	/*
-	 * This needs to happen after the microcode has been updated upon resume
-	 * because some of the MSRs are "emulated" in microcode.
-	 */
 	msr_restore_context(ctxt);
 }
 
 /* Needed by apm.c */
 void notrace restore_processor_state(void)
 {
-#ifdef __clang__
-	// The following code snippet is copied from __restore_processor_state.
-	// Its purpose is to prepare GS segment before the function is called.
-	// Since the function is compiled with SCS on, it will use GS at its
-	// entry.
-	// TODO: Hack to be removed later when compiler bug is fixed.
-#ifdef CONFIG_X86_64
-	wrmsrl(MSR_GS_BASE, saved_context.kernelmode_gs_base);
-#else
-	loadsegment(fs, __KERNEL_PERCPU);
-	loadsegment(gs, __KERNEL_STACK_CANARY);
-#endif
-#endif
 	__restore_processor_state(&saved_context);
 }
 #ifdef CONFIG_X86_32
@@ -443,10 +426,8 @@ static int msr_build_context(const u32 *msr_id, const int num)
 	}
 
 	for (i = saved_msrs->num, j = 0; i < total_num; i++, j++) {
-		u64 dummy;
-
 		msr_array[i].info.msr_no	= msr_id[j];
-		msr_array[i].valid		= !rdmsrl_safe(msr_id[j], &dummy);
+		msr_array[i].valid		= false;
 		msr_array[i].info.reg.q		= 0;
 	}
 	saved_msrs->num   = total_num;
@@ -533,24 +514,10 @@ static int pm_cpu_check(const struct x86_cpu_id *c)
 	return ret;
 }
 
-static void pm_save_spec_msr(void)
-{
-	u32 spec_msr_id[] = {
-		MSR_IA32_SPEC_CTRL,
-		MSR_IA32_TSX_CTRL,
-		MSR_TSX_FORCE_ABORT,
-		MSR_IA32_MCU_OPT_CTRL,
-		MSR_AMD64_LS_CFG,
-	};
-
-	msr_build_context(spec_msr_id, ARRAY_SIZE(spec_msr_id));
-}
-
 static int pm_check_save_msr(void)
 {
 	dmi_check_system(msr_save_dmi_table);
 	pm_cpu_check(msr_save_cpu_table);
-	pm_save_spec_msr();
 
 	return 0;
 }

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0+
 /* Xilinx GMII2RGMII Converter driver
  *
  * Copyright (C) 2016 Xilinx, Inc.
@@ -9,6 +8,16 @@
  *
  * Description:
  * This driver is developed for Xilinx GMII2RGMII Converter
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -29,7 +38,7 @@ struct gmii2rgmii {
 
 static int xgmiitorgmii_read_status(struct phy_device *phydev)
 {
-	struct gmii2rgmii *priv = mdiodev_get_drvdata(&phydev->mdio);
+	struct gmii2rgmii *priv = phydev->priv;
 	struct mii_bus *bus = priv->mdio->bus;
 	int addr = priv->mdio->addr;
 	u16 val = 0;
@@ -90,7 +99,7 @@ static int xgmiitorgmii_probe(struct mdio_device *mdiodev)
 	memcpy(&priv->conv_phy_drv, priv->phy_dev->drv,
 	       sizeof(struct phy_driver));
 	priv->conv_phy_drv.read_status = xgmiitorgmii_read_status;
-	mdiodev_set_drvdata(&priv->phy_dev->mdio, priv);
+	priv->phy_dev->priv = priv;
 	priv->phy_dev->drv = &priv->conv_phy_drv;
 
 	return 0;

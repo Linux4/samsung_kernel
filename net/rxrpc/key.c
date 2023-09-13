@@ -1,8 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /* RxRPC key management
  *
  * Copyright (C) 2007 Red Hat, Inc. All Rights Reserved.
  * Written by David Howells (dhowells@redhat.com)
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version
+ * 2 of the License, or (at your option) any later version.
  *
  * RxRPC keys should have a description of describing their purpose:
  *	"afs@CAMBRIDGE.REDHAT.COM>
@@ -39,7 +43,6 @@ static long rxrpc_read(const struct key *, char *, size_t);
  */
 struct key_type key_type_rxrpc = {
 	.name		= "rxrpc",
-	.flags		= KEY_TYPE_NET_DOMAIN,
 	.preparse	= rxrpc_preparse,
 	.free_preparse	= rxrpc_free_preparse,
 	.instantiate	= generic_key_instantiate,
@@ -55,7 +58,6 @@ EXPORT_SYMBOL(key_type_rxrpc);
  */
 struct key_type key_type_rxrpc_s = {
 	.name		= "rxrpc_s",
-	.flags		= KEY_TYPE_NET_DOMAIN,
 	.vet_description = rxrpc_vet_description_s,
 	.preparse	= rxrpc_preparse_s,
 	.free_preparse	= rxrpc_free_preparse_s,
@@ -903,14 +905,14 @@ int rxrpc_request_key(struct rxrpc_sock *rx, char __user *optval, int optlen)
 
 	_enter("");
 
-	if (optlen <= 0 || optlen > PAGE_SIZE - 1 || rx->securities)
+	if (optlen <= 0 || optlen > PAGE_SIZE - 1)
 		return -EINVAL;
 
 	description = memdup_user_nul(optval, optlen);
 	if (IS_ERR(description))
 		return PTR_ERR(description);
 
-	key = request_key_net(&key_type_rxrpc, description, sock_net(&rx->sk), NULL);
+	key = request_key(&key_type_rxrpc, description, NULL);
 	if (IS_ERR(key)) {
 		kfree(description);
 		_leave(" = %ld", PTR_ERR(key));
@@ -1073,7 +1075,7 @@ static long rxrpc_read(const struct key *key,
 
 		switch (token->security_index) {
 		case RXRPC_SECURITY_RXKAD:
-			toksize += 8 * 4;	/* viceid, kvno, key*2, begin,
+			toksize += 9 * 4;	/* viceid, kvno, key*2 + len, begin,
 						 * end, primary, tktlen */
 			toksize += RND(token->kad->ticket_len);
 			break;
@@ -1108,9 +1110,8 @@ static long rxrpc_read(const struct key *key,
 			break;
 
 		default: /* we have a ticket we can't encode */
-			pr_err("Unsupported key token type (%u)\n",
-			       token->security_index);
-			return -ENOPKG;
+			BUG();
+			continue;
 		}
 
 		_debug("token[%u]: toksize=%u", ntoks, toksize);
@@ -1135,14 +1136,6 @@ static long rxrpc_read(const struct key *key,
 	do {								\
 		u32 _l = (l);						\
 		ENCODE(l);						\
-		memcpy(xdr, (s), _l);					\
-		if (_l & 3)						\
-			memcpy((u8 *)xdr + _l, &zero, 4 - (_l & 3));	\
-		xdr += (_l + 3) >> 2;					\
-	} while(0)
-#define ENCODE_BYTES(l, s)						\
-	do {								\
-		u32 _l = (l);						\
 		memcpy(xdr, (s), _l);					\
 		if (_l & 3)						\
 			memcpy((u8 *)xdr + _l, &zero, 4 - (_l & 3));	\
@@ -1175,7 +1168,7 @@ static long rxrpc_read(const struct key *key,
 		case RXRPC_SECURITY_RXKAD:
 			ENCODE(token->kad->vice_id);
 			ENCODE(token->kad->kvno);
-			ENCODE_BYTES(8, token->kad->session_key);
+			ENCODE_DATA(8, token->kad->session_key);
 			ENCODE(token->kad->start);
 			ENCODE(token->kad->expiry);
 			ENCODE(token->kad->primary_flag);
@@ -1225,9 +1218,8 @@ static long rxrpc_read(const struct key *key,
 			break;
 
 		default:
-			pr_err("Unsupported key token type (%u)\n",
-			       token->security_index);
-			return -ENOPKG;
+			BUG();
+			break;
 		}
 
 		ASSERTCMP((unsigned long)xdr - (unsigned long)oldxdr, ==,

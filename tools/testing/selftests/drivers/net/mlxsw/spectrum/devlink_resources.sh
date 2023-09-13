@@ -1,10 +1,7 @@
 #!/bin/bash
 # SPDX-License-Identifier: GPL-2.0
 
-lib_dir=$(dirname $0)/../../../../net/forwarding
-
 NUM_NETIFS=1
-source $lib_dir/lib.sh
 source devlink_lib_spectrum.sh
 
 setup_prepare()

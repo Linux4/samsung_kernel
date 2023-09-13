@@ -25,28 +25,12 @@
 #include <linux/user_namespace.h>
 #include <linux/memfd.h>
 #include <linux/compat.h>
-#include <linux/task_integrity.h>
-#include <linux/proca.h>
 
 #include <linux/poll.h>
 #include <asm/siginfo.h>
 #include <linux/uaccess.h>
 
 #define SETFL_MASK (O_APPEND | O_NONBLOCK | O_NDELAY | O_DIRECT | O_NOATIME)
-
-#ifdef CONFIG_FIVE
-#define F_FIVE_SIGN	(F_LINUX_SPECIFIC_BASE + 100)
-#define F_FIVE_VERIFY_ASYNC	(F_LINUX_SPECIFIC_BASE + 101)
-#define F_FIVE_VERIFY_SYNC	(F_LINUX_SPECIFIC_BASE + 102)
-#if defined(CONFIG_FIVE_PA_FEATURE) || defined(CONFIG_PROCA)
-#define F_FIVE_PA_SETXATTR	(F_LINUX_SPECIFIC_BASE + 103)
-#endif
-#define F_FIVE_EDIT		(F_LINUX_SPECIFIC_BASE + 104)
-#define F_FIVE_CLOSE		(F_LINUX_SPECIFIC_BASE + 105)
-#ifdef CONFIG_FIVE_DEBUG
-#define F_FIVE_DEBUG		(F_LINUX_SPECIFIC_BASE + 106)
-#endif
-#endif
 
 static int setfl(int fd, struct file * filp, unsigned long arg)
 {
@@ -432,34 +416,6 @@ static long do_fcntl(int fd, unsigned int cmd, unsigned long arg,
 	case F_GETPIPE_SZ:
 		err = pipe_fcntl(filp, cmd, arg);
 		break;
-#ifdef CONFIG_FIVE
-	case F_FIVE_SIGN:
-		err = five_fcntl_sign(filp,
-				(struct integrity_label __user *)arg);
-		break;
-	case F_FIVE_VERIFY_ASYNC:
-		err = five_fcntl_verify_async(filp);
-		break;
-	case F_FIVE_VERIFY_SYNC:
-		err = five_fcntl_verify_sync(filp);
-		break;
-#if defined(CONFIG_FIVE_PA_FEATURE) || defined(CONFIG_PROCA)
-	case F_FIVE_PA_SETXATTR:
-		err = proca_fcntl_setxattr(filp, (void __user *)arg);
-		break;
-#endif
-	case F_FIVE_EDIT:
-		err = five_fcntl_edit(filp);
-		break;
-	case F_FIVE_CLOSE:
-		err = five_fcntl_close(filp);
-		break;
-#ifdef CONFIG_FIVE_DEBUG
-	case F_FIVE_DEBUG:
-		err = five_fcntl_debug(filp, (void __user *)arg);
-		break;
-#endif
-#endif
 	case F_ADD_SEALS:
 	case F_GET_SEALS:
 		err = memfd_fcntl(filp, cmd, arg);
@@ -779,7 +735,7 @@ static void send_sigio_to_task(struct task_struct *p,
 		return;
 
 	switch (signum) {
-		kernel_siginfo_t si;
+		siginfo_t si;
 		default:
 			/* Queue a rt signal with the appropriate fd as its
 			   value.  We use SI_SIGIO as the source, not 
@@ -813,7 +769,7 @@ static void send_sigio_to_task(struct task_struct *p,
 			si.si_fd    = fd;
 			if (!do_send_sig_info(signum, &si, p, type))
 				break;
-		/* fall-through - fall back on the old plain SIGIO signal */
+		/* fall-through: fall back on the old plain SIGIO signal */
 		case 0:
 			do_send_sig_info(SIGIO, SEND_SIG_PRIV, p, type);
 	}
@@ -823,10 +779,9 @@ void send_sigio(struct fown_struct *fown, int fd, int band)
 {
 	struct task_struct *p;
 	enum pid_type type;
-	unsigned long flags;
 	struct pid *pid;
 	
-	read_lock_irqsave(&fown->lock, flags);
+	read_lock(&fown->lock);
 
 	type = fown->pid_type;
 	pid = fown->pid;
@@ -847,7 +802,7 @@ void send_sigio(struct fown_struct *fown, int fd, int band)
 		read_unlock(&tasklist_lock);
 	}
  out_unlock_fown:
-	read_unlock_irqrestore(&fown->lock, flags);
+	read_unlock(&fown->lock);
 }
 
 static void send_sigurg_to_task(struct task_struct *p,
@@ -862,10 +817,9 @@ int send_sigurg(struct fown_struct *fown)
 	struct task_struct *p;
 	enum pid_type type;
 	struct pid *pid;
-	unsigned long flags;
 	int ret = 0;
 	
-	read_lock_irqsave(&fown->lock, flags);
+	read_lock(&fown->lock);
 
 	type = fown->pid_type;
 	pid = fown->pid;
@@ -888,7 +842,7 @@ int send_sigurg(struct fown_struct *fown)
 		read_unlock(&tasklist_lock);
 	}
  out_unlock_fown:
-	read_unlock_irqrestore(&fown->lock, flags);
+	read_unlock(&fown->lock);
 	return ret;
 }
 
@@ -1037,14 +991,13 @@ static void kill_fasync_rcu(struct fasync_struct *fa, int sig, int band)
 {
 	while (fa) {
 		struct fown_struct *fown;
-		unsigned long flags;
 
 		if (fa->magic != FASYNC_MAGIC) {
 			printk(KERN_ERR "kill_fasync: bad magic number in "
 			       "fasync_struct!\n");
 			return;
 		}
-		read_lock_irqsave(&fa->fa_lock, flags);
+		read_lock(&fa->fa_lock);
 		if (fa->fa_file) {
 			fown = &fa->fa_file->f_owner;
 			/* Don't send SIGURG to processes which have not set a
@@ -1053,7 +1006,7 @@ static void kill_fasync_rcu(struct fasync_struct *fa, int sig, int band)
 			if (!(sig == SIGURG && fown->signum == 0))
 				send_sigio(fown, fa->fa_fd, band);
 		}
-		read_unlock_irqrestore(&fa->fa_lock, flags);
+		read_unlock(&fa->fa_lock);
 		fa = rcu_dereference(fa->fa_next);
 	}
 }

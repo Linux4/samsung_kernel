@@ -83,14 +83,14 @@ static int igbvf_desc_unused(struct igbvf_ring *ring)
 static void igbvf_receive_skb(struct igbvf_adapter *adapter,
 			      struct net_device *netdev,
 			      struct sk_buff *skb,
-			      u32 status, __le16 vlan)
+			      u32 status, u16 vlan)
 {
 	u16 vid;
 
 	if (status & E1000_RXD_STAT_VP) {
 		if ((adapter->flags & IGBVF_FLAG_RX_LB_VLAN_BSWAP) &&
 		    (status & E1000_RXDEXT_STATERR_LB))
-			vid = be16_to_cpu((__force __be16)vlan) & E1000_RXD_SPC_VLAN_MASK;
+			vid = be16_to_cpu(vlan) & E1000_RXD_SPC_VLAN_MASK;
 		else
 			vid = le16_to_cpu(vlan) & E1000_RXD_SPC_VLAN_MASK;
 		if (test_bit(vid, adapter->active_vlans))
@@ -1186,13 +1186,10 @@ static int igbvf_poll(struct napi_struct *napi, int budget)
 
 	igbvf_clean_rx_irq(adapter, &work_done, budget);
 
-	if (work_done == budget)
-		return budget;
+	/* If not enough Rx work done, exit the polling mode */
+	if (work_done < budget) {
+		napi_complete_done(napi, work_done);
 
-	/* Exit the polling mode, but don't re-enable interrupts if stack might
-	 * poll us due to busy-polling
-	 */
-	if (likely(napi_complete_done(napi, work_done))) {
 		if (adapter->requested_itr & 3)
 			igbvf_set_itr(adapter);
 
@@ -2174,7 +2171,7 @@ static inline int igbvf_tx_map_adv(struct igbvf_adapter *adapter,
 		goto dma_error;
 
 	for (f = 0; f < skb_shinfo(skb)->nr_frags; f++) {
-		const skb_frag_t *frag;
+		const struct skb_frag_struct *frag;
 
 		count++;
 		i++;
@@ -2279,6 +2276,10 @@ static inline void igbvf_tx_queue_adv(struct igbvf_adapter *adapter,
 	tx_ring->buffer_info[first].next_to_watch = tx_desc;
 	tx_ring->next_to_use = i;
 	writel(i, adapter->hw.hw_addr + tx_ring->tail);
+	/* we need this if more than one processor can write to our tail
+	 * at a time, it synchronizes IO on IA64/Altix systems
+	 */
+	mmiowb();
 }
 
 static netdev_tx_t igbvf_xmit_frame_ring_adv(struct sk_buff *skb,
@@ -2887,7 +2888,6 @@ static int igbvf_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	return 0;
 
 err_hw_init:
-	netif_napi_del(&adapter->rx_ring->napi);
 	kfree(adapter->tx_ring);
 	kfree(adapter->rx_ring);
 err_sw_init:
@@ -3011,7 +3011,7 @@ module_exit(igbvf_exit_module);
 
 MODULE_AUTHOR("Intel Corporation, <e1000-devel@lists.sourceforge.net>");
 MODULE_DESCRIPTION("Intel(R) Gigabit Virtual Function Network Driver");
-MODULE_LICENSE("GPL v2");
+MODULE_LICENSE("GPL");
 MODULE_VERSION(DRV_VERSION);
 
 /* netdev.c */

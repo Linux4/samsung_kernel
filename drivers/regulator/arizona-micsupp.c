@@ -1,10 +1,15 @@
-// SPDX-License-Identifier: GPL-2.0+
-//
-// arizona-micsupp.c  --  Microphone supply for Arizona devices
-//
-// Copyright 2012 Wolfson Microelectronics PLC.
-//
-// Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
+/*
+ * arizona-micsupp.c  --  Microphone supply for Arizona devices
+ *
+ * Copyright 2012 Wolfson Microelectronics PLC.
+ *
+ * Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
+ *
+ *  This program is free software; you can redistribute  it and/or modify it
+ *  under  the terms of  the GNU General  Public License as published by the
+ *  Free Software Foundation;  either version 2 of the  License, or (at your
+ *  option) any later version.
+ */
 
 #include <linux/module.h>
 #include <linux/moduleparam.h>
@@ -16,6 +21,7 @@
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/of_regulator.h>
+#include <linux/gpio.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 #include <sound/soc.h>

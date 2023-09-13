@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
+ * linux/kernel/itimer.c
+ *
  * Copyright (C) 1992 Darren Senn
  */
 
@@ -55,10 +57,15 @@ static void get_cpu_itimer(struct task_struct *tsk, unsigned int clock_id,
 	val = it->expires;
 	interval = it->incr;
 	if (val) {
-		u64 t, samples[CPUCLOCK_MAX];
+		struct task_cputime cputime;
+		u64 t;
 
-		thread_group_sample_cputime(tsk, samples);
-		t = samples[clock_id];
+		thread_group_cputimer(tsk, &cputime);
+		if (clock_id == CPUCLOCK_PROF)
+			t = cputime.utime + cputime.stime;
+		else
+			/* CPUCLOCK_VIRT */
+			t = cputime.utime;
 
 		if (val < t)
 			/* about to fire */
@@ -147,6 +154,10 @@ static void set_cpu_itimer(struct task_struct *tsk, unsigned int clock_id,
 	u64 oval, nval, ointerval, ninterval;
 	struct cpu_itimer *it = &tsk->signal->it[clock_id];
 
+	/*
+	 * Use the to_ktime conversion because that clamps the maximum
+	 * value to KTIME_MAX and avoid multiplication overflows.
+	 */
 	nval = ktime_to_ns(timeval_to_ktime(value->it_value));
 	ninterval = ktime_to_ns(timeval_to_ktime(value->it_interval));
 
@@ -204,7 +215,6 @@ again:
 		/* We are sharing ->siglock with it_real_fn() */
 		if (hrtimer_try_to_cancel(timer) < 0) {
 			spin_unlock_irq(&tsk->sighand->siglock);
-			hrtimer_cancel_wait_running(timer);
 			goto again;
 		}
 		expires = timeval_to_ktime(value->it_value);

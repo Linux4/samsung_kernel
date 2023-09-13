@@ -448,7 +448,10 @@ struct radeon_surface_reg {
  * TTM.
  */
 struct radeon_mman {
+	struct ttm_bo_global_ref        bo_global_ref;
+	struct drm_global_reference	mem_global_ref;
 	struct ttm_bo_device		bdev;
+	bool				mem_global_referenced;
 	bool				initialized;
 
 #if defined(CONFIG_DEBUG_FS)
@@ -505,6 +508,7 @@ struct radeon_bo {
 	struct list_head		va;
 	/* Constant after initialization */
 	struct radeon_device		*rdev;
+	struct drm_gem_object		gem_base;
 
 	struct ttm_bo_kmap_obj		dma_buf_vmap;
 	pid_t				pid;
@@ -512,7 +516,7 @@ struct radeon_bo {
 	struct radeon_mn		*mn;
 	struct list_head		mn_list;
 };
-#define gem_to_radeon_bo(gobj) container_of((gobj), struct radeon_bo, tbo.base)
+#define gem_to_radeon_bo(gobj) container_of((gobj), struct radeon_bo, gem_base)
 
 int radeon_gem_debugfs_init(struct radeon_device *rdev);
 
@@ -619,7 +623,7 @@ void radeon_sync_fence(struct radeon_sync *sync,
 		       struct radeon_fence *fence);
 int radeon_sync_resv(struct radeon_device *rdev,
 		     struct radeon_sync *sync,
-		     struct dma_resv *resv,
+		     struct reservation_object *resv,
 		     bool shared);
 int radeon_sync_rings(struct radeon_device *rdev,
 		      struct radeon_sync *sync,
@@ -1554,7 +1558,6 @@ struct radeon_dpm {
 	void                    *priv;
 	u32			new_active_crtcs;
 	int			new_active_crtc_count;
-	int			high_pixelclock_count;
 	u32			current_active_crtcs;
 	int			current_active_crtc_count;
 	bool single_display;
@@ -1913,20 +1916,20 @@ struct radeon_asic {
 					     uint64_t src_offset,
 					     uint64_t dst_offset,
 					     unsigned num_gpu_pages,
-					     struct dma_resv *resv);
+					     struct reservation_object *resv);
 		u32 blit_ring_index;
 		struct radeon_fence *(*dma)(struct radeon_device *rdev,
 					    uint64_t src_offset,
 					    uint64_t dst_offset,
 					    unsigned num_gpu_pages,
-					    struct dma_resv *resv);
+					    struct reservation_object *resv);
 		u32 dma_ring_index;
 		/* method used for bo copy */
 		struct radeon_fence *(*copy)(struct radeon_device *rdev,
 					     uint64_t src_offset,
 					     uint64_t dst_offset,
 					     unsigned num_gpu_pages,
-					     struct dma_resv *resv);
+					     struct reservation_object *resv);
 		/* ring used for bo copies */
 		u32 copy_ring_index;
 	} copy;
@@ -2387,6 +2390,7 @@ struct radeon_device {
 	struct radeon_wb		wb;
 	struct radeon_dummy_page	dummy_page;
 	bool				shutdown;
+	bool				need_dma32;
 	bool				need_swiotlb;
 	bool				accel_working;
 	bool				fastfb_working; /* IGP feature*/
@@ -2450,6 +2454,9 @@ struct radeon_device {
 	/* tracking pinned memory */
 	u64 vram_pin_size;
 	u64 gart_pin_size;
+
+	struct mutex	mn_lock;
+	DECLARE_HASHTABLE(mn_hash, 7);
 };
 
 bool radeon_is_px(struct drm_device *dev);

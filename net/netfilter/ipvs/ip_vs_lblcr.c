@@ -1,12 +1,17 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * IPVS:        Locality-Based Least-Connection with Replication scheduler
  *
  * Authors:     Wensong Zhang <wensong@gnuchina.org>
  *
+ *              This program is free software; you can redistribute it and/or
+ *              modify it under the terms of the GNU General Public License
+ *              as published by the Free Software Foundation; either version
+ *              2 of the License, or (at your option) any later version.
+ *
  * Changes:
  *     Julian Anastasov        :    Added the missing (dest->weight>0)
  *                                  condition in the ip_vs_dest_set_max.
+ *
  */
 
 /*
@@ -160,7 +165,7 @@ static void ip_vs_dest_set_eraseall(struct ip_vs_dest_set *set)
 /* get weighted least-connection node in the destination set */
 static inline struct ip_vs_dest *ip_vs_dest_set_min(struct ip_vs_dest_set *set)
 {
-	struct ip_vs_dest_set_elem *e;
+	register struct ip_vs_dest_set_elem *e;
 	struct ip_vs_dest *dest, *least;
 	int loh, doh;
 
@@ -209,7 +214,7 @@ static inline struct ip_vs_dest *ip_vs_dest_set_min(struct ip_vs_dest_set *set)
 /* get weighted most-connection node in the destination set */
 static inline struct ip_vs_dest *ip_vs_dest_set_max(struct ip_vs_dest_set *set)
 {
-	struct ip_vs_dest_set_elem *e;
+	register struct ip_vs_dest_set_elem *e;
 	struct ip_vs_dest *dest, *most;
 	int moh, doh;
 

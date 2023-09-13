@@ -1,7 +1,20 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * HID Sensors Driver
  * Copyright (c) 2012, Intel Corporation.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
+ *
  */
 #include <linux/device.h>
 #include <linux/platform_device.h>
@@ -29,11 +42,8 @@ struct accel_3d_state {
 	struct hid_sensor_hub_callbacks callbacks;
 	struct hid_sensor_common common_attributes;
 	struct hid_sensor_hub_attribute_info accel[ACCEL_3D_CHANNEL_MAX];
-	/* Ensure timestamp is naturally aligned */
-	struct {
-		u32 accel_val[3];
-		s64 timestamp __aligned(8);
-	} scan;
+	/* Reserve for 3 channels + padding + timestamp */
+	u32 accel_val[ACCEL_3D_CHANNEL_MAX + 3];
 	int scale_pre_decml;
 	int scale_post_decml;
 	int scale_precision;
@@ -244,8 +254,8 @@ static int accel_3d_proc_event(struct hid_sensor_hub_device *hsdev,
 			accel_state->timestamp = iio_get_time_ns(indio_dev);
 
 		hid_sensor_push_data(indio_dev,
-				     &accel_state->scan,
-				     sizeof(accel_state->scan),
+				     accel_state->accel_val,
+				     sizeof(accel_state->accel_val),
 				     accel_state->timestamp);
 
 		accel_state->timestamp = 0;
@@ -270,7 +280,7 @@ static int accel_3d_capture_sample(struct hid_sensor_hub_device *hsdev,
 	case HID_USAGE_SENSOR_ACCEL_Y_AXIS:
 	case HID_USAGE_SENSOR_ACCEL_Z_AXIS:
 		offset = usage_id - HID_USAGE_SENSOR_ACCEL_X_AXIS;
-		accel_state->scan.accel_val[CHANNEL_SCAN_INDEX_X + offset] =
+		accel_state->accel_val[CHANNEL_SCAN_INDEX_X + offset] =
 						*(u32 *)raw_data;
 		ret = 0;
 	break;

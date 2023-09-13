@@ -105,6 +105,12 @@
  *     - A local spin_lock protecting the queue of subscriber events.
 */
 
+struct tipc_net_work {
+	struct work_struct work;
+	struct net *net;
+	u32 addr;
+};
+
 static void tipc_net_finalize(struct net *net, u32 addr);
 
 int tipc_net_init(struct net *net, u8 *node_id, u32 addr)
@@ -136,21 +142,25 @@ static void tipc_net_finalize(struct net *net, u32 addr)
 			     TIPC_CLUSTER_SCOPE, 0, addr);
 }
 
-void tipc_net_finalize_work(struct work_struct *work)
+static void tipc_net_finalize_work(struct work_struct *work)
 {
 	struct tipc_net_work *fwork;
 
 	fwork = container_of(work, struct tipc_net_work, work);
 	tipc_net_finalize(fwork->net, fwork->addr);
+	kfree(fwork);
 }
 
 void tipc_sched_net_finalize(struct net *net, u32 addr)
 {
-	struct tipc_net *tn = tipc_net(net);
+	struct tipc_net_work *fwork = kzalloc(sizeof(*fwork), GFP_ATOMIC);
 
-	tn->final_work.net = net;
-	tn->final_work.addr = addr;
-	schedule_work(&tn->final_work.work);
+	if (!fwork)
+		return;
+	INIT_WORK(&fwork->work, tipc_net_finalize_work);
+	fwork->net = net;
+	fwork->addr = addr;
+	schedule_work(&fwork->work);
 }
 
 void tipc_net_stop(struct net *net)
@@ -179,7 +189,7 @@ static int __tipc_nl_add_net(struct net *net, struct tipc_nl_msg *msg)
 	if (!hdr)
 		return -EMSGSIZE;
 
-	attrs = nla_nest_start_noflag(msg->skb, TIPC_NLA_NET);
+	attrs = nla_nest_start(msg->skb, TIPC_NLA_NET);
 	if (!attrs)
 		goto msg_full;
 
@@ -237,9 +247,9 @@ int __tipc_nl_net_set(struct sk_buff *skb, struct genl_info *info)
 	if (!info->attrs[TIPC_NLA_NET])
 		return -EINVAL;
 
-	err = nla_parse_nested_deprecated(attrs, TIPC_NLA_NET_MAX,
-					  info->attrs[TIPC_NLA_NET],
-					  tipc_nl_net_policy, info->extack);
+	err = nla_parse_nested(attrs, TIPC_NLA_NET_MAX,
+			       info->attrs[TIPC_NLA_NET], tipc_nl_net_policy,
+			       info->extack);
 
 	if (err)
 		return err;

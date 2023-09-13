@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * 3-axis accelerometer driver supporting following Bosch-Sensortec chips:
  *  - BMC150
@@ -9,6 +8,15 @@
  *  - BMA280
  *
  * Copyright (c) 2014, Intel Corporation.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
  */
 
 #include <linux/module.h>
@@ -189,14 +197,6 @@ struct bmc150_accel_data {
 	struct mutex mutex;
 	u8 fifo_mode, watermark;
 	s16 buffer[8];
-	/*
-	 * Ensure there is sufficient space and correct alignment for
-	 * the timestamp if enabled
-	 */
-	struct {
-		__le16 channels[3];
-		s64 ts __aligned(8);
-	} scan;
 	u8 bw_bits;
 	u32 slope_dur;
 	u32 slope_thres;
@@ -204,7 +204,6 @@ struct bmc150_accel_data {
 	int ev_enable_state;
 	int64_t timestamp, old_timestamp; /* Only used in hw fifo mode. */
 	const struct bmc150_accel_chip_info *chip_info;
-	struct iio_mount_matrix orientation;
 };
 
 static const struct {
@@ -394,7 +393,7 @@ static int bmc150_accel_set_power_state(struct bmc150_accel_data *data, bool on)
 
 	if (ret < 0) {
 		dev_err(dev,
-			"Failed: %s for %d\n", __func__, on);
+			"Failed: bmc150_accel_set_power_state for %d\n", on);
 		if (on)
 			pm_runtime_put_noidle(dev);
 
@@ -797,20 +796,6 @@ static ssize_t bmc150_accel_get_fifo_state(struct device *dev,
 	return sprintf(buf, "%d\n", state);
 }
 
-static const struct iio_mount_matrix *
-bmc150_accel_get_mount_matrix(const struct iio_dev *indio_dev,
-				const struct iio_chan_spec *chan)
-{
-	struct bmc150_accel_data *data = iio_priv(indio_dev);
-
-	return &data->orientation;
-}
-
-static const struct iio_chan_spec_ext_info bmc150_accel_ext_info[] = {
-	IIO_MOUNT_MATRIX(IIO_SHARED_BY_DIR, bmc150_accel_get_mount_matrix),
-	{ }
-};
-
 static IIO_CONST_ATTR(hwfifo_watermark_min, "1");
 static IIO_CONST_ATTR(hwfifo_watermark_max,
 		      __stringify(BMC150_ACCEL_FIFO_LENGTH));
@@ -930,16 +915,15 @@ static int __bmc150_accel_fifo_flush(struct iio_dev *indio_dev,
 	 * now.
 	 */
 	for (i = 0; i < count; i++) {
+		u16 sample[8];
 		int j, bit;
 
 		j = 0;
 		for_each_set_bit(bit, indio_dev->active_scan_mask,
 				 indio_dev->masklength)
-			memcpy(&data->scan.channels[j++], &buffer[i * 3 + bit],
-			       sizeof(data->scan.channels[0]));
+			memcpy(&sample[j++], &buffer[i * 3 + bit], 2);
 
-		iio_push_to_buffers_with_timestamp(indio_dev, &data->scan,
-						   tstamp);
+		iio_push_to_buffers_with_timestamp(indio_dev, sample, tstamp);
 
 		tstamp += sample_period;
 	}
@@ -994,7 +978,6 @@ static const struct iio_event_spec bmc150_accel_event = {
 		.shift = 16 - (bits),					\
 		.endianness = IIO_LE,					\
 	},								\
-	.ext_info = bmc150_accel_ext_info,				\
 	.event_spec = &bmc150_accel_event,				\
 	.num_event_specs = 1						\
 }
@@ -1572,11 +1555,6 @@ int bmc150_accel_core_probe(struct device *dev, struct regmap *regmap, int irq,
 
 	data->regmap = regmap;
 
-	ret = iio_read_mount_matrix(dev, "mount-matrix",
-				     &data->orientation);
-	if (ret)
-		return ret;
-
 	ret = bmc150_accel_chip_init(data);
 	if (ret < 0)
 		return ret;
@@ -1649,14 +1627,11 @@ int bmc150_accel_core_probe(struct device *dev, struct regmap *regmap, int irq,
 	ret = iio_device_register(indio_dev);
 	if (ret < 0) {
 		dev_err(dev, "Unable to register iio device\n");
-		goto err_pm_cleanup;
+		goto err_trigger_unregister;
 	}
 
 	return 0;
 
-err_pm_cleanup:
-	pm_runtime_dont_use_autosuspend(dev);
-	pm_runtime_disable(dev);
 err_trigger_unregister:
 	bmc150_accel_unregister_triggers(data, BMC150_ACCEL_TRIGGERS - 1);
 err_buffer_cleanup:

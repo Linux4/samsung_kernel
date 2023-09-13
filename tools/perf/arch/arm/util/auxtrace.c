@@ -6,10 +6,8 @@
 
 #include <stdbool.h>
 #include <linux/coresight-pmu.h>
-#include <linux/zalloc.h>
 
 #include "../../util/auxtrace.h"
-#include "../../util/debug.h"
 #include "../../util/evlist.h"
 #include "../../util/pmu.h"
 #include "cs-etm.h"
@@ -51,12 +49,12 @@ static struct perf_pmu **find_all_arm_spe_pmus(int *nr_spes, int *err)
 }
 
 struct auxtrace_record
-*auxtrace_record__init(struct evlist *evlist, int *err)
+*auxtrace_record__init(struct perf_evlist *evlist, int *err)
 {
 	struct perf_pmu	*cs_etm_pmu;
-	struct evsel *evsel;
+	struct perf_evsel *evsel;
 	bool found_etm = false;
-	struct perf_pmu *found_spe = NULL;
+	bool found_spe = false;
 	static struct perf_pmu **arm_spe_pmus = NULL;
 	static int nr_spes = 0;
 	int i = 0;
@@ -71,15 +69,15 @@ struct auxtrace_record
 
 	evlist__for_each_entry(evlist, evsel) {
 		if (cs_etm_pmu &&
-		    evsel->core.attr.type == cs_etm_pmu->type)
+		    evsel->attr.type == cs_etm_pmu->type)
 			found_etm = true;
 
-		if (!nr_spes || found_spe)
+		if (!nr_spes)
 			continue;
 
 		for (i = 0; i < nr_spes; i++) {
-			if (evsel->core.attr.type == arm_spe_pmus[i]->type) {
-				found_spe = arm_spe_pmus[i];
+			if (evsel->attr.type == arm_spe_pmus[i]->type) {
+				found_spe = true;
 				break;
 			}
 		}
@@ -96,7 +94,7 @@ struct auxtrace_record
 
 #if defined(__aarch64__)
 	if (found_spe)
-		return arm_spe_recording_init(err, found_spe);
+		return arm_spe_recording_init(err, arm_spe_pmus[i]);
 #endif
 
 	/*

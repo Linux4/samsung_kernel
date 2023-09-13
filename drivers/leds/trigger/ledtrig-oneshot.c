@@ -1,10 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * One-shot LED Trigger
  *
  * Copyright 2012, Fabio Baltieri <fabio.baltieri@gmail.com>
  *
  * Based on ledtrig-timer.c by Richard Purdie <rpurdie@openedhand.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/module.h>
@@ -127,34 +130,6 @@ static struct attribute *oneshot_trig_attrs[] = {
 };
 ATTRIBUTE_GROUPS(oneshot_trig);
 
-static void pattern_init(struct led_classdev *led_cdev)
-{
-	u32 *pattern;
-	unsigned int size = 0;
-
-	pattern = led_get_default_pattern(led_cdev, &size);
-	if (!pattern)
-		goto out_default;
-
-	if (size != 2) {
-		dev_warn(led_cdev->dev,
-			 "Expected 2 but got %u values for delays pattern\n",
-			 size);
-		goto out_default;
-	}
-
-	led_cdev->blink_delay_on = pattern[0];
-	led_cdev->blink_delay_off = pattern[1];
-	kfree(pattern);
-
-	return;
-
-out_default:
-	kfree(pattern);
-	led_cdev->blink_delay_on = DEFAULT_DELAY;
-	led_cdev->blink_delay_off = DEFAULT_DELAY;
-}
-
 static int oneshot_trig_activate(struct led_classdev *led_cdev)
 {
 	struct oneshot_trig_data *oneshot_data;
@@ -165,14 +140,8 @@ static int oneshot_trig_activate(struct led_classdev *led_cdev)
 
 	led_set_trigger_data(led_cdev, oneshot_data);
 
-	if (led_cdev->flags & LED_INIT_DEFAULT_TRIGGER) {
-		pattern_init(led_cdev);
-		/*
-		 * Mark as initialized even on pattern_init() error because
-		 * any consecutive call to it would produce the same error.
-		 */
-		led_cdev->flags &= ~LED_INIT_DEFAULT_TRIGGER;
-	}
+	led_cdev->blink_delay_on = DEFAULT_DELAY;
+	led_cdev->blink_delay_off = DEFAULT_DELAY;
 
 	return 0;
 }

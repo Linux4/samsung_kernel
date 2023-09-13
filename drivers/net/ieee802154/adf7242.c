@@ -1,8 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Analog Devices ADF7242 Low-Power IEEE 802.15.4 Transceiver
  *
  * Copyright 2009-2017 Analog Devices Inc.
+ *
+ * Licensed under the GPL-2 or later.
  *
  * http://www.analog.com/ADF7242
  */
@@ -882,9 +883,7 @@ static int adf7242_rx(struct adf7242_local *lp)
 	int ret;
 	u8 lqi, len_u8, *data;
 
-	ret = adf7242_read_reg(lp, 0, &len_u8);
-	if (ret)
-		return ret;
+	adf7242_read_reg(lp, 0, &len_u8);
 
 	len = len_u8;
 
@@ -1160,16 +1159,23 @@ static int adf7242_stats_show(struct seq_file *file, void *offset)
 	return 0;
 }
 
-static void adf7242_debugfs_init(struct adf7242_local *lp)
+static int adf7242_debugfs_init(struct adf7242_local *lp)
 {
 	char debugfs_dir_name[DNAME_INLINE_LEN + 1] = "adf7242-";
+	struct dentry *stats;
 
 	strncat(debugfs_dir_name, dev_name(&lp->spi->dev), DNAME_INLINE_LEN);
 
 	lp->debugfs_root = debugfs_create_dir(debugfs_dir_name, NULL);
+	if (IS_ERR_OR_NULL(lp->debugfs_root))
+		return PTR_ERR_OR_ZERO(lp->debugfs_root);
 
-	debugfs_create_devm_seqfile(&lp->spi->dev, "status", lp->debugfs_root,
-				    adf7242_stats_show);
+	stats = debugfs_create_devm_seqfile(&lp->spi->dev, "status",
+					    lp->debugfs_root,
+					    adf7242_stats_show);
+	return PTR_ERR_OR_ZERO(stats);
+
+	return 0;
 }
 
 static const s32 adf7242_powers[] = {
@@ -1264,7 +1270,7 @@ static int adf7242_probe(struct spi_device *spi)
 					     WQ_MEM_RECLAIM);
 	if (unlikely(!lp->wqueue)) {
 		ret = -ENOMEM;
-		goto err_alloc_wq;
+		goto err_hw_init;
 	}
 
 	ret = adf7242_hw_init(lp);
@@ -1296,8 +1302,6 @@ static int adf7242_probe(struct spi_device *spi)
 	return ret;
 
 err_hw_init:
-	destroy_workqueue(lp->wqueue);
-err_alloc_wq:
 	mutex_destroy(&lp->bmux);
 	ieee802154_free_hw(lp->hw);
 

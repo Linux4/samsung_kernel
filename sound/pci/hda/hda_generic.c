@@ -1,10 +1,23 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Universal Interface for Intel High Definition Audio Codec
  *
  * Generic widget tree parser
  *
  * Copyright (c) 2004 Takashi Iwai <tiwai@suse.de>
+ *
+ *  This driver is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This driver is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  */
 
 #include <linux/init.h>
@@ -16,11 +29,10 @@
 #include <linux/string.h>
 #include <linux/bitops.h>
 #include <linux/module.h>
-#include <linux/leds.h>
 #include <sound/core.h>
 #include <sound/jack.h>
 #include <sound/tlv.h>
-#include <sound/hda_codec.h>
+#include "hda_codec.h"
 #include "hda_local.h"
 #include "hda_auto_parser.h"
 #include "hda_jack.h"
@@ -813,7 +825,7 @@ static void activate_amp_in(struct hda_codec *codec, struct nid_path *path,
 	}
 }
 
-/* sync power of each widget in the given path */
+/* sync power of each widget in the the given path */
 static hda_nid_t path_power_update(struct hda_codec *codec,
 				   struct nid_path *path,
 				   bool allow_powerdown)
@@ -1202,17 +1214,11 @@ static const char *get_line_out_pfx(struct hda_codec *codec, int ch,
 		*index = ch;
 		return "Headphone";
 	case AUTO_PIN_LINE_OUT:
-		/* This deals with the case where one HP or one Speaker or
-		 * one HP + one Speaker need to share the DAC with LO
-		 */
-		if (!ch) {
-			bool hp_lo_shared = false, spk_lo_shared = false;
-
-			if (cfg->speaker_outs)
-				spk_lo_shared = !path_has_mixer(codec,
-								spec->speaker_paths[0],	ctl_type);
-			if (cfg->hp_outs)
-				hp_lo_shared = !path_has_mixer(codec, spec->hp_paths[0], ctl_type);
+		/* This deals with the case where we have two DACs and
+		 * one LO, one HP and one Speaker */
+		if (!ch && cfg->speaker_outs && cfg->hp_outs) {
+			bool hp_lo_shared = !path_has_mixer(codec, spec->hp_paths[0], ctl_type);
+			bool spk_lo_shared = !path_has_mixer(codec, spec->speaker_paths[0], ctl_type);
 			if (hp_lo_shared && spk_lo_shared)
 				return spec->vmaster_mute.hook ? "PCM" : "Master";
 			if (hp_lo_shared)
@@ -1370,20 +1376,16 @@ static int try_assign_dacs(struct hda_codec *codec, int num_outs,
 		struct nid_path *path;
 		hda_nid_t pin = pins[i];
 
-		if (!spec->obey_preferred_dacs) {
-			path = snd_hda_get_path_from_idx(codec, path_idx[i]);
-			if (path) {
-				badness += assign_out_path_ctls(codec, path);
-				continue;
-			}
+		path = snd_hda_get_path_from_idx(codec, path_idx[i]);
+		if (path) {
+			badness += assign_out_path_ctls(codec, path);
+			continue;
 		}
 
 		dacs[i] = get_preferred_dac(codec, pin);
 		if (dacs[i]) {
 			if (is_dac_already_used(codec, dacs[i]))
 				badness += bad->shared_primary;
-		} else if (spec->obey_preferred_dacs) {
-			badness += BAD_NO_PRIMARY_DAC;
 		}
 
 		if (!dacs[i])
@@ -3458,7 +3460,7 @@ static int cap_put_caller(struct snd_kcontrol *kcontrol,
 	struct hda_gen_spec *spec = codec->spec;
 	const struct hda_input_mux *imux;
 	struct nid_path *path;
-	int i, adc_idx, ret, err = 0;
+	int i, adc_idx, err = 0;
 
 	imux = &spec->input_mux;
 	adc_idx = kcontrol->id.index;
@@ -3468,13 +3470,9 @@ static int cap_put_caller(struct snd_kcontrol *kcontrol,
 		if (!path || !path->ctls[type])
 			continue;
 		kcontrol->private_value = path->ctls[type];
-		ret = func(kcontrol, ucontrol);
-		if (ret < 0) {
-			err = ret;
+		err = func(kcontrol, ucontrol);
+		if (err < 0)
 			break;
-		}
-		if (ret > 0)
-			err = 1;
 	}
 	mutex_unlock(&codec->control_mutex);
 	if (err >= 0 && spec->cap_sync_hook)
@@ -4027,7 +4025,7 @@ int snd_hda_gen_add_micmute_led(struct hda_codec *codec,
 
 	spec->micmute_led.led_mode = MICMUTE_LED_FOLLOW_MUTE;
 	spec->micmute_led.capture = 0;
-	spec->micmute_led.led_value = -1;
+	spec->micmute_led.led_value = 0;
 	spec->micmute_led.old_hook = spec->cap_sync_hook;
 	spec->micmute_led.update = hook;
 	spec->cap_sync_hook = update_micmute_led;
@@ -4036,36 +4034,6 @@ int snd_hda_gen_add_micmute_led(struct hda_codec *codec,
 	return 0;
 }
 EXPORT_SYMBOL_GPL(snd_hda_gen_add_micmute_led);
-
-#if IS_REACHABLE(CONFIG_LEDS_TRIGGER_AUDIO)
-static void call_ledtrig_micmute(struct hda_codec *codec)
-{
-	struct hda_gen_spec *spec = codec->spec;
-
-	ledtrig_audio_set(LED_AUDIO_MICMUTE,
-			  spec->micmute_led.led_value ? LED_ON : LED_OFF);
-}
-#endif
-
-/**
- * snd_hda_gen_fixup_micmute_led - A fixup for mic-mute LED trigger
- *
- * Pass this function to the quirk entry if another driver supports the
- * audio mic-mute LED trigger.  Then this will bind the mixer capture switch
- * change with the LED.
- *
- * Note that this fixup has to be called after other fixup that sets
- * cap_sync_hook.  Otherwise the chaining wouldn't work.
- */
-void snd_hda_gen_fixup_micmute_led(struct hda_codec *codec,
-				   const struct hda_fixup *fix, int action)
-{
-#if IS_REACHABLE(CONFIG_LEDS_TRIGGER_AUDIO)
-	if (action == HDA_FIXUP_ACT_PROBE)
-		snd_hda_gen_add_micmute_led(codec, call_ledtrig_micmute);
-#endif
-}
-EXPORT_SYMBOL_GPL(snd_hda_gen_fixup_micmute_led);
 
 /*
  * parse digital I/Os and set up NIDs in BIOS auto-parse mode
@@ -4415,7 +4383,7 @@ EXPORT_SYMBOL_GPL(snd_hda_gen_fix_pin_power);
  */
 
 /* check each pin in the given array; returns true if any of them is plugged */
-static bool detect_jacks(struct hda_codec *codec, int num_pins, const hda_nid_t *pins)
+static bool detect_jacks(struct hda_codec *codec, int num_pins, hda_nid_t *pins)
 {
 	int i;
 	bool present = false;
@@ -4434,7 +4402,7 @@ static bool detect_jacks(struct hda_codec *codec, int num_pins, const hda_nid_t 
 }
 
 /* standard HP/line-out auto-mute helper */
-static void do_automute(struct hda_codec *codec, int num_pins, const hda_nid_t *pins,
+static void do_automute(struct hda_codec *codec, int num_pins, hda_nid_t *pins,
 			int *paths, bool mute)
 {
 	struct hda_gen_spec *spec = codec->spec;
@@ -6041,7 +6009,7 @@ int snd_hda_gen_init(struct hda_codec *codec)
 	/* call init functions of standard auto-mute helpers */
 	update_automute_all(codec);
 
-	snd_hda_regmap_sync(codec);
+	regcache_sync(codec->core.regmap);
 
 	if (spec->vmaster_mute.sw_kctl && spec->vmaster_mute.hook)
 		snd_hda_sync_vmaster_hook(&spec->vmaster_mute);

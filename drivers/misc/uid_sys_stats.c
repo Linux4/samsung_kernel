@@ -14,6 +14,7 @@
  */
 
 #include <linux/atomic.h>
+#include <linux/cpufreq_times.h>
 #include <linux/err.h>
 #include <linux/hashtable.h>
 #include <linux/init.h>
@@ -125,7 +126,7 @@ static void get_full_task_comm(struct task_entry *task_entry,
 	int i = 0, offset = 0, len = 0;
 	/* save one byte for terminating null character */
 	int unused_len = MAX_TASK_COMM_LEN - TASK_COMM_LEN - 1;
-	char buf[MAX_TASK_COMM_LEN - TASK_COMM_LEN - 1];
+	char buf[unused_len];
 	struct mm_struct *mm = task->mm;
 
 	/* fill the first TASK_COMM_LEN bytes with thread name */
@@ -357,12 +358,9 @@ static int uid_cputime_show(struct seq_file *m, void *v)
 				__func__, uid);
 			return -ENOMEM;
 		}
-		/* avoid double accounting of dying threads */
-		if (!(task->flags & PF_EXITING)) {
-			task_cputime_adjusted(task, &utime, &stime);
-			uid_entry->active_utime += utime;
-			uid_entry->active_stime += stime;
-		}
+		task_cputime_adjusted(task, &utime, &stime);
+		uid_entry->active_utime += utime;
+		uid_entry->active_stime += stime;
 	} while_each_thread(temp, task);
 	rcu_read_unlock();
 
@@ -423,6 +421,9 @@ static ssize_t uid_remove_write(struct file *file,
 		return -EINVAL;
 	}
 
+	/* Also remove uids from /proc/uid_time_in_state */
+	cpufreq_task_times_remove_uids(uid_start, uid_end);
+
 	rt_mutex_lock(&uid_lock);
 
 	for (; uid_start <= uid_end; uid_start++) {
@@ -451,10 +452,6 @@ static void add_uid_io_stats(struct uid_entry *uid_entry,
 			struct task_struct *task, int slot)
 {
 	struct io_stats *io_slot = &uid_entry->io[slot];
-
-	/* avoid double accounting of dying threads */
-	if (slot != UID_STATE_DEAD_TASKS && (task->flags & PF_EXITING))
-		return;
 
 	io_slot->read_bytes += task->ioac.read_bytes;
 	io_slot->write_bytes += compute_write_bytes(task);

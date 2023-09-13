@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * NET3:	Garbage Collector For AF_UNIX sockets
  *
  * Garbage Collector:
  *	Copyright (C) Barak A. Pearlmutter.
+ *	Released under the GPL version 2 or later.
  *
  * Chopped about by Alan Cox 22/3/96 to make it fit the AF_UNIX socket problem.
  * If it doesn't work blame me, it worked when Barak sent it.
@@ -23,6 +23,11 @@
  *  Future optimizations:
  *
  *  - don't just push entire root set; process in place
+ *
+ *	This program is free software; you can redistribute it and/or
+ *	modify it under the terms of the GNU General Public License
+ *	as published by the Free Software Foundation; either version
+ *	2 of the License, or (at your option) any later version.
  *
  *  Fixes:
  *	Alan Cox	07 Sept	1997	Vmalloc internal stack as needed.
@@ -192,11 +197,8 @@ void wait_for_unix_gc(void)
 {
 	/* If number of inflight sockets is insane,
 	 * force a garbage collect right now.
-	 * Paired with the WRITE_ONCE() in unix_inflight(),
-	 * unix_notinflight() and gc_in_progress().
 	 */
-	if (READ_ONCE(unix_tot_inflight) > UNIX_INFLIGHT_TRIGGER_GC &&
-	    !READ_ONCE(gc_in_progress))
+	if (unix_tot_inflight > UNIX_INFLIGHT_TRIGGER_GC && !gc_in_progress)
 		unix_gc();
 	wait_event(unix_gc_wait, gc_in_progress == false);
 }
@@ -216,9 +218,7 @@ void unix_gc(void)
 	if (gc_in_progress)
 		goto out;
 
-	/* Paired with READ_ONCE() in wait_for_unix_gc(). */
-	WRITE_ONCE(gc_in_progress, true);
-
+	gc_in_progress = true;
 	/* First, select candidates for garbage collection.  Only
 	 * in-flight sockets are considered, and from those only ones
 	 * which don't have any external reference.
@@ -304,10 +304,7 @@ void unix_gc(void)
 
 	/* All candidates should have been detached by now. */
 	BUG_ON(!list_empty(&gc_candidates));
-
-	/* Paired with READ_ONCE() in wait_for_unix_gc(). */
-	WRITE_ONCE(gc_in_progress, false);
-
+	gc_in_progress = false;
 	wake_up(&unix_gc_wait);
 
  out:

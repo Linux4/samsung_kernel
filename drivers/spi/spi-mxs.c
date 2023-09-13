@@ -39,7 +39,6 @@
 #include <linux/stmp_device.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/mxs-spi.h>
-#include <trace/events/spi.h>
 
 #define DRIVER_NAME		"mxs-spi"
 
@@ -375,8 +374,6 @@ static int mxs_spi_transfer_one(struct spi_master *master,
 
 	list_for_each_entry(t, &m->transfers, transfer_list) {
 
-		trace_spi_transfer_start(m, t);
-
 		status = mxs_spi_setup_transfer(m->spi, t);
 		if (status)
 			break;
@@ -421,8 +418,6 @@ static int mxs_spi_transfer_one(struct spi_master *master,
 						t->rx_buf, t->len,
 						flag);
 		}
-
-		trace_spi_transfer_stop(m, t);
 
 		if (status) {
 			stmp_reset_block(ssp->base);
@@ -532,6 +527,7 @@ static int mxs_spi_probe(struct platform_device *pdev)
 	struct spi_master *master;
 	struct mxs_spi *spi;
 	struct mxs_ssp *ssp;
+	struct resource *iores;
 	struct clk *clk;
 	void __iomem *base;
 	int devid, clk_freq;
@@ -544,11 +540,12 @@ static int mxs_spi_probe(struct platform_device *pdev)
 	 */
 	const int clk_freq_default = 160000000;
 
+	iores = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	irq_err = platform_get_irq(pdev, 0);
 	if (irq_err < 0)
 		return irq_err;
 
-	base = devm_platform_ioremap_resource(pdev, 0);
+	base = devm_ioremap_resource(&pdev->dev, iores);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
 
@@ -608,7 +605,6 @@ static int mxs_spi_probe(struct platform_device *pdev)
 
 	ret = pm_runtime_get_sync(ssp->dev);
 	if (ret < 0) {
-		pm_runtime_put_noidle(ssp->dev);
 		dev_err(ssp->dev, "runtime_get_sync failed\n");
 		goto out_pm_runtime_disable;
 	}

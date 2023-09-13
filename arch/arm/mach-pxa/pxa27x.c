@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  linux/arch/arm/mach-pxa/pxa27x.c
  *
@@ -7,6 +6,10 @@
  *  Copyright:	MontaVista Software Inc.
  *
  * Code specific to PXA27x aka Bulverde.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 #include <linux/dmaengine.h>
 #include <linux/dma/pxa-dma.h>

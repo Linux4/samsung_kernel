@@ -40,14 +40,12 @@
  *     OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "skeleton.dtsi"
 #include "armv7-m.dtsi"
 #include <dt-bindings/clock/stm32fx-clock.h>
 #include <dt-bindings/mfd/stm32f7-rcc.h>
 
 / {
-	#address-cells = <1>;
-	#size-cells = <1>;
-
 	clocks {
 		clk_hse: clk-hse {
 			#clock-cells = <0>;
@@ -94,7 +92,6 @@
 
 			pwm {
 				compatible = "st,stm32-pwm";
-				#pwm-cells = <3>;
 				status = "disabled";
 			};
 
@@ -124,7 +121,6 @@
 
 			pwm {
 				compatible = "st,stm32-pwm";
-				#pwm-cells = <3>;
 				status = "disabled";
 			};
 
@@ -154,7 +150,6 @@
 
 			pwm {
 				compatible = "st,stm32-pwm";
-				#pwm-cells = <3>;
 				status = "disabled";
 			};
 
@@ -183,7 +178,6 @@
 
 			pwm {
 				compatible = "st,stm32-pwm";
-				#pwm-cells = <3>;
 				status = "disabled";
 			};
 
@@ -253,7 +247,6 @@
 
 			pwm {
 				compatible = "st,stm32-pwm";
-				#pwm-cells = <3>;
 				status = "disabled";
 			};
 
@@ -265,6 +258,8 @@
 		};
 
 		timers13: timers@40001c00 {
+			#address-cells = <1>;
+			#size-cells = <0>;
 			compatible = "st,stm32-timers";
 			reg = <0x40001C00 0x400>;
 			clocks = <&rcc 0 STM32F7_APB1_CLOCK(TIM13)>;
@@ -273,12 +268,13 @@
 
 			pwm {
 				compatible = "st,stm32-pwm";
-				#pwm-cells = <3>;
 				status = "disabled";
 			};
 		};
 
 		timers14: timers@40002000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
 			compatible = "st,stm32-timers";
 			reg = <0x40002000 0x400>;
 			clocks = <&rcc 0 STM32F7_APB1_CLOCK(TIM14)>;
@@ -287,7 +283,6 @@
 
 			pwm {
 				compatible = "st,stm32-pwm";
-				#pwm-cells = <3>;
 				status = "disabled";
 			};
 		};
@@ -362,9 +357,9 @@
 			status = "disabled";
 		};
 
-		i2c3: i2c@40005c00 {
+		i2c3: i2c@40005C00 {
 			compatible = "st,stm32f7-i2c";
-			reg = <0x40005c00 0x400>;
+			reg = <0x40005C00 0x400>;
 			interrupts = <72>,
 				     <73>;
 			resets = <&rcc STM32F7_APB1_RESET(I2C3)>;
@@ -422,7 +417,6 @@
 
 			pwm {
 				compatible = "st,stm32-pwm";
-				#pwm-cells = <3>;
 				status = "disabled";
 			};
 
@@ -444,7 +438,6 @@
 
 			pwm {
 				compatible = "st,stm32-pwm";
-				#pwm-cells = <3>;
 				status = "disabled";
 			};
 
@@ -517,7 +510,6 @@
 
 			pwm {
 				compatible = "st,stm32-pwm";
-				#pwm-cells = <3>;
 				status = "disabled";
 			};
 
@@ -529,6 +521,8 @@
 		};
 
 		timers10: timers@40014400 {
+			#address-cells = <1>;
+			#size-cells = <0>;
 			compatible = "st,stm32-timers";
 			reg = <0x40014400 0x400>;
 			clocks = <&rcc 0 STM32F7_APB2_CLOCK(TIM10)>;
@@ -537,12 +531,13 @@
 
 			pwm {
 				compatible = "st,stm32-pwm";
-				#pwm-cells = <3>;
 				status = "disabled";
 			};
 		};
 
 		timers11: timers@40014800 {
+			#address-cells = <1>;
+			#size-cells = <0>;
 			compatible = "st,stm32-timers";
 			reg = <0x40014800 0x400>;
 			clocks = <&rcc 0 STM32F7_APB2_CLOCK(TIM11)>;
@@ -551,7 +546,6 @@
 
 			pwm {
 				compatible = "st,stm32-pwm";
-				#pwm-cells = <3>;
 				status = "disabled";
 			};
 		};

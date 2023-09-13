@@ -28,11 +28,12 @@
  *  Alon Levy <alevy@redhat.com>
  */
 
-#include <drm/drm_debugfs.h>
-#include <drm/drm_file.h>
+#include <linux/debugfs.h>
 
+#include <drm/drmP.h>
 #include "qxl_drv.h"
 #include "qxl_object.h"
+
 
 #if defined(CONFIG_DEBUG_FS)
 static int
@@ -57,16 +58,16 @@ qxl_debugfs_buffers_info(struct seq_file *m, void *data)
 	struct qxl_bo *bo;
 
 	list_for_each_entry(bo, &qdev->gem.objects, list) {
-		struct dma_resv_list *fobj;
+		struct reservation_object_list *fobj;
 		int rel;
 
 		rcu_read_lock();
-		fobj = rcu_dereference(bo->tbo.base.resv->fence);
+		fobj = rcu_dereference(bo->tbo.resv->fence);
 		rel = fobj ? fobj->shared_count : 0;
 		rcu_read_unlock();
 
 		seq_printf(m, "size %ld, pc %d, num releases %d\n",
-			   (unsigned long)bo->tbo.base.size,
+			   (unsigned long)bo->gem_base.size,
 			   bo->pin_count, rel);
 	}
 	return 0;
@@ -101,9 +102,9 @@ qxl_debugfs_init(struct drm_minor *minor)
 
 int qxl_debugfs_add_files(struct qxl_device *qdev,
 			  struct drm_info_list *files,
-			  unsigned int nfiles)
+			  unsigned nfiles)
 {
-	unsigned int i;
+	unsigned i;
 
 	for (i = 0; i < qdev->debugfs_count; i++) {
 		if (qdev->debugfs[i].files == files) {

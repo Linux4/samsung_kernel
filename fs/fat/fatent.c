@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2004, OGAWA Hirofumi
+ * Released under GPL v2.
  */
 
 #include <linux/blkdev.h>
@@ -93,8 +93,7 @@ static int fat12_ent_bread(struct super_block *sb, struct fat_entry *fatent,
 err_brelse:
 	brelse(bhs[0]);
 err:
-	fat_msg_ratelimit(sb, KERN_ERR, "FAT read failed (blocknr %llu)",
-			  (llu)blocknr);
+	fat_msg(sb, KERN_ERR, "FAT read failed (blocknr %llu)", (llu)blocknr);
 	return -EIO;
 }
 
@@ -107,8 +106,8 @@ static int fat_ent_bread(struct super_block *sb, struct fat_entry *fatent,
 	fatent->fat_inode = MSDOS_SB(sb)->fat_inode;
 	fatent->bhs[0] = sb_bread(sb, blocknr);
 	if (!fatent->bhs[0]) {
-		fat_msg_ratelimit(sb, KERN_ERR, "FAT read failed (blocknr %llu)",
-				  (llu)blocknr);
+		fat_msg(sb, KERN_ERR, "FAT read failed (blocknr %llu)",
+		       (llu)blocknr);
 		return -EIO;
 	}
 	fatent->nr_bhs = 1;
@@ -169,9 +168,9 @@ static void fat12_ent_put(struct fat_entry *fatent, int new)
 	}
 	spin_unlock(&fat12_entry_lock);
 
-	mark_buffer_dirty_inode(fatent->bhs[0], fatent->fat_inode);
+	mark_buffer_dirty_inode_sync(fatent->bhs[0], fatent->fat_inode);
 	if (fatent->nr_bhs == 2)
-		mark_buffer_dirty_inode(fatent->bhs[1], fatent->fat_inode);
+		mark_buffer_dirty_inode_sync(fatent->bhs[1], fatent->fat_inode);
 }
 
 static void fat16_ent_put(struct fat_entry *fatent, int new)
@@ -180,7 +179,7 @@ static void fat16_ent_put(struct fat_entry *fatent, int new)
 		new = EOF_FAT16;
 
 	*fatent->u.ent16_p = cpu_to_le16(new);
-	mark_buffer_dirty_inode(fatent->bhs[0], fatent->fat_inode);
+	mark_buffer_dirty_inode_sync(fatent->bhs[0], fatent->fat_inode);
 }
 
 static void fat32_ent_put(struct fat_entry *fatent, int new)
@@ -188,7 +187,7 @@ static void fat32_ent_put(struct fat_entry *fatent, int new)
 	WARN_ON(new & 0xf0000000);
 	new |= le32_to_cpu(*fatent->u.ent32_p) & ~0x0fffffff;
 	*fatent->u.ent32_p = cpu_to_le32(new);
-	mark_buffer_dirty_inode(fatent->bhs[0], fatent->fat_inode);
+	mark_buffer_dirty_inode_sync(fatent->bhs[0], fatent->fat_inode);
 }
 
 static int fat12_ent_next(struct fat_entry *fatent)
@@ -291,17 +290,19 @@ void fat_ent_access_init(struct super_block *sb)
 
 	mutex_init(&sbi->fat_lock);
 
-	if (is_fat32(sbi)) {
+	switch (sbi->fat_bits) {
+	case 32:
 		sbi->fatent_shift = 2;
 		sbi->fatent_ops = &fat32_ops;
-	} else if (is_fat16(sbi)) {
+		break;
+	case 16:
 		sbi->fatent_shift = 1;
 		sbi->fatent_ops = &fat16_ops;
-	} else if (is_fat12(sbi)) {
+		break;
+	case 12:
 		sbi->fatent_shift = -1;
 		sbi->fatent_ops = &fat12_ops;
-	} else {
-		fat_fs_error(sb, "invalid FAT variant, %u bits", sbi->fat_bits);
+		break;
 	}
 }
 
@@ -309,7 +310,7 @@ static void mark_fsinfo_dirty(struct super_block *sb)
 {
 	struct msdos_sb_info *sbi = MSDOS_SB(sb);
 
-	if (sb_rdonly(sb) || !is_fat32(sbi))
+	if (sb_rdonly(sb) || sbi->fat_bits != 32)
 		return;
 
 	__mark_inode_dirty(sbi->fsinfo_inode, I_DIRTY_SYNC);
@@ -326,7 +327,7 @@ static inline int fat_ent_update_ptr(struct super_block *sb,
 	/* Is this fatent's blocks including this entry? */
 	if (!fatent->nr_bhs || bhs[0]->b_blocknr != blocknr)
 		return 0;
-	if (is_fat12(sbi)) {
+	if (sbi->fat_bits == 12) {
 		if ((offset + 1) < sb->s_blocksize) {
 			/* This entry is on bhs[0]. */
 			if (fatent->nr_bhs == 2) {
@@ -394,7 +395,7 @@ static int fat_mirror_bhs(struct super_block *sb, struct buffer_head **bhs,
 			memcpy(c_bh->b_data, bhs[n]->b_data, sb->s_blocksize);
 			set_buffer_uptodate(c_bh);
 			unlock_buffer(c_bh);
-			mark_buffer_dirty_inode(c_bh, sbi->fat_inode);
+			mark_buffer_dirty_inode_sync(c_bh, sbi->fat_inode);
 			if (sb->s_flags & SB_SYNCHRONOUS)
 				err = sync_dirty_buffer(c_bh);
 			brelse(c_bh);

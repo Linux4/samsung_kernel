@@ -11,7 +11,6 @@
 #include <linux/clkdev.h>
 #include <linux/device.h>
 #include <linux/init.h>
-#include <linux/io.h>
 #include <linux/kernel.h>
 #include <linux/mfd/da8xx-cfgchip.h>
 #include <linux/mfd/syscon.h>

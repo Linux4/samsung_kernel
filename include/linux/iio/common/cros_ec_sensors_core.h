@@ -1,8 +1,16 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * ChromeOS EC sensor hub
  *
  * Copyright (C) 2016 Google, Inc
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #ifndef __CROS_EC_SENSORS_CORE_H
@@ -10,8 +18,7 @@
 
 #include <linux/iio/iio.h>
 #include <linux/irqreturn.h>
-#include <linux/platform_data/cros_ec_commands.h>
-#include <linux/platform_data/cros_ec_proto.h>
+#include <linux/mfd/cros_ec.h>
 
 enum {
 	CROS_EC_SENSOR_X,
@@ -63,20 +70,14 @@ struct cros_ec_sensors_core_state {
 	enum motionsensor_type type;
 	enum motionsensor_location loc;
 
-	struct calib_data {
-		s16 offset;
-		u16 scale;
-	} calib[CROS_EC_SENSOR_MAX_AXIS];
-	s8 sign[CROS_EC_SENSOR_MAX_AXIS];
-	u8 samples[CROS_EC_SAMPLE_SIZE] __aligned(8);
+	s16 calib[CROS_EC_SENSOR_MAX_AXIS];
+
+	u8 samples[CROS_EC_SAMPLE_SIZE];
 
 	int (*read_ec_sensors_data)(struct iio_dev *indio_dev,
 				    unsigned long scan_mask, s16 *data);
 
 	int curr_sampl_freq;
-
-	/* Table of known available frequencies : 0, Min and Max in mHz */
-	int frequencies[3];
 };
 
 /**
@@ -156,24 +157,6 @@ int cros_ec_motion_send_host_cmd(struct cros_ec_sensors_core_state *st,
 int cros_ec_sensors_core_read(struct cros_ec_sensors_core_state *st,
 			      struct iio_chan_spec const *chan,
 			      int *val, int *val2, long mask);
-
-/**
- * cros_ec_sensors_core_read_avail() - get available values
- * @indio_dev:		pointer to state information for device
- * @chan:	channel specification structure table
- * @vals:	list of available values
- * @type:	type of data returned
- * @length:	number of data returned in the array
- * @mask:	specifies which values to be requested
- *
- * Return:	an error code, IIO_AVAIL_RANGE or IIO_AVAIL_LIST
- */
-int cros_ec_sensors_core_read_avail(struct iio_dev *indio_dev,
-				    struct iio_chan_spec const *chan,
-				    const int **vals,
-				    int *type,
-				    int *length,
-				    long mask);
 
 /**
  * cros_ec_sensors_core_write() - function to write a value to the sensor

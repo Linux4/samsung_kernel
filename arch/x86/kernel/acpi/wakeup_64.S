@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 .text
 #include <linux/linkage.h>
 #include <asm/segment.h>
@@ -8,7 +7,7 @@
 #include <asm/asm-offsets.h>
 #include <asm/frame.h>
 
-# Copyright 2003 Pavel Machek <pavel@suse.cz
+# Copyright 2003 Pavel Machek <pavel@suse.cz>, distribute under GPLv2
 
 .code64
 	/*
@@ -18,13 +17,8 @@ ENTRY(wakeup_long64)
 	movq	saved_magic, %rax
 	movq	$0x123456789abcdef0, %rdx
 	cmpq	%rdx, %rax
-	je	2f
+	jne	bogus_64_magic
 
-	/* stop here on a saved_magic mismatch */
-	movq $0xbad6d61676963, %rcx
-1:
-	jmp 1b
-2:
 	movw	$__KERNEL_DS, %ax
 	movw	%ax, %ss	
 	movw	%ax, %ds
@@ -41,6 +35,9 @@ ENTRY(wakeup_long64)
 	movq	saved_rip, %rax
 	jmp	*%rax
 ENDPROC(wakeup_long64)
+
+bogus_64_magic:
+	jmp	bogus_64_magic
 
 ENTRY(do_suspend_lowlevel)
 	FRAME_BEGIN
@@ -128,12 +125,12 @@ ENTRY(do_suspend_lowlevel)
 ENDPROC(do_suspend_lowlevel)
 
 .data
-saved_rbp:		.quad	0
-saved_rsi:		.quad	0
-saved_rdi:		.quad	0
-saved_rbx:		.quad	0
+ENTRY(saved_rbp)	.quad	0
+ENTRY(saved_rsi)	.quad	0
+ENTRY(saved_rdi)	.quad	0
+ENTRY(saved_rbx)	.quad	0
 
-saved_rip:		.quad	0
-saved_rsp:		.quad	0
+ENTRY(saved_rip)	.quad	0
+ENTRY(saved_rsp)	.quad	0
 
 ENTRY(saved_magic)	.quad	0

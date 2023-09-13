@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * x86 FPU boot time init code:
  */
@@ -204,6 +203,12 @@ static void __init fpu__init_system_xstate_size_legacy(void)
 	 */
 
 	if (!boot_cpu_has(X86_FEATURE_FPU)) {
+		/*
+		 * Disable xsave as we do not support it if i387
+		 * emulation is enabled.
+		 */
+		setup_clear_cpu_cap(X86_FEATURE_XSAVE);
+		setup_clear_cpu_cap(X86_FEATURE_XSAVEOPT);
 		fpu_kernel_xstate_size = sizeof(struct swregs_state);
 	} else {
 		if (boot_cpu_has(X86_FEATURE_FXSR))
@@ -234,6 +239,8 @@ static void __init fpu__init_system_ctx_switch(void)
 
 	WARN_ON_FPU(!on_boot_cpu);
 	on_boot_cpu = 0;
+
+	WARN_ON_FPU(current->thread.fpu.initialized);
 }
 
 /*
@@ -242,24 +249,21 @@ static void __init fpu__init_system_ctx_switch(void)
  */
 static void __init fpu__init_parse_early_param(void)
 {
-	char arg[128];
+	char arg[32];
 	char *argptr = arg;
-	int arglen, res, bit;
+	int bit;
 
-#ifdef CONFIG_X86_32
 	if (cmdline_find_option_bool(boot_command_line, "no387"))
-#ifdef CONFIG_MATH_EMULATION
 		setup_clear_cpu_cap(X86_FEATURE_FPU);
-#else
-		pr_err("Option 'no387' required CONFIG_MATH_EMULATION enabled.\n");
-#endif
 
-	if (cmdline_find_option_bool(boot_command_line, "nofxsr"))
+	if (cmdline_find_option_bool(boot_command_line, "nofxsr")) {
 		setup_clear_cpu_cap(X86_FEATURE_FXSR);
-#endif
+		setup_clear_cpu_cap(X86_FEATURE_FXSR_OPT);
+		setup_clear_cpu_cap(X86_FEATURE_XMM);
+	}
 
 	if (cmdline_find_option_bool(boot_command_line, "noxsave"))
-		setup_clear_cpu_cap(X86_FEATURE_XSAVE);
+		fpu__xstate_clear_all_cpu_caps();
 
 	if (cmdline_find_option_bool(boot_command_line, "noxsaveopt"))
 		setup_clear_cpu_cap(X86_FEATURE_XSAVEOPT);
@@ -267,26 +271,12 @@ static void __init fpu__init_parse_early_param(void)
 	if (cmdline_find_option_bool(boot_command_line, "noxsaves"))
 		setup_clear_cpu_cap(X86_FEATURE_XSAVES);
 
-	arglen = cmdline_find_option(boot_command_line, "clearcpuid", arg, sizeof(arg));
-	if (arglen <= 0)
-		return;
-
-	pr_info("Clearing CPUID bits:");
-	do {
-		res = get_option(&argptr, &bit);
-		if (res == 0 || res == 3)
-			break;
-
-		/* If the argument was too long, the last bit may be cut off */
-		if (res == 1 && arglen >= sizeof(arg))
-			break;
-
-		if (bit >= 0 && bit < NCAPINTS * 32) {
-			pr_cont(" " X86_CAP_FMT, x86_cap_flag(bit));
-			setup_clear_cpu_cap(bit);
-		}
-	} while (res == 2);
-	pr_cont("\n");
+	if (cmdline_find_option(boot_command_line, "clearcpuid", arg,
+				sizeof(arg)) &&
+	    get_option(&argptr, &bit) &&
+	    bit >= 0 &&
+	    bit < NCAPINTS * 32)
+		setup_clear_cpu_cap(bit);
 }
 
 /*

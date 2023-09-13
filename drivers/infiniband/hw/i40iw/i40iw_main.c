@@ -54,6 +54,10 @@
 #define DRV_VERSION	__stringify(DRV_VERSION_MAJOR) "."		\
 	__stringify(DRV_VERSION_MINOR) "." __stringify(DRV_VERSION_BUILD)
 
+static int push_mode;
+module_param(push_mode, int, 0644);
+MODULE_PARM_DESC(push_mode, "Low latency mode: 0=disabled (default), 1=enabled)");
+
 static int debug;
 module_param(debug, int, 0644);
 MODULE_PARM_DESC(debug, "debug flags: 0=disabled (default), 0x7fffffff=all");
@@ -1218,12 +1222,8 @@ static void i40iw_add_ipv4_addr(struct i40iw_device *iwdev)
 		if ((((rdma_vlan_dev_vlan_id(dev) < 0xFFFF) &&
 		      (rdma_vlan_dev_real_dev(dev) == iwdev->netdev)) ||
 		    (dev == iwdev->netdev)) && (dev->flags & IFF_UP)) {
-			const struct in_ifaddr *ifa;
-
 			idev = in_dev_get(dev);
-			if (!idev)
-				continue;
-			in_dev_for_each_ifa_rtnl(ifa, idev) {
+			for_ifa(idev) {
 				i40iw_debug(&iwdev->sc_dev, I40IW_DEBUG_CM,
 					    "IP=%pI4, vlan_id=%d, MAC=%pM\n", &ifa->ifa_address,
 					     rdma_vlan_dev_vlan_id(dev), dev->dev_addr);
@@ -1235,7 +1235,7 @@ static void i40iw_add_ipv4_addr(struct i40iw_device *iwdev)
 						       true,
 						       I40IW_ARP_ADD);
 			}
-
+			endfor_ifa(idev);
 			in_dev_put(idev);
 		}
 	}
@@ -1584,6 +1584,7 @@ static enum i40iw_status_code i40iw_setup_init_state(struct i40iw_handler *hdl,
 	if (status)
 		goto exit;
 	iwdev->obj_next = iwdev->obj_mem;
+	iwdev->push_mode = push_mode;
 
 	init_waitqueue_head(&iwdev->vchnl_waitq);
 	init_waitqueue_head(&dev->vf_reqs);
@@ -1640,10 +1641,7 @@ static int i40iw_open(struct i40e_info *ldev, struct i40e_client *client)
 	iwdev = &hdl->device;
 	iwdev->hdl = hdl;
 	dev = &iwdev->sc_dev;
-	if (i40iw_setup_cm_core(iwdev)) {
-		kfree(iwdev->hdl);
-		return -ENOMEM;
-	}
+	i40iw_setup_cm_core(iwdev);
 
 	dev->back_dev = (void *)iwdev;
 	iwdev->ldev = &hdl->ldev;

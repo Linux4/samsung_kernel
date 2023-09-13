@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * IgorPlug-USB IR Receiver
  *
@@ -10,6 +9,16 @@
  * Based on the lirc_igorplugusb.c driver:
  *	Copyright (C) 2004 Jan M. Hochstein
  *	<hochstein@algo.informatik.tu-darmstadt.de>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 #include <linux/device.h>
 #include <linux/kernel.h>
@@ -47,7 +56,7 @@ static void igorplugusb_cmd(struct igorplugusb *ir, int cmd);
 
 static void igorplugusb_irdata(struct igorplugusb *ir, unsigned len)
 {
-	struct ir_raw_event rawir = {};
+	DEFINE_IR_RAW_EVENT(rawir);
 	unsigned i, start, overflow;
 
 	dev_dbg(ir->dev, "irdata: %*ph (len=%u)", len, ir->buf_in, len);
@@ -64,11 +73,9 @@ static void igorplugusb_irdata(struct igorplugusb *ir, unsigned len)
 	if (start >= len) {
 		dev_err(ir->dev, "receive overflow invalid: %u", overflow);
 	} else {
-		if (overflow > 0) {
+		if (overflow > 0)
 			dev_warn(ir->dev, "receive overflow, at least %u lost",
 								overflow);
-			ir_raw_event_reset(ir->rc);
-		}
 
 		do {
 			rawir.duration = ir->buf_in[i] * 85333;

@@ -1,6 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  Copyright © 2008 Ilya Yanok, Emcraft Systems
+ *
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
  */
 
 #include <linux/slab.h>
@@ -29,14 +34,15 @@ struct socrates_nand_host {
 
 /**
  * socrates_nand_write_buf -  write buffer to chip
- * @this:	NAND chip object
+ * @mtd:	MTD device structure
  * @buf:	data buffer
  * @len:	number of bytes to write
  */
-static void socrates_nand_write_buf(struct nand_chip *this, const uint8_t *buf,
-				    int len)
+static void socrates_nand_write_buf(struct mtd_info *mtd,
+		const uint8_t *buf, int len)
 {
 	int i;
+	struct nand_chip *this = mtd_to_nand(mtd);
 	struct socrates_nand_host *host = nand_get_controller_data(this);
 
 	for (i = 0; i < len; i++) {
@@ -48,14 +54,14 @@ static void socrates_nand_write_buf(struct nand_chip *this, const uint8_t *buf,
 
 /**
  * socrates_nand_read_buf -  read chip data into buffer
- * @this:	NAND chip object
+ * @mtd:	MTD device structure
  * @buf:	buffer to store date
  * @len:	number of bytes to read
  */
-static void socrates_nand_read_buf(struct nand_chip *this, uint8_t *buf,
-				   int len)
+static void socrates_nand_read_buf(struct mtd_info *mtd, uint8_t *buf, int len)
 {
 	int i;
+	struct nand_chip *this = mtd_to_nand(mtd);
 	struct socrates_nand_host *host = nand_get_controller_data(this);
 	uint32_t val;
 
@@ -72,19 +78,31 @@ static void socrates_nand_read_buf(struct nand_chip *this, uint8_t *buf,
  * socrates_nand_read_byte -  read one byte from the chip
  * @mtd:	MTD device structure
  */
-static uint8_t socrates_nand_read_byte(struct nand_chip *this)
+static uint8_t socrates_nand_read_byte(struct mtd_info *mtd)
 {
 	uint8_t byte;
-	socrates_nand_read_buf(this, &byte, sizeof(byte));
+	socrates_nand_read_buf(mtd, &byte, sizeof(byte));
 	return byte;
+}
+
+/**
+ * socrates_nand_read_word -  read one word from the chip
+ * @mtd:	MTD device structure
+ */
+static uint16_t socrates_nand_read_word(struct mtd_info *mtd)
+{
+	uint16_t word;
+	socrates_nand_read_buf(mtd, (uint8_t *)&word, sizeof(word));
+	return word;
 }
 
 /*
  * Hardware specific access to control-lines
  */
-static void socrates_nand_cmd_ctrl(struct nand_chip *nand_chip, int cmd,
-				   unsigned int ctrl)
+static void socrates_nand_cmd_ctrl(struct mtd_info *mtd, int cmd,
+		unsigned int ctrl)
 {
+	struct nand_chip *nand_chip = mtd_to_nand(mtd);
 	struct socrates_nand_host *host = nand_get_controller_data(nand_chip);
 	uint32_t val;
 
@@ -107,8 +125,9 @@ static void socrates_nand_cmd_ctrl(struct nand_chip *nand_chip, int cmd,
 /*
  * Read the Device Ready pin.
  */
-static int socrates_nand_device_ready(struct nand_chip *nand_chip)
+static int socrates_nand_device_ready(struct mtd_info *mtd)
 {
+	struct nand_chip *nand_chip = mtd_to_nand(mtd);
 	struct socrates_nand_host *host = nand_get_controller_data(nand_chip);
 
 	if (in_be32(host->io_base) & FPGA_NAND_BUSY)
@@ -147,17 +166,22 @@ static int socrates_nand_probe(struct platform_device *ofdev)
 	mtd->name = "socrates_nand";
 	mtd->dev.parent = &ofdev->dev;
 
-	nand_chip->legacy.cmd_ctrl = socrates_nand_cmd_ctrl;
-	nand_chip->legacy.read_byte = socrates_nand_read_byte;
-	nand_chip->legacy.write_buf = socrates_nand_write_buf;
-	nand_chip->legacy.read_buf = socrates_nand_read_buf;
-	nand_chip->legacy.dev_ready = socrates_nand_device_ready;
+	/*should never be accessed directly */
+	nand_chip->IO_ADDR_R = (void *)0xdeadbeef;
+	nand_chip->IO_ADDR_W = (void *)0xdeadbeef;
+
+	nand_chip->cmd_ctrl = socrates_nand_cmd_ctrl;
+	nand_chip->read_byte = socrates_nand_read_byte;
+	nand_chip->read_word = socrates_nand_read_word;
+	nand_chip->write_buf = socrates_nand_write_buf;
+	nand_chip->read_buf = socrates_nand_read_buf;
+	nand_chip->dev_ready = socrates_nand_device_ready;
 
 	nand_chip->ecc.mode = NAND_ECC_SOFT;	/* enable ECC */
 	nand_chip->ecc.algo = NAND_ECC_HAMMING;
 
 	/* TODO: I have no idea what real delay is. */
-	nand_chip->legacy.chip_delay = 20;	/* 20us command delay time */
+	nand_chip->chip_delay = 20;		/* 20us command delay time */
 
 	dev_set_drvdata(&ofdev->dev, host);
 

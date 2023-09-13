@@ -1,7 +1,20 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * nosy - Snoop mode driver for TI PCILynx 1394 controllers
  * Copyright (C) 2002-2007 Kristian Høgsberg
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
 #include <linux/device.h>
@@ -290,7 +303,7 @@ nosy_open(struct inode *inode, struct file *file)
 
 	file->private_data = client;
 
-	return stream_open(inode, file);
+	return nonseekable_open(inode, file);
 fail:
 	kfree(client);
 	lynx_put(lynx);
@@ -346,7 +359,6 @@ nosy_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	struct client *client = file->private_data;
 	spinlock_t *client_list_lock = &client->lynx->client_list_lock;
 	struct nosy_stats stats;
-	int ret;
 
 	switch (cmd) {
 	case NOSY_IOC_GET_STATS:
@@ -361,15 +373,11 @@ nosy_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return 0;
 
 	case NOSY_IOC_START:
-		ret = -EBUSY;
 		spin_lock_irq(client_list_lock);
-		if (list_empty(&client->link)) {
-			list_add_tail(&client->link, &client->lynx->client_list);
-			ret = 0;
-		}
+		list_add_tail(&client->link, &client->lynx->client_list);
 		spin_unlock_irq(client_list_lock);
 
-		return ret;
+		return 0;
 
 	case NOSY_IOC_STOP:
 		spin_lock_irq(client_list_lock);

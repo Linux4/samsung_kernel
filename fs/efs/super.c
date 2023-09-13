@@ -74,9 +74,15 @@ static struct inode *efs_alloc_inode(struct super_block *sb)
 	return &ei->vfs_inode;
 }
 
-static void efs_free_inode(struct inode *inode)
+static void efs_i_callback(struct rcu_head *head)
 {
+	struct inode *inode = container_of(head, struct inode, i_rcu);
 	kmem_cache_free(efs_inode_cachep, INODE_INFO(inode));
+}
+
+static void efs_destroy_inode(struct inode *inode)
+{
+	call_rcu(&inode->i_rcu, efs_i_callback);
 }
 
 static void init_once(void *foo)
@@ -116,7 +122,7 @@ static int efs_remount(struct super_block *sb, int *flags, char *data)
 
 static const struct super_operations efs_superblock_operations = {
 	.alloc_inode	= efs_alloc_inode,
-	.free_inode	= efs_free_inode,
+	.destroy_inode	= efs_destroy_inode,
 	.statfs		= efs_statfs,
 	.remount_fs	= efs_remount,
 };
@@ -257,8 +263,6 @@ static int efs_fill_super(struct super_block *s, void *d, int silent)
 	if (!sb)
 		return -ENOMEM;
 	s->s_fs_info = sb;
-	s->s_time_min = 0;
-	s->s_time_max = U32_MAX;
  
 	s->s_magic		= EFS_SUPER_MAGIC;
 	if (!sb_set_blocksize(s, EFS_BLOCKSIZE)) {

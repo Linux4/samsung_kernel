@@ -1,7 +1,15 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * KXCJK-1013 3-axis accelerometer driver
  * Copyright (c) 2014, Intel Corporation.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
  */
 
 #include <linux/module.h>
@@ -126,29 +134,12 @@ enum kx_chipset {
 	KX_MAX_CHIPS /* this must be last */
 };
 
-enum kx_acpi_type {
-	ACPI_GENERIC,
-	ACPI_SMO8500,
-	ACPI_KIOX010A,
-};
-
-enum kxcjk1013_axis {
-	AXIS_X,
-	AXIS_Y,
-	AXIS_Z,
-	AXIS_MAX
-};
-
 struct kxcjk1013_data {
 	struct i2c_client *client;
 	struct iio_trigger *dready_trig;
 	struct iio_trigger *motion_trig;
 	struct mutex mutex;
-	/* Ensure timestamp naturally aligned */
-	struct {
-		s16 chans[AXIS_MAX];
-		s64 timestamp __aligned(8);
-	} scan;
+	s16 buffer[8];
 	u8 odr_bits;
 	u8 range;
 	int wake_thres;
@@ -159,7 +150,14 @@ struct kxcjk1013_data {
 	bool motion_trigger_on;
 	int64_t timestamp;
 	enum kx_chipset chipset;
-	enum kx_acpi_type acpi_type;
+	bool is_smo8500_device;
+};
+
+enum kxcjk1013_axis {
+	AXIS_X,
+	AXIS_Y,
+	AXIS_Z,
+	AXIS_MAX,
 };
 
 enum kxcjk1013_mode {
@@ -279,32 +277,6 @@ static const struct {
 			      {19163, 1, 0},
 			      {38326, 0, 1} };
 
-#ifdef CONFIG_ACPI
-enum kiox010a_fn_index {
-	KIOX010A_SET_LAPTOP_MODE = 1,
-	KIOX010A_SET_TABLET_MODE = 2,
-};
-
-static int kiox010a_dsm(struct device *dev, int fn_index)
-{
-	acpi_handle handle = ACPI_HANDLE(dev);
-	guid_t kiox010a_dsm_guid;
-	union acpi_object *obj;
-
-	if (!handle)
-		return -ENODEV;
-
-	guid_parse("1f339696-d475-4e26-8cad-2e9f8e6d7a91", &kiox010a_dsm_guid);
-
-	obj = acpi_evaluate_dsm(handle, &kiox010a_dsm_guid, 1, fn_index, NULL);
-	if (!obj)
-		return -EIO;
-
-	ACPI_FREE(obj);
-	return 0;
-}
-#endif
-
 static int kxcjk1013_set_mode(struct kxcjk1013_data *data,
 			      enum kxcjk1013_mode mode)
 {
@@ -381,13 +353,6 @@ static int kxcjk1013_set_range(struct kxcjk1013_data *data, int range_index)
 static int kxcjk1013_chip_init(struct kxcjk1013_data *data)
 {
 	int ret;
-
-#ifdef CONFIG_ACPI
-	if (data->acpi_type == ACPI_KIOX010A) {
-		/* Make sure the kbd and touchpad on 2-in-1s using 2 KXCJ91008-s work */
-		kiox010a_dsm(&data->client->dev, KIOX010A_SET_LAPTOP_MODE);
-	}
-#endif
 
 	ret = i2c_smbus_read_byte_data(data->client, KXCJK1013_REG_WHO_AM_I);
 	if (ret < 0) {
@@ -486,7 +451,7 @@ static int kxcjk1013_set_power_state(struct kxcjk1013_data *data, bool on)
 	}
 	if (ret < 0) {
 		dev_err(&data->client->dev,
-			"Failed: %s for %d\n", __func__, on);
+			"Failed: kxcjk1013_set_power_state for %d\n", on);
 		if (on)
 			pm_runtime_put_noidle(&data->client->dev);
 		return ret;
@@ -1082,12 +1047,12 @@ static irqreturn_t kxcjk1013_trigger_handler(int irq, void *p)
 	ret = i2c_smbus_read_i2c_block_data_or_emulated(data->client,
 							KXCJK1013_REG_XOUT_L,
 							AXIS_MAX * 2,
-							(u8 *)data->scan.chans);
+							(u8 *)data->buffer);
 	mutex_unlock(&data->mutex);
 	if (ret < 0)
 		goto err;
 
-	iio_push_to_buffers_with_timestamp(indio_dev, &data->scan,
+	iio_push_to_buffers_with_timestamp(indio_dev, data->buffer,
 					   data->timestamp);
 err:
 	iio_trigger_notify_done(indio_dev->trig);
@@ -1276,7 +1241,7 @@ static irqreturn_t kxcjk1013_data_rdy_trig_poll(int irq, void *private)
 
 static const char *kxcjk1013_match_acpi_device(struct device *dev,
 					       enum kx_chipset *chipset,
-					       enum kx_acpi_type *acpi_type)
+					       bool *is_smo8500_device)
 {
 	const struct acpi_device_id *id;
 
@@ -1285,9 +1250,7 @@ static const char *kxcjk1013_match_acpi_device(struct device *dev,
 		return NULL;
 
 	if (strcmp(id->id, "SMO8500") == 0)
-		*acpi_type = ACPI_SMO8500;
-	else if (strcmp(id->id, "KIOX010A") == 0)
-		*acpi_type = ACPI_KIOX010A;
+		*is_smo8500_device = true;
 
 	*chipset = (enum kx_chipset)id->driver_data;
 
@@ -1323,7 +1286,7 @@ static int kxcjk1013_probe(struct i2c_client *client,
 	} else if (ACPI_HANDLE(&client->dev)) {
 		name = kxcjk1013_match_acpi_device(&client->dev,
 						   &data->chipset,
-						   &data->acpi_type);
+						   &data->is_smo8500_device);
 	} else
 		return -ENODEV;
 
@@ -1341,7 +1304,7 @@ static int kxcjk1013_probe(struct i2c_client *client,
 	indio_dev->modes = INDIO_DIRECT_MODE;
 	indio_dev->info = &kxcjk1013_info;
 
-	if (client->irq > 0 && data->acpi_type != ACPI_SMO8500) {
+	if (client->irq > 0 && !data->is_smo8500_device) {
 		ret = devm_request_threaded_irq(&client->dev, client->irq,
 						kxcjk1013_data_rdy_trig_poll,
 						kxcjk1013_event_handler,
@@ -1409,16 +1372,14 @@ static int kxcjk1013_probe(struct i2c_client *client,
 	ret = iio_device_register(indio_dev);
 	if (ret < 0) {
 		dev_err(&client->dev, "unable to register iio device\n");
-		goto err_pm_cleanup;
+		goto err_buffer_cleanup;
 	}
 
 	return 0;
 
-err_pm_cleanup:
-	pm_runtime_dont_use_autosuspend(&client->dev);
-	pm_runtime_disable(&client->dev);
 err_buffer_cleanup:
-	iio_triggered_buffer_cleanup(indio_dev);
+	if (data->dready_trig)
+		iio_triggered_buffer_cleanup(indio_dev);
 err_trigger_unregister:
 	if (data->dready_trig)
 		iio_trigger_unregister(data->dready_trig);
@@ -1441,8 +1402,8 @@ static int kxcjk1013_remove(struct i2c_client *client)
 	pm_runtime_set_suspended(&client->dev);
 	pm_runtime_put_noidle(&client->dev);
 
-	iio_triggered_buffer_cleanup(indio_dev);
 	if (data->dready_trig) {
+		iio_triggered_buffer_cleanup(indio_dev);
 		iio_trigger_unregister(data->dready_trig);
 		iio_trigger_unregister(data->motion_trig);
 	}
@@ -1530,13 +1491,9 @@ static const struct acpi_device_id kx_acpi_match[] = {
 	{"KXCJ1013", KXCJK1013},
 	{"KXCJ1008", KXCJ91008},
 	{"KXCJ9000", KXCJ91008},
-	{"KIOX0008", KXCJ91008},
-	{"KIOX0009", KXTJ21009},
 	{"KIOX000A", KXCJ91008},
-	{"KIOX010A", KXCJ91008}, /* KXCJ91008 in the display of a yoga 2-in-1 */
-	{"KIOX020A", KXCJ91008}, /* KXCJ91008 in the base of a yoga 2-in-1 */
+	{"KIOX010A", KXCJ91008}, /* KXCJ91008 inside the display of a 2-in-1 */
 	{"KXTJ1009", KXTJ21009},
-	{"KXJ2109",  KXTJ21009},
 	{"SMO8500",  KXCJ91008},
 	{ },
 };
@@ -1553,20 +1510,10 @@ static const struct i2c_device_id kxcjk1013_id[] = {
 
 MODULE_DEVICE_TABLE(i2c, kxcjk1013_id);
 
-static const struct of_device_id kxcjk1013_of_match[] = {
-	{ .compatible = "kionix,kxcjk1013", },
-	{ .compatible = "kionix,kxcj91008", },
-	{ .compatible = "kionix,kxtj21009", },
-	{ .compatible = "kionix,kxtf9", },
-	{ }
-};
-MODULE_DEVICE_TABLE(of, kxcjk1013_of_match);
-
 static struct i2c_driver kxcjk1013_driver = {
 	.driver = {
 		.name	= KXCJK1013_DRV_NAME,
 		.acpi_match_table = ACPI_PTR(kx_acpi_match),
-		.of_match_table = kxcjk1013_of_match,
 		.pm	= &kxcjk1013_pm_ops,
 	},
 	.probe		= kxcjk1013_probe,

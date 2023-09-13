@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * ioctl32.c: Conversion between 32bit and 64bit native ioctls.
  *	Separated from fs stuff by Arnd Bergmann <arnd@arndb.de>
@@ -159,7 +158,7 @@ static int get_v4l2_window32(struct v4l2_window __user *p64,
 	compat_caddr_t p;
 	u32 clipcount;
 
-	if (!access_ok(p32, sizeof(*p32)) ||
+	if (!access_ok(VERIFY_READ, p32, sizeof(*p32)) ||
 	    copy_in_user(&p64->w, &p32->w, sizeof(p32->w)) ||
 	    assign_in_user(&p64->field, &p32->field) ||
 	    assign_in_user(&p64->chromakey, &p32->chromakey) ||
@@ -245,7 +244,6 @@ struct v4l2_format32 {
  *		return: number of created buffers
  * @memory:	buffer memory type
  * @format:	frame format, for which buffers are requested
- * @capabilities: capabilities of this buffer type.
  * @reserved:	future extensions
  */
 struct v4l2_create_buffers32 {
@@ -253,8 +251,7 @@ struct v4l2_create_buffers32 {
 	__u32			count;
 	__u32			memory;	/* enum v4l2_memory */
 	struct v4l2_format32	format;
-	__u32			capabilities;
-	__u32			reserved[7];
+	__u32			reserved[8];
 };
 
 static int __bufsize_v4l2_format(struct v4l2_format32 __user *p32, u32 *size)
@@ -284,7 +281,7 @@ static int __bufsize_v4l2_format(struct v4l2_format32 __user *p32, u32 *size)
 
 static int bufsize_v4l2_format(struct v4l2_format32 __user *p32, u32 *size)
 {
-	if (!access_ok(p32, sizeof(*p32)))
+	if (!access_ok(VERIFY_READ, p32, sizeof(*p32)))
 		return -EFAULT;
 	return __bufsize_v4l2_format(p32, size);
 }
@@ -324,7 +321,6 @@ static int __get_v4l2_format32(struct v4l2_format __user *p64,
 		return copy_in_user(&p64->fmt.sdr, &p32->fmt.sdr,
 				    sizeof(p64->fmt.sdr)) ? -EFAULT : 0;
 	case V4L2_BUF_TYPE_META_CAPTURE:
-	case V4L2_BUF_TYPE_META_OUTPUT:
 		return copy_in_user(&p64->fmt.meta, &p32->fmt.meta,
 				    sizeof(p64->fmt.meta)) ? -EFAULT : 0;
 	default:
@@ -336,7 +332,7 @@ static int get_v4l2_format32(struct v4l2_format __user *p64,
 			     struct v4l2_format32 __user *p32,
 			     void __user *aux_buf, u32 aux_space)
 {
-	if (!access_ok(p32, sizeof(*p32)))
+	if (!access_ok(VERIFY_READ, p32, sizeof(*p32)))
 		return -EFAULT;
 	return __get_v4l2_format32(p64, p32, aux_buf, aux_space);
 }
@@ -344,7 +340,7 @@ static int get_v4l2_format32(struct v4l2_format __user *p64,
 static int bufsize_v4l2_create(struct v4l2_create_buffers32 __user *p32,
 			       u32 *size)
 {
-	if (!access_ok(p32, sizeof(*p32)))
+	if (!access_ok(VERIFY_READ, p32, sizeof(*p32)))
 		return -EFAULT;
 	return __bufsize_v4l2_format(&p32->format, size);
 }
@@ -353,7 +349,7 @@ static int get_v4l2_create32(struct v4l2_create_buffers __user *p64,
 			     struct v4l2_create_buffers32 __user *p32,
 			     void __user *aux_buf, u32 aux_space)
 {
-	if (!access_ok(p32, sizeof(*p32)) ||
+	if (!access_ok(VERIFY_READ, p32, sizeof(*p32)) ||
 	    copy_in_user(p64, p32,
 			 offsetof(struct v4l2_create_buffers32, format)))
 		return -EFAULT;
@@ -394,7 +390,6 @@ static int __put_v4l2_format32(struct v4l2_format __user *p64,
 		return copy_in_user(&p32->fmt.sdr, &p64->fmt.sdr,
 				    sizeof(p64->fmt.sdr)) ? -EFAULT : 0;
 	case V4L2_BUF_TYPE_META_CAPTURE:
-	case V4L2_BUF_TYPE_META_OUTPUT:
 		return copy_in_user(&p32->fmt.meta, &p64->fmt.meta,
 				    sizeof(p64->fmt.meta)) ? -EFAULT : 0;
 	default:
@@ -405,7 +400,7 @@ static int __put_v4l2_format32(struct v4l2_format __user *p64,
 static int put_v4l2_format32(struct v4l2_format __user *p64,
 			     struct v4l2_format32 __user *p32)
 {
-	if (!access_ok(p32, sizeof(*p32)))
+	if (!access_ok(VERIFY_WRITE, p32, sizeof(*p32)))
 		return -EFAULT;
 	return __put_v4l2_format32(p64, p32);
 }
@@ -413,10 +408,9 @@ static int put_v4l2_format32(struct v4l2_format __user *p64,
 static int put_v4l2_create32(struct v4l2_create_buffers __user *p64,
 			     struct v4l2_create_buffers32 __user *p32)
 {
-	if (!access_ok(p32, sizeof(*p32)) ||
+	if (!access_ok(VERIFY_WRITE, p32, sizeof(*p32)) ||
 	    copy_in_user(p32, p64,
 			 offsetof(struct v4l2_create_buffers32, format)) ||
-	    assign_in_user(&p32->capabilities, &p64->capabilities) ||
 	    copy_in_user(p32->reserved, p64->reserved, sizeof(p64->reserved)))
 		return -EFAULT;
 	return __put_v4l2_format32(&p64->format, &p32->format);
@@ -435,7 +429,7 @@ static int get_v4l2_standard32(struct v4l2_standard __user *p64,
 			       struct v4l2_standard32 __user *p32)
 {
 	/* other fields are not set by the user, nor used by the driver */
-	if (!access_ok(p32, sizeof(*p32)) ||
+	if (!access_ok(VERIFY_READ, p32, sizeof(*p32)) ||
 	    assign_in_user(&p64->index, &p32->index))
 		return -EFAULT;
 	return 0;
@@ -444,7 +438,7 @@ static int get_v4l2_standard32(struct v4l2_standard __user *p64,
 static int put_v4l2_standard32(struct v4l2_standard __user *p64,
 			       struct v4l2_standard32 __user *p32)
 {
-	if (!access_ok(p32, sizeof(*p32)) ||
+	if (!access_ok(VERIFY_WRITE, p32, sizeof(*p32)) ||
 	    assign_in_user(&p32->index, &p64->index) ||
 	    assign_in_user(&p32->id, &p64->id) ||
 	    copy_in_user(p32->name, p64->name, sizeof(p32->name)) ||
@@ -465,11 +459,6 @@ struct v4l2_plane32 {
 		__s32		fd;
 	} m;
 	__u32			data_offset;
-	/*
-	 * few userspace clients and drivers use reserved fields
-	 * and it is up to them how these fields are used. v4l2
-	 * simply copy reserved fields between them.
-	 */
 	__u32			reserved[11];
 };
 
@@ -493,7 +482,10 @@ struct v4l2_buffer32 {
 	} m;
 	__u32			length;
 	__u32			reserved2;
-	__s32			request_fd;
+	union {
+		__u32		fence_fd;
+		__u32		reserved;
+	};
 };
 
 static int get_v4l2_plane32(struct v4l2_plane __user *p64,
@@ -504,9 +496,7 @@ static int get_v4l2_plane32(struct v4l2_plane __user *p64,
 
 	if (copy_in_user(p64, p32, 2 * sizeof(__u32)) ||
 	    copy_in_user(&p64->data_offset, &p32->data_offset,
-			 sizeof(p64->data_offset)) ||
-	    copy_in_user(p64->reserved, p32->reserved,
-			 sizeof(p64->reserved)))
+			 sizeof(p64->data_offset)))
 		return -EFAULT;
 
 	switch (memory) {
@@ -538,9 +528,7 @@ static int put_v4l2_plane32(struct v4l2_plane __user *p64,
 
 	if (copy_in_user(p32, p64, 2 * sizeof(__u32)) ||
 	    copy_in_user(&p32->data_offset, &p64->data_offset,
-			 sizeof(p64->data_offset)) ||
-	    copy_in_user(p32->reserved, p64->reserved,
-			 sizeof(p32->reserved)))
+			 sizeof(p64->data_offset)))
 		return -EFAULT;
 
 	switch (memory) {
@@ -570,7 +558,7 @@ static int bufsize_v4l2_buffer(struct v4l2_buffer32 __user *p32, u32 *size)
 	u32 type;
 	u32 length;
 
-	if (!access_ok(p32, sizeof(*p32)) ||
+	if (!access_ok(VERIFY_READ, p32, sizeof(*p32)) ||
 	    get_user(type, &p32->type) ||
 	    get_user(length, &p32->length))
 		return -EFAULT;
@@ -596,14 +584,13 @@ static int get_v4l2_buffer32(struct v4l2_buffer __user *p64,
 {
 	u32 type;
 	u32 length;
-	s32 request_fd;
 	enum v4l2_memory memory;
 	struct v4l2_plane32 __user *uplane32;
 	struct v4l2_plane __user *uplane;
 	compat_caddr_t p;
 	int ret;
 
-	if (!access_ok(p32, sizeof(*p32)) ||
+	if (!access_ok(VERIFY_READ, p32, sizeof(*p32)) ||
 	    assign_in_user(&p64->index, &p32->index) ||
 	    get_user(type, &p32->type) ||
 	    put_user(type, &p64->type) ||
@@ -611,13 +598,13 @@ static int get_v4l2_buffer32(struct v4l2_buffer __user *p64,
 	    get_user(memory, &p32->memory) ||
 	    put_user(memory, &p64->memory) ||
 	    get_user(length, &p32->length) ||
-	    put_user(length, &p64->length) ||
-	    get_user(request_fd, &p32->request_fd) ||
-	    put_user(request_fd, &p64->request_fd))
+	    put_user(length, &p64->length))
 		return -EFAULT;
 
 	if (V4L2_TYPE_IS_OUTPUT(type))
 		if (assign_in_user(&p64->bytesused, &p32->bytesused) ||
+		    assign_in_user(&p64->reserved2, &p32->reserved2) ||
+		    assign_in_user(&p64->fence_fd, &p32->fence_fd) ||
 		    assign_in_user(&p64->field, &p32->field) ||
 		    assign_in_user(&p64->timestamp.tv_sec,
 				   &p32->timestamp.tv_sec) ||
@@ -642,7 +629,7 @@ static int get_v4l2_buffer32(struct v4l2_buffer __user *p64,
 			return -EFAULT;
 
 		uplane32 = compat_ptr(p);
-		if (!access_ok(uplane32,
+		if (!access_ok(VERIFY_READ, uplane32,
 			       num_planes * sizeof(*uplane32)))
 			return -EFAULT;
 
@@ -701,7 +688,7 @@ static int put_v4l2_buffer32(struct v4l2_buffer __user *p64,
 	compat_caddr_t p;
 	int ret;
 
-	if (!access_ok(p32, sizeof(*p32)) ||
+	if (!access_ok(VERIFY_WRITE, p32, sizeof(*p32)) ||
 	    assign_in_user(&p32->index, &p64->index) ||
 	    get_user(type, &p64->type) ||
 	    put_user(type, &p32->type) ||
@@ -716,8 +703,8 @@ static int put_v4l2_buffer32(struct v4l2_buffer __user *p64,
 	    assign_in_user(&p32->timestamp.tv_usec, &p64->timestamp.tv_usec) ||
 	    copy_in_user(&p32->timecode, &p64->timecode, sizeof(p64->timecode)) ||
 	    assign_in_user(&p32->sequence, &p64->sequence) ||
+	    assign_in_user(&p32->fence_fd, &p64->fence_fd) ||
 	    assign_in_user(&p32->reserved2, &p64->reserved2) ||
-	    assign_in_user(&p32->request_fd, &p64->request_fd) ||
 	    get_user(length, &p64->length) ||
 	    put_user(length, &p32->length))
 		return -EFAULT;
@@ -791,7 +778,7 @@ static int get_v4l2_framebuffer32(struct v4l2_framebuffer __user *p64,
 {
 	compat_caddr_t tmp;
 
-	if (!access_ok(p32, sizeof(*p32)) ||
+	if (!access_ok(VERIFY_READ, p32, sizeof(*p32)) ||
 	    get_user(tmp, &p32->base) ||
 	    put_user_force(compat_ptr(tmp), &p64->base) ||
 	    assign_in_user(&p64->capability, &p32->capability) ||
@@ -806,7 +793,7 @@ static int put_v4l2_framebuffer32(struct v4l2_framebuffer __user *p64,
 {
 	void *base;
 
-	if (!access_ok(p32, sizeof(*p32)) ||
+	if (!access_ok(VERIFY_WRITE, p32, sizeof(*p32)) ||
 	    get_user(base, &p64->base) ||
 	    put_user(ptr_to_compat((void __user *)base), &p32->base) ||
 	    assign_in_user(&p32->capability, &p64->capability) ||
@@ -852,8 +839,7 @@ struct v4l2_ext_controls32 {
 	__u32 which;
 	__u32 count;
 	__u32 error_idx;
-	__s32 request_fd;
-	__u32 reserved[1];
+	__u32 reserved[2];
 	compat_caddr_t controls; /* actually struct v4l2_ext_control32 * */
 };
 
@@ -903,7 +889,7 @@ static int bufsize_v4l2_ext_controls(struct v4l2_ext_controls32 __user *p32,
 {
 	u32 count;
 
-	if (!access_ok(p32, sizeof(*p32)) ||
+	if (!access_ok(VERIFY_READ, p32, sizeof(*p32)) ||
 	    get_user(count, &p32->count))
 		return -EFAULT;
 	if (count > V4L2_CID_MAX_CTRLS)
@@ -923,12 +909,11 @@ static int get_v4l2_ext_controls32(struct file *file,
 	u32 n;
 	compat_caddr_t p;
 
-	if (!access_ok(p32, sizeof(*p32)) ||
+	if (!access_ok(VERIFY_READ, p32, sizeof(*p32)) ||
 	    assign_in_user(&p64->which, &p32->which) ||
 	    get_user(count, &p32->count) ||
 	    put_user(count, &p64->count) ||
 	    assign_in_user(&p64->error_idx, &p32->error_idx) ||
-	    assign_in_user(&p64->request_fd, &p32->request_fd) ||
 	    copy_in_user(p64->reserved, p32->reserved, sizeof(p64->reserved)))
 		return -EFAULT;
 
@@ -939,7 +924,7 @@ static int get_v4l2_ext_controls32(struct file *file,
 	if (get_user(p, &p32->controls))
 		return -EFAULT;
 	ucontrols = compat_ptr(p);
-	if (!access_ok(ucontrols, count * sizeof(*ucontrols)))
+	if (!access_ok(VERIFY_READ, ucontrols, count * sizeof(*ucontrols)))
 		return -EFAULT;
 	if (aux_space < count * sizeof(*kcontrols))
 		return -EFAULT;
@@ -989,12 +974,11 @@ static int put_v4l2_ext_controls32(struct file *file,
 	 * with __user causes smatch warnings, so instead declare it
 	 * without __user and cast it as a userspace pointer where needed.
 	 */
-	if (!access_ok(p32, sizeof(*p32)) ||
+	if (!access_ok(VERIFY_WRITE, p32, sizeof(*p32)) ||
 	    assign_in_user(&p32->which, &p64->which) ||
 	    get_user(count, &p64->count) ||
 	    put_user(count, &p32->count) ||
 	    assign_in_user(&p32->error_idx, &p64->error_idx) ||
-	    assign_in_user(&p32->request_fd, &p64->request_fd) ||
 	    copy_in_user(p32->reserved, p64->reserved, sizeof(p32->reserved)) ||
 	    get_user(kcontrols, &p64->controls))
 		return -EFAULT;
@@ -1004,7 +988,7 @@ static int put_v4l2_ext_controls32(struct file *file,
 	if (get_user(p, &p32->controls))
 		return -EFAULT;
 	ucontrols = compat_ptr(p);
-	if (!access_ok(ucontrols, count * sizeof(*ucontrols)))
+	if (!access_ok(VERIFY_WRITE, ucontrols, count * sizeof(*ucontrols)))
 		return -EFAULT;
 
 	for (n = 0; n < count; n++) {
@@ -1053,7 +1037,7 @@ struct v4l2_event32 {
 static int put_v4l2_event32(struct v4l2_event __user *p64,
 			    struct v4l2_event32 __user *p32)
 {
-	if (!access_ok(p32, sizeof(*p32)) ||
+	if (!access_ok(VERIFY_WRITE, p32, sizeof(*p32)) ||
 	    assign_in_user(&p32->type, &p64->type) ||
 	    copy_in_user(&p32->u, &p64->u, sizeof(p64->u)) ||
 	    assign_in_user(&p32->pending, &p64->pending) ||
@@ -1079,7 +1063,7 @@ static int get_v4l2_edid32(struct v4l2_edid __user *p64,
 {
 	compat_uptr_t tmp;
 
-	if (!access_ok(p32, sizeof(*p32)) ||
+	if (!access_ok(VERIFY_READ, p32, sizeof(*p32)) ||
 	    assign_in_user(&p64->pad, &p32->pad) ||
 	    assign_in_user(&p64->start_block, &p32->start_block) ||
 	    assign_in_user_cast(&p64->blocks, &p32->blocks) ||
@@ -1095,7 +1079,7 @@ static int put_v4l2_edid32(struct v4l2_edid __user *p64,
 {
 	void *edid;
 
-	if (!access_ok(p32, sizeof(*p32)) ||
+	if (!access_ok(VERIFY_WRITE, p32, sizeof(*p32)) ||
 	    assign_in_user(&p32->pad, &p64->pad) ||
 	    assign_in_user(&p32->start_block, &p64->start_block) ||
 	    assign_in_user(&p32->blocks, &p64->blocks) ||

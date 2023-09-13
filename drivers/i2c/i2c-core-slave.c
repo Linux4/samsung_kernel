@@ -1,8 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Linux I2C core slave support code
  *
  * Copyright (C) 2014 by Wolfram Sang <wsa@sang-engineering.com>
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
  */
 
 #include <dt-bindings/i2c/i2c.h>
@@ -18,8 +22,10 @@ int i2c_slave_register(struct i2c_client *client, i2c_slave_cb_t slave_cb)
 {
 	int ret;
 
-	if (WARN(IS_ERR_OR_NULL(client) || !slave_cb, "insufficient data\n"))
+	if (!client || !slave_cb) {
+		WARN(1, "insufficient data\n");
 		return -EINVAL;
+	}
 
 	if (!(client->flags & I2C_CLIENT_SLAVE))
 		dev_warn(&client->dev, "%s: client slave flag not set. You might see address collisions\n",
@@ -57,9 +63,6 @@ EXPORT_SYMBOL_GPL(i2c_slave_register);
 int i2c_slave_unregister(struct i2c_client *client)
 {
 	int ret;
-
-	if (IS_ERR_OR_NULL(client))
-		return -EINVAL;
 
 	if (!client->adapter->algo->unreg_slave) {
 		dev_err(&client->dev, "%s: not supported by adapter\n", __func__);

@@ -1,9 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright (c) 2011 - 2012 Samsung Electronics Co., Ltd.
  *		http://www.samsung.com
  *
  * Samsung EXYNOS5 SoC series G-Scaler driver
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published
+ * by the Free Software Foundation, either version 2 of the License,
+ * or (at your option) any later version.
  */
 
 #include <linux/module.h>
@@ -27,18 +31,21 @@
 
 static const struct gsc_fmt gsc_formats[] = {
 	{
+		.name		= "RGB565",
 		.pixelformat	= V4L2_PIX_FMT_RGB565X,
 		.depth		= { 16 },
 		.color		= GSC_RGB,
 		.num_planes	= 1,
 		.num_comp	= 1,
 	}, {
+		.name		= "BGRX-8-8-8-8, 32 bpp",
 		.pixelformat	= V4L2_PIX_FMT_BGR32,
 		.depth		= { 32 },
 		.color		= GSC_RGB,
 		.num_planes	= 1,
 		.num_comp	= 1,
 	}, {
+		.name		= "YUV 4:2:2 packed, YCbYCr",
 		.pixelformat	= V4L2_PIX_FMT_YUYV,
 		.depth		= { 16 },
 		.color		= GSC_YUV422,
@@ -48,6 +55,7 @@ static const struct gsc_fmt gsc_formats[] = {
 		.num_comp	= 1,
 		.mbus_code	= MEDIA_BUS_FMT_YUYV8_2X8,
 	}, {
+		.name		= "YUV 4:2:2 packed, CbYCrY",
 		.pixelformat	= V4L2_PIX_FMT_UYVY,
 		.depth		= { 16 },
 		.color		= GSC_YUV422,
@@ -57,6 +65,7 @@ static const struct gsc_fmt gsc_formats[] = {
 		.num_comp	= 1,
 		.mbus_code	= MEDIA_BUS_FMT_UYVY8_2X8,
 	}, {
+		.name		= "YUV 4:2:2 packed, CrYCbY",
 		.pixelformat	= V4L2_PIX_FMT_VYUY,
 		.depth		= { 16 },
 		.color		= GSC_YUV422,
@@ -66,6 +75,7 @@ static const struct gsc_fmt gsc_formats[] = {
 		.num_comp	= 1,
 		.mbus_code	= MEDIA_BUS_FMT_VYUY8_2X8,
 	}, {
+		.name		= "YUV 4:2:2 packed, YCrYCb",
 		.pixelformat	= V4L2_PIX_FMT_YVYU,
 		.depth		= { 16 },
 		.color		= GSC_YUV422,
@@ -75,6 +85,7 @@ static const struct gsc_fmt gsc_formats[] = {
 		.num_comp	= 1,
 		.mbus_code	= MEDIA_BUS_FMT_YVYU8_2X8,
 	}, {
+		.name		= "YUV 4:4:4 planar, YCbYCr",
 		.pixelformat	= V4L2_PIX_FMT_YUV32,
 		.depth		= { 32 },
 		.color		= GSC_YUV444,
@@ -83,6 +94,7 @@ static const struct gsc_fmt gsc_formats[] = {
 		.num_planes	= 1,
 		.num_comp	= 1,
 	}, {
+		.name		= "YUV 4:2:2 planar, Y/Cb/Cr",
 		.pixelformat	= V4L2_PIX_FMT_YUV422P,
 		.depth		= { 16 },
 		.color		= GSC_YUV422,
@@ -91,6 +103,7 @@ static const struct gsc_fmt gsc_formats[] = {
 		.num_planes	= 1,
 		.num_comp	= 3,
 	}, {
+		.name		= "YUV 4:2:2 planar, Y/CbCr",
 		.pixelformat	= V4L2_PIX_FMT_NV16,
 		.depth		= { 16 },
 		.color		= GSC_YUV422,
@@ -99,6 +112,7 @@ static const struct gsc_fmt gsc_formats[] = {
 		.num_planes	= 1,
 		.num_comp	= 2,
 	}, {
+		.name		= "YUV 4:2:2 non-contig, Y/CbCr",
 		.pixelformat	= V4L2_PIX_FMT_NV16M,
 		.depth		= { 8, 8 },
 		.color		= GSC_YUV422,
@@ -107,6 +121,7 @@ static const struct gsc_fmt gsc_formats[] = {
 		.num_planes	= 2,
 		.num_comp	= 2,
 	}, {
+		.name		= "YUV 4:2:2 planar, Y/CrCb",
 		.pixelformat	= V4L2_PIX_FMT_NV61,
 		.depth		= { 16 },
 		.color		= GSC_YUV422,
@@ -115,6 +130,7 @@ static const struct gsc_fmt gsc_formats[] = {
 		.num_planes	= 1,
 		.num_comp	= 2,
 	}, {
+		.name		= "YUV 4:2:2 non-contig, Y/CrCb",
 		.pixelformat	= V4L2_PIX_FMT_NV61M,
 		.depth		= { 8, 8 },
 		.color		= GSC_YUV422,
@@ -123,6 +139,7 @@ static const struct gsc_fmt gsc_formats[] = {
 		.num_planes	= 2,
 		.num_comp	= 2,
 	}, {
+		.name		= "YUV 4:2:0 planar, YCbCr",
 		.pixelformat	= V4L2_PIX_FMT_YUV420,
 		.depth		= { 12 },
 		.color		= GSC_YUV420,
@@ -131,6 +148,7 @@ static const struct gsc_fmt gsc_formats[] = {
 		.num_planes	= 1,
 		.num_comp	= 3,
 	}, {
+		.name		= "YUV 4:2:0 planar, YCrCb",
 		.pixelformat	= V4L2_PIX_FMT_YVU420,
 		.depth		= { 12 },
 		.color		= GSC_YUV420,
@@ -140,6 +158,7 @@ static const struct gsc_fmt gsc_formats[] = {
 		.num_comp	= 3,
 
 	}, {
+		.name		= "YUV 4:2:0 planar, Y/CbCr",
 		.pixelformat	= V4L2_PIX_FMT_NV12,
 		.depth		= { 12 },
 		.color		= GSC_YUV420,
@@ -148,6 +167,7 @@ static const struct gsc_fmt gsc_formats[] = {
 		.num_planes	= 1,
 		.num_comp	= 2,
 	}, {
+		.name		= "YUV 4:2:0 planar, Y/CrCb",
 		.pixelformat	= V4L2_PIX_FMT_NV21,
 		.depth		= { 12 },
 		.color		= GSC_YUV420,
@@ -156,6 +176,7 @@ static const struct gsc_fmt gsc_formats[] = {
 		.num_planes	= 1,
 		.num_comp	= 2,
 	}, {
+		.name		= "YUV 4:2:0 non-contig. 2p, Y/CrCb",
 		.pixelformat	= V4L2_PIX_FMT_NV21M,
 		.depth		= { 8, 4 },
 		.color		= GSC_YUV420,
@@ -164,6 +185,7 @@ static const struct gsc_fmt gsc_formats[] = {
 		.num_planes	= 2,
 		.num_comp	= 2,
 	}, {
+		.name		= "YUV 4:2:0 non-contig. 2p, Y/CbCr",
 		.pixelformat	= V4L2_PIX_FMT_NV12M,
 		.depth		= { 8, 4 },
 		.color		= GSC_YUV420,
@@ -172,6 +194,7 @@ static const struct gsc_fmt gsc_formats[] = {
 		.num_planes	= 2,
 		.num_comp	= 2,
 	}, {
+		.name		= "YUV 4:2:0 non-contig. 3p, Y/Cb/Cr",
 		.pixelformat	= V4L2_PIX_FMT_YUV420M,
 		.depth		= { 8, 2, 2 },
 		.color		= GSC_YUV420,
@@ -180,6 +203,7 @@ static const struct gsc_fmt gsc_formats[] = {
 		.num_planes	= 3,
 		.num_comp	= 3,
 	}, {
+		.name		= "YUV 4:2:0 non-contig. 3p, Y/Cr/Cb",
 		.pixelformat	= V4L2_PIX_FMT_YVU420M,
 		.depth		= { 8, 2, 2 },
 		.color		= GSC_YUV420,
@@ -188,6 +212,7 @@ static const struct gsc_fmt gsc_formats[] = {
 		.num_planes	= 3,
 		.num_comp	= 3,
 	}, {
+		.name		= "YUV 4:2:0 n.c. 2p, Y/CbCr tiled",
 		.pixelformat	= V4L2_PIX_FMT_NV12MT_16X16,
 		.depth		= { 8, 4 },
 		.color		= GSC_YUV420,
@@ -306,7 +331,7 @@ void gsc_check_src_scale_info(struct gsc_variant *var,
 	}
 }
 
-int gsc_enum_fmt(struct v4l2_fmtdesc *f)
+int gsc_enum_fmt_mplane(struct v4l2_fmtdesc *f)
 {
 	const struct gsc_fmt *fmt;
 
@@ -314,6 +339,7 @@ int gsc_enum_fmt(struct v4l2_fmtdesc *f)
 	if (!fmt)
 		return -EINVAL;
 
+	strlcpy(f->description, fmt->name, sizeof(f->description));
 	f->pixelformat = fmt->pixelformat;
 
 	return 0;
@@ -515,7 +541,20 @@ void gsc_check_crop_change(u32 tmp_w, u32 tmp_h, u32 *w, u32 *h)
 	}
 }
 
-int gsc_try_selection(struct gsc_ctx *ctx, struct v4l2_selection *s)
+int gsc_g_crop(struct gsc_ctx *ctx, struct v4l2_crop *cr)
+{
+	struct gsc_frame *frame;
+
+	frame = ctx_get_frame(ctx, cr->type);
+	if (IS_ERR(frame))
+		return PTR_ERR(frame);
+
+	cr->c = frame->crop;
+
+	return 0;
+}
+
+int gsc_try_crop(struct gsc_ctx *ctx, struct v4l2_crop *cr)
 {
 	struct gsc_frame *f;
 	struct gsc_dev *gsc = ctx->gsc_dev;
@@ -523,25 +562,25 @@ int gsc_try_selection(struct gsc_ctx *ctx, struct v4l2_selection *s)
 	u32 mod_x = 0, mod_y = 0, tmp_w, tmp_h;
 	u32 min_w, min_h, max_w, max_h;
 
-	if (s->r.top < 0 || s->r.left < 0) {
+	if (cr->c.top < 0 || cr->c.left < 0) {
 		pr_err("doesn't support negative values for top & left\n");
 		return -EINVAL;
 	}
-	pr_debug("user put w: %d, h: %d", s->r.width, s->r.height);
+	pr_debug("user put w: %d, h: %d", cr->c.width, cr->c.height);
 
-	if (s->type == V4L2_BUF_TYPE_VIDEO_CAPTURE)
+	if (cr->type == V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		f = &ctx->d_frame;
-	else if (s->type == V4L2_BUF_TYPE_VIDEO_OUTPUT)
+	else if (cr->type == V4L2_BUF_TYPE_VIDEO_OUTPUT)
 		f = &ctx->s_frame;
 	else
 		return -EINVAL;
 
 	max_w = f->f_width;
 	max_h = f->f_height;
-	tmp_w = s->r.width;
-	tmp_h = s->r.height;
+	tmp_w = cr->c.width;
+	tmp_h = cr->c.height;
 
-	if (V4L2_TYPE_IS_OUTPUT(s->type)) {
+	if (V4L2_TYPE_IS_OUTPUT(cr->type)) {
 		if ((is_yuv422(f->fmt->color) && f->fmt->num_comp == 1) ||
 		    is_rgb(f->fmt->color))
 			min_w = 32;
@@ -563,8 +602,8 @@ int gsc_try_selection(struct gsc_ctx *ctx, struct v4l2_selection *s)
 			max_h = f->f_width;
 			min_w = variant->pix_min->target_rot_en_w;
 			min_h = variant->pix_min->target_rot_en_h;
-			tmp_w = s->r.height;
-			tmp_h = s->r.width;
+			tmp_w = cr->c.height;
+			tmp_h = cr->c.width;
 		} else {
 			min_w = variant->pix_min->target_rot_dis_w;
 			min_h = variant->pix_min->target_rot_dis_h;
@@ -577,29 +616,29 @@ int gsc_try_selection(struct gsc_ctx *ctx, struct v4l2_selection *s)
 	v4l_bound_align_image(&tmp_w, min_w, max_w, mod_x,
 			      &tmp_h, min_h, max_h, mod_y, 0);
 
-	if (!V4L2_TYPE_IS_OUTPUT(s->type) &&
-	    (ctx->gsc_ctrls.rotate->val == 90 ||
-	     ctx->gsc_ctrls.rotate->val == 270))
+	if (!V4L2_TYPE_IS_OUTPUT(cr->type) &&
+		(ctx->gsc_ctrls.rotate->val == 90 ||
+		ctx->gsc_ctrls.rotate->val == 270))
 		gsc_check_crop_change(tmp_h, tmp_w,
-					&s->r.width, &s->r.height);
+					&cr->c.width, &cr->c.height);
 	else
 		gsc_check_crop_change(tmp_w, tmp_h,
-					&s->r.width, &s->r.height);
+					&cr->c.width, &cr->c.height);
 
 
 	/* adjust left/top if cropping rectangle is out of bounds */
 	/* Need to add code to algin left value with 2's multiple */
-	if (s->r.left + tmp_w > max_w)
-		s->r.left = max_w - tmp_w;
-	if (s->r.top + tmp_h > max_h)
-		s->r.top = max_h - tmp_h;
+	if (cr->c.left + tmp_w > max_w)
+		cr->c.left = max_w - tmp_w;
+	if (cr->c.top + tmp_h > max_h)
+		cr->c.top = max_h - tmp_h;
 
 	if ((is_yuv420(f->fmt->color) || is_yuv422(f->fmt->color)) &&
-	    s->r.left & 1)
-		s->r.left -= 1;
+		cr->c.left & 1)
+			cr->c.left -= 1;
 
 	pr_debug("Aligned l:%d, t:%d, w:%d, h:%d, f_w: %d, f_h: %d",
-		 s->r.left, s->r.top, s->r.width, s->r.height, max_w, max_h);
+	    cr->c.left, cr->c.top, cr->c.width, cr->c.height, max_w, max_h);
 
 	return 0;
 }

@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 #
 # MMC core configuration
 #
@@ -15,7 +14,7 @@ config PWRSEQ_EMMC
 
 config PWRSEQ_SD8787
 	tristate "HW reset support for SD8787 BT + Wifi module"
-	depends on OF && (MWIFIEX || BT_MRVL_SDIO || LIBERTAS_SDIO)
+	depends on OF && (MWIFIEX || BT_MRVL_SDIO)
 	help
 	  This selects hardware reset support for the SD8787 BT + Wifi
 	  module. By default this option is set to n.
@@ -43,6 +42,16 @@ config MMC_BLOCK
 	  This provides a block device driver, which you can use to
 	  mount the filesystem. Almost everyone wishing MMC support
 	  should say Y or M here.
+
+config MMC_BLOCK_DEFERRED_RESUME
+	bool "Enable Deferred Resume"
+	depends on MMC_BLOCK
+	default n
+	help
+	  This option is support deferred resume on card.
+	  when there are the first I/O after the resume operation,
+	  card initialization eventually starts for saving resume time.
+	  Set this to Y to use this option.
 
 config MMC_BLOCK_MINORS
 	int "Number of minors per block device"
@@ -81,38 +90,9 @@ config MMC_TEST
 	  This driver is only of interest to those developing or
 	  testing a host driver. Most people should say N here.
 
-config MMC_IPC_LOGGING
-	bool "MMC_IPC_LOGGING"
-	depends on MMC
-	help
-	  This enables the IPC logging of significant events for mmc
-	  driver to provide command history for debugging purpose.
-
-	  This enables the IPC tracing events for for mmc driver to
-	  trace significant events used for debugging purpose.
-
-	  If unsure, say N here.
-
-config SDC_QTI
-	tristate "Enable QTI specific code in MMC upstream driver"
-	depends on QGKI && MMC_SDHCI_MSM
+config MMC_SANITIZE
+	bool "Enable Sanitize (Default No)"
 	default n
 	help
-	  This configuration flag allows adding QTI code in
-	  MMC upstream driver.
-
-config MMC_CRYPTO
-	bool "MMC Crypto Engine Support"
-	depends on BLK_INLINE_ENCRYPTION
-	help
-	  Enable Crypto Engine Support in MMC.
-	  Enabling this makes it possible for the kernel to use the crypto
-	  capabilities of the MMC device (if present) to perform crypto
-	  operations on data being transferred to/from the device.
-
-config SEC_STORAGE_MMC
-	tristate "Enable SEC specific MMC/SD code"
-	depends on QGKI && MMC_SDHCI_MSM
-	default n
-	help
-	  This configuration flag allows adding SEC MMC/SD code.
+	  Sanitize is diabled when there is a concern 
+	  about lifetime and performance.

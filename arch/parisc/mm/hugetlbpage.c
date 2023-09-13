@@ -139,9 +139,9 @@ void set_huge_pte_at(struct mm_struct *mm, unsigned long addr,
 {
 	unsigned long flags;
 
-	spin_lock_irqsave(pgd_spinlock((mm)->pgd), flags);
+	purge_tlb_start(flags);
 	__set_huge_pte_at(mm, addr, ptep, entry);
-	spin_unlock_irqrestore(pgd_spinlock((mm)->pgd), flags);
+	purge_tlb_end(flags);
 }
 
 
@@ -151,10 +151,10 @@ pte_t huge_ptep_get_and_clear(struct mm_struct *mm, unsigned long addr,
 	unsigned long flags;
 	pte_t entry;
 
-	spin_lock_irqsave(pgd_spinlock((mm)->pgd), flags);
+	purge_tlb_start(flags);
 	entry = *ptep;
 	__set_huge_pte_at(mm, addr, ptep, __pte(0));
-	spin_unlock_irqrestore(pgd_spinlock((mm)->pgd), flags);
+	purge_tlb_end(flags);
 
 	return entry;
 }
@@ -166,10 +166,10 @@ void huge_ptep_set_wrprotect(struct mm_struct *mm,
 	unsigned long flags;
 	pte_t old_pte;
 
-	spin_lock_irqsave(pgd_spinlock((mm)->pgd), flags);
+	purge_tlb_start(flags);
 	old_pte = *ptep;
 	__set_huge_pte_at(mm, addr, ptep, pte_wrprotect(old_pte));
-	spin_unlock_irqrestore(pgd_spinlock((mm)->pgd), flags);
+	purge_tlb_end(flags);
 }
 
 int huge_ptep_set_access_flags(struct vm_area_struct *vma,
@@ -178,14 +178,13 @@ int huge_ptep_set_access_flags(struct vm_area_struct *vma,
 {
 	unsigned long flags;
 	int changed;
-	struct mm_struct *mm = vma->vm_mm;
 
-	spin_lock_irqsave(pgd_spinlock((mm)->pgd), flags);
+	purge_tlb_start(flags);
 	changed = !pte_same(*ptep, pte);
 	if (changed) {
-		__set_huge_pte_at(mm, addr, ptep, pte);
+		__set_huge_pte_at(vma->vm_mm, addr, ptep, pte);
 	}
-	spin_unlock_irqrestore(pgd_spinlock((mm)->pgd), flags);
+	purge_tlb_end(flags);
 	return changed;
 }
 

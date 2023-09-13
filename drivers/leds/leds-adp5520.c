@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * LEDs driver for Analog Devices ADP5520/ADP5501 MFD PMICs
  *
@@ -10,6 +9,8 @@
  *
  * Copyright (C) 2006-2008 Marvell International Ltd.
  *	Eric Miao <eric.miao@marvell.com>
+ *
+ * Licensed under the GPL-2 or later.
  */
 
 #include <linux/module.h>

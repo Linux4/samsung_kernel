@@ -83,7 +83,7 @@
 #include <linux/blkdev.h>
 #include <linux/mm.h>
 #include <linux/string.h>
-#include <crypto/hash.h>
+#include <linux/crc32c.h>
 #include "ctree.h"
 #include "disk-io.h"
 #include "transaction.h"
@@ -939,7 +939,7 @@ static void btrfsic_stack_frame_free(struct btrfsic_stack_frame *sf)
 	kfree(sf);
 }
 
-static noinline_for_stack int btrfsic_process_metablock(
+static int btrfsic_process_metablock(
 		struct btrfsic_state *state,
 		struct btrfsic_block *const first_block,
 		struct btrfsic_block_data_ctx *const first_block_ctx,
@@ -1201,24 +1201,24 @@ static void btrfsic_read_from_block_data(
 	void *dstv, u32 offset, size_t len)
 {
 	size_t cur;
-	size_t pgoff;
+	size_t offset_in_page;
 	char *kaddr;
 	char *dst = (char *)dstv;
-	size_t start_offset = offset_in_page(block_ctx->start);
+	size_t start_offset = block_ctx->start & ((u64)PAGE_SIZE - 1);
 	unsigned long i = (start_offset + offset) >> PAGE_SHIFT;
 
 	WARN_ON(offset + len > block_ctx->len);
-	pgoff = offset_in_page(start_offset + offset);
+	offset_in_page = (start_offset + offset) & (PAGE_SIZE - 1);
 
 	while (len > 0) {
-		cur = min(len, ((size_t)PAGE_SIZE - pgoff));
+		cur = min(len, ((size_t)PAGE_SIZE - offset_in_page));
 		BUG_ON(i >= DIV_ROUND_UP(block_ctx->len, PAGE_SIZE));
 		kaddr = block_ctx->datav[i];
-		memcpy(dst, kaddr + pgoff, cur);
+		memcpy(dst, kaddr + offset_in_page, cur);
 
 		dst += cur;
 		len -= cur;
-		pgoff = 0;
+		offset_in_page = 0;
 		i++;
 	}
 }
@@ -1593,14 +1593,13 @@ static int btrfsic_read_block(struct btrfsic_state *state,
 {
 	unsigned int num_pages;
 	unsigned int i;
-	size_t size;
 	u64 dev_bytenr;
 	int ret;
 
 	BUG_ON(block_ctx->datav);
 	BUG_ON(block_ctx->pagev);
 	BUG_ON(block_ctx->mem_to_free);
-	if (!PAGE_ALIGNED(block_ctx->dev_bytenr)) {
+	if (block_ctx->dev_bytenr & ((u64)PAGE_SIZE - 1)) {
 		pr_info("btrfsic: read_block() with unaligned bytenr %llu\n",
 		       block_ctx->dev_bytenr);
 		return -1;
@@ -1608,8 +1607,9 @@ static int btrfsic_read_block(struct btrfsic_state *state,
 
 	num_pages = (block_ctx->len + (u64)PAGE_SIZE - 1) >>
 		    PAGE_SHIFT;
-	size = sizeof(*block_ctx->datav) + sizeof(*block_ctx->pagev);
-	block_ctx->mem_to_free = kcalloc(num_pages, size, GFP_NOFS);
+	block_ctx->mem_to_free = kcalloc(sizeof(*block_ctx->datav) +
+						sizeof(*block_ctx->pagev),
+					 num_pages, GFP_NOFS);
 	if (!block_ctx->mem_to_free)
 		return -ENOMEM;
 	block_ctx->datav = block_ctx->mem_to_free;
@@ -1705,14 +1705,13 @@ static void btrfsic_dump_database(struct btrfsic_state *state)
  * Test whether the disk block contains a tree block (leaf or node)
  * (note that this test fails for the super block)
  */
-static noinline_for_stack int btrfsic_test_for_metadata(
-		struct btrfsic_state *state,
-		char **datav, unsigned int num_pages)
+static int btrfsic_test_for_metadata(struct btrfsic_state *state,
+				     char **datav, unsigned int num_pages)
 {
 	struct btrfs_fs_info *fs_info = state->fs_info;
-	SHASH_DESC_ON_STACK(shash, fs_info->csum_shash);
 	struct btrfs_header *h;
 	u8 csum[BTRFS_CSUM_SIZE];
+	u32 crc = ~(u32)0;
 	unsigned int i;
 
 	if (num_pages * PAGE_SIZE < state->metablock_size)
@@ -1720,20 +1719,17 @@ static noinline_for_stack int btrfsic_test_for_metadata(
 	num_pages = state->metablock_size >> PAGE_SHIFT;
 	h = (struct btrfs_header *)datav[0];
 
-	if (memcmp(h->fsid, fs_info->fs_devices->fsid, BTRFS_FSID_SIZE))
+	if (memcmp(h->fsid, fs_info->fsid, BTRFS_FSID_SIZE))
 		return 1;
-
-	shash->tfm = fs_info->csum_shash;
-	crypto_shash_init(shash);
 
 	for (i = 0; i < num_pages; i++) {
 		u8 *data = i ? datav[i] : (datav[i] + BTRFS_CSUM_SIZE);
 		size_t sublen = i ? PAGE_SIZE :
 				    (PAGE_SIZE - BTRFS_CSUM_SIZE);
 
-		crypto_shash_update(shash, data, sublen);
+		crc = crc32c(crc, data, sublen);
 	}
-	crypto_shash_final(shash, csum);
+	btrfs_csum_final(crc, csum);
 	if (memcmp(csum, h->csum, state->csum_size))
 		return 1;
 
@@ -1781,7 +1777,7 @@ again:
 				return;
 			}
 			is_metadata = 1;
-			BUG_ON(!PAGE_ALIGNED(BTRFS_SUPER_INFO_SIZE));
+			BUG_ON(BTRFS_SUPER_INFO_SIZE & (PAGE_SIZE - 1));
 			processed_len = BTRFS_SUPER_INFO_SIZE;
 			if (state->print_mask &
 			    BTRFSIC_PRINT_MASK_TREE_BEFORE_SB_WRITE) {
@@ -2330,7 +2326,7 @@ static int btrfsic_check_all_ref_blocks(struct btrfsic_state *state,
 		 * write operations. Therefore it keeps the linkage
 		 * information for a block until a block is
 		 * rewritten. This can temporarily cause incorrect
-		 * and even circular linkage information. This
+		 * and even circular linkage informations. This
 		 * causes no harm unless such blocks are referenced
 		 * by the most recent super block.
 		 */
@@ -2895,12 +2891,12 @@ int btrfsic_mount(struct btrfs_fs_info *fs_info,
 	struct list_head *dev_head = &fs_devices->devices;
 	struct btrfs_device *device;
 
-	if (!PAGE_ALIGNED(fs_info->nodesize)) {
+	if (fs_info->nodesize & ((u64)PAGE_SIZE - 1)) {
 		pr_info("btrfsic: cannot handle nodesize %d not being a multiple of PAGE_SIZE %ld!\n",
 		       fs_info->nodesize, PAGE_SIZE);
 		return -1;
 	}
-	if (!PAGE_ALIGNED(fs_info->sectorsize)) {
+	if (fs_info->sectorsize & ((u64)PAGE_SIZE - 1)) {
 		pr_info("btrfsic: cannot handle sectorsize %d not being a multiple of PAGE_SIZE %ld!\n",
 		       fs_info->sectorsize, PAGE_SIZE);
 		return -1;

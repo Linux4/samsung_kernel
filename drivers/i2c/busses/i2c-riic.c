@@ -43,7 +43,6 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
-#include <linux/pm_runtime.h>
 
 #define RIIC_ICCR1	0x00
 #define RIIC_ICCR2	0x04
@@ -113,10 +112,12 @@ static int riic_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 {
 	struct riic_dev *riic = i2c_get_adapdata(adap);
 	unsigned long time_left;
-	int i;
+	int i, ret;
 	u8 start_bit;
 
-	pm_runtime_get_sync(adap->dev.parent);
+	ret = clk_prepare_enable(riic->clk);
+	if (ret)
+		return ret;
 
 	if (readb(riic->base + RIIC_ICCR2) & ICCR2_BBSY) {
 		riic->err = -EBUSY;
@@ -149,7 +150,7 @@ static int riic_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 	}
 
  out:
-	pm_runtime_put(adap->dev.parent);
+	clk_disable_unprepare(riic->clk);
 
 	return riic->err ?: num;
 }
@@ -281,18 +282,20 @@ static const struct i2c_algorithm riic_algo = {
 
 static int riic_init_hw(struct riic_dev *riic, struct i2c_timings *t)
 {
-	int ret = 0;
+	int ret;
 	unsigned long rate;
 	int total_ticks, cks, brl, brh;
 
-	pm_runtime_get_sync(riic->adapter.dev.parent);
+	ret = clk_prepare_enable(riic->clk);
+	if (ret)
+		return ret;
 
 	if (t->bus_freq_hz > 400000) {
 		dev_err(&riic->adapter.dev,
 			"unsupported bus speed (%dHz). 400000 max\n",
 			t->bus_freq_hz);
-		ret = -EINVAL;
-		goto out;
+		clk_disable_unprepare(riic->clk);
+		return -EINVAL;
 	}
 
 	rate = clk_get_rate(riic->clk);
@@ -330,8 +333,8 @@ static int riic_init_hw(struct riic_dev *riic, struct i2c_timings *t)
 	if (brl > (0x1F + 3)) {
 		dev_err(&riic->adapter.dev, "invalid speed (%lu). Too slow.\n",
 			(unsigned long)t->bus_freq_hz);
-		ret = -EINVAL;
-		goto out;
+		clk_disable_unprepare(riic->clk);
+		return -EINVAL;
 	}
 
 	brh = total_ticks - brl;
@@ -376,9 +379,9 @@ static int riic_init_hw(struct riic_dev *riic, struct i2c_timings *t)
 
 	riic_clear_set_bit(riic, ICCR1_IICRST, 0, RIIC_ICCR1);
 
-out:
-	pm_runtime_put(riic->adapter.dev.parent);
-	return ret;
+	clk_disable_unprepare(riic->clk);
+
+	return 0;
 }
 
 static struct riic_irq_desc riic_irqs[] = {
@@ -437,36 +440,28 @@ static int riic_i2c_probe(struct platform_device *pdev)
 
 	i2c_parse_fw_timings(&pdev->dev, &i2c_t, true);
 
-	pm_runtime_enable(&pdev->dev);
-
 	ret = riic_init_hw(riic, &i2c_t);
 	if (ret)
-		goto out;
+		return ret;
+
 
 	ret = i2c_add_adapter(adap);
 	if (ret)
-		goto out;
+		return ret;
 
 	platform_set_drvdata(pdev, riic);
 
 	dev_info(&pdev->dev, "registered with %dHz bus speed\n",
 		 i2c_t.bus_freq_hz);
 	return 0;
-
-out:
-	pm_runtime_disable(&pdev->dev);
-	return ret;
 }
 
 static int riic_i2c_remove(struct platform_device *pdev)
 {
 	struct riic_dev *riic = platform_get_drvdata(pdev);
 
-	pm_runtime_get_sync(&pdev->dev);
 	writeb(0, riic->base + RIIC_ICIER);
-	pm_runtime_put(&pdev->dev);
 	i2c_del_adapter(&riic->adapter);
-	pm_runtime_disable(&pdev->dev);
 
 	return 0;
 }

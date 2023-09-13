@@ -68,14 +68,7 @@ struct fib_rules_ops {
 	int			(*action)(struct fib_rule *,
 					  struct flowi *, int,
 					  struct fib_lookup_arg *);
-	/* __GENKSYMS__ hack to preserve the abi change that happened in
-	 * cdef485217d3 ("ipv6: fix memory leak in fib6_rule_suppress")
-	 */
-#ifdef __GENKSYMS__
 	bool			(*suppress)(struct fib_rule *,
-#else
-	bool			(*suppress)(struct fib_rule *, int,
-#endif
 					    struct fib_lookup_arg *);
 	int			(*match)(struct fib_rule *,
 					 struct flowi *, int);
@@ -110,7 +103,6 @@ struct fib_rule_notifier_info {
 };
 
 #define FRA_GENERIC_POLICY \
-	[FRA_UNSPEC]	= { .strict_start_type = FRA_DPORT_RANGE + 1 }, \
 	[FRA_IIFNAME]	= { .type = NLA_STRING, .len = IFNAMSIZ - 1 }, \
 	[FRA_OIFNAME]	= { .type = NLA_STRING, .len = IFNAMSIZ - 1 }, \
 	[FRA_PRIORITY]	= { .type = NLA_U32 }, \
@@ -188,9 +180,9 @@ static inline bool fib_rule_port_range_compare(struct fib_rule_port_range *a,
 
 static inline bool fib_rule_requires_fldissect(struct fib_rule *rule)
 {
-	return rule->iifindex != LOOPBACK_IFINDEX && (rule->ip_proto ||
+	return rule->ip_proto ||
 		fib_rule_port_range_set(&rule->sport_range) ||
-		fib_rule_port_range_set(&rule->dport_range));
+		fib_rule_port_range_set(&rule->dport_range);
 }
 
 struct fib_rules_ops *fib_rules_register(const struct fib_rules_ops *,

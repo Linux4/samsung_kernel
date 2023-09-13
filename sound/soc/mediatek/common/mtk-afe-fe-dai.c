@@ -18,11 +18,11 @@
 
 static int mtk_regmap_update_bits(struct regmap *map, int reg,
 			   unsigned int mask,
-			   unsigned int val, int shift)
+			   unsigned int val)
 {
-	if (reg < 0 || WARN_ON_ONCE(shift < 0))
+	if (reg < 0)
 		return 0;
-	return regmap_update_bits(map, reg, mask << shift, val << shift);
+	return regmap_update_bits(map, reg, mask, val);
 }
 
 static int mtk_regmap_write(struct regmap *map, int reg, unsigned int val)
@@ -49,7 +49,8 @@ int mtk_afe_fe_startup(struct snd_pcm_substream *substream,
 				   SNDRV_PCM_HW_PARAM_BUFFER_BYTES, 16);
 	/* enable agent */
 	mtk_regmap_update_bits(afe->regmap, memif->data->agent_disable_reg,
-			       1, 0, memif->data->agent_disable_shift);
+			       1 << memif->data->agent_disable_shift,
+			       0 << memif->data->agent_disable_shift);
 
 	snd_soc_set_runtime_hwparams(substream, mtk_afe_hardware);
 
@@ -104,7 +105,8 @@ void mtk_afe_fe_shutdown(struct snd_pcm_substream *substream,
 	irq_id = memif->irq_usage;
 
 	mtk_regmap_update_bits(afe->regmap, memif->data->agent_disable_reg,
-			       1, 1, memif->data->agent_disable_shift);
+			       1 << memif->data->agent_disable_shift,
+			       1 << memif->data->agent_disable_shift);
 
 	if (!memif->const_irq) {
 		mtk_dynamic_irq_release(afe, irq_id);
@@ -142,14 +144,16 @@ int mtk_afe_fe_hw_params(struct snd_pcm_substream *substream,
 
 	/* set MSB to 33-bit */
 	mtk_regmap_update_bits(afe->regmap, memif->data->msb_reg,
-			       1, msb_at_bit33, memif->data->msb_shift);
+			       1 << memif->data->msb_shift,
+			       msb_at_bit33 << memif->data->msb_shift);
 
 	/* set channel */
 	if (memif->data->mono_shift >= 0) {
 		unsigned int mono = (params_channels(params) == 1) ? 1 : 0;
 
 		mtk_regmap_update_bits(afe->regmap, memif->data->mono_reg,
-				       1, mono, memif->data->mono_shift);
+				       1 << memif->data->mono_shift,
+				       mono << memif->data->mono_shift);
 	}
 
 	/* set rate */
@@ -162,8 +166,8 @@ int mtk_afe_fe_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 
 	mtk_regmap_update_bits(afe->regmap, memif->data->fs_reg,
-			       memif->data->fs_maskbit, fs,
-			       memif->data->fs_shift);
+			       memif->data->fs_maskbit << memif->data->fs_shift,
+			       fs << memif->data->fs_shift);
 
 	return 0;
 }
@@ -193,14 +197,17 @@ int mtk_afe_fe_trigger(struct snd_pcm_substream *substream, int cmd,
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
-		mtk_regmap_update_bits(afe->regmap,
-				       memif->data->enable_reg,
-				       1, 1, memif->data->enable_shift);
+		if (memif->data->enable_shift >= 0)
+			mtk_regmap_update_bits(afe->regmap,
+					       memif->data->enable_reg,
+					       1 << memif->data->enable_shift,
+					       1 << memif->data->enable_shift);
 
 		/* set irq counter */
 		mtk_regmap_update_bits(afe->regmap, irq_data->irq_cnt_reg,
-				       irq_data->irq_cnt_maskbit, counter,
-				       irq_data->irq_cnt_shift);
+				       irq_data->irq_cnt_maskbit
+				       << irq_data->irq_cnt_shift,
+				       counter << irq_data->irq_cnt_shift);
 
 		/* set irq fs */
 		fs = afe->irq_fs(substream, runtime->rate);
@@ -209,21 +216,24 @@ int mtk_afe_fe_trigger(struct snd_pcm_substream *substream, int cmd,
 			return -EINVAL;
 
 		mtk_regmap_update_bits(afe->regmap, irq_data->irq_fs_reg,
-				       irq_data->irq_fs_maskbit, fs,
-				       irq_data->irq_fs_shift);
+				       irq_data->irq_fs_maskbit
+				       << irq_data->irq_fs_shift,
+				       fs << irq_data->irq_fs_shift);
 
 		/* enable interrupt */
 		mtk_regmap_update_bits(afe->regmap, irq_data->irq_en_reg,
-				       1, 1, irq_data->irq_en_shift);
+				       1 << irq_data->irq_en_shift,
+				       1 << irq_data->irq_en_shift);
 
 		return 0;
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 		mtk_regmap_update_bits(afe->regmap, memif->data->enable_reg,
-				       1, 0, memif->data->enable_shift);
+				       1 << memif->data->enable_shift, 0);
 		/* disable interrupt */
 		mtk_regmap_update_bits(afe->regmap, irq_data->irq_en_reg,
-				       1, 0, irq_data->irq_en_shift);
+				       1 << irq_data->irq_en_shift,
+				       0 << irq_data->irq_en_shift);
 		/* and clear pending IRQ */
 		mtk_regmap_write(afe->regmap, irq_data->irq_clr_reg,
 				 1 << irq_data->irq_clr_shift);
@@ -241,7 +251,6 @@ int mtk_afe_fe_prepare(struct snd_pcm_substream *substream,
 	struct mtk_base_afe *afe = snd_soc_dai_get_drvdata(dai);
 	struct mtk_base_afe_memif *memif = &afe->memif[rtd->cpu_dai->id];
 	int hd_audio = 0;
-	int hd_align = 0;
 
 	/* set hd mode */
 	switch (substream->runtime->format) {
@@ -250,7 +259,6 @@ int mtk_afe_fe_prepare(struct snd_pcm_substream *substream,
 		break;
 	case SNDRV_PCM_FORMAT_S32_LE:
 		hd_audio = 1;
-		hd_align = 1;
 		break;
 	case SNDRV_PCM_FORMAT_S24_LE:
 		hd_audio = 1;
@@ -262,10 +270,8 @@ int mtk_afe_fe_prepare(struct snd_pcm_substream *substream,
 	}
 
 	mtk_regmap_update_bits(afe->regmap, memif->data->hd_reg,
-			       1, hd_audio, memif->data->hd_shift);
-
-	mtk_regmap_update_bits(afe->regmap, memif->data->hd_align_reg,
-			       1, hd_align, memif->data->hd_align_mshift);
+			       1 << memif->data->hd_shift,
+			       hd_audio << memif->data->hd_shift);
 
 	return 0;
 }

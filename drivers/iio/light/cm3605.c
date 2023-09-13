@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * CM3605 Ambient Light and Proximity Sensor
  *

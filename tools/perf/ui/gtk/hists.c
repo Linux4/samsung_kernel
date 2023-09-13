@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 #include "../evlist.h"
-#include "../callchain.h"
+#include "../cache.h"
 #include "../evsel.h"
 #include "../sort.h"
 #include "../hist.h"
@@ -8,8 +8,6 @@
 #include "../string2.h"
 #include "gtk.h"
 #include <signal.h>
-#include <stdlib.h>
-#include <linux/string.h>
 
 #define MAX_COLUMNS			32
 
@@ -355,7 +353,7 @@ static void perf_gtk__show_hists(GtkWidget *window, struct hists *hists,
 
 	g_object_unref(GTK_TREE_MODEL(store));
 
-	for (nd = rb_first_cached(&hists->entries); nd; nd = rb_next(nd)) {
+	for (nd = rb_first(&hists->entries); nd; nd = rb_next(nd)) {
 		struct hist_entry *h = rb_entry(nd, struct hist_entry, rb_node);
 		GtkTreeIter iter;
 		u64 total = hists__total_period(h->hists);
@@ -403,7 +401,7 @@ static void perf_gtk__show_hists(GtkWidget *window, struct hists *hists,
 }
 
 static void perf_gtk__add_hierarchy_entries(struct hists *hists,
-					    struct rb_root_cached *root,
+					    struct rb_root *root,
 					    GtkTreeStore *store,
 					    GtkTreeIter *parent,
 					    struct perf_hpp *hpp,
@@ -417,7 +415,7 @@ static void perf_gtk__add_hierarchy_entries(struct hists *hists,
 	u64 total = hists__total_period(hists);
 	int size;
 
-	for (node = rb_first_cached(root); node; node = rb_next(node)) {
+	for (node = rb_first(root); node; node = rb_next(node)) {
 		GtkTreeIter iter;
 		float percent;
 		char *bf;
@@ -460,7 +458,7 @@ static void perf_gtk__add_hierarchy_entries(struct hists *hists,
 			advance_hpp(hpp, ret + 2);
 		}
 
-		gtk_tree_store_set(store, &iter, col_idx, strim(bf), -1);
+		gtk_tree_store_set(store, &iter, col_idx, ltrim(rtrim(bf)), -1);
 
 		if (!he->leaf) {
 			hpp->buf = bf;
@@ -556,7 +554,7 @@ static void perf_gtk__show_hierarchy(GtkWidget *window, struct hists *hists,
 			first_col = false;
 
 			fmt->header(fmt, &hpp, hists, 0, NULL);
-			strcat(buf, strim(hpp.buf));
+			strcat(buf, ltrim(rtrim(hpp.buf)));
 		}
 	}
 
@@ -590,12 +588,12 @@ static void perf_gtk__show_hierarchy(GtkWidget *window, struct hists *hists,
 	gtk_container_add(GTK_CONTAINER(window), view);
 }
 
-int perf_evlist__gtk_browse_hists(struct evlist *evlist,
+int perf_evlist__gtk_browse_hists(struct perf_evlist *evlist,
 				  const char *help,
 				  struct hist_browser_timer *hbt __maybe_unused,
 				  float min_pcnt)
 {
-	struct evsel *pos;
+	struct perf_evsel *pos;
 	GtkWidget *vbox;
 	GtkWidget *notebook;
 	GtkWidget *info_bar;
@@ -645,7 +643,7 @@ int perf_evlist__gtk_browse_hists(struct evlist *evlist,
 			if (!perf_evsel__is_group_leader(pos))
 				continue;
 
-			if (pos->core.nr_members > 1) {
+			if (pos->nr_members > 1) {
 				perf_evsel__group_desc(pos, buf, size);
 				evname = buf;
 			}

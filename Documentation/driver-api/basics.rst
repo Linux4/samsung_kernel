@@ -115,11 +115,11 @@ Kernel utility functions
 .. kernel-doc:: kernel/rcu/tree.c
    :export:
 
-.. kernel-doc:: kernel/rcu/update.c
+.. kernel-doc:: kernel/rcu/tree_plugin.h
    :export:
 
-.. kernel-doc:: include/linux/overflow.h
-   :internal:
+.. kernel-doc:: kernel/rcu/update.c
+   :export:
 
 Device Resource Management
 --------------------------

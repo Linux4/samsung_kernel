@@ -148,11 +148,15 @@ static irqreturn_t omap_32k_timer_interrupt(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+static struct irqaction omap_32k_timer_irq = {
+	.name		= "32KHz timer",
+	.flags		= IRQF_TIMER | IRQF_IRQPOLL,
+	.handler	= omap_32k_timer_interrupt,
+};
+
 static __init void omap_init_32k_timer(void)
 {
-	if (request_irq(INT_OS_TIMER, omap_32k_timer_interrupt,
-			IRQF_TIMER | IRQF_IRQPOLL, "32KHz timer", NULL))
-		pr_err("Failed to request irq %d(32KHz timer)\n", INT_OS_TIMER);
+	setup_irq(INT_OS_TIMER, &omap_32k_timer_irq);
 
 	clockevent_32k_timer.cpumask = cpumask_of(0);
 	clockevents_config_and_register(&clockevent_32k_timer,

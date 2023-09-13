@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Alarmtimer interface
  *
@@ -11,6 +10,10 @@
  * Copyright (C) 2010 IBM Corperation
  *
  * Author: John Stultz <john.stultz@linaro.org>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 #include <linux/time.h>
 #include <linux/hrtimer.h>
@@ -26,10 +29,6 @@
 #include <linux/freezer.h>
 #include <linux/compat.h>
 #include <linux/module.h>
-
-#if IS_ENABLED(CONFIG_SEC_PM)
-#include <linux/wakeup_reason.h>
-#endif
 
 #include "posix-timers.h"
 
@@ -66,107 +65,6 @@ static struct rtc_timer		rtctimer;
 static struct rtc_device	*rtcdev;
 static DEFINE_SPINLOCK(rtcdev_lock);
 
-#if IS_ENABLED(CONFIG_RTC_AUTO_PWRON)
-/* 0|1234|56|78|90|12 */
-/* 1|2010|01|01|00|00 */
-/*en yyyy mm dd hh mm */
-#define BOOTALM_BIT_EN       0
-#define BOOTALM_BIT_YEAR     1
-#define BOOTALM_BIT_MONTH    5
-#define BOOTALM_BIT_DAY      7
-#define BOOTALM_BIT_HOUR     9
-#define BOOTALM_BIT_MIN     11
-#define BOOTALM_BIT_TOTAL   13
-
-int alarm_set_alarm(char *alarm_data)
-{
-	struct rtc_wkalrm alm;
-	int ret = 0;
-	char buf_ptr[BOOTALM_BIT_TOTAL+1] = {0,};
-	struct rtc_time     rtc_tm;
-	unsigned long       rtc_sec;
-	unsigned long       rtc_alm_sec;
-	struct timespec64     delta;
-	struct timespec     ktm_ts;
-	struct rtc_time     ktm_tm;
-
-	if (!rtcdev) {
-		pr_err("[SAPA] %s: no RTC, time will be lost on reboot\n", __func__);
-		return -ENXIO;
-	}
-
-	strlcpy(buf_ptr, alarm_data, BOOTALM_BIT_TOTAL+1);
-
-	alm.time.tm_sec = 0;
-	alm.time.tm_min = (buf_ptr[BOOTALM_BIT_MIN]-'0') * 10
-					+ (buf_ptr[BOOTALM_BIT_MIN+1]-'0');
-	alm.time.tm_hour = (buf_ptr[BOOTALM_BIT_HOUR]-'0') * 10
-					+ (buf_ptr[BOOTALM_BIT_HOUR+1]-'0');
-	alm.time.tm_mday = (buf_ptr[BOOTALM_BIT_DAY]-'0') * 10
-					+ (buf_ptr[BOOTALM_BIT_DAY+1]-'0');
-	alm.time.tm_mon  = (buf_ptr[BOOTALM_BIT_MONTH]-'0') * 10
-	                  + (buf_ptr[BOOTALM_BIT_MONTH+1]-'0');
-	alm.time.tm_year = (buf_ptr[BOOTALM_BIT_YEAR]-'0') * 1000
-					+ (buf_ptr[BOOTALM_BIT_YEAR+1]-'0') * 100
-					+ (buf_ptr[BOOTALM_BIT_YEAR+2]-'0') * 10
-					+ (buf_ptr[BOOTALM_BIT_YEAR+3]-'0');
-
-	alm.enabled = (*buf_ptr == '1');
-	if (*buf_ptr == '2')
-		alm.enabled = 2;
-
-	pr_info("[SAPA] %s: %s => tm(%d %04d-%02d-%02d %02d:%02d:%02d)\n",
-			__func__, buf_ptr, alm.enabled,
-			alm.time.tm_year, alm.time.tm_mon, alm.time.tm_mday,
-			alm.time.tm_hour, alm.time.tm_min, alm.time.tm_sec);
-
-	if (alm.enabled) {
-		/* read kernel time */
-		getnstimeofday(&ktm_ts);
-		ktm_tm = rtc_ktime_to_tm(timespec_to_ktime(ktm_ts));
-		pr_info("[SAPA] %s: <KTM > %4d-%02d-%02d %02d:%02d:%02d\n",
-			__func__, ktm_tm.tm_year+1900, ktm_tm.tm_mon+1, ktm_tm.tm_mday,
-			ktm_tm.tm_hour, ktm_tm.tm_min, ktm_tm.tm_sec);
-
-		alm.time.tm_mon -= 1;
-		alm.time.tm_year -= 1900;
-		pr_info("[SAPA] %s: <ALRM> %4d-%02d-%02d %02d:%02d:%02d\n",
-			__func__, alm.time.tm_year+1900, alm.time.tm_mon+1, alm.time.tm_mday,
-			alm.time.tm_hour, alm.time.tm_min, alm.time.tm_sec);
-
-		/* read current time */
-		rtc_read_time(rtcdev, &rtc_tm);
-		rtc_tm_to_time(&rtc_tm, &rtc_sec);
-		pr_info("[SAPA] %s: <rtc > %4d-%02d-%02d %02d:%02d:%02d -> %lu\n",
-			__func__, rtc_tm.tm_year, rtc_tm.tm_mon, rtc_tm.tm_mday,
-			rtc_tm.tm_hour, rtc_tm.tm_min, rtc_tm.tm_sec, rtc_sec);
-
-		/* calculate offset */
-		set_normalized_timespec64(&delta,
-								  (time64_t)ktm_ts.tv_sec - rtc_sec,
-								  (s64)ktm_ts.tv_nsec);
-
-		/* convert user requested SAPA time to second type */
-		rtc_tm_to_time(&alm.time, &rtc_alm_sec);
-
-		/* convert to RTC time with user requested SAPA time and offset */
-		rtc_alm_sec -= (unsigned long)delta.tv_sec;
-		rtc_alm_sec = (rtc_alm_sec & ~0x00000003) | ((alm.enabled-1)<<1);
-		alm.enabled = 1;
-		rtc_time_to_tm(rtc_alm_sec, &alm.time);
-		pr_info("[SAPA] %s: <alrm> %4d-%02d-%02d %02d:%02d:%02d -> %lu\n",
-			__func__, alm.time.tm_year, alm.time.tm_mon, alm.time.tm_mday,
-			alm.time.tm_hour, alm.time.tm_min, alm.time.tm_sec, rtc_alm_sec);
-
-	}
-	ret = rtc_set_bootalarm(rtcdev, &alm);
-	if (ret < 0)
-		pr_err("[SAPA] %s: Failed to set bootalarm\n", __func__);
-
-	return ret;
-}
-#endif /*CONFIG_RTC_AUTO_PWRON*/
-
 /**
  * alarmtimer_get_rtcdev - Return selected rtcdevice
  *
@@ -193,7 +91,6 @@ static int alarmtimer_rtc_add_device(struct device *dev,
 	unsigned long flags;
 	struct rtc_device *rtc = to_rtc_device(dev);
 	struct wakeup_source *__ws;
-	struct platform_device *pdev;
 	int ret = 0;
 
 	if (rtcdev)
@@ -204,12 +101,10 @@ static int alarmtimer_rtc_add_device(struct device *dev,
 	if (!device_may_wakeup(rtc->dev.parent))
 		return -1;
 
-	__ws = wakeup_source_register(dev, "alarmtimer");
-	pdev = platform_device_register_data(dev, "alarmtimer",
-					     PLATFORM_DEVID_AUTO, NULL, 0);
+	__ws = wakeup_source_register("alarmtimer");
 
 	spin_lock_irqsave(&rtcdev_lock, flags);
-	if (__ws && !IS_ERR(pdev) && !rtcdev) {
+	if (!rtcdev) {
 		if (!try_module_get(rtc->owner)) {
 			ret = -1;
 			goto unlock;
@@ -220,14 +115,10 @@ static int alarmtimer_rtc_add_device(struct device *dev,
 		get_device(dev);
 		ws = __ws;
 		__ws = NULL;
-		pdev = NULL;
-	} else {
-		ret = -1;
 	}
 unlock:
 	spin_unlock_irqrestore(&rtcdev_lock, flags);
 
-	platform_device_unregister(pdev);
 	wakeup_source_unregister(__ws);
 
 	return ret;
@@ -347,6 +238,7 @@ EXPORT_SYMBOL_GPL(alarm_expires_remaining);
 /**
  * alarmtimer_suspend - Suspend time callback
  * @dev: unused
+ * @state: unused
  *
  * When we are going into suspend, we look through the bases
  * to see which is the soonest timer to expire. We then
@@ -360,9 +252,6 @@ static int alarmtimer_suspend(struct device *dev)
 	struct rtc_device *rtc;
 	unsigned long flags;
 	struct rtc_time tm;
-#if IS_ENABLED(CONFIG_SEC_PM)
-	struct alarm *min_alarm = NULL;
-#endif
 
 	spin_lock_irqsave(&freezer_delta_lock, flags);
 	min = freezer_delta;
@@ -392,26 +281,12 @@ static int alarmtimer_suspend(struct device *dev)
 			expires = next->expires;
 			min = delta;
 			type = i;
-#if IS_ENABLED(CONFIG_SEC_PM)
-			min_alarm = container_of(next, struct alarm, node);
-#endif
 		}
 	}
 	if (min == 0)
 		return 0;
 
-#if IS_ENABLED(CONFIG_SEC_PM)
-	if (min_alarm)
-		pr_info("soonest alarm : %ps\n", min_alarm->function);
-#endif
-
 	if (ktime_to_ns(min) < 2 * NSEC_PER_SEC) {
-#if IS_ENABLED(CONFIG_SEC_PM)
-		if (min_alarm) {
-			pr_info("alarmtimer suspending blocked by %ps\n", min_alarm->function);
-			log_suspend_abort_reason("alarmtimer suspending blocked by %ps\n", min_alarm->function);
-		}
-#endif
 		__pm_wakeup_event(ws, 2 * MSEC_PER_SEC);
 		return -EBUSY;
 	}
@@ -563,7 +438,7 @@ int alarm_cancel(struct alarm *alarm)
 		int ret = alarm_try_to_cancel(alarm);
 		if (ret >= 0)
 			return ret;
-		hrtimer_cancel_wait_running(&alarm->timer);
+		cpu_relax();
 	}
 }
 EXPORT_SYMBOL_GPL(alarm_cancel);
@@ -734,19 +609,6 @@ static ktime_t alarm_timer_remaining(struct k_itimer *timr, ktime_t now)
 static int alarm_timer_try_to_cancel(struct k_itimer *timr)
 {
 	return alarm_try_to_cancel(&timr->it.alarm.alarmtimer);
-}
-
-/**
- * alarm_timer_wait_running - Posix timer callback to wait for a timer
- * @timr:	Pointer to the posixtimer data struct
- *
- * Called from the core code when timer cancel detected that the callback
- * is running. @timr is unlocked and rcu read lock is held to prevent it
- * from being freed.
- */
-static void alarm_timer_wait_running(struct k_itimer *timr)
-{
-	hrtimer_cancel_wait_running(&timr->it.alarm.alarmtimer.timer);
 }
 
 /**
@@ -960,9 +822,9 @@ static int alarm_timer_nsleep(const clockid_t which_clock, int flags,
 	if (flags == TIMER_ABSTIME)
 		return -ERESTARTNOHAND;
 
+	restart->fn = alarm_timer_nsleep_restart;
 	restart->nanosleep.clockid = type;
 	restart->nanosleep.expires = exp;
-	set_restart_fn(restart, alarm_timer_nsleep_restart);
 	return ret;
 }
 
@@ -978,7 +840,6 @@ const struct k_clock alarm_clock = {
 	.timer_forward		= alarm_timer_forward,
 	.timer_remaining	= alarm_timer_remaining,
 	.timer_try_to_cancel	= alarm_timer_try_to_cancel,
-	.timer_wait_running	= alarm_timer_wait_running,
 	.nsleep			= alarm_timer_nsleep,
 };
 #endif /* CONFIG_POSIX_TIMERS */
@@ -1005,7 +866,8 @@ static struct platform_driver alarmtimer_driver = {
  */
 static int __init alarmtimer_init(void)
 {
-	int error;
+	struct platform_device *pdev;
+	int error = 0;
 	int i;
 
 	alarmtimer_rtc_timer_init();
@@ -1028,7 +890,15 @@ static int __init alarmtimer_init(void)
 	if (error)
 		goto out_if;
 
+	pdev = platform_device_register_simple("alarmtimer", -1, NULL, 0);
+	if (IS_ERR(pdev)) {
+		error = PTR_ERR(pdev);
+		goto out_drv;
+	}
 	return 0;
+
+out_drv:
+	platform_driver_unregister(&alarmtimer_driver);
 out_if:
 	alarmtimer_rtc_interface_remove();
 	return error;

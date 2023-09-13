@@ -9,7 +9,6 @@
 #include "../disk-io.h"
 #include "../free-space-tree.h"
 #include "../transaction.h"
-#include "../block-group.h"
 
 struct free_space_extent {
 	u64 start;
@@ -31,7 +30,7 @@ static int __check_free_space_extents(struct btrfs_trans_handle *trans,
 	unsigned int i;
 	int ret;
 
-	info = search_free_space_info(trans, cache, path, 0);
+	info = search_free_space_info(trans, fs_info, cache, path, 0);
 	if (IS_ERR(info)) {
 		test_err("could not find free space info");
 		ret = PTR_ERR(info);
@@ -116,7 +115,7 @@ static int check_free_space_extents(struct btrfs_trans_handle *trans,
 	u32 flags;
 	int ret;
 
-	info = search_free_space_info(trans, cache, path, 0);
+	info = search_free_space_info(trans, fs_info, cache, path, 0);
 	if (IS_ERR(info)) {
 		test_err("could not find free space info");
 		btrfs_release_path(path);
@@ -445,14 +444,14 @@ static int run_test(test_func_t test_func, int bitmaps, u32 sectorsize,
 
 	fs_info = btrfs_alloc_dummy_fs_info(nodesize, sectorsize);
 	if (!fs_info) {
-		test_std_err(TEST_ALLOC_FS_INFO);
+		test_err("couldn't allocate dummy fs info");
 		ret = -ENOMEM;
 		goto out;
 	}
 
 	root = btrfs_alloc_dummy_root(fs_info);
 	if (IS_ERR(root)) {
-		test_std_err(TEST_ALLOC_ROOT);
+		test_err("couldn't allocate dummy root");
 		ret = PTR_ERR(root);
 		goto out;
 	}
@@ -464,7 +463,7 @@ static int run_test(test_func_t test_func, int bitmaps, u32 sectorsize,
 
 	root->node = alloc_test_extent_buffer(root->fs_info, nodesize);
 	if (IS_ERR(root->node)) {
-		test_std_err(TEST_ALLOC_EXTENT_BUFFER);
+		test_err("couldn't allocate dummy buffer");
 		ret = PTR_ERR(root->node);
 		goto out;
 	}
@@ -474,7 +473,7 @@ static int run_test(test_func_t test_func, int bitmaps, u32 sectorsize,
 
 	cache = btrfs_alloc_dummy_block_group(fs_info, 8 * alignment);
 	if (!cache) {
-		test_std_err(TEST_ALLOC_BLOCK_GROUP);
+		test_err("couldn't allocate dummy block group cache");
 		ret = -ENOMEM;
 		goto out;
 	}
@@ -487,7 +486,7 @@ static int run_test(test_func_t test_func, int bitmaps, u32 sectorsize,
 
 	path = btrfs_alloc_path();
 	if (!path) {
-		test_std_err(TEST_ALLOC_ROOT);
+		test_err("couldn't allocate path");
 		ret = -ENOMEM;
 		goto out;
 	}
@@ -540,7 +539,7 @@ static int run_test_both_formats(test_func_t test_func, u32 sectorsize,
 	ret = run_test(test_func, 0, sectorsize, nodesize, alignment);
 	if (ret) {
 		test_err(
-	"%ps failed with extents, sectorsize=%u, nodesize=%u, alignment=%u",
+	"%pf failed with extents, sectorsize=%u, nodesize=%u, alignment=%u",
 			 test_func, sectorsize, nodesize, alignment);
 		test_ret = ret;
 	}
@@ -548,7 +547,7 @@ static int run_test_both_formats(test_func_t test_func, u32 sectorsize,
 	ret = run_test(test_func, 1, sectorsize, nodesize, alignment);
 	if (ret) {
 		test_err(
-	"%ps failed with bitmaps, sectorsize=%u, nodesize=%u, alignment=%u",
+	"%pf failed with bitmaps, sectorsize=%u, nodesize=%u, alignment=%u",
 			 test_func, sectorsize, nodesize, alignment);
 		test_ret = ret;
 	}

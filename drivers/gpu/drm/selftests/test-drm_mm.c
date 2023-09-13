@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Test cases for the drm_mm range manager
  */
@@ -1616,7 +1615,7 @@ static int igt_topdown(void *ignored)
 	DRM_RND_STATE(prng, random_seed);
 	const unsigned int count = 8192;
 	unsigned int size;
-	unsigned long *bitmap;
+	unsigned long *bitmap = NULL;
 	struct drm_mm mm;
 	struct drm_mm_node *nodes, *node, *next;
 	unsigned int *order, n, m, o = 0;
@@ -1632,7 +1631,8 @@ static int igt_topdown(void *ignored)
 	if (!nodes)
 		goto err;
 
-	bitmap = bitmap_zalloc(count, GFP_KERNEL);
+	bitmap = kcalloc(count / BITS_PER_LONG, sizeof(unsigned long),
+			 GFP_KERNEL);
 	if (!bitmap)
 		goto err_nodes;
 
@@ -1717,7 +1717,7 @@ out:
 	drm_mm_takedown(&mm);
 	kfree(order);
 err_bitmap:
-	bitmap_free(bitmap);
+	kfree(bitmap);
 err_nodes:
 	vfree(nodes);
 err:
@@ -1745,7 +1745,8 @@ static int igt_bottomup(void *ignored)
 	if (!nodes)
 		goto err;
 
-	bitmap = bitmap_zalloc(count, GFP_KERNEL);
+	bitmap = kcalloc(count / BITS_PER_LONG, sizeof(unsigned long),
+			 GFP_KERNEL);
 	if (!bitmap)
 		goto err_nodes;
 
@@ -1817,7 +1818,7 @@ out:
 	drm_mm_takedown(&mm);
 	kfree(order);
 err_bitmap:
-	bitmap_free(bitmap);
+	kfree(bitmap);
 err_nodes:
 	vfree(nodes);
 err:

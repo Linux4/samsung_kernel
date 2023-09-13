@@ -1,9 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  linux/drivers/mmc/core/bus.c
  *
  *  Copyright (C) 2003 Russell King, All Rights Reserved.
  *  Copyright (C) 2007 Pierre Ossman
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  *  MMC card bus driver model
  */
@@ -24,6 +27,12 @@
 #include "host.h"
 #include "sdio_cis.h"
 #include "bus.h"
+
+#ifdef CONFIG_MMC_SUPPORT_STLOG
+#include <linux/fslog.h>
+#else
+#define ST_LOG(fmt, ...)
+#endif
 
 #define to_mmc_driver(d)	container_of(d, struct mmc_driver, drv)
 
@@ -131,9 +140,13 @@ static void mmc_bus_shutdown(struct device *dev)
 	struct mmc_host *host = card->host;
 	int ret;
 
-	if (!drv || !card) {
-		pr_debug("%s: %s: drv or card is NULL. SDcard/tray was removed\n",
-				dev_name(dev), __func__);
+	if (!drv) {
+		pr_debug("%s: %s: drv is NULL\n", dev_name(dev), __func__);
+		return;
+	}
+
+	if (!card) {
+		pr_debug("%s: %s: card is NULL\n", dev_name(dev), __func__);
 		return;
 	}
 
@@ -162,6 +175,9 @@ static int mmc_bus_suspend(struct device *dev)
 	if (ret)
 		return ret;
 
+	if (mmc_bus_needs_resume(host))
+		return 0;
+
 	ret = host->bus_ops->suspend(host);
 	if (ret)
 		pm_generic_resume(dev);
@@ -175,10 +191,14 @@ static int mmc_bus_resume(struct device *dev)
 	struct mmc_host *host = card->host;
 	int ret;
 
-	ret = host->bus_ops->resume(host);
-	if (ret)
-		pr_warn("%s: error %d during resume (card was removed?)\n",
-			mmc_hostname(host), ret);
+	if (mmc_bus_manual_resume(host))
+		host->bus_resume_flags |= MMC_BUSRESUME_NEEDS_RESUME;
+	else {
+		ret = host->bus_ops->resume(host);
+		if (ret)
+			pr_warn("%s: error %d during resume (card was removed?)\n",
+					mmc_hostname(host), ret);
+	}
 
 	ret = pm_generic_resume(dev);
 	return ret;
@@ -352,13 +372,12 @@ int mmc_add_card(struct mmc_card *card)
 			mmc_card_hs400es(card) ? "Enhanced strobe " : "",
 			mmc_card_ddr52(card) ? "DDR " : "",
 			uhs_bus_speed_mode, type, card->rca);
-		ST_LOG("%s: new %s%s%s%s%s%s card at address %04x\n",
+		ST_LOG("%s: new %s%s%s%s%s card at address %04x\n",
 			mmc_hostname(card->host),
 			mmc_card_uhs(card) ? "ultra high speed " :
 			(mmc_card_hs(card) ? "high speed " : ""),
 			mmc_card_hs400(card) ? "HS400 " :
 			(mmc_card_hs200(card) ? "HS200 " : ""),
-			mmc_card_hs400es(card) ? "Enhanced strobe " : "",
 			mmc_card_ddr52(card) ? "DDR " : "",
 			uhs_bus_speed_mode, type, card->rca);
 	}
@@ -367,15 +386,6 @@ int mmc_add_card(struct mmc_card *card)
 	mmc_add_card_debugfs(card);
 #endif
 	card->dev.of_node = mmc_of_find_child_device(card->host, 0);
-
-	if (mmc_card_sdio(card)) {
-		ret = device_init_wakeup(&card->dev, true);
-		if (ret)
-			pr_err("%s: %s: failed to init wakeup: %d\n",
-				mmc_hostname(card->host), __func__, ret);
-	}
-
-	device_enable_async_suspend(&card->dev);
 
 	ret = device_add(&card->dev);
 	if (ret)
@@ -393,16 +403,15 @@ int mmc_add_card(struct mmc_card *card)
 void mmc_remove_card(struct mmc_card *card)
 {
 	struct mmc_host *host = card->host;
-#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC)
-	struct mmc_card_error_log *err_log;
-	u64 total_c_cnt = 0;
-	u64 total_t_cnt = 0;
-	int i = 0;
-#endif
 
 #ifdef CONFIG_DEBUG_FS
 	mmc_remove_card_debugfs(card);
 #endif
+
+	if (host->cqe_enabled) {
+		host->cqe_ops->cqe_disable(host);
+		host->cqe_enabled = false;
+	}
 
 	if (mmc_card_present(card)) {
 		if (mmc_host_is_spi(card->host)) {
@@ -413,30 +422,11 @@ void mmc_remove_card(struct mmc_card *card)
 				mmc_hostname(card->host), card->rca);
 			ST_LOG("%s: card %04x removed\n",
 				mmc_hostname(card->host), card->rca);
-
-#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC)
-			err_log = card->err_log;
-			for (i = 0; i < 6; i++) {
-				if (err_log[i].err_type == -EILSEQ && total_c_cnt < MAX_CNT_U64)
-					total_c_cnt += err_log[i].count;
-				if (err_log[i].err_type == -ETIMEDOUT && total_t_cnt < MAX_CNT_U64)
-					total_t_cnt += err_log[i].count;
-			}
-			ST_LOG("%s: \"GE\":\"%d\",\"CC\":\"%d\",\"ECC\":\"%d\",\"WP\":\"%d\"," \
-					"\"OOR\":\"%d\",\"CRC\":\"%lld\",\"TMO\":\"%lld\"\n",
-					mmc_hostname(card->host), 
-					err_log[0].ge_cnt, err_log[0].cc_cnt, err_log[0].ecc_cnt,
-					err_log[0].wp_cnt, err_log[0].oor_cnt, total_c_cnt, total_t_cnt);
-#endif
 		}
 		device_del(&card->dev);
 		of_node_put(card->dev.of_node);
 	}
 
-	if (host->cqe_enabled) {
-		host->cqe_ops->cqe_disable(host);
-		host->cqe_enabled = false;
-	}
-
 	put_device(&card->dev);
 }
+

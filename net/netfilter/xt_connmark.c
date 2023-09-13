@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *	xt_connmark - Netfilter module to operate on connection marks
  *
@@ -6,6 +5,19 @@
  *	by Henrik Nordstrom <hno@marasystems.com>
  *	Copyright © CC Computer Consultants GmbH, 2007 - 2008
  *	Jan Engelhardt <jengelh@medozas.de>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <linux/module.h>
@@ -16,13 +28,10 @@
 #include <linux/netfilter/xt_connmark.h>
 
 // SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
-#ifdef CONFIG_KNOX_NCM
-#include <linux/pid.h>
 #include <linux/types.h>
 #include <linux/tcp.h>
 #include <linux/ip.h>
 #include <net/ip.h>
-#endif
 // SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 
 MODULE_AUTHOR("Henrik Nordstrom <hno@marasystems.com>");
@@ -34,41 +43,61 @@ MODULE_ALIAS("ipt_connmark");
 MODULE_ALIAS("ip6t_connmark");
 
 // SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
-#ifdef CONFIG_KNOX_NCM
+/* KNOX framework uses mark value 100 to 500
+ * when the special meta data is added
+ * This will indicate to the kernel code that
+ * it needs to append meta data to the packets
+ */
+
 #define META_MARK_BASE_LOWER 100
 #define META_MARK_BASE_UPPER 500
 
-static void knoxvpn_uidpid(struct sk_buff *skb, u_int32_t newmark)
+/* Structure to hold metadata values
+ * intended for VPN clients to make
+ * more intelligent decisions
+ * when the KNOX meta mark
+ * feature is enabled
+ */
+
+struct knox_meta_param {
+    uid_t uid;
+    pid_t pid;
+};
+
+static unsigned int knoxvpn_uidpid(struct sk_buff *skb, u_int32_t newmark)
 {
+	int szMetaData;
 	struct skb_shared_info *knox_shinfo = NULL;
 
+	szMetaData = sizeof(struct knox_meta_param);
 	if (skb != NULL) {
 		knox_shinfo = skb_shinfo(skb);
 	} else {
 		pr_err("KNOX: NULL SKB - no KNOX processing");
-		return;
+		return -1;
 	}
 
 	if( skb->sk == NULL) {
 		pr_err("KNOX: skb->sk value is null");
-		return;
+		return -1;
 	}
 
 	if( knox_shinfo == NULL) {
 		pr_err("KNOX: knox_shinfo is null");
-		return;
+		return -1;
 	}
 
 	if (newmark < META_MARK_BASE_LOWER || newmark > META_MARK_BASE_UPPER) {
 		pr_err("KNOX: The mark is out of range");
-		return;
+		return -1;
 	} else {
-		if ((current) && (current->cred)) knox_shinfo->android_vendor_data1[0] = (u64)current->cred->uid.val;
-		if (current) knox_shinfo->android_vendor_data1[1] = (u64)current->tgid;
-		knox_shinfo->android_vendor_data1[2] = (u64)newmark;
+		knox_shinfo->uid = skb->sk->knox_uid;
+		knox_shinfo->pid = skb->sk->knox_pid;
+		knox_shinfo->knox_mark = newmark;
 	}
+
+	return 0;
 }
-#endif
 // SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 
 static unsigned int
@@ -121,9 +150,7 @@ connmark_tg_shift(struct sk_buff *skb, const struct xt_connmark_tginfo2 *info)
 			  new_targetmark;
 		skb->mark = newmark;
 		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
-#ifdef CONFIG_KNOX_NCM
 		knoxvpn_uidpid(skb, newmark);
-#endif
 		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 		break;
 	}

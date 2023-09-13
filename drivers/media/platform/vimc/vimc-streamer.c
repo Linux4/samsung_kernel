@@ -20,8 +20,6 @@
  *
  * Helper function that returns the media entity containing the source pad
  * linked with the first sink pad from the given media entity pad list.
- *
- * Return: The source pad or NULL, if it wasn't found.
  */
 static struct media_entity *vimc_get_source_entity(struct media_entity *ent)
 {
@@ -37,7 +35,7 @@ static struct media_entity *vimc_get_source_entity(struct media_entity *ent)
 	return NULL;
 }
 
-/**
+/*
  * vimc_streamer_pipeline_terminate - Disable stream in all ved in stream
  *
  * @stream: the pointer to the stream structure with the pipeline to be
@@ -48,34 +46,32 @@ static struct media_entity *vimc_get_source_entity(struct media_entity *ent)
  */
 static void vimc_streamer_pipeline_terminate(struct vimc_stream *stream)
 {
-	struct vimc_ent_device *ved;
+	struct media_entity *entity;
 	struct v4l2_subdev *sd;
 
 	while (stream->pipe_size) {
 		stream->pipe_size--;
-		ved = stream->ved_pipeline[stream->pipe_size];
+		entity = stream->ved_pipeline[stream->pipe_size]->ent;
+		entity = vimc_get_source_entity(entity);
 		stream->ved_pipeline[stream->pipe_size] = NULL;
 
-		if (!is_media_entity_v4l2_subdev(ved->ent))
+		if (!is_media_entity_v4l2_subdev(entity))
 			continue;
 
-		sd = media_entity_to_v4l2_subdev(ved->ent);
+		sd = media_entity_to_v4l2_subdev(entity);
 		v4l2_subdev_call(sd, video, s_stream, 0);
 	}
 }
 
-/**
- * vimc_streamer_pipeline_init - Initializes the stream structure
+/*
+ * vimc_streamer_pipeline_init - initializes the stream structure
  *
  * @stream: the pointer to the stream structure to be initialized
  * @ved:    the pointer to the vimc entity initializing the stream
  *
  * Initializes the stream structure. Walks through the entity graph to
  * construct the pipeline used later on the streamer thread.
- * Calls vimc_streamer_s_stream() to enable stream in all entities of
- * the pipeline.
- *
- * Return: 0 if success, error code otherwise.
+ * Calls s_stream to enable stream in all entities of the pipeline.
  */
 static int vimc_streamer_pipeline_init(struct vimc_stream *stream,
 				       struct vimc_ent_device *ved)
@@ -93,25 +89,18 @@ static int vimc_streamer_pipeline_init(struct vimc_stream *stream,
 		}
 		stream->ved_pipeline[stream->pipe_size++] = ved;
 
-		if (is_media_entity_v4l2_subdev(ved->ent)) {
-			sd = media_entity_to_v4l2_subdev(ved->ent);
-			ret = v4l2_subdev_call(sd, video, s_stream, 1);
-			if (ret && ret != -ENOIOCTLCMD) {
-				pr_err("subdev_call error %s\n",
-				       ved->ent->name);
-				vimc_streamer_pipeline_terminate(stream);
-				return ret;
-			}
-		}
-
 		entity = vimc_get_source_entity(ved->ent);
 		/* Check if the end of the pipeline was reached*/
 		if (!entity)
 			return 0;
 
-		/* Get the next device in the pipeline */
 		if (is_media_entity_v4l2_subdev(entity)) {
 			sd = media_entity_to_v4l2_subdev(entity);
+			ret = v4l2_subdev_call(sd, video, s_stream, 1);
+			if (ret && ret != -ENOIOCTLCMD) {
+				vimc_streamer_pipeline_terminate(stream);
+				return ret;
+			}
 			ved = v4l2_get_subdevdata(sd);
 		} else {
 			vdev = container_of(entity,
@@ -125,22 +114,9 @@ static int vimc_streamer_pipeline_init(struct vimc_stream *stream,
 	return -EINVAL;
 }
 
-/**
- * vimc_streamer_thread - Process frames through the pipeline
- *
- * @data:	vimc_stream struct of the current stream
- *
- * From the source to the sink, gets a frame from each subdevice and send to
- * the next one of the pipeline at a fixed framerate.
- *
- * Return:
- * Always zero (created as ``int`` instead of ``void`` to comply with
- * kthread API).
- */
 static int vimc_streamer_thread(void *data)
 {
 	struct vimc_stream *stream = data;
-	u8 *frame = NULL;
 	int i;
 
 	set_freezable();
@@ -151,9 +127,12 @@ static int vimc_streamer_thread(void *data)
 			break;
 
 		for (i = stream->pipe_size - 1; i >= 0; i--) {
-			frame = stream->ved_pipeline[i]->process_frame(
-					stream->ved_pipeline[i], frame);
-			if (!frame || IS_ERR(frame))
+			stream->frame = stream->ved_pipeline[i]->process_frame(
+					stream->ved_pipeline[i],
+					stream->frame);
+			if (!stream->frame)
+				break;
+			if (IS_ERR(stream->frame))
 				break;
 		}
 		//wait for 60hz
@@ -164,21 +143,6 @@ static int vimc_streamer_thread(void *data)
 	return 0;
 }
 
-/**
- * vimc_streamer_s_stream - Start/stop the streaming on the media pipeline
- *
- * @stream:	the pointer to the stream structure of the current stream
- * @ved:	pointer to the vimc entity of the entity of the stream
- * @enable:	flag to determine if stream should start/stop
- *
- * When starting, check if there is no ``stream->kthread`` allocated. This
- * should indicate that a stream is already running. Then, it initializes the
- * pipeline, creates and runs a kthread to consume buffers through the pipeline.
- * When stopping, analogously check if there is a stream running, stop the
- * thread and terminates the pipeline.
- *
- * Return: 0 if success, error code otherwise.
- */
 int vimc_streamer_s_stream(struct vimc_stream *stream,
 			   struct vimc_ent_device *ved,
 			   int enable)
@@ -218,3 +182,7 @@ int vimc_streamer_s_stream(struct vimc_stream *stream,
 	return 0;
 }
 EXPORT_SYMBOL_GPL(vimc_streamer_s_stream);
+
+MODULE_DESCRIPTION("Virtual Media Controller Driver (VIMC) Streamer");
+MODULE_AUTHOR("Lucas A. M. Magalhães <lucmaga@gmail.com>");
+MODULE_LICENSE("GPL");

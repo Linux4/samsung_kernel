@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * PCTV 452e DVB driver
  *
@@ -6,6 +5,11 @@
  *
  * TT connect S2-3650-CI Common Interface support, MAC readout
  * Copyright (C) 2008 Michael H. Schimek <mschimek@gmx.at>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
  */
 
 /* dvb usb framework */
@@ -524,13 +528,13 @@ static int pctv452e_power_ctrl(struct dvb_usb_device *d, int i)
 
 	rx = b0 + 5;
 
-	/* hmm where should this should go? */
+	/* hmm where shoud this should go? */
 	ret = usb_set_interface(d->udev, 0, ISOC_INTERFACE_ALTERNATIVE);
 	if (ret != 0)
 		info("%s: Warning set interface returned: %d\n",
 			__func__, ret);
 
-	/* this is a one-time initialization, don't know where to put */
+	/* this is a one-time initialization, dont know where to put */
 	b0[0] = 0xaa;
 	b0[1] = state->c++;
 	b0[2] = PCTV_CMD_RESET;

@@ -1,28 +1,19 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2012 Avionic Design GmbH
  * Copyright (C) 2012-2016 NVIDIA CORPORATION.  All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/bitops.h>
 #include <linux/host1x.h>
 #include <linux/idr.h>
 #include <linux/iommu.h>
-#include <linux/module.h>
-#include <linux/platform_device.h>
 
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
-#include <drm/drm_debugfs.h>
-#include <drm/drm_drv.h>
-#include <drm/drm_fourcc.h>
-#include <drm/drm_ioctl.h>
-#include <drm/drm_prime.h>
-#include <drm/drm_vblank.h>
-
-#if IS_ENABLED(CONFIG_ARM_DMA_USE_IOMMU)
-#include <asm/dma-iommu.h>
-#endif
 
 #include "drm.h"
 #include "gem.h"
@@ -97,6 +88,10 @@ static int tegra_drm_load(struct drm_device *drm, unsigned long flags)
 		return -ENOMEM;
 
 	if (iommu_present(&platform_bus_type)) {
+		u64 carveout_start, carveout_end, gem_start, gem_end;
+		struct iommu_domain_geometry *geometry;
+		unsigned long order;
+
 		tegra->domain = iommu_domain_alloc(&platform_bus_type);
 		if (!tegra->domain) {
 			err = -ENOMEM;
@@ -106,50 +101,12 @@ static int tegra_drm_load(struct drm_device *drm, unsigned long flags)
 		err = iova_cache_get();
 		if (err < 0)
 			goto domain;
-	}
 
-	mutex_init(&tegra->clients_lock);
-	INIT_LIST_HEAD(&tegra->clients);
-
-	drm->dev_private = tegra;
-	tegra->drm = drm;
-
-	drm_mode_config_init(drm);
-
-	drm->mode_config.min_width = 0;
-	drm->mode_config.min_height = 0;
-
-	drm->mode_config.max_width = 4096;
-	drm->mode_config.max_height = 4096;
-
-	drm->mode_config.normalize_zpos = true;
-
-	drm->mode_config.funcs = &tegra_drm_mode_config_funcs;
-	drm->mode_config.helper_private = &tegra_drm_mode_config_helpers;
-
-	err = tegra_drm_fb_prepare(drm);
-	if (err < 0)
-		goto config;
-
-	drm_kms_helper_poll_init(drm);
-
-	err = host1x_device_init(device);
-	if (err < 0)
-		goto fbdev;
-
-	if (tegra->domain) {
-		u64 carveout_start, carveout_end, gem_start, gem_end;
-		u64 dma_mask = dma_get_mask(&device->dev);
-		dma_addr_t start, end;
-		unsigned long order;
-
-		start = tegra->domain->geometry.aperture_start & dma_mask;
-		end = tegra->domain->geometry.aperture_end & dma_mask;
-
-		gem_start = start;
-		gem_end = end - CARVEOUT_SZ;
+		geometry = &tegra->domain->geometry;
+		gem_start = geometry->aperture_start;
+		gem_end = geometry->aperture_end - CARVEOUT_SZ;
 		carveout_start = gem_end + 1;
-		carveout_end = end;
+		carveout_end = geometry->aperture_end;
 
 		order = __ffs(tegra->domain->pgsize_bitmap);
 		init_iova_domain(&tegra->carveout.domain, 1UL << order,
@@ -166,6 +123,37 @@ static int tegra_drm_load(struct drm_device *drm, unsigned long flags)
 		DRM_DEBUG("  Carveout: %#llx-%#llx\n", carveout_start,
 			  carveout_end);
 	}
+
+	mutex_init(&tegra->clients_lock);
+	INIT_LIST_HEAD(&tegra->clients);
+
+	drm->dev_private = tegra;
+	tegra->drm = drm;
+
+	drm_mode_config_init(drm);
+
+	drm->mode_config.min_width = 0;
+	drm->mode_config.min_height = 0;
+
+	drm->mode_config.max_width = 4096;
+	drm->mode_config.max_height = 4096;
+
+	drm->mode_config.allow_fb_modifiers = true;
+
+	drm->mode_config.normalize_zpos = true;
+
+	drm->mode_config.funcs = &tegra_drm_mode_config_funcs;
+	drm->mode_config.helper_private = &tegra_drm_mode_config_helpers;
+
+	err = tegra_drm_fb_prepare(drm);
+	if (err < 0)
+		goto config;
+
+	drm_kms_helper_poll_init(drm);
+
+	err = host1x_device_init(device);
+	if (err < 0)
+		goto fbdev;
 
 	if (tegra->hub) {
 		err = tegra_display_hub_prepare(tegra->hub);
@@ -199,19 +187,19 @@ hub:
 	if (tegra->hub)
 		tegra_display_hub_cleanup(tegra->hub);
 device:
-	if (tegra->domain) {
-		mutex_destroy(&tegra->mm_lock);
-		drm_mm_takedown(&tegra->mm);
-		put_iova_domain(&tegra->carveout.domain);
-		iova_cache_put();
-	}
-
 	host1x_device_exit(device);
 fbdev:
 	drm_kms_helper_poll_fini(drm);
 	tegra_drm_fb_free(drm);
 config:
 	drm_mode_config_cleanup(drm);
+
+	if (tegra->domain) {
+		mutex_destroy(&tegra->mm_lock);
+		drm_mm_takedown(&tegra->mm);
+		put_iova_domain(&tegra->carveout.domain);
+		iova_cache_put();
+	}
 domain:
 	if (tegra->domain)
 		iommu_domain_free(tegra->domain);
@@ -254,7 +242,7 @@ static int tegra_drm_open(struct drm_device *drm, struct drm_file *filp)
 	if (!fpriv)
 		return -ENOMEM;
 
-	idr_init_base(&fpriv->contexts, 1);
+	idr_init(&fpriv->contexts);
 	mutex_init(&fpriv->lock);
 	filp->driver_priv = fpriv;
 
@@ -894,33 +882,33 @@ static int tegra_gem_get_flags(struct drm_device *drm, void *data,
 static const struct drm_ioctl_desc tegra_drm_ioctls[] = {
 #ifdef CONFIG_DRM_TEGRA_STAGING
 	DRM_IOCTL_DEF_DRV(TEGRA_GEM_CREATE, tegra_gem_create,
-			  DRM_RENDER_ALLOW),
+			  DRM_UNLOCKED | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(TEGRA_GEM_MMAP, tegra_gem_mmap,
-			  DRM_RENDER_ALLOW),
+			  DRM_UNLOCKED | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(TEGRA_SYNCPT_READ, tegra_syncpt_read,
-			  DRM_RENDER_ALLOW),
+			  DRM_UNLOCKED | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(TEGRA_SYNCPT_INCR, tegra_syncpt_incr,
-			  DRM_RENDER_ALLOW),
+			  DRM_UNLOCKED | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(TEGRA_SYNCPT_WAIT, tegra_syncpt_wait,
-			  DRM_RENDER_ALLOW),
+			  DRM_UNLOCKED | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(TEGRA_OPEN_CHANNEL, tegra_open_channel,
-			  DRM_RENDER_ALLOW),
+			  DRM_UNLOCKED | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(TEGRA_CLOSE_CHANNEL, tegra_close_channel,
-			  DRM_RENDER_ALLOW),
+			  DRM_UNLOCKED | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(TEGRA_GET_SYNCPT, tegra_get_syncpt,
-			  DRM_RENDER_ALLOW),
+			  DRM_UNLOCKED | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(TEGRA_SUBMIT, tegra_submit,
-			  DRM_RENDER_ALLOW),
+			  DRM_UNLOCKED | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(TEGRA_GET_SYNCPT_BASE, tegra_get_syncpt_base,
-			  DRM_RENDER_ALLOW),
+			  DRM_UNLOCKED | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(TEGRA_GEM_SET_TILING, tegra_gem_set_tiling,
-			  DRM_RENDER_ALLOW),
+			  DRM_UNLOCKED | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(TEGRA_GEM_GET_TILING, tegra_gem_get_tiling,
-			  DRM_RENDER_ALLOW),
+			  DRM_UNLOCKED | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(TEGRA_GEM_SET_FLAGS, tegra_gem_set_flags,
-			  DRM_RENDER_ALLOW),
+			  DRM_UNLOCKED | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(TEGRA_GEM_GET_FLAGS, tegra_gem_get_flags,
-			  DRM_RENDER_ALLOW),
+			  DRM_UNLOCKED | DRM_RENDER_ALLOW),
 #endif
 };
 
@@ -1010,7 +998,7 @@ static int tegra_debugfs_init(struct drm_minor *minor)
 #endif
 
 static struct drm_driver tegra_drm_driver = {
-	.driver_features = DRIVER_MODESET | DRIVER_GEM |
+	.driver_features = DRIVER_MODESET | DRIVER_GEM | DRIVER_PRIME |
 			   DRIVER_ATOMIC | DRIVER_RENDER,
 	.load = tegra_drm_load,
 	.unload = tegra_drm_unload,
@@ -1049,7 +1037,6 @@ int tegra_drm_register_client(struct tegra_drm *tegra,
 {
 	mutex_lock(&tegra->clients_lock);
 	list_add_tail(&client->list, &tegra->clients);
-	client->drm = tegra;
 	mutex_unlock(&tegra->clients_lock);
 
 	return 0;
@@ -1060,7 +1047,6 @@ int tegra_drm_unregister_client(struct tegra_drm *tegra,
 {
 	mutex_lock(&tegra->clients_lock);
 	list_del_init(&client->list);
-	client->drm = NULL;
 	mutex_unlock(&tegra->clients_lock);
 
 	return 0;
@@ -1082,14 +1068,6 @@ struct iommu_group *host1x_client_iommu_attach(struct host1x_client *client,
 		}
 
 		if (!shared || (shared && (group != tegra->group))) {
-#if IS_ENABLED(CONFIG_ARM_DMA_USE_IOMMU)
-			if (client->dev->archdata.mapping) {
-				struct dma_iommu_mapping *mapping =
-					to_dma_iommu_mapping(client->dev);
-				arm_iommu_detach_device(client->dev);
-				arm_iommu_release_mapping(mapping);
-			}
-#endif
 			err = iommu_attach_group(tegra->domain, group);
 			if (err < 0) {
 				iommu_group_put(group);
@@ -1209,18 +1187,14 @@ static int host1x_drm_probe(struct host1x_device *dev)
 
 	dev_set_drvdata(&dev->dev, drm);
 
-	err = drm_fb_helper_remove_conflicting_framebuffers(NULL, "tegradrmfb", false);
-	if (err < 0)
-		goto put;
-
 	err = drm_dev_register(drm, 0);
 	if (err < 0)
-		goto put;
+		goto unref;
 
 	return 0;
 
-put:
-	drm_dev_put(drm);
+unref:
+	drm_dev_unref(drm);
 	return err;
 }
 
@@ -1229,7 +1203,7 @@ static int host1x_drm_remove(struct host1x_device *dev)
 	struct drm_device *drm = dev_get_drvdata(&dev->dev);
 
 	drm_dev_unregister(drm);
-	drm_dev_put(drm);
+	drm_dev_unref(drm);
 
 	return 0;
 }
@@ -1238,15 +1212,31 @@ static int host1x_drm_remove(struct host1x_device *dev)
 static int host1x_drm_suspend(struct device *dev)
 {
 	struct drm_device *drm = dev_get_drvdata(dev);
+	struct tegra_drm *tegra = drm->dev_private;
 
-	return drm_mode_config_helper_suspend(drm);
+	drm_kms_helper_poll_disable(drm);
+	tegra_drm_fb_suspend(drm);
+
+	tegra->state = drm_atomic_helper_suspend(drm);
+	if (IS_ERR(tegra->state)) {
+		tegra_drm_fb_resume(drm);
+		drm_kms_helper_poll_enable(drm);
+		return PTR_ERR(tegra->state);
+	}
+
+	return 0;
 }
 
 static int host1x_drm_resume(struct device *dev)
 {
 	struct drm_device *drm = dev_get_drvdata(dev);
+	struct tegra_drm *tegra = drm->dev_private;
 
-	return drm_mode_config_helper_resume(drm);
+	drm_atomic_helper_resume(drm, tegra->state);
+	tegra_drm_fb_resume(drm);
+	drm_kms_helper_poll_enable(drm);
+
+	return 0;
 }
 #endif
 
@@ -1281,10 +1271,6 @@ static const struct of_device_id host1x_drm_subdevs[] = {
 	{ .compatible = "nvidia,tegra186-sor", },
 	{ .compatible = "nvidia,tegra186-sor1", },
 	{ .compatible = "nvidia,tegra186-vic", },
-	{ .compatible = "nvidia,tegra194-display", },
-	{ .compatible = "nvidia,tegra194-dc", },
-	{ .compatible = "nvidia,tegra194-sor", },
-	{ .compatible = "nvidia,tegra194-vic", },
 	{ /* sentinel */ }
 };
 

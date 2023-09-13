@@ -59,8 +59,7 @@ static int _nfs42_proc_fallocate(struct rpc_message *msg, struct file *filep,
 static int nfs42_proc_fallocate(struct rpc_message *msg, struct file *filep,
 				loff_t offset, loff_t len)
 {
-	struct inode *inode = file_inode(filep);
-	struct nfs_server *server = NFS_SERVER(inode);
+	struct nfs_server *server = NFS_SERVER(file_inode(filep));
 	struct nfs4_exception exception = { };
 	struct nfs_lock_context *lock;
 	int err;
@@ -69,12 +68,8 @@ static int nfs42_proc_fallocate(struct rpc_message *msg, struct file *filep,
 	if (IS_ERR(lock))
 		return PTR_ERR(lock);
 
-	exception.inode = inode;
+	exception.inode = file_inode(filep);
 	exception.state = lock->open_context->state;
-
-	err = nfs_sync_inode(inode);
-	if (err)
-		goto out;
 
 	do {
 		err = _nfs42_proc_fallocate(msg, filep, lock, offset, len);
@@ -84,7 +79,7 @@ static int nfs42_proc_fallocate(struct rpc_message *msg, struct file *filep,
 		}
 		err = nfs4_handle_exception(server, err, &exception);
 	} while (exception.retry);
-out:
+
 	nfs_put_lock_context(lock);
 	return err;
 }
@@ -122,13 +117,16 @@ int nfs42_proc_deallocate(struct file *filep, loff_t offset, loff_t len)
 		return -EOPNOTSUPP;
 
 	inode_lock(inode);
+	err = nfs_sync_inode(inode);
+	if (err)
+		goto out_unlock;
 
 	err = nfs42_proc_fallocate(&msg, filep, offset, len);
 	if (err == 0)
 		truncate_pagecache_range(inode, offset, (offset + len) -1);
 	if (err == -EOPNOTSUPP)
 		NFS_SERVER(inode)->caps &= ~NFS_CAP_DEALLOCATE;
-
+out_unlock:
 	inode_unlock(inode);
 	return err;
 }
@@ -295,9 +293,8 @@ static ssize_t _nfs42_proc_copy(struct file *src,
 			goto out;
 	}
 
-	WARN_ON_ONCE(invalidate_inode_pages2_range(dst_inode->i_mapping,
-					pos_dst >> PAGE_SHIFT,
-					(pos_dst + res->write_res.count - 1) >> PAGE_SHIFT));
+	truncate_pagecache_range(dst_inode, pos_dst,
+				 pos_dst + res->write_res.count);
 
 	status = res->write_res.count;
 out:
@@ -501,10 +498,7 @@ static loff_t _nfs42_proc_llseek(struct file *filep,
 	if (status)
 		return status;
 
-	if (whence == SEEK_DATA && res.sr_eof)
-		return -NFS4ERR_NXIO;
-	else
-		return vfs_setpos(filep, res.sr_offset, inode->i_sb->s_maxbytes);
+	return vfs_setpos(filep, res.sr_offset, inode->i_sb->s_maxbytes);
 }
 
 loff_t nfs42_proc_llseek(struct file *filep, loff_t offset, int whence)
@@ -674,170 +668,6 @@ int nfs42_proc_layoutstats_generic(struct nfs_server *server,
 	rpc_put_task(task);
 	return 0;
 }
-
-static struct nfs42_layouterror_data *
-nfs42_alloc_layouterror_data(struct pnfs_layout_segment *lseg, gfp_t gfp_flags)
-{
-	struct nfs42_layouterror_data *data;
-	struct inode *inode = lseg->pls_layout->plh_inode;
-
-	data = kzalloc(sizeof(*data), gfp_flags);
-	if (data) {
-		data->args.inode = data->inode = nfs_igrab_and_active(inode);
-		if (data->inode) {
-			data->lseg = pnfs_get_lseg(lseg);
-			if (data->lseg)
-				return data;
-			nfs_iput_and_deactive(data->inode);
-		}
-		kfree(data);
-	}
-	return NULL;
-}
-
-static void
-nfs42_free_layouterror_data(struct nfs42_layouterror_data *data)
-{
-	pnfs_put_lseg(data->lseg);
-	nfs_iput_and_deactive(data->inode);
-	kfree(data);
-}
-
-static void
-nfs42_layouterror_prepare(struct rpc_task *task, void *calldata)
-{
-	struct nfs42_layouterror_data *data = calldata;
-	struct inode *inode = data->inode;
-	struct nfs_server *server = NFS_SERVER(inode);
-	struct pnfs_layout_hdr *lo = data->lseg->pls_layout;
-	unsigned i;
-
-	spin_lock(&inode->i_lock);
-	if (!pnfs_layout_is_valid(lo)) {
-		spin_unlock(&inode->i_lock);
-		rpc_exit(task, 0);
-		return;
-	}
-	for (i = 0; i < data->args.num_errors; i++)
-		nfs4_stateid_copy(&data->args.errors[i].stateid,
-				&lo->plh_stateid);
-	spin_unlock(&inode->i_lock);
-	nfs4_setup_sequence(server->nfs_client, &data->args.seq_args,
-			    &data->res.seq_res, task);
-}
-
-static void
-nfs42_layouterror_done(struct rpc_task *task, void *calldata)
-{
-	struct nfs42_layouterror_data *data = calldata;
-	struct inode *inode = data->inode;
-	struct pnfs_layout_hdr *lo = data->lseg->pls_layout;
-
-	if (!nfs4_sequence_done(task, &data->res.seq_res))
-		return;
-
-	switch (task->tk_status) {
-	case 0:
-		break;
-	case -NFS4ERR_BADHANDLE:
-	case -ESTALE:
-		pnfs_destroy_layout(NFS_I(inode));
-		break;
-	case -NFS4ERR_EXPIRED:
-	case -NFS4ERR_ADMIN_REVOKED:
-	case -NFS4ERR_DELEG_REVOKED:
-	case -NFS4ERR_STALE_STATEID:
-	case -NFS4ERR_BAD_STATEID:
-		spin_lock(&inode->i_lock);
-		if (pnfs_layout_is_valid(lo) &&
-		    nfs4_stateid_match(&data->args.errors[0].stateid,
-					     &lo->plh_stateid)) {
-			LIST_HEAD(head);
-
-			/*
-			 * Mark the bad layout state as invalid, then retry
-			 * with the current stateid.
-			 */
-			pnfs_mark_layout_stateid_invalid(lo, &head);
-			spin_unlock(&inode->i_lock);
-			pnfs_free_lseg_list(&head);
-			nfs_commit_inode(inode, 0);
-		} else
-			spin_unlock(&inode->i_lock);
-		break;
-	case -NFS4ERR_OLD_STATEID:
-		spin_lock(&inode->i_lock);
-		if (pnfs_layout_is_valid(lo) &&
-		    nfs4_stateid_match_other(&data->args.errors[0].stateid,
-					&lo->plh_stateid)) {
-			/* Do we need to delay before resending? */
-			if (!nfs4_stateid_is_newer(&lo->plh_stateid,
-						&data->args.errors[0].stateid))
-				rpc_delay(task, HZ);
-			rpc_restart_call_prepare(task);
-		}
-		spin_unlock(&inode->i_lock);
-		break;
-	case -ENOTSUPP:
-	case -EOPNOTSUPP:
-		NFS_SERVER(inode)->caps &= ~NFS_CAP_LAYOUTERROR;
-	}
-}
-
-static void
-nfs42_layouterror_release(void *calldata)
-{
-	struct nfs42_layouterror_data *data = calldata;
-
-	nfs42_free_layouterror_data(data);
-}
-
-static const struct rpc_call_ops nfs42_layouterror_ops = {
-	.rpc_call_prepare = nfs42_layouterror_prepare,
-	.rpc_call_done = nfs42_layouterror_done,
-	.rpc_release = nfs42_layouterror_release,
-};
-
-int nfs42_proc_layouterror(struct pnfs_layout_segment *lseg,
-		const struct nfs42_layout_error *errors, size_t n)
-{
-	struct inode *inode = lseg->pls_layout->plh_inode;
-	struct nfs42_layouterror_data *data;
-	struct rpc_task *task;
-	struct rpc_message msg = {
-		.rpc_proc = &nfs4_procedures[NFSPROC4_CLNT_LAYOUTERROR],
-	};
-	struct rpc_task_setup task_setup = {
-		.rpc_message = &msg,
-		.callback_ops = &nfs42_layouterror_ops,
-		.flags = RPC_TASK_ASYNC,
-	};
-	unsigned int i;
-
-	if (!nfs_server_capable(inode, NFS_CAP_LAYOUTERROR))
-		return -EOPNOTSUPP;
-	if (n > NFS42_LAYOUTERROR_MAX)
-		return -EINVAL;
-	data = nfs42_alloc_layouterror_data(lseg, GFP_NOFS);
-	if (!data)
-		return -ENOMEM;
-	for (i = 0; i < n; i++) {
-		data->args.errors[i] = errors[i];
-		data->args.num_errors++;
-		data->res.num_errors++;
-	}
-	msg.rpc_argp = &data->args;
-	msg.rpc_resp = &data->res;
-	task_setup.callback_data = data;
-	task_setup.rpc_client = NFS_SERVER(inode)->client;
-	nfs4_init_sequence(&data->args.seq_args, &data->res.seq_res, 0, 0);
-	task = rpc_run_task(&task_setup);
-	if (IS_ERR(task))
-		return PTR_ERR(task);
-	rpc_put_task(task);
-	return 0;
-}
-EXPORT_SYMBOL_GPL(nfs42_proc_layouterror);
 
 static int _nfs42_proc_clone(struct rpc_message *msg, struct file *src_f,
 		struct file *dst_f, struct nfs_lock_context *src_lock,

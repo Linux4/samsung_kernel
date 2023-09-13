@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Maxim Integrated MAX2175 RF to Bits tuner driver
  *
@@ -7,6 +6,15 @@
  *
  * Copyright (C) 2016 Maxim Integrated Products
  * Copyright (C) 2017 Renesas Electronics Corporation
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2
+ * as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
  */
 
 #include <linux/clk.h>
@@ -503,7 +511,7 @@ static void max2175_set_bbfilter(struct max2175 *ctx)
 	}
 }
 
-static int max2175_set_csm_mode(struct max2175 *ctx,
+static bool max2175_set_csm_mode(struct max2175 *ctx,
 			  enum max2175_csm_mode new_mode)
 {
 	int ret = max2175_poll_csm_ready(ctx);
@@ -1157,7 +1165,7 @@ static int max2175_g_tuner(struct v4l2_subdev *sd, struct v4l2_tuner *vt)
 	if (vt->index > 0)
 		return -EINVAL;
 
-	strscpy(vt->name, "RF", sizeof(vt->name));
+	strlcpy(vt->name, "RF", sizeof(vt->name));
 	vt->type = V4L2_TUNER_RF;
 	vt->capability = V4L2_TUNER_CAP_1HZ | V4L2_TUNER_CAP_FREQ_BANDS;
 	vt->rangelow = ctx->bands_rf->rangelow;
@@ -1271,7 +1279,8 @@ static int max2175_refout_load_to_bits(struct i2c_client *client, u32 load,
 	return 0;
 }
 
-static int max2175_probe(struct i2c_client *client)
+static int max2175_probe(struct i2c_client *client,
+			const struct i2c_device_id *id)
 {
 	bool master = true, am_hiz = false;
 	u32 refout_load, refout_bits = 0;	/* REFOUT disabled */
@@ -1432,7 +1441,7 @@ static struct i2c_driver max2175_driver = {
 		.name	= DRIVER_NAME,
 		.of_match_table = max2175_of_ids,
 	},
-	.probe_new	= max2175_probe,
+	.probe		= max2175_probe,
 	.remove		= max2175_remove,
 	.id_table	= max2175_id,
 };

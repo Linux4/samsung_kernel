@@ -46,6 +46,7 @@ mwifiex_process_cmdresp_error(struct mwifiex_private *priv,
 {
 	struct mwifiex_adapter *adapter = priv->adapter;
 	struct host_cmd_ds_802_11_ps_mode_enh *pm;
+	unsigned long flags;
 
 	mwifiex_dbg(adapter, ERROR,
 		    "CMD_RESP: cmd %#x error, result=%#x\n",
@@ -86,9 +87,9 @@ mwifiex_process_cmdresp_error(struct mwifiex_private *priv,
 	/* Handling errors here */
 	mwifiex_recycle_cmd_node(adapter, adapter->curr_cmd);
 
-	spin_lock_bh(&adapter->mwifiex_cmd_lock);
+	spin_lock_irqsave(&adapter->mwifiex_cmd_lock, flags);
 	adapter->curr_cmd = NULL;
-	spin_unlock_bh(&adapter->mwifiex_cmd_lock);
+	spin_unlock_irqrestore(&adapter->mwifiex_cmd_lock, flags);
 }
 
 /*
@@ -580,11 +581,6 @@ static int mwifiex_ret_802_11_key_material_v1(struct mwifiex_private *priv,
 {
 	struct host_cmd_ds_802_11_key_material *key =
 						&resp->params.key_material;
-	int len;
-
-	len = le16_to_cpu(key->key_param_set.key_len);
-	if (len > sizeof(key->key_param_set.key))
-		return -EINVAL;
 
 	if (le16_to_cpu(key->action) == HostCmd_ACT_GEN_SET) {
 		if ((le16_to_cpu(key->key_param_set.key_info) & KEY_MCAST)) {
@@ -598,8 +594,9 @@ static int mwifiex_ret_802_11_key_material_v1(struct mwifiex_private *priv,
 
 	memset(priv->aes_key.key_param_set.key, 0,
 	       sizeof(key->key_param_set.key));
-	priv->aes_key.key_param_set.key_len = cpu_to_le16(len);
-	memcpy(priv->aes_key.key_param_set.key, key->key_param_set.key, len);
+	priv->aes_key.key_param_set.key_len = key->key_param_set.key_len;
+	memcpy(priv->aes_key.key_param_set.key, key->key_param_set.key,
+	       le16_to_cpu(priv->aes_key.key_param_set.key_len));
 
 	return 0;
 }
@@ -614,14 +611,9 @@ static int mwifiex_ret_802_11_key_material_v2(struct mwifiex_private *priv,
 					      struct host_cmd_ds_command *resp)
 {
 	struct host_cmd_ds_802_11_key_material_v2 *key_v2;
-	int len;
+	__le16 len;
 
 	key_v2 = &resp->params.key_material_v2;
-
-	len = le16_to_cpu(key_v2->key_param_set.key_params.aes.key_len);
-	if (len > sizeof(key_v2->key_param_set.key_params.aes.key))
-		return -EINVAL;
-
 	if (le16_to_cpu(key_v2->action) == HostCmd_ACT_GEN_SET) {
 		if ((le16_to_cpu(key_v2->key_param_set.key_info) & KEY_MCAST)) {
 			mwifiex_dbg(priv->adapter, INFO, "info: key: GTK is set\n");
@@ -635,11 +627,12 @@ static int mwifiex_ret_802_11_key_material_v2(struct mwifiex_private *priv,
 		return 0;
 
 	memset(priv->aes_key_v2.key_param_set.key_params.aes.key, 0,
-	       sizeof(key_v2->key_param_set.key_params.aes.key));
+	       WLAN_KEY_LEN_CCMP);
 	priv->aes_key_v2.key_param_set.key_params.aes.key_len =
-				cpu_to_le16(len);
+				key_v2->key_param_set.key_params.aes.key_len;
+	len = priv->aes_key_v2.key_param_set.key_params.aes.key_len;
 	memcpy(priv->aes_key_v2.key_param_set.key_params.aes.key,
-	       key_v2->key_param_set.key_params.aes.key, len);
+	       key_v2->key_param_set.key_params.aes.key, le16_to_cpu(len));
 
 	return 0;
 }
@@ -1032,14 +1025,17 @@ mwifiex_create_custom_regdomain(struct mwifiex_private *priv,
 	struct ieee80211_regdomain *regd;
 	struct ieee80211_reg_rule *rule;
 	bool new_rule;
-	int idx, freq, prev_freq = 0;
+	int regd_size, idx, freq, prev_freq = 0;
 	u32 bw, prev_bw = 0;
 	u8 chflags, prev_chflags = 0, valid_rules = 0;
 
 	if (WARN_ON_ONCE(num_chan > NL80211_MAX_SUPP_REG_RULES))
 		return ERR_PTR(-EINVAL);
 
-	regd = kzalloc(struct_size(regd, reg_rules, num_chan), GFP_KERNEL);
+	regd_size = sizeof(struct ieee80211_regdomain) +
+		    num_chan * sizeof(struct ieee80211_reg_rule);
+
+	regd = kzalloc(regd_size, GFP_KERNEL);
 	if (!regd)
 		return ERR_PTR(-ENOMEM);
 

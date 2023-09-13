@@ -922,8 +922,9 @@ mwifiex_reset_write(struct file *file,
 }
 
 #define MWIFIEX_DFS_ADD_FILE(name) do {                                 \
-	debugfs_create_file(#name, 0644, priv->dfs_dev_dir, priv,       \
-			    &mwifiex_dfs_##name##_fops);                \
+	if (!debugfs_create_file(#name, 0644, priv->dfs_dev_dir,        \
+			priv, &mwifiex_dfs_##name##_fops))              \
+		return;                                                 \
 } while (0);
 
 #define MWIFIEX_DFS_FILE_OPS(name)                                      \

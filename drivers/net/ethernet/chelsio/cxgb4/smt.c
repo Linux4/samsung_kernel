@@ -47,7 +47,8 @@ struct smt_data *t4_init_smt(void)
 
 	smt_size = SMT_SIZE;
 
-	s = kvzalloc(struct_size(s, smtab, smt_size), GFP_KERNEL);
+	s = kvzalloc(sizeof(*s) + smt_size * sizeof(struct smt_entry),
+		     GFP_KERNEL);
 	if (!s)
 		return NULL;
 	s->smt_size = smt_size;
@@ -57,7 +58,7 @@ struct smt_data *t4_init_smt(void)
 		s->smtab[i].state = SMT_STATE_UNUSED;
 		memset(&s->smtab[i].src_mac, 0, ETH_ALEN);
 		spin_lock_init(&s->smtab[i].lock);
-		s->smtab[i].refcnt = 0;
+		atomic_set(&s->smtab[i].refcnt, 0);
 	}
 	return s;
 }
@@ -68,7 +69,7 @@ static struct smt_entry *find_or_alloc_smte(struct smt_data *s, u8 *smac)
 	struct smt_entry *e, *end;
 
 	for (e = &s->smtab[0], end = &s->smtab[s->smt_size]; e != end; ++e) {
-		if (e->refcnt == 0) {
+		if (atomic_read(&e->refcnt) == 0) {
 			if (!first_free)
 				first_free = e;
 		} else {
@@ -97,7 +98,7 @@ found_reuse:
 
 static void t4_smte_free(struct smt_entry *e)
 {
-	if (e->refcnt == 0) {  /* hasn't been recycled */
+	if (atomic_read(&e->refcnt) == 0) {  /* hasn't been recycled */
 		e->state = SMT_STATE_UNUSED;
 	}
 }
@@ -110,7 +111,7 @@ static void t4_smte_free(struct smt_entry *e)
 void cxgb4_smt_release(struct smt_entry *e)
 {
 	spin_lock_bh(&e->lock);
-	if ((--e->refcnt) == 0)
+	if (atomic_dec_and_test(&e->refcnt))
 		t4_smte_free(e);
 	spin_unlock_bh(&e->lock);
 }
@@ -215,14 +216,14 @@ static struct smt_entry *t4_smt_alloc_switching(struct adapter *adap, u16 pfvf,
 	e = find_or_alloc_smte(s, smac);
 	if (e) {
 		spin_lock(&e->lock);
-		if (!e->refcnt) {
-			e->refcnt = 1;
+		if (!atomic_read(&e->refcnt)) {
+			atomic_set(&e->refcnt, 1);
 			e->state = SMT_STATE_SWITCHING;
 			e->pfvf = pfvf;
 			memcpy(e->src_mac, smac, ETH_ALEN);
 			write_smt_entry(adap, e);
 		} else {
-			++e->refcnt;
+			atomic_inc(&e->refcnt);
 		}
 		spin_unlock(&e->lock);
 	}

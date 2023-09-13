@@ -1,7 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  linux/drivers/pinctrl/pinctrl-lantiq.c
  *  based on linux/drivers/pinctrl/pinctrl-pxa3xx.c
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  publishhed by the Free Software Foundation.
  *
  *  Copyright (C) 2012 John Crispin <john@phrozen.org>
  */
@@ -77,14 +80,14 @@ static void ltq_pinctrl_dt_subnode_to_map(struct pinctrl_dev *pctldev,
 	int ret, i;
 
 	if (!pins && !groups) {
-		dev_err(pctldev->dev, "%pOFn defines neither pins nor groups\n",
-			np);
+		dev_err(pctldev->dev, "%s defines neither pins nor groups\n",
+			np->name);
 		return;
 	}
 
 	if (pins && groups) {
-		dev_err(pctldev->dev, "%pOFn defines both pins and groups\n",
-			np);
+		dev_err(pctldev->dev, "%s defines both pins and groups\n",
+			np->name);
 		return;
 	}
 

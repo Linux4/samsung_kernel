@@ -1,8 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (C) by Paul Barton-Davis 1998-1999
  *
  * Some portions of this file are taken from work that is
  * copyright (C) by Hannu Savolainen 1993-1996
+ *
+ * This program is distributed under the GNU GENERAL PUBLIC LICENSE (GPL)
+ * Version 2 (June 1991). See the "COPYING" file distributed with this software
+ * for more info.  
  */
 
 /*  
@@ -788,6 +791,7 @@ wavefront_send_patch (snd_wavefront_t *dev, wavefront_patch_info *header)
 
 	dev->patch_status[header->number] |= WF_SLOT_FILLED;
 
+	bptr = buf;
 	bptr = munge_int32 (header->number, buf, 2);
 	munge_buf ((unsigned char *)&header->hdr.p, bptr, WF_PATCH_BYTES);
     
@@ -1088,8 +1092,7 @@ wavefront_send_sample (snd_wavefront_t *dev,
 
 			if (dataptr < data_end) {
 		
-				if (get_user(sample_short, dataptr))
-					return -EFAULT;
+				__get_user (sample_short, dataptr);
 				dataptr += skip;
 		
 				if (data_is_unsigned) { /* GUS ? */

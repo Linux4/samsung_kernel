@@ -1,9 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /* Cluster IP hashmark target
  * (C) 2003-2004 by Harald Welte <laforge@netfilter.org>
  * based on ideas of Fabio Olive Leite <olive@unixforge.org>
  *
  * Development of this code funded by SuSE Linux AG, http://www.suse.com/
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
  */
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 #include <linux/module.h>
@@ -52,7 +56,7 @@ struct clusterip_config {
 #endif
 	enum clusterip_hashmode hash_mode;	/* which hashing mode */
 	u_int32_t hash_initval;			/* hash initialization */
-	struct rcu_head rcu;			/* for call_rcu */
+	struct rcu_head rcu;			/* for call_rcu_bh */
 	struct net *net;			/* netns for pernet list */
 	char ifname[IFNAMSIZ];			/* device ifname */
 };
@@ -103,7 +107,7 @@ static inline void
 clusterip_config_put(struct clusterip_config *c)
 {
 	if (refcount_dec_and_test(&c->refcount))
-		call_rcu(&c->rcu, clusterip_config_rcu_free);
+		call_rcu_bh(&c->rcu, clusterip_config_rcu_free);
 }
 
 /* decrease the count of entries using/referencing this config.  If last
@@ -416,8 +420,8 @@ clusterip_tg(struct sk_buff *skb, const struct xt_action_param *par)
 	     ctinfo == IP_CT_RELATED_REPLY))
 		return XT_CONTINUE;
 
-	/* nf_conntrack_proto_icmp guarantees us that we only have ICMP_ECHO,
-	 * TIMESTAMP, INFO_REQUEST or ICMP_ADDRESS type icmp packets from here
+	/* ip_conntrack_icmp guarantees us that we only have ICMP_ECHO,
+	 * TIMESTAMP, INFO_REQUEST or ADDRESS type icmp packets from here
 	 * on, which all have an ID field [relevant for hashing]. */
 
 	hash = clusterip_hashfn(skb, cipinfo->config);
@@ -505,11 +509,8 @@ static int clusterip_tg_check(const struct xt_tgchk_param *par)
 			if (IS_ERR(config))
 				return PTR_ERR(config);
 		}
-	} else if (memcmp(&config->clustermac, &cipinfo->clustermac, ETH_ALEN)) {
-		clusterip_config_entry_put(config);
-		clusterip_config_put(config);
+	} else if (memcmp(&config->clustermac, &cipinfo->clustermac, ETH_ALEN))
 		return -EINVAL;
-	}
 
 	ret = nf_ct_netns_get(par->net, par->family);
 	if (ret < 0) {
@@ -863,7 +864,7 @@ static struct pernet_operations clusterip_net_ops = {
 	.size = sizeof(struct clusterip_net),
 };
 
-static struct notifier_block cip_netdev_notifier = {
+struct notifier_block cip_netdev_notifier = {
 	.notifier_call = clusterip_netdev_event
 };
 
@@ -903,8 +904,8 @@ static void __exit clusterip_tg_exit(void)
 	xt_unregister_target(&clusterip_tg_reg);
 	unregister_pernet_subsys(&clusterip_net_ops);
 
-	/* Wait for completion of call_rcu()'s (clusterip_config_rcu_free) */
-	rcu_barrier();
+	/* Wait for completion of call_rcu_bh()'s (clusterip_config_rcu_free) */
+	rcu_barrier_bh();
 }
 
 module_init(clusterip_tg_init);

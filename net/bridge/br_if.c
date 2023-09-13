@@ -1,10 +1,14 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *	Userspace interface
  *	Linux ethernet bridge
  *
  *	Authors:
  *	Lennert Buytenhek		<buytenh@gnu.org>
+ *
+ *	This program is free software; you can redistribute it and/or
+ *	modify it under the terms of the GNU General Public License
+ *	as published by the Free Software Foundation; either version
+ *	2 of the License, or (at your option) any later version.
  */
 
 #include <linux/kernel.h>
@@ -175,7 +179,7 @@ int nbp_backup_change(struct net_bridge_port *p,
 	ASSERT_RTNL();
 
 	if (backup_dev) {
-		if (!netif_is_bridge_port(backup_dev))
+		if (!br_port_exists(backup_dev))
 			return -ENOENT;
 
 		backup_p = br_port_get_rtnl(backup_dev);
@@ -390,7 +394,8 @@ static int find_portno(struct net_bridge *br)
 	struct net_bridge_port *p;
 	unsigned long *inuse;
 
-	inuse = bitmap_zalloc(BR_MAX_PORTS, GFP_KERNEL);
+	inuse = kcalloc(BITS_TO_LONGS(BR_MAX_PORTS), sizeof(unsigned long),
+			GFP_KERNEL);
 	if (!inuse)
 		return -ENOMEM;
 
@@ -399,7 +404,7 @@ static int find_portno(struct net_bridge *br)
 		set_bit(p->port_no, inuse);
 	}
 	index = find_first_zero_bit(inuse, BR_MAX_PORTS);
-	bitmap_free(inuse);
+	kfree(inuse);
 
 	return (index >= BR_MAX_PORTS) ? -EXFULL : index;
 }
@@ -504,14 +509,14 @@ void br_mtu_auto_adjust(struct net_bridge *br)
 	ASSERT_RTNL();
 
 	/* if the bridge MTU was manually configured don't mess with it */
-	if (br_opt_get(br, BROPT_MTU_SET_BY_USER))
+	if (br->mtu_set_by_user)
 		return;
 
 	/* change to the minimum MTU and clear the flag which was set by
 	 * the bridge ndo_change_mtu callback
 	 */
 	dev_set_mtu(br->dev, br_mtu_min(br));
-	br_opt_toggle(br, BROPT_MTU_SET_BY_USER, false);
+	br->mtu_set_by_user = false;
 }
 
 static void br_set_gso_limits(struct net_bridge *br)
@@ -559,7 +564,7 @@ int br_add_if(struct net_bridge *br, struct net_device *dev,
 	struct net_bridge_port *p;
 	int err = 0;
 	unsigned br_hr, dev_hr;
-	bool changed_addr, fdb_synced = false;
+	bool changed_addr;
 
 	/* Don't allow bridging non-ethernet like devices, or DSA-enabled
 	 * master network devices since the bridge layer rx_handler prevents
@@ -599,7 +604,6 @@ int br_add_if(struct net_bridge *br, struct net_device *dev,
 
 	err = dev_set_allmulti(dev, 1);
 	if (err) {
-		br_multicast_del_port(p);
 		kfree(p);	/* kobject not yet init'd, manually free */
 		goto err1;
 	}
@@ -636,19 +640,6 @@ int br_add_if(struct net_bridge *br, struct net_device *dev,
 	list_add_rcu(&p->list, &br->port_list);
 
 	nbp_update_port_count(br);
-	if (!br_promisc_port(p) && (p->dev->priv_flags & IFF_UNICAST_FLT)) {
-		/* When updating the port count we also update all ports'
-		 * promiscuous mode.
-		 * A port leaving promiscuous mode normally gets the bridge's
-		 * fdb synced to the unicast filter (if supported), however,
-		 * `br_port_clear_promisc` does not distinguish between
-		 * non-promiscuous ports and *new* ports, so we need to
-		 * sync explicitly here.
-		 */
-		fdb_synced = br_fdb_sync_static(br, p) == 0;
-		if (!fdb_synced)
-			netdev_err(dev, "failed to sync bridge static fdb addresses to this port\n");
-	}
 
 	netdev_update_features(br->dev);
 
@@ -662,16 +653,7 @@ int br_add_if(struct net_bridge *br, struct net_device *dev,
 	if (br_fdb_insert(br, p, dev->dev_addr, 0))
 		netdev_err(dev, "failed insert local address bridge forwarding table\n");
 
-	if (br->dev->addr_assign_type != NET_ADDR_SET) {
-		/* Ask for permission to use this MAC address now, even if we
-		 * don't end up choosing it below.
-		 */
-		err = dev_pre_changeaddr_notify(br->dev, dev->dev_addr, extack);
-		if (err)
-			goto err7;
-	}
-
-	err = nbp_vlan_init(p, extack);
+	err = nbp_vlan_init(p);
 	if (err) {
 		netdev_err(dev, "failed to initialize vlan filtering on this port\n");
 		goto err7;
@@ -698,8 +680,6 @@ int br_add_if(struct net_bridge *br, struct net_device *dev,
 	return 0;
 
 err7:
-	if (fdb_synced)
-		br_fdb_unsync_static(br, p);
 	list_del_rcu(&p->list);
 	br_fdb_delete_by_port(br, p, 0, 1);
 	nbp_update_port_count(br);
@@ -713,7 +693,6 @@ err4:
 err3:
 	sysfs_remove_link(br->ifobj, p->dev->name);
 err2:
-	br_multicast_del_port(p);
 	kobject_put(&p->kobj);
 	dev_set_allmulti(dev, -1);
 err1:
@@ -762,48 +741,3 @@ void br_port_flags_change(struct net_bridge_port *p, unsigned long mask)
 	if (mask & BR_NEIGH_SUPPRESS)
 		br_recalculate_neigh_suppress_enabled(br);
 }
-
-bool br_port_flag_is_set(const struct net_device *dev, unsigned long flag)
-{
-	struct net_bridge_port *p;
-
-	p = br_port_get_rtnl_rcu(dev);
-	if (!p)
-		return false;
-
-	return p->flags & flag;
-}
-EXPORT_SYMBOL_GPL(br_port_flag_is_set);
-
-#ifdef CONFIG_ENABLE_SFE
-/* br_port_dev_get()
- * Using the given addr, identify the port to which it is reachable,
- * returing a reference to the net device associated with that port.
- *
- * NOTE: Return NULL if given dev is not a bridge or
- *       the mac has no associated port
- */
-struct net_device *br_port_dev_get(struct net_device *dev, unsigned char *addr)
-{
-	struct net_bridge_fdb_entry *fdbe;
-	struct net_bridge *br;
-	struct net_device *netdev = NULL;
-
-	/* Is this a bridge? */
-	if (!(dev->priv_flags & IFF_EBRIDGE))
-		return NULL;
-
-	br = netdev_priv(dev);
-
-	/* Lookup the fdb entry and get reference to the port dev */
-	rcu_read_lock();
-	fdbe = br_fdb_find_rcu(br, addr, 0);
-	if (fdbe && fdbe->dst) {
-		netdev = fdbe->dst->dev; /* port device */
-		dev_hold(netdev);
-	}
-	rcu_read_unlock();
-	return netdev;
-}
-EXPORT_SYMBOL(br_port_dev_get);
-#endif

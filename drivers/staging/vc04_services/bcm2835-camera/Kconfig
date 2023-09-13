@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 config VIDEO_BCM2835
 	tristate "BCM2835 Camera"
 	depends on MEDIA_SUPPORT

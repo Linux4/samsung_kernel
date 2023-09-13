@@ -58,10 +58,7 @@ struct mount {
 	struct mount *mnt_master;	/* slave is on master->mnt_slave_list */
 	struct mnt_namespace *mnt_ns;	/* containing namespace */
 	struct mountpoint *mnt_mp;	/* where is it mounted */
-	union {
-		struct hlist_node mnt_mp_list;	/* list mounts with the same mountpoint */
-		struct hlist_node mnt_umount;
-	};
+	struct hlist_node mnt_mp_list;	/* list mounts with the same mountpoint */
 	struct list_head mnt_umounting; /* list entry for umount propagation */
 #ifdef CONFIG_FSNOTIFY
 	struct fsnotify_mark_connector __rcu *mnt_fsnotify_marks;
@@ -71,25 +68,15 @@ struct mount {
 	int mnt_group_id;		/* peer group identifier */
 	int mnt_expiry_mark;		/* true if marked for expiry */
 	struct hlist_head mnt_pins;
-	struct hlist_head mnt_stuck_children;
+	struct fs_pin mnt_umount;
+	struct dentry *mnt_ex_mountpoint;
 } __randomize_layout;
-
-#ifdef CONFIG_KDP_NS
-struct kdp_mount {
-	struct mount mount;
-	struct vfsmount *mnt;
-};
-#endif
 
 #define MNT_NS_INTERNAL ERR_PTR(-EINVAL) /* distinct from any mnt_namespace */
 
 static inline struct mount *real_mount(struct vfsmount *mnt)
 {
-#ifdef CONFIG_KDP_NS
-	return ((struct kdp_vfsmount *)mnt)->bp_mount;
-#else
 	return container_of(mnt, struct mount, mnt);
-#endif
 }
 
 static inline int mnt_has_parent(struct mount *mnt)
@@ -111,11 +98,7 @@ extern bool legitimize_mnt(struct vfsmount *, unsigned);
 static inline bool __path_is_mountpoint(const struct path *path)
 {
 	struct mount *m = __lookup_mnt(path->mnt, path->dentry);
-#ifdef CONFIG_KDP_NS
-	return m && likely(!(((struct kdp_mount *)m)->mnt->mnt_flags & MNT_SYNC_UMOUNT));
-#else
 	return m && likely(!(m->mnt.mnt_flags & MNT_SYNC_UMOUNT));
-#endif
 }
 
 extern void __detach_mounts(struct dentry *dentry);
@@ -162,9 +145,4 @@ static inline bool is_local_mountpoint(struct dentry *dentry)
 		return false;
 
 	return __is_local_mountpoint(dentry);
-}
-
-static inline bool is_anon_ns(struct mnt_namespace *ns)
-{
-	return ns->seq == 0;
 }

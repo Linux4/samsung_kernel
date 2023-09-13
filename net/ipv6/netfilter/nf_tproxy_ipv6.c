@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 #include <net/netfilter/nf_tproxy.h>
 #include <linux/module.h>
 #include <net/inet6_hashtables.h>

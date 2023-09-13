@@ -15,14 +15,14 @@ enum logical_chip_type sm750_get_chip_type(void)
 	return chip;
 }
 
-void sm750_set_chip_type(unsigned short dev_id, u8 rev_id)
+void sm750_set_chip_type(unsigned short devId, u8 revId)
 {
-	if (dev_id == 0x718) {
+	if (devId == 0x718) {
 		chip = SM718;
-	} else if (dev_id == 0x750) {
+	} else if (devId == 0x750) {
 		chip = SM750;
 		/* SM750 and SM750LE are different in their revision ID only. */
-		if (rev_id == SM750LE_REVISION_ID) {
+		if (revId == SM750LE_REVISION_ID) {
 			chip = SM750LE;
 			pr_info("found sm750le\n");
 		}
@@ -45,7 +45,7 @@ static unsigned int get_mxclk_freq(void)
 	OD = (pll_reg & PLL_CTRL_OD_MASK) >> PLL_CTRL_OD_SHIFT;
 	POD = (pll_reg & PLL_CTRL_POD_MASK) >> PLL_CTRL_POD_SHIFT;
 
-	return DEFAULT_INPUT_CLOCK * M / N / BIT(OD) / BIT(POD);
+	return DEFAULT_INPUT_CLOCK * M / N / (1 << OD) / (1 << POD);
 }
 
 /*
@@ -56,7 +56,7 @@ static unsigned int get_mxclk_freq(void)
 static void set_chip_clock(unsigned int frequency)
 {
 	struct pll_value pll;
-	unsigned int actual_mx_clk;
+	unsigned int ulActualMxClk;
 
 	/* Cheok_0509: For SM750LE, the chip clock is fixed. Nothing to set. */
 	if (sm750_get_chip_type() == SM750LE)
@@ -76,7 +76,7 @@ static void set_chip_clock(unsigned int frequency)
 		 * Return value of sm750_calc_pll_value gives the actual
 		 * possible clock.
 		 */
-		actual_mx_clk = sm750_calc_pll_value(frequency, &pll);
+		ulActualMxClk = sm750_calc_pll_value(frequency, &pll);
 
 		/* Master Clock Control: MXCLK_PLL */
 		poke32(MXCLK_PLL_CTRL, sm750_format_pll_reg(&pll));
@@ -321,7 +321,7 @@ unsigned int sm750_calc_pll_value(unsigned int request_orig,
 	int mini_diff;
 	unsigned int RN, quo, rem, fl_quo;
 	unsigned int input, request;
-	unsigned int tmp_clock, ret;
+	unsigned int tmpClock, ret;
 	const int max_OD = 3;
 	int max_d = 6;
 
@@ -365,8 +365,8 @@ unsigned int sm750_calc_pll_value(unsigned int request_orig,
 			if (M < 256 && M > 0) {
 				unsigned int diff;
 
-				tmp_clock = pll->inputFreq * M / N / X;
-				diff = abs(tmp_clock - request_orig);
+				tmpClock = pll->inputFreq * M / N / X;
+				diff = abs(tmpClock - request_orig);
 				if (diff < mini_diff) {
 					pll->M = M;
 					pll->N = N;
@@ -375,7 +375,7 @@ unsigned int sm750_calc_pll_value(unsigned int request_orig,
 						pll->POD = d - max_OD;
 					pll->OD = d - pll->POD;
 					mini_diff = diff;
-					ret = tmp_clock;
+					ret = tmpClock;
 				}
 			}
 		}
@@ -391,6 +391,7 @@ unsigned int sm750_format_pll_reg(struct pll_value *pPLL)
 	unsigned int OD = pPLL->OD;
 	unsigned int M = pPLL->M;
 	unsigned int N = pPLL->N;
+	unsigned int reg = 0;
 
 	/*
 	 * Note that all PLL's have the same format. Here, we just use
@@ -398,11 +399,13 @@ unsigned int sm750_format_pll_reg(struct pll_value *pPLL)
 	 * register. On returning a 32 bit number, the value can be
 	 * applied to any PLL in the calling function.
 	 */
-	return PLL_CTRL_POWER |
+	reg = PLL_CTRL_POWER |
 #ifndef VALIDATION_CHIP
 		((POD << PLL_CTRL_POD_SHIFT) & PLL_CTRL_POD_MASK) |
 #endif
 		((OD << PLL_CTRL_OD_SHIFT) & PLL_CTRL_OD_MASK) |
 		((N << PLL_CTRL_N_SHIFT) & PLL_CTRL_N_MASK) |
 		((M << PLL_CTRL_M_SHIFT) & PLL_CTRL_M_MASK);
+
+	return reg;
 }

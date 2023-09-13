@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * ALSA Soc PCM3008 codec support
  *
@@ -7,6 +6,11 @@
  *
  * Based on AC97 Soc codec, original copyright follow:
  * Copyright 2005 Wolfson Microelectronics PLC.
+ *
+ *  This program is free software; you can redistribute  it and/or modify it
+ *  under  the terms of  the GNU General  Public License as published by the
+ *  Free Software Foundation;  either version 2 of the  License, or (at your
+ *  option) any later version.
  *
  * Generic PCM3008 support.
  */

@@ -1,8 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /* ADC driver for AXP20X and AXP22X PMICs
  *
  * Copyright (c) 2016 Free Electrons NextThing Co.
  *	Quentin Schulz <quentin.schulz@free-electrons.com>
+ *
+ * This program is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License version 2 as published by the
+ * Free Software Foundation.
  */
 
 #include <linux/completion.h>
@@ -251,8 +254,19 @@ static int axp22x_adc_raw(struct iio_dev *indio_dev,
 			  struct iio_chan_spec const *chan, int *val)
 {
 	struct axp20x_adc_iio *info = iio_priv(indio_dev);
+	int size;
 
-	*val = axp20x_read_variable_width(info->regmap, chan->address, 12);
+	/*
+	 * N.B.: Unlike the Chinese datasheets tell, the charging current is
+	 * stored on 12 bits, not 13 bits. Only discharging current is on 13
+	 * bits.
+	 */
+	if (chan->type == IIO_CURRENT && chan->channel == AXP22X_BATT_DISCHRG_I)
+		size = 13;
+	else
+		size = 12;
+
+	*val = axp20x_read_variable_width(info->regmap, chan->address, size);
 	if (*val < 0)
 		return *val;
 
@@ -375,8 +389,9 @@ static int axp22x_adc_scale(struct iio_chan_spec const *chan, int *val,
 		return IIO_VAL_INT_PLUS_MICRO;
 
 	case IIO_CURRENT:
-		*val = 1;
-		return IIO_VAL_INT;
+		*val = 0;
+		*val2 = 500000;
+		return IIO_VAL_INT_PLUS_MICRO;
 
 	case IIO_TEMP:
 		*val = 100;

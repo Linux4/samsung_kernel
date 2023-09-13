@@ -1,9 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * rt5668.c  --  RT5668B ALSA SoC audio component driver
  *
  * Copyright 2018 Realtek Semiconductor Corp.
  * Author: Bard Liao <bardliao@realtek.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/module.h>
@@ -1022,13 +1025,11 @@ static void rt5668_jack_detect_handler(struct work_struct *work)
 		container_of(work, struct rt5668_priv, jack_detect_work.work);
 	int val, btn_type;
 
-	if (!rt5668->component || !rt5668->component->card ||
-	    !rt5668->component->card->instantiated) {
-		/* card not yet ready, try later */
-		mod_delayed_work(system_power_efficient_wq,
-				 &rt5668->jack_detect_work, msecs_to_jiffies(15));
-		return;
-	}
+	while (!rt5668->component)
+		usleep_range(10000, 15000);
+
+	while (!rt5668->component->card->instantiated)
+		usleep_range(10000, 15000);
 
 	mutex_lock(&rt5668->calibrate_mutex);
 
@@ -2374,8 +2375,7 @@ static const struct regmap_config rt5668_regmap = {
 	.cache_type = REGCACHE_RBTREE,
 	.reg_defaults = rt5668_reg,
 	.num_reg_defaults = ARRAY_SIZE(rt5668_reg),
-	.use_single_read = true,
-	.use_single_write = true,
+	.use_single_rw = true,
 };
 
 static const struct i2c_device_id rt5668_i2c_id[] = {
@@ -2587,8 +2587,15 @@ static int rt5668_i2c_probe(struct i2c_client *i2c,
 
 	}
 
-	return devm_snd_soc_register_component(&i2c->dev, &soc_component_dev_rt5668,
+	return snd_soc_register_component(&i2c->dev, &soc_component_dev_rt5668,
 			rt5668_dai, ARRAY_SIZE(rt5668_dai));
+}
+
+static int rt5668_i2c_remove(struct i2c_client *i2c)
+{
+	snd_soc_unregister_component(&i2c->dev);
+
+	return 0;
 }
 
 static void rt5668_i2c_shutdown(struct i2c_client *client)
@@ -2621,6 +2628,7 @@ static struct i2c_driver rt5668_i2c_driver = {
 		.acpi_match_table = ACPI_PTR(rt5668_acpi_match),
 	},
 	.probe = rt5668_i2c_probe,
+	.remove = rt5668_i2c_remove,
 	.shutdown = rt5668_i2c_shutdown,
 	.id_table = rt5668_i2c_id,
 };

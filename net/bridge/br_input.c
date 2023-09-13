@@ -1,10 +1,14 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *	Handle incoming frames
  *	Linux ethernet bridge
  *
  *	Authors:
  *	Lennert Buytenhek		<buytenh@gnu.org>
+ *
+ *	This program is free software; you can redistribute it and/or
+ *	modify it under the terms of the GNU General Public License
+ *	as published by the Free Software Foundation; either version
+ *	2 of the License, or (at your option) any later version.
  */
 
 #include <linux/slab.h>
@@ -12,15 +16,16 @@
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/netfilter_bridge.h>
-#ifdef CONFIG_NETFILTER_FAMILY_BRIDGE
-#include <net/netfilter/nf_queue.h>
-#endif
 #include <linux/neighbour.h>
 #include <net/arp.h>
 #include <linux/export.h>
 #include <linux/rculist.h>
 #include "br_private.h"
 #include "br_private_tunnel.h"
+
+/* Hook for brouter */
+br_should_route_hook_t __rcu *br_should_route_hook __read_mostly;
+EXPORT_SYMBOL(br_should_route_hook);
 
 static int
 br_netif_receive_skb(struct net *net, struct sock *sk, struct sk_buff *skb)
@@ -29,13 +34,7 @@ br_netif_receive_skb(struct net *net, struct sock *sk, struct sk_buff *skb)
 	return netif_receive_skb(skb);
 }
 
-#ifdef CONFIG_HYFI_BRIDGE_HOOKS
-/* Hook for external Multicast handler */
-br_multicast_handle_hook_t __rcu *br_multicast_handle_hook __read_mostly;
-EXPORT_SYMBOL(br_multicast_handle_hook);
-#endif
-
-int br_pass_frame_up(struct sk_buff *skb)
+static int br_pass_frame_up(struct sk_buff *skb)
 {
 	struct net_device *indev, *brdev = BR_INPUT_SKB_CB(skb)->brdev;
 	struct net_bridge *br = netdev_priv(brdev);
@@ -48,13 +47,6 @@ int br_pass_frame_up(struct sk_buff *skb)
 	u64_stats_update_end(&brstats->syncp);
 
 	vg = br_vlan_group_rcu(br);
-
-	/* Reset the offload_fwd_mark because there could be a stacked
-	 * bridge above, and it should not think this bridge it doing
-	 * that bridge's work forwarding out its ports.
-	 */
-	br_switchdev_frame_unmark(skb);
-
 	/* Bridge is just like any other port.  Make sure the
 	 * packet is allowed except in promisc modue when someone
 	 * may be running packet capture.
@@ -79,10 +71,6 @@ int br_pass_frame_up(struct sk_buff *skb)
 		       br_netif_receive_skb);
 }
 
-#ifdef CONFIG_HYFI_BRIDGE_HOOKS
-EXPORT_SYMBOL(br_pass_frame_up);
-#endif
-
 /* note: already called with rcu_read_lock */
 int br_handle_frame_finish(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
@@ -92,9 +80,6 @@ int br_handle_frame_finish(struct net *net, struct sock *sk, struct sk_buff *skb
 	struct net_bridge_mdb_entry *mdst;
 	bool local_rcv, mcast_hit = false;
 	struct net_bridge *br;
-#ifdef CONFIG_HYFI_BRIDGE_HOOKS
-	br_multicast_handle_hook_t *multicast_handle_hook;
-#endif
 	u16 vid = 0;
 
 	if (!p || p->state == BR_STATE_DISABLED)
@@ -135,7 +120,7 @@ int br_handle_frame_finish(struct net *net, struct sock *sk, struct sk_buff *skb
 		br_do_proxy_suppress_arp(skb, br, vid, p);
 	} else if (IS_ENABLED(CONFIG_IPV6) &&
 		   skb->protocol == htons(ETH_P_IPV6) &&
-		   br_opt_get(br, BROPT_NEIGH_SUPPRESS_ENABLED) &&
+		   br->neigh_suppress_enabled &&
 		   pskb_may_pull(skb, sizeof(struct ipv6hdr) +
 				 sizeof(struct nd_msg)) &&
 		   ipv6_hdr(skb)->nexthdr == IPPROTO_ICMPV6) {
@@ -148,11 +133,6 @@ int br_handle_frame_finish(struct net *net, struct sock *sk, struct sk_buff *skb
 
 	switch (pkt_type) {
 	case BR_PKT_MULTICAST:
-#ifdef CONFIG_HYFI_BRIDGE_HOOKS
-		multicast_handle_hook = rcu_dereference(br_multicast_handle_hook);
-		if (!__br_get(multicast_handle_hook, true, p, skb))
-			goto out;
-#endif
 		mdst = br_mdb_get(br, skb, vid);
 		if ((mdst || BR_INPUT_SKB_CB_MROUTERS_ONLY(skb)) &&
 		    br_multicast_querier_exists(br, eth_hdr(skb))) {
@@ -206,75 +186,17 @@ static void __br_handle_local_finish(struct sk_buff *skb)
 	u16 vid = 0;
 
 	/* check if vlan is allowed, to avoid spoofing */
-	if ((p->flags & BR_LEARNING) &&
-	    !br_opt_get(p->br, BROPT_NO_LL_LEARN) &&
-	    br_should_learn(p, skb, &vid))
+	if (p->flags & BR_LEARNING && br_should_learn(p, skb, &vid))
 		br_fdb_update(p->br, p, eth_hdr(skb)->h_source, vid, false);
 }
 
 /* note: already called with rcu_read_lock */
 static int br_handle_local_finish(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
-	struct net_bridge_port *p = br_port_get_rcu(skb->dev);
-
-	if (p->state != BR_STATE_DISABLED)
-		__br_handle_local_finish(skb);
+	__br_handle_local_finish(skb);
 
 	/* return 1 to signal the okfn() was called so it's ok to use the skb */
 	return 1;
-}
-
-static int nf_hook_bridge_pre(struct sk_buff *skb, struct sk_buff **pskb)
-{
-#ifdef CONFIG_NETFILTER_FAMILY_BRIDGE
-	struct nf_hook_entries *e = NULL;
-	struct nf_hook_state state;
-	unsigned int verdict, i;
-	struct net *net;
-	int ret;
-
-	net = dev_net(skb->dev);
-#ifdef HAVE_JUMP_LABEL
-	if (!static_key_false(&nf_hooks_needed[NFPROTO_BRIDGE][NF_BR_PRE_ROUTING]))
-		goto frame_finish;
-#endif
-
-	e = rcu_dereference(net->nf.hooks_bridge[NF_BR_PRE_ROUTING]);
-	if (!e)
-		goto frame_finish;
-
-	nf_hook_state_init(&state, NF_BR_PRE_ROUTING,
-			   NFPROTO_BRIDGE, skb->dev, NULL, NULL,
-			   net, br_handle_frame_finish);
-
-	for (i = 0; i < e->num_hook_entries; i++) {
-		verdict = nf_hook_entry_hookfn(&e->hooks[i], skb, &state);
-		switch (verdict & NF_VERDICT_MASK) {
-		case NF_ACCEPT:
-			if (BR_INPUT_SKB_CB(skb)->br_netfilter_broute) {
-				*pskb = skb;
-				return RX_HANDLER_PASS;
-			}
-			break;
-		case NF_DROP:
-			kfree_skb(skb);
-			return RX_HANDLER_CONSUMED;
-		case NF_QUEUE:
-			ret = nf_queue(skb, &state, i, verdict);
-			if (ret == 1)
-				continue;
-			return RX_HANDLER_CONSUMED;
-		default: /* STOLEN */
-			return RX_HANDLER_CONSUMED;
-		}
-	}
-frame_finish:
-	net = dev_net(skb->dev);
-	br_handle_frame_finish(net, NULL, skb);
-#else
-	br_handle_frame_finish(dev_net(skb->dev), NULL, skb);
-#endif
-	return RX_HANDLER_CONSUMED;
 }
 
 /*
@@ -286,6 +208,7 @@ rx_handler_result_t br_handle_frame(struct sk_buff **pskb)
 	struct net_bridge_port *p;
 	struct sk_buff *skb = *pskb;
 	const unsigned char *dest = eth_hdr(skb)->h_dest;
+	br_should_route_hook_t *rhook;
 
 	if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
 		return RX_HANDLER_PASS;
@@ -296,8 +219,6 @@ rx_handler_result_t br_handle_frame(struct sk_buff **pskb)
 	skb = skb_share_check(skb, GFP_ATOMIC);
 	if (!skb)
 		return RX_HANDLER_CONSUMED;
-
-	memset(skb->cb, 0, sizeof(struct br_input_skb_cb));
 
 	p = br_port_get_rcu(skb->dev);
 	if (p->flags & BR_VLAN_TUNNEL) {
@@ -368,25 +289,24 @@ rx_handler_result_t br_handle_frame(struct sk_buff **pskb)
 
 forward:
 	switch (p->state) {
-	case BR_STATE_DISABLED:
-		if (skb->protocol == htons(ETH_P_PAE)) {
-			if (ether_addr_equal(p->br->dev->dev_addr, dest))
-				skb->pkt_type = PACKET_HOST;
-
-			if (NF_HOOK(NFPROTO_BRIDGE, NF_BR_PRE_ROUTING,
-				    dev_net(skb->dev), NULL, skb, skb->dev, NULL,
-				    br_handle_local_finish) == 1) {
+	case BR_STATE_FORWARDING:
+		rhook = rcu_dereference(br_should_route_hook);
+		if (rhook) {
+			if ((*rhook)(skb)) {
+				*pskb = skb;
 				return RX_HANDLER_PASS;
 			}
+			dest = eth_hdr(skb)->h_dest;
 		}
-		goto drop;
-
-	case BR_STATE_FORWARDING:
+		/* fall through */
 	case BR_STATE_LEARNING:
 		if (ether_addr_equal(p->br->dev->dev_addr, dest))
 			skb->pkt_type = PACKET_HOST;
 
-		return nf_hook_bridge_pre(skb, pskb);
+		NF_HOOK(NFPROTO_BRIDGE, NF_BR_PRE_ROUTING,
+			dev_net(skb->dev), NULL, skb, skb->dev, NULL,
+			br_handle_frame_finish);
+		break;
 	default:
 drop:
 		kfree_skb(skb);

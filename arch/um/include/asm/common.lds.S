@@ -53,9 +53,7 @@
 	CON_INITCALL
   }
 
-  .test_modules : {
-	KUNIT_TEST_MODULES
-  }
+  SECURITY_INIT
 
   .exitcall : {
 	__exitcall_begin = .;

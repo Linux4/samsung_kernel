@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Scatterlist Cryptographic API.
  *
@@ -8,6 +7,12 @@
  *
  * Portions derived from Cryptoapi, by Alexander Kjeldaas <astor@fast.no>
  * and Nettle, by Niels Möller.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
  */
 
 #include <linux/err.h>
@@ -21,10 +26,6 @@
 #include <linux/string.h>
 #include <linux/completion.h>
 #include "internal.h"
-
-#ifdef CONFIG_CRYPTO_FIPS_FUNC_TEST
-#include "fips140_test.h"
-#endif
 
 LIST_HEAD(crypto_alg_list);
 EXPORT_SYMBOL_GPL(crypto_alg_list);
@@ -101,7 +102,7 @@ static void crypto_larval_destroy(struct crypto_alg *alg)
 	struct crypto_larval *larval = (void *)alg;
 
 	BUG_ON(!crypto_is_larval(alg));
-	if (!IS_ERR_OR_NULL(larval->adult))
+	if (larval->adult)
 		crypto_mod_put(larval->adult);
 	kfree(larval);
 }
@@ -182,8 +183,6 @@ static struct crypto_alg *crypto_larval_wait(struct crypto_alg *alg)
 		alg = ERR_PTR(-ETIMEDOUT);
 	else if (!alg)
 		alg = ERR_PTR(-ENOENT);
-	else if (IS_ERR(alg))
-		;
 	else if (crypto_is_test_larval(larval) &&
 		 !(alg->cra_flags & CRYPTO_ALG_TESTED))
 		alg = ERR_PTR(-EAGAIN);
@@ -560,14 +559,6 @@ err:
 }
 EXPORT_SYMBOL_GPL(crypto_alloc_tfm);
 
-#ifdef CONFIG_CRYPTO_FIPS_FUNC_TEST
-static void hexdump(unsigned char *buf, unsigned int len)
-{
-	print_hex_dump(KERN_INFO, "FIPS FUNC : ", DUMP_PREFIX_OFFSET,
-			16, 1, buf, len, false);
-}
-#endif
-
 /*
  *	crypto_destroy_tfm - Free crypto transform
  *	@mem: Start of tfm slab
@@ -580,7 +571,7 @@ void crypto_destroy_tfm(void *mem, struct crypto_tfm *tfm)
 {
 	struct crypto_alg *alg;
 
-	if (IS_ERR_OR_NULL(mem))
+	if (unlikely(!mem))
 		return;
 
 	alg = tfm->__crt_alg;
@@ -589,21 +580,7 @@ void crypto_destroy_tfm(void *mem, struct crypto_tfm *tfm)
 		alg->cra_exit(tfm);
 	crypto_exit_ops(tfm);
 	crypto_mod_put(alg);
-#ifdef CONFIG_CRYPTO_FIPS_FUNC_TEST
-	if (!strcmp("zeroization", get_fips_functest_mode())) {
-		int t = ksize(mem);
-
-		pr_err("FIPS FUNC : Zeroization %s %d\n", __func__, t);
-		hexdump(mem, t);
-		kzfree(mem);
-		pr_err("FIPS FUNC : Zeroization %s %d\n", __func__, t);
-		hexdump(mem, t);
-	} else {
-		kzfree(mem);
-	}
-#else
 	kzfree(mem);
-#endif /* CONFIG_CRYPTO_FIPS_FUNC_TEST */
 }
 EXPORT_SYMBOL_GPL(crypto_destroy_tfm);
 

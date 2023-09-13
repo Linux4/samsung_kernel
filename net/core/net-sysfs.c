@@ -1,13 +1,18 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * net-sysfs.c - network device class and attributes
  *
  * Copyright (c) 2003 Stephen Hemminger <shemminger@osdl.org>
+ *
+ *	This program is free software; you can redistribute it and/or
+ *	modify it under the terms of the GNU General Public License
+ *	as published by the Free Software Foundation; either version
+ *	2 of the License, or (at your option) any later version.
  */
 
 #include <linux/capability.h>
 #include <linux/kernel.h>
 #include <linux/netdevice.h>
+#include <net/switchdev.h>
 #include <linux/if_arp.h>
 #include <linux/slab.h>
 #include <linux/sched/signal.h>
@@ -174,14 +179,6 @@ static int change_carrier(struct net_device *dev, unsigned long new_carrier)
 static ssize_t carrier_store(struct device *dev, struct device_attribute *attr,
 			     const char *buf, size_t len)
 {
-	struct net_device *netdev = to_net_dev(dev);
-
-	/* The check is also done in change_carrier; this helps returning early
-	 * without hitting the trylock/restart in netdev_store.
-	 */
-	if (!netdev->netdev_ops->ndo_change_carrier)
-		return -EOPNOTSUPP;
-
 	return netdev_store(dev, attr, buf, len, change_carrier);
 }
 
@@ -203,16 +200,10 @@ static ssize_t speed_show(struct device *dev,
 	struct net_device *netdev = to_net_dev(dev);
 	int ret = -EINVAL;
 
-	/* The check is also done in __ethtool_get_link_ksettings; this helps
-	 * returning early without hitting the trylock/restart below.
-	 */
-	if (!netdev->ethtool_ops->get_link_ksettings)
-		return ret;
-
 	if (!rtnl_trylock())
 		return restart_syscall();
 
-	if (netif_running(netdev) && netif_device_present(netdev)) {
+	if (netif_running(netdev)) {
 		struct ethtool_link_ksettings cmd;
 
 		if (!__ethtool_get_link_ksettings(netdev, &cmd))
@@ -228,12 +219,6 @@ static ssize_t duplex_show(struct device *dev,
 {
 	struct net_device *netdev = to_net_dev(dev);
 	int ret = -EINVAL;
-
-	/* The check is also done in __ethtool_get_link_ksettings; this helps
-	 * returning early without hitting the trylock/restart below.
-	 */
-	if (!netdev->ethtool_ops->get_link_ksettings)
-		return ret;
 
 	if (!rtnl_trylock())
 		return restart_syscall();
@@ -352,7 +337,7 @@ NETDEVICE_SHOW_RW(mtu, fmt_dec);
 
 static int change_flags(struct net_device *dev, unsigned long new_flags)
 {
-	return dev_change_flags(dev, (unsigned int)new_flags, NULL);
+	return dev_change_flags(dev, (unsigned int)new_flags);
 }
 
 static ssize_t flags_store(struct device *dev, struct device_attribute *attr,
@@ -458,14 +443,6 @@ static ssize_t proto_down_store(struct device *dev,
 				struct device_attribute *attr,
 				const char *buf, size_t len)
 {
-	struct net_device *netdev = to_net_dev(dev);
-
-	/* The check is also done in change_proto_down; this helps returning
-	 * early without hitting the trylock/restart in netdev_store.
-	 */
-	if (!netdev->netdev_ops->ndo_change_proto_down)
-		return -EOPNOTSUPP;
-
 	return netdev_store(dev, attr, buf, len, change_proto_down);
 }
 NETDEVICE_SHOW_RW(proto_down, fmt_dec);
@@ -475,12 +452,6 @@ static ssize_t phys_port_id_show(struct device *dev,
 {
 	struct net_device *netdev = to_net_dev(dev);
 	ssize_t ret = -EINVAL;
-
-	/* The check is also done in dev_get_phys_port_id; this helps returning
-	 * early without hitting the trylock/restart below.
-	 */
-	if (!netdev->netdev_ops->ndo_get_phys_port_id)
-		return -EOPNOTSUPP;
 
 	if (!rtnl_trylock())
 		return restart_syscall();
@@ -504,13 +475,6 @@ static ssize_t phys_port_name_show(struct device *dev,
 	struct net_device *netdev = to_net_dev(dev);
 	ssize_t ret = -EINVAL;
 
-	/* The checks are also done in dev_get_phys_port_name; this helps
-	 * returning early without hitting the trylock/restart below.
-	 */
-	if (!netdev->netdev_ops->ndo_get_phys_port_name &&
-	    !netdev->netdev_ops->ndo_get_devlink_port)
-		return -EOPNOTSUPP;
-
 	if (!rtnl_trylock())
 		return restart_syscall();
 
@@ -533,23 +497,20 @@ static ssize_t phys_switch_id_show(struct device *dev,
 	struct net_device *netdev = to_net_dev(dev);
 	ssize_t ret = -EINVAL;
 
-	/* The checks are also done in dev_get_phys_port_name; this helps
-	 * returning early without hitting the trylock/restart below. This works
-	 * because recurse is false when calling dev_get_port_parent_id.
-	 */
-	if (!netdev->netdev_ops->ndo_get_port_parent_id &&
-	    !netdev->netdev_ops->ndo_get_devlink_port)
-		return -EOPNOTSUPP;
-
 	if (!rtnl_trylock())
 		return restart_syscall();
 
 	if (dev_isalive(netdev)) {
-		struct netdev_phys_item_id ppid = { };
+		struct switchdev_attr attr = {
+			.orig_dev = netdev,
+			.id = SWITCHDEV_ATTR_ID_PORT_PARENT_ID,
+			.flags = SWITCHDEV_F_NO_RECURSE,
+		};
 
-		ret = dev_get_port_parent_id(netdev, &ppid, false);
+		ret = switchdev_port_attr_get(netdev, &attr);
 		if (!ret)
-			ret = sprintf(buf, "%*phN\n", ppid.id_len, ppid.id);
+			ret = sprintf(buf, "%*phN\n", attr.u.ppid.id_len,
+				      attr.u.ppid.id);
 	}
 	rtnl_unlock();
 
@@ -799,9 +760,9 @@ static ssize_t store_rps_map(struct netdev_rx_queue *queue,
 	rcu_assign_pointer(queue->rps_map, map);
 
 	if (map)
-		static_branch_inc(&rps_needed);
+		static_key_slow_inc(&rps_needed);
 	if (old_map)
-		static_branch_dec(&rps_needed);
+		static_key_slow_dec(&rps_needed);
 
 	mutex_unlock(&rps_map_mutex);
 
@@ -908,7 +869,6 @@ static struct attribute *rx_queue_default_attrs[] __ro_after_init = {
 #endif
 	NULL
 };
-ATTRIBUTE_GROUPS(rx_queue_default);
 
 static void rx_queue_release(struct kobject *kobj)
 {
@@ -957,7 +917,7 @@ static void rx_queue_get_ownership(struct kobject *kobj,
 static struct kobj_type rx_queue_ktype __ro_after_init = {
 	.sysfs_ops = &rx_queue_sysfs_ops,
 	.release = rx_queue_release,
-	.default_groups = rx_queue_default_groups,
+	.default_attrs = rx_queue_default_attrs,
 	.namespace = rx_queue_namespace,
 	.get_ownership = rx_queue_get_ownership,
 };
@@ -1085,7 +1045,7 @@ static ssize_t tx_timeout_show(struct netdev_queue *queue, char *buf)
 	trans_timeout = queue->trans_timeout;
 	spin_unlock_irq(&queue->_xmit_lock);
 
-	return sprintf(buf, fmt_ulong, trans_timeout);
+	return sprintf(buf, "%lu", trans_timeout);
 }
 
 static unsigned int get_netdev_queue_index(struct netdev_queue *queue)
@@ -1145,12 +1105,6 @@ static ssize_t tx_maxrate_store(struct netdev_queue *queue,
 
 	if (!capable(CAP_NET_ADMIN))
 		return -EPERM;
-
-	/* The check is also done later; this helps returning early without
-	 * hitting the trylock/restart below.
-	 */
-	if (!dev->netdev_ops->ndo_set_tx_maxrate)
-		return -EOPNOTSUPP;
 
 	err = kstrtou32(buf, 10, &rate);
 	if (err < 0)
@@ -1290,8 +1244,8 @@ static const struct attribute_group dql_group = {
 static ssize_t xps_cpus_show(struct netdev_queue *queue,
 			     char *buf)
 {
-	int cpu, len, ret, num_tc = 1, tc = 0;
 	struct net_device *dev = queue->dev;
+	int cpu, len, num_tc = 1, tc = 0;
 	struct xps_dev_maps *dev_maps;
 	cpumask_var_t mask;
 	unsigned long index;
@@ -1301,31 +1255,22 @@ static ssize_t xps_cpus_show(struct netdev_queue *queue,
 
 	index = get_netdev_queue_index(queue);
 
-	if (!rtnl_trylock())
-		return restart_syscall();
-
 	if (dev->num_tc) {
 		/* Do not allow XPS on subordinate device directly */
 		num_tc = dev->num_tc;
-		if (num_tc < 0) {
-			ret = -EINVAL;
-			goto err_rtnl_unlock;
-		}
+		if (num_tc < 0)
+			return -EINVAL;
 
 		/* If queue belongs to subordinate dev use its map */
 		dev = netdev_get_tx_queue(dev, index)->sb_dev ? : dev;
 
 		tc = netdev_txq_to_tc(dev, index);
-		if (tc < 0) {
-			ret = -EINVAL;
-			goto err_rtnl_unlock;
-		}
+		if (tc < 0)
+			return -EINVAL;
 	}
 
-	if (!zalloc_cpumask_var(&mask, GFP_KERNEL)) {
-		ret = -ENOMEM;
-		goto err_rtnl_unlock;
-	}
+	if (!zalloc_cpumask_var(&mask, GFP_KERNEL))
+		return -ENOMEM;
 
 	rcu_read_lock();
 	dev_maps = rcu_dereference(dev->xps_cpus_map);
@@ -1348,15 +1293,9 @@ static ssize_t xps_cpus_show(struct netdev_queue *queue,
 	}
 	rcu_read_unlock();
 
-	rtnl_unlock();
-
 	len = snprintf(buf, PAGE_SIZE, "%*pb\n", cpumask_pr_args(mask));
 	free_cpumask_var(mask);
 	return len < PAGE_SIZE ? len : -EINVAL;
-
-err_rtnl_unlock:
-	rtnl_unlock();
-	return ret;
 }
 
 static ssize_t xps_cpus_store(struct netdev_queue *queue,
@@ -1384,13 +1323,7 @@ static ssize_t xps_cpus_store(struct netdev_queue *queue,
 		return err;
 	}
 
-	if (!rtnl_trylock()) {
-		free_cpumask_var(mask);
-		return restart_syscall();
-	}
-
 	err = netif_set_xps_queue(dev, mask, index);
-	rtnl_unlock();
 
 	free_cpumask_var(mask);
 
@@ -1402,29 +1335,23 @@ static struct netdev_queue_attribute xps_cpus_attribute __ro_after_init
 
 static ssize_t xps_rxqs_show(struct netdev_queue *queue, char *buf)
 {
-	int j, len, ret, num_tc = 1, tc = 0;
 	struct net_device *dev = queue->dev;
 	struct xps_dev_maps *dev_maps;
 	unsigned long *mask, index;
+	int j, len, num_tc = 1, tc = 0;
 
 	index = get_netdev_queue_index(queue);
-
-	if (!rtnl_trylock())
-		return restart_syscall();
 
 	if (dev->num_tc) {
 		num_tc = dev->num_tc;
 		tc = netdev_txq_to_tc(dev, index);
-		if (tc < 0) {
-			ret = -EINVAL;
-			goto err_rtnl_unlock;
-		}
+		if (tc < 0)
+			return -EINVAL;
 	}
-	mask = bitmap_zalloc(dev->num_rx_queues, GFP_KERNEL);
-	if (!mask) {
-		ret = -ENOMEM;
-		goto err_rtnl_unlock;
-	}
+	mask = kcalloc(BITS_TO_LONGS(dev->num_rx_queues), sizeof(long),
+		       GFP_KERNEL);
+	if (!mask)
+		return -ENOMEM;
 
 	rcu_read_lock();
 	dev_maps = rcu_dereference(dev->xps_rxqs_map);
@@ -1450,16 +1377,10 @@ static ssize_t xps_rxqs_show(struct netdev_queue *queue, char *buf)
 out_no_maps:
 	rcu_read_unlock();
 
-	rtnl_unlock();
-
 	len = bitmap_print_to_pagebuf(false, buf, mask, dev->num_rx_queues);
-	bitmap_free(mask);
+	kfree(mask);
 
 	return len < PAGE_SIZE ? len : -EINVAL;
-
-err_rtnl_unlock:
-	rtnl_unlock();
-	return ret;
 }
 
 static ssize_t xps_rxqs_store(struct netdev_queue *queue, const char *buf,
@@ -1473,7 +1394,8 @@ static ssize_t xps_rxqs_store(struct netdev_queue *queue, const char *buf,
 	if (!ns_capable(net->user_ns, CAP_NET_ADMIN))
 		return -EPERM;
 
-	mask = bitmap_zalloc(dev->num_rx_queues, GFP_KERNEL);
+	mask = kcalloc(BITS_TO_LONGS(dev->num_rx_queues), sizeof(long),
+		       GFP_KERNEL);
 	if (!mask)
 		return -ENOMEM;
 
@@ -1481,22 +1403,15 @@ static ssize_t xps_rxqs_store(struct netdev_queue *queue, const char *buf,
 
 	err = bitmap_parse(buf, len, mask, dev->num_rx_queues);
 	if (err) {
-		bitmap_free(mask);
+		kfree(mask);
 		return err;
-	}
-
-	if (!rtnl_trylock()) {
-		bitmap_free(mask);
-		return restart_syscall();
 	}
 
 	cpus_read_lock();
 	err = __netif_set_xps_queue(dev, mask, index, true);
 	cpus_read_unlock();
 
-	rtnl_unlock();
-
-	bitmap_free(mask);
+	kfree(mask);
 	return err ? : len;
 }
 
@@ -1514,7 +1429,6 @@ static struct attribute *netdev_queue_default_attrs[] __ro_after_init = {
 #endif
 	NULL
 };
-ATTRIBUTE_GROUPS(netdev_queue_default);
 
 static void netdev_queue_release(struct kobject *kobj)
 {
@@ -1547,7 +1461,7 @@ static void netdev_queue_get_ownership(struct kobject *kobj,
 static struct kobj_type netdev_queue_ktype __ro_after_init = {
 	.sysfs_ops = &netdev_queue_sysfs_ops,
 	.release = netdev_queue_release,
-	.default_groups = netdev_queue_default_groups,
+	.default_attrs = netdev_queue_default_attrs,
 	.namespace = netdev_queue_namespace,
 	.get_ownership = netdev_queue_get_ownership,
 };
@@ -1661,9 +1575,6 @@ static void remove_queue_kobjects(struct net_device *dev)
 
 	net_rx_queue_update_kobjects(dev, real_rx, 0);
 	netdev_queue_update_kobjects(dev, real_tx, 0);
-
-	dev->real_num_rx_queues = 0;
-	dev->real_num_tx_queues = 0;
 #ifdef CONFIG_SYSFS
 	kset_unregister(dev->queues_kset);
 #endif

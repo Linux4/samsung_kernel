@@ -1,7 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright © 2009 - Maxim Levitsky
  * Common routines & support for xD format
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 #include <linux/kernel.h>
 #include <linux/mtd/rawnand.h>
@@ -96,9 +99,8 @@ static const struct mtd_ooblayout_ops oob_sm_small_ops = {
 	.free = oob_sm_small_ooblayout_free,
 };
 
-static int sm_block_markbad(struct nand_chip *chip, loff_t ofs)
+static int sm_block_markbad(struct mtd_info *mtd, loff_t ofs)
 {
-	struct mtd_info *mtd = nand_to_mtd(chip);
 	struct mtd_oob_ops ops;
 	struct sm_oob oob;
 	int ret;
@@ -165,7 +167,7 @@ static int sm_attach_chip(struct nand_chip *chip)
 	/* Bad block marker position */
 	chip->badblockpos = 0x05;
 	chip->badblockbits = 7;
-	chip->legacy.block_markbad = sm_block_markbad;
+	chip->block_markbad = sm_block_markbad;
 
 	/* ECC layout */
 	if (mtd->writesize == SM_SECTOR_SIZE)
@@ -191,7 +193,7 @@ int sm_register_device(struct mtd_info *mtd, int smartmedia)
 	chip->options |= NAND_SKIP_BBTSCAN;
 
 	/* Scan for card properties */
-	chip->legacy.dummy_controller.ops = &sm_controller_ops;
+	chip->dummy_controller.ops = &sm_controller_ops;
 	flash_ids = smartmedia ? nand_smartmedia_flash_ids : nand_xd_flash_ids;
 	ret = nand_scan_with_ids(chip, 1, flash_ids);
 	if (ret)

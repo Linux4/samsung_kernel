@@ -25,22 +25,16 @@
  *          Alex Deucher
  *          Jerome Glisse
  */
-
 #include <linux/seq_file.h>
 #include <linux/slab.h>
-
-#include <drm/drm_debugfs.h>
-#include <drm/drm_device.h>
-#include <drm/drm_file.h>
-#include <drm/drm_pci.h>
-
-#include "atom.h"
-#include "r100d.h"
-#include "r420_reg_safe.h"
-#include "r420d.h"
+#include <drm/drmP.h>
+#include "radeon_reg.h"
 #include "radeon.h"
 #include "radeon_asic.h"
-#include "radeon_reg.h"
+#include "atom.h"
+#include "r100d.h"
+#include "r420d.h"
+#include "r420_reg_safe.h"
 
 void r420_pm_init_profile(struct radeon_device *rdev)
 {
@@ -115,7 +109,6 @@ void r420_pipes_init(struct radeon_device *rdev)
 	default:
 		/* force to 1 pipe */
 		num_pipes = 1;
-		/* fall through */
 	case 1:
 		tmp = (0 << 1);
 		break;

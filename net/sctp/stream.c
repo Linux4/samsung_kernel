@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /* SCTP kernel implementation
  * (C) Copyright IBM Corp. 2001, 2004
  * Copyright (c) 1999-2000 Cisco, Inc.
@@ -8,6 +7,22 @@
  * This file is part of the SCTP kernel implementation
  *
  * This file contains sctp stream maniuplation primitives and helpers.
+ *
+ * This SCTP implementation is free software;
+ * you can redistribute it and/or modify it under the terms of
+ * the GNU General Public License as published by
+ * the Free Software Foundation; either version 2, or (at your option)
+ * any later version.
+ *
+ * This SCTP implementation is distributed in the hope that it
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ *                 ************************
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with GNU CC; see the file COPYING.  If not, see
+ * <http://www.gnu.org/licenses/>.
  *
  * Please send any bug reports or fixes you make to the
  * email address(es):
@@ -22,11 +37,77 @@
 #include <net/sctp/sm.h>
 #include <net/sctp/stream_sched.h>
 
-static void sctp_stream_shrink_out(struct sctp_stream *stream, __u16 outcnt)
+static struct flex_array *fa_alloc(size_t elem_size, size_t elem_count,
+				   gfp_t gfp)
+{
+	struct flex_array *result;
+	int err;
+
+	result = flex_array_alloc(elem_size, elem_count, gfp);
+	if (result) {
+		err = flex_array_prealloc(result, 0, elem_count, gfp);
+		if (err) {
+			flex_array_free(result);
+			result = NULL;
+		}
+	}
+
+	return result;
+}
+
+static void fa_free(struct flex_array *fa)
+{
+	if (fa)
+		flex_array_free(fa);
+}
+
+static void fa_copy(struct flex_array *fa, struct flex_array *from,
+		    size_t index, size_t count)
+{
+	void *elem;
+
+	while (count--) {
+		elem = flex_array_get(from, index);
+		flex_array_put(fa, index, elem, 0);
+		index++;
+	}
+}
+
+static void fa_zero(struct flex_array *fa, size_t index, size_t count)
+{
+	void *elem;
+
+	while (count--) {
+		elem = flex_array_get(fa, index);
+		memset(elem, 0, fa->element_size);
+		index++;
+	}
+}
+
+static size_t fa_index(struct flex_array *fa, void *elem, size_t count)
+{
+	size_t index = 0;
+
+	while (count--) {
+		if (elem == flex_array_get(fa, index))
+			break;
+		index++;
+	}
+
+	return index;
+}
+
+/* Migrates chunks from stream queues to new stream queues if needed,
+ * but not across associations. Also, removes those chunks to streams
+ * higher than the new max.
+ */
+static void sctp_stream_outq_migrate(struct sctp_stream *stream,
+				     struct sctp_stream *new, __u16 outcnt)
 {
 	struct sctp_association *asoc;
 	struct sctp_chunk *ch, *temp;
 	struct sctp_outq *outq;
+	int i;
 
 	asoc = container_of(stream, struct sctp_association, stream);
 	outq = &asoc->outqueue;
@@ -50,19 +131,6 @@ static void sctp_stream_shrink_out(struct sctp_stream *stream, __u16 outcnt)
 
 		sctp_chunk_free(ch);
 	}
-}
-
-/* Migrates chunks from stream queues to new stream queues if needed,
- * but not across associations. Also, removes those chunks to streams
- * higher than the new max.
- */
-static void sctp_stream_outq_migrate(struct sctp_stream *stream,
-				     struct sctp_stream *new, __u16 outcnt)
-{
-	int i;
-
-	if (stream->outcnt > outcnt)
-		sctp_stream_shrink_out(stream, outcnt);
 
 	if (new) {
 		/* Here we actually move the old ext stuff into the new
@@ -85,34 +153,53 @@ static void sctp_stream_outq_migrate(struct sctp_stream *stream,
 static int sctp_stream_alloc_out(struct sctp_stream *stream, __u16 outcnt,
 				 gfp_t gfp)
 {
-	int ret;
+	struct flex_array *out;
+	size_t elem_size = sizeof(struct sctp_stream_out);
 
-	if (outcnt <= stream->outcnt)
-		goto out;
+	out = fa_alloc(elem_size, outcnt, gfp);
+	if (!out)
+		return -ENOMEM;
 
-	ret = genradix_prealloc(&stream->out, outcnt, gfp);
-	if (ret)
-		return ret;
+	if (stream->out) {
+		fa_copy(out, stream->out, 0, min(outcnt, stream->outcnt));
+		if (stream->out_curr) {
+			size_t index = fa_index(stream->out, stream->out_curr,
+						stream->outcnt);
 
-out:
-	stream->outcnt = outcnt;
+			BUG_ON(index == stream->outcnt);
+			stream->out_curr = flex_array_get(out, index);
+		}
+		fa_free(stream->out);
+	}
+
+	if (outcnt > stream->outcnt)
+		fa_zero(out, stream->outcnt, (outcnt - stream->outcnt));
+
+	stream->out = out;
+
 	return 0;
 }
 
 static int sctp_stream_alloc_in(struct sctp_stream *stream, __u16 incnt,
 				gfp_t gfp)
 {
-	int ret;
+	struct flex_array *in;
+	size_t elem_size = sizeof(struct sctp_stream_in);
 
-	if (incnt <= stream->incnt)
-		goto out;
+	in = fa_alloc(elem_size, incnt, gfp);
+	if (!in)
+		return -ENOMEM;
 
-	ret = genradix_prealloc(&stream->in, incnt, gfp);
-	if (ret)
-		return ret;
+	if (stream->in) {
+		fa_copy(in, stream->in, 0, min(incnt, stream->incnt));
+		fa_free(stream->in);
+	}
 
-out:
-	stream->incnt = incnt;
+	if (incnt > stream->incnt)
+		fa_zero(in, stream->incnt, (incnt - stream->incnt));
+
+	stream->in = in;
+
 	return 0;
 }
 
@@ -128,7 +215,7 @@ int sctp_stream_init(struct sctp_stream *stream, __u16 outcnt, __u16 incnt,
 	 * a new one with new outcnt to save memory if needed.
 	 */
 	if (outcnt == stream->outcnt)
-		goto handle_in;
+		goto in;
 
 	/* Filter out chunks queued on streams that won't exist anymore */
 	sched->unsched_all(stream);
@@ -137,17 +224,30 @@ int sctp_stream_init(struct sctp_stream *stream, __u16 outcnt, __u16 incnt,
 
 	ret = sctp_stream_alloc_out(stream, outcnt, gfp);
 	if (ret)
-		return ret;
+		goto out;
 
+	stream->outcnt = outcnt;
 	for (i = 0; i < stream->outcnt; i++)
 		SCTP_SO(stream, i)->state = SCTP_STREAM_OPEN;
 
-handle_in:
+in:
 	sctp_stream_interleave_init(stream);
 	if (!incnt)
-		return 0;
+		goto out;
 
-	return sctp_stream_alloc_in(stream, incnt, gfp);
+	ret = sctp_stream_alloc_in(stream, incnt, gfp);
+	if (ret) {
+		sched->free(stream);
+		fa_free(stream->out);
+		stream->out = NULL;
+		stream->outcnt = 0;
+		goto out;
+	}
+
+	stream->incnt = incnt;
+
+out:
+	return ret;
 }
 
 int sctp_stream_init_ext(struct sctp_stream *stream, __u16 sid)
@@ -177,8 +277,8 @@ void sctp_stream_free(struct sctp_stream *stream)
 	sched->free(stream);
 	for (i = 0; i < stream->outcnt; i++)
 		kfree(SCTP_SO(stream, i)->ext);
-	genradix_free(&stream->out);
-	genradix_free(&stream->in);
+	fa_free(stream->out);
+	fa_free(stream->in);
 }
 
 void sctp_stream_clear(struct sctp_stream *stream)
@@ -209,8 +309,8 @@ void sctp_stream_update(struct sctp_stream *stream, struct sctp_stream *new)
 
 	sched->sched_all(stream);
 
-	new->out.tree.root = NULL;
-	new->in.tree.root  = NULL;
+	new->out = NULL;
+	new->in  = NULL;
 	new->outcnt = 0;
 	new->incnt  = 0;
 }
@@ -462,6 +562,8 @@ int sctp_send_add_streams(struct sctp_association *asoc,
 		asoc->strreset_chunk = NULL;
 		goto out;
 	}
+
+	stream->outcnt = outcnt;
 
 	asoc->strreset_outstanding = !!out + !!in;
 
@@ -1034,13 +1136,11 @@ struct sctp_chunk *sctp_process_strreset_resp(
 		nums = ntohs(addstrm->number_of_streams);
 		number = stream->outcnt - nums;
 
-		if (result == SCTP_STRRESET_PERFORMED) {
+		if (result == SCTP_STRRESET_PERFORMED)
 			for (i = number; i < stream->outcnt; i++)
 				SCTP_SO(stream, i)->state = SCTP_STREAM_OPEN;
-		} else {
-			sctp_stream_shrink_out(stream, number);
+		else
 			stream->outcnt = number;
-		}
 
 		*evp = sctp_ulpevent_make_stream_change_event(asoc, flags,
 			0, nums, GFP_ATOMIC);

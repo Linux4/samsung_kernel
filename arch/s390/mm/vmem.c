@@ -4,13 +4,14 @@
  *    Author(s): Heiko Carstens <heiko.carstens@de.ibm.com>
  */
 
-#include <linux/memblock.h>
+#include <linux/bootmem.h>
 #include <linux/pfn.h>
 #include <linux/mm.h>
 #include <linux/init.h>
 #include <linux/list.h>
 #include <linux/hugetlb.h>
 #include <linux/slab.h>
+#include <linux/memblock.h>
 #include <asm/cacheflush.h>
 #include <asm/pgalloc.h>
 #include <asm/pgtable.h>
@@ -35,7 +36,7 @@ static void __ref *vmem_alloc_pages(unsigned int order)
 
 	if (slab_is_available())
 		return (void *)__get_free_pages(GFP_KERNEL, order);
-	return (void *) memblock_phys_alloc(size, size);
+	return (void *) memblock_alloc(size, size);
 }
 
 void *vmem_crst_alloc(unsigned long val)
@@ -56,7 +57,7 @@ pte_t __ref *vmem_pte_alloc(void)
 	if (slab_is_available())
 		pte = (pte_t *) page_table_alloc(&init_mm);
 	else
-		pte = (pte_t *) memblock_phys_alloc(size, size);
+		pte = (pte_t *) memblock_alloc(size, size);
 	if (!pte)
 		return NULL;
 	memset64((u64 *)pte, _PAGE_INVALID, PTRS_PER_PTE);
@@ -413,12 +414,6 @@ void __init vmem_map_init(void)
 	__set_memory((unsigned long)_sinittext,
 		     (unsigned long)(_einittext - _sinittext) >> PAGE_SHIFT,
 		     SET_MEMORY_RO | SET_MEMORY_X);
-	__set_memory(__stext_dma, (__etext_dma - __stext_dma) >> PAGE_SHIFT,
-		     SET_MEMORY_RO | SET_MEMORY_X);
-
-	/* we need lowcore executable for our LPSWE instructions */
-	set_memory_x(0, 1);
-
 	pr_info("Write protected kernel read-only data: %luk\n",
 		(unsigned long)(__end_rodata - _stext) >> 10);
 }

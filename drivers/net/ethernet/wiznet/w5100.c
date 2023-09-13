@@ -1,9 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Ethernet driver for the WIZnet W5100 chip.
  *
  * Copyright (C) 2006-2008 WIZnet Co.,Ltd.
  * Copyright (C) 2012 Mike Sinkovsky <msink@permonline.ru>
+ *
+ * Licensed under the GPL-2 or later.
  */
 
 #include <linux/kernel.h>
@@ -218,6 +219,7 @@ static inline int __w5100_write_direct(struct net_device *ndev, u32 addr,
 static inline int w5100_write_direct(struct net_device *ndev, u32 addr, u8 data)
 {
 	__w5100_write_direct(ndev, addr, data);
+	mmiowb();
 
 	return 0;
 }
@@ -234,6 +236,7 @@ static int w5100_write16_direct(struct net_device *ndev, u32 addr, u16 data)
 {
 	__w5100_write_direct(ndev, addr, data >> 8);
 	__w5100_write_direct(ndev, addr + 1, data);
+	mmiowb();
 
 	return 0;
 }
@@ -256,6 +259,8 @@ static int w5100_writebulk_direct(struct net_device *ndev, u32 addr,
 
 	for (i = 0; i < len; i++, addr++)
 		__w5100_write_direct(ndev, addr, *buf++);
+
+	mmiowb();
 
 	return 0;
 }
@@ -370,6 +375,7 @@ static int w5100_readbulk_indirect(struct net_device *ndev, u32 addr, u8 *buf,
 	for (i = 0; i < len; i++)
 		*buf++ = w5100_read_direct(ndev, W5100_IDM_DR);
 
+	mmiowb();
 	spin_unlock_irqrestore(&mmio_priv->reg_lock, flags);
 
 	return 0;
@@ -388,6 +394,7 @@ static int w5100_writebulk_indirect(struct net_device *ndev, u32 addr,
 	for (i = 0; i < len; i++)
 		__w5100_write_direct(ndev, W5100_IDM_DR, *buf++);
 
+	mmiowb();
 	spin_unlock_irqrestore(&mmio_priv->reg_lock, flags);
 
 	return 0;
@@ -1052,8 +1059,6 @@ static int w5100_mmio_probe(struct platform_device *pdev)
 		mac_addr = data->mac_addr;
 
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (!mem)
-		return -EINVAL;
 	if (resource_size(mem) < W5100_BUS_DIRECT_SIZE)
 		ops = &w5100_mmio_indirect_ops;
 	else
@@ -1159,7 +1164,7 @@ int w5100_probe(struct device *dev, const struct w5100_ops *ops,
 	INIT_WORK(&priv->setrx_work, w5100_setrx_work);
 	INIT_WORK(&priv->restart_work, w5100_restart_work);
 
-	if (!IS_ERR_OR_NULL(mac_addr))
+	if (mac_addr)
 		memcpy(ndev->dev_addr, mac_addr, ETH_ALEN);
 	else
 		eth_hw_addr_random(ndev);

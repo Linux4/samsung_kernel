@@ -1,6 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
-// Copyright (c) 2016, The Linux Foundation. All rights reserved.
-
 #include <linux/module.h>
 #include <linux/err.h>
 #include <linux/kernel.h>
@@ -19,8 +16,8 @@
 
 #define CDC_D_REVISION1			(0xf000)
 #define CDC_D_PERPH_SUBTYPE		(0xf005)
-#define CDC_D_INT_EN_SET		(0xf015)
-#define CDC_D_INT_EN_CLR		(0xf016)
+#define CDC_D_INT_EN_SET		(0x015)
+#define CDC_D_INT_EN_CLR		(0x016)
 #define MBHC_SWITCH_INT			BIT(7)
 #define MBHC_MIC_ELECTRICAL_INS_REM_DET	BIT(6)
 #define MBHC_BUTTON_PRESS_DET		BIT(5)
@@ -1196,8 +1193,8 @@ static int pm8916_wcd_analog_spmi_probe(struct platform_device *pdev)
 
 	irq = platform_get_irq_byname(pdev, "mbhc_switch_int");
 	if (irq < 0) {
-		ret = irq;
-		goto err_disable_clk;
+		dev_err(dev, "failed to get mbhc switch irq\n");
+		return irq;
 	}
 
 	ret = devm_request_threaded_irq(dev, irq, NULL,
@@ -1211,8 +1208,8 @@ static int pm8916_wcd_analog_spmi_probe(struct platform_device *pdev)
 	if (priv->mbhc_btn_enabled) {
 		irq = platform_get_irq_byname(pdev, "mbhc_but_press_det");
 		if (irq < 0) {
-			ret = irq;
-			goto err_disable_clk;
+			dev_err(dev, "failed to get button press irq\n");
+			return irq;
 		}
 
 		ret = devm_request_threaded_irq(dev, irq, NULL,
@@ -1225,8 +1222,8 @@ static int pm8916_wcd_analog_spmi_probe(struct platform_device *pdev)
 
 		irq = platform_get_irq_byname(pdev, "mbhc_but_rel_det");
 		if (irq < 0) {
-			ret = irq;
-			goto err_disable_clk;
+			dev_err(dev, "failed to get button release irq\n");
+			return irq;
 		}
 
 		ret = devm_request_threaded_irq(dev, irq, NULL,
@@ -1244,10 +1241,6 @@ static int pm8916_wcd_analog_spmi_probe(struct platform_device *pdev)
 	return devm_snd_soc_register_component(dev, &pm8916_wcd_analog,
 				      pm8916_wcd_analog_dai,
 				      ARRAY_SIZE(pm8916_wcd_analog_dai));
-
-err_disable_clk:
-	clk_disable_unprepare(priv->mclk);
-	return ret;
 }
 
 static int pm8916_wcd_analog_spmi_remove(struct platform_device *pdev)

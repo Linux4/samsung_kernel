@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 #
 # Hardware Random Number Generator (RNG) configuration
 #
@@ -308,20 +307,6 @@ config HW_RANDOM_HISI
 
 	  If unsure, say Y.
 
-config HW_RANDOM_MSM_LEGACY
-	tristate "QTI MSM Random Number Generator support (LEGACY)"
-	depends on HW_RANDOM && ARCH_QCOM
-	select CRYPTO_AES
-	select CRYPTO_ECB
-	help
-	  This driver provides kernel-side support for the Random Number
-	  Generator hardware found on QTI MSM SoCs.
-
-	  To compile this driver as a module, choose M here: the
-	  module will be called msm_rng.
-
-	  If unsure, say Y.
-
 config HW_RANDOM_ST
 	tristate "ST Microelectronics HW Random Number Generator support"
 	depends on HW_RANDOM && ARCH_STI
@@ -427,32 +412,41 @@ config HW_RANDOM_S390
 
 	  If unsure, say Y.
 
-config HW_RANDOM_EXYNOS
-	tristate "Samsung Exynos True Random Number Generator support"
-	depends on ARCH_EXYNOS || COMPILE_TEST
+config HW_RANDOM_EXYNOS_SWD
+	tristate "EXYNOS SWD HW random number generator support"
+	depends on ARCH_EXYNOS
 	default HW_RANDOM
 	---help---
-	  This driver provides support for the True Random Number
-	  Generator available in Exynos SoCs.
+	  This driver provides kernel-side support for TRNG hardware
+	  found in secure world by using smc call
 
-	  To compile this driver as a module, choose M here: the module
-	  will be called exynos-trng.
-
-	  If unsure, say Y.
-
-config HW_RANDOM_OPTEE
-	tristate "OP-TEE based Random Number Generator support"
-	depends on OPTEE
-	default HW_RANDOM
-	help
-	  This  driver provides support for OP-TEE based Random Number
-	  Generator on ARM SoCs where hardware entropy sources are not
-	  accessible to normal world (Linux).
-
-	  To compile this driver as a module, choose M here: the module
-	  will be called optee-rng.
+	  To compile this driver as a module, choose M here: the
+	  module will be called exynos-rng.
 
 	  If unsure, say Y.
+
+config EXYRNG_FIPS_COMPLIANCE
+	bool "Compliant with FIPS 140-2"
+	depends on HW_RANDOM_EXYNOS_SWD
+
+choice
+	prompt "Fail Policy"
+	depends on EXYRNG_FIPS_COMPLIANCE
+	default EXYRNG_FAIL_POLICY_DISABLE
+
+config EXYRNG_FAIL_POLICY_DISABLE
+	bool "Disable RNG if the tests fail"
+	depends on EXYRNG_FIPS_COMPLIANCE
+
+config EXYRNG_FAIL_POLICY_RESET
+	bool "Reset if the tests fail"
+	depends on EXYRNG_FIPS_COMPLIANCE
+endchoice
+
+config EXYRNG_USE_CRYPTOMANAGER
+	tristate "Use CryptoManager"
+	depends on HW_RANDOM_EXYNOS_SWD
+	default n
 
 endif # HW_RANDOM
 

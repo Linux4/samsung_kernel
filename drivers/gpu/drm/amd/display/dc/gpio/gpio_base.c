@@ -27,8 +27,6 @@
  * Pre-requisites: headers required by header of this unit
  */
 
-#include <linux/slab.h>
-
 #include "dm_services.h"
 
 #include "include/gpio_interface.h"
@@ -63,18 +61,14 @@ enum gpio_result dal_gpio_open_ex(
 	enum gpio_mode mode)
 {
 	if (gpio->pin) {
-		BREAK_TO_DEBUGGER();
+		ASSERT_CRITICAL(false);
 		return GPIO_RESULT_ALREADY_OPENED;
 	}
 
-	// No action if allocation failed during gpio construct
-	if (!gpio->hw_container.ddc) {
-		BREAK_TO_DEBUGGER();
-		return GPIO_RESULT_NON_SPECIFIC_ERROR;
-	}
 	gpio->mode = mode;
 
-	return dal_gpio_service_open(gpio);
+	return dal_gpio_service_open(
+		gpio->service, gpio->id, gpio->en, mode, &gpio->pin);
 }
 
 enum gpio_result dal_gpio_get_value(
@@ -105,18 +99,6 @@ enum gpio_mode dal_gpio_get_mode(
 	const struct gpio *gpio)
 {
 	return gpio->mode;
-}
-
-enum gpio_result dal_gpio_lock_pin(
-	struct gpio *gpio)
-{
-	return dal_gpio_service_lock(gpio->service, gpio->id, gpio->en);
-}
-
-enum gpio_result dal_gpio_unlock_pin(
-	struct gpio *gpio)
-{
-	return dal_gpio_service_unlock(gpio->service, gpio->id, gpio->en);
 }
 
 enum gpio_result dal_gpio_change_mode(
@@ -235,21 +217,6 @@ enum gpio_pin_output_state dal_gpio_get_output_state(
 	return gpio->output_state;
 }
 
-struct hw_ddc *dal_gpio_get_ddc(struct gpio *gpio)
-{
-	return gpio->hw_container.ddc;
-}
-
-struct hw_hpd *dal_gpio_get_hpd(struct gpio *gpio)
-{
-	return gpio->hw_container.hpd;
-}
-
-struct hw_generic *dal_gpio_get_generic(struct gpio *gpio)
-{
-	return gpio->hw_container.generic;
-}
-
 void dal_gpio_close(
 	struct gpio *gpio)
 {
@@ -286,30 +253,6 @@ struct gpio *dal_gpio_create(
 	gpio->mode = GPIO_MODE_UNKNOWN;
 	gpio->output_state = output_state;
 
-	//initialize hw_container union based on id
-	switch (gpio->id) {
-	case GPIO_ID_DDC_DATA:
-		gpio->service->factory.funcs->init_ddc_data(&gpio->hw_container.ddc, service->ctx, id, en);
-		break;
-	case GPIO_ID_DDC_CLOCK:
-		gpio->service->factory.funcs->init_ddc_data(&gpio->hw_container.ddc, service->ctx, id, en);
-		break;
-	case GPIO_ID_GENERIC:
-		gpio->service->factory.funcs->init_generic(&gpio->hw_container.generic, service->ctx, id, en);
-		break;
-	case GPIO_ID_HPD:
-		gpio->service->factory.funcs->init_hpd(&gpio->hw_container.hpd, service->ctx, id, en);
-		break;
-	// TODO: currently gpio for sync and gsl does not get created, might need it later
-	case GPIO_ID_SYNC:
-		break;
-	case GPIO_ID_GSL:
-		break;
-	default:
-		ASSERT_CRITICAL(false);
-		gpio->pin = NULL;
-	}
-
 	return gpio;
 }
 
@@ -322,33 +265,6 @@ void dal_gpio_destroy(
 	}
 
 	dal_gpio_close(*gpio);
-
-	switch ((*gpio)->id) {
-	case GPIO_ID_DDC_DATA:
-		kfree((*gpio)->hw_container.ddc);
-		(*gpio)->hw_container.ddc = NULL;
-		break;
-	case GPIO_ID_DDC_CLOCK:
-		//TODO: might want to change it to init_ddc_clock
-		kfree((*gpio)->hw_container.ddc);
-		(*gpio)->hw_container.ddc = NULL;
-		break;
-	case GPIO_ID_GENERIC:
-		kfree((*gpio)->hw_container.generic);
-		(*gpio)->hw_container.generic = NULL;
-		break;
-	case GPIO_ID_HPD:
-		kfree((*gpio)->hw_container.hpd);
-		(*gpio)->hw_container.hpd = NULL;
-		break;
-	// TODO: currently gpio for sync and gsl does not get created, might need it later
-	case GPIO_ID_SYNC:
-		break;
-	case GPIO_ID_GSL:
-		break;
-	default:
-		break;
-	}
 
 	kfree(*gpio);
 

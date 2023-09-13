@@ -8,15 +8,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "debug.h"
-#include "event.h"
 #include "tests.h"
 #include "machine.h"
 #include "thread_map.h"
-#include "map.h"
 #include "symbol.h"
-#include "util/synthetic-events.h"
 #include "thread.h"
-#include <internal/lib.h> // page_size
+#include "util.h"
 
 #define THREADS 4
 
@@ -135,21 +132,21 @@ static int synth_all(struct machine *machine)
 {
 	return perf_event__synthesize_threads(NULL,
 					      perf_event__process,
-					      machine, 0, 1);
+					      machine, 0, 500, 1);
 }
 
 static int synth_process(struct machine *machine)
 {
-	struct perf_thread_map *map;
+	struct thread_map *map;
 	int err;
 
 	map = thread_map__new_by_pid(getpid());
 
 	err = perf_event__synthesize_thread_map(NULL, map,
 						perf_event__process,
-						machine, 0);
+						machine, 0, 500);
 
-	perf_thread_map__put(map);
+	thread_map__put(map);
 	return err;
 }
 

@@ -1,7 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0+
 /*
  * net/dsa/tag_trailer.c - Trailer tag format handling
  * Copyright (c) 2008-2009 Marvell Semiconductor
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  */
 
 #include <linux/etherdevice.h>
@@ -77,15 +81,7 @@ static struct sk_buff *trailer_rcv(struct sk_buff *skb, struct net_device *dev,
 	return skb;
 }
 
-static const struct dsa_device_ops trailer_netdev_ops = {
-	.name	= "trailer",
-	.proto	= DSA_TAG_PROTO_TRAILER,
+const struct dsa_device_ops trailer_netdev_ops = {
 	.xmit	= trailer_xmit,
 	.rcv	= trailer_rcv,
-	.overhead = 4,
 };
-
-MODULE_LICENSE("GPL");
-MODULE_ALIAS_DSA_TAG_DRIVER(DSA_TAG_PROTO_TRAILER);
-
-module_dsa_tag_driver(trailer_netdev_ops);

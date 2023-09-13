@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016-2021 Samsung Electronics Co. Ltd.
+ * Copyright (C) 2016-2017 Samsung Electronics Co. Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -8,7 +8,7 @@
  * (at your option) any later version.
  */
 
- /* usb notify layer v3.6 */
+ /* usb notify layer v3.4 */
 
 #define pr_fmt(fmt) "usb_notify: " fmt
 
@@ -54,10 +54,6 @@ static const char *cmd_string(unsigned long cmd)
 		return "host_mode_device_added";
 	case EXTERNAL_NOTIFY_HOSTBLOCK_EARLY:
 		return "host_block_pre_fast";
-	case EXTERNAL_NOTIFY_VBUS_RESET:
-		return "vbus_reset";
-	case EXTERNAL_NOTIFY_POSSIBLE_USB:
-		return "possible_usb";
 	default:
 		return "undefined";
 	}
@@ -107,7 +103,6 @@ int usb_external_notify_register(struct notifier_block *nb,
 
 	return ret;
 }
-EXPORT_SYMBOL(usb_external_notify_register);
 
 int usb_external_notify_unregister(struct notifier_block *nb)
 {
@@ -126,7 +121,6 @@ int usb_external_notify_unregister(struct notifier_block *nb)
 
 	return ret;
 }
-EXPORT_SYMBOL(usb_external_notify_unregister);
 
 int send_external_notify(unsigned long cmd, int data)
 {
@@ -157,12 +151,14 @@ int send_external_notify(unsigned long cmd, int data)
 
 	return ret;
 }
-EXPORT_SYMBOL(send_external_notify);
 
-void external_notifier_init(void)
+static int __init external_notifier_init(void)
 {
+	int ret = 0;
+
 	pr_info("%s\n", __func__);
 	create_external_notify();
-}
-EXPORT_SYMBOL(external_notifier_init);
 
+	return ret;
+}
+module_init(external_notifier_init);

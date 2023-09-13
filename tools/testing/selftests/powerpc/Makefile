@@ -26,11 +26,9 @@ SUB_DIRS = alignment		\
 	   switch_endian	\
 	   syscalls		\
 	   tm			\
-	   eeh			\
 	   vphn         \
 	   math		\
-	   ptrace	\
-	   security
+	   ptrace
 
 endif
 

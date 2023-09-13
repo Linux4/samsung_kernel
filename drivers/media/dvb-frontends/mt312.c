@@ -1,10 +1,23 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
     Driver for Zarlink VP310/MT312/ZL10313 Satellite Channel Decoder
 
     Copyright (C) 2003 Andreas Oberritter <obi@linuxtv.org>
     Copyright (C) 2008 Matthias Schwarzott <zzam@gentoo.org>
 
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
     References:
     http://products.zarlink.com/product_profiles/MT312.htm
@@ -632,9 +645,7 @@ static int mt312_set_frontend(struct dvb_frontend *fe)
 	if (ret < 0)
 		return ret;
 
-	ret = mt312_reset(state, 0);
-	if (ret < 0)
-		return ret;
+	mt312_reset(state, 0);
 
 	return 0;
 }
@@ -804,20 +815,17 @@ struct dvb_frontend *mt312_attach(const struct mt312_config *config,
 
 	switch (state->id) {
 	case ID_VP310:
-		strscpy(state->frontend.ops.info.name, "Zarlink VP310 DVB-S",
-			sizeof(state->frontend.ops.info.name));
+		strcpy(state->frontend.ops.info.name, "Zarlink VP310 DVB-S");
 		state->xtal = MT312_PLL_CLK;
 		state->freq_mult = 9;
 		break;
 	case ID_MT312:
-		strscpy(state->frontend.ops.info.name, "Zarlink MT312 DVB-S",
-			sizeof(state->frontend.ops.info.name));
+		strcpy(state->frontend.ops.info.name, "Zarlink MT312 DVB-S");
 		state->xtal = MT312_PLL_CLK;
 		state->freq_mult = 6;
 		break;
 	case ID_ZL10313:
-		strscpy(state->frontend.ops.info.name, "Zarlink ZL10313 DVB-S",
-			sizeof(state->frontend.ops.info.name));
+		strcpy(state->frontend.ops.info.name, "Zarlink ZL10313 DVB-S");
 		state->xtal = MT312_PLL_CLK_10_111;
 		state->freq_mult = 9;
 		break;

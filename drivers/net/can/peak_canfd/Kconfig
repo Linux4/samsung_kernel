@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 config CAN_PEAK_PCIEFD
 	depends on PCI
 	tristate "PEAK-System PCAN-PCIe FD cards"

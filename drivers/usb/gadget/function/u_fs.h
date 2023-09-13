@@ -7,7 +7,7 @@
  * Copyright (c) 2013 Samsung Electronics Co., Ltd.
  *		http://www.samsung.com
  *
- * Author: Andrzej Pietrasiewicz <andrzejtp2010@gmail.com>
+ * Author: Andrzej Pietrasiewicz <andrzej.p@samsung.com>
  */
 
 #ifndef U_FFS_H
@@ -18,7 +18,6 @@
 #include <linux/mutex.h>
 #include <linux/workqueue.h>
 #include <linux/refcount.h>
-#include <linux/ipc_logging.h>
 
 #ifdef VERBOSE_DEBUG
 #ifndef pr_vdebug
@@ -286,9 +285,6 @@ struct ffs_data {
 	 * destroyed by ffs_epfiles_destroy().
 	 */
 	struct ffs_epfile		*epfiles;
-#ifdef CONFIG_USB_F_FS_IPC_LOGGING
-	void				*ipc_log;
-#endif
 };
 
 

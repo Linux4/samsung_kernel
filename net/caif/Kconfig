@@ -1,10 +1,9 @@
-# SPDX-License-Identifier: GPL-2.0-only
 #
 # CAIF net configurations
 #
 
 menuconfig CAIF
-	bool "CAIF support"
+	tristate "CAIF support"
 	select CRC_CCITT
 	default n
 	---help---

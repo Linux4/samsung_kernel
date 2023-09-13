@@ -28,8 +28,6 @@
 #include <asm/mach/arch.h>
 #include <asm/mach/flash.h>
 
-#include "irqs.h"
-
 #define AVILA_SDA_PIN	7
 #define AVILA_SCL_PIN	6
 

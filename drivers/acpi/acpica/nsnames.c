@@ -13,6 +13,9 @@
 #define _COMPONENT          ACPI_NAMESPACE
 ACPI_MODULE_NAME("nsnames")
 
+/* Local Prototypes */
+static void acpi_ns_normalize_pathname(char *original_path);
+
 /*******************************************************************************
  *
  * FUNCTION:    acpi_ns_get_external_pathname
@@ -27,6 +30,7 @@ ACPI_MODULE_NAME("nsnames")
  *              for error and debug statements.
  *
  ******************************************************************************/
+
 char *acpi_ns_get_external_pathname(struct acpi_namespace_node *node)
 {
 	char *name_buffer;
@@ -104,8 +108,8 @@ acpi_ns_handle_to_name(acpi_handle target_handle, struct acpi_buffer *buffer)
 	/* Just copy the ACPI name from the Node and zero terminate it */
 
 	node_name = acpi_ut_get_node_name(node);
-	ACPI_COPY_NAMESEG(buffer->pointer, node_name);
-	((char *)buffer->pointer)[ACPI_NAMESEG_SIZE] = 0;
+	ACPI_MOVE_NAME(buffer->pointer, node_name);
+	((char *)buffer->pointer)[ACPI_NAME_SIZE] = 0;
 
 	ACPI_DEBUG_PRINT((ACPI_DB_EXEC, "%4.4s\n", (char *)buffer->pointer));
 	return_ACPI_STATUS(AE_OK);
@@ -194,7 +198,7 @@ acpi_ns_build_normalized_path(struct acpi_namespace_node *node,
 			      char *full_path, u32 path_size, u8 no_trailing)
 {
 	u32 length = 0, i;
-	char name[ACPI_NAMESEG_SIZE];
+	char name[ACPI_NAME_SIZE];
 	u8 do_no_trailing;
 	char c, *left, *right;
 	struct acpi_namespace_node *next_node;
@@ -407,7 +411,7 @@ cleanup:
  *
  ******************************************************************************/
 
-void acpi_ns_normalize_pathname(char *original_path)
+static void acpi_ns_normalize_pathname(char *original_path)
 {
 	char *input_path = original_path;
 	char *new_path_buffer;
@@ -442,7 +446,7 @@ void acpi_ns_normalize_pathname(char *original_path)
 
 		/* Do one nameseg at a time */
 
-		for (i = 0; (i < ACPI_NAMESEG_SIZE) && *input_path; i++) {
+		for (i = 0; (i < ACPI_NAME_SIZE) && *input_path; i++) {
 			if ((i == 0) || (*input_path != '_')) {	/* First char is allowed to be underscore */
 				*new_path = *input_path;
 				new_path++;

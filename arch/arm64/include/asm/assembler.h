@@ -1,9 +1,20 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Based on arch/arm/include/asm/assembler.h, arch/arm/mm/proc-macros.S
  *
  * Copyright (C) 1996-2000 Russell King
  * Copyright (C) 2012 ARM Ltd.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #ifndef __ASSEMBLY__
 #error "Only include this from assembly code"
@@ -12,11 +23,8 @@
 #ifndef __ASM_ASSEMBLER_H
 #define __ASM_ASSEMBLER_H
 
-#include <asm-generic/export.h>
-
 #include <asm/asm-offsets.h>
 #include <asm/cpufeature.h>
-#include <asm/cputype.h>
 #include <asm/debug-monitors.h>
 #include <asm/page.h>
 #include <asm/pgtable-hwdef.h>
@@ -41,7 +49,7 @@
 	.endm
 
 	/* Only on aarch64 pstate, PSR_D_BIT is different for aarch32 */
-	.macro inherit_daif, pstate:req, tmp:req
+	.macro	inherit_daif, pstate:req, tmp:req
 	and	\tmp, \pstate, #(PSR_D_BIT | PSR_A_BIT | PSR_I_BIT | PSR_F_BIT)
 	msr	daif, \tmp
 	.endm
@@ -138,16 +146,14 @@
 	.endm
 
 /*
- * Speculation barrier
+ * Sanitise a 64-bit bounded index wrt speculation, returning zero if out
+ * of bounds.
  */
-	.macro	sb
-alternative_if_not ARM64_HAS_SB
-	dsb	nsh
-	isb
-alternative_else
-	SB_BARRIER_INSN
-	nop
-alternative_endif
+	.macro	mask_nospec64, idx, limit, tmp
+	sub	\tmp, \idx, \limit
+	bic	\tmp, \tmp, \idx
+	and	\idx, \idx, \tmp, asr #63
+	csdb
 	.endm
 
 /*
@@ -303,11 +309,12 @@ alternative_endif
 	ldr	\rd, [\rn, #MM_CONTEXT_ID]
 	.endm
 /*
- * read_ctr - read CTR_EL0. If the system has mismatched register fields,
- * provide the system wide safe value from arm64_ftr_reg_ctrel0.sys_val
+ * read_ctr - read CTR_EL0. If the system has mismatched
+ * cache line sizes, provide the system wide safe value
+ * from arm64_ftr_reg_ctrel0.sys_val
  */
 	.macro	read_ctr, reg
-alternative_if_not ARM64_MISMATCHED_CACHE_TYPE
+alternative_if_not ARM64_MISMATCHED_CACHE_LINE_SIZE
 	mrs	\reg, ctr_el0			// read CTR
 	nop
 alternative_else
@@ -359,17 +366,11 @@ alternative_endif
 	.endm
 
 /*
- * tcr_set_t0sz - update TCR.T0SZ so that we can load the ID map
+ * tcr_set_idmap_t0sz - update TCR.T0SZ so that we can load the ID map
  */
-	.macro	tcr_set_t0sz, valreg, t0sz
-	bfi	\valreg, \t0sz, #TCR_T0SZ_OFFSET, #TCR_TxSZ_WIDTH
-	.endm
-
-/*
- * tcr_set_t1sz - update TCR.T1SZ
- */
-	.macro	tcr_set_t1sz, valreg, t1sz
-	bfi	\valreg, \t1sz, #TCR_T1SZ_OFFSET, #TCR_TxSZ_WIDTH
+	.macro	tcr_set_idmap_t0sz, valreg, tmpreg
+	ldr_l	\tmpreg, idmap_t0sz
+	bfi	\valreg, \tmpreg, #TCR_T0SZ_OFFSET, #TCR_TxSZ_WIDTH
 	.endm
 
 /*
@@ -423,11 +424,7 @@ alternative_endif
 	.ifc	\op, cvap
 	sys	3, c7, c12, 1, \kaddr	// dc cvap
 	.else
-	.ifc	\op, cvadp
-	sys	3, c7, c13, 1, \kaddr	// dc cvadp
-	.else
 	dc	\op, \kaddr
-	.endif
 	.endif
 	.endif
 	.endif
@@ -462,24 +459,14 @@ USER(\label, ic	ivau, \tmp2)			// invalidate I line PoU
  * reset_pmuserenr_el0 - reset PMUSERENR_EL0 if PMUv3 present
  */
 	.macro	reset_pmuserenr_el0, tmpreg
-	mrs	\tmpreg, id_aa64dfr0_el1
-	sbfx	\tmpreg, \tmpreg, #ID_AA64DFR0_PMUVER_SHIFT, #4
+	mrs	\tmpreg, id_aa64dfr0_el1	// Check ID_AA64DFR0_EL1 PMUVer
+	sbfx	\tmpreg, \tmpreg, #8, #4
 	cmp	\tmpreg, #1			// Skip if no PMU present
 	b.lt	9000f
 	msr	pmuserenr_el0, xzr		// Disable PMU access from EL0
 9000:
 	.endm
 
-/*
- * reset_amuserenr_el0 - reset AMUSERENR_EL0 if AMUv1 present
- */
-	.macro	reset_amuserenr_el0, tmpreg
-	mrs	\tmpreg, id_aa64pfr0_el1	// Check ID_AA64PFR0_EL1
-	ubfx	\tmpreg, \tmpreg, #ID_AA64PFR0_AMU_SHIFT, #4
-	cbz	\tmpreg, .Lskip_\@		// Skip if no AMU present
-	msr_s	SYS_AMUSERENR_EL0, xzr		// Disable AMU access from EL0
-.Lskip_\@:
-	.endm
 /*
  * copy_page - copy src to dest using temp registers t1-t8
  */
@@ -499,7 +486,6 @@ USER(\label, ic	ivau, \tmp2)			// invalidate I line PoU
 	.endm
 
 /*
- * Deprecated! Use SYM_FUNC_{START,START_WEAK,END}_PI instead.
  * Annotate a function as position independent, i.e., safe to be called before
  * the kernel virtual mapping is activated.
  */
@@ -521,13 +507,6 @@ USER(\label, ic	ivau, \tmp2)			// invalidate I line PoU
 #else
 #define NOKPROBE(x)
 #endif
-
-#ifdef CONFIG_KASAN
-#define EXPORT_SYMBOL_NOKASAN(name)
-#else
-#define EXPORT_SYMBOL_NOKASAN(name)	EXPORT_SYMBOL(name)
-#endif
-
 	/*
 	 * Emit a 64-bit absolute little endian symbol reference in a way that
 	 * ensures that it will be resolved at build time, even when building a
@@ -560,37 +539,10 @@ USER(\label, ic	ivau, \tmp2)			// invalidate I line PoU
 	.endm
 
 /*
- * Return the current task_struct.
+ * Return the current thread_info.
  */
-	.macro	get_current_task, rd
+	.macro	get_thread_info, rd
 	mrs	\rd, sp_el0
-	.endm
-
-/*
- * Offset ttbr1 to allow for 48-bit kernel VAs set with 52-bit PTRS_PER_PGD.
- * orr is used as it can cover the immediate value (and is idempotent).
- * In future this may be nop'ed out when dealing with 52-bit kernel VAs.
- * 	ttbr: Value of ttbr to set, modified.
- */
-	.macro	offset_ttbr1, ttbr, tmp
-#ifdef CONFIG_ARM64_VA_BITS_52
-	mrs_s	\tmp, SYS_ID_AA64MMFR2_EL1
-	and	\tmp, \tmp, #(0xf << ID_AA64MMFR2_LVA_SHIFT)
-	cbnz	\tmp, .Lskipoffs_\@
-	orr	\ttbr, \ttbr, #TTBR1_BADDR_4852_OFFSET
-.Lskipoffs_\@ :
-#endif
-	.endm
-
-/*
- * Perform the reverse of offset_ttbr1.
- * bic is used as it can cover the immediate value and, in future, won't need
- * to be nop'ed out when dealing with 52-bit kernel VAs.
- */
-	.macro	restore_ttbr1, ttbr
-#ifdef CONFIG_ARM64_VA_BITS_52
-	bic	\ttbr, \ttbr, #TTBR1_BADDR_4852_OFFSET
-#endif
 	.endm
 
 /*
@@ -630,25 +582,6 @@ USER(\label, ic	ivau, \tmp2)			// invalidate I line PoU
 #else
 	and	\phys, \pte, #PTE_ADDR_MASK
 #endif
-	.endm
-
-/*
- * tcr_clear_errata_bits - Clear TCR bits that trigger an errata on this CPU.
- */
-	.macro	tcr_clear_errata_bits, tcr, tmp1, tmp2
-#ifdef CONFIG_FUJITSU_ERRATUM_010001
-	mrs	\tmp1, midr_el1
-
-	mov_q	\tmp2, MIDR_FUJITSU_ERRATUM_010001_MASK
-	and	\tmp1, \tmp1, \tmp2
-	mov_q	\tmp2, MIDR_FUJITSU_ERRATUM_010001
-	cmp	\tmp1, \tmp2
-	b.ne	10f
-
-	mov_q	\tmp2, TCR_CLEAR_FUJITSU_ERRATUM_010001
-	bic	\tcr, \tcr, \tmp2
-10:
-#endif /* CONFIG_FUJITSU_ERRATUM_010001 */
 	.endm
 
 /**
@@ -749,11 +682,12 @@ USER(\label, ic	ivau, \tmp2)			// invalidate I line PoU
  * the output section, any use of such directives is undefined.
  *
  * The yield itself consists of the following:
- * - Check whether the preempt count is exactly 1 and a reschedule is also
- *   needed. If so, calling of preempt_enable() in kernel_neon_end() will
- *   trigger a reschedule. If it is not the case, yielding is pointless.
- * - Disable and re-enable kernel mode NEON, and branch to the yield fixup
- *   code.
+ * - Check whether the preempt count is exactly 1, in which case disabling
+ *   preemption once will make the task preemptible. If this is not the case,
+ *   yielding is pointless.
+ * - Check whether TIF_NEED_RESCHED is set, and if so, disable and re-enable
+ *   kernel mode NEON (which will trigger a reschedule), and branch to the
+ *   yield fixup code.
  *
  * This macro sequence may clobber all CPU state that is not guaranteed by the
  * AAPCS to be preserved across an ordinary function call.
@@ -767,10 +701,12 @@ USER(\label, ic	ivau, \tmp2)			// invalidate I line PoU
 
 	.macro		if_will_cond_yield_neon
 #ifdef CONFIG_PREEMPT
-	get_current_task	x0
-	ldr		x0, [x0, #TSK_TI_PREEMPT]
-	sub		x0, x0, #PREEMPT_DISABLE_OFFSET
-	cbz		x0, .Lyield_\@
+	get_thread_info	x0
+	ldr		w1, [x0, #TSK_TI_PREEMPT]
+	ldr		x0, [x0, #TSK_TI_FLAGS]
+	cmp		w1, #PREEMPT_DISABLE_OFFSET
+	csel		x0, x0, xzr, eq
+	tbnz		x0, #TIF_NEED_RESCHED, .Lyield_\@	// needs rescheduling?
 	/* fall through to endif_yield_neon */
 	.subsection	1
 .Lyield_\@ :
@@ -799,19 +735,20 @@ USER(\label, ic	ivau, \tmp2)			// invalidate I line PoU
 alternative_cb  spectre_bhb_patch_loop_iter
 	mov	\tmp, #32		// Patched to correct the immediate
 alternative_cb_end
-.Lspectre_bhb_loop\@ :
+.Lspectre_bhb_loop\@:
 	b	. + 4
 	subs	\tmp, \tmp, #1
 	b.ne	.Lspectre_bhb_loop\@
-	sb
+	dsb	nsh
+	isb
 #endif /* CONFIG_MITIGATE_SPECTRE_BRANCH_HISTORY */
 	.endm
 
 	/* Save/restores x0-x3 to the stack */
 	.macro __mitigate_spectre_bhb_fw
 #ifdef CONFIG_MITIGATE_SPECTRE_BRANCH_HISTORY
-	stp	x0, x1, [sp, # -16] !
-	stp	x2, x3, [sp, # -16] !
+	stp	x0, x1, [sp, #-16]!
+	stp	x2, x3, [sp, #-16]!
 	mov	w0, #ARM_SMCCC_ARCH_WORKAROUND_3
 alternative_cb	arm64_update_smccc_conduit
 	nop					// Patched to SMC/HVC #0

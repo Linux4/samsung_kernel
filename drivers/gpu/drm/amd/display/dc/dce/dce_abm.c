@@ -23,8 +23,6 @@
  *
  */
 
-#include <linux/slab.h>
-
 #include "dce_abm.h"
 #include "dm_services.h"
 #include "reg_helper.h"
@@ -55,35 +53,8 @@
 
 #define MCP_DISABLE_ABM_IMMEDIATELY 255
 
-static bool dce_abm_set_pipe(struct abm *abm, uint32_t controller_id)
-{
-	struct dce_abm *abm_dce = TO_DCE_ABM(abm);
-	uint32_t rampingBoundary = 0xFFFF;
 
-	if (abm->dmcu_is_running == false)
-		return true;
-
-	REG_WAIT(MASTER_COMM_CNTL_REG, MASTER_COMM_INTERRUPT, 0,
-			1, 80000);
-
-	/* set ramping boundary */
-	REG_WRITE(MASTER_COMM_DATA_REG1, rampingBoundary);
-
-	/* setDMCUParam_Pipe */
-	REG_UPDATE_2(MASTER_COMM_CMD_REG,
-			MASTER_COMM_CMD_REG_BYTE0, MCP_ABM_PIPE_SET,
-			MASTER_COMM_CMD_REG_BYTE1, controller_id);
-
-	/* notifyDMCUMsg */
-	REG_UPDATE(MASTER_COMM_CNTL_REG, MASTER_COMM_INTERRUPT, 1);
-
-	REG_WAIT(MASTER_COMM_CNTL_REG, MASTER_COMM_INTERRUPT, 0,
-			1, 80000);
-
-	return true;
-}
-
-static unsigned int calculate_16_bit_backlight_from_pwm(struct dce_abm *abm_dce)
+static unsigned int get_current_backlight_16_bit(struct dce_abm *abm_dce)
 {
 	uint64_t current_backlight;
 	uint32_t round_result;
@@ -132,21 +103,45 @@ static unsigned int calculate_16_bit_backlight_from_pwm(struct dce_abm *abm_dce)
 	return (uint32_t)(current_backlight);
 }
 
-static void driver_set_backlight_level(struct dce_abm *abm_dce,
-		uint32_t backlight_pwm_u16_16)
+static void driver_set_backlight_level(struct dce_abm *abm_dce, uint32_t level)
 {
+	uint32_t backlight_24bit;
+	uint32_t backlight_17bit;
 	uint32_t backlight_16bit;
 	uint32_t masked_pwm_period;
+	uint8_t rounding_bit;
 	uint8_t bit_count;
 	uint64_t active_duty_cycle;
 	uint32_t pwm_period_bitcnt;
 
 	/*
-	 * 1. Find  16 bit backlight active duty cycle, where 0 <= backlight
+	 * 1. Convert 8-bit value to 17 bit U1.16 format
+	 * (1 integer, 16 fractional bits)
+	 */
+
+	/* 1.1 multiply 8 bit value by 0x10101 to get a 24 bit value,
+	 * effectively multiplying value by 256/255
+	 * eg. for a level of 0xEF, backlight_24bit = 0xEF * 0x10101 = 0xEFEFEF
+	 */
+	backlight_24bit = level * 0x10101;
+
+	/* 1.2 The upper 16 bits of the 24 bit value is the fraction, lower 8
+	 * used for rounding, take most significant bit of fraction for
+	 * rounding, e.g. for 0xEFEFEF, rounding bit is 1
+	 */
+	rounding_bit = (backlight_24bit >> 7) & 1;
+
+	/* 1.3 Add the upper 16 bits of the 24 bit value with the rounding bit
+	 * resulting in a 17 bit value e.g. 0xEFF0 = (0xEFEFEF >> 8) + 1
+	 */
+	backlight_17bit = (backlight_24bit >> 8) + rounding_bit;
+
+	/*
+	 * 2. Find  16 bit backlight active duty cycle, where 0 <= backlight
 	 * active duty cycle <= backlight period
 	 */
 
-	/* 1.1 Apply bitmask for backlight period value based on value of BITCNT
+	/* 2.1 Apply bitmask for backlight period value based on value of BITCNT
 	 */
 	REG_GET_2(BL_PWM_PERIOD_CNTL,
 			BL_PWM_PERIOD_BITCNT, &pwm_period_bitcnt,
@@ -160,13 +155,13 @@ static void driver_set_backlight_level(struct dce_abm *abm_dce,
 	/* e.g. maskedPwmPeriod = 0x24 when bitCount is 6 */
 	masked_pwm_period = masked_pwm_period & ((1 << bit_count) - 1);
 
-	/* 1.2 Calculate integer active duty cycle required upper 16 bits
+	/* 2.2 Calculate integer active duty cycle required upper 16 bits
 	 * contain integer component, lower 16 bits contain fractional component
 	 * of active duty cycle e.g. 0x21BDC0 = 0xEFF0 * 0x24
 	 */
-	active_duty_cycle = backlight_pwm_u16_16 * masked_pwm_period;
+	active_duty_cycle = backlight_17bit * masked_pwm_period;
 
-	/* 1.3 Calculate 16 bit active duty cycle from integer and fractional
+	/* 2.3 Calculate 16 bit active duty cycle from integer and fractional
 	 * components shift by bitCount then mask 16 bits and add rounding bit
 	 * from MSB of fraction e.g. 0x86F7 = ((0x21BDC0 >> 6) & 0xFFF) + 0
 	 */
@@ -175,23 +170,23 @@ static void driver_set_backlight_level(struct dce_abm *abm_dce,
 	backlight_16bit += (active_duty_cycle >> (bit_count - 1)) & 0x1;
 
 	/*
-	 * 2. Program register with updated value
+	 * 3. Program register with updated value
 	 */
 
-	/* 2.1 Lock group 2 backlight registers */
+	/* 3.1 Lock group 2 backlight registers */
 
 	REG_UPDATE_2(BL_PWM_GRP1_REG_LOCK,
 			BL_PWM_GRP1_IGNORE_MASTER_LOCK_EN, 1,
 			BL_PWM_GRP1_REG_LOCK, 1);
 
-	// 2.2 Write new active duty cycle
+	// 3.2 Write new active duty cycle
 	REG_UPDATE(BL_PWM_CNTL, BL_ACTIVE_INT_FRAC_CNT, backlight_16bit);
 
-	/* 2.3 Unlock group 2 backlight registers */
+	/* 3.3 Unlock group 2 backlight registers */
 	REG_UPDATE(BL_PWM_GRP1_REG_LOCK,
 			BL_PWM_GRP1_REG_LOCK, 0);
 
-	/* 3 Wait for pending bit to be cleared */
+	/* 5.4.4 Wait for pending bit to be cleared */
 	REG_WAIT(BL_PWM_GRP1_REG_LOCK,
 			BL_PWM_GRP1_REG_UPDATE_PENDING, 0,
 			1, 10000);
@@ -199,28 +194,33 @@ static void driver_set_backlight_level(struct dce_abm *abm_dce,
 
 static void dmcu_set_backlight_level(
 	struct dce_abm *abm_dce,
-	uint32_t backlight_pwm_u16_16,
+	uint32_t level,
 	uint32_t frame_ramp,
 	uint32_t controller_id)
 {
-	unsigned int backlight_8_bit = 0;
+	unsigned int backlight_16_bit = (level * 0x10101) >> 8;
+	unsigned int backlight_17_bit = backlight_16_bit +
+				(((backlight_16_bit & 0x80) >> 7) & 1);
+	uint32_t rampingBoundary = 0xFFFF;
 	uint32_t s2;
 
-	if (backlight_pwm_u16_16 & 0x10000)
-		// Check for max backlight condition
-		backlight_8_bit = 0xFF;
-	else
-		// Take MSB of fractional part since backlight is not max
-		backlight_8_bit = (backlight_pwm_u16_16 >> 8) & 0xFF;
+	/* set ramping boundary */
+	REG_WRITE(MASTER_COMM_DATA_REG1, rampingBoundary);
 
-	dce_abm_set_pipe(&abm_dce->base, controller_id);
+	/* setDMCUParam_Pipe */
+	REG_UPDATE_2(MASTER_COMM_CMD_REG,
+			MASTER_COMM_CMD_REG_BYTE0, MCP_ABM_PIPE_SET,
+			MASTER_COMM_CMD_REG_BYTE1, controller_id);
+
+	/* notifyDMCUMsg */
+	REG_UPDATE(MASTER_COMM_CNTL_REG, MASTER_COMM_INTERRUPT, 1);
 
 	/* waitDMCUReadyForCmd */
 	REG_WAIT(MASTER_COMM_CNTL_REG, MASTER_COMM_INTERRUPT,
 			0, 1, 80000);
 
 	/* setDMCUParam_BL */
-	REG_UPDATE(BL1_PWM_USER_LEVEL, BL1_PWM_USER_LEVEL, backlight_pwm_u16_16);
+	REG_UPDATE(BL1_PWM_USER_LEVEL, BL1_PWM_USER_LEVEL, backlight_17_bit);
 
 	/* write ramp */
 	if (controller_id == 0)
@@ -237,9 +237,9 @@ static void dmcu_set_backlight_level(
 	s2 = REG_READ(BIOS_SCRATCH_2);
 
 	s2 &= ~ATOM_S2_CURRENT_BL_LEVEL_MASK;
-	backlight_8_bit &= (ATOM_S2_CURRENT_BL_LEVEL_MASK >>
+	level &= (ATOM_S2_CURRENT_BL_LEVEL_MASK >>
 				ATOM_S2_CURRENT_BL_LEVEL_SHIFT);
-	s2 |= (backlight_8_bit << ATOM_S2_CURRENT_BL_LEVEL_SHIFT);
+	s2 |= (level << ATOM_S2_CURRENT_BL_LEVEL_SHIFT);
 
 	REG_WRITE(BIOS_SCRATCH_2, s2);
 
@@ -251,7 +251,7 @@ static void dmcu_set_backlight_level(
 static void dce_abm_init(struct abm *abm)
 {
 	struct dce_abm *abm_dce = TO_DCE_ABM(abm);
-	unsigned int backlight = calculate_16_bit_backlight_from_pwm(abm_dce);
+	unsigned int backlight = get_current_backlight_16_bit(abm_dce);
 
 	REG_WRITE(DC_ABM1_HG_SAMPLE_RATE, 0x103);
 	REG_WRITE(DC_ABM1_HG_SAMPLE_RATE, 0x101);
@@ -288,34 +288,17 @@ static void dce_abm_init(struct abm *abm)
 			ABM1_BL_REG_READ_MISSED_FRAME_CLEAR, 1);
 }
 
-static unsigned int dce_abm_get_current_backlight(struct abm *abm)
+static unsigned int dce_abm_get_current_backlight_8_bit(struct abm *abm)
 {
 	struct dce_abm *abm_dce = TO_DCE_ABM(abm);
 	unsigned int backlight = REG_READ(BL1_PWM_CURRENT_ABM_LEVEL);
 
-	/* return backlight in hardware format which is unsigned 17 bits, with
-	 * 1 bit integer and 16 bit fractional
-	 */
-	return backlight;
-}
-
-static unsigned int dce_abm_get_target_backlight(struct abm *abm)
-{
-	struct dce_abm *abm_dce = TO_DCE_ABM(abm);
-	unsigned int backlight = REG_READ(BL1_PWM_TARGET_ABM_LEVEL);
-
-	/* return backlight in hardware format which is unsigned 17 bits, with
-	 * 1 bit integer and 16 bit fractional
-	 */
-	return backlight;
+	return (backlight >> 8);
 }
 
 static bool dce_abm_set_level(struct abm *abm, uint32_t level)
 {
 	struct dce_abm *abm_dce = TO_DCE_ABM(abm);
-
-	if (abm->dmcu_is_running == false)
-		return true;
 
 	REG_WAIT(MASTER_COMM_CNTL_REG, MASTER_COMM_INTERRUPT, 0,
 			1, 80000);
@@ -335,10 +318,16 @@ static bool dce_abm_immediate_disable(struct abm *abm)
 {
 	struct dce_abm *abm_dce = TO_DCE_ABM(abm);
 
-	if (abm->dmcu_is_running == false)
-		return true;
+	REG_WAIT(MASTER_COMM_CNTL_REG, MASTER_COMM_INTERRUPT, 0,
+			1, 80000);
 
-	dce_abm_set_pipe(abm, MCP_DISABLE_ABM_IMMEDIATELY);
+	/* setDMCUParam_ABMLevel */
+	REG_UPDATE_2(MASTER_COMM_CMD_REG,
+			MASTER_COMM_CMD_REG_BYTE0, MCP_ABM_LEVEL_SET,
+			MASTER_COMM_CMD_REG_BYTE2, MCP_DISABLE_ABM_IMMEDIATELY);
+
+	/* notifyDMCUMsg */
+	REG_UPDATE(MASTER_COMM_CNTL_REG, MASTER_COMM_INTERRUPT, 1);
 
 	abm->stored_backlight_registers.BL_PWM_CNTL =
 		REG_READ(BL_PWM_CNTL);
@@ -411,9 +400,9 @@ static bool dce_abm_init_backlight(struct abm *abm)
 	return true;
 }
 
-static bool dce_abm_set_backlight_level_pwm(
+static bool dce_abm_set_backlight_level(
 		struct abm *abm,
-		unsigned int backlight_pwm_u16_16,
+		unsigned int backlight_level,
 		unsigned int frame_ramp,
 		unsigned int controller_id,
 		bool use_smooth_brightness)
@@ -421,16 +410,16 @@ static bool dce_abm_set_backlight_level_pwm(
 	struct dce_abm *abm_dce = TO_DCE_ABM(abm);
 
 	DC_LOG_BACKLIGHT("New Backlight level: %d (0x%X)\n",
-			backlight_pwm_u16_16, backlight_pwm_u16_16);
+			backlight_level, backlight_level);
 
 	/* If DMCU is in reset state, DMCU is uninitialized */
 	if (use_smooth_brightness)
 		dmcu_set_backlight_level(abm_dce,
-				backlight_pwm_u16_16,
+				backlight_level,
 				frame_ramp,
 				controller_id);
 	else
-		driver_set_backlight_level(abm_dce, backlight_pwm_u16_16);
+		driver_set_backlight_level(abm_dce, backlight_level);
 
 	return true;
 }
@@ -439,10 +428,8 @@ static const struct abm_funcs dce_funcs = {
 	.abm_init = dce_abm_init,
 	.set_abm_level = dce_abm_set_level,
 	.init_backlight = dce_abm_init_backlight,
-	.set_pipe = dce_abm_set_pipe,
-	.set_backlight_level_pwm = dce_abm_set_backlight_level_pwm,
-	.get_current_backlight = dce_abm_get_current_backlight,
-	.get_target_backlight = dce_abm_get_target_backlight,
+	.set_backlight_level = dce_abm_set_backlight_level,
+	.get_current_backlight_8_bit = dce_abm_get_current_backlight_8_bit,
 	.set_abm_immediate_disable = dce_abm_immediate_disable
 };
 
@@ -461,7 +448,6 @@ static void dce_abm_construct(
 	base->stored_backlight_registers.BL_PWM_CNTL2 = 0;
 	base->stored_backlight_registers.BL_PWM_PERIOD_CNTL = 0;
 	base->stored_backlight_registers.LVTMA_PWRSEQ_REF_DIV_BL_PWM_REF_DIV = 0;
-	base->dmcu_is_running = false;
 
 	abm_dce->regs = regs;
 	abm_dce->abm_shift = abm_shift;
@@ -492,8 +478,7 @@ void dce_abm_destroy(struct abm **abm)
 {
 	struct dce_abm *abm_dce = TO_DCE_ABM(*abm);
 
-	if (abm_dce->base.dmcu_is_running == true)
-		abm_dce->base.funcs->set_abm_immediate_disable(*abm);
+	abm_dce->base.funcs->set_abm_immediate_disable(*abm);
 
 	kfree(abm_dce);
 	*abm = NULL;

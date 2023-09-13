@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 if ARCH_STM32 || COMPILE_TEST
 
 config PINCTRL_STM32

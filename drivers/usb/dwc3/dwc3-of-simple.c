@@ -24,12 +24,58 @@
 
 struct dwc3_of_simple {
 	struct device		*dev;
-	struct clk_bulk_data	*clks;
+	struct clk		**clks;
 	int			num_clocks;
 	struct reset_control	*resets;
 	bool			pulse_resets;
 	bool			need_reset;
 };
+
+static int dwc3_of_simple_clk_init(struct dwc3_of_simple *simple, int count)
+{
+	struct device		*dev = simple->dev;
+	struct device_node	*np = dev->of_node;
+	int			i;
+
+	simple->num_clocks = count;
+
+	if (!count)
+		return 0;
+
+	simple->clks = devm_kcalloc(dev, simple->num_clocks,
+			sizeof(struct clk *), GFP_KERNEL);
+	if (!simple->clks)
+		return -ENOMEM;
+
+	for (i = 0; i < simple->num_clocks; i++) {
+		struct clk	*clk;
+		int		ret;
+
+		clk = of_clk_get(np, i);
+		if (IS_ERR(clk)) {
+			while (--i >= 0) {
+				clk_disable_unprepare(simple->clks[i]);
+				clk_put(simple->clks[i]);
+			}
+			return PTR_ERR(clk);
+		}
+
+		ret = clk_prepare_enable(clk);
+		if (ret < 0) {
+			while (--i >= 0) {
+				clk_disable_unprepare(simple->clks[i]);
+				clk_put(simple->clks[i]);
+			}
+			clk_put(clk);
+
+			return ret;
+		}
+
+		simple->clks[i] = clk;
+	}
+
+	return 0;
+}
 
 static int dwc3_of_simple_probe(struct platform_device *pdev)
 {
@@ -38,6 +84,7 @@ static int dwc3_of_simple_probe(struct platform_device *pdev)
 	struct device_node	*np = dev->of_node;
 
 	int			ret;
+	int			i;
 	bool			shared_resets = false;
 
 	simple = devm_kzalloc(dev, sizeof(*simple), GFP_KERNEL);
@@ -60,8 +107,7 @@ static int dwc3_of_simple_probe(struct platform_device *pdev)
 		simple->pulse_resets = true;
 	}
 
-	simple->resets = of_reset_control_array_get(np, shared_resets, true,
-						    true);
+	simple->resets = of_reset_control_array_get(np, shared_resets, true);
 	if (IS_ERR(simple->resets)) {
 		ret = PTR_ERR(simple->resets);
 		dev_err(dev, "failed to get device resets, err=%d\n", ret);
@@ -78,28 +124,26 @@ static int dwc3_of_simple_probe(struct platform_device *pdev)
 			goto err_resetc_put;
 	}
 
-	ret = clk_bulk_get_all(simple->dev, &simple->clks);
-	if (ret < 0)
-		goto err_resetc_assert;
-
-	simple->num_clocks = ret;
-	ret = clk_bulk_prepare_enable(simple->num_clocks, simple->clks);
+	ret = dwc3_of_simple_clk_init(simple, of_count_phandle_with_args(np,
+						"clocks", "#clock-cells"));
 	if (ret)
 		goto err_resetc_assert;
 
 	ret = of_platform_populate(np, NULL, NULL, dev);
-	if (ret)
-		goto err_clk_put;
+	if (ret) {
+		for (i = 0; i < simple->num_clocks; i++) {
+			clk_disable_unprepare(simple->clks[i]);
+			clk_put(simple->clks[i]);
+		}
+
+		goto err_resetc_assert;
+	}
 
 	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
 	pm_runtime_get_sync(dev);
 
 	return 0;
-
-err_clk_put:
-	clk_bulk_disable_unprepare(simple->num_clocks, simple->clks);
-	clk_bulk_put_all(simple->num_clocks, simple->clks);
 
 err_resetc_assert:
 	if (!simple->pulse_resets)
@@ -114,11 +158,14 @@ static int dwc3_of_simple_remove(struct platform_device *pdev)
 {
 	struct dwc3_of_simple	*simple = platform_get_drvdata(pdev);
 	struct device		*dev = &pdev->dev;
+	int			i;
 
 	of_platform_depopulate(dev);
 
-	clk_bulk_disable_unprepare(simple->num_clocks, simple->clks);
-	clk_bulk_put_all(simple->num_clocks, simple->clks);
+	for (i = 0; i < simple->num_clocks; i++) {
+		clk_disable_unprepare(simple->clks[i]);
+		clk_put(simple->clks[i]);
+	}
 	simple->num_clocks = 0;
 
 	if (!simple->pulse_resets)
@@ -136,8 +183,10 @@ static int dwc3_of_simple_remove(struct platform_device *pdev)
 static int __maybe_unused dwc3_of_simple_runtime_suspend(struct device *dev)
 {
 	struct dwc3_of_simple	*simple = dev_get_drvdata(dev);
+	int			i;
 
-	clk_bulk_disable(simple->num_clocks, simple->clks);
+	for (i = 0; i < simple->num_clocks; i++)
+		clk_disable(simple->clks[i]);
 
 	return 0;
 }
@@ -145,8 +194,19 @@ static int __maybe_unused dwc3_of_simple_runtime_suspend(struct device *dev)
 static int __maybe_unused dwc3_of_simple_runtime_resume(struct device *dev)
 {
 	struct dwc3_of_simple	*simple = dev_get_drvdata(dev);
+	int			ret;
+	int			i;
 
-	return clk_bulk_enable(simple->num_clocks, simple->clks);
+	for (i = 0; i < simple->num_clocks; i++) {
+		ret = clk_enable(simple->clks[i]);
+		if (ret < 0) {
+			while (--i >= 0)
+				clk_disable(simple->clks[i]);
+			return ret;
+		}
+	}
+
+	return 0;
 }
 
 static int __maybe_unused dwc3_of_simple_suspend(struct device *dev)
@@ -183,7 +243,6 @@ static const struct of_device_id of_dwc3_simple_match[] = {
 	{ .compatible = "amlogic,meson-axg-dwc3" },
 	{ .compatible = "amlogic,meson-gxl-dwc3" },
 	{ .compatible = "allwinner,sun50i-h6-dwc3" },
-	{ .compatible = "hisilicon,hi3670-dwc3" },
 	{ /* Sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, of_dwc3_simple_match);

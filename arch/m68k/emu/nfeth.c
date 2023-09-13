@@ -47,6 +47,10 @@ static const char version[] =
 MODULE_AUTHOR("Milan Jurik");
 MODULE_DESCRIPTION("Atari NFeth driver");
 MODULE_LICENSE("GPL");
+/*
+MODULE_PARM(nfeth_debug, "i");
+MODULE_PARM_DESC(nfeth_debug, "nfeth_debug level (1-2)");
+*/
 
 
 static long nfEtherID;
@@ -254,8 +258,8 @@ static void __exit nfeth_cleanup(void)
 
 	for (i = 0; i < MAX_UNIT; i++) {
 		if (nfeth_dev[i]) {
-			unregister_netdev(nfeth_dev[i]);
-			free_netdev(nfeth_dev[i]);
+			unregister_netdev(nfeth_dev[0]);
+			free_netdev(nfeth_dev[0]);
 		}
 	}
 	free_irq(nfEtherIRQ, nfeth_interrupt);

@@ -36,7 +36,6 @@
 #include <linux/file.h>
 #include <linux/falloc.h>
 #include <linux/slab.h>
-#include <linux/kthread.h>
 
 #include "idmap.h"
 #include "cache.h"
@@ -427,7 +426,6 @@ nfsd4_open(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 				goto out;
 			open->op_openowner->oo_flags |= NFS4_OO_CONFIRMED;
 			reclaim = true;
-			/* fall through */
 		case NFS4_OPEN_CLAIM_FH:
 		case NFS4_OPEN_CLAIM_DELEG_CUR_FH:
 			status = do_open_fhandle(rqstp, cstate, open);
@@ -568,11 +566,17 @@ nfsd4_access(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 
 static void gen_boot_verifier(nfs4_verifier *verifier, struct net *net)
 {
-	__be32 *verf = (__be32 *)verifier->data;
+	__be32 verf[2];
+	struct nfsd_net *nn = net_generic(net, nfsd_net_id);
 
-	BUILD_BUG_ON(2*sizeof(*verf) != sizeof(verifier->data));
-
-	nfsd_copy_boot_verifier(verf, net_generic(net, nfsd_net_id));
+	/*
+	 * This is opaque to client, so no need to byte-swap. Use
+	 * __force to keep sparse happy. y2038 time_t overflow is
+	 * irrelevant in this usage.
+	 */
+	verf[0] = (__force __be32)nn->nfssvc_boot.tv_sec;
+	verf[1] = (__force __be32)nn->nfssvc_boot.tv_nsec;
+	memcpy(verifier->data, verf, sizeof(verifier->data));
 }
 
 static __be32
@@ -755,7 +759,7 @@ nfsd4_read(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 	struct nfsd4_read *read = &u->read;
 	__be32 status;
 
-	read->rd_nf = NULL;
+	read->rd_filp = NULL;
 	if (read->rd_offset >= OFFSET_MAX)
 		return nfserr_inval;
 
@@ -776,7 +780,7 @@ nfsd4_read(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 	/* check stateid */
 	status = nfs4_preprocess_stateid_op(rqstp, cstate, &cstate->current_fh,
 					&read->rd_stateid, RD_STATE,
-					&read->rd_nf);
+					&read->rd_filp, &read->rd_tmp_file);
 	if (status) {
 		dprintk("NFSD: nfsd4_read: couldn't process stateid!\n");
 		goto out;
@@ -792,8 +796,8 @@ out:
 static void
 nfsd4_read_release(union nfsd4_op_u *u)
 {
-	if (u->read.rd_nf)
-		nfsd_file_put(u->read.rd_nf);
+	if (u->read.rd_filp)
+		fput(u->read.rd_filp);
 	trace_nfsd_read_done(u->read.rd_rqstp, u->read.rd_fhp,
 			     u->read.rd_offset, u->read.rd_length);
 }
@@ -858,7 +862,8 @@ nfsd4_rename(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 	struct nfsd4_rename *rename = &u->rename;
 	__be32 status;
 
-	if (opens_in_grace(SVC_NET(rqstp)))
+	if (opens_in_grace(SVC_NET(rqstp)) &&
+		!(cstate->save_fh.fh_export->ex_flags & NFSEXP_NOSUBTREECHECK))
 		return nfserr_grace;
 	status = nfsd_rename(rqstp, &cstate->save_fh, rename->rn_sname,
 			     rename->rn_snamelen, &cstate->current_fh,
@@ -948,7 +953,7 @@ nfsd4_setattr(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 	if (setattr->sa_iattr.ia_valid & ATTR_SIZE) {
 		status = nfs4_preprocess_stateid_op(rqstp, cstate,
 				&cstate->current_fh, &setattr->sa_stateid,
-				WR_STATE, NULL);
+				WR_STATE, NULL, NULL);
 		if (status) {
 			dprintk("NFSD: nfsd4_setattr: couldn't process stateid!\n");
 			return status;
@@ -987,20 +992,19 @@ nfsd4_write(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 {
 	struct nfsd4_write *write = &u->write;
 	stateid_t *stateid = &write->wr_stateid;
-	struct nfsd_file *nf = NULL;
+	struct file *filp = NULL;
 	__be32 status = nfs_ok;
 	unsigned long cnt;
 	int nvecs;
 
-	if (write->wr_offset > (u64)OFFSET_MAX ||
-	    write->wr_offset + write->wr_buflen > (u64)OFFSET_MAX)
-		return nfserr_fbig;
+	if (write->wr_offset >= OFFSET_MAX)
+		return nfserr_inval;
 
 	cnt = write->wr_buflen;
 	trace_nfsd_write_start(rqstp, &cstate->current_fh,
 			       write->wr_offset, cnt);
 	status = nfs4_preprocess_stateid_op(rqstp, cstate, &cstate->current_fh,
-						stateid, WR_STATE, &nf);
+						stateid, WR_STATE, &filp, NULL);
 	if (status) {
 		dprintk("NFSD: nfsd4_write: couldn't process stateid!\n");
 		return status;
@@ -1013,10 +1017,10 @@ nfsd4_write(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 				      &write->wr_head, write->wr_buflen);
 	WARN_ON_ONCE(nvecs > ARRAY_SIZE(rqstp->rq_vec));
 
-	status = nfsd_vfs_write(rqstp, &cstate->current_fh, nf->nf_file,
+	status = nfsd_vfs_write(rqstp, &cstate->current_fh, filp,
 				write->wr_offset, rqstp->rq_vec, nvecs, &cnt,
 				write->wr_how_written);
-	nfsd_file_put(nf);
+	fput(filp);
 
 	write->wr_bytes_written = cnt;
 	trace_nfsd_write_done(rqstp, &cstate->current_fh,
@@ -1026,8 +1030,8 @@ nfsd4_write(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 
 static __be32
 nfsd4_verify_copy(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
-		  stateid_t *src_stateid, struct nfsd_file **src,
-		  stateid_t *dst_stateid, struct nfsd_file **dst)
+		  stateid_t *src_stateid, struct file **src,
+		  stateid_t *dst_stateid, struct file **dst)
 {
 	__be32 status;
 
@@ -1035,22 +1039,22 @@ nfsd4_verify_copy(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 		return nfserr_nofilehandle;
 
 	status = nfs4_preprocess_stateid_op(rqstp, cstate, &cstate->save_fh,
-					    src_stateid, RD_STATE, src);
+					    src_stateid, RD_STATE, src, NULL);
 	if (status) {
 		dprintk("NFSD: %s: couldn't process src stateid!\n", __func__);
 		goto out;
 	}
 
 	status = nfs4_preprocess_stateid_op(rqstp, cstate, &cstate->current_fh,
-					    dst_stateid, WR_STATE, dst);
+					    dst_stateid, WR_STATE, dst, NULL);
 	if (status) {
 		dprintk("NFSD: %s: couldn't process dst stateid!\n", __func__);
 		goto out_put_src;
 	}
 
 	/* fix up for NFS-specific error code */
-	if (!S_ISREG(file_inode((*src)->nf_file)->i_mode) ||
-	    !S_ISREG(file_inode((*dst)->nf_file)->i_mode)) {
+	if (!S_ISREG(file_inode(*src)->i_mode) ||
+	    !S_ISREG(file_inode(*dst)->i_mode)) {
 		status = nfserr_wrong_type;
 		goto out_put_dst;
 	}
@@ -1058,9 +1062,9 @@ nfsd4_verify_copy(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 out:
 	return status;
 out_put_dst:
-	nfsd_file_put(*dst);
+	fput(*dst);
 out_put_src:
-	nfsd_file_put(*src);
+	fput(*src);
 	goto out;
 }
 
@@ -1069,7 +1073,7 @@ nfsd4_clone(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 		union nfsd4_op_u *u)
 {
 	struct nfsd4_clone *clone = &u->clone;
-	struct nfsd_file *src, *dst;
+	struct file *src, *dst;
 	__be32 status;
 
 	status = nfsd4_verify_copy(rqstp, cstate, &clone->cl_src_stateid, &src,
@@ -1077,179 +1081,13 @@ nfsd4_clone(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 	if (status)
 		goto out;
 
-	status = nfsd4_clone_file_range(src->nf_file, clone->cl_src_pos,
-			dst->nf_file, clone->cl_dst_pos, clone->cl_count,
-			EX_ISSYNC(cstate->current_fh.fh_export));
+	status = nfsd4_clone_file_range(src, clone->cl_src_pos,
+			dst, clone->cl_dst_pos, clone->cl_count);
 
-	nfsd_file_put(dst);
-	nfsd_file_put(src);
+	fput(dst);
+	fput(src);
 out:
 	return status;
-}
-
-void nfs4_put_copy(struct nfsd4_copy *copy)
-{
-	if (!refcount_dec_and_test(&copy->refcount))
-		return;
-	kfree(copy);
-}
-
-static bool
-check_and_set_stop_copy(struct nfsd4_copy *copy)
-{
-	bool value;
-
-	spin_lock(&copy->cp_clp->async_lock);
-	value = copy->stopped;
-	if (!copy->stopped)
-		copy->stopped = true;
-	spin_unlock(&copy->cp_clp->async_lock);
-	return value;
-}
-
-static void nfsd4_stop_copy(struct nfsd4_copy *copy)
-{
-	/* only 1 thread should stop the copy */
-	if (!check_and_set_stop_copy(copy))
-		kthread_stop(copy->copy_task);
-	nfs4_put_copy(copy);
-}
-
-static struct nfsd4_copy *nfsd4_get_copy(struct nfs4_client *clp)
-{
-	struct nfsd4_copy *copy = NULL;
-
-	spin_lock(&clp->async_lock);
-	if (!list_empty(&clp->async_copies)) {
-		copy = list_first_entry(&clp->async_copies, struct nfsd4_copy,
-					copies);
-		refcount_inc(&copy->refcount);
-	}
-	spin_unlock(&clp->async_lock);
-	return copy;
-}
-
-void nfsd4_shutdown_copy(struct nfs4_client *clp)
-{
-	struct nfsd4_copy *copy;
-
-	while ((copy = nfsd4_get_copy(clp)) != NULL)
-		nfsd4_stop_copy(copy);
-}
-
-static void nfsd4_cb_offload_release(struct nfsd4_callback *cb)
-{
-	struct nfsd4_copy *copy = container_of(cb, struct nfsd4_copy, cp_cb);
-
-	nfs4_put_copy(copy);
-}
-
-static int nfsd4_cb_offload_done(struct nfsd4_callback *cb,
-				 struct rpc_task *task)
-{
-	return 1;
-}
-
-static const struct nfsd4_callback_ops nfsd4_cb_offload_ops = {
-	.release = nfsd4_cb_offload_release,
-	.done = nfsd4_cb_offload_done
-};
-
-static void nfsd4_init_copy_res(struct nfsd4_copy *copy, bool sync)
-{
-	copy->cp_res.wr_stable_how = NFS_UNSTABLE;
-	copy->cp_synchronous = sync;
-	gen_boot_verifier(&copy->cp_res.wr_verifier, copy->cp_clp->net);
-}
-
-static ssize_t _nfsd_copy_file_range(struct nfsd4_copy *copy)
-{
-	ssize_t bytes_copied = 0;
-	size_t bytes_total = copy->cp_count;
-	u64 src_pos = copy->cp_src_pos;
-	u64 dst_pos = copy->cp_dst_pos;
-
-	do {
-		if (kthread_should_stop())
-			break;
-		bytes_copied = nfsd_copy_file_range(copy->nf_src->nf_file,
-				src_pos, copy->nf_dst->nf_file, dst_pos,
-				bytes_total);
-		if (bytes_copied <= 0)
-			break;
-		bytes_total -= bytes_copied;
-		copy->cp_res.wr_bytes_written += bytes_copied;
-		src_pos += bytes_copied;
-		dst_pos += bytes_copied;
-	} while (bytes_total > 0 && !copy->cp_synchronous);
-	return bytes_copied;
-}
-
-static __be32 nfsd4_do_copy(struct nfsd4_copy *copy, bool sync)
-{
-	__be32 status;
-	ssize_t bytes;
-
-	bytes = _nfsd_copy_file_range(copy);
-	/* for async copy, we ignore the error, client can always retry
-	 * to get the error
-	 */
-	if (bytes < 0 && !copy->cp_res.wr_bytes_written)
-		status = nfserrno(bytes);
-	else {
-		nfsd4_init_copy_res(copy, sync);
-		status = nfs_ok;
-	}
-
-	nfsd_file_put(copy->nf_src);
-	nfsd_file_put(copy->nf_dst);
-	return status;
-}
-
-static void dup_copy_fields(struct nfsd4_copy *src, struct nfsd4_copy *dst)
-{
-	dst->cp_src_pos = src->cp_src_pos;
-	dst->cp_dst_pos = src->cp_dst_pos;
-	dst->cp_count = src->cp_count;
-	dst->cp_synchronous = src->cp_synchronous;
-	memcpy(&dst->cp_res, &src->cp_res, sizeof(src->cp_res));
-	memcpy(&dst->fh, &src->fh, sizeof(src->fh));
-	dst->cp_clp = src->cp_clp;
-	dst->nf_dst = nfsd_file_get(src->nf_dst);
-	dst->nf_src = nfsd_file_get(src->nf_src);
-	memcpy(&dst->cp_stateid, &src->cp_stateid, sizeof(src->cp_stateid));
-}
-
-static void cleanup_async_copy(struct nfsd4_copy *copy)
-{
-	nfs4_free_cp_state(copy);
-	nfsd_file_put(copy->nf_dst);
-	nfsd_file_put(copy->nf_src);
-	spin_lock(&copy->cp_clp->async_lock);
-	list_del(&copy->copies);
-	spin_unlock(&copy->cp_clp->async_lock);
-	nfs4_put_copy(copy);
-}
-
-static int nfsd4_do_async_copy(void *data)
-{
-	struct nfsd4_copy *copy = (struct nfsd4_copy *)data;
-	struct nfsd4_copy *cb_copy;
-
-	copy->nfserr = nfsd4_do_copy(copy, 0);
-	cb_copy = kzalloc(sizeof(struct nfsd4_copy), GFP_KERNEL);
-	if (!cb_copy)
-		goto out;
-	memcpy(&cb_copy->cp_res, &copy->cp_res, sizeof(copy->cp_res));
-	cb_copy->cp_clp = copy->cp_clp;
-	cb_copy->nfserr = copy->nfserr;
-	memcpy(&cb_copy->fh, &copy->fh, sizeof(copy->fh));
-	nfsd4_init_cb(&cb_copy->cp_cb, cb_copy->cp_clp,
-			&nfsd4_cb_offload_ops, NFSPROC4_CLNT_CB_OFFLOAD);
-	nfsd4_run_cb(&cb_copy->cp_cb);
-out:
-	cleanup_async_copy(copy);
-	return 0;
 }
 
 static __be32
@@ -1257,86 +1095,31 @@ nfsd4_copy(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 		union nfsd4_op_u *u)
 {
 	struct nfsd4_copy *copy = &u->copy;
+	struct file *src, *dst;
 	__be32 status;
-	struct nfsd4_copy *async_copy = NULL;
+	ssize_t bytes;
 
-	status = nfsd4_verify_copy(rqstp, cstate, &copy->cp_src_stateid,
-				   &copy->nf_src, &copy->cp_dst_stateid,
-				   &copy->nf_dst);
+	status = nfsd4_verify_copy(rqstp, cstate, &copy->cp_src_stateid, &src,
+				   &copy->cp_dst_stateid, &dst);
 	if (status)
 		goto out;
 
-	copy->cp_clp = cstate->clp;
-	memcpy(&copy->fh, &cstate->current_fh.fh_handle,
-		sizeof(struct knfsd_fh));
-	if (!copy->cp_synchronous) {
-		struct nfsd_net *nn = net_generic(SVC_NET(rqstp), nfsd_net_id);
+	bytes = nfsd_copy_file_range(src, copy->cp_src_pos,
+			dst, copy->cp_dst_pos, copy->cp_count);
 
-		status = nfserrno(-ENOMEM);
-		async_copy = kzalloc(sizeof(struct nfsd4_copy), GFP_KERNEL);
-		if (!async_copy)
-			goto out;
-		if (!nfs4_init_cp_state(nn, copy)) {
-			kfree(async_copy);
-			goto out;
-		}
-		refcount_set(&async_copy->refcount, 1);
-		memcpy(&copy->cp_res.cb_stateid, &copy->cp_stateid,
-			sizeof(copy->cp_stateid));
-		dup_copy_fields(copy, async_copy);
-		async_copy->copy_task = kthread_create(nfsd4_do_async_copy,
-				async_copy, "%s", "copy thread");
-		if (IS_ERR(async_copy->copy_task))
-			goto out_err;
-		spin_lock(&async_copy->cp_clp->async_lock);
-		list_add(&async_copy->copies,
-				&async_copy->cp_clp->async_copies);
-		spin_unlock(&async_copy->cp_clp->async_lock);
-		wake_up_process(async_copy->copy_task);
+	if (bytes < 0)
+		status = nfserrno(bytes);
+	else {
+		copy->cp_res.wr_bytes_written = bytes;
+		copy->cp_res.wr_stable_how = NFS_UNSTABLE;
+		copy->cp_synchronous = 1;
+		gen_boot_verifier(&copy->cp_res.wr_verifier, SVC_NET(rqstp));
 		status = nfs_ok;
-	} else
-		status = nfsd4_do_copy(copy, 1);
-out:
-	return status;
-out_err:
-	if (async_copy)
-		cleanup_async_copy(async_copy);
-	goto out;
-}
-
-struct nfsd4_copy *
-find_async_copy(struct nfs4_client *clp, stateid_t *stateid)
-{
-	struct nfsd4_copy *copy;
-
-	spin_lock(&clp->async_lock);
-	list_for_each_entry(copy, &clp->async_copies, copies) {
-		if (memcmp(&copy->cp_stateid, stateid, NFS4_STATEID_SIZE))
-			continue;
-		refcount_inc(&copy->refcount);
-		spin_unlock(&clp->async_lock);
-		return copy;
 	}
-	spin_unlock(&clp->async_lock);
-	return NULL;
-}
 
-static __be32
-nfsd4_offload_cancel(struct svc_rqst *rqstp,
-		     struct nfsd4_compound_state *cstate,
-		     union nfsd4_op_u *u)
-{
-	struct nfsd4_offload_status *os = &u->offload_status;
-	__be32 status = 0;
-	struct nfsd4_copy *copy;
-	struct nfs4_client *clp = cstate->clp;
-
-	copy = find_async_copy(clp, &os->stateid);
-	if (copy)
-		nfsd4_stop_copy(copy);
-	else
-		status = nfserr_bad_stateid;
-
+	fput(src);
+	fput(dst);
+out:
 	return status;
 }
 
@@ -1344,41 +1127,22 @@ static __be32
 nfsd4_fallocate(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 		struct nfsd4_fallocate *fallocate, int flags)
 {
-	__be32 status;
-	struct nfsd_file *nf;
+	__be32 status = nfserr_notsupp;
+	struct file *file;
 
 	status = nfs4_preprocess_stateid_op(rqstp, cstate, &cstate->current_fh,
 					    &fallocate->falloc_stateid,
-					    WR_STATE, &nf);
+					    WR_STATE, &file, NULL);
 	if (status != nfs_ok) {
 		dprintk("NFSD: nfsd4_fallocate: couldn't process stateid!\n");
 		return status;
 	}
 
-	status = nfsd4_vfs_fallocate(rqstp, &cstate->current_fh, nf->nf_file,
+	status = nfsd4_vfs_fallocate(rqstp, &cstate->current_fh, file,
 				     fallocate->falloc_offset,
 				     fallocate->falloc_length,
 				     flags);
-	nfsd_file_put(nf);
-	return status;
-}
-static __be32
-nfsd4_offload_status(struct svc_rqst *rqstp,
-		     struct nfsd4_compound_state *cstate,
-		     union nfsd4_op_u *u)
-{
-	struct nfsd4_offload_status *os = &u->offload_status;
-	__be32 status = 0;
-	struct nfsd4_copy *copy;
-	struct nfs4_client *clp = cstate->clp;
-
-	copy = find_async_copy(clp, &os->stateid);
-	if (copy) {
-		os->count = copy->cp_res.wr_bytes_written;
-		nfs4_put_copy(copy);
-	} else
-		status = nfserr_bad_stateid;
-
+	fput(file);
 	return status;
 }
 
@@ -1404,11 +1168,11 @@ nfsd4_seek(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 	struct nfsd4_seek *seek = &u->seek;
 	int whence;
 	__be32 status;
-	struct nfsd_file *nf;
+	struct file *file;
 
 	status = nfs4_preprocess_stateid_op(rqstp, cstate, &cstate->current_fh,
 					    &seek->seek_stateid,
-					    RD_STATE, &nf);
+					    RD_STATE, &file, NULL);
 	if (status) {
 		dprintk("NFSD: nfsd4_seek: couldn't process stateid!\n");
 		return status;
@@ -1430,14 +1194,14 @@ nfsd4_seek(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 	 * Note:  This call does change file->f_pos, but nothing in NFSD
 	 *        should ever file->f_pos.
 	 */
-	seek->seek_pos = vfs_llseek(nf->nf_file, seek->seek_offset, whence);
+	seek->seek_pos = vfs_llseek(file, seek->seek_offset, whence);
 	if (seek->seek_pos < 0)
 		status = nfserrno(seek->seek_pos);
-	else if (seek->seek_pos >= i_size_read(file_inode(nf->nf_file)))
+	else if (seek->seek_pos >= i_size_read(file_inode(file)))
 		seek->seek_eof = true;
 
 out:
-	nfsd_file_put(nf);
+	fput(file);
 	return status;
 }
 
@@ -1925,7 +1689,6 @@ nfsd4_proc_compound(struct svc_rqst *rqstp)
 	struct nfsd4_compound_state *cstate = &resp->cstate;
 	struct svc_fh *current_fh = &cstate->current_fh;
 	struct svc_fh *save_fh = &cstate->save_fh;
-	struct nfsd_net *nn = net_generic(SVC_NET(rqstp), nfsd_net_id);
 	__be32		status;
 
 	svcxdr_init_encode(rqstp, resp);
@@ -1948,7 +1711,7 @@ nfsd4_proc_compound(struct svc_rqst *rqstp)
 	 * According to RFC3010, this takes precedence over all other errors.
 	 */
 	status = nfserr_minor_vers_mismatch;
-	if (nfsd_minorversion(nn, args->minorversion, NFSD_TEST) <= 0)
+	if (nfsd_minorversion(args->minorversion, NFSD_TEST) <= 0)
 		goto out;
 	status = nfserr_resource;
 	if (args->opcnt > NFSD_MAX_OPS_PER_COMPOUND)
@@ -2283,14 +2046,6 @@ static inline u32 nfsd4_copy_rsize(struct svc_rqst *rqstp, struct nfsd4_op *op)
 		op_encode_verifier_maxsz +
 		1 /* cr_consecutive */ +
 		1 /* cr_synchronous */) * sizeof(__be32);
-}
-
-static inline u32 nfsd4_offload_status_rsize(struct svc_rqst *rqstp,
-					     struct nfsd4_op *op)
-{
-	return (op_encode_hdr_size +
-		2 /* osr_count */ +
-		1 /* osr_complete<1> optional 0 for now */) * sizeof(__be32);
 }
 
 #ifdef CONFIG_NFSD_PNFS
@@ -2679,25 +2434,25 @@ static const struct nfsd4_operation nfsd4_ops[] = {
 	/* NFSv4.2 operations */
 	[OP_ALLOCATE] = {
 		.op_func = nfsd4_allocate,
-		.op_flags = OP_MODIFIES_SOMETHING,
+		.op_flags = OP_MODIFIES_SOMETHING | OP_CACHEME,
 		.op_name = "OP_ALLOCATE",
 		.op_rsize_bop = nfsd4_only_status_rsize,
 	},
 	[OP_DEALLOCATE] = {
 		.op_func = nfsd4_deallocate,
-		.op_flags = OP_MODIFIES_SOMETHING,
+		.op_flags = OP_MODIFIES_SOMETHING | OP_CACHEME,
 		.op_name = "OP_DEALLOCATE",
 		.op_rsize_bop = nfsd4_only_status_rsize,
 	},
 	[OP_CLONE] = {
 		.op_func = nfsd4_clone,
-		.op_flags = OP_MODIFIES_SOMETHING,
+		.op_flags = OP_MODIFIES_SOMETHING | OP_CACHEME,
 		.op_name = "OP_CLONE",
 		.op_rsize_bop = nfsd4_only_status_rsize,
 	},
 	[OP_COPY] = {
 		.op_func = nfsd4_copy,
-		.op_flags = OP_MODIFIES_SOMETHING,
+		.op_flags = OP_MODIFIES_SOMETHING | OP_CACHEME,
 		.op_name = "OP_COPY",
 		.op_rsize_bop = nfsd4_copy_rsize,
 	},
@@ -2705,17 +2460,6 @@ static const struct nfsd4_operation nfsd4_ops[] = {
 		.op_func = nfsd4_seek,
 		.op_name = "OP_SEEK",
 		.op_rsize_bop = nfsd4_seek_rsize,
-	},
-	[OP_OFFLOAD_STATUS] = {
-		.op_func = nfsd4_offload_status,
-		.op_name = "OP_OFFLOAD_STATUS",
-		.op_rsize_bop = nfsd4_offload_status_rsize,
-	},
-	[OP_OFFLOAD_CANCEL] = {
-		.op_func = nfsd4_offload_cancel,
-		.op_flags = OP_MODIFIES_SOMETHING,
-		.op_name = "OP_OFFLOAD_CANCEL",
-		.op_rsize_bop = nfsd4_only_status_rsize,
 	},
 };
 

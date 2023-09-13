@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Backlight Lowlevel Control Abstraction
  *
@@ -32,12 +31,6 @@ static const char *const backlight_types[] = {
 	[BACKLIGHT_FIRMWARE] = "firmware",
 };
 
-static const char *const backlight_scale_types[] = {
-	[BACKLIGHT_SCALE_UNKNOWN]	= "unknown",
-	[BACKLIGHT_SCALE_LINEAR]	= "linear",
-	[BACKLIGHT_SCALE_NON_LINEAR]	= "non-linear",
-};
-
 #if defined(CONFIG_FB) || (defined(CONFIG_FB_MODULE) && \
 			   defined(CONFIG_BACKLIGHT_CLASS_DEVICE_MODULE))
 /* This callback gets called when something important happens inside a
@@ -53,7 +46,7 @@ static int fb_notifier_callback(struct notifier_block *self,
 	int fb_blank = 0;
 
 	/* If we aren't interested in this event, skip it immediately ... */
-	if (event != FB_EVENT_BLANK)
+	if (event != FB_EVENT_BLANK && event != FB_EVENT_CONBLANK)
 		return 0;
 
 	bd = container_of(self, struct backlight_device, fb_notif);
@@ -252,18 +245,6 @@ static ssize_t actual_brightness_show(struct device *dev,
 }
 static DEVICE_ATTR_RO(actual_brightness);
 
-static ssize_t scale_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct backlight_device *bd = to_backlight_device(dev);
-
-	if (WARN_ON(bd->props.scale > BACKLIGHT_SCALE_NON_LINEAR))
-		return sprintf(buf, "unknown\n");
-
-	return sprintf(buf, "%s\n", backlight_scale_types[bd->props.scale]);
-}
-static DEVICE_ATTR_RO(scale);
-
 static struct class *backlight_class;
 
 #ifdef CONFIG_PM_SLEEP
@@ -310,7 +291,6 @@ static struct attribute *bl_device_attrs[] = {
 	&dev_attr_brightness.attr,
 	&dev_attr_actual_brightness.attr,
 	&dev_attr_max_brightness.attr,
-	&dev_attr_scale.attr,
 	&dev_attr_type.attr,
 	NULL,
 };
@@ -630,6 +610,12 @@ struct backlight_device *of_find_backlight(struct device *dev)
 			of_node_put(np);
 			if (!bd)
 				return ERR_PTR(-EPROBE_DEFER);
+			/*
+			 * Note: gpio_backlight uses brightness as
+			 * power state during probe
+			 */
+			if (!bd->props.brightness)
+				bd->props.brightness = bd->props.max_brightness;
 		}
 	}
 

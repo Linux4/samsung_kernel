@@ -11,6 +11,7 @@
 #ifndef _XTENSA_IO_H
 #define _XTENSA_IO_H
 
+#ifdef __KERNEL__
 #include <asm/byteorder.h>
 #include <asm/page.h>
 #include <asm/vectors.h>
@@ -21,7 +22,6 @@
 
 #define IOADDR(x)		(XCHAL_KIO_BYPASS_VADDR + (x))
 #define IO_SPACE_LIMIT ~0
-#define PCI_IOBASE		((void __iomem *)XCHAL_KIO_BYPASS_VADDR)
 
 #ifdef CONFIG_MMU
 
@@ -77,6 +77,8 @@ static inline void iounmap(volatile void __iomem *addr)
 #define bus_to_virt     phys_to_virt
 
 #endif /* CONFIG_MMU */
+
+#endif	/* __KERNEL__ */
 
 #include <asm-generic/io.h>
 

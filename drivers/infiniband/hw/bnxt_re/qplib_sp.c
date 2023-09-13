@@ -36,8 +36,6 @@
  * Description: Slow Path Operators
  */
 
-#define dev_fmt(fmt) "QPLIB: " fmt
-
 #include <linux/interrupt.h>
 #include <linux/spinlock.h>
 #include <linux/sched.h>
@@ -91,7 +89,7 @@ int bnxt_qplib_get_dev_attr(struct bnxt_qplib_rcfw *rcfw,
 	sbuf = bnxt_qplib_rcfw_alloc_sbuf(rcfw, sizeof(*sb));
 	if (!sbuf) {
 		dev_err(&rcfw->pdev->dev,
-			"SP: QUERY_FUNC alloc side buffer failed\n");
+			"QPLIB: SP: QUERY_FUNC alloc side buffer failed");
 		return -ENOMEM;
 	}
 
@@ -119,8 +117,7 @@ int bnxt_qplib_get_dev_attr(struct bnxt_qplib_rcfw *rcfw,
 	 * reporting the max number
 	 */
 	attr->max_qp_wqes -= BNXT_QPLIB_RESERVED_QP_WRS;
-	attr->max_qp_sges = bnxt_qplib_is_chip_gen_p5(rcfw->res->cctx) ?
-			    6 : sb->max_sge;
+	attr->max_qp_sges = sb->max_sge;
 	attr->max_cq = le32_to_cpu(sb->max_cq);
 	attr->max_cq_wqes = le32_to_cpu(sb->max_cqe);
 	attr->max_cq_sges = attr->max_qp_sges;
@@ -138,21 +135,13 @@ int bnxt_qplib_get_dev_attr(struct bnxt_qplib_rcfw *rcfw,
 	attr->max_srq = le16_to_cpu(sb->max_srq);
 	attr->max_srq_wqes = le32_to_cpu(sb->max_srq_wr) - 1;
 	attr->max_srq_sges = sb->max_srq_sge;
+	/* Bono only reports 1 PKEY for now, but it can support > 1 */
 	attr->max_pkey = le32_to_cpu(sb->max_pkeys);
-	/*
-	 * Some versions of FW reports more than 0xFFFF.
-	 * Restrict it for now to 0xFFFF to avoid
-	 * reporting trucated value
-	 */
-	if (attr->max_pkey > 0xFFFF) {
-		/* ib_port_attr::pkey_tbl_len is u16 */
-		attr->max_pkey = 0xFFFF;
-	}
 
 	attr->max_inline_data = le32_to_cpu(sb->max_inline_data);
 	attr->l2_db_size = (sb->l2_db_space_size + 1) *
 			    (0x01 << RCFW_DBR_BASE_PAGE_SHIFT);
-	attr->max_sgid = BNXT_QPLIB_NUM_GIDS_SUPPORTED;
+	attr->max_sgid = le32_to_cpu(sb->max_gid);
 
 	bnxt_qplib_query_version(rcfw, attr->fw_ver);
 
@@ -197,7 +186,8 @@ int bnxt_qplib_set_func_resources(struct bnxt_qplib_res *res,
 					  (void *)&resp,
 					  NULL, 0);
 	if (rc) {
-		dev_err(&res->pdev->dev, "Failed to set function resources\n");
+		dev_err(&res->pdev->dev,
+			"QPLIB: Failed to set function resources");
 	}
 	return rc;
 }
@@ -209,16 +199,16 @@ int bnxt_qplib_get_sgid(struct bnxt_qplib_res *res,
 {
 	if (index >= sgid_tbl->max) {
 		dev_err(&res->pdev->dev,
-			"Index %d exceeded SGID table max (%d)\n",
+			"QPLIB: Index %d exceeded SGID table max (%d)",
 			index, sgid_tbl->max);
 		return -EINVAL;
 	}
-	memcpy(gid, &sgid_tbl->tbl[index].gid, sizeof(*gid));
+	memcpy(gid, &sgid_tbl->tbl[index], sizeof(*gid));
 	return 0;
 }
 
 int bnxt_qplib_del_sgid(struct bnxt_qplib_sgid_tbl *sgid_tbl,
-			struct bnxt_qplib_gid *gid, u16 vlan_id, bool update)
+			struct bnxt_qplib_gid *gid, bool update)
 {
 	struct bnxt_qplib_res *res = to_bnxt_qplib(sgid_tbl,
 						   struct bnxt_qplib_res,
@@ -227,21 +217,21 @@ int bnxt_qplib_del_sgid(struct bnxt_qplib_sgid_tbl *sgid_tbl,
 	int index;
 
 	if (!sgid_tbl) {
-		dev_err(&res->pdev->dev, "SGID table not allocated\n");
+		dev_err(&res->pdev->dev, "QPLIB: SGID table not allocated");
 		return -EINVAL;
 	}
 	/* Do we need a sgid_lock here? */
 	if (!sgid_tbl->active) {
-		dev_err(&res->pdev->dev, "SGID table has no active entries\n");
+		dev_err(&res->pdev->dev,
+			"QPLIB: SGID table has no active entries");
 		return -ENOMEM;
 	}
 	for (index = 0; index < sgid_tbl->max; index++) {
-		if (!memcmp(&sgid_tbl->tbl[index].gid, gid, sizeof(*gid)) &&
-		    vlan_id == sgid_tbl->tbl[index].vlan_id)
+		if (!memcmp(&sgid_tbl->tbl[index], gid, sizeof(*gid)))
 			break;
 	}
 	if (index == sgid_tbl->max) {
-		dev_warn(&res->pdev->dev, "GID not found in the SGID table\n");
+		dev_warn(&res->pdev->dev, "GID not found in the SGID table");
 		return 0;
 	}
 	/* Remove GID from the SGID table */
@@ -254,7 +244,7 @@ int bnxt_qplib_del_sgid(struct bnxt_qplib_sgid_tbl *sgid_tbl,
 		RCFW_CMD_PREP(req, DELETE_GID, cmd_flags);
 		if (sgid_tbl->hw_id[index] == 0xFFFF) {
 			dev_err(&res->pdev->dev,
-				"GID entry contains an invalid HW id\n");
+				"QPLIB: GID entry contains an invalid HW id");
 			return -EINVAL;
 		}
 		req.gid_index = cpu_to_le16(sgid_tbl->hw_id[index]);
@@ -263,13 +253,12 @@ int bnxt_qplib_del_sgid(struct bnxt_qplib_sgid_tbl *sgid_tbl,
 		if (rc)
 			return rc;
 	}
-	memcpy(&sgid_tbl->tbl[index].gid, &bnxt_qplib_gid_zero,
+	memcpy(&sgid_tbl->tbl[index], &bnxt_qplib_gid_zero,
 	       sizeof(bnxt_qplib_gid_zero));
-	sgid_tbl->tbl[index].vlan_id = 0xFFFF;
 	sgid_tbl->vlan[index] = 0;
 	sgid_tbl->active--;
 	dev_dbg(&res->pdev->dev,
-		"SGID deleted hw_id[0x%x] = 0x%x active = 0x%x\n",
+		"QPLIB: SGID deleted hw_id[0x%x] = 0x%x active = 0x%x",
 		 index, sgid_tbl->hw_id[index], sgid_tbl->active);
 	sgid_tbl->hw_id[index] = (u16)-1;
 
@@ -288,20 +277,20 @@ int bnxt_qplib_add_sgid(struct bnxt_qplib_sgid_tbl *sgid_tbl,
 	int i, free_idx;
 
 	if (!sgid_tbl) {
-		dev_err(&res->pdev->dev, "SGID table not allocated\n");
+		dev_err(&res->pdev->dev, "QPLIB: SGID table not allocated");
 		return -EINVAL;
 	}
 	/* Do we need a sgid_lock here? */
 	if (sgid_tbl->active == sgid_tbl->max) {
-		dev_err(&res->pdev->dev, "SGID table is full\n");
+		dev_err(&res->pdev->dev, "QPLIB: SGID table is full");
 		return -ENOMEM;
 	}
 	free_idx = sgid_tbl->max;
 	for (i = 0; i < sgid_tbl->max; i++) {
-		if (!memcmp(&sgid_tbl->tbl[i], gid, sizeof(*gid)) &&
-		    sgid_tbl->tbl[i].vlan_id == vlan_id) {
+		if (!memcmp(&sgid_tbl->tbl[i], gid, sizeof(*gid))) {
 			dev_dbg(&res->pdev->dev,
-				"SGID entry already exist in entry %d!\n", i);
+				"QPLIB: SGID entry already exist in entry %d!",
+				i);
 			*index = i;
 			return -EALREADY;
 		} else if (!memcmp(&sgid_tbl->tbl[i], &bnxt_qplib_gid_zero,
@@ -312,7 +301,7 @@ int bnxt_qplib_add_sgid(struct bnxt_qplib_sgid_tbl *sgid_tbl,
 	}
 	if (free_idx == sgid_tbl->max) {
 		dev_err(&res->pdev->dev,
-			"SGID table is FULL but count is not MAX??\n");
+			"QPLIB: SGID table is FULL but count is not MAX??");
 		return -ENOMEM;
 	}
 	if (update) {
@@ -354,13 +343,12 @@ int bnxt_qplib_add_sgid(struct bnxt_qplib_sgid_tbl *sgid_tbl,
 	}
 	/* Add GID to the sgid_tbl */
 	memcpy(&sgid_tbl->tbl[free_idx], gid, sizeof(*gid));
-	sgid_tbl->tbl[free_idx].vlan_id = vlan_id;
 	sgid_tbl->active++;
 	if (vlan_id != 0xFFFF)
 		sgid_tbl->vlan[free_idx] = 1;
 
 	dev_dbg(&res->pdev->dev,
-		"SGID added hw_id[0x%x] = 0x%x active = 0x%x\n",
+		"QPLIB: SGID added hw_id[0x%x] = 0x%x active = 0x%x",
 		 free_idx, sgid_tbl->hw_id[free_idx], sgid_tbl->active);
 
 	*index = free_idx;
@@ -416,7 +404,7 @@ int bnxt_qplib_get_pkey(struct bnxt_qplib_res *res,
 	}
 	if (index >= pkey_tbl->max) {
 		dev_err(&res->pdev->dev,
-			"Index %d exceeded PKEY table max (%d)\n",
+			"QPLIB: Index %d exceeded PKEY table max (%d)",
 			index, pkey_tbl->max);
 		return -EINVAL;
 	}
@@ -431,13 +419,14 @@ int bnxt_qplib_del_pkey(struct bnxt_qplib_res *res,
 	int i, rc = 0;
 
 	if (!pkey_tbl) {
-		dev_err(&res->pdev->dev, "PKEY table not allocated\n");
+		dev_err(&res->pdev->dev, "QPLIB: PKEY table not allocated");
 		return -EINVAL;
 	}
 
 	/* Do we need a pkey_lock here? */
 	if (!pkey_tbl->active) {
-		dev_err(&res->pdev->dev, "PKEY table has no active entries\n");
+		dev_err(&res->pdev->dev,
+			"QPLIB: PKEY table has no active entries");
 		return -ENOMEM;
 	}
 	for (i = 0; i < pkey_tbl->max; i++) {
@@ -446,7 +435,8 @@ int bnxt_qplib_del_pkey(struct bnxt_qplib_res *res,
 	}
 	if (i == pkey_tbl->max) {
 		dev_err(&res->pdev->dev,
-			"PKEY 0x%04x not found in the pkey table\n", *pkey);
+			"QPLIB: PKEY 0x%04x not found in the pkey table",
+			*pkey);
 		return -ENOMEM;
 	}
 	memset(&pkey_tbl->tbl[i], 0, sizeof(*pkey));
@@ -463,13 +453,13 @@ int bnxt_qplib_add_pkey(struct bnxt_qplib_res *res,
 	int i, free_idx, rc = 0;
 
 	if (!pkey_tbl) {
-		dev_err(&res->pdev->dev, "PKEY table not allocated\n");
+		dev_err(&res->pdev->dev, "QPLIB: PKEY table not allocated");
 		return -EINVAL;
 	}
 
 	/* Do we need a pkey_lock here? */
 	if (pkey_tbl->active == pkey_tbl->max) {
-		dev_err(&res->pdev->dev, "PKEY table is full\n");
+		dev_err(&res->pdev->dev, "QPLIB: PKEY table is full");
 		return -ENOMEM;
 	}
 	free_idx = pkey_tbl->max;
@@ -481,7 +471,7 @@ int bnxt_qplib_add_pkey(struct bnxt_qplib_res *res,
 	}
 	if (free_idx == pkey_tbl->max) {
 		dev_err(&res->pdev->dev,
-			"PKEY table is FULL but count is not MAX??\n");
+			"QPLIB: PKEY table is FULL but count is not MAX??");
 		return -ENOMEM;
 	}
 	/* Add PKEY to the pkey_tbl */
@@ -493,8 +483,7 @@ int bnxt_qplib_add_pkey(struct bnxt_qplib_res *res,
 }
 
 /* AH */
-int bnxt_qplib_create_ah(struct bnxt_qplib_res *res, struct bnxt_qplib_ah *ah,
-			 bool block)
+int bnxt_qplib_create_ah(struct bnxt_qplib_res *res, struct bnxt_qplib_ah *ah)
 {
 	struct bnxt_qplib_rcfw *rcfw = res->rcfw;
 	struct cmdq_create_ah req;
@@ -528,7 +517,7 @@ int bnxt_qplib_create_ah(struct bnxt_qplib_res *res, struct bnxt_qplib_ah *ah,
 	req.dest_mac[2] = cpu_to_le16(temp16[2]);
 
 	rc = bnxt_qplib_rcfw_send_message(rcfw, (void *)&req, (void *)&resp,
-					  NULL, block);
+					  NULL, 1);
 	if (rc)
 		return rc;
 
@@ -536,21 +525,24 @@ int bnxt_qplib_create_ah(struct bnxt_qplib_res *res, struct bnxt_qplib_ah *ah,
 	return 0;
 }
 
-void bnxt_qplib_destroy_ah(struct bnxt_qplib_res *res, struct bnxt_qplib_ah *ah,
-			   bool block)
+int bnxt_qplib_destroy_ah(struct bnxt_qplib_res *res, struct bnxt_qplib_ah *ah)
 {
 	struct bnxt_qplib_rcfw *rcfw = res->rcfw;
 	struct cmdq_destroy_ah req;
 	struct creq_destroy_ah_resp resp;
 	u16 cmd_flags = 0;
+	int rc;
 
 	/* Clean up the AH table in the device */
 	RCFW_CMD_PREP(req, DESTROY_AH, cmd_flags);
 
 	req.ah_cid = cpu_to_le32(ah->id);
 
-	bnxt_qplib_rcfw_send_message(rcfw, (void *)&req, (void *)&resp, NULL,
-				     block);
+	rc = bnxt_qplib_rcfw_send_message(rcfw, (void *)&req, (void *)&resp,
+					  NULL, 1);
+	if (rc)
+		return rc;
+	return 0;
 }
 
 /* MRW */
@@ -563,7 +555,8 @@ int bnxt_qplib_free_mrw(struct bnxt_qplib_res *res, struct bnxt_qplib_mrw *mrw)
 	int rc;
 
 	if (mrw->lkey == 0xFFFFFFFF) {
-		dev_info(&res->pdev->dev, "SP: Free a reserved lkey MRW\n");
+		dev_info(&res->pdev->dev,
+			 "QPLIB: SP: Free a reserved lkey MRW");
 		return 0;
 	}
 
@@ -673,8 +666,9 @@ int bnxt_qplib_reg_mr(struct bnxt_qplib_res *res, struct bnxt_qplib_mrw *mr,
 			pages++;
 
 		if (pages > MAX_PBL_LVL_1_PGS) {
+			dev_err(&res->pdev->dev, "QPLIB: SP: Reg MR pages ");
 			dev_err(&res->pdev->dev,
-				"SP: Reg MR pages requested (0x%x) exceeded max (0x%x)\n",
+				"requested (0x%x) exceeded max (0x%x)",
 				pages, MAX_PBL_LVL_1_PGS);
 			return -ENOMEM;
 		}
@@ -684,13 +678,13 @@ int bnxt_qplib_reg_mr(struct bnxt_qplib_res *res, struct bnxt_qplib_mrw *mr,
 
 		mr->hwq.max_elements = pages;
 		/* Use system PAGE_SIZE */
-		rc = bnxt_qplib_alloc_init_hwq(res->pdev, &mr->hwq, NULL,
+		rc = bnxt_qplib_alloc_init_hwq(res->pdev, &mr->hwq, NULL, 0,
 					       &mr->hwq.max_elements,
 					       PAGE_SIZE, 0, PAGE_SIZE,
 					       HWQ_TYPE_CTX);
 		if (rc) {
 			dev_err(&res->pdev->dev,
-				"SP: Reg MR memory allocation failed\n");
+				"SP: Reg MR memory allocation failed");
 			return -ENOMEM;
 		}
 		/* Write to the hwq */
@@ -754,7 +748,7 @@ int bnxt_qplib_alloc_fast_reg_page_list(struct bnxt_qplib_res *res,
 		return -ENOMEM;
 
 	frpl->hwq.max_elements = pages;
-	rc = bnxt_qplib_alloc_init_hwq(res->pdev, &frpl->hwq, NULL,
+	rc = bnxt_qplib_alloc_init_hwq(res->pdev, &frpl->hwq, NULL, 0,
 				       &frpl->hwq.max_elements, PAGE_SIZE, 0,
 				       PAGE_SIZE, HWQ_TYPE_CTX);
 	if (!rc)
@@ -800,7 +794,7 @@ int bnxt_qplib_get_roce_stats(struct bnxt_qplib_rcfw *rcfw,
 	sbuf = bnxt_qplib_rcfw_alloc_sbuf(rcfw, sizeof(*sb));
 	if (!sbuf) {
 		dev_err(&rcfw->pdev->dev,
-			"SP: QUERY_ROCE_STATS alloc side buffer failed\n");
+			"QPLIB: SP: QUERY_ROCE_STATS alloc side buffer failed");
 		return -ENOMEM;
 	}
 
@@ -850,16 +844,6 @@ int bnxt_qplib_get_roce_stats(struct bnxt_qplib_rcfw *rcfw,
 	stats->res_srq_load_err = le64_to_cpu(sb->res_srq_load_err);
 	stats->res_tx_pci_err = le64_to_cpu(sb->res_tx_pci_err);
 	stats->res_rx_pci_err = le64_to_cpu(sb->res_rx_pci_err);
-	if (!rcfw->init_oos_stats) {
-		rcfw->oos_prev = le64_to_cpu(sb->res_oos_drop_count);
-		rcfw->init_oos_stats = 1;
-	} else {
-		stats->res_oos_drop_count +=
-				(le64_to_cpu(sb->res_oos_drop_count) -
-				 rcfw->oos_prev) & BNXT_QPLIB_OOS_COUNT_MASK;
-		rcfw->oos_prev = le64_to_cpu(sb->res_oos_drop_count);
-	}
-
 bail:
 	bnxt_qplib_rcfw_free_sbuf(rcfw, sbuf);
 	return rc;

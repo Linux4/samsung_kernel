@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * arch/sh/mm/tlb-sh3.c
  *
@@ -6,6 +5,8 @@
  *
  * Copyright (C) 1999  Niibe Yutaka
  * Copyright (C) 2002  Paul Mundt
+ *
+ * Released under the terms of the GNU GPL v2.0.
  */
 #include <linux/signal.h>
 #include <linux/sched.h>

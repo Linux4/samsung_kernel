@@ -580,6 +580,14 @@ void qede_update_rx_prod(struct qede_dev *edev, struct qede_rx_queue *rxq)
 
 	internal_ram_wr(rxq->hw_rxq_prod_addr, sizeof(rx_prods),
 			(u32 *)&rx_prods);
+
+	/* mmiowb is needed to synchronize doorbell writes from more than one
+	 * processor. It guarantees that the write arrives to the device before
+	 * the napi lock is released and another qede_poll is called (possibly
+	 * on another CPU). Without this barrier, the next doorbell can bypass
+	 * this doorbell. This is applicable to IA64/Altix systems.
+	 */
+	mmiowb();
 }
 
 static void qede_get_rxhash(struct sk_buff *skb, u8 bitfields, __le32 rss_hash)
@@ -723,9 +731,6 @@ qede_build_skb(struct qede_rx_queue *rxq,
 	buf = page_address(bd->data) + bd->page_offset;
 	skb = build_skb(buf, rxq->rx_buf_seg_size);
 
-	if (unlikely(!skb))
-		return NULL;
-
 	skb_reserve(skb, pad);
 	skb_put(skb, len);
 
@@ -782,7 +787,8 @@ qede_rx_build_skb(struct qede_dev *edev,
 			return NULL;
 
 		skb_reserve(skb, pad);
-		skb_put_data(skb, page_address(bd->data) + offset, len);
+		memcpy(skb_put(skb, len),
+		       page_address(bd->data) + offset, len);
 		qede_reuse_page(rxq, bd);
 		goto out;
 	}
@@ -1460,8 +1466,8 @@ netdev_tx_t qede_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 #if ((MAX_SKB_FRAGS + 2) > ETH_TX_MAX_BDS_PER_NON_LSO_PACKET)
 	if (qede_pkt_req_lin(skb, xmit_type)) {
 		if (skb_linearize(skb)) {
-			txq->tx_mem_alloc_err++;
-
+			DP_NOTICE(edev,
+				  "SKB linearization failed - silently dropping this SKB\n");
 			dev_kfree_skb_any(skb);
 			return NETDEV_TX_OK;
 		}
@@ -1600,13 +1606,6 @@ netdev_tx_t qede_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 			data_split = true;
 		}
 	} else {
-		if (unlikely(skb->len > ETH_TX_MAX_NON_LSO_PKT_LEN)) {
-			DP_ERR(edev, "Unexpected non LSO skb length = 0x%x\n", skb->len);
-			qede_free_failed_tx_pkt(txq, first_bd, 0, false);
-			qede_update_tx_producer(txq);
-			return NETDEV_TX_OK;
-		}
-
 		val |= ((skb->len & ETH_TX_DATA_1ST_BD_PKT_LEN_MASK) <<
 			 ETH_TX_DATA_1ST_BD_PKT_LEN_SHIFT);
 	}
@@ -1666,12 +1665,12 @@ netdev_tx_t qede_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	txq->tx_db.data.bd_prod =
 		cpu_to_le16(qed_chain_get_prod_idx(&txq->tx_pbl));
 
-	if (!netdev_xmit_more() || netif_xmit_stopped(netdev_txq))
+	if (!skb->xmit_more || netif_xmit_stopped(netdev_txq))
 		qede_update_tx_producer(txq);
 
 	if (unlikely(qed_chain_get_elem_left(&txq->tx_pbl)
 		      < (MAX_SKB_FRAGS + 1))) {
-		if (netdev_xmit_more())
+		if (skb->xmit_more)
 			qede_update_tx_producer(txq);
 
 		netif_tx_stop_queue(netdev_txq);
@@ -1697,7 +1696,8 @@ netdev_tx_t qede_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 }
 
 u16 qede_select_queue(struct net_device *dev, struct sk_buff *skb,
-		      struct net_device *sb_dev)
+		      struct net_device *sb_dev,
+		      select_queue_fallback_t fallback)
 {
 	struct qede_dev *edev = netdev_priv(dev);
 	int total_txq;
@@ -1705,7 +1705,7 @@ u16 qede_select_queue(struct net_device *dev, struct sk_buff *skb,
 	total_txq = QEDE_TSS_COUNT(edev) * edev->dev_info.num_tc;
 
 	return QEDE_TSS_COUNT(edev) ?
-		netdev_pick_tx(dev, skb, NULL) % total_txq :  0;
+		fallback(dev, skb, NULL) % total_txq :  0;
 }
 
 /* 8B udp header + 8B base tunnel header + 32B option length */
@@ -1747,11 +1747,6 @@ netdev_features_t qede_features_check(struct sk_buff *skb,
 			      ntohs(udp_hdr(skb)->dest) != gnv_port))
 				return features & ~(NETIF_F_CSUM_MASK |
 						    NETIF_F_GSO_MASK);
-		} else if (l4_proto == IPPROTO_IPIP) {
-			/* IPIP tunnels are unknown to the device or at least unsupported natively,
-			 * offloads for them can't be done trivially, so disable them for such skb.
-			 */
-			return features & ~(NETIF_F_CSUM_MASK | NETIF_F_GSO_MASK);
 		}
 	}
 

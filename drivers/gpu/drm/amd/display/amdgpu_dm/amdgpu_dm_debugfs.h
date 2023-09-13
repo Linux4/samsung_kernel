@@ -29,7 +29,6 @@
 #include "amdgpu.h"
 #include "amdgpu_dm.h"
 
-void connector_debugfs_init(struct amdgpu_dm_connector *connector);
-int dtn_debugfs_init(struct amdgpu_device *adev);
+int connector_debugfs_init(struct amdgpu_dm_connector *connector);
 
 #endif

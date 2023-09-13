@@ -15,28 +15,33 @@ struct insn {
 	s32 offset;
 } __packed;
 
+struct insn_args {
+	struct jump_entry *entry;
+	enum jump_label_type type;
+};
+
 static void jump_label_make_nop(struct jump_entry *entry, struct insn *insn)
 {
-	/* brcl 0,offset */
+	/* brcl 0,0 */
 	insn->opcode = 0xc004;
-	insn->offset = (jump_entry_target(entry) - jump_entry_code(entry)) >> 1;
+	insn->offset = 0;
 }
 
 static void jump_label_make_branch(struct jump_entry *entry, struct insn *insn)
 {
 	/* brcl 15,offset */
 	insn->opcode = 0xc0f4;
-	insn->offset = (jump_entry_target(entry) - jump_entry_code(entry)) >> 1;
+	insn->offset = (entry->target - entry->code) >> 1;
 }
 
 static void jump_label_bug(struct jump_entry *entry, struct insn *expected,
 			   struct insn *new)
 {
-	unsigned char *ipc = (unsigned char *)jump_entry_code(entry);
+	unsigned char *ipc = (unsigned char *)entry->code;
 	unsigned char *ipe = (unsigned char *)expected;
 	unsigned char *ipn = (unsigned char *)new;
 
-	pr_emerg("Jump label code mismatch at %pS [%px]\n", ipc, ipc);
+	pr_emerg("Jump label code mismatch at %pS [%p]\n", ipc, ipc);
 	pr_emerg("Found:    %6ph\n", ipc);
 	pr_emerg("Expected: %6ph\n", ipe);
 	pr_emerg("New:      %6ph\n", ipn);
@@ -52,7 +57,6 @@ static void __jump_label_transform(struct jump_entry *entry,
 				   enum jump_label_type type,
 				   int init)
 {
-	void *code = (void *)jump_entry_code(entry);
 	struct insn old, new;
 
 	if (type == JUMP_LABEL_JMP) {
@@ -63,24 +67,32 @@ static void __jump_label_transform(struct jump_entry *entry,
 		jump_label_make_nop(entry, &new);
 	}
 	if (init) {
-		if (memcmp(code, &orignop, sizeof(orignop)))
+		if (memcmp((void *)entry->code, &orignop, sizeof(orignop)))
 			jump_label_bug(entry, &orignop, &new);
 	} else {
-		if (memcmp(code, &old, sizeof(old)))
+		if (memcmp((void *)entry->code, &old, sizeof(old)))
 			jump_label_bug(entry, &old, &new);
 	}
-	s390_kernel_write(code, &new, sizeof(new));
+	s390_kernel_write((void *)entry->code, &new, sizeof(new));
 }
 
-static void __jump_label_sync(void *dummy)
+static int __sm_arch_jump_label_transform(void *data)
 {
+	struct insn_args *args = data;
+
+	__jump_label_transform(args->entry, args->type, 0);
+	return 0;
 }
 
 void arch_jump_label_transform(struct jump_entry *entry,
 			       enum jump_label_type type)
 {
-	__jump_label_transform(entry, type, 0);
-	smp_call_function(__jump_label_sync, NULL, 1);
+	struct insn_args args;
+
+	args.entry = entry;
+	args.type = type;
+
+	stop_machine_cpuslocked(__sm_arch_jump_label_transform, &args, NULL);
 }
 
 void arch_jump_label_transform_static(struct jump_entry *entry,

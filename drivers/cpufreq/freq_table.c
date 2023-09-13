@@ -1,18 +1,18 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * linux/drivers/cpufreq/freq_table.c
  *
  * Copyright (C) 2002 - 2003 Dominik Brodowski
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/cpufreq.h>
 #include <linux/module.h>
-#ifdef CONFIG_CPU_FREQ_LIMIT
-/* cpu frequency table for limit driver */
-void cflm_set_table(int cpu, struct cpufreq_frequency_table *ftbl);
-#endif
 
 /*********************************************************************
  *                     FREQUENCY TABLE HELPERS                       *
@@ -58,16 +58,13 @@ int cpufreq_frequency_table_cpuinfo(struct cpufreq_policy *policy,
 	policy->min = policy->cpuinfo.min_freq = min_freq;
 	policy->max = policy->cpuinfo.max_freq = max_freq;
 
-	if (max_freq > cpuinfo_max_freq_cached)
-		cpuinfo_max_freq_cached = max_freq;
-
 	if (policy->min == ~0)
 		return -EINVAL;
 	else
 		return 0;
 }
 
-int cpufreq_frequency_table_verify(struct cpufreq_policy_data *policy,
+int cpufreq_frequency_table_verify(struct cpufreq_policy *policy,
 				   struct cpufreq_frequency_table *table)
 {
 	struct cpufreq_frequency_table *pos;
@@ -107,7 +104,7 @@ EXPORT_SYMBOL_GPL(cpufreq_frequency_table_verify);
  * Generic routine to verify policy & frequency table, requires driver to set
  * policy->freq_table prior to it.
  */
-int cpufreq_generic_frequency_table_verify(struct cpufreq_policy_data *policy)
+int cpufreq_generic_frequency_table_verify(struct cpufreq_policy *policy)
 {
 	if (!policy->freq_table)
 		return -ENODEV;
@@ -293,6 +290,9 @@ EXPORT_SYMBOL_GPL(cpufreq_freq_attr_scaling_boost_freqs);
 
 struct freq_attr *cpufreq_generic_attr[] = {
 	&cpufreq_freq_attr_scaling_available_freqs,
+#ifdef CONFIG_CPU_FREQ_BOOST_SW
+	&cpufreq_freq_attr_scaling_boost_freqs,
+#endif
 	NULL,
 };
 EXPORT_SYMBOL_GPL(cpufreq_generic_attr);
@@ -362,10 +362,6 @@ int cpufreq_table_validate_and_sort(struct cpufreq_policy *policy)
 	ret = cpufreq_frequency_table_cpuinfo(policy, policy->freq_table);
 	if (ret)
 		return ret;
-
-#ifdef CONFIG_CPU_FREQ_LIMIT
-	cflm_set_table(policy->cpu, policy->freq_table);
-#endif
 
 	return set_freq_table_sorted(policy);
 }

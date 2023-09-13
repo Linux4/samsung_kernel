@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  Copyright 2008 ioogle, Inc.  All rights reserved.
+ *	Released under GPL v2.
  *
  * Libata transport class.
  *
@@ -196,7 +196,7 @@ static struct {
 	{ XFER_PIO_0,			"XFER_PIO_0" },
 	{ XFER_PIO_SLOW,		"XFER_PIO_SLOW" }
 };
-ata_bitfield_name_search(xfer, ata_xfer_names)
+ata_bitfield_name_match(xfer,ata_xfer_names)
 
 /*
  * ATA Port attributes

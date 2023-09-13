@@ -39,22 +39,20 @@ const char *_parse_integer_fixup_radix(const char *s, unsigned int *base)
 
 /*
  * Convert non-negative integer string representation in explicitly given radix
- * to an integer. A maximum of max_chars characters will be converted.
- *
+ * to an integer.
  * Return number of characters consumed maybe or-ed with overflow bit.
  * If overflow occurs, result integer (incorrect) is still returned.
  *
  * Don't you dare use this function.
  */
-unsigned int _parse_integer_limit(const char *s, unsigned int base, unsigned long long *p,
-				  size_t max_chars)
+unsigned int _parse_integer(const char *s, unsigned int base, unsigned long long *p)
 {
 	unsigned long long res;
 	unsigned int rv;
 
 	res = 0;
 	rv = 0;
-	while (max_chars--) {
+	while (1) {
 		unsigned int c = *s;
 		unsigned int lc = c | 0x20; /* don't tolower() this line */
 		unsigned int val;
@@ -82,11 +80,6 @@ unsigned int _parse_integer_limit(const char *s, unsigned int base, unsigned lon
 	}
 	*p = res;
 	return rv;
-}
-
-unsigned int _parse_integer(const char *s, unsigned int base, unsigned long long *p)
-{
-	return _parse_integer_limit(s, base, p, INT_MAX);
 }
 
 static int _kstrtoull(const char *s, unsigned int base, unsigned long long *res)
@@ -182,7 +175,7 @@ int _kstrtoul(const char *s, unsigned int base, unsigned long *res)
 	rv = kstrtoull(s, base, &tmp);
 	if (rv < 0)
 		return rv;
-	if (tmp != (unsigned long)tmp)
+	if (tmp != (unsigned long long)(unsigned long)tmp)
 		return -ERANGE;
 	*res = tmp;
 	return 0;
@@ -198,7 +191,7 @@ int _kstrtol(const char *s, unsigned int base, long *res)
 	rv = kstrtoll(s, base, &tmp);
 	if (rv < 0)
 		return rv;
-	if (tmp != (long)tmp)
+	if (tmp != (long long)(long)tmp)
 		return -ERANGE;
 	*res = tmp;
 	return 0;
@@ -229,7 +222,7 @@ int kstrtouint(const char *s, unsigned int base, unsigned int *res)
 	rv = kstrtoull(s, base, &tmp);
 	if (rv < 0)
 		return rv;
-	if (tmp != (unsigned int)tmp)
+	if (tmp != (unsigned long long)(unsigned int)tmp)
 		return -ERANGE;
 	*res = tmp;
 	return 0;
@@ -260,7 +253,7 @@ int kstrtoint(const char *s, unsigned int base, int *res)
 	rv = kstrtoll(s, base, &tmp);
 	if (rv < 0)
 		return rv;
-	if (tmp != (int)tmp)
+	if (tmp != (long long)(int)tmp)
 		return -ERANGE;
 	*res = tmp;
 	return 0;
@@ -275,7 +268,7 @@ int kstrtou16(const char *s, unsigned int base, u16 *res)
 	rv = kstrtoull(s, base, &tmp);
 	if (rv < 0)
 		return rv;
-	if (tmp != (u16)tmp)
+	if (tmp != (unsigned long long)(u16)tmp)
 		return -ERANGE;
 	*res = tmp;
 	return 0;
@@ -290,7 +283,7 @@ int kstrtos16(const char *s, unsigned int base, s16 *res)
 	rv = kstrtoll(s, base, &tmp);
 	if (rv < 0)
 		return rv;
-	if (tmp != (s16)tmp)
+	if (tmp != (long long)(s16)tmp)
 		return -ERANGE;
 	*res = tmp;
 	return 0;
@@ -305,7 +298,7 @@ int kstrtou8(const char *s, unsigned int base, u8 *res)
 	rv = kstrtoull(s, base, &tmp);
 	if (rv < 0)
 		return rv;
-	if (tmp != (u8)tmp)
+	if (tmp != (unsigned long long)(u8)tmp)
 		return -ERANGE;
 	*res = tmp;
 	return 0;
@@ -320,7 +313,7 @@ int kstrtos8(const char *s, unsigned int base, s8 *res)
 	rv = kstrtoll(s, base, &tmp);
 	if (rv < 0)
 		return rv;
-	if (tmp != (s8)tmp)
+	if (tmp != (long long)(s8)tmp)
 		return -ERANGE;
 	*res = tmp;
 	return 0;

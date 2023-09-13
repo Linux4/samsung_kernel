@@ -600,9 +600,12 @@ static int usbtv_querycap(struct file *file, void *priv,
 {
 	struct usbtv *dev = video_drvdata(file);
 
-	strscpy(cap->driver, "usbtv", sizeof(cap->driver));
-	strscpy(cap->card, "usbtv", sizeof(cap->card));
+	strlcpy(cap->driver, "usbtv", sizeof(cap->driver));
+	strlcpy(cap->card, "usbtv", sizeof(cap->card));
 	usb_make_path(dev->udev, cap->bus_info, sizeof(cap->bus_info));
+	cap->device_caps = V4L2_CAP_VIDEO_CAPTURE;
+	cap->device_caps |= V4L2_CAP_READWRITE | V4L2_CAP_STREAMING;
+	cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
 	return 0;
 }
 
@@ -613,10 +616,10 @@ static int usbtv_enum_input(struct file *file, void *priv,
 
 	switch (i->index) {
 	case USBTV_COMPOSITE_INPUT:
-		strscpy(i->name, "Composite", sizeof(i->name));
+		strlcpy(i->name, "Composite", sizeof(i->name));
 		break;
 	case USBTV_SVIDEO_INPUT:
-		strscpy(i->name, "S-Video", sizeof(i->name));
+		strlcpy(i->name, "S-Video", sizeof(i->name));
 		break;
 	default:
 		return -EINVAL;
@@ -633,6 +636,8 @@ static int usbtv_enum_fmt_vid_cap(struct file *file, void  *priv,
 	if (f->index > 0)
 		return -EINVAL;
 
+	strlcpy(f->description, "16 bpp YUY2, 4:2:2, packed",
+					sizeof(f->description));
 	f->pixelformat = V4L2_PIX_FMT_YUYV;
 	return 0;
 }
@@ -930,7 +935,7 @@ int usbtv_video_init(struct usbtv *usbtv)
 	}
 
 	/* Video structure */
-	strscpy(usbtv->vdev.name, "usbtv", sizeof(usbtv->vdev.name));
+	strlcpy(usbtv->vdev.name, "usbtv", sizeof(usbtv->vdev.name));
 	usbtv->vdev.v4l2_dev = &usbtv->v4l2_dev;
 	usbtv->vdev.release = video_device_release_empty;
 	usbtv->vdev.fops = &usbtv_fops;
@@ -938,8 +943,6 @@ int usbtv_video_init(struct usbtv *usbtv)
 	usbtv->vdev.tvnorms = USBTV_TV_STD;
 	usbtv->vdev.queue = &usbtv->vb2q;
 	usbtv->vdev.lock = &usbtv->v4l2_lock;
-	usbtv->vdev.device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_READWRITE |
-				  V4L2_CAP_STREAMING;
 	video_set_drvdata(&usbtv->vdev, usbtv);
 	ret = video_register_device(&usbtv->vdev, VFL_TYPE_GRABBER, -1);
 	if (ret < 0) {

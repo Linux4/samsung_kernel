@@ -20,6 +20,7 @@ struct real_mode_header {
 	u32	ro_end;
 	/* SMP trampoline */
 	u32	trampoline_start;
+	u32	trampoline_status;
 	u32	trampoline_header;
 #ifdef CONFIG_X86_64
 	u32	trampoline_pgd;
@@ -76,13 +77,8 @@ static inline size_t real_mode_size_needed(void)
 	return ALIGN(real_mode_blob_end - real_mode_blob, PAGE_SIZE);
 }
 
-static inline void set_real_mode_mem(phys_addr_t mem)
-{
-	real_mode_header = (struct real_mode_header *) __va(mem);
-}
-
+void set_real_mode_mem(phys_addr_t mem, size_t size);
 void reserve_real_mode(void);
-void load_trampoline_pgtable(void);
 
 #endif /* __ASSEMBLY__ */
 

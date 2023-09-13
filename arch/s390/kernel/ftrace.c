@@ -57,7 +57,6 @@
  * >	brasl	%r0,ftrace_caller	# offset 0
  */
 
-void *ftrace_func __read_mostly = ftrace_stub;
 unsigned long ftrace_plt;
 
 static inline void ftrace_generate_orig_insn(struct ftrace_insn *insn)
@@ -167,7 +166,6 @@ int ftrace_make_call(struct dyn_ftrace *rec, unsigned long addr)
 
 int ftrace_update_ftrace_func(ftrace_func_t func)
 {
-	ftrace_func = func;
 	return 0;
 }
 
@@ -203,18 +201,17 @@ device_initcall(ftrace_plt_init);
  * Hook the return address and push it in the stack of return addresses
  * in current thread info.
  */
-unsigned long prepare_ftrace_return(unsigned long ra, unsigned long sp,
-				    unsigned long ip)
+unsigned long prepare_ftrace_return(unsigned long parent, unsigned long ip)
 {
 	if (unlikely(ftrace_graph_is_dead()))
 		goto out;
 	if (unlikely(atomic_read(&current->tracing_graph_pause)))
 		goto out;
 	ip -= MCOUNT_INSN_SIZE;
-	if (!function_graph_enter(ra, ip, 0, (void *) sp))
-		ra = (unsigned long) return_to_handler;
+	if (!function_graph_enter(parent, ip, 0, NULL))
+		parent = (unsigned long) return_to_handler;
 out:
-	return ra;
+	return parent;
 }
 NOKPROBE_SYMBOL(prepare_ftrace_return);
 

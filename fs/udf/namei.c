@@ -30,7 +30,6 @@
 #include <linux/sched.h>
 #include <linux/crc-itu-t.h>
 #include <linux/exportfs.h>
-#include <linux/iversion.h>
 
 static inline int udf_match(int len1, const unsigned char *name1, int len2,
 			    const unsigned char *name2)
@@ -136,8 +135,6 @@ int udf_write_fi(struct inode *inode, struct fileIdentDesc *cfi,
 			mark_buffer_dirty_inode(fibh->ebh, inode);
 		mark_buffer_dirty_inode(fibh->sbh, inode);
 	}
-	inode_inc_iversion(inode);
-
 	return 0;
 }
 
@@ -306,6 +303,21 @@ static struct dentry *udf_lookup(struct inode *dir, struct dentry *dentry,
 
 	if (dentry->d_name.len > UDF_NAME_LEN)
 		return ERR_PTR(-ENAMETOOLONG);
+
+#ifdef UDF_RECOVERY
+	/* temporary shorthand for specifying files by inode number */
+	if (!strncmp(dentry->d_name.name, ".B=", 3)) {
+		struct kernel_lb_addr lb = {
+			.logicalBlockNum = 0,
+			.partitionReferenceNum =
+				simple_strtoul(dentry->d_name.name + 3,
+						NULL, 0),
+		};
+		inode = udf_iget(dir->i_sb, lb);
+		if (IS_ERR(inode))
+			return inode;
+	} else
+#endif /* UDF_RECOVERY */
 
 	fi = udf_find_entry(dir, &dentry->d_name, &fibh, &cfi);
 	if (IS_ERR(fi))
@@ -936,10 +948,6 @@ static int udf_symlink(struct inode *dir, struct dentry *dentry,
 				iinfo->i_location.partitionReferenceNum,
 				0);
 		epos.bh = udf_tgetblk(sb, block);
-		if (unlikely(!epos.bh)) {
-			err = -ENOMEM;
-			goto out_no_entry;
-		}
 		lock_buffer(epos.bh);
 		memset(epos.bh->b_data, 0x00, bsize);
 		set_buffer_uptodate(epos.bh);

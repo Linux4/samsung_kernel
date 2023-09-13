@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /* linux/net/ipv4/arp.c
  *
  * Copyright (C) 1994 by Florian  La Roche
@@ -7,6 +6,11 @@
  * which is used to convert IP addresses (or in the future maybe other
  * high-level addresses) into a low-level hardware address (like an Ethernet
  * address).
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version
+ * 2 of the License, or (at your option) any later version.
  *
  * Fixes:
  *		Alan Cox	:	Removed the Ethernet assumptions in
@@ -1110,18 +1114,13 @@ static int arp_req_get(struct arpreq *r, struct net_device *dev)
 	return err;
 }
 
-int arp_invalidate(struct net_device *dev, __be32 ip, bool force)
+static int arp_invalidate(struct net_device *dev, __be32 ip)
 {
 	struct neighbour *neigh = neigh_lookup(&arp_tbl, &ip, dev);
 	int err = -ENXIO;
 	struct neigh_table *tbl = &arp_tbl;
 
 	if (neigh) {
-		if ((neigh->nud_state & NUD_VALID) && !force) {
-			neigh_release(neigh);
-			return 0;
-		}
-
 		if (neigh->nud_state & ~NUD_NOARP)
 			err = neigh_update(neigh, NULL, NUD_FAILED,
 					   NEIGH_UPDATE_F_OVERRIDE|
@@ -1168,7 +1167,7 @@ static int arp_req_delete(struct net *net, struct arpreq *r,
 		if (!dev)
 			return -EINVAL;
 	}
-	return arp_invalidate(dev, ip, true);
+	return arp_invalidate(dev, ip);
 }
 
 /*
@@ -1256,8 +1255,6 @@ static int arp_netdev_event(struct notifier_block *this, unsigned long event,
 		change_info = ptr;
 		if (change_info->flags_changed & IFF_NOARP)
 			neigh_changeaddr(&arp_tbl, dev);
-		if (!netif_carrier_ok(dev))
-			neigh_carrier_down(&arp_tbl, dev);
 		break;
 	default:
 		break;

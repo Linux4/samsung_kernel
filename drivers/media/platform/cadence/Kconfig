@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 config VIDEO_CADENCE
 	bool "Cadence Video Devices"
 	help

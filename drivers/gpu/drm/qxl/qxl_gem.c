@@ -23,6 +23,7 @@
  *          Alon Levy
  */
 
+#include <drm/drmP.h>
 #include <drm/drm.h>
 
 #include "qxl_drv.h"
@@ -39,7 +40,7 @@ void qxl_gem_object_free(struct drm_gem_object *gobj)
 	qxl_surface_evict(qdev, qobj, false);
 
 	tbo = &qobj->tbo;
-	ttm_bo_put(tbo);
+	ttm_bo_unref(&tbo);
 }
 
 int qxl_gem_object_create(struct qxl_device *qdev, int size,
@@ -63,7 +64,7 @@ int qxl_gem_object_create(struct qxl_device *qdev, int size,
 				  size, initial_domain, alignment, r);
 		return r;
 	}
-	*obj = &qbo->tbo.base;
+	*obj = &qbo->gem_base;
 
 	mutex_lock(&qdev->gem.mutex);
 	list_add_tail(&qbo->list, &qdev->gem.objects);

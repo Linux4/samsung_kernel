@@ -1,8 +1,17 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * SRF04: ultrasonic sensor for distance measuring by using GPIOs
  *
  * Copyright (c) 2017 Andreas Klinger <ak@it-klinger.de>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
  *
  * For details about the device see:
  * http://www.robot-electronics.co.uk/htm/srf04tech.htm
@@ -14,7 +23,7 @@
  * trig:  --+   +------------------------------------------------------
  *          ^   ^
  *          |<->|
- *         udelay(trigger_pulse_us)
+ *         udelay(10)
  *
  * ultra           +-+ +-+ +-+
  * sonic           | | | | | |
@@ -39,7 +48,6 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/of.h>
-#include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/property.h>
 #include <linux/sched.h>
@@ -47,10 +55,6 @@
 #include <linux/delay.h>
 #include <linux/iio/iio.h>
 #include <linux/iio/sysfs.h>
-
-struct srf04_cfg {
-	unsigned long trigger_pulse_us;
-};
 
 struct srf04_data {
 	struct device		*dev;
@@ -62,15 +66,6 @@ struct srf04_data {
 	ktime_t			ts_falling;
 	struct completion	rising;
 	struct completion	falling;
-	const struct srf04_cfg	*cfg;
-};
-
-static const struct srf04_cfg srf04_cfg = {
-	.trigger_pulse_us = 10,
-};
-
-static const struct srf04_cfg mb_lv_cfg = {
-	.trigger_pulse_us = 20,
 };
 
 static irqreturn_t srf04_handle_irq(int irq, void *dev_id)
@@ -107,7 +102,7 @@ static int srf04_read(struct srf04_data *data)
 	reinit_completion(&data->falling);
 
 	gpiod_set_value(data->gpiod_trig, 1);
-	udelay(data->cfg->trigger_pulse_us);
+	udelay(10);
 	gpiod_set_value(data->gpiod_trig, 0);
 
 	/* it should not take more than 20 ms until echo is rising */
@@ -221,18 +216,6 @@ static const struct iio_chan_spec srf04_chan_spec[] = {
 	},
 };
 
-static const struct of_device_id of_srf04_match[] = {
-	{ .compatible = "devantech,srf04", .data = &srf04_cfg},
-	{ .compatible = "maxbotix,mb1000", .data = &mb_lv_cfg},
-	{ .compatible = "maxbotix,mb1010", .data = &mb_lv_cfg},
-	{ .compatible = "maxbotix,mb1020", .data = &mb_lv_cfg},
-	{ .compatible = "maxbotix,mb1030", .data = &mb_lv_cfg},
-	{ .compatible = "maxbotix,mb1040", .data = &mb_lv_cfg},
-	{},
-};
-
-MODULE_DEVICE_TABLE(of, of_srf04_match);
-
 static int srf04_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -248,7 +231,6 @@ static int srf04_probe(struct platform_device *pdev)
 
 	data = iio_priv(indio_dev);
 	data->dev = dev;
-	data->cfg = of_match_device(of_srf04_match, dev)->data;
 
 	mutex_init(&data->lock);
 	init_completion(&data->rising);
@@ -298,6 +280,13 @@ static int srf04_probe(struct platform_device *pdev)
 
 	return devm_iio_device_register(dev, indio_dev);
 }
+
+static const struct of_device_id of_srf04_match[] = {
+	{ .compatible = "devantech,srf04", },
+	{},
+};
+
+MODULE_DEVICE_TABLE(of, of_srf04_match);
 
 static struct platform_driver srf04_driver = {
 	.probe		= srf04_probe,

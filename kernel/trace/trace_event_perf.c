@@ -8,7 +8,6 @@
 
 #include <linux/module.h>
 #include <linux/kprobes.h>
-#include <linux/security.h>
 #include "trace.h"
 #include "trace_probe.h"
 
@@ -27,10 +26,8 @@ static int	total_ref_count;
 static int perf_trace_event_perm(struct trace_event_call *tp_event,
 				 struct perf_event *p_event)
 {
-	int ret;
-
 	if (tp_event->perf_perm) {
-		ret = tp_event->perf_perm(tp_event, p_event);
+		int ret = tp_event->perf_perm(tp_event, p_event);
 		if (ret)
 			return ret;
 	}
@@ -49,9 +46,8 @@ static int perf_trace_event_perm(struct trace_event_call *tp_event,
 
 	/* The ftrace function trace is allowed only for root. */
 	if (ftrace_event_is_function(tp_event)) {
-		ret = perf_allow_tracepoint(&p_event->attr);
-		if (ret)
-			return ret;
+		if (perf_paranoid_tracepoint_raw() && !capable(CAP_SYS_ADMIN))
+			return -EPERM;
 
 		if (!is_sampling_event(p_event))
 			return 0;
@@ -86,9 +82,8 @@ static int perf_trace_event_perm(struct trace_event_call *tp_event,
 	 * ...otherwise raw tracepoint data can be a severe data leak,
 	 * only allow root to have these.
 	 */
-	ret = perf_allow_tracepoint(&p_event->attr);
-	if (ret)
-		return ret;
+	if (perf_paranoid_tracepoint_raw() && !capable(CAP_SYS_ADMIN))
+		return -EPERM;
 
 	return 0;
 }
@@ -299,8 +294,7 @@ void perf_kprobe_destroy(struct perf_event *p_event)
 #endif /* CONFIG_KPROBE_EVENTS */
 
 #ifdef CONFIG_UPROBE_EVENTS
-int perf_uprobe_init(struct perf_event *p_event,
-		     unsigned long ref_ctr_offset, bool is_retprobe)
+int perf_uprobe_init(struct perf_event *p_event, bool is_retprobe)
 {
 	int ret;
 	char *path = NULL;
@@ -320,8 +314,8 @@ int perf_uprobe_init(struct perf_event *p_event,
 		goto out;
 	}
 
-	tp_event = create_local_trace_uprobe(path, p_event->attr.probe_offset,
-					     ref_ctr_offset, is_retprobe);
+	tp_event = create_local_trace_uprobe(
+		path, p_event->attr.probe_offset, is_retprobe);
 	if (IS_ERR(tp_event)) {
 		ret = PTR_ERR(tp_event);
 		goto out;
@@ -425,7 +419,8 @@ void perf_trace_buf_update(void *record, u16 type)
 	unsigned long flags;
 
 	local_save_flags(flags);
-	tracing_generic_entry_update(entry, type, flags, pc);
+	tracing_generic_entry_update(entry, flags, pc);
+	entry->type = type;
 }
 NOKPROBE_SYMBOL(perf_trace_buf_update);
 

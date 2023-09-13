@@ -1,9 +1,10 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Xilinx XADC driver
  *
  * Copyright 2013 Analog Devices Inc.
  *  Author: Lars-Peter Clauen <lars@metafoo.de>
+ *
+ * Licensed under the GPL-2.
  */
 
 #ifndef __IIO_XILINX_XADC__

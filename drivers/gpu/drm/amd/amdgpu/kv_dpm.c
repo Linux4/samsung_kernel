@@ -21,6 +21,7 @@
  *
  */
 
+#include <drm/drmP.h>
 #include "amdgpu.h"
 #include "amdgpu_pm.h"
 #include "cikd.h"
@@ -507,19 +508,19 @@ static int kv_enable_didt(struct amdgpu_device *adev, bool enable)
 	    pi->caps_db_ramping ||
 	    pi->caps_td_ramping ||
 	    pi->caps_tcp_ramping) {
-		amdgpu_gfx_rlc_enter_safe_mode(adev);
+		adev->gfx.rlc.funcs->enter_safe_mode(adev);
 
 		if (enable) {
 			ret = kv_program_pt_config_registers(adev, didt_config_kv);
 			if (ret) {
-				amdgpu_gfx_rlc_exit_safe_mode(adev);
+				adev->gfx.rlc.funcs->exit_safe_mode(adev);
 				return ret;
 			}
 		}
 
 		kv_do_enable_didt(adev, enable);
 
-		amdgpu_gfx_rlc_exit_safe_mode(adev);
+		adev->gfx.rlc.funcs->exit_safe_mode(adev);
 	}
 
 	return 0;
@@ -1609,7 +1610,19 @@ static int kv_update_samu_dpm(struct amdgpu_device *adev, bool gate)
 
 static u8 kv_get_acp_boot_level(struct amdgpu_device *adev)
 {
-	return 0;
+	u8 i;
+	struct amdgpu_clock_voltage_dependency_table *table =
+		&adev->pm.dpm.dyn_state.acp_clock_voltage_dependency_table;
+
+	for (i = 0; i < table->count; i++) {
+		if (table->entries[i].clk >= 0) /* XXX */
+			break;
+	}
+
+	if (i >= table->count)
+		i = table->count - 1;
+
+	return i;
 }
 
 static void kv_update_acp_boot_level(struct amdgpu_device *adev)
@@ -2811,7 +2824,7 @@ static int kv_dpm_init(struct amdgpu_device *adev)
 		pi->caps_tcp_ramping = true;
 	}
 
-	if (adev->pm.pp_feature & PP_SCLK_DEEP_SLEEP_MASK)
+	if (adev->powerplay.pp_feature & PP_SCLK_DEEP_SLEEP_MASK)
 		pi->caps_sclk_ds = true;
 	else
 		pi->caps_sclk_ds = false;
@@ -2982,12 +2995,12 @@ static int kv_dpm_sw_init(void *handle)
 	int ret;
 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
 
-	ret = amdgpu_irq_add_id(adev, AMDGPU_IRQ_CLIENTID_LEGACY, 230,
+	ret = amdgpu_irq_add_id(adev, AMDGPU_IH_CLIENTID_LEGACY, 230,
 				&adev->pm.dpm.thermal.irq);
 	if (ret)
 		return ret;
 
-	ret = amdgpu_irq_add_id(adev, AMDGPU_IRQ_CLIENTID_LEGACY, 231,
+	ret = amdgpu_irq_add_id(adev, AMDGPU_IH_CLIENTID_LEGACY, 231,
 				&adev->pm.dpm.thermal.irq);
 	if (ret)
 		return ret;

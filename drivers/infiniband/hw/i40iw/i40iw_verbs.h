@@ -94,7 +94,8 @@ struct i40iw_mr {
 	struct ib_umem *region;
 	u16 type;
 	u32 page_cnt;
-	u64 page_size;
+	u32 page_size;
+	u64 page_msk;
 	u32 npages;
 	u32 stag;
 	u64 length;
@@ -140,7 +141,7 @@ struct i40iw_qp {
 	struct i40iw_qp_host_ctx_info ctx_info;
 	struct i40iwarp_offload_info iwarp_info;
 	void *allocated_buffer;
-	refcount_t refcount;
+	atomic_t refcount;
 	struct iw_cm_id *cm_id;
 	void *cm_node;
 	struct ib_mr *lsmm_mr;
@@ -175,6 +176,5 @@ struct i40iw_qp {
 	struct i40iw_dma_mem ietf_mem;
 	struct completion sq_drained;
 	struct completion rq_drained;
-	struct completion free_qp;
 };
 #endif

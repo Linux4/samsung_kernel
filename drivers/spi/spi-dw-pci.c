@@ -1,8 +1,16 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * PCI interface driver for DW SPI Core
  *
  * Copyright (c) 2009, 2014 Intel Corporation.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
  */
 
 #include <linux/interrupt.h>
@@ -19,7 +27,6 @@ struct spi_pci_desc {
 	int	(*setup)(struct dw_spi *);
 	u16	num_cs;
 	u16	bus_num;
-	u32	max_freq;
 };
 
 static struct spi_pci_desc spi_pci_mid_desc_1 = {
@@ -32,12 +39,6 @@ static struct spi_pci_desc spi_pci_mid_desc_2 = {
 	.setup = dw_spi_mid_init,
 	.num_cs = 2,
 	.bus_num = 1,
-};
-
-static struct spi_pci_desc spi_pci_ehl_desc = {
-	.num_cs = 1,
-	.bus_num = -1,
-	.max_freq = 100000000,
 };
 
 static int spi_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
@@ -72,7 +73,6 @@ static int spi_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	if (desc) {
 		dws->num_cs = desc->num_cs;
 		dws->bus_num = desc->bus_num;
-		dws->max_freq = desc->max_freq;
 
 		if (desc->setup) {
 			ret = desc->setup(dws);
@@ -106,14 +106,16 @@ static void spi_pci_remove(struct pci_dev *pdev)
 #ifdef CONFIG_PM_SLEEP
 static int spi_suspend(struct device *dev)
 {
-	struct dw_spi *dws = dev_get_drvdata(dev);
+	struct pci_dev *pdev = to_pci_dev(dev);
+	struct dw_spi *dws = pci_get_drvdata(pdev);
 
 	return dw_spi_suspend_host(dws);
 }
 
 static int spi_resume(struct device *dev)
 {
-	struct dw_spi *dws = dev_get_drvdata(dev);
+	struct pci_dev *pdev = to_pci_dev(dev);
+	struct dw_spi *dws = pci_get_drvdata(pdev);
 
 	return dw_spi_resume_host(dws);
 }
@@ -131,14 +133,8 @@ static const struct pci_device_id pci_ids[] = {
 	{ PCI_VDEVICE(INTEL, 0x0800), (kernel_ulong_t)&spi_pci_mid_desc_1},
 	/* Intel MID platform SPI controller 2 */
 	{ PCI_VDEVICE(INTEL, 0x0812), (kernel_ulong_t)&spi_pci_mid_desc_2},
-	/* Intel Elkhart Lake PSE SPI controllers */
-	{ PCI_VDEVICE(INTEL, 0x4b84), (kernel_ulong_t)&spi_pci_ehl_desc},
-	{ PCI_VDEVICE(INTEL, 0x4b85), (kernel_ulong_t)&spi_pci_ehl_desc},
-	{ PCI_VDEVICE(INTEL, 0x4b86), (kernel_ulong_t)&spi_pci_ehl_desc},
-	{ PCI_VDEVICE(INTEL, 0x4b87), (kernel_ulong_t)&spi_pci_ehl_desc},
 	{},
 };
-MODULE_DEVICE_TABLE(pci, pci_ids);
 
 static struct pci_driver dw_spi_driver = {
 	.name =		DRIVER_NAME,

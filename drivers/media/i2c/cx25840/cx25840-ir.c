@@ -1,10 +1,19 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Driver for the Conexant CX2584x Audio/Video decoder chip and related cores
  *
  *  Integrated Consumer Infrared Controller
  *
  *  Copyright (C) 2010  Andy Walls <awalls@md.metrocast.net>
+ *
+ *  This program is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU General Public License
+ *  as published by the Free Software Foundation; either version 2
+ *  of the License, or (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
  */
 
 #include <linux/slab.h>
@@ -540,7 +549,7 @@ int cx25840_ir_irq_handler(struct v4l2_subdev *sd, u32 status, bool *handled)
 	ror = stats & STATS_ROR; /* Rx FIFO Over Run */
 
 	tse = irqen & IRQEN_TSE; /* Tx FIFO Service Request IRQ Enable */
-	rse = irqen & IRQEN_RSE; /* Rx FIFO Service Request IRQ Enable */
+	rse = irqen & IRQEN_RSE; /* Rx FIFO Service Reuqest IRQ Enable */
 	rte = irqen & IRQEN_RTE; /* Rx Pulse Width Timer Time Out IRQ Enable */
 	roe = irqen & IRQEN_ROE; /* Rx FIFO Over Run IRQ Enable */
 
@@ -629,7 +638,7 @@ int cx25840_ir_irq_handler(struct v4l2_subdev *sd, u32 status, bool *handled)
 		events |= V4L2_SUBDEV_IR_RX_END_OF_RX_DETECTED;
 	}
 	if (v) {
-		/* Clear STATS_ROR & STATS_RTO as needed by resetting hardware */
+		/* Clear STATS_ROR & STATS_RTO as needed by reseting hardware */
 		cx25840_write4(c, CX25840_IR_CNTRL_REG, cntrl & ~v);
 		cx25840_write4(c, CX25840_IR_CNTRL_REG, cntrl);
 		*handled = true;
@@ -692,8 +701,10 @@ static int cx25840_ir_rx_read(struct v4l2_subdev *sd, u8 *buf, size_t count,
 		if (v > IR_MAX_DURATION)
 			v = IR_MAX_DURATION;
 
-		p->ir_core_data = (struct ir_raw_event)
-			{ .pulse = u, .duration = v, .timeout = w };
+		init_ir_raw_event(&p->ir_core_data);
+		p->ir_core_data.pulse = u;
+		p->ir_core_data.duration = v;
+		p->ir_core_data.timeout = w;
 
 		v4l2_dbg(2, ir_debug, sd, "rx read: %10u ns  %s  %s\n",
 			 v, u ? "mark" : "space", w ? "(timed out)" : "");

@@ -31,10 +31,11 @@
 
 #include <linux/module.h>
 
-#include <drm/drm_drv.h>
-#include <drm/drm_pciids.h>
-
+#include <drm/drmP.h>
+#include <drm/mga_drm.h>
 #include "mga_drv.h"
+
+#include <drm/drm_pciids.h>
 
 static struct pci_device_id pciidlist[] = {
 	mga_PCI_IDS
@@ -56,7 +57,7 @@ static const struct file_operations mga_driver_fops = {
 static struct drm_driver driver = {
 	.driver_features =
 	    DRIVER_USE_AGP | DRIVER_PCI_DMA | DRIVER_LEGACY |
-	    DRIVER_HAVE_DMA | DRIVER_HAVE_IRQ,
+	    DRIVER_HAVE_DMA | DRIVER_HAVE_IRQ | DRIVER_IRQ_SHARED,
 	.dev_priv_size = sizeof(drm_mga_buf_priv_t),
 	.load = mga_driver_load,
 	.unload = mga_driver_unload,

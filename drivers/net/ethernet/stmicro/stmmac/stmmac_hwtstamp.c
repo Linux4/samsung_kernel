@@ -1,9 +1,19 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*******************************************************************************
   Copyright (C) 2013  Vayavya Labs Pvt Ltd
 
   This implements all the API for managing HW timestamp & PTP.
 
+  This program is free software; you can redistribute it and/or modify it
+  under the terms and conditions of the GNU General Public License,
+  version 2, as published by the Free Software Foundation.
+
+  This program is distributed in the hope it will be useful, but WITHOUT
+  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+  more details.
+
+  The full GNU General Public License is included in this distribution in
+  the file called "COPYING".
 
   Author: Rayagond Kokatanur <rayagond@vayavyalabs.com>
   Author: Giuseppe Cavallaro <peppe.cavallaro@st.com>
@@ -23,7 +33,7 @@ static void config_sub_second_increment(void __iomem *ioaddr,
 		u32 ptp_clock, int gmac4, u32 *ssinc)
 {
 	u32 value = readl(ioaddr + PTP_TCR);
-	u64 ss_inc = 0, sns_inc = 0, ptpclock = 0;
+	unsigned long data;
 	u32 reg_value;
 
 	/* For GMAC3.x, 4.x versions, in "fine adjustement mode" set sub-second
@@ -35,34 +45,24 @@ static void config_sub_second_increment(void __iomem *ioaddr,
 	 * 2000000000ULL / ptp_clock.
 	 */
 	if (value & PTP_TCR_TSCFUPDT)
-		ptpclock = (u64)ptp_clock;
+		data = (2000000000ULL / ptp_clock);
 	else
-		ptpclock = (u64)ptp_clock;
-
-	ss_inc = div_u64((1 * 1000000000ULL), ptpclock);
-	sns_inc = 1000000000ULL - (ss_inc * ptpclock); //take remainder
-
-	//sns_inc needs to be multiplied by 2^8, per spec.
-	sns_inc = div_u64((sns_inc * 256), ptpclock);
+		data = (1000000000ULL / ptp_clock);
 
 	/* 0.465ns accuracy */
 	if (!(value & PTP_TCR_TSCTRLSSR))
-		ss_inc = div_u64((ss_inc * 1000), 465);
+		data = (data * 1000) / 465;
 
-	ss_inc &= PTP_SSIR_SSINC_MASK;
-	sns_inc &= PTP_SSIR_SNSINC_MASK;
+	data &= PTP_SSIR_SSINC_MASK;
 
-	reg_value = ss_inc;
-
+	reg_value = data;
 	if (gmac4)
 		reg_value <<= GMAC4_PTP_SSIR_SSINC_SHIFT;
-
-	reg_value |= (sns_inc << GMAC4_PTP_SSIR_SNSINC_SHIFT);
 
 	writel(reg_value, ioaddr + PTP_SSIR);
 
 	if (ssinc)
-		*ssinc = reg_value;
+		*ssinc = data;
 }
 
 static int init_systime(void __iomem *ioaddr, u32 sec, u32 nsec)
@@ -159,20 +159,15 @@ static int adjust_systime(void __iomem *ioaddr, u32 sec, u32 nsec,
 
 static void get_systime(void __iomem *ioaddr, u64 *systime)
 {
-	u64 ns, sec0, sec1;
+	u64 ns;
 
-	/* Get the TSS value */
-	sec1 = readl_relaxed(ioaddr + PTP_STSR);
-	do {
-		sec0 = sec1;
-		/* Get the TSSS value */
-		ns = readl_relaxed(ioaddr + PTP_STNSR);
-		/* Get the TSS value */
-		sec1 = readl_relaxed(ioaddr + PTP_STSR);
-	} while (sec0 != sec1);
+	/* Get the TSSS value */
+	ns = readl(ioaddr + PTP_STNSR);
+	/* Get the TSS and convert sec time value to nanosecond */
+	ns += readl(ioaddr + PTP_STSR) * 1000000000ULL;
 
 	if (systime)
-		*systime = ns + (sec1 * 1000000000ULL);
+		*systime = ns;
 }
 
 const struct stmmac_hwtimestamp stmmac_ptp = {

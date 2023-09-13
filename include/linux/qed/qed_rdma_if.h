@@ -39,6 +39,15 @@
 #include <linux/qed/qed_ll2_if.h>
 #include <linux/qed/rdma_common.h>
 
+enum qed_roce_ll2_tx_dest {
+	/* Light L2 TX Destination to the Network */
+	QED_ROCE_LL2_TX_DEST_NW,
+
+	/* Light L2 TX Destination to the Loopback */
+	QED_ROCE_LL2_TX_DEST_LB,
+	QED_ROCE_LL2_TX_DEST_MAX
+};
+
 #define QED_RDMA_MAX_CNQ_SIZE               (0xFFFF)
 
 /* rdma interface */
@@ -225,7 +234,7 @@ struct qed_rdma_start_in_params {
 
 struct qed_rdma_add_user_out_params {
 	u16 dpi;
-	void __iomem *dpi_addr;
+	u64 dpi_addr;
 	u64 dpi_phys_addr;
 	u32 dpi_size;
 	u16 wid_count;
@@ -572,7 +581,7 @@ struct qed_roce_ll2_packet {
 	int n_seg;
 	struct qed_roce_ll2_buffer payload[RDMA_MAX_SGE_PER_SQ_WQE];
 	int roce_mode;
-	enum qed_ll2_tx_dest tx_dest;
+	enum qed_roce_ll2_tx_dest tx_dest;
 };
 
 enum qed_rdma_type {
@@ -669,8 +678,6 @@ struct qed_rdma_ops {
 			     struct qed_ll2_stats *p_stats);
 	int (*ll2_set_mac_filter)(struct qed_dev *cdev,
 				  u8 *old_mac_address, u8 *new_mac_address);
-
-	int (*iwarp_set_engine_affin)(struct qed_dev *cdev, bool b_reset);
 
 	int (*iwarp_connect)(void *rdma_cxt,
 			     struct qed_iwarp_connect_in *iparams,

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0+ */
 /*
  * Registers definition for DA9063 modules
  *
@@ -6,6 +5,12 @@
  *
  * Author: Michal Hajduk, Dialog Semiconductor
  * Author: Krystian Garbaciak, Dialog Semiconductor
+ *
+ *  This program is free software; you can redistribute  it and/or modify it
+ *  under  the terms of  the GNU General  Public License as published by the
+ *  Free Software Foundation;  either version 2 of the  License, or (at your
+ *  option) any later version.
+ *
  */
 
 #ifndef _DA9063_REG_H

@@ -1,9 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * arch/arm/mach-at91/pm.c
  * AT91 Power Management
  *
  * Copyright (C) 2005 David Brownell
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  */
 
 #include <linux/genalloc.h>
@@ -15,7 +19,6 @@
 #include <linux/suspend.h>
 
 #include <linux/clk/at91_pmc.h>
-#include <linux/platform_data/atmel.h>
 
 #include <asm/cacheflush.h>
 #include <asm/fncpy.h>
@@ -36,20 +39,6 @@ extern void at91_pinctrl_gpio_suspend(void);
 extern void at91_pinctrl_gpio_resume(void);
 #endif
 
-struct at91_soc_pm {
-	int (*config_shdwc_ws)(void __iomem *shdwc, u32 *mode, u32 *polarity);
-	int (*config_pmc_ws)(void __iomem *pmc, u32 mode, u32 polarity);
-	const struct of_device_id *ws_ids;
-	struct at91_pm_data data;
-};
-
-static struct at91_soc_pm soc_pm = {
-	.data = {
-		.standby_mode = AT91_PM_STANDBY,
-		.suspend_mode = AT91_PM_ULP0,
-	},
-};
-
 static const match_table_t pm_modes __initconst = {
 	{ AT91_PM_STANDBY, "standby" },
 	{ AT91_PM_ULP0, "ulp0" },
@@ -58,11 +47,16 @@ static const match_table_t pm_modes __initconst = {
 	{ -1, NULL },
 };
 
+static struct at91_pm_data pm_data = {
+	.standby_mode = AT91_PM_STANDBY,
+	.suspend_mode = AT91_PM_ULP0,
+};
+
 #define at91_ramc_read(id, field) \
-	__raw_readl(soc_pm.data.ramc[id] + field)
+	__raw_readl(pm_data.ramc[id] + field)
 
 #define at91_ramc_write(id, field, value) \
-	__raw_writel(value, soc_pm.data.ramc[id] + field)
+	__raw_writel(value, pm_data.ramc[id] + field)
 
 static int at91_pm_valid_state(suspend_state_t state)
 {
@@ -97,30 +91,17 @@ static const struct wakeup_source_info ws_info[] = {
 	{ .pmc_fsmr_bit = AT91_PMC_RTCAL,	.shdwc_mr_bit = BIT(17) },
 	{ .pmc_fsmr_bit = AT91_PMC_USBAL },
 	{ .pmc_fsmr_bit = AT91_PMC_SDMMC_CD },
-	{ .pmc_fsmr_bit = AT91_PMC_RTTAL },
-	{ .pmc_fsmr_bit = AT91_PMC_RXLP_MCE },
 };
 
 static const struct of_device_id sama5d2_ws_ids[] = {
 	{ .compatible = "atmel,sama5d2-gem",		.data = &ws_info[0] },
-	{ .compatible = "atmel,sama5d2-rtc",		.data = &ws_info[1] },
+	{ .compatible = "atmel,at91rm9200-rtc",		.data = &ws_info[1] },
 	{ .compatible = "atmel,sama5d3-udc",		.data = &ws_info[2] },
 	{ .compatible = "atmel,at91rm9200-ohci",	.data = &ws_info[2] },
 	{ .compatible = "usb-ohci",			.data = &ws_info[2] },
 	{ .compatible = "atmel,at91sam9g45-ehci",	.data = &ws_info[2] },
 	{ .compatible = "usb-ehci",			.data = &ws_info[2] },
 	{ .compatible = "atmel,sama5d2-sdhci",		.data = &ws_info[3] },
-	{ /* sentinel */ }
-};
-
-static const struct of_device_id sam9x60_ws_ids[] = {
-	{ .compatible = "microchip,sam9x60-rtc",	.data = &ws_info[1] },
-	{ .compatible = "atmel,at91rm9200-ohci",	.data = &ws_info[2] },
-	{ .compatible = "usb-ohci",			.data = &ws_info[2] },
-	{ .compatible = "atmel,at91sam9g45-ehci",	.data = &ws_info[2] },
-	{ .compatible = "usb-ehci",			.data = &ws_info[2] },
-	{ .compatible = "microchip,sam9x60-rtt",	.data = &ws_info[4] },
-	{ .compatible = "cdns,sam9x60-macb",		.data = &ws_info[5] },
 	{ /* sentinel */ }
 };
 
@@ -135,22 +116,24 @@ static int at91_pm_config_ws(unsigned int pm_mode, bool set)
 	if (pm_mode != AT91_PM_ULP1)
 		return 0;
 
-	if (!soc_pm.data.pmc || !soc_pm.data.shdwc || !soc_pm.ws_ids)
+	if (!pm_data.pmc || !pm_data.shdwc)
 		return -EPERM;
 
 	if (!set) {
-		writel(mode, soc_pm.data.pmc + AT91_PMC_FSMR);
+		writel(mode, pm_data.pmc + AT91_PMC_FSMR);
 		return 0;
 	}
 
-	if (soc_pm.config_shdwc_ws)
-		soc_pm.config_shdwc_ws(soc_pm.data.shdwc, &mode, &polarity);
+	/* SHDWC.WUIR */
+	val = readl(pm_data.shdwc + 0x0c);
+	mode |= (val & 0x3ff);
+	polarity |= ((val >> 16) & 0x3ff);
 
 	/* SHDWC.MR */
-	val = readl(soc_pm.data.shdwc + 0x04);
+	val = readl(pm_data.shdwc + 0x04);
 
 	/* Loop through defined wakeup sources. */
-	for_each_matching_node_and_match(np, soc_pm.ws_ids, &match) {
+	for_each_matching_node_and_match(np, sama5d2_ws_ids, &match) {
 		pdev = of_find_device_by_node(np);
 		if (!pdev)
 			continue;
@@ -172,41 +155,13 @@ put_device:
 	}
 
 	if (mode) {
-		if (soc_pm.config_pmc_ws)
-			soc_pm.config_pmc_ws(soc_pm.data.pmc, mode, polarity);
+		writel(mode, pm_data.pmc + AT91_PMC_FSMR);
+		writel(polarity, pm_data.pmc + AT91_PMC_FSPR);
 	} else {
 		pr_err("AT91: PM: no ULP1 wakeup sources found!");
 	}
 
 	return mode ? 0 : -EPERM;
-}
-
-static int at91_sama5d2_config_shdwc_ws(void __iomem *shdwc, u32 *mode,
-					u32 *polarity)
-{
-	u32 val;
-
-	/* SHDWC.WUIR */
-	val = readl(shdwc + 0x0c);
-	*mode |= (val & 0x3ff);
-	*polarity |= ((val >> 16) & 0x3ff);
-
-	return 0;
-}
-
-static int at91_sama5d2_config_pmc_ws(void __iomem *pmc, u32 mode, u32 polarity)
-{
-	writel(mode, pmc + AT91_PMC_FSMR);
-	writel(polarity, pmc + AT91_PMC_FSPR);
-
-	return 0;
-}
-
-static int at91_sam9x60_config_pmc_ws(void __iomem *pmc, u32 mode, u32 polarity)
-{
-	writel(mode, pmc + AT91_PMC_FSMR);
-
-	return 0;
 }
 
 /*
@@ -216,18 +171,18 @@ static int at91_pm_begin(suspend_state_t state)
 {
 	switch (state) {
 	case PM_SUSPEND_MEM:
-		soc_pm.data.mode = soc_pm.data.suspend_mode;
+		pm_data.mode = pm_data.suspend_mode;
 		break;
 
 	case PM_SUSPEND_STANDBY:
-		soc_pm.data.mode = soc_pm.data.standby_mode;
+		pm_data.mode = pm_data.standby_mode;
 		break;
 
 	default:
-		soc_pm.data.mode = -1;
+		pm_data.mode = -1;
 	}
 
-	return at91_pm_config_ws(soc_pm.data.mode, true);
+	return at91_pm_config_ws(pm_data.mode, true);
 }
 
 /*
@@ -239,10 +194,10 @@ static int at91_pm_verify_clocks(void)
 	unsigned long scsr;
 	int i;
 
-	scsr = readl(soc_pm.data.pmc + AT91_PMC_SCSR);
+	scsr = readl(pm_data.pmc + AT91_PMC_SCSR);
 
 	/* USB must not be using PLLB */
-	if ((scsr & soc_pm.data.uhp_udp_mask) != 0) {
+	if ((scsr & pm_data.uhp_udp_mask) != 0) {
 		pr_err("AT91: PM - Suspend-to-RAM with USB still active\n");
 		return 0;
 	}
@@ -253,7 +208,7 @@ static int at91_pm_verify_clocks(void)
 
 		if ((scsr & (AT91_PMC_PCK0 << i)) == 0)
 			continue;
-		css = readl(soc_pm.data.pmc + AT91_PMC_PCKR(i)) & AT91_PMC_CSS;
+		css = readl(pm_data.pmc + AT91_PMC_PCKR(i)) & AT91_PMC_CSS;
 		if (css != AT91_PMC_CSS_SLOW) {
 			pr_err("AT91: PM - Suspend-to-RAM with PCK%d src %d\n", i, css);
 			return 0;
@@ -275,7 +230,7 @@ static int at91_pm_verify_clocks(void)
  */
 int at91_suspend_entering_slow_clock(void)
 {
-	return (soc_pm.data.mode >= AT91_PM_ULP0);
+	return (pm_data.mode >= AT91_PM_ULP0);
 }
 EXPORT_SYMBOL(at91_suspend_entering_slow_clock);
 
@@ -288,14 +243,14 @@ static int at91_suspend_finish(unsigned long val)
 	flush_cache_all();
 	outer_disable();
 
-	at91_suspend_sram_fn(&soc_pm.data);
+	at91_suspend_sram_fn(&pm_data);
 
 	return 0;
 }
 
 static void at91_pm_suspend(suspend_state_t state)
 {
-	if (soc_pm.data.mode == AT91_PM_BACKUP) {
+	if (pm_data.mode == AT91_PM_BACKUP) {
 		pm_bu->suspended = 1;
 
 		cpu_suspend(0, at91_suspend_finish);
@@ -334,7 +289,7 @@ static int at91_pm_enter(suspend_state_t state)
 		/*
 		 * Ensure that clocks are in a valid state.
 		 */
-		if (soc_pm.data.mode >= AT91_PM_ULP0 &&
+		if (pm_data.mode >= AT91_PM_ULP0 &&
 		    !at91_pm_verify_clocks())
 			goto error;
 
@@ -363,7 +318,7 @@ error:
  */
 static void at91_pm_end(void)
 {
-	at91_pm_config_ws(soc_pm.data.mode, false);
+	at91_pm_config_ws(pm_data.mode, false);
 }
 
 
@@ -396,7 +351,7 @@ static void at91rm9200_standby(void)
 		"    str    %2, [%1, %3]\n\t"
 		"    mcr    p15, 0, %0, c7, c0, 4\n\t"
 		:
-		: "r" (0), "r" (soc_pm.data.ramc[0]),
+		: "r" (0), "r" (pm_data.ramc[0]),
 		  "r" (1), "r" (AT91_MC_SDRAMC_SRR));
 }
 
@@ -419,7 +374,7 @@ static void at91_ddr_standby(void)
 		at91_ramc_write(0, AT91_DDRSDRC_MDR, mdr);
 	}
 
-	if (soc_pm.data.ramc[1]) {
+	if (pm_data.ramc[1]) {
 		saved_lpr1 = at91_ramc_read(1, AT91_DDRSDRC_LPR);
 		lpr1 = saved_lpr1 & ~AT91_DDRSDRC_LPCB;
 		lpr1 |= AT91_DDRSDRC_LPCB_SELF_REFRESH;
@@ -437,14 +392,14 @@ static void at91_ddr_standby(void)
 
 	/* self-refresh mode now */
 	at91_ramc_write(0, AT91_DDRSDRC_LPR, lpr0);
-	if (soc_pm.data.ramc[1])
+	if (pm_data.ramc[1])
 		at91_ramc_write(1, AT91_DDRSDRC_LPR, lpr1);
 
 	cpu_do_idle();
 
 	at91_ramc_write(0, AT91_DDRSDRC_MDR, saved_mdr0);
 	at91_ramc_write(0, AT91_DDRSDRC_LPR, saved_lpr0);
-	if (soc_pm.data.ramc[1]) {
+	if (pm_data.ramc[1]) {
 		at91_ramc_write(0, AT91_DDRSDRC_MDR, saved_mdr1);
 		at91_ramc_write(1, AT91_DDRSDRC_LPR, saved_lpr1);
 	}
@@ -474,7 +429,7 @@ static void at91sam9_sdram_standby(void)
 	u32 lpr0, lpr1 = 0;
 	u32 saved_lpr0, saved_lpr1 = 0;
 
-	if (soc_pm.data.ramc[1]) {
+	if (pm_data.ramc[1]) {
 		saved_lpr1 = at91_ramc_read(1, AT91_SDRAMC_LPR);
 		lpr1 = saved_lpr1 & ~AT91_SDRAMC_LPCB;
 		lpr1 |= AT91_SDRAMC_LPCB_SELF_REFRESH;
@@ -486,13 +441,13 @@ static void at91sam9_sdram_standby(void)
 
 	/* self-refresh mode now */
 	at91_ramc_write(0, AT91_SDRAMC_LPR, lpr0);
-	if (soc_pm.data.ramc[1])
+	if (pm_data.ramc[1])
 		at91_ramc_write(1, AT91_SDRAMC_LPR, lpr1);
 
 	cpu_do_idle();
 
 	at91_ramc_write(0, AT91_SDRAMC_LPR, saved_lpr0);
-	if (soc_pm.data.ramc[1])
+	if (pm_data.ramc[1])
 		at91_ramc_write(1, AT91_SDRAMC_LPR, saved_lpr1);
 }
 
@@ -525,14 +480,14 @@ static __init void at91_dt_ramc(void)
 	const struct ramc_info *ramc;
 
 	for_each_matching_node_and_match(np, ramc_ids, &of_id) {
-		soc_pm.data.ramc[idx] = of_iomap(np, 0);
-		if (!soc_pm.data.ramc[idx])
+		pm_data.ramc[idx] = of_iomap(np, 0);
+		if (!pm_data.ramc[idx])
 			panic(pr_fmt("unable to map ramc[%d] cpu registers\n"), idx);
 
 		ramc = of_id->data;
 		if (!standby)
 			standby = ramc->idle;
-		soc_pm.data.memctrl = ramc->memctrl;
+		pm_data.memctrl = ramc->memctrl;
 
 		idx++;
 	}
@@ -554,17 +509,12 @@ static void at91rm9200_idle(void)
 	 * Disable the processor clock.  The processor will be automatically
 	 * re-enabled by an interrupt or by a reset.
 	 */
-	writel(AT91_PMC_PCK, soc_pm.data.pmc + AT91_PMC_SCDR);
-}
-
-static void at91sam9x60_idle(void)
-{
-	cpu_do_idle();
+	writel(AT91_PMC_PCK, pm_data.pmc + AT91_PMC_SCDR);
 }
 
 static void at91sam9_idle(void)
 {
-	writel(AT91_PMC_PCK, soc_pm.data.pmc + AT91_PMC_SCDR);
+	writel(AT91_PMC_PCK, pm_data.pmc + AT91_PMC_SCDR);
 	cpu_do_idle();
 }
 
@@ -592,13 +542,13 @@ static void __init at91_pm_sram_init(void)
 	sram_pool = gen_pool_get(&pdev->dev, NULL);
 	if (!sram_pool) {
 		pr_warn("%s: sram pool unavailable!\n", __func__);
-		goto out_put_device;
+		return;
 	}
 
 	sram_base = gen_pool_alloc(sram_pool, at91_pm_suspend_in_sram_sz);
 	if (!sram_base) {
 		pr_warn("%s: unable to alloc sram!\n", __func__);
-		goto out_put_device;
+		return;
 	}
 
 	sram_pbase = gen_pool_virt_to_phys(sram_pool, sram_base);
@@ -606,23 +556,18 @@ static void __init at91_pm_sram_init(void)
 					at91_pm_suspend_in_sram_sz, false);
 	if (!at91_suspend_sram_fn) {
 		pr_warn("SRAM: Could not map\n");
-		goto out_put_device;
+		return;
 	}
 
 	/* Copy the pm suspend handler to SRAM */
 	at91_suspend_sram_fn = fncpy(at91_suspend_sram_fn,
 			&at91_pm_suspend_in_sram, at91_pm_suspend_in_sram_sz);
-	return;
-
-out_put_device:
-	put_device(&pdev->dev);
-	return;
 }
 
 static bool __init at91_is_pm_mode_active(int pm_mode)
 {
-	return (soc_pm.data.standby_mode == pm_mode ||
-		soc_pm.data.suspend_mode == pm_mode);
+	return (pm_data.standby_mode == pm_mode ||
+		pm_data.suspend_mode == pm_mode);
 }
 
 static int __init at91_pm_backup_init(void)
@@ -632,11 +577,10 @@ static int __init at91_pm_backup_init(void)
 	struct platform_device *pdev = NULL;
 	int ret = -ENODEV;
 
-	if (!IS_ENABLED(CONFIG_SOC_SAMA5D2))
-		return -EPERM;
-
 	if (!at91_is_pm_mode_active(AT91_PM_BACKUP))
 		return 0;
+
+	pm_bu = NULL;
 
 	np = of_find_compatible_node(NULL, NULL, "atmel,sama5d2-sfrbu");
 	if (!np) {
@@ -644,8 +588,9 @@ static int __init at91_pm_backup_init(void)
 		return ret;
 	}
 
-	soc_pm.data.sfrbu = of_iomap(np, 0);
+	pm_data.sfrbu = of_iomap(np, 0);
 	of_node_put(np);
+	pm_bu = NULL;
 
 	np = of_find_compatible_node(NULL, NULL, "atmel,sama5d2-securam");
 	if (!np)
@@ -680,8 +625,8 @@ static int __init at91_pm_backup_init(void)
 securam_fail:
 	put_device(&pdev->dev);
 securam_fail_no_ref_dev:
-	iounmap(soc_pm.data.sfrbu);
-	soc_pm.data.sfrbu = NULL;
+	iounmap(pm_data.sfrbu);
+	pm_data.sfrbu = NULL;
 	return ret;
 }
 
@@ -690,17 +635,11 @@ static void __init at91_pm_use_default_mode(int pm_mode)
 	if (pm_mode != AT91_PM_ULP1 && pm_mode != AT91_PM_BACKUP)
 		return;
 
-	if (soc_pm.data.standby_mode == pm_mode)
-		soc_pm.data.standby_mode = AT91_PM_ULP0;
-	if (soc_pm.data.suspend_mode == pm_mode)
-		soc_pm.data.suspend_mode = AT91_PM_ULP0;
+	if (pm_data.standby_mode == pm_mode)
+		pm_data.standby_mode = AT91_PM_ULP0;
+	if (pm_data.suspend_mode == pm_mode)
+		pm_data.suspend_mode = AT91_PM_ULP0;
 }
-
-static const struct of_device_id atmel_shdwc_ids[] = {
-	{ .compatible = "atmel,sama5d2-shdwc" },
-	{ .compatible = "microchip,sam9x60-shdwc" },
-	{ /* sentinel. */ }
-};
 
 static void __init at91_pm_modes_init(void)
 {
@@ -711,13 +650,13 @@ static void __init at91_pm_modes_init(void)
 	    !at91_is_pm_mode_active(AT91_PM_ULP1))
 		return;
 
-	np = of_find_matching_node(NULL, atmel_shdwc_ids);
+	np = of_find_compatible_node(NULL, NULL, "atmel,sama5d2-shdwc");
 	if (!np) {
 		pr_warn("%s: failed to find shdwc!\n", __func__);
 		goto ulp1_default;
 	}
 
-	soc_pm.data.shdwc = of_iomap(np, 0);
+	pm_data.shdwc = of_iomap(np, 0);
 	of_node_put(np);
 
 	ret = at91_pm_backup_init();
@@ -731,8 +670,8 @@ static void __init at91_pm_modes_init(void)
 	return;
 
 unmap:
-	iounmap(soc_pm.data.shdwc);
-	soc_pm.data.shdwc = NULL;
+	iounmap(pm_data.shdwc);
+	pm_data.shdwc = NULL;
 ulp1_default:
 	at91_pm_use_default_mode(AT91_PM_ULP1);
 backup_default:
@@ -762,7 +701,6 @@ static const struct of_device_id atmel_pmc_ids[] __initconst = {
 	{ .compatible = "atmel,sama5d3-pmc", .data = &pmc_infos[1] },
 	{ .compatible = "atmel,sama5d4-pmc", .data = &pmc_infos[1] },
 	{ .compatible = "atmel,sama5d2-pmc", .data = &pmc_infos[1] },
-	{ .compatible = "microchip,sam9x60-pmc", .data = &pmc_infos[1] },
 	{ /* sentinel */ },
 };
 
@@ -776,15 +714,14 @@ static void __init at91_pm_init(void (*pm_idle)(void))
 		platform_device_register(&at91_cpuidle_device);
 
 	pmc_np = of_find_matching_node_and_match(NULL, atmel_pmc_ids, &of_id);
-	soc_pm.data.pmc = of_iomap(pmc_np, 0);
-	of_node_put(pmc_np);
-	if (!soc_pm.data.pmc) {
+	pm_data.pmc = of_iomap(pmc_np, 0);
+	if (!pm_data.pmc) {
 		pr_err("AT91: PM not supported, PMC not found\n");
 		return;
 	}
 
 	pmc = of_id->data;
-	soc_pm.data.uhp_udp_mask = pmc->uhp_udp_mask;
+	pm_data.uhp_udp_mask = pmc->uhp_udp_mask;
 
 	if (pm_idle)
 		arm_pm_idle = pm_idle;
@@ -794,8 +731,8 @@ static void __init at91_pm_init(void (*pm_idle)(void))
 	if (at91_suspend_sram_fn) {
 		suspend_set_ops(&at91_pm_ops);
 		pr_info("AT91: PM: standby: %s, suspend: %s\n",
-			pm_modes[soc_pm.data.standby_mode].pattern,
-			pm_modes[soc_pm.data.suspend_mode].pattern);
+			pm_modes[pm_data.standby_mode].pattern,
+			pm_modes[pm_data.suspend_mode].pattern);
 	} else {
 		pr_info("AT91: PM not supported, due to no SRAM allocated\n");
 	}
@@ -814,19 +751,6 @@ void __init at91rm9200_pm_init(void)
 	at91_ramc_write(0, AT91_MC_SDRAMC_LPR, 0);
 
 	at91_pm_init(at91rm9200_idle);
-}
-
-void __init sam9x60_pm_init(void)
-{
-	if (!IS_ENABLED(CONFIG_SOC_AT91SAM9))
-		return;
-
-	at91_pm_modes_init();
-	at91_dt_ramc();
-	at91_pm_init(at91sam9x60_idle);
-
-	soc_pm.ws_ids = sam9x60_ws_ids;
-	soc_pm.config_pmc_ws = at91_sam9x60_config_pmc_ws;
 }
 
 void __init at91sam9_pm_init(void)
@@ -854,10 +778,6 @@ void __init sama5d2_pm_init(void)
 
 	at91_pm_modes_init();
 	sama5_pm_init();
-
-	soc_pm.ws_ids = sama5d2_ws_ids;
-	soc_pm.config_shdwc_ws = at91_sama5d2_config_shdwc_ws;
-	soc_pm.config_pmc_ws = at91_sama5d2_config_pmc_ws;
 }
 
 static int __init at91_pm_modes_select(char *str)
@@ -878,8 +798,8 @@ static int __init at91_pm_modes_select(char *str)
 	if (suspend < 0)
 		return 0;
 
-	soc_pm.data.standby_mode = standby;
-	soc_pm.data.suspend_mode = suspend;
+	pm_data.standby_mode = standby;
+	pm_data.suspend_mode = suspend;
 
 	return 0;
 }

@@ -84,7 +84,7 @@ struct cpcap_battery_config {
 struct cpcap_coulomb_counter_data {
 	s32 sample;		/* 24 or 32 bits */
 	s32 accumulator;
-	s16 offset;		/* 9 bits */
+	s16 offset;		/* 10-bits */
 };
 
 enum cpcap_battery_state {
@@ -224,6 +224,8 @@ static int cpcap_battery_cc_raw_div(struct cpcap_battery_ddata *ddata,
 	if (!divider)
 		return 0;
 
+	offset &= 0x7ff;		/* 10-bits, signed */
+
 	switch (ddata->vendor) {
 	case CPCAP_VENDOR_ST:
 		cc_lsb = 95374;		/* μAms per LSB */
@@ -316,12 +318,12 @@ cpcap_battery_read_accumulated(struct cpcap_battery_ddata *ddata,
 	ccd->accumulator = ((s16)buf[3]) << 16;
 	ccd->accumulator |= buf[2];
 
-	/*
-	 * Coulomb counter calibration offset is CPCAP_REG_CCM,
-	 * REG_CCO seems unused
-	 */
-	ccd->offset = buf[4];
-	ccd->offset = sign_extend32(ccd->offset, 9);
+	/* Offset value CPCAP_REG_CCO */
+	ccd->offset = buf[5];
+
+	/* Adjust offset based on mode value CPCAP_REG_CCM? */
+	if (buf[4] >= 0x200)
+		ccd->offset |= 0xfc00;
 
 	return cpcap_battery_cc_to_uah(ddata,
 				       ccd->sample,
@@ -476,11 +478,11 @@ static int cpcap_battery_get_property(struct power_supply *psy,
 		val->intval = ddata->config.info.voltage_min_design;
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_AVG:
-		sample = latest->cc.sample - previous->cc.sample;
-		if (!sample) {
+		if (cached) {
 			val->intval = cpcap_battery_cc_get_avg_current(ddata);
 			break;
 		}
+		sample = latest->cc.sample - previous->cc.sample;
 		accumulator = latest->cc.accumulator - previous->cc.accumulator;
 		val->intval = cpcap_battery_cc_to_ua(ddata, sample,
 						     accumulator,
@@ -497,13 +499,13 @@ static int cpcap_battery_get_property(struct power_supply *psy,
 		val->intval = div64_s64(tmp, 100);
 		break;
 	case POWER_SUPPLY_PROP_POWER_AVG:
-		sample = latest->cc.sample - previous->cc.sample;
-		if (!sample) {
+		if (cached) {
 			tmp = cpcap_battery_cc_get_avg_current(ddata);
 			tmp *= (latest->voltage / 10000);
 			val->intval = div64_s64(tmp, 100);
 			break;
 		}
+		sample = latest->cc.sample - previous->cc.sample;
 		accumulator = latest->cc.accumulator - previous->cc.accumulator;
 		tmp = cpcap_battery_cc_to_ua(ddata, sample, accumulator,
 					     latest->cc.offset);
@@ -561,15 +563,13 @@ static irqreturn_t cpcap_battery_irq_thread(int irq, void *data)
 
 	switch (d->action) {
 	case CPCAP_BATTERY_IRQ_ACTION_BATTERY_LOW:
-		if (latest->current_ua >= 0)
-			dev_warn(ddata->dev, "Battery low at %imV!\n",
-				latest->voltage / 1000);
+		if (latest->counter_uah >= 0)
+			dev_warn(ddata->dev, "Battery low at 3.3V!\n");
 		break;
 	case CPCAP_BATTERY_IRQ_ACTION_POWEROFF:
-		if (latest->current_ua >= 0 && latest->voltage <= 3200000) {
+		if (latest->counter_uah >= 0) {
 			dev_emerg(ddata->dev,
-				  "Battery empty at %imV, powering off\n",
-				  latest->voltage / 1000);
+				  "Battery empty at 3.1V, powering off\n");
 			orderly_poweroff(true);
 		}
 		break;
@@ -624,7 +624,7 @@ static int cpcap_battery_init_irq(struct platform_device *pdev,
 static int cpcap_battery_init_interrupts(struct platform_device *pdev,
 					 struct cpcap_battery_ddata *ddata)
 {
-	static const char * const cpcap_battery_irqs[] = {
+	const char * const cpcap_battery_irqs[] = {
 		"eol", "lowbph", "lowbpl",
 		"chrgcurr1", "battdetb"
 	};
@@ -671,9 +671,8 @@ static int cpcap_battery_init_iio(struct cpcap_battery_ddata *ddata)
 	return 0;
 
 out_err:
-	if (error != -EPROBE_DEFER)
-		dev_err(ddata->dev, "could not initialize VBUS or ID IIO: %i\n",
-			error);
+	dev_err(ddata->dev, "could not initialize VBUS or ID IIO: %i\n",
+		error);
 
 	return error;
 }

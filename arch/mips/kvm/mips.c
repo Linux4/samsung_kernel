@@ -18,7 +18,7 @@
 #include <linux/vmalloc.h>
 #include <linux/sched/signal.h>
 #include <linux/fs.h>
-#include <linux/memblock.h>
+#include <linux/bootmem.h>
 
 #include <asm/fpu.h>
 #include <asm/page.h>
@@ -123,16 +123,14 @@ int kvm_arch_hardware_setup(void)
 	return 0;
 }
 
-int kvm_arch_check_processor_compat(void)
+void kvm_arch_check_processor_compat(void *rtn)
 {
-	return 0;
+	*(int *)rtn = 0;
 }
 
 int kvm_arch_init_vm(struct kvm *kvm, unsigned long type)
 {
 	switch (type) {
-	case KVM_VM_MIPS_AUTO:
-		break;
 #ifdef CONFIG_KVM_MIPS_VZ
 	case KVM_VM_MIPS_VZ:
 #else
@@ -149,6 +147,16 @@ int kvm_arch_init_vm(struct kvm *kvm, unsigned long type)
 	if (!kvm->arch.gpa_mm.pgd)
 		return -ENOMEM;
 
+	return 0;
+}
+
+bool kvm_arch_has_vcpu_debugfs(void)
+{
+	return false;
+}
+
+int kvm_arch_create_vcpu_debugfs(struct kvm_vcpu *vcpu)
+{
 	return 0;
 }
 
@@ -996,37 +1004,14 @@ int kvm_vm_ioctl_get_dirty_log(struct kvm *kvm, struct kvm_dirty_log *log)
 {
 	struct kvm_memslots *slots;
 	struct kvm_memory_slot *memslot;
-	bool flush = false;
+	bool is_dirty = false;
 	int r;
 
 	mutex_lock(&kvm->slots_lock);
 
-	r = kvm_get_dirty_log_protect(kvm, log, &flush);
+	r = kvm_get_dirty_log_protect(kvm, log, &is_dirty);
 
-	if (flush) {
-		slots = kvm_memslots(kvm);
-		memslot = id_to_memslot(slots, log->slot);
-
-		/* Let implementation handle TLB/GVA invalidation */
-		kvm_mips_callbacks->flush_shadow_memslot(kvm, memslot);
-	}
-
-	mutex_unlock(&kvm->slots_lock);
-	return r;
-}
-
-int kvm_vm_ioctl_clear_dirty_log(struct kvm *kvm, struct kvm_clear_dirty_log *log)
-{
-	struct kvm_memslots *slots;
-	struct kvm_memory_slot *memslot;
-	bool flush = false;
-	int r;
-
-	mutex_lock(&kvm->slots_lock);
-
-	r = kvm_clear_dirty_log_protect(kvm, log, &flush);
-
-	if (flush) {
+	if (is_dirty) {
 		slots = kvm_memslots(kvm);
 		memslot = id_to_memslot(slots, log->slot);
 
@@ -1717,11 +1702,6 @@ static struct notifier_block kvm_mips_csr_die_notifier = {
 static int __init kvm_mips_init(void)
 {
 	int ret;
-
-	if (cpu_has_mmid) {
-		pr_warn("KVM does not yet support MMIDs. KVM Disabled\n");
-		return -EOPNOTSUPP;
-	}
 
 	ret = kvm_mips_entry_setup();
 	if (ret)

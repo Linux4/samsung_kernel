@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * TI tlc4541 ADC Driver
  *
@@ -7,6 +6,10 @@
  * Datasheets can be found here:
  * http://www.ti.com/lit/gpn/tlc3541
  * http://www.ti.com/lit/gpn/tlc4541
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * The tlc4541 requires 24 clock cycles to start a transfer.
  * Conversion then takes 2.94us to complete before data is ready

@@ -1,10 +1,19 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * axp288_adc.c - X-Powers AXP288 PMIC ADC Driver
  *
  * Copyright (C) 2014 Intel Corporation
  *
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the GNU
+ * General Public License for more details.
+ *
  */
 
 #include <linux/dmi.h>
@@ -196,14 +205,6 @@ static const struct dmi_system_id axp288_adc_ts_bias_override[] = {
 		},
 		.driver_data = (void *)(uintptr_t)AXP288_ADC_TS_BIAS_80UA,
 	},
-	{
-		/* Nuvision Solo 10 Draw */
-		.matches = {
-		  DMI_MATCH(DMI_SYS_VENDOR, "TMAX"),
-		  DMI_MATCH(DMI_PRODUCT_NAME, "TM101W610L"),
-		},
-		.driver_data = (void *)(uintptr_t)AXP288_ADC_TS_BIAS_80UA,
-	},
 	{}
 };
 
@@ -265,8 +266,10 @@ static int axp288_adc_probe(struct platform_device *pdev)
 
 	info = iio_priv(indio_dev);
 	info->irq = platform_get_irq(pdev, 0);
-	if (info->irq < 0)
+	if (info->irq < 0) {
+		dev_err(&pdev->dev, "no irq resource?\n");
 		return info->irq;
+	}
 	platform_set_drvdata(pdev, indio_dev);
 	info->regmap = axp20x->regmap;
 	/*

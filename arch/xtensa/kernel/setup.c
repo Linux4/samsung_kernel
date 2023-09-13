@@ -61,10 +61,11 @@ struct screen_info screen_info = {
 #ifdef CONFIG_BLK_DEV_INITRD
 extern unsigned long initrd_start;
 extern unsigned long initrd_end;
+int initrd_is_mapped = 0;
 extern int initrd_below_start_ok;
 #endif
 
-#ifdef CONFIG_USE_OF
+#ifdef CONFIG_OF
 void *dtb_start = __dtb_start;
 #endif
 
@@ -126,7 +127,7 @@ __tagtable(BP_TAG_INITRD, parse_tag_initrd);
 
 #endif /* CONFIG_BLK_DEV_INITRD */
 
-#ifdef CONFIG_USE_OF
+#ifdef CONFIG_OF
 
 static int __init parse_tag_fdt(const bp_tag_t *tag)
 {
@@ -136,7 +137,7 @@ static int __init parse_tag_fdt(const bp_tag_t *tag)
 
 __tagtable(BP_TAG_FDT, parse_tag_fdt);
 
-#endif /* CONFIG_USE_OF */
+#endif /* CONFIG_OF */
 
 static int __init parse_tag_cmdline(const bp_tag_t* tag)
 {
@@ -184,7 +185,7 @@ static int __init parse_bootparam(const bp_tag_t *tag)
 }
 #endif
 
-#ifdef CONFIG_USE_OF
+#ifdef CONFIG_OF
 
 #if !XCHAL_HAVE_PTP_MMU || XCHAL_HAVE_SPANNING_WAY
 unsigned long xtensa_kio_paddr = XCHAL_KIO_DEFAULT_PADDR;
@@ -233,7 +234,7 @@ void __init early_init_devtree(void *params)
 		strlcpy(command_line, boot_command_line, COMMAND_LINE_SIZE);
 }
 
-#endif /* CONFIG_USE_OF */
+#endif /* CONFIG_OF */
 
 /*
  * Initialize architecture. (Early stage)
@@ -254,7 +255,7 @@ void __init init_arch(bp_tag_t *bp_start)
 	if (bp_start)
 		parse_bootparam(bp_start);
 
-#ifdef CONFIG_USE_OF
+#ifdef CONFIG_OF
 	early_init_devtree(dtb_start);
 #endif
 
@@ -318,9 +319,9 @@ static inline int __init_memblock mem_reserve(unsigned long start,
 void __init setup_arch(char **cmdline_p)
 {
 	pr_info("config ID: %08x:%08x\n",
-		xtensa_get_sr(SREG_EPC), xtensa_get_sr(SREG_EXCSAVE));
-	if (xtensa_get_sr(SREG_EPC) != XCHAL_HW_CONFIGID0 ||
-	    xtensa_get_sr(SREG_EXCSAVE) != XCHAL_HW_CONFIGID1)
+		get_sr(SREG_EPC), get_sr(SREG_EXCSAVE));
+	if (get_sr(SREG_EPC) != XCHAL_HW_CONFIGID0 ||
+	    get_sr(SREG_EXCSAVE) != XCHAL_HW_CONFIGID1)
 		pr_info("built for config ID: %08x:%08x\n",
 			XCHAL_HW_CONFIGID0, XCHAL_HW_CONFIGID1);
 
@@ -331,11 +332,13 @@ void __init setup_arch(char **cmdline_p)
 	/* Reserve some memory regions */
 
 #ifdef CONFIG_BLK_DEV_INITRD
-	if (initrd_start < initrd_end &&
-	    !mem_reserve(__pa(initrd_start), __pa(initrd_end)))
+	if (initrd_start < initrd_end) {
+		initrd_is_mapped = mem_reserve(__pa(initrd_start),
+					       __pa(initrd_end)) == 0;
 		initrd_below_start_ok = 1;
-	else
+	} else {
 		initrd_start = 0;
+	}
 #endif
 
 	mem_reserve(__pa(_stext), __pa(_end));
@@ -401,6 +404,10 @@ void __init setup_arch(char **cmdline_p)
 # elif defined(CONFIG_DUMMY_CONSOLE)
 	conswitchp = &dummy_con;
 # endif
+#endif
+
+#ifdef CONFIG_PCI
+	platform_pcibios_init();
 #endif
 }
 
@@ -591,7 +598,7 @@ c_show(struct seq_file *f, void *slot)
 		      num_online_cpus(),
 		      cpumask_pr_args(cpu_online_mask),
 		      XCHAL_BUILD_UNIQUE_ID,
-		      xtensa_get_sr(SREG_EPC), xtensa_get_sr(SREG_EXCSAVE),
+		      get_sr(SREG_EPC), get_sr(SREG_EXCSAVE),
 		      XCHAL_HAVE_BE ?  "big" : "little",
 		      ccount_freq/1000000,
 		      (ccount_freq/10000) % 100,
@@ -645,9 +652,6 @@ c_show(struct seq_file *f, void *slot)
 #endif
 #if XCHAL_HAVE_S32C1I
 		     "s32c1i "
-#endif
-#if XCHAL_HAVE_EXCLUSIVE
-		     "exclusive "
 #endif
 		     "\n");
 
@@ -716,8 +720,7 @@ c_start(struct seq_file *f, loff_t *pos)
 static void *
 c_next(struct seq_file *f, void *v, loff_t *pos)
 {
-	++*pos;
-	return c_start(f, pos);
+	return NULL;
 }
 
 static void

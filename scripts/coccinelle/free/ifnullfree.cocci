@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /// NULL check before some freeing functions is not needed.
 ///
 /// Based on checkpatch warning
 /// "kfree(NULL) is safe this check is probably not required"
 /// and kfreeaddr.cocci by Julia Lawall.
 ///
-// Copyright: (C) 2014 Fabian Frederick.
+// Copyright: (C) 2014 Fabian Frederick.  GPLv2.
 // Comments: -
 // Options: --no-includes --include-headers
 

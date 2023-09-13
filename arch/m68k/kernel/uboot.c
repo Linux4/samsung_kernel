@@ -16,7 +16,7 @@
 #include <linux/console.h>
 #include <linux/errno.h>
 #include <linux/string.h>
-#include <linux/memblock.h>
+#include <linux/bootmem.h>
 #include <linux/seq_file.h>
 #include <linux/init.h>
 #include <linux/initrd.h>

@@ -17,7 +17,10 @@
  * EPERM, ENOENT, ESRCH, etc). For unsupported errors this function returns
  * NULL.
  */
-const char *strerror_str(int errno);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wincompatible-library-redeclaration"
+const char *strerror(int errno);
+#pragma GCC diagnostic pop
 
 /**
  * strerror_r() - returns a string representation of the given error code.

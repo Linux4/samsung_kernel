@@ -1,10 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * atusb.c - Driver for the ATUSB IEEE 802.15.4 dongle
  *
  * Written 2013 by Werner Almesberger <werner@almesberger.net>
  *
  * Copyright (c) 2015 - 2016 Stefan Schmidt <stefan@datenfreihafen.org>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation, version 2
  *
  * Based on at86rf230.c and spi_atusb.c.
  * at86rf230.c is
@@ -93,9 +96,7 @@ static int atusb_control_msg(struct atusb *atusb, unsigned int pipe,
 
 	ret = usb_control_msg(usb_dev, pipe, request, requesttype,
 			      value, index, data, size, timeout);
-	if (ret < size) {
-		ret = ret < 0 ? ret : -ENODATA;
-
+	if (ret < 0) {
 		atusb->err = ret;
 		dev_err(&usb_dev->dev,
 			"%s: req 0x%02x val 0x%x idx 0x%x, error %d\n",
@@ -367,7 +368,6 @@ static int atusb_alloc_urbs(struct atusb *atusb, int n)
 			return -ENOMEM;
 		}
 		usb_anchor_urb(urb, &atusb->idle_urbs);
-		usb_free_urb(urb);
 		n--;
 	}
 	return 0;
@@ -863,9 +863,9 @@ static int atusb_get_and_show_build(struct atusb *atusb)
 	if (!build)
 		return -ENOMEM;
 
-	/* We cannot call atusb_control_msg() here, since this request may read various length data */
-	ret = usb_control_msg(atusb->usb_dev, usb_rcvctrlpipe(usb_dev, 0), ATUSB_BUILD,
-			      ATUSB_REQ_FROM_DEV, 0, 0, build, ATUSB_BUILD_SIZE, 1000);
+	ret = atusb_control_msg(atusb, usb_rcvctrlpipe(usb_dev, 0),
+				ATUSB_BUILD, ATUSB_REQ_FROM_DEV, 0, 0,
+				build, ATUSB_BUILD_SIZE, 1000);
 	if (ret >= 0) {
 		build[ret] = 0;
 		dev_info(&usb_dev->dev, "Firmware: build %s\n", build);

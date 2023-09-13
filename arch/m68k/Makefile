@@ -73,7 +73,7 @@ KBUILD_AFLAGS += -D__uClinux__
 endif
 
 KBUILD_LDFLAGS := -m m68kelf
-KBUILD_LDS_MODULE += $(srctree)/arch/m68k/kernel/module.lds
+KBUILD_LDFLAGS_MODULE += -T $(srctree)/arch/m68k/kernel/module.lds
 
 ifdef CONFIG_SUN3
 LDFLAGS_vmlinux = -N
@@ -135,10 +135,10 @@ vmlinux.gz: vmlinux
 ifndef CONFIG_KGDB
 	cp vmlinux vmlinux.tmp
 	$(STRIP) vmlinux.tmp
-	$(KGZIP) -9c vmlinux.tmp >vmlinux.gz
+	gzip -9c vmlinux.tmp >vmlinux.gz
 	rm vmlinux.tmp
 else
-	$(KGZIP) -9c vmlinux >vmlinux.gz
+	gzip -9c vmlinux >vmlinux.gz
 endif
 
 bzImage: vmlinux.bz2
@@ -148,17 +148,14 @@ vmlinux.bz2: vmlinux
 ifndef CONFIG_KGDB
 	cp vmlinux vmlinux.tmp
 	$(STRIP) vmlinux.tmp
-	$(KBZIP2) -1c vmlinux.tmp >vmlinux.bz2
+	bzip2 -1c vmlinux.tmp >vmlinux.bz2
 	rm vmlinux.tmp
 else
-	$(KBZIP2) -1c vmlinux >vmlinux.bz2
+	bzip2 -1c vmlinux >vmlinux.bz2
 endif
 
 archclean:
 	rm -f vmlinux.gz vmlinux.bz2
-
-archheaders:
-	$(Q)$(MAKE) $(build)=arch/m68k/kernel/syscalls all
 
 install:
 	sh $(srctree)/arch/m68k/install.sh $(KERNELRELEASE) vmlinux.gz System.map "$(INSTALL_PATH)"

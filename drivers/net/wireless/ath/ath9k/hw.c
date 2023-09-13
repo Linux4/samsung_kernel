@@ -287,7 +287,7 @@ static bool ath9k_hw_read_revisions(struct ath_hw *ah)
 
 	srev = REG_READ(ah, AR_SREV);
 
-	if (srev == -1) {
+	if (srev == -EIO) {
 		ath_err(ath9k_hw_common(ah),
 			"Failed to read SREV register");
 		return false;
@@ -457,7 +457,7 @@ static void ath9k_hw_init_defaults(struct ath_hw *ah)
 	struct ath_regulatory *regulatory = ath9k_hw_regulatory(ah);
 
 	regulatory->country_code = CTRY_DEFAULT;
-	regulatory->power_limit = MAX_COMBINED_POWER;
+	regulatory->power_limit = MAX_RATE_POWER;
 
 	ah->hw_version.magic = AR5416_MAGIC;
 	ah->hw_version.subvendorid = 0;
@@ -1622,6 +1622,7 @@ static void ath9k_hw_apply_gpio_override(struct ath_hw *ah)
 		ath9k_hw_gpio_request_out(ah, i, NULL,
 					  AR_GPIO_OUTPUT_MUX_AS_OUTPUT);
 		ath9k_hw_set_gpio(ah, i, !!(ah->gpio_val & BIT(i)));
+		ath9k_hw_gpio_free(ah, i);
 	}
 }
 
@@ -2292,7 +2293,6 @@ void ath9k_hw_beaconinit(struct ath_hw *ah, u32 next_beacon, u32 beacon_period)
 	case NL80211_IFTYPE_ADHOC:
 		REG_SET_BIT(ah, AR_TXCFG,
 			    AR_TXCFG_ADHOC_BEACON_ATIM_TX_POLICY);
-		/* fall through */
 	case NL80211_IFTYPE_MESH_POINT:
 	case NL80211_IFTYPE_AP:
 		REG_WRITE(ah, AR_NEXT_TBTT_TIMER, next_beacon);
@@ -2729,17 +2729,14 @@ static void ath9k_hw_gpio_cfg_output_mux(struct ath_hw *ah, u32 gpio, u32 type)
 static void ath9k_hw_gpio_cfg_soc(struct ath_hw *ah, u32 gpio, bool out,
 				  const char *label)
 {
-	int err;
-
 	if (ah->caps.gpio_requested & BIT(gpio))
 		return;
 
-	err = gpio_request_one(gpio, out ? GPIOF_OUT_INIT_LOW : GPIOF_IN, label);
-	if (err) {
-		ath_err(ath9k_hw_common(ah), "request GPIO%d failed:%d\n",
-			gpio, err);
+	/* may be requested by BSP, free anyway */
+	gpio_free(gpio);
+
+	if (gpio_request_one(gpio, out ? GPIOF_OUT_INIT_LOW : GPIOF_IN, label))
 		return;
-	}
 
 	ah->caps.gpio_requested |= BIT(gpio);
 }
@@ -2968,7 +2965,7 @@ void ath9k_hw_apply_txpower(struct ath_hw *ah, struct ath9k_channel *chan,
 		ctl = ath9k_regd_get_ctl(reg, chan);
 
 	channel = chan->chan;
-	chan_pwr = min_t(int, channel->max_power * 2, MAX_COMBINED_POWER);
+	chan_pwr = min_t(int, channel->max_power * 2, MAX_RATE_POWER);
 	new_pwr = min_t(int, chan_pwr, reg->power_limit);
 
 	ah->eep_ops->set_txpower(ah, chan, ctl,
@@ -2981,9 +2978,9 @@ void ath9k_hw_set_txpowerlimit(struct ath_hw *ah, u32 limit, bool test)
 	struct ath9k_channel *chan = ah->curchan;
 	struct ieee80211_channel *channel = chan->chan;
 
-	reg->power_limit = min_t(u32, limit, MAX_COMBINED_POWER);
+	reg->power_limit = min_t(u32, limit, MAX_RATE_POWER);
 	if (test)
-		channel->max_power = MAX_COMBINED_POWER / 2;
+		channel->max_power = MAX_RATE_POWER / 2;
 
 	ath9k_hw_apply_txpower(ah, chan, test);
 

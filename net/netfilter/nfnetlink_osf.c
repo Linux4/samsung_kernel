@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -31,26 +30,32 @@ EXPORT_SYMBOL_GPL(nf_osf_fingers);
 static inline int nf_osf_ttl(const struct sk_buff *skb,
 			     int ttl_check, unsigned char f_ttl)
 {
-	struct in_device *in_dev = __in_dev_get_rcu(skb->dev);
 	const struct iphdr *ip = ip_hdr(skb);
-	const struct in_ifaddr *ifa;
-	int ret = 0;
 
-	if (ttl_check == NF_OSF_TTL_TRUE)
-		return ip->ttl == f_ttl;
-	if (ttl_check == NF_OSF_TTL_NOCHECK)
-		return 1;
-	else if (ip->ttl <= f_ttl)
-		return 1;
+	if (ttl_check != -1) {
+		if (ttl_check == NF_OSF_TTL_TRUE)
+			return ip->ttl == f_ttl;
+		if (ttl_check == NF_OSF_TTL_NOCHECK)
+			return 1;
+		else if (ip->ttl <= f_ttl)
+			return 1;
+		else {
+			struct in_device *in_dev = __in_dev_get_rcu(skb->dev);
+			int ret = 0;
 
-	in_dev_for_each_ifa_rcu(ifa, in_dev) {
-		if (inet_ifa_match(ip->saddr, ifa)) {
-			ret = (ip->ttl == f_ttl);
-			break;
+			for_ifa(in_dev) {
+				if (inet_ifa_match(ip->saddr, ifa)) {
+					ret = (ip->ttl == f_ttl);
+					break;
+				}
+			}
+			endfor_ifa(in_dev);
+
+			return ret;
 		}
 	}
 
-	return ret;
+	return ip->ttl == f_ttl;
 }
 
 struct nf_osf_hdr_ctx {
@@ -186,8 +191,6 @@ static const struct tcphdr *nf_osf_hdr_ctx_init(struct nf_osf_hdr_ctx *ctx,
 
 		ctx->optp = skb_header_pointer(skb, ip_hdrlen(skb) +
 				sizeof(struct tcphdr), ctx->optsize, opts);
-		if (!ctx->optp)
-			return NULL;
 	}
 
 	return tcp;
@@ -215,7 +218,7 @@ nf_osf_match(const struct sk_buff *skb, u_int8_t family,
 	if (!tcp)
 		return false;
 
-	ttl_check = (info->flags & NF_OSF_TTL) ? info->ttl : 0;
+	ttl_check = (info->flags & NF_OSF_TTL) ? info->ttl : -1;
 
 	list_for_each_entry_rcu(kf, &nf_osf_fingers[ctx.df], finger_entry) {
 
@@ -258,9 +261,8 @@ nf_osf_match(const struct sk_buff *skb, u_int8_t family,
 }
 EXPORT_SYMBOL_GPL(nf_osf_match);
 
-bool nf_osf_find(const struct sk_buff *skb,
-		 const struct list_head *nf_osf_fingers,
-		 const int ttl_check, struct nf_osf_data *data)
+const char *nf_osf_find(const struct sk_buff *skb,
+			const struct list_head *nf_osf_fingers)
 {
 	const struct iphdr *ip = ip_hdr(skb);
 	const struct nf_osf_user_finger *f;
@@ -268,25 +270,25 @@ bool nf_osf_find(const struct sk_buff *skb,
 	const struct nf_osf_finger *kf;
 	struct nf_osf_hdr_ctx ctx;
 	const struct tcphdr *tcp;
+	const char *genre = NULL;
 	struct tcphdr _tcph;
 
 	memset(&ctx, 0, sizeof(ctx));
 
 	tcp = nf_osf_hdr_ctx_init(&ctx, skb, ip, opts, &_tcph);
 	if (!tcp)
-		return false;
+		return NULL;
 
 	list_for_each_entry_rcu(kf, &nf_osf_fingers[ctx.df], finger_entry) {
 		f = &kf->finger;
-		if (!nf_osf_match_one(skb, f, ttl_check, &ctx))
+		if (!nf_osf_match_one(skb, f, -1, &ctx))
 			continue;
 
-		data->genre = f->genre;
-		data->version = f->version;
+		genre = f->genre;
 		break;
 	}
 
-	return true;
+	return genre;
 }
 EXPORT_SYMBOL_GPL(nf_osf_find);
 

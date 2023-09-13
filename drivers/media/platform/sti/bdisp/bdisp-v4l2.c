@@ -499,7 +499,7 @@ static int bdisp_start_streaming(struct vb2_queue *q, unsigned int count)
 {
 	struct bdisp_ctx *ctx = q->drv_priv;
 	struct vb2_v4l2_buffer *buf;
-	int ret = pm_runtime_resume_and_get(ctx->bdisp_dev->dev);
+	int ret = pm_runtime_get_sync(ctx->bdisp_dev->dev);
 
 	if (ret < 0) {
 		dev_err(ctx->bdisp_dev->dev, "failed to set runtime PM\n");
@@ -687,10 +687,15 @@ static int bdisp_querycap(struct file *file, void *fh,
 	struct bdisp_ctx *ctx = fh_to_ctx(fh);
 	struct bdisp_dev *bdisp = ctx->bdisp_dev;
 
-	strscpy(cap->driver, bdisp->pdev->name, sizeof(cap->driver));
-	strscpy(cap->card, bdisp->pdev->name, sizeof(cap->card));
+	strlcpy(cap->driver, bdisp->pdev->name, sizeof(cap->driver));
+	strlcpy(cap->card, bdisp->pdev->name, sizeof(cap->card));
 	snprintf(cap->bus_info, sizeof(cap->bus_info), "platform:%s%d",
 		 BDISP_NAME, bdisp->id);
+
+	cap->device_caps = V4L2_CAP_STREAMING | V4L2_CAP_VIDEO_M2M;
+
+	cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
+
 	return 0;
 }
 
@@ -1053,7 +1058,6 @@ static int bdisp_register_device(struct bdisp_dev *bdisp)
 	bdisp->vdev.lock        = &bdisp->lock;
 	bdisp->vdev.vfl_dir     = VFL_DIR_M2M;
 	bdisp->vdev.v4l2_dev    = &bdisp->v4l2_dev;
-	bdisp->vdev.device_caps = V4L2_CAP_STREAMING | V4L2_CAP_VIDEO_M2M;
 	snprintf(bdisp->vdev.name, sizeof(bdisp->vdev.name), "%s.%d",
 		 BDISP_NAME, bdisp->id);
 
@@ -1364,10 +1368,10 @@ static int bdisp_probe(struct platform_device *pdev)
 
 	/* Power management */
 	pm_runtime_enable(dev);
-	ret = pm_runtime_resume_and_get(dev);
+	ret = pm_runtime_get_sync(dev);
 	if (ret < 0) {
 		dev_err(dev, "failed to set PM\n");
-		goto err_remove;
+		goto err_dbg;
 	}
 
 	/* Filters */
@@ -1395,7 +1399,7 @@ err_filter:
 	bdisp_hw_free_filters(bdisp->dev);
 err_pm:
 	pm_runtime_put(dev);
-err_remove:
+err_dbg:
 	bdisp_debugfs_remove(bdisp);
 err_v4l2:
 	v4l2_device_unregister(&bdisp->v4l2_dev);

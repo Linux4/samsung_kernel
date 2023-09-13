@@ -123,15 +123,15 @@ void c4iw_ev_dispatch(struct c4iw_dev *dev, struct t4_cqe *err_cqe)
 	struct c4iw_qp *qhp;
 	u32 cqid;
 
-	xa_lock_irq(&dev->qps);
-	qhp = xa_load(&dev->qps, CQE_QPID(err_cqe));
+	spin_lock_irq(&dev->lock);
+	qhp = get_qhp(dev, CQE_QPID(err_cqe));
 	if (!qhp) {
 		pr_err("BAD AE qpid 0x%x opcode %d status 0x%x type %d wrid.hi 0x%x wrid.lo 0x%x\n",
 		       CQE_QPID(err_cqe),
 		       CQE_OPCODE(err_cqe), CQE_STATUS(err_cqe),
 		       CQE_TYPE(err_cqe), CQE_WRID_HI(err_cqe),
 		       CQE_WRID_LOW(err_cqe));
-		xa_unlock_irq(&dev->qps);
+		spin_unlock_irq(&dev->lock);
 		goto out;
 	}
 
@@ -146,13 +146,13 @@ void c4iw_ev_dispatch(struct c4iw_dev *dev, struct t4_cqe *err_cqe)
 		       CQE_OPCODE(err_cqe), CQE_STATUS(err_cqe),
 		       CQE_TYPE(err_cqe), CQE_WRID_HI(err_cqe),
 		       CQE_WRID_LOW(err_cqe));
-		xa_unlock_irq(&dev->qps);
+		spin_unlock_irq(&dev->lock);
 		goto out;
 	}
 
 	c4iw_qp_add_ref(&qhp->ibqp);
 	atomic_inc(&chp->refcnt);
-	xa_unlock_irq(&dev->qps);
+	spin_unlock_irq(&dev->lock);
 
 	/* Bad incoming write */
 	if (RQ_TYPE(err_cqe) &&
@@ -225,11 +225,11 @@ int c4iw_ev_handler(struct c4iw_dev *dev, u32 qid)
 	struct c4iw_cq *chp;
 	unsigned long flag;
 
-	xa_lock_irqsave(&dev->cqs, flag);
-	chp = xa_load(&dev->cqs, qid);
+	spin_lock_irqsave(&dev->lock, flag);
+	chp = get_chp(dev, qid);
 	if (chp) {
 		atomic_inc(&chp->refcnt);
-		xa_unlock_irqrestore(&dev->cqs, flag);
+		spin_unlock_irqrestore(&dev->lock, flag);
 		t4_clear_cq_armed(&chp->cq);
 		spin_lock_irqsave(&chp->comp_handler_lock, flag);
 		(*chp->ibcq.comp_handler)(&chp->ibcq, chp->ibcq.cq_context);
@@ -238,7 +238,7 @@ int c4iw_ev_handler(struct c4iw_dev *dev, u32 qid)
 			wake_up(&chp->wait);
 	} else {
 		pr_debug("unknown cqid 0x%x\n", qid);
-		xa_unlock_irqrestore(&dev->cqs, flag);
+		spin_unlock_irqrestore(&dev->lock, flag);
 	}
 	return 0;
 }

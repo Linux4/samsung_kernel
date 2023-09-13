@@ -1,5 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2013, 2016-2020, The Linux Foundation. All rights reserved. */
+/* SPDX-License-Identifier: GPL-2.0 */
+/* Copyright (c) 2013, 2018, The Linux Foundation. All rights reserved. */
 
 #ifndef __QCOM_CLK_RCG_H__
 #define __QCOM_CLK_RCG_H__
@@ -15,8 +15,6 @@ struct freq_tbl {
 	u8 pre_div;
 	u16 m;
 	u16 n;
-	unsigned long src_freq;
-#define FIXED_FREQ_SRC   0
 };
 
 /**
@@ -73,6 +71,7 @@ struct src_sel {
  * @freq_tbl: frequency table
  * @clkr: regmap clock handle
  * @lock: register lock
+ *
  */
 struct clk_rcg {
 	u32		ns_reg;
@@ -108,6 +107,7 @@ extern const struct clk_ops clk_rcg_lcc_ops;
  * @freq_tbl: frequency table
  * @clkr: regmap clock handle
  * @lock: register lock
+ *
  */
 struct clk_dyn_rcg {
 	u32	ns_reg[2];
@@ -139,11 +139,8 @@ extern const struct clk_ops clk_dyn_rcg_ops;
  * @safe_src_index: safe src index value
  * @parent_map: map from software's parent index to hardware's src_sel field
  * @freq_tbl: frequency table
- * @current_freq: last cached frequency when using branches with shared RCGs
- * @enable_safe_config: When set, the RCG is parked at CXO when it's disabled
  * @clkr: regmap clock handle
- * @cfg_off: defines the cfg register offset from the CMD_RCGR + CFG_REG
- * @flags: additional flag parameters for the RCG
+ *
  */
 struct clk_rcg2 {
 	u32			cmd_rcgr;
@@ -152,14 +149,7 @@ struct clk_rcg2 {
 	u8			safe_src_index;
 	const struct parent_map	*parent_map;
 	const struct freq_tbl	*freq_tbl;
-	unsigned long		current_freq;
-	bool			enable_safe_config;
 	struct clk_regmap	clkr;
-	u8			cfg_off;
-	u8			flags;
-#define FORCE_ENABLE_RCG	BIT(0)
-#define HW_CLK_CTRL_MODE	BIT(1)
-#define DFS_SUPPORT		BIT(2)
 };
 
 #define to_clk_rcg2(_hw) container_of(to_clk_regmap(_hw), struct clk_rcg2, clkr)
@@ -172,18 +162,5 @@ extern const struct clk_ops clk_byte2_ops;
 extern const struct clk_ops clk_pixel_ops;
 extern const struct clk_ops clk_gfx3d_ops;
 extern const struct clk_ops clk_rcg2_shared_ops;
-extern const struct clk_ops clk_dp_ops;
-extern const struct clk_ops clk_rcg2_dependent_ops;
 
-struct clk_rcg_dfs_data {
-	struct clk_rcg2 *rcg;
-	struct clk_init_data *init;
-};
-
-#define DEFINE_RCG_DFS(r) \
-	{ .rcg = &r, .init = &r##_init }
-
-extern int qcom_cc_register_rcg_dfs(struct regmap *regmap,
-				    const struct clk_rcg_dfs_data *rcgs,
-				    size_t len);
 #endif

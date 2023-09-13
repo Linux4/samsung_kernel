@@ -12,11 +12,9 @@
 #include "async-thread.h"
 #include "ctree.h"
 
-enum {
-	WORK_DONE_BIT,
-	WORK_ORDER_DONE_BIT,
-	WORK_HIGH_PRIO_BIT,
-};
+#define WORK_DONE_BIT 0
+#define WORK_ORDER_DONE_BIT 1
+#define WORK_HIGH_PRIO_BIT 2
 
 #define NO_THRESHOLD (-1)
 #define DFT_THRESHOLD (32)
@@ -53,6 +51,16 @@ struct btrfs_workqueue {
 	struct __btrfs_workqueue *high;
 };
 
+static void normal_work_helper(struct btrfs_work *work);
+
+#define BTRFS_WORK_HELPER(name)					\
+noinline_for_stack void btrfs_##name(struct work_struct *arg)		\
+{									\
+	struct btrfs_work *work = container_of(arg, struct btrfs_work,	\
+					       normal_work);		\
+	normal_work_helper(work);					\
+}
+
 struct btrfs_fs_info *
 btrfs_workqueue_owner(const struct __btrfs_workqueue *wq)
 {
@@ -78,6 +86,29 @@ bool btrfs_workqueue_normal_congested(const struct btrfs_workqueue *wq)
 
 	return atomic_read(&wq->normal->pending) > wq->normal->thresh * 2;
 }
+
+BTRFS_WORK_HELPER(worker_helper);
+BTRFS_WORK_HELPER(delalloc_helper);
+BTRFS_WORK_HELPER(flush_delalloc_helper);
+BTRFS_WORK_HELPER(cache_helper);
+BTRFS_WORK_HELPER(submit_helper);
+BTRFS_WORK_HELPER(fixup_helper);
+BTRFS_WORK_HELPER(endio_helper);
+BTRFS_WORK_HELPER(endio_meta_helper);
+BTRFS_WORK_HELPER(endio_meta_write_helper);
+BTRFS_WORK_HELPER(endio_raid56_helper);
+BTRFS_WORK_HELPER(endio_repair_helper);
+BTRFS_WORK_HELPER(rmw_helper);
+BTRFS_WORK_HELPER(endio_write_helper);
+BTRFS_WORK_HELPER(freespace_write_helper);
+BTRFS_WORK_HELPER(delayed_meta_helper);
+BTRFS_WORK_HELPER(readahead_helper);
+BTRFS_WORK_HELPER(qgroup_rescan_helper);
+BTRFS_WORK_HELPER(extent_refs_helper);
+BTRFS_WORK_HELPER(scrub_helper);
+BTRFS_WORK_HELPER(scrubwrc_helper);
+BTRFS_WORK_HELPER(scrubnc_helper);
+BTRFS_WORK_HELPER(scrubparity_helper);
 
 static struct __btrfs_workqueue *
 __btrfs_alloc_workqueue(struct btrfs_fs_info *fs_info, const char *name,
@@ -108,11 +139,13 @@ __btrfs_alloc_workqueue(struct btrfs_fs_info *fs_info, const char *name,
 	}
 
 	if (flags & WQ_HIGHPRI)
-		ret->normal_wq = alloc_workqueue("btrfs-%s-high", flags,
-						 ret->current_active, name);
+		ret->normal_wq = alloc_workqueue("%s-%s-high", flags,
+						 ret->current_active, "btrfs",
+						 name);
 	else
-		ret->normal_wq = alloc_workqueue("btrfs-%s", flags,
-						 ret->current_active, name);
+		ret->normal_wq = alloc_workqueue("%s-%s", flags,
+						 ret->current_active, "btrfs",
+						 name);
 	if (!ret->normal_wq) {
 		kfree(ret);
 		return NULL;
@@ -237,13 +270,6 @@ static void run_ordered_work(struct __btrfs_workqueue *wq,
 				  ordered_list);
 		if (!test_bit(WORK_DONE_BIT, &work->flags))
 			break;
-		/*
-		 * Orders all subsequent loads after reading WORK_DONE_BIT,
-		 * paired with the smp_mb__before_atomic in btrfs_work_helper
-		 * this guarantees that the ordered function will see all
-		 * updates from ordinary work function.
-		 */
-		smp_rmb();
 
 		/*
 		 * we are going to call the ordered done function, but
@@ -276,13 +302,12 @@ static void run_ordered_work(struct __btrfs_workqueue *wq,
 			 * original work item cannot depend on the recycled work
 			 * item in that case (see find_worker_executing_work()).
 			 *
-			 * Note that different types of Btrfs work can depend on
-			 * each other, and one type of work on one Btrfs
-			 * filesystem may even depend on the same type of work
-			 * on another Btrfs filesystem via, e.g., a loop device.
-			 * Therefore, we must not allow the current work item to
-			 * be recycled until we are really done, otherwise we
-			 * break the above assumption and can deadlock.
+			 * Note that the work of one Btrfs filesystem may depend
+			 * on the work of another Btrfs filesystem via, e.g., a
+			 * loop device. Therefore, we must not allow the current
+			 * work item to be recycled until we are really done,
+			 * otherwise we break the above assumption and can
+			 * deadlock.
 			 */
 			free_self = true;
 		} else {
@@ -306,10 +331,8 @@ static void run_ordered_work(struct __btrfs_workqueue *wq,
 	}
 }
 
-static void btrfs_work_helper(struct work_struct *normal_work)
+static void normal_work_helper(struct btrfs_work *work)
 {
-	struct btrfs_work *work = container_of(normal_work, struct btrfs_work,
-					       normal_work);
 	struct __btrfs_workqueue *wq;
 	void *wtag;
 	int need_order = 0;
@@ -332,13 +355,6 @@ static void btrfs_work_helper(struct work_struct *normal_work)
 	thresh_exec_hook(wq);
 	work->func(work);
 	if (need_order) {
-		/*
-		 * Ensures all memory accesses done in the work function are
-		 * ordered before setting the WORK_DONE_BIT. Ensuring the thread
-		 * which is going to executed the ordered work sees them.
-		 * Pairs with the smp_rmb in run_ordered_work.
-		 */
-		smp_mb__before_atomic();
 		set_bit(WORK_DONE_BIT, &work->flags);
 		run_ordered_work(wq, work);
 	}
@@ -346,13 +362,15 @@ static void btrfs_work_helper(struct work_struct *normal_work)
 		trace_btrfs_all_work_done(wq->fs_info, wtag);
 }
 
-void btrfs_init_work(struct btrfs_work *work, btrfs_func_t func,
-		     btrfs_func_t ordered_func, btrfs_func_t ordered_free)
+void btrfs_init_work(struct btrfs_work *work, btrfs_work_func_t uniq_func,
+		     btrfs_func_t func,
+		     btrfs_func_t ordered_func,
+		     btrfs_func_t ordered_free)
 {
 	work->func = func;
 	work->ordered_func = ordered_func;
 	work->ordered_free = ordered_free;
-	INIT_WORK(&work->normal_work, btrfs_work_helper);
+	INIT_WORK(&work->normal_work, uniq_func);
 	INIT_LIST_HEAD(&work->ordered_list);
 	work->flags = 0;
 }

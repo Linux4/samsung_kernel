@@ -45,6 +45,43 @@
 #include "rxe_net.h"
 #include "rxe_loc.h"
 
+static LIST_HEAD(rxe_dev_list);
+static DEFINE_SPINLOCK(dev_list_lock); /* spinlock for device list */
+
+struct rxe_dev *net_to_rxe(struct net_device *ndev)
+{
+	struct rxe_dev *rxe;
+	struct rxe_dev *found = NULL;
+
+	spin_lock_bh(&dev_list_lock);
+	list_for_each_entry(rxe, &rxe_dev_list, list) {
+		if (rxe->ndev == ndev) {
+			found = rxe;
+			break;
+		}
+	}
+	spin_unlock_bh(&dev_list_lock);
+
+	return found;
+}
+
+struct rxe_dev *get_rxe_by_name(const char *name)
+{
+	struct rxe_dev *rxe;
+	struct rxe_dev *found = NULL;
+
+	spin_lock_bh(&dev_list_lock);
+	list_for_each_entry(rxe, &rxe_dev_list, list) {
+		if (!strcmp(name, rxe->ib_dev.name)) {
+			found = rxe;
+			break;
+		}
+	}
+	spin_unlock_bh(&dev_list_lock);
+	return found;
+}
+
+
 static struct rxe_recv_sockets recv_sockets;
 
 struct device *rxe_dma_device(struct rxe_dev *rxe)
@@ -147,11 +184,19 @@ static struct dst_entry *rxe_find_route6(struct net_device *ndev,
 
 #endif
 
-static struct dst_entry *rxe_find_route(struct net_device *ndev,
+static struct dst_entry *rxe_find_route(struct rxe_dev *rxe,
 					struct rxe_qp *qp,
 					struct rxe_av *av)
 {
+	const struct ib_gid_attr *attr;
 	struct dst_entry *dst = NULL;
+	struct net_device *ndev;
+
+	attr = rdma_get_gid_attr(&rxe->ib_dev, qp->attr.port_num,
+				 av->grh.sgid_index);
+	if (IS_ERR(attr))
+		return NULL;
+	ndev = attr->ndev;
 
 	if (qp_type(qp) == IB_QPT_RC)
 		dst = sk_dst_get(qp->sk->sk);
@@ -186,6 +231,7 @@ static struct dst_entry *rxe_find_route(struct net_device *ndev,
 			sk_dst_set(qp->sk->sk, dst);
 		}
 	}
+	rdma_put_gid_attr(attr);
 	return dst;
 }
 
@@ -194,19 +240,18 @@ static int rxe_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 	struct udphdr *udph;
 	struct net_device *ndev = skb->dev;
 	struct net_device *rdev = ndev;
-	struct rxe_dev *rxe = rxe_get_dev_from_net(ndev);
+	struct rxe_dev *rxe = net_to_rxe(ndev);
 	struct rxe_pkt_info *pkt = SKB_TO_PKT(skb);
 
 	if (!rxe && is_vlan_dev(rdev)) {
 		rdev = vlan_dev_real_dev(ndev);
-		rxe = rxe_get_dev_from_net(rdev);
+		rxe = net_to_rxe(rdev);
 	}
 	if (!rxe)
 		goto drop;
 
 	if (skb_linearize(skb)) {
 		pr_err("skb_linearize failed\n");
-		ib_device_put(&rxe->ib_dev);
 		goto drop;
 	}
 
@@ -218,12 +263,6 @@ static int rxe_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
 	pkt->paylen = be16_to_cpu(udph->len) - sizeof(*udph);
 
 	rxe_rcv(skb);
-
-	/*
-	 * FIXME: this is in the wrong place, it needs to be done when pkt is
-	 * destroyed
-	 */
-	ib_device_put(&rxe->ib_dev);
 
 	return 0;
 drop:
@@ -251,8 +290,10 @@ static struct socket *rxe_setup_udp_tunnel(struct net *net, __be16 port,
 
 	/* Create UDP socket */
 	err = udp_sock_create(net, &udp_cfg, &sock);
-	if (err < 0)
+	if (err < 0) {
+		pr_err("failed to create udp socket. err = %d\n", err);
 		return ERR_PTR(err);
+	}
 
 	tnl_cfg.encap_type = 1;
 	tnl_cfg.encap_rcv = rxe_udp_encap_recv;
@@ -338,24 +379,27 @@ static void prepare_ipv6_hdr(struct dst_entry *dst, struct sk_buff *skb,
 	ip6h->payload_len = htons(skb->len - sizeof(*ip6h));
 }
 
-static int prepare4(struct rxe_pkt_info *pkt, struct sk_buff *skb)
+static int prepare4(struct rxe_dev *rxe, struct rxe_pkt_info *pkt,
+		    struct sk_buff *skb, struct rxe_av *av)
 {
 	struct rxe_qp *qp = pkt->qp;
 	struct dst_entry *dst;
 	bool xnet = false;
 	__be16 df = htons(IP_DF);
-	struct rxe_av *av = rxe_get_av(pkt);
 	struct in_addr *saddr = &av->sgid_addr._sockaddr_in.sin_addr;
 	struct in_addr *daddr = &av->dgid_addr._sockaddr_in.sin_addr;
 
-	dst = rxe_find_route(skb->dev, qp, av);
+	dst = rxe_find_route(rxe, qp, av);
 	if (!dst) {
 		pr_err("Host not reachable\n");
 		return -EHOSTUNREACH;
 	}
 
-	prepare_udp_hdr(skb, cpu_to_be16(qp->src_port),
-			cpu_to_be16(ROCE_V2_UDP_DPORT));
+	if (!memcmp(saddr, daddr, sizeof(*daddr)))
+		pkt->mask |= RXE_LOOPBACK_MASK;
+
+	prepare_udp_hdr(skb, htons(RXE_ROCE_V2_SPORT),
+			htons(ROCE_V2_UDP_DPORT));
 
 	prepare_ipv4_hdr(dst, skb, saddr->s_addr, daddr->s_addr, IPPROTO_UDP,
 			 av->grh.traffic_class, av->grh.hop_limit, df, xnet);
@@ -364,22 +408,25 @@ static int prepare4(struct rxe_pkt_info *pkt, struct sk_buff *skb)
 	return 0;
 }
 
-static int prepare6(struct rxe_pkt_info *pkt, struct sk_buff *skb)
+static int prepare6(struct rxe_dev *rxe, struct rxe_pkt_info *pkt,
+		    struct sk_buff *skb, struct rxe_av *av)
 {
 	struct rxe_qp *qp = pkt->qp;
 	struct dst_entry *dst;
-	struct rxe_av *av = rxe_get_av(pkt);
 	struct in6_addr *saddr = &av->sgid_addr._sockaddr_in6.sin6_addr;
 	struct in6_addr *daddr = &av->dgid_addr._sockaddr_in6.sin6_addr;
 
-	dst = rxe_find_route(skb->dev, qp, av);
+	dst = rxe_find_route(rxe, qp, av);
 	if (!dst) {
 		pr_err("Host not reachable\n");
 		return -EHOSTUNREACH;
 	}
 
-	prepare_udp_hdr(skb, cpu_to_be16(qp->src_port),
-			cpu_to_be16(ROCE_V2_UDP_DPORT));
+	if (!memcmp(saddr, daddr, sizeof(*daddr)))
+		pkt->mask |= RXE_LOOPBACK_MASK;
+
+	prepare_udp_hdr(skb, htons(RXE_ROCE_V2_SPORT),
+			htons(ROCE_V2_UDP_DPORT));
 
 	prepare_ipv6_hdr(dst, skb, saddr, daddr, IPPROTO_UDP,
 			 av->grh.traffic_class,
@@ -389,19 +436,18 @@ static int prepare6(struct rxe_pkt_info *pkt, struct sk_buff *skb)
 	return 0;
 }
 
-int rxe_prepare(struct rxe_pkt_info *pkt, struct sk_buff *skb, u32 *crc)
+int rxe_prepare(struct rxe_dev *rxe, struct rxe_pkt_info *pkt,
+		struct sk_buff *skb, u32 *crc)
 {
 	int err = 0;
+	struct rxe_av *av = rxe_get_av(pkt);
 
-	if (skb->protocol == htons(ETH_P_IP))
-		err = prepare4(pkt, skb);
-	else if (skb->protocol == htons(ETH_P_IPV6))
-		err = prepare6(pkt, skb);
+	if (av->network_type == RDMA_NETWORK_IPV4)
+		err = prepare4(rxe, pkt, skb, av);
+	else if (av->network_type == RDMA_NETWORK_IPV6)
+		err = prepare6(rxe, pkt, skb, av);
 
 	*crc = rxe_icrc_hdr(pkt, skb);
-
-	if (ether_addr_equal(skb->dev->dev_addr, rxe_get_av(pkt)->dmac))
-		pkt->mask |= RXE_LOOPBACK_MASK;
 
 	return err;
 }
@@ -421,7 +467,10 @@ static void rxe_skb_tx_dtor(struct sk_buff *skb)
 
 int rxe_send(struct rxe_pkt_info *pkt, struct sk_buff *skb)
 {
+	struct rxe_av *av;
 	int err;
+
+	av = rxe_get_av(pkt);
 
 	skb->destructor = rxe_skb_tx_dtor;
 	skb->sk = pkt->qp->sk->sk;
@@ -429,12 +478,12 @@ int rxe_send(struct rxe_pkt_info *pkt, struct sk_buff *skb)
 	rxe_add_ref(pkt->qp);
 	atomic_inc(&pkt->qp->skb_out);
 
-	if (skb->protocol == htons(ETH_P_IP)) {
+	if (av->network_type == RDMA_NETWORK_IPV4) {
 		err = ip_local_out(dev_net(skb_dst(skb)->dev), skb->sk, skb);
-	} else if (skb->protocol == htons(ETH_P_IPV6)) {
+	} else if (av->network_type == RDMA_NETWORK_IPV6) {
 		err = ip6_local_out(dev_net(skb_dst(skb)->dev), skb->sk, skb);
 	} else {
-		pr_err("Unknown layer 3 protocol: %d\n", skb->protocol);
+		pr_err("Unknown layer 3 protocol: %d\n", av->network_type);
 		atomic_dec(&pkt->qp->skb_out);
 		rxe_drop_ref(pkt->qp);
 		kfree_skb(skb);
@@ -451,19 +500,19 @@ int rxe_send(struct rxe_pkt_info *pkt, struct sk_buff *skb)
 
 void rxe_loopback(struct sk_buff *skb)
 {
-	if (skb->protocol == htons(ETH_P_IP))
-		skb_pull(skb, sizeof(struct iphdr));
-	else
-		skb_pull(skb, sizeof(struct ipv6hdr));
-
 	rxe_rcv(skb);
+}
+
+static inline int addr_same(struct rxe_dev *rxe, struct rxe_av *av)
+{
+	return rxe->port.port_guid == av->grh.dgid.global.interface_id;
 }
 
 struct sk_buff *rxe_init_packet(struct rxe_dev *rxe, struct rxe_av *av,
 				int paylen, struct rxe_pkt_info *pkt)
 {
 	unsigned int hdr_len;
-	struct sk_buff *skb = NULL;
+	struct sk_buff *skb;
 	struct net_device *ndev;
 	const struct ib_gid_attr *attr;
 	const int port_num = 1;
@@ -471,6 +520,7 @@ struct sk_buff *rxe_init_packet(struct rxe_dev *rxe, struct rxe_av *av,
 	attr = rdma_get_gid_attr(&rxe->ib_dev, port_num, av->grh.sgid_index);
 	if (IS_ERR(attr))
 		return NULL;
+	ndev = attr->ndev;
 
 	if (av->network_type == RDMA_NETWORK_IPV4)
 		hdr_len = ETH_HLEN + sizeof(struct udphdr) +
@@ -479,26 +529,16 @@ struct sk_buff *rxe_init_packet(struct rxe_dev *rxe, struct rxe_av *av,
 		hdr_len = ETH_HLEN + sizeof(struct udphdr) +
 			sizeof(struct ipv6hdr);
 
-	rcu_read_lock();
-	ndev = rdma_read_gid_attr_ndev_rcu(attr);
-	if (IS_ERR(ndev)) {
-		rcu_read_unlock();
-		goto out;
-	}
 	skb = alloc_skb(paylen + hdr_len + LL_RESERVED_SPACE(ndev),
 			GFP_ATOMIC);
 
-	if (unlikely(!skb)) {
-		rcu_read_unlock();
+	if (unlikely(!skb))
 		goto out;
-	}
 
 	skb_reserve(skb, hdr_len + LL_RESERVED_SPACE(ndev));
 
 	/* FIXME: hold reference to this netdev until life of this skb. */
 	skb->dev	= ndev;
-	rcu_read_unlock();
-
 	if (av->network_type == RDMA_NETWORK_IPV4)
 		skb->protocol = htons(ETH_P_IP);
 	else
@@ -528,24 +568,42 @@ enum rdma_link_layer rxe_link_layer(struct rxe_dev *rxe, unsigned int port_num)
 	return IB_LINK_LAYER_ETHERNET;
 }
 
-int rxe_net_add(const char *ibdev_name, struct net_device *ndev)
+struct rxe_dev *rxe_net_add(struct net_device *ndev)
 {
 	int err;
 	struct rxe_dev *rxe = NULL;
 
-	rxe = ib_alloc_device(rxe_dev, ib_dev);
+	rxe = (struct rxe_dev *)ib_alloc_device(sizeof(*rxe));
 	if (!rxe)
-		return -ENOMEM;
+		return NULL;
 
 	rxe->ndev = ndev;
 
-	err = rxe_add(rxe, ndev->mtu, ibdev_name);
+	err = rxe_add(rxe, ndev->mtu);
 	if (err) {
 		ib_dealloc_device(&rxe->ib_dev);
-		return err;
+		return NULL;
 	}
 
-	return 0;
+	spin_lock_bh(&dev_list_lock);
+	list_add_tail(&rxe->list, &rxe_dev_list);
+	spin_unlock_bh(&dev_list_lock);
+	return rxe;
+}
+
+void rxe_remove_all(void)
+{
+	spin_lock_bh(&dev_list_lock);
+	while (!list_empty(&rxe_dev_list)) {
+		struct rxe_dev *rxe =
+			list_first_entry(&rxe_dev_list, struct rxe_dev, list);
+
+		list_del(&rxe->list);
+		spin_unlock_bh(&dev_list_lock);
+		rxe_remove(rxe);
+		spin_lock_bh(&dev_list_lock);
+	}
+	spin_unlock_bh(&dev_list_lock);
 }
 
 static void rxe_port_event(struct rxe_dev *rxe,
@@ -567,9 +625,10 @@ void rxe_port_up(struct rxe_dev *rxe)
 
 	port = &rxe->port;
 	port->attr.state = IB_PORT_ACTIVE;
+	port->attr.phys_state = IB_PHYS_STATE_LINK_UP;
 
 	rxe_port_event(rxe, IB_EVENT_PORT_ACTIVE);
-	dev_info(&rxe->ib_dev.dev, "set active\n");
+	pr_info("set %s active\n", rxe->ib_dev.name);
 }
 
 /* Caller must hold net_info_lock */
@@ -579,18 +638,10 @@ void rxe_port_down(struct rxe_dev *rxe)
 
 	port = &rxe->port;
 	port->attr.state = IB_PORT_DOWN;
+	port->attr.phys_state = IB_PHYS_STATE_LINK_DOWN;
 
 	rxe_port_event(rxe, IB_EVENT_PORT_ERR);
-	rxe_counter_inc(rxe, RXE_CNT_LINK_DOWNED);
-	dev_info(&rxe->ib_dev.dev, "set down\n");
-}
-
-void rxe_set_port_state(struct rxe_dev *rxe)
-{
-	if (netif_running(rxe->ndev) && netif_carrier_ok(rxe->ndev))
-		rxe_port_up(rxe);
-	else
-		rxe_port_down(rxe);
+	pr_info("set %s down\n", rxe->ib_dev.name);
 }
 
 static int rxe_notify(struct notifier_block *not_blk,
@@ -598,14 +649,15 @@ static int rxe_notify(struct notifier_block *not_blk,
 		      void *arg)
 {
 	struct net_device *ndev = netdev_notifier_info_to_dev(arg);
-	struct rxe_dev *rxe = rxe_get_dev_from_net(ndev);
+	struct rxe_dev *rxe = net_to_rxe(ndev);
 
 	if (!rxe)
-		return NOTIFY_OK;
+		goto out;
 
 	switch (event) {
 	case NETDEV_UNREGISTER:
-		ib_unregister_device_queued(&rxe->ib_dev);
+		list_del(&rxe->list);
+		rxe_remove(rxe);
 		break;
 	case NETDEV_UP:
 		rxe_port_up(rxe);
@@ -618,7 +670,10 @@ static int rxe_notify(struct notifier_block *not_blk,
 		rxe_set_mtu(rxe, ndev->mtu);
 		break;
 	case NETDEV_CHANGE:
-		rxe_set_port_state(rxe);
+		if (netif_running(ndev) && netif_carrier_ok(ndev))
+			rxe_port_up(rxe);
+		else
+			rxe_port_down(rxe);
 		break;
 	case NETDEV_REBOOT:
 	case NETDEV_GOING_DOWN:
@@ -630,8 +685,7 @@ static int rxe_notify(struct notifier_block *not_blk,
 			event, ndev->name);
 		break;
 	}
-
-	ib_device_put(&rxe->ib_dev);
+out:
 	return NOTIFY_OK;
 }
 
@@ -658,12 +712,6 @@ static int rxe_net_ipv6_init(void)
 
 	recv_sockets.sk6 = rxe_setup_udp_tunnel(&init_net,
 						htons(ROCE_V2_UDP_DPORT), true);
-	if (PTR_ERR(recv_sockets.sk6) == -EAFNOSUPPORT) {
-		recv_sockets.sk6 = NULL;
-		pr_warn("IPv6 is not supported, can not create a UDPv6 socket\n");
-		return 0;
-	}
-
 	if (IS_ERR(recv_sockets.sk6)) {
 		recv_sockets.sk6 = NULL;
 		pr_err("Failed to create IPv6 UDP tunnel\n");

@@ -1,7 +1,7 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2002 Roman Zippel <zippel@linux-m68k.org>
  * Copyright (C) 2015 Boris Barbulovski <bbarbulovski@gmail.com>
+ * Released under the terms of the GNU GPL v2.0.
  */
 
 #include <qglobal.h>
@@ -32,7 +32,7 @@
 #include "qconf.h"
 
 #include "qconf.moc"
-#include "images.h"
+#include "images.c"
 
 
 static QApplication *configApp;
@@ -152,7 +152,7 @@ void ConfigItem::updateMenu(void)
 	case S_TRISTATE:
 		char ch;
 
-		if (!sym_is_changeable(sym) && list->optMode == normalOpt) {
+		if (!sym_is_changable(sym) && list->optMode == normalOpt) {
 			setPixmap(promptColIdx, QIcon());
 			setText(noColIdx, QString::null);
 			setText(modColIdx, QString::null);
@@ -869,40 +869,40 @@ void ConfigList::focusInEvent(QFocusEvent *e)
 
 void ConfigList::contextMenuEvent(QContextMenuEvent *e)
 {
-	if (!headerPopup) {
-		QAction *action;
+	if (e->y() <= header()->geometry().bottom()) {
+		if (!headerPopup) {
+			QAction *action;
 
-		headerPopup = new QMenu(this);
-		action = new QAction("Show Name", this);
-		action->setCheckable(true);
-		connect(action, SIGNAL(toggled(bool)),
-			parent(), SLOT(setShowName(bool)));
-		connect(parent(), SIGNAL(showNameChanged(bool)),
-			action, SLOT(setChecked(bool)));
-		action->setChecked(showName);
-		headerPopup->addAction(action);
-
-		action = new QAction("Show Range", this);
-		action->setCheckable(true);
-		connect(action, SIGNAL(toggled(bool)),
-			parent(), SLOT(setShowRange(bool)));
-		connect(parent(), SIGNAL(showRangeChanged(bool)),
-			action, SLOT(setChecked(bool)));
-		action->setChecked(showRange);
-		headerPopup->addAction(action);
-
-		action = new QAction("Show Data", this);
-		action->setCheckable(true);
-		connect(action, SIGNAL(toggled(bool)),
-			parent(), SLOT(setShowData(bool)));
-		connect(parent(), SIGNAL(showDataChanged(bool)),
-			action, SLOT(setChecked(bool)));
-		action->setChecked(showData);
-		headerPopup->addAction(action);
-	}
-
-	headerPopup->exec(e->globalPos());
-	e->accept();
+			headerPopup = new QMenu(this);
+			action = new QAction("Show Name", this);
+			  action->setCheckable(true);
+			  connect(action, SIGNAL(toggled(bool)),
+				  parent(), SLOT(setShowName(bool)));
+			  connect(parent(), SIGNAL(showNameChanged(bool)),
+				  action, SLOT(setOn(bool)));
+			  action->setChecked(showName);
+			  headerPopup->addAction(action);
+			action = new QAction("Show Range", this);
+			  action->setCheckable(true);
+			  connect(action, SIGNAL(toggled(bool)),
+				  parent(), SLOT(setShowRange(bool)));
+			  connect(parent(), SIGNAL(showRangeChanged(bool)),
+				  action, SLOT(setOn(bool)));
+			  action->setChecked(showRange);
+			  headerPopup->addAction(action);
+			action = new QAction("Show Data", this);
+			  action->setCheckable(true);
+			  connect(action, SIGNAL(toggled(bool)),
+				  parent(), SLOT(setShowData(bool)));
+			  connect(parent(), SIGNAL(showDataChanged(bool)),
+				  action, SLOT(setOn(bool)));
+			  action->setChecked(showData);
+			  headerPopup->addAction(action);
+		}
+		headerPopup->exec(e->globalPos());
+		e->accept();
+	} else
+		e->ignore();
 }
 
 ConfigView*ConfigView::viewList;
@@ -1228,7 +1228,7 @@ QMenu* ConfigInfoView::createStandardContextMenu(const QPoint & pos)
 
 	action->setCheckable(true);
 	connect(action, SIGNAL(toggled(bool)), SLOT(setShowDebug(bool)));
-	connect(this, SIGNAL(showDebugChanged(bool)), action, SLOT(setChecked(bool)));
+	connect(this, SIGNAL(showDebugChanged(bool)), action, SLOT(setOn(bool)));
 	action->setChecked(showDebug());
 	popup->addSeparator();
 	popup->addAction(action);
@@ -1393,8 +1393,6 @@ ConfigMainWindow::ConfigMainWindow(void)
 	conf_set_changed_callback(conf_changed);
 	// Set saveAction's initial state
 	conf_changed();
-	configname = xstrdup(conf_get_configname());
-
 	QAction *saveAsAction = new QAction("Save &As...", this);
 	  connect(saveAsAction, SIGNAL(triggered(bool)), SLOT(saveConfigAs()));
 	QAction *searchAction = new QAction("&Find", this);
@@ -1523,29 +1521,17 @@ ConfigMainWindow::ConfigMainWindow(void)
 
 void ConfigMainWindow::loadConfig(void)
 {
-	QString str;
-	QByteArray ba;
-	const char *name;
-
-	str = QFileDialog::getOpenFileName(this, "", configname);
-	if (str.isNull())
+	QString s = QFileDialog::getOpenFileName(this, "", conf_get_configname());
+	if (s.isNull())
 		return;
-
-	ba = str.toLocal8Bit();
-	name = ba.data();
-
-	if (conf_read(name))
+	if (conf_read(QFile::encodeName(s)))
 		QMessageBox::information(this, "qconf", "Unable to load configuration!");
-
-	free(configname);
-	configname = xstrdup(name);
-
 	ConfigView::updateListAll();
 }
 
 bool ConfigMainWindow::saveConfig(void)
 {
-	if (conf_write(configname)) {
+	if (conf_write(NULL)) {
 		QMessageBox::information(this, "qconf", "Unable to save configuration!");
 		return false;
 	}
@@ -1556,24 +1542,10 @@ bool ConfigMainWindow::saveConfig(void)
 
 void ConfigMainWindow::saveConfigAs(void)
 {
-	QString str;
-	QByteArray ba;
-	const char *name;
-
-	str = QFileDialog::getSaveFileName(this, "", configname);
-	if (str.isNull())
+	QString s = QFileDialog::getSaveFileName(this, "", conf_get_configname());
+	if (s.isNull())
 		return;
-
-	ba = str.toLocal8Bit();
-	name = ba.data();
-
-	if (conf_write(name)) {
-		QMessageBox::information(this, "qconf", "Unable to save configuration!");
-	}
-	conf_write_autoconf(0);
-
-	free(configname);
-	configname = xstrdup(name);
+	saveConfig();
 }
 
 void ConfigMainWindow::searchConfig(void)

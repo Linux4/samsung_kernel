@@ -189,8 +189,7 @@
         "PEBScounters": "0,1,2,3",
         "EventName": "MEM_UOPS_RETIRED.DTLB_MISS_LOADS",
         "SampleAfterValue": "200003",
-        "BriefDescription": "Load uops retired that missed the DTLB (Precise event capable)",
-        "Data_LA": "1"
+        "BriefDescription": "Load uops retired that missed the DTLB (Precise event capable)"
     },
     {
         "PEBS": "2",
@@ -202,8 +201,7 @@
         "PEBScounters": "0,1,2,3",
         "EventName": "MEM_UOPS_RETIRED.DTLB_MISS_STORES",
         "SampleAfterValue": "200003",
-        "BriefDescription": "Store uops retired that missed the DTLB (Precise event capable)",
-        "Data_LA": "1"
+        "BriefDescription": "Store uops retired that missed the DTLB (Precise event capable)"
     },
     {
         "PEBS": "2",
@@ -215,7 +213,6 @@
         "PEBScounters": "0,1,2,3",
         "EventName": "MEM_UOPS_RETIRED.DTLB_MISS",
         "SampleAfterValue": "200003",
-        "BriefDescription": "Memory uops retired that missed the DTLB (Precise event capable)",
-        "Data_LA": "1"
+        "BriefDescription": "Memory uops retired that missed the DTLB (Precise event capable)"
     }
 ]

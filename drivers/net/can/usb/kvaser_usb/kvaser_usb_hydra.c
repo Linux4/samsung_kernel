@@ -367,11 +367,11 @@ static const struct can_bittiming_const kvaser_usb_hydra_kcan_bittiming_c = {
 	.tseg2_max = 32,
 	.sjw_max = 16,
 	.brp_min = 1,
-	.brp_max = 8192,
+	.brp_max = 4096,
 	.brp_inc = 1,
 };
 
-const struct can_bittiming_const kvaser_usb_flexc_bittiming_const = {
+static const struct can_bittiming_const kvaser_usb_hydra_flexc_bittiming_c = {
 	.name = "kvaser_usb_flex",
 	.tseg1_min = 4,
 	.tseg1_max = 16,
@@ -2024,5 +2024,5 @@ static const struct kvaser_usb_dev_cfg kvaser_usb_hydra_dev_cfg_flexc = {
 		.freq = 24000000,
 	},
 	.timestamp_freq = 1,
-	.bittiming_const = &kvaser_usb_flexc_bittiming_const,
+	.bittiming_const = &kvaser_usb_hydra_flexc_bittiming_c,
 };

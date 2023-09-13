@@ -34,7 +34,7 @@
 		compatible = "gpio-keys";
 
 		button-esc {
-			debounce-interval = <100>;
+			debounce-interval = <50>;
 			wakeup-source;
 			linux,code = <KEY_ESC>;
 			label = "reset";
@@ -140,7 +140,7 @@
 		};
 	};
 
-	mdio0: mdio {
+	mdio0: ethernet-phy {
 		compatible = "virtual,mdio-gpio";
 		/* Uses MDC and MDIO */
 		gpios = <&gpio0 22 GPIO_ACTIVE_HIGH>, /* MDC */

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Binary Increase Congestion control for TCP
  * Home page:

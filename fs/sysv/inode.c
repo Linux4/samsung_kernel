@@ -313,9 +313,15 @@ static struct inode *sysv_alloc_inode(struct super_block *sb)
 	return &si->vfs_inode;
 }
 
-static void sysv_free_in_core_inode(struct inode *inode)
+static void sysv_i_callback(struct rcu_head *head)
 {
+	struct inode *inode = container_of(head, struct inode, i_rcu);
 	kmem_cache_free(sysv_inode_cachep, SYSV_I(inode));
+}
+
+static void sysv_destroy_inode(struct inode *inode)
+{
+	call_rcu(&inode->i_rcu, sysv_i_callback);
 }
 
 static void init_once(void *p)
@@ -327,7 +333,7 @@ static void init_once(void *p)
 
 const struct super_operations sysv_sops = {
 	.alloc_inode	= sysv_alloc_inode,
-	.free_inode	= sysv_free_in_core_inode,
+	.destroy_inode	= sysv_destroy_inode,
 	.write_inode	= sysv_write_inode,
 	.evict_inode	= sysv_evict_inode,
 	.put_super	= sysv_put_super,

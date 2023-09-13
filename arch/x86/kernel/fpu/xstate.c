@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * xsave/xrstor support.
  *
@@ -8,8 +7,6 @@
 #include <linux/cpu.h>
 #include <linux/mman.h>
 #include <linux/pkeys.h>
-#include <linux/seq_file.h>
-#include <linux/proc_fs.h>
 
 #include <asm/fpu/api.h>
 #include <asm/fpu/internal.h>
@@ -68,6 +65,15 @@ static unsigned int xstate_comp_offsets[sizeof(xfeatures_mask)*8];
  * mode standard format size used for signal and ptrace frames.
  */
 unsigned int fpu_user_xstate_size;
+
+/*
+ * Clear all of the X86_FEATURE_* bits that are unavailable
+ * when the CPU has no XSAVE support.
+ */
+void fpu__xstate_clear_all_cpu_caps(void)
+{
+	setup_clear_cpu_cap(X86_FEATURE_XSAVE);
+}
 
 /*
  * Return whether the system supports a given xfeature.
@@ -399,31 +405,11 @@ static void __init print_xstate_offset_size(void)
 }
 
 /*
- * All supported features have either init state all zeros or are
- * handled in setup_init_fpu() individually. This is an explicit
- * feature list and does not use XFEATURE_MASK*SUPPORTED to catch
- * newly added supported features at build time and make people
- * actually look at the init state for the new feature.
- */
-#define XFEATURES_INIT_FPSTATE_HANDLED		\
-	(XFEATURE_MASK_FP |			\
-	 XFEATURE_MASK_SSE |			\
-	 XFEATURE_MASK_YMM |			\
-	 XFEATURE_MASK_OPMASK |			\
-	 XFEATURE_MASK_ZMM_Hi256 |		\
-	 XFEATURE_MASK_Hi16_ZMM	 |		\
-	 XFEATURE_MASK_PKRU |			\
-	 XFEATURE_MASK_BNDREGS |		\
-	 XFEATURE_MASK_BNDCSR)
-
-/*
  * setup the xstate image representing the init state
  */
 static void __init setup_init_fpu_buf(void)
 {
 	static int on_boot_cpu __initdata = 1;
-
-	BUILD_BUG_ON(XCNTXT_MASK != XFEATURES_INIT_FPSTATE_HANDLED);
 
 	WARN_ON_FPU(!on_boot_cpu);
 	on_boot_cpu = 0;
@@ -443,22 +429,10 @@ static void __init setup_init_fpu_buf(void)
 	copy_kernel_to_xregs_booting(&init_fpstate.xsave);
 
 	/*
-	 * All components are now in init state. Read the state back so
-	 * that init_fpstate contains all non-zero init state. This only
-	 * works with XSAVE, but not with XSAVEOPT and XSAVES because
-	 * those use the init optimization which skips writing data for
-	 * components in init state.
-	 *
-	 * XSAVE could be used, but that would require to reshuffle the
-	 * data when XSAVES is available because XSAVES uses xstate
-	 * compaction. But doing so is a pointless exercise because most
-	 * components have an all zeros init state except for the legacy
-	 * ones (FP and SSE). Those can be saved with FXSAVE into the
-	 * legacy area. Adding new features requires to ensure that init
-	 * state is all zeroes or if not to add the necessary handling
-	 * here.
+	 * Dump the init state again. This is to identify the init state
+	 * of any feature which is not represented by all zero's.
 	 */
-	fxsave(&init_fpstate.fxsave);
+	copy_xregs_to_kernel_booting(&init_fpstate.xsave);
 }
 
 static int xfeature_uncompacted_offset(int xfeature_nr)
@@ -470,7 +444,7 @@ static int xfeature_uncompacted_offset(int xfeature_nr)
 	 * format. Checking a supervisor state's uncompacted offset is
 	 * an error.
 	 */
-	if (XFEATURE_MASK_SUPERVISOR & BIT_ULL(xfeature_nr)) {
+	if (XFEATURE_MASK_SUPERVISOR & (1 << xfeature_nr)) {
 		WARN_ONCE(1, "No fixed offset for xstate %d\n", xfeature_nr);
 		return -1;
 	}
@@ -695,7 +669,7 @@ static bool is_supported_xstate_size(unsigned int test_xstate_size)
 	return false;
 }
 
-static int __init init_xstate_size(void)
+static int init_xstate_size(void)
 {
 	/* Recompute the context size for enabled features: */
 	unsigned int possible_xstate_size;
@@ -734,7 +708,7 @@ static void fpu__init_disable_system_xstate(void)
 {
 	xfeatures_mask = 0;
 	cr4_clear_bits(X86_CR4_OSXSAVE);
-	setup_clear_cpu_cap(X86_FEATURE_XSAVE);
+	fpu__xstate_clear_all_cpu_caps();
 }
 
 /*
@@ -831,18 +805,22 @@ void fpu__resume_cpu(void)
 }
 
 /*
- * Given an xstate feature nr, calculate where in the xsave
+ * Given an xstate feature mask, calculate where in the xsave
  * buffer the state is.  Callers should ensure that the buffer
  * is valid.
+ *
+ * Note: does not work for compacted buffers.
  */
-static void *__raw_xsave_addr(struct xregs_state *xsave, int xfeature_nr)
+void *__raw_xsave_addr(struct xregs_state *xsave, int xstate_feature_mask)
 {
-	if (!xfeature_enabled(xfeature_nr)) {
+	int feature_nr = fls64(xstate_feature_mask) - 1;
+
+	if (!xfeature_enabled(feature_nr)) {
 		WARN_ON_FPU(1);
 		return NULL;
 	}
 
-	return (void *)xsave + xstate_comp_offsets[xfeature_nr];
+	return (void *)xsave + xstate_comp_offsets[feature_nr];
 }
 /*
  * Given the xsave area and a state inside, this function returns the
@@ -856,13 +834,13 @@ static void *__raw_xsave_addr(struct xregs_state *xsave, int xfeature_nr)
  *
  * Inputs:
  *	xstate: the thread's storage area for all FPU data
- *	xfeature_nr: state which is defined in xsave.h (e.g. XFEATURE_FP,
- *	XFEATURE_SSE, etc...)
+ *	xstate_feature: state which is defined in xsave.h (e.g.
+ *	XFEATURE_MASK_FP, XFEATURE_MASK_SSE, etc...)
  * Output:
  *	address of the state in the xsave area, or NULL if the
  *	field is not present in the xsave buffer.
  */
-void *get_xsave_addr(struct xregs_state *xsave, int xfeature_nr)
+void *get_xsave_addr(struct xregs_state *xsave, int xstate_feature)
 {
 	/*
 	 * Do we even *have* xsave state?
@@ -875,11 +853,11 @@ void *get_xsave_addr(struct xregs_state *xsave, int xfeature_nr)
 	 * have not enabled.  Remember that pcntxt_mask is
 	 * what we write to the XCR0 register.
 	 */
-	WARN_ONCE(!(xfeatures_mask & BIT_ULL(xfeature_nr)),
+	WARN_ONCE(!(xfeatures_mask & xstate_feature),
 		  "get of unsupported state");
 	/*
 	 * This assumes the last 'xsave*' instruction to
-	 * have requested that 'xfeature_nr' be saved.
+	 * have requested that 'xstate_feature' be saved.
 	 * If it did not, we might be seeing and old value
 	 * of the field in the buffer.
 	 *
@@ -888,10 +866,10 @@ void *get_xsave_addr(struct xregs_state *xsave, int xfeature_nr)
 	 * or because the "init optimization" caused it
 	 * to not be saved.
 	 */
-	if (!(xsave->header.xfeatures & BIT_ULL(xfeature_nr)))
+	if (!(xsave->header.xfeatures & xstate_feature))
 		return NULL;
 
-	return __raw_xsave_addr(xsave, xfeature_nr);
+	return __raw_xsave_addr(xsave, xstate_feature);
 }
 EXPORT_SYMBOL_GPL(get_xsave_addr);
 
@@ -906,27 +884,31 @@ EXPORT_SYMBOL_GPL(get_xsave_addr);
  * Note that this only works on the current task.
  *
  * Inputs:
- *	@xfeature_nr: state which is defined in xsave.h (e.g. XFEATURE_FP,
- *	XFEATURE_SSE, etc...)
+ *	@xsave_state: state which is defined in xsave.h (e.g. XFEATURE_MASK_FP,
+ *	XFEATURE_MASK_SSE, etc...)
  * Output:
  *	address of the state in the xsave area or NULL if the state
  *	is not present or is in its 'init state'.
  */
-const void *get_xsave_field_ptr(int xfeature_nr)
+const void *get_xsave_field_ptr(int xsave_state)
 {
 	struct fpu *fpu = &current->thread.fpu;
 
+	if (!fpu->initialized)
+		return NULL;
 	/*
 	 * fpu__save() takes the CPU's xstate registers
 	 * and saves them off to the 'fpu memory buffer.
 	 */
 	fpu__save(fpu);
 
-	return get_xsave_addr(&fpu->state.xsave, xfeature_nr);
+	return get_xsave_addr(&fpu->state.xsave, xsave_state);
 }
 
 #ifdef CONFIG_ARCH_HAS_PKEYS
 
+#define NR_VALID_PKRU_BITS (CONFIG_NR_PROTECTION_KEYS * 2)
+#define PKRU_VALID_MASK (NR_VALID_PKRU_BITS - 1)
 /*
  * This will go out and modify PKRU register to set the access
  * rights for @pkey to @init_val.
@@ -944,13 +926,6 @@ int arch_set_user_pkey_access(struct task_struct *tsk, int pkey,
 	 */
 	if (!boot_cpu_has(X86_FEATURE_OSPKE))
 		return -EINVAL;
-
-	/*
-	 * This code should only be called with valid 'pkey'
-	 * values originating from in-kernel users.  Complain
-	 * if a bad value is observed.
-	 */
-	WARN_ON_ONCE(pkey >= arch_max_pkey());
 
 	/* Set the bits we need in PKRU:  */
 	if (init_val & PKEY_DISABLE_ACCESS)
@@ -1054,7 +1029,7 @@ int copy_xstate_to_kernel(void *kbuf, struct xregs_state *xsave, unsigned int of
 		copy_part(offsetof(struct fxregs_state, st_space), 128,
 			  &xsave->i387.st_space, &kbuf, &offset_start, &count);
 	if (header.xfeatures & XFEATURE_MASK_SSE)
-		copy_part(xstate_offsets[XFEATURE_SSE], 256,
+		copy_part(xstate_offsets[XFEATURE_MASK_SSE], 256,
 			  &xsave->i387.xmm_space, &kbuf, &offset_start, &count);
 	/*
 	 * Fill xsave->i387.sw_reserved value for ptrace frame:
@@ -1072,7 +1047,7 @@ int copy_xstate_to_kernel(void *kbuf, struct xregs_state *xsave, unsigned int of
 		 * Copy only in-use xstates:
 		 */
 		if ((header.xfeatures >> i) & 1) {
-			void *src = __raw_xsave_addr(xsave, i);
+			void *src = __raw_xsave_addr(xsave, 1 << i);
 
 			copy_part(xstate_offsets[i], xstate_sizes[i],
 				  src, &kbuf, &offset_start, &count);
@@ -1139,7 +1114,7 @@ int copy_xstate_to_user(void __user *ubuf, struct xregs_state *xsave, unsigned i
 		 * Copy only in-use xstates:
 		 */
 		if ((header.xfeatures >> i) & 1) {
-			void *src = __raw_xsave_addr(xsave, i);
+			void *src = __raw_xsave_addr(xsave, 1 << i);
 
 			offset = xstate_offsets[i];
 			size = xstate_sizes[i];
@@ -1196,7 +1171,7 @@ int copy_kernel_to_xstate(struct xregs_state *xsave, const void *kbuf)
 		u64 mask = ((u64)1 << i);
 
 		if (hdr.xfeatures & mask) {
-			void *dst = __raw_xsave_addr(xsave, i);
+			void *dst = __raw_xsave_addr(xsave, 1 << i);
 
 			offset = xstate_offsets[i];
 			size = xstate_sizes[i];
@@ -1250,7 +1225,7 @@ int copy_user_to_xstate(struct xregs_state *xsave, const void __user *ubuf)
 		u64 mask = ((u64)1 << i);
 
 		if (hdr.xfeatures & mask) {
-			void *dst = __raw_xsave_addr(xsave, i);
+			void *dst = __raw_xsave_addr(xsave, 1 << i);
 
 			offset = xstate_offsets[i];
 			size = xstate_sizes[i];
@@ -1280,48 +1255,3 @@ int copy_user_to_xstate(struct xregs_state *xsave, const void __user *ubuf)
 
 	return 0;
 }
-
-#ifdef CONFIG_PROC_PID_ARCH_STATUS
-/*
- * Report the amount of time elapsed in millisecond since last AVX512
- * use in the task.
- */
-static void avx512_status(struct seq_file *m, struct task_struct *task)
-{
-	unsigned long timestamp = READ_ONCE(task->thread.fpu.avx512_timestamp);
-	long delta;
-
-	if (!timestamp) {
-		/*
-		 * Report -1 if no AVX512 usage
-		 */
-		delta = -1;
-	} else {
-		delta = (long)(jiffies - timestamp);
-		/*
-		 * Cap to LONG_MAX if time difference > LONG_MAX
-		 */
-		if (delta < 0)
-			delta = LONG_MAX;
-		delta = jiffies_to_msecs(delta);
-	}
-
-	seq_put_decimal_ll(m, "AVX512_elapsed_ms:\t", delta);
-	seq_putc(m, '\n');
-}
-
-/*
- * Report architecture specific information
- */
-int proc_pid_arch_status(struct seq_file *m, struct pid_namespace *ns,
-			struct pid *pid, struct task_struct *task)
-{
-	/*
-	 * Report AVX512 state if the processor and build option supported.
-	 */
-	if (cpu_feature_enabled(X86_FEATURE_AVX512F))
-		avx512_status(m, task);
-
-	return 0;
-}
-#endif /* CONFIG_PROC_PID_ARCH_STATUS */

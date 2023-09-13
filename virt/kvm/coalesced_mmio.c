@@ -86,7 +86,6 @@ static int coalesced_mmio_write(struct kvm_vcpu *vcpu,
 	ring->coalesced_mmio[insert].phys_addr = addr;
 	ring->coalesced_mmio[insert].len = len;
 	memcpy(ring->coalesced_mmio[insert].data, val, len);
-	ring->coalesced_mmio[insert].pio = dev->zone.pio;
 	smp_wmb();
 	ring->last = (insert + 1) % KVM_COALESCED_MMIO_MAX;
 	spin_unlock(&dev->kvm->ring_lock);
@@ -144,11 +143,7 @@ int kvm_vm_ioctl_register_coalesced_mmio(struct kvm *kvm,
 	int ret;
 	struct kvm_coalesced_mmio_dev *dev;
 
-	if (zone->pio != 1 && zone->pio != 0)
-		return -EINVAL;
-
-	dev = kzalloc(sizeof(struct kvm_coalesced_mmio_dev),
-		      GFP_KERNEL_ACCOUNT);
+	dev = kzalloc(sizeof(struct kvm_coalesced_mmio_dev), GFP_KERNEL);
 	if (!dev)
 		return -ENOMEM;
 
@@ -157,9 +152,8 @@ int kvm_vm_ioctl_register_coalesced_mmio(struct kvm *kvm,
 	dev->zone = *zone;
 
 	mutex_lock(&kvm->slots_lock);
-	ret = kvm_io_bus_register_dev(kvm,
-				zone->pio ? KVM_PIO_BUS : KVM_MMIO_BUS,
-				zone->addr, zone->size, &dev->dev);
+	ret = kvm_io_bus_register_dev(kvm, KVM_MMIO_BUS, zone->addr,
+				      zone->size, &dev->dev);
 	if (ret < 0)
 		goto out_free_dev;
 	list_add_tail(&dev->list, &kvm->coalesced_zones);
@@ -178,36 +172,16 @@ int kvm_vm_ioctl_unregister_coalesced_mmio(struct kvm *kvm,
 					   struct kvm_coalesced_mmio_zone *zone)
 {
 	struct kvm_coalesced_mmio_dev *dev, *tmp;
-	int r;
-
-	if (zone->pio != 1 && zone->pio != 0)
-		return -EINVAL;
 
 	mutex_lock(&kvm->slots_lock);
 
-	list_for_each_entry_safe(dev, tmp, &kvm->coalesced_zones, list) {
-		if (zone->pio == dev->zone.pio &&
-		    coalesced_mmio_in_range(dev, zone->addr, zone->size)) {
-			r = kvm_io_bus_unregister_dev(kvm,
-				zone->pio ? KVM_PIO_BUS : KVM_MMIO_BUS, &dev->dev);
-
-			/*
-			 * On failure, unregister destroys all devices on the
-			 * bus _except_ the target device, i.e. coalesced_zones
-			 * has been modified.  No need to restart the walk as
-			 * there aren't any zones left.
-			 */
-			if (r)
-				break;
+	list_for_each_entry_safe(dev, tmp, &kvm->coalesced_zones, list)
+		if (coalesced_mmio_in_range(dev, zone->addr, zone->size)) {
+			kvm_io_bus_unregister_dev(kvm, KVM_MMIO_BUS, &dev->dev);
 			kvm_iodevice_destructor(&dev->dev);
 		}
-	}
 
 	mutex_unlock(&kvm->slots_lock);
 
-	/*
-	 * Ignore the result of kvm_io_bus_unregister_dev(), from userspace's
-	 * perspective, the coalesced MMIO is most definitely unregistered.
-	 */
 	return 0;
 }

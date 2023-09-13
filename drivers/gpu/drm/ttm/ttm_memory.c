@@ -41,9 +41,6 @@
 
 #define TTM_MEMORY_ALLOC_RETRIES 4
 
-struct ttm_mem_global ttm_mem_glob;
-EXPORT_SYMBOL(ttm_mem_glob);
-
 struct ttm_mem_zone {
 	struct kobject kobj;
 	struct ttm_mem_global *glob;
@@ -81,7 +78,7 @@ static void ttm_mem_zone_kobj_release(struct kobject *kobj)
 	struct ttm_mem_zone *zone =
 		container_of(kobj, struct ttm_mem_zone, kobj);
 
-	pr_info("Zone %7s: Used memory at exit: %llu KiB\n",
+	pr_info("Zone %7s: Used memory at exit: %llu kiB\n",
 		zone->name, (unsigned long long)zone->used_mem >> 10);
 	kfree(zone);
 }
@@ -448,7 +445,7 @@ int ttm_mem_global_init(struct ttm_mem_global *glob)
 #endif
 	for (i = 0; i < glob->num_zones; ++i) {
 		zone = glob->zones[i];
-		pr_info("Zone %7s: Available graphics memory: %llu KiB\n",
+		pr_info("Zone %7s: Available graphics memory: %llu kiB\n",
 			zone->name, (unsigned long long)zone->max_mem >> 10);
 	}
 	ttm_page_alloc_init(glob, glob->zone_kernel->max_mem/(2*PAGE_SIZE));
@@ -458,11 +455,12 @@ out_no_zone:
 	ttm_mem_global_release(glob);
 	return ret;
 }
+EXPORT_SYMBOL(ttm_mem_global_init);
 
 void ttm_mem_global_release(struct ttm_mem_global *glob)
 {
-	struct ttm_mem_zone *zone;
 	unsigned int i;
+	struct ttm_mem_zone *zone;
 
 	/* let the page allocator first stop the shrink work. */
 	ttm_page_alloc_fini();
@@ -475,11 +473,11 @@ void ttm_mem_global_release(struct ttm_mem_global *glob)
 		zone = glob->zones[i];
 		kobject_del(&zone->kobj);
 		kobject_put(&zone->kobj);
-	}
+			}
 	kobject_del(&glob->kobj);
 	kobject_put(&glob->kobj);
-	memset(glob, 0, sizeof(*glob));
 }
+EXPORT_SYMBOL(ttm_mem_global_release);
 
 static void ttm_check_swapping(struct ttm_mem_global *glob)
 {
@@ -523,7 +521,7 @@ static void ttm_mem_global_free_zone(struct ttm_mem_global *glob,
 void ttm_mem_global_free(struct ttm_mem_global *glob,
 			 uint64_t amount)
 {
-	return ttm_mem_global_free_zone(glob, glob->zone_kernel, amount);
+	return ttm_mem_global_free_zone(glob, NULL, amount);
 }
 EXPORT_SYMBOL(ttm_mem_global_free);
 
@@ -622,10 +620,10 @@ int ttm_mem_global_alloc(struct ttm_mem_global *glob, uint64_t memory,
 {
 	/**
 	 * Normal allocations of kernel memory are registered in
-	 * the kernel zone.
+	 * all zones.
 	 */
 
-	return ttm_mem_global_alloc_zone(glob, glob->zone_kernel, memory, ctx);
+	return ttm_mem_global_alloc_zone(glob, NULL, memory, ctx);
 }
 EXPORT_SYMBOL(ttm_mem_global_alloc);
 

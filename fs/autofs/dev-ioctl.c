@@ -1,7 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright 2008 Red Hat, Inc. All rights reserved.
  * Copyright 2008 Ian Kent <raven@themaw.net>
+ *
+ * This file is part of the Linux kernel and is made available under
+ * the terms of the GNU General Public License, version 2, or at your
+ * option, any later version, incorporated herein by reference.
  */
 
 #include <linux/miscdevice.h>
@@ -146,6 +149,22 @@ static int validate_dev_ioctl(int cmd, struct autofs_dev_ioctl *param)
 	err = 0;
 out:
 	return err;
+}
+
+/*
+ * Get the autofs super block info struct from the file opened on
+ * the autofs mount point.
+ */
+static struct autofs_sb_info *autofs_dev_ioctl_sbi(struct file *f)
+{
+	struct autofs_sb_info *sbi = NULL;
+	struct inode *inode;
+
+	if (f) {
+		inode = file_inode(f);
+		sbi = autofs_sbi(inode->i_sb);
+	}
+	return sbi;
 }
 
 /* Return autofs dev ioctl version */
@@ -347,7 +366,7 @@ static int autofs_dev_ioctl_setpipefd(struct file *fp,
 	pipefd = param->setpipefd.pipefd;
 
 	mutex_lock(&sbi->wq_mutex);
-	if (!(sbi->flags & AUTOFS_SBI_CATATONIC)) {
+	if (!sbi->catatonic) {
 		mutex_unlock(&sbi->wq_mutex);
 		return -EBUSY;
 	} else {
@@ -374,7 +393,7 @@ static int autofs_dev_ioctl_setpipefd(struct file *fp,
 		swap(sbi->oz_pgrp, new_pid);
 		sbi->pipefd = pipefd;
 		sbi->pipe = pipe;
-		sbi->flags &= ~AUTOFS_SBI_CATATONIC;
+		sbi->catatonic = 0;
 	}
 out:
 	put_pid(new_pid);
@@ -639,8 +658,6 @@ static int _autofs_dev_ioctl(unsigned int command,
 	if (cmd != AUTOFS_DEV_IOCTL_VERSION_CMD &&
 	    cmd != AUTOFS_DEV_IOCTL_OPENMOUNT_CMD &&
 	    cmd != AUTOFS_DEV_IOCTL_CLOSEMOUNT_CMD) {
-		struct super_block *sb;
-
 		fp = fget(param->ioctlfd);
 		if (!fp) {
 			if (cmd == AUTOFS_DEV_IOCTL_ISMOUNTPOINT_CMD)
@@ -649,13 +666,12 @@ static int _autofs_dev_ioctl(unsigned int command,
 			goto out;
 		}
 
-		sb = file_inode(fp)->i_sb;
-		if (sb->s_type != &autofs_fs_type) {
+		sbi = autofs_dev_ioctl_sbi(fp);
+		if (!sbi || sbi->magic != AUTOFS_SBI_MAGIC) {
 			err = -EINVAL;
 			fput(fp);
 			goto out;
 		}
-		sbi = autofs_sbi(sb);
 
 		/*
 		 * Admin needs to be able to set the mount catatonic in

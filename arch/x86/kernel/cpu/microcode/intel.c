@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Intel CPU Microcode Update Driver for Linux
  *
@@ -9,6 +8,11 @@
  *
  * Copyright (C) 2012 Fenghua Yu <fenghua.yu@intel.com>
  *		      H Peter Anvin" <hpa@zytor.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version
+ * 2 of the License, or (at your option) any later version.
  */
 
 /*
@@ -27,7 +31,6 @@
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/cpu.h>
-#include <linux/uio.h>
 #include <linux/mm.h>
 
 #include <asm/microcode_intel.h>
@@ -100,6 +103,53 @@ static int has_newer_microcode(void *mc, unsigned int csig, int cpf, int new_rev
 	return find_matching_signature(mc, csig, cpf);
 }
 
+/*
+ * Given CPU signature and a microcode patch, this function finds if the
+ * microcode patch has matching family and model with the CPU.
+ *
+ * %true - if there's a match
+ * %false - otherwise
+ */
+static bool microcode_matches(struct microcode_header_intel *mc_header,
+			      unsigned long sig)
+{
+	unsigned long total_size = get_totalsize(mc_header);
+	unsigned long data_size = get_datasize(mc_header);
+	struct extended_sigtable *ext_header;
+	unsigned int fam_ucode, model_ucode;
+	struct extended_signature *ext_sig;
+	unsigned int fam, model;
+	int ext_sigcount, i;
+
+	fam   = x86_family(sig);
+	model = x86_model(sig);
+
+	fam_ucode   = x86_family(mc_header->sig);
+	model_ucode = x86_model(mc_header->sig);
+
+	if (fam == fam_ucode && model == model_ucode)
+		return true;
+
+	/* Look for ext. headers: */
+	if (total_size <= data_size + MC_HEADER_SIZE)
+		return false;
+
+	ext_header   = (void *) mc_header + data_size + MC_HEADER_SIZE;
+	ext_sig      = (void *)ext_header + EXT_HEADER_SIZE;
+	ext_sigcount = ext_header->count;
+
+	for (i = 0; i < ext_sigcount; i++) {
+		fam_ucode   = x86_family(ext_sig->sig);
+		model_ucode = x86_model(ext_sig->sig);
+
+		if (fam == fam_ucode && model == model_ucode)
+			return true;
+
+		ext_sig++;
+	}
+	return false;
+}
+
 static struct ucode_patch *memdup_patch(void *data, unsigned int size)
 {
 	struct ucode_patch *p;
@@ -117,7 +167,7 @@ static struct ucode_patch *memdup_patch(void *data, unsigned int size)
 	return p;
 }
 
-static void save_microcode_patch(struct ucode_cpu_info *uci, void *data, unsigned int size)
+static void save_microcode_patch(void *data, unsigned int size)
 {
 	struct microcode_header_intel *mc_hdr, *mc_saved_hdr;
 	struct ucode_patch *iter, *tmp, *p = NULL;
@@ -161,9 +211,6 @@ static void save_microcode_patch(struct ucode_cpu_info *uci, void *data, unsigne
 	}
 
 	if (!p)
-		return;
-
-	if (!find_matching_signature(p->data, uci->cpu_sig.sig, uci->cpu_sig.pf))
 		return;
 
 	/*
@@ -300,14 +347,13 @@ scan_microcode(void *data, size_t size, struct ucode_cpu_info *uci, bool save)
 
 		size -= mc_size;
 
-		if (!find_matching_signature(data, uci->cpu_sig.sig,
-					     uci->cpu_sig.pf)) {
+		if (!microcode_matches(mc_header, uci->cpu_sig.sig)) {
 			data += mc_size;
 			continue;
 		}
 
 		if (save) {
-			save_microcode_patch(uci, data, mc_size);
+			save_microcode_patch(data, mc_size);
 			goto next;
 		}
 
@@ -440,14 +486,14 @@ static void show_saved_mc(void)
  * Save this microcode patch. It will be loaded early when a CPU is
  * hot-added or resumes.
  */
-static void save_mc_for_early(struct ucode_cpu_info *uci, u8 *mc, unsigned int size)
+static void save_mc_for_early(u8 *mc, unsigned int size)
 {
 	/* Synchronization during CPU hotplug. */
 	static DEFINE_MUTEX(x86_cpu_microcode_mutex);
 
 	mutex_lock(&x86_cpu_microcode_mutex);
 
-	save_microcode_patch(uci, mc, size);
+	save_microcode_patch(mc, size);
 	show_saved_mc();
 
 	mutex_unlock(&x86_cpu_microcode_mutex);
@@ -815,33 +861,32 @@ out:
 	return ret;
 }
 
-static enum ucode_state generic_load_microcode(int cpu, struct iov_iter *iter)
+static enum ucode_state generic_load_microcode(int cpu, void *data, size_t size,
+				int (*get_ucode_data)(void *, const void *, size_t))
 {
 	struct ucode_cpu_info *uci = ucode_cpu_info + cpu;
-	unsigned int curr_mc_size = 0, new_mc_size = 0;
-	enum ucode_state ret = UCODE_OK;
+	u8 *ucode_ptr = data, *new_mc = NULL, *mc = NULL;
 	int new_rev = uci->cpu_sig.rev;
-	u8 *new_mc = NULL, *mc = NULL;
+	unsigned int leftover = size;
+	unsigned int curr_mc_size = 0, new_mc_size = 0;
 	unsigned int csig, cpf;
+	enum ucode_state ret = UCODE_OK;
 
-	while (iov_iter_count(iter)) {
+	while (leftover) {
 		struct microcode_header_intel mc_header;
-		unsigned int mc_size, data_size;
-		u8 *data;
+		unsigned int mc_size;
 
-		if (!copy_from_iter_full(&mc_header, sizeof(mc_header), iter)) {
-			pr_err("error! Truncated or inaccessible header in microcode data file\n");
+		if (leftover < sizeof(mc_header)) {
+			pr_err("error! Truncated header in microcode data file\n");
 			break;
 		}
+
+		if (get_ucode_data(&mc_header, ucode_ptr, sizeof(mc_header)))
+			break;
 
 		mc_size = get_totalsize(&mc_header);
-		if (mc_size < sizeof(mc_header)) {
-			pr_err("error! Bad data in microcode data file (totalsize too small)\n");
-			break;
-		}
-		data_size = mc_size - sizeof(mc_header);
-		if (data_size > iov_iter_count(iter)) {
-			pr_err("error! Bad data in microcode data file (truncated file?)\n");
+		if (!mc_size || mc_size > leftover) {
+			pr_err("error! Bad data in microcode data file\n");
 			break;
 		}
 
@@ -854,9 +899,7 @@ static enum ucode_state generic_load_microcode(int cpu, struct iov_iter *iter)
 			curr_mc_size = mc_size;
 		}
 
-		memcpy(mc, &mc_header, sizeof(mc_header));
-		data = mc + sizeof(mc_header);
-		if (!copy_from_iter_full(data, data_size, iter) ||
+		if (get_ucode_data(mc, ucode_ptr, mc_size) ||
 		    microcode_sanity_check(mc, 1) < 0) {
 			break;
 		}
@@ -871,11 +914,14 @@ static enum ucode_state generic_load_microcode(int cpu, struct iov_iter *iter)
 			mc = NULL;	/* trigger new vmalloc */
 			ret = UCODE_NEW;
 		}
+
+		ucode_ptr += mc_size;
+		leftover  -= mc_size;
 	}
 
 	vfree(mc);
 
-	if (iov_iter_count(iter)) {
+	if (leftover) {
 		vfree(new_mc);
 		return UCODE_ERROR;
 	}
@@ -891,12 +937,18 @@ static enum ucode_state generic_load_microcode(int cpu, struct iov_iter *iter)
 	 * permanent memory. So it will be loaded early when a CPU is hot added
 	 * or resumes.
 	 */
-	save_mc_for_early(uci, new_mc, new_mc_size);
+	save_mc_for_early(new_mc, new_mc_size);
 
 	pr_debug("CPU%d found a matching microcode update with version 0x%x (current=0x%x)\n",
 		 cpu, new_rev, uci->cpu_sig.rev);
 
 	return ret;
+}
+
+static int get_ucode_fw(void *to, const void *from, size_t n)
+{
+	memcpy(to, from, n);
+	return 0;
 }
 
 static bool is_blacklisted(unsigned int cpu)
@@ -925,12 +977,10 @@ static bool is_blacklisted(unsigned int cpu)
 static enum ucode_state request_microcode_fw(int cpu, struct device *device,
 					     bool refresh_fw)
 {
+	char name[30];
 	struct cpuinfo_x86 *c = &cpu_data(cpu);
 	const struct firmware *firmware;
-	struct iov_iter iter;
 	enum ucode_state ret;
-	struct kvec kvec;
-	char name[30];
 
 	if (is_blacklisted(cpu))
 		return UCODE_NFOUND;
@@ -943,30 +993,26 @@ static enum ucode_state request_microcode_fw(int cpu, struct device *device,
 		return UCODE_NFOUND;
 	}
 
-	kvec.iov_base = (void *)firmware->data;
-	kvec.iov_len = firmware->size;
-	iov_iter_kvec(&iter, WRITE, &kvec, 1, firmware->size);
-	ret = generic_load_microcode(cpu, &iter);
+	ret = generic_load_microcode(cpu, (void *)firmware->data,
+				     firmware->size, &get_ucode_fw);
 
 	release_firmware(firmware);
 
 	return ret;
 }
 
+static int get_ucode_user(void *to, const void *from, size_t n)
+{
+	return copy_from_user(to, from, n);
+}
+
 static enum ucode_state
 request_microcode_user(int cpu, const void __user *buf, size_t size)
 {
-	struct iov_iter iter;
-	struct iovec iov;
-
 	if (is_blacklisted(cpu))
 		return UCODE_NFOUND;
 
-	iov.iov_base = (void __user *)buf;
-	iov.iov_len = size;
-	iov_iter_init(&iter, WRITE, &iov, 1, size);
-
-	return generic_load_microcode(cpu, &iter);
+	return generic_load_microcode(cpu, (void *)buf, size, &get_ucode_user);
 }
 
 static struct microcode_ops microcode_intel_ops = {

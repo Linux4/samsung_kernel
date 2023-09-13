@@ -16,7 +16,21 @@
 #include <linux/usb/cdc.h>
 #include <linux/netdevice.h>
 
+/* Definition of function specific data */
+#define NCM_FUNCTION		(0xa0)
+#define NCM_DATA		(NCM_FUNCTION << 16)
+#define NCM_ADD_HEADER		(NCM_DATA | 0)
+#define NCM_ADD_DGRAM		(NCM_DATA | 1)
+#define NCM_HEADER_SIZE		(0xC4)
+
+#define NCM_MTU_SIZE		(1500)
+#define NCM_MAX_DATAGRAM	(42)
+
+#ifdef CONFIG_USB_RNDIS_MULTIPACKET
+#define QMULT_DEFAULT 10
+#else
 #define QMULT_DEFAULT 5
+#endif
 
 /*
  * dev_addr: initial value
@@ -36,7 +50,56 @@
 	module_param(host_addr, charp, S_IRUGO);			\
 	MODULE_PARM_DESC(host_addr, "Host Ethernet Address")
 
-struct eth_dev;
+struct eth_dev {
+	/* lock is held while accessing port_usb
+	 */
+	spinlock_t		lock;
+	struct gether		*port_usb;
+
+	struct net_device	*net;
+	struct usb_gadget	*gadget;
+
+	spinlock_t		rx_req_lock;	/* guard {rx,tx}_reqs */
+	spinlock_t		tx_req_lock;	/* guard {rx,tx}_reqs */
+	struct list_head	tx_reqs, rx_reqs;
+	atomic_t		tx_qlen;
+/* Minimum number of TX USB request queued to UDC */
+#define TX_REQ_THRESHOLD	1
+	int			no_tx_req_used;
+	int			tx_skb_hold_count;
+	size_t		tx_req_bufsize;		/* prevent CID 103507 */
+	struct hrtimer	tx_timer;
+	bool en_timer;
+#define MAX_TX_TIMEOUT_NSECS	10000000
+#define MIN_TX_TIMEOUT_NSECS	500000
+
+	struct sk_buff_head	rx_frames;
+
+	unsigned		qmult;
+
+	unsigned		header_len;
+	unsigned		ul_max_pkts_per_xfer;
+	unsigned		dl_max_pkts_per_xfer;
+	struct sk_buff		*(*wrap)(struct gether *, struct sk_buff *skb);
+	int			(*unwrap)(struct gether *,
+						struct sk_buff *skb,
+						struct sk_buff_head *list);
+
+	struct work_struct	work;
+	struct work_struct	rx_work;
+
+	unsigned long		todo;
+#define	WORK_RX_MEMORY		0
+
+	bool			zlp;
+	bool			no_skb_reserve;
+	u8			host_mac[ETH_ALEN];
+	u8			dev_mac[ETH_ALEN];
+	int 			no_of_zlp;
+
+	bool	occured_timeout;
+};
+
 
 /*
  * This represents the USB side of an "ethernet" link, managed by a USB
@@ -69,7 +132,11 @@ struct gether {
 	bool				is_fixed;
 	u32				fixed_out_len;
 	u32				fixed_in_len;
+	unsigned		ul_max_pkts_per_xfer;
+	unsigned		dl_max_pkts_per_xfer;
+	bool				multi_pkt_xfer;
 	bool				supports_multi_frame;
+	struct rndis_packet_msg_type	*header;
 	struct sk_buff			*(*wrap)(struct gether *port,
 						struct sk_buff *skb);
 	int				(*unwrap)(struct gether *port,
@@ -249,6 +316,36 @@ void gether_cleanup(struct eth_dev *dev);
 /* connect/disconnect is handled by individual functions */
 struct net_device *gether_connect(struct gether *);
 void gether_disconnect(struct gether *);
+
+void gether_free_request(struct gether *link);
+
+int gether_alloc_request(struct gether *link);
+
+#ifdef CONFIG_USB_F_NCM
+int ncm_add_datagram(struct gether *port, __le16 *tmp, int length, int holdcnt);
+void ncm_add_header(u32 packet_start_offset, void *buf, u32 data_len);
+#else
+static inline int ncm_add_datagram(struct gether *port, __le16 *tmp,
+						int length, int holdcnt)
+{
+	return 0;
+}
+static inline void ncm_add_header(u32 packet_start_offset,
+						void *buf, u32 data_len) {}
+#endif
+
+//#define NCM_WITH_TIMER
+#ifdef NCM_WITH_TIMER
+enum hrtimer_restart tx_timeout_ncm(struct hrtimer *data);
+netdev_tx_t eth_start_xmit_ncm_timer(struct sk_buff *skb,
+						struct net_device *net);
+#else
+netdev_tx_t eth_start_xmit_ncm(struct sk_buff *skb, struct net_device *net);
+#endif
+
+#ifdef CONFIG_USB_F_NCM
+extern const struct net_device_ops eth_netdev_ops_ncm;
+#endif
 
 /* Some controllers can't support CDC Ethernet (ECM) ... */
 static inline bool can_support_ecm(struct usb_gadget *gadget)

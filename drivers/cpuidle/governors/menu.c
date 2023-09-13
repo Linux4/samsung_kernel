@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * menu.c - the menu idle governor
  *
@@ -6,6 +5,9 @@
  * Copyright (C) 2009 Intel Corporation
  * Author:
  *        Arjan van de Ven <arjan@linux.intel.com>
+ *
+ * This code is licenced under the GPL version 2 as described
+ * in the COPYING file that acompanies the Linux Kernel.
  */
 
 #include <linux/kernel.h>
@@ -18,9 +20,7 @@
 #include <linux/sched/loadavg.h>
 #include <linux/sched/stat.h>
 #include <linux/math64.h>
-#ifdef CONFIG_QGKI_MENU_GOV_DEBUG
-#include <trace/events/power.h>
-#endif
+#include <linux/cpuidle-moce.h>
 
 /*
  * Please note when changing the tuning values:
@@ -120,15 +120,22 @@
  */
 
 struct menu_device {
+	int		last_state_idx;
 	int             needs_update;
 	int             tick_wakeup;
 
 	unsigned int	next_timer_us;
+	unsigned int	predicted_us;
 	unsigned int	bucket;
 	unsigned int	correction_factor[BUCKETS];
 	unsigned int	intervals[INTERVALS];
 	int		interval_ptr;
 };
+
+static inline int get_loadavg(unsigned long load)
+{
+	return LOAD_INT(load) * 10 + LOAD_FRAC(load) / 10;
+}
 
 static inline int which_bucket(unsigned int duration, unsigned long nr_iowaiters)
 {
@@ -163,10 +170,18 @@ static inline int which_bucket(unsigned int duration, unsigned long nr_iowaiters
  * to be, the higher this multiplier, and thus the higher
  * the barrier to go to an expensive C state.
  */
-static inline int performance_multiplier(unsigned long nr_iowaiters)
+static inline int performance_multiplier(unsigned long nr_iowaiters, unsigned long load)
 {
-	/* for IO wait tasks (per cpu!) we add 10x each */
-	return 1 + 10 * nr_iowaiters;
+	int mult = 1;
+
+	/* for higher loadavg, we are more reluctant */
+
+	mult += 2 * get_loadavg(load);
+
+	/* for IO wait tasks (per cpu!) we add 5x each */
+	mult += 10 * nr_iowaiters;
+
+	return mult;
 }
 
 static DEFINE_PER_CPU(struct menu_device, menu_devices);
@@ -179,19 +194,17 @@ static void menu_update(struct cpuidle_driver *drv, struct cpuidle_device *dev);
  * of points is below a threshold. If it is... then use the
  * average of these 8 points as the estimated value.
  */
-static unsigned int get_typical_interval(struct menu_device *data,
-					 unsigned int predicted_us)
+static unsigned int get_typical_interval(struct menu_device *data)
 {
 	int i, divisor;
-	unsigned int min, max, thresh, avg;
+	unsigned int max, thresh, avg;
 	uint64_t sum, variance;
 
-	thresh = INT_MAX; /* Discard outliers above this value */
+	thresh = UINT_MAX; /* Discard outliers above this value */
 
 again:
 
 	/* First calculate the average of past intervals */
-	min = UINT_MAX;
 	max = 0;
 	sum = 0;
 	divisor = 0;
@@ -202,19 +215,8 @@ again:
 			divisor++;
 			if (value > max)
 				max = value;
-
-			if (value < min)
-				min = value;
 		}
 	}
-
-	/*
-	 * If the result of the computation is going to be discarded anyway,
-	 * avoid the computation altogether.
-	 */
-	if (min >= predicted_us)
-		return UINT_MAX;
-
 	if (divisor == INTERVALS)
 		avg = sum >> INTERVAL_SHIFT;
 	else
@@ -280,14 +282,13 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 {
 	struct menu_device *data = this_cpu_ptr(&menu_devices);
 	int latency_req = cpuidle_governor_latency_req(dev->cpu);
-#ifdef CONFIG_QGKI_MENU_GOV_DEBUG
-	int qos = latency_req;
-#endif
-	int i;
-	int idx;
+	int i, target_res_i;
+	int first_idx;
+	int idx, target_res_idx;
+	unsigned int moce_ratio = exynos_moce_get_ratio(dev->cpu);
 	unsigned int interactivity_req;
-	unsigned int predicted_us;
-	unsigned long nr_iowaiters;
+	unsigned int expected_interval;
+	unsigned long nr_iowaiters, cpu_load;
 	ktime_t delta_next;
 
 	if (data->needs_update) {
@@ -295,40 +296,50 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 		data->needs_update = 0;
 	}
 
+	/* Special case when user has set very strict latency requirement */
+	if (unlikely(latency_req == 0)) {
+		*stop_tick = false;
+		return 0;
+	}
+
 	/* determine the expected residency time, round up */
 	data->next_timer_us = ktime_to_us(tick_nohz_get_sleep_length(&delta_next));
 
-	nr_iowaiters = nr_iowait_cpu(dev->cpu);
+	get_iowait_load(&nr_iowaiters, &cpu_load);
 	data->bucket = which_bucket(data->next_timer_us, nr_iowaiters);
-
-	if (unlikely(drv->state_count <= 1 || latency_req == 0) ||
-	    ((data->next_timer_us < drv->states[1].target_residency ||
-	      latency_req < drv->states[1].exit_latency) &&
-	     !drv->states[0].disabled && !dev->states_usage[0].disable)) {
-		/*
-		 * In this case state[0] will be used no matter what, so return
-		 * it right away and keep the tick running if state[0] is a
-		 * polling one.
-		 */
-		*stop_tick = !(drv->states[0].flags & CPUIDLE_FLAG_POLLING);
-#ifdef CONFIG_QGKI_MENU_GOV_DEBUG
-		trace_cpuidle_select(dev->cpu, 0, 0, *stop_tick, 0);
-#endif
-		return 0;
-	}
 
 	/*
 	 * Force the result of multiplication to be 64 bits even if both
 	 * operands are 32 bits.
 	 * Make sure to round up for half microseconds.
 	 */
-	predicted_us = DIV_ROUND_CLOSEST_ULL((uint64_t)data->next_timer_us *
+	data->predicted_us = DIV_ROUND_CLOSEST_ULL((uint64_t)data->next_timer_us *
 					 data->correction_factor[data->bucket],
 					 RESOLUTION * DECAY);
+
+	expected_interval = get_typical_interval(data);
+	expected_interval = min(expected_interval, data->next_timer_us);
+
+	first_idx = 0;
+	if (drv->states[0].flags & CPUIDLE_FLAG_POLLING) {
+		struct cpuidle_state *s = &drv->states[1];
+		unsigned int polling_threshold;
+
+		/*
+		 * Default to a physical idle state, not to busy polling, unless
+		 * a timer is going to trigger really really soon.
+		 */
+		polling_threshold = max_t(unsigned int, 20, s->target_residency);
+		if (data->next_timer_us > polling_threshold &&
+		    latency_req > s->exit_latency && !s->disabled &&
+		    !dev->states_usage[1].disable)
+			first_idx = 1;
+	}
+
 	/*
 	 * Use the lowest expected idle interval to pick the idle state.
 	 */
-	predicted_us = min(predicted_us, get_typical_interval(data, predicted_us));
+	data->predicted_us = min(data->predicted_us, expected_interval);
 
 	if (tick_nohz_tick_stopped()) {
 		/*
@@ -339,46 +350,38 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 		 * the known time till the closest timer event for the idle
 		 * state selection.
 		 */
-		if (predicted_us < TICK_USEC)
-			predicted_us = ktime_to_us(delta_next);
+		if (data->predicted_us < TICK_USEC)
+			data->predicted_us = ktime_to_us(delta_next);
 	} else {
 		/*
 		 * Use the performance multiplier and the user-configurable
 		 * latency_req to determine the maximum exit latency.
 		 */
-		interactivity_req = predicted_us / performance_multiplier(nr_iowaiters);
+		interactivity_req = data->predicted_us / performance_multiplier(nr_iowaiters, cpu_load);
 		if (latency_req > interactivity_req)
 			latency_req = interactivity_req;
 	}
 
+	expected_interval = data->predicted_us;
 	/*
 	 * Find the idle state with the lowest power while satisfying
 	 * our constraints.
 	 */
 	idx = -1;
-	for (i = 0; i < drv->state_count; i++) {
+	for (i = first_idx; i < drv->state_count; i++) {
 		struct cpuidle_state *s = &drv->states[i];
 		struct cpuidle_state_usage *su = &dev->states_usage[i];
 
 		if (s->disabled || su->disable)
 			continue;
-
 		if (idx == -1)
 			idx = i; /* first enabled state */
 
-		if (s->target_residency > predicted_us) {
-			/*
-			 * Use a physical idle state, not busy polling, unless
-			 * a timer is going to trigger soon enough.
-			 */
-			if ((drv->states[idx].flags & CPUIDLE_FLAG_POLLING) &&
-			    s->exit_latency <= latency_req &&
-			    s->target_residency <= data->next_timer_us) {
-				predicted_us = s->target_residency;
-				idx = i;
-				break;
-			}
-			if (predicted_us < TICK_USEC)
+		target_res_i = (s->target_residency * moce_ratio) / 100;
+		target_res_idx = (drv->states[idx].target_residency * moce_ratio) / 100;
+
+		if (target_res_i > data->predicted_us) {
+			if (data->predicted_us < TICK_USEC)
 				break;
 
 			if (!tick_nohz_tick_stopped()) {
@@ -388,7 +391,7 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 				 * tick in that case and let the governor run
 				 * again in the next iteration of the loop.
 				 */
-				predicted_us = drv->states[idx].target_residency;
+				expected_interval = target_res_idx;
 				break;
 			}
 
@@ -398,20 +401,22 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 			 * closest timer event, select this one to avoid getting
 			 * stuck in the shallow one for too long.
 			 */
-			if (drv->states[idx].target_residency < TICK_USEC &&
-			    s->target_residency <= ktime_to_us(delta_next))
+			if (target_res_idx < TICK_USEC && target_res_i <= ktime_to_us(delta_next))
 				idx = i;
 
-#ifdef CONFIG_QGKI_MENU_GOV_DEBUG
-			trace_cpuidle_select(dev->cpu, predicted_us, qos,
-					     *stop_tick, idx);
-#endif
-
-			return idx;
+			goto out;
 		}
-		if (s->exit_latency > latency_req)
-			break;
 
+		if (s->exit_latency > latency_req) {
+			/*
+			 * If we break out of the loop for latency reasons, use
+			 * the target residency of the selected state as the
+			 * expected idle duration so that the tick is retained
+			 * as long as that target residency is low enough.
+			 */
+			expected_interval = target_res_idx;
+			break;
+		}
 		idx = i;
 	}
 
@@ -423,12 +428,14 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 	 * expected idle duration is shorter than the tick period length.
 	 */
 	if (((drv->states[idx].flags & CPUIDLE_FLAG_POLLING) ||
-	     predicted_us < TICK_USEC) && !tick_nohz_tick_stopped()) {
+	     expected_interval < TICK_USEC) && !tick_nohz_tick_stopped()) {
 		unsigned int delta_next_us = ktime_to_us(delta_next);
 
 		*stop_tick = false;
 
-		if (idx > 0 && drv->states[idx].target_residency > delta_next_us) {
+		target_res_idx = (drv->states[idx].target_residency * moce_ratio) / 100;
+
+		if (idx > 0 && target_res_idx > delta_next_us) {
 			/*
 			 * The tick is not going to be stopped and the target
 			 * residency of the state to be returned is not within
@@ -441,16 +448,18 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 					continue;
 
 				idx = i;
-				if (drv->states[i].target_residency <= delta_next_us)
+				target_res_i = (drv->states[i].target_residency * moce_ratio) / 100;
+
+				if (target_res_i <= delta_next_us)
 					break;
 			}
 		}
 	}
 
-#ifdef CONFIG_QGKI_MENU_GOV_DEBUG
-	trace_cpuidle_select(dev->cpu, predicted_us, qos, *stop_tick, idx);
-#endif
-	return idx;
+out:
+	data->last_state_idx = idx;
+
+	return data->last_state_idx;
 }
 
 /**
@@ -465,7 +474,7 @@ static void menu_reflect(struct cpuidle_device *dev, int index)
 {
 	struct menu_device *data = this_cpu_ptr(&menu_devices);
 
-	dev->last_state_idx = index;
+	data->last_state_idx = index;
 	data->needs_update = 1;
 	data->tick_wakeup = tick_nohz_idle_got_tick();
 }
@@ -478,7 +487,7 @@ static void menu_reflect(struct cpuidle_device *dev, int index)
 static void menu_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 {
 	struct menu_device *data = this_cpu_ptr(&menu_devices);
-	int last_idx = dev->last_state_idx;
+	int last_idx = data->last_state_idx;
 	struct cpuidle_state *target = &drv->states[last_idx];
 	unsigned int measured_us;
 	unsigned int new_factor;
@@ -521,7 +530,7 @@ static void menu_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 		measured_us = data->next_timer_us;
 	} else {
 		/* measured value */
-		measured_us = dev->last_residency;
+		measured_us = cpuidle_get_last_residency(dev);
 
 		/* Deduct exit latency */
 		if (measured_us > 2 * target->exit_latency)

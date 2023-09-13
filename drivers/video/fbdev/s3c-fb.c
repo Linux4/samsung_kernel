@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /* linux/drivers/video/s3c-fb.c
  *
  * Copyright 2008 Openmoko Inc.
@@ -7,6 +6,10 @@
  *      http://armlinux.simtec.co.uk/
  *
  * Samsung SoC Framebuffer driver
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software FoundatIon.
 */
 
 #include <linux/kernel.h>
@@ -284,7 +287,7 @@ static int s3c_fb_check_var(struct fb_var_screeninfo *var,
 		/* 666 with one bit alpha/transparency */
 		var->transp.offset	= 18;
 		var->transp.length	= 1;
-		/* fall through */
+		/* drop through */
 	case 18:
 		var->bits_per_pixel	= 32;
 
@@ -312,7 +315,7 @@ static int s3c_fb_check_var(struct fb_var_screeninfo *var,
 	case 25:
 		var->transp.length	= var->bits_per_pixel - 24;
 		var->transp.offset	= 24;
-		/* fall through */
+		/* drop through */
 	case 24:
 		/* our 24bpp is unpacked, so 32bpp */
 		var->bits_per_pixel	= 32;
@@ -809,7 +812,7 @@ static int s3c_fb_blank(int blank_mode, struct fb_info *info)
 	case FB_BLANK_POWERDOWN:
 		wincon &= ~WINCONx_ENWIN;
 		sfb->enabled &= ~(1 << index);
-		/* fall through - to FB_BLANK_NORMAL */
+		/* fall through to FB_BLANK_NORMAL */
 
 	case FB_BLANK_NORMAL:
 		/* disable the DMA and display 0x0 (black) */
@@ -1102,14 +1105,14 @@ static int s3c_fb_alloc_memory(struct s3c_fb *sfb, struct s3c_fb_win *win)
 
 	dev_dbg(sfb->dev, "want %u bytes for window\n", size);
 
-	fbi->screen_buffer = dma_alloc_wc(sfb->dev, size, &map_dma, GFP_KERNEL);
-	if (!fbi->screen_buffer)
+	fbi->screen_base = dma_alloc_wc(sfb->dev, size, &map_dma, GFP_KERNEL);
+	if (!fbi->screen_base)
 		return -ENOMEM;
 
 	dev_dbg(sfb->dev, "mapped %x to %p\n",
-		(unsigned int)map_dma, fbi->screen_buffer);
+		(unsigned int)map_dma, fbi->screen_base);
 
-	memset(fbi->screen_buffer, 0x0, size);
+	memset(fbi->screen_base, 0x0, size);
 	fbi->fix.smem_start = map_dma;
 
 	return 0;
@@ -1126,9 +1129,9 @@ static void s3c_fb_free_memory(struct s3c_fb *sfb, struct s3c_fb_win *win)
 {
 	struct fb_info *fbi = win->fbinfo;
 
-	if (fbi->screen_buffer)
+	if (fbi->screen_base)
 		dma_free_wc(sfb->dev, PAGE_ALIGN(fbi->fix.smem_len),
-			    fbi->screen_buffer, fbi->fix.smem_start);
+		            fbi->screen_base, fbi->fix.smem_start);
 }
 
 /**
@@ -1186,8 +1189,10 @@ static int s3c_fb_probe_win(struct s3c_fb *sfb, unsigned int win_no,
 
 	fbinfo = framebuffer_alloc(sizeof(struct s3c_fb_win) +
 				   palette_size * sizeof(u32), sfb->dev);
-	if (!fbinfo)
-		return -ENOMEM;
+	if (!fbinfo) {
+		dev_err(sfb->dev, "failed to allocate framebuffer\n");
+		return -ENOENT;
+	}
 
 	windata = sfb->pdata->win[win_no];
 	initmode = *sfb->pdata->vtiming;

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 #define pr_fmt(fmt) "list_sort_test: " fmt
 
 #include <linux/kernel.h>

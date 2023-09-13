@@ -1,7 +1,7 @@
 /*
- *  linux/fs/proc/proc_avc.c
- *
- */
+*  linux/fs/proc/proc_avc.c
+*
+*/
 
 #include <linux/types.h>
 #include <linux/errno.h>
@@ -72,15 +72,16 @@ void sec_avc_log(char *fmt, ...)
 	if (idx + (size * 2) > sec_avc_log_size - 1) {
 		len = scnprintf(&sec_avc_log_buf[0], size + 1, "%s\n", buf);
 		*sec_avc_log_ptr = len;
-	} else {
+	}
+	else {
 		len = scnprintf(&sec_avc_log_buf[idx], size + 1, "%s\n", buf);
 		*sec_avc_log_ptr += len;
 	}
 }
 
 static ssize_t sec_avc_log_write(struct file *file,
-					     const char __user *buf,
-					     size_t count, loff_t *ppos)
+	const char __user *buf,
+	size_t count, loff_t *ppos)
 {
 	char *page = NULL;
 	ssize_t ret;
@@ -114,7 +115,7 @@ out:
 	return ret;
 }
 static ssize_t sec_avc_log_read(struct file *file, char __user *buf,
-				size_t len, loff_t *offset)
+	size_t len, loff_t *offset)
 {
 	loff_t pos = *offset;
 	ssize_t count;

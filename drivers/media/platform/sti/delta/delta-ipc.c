@@ -220,8 +220,10 @@ int delta_ipc_open(struct delta_ctx *pctx, const char *name,
 
 err:
 	pctx->sys_errors++;
-	hw_free(pctx, ctx->ipc_buf);
-	ctx->ipc_buf = NULL;
+	if (ctx->ipc_buf) {
+		hw_free(pctx, ctx->ipc_buf);
+		ctx->ipc_buf = NULL;
+	}
 
 	return ret;
 };

@@ -1,4 +1,15 @@
-obj-$(CONFIG_SEC_MISC)			+= sec_misc.o
-obj-$(CONFIG_SEC_SMEM)			+= sec_smem.o
-obj-$(CONFIG_ARGOS)  += sec_argos.o
-obj-$(CONFIG_VBUS_NOTIFIER_MODULE)	+= vbus_notifier.o
+# drivers/samsung/misc/Makefile
+#
+# Copyright (c) 2019 Samsung Electronics Co., Ltd.
+#		http://www.samsung.com/
+#
+# Licensed under GPLv2
+
+obj-y				:=
+obj-m				:=
+obj-n				:=
+obj-				:=
+
+obj-$(CONFIG_VBUS_NOTIFIER)	+= vbus_notifier.o
+# Samsung sec NAD Feature
+obj-$(CONFIG_SEC_NAD)		+= sec_nad.o

@@ -1,10 +1,19 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  Driver for the Conexant CX25821 PCIe bridge
  *
  *  Copyright (C) 2009 Conexant Systems Inc.
  *  Authors  <shu.lin@conexant.com>, <hiep.huynh@conexant.com>
  *	Based on SAA713x ALSA driver and CX88 driver
+ *
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation, version 2
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -111,7 +120,7 @@ module_param(debug, int, 0644);
 MODULE_PARM_DESC(debug, "enable debug messages");
 
 /****************************************************************************
-			Module specific functions
+			Module specific funtions
  ****************************************************************************/
 /* Constants taken from cx88-reg.h */
 #define AUD_INT_DN_RISCI1       (1 <<  0)
@@ -665,7 +674,7 @@ static int snd_cx25821_pcm(struct cx25821_audio_dev *chip, int device,
 	}
 	pcm->private_data = chip;
 	pcm->info_flags = 0;
-	strscpy(pcm->name, name, sizeof(pcm->name));
+	strcpy(pcm->name, name);
 	snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &snd_cx25821_pcm_ops);
 
 	return 0;
@@ -716,7 +725,7 @@ static int cx25821_audio_initdev(struct cx25821_dev *dev)
 		return err;
 	}
 
-	strscpy(card->driver, "cx25821", sizeof(card->driver));
+	strcpy(card->driver, "cx25821");
 
 	/* Card "creation" */
 	chip = card->private_data;
@@ -745,10 +754,10 @@ static int cx25821_audio_initdev(struct cx25821_dev *dev)
 		goto error;
 	}
 
-	strscpy(card->shortname, "cx25821", sizeof(card->shortname));
+	strcpy(card->shortname, "cx25821");
 	sprintf(card->longname, "%s at 0x%lx irq %d", chip->dev->name,
 		chip->iobase, chip->irq);
-	strscpy(card->mixername, "CX25821", sizeof(card->mixername));
+	strcpy(card->mixername, "CX25821");
 
 	pr_info("%s/%i: ALSA support for cx25821 boards\n", card->driver,
 		devno);

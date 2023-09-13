@@ -1,9 +1,17 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * linux/sound/soc/m8m/hi6210_i2s.c - I2S IP driver
  *
  * Copyright (C) 2015 Linaro, Ltd
  * Author: Andy Green <andy.green@linaro.org>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
  * This driver only deals with S2 interface (BT)
  */
@@ -102,15 +110,18 @@ static int hi6210_i2s_startup(struct snd_pcm_substream *substream,
 
 	for (n = 0; n < i2s->clocks; n++) {
 		ret = clk_prepare_enable(i2s->clk[n]);
-		if (ret)
-			goto err_unprepare_clk;
+		if (ret) {
+			while (n--)
+				clk_disable_unprepare(i2s->clk[n]);
+			return ret;
+		}
 	}
 
 	ret = clk_set_rate(i2s->clk[CLK_I2S_BASE], 49152000);
 	if (ret) {
 		dev_err(i2s->dev, "%s: setting 49.152MHz base rate failed %d\n",
 			__func__, ret);
-		goto err_unprepare_clk;
+		return ret;
 	}
 
 	/* enable clock before frequency division */
@@ -162,11 +173,6 @@ static int hi6210_i2s_startup(struct snd_pcm_substream *substream,
 	hi6210_write_reg(i2s, HII2S_SW_RST_N, val);
 
 	return 0;
-
-err_unprepare_clk:
-	while (n--)
-		clk_disable_unprepare(i2s->clk[n]);
-	return ret;
 }
 
 static void hi6210_i2s_shutdown(struct snd_pcm_substream *substream,
@@ -263,13 +269,13 @@ static int hi6210_i2s_hw_params(struct snd_pcm_substream *substream,
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_U16_LE:
 		signed_data = HII2S_I2S_CFG__S2_CODEC_DATA_FORMAT;
-		/* fall through */
+		/* fallthru */
 	case SNDRV_PCM_FORMAT_S16_LE:
 		bits = HII2S_BITS_16;
 		break;
 	case SNDRV_PCM_FORMAT_U24_LE:
 		signed_data = HII2S_I2S_CFG__S2_CODEC_DATA_FORMAT;
-		/* fall through */
+		/* fallthru */
 	case SNDRV_PCM_FORMAT_S24_LE:
 		bits = HII2S_BITS_24;
 		break;

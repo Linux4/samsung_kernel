@@ -1,13 +1,24 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *
  * Copyright (C) STMicroelectronics SA 2017
  * Author(s): M'boumba Cedric Madianga <cedric.madianga@gmail.com>
  *            Pierre-Yves Mordret <pierre-yves.mordret@st.com>
  *
+ * License terms: GPL V2.0.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+ * details.
+ *
  * Driver for STM32 MDMA controller
  *
  * Inspired by stm32-dma.c and dma-jz4780.c
+ *
  */
 
 #include <linux/clk.h>
@@ -26,7 +37,6 @@
 #include <linux/of_device.h>
 #include <linux/of_dma.h>
 #include <linux/platform_device.h>
-#include <linux/pm_runtime.h>
 #include <linux/reset.h>
 #include <linux/slab.h>
 
@@ -40,6 +50,7 @@
 					 STM32_MDMA_SHIFT(mask))
 
 #define STM32_MDMA_GISR0		0x0000 /* MDMA Int Status Reg 1 */
+#define STM32_MDMA_GISR1		0x0004 /* MDMA Int Status Reg 2 */
 
 /* MDMA Channel x interrupt/status register */
 #define STM32_MDMA_CISR(x)		(0x40 + 0x40 * (x)) /* x = 0..62 */
@@ -183,7 +194,7 @@
 #define STM32_MDMA_CTBR(x)		(0x68 + 0x40 * (x))
 #define STM32_MDMA_CTBR_DBUS		BIT(17)
 #define STM32_MDMA_CTBR_SBUS		BIT(16)
-#define STM32_MDMA_CTBR_TSEL_MASK	GENMASK(5, 0)
+#define STM32_MDMA_CTBR_TSEL_MASK	GENMASK(7, 0)
 #define STM32_MDMA_CTBR_TSEL(n)		STM32_MDMA_SET(n, \
 						      STM32_MDMA_CTBR_TSEL_MASK)
 
@@ -195,7 +206,7 @@
 
 #define STM32_MDMA_MAX_BUF_LEN		128
 #define STM32_MDMA_MAX_BLOCK_LEN	65536
-#define STM32_MDMA_MAX_CHANNELS		32
+#define STM32_MDMA_MAX_CHANNELS		63
 #define STM32_MDMA_MAX_REQUESTS		256
 #define STM32_MDMA_MAX_BURST		128
 #define STM32_MDMA_VERY_HIGH_PRIORITY	0x11
@@ -1126,8 +1137,6 @@ static void stm32_mdma_start_transfer(struct stm32_mdma_chan *chan)
 		return;
 	}
 
-	list_del(&vdesc->node);
-
 	chan->desc = to_stm32_mdma_desc(vdesc);
 	hwdesc = chan->desc->node[0].hwdesc;
 	chan->curr_hwdesc = 0;
@@ -1243,10 +1252,8 @@ static int stm32_mdma_terminate_all(struct dma_chan *c)
 	LIST_HEAD(head);
 
 	spin_lock_irqsave(&chan->vchan.lock, flags);
-	if (chan->desc) {
-		vchan_terminate_vdesc(&chan->desc->vdesc);
-		if (chan->busy)
-			stm32_mdma_stop(chan);
+	if (chan->busy) {
+		stm32_mdma_stop(chan);
 		chan->desc = NULL;
 	}
 	vchan_get_all_descriptors(&chan->vchan, &head);
@@ -1334,6 +1341,7 @@ static enum dma_status stm32_mdma_tx_status(struct dma_chan *c,
 
 static void stm32_mdma_xfer_end(struct stm32_mdma_chan *chan)
 {
+	list_del(&chan->desc->vdesc.node);
 	vchan_cookie_complete(&chan->desc->vdesc);
 	chan->desc = NULL;
 	chan->busy = false;
@@ -1350,11 +1358,21 @@ static irqreturn_t stm32_mdma_irq_handler(int irq, void *devid)
 
 	/* Find out which channel generates the interrupt */
 	status = readl_relaxed(dmadev->base + STM32_MDMA_GISR0);
-	if (!status) {
-		dev_dbg(mdma2dev(dmadev), "spurious it\n");
-		return IRQ_NONE;
+	if (status) {
+		id = __ffs(status);
+	} else {
+		status = readl_relaxed(dmadev->base + STM32_MDMA_GISR1);
+		if (!status) {
+			dev_dbg(mdma2dev(dmadev), "spurious it\n");
+			return IRQ_NONE;
+		}
+		id = __ffs(status);
+		/*
+		 * As GISR0 provides status for channel id from 0 to 31,
+		 * so GISR1 provides status for channel id from 32 to 62
+		 */
+		id += 32;
 	}
-	id = __ffs(status);
 
 	chan = &dmadev->chan[id];
 	if (!chan) {
@@ -1438,13 +1456,15 @@ static int stm32_mdma_alloc_chan_resources(struct dma_chan *c)
 		return -ENOMEM;
 	}
 
-	ret = pm_runtime_get_sync(dmadev->ddev.dev);
-	if (ret < 0)
+	ret = clk_prepare_enable(dmadev->clk);
+	if (ret < 0) {
+		dev_err(chan2dev(chan), "clk_prepare_enable failed: %d\n", ret);
 		return ret;
+	}
 
 	ret = stm32_mdma_disable_chan(chan);
 	if (ret < 0)
-		pm_runtime_put(dmadev->ddev.dev);
+		clk_disable_unprepare(dmadev->clk);
 
 	return ret;
 }
@@ -1464,7 +1484,7 @@ static void stm32_mdma_free_chan_resources(struct dma_chan *c)
 		spin_unlock_irqrestore(&chan->vchan.lock, flags);
 	}
 
-	pm_runtime_put(dmadev->ddev.dev);
+	clk_disable_unprepare(dmadev->clk);
 	vchan_free_chan_resources(to_virt_chan(c));
 	dmam_pool_destroy(chan->desc_pool);
 	chan->desc_pool = NULL;
@@ -1547,7 +1567,8 @@ static int stm32_mdma_probe(struct platform_device *pdev)
 			 nr_requests);
 	}
 
-	count = device_property_count_u32(&pdev->dev, "st,ahb-addr-masks");
+	count = device_property_read_u32_array(&pdev->dev, "st,ahb-addr-masks",
+					       NULL, 0);
 	if (count < 0)
 		count = 0;
 
@@ -1573,12 +1594,6 @@ static int stm32_mdma_probe(struct platform_device *pdev)
 		ret = PTR_ERR(dmadev->clk);
 		if (ret == -EPROBE_DEFER)
 			dev_info(&pdev->dev, "Missing controller clock\n");
-		return ret;
-	}
-
-	ret = clk_prepare_enable(dmadev->clk);
-	if (ret < 0) {
-		dev_err(&pdev->dev, "clk_prep_enable error: %d\n", ret);
 		return ret;
 	}
 
@@ -1629,8 +1644,10 @@ static int stm32_mdma_probe(struct platform_device *pdev)
 	}
 
 	dmadev->irq = platform_get_irq(pdev, 0);
-	if (dmadev->irq < 0)
+	if (dmadev->irq < 0) {
+		dev_err(&pdev->dev, "failed to get IRQ\n");
 		return dmadev->irq;
+	}
 
 	ret = devm_request_irq(&pdev->dev, dmadev->irq, stm32_mdma_irq_handler,
 			       0, dev_name(&pdev->dev), dmadev);
@@ -1639,7 +1656,7 @@ static int stm32_mdma_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	ret = dmaenginem_async_device_register(dd);
+	ret = dma_async_device_register(dd);
 	if (ret)
 		return ret;
 
@@ -1651,55 +1668,22 @@ static int stm32_mdma_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, dmadev);
-	pm_runtime_set_active(&pdev->dev);
-	pm_runtime_enable(&pdev->dev);
-	pm_runtime_get_noresume(&pdev->dev);
-	pm_runtime_put(&pdev->dev);
 
 	dev_info(&pdev->dev, "STM32 MDMA driver registered\n");
 
 	return 0;
 
 err_unregister:
+	dma_async_device_unregister(dd);
+
 	return ret;
 }
-
-#ifdef CONFIG_PM
-static int stm32_mdma_runtime_suspend(struct device *dev)
-{
-	struct stm32_mdma_device *dmadev = dev_get_drvdata(dev);
-
-	clk_disable_unprepare(dmadev->clk);
-
-	return 0;
-}
-
-static int stm32_mdma_runtime_resume(struct device *dev)
-{
-	struct stm32_mdma_device *dmadev = dev_get_drvdata(dev);
-	int ret;
-
-	ret = clk_prepare_enable(dmadev->clk);
-	if (ret) {
-		dev_err(dev, "failed to prepare_enable clock\n");
-		return ret;
-	}
-
-	return 0;
-}
-#endif
-
-static const struct dev_pm_ops stm32_mdma_pm_ops = {
-	SET_RUNTIME_PM_OPS(stm32_mdma_runtime_suspend,
-			   stm32_mdma_runtime_resume, NULL)
-};
 
 static struct platform_driver stm32_mdma_driver = {
 	.probe = stm32_mdma_probe,
 	.driver = {
 		.name = "stm32-mdma",
 		.of_match_table = stm32_mdma_of_match,
-		.pm = &stm32_mdma_pm_ops,
 	},
 };
 

@@ -5,7 +5,6 @@
 #define _DRM_AUDIO_COMPONENT_H_
 
 struct drm_audio_component;
-struct device;
 
 /**
  * struct drm_audio_component_ops - Ops implemented by DRM driver, called by hda driver
@@ -19,17 +18,14 @@ struct drm_audio_component_ops {
 	 * @get_power: get the POWER_DOMAIN_AUDIO power well
 	 *
 	 * Request the power well to be turned on.
-	 *
-	 * Returns a wakeref cookie to be passed back to the corresponding
-	 * call to @put_power.
 	 */
-	unsigned long (*get_power)(struct device *);
+	void (*get_power)(struct device *);
 	/**
 	 * @put_power: put the POWER_DOMAIN_AUDIO power well
 	 *
 	 * Allow the power well to be turned off.
 	 */
-	void (*put_power)(struct device *, unsigned long);
+	void (*put_power)(struct device *);
 	/**
 	 * @codec_wake_override: Enable/disable codec wake signal
 	 */

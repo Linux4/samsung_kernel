@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Common pmac/prep/chrp pci routines. -- Cort
  */
@@ -11,13 +10,14 @@
 #include <linux/capability.h>
 #include <linux/sched.h>
 #include <linux/errno.h>
-#include <linux/memblock.h>
+#include <linux/bootmem.h>
 #include <linux/syscalls.h>
 #include <linux/irq.h>
 #include <linux/list.h>
 #include <linux/of.h>
 #include <linux/slab.h>
 #include <linux/export.h>
+#include <linux/syscalls.h>
 
 #include <asm/processor.h>
 #include <asm/io.h>
@@ -204,11 +204,7 @@ pci_create_OF_bus_map(void)
 	struct property* of_prop;
 	struct device_node *dn;
 
-	of_prop = memblock_alloc(sizeof(struct property) + 256,
-				 SMP_CACHE_BYTES);
-	if (!of_prop)
-		panic("%s: Failed to allocate %zu bytes\n", __func__,
-		      sizeof(struct property) + 256);
+	of_prop = memblock_virt_alloc(sizeof(struct property) + 256, 0);
 	dn = of_find_node_by_path("/");
 	if (dn) {
 		memset(of_prop, -1, sizeof(struct property) + 256);
@@ -262,10 +258,6 @@ static int __init pcibios_init(void)
 
 	/* Call common code to handle resource allocation */
 	pcibios_resource_survey();
-
-	/* Call machine dependent fixup */
-	if (ppc_md.pcibios_fixup)
-		ppc_md.pcibios_fixup();
 
 	/* Call machine dependent post-init code */
 	if (ppc_md.pcibios_after_init)

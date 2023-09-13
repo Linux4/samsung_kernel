@@ -54,7 +54,7 @@ static int dyna_pci10xx_ai_eoc(struct comedi_device *dev,
 	unsigned int status;
 
 	status = inw_p(dev->iobase);
-	if (status & BIT(15))
+	if (status & (1 << 15))
 		return 0;
 	return -EBUSY;
 }
@@ -106,6 +106,10 @@ static int dyna_pci10xx_insn_write_ao(struct comedi_device *dev,
 {
 	struct dyna_pci10xx_private *devpriv = dev->private;
 	int n;
+	unsigned int chan, range;
+
+	chan = CR_CHAN(insn->chanspec);
+	range = range_codes_pci1050_ai[CR_RANGE((insn->chanspec))];
 
 	mutex_lock(&devpriv->mutex);
 	for (n = 0; n < insn->n; n++) {
@@ -190,15 +194,17 @@ static int dyna_pci10xx_auto_attach(struct comedi_device *dev,
 	s->n_chan = 16;
 	s->maxdata = 0x0FFF;
 	s->range_table = &range_pci1050_ai;
+	s->len_chanlist = 16;
 	s->insn_read = dyna_pci10xx_insn_read_ai;
 
 	/* analog output */
 	s = &dev->subdevices[1];
 	s->type = COMEDI_SUBD_AO;
 	s->subdev_flags = SDF_WRITABLE;
-	s->n_chan = 1;
+	s->n_chan = 16;
 	s->maxdata = 0x0FFF;
 	s->range_table = &range_unipolar10;
+	s->len_chanlist = 16;
 	s->insn_write = dyna_pci10xx_insn_write_ao;
 
 	/* digital input */
@@ -208,6 +214,7 @@ static int dyna_pci10xx_auto_attach(struct comedi_device *dev,
 	s->n_chan = 16;
 	s->maxdata = 1;
 	s->range_table = &range_digital;
+	s->len_chanlist = 16;
 	s->insn_bits = dyna_pci10xx_di_insn_bits;
 
 	/* digital output */
@@ -217,6 +224,7 @@ static int dyna_pci10xx_auto_attach(struct comedi_device *dev,
 	s->n_chan = 16;
 	s->maxdata = 1;
 	s->range_table = &range_digital;
+	s->len_chanlist = 16;
 	s->state = 0;
 	s->insn_bits = dyna_pci10xx_do_insn_bits;
 

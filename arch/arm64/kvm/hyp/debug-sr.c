@@ -1,7 +1,18 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2015 - ARM Ltd
  * Author: Marc Zyngier <marc.zyngier@arm.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <linux/compiler.h>
@@ -18,70 +29,40 @@
 #define save_debug(ptr,reg,nr)						\
 	switch (nr) {							\
 	case 15:	ptr[15] = read_debug(reg, 15);			\
-			/* Fall through */				\
 	case 14:	ptr[14] = read_debug(reg, 14);			\
-			/* Fall through */				\
 	case 13:	ptr[13] = read_debug(reg, 13);			\
-			/* Fall through */				\
 	case 12:	ptr[12] = read_debug(reg, 12);			\
-			/* Fall through */				\
 	case 11:	ptr[11] = read_debug(reg, 11);			\
-			/* Fall through */				\
 	case 10:	ptr[10] = read_debug(reg, 10);			\
-			/* Fall through */				\
 	case 9:		ptr[9] = read_debug(reg, 9);			\
-			/* Fall through */				\
 	case 8:		ptr[8] = read_debug(reg, 8);			\
-			/* Fall through */				\
 	case 7:		ptr[7] = read_debug(reg, 7);			\
-			/* Fall through */				\
 	case 6:		ptr[6] = read_debug(reg, 6);			\
-			/* Fall through */				\
 	case 5:		ptr[5] = read_debug(reg, 5);			\
-			/* Fall through */				\
 	case 4:		ptr[4] = read_debug(reg, 4);			\
-			/* Fall through */				\
 	case 3:		ptr[3] = read_debug(reg, 3);			\
-			/* Fall through */				\
 	case 2:		ptr[2] = read_debug(reg, 2);			\
-			/* Fall through */				\
 	case 1:		ptr[1] = read_debug(reg, 1);			\
-			/* Fall through */				\
 	default:	ptr[0] = read_debug(reg, 0);			\
 	}
 
 #define restore_debug(ptr,reg,nr)					\
 	switch (nr) {							\
 	case 15:	write_debug(ptr[15], reg, 15);			\
-			/* Fall through */				\
 	case 14:	write_debug(ptr[14], reg, 14);			\
-			/* Fall through */				\
 	case 13:	write_debug(ptr[13], reg, 13);			\
-			/* Fall through */				\
 	case 12:	write_debug(ptr[12], reg, 12);			\
-			/* Fall through */				\
 	case 11:	write_debug(ptr[11], reg, 11);			\
-			/* Fall through */				\
 	case 10:	write_debug(ptr[10], reg, 10);			\
-			/* Fall through */				\
 	case 9:		write_debug(ptr[9], reg, 9);			\
-			/* Fall through */				\
 	case 8:		write_debug(ptr[8], reg, 8);			\
-			/* Fall through */				\
 	case 7:		write_debug(ptr[7], reg, 7);			\
-			/* Fall through */				\
 	case 6:		write_debug(ptr[6], reg, 6);			\
-			/* Fall through */				\
 	case 5:		write_debug(ptr[5], reg, 5);			\
-			/* Fall through */				\
 	case 4:		write_debug(ptr[4], reg, 4);			\
-			/* Fall through */				\
 	case 3:		write_debug(ptr[3], reg, 3);			\
-			/* Fall through */				\
 	case 2:		write_debug(ptr[2], reg, 2);			\
-			/* Fall through */				\
 	case 1:		write_debug(ptr[1], reg, 1);			\
-			/* Fall through */				\
 	default:	write_debug(ptr[0], reg, 0);			\
 	}
 
@@ -168,27 +149,19 @@ static void __hyp_text __debug_restore_state(struct kvm_vcpu *vcpu,
 	write_sysreg(ctxt->sys_regs[MDCCINT_EL1], mdccint_el1);
 }
 
-void __hyp_text __debug_save_host_buffers_nvhe(struct kvm_vcpu *vcpu)
-{
-	/*
-	 * Non-VHE: Disable and flush SPE data generation
-	 * VHE: The vcpu can run, but it can't hide.
-	 */
-	__debug_save_spe_nvhe(&vcpu->arch.host_debug_state.pmscr_el1);
-
-}
-
-void __hyp_text __debug_restore_host_buffers_nvhe(struct kvm_vcpu *vcpu)
-{
-	__debug_restore_spe_nvhe(vcpu->arch.host_debug_state.pmscr_el1);
-}
-
 void __hyp_text __debug_switch_to_guest(struct kvm_vcpu *vcpu)
 {
 	struct kvm_cpu_context *host_ctxt;
 	struct kvm_cpu_context *guest_ctxt;
 	struct kvm_guest_debug_arch *host_dbg;
 	struct kvm_guest_debug_arch *guest_dbg;
+
+	/*
+	 * Non-VHE: Disable and flush SPE data generation
+	 * VHE: The vcpu can run, but it can't hide.
+	 */
+	if (!has_vhe())
+		__debug_save_spe_nvhe(&vcpu->arch.host_debug_state.pmscr_el1);
 
 	if (!(vcpu->arch.flags & KVM_ARM64_DEBUG_DIRTY))
 		return;
@@ -209,6 +182,8 @@ void __hyp_text __debug_switch_to_host(struct kvm_vcpu *vcpu)
 	struct kvm_guest_debug_arch *host_dbg;
 	struct kvm_guest_debug_arch *guest_dbg;
 
+	if (!has_vhe())
+		__debug_restore_spe_nvhe(vcpu->arch.host_debug_state.pmscr_el1);
 
 	if (!(vcpu->arch.flags & KVM_ARM64_DEBUG_DIRTY))
 		return;

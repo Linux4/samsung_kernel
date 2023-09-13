@@ -1,10 +1,14 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (C) 2005,2006,2007,2008 IBM Corporation
  *
  * Authors:
  * Reiner Sailer <sailer@watson.ibm.com>
  * Mimi Zohar <zohar@us.ibm.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation, version 2 of the
+ * License.
  *
  * File: ima.h
  *	internal Integrity Measurement Architecture (IMA) definitions
@@ -30,7 +34,7 @@
 
 enum ima_show_type { IMA_SHOW_BINARY, IMA_SHOW_BINARY_NO_FIELD_LEN,
 		     IMA_SHOW_BINARY_OLD_STRING_FMT, IMA_SHOW_ASCII };
-enum tpm_pcrs { TPM_PCR0 = 0, TPM_PCR8 = 8, TPM_PCR10 = 10 };
+enum tpm_pcrs { TPM_PCR0 = 0, TPM_PCR8 = 8 };
 
 /* digest size for IMA, fits SHA1 or MD5 */
 #define IMA_DIGEST_SIZE		SHA1_DIGEST_SIZE
@@ -61,10 +65,7 @@ struct ima_event_data {
 	const unsigned char *filename;
 	struct evm_ima_xattr_data *xattr_value;
 	int xattr_len;
-	const struct modsig *modsig;
 	const char *violation;
-	const void *buf;
-	int buf_len;
 };
 
 /* IMA template field data definition */
@@ -88,7 +89,7 @@ struct ima_template_desc {
 	char *name;
 	char *fmt;
 	int num_fields;
-	const struct ima_template_field **fields;
+	struct ima_template_field **fields;
 };
 
 struct ima_template_entry {
@@ -114,8 +115,6 @@ struct ima_kexec_hdr {
 	u64 buffer_size;
 	u64 count;
 };
-
-extern const int read_idmap[];
 
 #ifdef CONFIG_HAVE_IMA_KEXEC
 void ima_load_kexec_buffer(void);
@@ -148,21 +147,13 @@ void ima_add_violation(struct file *file, const unsigned char *filename,
 int ima_init_crypto(void);
 void ima_putc(struct seq_file *m, void *data, int datalen);
 void ima_print_digest(struct seq_file *m, u8 *digest, u32 size);
-int template_desc_init_fields(const char *template_fmt,
-			      const struct ima_template_field ***fields,
-			      int *num_fields);
 struct ima_template_desc *ima_template_desc_current(void);
-struct ima_template_desc *lookup_template_desc(const char *name);
-bool ima_template_has_modsig(const struct ima_template_desc *ima_template);
 int ima_restore_measurement_entry(struct ima_template_entry *entry);
 int ima_restore_measurement_list(loff_t bufsize, void *buf);
 int ima_measurements_show(struct seq_file *m, void *v);
 unsigned long ima_get_binary_runtime_size(void);
 int ima_init_template(void);
 void ima_init_template_list(void);
-int __init ima_init_digests(void);
-int ima_lsm_policy_change(struct notifier_block *nb, unsigned long event,
-			  void *lsm_data);
 
 /*
  * used to protect h_table and sha_table
@@ -194,7 +185,6 @@ static inline unsigned int ima_hash_key(u8 *digest)
 	hook(KEXEC_KERNEL_CHECK)	\
 	hook(KEXEC_INITRAMFS_CHECK)	\
 	hook(POLICY_CHECK)		\
-	hook(KEXEC_CMDLINE)		\
 	hook(MAX_CHECK)
 #define __ima_hook_enumify(ENUM)	ENUM,
 
@@ -202,28 +192,21 @@ enum ima_hooks {
 	__ima_hooks(__ima_hook_enumify)
 };
 
-extern const char *const func_tokens[];
-
-struct modsig;
-
 /* LIM API function definitions */
 int ima_get_action(struct inode *inode, const struct cred *cred, u32 secid,
-		   int mask, enum ima_hooks func, int *pcr,
-		   struct ima_template_desc **template_desc);
+		   int mask, enum ima_hooks func, int *pcr);
 int ima_must_measure(struct inode *inode, int mask, enum ima_hooks func);
 int ima_collect_measurement(struct integrity_iint_cache *iint,
 			    struct file *file, void *buf, loff_t size,
-			    enum hash_algo algo, struct modsig *modsig);
+			    enum hash_algo algo);
 void ima_store_measurement(struct integrity_iint_cache *iint, struct file *file,
 			   const unsigned char *filename,
 			   struct evm_ima_xattr_data *xattr_value,
-			   int xattr_len, const struct modsig *modsig, int pcr,
-			   struct ima_template_desc *template_desc);
+			   int xattr_len, int pcr);
 void ima_audit_measurement(struct integrity_iint_cache *iint,
 			   const unsigned char *filename);
 int ima_alloc_init_template(struct ima_event_data *event_data,
-			    struct ima_template_entry **entry,
-			    struct ima_template_desc *template_desc);
+			    struct ima_template_entry **entry);
 int ima_store_template(struct ima_template_entry *entry, int violation,
 		       struct inode *inode,
 		       const unsigned char *filename, int pcr);
@@ -232,8 +215,7 @@ const char *ima_d_path(const struct path *path, char **pathbuf, char *filename);
 
 /* IMA policy related functions */
 int ima_match_policy(struct inode *inode, const struct cred *cred, u32 secid,
-		     enum ima_hooks func, int mask, int flags, int *pcr,
-		     struct ima_template_desc **template_desc);
+		     enum ima_hooks func, int mask, int flags, int *pcr);
 void ima_init_policy(void);
 void ima_update_policy(void);
 void ima_update_policy_flag(void);
@@ -259,7 +241,7 @@ int ima_appraise_measurement(enum ima_hooks func,
 			     struct integrity_iint_cache *iint,
 			     struct file *file, const unsigned char *filename,
 			     struct evm_ima_xattr_data *xattr_value,
-			     int xattr_len, const struct modsig *modsig);
+			     int xattr_len);
 int ima_must_appraise(struct inode *inode, int mask, enum ima_hooks func);
 void ima_update_xattr(struct integrity_iint_cache *iint, struct file *file);
 enum integrity_status ima_get_cache_status(struct integrity_iint_cache *iint,
@@ -275,8 +257,7 @@ static inline int ima_appraise_measurement(enum ima_hooks func,
 					   struct file *file,
 					   const unsigned char *filename,
 					   struct evm_ima_xattr_data *xattr_value,
-					   int xattr_len,
-					   const struct modsig *modsig)
+					   int xattr_len)
 {
 	return INTEGRITY_UNKNOWN;
 }
@@ -313,56 +294,10 @@ static inline int ima_read_xattr(struct dentry *dentry,
 
 #endif /* CONFIG_IMA_APPRAISE */
 
-#ifdef CONFIG_IMA_APPRAISE_MODSIG
-bool ima_hook_supports_modsig(enum ima_hooks func);
-int ima_read_modsig(enum ima_hooks func, const void *buf, loff_t buf_len,
-		    struct modsig **modsig);
-void ima_collect_modsig(struct modsig *modsig, const void *buf, loff_t size);
-int ima_get_modsig_digest(const struct modsig *modsig, enum hash_algo *algo,
-			  const u8 **digest, u32 *digest_size);
-int ima_get_raw_modsig(const struct modsig *modsig, const void **data,
-		       u32 *data_len);
-void ima_free_modsig(struct modsig *modsig);
-#else
-static inline bool ima_hook_supports_modsig(enum ima_hooks func)
-{
-	return false;
-}
-
-static inline int ima_read_modsig(enum ima_hooks func, const void *buf,
-				  loff_t buf_len, struct modsig **modsig)
-{
-	return -EOPNOTSUPP;
-}
-
-static inline void ima_collect_modsig(struct modsig *modsig, const void *buf,
-				      loff_t size)
-{
-}
-
-static inline int ima_get_modsig_digest(const struct modsig *modsig,
-					enum hash_algo *algo, const u8 **digest,
-					u32 *digest_size)
-{
-	return -EOPNOTSUPP;
-}
-
-static inline int ima_get_raw_modsig(const struct modsig *modsig,
-				     const void **data, u32 *data_len)
-{
-	return -EOPNOTSUPP;
-}
-
-static inline void ima_free_modsig(struct modsig *modsig)
-{
-}
-#endif /* CONFIG_IMA_APPRAISE_MODSIG */
-
 /* LSM based policy rules require audit */
 #ifdef CONFIG_IMA_LSM_RULES
 
 #define security_filter_rule_init security_audit_rule_init
-#define security_filter_rule_free security_audit_rule_free
 #define security_filter_rule_match security_audit_rule_match
 
 #else
@@ -373,12 +308,9 @@ static inline int security_filter_rule_init(u32 field, u32 op, char *rulestr,
 	return -EINVAL;
 }
 
-static inline void security_filter_rule_free(void *lsmrule)
-{
-}
-
 static inline int security_filter_rule_match(u32 secid, u32 field, u32 op,
-					     void *lsmrule)
+					     void *lsmrule,
+					     struct audit_context *actx)
 {
 	return -EINVAL;
 }

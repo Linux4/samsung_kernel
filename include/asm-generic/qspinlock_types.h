@@ -1,6 +1,15 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * Queued spinlock
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
  * (C) Copyright 2013-2015 Hewlett-Packard Development Company, L.P.
  *
@@ -99,5 +108,22 @@ typedef struct qspinlock {
 
 #define _Q_LOCKED_VAL		(1U << _Q_LOCKED_OFFSET)
 #define _Q_PENDING_VAL		(1U << _Q_PENDING_OFFSET)
+
+#ifdef CONFIG_SEC_DEBUG_QSPIN_OWNER
+/*
+ * Bitfields in locked byte
+ *  2-0 : locked
+ *    3 : debug en
+ *  7-4 : owner cpu
+ */
+#define _Q_OWNER_IN_LOCKED_OFFSET	4
+#define _Q_OWNER_BITS			4
+#define _Q_OWNER_OFFSET			(_Q_LOCKED_OFFSET + _Q_OWNER_IN_LOCKED_OFFSET)
+#define _Q_OWNER_MASK			_Q_SET_MASK(OWNER)
+
+#define _Q_DBGEN_IN_LOCKED_OFFSET	3
+#define _Q_DBGEN_OFFSET			(_Q_LOCKED_OFFSET + _Q_DBGEN_IN_LOCKED_OFFSET)
+#define _Q_DBGEN_VAL			(1U << _Q_DBGEN_OFFSET)
+#endif
 
 #endif /* __ASM_GENERIC_QSPINLOCK_TYPES_H */

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Generic Timer-queue
  *
@@ -7,6 +6,20 @@
  *
  *  NOTE: All of the following functions need to be serialized
  *  to avoid races. No locking is done by this library code.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
 #include <linux/bug.h>
@@ -26,10 +39,9 @@
  */
 bool timerqueue_add(struct timerqueue_head *head, struct timerqueue_node *node)
 {
-	struct rb_node **p = &head->rb_root.rb_root.rb_node;
+	struct rb_node **p = &head->head.rb_node;
 	struct rb_node *parent = NULL;
-	struct timerqueue_node *ptr;
-	bool leftmost = true;
+	struct timerqueue_node  *ptr;
 
 	/* Make sure we don't add nodes that are already added */
 	WARN_ON_ONCE(!RB_EMPTY_NODE(&node->node));
@@ -37,17 +49,19 @@ bool timerqueue_add(struct timerqueue_head *head, struct timerqueue_node *node)
 	while (*p) {
 		parent = *p;
 		ptr = rb_entry(parent, struct timerqueue_node, node);
-		if (node->expires < ptr->expires) {
+		if (node->expires < ptr->expires)
 			p = &(*p)->rb_left;
-		} else {
+		else
 			p = &(*p)->rb_right;
-			leftmost = false;
-		}
 	}
 	rb_link_node(&node->node, parent, p);
-	rb_insert_color_cached(&node->node, &head->rb_root, leftmost);
+	rb_insert_color(&node->node, &head->head);
 
-	return leftmost;
+	if (!head->next || node->expires < head->next->expires) {
+		head->next = node;
+		return true;
+	}
+	return false;
 }
 EXPORT_SYMBOL_GPL(timerqueue_add);
 
@@ -64,10 +78,15 @@ bool timerqueue_del(struct timerqueue_head *head, struct timerqueue_node *node)
 {
 	WARN_ON_ONCE(RB_EMPTY_NODE(&node->node));
 
-	rb_erase_cached(&node->node, &head->rb_root);
-	RB_CLEAR_NODE(&node->node);
+	/* update next pointer */
+	if (head->next == node) {
+		struct rb_node *rbn = rb_next(&node->node);
 
-	return !RB_EMPTY_ROOT(&head->rb_root.rb_root);
+		head->next = rb_entry_safe(rbn, struct timerqueue_node, node);
+	}
+	rb_erase(&node->node, &head->head);
+	RB_CLEAR_NODE(&node->node);
+	return head->next != NULL;
 }
 EXPORT_SYMBOL_GPL(timerqueue_del);
 

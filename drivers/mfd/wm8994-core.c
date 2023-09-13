@@ -1,10 +1,15 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * wm8994-core.c  --  Device access for Wolfson WM8994
  *
  * Copyright 2009 Wolfson Microelectronics PLC.
  *
  * Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
+ *
+ *  This program is free software; you can redistribute  it and/or modify it
+ *  under  the terms of  the GNU General  Public License as published by the
+ *  Free Software Foundation;  either version 2 of the  License, or (at your
+ *  option) any later version.
+ *
  */
 
 #include <linux/kernel.h>
@@ -16,6 +21,7 @@
 #include <linux/mfd/core.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/of_gpio.h>
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
@@ -299,6 +305,14 @@ static int wm8994_set_pdata_from_of(struct wm8994 *wm8994)
 	pdata->spkmode_pu = of_property_read_bool(np, "wlf,spkmode-pu");
 
 	pdata->csnaddr_pd = of_property_read_bool(np, "wlf,csnaddr-pd");
+
+	pdata->ldo[0].enable = of_get_named_gpio(np, "wlf,ldo1ena", 0);
+	if (pdata->ldo[0].enable < 0)
+		pdata->ldo[0].enable = 0;
+
+	pdata->ldo[1].enable = of_get_named_gpio(np, "wlf,ldo2ena", 0);
+	if (pdata->ldo[1].enable < 0)
+		pdata->ldo[1].enable = 0;
 
 	return 0;
 }

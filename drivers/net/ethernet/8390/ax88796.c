@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /* drivers/net/ethernet/8390/ax88796.c
  *
  * Copyright 2005,2007 Simtec Electronics
@@ -6,6 +5,10 @@
  *
  * Asix AX88796 10/100 Ethernet controller support
  *	Based on ne.c, by Donald Becker, et-al.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/module.h>
@@ -374,7 +377,9 @@ static int ax_mii_probe(struct net_device *dev)
 		return ret;
 	}
 
-	phy_set_max_speed(phy_dev, SPEED_100);
+	/* mask with MAC supported features */
+	phy_dev->supported &= PHY_BASIC_FEATURES;
+	phy_dev->advertising = phy_dev->supported;
 
 	netdev_info(dev, "PHY driver [%s] (mii_bus:phy_addr=%s, irq=%d)\n",
 		    phy_dev->drv->name, phydev_name(phy_dev), phy_dev->irq);

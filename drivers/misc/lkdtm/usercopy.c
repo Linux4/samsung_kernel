@@ -18,7 +18,7 @@
  * hardened usercopy checks by added "unconst" to all the const copies,
  * and making sure "cache_size" isn't optimized into a const.
  */
-static volatile size_t unconst;
+static volatile size_t unconst = 0;
 static volatile size_t cache_size = 1024;
 static struct kmem_cache *whitelist_cache;
 
@@ -30,12 +30,12 @@ static const unsigned char test_text[] = "This is a test.\n";
  */
 static noinline unsigned char *trick_compiler(unsigned char *stack)
 {
-	return stack + unconst;
+	return stack + 0;
 }
 
 static noinline unsigned char *do_usercopy_stack_callee(int value)
 {
-	unsigned char buf[128];
+	unsigned char buf[32];
 	int i;
 
 	/* Exercise stack to avoid everything living in registers. */
@@ -43,12 +43,7 @@ static noinline unsigned char *do_usercopy_stack_callee(int value)
 		buf[i] = value & 0xff;
 	}
 
-	/*
-	 * Put the target buffer in the middle of stack allocation
-	 * so that we don't step on future stack users regardless
-	 * of stack growth direction.
-	 */
-	return trick_compiler(&buf[(128/2)-32]);
+	return trick_compiler(buf);
 }
 
 static noinline void do_usercopy_stack(bool to_user, bool bad_frame)
@@ -70,12 +65,6 @@ static noinline void do_usercopy_stack(bool to_user, bool bad_frame)
 		bad_stack = task_stack_page(current) + THREAD_SIZE;
 		bad_stack -= sizeof(unsigned long);
 	}
-
-#ifdef ARCH_HAS_CURRENT_STACK_POINTER
-	pr_info("stack     : %px\n", (void *)current_stack_pointer);
-#endif
-	pr_info("good_stack: %px-%px\n", good_stack, good_stack + sizeof(good_stack));
-	pr_info("bad_stack : %px-%px\n", bad_stack, bad_stack + sizeof(good_stack));
 
 	user_addr = vm_mmap(NULL, 0, PAGE_SIZE,
 			    PROT_READ | PROT_WRITE | PROT_EXEC,
@@ -315,40 +304,22 @@ void lkdtm_USERCOPY_KERNEL(void)
 		return;
 	}
 
-	pr_info("attempting good copy_to_user from kernel rodata: %px\n",
-		test_text);
+	pr_info("attempting good copy_to_user from kernel rodata\n");
 	if (copy_to_user((void __user *)user_addr, test_text,
 			 unconst + sizeof(test_text))) {
 		pr_warn("copy_to_user failed unexpectedly?!\n");
 		goto free_user;
 	}
 
-	pr_info("attempting bad copy_to_user from kernel text: %px\n",
-		vm_mmap);
-	if (copy_to_user((void __user *)user_addr, __va_function(vm_mmap),
+	pr_info("attempting bad copy_to_user from kernel text\n");
+	if (copy_to_user((void __user *)user_addr, vm_mmap,
 			 unconst + PAGE_SIZE)) {
 		pr_warn("copy_to_user failed, but lacked Oops\n");
 		goto free_user;
 	}
-	pr_err("FAIL: survived bad copy_to_user()\n");
 
 free_user:
 	vm_munmap(user_addr, PAGE_SIZE);
-}
-
-void lkdtm_USERCOPY_KERNEL_DS(void)
-{
-	char __user *user_ptr =
-		(char __user *)(0xFUL << (sizeof(unsigned long) * 8 - 4));
-	mm_segment_t old_fs = get_fs();
-	char buf[10] = {0};
-
-	pr_info("attempting copy_to_user() to noncanonical address: %px\n",
-		user_ptr);
-	set_fs(KERNEL_DS);
-	if (copy_to_user(user_ptr, buf, sizeof(buf)) == 0)
-		pr_err("copy_to_user() to noncanonical address succeeded!?\n");
-	set_fs(old_fs);
 }
 
 void __init lkdtm_usercopy_init(void)

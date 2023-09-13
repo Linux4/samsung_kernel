@@ -1,9 +1,13 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Platform data for Madera codec driver
  *
  * Copyright (C) 2016-2019 Cirrus Logic, Inc. and
  *                         Cirrus Logic International Semiconductor Ltd.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #ifndef MADERA_CODEC_PDATA_H
@@ -42,6 +46,13 @@
  *			  the datasheet for a description of this value.
  * @pdm_mute:		  PDM mute format. See the PDM_SPKn_CTRL_1 register
  *			  in the datasheet for a description of this value.
+ * @auxpdm_slave_mode:	  Auxiliary PDM out slave mode. The value TRUE
+ *			  indicates the codec is the clock slave. FALSE
+ *			  means the codec is master.
+ * @auxpdm_falling_edge:  Auxiliary PDM falling edge mode. The value TRUE
+ *			  indicates data is driven on the falling edge of
+ *			  the aux pdm clock.  FALSE means data is driven on
+ *			  the rising edge.
  */
 struct madera_codec_pdata {
 	u32 max_channels_clocked[MADERA_MAX_AIF];
@@ -53,7 +64,12 @@ struct madera_codec_pdata {
 	bool out_mono[MADERA_MAX_OUTPUT];
 
 	u32 pdm_fmt[MADERA_MAX_PDM_SPK];
+
 	u32 pdm_mute[MADERA_MAX_PDM_SPK];
+
+	bool auxpdm_slave_mode;
+
+	bool auxpdm_falling_edge;
 };
 
 #endif

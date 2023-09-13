@@ -577,7 +577,7 @@ static void bnx2i_free_mp_bdt(struct bnx2i_hba *hba)
 				  hba->dummy_buffer, hba->dummy_buf_dma);
 		hba->dummy_buffer = NULL;
 	}
-	return;
+		return;
 }
 
 /**
@@ -793,7 +793,7 @@ struct bnx2i_hba *bnx2i_alloc_hba(struct cnic_dev *cnic)
 		return NULL;
 	shost->dma_boundary = cnic->pcidev->dma_mask;
 	shost->transportt = bnx2i_scsi_xport_template;
-	shost->max_id = ISCSI_MAX_CONNS_PER_HBA - 1;
+	shost->max_id = ISCSI_MAX_CONNS_PER_HBA;
 	shost->max_channel = 0;
 	shost->max_lun = 512;
 	shost->max_cmd_len = 16;
@@ -2263,6 +2263,7 @@ static struct scsi_host_template bnx2i_host_template = {
 	.max_sectors		= 127,
 	.cmd_per_lun		= 128,
 	.this_id		= -1,
+	.use_clustering		= ENABLE_CLUSTERING,
 	.sg_tablesize		= ISCSI_MAX_BDS_PER_CMD,
 	.shost_attrs		= bnx2i_dev_attributes,
 	.track_queue_depth	= 1,

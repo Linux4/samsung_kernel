@@ -193,14 +193,16 @@ static int bgmac_probe(struct platform_device *pdev)
 	bgmac->dma_dev = &pdev->dev;
 
 	mac_addr = of_get_mac_address(np);
-	if (!IS_ERR(mac_addr))
+	if (mac_addr)
 		ether_addr_copy(bgmac->net_dev->dev_addr, mac_addr);
 	else
 		dev_warn(&pdev->dev, "MAC address not present in device tree\n");
 
 	bgmac->irq = platform_get_irq(pdev, 0);
-	if (bgmac->irq < 0)
+	if (bgmac->irq < 0) {
+		dev_err(&pdev->dev, "Unable to obtain IRQ\n");
 		return bgmac->irq;
+	}
 
 	regs = platform_get_resource_byname(pdev, IORESOURCE_MEM, "amac_base");
 	if (!regs) {

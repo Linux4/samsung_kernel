@@ -1,6 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * OMAP DMAengine support
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 #include <linux/delay.h>
 #include <linux/dmaengine.h>
@@ -91,7 +94,6 @@ struct omap_desc {
 	bool using_ll;
 	enum dma_transfer_direction dir;
 	dma_addr_t dev_addr;
-	bool polled;
 
 	int32_t fi;		/* for OMAP_DMA_SYNC_PACKET / double indexing */
 	int16_t ei;		/* for double indexing */
@@ -203,7 +205,6 @@ static const unsigned es_bytes[] = {
 	[CSDP_DATA_TYPE_32] = 4,
 };
 
-static bool omap_dma_filter_fn(struct dma_chan *chan, void *param);
 static struct of_dma_filter_info omap_dma_info = {
 	.filter_fn = omap_dma_filter_fn,
 };
@@ -814,22 +815,31 @@ static enum dma_status omap_dma_tx_status(struct dma_chan *chan,
 	dma_cookie_t cookie, struct dma_tx_state *txstate)
 {
 	struct omap_chan *c = to_omap_dma_chan(chan);
+	struct virt_dma_desc *vd;
 	enum dma_status ret;
 	unsigned long flags;
-	struct omap_desc *d = NULL;
 
 	ret = dma_cookie_status(chan, cookie, txstate);
-	if (ret == DMA_COMPLETE)
+
+	if (!c->paused && c->running) {
+		uint32_t ccr = omap_dma_chan_read(c, CCR);
+		/*
+		 * The channel is no longer active, set the return value
+		 * accordingly
+		 */
+		if (!(ccr & CCR_ENABLE))
+			ret = DMA_COMPLETE;
+	}
+
+	if (ret == DMA_COMPLETE || !txstate)
 		return ret;
 
 	spin_lock_irqsave(&c->vc.lock, flags);
-	if (c->desc && c->desc->vd.tx.cookie == cookie)
-		d = c->desc;
-
-	if (!txstate)
-		goto out;
-
-	if (d) {
+	vd = vchan_find_desc(&c->vc, cookie);
+	if (vd) {
+		txstate->residue = omap_dma_desc_size(to_omap_dma_desc(&vd->tx));
+	} else if (c->desc && c->desc->vd.tx.cookie == cookie) {
+		struct omap_desc *d = c->desc;
 		dma_addr_t pos;
 
 		if (d->dir == DMA_MEM_TO_DEV)
@@ -841,31 +851,10 @@ static enum dma_status omap_dma_tx_status(struct dma_chan *chan,
 
 		txstate->residue = omap_dma_desc_size_pos(d, pos);
 	} else {
-		struct virt_dma_desc *vd = vchan_find_desc(&c->vc, cookie);
-
-		if (vd)
-			txstate->residue = omap_dma_desc_size(
-						to_omap_dma_desc(&vd->tx));
-		else
-			txstate->residue = 0;
+		txstate->residue = 0;
 	}
-
-out:
-	if (ret == DMA_IN_PROGRESS && c->paused) {
+	if (ret == DMA_IN_PROGRESS && c->paused)
 		ret = DMA_PAUSED;
-	} else if (d && d->polled && c->running) {
-		uint32_t ccr = omap_dma_chan_read(c, CCR);
-		/*
-		 * The channel is no longer active, set the return value
-		 * accordingly and mark it as completed
-		 */
-		if (!(ccr & CCR_ENABLE)) {
-			ret = DMA_COMPLETE;
-			omap_dma_start_desc(c);
-			vchan_cookie_complete(&d->vd);
-		}
-	}
-
 	spin_unlock_irqrestore(&c->vc.lock, flags);
 
 	return ret;
@@ -1066,7 +1055,8 @@ static struct dma_async_tx_descriptor *omap_dma_prep_slave_sg(
 
 static struct dma_async_tx_descriptor *omap_dma_prep_dma_cyclic(
 	struct dma_chan *chan, dma_addr_t buf_addr, size_t buf_len,
-	size_t period_len, enum dma_transfer_direction dir, unsigned long flags)
+	size_t period_len, enum dma_transfer_direction dir, unsigned long flags,
+	void *context)
 {
 	struct omap_dmadev *od = to_omap_dma_dev(chan->device);
 	struct omap_chan *c = to_omap_dma_chan(chan);
@@ -1192,10 +1182,7 @@ static struct dma_async_tx_descriptor *omap_dma_prep_dma_memcpy(
 	d->ccr = c->ccr;
 	d->ccr |= CCR_DST_AMODE_POSTINC | CCR_SRC_AMODE_POSTINC;
 
-	if (tx_flags & DMA_PREP_INTERRUPT)
-		d->cicr |= CICR_FRAME_IE;
-	else
-		d->polled = true;
+	d->cicr = CICR_DROP_IE | CICR_FRAME_IE;
 
 	d->csdp = data_type;
 
@@ -1656,7 +1643,7 @@ static struct platform_driver omap_dma_driver = {
 	},
 };
 
-static bool omap_dma_filter_fn(struct dma_chan *chan, void *param)
+bool omap_dma_filter_fn(struct dma_chan *chan, void *param)
 {
 	if (chan->device->dev->driver == &omap_dma_driver.driver) {
 		struct omap_dmadev *od = to_omap_dma_dev(chan->device);
@@ -1670,6 +1657,7 @@ static bool omap_dma_filter_fn(struct dma_chan *chan, void *param)
 	}
 	return false;
 }
+EXPORT_SYMBOL_GPL(omap_dma_filter_fn);
 
 static int omap_dma_init(void)
 {

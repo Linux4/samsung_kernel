@@ -1,7 +1,15 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * offload engine driver for the Marvell XOR engine
  * Copyright (C) 2007, 2008, Marvell International Ltd.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
  */
 
 #include <linux/init.h>
@@ -340,9 +348,9 @@ static void mv_xor_tasklet(unsigned long data)
 {
 	struct mv_xor_chan *chan = (struct mv_xor_chan *) data;
 
-	spin_lock(&chan->lock);
+	spin_lock_bh(&chan->lock);
 	mv_chan_slot_cleanup(chan);
-	spin_unlock(&chan->lock);
+	spin_unlock_bh(&chan->lock);
 }
 
 static struct mv_xor_desc_slot *
@@ -1145,10 +1153,7 @@ mv_xor_channel_add(struct mv_xor_device *xordev,
 		 dma_has_cap(DMA_MEMCPY, dma_dev->cap_mask) ? "cpy " : "",
 		 dma_has_cap(DMA_INTERRUPT, dma_dev->cap_mask) ? "intr " : "");
 
-	ret = dma_async_device_register(dma_dev);
-	if (ret)
-		goto err_free_irq;
-
+	dma_async_device_register(dma_dev);
 	return mv_chan;
 
 err_free_irq:

@@ -1,8 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Measurements Specialties driver common i2c functions
  *
  * Copyright (c) 2015 Measurement-Specialties
+ *
+ * Licensed under the GPL-2.
  */
 
 #include <linux/module.h>

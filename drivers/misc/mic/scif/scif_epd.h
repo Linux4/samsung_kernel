@@ -1,10 +1,19 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Intel MIC Platform Software Stack (MPSS)
  *
  * Copyright(c) 2014 Intel Corporation.
  *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License, version 2, as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
  * Intel SCIF driver.
+ *
  */
 #ifndef SCIF_EPD_H
 #define SCIF_EPD_H
@@ -156,8 +165,9 @@ static inline int scif_verify_epd(struct scif_endpt *ep)
 static inline int scif_anon_inode_getfile(scif_epd_t epd)
 {
 	epd->anon = anon_inode_getfile("scif", &scif_anon_fops, NULL, 0);
-
-	return PTR_ERR_OR_ZERO(epd->anon);
+	if (IS_ERR(epd->anon))
+		return PTR_ERR(epd->anon);
+	return 0;
 }
 
 static inline void scif_anon_inode_fput(scif_epd_t epd)

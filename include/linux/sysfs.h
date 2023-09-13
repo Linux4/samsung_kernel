@@ -196,12 +196,6 @@ struct bin_attribute {
 	.size	= _size,						\
 }
 
-#define __BIN_ATTR_WO(_name, _size) {					\
-	.attr	= { .name = __stringify(_name), .mode = 0200 },		\
-	.write	= _name##_write,					\
-	.size	= _size,						\
-}
-
 #define __BIN_ATTR_RW(_name, _size)					\
 	__BIN_ATTR(_name, 0644, _name##_read, _name##_write, _size)
 
@@ -213,9 +207,6 @@ struct bin_attribute bin_attr_##_name = __BIN_ATTR(_name, _mode, _read,	\
 
 #define BIN_ATTR_RO(_name, _size)					\
 struct bin_attribute bin_attr_##_name = __BIN_ATTR_RO(_name, _size)
-
-#define BIN_ATTR_WO(_name, _size)					\
-struct bin_attribute bin_attr_##_name = __BIN_ATTR_WO(_name, _size)
 
 #define BIN_ATTR_RW(_name, _size)					\
 struct bin_attribute bin_attr_##_name = __BIN_ATTR_RW(_name, _size)
@@ -243,7 +234,7 @@ int __must_check sysfs_create_file_ns(struct kobject *kobj,
 				      const struct attribute *attr,
 				      const void *ns);
 int __must_check sysfs_create_files(struct kobject *kobj,
-				   const struct attribute * const *attr);
+				   const struct attribute **attr);
 int __must_check sysfs_chmod_file(struct kobject *kobj,
 				  const struct attribute *attr, umode_t mode);
 struct kernfs_node *sysfs_break_active_protection(struct kobject *kobj,
@@ -252,7 +243,7 @@ void sysfs_unbreak_active_protection(struct kernfs_node *kn);
 void sysfs_remove_file_ns(struct kobject *kobj, const struct attribute *attr,
 			  const void *ns);
 bool sysfs_remove_file_self(struct kobject *kobj, const struct attribute *attr);
-void sysfs_remove_files(struct kobject *kobj, const struct attribute * const *attr);
+void sysfs_remove_files(struct kobject *kobj, const struct attribute **attr);
 
 int __must_check sysfs_create_bin_file(struct kobject *kobj,
 				       const struct bin_attribute *attr);
@@ -276,8 +267,6 @@ void sysfs_delete_link(struct kobject *dir, struct kobject *targ,
 int __must_check sysfs_create_group(struct kobject *kobj,
 				    const struct attribute_group *grp);
 int __must_check sysfs_create_groups(struct kobject *kobj,
-				     const struct attribute_group **groups);
-int __must_check sysfs_update_groups(struct kobject *kobj,
 				     const struct attribute_group **groups);
 int sysfs_update_group(struct kobject *kobj,
 		       const struct attribute_group *grp);
@@ -309,11 +298,6 @@ static inline void sysfs_enable_ns(struct kernfs_node *kn)
 {
 	return kernfs_enable_ns(kn);
 }
-
-__printf(2, 3)
-int sysfs_emit(char *buf, const char *fmt, ...);
-__printf(3, 4)
-int sysfs_emit_at(char *buf, int at, const char *fmt, ...);
 
 #else /* CONFIG_SYSFS */
 
@@ -358,7 +342,7 @@ static inline int sysfs_create_file_ns(struct kobject *kobj,
 }
 
 static inline int sysfs_create_files(struct kobject *kobj,
-				    const struct attribute * const *attr)
+				    const struct attribute **attr)
 {
 	return 0;
 }
@@ -393,7 +377,7 @@ static inline bool sysfs_remove_file_self(struct kobject *kobj,
 }
 
 static inline void sysfs_remove_files(struct kobject *kobj,
-				     const struct attribute * const *attr)
+				     const struct attribute **attr)
 {
 }
 
@@ -444,12 +428,6 @@ static inline int sysfs_create_group(struct kobject *kobj,
 }
 
 static inline int sysfs_create_groups(struct kobject *kobj,
-				      const struct attribute_group **groups)
-{
-	return 0;
-}
-
-static inline int sysfs_update_groups(struct kobject *kobj,
 				      const struct attribute_group **groups)
 {
 	return 0;
@@ -527,17 +505,6 @@ static inline void sysfs_enable_ns(struct kernfs_node *kn)
 {
 }
 
-__printf(2, 3)
-static inline int sysfs_emit(char *buf, const char *fmt, ...)
-{
-	return 0;
-}
-
-__printf(3, 4)
-static inline int sysfs_emit_at(char *buf, int at, const char *fmt, ...)
-{
-	return 0;
-}
 #endif /* CONFIG_SYSFS */
 
 static inline int __must_check sysfs_create_file(struct kobject *kobj,

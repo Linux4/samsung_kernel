@@ -799,6 +799,7 @@ static int at91_wakeup(struct usb_gadget *gadget)
 {
 	struct at91_udc	*udc = to_udc(gadget);
 	u32		glbstate;
+	int		status = -EINVAL;
 	unsigned long	flags;
 
 	DBG("%s\n", __func__ );
@@ -817,7 +818,7 @@ static int at91_wakeup(struct usb_gadget *gadget)
 
 done:
 	spin_unlock_irqrestore(&udc->lock, flags);
-	return 0;
+	return status;
 }
 
 /* reinit == restore initial software state */
@@ -1878,9 +1879,7 @@ static int at91udc_probe(struct platform_device *pdev)
 	clk_disable(udc->iclk);
 
 	/* request UDC and maybe VBUS irqs */
-	udc->udp_irq = retval = platform_get_irq(pdev, 0);
-	if (retval < 0)
-		goto err_unprepare_iclk;
+	udc->udp_irq = platform_get_irq(pdev, 0);
 	retval = devm_request_irq(dev, udc->udp_irq, at91_udc_irq, 0,
 				  driver_name, udc);
 	if (retval) {

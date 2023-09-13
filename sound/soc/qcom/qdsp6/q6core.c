@@ -10,6 +10,7 @@
 #include <linux/of.h>
 #include <linux/of_platform.h>
 #include <linux/jiffies.h>
+#include <linux/wait.h>
 #include <linux/soc/qcom/apr.h>
 #include "q6core.h"
 #include "q6dsp-errno.h"
@@ -98,15 +99,17 @@ static int q6core_callback(struct apr_device *adev, struct apr_resp_pkt *data)
 	}
 	case AVCS_CMDRSP_GET_FWK_VERSION: {
 		struct avcs_cmdrsp_get_fwk_version *fwk;
+		int bytes;
 
 		fwk = data->payload;
+		bytes = sizeof(*fwk) + fwk->num_services *
+				sizeof(fwk->svc_api_info[0]);
 
-		core->fwk_version = kmemdup(data->payload,
-					    struct_size(fwk, svc_api_info,
-							fwk->num_services),
-					    GFP_ATOMIC);
+		core->fwk_version = kzalloc(bytes, GFP_ATOMIC);
 		if (!core->fwk_version)
 			return -ENOMEM;
+
+		memcpy(core->fwk_version, data->payload, bytes);
 
 		core->fwk_version_supported = true;
 		core->resp_received = true;
@@ -115,15 +118,17 @@ static int q6core_callback(struct apr_device *adev, struct apr_resp_pkt *data)
 	}
 	case AVCS_GET_VERSIONS_RSP: {
 		struct avcs_cmdrsp_get_version *v;
+		int len;
 
 		v = data->payload;
 
-		core->svc_version = kmemdup(data->payload,
-					    struct_size(v, svc_api_info,
-							v->num_services),
-					    GFP_ATOMIC);
+		len = sizeof(*v) + v->num_services * sizeof(v->svc_api_info[0]);
+
+		core->svc_version = kzalloc(len, GFP_ATOMIC);
 		if (!core->svc_version)
 			return -ENOMEM;
+
+		memcpy(core->svc_version, data->payload, len);
 
 		core->get_version_supported = true;
 		core->resp_received = true;

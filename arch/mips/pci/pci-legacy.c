@@ -1,5 +1,8 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
+ * This program is free software; you can redistribute	it and/or modify it
+ * under  the terms of	the GNU General	 Public License as published by the
+ * Free Software Foundation;  either version 2 of the  License, or (at your
+ * option) any later version.
  *
  * Copyright (C) 2003, 04, 11 Ralf Baechle (ralf@linux-mips.org)
  * Copyright (C) 2011 Wind River Systems,
@@ -8,7 +11,7 @@
 #include <linux/bug.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
-#include <linux/memblock.h>
+#include <linux/bootmem.h>
 #include <linux/export.h>
 #include <linux/init.h>
 #include <linux/types.h>
@@ -166,13 +169,8 @@ void pci_load_of_ranges(struct pci_controller *hose, struct device_node *node)
 			res = hose->mem_resource;
 			break;
 		}
-		if (res != NULL) {
-			res->name = node->full_name;
-			res->flags = range.flags;
-			res->start = range.cpu_addr;
-			res->end = range.cpu_addr + range.size - 1;
-			res->parent = res->child = res->sibling = NULL;
-		}
+		if (res != NULL)
+			of_pci_range_to_resource(&range, node, res);
 	}
 }
 

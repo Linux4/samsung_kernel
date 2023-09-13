@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * (C) 2001  Dave Jones, Arjan van de ven.
  * (C) 2002 - 2003  Dominik Brodowski <linux@brodo.de>
  *
+ *  Licensed under the terms of the GNU GPL License version 2.
  *  Based upon reverse engineered information, and on Intel documentation
  *  for chipsets ICH2-M and ICH3-M.
  *
@@ -243,7 +243,8 @@ static unsigned int speedstep_get(unsigned int cpu)
 	unsigned int speed;
 
 	/* You're supposed to ensure CPU is online. */
-	BUG_ON(smp_call_function_single(cpu, get_freq_data, &speed, 1));
+	if (smp_call_function_single(cpu, get_freq_data, &speed, 1) != 0)
+		BUG();
 
 	pr_debug("detected %u kHz as current frequency\n", speed);
 	return speed;

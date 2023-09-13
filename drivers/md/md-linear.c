@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
    linear.c : Multiple Devices driver for Linux
 	      Copyright (C) 1994-96 Marc ZYNGIER
@@ -7,6 +6,14 @@
 
    Linear mode management functions.
 
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 2, or (at your option)
+   any later version.
+
+   You should have received a copy of the GNU General Public License
+   (for example /usr/src/linux/COPYING); if not, write to the Free
+   Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
 #include <linux/blkdev.h>
@@ -89,7 +96,8 @@ static struct linear_conf *linear_conf(struct mddev *mddev, int raid_disks)
 	int i, cnt;
 	bool discard_supported = false;
 
-	conf = kzalloc(struct_size(conf, disks, raid_disks), GFP_KERNEL);
+	conf = kzalloc (sizeof (*conf) + raid_disks*sizeof(struct dev_info),
+			GFP_KERNEL);
 	if (!conf)
 		return NULL;
 
@@ -256,11 +264,6 @@ static bool linear_make_request(struct mddev *mddev, struct bio *bio)
 	if (unlikely(bio_sector >= end_sector ||
 		     bio_sector < start_sector))
 		goto out_of_bounds;
-
-	if (unlikely(is_mddev_broken(tmp_dev->rdev, "linear"))) {
-		bio_io_error(bio);
-		return true;
-	}
 
 	if (unlikely(bio_end_sector(bio) > end_sector)) {
 		/* This bio crosses a device boundary, so we have to split it */

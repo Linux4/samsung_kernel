@@ -11,18 +11,15 @@
 #ifndef __MESON_AOCLK_H__
 #define __MESON_AOCLK_H__
 
-#include <linux/clk-provider.h>
 #include <linux/platform_device.h>
-#include <linux/regmap.h>
 #include <linux/reset-controller.h>
-
 #include "clk-regmap.h"
 
 struct meson_aoclk_data {
 	const unsigned int			reset_reg;
 	const int				num_reset;
 	const unsigned int			*reset;
-	const int				num_clks;
+	int					num_clks;
 	struct clk_regmap			**clks;
 	const struct clk_hw_onecell_data	*hw_data;
 };

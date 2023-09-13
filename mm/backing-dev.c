@@ -1,7 +1,5 @@
-// SPDX-License-Identifier: GPL-2.0-only
 
 #include <linux/wait.h>
-#include <linux/rbtree.h>
 #include <linux/backing-dev.h>
 #include <linux/kthread.h>
 #include <linux/freezer.h>
@@ -21,15 +19,12 @@ struct backing_dev_info noop_backing_dev_info = {
 EXPORT_SYMBOL_GPL(noop_backing_dev_info);
 
 static struct class *bdi_class;
-static const char *bdi_unknown_name = "(unknown)";
 
 /*
- * bdi_lock protects bdi_tree and updates to bdi_list. bdi_list has RCU
- * reader side locking.
+ * bdi_lock protects updates to bdi_list. bdi_list has RCU reader side
+ * locking.
  */
 DEFINE_SPINLOCK(bdi_lock);
-static u64 bdi_id_cursor;
-static struct rb_root bdi_tree = RB_ROOT;
 LIST_HEAD(bdi_list);
 
 /* bdi_wq serves all asynchronous writeback tasks */
@@ -107,25 +102,39 @@ static int bdi_debug_stats_show(struct seq_file *m, void *v)
 }
 DEFINE_SHOW_ATTRIBUTE(bdi_debug_stats);
 
-static void bdi_debug_register(struct backing_dev_info *bdi, const char *name)
+static int bdi_debug_register(struct backing_dev_info *bdi, const char *name)
 {
-	bdi->debug_dir = debugfs_create_dir(name, bdi_debug_root);
+	if (!bdi_debug_root)
+		return -ENOMEM;
 
-	debugfs_create_file("stats", 0444, bdi->debug_dir, bdi,
-			    &bdi_debug_stats_fops);
+	bdi->debug_dir = debugfs_create_dir(name, bdi_debug_root);
+	if (!bdi->debug_dir)
+		return -ENOMEM;
+
+	bdi->debug_stats = debugfs_create_file("stats", 0444, bdi->debug_dir,
+					       bdi, &bdi_debug_stats_fops);
+	if (!bdi->debug_stats) {
+		debugfs_remove(bdi->debug_dir);
+		bdi->debug_dir = NULL;
+		return -ENOMEM;
+	}
+
+	return 0;
 }
 
 static void bdi_debug_unregister(struct backing_dev_info *bdi)
 {
-	debugfs_remove_recursive(bdi->debug_dir);
+	debugfs_remove(bdi->debug_stats);
+	debugfs_remove(bdi->debug_dir);
 }
 #else
 static inline void bdi_debug_init(void)
 {
 }
-static inline void bdi_debug_register(struct backing_dev_info *bdi,
+static inline int bdi_debug_register(struct backing_dev_info *bdi,
 				      const char *name)
 {
+	return 0;
 }
 static inline void bdi_debug_unregister(struct backing_dev_info *bdi)
 {
@@ -139,8 +148,15 @@ static ssize_t read_ahead_kb_store(struct device *dev,
 	struct backing_dev_info *bdi = dev_get_drvdata(dev);
 	unsigned long read_ahead_kb;
 	ssize_t ret;
+	static const char temp[] = "temporary ";
+
+	if (strncmp(buf, temp, sizeof(temp) - 1) != 0)
+		return count;
+
+	buf += sizeof(temp) - 1;
 
 	ret = kstrtoul(buf, 10, &read_ahead_kb);
+
 	if (ret < 0)
 		return ret;
 
@@ -229,7 +245,7 @@ static ssize_t bdp_debug_show(struct device *dev,
 		struct bdi_sec_bdp_entry *entry = sec_bdi->bdp_debug.entry + i;
 
 		len += snprintf(page + len, PAGE_SIZE-len-1,
-			"%lu, %lu, %lu, %lu, %lu, %lu, %lu, %lu\n",
+			"%lu, %lu, %lu, %lu, %lu, %lu, %lu, %lu, %lu\n",
 			entry->start_time,
 			entry->elapsed_ms,
 			entry->global_thresh,
@@ -237,6 +253,7 @@ static ssize_t bdp_debug_show(struct device *dev,
 			entry->wb_thresh,
 			entry->wb_dirty,
 			entry->wb_avg_write_bandwidth,
+			entry->wb_timelist_dirty,
 			entry->wb_timelist_inodes);
 	}
 	spin_unlock(&sec_bdi->bdp_debug.lock);
@@ -260,7 +277,7 @@ static ssize_t max_bdp_debug_show(struct device *dev,
 
 	spin_lock(&sec_bdi->bdp_debug.lock);
 	len += snprintf(page + len, PAGE_SIZE-len-1,
-			"%lu, %lu, %lu, %lu, %lu, %lu, %lu, %lu\n",
+			"%lu, %lu, %lu, %lu, %lu, %lu, %lu, %lu, %lu\n",
 			entry->start_time,
 			entry->elapsed_ms,
 			entry->global_thresh,
@@ -268,6 +285,7 @@ static ssize_t max_bdp_debug_show(struct device *dev,
 			entry->wb_thresh,
 			entry->wb_dirty,
 			entry->wb_avg_write_bandwidth,
+			entry->wb_timelist_dirty,
 			entry->wb_timelist_inodes);
 	spin_unlock(&sec_bdi->bdp_debug.lock);
 
@@ -305,8 +323,8 @@ static int __init default_bdi_init(void)
 {
 	int err;
 
-	bdi_wq = alloc_workqueue("writeback", WQ_MEM_RECLAIM | WQ_UNBOUND |
-				 WQ_SYSFS, 0);
+	bdi_wq = alloc_workqueue("writeback", WQ_MEM_RECLAIM | WQ_FREEZABLE |
+					      WQ_UNBOUND | WQ_SYSFS, 0);
 	if (!bdi_wq)
 		return -ENOMEM;
 
@@ -684,12 +702,13 @@ out_put:
 }
 
 /**
- * wb_get_lookup - get wb for a given memcg
+ * wb_get_create - get wb for a given memcg, create if necessary
  * @bdi: target bdi
  * @memcg_css: cgroup_subsys_state of the target memcg (must have positive ref)
+ * @gfp: allocation mask to use
  *
- * Try to get the wb for @memcg_css on @bdi.  The returned wb has its
- * refcount incremented.
+ * Try to get the wb for @memcg_css on @bdi.  If it doesn't exist, try to
+ * create one.  The returned wb has its refcount incremented.
  *
  * This function uses css_get() on @memcg_css and thus expects its refcnt
  * to be positive on invocation.  IOW, rcu_read_lock() protection on
@@ -706,39 +725,6 @@ out_put:
  * each lookup.  On mismatch, the existing wb is discarded and a new one is
  * created.
  */
-struct bdi_writeback *wb_get_lookup(struct backing_dev_info *bdi,
-				    struct cgroup_subsys_state *memcg_css)
-{
-	struct bdi_writeback *wb;
-
-	if (!memcg_css->parent)
-		return &bdi->wb;
-
-	rcu_read_lock();
-	wb = radix_tree_lookup(&bdi->cgwb_tree, memcg_css->id);
-	if (wb) {
-		struct cgroup_subsys_state *blkcg_css;
-
-		/* see whether the blkcg association has changed */
-		blkcg_css = cgroup_get_e_css(memcg_css->cgroup, &io_cgrp_subsys);
-		if (unlikely(wb->blkcg_css != blkcg_css || !wb_tryget(wb)))
-			wb = NULL;
-		css_put(blkcg_css);
-	}
-	rcu_read_unlock();
-
-	return wb;
-}
-
-/**
- * wb_get_create - get wb for a given memcg, create if necessary
- * @bdi: target bdi
- * @memcg_css: cgroup_subsys_state of the target memcg (must have positive ref)
- * @gfp: allocation mask to use
- *
- * Try to get the wb for @memcg_css on @bdi.  If it doesn't exist, try to
- * create one.  See wb_get_lookup() for more details.
- */
 struct bdi_writeback *wb_get_create(struct backing_dev_info *bdi,
 				    struct cgroup_subsys_state *memcg_css,
 				    gfp_t gfp)
@@ -751,7 +737,20 @@ struct bdi_writeback *wb_get_create(struct backing_dev_info *bdi,
 		return &bdi->wb;
 
 	do {
-		wb = wb_get_lookup(bdi, memcg_css);
+		rcu_read_lock();
+		wb = radix_tree_lookup(&bdi->cgwb_tree, memcg_css->id);
+		if (wb) {
+			struct cgroup_subsys_state *blkcg_css;
+
+			/* see whether the blkcg association has changed */
+			blkcg_css = cgroup_get_e_css(memcg_css->cgroup,
+						     &io_cgrp_subsys);
+			if (unlikely(wb->blkcg_css != blkcg_css ||
+				     !wb_tryget(wb)))
+				wb = NULL;
+			css_put(blkcg_css);
+		}
+		rcu_read_unlock();
 	} while (!wb && !cgwb_create(bdi, memcg_css, gfp));
 
 	return wb;
@@ -925,6 +924,10 @@ static int bdi_init(struct backing_dev_info *bdi)
 	INIT_LIST_HEAD(&bdi->wb_list);
 	init_waitqueue_head(&bdi->wb_waitq);
 
+	bdi->last_thresh = 0;
+	bdi->last_nr_dirty = 0;
+	bdi->paused_total = 0;
+
 	ret = cgwb_bdi_init(bdi);
 
 	return ret;
@@ -966,64 +969,14 @@ struct backing_dev_info *sec_bdi_alloc_node(gfp_t gfp_mask, int node_id)
 }
 EXPORT_SYMBOL(sec_bdi_alloc_node);
 
-static struct rb_node **bdi_lookup_rb_node(u64 id, struct rb_node **parentp)
-{
-	struct rb_node **p = &bdi_tree.rb_node;
-	struct rb_node *parent = NULL;
-	struct backing_dev_info *bdi;
-
-	lockdep_assert_held(&bdi_lock);
-
-	while (*p) {
-		parent = *p;
-		bdi = rb_entry(parent, struct backing_dev_info, rb_node);
-
-		if (bdi->id > id)
-			p = &(*p)->rb_left;
-		else if (bdi->id < id)
-			p = &(*p)->rb_right;
-		else
-			break;
-	}
-
-	if (parentp)
-		*parentp = parent;
-	return p;
-}
-
-/**
- * bdi_get_by_id - lookup and get bdi from its id
- * @id: bdi id to lookup
- *
- * Find bdi matching @id and get it.  Returns NULL if the matching bdi
- * doesn't exist or is already unregistered.
- */
-struct backing_dev_info *bdi_get_by_id(u64 id)
-{
-	struct backing_dev_info *bdi = NULL;
-	struct rb_node **p;
-
-	spin_lock_bh(&bdi_lock);
-	p = bdi_lookup_rb_node(id, NULL);
-	if (*p) {
-		bdi = rb_entry(*p, struct backing_dev_info, rb_node);
-		bdi_get(bdi);
-	}
-	spin_unlock_bh(&bdi_lock);
-
-	return bdi;
-}
-
 int bdi_register_va(struct backing_dev_info *bdi, const char *fmt, va_list args)
 {
 	struct device *dev;
-	struct rb_node *parent, **p;
 
 	if (bdi->dev)	/* The driver needs to use separate queues per device */
 		return 0;
 
-	vsnprintf(bdi->dev_name, sizeof(bdi->dev_name), fmt, args);
-	dev = device_create(bdi_class, NULL, MKDEV(0, 0), bdi, bdi->dev_name);
+	dev = device_create_vargs(bdi_class, NULL, MKDEV(0, 0), bdi, fmt, args);
 	if (IS_ERR(dev))
 		return PTR_ERR(dev);
 
@@ -1034,15 +987,7 @@ int bdi_register_va(struct backing_dev_info *bdi, const char *fmt, va_list args)
 	set_bit(WB_registered, &bdi->wb.state);
 
 	spin_lock_bh(&bdi_lock);
-
-	bdi->id = ++bdi_id_cursor;
-
-	p = bdi_lookup_rb_node(bdi->id, &parent);
-	rb_link_node(&bdi->rb_node, parent, p);
-	rb_insert_color(&bdi->rb_node, &bdi_tree);
-
 	list_add_tail_rcu(&bdi->bdi_list, &bdi_list);
-
 	spin_unlock_bh(&bdi_lock);
 
 	trace_writeback_bdi_register(bdi);
@@ -1083,7 +1028,6 @@ EXPORT_SYMBOL(bdi_register_owner);
 static void bdi_remove_from_list(struct backing_dev_info *bdi)
 {
 	spin_lock_bh(&bdi_lock);
-	rb_erase(&bdi->rb_node, &bdi_tree);
 	list_del_rcu(&bdi->bdi_list);
 	spin_unlock_bh(&bdi_lock);
 
@@ -1096,13 +1040,6 @@ void bdi_unregister(struct backing_dev_info *bdi)
 	bdi_remove_from_list(bdi);
 	wb_shutdown(&bdi->wb);
 	cgwb_bdi_unregister(bdi);
-
-	/*
-	 * If this BDI's min ratio has been set, use bdi_set_min_ratio() to
-	 * update the global bdi_min_ratio.
-	 */
-	if (bdi->min_ratio)
-		bdi_set_min_ratio(bdi, 0);
 
 	if (bdi->dev) {
 		bdi_debug_unregister(bdi);
@@ -1141,14 +1078,6 @@ void bdi_put(struct backing_dev_info *bdi)
 	kref_put(&bdi->refcnt, release_bdi);
 }
 EXPORT_SYMBOL(bdi_put);
-
-const char *bdi_dev_name(struct backing_dev_info *bdi)
-{
-	if (!bdi || !bdi->dev)
-		return bdi_unknown_name;
-	return bdi->dev_name;
-}
-EXPORT_SYMBOL_GPL(bdi_dev_name);
 
 static wait_queue_head_t congestion_wqh[2] = {
 		__WAIT_QUEUE_HEAD_INITIALIZER(congestion_wqh[0]),

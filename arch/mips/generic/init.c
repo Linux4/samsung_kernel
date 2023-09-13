@@ -1,7 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright (C) 2016 Imagination Technologies
  * Author: Paul Burton <paul.burton@mips.com>
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the
+ * Free Software Foundation;  either version 2 of the  License, or (at your
+ * option) any later version.
  */
 
 #include <linux/clk.h>
@@ -39,14 +43,14 @@ void __init *plat_get_fdt(void)
 		/* Already set up */
 		return (void *)fdt;
 
-	if ((fw_arg0 == -2) && !fdt_check_header((void *)fw_passed_dtb)) {
+	if ((fw_arg0 == -2) && !fdt_check_header((void *)fw_arg1)) {
 		/*
 		 * We booted using the UHI boot protocol, so we have been
 		 * provided with the appropriate device tree for the board.
 		 * Make use of it & search for any machine struct based upon
 		 * the root compatible string.
 		 */
-		fdt = (void *)fw_passed_dtb;
+		fdt = (void *)fw_arg1;
 
 		for_each_mips_machine(check_mach) {
 			match = mips_machine_is_compatible(check_mach, fdt);

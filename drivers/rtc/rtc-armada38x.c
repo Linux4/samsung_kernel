@@ -1,10 +1,15 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * RTC driver for the Armada 38x Marvell SoCs
  *
  * Copyright (C) 2015 Marvell
  *
  * Gregory Clement <gregory.clement@free-electrons.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
  */
 
 #include <linux/delay.h>
@@ -219,7 +224,7 @@ static int armada38x_rtc_read_time(struct device *dev, struct rtc_time *tm)
 	time = rtc->data->read_rtc_reg(rtc, RTC_TIME);
 	spin_unlock_irqrestore(&rtc->lock, flags);
 
-	rtc_time64_to_tm(time, tm);
+	rtc_time_to_tm(time, tm);
 
 	return 0;
 }
@@ -244,9 +249,13 @@ static void armada38x_rtc_reset(struct armada38x_rtc *rtc)
 static int armada38x_rtc_set_time(struct device *dev, struct rtc_time *tm)
 {
 	struct armada38x_rtc *rtc = dev_get_drvdata(dev);
+	int ret = 0;
 	unsigned long time, flags;
 
-	time = rtc_tm_to_time64(tm);
+	ret = rtc_tm_to_time(tm, &time);
+
+	if (ret)
+		goto out;
 
 	if (!rtc->initialized)
 		armada38x_rtc_reset(rtc);
@@ -255,7 +264,8 @@ static int armada38x_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	rtc_delayed_write(time, rtc, RTC_TIME);
 	spin_unlock_irqrestore(&rtc->lock, flags);
 
-	return 0;
+out:
+	return ret;
 }
 
 static int armada38x_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *alrm)
@@ -274,7 +284,7 @@ static int armada38x_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 	spin_unlock_irqrestore(&rtc->lock, flags);
 
 	alrm->enabled = val ? 1 : 0;
-	rtc_time64_to_tm(time,  &alrm->time);
+	rtc_time_to_tm(time,  &alrm->time);
 
 	return 0;
 }
@@ -285,8 +295,12 @@ static int armada38x_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 	u32 reg = ALARM_REG(RTC_ALARM1, rtc->data->alarm);
 	u32 reg_irq = ALARM_REG(RTC_IRQ1_CONF, rtc->data->alarm);
 	unsigned long time, flags;
+	int ret = 0;
 
-	time = rtc_tm_to_time64(&alrm->time);
+	ret = rtc_tm_to_time(&alrm->time, &time);
+
+	if (ret)
+		goto out;
 
 	spin_lock_irqsave(&rtc->lock, flags);
 
@@ -299,7 +313,8 @@ static int armada38x_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 
 	spin_unlock_irqrestore(&rtc->lock, flags);
 
-	return 0;
+out:
+	return ret;
 }
 
 static int armada38x_rtc_alarm_irq_enable(struct device *dev,
@@ -502,6 +517,7 @@ static __init int armada38x_rtc_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct armada38x_rtc *rtc;
 	const struct of_device_id *match;
+	int ret;
 
 	match = of_match_device(armada38x_rtc_of_match_table, &pdev->dev);
 	if (!match)
@@ -529,8 +545,11 @@ static __init int armada38x_rtc_probe(struct platform_device *pdev)
 		return PTR_ERR(rtc->regs_soc);
 
 	rtc->irq = platform_get_irq(pdev, 0);
-	if (rtc->irq < 0)
+
+	if (rtc->irq < 0) {
+		dev_err(&pdev->dev, "no irq\n");
 		return rtc->irq;
+	}
 
 	rtc->rtc_dev = devm_rtc_allocate_device(&pdev->dev);
 	if (IS_ERR(rtc->rtc_dev))
@@ -558,9 +577,11 @@ static __init int armada38x_rtc_probe(struct platform_device *pdev)
 	/* Update RTC-MBUS bridge timing parameters */
 	rtc->data->update_mbus_timing(rtc);
 
-	rtc->rtc_dev->range_max = U32_MAX;
+	ret = rtc_register_device(rtc->rtc_dev);
+	if (ret)
+		dev_err(&pdev->dev, "Failed to register RTC device: %d\n", ret);
 
-	return rtc_register_device(rtc->rtc_dev);
+	return ret;
 }
 
 #ifdef CONFIG_PM_SLEEP

@@ -1,7 +1,10 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * aQuantia Corporation Network Driver
  * Copyright (C) 2014-2017 aQuantia Corporation. All rights reserved
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2, as published by the Free Software Foundation.
  */
 
 /* File aq_ring.h: Declaration of functions for Rx/Tx rings. */
@@ -14,20 +17,13 @@
 struct page;
 struct aq_nic_cfg_s;
 
-struct aq_rxpage {
-	struct page *page;
-	dma_addr_t daddr;
-	unsigned int order;
-	unsigned int pg_off;
-};
-
 /*           TxC       SOP        DX         EOP
  *         +----------+----------+----------+-----------
  *   8bytes|len l3,l4 | pa       | pa       | pa
  *         +----------+----------+----------+-----------
  * 4/8bytes|len pkt   |len pkt   |          | skb
  *         +----------+----------+----------+-----------
- * 4/8bytes|is_gso    |len,flags |len       |len,is_eop
+ * 4/8bytes|is_txc    |len,flags |len       |len,is_eop
  *         +----------+----------+----------+-----------
  *
  *  This aq_ring_buff_s doesn't have endianness dependency.
@@ -35,21 +31,27 @@ struct aq_rxpage {
  */
 struct __packed aq_ring_buff_s {
 	union {
-		/* RX/TX */
-		dma_addr_t pa;
 		/* RX */
 		struct {
 			u32 rss_hash;
 			u16 next;
 			u8 is_hash_l4;
 			u8 rsvd1;
-			struct aq_rxpage rxdata;
-			u16 vlan_rx_tag;
+			struct page *page;
 		};
 		/* EOP */
 		struct {
 			dma_addr_t pa_eop;
 			struct sk_buff *skb;
+		};
+		/* DX */
+		struct {
+			dma_addr_t pa;
+		};
+		/* SOP */
+		struct {
+			dma_addr_t pa_sop;
+			u32 len_pkt_sop;
 		};
 		/* TxC */
 		struct {
@@ -60,7 +62,6 @@ struct __packed aq_ring_buff_s {
 			u8 is_ipv6:1;
 			u8 rsvd2:7;
 			u32 len_pkt;
-			u16 vlan_tx_tag;
 		};
 	};
 	union {
@@ -72,12 +73,11 @@ struct __packed aq_ring_buff_s {
 			u32 is_cso_err:1;
 			u32 is_sop:1;
 			u32 is_eop:1;
-			u32 is_gso:1;
+			u32 is_txc:1;
 			u32 is_mapped:1;
 			u32 is_cleaned:1;
 			u32 is_error:1;
-			u32 is_vlan:1;
-			u32 rsvd3:5;
+			u32 rsvd3:6;
 			u16 eop_index;
 			u16 rsvd4;
 		};
@@ -91,9 +91,6 @@ struct aq_ring_stats_rx_s {
 	u64 bytes;
 	u64 lro_packets;
 	u64 jumbo_packets;
-	u64 pg_losts;
-	u64 pg_flips;
-	u64 pg_reuses;
 };
 
 struct aq_ring_stats_tx_s {
@@ -119,7 +116,6 @@ struct aq_ring_s {
 	unsigned int size;	/* descriptors number */
 	unsigned int dx_size;	/* TX or RX descriptor size,  */
 				/* stored here for fater math */
-	unsigned int page_order;
 	union aq_ring_stats_s stats;
 	dma_addr_t dx_ring_pa;
 };
@@ -129,16 +125,6 @@ struct aq_ring_param_s {
 	unsigned int cpu;
 	cpumask_t affinity_mask;
 };
-
-static inline void *aq_buf_vaddr(struct aq_rxpage *rxpage)
-{
-	return page_to_virt(rxpage->page) + rxpage->pg_off;
-}
-
-static inline dma_addr_t aq_buf_daddr(struct aq_rxpage *rxpage)
-{
-	return rxpage->daddr + rxpage->pg_off;
-}
 
 static inline unsigned int aq_ring_next_dx(struct aq_ring_s *self,
 					   unsigned int dx)

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * An I2C driver for the Intersil ISL 12022
  *
@@ -6,6 +5,10 @@
  *
  * Based on the Philips PCF8563 RTC
  * by Alessandro Zummo <a.zummo@towertech.it>.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License version
+ * 2 as published by the Free Software Foundation.
  */
 
 #include <linux/i2c.h>

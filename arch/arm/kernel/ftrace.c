@@ -47,6 +47,30 @@ void arch_ftrace_update_code(int command)
 	stop_machine(__ftrace_modify_code, &command, NULL);
 }
 
+#ifdef CONFIG_OLD_MCOUNT
+#define OLD_MCOUNT_ADDR	((unsigned long) mcount)
+#define OLD_FTRACE_ADDR ((unsigned long) ftrace_caller_old)
+
+#define	OLD_NOP		0xe1a00000	/* mov r0, r0 */
+
+static unsigned long ftrace_nop_replace(struct dyn_ftrace *rec)
+{
+	return rec->arch.old_mcount ? OLD_NOP : NOP;
+}
+
+static unsigned long adjust_address(struct dyn_ftrace *rec, unsigned long addr)
+{
+	if (!rec->arch.old_mcount)
+		return addr;
+
+	if (addr == MCOUNT_ADDR)
+		addr = OLD_MCOUNT_ADDR;
+	else if (addr == FTRACE_ADDR)
+		addr = OLD_FTRACE_ADDR;
+
+	return addr;
+}
+#else
 static unsigned long ftrace_nop_replace(struct dyn_ftrace *rec)
 {
 	return NOP;
@@ -56,6 +80,7 @@ static unsigned long adjust_address(struct dyn_ftrace *rec, unsigned long addr)
 {
 	return addr;
 }
+#endif
 
 int ftrace_arch_code_modify_prepare(void)
 {
@@ -71,10 +96,9 @@ int ftrace_arch_code_modify_post_process(void)
 	return 0;
 }
 
-static unsigned long ftrace_call_replace(unsigned long pc, unsigned long addr,
-					 bool warn)
+static unsigned long ftrace_call_replace(unsigned long pc, unsigned long addr)
 {
-	return arm_gen_branch_link(pc, addr, warn);
+	return arm_gen_branch_link(pc, addr);
 }
 
 static int ftrace_modify_code(unsigned long pc, unsigned long old,
@@ -113,14 +137,23 @@ int ftrace_update_ftrace_func(ftrace_func_t func)
 	int ret;
 
 	pc = (unsigned long)&ftrace_call;
-	new = ftrace_call_replace(pc, (unsigned long)func, true);
+	new = ftrace_call_replace(pc, (unsigned long)func);
 
 	ret = ftrace_modify_code(pc, 0, new, false);
 
 #ifdef CONFIG_DYNAMIC_FTRACE_WITH_REGS
 	if (!ret) {
 		pc = (unsigned long)&ftrace_regs_call;
-		new = ftrace_call_replace(pc, (unsigned long)func, true);
+		new = ftrace_call_replace(pc, (unsigned long)func);
+
+		ret = ftrace_modify_code(pc, 0, new, false);
+	}
+#endif
+
+#ifdef CONFIG_OLD_MCOUNT
+	if (!ret) {
+		pc = (unsigned long)&ftrace_call_old;
+		new = ftrace_call_replace(pc, (unsigned long)func);
 
 		ret = ftrace_modify_code(pc, 0, new, false);
 	}
@@ -133,22 +166,10 @@ int ftrace_make_call(struct dyn_ftrace *rec, unsigned long addr)
 {
 	unsigned long new, old;
 	unsigned long ip = rec->ip;
-	unsigned long aaddr = adjust_address(rec, addr);
-	struct module *mod = NULL;
-
-#ifdef CONFIG_ARM_MODULE_PLTS
-	mod = rec->arch.mod;
-#endif
 
 	old = ftrace_nop_replace(rec);
 
-	new = ftrace_call_replace(ip, aaddr, !mod);
-#ifdef CONFIG_ARM_MODULE_PLTS
-	if (!new && mod) {
-		aaddr = get_module_plt(mod, ip, aaddr);
-		new = ftrace_call_replace(ip, aaddr, true);
-	}
-#endif
+	new = ftrace_call_replace(ip, adjust_address(rec, addr));
 
 	return ftrace_modify_code(rec->ip, old, new, true);
 }
@@ -161,9 +182,9 @@ int ftrace_modify_call(struct dyn_ftrace *rec, unsigned long old_addr,
 	unsigned long new, old;
 	unsigned long ip = rec->ip;
 
-	old = ftrace_call_replace(ip, adjust_address(rec, old_addr), true);
+	old = ftrace_call_replace(ip, adjust_address(rec, old_addr));
 
-	new = ftrace_call_replace(ip, adjust_address(rec, addr), true);
+	new = ftrace_call_replace(ip, adjust_address(rec, addr));
 
 	return ftrace_modify_code(rec->ip, old, new, true);
 }
@@ -173,31 +194,24 @@ int ftrace_modify_call(struct dyn_ftrace *rec, unsigned long old_addr,
 int ftrace_make_nop(struct module *mod,
 		    struct dyn_ftrace *rec, unsigned long addr)
 {
-	unsigned long aaddr = adjust_address(rec, addr);
 	unsigned long ip = rec->ip;
 	unsigned long old;
 	unsigned long new;
 	int ret;
 
-#ifdef CONFIG_ARM_MODULE_PLTS
-	/* mod is only supplied during module loading */
-	if (!mod)
-		mod = rec->arch.mod;
-	else
-		rec->arch.mod = mod;
-#endif
-
-	old = ftrace_call_replace(ip, aaddr,
-				  !IS_ENABLED(CONFIG_ARM_MODULE_PLTS) || !mod);
-#ifdef CONFIG_ARM_MODULE_PLTS
-	if (!old && mod) {
-		aaddr = get_module_plt(mod, ip, aaddr);
-		old = ftrace_call_replace(ip, aaddr, true);
-	}
-#endif
-
+	old = ftrace_call_replace(ip, adjust_address(rec, addr));
 	new = ftrace_nop_replace(rec);
 	ret = ftrace_modify_code(ip, old, new, true);
+
+#ifdef CONFIG_OLD_MCOUNT
+	if (ret == -EINVAL && addr == MCOUNT_ADDR) {
+		rec->arch.old_mcount = true;
+
+		old = ftrace_call_replace(ip, adjust_address(rec, addr));
+		new = ftrace_nop_replace(rec);
+		ret = ftrace_modify_code(ip, old, new, true);
+	}
+#endif
 
 	return ret;
 }
@@ -260,6 +274,13 @@ static int ftrace_modify_graph_caller(bool enable)
 				     enable);
 #endif
 
+
+#ifdef CONFIG_OLD_MCOUNT
+	if (!ret)
+		ret = __ftrace_modify_caller(&ftrace_graph_call_old,
+					     ftrace_graph_caller_old,
+					     enable);
+#endif
 
 	return ret;
 }

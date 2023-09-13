@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Updated, and converted to generic GPIO based driver by Russell King.
  *
@@ -10,6 +9,11 @@
  * Device driver for NAND flash that uses a memory mapped interface to
  * read/write the NAND commands and data, and GPIO pins for control signals
  * (the DT binding refers to this as "GPIO assisted NAND flash")
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
  */
 
 #include <linux/kernel.h>
@@ -69,10 +73,9 @@ static void gpio_nand_dosync(struct gpiomtd *gpiomtd)
 static inline void gpio_nand_dosync(struct gpiomtd *gpiomtd) {}
 #endif
 
-static void gpio_nand_cmd_ctrl(struct nand_chip *chip, int cmd,
-			       unsigned int ctrl)
+static void gpio_nand_cmd_ctrl(struct mtd_info *mtd, int cmd, unsigned int ctrl)
 {
-	struct gpiomtd *gpiomtd = gpio_nand_getpriv(nand_to_mtd(chip));
+	struct gpiomtd *gpiomtd = gpio_nand_getpriv(mtd);
 
 	gpio_nand_dosync(gpiomtd);
 
@@ -86,13 +89,13 @@ static void gpio_nand_cmd_ctrl(struct nand_chip *chip, int cmd,
 	if (cmd == NAND_CMD_NONE)
 		return;
 
-	writeb(cmd, gpiomtd->nand_chip.legacy.IO_ADDR_W);
+	writeb(cmd, gpiomtd->nand_chip.IO_ADDR_W);
 	gpio_nand_dosync(gpiomtd);
 }
 
-static int gpio_nand_devready(struct nand_chip *chip)
+static int gpio_nand_devready(struct mtd_info *mtd)
 {
-	struct gpiomtd *gpiomtd = gpio_nand_getpriv(nand_to_mtd(chip));
+	struct gpiomtd *gpiomtd = gpio_nand_getpriv(mtd);
 
 	return gpiod_get_value(gpiomtd->rdy);
 }
@@ -221,9 +224,9 @@ static int gpio_nand_probe(struct platform_device *pdev)
 	chip = &gpiomtd->nand_chip;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	chip->legacy.IO_ADDR_R = devm_ioremap_resource(dev, res);
-	if (IS_ERR(chip->legacy.IO_ADDR_R))
-		return PTR_ERR(chip->legacy.IO_ADDR_R);
+	chip->IO_ADDR_R = devm_ioremap_resource(dev, res);
+	if (IS_ERR(chip->IO_ADDR_R))
+		return PTR_ERR(chip->IO_ADDR_R);
 
 	res = gpio_nand_get_io_sync(pdev);
 	if (res) {
@@ -267,15 +270,15 @@ static int gpio_nand_probe(struct platform_device *pdev)
 	}
 	/* Using RDY pin */
 	if (gpiomtd->rdy)
-		chip->legacy.dev_ready = gpio_nand_devready;
+		chip->dev_ready = gpio_nand_devready;
 
 	nand_set_flash_node(chip, pdev->dev.of_node);
-	chip->legacy.IO_ADDR_W	= chip->legacy.IO_ADDR_R;
+	chip->IO_ADDR_W		= chip->IO_ADDR_R;
 	chip->ecc.mode		= NAND_ECC_SOFT;
 	chip->ecc.algo		= NAND_ECC_HAMMING;
 	chip->options		= gpiomtd->plat.options;
-	chip->legacy.chip_delay	= gpiomtd->plat.chip_delay;
-	chip->legacy.cmd_ctrl	= gpio_nand_cmd_ctrl;
+	chip->chip_delay	= gpiomtd->plat.chip_delay;
+	chip->cmd_ctrl		= gpio_nand_cmd_ctrl;
 
 	mtd			= nand_to_mtd(chip);
 	mtd->dev.parent		= dev;

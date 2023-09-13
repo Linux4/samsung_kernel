@@ -1,8 +1,21 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright (C) 2006, 2007, 2009 Rusty Russell, IBM Corporation
  * Copyright (C) 2009, 2010, 2011 Red Hat, Inc.
  * Copyright (C) 2009, 2010, 2011 Amit Shah <amit.shah@redhat.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 #include <linux/cdev.h>
 #include <linux/debugfs.h>
@@ -435,12 +448,12 @@ static struct port_buffer *alloc_buf(struct virtio_device *vdev, size_t buf_size
 		/*
 		 * Allocate DMA memory from ancestor. When a virtio
 		 * device is created by remoteproc, the DMA memory is
-		 * associated with the parent device:
-		 * virtioY => remoteprocX#vdevYbuffer.
+		 * associated with the grandparent device:
+		 * vdev => rproc => platform-dev.
 		 */
-		buf->dev = vdev->dev.parent;
-		if (!buf->dev)
+		if (!vdev->dev.parent || !vdev->dev.parent->parent)
 			goto free_buf;
+		buf->dev = vdev->dev.parent->parent;
 
 		/* Increase device refcnt to avoid freeing it */
 		get_device(buf->dev);
@@ -475,7 +488,7 @@ static struct port_buffer *get_inbuf(struct port *port)
 
 	buf = virtqueue_get_buf(port->in_vq, &len);
 	if (buf) {
-		buf->len = min_t(size_t, len, buf->size);
+		buf->len = len;
 		buf->offset = 0;
 		port->stats.bytes_received += len;
 	}
@@ -1296,7 +1309,7 @@ static const struct attribute_group port_attribute_group = {
 	.attrs = port_sysfs_entries,
 };
 
-static int port_debugfs_show(struct seq_file *s, void *data)
+static int debugfs_show(struct seq_file *s, void *data)
 {
 	struct port *port = s->private;
 
@@ -1314,7 +1327,18 @@ static int port_debugfs_show(struct seq_file *s, void *data)
 	return 0;
 }
 
-DEFINE_SHOW_ATTRIBUTE(port_debugfs);
+static int debugfs_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, debugfs_show, inode->i_private);
+}
+
+static const struct file_operations port_debugfs_ops = {
+	.owner = THIS_MODULE,
+	.open = debugfs_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
 
 static void set_console_size(struct port *port, u16 rows, u16 cols)
 {
@@ -1468,7 +1492,7 @@ static int add_port(struct ports_device *portdev, u32 id)
 		port->debugfs_file = debugfs_create_file(debugfs_name, 0444,
 							 pdrvdata.debugfs_dir,
 							 port,
-							 &port_debugfs_fops);
+							 &port_debugfs_ops);
 	}
 	return 0;
 
@@ -1714,7 +1738,7 @@ static void control_work_handler(struct work_struct *work)
 	while ((buf = virtqueue_get_buf(vq, &len))) {
 		spin_unlock(&portdev->c_ivq_lock);
 
-		buf->len = min_t(size_t, len, buf->size);
+		buf->len = len;
 		buf->offset = 0;
 
 		handle_control_message(vq->vdev, portdev, buf);
@@ -1961,13 +1985,6 @@ static void virtcons_remove(struct virtio_device *vdev)
 	list_del(&portdev->list);
 	spin_unlock_irq(&pdrvdata_lock);
 
-	/* Device is going away, exit any polling for buffers */
-	virtio_break_device(vdev);
-	if (use_multiport(portdev))
-		flush_work(&portdev->control_work);
-	else
-		flush_work(&portdev->config_work);
-
 	/* Disable interrupts for vqs */
 	vdev->config->reset(vdev);
 	/* Finish up work that's lined up */
@@ -2125,7 +2142,6 @@ static struct virtio_device_id id_table[] = {
 	{ VIRTIO_ID_CONSOLE, VIRTIO_DEV_ANY_ID },
 	{ 0 },
 };
-MODULE_DEVICE_TABLE(virtio, id_table);
 
 static unsigned int features[] = {
 	VIRTIO_CONSOLE_F_SIZE,
@@ -2138,7 +2154,6 @@ static struct virtio_device_id rproc_serial_id_table[] = {
 #endif
 	{ 0 },
 };
-MODULE_DEVICE_TABLE(virtio, rproc_serial_id_table);
 
 static unsigned int rproc_serial_features[] = {
 };
@@ -2241,7 +2256,7 @@ static struct virtio_driver virtio_rproc_serial = {
 	.remove =	virtcons_remove,
 };
 
-static int __init virtio_console_init(void)
+static int __init init(void)
 {
 	int err;
 
@@ -2278,7 +2293,7 @@ free:
 	return err;
 }
 
-static void __exit virtio_console_fini(void)
+static void __exit fini(void)
 {
 	reclaim_dma_bufs();
 
@@ -2288,8 +2303,9 @@ static void __exit virtio_console_fini(void)
 	class_destroy(pdrvdata.class);
 	debugfs_remove_recursive(pdrvdata.debugfs_dir);
 }
-module_init(virtio_console_init);
-module_exit(virtio_console_fini);
+module_init(init);
+module_exit(fini);
 
+MODULE_DEVICE_TABLE(virtio, id_table);
 MODULE_DESCRIPTION("Virtio console driver");
 MODULE_LICENSE("GPL");

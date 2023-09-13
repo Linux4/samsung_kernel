@@ -15,9 +15,6 @@ PAUSE_ON_FAIL=${PAUSE_ON_FAIL:=no}
 PAUSE_ON_CLEANUP=${PAUSE_ON_CLEANUP:=no}
 NETIF_TYPE=${NETIF_TYPE:=veth}
 NETIF_CREATE=${NETIF_CREATE:=yes}
-MCD=${MCD:=smcrouted}
-MC_CLI=${MC_CLI:=smcroutectl}
-PING_TIMEOUT=${PING_TIMEOUT:=5}
 
 relative_path="${BASH_SOURCE%/*}"
 if [[ "$relative_path" == "${BASH_SOURCE}" ]]; then
@@ -107,7 +104,7 @@ create_netif_veth()
 {
 	local i
 
-	for ((i = 1; i <= NUM_NETIFS; ++i)); do
+	for i in $(eval echo {1..$NUM_NETIFS}); do
 		local j=$((i+1))
 
 		ip link show dev ${NETIFS[p$i]} &> /dev/null
@@ -138,7 +135,7 @@ if [[ "$NETIF_CREATE" = "yes" ]]; then
 	create_netif
 fi
 
-for ((i = 1; i <= NUM_NETIFS; ++i)); do
+for i in $(eval echo {1..$NUM_NETIFS}); do
 	ip link show dev ${NETIFS[p$i]} &> /dev/null
 	if [[ $? -ne 0 ]]; then
 		echo "SKIP: could not find all required interfaces"
@@ -212,7 +209,7 @@ log_test()
 		return 1
 	fi
 
-	printf "TEST: %-60s  [ OK ]\n" "$test_name $opt_str"
+	printf "TEST: %-60s  [PASS]\n" "$test_name $opt_str"
 	return 0
 }
 
@@ -248,25 +245,6 @@ setup_wait()
 
 	# Make sure links are ready.
 	sleep $WAIT_TIME
-}
-
-cmd_jq()
-{
-	local cmd=$1
-	local jq_exp=$2
-	local ret
-	local output
-
-	output="$($cmd)"
-	# it the command fails, return error right away
-	ret=$?
-	if [[ $ret -ne 0 ]]; then
-		return $ret
-	fi
-	output=$(echo $output | jq -r "$jq_exp")
-	echo $output
-	# return success only in case of non-empty output
-	[ ! -z "$output" ]
 }
 
 lldpad_app_wait_set()
@@ -499,24 +477,11 @@ master_name_get()
 	ip -j link show dev $if_name | jq -r '.[]["master"]'
 }
 
-link_stats_get()
-{
-	local if_name=$1; shift
-	local dir=$1; shift
-	local stat=$1; shift
-
-	ip -j -s link show dev $if_name \
-		| jq '.[]["stats64"]["'$dir'"]["'$stat'"]'
-}
-
 link_stats_tx_packets_get()
 {
-	link_stats_get $1 tx packets
-}
+       local if_name=$1
 
-link_stats_rx_errors_get()
-{
-	link_stats_get $1 rx errors
+       ip -j -s link show dev $if_name | jq '.[]["stats64"]["tx"]["packets"]'
 }
 
 tc_rule_stats_get()
@@ -527,14 +492,6 @@ tc_rule_stats_get()
 
 	tc -j -s filter show dev $dev ${dir:-ingress} pref $pref \
 	    | jq '.[1].options.actions[].stats.packets'
-}
-
-ethtool_stats_get()
-{
-	local dev=$1; shift
-	local stat=$1; shift
-
-	ethtool -S $dev | grep "^ *$stat:" | head -n 1 | cut -d: -f2
 }
 
 mac_get()
@@ -582,23 +539,6 @@ forwarding_restore()
 {
 	sysctl_restore net.ipv6.conf.all.forwarding
 	sysctl_restore net.ipv4.conf.all.forwarding
-}
-
-declare -A MTU_ORIG
-mtu_set()
-{
-	local dev=$1; shift
-	local mtu=$1; shift
-
-	MTU_ORIG["$dev"]=$(ip -j link show dev $dev | jq -e '.[].mtu')
-	ip link set dev $dev mtu $mtu
-}
-
-mtu_restore()
-{
-	local dev=$1; shift
-
-	ip link set dev $dev mtu ${MTU_ORIG["$dev"]}
 }
 
 tc_offload_check()
@@ -818,17 +758,6 @@ multipath_eval()
 	log_info "Expected ratio $weights_ratio Measured ratio $packets_ratio"
 }
 
-in_ns()
-{
-	local name=$1; shift
-
-	ip netns exec $name bash <<-EOF
-		NUM_NETIFS=0
-		source lib.sh
-		$(for a in "$@"; do printf "%q${IFS:0:1}" "$a"; done)
-	EOF
-}
-
 ##############################################################################
 # Tests
 
@@ -836,12 +765,10 @@ ping_do()
 {
 	local if_name=$1
 	local dip=$2
-	local args=$3
 	local vrf_name
 
 	vrf_name=$(master_name_get $if_name)
-	ip vrf exec $vrf_name \
-		$PING $args $dip -c 10 -i 0.1 -w $PING_TIMEOUT &> /dev/null
+	ip vrf exec $vrf_name $PING $dip -c 10 -i 0.1 -w 2 &> /dev/null
 }
 
 ping_test()
@@ -850,19 +777,17 @@ ping_test()
 
 	ping_do $1 $2
 	check_err $?
-	log_test "ping$3"
+	log_test "ping"
 }
 
 ping6_do()
 {
 	local if_name=$1
 	local dip=$2
-	local args=$3
 	local vrf_name
 
 	vrf_name=$(master_name_get $if_name)
-	ip vrf exec $vrf_name \
-		$PING6 $args $dip -c 10 -i 0.1 -w $PING_TIMEOUT &> /dev/null
+	ip vrf exec $vrf_name $PING6 $dip -c 10 -i 0.1 -w 2 &> /dev/null
 }
 
 ping6_test()
@@ -871,7 +796,7 @@ ping6_test()
 
 	ping6_do $1 $2
 	check_err $?
-	log_test "ping6$3"
+	log_test "ping6"
 }
 
 learning_test()
@@ -894,7 +819,6 @@ learning_test()
 	# FDB entry was installed.
 	bridge link set dev $br_port1 flood off
 
-	ip link set $host1_if promisc on
 	tc qdisc add dev $host1_if ingress
 	tc filter add dev $host1_if ingress protocol ip pref 1 handle 101 \
 		flower dst_mac $mac action drop
@@ -905,7 +829,7 @@ learning_test()
 	tc -j -s filter show dev $host1_if ingress \
 		| jq -e ".[] | select(.options.handle == 101) \
 		| select(.options.actions[0].stats.packets == 1)" &> /dev/null
-	check_fail $? "Packet reached first host when should not"
+	check_fail $? "Packet reached second host when should not"
 
 	$MZ $host1_if -c 1 -p 64 -a $mac -t ip -q
 	sleep 1
@@ -944,7 +868,6 @@ learning_test()
 
 	tc filter del dev $host1_if ingress protocol ip pref 1 handle 101 flower
 	tc qdisc del dev $host1_if ingress
-	ip link set $host1_if promisc off
 
 	bridge link set dev $br_port1 flood on
 
@@ -962,7 +885,6 @@ flood_test_do()
 
 	# Add an ACL on `host2_if` which will tell us whether the packet
 	# was flooded to it or not.
-	ip link set $host2_if promisc on
 	tc qdisc add dev $host2_if ingress
 	tc filter add dev $host2_if ingress protocol ip pref 1 handle 101 \
 		flower dst_mac $mac action drop
@@ -980,7 +902,6 @@ flood_test_do()
 
 	tc filter del dev $host2_if ingress protocol ip pref 1 handle 101 flower
 	tc qdisc del dev $host2_if ingress
-	ip link set $host2_if promisc off
 
 	return $err
 }

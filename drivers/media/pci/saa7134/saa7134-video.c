@@ -1,10 +1,19 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *
  * device driver for philips saa7134 based TV cards
  * video4linux video interface
  *
  * (c) 2001-03 Gerd Knorr <kraxel@bytesex.org> [SuSE Labs]
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
  */
 
 #include "saa7134.h"
@@ -90,58 +99,70 @@ static int video_out[][9] = {
 
 static struct saa7134_format formats[] = {
 	{
+		.name     = "8 bpp gray",
 		.fourcc   = V4L2_PIX_FMT_GREY,
 		.depth    = 8,
 		.pm       = 0x06,
 	},{
+		.name     = "15 bpp RGB, le",
 		.fourcc   = V4L2_PIX_FMT_RGB555,
 		.depth    = 16,
 		.pm       = 0x13 | 0x80,
 	},{
+		.name     = "15 bpp RGB, be",
 		.fourcc   = V4L2_PIX_FMT_RGB555X,
 		.depth    = 16,
 		.pm       = 0x13 | 0x80,
 		.bswap    = 1,
 	},{
+		.name     = "16 bpp RGB, le",
 		.fourcc   = V4L2_PIX_FMT_RGB565,
 		.depth    = 16,
 		.pm       = 0x10 | 0x80,
 	},{
+		.name     = "16 bpp RGB, be",
 		.fourcc   = V4L2_PIX_FMT_RGB565X,
 		.depth    = 16,
 		.pm       = 0x10 | 0x80,
 		.bswap    = 1,
 	},{
+		.name     = "24 bpp RGB, le",
 		.fourcc   = V4L2_PIX_FMT_BGR24,
 		.depth    = 24,
 		.pm       = 0x11,
 	},{
+		.name     = "24 bpp RGB, be",
 		.fourcc   = V4L2_PIX_FMT_RGB24,
 		.depth    = 24,
 		.pm       = 0x11,
 		.bswap    = 1,
 	},{
+		.name     = "32 bpp RGB, le",
 		.fourcc   = V4L2_PIX_FMT_BGR32,
 		.depth    = 32,
 		.pm       = 0x12,
 	},{
+		.name     = "32 bpp RGB, be",
 		.fourcc   = V4L2_PIX_FMT_RGB32,
 		.depth    = 32,
 		.pm       = 0x12,
 		.bswap    = 1,
 		.wswap    = 1,
 	},{
+		.name     = "4:2:2 packed, YUYV",
 		.fourcc   = V4L2_PIX_FMT_YUYV,
 		.depth    = 16,
 		.pm       = 0x00,
 		.bswap    = 1,
 		.yuv      = 1,
 	},{
+		.name     = "4:2:2 packed, UYVY",
 		.fourcc   = V4L2_PIX_FMT_UYVY,
 		.depth    = 16,
 		.pm       = 0x00,
 		.yuv      = 1,
 	},{
+		.name     = "4:2:2 planar, Y-Cb-Cr",
 		.fourcc   = V4L2_PIX_FMT_YUV422P,
 		.depth    = 16,
 		.pm       = 0x09,
@@ -150,6 +171,7 @@ static struct saa7134_format formats[] = {
 		.hshift   = 1,
 		.vshift   = 0,
 	},{
+		.name     = "4:2:0 planar, Y-Cb-Cr",
 		.fourcc   = V4L2_PIX_FMT_YUV420,
 		.depth    = 12,
 		.pm       = 0x0a,
@@ -158,6 +180,7 @@ static struct saa7134_format formats[] = {
 		.hshift   = 1,
 		.vshift   = 1,
 	},{
+		.name     = "4:2:0 planar, Y-Cb-Cr",
 		.fourcc   = V4L2_PIX_FMT_YVU420,
 		.depth    = 12,
 		.pm       = 0x0a,
@@ -706,10 +729,10 @@ static int start_preview(struct saa7134_dev *dev)
 		return err;
 
 	dev->ovfield = dev->win.field;
-	video_dbg("%s %dx%d+%d+%d 0x%08x field=%s\n", __func__,
-		  dev->win.w.width, dev->win.w.height,
-		  dev->win.w.left, dev->win.w.top,
-		  dev->ovfmt->fourcc, v4l2_field_names[dev->ovfield]);
+	video_dbg("start_preview %dx%d+%d+%d %s field=%s\n",
+		dev->win.w.width, dev->win.w.height,
+		dev->win.w.left, dev->win.w.top,
+		dev->ovfmt->name, v4l2_field_names[dev->ovfield]);
 
 	/* setup window + clipping */
 	set_size(dev, TASK_B, dev->win.w.width, dev->win.w.height,
@@ -1422,8 +1445,7 @@ int saa7134_enum_input(struct file *file, void *priv, struct v4l2_input *i)
 	if (card_in(dev, i->index).type == SAA7134_NO_INPUT)
 		return -EINVAL;
 	i->index = n;
-	strscpy(i->name, saa7134_input_name[card_in(dev, n).type],
-		sizeof(i->name));
+	strcpy(i->name, saa7134_input_name[card_in(dev, n).type]);
 	switch (card_in(dev, n).type) {
 	case SAA7134_INPUT_TV:
 	case SAA7134_INPUT_TV_MONO:
@@ -1475,20 +1497,50 @@ int saa7134_querycap(struct file *file, void *priv,
 					struct v4l2_capability *cap)
 {
 	struct saa7134_dev *dev = video_drvdata(file);
+	struct video_device *vdev = video_devdata(file);
+	u32 radio_caps, video_caps, vbi_caps;
 
-	strscpy(cap->driver, "saa7134", sizeof(cap->driver));
-	strscpy(cap->card, saa7134_boards[dev->board].name,
+	unsigned int tuner_type = dev->tuner_type;
+
+	strcpy(cap->driver, "saa7134");
+	strlcpy(cap->card, saa7134_boards[dev->board].name,
 		sizeof(cap->card));
 	sprintf(cap->bus_info, "PCI:%s", pci_name(dev->pci));
-	cap->capabilities = V4L2_CAP_READWRITE | V4L2_CAP_STREAMING |
-			    V4L2_CAP_RADIO | V4L2_CAP_VIDEO_CAPTURE |
-			    V4L2_CAP_VBI_CAPTURE | V4L2_CAP_DEVICE_CAPS;
-	if (dev->tuner_type != TUNER_ABSENT && dev->tuner_type != UNSET)
-		cap->capabilities |= V4L2_CAP_TUNER;
+
+	cap->device_caps = V4L2_CAP_READWRITE | V4L2_CAP_STREAMING;
+	if ((tuner_type != TUNER_ABSENT) && (tuner_type != UNSET))
+		cap->device_caps |= V4L2_CAP_TUNER;
+
+	radio_caps = V4L2_CAP_RADIO;
 	if (dev->has_rds)
-		cap->capabilities |= V4L2_CAP_RDS_CAPTURE;
-	if (saa7134_no_overlay <= 0)
-		cap->capabilities |= V4L2_CAP_VIDEO_OVERLAY;
+		radio_caps |= V4L2_CAP_RDS_CAPTURE;
+
+	video_caps = V4L2_CAP_VIDEO_CAPTURE;
+	if (saa7134_no_overlay <= 0 && !is_empress(file))
+		video_caps |= V4L2_CAP_VIDEO_OVERLAY;
+
+	vbi_caps = V4L2_CAP_VBI_CAPTURE;
+
+	switch (vdev->vfl_type) {
+	case VFL_TYPE_RADIO:
+		cap->device_caps |= radio_caps;
+		break;
+	case VFL_TYPE_GRABBER:
+		cap->device_caps |= video_caps;
+		break;
+	case VFL_TYPE_VBI:
+		cap->device_caps |= vbi_caps;
+		break;
+	default:
+		return -EINVAL;
+	}
+	cap->capabilities = radio_caps | video_caps | vbi_caps |
+		cap->device_caps | V4L2_CAP_DEVICE_CAPS;
+	if (vdev->vfl_type == VFL_TYPE_RADIO) {
+		cap->device_caps &= ~V4L2_CAP_STREAMING;
+		if (!dev->has_rds)
+			cap->device_caps &= ~V4L2_CAP_READWRITE;
+	}
 
 	return 0;
 }
@@ -1597,22 +1649,23 @@ int saa7134_querystd(struct file *file, void *priv, v4l2_std_id *std)
 }
 EXPORT_SYMBOL_GPL(saa7134_querystd);
 
-static int saa7134_g_pixelaspect(struct file *file, void *priv,
-				 int type, struct v4l2_fract *f)
+static int saa7134_cropcap(struct file *file, void *priv,
+					struct v4l2_cropcap *cap)
 {
 	struct saa7134_dev *dev = video_drvdata(file);
 
-	if (type != V4L2_BUF_TYPE_VIDEO_CAPTURE &&
-	    type != V4L2_BUF_TYPE_VIDEO_OVERLAY)
+	if (cap->type != V4L2_BUF_TYPE_VIDEO_CAPTURE &&
+	    cap->type != V4L2_BUF_TYPE_VIDEO_OVERLAY)
 		return -EINVAL;
-
+	cap->pixelaspect.numerator   = 1;
+	cap->pixelaspect.denominator = 1;
 	if (dev->tvnorm->id & V4L2_STD_525_60) {
-		f->numerator   = 11;
-		f->denominator = 10;
+		cap->pixelaspect.numerator   = 11;
+		cap->pixelaspect.denominator = 10;
 	}
 	if (dev->tvnorm->id & V4L2_STD_625_50) {
-		f->numerator   = 54;
-		f->denominator = 59;
+		cap->pixelaspect.numerator   = 54;
+		cap->pixelaspect.denominator = 59;
 	}
 	return 0;
 }
@@ -1694,7 +1747,7 @@ int saa7134_g_tuner(struct file *file, void *priv,
 	if (n == SAA7134_INPUT_MAX)
 		return -EINVAL;
 	if (card_in(dev, n).type != SAA7134_NO_INPUT) {
-		strscpy(t->name, "Television", sizeof(t->name));
+		strcpy(t->name, "Television");
 		t->type = V4L2_TUNER_ANALOG_TV;
 		saa_call_all(dev, tuner, g_tuner, t);
 		t->capability = V4L2_TUNER_CAP_NORM |
@@ -1766,6 +1819,9 @@ static int saa7134_enum_fmt_vid_cap(struct file *file, void  *priv,
 	if (f->index >= FORMATS)
 		return -EINVAL;
 
+	strlcpy(f->description, formats[f->index].name,
+		sizeof(f->description));
+
 	f->pixelformat = formats[f->index].fourcc;
 
 	return 0;
@@ -1781,6 +1837,9 @@ static int saa7134_enum_fmt_vid_overlay(struct file *file, void  *priv,
 
 	if ((f->index >= FORMATS) || formats[f->index].planar)
 		return -EINVAL;
+
+	strlcpy(f->description, formats[f->index].name,
+		sizeof(f->description));
 
 	f->pixelformat = formats[f->index].fourcc;
 
@@ -1880,7 +1939,7 @@ static int radio_g_tuner(struct file *file, void *priv,
 	if (0 != t->index)
 		return -EINVAL;
 
-	strscpy(t->name, "Radio", sizeof(t->name));
+	strcpy(t->name, "Radio");
 
 	saa_call_all(dev, tuner, g_tuner, t);
 	t->audmode &= V4L2_TUNER_MODE_MONO | V4L2_TUNER_MODE_STEREO;
@@ -1927,7 +1986,7 @@ static const struct v4l2_ioctl_ops video_ioctl_ops = {
 	.vidioc_g_fmt_vbi_cap		= saa7134_try_get_set_fmt_vbi_cap,
 	.vidioc_try_fmt_vbi_cap		= saa7134_try_get_set_fmt_vbi_cap,
 	.vidioc_s_fmt_vbi_cap		= saa7134_try_get_set_fmt_vbi_cap,
-	.vidioc_g_pixelaspect		= saa7134_g_pixelaspect,
+	.vidioc_cropcap			= saa7134_cropcap,
 	.vidioc_reqbufs			= vb2_ioctl_reqbufs,
 	.vidioc_querybuf		= vb2_ioctl_querybuf,
 	.vidioc_qbuf			= vb2_ioctl_qbuf,
@@ -2077,7 +2136,7 @@ int saa7134_video_init1(struct saa7134_dev *dev)
 		hdl = &dev->radio_ctrl_handler;
 		v4l2_ctrl_handler_init(hdl, 2);
 		v4l2_ctrl_add_handler(hdl, &dev->ctrl_handler,
-				v4l2_ctrl_radio_filter, false);
+				v4l2_ctrl_radio_filter);
 		if (hdl->error)
 			return hdl->error;
 	}

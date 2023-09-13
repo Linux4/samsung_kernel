@@ -32,7 +32,6 @@
 
 #ifndef __KERNEL__
 #include <stdlib.h>
-#include <time.h>
 #endif
 
 /*
@@ -111,15 +110,10 @@ enum {
 	SNDRV_HWDEP_IFACE_LINE6,	/* Line6 USB processors */
 	SNDRV_HWDEP_IFACE_FW_MOTU,	/* MOTU FireWire series */
 	SNDRV_HWDEP_IFACE_FW_FIREFACE,	/* RME Fireface series */
-	SNDRV_HWDEP_IFACE_AUDIO_BE,	/* Backend Audio Control */
-	SNDRV_HWDEP_IFACE_AUDIO_CODEC,  /* codec Audio Control */
 
 	/* Don't forget to change the following: */
-	SNDRV_HWDEP_IFACE_LAST = SNDRV_HWDEP_IFACE_AUDIO_CODEC
+	SNDRV_HWDEP_IFACE_LAST = SNDRV_HWDEP_IFACE_FW_FIREFACE
 };
-
-#define SNDRV_HWDEP_IFACE_AUDIO_BE SNDRV_HWDEP_IFACE_AUDIO_BE
-#define SNDRV_HWDEP_IFACE_AUDIO_CODEC SNDRV_HWDEP_IFACE_AUDIO_CODEC
 
 struct snd_hwdep_info {
 	unsigned int device;		/* WR: device number */
@@ -758,7 +752,7 @@ struct snd_timer_info {
 #define SNDRV_TIMER_PSFLG_EARLY_EVENT	(1<<2)	/* write early event to the poll queue */
 
 struct snd_timer_params {
-	unsigned int flags;		/* flags - SNDRV_TIMER_PSFLG_* */
+	unsigned int flags;		/* flags - SNDRV_MIXER_PSFLG_* */
 	unsigned int ticks;		/* requested resolution in ticks */
 	unsigned int queue_size;	/* total size of queue (32-1024) */
 	unsigned int reserved0;		/* reserved, was: failure locations */

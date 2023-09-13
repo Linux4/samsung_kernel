@@ -263,7 +263,8 @@ static int rockchip_pcie_ep_map_addr(struct pci_epc *epc, u8 fn,
 	struct rockchip_pcie *pcie = &ep->rockchip;
 	u32 r;
 
-	r = find_first_zero_bit(&ep->ob_region_map, BITS_PER_LONG);
+	r = find_first_zero_bit(&ep->ob_region_map,
+				sizeof(ep->ob_region_map) * BITS_PER_LONG);
 	/*
 	 * Region 0 is reserved for configuration space and shouldn't
 	 * be used elsewhere per TRM, so leave it out.
@@ -498,19 +499,10 @@ static int rockchip_pcie_ep_start(struct pci_epc *epc)
 
 	rockchip_pcie_write(rockchip, cfg, PCIE_CORE_PHY_FUNC_CFG);
 
+	list_for_each_entry(epf, &epc->pci_epf, list)
+		pci_epf_linkup(epf);
+
 	return 0;
-}
-
-static const struct pci_epc_features rockchip_pcie_epc_features = {
-	.linkup_notifier = false,
-	.msi_capable = true,
-	.msix_capable = false,
-};
-
-static const struct pci_epc_features*
-rockchip_pcie_ep_get_features(struct pci_epc *epc, u8 func_no)
-{
-	return &rockchip_pcie_epc_features;
 }
 
 static const struct pci_epc_ops rockchip_pcie_epc_ops = {
@@ -523,7 +515,6 @@ static const struct pci_epc_ops rockchip_pcie_epc_ops = {
 	.get_msi	= rockchip_pcie_ep_get_msi,
 	.raise_irq	= rockchip_pcie_ep_raise_irq,
 	.start		= rockchip_pcie_ep_start,
-	.get_features	= rockchip_pcie_ep_get_features,
 };
 
 static int rockchip_pcie_parse_ep_dt(struct rockchip_pcie *rockchip,

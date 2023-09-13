@@ -1,9 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Generic HDLC support routines for Linux
  * Cisco HDLC support
  *
  * Copyright (C) 2000 - 2006 Krzysztof Halasa <khc@pm.waw.pl>
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of version 2 of the GNU General Public License
+ * as published by the Free Software Foundation.
  */
 
 #include <linux/errno.h>
@@ -118,7 +121,6 @@ static void cisco_keepalive_send(struct net_device *dev, u32 type,
 	skb_put(skb, sizeof(struct cisco_packet));
 	skb->priority = TC_PRIO_CONTROL;
 	skb->dev = dev;
-	skb->protocol = htons(ETH_P_HDLC);
 	skb_reset_network_header(skb);
 
 	dev_queue_xmit(skb);
@@ -194,15 +196,16 @@ static int cisco_rx(struct sk_buff *skb)
 			mask = ~cpu_to_be32(0); /* is the mask correct? */
 
 			if (in_dev != NULL) {
-				const struct in_ifaddr *ifa;
+				struct in_ifaddr **ifap = &in_dev->ifa_list;
 
-				in_dev_for_each_ifa_rcu(ifa, in_dev) {
+				while (*ifap != NULL) {
 					if (strcmp(dev->name,
-						   ifa->ifa_label) == 0) {
-						addr = ifa->ifa_local;
-						mask = ifa->ifa_mask;
+						   (*ifap)->ifa_label) == 0) {
+						addr = (*ifap)->ifa_local;
+						mask = (*ifap)->ifa_mask;
 						break;
 					}
+					ifap = &(*ifap)->ifa_next;
 				}
 
 				cisco_keepalive_send(dev, CISCO_ADDR_REPLY,
@@ -371,7 +374,6 @@ static int cisco_ioctl(struct net_device *dev, struct ifreq *ifr)
 		memcpy(&state(hdlc)->settings, &new_settings, size);
 		spin_lock_init(&state(hdlc)->lock);
 		dev->header_ops = &cisco_header_ops;
-		dev->hard_header_len = sizeof(struct hdlc_header);
 		dev->type = ARPHRD_CISCO;
 		call_netdevice_notifiers(NETDEV_POST_TYPE_CHANGE, dev);
 		netif_dormant_on(dev);

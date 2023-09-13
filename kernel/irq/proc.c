@@ -100,6 +100,10 @@ static int irq_affinity_hint_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
+#ifndef is_affinity_mask_valid
+#define is_affinity_mask_valid(val) 1
+#endif
+
 int no_irq_affinity;
 static int irq_affinity_proc_show(struct seq_file *m, void *v)
 {
@@ -154,12 +158,10 @@ static ssize_t write_irq_affinity(int type, struct file *file,
 	if (err)
 		goto free_cpumask;
 
-#ifdef CONFIG_SCHED_WALT
-	if (cpumask_subset(new_value, cpu_isolated_mask)) {
+	if (!is_affinity_mask_valid(new_value)) {
 		err = -EINVAL;
 		goto free_cpumask;
 	}
-#endif
 
 	/*
 	 * Do not allow disabling IRQs completely - it's a too easy
@@ -251,6 +253,11 @@ static ssize_t default_affinity_write(struct file *file,
 	err = cpumask_parse_user(buffer, count, new_value);
 	if (err)
 		goto out;
+
+	if (!is_affinity_mask_valid(new_value)) {
+		err = -EINVAL;
+		goto out;
+	}
 
 	/*
 	 * Do not allow disabling IRQs completely - it's a too easy

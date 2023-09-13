@@ -233,7 +233,6 @@ int hsch(struct subchannel_id schid)
 
 	return ccode;
 }
-EXPORT_SYMBOL(hsch);
 
 static inline int __xsch(struct subchannel_id schid)
 {

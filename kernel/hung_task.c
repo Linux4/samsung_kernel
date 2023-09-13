@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Detect Hung Task
  *
@@ -20,23 +19,13 @@
 #include <linux/utsname.h>
 #include <linux/sched/signal.h>
 #include <linux/sched/debug.h>
-#include <linux/sched/sysctl.h>
 
 #include <trace/events/sched.h>
-#include <linux/sched/sysctl.h>
 
 /*
  * The number of tasks checked:
  */
 int __read_mostly sysctl_hung_task_check_count = PID_MAX_LIMIT;
-
-/*
- * Selective monitoring of hung tasks.
- *
- * if set to 1, khungtaskd skips monitoring tasks, which has
- * task_struct->hang_detection_enabled value not set, else monitors all tasks.
- */
-int sysctl_hung_task_selective_monitoring = 1;
 
 /*
  * Limit number of tasks checked in a batch.
@@ -137,7 +126,7 @@ static void check_hung_task(struct task_struct *t, unsigned long timeout)
 		if (sysctl_hung_task_warnings > 0)
 			sysctl_hung_task_warnings--;
 		pr_err("INFO: task %s:%d blocked for more than %ld seconds.\n",
-		       t->comm, t->pid, (jiffies - t->last_switch_time) / HZ);
+			t->comm, t->pid, timeout);
 		pr_err("      %s %s %.*s\n",
 			print_tainted(), init_utsname()->release,
 			(int)strcspn(init_utsname()->version, " "),
@@ -204,10 +193,7 @@ static void check_hung_uninterruptible_tasks(unsigned long timeout)
 		}
 		/* use "==" to skip the TASK_KILLABLE tasks waiting on NFS */
 		if (t->state == TASK_UNINTERRUPTIBLE)
-			/* Check for selective monitoring */
-			if (!sysctl_hung_task_selective_monitoring ||
-			    t->hang_detection_enabled)
-				check_hung_task(t, timeout);
+			check_hung_task(t, timeout);
 	}
  unlock:
 	rcu_read_unlock();

@@ -159,8 +159,6 @@ static void comedi_device_detach_cleanup(struct comedi_device *dev)
 	int i;
 	struct comedi_subdevice *s;
 
-	lockdep_assert_held(&dev->attach_lock);
-	lockdep_assert_held(&dev->mutex);
 	if (dev->subdevices) {
 		for (i = 0; i < dev->n_subdevices; i++) {
 			s = &dev->subdevices[i];
@@ -198,7 +196,6 @@ static void comedi_device_detach_cleanup(struct comedi_device *dev)
 
 void comedi_device_detach(struct comedi_device *dev)
 {
-	lockdep_assert_held(&dev->mutex);
 	comedi_device_cancel_all(dev);
 	down_write(&dev->attach_lock);
 	dev->attached = false;
@@ -212,19 +209,6 @@ void comedi_device_detach(struct comedi_device *dev)
 static int poll_invalid(struct comedi_device *dev, struct comedi_subdevice *s)
 {
 	return -EINVAL;
-}
-
-static int insn_device_inval(struct comedi_device *dev,
-			     struct comedi_insn *insn, unsigned int *data)
-{
-	return -EINVAL;
-}
-
-static unsigned int get_zero_valid_routes(struct comedi_device *dev,
-					  unsigned int n_pairs,
-					  unsigned int *pair_data)
-{
-	return 0;
 }
 
 int insn_inval(struct comedi_device *dev, struct comedi_subdevice *s,
@@ -646,7 +630,6 @@ static int __comedi_device_postconfig_async(struct comedi_device *dev,
 	unsigned int buf_size;
 	int ret;
 
-	lockdep_assert_held(&dev->mutex);
 	if ((s->subdev_flags & (SDF_CMD_READ | SDF_CMD_WRITE)) == 0) {
 		dev_warn(dev->class_dev,
 			 "async subdevices must support SDF_CMD_READ or SDF_CMD_WRITE\n");
@@ -693,13 +676,6 @@ static int __comedi_device_postconfig(struct comedi_device *dev)
 	struct comedi_subdevice *s;
 	int ret;
 	int i;
-
-	lockdep_assert_held(&dev->mutex);
-	if (!dev->insn_device_config)
-		dev->insn_device_config = insn_device_inval;
-
-	if (!dev->get_valid_routes)
-		dev->get_valid_routes = get_zero_valid_routes;
 
 	for (i = 0; i < dev->n_subdevices; i++) {
 		s = &dev->subdevices[i];
@@ -752,7 +728,6 @@ static int comedi_device_postconfig(struct comedi_device *dev)
 {
 	int ret;
 
-	lockdep_assert_held(&dev->mutex);
 	ret = __comedi_device_postconfig(dev);
 	if (ret < 0)
 		return ret;
@@ -952,7 +927,6 @@ int comedi_device_attach(struct comedi_device *dev, struct comedi_devconfig *it)
 	struct comedi_driver *driv;
 	int ret;
 
-	lockdep_assert_held(&dev->mutex);
 	if (dev->attached)
 		return -EBUSY;
 
@@ -1060,19 +1034,18 @@ int comedi_auto_config(struct device *hardware_device,
 		return PTR_ERR(dev);
 	}
 	/* Note: comedi_alloc_board_minor() locked dev->mutex. */
-	lockdep_assert_held(&dev->mutex);
 
 	dev->driver = driver;
 	dev->board_name = dev->driver->driver_name;
 	ret = driver->auto_attach(dev, context);
 	if (ret >= 0)
 		ret = comedi_device_postconfig(dev);
+	mutex_unlock(&dev->mutex);
 
 	if (ret < 0) {
 		dev_warn(hardware_device,
 			 "driver '%s' failed to auto-configure device.\n",
 			 driver->driver_name);
-		mutex_unlock(&dev->mutex);
 		comedi_release_hardware_device(hardware_device);
 	} else {
 		/*
@@ -1082,7 +1055,6 @@ int comedi_auto_config(struct device *hardware_device,
 		dev_info(dev->class_dev,
 			 "driver '%s' has successfully auto-configured '%s'.\n",
 			 driver->driver_name, dev->board_name);
-		mutex_unlock(&dev->mutex);
 	}
 	return ret;
 }

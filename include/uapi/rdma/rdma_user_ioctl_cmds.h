@@ -36,7 +36,7 @@
 #include <linux/types.h>
 #include <linux/ioctl.h>
 
-/* Documentation/ioctl/ioctl-number.rst */
+/* Documentation/ioctl/ioctl-number.txt */
 #define RDMA_IOCTL_MAGIC	0x1b
 #define RDMA_VERBS_IOCTL \
 	_IOWR(RDMA_IOCTL_MAGIC, 1, struct ib_uverbs_ioctl_hdr)
@@ -53,7 +53,7 @@ enum {
 
 struct ib_uverbs_attr {
 	__u16 attr_id;		/* command specific type attribute */
-	__u16 len;		/* only for pointers and IDRs array */
+	__u16 len;		/* only for pointers */
 	__u16 flags;		/* combination of UVERBS_ATTR_F_XXXX */
 	union {
 		struct {
@@ -63,10 +63,7 @@ struct ib_uverbs_attr {
 		__u16 reserved;
 	} attr_data;
 	union {
-		/*
-		 * ptr to command, inline data, idr/fd or
-		 * ptr to __u32 array of IDRs
-		 */
+		/* Used by PTR_IN/OUT, ENUM_IN and IDR */
 		__aligned_u64 data;
 		/* Used by FD_IN and FD_OUT */
 		__s64 data_s64;
@@ -102,8 +99,6 @@ enum rdma_driver_id {
 	RDMA_DRIVER_RXE,
 	RDMA_DRIVER_HFI1,
 	RDMA_DRIVER_QIB,
-	RDMA_DRIVER_EFA,
-	RDMA_DRIVER_SIW,
 };
 
 #endif

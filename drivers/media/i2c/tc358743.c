@@ -444,7 +444,7 @@ static void print_avi_infoframe(struct v4l2_subdev *sd)
 
 	i2c_rd(sd, PK_AVI_0HEAD, buffer, HDMI_INFOFRAME_SIZE(AVI));
 
-	if (hdmi_infoframe_unpack(&frame, buffer, sizeof(buffer)) < 0) {
+	if (hdmi_infoframe_unpack(&frame, buffer) < 0) {
 		v4l2_err(sd, "%s: unpack of AVI infoframe failed\n", __func__);
 		return;
 	}
@@ -919,8 +919,8 @@ static const struct cec_adap_ops tc358743_cec_adap_ops = {
 	.adap_monitor_all_enable = tc358743_cec_adap_monitor_all_enable,
 };
 
-static void tc358743_cec_handler(struct v4l2_subdev *sd, u16 intstatus,
-				 bool *handled)
+static void tc358743_cec_isr(struct v4l2_subdev *sd, u16 intstatus,
+			     bool *handled)
 {
 	struct tc358743_state *state = to_state(sd);
 	unsigned int cec_rxint, cec_txint;
@@ -953,8 +953,7 @@ static void tc358743_cec_handler(struct v4l2_subdev *sd, u16 intstatus,
 			cec_transmit_attempt_done(state->cec_adap,
 						  CEC_TX_STATUS_ERROR);
 		}
-		if (handled)
-			*handled = true;
+		*handled = true;
 	}
 	if ((intstatus & MASK_CEC_RINT) &&
 	    (cec_rxint & MASK_CECRIEND)) {
@@ -969,8 +968,7 @@ static void tc358743_cec_handler(struct v4l2_subdev *sd, u16 intstatus,
 			msg.msg[i] = v & 0xff;
 		}
 		cec_received_msg(state->cec_adap, &msg);
-		if (handled)
-			*handled = true;
+		*handled = true;
 	}
 	i2c_wr16(sd, INTSTATUS,
 		 intstatus & (MASK_CEC_RINT | MASK_CEC_TINT));
@@ -1434,7 +1432,7 @@ static int tc358743_isr(struct v4l2_subdev *sd, u32 status, bool *handled)
 
 #ifdef CONFIG_VIDEO_TC358743_CEC
 	if (intstatus & (MASK_CEC_RINT | MASK_CEC_TINT)) {
-		tc358743_cec_handler(sd, intstatus, handled);
+		tc358743_cec_isr(sd, intstatus, handled);
 		i2c_wr16(sd, INTSTATUS,
 			 intstatus & (MASK_CEC_RINT | MASK_CEC_TINT));
 		intstatus &= ~(MASK_CEC_RINT | MASK_CEC_TINT);
@@ -1463,7 +1461,7 @@ static int tc358743_isr(struct v4l2_subdev *sd, u32 status, bool *handled)
 static irqreturn_t tc358743_irq_handler(int irq, void *dev_id)
 {
 	struct tc358743_state *state = dev_id;
-	bool handled = false;
+	bool handled;
 
 	tc358743_isr(&state->sd, 0, &handled);
 
@@ -1609,7 +1607,7 @@ static int tc358743_g_mbus_config(struct v4l2_subdev *sd,
 {
 	struct tc358743_state *state = to_state(sd);
 
-	cfg->type = V4L2_MBUS_CSI2_DPHY;
+	cfg->type = V4L2_MBUS_CSI2;
 
 	/* Support for non-continuous CSI-2 clock is missing in the driver */
 	cfg->flags = V4L2_MBUS_CSI2_CONTINUOUS_CLOCK;
@@ -1897,11 +1895,11 @@ static void tc358743_gpio_reset(struct tc358743_state *state)
 static int tc358743_probe_of(struct tc358743_state *state)
 {
 	struct device *dev = &state->i2c_client->dev;
-	struct v4l2_fwnode_endpoint endpoint = { .bus_type = 0 };
+	struct v4l2_fwnode_endpoint *endpoint;
 	struct device_node *ep;
 	struct clk *refclk;
 	u32 bps_pr_lane;
-	int ret;
+	int ret = -EINVAL;
 
 	refclk = devm_clk_get(dev, "refclk");
 	if (IS_ERR(refclk)) {
@@ -1917,27 +1915,26 @@ static int tc358743_probe_of(struct tc358743_state *state)
 		return -EINVAL;
 	}
 
-	ret = v4l2_fwnode_endpoint_alloc_parse(of_fwnode_handle(ep), &endpoint);
-	if (ret) {
+	endpoint = v4l2_fwnode_endpoint_alloc_parse(of_fwnode_handle(ep));
+	if (IS_ERR(endpoint)) {
 		dev_err(dev, "failed to parse endpoint\n");
+		ret = PTR_ERR(endpoint);
 		goto put_node;
 	}
 
-	if (endpoint.bus_type != V4L2_MBUS_CSI2_DPHY ||
-	    endpoint.bus.mipi_csi2.num_data_lanes == 0 ||
-	    endpoint.nr_of_link_frequencies == 0) {
+	if (endpoint->bus_type != V4L2_MBUS_CSI2 ||
+	    endpoint->bus.mipi_csi2.num_data_lanes == 0 ||
+	    endpoint->nr_of_link_frequencies == 0) {
 		dev_err(dev, "missing CSI-2 properties in endpoint\n");
-		ret = -EINVAL;
 		goto free_endpoint;
 	}
 
-	if (endpoint.bus.mipi_csi2.num_data_lanes > 4) {
+	if (endpoint->bus.mipi_csi2.num_data_lanes > 4) {
 		dev_err(dev, "invalid number of lanes\n");
-		ret = -EINVAL;
 		goto free_endpoint;
 	}
 
-	state->bus = endpoint.bus.mipi_csi2;
+	state->bus = endpoint->bus.mipi_csi2;
 
 	ret = clk_prepare_enable(refclk);
 	if (ret) {
@@ -1970,10 +1967,9 @@ static int tc358743_probe_of(struct tc358743_state *state)
 	 * The CSI bps per lane must be between 62.5 Mbps and 1 Gbps.
 	 * The default is 594 Mbps for 4-lane 1080p60 or 2-lane 720p60.
 	 */
-	bps_pr_lane = 2 * endpoint.link_frequencies[0];
+	bps_pr_lane = 2 * endpoint->link_frequencies[0];
 	if (bps_pr_lane < 62500000U || bps_pr_lane > 1000000000U) {
 		dev_err(dev, "unsupported bps per lane: %u bps\n", bps_pr_lane);
-		ret = -EINVAL;
 		goto disable_clk;
 	}
 
@@ -2017,7 +2013,7 @@ static int tc358743_probe_of(struct tc358743_state *state)
 disable_clk:
 	clk_disable_unprepare(refclk);
 free_endpoint:
-	v4l2_fwnode_endpoint_free(&endpoint);
+	v4l2_fwnode_endpoint_free(endpoint);
 put_node:
 	of_node_put(ep);
 	return ret;
@@ -2029,7 +2025,8 @@ static inline int tc358743_probe_of(struct tc358743_state *state)
 }
 #endif
 
-static int tc358743_probe(struct i2c_client *client)
+static int tc358743_probe(struct i2c_client *client,
+			  const struct i2c_device_id *id)
 {
 	static struct v4l2_dv_timings default_timing =
 		V4L2_DV_BT_CEA_640X480P59_94;
@@ -2193,7 +2190,7 @@ static int tc358743_remove(struct i2c_client *client)
 		del_timer_sync(&state->timer);
 		flush_work(&state->work_i2c_poll);
 	}
-	cancel_delayed_work_sync(&state->delayed_work_enable_hotplug);
+	cancel_delayed_work(&state->delayed_work_enable_hotplug);
 	cec_unregister_adapter(state->cec_adap);
 	v4l2_async_unregister_subdev(sd);
 	v4l2_device_unregister_subdev(sd);
@@ -2224,7 +2221,7 @@ static struct i2c_driver tc358743_driver = {
 		.name = "tc358743",
 		.of_match_table = of_match_ptr(tc358743_of_match),
 	},
-	.probe_new = tc358743_probe,
+	.probe = tc358743_probe,
 	.remove = tc358743_remove,
 	.id_table = tc358743_id,
 };

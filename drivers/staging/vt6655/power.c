@@ -48,8 +48,11 @@
  *
  */
 
-void PSvEnablePowerSaving(struct vnt_private *priv,
-			  unsigned short wListenInterval)
+void
+PSvEnablePowerSaving(
+	struct vnt_private *priv,
+	unsigned short wListenInterval
+)
 {
 	u16 wAID = priv->current_aid | BIT(14) | BIT(15);
 

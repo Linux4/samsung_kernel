@@ -82,15 +82,15 @@
 
 /* Remove DIG by yuchen */
 
-struct dynamic_primary_CCA {
+typedef struct _Dynamic_Primary_CCA {
 	u8 PriCCA_flag;
 	u8 intf_flag;
 	u8 intf_type;
 	u8 DupRTS_flag;
 	u8 Monitor_flag;
 	u8 CH_offset;
-	u8 MF_state;
-};
+	u8 	MF_state;
+} Pri_CCA_T, *pPri_CCA_T;
 
 typedef struct _Rate_Adaptive_Table_ {
 	u8 firstconnect;
@@ -197,7 +197,10 @@ typedef struct _ODM_RATE_ADAPTIVE {
 
 #define AVG_THERMAL_NUM		8
 #define IQK_Matrix_REG_NUM	8
-#define IQK_Matrix_Settings_NUM	14 /* Channels_2_4G_NUM */
+#define IQK_Matrix_Settings_NUM	(14 + 24 + 21) /*   Channels_2_4G_NUM
+						* + Channels_5G_20M_NUM
+						* + Channels_5G
+						*/
 
 #define		DM_Type_ByFW			0
 #define		DM_Type_ByDriver		1
@@ -258,7 +261,7 @@ struct odm_packet_info {
 	bool is_beacon;
 };
 
-struct odm_phy_dbg_info {
+typedef struct _ODM_Phy_Dbg_Info_ {
 	/* ODM Write, debug info */
 	s8 RxSNRdB[4];
 	u32 NumQryPhyStatus;
@@ -268,11 +271,11 @@ struct odm_phy_dbg_info {
 	/* Others */
 	s32 RxEVM[4];
 
-};
+} ODM_PHY_DBG_INFO_T;
 
-struct odm_mac_status_info {
+typedef struct _ODM_Mac_Status_Info_ {
 	u8 test;
-};
+} ODM_MAC_INFO;
 
 typedef enum tag_Dynamic_ODM_Support_Ability_Type {
 	/*  BB Team */
@@ -1089,11 +1092,11 @@ typedef  struct DM_Out_Source_Dynamic_Mechanism_Structure {
 	/*  Define ........... */
 
 	/*  Latest packet phy info (ODM write) */
-	struct odm_phy_dbg_info PhyDbgInfo;
+	ODM_PHY_DBG_INFO_T PhyDbgInfo;
 	/* PHY_INFO_88E		PhyInfo; */
 
 	/*  Latest packet phy info (ODM write) */
-	struct odm_mac_status_info *pMacInfo;
+	ODM_MAC_INFO *pMacInfo;
 	/* MAC_INFO_88E		MacInfo; */
 
 	/*  Different Team independt structure?? */
@@ -1109,7 +1112,7 @@ typedef  struct DM_Out_Source_Dynamic_Mechanism_Structure {
 	FAT_T DM_FatTable;
 	DIG_T DM_DigTable;
 	PS_T DM_PSTable;
-	struct dynamic_primary_CCA DM_PriCCA;
+	Pri_CCA_T DM_PriCCA;
 	RXHP_T DM_RXHP_Table;
 	RA_T DM_RA_Table;
 	false_ALARM_STATISTICS FalseAlmCnt;
@@ -1361,6 +1364,10 @@ extern  u32 TxScalingTable_Jaguar[TXSCALE_TABLE_SIZE];
 /*  with original RSSI to determine if it is necessary to switch antenna. */
 #define SWAW_STEP_PEAK		0
 #define SWAW_STEP_DETERMINE	1
+
+/* Remove DIG by yuchen */
+
+void ODM_SetAntenna(PDM_ODM_T pDM_Odm, u8 Antenna);
 
 /* Remove BB power saving by Yuchen */
 

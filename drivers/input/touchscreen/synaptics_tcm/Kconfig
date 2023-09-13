@@ -2,38 +2,24 @@
 # Synaptics TCM touchscreen driver configuration
 #
 menuconfig TOUCHSCREEN_SYNAPTICS_TCM
-	tristate "Synaptics TCM touchscreen"
+	bool "Synaptics TCM touchscreen"
 	help
 	  Say Y here if you have a Synaptics TCM touchscreen connected
 	  to your system.
 
 	  If unsure, say N.
 
+if TOUCHSCREEN_SYNAPTICS_TCM
+
 choice
 	default TOUCHSCREEN_SYNAPTICS_TCM_I2C
 	prompt "Synaptics TCM bus module"
 config TOUCHSCREEN_SYNAPTICS_TCM_I2C
-	tristate "I2C"
+	bool "I2C"
 	depends on I2C
-	help
-	  Say Y here to use I2C bus for communication.
-
-	  Else, say N.
-
-	  This will configure I2C bus for communicating
-	  with touch controller.
-
 config TOUCHSCREEN_SYNAPTICS_TCM_SPI
-	tristate "SPI"
+	bool "SPI"
 	depends on SPI_MASTER
-	help
-	  Say Y here to use SPI bus for communication.
-
-	  Else, say N.
-
-	  This will configure SPI bus for communicating
-	  with touch controller.
-
 endchoice
 
 config TOUCHSCREEN_SYNAPTICS_TCM_CORE
@@ -46,17 +32,6 @@ config TOUCHSCREEN_SYNAPTICS_TCM_CORE
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called synaptics_tcm_core.
-
-config TOUCHSCREEN_SYNAPTICS_TCM_TOUCH
-	tristate "Synaptics TCM touch module"
-	depends on TOUCHSCREEN_SYNAPTICS_TCM_CORE
-	help
-	  Say Y here to enable support for touch reporting.
-
-	  If unsure, say N.
-
-	  To compile this driver as a module, choose M here: the
-	  module will be called synaptics_tcm_touch.
 
 config TOUCHSCREEN_SYNAPTICS_TCM_DEVICE
 	tristate "Synaptics TCM device module"
@@ -123,3 +98,15 @@ config TOUCHSCREEN_SYNAPTICS_TCM_DIAGNOSTICS
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called synaptics_tcm_diagnostics.
+
+config TOUCHSCREEN_SYNAPTICS_TCM_SEC_FN
+	tristate "Synaptics TCM samsung func module"
+	depends on TOUCHSCREEN_SYNAPTICS_TCM_CORE
+	help
+	  Say Y here to enable support for diagnostics functionality.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called synaptics_tcm_sec_fn.
+endif

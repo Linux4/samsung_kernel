@@ -12,7 +12,6 @@
 
 #include <linux/kernel.h>
 #include <linux/init.h>
-#include <linux/io.h>
 #include <linux/platform_device.h>
 #include <linux/dma-mapping.h>
 #include <linux/serial_8250.h>
@@ -21,7 +20,7 @@
 #include <linux/delay.h>
 #include <linux/clk-provider.h>
 #include <linux/cpu.h>
-#include <linux/platform_data/dsa.h>
+#include <net/dsa.h>
 #include <asm/page.h>
 #include <asm/setup.h>
 #include <asm/system_misc.h>

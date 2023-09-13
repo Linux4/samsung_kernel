@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*******************************************************************************
   Specialised functions for managing Ring mode
 
@@ -8,6 +7,17 @@
   descriptors in case of the DMA is configured to work in chained or
   in ring mode.
 
+  This program is free software; you can redistribute it and/or modify it
+  under the terms and conditions of the GNU General Public License,
+  version 2, as published by the Free Software Foundation.
+
+  This program is distributed in the hope it will be useful, but WITHOUT
+  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+  more details.
+
+  The full GNU General Public License is included in this distribution in
+  the file called "COPYING".
 
   Author: Giuseppe Cavallaro <peppe.cavallaro@st.com>
 *******************************************************************************/
@@ -37,10 +47,10 @@ static int jumbo_frm(void *p, struct sk_buff *skb, int csum)
 
 	if (nopaged_len > BUF_SIZE_8KiB) {
 
-		des2 = dma_map_single(GET_MEM_PDEV_DEV, skb->data, bmax,
+		des2 = dma_map_single(priv->device, skb->data, bmax,
 				      DMA_TO_DEVICE);
 		desc->des2 = cpu_to_le32(des2);
-		if (dma_mapping_error(GET_MEM_PDEV_DEV, des2))
+		if (dma_mapping_error(priv->device, des2))
 			return -1;
 
 		tx_q->tx_skbuff_dma[entry].buf = des2;
@@ -49,7 +59,7 @@ static int jumbo_frm(void *p, struct sk_buff *skb, int csum)
 
 		desc->des3 = cpu_to_le32(des2 + BUF_SIZE_4KiB);
 		stmmac_prepare_tx_desc(priv, desc, 1, bmax, csum,
-				STMMAC_RING_MODE, 0, false, skb->len);
+				STMMAC_RING_MODE, 1, false, skb->len);
 		tx_q->tx_skbuff[entry] = NULL;
 		entry = STMMAC_GET_ENTRY(entry, DMA_TX_SIZE);
 
@@ -58,10 +68,10 @@ static int jumbo_frm(void *p, struct sk_buff *skb, int csum)
 		else
 			desc = tx_q->dma_tx + entry;
 
-		des2 = dma_map_single(GET_MEM_PDEV_DEV, skb->data + bmax, len,
+		des2 = dma_map_single(priv->device, skb->data + bmax, len,
 				      DMA_TO_DEVICE);
 		desc->des2 = cpu_to_le32(des2);
-		if (dma_mapping_error(GET_MEM_PDEV_DEV, des2))
+		if (dma_mapping_error(priv->device, des2))
 			return -1;
 		tx_q->tx_skbuff_dma[entry].buf = des2;
 		tx_q->tx_skbuff_dma[entry].len = len;
@@ -69,21 +79,19 @@ static int jumbo_frm(void *p, struct sk_buff *skb, int csum)
 
 		desc->des3 = cpu_to_le32(des2 + BUF_SIZE_4KiB);
 		stmmac_prepare_tx_desc(priv, desc, 0, len, csum,
-				STMMAC_RING_MODE, 1, !skb_is_nonlinear(skb),
-				skb->len);
+				STMMAC_RING_MODE, 1, true, skb->len);
 	} else {
-		des2 = dma_map_single(GET_MEM_PDEV_DEV, skb->data,
+		des2 = dma_map_single(priv->device, skb->data,
 				      nopaged_len, DMA_TO_DEVICE);
 		desc->des2 = cpu_to_le32(des2);
-		if (dma_mapping_error(GET_MEM_PDEV_DEV, des2))
+		if (dma_mapping_error(priv->device, des2))
 			return -1;
 		tx_q->tx_skbuff_dma[entry].buf = des2;
 		tx_q->tx_skbuff_dma[entry].len = nopaged_len;
 		tx_q->tx_skbuff_dma[entry].is_jumbo = true;
 		desc->des3 = cpu_to_le32(des2 + BUF_SIZE_4KiB);
 		stmmac_prepare_tx_desc(priv, desc, 1, nopaged_len, csum,
-				STMMAC_RING_MODE, 0, !skb_is_nonlinear(skb),
-				skb->len);
+				STMMAC_RING_MODE, 1, true, skb->len);
 	}
 
 	tx_q->cur_tx = entry;

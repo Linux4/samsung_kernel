@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Driver for USB Windows Media Center Ed. eHome Infrared Transceivers
  *
@@ -20,6 +19,18 @@
  * remote/transceiver requirements and specification document, found at
  * download.microsoft.com, title
  * Windows-Media-Center-RC-IR-Collection-Green-Button-Specification-03-08-2011-V2.pdf
+ *
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
  */
 
 #include <linux/device.h>
@@ -69,7 +80,7 @@
 #define MCE_CMD			0x1f
 #define MCE_PORT_IR		0x4	/* (0x4 << 5) | MCE_CMD = 0x9f */
 #define MCE_PORT_SYS		0x7	/* (0x7 << 5) | MCE_CMD = 0xff */
-#define MCE_PORT_SER		0x6	/* 0xc0 through 0xdf flush & 0x1f bytes */
+#define MCE_PORT_SER		0x6	/* 0xc0 thru 0xdf flush & 0x1f bytes */
 #define MCE_PORT_MASK		0xe0	/* Mask out command bits */
 
 /* Command port headers */
@@ -422,15 +433,6 @@ static const struct usb_device_id mceusb_dev_table[] = {
 	  .driver_info = HAUPPAUGE_CX_HYBRID_TV },
 	{ USB_DEVICE(VENDOR_HAUPPAUGE, 0xb139),
 	  .driver_info = HAUPPAUGE_CX_HYBRID_TV },
-	/* Hauppauge WinTV-HVR-935C - based on cx231xx */
-	{ USB_DEVICE(VENDOR_HAUPPAUGE, 0xb151),
-	  .driver_info = HAUPPAUGE_CX_HYBRID_TV },
-	/* Hauppauge WinTV-HVR-955Q - based on cx231xx */
-	{ USB_DEVICE(VENDOR_HAUPPAUGE, 0xb123),
-	  .driver_info = HAUPPAUGE_CX_HYBRID_TV },
-	/* Hauppauge WinTV-HVR-975 - based on cx231xx */
-	{ USB_DEVICE(VENDOR_HAUPPAUGE, 0xb150),
-	  .driver_info = HAUPPAUGE_CX_HYBRID_TV },
 	{ USB_DEVICE(VENDOR_PCTV, 0x0259),
 	  .driver_info = HAUPPAUGE_CX_HYBRID_TV },
 	{ USB_DEVICE(VENDOR_PCTV, 0x025e),
@@ -462,7 +464,6 @@ struct mceusb_dev {
 
 	/* usb */
 	struct usb_device *usbdev;
-	struct usb_interface *usbintf;
 	struct urb *urb_in;
 	unsigned int pipe_in;
 	struct usb_endpoint_descriptor *usb_ep_out;
@@ -519,7 +520,6 @@ struct mceusb_dev {
 	unsigned long kevent_flags;
 #		define EVENT_TX_HALT	0
 #		define EVENT_RX_HALT	1
-#		define EVENT_RST_PEND	31
 };
 
 /* MCE Device Command Strings, generally a port and command pair */
@@ -564,7 +564,7 @@ static int mceusb_cmd_datasize(u8 cmd, u8 subcmd)
 			datasize = 4;
 			break;
 		case MCE_CMD_G_REVISION:
-			datasize = 4;
+			datasize = 2;
 			break;
 		case MCE_RSP_EQWAKESUPPORT:
 		case MCE_RSP_GETWAKESOURCE:
@@ -600,9 +600,14 @@ static void mceusb_dev_printdata(struct mceusb_dev *ir, u8 *buf, int buf_len,
 	char *inout;
 	u8 cmd, subcmd, *data;
 	struct device *dev = ir->dev;
+	int start, skip = 0;
 	u32 carrier, period;
 
-	if (offset < 0 || offset >= buf_len)
+	/* skip meaningless 0xb1 0x60 header bytes on orig receiver */
+	if (ir->flags.microsoft_gen1 && !out && !offset)
+		skip = 2;
+
+	if (len <= skip)
 		return;
 
 	dev_dbg(dev, "%cx data[%d]: %*ph (len=%d sz=%d)",
@@ -611,32 +616,11 @@ static void mceusb_dev_printdata(struct mceusb_dev *ir, u8 *buf, int buf_len,
 
 	inout = out ? "Request" : "Got";
 
-	cmd    = buf[offset];
-	subcmd = (offset + 1 < buf_len) ? buf[offset + 1] : 0;
-	data   = &buf[offset] + 2;
+	start  = offset + skip;
+	cmd    = buf[start] & 0xff;
+	subcmd = buf[start + 1] & 0xff;
+	data = buf + start + 2;
 
-	/* Trace meaningless 0xb1 0x60 header bytes on original receiver */
-	if (ir->flags.microsoft_gen1 && !out && !offset) {
-		dev_dbg(dev, "MCE gen 1 header");
-		return;
-	}
-
-	/* Trace IR data header or trailer */
-	if (cmd != MCE_CMD_PORT_IR &&
-	    (cmd & MCE_PORT_MASK) == MCE_COMMAND_IRDATA) {
-		if (cmd == MCE_IRDATA_TRAILER)
-			dev_dbg(dev, "End of raw IR data");
-		else
-			dev_dbg(dev, "Raw IR data, %d pulse/space samples",
-				cmd & MCE_PACKET_LENGTH_MASK);
-		return;
-	}
-
-	/* Unexpected end of buffer? */
-	if (offset + len > buf_len)
-		return;
-
-	/* Decode MCE command/response */
 	switch (cmd) {
 	case MCE_CMD_NULL:
 		if (subcmd == MCE_CMD_NULL)
@@ -660,7 +644,7 @@ static void mceusb_dev_printdata(struct mceusb_dev *ir, u8 *buf, int buf_len,
 				dev_dbg(dev, "Get hw/sw rev?");
 			else
 				dev_dbg(dev, "hw/sw rev %*ph",
-					4, &buf[offset + 2]);
+					4, &buf[start + 2]);
 			break;
 		case MCE_CMD_RESUME:
 			dev_dbg(dev, "Device resume requested");
@@ -701,18 +685,11 @@ static void mceusb_dev_printdata(struct mceusb_dev *ir, u8 *buf, int buf_len,
 				data[0], data[1]);
 			break;
 		case MCE_RSP_EQIRCFS:
-			if (!data[0] && !data[1]) {
-				dev_dbg(dev, "%s: no carrier", inout);
-				break;
-			}
-			// prescaler should make sense
-			if (data[0] > 8)
-				break;
 			period = DIV_ROUND_CLOSEST((1U << data[0] * 2) *
 						   (data[1] + 1), 10);
 			if (!period)
 				break;
-			carrier = USEC_PER_SEC / period;
+			carrier = (1000 * 1000) / period;
 			dev_dbg(dev, "%s carrier of %u Hz (period %uus)",
 				 inout, carrier, period);
 			break;
@@ -769,6 +746,13 @@ static void mceusb_dev_printdata(struct mceusb_dev *ir, u8 *buf, int buf_len,
 	default:
 		break;
 	}
+
+	if (cmd == MCE_IRDATA_TRAILER)
+		dev_dbg(dev, "End of raw IR data");
+	else if ((cmd != MCE_CMD_PORT_IR) &&
+		 ((cmd & MCE_PORT_MASK) == MCE_COMMAND_IRDATA))
+		dev_dbg(dev, "Raw IR data, %d pulse/space samples",
+			cmd & MCE_PACKET_LENGTH_MASK);
 #endif
 }
 
@@ -781,15 +765,8 @@ static void mceusb_dev_printdata(struct mceusb_dev *ir, u8 *buf, int buf_len,
 static void mceusb_defer_kevent(struct mceusb_dev *ir, int kevent)
 {
 	set_bit(kevent, &ir->kevent_flags);
-
-	if (test_bit(EVENT_RST_PEND, &ir->kevent_flags)) {
-		dev_dbg(ir->dev, "kevent %d dropped pending USB Reset Device",
-			kevent);
-		return;
-	}
-
 	if (!schedule_work(&ir->kevent))
-		dev_dbg(ir->dev, "kevent %d already scheduled", kevent);
+		dev_err(ir->dev, "kevent %d may have been dropped", kevent);
 	else
 		dev_dbg(ir->dev, "kevent %d scheduled", kevent);
 }
@@ -1152,62 +1129,32 @@ static int mceusb_set_rx_carrier_report(struct rc_dev *dev, int enable)
 }
 
 /*
- * Handle PORT_SYS/IR command response received from the MCE device.
- *
- * Assumes single response with all its data (not truncated)
- * in buf_in[]. The response itself determines its total length
- * (mceusb_cmd_datasize() + 2) and hence the minimum size of buf_in[].
- *
  * We don't do anything but print debug spew for many of the command bits
  * we receive from the hardware, but some of them are useful information
  * we want to store so that we can use them.
  */
-static void mceusb_handle_command(struct mceusb_dev *ir, u8 *buf_in)
+static void mceusb_handle_command(struct mceusb_dev *ir, int index)
 {
-	u8 cmd = buf_in[0];
-	u8 subcmd = buf_in[1];
-	u8 *hi = &buf_in[2];		/* read only when required */
-	u8 *lo = &buf_in[3];		/* read only when required */
-	struct ir_raw_event rawir = {};
+	DEFINE_IR_RAW_EVENT(rawir);
+	u8 hi = ir->buf_in[index + 1] & 0xff;
+	u8 lo = ir->buf_in[index + 2] & 0xff;
 	u32 carrier_cycles;
 	u32 cycles_fix;
 
-	if (cmd == MCE_CMD_PORT_SYS) {
-		switch (subcmd) {
-		/* the one and only 5-byte return value command */
-		case MCE_RSP_GETPORTSTATUS:
-			if (buf_in[5] == 0 && *hi < 8)
-				ir->txports_cabled |= 1 << *hi;
-			break;
+	switch (ir->buf_in[index]) {
+	/* the one and only 5-byte return value command */
+	case MCE_RSP_GETPORTSTATUS:
+		if ((ir->buf_in[index + 4] & 0xff) == 0x00)
+			ir->txports_cabled |= 1 << hi;
+		break;
 
-		/* 1-byte return value commands */
-		case MCE_RSP_EQEMVER:
-			ir->emver = *hi;
-			break;
-
-		/* No return value commands */
-		case MCE_RSP_CMD_ILLEGAL:
-			ir->need_reset = true;
-			break;
-
-		default:
-			break;
-		}
-
-		return;
-	}
-
-	if (cmd != MCE_CMD_PORT_IR)
-		return;
-
-	switch (subcmd) {
 	/* 2-byte return value commands */
 	case MCE_RSP_EQIRTIMEOUT:
-		ir->rc->timeout = US_TO_NS((*hi << 8 | *lo) * MCE_TIME_UNIT);
+		ir->rc->timeout = US_TO_NS((hi << 8 | lo) * MCE_TIME_UNIT);
 		break;
 	case MCE_RSP_EQIRNUMPORTS:
-		ir->num_txports = *hi;
-		ir->num_rxports = *lo;
+		ir->num_txports = hi;
+		ir->num_rxports = lo;
 		break;
 	case MCE_RSP_EQIRRXCFCNT:
 		/*
@@ -1220,7 +1167,7 @@ static void mceusb_handle_command(struct mceusb_dev *ir, u8 *buf_in)
 		 */
 		if (ir->carrier_report_enabled && ir->learning_active &&
 		    ir->pulse_tunit > 0) {
-			carrier_cycles = (*hi << 8 | *lo);
+			carrier_cycles = (hi << 8 | lo);
 			/*
 			 * Adjust carrier cycle count by adding
 			 * 1 missed count per pulse "on"
@@ -1238,24 +1185,24 @@ static void mceusb_handle_command(struct mceusb_dev *ir, u8 *buf_in)
 		break;
 
 	/* 1-byte return value commands */
+	case MCE_RSP_EQEMVER:
+		ir->emver = hi;
+		break;
 	case MCE_RSP_EQIRTXPORTS:
-		ir->tx_mask = *hi;
+		ir->tx_mask = hi;
 		break;
 	case MCE_RSP_EQIRRXPORTEN:
-		ir->learning_active = ((*hi & 0x02) == 0x02);
-		if (ir->rxports_active != *hi) {
+		ir->learning_active = ((hi & 0x02) == 0x02);
+		if (ir->rxports_active != hi) {
 			dev_info(ir->dev, "%s-range (0x%x) receiver active",
-				 ir->learning_active ? "short" : "long", *hi);
-			ir->rxports_active = *hi;
+				 ir->learning_active ? "short" : "long", hi);
+			ir->rxports_active = hi;
 		}
 		break;
-
-	/* No return value commands */
 	case MCE_RSP_CMD_ILLEGAL:
 	case MCE_RSP_TX_TIMEOUT:
 		ir->need_reset = true;
 		break;
-
 	default:
 		break;
 	}
@@ -1263,7 +1210,7 @@ static void mceusb_handle_command(struct mceusb_dev *ir, u8 *buf_in)
 
 static void mceusb_process_ir_data(struct mceusb_dev *ir, int buf_len)
 {
-	struct ir_raw_event rawir = {};
+	DEFINE_IR_RAW_EVENT(rawir);
 	bool event = false;
 	int i = 0;
 
@@ -1281,17 +1228,17 @@ static void mceusb_process_ir_data(struct mceusb_dev *ir, int buf_len)
 			ir->rem = mceusb_cmd_datasize(ir->cmd, ir->buf_in[i]);
 			mceusb_dev_printdata(ir, ir->buf_in, buf_len, i - 1,
 					     ir->rem + 2, false);
-			if (i + ir->rem < buf_len)
-				mceusb_handle_command(ir, &ir->buf_in[i - 1]);
+			mceusb_handle_command(ir, i);
 			ir->parser_state = CMD_DATA;
 			break;
 		case PARSE_IRDATA:
 			ir->rem--;
+			init_ir_raw_event(&rawir);
 			rawir.pulse = ((ir->buf_in[i] & MCE_PULSE_BIT) != 0);
 			rawir.duration = (ir->buf_in[i] & MCE_PULSE_MASK);
 			if (unlikely(!rawir.duration)) {
-				dev_dbg(ir->dev, "nonsensical irdata %02x with duration 0",
-					ir->buf_in[i]);
+				dev_warn(ir->dev, "nonsensical irdata %02x with duration 0",
+					 ir->buf_in[i]);
 				break;
 			}
 			if (rawir.pulse) {
@@ -1311,35 +1258,26 @@ static void mceusb_process_ir_data(struct mceusb_dev *ir, int buf_len)
 			ir->rem--;
 			break;
 		case CMD_HEADER:
+			/* decode mce packets of the form (84),AA,BB,CC,DD */
+			/* IR data packets can span USB messages - rem */
 			ir->cmd = ir->buf_in[i];
 			if ((ir->cmd == MCE_CMD_PORT_IR) ||
 			    ((ir->cmd & MCE_PORT_MASK) !=
 			     MCE_COMMAND_IRDATA)) {
-				/*
-				 * got PORT_SYS, PORT_IR, or unknown
-				 * command response prefix
-				 */
 				ir->parser_state = SUBCMD;
 				continue;
 			}
-			/*
-			 * got IR data prefix (0x80 + num_bytes)
-			 * decode MCE packets of the form {0x83, AA, BB, CC}
-			 * IR data packets can span USB messages
-			 */
 			ir->rem = (ir->cmd & MCE_PACKET_LENGTH_MASK);
 			mceusb_dev_printdata(ir, ir->buf_in, buf_len,
 					     i, ir->rem + 1, false);
 			if (ir->rem) {
 				ir->parser_state = PARSE_IRDATA;
 			} else {
-				struct ir_raw_event ev = {
-					.timeout = 1,
-					.duration = ir->rc->timeout
-				};
-
+				init_ir_raw_event(&rawir);
+				rawir.timeout = 1;
+				rawir.duration = ir->rc->timeout;
 				if (ir_raw_event_store_with_filter(ir->rc,
-								   &ev))
+								   &rawir))
 					event = true;
 				ir->pulse_tunit = 0;
 				ir->pulse_count = 0;
@@ -1350,14 +1288,6 @@ static void mceusb_process_ir_data(struct mceusb_dev *ir, int buf_len)
 		if (ir->parser_state != CMD_HEADER && !ir->rem)
 			ir->parser_state = CMD_HEADER;
 	}
-
-	/*
-	 * Accept IR data spanning multiple rx buffers.
-	 * Reject MCE command response spanning multiple rx buffers.
-	 */
-	if (ir->parser_state != PARSE_IRDATA || !ir->rem)
-		ir->parser_state = CMD_HEADER;
-
 	if (event) {
 		dev_dbg(ir->dev, "processed IR data");
 		ir_raw_event_handle(ir->rc);
@@ -1386,7 +1316,6 @@ static void mceusb_dev_recv(struct urb *urb)
 	case -ECONNRESET:
 	case -ENOENT:
 	case -EILSEQ:
-	case -EPROTO:
 	case -ESHUTDOWN:
 		usb_unlink_urb(urb);
 		return;
@@ -1430,7 +1359,7 @@ static void mceusb_gen1_init(struct mceusb_dev *ir)
 	 */
 	ret = usb_control_msg(ir->usbdev, usb_rcvctrlpipe(ir->usbdev, 0),
 			      USB_REQ_SET_ADDRESS, USB_TYPE_VENDOR, 0, 0,
-			      data, USB_CTRL_MSG_SZ, 3000);
+			      data, USB_CTRL_MSG_SZ, HZ * 3);
 	dev_dbg(dev, "set address - ret = %d", ret);
 	dev_dbg(dev, "set address - data[0] = %d, data[1] = %d",
 						data[0], data[1]);
@@ -1438,20 +1367,20 @@ static void mceusb_gen1_init(struct mceusb_dev *ir)
 	/* set feature: bit rate 38400 bps */
 	ret = usb_control_msg(ir->usbdev, usb_sndctrlpipe(ir->usbdev, 0),
 			      USB_REQ_SET_FEATURE, USB_TYPE_VENDOR,
-			      0xc04e, 0x0000, NULL, 0, 3000);
+			      0xc04e, 0x0000, NULL, 0, HZ * 3);
 
 	dev_dbg(dev, "set feature - ret = %d", ret);
 
 	/* bRequest 4: set char length to 8 bits */
 	ret = usb_control_msg(ir->usbdev, usb_sndctrlpipe(ir->usbdev, 0),
 			      4, USB_TYPE_VENDOR,
-			      0x0808, 0x0000, NULL, 0, 3000);
+			      0x0808, 0x0000, NULL, 0, HZ * 3);
 	dev_dbg(dev, "set char length - retB = %d", ret);
 
 	/* bRequest 2: set handshaking to use DTR/DSR */
 	ret = usb_control_msg(ir->usbdev, usb_sndctrlpipe(ir->usbdev, 0),
 			      2, USB_TYPE_VENDOR,
-			      0x0000, 0x0100, NULL, 0, 3000);
+			      0x0000, 0x0100, NULL, 0, HZ * 3);
 	dev_dbg(dev, "set handshake  - retC = %d", ret);
 
 	/* device resume */
@@ -1528,59 +1457,28 @@ static void mceusb_deferred_kevent(struct work_struct *work)
 		container_of(work, struct mceusb_dev, kevent);
 	int status;
 
-	dev_err(ir->dev, "kevent handler called (flags 0x%lx)",
-		ir->kevent_flags);
-
-	if (test_bit(EVENT_RST_PEND, &ir->kevent_flags)) {
-		dev_err(ir->dev, "kevent handler canceled pending USB Reset Device");
-		return;
-	}
-
 	if (test_bit(EVENT_RX_HALT, &ir->kevent_flags)) {
 		usb_unlink_urb(ir->urb_in);
 		status = usb_clear_halt(ir->usbdev, ir->pipe_in);
-		dev_err(ir->dev, "rx clear halt status = %d", status);
 		if (status < 0) {
-			/*
-			 * Unable to clear RX halt/stall.
-			 * Will need to call usb_reset_device().
-			 */
-			dev_err(ir->dev,
-				"stuck RX HALT state requires USB Reset Device to clear");
-			usb_queue_reset_device(ir->usbintf);
-			set_bit(EVENT_RST_PEND, &ir->kevent_flags);
-			clear_bit(EVENT_RX_HALT, &ir->kevent_flags);
-
-			/* Cancel all other error events and handlers */
-			clear_bit(EVENT_TX_HALT, &ir->kevent_flags);
-			return;
+			dev_err(ir->dev, "rx clear halt error %d",
+				status);
 		}
 		clear_bit(EVENT_RX_HALT, &ir->kevent_flags);
-		status = usb_submit_urb(ir->urb_in, GFP_KERNEL);
-		if (status < 0) {
-			dev_err(ir->dev, "rx unhalt submit urb error = %d",
-				status);
+		if (status == 0) {
+			status = usb_submit_urb(ir->urb_in, GFP_KERNEL);
+			if (status < 0) {
+				dev_err(ir->dev,
+					"rx unhalt submit urb error %d",
+					status);
+			}
 		}
 	}
 
 	if (test_bit(EVENT_TX_HALT, &ir->kevent_flags)) {
 		status = usb_clear_halt(ir->usbdev, ir->pipe_out);
-		dev_err(ir->dev, "tx clear halt status = %d", status);
-		if (status < 0) {
-			/*
-			 * Unable to clear TX halt/stall.
-			 * Will need to call usb_reset_device().
-			 */
-			dev_err(ir->dev,
-				"stuck TX HALT state requires USB Reset Device to clear");
-			usb_queue_reset_device(ir->usbintf);
-			set_bit(EVENT_RST_PEND, &ir->kevent_flags);
-			clear_bit(EVENT_TX_HALT, &ir->kevent_flags);
-
-			/* Cancel all other error events and handlers */
-			clear_bit(EVENT_RX_HALT, &ir->kevent_flags);
-			return;
-		}
+		if (status < 0)
+			dev_err(ir->dev, "tx clear halt error %d", status);
 		clear_bit(EVENT_TX_HALT, &ir->kevent_flags);
 	}
 }
@@ -1742,7 +1640,6 @@ static int mceusb_dev_probe(struct usb_interface *intf,
 	if (!ir->urb_in)
 		goto urb_in_alloc_fail;
 
-	ir->usbintf = intf;
 	ir->usbdev = usb_get_dev(dev);
 	ir->dev = &intf->dev;
 	ir->len_in = maxp;
@@ -1764,7 +1661,7 @@ static int mceusb_dev_probe(struct usb_interface *intf,
 	if (dev->descriptor.iManufacturer
 	    && usb_string(dev, dev->descriptor.iManufacturer,
 			  buf, sizeof(buf)) > 0)
-		strscpy(name, buf, sizeof(name));
+		strlcpy(name, buf, sizeof(name));
 	if (dev->descriptor.iProduct
 	    && usb_string(dev, dev->descriptor.iProduct,
 			  buf, sizeof(buf)) > 0)
@@ -1849,8 +1746,6 @@ static void mceusb_dev_disconnect(struct usb_interface *intf)
 {
 	struct usb_device *dev = interface_to_usbdev(intf);
 	struct mceusb_dev *ir = usb_get_intfdata(intf);
-
-	dev_dbg(&intf->dev, "%s called", __func__);
 
 	usb_set_intfdata(intf, NULL);
 

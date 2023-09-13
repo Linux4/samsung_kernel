@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Memory-to-memory device framework for Video for Linux 2 and videobuf.
  *
@@ -8,6 +7,11 @@
  * Copyright (c) 2009-2010 Samsung Electronics Co., Ltd.
  * Pawel Osciak, <pawel@osciak.com>
  * Marek Szyprowski, <m.szyprowski@samsung.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by the
+ * Free Software Foundation; either version 2 of the License, or (at your
+ * option) any later version.
  */
 #include <linux/module.h>
 #include <linux/sched.h>
@@ -83,7 +87,6 @@ static const char * const m2m_entity_name[] = {
  * @curr_ctx:		currently running instance
  * @job_queue:		instances queued to run
  * @job_spinlock:	protects job_queue
- * @job_work:		worker to run queued jobs.
  * @m2m_ops:		driver callbacks
  */
 struct v4l2_m2m_dev {
@@ -100,7 +103,6 @@ struct v4l2_m2m_dev {
 
 	struct list_head	job_queue;
 	spinlock_t		job_spinlock;
-	struct work_struct	job_work;
 
 	const struct v4l2_m2m_ops *m2m_ops;
 };
@@ -127,7 +129,7 @@ struct vb2_queue *v4l2_m2m_get_vq(struct v4l2_m2m_ctx *m2m_ctx,
 }
 EXPORT_SYMBOL(v4l2_m2m_get_vq);
 
-struct vb2_v4l2_buffer *v4l2_m2m_next_buf(struct v4l2_m2m_queue_ctx *q_ctx)
+void *v4l2_m2m_next_buf(struct v4l2_m2m_queue_ctx *q_ctx)
 {
 	struct v4l2_m2m_buffer *b;
 	unsigned long flags;
@@ -145,7 +147,7 @@ struct vb2_v4l2_buffer *v4l2_m2m_next_buf(struct v4l2_m2m_queue_ctx *q_ctx)
 }
 EXPORT_SYMBOL_GPL(v4l2_m2m_next_buf);
 
-struct vb2_v4l2_buffer *v4l2_m2m_last_buf(struct v4l2_m2m_queue_ctx *q_ctx)
+void *v4l2_m2m_last_buf(struct v4l2_m2m_queue_ctx *q_ctx)
 {
 	struct v4l2_m2m_buffer *b;
 	unsigned long flags;
@@ -163,7 +165,7 @@ struct vb2_v4l2_buffer *v4l2_m2m_last_buf(struct v4l2_m2m_queue_ctx *q_ctx)
 }
 EXPORT_SYMBOL_GPL(v4l2_m2m_last_buf);
 
-struct vb2_v4l2_buffer *v4l2_m2m_buf_remove(struct v4l2_m2m_queue_ctx *q_ctx)
+void *v4l2_m2m_buf_remove(struct v4l2_m2m_queue_ctx *q_ctx)
 {
 	struct v4l2_m2m_buffer *b;
 	unsigned long flags;
@@ -242,9 +244,6 @@ EXPORT_SYMBOL(v4l2_m2m_get_curr_priv);
  * @m2m_dev: per-device context
  *
  * Get next transaction (if present) from the waiting jobs list and run it.
- *
- * Note that this function can run on a given v4l2_m2m_ctx context,
- * but call .device_run for another context.
  */
 static void v4l2_m2m_try_run(struct v4l2_m2m_dev *m2m_dev)
 {
@@ -298,47 +297,50 @@ static void __v4l2_m2m_try_queue(struct v4l2_m2m_dev *m2m_dev,
 
 	/* If the context is aborted then don't schedule it */
 	if (m2m_ctx->job_flags & TRANS_ABORT) {
+		spin_unlock_irqrestore(&m2m_dev->job_spinlock, flags_job);
 		dprintk("Aborted context\n");
-		goto job_unlock;
+		return;
 	}
 
 	if (m2m_ctx->job_flags & TRANS_QUEUED) {
+		spin_unlock_irqrestore(&m2m_dev->job_spinlock, flags_job);
 		dprintk("On job queue already\n");
-		goto job_unlock;
+		return;
 	}
 
 	spin_lock_irqsave(&m2m_ctx->out_q_ctx.rdy_spinlock, flags_out);
 	if (list_empty(&m2m_ctx->out_q_ctx.rdy_queue)
 	    && !m2m_ctx->out_q_ctx.buffered) {
+		spin_unlock_irqrestore(&m2m_ctx->out_q_ctx.rdy_spinlock,
+					flags_out);
+		spin_unlock_irqrestore(&m2m_dev->job_spinlock, flags_job);
 		dprintk("No input buffers available\n");
-		goto out_unlock;
+		return;
 	}
 	spin_lock_irqsave(&m2m_ctx->cap_q_ctx.rdy_spinlock, flags_cap);
 	if (list_empty(&m2m_ctx->cap_q_ctx.rdy_queue)
 	    && !m2m_ctx->cap_q_ctx.buffered) {
+		spin_unlock_irqrestore(&m2m_ctx->cap_q_ctx.rdy_spinlock,
+					flags_cap);
+		spin_unlock_irqrestore(&m2m_ctx->out_q_ctx.rdy_spinlock,
+					flags_out);
+		spin_unlock_irqrestore(&m2m_dev->job_spinlock, flags_job);
 		dprintk("No output buffers available\n");
-		goto cap_unlock;
+		return;
 	}
 	spin_unlock_irqrestore(&m2m_ctx->cap_q_ctx.rdy_spinlock, flags_cap);
 	spin_unlock_irqrestore(&m2m_ctx->out_q_ctx.rdy_spinlock, flags_out);
 
 	if (m2m_dev->m2m_ops->job_ready
 		&& (!m2m_dev->m2m_ops->job_ready(m2m_ctx->priv))) {
+		spin_unlock_irqrestore(&m2m_dev->job_spinlock, flags_job);
 		dprintk("Driver not ready\n");
-		goto job_unlock;
+		return;
 	}
 
 	list_add_tail(&m2m_ctx->queue, &m2m_dev->job_queue);
 	m2m_ctx->job_flags |= TRANS_QUEUED;
 
-	spin_unlock_irqrestore(&m2m_dev->job_spinlock, flags_job);
-	return;
-
-cap_unlock:
-	spin_unlock_irqrestore(&m2m_ctx->cap_q_ctx.rdy_spinlock, flags_cap);
-out_unlock:
-	spin_unlock_irqrestore(&m2m_ctx->out_q_ctx.rdy_spinlock, flags_out);
-job_unlock:
 	spin_unlock_irqrestore(&m2m_dev->job_spinlock, flags_job);
 }
 
@@ -364,18 +366,6 @@ void v4l2_m2m_try_schedule(struct v4l2_m2m_ctx *m2m_ctx)
 EXPORT_SYMBOL_GPL(v4l2_m2m_try_schedule);
 
 /**
- * v4l2_m2m_device_run_work() - run pending jobs for the context
- * @work: Work structure used for scheduling the execution of this function.
- */
-static void v4l2_m2m_device_run_work(struct work_struct *work)
-{
-	struct v4l2_m2m_dev *m2m_dev =
-		container_of(work, struct v4l2_m2m_dev, job_work);
-
-	v4l2_m2m_try_run(m2m_dev);
-}
-
-/**
  * v4l2_m2m_cancel_job() - cancel pending jobs for the context
  * @m2m_ctx: m2m context with jobs to be canceled
  *
@@ -397,7 +387,7 @@ static void v4l2_m2m_cancel_job(struct v4l2_m2m_ctx *m2m_ctx)
 		spin_unlock_irqrestore(&m2m_dev->job_spinlock, flags);
 		if (m2m_dev->m2m_ops->job_abort)
 			m2m_dev->m2m_ops->job_abort(m2m_ctx->priv);
-		dprintk("m2m_ctx %p running, will wait to complete\n", m2m_ctx);
+		dprintk("m2m_ctx %p running, will wait to complete", m2m_ctx);
 		wait_event(m2m_ctx->finished,
 				!(m2m_ctx->job_flags & TRANS_RUNNING));
 	} else if (m2m_ctx->job_flags & TRANS_QUEUED) {
@@ -434,12 +424,7 @@ void v4l2_m2m_job_finish(struct v4l2_m2m_dev *m2m_dev,
 	/* This instance might have more buffers ready, but since we do not
 	 * allow more than one job on the job_queue per instance, each has
 	 * to be scheduled separately after the previous one finishes. */
-	__v4l2_m2m_try_queue(m2m_dev, m2m_ctx);
-
-	/* We might be running in atomic context,
-	 * but the job must be run in non-atomic context.
-	 */
-	schedule_work(&m2m_dev->job_work);
+	v4l2_m2m_try_schedule(m2m_ctx);
 }
 EXPORT_SYMBOL(v4l2_m2m_job_finish);
 
@@ -460,14 +445,19 @@ int v4l2_m2m_reqbufs(struct file *file, struct v4l2_m2m_ctx *m2m_ctx,
 }
 EXPORT_SYMBOL_GPL(v4l2_m2m_reqbufs);
 
-static void v4l2_m2m_adjust_mem_offset(struct vb2_queue *vq,
-				       struct v4l2_buffer *buf)
+int v4l2_m2m_querybuf(struct file *file, struct v4l2_m2m_ctx *m2m_ctx,
+		      struct v4l2_buffer *buf)
 {
+	struct vb2_queue *vq;
+	int ret = 0;
+	unsigned int i;
+
+	vq = v4l2_m2m_get_vq(m2m_ctx, buf->type);
+	ret = vb2_querybuf(vq, buf);
+
 	/* Adjust MMAP memory offsets for the CAPTURE queue */
 	if (buf->memory == V4L2_MEMORY_MMAP && !V4L2_TYPE_IS_OUTPUT(vq->type)) {
 		if (V4L2_TYPE_IS_MULTIPLANAR(vq->type)) {
-			unsigned int i;
-
 			for (i = 0; i < buf->length; ++i)
 				buf->m.planes[i].m.mem_offset
 					+= DST_QUEUE_OFF_BASE;
@@ -475,51 +465,23 @@ static void v4l2_m2m_adjust_mem_offset(struct vb2_queue *vq,
 			buf->m.offset += DST_QUEUE_OFF_BASE;
 		}
 	}
-}
 
-int v4l2_m2m_querybuf(struct file *file, struct v4l2_m2m_ctx *m2m_ctx,
-		      struct v4l2_buffer *buf)
-{
-	struct vb2_queue *vq;
-	int ret;
-
-	vq = v4l2_m2m_get_vq(m2m_ctx, buf->type);
-	ret = vb2_querybuf(vq, buf);
-	if (ret)
-		return ret;
-
-	/* Adjust MMAP memory offsets for the CAPTURE queue */
-	v4l2_m2m_adjust_mem_offset(vq, buf);
-
-	return 0;
+	return ret;
 }
 EXPORT_SYMBOL_GPL(v4l2_m2m_querybuf);
 
 int v4l2_m2m_qbuf(struct file *file, struct v4l2_m2m_ctx *m2m_ctx,
 		  struct v4l2_buffer *buf)
 {
-	struct video_device *vdev = video_devdata(file);
 	struct vb2_queue *vq;
 	int ret;
 
 	vq = v4l2_m2m_get_vq(m2m_ctx, buf->type);
-	if (!V4L2_TYPE_IS_OUTPUT(vq->type) &&
-	    (buf->flags & V4L2_BUF_FLAG_REQUEST_FD)) {
-		dprintk("%s: requests cannot be used with capture buffers\n",
-			__func__);
-		return -EPERM;
-	}
-	ret = vb2_qbuf(vq, vdev->v4l2_dev->mdev, buf);
-	if (ret)
-		return ret;
-
-	/* Adjust MMAP memory offsets for the CAPTURE queue */
-	v4l2_m2m_adjust_mem_offset(vq, buf);
-
-	if (!(buf->flags & V4L2_BUF_FLAG_IN_REQUEST))
+	ret = vb2_qbuf(vq, buf);
+	if (!ret)
 		v4l2_m2m_try_schedule(m2m_ctx);
 
-	return 0;
+	return ret;
 }
 EXPORT_SYMBOL_GPL(v4l2_m2m_qbuf);
 
@@ -527,36 +489,24 @@ int v4l2_m2m_dqbuf(struct file *file, struct v4l2_m2m_ctx *m2m_ctx,
 		   struct v4l2_buffer *buf)
 {
 	struct vb2_queue *vq;
-	int ret;
 
 	vq = v4l2_m2m_get_vq(m2m_ctx, buf->type);
-	ret = vb2_dqbuf(vq, buf, file->f_flags & O_NONBLOCK);
-	if (ret)
-		return ret;
-
-	/* Adjust MMAP memory offsets for the CAPTURE queue */
-	v4l2_m2m_adjust_mem_offset(vq, buf);
-
-	return 0;
+	return vb2_dqbuf(vq, buf, file->f_flags & O_NONBLOCK);
 }
 EXPORT_SYMBOL_GPL(v4l2_m2m_dqbuf);
 
 int v4l2_m2m_prepare_buf(struct file *file, struct v4l2_m2m_ctx *m2m_ctx,
 			 struct v4l2_buffer *buf)
 {
-	struct video_device *vdev = video_devdata(file);
 	struct vb2_queue *vq;
 	int ret;
 
 	vq = v4l2_m2m_get_vq(m2m_ctx, buf->type);
-	ret = vb2_prepare_buf(vq, vdev->v4l2_dev->mdev, buf);
-	if (ret)
-		return ret;
+	ret = vb2_prepare_buf(vq, buf);
+	if (!ret)
+		v4l2_m2m_try_schedule(m2m_ctx);
 
-	/* Adjust MMAP memory offsets for the CAPTURE queue */
-	v4l2_m2m_adjust_mem_offset(vq, buf);
-
-	return 0;
+	return ret;
 }
 EXPORT_SYMBOL_GPL(v4l2_m2m_prepare_buf);
 
@@ -635,31 +585,45 @@ int v4l2_m2m_streamoff(struct file *file, struct v4l2_m2m_ctx *m2m_ctx,
 }
 EXPORT_SYMBOL_GPL(v4l2_m2m_streamoff);
 
-static __poll_t v4l2_m2m_poll_for_data(struct file *file,
-				       struct v4l2_m2m_ctx *m2m_ctx,
-				       struct poll_table_struct *wait)
+__poll_t v4l2_m2m_poll(struct file *file, struct v4l2_m2m_ctx *m2m_ctx,
+			   struct poll_table_struct *wait)
 {
+	struct video_device *vfd = video_devdata(file);
+	__poll_t req_events = poll_requested_events(wait);
 	struct vb2_queue *src_q, *dst_q;
 	struct vb2_buffer *src_vb = NULL, *dst_vb = NULL;
 	__poll_t rc = 0;
 	unsigned long flags;
 
+	if (test_bit(V4L2_FL_USES_V4L2_FH, &vfd->flags)) {
+		struct v4l2_fh *fh = file->private_data;
+
+		if (v4l2_event_pending(fh))
+			rc = EPOLLPRI;
+		else if (req_events & EPOLLPRI)
+			poll_wait(file, &fh->wait, wait);
+		if (!(req_events & (EPOLLOUT | EPOLLWRNORM | EPOLLIN | EPOLLRDNORM)))
+			return rc;
+	}
+
 	src_q = v4l2_m2m_get_src_vq(m2m_ctx);
 	dst_q = v4l2_m2m_get_dst_vq(m2m_ctx);
-
-	poll_wait(file, &src_q->done_wq, wait);
-	poll_wait(file, &dst_q->done_wq, wait);
 
 	/*
 	 * There has to be at least one buffer queued on each queued_list, which
 	 * means either in driver already or waiting for driver to claim it
 	 * and start processing.
 	 */
-	if ((!src_q->streaming || src_q->error ||
-	     list_empty(&src_q->queued_list)) &&
-	    (!dst_q->streaming || dst_q->error ||
-	     list_empty(&dst_q->queued_list)))
-		return EPOLLERR;
+	if ((!src_q->streaming || list_empty(&src_q->queued_list))
+		&& (!dst_q->streaming || list_empty(&dst_q->queued_list))) {
+		rc |= EPOLLERR;
+		goto end;
+	}
+
+	spin_lock_irqsave(&src_q->done_lock, flags);
+	if (list_empty(&src_q->done_list))
+		poll_wait(file, &src_q->done_wq, wait);
+	spin_unlock_irqrestore(&src_q->done_lock, flags);
 
 	spin_lock_irqsave(&dst_q->done_lock, flags);
 	if (list_empty(&dst_q->done_list)) {
@@ -667,8 +631,12 @@ static __poll_t v4l2_m2m_poll_for_data(struct file *file,
 		 * If the last buffer was dequeued from the capture queue,
 		 * return immediately. DQBUF will return -EPIPE.
 		 */
-		if (dst_q->last_buffer_dequeued)
-			rc |= EPOLLIN | EPOLLRDNORM;
+		if (dst_q->last_buffer_dequeued) {
+			spin_unlock_irqrestore(&dst_q->done_lock, flags);
+			return rc | EPOLLIN | EPOLLRDNORM;
+		}
+
+		poll_wait(file, &dst_q->done_wq, wait);
 	}
 	spin_unlock_irqrestore(&dst_q->done_lock, flags);
 
@@ -690,27 +658,7 @@ static __poll_t v4l2_m2m_poll_for_data(struct file *file,
 		rc |= EPOLLIN | EPOLLRDNORM;
 	spin_unlock_irqrestore(&dst_q->done_lock, flags);
 
-	return rc;
-}
-
-__poll_t v4l2_m2m_poll(struct file *file, struct v4l2_m2m_ctx *m2m_ctx,
-		       struct poll_table_struct *wait)
-{
-	struct video_device *vfd = video_devdata(file);
-	__poll_t req_events = poll_requested_events(wait);
-	__poll_t rc = 0;
-
-	if (req_events & (EPOLLOUT | EPOLLWRNORM | EPOLLIN | EPOLLRDNORM))
-		rc = v4l2_m2m_poll_for_data(file, m2m_ctx, wait);
-
-	if (test_bit(V4L2_FL_USES_V4L2_FH, &vfd->flags)) {
-		struct v4l2_fh *fh = file->private_data;
-
-		poll_wait(file, &fh->wait, wait);
-		if (v4l2_event_pending(fh))
-			rc |= EPOLLPRI;
-	}
-
+end:
 	return rc;
 }
 EXPORT_SYMBOL_GPL(v4l2_m2m_poll);
@@ -915,7 +863,6 @@ struct v4l2_m2m_dev *v4l2_m2m_init(const struct v4l2_m2m_ops *m2m_ops)
 	m2m_dev->m2m_ops = m2m_ops;
 	INIT_LIST_HEAD(&m2m_dev->job_queue);
 	spin_lock_init(&m2m_dev->job_spinlock);
-	INIT_WORK(&m2m_dev->job_work, v4l2_m2m_device_run_work);
 
 	return m2m_dev;
 }
@@ -958,14 +905,12 @@ struct v4l2_m2m_ctx *v4l2_m2m_ctx_init(struct v4l2_m2m_dev *m2m_dev,
 	if (ret)
 		goto err;
 	/*
-	 * Both queues should use same the mutex to lock the m2m context.
-	 * This lock is used in some v4l2_m2m_* helpers.
+	 * If both queues use same mutex assign it as the common buffer
+	 * queues lock to the m2m context. This lock is used in the
+	 * v4l2_m2m_ioctl_* helpers.
 	 */
-	if (WARN_ON(out_q_ctx->q.lock != cap_q_ctx->q.lock)) {
-		ret = -EINVAL;
-		goto err;
-	}
-	m2m_ctx->q_lock = out_q_ctx->q.lock;
+	if (out_q_ctx->q.lock == cap_q_ctx->q.lock)
+		m2m_ctx->q_lock = out_q_ctx->q.lock;
 
 	return m2m_ctx;
 err:
@@ -1004,73 +949,6 @@ void v4l2_m2m_buf_queue(struct v4l2_m2m_ctx *m2m_ctx,
 	spin_unlock_irqrestore(&q_ctx->rdy_spinlock, flags);
 }
 EXPORT_SYMBOL_GPL(v4l2_m2m_buf_queue);
-
-void v4l2_m2m_buf_copy_metadata(const struct vb2_v4l2_buffer *out_vb,
-				struct vb2_v4l2_buffer *cap_vb,
-				bool copy_frame_flags)
-{
-	u32 mask = V4L2_BUF_FLAG_TIMECODE | V4L2_BUF_FLAG_TSTAMP_SRC_MASK;
-
-	if (copy_frame_flags)
-		mask |= V4L2_BUF_FLAG_KEYFRAME | V4L2_BUF_FLAG_PFRAME |
-			V4L2_BUF_FLAG_BFRAME;
-
-	cap_vb->vb2_buf.timestamp = out_vb->vb2_buf.timestamp;
-
-	if (out_vb->flags & V4L2_BUF_FLAG_TIMECODE)
-		cap_vb->timecode = out_vb->timecode;
-	cap_vb->field = out_vb->field;
-	cap_vb->flags &= ~mask;
-	cap_vb->flags |= out_vb->flags & mask;
-	cap_vb->vb2_buf.copied_timestamp = 1;
-}
-EXPORT_SYMBOL_GPL(v4l2_m2m_buf_copy_metadata);
-
-void v4l2_m2m_request_queue(struct media_request *req)
-{
-	struct media_request_object *obj, *obj_safe;
-	struct v4l2_m2m_ctx *m2m_ctx = NULL;
-
-	/*
-	 * Queue all objects. Note that buffer objects are at the end of the
-	 * objects list, after all other object types. Once buffer objects
-	 * are queued, the driver might delete them immediately (if the driver
-	 * processes the buffer at once), so we have to use
-	 * list_for_each_entry_safe() to handle the case where the object we
-	 * queue is deleted.
-	 */
-	list_for_each_entry_safe(obj, obj_safe, &req->objects, list) {
-		struct v4l2_m2m_ctx *m2m_ctx_obj;
-		struct vb2_buffer *vb;
-
-		if (!obj->ops->queue)
-			continue;
-
-		if (vb2_request_object_is_buffer(obj)) {
-			/* Sanity checks */
-			vb = container_of(obj, struct vb2_buffer, req_obj);
-			WARN_ON(!V4L2_TYPE_IS_OUTPUT(vb->vb2_queue->type));
-			m2m_ctx_obj = container_of(vb->vb2_queue,
-						   struct v4l2_m2m_ctx,
-						   out_q_ctx.q);
-			WARN_ON(m2m_ctx && m2m_ctx_obj != m2m_ctx);
-			m2m_ctx = m2m_ctx_obj;
-		}
-
-		/*
-		 * The buffer we queue here can in theory be immediately
-		 * unbound, hence the use of list_for_each_entry_safe()
-		 * above and why we call the queue op last.
-		 */
-		obj->ops->queue(obj);
-	}
-
-	WARN_ON(!m2m_ctx);
-
-	if (m2m_ctx)
-		v4l2_m2m_try_schedule(m2m_ctx);
-}
-EXPORT_SYMBOL_GPL(v4l2_m2m_request_queue);
 
 /* Videobuf2 ioctl helpers */
 
@@ -1154,35 +1032,6 @@ int v4l2_m2m_ioctl_streamoff(struct file *file, void *priv,
 	return v4l2_m2m_streamoff(file, fh->m2m_ctx, type);
 }
 EXPORT_SYMBOL_GPL(v4l2_m2m_ioctl_streamoff);
-
-int v4l2_m2m_ioctl_try_encoder_cmd(struct file *file, void *fh,
-				   struct v4l2_encoder_cmd *ec)
-{
-	if (ec->cmd != V4L2_ENC_CMD_STOP && ec->cmd != V4L2_ENC_CMD_START)
-		return -EINVAL;
-
-	ec->flags = 0;
-	return 0;
-}
-EXPORT_SYMBOL_GPL(v4l2_m2m_ioctl_try_encoder_cmd);
-
-int v4l2_m2m_ioctl_try_decoder_cmd(struct file *file, void *fh,
-				   struct v4l2_decoder_cmd *dc)
-{
-	if (dc->cmd != V4L2_DEC_CMD_STOP && dc->cmd != V4L2_DEC_CMD_START)
-		return -EINVAL;
-
-	dc->flags = 0;
-
-	if (dc->cmd == V4L2_DEC_CMD_STOP) {
-		dc->stop.pts = 0;
-	} else if (dc->cmd == V4L2_DEC_CMD_START) {
-		dc->start.speed = 0;
-		dc->start.format = V4L2_DEC_START_FMT_NONE;
-	}
-	return 0;
-}
-EXPORT_SYMBOL_GPL(v4l2_m2m_ioctl_try_decoder_cmd);
 
 /*
  * v4l2_file_operations helpers. It is assumed here same lock is used

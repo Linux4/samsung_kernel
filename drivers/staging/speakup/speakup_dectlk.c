@@ -37,7 +37,7 @@ static unsigned char get_index(struct spk_synth *synth);
 static int in_escape;
 static int is_flushing;
 
-static DEFINE_SPINLOCK(flush_lock);
+static spinlock_t flush_lock;
 static DECLARE_WAIT_QUEUE_HEAD(flush);
 
 static struct var_t vars[] = {
@@ -260,8 +260,7 @@ static void do_catch_up(struct spk_synth *synth)
 				synth->io_ops->synth_out(synth, PROCSPEECH);
 			if (time_after_eq(jiffies, jiff_max)) {
 				if (!in_escape)
-					synth->io_ops->synth_out(synth,
-								 PROCSPEECH);
+					synth->io_ops->synth_out(synth, PROCSPEECH);
 				spin_lock_irqsave(&speakup_info.spinlock,
 						  flags);
 				jiffy_delta_val = jiffy_delta->u.n.value;

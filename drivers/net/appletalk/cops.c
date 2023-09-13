@@ -301,7 +301,7 @@ static int __init cops_probe1(struct net_device *dev, int ioaddr)
 			dev->irq = cops_irq(ioaddr, board);
 			if (dev->irq)
 				break;
-			/* fall through - Once no IRQ found on this port. */
+			/* No IRQ found on this port, fallthrough */
 		case 1:
 			retval = -EINVAL;
 			goto err_out;
@@ -325,14 +325,14 @@ static int __init cops_probe1(struct net_device *dev, int ioaddr)
 			break;
 	}
 
-	dev->base_addr = ioaddr;
-
 	/* Reserve any actual interrupt. */
 	if (dev->irq) {
 		retval = request_irq(dev->irq, cops_interrupt, 0, dev->name, dev);
 		if (retval)
 			goto err_out;
 	}
+
+	dev->base_addr = ioaddr;
 
         lp = netdev_priv(dev);
         spin_lock_init(&lp->lock);
@@ -777,7 +777,10 @@ static void cops_rx(struct net_device *dev)
         }
 
         /* Get response length. */
-	pkt_len = inb(ioaddr);
+	if(lp->board==DAYNA)
+        	pkt_len = inb(ioaddr) & 0xFF;
+	else
+		pkt_len = inb(ioaddr) & 0x00FF;
         pkt_len |= (inb(ioaddr) << 8);
         /* Input IO code. */
         rsp_type=inb(ioaddr);
@@ -889,7 +892,10 @@ static netdev_tx_t cops_send_packet(struct sk_buff *skb,
 
 	/* Output IO length. */
 	outb(skb->len, ioaddr);
-	outb(skb->len >> 8, ioaddr);
+	if(lp->board == DAYNA)
+               	outb(skb->len >> 8, ioaddr);
+	else
+		outb((skb->len >> 8)&0x0FF, ioaddr);
 
 	/* Output IO code. */
 	outb(LAP_WRITE, ioaddr);

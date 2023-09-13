@@ -1,7 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright (C) IBM Corporation, 2014, 2017
  * Anton Blanchard, Rashmica Gupta.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  */
 
 #define pr_fmt(fmt) "memtrace: " fmt
@@ -16,7 +20,6 @@
 #include <linux/slab.h>
 #include <linux/memory.h>
 #include <linux/memory_hotplug.h>
-#include <linux/numa.h>
 #include <asm/machdep.h>
 #include <asm/debugfs.h>
 
@@ -30,7 +33,6 @@ struct memtrace_entry {
 	char name[16];
 };
 
-static DEFINE_MUTEX(memtrace_mutex);
 static u64 memtrace_size;
 
 static struct memtrace_entry *memtrace_array;
@@ -68,43 +70,26 @@ static int change_memblock_state(struct memory_block *mem, void *arg)
 	return 0;
 }
 
-static void memtrace_clear_range(unsigned long start_pfn,
-				 unsigned long nr_pages)
-{
-	unsigned long pfn;
-
-	/*
-	 * As pages are offline, we cannot trust the memmap anymore. As HIGHMEM
-	 * does not apply, avoid passing around "struct page" and use
-	 * clear_page() instead directly.
-	 */
-	for (pfn = start_pfn; pfn < start_pfn + nr_pages; pfn++) {
-		if (IS_ALIGNED(pfn, PAGES_PER_SECTION))
-			cond_resched();
-		clear_page(__va(PFN_PHYS(pfn)));
-	}
-}
-
 /* called with device_hotplug_lock held */
 static bool memtrace_offline_pages(u32 nid, u64 start_pfn, u64 nr_pages)
 {
-	const unsigned long start = PFN_PHYS(start_pfn);
-	const unsigned long size = PFN_PHYS(nr_pages);
+	u64 end_pfn = start_pfn + nr_pages - 1;
 
-	if (walk_memory_blocks(start, size, NULL, check_memblock_online))
+	if (walk_memory_range(start_pfn, end_pfn, NULL,
+	    check_memblock_online))
 		return false;
 
-	walk_memory_blocks(start, size, (void *)MEM_GOING_OFFLINE,
-			   change_memblock_state);
+	walk_memory_range(start_pfn, end_pfn, (void *)MEM_GOING_OFFLINE,
+			  change_memblock_state);
 
 	if (offline_pages(start_pfn, nr_pages)) {
-		walk_memory_blocks(start, size, (void *)MEM_ONLINE,
-				   change_memblock_state);
+		walk_memory_range(start_pfn, end_pfn, (void *)MEM_ONLINE,
+				  change_memblock_state);
 		return false;
 	}
 
-	walk_memory_blocks(start, size, (void *)MEM_OFFLINE,
-			   change_memblock_state);
+	walk_memory_range(start_pfn, end_pfn, (void *)MEM_OFFLINE,
+			  change_memblock_state);
 
 
 	return true;
@@ -129,11 +114,6 @@ static u64 memtrace_alloc_node(u32 nid, u64 size)
 	lock_device_hotplug();
 	for (base_pfn = end_pfn; base_pfn > start_pfn; base_pfn -= nr_pages) {
 		if (memtrace_offline_pages(nid, base_pfn, nr_pages) == true) {
-			/*
-			 * Clear the range while we still have a linear
-			 * mapping.
-			 */
-			memtrace_clear_range(base_pfn, nr_pages);
 			/*
 			 * Remove memory in memory block size chunks so that
 			 * iomem resources are always split to the same size and
@@ -243,7 +223,7 @@ static int memtrace_online(void)
 		ent = &memtrace_array[i];
 
 		/* We have onlined this chunk previously */
-		if (ent->nid == NUMA_NO_NODE)
+		if (ent->nid == -1)
 			continue;
 
 		/* Remove from io mappings */
@@ -265,8 +245,9 @@ static int memtrace_online(void)
 		 */
 		if (!memhp_auto_online) {
 			lock_device_hotplug();
-			walk_memory_blocks(ent->start, ent->size, NULL,
-					   online_mem_block);
+			walk_memory_range(PFN_DOWN(ent->start),
+					  PFN_UP(ent->start + ent->size - 1),
+					  NULL, online_mem_block);
 			unlock_device_hotplug();
 		}
 
@@ -276,7 +257,7 @@ static int memtrace_online(void)
 		 */
 		debugfs_remove_recursive(ent->dir);
 		pr_info("Added trace memory back to node %d\n", ent->nid);
-		ent->size = ent->start = ent->nid = NUMA_NO_NODE;
+		ent->size = ent->start = ent->nid = -1;
 	}
 	if (ret)
 		return ret;
@@ -291,7 +272,6 @@ static int memtrace_online(void)
 
 static int memtrace_enable_set(void *data, u64 val)
 {
-	int rc = -EAGAIN;
 	u64 bytes;
 
 	/*
@@ -304,31 +284,25 @@ static int memtrace_enable_set(void *data, u64 val)
 		return -EINVAL;
 	}
 
-	mutex_lock(&memtrace_mutex);
-
 	/* Re-add/online previously removed/offlined memory */
 	if (memtrace_size) {
 		if (memtrace_online())
-			goto out_unlock;
+			return -EAGAIN;
 	}
 
-	if (!val) {
-		rc = 0;
-		goto out_unlock;
-	}
+	if (!val)
+		return 0;
 
 	/* Offline and remove memory */
 	if (memtrace_init_regions_runtime(val))
-		goto out_unlock;
+		return -EINVAL;
 
 	if (memtrace_init_debugfs())
-		goto out_unlock;
+		return -EINVAL;
 
 	memtrace_size = val;
-	rc = 0;
-out_unlock:
-	mutex_unlock(&memtrace_mutex);
-	return rc;
+
+	return 0;
 }
 
 static int memtrace_enable_get(void *data, u64 *val)

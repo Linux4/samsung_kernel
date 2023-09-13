@@ -1,6 +1,9 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (C) 2014 NVIDIA CORPORATION.  All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #ifndef MEMORY_TEGRA_MC_H
@@ -23,16 +26,22 @@
 
 static inline u32 mc_readl(struct tegra_mc *mc, unsigned long offset)
 {
-	return readl_relaxed(mc->regs + offset);
+	if (mc->regs2 && offset >= 0x24)
+		return readl(mc->regs2 + offset - 0x3c);
+
+	return readl(mc->regs + offset);
 }
 
 static inline void mc_writel(struct tegra_mc *mc, u32 value,
 			     unsigned long offset)
 {
-	writel_relaxed(value, mc->regs + offset);
+	if (mc->regs2 && offset >= 0x24)
+		return writel(value, mc->regs2 + offset - 0x3c);
+
+	writel(value, mc->regs + offset);
 }
 
-extern const struct tegra_mc_reset_ops tegra_mc_reset_ops_common;
+extern const struct tegra_mc_reset_ops terga_mc_reset_ops_common;
 
 #ifdef CONFIG_ARCH_TEGRA_2x_SOC
 extern const struct tegra_mc_soc tegra20_mc_soc;

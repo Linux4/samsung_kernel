@@ -242,9 +242,8 @@ static void cpcap_usb_detect(struct work_struct *work)
 		cpcap_usb_try_musb_mailbox(ddata, MUSB_ID_GROUND);
 
 		error = regmap_update_bits(ddata->reg, CPCAP_REG_USBC3,
-					   CPCAP_BIT_VBUSSTBY_EN |
-					   CPCAP_BIT_VBUSEN_SPI,
-					   CPCAP_BIT_VBUSEN_SPI);
+					   CPCAP_BIT_VBUSSTBY_EN,
+					   CPCAP_BIT_VBUSSTBY_EN);
 		if (error)
 			goto out_err;
 
@@ -252,8 +251,7 @@ static void cpcap_usb_detect(struct work_struct *work)
 	}
 
 	error = regmap_update_bits(ddata->reg, CPCAP_REG_USBC3,
-				   CPCAP_BIT_VBUSSTBY_EN |
-				   CPCAP_BIT_VBUSEN_SPI, 0);
+				   CPCAP_BIT_VBUSSTBY_EN, 0);
 	if (error)
 		goto out_err;
 
@@ -625,42 +623,35 @@ static int cpcap_usb_phy_probe(struct platform_device *pdev)
 	generic_phy = devm_phy_create(ddata->dev, NULL, &ops);
 	if (IS_ERR(generic_phy)) {
 		error = PTR_ERR(generic_phy);
-		goto out_reg_disable;
+		return PTR_ERR(generic_phy);
 	}
 
 	phy_set_drvdata(generic_phy, ddata);
 
 	phy_provider = devm_of_phy_provider_register(ddata->dev,
 						     of_phy_simple_xlate);
-	if (IS_ERR(phy_provider)) {
-		error = PTR_ERR(phy_provider);
-		goto out_reg_disable;
-	}
+	if (IS_ERR(phy_provider))
+		return PTR_ERR(phy_provider);
 
 	error = cpcap_usb_init_optional_pins(ddata);
 	if (error)
-		goto out_reg_disable;
+		return error;
 
 	cpcap_usb_init_optional_gpios(ddata);
 
 	error = cpcap_usb_init_iio(ddata);
 	if (error)
-		goto out_reg_disable;
+		return error;
 
 	error = cpcap_usb_init_interrupts(pdev, ddata);
 	if (error)
-		goto out_reg_disable;
+		return error;
 
 	usb_add_phy_dev(&ddata->phy);
 	atomic_set(&ddata->active, 1);
 	schedule_delayed_work(&ddata->detect_work, msecs_to_jiffies(1));
 
 	return 0;
-
-out_reg_disable:
-	regulator_disable(ddata->vusb);
-
-	return error;
 }
 
 static int cpcap_usb_phy_remove(struct platform_device *pdev)

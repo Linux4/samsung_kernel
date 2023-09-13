@@ -22,12 +22,11 @@
 #include <linux/module.h>
 #include <linux/err.h>
 #include <linux/slab.h>
-#include <linux/numa.h>
 #include <asm/uv/uv_hub.h>
 #if defined CONFIG_X86_64
 #include <asm/uv/bios.h>
 #include <asm/uv/uv_irq.h>
-#elif defined CONFIG_IA64_SGI_UV
+#elif defined CONFIG_IA64_GENERIC || defined CONFIG_IA64_SGI_UV
 #include <asm/sn/intr.h>
 #include <asm/sn/sn_sal.h>
 #endif
@@ -35,7 +34,7 @@
 #include "../sgi-gru/grukservices.h"
 #include "xpc.h"
 
-#if defined CONFIG_IA64_SGI_UV
+#if defined CONFIG_IA64_GENERIC || defined CONFIG_IA64_SGI_UV
 struct uv_IO_APIC_route_entry {
 	__u64	vector		:  8,
 		delivery_mode	:  3,
@@ -48,8 +47,6 @@ struct uv_IO_APIC_route_entry {
 		__reserved_2	: 15,
 		dest		: 32;
 };
-
-#define sn_partition_id 0
 #endif
 
 static struct xpc_heartbeat_uv *xpc_heartbeat_uv;
@@ -64,7 +61,7 @@ static struct xpc_heartbeat_uv *xpc_heartbeat_uv;
 					 XPC_NOTIFY_MSG_SIZE_UV)
 #define XPC_NOTIFY_IRQ_NAME		"xpc_notify"
 
-static int xpc_mq_node = NUMA_NO_NODE;
+static int xpc_mq_node = -1;
 
 static struct xpc_gru_mq_uv *xpc_activate_mq_uv;
 static struct xpc_gru_mq_uv *xpc_notify_mq_uv;
@@ -121,7 +118,7 @@ xpc_get_gru_mq_irq_uv(struct xpc_gru_mq_uv *mq, int cpu, char *irq_name)
 
 	mq->mmr_value = uv_read_global_mmr64(mmr_pnode, mq->mmr_offset);
 
-#elif defined CONFIG_IA64_SGI_UV
+#elif defined CONFIG_IA64_GENERIC || defined CONFIG_IA64_SGI_UV
 	if (strcmp(irq_name, XPC_ACTIVATE_IRQ_NAME) == 0)
 		mq->irq = SGI_XPC_ACTIVATE;
 	else if (strcmp(irq_name, XPC_NOTIFY_IRQ_NAME) == 0)
@@ -144,7 +141,7 @@ xpc_release_gru_mq_irq_uv(struct xpc_gru_mq_uv *mq)
 #if defined CONFIG_X86_64
 	uv_teardown_irq(mq->irq);
 
-#elif defined CONFIG_IA64_SGI_UV
+#elif defined CONFIG_IA64_GENERIC || defined CONFIG_IA64_SGI_UV
 	int mmr_pnode;
 	unsigned long mmr_value;
 
@@ -162,7 +159,7 @@ xpc_gru_mq_watchlist_alloc_uv(struct xpc_gru_mq_uv *mq)
 {
 	int ret;
 
-#if defined CONFIG_IA64_SGI_UV
+#if defined CONFIG_IA64_GENERIC || defined CONFIG_IA64_SGI_UV
 	int mmr_pnode = uv_blade_to_pnode(mq->mmr_blade);
 
 	ret = sn_mq_watchlist_alloc(mmr_pnode, (void *)uv_gpa(mq->address),
@@ -197,7 +194,7 @@ xpc_gru_mq_watchlist_free_uv(struct xpc_gru_mq_uv *mq)
 #if defined CONFIG_X86_64
 	ret = uv_bios_mq_watchlist_free(mmr_pnode, mq->watchlist_num);
 	BUG_ON(ret != BIOS_STATUS_SUCCESS);
-#elif defined CONFIG_IA64_SGI_UV
+#elif defined CONFIG_IA64_GENERIC || defined CONFIG_IA64_SGI_UV
 	ret = sn_mq_watchlist_free(mmr_pnode, mq->watchlist_num);
 	BUG_ON(ret != SALRET_OK);
 #else
@@ -574,7 +571,6 @@ xpc_handle_activate_mq_msg_uv(struct xpc_partition *part,
 
 		xpc_wakeup_channel_mgr(part);
 	}
-		/* fall through */
 	case XPC_ACTIVATE_MQ_MSG_MARK_ENGAGED_UV:
 		spin_lock_irqsave(&part_uv->flags_lock, irq_flags);
 		part_uv->flags |= XPC_P_ENGAGED_UV;
@@ -696,7 +692,7 @@ again:
 		if (gru_mq_desc == NULL) {
 			gru_mq_desc = kmalloc(sizeof(struct
 					      gru_message_queue_desc),
-					      GFP_ATOMIC);
+					      GFP_KERNEL);
 			if (gru_mq_desc == NULL) {
 				ret = xpNoMemory;
 				goto done;
@@ -796,7 +792,7 @@ xpc_get_partition_rsvd_page_pa_uv(void *buf, u64 *cookie, unsigned long *rp_pa,
 	else
 		ret = xpBiosError;
 
-#elif defined CONFIG_IA64_SGI_UV
+#elif defined CONFIG_IA64_GENERIC || defined CONFIG_IA64_SGI_UV
 	status = sn_partition_reserved_page_pa((u64)buf, cookie, rp_pa, len);
 	if (status == SALRET_OK)
 		ret = xpSuccess;
@@ -1187,7 +1183,7 @@ xpc_teardown_msg_structures_uv(struct xpc_channel *ch)
 {
 	struct xpc_channel_uv *ch_uv = &ch->sn.uv;
 
-	lockdep_assert_held(&ch->lock);
+	DBUG_ON(!spin_is_locked(&ch->lock));
 
 	kfree(ch_uv->cached_notify_gru_mq_desc);
 	ch_uv->cached_notify_gru_mq_desc = NULL;
@@ -1680,7 +1676,7 @@ xpc_received_payload_uv(struct xpc_channel *ch, void *payload)
 		XPC_DEACTIVATE_PARTITION(&xpc_partitions[ch->partid], ret);
 }
 
-static const struct xpc_arch_operations xpc_arch_ops_uv = {
+static struct xpc_arch_operations xpc_arch_ops_uv = {
 	.setup_partitions = xpc_setup_partitions_uv,
 	.teardown_partitions = xpc_teardown_partitions_uv,
 	.process_activate_IRQ_rcvd = xpc_process_activate_IRQ_rcvd_uv,

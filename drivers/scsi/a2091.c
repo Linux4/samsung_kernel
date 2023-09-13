@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 #include <linux/types.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
@@ -161,7 +160,7 @@ static struct scsi_host_template a2091_scsi_template = {
 	.this_id		= 7,
 	.sg_tablesize		= SG_ALL,
 	.cmd_per_lun		= CMD_PER_LUN,
-	.dma_boundary		= PAGE_SIZE - 1,
+	.use_clustering		= DISABLE_CLUSTERING
 };
 
 static int a2091_probe(struct zorro_dev *z, const struct zorro_device_id *ent)

@@ -1,6 +1,18 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright (C) 2017 Joe Lawrence <joe.lawrence@redhat.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 /*
@@ -38,7 +50,7 @@ struct dummy {
 	unsigned long jiffies_expire;
 };
 
-static bool livepatch_fix2_dummy_check(struct dummy *d, unsigned long jiffies)
+bool livepatch_fix2_dummy_check(struct dummy *d, unsigned long jiffies)
 {
 	int *shadow_count;
 
@@ -66,7 +78,7 @@ static void livepatch_fix2_dummy_leak_dtor(void *obj, void *shadow_data)
 			 __func__, d, *shadow_leak);
 }
 
-static void livepatch_fix2_dummy_free(struct dummy *d)
+void livepatch_fix2_dummy_free(struct dummy *d)
 {
 	void **shadow_leak;
 	int *shadow_count;
@@ -117,13 +129,25 @@ static struct klp_patch patch = {
 
 static int livepatch_shadow_fix2_init(void)
 {
-	return klp_enable_patch(&patch);
+	int ret;
+
+	ret = klp_register_patch(&patch);
+	if (ret)
+		return ret;
+	ret = klp_enable_patch(&patch);
+	if (ret) {
+		WARN_ON(klp_unregister_patch(&patch));
+		return ret;
+	}
+	return 0;
 }
 
 static void livepatch_shadow_fix2_exit(void)
 {
 	/* Cleanup any existing SV_COUNTER shadow variables */
 	klp_shadow_free_all(SV_COUNTER, NULL);
+
+	WARN_ON(klp_unregister_patch(&patch));
 }
 
 module_init(livepatch_shadow_fix2_init);

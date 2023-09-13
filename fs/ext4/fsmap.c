@@ -108,9 +108,6 @@ static int ext4_getfsmap_helper(struct super_block *sb,
 
 	/* Are we just counting mappings? */
 	if (info->gfi_head->fmh_count == 0) {
-		if (info->gfi_head->fmh_entries == UINT_MAX)
-			return EXT4_QUERY_RANGE_ABORT;
-
 		if (rec_fsblk > info->gfi_next_fsblk)
 			info->gfi_head->fmh_entries++;
 
@@ -629,7 +626,7 @@ int ext4_getfsmap(struct super_block *sb, struct ext4_fsmap_head *head,
 {
 	struct ext4_fsmap dkeys[2];	/* per-dev keys */
 	struct ext4_getfsmap_dev handlers[EXT4_GETFSMAP_DEVS];
-	struct ext4_getfsmap_info info = { NULL };
+	struct ext4_getfsmap_info info = {0};
 	int i;
 	int error = 0;
 

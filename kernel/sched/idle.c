@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Generic entry points for the idle threads and
  * implementation of the idle task scheduling class.
@@ -6,12 +5,11 @@
  * (NOTE: these are not related to SCHED_IDLE batch scheduled
  *        tasks which are handled in sched/fair.c )
  */
+#include <linux/cpu_pm.h>
 #include "sched.h"
 
-#ifdef CONFIG_QGKI_SHOW_S2IDLE_WAKE_IRQ
-#include <linux/irqchip/arm-gic-v3.h>
-#endif /* CONFIG_QGKI_SHOW_S2IDLE_WAKE_IRQ */
 #include <trace/events/power.h>
+#include <linux/sec_perf.h>
 
 /* Linker adds these: start and end of __cpuidle functions */
 extern char __cpuidle_text_start[], __cpuidle_text_end[];
@@ -64,8 +62,7 @@ static noinline int __cpuidle cpu_idle_poll(void)
 	stop_critical_timings();
 
 	while (!tif_need_resched() &&
-		(cpu_idle_force_poll || tick_check_broadcast_expired() ||
-		is_reserved(smp_processor_id())))
+		(cpu_idle_force_poll || tick_check_broadcast_expired()))
 		cpu_relax();
 	start_critical_timings();
 	trace_cpu_idle_rcuidle(PWR_EVENT_EXIT, smp_processor_id());
@@ -131,11 +128,6 @@ static int call_cpuidle(struct cpuidle_driver *drv, struct cpuidle_device *dev,
  * set, and it returns with polling set.  If it ever stops polling, it
  * must clear the polling bit.
  */
-
-#ifdef CONFIG_QGKI_SHOW_S2IDLE_WAKE_IRQ
-static cpumask_t cpu_state;
-#endif /* CONFIG_QGKI_SHOW_S2IDLE_WAKE_IRQ */
-
 static void cpuidle_idle_call(void)
 {
 	struct cpuidle_device *dev = cpuidle_get_device();
@@ -177,26 +169,9 @@ static void cpuidle_idle_call(void)
 
 	if (idle_should_enter_s2idle() || dev->use_deepest_state) {
 		if (idle_should_enter_s2idle()) {
-
-#ifdef CONFIG_QGKI_SHOW_S2IDLE_WAKE_IRQ
-			bool print_wake_irq;
-
-			cpumask_set_cpu(dev->cpu, &cpu_state);
-#endif /* CONFIG_QGKI_SHOW_S2IDLE_WAKE_IRQ */
-
 			rcu_idle_enter();
 
 			entered_state = cpuidle_enter_s2idle(drv, dev);
-
-#ifdef CONFIG_QGKI_SHOW_S2IDLE_WAKE_IRQ
-			print_wake_irq = cpumask_weight(&cpu_state) ==
-				    cpumask_weight(cpu_online_mask) ?
-				    true : false;
-			cpumask_clear_cpu(dev->cpu, &cpu_state);
-			if (print_wake_irq)
-				gic_s2idle_wake();
-#endif /* CONFIG_QGKI_SHOW_S2IDLE_WAKE_IRQ */
-
 			if (entered_state > 0) {
 				local_irq_enable();
 				goto exit_idle;
@@ -262,9 +237,11 @@ static void do_idle(void)
 	 */
 
 	__current_set_polling();
+	cpu_pm_enter_pre();
 	tick_nohz_idle_enter();
 
 	while (!need_resched()) {
+		check_pgt_cache();
 		rmb();
 
 		local_irq_disable();
@@ -276,7 +253,9 @@ static void do_idle(void)
 		}
 
 		arch_cpu_idle_enter();
-		rcu_nocb_flush_deferred_wakeup();
+#ifdef CONFIG_SEC_PERF_LATENCYCHECKER
+		sec_perf_latencychecker_disable(smp_processor_id());
+#endif
 
 		/*
 		 * In poll mode we reenable interrupts and spin. Also if we
@@ -284,13 +263,17 @@ static void do_idle(void)
 		 * broadcast device expired for us, we don't want to go deep
 		 * idle as we know that the IPI is going to arrive right away.
 		 */
-		if (cpu_idle_force_poll || tick_check_broadcast_expired() ||
-				is_reserved(smp_processor_id())) {
+		if (cpu_idle_force_poll || tick_check_broadcast_expired()) {
 			tick_nohz_idle_restart_tick();
 			cpu_idle_poll();
 		} else {
 			cpuidle_idle_call();
 		}
+
+#ifdef CONFIG_SEC_PERF_LATENCYCHECKER
+		sec_perf_latencychecker_enable(smp_processor_id());
+#endif
+
 		arch_cpu_idle_exit();
 	}
 
@@ -301,6 +284,7 @@ static void do_idle(void)
 	 * This is required because for polling idle loops we will not have had
 	 * an IPI to fold the state for us.
 	 */
+	cpu_pm_exit_post();
 	preempt_set_need_resched();
 	tick_nohz_idle_exit();
 	__current_clr_polling();
@@ -340,7 +324,7 @@ static enum hrtimer_restart idle_inject_timer_fn(struct hrtimer *timer)
 	return HRTIMER_NORESTART;
 }
 
-void play_idle(unsigned long duration_us)
+void play_idle(unsigned long duration_ms)
 {
 	struct idle_timer it;
 
@@ -352,7 +336,7 @@ void play_idle(unsigned long duration_us)
 	WARN_ON_ONCE(current->nr_cpus_allowed != 1);
 	WARN_ON_ONCE(!(current->flags & PF_KTHREAD));
 	WARN_ON_ONCE(!(current->flags & PF_NO_SETAFFINITY));
-	WARN_ON_ONCE(!duration_us);
+	WARN_ON_ONCE(!duration_ms);
 
 	rcu_sleep_check();
 	preempt_disable();
@@ -362,8 +346,7 @@ void play_idle(unsigned long duration_us)
 	it.done = 0;
 	hrtimer_init_on_stack(&it.timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	it.timer.function = idle_inject_timer_fn;
-	hrtimer_start(&it.timer, ns_to_ktime(duration_us * NSEC_PER_USEC),
-		      HRTIMER_MODE_REL_PINNED);
+	hrtimer_start(&it.timer, ms_to_ktime(duration_ms), HRTIMER_MODE_REL_PINNED);
 
 	while (!READ_ONCE(it.done))
 		do_idle();
@@ -378,6 +361,21 @@ EXPORT_SYMBOL_GPL(play_idle);
 
 void cpu_startup_entry(enum cpuhp_state state)
 {
+	/*
+	 * This #ifdef needs to die, but it's too late in the cycle to
+	 * make this generic (ARM and SH have never invoked the canary
+	 * init for the non boot CPUs!). Will be fixed in 3.11
+	 */
+#ifdef CONFIG_X86
+	/*
+	 * If we're the non-boot CPU, nothing set the stack canary up
+	 * for us. The boot CPU already has it initialized but no harm
+	 * in doing it again. This is a good place for updating it, as
+	 * we wont ever return from this function (so the invalid
+	 * canaries already on the stack wont ever trigger).
+	 */
+	boot_init_stack_canary();
+#endif
 	arch_cpu_idle_prepare();
 	cpuhp_online_idle(state);
 	while (1)
@@ -390,20 +388,10 @@ void cpu_startup_entry(enum cpuhp_state state)
 
 #ifdef CONFIG_SMP
 static int
-#ifdef CONFIG_SCHED_WALT
 select_task_rq_idle(struct task_struct *p, int cpu, int sd_flag, int flags,
 		    int sibling_count_hint)
-#else
-select_task_rq_idle(struct task_struct *p, int cpu, int sd_flag, int flags)
-#endif
 {
 	return task_cpu(p); /* IDLE tasks as never migrated */
-}
-
-static int
-balance_idle(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
-{
-	return WARN_ON_ONCE(1);
 }
 #endif
 
@@ -415,27 +403,14 @@ static void check_preempt_curr_idle(struct rq *rq, struct task_struct *p, int fl
 	resched_curr(rq);
 }
 
-static void put_prev_task_idle(struct rq *rq, struct task_struct *prev)
-{
-}
-
-static void set_next_task_idle(struct rq *rq, struct task_struct *next, bool first)
-{
-	update_idle_core(rq);
-	schedstat_inc(rq->sched_goidle);
-}
-
 static struct task_struct *
 pick_next_task_idle(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 {
-	struct task_struct *next = rq->idle;
+	put_prev_task(rq, prev);
+	update_idle_core(rq);
+	schedstat_inc(rq->sched_goidle);
 
-	if (prev)
-		put_prev_task(rq, prev);
-
-	set_next_task_idle(rq, next, true);
-
-	return next;
+	return rq->idle;
 }
 
 /*
@@ -451,6 +426,10 @@ dequeue_task_idle(struct rq *rq, struct task_struct *p, int flags)
 	raw_spin_lock_irq(&rq->lock);
 }
 
+static void put_prev_task_idle(struct rq *rq, struct task_struct *prev)
+{
+}
+
 /*
  * scheduler tick hitting a task of our scheduling class.
  *
@@ -460,6 +439,10 @@ dequeue_task_idle(struct rq *rq, struct task_struct *p, int flags)
  * parameters.
  */
 static void task_tick_idle(struct rq *rq, struct task_struct *curr, int queued)
+{
+}
+
+static void set_curr_task_idle(struct rq *rq)
 {
 }
 
@@ -497,14 +480,13 @@ const struct sched_class idle_sched_class = {
 
 	.pick_next_task		= pick_next_task_idle,
 	.put_prev_task		= put_prev_task_idle,
-	.set_next_task          = set_next_task_idle,
 
 #ifdef CONFIG_SMP
-	.balance		= balance_idle,
 	.select_task_rq		= select_task_rq_idle,
 	.set_cpus_allowed	= set_cpus_allowed_common,
 #endif
 
+	.set_curr_task          = set_curr_task_idle,
 	.task_tick		= task_tick_idle,
 
 	.get_rr_interval	= get_rr_interval_idle,

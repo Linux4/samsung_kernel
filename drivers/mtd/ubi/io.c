@@ -1,7 +1,20 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright (c) International Business Machines Corp., 2006
  * Copyright (c) Nokia Corporation, 2006, 2007
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See
+ * the GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  *
  * Author: Artem Bityutskiy (Битюцкий Артём)
  */
@@ -1056,15 +1069,6 @@ int ubi_io_write_vid_hdr(struct ubi_device *ubi, int pnum,
 	dbg_io("write VID header to PEB %d", pnum);
 	ubi_assert(pnum >= 0 &&  pnum < ubi->peb_count);
 
-	/*
-	 * Re-erase the PEB before using it. This should minimize any issues
-	 * from decay of charge in this block.
-	 */
-	if (ubi->wl_is_inited) {
-		err = ubi_wl_re_erase_peb(ubi, pnum);
-		if (err)
-			return err;
-	}
 	err = self_check_peb_ec_hdr(ubi, pnum);
 	if (err)
 		return err;
@@ -1083,8 +1087,6 @@ int ubi_io_write_vid_hdr(struct ubi_device *ubi, int pnum,
 
 	err = ubi_io_write(ubi, p, pnum, ubi->vid_hdr_aloffset,
 			   ubi->vid_hdr_alsize);
-	if (!err && ubi->wl_is_inited)
-		ubi_wl_update_peb_sqnum(ubi, pnum, vid_hdr);
 	return err;
 }
 

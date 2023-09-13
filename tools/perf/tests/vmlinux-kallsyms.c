@@ -3,11 +3,9 @@
 #include <linux/rbtree.h>
 #include <inttypes.h>
 #include <string.h>
-#include <stdlib.h>
-#include "dso.h"
 #include "map.h"
 #include "symbol.h"
-#include <internal/lib.h> // page_size
+#include "util.h"
 #include "tests.h"
 #include "debug.h"
 #include "machine.h"
@@ -163,16 +161,9 @@ next_pair:
 
 				continue;
 			}
-		} else if (mem_start == kallsyms.vmlinux_map->end) {
-			/*
-			 * Ignore aliases to _etext, i.e. to the end of the kernel text area,
-			 * such as __indirect_thunk_end.
-			 */
-			continue;
-		} else {
+		} else
 			pr_debug("ERR : %#" PRIx64 ": %s not on kallsyms\n",
 				 mem_start, sym->name);
-		}
 
 		err = -1;
 	}

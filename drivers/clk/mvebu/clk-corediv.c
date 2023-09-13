@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * MVEBU Core divider clock
  *
@@ -6,11 +5,13 @@
  *
  * Ezequiel Garcia <ezequiel.garcia@free-electrons.com>
  *
+ * This file is licensed under the terms of the GNU General Public
+ * License version 2.  This program is licensed "as is" without any
+ * warranty of any kind, whether express or implied.
  */
 
 #include <linux/kernel.h>
 #include <linux/clk-provider.h>
-#include <linux/io.h>
 #include <linux/of_address.h>
 #include <linux/slab.h>
 #include <linux/delay.h>

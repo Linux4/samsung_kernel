@@ -1,6 +1,7 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * kernfs.h - pseudo filesystem decoupled from vfs locking
+ *
+ * This file is released under the GPLv2.
  */
 
 #ifndef __LINUX_KERNFS_H
@@ -16,7 +17,6 @@
 #include <linux/atomic.h>
 #include <linux/uidgid.h>
 #include <linux/wait.h>
-#include <linux/android_kabi.h>
 
 struct file;
 struct dentry;
@@ -26,9 +26,7 @@ struct vm_area_struct;
 struct super_block;
 struct file_system_type;
 struct poll_table_struct;
-struct fs_context;
 
-struct kernfs_fs_context;
 struct kernfs_open_node;
 struct kernfs_iattrs;
 
@@ -64,7 +62,7 @@ enum kernfs_root_flag {
 	KERNFS_ROOT_CREATE_DEACTIVATED		= 0x0001,
 
 	/*
-	 * For regular files, if the opener has CAP_DAC_OVERRIDE, open(2)
+	 * For regular flies, if the opener has CAP_DAC_OVERRIDE, open(2)
 	 * succeeds regardless of the RW permissions.  sysfs had an extra
 	 * layer of enforcement where open(2) fails with -EACCES regardless
 	 * of CAP_DAC_OVERRIDE if the permission doesn't have the
@@ -170,6 +168,7 @@ struct kernfs_node {
  * kernfs_node parameter.
  */
 struct kernfs_syscall_ops {
+	int (*remount_fs)(struct kernfs_root *root, int *flags, char *data);
 	int (*show_options)(struct seq_file *sf, struct kernfs_root *root);
 
 	int (*mkdir)(struct kernfs_node *parent, const char *name,
@@ -179,11 +178,6 @@ struct kernfs_syscall_ops {
 		      const char *new_name);
 	int (*show_path)(struct seq_file *sf, struct kernfs_node *kn,
 			 struct kernfs_root *root);
-
-	ANDROID_KABI_RESERVE(1);
-	ANDROID_KABI_RESERVE(2);
-	ANDROID_KABI_RESERVE(3);
-	ANDROID_KABI_RESERVE(4);
 };
 
 struct kernfs_root {
@@ -277,21 +271,6 @@ struct kernfs_ops {
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	struct lock_class_key	lockdep_key;
 #endif
-
-	ANDROID_KABI_RESERVE(1);
-	ANDROID_KABI_RESERVE(2);
-};
-
-/*
- * The kernfs superblock creation/mount parameter context.
- */
-struct kernfs_fs_context {
-	struct kernfs_root	*root;		/* Root of the hierarchy being mounted */
-	void			*ns_tag;	/* Namespace tag of the mount (or NULL) */
-	unsigned long		magic;		/* File system specific magic number */
-
-	/* The following are set/used by kernfs_mount() */
-	bool			new_sb_created;	/* Set to T if we allocated a new sb */
 };
 
 #ifdef CONFIG_KERNFS
@@ -380,15 +359,12 @@ __poll_t kernfs_generic_poll(struct kernfs_open_file *of,
 			     struct poll_table_struct *pt);
 void kernfs_notify(struct kernfs_node *kn);
 
-int kernfs_xattr_get(struct kernfs_node *kn, const char *name,
-		     void *value, size_t size);
-int kernfs_xattr_set(struct kernfs_node *kn, const char *name,
-		     const void *value, size_t size, int flags);
-
 const void *kernfs_super_ns(struct super_block *sb);
-int kernfs_get_tree(struct fs_context *fc);
-void kernfs_free_fs_context(struct fs_context *fc);
+struct dentry *kernfs_mount_ns(struct file_system_type *fs_type, int flags,
+			       struct kernfs_root *root, unsigned long magic,
+			       bool *new_sb_created, const void *ns);
 void kernfs_kill_sb(struct super_block *sb);
+struct super_block *kernfs_pin_sb(struct kernfs_root *root, const void *ns);
 
 void kernfs_init(void);
 
@@ -487,21 +463,14 @@ static inline int kernfs_setattr(struct kernfs_node *kn,
 
 static inline void kernfs_notify(struct kernfs_node *kn) { }
 
-static inline int kernfs_xattr_get(struct kernfs_node *kn, const char *name,
-				   void *value, size_t size)
-{ return -ENOSYS; }
-
-static inline int kernfs_xattr_set(struct kernfs_node *kn, const char *name,
-				   const void *value, size_t size, int flags)
-{ return -ENOSYS; }
-
 static inline const void *kernfs_super_ns(struct super_block *sb)
 { return NULL; }
 
-static inline int kernfs_get_tree(struct fs_context *fc)
-{ return -ENOSYS; }
-
-static inline void kernfs_free_fs_context(struct fs_context *fc) { }
+static inline struct dentry *
+kernfs_mount_ns(struct file_system_type *fs_type, int flags,
+		struct kernfs_root *root, unsigned long magic,
+		bool *new_sb_created, const void *ns)
+{ return ERR_PTR(-ENOSYS); }
 
 static inline void kernfs_kill_sb(struct super_block *sb) { }
 
@@ -515,11 +484,10 @@ static inline void kernfs_init(void) { }
  * @buf: buffer to copy @kn's name into
  * @buflen: size of @buf
  *
- * If @kn is NULL result will be "(null)".
- *
- * Returns the length of the full path.  If the full length is equal to or
- * greater than @buflen, @buf contains the truncated path with the trailing
- * '\0'.  On error, -errno is returned.
+ * Builds and returns the full path of @kn in @buf of @buflen bytes.  The
+ * path is built from the end of @buf so the returned pointer usually
+ * doesn't match @buf.  If @buf isn't long enough, @buf is nul terminated
+ * and %NULL is returned.
  */
 static inline int kernfs_path(struct kernfs_node *kn, char *buf, size_t buflen)
 {
@@ -582,6 +550,15 @@ static inline int kernfs_rename(struct kernfs_node *kn,
 				const char *new_name)
 {
 	return kernfs_rename_ns(kn, new_parent, new_name, NULL);
+}
+
+static inline struct dentry *
+kernfs_mount(struct file_system_type *fs_type, int flags,
+		struct kernfs_root *root, unsigned long magic,
+		bool *new_sb_created)
+{
+	return kernfs_mount_ns(fs_type, flags, root,
+				magic, new_sb_created, NULL);
 }
 
 #endif	/* __LINUX_KERNFS_H */

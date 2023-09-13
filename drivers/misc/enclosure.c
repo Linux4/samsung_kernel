@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Enclosure Services
  *
@@ -6,6 +5,18 @@
  *
 **-----------------------------------------------------------------------------
 **
+**  This program is free software; you can redistribute it and/or
+**  modify it under the terms of the GNU General Public License
+**  version 2 as published by the Free Software Foundation.
+**
+**  This program is distributed in the hope that it will be useful,
+**  but WITHOUT ANY WARRANTY; without even the implied warranty of
+**  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+**  GNU General Public License for more details.
+**
+**  You should have received a copy of the GNU General Public License
+**  along with this program; if not, write to the Free Software
+**  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 **
 **-----------------------------------------------------------------------------
 */
@@ -114,7 +125,9 @@ enclosure_register(struct device *dev, const char *name, int components,
 		   struct enclosure_component_callbacks *cb)
 {
 	struct enclosure_device *edev =
-		kzalloc(struct_size(edev, component, components), GFP_KERNEL);
+		kzalloc(sizeof(struct enclosure_device) +
+			sizeof(struct enclosure_component)*components,
+			GFP_KERNEL);
 	int err, i;
 
 	BUG_ON(!cb);

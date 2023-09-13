@@ -1,13 +1,16 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Marvell 88E6xxx VLAN [Spanning Tree] Translation Unit (VTU [STU]) support
  *
  * Copyright (c) 2008 Marvell Semiconductor
  * Copyright (c) 2015 CMC Electronics, Inc.
  * Copyright (c) 2017 Savoir-faire Linux, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  */
 
-#include <linux/bitfield.h>
 #include <linux/interrupt.h>
 #include <linux/irqdomain.h>
 
@@ -68,9 +71,8 @@ static int mv88e6xxx_g1_vtu_sid_write(struct mv88e6xxx_chip *chip,
 
 static int mv88e6xxx_g1_vtu_op_wait(struct mv88e6xxx_chip *chip)
 {
-	int bit = __bf_shf(MV88E6XXX_G1_VTU_OP_BUSY);
-
-	return mv88e6xxx_g1_wait_bit(chip, MV88E6XXX_G1_VTU_OP, bit, 0);
+	return mv88e6xxx_g1_wait(chip, MV88E6XXX_G1_VTU_OP,
+				 MV88E6XXX_G1_VTU_OP_BUSY);
 }
 
 static int mv88e6xxx_g1_vtu_op(struct mv88e6xxx_chip *chip, u16 op)
@@ -125,9 +127,11 @@ static int mv88e6xxx_g1_vtu_vid_write(struct mv88e6xxx_chip *chip,
  * Offset 0x08: VTU/STU Data Register 2
  * Offset 0x09: VTU/STU Data Register 3
  */
-static int mv88e6185_g1_vtu_stu_data_read(struct mv88e6xxx_chip *chip,
-					  u16 *regs)
+
+static int mv88e6185_g1_vtu_data_read(struct mv88e6xxx_chip *chip,
+				      struct mv88e6xxx_vtu_entry *entry)
 {
+	u16 regs[3];
 	int i;
 
 	/* Read all 3 VTU/STU Data registers */
@@ -140,45 +144,12 @@ static int mv88e6185_g1_vtu_stu_data_read(struct mv88e6xxx_chip *chip,
 			return err;
 	}
 
-	return 0;
-}
-
-static int mv88e6185_g1_vtu_data_read(struct mv88e6xxx_chip *chip,
-				      struct mv88e6xxx_vtu_entry *entry)
-{
-	u16 regs[3];
-	int err;
-	int i;
-
-	err = mv88e6185_g1_vtu_stu_data_read(chip, regs);
-	if (err)
-		return err;
-
-	/* Extract MemberTag data */
+	/* Extract MemberTag and PortState data */
 	for (i = 0; i < mv88e6xxx_num_ports(chip); ++i) {
 		unsigned int member_offset = (i % 4) * 4;
+		unsigned int state_offset = member_offset + 2;
 
 		entry->member[i] = (regs[i / 4] >> member_offset) & 0x3;
-	}
-
-	return 0;
-}
-
-static int mv88e6185_g1_stu_data_read(struct mv88e6xxx_chip *chip,
-				      struct mv88e6xxx_vtu_entry *entry)
-{
-	u16 regs[3];
-	int err;
-	int i;
-
-	err = mv88e6185_g1_vtu_stu_data_read(chip, regs);
-	if (err)
-		return err;
-
-	/* Extract PortState data */
-	for (i = 0; i < mv88e6xxx_num_ports(chip); ++i) {
-		unsigned int state_offset = (i % 4) * 4 + 2;
-
 		entry->state[i] = (regs[i / 4] >> state_offset) & 0x3;
 	}
 
@@ -336,39 +307,6 @@ static int mv88e6xxx_g1_vtu_getnext(struct mv88e6xxx_chip *chip,
 	return mv88e6xxx_g1_vtu_vid_read(chip, entry);
 }
 
-int mv88e6250_g1_vtu_getnext(struct mv88e6xxx_chip *chip,
-			     struct mv88e6xxx_vtu_entry *entry)
-{
-	u16 val;
-	int err;
-
-	err = mv88e6xxx_g1_vtu_getnext(chip, entry);
-	if (err)
-		return err;
-
-	if (entry->valid) {
-		err = mv88e6185_g1_vtu_data_read(chip, entry);
-		if (err)
-			return err;
-
-		err = mv88e6185_g1_stu_data_read(chip, entry);
-		if (err)
-			return err;
-
-		/* VTU DBNum[3:0] are located in VTU Operation 3:0
-		 * VTU DBNum[5:4] are located in VTU Operation 9:8
-		 */
-		err = mv88e6xxx_g1_read(chip, MV88E6XXX_G1_VTU_OP, &val);
-		if (err)
-			return err;
-
-		entry->fid = val & 0x000f;
-		entry->fid |= (val & 0x0300) >> 4;
-	}
-
-	return 0;
-}
-
 int mv88e6185_g1_vtu_getnext(struct mv88e6xxx_chip *chip,
 			     struct mv88e6xxx_vtu_entry *entry)
 {
@@ -381,10 +319,6 @@ int mv88e6185_g1_vtu_getnext(struct mv88e6xxx_chip *chip,
 
 	if (entry->valid) {
 		err = mv88e6185_g1_vtu_data_read(chip, entry);
-		if (err)
-			return err;
-
-		err = mv88e6185_g1_stu_data_read(chip, entry);
 		if (err)
 			return err;
 
@@ -413,20 +347,16 @@ int mv88e6352_g1_vtu_getnext(struct mv88e6xxx_chip *chip,
 		return err;
 
 	if (entry->valid) {
+		/* Fetch (and mask) VLAN PortState data from the STU */
+		err = mv88e6xxx_g1_vtu_stu_get(chip, entry);
+		if (err)
+			return err;
+
 		err = mv88e6185_g1_vtu_data_read(chip, entry);
 		if (err)
 			return err;
 
 		err = mv88e6xxx_g1_vtu_fid_read(chip, entry);
-		if (err)
-			return err;
-
-		/* Fetch VLAN PortState data from the STU */
-		err = mv88e6xxx_g1_vtu_stu_get(chip, entry);
-		if (err)
-			return err;
-
-		err = mv88e6185_g1_stu_data_read(chip, entry);
 		if (err)
 			return err;
 	}
@@ -464,35 +394,6 @@ int mv88e6390_g1_vtu_getnext(struct mv88e6xxx_chip *chip,
 	}
 
 	return 0;
-}
-
-int mv88e6250_g1_vtu_loadpurge(struct mv88e6xxx_chip *chip,
-			       struct mv88e6xxx_vtu_entry *entry)
-{
-	u16 op = MV88E6XXX_G1_VTU_OP_VTU_LOAD_PURGE;
-	int err;
-
-	err = mv88e6xxx_g1_vtu_op_wait(chip);
-	if (err)
-		return err;
-
-	err = mv88e6xxx_g1_vtu_vid_write(chip, entry);
-	if (err)
-		return err;
-
-	if (entry->valid) {
-		err = mv88e6185_g1_vtu_data_write(chip, entry);
-		if (err)
-			return err;
-
-		/* VTU DBNum[3:0] are located in VTU Operation 3:0
-		 * VTU DBNum[5:4] are located in VTU Operation 9:8
-		 */
-		op |= entry->fid & 0x000f;
-		op |= (entry->fid & 0x0030) << 4;
-	}
-
-	return mv88e6xxx_g1_vtu_op(chip, op);
 }
 
 int mv88e6185_g1_vtu_loadpurge(struct mv88e6xxx_chip *chip,
@@ -624,7 +525,7 @@ static irqreturn_t mv88e6xxx_g1_vtu_prob_irq_thread_fn(int irq, void *dev_id)
 	int err;
 	u16 val;
 
-	mv88e6xxx_reg_lock(chip);
+	mutex_lock(&chip->reg_lock);
 
 	err = mv88e6xxx_g1_vtu_op(chip, MV88E6XXX_G1_VTU_OP_GET_CLR_VIOLATION);
 	if (err)
@@ -652,12 +553,12 @@ static irqreturn_t mv88e6xxx_g1_vtu_prob_irq_thread_fn(int irq, void *dev_id)
 		chip->ports[spid].vtu_miss_violation++;
 	}
 
-	mv88e6xxx_reg_unlock(chip);
+	mutex_unlock(&chip->reg_lock);
 
 	return IRQ_HANDLED;
 
 out:
-	mv88e6xxx_reg_unlock(chip);
+	mutex_unlock(&chip->reg_lock);
 
 	dev_err(chip->dev, "VTU problem: error %d while handling interrupt\n",
 		err);

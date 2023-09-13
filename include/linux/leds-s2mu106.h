@@ -98,6 +98,21 @@
 #define S2MU106_F2C_LC_IBAT	MASK(6,0)
 #define S2MU106_F2C_SYS_MIN_REG	MASK(3,0)
 
+/* FLED operating mode enable */
+enum operating_mode {
+	AUTO_MODE = 0,
+	BOOST_MODE,
+	TA_MODE,
+	SYS_MODE,
+};
+
+enum cam_flash_mode{
+	CAM_FLASH_MODE_NONE=0,		//CAM2_FLASH_MODE_NONE=0,
+	CAM_FLASH_MODE_OFF,		//CAM2_FLASH_MODE_OFF,
+	CAM_FLASH_MODE_SINGLE,		//CAM2_FLASH_MODE_SINGLE,
+	CAM_FLASH_MODE_TORCH,		//CAM2_FLASH_MODE_TORCH,
+};
+
 enum s2mu106_fled_mode {
 	S2MU106_FLED_MODE_OFF,
 	S2MU106_FLED_MODE_TORCH,
@@ -105,13 +120,6 @@ enum s2mu106_fled_mode {
 	S2MU106_FLED_MODE_MOVIE,
 	S2MU106_FLED_MODE_FACTORY,
 	S2MU106_FLED_MODE_MAX,
-};
-
-struct s2mu106_pinctrl_info {
-	struct pinctrl *pinctrl;
-	struct pinctrl_state *gpio_state_active;
-	struct pinctrl_state *gpio_state_suspend;
-	bool use_pinctrl;
 };
 
 struct s2mu106_fled_chan {
@@ -153,7 +161,6 @@ struct s2mu106_fled_data {
 
 	/* charger mode control */
 	bool is_en_flash;
-	bool is_en_torch;
 	struct power_supply *psy_chg;
 
 	struct i2c_client *i2c;
@@ -165,10 +172,11 @@ struct s2mu106_fled_data {
 	unsigned int movie_current;
 	unsigned int factory_current;
 	unsigned int flashlight_current[S2MU106_FLASH_LIGHT_MAX];
-	struct s2mu106_pinctrl_info flash_pctrl;
 };
 
-int s2mu106_led_mode_ctrl(int state, int curr);
+int s2mu106_fled_set_mode_ctrl(int chan, enum cam_flash_mode cam_mode);
+int s2mu106_fled_set_curr(int chan, enum cam_flash_mode cam_mode, int curr);
+int s2mu106_fled_get_curr(int chan, enum cam_flash_mode cam_mode);
+int s2mu106_led_mode_ctrl(int state);
 extern void s2mu106_fled_set_operation_mode(int val);
-int ext_pmic_cam_fled_ctrl(int cam_mode, int curr);
 #endif

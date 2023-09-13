@@ -1,6 +1,17 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright(c) 2015 EZchip Technologies.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * The full GNU General Public License is included in this distribution in
+ * the file called "COPYING".
  */
 
 #include <linux/module.h>
@@ -576,6 +587,7 @@ static s32 nps_enet_probe(struct platform_device *pdev)
 	struct nps_enet_priv *priv;
 	s32 err = 0;
 	const char *mac_addr;
+	struct resource *res_regs;
 
 	if (!dev->of_node)
 		return -ENODEV;
@@ -594,7 +606,8 @@ static s32 nps_enet_probe(struct platform_device *pdev)
 	/* FIXME :: no multicast support yet */
 	ndev->flags &= ~IFF_MULTICAST;
 
-	priv->regs_base = devm_platform_ioremap_resource(pdev, 0);
+	res_regs = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	priv->regs_base = devm_ioremap_resource(dev, res_regs);
 	if (IS_ERR(priv->regs_base)) {
 		err = PTR_ERR(priv->regs_base);
 		goto out_netdev;
@@ -603,14 +616,14 @@ static s32 nps_enet_probe(struct platform_device *pdev)
 
 	/* set kernel MAC address to dev */
 	mac_addr = of_get_mac_address(dev->of_node);
-	if (!IS_ERR(mac_addr))
+	if (mac_addr)
 		ether_addr_copy(ndev->dev_addr, mac_addr);
 	else
 		eth_hw_addr_random(ndev);
 
 	/* Get IRQ number */
 	priv->irq = platform_get_irq(pdev, 0);
-	if (priv->irq < 0) {
+	if (!priv->irq) {
 		dev_err(dev, "failed to retrieve <irq Rx-Tx> value from device tree\n");
 		err = -ENODEV;
 		goto out_netdev;
@@ -645,8 +658,8 @@ static s32 nps_enet_remove(struct platform_device *pdev)
 	struct nps_enet_priv *priv = netdev_priv(ndev);
 
 	unregister_netdev(ndev);
-	netif_napi_del(&priv->napi);
 	free_netdev(ndev);
+	netif_napi_del(&priv->napi);
 
 	return 0;
 }

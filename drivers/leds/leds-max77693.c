@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * LED Flash class driver for the flash cell of max77693 mfd.
  *
@@ -6,6 +5,10 @@
  *
  *	Authors: Jacek Anaszewski <j.anaszewski@samsung.com>
  *		 Andrzej Hajda <a.hajda@samsung.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * version 2 as published by the Free Software Foundation.
  */
 
 #include <linux/led-class-flash.h>

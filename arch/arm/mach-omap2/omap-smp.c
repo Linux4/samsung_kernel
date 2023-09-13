@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * OMAP4 SMP source file. It contains platform specific functions
  * needed for the linux smp kernel.
@@ -11,6 +10,10 @@
  * Platform file needed for the OMAP4 SMP. This file is based on arm
  * realview smp platform.
  * * Copyright (c) 2002 ARM Limited.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 #include <linux/init.h>
 #include <linux/device.h>
@@ -65,6 +68,8 @@ static const struct omap_smp_config omap5_cfg __initconst = {
 	.cpu1_rstctrl_pa = 0x48243810,
 	.startup_addr = omap5_secondary_startup,
 };
+
+static DEFINE_SPINLOCK(boot_lock);
 
 void __iomem *omap4_get_scu_base(void)
 {
@@ -168,6 +173,12 @@ static void omap4_secondary_init(unsigned int cpu)
 		/* Enable ACR to allow for ICUALLU workaround */
 		omap5_secondary_harden_predictor();
 	}
+
+	/*
+	 * Synchronise with the boot thread.
+	 */
+	spin_lock(&boot_lock);
+	spin_unlock(&boot_lock);
 }
 
 static int omap4_boot_secondary(unsigned int cpu, struct task_struct *idle)
@@ -175,6 +186,12 @@ static int omap4_boot_secondary(unsigned int cpu, struct task_struct *idle)
 	static struct clockdomain *cpu1_clkdm;
 	static bool booted;
 	static struct powerdomain *cpu1_pwrdm;
+
+	/*
+	 * Set synchronisation state between this boot processor
+	 * and the secondary one
+	 */
+	spin_lock(&boot_lock);
 
 	/*
 	 * Update the AuxCoreBoot0 with boot state for secondary core.
@@ -248,6 +265,12 @@ static int omap4_boot_secondary(unsigned int cpu, struct task_struct *idle)
 	}
 
 	arch_send_wakeup_ipi_mask(cpumask_of(cpu));
+
+	/*
+	 * Now the secondary core is starting up let it run its
+	 * calibrations, then wait for it to finish
+	 */
+	spin_unlock(&boot_lock);
 
 	return 0;
 }

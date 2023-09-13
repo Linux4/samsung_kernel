@@ -20,7 +20,7 @@
  * new data the application may have written before commit.
  */
 enum {
-	BTRFS_INODE_ORDERED_DATA_CLOSE,
+	BTRFS_INODE_ORDERED_DATA_CLOSE = 0,
 	BTRFS_INODE_DUMMY,
 	BTRFS_INODE_IN_DEFRAG,
 	BTRFS_INODE_HAS_ASYNC_EXTENT,
@@ -148,6 +148,12 @@ struct btrfs_inode {
 	u64 last_unlink_trans;
 
 	/*
+	 * Track the transaction id of the last transaction used to create a
+	 * hard link for the inode. This is used by the log tree (fsync).
+	 */
+	u64 last_link_trans;
+
+	/*
 	 * Number of bytes outstanding that are going to need csums.  This is
 	 * used in ENOSPC accounting.
 	 */
@@ -197,6 +203,8 @@ struct btrfs_inode {
 	struct inode vfs_inode;
 };
 
+extern unsigned char btrfs_filetype_table[];
+
 static inline struct btrfs_inode *BTRFS_I(const struct inode *inode)
 {
 	return container_of(inode, struct btrfs_inode, vfs_inode);
@@ -205,7 +213,7 @@ static inline struct btrfs_inode *BTRFS_I(const struct inode *inode)
 static inline unsigned long btrfs_inode_hash(u64 objectid,
 					     const struct btrfs_root *root)
 {
-	u64 h = objectid ^ (root->root_key.objectid * GOLDEN_RATIO_PRIME);
+	u64 h = objectid ^ (root->objectid * GOLDEN_RATIO_PRIME);
 
 #if BITS_PER_LONG == 32
 	h = (h >> 32) ^ (h & 0xffffffff);
@@ -252,11 +260,6 @@ static inline bool btrfs_is_free_space_inode(struct btrfs_inode *inode)
 	return false;
 }
 
-static inline bool is_data_inode(struct inode *inode)
-{
-	return btrfs_ino(BTRFS_I(inode)) != BTRFS_BTREE_INODE_OBJECTID;
-}
-
 static inline void btrfs_mod_outstanding_extents(struct btrfs_inode *inode,
 						 int mod)
 {
@@ -266,21 +269,6 @@ static inline void btrfs_mod_outstanding_extents(struct btrfs_inode *inode,
 		return;
 	trace_btrfs_inode_mod_outstanding_extents(inode->root, btrfs_ino(inode),
 						  mod);
-}
-
-/*
- * Called every time after doing a buffered, direct IO or memory mapped write.
- *
- * This is to ensure that if we write to a file that was previously fsynced in
- * the current transaction, then try to fsync it again in the same transaction,
- * we will know that there were changes in the file and that it needs to be
- * logged.
- */
-static inline void btrfs_set_inode_last_sub_trans(struct btrfs_inode *inode)
-{
-	spin_lock(&inode->lock);
-	inode->last_sub_trans = inode->root->log_transid;
-	spin_unlock(&inode->lock);
 }
 
 static inline int btrfs_inode_in_log(struct btrfs_inode *inode, u64 generation)
@@ -352,34 +340,22 @@ static inline void btrfs_inode_resume_unlocked_dio(struct btrfs_inode *inode)
 	clear_bit(BTRFS_INODE_READDIO_NEED_LOCK, &inode->runtime_flags);
 }
 
-/* Array of bytes with variable length, hexadecimal format 0x1234 */
-#define CSUM_FMT				"0x%*phN"
-#define CSUM_FMT_VALUE(size, bytes)		size, bytes
-
 static inline void btrfs_print_data_csum_error(struct btrfs_inode *inode,
-		u64 logical_start, u8 *csum, u8 *csum_expected, int mirror_num)
+		u64 logical_start, u32 csum, u32 csum_expected, int mirror_num)
 {
 	struct btrfs_root *root = inode->root;
-	struct btrfs_super_block *sb = root->fs_info->super_copy;
-	const u16 csum_size = btrfs_super_csum_size(sb);
 
 	/* Output minus objectid, which is more meaningful */
-	if (root->root_key.objectid >= BTRFS_LAST_FREE_OBJECTID)
+	if (root->objectid >= BTRFS_LAST_FREE_OBJECTID)
 		btrfs_warn_rl(root->fs_info,
-"csum failed root %lld ino %lld off %llu csum " CSUM_FMT " expected csum " CSUM_FMT " mirror %d",
-			root->root_key.objectid, btrfs_ino(inode),
-			logical_start,
-			CSUM_FMT_VALUE(csum_size, csum),
-			CSUM_FMT_VALUE(csum_size, csum_expected),
-			mirror_num);
+	"csum failed root %lld ino %lld off %llu csum 0x%08x expected csum 0x%08x mirror %d",
+			root->objectid, btrfs_ino(inode),
+			logical_start, csum, csum_expected, mirror_num);
 	else
 		btrfs_warn_rl(root->fs_info,
-"csum failed root %llu ino %llu off %llu csum " CSUM_FMT " expected csum " CSUM_FMT " mirror %d",
-			root->root_key.objectid, btrfs_ino(inode),
-			logical_start,
-			CSUM_FMT_VALUE(csum_size, csum),
-			CSUM_FMT_VALUE(csum_size, csum_expected),
-			mirror_num);
+	"csum failed root %llu ino %llu off %llu csum 0x%08x expected csum 0x%08x mirror %d",
+			root->objectid, btrfs_ino(inode),
+			logical_start, csum, csum_expected, mirror_num);
 }
 
 #endif

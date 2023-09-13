@@ -1,8 +1,20 @@
-// SPDX-License-Identifier: GPL-2.0+
 /*
  * Driver for Realtek PCI-Express card reader
  *
  * Copyright(c) 2009-2013 Realtek Semiconductor Corp. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the
+ * Free Software Foundation; either version 2, or (at your option) any
+ * later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, see <http://www.gnu.org/licenses/>.
  *
  * Author:
  *   Wei WANG (wei_wang@realsil.com.cn)
@@ -393,9 +405,10 @@ static int rtsx_transfer_sglist_adma_partial(struct rtsx_chip *chip, u8 card,
 			*offset = 0;
 			*index = *index + 1;
 		}
-		option = RTSX_SG_VALID | RTSX_SG_TRANS_DATA;
-		if ((i == sg_cnt - 1) || !resid)
-			option |= RTSX_SG_END;
+		if ((i == (sg_cnt - 1)) || !resid)
+			option = RTSX_SG_VALID | RTSX_SG_END | RTSX_SG_TRANS_DATA;
+		else
+			option = RTSX_SG_VALID | RTSX_SG_TRANS_DATA;
 
 		rtsx_add_sg_tbl(chip, (u32)addr, (u32)len, option);
 
@@ -540,9 +553,10 @@ static int rtsx_transfer_sglist_adma(struct rtsx_chip *chip, u8 card,
 			dev_dbg(rtsx_dev(chip), "DMA addr: 0x%x, Len: 0x%x\n",
 				(unsigned int)addr, len);
 
-			option = RTSX_SG_VALID | RTSX_SG_TRANS_DATA;
 			if (j == (sg_cnt - 1))
-				option |= RTSX_SG_END;
+				option = RTSX_SG_VALID | RTSX_SG_END | RTSX_SG_TRANS_DATA;
+			else
+				option = RTSX_SG_VALID | RTSX_SG_TRANS_DATA;
 
 			rtsx_add_sg_tbl(chip, (u32)addr, (u32)len, option);
 

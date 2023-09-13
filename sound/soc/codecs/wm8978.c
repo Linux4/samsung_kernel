@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * wm8978.c  --  WM8978 ALSA SoC Audio Codec driver
  *
@@ -6,6 +5,10 @@
  * Copyright (C) 2007 Carlos Munoz <carlos@kenati.com>
  * Copyright 2006-2009 Wolfson Microelectronics PLC.
  * Based on wm8974 and wm8990 by Liam Girdwood <lrg@slimlogic.co.uk>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/module.h>

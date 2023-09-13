@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2016 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
  */
@@ -22,8 +21,6 @@
 
 static siphash_key_t net_secret __read_mostly;
 static siphash_key_t ts_secret __read_mostly;
-
-#define EPHEMERAL_PORT_SHUFFLE_PERIOD (10 * HZ)
 
 static __always_inline void net_secret_init(void)
 {
@@ -65,7 +62,7 @@ u32 secure_tcpv6_ts_off(const struct net *net,
 		.daddr = *(struct in6_addr *)daddr,
 	};
 
-	if (READ_ONCE(net->ipv4.sysctl_tcp_timestamps) != 1)
+	if (net->ipv4.sysctl_tcp_timestamps != 1)
 		return 0;
 
 	ts_secret_init();
@@ -97,19 +94,17 @@ u32 secure_tcpv6_seq(const __be32 *saddr, const __be32 *daddr,
 }
 EXPORT_SYMBOL(secure_tcpv6_seq);
 
-u64 secure_ipv6_port_ephemeral(const __be32 *saddr, const __be32 *daddr,
+u32 secure_ipv6_port_ephemeral(const __be32 *saddr, const __be32 *daddr,
 			       __be16 dport)
 {
 	const struct {
 		struct in6_addr saddr;
 		struct in6_addr daddr;
-		unsigned int timeseed;
 		__be16 dport;
 	} __aligned(SIPHASH_ALIGNMENT) combined = {
 		.saddr = *(struct in6_addr *)saddr,
 		.daddr = *(struct in6_addr *)daddr,
-		.timeseed = jiffies / EPHEMERAL_PORT_SHUFFLE_PERIOD,
-		.dport = dport,
+		.dport = dport
 	};
 	net_secret_init();
 	return siphash(&combined, offsetofend(typeof(combined), dport),
@@ -121,7 +116,7 @@ EXPORT_SYMBOL(secure_ipv6_port_ephemeral);
 #ifdef CONFIG_INET
 u32 secure_tcp_ts_off(const struct net *net, __be32 saddr, __be32 daddr)
 {
-	if (READ_ONCE(net->ipv4.sysctl_tcp_timestamps) != 1)
+	if (net->ipv4.sysctl_tcp_timestamps != 1)
 		return 0;
 
 	ts_secret_init();
@@ -147,13 +142,11 @@ u32 secure_tcp_seq(__be32 saddr, __be32 daddr,
 }
 EXPORT_SYMBOL_GPL(secure_tcp_seq);
 
-u64 secure_ipv4_port_ephemeral(__be32 saddr, __be32 daddr, __be16 dport)
+u32 secure_ipv4_port_ephemeral(__be32 saddr, __be32 daddr, __be16 dport)
 {
 	net_secret_init();
-	return siphash_4u32((__force u32)saddr, (__force u32)daddr,
-			    (__force u16)dport,
-			    jiffies / EPHEMERAL_PORT_SHUFFLE_PERIOD,
-			    &net_secret);
+	return siphash_3u32((__force u32)saddr, (__force u32)daddr,
+			    (__force u16)dport, &net_secret);
 }
 EXPORT_SYMBOL_GPL(secure_ipv4_port_ephemeral);
 #endif

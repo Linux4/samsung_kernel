@@ -12,12 +12,10 @@
 #include <subcmd/parse-options.h>
 #include <linux/compiler.h>
 #include <linux/kernel.h>
-#include <linux/zalloc.h>
 #include <errno.h>
-#include <internal/cpumap.h>
-#include <perf/cpumap.h>
 #include "bench.h"
 #include "futex.h"
+#include "cpumap.h"
 
 #include <err.h>
 #include <stdlib.h>
@@ -37,6 +35,7 @@ static bool silent = false, multi = false;
 static bool done = false, fshared = false;
 static unsigned int nthreads = 0;
 static int futex_flag = 0;
+struct timeval start, end, runtime;
 static pthread_mutex_t thread_lock;
 static unsigned int threads_starting;
 static struct stats throughput_stats;
@@ -63,7 +62,7 @@ static void print_summary(void)
 
 	printf("%sAveraged %ld operations/sec (+- %.2f%%), total secs = %d\n",
 	       !silent ? "\n" : "", avg, rel_stddev_stats(stddev, avg),
-	       (int)bench__runtime.tv_sec);
+	       (int) runtime.tv_sec);
 }
 
 static void toggle_done(int sig __maybe_unused,
@@ -72,8 +71,8 @@ static void toggle_done(int sig __maybe_unused,
 {
 	/* inform all threads that we're done for the day */
 	done = true;
-	gettimeofday(&bench__end, NULL);
-	timersub(&bench__end, &bench__start, &bench__runtime);
+	gettimeofday(&end, NULL);
+	timersub(&end, &start, &runtime);
 }
 
 static void *workerfn(void *arg)
@@ -116,7 +115,7 @@ static void *workerfn(void *arg)
 }
 
 static void create_threads(struct worker *w, pthread_attr_t thread_attr,
-			   struct perf_cpu_map *cpu)
+			   struct cpu_map *cpu)
 {
 	cpu_set_t cpuset;
 	unsigned int i;
@@ -150,13 +149,13 @@ int bench_futex_lock_pi(int argc, const char **argv)
 	unsigned int i;
 	struct sigaction act;
 	pthread_attr_t thread_attr;
-	struct perf_cpu_map *cpu;
+	struct cpu_map *cpu;
 
 	argc = parse_options(argc, argv, options, bench_futex_lock_pi_usage, 0);
 	if (argc)
 		goto err;
 
-	cpu = perf_cpu_map__new(NULL);
+	cpu = cpu_map__new(NULL);
 	if (!cpu)
 		err(EXIT_FAILURE, "calloc");
 
@@ -184,7 +183,7 @@ int bench_futex_lock_pi(int argc, const char **argv)
 
 	threads_starting = nthreads;
 	pthread_attr_init(&thread_attr);
-	gettimeofday(&bench__start, NULL);
+	gettimeofday(&start, NULL);
 
 	create_threads(worker, thread_attr, cpu);
 	pthread_attr_destroy(&thread_attr);
@@ -210,7 +209,7 @@ int bench_futex_lock_pi(int argc, const char **argv)
 	pthread_mutex_destroy(&thread_lock);
 
 	for (i = 0; i < nthreads; i++) {
-		unsigned long t = worker[i].ops / bench__runtime.tv_sec;
+		unsigned long t = worker[i].ops/runtime.tv_sec;
 
 		update_stats(&throughput_stats, t);
 		if (!silent)
@@ -218,13 +217,12 @@ int bench_futex_lock_pi(int argc, const char **argv)
 			       worker[i].tid, worker[i].futex, t);
 
 		if (multi)
-			zfree(&worker[i].futex);
+			free(worker[i].futex);
 	}
 
 	print_summary();
 
 	free(worker);
-	perf_cpu_map__put(cpu);
 	return ret;
 err:
 	usage_with_options(bench_futex_lock_pi_usage, options);

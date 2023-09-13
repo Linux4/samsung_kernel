@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 
 /*
  *    PARISC specific syscalls
@@ -7,6 +6,21 @@
  *    Copyright (C) 2000-2003 Paul Bame <bame at parisc-linux.org>
  *    Copyright (C) 2001 Thomas Bogendoerfer <tsbogend at parisc-linux.org>
  *    Copyright (C) 1999-2014 Helge Deller <deller@gmx.de>
+ *
+ *
+ *    This program is free software; you can redistribute it and/or modify
+ *    it under the terms of the GNU General Public License as published by
+ *    the Free Software Foundation; either version 2 of the License, or
+ *    (at your option) any later version.
+ *
+ *    This program is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU General Public License for more details.
+ *
+ *    You should have received a copy of the GNU General Public License
+ *    along with this program; if not, write to the Free Software
+ *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
 #include <linux/uaccess.h>
@@ -72,8 +86,7 @@ static unsigned long mmap_upper_limit(struct rlimit *rlim_stack)
 		stack_base = STACK_SIZE_MAX;
 
 	/* Add space for stack randomization. */
-	if (current->flags & PF_RANDOMIZE)
-		stack_base += (STACK_RND_MASK << PAGE_SHIFT);
+	stack_base += (STACK_RND_MASK << PAGE_SHIFT);
 
 	return PAGE_ALIGN(STACK_TOP - stack_base);
 }

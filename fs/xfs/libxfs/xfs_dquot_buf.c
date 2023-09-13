@@ -16,6 +16,8 @@
 #include "xfs_trans.h"
 #include "xfs_qm.h"
 #include "xfs_error.h"
+#include "xfs_cksum.h"
+#include "xfs_trace.h"
 
 int
 xfs_calc_dquots_per_chunk(
@@ -108,7 +110,7 @@ xfs_dqblk_verify(
 /*
  * Do some primitive error checking on ondisk dquot data structures.
  */
-void
+int
 xfs_dqblk_repair(
 	struct xfs_mount	*mp,
 	struct xfs_dqblk	*dqb,
@@ -131,6 +133,8 @@ xfs_dqblk_repair(
 		xfs_update_cksum((char *)dqb, sizeof(struct xfs_dqblk),
 				 XFS_DQUOT_CRC_OFF);
 	}
+
+	return 0;
 }
 
 STATIC bool
@@ -222,7 +226,7 @@ static xfs_failaddr_t
 xfs_dquot_buf_verify_struct(
 	struct xfs_buf		*bp)
 {
-	struct xfs_mount	*mp = bp->b_mount;
+	struct xfs_mount	*mp = bp->b_target->bt_mount;
 
 	return xfs_dquot_buf_verify(mp, bp, false);
 }
@@ -231,7 +235,7 @@ static void
 xfs_dquot_buf_read_verify(
 	struct xfs_buf		*bp)
 {
-	struct xfs_mount	*mp = bp->b_mount;
+	struct xfs_mount	*mp = bp->b_target->bt_mount;
 
 	if (!xfs_dquot_buf_verify_crc(mp, bp, false))
 		return;
@@ -248,7 +252,7 @@ static void
 xfs_dquot_buf_readahead_verify(
 	struct xfs_buf	*bp)
 {
-	struct xfs_mount	*mp = bp->b_mount;
+	struct xfs_mount	*mp = bp->b_target->bt_mount;
 
 	if (!xfs_dquot_buf_verify_crc(mp, bp, true) ||
 	    xfs_dquot_buf_verify(mp, bp, true) != NULL) {
@@ -266,15 +270,13 @@ static void
 xfs_dquot_buf_write_verify(
 	struct xfs_buf		*bp)
 {
-	struct xfs_mount	*mp = bp->b_mount;
+	struct xfs_mount	*mp = bp->b_target->bt_mount;
 
 	xfs_dquot_buf_verify(mp, bp, false);
 }
 
 const struct xfs_buf_ops xfs_dquot_buf_ops = {
 	.name = "xfs_dquot",
-	.magic16 = { cpu_to_be16(XFS_DQUOT_MAGIC),
-		     cpu_to_be16(XFS_DQUOT_MAGIC) },
 	.verify_read = xfs_dquot_buf_read_verify,
 	.verify_write = xfs_dquot_buf_write_verify,
 	.verify_struct = xfs_dquot_buf_verify_struct,
@@ -282,8 +284,6 @@ const struct xfs_buf_ops xfs_dquot_buf_ops = {
 
 const struct xfs_buf_ops xfs_dquot_buf_ra_ops = {
 	.name = "xfs_dquot_ra",
-	.magic16 = { cpu_to_be16(XFS_DQUOT_MAGIC),
-		     cpu_to_be16(XFS_DQUOT_MAGIC) },
 	.verify_read = xfs_dquot_buf_readahead_verify,
 	.verify_write = xfs_dquot_buf_write_verify,
 };

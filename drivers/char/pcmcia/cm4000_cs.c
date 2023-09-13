@@ -530,7 +530,7 @@ static int set_protocol(struct cm4000_dev *dev, struct ptsreq *ptsreq)
 			DEBUGP(5, dev, "NumRecBytes is valid\n");
 			break;
 		}
-		usleep_range(10000, 11000);
+		mdelay(10);
 	}
 	if (i == 100) {
 		DEBUGP(5, dev, "Timeout waiting for NumRecBytes getting "
@@ -544,13 +544,9 @@ static int set_protocol(struct cm4000_dev *dev, struct ptsreq *ptsreq)
 		io_read_num_rec_bytes(iobase, &num_bytes_read);
 		if (num_bytes_read >= 4) {
 			DEBUGP(2, dev, "NumRecBytes = %i\n", num_bytes_read);
-			if (num_bytes_read > 4) {
-				rc = -EIO;
-				goto exit_setprotocol;
-			}
 			break;
 		}
-		usleep_range(10000, 11000);
+		mdelay(10);
 	}
 
 	/* check whether it is a short PTS reply? */
@@ -1449,11 +1445,11 @@ static long cmm_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	      _IOC_DIR(cmd), _IOC_READ, _IOC_WRITE, size, cmd);
 
 	if (_IOC_DIR(cmd) & _IOC_READ) {
-		if (!access_ok(argp, size))
+		if (!access_ok(VERIFY_WRITE, argp, size))
 			goto out;
 	}
 	if (_IOC_DIR(cmd) & _IOC_WRITE) {
-		if (!access_ok(argp, size))
+		if (!access_ok(VERIFY_READ, argp, size))
 			goto out;
 	}
 	rc = 0;
@@ -1686,7 +1682,7 @@ static int cmm_open(struct inode *inode, struct file *filp)
 	link->open = 1;		/* only one open per device */
 
 	DEBUGP(2, dev, "<- cmm_open\n");
-	ret = stream_open(inode, filp);
+	ret = nonseekable_open(inode, filp);
 out:
 	mutex_unlock(&cmm_mutex);
 	return ret;

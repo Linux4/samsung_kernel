@@ -1,37 +1,15 @@
 # SPDX-License-Identifier: GPL-2.0
-subdir-y += actions
-subdir-y += al
-subdir-y += allwinner
-subdir-y += altera
-subdir-y += amd
-subdir-y += amlogic
-subdir-y += apm
-subdir-y += arm
-subdir-y += bitmain
-subdir-y += broadcom
-subdir-y += cavium
-subdir-y += exynos
-subdir-y += freescale
-subdir-y += hisilicon
-subdir-y += intel
-subdir-y += lg
-subdir-y += marvell
-subdir-y += mediatek
-subdir-y += nvidia
-#subdir-y += qcom
-subdir-y += realtek
-subdir-y += renesas
-subdir-y += rockchip
-subdir-y += samsung
-subdir-y += socionext
-subdir-y += sprd
-subdir-y += synaptics
-subdir-y += ti
-subdir-y += xilinx
-subdir-y += zte
+dtb-y += exynos/exynos3830.dtb
+dtbo-y += samsung/a21s/a21s_eur_open_w00_r02.dtbo
+dtbo-y += samsung/a21s/a21s_eur_open_w00_r03.dtbo
+dtbo-y += samsung/a21s/a21s_eur_open_w00_r06.dtbo
+dtbo-y += samsung/a21s/a21s_eur_open_w00_r01.dtbo
+dtbo-y += samsung/a21s/a21s_eur_open_w00_r00.dtbo
 
-dtstree	:= $(srctree)/$(src)
-#vendor  := $(dtstree)/vendor
-#ifneq "$(wildcard $(vendor)/Makefile)" ""
-#    subdir-y += vendor
-#endif
+targets += dtbs
+DTB_LIST  := $(dtb-y) $(dtbo-y)
+always    := $(DTB_LIST)
+
+dtbs: $(addprefix $(obj)/, $(DTB_LIST))
+
+clean-files := *.dtb*

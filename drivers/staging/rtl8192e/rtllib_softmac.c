@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* IEEE 802.11 SoftMAC layer
  * Copyright (c) 2005 Andrea Merello <andrea.merello@gmail.com>
  *
@@ -10,7 +9,11 @@
  *
  * WPA code stolen from the ipw2200 driver.
  * Copyright who own it's copyright.
+ *
+ * released under the GPL
  */
+
+
 #include "rtllib.h"
 
 #include <linux/random.h>
@@ -561,7 +564,7 @@ out:
 
 	if (ieee->state >= RTLLIB_LINKED) {
 		if (IS_DOT11D_ENABLE(ieee))
-			dot11d_scan_complete(ieee);
+			DOT11D_ScanComplete(ieee);
 	}
 	mutex_unlock(&ieee->scan_mutex);
 
@@ -620,7 +623,7 @@ static void rtllib_softmac_scan_wq(void *data)
 
 out:
 	if (IS_DOT11D_ENABLE(ieee))
-		dot11d_scan_complete(ieee);
+		DOT11D_ScanComplete(ieee);
 	ieee->current_network.channel = last_channel;
 
 out1:
@@ -651,9 +654,9 @@ static void rtllib_beacons_stop(struct rtllib_device *ieee)
 	spin_lock_irqsave(&ieee->beacon_lock, flags);
 
 	ieee->beacon_txing = 0;
+	del_timer_sync(&ieee->beacon_timer);
 
 	spin_unlock_irqrestore(&ieee->beacon_lock, flags);
-	del_timer_sync(&ieee->beacon_timer);
 
 }
 
@@ -1382,10 +1385,15 @@ rtllib_association_req(struct rtllib_network *beacon,
 	ieee->assocreq_ies = NULL;
 	ies = &(hdr->info_element[0].id);
 	ieee->assocreq_ies_len = (skb->data + skb->len) - ies;
-	ieee->assocreq_ies = kmemdup(ies, ieee->assocreq_ies_len, GFP_ATOMIC);
-	if (!ieee->assocreq_ies)
+	ieee->assocreq_ies = kmalloc(ieee->assocreq_ies_len, GFP_ATOMIC);
+	if (ieee->assocreq_ies)
+		memcpy(ieee->assocreq_ies, ies, ieee->assocreq_ies_len);
+	else {
+		netdev_info(ieee->dev,
+			    "%s()Warning: can't alloc memory for assocreq_ies\n",
+			    __func__);
 		ieee->assocreq_ies_len = 0;
-
+	}
 	return skb;
 }
 
@@ -1672,19 +1680,19 @@ inline void rtllib_softmac_new_net(struct rtllib_device *ieee,
 		   (ssidbroad && !ssidset) || (!ssidbroad && ssidset))) ||
 		   (!apset && ssidset && ssidbroad && ssidmatch) ||
 		   (ieee->is_roaming && ssidset && ssidbroad && ssidmatch)) {
-			/* Save the essid so that if it is hidden, it is
-			 * replaced with the essid provided by the user.
+			/* if the essid is hidden replace it with the
+			 * essid provided by the user.
 			 */
 			if (!ssidbroad) {
-				memcpy(tmp_ssid, ieee->current_network.ssid,
-				       ieee->current_network.ssid_len);
+				strncpy(tmp_ssid, ieee->current_network.ssid,
+					IW_ESSID_MAX_SIZE);
 				tmp_ssid_len = ieee->current_network.ssid_len;
 			}
 			memcpy(&ieee->current_network, net,
-				sizeof(ieee->current_network));
+			       sizeof(struct rtllib_network));
 			if (!ssidbroad) {
-				memcpy(ieee->current_network.ssid, tmp_ssid,
-				       tmp_ssid_len);
+				strncpy(ieee->current_network.ssid, tmp_ssid,
+					IW_ESSID_MAX_SIZE);
 				ieee->current_network.ssid_len = tmp_ssid_len;
 			}
 			netdev_info(ieee->dev,
@@ -2254,12 +2262,17 @@ rtllib_rx_assoc_resp(struct rtllib_device *ieee, struct sk_buff *skb,
 			ieee->assocresp_ies = NULL;
 			ies = &(assoc_resp->info_element[0].id);
 			ieee->assocresp_ies_len = (skb->data + skb->len) - ies;
-			ieee->assocresp_ies = kmemdup(ies,
-						      ieee->assocresp_ies_len,
+			ieee->assocresp_ies = kmalloc(ieee->assocresp_ies_len,
 						      GFP_ATOMIC);
-			if (!ieee->assocresp_ies)
+			if (ieee->assocresp_ies)
+				memcpy(ieee->assocresp_ies, ies,
+				       ieee->assocresp_ies_len);
+			else {
+				netdev_info(ieee->dev,
+					    "%s()Warning: can't alloc memory for assocresp_ies\n",
+					    __func__);
 				ieee->assocresp_ies_len = 0;
-
+			}
 			rtllib_associate_complete(ieee);
 		} else {
 			/* aid could not been allocated */
@@ -2614,7 +2627,7 @@ static void rtllib_start_ibss_wq(void *data)
 	/* the network definitively is not here.. create a new cell */
 	if (ieee->state == RTLLIB_NOLINK) {
 		netdev_info(ieee->dev, "creating new IBSS cell\n");
-		ieee->current_network.channel = ieee->bss_start_channel;
+		ieee->current_network.channel = ieee->IbssStartChnl;
 		if (!ieee->wap_set)
 			eth_random_addr(ieee->current_network.bssid);
 
@@ -2706,7 +2719,7 @@ static void rtllib_start_bss(struct rtllib_device *ieee)
 	unsigned long flags;
 
 	if (IS_DOT11D_ENABLE(ieee) && !IS_COUNTRY_IE_VALID(ieee)) {
-		if (!ieee->global_domain)
+		if (!ieee->bGlobalDomain)
 			return;
 	}
 	/* check if we have already found the net we
@@ -2746,7 +2759,7 @@ void rtllib_disassociate(struct rtllib_device *ieee)
 	if (ieee->data_hard_stop)
 		ieee->data_hard_stop(ieee->dev);
 	if (IS_DOT11D_ENABLE(ieee))
-		dot11d_reset(ieee);
+		Dot11d_Reset(ieee);
 	ieee->state = RTLLIB_NOLINK;
 	ieee->is_set_key = false;
 	ieee->wap_set = 0;
@@ -2952,7 +2965,7 @@ void rtllib_start_protocol(struct rtllib_device *ieee)
 	}
 }
 
-int rtllib_softmac_init(struct rtllib_device *ieee)
+void rtllib_softmac_init(struct rtllib_device *ieee)
 {
 	int i;
 
@@ -2961,10 +2974,9 @@ int rtllib_softmac_init(struct rtllib_device *ieee)
 	ieee->state = RTLLIB_NOLINK;
 	for (i = 0; i < 5; i++)
 		ieee->seq_ctrl[i] = 0;
-	ieee->dot11d_info = kzalloc(sizeof(struct rt_dot11d_info), GFP_ATOMIC);
-	if (!ieee->dot11d_info)
-		return -ENOMEM;
-
+	ieee->pDot11dInfo = kzalloc(sizeof(struct rt_dot11d_info), GFP_ATOMIC);
+	if (!ieee->pDot11dInfo)
+		netdev_err(ieee->dev, "Can't alloc memory for DOT11D\n");
 	ieee->LinkDetectInfo.SlotIndex = 0;
 	ieee->LinkDetectInfo.SlotNum = 2;
 	ieee->LinkDetectInfo.NumRecvBcnInPeriod = 0;
@@ -3032,14 +3044,13 @@ int rtllib_softmac_init(struct rtllib_device *ieee)
 	     (void(*)(unsigned long)) rtllib_sta_ps,
 	     (unsigned long)ieee);
 
-	return 0;
 }
 
 void rtllib_softmac_free(struct rtllib_device *ieee)
 {
 	mutex_lock(&ieee->wx_mutex);
-	kfree(ieee->dot11d_info);
-	ieee->dot11d_info = NULL;
+	kfree(ieee->pDot11dInfo);
+	ieee->pDot11dInfo = NULL;
 	del_timer_sync(&ieee->associate_timer);
 
 	cancel_delayed_work_sync(&ieee->associate_retry_wq);

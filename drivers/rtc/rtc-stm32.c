@@ -519,7 +519,11 @@ static int stm32_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 	/* Write to Alarm register */
 	writel_relaxed(alrmar, rtc->base + regs->alrmar);
 
-	stm32_rtc_alarm_irq_enable(dev, alrm->enabled);
+	if (alrm->enabled)
+		stm32_rtc_alarm_irq_enable(dev, 1);
+	else
+		stm32_rtc_alarm_irq_enable(dev, 0);
+
 end:
 	stm32_rtc_wpr_lock(rtc);
 
@@ -756,7 +760,7 @@ static int stm32_rtc_probe(struct platform_device *pdev)
 
 	ret = clk_prepare_enable(rtc->rtc_ck);
 	if (ret)
-		goto err_no_rtc_ck;
+		goto err;
 
 	if (rtc->data->need_dbp)
 		regmap_update_bits(rtc->dbp, rtc->dbp_reg,
@@ -776,6 +780,7 @@ static int stm32_rtc_probe(struct platform_device *pdev)
 
 	rtc->irq_alarm = platform_get_irq(pdev, 0);
 	if (rtc->irq_alarm <= 0) {
+		dev_err(&pdev->dev, "no alarm irq\n");
 		ret = rtc->irq_alarm;
 		goto err;
 	}
@@ -832,12 +837,10 @@ static int stm32_rtc_probe(struct platform_device *pdev)
 	}
 
 	return 0;
-
 err:
-	clk_disable_unprepare(rtc->rtc_ck);
-err_no_rtc_ck:
 	if (rtc->data->has_pclk)
 		clk_disable_unprepare(rtc->pclk);
+	clk_disable_unprepare(rtc->rtc_ck);
 
 	if (rtc->data->need_dbp)
 		regmap_update_bits(rtc->dbp, rtc->dbp_reg, rtc->dbp_mask, 0);

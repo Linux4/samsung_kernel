@@ -9,6 +9,7 @@
 #include <linux/percpu.h>
 
 #include <asm/fixmap.h>
+#include <asm/mmu.h>
 
 extern char vectors[];
 extern char tramp_vectors[];
@@ -32,6 +33,7 @@ enum arm64_bp_harden_el1_vectors {
 	 * canonical vectors.
 	 */
 	EL1_VECTOR_BHB_FW,
+
 	/*
 	 * Use the ClearBHB instruction, before branching to the canonical
 	 * vectors.

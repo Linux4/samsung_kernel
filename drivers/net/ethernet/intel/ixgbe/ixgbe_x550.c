@@ -1247,20 +1247,6 @@ static s32 ixgbe_get_bus_info_X550em(struct ixgbe_hw *hw)
 	return 0;
 }
 
-/**
- * ixgbe_fw_recovery_mode - Check FW NVM recovery mode
- * @hw: pointer t hardware structure
- *
- * Returns true if in FW NVM recovery mode.
- */
-static bool ixgbe_fw_recovery_mode_X550(struct ixgbe_hw *hw)
-{
-	u32 fwsm;
-
-	fwsm = IXGBE_READ_REG(hw, IXGBE_FWSM(hw));
-	return !!(fwsm & IXGBE_FWSM_FW_NVM_RECOVERY_MODE);
-}
-
 /** ixgbe_disable_rx_x550 - Disable RX unit
  *
  *  Enables the Rx DMA unit for x550
@@ -3405,9 +3391,6 @@ static s32 ixgbe_reset_hw_X550em(struct ixgbe_hw *hw)
 	/* flush pending Tx transactions */
 	ixgbe_clear_tx_pending(hw);
 
-	/* set MDIO speed before talking to the PHY in case it's the 1st time */
-	ixgbe_set_mdio_speed(hw);
-
 	/* PHY ops must be identified and initialized prior to reset */
 	status = hw->phy.ops.init(hw);
 	if (status == IXGBE_ERR_SFP_NOT_SUPPORTED ||
@@ -3835,7 +3818,6 @@ static s32 ixgbe_write_phy_reg_x550a(struct ixgbe_hw *hw, u32 reg_addr,
 	.enable_rx_buff			= &ixgbe_enable_rx_buff_generic, \
 	.get_thermal_sensor_data	= NULL, \
 	.init_thermal_sensor_thresh	= NULL, \
-	.fw_recovery_mode		= &ixgbe_fw_recovery_mode_X550, \
 	.enable_rx			= &ixgbe_enable_rx_generic, \
 	.disable_rx			= &ixgbe_disable_rx_x550, \
 

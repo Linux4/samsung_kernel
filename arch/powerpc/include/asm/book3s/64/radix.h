@@ -72,17 +72,19 @@
  * |                              |
  * |                              |
  * |                              |
- * +------------------------------+  Kernel vmemmap end (0xc010000000000000)
+ * +------------------------------+  Kernel IO map end (0xc010000000000000)
  * |                              |
- * |           512TB		  |
  * |                              |
- * +------------------------------+  Kernel IO map end/vmemap start
+ * |      1/2 of virtual map      |
  * |                              |
- * |           512TB		  |
  * |                              |
- * +------------------------------+  Kernel vmap end/ IO map start
+ * +------------------------------+  Kernel IO map start
  * |                              |
- * |           512TB		  |
+ * |      1/4 of virtual map      |
+ * |                              |
+ * +------------------------------+  Kernel vmemap start
+ * |                              |
+ * |     1/4 of virtual map       |
  * |                              |
  * +------------------------------+  Kernel virt start (0xc008000000000000)
  * |                              |
@@ -91,24 +93,24 @@
  * +------------------------------+  Kernel linear (0xc.....)
  */
 
-#define RADIX_KERN_VIRT_START	ASM_CONST(0xc008000000000000)
+#define RADIX_KERN_VIRT_START ASM_CONST(0xc008000000000000)
+#define RADIX_KERN_VIRT_SIZE  ASM_CONST(0x0008000000000000)
+
 /*
- * 49 =  MAX_EA_BITS_PER_CONTEXT (hash specific). To make sure we pick
- * the same value as hash.
+ * The vmalloc space starts at the beginning of that region, and
+ * occupies a quarter of it on radix config.
+ * (we keep a quarter for the virtual memmap)
  */
-#define RADIX_KERN_MAP_SIZE	(1UL << 49)
-
 #define RADIX_VMALLOC_START	RADIX_KERN_VIRT_START
-#define RADIX_VMALLOC_SIZE	RADIX_KERN_MAP_SIZE
+#define RADIX_VMALLOC_SIZE	(RADIX_KERN_VIRT_SIZE >> 2)
 #define RADIX_VMALLOC_END	(RADIX_VMALLOC_START + RADIX_VMALLOC_SIZE)
+/*
+ * Defines the address of the vmemap area, in its own region on
+ * hash table CPUs.
+ */
+#define RADIX_VMEMMAP_BASE		(RADIX_VMALLOC_END)
 
-#define RADIX_KERN_IO_START	RADIX_VMALLOC_END
-#define RADIX_KERN_IO_SIZE	RADIX_KERN_MAP_SIZE
-#define RADIX_KERN_IO_END	(RADIX_KERN_IO_START + RADIX_KERN_IO_SIZE)
-
-#define RADIX_VMEMMAP_START	RADIX_KERN_IO_END
-#define RADIX_VMEMMAP_SIZE	RADIX_KERN_MAP_SIZE
-#define RADIX_VMEMMAP_END	(RADIX_VMEMMAP_START + RADIX_VMEMMAP_SIZE)
+#define RADIX_KERN_IO_START	(RADIX_KERN_VIRT_START + (RADIX_KERN_VIRT_SIZE >> 1))
 
 #ifndef __ASSEMBLY__
 #define RADIX_PTE_TABLE_SIZE	(sizeof(pte_t) << RADIX_PTE_INDEX_SIZE)
@@ -124,10 +126,6 @@ extern void radix__mark_initmem_nx(void);
 extern void radix__ptep_set_access_flags(struct vm_area_struct *vma, pte_t *ptep,
 					 pte_t entry, unsigned long address,
 					 int psize);
-
-extern void radix__ptep_modify_prot_commit(struct vm_area_struct *vma,
-					   unsigned long addr, pte_t *ptep,
-					   pte_t old_pte, pte_t pte);
 
 static inline unsigned long __radix_pte_update(pte_t *ptep, unsigned long clr,
 					       unsigned long set)
@@ -206,10 +204,8 @@ static inline void radix__set_pte_at(struct mm_struct *mm, unsigned long addr,
 	 * from ptesync, it should probably go into update_mmu_cache, rather
 	 * than set_pte_at (which is used to set ptes unrelated to faults).
 	 *
-	 * Spurious faults from the kernel memory are not tolerated, so there
-	 * is a ptesync in flush_cache_vmap, and __map_kernel_page() follows
-	 * the pte update sequence from ISA Book III 6.10 Translation Table
-	 * Update Synchronization Requirements.
+	 * Spurious faults to vmalloc region are not tolerated, so there is
+	 * a ptesync in flush_cache_vmap.
 	 */
 }
 
@@ -256,13 +252,7 @@ extern void radix__pgtable_trans_huge_deposit(struct mm_struct *mm, pmd_t *pmdp,
 extern pgtable_t radix__pgtable_trans_huge_withdraw(struct mm_struct *mm, pmd_t *pmdp);
 extern pmd_t radix__pmdp_huge_get_and_clear(struct mm_struct *mm,
 				      unsigned long addr, pmd_t *pmdp);
-static inline int radix__has_transparent_hugepage(void)
-{
-	/* For radix 2M at PMD level means thp */
-	if (mmu_psize_defs[MMU_PAGE_2M].shift == PMD_SHIFT)
-		return 1;
-	return 0;
-}
+extern int radix__has_transparent_hugepage(void);
 #endif
 
 static inline pmd_t radix__pmd_mkdevmap(pmd_t pmd)

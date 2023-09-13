@@ -36,7 +36,6 @@
 #include <linux/mm.h>
 #include <linux/errno.h>
 #include <asm/pgtable.h>
-#include <rdma/uverbs_ioctl.h>
 
 #include "rxe.h"
 #include "rxe_loc.h"
@@ -141,17 +140,16 @@ done:
 /*
  * Allocate information for rxe_mmap
  */
-struct rxe_mmap_info *rxe_create_mmap_info(struct rxe_dev *rxe, u32 size,
-					   struct ib_udata *udata, void *obj)
+struct rxe_mmap_info *rxe_create_mmap_info(struct rxe_dev *rxe,
+					   u32 size,
+					   struct ib_ucontext *context,
+					   void *obj)
 {
 	struct rxe_mmap_info *ip;
 
-	if (!udata)
-		return ERR_PTR(-EINVAL);
-
 	ip = kmalloc(sizeof(*ip), GFP_KERNEL);
 	if (!ip)
-		return ERR_PTR(-ENOMEM);
+		return NULL;
 
 	size = PAGE_ALIGN(size);
 
@@ -167,9 +165,7 @@ struct rxe_mmap_info *rxe_create_mmap_info(struct rxe_dev *rxe, u32 size,
 
 	INIT_LIST_HEAD(&ip->pending_mmaps);
 	ip->info.size = size;
-	ip->context =
-		container_of(udata, struct uverbs_attr_bundle, driver_udata)
-			->context;
+	ip->context = context;
 	ip->obj = obj;
 	kref_init(&ip->ref);
 

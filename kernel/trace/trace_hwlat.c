@@ -270,7 +270,6 @@ static bool disable_migrate;
 static void move_to_next_cpu(void)
 {
 	struct cpumask *current_mask = &save_cpumask;
-	struct trace_array *tr = hwlat_trace;
 	int next_cpu;
 
 	if (disable_migrate)
@@ -280,11 +279,11 @@ static void move_to_next_cpu(void)
 	 * of this thread, than stop migrating for the duration
 	 * of the current test.
 	 */
-	if (!cpumask_equal(current_mask, current->cpus_ptr))
+	if (!cpumask_equal(current_mask, &current->cpus_allowed))
 		goto disable;
 
 	get_online_cpus();
-	cpumask_and(current_mask, cpu_online_mask, tr->tracing_cpumask);
+	cpumask_and(current_mask, cpu_online_mask, tracing_buffer_mask);
 	next_cpu = cpumask_next(smp_processor_id(), current_mask);
 	put_online_cpus();
 
@@ -355,13 +354,13 @@ static int start_kthread(struct trace_array *tr)
 	struct task_struct *kthread;
 	int next_cpu;
 
-	if (hwlat_kthread)
+	if (WARN_ON(hwlat_kthread))
 		return 0;
 
 	/* Just pick the first CPU on first iteration */
 	current_mask = &save_cpumask;
 	get_online_cpus();
-	cpumask_and(current_mask, cpu_online_mask, tr->tracing_cpumask);
+	cpumask_and(current_mask, cpu_online_mask, tracing_buffer_mask);
 	put_online_cpus();
 	next_cpu = cpumask_first(current_mask);
 

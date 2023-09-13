@@ -18,7 +18,9 @@ static unsigned int shrinker_run_no;
 
 static unsigned long __count_nat_entries(struct f2fs_sb_info *sbi)
 {
-	return NM_I(sbi)->nat_cnt[RECLAIMABLE_NAT];
+	long count = NM_I(sbi)->nat_cnt - NM_I(sbi)->dirty_nat_cnt;
+
+	return count > 0 ? count : 0;
 }
 
 static unsigned long __count_free_nids(struct f2fs_sb_info *sbi)
@@ -56,7 +58,7 @@ unsigned long f2fs_shrink_count(struct shrinker *shrink,
 		/* count extent cache entries */
 		count += __count_extent_cache(sbi);
 
-		/* count clean nat cache entries */
+		/* shrink clean nat cache entries */
 		count += __count_nat_entries(sbi);
 
 		/* count free nids cache entries */

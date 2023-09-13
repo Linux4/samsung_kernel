@@ -1,8 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2015, Samsung Electronics Co., Ltd.
  *
  * Author: Marek Szyprowski <m.szyprowski@samsung.com>
+ *
+ * License terms: GNU General Public License (GPL) version 2
  *
  * Simple eMMC hardware reset provider
  */

@@ -1,6 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright (C) 2003, 2004, 2007  Maciej W. Rozycki
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version
+ * 2 of the License, or (at your option) any later version.
  */
 #include <linux/context_tracking.h>
 #include <linux/init.h>
@@ -24,8 +28,7 @@ static char r4kwar[] __initdata =
 static char daddiwar[] __initdata =
 	"Enable CPU_DADDI_WORKAROUNDS to rectify.";
 
-static __always_inline __init
-void align_mod(const int align, const int mod)
+static inline void align_mod(const int align, const int mod)
 {
 	asm volatile(
 		".set	push\n\t"
@@ -36,12 +39,11 @@ void align_mod(const int align, const int mod)
 		".endr\n\t"
 		".set	pop"
 		:
-		: "n"(align), "n"(mod));
+		: GCC_IMM_ASM() (align), GCC_IMM_ASM() (mod));
 }
 
-static __always_inline __init
-void mult_sh_align_mod(long *v1, long *v2, long *w,
-		       const int align, const int mod)
+static inline void mult_sh_align_mod(long *v1, long *v2, long *w,
+				     const int align, const int mod)
 {
 	unsigned long flags;
 	int m1, m2;
@@ -90,7 +92,7 @@ void mult_sh_align_mod(long *v1, long *v2, long *w,
 		".set	pop"
 		: "=&r" (lv1), "=r" (lw)
 		: "r" (m1), "r" (m2), "r" (s), "I" (0)
-		: "hi", "lo", "$0");
+		: "hi", "lo", GCC_REG_ACCUM);
 	/* We have to use single integers for m1 and m2 and a double
 	 * one for p to be sure the mulsidi3 gcc's RTL multiplication
 	 * instruction has the workaround applied.  Older versions of
@@ -115,7 +117,7 @@ void mult_sh_align_mod(long *v1, long *v2, long *w,
 	*w = lw;
 }
 
-static __always_inline __init void check_mult_sh(void)
+static inline void check_mult_sh(void)
 {
 	long v1[8], v2[8], w[8];
 	int bug, fix, i;
@@ -178,7 +180,7 @@ asmlinkage void __init do_daddi_ov(struct pt_regs *regs)
 	exception_exit(prev_state);
 }
 
-static __init void check_daddi(void)
+static inline void check_daddi(void)
 {
 	extern asmlinkage void handle_daddi_ov(void);
 	unsigned long flags;
@@ -244,7 +246,7 @@ static __init void check_daddi(void)
 
 int daddiu_bug	= IS_ENABLED(CONFIG_CPU_MIPSR6) ? 0 : -1;
 
-static __init void check_daddiu(void)
+static inline void check_daddiu(void)
 {
 	long v, w, tmp;
 

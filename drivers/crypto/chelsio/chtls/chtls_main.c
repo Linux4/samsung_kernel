@@ -1,6 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018 Chelsio Communications, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * Written by: Atul Gupta (atul.gupta@chelsio.com)
  */
@@ -27,6 +30,7 @@
  */
 static LIST_HEAD(cdev_list);
 static DEFINE_MUTEX(cdev_mutex);
+static DEFINE_MUTEX(cdev_list_lock);
 
 static DEFINE_MUTEX(notify_mutex);
 static RAW_NOTIFIER_HEAD(listen_notify_list);
@@ -157,30 +161,6 @@ static void chtls_destroy_hash(struct tls_device *dev, struct sock *sk)
 		chtls_stop_listen(cdev, sk);
 }
 
-static void chtls_free_uld(struct chtls_dev *cdev)
-{
-	int i;
-
-	tls_unregister_device(&cdev->tlsdev);
-	kvfree(cdev->kmap.addr);
-	idr_destroy(&cdev->hwtid_idr);
-	for (i = 0; i < (1 << RSPQ_HASH_BITS); i++)
-		kfree_skb(cdev->rspq_skb_cache[i]);
-	kfree(cdev->lldi);
-	kfree_skb(cdev->askb);
-	kfree(cdev);
-}
-
-static inline void chtls_dev_release(struct kref *kref)
-{
-	struct chtls_dev *cdev;
-	struct tls_device *dev;
-
-	dev = container_of(kref, struct tls_device, kref);
-	cdev = to_chtls_dev(dev);
-	chtls_free_uld(cdev);
-}
-
 static void chtls_register_dev(struct chtls_dev *cdev)
 {
 	struct tls_device *tlsdev = &cdev->tlsdev;
@@ -191,10 +171,13 @@ static void chtls_register_dev(struct chtls_dev *cdev)
 	tlsdev->feature = chtls_inline_feature;
 	tlsdev->hash = chtls_create_hash;
 	tlsdev->unhash = chtls_destroy_hash;
-	tlsdev->release = chtls_dev_release;
-	kref_init(&tlsdev->kref);
-	tls_register_device(tlsdev);
+	tls_register_device(&cdev->tlsdev);
 	cdev->cdev_state = CHTLS_CDEV_STATE_UP;
+}
+
+static void chtls_unregister_dev(struct chtls_dev *cdev)
+{
+	tls_unregister_device(&cdev->tlsdev);
 }
 
 static void process_deferq(struct work_struct *task_param)
@@ -291,16 +274,29 @@ out:
 	return NULL;
 }
 
+static void chtls_free_uld(struct chtls_dev *cdev)
+{
+	int i;
+
+	chtls_unregister_dev(cdev);
+	kvfree(cdev->kmap.addr);
+	idr_destroy(&cdev->hwtid_idr);
+	for (i = 0; i < (1 << RSPQ_HASH_BITS); i++)
+		kfree_skb(cdev->rspq_skb_cache[i]);
+	kfree(cdev->lldi);
+	if (cdev->askb)
+		kfree_skb(cdev->askb);
+	kfree(cdev);
+}
+
 static void chtls_free_all_uld(void)
 {
 	struct chtls_dev *cdev, *tmp;
 
 	mutex_lock(&cdev_mutex);
 	list_for_each_entry_safe(cdev, tmp, &cdev_list, list) {
-		if (cdev->cdev_state == CHTLS_CDEV_STATE_UP) {
-			list_del(&cdev->list);
-			kref_put(&cdev->tlsdev.kref, cdev->tlsdev.release);
-		}
+		if (cdev->cdev_state == CHTLS_CDEV_STATE_UP)
+			chtls_free_uld(cdev);
 	}
 	mutex_unlock(&cdev_mutex);
 }
@@ -321,7 +317,7 @@ static int chtls_uld_state_change(void *handle, enum cxgb4_state new_state)
 		mutex_lock(&cdev_mutex);
 		list_del(&cdev->list);
 		mutex_unlock(&cdev_mutex);
-		kref_put(&cdev->tlsdev.kref, cdev->tlsdev.release);
+		chtls_free_uld(cdev);
 		break;
 	default:
 		break;
@@ -474,8 +470,7 @@ static int chtls_getsockopt(struct sock *sk, int level, int optname,
 	struct tls_context *ctx = tls_get_ctx(sk);
 
 	if (level != SOL_TLS)
-		return ctx->sk_proto->getsockopt(sk, level,
-						 optname, optval, optlen);
+		return ctx->getsockopt(sk, level, optname, optval, optlen);
 
 	return do_chtls_getsockopt(sk, optval, optlen);
 }
@@ -542,8 +537,7 @@ static int chtls_setsockopt(struct sock *sk, int level, int optname,
 	struct tls_context *ctx = tls_get_ctx(sk);
 
 	if (level != SOL_TLS)
-		return ctx->sk_proto->setsockopt(sk, level,
-						 optname, optval, optlen);
+		return ctx->setsockopt(sk, level, optname, optval, optlen);
 
 	return do_chtls_setsockopt(sk, optname, optval, optlen);
 }

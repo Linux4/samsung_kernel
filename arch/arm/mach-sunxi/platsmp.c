@@ -50,7 +50,6 @@ static void __init sun6i_smp_prepare_cpus(unsigned int max_cpus)
 	}
 
 	prcm_membase = of_iomap(node, 0);
-	of_node_put(node);
 	if (!prcm_membase) {
 		pr_err("Couldn't map A31 PRCM registers\n");
 		return;
@@ -64,7 +63,6 @@ static void __init sun6i_smp_prepare_cpus(unsigned int max_cpus)
 	}
 
 	cpucfg_membase = of_iomap(node, 0);
-	of_node_put(node);
 	if (!cpucfg_membase)
 		pr_err("Couldn't map A31 CPU config registers\n");
 
@@ -135,7 +133,6 @@ static void __init sun8i_smp_prepare_cpus(unsigned int max_cpus)
 	}
 
 	prcm_membase = of_iomap(node, 0);
-	of_node_put(node);
 	if (!prcm_membase) {
 		pr_err("Couldn't map A23 PRCM registers\n");
 		return;
@@ -149,7 +146,6 @@ static void __init sun8i_smp_prepare_cpus(unsigned int max_cpus)
 	}
 
 	cpucfg_membase = of_iomap(node, 0);
-	of_node_put(node);
 	if (!cpucfg_membase)
 		pr_err("Couldn't map A23 CPU config registers\n");
 

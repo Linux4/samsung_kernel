@@ -2,18 +2,15 @@
 %{
 #include "util.h"
 #include "util/debug.h"
-#include <stdlib.h> // strtod()
 #define IN_EXPR_Y 1
 #include "expr.h"
 #include "smt.h"
-#include <assert.h>
 #include <string.h>
 
 #define MAXIDLEN 256
 %}
 
-%define api.pure full
-
+%pure-parser
 %parse-param { double *final_val }
 %parse-param { struct parse_ctx *ctx }
 %parse-param { const char **pp }

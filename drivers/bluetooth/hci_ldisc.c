@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *
  *  Bluetooth HCI UART driver
@@ -6,6 +5,22 @@
  *  Copyright (C) 2000-2001  Qualcomm Incorporated
  *  Copyright (C) 2002-2003  Maxim Krasnyansky <maxk@qualcomm.com>
  *  Copyright (C) 2004-2005  Marcel Holtmann <marcel@holtmann.org>
+ *
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
  */
 
 #include <linux/module.h>
@@ -127,9 +142,10 @@ int hci_uart_tx_wakeup(struct hci_uart *hu)
 	if (!test_bit(HCI_UART_PROTO_READY, &hu->flags))
 		goto no_schedule;
 
-	set_bit(HCI_UART_TX_WAKEUP, &hu->tx_state);
-	if (test_and_set_bit(HCI_UART_SENDING, &hu->tx_state))
+	if (test_and_set_bit(HCI_UART_SENDING, &hu->tx_state)) {
+		set_bit(HCI_UART_TX_WAKEUP, &hu->tx_state);
 		goto no_schedule;
+	}
 
 	BT_DBG("");
 
@@ -173,11 +189,10 @@ restart:
 		kfree_skb(skb);
 	}
 
-	clear_bit(HCI_UART_SENDING, &hu->tx_state);
 	if (test_bit(HCI_UART_TX_WAKEUP, &hu->tx_state))
 		goto restart;
 
-	wake_up_bit(&hu->tx_state, HCI_UART_SENDING);
+	clear_bit(HCI_UART_SENDING, &hu->tx_state);
 }
 
 void hci_uart_init_work(struct work_struct *work)
@@ -211,13 +226,6 @@ int hci_uart_init_ready(struct hci_uart *hu)
 	schedule_work(&hu->init_ready);
 
 	return 0;
-}
-
-int hci_uart_wait_until_sent(struct hci_uart *hu)
-{
-	return wait_on_bit_timeout(&hu->tx_state, HCI_UART_SENDING,
-				   TASK_INTERRUPTIBLE,
-				   msecs_to_jiffies(2000));
 }
 
 /* ------- Interface to HCI layer ------ */
@@ -537,7 +545,6 @@ static void hci_uart_tty_close(struct tty_struct *tty)
 		clear_bit(HCI_UART_PROTO_READY, &hu->flags);
 		percpu_up_write(&hu->proto_lock);
 
-		cancel_work_sync(&hu->init_ready);
 		cancel_work_sync(&hu->write_work);
 
 		if (hdev) {
@@ -835,7 +842,6 @@ static int __init hci_uart_init(void)
 	hci_uart_ldisc.read		= hci_uart_tty_read;
 	hci_uart_ldisc.write		= hci_uart_tty_write;
 	hci_uart_ldisc.ioctl		= hci_uart_tty_ioctl;
-	hci_uart_ldisc.compat_ioctl	= hci_uart_tty_ioctl;
 	hci_uart_ldisc.poll		= hci_uart_tty_poll;
 	hci_uart_ldisc.receive_buf	= hci_uart_tty_receive;
 	hci_uart_ldisc.write_wakeup	= hci_uart_tty_wakeup;

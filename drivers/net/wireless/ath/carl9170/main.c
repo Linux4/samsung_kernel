@@ -1374,8 +1374,13 @@ static int carl9170_op_conf_tx(struct ieee80211_hw *hw,
 	int ret;
 
 	mutex_lock(&ar->mutex);
-	memcpy(&ar->edcf[ar9170_qmap[queue]], param, sizeof(*param));
-	ret = carl9170_set_qos(ar);
+	if (queue < ar->hw->queues) {
+		memcpy(&ar->edcf[ar9170_qmap[queue]], param, sizeof(*param));
+		ret = carl9170_set_qos(ar);
+	} else {
+		ret = -EINVAL;
+	}
+
 	mutex_unlock(&ar->mutex);
 	return ret;
 }
@@ -1917,7 +1922,7 @@ static int carl9170_parse_eeprom(struct ar9170 *ar)
 		WARN_ON(!(tx_streams >= 1 && tx_streams <=
 			IEEE80211_HT_MCS_TX_MAX_STREAMS));
 
-		tx_params |= (tx_streams - 1) <<
+		tx_params = (tx_streams - 1) <<
 			    IEEE80211_HT_MCS_TX_MAX_STREAMS_SHIFT;
 
 		carl9170_band_2GHz.ht_cap.mcs.tx_params |= tx_params;

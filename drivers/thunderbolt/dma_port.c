@@ -1,10 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Thunderbolt DMA configuration based mailbox support
  *
  * Copyright (C) 2017, Intel Corporation
  * Authors: Michael Jamet <michael.jamet@intel.com>
  *          Mika Westerberg <mika.westerberg@linux.intel.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/delay.h>
@@ -364,14 +367,14 @@ int dma_port_flash_read(struct tb_dma_port *dma, unsigned int address,
 			void *buf, size_t size)
 {
 	unsigned int retries = DMA_PORT_RETRIES;
+	unsigned int offset;
+
+	offset = address & 3;
+	address = address & ~3;
 
 	do {
-		unsigned int offset;
-		size_t nbytes;
+		u32 nbytes = min_t(u32, size, MAIL_DATA_DWORDS * 4);
 		int ret;
-
-		offset = address & 3;
-		nbytes = min_t(size_t, size + offset, MAIL_DATA_DWORDS * 4);
 
 		ret = dma_port_flash_read_block(dma, address, dma->buf,
 						ALIGN(nbytes, 4));
@@ -384,7 +387,6 @@ int dma_port_flash_read(struct tb_dma_port *dma, unsigned int address,
 			return ret;
 		}
 
-		nbytes -= offset;
 		memcpy(buf, dma->buf + offset, nbytes);
 
 		size -= nbytes;

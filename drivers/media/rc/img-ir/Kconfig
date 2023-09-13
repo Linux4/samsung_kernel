@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 config IR_IMG
 	tristate "ImgTec IR Decoder"
 	depends on RC_CORE

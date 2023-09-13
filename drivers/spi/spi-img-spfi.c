@@ -1,9 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * IMG SPFI controller driver
  *
  * Copyright (C) 2007,2008,2013 Imagination Technologies Ltd.
  * Copyright (C) 2014 Google, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2, as published by the Free Software Foundation.
  */
 
 #include <linux/clk.h>
@@ -771,10 +774,8 @@ static int img_spfi_resume(struct device *dev)
 	int ret;
 
 	ret = pm_runtime_get_sync(dev);
-	if (ret < 0) {
-		pm_runtime_put_noidle(dev);
+	if (ret)
 		return ret;
-	}
 	spfi_reset(spfi);
 	pm_runtime_put(dev);
 

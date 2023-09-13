@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Neil Brown <neilb@cse.unsw.edu.au>
  * J. Bruce Fields <bfields@umich.edu>
@@ -77,7 +76,6 @@ struct rsi {
 	struct xdr_netobj	in_handle, in_token;
 	struct xdr_netobj	out_handle, out_token;
 	int			major_status, minor_status;
-	struct rcu_head		rcu_head;
 };
 
 static struct rsi *rsi_update(struct cache_detail *cd, struct rsi *new, struct rsi *old);
@@ -91,19 +89,11 @@ static void rsi_free(struct rsi *rsii)
 	kfree(rsii->out_token.data);
 }
 
-static void rsi_free_rcu(struct rcu_head *head)
-{
-	struct rsi *rsii = container_of(head, struct rsi, rcu_head);
-
-	rsi_free(rsii);
-	kfree(rsii);
-}
-
 static void rsi_put(struct kref *ref)
 {
 	struct rsi *rsii = container_of(ref, struct rsi, h.ref);
-
-	call_rcu(&rsii->rcu_head, rsi_free_rcu);
+	rsi_free(rsii);
+	kfree(rsii);
 }
 
 static inline int rsi_hash(struct rsi *item)
@@ -292,7 +282,7 @@ static struct rsi *rsi_lookup(struct cache_detail *cd, struct rsi *item)
 	struct cache_head *ch;
 	int hash = rsi_hash(item);
 
-	ch = sunrpc_cache_lookup_rcu(cd, &item->h, hash);
+	ch = sunrpc_cache_lookup(cd, &item->h, hash);
 	if (ch)
 		return container_of(ch, struct rsi, h);
 	else
@@ -340,7 +330,6 @@ struct rsc {
 	struct svc_cred		cred;
 	struct gss_svc_seq_data	seqdata;
 	struct gss_ctx		*mechctx;
-	struct rcu_head		rcu_head;
 };
 
 static struct rsc *rsc_update(struct cache_detail *cd, struct rsc *new, struct rsc *old);
@@ -354,22 +343,12 @@ static void rsc_free(struct rsc *rsci)
 	free_svc_cred(&rsci->cred);
 }
 
-static void rsc_free_rcu(struct rcu_head *head)
-{
-	struct rsc *rsci = container_of(head, struct rsc, rcu_head);
-
-	kfree(rsci->handle.data);
-	kfree(rsci);
-}
-
 static void rsc_put(struct kref *ref)
 {
 	struct rsc *rsci = container_of(ref, struct rsc, h.ref);
 
-	if (rsci->mechctx)
-		gss_delete_sec_context(&rsci->mechctx);
-	free_svc_cred(&rsci->cred);
-	call_rcu(&rsci->rcu_head, rsc_free_rcu);
+	rsc_free(rsci);
+	kfree(rsci);
 }
 
 static inline int
@@ -474,12 +453,12 @@ static int rsc_parse(struct cache_detail *cd,
 		 * treatment so are checked for validity here.)
 		 */
 		/* uid */
-		rsci.cred.cr_uid = make_kuid(current_user_ns(), id);
+		rsci.cred.cr_uid = make_kuid(&init_user_ns, id);
 
 		/* gid */
 		if (get_int(&mesg, &id))
 			goto out;
-		rsci.cred.cr_gid = make_kgid(current_user_ns(), id);
+		rsci.cred.cr_gid = make_kgid(&init_user_ns, id);
 
 		/* number of additional gid's */
 		if (get_int(&mesg, &N))
@@ -497,7 +476,7 @@ static int rsc_parse(struct cache_detail *cd,
 			kgid_t kgid;
 			if (get_int(&mesg, &id))
 				goto out;
-			kgid = make_kgid(current_user_ns(), id);
+			kgid = make_kgid(&init_user_ns, id);
 			if (!gid_valid(kgid))
 				goto out;
 			rsci.cred.cr_group_info->gid[i] = kgid;
@@ -563,7 +542,7 @@ static struct rsc *rsc_lookup(struct cache_detail *cd, struct rsc *item)
 	struct cache_head *ch;
 	int hash = rsc_hash(item);
 
-	ch = sunrpc_cache_lookup_rcu(cd, &item->h, hash);
+	ch = sunrpc_cache_lookup(cd, &item->h, hash);
 	if (ch)
 		return container_of(ch, struct rsc, h);
 	else
@@ -927,7 +906,7 @@ static int
 unwrap_priv_data(struct svc_rqst *rqstp, struct xdr_buf *buf, u32 seq, struct gss_ctx *ctx)
 {
 	u32 priv_len, maj_stat;
-	int pad, remaining_len, offset;
+	int pad, saved_len, remaining_len, offset;
 
 	clear_bit(RQ_SPLICE_OK, &rqstp->rq_flags);
 
@@ -947,8 +926,13 @@ unwrap_priv_data(struct svc_rqst *rqstp, struct xdr_buf *buf, u32 seq, struct gs
 	buf->len -= pad;
 	fix_priv_head(buf, pad);
 
-	maj_stat = gss_unwrap(ctx, 0, priv_len, buf);
+	/* Maybe it would be better to give gss_unwrap a length parameter: */
+	saved_len = buf->len;
+	buf->len = priv_len;
+	maj_stat = gss_unwrap(ctx, 0, buf);
 	pad = priv_len - buf->len;
+	buf->len = saved_len;
+	buf->len -= pad;
 	/* The upper layers assume the buffer is aligned on 4-byte boundaries.
 	 * In the krb5p case, at least, the data ends up offset, so we need to
 	 * move it around. */
@@ -1095,9 +1079,9 @@ static int gss_read_proxy_verf(struct svc_rqst *rqstp,
 			       struct gssp_in_token *in_token)
 {
 	struct kvec *argv = &rqstp->rq_arg.head[0];
-	unsigned int length, pgto_offs, pgfrom_offs;
-	int pages, i, res, pgto, pgfrom;
-	size_t inlen, to_offs, from_offs;
+	unsigned int page_base, length;
+	int pages, i, res;
+	size_t inlen;
 
 	res = gss_read_common_verf(gc, argv, authp, in_handle);
 	if (res)
@@ -1125,24 +1109,17 @@ static int gss_read_proxy_verf(struct svc_rqst *rqstp,
 	memcpy(page_address(in_token->pages[0]), argv->iov_base, length);
 	inlen -= length;
 
-	to_offs = length;
-	from_offs = rqstp->rq_arg.page_base;
+	i = 1;
+	page_base = rqstp->rq_arg.page_base;
 	while (inlen) {
-		pgto = to_offs >> PAGE_SHIFT;
-		pgfrom = from_offs >> PAGE_SHIFT;
-		pgto_offs = to_offs & ~PAGE_MASK;
-		pgfrom_offs = from_offs & ~PAGE_MASK;
-
-		length = min_t(unsigned int, inlen,
-			 min_t(unsigned int, PAGE_SIZE - pgto_offs,
-			       PAGE_SIZE - pgfrom_offs));
-		memcpy(page_address(in_token->pages[pgto]) + pgto_offs,
-		       page_address(rqstp->rq_arg.pages[pgfrom]) + pgfrom_offs,
+		length = min_t(unsigned int, inlen, PAGE_SIZE);
+		memcpy(page_address(in_token->pages[i]),
+		       page_address(rqstp->rq_arg.pages[i]) + page_base,
 		       length);
 
-		to_offs += length;
-		from_offs += length;
 		inlen -= length;
+		page_base = 0;
+		i++;
 	}
 	return 0;
 }
@@ -1782,14 +1759,11 @@ static int
 svcauth_gss_release(struct svc_rqst *rqstp)
 {
 	struct gss_svc_data *gsd = (struct gss_svc_data *)rqstp->rq_auth_data;
-	struct rpc_gss_wire_cred *gc;
+	struct rpc_gss_wire_cred *gc = &gsd->clcred;
 	struct xdr_buf *resbuf = &rqstp->rq_res;
 	int stat = -EINVAL;
 	struct sunrpc_net *sn = net_generic(SVC_NET(rqstp), sunrpc_net_id);
 
-	if (!gsd)
-		goto out;
-	gc = &gsd->clcred;
 	if (gc->gc_proc != RPC_GSS_PROC_DATA)
 		goto out;
 	/* Release can be called twice, but we only wrap once. */
@@ -1830,27 +1804,20 @@ out_err:
 	if (rqstp->rq_cred.cr_group_info)
 		put_group_info(rqstp->rq_cred.cr_group_info);
 	rqstp->rq_cred.cr_group_info = NULL;
-	if (gsd && gsd->rsci) {
+	if (gsd->rsci)
 		cache_put(&gsd->rsci->h, sn->rsc_cache);
-		gsd->rsci = NULL;
-	}
+	gsd->rsci = NULL;
+
 	return stat;
-}
-
-static void
-svcauth_gss_domain_release_rcu(struct rcu_head *head)
-{
-	struct auth_domain *dom = container_of(head, struct auth_domain, rcu_head);
-	struct gss_domain *gd = container_of(dom, struct gss_domain, h);
-
-	kfree(dom->name);
-	kfree(gd);
 }
 
 static void
 svcauth_gss_domain_release(struct auth_domain *dom)
 {
-	call_rcu(&dom->rcu_head, svcauth_gss_domain_release_rcu);
+	struct gss_domain *gd = container_of(dom, struct gss_domain, h);
+
+	kfree(dom->name);
+	kfree(gd);
 }
 
 static struct auth_ops svcauthops_gss = {
@@ -1937,7 +1904,7 @@ gss_svc_init_net(struct net *net)
 		goto out2;
 	return 0;
 out2:
-	rsi_cache_destroy_net(net);
+	destroy_use_gss_proxy_proc_entry(net);
 out1:
 	rsc_cache_destroy_net(net);
 	return rv;

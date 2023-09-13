@@ -1,6 +1,7 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2014 Google, Inc.
+ *
+ * Licensed under the terms of the GNU GPL License version 2
  *
  * Selftests for execveat(2).
  */

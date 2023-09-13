@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Support KVM gust page tracking
  *
@@ -9,6 +8,9 @@
  *
  * Author:
  *   Xiao Guangrong <guangrong.xiao@linux.intel.com>
+ *
+ * This work is licensed under the terms of the GNU GPL, version 2.  See
+ * the COPYING file in the top-level directory.
  */
 
 #include <linux/kvm_host.h>
@@ -40,7 +42,7 @@ int kvm_page_track_create_memslot(struct kvm_memory_slot *slot,
 	for (i = 0; i < KVM_PAGE_TRACK_MAX; i++) {
 		slot->arch.gfn_track[i] =
 			kvcalloc(npages, sizeof(*slot->arch.gfn_track[i]),
-				 GFP_KERNEL_ACCOUNT);
+				 GFP_KERNEL);
 		if (!slot->arch.gfn_track[i])
 			goto track_free;
 	}

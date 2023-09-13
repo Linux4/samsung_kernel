@@ -1,8 +1,17 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * extcon-arizona.c - Extcon driver Wolfson Arizona devices
  *
  *  Copyright (C) 2012-2014 Wolfson Microelectronics plc
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #include <linux/kernel.h>
@@ -326,12 +335,10 @@ static void arizona_start_mic(struct arizona_extcon_info *info)
 
 	arizona_extcon_pulse_micbias(info);
 
-	ret = regmap_update_bits_check(arizona->regmap, ARIZONA_MIC_DETECT_1,
-				       ARIZONA_MICD_ENA, ARIZONA_MICD_ENA,
-				       &change);
-	if (ret < 0) {
-		dev_err(arizona->dev, "Failed to enable micd: %d\n", ret);
-	} else if (!change) {
+	regmap_update_bits_check(arizona->regmap, ARIZONA_MIC_DETECT_1,
+				 ARIZONA_MICD_ENA, ARIZONA_MICD_ENA,
+				 &change);
+	if (!change) {
 		regulator_disable(info->micvdd);
 		pm_runtime_put_autosuspend(info->dev);
 	}
@@ -343,14 +350,12 @@ static void arizona_stop_mic(struct arizona_extcon_info *info)
 	const char *widget = arizona_extcon_get_micbias(info);
 	struct snd_soc_dapm_context *dapm = arizona->dapm;
 	struct snd_soc_component *component = snd_soc_dapm_to_component(dapm);
-	bool change = false;
+	bool change;
 	int ret;
 
-	ret = regmap_update_bits_check(arizona->regmap, ARIZONA_MIC_DETECT_1,
-				       ARIZONA_MICD_ENA, 0,
-				       &change);
-	if (ret < 0)
-		dev_err(arizona->dev, "Failed to disable micd: %d\n", ret);
+	regmap_update_bits_check(arizona->regmap, ARIZONA_MIC_DETECT_1,
+				 ARIZONA_MICD_ENA, 0,
+				 &change);
 
 	ret = snd_soc_component_disable_pin(component, widget);
 	if (ret != 0)
@@ -597,7 +602,7 @@ static irqreturn_t arizona_hpdet_irq(int irq, void *data)
 	struct arizona *arizona = info->arizona;
 	int id_gpio = arizona->pdata.hpdet_id_gpio;
 	unsigned int report = EXTCON_JACK_HEADPHONE;
-	int ret, reading, state;
+	int ret, reading;
 	bool mic = false;
 
 	mutex_lock(&info->lock);
@@ -610,11 +615,12 @@ static irqreturn_t arizona_hpdet_irq(int irq, void *data)
 	}
 
 	/* If the cable was removed while measuring ignore the result */
-	state = extcon_get_state(info->edev, EXTCON_MECHANICAL);
-	if (state < 0) {
-		dev_err(arizona->dev, "Failed to check cable state: %d\n", state);
+	ret = extcon_get_state(info->edev, EXTCON_MECHANICAL);
+	if (ret < 0) {
+		dev_err(arizona->dev, "Failed to check cable state: %d\n",
+			ret);
 		goto out;
-	} else if (!state) {
+	} else if (!ret) {
 		dev_dbg(arizona->dev, "Ignoring HPDET for removed cable\n");
 		goto done;
 	}
@@ -667,7 +673,7 @@ done:
 			   ARIZONA_ACCDET_MODE_MASK, ARIZONA_ACCDET_MODE_MIC);
 
 	/* If we have a mic then reenable MICDET */
-	if (state && (mic || info->mic))
+	if (mic || info->mic)
 		arizona_start_mic(info);
 
 	if (info->hpdet_active) {
@@ -675,9 +681,7 @@ done:
 		info->hpdet_active = false;
 	}
 
-	/* Do not set hp_det done when the cable has been unplugged */
-	if (state)
-		info->hpdet_done = true;
+	info->hpdet_done = true;
 
 out:
 	mutex_unlock(&info->lock);
@@ -1254,7 +1258,7 @@ static int arizona_extcon_get_micd_configs(struct device *dev,
 	int i, j;
 	u32 *vals;
 
-	nconfs = device_property_count_u32(arizona->dev, prop);
+	nconfs = device_property_read_u32_array(arizona->dev, prop, NULL, 0);
 	if (nconfs <= 0)
 		return 0;
 
@@ -1723,7 +1727,23 @@ static int arizona_extcon_remove(struct platform_device *pdev)
 	struct arizona *arizona = info->arizona;
 	int jack_irq_rise, jack_irq_fall;
 	bool change;
-	int ret;
+
+	regmap_update_bits_check(arizona->regmap, ARIZONA_MIC_DETECT_1,
+				 ARIZONA_MICD_ENA, 0,
+				 &change);
+
+	if (change) {
+		regulator_disable(info->micvdd);
+		pm_runtime_put(info->dev);
+	}
+
+	gpiod_put(info->micd_pol_gpio);
+
+	pm_runtime_disable(&pdev->dev);
+
+	regmap_update_bits(arizona->regmap,
+			   ARIZONA_MICD_CLAMP_CONTROL,
+			   ARIZONA_MICD_CLAMP_MODE_MASK, 0);
 
 	if (info->micd_clamp) {
 		jack_irq_rise = ARIZONA_IRQ_MICD_CLAMP_RISE;
@@ -1740,30 +1760,9 @@ static int arizona_extcon_remove(struct platform_device *pdev)
 	arizona_free_irq(arizona, jack_irq_rise, info);
 	arizona_free_irq(arizona, jack_irq_fall, info);
 	cancel_delayed_work_sync(&info->hpdet_work);
-	cancel_delayed_work_sync(&info->micd_detect_work);
-	cancel_delayed_work_sync(&info->micd_timeout_work);
-
-	ret = regmap_update_bits_check(arizona->regmap, ARIZONA_MIC_DETECT_1,
-				       ARIZONA_MICD_ENA, 0,
-				       &change);
-	if (ret < 0) {
-		dev_err(&pdev->dev, "Failed to disable micd on remove: %d\n",
-			ret);
-	} else if (change) {
-		regulator_disable(info->micvdd);
-		pm_runtime_put(info->dev);
-	}
-
-	regmap_update_bits(arizona->regmap,
-			   ARIZONA_MICD_CLAMP_CONTROL,
-			   ARIZONA_MICD_CLAMP_MODE_MASK, 0);
 	regmap_update_bits(arizona->regmap, ARIZONA_JACK_DETECT_ANALOGUE,
 			   ARIZONA_JD1_ENA, 0);
 	arizona_clk32k_disable(arizona);
-
-	gpiod_put(info->micd_pol_gpio);
-
-	pm_runtime_disable(&pdev->dev);
 
 	return 0;
 }

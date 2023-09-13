@@ -23,8 +23,8 @@ void ftrace_likely_update(struct ftrace_likely_data *f, int val,
 #define __branch_check__(x, expect, is_constant) ({			\
 			long ______r;					\
 			static struct ftrace_likely_data		\
-				__aligned(4)				\
-				__section(_ftrace_annotated_branch)	\
+				__attribute__((__aligned__(4)))		\
+				__attribute__((section("_ftrace_annotated_branch"))) \
 				______f = {				\
 				.data.func = __func__,			\
 				.data.file = __FILE__,			\
@@ -53,24 +53,23 @@ void ftrace_likely_update(struct ftrace_likely_data *f, int val,
  * "Define 'is'", Bill Clinton
  * "Define 'if'", Steven Rostedt
  */
-#define if(cond, ...) if ( __trace_if_var( !!(cond , ## __VA_ARGS__) ) )
-
-#define __trace_if_var(cond) (__builtin_constant_p(cond) ? (cond) : __trace_if_value(cond))
-
-#define __trace_if_value(cond) ({			\
-	static struct ftrace_branch_data		\
-		__aligned(4)				\
-		__section(_ftrace_branch)		\
-		__if_trace = {				\
-			.func = __func__,		\
-			.file = __FILE__,		\
-			.line = __LINE__,		\
-		};					\
-	(cond) ?					\
-		(__if_trace.miss_hit[1]++,1) :		\
-		(__if_trace.miss_hit[0]++,0);		\
-})
-
+#define if(cond, ...) __trace_if( (cond , ## __VA_ARGS__) )
+#define __trace_if(cond) \
+	if (__builtin_constant_p(!!(cond)) ? !!(cond) :			\
+	({								\
+		int ______r;						\
+		static struct ftrace_branch_data			\
+			__attribute__((__aligned__(4)))			\
+			__attribute__((section("_ftrace_branch")))	\
+			______f = {					\
+				.func = __func__,			\
+				.file = __FILE__,			\
+				.line = __LINE__,			\
+			};						\
+		______r = !!(cond);					\
+		______f.miss_hit[______r]++;					\
+		______r;						\
+	}))
 #endif /* CONFIG_PROFILE_ALL_BRANCHES */
 
 #else
@@ -80,25 +79,11 @@ void ftrace_likely_update(struct ftrace_likely_data *f, int val,
 
 /* Optimization barrier */
 #ifndef barrier
-/* The "volatile" is due to gcc bugs */
-# define barrier() __asm__ __volatile__("": : :"memory")
+# define barrier() __memory_barrier()
 #endif
 
 #ifndef barrier_data
-/*
- * This version is i.e. to prevent dead stores elimination on @ptr
- * where gcc and llvm may behave differently when otherwise using
- * normal barrier(): while gcc behavior gets along with a normal
- * barrier(), llvm needs an explicit input variable to be assumed
- * clobbered. The issue is as follows: while the inline asm might
- * access any memory it wants, the compiler could have fit all of
- * @ptr into memory registers instead, and since @ptr never escaped
- * from that, it proved that the inline asm wasn't touching any of
- * it. This version works well with both compilers, i.e. we're telling
- * the compiler that the inline asm absolutely may see the contents
- * of @ptr. See also: https://llvm.org/bugs/show_bug.cgi?id=15495
- */
-# define barrier_data(ptr) __asm__ __volatile__("": :"r"(ptr) :"memory")
+# define barrier_data(ptr) barrier()
 #endif
 
 /* workaround for GCC PR82365 if needed */
@@ -130,67 +115,9 @@ void ftrace_likely_update(struct ftrace_likely_data *f, int val,
 	".pushsection .discard.unreachable\n\t"				\
 	".long 999b - .\n\t"						\
 	".popsection\n\t"
-
-/* Annotate a C jump table to allow objtool to follow the code flow */
-#define __annotate_jump_table __section(.rodata..c_jump_table)
-
-#ifdef CONFIG_DEBUG_ENTRY
-/* Begin/end of an instrumentation safe region */
-#define instrumentation_begin() ({					\
-	asm volatile("%c0:\n\t"						\
-		     ".pushsection .discard.instr_begin\n\t"		\
-		     ".long %c0b - .\n\t"				\
-		     ".popsection\n\t" : : "i" (__COUNTER__));		\
-})
-
-/*
- * Because instrumentation_{begin,end}() can nest, objtool validation considers
- * _begin() a +1 and _end() a -1 and computes a sum over the instructions.
- * When the value is greater than 0, we consider instrumentation allowed.
- *
- * There is a problem with code like:
- *
- * noinstr void foo()
- * {
- *	instrumentation_begin();
- *	...
- *	if (cond) {
- *		instrumentation_begin();
- *		...
- *		instrumentation_end();
- *	}
- *	bar();
- *	instrumentation_end();
- * }
- *
- * If instrumentation_end() would be an empty label, like all the other
- * annotations, the inner _end(), which is at the end of a conditional block,
- * would land on the instruction after the block.
- *
- * If we then consider the sum of the !cond path, we'll see that the call to
- * bar() is with a 0-value, even though, we meant it to happen with a positive
- * value.
- *
- * To avoid this, have _end() be a NOP instruction, this ensures it will be
- * part of the condition block and does not escape.
- */
-#define instrumentation_end() ({					\
-	asm volatile("%c0: nop\n\t"					\
-		     ".pushsection .discard.instr_end\n\t"		\
-		     ".long %c0b - .\n\t"				\
-		     ".popsection\n\t" : : "i" (__COUNTER__));		\
-})
-#endif /* CONFIG_DEBUG_ENTRY */
-
 #else
 #define annotate_reachable()
 #define annotate_unreachable()
-#define __annotate_jump_table
-#endif
-
-#ifndef instrumentation_begin
-#define instrumentation_begin()		do { } while(0)
-#define instrumentation_end()		do { } while(0)
 #endif
 
 #ifndef ASM_UNREACHABLE
@@ -222,7 +149,7 @@ void ftrace_likely_update(struct ftrace_likely_data *f, int val,
 	extern typeof(sym) sym;					\
 	static const unsigned long __kentry_##sym		\
 	__used							\
-	__section("___kentry" "+" #sym )			\
+	__attribute__((section("___kentry" "+" #sym ), used))	\
 	= (unsigned long)&sym;
 #endif
 
@@ -232,8 +159,6 @@ void ftrace_likely_update(struct ftrace_likely_data *f, int val,
      __ptr = (unsigned long) (ptr);				\
     (typeof(ptr)) (__ptr + (off)); })
 #endif
-
-#define absolute_pointer(val)	RELOC_HIDE((void *)(val), 0)
 
 #ifndef OPTIMIZER_HIDE_VAR
 /* Make the optimizer believe the variable can be manipulated arbitrarily. */
@@ -275,7 +200,7 @@ void __read_once_size(const volatile void *p, void *res, int size)
  * 	https://gcc.gnu.org/bugzilla/show_bug.cgi?id=67368
  * '__maybe_unused' allows us to avoid defined-but-not-used warnings.
  */
-# define __no_kasan_or_inline __no_sanitize_address notrace __maybe_unused
+# define __no_kasan_or_inline __no_sanitize_address __maybe_unused
 #else
 # define __no_kasan_or_inline __always_inline
 #endif
@@ -367,7 +292,7 @@ unsigned long read_word_at_a_time(const void *addr)
  * visible to the compiler.
  */
 #define __ADDRESSABLE(sym) \
-	static void * __section(.discard.addressable) __used \
+	static void * __attribute__((section(".discard.addressable"), used)) \
 		__PASTE(__addressable_##sym, __LINE__) = (void *)&sym;
 
 /**
@@ -380,6 +305,10 @@ static inline void *offset_to_ptr(const int *off)
 }
 
 #endif /* __ASSEMBLY__ */
+
+#ifndef __optimize
+# define __optimize(level)
+#endif
 
 /* Compile time object size, -1 for unknown */
 #ifndef __compiletime_object_size
@@ -421,9 +350,6 @@ static inline void *offset_to_ptr(const int *off)
 #define compiletime_assert_atomic_type(t)				\
 	compiletime_assert(__native_word(t),				\
 		"Need native word sized stores/loads for atomicity.")
-
-/* &a[0] degrades to a pointer: a different type from an array */
-#define __must_be_array(a)	BUILD_BUG_ON_ZERO(__same_type((a), &(a)[0]))
 
 /*
  * This is needed in functions which generate the stack canary, see

@@ -1,9 +1,13 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * bpf_jit.h: BPF JIT compiler for PPC
  *
  * Copyright 2011 Matt Evans <matt@ozlabs.org>, IBM Corporation
  * 	     2016 Naveen N. Rao <naveen.n.rao@linux.vnet.ibm.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; version 2
+ * of the License.
  */
 #ifndef _BPF_JIT_H
 #define _BPF_JIT_H
@@ -11,7 +15,6 @@
 #ifndef __ASSEMBLY__
 
 #include <asm/types.h>
-#include <asm/code-patching.h>
 
 #ifdef PPC64_ELF_ABI_v1
 #define FUNCTION_DESCR_SIZE	24
@@ -142,10 +145,6 @@
 				     ___PPC_RS(a) | ___PPC_RB(s))
 #define PPC_SRW(d, a, s)	EMIT(PPC_INST_SRW | ___PPC_RA(d) |	      \
 				     ___PPC_RS(a) | ___PPC_RB(s))
-#define PPC_SRAW(d, a, s)	EMIT(PPC_INST_SRAW | ___PPC_RA(d) |	      \
-				     ___PPC_RS(a) | ___PPC_RB(s))
-#define PPC_SRAWI(d, a, i)	EMIT(PPC_INST_SRAWI | ___PPC_RA(d) |	      \
-				     ___PPC_RS(a) | __PPC_SH(i))
 #define PPC_SRD(d, a, s)	EMIT(PPC_INST_SRD | ___PPC_RA(d) |	      \
 				     ___PPC_RS(a) | ___PPC_RB(s))
 #define PPC_SRAD(d, a, s)	EMIT(PPC_INST_SRAD | ___PPC_RA(d) |	      \
@@ -155,10 +154,6 @@
 #define PPC_RLWINM(d, a, i, mb, me)	EMIT(PPC_INST_RLWINM | ___PPC_RA(d) | \
 					___PPC_RS(a) | __PPC_SH(i) |	      \
 					__PPC_MB(mb) | __PPC_ME(me))
-#define PPC_RLWINM_DOT(d, a, i, mb, me)	EMIT(PPC_INST_RLWINM_DOT |	      \
-					___PPC_RA(d) | ___PPC_RS(a) |	      \
-					__PPC_SH(i) | __PPC_MB(mb) |	      \
-					__PPC_ME(me))
 #define PPC_RLWIMI(d, a, i, mb, me)	EMIT(PPC_INST_RLWIMI | ___PPC_RA(d) | \
 					___PPC_RS(a) | __PPC_SH(i) |	      \
 					__PPC_MB(mb) | __PPC_ME(me))
@@ -181,26 +176,13 @@
 #define PPC_NEG(d, a)		EMIT(PPC_INST_NEG | ___PPC_RT(d) | ___PPC_RA(a))
 
 /* Long jump; (unconditional 'branch') */
-#define PPC_JMP(dest)							      \
-	do {								      \
-		long offset = (long)(dest) - (ctx->idx * 4);		      \
-		if (!is_offset_in_branch_range(offset)) {		      \
-			pr_err_ratelimited("Branch offset 0x%lx (@%u) out of range\n", offset, ctx->idx);			\
-			return -ERANGE;					      \
-		}							      \
-		EMIT(PPC_INST_BRANCH | (offset & 0x03fffffc));		      \
-	} while (0)
+#define PPC_JMP(dest)		EMIT(PPC_INST_BRANCH |			      \
+				     (((dest) - (ctx->idx * 4)) & 0x03fffffc))
 /* "cond" here covers BO:BI fields. */
-#define PPC_BCC_SHORT(cond, dest)					      \
-	do {								      \
-		long offset = (long)(dest) - (ctx->idx * 4);		      \
-		if (!is_offset_in_cond_branch_range(offset)) {		      \
-			pr_err_ratelimited("Conditional branch offset 0x%lx (@%u) out of range\n", offset, ctx->idx);		\
-			return -ERANGE;					      \
-		}							      \
-		EMIT(PPC_INST_BRANCH_COND | (((cond) & 0x3ff) << 16) | (offset & 0xfffc));					\
-	} while (0)
-
+#define PPC_BCC_SHORT(cond, dest)	EMIT(PPC_INST_BRANCH_COND |	      \
+					     (((cond) & 0x3ff) << 16) |	      \
+					     (((dest) - (ctx->idx * 4)) &     \
+					      0xfffc))
 /* Sign-extended 32-bit immediate load */
 #define PPC_LI32(d, i)		do {					      \
 		if ((int)(uintptr_t)(i) >= -32768 &&			      \
@@ -239,6 +221,11 @@
 #define PPC_FUNC_ADDR(d,i) do { PPC_LI32(d, i); } while(0)
 #endif
 
+static inline bool is_nearbranch(int offset)
+{
+	return (offset < 32768) && (offset >= -32768);
+}
+
 /*
  * The fly in the ointment of code size changing from pass to pass is
  * avoided by padding the short branch case with a NOP.	 If code size differs
@@ -247,7 +234,7 @@
  * state.
  */
 #define PPC_BCC(cond, dest)	do {					      \
-		if (is_offset_in_cond_branch_range((long)(dest) - (ctx->idx * 4))) {	\
+		if (is_nearbranch((dest) - (ctx->idx * 4))) {		      \
 			PPC_BCC_SHORT(cond, dest);			      \
 			PPC_NOP();					      \
 		} else {						      \

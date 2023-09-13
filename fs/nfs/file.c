@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  linux/fs/nfs/file.c
  *
@@ -83,6 +82,7 @@ nfs_file_release(struct inode *inode, struct file *filp)
 	dprintk("NFS: release(%pD2)\n", filp);
 
 	nfs_inc_stats(inode, NFSIOS_VFSRELEASE);
+	inode_dio_wait(inode);
 	nfs_file_clear_open_context(filp);
 	return 0;
 }
@@ -90,8 +90,8 @@ EXPORT_SYMBOL_GPL(nfs_file_release);
 
 /**
  * nfs_revalidate_size - Revalidate the file size
- * @inode: pointer to inode struct
- * @filp: pointer to struct file
+ * @inode - pointer to inode struct
+ * @file - pointer to struct file
  *
  * Revalidates the file length. This is basically a wrapper around
  * nfs_revalidate_inode() that takes into account the fact that we may
@@ -140,7 +140,6 @@ static int
 nfs_file_flush(struct file *file, fl_owner_t id)
 {
 	struct inode	*inode = file_inode(file);
-	errseq_t since;
 
 	dprintk("NFS: flush(%pD2)\n", file);
 
@@ -149,9 +148,7 @@ nfs_file_flush(struct file *file, fl_owner_t id)
 		return 0;
 
 	/* Flush writes to the server and return any errors */
-	since = filemap_sample_wb_err(file->f_mapping);
-	nfs_wb_all(inode);
-	return filemap_check_wb_err(file->f_mapping, since);
+	return vfs_fsync(file, 0);
 }
 
 ssize_t
@@ -161,7 +158,7 @@ nfs_file_read(struct kiocb *iocb, struct iov_iter *to)
 	ssize_t result;
 
 	if (iocb->ki_flags & IOCB_DIRECT)
-		return nfs_file_direct_read(iocb, to, false);
+		return nfs_file_direct_read(iocb, to);
 
 	dprintk("NFS: read(%pD2, %zu@%lu)\n",
 		iocb->ki_filp,
@@ -203,6 +200,13 @@ EXPORT_SYMBOL_GPL(nfs_file_mmap);
  * Flush any dirty pages for this process, and check for write errors.
  * The return status from this call provides a reliable indication of
  * whether any write errors occurred for this process.
+ *
+ * Notice that it clears the NFS_CONTEXT_ERROR_WRITE before synching to
+ * disk, but it retrieves and clears ctx->error after synching, despite
+ * the two being set at the same time in nfs_context_set_write_error().
+ * This is because the former is used to notify the _next_ call to
+ * nfs_file_write() that a write error occurred, and hence cause it to
+ * fall back to doing a synchronous write.
  */
 static int
 nfs_file_fsync_commit(struct file *file, int datasync)
@@ -217,8 +221,11 @@ nfs_file_fsync_commit(struct file *file, int datasync)
 	nfs_inc_stats(inode, NFSIOS_VFSFSYNC);
 	do_resend = test_and_clear_bit(NFS_CONTEXT_RESEND_WRITES, &ctx->flags);
 	status = nfs_commit_inode(inode, FLUSH_SYNC);
-	if (status == 0)
-		status = file_check_and_advance_wb_err(file);
+	if (test_bit(NFS_CONTEXT_ERROR_WRITE, &ctx->flags)) {
+		ret = xchg(&ctx->error, 0);
+		if (ret)
+			goto out;
+	}
 	if (status < 0) {
 		ret = status;
 		goto out;
@@ -239,7 +246,13 @@ nfs_file_fsync(struct file *file, loff_t start, loff_t end, int datasync)
 	trace_nfs_fsync_enter(inode);
 
 	do {
-		ret = file_write_and_wait_range(file, start, end);
+		struct nfs_open_context *ctx = nfs_file_open_context(file);
+		ret = filemap_write_and_wait_range(inode->i_mapping, start, end);
+		if (test_and_clear_bit(NFS_CONTEXT_ERROR_WRITE, &ctx->flags)) {
+			int ret2 = xchg(&ctx->error, 0);
+			if (ret2)
+				ret = ret2;
+		}
 		if (ret != 0)
 			break;
 		ret = nfs_file_fsync_commit(file, datasync);
@@ -264,12 +277,6 @@ EXPORT_SYMBOL_GPL(nfs_file_fsync);
  * then a modify/write/read cycle when writing to a page in the
  * page cache.
  *
- * Some pNFS layout drivers can only read/write at a certain block
- * granularity like all block devices and therefore we must perform
- * read/modify/write whenever a page hasn't read yet and the data
- * to be written there is not aligned to a block boundary and/or
- * smaller than the block size.
- *
  * The modify/write/read cycle may occur if a page is read before
  * being completely filled by the writer.  In this situation, the
  * page must be completely written to stable storage on the server
@@ -285,32 +292,26 @@ EXPORT_SYMBOL_GPL(nfs_file_fsync);
  * and that the new data won't completely replace the old data in
  * that range of the file.
  */
-static bool nfs_full_page_write(struct page *page, loff_t pos, unsigned int len)
+static int nfs_want_read_modify_write(struct file *file, struct page *page,
+			loff_t pos, unsigned len)
 {
 	unsigned int pglen = nfs_page_length(page);
 	unsigned int offset = pos & (PAGE_SIZE - 1);
 	unsigned int end = offset + len;
 
-	return !pglen || (end >= pglen && !offset);
-}
+	if (pnfs_ld_read_whole_page(file->f_mapping->host)) {
+		if (!PageUptodate(page))
+			return 1;
+		return 0;
+	}
 
-static bool nfs_want_read_modify_write(struct file *file, struct page *page,
-			loff_t pos, unsigned int len)
-{
-	/*
-	 * Up-to-date pages, those with ongoing or full-page write
-	 * don't need read/modify/write
-	 */
-	if (PageUptodate(page) || PagePrivate(page) ||
-	    nfs_full_page_write(page, pos, len))
-		return false;
-
-	if (pnfs_ld_read_whole_page(file->f_mapping->host))
-		return true;
-	/* Open for reading too? */
-	if (file->f_mode & FMODE_READ)
-		return true;
-	return false;
+	if ((file->f_mode & FMODE_READ) &&	/* open for read? */
+	    !PageUptodate(page) &&		/* Uptodate? */
+	    !PagePrivate(page) &&		/* i/o request already? */
+	    pglen &&				/* valid bytes of file? */
+	    (end < pglen || offset))		/* replace all valid bytes? */
+		return 1;
+	return 0;
 }
 
 /*
@@ -394,8 +395,11 @@ static int nfs_write_end(struct file *file, struct address_space *mapping,
 		return status;
 	NFS_I(mapping->host)->write_io += copied;
 
-	if (nfs_ctx_key_to_expire(ctx, mapping->host))
-		nfs_wb_all(mapping->host);
+	if (nfs_ctx_key_to_expire(ctx, mapping->host)) {
+		status = nfs_wb_all(mapping->host);
+		if (status < 0)
+			return status;
+	}
 
 	return copied;
 }
@@ -580,13 +584,12 @@ static const struct vm_operations_struct nfs_file_vm_ops = {
 	.page_mkwrite = nfs_vm_page_mkwrite,
 };
 
-static int nfs_need_check_write(struct file *filp, struct inode *inode,
-				int error)
+static int nfs_need_check_write(struct file *filp, struct inode *inode)
 {
 	struct nfs_open_context *ctx;
 
 	ctx = nfs_file_open_context(filp);
-	if (nfs_error_is_fatal_on_server(error) ||
+	if (test_bit(NFS_CONTEXT_ERROR_WRITE, &ctx->flags) ||
 	    nfs_ctx_key_to_expire(ctx, inode))
 		return 1;
 	return 0;
@@ -598,15 +601,13 @@ ssize_t nfs_file_write(struct kiocb *iocb, struct iov_iter *from)
 	struct inode *inode = file_inode(file);
 	unsigned long written = 0;
 	ssize_t result;
-	errseq_t since;
-	int error;
 
 	result = nfs_key_timeout_notify(file, inode);
 	if (result)
 		return result;
 
 	if (iocb->ki_flags & IOCB_DIRECT)
-		return nfs_file_direct_write(iocb, from, false);
+		return nfs_file_direct_write(iocb, from);
 
 	dprintk("NFS: write(%pD2, %zu@%Ld)\n",
 		file, iov_iter_count(from), (long long) iocb->ki_pos);
@@ -624,7 +625,6 @@ ssize_t nfs_file_write(struct kiocb *iocb, struct iov_iter *from)
 	if (iocb->ki_pos > i_size_read(inode))
 		nfs_revalidate_mapping(inode, file->f_mapping);
 
-	since = filemap_sample_wb_err(file->f_mapping);
 	nfs_start_io_write(inode);
 	result = generic_write_checks(iocb, from);
 	if (result > 0) {
@@ -643,9 +643,8 @@ ssize_t nfs_file_write(struct kiocb *iocb, struct iov_iter *from)
 		goto out;
 
 	/* Return error values */
-	error = filemap_check_wb_err(file->f_mapping, since);
-	if (nfs_need_check_write(file, inode, error)) {
-		int err = nfs_wb_all(inode);
+	if (nfs_need_check_write(file, inode)) {
+		int err = vfs_fsync(file, 0);
 		if (err < 0)
 			result = err;
 	}
@@ -699,7 +698,7 @@ do_unlk(struct file *filp, int cmd, struct file_lock *fl, int is_local)
 	 * Flush all pending writes before doing anything
 	 * with locks..
 	 */
-	nfs_wb_all(inode);
+	vfs_fsync(filp, 0);
 
 	l_ctx = nfs_get_lock_context(nfs_file_open_context(filp));
 	if (!IS_ERR(l_ctx)) {

@@ -10,7 +10,6 @@
  * Most of code borrowed from the Linux-3.7 EHCI driver
  */
 #include <linux/module.h>
-#include <linux/of.h>
 #include <linux/device.h>
 #include <linux/dmapool.h>
 #include <linux/kernel.h>
@@ -32,7 +31,6 @@
 #include <linux/uaccess.h>
 #include <linux/platform_device.h>
 #include <linux/io.h>
-#include <linux/clk.h>
 
 #include <asm/byteorder.h>
 #include <asm/irq.h>
@@ -1287,7 +1285,7 @@ static void fotg210_iaa_watchdog(struct fotg210_hcd *fotg210)
 		 */
 		status = fotg210_readl(fotg210, &fotg210->regs->status);
 		if ((status & STS_IAA) || !(cmd & CMD_IAAD)) {
-			INCR(fotg210->stats.lost_iaa);
+			COUNT(fotg210->stats.lost_iaa);
 			fotg210_writel(fotg210, STS_IAA,
 					&fotg210->regs->status);
 		}
@@ -2210,12 +2208,12 @@ __acquires(fotg210->lock)
 	}
 
 	if (unlikely(urb->unlinked)) {
-		INCR(fotg210->stats.unlink);
+		COUNT(fotg210->stats.unlink);
 	} else {
 		/* report non-error and short read status as zero */
 		if (status == -EINPROGRESS || status == -EREMOTEIO)
 			status = 0;
-		INCR(fotg210->stats.complete);
+		COUNT(fotg210->stats.complete);
 	}
 
 #ifdef FOTG210_URB_TRACE
@@ -2511,6 +2509,11 @@ retry_xacterr:
 	return count;
 }
 
+/* high bandwidth multiplier, as encoded in highspeed endpoint descriptors */
+#define hb_mult(wMaxPacketSize) (1 + (((wMaxPacketSize) >> 11) & 0x03))
+/* ... and packet size, for any kind of endpoint descriptor */
+#define max_packet(wMaxPacketSize) ((wMaxPacketSize) & 0x07ff)
+
 /* reverse of qh_urb_transaction:  free a list of TDs.
  * used for cleanup after errors, before HC sees an URB's TDs.
  */
@@ -2596,7 +2599,7 @@ static struct list_head *qh_urb_transaction(struct fotg210_hcd *fotg210,
 		token |= (1 /* "in" */ << 8);
 	/* else it's already initted to "out" pid (0 << 8) */
 
-	maxpacket = usb_maxpacket(urb->dev, urb->pipe, !is_input);
+	maxpacket = max_packet(usb_maxpacket(urb->dev, urb->pipe, !is_input));
 
 	/*
 	 * buffer gets wrapped in one or more qtds;
@@ -2710,11 +2713,9 @@ static struct fotg210_qh *qh_make(struct fotg210_hcd *fotg210, struct urb *urb,
 		gfp_t flags)
 {
 	struct fotg210_qh *qh = fotg210_qh_alloc(fotg210, flags);
-	struct usb_host_endpoint *ep;
 	u32 info1 = 0, info2 = 0;
 	int is_input, type;
 	int maxp = 0;
-	int mult;
 	struct usb_tt *tt = urb->dev->tt;
 	struct fotg210_qh_hw *hw;
 
@@ -2729,15 +2730,14 @@ static struct fotg210_qh *qh_make(struct fotg210_hcd *fotg210, struct urb *urb,
 
 	is_input = usb_pipein(urb->pipe);
 	type = usb_pipetype(urb->pipe);
-	ep = usb_pipe_endpoint(urb->dev, urb->pipe);
-	maxp = usb_endpoint_maxp(&ep->desc);
-	mult = usb_endpoint_maxp_mult(&ep->desc);
+	maxp = usb_maxpacket(urb->dev, urb->pipe, !is_input);
 
 	/* 1024 byte maxpacket is a hardware ceiling.  High bandwidth
 	 * acts like up to 3KB, but is built from smaller packets.
 	 */
-	if (maxp > 1024) {
-		fotg210_dbg(fotg210, "bogus qh maxpacket %d\n", maxp);
+	if (max_packet(maxp) > 1024) {
+		fotg210_dbg(fotg210, "bogus qh maxpacket %d\n",
+				max_packet(maxp));
 		goto done;
 	}
 
@@ -2751,7 +2751,8 @@ static struct fotg210_qh *qh_make(struct fotg210_hcd *fotg210, struct urb *urb,
 	 */
 	if (type == PIPE_INTERRUPT) {
 		qh->usecs = NS_TO_US(usb_calc_bus_time(USB_SPEED_HIGH,
-				is_input, 0, mult * maxp));
+				is_input, 0,
+				hb_mult(maxp) * max_packet(maxp)));
 		qh->start = NO_FRAME;
 
 		if (urb->dev->speed == USB_SPEED_HIGH) {
@@ -2788,7 +2789,7 @@ static struct fotg210_qh *qh_make(struct fotg210_hcd *fotg210, struct urb *urb,
 			think_time = tt ? tt->think_time : 0;
 			qh->tt_usecs = NS_TO_US(think_time +
 					usb_calc_bus_time(urb->dev->speed,
-					is_input, 0, maxp));
+					is_input, 0, max_packet(maxp)));
 			qh->period = urb->interval;
 			if (qh->period > fotg210->periodic_size) {
 				qh->period = fotg210->periodic_size;
@@ -2851,11 +2852,11 @@ static struct fotg210_qh *qh_make(struct fotg210_hcd *fotg210, struct urb *urb,
 			 * to help them do so.  So now people expect to use
 			 * such nonconformant devices with Linux too; sigh.
 			 */
-			info1 |= maxp << 16;
+			info1 |= max_packet(maxp) << 16;
 			info2 |= (FOTG210_TUNE_MULT_HS << 30);
 		} else {		/* PIPE_INTERRUPT */
-			info1 |= maxp << 16;
-			info2 |= mult << 30;
+			info1 |= max_packet(maxp) << 16;
+			info2 |= hb_mult(maxp) << 30;
 		}
 		break;
 	default:
@@ -3925,7 +3926,6 @@ static void iso_stream_init(struct fotg210_hcd *fotg210,
 	int is_input;
 	long bandwidth;
 	unsigned multi;
-	struct usb_host_endpoint *ep;
 
 	/*
 	 * this might be a "high bandwidth" highspeed endpoint,
@@ -3933,14 +3933,14 @@ static void iso_stream_init(struct fotg210_hcd *fotg210,
 	 */
 	epnum = usb_pipeendpoint(pipe);
 	is_input = usb_pipein(pipe) ? USB_DIR_IN : 0;
-	ep = usb_pipe_endpoint(dev, pipe);
-	maxp = usb_endpoint_maxp(&ep->desc);
+	maxp = usb_maxpacket(dev, pipe, !is_input);
 	if (is_input)
 		buf1 = (1 << 11);
 	else
 		buf1 = 0;
 
-	multi = usb_endpoint_maxp_mult(&ep->desc);
+	maxp = max_packet(maxp);
+	multi = hb_mult(maxp);
 	buf1 |= maxp;
 	maxp *= multi;
 
@@ -4461,12 +4461,13 @@ static bool itd_complete(struct fotg210_hcd *fotg210, struct fotg210_itd *itd)
 
 			/* HC need not update length with this error */
 			if (!(t & FOTG210_ISOC_BABBLE)) {
-				desc->actual_length = FOTG210_ITD_LENGTH(t);
+				desc->actual_length =
+					fotg210_itdlen(urb, desc, t);
 				urb->actual_length += desc->actual_length;
 			}
 		} else if (likely((t & FOTG210_ISOC_ACTIVE) == 0)) {
 			desc->status = 0;
-			desc->actual_length = FOTG210_ITD_LENGTH(t);
+			desc->actual_length = fotg210_itdlen(urb, desc, t);
 			urb->actual_length += desc->actual_length;
 		} else {
 			/* URB was too late */
@@ -4997,7 +4998,7 @@ static int hcd_fotg210_init(struct usb_hcd *hcd)
 	fotg210->command = temp;
 
 	/* Accept arbitrarily long scatter-gather lists */
-	if (!hcd->localmem_pool)
+	if (!(hcd->driver->flags & HCD_LOCAL_MEM))
 		hcd->self.sg_tablesize = ~0;
 	return 0;
 }
@@ -5156,9 +5157,9 @@ static irqreturn_t fotg210_irq(struct usb_hcd *hcd)
 	/* normal [4.15.1.2] or error [4.15.1.1] completion */
 	if (likely((status & (STS_INT|STS_ERR)) != 0)) {
 		if (likely((status & STS_ERR) == 0))
-			INCR(fotg210->stats.normal);
+			COUNT(fotg210->stats.normal);
 		else
-			INCR(fotg210->stats.error);
+			COUNT(fotg210->stats.error);
 		bh = 1;
 	}
 
@@ -5183,7 +5184,7 @@ static irqreturn_t fotg210_irq(struct usb_hcd *hcd)
 		if (cmd & CMD_IAAD)
 			fotg210_dbg(fotg210, "IAA with IAAD still set?\n");
 		if (fotg210->async_iaa) {
-			INCR(fotg210->stats.iaa);
+			COUNT(fotg210->stats.iaa);
 			end_unlink_async(fotg210);
 		} else
 			fotg210_dbg(fotg210, "IAA with nothing unlinked?\n");
@@ -5505,7 +5506,7 @@ static const struct hc_driver fotg210_fotg210_hc_driver = {
 	 * generic hardware linkage
 	 */
 	.irq			= fotg210_irq,
-	.flags			= HCD_MEMORY | HCD_DMA | HCD_USB2,
+	.flags			= HCD_MEMORY | HCD_USB2,
 
 	/*
 	 * basic lifecycle operations
@@ -5568,7 +5569,7 @@ static int fotg210_hcd_probe(struct platform_device *pdev)
 	struct usb_hcd *hcd;
 	struct resource *res;
 	int irq;
-	int retval;
+	int retval = -ENODEV;
 	struct fotg210_hcd *fotg210;
 
 	if (usb_disabled())
@@ -5588,7 +5589,7 @@ static int fotg210_hcd_probe(struct platform_device *pdev)
 	hcd = usb_create_hcd(&fotg210_fotg210_hc_driver, dev,
 			dev_name(dev));
 	if (!hcd) {
-		dev_err(dev, "failed to create hcd\n");
+		dev_err(dev, "failed to create hcd with err %d\n", retval);
 		retval = -ENOMEM;
 		goto fail_create_hcd;
 	}
@@ -5599,7 +5600,7 @@ static int fotg210_hcd_probe(struct platform_device *pdev)
 	hcd->regs = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(hcd->regs)) {
 		retval = PTR_ERR(hcd->regs);
-		goto failed_put_hcd;
+		goto failed;
 	}
 
 	hcd->rsrc_start = res->start;
@@ -5609,43 +5610,22 @@ static int fotg210_hcd_probe(struct platform_device *pdev)
 
 	fotg210->caps = hcd->regs;
 
-	/* It's OK not to supply this clock */
-	fotg210->pclk = clk_get(dev, "PCLK");
-	if (!IS_ERR(fotg210->pclk)) {
-		retval = clk_prepare_enable(fotg210->pclk);
-		if (retval) {
-			dev_err(dev, "failed to enable PCLK\n");
-			goto failed_put_hcd;
-		}
-	} else if (PTR_ERR(fotg210->pclk) == -EPROBE_DEFER) {
-		/*
-		 * Percolate deferrals, for anything else,
-		 * just live without the clocking.
-		 */
-		retval = PTR_ERR(fotg210->pclk);
-		goto failed_dis_clk;
-	}
-
 	retval = fotg210_setup(hcd);
 	if (retval)
-		goto failed_dis_clk;
+		goto failed;
 
 	fotg210_init(fotg210);
 
 	retval = usb_add_hcd(hcd, irq, IRQF_SHARED);
 	if (retval) {
 		dev_err(dev, "failed to add hcd with err %d\n", retval);
-		goto failed_dis_clk;
+		goto failed;
 	}
 	device_wakeup_enable(hcd->self.controller);
-	platform_set_drvdata(pdev, hcd);
 
 	return retval;
 
-failed_dis_clk:
-	if (!IS_ERR(fotg210->pclk))
-		clk_disable_unprepare(fotg210->pclk);
-failed_put_hcd:
+failed:
 	usb_put_hcd(hcd);
 fail_create_hcd:
 	dev_err(dev, "init %s fail, %d\n", dev_name(dev), retval);
@@ -5659,11 +5639,11 @@ fail_create_hcd:
  */
 static int fotg210_hcd_remove(struct platform_device *pdev)
 {
-	struct usb_hcd *hcd = platform_get_drvdata(pdev);
-	struct fotg210_hcd *fotg210 = hcd_to_fotg210(hcd);
+	struct device *dev = &pdev->dev;
+	struct usb_hcd *hcd = dev_get_drvdata(dev);
 
-	if (!IS_ERR(fotg210->pclk))
-		clk_disable_unprepare(fotg210->pclk);
+	if (!hcd)
+		return 0;
 
 	usb_remove_hcd(hcd);
 	usb_put_hcd(hcd);
@@ -5671,18 +5651,9 @@ static int fotg210_hcd_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_OF
-static const struct of_device_id fotg210_of_match[] = {
-	{ .compatible = "faraday,fotg210" },
-	{},
-};
-MODULE_DEVICE_TABLE(of, fotg210_of_match);
-#endif
-
 static struct platform_driver fotg210_hcd_driver = {
 	.driver = {
 		.name   = "fotg210-hcd",
-		.of_match_table = of_match_ptr(fotg210_of_match),
 	},
 	.probe  = fotg210_hcd_probe,
 	.remove = fotg210_hcd_remove,

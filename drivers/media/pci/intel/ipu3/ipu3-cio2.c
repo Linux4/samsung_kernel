@@ -223,6 +223,8 @@ static int cio2_fbpt_init(struct cio2_device *cio2, struct cio2_queue *q)
 	if (!q->fbpt)
 		return -ENOMEM;
 
+	memset(q->fbpt, 0, CIO2_FBPT_SIZE);
+
 	return 0;
 }
 
@@ -264,7 +266,7 @@ static void cio2_fbpt_exit(struct cio2_queue *q, struct device *dev)
  */
 
 /*
- * shift for keeping value range suitable for 32-bit integer arithmetic
+ * shift for keeping value range suitable for 32-bit integer arithmetics
  */
 #define LIMIT_SHIFT	8
 
@@ -799,7 +801,6 @@ static void cio2_vb2_return_all_buffers(struct cio2_queue *q,
 			atomic_dec(&q->bufs_queued);
 			vb2_buffer_done(&q->bufs[i]->vbb.vb2_buf,
 					state);
-			q->bufs[i] = NULL;
 		}
 	}
 }
@@ -847,7 +848,7 @@ static int cio2_vb2_buf_init(struct vb2_buffer *vb)
 	unsigned int pages = DIV_ROUND_UP(vb->planes[0].length, CIO2_PAGE_SIZE);
 	unsigned int lops = DIV_ROUND_UP(pages + 1, entries_per_page);
 	struct sg_table *sg;
-	struct sg_dma_page_iter sg_iter;
+	struct sg_page_iter sg_iter;
 	int i, j;
 
 	if (lops <= 0 || lops > CIO2_MAX_LOPS) {
@@ -874,7 +875,7 @@ static int cio2_vb2_buf_init(struct vb2_buffer *vb)
 		b->offset = sg->sgl->offset;
 
 	i = j = 0;
-	for_each_sg_dma_page (sg->sgl, &sg_iter, sg->nents, 0) {
+	for_each_sg_page(sg->sgl, &sg_iter, sg->nents, 0) {
 		if (!pages--)
 			break;
 		b->lop[i][j] = sg_page_iter_dma_address(&sg_iter) >> PAGE_SHIFT;
@@ -1065,8 +1066,8 @@ static int cio2_v4l2_querycap(struct file *file, void *fh,
 {
 	struct cio2_device *cio2 = video_drvdata(file);
 
-	strscpy(cap->driver, CIO2_NAME, sizeof(cap->driver));
-	strscpy(cap->card, CIO2_DEVICE_NAME, sizeof(cap->card));
+	strlcpy(cap->driver, CIO2_NAME, sizeof(cap->driver));
+	strlcpy(cap->card, CIO2_DEVICE_NAME, sizeof(cap->card));
 	snprintf(cap->bus_info, sizeof(cap->bus_info),
 		 "PCI:%s", pci_name(cio2->pci_dev));
 
@@ -1144,7 +1145,7 @@ cio2_video_enum_input(struct file *file, void *fh, struct v4l2_input *input)
 	if (input->index > 0)
 		return -EINVAL;
 
-	strscpy(input->name, "camera", sizeof(input->name));
+	strlcpy(input->name, "camera", sizeof(input->name));
 	input->type = V4L2_INPUT_TYPE_CAMERA;
 
 	return 0;
@@ -1175,7 +1176,7 @@ static const struct v4l2_file_operations cio2_v4l2_fops = {
 
 static const struct v4l2_ioctl_ops cio2_v4l2_ioctl_ops = {
 	.vidioc_querycap = cio2_v4l2_querycap,
-	.vidioc_enum_fmt_vid_cap = cio2_v4l2_enum_fmt,
+	.vidioc_enum_fmt_vid_cap_mplane = cio2_v4l2_enum_fmt,
 	.vidioc_g_fmt_vid_cap_mplane = cio2_v4l2_g_fmt,
 	.vidioc_s_fmt_vid_cap_mplane = cio2_v4l2_s_fmt,
 	.vidioc_try_fmt_vid_cap_mplane = cio2_v4l2_try_fmt,
@@ -1244,15 +1245,29 @@ static int cio2_subdev_get_fmt(struct v4l2_subdev *sd,
 			       struct v4l2_subdev_format *fmt)
 {
 	struct cio2_queue *q = container_of(sd, struct cio2_queue, subdev);
+	struct v4l2_subdev_format format;
+	int ret;
 
-	mutex_lock(&q->subdev_lock);
-
-	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY)
+	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
 		fmt->format = *v4l2_subdev_get_try_format(sd, cfg, fmt->pad);
-	else
-		fmt->format = q->subdev_fmt;
+		return 0;
+	}
 
-	mutex_unlock(&q->subdev_lock);
+	if (fmt->pad == CIO2_PAD_SINK) {
+		format.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+		ret = v4l2_subdev_call(sd, pad, get_fmt, NULL,
+				       &format);
+
+		if (ret)
+			return ret;
+		/* update colorspace etc */
+		q->subdev_fmt.colorspace = format.format.colorspace;
+		q->subdev_fmt.ycbcr_enc = format.format.ycbcr_enc;
+		q->subdev_fmt.quantization = format.format.quantization;
+		q->subdev_fmt.xfer_func = format.format.xfer_func;
+	}
+
+	fmt->format = q->subdev_fmt;
 
 	return 0;
 }
@@ -1269,9 +1284,6 @@ static int cio2_subdev_set_fmt(struct v4l2_subdev *sd,
 			       struct v4l2_subdev_format *fmt)
 {
 	struct cio2_queue *q = container_of(sd, struct cio2_queue, subdev);
-	struct v4l2_mbus_framefmt *mbus;
-	u32 mbus_code = fmt->format.code;
-	unsigned int i;
 
 	/*
 	 * Only allow setting sink pad format;
@@ -1280,28 +1292,15 @@ static int cio2_subdev_set_fmt(struct v4l2_subdev *sd,
 	if (fmt->pad == CIO2_PAD_SOURCE)
 		return cio2_subdev_get_fmt(sd, cfg, fmt);
 
-	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY)
-		mbus = v4l2_subdev_get_try_format(sd, cfg, fmt->pad);
-	else
-		mbus = &q->subdev_fmt;
-
-	fmt->format.code = formats[0].mbus_code;
-
-	for (i = 0; i < ARRAY_SIZE(formats); i++) {
-		if (formats[i].mbus_code == mbus_code) {
-			fmt->format.code = mbus_code;
-			break;
-		}
+	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
+		*v4l2_subdev_get_try_format(sd, cfg, fmt->pad) = fmt->format;
+	} else {
+		/* It's the sink, allow changing frame size */
+		q->subdev_fmt.width = fmt->format.width;
+		q->subdev_fmt.height = fmt->format.height;
+		q->subdev_fmt.code = fmt->format.code;
+		fmt->format = q->subdev_fmt;
 	}
-
-	fmt->format.width = min_t(u32, fmt->format.width, CIO2_IMAGE_MAX_WIDTH);
-	fmt->format.height = min_t(u32, fmt->format.height,
-				   CIO2_IMAGE_MAX_LENGTH);
-	fmt->format.field = V4L2_FIELD_NONE;
-
-	mutex_lock(&q->subdev_lock);
-	*mbus = fmt->format;
-	mutex_unlock(&q->subdev_lock);
 
 	return 0;
 }
@@ -1436,13 +1435,13 @@ static int cio2_notifier_complete(struct v4l2_async_notifier *notifier)
 	struct cio2_device *cio2 = container_of(notifier, struct cio2_device,
 						notifier);
 	struct sensor_async_subdev *s_asd;
-	struct v4l2_async_subdev *asd;
 	struct cio2_queue *q;
-	unsigned int pad;
+	unsigned int i, pad;
 	int ret;
 
-	list_for_each_entry(asd, &cio2->notifier.asd_list, asd_list) {
-		s_asd = container_of(asd, struct sensor_async_subdev, asd);
+	for (i = 0; i < notifier->num_subdevs; i++) {
+		s_asd = container_of(cio2->notifier.subdevs[i],
+				     struct sensor_async_subdev, asd);
 		q = &cio2->queue[s_asd->csi2.port];
 
 		for (pad = 0; pad < q->sensor->entity.num_pads; pad++)
@@ -1464,7 +1463,7 @@ static int cio2_notifier_complete(struct v4l2_async_notifier *notifier)
 		if (ret) {
 			dev_err(&cio2->pci_dev->dev,
 				"failed to create link for %s\n",
-				q->sensor->name);
+				cio2->queue[i].sensor->name);
 			return ret;
 		}
 	}
@@ -1478,64 +1477,53 @@ static const struct v4l2_async_notifier_operations cio2_async_ops = {
 	.complete = cio2_notifier_complete,
 };
 
-static int cio2_parse_firmware(struct cio2_device *cio2)
+static int cio2_fwnode_parse(struct device *dev,
+			     struct v4l2_fwnode_endpoint *vep,
+			     struct v4l2_async_subdev *asd)
 {
-	unsigned int i;
-	int ret;
+	struct sensor_async_subdev *s_asd =
+			container_of(asd, struct sensor_async_subdev, asd);
 
-	for (i = 0; i < CIO2_NUM_PORTS; i++) {
-		struct v4l2_fwnode_endpoint vep = {
-			.bus_type = V4L2_MBUS_CSI2_DPHY
-		};
-		struct sensor_async_subdev *s_asd = NULL;
-		struct fwnode_handle *ep;
-
-		ep = fwnode_graph_get_endpoint_by_id(
-			dev_fwnode(&cio2->pci_dev->dev), i, 0,
-			FWNODE_GRAPH_ENDPOINT_NEXT);
-
-		if (!ep)
-			continue;
-
-		ret = v4l2_fwnode_endpoint_parse(ep, &vep);
-		if (ret)
-			goto err_parse;
-
-		s_asd = kzalloc(sizeof(*s_asd), GFP_KERNEL);
-		if (!s_asd) {
-			ret = -ENOMEM;
-			goto err_parse;
-		}
-
-		s_asd->csi2.port = vep.base.port;
-		s_asd->csi2.lanes = vep.bus.mipi_csi2.num_data_lanes;
-
-		ret = v4l2_async_notifier_add_fwnode_remote_subdev(
-			&cio2->notifier, ep, &s_asd->asd);
-		if (ret)
-			goto err_parse;
-
-		fwnode_handle_put(ep);
-
-		continue;
-
-err_parse:
-		fwnode_handle_put(ep);
-		kfree(s_asd);
-		return ret;
+	if (vep->bus_type != V4L2_MBUS_CSI2) {
+		dev_err(dev, "Only CSI2 bus type is currently supported\n");
+		return -EINVAL;
 	}
 
-	/*
-	 * Proceed even without sensors connected to allow the device to
-	 * suspend.
-	 */
+	s_asd->csi2.port = vep->base.port;
+	s_asd->csi2.lanes = vep->bus.mipi_csi2.num_data_lanes;
+
+	return 0;
+}
+
+static int cio2_notifier_init(struct cio2_device *cio2)
+{
+	int ret;
+
+	ret = v4l2_async_notifier_parse_fwnode_endpoints(
+		&cio2->pci_dev->dev, &cio2->notifier,
+		sizeof(struct sensor_async_subdev),
+		cio2_fwnode_parse);
+	if (ret < 0)
+		return ret;
+
+	if (!cio2->notifier.num_subdevs)
+		return -ENODEV;	/* no endpoint */
+
 	cio2->notifier.ops = &cio2_async_ops;
 	ret = v4l2_async_notifier_register(&cio2->v4l2_dev, &cio2->notifier);
-	if (ret)
+	if (ret) {
 		dev_err(&cio2->pci_dev->dev,
 			"failed to register async notifier : %d\n", ret);
+		v4l2_async_notifier_cleanup(&cio2->notifier);
+	}
 
 	return ret;
+}
+
+static void cio2_notifier_exit(struct cio2_device *cio2)
+{
+	v4l2_async_notifier_unregister(&cio2->notifier);
+	v4l2_async_notifier_cleanup(&cio2->notifier);
 }
 
 /**************** Queue initialization ****************/
@@ -1561,7 +1549,6 @@ static int cio2_queue_init(struct cio2_device *cio2, struct cio2_queue *q)
 
 	/* Initialize miscellaneous variables */
 	mutex_init(&q->lock);
-	mutex_init(&q->subdev_lock);
 
 	/* Initialize formats to default values */
 	fmt = &q->subdev_fmt;
@@ -1614,7 +1601,6 @@ static int cio2_queue_init(struct cio2_device *cio2, struct cio2_queue *q)
 	subdev->owner = THIS_MODULE;
 	snprintf(subdev->name, sizeof(subdev->name),
 		 CIO2_ENTITY_NAME " %td", q - cio2->queue);
-	subdev->entity.function = MEDIA_ENT_F_VID_IF_BRIDGE;
 	v4l2_set_subdevdata(subdev, cio2);
 	r = v4l2_device_register_subdev(&cio2->v4l2_dev, subdev);
 	if (r) {
@@ -1680,7 +1666,6 @@ fail_vdev_media_entity:
 fail_subdev_media_entity:
 	cio2_fbpt_exit(q, &cio2->pci_dev->dev);
 fail_fbpt:
-	mutex_destroy(&q->subdev_lock);
 	mutex_destroy(&q->lock);
 
 	return r;
@@ -1694,7 +1679,6 @@ static void cio2_queue_exit(struct cio2_device *cio2, struct cio2_queue *q)
 	v4l2_device_unregister_subdev(&q->subdev);
 	media_entity_cleanup(&q->subdev.entity);
 	cio2_fbpt_exit(q, &cio2->pci_dev->dev);
-	mutex_destroy(&q->subdev_lock);
 	mutex_destroy(&q->lock);
 }
 
@@ -1801,7 +1785,7 @@ static int cio2_pci_probe(struct pci_dev *pci_dev,
 	mutex_init(&cio2->lock);
 
 	cio2->media_dev.dev = &cio2->pci_dev->dev;
-	strscpy(cio2->media_dev.model, CIO2_DEVICE_NAME,
+	strlcpy(cio2->media_dev.model, CIO2_DEVICE_NAME,
 		sizeof(cio2->media_dev.model));
 	snprintf(cio2->media_dev.bus_info, sizeof(cio2->media_dev.bus_info),
 		 "PCI:%s", pci_name(cio2->pci_dev));
@@ -1824,18 +1808,16 @@ static int cio2_pci_probe(struct pci_dev *pci_dev,
 	if (r)
 		goto fail_v4l2_device_unregister;
 
-	v4l2_async_notifier_init(&cio2->notifier);
-
 	/* Register notifier for subdevices we care */
-	r = cio2_parse_firmware(cio2);
+	r = cio2_notifier_init(cio2);
 	if (r)
-		goto fail_clean_notifier;
+		goto fail_cio2_queue_exit;
 
 	r = devm_request_irq(&pci_dev->dev, pci_dev->irq, cio2_irq,
 			     IRQF_SHARED, CIO2_NAME, cio2);
 	if (r) {
 		dev_err(&pci_dev->dev, "failed to request IRQ (%d)\n", r);
-		goto fail_clean_notifier;
+		goto fail;
 	}
 
 	pm_runtime_put_noidle(&pci_dev->dev);
@@ -1843,9 +1825,9 @@ static int cio2_pci_probe(struct pci_dev *pci_dev,
 
 	return 0;
 
-fail_clean_notifier:
-	v4l2_async_notifier_unregister(&cio2->notifier);
-	v4l2_async_notifier_cleanup(&cio2->notifier);
+fail:
+	cio2_notifier_exit(cio2);
+fail_cio2_queue_exit:
 	cio2_queues_exit(cio2);
 fail_v4l2_device_unregister:
 	v4l2_device_unregister(&cio2->v4l2_dev);
@@ -1862,11 +1844,12 @@ fail_mutex_destroy:
 static void cio2_pci_remove(struct pci_dev *pci_dev)
 {
 	struct cio2_device *cio2 = pci_get_drvdata(pci_dev);
+	unsigned int i;
 
 	media_device_unregister(&cio2->media_dev);
-	v4l2_async_notifier_unregister(&cio2->notifier);
-	v4l2_async_notifier_cleanup(&cio2->notifier);
-	cio2_queues_exit(cio2);
+	cio2_notifier_exit(cio2);
+	for (i = 0; i < CIO2_QUEUES; i++)
+		cio2_queue_exit(cio2, &cio2->queue[i]);
 	cio2_fbpt_exit_dummy(cio2);
 	v4l2_device_unregister(&cio2->v4l2_dev);
 	media_device_cleanup(&cio2->media_dev);
@@ -2017,7 +2000,8 @@ static int __maybe_unused cio2_suspend(struct device *dev)
 
 static int __maybe_unused cio2_resume(struct device *dev)
 {
-	struct cio2_device *cio2 = dev_get_drvdata(dev);
+	struct pci_dev *pci_dev = to_pci_dev(dev);
+	struct cio2_device *cio2 = pci_get_drvdata(pci_dev);
 	int r = 0;
 	struct cio2_queue *q = cio2->cur_queue;
 
@@ -2065,7 +2049,7 @@ module_pci_driver(cio2_pci_driver);
 
 MODULE_AUTHOR("Tuukka Toivonen <tuukka.toivonen@intel.com>");
 MODULE_AUTHOR("Tianshu Qiu <tian.shu.qiu@intel.com>");
-MODULE_AUTHOR("Jian Xu Zheng");
+MODULE_AUTHOR("Jian Xu Zheng <jian.xu.zheng@intel.com>");
 MODULE_AUTHOR("Yuning Pu <yuning.pu@intel.com>");
 MODULE_AUTHOR("Yong Zhi <yong.zhi@intel.com>");
 MODULE_LICENSE("GPL v2");

@@ -1,10 +1,18 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * External Connector (extcon) framework
  * - linux/include/linux/extcon-provider.h for extcon provider device driver.
  *
  * Copyright (C) 2017 Samsung Electronics
  * Author: Chanwoo Choi <cw00.choi@samsung.com>
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #ifndef __LINUX_EXTCON_PROVIDER_H__
@@ -18,9 +26,12 @@ struct extcon_dev;
 
 /* Following APIs register/unregister the extcon device. */
 extern int extcon_dev_register(struct extcon_dev *edev);
+extern int extcon_dev_register_by_name(struct extcon_dev *edev, const char *name);
 extern void extcon_dev_unregister(struct extcon_dev *edev);
 extern int devm_extcon_dev_register(struct device *dev,
 				struct extcon_dev *edev);
+extern int devm_extcon_dev_register_by_name(struct device *dev,
+				struct extcon_dev *edev, const char *name);
 extern void devm_extcon_dev_unregister(struct device *dev,
 				struct extcon_dev *edev);
 
@@ -67,10 +78,22 @@ static inline int extcon_dev_register(struct extcon_dev *edev)
 	return 0;
 }
 
+static inline int extcon_dev_register_by_name(struct extcon_dev *edev, const char *name)
+{
+	return 0;
+}
+
+
 static inline void extcon_dev_unregister(struct extcon_dev *edev) { }
 
 static inline int devm_extcon_dev_register(struct device *dev,
 				struct extcon_dev *edev)
+{
+	return -EINVAL;
+}
+
+static inline int devm_extcon_dev_register_by_name(struct device *dev,
+				struct extcon_dev *edev, const char *name)
 {
 	return -EINVAL;
 }

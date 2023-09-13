@@ -38,22 +38,6 @@
 	type exp_resion_start_segment;\
 	type field_region_linear_slope
 
-#define TF_HELPER_REG_LIST \
-	uint32_t start_cntl_b; \
-	uint32_t start_cntl_g; \
-	uint32_t start_cntl_r; \
-	uint32_t start_slope_cntl_b; \
-	uint32_t start_slope_cntl_g; \
-	uint32_t start_slope_cntl_r; \
-	uint32_t start_end_cntl1_b; \
-	uint32_t start_end_cntl2_b; \
-	uint32_t start_end_cntl1_g; \
-	uint32_t start_end_cntl2_g; \
-	uint32_t start_end_cntl1_r; \
-	uint32_t start_end_cntl2_r; \
-	uint32_t region_start; \
-	uint32_t region_end
-
 #define TF_CM_REG_FIELD_LIST(type) \
 	type csc_c11; \
 	type csc_c12
@@ -70,7 +54,20 @@ struct xfer_func_reg {
 	struct xfer_func_shift shifts;
 	struct xfer_func_mask masks;
 
-	TF_HELPER_REG_LIST;
+	uint32_t start_cntl_b;
+	uint32_t start_cntl_g;
+	uint32_t start_cntl_r;
+	uint32_t start_slope_cntl_b;
+	uint32_t start_slope_cntl_g;
+	uint32_t start_slope_cntl_r;
+	uint32_t start_end_cntl1_b;
+	uint32_t start_end_cntl2_b;
+	uint32_t start_end_cntl1_g;
+	uint32_t start_end_cntl2_g;
+	uint32_t start_end_cntl1_r;
+	uint32_t start_end_cntl2_r;
+	uint32_t region_start;
+	uint32_t region_end;
 };
 
 struct cm_color_matrix_shift {
@@ -101,7 +98,7 @@ void cm_helper_program_xfer_func(
 
 bool cm_helper_convert_to_custom_float(
 		struct pwl_result_data *rgb_resulted,
-		struct curve_points3 *corner_points,
+		struct curve_points *arr_points,
 		uint32_t hw_points_num,
 		bool fixpoint);
 

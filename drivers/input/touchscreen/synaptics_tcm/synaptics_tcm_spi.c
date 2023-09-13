@@ -1,9 +1,13 @@
 /*
  * Synaptics TCM touchscreen driver
  *
- * Copyright (C) 2017-2019 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
  *
- * Copyright (C) 2017-2019 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2018-2019 Ian Su <ian.su@tw.synaptics.com>
+ * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@synaptics.com>
+ * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@synaptics.com>
+ * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -95,11 +99,12 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 		retval = of_property_read_u32(np, "synaptics,power-on-state",
 				&value);
 		if (retval < 0) {
-			LOGE(dev,
-				"Failed to read synaptics,power-on-state\n");
+			input_err(true, dev,
+					"Failed to read synaptics,power-on-state property\n");
 			return retval;
+		} else {
+			bdata->power_on_state = value;
 		}
-		bdata->power_on_state = value;
 	} else {
 		bdata->power_on_state = 0;
 	}
@@ -109,10 +114,12 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 		retval = of_property_read_u32(np, "synaptics,power-delay-ms",
 				&value);
 		if (retval < 0) {
-			LOGE(dev, "Failed to read synaptics,power-delay-ms\n");
+			input_err(true, dev,
+					"Failed to read synaptics,power-delay-ms property\n");
 			return retval;
+		} else {
+			bdata->power_delay_ms = value;
 		}
-		bdata->power_delay_ms = value;
 	} else {
 		bdata->power_delay_ms = 0;
 	}
@@ -130,10 +137,12 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 		retval = of_property_read_u32(np, "synaptics,reset-on-state",
 				&value);
 		if (retval < 0) {
-			LOGE(dev, "Failed to read synaptics,reset-on-state\n");
+			input_err(true, dev,
+					"Failed to read synaptics,reset-on-state property\n");
 			return retval;
+		} else {
+			bdata->reset_on_state = value;
 		}
-		bdata->reset_on_state = value;
 	} else {
 		bdata->reset_on_state = 0;
 	}
@@ -143,10 +152,12 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 		retval = of_property_read_u32(np, "synaptics,reset-active-ms",
 				&value);
 		if (retval < 0) {
-			LOGE(dev, "Failed to read synaptics,reset-active-ms\n");
+			input_err(true, dev,
+					"Failed to read synaptics,reset-active-ms property\n");
 			return retval;
+		} else {
+			bdata->reset_active_ms = value;
 		}
-		bdata->reset_active_ms = value;
 	} else {
 		bdata->reset_active_ms = 0;
 	}
@@ -156,12 +167,22 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 		retval = of_property_read_u32(np, "synaptics,reset-delay-ms",
 				&value);
 		if (retval < 0) {
-			LOGE(dev, "Unable to read synaptics,reset-delay-ms\n");
+			input_err(true, dev,
+					"Unable to read synaptics,reset-delay-ms property\n");
 			return retval;
+		} else {
+			bdata->reset_delay_ms = value;
 		}
-		bdata->reset_delay_ms = value;
 	} else {
 		bdata->reset_delay_ms = 0;
+	}
+
+	prop = of_find_property(np, "synaptics,tpio-reset-gpio", NULL);
+	if (prop && prop->length) {
+		bdata->tpio_reset_gpio = of_get_named_gpio_flags(np,
+				"synaptics,tpio-reset-gpio", 0, NULL);
+	} else {
+		bdata->tpio_reset_gpio = -1;
 	}
 
 	prop = of_find_property(np, "synaptics,x-flip", NULL);
@@ -178,10 +199,12 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 		retval = of_property_read_u32(np, "synaptics,byte-delay-us",
 				&value);
 		if (retval < 0) {
-			LOGE(dev, "Unable to read synaptics,byte-delay-us\n");
+			input_err(true, dev,
+					"Unable to read synaptics,byte-delay-us property\n");
 			return retval;
+		} else {
+			bdata->byte_delay_us = value;
 		}
-		bdata->byte_delay_us = value;
 	} else {
 		bdata->byte_delay_us = 0;
 	}
@@ -191,10 +214,12 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 		retval = of_property_read_u32(np, "synaptics,block-delay-us",
 				&value);
 		if (retval < 0) {
-			LOGE(dev, "Unable to read synaptics,block-delay-us\n");
+			input_err(true, dev,
+					"Unable to read synaptics,block-delay-us property\n");
 			return retval;
+		} else {
+			bdata->block_delay_us = value;
 		}
-		bdata->block_delay_us = value;
 	} else {
 		bdata->block_delay_us = 0;
 	}
@@ -204,11 +229,12 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 		retval = of_property_read_u32(np, "synaptics,spi-mode",
 				&value);
 		if (retval < 0) {
-			LOGE(dev, "Unable to read synaptics,spi-mode\n");
+			input_err(true, dev,
+					"Unable to read synaptics,spi-mode property\n");
 			return retval;
+		} else {
+			bdata->spi_mode = value;
 		}
-		bdata->spi_mode = value;
-
 	} else {
 		bdata->spi_mode = 0;
 	}
@@ -218,10 +244,12 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 		retval = of_property_read_u32(np, "synaptics,ubl-max-freq",
 				&value);
 		if (retval < 0) {
-			LOGE(dev, "Unable to read synaptics,ubl-max-freq\n");
+			input_err(true, dev,
+					"Unable to read synaptics,ubl-max-freq property\n");
 			return retval;
+		} else {
+			bdata->ubl_max_freq = value;
 		}
-		bdata->ubl_max_freq = value;
 	} else {
 		bdata->ubl_max_freq = 0;
 	}
@@ -231,14 +259,27 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 		retval = of_property_read_u32(np, "synaptics,ubl-byte-delay-us",
 				&value);
 		if (retval < 0) {
-			LOGE(dev,
-				"Unable to read synaptics,ubl-byte-delay-us\n");
+			input_err(true, dev,
+					"Unable to read synaptics,ubl-byte-delay-us property\n");
 			return retval;
+		} else {
+			bdata->ubl_byte_delay_us = value;
 		}
-		bdata->ubl_byte_delay_us = value;
 	} else {
 		bdata->ubl_byte_delay_us = 0;
 	}
+
+	retval = of_property_read_string(np, "synaptics,fw_name", &bdata->fw_name);
+	if (retval < 0) {
+		input_err(true, dev,
+				"Unable to read synaptics,ubl-byte-delay-us property\n");
+		return retval;
+	}
+	input_info(true, dev, "fw path %s\n", bdata->fw_name);
+
+	bdata->pinctrl = devm_pinctrl_get(dev);
+	if (IS_ERR(bdata->pinctrl))
+		input_err(true, dev, "%s: could not get pinctrl\n", __func__);
 
 	return 0;
 }
@@ -254,7 +295,7 @@ static int syna_tcm_spi_alloc_mem(struct syna_tcm_hcd *tcm_hcd,
 		kfree(xfer);
 		xfer = kcalloc(count, sizeof(*xfer), GFP_KERNEL);
 		if (!xfer) {
-			LOGE(&spi->dev,
+			input_err(true, &spi->dev,
 					"Failed to allocate memory for xfer\n");
 			xfer_count = 0;
 			return -ENOMEM;
@@ -269,7 +310,7 @@ static int syna_tcm_spi_alloc_mem(struct syna_tcm_hcd *tcm_hcd,
 			kfree(buf);
 		buf = kmalloc(size, GFP_KERNEL);
 		if (!buf) {
-			LOGE(&spi->dev,
+			input_err(true, &spi->dev,
 					"Failed to allocate memory for buf\n");
 			buf_size = 0;
 			return -ENOMEM;
@@ -291,6 +332,12 @@ static int syna_tcm_spi_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
 	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
+	if (tcm_hcd->in_suspend) {
+		input_err(true, tcm_hcd->pdev->dev.parent,
+				"power off in suspend\n");
+		return -EIO;
+	}
+
 	mutex_lock(&tcm_hcd->io_ctrl_mutex);
 
 	spi_message_init(&msg);
@@ -302,7 +349,7 @@ static int syna_tcm_spi_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 	else
 		retval = syna_tcm_spi_alloc_mem(tcm_hcd, byte_count, 3);
 	if (retval < 0) {
-		LOGE(&spi->dev,
+		input_err(true, &spi->dev,
 				"Failed to allocate memory\n");
 		goto exit;
 	}
@@ -348,7 +395,7 @@ static int syna_tcm_spi_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 	if (retval == 0) {
 		retval = length;
 	} else {
-		LOGE(&spi->dev,
+		input_err(true, &spi->dev,
 				"Failed to complete SPI transfer, error = %d\n",
 				retval);
 	}
@@ -371,6 +418,12 @@ static int syna_tcm_spi_rmi_write(struct syna_tcm_hcd *tcm_hcd,
 	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
 	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
+	if (tcm_hcd->in_suspend) {
+		input_err(true, tcm_hcd->pdev->dev.parent,
+				"power off in suspend\n");
+		return -EIO;
+	}
+
 	mutex_lock(&tcm_hcd->io_ctrl_mutex);
 
 	spi_message_init(&msg);
@@ -379,7 +432,7 @@ static int syna_tcm_spi_rmi_write(struct syna_tcm_hcd *tcm_hcd,
 
 	retval = syna_tcm_spi_alloc_mem(tcm_hcd, 1, byte_count);
 	if (retval < 0) {
-		LOGE(&spi->dev,
+		input_err(true, &spi->dev,
 				"Failed to allocate memory\n");
 		goto exit;
 	}
@@ -392,7 +445,7 @@ static int syna_tcm_spi_rmi_write(struct syna_tcm_hcd *tcm_hcd,
 			length,
 			length);
 	if (retval < 0) {
-		LOGE(&spi->dev,
+		input_err(true, &spi->dev,
 				"Failed to copy write data\n");
 		goto exit;
 	}
@@ -410,7 +463,7 @@ static int syna_tcm_spi_rmi_write(struct syna_tcm_hcd *tcm_hcd,
 	if (retval == 0) {
 		retval = length;
 	} else {
-		LOGE(&spi->dev,
+		input_err(true, &spi->dev,
 				"Failed to complete SPI transfer, error = %d\n",
 				retval);
 	}
@@ -432,6 +485,12 @@ static int syna_tcm_spi_read(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
 	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
 	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
+	if (tcm_hcd->in_suspend) {
+		input_err(true, tcm_hcd->pdev->dev.parent,
+				"power off in suspend\n");
+		return -EIO;
+	}
+
 	mutex_lock(&tcm_hcd->io_ctrl_mutex);
 
 	spi_message_init(&msg);
@@ -441,7 +500,7 @@ static int syna_tcm_spi_read(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
 	else
 		retval = syna_tcm_spi_alloc_mem(tcm_hcd, length, 1);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		input_err(true, tcm_hcd->pdev->dev.parent,
 				"Failed to allocate memory\n");
 		goto exit;
 	}
@@ -471,11 +530,11 @@ static int syna_tcm_spi_read(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
 	if (retval == 0) {
 		retval = length;
 	} else {
-		LOGE(&spi->dev,
+		input_err(true, &spi->dev,
 				"Failed to complete SPI transfer, error = %d\n",
 				retval);
 	}
-
+	
 exit:
 	mutex_unlock(&tcm_hcd->io_ctrl_mutex);
 
@@ -491,6 +550,12 @@ static int syna_tcm_spi_write(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
 	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
 	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
+	if (tcm_hcd->in_suspend) {
+		input_err(true, tcm_hcd->pdev->dev.parent,
+				"power off in suspend\n");
+		return -EIO;
+	}
+
 	mutex_lock(&tcm_hcd->io_ctrl_mutex);
 
 	spi_message_init(&msg);
@@ -500,7 +565,7 @@ static int syna_tcm_spi_write(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
 	else
 		retval = syna_tcm_spi_alloc_mem(tcm_hcd, length, 0);
 	if (retval < 0) {
-		LOGE(&spi->dev,
+		input_err(true, &spi->dev,
 				"Failed to allocate memory\n");
 		goto exit;
 	}
@@ -526,7 +591,7 @@ static int syna_tcm_spi_write(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
 	if (retval == 0) {
 		retval = length;
 	} else {
-		LOGE(&spi->dev,
+		input_err(true, &spi->dev,
 				"Failed to complete SPI transfer, error = %d\n",
 				retval);
 	}
@@ -542,14 +607,14 @@ static int syna_tcm_spi_probe(struct spi_device *spi)
 	int retval;
 
 	if (spi->master->flags & SPI_MASTER_HALF_DUPLEX) {
-		LOGE(&spi->dev,
+		input_err(true, &spi->dev,
 				"Full duplex not supported by host\n");
 		return -EIO;
 	}
 
 	syna_tcm_spi_device = platform_device_alloc(PLATFORM_DRIVER_NAME, 0);
 	if (!syna_tcm_spi_device) {
-		LOGE(&spi->dev,
+		input_err(true, &spi->dev,
 				"Failed to allocate platform device\n");
 		return -ENOMEM;
 	}
@@ -557,7 +622,7 @@ static int syna_tcm_spi_probe(struct spi_device *spi)
 #ifdef CONFIG_OF
 	hw_if.bdata = devm_kzalloc(&spi->dev, sizeof(*hw_if.bdata), GFP_KERNEL);
 	if (!hw_if.bdata) {
-		LOGE(&spi->dev,
+		input_err(true, &spi->dev,
 				"Failed to allocate memory for board data\n");
 		return -ENOMEM;
 	}
@@ -593,7 +658,7 @@ static int syna_tcm_spi_probe(struct spi_device *spi)
 
 	retval = spi_setup(spi);
 	if (retval < 0) {
-		LOGE(&spi->dev,
+		input_err(true, &spi->dev,
 				"Failed to set up SPI protocol driver\n");
 		return retval;
 	}
@@ -603,7 +668,7 @@ static int syna_tcm_spi_probe(struct spi_device *spi)
 
 	retval = platform_device_add(syna_tcm_spi_device);
 	if (retval < 0) {
-		LOGE(&spi->dev,
+		input_err(true, &spi->dev,
 				"Failed to add platform device\n");
 		return retval;
 	}
@@ -627,7 +692,7 @@ static const struct spi_device_id syna_tcm_id_table[] = {
 MODULE_DEVICE_TABLE(spi, syna_tcm_id_table);
 
 #ifdef CONFIG_OF
-static const struct of_device_id syna_tcm_of_match_table[] = {
+static struct of_device_id syna_tcm_of_match_table[] = {
 	{
 		.compatible = "synaptics,tcm-spi",
 	},
@@ -649,21 +714,23 @@ static struct spi_driver syna_tcm_spi_driver = {
 	.id_table = syna_tcm_id_table,
 };
 
-int syna_tcm_bus_init_spi(void)
+int syna_tcm_bus_init(void)
 {
 	return spi_register_driver(&syna_tcm_spi_driver);
 }
-EXPORT_SYMBOL(syna_tcm_bus_init_spi);
+EXPORT_SYMBOL(syna_tcm_bus_init);
 
-void syna_tcm_bus_exit_spi(void)
+void syna_tcm_bus_exit(void)
 {
 	kfree(buf);
 
 	kfree(xfer);
 
 	spi_unregister_driver(&syna_tcm_spi_driver);
+
+	return;
 }
-EXPORT_SYMBOL(syna_tcm_bus_exit_spi);
+EXPORT_SYMBOL(syna_tcm_bus_exit);
 
 MODULE_AUTHOR("Synaptics, Inc.");
 MODULE_DESCRIPTION("Synaptics TCM SPI Bus Module");

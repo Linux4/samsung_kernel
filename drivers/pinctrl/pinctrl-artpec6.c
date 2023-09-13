@@ -688,9 +688,8 @@ static void artpec6_pmx_select_func(struct pinctrl_dev *pctldev,
 	}
 }
 
-static int artpec6_pmx_set(struct pinctrl_dev *pctldev,
-			   unsigned int function,
-			   unsigned int group)
+int artpec6_pmx_enable(struct pinctrl_dev *pctldev, unsigned int function,
+		       unsigned int group)
 {
 	struct artpec6_pmx *pmx = pinctrl_dev_get_drvdata(pctldev);
 
@@ -701,6 +700,18 @@ static int artpec6_pmx_set(struct pinctrl_dev *pctldev,
 	artpec6_pmx_select_func(pctldev, function, group, true);
 
 	return 0;
+}
+
+void artpec6_pmx_disable(struct pinctrl_dev *pctldev, unsigned int function,
+			 unsigned int group)
+{
+	struct artpec6_pmx *pmx = pinctrl_dev_get_drvdata(pctldev);
+
+	dev_dbg(pmx->dev, "disabling %s function for pin group %s\n",
+		artpec6_pmx_get_fname(pctldev, function),
+		artpec6_get_group_name(pctldev, group));
+
+	artpec6_pmx_select_func(pctldev, function, group, false);
 }
 
 static int artpec6_pmx_request_gpio(struct pinctrl_dev *pctldev,
@@ -726,7 +737,7 @@ static const struct pinmux_ops artpec6_pmx_ops = {
 	.get_functions_count	= artpec6_pmx_get_functions_count,
 	.get_function_name	= artpec6_pmx_get_fname,
 	.get_function_groups	= artpec6_pmx_get_fgroups,
-	.set_mux		= artpec6_pmx_set,
+	.set_mux		= artpec6_pmx_enable,
 	.gpio_request_enable = artpec6_pmx_request_gpio,
 };
 

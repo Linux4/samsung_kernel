@@ -1,9 +1,21 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2013 Shaohua Li <shli@kernel.org>
  * Copyright (C) 2014 Red Hat, Inc.
  * Copyright (C) 2015 Arrikto, Inc.
  * Copyright (C) 2017 Chinamobile, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
 #include <linux/spinlock.h>
@@ -429,26 +441,26 @@ static int tcmu_genl_set_features(struct sk_buff *skb, struct genl_info *info)
 static const struct genl_ops tcmu_genl_ops[] = {
 	{
 		.cmd	= TCMU_CMD_SET_FEATURES,
-		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.flags	= GENL_ADMIN_PERM,
+		.policy	= tcmu_attr_policy,
 		.doit	= tcmu_genl_set_features,
 	},
 	{
 		.cmd	= TCMU_CMD_ADDED_DEVICE_DONE,
-		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.flags	= GENL_ADMIN_PERM,
+		.policy	= tcmu_attr_policy,
 		.doit	= tcmu_genl_add_dev_done,
 	},
 	{
 		.cmd	= TCMU_CMD_REMOVED_DEVICE_DONE,
-		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.flags	= GENL_ADMIN_PERM,
+		.policy	= tcmu_attr_policy,
 		.doit	= tcmu_genl_rm_dev_done,
 	},
 	{
 		.cmd	= TCMU_CMD_RECONFIG_DEVICE_DONE,
-		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.flags	= GENL_ADMIN_PERM,
+		.policy	= tcmu_attr_policy,
 		.doit	= tcmu_genl_reconfig_dev_done,
 	},
 };
@@ -460,7 +472,6 @@ static struct genl_family tcmu_genl_family __ro_after_init = {
 	.name = "TCM-USER",
 	.version = 2,
 	.maxattr = TCMU_ATTR_MAX,
-	.policy = tcmu_attr_policy,
 	.mcgrps = tcmu_mcgrps,
 	.n_mcgrps = ARRAY_SIZE(tcmu_mcgrps),
 	.netnsok = true,
@@ -601,7 +612,7 @@ static inline void tcmu_flush_dcache_range(void *vaddr, size_t size)
 	size = round_up(size+offset, PAGE_SIZE);
 
 	while (size) {
-		flush_dcache_page(vmalloc_to_page(start));
+		flush_dcache_page(virt_to_page(start));
 		start += PAGE_SIZE;
 		size -= PAGE_SIZE;
 	}
@@ -669,17 +680,15 @@ static void scatter_data_area(struct tcmu_dev *udev,
 	void *from, *to = NULL;
 	size_t copy_bytes, to_offset, offset;
 	struct scatterlist *sg;
-	struct page *page = NULL;
+	struct page *page;
 
 	for_each_sg(data_sg, sg, data_nents, i) {
 		int sg_remaining = sg->length;
 		from = kmap_atomic(sg_page(sg)) + sg->offset;
 		while (sg_remaining > 0) {
 			if (block_remaining == 0) {
-				if (to) {
-					flush_dcache_page(page);
+				if (to)
 					kunmap_atomic(to);
-				}
 
 				block_remaining = DATA_BLOCK_SIZE;
 				dbi = tcmu_cmd_get_dbi(tcmu_cmd);
@@ -724,6 +733,7 @@ static void scatter_data_area(struct tcmu_dev *udev,
 				memcpy(to + offset,
 				       from + sg->length - sg_remaining,
 				       copy_bytes);
+				tcmu_flush_dcache_range(to, copy_bytes);
 			}
 
 			sg_remaining -= copy_bytes;
@@ -732,10 +742,8 @@ static void scatter_data_area(struct tcmu_dev *udev,
 		kunmap_atomic(from - sg->offset);
 	}
 
-	if (to) {
-		flush_dcache_page(page);
+	if (to)
 		kunmap_atomic(to);
-	}
 }
 
 static void gather_data_area(struct tcmu_dev *udev, struct tcmu_cmd *cmd,
@@ -781,13 +789,13 @@ static void gather_data_area(struct tcmu_dev *udev, struct tcmu_cmd *cmd,
 				dbi = tcmu_cmd_get_dbi(cmd);
 				page = tcmu_get_block_page(udev, dbi);
 				from = kmap_atomic(page);
-				flush_dcache_page(page);
 			}
 			copy_bytes = min_t(size_t, sg_remaining,
 					block_remaining);
 			if (read_len < copy_bytes)
 				copy_bytes = read_len;
 			offset = DATA_BLOCK_SIZE - block_remaining;
+			tcmu_flush_dcache_range(from, copy_bytes);
 			memcpy(to + sg->length - sg_remaining, from + offset,
 					copy_bytes);
 
@@ -1010,7 +1018,7 @@ static int queue_cmd_ring(struct tcmu_cmd *tcmu_cmd, sense_reason_t *scsi_err)
 		entry->hdr.cmd_id = 0; /* not used for PAD */
 		entry->hdr.kflags = 0;
 		entry->hdr.uflags = 0;
-		tcmu_flush_dcache_range(entry, sizeof(entry->hdr));
+		tcmu_flush_dcache_range(entry, sizeof(*entry));
 
 		UPDATE_HEAD(mb->cmd_head, pad_size, udev->cmdr_size);
 		tcmu_flush_dcache_range(mb, sizeof(*mb));
@@ -1075,7 +1083,7 @@ static int queue_cmd_ring(struct tcmu_cmd *tcmu_cmd, sense_reason_t *scsi_err)
 	cdb_off = CMDR_OFF + cmd_head + base_command_size;
 	memcpy((void *) mb + cdb_off, se_cmd->t_task_cdb, scsi_command_size(se_cmd->t_task_cdb));
 	entry->req.cdb_off = cdb_off;
-	tcmu_flush_dcache_range(entry, command_size);
+	tcmu_flush_dcache_range(entry, sizeof(*entry));
 
 	UPDATE_HEAD(mb->cmd_head, command_size, udev->cmdr_size);
 	tcmu_flush_dcache_range(mb, sizeof(*mb));
@@ -1205,7 +1213,7 @@ static void tcmu_set_next_deadline(struct list_head *queue,
 		del_timer(timer);
 }
 
-static bool tcmu_handle_completions(struct tcmu_dev *udev)
+static unsigned int tcmu_handle_completions(struct tcmu_dev *udev)
 {
 	struct tcmu_mailbox *mb;
 	struct tcmu_cmd *cmd;
@@ -1223,14 +1231,7 @@ static bool tcmu_handle_completions(struct tcmu_dev *udev)
 
 		struct tcmu_cmd_entry *entry = (void *) mb + CMDR_OFF + udev->cmdr_last_cleaned;
 
-		/*
-		 * Flush max. up to end of cmd ring since current entry might
-		 * be a padding that is shorter than sizeof(*entry)
-		 */
-		size_t ring_left = head_to_end(udev->cmdr_last_cleaned,
-					       udev->cmdr_size);
-		tcmu_flush_dcache_range(entry, ring_left < sizeof(*entry) ?
-					ring_left : sizeof(*entry));
+		tcmu_flush_dcache_range(entry, sizeof(*entry));
 
 		if (tcmu_hdr_get_op(entry->hdr.len_op) == TCMU_OP_PAD) {
 			UPDATE_HEAD(udev->cmdr_last_cleaned,
@@ -1245,7 +1246,7 @@ static bool tcmu_handle_completions(struct tcmu_dev *udev)
 			pr_err("cmd_id %u not found, ring is broken\n",
 			       entry->hdr.cmd_id);
 			set_bit(TCMU_DEV_BIT_BROKEN, &udev->flags);
-			return false;
+			break;
 		}
 
 		tcmu_handle_completion(cmd, entry);
@@ -1488,7 +1489,6 @@ static struct page *tcmu_try_get_block_page(struct tcmu_dev *udev, uint32_t dbi)
 	mutex_lock(&udev->cmdr_lock);
 	page = tcmu_get_block_page(udev, dbi);
 	if (likely(page)) {
-		get_page(page);
 		mutex_unlock(&udev->cmdr_lock);
 		return page;
 	}
@@ -1527,7 +1527,6 @@ static vm_fault_t tcmu_vma_fault(struct vm_fault *vmf)
 		/* For the vmalloc()ed cmd area pages */
 		addr = (void *)(unsigned long)info->mem[mi].addr + offset;
 		page = vmalloc_to_page(addr);
-		get_page(page);
 	} else {
 		uint32_t dbi;
 
@@ -1538,6 +1537,7 @@ static vm_fault_t tcmu_vma_fault(struct vm_fault *vmf)
 			return VM_FAULT_SIGBUS;
 	}
 
+	get_page(page);
 	vmf->page = page;
 	return 0;
 }
@@ -1640,7 +1640,7 @@ static void tcmu_dev_kref_release(struct kref *kref)
 	WARN_ON(!all_expired);
 
 	tcmu_blocks_release(&udev->data_blocks, 0, udev->dbi_max + 1);
-	bitmap_free(udev->data_bitmap);
+	kfree(udev->data_bitmap);
 	mutex_unlock(&udev->cmdr_lock);
 
 	call_rcu(&dev->rcu_head, tcmu_dev_call_rcu);
@@ -1694,24 +1694,6 @@ static int tcmu_init_genl_cmd_reply(struct tcmu_dev *udev, int cmd)
 
 	mutex_unlock(&tcmu_nl_cmd_mutex);
 	return 0;
-}
-
-static void tcmu_destroy_genl_cmd_reply(struct tcmu_dev *udev)
-{
-	struct tcmu_nl_cmd *nl_cmd = &udev->curr_nl_cmd;
-
-	if (!tcmu_kern_cmd_reply_supported)
-		return;
-
-	if (udev->nl_reply_supported <= 0)
-		return;
-
-	mutex_lock(&tcmu_nl_cmd_mutex);
-
-	list_del(&nl_cmd->nl_list);
-	memset(nl_cmd, 0, sizeof(*nl_cmd));
-
-	mutex_unlock(&tcmu_nl_cmd_mutex);
 }
 
 static int tcmu_wait_genl_cmd_reply(struct tcmu_dev *udev)
@@ -1789,14 +1771,11 @@ static int tcmu_netlink_event_send(struct tcmu_dev *udev,
 
 	ret = genlmsg_multicast_allns(&tcmu_genl_family, skb, 0,
 				      TCMU_MCGRP_CONFIG, GFP_KERNEL);
-
-	/* Wait during an add as the listener may not be up yet */
-	if (ret == 0 ||
-	   (ret == -ESRCH && cmd == TCMU_CMD_ADDED_DEVICE))
-		return tcmu_wait_genl_cmd_reply(udev);
-	else
-		tcmu_destroy_genl_cmd_reply(udev);
-
+	/* We don't care if no one is listening */
+	if (ret == -ESRCH)
+		ret = 0;
+	if (!ret)
+		ret = tcmu_wait_genl_cmd_reply(udev);
 	return ret;
 }
 
@@ -1832,18 +1811,20 @@ static int tcmu_update_uio_info(struct tcmu_dev *udev)
 {
 	struct tcmu_hba *hba = udev->hba->hba_ptr;
 	struct uio_info *info;
+	size_t size, used;
 	char *str;
 
 	info = &udev->uio_info;
-
-	if (udev->dev_config[0])
-		str = kasprintf(GFP_KERNEL, "tcm-user/%u/%s/%s", hba->host_id,
-				udev->name, udev->dev_config);
-	else
-		str = kasprintf(GFP_KERNEL, "tcm-user/%u/%s", hba->host_id,
-				udev->name);
+	size = snprintf(NULL, 0, "tcm-user/%u/%s/%s", hba->host_id, udev->name,
+			udev->dev_config);
+	size += 1; /* for \0 */
+	str = kmalloc(size, GFP_KERNEL);
 	if (!str)
 		return -ENOMEM;
+
+	used = snprintf(str, size, "tcm-user/%u/%s", hba->host_id, udev->name);
+	if (udev->dev_config[0])
+		snprintf(str + used, size - used, "/%s", udev->dev_config);
 
 	/* If the old string exists, free it */
 	kfree(info->name);
@@ -1866,7 +1847,9 @@ static int tcmu_configure_device(struct se_device *dev)
 	info = &udev->uio_info;
 
 	mutex_lock(&udev->cmdr_lock);
-	udev->data_bitmap = bitmap_zalloc(udev->max_blocks, GFP_KERNEL);
+	udev->data_bitmap = kcalloc(BITS_TO_LONGS(udev->max_blocks),
+				    sizeof(unsigned long),
+				    GFP_KERNEL);
 	mutex_unlock(&udev->cmdr_lock);
 	if (!udev->data_bitmap) {
 		ret = -ENOMEM;
@@ -1953,7 +1936,7 @@ err_register:
 	vfree(udev->mb_addr);
 	udev->mb_addr = NULL;
 err_vzalloc:
-	bitmap_free(udev->data_bitmap);
+	kfree(udev->data_bitmap);
 	udev->data_bitmap = NULL;
 err_bitmap_alloc:
 	kfree(info->name);

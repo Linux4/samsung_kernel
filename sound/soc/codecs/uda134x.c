@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * uda134x.c  --  UDA134X ALSA SoC Codec driver
  *
@@ -8,6 +7,10 @@
  * Author: Zoltan Devai
  *
  * Based on the WM87xx drivers by Liam Girdwood and Richard Purdie
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/module.h>

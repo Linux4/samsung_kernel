@@ -2,7 +2,7 @@
 #ifndef _UAPI__LINUX_NETLINK_H
 #define _UAPI__LINUX_NETLINK_H
 
-#include <linux/const.h>
+#include <linux/kernel.h>
 #include <linux/socket.h> /* for __kernel_sa_family_t */
 #include <linux/types.h>
 
@@ -31,7 +31,6 @@
 #define NETLINK_SMC		22	/* SMC monitoring */
 
 #define NETLINK_INET_DIAG	NETLINK_SOCK_DIAG
-#define NETLINK_KFREECESS       27
 
 #define MAX_LINKS 32		
 
@@ -156,7 +155,6 @@ enum nlmsgerr_attrs {
 #define NETLINK_LIST_MEMBERSHIPS	9
 #define NETLINK_CAP_ACK			10
 #define NETLINK_EXT_ACK			11
-#define NETLINK_GET_STRICT_CHK		12
 
 struct nl_pktinfo {
 	__u32	group;

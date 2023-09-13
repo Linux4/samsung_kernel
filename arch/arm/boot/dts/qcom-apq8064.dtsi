@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /dts-v1/;
 
+#include "skeleton.dtsi"
 #include <dt-bindings/clock/qcom,gcc-msm8960.h>
 #include <dt-bindings/reset/qcom,gcc-msm8960.h>
 #include <dt-bindings/clock/qcom,mmcc-msm8960.h>
@@ -9,8 +10,6 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 / {
-	#address-cells = <1>;
-	#size-cells = <1>;
 	model = "Qualcomm APQ8064";
 	compatible = "qcom,apq8064";
 	interrupt-parent = <&intc>;
@@ -93,11 +92,6 @@
 				min-residency-us = <3000>;
 			};
 		};
-	};
-
-	memory {
-		device_type = "memory";
-		reg = <0x0 0x0>;
 	};
 
 	thermal-zones {
@@ -198,7 +192,7 @@
 			clock-frequency = <19200000>;
 		};
 
-		pxo_board: pxo_board {
+		pxo_board {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
 			clock-frequency = <27000000>;
@@ -711,10 +705,51 @@
 					compatible = "qcom,pm8921-gpio",
 						     "qcom,ssbi-gpio";
 					reg = <0x150>;
-					interrupt-controller;
-					#interrupt-cells = <2>;
+					interrupts = <192 IRQ_TYPE_NONE>,
+						     <193 IRQ_TYPE_NONE>,
+						     <194 IRQ_TYPE_NONE>,
+						     <195 IRQ_TYPE_NONE>,
+						     <196 IRQ_TYPE_NONE>,
+						     <197 IRQ_TYPE_NONE>,
+						     <198 IRQ_TYPE_NONE>,
+						     <199 IRQ_TYPE_NONE>,
+						     <200 IRQ_TYPE_NONE>,
+						     <201 IRQ_TYPE_NONE>,
+						     <202 IRQ_TYPE_NONE>,
+						     <203 IRQ_TYPE_NONE>,
+						     <204 IRQ_TYPE_NONE>,
+						     <205 IRQ_TYPE_NONE>,
+						     <206 IRQ_TYPE_NONE>,
+						     <207 IRQ_TYPE_NONE>,
+						     <208 IRQ_TYPE_NONE>,
+						     <209 IRQ_TYPE_NONE>,
+						     <210 IRQ_TYPE_NONE>,
+						     <211 IRQ_TYPE_NONE>,
+						     <212 IRQ_TYPE_NONE>,
+						     <213 IRQ_TYPE_NONE>,
+						     <214 IRQ_TYPE_NONE>,
+						     <215 IRQ_TYPE_NONE>,
+						     <216 IRQ_TYPE_NONE>,
+						     <217 IRQ_TYPE_NONE>,
+						     <218 IRQ_TYPE_NONE>,
+						     <219 IRQ_TYPE_NONE>,
+						     <220 IRQ_TYPE_NONE>,
+						     <221 IRQ_TYPE_NONE>,
+						     <222 IRQ_TYPE_NONE>,
+						     <223 IRQ_TYPE_NONE>,
+						     <224 IRQ_TYPE_NONE>,
+						     <225 IRQ_TYPE_NONE>,
+						     <226 IRQ_TYPE_NONE>,
+						     <227 IRQ_TYPE_NONE>,
+						     <228 IRQ_TYPE_NONE>,
+						     <229 IRQ_TYPE_NONE>,
+						     <230 IRQ_TYPE_NONE>,
+						     <231 IRQ_TYPE_NONE>,
+						     <232 IRQ_TYPE_NONE>,
+						     <233 IRQ_TYPE_NONE>,
+						     <234 IRQ_TYPE_NONE>,
+						     <235 IRQ_TYPE_NONE>;
 					gpio-controller;
-					gpio-ranges = <&pm8921_gpio 0 0 44>;
 					#gpio-cells = <2>;
 
 				};
@@ -1147,7 +1182,7 @@
 		};
 
 		gpu: adreno-3xx@4300000 {
-			compatible = "qcom,adreno-320.2", "qcom,adreno";
+			compatible = "qcom,adreno-3xx";
 			reg = <0x04300000 0x20000>;
 			reg-names = "kgsl_3d0_reg_memory";
 			interrupts = <GIC_SPI 80 IRQ_TYPE_LEVEL_HIGH>;
@@ -1162,6 +1197,7 @@
 			    <&mmcc GFX3D_AHB_CLK>,
 			    <&mmcc GFX3D_AXI_CLK>,
 			    <&mmcc MMSS_IMEM_AHB_CLK>;
+			qcom,chipid = <0x03020002>;
 
 			iommus = <&gfx3d 0
 				  &gfx3d 1
@@ -1260,9 +1296,9 @@
 				<&mmcc DSI1_BYTE_CLK>,
 				<&mmcc DSI_PIXEL_CLK>,
 				<&mmcc DSI1_ESC_CLK>;
-			clock-names = "iface", "bus", "core_mmss",
-					"src", "byte", "pixel",
-					"core";
+			clock-names = "iface_clk", "bus_clk", "core_mmss_clk",
+					"src_clk", "byte_clk", "pixel_clk",
+					"core_clk";
 
 			assigned-clocks = <&mmcc DSI1_BYTE_SRC>,
 					<&mmcc DSI1_ESC_SRC>,
@@ -1302,9 +1338,8 @@
 				<0x04700300 0x200>,
 				<0x04700500 0x5c>;
 			reg-names = "dsi_pll", "dsi_phy", "dsi_phy_regulator";
-			clock-names = "iface_clk", "ref";
-			clocks = <&mmcc DSI_M_AHB_CLK>,
-				 <&pxo_board>;
+			clock-names = "iface_clk";
+			clocks = <&mmcc DSI_M_AHB_CLK>;
 		};
 
 
@@ -1576,11 +1611,10 @@
 			clocks = <&rpmcc RPM_QDSS_CLK>;
 			clock-names = "apb_pclk";
 
-			in-ports {
-				port {
-					etb_in: endpoint {
-						remote-endpoint = <&replicator_out0>;
-					};
+			port {
+				etb_in: endpoint {
+					slave-mode;
+					remote-endpoint = <&replicator_out0>;
 				};
 			};
 		};
@@ -1592,22 +1626,21 @@
 			clocks = <&rpmcc RPM_QDSS_CLK>;
 			clock-names = "apb_pclk";
 
-			in-ports {
-				port {
-					tpiu_in: endpoint {
-						remote-endpoint = <&replicator_out1>;
-					};
+			port {
+				tpiu_in: endpoint {
+					slave-mode;
+					remote-endpoint = <&replicator_out1>;
 				};
 			};
 		};
 
 		replicator {
-			compatible = "arm,coresight-static-replicator";
+			compatible = "arm,coresight-replicator";
 
 			clocks = <&rpmcc RPM_QDSS_CLK>;
 			clock-names = "apb_pclk";
 
-			out-ports {
+			ports {
 				#address-cells = <1>;
 				#size-cells = <0>;
 
@@ -1623,11 +1656,10 @@
 						remote-endpoint = <&tpiu_in>;
 					};
 				};
-			};
-
-			in-ports {
-				port {
+				port@2 {
+					reg = <0>;
 					replicator_in: endpoint {
+						slave-mode;
 						remote-endpoint = <&funnel_out>;
 					};
 				};
@@ -1635,13 +1667,13 @@
 		};
 
 		funnel@1a04000 {
-			compatible = "arm,coresight-dynamic-funnel", "arm,primecell";
+			compatible = "arm,coresight-funnel", "arm,primecell";
 			reg = <0x1a04000 0x1000>;
 
 			clocks = <&rpmcc RPM_QDSS_CLK>;
 			clock-names = "apb_pclk";
 
-			in-ports {
+			ports {
 				#address-cells = <1>;
 				#size-cells = <0>;
 
@@ -1655,31 +1687,33 @@
 				port@0 {
 					reg = <0>;
 					funnel_in0: endpoint {
+						slave-mode;
 						remote-endpoint = <&etm0_out>;
 					};
 				};
 				port@1 {
 					reg = <1>;
 					funnel_in1: endpoint {
+						slave-mode;
 						remote-endpoint = <&etm1_out>;
 					};
 				};
 				port@4 {
 					reg = <4>;
 					funnel_in4: endpoint {
+						slave-mode;
 						remote-endpoint = <&etm2_out>;
 					};
 				};
 				port@5 {
 					reg = <5>;
 					funnel_in5: endpoint {
+						slave-mode;
 						remote-endpoint = <&etm3_out>;
 					};
 				};
-			};
-
-			out-ports {
-				port {
+				port@8 {
+					reg = <0>;
 					funnel_out: endpoint {
 						remote-endpoint = <&replicator_in>;
 					};
@@ -1696,11 +1730,9 @@
 
 			cpu = <&CPU0>;
 
-			out-ports {
-				port {
-					etm0_out: endpoint {
-						remote-endpoint = <&funnel_in0>;
-					};
+			port {
+				etm0_out: endpoint {
+					remote-endpoint = <&funnel_in0>;
 				};
 			};
 		};
@@ -1714,11 +1746,9 @@
 
 			cpu = <&CPU1>;
 
-			out-ports {
-				port {
-					etm1_out: endpoint {
-						remote-endpoint = <&funnel_in1>;
-					};
+			port {
+				etm1_out: endpoint {
+					remote-endpoint = <&funnel_in1>;
 				};
 			};
 		};
@@ -1732,11 +1762,9 @@
 
 			cpu = <&CPU2>;
 
-			out-ports {
-				port {
-					etm2_out: endpoint {
-						remote-endpoint = <&funnel_in4>;
-					};
+			port {
+				etm2_out: endpoint {
+					remote-endpoint = <&funnel_in4>;
 				};
 			};
 		};
@@ -1750,11 +1778,9 @@
 
 			cpu = <&CPU3>;
 
-			out-ports {
-				port {
-					etm3_out: endpoint {
-						remote-endpoint = <&funnel_in5>;
-					};
+			port {
+				etm3_out: endpoint {
+					remote-endpoint = <&funnel_in5>;
 				};
 			};
 		};

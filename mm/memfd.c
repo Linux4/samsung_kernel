@@ -21,45 +21,46 @@
 #include <uapi/linux/memfd.h>
 
 /*
- * We need a tag: a new tag would expand every xa_node by 8 bytes,
+ * We need a tag: a new tag would expand every radix_tree_node by 8 bytes,
  * so reuse a tag which we firmly believe is never set or cleared on tmpfs
  * or hugetlbfs because they are memory only filesystems.
  */
 #define MEMFD_TAG_PINNED        PAGECACHE_TAG_TOWRITE
 #define LAST_SCAN               4       /* about 150ms max */
 
-static void memfd_tag_pins(struct xa_state *xas)
+static void memfd_tag_pins(struct address_space *mapping)
 {
+	struct radix_tree_iter iter;
+	void __rcu **slot;
+	pgoff_t start;
 	struct page *page;
-	int latency = 0;
-	int cache_count;
+	unsigned int tagged = 0;
 
 	lru_add_drain();
+	start = 0;
 
-	xas_lock_irq(xas);
-	xas_for_each(xas, page, ULONG_MAX) {
-		cache_count = 1;
-		if (!xa_is_value(page) &&
-		    PageTransHuge(page) && !PageHuge(page))
-			cache_count = HPAGE_PMD_NR;
+	xa_lock_irq(&mapping->i_pages);
+	radix_tree_for_each_slot(slot, &mapping->i_pages, &iter, start) {
+		page = radix_tree_deref_slot_protected(slot, &mapping->i_pages.xa_lock);
+		if (!page || radix_tree_exception(page)) {
+			if (radix_tree_deref_retry(page)) {
+				slot = radix_tree_iter_retry(&iter);
+				continue;
+			}
+		} else if (page_count(page) - page_mapcount(page) > 1) {
+			radix_tree_tag_set(&mapping->i_pages, iter.index,
+					   MEMFD_TAG_PINNED);
+		}
 
-		if (!xa_is_value(page) &&
-		    page_count(page) - total_mapcount(page) != cache_count)
-			xas_set_mark(xas, MEMFD_TAG_PINNED);
-		if (cache_count != 1)
-			xas_set(xas, page->index + cache_count);
-
-		latency += cache_count;
-		if (latency < XA_CHECK_SCHED)
+		if (++tagged % 1024)
 			continue;
-		latency = 0;
 
-		xas_pause(xas);
-		xas_unlock_irq(xas);
+		slot = radix_tree_iter_resume(slot, &iter);
+		xa_unlock_irq(&mapping->i_pages);
 		cond_resched();
-		xas_lock_irq(xas);
+		xa_lock_irq(&mapping->i_pages);
 	}
-	xas_unlock_irq(xas);
+	xa_unlock_irq(&mapping->i_pages);
 }
 
 /*
@@ -73,18 +74,17 @@ static void memfd_tag_pins(struct xa_state *xas)
  */
 static int memfd_wait_for_pins(struct address_space *mapping)
 {
-	XA_STATE(xas, &mapping->i_pages, 0);
+	struct radix_tree_iter iter;
+	void __rcu **slot;
+	pgoff_t start;
 	struct page *page;
 	int error, scan;
 
-	memfd_tag_pins(&xas);
+	memfd_tag_pins(mapping);
 
 	error = 0;
 	for (scan = 0; scan <= LAST_SCAN; scan++) {
-		int latency = 0;
-		int cache_count;
-
-		if (!xas_marked(&xas, MEMFD_TAG_PINNED))
+		if (!radix_tree_tagged(&mapping->i_pages, MEMFD_TAG_PINNED))
 			break;
 
 		if (!scan)
@@ -92,42 +92,45 @@ static int memfd_wait_for_pins(struct address_space *mapping)
 		else if (schedule_timeout_killable((HZ << scan) / 200))
 			scan = LAST_SCAN;
 
-		xas_set(&xas, 0);
-		xas_lock_irq(&xas);
-		xas_for_each_marked(&xas, page, ULONG_MAX, MEMFD_TAG_PINNED) {
-			bool clear = true;
+		start = 0;
+		rcu_read_lock();
+		radix_tree_for_each_tagged(slot, &mapping->i_pages, &iter,
+					   start, MEMFD_TAG_PINNED) {
 
-			cache_count = 1;
-			if (!xa_is_value(page) &&
-			    PageTransHuge(page) && !PageHuge(page))
-				cache_count = HPAGE_PMD_NR;
+			page = radix_tree_deref_slot(slot);
+			if (radix_tree_exception(page)) {
+				if (radix_tree_deref_retry(page)) {
+					slot = radix_tree_iter_retry(&iter);
+					continue;
+				}
 
-			if (!xa_is_value(page) && cache_count !=
-			    page_count(page) - total_mapcount(page)) {
+				page = NULL;
+			}
+
+			if (page &&
+			    page_count(page) - page_mapcount(page) != 1) {
+				if (scan < LAST_SCAN)
+					goto continue_resched;
+
 				/*
 				 * On the last scan, we clean up all those tags
 				 * we inserted; but make a note that we still
 				 * found pages pinned.
 				 */
-				if (scan == LAST_SCAN)
-					error = -EBUSY;
-				else
-					clear = false;
+				error = -EBUSY;
 			}
-			if (clear)
-				xas_clear_mark(&xas, MEMFD_TAG_PINNED);
 
-			latency += cache_count;
-			if (latency < XA_CHECK_SCHED)
-				continue;
-			latency = 0;
-
-			xas_pause(&xas);
-			xas_unlock_irq(&xas);
-			cond_resched();
-			xas_lock_irq(&xas);
+			xa_lock_irq(&mapping->i_pages);
+			radix_tree_tag_clear(&mapping->i_pages,
+					     iter.index, MEMFD_TAG_PINNED);
+			xa_unlock_irq(&mapping->i_pages);
+continue_resched:
+			if (need_resched()) {
+				slot = radix_tree_iter_resume(slot, &iter);
+				cond_resched_rcu();
+			}
 		}
-		xas_unlock_irq(&xas);
+		rcu_read_unlock();
 	}
 
 	return error;

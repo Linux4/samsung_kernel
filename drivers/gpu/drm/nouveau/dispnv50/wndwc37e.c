@@ -29,23 +29,6 @@
 #include <nvif/clc37e.h>
 
 static void
-wndwc37e_csc_clr(struct nv50_wndw *wndw)
-{
-}
-
-static void
-wndwc37e_csc_set(struct nv50_wndw *wndw, struct nv50_wndw_atom *asyw)
-{
-	u32 *push, i;
-	if ((push = evo_wait(&wndw->wndw, 13))) {
-		 evo_mthd(push, 0x02bc, 12);
-		 for (i = 0; i < 12; i++)
-			  evo_data(push, asyw->csc.matrix[i]);
-		 evo_kick(push, &wndw->wndw);
-	}
-}
-
-static void
 wndwc37e_ilut_clr(struct nv50_wndw *wndw)
 {
 	u32 *push;
@@ -78,30 +61,9 @@ wndwc37e_ilut(struct nv50_wndw *wndw, struct nv50_wndw_atom *asyw)
 	asyw->xlut.i.size = 0;
 	asyw->xlut.i.range = 0;
 	asyw->xlut.i.output_mode = 1;
-	asyw->xlut.i.load = head907d_olut_load;
 }
 
-void
-wndwc37e_blend_set(struct nv50_wndw *wndw, struct nv50_wndw_atom *asyw)
-{
-	u32 *push;
-	if ((push = evo_wait(&wndw->wndw, 8))) {
-		evo_mthd(push, 0x02ec, 7);
-		evo_data(push, asyw->blend.depth << 4);
-		evo_data(push, asyw->blend.k1);
-		evo_data(push, asyw->blend.dst_color << 12 |
-			       asyw->blend.dst_color << 8 |
-			       asyw->blend.src_color << 4 |
-			       asyw->blend.src_color);
-		evo_data(push, 0xffff0000);
-		evo_data(push, 0xffff0000);
-		evo_data(push, 0xffff0000);
-		evo_data(push, 0xffff0000);
-		evo_kick(push, &wndw->wndw);
-	}
-}
-
-void
+static void
 wndwc37e_image_clr(struct nv50_wndw *wndw)
 {
 	u32 *push;
@@ -119,7 +81,7 @@ wndwc37e_image_set(struct nv50_wndw *wndw, struct nv50_wndw_atom *asyw)
 {
 	u32 *push;
 
-	if (!(push = evo_wait(&wndw->wndw, 17)))
+	if (!(push = evo_wait(&wndw->wndw, 25)))
 		return;
 
 	evo_mthd(push, 0x0308, 1);
@@ -127,9 +89,7 @@ wndwc37e_image_set(struct nv50_wndw *wndw, struct nv50_wndw_atom *asyw)
 	evo_mthd(push, 0x0224, 4);
 	evo_data(push, asyw->image.h << 16 | asyw->image.w);
 	evo_data(push, asyw->image.layout << 4 | asyw->image.blockh);
-	evo_data(push, asyw->csc.valid << 17 |
-		       asyw->image.colorspace << 8 |
-		       asyw->image.format);
+	evo_data(push, asyw->image.colorspace << 8 | asyw->image.format);
 	evo_data(push, asyw->image.blocks[0] | (asyw->image.pitch[0] >> 6));
 	evo_mthd(push, 0x0240, 1);
 	evo_data(push, asyw->image.handle[0]);
@@ -144,10 +104,20 @@ wndwc37e_image_set(struct nv50_wndw *wndw, struct nv50_wndw_atom *asyw)
 	evo_mthd(push, 0x02a4, 1);
 	evo_data(push, asyw->state.crtc_h << 16 |
 		       asyw->state.crtc_w);
+
+	/*XXX: Composition-related stuff.  Need to implement properly. */
+	evo_mthd(push, 0x02ec, 1);
+	evo_data(push, (2 - (wndw->id & 1)) << 4);
+	evo_mthd(push, 0x02f4, 5);
+	evo_data(push, 0x00000011);
+	evo_data(push, 0xffff0000);
+	evo_data(push, 0xffff0000);
+	evo_data(push, 0xffff0000);
+	evo_data(push, 0xffff0000);
 	evo_kick(push, &wndw->wndw);
 }
 
-void
+static void
 wndwc37e_ntfy_clr(struct nv50_wndw *wndw)
 {
 	u32 *push;
@@ -158,7 +128,7 @@ wndwc37e_ntfy_clr(struct nv50_wndw *wndw)
 	}
 }
 
-void
+static void
 wndwc37e_ntfy_set(struct nv50_wndw *wndw, struct nv50_wndw_atom *asyw)
 {
 	u32 *push;
@@ -170,7 +140,7 @@ wndwc37e_ntfy_set(struct nv50_wndw *wndw, struct nv50_wndw_atom *asyw)
 	}
 }
 
-void
+static void
 wndwc37e_sema_clr(struct nv50_wndw *wndw)
 {
 	u32 *push;
@@ -181,7 +151,7 @@ wndwc37e_sema_clr(struct nv50_wndw *wndw)
 	}
 }
 
-void
+static void
 wndwc37e_sema_set(struct nv50_wndw *wndw, struct nv50_wndw_atom *asyw)
 {
 	u32 *push;
@@ -195,7 +165,7 @@ wndwc37e_sema_set(struct nv50_wndw *wndw, struct nv50_wndw_atom *asyw)
 	}
 }
 
-void
+static void
 wndwc37e_update(struct nv50_wndw *wndw, u32 *interlock)
 {
 	u32 *push;
@@ -213,13 +183,13 @@ wndwc37e_update(struct nv50_wndw *wndw, u32 *interlock)
 	}
 }
 
-void
+static void
 wndwc37e_release(struct nv50_wndw *wndw, struct nv50_wndw_atom *asyw,
 		 struct nv50_head_atom *asyh)
 {
 }
 
-int
+static int
 wndwc37e_acquire(struct nv50_wndw *wndw, struct nv50_wndw_atom *asyw,
 		 struct nv50_head_atom *asyh)
 {
@@ -245,8 +215,6 @@ wndwc37e_format[] = {
 	DRM_FORMAT_ABGR8888,
 	DRM_FORMAT_XRGB2101010,
 	DRM_FORMAT_ARGB2101010,
-	DRM_FORMAT_XBGR16161616F,
-	DRM_FORMAT_ABGR16161616F,
 	0
 };
 
@@ -263,16 +231,12 @@ wndwc37e = {
 	.ilut = wndwc37e_ilut,
 	.xlut_set = wndwc37e_ilut_set,
 	.xlut_clr = wndwc37e_ilut_clr,
-	.csc = base907c_csc,
-	.csc_set = wndwc37e_csc_set,
-	.csc_clr = wndwc37e_csc_clr,
 	.image_set = wndwc37e_image_set,
 	.image_clr = wndwc37e_image_clr,
-	.blend_set = wndwc37e_blend_set,
 	.update = wndwc37e_update,
 };
 
-int
+static int
 wndwc37e_new_(const struct nv50_wndw_func *func, struct nouveau_drm *drm,
 	      enum drm_plane_type type, int index, s32 oclass, u32 heads,
 	      struct nv50_wndw **pwndw)

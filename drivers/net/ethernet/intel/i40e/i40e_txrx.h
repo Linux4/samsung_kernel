@@ -296,17 +296,13 @@ struct i40e_tx_buffer {
 
 struct i40e_rx_buffer {
 	dma_addr_t dma;
-	union {
-		struct {
-			struct page *page;
-			__u32 page_offset;
-			__u16 pagecnt_bias;
-		};
-		struct {
-			void *addr;
-			u64 handle;
-		};
-	};
+	struct page *page;
+#if (BITS_PER_LONG > 32) || (PAGE_SIZE >= 65536)
+	__u32 page_offset;
+#else
+	__u16 page_offset;
+#endif
+	__u16 pagecnt_bias;
 };
 
 struct i40e_queue_stats {
@@ -418,8 +414,6 @@ struct i40e_ring {
 
 	struct i40e_channel *ch;
 	struct xdp_rxq_info xdp_rxq;
-	struct xdp_umem *xsk_umem;
-	struct zero_copy_allocator zca; /* ZC allocator anchor */
 } ____cacheline_internodealigned_in_smp;
 
 static inline bool ring_uses_build_skb(struct i40e_ring *ring)
@@ -481,8 +475,6 @@ static inline unsigned int i40e_rx_pg_order(struct i40e_ring *ring)
 
 bool i40e_alloc_rx_buffers(struct i40e_ring *rxr, u16 cleaned_count);
 netdev_tx_t i40e_lan_xmit_frame(struct sk_buff *skb, struct net_device *netdev);
-u16 i40e_lan_select_queue(struct net_device *netdev, struct sk_buff *skb,
-			  struct net_device *sb_dev);
 void i40e_clean_tx_ring(struct i40e_ring *tx_ring);
 void i40e_clean_rx_ring(struct i40e_ring *rx_ring);
 int i40e_setup_tx_descriptors(struct i40e_ring *tx_ring);
@@ -523,7 +515,7 @@ static inline u32 i40e_get_head(struct i40e_ring *tx_ring)
  **/
 static inline int i40e_xmit_descriptor_count(struct sk_buff *skb)
 {
-	const skb_frag_t *frag = &skb_shinfo(skb)->frags[0];
+	const struct skb_frag_struct *frag = &skb_shinfo(skb)->frags[0];
 	unsigned int nr_frags = skb_shinfo(skb)->nr_frags;
 	int count = 0, size = skb_headlen(skb);
 

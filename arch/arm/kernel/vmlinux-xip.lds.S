@@ -96,6 +96,7 @@ SECTIONS
 		INIT_SETUP(16)
 		INIT_CALLS
 		CON_INITCALL
+		SECURITY_INITCALL
 		INIT_RAM_FS
 	}
 
@@ -180,7 +181,7 @@ ASSERT(__hyp_idmap_text_end - (__hyp_idmap_text_start & PAGE_MASK) <= PAGE_SIZE,
 ASSERT((_end - __bss_start) >= 12288, ".bss too small for CONFIG_XIP_DEFLATED_DATA")
 #endif
 
-#if defined(CONFIG_ARM_MPU) && !defined(CONFIG_COMPILE_TEST)
+#ifdef CONFIG_ARM_MPU
 /*
  * Due to PMSAv7 restriction on base address and size we have to
  * enforce minimal alignment restrictions. It was seen that weaker

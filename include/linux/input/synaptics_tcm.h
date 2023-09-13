@@ -1,9 +1,13 @@
 /*
  * Synaptics TCM touchscreen driver
  *
- * Copyright (C) 2017-2019 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
  *
- * Copyright (C) 2017-2019 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2018-2019 Ian Su <ian.su@tw.synaptics.com>
+ * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@synaptics.com>
+ * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@synaptics.com>
+ * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,10 +46,12 @@ struct syna_tcm_board_data {
 	bool swap_axes;
 	int irq_gpio;
 	int irq_on_state;
+	int cs_gpio;
 	int power_gpio;
 	int power_on_state;
 	int reset_gpio;
 	int reset_on_state;
+	int tpio_reset_gpio;
 	unsigned int spi_mode;
 	unsigned int power_delay_ms;
 	unsigned int reset_delay_ms;
@@ -59,7 +65,14 @@ struct syna_tcm_board_data {
 	const char *pwr_reg_name;
 	const char *bus_reg_name;
 	const char *fw_name;
-	bool extend_report;
+	const char *regulator_lcd_vdd;
+	const char *regulator_lcd_reset;
+	const char *regulator_lcd_bl;
+	struct pinctrl *pinctrl;
+	u32	area_indicator;
+	u32	area_navigation;
+	u32	area_edge;
+	bool enable_settings_aot;
 };
 
 #endif

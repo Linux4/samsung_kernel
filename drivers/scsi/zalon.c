@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Zalon 53c7xx device driver.
  * By Richard Hirst (rhirst@linuxcare.com)

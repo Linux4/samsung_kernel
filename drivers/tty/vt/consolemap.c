@@ -495,7 +495,7 @@ con_insert_unipair(struct uni_pagedir *p, u_short unicode, u_short fontpos)
 
 	p2[unicode & 0x3f] = fontpos;
 	
-	p->sum += (fontpos << 20U) + unicode;
+	p->sum += (fontpos << 20) + unicode;
 
 	return 0;
 }
@@ -542,7 +542,7 @@ int con_set_unimap(struct vc_data *vc, ushort ct, struct unipair __user *list)
 	if (!ct)
 		return 0;
 
-	unilist = vmemdup_user(list, ct * sizeof(struct unipair));
+	unilist = memdup_user(list, ct * sizeof(struct unipair));
 	if (IS_ERR(unilist))
 		return PTR_ERR(unilist);
 
@@ -641,7 +641,7 @@ int con_set_unimap(struct vc_data *vc, ushort ct, struct unipair __user *list)
 
 out_unlock:
 	console_unlock();
-	kvfree(unilist);
+	kfree(unilist);
 	return err;
 }
 
@@ -743,7 +743,7 @@ int con_get_unimap(struct vc_data *vc, ushort ct, ushort __user *uct, struct uni
 	struct uni_pagedir *p;
 	struct unipair *unilist;
 
-	unilist = kvmalloc_array(ct, sizeof(struct unipair), GFP_KERNEL);
+	unilist = kmalloc_array(ct, sizeof(struct unipair), GFP_KERNEL);
 	if (!unilist)
 		return -ENOMEM;
 
@@ -775,7 +775,7 @@ int con_get_unimap(struct vc_data *vc, ushort ct, ushort __user *uct, struct uni
 	if (copy_to_user(list, unilist, min(ect, ct) * sizeof(struct unipair)))
 		ret = -EFAULT;
 	put_user(ect, uct);
-	kvfree(unilist);
+	kfree(unilist);
 	return ret ? ret : (ect <= ct) ? 0 : -ENOMEM;
 }
 

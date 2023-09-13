@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 obj-$(CONFIG_DVB_FIREDTV) += firedtv.o
 
 firedtv-y += firedtv-avc.o firedtv-ci.o firedtv-dvb.o firedtv-fe.o firedtv-fw.o

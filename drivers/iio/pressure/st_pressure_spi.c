@@ -1,10 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * STMicroelectronics pressures driver
  *
  * Copyright 2013 STMicroelectronics Inc.
  *
  * Denis Ciocca <denis.ciocca@st.com>
+ *
+ * Licensed under the GPL-2.
  */
 
 #include <linux/kernel.h>
@@ -48,10 +49,6 @@ static const struct of_device_id st_press_of_match[] = {
 		.compatible = "st,lps35hw",
 		.data = LPS35HW_PRESS_DEV_NAME,
 	},
-	{
-		.compatible = "st,lps22hh",
-		.data = LPS22HH_PRESS_DEV_NAME,
-	},
 	{},
 };
 MODULE_DEVICE_TABLE(of, st_press_of_match);
@@ -61,31 +58,19 @@ MODULE_DEVICE_TABLE(of, st_press_of_match);
 
 static int st_press_spi_probe(struct spi_device *spi)
 {
-	const struct st_sensor_settings *settings;
-	struct st_sensor_data *press_data;
 	struct iio_dev *indio_dev;
+	struct st_sensor_data *press_data;
 	int err;
 
-	st_sensors_of_name_probe(&spi->dev, st_press_of_match,
-				 spi->modalias, sizeof(spi->modalias));
-
-	settings = st_press_get_settings(spi->modalias);
-	if (!settings) {
-		dev_err(&spi->dev, "device name %s not recognized.\n",
-			spi->modalias);
-		return -ENODEV;
-	}
-
 	indio_dev = devm_iio_device_alloc(&spi->dev, sizeof(*press_data));
-	if (!indio_dev)
+	if (indio_dev == NULL)
 		return -ENOMEM;
 
 	press_data = iio_priv(indio_dev);
-	press_data->sensor_settings = (struct st_sensor_settings *)settings;
 
-	err = st_sensors_spi_configure(indio_dev, spi);
-	if (err < 0)
-		return err;
+	st_sensors_of_name_probe(&spi->dev, st_press_of_match,
+				 spi->modalias, sizeof(spi->modalias));
+	st_sensors_spi_configure(indio_dev, spi, press_data);
 
 	err = st_press_common_probe(indio_dev);
 	if (err < 0)
@@ -108,7 +93,6 @@ static const struct spi_device_id st_press_id_table[] = {
 	{ LPS22HB_PRESS_DEV_NAME },
 	{ LPS33HW_PRESS_DEV_NAME },
 	{ LPS35HW_PRESS_DEV_NAME },
-	{ LPS22HH_PRESS_DEV_NAME },
 	{},
 };
 MODULE_DEVICE_TABLE(spi, st_press_id_table);

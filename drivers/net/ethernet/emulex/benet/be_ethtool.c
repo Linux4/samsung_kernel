@@ -1,7 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2005 - 2016 Broadcom
  * All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License version 2
+ * as published by the Free Software Foundation.  The full GNU General
+ * Public License is included in this distribution in the file called COPYING.
  *
  * Contact Information:
  * linux-drivers@emulex.com
@@ -270,8 +274,8 @@ static int lancer_cmd_read_file(struct be_adapter *adapter, u8 *file_name,
 	int status = 0;
 
 	read_cmd.size = LANCER_READ_FILE_CHUNK;
-	read_cmd.va = dma_alloc_coherent(&adapter->pdev->dev, read_cmd.size,
-					 &read_cmd.dma, GFP_ATOMIC);
+	read_cmd.va = dma_zalloc_coherent(&adapter->pdev->dev, read_cmd.size,
+					  &read_cmd.dma, GFP_ATOMIC);
 
 	if (!read_cmd.va) {
 		dev_err(&adapter->pdev->dev,
@@ -329,8 +333,8 @@ static int be_get_coalesce(struct net_device *netdev,
 	et->tx_coalesce_usecs_high = aic->max_eqd;
 	et->tx_coalesce_usecs_low = aic->min_eqd;
 
-	et->use_adaptive_rx_coalesce = adapter->aic_enabled;
-	et->use_adaptive_tx_coalesce = adapter->aic_enabled;
+	et->use_adaptive_rx_coalesce = aic->enable;
+	et->use_adaptive_tx_coalesce = aic->enable;
 
 	return 0;
 }
@@ -346,9 +350,8 @@ static int be_set_coalesce(struct net_device *netdev,
 	struct be_eq_obj *eqo;
 	int i;
 
-	adapter->aic_enabled = et->use_adaptive_rx_coalesce;
-
 	for_all_evt_queues(adapter, eqo, i) {
+		aic->enable = et->use_adaptive_rx_coalesce;
 		aic->max_eqd = min(et->rx_coalesce_usecs_high, BE_MAX_EQD);
 		aic->min_eqd = min(et->rx_coalesce_usecs_low, aic->max_eqd);
 		aic->et_eqd = min(et->rx_coalesce_usecs, aic->max_eqd);
@@ -812,7 +815,7 @@ static int be_set_wol(struct net_device *netdev, struct ethtool_wolinfo *wol)
 	}
 
 	cmd.size = sizeof(struct be_cmd_req_acpi_wol_magic_config);
-	cmd.va = dma_alloc_coherent(dev, cmd.size, &cmd.dma, GFP_KERNEL);
+	cmd.va = dma_zalloc_coherent(dev, cmd.size, &cmd.dma, GFP_KERNEL);
 	if (!cmd.va)
 		return -ENOMEM;
 
@@ -848,9 +851,9 @@ static int be_test_ddr_dma(struct be_adapter *adapter)
 	};
 
 	ddrdma_cmd.size = sizeof(struct be_cmd_req_ddrdma_test);
-	ddrdma_cmd.va = dma_alloc_coherent(&adapter->pdev->dev,
-					   ddrdma_cmd.size, &ddrdma_cmd.dma,
-					   GFP_KERNEL);
+	ddrdma_cmd.va = dma_zalloc_coherent(&adapter->pdev->dev,
+					    ddrdma_cmd.size, &ddrdma_cmd.dma,
+					    GFP_KERNEL);
 	if (!ddrdma_cmd.va)
 		return -ENOMEM;
 
@@ -1027,9 +1030,9 @@ static int be_read_eeprom(struct net_device *netdev,
 
 	memset(&eeprom_cmd, 0, sizeof(struct be_dma_mem));
 	eeprom_cmd.size = sizeof(struct be_cmd_req_seeprom_read);
-	eeprom_cmd.va = dma_alloc_coherent(&adapter->pdev->dev,
-					   eeprom_cmd.size, &eeprom_cmd.dma,
-					   GFP_KERNEL);
+	eeprom_cmd.va = dma_zalloc_coherent(&adapter->pdev->dev,
+					    eeprom_cmd.size, &eeprom_cmd.dma,
+					    GFP_KERNEL);
 
 	if (!eeprom_cmd.va)
 		return -ENOMEM;
@@ -1339,7 +1342,7 @@ static int be_get_module_info(struct net_device *netdev,
 		return -EOPNOTSUPP;
 
 	status = be_cmd_read_port_transceiver_data(adapter, TR_PAGE_A0,
-						   0, PAGE_DATA_LEN, page_data);
+						   page_data);
 	if (!status) {
 		if (!page_data[SFP_PLUS_SFF_8472_COMP]) {
 			modinfo->type = ETH_MODULE_SFF_8079;
@@ -1357,32 +1360,25 @@ static int be_get_module_eeprom(struct net_device *netdev,
 {
 	struct be_adapter *adapter = netdev_priv(netdev);
 	int status;
-	u32 begin, end;
 
 	if (!check_privilege(adapter, MAX_PRIVILEGES))
 		return -EOPNOTSUPP;
 
-	begin = eeprom->offset;
-	end = eeprom->offset + eeprom->len;
+	status = be_cmd_read_port_transceiver_data(adapter, TR_PAGE_A0,
+						   data);
+	if (status)
+		goto err;
 
-	if (begin < PAGE_DATA_LEN) {
-		status = be_cmd_read_port_transceiver_data(adapter, TR_PAGE_A0, begin,
-							   min_t(u32, end, PAGE_DATA_LEN) - begin,
-							   data);
-		if (status)
-			goto err;
-
-		data += PAGE_DATA_LEN - begin;
-		begin = PAGE_DATA_LEN;
-	}
-
-	if (end > PAGE_DATA_LEN) {
-		status = be_cmd_read_port_transceiver_data(adapter, TR_PAGE_A2,
-							   begin - PAGE_DATA_LEN,
-							   end - begin, data);
+	if (eeprom->offset + eeprom->len > PAGE_DATA_LEN) {
+		status = be_cmd_read_port_transceiver_data(adapter,
+							   TR_PAGE_A2,
+							   data +
+							   PAGE_DATA_LEN);
 		if (status)
 			goto err;
 	}
+	if (eeprom->offset)
+		memcpy(data, data + eeprom->offset, eeprom->len);
 err:
 	return be_cmd_status(status);
 }

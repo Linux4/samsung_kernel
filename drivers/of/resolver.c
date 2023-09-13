@@ -206,22 +206,16 @@ static int adjust_local_phandle_references(struct device_node *local_fixups,
 	for_each_child_of_node(local_fixups, child) {
 
 		for_each_child_of_node(overlay, overlay_child)
-			if (!node_name_cmp(child, overlay_child)) {
-				of_node_put(overlay_child);
+			if (!node_name_cmp(child, overlay_child))
 				break;
-			}
 
-		if (!overlay_child) {
-			of_node_put(child);
+		if (!overlay_child)
 			return -EINVAL;
-		}
 
 		err = adjust_local_phandle_references(child, overlay_child,
 				phandle_delta);
-		if (err) {
-			of_node_put(child);
+		if (err)
 			return err;
-		}
 	}
 
 	return 0;
@@ -287,7 +281,7 @@ int of_resolve_phandles(struct device_node *overlay)
 	adjust_overlay_phandles(overlay, phandle_delta);
 
 	for_each_child_of_node(overlay, local_fixups)
-		if (of_node_name_eq(local_fixups, "__local_fixups__"))
+		if (!of_node_cmp(local_fixups->name, "__local_fixups__"))
 			break;
 
 	err = adjust_local_phandle_references(local_fixups, overlay, phandle_delta);
@@ -297,7 +291,7 @@ int of_resolve_phandles(struct device_node *overlay)
 	overlay_fixups = NULL;
 
 	for_each_child_of_node(overlay, child) {
-		if (of_node_name_eq(child, "__fixups__"))
+		if (!of_node_cmp(child->name, "__fixups__"))
 			overlay_fixups = child;
 	}
 

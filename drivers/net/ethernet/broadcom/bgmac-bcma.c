@@ -132,7 +132,7 @@ static int bgmac_probe(struct bcma_device *core)
 		mac = of_get_mac_address(bgmac->dev->of_node);
 
 	/* If no MAC address assigned via device tree, check SPROM */
-	if (IS_ERR_OR_NULL(mac)) {
+	if (!mac) {
 		switch (core->core_unit) {
 		case 0:
 			mac = sprom->et0mac;
@@ -323,6 +323,7 @@ static void bgmac_remove(struct bcma_device *core)
 	bcma_mdio_mii_unregister(bgmac->mii_bus);
 	bgmac_enet_remove(bgmac);
 	bcma_set_drvdata(core, NULL);
+	kfree(bgmac);
 }
 
 static struct bcma_driver bgmac_bcma_driver = {

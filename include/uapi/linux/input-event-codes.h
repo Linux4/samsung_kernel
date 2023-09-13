@@ -278,8 +278,7 @@
 #define KEY_PAUSECD		201
 #define KEY_PROG3		202
 #define KEY_PROG4		203
-#define KEY_ALL_APPLICATIONS	204	/* AC Desktop Show All Applications */
-#define KEY_DASHBOARD		KEY_ALL_APPLICATIONS
+#define KEY_DASHBOARD		204	/* AL Dashboard */
 #define KEY_SUSPEND		205
 #define KEY_CLOSE		206	/* AC Close */
 #define KEY_PLAY		207
@@ -338,8 +337,7 @@
 
 #define KEY_MICMUTE		248	/* Mute / unmute the microphone */
 
-#define KEY_RECENT   		254
-
+#define KEY_RECENT		254
 /* Code 255 is reserved for special needs of AT keyboard driver */
 
 #define BTN_MISC		0x100
@@ -443,12 +441,10 @@
 #define KEY_TITLE		0x171
 #define KEY_SUBTITLE		0x172
 #define KEY_ANGLE		0x173
-#define KEY_FULL_SCREEN		0x174	/* AC View Toggle */
-#define KEY_ZOOM		KEY_FULL_SCREEN
+#define KEY_ZOOM		0x174
 #define KEY_MODE		0x175
 #define KEY_KEYBOARD		0x176
-#define KEY_ASPECT_RATIO	0x177	/* HUTRR37: Aspect */
-#define KEY_SCREEN		KEY_ASPECT_RATIO
+#define KEY_SCREEN		0x177
 #define KEY_PC			0x178	/* Media Select Computer */
 #define KEY_TV			0x179	/* Media Select TV */
 #define KEY_TV2			0x17a	/* Media Select Cable */
@@ -524,6 +520,11 @@
 #define KEY_DEL_EOS		0x1c1
 #define KEY_INS_LINE		0x1c2
 #define KEY_DEL_LINE		0x1c3
+#define KEY_SIDE_GESTURE	0x1c6
+#define KEY_BLACK_UI_GESTURE	0x1c7
+
+#define KEY_SIDE_GESTURE_RIGHT	0x1ca
+#define KEY_SIDE_GESTURE_LEFT	0x1cb
 
 #define KEY_FN			0x1d0
 #define KEY_FN_ESC		0x1d1
@@ -610,9 +611,6 @@
 #define KEY_SCREENSAVER		0x245	/* AL Screen Saver */
 #define KEY_VOICECOMMAND		0x246	/* Listening Voice Command */
 #define KEY_ASSISTANT		0x247	/* AL Context-aware desktop assistant */
-#define KEY_KBD_LAYOUT_NEXT	0x248	/* AC Next Keyboard Layout Select */
-#define KEY_EMOJI_PICKER	0x249	/* Show/hide emoji picker (HUTRR101) */
-#define KEY_DICTATE		0x24a	/* Start or Stop Voice Dictation Session (HUTRR99) */
 
 #define KEY_BRIGHTNESS_MIN		0x250	/* Set Brightness to Minimum */
 #define KEY_BRIGHTNESS_MAX		0x251	/* Set Brightness to Maximum */
@@ -656,6 +654,10 @@
 #define KEY_DATA			0x277
 #define KEY_ONSCREEN_KEYBOARD		0x278
 
+#define KEY_DEX_ON			0x2bd
+#define KEY_INT_CANCEL			0x2be	/* for touch event skip */
+#define KEY_WINK			0x2bf    /* Intelligence Key */
+
 #define BTN_TRIGGER_HAPPY		0x2c0
 #define BTN_TRIGGER_HAPPY1		0x2c0
 #define BTN_TRIGGER_HAPPY2		0x2c1
@@ -698,7 +700,6 @@
 #define BTN_TRIGGER_HAPPY39		0x2e6
 #define BTN_TRIGGER_HAPPY40		0x2e7
 
-#define KEY_DEX_ON				0x2bd
 #define BTN_HOTKEY_APP1 		0x2f5
 #define BTN_HOTKEY_APP2 		0x2f6
 #define BTN_HOTKEY_APP3 		0x2f7
@@ -722,16 +723,6 @@
 #define REL_DIAL		0x07
 #define REL_WHEEL		0x08
 #define REL_MISC		0x09
-/*
- * 0x0a is reserved and should not be used in input drivers.
- * It was used by HID as REL_MISC+1 and userspace needs to detect if
- * the next REL_* event is correct or is just REL_MISC + n.
- * We define here REL_RESERVED so userspace can rely on it and detect
- * the situation described above.
- */
-#define REL_RESERVED		0x0a
-#define REL_WHEEL_HI_RES	0x0b
-#define REL_HWHEEL_HI_RES	0x0c
 #define REL_MAX			0x0f
 #define REL_CNT			(REL_MAX+1)
 
@@ -793,6 +784,9 @@
 #define ABS_MT_TOOL_X		0x3c	/* Center X tool position */
 #define ABS_MT_TOOL_Y		0x3d	/* Center Y tool position */
 
+#define ABS_MT_CUSTOM		0x3e	/* custom event */
+#define ABS_MT_PALM		0x3e	/* palm touch */
+#define ABS_MT_GRIP		0x3f	/* grip touch */
 
 #define ABS_MAX			0x3f
 #define ABS_CNT			(ABS_MAX+1)
@@ -818,9 +812,11 @@
 #define SW_ROTATE_LOCK		0x0c  /* set = rotate locked/disabled */
 #define SW_LINEIN_INSERT	0x0d  /* set = inserted */
 #define SW_MUTE_DEVICE		0x0e  /* set = device disabled */
-#define SW_PEN_INSERTED		0x0f  /* set = pen inserted */
-#define SW_MACHINE_COVER	0x10  /* set = cover closed */
-#define SW_MAX			0x3f
+#define SW_GLOVE		0x0f	/* set = glove mode */
+#define SW_FLIP                 0x15    /* set = flip cover */
+#define SW_CERTIFYHALL          0x1b    /* set = certify_hall... */
+#define SW_MAX			0x20
+
 #define SW_CNT			(SW_MAX+1)
 
 /*

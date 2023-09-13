@@ -80,7 +80,7 @@ static int bnx2fc_bind_pcidev(struct bnx2fc_hba *hba);
 static void bnx2fc_unbind_pcidev(struct bnx2fc_hba *hba);
 static struct fc_lport *bnx2fc_if_create(struct bnx2fc_interface *interface,
 				  struct device *parent, int npiv);
-static void bnx2fc_port_destroy(struct fcoe_port *port);
+static void bnx2fc_destroy_work(struct work_struct *work);
 
 static struct bnx2fc_hba *bnx2fc_hba_lookup(struct net_device *phys_dev);
 static struct bnx2fc_interface *bnx2fc_interface_lookup(struct net_device
@@ -150,11 +150,15 @@ static void bnx2fc_clean_rx_queue(struct fc_lport *lp)
 	struct fcoe_rcv_info *fr;
 	struct sk_buff_head *list;
 	struct sk_buff *skb, *next;
+	struct sk_buff *head;
 
 	bg = &bnx2fc_global;
 	spin_lock_bh(&bg->fcoe_rx_list.lock);
 	list = &bg->fcoe_rx_list;
-	skb_queue_walk_safe(list, skb, next) {
+	head = list->next;
+	for (skb = head; skb != (struct sk_buff *)list;
+	     skb = next) {
+		next = skb->next;
 		fr = fcoe_dev_from_skb(skb);
 		if (fr->fr_dev == lp) {
 			__skb_unlink(skb, list);
@@ -346,7 +350,7 @@ static int bnx2fc_xmit(struct fc_lport *lport, struct fc_frame *fp)
 			return -ENOMEM;
 		}
 		frag = &skb_shinfo(skb)->frags[skb_shinfo(skb)->nr_frags - 1];
-		cp = kmap_atomic(skb_frag_page(frag)) + skb_frag_off(frag);
+		cp = kmap_atomic(skb_frag_page(frag)) + frag->page_offset;
 	} else {
 		cp = skb_put(skb, tlen);
 	}
@@ -428,9 +432,11 @@ static int bnx2fc_rcv(struct sk_buff *skb, struct net_device *dev,
 	struct fc_lport *lport;
 	struct bnx2fc_interface *interface;
 	struct fcoe_ctlr *ctlr;
+	struct fc_frame_header *fh;
 	struct fcoe_rcv_info *fr;
 	struct fcoe_percpu_s *bg;
 	struct sk_buff *tmp_skb;
+	unsigned short oxid;
 
 	interface = container_of(ptype, struct bnx2fc_interface,
 				 fcoe_packet_type);
@@ -462,6 +468,9 @@ static int bnx2fc_rcv(struct sk_buff *skb, struct net_device *dev,
 		goto err;
 
 	skb_set_transport_header(skb, sizeof(struct fcoe_hdr));
+	fh = (struct fc_frame_header *) skb_transport_header(skb);
+
+	oxid = ntohs(fh->fh_ox_id);
 
 	fr = fcoe_dev_from_skb(skb);
 	fr->fr_dev = lport;
@@ -506,8 +515,7 @@ static int bnx2fc_l2_rcv_thread(void *arg)
 
 static void bnx2fc_recv_frame(struct sk_buff *skb)
 {
-	u64 crc_err;
-	u32 fr_len, fr_crc;
+	u32 fr_len;
 	struct fc_lport *lport;
 	struct fcoe_rcv_info *fr;
 	struct fc_stats *stats;
@@ -540,11 +548,6 @@ static void bnx2fc_recv_frame(struct sk_buff *skb)
 	fh = (struct fc_frame_header *) skb_transport_header(skb);
 	skb_pull(skb, sizeof(struct fcoe_hdr));
 	fr_len = skb->len - sizeof(struct fcoe_crc_eof);
-
-	stats = per_cpu_ptr(lport->stats, get_cpu());
-	stats->RxFrames++;
-	stats->RxWords += fr_len / FCOE_WORD_TO_BYTE;
-	put_cpu();
 
 	fp = (struct fc_frame *)skb;
 	fc_frame_init(fp);
@@ -628,15 +631,16 @@ static void bnx2fc_recv_frame(struct sk_buff *skb)
 		return;
 	}
 
-	fr_crc = le32_to_cpu(fr_crc(fp));
+	stats = per_cpu_ptr(lport->stats, smp_processor_id());
+	stats->RxFrames++;
+	stats->RxWords += fr_len / FCOE_WORD_TO_BYTE;
 
-	if (unlikely(fr_crc != ~crc32(~0, skb->data, fr_len))) {
-		stats = per_cpu_ptr(lport->stats, get_cpu());
-		crc_err = (stats->InvalidCRCCount++);
-		put_cpu();
-		if (crc_err < 5)
+	if (le32_to_cpu(fr_crc(fp)) !=
+			~crc32(~0, skb->data, fr_len)) {
+		if (stats->InvalidCRCCount < 5)
 			printk(KERN_WARNING PFX "dropping frame with "
 			       "CRC error\n");
+		stats->InvalidCRCCount++;
 		kfree_skb(skb);
 		return;
 	}
@@ -907,6 +911,9 @@ static void bnx2fc_indicate_netevent(void *context, unsigned long event,
 				__bnx2fc_destroy(interface);
 		}
 		mutex_unlock(&bnx2fc_dev_lock);
+
+		/* Ensure ALL destroy work has been completed before return */
+		flush_workqueue(bnx2fc_wq);
 		return;
 
 	default:
@@ -1213,8 +1220,8 @@ static int bnx2fc_vport_destroy(struct fc_vport *vport)
 	mutex_unlock(&n_port->lp_mutex);
 	bnx2fc_free_vport(interface->hba, port->lport);
 	bnx2fc_port_shutdown(port->lport);
-	bnx2fc_port_destroy(port);
 	bnx2fc_interface_put(interface);
+	queue_work(bnx2fc_wq, &port->destroy_work);
 	return 0;
 }
 
@@ -1523,6 +1530,7 @@ static struct fc_lport *bnx2fc_if_create(struct bnx2fc_interface *interface,
 	port->lport = lport;
 	port->priv = interface;
 	port->get_netdev = bnx2fc_netdev;
+	INIT_WORK(&port->destroy_work, bnx2fc_destroy_work);
 
 	/* Configure fcoe_port */
 	rc = bnx2fc_lport_config(lport);
@@ -1650,8 +1658,8 @@ static void __bnx2fc_destroy(struct bnx2fc_interface *interface)
 	bnx2fc_interface_cleanup(interface);
 	bnx2fc_stop(interface);
 	list_del(&interface->list);
-	bnx2fc_port_destroy(port);
 	bnx2fc_interface_put(interface);
+	queue_work(bnx2fc_wq, &port->destroy_work);
 }
 
 /**
@@ -1692,12 +1700,15 @@ netdev_err:
 	return rc;
 }
 
-static void bnx2fc_port_destroy(struct fcoe_port *port)
+static void bnx2fc_destroy_work(struct work_struct *work)
 {
+	struct fcoe_port *port;
 	struct fc_lport *lport;
 
+	port = container_of(work, struct fcoe_port, destroy_work);
 	lport = port->lport;
-	BNX2FC_HBA_DBG(lport, "Entered %s, destroying lport %p\n", __func__, lport);
+
+	BNX2FC_HBA_DBG(lport, "Entered bnx2fc_destroy_work\n");
 
 	bnx2fc_if_destroy(lport);
 }
@@ -2551,6 +2562,9 @@ static void bnx2fc_ulp_exit(struct cnic_dev *dev)
 			__bnx2fc_destroy(interface);
 	mutex_unlock(&bnx2fc_dev_lock);
 
+	/* Ensure ALL destroy work has been completed before return */
+	flush_workqueue(bnx2fc_wq);
+
 	bnx2fc_ulp_stop(hba);
 	/* unregister cnic device */
 	if (test_and_clear_bit(BNX2FC_CNIC_REGISTERED, &hba->reg_with_cnic))
@@ -2963,9 +2977,9 @@ static struct scsi_host_template bnx2fc_shost_template = {
 	.change_queue_depth	= scsi_change_queue_depth,
 	.this_id		= -1,
 	.cmd_per_lun		= 3,
+	.use_clustering		= ENABLE_CLUSTERING,
 	.sg_tablesize		= BNX2FC_MAX_BDS_PER_CMD,
-	.dma_boundary           = 0x7fff,
-	.max_sectors		= 0x3fbf,
+	.max_sectors		= 1024,
 	.track_queue_depth	= 1,
 	.slave_configure	= bnx2fc_slave_configure,
 	.shost_attrs		= bnx2fc_host_attrs,

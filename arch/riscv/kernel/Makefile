@@ -1,10 +1,10 @@
-# SPDX-License-Identifier: GPL-2.0-only
 #
 # Makefile for the RISC-V Linux kernel
 #
 
 ifdef CONFIG_FTRACE
 CFLAGS_REMOVE_ftrace.o = -pg
+CFLAGS_REMOVE_setup.o = -pg
 endif
 
 extra-y += head.o
@@ -29,7 +29,8 @@ obj-y	+= vdso.o
 obj-y	+= cacheinfo.o
 obj-y	+= vdso/
 
-obj-$(CONFIG_FPU)		+= fpu.o
+CFLAGS_setup.o := -mcmodel=medany
+
 obj-$(CONFIG_SMP)		+= smpboot.o
 obj-$(CONFIG_SMP)		+= smp.o
 obj-$(CONFIG_MODULES)		+= module.o
@@ -38,8 +39,6 @@ obj-$(CONFIG_MODULE_SECTIONS)	+= module-sections.o
 obj-$(CONFIG_FUNCTION_TRACER)	+= mcount.o ftrace.o
 obj-$(CONFIG_DYNAMIC_FTRACE)	+= mcount-dyn.o
 
-obj-$(CONFIG_PERF_EVENTS)	+= perf_event.o
-obj-$(CONFIG_PERF_EVENTS)	+= perf_callchain.o
-obj-$(CONFIG_HAVE_PERF_REGS)	+= perf_regs.o
+obj-$(CONFIG_PERF_EVENTS)      += perf_event.o
 
 clean:

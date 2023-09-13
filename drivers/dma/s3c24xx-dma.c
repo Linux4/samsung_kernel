@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * S3C24XX DMA handling
  *
@@ -11,6 +10,11 @@
  *
  * Author: Peter Pearse <peter.pearse@arm.com>
  * Author: Linus Walleij <linus.walleij@stericsson.com>
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
  *
  * The DMA controllers in S3C24XX SoCs have a varying number of DMA signals
  * that can be routed to any of the 4 to 8 hardware-channels.
@@ -876,7 +880,8 @@ static struct dma_async_tx_descriptor *s3c24xx_dma_prep_memcpy(
 
 static struct dma_async_tx_descriptor *s3c24xx_dma_prep_dma_cyclic(
 	struct dma_chan *chan, dma_addr_t addr, size_t size, size_t period,
-	enum dma_transfer_direction direction, unsigned long flags)
+	enum dma_transfer_direction direction, unsigned long flags,
+	void *context)
 {
 	struct s3c24xx_dma_chan *s3cchan = to_s3c24xx_dma_chan(chan);
 	struct s3c24xx_dma_engine *s3cdma = s3cchan->host;
@@ -1237,8 +1242,11 @@ static int s3c24xx_dma_probe(struct platform_device *pdev)
 		phy->host = s3cdma;
 
 		phy->irq = platform_get_irq(pdev, i);
-		if (phy->irq < 0)
+		if (phy->irq < 0) {
+			dev_err(&pdev->dev, "failed to get irq %d, err %d\n",
+				i, phy->irq);
 			continue;
+		}
 
 		ret = devm_request_irq(&pdev->dev, phy->irq, s3c24xx_dma_irq,
 				       0, pdev->name, phy);

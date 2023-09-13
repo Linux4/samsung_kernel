@@ -12,7 +12,6 @@
 
 #include <linux/clk-provider.h>
 #include <linux/err.h>
-#include <linux/io.h>
 #include <linux/types.h>
 
 #include "clk.h"

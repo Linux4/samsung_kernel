@@ -1,6 +1,22 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright(c) 1999 - 2004 Intel Corporation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the
+ * Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, see <http://www.gnu.org/licenses/>.
+ *
+ * The full GNU General Public License is included in this distribution in the
+ * file called LICENSE.
+ *
  */
 
 #include <linux/skbuff.h>
@@ -295,7 +311,7 @@ static int rlb_arp_recv(const struct sk_buff *skb, struct bonding *bond,
 	if (arp->op_code == htons(ARPOP_REPLY)) {
 		/* update rx hash table for this ARP */
 		rlb_update_entry_from_arp(bond, arp);
-		slave_dbg(bond->dev, slave->dev, "Server received an ARP Reply from client\n");
+		netdev_dbg(bond->dev, "Server received an ARP Reply from client\n");
 	}
 out:
 	return RX_HANDLER_ANOTHER;
@@ -437,9 +453,8 @@ static void rlb_update_client(struct rlb_client_info *client_info)
 				 client_info->slave->dev->dev_addr,
 				 client_info->mac_dst);
 		if (!skb) {
-			slave_err(client_info->slave->bond->dev,
-				  client_info->slave->dev,
-				  "failed to create an ARP packet\n");
+			netdev_err(client_info->slave->bond->dev,
+				   "failed to create an ARP packet\n");
 			continue;
 		}
 
@@ -668,15 +683,14 @@ static struct slave *rlb_arp_xmit(struct sk_buff *skb, struct bonding *bond)
 		if (tx_slave)
 			bond_hw_addr_copy(arp->mac_src, tx_slave->dev->dev_addr,
 					  tx_slave->dev->addr_len);
-		netdev_dbg(bond->dev, "(slave %s): Server sent ARP Reply packet\n",
-			   tx_slave ? tx_slave->dev->name : "NULL");
+		netdev_dbg(bond->dev, "Server sent ARP Reply packet\n");
 	} else if (arp->op_code == htons(ARPOP_REQUEST)) {
 		/* Create an entry in the rx_hashtbl for this client as a
 		 * place holder.
 		 * When the arp reply is received the entry will be updated
 		 * with the correct unicast address of the client.
 		 */
-		tx_slave = rlb_choose_channel(skb, bond, arp);
+		rlb_choose_channel(skb, bond, arp);
 
 		/* The ARP reply packets must be delayed so that
 		 * they can cancel out the influence of the ARP request.
@@ -689,8 +703,7 @@ static struct slave *rlb_arp_xmit(struct sk_buff *skb, struct bonding *bond)
 		 * updated with their assigned mac.
 		 */
 		rlb_req_update_subnet_clients(bond, arp->ip_src);
-		netdev_dbg(bond->dev, "(slave %s): Server sent ARP Request packet\n",
-			   tx_slave ? tx_slave->dev->name : "NULL");
+		netdev_dbg(bond->dev, "Server sent ARP Request packet\n");
 	}
 
 	return tx_slave;
@@ -926,8 +939,9 @@ static void alb_send_lp_vid(struct slave *slave, u8 mac_addr[],
 	skb->priority = TC_PRIO_CONTROL;
 	skb->dev = slave->dev;
 
-	slave_dbg(slave->bond->dev, slave->dev,
-		  "Send learning packet: mac %pM vlan %d\n", mac_addr, vid);
+	netdev_dbg(slave->bond->dev,
+		   "Send learning packet: dev %s mac %pM vlan %d\n",
+		   slave->dev->name, mac_addr, vid);
 
 	if (vid)
 		__vlan_hwaccel_put_tag(skb, vlan_proto, vid);
@@ -952,7 +966,7 @@ static int alb_upper_dev_walk(struct net_device *upper, void *_data)
 	struct bond_vlan_tag *tags;
 
 	if (is_vlan_dev(upper) &&
-	    bond->dev->lower_level == upper->lower_level - 1) {
+	    bond->nest_level == vlan_get_encap_level(upper) - 1) {
 		if (upper->addr_assign_type == NET_ADDR_STOLEN) {
 			alb_send_lp_vid(slave, mac_addr,
 					vlan_dev_vlan_proto(upper),
@@ -1017,8 +1031,9 @@ static int alb_set_slave_mac_addr(struct slave *slave, u8 addr[],
 	 */
 	memcpy(ss.__data, addr, len);
 	ss.ss_family = dev->type;
-	if (dev_set_mac_address(dev, (struct sockaddr *)&ss, NULL)) {
-		slave_err(slave->bond->dev, dev, "dev_set_mac_address on slave failed! ALB mode requires that the base driver support setting the hw address also when the network device's interface is open\n");
+	if (dev_set_mac_address(dev, (struct sockaddr *)&ss)) {
+		netdev_err(slave->bond->dev, "dev_set_mac_address of dev %s failed! ALB mode requires that the base driver support setting the hw address also when the network device's interface is open\n",
+			   dev->name);
 		return -EOPNOTSUPP;
 	}
 	return 0;
@@ -1193,11 +1208,12 @@ static int alb_handle_addr_collision_on_attach(struct bonding *bond, struct slav
 		alb_set_slave_mac_addr(slave, free_mac_slave->perm_hwaddr,
 				       free_mac_slave->dev->addr_len);
 
-		slave_warn(bond->dev, slave->dev, "the slave hw address is in use by the bond; giving it the hw address of %s\n",
-			   free_mac_slave->dev->name);
+		netdev_warn(bond->dev, "the hw address of slave %s is in use by the bond; giving it the hw address of %s\n",
+			    slave->dev->name, free_mac_slave->dev->name);
 
 	} else if (has_bond_addr) {
-		slave_err(bond->dev, slave->dev, "the slave hw address is in use by the bond; couldn't find a slave with a free hw address to give it (this should not have happened)\n");
+		netdev_err(bond->dev, "the hw address of slave %s is in use by the bond; couldn't find a slave with a free hw address to give it (this should not have happened)\n",
+			   slave->dev->name);
 		return -EFAULT;
 	}
 
@@ -1234,7 +1250,7 @@ static int alb_set_mac_address(struct bonding *bond, void *addr)
 		bond_hw_addr_copy(tmp_addr, slave->dev->dev_addr,
 				  slave->dev->addr_len);
 
-		res = dev_set_mac_address(slave->dev, addr, NULL);
+		res = dev_set_mac_address(slave->dev, addr);
 
 		/* restore net_device's hw address */
 		bond_hw_addr_copy(slave->dev->dev_addr, tmp_addr,
@@ -1257,7 +1273,7 @@ unwind:
 		bond_hw_addr_copy(tmp_addr, rollback_slave->dev->dev_addr,
 				  rollback_slave->dev->addr_len);
 		dev_set_mac_address(rollback_slave->dev,
-				    (struct sockaddr *)&ss, NULL);
+				    (struct sockaddr *)&ss);
 		bond_hw_addr_copy(rollback_slave->dev->dev_addr, tmp_addr,
 				  rollback_slave->dev->addr_len);
 	}
@@ -1276,12 +1292,12 @@ int bond_alb_initialize(struct bonding *bond, int rlb_enabled)
 		return res;
 
 	if (rlb_enabled) {
+		bond->alb_info.rlb_enabled = 1;
 		res = rlb_initialize(bond);
 		if (res) {
 			tlb_deinitialize(bond);
 			return res;
 		}
-		bond->alb_info.rlb_enabled = 1;
 	} else {
 		bond->alb_info.rlb_enabled = 0;
 	}
@@ -1514,14 +1530,14 @@ void bond_alb_monitor(struct work_struct *work)
 	struct slave *slave;
 
 	if (!bond_has_slaves(bond)) {
-		atomic_set(&bond_info->tx_rebalance_counter, 0);
+		bond_info->tx_rebalance_counter = 0;
 		bond_info->lp_counter = 0;
 		goto re_arm;
 	}
 
 	rcu_read_lock();
 
-	atomic_inc(&bond_info->tx_rebalance_counter);
+	bond_info->tx_rebalance_counter++;
 	bond_info->lp_counter++;
 
 	/* send learning packets */
@@ -1543,7 +1559,7 @@ void bond_alb_monitor(struct work_struct *work)
 	}
 
 	/* rebalance tx traffic */
-	if (atomic_read(&bond_info->tx_rebalance_counter) >= BOND_TLB_REBALANCE_TICKS) {
+	if (bond_info->tx_rebalance_counter >= BOND_TLB_REBALANCE_TICKS) {
 		bond_for_each_slave_rcu(bond, slave, iter) {
 			tlb_clear_slave(bond, slave, 1);
 			if (slave == rcu_access_pointer(bond->curr_active_slave)) {
@@ -1553,7 +1569,7 @@ void bond_alb_monitor(struct work_struct *work)
 				bond_info->unbalanced_load = 0;
 			}
 		}
-		atomic_set(&bond_info->tx_rebalance_counter, 0);
+		bond_info->tx_rebalance_counter = 0;
 	}
 
 	if (bond_info->rlb_enabled) {
@@ -1623,8 +1639,7 @@ int bond_alb_init_slave(struct bonding *bond, struct slave *slave)
 	tlb_init_slave(slave);
 
 	/* order a rebalance ASAP */
-	atomic_set(&bond->alb_info.tx_rebalance_counter,
-		   BOND_TLB_REBALANCE_TICKS);
+	bond->alb_info.tx_rebalance_counter = BOND_TLB_REBALANCE_TICKS;
 
 	if (bond->alb_info.rlb_enabled)
 		bond->alb_info.rlb_rebalance = 1;
@@ -1661,8 +1676,7 @@ void bond_alb_handle_link_change(struct bonding *bond, struct slave *slave, char
 			rlb_clear_slave(bond, slave);
 	} else if (link == BOND_LINK_UP) {
 		/* order a rebalance ASAP */
-		atomic_set(&bond_info->tx_rebalance_counter,
-			   BOND_TLB_REBALANCE_TICKS);
+		bond_info->tx_rebalance_counter = BOND_TLB_REBALANCE_TICKS;
 		if (bond->alb_info.rlb_enabled) {
 			bond->alb_info.rlb_rebalance = 1;
 			/* If the updelay module parameter is smaller than the
@@ -1738,8 +1752,7 @@ void bond_alb_handle_active_change(struct bonding *bond, struct slave *new_slave
 				  bond->dev->addr_len);
 		ss.ss_family = bond->dev->type;
 		/* we don't care if it can't change its mac, best effort */
-		dev_set_mac_address(new_slave->dev, (struct sockaddr *)&ss,
-				    NULL);
+		dev_set_mac_address(new_slave->dev, (struct sockaddr *)&ss);
 
 		bond_hw_addr_copy(new_slave->dev->dev_addr, tmp_addr,
 				  new_slave->dev->addr_len);

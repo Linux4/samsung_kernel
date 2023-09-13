@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Core driver for TPS61050/61052 boost converters, used for while LED
  * driving, audio power amplification, white LED flash, and generic
@@ -10,6 +9,8 @@
  * Written on behalf of Linaro for ST-Ericsson
  *
  * Author: Linus Walleij <linus.walleij@linaro.org>
+ *
+ * License terms: GNU General Public License (GPL) version 2
  */
 
 #include <linux/module.h>

@@ -213,8 +213,6 @@ int __weak cache_setup_acpi(unsigned int cpu)
 	return -ENOTSUPP;
 }
 
-unsigned int coherency_max_size;
-
 static int cache_shared_cpu_map_setup(unsigned int cpu)
 {
 	struct cpu_cacheinfo *this_cpu_ci = get_cpu_cacheinfo(cpu);
@@ -253,9 +251,6 @@ static int cache_shared_cpu_map_setup(unsigned int cpu)
 				cpumask_set_cpu(i, &this_leaf->shared_cpu_map);
 			}
 		}
-		/* record the maximum cache line size */
-		if (this_leaf->coherency_line_size > coherency_max_size)
-			coherency_max_size = this_leaf->coherency_line_size;
 	}
 
 	return 0;
@@ -377,7 +372,7 @@ static ssize_t size_show(struct device *dev,
 {
 	struct cacheinfo *this_leaf = dev_get_drvdata(dev);
 
-	return sysfs_emit(buf, "%uK\n", this_leaf->size >> 10);
+	return sprintf(buf, "%uK\n", this_leaf->size >> 10);
 }
 
 static ssize_t shared_cpumap_show_func(struct device *dev, bool list, char *buf)
@@ -407,11 +402,11 @@ static ssize_t type_show(struct device *dev,
 
 	switch (this_leaf->type) {
 	case CACHE_TYPE_DATA:
-		return sysfs_emit(buf, "Data\n");
+		return sprintf(buf, "Data\n");
 	case CACHE_TYPE_INST:
-		return sysfs_emit(buf, "Instruction\n");
+		return sprintf(buf, "Instruction\n");
 	case CACHE_TYPE_UNIFIED:
-		return sysfs_emit(buf, "Unified\n");
+		return sprintf(buf, "Unified\n");
 	default:
 		return -EINVAL;
 	}
@@ -425,11 +420,11 @@ static ssize_t allocation_policy_show(struct device *dev,
 	int n = 0;
 
 	if ((ci_attr & CACHE_READ_ALLOCATE) && (ci_attr & CACHE_WRITE_ALLOCATE))
-		n = sysfs_emit(buf, "ReadWriteAllocate\n");
+		n = sprintf(buf, "ReadWriteAllocate\n");
 	else if (ci_attr & CACHE_READ_ALLOCATE)
-		n = sysfs_emit(buf, "ReadAllocate\n");
+		n = sprintf(buf, "ReadAllocate\n");
 	else if (ci_attr & CACHE_WRITE_ALLOCATE)
-		n = sysfs_emit(buf, "WriteAllocate\n");
+		n = sprintf(buf, "WriteAllocate\n");
 	return n;
 }
 
@@ -441,9 +436,9 @@ static ssize_t write_policy_show(struct device *dev,
 	int n = 0;
 
 	if (ci_attr & CACHE_WRITE_THROUGH)
-		n = sysfs_emit(buf, "WriteThrough\n");
+		n = sprintf(buf, "WriteThrough\n");
 	else if (ci_attr & CACHE_WRITE_BACK)
-		n = sysfs_emit(buf, "WriteBack\n");
+		n = sprintf(buf, "WriteBack\n");
 	return n;
 }
 
@@ -618,8 +613,6 @@ static int cache_add_dev(unsigned int cpu)
 		this_leaf = this_cpu_ci->info_list + i;
 		if (this_leaf->disable_sysfs)
 			continue;
-		if (this_leaf->type == CACHE_TYPE_NOCACHE)
-			break;
 		cache_groups = cache_get_attribute_groups(this_leaf);
 		ci_dev = cpu_device_create(parent, this_leaf, cache_groups,
 					   "index%1u", i);

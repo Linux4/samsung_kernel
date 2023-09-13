@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /* 
  * Driver for Intel I82092AA PCI-PCMCIA bridge.
  *
@@ -106,7 +105,6 @@ static int i82092aa_pci_probe(struct pci_dev *dev, const struct pci_device_id *i
 	for (i = 0;i<socket_count;i++) {
 		sockets[i].card_state = 1; /* 1 = present but empty */
 		sockets[i].io_base = pci_resource_start(dev, 0);
-		sockets[i].dev = dev;
 		sockets[i].socket.features |= SS_CAP_PCCARD;
 		sockets[i].socket.map_size = 0x1000;
 		sockets[i].socket.irq_mask = 0;
@@ -118,9 +116,9 @@ static int i82092aa_pci_probe(struct pci_dev *dev, const struct pci_device_id *i
 		
 		if (card_present(i)) {
 			sockets[i].card_state = 3;
-			dev_dbg(&dev->dev, "i82092aa: slot %i is occupied\n", i);
+			dprintk(KERN_DEBUG "i82092aa: slot %i is occupied\n",i);
 		} else {
-			dev_dbg(&dev->dev, "i82092aa: slot %i is vacant\n", i);
+			dprintk(KERN_DEBUG "i82092aa: slot %i is vacant\n",i);
 		}
 	}
 		
@@ -129,7 +127,7 @@ static int i82092aa_pci_probe(struct pci_dev *dev, const struct pci_device_id *i
 	pci_write_config_byte(dev, 0x50, configbyte); /* PCI Interrupt Routing Register */
 
 	/* Register the interrupt handler */
-	dev_dbg(&dev->dev, "Requesting interrupt %i\n", dev->irq);
+	dprintk(KERN_DEBUG "Requesting interrupt %i \n",dev->irq);
 	if ((ret = request_irq(dev->irq, i82092aa_interrupt, IRQF_SHARED, "i82092aa", i82092aa_interrupt))) {
 		printk(KERN_ERR "i82092aa: Failed to register IRQ %d, aborting\n", dev->irq);
 		goto err_out_free_res;

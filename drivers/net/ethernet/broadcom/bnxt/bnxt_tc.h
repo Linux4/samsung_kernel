@@ -23,9 +23,6 @@ struct bnxt_tc_l2_key {
 	__be16		inner_vlan_tci;
 	__be16		ether_type;
 	u8		num_vlans;
-	u8		dir;
-#define BNXT_DIR_RX	1
-#define BNXT_DIR_TX	0
 };
 
 struct bnxt_tc_l3_key {
@@ -173,9 +170,7 @@ struct bnxt_tc_flow_node {
 
 	struct bnxt_tc_flow		flow;
 
-	__le64				ext_flow_handle;
 	__le16				flow_handle;
-	__le32				flow_id;
 
 	/* L2 node in l2 hashtable that shares flow's l2 key */
 	struct bnxt_tc_l2_node		*l2_node;
@@ -196,7 +191,7 @@ struct bnxt_tc_flow_node {
 };
 
 int bnxt_tc_setup_flower(struct bnxt *bp, u16 src_fid,
-			 struct flow_cls_offload *cls_flower);
+			 struct tc_cls_flower_offload *cls_flower);
 int bnxt_init_tc(struct bnxt *bp);
 void bnxt_shutdown_tc(struct bnxt *bp);
 void bnxt_tc_flow_stats_work(struct bnxt *bp);
@@ -209,7 +204,7 @@ static inline bool bnxt_tc_flower_enabled(struct bnxt *bp)
 #else /* CONFIG_BNXT_FLOWER_OFFLOAD */
 
 static inline int bnxt_tc_setup_flower(struct bnxt *bp, u16 src_fid,
-				       struct flow_cls_offload *cls_flower)
+				       struct tc_cls_flower_offload *cls_flower)
 {
 	return -EOPNOTSUPP;
 }

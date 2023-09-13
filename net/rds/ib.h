@@ -15,7 +15,8 @@
 
 #define RDS_IB_DEFAULT_RECV_WR		1024
 #define RDS_IB_DEFAULT_SEND_WR		256
-#define RDS_IB_DEFAULT_FR_WR		512
+#define RDS_IB_DEFAULT_FR_WR		256
+#define RDS_IB_DEFAULT_FR_INV_WR	256
 
 #define RDS_IB_DEFAULT_RETRY_COUNT	1
 
@@ -66,9 +67,7 @@ struct rds_ib_conn_priv_cmn {
 	u8			ricpc_protocol_major;
 	u8			ricpc_protocol_minor;
 	__be16			ricpc_protocol_minor_mask;	/* bitmask */
-	u8			ricpc_dp_toss;
-	u8			ripc_reserved1;
-	__be16			ripc_reserved2;
+	__be32			ricpc_reserved1;
 	__be64			ricpc_ack_seq;
 	__be32			ricpc_credit;	/* non-zero enables flow ctl */
 };
@@ -156,7 +155,7 @@ struct rds_ib_connection {
 
 	/* To control the number of wrs from fastreg */
 	atomic_t		i_fastreg_wrs;
-	atomic_t		i_fastreg_inuse_count;
+	atomic_t		i_fastunreg_wrs;
 
 	/* interrupt handling */
 	struct tasklet_struct	i_send_tasklet;
@@ -220,7 +219,6 @@ struct rds_ib_connection {
 	/* Send/Recv vectors */
 	int			i_scq_vector;
 	int			i_rcq_vector;
-	u8			i_sl;
 };
 
 /* This assumes that atomic_t is at least 32 bits */
@@ -333,8 +331,10 @@ static inline void rds_ib_dma_sync_sg_for_cpu(struct ib_device *dev,
 	unsigned int i;
 
 	for_each_sg(sglist, sg, sg_dma_len, i) {
-		ib_dma_sync_single_for_cpu(dev, sg_dma_address(sg),
-					   sg_dma_len(sg), direction);
+		ib_dma_sync_single_for_cpu(dev,
+				ib_sg_dma_address(dev, sg),
+				ib_sg_dma_len(dev, sg),
+				direction);
 	}
 }
 #define ib_dma_sync_sg_for_cpu	rds_ib_dma_sync_sg_for_cpu
@@ -348,8 +348,10 @@ static inline void rds_ib_dma_sync_sg_for_device(struct ib_device *dev,
 	unsigned int i;
 
 	for_each_sg(sglist, sg, sg_dma_len, i) {
-		ib_dma_sync_single_for_device(dev, sg_dma_address(sg),
-					      sg_dma_len(sg), direction);
+		ib_dma_sync_single_for_device(dev,
+				ib_sg_dma_address(dev, sg),
+				ib_sg_dma_len(dev, sg),
+				direction);
 	}
 }
 #define ib_dma_sync_sg_for_device	rds_ib_dma_sync_sg_for_device

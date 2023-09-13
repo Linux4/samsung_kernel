@@ -1155,7 +1155,7 @@ struct net_device * __init i82596_probe(int unit)
 			err = -ENODEV;
 			goto out;
 		}
-		memcpy(eth_addr, absolute_pointer(0xfffc1f2c), ETH_ALEN); /* YUCK! Get addr from NOVRAM */
+		memcpy(eth_addr, (void *) 0xfffc1f2c, ETH_ALEN);	/* YUCK! Get addr from NOVRAM */
 		dev->base_addr = MVME_I596_BASE;
 		dev->irq = (unsigned) MVME16x_IRQ_I596;
 		goto found;
@@ -1310,7 +1310,7 @@ static irqreturn_t i596_interrupt(int irq, void *dev_id)
 						dev->stats.tx_aborted_errors++;
 				}
 
-				dev_consume_skb_irq(skb);
+				dev_kfree_skb_irq(skb);
 
 				tx_cmd->cmd.command = 0; /* Mark free */
 				break;

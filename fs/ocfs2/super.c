@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /* -*- mode: c; c-basic-offset: 8; -*-
  * vim: noexpandtab sw=8 ts=8 sts=0:
  *
@@ -7,6 +6,21 @@
  * load/unload driver, mount/dismount volumes
  *
  * Copyright (C) 2002, 2004 Oracle.  All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public
+ * License as published by the Free Software Foundation; either
+ * version 2 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public
+ * License along with this program; if not, write to the
+ * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+ * Boston, MA 021110-1307, USA.
  */
 
 #include <linux/module.h>
@@ -78,7 +92,7 @@ struct mount_options
 	unsigned long	commit_interval;
 	unsigned long	mount_opt;
 	unsigned int	atime_quantum;
-	unsigned short	slot;
+	signed short	slot;
 	int		localalloc_opt;
 	unsigned int	resv_level;
 	int		dir_resv_level;
@@ -120,7 +134,7 @@ static int ocfs2_get_sector(struct super_block *sb,
 			    int block,
 			    int sect_size);
 static struct inode *ocfs2_alloc_inode(struct super_block *sb);
-static void ocfs2_free_inode(struct inode *inode);
+static void ocfs2_destroy_inode(struct inode *inode);
 static int ocfs2_susp_quotas(struct ocfs2_super *osb, int unsuspend);
 static int ocfs2_enable_quotas(struct ocfs2_super *osb);
 static void ocfs2_disable_quotas(struct ocfs2_super *osb);
@@ -133,7 +147,7 @@ static struct dquot **ocfs2_get_dquots(struct inode *inode)
 static const struct super_operations ocfs2_sops = {
 	.statfs		= ocfs2_statfs,
 	.alloc_inode	= ocfs2_alloc_inode,
-	.free_inode	= ocfs2_free_inode,
+	.destroy_inode	= ocfs2_destroy_inode,
 	.drop_inode	= ocfs2_drop_inode,
 	.evict_inode	= ocfs2_evict_inode,
 	.sync_fs	= ocfs2_sync_fs,
@@ -561,9 +575,15 @@ static struct inode *ocfs2_alloc_inode(struct super_block *sb)
 	return &oi->vfs_inode;
 }
 
-static void ocfs2_free_inode(struct inode *inode)
+static void ocfs2_i_callback(struct rcu_head *head)
 {
+	struct inode *inode = container_of(head, struct inode, i_rcu);
 	kmem_cache_free(ocfs2_inode_cachep, OCFS2_I(inode));
+}
+
+static void ocfs2_destroy_inode(struct inode *inode)
+{
+	call_rcu(&inode->i_rcu, ocfs2_i_callback);
 }
 
 static unsigned long long ocfs2_max_file_offset(unsigned int bbits,
@@ -580,6 +600,7 @@ static unsigned long long ocfs2_max_file_offset(unsigned int bbits,
 	 */
 
 #if BITS_PER_LONG == 32
+# if defined(CONFIG_LBDAF)
 	BUILD_BUG_ON(sizeof(sector_t) != 8);
 	/*
 	 * We might be limited by page cache size.
@@ -593,6 +614,15 @@ static unsigned long long ocfs2_max_file_offset(unsigned int bbits,
 		 */
 		bitshift = 31;
 	}
+# else
+	/*
+	 * We are limited by the size of sector_t. Use block size, as
+	 * that's what we expose to the VFS.
+	 */
+	bytes = 1 << bbits;
+	trim = 1;
+	bitshift = 31;
+# endif
 #endif
 
 	/*
@@ -1079,13 +1109,33 @@ static int ocfs2_fill_super(struct super_block *sb, void *data, int silent)
 
 	osb->osb_debug_root = debugfs_create_dir(osb->uuid_str,
 						 ocfs2_debugfs_root);
+	if (!osb->osb_debug_root) {
+		status = -EINVAL;
+		mlog(ML_ERROR, "Unable to create per-mount debugfs root.\n");
+		goto read_super_error;
+	}
 
-	debugfs_create_file("fs_state", S_IFREG|S_IRUSR, osb->osb_debug_root,
-			    osb, &ocfs2_osb_debug_fops);
+	osb->osb_ctxt = debugfs_create_file("fs_state", S_IFREG|S_IRUSR,
+					    osb->osb_debug_root,
+					    osb,
+					    &ocfs2_osb_debug_fops);
+	if (!osb->osb_ctxt) {
+		status = -EINVAL;
+		mlog_errno(status);
+		goto read_super_error;
+	}
 
-	if (ocfs2_meta_ecc(osb))
-		ocfs2_blockcheck_stats_debugfs_install( &osb->osb_ecc_stats,
-							osb->osb_debug_root);
+	if (ocfs2_meta_ecc(osb)) {
+		status = ocfs2_blockcheck_stats_debugfs_install(
+						&osb->osb_ecc_stats,
+						osb->osb_debug_root);
+		if (status) {
+			mlog(ML_ERROR,
+			     "Unable to create blockcheck statistics "
+			     "files\n");
+			goto read_super_error;
+		}
+	}
 
 	status = ocfs2_mount_volume(sb);
 	if (status < 0)
@@ -1099,6 +1149,17 @@ static int ocfs2_fill_super(struct super_block *sb, void *data, int silent)
 		mlog_errno(status);
 		goto read_super_error;
 	}
+
+	root = d_make_root(inode);
+	if (!root) {
+		status = -ENOMEM;
+		mlog_errno(status);
+		goto read_super_error;
+	}
+
+	sb->s_root = root;
+
+	ocfs2_complete_mount_recovery(osb);
 
 	osb->osb_dev_kset = kset_create_and_add(sb->s_id, NULL,
 						&ocfs2_kset->kobj);
@@ -1116,17 +1177,6 @@ static int ocfs2_fill_super(struct super_block *sb, void *data, int silent)
 			"/sys/fs/ocfs2/%s/filecheck.\n", sb->s_id);
 		goto read_super_error;
 	}
-
-	root = d_make_root(inode);
-	if (!root) {
-		status = -ENOMEM;
-		mlog_errno(status);
-		goto read_super_error;
-	}
-
-	sb->s_root = root;
-
-	ocfs2_complete_mount_recovery(osb);
 
 	if (ocfs2_mount_local(osb))
 		snprintf(nodestr, sizeof(nodestr), "local");
@@ -1334,7 +1384,7 @@ static int ocfs2_parse_options(struct super_block *sb,
 				goto bail;
 			}
 			if (option)
-				mopt->slot = (u16)option;
+				mopt->slot = (s16)option;
 			break;
 		case Opt_commit:
 			if (match_int(&args[0], &option)) {
@@ -1572,6 +1622,11 @@ static int __init ocfs2_init(void)
 		goto out2;
 
 	ocfs2_debugfs_root = debugfs_create_dir("ocfs2", NULL);
+	if (!ocfs2_debugfs_root) {
+		status = -ENOMEM;
+		mlog(ML_ERROR, "Unable to create ocfs2 debugfs root.\n");
+		goto out3;
+	}
 
 	ocfs2_set_locking_protocol();
 
@@ -1692,7 +1747,6 @@ static void ocfs2_inode_init_once(void *data)
 
 	oi->ip_blkno = 0ULL;
 	oi->ip_clusters = 0;
-	oi->ip_next_orphan = NULL;
 
 	ocfs2_resv_init_once(&oi->ip_la_data_resv);
 
@@ -1793,8 +1847,6 @@ static int ocfs2_mount_volume(struct super_block *sb)
 	if (ocfs2_is_hard_readonly(osb))
 		goto leave;
 
-	mutex_init(&osb->obs_trim_fs_mutex);
-
 	status = ocfs2_dlm_init(osb);
 	if (status < 0) {
 		mlog_errno(status);
@@ -1860,6 +1912,8 @@ static void ocfs2_dismount_volume(struct super_block *sb, int mnt_err)
 
 	kset_unregister(osb->osb_dev_kset);
 
+	debugfs_remove(osb->osb_ctxt);
+
 	/* Orphan scan should be stopped as early as possible */
 	ocfs2_orphan_scan_stop(osb);
 
@@ -1915,7 +1969,7 @@ static void ocfs2_dismount_volume(struct super_block *sb, int mnt_err)
 		ocfs2_dlm_shutdown(osb, hangup_needed);
 
 	ocfs2_blockcheck_stats_debugfs_remove(&osb->osb_ecc_stats);
-	debugfs_remove_recursive(osb->osb_debug_root);
+	debugfs_remove(osb->osb_debug_root);
 
 	if (hangup_needed)
 		ocfs2_cluster_hangup(osb->uuid_str, strlen(osb->uuid_str));
@@ -2150,17 +2204,11 @@ static int ocfs2_initialize_super(struct super_block *sb,
 	}
 
 	if (ocfs2_clusterinfo_valid(osb)) {
-		/*
-		 * ci_stack and ci_cluster in ocfs2_cluster_info may not be null
-		 * terminated, so make sure no overflow happens here by using
-		 * memcpy. Destination strings will always be null terminated
-		 * because osb is allocated using kzalloc.
-		 */
 		osb->osb_stackflags =
 			OCFS2_RAW_SB(di)->s_cluster_info.ci_stackflags;
-		memcpy(osb->osb_cluster_stack,
+		strlcpy(osb->osb_cluster_stack,
 		       OCFS2_RAW_SB(di)->s_cluster_info.ci_stack,
-		       OCFS2_STACK_LABEL_LEN);
+		       OCFS2_STACK_LABEL_LEN + 1);
 		if (strlen(osb->osb_cluster_stack) != OCFS2_STACK_LABEL_LEN) {
 			mlog(ML_ERROR,
 			     "couldn't mount because of an invalid "
@@ -2169,9 +2217,9 @@ static int ocfs2_initialize_super(struct super_block *sb,
 			status = -EINVAL;
 			goto bail;
 		}
-		memcpy(osb->osb_cluster_name,
+		strlcpy(osb->osb_cluster_name,
 			OCFS2_RAW_SB(di)->s_cluster_info.ci_cluster,
-			OCFS2_CLUSTER_NAME_LEN);
+			OCFS2_CLUSTER_NAME_LEN + 1);
 	} else {
 		/* The empty string is identical with classic tools that
 		 * don't know about s_cluster_info. */

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * arch/arm/mach-iop32x/n2100.c
  *
@@ -8,6 +7,11 @@
  * Copyright (C) 2002 Rory Bolt
  * Copyright 2003 (c) MontaVista, Software, Inc.
  * Copyright (C) 2004 Intel Corp.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the
+ * Free Software Foundation; either version 2 of the License, or (at your
+ * option) any later version.
  */
 
 #include <linux/mm.h>
@@ -27,7 +31,7 @@
 #include <linux/reboot.h>
 #include <linux/io.h>
 #include <linux/gpio.h>
-#include <linux/gpio/machine.h>
+#include <mach/hardware.h>
 #include <asm/irq.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
@@ -36,9 +40,7 @@
 #include <asm/mach-types.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
-
-#include "hardware.h"
-#include "irqs.h"
+#include <mach/time.h>
 #include "gpio-iop32x.h"
 
 /*
@@ -343,7 +345,6 @@ device_initcall(n2100_request_gpios);
 static void __init n2100_init_machine(void)
 {
 	register_iop32x_gpio();
-	gpiod_add_lookup_table(&iop3xx_i2c0_gpio_lookup);
 	platform_device_register(&iop3xx_i2c0_device);
 	platform_device_register(&n2100_flash_device);
 	platform_device_register(&n2100_serial_device);

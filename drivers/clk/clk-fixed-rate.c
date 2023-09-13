@@ -1,7 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2010-2011 Canonical Ltd <jeremy.kerr@canonical.com>
  * Copyright (C) 2011-2012 Mike Turquette, Linaro Ltd <mturquette@linaro.org>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * Fixed rate clock implementation
  */
@@ -68,7 +71,7 @@ struct clk_hw *clk_hw_register_fixed_rate_with_accuracy(struct device *dev,
 
 	init.name = name;
 	init.ops = &clk_fixed_rate_ops;
-	init.flags = flags;
+	init.flags = flags | CLK_IS_BASIC;
 	init.parent_names = (parent_name ? &parent_name: NULL);
 	init.num_parents = (parent_name ? 1 : 0);
 
@@ -80,7 +83,6 @@ struct clk_hw *clk_hw_register_fixed_rate_with_accuracy(struct device *dev,
 	/* register the clock */
 	hw = &fixed->hw;
 	ret = clk_hw_register(dev, hw);
-	hw->init = NULL;
 	if (ret) {
 		kfree(fixed);
 		hw = ERR_PTR(ret);

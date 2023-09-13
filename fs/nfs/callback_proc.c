@@ -364,11 +364,12 @@ __be32 nfs4_callback_devicenotify(void *argp, void *resp,
 				  struct cb_process_state *cps)
 {
 	struct cb_devicenotifyargs *args = argp;
-	const struct pnfs_layoutdriver_type *ld = NULL;
-	uint32_t i;
+	int i;
 	__be32 res = 0;
+	struct nfs_client *clp = cps->clp;
+	struct nfs_server *server = NULL;
 
-	if (!cps->clp) {
+	if (!clp) {
 		res = cpu_to_be32(NFS4ERR_OP_NOT_IN_SESSION);
 		goto out;
 	}
@@ -376,15 +377,23 @@ __be32 nfs4_callback_devicenotify(void *argp, void *resp,
 	for (i = 0; i < args->ndevs; i++) {
 		struct cb_devicenotifyitem *dev = &args->devs[i];
 
-		if (!ld || ld->id != dev->cbd_layout_type) {
-			pnfs_put_layoutdriver(ld);
-			ld = pnfs_find_layoutdriver(dev->cbd_layout_type);
-			if (!ld)
-				continue;
+		if (!server ||
+		    server->pnfs_curr_ld->id != dev->cbd_layout_type) {
+			rcu_read_lock();
+			list_for_each_entry_rcu(server, &clp->cl_superblocks, client_link)
+				if (server->pnfs_curr_ld &&
+				    server->pnfs_curr_ld->id == dev->cbd_layout_type) {
+					rcu_read_unlock();
+					goto found;
+				}
+			rcu_read_unlock();
+			continue;
 		}
-		nfs4_delete_deviceid(ld, cps->clp, &dev->cbd_dev_id);
+
+	found:
+		nfs4_delete_deviceid(server->pnfs_curr_ld, clp, &dev->cbd_dev_id);
 	}
-	pnfs_put_layoutdriver(ld);
+
 out:
 	kfree(args->devs);
 	return res;
@@ -407,39 +416,27 @@ static __be32
 validate_seqid(const struct nfs4_slot_table *tbl, const struct nfs4_slot *slot,
 		const struct cb_sequenceargs * args)
 {
-	__be32 ret;
-
-	ret = cpu_to_be32(NFS4ERR_BADSLOT);
 	if (args->csa_slotid > tbl->server_highest_slotid)
-		goto out_err;
+		return htonl(NFS4ERR_BADSLOT);
 
 	/* Replay */
 	if (args->csa_sequenceid == slot->seq_nr) {
-		ret = cpu_to_be32(NFS4ERR_DELAY);
 		if (nfs4_test_locked_slot(tbl, slot->slot_nr))
-			goto out_err;
-
+			return htonl(NFS4ERR_DELAY);
 		/* Signal process_op to set this error on next op */
-		ret = cpu_to_be32(NFS4ERR_RETRY_UNCACHED_REP);
 		if (args->csa_cachethis == 0)
-			goto out_err;
+			return htonl(NFS4ERR_RETRY_UNCACHED_REP);
 
 		/* Liar! We never allowed you to set csa_cachethis != 0 */
-		ret = cpu_to_be32(NFS4ERR_SEQ_FALSE_RETRY);
-		goto out_err;
+		return htonl(NFS4ERR_SEQ_FALSE_RETRY);
 	}
 
 	/* Note: wraparound relies on seq_nr being of type u32 */
+	if (likely(args->csa_sequenceid == slot->seq_nr + 1))
+		return htonl(NFS4_OK);
+
 	/* Misordered request */
-	ret = cpu_to_be32(NFS4ERR_SEQ_MISORDERED);
-	if (args->csa_sequenceid != slot->seq_nr + 1)
-		goto out_err;
-
-	return cpu_to_be32(NFS4_OK);
-
-out_err:
-	trace_nfs4_cb_seqid_err(args, ret);
-	return ret;
+	return htonl(NFS4ERR_SEQ_MISORDERED);
 }
 
 /*

@@ -1,8 +1,19 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2015 Hisilicon Limited, All Rights Reserved.
  * Author: Jun Ma <majun258@huawei.com>
  * Author: Yun Wu <wuyun.wu@huawei.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <linux/acpi.h>
@@ -247,15 +258,12 @@ static int mbigen_of_create_domain(struct platform_device *pdev,
 
 		parent = platform_bus_type.dev_root;
 		child = of_platform_device_create(np, NULL, parent);
-		if (!child) {
-			of_node_put(np);
+		if (!child)
 			return -ENOMEM;
-		}
 
 		if (of_property_read_u32(child->dev.of_node, "num-pins",
 					 &num_pins) < 0) {
 			dev_err(&pdev->dev, "No num-pins property\n");
-			of_node_put(np);
 			return -EINVAL;
 		}
 
@@ -263,10 +271,8 @@ static int mbigen_of_create_domain(struct platform_device *pdev,
 							   mbigen_write_msg,
 							   &mbigen_domain_ops,
 							   mgn_chip);
-		if (!domain) {
-			of_node_put(np);
+		if (!domain)
 			return -ENOMEM;
-		}
 	}
 
 	return 0;
@@ -355,7 +361,8 @@ static int mbigen_device_probe(struct platform_device *pdev)
 		err = -EINVAL;
 
 	if (err) {
-		dev_err(&pdev->dev, "Failed to create mbi-gen irqdomain\n");
+		dev_err(&pdev->dev, "Failed to create mbi-gen@%p irqdomain",
+			mgn_chip->base);
 		return err;
 	}
 

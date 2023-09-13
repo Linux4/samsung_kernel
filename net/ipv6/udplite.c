@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  UDPLITEv6   An implementation of the UDP-Lite protocol over IPv6.
  *              See also net/ipv4/udplite.c
@@ -7,6 +6,10 @@
  *
  *  Changes:
  *  Fixes:
+ *		This program is free software; you can redistribute it and/or
+ *		modify it under the terms of the GNU General Public License
+ *		as published by the Free Software Foundation; either version
+ *		2 of the License, or (at your option) any later version.
  */
 #include <linux/export.h>
 #include <linux/proc_fs.h>
@@ -17,12 +20,11 @@ static int udplitev6_rcv(struct sk_buff *skb)
 	return __udp6_lib_rcv(skb, &udplite_table, IPPROTO_UDPLITE);
 }
 
-static int udplitev6_err(struct sk_buff *skb,
+static void udplitev6_err(struct sk_buff *skb,
 			  struct inet6_skb_parm *opt,
 			  u8 type, u8 code, int offset, __be32 info)
 {
-	return __udp6_lib_err(skb, opt, type, code, offset, info,
-			      &udplite_table);
+	__udp6_lib_err(skb, opt, type, code, offset, info, &udplite_table);
 }
 
 static const struct inet6_protocol udplitev6_protocol = {
@@ -46,7 +48,6 @@ struct proto udplitev6_prot = {
 	.recvmsg	   = udpv6_recvmsg,
 	.hash		   = udp_lib_hash,
 	.unhash		   = udp_lib_unhash,
-	.rehash		   = udp_v6_rehash,
 	.get_port	   = udp_v6_get_port,
 	.memory_allocated  = &udp_memory_allocated,
 	.sysctl_mem	   = sysctl_udp_mem,

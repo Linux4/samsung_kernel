@@ -1,7 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /* The industrial I/O core in kernel channel mapping
  *
  * Copyright (c) 2011 Jonathan Cameron
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
  */
 #include <linux/err.h>
 #include <linux/export.h>
@@ -90,7 +93,7 @@ static const struct iio_chan_spec
 
 #ifdef CONFIG_OF
 
-static int iio_dev_node_match(struct device *dev, const void *data)
+static int iio_dev_node_match(struct device *dev, void *data)
 {
 	return dev->of_node == data && dev->type == &iio_device_type;
 }
@@ -588,50 +591,28 @@ EXPORT_SYMBOL_GPL(iio_read_channel_average_raw);
 static int iio_convert_raw_to_processed_unlocked(struct iio_channel *chan,
 	int raw, int *processed, unsigned int scale)
 {
-	int scale_type, scale_val, scale_val2;
-	int offset_type, offset_val, offset_val2;
+	int scale_type, scale_val, scale_val2, offset;
 	s64 raw64 = raw;
+	int ret;
 
-	offset_type = iio_channel_read(chan, &offset_val, &offset_val2,
-				       IIO_CHAN_INFO_OFFSET);
-	if (offset_type >= 0) {
-		switch (offset_type) {
-		case IIO_VAL_INT:
-			break;
-		case IIO_VAL_INT_PLUS_MICRO:
-		case IIO_VAL_INT_PLUS_NANO:
-			/*
-			 * Both IIO_VAL_INT_PLUS_MICRO and IIO_VAL_INT_PLUS_NANO
-			 * implicitely truncate the offset to it's integer form.
-			 */
-			break;
-		case IIO_VAL_FRACTIONAL:
-			offset_val /= offset_val2;
-			break;
-		case IIO_VAL_FRACTIONAL_LOG2:
-			offset_val >>= offset_val2;
-			break;
-		default:
-			return -EINVAL;
-		}
-
-		raw64 += offset_val;
-	}
+	ret = iio_channel_read(chan, &offset, NULL, IIO_CHAN_INFO_OFFSET);
+	if (ret >= 0)
+		raw64 += offset;
 
 	scale_type = iio_channel_read(chan, &scale_val, &scale_val2,
 					IIO_CHAN_INFO_SCALE);
 	if (scale_type < 0) {
 		/*
-		 * If no channel scaling is available apply consumer scale to
-		 * raw value and return.
+		 * Just pass raw values as processed if no scaling is
+		 * available.
 		 */
-		*processed = raw * scale;
+		*processed = raw;
 		return 0;
 	}
 
 	switch (scale_type) {
 	case IIO_VAL_INT:
-		*processed = raw64 * scale_val * scale;
+		*processed = raw64 * scale_val;
 		break;
 	case IIO_VAL_INT_PLUS_MICRO:
 		if (scale_val2 < 0)
@@ -752,11 +733,11 @@ static int iio_channel_read_avail(struct iio_channel *chan,
 						 vals, type, length, info);
 }
 
-int iio_read_avail_channel_attribute(struct iio_channel *chan,
-				     const int **vals, int *type, int *length,
-				     enum iio_chan_info_enum attribute)
+int iio_read_avail_channel_raw(struct iio_channel *chan,
+			       const int **vals, int *length)
 {
 	int ret;
+	int type;
 
 	mutex_lock(&chan->indio_dev->info_exist_lock);
 	if (!chan->indio_dev->info) {
@@ -764,22 +745,10 @@ int iio_read_avail_channel_attribute(struct iio_channel *chan,
 		goto err_unlock;
 	}
 
-	ret = iio_channel_read_avail(chan, vals, type, length, attribute);
+	ret = iio_channel_read_avail(chan,
+				     vals, &type, length, IIO_CHAN_INFO_RAW);
 err_unlock:
 	mutex_unlock(&chan->indio_dev->info_exist_lock);
-
-	return ret;
-}
-EXPORT_SYMBOL_GPL(iio_read_avail_channel_attribute);
-
-int iio_read_avail_channel_raw(struct iio_channel *chan,
-			       const int **vals, int *length)
-{
-	int ret;
-	int type;
-
-	ret = iio_read_avail_channel_attribute(chan, vals, &type, length,
-					 IIO_CHAN_INFO_RAW);
 
 	if (ret >= 0 && type != IIO_VAL_INT)
 		/* raw values are assumed to be IIO_VAL_INT */

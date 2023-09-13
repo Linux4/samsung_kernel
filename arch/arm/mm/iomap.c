@@ -35,7 +35,8 @@ EXPORT_SYMBOL(pcibios_min_mem);
 
 void pci_iounmap(struct pci_dev *dev, void __iomem *addr)
 {
-	if (is_vmalloc_addr(addr))
+	if ((unsigned long)addr >= VMALLOC_START &&
+	    (unsigned long)addr < VMALLOC_END)
 		iounmap(addr);
 }
 EXPORT_SYMBOL(pci_iounmap);

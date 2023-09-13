@@ -135,6 +135,7 @@ enum otg_fsm_timer {
  *		to a_wait_vfall
  */
 struct otg_fsm {
+	int reset;
 	/* Input */
 	int id;
 	int adp_change;
@@ -196,7 +197,6 @@ struct otg_fsm {
 	struct mutex lock;
 	u8 *host_req_flag;
 	struct delayed_work hnp_polling_work;
-	bool hnp_work_inited;
 	bool state_changed;
 };
 

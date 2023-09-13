@@ -440,7 +440,7 @@ struct dimm_info {
 	char label[EDAC_MC_LABEL_LEN + 1];	/* DIMM label on motherboard */
 
 	/* Memory location data */
-	unsigned int location[EDAC_MAX_LAYERS];
+	unsigned location[EDAC_MAX_LAYERS];
 
 	struct mem_ctl_info *mci;	/* the parent */
 
@@ -451,9 +451,7 @@ struct dimm_info {
 
 	u32 nr_pages;			/* number of pages on this dimm */
 
-	unsigned int csrow, cschannel;	/* Points to the old API data */
-
-	u16 smbios_handle;              /* Handle for SMBIOS type 17 */
+	unsigned csrow, cschannel;	/* Points to the old API data */
 };
 
 /**
@@ -597,7 +595,7 @@ struct mem_ctl_info {
 					   unsigned long page);
 	int mc_idx;
 	struct csrow_info **csrows;
-	unsigned int nr_csrows, num_cschannel;
+	unsigned nr_csrows, num_cschannel;
 
 	/*
 	 * Memory Controller hierarchy
@@ -608,14 +606,14 @@ struct mem_ctl_info {
 	 * of the recent drivers enumerate memories per DIMM, instead.
 	 * When the memory controller is per rank, csbased is true.
 	 */
-	unsigned int n_layers;
+	unsigned n_layers;
 	struct edac_mc_layer *layers;
 	bool csbased;
 
 	/*
 	 * DIMM info. Will eventually remove the entire csrows_info some day
 	 */
-	unsigned int tot_dimms;
+	unsigned tot_dimms;
 	struct dimm_info **dimms;
 
 	/*
@@ -669,4 +667,10 @@ struct mem_ctl_info {
 	bool fake_inject_ue;
 	u16 fake_inject_count;
 };
+
+/*
+ * Maximum number of memory controllers in the coherent fabric.
+ */
+#define EDAC_MAX_MCS	2 * MAX_NUMNODES
+
 #endif

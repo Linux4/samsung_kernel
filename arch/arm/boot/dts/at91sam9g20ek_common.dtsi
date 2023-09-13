@@ -1,8 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * at91sam9g20ek_common.dtsi - Device Tree file for Atmel at91sam9g20ek board
  *
  * Copyright (C) 2012 Jean-Christophe PLAGNIOL-VILLARD <plagnioj@jcrosoft.com>
+ *
+ * Licensed under GPLv2.
  */
 #include "at91sam9g20.dtsi"
 
@@ -217,12 +218,6 @@
 		wm8731: wm8731@1b {
 			compatible = "wm8731";
 			reg = <0x1b>;
-
-			/* PCK0 at 12MHz */
-			clocks = <&pmc PMC_TYPE_SYSTEM 8>;
-			clock-names = "mclk";
-			assigned-clocks = <&pmc PMC_TYPE_SYSTEM 8>;
-			assigned-clock-rates = <12000000>;
 		};
 	};
 

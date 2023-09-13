@@ -1,6 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright (c) 2014, Fuzhou Rockchip Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  */
 
 #include <linux/module.h>
@@ -314,7 +318,6 @@ static const struct dw_mci_drv_data rk2928_drv_data = {
 
 static const struct dw_mci_drv_data rk3288_drv_data = {
 	.caps			= dw_mci_rk3288_dwmmc_caps,
-	.num_caps		= ARRAY_SIZE(dw_mci_rk3288_dwmmc_caps),
 	.set_ios		= dw_mci_rk3288_set_ios,
 	.execute_tuning		= dw_mci_rk3288_execute_tuning,
 	.parse_dt		= dw_mci_rk3288_parse_dt,

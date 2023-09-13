@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Support for audio capture
  *  PCI function #1 of the cx2388x.
@@ -8,6 +7,16 @@
  *    (c) 2005 Mauro Carvalho Chehab <mchehab@kernel.org>
  *    Based on a dummy cx88 module by Gerd Knorr <kraxel@bytesex.org>
  *    Based on dummy.c by Jaroslav Kysela <perex@perex.cz>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
  */
 
 #include "cx88.h"
@@ -95,7 +104,7 @@ MODULE_PARM_DESC(index, "Index value for cx88x capture interface(s).");
 MODULE_DESCRIPTION("ALSA driver module for cx2388x based TV cards");
 MODULE_AUTHOR("Ricardo Cerqueira");
 MODULE_AUTHOR("Mauro Carvalho Chehab <mchehab@kernel.org>");
-MODULE_LICENSE("GPL v2");
+MODULE_LICENSE("GPL");
 MODULE_VERSION(CX88_VERSION);
 
 MODULE_SUPPORTED_DEVICE("{{Conexant,23881},{{Conexant,23882},{{Conexant,23883}");
@@ -607,7 +616,7 @@ static int snd_cx88_pcm(struct cx88_audio_dev *chip, int device,
 	if (err < 0)
 		return err;
 	pcm->private_data = chip;
-	strscpy(pcm->name, name, sizeof(pcm->name));
+	strcpy(pcm->name, name);
 	snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &snd_cx88_pcm_ops);
 
 	return 0;
@@ -959,12 +968,12 @@ static int cx88_audio_initdev(struct pci_dev *pci,
 			goto error;
 	}
 
-	strscpy(card->driver, "CX88x", sizeof(card->driver));
+	strcpy(card->driver, "CX88x");
 	sprintf(card->shortname, "Conexant CX%x", pci->device);
 	sprintf(card->longname, "%s at %#llx",
 		card->shortname,
 		(unsigned long long)pci_resource_start(pci, 0));
-	strscpy(card->mixername, "CX88", sizeof(card->mixername));
+	strcpy(card->mixername, "CX88");
 
 	dprintk(0, "%s/%i: ALSA support for cx2388x boards\n",
 		card->driver, devno);

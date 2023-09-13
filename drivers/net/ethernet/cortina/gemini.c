@@ -304,21 +304,21 @@ static void gmac_speed_set(struct net_device *netdev)
 	switch (phydev->speed) {
 	case 1000:
 		status.bits.speed = GMAC_SPEED_1000;
-		if (phy_interface_mode_is_rgmii(phydev->interface))
+		if (phydev->interface == PHY_INTERFACE_MODE_RGMII)
 			status.bits.mii_rmii = GMAC_PHY_RGMII_1000;
 		netdev_dbg(netdev, "connect %s to RGMII @ 1Gbit\n",
 			   phydev_name(phydev));
 		break;
 	case 100:
 		status.bits.speed = GMAC_SPEED_100;
-		if (phy_interface_mode_is_rgmii(phydev->interface))
+		if (phydev->interface == PHY_INTERFACE_MODE_RGMII)
 			status.bits.mii_rmii = GMAC_PHY_RGMII_100_10;
 		netdev_dbg(netdev, "connect %s to RGMII @ 100 Mbit\n",
 			   phydev_name(phydev));
 		break;
 	case 10:
 		status.bits.speed = GMAC_SPEED_10;
-		if (phy_interface_mode_is_rgmii(phydev->interface))
+		if (phydev->interface == PHY_INTERFACE_MODE_RGMII)
 			status.bits.mii_rmii = GMAC_PHY_RGMII_100_10;
 		netdev_dbg(netdev, "connect %s to RGMII @ 10 Mbit\n",
 			   phydev_name(phydev));
@@ -372,8 +372,9 @@ static int gmac_setup_phy(struct net_device *netdev)
 		return -ENODEV;
 	netdev->phydev = phy;
 
-	phy_set_max_speed(phy, SPEED_1000);
-	phy_support_asym_pause(phy);
+	phy->supported &= PHY_GBIT_FEATURES;
+	phy->supported |= SUPPORTED_Asym_Pause | SUPPORTED_Pause;
+	phy->advertising = phy->supported;
 
 	/* set PHY interface type */
 	switch (phy->interface) {
@@ -388,9 +389,6 @@ static int gmac_setup_phy(struct net_device *netdev)
 		status.bits.mii_rmii = GMAC_PHY_GMII;
 		break;
 	case PHY_INTERFACE_MODE_RGMII:
-	case PHY_INTERFACE_MODE_RGMII_ID:
-	case PHY_INTERFACE_MODE_RGMII_TXID:
-	case PHY_INTERFACE_MODE_RGMII_RXID:
 		netdev_dbg(netdev,
 			   "RGMII: set GMAC0 and GMAC1 to MII/RGMII mode\n");
 		status.bits.mii_rmii = GMAC_PHY_RGMII_100_10;
@@ -1187,8 +1185,9 @@ static int gmac_map_tx_bufs(struct net_device *netdev, struct sk_buff *skb,
 			buflen = skb_headlen(skb);
 		} else {
 			skb_frag = skb_si->frags + frag;
-			buffer = skb_frag_address(skb_frag);
-			buflen = skb_frag_size(skb_frag);
+			buffer = page_address(skb_frag_page(skb_frag)) +
+				 skb_frag->page_offset;
+			buflen = skb_frag->size;
 		}
 
 		if (frag == last_frag) {
@@ -1238,6 +1237,8 @@ static int gmac_start_xmit(struct sk_buff *skb, struct net_device *netdev)
 	struct gmac_txq *txq;
 	int txq_num, nfrags;
 	union dma_rwptr rw;
+
+	SKB_FRAG_ASSERT(skb);
 
 	if (skb->len >= 0x10000)
 		goto out_drop_free;
@@ -2391,7 +2392,7 @@ static int gemini_ethernet_port_probe(struct platform_device *pdev)
 
 	dev_info(dev, "probe %s ID %d\n", dev_name(dev), id);
 
-	netdev = devm_alloc_etherdev_mqs(dev, sizeof(*port), TX_QUEUE_NUM, TX_QUEUE_NUM);
+	netdev = alloc_etherdev_mq(sizeof(*port), TX_QUEUE_NUM);
 	if (!netdev) {
 		dev_err(dev, "Can't allocate ethernet device #%d\n", id);
 		return -ENOMEM;
@@ -2427,8 +2428,10 @@ static int gemini_ethernet_port_probe(struct platform_device *pdev)
 
 	/* Interrupt */
 	irq = platform_get_irq(pdev, 0);
-	if (irq <= 0)
+	if (irq <= 0) {
+		dev_err(dev, "no IRQ\n");
 		return irq ? irq : -ENODEV;
+	}
 	port->irq = irq;
 
 	/* Clock the port */
@@ -2448,8 +2451,7 @@ static int gemini_ethernet_port_probe(struct platform_device *pdev)
 	port->reset = devm_reset_control_get_exclusive(dev, NULL);
 	if (IS_ERR(port->reset)) {
 		dev_err(dev, "no reset\n");
-		ret = PTR_ERR(port->reset);
-		goto unprepare;
+		return PTR_ERR(port->reset);
 	}
 	reset_control_reset(port->reset);
 	usleep_range(100, 500);
@@ -2505,24 +2507,23 @@ static int gemini_ethernet_port_probe(struct platform_device *pdev)
 					port_names[port->id],
 					port);
 	if (ret)
-		goto unprepare;
+		return ret;
 
 	ret = register_netdev(netdev);
-	if (ret)
-		goto unprepare;
-
-	netdev_info(netdev,
-		    "irq %d, DMA @ 0x%pap, GMAC @ 0x%pap\n",
-		    port->irq, &dmares->start,
-		    &gmacres->start);
-	ret = gmac_setup_phy(netdev);
-	if (ret)
+	if (!ret) {
 		netdev_info(netdev,
-			    "PHY init failed, deferring to ifup time\n");
-	return 0;
+			    "irq %d, DMA @ 0x%pap, GMAC @ 0x%pap\n",
+			    port->irq, &dmares->start,
+			    &gmacres->start);
+		ret = gmac_setup_phy(netdev);
+		if (ret)
+			netdev_info(netdev,
+				    "PHY init failed, deferring to ifup time\n");
+		return 0;
+	}
 
-unprepare:
-	clk_disable_unprepare(port->pclk);
+	port->netdev = NULL;
+	free_netdev(netdev);
 	return ret;
 }
 
@@ -2531,6 +2532,7 @@ static int gemini_ethernet_port_remove(struct platform_device *pdev)
 	struct gemini_ethernet_port *port = platform_get_drvdata(pdev);
 
 	gemini_port_remove(port);
+	free_netdev(port->netdev);
 	return 0;
 }
 

@@ -1,10 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * STMicroelectronics accelerometers driver
  *
  * Copyright 2012-2013 STMicroelectronics Inc.
  *
  * Denis Ciocca <denis.ciocca@st.com>
+ *
+ * Licensed under the GPL-2.
  */
 
 #include <linux/kernel.h>
@@ -89,10 +90,6 @@ static const struct of_device_id st_accel_of_match[] = {
 		.compatible = "st,lis3dhh",
 		.data = LIS3DHH_ACCEL_DEV_NAME,
 	},
-	{
-		.compatible = "st,lis3de",
-		.data = LIS3DE_ACCEL_DEV_NAME,
-	},
 	{}
 };
 MODULE_DEVICE_TABLE(of, st_accel_of_match);
@@ -102,31 +99,19 @@ MODULE_DEVICE_TABLE(of, st_accel_of_match);
 
 static int st_accel_spi_probe(struct spi_device *spi)
 {
-	const struct st_sensor_settings *settings;
-	struct st_sensor_data *adata;
 	struct iio_dev *indio_dev;
+	struct st_sensor_data *adata;
 	int err;
-
-	st_sensors_of_name_probe(&spi->dev, st_accel_of_match,
-				 spi->modalias, sizeof(spi->modalias));
-
-	settings = st_accel_get_settings(spi->modalias);
-	if (!settings) {
-		dev_err(&spi->dev, "device name %s not recognized.\n",
-			spi->modalias);
-		return -ENODEV;
-	}
 
 	indio_dev = devm_iio_device_alloc(&spi->dev, sizeof(*adata));
 	if (!indio_dev)
 		return -ENOMEM;
 
 	adata = iio_priv(indio_dev);
-	adata->sensor_settings = (struct st_sensor_settings *)settings;
 
-	err = st_sensors_spi_configure(indio_dev, spi);
-	if (err < 0)
-		return err;
+	st_sensors_of_name_probe(&spi->dev, st_accel_of_match,
+				 spi->modalias, sizeof(spi->modalias));
+	st_sensors_spi_configure(indio_dev, spi, adata);
 
 	err = st_accel_common_probe(indio_dev);
 	if (err < 0)
@@ -158,7 +143,6 @@ static const struct spi_device_id st_accel_id_table[] = {
 	{ LIS3LV02DL_ACCEL_DEV_NAME },
 	{ LIS2DW12_ACCEL_DEV_NAME },
 	{ LIS3DHH_ACCEL_DEV_NAME },
-	{ LIS3DE_ACCEL_DEV_NAME },
 	{},
 };
 MODULE_DEVICE_TABLE(spi, st_accel_id_table);

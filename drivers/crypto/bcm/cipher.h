@@ -1,6 +1,17 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright 2016 Broadcom
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License, version 2, as
+ * published by the Free Software Foundation (the "GPL").
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License version 2 (GPLv2) for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * version 2 (GPLv2) along with this source code.
  */
 
 #ifndef _CIPHER_H
@@ -12,7 +23,6 @@
 #include <crypto/aes.h>
 #include <crypto/internal/hash.h>
 #include <crypto/aead.h>
-#include <crypto/arc4.h>
 #include <crypto/gcm.h>
 #include <crypto/sha.h>
 #include <crypto/sha3.h>
@@ -24,6 +34,9 @@
 /* Driver supports up to MAX_SPUS SPU blocks */
 #define MAX_SPUS 16
 
+#define ARC4_MIN_KEY_SIZE   1
+#define ARC4_MAX_KEY_SIZE   256
+#define ARC4_BLOCK_SIZE     1
 #define ARC4_STATE_SIZE     4
 
 #define CCM_AES_IV_SIZE    16
@@ -418,7 +431,7 @@ struct spu_hw {
 	u32 num_chan;
 };
 
-struct bcm_device_private {
+struct device_private {
 	struct platform_device *pdev;
 
 	struct spu_hw spu;
@@ -465,6 +478,6 @@ struct bcm_device_private {
 	struct mbox_chan **mbox;
 };
 
-extern struct bcm_device_private iproc_priv;
+extern struct device_private iproc_priv;
 
 #endif

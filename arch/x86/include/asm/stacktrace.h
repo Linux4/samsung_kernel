@@ -9,8 +9,6 @@
 
 #include <linux/uaccess.h>
 #include <linux/ptrace.h>
-
-#include <asm/cpu_entry_area.h>
 #include <asm/switch_to.h>
 
 enum stack_type {
@@ -78,7 +76,7 @@ static inline unsigned long *
 get_stack_pointer(struct task_struct *task, struct pt_regs *regs)
 {
 	if (regs)
-		return (unsigned long *)regs->sp;
+		return (unsigned long *)kernel_stack_pointer(regs);
 
 	if (task == current)
 		return __builtin_frame_address(0);
@@ -99,6 +97,19 @@ struct stack_frame_ia32 {
     u32 next_frame;
     u32 return_address;
 };
+
+static inline unsigned long caller_frame_pointer(void)
+{
+	struct stack_frame *frame;
+
+	frame = __builtin_frame_address(0);
+
+#ifdef CONFIG_FRAME_POINTER
+	frame = frame->next_frame;
+#endif
+
+	return (unsigned long)frame;
+}
 
 void show_opcodes(struct pt_regs *regs, const char *loglvl);
 void show_ip(struct pt_regs *regs, const char *loglvl);

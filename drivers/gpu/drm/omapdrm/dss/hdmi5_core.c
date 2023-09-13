@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * OMAP5 HDMI CORE IP driver library
  *
@@ -8,6 +7,18 @@
  *	Mythri pk
  *	Archit Taneja <archit@ti.com>
  *	Tomi Valkeinen <tomi.valkeinen@ti.com>
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <linux/kernel.h>
@@ -276,7 +287,7 @@ void hdmi5_core_dump(struct hdmi_core_data *core, struct seq_file *s)
 }
 
 static void hdmi_core_init(struct hdmi_core_vid_config *video_cfg,
-			   const struct hdmi_config *cfg)
+			struct hdmi_config *cfg)
 {
 	DSSDBG("hdmi_core_init\n");
 
@@ -314,10 +325,10 @@ static void hdmi_core_init(struct hdmi_core_vid_config *video_cfg,
 
 /* DSS_HDMI_CORE_VIDEO_CONFIG */
 static void hdmi_core_video_config(struct hdmi_core_data *core,
-			const struct hdmi_core_vid_config *cfg)
+			struct hdmi_core_vid_config *cfg)
 {
 	void __iomem *base = core->base;
-	const struct videomode *vm = &cfg->v_fc_config.vm;
+	struct videomode *vm = &cfg->v_fc_config.vm;
 	unsigned char r = 0;
 	bool vsync_pol, hsync_pol;
 

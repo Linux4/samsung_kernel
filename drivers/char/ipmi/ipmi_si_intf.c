@@ -19,8 +19,6 @@
  * and drives the real SMI state machine.
  */
 
-#define pr_fmt(fmt) "ipmi_si: " fmt
-
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/sched.h>
@@ -40,9 +38,10 @@
 #include <linux/ipmi.h>
 #include <linux/ipmi_smi.h>
 #include "ipmi_si.h"
-#include "ipmi_si_sm.h"
 #include <linux/string.h>
 #include <linux/ctype.h>
+
+#define PFX "ipmi_si: "
 
 /* Measure times between events in the driver. */
 #undef DEBUG_TIMING
@@ -72,7 +71,7 @@ enum si_intf_state {
 
 static const char * const si_to_str[] = { "invalid", "kcs", "smic", "bt" };
 
-static bool initialized;
+static int initialized;
 
 /*
  * Indexes into stats[] in smi_info below.
@@ -233,8 +232,14 @@ struct smi_info {
 	/* From the get device id response... */
 	struct ipmi_device_id device_id;
 
+	/* Default driver model device. */
+	struct platform_device *pdev;
+
 	/* Have we added the device group to the device? */
 	bool dev_group_added;
+
+	/* Have we added the platform device? */
+	bool pdev_registered;
 
 	/* Counters and things for the proc filesystem. */
 	atomic_t stats[SI_NUM_STATS];
@@ -265,10 +270,10 @@ static void cleanup_ipmi_si(void);
 #ifdef DEBUG_TIMING
 void debug_timestamp(char *msg)
 {
-	struct timespec t;
+	struct timespec64 t;
 
-	ktime_get_ts(&t);
-	pr_debug("**%s: %ld.%9.9ld\n", msg, (long) t.tv_sec, t.tv_nsec);
+	getnstimeofday64(&t);
+	pr_debug("**%s: %lld.%9.9ld\n", msg, (long long) t.tv_sec, t.tv_nsec);
 }
 #else
 #define debug_timestamp(x)
@@ -939,18 +944,18 @@ static void set_run_to_completion(void *send_info, bool i_run_to_completion)
  * we are spinning in kipmid looking for something and not delaying
  * between checks
  */
-static inline void ipmi_si_set_not_busy(struct timespec *ts)
+static inline void ipmi_si_set_not_busy(struct timespec64 *ts)
 {
 	ts->tv_nsec = -1;
 }
-static inline int ipmi_si_is_busy(struct timespec *ts)
+static inline int ipmi_si_is_busy(struct timespec64 *ts)
 {
 	return ts->tv_nsec != -1;
 }
 
-static inline bool ipmi_thread_busy_wait(enum si_sm_result smi_result,
-					 const struct smi_info *smi_info,
-					 struct timespec *busy_until)
+static inline int ipmi_thread_busy_wait(enum si_sm_result smi_result,
+					const struct smi_info *smi_info,
+					struct timespec64 *busy_until)
 {
 	unsigned int max_busy_us = 0;
 
@@ -959,18 +964,18 @@ static inline bool ipmi_thread_busy_wait(enum si_sm_result smi_result,
 	if (max_busy_us == 0 || smi_result != SI_SM_CALL_WITH_DELAY)
 		ipmi_si_set_not_busy(busy_until);
 	else if (!ipmi_si_is_busy(busy_until)) {
-		ktime_get_ts(busy_until);
-		timespec_add_ns(busy_until, max_busy_us * NSEC_PER_USEC);
+		getnstimeofday64(busy_until);
+		timespec64_add_ns(busy_until, max_busy_us*NSEC_PER_USEC);
 	} else {
-		struct timespec now;
+		struct timespec64 now;
 
-		ktime_get_ts(&now);
-		if (unlikely(timespec_compare(&now, busy_until) > 0)) {
+		getnstimeofday64(&now);
+		if (unlikely(timespec64_compare(&now, busy_until) > 0)) {
 			ipmi_si_set_not_busy(busy_until);
-			return false;
+			return 0;
 		}
 	}
-	return true;
+	return 1;
 }
 
 
@@ -988,7 +993,7 @@ static int ipmi_thread(void *data)
 	struct smi_info *smi_info = data;
 	unsigned long flags;
 	enum si_sm_result smi_result;
-	struct timespec busy_until = { 0, 0 };
+	struct timespec64 busy_until;
 
 	ipmi_si_set_not_busy(&busy_until);
 	set_user_nice(current, MAX_NICE);
@@ -1068,13 +1073,10 @@ static void request_events(void *send_info)
 	atomic_set(&smi_info->req_events, 1);
 }
 
-static void set_need_watch(void *send_info, unsigned int watch_mask)
+static void set_need_watch(void *send_info, bool enable)
 {
 	struct smi_info *smi_info = send_info;
 	unsigned long flags;
-	int enable;
-
-	enable = !!watch_mask;
 
 	atomic_set(&smi_info->need_watch, enable);
 	spin_lock_irqsave(&smi_info->si_lock, flags);
@@ -1281,12 +1283,12 @@ int ipmi_std_irq_setup(struct si_sm_io *io)
 	rv = request_irq(io->irq,
 			 ipmi_si_irq_handler,
 			 IRQF_SHARED,
-			 SI_DEVICE_NAME,
+			 DEVICE_NAME,
 			 io->irq_handler_data);
 	if (rv) {
 		dev_warn(io->dev, "%s unable to claim interrupt %d,"
 			 " running polled\n",
-			 SI_DEVICE_NAME, io->irq);
+			 DEVICE_NAME, io->irq);
 		io->irq = 0;
 	} else {
 		io->irq_cleanup = std_irq_cleanup;
@@ -1542,7 +1544,7 @@ static int try_enable_event_buffer(struct smi_info *smi_info)
 
 	rv = wait_for_msg_done(smi_info);
 	if (rv) {
-		pr_warn("Error getting response from get global enables command, the event buffer is not enabled\n");
+		pr_warn(PFX "Error getting response from get global enables command, the event buffer is not enabled.\n");
 		goto out;
 	}
 
@@ -1553,7 +1555,7 @@ static int try_enable_event_buffer(struct smi_info *smi_info)
 			resp[0] != (IPMI_NETFN_APP_REQUEST | 1) << 2 ||
 			resp[1] != IPMI_GET_BMC_GLOBAL_ENABLES_CMD   ||
 			resp[2] != 0) {
-		pr_warn("Invalid return from get global enables command, cannot enable the event buffer\n");
+		pr_warn(PFX "Invalid return from get global enables command, cannot enable the event buffer.\n");
 		rv = -EINVAL;
 		goto out;
 	}
@@ -1571,7 +1573,7 @@ static int try_enable_event_buffer(struct smi_info *smi_info)
 
 	rv = wait_for_msg_done(smi_info);
 	if (rv) {
-		pr_warn("Error getting response from set global, enables command, the event buffer is not enabled\n");
+		pr_warn(PFX "Error getting response from set global, enables command, the event buffer is not enabled.\n");
 		goto out;
 	}
 
@@ -1581,7 +1583,7 @@ static int try_enable_event_buffer(struct smi_info *smi_info)
 	if (resp_len < 3 ||
 			resp[0] != (IPMI_NETFN_APP_REQUEST | 1) << 2 ||
 			resp[1] != IPMI_SET_BMC_GLOBAL_ENABLES_CMD) {
-		pr_warn("Invalid return from get global, enables command, not enable the event buffer\n");
+		pr_warn(PFX "Invalid return from get global, enables command, not enable the event buffer.\n");
 		rv = -EINVAL;
 		goto out;
 	}
@@ -1601,37 +1603,37 @@ out:
 }
 
 #define IPMI_SI_ATTR(name) \
-static ssize_t name##_show(struct device *dev,			\
-			   struct device_attribute *attr,		\
-			   char *buf)					\
+static ssize_t ipmi_##name##_show(struct device *dev,			\
+				  struct device_attribute *attr,	\
+				  char *buf)				\
 {									\
 	struct smi_info *smi_info = dev_get_drvdata(dev);		\
 									\
 	return snprintf(buf, 10, "%u\n", smi_get_stat(smi_info, name));	\
 }									\
-static DEVICE_ATTR(name, 0444, name##_show, NULL)
+static DEVICE_ATTR(name, S_IRUGO, ipmi_##name##_show, NULL)
 
-static ssize_t type_show(struct device *dev,
-			 struct device_attribute *attr,
-			 char *buf)
+static ssize_t ipmi_type_show(struct device *dev,
+			      struct device_attribute *attr,
+			      char *buf)
 {
 	struct smi_info *smi_info = dev_get_drvdata(dev);
 
 	return snprintf(buf, 10, "%s\n", si_to_str[smi_info->io.si_type]);
 }
-static DEVICE_ATTR(type, 0444, type_show, NULL);
+static DEVICE_ATTR(type, S_IRUGO, ipmi_type_show, NULL);
 
-static ssize_t interrupts_enabled_show(struct device *dev,
-				       struct device_attribute *attr,
-				       char *buf)
+static ssize_t ipmi_interrupts_enabled_show(struct device *dev,
+					    struct device_attribute *attr,
+					    char *buf)
 {
 	struct smi_info *smi_info = dev_get_drvdata(dev);
 	int enabled = smi_info->io.irq && !smi_info->interrupt_disabled;
 
 	return snprintf(buf, 10, "%d\n", enabled);
 }
-static DEVICE_ATTR(interrupts_enabled, 0444,
-		   interrupts_enabled_show, NULL);
+static DEVICE_ATTR(interrupts_enabled, S_IRUGO,
+		   ipmi_interrupts_enabled_show, NULL);
 
 IPMI_SI_ATTR(short_timeouts);
 IPMI_SI_ATTR(long_timeouts);
@@ -1645,16 +1647,16 @@ IPMI_SI_ATTR(events);
 IPMI_SI_ATTR(watchdog_pretimeouts);
 IPMI_SI_ATTR(incoming_messages);
 
-static ssize_t params_show(struct device *dev,
-			   struct device_attribute *attr,
-			   char *buf)
+static ssize_t ipmi_params_show(struct device *dev,
+				struct device_attribute *attr,
+				char *buf)
 {
 	struct smi_info *smi_info = dev_get_drvdata(dev);
 
 	return snprintf(buf, 200,
 			"%s,%s,0x%lx,rsp=%d,rsi=%d,rsh=%d,irq=%d,ipmb=%d\n",
 			si_to_str[smi_info->io.si_type],
-			addr_space_to_str[smi_info->io.addr_space],
+			addr_space_to_str[smi_info->io.addr_type],
 			smi_info->io.addr_data,
 			smi_info->io.regspacing,
 			smi_info->io.regsize,
@@ -1662,7 +1664,7 @@ static ssize_t params_show(struct device *dev,
 			smi_info->io.irq,
 			smi_info->io.slave_addr);
 }
-static DEVICE_ATTR(params, 0444, params_show, NULL);
+static DEVICE_ATTR(params, S_IRUGO, ipmi_params_show, NULL);
 
 static struct attribute *ipmi_si_dev_attrs[] = {
 	&dev_attr_type.attr,
@@ -1843,7 +1845,8 @@ static inline void stop_timer_and_thread(struct smi_info *smi_info)
 	}
 
 	smi_info->timer_can_start = false;
-	del_timer_sync(&smi_info->si_timer);
+	if (smi_info->timer_running)
+		del_timer_sync(&smi_info->si_timer);
 }
 
 static struct smi_info *find_dup_si(struct smi_info *info)
@@ -1851,7 +1854,7 @@ static struct smi_info *find_dup_si(struct smi_info *info)
 	struct smi_info *e;
 
 	list_for_each_entry(e, &smi_infos, link) {
-		if (e->io.addr_space != info->io.addr_space)
+		if (e->io.addr_type != info->io.addr_type)
 			continue;
 		if (e->io.addr_data == info->io.addr_data) {
 			/*
@@ -1878,17 +1881,17 @@ int ipmi_si_add_smi(struct si_sm_io *io)
 	 * address, they presumably want us to use it and not what is
 	 * in the firmware.
 	 */
-	if (io->addr_source != SI_HARDCODED && io->addr_source != SI_HOTMOD &&
-	    ipmi_si_hardcode_match(io->addr_space, io->addr_data)) {
+	if (io->addr_source != SI_HARDCODED &&
+	    ipmi_si_hardcode_match(io->addr_type, io->addr_data)) {
 		dev_info(io->dev,
 			 "Hard-coded device at this address already exists");
 		return -ENODEV;
 	}
 
 	if (!io->io_setup) {
-		if (io->addr_space == IPMI_IO_ADDR_SPACE) {
+		if (io->addr_type == IPMI_IO_ADDR_SPACE) {
 			io->io_setup = ipmi_si_port_setup;
-		} else if (io->addr_space == IPMI_MEM_ADDR_SPACE) {
+		} else if (io->addr_type == IPMI_MEM_ADDR_SPACE) {
 			io->io_setup = ipmi_si_mem_setup;
 		} else {
 			return -EINVAL;
@@ -1923,7 +1926,7 @@ int ipmi_si_add_smi(struct si_sm_io *io)
 		}
 	}
 
-	pr_info("Adding %s-specified %s state machine\n",
+	pr_info(PFX "Adding %s-specified %s state machine\n",
 		ipmi_addr_src_to_str(new_smi->io.addr_source),
 		si_to_str[new_smi->io.si_type]);
 
@@ -1945,11 +1948,12 @@ static int try_smi_init(struct smi_info *new_smi)
 {
 	int rv = 0;
 	int i;
+	char *init_name = NULL;
 
-	pr_info("Trying %s-specified %s state machine at %s address 0x%lx, slave address 0x%x, irq %d\n",
+	pr_info(PFX "Trying %s-specified %s state machine at %s address 0x%lx, slave address 0x%x, irq %d\n",
 		ipmi_addr_src_to_str(new_smi->io.addr_source),
 		si_to_str[new_smi->io.si_type],
-		addr_space_to_str[new_smi->io.addr_space],
+		addr_space_to_str[new_smi->io.addr_type],
 		new_smi->io.addr_data,
 		new_smi->io.slave_addr, new_smi->io.irq);
 
@@ -1976,9 +1980,24 @@ static int try_smi_init(struct smi_info *new_smi)
 
 	/* Do this early so it's available for logs. */
 	if (!new_smi->io.dev) {
-		pr_err("IPMI interface added with no device\n");
-		rv = -EIO;
-		goto out_err;
+		init_name = kasprintf(GFP_KERNEL, "ipmi_si.%d",
+				      new_smi->si_num);
+
+		/*
+		 * If we don't already have a device from something
+		 * else (like PCI), then register a new one.
+		 */
+		new_smi->pdev = platform_device_alloc("ipmi_si",
+						      new_smi->si_num);
+		if (!new_smi->pdev) {
+			pr_err(PFX "Unable to allocate platform device\n");
+			rv = -ENOMEM;
+			goto out_err;
+		}
+		new_smi->io.dev = &new_smi->pdev->dev;
+		new_smi->io.dev->driver = &ipmi_platform_driver.driver;
+		/* Nulled by device_add() */
+		new_smi->io.dev->init_name = init_name;
 	}
 
 	/* Allocate the state machine's data and initialize it. */
@@ -2051,6 +2070,17 @@ static int try_smi_init(struct smi_info *new_smi)
 		atomic_set(&new_smi->req_events, 1);
 	}
 
+	if (new_smi->pdev && !new_smi->pdev_registered) {
+		rv = platform_device_add(new_smi->pdev);
+		if (rv) {
+			dev_err(new_smi->io.dev,
+				"Unable to register system interface device: %d\n",
+				rv);
+			goto out_err;
+		}
+		new_smi->pdev_registered = true;
+	}
+
 	dev_set_drvdata(new_smi->io.dev, new_smi);
 	rv = device_add_group(new_smi->io.dev, &ipmi_si_dev_attr_group);
 	if (rv) {
@@ -2086,6 +2116,7 @@ static int try_smi_init(struct smi_info *new_smi)
 		new_smi->io.io_cleanup = NULL;
 	}
 
+	kfree(init_name);
 	return rv;
 }
 
@@ -2098,8 +2129,7 @@ static int __init init_ipmi_si(void)
 		return 0;
 
 	ipmi_hardcode_init();
-
-	pr_info("IPMI System Interface driver\n");
+	pr_info("IPMI System Interface driver.\n");
 
 	ipmi_si_platform_init();
 
@@ -2138,7 +2168,7 @@ static int __init init_ipmi_si(void)
 	}
 
 skip_fallback_noirq:
-	initialized = true;
+	initialized = 1;
 	mutex_unlock(&smi_infos_lock);
 
 	if (type)
@@ -2148,7 +2178,7 @@ skip_fallback_noirq:
 	if (unload_when_empty && list_empty(&smi_infos)) {
 		mutex_unlock(&smi_infos_lock);
 		cleanup_ipmi_si();
-		pr_warn("Unable to find any System Interface(s)\n");
+		pr_warn(PFX "Unable to find any System Interface(s)\n");
 		return -ENODEV;
 	} else {
 		mutex_unlock(&smi_infos_lock);
@@ -2184,7 +2214,7 @@ static void shutdown_smi(void *send_info)
 	 * handlers might have been running before we freed the
 	 * interrupt.
 	 */
-	synchronize_rcu();
+	synchronize_sched();
 
 	/*
 	 * Timeouts are stopped, now make sure the interrupts are off
@@ -2233,6 +2263,13 @@ static void cleanup_one_si(struct smi_info *smi_info)
 	if (smi_info->intf)
 		ipmi_unregister_smi(smi_info->intf);
 
+	if (smi_info->pdev) {
+		if (smi_info->pdev_registered)
+			platform_device_unregister(smi_info->pdev);
+		else
+			platform_device_put(smi_info->pdev);
+	}
+
 	kfree(smi_info);
 }
 
@@ -2254,27 +2291,22 @@ int ipmi_si_remove_by_dev(struct device *dev)
 	return rv;
 }
 
-struct device *ipmi_si_remove_by_data(int addr_space, enum si_type si_type,
-				      unsigned long addr)
+void ipmi_si_remove_by_data(int addr_space, enum si_type si_type,
+			    unsigned long addr)
 {
 	/* remove */
 	struct smi_info *e, *tmp_e;
-	struct device *dev = NULL;
 
 	mutex_lock(&smi_infos_lock);
 	list_for_each_entry_safe(e, tmp_e, &smi_infos, link) {
-		if (e->io.addr_space != addr_space)
+		if (e->io.addr_type != addr_space)
 			continue;
 		if (e->io.si_type != si_type)
 			continue;
-		if (e->io.addr_data == addr) {
-			dev = get_device(e->io.dev);
+		if (e->io.addr_data == addr)
 			cleanup_one_si(e);
-		}
 	}
 	mutex_unlock(&smi_infos_lock);
-
-	return dev;
 }
 
 static void cleanup_ipmi_si(void)
@@ -2296,7 +2328,6 @@ static void cleanup_ipmi_si(void)
 	mutex_unlock(&smi_infos_lock);
 
 	ipmi_si_hardcode_exit();
-	ipmi_si_hotmod_exit();
 }
 module_exit(cleanup_ipmi_si);
 

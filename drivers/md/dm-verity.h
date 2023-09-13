@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (C) 2012 Red Hat, Inc.
  * Copyright (C) 2015 Google, Inc.
@@ -6,6 +5,8 @@
  * Author: Mikulas Patocka <mpatocka@redhat.com>
  *
  * Based on Chromium dm-verity driver (C) 2011 The Chromium OS Authors
+ *
+ * This file is released under the GPLv2.
  */
 
 #ifndef DM_VERITY_H
@@ -63,8 +64,6 @@ struct dm_verity {
 
 	struct dm_verity_fec *fec;	/* forward error correction */
 	unsigned long *validated_blocks; /* bitset blocks validated */
-
-	char *signature_key_desc; /* signature keyring reference */
 };
 
 struct dm_verity_io {

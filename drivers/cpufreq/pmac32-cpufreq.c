@@ -1,12 +1,16 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  Copyright (C) 2002 - 2005 Benjamin Herrenschmidt <benh@kernel.crashing.org>
  *  Copyright (C) 2004        John Steele Scott <toojays@toojays.net>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * TODO: Need a big cleanup here. Basically, we need to have different
  * cpufreq_driver structures for the different type of HW instead of the
  * current mess. We also need to better deal with the detection of the
  * type of machine.
+ *
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -124,7 +128,7 @@ static int cpu_750fx_cpu_speed(int low_speed)
 			mtspr(SPRN_HID2, hid2);
 		}
 	}
-#ifdef CONFIG_PPC_BOOK3S_32
+#ifdef CONFIG_6xx
 	low_choose_750fx_pll(low_speed);
 #endif
 	if (low_speed == 1) {
@@ -162,7 +166,7 @@ static int dfs_set_cpu_speed(int low_speed)
 	}
 
 	/* set frequency */
-#ifdef CONFIG_PPC_BOOK3S_32
+#ifdef CONFIG_6xx
 	low_choose_7447a_dfs(low_speed);
 #endif
 	udelay(100);
@@ -372,8 +376,7 @@ static int pmac_cpufreq_target(	struct cpufreq_policy *policy,
 
 static int pmac_cpufreq_cpu_init(struct cpufreq_policy *policy)
 {
-	cpufreq_generic_init(policy, pmac_cpu_freqs, transition_latency);
-	return 0;
+	return cpufreq_generic_init(policy, pmac_cpu_freqs, transition_latency);
 }
 
 static u32 read_gpio(struct device_node *np)
@@ -470,10 +473,6 @@ static int pmac_cpufreq_init_MacRISC3(struct device_node *cpunode)
 		frequency_gpio = read_gpio(freq_gpio_np);
 	if (slew_done_gpio_np)
 		slew_done_gpio = read_gpio(slew_done_gpio_np);
-
-	of_node_put(volt_gpio_np);
-	of_node_put(freq_gpio_np);
-	of_node_put(slew_done_gpio_np);
 
 	/* If we use the frequency GPIOs, calculate the min/max speeds based
 	 * on the bus frequencies

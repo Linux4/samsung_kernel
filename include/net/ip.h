@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * INET		An implementation of the TCP/IP protocol suite for the LINUX
  *		operating system.  INET is implemented using the  BSD Socket
@@ -14,6 +13,11 @@
  *
  * Changes:
  *		Mike McLagan    :       Routing by source
+ *
+ *		This program is free software; you can redistribute it and/or
+ *		modify it under the terms of the GNU General Public License
+ *		as published by the Free Software Foundation; either version
+ *		2 of the License, or (at your option) any later version.
  */
 #ifndef _IP_H
 #define _IP_H
@@ -30,16 +34,9 @@
 #include <net/flow.h>
 #include <net/flow_dissector.h>
 #include <net/netns/hash.h>
-#ifndef __GENKSYMS__
-#include <net/lwtunnel.h>
-#endif
 
 #define IPV4_MAX_PMTU		65535U		/* RFC 2675, Section 5.1 */
 #define IPV4_MIN_MTU		68			/* RFC 791 */
-
-extern unsigned int sysctl_fib_sync_mem;
-extern unsigned int sysctl_fib_sync_mem_min;
-extern unsigned int sysctl_fib_sync_mem_max;
 
 struct sock;
 
@@ -91,7 +88,6 @@ static inline void ipcm_init_sk(struct ipcm_cookie *ipcm,
 {
 	ipcm_init(ipcm);
 
-	ipcm->sockc.mark = inet->sk.sk_mark;
 	ipcm->sockc.tsflags = inet->sk.sk_tsflags;
 	ipcm->oif = inet->sk.sk_bound_dev_if;
 	ipcm->addr = inet->inet_saddr;
@@ -159,50 +155,11 @@ int ip_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt,
 void ip_list_rcv(struct list_head *head, struct packet_type *pt,
 		 struct net_device *orig_dev);
 int ip_local_deliver(struct sk_buff *skb);
-void ip_protocol_deliver_rcu(struct net *net, struct sk_buff *skb, int proto);
 int ip_mr_input(struct sk_buff *skb);
 int ip_output(struct net *net, struct sock *sk, struct sk_buff *skb);
 int ip_mc_output(struct net *net, struct sock *sk, struct sk_buff *skb);
 int ip_do_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
 		   int (*output)(struct net *, struct sock *, struct sk_buff *));
-
-struct ip_fraglist_iter {
-	struct sk_buff	*frag;
-	struct iphdr	*iph;
-	int		offset;
-	unsigned int	hlen;
-};
-
-void ip_fraglist_init(struct sk_buff *skb, struct iphdr *iph,
-		      unsigned int hlen, struct ip_fraglist_iter *iter);
-void ip_fraglist_prepare(struct sk_buff *skb, struct ip_fraglist_iter *iter);
-
-static inline struct sk_buff *ip_fraglist_next(struct ip_fraglist_iter *iter)
-{
-	struct sk_buff *skb = iter->frag;
-
-	iter->frag = skb->next;
-	skb_mark_not_on_list(skb);
-
-	return skb;
-}
-
-struct ip_frag_state {
-	bool		DF;
-	unsigned int	hlen;
-	unsigned int	ll_rs;
-	unsigned int	mtu;
-	unsigned int	left;
-	int		offset;
-	int		ptr;
-	__be16		not_last_frag;
-};
-
-void ip_frag_init(struct sk_buff *skb, unsigned int hlen, unsigned int ll_rs,
-		  unsigned int mtu, bool DF, struct ip_frag_state *state);
-struct sk_buff *ip_frag_next(struct sk_buff *skb,
-			     struct ip_frag_state *state);
-
 void ip_send_check(struct iphdr *ip);
 int __ip_local_out(struct net *net, struct sock *sk, struct sk_buff *skb);
 int ip_local_out(struct net *net, struct sock *sk, struct sk_buff *skb);
@@ -283,7 +240,7 @@ void ip_send_unicast_reply(struct sock *sk, struct sk_buff *skb,
 			   const struct ip_options *sopt,
 			   __be32 daddr, __be32 saddr,
 			   const struct ip_reply_arg *arg,
-			   unsigned int len, u64 transmit_time);
+			   unsigned int len);
 
 #define IP_INC_STATS(net, field)	SNMP_INC_STATS64((net)->mib.ip_statistics, field)
 #define __IP_INC_STATS(net, field)	__SNMP_INC_STATS64((net)->mib.ip_statistics, field)
@@ -349,13 +306,6 @@ static inline int inet_is_local_reserved_port(struct net *net, int port)
 	return test_bit(port, net->ipv4.sysctl_local_reserved_ports);
 }
 
-static inline bool inet_is_local_unbindable_port(struct net *net, unsigned short port)
-{
-	if (!net->ipv4.sysctl_local_unbindable_ports)
-		return false;
-	return test_bit(port, net->ipv4.sysctl_local_unbindable_ports);
-}
-
 static inline bool sysctl_dev_name_is_allowed(const char *name)
 {
 	return strcmp(name, "default") != 0  && strcmp(name, "all") != 0;
@@ -370,11 +320,6 @@ static inline int inet_prot_sock(struct net *net)
 static inline int inet_is_local_reserved_port(struct net *net, int port)
 {
 	return 0;
-}
-
-static inline bool inet_is_local_unbindable_port(struct net *net, unsigned short port)
-{
-	return false;
 }
 
 static inline int inet_prot_sock(struct net *net)
@@ -395,7 +340,7 @@ void ipfrag_init(void);
 void ip_static_sysctl_init(void);
 
 #define IP4_REPLY_MARK(net, mark) \
-	(READ_ONCE((net)->ipv4.sysctl_fwmark_reflect) ? (mark) : 0)
+	((net)->ipv4.sysctl_fwmark_reflect ? (mark) : 0)
 
 static inline bool ip_is_fragment(const struct iphdr *iph)
 {
@@ -454,66 +399,29 @@ static inline unsigned int ip_dst_mtu_maybe_forward(const struct dst_entry *dst,
 						    bool forwarding)
 {
 	struct net *net = dev_net(dst->dev);
-	unsigned int mtu;
 
-	if (READ_ONCE(net->ipv4.sysctl_ip_fwd_use_pmtu) ||
+	if (net->ipv4.sysctl_ip_fwd_use_pmtu ||
 	    ip_mtu_locked(dst) ||
 	    !forwarding)
 		return dst_mtu(dst);
 
-	/* 'forwarding = true' case should always honour route mtu */
-	mtu = dst_metric_raw(dst, RTAX_MTU);
-	if (!mtu)
-		mtu = min(READ_ONCE(dst->dev->mtu), IP_MAX_MTU);
-
-	return mtu - lwtunnel_headroom(dst->lwtstate, mtu);
+	return min(READ_ONCE(dst->dev->mtu), IP_MAX_MTU);
 }
 
 static inline unsigned int ip_skb_dst_mtu(struct sock *sk,
 					  const struct sk_buff *skb)
 {
-	unsigned int mtu;
-
 	if (!sk || !sk_fullsock(sk) || ip_sk_use_pmtu(sk)) {
 		bool forwarding = IPCB(skb)->flags & IPSKB_FORWARDED;
 
 		return ip_dst_mtu_maybe_forward(skb_dst(skb), forwarding);
 	}
 
-	mtu = min(READ_ONCE(skb_dst(skb)->dev->mtu), IP_MAX_MTU);
-	return mtu - lwtunnel_headroom(skb_dst(skb)->lwtstate, mtu);
+	return min(READ_ONCE(skb_dst(skb)->dev->mtu), IP_MAX_MTU);
 }
 
-struct dst_metrics *ip_fib_metrics_init(struct net *net, struct nlattr *fc_mx,
-					int fc_mx_len,
-					struct netlink_ext_ack *extack);
-static inline void ip_fib_metrics_put(struct dst_metrics *fib_metrics)
-{
-	if (fib_metrics != &dst_default_metrics &&
-	    refcount_dec_and_test(&fib_metrics->refcnt))
-		kfree(fib_metrics);
-}
-
-/* ipv4 and ipv6 both use refcounted metrics if it is not the default */
-static inline
-void ip_dst_init_metrics(struct dst_entry *dst, struct dst_metrics *fib_metrics)
-{
-	dst_init_metrics(dst, fib_metrics->metrics, true);
-
-	if (fib_metrics != &dst_default_metrics) {
-		dst->_metrics |= DST_METRICS_REFCOUNTED;
-		refcount_inc(&fib_metrics->refcnt);
-	}
-}
-
-static inline
-void ip_dst_metrics_put(struct dst_entry *dst)
-{
-	struct dst_metrics *p = (struct dst_metrics *)DST_METRICS_PTR(dst);
-
-	if (p != &dst_default_metrics && refcount_dec_and_test(&p->refcnt))
-		kfree(p);
-}
+int ip_metrics_convert(struct net *net, struct nlattr *fc_mx, int fc_mx_len,
+		       u32 *metrics);
 
 u32 ip_idents_reserve(u32 hash, int segs);
 void __ip_select_ident(struct net *net, struct iphdr *iph, int segs);
@@ -523,18 +431,19 @@ static inline void ip_select_ident_segs(struct net *net, struct sk_buff *skb,
 {
 	struct iphdr *iph = ip_hdr(skb);
 
-	/* We had many attacks based on IPID, use the private
-	 * generator as much as we can.
-	 */
-	if (sk && inet_sk(sk)->inet_daddr) {
-		iph->id = htons(inet_sk(sk)->inet_id);
-		inet_sk(sk)->inet_id += segs;
-		return;
-	}
 	if ((iph->frag_off & htons(IP_DF)) && !skb->ignore_df) {
-		iph->id = 0;
+		/* This is only to work around buggy Windows95/2000
+		 * VJ compression implementations.  If the ID field
+		 * does not change, they drop every other packet in
+		 * a TCP stream using header compression.
+		 */
+		if (sk && inet_sk(sk)->inet_daddr) {
+			iph->id = htons(inet_sk(sk)->inet_id);
+			inet_sk(sk)->inet_id += segs;
+		} else {
+			iph->id = 0;
+		}
 	} else {
-		/* Unfortunately we need the big hammer to get a suitable IPID */
 		__ip_select_ident(net, iph, segs);
 	}
 }

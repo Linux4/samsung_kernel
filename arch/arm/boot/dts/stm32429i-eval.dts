@@ -61,7 +61,6 @@
 	};
 
 	memory {
-		device_type = "memory";
 		reg = <0x00000000 0x2000000>;
 	};
 
@@ -81,18 +80,18 @@
 		dma-ranges = <0xc0000000 0x0 0x10000000>;
 	};
 
-	vdda: regulator-vdda {
-		compatible = "regulator-fixed";
-		regulator-name = "vdda";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-	};
+	regulators {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
 
-	vref: regulator-vref {
-		compatible = "regulator-fixed";
-		regulator-name = "vref";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
+		reg_vref: regulator@0 {
+			compatible = "regulator-fixed";
+			reg = <0>;
+			regulator-name = "vref";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+		};
 	};
 
 	leds {
@@ -112,15 +111,17 @@
 		};
 	};
 
-	gpio-keys {
+	gpio_keys {
 		compatible = "gpio-keys";
+		#address-cells = <1>;
+		#size-cells = <0>;
 		autorepeat;
-		button-0 {
+		button@0 {
 			label = "Wake up";
 			linux,code = <KEY_WAKEUP>;
 			gpios = <&gpioa 0 0>;
 		};
-		button-1 {
+		button@1 {
 			label = "Tamper";
 			linux,code = <KEY_RESTART>;
 			gpios = <&gpioc 13 0>;
@@ -155,8 +156,7 @@
 &adc {
 	pinctrl-names = "default";
 	pinctrl-0 = <&adc3_in8_pin>;
-	vdda-supply = <&vdda>;
-	vref-supply = <&vref>;
+	vref-supply = <&reg_vref>;
 	status = "okay";
 	adc3: adc@200 {
 		st,adc-channels = <8>;
@@ -264,7 +264,8 @@
 &sdio {
 	status = "okay";
 	vmmc-supply = <&mmc_vcard>;
-	cd-gpios = <&stmpegpio 15 GPIO_ACTIVE_LOW>;
+	cd-gpios = <&stmpegpio 15 GPIO_ACTIVE_HIGH>;
+	cd-inverted;
 	pinctrl-names = "default", "opendrain";
 	pinctrl-0 = <&sdio_pins>;
 	pinctrl-1 = <&sdio_pins_od>;

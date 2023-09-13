@@ -24,7 +24,6 @@
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/usb.h>
-#include <linux/usb/input.h>
 #include <linux/slab.h>
 #include <linux/bitrev.h>
 
@@ -59,6 +58,7 @@ struct em28xx_ir_poll_result {
 struct em28xx_IR {
 	struct em28xx *dev;
 	struct rc_dev *rc;
+	char name[32];
 	char phys[32];
 
 	/* poll decoder */
@@ -277,8 +277,21 @@ static int em2874_polling_getkey(struct em28xx_IR *ir,
 		break;
 
 	case RC_PROTO_BIT_NEC:
-		poll_result->scancode = ir_nec_bytes_to_scancode(msg[1], msg[2], msg[3], msg[4],
-								 &poll_result->protocol);
+		poll_result->scancode = msg[1] << 8 | msg[2];
+		if ((msg[3] ^ msg[4]) != 0xff) {	/* 32 bits NEC */
+			poll_result->protocol = RC_PROTO_NEC32;
+			poll_result->scancode = RC_SCANCODE_NEC32((msg[1] << 24) |
+								  (msg[2] << 16) |
+								  (msg[3] << 8)  |
+								  (msg[4]));
+		} else if ((msg[1] ^ msg[2]) != 0xff) {	/* 24 bits NEC */
+			poll_result->protocol = RC_PROTO_NECX;
+			poll_result->scancode = RC_SCANCODE_NECX(msg[1] << 8 |
+								 msg[2], msg[3]);
+		} else {				/* Normal NEC */
+			poll_result->protocol = RC_PROTO_NEC;
+			poll_result->scancode = RC_SCANCODE_NEC(msg[1], msg[3]);
+		}
 		break;
 
 	case RC_PROTO_BIT_RC6_0:
@@ -486,7 +499,7 @@ static int em28xx_probe_i2c_ir(struct em28xx *dev)
 	 * at address 0x18, so if that address is needed for another board in
 	 * the future, please put it after 0x1f.
 	 */
-	static const unsigned short addr_list[] = {
+	const unsigned short addr_list[] = {
 		 0x1f, 0x30, 0x47, I2C_CLIENT_END
 	};
 
@@ -604,7 +617,10 @@ static int em28xx_register_snapshot_button(struct em28xx *dev)
 	set_bit(EM28XX_SNAPSHOT_KEY, input_dev->keybit);
 	input_dev->keycodesize = 0;
 	input_dev->keycodemax = 0;
-	usb_to_input_id(udev, &input_dev->id);
+	input_dev->id.bustype = BUS_USB;
+	input_dev->id.vendor = le16_to_cpu(udev->descriptor.idVendor);
+	input_dev->id.product = le16_to_cpu(udev->descriptor.idProduct);
+	input_dev->id.version = 1;
 	input_dev->dev.parent = &dev->intf->dev;
 
 	err = input_register_device(input_dev);
@@ -720,8 +736,7 @@ static int em28xx_ir_init(struct em28xx *dev)
 			dev->board.has_ir_i2c = 0;
 			dev_warn(&dev->intf->dev,
 				 "No i2c IR remote control device found.\n");
-			err = -ENODEV;
-			goto ref_put;
+			return -ENODEV;
 		}
 	}
 
@@ -736,7 +751,7 @@ static int em28xx_ir_init(struct em28xx *dev)
 
 	ir = kzalloc(sizeof(*ir), GFP_KERNEL);
 	if (!ir)
-		goto ref_put;
+		return -ENOMEM;
 	rc = rc_allocate_device(RC_DRIVER_SCANCODE);
 	if (!rc)
 		goto error;
@@ -817,12 +832,19 @@ static int em28xx_ir_init(struct em28xx *dev)
 	/* This is how often we ask the chip for IR information */
 	ir->polling = 100; /* ms */
 
+	/* init input device */
+	snprintf(ir->name, sizeof(ir->name), "%s IR",
+		 dev_name(&dev->intf->dev));
+
 	usb_make_path(udev, ir->phys, sizeof(ir->phys));
 	strlcat(ir->phys, "/input0", sizeof(ir->phys));
 
-	rc->device_name = em28xx_boards[dev->model].name;
+	rc->device_name = ir->name;
 	rc->input_phys = ir->phys;
-	usb_to_input_id(udev, &rc->input_id);
+	rc->input_id.bustype = BUS_USB;
+	rc->input_id.version = 1;
+	rc->input_id.vendor = le16_to_cpu(udev->descriptor.idVendor);
+	rc->input_id.product = le16_to_cpu(udev->descriptor.idProduct);
 	rc->dev.parent = &dev->intf->dev;
 	rc->driver_name = MODULE_NAME;
 
@@ -840,8 +862,6 @@ error:
 	dev->ir = NULL;
 	rc_free_device(rc);
 	kfree(ir);
-ref_put:
-	em28xx_shutdown_buttons(dev);
 	return err;
 }
 

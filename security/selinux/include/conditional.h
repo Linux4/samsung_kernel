@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Interface to booleans in the security server. This is exported
  * for the selinuxfs.
@@ -6,6 +5,9 @@
  * Author: Karl MacMillan <kmacmillan@tresys.com>
  *
  * Copyright (C) 2003 - 2004 Tresys Technology, LLC
+ *	This program is free software; you can redistribute it and/or modify
+ *  	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation, version 2.
  */
 
 #ifndef _SELINUX_CONDITIONAL_H_

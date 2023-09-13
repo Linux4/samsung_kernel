@@ -1,8 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  linux/arch/arm/kernel/setup.c
  *
  *  Copyright (C) 1995-2001 Russell King
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 #include <linux/efi.h>
 #include <linux/export.h>
@@ -13,12 +16,12 @@
 #include <linux/utsname.h>
 #include <linux/initrd.h>
 #include <linux/console.h>
+#include <linux/bootmem.h>
 #include <linux/seq_file.h>
 #include <linux/screen_info.h>
 #include <linux/of_platform.h>
 #include <linux/init.h>
 #include <linux/kexec.h>
-#include <linux/libfdt.h>
 #include <linux/of_fdt.h>
 #include <linux/cpu.h>
 #include <linux/interrupt.h>
@@ -544,11 +547,9 @@ void notrace cpu_init(void)
 	 * In Thumb-2, msr with an immediate value is not allowed.
 	 */
 #ifdef CONFIG_THUMB2_KERNEL
-#define PLC_l	"l"
-#define PLC_r	"r"
+#define PLC	"r"
 #else
-#define PLC_l	"I"
-#define PLC_r	"I"
+#define PLC	"I"
 #endif
 
 	/*
@@ -570,15 +571,15 @@ void notrace cpu_init(void)
 	"msr	cpsr_c, %9"
 	    :
 	    : "r" (stk),
-	      PLC_r (PSR_F_BIT | PSR_I_BIT | IRQ_MODE),
+	      PLC (PSR_F_BIT | PSR_I_BIT | IRQ_MODE),
 	      "I" (offsetof(struct stack, irq[0])),
-	      PLC_r (PSR_F_BIT | PSR_I_BIT | ABT_MODE),
+	      PLC (PSR_F_BIT | PSR_I_BIT | ABT_MODE),
 	      "I" (offsetof(struct stack, abt[0])),
-	      PLC_r (PSR_F_BIT | PSR_I_BIT | UND_MODE),
+	      PLC (PSR_F_BIT | PSR_I_BIT | UND_MODE),
 	      "I" (offsetof(struct stack, und[0])),
-	      PLC_r (PSR_F_BIT | PSR_I_BIT | FIQ_MODE),
+	      PLC (PSR_F_BIT | PSR_I_BIT | FIQ_MODE),
 	      "I" (offsetof(struct stack, fiq[0])),
-	      PLC_l (PSR_F_BIT | PSR_I_BIT | SVC_MODE)
+	      PLC (PSR_F_BIT | PSR_I_BIT | SVC_MODE)
 	    : "r14");
 #endif
 }
@@ -866,10 +867,7 @@ static void __init request_standard_resources(const struct machine_desc *mdesc)
 		 */
 		boot_alias_start = phys_to_idmap(start);
 		if (arm_has_idmap_alias() && boot_alias_start != IDMAP_INVALID_ADDR) {
-			res = memblock_alloc(sizeof(*res), SMP_CACHE_BYTES);
-			if (!res)
-				panic("%s: Failed to allocate %zu bytes\n",
-				      __func__, sizeof(*res));
+			res = memblock_virt_alloc(sizeof(*res), 0);
 			res->name = "System RAM (boot alias)";
 			res->start = boot_alias_start;
 			res->end = phys_to_idmap(end);
@@ -877,10 +875,7 @@ static void __init request_standard_resources(const struct machine_desc *mdesc)
 			request_resource(&iomem_resource, res);
 		}
 
-		res = memblock_alloc(sizeof(*res), SMP_CACHE_BYTES);
-		if (!res)
-			panic("%s: Failed to allocate %zu bytes\n", __func__,
-			      sizeof(*res));
+		res = memblock_virt_alloc(sizeof(*res), 0);
 		res->name  = "System RAM";
 		res->start = start;
 		res->end = end;
@@ -1076,43 +1071,21 @@ void __init hyp_mode_check(void)
 #endif
 }
 
-static void (*__arm_pm_restart)(enum reboot_mode reboot_mode, const char *cmd);
-
-static int arm_restart(struct notifier_block *nb, unsigned long action,
-		       void *data)
-{
-	__arm_pm_restart(action, data);
-	return NOTIFY_DONE;
-}
-
-static struct notifier_block arm_restart_nb = {
-	.notifier_call = arm_restart,
-	.priority = 128,
-};
-
 void __init setup_arch(char **cmdline_p)
 {
-	const struct machine_desc *mdesc = NULL;
-	void *atags_vaddr = NULL;
-
-	if (__atags_pointer)
-		atags_vaddr = FDT_VIRT_BASE(__atags_pointer);
+	const struct machine_desc *mdesc;
 
 	setup_processor();
-	if (atags_vaddr) {
-		mdesc = setup_machine_fdt(atags_vaddr);
-		if (mdesc)
-			memblock_reserve(__atags_pointer,
-					 fdt_totalsize(atags_vaddr));
-	}
+	mdesc = setup_machine_fdt(__atags_pointer);
 	if (!mdesc)
-		mdesc = setup_machine_tags(atags_vaddr, __machine_arch_type);
+		mdesc = setup_machine_tags(__atags_pointer, __machine_arch_type);
 	if (!mdesc) {
 		early_print("\nError: invalid dtb and unrecognized/unsupported machine ID\n");
 		early_print("  r1=0x%08x, r2=0x%08x\n", __machine_arch_type,
 			    __atags_pointer);
 		if (__atags_pointer)
-			early_print("  r2[]=%*ph\n", 16, atags_vaddr);
+			early_print("  r2[]=%*ph\n", 16,
+				    phys_to_virt(__atags_pointer));
 		dump_machine_table();
 	}
 
@@ -1157,10 +1130,8 @@ void __init setup_arch(char **cmdline_p)
 	paging_init(mdesc);
 	request_standard_resources(mdesc);
 
-	if (mdesc->restart) {
-		__arm_pm_restart = mdesc->restart;
-		register_restart_handler(&arm_restart_nb);
-	}
+	if (mdesc->restart)
+		arm_pm_restart = mdesc->restart;
 
 	unflatten_device_tree();
 

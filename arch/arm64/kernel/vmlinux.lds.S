@@ -5,15 +5,6 @@
  * Written by Martin Mares <mj@atrey.karlin.mff.cuni.cz>
  */
 
-#ifdef CONFIG_QCOM_RTIC
-#define BSS_FIRST_SECTIONS				\
-	. = ALIGN(PAGE_SIZE);				\
-	KEEP(*(.bss.rtic))				\
-	. = ALIGN(PAGE_SIZE);
-#else
-#define BSS_FIRST_SECTIONS
-#endif
-
 #include <asm-generic/vmlinux.lds.h>
 #include <asm/cache.h>
 #include <asm/kernel-pgtable.h>
@@ -33,13 +24,6 @@ ENTRY(_text)
 
 jiffies = jiffies_64;
 
-
-#define HYPERVISOR_EXTABLE					\
-	. = ALIGN(SZ_8);					\
-	__start___kvm_ex_table = .;				\
-	*(__kvm_ex_table)					\
-	__stop___kvm_ex_table = .;
-
 #define HYPERVISOR_TEXT					\
 	/*						\
 	 * Align to 4 KB so that			\
@@ -55,7 +39,6 @@ jiffies = jiffies_64;
 	__hyp_idmap_text_end = .;			\
 	__hyp_text_start = .;				\
 	*(.hyp.text)					\
-	HYPERVISOR_EXTABLE				\
 	__hyp_text_end = .;
 
 #define IDMAP_TEXT					\
@@ -156,33 +139,14 @@ SECTIONS
 	EXCEPTION_TABLE(8)		/* __init_begin will be marked RO NX */
 	NOTES
 
-	. = ALIGN(PAGE_SIZE);
-	idmap_pg_dir = .;
-	. += IDMAP_DIR_SIZE;
-	idmap_pg_end = .;
-
-#ifdef CONFIG_UNMAP_KERNEL_AT_EL0
-	tramp_pg_dir = .;
-	. += PAGE_SIZE;
-#endif
-
-	reserved_pg_dir = .;
-	. += PAGE_SIZE;
-
-	swapper_pg_dir = .;
-	. += PAGE_SIZE;
-
 	. = ALIGN(SEGMENT_ALIGN);
 	__init_begin = .;
 	__inittext_begin = .;
 
 	INIT_TEXT_SECTION(8)
-
-	__exittext_begin = .;
 	.exit.text : {
 		ARM_EXIT_KEEP(EXIT_TEXT)
 	}
-	__exittext_end = .;
 
 	. = ALIGN(4);
 	.altinstructions : {
@@ -203,6 +167,7 @@ SECTIONS
 		INIT_SETUP(16)
 		INIT_CALLS
 		CON_INITCALL
+		SECURITY_INITCALL
 		INIT_RAM_FS
 		*(.init.rodata.* .init.bss)	/* from the EFI stub */
 	}
@@ -218,15 +183,6 @@ SECTIONS
 
 	__rela_offset	= ABSOLUTE(ADDR(.rela.dyn) - KIMAGE_VADDR);
 	__rela_size	= SIZEOF(.rela.dyn);
-
-#ifdef CONFIG_RELR
-	.relr.dyn : ALIGN(8) {
-		*(.relr.dyn)
-	}
-
-	__relr_offset	= ABSOLUTE(ADDR(.relr.dyn) - KIMAGE_VADDR);
-	__relr_size	= SIZEOF(.relr.dyn);
-#endif
 
 	. = ALIGN(SEGMENT_ALIGN);
 	__initdata_end = .;
@@ -265,9 +221,21 @@ SECTIONS
 	BSS_SECTION(0, 0, 0)
 
 	. = ALIGN(PAGE_SIZE);
-	init_pg_dir = .;
-	. += INIT_DIR_SIZE;
-	init_pg_end = .;
+	idmap_pg_dir = .;
+	. += IDMAP_DIR_SIZE;
+
+#ifdef CONFIG_UNMAP_KERNEL_AT_EL0
+	tramp_pg_dir = .;
+	. += PAGE_SIZE;
+#endif
+
+#ifdef CONFIG_ARM64_SW_TTBR0_PAN
+	reserved_ttbr0 = .;
+	. += RESERVED_TTBR0_SIZE;
+#endif
+	swapper_pg_dir = .;
+	. += SWAPPER_DIR_SIZE;
+	swapper_pg_end = .;
 
 	__pecoff_data_size = ABSOLUTE(. - __initdata_begin);
 	_end = .;
@@ -276,8 +244,6 @@ SECTIONS
 
 	HEAD_SYMBOLS
 }
-
-#include "image-vars.h"
 
 /*
  * The HYP init code and ID map text can't be longer than a page each,

@@ -37,8 +37,6 @@
 #include <linux/device.h>
 #include <linux/netdevice.h>
 
-#include <rdma/ib_verbs.h>
-
 extern struct _ddebug __start___verbose[];
 extern struct _ddebug __stop___verbose[];
 
@@ -87,22 +85,22 @@ static struct { unsigned flag:8; char opt_char; } opt_array[] = {
 	{ _DPRINTK_FLAGS_NONE, '_' },
 };
 
-struct flagsbuf { char buf[ARRAY_SIZE(opt_array)+1]; };
-
 /* format a string into buf[] which describes the _ddebug's flags */
-static char *ddebug_describe_flags(unsigned int flags, struct flagsbuf *fb)
+static char *ddebug_describe_flags(struct _ddebug *dp, char *buf,
+				    size_t maxlen)
 {
-	char *p = fb->buf;
+	char *p = buf;
 	int i;
 
+	BUG_ON(maxlen < 6);
 	for (i = 0; i < ARRAY_SIZE(opt_array); ++i)
-		if (flags & opt_array[i].flag)
+		if (dp->flags & opt_array[i].flag)
 			*p++ = opt_array[i].opt_char;
-	if (p == fb->buf)
+	if (p == buf)
 		*p++ = '_';
 	*p = '\0';
 
-	return fb->buf;
+	return buf;
 }
 
 #define vpr_info(fmt, ...)					\
@@ -144,7 +142,7 @@ static int ddebug_change(const struct ddebug_query *query,
 	struct ddebug_table *dt;
 	unsigned int newflags;
 	unsigned int nfound = 0;
-	struct flagsbuf fbuf;
+	char flagbuf[10];
 
 	/* search for matching ddebugs */
 	mutex_lock(&ddebug_lock);
@@ -201,7 +199,8 @@ static int ddebug_change(const struct ddebug_query *query,
 			vpr_info("changed %s:%d [%s]%s =%s\n",
 				 trim_prefix(dp->filename), dp->lineno,
 				 dt->mod_name, dp->function,
-				 ddebug_describe_flags(dp->flags, &fbuf));
+				 ddebug_describe_flags(dp, flagbuf,
+						       sizeof(flagbuf)));
 		}
 	}
 	mutex_unlock(&ddebug_lock);
@@ -637,41 +636,6 @@ EXPORT_SYMBOL(__dynamic_netdev_dbg);
 
 #endif
 
-#if IS_ENABLED(CONFIG_INFINIBAND)
-
-void __dynamic_ibdev_dbg(struct _ddebug *descriptor,
-			 const struct ib_device *ibdev, const char *fmt, ...)
-{
-	struct va_format vaf;
-	va_list args;
-
-	va_start(args, fmt);
-
-	vaf.fmt = fmt;
-	vaf.va = &args;
-
-	if (ibdev && ibdev->dev.parent) {
-		char buf[PREFIX_SIZE];
-
-		dev_printk_emit(LOGLEVEL_DEBUG, ibdev->dev.parent,
-				"%s%s %s %s: %pV",
-				dynamic_emit_prefix(descriptor, buf),
-				dev_driver_string(ibdev->dev.parent),
-				dev_name(ibdev->dev.parent),
-				dev_name(&ibdev->dev),
-				&vaf);
-	} else if (ibdev) {
-		printk(KERN_DEBUG "%s: %pV", dev_name(&ibdev->dev), &vaf);
-	} else {
-		printk(KERN_DEBUG "(NULL ib_device): %pV", &vaf);
-	}
-
-	va_end(args);
-}
-EXPORT_SYMBOL(__dynamic_ibdev_dbg);
-
-#endif
-
 #define DDEBUG_STRING_SIZE 1024
 static __initdata char ddebug_setup_string[DDEBUG_STRING_SIZE];
 
@@ -815,7 +779,7 @@ static int ddebug_proc_show(struct seq_file *m, void *p)
 {
 	struct ddebug_iter *iter = m->private;
 	struct _ddebug *dp = p;
-	struct flagsbuf flags;
+	char flagsbuf[10];
 
 	vpr_info("called m=%p p=%p\n", m, p);
 
@@ -828,7 +792,7 @@ static int ddebug_proc_show(struct seq_file *m, void *p)
 	seq_printf(m, "%s:%u [%s]%s =%s \"",
 		   trim_prefix(dp->filename), dp->lineno,
 		   iter->table->mod_name, dp->function,
-		   ddebug_describe_flags(dp->flags, &flags));
+		   ddebug_describe_flags(dp, flagsbuf, sizeof(flagsbuf)));
 	seq_escape(m, dp->format, "\t\r\n\"");
 	seq_puts(m, "\"\n");
 
@@ -883,19 +847,17 @@ int ddebug_add_module(struct _ddebug *tab, unsigned int n,
 			     const char *name)
 {
 	struct ddebug_table *dt;
+	const char *new_name;
 
 	dt = kzalloc(sizeof(*dt), GFP_KERNEL);
-	if (dt == NULL) {
-		pr_err("error adding module: %s\n", name);
+	if (dt == NULL)
+		return -ENOMEM;
+	new_name = kstrdup_const(name, GFP_KERNEL);
+	if (new_name == NULL) {
+		kfree(dt);
 		return -ENOMEM;
 	}
-	/*
-	 * For built-in modules, name lives in .rodata and is
-	 * immortal. For loaded modules, name points at the name[]
-	 * member of struct module, which lives at least as long as
-	 * this struct ddebug_table.
-	 */
-	dt->mod_name = name;
+	dt->mod_name = new_name;
 	dt->num_ddebugs = n;
 	dt->ddebugs = tab;
 
@@ -906,6 +868,7 @@ int ddebug_add_module(struct _ddebug *tab, unsigned int n,
 	vpr_info("%u debug prints in module %s\n", n, dt->mod_name);
 	return 0;
 }
+EXPORT_SYMBOL_GPL(ddebug_add_module);
 
 /* helper for ddebug_dyndbg_(boot|module)_param_cb */
 static int ddebug_dyndbg_param_cb(char *param, char *val,
@@ -950,6 +913,7 @@ int ddebug_dyndbg_module_param_cb(char *param, char *val, const char *module)
 static void ddebug_table_free(struct ddebug_table *dt)
 {
 	list_del_init(&dt->link);
+	kfree_const(dt->mod_name);
 	kfree(dt);
 }
 
@@ -966,15 +930,15 @@ int ddebug_remove_module(const char *mod_name)
 
 	mutex_lock(&ddebug_lock);
 	list_for_each_entry_safe(dt, nextdt, &ddebug_tables, link) {
-		if (dt->mod_name == mod_name) {
+		if (!strcmp(dt->mod_name, mod_name)) {
 			ddebug_table_free(dt);
 			ret = 0;
-			break;
 		}
 	}
 	mutex_unlock(&ddebug_lock);
 	return ret;
 }
+EXPORT_SYMBOL_GPL(ddebug_remove_module);
 
 static void ddebug_remove_all_tables(void)
 {
@@ -990,26 +954,22 @@ static void ddebug_remove_all_tables(void)
 
 static __initdata int ddebug_init_success;
 
-static int __init dynamic_debug_init_control(void)
+static int __init dynamic_debug_init_debugfs(void)
 {
-	struct proc_dir_entry *procfs_dir;
-	struct dentry *debugfs_dir;
+	struct dentry *dir, *file;
 
 	if (!ddebug_init_success)
 		return -ENODEV;
 
-	/* Create the control file in debugfs if it is enabled */
-	if (debugfs_initialized()) {
-		debugfs_dir = debugfs_create_dir("dynamic_debug", NULL);
-		debugfs_create_file("control", 0644, debugfs_dir, NULL,
-				    &ddebug_proc_fops);
+	dir = debugfs_create_dir("dynamic_debug", NULL);
+	if (!dir)
+		return -ENOMEM;
+	file = debugfs_create_file("control", 0644, dir, NULL,
+					&ddebug_proc_fops);
+	if (!file) {
+		debugfs_remove(dir);
+		return -ENOMEM;
 	}
-
-	/* Also create the control file in procfs */
-	procfs_dir = proc_mkdir("dynamic_debug", NULL);
-	if (procfs_dir)
-		proc_create("control", 0644, procfs_dir, &ddebug_proc_fops);
-
 	return 0;
 }
 
@@ -1023,13 +983,8 @@ static int __init dynamic_debug_init(void)
 	int verbose_bytes = 0;
 
 	if (__start___verbose == __stop___verbose) {
-		if (IS_ENABLED(CONFIG_DYNAMIC_DEBUG)) {
-			pr_warn("_ddebug table is empty in a CONFIG_DYNAMIC_DEBUG build\n");
-			return 1;
-		}
-		pr_info("Ignore empty _ddebug table in a CONFIG_DYNAMIC_DEBUG_CORE build\n");
-		ddebug_init_success = 1;
-		return 0;
+		pr_warn("_ddebug table is empty in a CONFIG_DYNAMIC_DEBUG build\n");
+		return 1;
 	}
 	iter = __start___verbose;
 	modname = iter->modname;
@@ -1091,4 +1046,4 @@ out_err:
 early_initcall(dynamic_debug_init);
 
 /* Debugfs setup must be done later */
-fs_initcall(dynamic_debug_init_control);
+fs_initcall(dynamic_debug_init_debugfs);

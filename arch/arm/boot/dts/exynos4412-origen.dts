@@ -25,7 +25,8 @@
 	};
 
 	chosen {
-		stdout-path = "serial2:115200n8";
+		bootargs ="console=ttySAC2,115200";
+		stdout-path = &serial_2;
 	};
 
 	firmware@203f000 {
@@ -88,8 +89,13 @@
 &ehci {
 	samsung,vbus-gpio = <&gpx3 5 1>;
 	status = "okay";
-	phys = <&exynos_usbphy 2>, <&exynos_usbphy 3>;
-	phy-names = "hsic0", "hsic1";
+
+	port@1 {
+		status = "okay";
+	};
+	port@2 {
+		status = "okay";
+	};
 };
 
 &fimd {

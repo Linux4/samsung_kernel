@@ -6,11 +6,9 @@
  *          for STMicroelectronics.
  */
 
-#include <linux/dma-mapping.h>
 #include <linux/seq_file.h>
 
 #include <drm/drm_atomic.h>
-#include <drm/drm_device.h>
 #include <drm/drm_fb_cma_helper.h>
 #include <drm/drm_gem_cma_helper.h>
 
@@ -334,6 +332,7 @@ static void sti_cursor_destroy(struct drm_plane *drm_plane)
 {
 	DRM_DEBUG_DRIVER("\n");
 
+	drm_plane_helper_disable(drm_plane, NULL);
 	drm_plane_cleanup(drm_plane);
 }
 

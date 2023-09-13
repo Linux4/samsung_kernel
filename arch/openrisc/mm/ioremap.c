@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * OpenRISC ioremap.c
  *
@@ -9,6 +8,11 @@
  * Modifications for the OpenRISC architecture:
  * Copyright (C) 2003 Matjaz Breskvar <phoenix@bsemi.com>
  * Copyright (C) 2010-2011 Jonas Bonn <jonas@southpole.se>
+ *
+ *      This program is free software; you can redistribute it and/or
+ *      modify it under the terms of the GNU General Public License
+ *      as published by the Free Software Foundation; either version
+ *      2 of the License, or (at your option) any later version.
  */
 
 #include <linux/vmalloc.h>
@@ -34,7 +38,8 @@ static unsigned int fixmaps_used __initdata;
  * have to convert them into an offset in a page-aligned mapping, but the
  * caller shouldn't need to know that small detail.
  */
-void __iomem *__ref ioremap(phys_addr_t addr, unsigned long size)
+void __iomem *__ref
+__ioremap(phys_addr_t addr, unsigned long size, pgprot_t prot)
 {
 	phys_addr_t p;
 	unsigned long v;
@@ -65,8 +70,7 @@ void __iomem *__ref ioremap(phys_addr_t addr, unsigned long size)
 		fixmaps_used += (size >> PAGE_SHIFT);
 	}
 
-	if (ioremap_page_range(v, v + size, p,
-			__pgprot(pgprot_val(PAGE_KERNEL) | _PAGE_CI))) {
+	if (ioremap_page_range(v, v + size, p, prot)) {
 		if (likely(mem_init_done))
 			vfree(area->addr);
 		else
@@ -76,7 +80,7 @@ void __iomem *__ref ioremap(phys_addr_t addr, unsigned long size)
 
 	return (void __iomem *)(offset + (char *)v);
 }
-EXPORT_SYMBOL(ioremap);
+EXPORT_SYMBOL(__ioremap);
 
 void iounmap(void *addr)
 {
@@ -114,18 +118,18 @@ EXPORT_SYMBOL(iounmap);
  * the memblock infrastructure.
  */
 
-pte_t __ref *pte_alloc_one_kernel(struct mm_struct *mm)
+pte_t __ref *pte_alloc_one_kernel(struct mm_struct *mm,
+					 unsigned long address)
 {
 	pte_t *pte;
 
 	if (likely(mem_init_done)) {
-		pte = (pte_t *)get_zeroed_page(GFP_KERNEL);
+		pte = (pte_t *) __get_free_page(GFP_KERNEL);
 	} else {
-		pte = memblock_alloc(PAGE_SIZE, PAGE_SIZE);
-		if (!pte)
-			panic("%s: Failed to allocate %lu bytes align=0x%lx\n",
-			      __func__, PAGE_SIZE, PAGE_SIZE);
+		pte = (pte_t *) __va(memblock_alloc(PAGE_SIZE, PAGE_SIZE));
 	}
 
+	if (pte)
+		clear_page(pte);
 	return pte;
 }

@@ -38,20 +38,15 @@
 
 #include <linux/mutex.h>
 #include <linux/types.h>
-#include <uapi/scsi/scsi_bsg_ufs.h>
 
-#ifdef CONFIG_SCSI_UFSHCD_QTI
-#define MAX_QUERY_IDN		0x12
-#define MAX_CDB_SIZE		16
-#endif
-
-#define GENERAL_UPIU_REQUEST_SIZE (sizeof(struct utp_upiu_req))
+#define MAX_CDB_SIZE	16
+#define GENERAL_UPIU_REQUEST_SIZE 32
 #define QUERY_DESC_MAX_SIZE       255
 #define QUERY_DESC_MIN_SIZE       2
 #define QUERY_DESC_HDR_SIZE       2
 #define QUERY_OSF_SIZE            (GENERAL_UPIU_REQUEST_SIZE - \
 					(sizeof(struct utp_upiu_header)))
-#define UFS_SENSE_SIZE	18
+#define RESPONSE_UPIU_SENSE_DATA_LENGTH	18
 
 #define UPIU_HEADER_DWORD(byte3, byte2, byte1, byte0)\
 			cpu_to_be32((byte3 << 24) | (byte2 << 16) |\
@@ -70,9 +65,6 @@
 #define UFS_UPIU_WLUN_ID	(1 << 7)
 #define UFS_UPIU_MAX_GENERAL_LUN	8
 
-/* WriteBooster buffer is available only for the logical unit from 0 to 7 */
-#define UFS_UPIU_MAX_WB_LUN_ID	8
-
 /* Well known logical unit id in LUN field of UPIU */
 enum {
 	UFS_UPIU_REPORT_LUNS_WLUN	= 0x81,
@@ -80,6 +72,8 @@ enum {
 	UFS_UPIU_BOOT_WLUN		= 0xB0,
 	UFS_UPIU_RPMB_WLUN		= 0xC4,
 };
+
+
 
 /*
  * UFS Protocol Information Unit related definitions
@@ -155,9 +149,9 @@ enum flag_idn {
 	QUERY_FLAG_IDN_BUSY_RTC				= 0x09,
 	QUERY_FLAG_IDN_RESERVED3			= 0x0A,
 	QUERY_FLAG_IDN_PERMANENTLY_DISABLE_FW_UPDATE	= 0x0B,
-	QUERY_FLAG_IDN_WB_EN                            = 0x0E,
-	QUERY_FLAG_IDN_WB_BUFF_FLUSH_EN                 = 0x0F,
-	QUERY_FLAG_IDN_WB_BUFF_FLUSH_DURING_HIBERN8     = 0x10,
+	QUERY_FLAG_IDN_TW_EN		 		= 0x0E,
+	QUERY_FLAG_IDN_TW_BUF_FLUSH		= 0x0F,
+	QUERY_FLAG_IDN_TW_FLUSH_HIBERN		= 0x10,
 };
 
 /* Attribute idn for Query requests */
@@ -185,11 +179,7 @@ enum attr_idn {
 	QUERY_ATTR_IDN_FFU_STATUS		= 0x14,
 	QUERY_ATTR_IDN_PSA_STATE		= 0x15,
 	QUERY_ATTR_IDN_PSA_DATA_SIZE		= 0x16,
-	QUERY_ATTR_IDN_REF_CLK_GATING_WAIT_TIME	= 0x17,
-	QUERY_ATTR_IDN_WB_FLUSH_STATUS	        = 0x1C,
-	QUERY_ATTR_IDN_AVAIL_WB_BUFF_SIZE       = 0x1D,
-	QUERY_ATTR_IDN_WB_BUFF_LIFE_TIME_EST    = 0x1E,
-	QUERY_ATTR_IDN_CURR_WB_BUFF_SIZE        = 0x1F,
+	QUERY_ATTR_IDN_AVL_TW_BUF_SIZE	= 0x1D,
 };
 
 /* Descriptor idn for Query requests */
@@ -204,6 +194,7 @@ enum desc_idn {
 	QUERY_DESC_IDN_GEOMETRY		= 0x7,
 	QUERY_DESC_IDN_POWER		= 0x8,
 	QUERY_DESC_IDN_HEALTH           = 0x9,
+	QUERY_DESC_IDN_RFU_2            = 0xA,
 	QUERY_DESC_IDN_MAX,
 };
 
@@ -213,9 +204,9 @@ enum desc_header_offset {
 };
 
 enum ufs_desc_def_size {
-	QUERY_DESC_DEVICE_DEF_SIZE		= 0x59,
+	QUERY_DESC_DEVICE_DEF_SIZE		= 0x40,
 	QUERY_DESC_CONFIGURATION_DEF_SIZE	= 0x90,
-	QUERY_DESC_UNIT_DEF_SIZE		= 0x2D,
+	QUERY_DESC_UNIT_DEF_SIZE		= 0x23,
 	QUERY_DESC_INTERCONNECT_DEF_SIZE	= 0x06,
 	QUERY_DESC_GEOMETRY_DEF_SIZE		= 0x48,
 	QUERY_DESC_POWER_DEF_SIZE		= 0x62,
@@ -241,7 +232,7 @@ enum unit_desc_param {
 	UNIT_DESC_PARAM_PHY_MEM_RSRC_CNT	= 0x18,
 	UNIT_DESC_PARAM_CTX_CAPABILITIES	= 0x20,
 	UNIT_DESC_PARAM_LARGE_UNIT_SIZE_M1	= 0x22,
-	UNIT_DESC_PARAM_WB_BUF_ALLOC_UNITS	= 0x29,
+	UNIT_DESC_PARAM_TW_BUF_ALLOC_UNIT	= 0x29,
 };
 
 /* Device descriptor parameters offsets in bytes*/
@@ -281,10 +272,7 @@ enum device_desc_param {
 	DEVICE_DESC_PARAM_PSA_MAX_DATA		= 0x25,
 	DEVICE_DESC_PARAM_PSA_TMT		= 0x29,
 	DEVICE_DESC_PARAM_PRDCT_REV		= 0x2A,
-	DEVICE_DESC_PARAM_EXT_UFS_FEATURE_SUP	= 0x4F,
-	DEVICE_DESC_PARAM_WB_PRESRV_USRSPC_EN	= 0x53,
-	DEVICE_DESC_PARAM_WB_TYPE		= 0x54,
-	DEVICE_DESC_PARAM_WB_SHARED_ALLOC_UNITS = 0x55,
+	DEVICE_DESC_PARAM_EXT_FEAT_SUPPORT		= 0x4F,
 };
 
 /* Interconnect descriptor parameters offsets in bytes*/
@@ -329,11 +317,6 @@ enum geometry_desc_param {
 	GEOMETRY_DESC_PARAM_ENM4_MAX_NUM_UNITS	= 0x3E,
 	GEOMETRY_DESC_PARAM_ENM4_CAP_ADJ_FCTR	= 0x42,
 	GEOMETRY_DESC_PARAM_OPT_LOG_BLK_SIZE	= 0x44,
-	GEOMETRY_DESC_PARAM_WB_MAX_ALLOC_UNITS	= 0x4F,
-	GEOMETRY_DESC_PARAM_WB_MAX_WB_LUNS	= 0x53,
-	GEOMETRY_DESC_PARAM_WB_BUFF_CAP_ADJ	= 0x54,
-	GEOMETRY_DESC_PARAM_WB_SUP_RED_TYPE	= 0x55,
-	GEOMETRY_DESC_PARAM_WB_SUP_WB_TYPE	= 0x56,
 };
 
 /* Health descriptor parameters offsets in bytes*/
@@ -343,12 +326,6 @@ enum health_desc_param {
 	HEALTH_DESC_PARAM_EOL_INFO		= 0x2,
 	HEALTH_DESC_PARAM_LIFE_TIME_EST_A	= 0x3,
 	HEALTH_DESC_PARAM_LIFE_TIME_EST_B	= 0x4,
-};
-
-/* WriteBooster buffer mode */
-enum {
-	WB_BUF_MODE_LU_DEDICATED	= 0x0,
-	WB_BUF_MODE_SHARED		= 0x1,
 };
 
 /*
@@ -371,11 +348,6 @@ enum {
 	UFSHCD_AMP		= 3,
 };
 
-/* Possible values for dExtendedUFSFeaturesSupport */
-enum {
-	UFS_DEV_WRITE_BOOSTER_SUP	= BIT(8),
-};
-
 #define POWER_DESC_MAX_SIZE			0x62
 #define POWER_DESC_MAX_ACTV_ICC_LVLS		16
 
@@ -395,7 +367,8 @@ enum power_desc_param_offset {
 
 /* Exception event mask values */
 enum {
-	MASK_EE_STATUS		= 0xFFFF,
+	/* disable tw event [bit 5] as default */
+	MASK_EE_STATUS		= 0xFFDF,
 	MASK_EE_URGENT_BKOPS	= (1 << 2),
 };
 
@@ -419,23 +392,6 @@ enum query_opcode {
 	UPIU_QUERY_OPCODE_SET_FLAG	= 0x6,
 	UPIU_QUERY_OPCODE_CLEAR_FLAG	= 0x7,
 	UPIU_QUERY_OPCODE_TOGGLE_FLAG	= 0x8,
-#ifdef CONFIG_SCSI_UFSHCD_QTI
-	UPIU_QUERY_OPCODE_MAX,
-#endif
-};
-
-/* bRefClkFreq attribute values */
-enum ufs_ref_clk_freq {
-	REF_CLK_FREQ_19_2_MHZ	= 0,
-	REF_CLK_FREQ_26_MHZ	= 1,
-	REF_CLK_FREQ_38_4_MHZ	= 2,
-	REF_CLK_FREQ_52_MHZ	= 3,
-	REF_CLK_FREQ_INVAL	= -1,
-};
-
-struct ufs_ref_clk {
-	unsigned long freq_hz;
-	enum ufs_ref_clk_freq val;
 };
 
 /* Query response result code */
@@ -451,6 +407,15 @@ enum {
 	QUERY_RESULT_INVALID_IDN                = 0xFD,
 	QUERY_RESULT_INVALID_OPCODE             = 0xFE,
 	QUERY_RESULT_GENERAL_FAILURE            = 0xFF,
+};
+
+enum health_device_desc_param {
+	HEALTH_DEVICE_DESC_PARAM_LEN	= 0x0,
+	HEALTH_DEVICE_DESC_PARAM_IDN	=0x1,
+	HEALTH_DEVICE_DESC_PARAM_INFO	=0x2,
+	HEALTH_DEVICE_DESC_PARAM_LIFETIMEA	=0x3,
+	HEALTH_DEVICE_DESC_PARAM_LIFETIMEB	=0x4,
+	HEALTH_DEVICE_DESC_PARAM_RESERVED	=0x5,
 };
 
 /* UTP Transfer Request Command Type (CT) */
@@ -474,7 +439,6 @@ enum {
 	MASK_RSP_UPIU_DATA_SEG_LEN	= 0xFFFF,
 	MASK_RSP_EXCEPTION_EVENT        = 0x10000,
 	MASK_TM_SERVICE_RESP		= 0xFF,
-	MASK_TM_FUNC			= 0xFF,
 };
 
 /* Task management service response */
@@ -493,7 +457,64 @@ enum ufs_dev_pwr_mode {
 	UFS_POWERDOWN_PWR_MODE	= 3,
 };
 
-#define UFS_WB_BUF_REMAIN_PERCENT(val) ((val) / 10)
+/**
+ * struct utp_upiu_header - UPIU header structure
+ * @dword_0: UPIU header DW-0
+ * @dword_1: UPIU header DW-1
+ * @dword_2: UPIU header DW-2
+ */
+struct utp_upiu_header {
+	__be32 dword_0;
+	__be32 dword_1;
+	__be32 dword_2;
+};
+
+/**
+ * struct utp_upiu_cmd - Command UPIU structure
+ * @data_transfer_len: Data Transfer Length DW-3
+ * @cdb: Command Descriptor Block CDB DW-4 to DW-7
+ */
+struct utp_upiu_cmd {
+	__be32 exp_data_transfer_len;
+	u8 cdb[MAX_CDB_SIZE];
+};
+
+/**
+ * struct utp_upiu_query - upiu request buffer structure for
+ * query request.
+ * @opcode: command to perform B-0
+ * @idn: a value that indicates the particular type of data B-1
+ * @index: Index to further identify data B-2
+ * @selector: Index to further identify data B-3
+ * @reserved_osf: spec reserved field B-4,5
+ * @length: number of descriptor bytes to read/write B-6,7
+ * @value: Attribute value to be written DW-5
+ * @reserved: spec reserved DW-6,7
+ */
+struct utp_upiu_query {
+	u8 opcode;
+	u8 idn;
+	u8 index;
+	u8 selector;
+	__be16 reserved_osf;
+	__be16 length;
+	__be32 value;
+	__be32 reserved[2];
+};
+
+/**
+ * struct utp_upiu_req - general upiu request structure
+ * @header:UPIU header structure DW-0 to DW-2
+ * @sc: fields structure for scsi command DW-3 to DW-7
+ * @qr: fields structure for query request DW-3 to DW-7
+ */
+struct utp_upiu_req {
+	struct utp_upiu_header header;
+	union {
+		struct utp_upiu_cmd sc;
+		struct utp_upiu_query qr;
+	};
+};
 
 /**
  * struct utp_cmd_rsp - Response UPIU structure
@@ -506,7 +527,7 @@ struct utp_cmd_rsp {
 	__be32 residual_transfer_count;
 	__be32 reserved[4];
 	__be16 sense_data_len;
-	u8 sense_data[UFS_SENSE_SIZE];
+	u8 sense_data[RESPONSE_UPIU_SENSE_DATA_LENGTH];
 };
 
 /**
@@ -521,6 +542,36 @@ struct utp_upiu_rsp {
 		struct utp_cmd_rsp sr;
 		struct utp_upiu_query qr;
 	};
+};
+
+/**
+ * struct utp_upiu_task_req - Task request UPIU structure
+ * @header - UPIU header structure DW0 to DW-2
+ * @input_param1: Input parameter 1 DW-3
+ * @input_param2: Input parameter 2 DW-4
+ * @input_param3: Input parameter 3 DW-5
+ * @reserved: Reserved double words DW-6 to DW-7
+ */
+struct utp_upiu_task_req {
+	struct utp_upiu_header header;
+	__be32 input_param1;
+	__be32 input_param2;
+	__be32 input_param3;
+	__be32 reserved[2];
+};
+
+/**
+ * struct utp_upiu_task_rsp - Task Management Response UPIU structure
+ * @header: UPIU header structure DW0-DW-2
+ * @output_param1: Ouput parameter 1 DW3
+ * @output_param2: Output parameter 2 DW4
+ * @reserved: Reserved double words DW-5 to DW-7
+ */
+struct utp_upiu_task_rsp {
+	struct utp_upiu_header header;
+	__be32 output_param1;
+	__be32 output_param2;
+	__be32 reserved[3];
 };
 
 /**
@@ -547,9 +598,9 @@ struct ufs_query_res {
 #define UFS_VREG_VCC_MAX_UV	   3600000 /* uV */
 #define UFS_VREG_VCC_1P8_MIN_UV    1700000 /* uV */
 #define UFS_VREG_VCC_1P8_MAX_UV    1950000 /* uV */
-#define UFS_VREG_VCCQ_MIN_UV	   1140000 /* uV */
-#define UFS_VREG_VCCQ_MAX_UV	   1260000 /* uV */
-#define UFS_VREG_VCCQ2_MIN_UV	   1700000 /* uV */
+#define UFS_VREG_VCCQ_MIN_UV	   1100000 /* uV */
+#define UFS_VREG_VCCQ_MAX_UV	   1300000 /* uV */
+#define UFS_VREG_VCCQ2_MIN_UV	   1650000 /* uV */
 #define UFS_VREG_VCCQ2_MAX_UV	   1950000 /* uV */
 
 /*
@@ -562,16 +613,11 @@ struct ufs_vreg {
 	struct regulator *reg;
 	const char *name;
 	bool enabled;
+	bool unused;
 	int min_uV;
 	int max_uV;
-	int max_uA;
-#ifdef CONFIG_SCSI_UFSHCD_QTI
-	bool low_voltage_sup;
-	bool low_voltage_active;
-	bool sys_suspend_pwr_off;
 	int min_uA;
-	bool unused;
-#endif
+	int max_uA;
 };
 
 struct ufs_vreg_info {
@@ -581,38 +627,24 @@ struct ufs_vreg_info {
 	struct ufs_vreg *vdd_hba;
 };
 
-#ifdef CONFIG_SCSI_UFSHCD_QTI
-enum {
-	UFS_DEV_EMBEDDED_BOOTABLE = 0x00,
-	UFS_DEV_EMBEDDED_NON_BOOTABLE = 0x01,
-	UFS_DEV_REMOVABLE_BOOTABLE = 0x02,
-	UFS_DEV_REMOVABLE_NON_BOOTABLE = 0x03,
-};
-#endif
-
 struct ufs_dev_info {
 	bool f_power_on_wp_en;
 	/* Keeps information if any of the LU is power on write protected */
 	bool is_lu_power_on_wp;
-#ifdef CONFIG_SCSI_UFSHCD_QTI
-	u8 b_device_sub_class;
-	u8 i_product_name;
-	/* is Unit Attention Condition cleared on UFS Device LUN? */
-	unsigned is_ufs_dev_wlun_ua_cleared:1;
-#endif
-	/* Maximum number of general LU supported by the UFS device */
-	u8 max_lu_supported;
-	u8 wb_dedicated_lu;
+};
+
+#define MAX_MODEL_LEN 16
+/**
+ * ufs_dev_desc - ufs device details from the device descriptor
+ *
+ * @wmanufacturerid: card details
+ * @model: card model
+ */
+struct ufs_dev_desc {
 	u16 wmanufacturerid;
-	/*UFS device Product Name */
-	u8 *model;
-	u16 wspecversion;
-	u32 clk_gating_wait_us;
-	u32 d_ext_ufs_feature_sup;
-	u8 b_wb_buffer_type;
-	u32 d_wb_alloc_units;
-	bool b_rpm_dev_flush_capable;
-	u8 b_presrv_uspc_en;
+	u8 lifetime;
+	char model[MAX_MODEL_LEN + 1];
+	u32 dextfeatsupport;
 };
 
 /**

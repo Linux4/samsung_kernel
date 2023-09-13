@@ -35,6 +35,7 @@
 #include <net/sock.h>
 
 #include "en.h"
+#include "accel/tls.h"
 #include "fpga/sdk.h"
 #include "en_accel/tls.h"
 
@@ -50,14 +51,9 @@ static const struct counter_desc mlx5e_tls_sw_stats_desc[] = {
 
 #define NUM_TLS_SW_COUNTERS ARRAY_SIZE(mlx5e_tls_sw_stats_desc)
 
-static bool is_tls_atomic_stats(struct mlx5e_priv *priv)
-{
-	return priv->tls && !mlx5_accel_is_ktls_device(priv->mdev);
-}
-
 int mlx5e_tls_get_count(struct mlx5e_priv *priv)
 {
-	if (!is_tls_atomic_stats(priv))
+	if (!priv->tls)
 		return 0;
 
 	return NUM_TLS_SW_COUNTERS;
@@ -67,7 +63,7 @@ int mlx5e_tls_get_strings(struct mlx5e_priv *priv, uint8_t *data)
 {
 	unsigned int i, idx = 0;
 
-	if (!is_tls_atomic_stats(priv))
+	if (!priv->tls)
 		return 0;
 
 	for (i = 0; i < NUM_TLS_SW_COUNTERS; i++)
@@ -81,7 +77,7 @@ int mlx5e_tls_get_stats(struct mlx5e_priv *priv, u64 *data)
 {
 	int i, idx = 0;
 
-	if (!is_tls_atomic_stats(priv))
+	if (!priv->tls)
 		return 0;
 
 	for (i = 0; i < NUM_TLS_SW_COUNTERS; i++)

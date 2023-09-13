@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  i2c_adap_pxa.c
  *
@@ -6,6 +5,10 @@
  *
  *  Copyright (C) 2002 Intrinsyc Software Inc.
  *  Copyright (C) 2004-2005 Deep Blue Solutions Ltd.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  published by the Free Software Foundation.
  *
  *  History:
  *    Apr 2002: Initial version [CS]

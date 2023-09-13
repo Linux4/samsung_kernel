@@ -1,10 +1,14 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
+ * linux/kernel/time/clockevents.c
+ *
  * This file contains functions which manage clock event devices.
  *
  * Copyright(C) 2005-2006, Thomas Gleixner <tglx@linutronix.de>
  * Copyright(C) 2005-2007, Red Hat, Inc., Ingo Molnar
  * Copyright(C) 2006-2007, Timesys Corp., Thomas Gleixner
+ *
+ * This code is licenced under the GPL version 2. For details see
+ * kernel-base/COPYING.
  */
 
 #include <linux/clockchips.h>
@@ -13,6 +17,7 @@
 #include <linux/module.h>
 #include <linux/smp.h>
 #include <linux/device.h>
+#include <linux/debug-snapshot.h>
 
 #include "tick-internal.h"
 
@@ -35,8 +40,10 @@ static u64 cev_delta2ns(unsigned long latch, struct clock_event_device *evt,
 	u64 clc = (u64) latch << evt->shift;
 	u64 rnd;
 
-	if (WARN_ON(!evt->mult))
+	if (unlikely(!evt->mult)) {
 		evt->mult = 1;
+		WARN_ON(1);
+	}
 	rnd = (u64) evt->mult - 1;
 
 	/*
@@ -158,8 +165,10 @@ void clockevents_switch_state(struct clock_event_device *dev,
 		 * on it, so fix it up and emit a warning:
 		 */
 		if (clockevent_state_oneshot(dev)) {
-			if (WARN_ON(!dev->mult))
+			if (unlikely(!dev->mult)) {
 				dev->mult = 1;
+				WARN_ON(1);
+			}
 		}
 	}
 }
@@ -307,8 +316,10 @@ int clockevents_program_event(struct clock_event_device *dev, ktime_t expires,
 	int64_t delta;
 	int rc;
 
-	if (WARN_ON_ONCE(expires < 0))
+	if (unlikely(expires < 0)) {
+		WARN_ON_ONCE(1);
 		return -ETIME;
+	}
 
 	dev->next_event = expires;
 
@@ -611,22 +622,6 @@ void clockevents_resume(void)
 }
 
 #ifdef CONFIG_HOTPLUG_CPU
-
-# ifdef CONFIG_GENERIC_CLOCKEVENTS_BROADCAST
-/**
- * tick_offline_cpu - Take CPU out of the broadcast mechanism
- * @cpu:	The outgoing CPU
- *
- * Called on the outgoing CPU after it took itself offline.
- */
-void tick_offline_cpu(unsigned int cpu)
-{
-	raw_spin_lock(&clockevents_lock);
-	tick_broadcast_offline(cpu);
-	raw_spin_unlock(&clockevents_lock);
-}
-# endif
-
 /**
  * tick_cleanup_dead_cpu - Cleanup the tick and clockevents of a dead cpu
  */
@@ -637,6 +632,8 @@ void tick_cleanup_dead_cpu(int cpu)
 
 	raw_spin_lock_irqsave(&clockevents_lock, flags);
 
+	tick_shutdown_broadcast_oneshot(cpu);
+	tick_shutdown_broadcast(cpu);
 	tick_shutdown(cpu);
 	/*
 	 * Unregister the clock event devices which were

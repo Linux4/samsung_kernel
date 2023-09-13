@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Common NFS I/O  operations for the pnfs file based
  * layout drivers.
@@ -556,16 +555,19 @@ out:
 }
 EXPORT_SYMBOL_GPL(nfs4_pnfs_ds_add);
 
-static int nfs4_wait_ds_connect(struct nfs4_pnfs_ds *ds)
+static void nfs4_wait_ds_connect(struct nfs4_pnfs_ds *ds)
 {
 	might_sleep();
-	return wait_on_bit(&ds->ds_state, NFS4DS_CONNECTING, TASK_KILLABLE);
+	wait_on_bit(&ds->ds_state, NFS4DS_CONNECTING,
+			TASK_KILLABLE);
 }
 
 static void nfs4_clear_ds_conn_bit(struct nfs4_pnfs_ds *ds)
 {
 	smp_mb__before_atomic();
-	clear_and_wake_up_bit(NFS4DS_CONNECTING, &ds->ds_state);
+	clear_bit(NFS4DS_CONNECTING, &ds->ds_state);
+	smp_mb__after_atomic();
+	wake_up_bit(&ds->ds_state, NFS4DS_CONNECTING);
 }
 
 static struct nfs_client *(*get_v3_ds_connect)(
@@ -623,16 +625,11 @@ static int _nfs4_pnfs_v3_ds_connect(struct nfs_server *mds_srv,
 			/* Add this address as an alias */
 			rpc_clnt_add_xprt(clp->cl_rpcclient, &xprt_args,
 					rpc_clnt_test_and_add_xprt, NULL);
-			continue;
-		}
-		clp = get_v3_ds_connect(mds_srv,
-				(struct sockaddr *)&da->da_addr,
-				da->da_addrlen, IPPROTO_TCP,
-				timeo, retrans);
-		if (IS_ERR(clp))
-			continue;
-		clp->cl_rpcclient->cl_softerr = 0;
-		clp->cl_rpcclient->cl_softrtry = 0;
+		} else
+			clp = get_v3_ds_connect(mds_srv,
+					(struct sockaddr *)&da->da_addr,
+					da->da_addrlen, IPPROTO_TCP,
+					timeo, retrans);
 	}
 
 	if (IS_ERR(clp)) {
@@ -641,7 +638,7 @@ static int _nfs4_pnfs_v3_ds_connect(struct nfs_server *mds_srv,
 	}
 
 	smp_wmb();
-	WRITE_ONCE(ds->ds_clp, clp);
+	ds->ds_clp = clp;
 	dprintk("%s [new] addr: %s\n", __func__, ds->ds_remotestr);
 out:
 	return status;
@@ -688,7 +685,7 @@ static int _nfs4_pnfs_v4_ds_connect(struct nfs_server *mds_srv,
 					  rpc_clnt_setup_test_and_add_xprt,
 					  &rpcdata);
 			if (xprtdata.cred)
-				put_cred(xprtdata.cred);
+				put_rpccred(xprtdata.cred);
 		} else {
 			clp = nfs4_set_ds_client(mds_srv,
 						(struct sockaddr *)&da->da_addr,
@@ -714,7 +711,7 @@ static int _nfs4_pnfs_v4_ds_connect(struct nfs_server *mds_srv,
 	}
 
 	smp_wmb();
-	WRITE_ONCE(ds->ds_clp, clp);
+	ds->ds_clp = clp;
 	dprintk("%s [new] addr: %s\n", __func__, ds->ds_remotestr);
 out:
 	return status;
@@ -731,33 +728,30 @@ int nfs4_pnfs_ds_connect(struct nfs_server *mds_srv, struct nfs4_pnfs_ds *ds,
 {
 	int err;
 
-	do {
-		err = nfs4_wait_ds_connect(ds);
-		if (err || ds->ds_clp)
-			goto out;
-		if (nfs4_test_deviceid_unavailable(devid))
-			return -ENODEV;
-	} while (test_and_set_bit(NFS4DS_CONNECTING, &ds->ds_state) != 0);
+again:
+	err = 0;
+	if (test_and_set_bit(NFS4DS_CONNECTING, &ds->ds_state) == 0) {
+		if (version == 3) {
+			err = _nfs4_pnfs_v3_ds_connect(mds_srv, ds, timeo,
+						       retrans);
+		} else if (version == 4) {
+			err = _nfs4_pnfs_v4_ds_connect(mds_srv, ds, timeo,
+						       retrans, minor_version);
+		} else {
+			dprintk("%s: unsupported DS version %d\n", __func__,
+				version);
+			err = -EPROTONOSUPPORT;
+		}
 
-	if (ds->ds_clp)
-		goto connect_done;
+		nfs4_clear_ds_conn_bit(ds);
+	} else {
+		nfs4_wait_ds_connect(ds);
 
-	switch (version) {
-	case 3:
-		err = _nfs4_pnfs_v3_ds_connect(mds_srv, ds, timeo, retrans);
-		break;
-	case 4:
-		err = _nfs4_pnfs_v4_ds_connect(mds_srv, ds, timeo, retrans,
-					       minor_version);
-		break;
-	default:
-		dprintk("%s: unsupported DS version %d\n", __func__, version);
-		err = -EPROTONOSUPPORT;
+		/* what was waited on didn't connect AND didn't mark unavail */
+		if (!ds->ds_clp && !nfs4_test_deviceid_unavailable(devid))
+			goto again;
 	}
 
-connect_done:
-	nfs4_clear_ds_conn_bit(ds);
-out:
 	/*
 	 * At this point the ds->ds_clp should be ready, but it might have
 	 * hit an error.

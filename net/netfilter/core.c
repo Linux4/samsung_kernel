@@ -23,7 +23,6 @@
 #include <linux/mm.h>
 #include <linux/rcupdate.h>
 #include <net/net_namespace.h>
-#include <net/netfilter/nf_queue.h>
 #include <net/sock.h>
 
 #include "nf_internals.h"
@@ -163,7 +162,7 @@ nf_hook_entries_grow(const struct nf_hook_entries *old,
 
 static void hooks_validate(const struct nf_hook_entries *hooks)
 {
-#ifdef CONFIG_DEBUG_MISC
+#ifdef CONFIG_DEBUG_KERNEL
 	struct nf_hook_ops **orig_ops;
 	int prio = INT_MIN;
 	size_t i = 0;
@@ -336,15 +335,14 @@ static int __nf_register_net_hook(struct net *net, int pf,
 	p = nf_entry_dereference(*pp);
 	new_hooks = nf_hook_entries_grow(p, reg);
 
-	if (!IS_ERR(new_hooks)) {
-		hooks_validate(new_hooks);
+	if (!IS_ERR(new_hooks))
 		rcu_assign_pointer(*pp, new_hooks);
-	}
 
 	mutex_unlock(&nf_hook_mutex);
 	if (IS_ERR(new_hooks))
 		return PTR_ERR(new_hooks);
 
+	hooks_validate(new_hooks);
 #ifdef CONFIG_NETFILTER_INGRESS
 	if (pf == NFPROTO_NETDEV && reg->hooknum == NF_NETDEV_INGRESS)
 		net_inc_ingress_queue();
@@ -521,7 +519,7 @@ int nf_hook_slow(struct sk_buff *skb, struct nf_hook_state *state,
 				ret = -EPERM;
 			return ret;
 		case NF_QUEUE:
-			ret = nf_queue(skb, state, s, verdict);
+			ret = nf_queue(skb, state, e, s, verdict);
 			if (ret == 1)
 				continue;
 			return ret;
@@ -536,6 +534,28 @@ int nf_hook_slow(struct sk_buff *skb, struct nf_hook_state *state,
 	return 1;
 }
 EXPORT_SYMBOL(nf_hook_slow);
+
+
+int skb_make_writable(struct sk_buff *skb, unsigned int writable_len)
+{
+	if (writable_len > skb->len)
+		return 0;
+
+	/* Not exclusive use of packet?  Must copy. */
+	if (!skb_cloned(skb)) {
+		if (writable_len <= skb_headlen(skb))
+			return 1;
+	} else if (skb_clone_writable(skb, writable_len))
+		return 1;
+
+	if (writable_len <= skb_headlen(skb))
+		writable_len = 0;
+	else
+		writable_len -= skb_headlen(skb);
+
+	return !!__pskb_pull_tail(skb, writable_len);
+}
+EXPORT_SYMBOL(skb_make_writable);
 
 /* This needs to be compiled in any case to avoid dependencies between the
  * nfnetlink_queue code and nf_conntrack.

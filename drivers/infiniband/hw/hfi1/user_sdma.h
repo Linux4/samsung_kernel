@@ -110,6 +110,12 @@ enum pkt_q_sdma_state {
 	SDMA_PKT_Q_DEFERRED,
 };
 
+/*
+ * Maximum retry attempts to submit a TX request
+ * before putting the process to sleep.
+ */
+#define MAX_DEFER_RETRY_COUNT 1
+
 #define SDMA_IOWAIT_TIMEOUT 1000 /* in milliseconds */
 
 #define SDMA_DBG(req, fmt, ...)				     \
@@ -198,12 +204,12 @@ struct user_sdma_request {
 	s8 ahg_idx;
 
 	/* Writeable fields shared with interrupt */
-	u16 seqcomp ____cacheline_aligned_in_smp;
-	u16 seqsubmitted;
+	u64 seqcomp ____cacheline_aligned_in_smp;
+	u64 seqsubmitted;
 
 	/* Send side fields */
 	struct list_head txps ____cacheline_aligned_in_smp;
-	u16 seqnum;
+	u64 seqnum;
 	/*
 	 * KDETH.OFFSET (TID) field
 	 * The offset can cover multiple packets, depending on the
@@ -239,7 +245,7 @@ struct user_sdma_txreq {
 	struct list_head list;
 	struct user_sdma_request *req;
 	u16 flags;
-	u16 seqnum;
+	u64 seqnum;
 };
 
 int hfi1_user_sdma_alloc_queues(struct hfi1_ctxtdata *uctxt,

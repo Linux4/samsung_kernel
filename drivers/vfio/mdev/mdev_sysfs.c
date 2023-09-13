@@ -1,10 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * File attributes for Mediated devices
  *
  * Copyright (c) 2016, NVIDIA CORPORATION. All rights reserved.
  *     Author: Neo Jia <cjia@nvidia.com>
  *             Kirti Wankhede <kwankhede@nvidia.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/sysfs.h>
@@ -52,7 +55,7 @@ static ssize_t create_store(struct kobject *kobj, struct device *dev,
 			    const char *buf, size_t count)
 {
 	char *str;
-	guid_t uuid;
+	uuid_le uuid;
 	int ret;
 
 	if ((count < UUID_STRING_LEN) || (count > UUID_STRING_LEN + 1))
@@ -62,12 +65,12 @@ static ssize_t create_store(struct kobject *kobj, struct device *dev,
 	if (!str)
 		return -ENOMEM;
 
-	ret = guid_parse(str, &uuid);
+	ret = uuid_le_to_bin(str, &uuid);
 	kfree(str);
 	if (ret)
 		return ret;
 
-	ret = mdev_device_create(kobj, dev, &uuid);
+	ret = mdev_device_create(kobj, dev, uuid);
 	if (ret)
 		return ret;
 
@@ -89,8 +92,8 @@ static struct kobj_type mdev_type_ktype = {
 	.release = mdev_type_release,
 };
 
-static struct mdev_type *add_mdev_supported_type(struct mdev_parent *parent,
-						 struct attribute_group *group)
+struct mdev_type *add_mdev_supported_type(struct mdev_parent *parent,
+					  struct attribute_group *group)
 {
 	struct mdev_type *type;
 	int ret;
@@ -105,7 +108,6 @@ static struct mdev_type *add_mdev_supported_type(struct mdev_parent *parent,
 		return ERR_PTR(-ENOMEM);
 
 	type->kobj.kset = parent->mdev_types_kset;
-	type->parent = parent;
 
 	ret = kobject_init_and_add(&type->kobj, &mdev_type_ktype, NULL,
 				   "%s-%s", dev_driver_string(parent->dev),
@@ -133,6 +135,7 @@ static struct mdev_type *add_mdev_supported_type(struct mdev_parent *parent,
 	}
 
 	type->group = group;
+	type->parent = parent;
 	return type;
 
 attrs_failed:
@@ -233,9 +236,11 @@ static ssize_t remove_store(struct device *dev, struct device_attribute *attr,
 	if (val && device_remove_file_self(dev, attr)) {
 		int ret;
 
-		ret = mdev_device_remove(dev);
-		if (ret)
+		ret = mdev_device_remove(dev, false);
+		if (ret) {
+			device_create_file(dev, attr);
 			return ret;
+		}
 	}
 
 	return count;

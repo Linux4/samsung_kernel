@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 #
 # CAIF physical drivers
 #
@@ -34,7 +33,7 @@ config CAIF_SPI_SYNC
 	This option also needs to be enabled on the modem.
 
 config CAIF_HSI
-       bool "CAIF HSI transport driver"
+       tristate "CAIF HSI transport driver"
        depends on CAIF
        default n
        ---help---

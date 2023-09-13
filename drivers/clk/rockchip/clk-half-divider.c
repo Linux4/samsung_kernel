@@ -3,9 +3,8 @@
  * Copyright (c) 2018 Fuzhou Rockchip Electronics Co., Ltd
  */
 
-#include <linux/clk-provider.h>
-#include <linux/io.h>
 #include <linux/slab.h>
+#include <linux/clk-provider.h>
 #include "clk.h"
 
 #define div_mask(width)	((1 << (width)) - 1)
@@ -25,7 +24,7 @@ static unsigned long clk_half_divider_recalc_rate(struct clk_hw *hw,
 	struct clk_divider *divider = to_clk_divider(hw);
 	unsigned int val;
 
-	val = readl(divider->reg) >> divider->shift;
+	val = clk_readl(divider->reg) >> divider->shift;
 	val &= div_mask(divider->width);
 	val = val * 2 + 3;
 
@@ -125,11 +124,11 @@ static int clk_half_divider_set_rate(struct clk_hw *hw, unsigned long rate,
 	if (divider->flags & CLK_DIVIDER_HIWORD_MASK) {
 		val = div_mask(divider->width) << (divider->shift + 16);
 	} else {
-		val = readl(divider->reg);
+		val = clk_readl(divider->reg);
 		val &= ~(div_mask(divider->width) << divider->shift);
 	}
 	val |= value << divider->shift;
-	writel(val, divider->reg);
+	clk_writel(val, divider->reg);
 
 	if (divider->lock)
 		spin_unlock_irqrestore(divider->lock, flags);
@@ -167,7 +166,7 @@ struct clk *rockchip_clk_register_halfdiv(const char *name,
 					  unsigned long flags,
 					  spinlock_t *lock)
 {
-	struct clk *clk = ERR_PTR(-ENOMEM);
+	struct clk *clk;
 	struct clk_mux *mux = NULL;
 	struct clk_gate *gate = NULL;
 	struct clk_divider *div = NULL;

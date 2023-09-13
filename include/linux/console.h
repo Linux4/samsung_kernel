@@ -166,11 +166,6 @@ struct console {
 extern int console_set_on_cmdline;
 extern struct console *early_console;
 
-enum con_flush_mode {
-	CONSOLE_FLUSH_PENDING,
-	CONSOLE_REPLAY_ALL,
-};
-
 extern int add_preferred_console(char *name, int idx, char *options);
 extern void register_console(struct console *);
 extern int unregister_console(struct console *);
@@ -180,7 +175,7 @@ extern int console_trylock(void);
 extern void console_unlock(void);
 extern void console_conditional_schedule(void);
 extern void console_unblank(void);
-extern void console_flush_on_panic(enum con_flush_mode mode);
+extern void console_flush_on_panic(void);
 extern struct tty_driver *console_device(int *);
 extern void console_stop(struct console *);
 extern void console_start(struct console *);

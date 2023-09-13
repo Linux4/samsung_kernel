@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Device driver for the i2c thermostat found on the iBook G4, Albook G4
  *

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Motorola CPCAP PMIC battery charger driver
  *
@@ -8,6 +7,15 @@
  * on earlier driver found in the Motorola Linux kernel:
  *
  * Copyright (C) 2009-2010 Motorola, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
  */
 
 #include <linux/atomic.h>
@@ -108,9 +116,6 @@
 #define CPCAP_REG_CRM_ICHRG_1A596	CPCAP_REG_CRM_ICHRG(0xe)
 #define CPCAP_REG_CRM_ICHRG_NO_LIMIT	CPCAP_REG_CRM_ICHRG(0xf)
 
-/* CPCAP_REG_VUSBC register bits needed for VBUS */
-#define CPCAP_BIT_VBUS_SWITCH		BIT(0)	/* VBUS boost to 5V */
-
 enum {
 	CPCAP_CHARGER_IIO_BATTDET,
 	CPCAP_CHARGER_IIO_VOLTAGE,
@@ -133,8 +138,7 @@ struct cpcap_charger_ddata {
 	struct power_supply *usb;
 
 	struct phy_companion comparator;	/* For USB VBUS */
-	unsigned int vbus_enabled:1;
-	unsigned int feeding_vbus:1;
+	bool vbus_enabled;
 	atomic_t active;
 
 	int status;
@@ -329,6 +333,7 @@ static bool cpcap_charger_vbus_valid(struct cpcap_charger_ddata *ddata)
 }
 
 /* VBUS control functions for the USB PHY companion */
+
 static void cpcap_charger_vbus_work(struct work_struct *work)
 {
 	struct cpcap_charger_ddata *ddata;
@@ -346,17 +351,10 @@ static void cpcap_charger_vbus_work(struct work_struct *work)
 			return;
 		}
 
-		ddata->feeding_vbus = true;
 		cpcap_charger_set_cable_path(ddata, false);
 		cpcap_charger_set_inductive_path(ddata, false);
 
 		error = cpcap_charger_set_state(ddata, 0, 0, 0);
-		if (error)
-			goto out_err;
-
-		error = regmap_update_bits(ddata->reg, CPCAP_REG_VUSBC,
-					   CPCAP_BIT_VBUS_SWITCH,
-					   CPCAP_BIT_VBUS_SWITCH);
 		if (error)
 			goto out_err;
 
@@ -366,11 +364,6 @@ static void cpcap_charger_vbus_work(struct work_struct *work)
 		if (error)
 			goto out_err;
 	} else {
-		error = regmap_update_bits(ddata->reg, CPCAP_REG_VUSBC,
-					   CPCAP_BIT_VBUS_SWITCH, 0);
-		if (error)
-			goto out_err;
-
 		error = regmap_update_bits(ddata->reg, CPCAP_REG_CRM,
 					   CPCAP_REG_CRM_RVRSMODE, 0);
 		if (error)
@@ -378,7 +371,6 @@ static void cpcap_charger_vbus_work(struct work_struct *work)
 
 		cpcap_charger_set_cable_path(ddata, true);
 		cpcap_charger_set_inductive_path(ddata, true);
-		ddata->feeding_vbus = false;
 	}
 
 	return;
@@ -447,8 +439,7 @@ static void cpcap_usb_detect(struct work_struct *work)
 	if (error)
 		return;
 
-	if (!ddata->feeding_vbus && cpcap_charger_vbus_valid(ddata) &&
-	    s.chrgcurr1) {
+	if (cpcap_charger_vbus_valid(ddata) && s.chrgcurr1) {
 		int max_current;
 
 		if (cpcap_charger_battery_found(ddata))
@@ -554,7 +545,7 @@ static void cpcap_charger_init_optional_gpios(struct cpcap_charger_ddata *ddata)
 		if (IS_ERR(ddata->gpio[i])) {
 			dev_info(ddata->dev, "no mode change GPIO%i: %li\n",
 				 i, PTR_ERR(ddata->gpio[i]));
-			ddata->gpio[i] = NULL;
+				 ddata->gpio[i] = NULL;
 		}
 	}
 }
@@ -583,9 +574,8 @@ static int cpcap_charger_init_iio(struct cpcap_charger_ddata *ddata)
 	return 0;
 
 out_err:
-	if (error != -EPROBE_DEFER)
-		dev_err(ddata->dev, "could not initialize VBUS or ID IIO: %i\n",
-			error);
+	dev_err(ddata->dev, "could not initialize VBUS or ID IIO: %i\n",
+		error);
 
 	return error;
 }

@@ -255,8 +255,10 @@ static int ehci_platform_probe(struct platform_device *dev)
 	}
 
 	irq = platform_get_irq(dev, 0);
-	if (irq < 0)
+	if (irq < 0) {
+		dev_err(&dev->dev, "no irq provided");
 		return irq;
+	}
 
 	hcd = usb_create_hcd(&ehci_platform_hc_driver, &dev->dev,
 			     dev_name(&dev->dev));
@@ -285,12 +287,6 @@ static int ehci_platform_probe(struct platform_device *dev)
 		if (of_property_read_bool(dev->dev.of_node,
 					  "has-transaction-translator"))
 			hcd->has_tt = 1;
-
-		if (of_device_is_compatible(dev->dev.of_node,
-					    "aspeed,ast2500-ehci") ||
-		    of_device_is_compatible(dev->dev.of_node,
-					    "aspeed,ast2600-ehci"))
-			ehci->is_aspeed = 1;
 
 		if (soc_device_match(quirk_poll_match))
 			priv->quirk_poll = true;
@@ -460,6 +456,10 @@ static int ehci_platform_resume(struct device *dev)
 	}
 
 	ehci_resume(hcd, priv->reset_on_resume);
+
+	pm_runtime_disable(dev);
+	pm_runtime_set_active(dev);
+	pm_runtime_enable(dev);
 
 	if (priv->quirk_poll)
 		quirk_poll_init(priv);

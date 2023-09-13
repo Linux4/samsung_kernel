@@ -22,7 +22,6 @@
 #include <linux/serial_core.h>
 #include <linux/delay.h>
 #include <linux/mutex.h>
-#include <linux/security.h>
 
 #include <linux/irq.h>
 #include <linux/uaccess.h>
@@ -121,6 +120,9 @@ static void __uart_start(struct tty_struct *tty)
 	struct uart_state *state = tty->driver_data;
 	struct uart_port *port = state->uart_port;
 
+	if (port && port->ops->wake_peer)
+		port->ops->wake_peer(port);
+
 	if (port && !uart_tx_stopped(port))
 		port->ops->start_tx(port);
 }
@@ -160,7 +162,7 @@ static void uart_port_dtr_rts(struct uart_port *uport, int raise)
 	int RTS_after_send = !!(uport->rs485.flags & SER_RS485_RTS_AFTER_SEND);
 
 	if (raise) {
-		if (rs485_on && RTS_after_send) {
+		if (rs485_on && !RTS_after_send) {
 			uart_set_mctrl(uport, TIOCM_DTR);
 			uart_clear_mctrl(uport, TIOCM_RTS);
 		} else {
@@ -169,7 +171,7 @@ static void uart_port_dtr_rts(struct uart_port *uport, int raise)
 	} else {
 		unsigned int clear = TIOCM_DTR;
 
-		clear |= (!rs485_on || RTS_after_send) ? TIOCM_RTS : 0;
+		clear |= (!rs485_on || !RTS_after_send) ? TIOCM_RTS : 0;
 		uart_clear_mctrl(uport, clear);
 	}
 }
@@ -793,13 +795,17 @@ out:
 	return ret;
 }
 
-static int uart_get_info_user(struct tty_struct *tty,
-			 struct serial_struct *ss)
+static int uart_get_info_user(struct tty_port *port,
+			 struct serial_struct __user *retinfo)
 {
-	struct uart_state *state = tty->driver_data;
-	struct tty_port *port = &state->port;
+	struct serial_struct tmp;
 
-	return uart_get_info(port, ss) < 0 ? -EIO : 0;
+	if (uart_get_info(port, &tmp) < 0)
+		return -EIO;
+
+	if (copy_to_user(retinfo, &tmp, sizeof(*retinfo)))
+		return -EFAULT;
+	return 0;
 }
 
 static int uart_set_info(struct tty_struct *tty, struct tty_port *port,
@@ -861,12 +867,6 @@ static int uart_set_info(struct tty_struct *tty, struct tty_port *port,
 			       (new_flags & UPF_USR_MASK));
 		uport->custom_divisor = new_info->custom_divisor;
 		goto check_and_exit;
-	}
-
-	if (change_irq || change_port) {
-		retval = security_locked_down(LOCKDOWN_TIOCSSERIAL);
-		if (retval)
-			goto exit;
 	}
 
 	/*
@@ -1007,13 +1007,16 @@ static int uart_set_info(struct tty_struct *tty, struct tty_port *port,
 	return retval;
 }
 
-static int uart_set_info_user(struct tty_struct *tty, struct serial_struct *ss)
+static int uart_set_info_user(struct tty_struct *tty, struct uart_state *state,
+			 struct serial_struct __user *newinfo)
 {
-	struct uart_state *state = tty->driver_data;
+	struct serial_struct new_serial;
 	struct tty_port *port = &state->port;
 	int retval;
 
-	down_write(&tty->termios_rwsem);
+	if (copy_from_user(&new_serial, newinfo, sizeof(new_serial)))
+		return -EFAULT;
+
 	/*
 	 * This semaphore protects port->count.  It is also
 	 * very useful to prevent opens.  Also, take the
@@ -1022,9 +1025,8 @@ static int uart_set_info_user(struct tty_struct *tty, struct serial_struct *ss)
 	 * under us.
 	 */
 	mutex_lock(&port->mutex);
-	retval = uart_set_info(tty, port, state, ss);
+	retval = uart_set_info(tty, port, state, &new_serial);
 	mutex_unlock(&port->mutex);
-	up_write(&tty->termios_rwsem);
 	return retval;
 }
 
@@ -1306,7 +1308,7 @@ static int uart_set_rs485_config(struct uart_port *port,
 	unsigned long flags;
 
 	if (!port->rs485_config)
-		return -ENOTTY;
+		return -ENOIOCTLCMD;
 
 	if (copy_from_user(&rs485, rs485_user, sizeof(*rs485_user)))
 		return -EFAULT;
@@ -1318,58 +1320,6 @@ static int uart_set_rs485_config(struct uart_port *port,
 		return ret;
 
 	if (copy_to_user(rs485_user, &port->rs485, sizeof(port->rs485)))
-		return -EFAULT;
-
-	return 0;
-}
-
-static int uart_get_iso7816_config(struct uart_port *port,
-				   struct serial_iso7816 __user *iso7816)
-{
-	unsigned long flags;
-	struct serial_iso7816 aux;
-
-	if (!port->iso7816_config)
-		return -ENOTTY;
-
-	spin_lock_irqsave(&port->lock, flags);
-	aux = port->iso7816;
-	spin_unlock_irqrestore(&port->lock, flags);
-
-	if (copy_to_user(iso7816, &aux, sizeof(aux)))
-		return -EFAULT;
-
-	return 0;
-}
-
-static int uart_set_iso7816_config(struct uart_port *port,
-				   struct serial_iso7816 __user *iso7816_user)
-{
-	struct serial_iso7816 iso7816;
-	int i, ret;
-	unsigned long flags;
-
-	if (!port->iso7816_config)
-		return -ENOTTY;
-
-	if (copy_from_user(&iso7816, iso7816_user, sizeof(*iso7816_user)))
-		return -EFAULT;
-
-	/*
-	 * There are 5 words reserved for future use. Check that userspace
-	 * doesn't put stuff in there to prevent breakages in the future.
-	 */
-	for (i = 0; i < 5; i++)
-		if (iso7816.reserved[i])
-			return -EINVAL;
-
-	spin_lock_irqsave(&port->lock, flags);
-	ret = port->iso7816_config(port, &iso7816);
-	spin_unlock_irqrestore(&port->lock, flags);
-	if (ret)
-		return ret;
-
-	if (copy_to_user(iso7816_user, &port->iso7816, sizeof(port->iso7816)))
 		return -EFAULT;
 
 	return 0;
@@ -1392,10 +1342,25 @@ uart_ioctl(struct tty_struct *tty, unsigned int cmd, unsigned long arg)
 	 * These ioctls don't rely on the hardware to be present.
 	 */
 	switch (cmd) {
+	case TIOCGSERIAL:
+		ret = uart_get_info_user(port, uarg);
+		break;
+
+	case TIOCSSERIAL:
+		down_write(&tty->termios_rwsem);
+		ret = uart_set_info_user(tty, state, uarg);
+		up_write(&tty->termios_rwsem);
+		break;
+
 	case TIOCSERCONFIG:
 		down_write(&tty->termios_rwsem);
 		ret = uart_do_autoconfig(tty, state);
 		up_write(&tty->termios_rwsem);
+		break;
+
+	case TIOCSERGWILD: /* obsolete */
+	case TIOCSERSWILD: /* obsolete */
+		ret = 0;
 		break;
 	}
 
@@ -1444,14 +1409,6 @@ uart_ioctl(struct tty_struct *tty, unsigned int cmd, unsigned long arg)
 	case TIOCSRS485:
 		ret = uart_set_rs485_config(uport, uarg);
 		break;
-
-	case TIOCSISO7816:
-		ret = uart_set_iso7816_config(state->uart_port, uarg);
-		break;
-
-	case TIOCGISO7816:
-		ret = uart_get_iso7816_config(state->uart_port, uarg);
-		break;
 	default:
 		if (uport->ops->ioctl)
 			ret = uport->ops->ioctl(uport, cmd, arg);
@@ -1467,10 +1424,6 @@ static void uart_set_ldisc(struct tty_struct *tty)
 {
 	struct uart_state *state = tty->driver_data;
 	struct uart_port *uport;
-	struct tty_port *port = &state->port;
-
-	if (!tty_port_initialized(port))
-		return;
 
 	mutex_lock(&state->port.mutex);
 	uport = uart_port_check(state);
@@ -1519,7 +1472,7 @@ static void uart_set_termios(struct tty_struct *tty,
 	}
 
 	uart_change_speed(tty, state, old_termios);
-	/* reload cflag from termios; port driver may have overridden flags */
+	/* reload cflag from termios; port driver may have overriden flags */
 	cflag = tty->termios.c_cflag;
 
 	/* Handle transition to B0 status */
@@ -1566,7 +1519,6 @@ static void uart_tty_port_shutdown(struct tty_port *port)
 {
 	struct uart_state *state = container_of(port, struct uart_state, port);
 	struct uart_port *uport = uart_port_check(state);
-	char *buf;
 
 	/*
 	 * At this point, we stop accepting input.  To do this, we
@@ -1588,18 +1540,8 @@ static void uart_tty_port_shutdown(struct tty_port *port)
 	 */
 	tty_port_set_suspended(port, 0);
 
-	/*
-	 * Free the transmit buffer.
-	 */
-	spin_lock_irq(&uport->lock);
-	buf = state->xmit.buf;
-	state->xmit.buf = NULL;
-	spin_unlock_irq(&uport->lock);
-
-	if (buf)
-		free_page((unsigned long)buf);
-
 	uart_change_pm(state, UART_PM_STATE_OFF);
+
 }
 
 static void uart_wait_until_sent(struct tty_struct *tty, int timeout)
@@ -1981,10 +1923,8 @@ uart_get_console(struct uart_port *ports, int nr, struct console *co)
  *	   console=<name>,io|mmio|mmio16|mmio32|mmio32be|mmio32native,<addr>,<options>
  *
  *	The optional form
- *
  *	   earlycon=<name>,0x<addr>,<options>
  *	   console=<name>,0x<addr>,<options>
- *
  *	is also accepted; the returned @iotype will be UPIO_MEM.
  *
  *	Returns 0 on success or -EINVAL on failure
@@ -2383,8 +2323,7 @@ uart_configure_port(struct uart_driver *drv, struct uart_state *state,
 		 * We probably don't need a spinlock around this, but
 		 */
 		spin_lock_irqsave(&port->lock, flags);
-		port->mctrl &= TIOCM_DTR;
-		port->ops->set_mctrl(port, port->mctrl);
+		port->ops->set_mctrl(port, port->mctrl & TIOCM_DTR);
 		spin_unlock_irqrestore(&port->lock, flags);
 
 		/*
@@ -2504,8 +2443,6 @@ static const struct tty_operations uart_ops = {
 #endif
 	.tiocmget	= uart_tiocmget,
 	.tiocmset	= uart_tiocmset,
-	.set_serial	= uart_set_info_user,
-	.get_serial	= uart_get_info_user,
 	.get_icount	= uart_get_icount,
 #ifdef CONFIG_CONSOLE_POLL
 	.poll_init	= uart_poll_init,
@@ -2537,7 +2474,7 @@ static const struct tty_port_operations uart_port_ops = {
 int uart_register_driver(struct uart_driver *drv)
 {
 	struct tty_driver *normal;
-	int i, retval = -ENOMEM;
+	int i, retval;
 
 	BUG_ON(drv->state);
 
@@ -2589,7 +2526,7 @@ int uart_register_driver(struct uart_driver *drv)
 out_kfree:
 	kfree(drv->state);
 out:
-	return retval;
+	return -ENOMEM;
 }
 
 /**
@@ -2621,7 +2558,6 @@ struct tty_driver *uart_console_device(struct console *co, int *index)
 	*index = co->index;
 	return p->tty_driver;
 }
-EXPORT_SYMBOL_GPL(uart_console_device);
 
 static ssize_t uart_get_attr_uartclk(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -2878,7 +2814,7 @@ int uart_add_one_port(struct uart_driver *drv, struct uart_port *uport)
 	 */
 	tty_dev = tty_port_register_device_attr_serdev(port, drv->tty_driver,
 			uport->line, uport->dev, port, uport->tty_groups);
-	if (!IS_ERR(tty_dev)) {
+	if (likely(!IS_ERR(tty_dev))) {
 		device_set_wakeup_capable(tty_dev, 1);
 	} else {
 		dev_err(uport->dev, "Cannot register tty device on line %d\n",

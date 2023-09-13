@@ -1,6 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2017 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include "dra74x.dtsi"
@@ -21,7 +24,7 @@
 			ti,sysc-mask = <(SYSC_OMAP4_SOFTRESET |
 					 SYSC_DRA7_MCAN_ENAWAKEUP)>;
 			ti,syss-mask = <1>;
-			clocks = <&wkupaon_clkctrl DRA7_WKUPAON_ADC_CLKCTRL 0>;
+			clocks = <&wkupaon_clkctrl DRA7_ADC_CLKCTRL 0>;
 			clock-names = "fck";
 
 			m_can0: mcan@1a00 {
@@ -32,8 +35,8 @@
 				interrupts = <GIC_SPI 67 IRQ_TYPE_LEVEL_HIGH>,
 					     <GIC_SPI 68 IRQ_TYPE_LEVEL_HIGH>;
 				interrupt-names = "int0", "int1";
-				clocks = <&l3_iclk_div>, <&mcan_clk>;
-				clock-names = "hclk", "cclk";
+				clocks = <&mcan_clk>, <&l3_iclk_div>;
+				clock-names = "cclk", "hclk";
 				bosch,mram-cfg = <0x0 0 0 32 0 0 1 1>;
 			};
 		};
@@ -77,14 +80,6 @@
 		ti,bit-shift = <27>;
 		reg = <0x3fc>;
 	};
-};
-
-&rtctarget {
-	status = "disabled";
-};
-
-&usb4_tm {
-	status = "disabled";
 };
 
 &mmc3 {

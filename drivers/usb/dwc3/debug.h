@@ -12,45 +12,6 @@
 #define __DWC3_DEBUG_H
 
 #include "core.h"
-#include <linux/ipc_logging.h>
-
-/*
- * NOTE: Make sure to have dwc as local variable in function before using
- * below macros.
- */
-#define dbg_event(ep_num, name, status) \
-	dwc3_dbg_print(dwc, ep_num, name, status, "")
-
-#define dbg_print(ep_num, name, status, extra) \
-	dwc3_dbg_print(dwc, ep_num, name, status, extra)
-
-#define dbg_print_reg(name, reg) \
-	dwc3_dbg_print_reg(dwc, name, reg)
-
-#define dbg_done(ep_num, count, status) \
-	dwc3_dbg_done(dwc, ep_num, count, status)
-
-#define dbg_queue(ep_num, req, status) \
-	dwc3_dbg_queue(dwc, ep_num, req, status)
-
-#define dbg_setup(ep_num, req) \
-	dwc3_dbg_setup(dwc, ep_num, req)
-
-#define dbg_ep_queue(ep_num, req) \
-	dwc3_dbg_dma_queue(dwc, ep_num, req)
-
-#define dbg_ep_dequeue(ep_num, req) \
-	dwc3_dbg_dma_dequeue(dwc, ep_num, req)
-
-#define dbg_ep_unmap(ep_num, req) \
-	dwc3_dbg_dma_unmap(dwc, ep_num, req)
-
-#define dbg_ep_map(ep_num, req) \
-	dwc3_dbg_dma_map(dwc, ep_num, req)
-
-#define dbg_log_string(fmt, ...) \
-	ipc_log_string(dwc->dwc_ipc_log_ctxt,\
-			"%s: " fmt, __func__, ##__VA_ARGS__)
 
 /**
  * dwc3_gadget_ep_cmd_string - returns endpoint command string
@@ -232,54 +193,294 @@ static inline const char *dwc3_ep0_state_string(enum dwc3_ep0_state state)
  * dwc3_gadget_event_string - returns event name
  * @event: the event code
  */
-static inline const char *dwc3_gadget_event_string(char *str, size_t size,
-		const struct dwc3_event_devt *event)
+static inline const char *
+dwc3_gadget_event_string(char *str, const struct dwc3_event_devt *event)
 {
 	enum dwc3_link_state state = event->event_info & DWC3_LINK_STATE_MASK;
 
 	switch (event->type) {
 	case DWC3_DEVICE_EVENT_DISCONNECT:
-		snprintf(str, size, "Disconnect: [%s]",
+		sprintf(str, "Disconnect: [%s]",
 				dwc3_gadget_link_string(state));
 		break;
 	case DWC3_DEVICE_EVENT_RESET:
-		snprintf(str, size, "Reset [%s]",
-				dwc3_gadget_link_string(state));
+		sprintf(str, "Reset [%s]", dwc3_gadget_link_string(state));
 		break;
 	case DWC3_DEVICE_EVENT_CONNECT_DONE:
-		snprintf(str, size, "Connection Done [%s]",
+		sprintf(str, "Connection Done [%s]",
 				dwc3_gadget_link_string(state));
 		break;
 	case DWC3_DEVICE_EVENT_LINK_STATUS_CHANGE:
-		snprintf(str, size, "Link Change [%s]",
+		sprintf(str, "Link Change [%s]",
 				dwc3_gadget_link_string(state));
 		break;
 	case DWC3_DEVICE_EVENT_WAKEUP:
-		snprintf(str, size, "WakeUp [%s]",
-				dwc3_gadget_link_string(state));
+		sprintf(str, "WakeUp [%s]", dwc3_gadget_link_string(state));
 		break;
 	case DWC3_DEVICE_EVENT_EOPF:
-		snprintf(str, size, "End-Of-Frame [%s]",
+		sprintf(str, "End-Of-Frame [%s]",
 				dwc3_gadget_link_string(state));
 		break;
 	case DWC3_DEVICE_EVENT_SOF:
-		snprintf(str, size, "Start-Of-Frame [%s]",
+		sprintf(str, "Start-Of-Frame [%s]",
 				dwc3_gadget_link_string(state));
 		break;
 	case DWC3_DEVICE_EVENT_ERRATIC_ERROR:
-		snprintf(str, size, "Erratic Error [%s]",
+		sprintf(str, "Erratic Error [%s]",
 				dwc3_gadget_link_string(state));
 		break;
 	case DWC3_DEVICE_EVENT_CMD_CMPL:
-		snprintf(str, size, "Command Complete [%s]",
+		sprintf(str, "Command Complete [%s]",
 				dwc3_gadget_link_string(state));
 		break;
 	case DWC3_DEVICE_EVENT_OVERFLOW:
-		snprintf(str, size, "Overflow [%s]",
-				dwc3_gadget_link_string(state));
+		sprintf(str, "Overflow [%s]", dwc3_gadget_link_string(state));
 		break;
 	default:
-		snprintf(str, size, "UNKNOWN");
+		sprintf(str, "UNKNOWN");
+	}
+
+	return str;
+}
+
+static inline void dwc3_decode_get_status(__u8 t, __u16 i, __u16 l, char *str)
+{
+	switch (t & USB_RECIP_MASK) {
+	case USB_RECIP_INTERFACE:
+		sprintf(str, "Get Interface Status(Intf = %d, Length = %d)",
+			i, l);
+		break;
+	case USB_RECIP_ENDPOINT:
+		sprintf(str, "Get Endpoint Status(ep%d%s)",
+			i & ~USB_DIR_IN,
+			i & USB_DIR_IN ? "in" : "out");
+		break;
+	}
+}
+
+static inline void dwc3_decode_set_clear_feature(__u8 t, __u8 b, __u16 v,
+						 __u16 i, char *str)
+{
+	switch (t & USB_RECIP_MASK) {
+	case USB_RECIP_DEVICE:
+		sprintf(str, "%s Device Feature(%s%s)",
+			b == USB_REQ_CLEAR_FEATURE ? "Clear" : "Set",
+			({char *s;
+				switch (v) {
+				case USB_DEVICE_SELF_POWERED:
+					s = "Self Powered";
+					break;
+				case USB_DEVICE_REMOTE_WAKEUP:
+					s = "Remote Wakeup";
+					break;
+				case USB_DEVICE_TEST_MODE:
+					s = "Test Mode";
+					break;
+				case USB_DEVICE_U1_ENABLE:
+					s = "U1 Enable";
+					break;
+				case USB_DEVICE_U2_ENABLE:
+					s = "U2 Enable";
+					break;
+				case USB_DEVICE_LTM_ENABLE:
+					s = "LTM Enable";
+					break;
+				default:
+					s = "UNKNOWN";
+				} s; }),
+			v == USB_DEVICE_TEST_MODE ?
+			({ char *s;
+				switch (i) {
+				case TEST_J:
+					s = ": TEST_J";
+					break;
+				case TEST_K:
+					s = ": TEST_K";
+					break;
+				case TEST_SE0_NAK:
+					s = ": TEST_SE0_NAK";
+					break;
+				case TEST_PACKET:
+					s = ": TEST_PACKET";
+					break;
+				case TEST_FORCE_EN:
+					s = ": TEST_FORCE_EN";
+					break;
+				default:
+					s = ": UNKNOWN";
+				} s; }) : "");
+		break;
+	case USB_RECIP_INTERFACE:
+		sprintf(str, "%s Interface Feature(%s)",
+			b == USB_REQ_CLEAR_FEATURE ? "Clear" : "Set",
+			v == USB_INTRF_FUNC_SUSPEND ?
+			"Function Suspend" : "UNKNOWN");
+		break;
+	case USB_RECIP_ENDPOINT:
+		sprintf(str, "%s Endpoint Feature(%s ep%d%s)",
+			b == USB_REQ_CLEAR_FEATURE ? "Clear" : "Set",
+			v == USB_ENDPOINT_HALT ? "Halt" : "UNKNOWN",
+			i & ~USB_DIR_IN,
+			i & USB_DIR_IN ? "in" : "out");
+		break;
+	}
+}
+
+static inline void dwc3_decode_set_address(__u16 v, char *str)
+{
+	sprintf(str, "Set Address(Addr = %02x)", v);
+}
+
+static inline void dwc3_decode_get_set_descriptor(__u8 t, __u8 b, __u16 v,
+						  __u16 i, __u16 l, char *str)
+{
+	sprintf(str, "%s %s Descriptor(Index = %d, Length = %d)",
+		b == USB_REQ_GET_DESCRIPTOR ? "Get" : "Set",
+		({ char *s;
+			switch (v >> 8) {
+			case USB_DT_DEVICE:
+				s = "Device";
+				break;
+			case USB_DT_CONFIG:
+				s = "Configuration";
+				break;
+			case USB_DT_STRING:
+				s = "String";
+				break;
+			case USB_DT_INTERFACE:
+				s = "Interface";
+				break;
+			case USB_DT_ENDPOINT:
+				s = "Endpoint";
+				break;
+			case USB_DT_DEVICE_QUALIFIER:
+				s = "Device Qualifier";
+				break;
+			case USB_DT_OTHER_SPEED_CONFIG:
+				s = "Other Speed Config";
+				break;
+			case USB_DT_INTERFACE_POWER:
+				s = "Interface Power";
+				break;
+			case USB_DT_OTG:
+				s = "OTG";
+				break;
+			case USB_DT_DEBUG:
+				s = "Debug";
+				break;
+			case USB_DT_INTERFACE_ASSOCIATION:
+				s = "Interface Association";
+				break;
+			case USB_DT_BOS:
+				s = "BOS";
+				break;
+			case USB_DT_DEVICE_CAPABILITY:
+				s = "Device Capability";
+				break;
+			case USB_DT_PIPE_USAGE:
+				s = "Pipe Usage";
+				break;
+			case USB_DT_SS_ENDPOINT_COMP:
+				s = "SS Endpoint Companion";
+				break;
+			case USB_DT_SSP_ISOC_ENDPOINT_COMP:
+				s = "SSP Isochronous Endpoint Companion";
+				break;
+			default:
+				s = "UNKNOWN";
+				break;
+			} s; }), v & 0xff, l);
+}
+
+
+static inline void dwc3_decode_get_configuration(__u16 l, char *str)
+{
+	sprintf(str, "Get Configuration(Length = %d)", l);
+}
+
+static inline void dwc3_decode_set_configuration(__u8 v, char *str)
+{
+	sprintf(str, "Set Configuration(Config = %d)", v);
+}
+
+static inline void dwc3_decode_get_intf(__u16 i, __u16 l, char *str)
+{
+	sprintf(str, "Get Interface(Intf = %d, Length = %d)", i, l);
+}
+
+static inline void dwc3_decode_set_intf(__u8 v, __u16 i, char *str)
+{
+	sprintf(str, "Set Interface(Intf = %d, Alt.Setting = %d)", i, v);
+}
+
+static inline void dwc3_decode_synch_frame(__u16 i, __u16 l, char *str)
+{
+	sprintf(str, "Synch Frame(Endpoint = %d, Length = %d)", i, l);
+}
+
+static inline void dwc3_decode_set_sel(__u16 l, char *str)
+{
+	sprintf(str, "Set SEL(Length = %d)", l);
+}
+
+static inline void dwc3_decode_set_isoch_delay(__u8 v, char *str)
+{
+	sprintf(str, "Set Isochronous Delay(Delay = %d ns)", v);
+}
+
+/**
+ * dwc3_decode_ctrl - returns a string represetion of ctrl request
+ */
+static inline const char *dwc3_decode_ctrl(char *str, __u8 bRequestType,
+		__u8 bRequest, __u16 wValue, __u16 wIndex, __u16 wLength)
+{
+	switch (bRequest) {
+	case USB_REQ_GET_STATUS:
+		dwc3_decode_get_status(bRequestType, wIndex, wLength, str);
+		break;
+	case USB_REQ_CLEAR_FEATURE:
+	case USB_REQ_SET_FEATURE:
+		dwc3_decode_set_clear_feature(bRequestType, bRequest, wValue,
+					      wIndex, str);
+		break;
+	case USB_REQ_SET_ADDRESS:
+		dwc3_decode_set_address(wValue, str);
+		break;
+	case USB_REQ_GET_DESCRIPTOR:
+	case USB_REQ_SET_DESCRIPTOR:
+		dwc3_decode_get_set_descriptor(bRequestType, bRequest, wValue,
+					       wIndex, wLength, str);
+		break;
+	case USB_REQ_GET_CONFIGURATION:
+		dwc3_decode_get_configuration(wLength, str);
+		break;
+	case USB_REQ_SET_CONFIGURATION:
+		dwc3_decode_set_configuration(wValue, str);
+		break;
+	case USB_REQ_GET_INTERFACE:
+		dwc3_decode_get_intf(wIndex, wLength, str);
+		break;
+	case USB_REQ_SET_INTERFACE:
+		dwc3_decode_set_intf(wValue, wIndex, str);
+		break;
+	case USB_REQ_SYNCH_FRAME:
+		dwc3_decode_synch_frame(wIndex, wLength, str);
+		break;
+	case USB_REQ_SET_SEL:
+		dwc3_decode_set_sel(wLength, str);
+		break;
+	case USB_REQ_SET_ISOCH_DELAY:
+		dwc3_decode_set_isoch_delay(wValue, str);
+		break;
+	default:
+		sprintf(str, "%02x %02x %02x %02x %02x %02x %02x %02x",
+			bRequestType, bRequest,
+			cpu_to_le16(wValue) & 0xff,
+			cpu_to_le16(wValue) >> 8,
+			cpu_to_le16(wIndex) & 0xff,
+			cpu_to_le16(wIndex) >> 8,
+			cpu_to_le16(wLength) & 0xff,
+			cpu_to_le16(wLength) >> 8);
 	}
 
 	return str;
@@ -289,41 +490,48 @@ static inline const char *dwc3_gadget_event_string(char *str, size_t size,
  * dwc3_ep_event_string - returns event name
  * @event: then event code
  */
-static inline const char *dwc3_ep_event_string(char *str, size_t size,
-		const struct dwc3_event_depevt *event, u32 ep0state)
+static inline const char *
+dwc3_ep_event_string(char *str, const struct dwc3_event_depevt *event,
+		     u32 ep0state)
 {
 	u8 epnum = event->endpoint_number;
 	size_t len;
 	int status;
+	int ret;
 
-	len = scnprintf(str, size, "ep%d%s: ", epnum >> 1,
+	ret = sprintf(str, "ep%d%s: ", epnum >> 1,
 			(epnum & 1) ? "in" : "out");
+	if (ret < 0)
+		return "UNKNOWN";
 
 	status = event->status;
 
 	switch (event->endpoint_event) {
 	case DWC3_DEPEVT_XFERCOMPLETE:
-		len += scnprintf(str + len, size - len,
-				"Transfer Complete (%c%c%c)",
+		len = strlen(str);
+		sprintf(str + len, "Transfer Complete (%c%c%c)",
 				status & DEPEVT_STATUS_SHORT ? 'S' : 's',
 				status & DEPEVT_STATUS_IOC ? 'I' : 'i',
 				status & DEPEVT_STATUS_LST ? 'L' : 'l');
 
+		len = strlen(str);
+
 		if (epnum <= 1)
-			scnprintf(str + len, size - len, " [%s]",
-					dwc3_ep0_state_string(ep0state));
+			sprintf(str + len, " [%s]", dwc3_ep0_state_string(ep0state));
 		break;
 	case DWC3_DEPEVT_XFERINPROGRESS:
-		scnprintf(str + len, size - len,
-				"Transfer In Progress [%d] (%c%c%c)",
+		len = strlen(str);
+
+		sprintf(str + len, "Transfer In Progress [%d] (%c%c%c)",
 				event->parameters,
 				status & DEPEVT_STATUS_SHORT ? 'S' : 's',
 				status & DEPEVT_STATUS_IOC ? 'I' : 'i',
 				status & DEPEVT_STATUS_LST ? 'M' : 'm');
 		break;
 	case DWC3_DEPEVT_XFERNOTREADY:
-		len += scnprintf(str + len, size - len,
-				"Transfer Not Ready [%d]%s",
+		len = strlen(str);
+
+		sprintf(str + len, "Transfer Not Ready [%d]%s",
 				event->parameters,
 				status & DEPEVT_STATUS_TRANSFER_ACTIVE ?
 				" (Active)" : " (Not Active)");
@@ -334,38 +542,36 @@ static inline const char *dwc3_ep_event_string(char *str, size_t size,
 
 			switch (phase) {
 			case DEPEVT_STATUS_CONTROL_DATA:
-				scnprintf(str + len, size - len,
-						" [Data Phase]");
+				strcat(str, " [Data Phase]");
 				break;
 			case DEPEVT_STATUS_CONTROL_STATUS:
-				scnprintf(str + len, size - len,
-						" [Status Phase]");
+				strcat(str, " [Status Phase]");
 			}
 		}
 		break;
 	case DWC3_DEPEVT_RXTXFIFOEVT:
-		scnprintf(str + len, size - len, "FIFO");
+		strcat(str, "FIFO");
 		break;
 	case DWC3_DEPEVT_STREAMEVT:
 		status = event->status;
 
 		switch (status) {
 		case DEPEVT_STREAMEVT_FOUND:
-			scnprintf(str + len, size - len, " Stream %d Found",
+			sprintf(str + ret, " Stream %d Found",
 					event->parameters);
 			break;
 		case DEPEVT_STREAMEVT_NOTFOUND:
 		default:
-			scnprintf(str + len, size - len, " Stream Not Found");
+			strcat(str, " Stream Not Found");
 			break;
 		}
 
 		break;
 	case DWC3_DEPEVT_EPCMDCMPLT:
-		scnprintf(str + len, size - len, "Endpoint Command Complete");
+		strcat(str, "Endpoint Command Complete");
 		break;
 	default:
-		scnprintf(str + len, size - len, "UNKNOWN");
+		sprintf(str, "UNKNOWN");
 	}
 
 	return str;
@@ -405,15 +611,14 @@ static inline const char *dwc3_gadget_event_type_string(u8 event)
 	}
 }
 
-static inline const char *dwc3_decode_event(char *str, size_t size, u32 event,
-		u32 ep0state)
+static inline const char *dwc3_decode_event(char *str, u32 event, u32 ep0state)
 {
 	const union dwc3_event evt = (union dwc3_event) event;
 
 	if (evt.type.is_devspec)
-		return dwc3_gadget_event_string(str, size, &evt.devt);
+		return dwc3_gadget_event_string(str, &evt.devt);
 	else
-		return dwc3_ep_event_string(str, size, &evt.depevt, ep0state);
+		return dwc3_ep_event_string(str, &evt.depevt, ep0state);
 }
 
 static inline const char *dwc3_ep_cmd_status_string(int status)
@@ -446,34 +651,11 @@ static inline const char *dwc3_gadget_generic_cmd_status_string(int status)
 	}
 }
 
-void dwc3_dbg_print(struct dwc3 *dwc, u8 ep_num,
-		const char *name, int status, const char *extra);
-void dwc3_dbg_done(struct dwc3 *dwc, u8 ep_num,
-		const u32 count, int status);
-void dwc3_dbg_event(struct dwc3 *dwc, u8 ep_num,
-		const char *name, int status);
-void dwc3_dbg_queue(struct dwc3 *dwc, u8 ep_num,
-		const struct usb_request *req, int status);
-void dwc3_dbg_setup(struct dwc3 *dwc, u8 ep_num,
-		const struct usb_ctrlrequest *req);
-void dwc3_dbg_print_reg(struct dwc3 *dwc,
-		const char *name, int reg);
-void dwc3_dbg_dma_queue(struct dwc3 *dwc, u8 ep_num,
-			struct dwc3_request *req);
-void dwc3_dbg_dma_dequeue(struct dwc3 *dwc, u8 ep_num,
-			struct dwc3_request *req);
-void dwc3_dbg_dma_map(struct dwc3 *dwc, u8 ep_num,
-			struct dwc3_request *req);
-void dwc3_dbg_dma_unmap(struct dwc3 *dwc, u8 ep_num,
-			struct dwc3_request *req);
 
 #ifdef CONFIG_DEBUG_FS
-extern void dwc3_debugfs_create_endpoint_dir(struct dwc3_ep *dep);
 extern void dwc3_debugfs_init(struct dwc3 *);
 extern void dwc3_debugfs_exit(struct dwc3 *);
 #else
-static inline void dwc3_debugfs_create_endpoint_dir(struct dwc3_ep *dep)
-{  }
 static inline void dwc3_debugfs_init(struct dwc3 *d)
 {  }
 static inline void dwc3_debugfs_exit(struct dwc3 *d)

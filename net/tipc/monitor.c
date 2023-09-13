@@ -457,8 +457,6 @@ void tipc_mon_rcv(struct net *net, void *data, u16 dlen, u32 addr,
 	state->probing = false;
 
 	/* Sanity check received domain record */
-	if (new_member_cnt > MAX_MON_DOMAIN)
-		return;
 	if (dlen < dom_rec_len(arrv_dom, 0))
 		return;
 	if (dlen != dom_rec_len(arrv_dom, new_member_cnt))
@@ -713,7 +711,7 @@ static int __tipc_nl_add_monitor_peer(struct tipc_peer *peer,
 	if (!hdr)
 		return -EMSGSIZE;
 
-	attrs = nla_nest_start_noflag(msg->skb, TIPC_NLA_MON_PEER);
+	attrs = nla_nest_start(msg->skb, TIPC_NLA_MON_PEER);
 	if (!attrs)
 		goto msg_full;
 
@@ -802,7 +800,7 @@ int __tipc_nl_add_monitor(struct net *net, struct tipc_nl_msg *msg,
 	if (!hdr)
 		return -EMSGSIZE;
 
-	attrs = nla_nest_start_noflag(msg->skb, TIPC_NLA_MON);
+	attrs = nla_nest_start(msg->skb, TIPC_NLA_MON);
 	if (!attrs)
 		goto msg_full;
 

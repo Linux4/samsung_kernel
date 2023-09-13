@@ -13,8 +13,6 @@ NETIFS[p5]=veth4
 NETIFS[p6]=veth5
 NETIFS[p7]=veth6
 NETIFS[p8]=veth7
-NETIFS[p9]=veth8
-NETIFS[p10]=veth9
 
 ##############################################################################
 # Defines
@@ -35,6 +33,3 @@ PAUSE_ON_CLEANUP=no
 NETIF_TYPE=veth
 # Whether to create virtual interfaces (veth) or not
 NETIF_CREATE=yes
-# Timeout (in seconds) before ping exits regardless of how many packets have
-# been sent or received
-PING_TIMEOUT=5

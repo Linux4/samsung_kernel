@@ -28,7 +28,6 @@
 #define CPACF_KMCTR		0xb92d		/* MSA4 */
 #define CPACF_PRNO		0xb93c		/* MSA5 */
 #define CPACF_KMA		0xb929		/* MSA8 */
-#define CPACF_KDSA		0xb93a		/* MSA9 */
 
 /*
  * En/decryption modifier bits
@@ -93,10 +92,6 @@
 #define CPACF_KIMD_SHA_1	0x01
 #define CPACF_KIMD_SHA_256	0x02
 #define CPACF_KIMD_SHA_512	0x03
-#define CPACF_KIMD_SHA3_224	0x20
-#define CPACF_KIMD_SHA3_256	0x21
-#define CPACF_KIMD_SHA3_384	0x22
-#define CPACF_KIMD_SHA3_512	0x23
 #define CPACF_KIMD_GHASH	0x41
 
 /*
@@ -107,10 +102,6 @@
 #define CPACF_KLMD_SHA_1	0x01
 #define CPACF_KLMD_SHA_256	0x02
 #define CPACF_KLMD_SHA_512	0x03
-#define CPACF_KLMD_SHA3_224	0x20
-#define CPACF_KLMD_SHA3_256	0x21
-#define CPACF_KLMD_SHA3_384	0x22
-#define CPACF_KLMD_SHA3_512	0x23
 
 /*
  * function codes for the KMAC (COMPUTE MESSAGE AUTHENTICATION CODE)
@@ -171,7 +162,7 @@ typedef struct { unsigned char bytes[16]; } cpacf_mask_t;
  *
  * Returns 1 if @func is available for @opcode, 0 otherwise
  */
-static __always_inline void __cpacf_query(unsigned int opcode, cpacf_mask_t *mask)
+static inline void __cpacf_query(unsigned int opcode, cpacf_mask_t *mask)
 {
 	register unsigned long r0 asm("0") = 0;	/* query function */
 	register unsigned long r1 asm("1") = (unsigned long) mask;
@@ -186,7 +177,7 @@ static __always_inline void __cpacf_query(unsigned int opcode, cpacf_mask_t *mas
 		: "cc");
 }
 
-static __always_inline int __cpacf_check_opcode(unsigned int opcode)
+static inline int __cpacf_check_opcode(unsigned int opcode)
 {
 	switch (opcode) {
 	case CPACF_KMAC:
@@ -211,7 +202,7 @@ static __always_inline int __cpacf_check_opcode(unsigned int opcode)
 	}
 }
 
-static __always_inline int cpacf_query(unsigned int opcode, cpacf_mask_t *mask)
+static inline int cpacf_query(unsigned int opcode, cpacf_mask_t *mask)
 {
 	if (__cpacf_check_opcode(opcode)) {
 		__cpacf_query(opcode, mask);
@@ -226,7 +217,7 @@ static inline int cpacf_test_func(cpacf_mask_t *mask, unsigned int func)
 	return (mask->bytes[func >> 3] & (0x80 >> (func & 7))) != 0;
 }
 
-static __always_inline int cpacf_query_func(unsigned int opcode, unsigned int func)
+static inline int cpacf_query_func(unsigned int opcode, unsigned int func)
 {
 	cpacf_mask_t mask;
 

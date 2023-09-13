@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 config ZX_SPDIF
 	tristate "ZTE ZX SPDIF Driver Support"
 	depends on ARCH_ZX || COMPILE_TEST

@@ -3,6 +3,7 @@
 #include <linux/linkage.h>
 #include <asm/asm-offsets.h>
 #include <asm/assembler.h>
+#include <asm/cputype.h>
 
 	.text
 /*
@@ -27,7 +28,7 @@
  *	aff0 = mpidr_masked & 0xff;
  *	aff1 = mpidr_masked & 0xff00;
  *	aff2 = mpidr_masked & 0xff0000;
- *	aff3 = mpidr_masked & 0xff00000000;
+ *	aff2 = mpidr_masked & 0xff00000000;
  *	dst = (aff0 >> rs0 | aff1 >> rs1 | aff2 >> rs2 | aff3 >> rs3);
  *}
  * Input registers: rs0, rs1, rs2, rs3, mpidr, mask
@@ -76,6 +77,10 @@ ENTRY(__cpu_suspend_enter)
 	/* find the mpidr_hash */
 	ldr_l	x1, sleep_save_stash
 	mrs	x7, mpidr_el1
+	tst	x7, #MPIDR_MT_BITMASK
+	b.eq	1f
+	lsr	x7, x7, #MPIDR_LEVEL_BITS
+1:
 	adr_l	x9, mpidr_hash
 	ldr	x10, [x9, #MPIDR_HASH_MASK]
 	/*
@@ -101,7 +106,6 @@ ENTRY(cpu_resume)
 	bl	el2_setup		// if in EL2 drop to EL1 cleanly
 	bl	__cpu_setup
 	/* enable the MMU early - so we can access sleep_save_stash by va */
-	adrp	x1, swapper_pg_dir
 	bl	__enable_mmu
 	ldr	x8, =_cpu_resume
 	br	x8
@@ -111,6 +115,10 @@ ENDPROC(cpu_resume)
 
 ENTRY(_cpu_resume)
 	mrs	x1, mpidr_el1
+	tst	x1, #MPIDR_MT_BITMASK
+	b.eq	1f
+	lsr	x1, x1, #MPIDR_LEVEL_BITS
+1:
 	adr_l	x8, mpidr_hash		// x8 = struct mpidr_hash virt address
 
 	/* retrieve mpidr_hash members to compute the hash */

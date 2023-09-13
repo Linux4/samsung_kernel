@@ -34,9 +34,6 @@
 /* HCI priority */
 #define HCI_PRIO_MAX	7
 
-/* HCI maximum id value */
-#define HCI_MAX_ID 10000
-
 /* HCI Core structures */
 struct inquiry_data {
 	bdaddr_t	bdaddr;
@@ -104,14 +101,6 @@ struct bdaddr_list {
 	struct list_head list;
 	bdaddr_t bdaddr;
 	u8 bdaddr_type;
-};
-
-struct bdaddr_list_with_irk {
-	struct list_head list;
-	bdaddr_t bdaddr;
-	u8 bdaddr_type;
-	u8 peer_irk[16];
-	u8 local_irk[16];
 };
 
 struct bt_uuid {
@@ -202,8 +191,6 @@ struct adv_info {
 /* Default min/max age of connection information (1s/3s) */
 #define DEFAULT_CONN_INFO_MIN_AGE	1000
 #define DEFAULT_CONN_INFO_MAX_AGE	3000
-/* Default authenticated payload timeout 30s */
-#define DEFAULT_AUTH_PAYLOAD_TIMEOUT   0x0bb8
 
 struct amp_assoc {
 	__u16	len;
@@ -280,8 +267,6 @@ struct hci_dev {
 	__u16		discov_interleaved_timeout;
 	__u16		conn_info_min_age;
 	__u16		conn_info_max_age;
-	__u16		auth_payload_timeout;
-	__u8		min_enc_key_size;
 	__u8		ssp_debug_mode;
 	__u8		hw_error_code;
 	__u32		clock;
@@ -447,7 +432,6 @@ struct hci_dev {
 	int (*post_init)(struct hci_dev *hdev);
 	int (*set_diag)(struct hci_dev *hdev, bool enable);
 	int (*set_bdaddr)(struct hci_dev *hdev, const bdaddr_t *bdaddr);
-	void (*cmd_timeout)(struct hci_dev *hdev);
 };
 
 #define HCI_PHY_HANDLE(handle)	(handle & 0xff)
@@ -488,7 +472,6 @@ struct hci_conn {
 	__u16		disc_timeout;
 	__u16		conn_timeout;
 	__u16		setting;
-	__u16		auth_payload_timeout;
 	__u16		le_conn_min_interval;
 	__u16		le_conn_max_interval;
 	__u16		le_conn_interval;
@@ -543,7 +526,6 @@ struct hci_chan {
 	struct sk_buff_head data_q;
 	unsigned int	sent;
 	__u8		state;
-	bool		amp;
 };
 
 struct hci_conn_params {
@@ -1059,7 +1041,6 @@ struct hci_dev *hci_alloc_dev(void);
 void hci_free_dev(struct hci_dev *hdev);
 int hci_register_dev(struct hci_dev *hdev);
 void hci_unregister_dev(struct hci_dev *hdev);
-void hci_cleanup_dev(struct hci_dev *hdev);
 int hci_suspend_dev(struct hci_dev *hdev);
 int hci_resume_dev(struct hci_dev *hdev);
 int hci_reset_dev(struct hci_dev *hdev);
@@ -1082,15 +1063,8 @@ int hci_inquiry(void __user *arg);
 
 struct bdaddr_list *hci_bdaddr_list_lookup(struct list_head *list,
 					   bdaddr_t *bdaddr, u8 type);
-struct bdaddr_list_with_irk *hci_bdaddr_list_lookup_with_irk(
-				    struct list_head *list, bdaddr_t *bdaddr,
-				    u8 type);
 int hci_bdaddr_list_add(struct list_head *list, bdaddr_t *bdaddr, u8 type);
-int hci_bdaddr_list_add_with_irk(struct list_head *list, bdaddr_t *bdaddr,
-					u8 type, u8 *peer_irk, u8 *local_irk);
 int hci_bdaddr_list_del(struct list_head *list, bdaddr_t *bdaddr, u8 type);
-int hci_bdaddr_list_del_with_irk(struct list_head *list, bdaddr_t *bdaddr,
-								u8 type);
 void hci_bdaddr_list_clear(struct list_head *list);
 
 struct hci_conn_params *hci_conn_params_lookup(struct hci_dev *hdev,
@@ -1313,34 +1287,16 @@ static inline void hci_auth_cfm(struct hci_conn *conn, __u8 status)
 		conn->security_cfm_cb(conn, status);
 }
 
-static inline void hci_encrypt_cfm(struct hci_conn *conn, __u8 status)
+static inline void hci_encrypt_cfm(struct hci_conn *conn, __u8 status,
+								__u8 encrypt)
 {
 	struct hci_cb *cb;
-	__u8 encrypt;
 
-	if (conn->state == BT_CONFIG) {
-		if (!status)
-			conn->state = BT_CONNECTED;
+	if (conn->sec_level == BT_SECURITY_SDP)
+		conn->sec_level = BT_SECURITY_LOW;
 
-		hci_connect_cfm(conn, status);
-		hci_conn_drop(conn);
-		return;
-	}
-
-	if (!test_bit(HCI_CONN_ENCRYPT, &conn->flags))
-		encrypt = 0x00;
-	else if (test_bit(HCI_CONN_AES_CCM, &conn->flags))
-		encrypt = 0x02;
-	else
-		encrypt = 0x01;
-
-	if (!status) {
-		if (conn->sec_level == BT_SECURITY_SDP)
-			conn->sec_level = BT_SECURITY_LOW;
-
-		if (conn->pending_sec_level > conn->sec_level)
-			conn->sec_level = conn->pending_sec_level;
-	}
+	if (conn->pending_sec_level > conn->sec_level)
+		conn->sec_level = conn->pending_sec_level;
 
 	mutex_lock(&hci_cb_list_lock);
 	list_for_each_entry(cb, &hci_cb_list, list) {
@@ -1540,8 +1496,6 @@ void hci_mgmt_chan_unregister(struct hci_mgmt_chan *c);
 #define DISCOV_INTERLEAVED_INQUIRY_LEN	0x04
 #define DISCOV_BREDR_INQUIRY_LEN	0x08
 #define DISCOV_LE_RESTART_DELAY		msecs_to_jiffies(200)	/* msec */
-#define DISCOV_LE_FAST_ADV_INT_MIN     100     /* msec */
-#define DISCOV_LE_FAST_ADV_INT_MAX     150     /* msec */
 
 void mgmt_fill_version_info(void *ver);
 int mgmt_new_settings(struct hci_dev *hdev);

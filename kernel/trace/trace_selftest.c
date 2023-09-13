@@ -492,13 +492,8 @@ trace_selftest_function_recursion(void)
 	unregister_ftrace_function(&test_rec_probe);
 
 	ret = -1;
-	/*
-	 * Recursion allows for transitions between context,
-	 * and may call the callback twice.
-	 */
-	if (trace_selftest_recursion_cnt != 1 &&
-	    trace_selftest_recursion_cnt != 2) {
-		pr_cont("*callback not called once (or twice) (%d)* ",
+	if (trace_selftest_recursion_cnt != 1) {
+		pr_cont("*callback not called once (%d)* ",
 			trace_selftest_recursion_cnt);
 		goto out;
 	}
@@ -746,11 +741,6 @@ static int trace_graph_entry_watchdog(struct ftrace_graph_ent *trace)
 	return trace_graph_entry(trace);
 }
 
-static struct fgraph_ops fgraph_ops __initdata  = {
-	.entryfunc		= &trace_graph_entry_watchdog,
-	.retfunc		= &trace_graph_return,
-};
-
 /*
  * Pretty much the same than for the function tracer from which the selftest
  * has been borrowed.
@@ -775,7 +765,8 @@ trace_selftest_startup_function_graph(struct tracer *trace,
 	 */
 	tracing_reset_online_cpus(&tr->trace_buffer);
 	set_graph_array(tr);
-	ret = register_ftrace_graph(&fgraph_ops);
+	ret = register_ftrace_graph(&trace_graph_return,
+				    &trace_graph_entry_watchdog);
 	if (ret) {
 		warn_failed_init_tracer(trace, ret);
 		goto out;
@@ -797,10 +788,7 @@ trace_selftest_startup_function_graph(struct tracer *trace,
 	/* check the trace buffer */
 	ret = trace_test_buffer(&tr->trace_buffer, &count);
 
-	/* Need to also simulate the tr->reset to remove this fgraph_ops */
-	tracing_stop_cmdline_record();
-	unregister_ftrace_graph(&fgraph_ops);
-
+	trace->reset(tr);
 	tracing_start();
 
 	if (!ret && !count) {

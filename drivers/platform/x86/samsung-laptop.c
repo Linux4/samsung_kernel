@@ -1,9 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Samsung Laptop driver
  *
  * Copyright (C) 2009,2011 Greg Kroah-Hartman (gregkh@suse.de)
  * Copyright (C) 2009,2011 Novell Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ *
  */
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
@@ -1121,6 +1125,8 @@ static void kbd_led_set(struct led_classdev *led_cdev,
 
 	if (value > samsung->kbd_led.max_brightness)
 		value = samsung->kbd_led.max_brightness;
+	else if (value < 0)
+		value = 0;
 
 	samsung->kbd_led_wk = value;
 	queue_work(samsung->led_workqueue, &samsung->kbd_led_work);
@@ -1274,12 +1280,15 @@ static void samsung_debugfs_exit(struct samsung_laptop *samsung)
 	debugfs_remove_recursive(samsung->debug.root);
 }
 
-static void samsung_debugfs_init(struct samsung_laptop *samsung)
+static int samsung_debugfs_init(struct samsung_laptop *samsung)
 {
-	struct dentry *root;
+	struct dentry *dent;
 
-	root = debugfs_create_dir("samsung-laptop", NULL);
-	samsung->debug.root = root;
+	samsung->debug.root = debugfs_create_dir("samsung-laptop", NULL);
+	if (!samsung->debug.root) {
+		pr_err("failed to create debugfs directory");
+		goto error_debugfs;
+	}
 
 	samsung->debug.f0000_wrapper.data = samsung->f0000_segment;
 	samsung->debug.f0000_wrapper.size = 0xffff;
@@ -1290,24 +1299,60 @@ static void samsung_debugfs_init(struct samsung_laptop *samsung)
 	samsung->debug.sdiag_wrapper.data = samsung->sdiag;
 	samsung->debug.sdiag_wrapper.size = strlen(samsung->sdiag);
 
-	debugfs_create_u16("command", S_IRUGO | S_IWUSR, root,
-			   &samsung->debug.command);
-	debugfs_create_u32("d0", S_IRUGO | S_IWUSR, root,
-			   &samsung->debug.data.d0);
-	debugfs_create_u32("d1", S_IRUGO | S_IWUSR, root,
-			   &samsung->debug.data.d1);
-	debugfs_create_u16("d2", S_IRUGO | S_IWUSR, root,
-			   &samsung->debug.data.d2);
-	debugfs_create_u8("d3", S_IRUGO | S_IWUSR, root,
-			  &samsung->debug.data.d3);
-	debugfs_create_blob("data", S_IRUGO | S_IWUSR, root,
-			    &samsung->debug.data_wrapper);
-	debugfs_create_blob("f0000_segment", S_IRUSR | S_IWUSR, root,
-			    &samsung->debug.f0000_wrapper);
-	debugfs_create_file("call", S_IFREG | S_IRUGO, root, samsung,
-			    &samsung_laptop_call_fops);
-	debugfs_create_blob("sdiag", S_IRUGO | S_IWUSR, root,
-			    &samsung->debug.sdiag_wrapper);
+	dent = debugfs_create_u16("command", S_IRUGO | S_IWUSR,
+				  samsung->debug.root, &samsung->debug.command);
+	if (!dent)
+		goto error_debugfs;
+
+	dent = debugfs_create_u32("d0", S_IRUGO | S_IWUSR, samsung->debug.root,
+				  &samsung->debug.data.d0);
+	if (!dent)
+		goto error_debugfs;
+
+	dent = debugfs_create_u32("d1", S_IRUGO | S_IWUSR, samsung->debug.root,
+				  &samsung->debug.data.d1);
+	if (!dent)
+		goto error_debugfs;
+
+	dent = debugfs_create_u16("d2", S_IRUGO | S_IWUSR, samsung->debug.root,
+				  &samsung->debug.data.d2);
+	if (!dent)
+		goto error_debugfs;
+
+	dent = debugfs_create_u8("d3", S_IRUGO | S_IWUSR, samsung->debug.root,
+				 &samsung->debug.data.d3);
+	if (!dent)
+		goto error_debugfs;
+
+	dent = debugfs_create_blob("data", S_IRUGO | S_IWUSR,
+				   samsung->debug.root,
+				   &samsung->debug.data_wrapper);
+	if (!dent)
+		goto error_debugfs;
+
+	dent = debugfs_create_blob("f0000_segment", S_IRUSR | S_IWUSR,
+				   samsung->debug.root,
+				   &samsung->debug.f0000_wrapper);
+	if (!dent)
+		goto error_debugfs;
+
+	dent = debugfs_create_file("call", S_IFREG | S_IRUGO,
+				   samsung->debug.root, samsung,
+				   &samsung_laptop_call_fops);
+	if (!dent)
+		goto error_debugfs;
+
+	dent = debugfs_create_blob("sdiag", S_IRUGO | S_IWUSR,
+				   samsung->debug.root,
+				   &samsung->debug.sdiag_wrapper);
+	if (!dent)
+		goto error_debugfs;
+
+	return 0;
+
+error_debugfs:
+	samsung_debugfs_exit(samsung);
+	return -ENOMEM;
 }
 
 static void samsung_sabi_exit(struct samsung_laptop *samsung)
@@ -1700,7 +1745,9 @@ static int __init samsung_init(void)
 	if (ret)
 		goto error_lid_handling;
 
-	samsung_debugfs_init(samsung);
+	ret = samsung_debugfs_init(samsung);
+	if (ret)
+		goto error_debugfs;
 
 	samsung->pm_nb.notifier_call = samsung_pm_notification;
 	register_pm_notifier(&samsung->pm_nb);
@@ -1708,6 +1755,8 @@ static int __init samsung_init(void)
 	samsung_platform_device = samsung->platform_device;
 	return ret;
 
+error_debugfs:
+	samsung_lid_handling_exit(samsung);
 error_lid_handling:
 	samsung_leds_exit(samsung);
 error_leds:

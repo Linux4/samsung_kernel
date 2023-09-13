@@ -1,9 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-only
+// SPDX-License-Identifier: GPL-2.0
 //
 // ALSA SoC Audio driver for CS47L90 codec
 //
-// Copyright (C) 2015-2019 Cirrus Logic, Inc. and
+// Copyright (C) 2015-2018 Cirrus Logic, Inc. and
 //                         Cirrus Logic International Semiconductor Ltd.
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by the
+// Free Software Foundation; version 2.
 //
 
 #include <linux/module.h>
@@ -135,7 +139,23 @@ static int cs47l90_adsp_power_ev(struct snd_soc_dapm_widget *w,
 		break;
 	}
 
-	return wm_adsp_early_event(w, kcontrol, event);
+	return wm_adsp2_early_event(w, kcontrol, event, freq);
+}
+
+static int cs47l90_asyncclk_ev(struct snd_soc_dapm_widget *w,
+			       struct snd_kcontrol *kcontrol,
+			       int event)
+{
+	switch (event) {
+	case SND_SOC_DAPM_POST_PMU:
+		/* Wait at least 1.5ms for asyncclk to stabilise */
+		usleep_range(1500, 1600);
+		break;
+	default:
+		break;
+	}
+
+	return 0;
 }
 
 #define CS47L90_NG_SRC(name, base) \
@@ -161,16 +181,16 @@ static int cs47l90_adsp_power_ev(struct snd_soc_dapm_widget *w,
 	{ name " Channel", "Combine", name " Left Input" }, \
 	{ name " Channel", "Right", name " Right Input" }, \
 	{ name " Channel", "Combine", name " Right Input" }, \
-	{ name " Left Input", "IN1", "IN1L" }, \
-	{ name " Right Input", "IN1", "IN1R" }, \
-	{ name " Left Input", "IN2", "IN2L" }, \
-	{ name " Right Input", "IN2", "IN2R" }, \
-	{ name " Left Input", "IN3", "IN3L" }, \
-	{ name " Right Input", "IN3", "IN3R" }, \
-	{ name " Left Input", "IN4", "IN4L" }, \
-	{ name " Right Input", "IN4", "IN4R" }, \
-	{ name " Left Input", "IN5", "IN5L" }, \
-	{ name " Right Input", "IN5", "IN5R" }
+	{ name " Left Input", "IN1", "IN1L PGA" }, \
+	{ name " Right Input", "IN1", "IN1R PGA" }, \
+	{ name " Left Input", "IN2", "IN2L PGA" }, \
+	{ name " Right Input", "IN2", "IN2R PGA" }, \
+	{ name " Left Input", "IN3", "IN3L PGA" }, \
+	{ name " Right Input", "IN3", "IN3R PGA" }, \
+	{ name " Left Input", "IN4", "IN4L PGA" }, \
+	{ name " Right Input", "IN4", "IN4R PGA" }, \
+	{ name " Left Input", "IN5", "IN5L PGA" }, \
+	{ name " Right Input", "IN5", "IN5R PGA" }
 
 #define CS47L90_RXANC_OUTPUT_ROUTES(widget, name) \
 	{ widget, NULL, name " ANC Source" }, \
@@ -196,17 +216,17 @@ SOC_SINGLE_RANGE_TLV("IN2R Volume", MADERA_IN2R_CONTROL,
 SOC_ENUM("IN HPF Cutoff Frequency", madera_in_hpf_cut_enum),
 
 SOC_SINGLE_EXT("IN1L LP Switch", MADERA_ADC_DIGITAL_VOLUME_1L,
-	       MADERA_IN1L_LP_MODE_SHIFT, 1, 0,
-	       snd_soc_get_volsw, madera_lp_mode_put),
+		MADERA_IN1L_LP_MODE_SHIFT, 1, 0,
+		snd_soc_get_volsw, madera_lp_mode_put),
 SOC_SINGLE_EXT("IN1R LP Switch", MADERA_ADC_DIGITAL_VOLUME_1R,
-	       MADERA_IN1R_LP_MODE_SHIFT, 1, 0,
-	       snd_soc_get_volsw, madera_lp_mode_put),
+		MADERA_IN1R_LP_MODE_SHIFT, 1, 0,
+		snd_soc_get_volsw, madera_lp_mode_put),
 SOC_SINGLE_EXT("IN2L LP Switch", MADERA_ADC_DIGITAL_VOLUME_2L,
-	       MADERA_IN2L_LP_MODE_SHIFT, 1, 0,
-	       snd_soc_get_volsw, madera_lp_mode_put),
+		MADERA_IN2L_LP_MODE_SHIFT, 1, 0,
+		snd_soc_get_volsw, madera_lp_mode_put),
 SOC_SINGLE_EXT("IN2R LP Switch", MADERA_ADC_DIGITAL_VOLUME_2R,
-	       MADERA_IN2R_LP_MODE_SHIFT, 1, 0,
-	       snd_soc_get_volsw, madera_lp_mode_put),
+		MADERA_IN2R_LP_MODE_SHIFT, 1, 0,
+		snd_soc_get_volsw, madera_lp_mode_put),
 
 SOC_SINGLE("IN1L HPF Switch", MADERA_IN1L_CONTROL,
 	   MADERA_IN1L_HPF_SHIFT, 1, 0),
@@ -340,6 +360,12 @@ SOC_ENUM("LHPF2 Mode", madera_lhpf2_mode),
 SOC_ENUM("LHPF3 Mode", madera_lhpf3_mode),
 SOC_ENUM("LHPF4 Mode", madera_lhpf4_mode),
 
+SOC_ENUM("Sample Rate 2", madera_sample_rate[0]),
+SOC_ENUM("Sample Rate 3", madera_sample_rate[1]),
+SOC_ENUM("ASYNC Sample Rate 2", madera_sample_rate[2]),
+
+MADERA_RATE_ENUM("FX Rate", madera_fx_rate),
+
 MADERA_RATE_ENUM("ISRC1 FSL", madera_isrc_fsl[0]),
 MADERA_RATE_ENUM("ISRC2 FSL", madera_isrc_fsl[1]),
 MADERA_RATE_ENUM("ISRC3 FSL", madera_isrc_fsl[2]),
@@ -423,14 +449,49 @@ SOC_DOUBLE_R_TLV("SPKDAT1 Digital Volume", MADERA_DAC_DIGITAL_VOLUME_5L,
 SOC_DOUBLE("SPKDAT1 Switch", MADERA_PDM_SPK1_CTRL_1, MADERA_SPK1L_MUTE_SHIFT,
 	   MADERA_SPK1R_MUTE_SHIFT, 1, 1),
 
+SOC_DOUBLE("HPOUT1 EDRE Switch", MADERA_EDRE_ENABLE,
+	   MADERA_EDRE_OUT1L_THR1_ENA_SHIFT,
+	   MADERA_EDRE_OUT1R_THR1_ENA_SHIFT, 1, 0),
+SOC_DOUBLE("HPOUT2 EDRE Switch", MADERA_EDRE_ENABLE,
+	   MADERA_EDRE_OUT2L_THR1_ENA_SHIFT,
+	   MADERA_EDRE_OUT2R_THR1_ENA_SHIFT, 1, 0),
+SOC_DOUBLE("HPOUT3 EDRE Switch", MADERA_EDRE_ENABLE,
+	   MADERA_EDRE_OUT3L_THR1_ENA_SHIFT,
+	   MADERA_EDRE_OUT3R_THR1_ENA_SHIFT, 1, 0),
+
 SOC_ENUM("Output Ramp Up", madera_out_vi_ramp),
 SOC_ENUM("Output Ramp Down", madera_out_vd_ramp),
+
+MADERA_RATE_ENUM("SPDIF1 Rate", madera_spdif_rate),
 
 SOC_SINGLE("Noise Gate Switch", MADERA_NOISE_GATE_CONTROL,
 	   MADERA_NGATE_ENA_SHIFT, 1, 0),
 SOC_SINGLE_TLV("Noise Gate Threshold Volume", MADERA_NOISE_GATE_CONTROL,
 	       MADERA_NGATE_THR_SHIFT, 7, 1, madera_ng_tlv),
 SOC_ENUM("Noise Gate Hold", madera_ng_hold),
+
+MADERA_RATE_ENUM("Output Rate 1", madera_output_rate),
+
+SOC_ENUM_EXT("IN1L Rate", madera_input_rate[0],
+	     snd_soc_get_enum_double, madera_in_rate_put),
+SOC_ENUM_EXT("IN1R Rate", madera_input_rate[1],
+	     snd_soc_get_enum_double, madera_in_rate_put),
+SOC_ENUM_EXT("IN2L Rate", madera_input_rate[2],
+	     snd_soc_get_enum_double, madera_in_rate_put),
+SOC_ENUM_EXT("IN2R Rate", madera_input_rate[3],
+	     snd_soc_get_enum_double, madera_in_rate_put),
+SOC_ENUM_EXT("IN3L Rate", madera_input_rate[4],
+	     snd_soc_get_enum_double, madera_in_rate_put),
+SOC_ENUM_EXT("IN3R Rate", madera_input_rate[5],
+	     snd_soc_get_enum_double, madera_in_rate_put),
+SOC_ENUM_EXT("IN4L Rate", madera_input_rate[6],
+	     snd_soc_get_enum_double, madera_in_rate_put),
+SOC_ENUM_EXT("IN4R Rate", madera_input_rate[7],
+	     snd_soc_get_enum_double, madera_in_rate_put),
+SOC_ENUM_EXT("IN5L Rate", madera_input_rate[8],
+	     snd_soc_get_enum_double, madera_in_rate_put),
+SOC_ENUM_EXT("IN5R Rate", madera_input_rate[9],
+	     snd_soc_get_enum_double, madera_in_rate_put),
 
 SOC_ENUM_EXT("DFC1RX Width", madera_dfc_width[0],
 	     snd_soc_get_enum_double, madera_dfc_put),
@@ -746,7 +807,8 @@ SND_SOC_DAPM_SUPPLY("SYSCLK", MADERA_SYSTEM_CLOCK_1, MADERA_SYSCLK_ENA_SHIFT,
 		    0, madera_sysclk_ev,
 		    SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_PRE_PMD),
 SND_SOC_DAPM_SUPPLY("ASYNCCLK", MADERA_ASYNC_CLOCK_1,
-		    MADERA_ASYNC_CLK_ENA_SHIFT, 0, NULL, 0),
+		    MADERA_ASYNC_CLK_ENA_SHIFT, 0, cs47l90_asyncclk_ev,
+		    SND_SOC_DAPM_POST_PMU),
 SND_SOC_DAPM_SUPPLY("OPCLK", MADERA_OUTPUT_SYSTEM_CLOCK,
 		    MADERA_OPCLK_ENA_SHIFT, 0, NULL, 0),
 SND_SOC_DAPM_SUPPLY("ASYNCOPCLK", MADERA_OUTPUT_ASYNC_CLOCK,
@@ -767,22 +829,22 @@ SND_SOC_DAPM_SUPPLY("MICBIAS2", MADERA_MIC_BIAS_CTRL_2,
 		    MADERA_MICB1_ENA_SHIFT, 0, NULL, 0),
 
 SND_SOC_DAPM_SUPPLY("MICBIAS1A", MADERA_MIC_BIAS_CTRL_5,
-		    MADERA_MICB1A_ENA_SHIFT, 0, NULL, 0),
+			MADERA_MICB1A_ENA_SHIFT, 0, NULL, 0),
 SND_SOC_DAPM_SUPPLY("MICBIAS1B", MADERA_MIC_BIAS_CTRL_5,
-		    MADERA_MICB1B_ENA_SHIFT, 0, NULL, 0),
+			MADERA_MICB1B_ENA_SHIFT, 0, NULL, 0),
 SND_SOC_DAPM_SUPPLY("MICBIAS1C", MADERA_MIC_BIAS_CTRL_5,
-		    MADERA_MICB1C_ENA_SHIFT, 0, NULL, 0),
+			MADERA_MICB1C_ENA_SHIFT, 0, NULL, 0),
 SND_SOC_DAPM_SUPPLY("MICBIAS1D", MADERA_MIC_BIAS_CTRL_5,
-		    MADERA_MICB1D_ENA_SHIFT, 0, NULL, 0),
+			MADERA_MICB1D_ENA_SHIFT, 0, NULL, 0),
 
 SND_SOC_DAPM_SUPPLY("MICBIAS2A", MADERA_MIC_BIAS_CTRL_6,
-		    MADERA_MICB2A_ENA_SHIFT, 0, NULL, 0),
+			MADERA_MICB2A_ENA_SHIFT, 0, NULL, 0),
 SND_SOC_DAPM_SUPPLY("MICBIAS2B", MADERA_MIC_BIAS_CTRL_6,
-		    MADERA_MICB2B_ENA_SHIFT, 0, NULL, 0),
+			MADERA_MICB2B_ENA_SHIFT, 0, NULL, 0),
 SND_SOC_DAPM_SUPPLY("MICBIAS2C", MADERA_MIC_BIAS_CTRL_6,
-		    MADERA_MICB2C_ENA_SHIFT, 0, NULL, 0),
+			MADERA_MICB2C_ENA_SHIFT, 0, NULL, 0),
 SND_SOC_DAPM_SUPPLY("MICBIAS2D", MADERA_MIC_BIAS_CTRL_6,
-		    MADERA_MICB2D_ENA_SHIFT, 0, NULL, 0),
+			MADERA_MICB2D_ENA_SHIFT, 0, NULL, 0),
 
 SND_SOC_DAPM_SUPPLY("FXCLK", SND_SOC_NOPM,
 		    MADERA_DOM_GRP_FX, 0,
@@ -880,41 +942,28 @@ SND_SOC_DAPM_SUPPLY("DFCCLK", SND_SOC_NOPM,
 SND_SOC_DAPM_SIGGEN("TONE"),
 SND_SOC_DAPM_SIGGEN("NOISE"),
 
-SND_SOC_DAPM_INPUT("IN1ALN"),
-SND_SOC_DAPM_INPUT("IN1ALP"),
-SND_SOC_DAPM_INPUT("IN1BLN"),
-SND_SOC_DAPM_INPUT("IN1BLP"),
-SND_SOC_DAPM_INPUT("IN1ARN"),
-SND_SOC_DAPM_INPUT("IN1ARP"),
-SND_SOC_DAPM_INPUT("IN1BRN"),
-SND_SOC_DAPM_INPUT("IN1BRP"),
-SND_SOC_DAPM_INPUT("IN2ALN"),
-SND_SOC_DAPM_INPUT("IN2ALP"),
-SND_SOC_DAPM_INPUT("IN2BLN"),
-SND_SOC_DAPM_INPUT("IN2BLP"),
-SND_SOC_DAPM_INPUT("IN2RN"),
-SND_SOC_DAPM_INPUT("IN2RP"),
-SND_SOC_DAPM_INPUT("DMICCLK3"),
-SND_SOC_DAPM_INPUT("DMICDAT3"),
-SND_SOC_DAPM_INPUT("DMICCLK4"),
-SND_SOC_DAPM_INPUT("DMICDAT4"),
-SND_SOC_DAPM_INPUT("DMICCLK5"),
-SND_SOC_DAPM_INPUT("DMICDAT5"),
-
-SND_SOC_DAPM_MUX("IN1L Analog Mux", SND_SOC_NOPM, 0, 0, &madera_inmux[0]),
-SND_SOC_DAPM_MUX("IN1R Analog Mux", SND_SOC_NOPM, 0, 0, &madera_inmux[1]),
-SND_SOC_DAPM_MUX("IN2L Analog Mux", SND_SOC_NOPM, 0, 0, &madera_inmux[2]),
-
-SND_SOC_DAPM_MUX("IN1L Mode", SND_SOC_NOPM, 0, 0, &madera_inmode[0]),
-SND_SOC_DAPM_MUX("IN1R Mode", SND_SOC_NOPM, 0, 0, &madera_inmode[0]),
-
-SND_SOC_DAPM_MUX("IN2L Mode", SND_SOC_NOPM, 0, 0, &madera_inmode[1]),
-SND_SOC_DAPM_MUX("IN2R Mode", SND_SOC_NOPM, 0, 0, &madera_inmode[1]),
+SND_SOC_DAPM_INPUT("IN1AL"),
+SND_SOC_DAPM_INPUT("IN1BL"),
+SND_SOC_DAPM_INPUT("IN1AR"),
+SND_SOC_DAPM_INPUT("IN1BR"),
+SND_SOC_DAPM_INPUT("IN2AL"),
+SND_SOC_DAPM_INPUT("IN2BL"),
+SND_SOC_DAPM_INPUT("IN2R"),
+SND_SOC_DAPM_INPUT("IN3L"),
+SND_SOC_DAPM_INPUT("IN3R"),
+SND_SOC_DAPM_INPUT("IN4L"),
+SND_SOC_DAPM_INPUT("IN4R"),
+SND_SOC_DAPM_INPUT("IN5L"),
+SND_SOC_DAPM_INPUT("IN5R"),
 
 SND_SOC_DAPM_OUTPUT("DRC1 Signal Activity"),
 SND_SOC_DAPM_OUTPUT("DRC2 Signal Activity"),
 
 SND_SOC_DAPM_OUTPUT("DSP Trigger Out"),
+
+SND_SOC_DAPM_MUX("IN1L Mux", SND_SOC_NOPM, 0, 0, &madera_inmux[0]),
+SND_SOC_DAPM_MUX("IN1R Mux", SND_SOC_NOPM, 0, 0, &madera_inmux[1]),
+SND_SOC_DAPM_MUX("IN2L Mux", SND_SOC_NOPM, 0, 0, &madera_inmux[2]),
 
 SND_SOC_DAPM_PGA("PWM1 Driver", MADERA_PWM_DRIVE_1, MADERA_PWM1_ENA_SHIFT,
 		 0, NULL, 0),
@@ -1073,9 +1122,9 @@ SND_SOC_DAPM_PGA_E("OUT5R", MADERA_OUTPUT_ENABLES_1,
 		   SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
 
 SND_SOC_DAPM_PGA("SPD1TX1", MADERA_SPD1_TX_CONTROL,
-		 MADERA_SPD1_VAL1_SHIFT, 0, NULL, 0),
+		   MADERA_SPD1_VAL1_SHIFT, 0, NULL, 0),
 SND_SOC_DAPM_PGA("SPD1TX2", MADERA_SPD1_TX_CONTROL,
-		 MADERA_SPD1_VAL2_SHIFT, 0, NULL, 0),
+		   MADERA_SPD1_VAL2_SHIFT, 0, NULL, 0),
 SND_SOC_DAPM_OUT_DRV("SPD1", MADERA_SPD1_TX_CONTROL,
 		     MADERA_SPD1_ENA_SHIFT, 0, NULL, 0),
 
@@ -1095,113 +1144,121 @@ SND_SOC_DAPM_PGA("Tone Generator 2", MADERA_TONE_GENERATOR_1,
 SND_SOC_DAPM_SIGGEN("HAPTICS"),
 
 SND_SOC_DAPM_MUX("AEC1 Loopback", MADERA_DAC_AEC_CONTROL_1,
-		 MADERA_AEC1_LOOPBACK_ENA_SHIFT, 0,
-		 &cs47l90_aec_loopback_mux[0]),
+		       MADERA_AEC1_LOOPBACK_ENA_SHIFT, 0,
+		       &cs47l90_aec_loopback_mux[0]),
 SND_SOC_DAPM_MUX("AEC2 Loopback", MADERA_DAC_AEC_CONTROL_2,
-		 MADERA_AEC2_LOOPBACK_ENA_SHIFT, 0,
-		 &cs47l90_aec_loopback_mux[1]),
+		       MADERA_AEC2_LOOPBACK_ENA_SHIFT, 0,
+		       &cs47l90_aec_loopback_mux[1]),
 
-SND_SOC_DAPM_PGA_E("IN1L", MADERA_INPUT_ENABLES, MADERA_IN1L_ENA_SHIFT,
+SND_SOC_DAPM_PGA_E("IN1L PGA", MADERA_INPUT_ENABLES, MADERA_IN1L_ENA_SHIFT,
 		   0, NULL, 0, madera_in_ev,
 		   SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMD |
 		   SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU),
-SND_SOC_DAPM_PGA_E("IN1R", MADERA_INPUT_ENABLES, MADERA_IN1R_ENA_SHIFT,
+SND_SOC_DAPM_PGA_E("IN1R PGA", MADERA_INPUT_ENABLES, MADERA_IN1R_ENA_SHIFT,
 		   0, NULL, 0, madera_in_ev,
 		   SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMD |
 		   SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU),
-SND_SOC_DAPM_PGA_E("IN2L", MADERA_INPUT_ENABLES, MADERA_IN2L_ENA_SHIFT,
+SND_SOC_DAPM_PGA_E("IN2L PGA", MADERA_INPUT_ENABLES, MADERA_IN2L_ENA_SHIFT,
 		   0, NULL, 0, madera_in_ev,
 		   SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMD |
 		   SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU),
-SND_SOC_DAPM_PGA_E("IN2R", MADERA_INPUT_ENABLES, MADERA_IN2R_ENA_SHIFT,
+SND_SOC_DAPM_PGA_E("IN2R PGA", MADERA_INPUT_ENABLES, MADERA_IN2R_ENA_SHIFT,
 		   0, NULL, 0, madera_in_ev,
 		   SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMD |
 		   SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU),
-SND_SOC_DAPM_PGA_E("IN3L", MADERA_INPUT_ENABLES, MADERA_IN3L_ENA_SHIFT,
+SND_SOC_DAPM_PGA_E("IN3L PGA", MADERA_INPUT_ENABLES, MADERA_IN3L_ENA_SHIFT,
 		   0, NULL, 0, madera_in_ev,
 		   SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMD |
 		   SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU),
-SND_SOC_DAPM_PGA_E("IN3R", MADERA_INPUT_ENABLES, MADERA_IN3R_ENA_SHIFT,
+SND_SOC_DAPM_PGA_E("IN3R PGA", MADERA_INPUT_ENABLES, MADERA_IN3R_ENA_SHIFT,
 		   0, NULL, 0, madera_in_ev,
 		   SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMD |
 		   SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU),
-SND_SOC_DAPM_PGA_E("IN4L", MADERA_INPUT_ENABLES, MADERA_IN4L_ENA_SHIFT,
+SND_SOC_DAPM_PGA_E("IN4L PGA", MADERA_INPUT_ENABLES, MADERA_IN4L_ENA_SHIFT,
 		   0, NULL, 0, madera_in_ev,
 		   SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMD |
 		   SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU),
-SND_SOC_DAPM_PGA_E("IN4R", MADERA_INPUT_ENABLES, MADERA_IN4R_ENA_SHIFT,
+SND_SOC_DAPM_PGA_E("IN4R PGA", MADERA_INPUT_ENABLES, MADERA_IN4R_ENA_SHIFT,
 		   0, NULL, 0, madera_in_ev,
 		   SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMD |
 		   SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU),
-SND_SOC_DAPM_PGA_E("IN5L", MADERA_INPUT_ENABLES, MADERA_IN5L_ENA_SHIFT,
+SND_SOC_DAPM_PGA_E("IN5L PGA", MADERA_INPUT_ENABLES, MADERA_IN5L_ENA_SHIFT,
 		   0, NULL, 0, madera_in_ev,
 		   SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMD |
 		   SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU),
-SND_SOC_DAPM_PGA_E("IN5R", MADERA_INPUT_ENABLES, MADERA_IN5R_ENA_SHIFT,
+SND_SOC_DAPM_PGA_E("IN5R PGA", MADERA_INPUT_ENABLES, MADERA_IN5R_ENA_SHIFT,
 		   0, NULL, 0, madera_in_ev,
 		   SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMD |
 		   SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU),
 
 SND_SOC_DAPM_AIF_IN("AIF1RX1", NULL, 0,
-		    MADERA_AIF1_RX_ENABLES, MADERA_AIF1RX1_ENA_SHIFT, 0),
+			MADERA_AIF1_RX_ENABLES, MADERA_AIF1RX1_ENA_SHIFT, 0),
 SND_SOC_DAPM_AIF_IN("AIF1RX2", NULL, 0,
-		    MADERA_AIF1_RX_ENABLES, MADERA_AIF1RX2_ENA_SHIFT, 0),
+			MADERA_AIF1_RX_ENABLES, MADERA_AIF1RX2_ENA_SHIFT, 0),
 SND_SOC_DAPM_AIF_IN("AIF1RX3", NULL, 0,
-		    MADERA_AIF1_RX_ENABLES, MADERA_AIF1RX3_ENA_SHIFT, 0),
+			MADERA_AIF1_RX_ENABLES, MADERA_AIF1RX3_ENA_SHIFT, 0),
 SND_SOC_DAPM_AIF_IN("AIF1RX4", NULL, 0,
-		    MADERA_AIF1_RX_ENABLES, MADERA_AIF1RX4_ENA_SHIFT, 0),
+			MADERA_AIF1_RX_ENABLES, MADERA_AIF1RX4_ENA_SHIFT, 0),
 SND_SOC_DAPM_AIF_IN("AIF1RX5", NULL, 0,
-		    MADERA_AIF1_RX_ENABLES, MADERA_AIF1RX5_ENA_SHIFT, 0),
+			MADERA_AIF1_RX_ENABLES, MADERA_AIF1RX5_ENA_SHIFT, 0),
 SND_SOC_DAPM_AIF_IN("AIF1RX6", NULL, 0,
-		    MADERA_AIF1_RX_ENABLES, MADERA_AIF1RX6_ENA_SHIFT, 0),
+			MADERA_AIF1_RX_ENABLES, MADERA_AIF1RX6_ENA_SHIFT, 0),
 SND_SOC_DAPM_AIF_IN("AIF1RX7", NULL, 0,
-		    MADERA_AIF1_RX_ENABLES, MADERA_AIF1RX7_ENA_SHIFT, 0),
+			MADERA_AIF1_RX_ENABLES, MADERA_AIF1RX7_ENA_SHIFT, 0),
 SND_SOC_DAPM_AIF_IN("AIF1RX8", NULL, 0,
-		    MADERA_AIF1_RX_ENABLES, MADERA_AIF1RX8_ENA_SHIFT, 0),
+			MADERA_AIF1_RX_ENABLES, MADERA_AIF1RX8_ENA_SHIFT, 0),
 
 SND_SOC_DAPM_AIF_IN("AIF2RX1", NULL, 0,
-		    MADERA_AIF2_RX_ENABLES, MADERA_AIF2RX1_ENA_SHIFT, 0),
+			MADERA_AIF2_RX_ENABLES, MADERA_AIF2RX1_ENA_SHIFT, 0),
 SND_SOC_DAPM_AIF_IN("AIF2RX2", NULL, 0,
-		    MADERA_AIF2_RX_ENABLES, MADERA_AIF2RX2_ENA_SHIFT, 0),
+			MADERA_AIF2_RX_ENABLES, MADERA_AIF2RX2_ENA_SHIFT, 0),
 SND_SOC_DAPM_AIF_IN("AIF2RX3", NULL, 0,
-		    MADERA_AIF2_RX_ENABLES, MADERA_AIF2RX3_ENA_SHIFT, 0),
+			MADERA_AIF2_RX_ENABLES, MADERA_AIF2RX3_ENA_SHIFT, 0),
 SND_SOC_DAPM_AIF_IN("AIF2RX4", NULL, 0,
-		    MADERA_AIF2_RX_ENABLES, MADERA_AIF2RX4_ENA_SHIFT, 0),
+			MADERA_AIF2_RX_ENABLES, MADERA_AIF2RX4_ENA_SHIFT, 0),
 SND_SOC_DAPM_AIF_IN("AIF2RX5", NULL, 0,
-		    MADERA_AIF2_RX_ENABLES, MADERA_AIF2RX5_ENA_SHIFT, 0),
+			MADERA_AIF2_RX_ENABLES, MADERA_AIF2RX5_ENA_SHIFT, 0),
 SND_SOC_DAPM_AIF_IN("AIF2RX6", NULL, 0,
-		    MADERA_AIF2_RX_ENABLES, MADERA_AIF2RX6_ENA_SHIFT, 0),
+			MADERA_AIF2_RX_ENABLES, MADERA_AIF2RX6_ENA_SHIFT, 0),
 SND_SOC_DAPM_AIF_IN("AIF2RX7", NULL, 0,
-		    MADERA_AIF2_RX_ENABLES, MADERA_AIF2RX7_ENA_SHIFT, 0),
+			MADERA_AIF2_RX_ENABLES, MADERA_AIF2RX7_ENA_SHIFT, 0),
 SND_SOC_DAPM_AIF_IN("AIF2RX8", NULL, 0,
-		    MADERA_AIF2_RX_ENABLES, MADERA_AIF2RX8_ENA_SHIFT, 0),
+			MADERA_AIF2_RX_ENABLES, MADERA_AIF2RX8_ENA_SHIFT, 0),
 
 SND_SOC_DAPM_AIF_IN("AIF3RX1", NULL, 0,
-		    MADERA_AIF3_RX_ENABLES, MADERA_AIF3RX1_ENA_SHIFT, 0),
+			MADERA_AIF3_RX_ENABLES, MADERA_AIF3RX1_ENA_SHIFT, 0),
 SND_SOC_DAPM_AIF_IN("AIF3RX2", NULL, 0,
-		    MADERA_AIF3_RX_ENABLES, MADERA_AIF3RX2_ENA_SHIFT, 0),
+			MADERA_AIF3_RX_ENABLES, MADERA_AIF3RX2_ENA_SHIFT, 0),
 
 SND_SOC_DAPM_AIF_IN("AIF4RX1", NULL, 0,
-		    MADERA_AIF4_RX_ENABLES, MADERA_AIF4RX1_ENA_SHIFT, 0),
+			MADERA_AIF4_RX_ENABLES, MADERA_AIF4RX1_ENA_SHIFT, 0),
 SND_SOC_DAPM_AIF_IN("AIF4RX2", NULL, 0,
-		    MADERA_AIF4_RX_ENABLES, MADERA_AIF4RX2_ENA_SHIFT, 0),
+			MADERA_AIF4_RX_ENABLES, MADERA_AIF4RX2_ENA_SHIFT, 0),
 
-SND_SOC_DAPM_AIF_IN("SLIMRX1", NULL, 0, MADERA_SLIMBUS_RX_CHANNEL_ENABLE,
-		    MADERA_SLIMRX1_ENA_SHIFT, 0),
-SND_SOC_DAPM_AIF_IN("SLIMRX2", NULL, 0, MADERA_SLIMBUS_RX_CHANNEL_ENABLE,
-		    MADERA_SLIMRX2_ENA_SHIFT, 0),
-SND_SOC_DAPM_AIF_IN("SLIMRX3", NULL, 0, MADERA_SLIMBUS_RX_CHANNEL_ENABLE,
-		    MADERA_SLIMRX3_ENA_SHIFT, 0),
-SND_SOC_DAPM_AIF_IN("SLIMRX4", NULL, 0, MADERA_SLIMBUS_RX_CHANNEL_ENABLE,
-		    MADERA_SLIMRX4_ENA_SHIFT, 0),
-SND_SOC_DAPM_AIF_IN("SLIMRX5", NULL, 0, MADERA_SLIMBUS_RX_CHANNEL_ENABLE,
-		    MADERA_SLIMRX5_ENA_SHIFT, 0),
-SND_SOC_DAPM_AIF_IN("SLIMRX6", NULL, 0, MADERA_SLIMBUS_RX_CHANNEL_ENABLE,
-		    MADERA_SLIMRX6_ENA_SHIFT, 0),
-SND_SOC_DAPM_AIF_IN("SLIMRX7", NULL, 0, MADERA_SLIMBUS_RX_CHANNEL_ENABLE,
-		    MADERA_SLIMRX7_ENA_SHIFT, 0),
-SND_SOC_DAPM_AIF_IN("SLIMRX8", NULL, 0, MADERA_SLIMBUS_RX_CHANNEL_ENABLE,
-		    MADERA_SLIMRX8_ENA_SHIFT, 0),
+SND_SOC_DAPM_AIF_IN("SLIMRX1", NULL, 0,
+			MADERA_SLIMBUS_RX_CHANNEL_ENABLE,
+			MADERA_SLIMRX1_ENA_SHIFT, 0),
+SND_SOC_DAPM_AIF_IN("SLIMRX2", NULL, 0,
+			MADERA_SLIMBUS_RX_CHANNEL_ENABLE,
+			MADERA_SLIMRX2_ENA_SHIFT, 0),
+SND_SOC_DAPM_AIF_IN("SLIMRX3", NULL, 0,
+			MADERA_SLIMBUS_RX_CHANNEL_ENABLE,
+			MADERA_SLIMRX3_ENA_SHIFT, 0),
+SND_SOC_DAPM_AIF_IN("SLIMRX4", NULL, 0,
+			MADERA_SLIMBUS_RX_CHANNEL_ENABLE,
+			MADERA_SLIMRX4_ENA_SHIFT, 0),
+SND_SOC_DAPM_AIF_IN("SLIMRX5", NULL, 0,
+			MADERA_SLIMBUS_RX_CHANNEL_ENABLE,
+			MADERA_SLIMRX5_ENA_SHIFT, 0),
+SND_SOC_DAPM_AIF_IN("SLIMRX6", NULL, 0,
+			MADERA_SLIMBUS_RX_CHANNEL_ENABLE,
+			MADERA_SLIMRX6_ENA_SHIFT, 0),
+SND_SOC_DAPM_AIF_IN("SLIMRX7", NULL, 0,
+			MADERA_SLIMBUS_RX_CHANNEL_ENABLE,
+			MADERA_SLIMRX7_ENA_SHIFT, 0),
+SND_SOC_DAPM_AIF_IN("SLIMRX8", NULL, 0,
+			MADERA_SLIMBUS_RX_CHANNEL_ENABLE,
+			MADERA_SLIMRX8_ENA_SHIFT, 0),
 
 SND_SOC_DAPM_PGA("EQ1", MADERA_EQ1_1, MADERA_EQ1_ENA_SHIFT, 0, NULL, 0),
 SND_SOC_DAPM_PGA("EQ2", MADERA_EQ2_1, MADERA_EQ2_ENA_SHIFT, 0, NULL, 0),
@@ -1227,22 +1284,22 @@ SND_SOC_DAPM_PGA("LHPF4", MADERA_HPLPF4_1, MADERA_LHPF4_ENA_SHIFT, 0,
 		 NULL, 0),
 
 SND_SOC_DAPM_PGA("ASRC1IN1L", MADERA_ASRC1_ENABLE,
-		 MADERA_ASRC1_IN1L_ENA_SHIFT, 0, NULL, 0),
+		MADERA_ASRC1_IN1L_ENA_SHIFT, 0, NULL, 0),
 SND_SOC_DAPM_PGA("ASRC1IN1R", MADERA_ASRC1_ENABLE,
-		 MADERA_ASRC1_IN1R_ENA_SHIFT, 0, NULL, 0),
+		MADERA_ASRC1_IN1R_ENA_SHIFT, 0, NULL, 0),
 SND_SOC_DAPM_PGA("ASRC1IN2L", MADERA_ASRC1_ENABLE,
-		 MADERA_ASRC1_IN2L_ENA_SHIFT, 0, NULL, 0),
+		MADERA_ASRC1_IN2L_ENA_SHIFT, 0, NULL, 0),
 SND_SOC_DAPM_PGA("ASRC1IN2R", MADERA_ASRC1_ENABLE,
-		 MADERA_ASRC1_IN2R_ENA_SHIFT, 0, NULL, 0),
+		MADERA_ASRC1_IN2R_ENA_SHIFT, 0, NULL, 0),
 
 SND_SOC_DAPM_PGA("ASRC2IN1L", MADERA_ASRC2_ENABLE,
-		 MADERA_ASRC2_IN1L_ENA_SHIFT, 0, NULL, 0),
+		MADERA_ASRC2_IN1L_ENA_SHIFT, 0, NULL, 0),
 SND_SOC_DAPM_PGA("ASRC2IN1R", MADERA_ASRC2_ENABLE,
-		 MADERA_ASRC2_IN1R_ENA_SHIFT, 0, NULL, 0),
+		MADERA_ASRC2_IN1R_ENA_SHIFT, 0, NULL, 0),
 SND_SOC_DAPM_PGA("ASRC2IN2L", MADERA_ASRC2_ENABLE,
-		 MADERA_ASRC2_IN2L_ENA_SHIFT, 0, NULL, 0),
+		MADERA_ASRC2_IN2L_ENA_SHIFT, 0, NULL, 0),
 SND_SOC_DAPM_PGA("ASRC2IN2R", MADERA_ASRC2_ENABLE,
-		 MADERA_ASRC2_IN2R_ENA_SHIFT, 0, NULL, 0),
+		MADERA_ASRC2_IN2R_ENA_SHIFT, 0, NULL, 0),
 
 SND_SOC_DAPM_PGA("ISRC1DEC1", MADERA_ISRC_1_CTRL_3,
 		 MADERA_ISRC1_DEC1_ENA_SHIFT, 0, NULL, 0),
@@ -1480,16 +1537,16 @@ SND_SOC_DAPM_OUTPUT("MICSUPP"),
 	{ name, "Haptics", "HAPTICS" }, \
 	{ name, "AEC1", "AEC1 Loopback" }, \
 	{ name, "AEC2", "AEC2 Loopback" }, \
-	{ name, "IN1L", "IN1L" }, \
-	{ name, "IN1R", "IN1R" }, \
-	{ name, "IN2L", "IN2L" }, \
-	{ name, "IN2R", "IN2R" }, \
-	{ name, "IN3L", "IN3L" }, \
-	{ name, "IN3R", "IN3R" }, \
-	{ name, "IN4L", "IN4L" }, \
-	{ name, "IN4R", "IN4R" }, \
-	{ name, "IN5L", "IN5L" }, \
-	{ name, "IN5R", "IN5R" }, \
+	{ name, "IN1L", "IN1L PGA" }, \
+	{ name, "IN1R", "IN1R PGA" }, \
+	{ name, "IN2L", "IN2L PGA" }, \
+	{ name, "IN2R", "IN2R PGA" }, \
+	{ name, "IN3L", "IN3L PGA" }, \
+	{ name, "IN3R", "IN3R PGA" }, \
+	{ name, "IN4L", "IN4L PGA" }, \
+	{ name, "IN4R", "IN4R PGA" }, \
+	{ name, "IN5L", "IN5L PGA" }, \
+	{ name, "IN5R", "IN5R PGA" }, \
 	{ name, "AIF1RX1", "AIF1RX1" }, \
 	{ name, "AIF1RX2", "AIF1RX2" }, \
 	{ name, "AIF1RX3", "AIF1RX3" }, \
@@ -1750,9 +1807,12 @@ static const struct snd_soc_dapm_route cs47l90_dapm_routes[] = {
 	{ "SPD1", NULL, "SPD1TX1" },
 	{ "SPD1", NULL, "SPD1TX2" },
 
-	{ "IN1L", NULL, "SYSCLK" },
-	{ "IN1R", NULL, "SYSCLK" },
-	{ "IN2L", NULL, "SYSCLK" },
+	{ "IN1AL", NULL, "SYSCLK" },
+	{ "IN1BL", NULL, "SYSCLK" },
+	{ "IN1AR", NULL, "SYSCLK" },
+	{ "IN1BR", NULL, "SYSCLK" },
+	{ "IN2AL", NULL, "SYSCLK" },
+	{ "IN2BL", NULL, "SYSCLK" },
 	{ "IN2R", NULL, "SYSCLK" },
 	{ "IN3L", NULL, "SYSCLK" },
 	{ "IN3R", NULL, "SYSCLK" },
@@ -1897,51 +1957,28 @@ static const struct snd_soc_dapm_route cs47l90_dapm_routes[] = {
 
 	{ "Audio Trace DSP", NULL, "DSP1" },
 
-	{ "IN1L Analog Mux", "A", "IN1ALN" },
-	{ "IN1L Analog Mux", "A", "IN1ALP" },
-	{ "IN1L Analog Mux", "B", "IN1BLN" },
-	{ "IN1L Analog Mux", "B", "IN1BLP" },
-	{ "IN1R Analog Mux", "A", "IN1ARN" },
-	{ "IN1R Analog Mux", "A", "IN1ARP" },
-	{ "IN1R Analog Mux", "B", "IN1BRN" },
-	{ "IN1R Analog Mux", "B", "IN1BRP" },
+	{ "IN1L Mux", "A", "IN1AL" },
+	{ "IN1L Mux", "B", "IN1BL" },
+	{ "IN1R Mux", "A", "IN1AR" },
+	{ "IN1R Mux", "B", "IN1BR" },
 
-	{ "IN1L Mode", "Analog", "IN1L Analog Mux" },
-	{ "IN1R Mode", "Analog", "IN1R Analog Mux" },
+	{ "IN2L Mux", "A", "IN2AL" },
+	{ "IN2L Mux", "B", "IN2BL" },
 
-	{ "IN1L Mode", "Digital", "IN1ARN" },
-	{ "IN1L Mode", "Digital", "IN1ARP" },
-	{ "IN1R Mode", "Digital", "IN1ARN" },
-	{ "IN1R Mode", "Digital", "IN1ARP" },
+	{ "IN1L PGA", NULL, "IN1L Mux" },
+	{ "IN1R PGA", NULL, "IN1R Mux" },
 
-	{ "IN1L", NULL, "IN1L Mode" },
-	{ "IN1R", NULL, "IN1R Mode" },
+	{ "IN2L PGA", NULL, "IN2L Mux" },
+	{ "IN2R PGA", NULL, "IN2R" },
 
-	{ "IN2L Analog Mux", "A", "IN2ALN" },
-	{ "IN2L Analog Mux", "A", "IN2ALP" },
-	{ "IN2L Analog Mux", "B", "IN2BLN" },
-	{ "IN2L Analog Mux", "B", "IN2BLP" },
+	{ "IN3L PGA", NULL, "IN3L" },
+	{ "IN3R PGA", NULL, "IN3R" },
 
-	{ "IN2L Mode", "Analog", "IN2L Analog Mux" },
-	{ "IN2R Mode", "Analog", "IN2RN" },
-	{ "IN2R Mode", "Analog", "IN2RP" },
+	{ "IN4L PGA", NULL, "IN4L" },
+	{ "IN4R PGA", NULL, "IN4R" },
 
-	{ "IN2L Mode", "Digital", "IN2ALN" },
-	{ "IN2L Mode", "Digital", "IN2ALP" },
-	{ "IN2R Mode", "Digital", "IN2ALN" },
-	{ "IN2R Mode", "Digital", "IN2ALP" },
-
-	{ "IN2L", NULL, "IN2L Mode" },
-	{ "IN2R", NULL, "IN2R Mode" },
-
-	{ "IN3L", NULL, "DMICCLK3" },
-	{ "IN3R", NULL, "DMICDAT3" },
-
-	{ "IN4L", NULL, "DMICCLK4" },
-	{ "IN4R", NULL, "DMICDAT4" },
-
-	{ "IN5L", NULL, "DMICCLK5" },
-	{ "IN5R", NULL, "DMICDAT5" },
+	{ "IN5L PGA", NULL, "IN5L" },
+	{ "IN5R PGA", NULL, "IN5R" },
 
 	MADERA_MIXER_ROUTES("OUT1L", "HPOUT1L"),
 	MADERA_MIXER_ROUTES("OUT1R", "HPOUT1R"),
@@ -2134,26 +2171,26 @@ static const struct snd_soc_dapm_route cs47l90_dapm_routes[] = {
 };
 
 static int cs47l90_set_fll(struct snd_soc_component *component, int fll_id,
-			   int source, unsigned int fref, unsigned int fout)
+			   int source, unsigned int Fref, unsigned int Fout)
 {
 	struct cs47l90 *cs47l90 = snd_soc_component_get_drvdata(component);
 
 	switch (fll_id) {
 	case MADERA_FLL1_REFCLK:
-		return madera_set_fll_refclk(&cs47l90->fll[0], source, fref,
-					     fout);
+		return madera_set_fll_refclk(&cs47l90->fll[0], source, Fref,
+					     Fout);
 	case MADERA_FLL2_REFCLK:
-		return madera_set_fll_refclk(&cs47l90->fll[1], source, fref,
-					     fout);
+		return madera_set_fll_refclk(&cs47l90->fll[1], source, Fref,
+					     Fout);
 	case MADERA_FLLAO_REFCLK:
-		return madera_set_fll_ao_refclk(&cs47l90->fll[2], source, fref,
-						fout);
+		return madera_set_fll_ao_refclk(&cs47l90->fll[2], source, Fref,
+						Fout);
 	case MADERA_FLL1_SYNCCLK:
-		return madera_set_fll_syncclk(&cs47l90->fll[0], source, fref,
-					      fout);
+		return madera_set_fll_syncclk(&cs47l90->fll[0], source, Fref,
+					      Fout);
 	case MADERA_FLL2_SYNCCLK:
-		return madera_set_fll_syncclk(&cs47l90->fll[1], source, fref,
-					      fout);
+		return madera_set_fll_syncclk(&cs47l90->fll[1], source, Fref,
+					      Fout);
 	default:
 		return -EINVAL;
 	}
@@ -2389,8 +2426,7 @@ static irqreturn_t cs47l90_adsp2_irq(int irq, void *data)
 		if (ret == WM_ADSP_COMPR_VOICE_TRIGGER) {
 			trig_info.core_num = i + 1;
 			blocking_notifier_call_chain(&madera->notifier,
-						MADERA_NOTIFY_VOICE_TRIGGER,
-						&trig_info);
+				MADERA_NOTIFY_VOICE_TRIGGER, &trig_info);
 		}
 	}
 
@@ -2401,6 +2437,33 @@ static irqreturn_t cs47l90_adsp2_irq(int irq, void *data)
 
 	return IRQ_HANDLED;
 }
+
+static irqreturn_t cs47l90_dsp_bus_error(int irq, void *data)
+{
+	struct wm_adsp *dsp = (struct wm_adsp *)data;
+
+	return wm_adsp2_bus_error(dsp);
+}
+
+static const char * const cs47l90_dmic_refs[] = {
+	"MICVDD",
+	"MICBIAS1",
+	"MICBIAS2",
+	"MICBIAS3",
+};
+
+static const char * const cs47l90_dmic_inputs[] = {
+	"IN1L Mux",
+	"IN1R Mux",
+	"IN2L Mux",
+	"IN2R",
+	"IN3L",
+	"IN3R",
+	"IN4L",
+	"IN4R",
+	"IN5L",
+	"IN5R",
+};
 
 static int cs47l90_component_probe(struct snd_soc_component *component)
 {
@@ -2414,7 +2477,11 @@ static int cs47l90_component_probe(struct snd_soc_component *component)
 	madera->dapm = snd_soc_component_get_dapm(component);
 	mutex_unlock(&madera->dapm_ptr_lock);
 
-	ret = madera_init_inputs(component);
+	ret = madera_init_inputs(component,
+				 cs47l90_dmic_inputs,
+				 ARRAY_SIZE(cs47l90_dmic_inputs),
+				 cs47l90_dmic_refs,
+				 ARRAY_SIZE(cs47l90_dmic_refs));
 	if (ret)
 		return ret;
 
@@ -2474,21 +2541,21 @@ static const struct snd_compr_ops cs47l90_compr_ops = {
 };
 
 static const struct snd_soc_component_driver soc_component_dev_cs47l90 = {
-	.probe			= &cs47l90_component_probe,
-	.remove			= &cs47l90_component_remove,
-	.set_sysclk		= &madera_set_sysclk,
-	.set_pll		= &cs47l90_set_fll,
-	.name			= DRV_NAME,
-	.compr_ops		= &cs47l90_compr_ops,
-	.controls		= cs47l90_snd_controls,
-	.num_controls		= ARRAY_SIZE(cs47l90_snd_controls),
-	.dapm_widgets		= cs47l90_dapm_widgets,
-	.num_dapm_widgets	= ARRAY_SIZE(cs47l90_dapm_widgets),
-	.dapm_routes		= cs47l90_dapm_routes,
-	.num_dapm_routes	= ARRAY_SIZE(cs47l90_dapm_routes),
-	.use_pmdown_time	= 1,
-	.endianness		= 1,
-	.non_legacy_dai_naming	= 1,
+	.probe = &cs47l90_component_probe,
+	.remove = &cs47l90_component_remove,
+	.set_sysclk = &madera_set_sysclk,
+	.set_pll = &cs47l90_set_fll,
+	.name = DRV_NAME,
+	.compr_ops = &cs47l90_compr_ops,
+	.controls = cs47l90_snd_controls,
+	.num_controls = ARRAY_SIZE(cs47l90_snd_controls),
+	.dapm_widgets = cs47l90_dapm_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(cs47l90_dapm_widgets),
+	.dapm_routes = cs47l90_dapm_routes,
+	.num_dapm_routes = ARRAY_SIZE(cs47l90_dapm_routes),
+	.use_pmdown_time = 1,
+	.endianness = 1,
+	.non_legacy_dai_naming = 1,
 };
 
 static int cs47l90_probe(struct platform_device *pdev)
@@ -2506,11 +2573,16 @@ static int cs47l90_probe(struct platform_device *pdev)
 	}
 
 	cs47l90 = devm_kzalloc(&pdev->dev, sizeof(struct cs47l90),
-			       GFP_KERNEL);
+			      GFP_KERNEL);
 	if (!cs47l90)
 		return -ENOMEM;
 
 	platform_set_drvdata(pdev, cs47l90);
+
+	/* Set of_node to parent from the SPI device to allow DAPM to
+	 * locate regulator supplies
+	 */
+	pdev->dev.of_node = madera->dev->of_node;
 
 	cs47l90->core.madera = madera;
 	cs47l90->core.dev = &pdev->dev;
@@ -2542,23 +2614,24 @@ static int cs47l90_probe(struct platform_device *pdev)
 
 		cs47l90->core.adsp[i].base = cs47l90_dsp_control_bases[i];
 		cs47l90->core.adsp[i].mem = cs47l90_dsp_regions[i];
-		cs47l90->core.adsp[i].num_mems =
-			ARRAY_SIZE(cs47l90_dsp1_regions);
+		cs47l90->core.adsp[i].num_mems
+			= ARRAY_SIZE(cs47l90_dsp1_regions);
 
 		cs47l90->core.adsp[i].lock_regions = WM_ADSP2_REGION_1_9;
 
 		ret = wm_adsp2_init(&cs47l90->core.adsp[i]);
 
 		if (ret == 0) {
-			ret = madera_init_bus_error_irq(&cs47l90->core, i,
-							wm_adsp2_bus_error);
+			ret = madera_init_bus_error_irq(&cs47l90->core,
+							i,
+							cs47l90_dsp_bus_error);
 			if (ret != 0)
 				wm_adsp2_remove(&cs47l90->core.adsp[i]);
 		}
 
-		if (ret) {
+		if (ret != 0) {
 			for (--i; i >= 0; --i) {
-				madera_free_bus_error_irq(&cs47l90->core, i);
+				madera_destroy_bus_error_irq(&cs47l90->core, i);
 				wm_adsp2_remove(&cs47l90->core.adsp[i]);
 			}
 			goto error_dsp_irq;
@@ -2595,17 +2668,17 @@ static int cs47l90_probe(struct platform_device *pdev)
 	return ret;
 
 error_pm_runtime:
-	pm_runtime_disable(&pdev->dev);
+	 pm_runtime_disable(&pdev->dev);
 
 	for (i = 0; i < CS47L90_NUM_ADSP; i++) {
-		madera_free_bus_error_irq(&cs47l90->core, i);
+		madera_destroy_bus_error_irq(&cs47l90->core, i);
 		wm_adsp2_remove(&cs47l90->core.adsp[i]);
 	}
 error_dsp_irq:
 	madera_set_irq_wake(madera, MADERA_IRQ_DSP_IRQ1, 0);
 	madera_free_irq(madera, MADERA_IRQ_DSP_IRQ1, cs47l90);
 error_core:
-	madera_core_free(&cs47l90->core);
+	madera_core_destroy(&cs47l90->core);
 
 	return ret;
 }
@@ -2618,13 +2691,13 @@ static int cs47l90_remove(struct platform_device *pdev)
 	pm_runtime_disable(&pdev->dev);
 
 	for (i = 0; i < CS47L90_NUM_ADSP; i++) {
-		madera_free_bus_error_irq(&cs47l90->core, i);
+		madera_destroy_bus_error_irq(&cs47l90->core, i);
 		wm_adsp2_remove(&cs47l90->core.adsp[i]);
 	}
 
 	madera_set_irq_wake(cs47l90->core.madera, MADERA_IRQ_DSP_IRQ1, 0);
 	madera_free_irq(cs47l90->core.madera, MADERA_IRQ_DSP_IRQ1, cs47l90);
-	madera_core_free(&cs47l90->core);
+	madera_core_destroy(&cs47l90->core);
 
 	return 0;
 }

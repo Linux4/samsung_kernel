@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 obj-y := cfe.o
 obj-$(CONFIG_SWIOTLB)			+= dma.o
 obj-$(CONFIG_SIBYTE_BUS_WATCHER)	+= bus_watcher.o

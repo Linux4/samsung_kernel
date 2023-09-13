@@ -1,7 +1,4 @@
 /* SPDX-License-Identifier: GPL-2.0 */
-/*
- * Copyright (c) 2013-2016, Intel Corporation. All rights reserved.
- */
 #ifndef _LINUX_MEI_CL_BUS_H
 #define _LINUX_MEI_CL_BUS_H
 
@@ -57,8 +54,6 @@ struct mei_cl_device {
 
 	void *priv_data;
 };
-
-#define to_mei_cl_device(d) container_of(d, struct mei_cl_device, dev)
 
 struct mei_cl_driver {
 	struct device_driver driver;

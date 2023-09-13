@@ -1,7 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) Sistina Software, Inc.  1997-2003 All rights reserved.
  * Copyright 2004-2011 Red Hat, Inc.
+ *
+ * This copyrighted material is made available to anyone wishing to use,
+ * modify, copy, or redistribute it subject to the terms and conditions
+ * of the GNU General Public License version 2.
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -175,14 +178,14 @@ static void gdlm_bast(void *arg, int mode)
 		gfs2_glock_cb(gl, LM_ST_SHARED);
 		break;
 	default:
-		fs_err(gl->gl_name.ln_sbd, "unknown bast mode %d\n", mode);
+		pr_err("unknown bast mode %d\n", mode);
 		BUG();
 	}
 }
 
 /* convert gfs lock-state to dlm lock-mode */
 
-static int make_mode(struct gfs2_sbd *sdp, const unsigned int lmstate)
+static int make_mode(const unsigned int lmstate)
 {
 	switch (lmstate) {
 	case LM_ST_UNLOCKED:
@@ -194,7 +197,7 @@ static int make_mode(struct gfs2_sbd *sdp, const unsigned int lmstate)
 	case LM_ST_SHARED:
 		return DLM_LOCK_PR;
 	}
-	fs_err(sdp, "unknown LM state %d\n", lmstate);
+	pr_err("unknown LM state %d\n", lmstate);
 	BUG();
 	return -1;
 }
@@ -255,7 +258,7 @@ static int gdlm_lock(struct gfs2_glock *gl, unsigned int req_state,
 	u32 lkf;
 	char strname[GDLM_STRNAME_BYTES] = "";
 
-	req = make_mode(gl->gl_name.ln_sbd, req_state);
+	req = make_mode(req_state);
 	lkf = make_flags(gl, flags, req);
 	gfs2_glstats_inc(gl, GFS2_LKS_DCOUNT);
 	gfs2_sbstats_inc(gl, GFS2_LKS_DCOUNT);
@@ -280,6 +283,7 @@ static void gdlm_put_lock(struct gfs2_glock *gl)
 {
 	struct gfs2_sbd *sdp = gl->gl_name.ln_sbd;
 	struct lm_lockstruct *ls = &sdp->sd_lockstruct;
+	int lvb_needs_unlock = 0;
 	int error;
 
 	if (gl->gl_lksb.sb_lkid == 0) {
@@ -292,15 +296,13 @@ static void gdlm_put_lock(struct gfs2_glock *gl)
 	gfs2_sbstats_inc(gl, GFS2_LKS_DCOUNT);
 	gfs2_update_request_times(gl);
 
-	/* don't want to call dlm if we've unmounted the lock protocol */
-	if (test_bit(DFL_UNMOUNT, &ls->ls_recover_flags)) {
-		gfs2_glock_free(gl);
-		return;
-	}
-	/* don't want to skip dlm_unlock writing the lvb when lock has one */
+	/* don't want to skip dlm_unlock writing the lvb when lock is ex */
+
+	if (gl->gl_lksb.sb_lvbptr && (gl->gl_state == LM_ST_EXCLUSIVE))
+		lvb_needs_unlock = 1;
 
 	if (test_bit(SDF_SKIP_DLM_UNLOCK, &sdp->sd_flags) &&
-	    !gl->gl_lksb.sb_lvbptr) {
+	    !lvb_needs_unlock) {
 		gfs2_glock_free(gl);
 		return;
 	}
@@ -308,7 +310,7 @@ static void gdlm_put_lock(struct gfs2_glock *gl)
 	error = dlm_unlock(ls->ls_dlm, gl->gl_lksb.sb_lkid, DLM_LKF_VALBLK,
 			   NULL, gl);
 	if (error) {
-		fs_err(sdp, "gdlm_unlock %x,%llx err=%d\n",
+		pr_err("gdlm_unlock %x,%llx err=%d\n",
 		       gl->gl_name.ln_type,
 		       (unsigned long long)gl->gl_name.ln_number, error);
 		return;
@@ -1036,11 +1038,11 @@ static int set_recover_size(struct gfs2_sbd *sdp, struct dlm_slot *slots,
 	}
 
 	old_size = ls->ls_recover_size;
-	new_size = old_size;
-	while (new_size < max_jid + 1)
-		new_size += RECOVER_SIZE_INC;
-	if (new_size == old_size)
+
+	if (old_size >= max_jid + 1)
 		return 0;
+
+	new_size = old_size + RECOVER_SIZE_INC;
 
 	submit = kcalloc(new_size, sizeof(uint32_t), GFP_NOFS);
 	result = kcalloc(new_size, sizeof(uint32_t), GFP_NOFS);

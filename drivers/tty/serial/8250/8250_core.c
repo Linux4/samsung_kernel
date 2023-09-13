@@ -14,7 +14,6 @@
  *	      serial8250_register_8250_port() ports
  */
 
-#include <linux/acpi.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/ioport.h>
@@ -131,8 +130,12 @@ static irqreturn_t serial8250_interrupt(int irq, void *dev_id)
 
 		l = l->next;
 
-		if (l == i->head && pass_counter++ > PASS_LIMIT)
+		if (l == i->head && pass_counter++ > PASS_LIMIT) {
+			/* If we hit this, we're dead. */
+			printk_ratelimited(KERN_ERR
+				"serial8250: too much work for irq%d\n", irq);
 			break;
+		}
 	} while (l != end);
 
 	spin_unlock(&i->lock);
@@ -524,7 +527,6 @@ static void __init serial8250_isa_init_ports(void)
 		 */
 		up->mcr_mask = ~ALPHA_KLUDGE_MCR;
 		up->mcr_force = ALPHA_KLUDGE_MCR;
-		serial8250_set_defaults(up);
 	}
 
 	/* chain base port ops to support Remote Supervisor Adapter */
@@ -548,6 +550,7 @@ static void __init serial8250_isa_init_ports(void)
 		port->membase  = old_serial_port[i].iomem_base;
 		port->iotype   = old_serial_port[i].io_type;
 		port->regshift = old_serial_port[i].iomem_reg_shift;
+		serial8250_set_defaults(up);
 
 		port->irqflags |= irqflag;
 		if (serial8250_isa_config != NULL)
@@ -982,8 +985,6 @@ int serial8250_register_8250_port(struct uart_8250_port *up)
 
 	uart = serial8250_find_match_or_unused(&up->port);
 	if (uart && uart->port.type != PORT_8250_CIR) {
-		struct mctrl_gpios *gpios;
-
 		if (uart->port.dev)
 			uart_remove_one_port(&serial8250_reg, &uart->port);
 
@@ -1017,20 +1018,6 @@ int serial8250_register_8250_port(struct uart_8250_port *up)
 
 		if (up->port.flags & UPF_FIXED_TYPE)
 			uart->port.type = up->port.type;
-
-		/*
-		 * Only call mctrl_gpio_init(), if the device has no ACPI
-		 * companion device
-		 */
-		if (!has_acpi_companion(uart->port.dev)) {
-			gpios = mctrl_gpio_init(&uart->port, 0);
-			if (IS_ERR(gpios)) {
-				ret = PTR_ERR(gpios);
-				goto err;
-			} else {
-				uart->gpios = gpios;
-			}
-		}
 
 		serial8250_set_defaults(uart);
 
@@ -1075,10 +1062,8 @@ int serial8250_register_8250_port(struct uart_8250_port *up)
 			serial8250_apply_quirks(uart);
 			ret = uart_add_one_port(&serial8250_reg,
 						&uart->port);
-			if (ret)
-				goto err;
-
-			ret = uart->port.line;
+			if (ret == 0)
+				ret = uart->port.line;
 		} else {
 			dev_info(uart->port.dev,
 				"skipping CIR port at 0x%lx / 0x%llx, IRQ %d\n",
@@ -1102,11 +1087,6 @@ int serial8250_register_8250_port(struct uart_8250_port *up)
 
 	mutex_unlock(&serial_mutex);
 
-	return ret;
-
-err:
-	uart->port.dev = NULL;
-	mutex_unlock(&serial_mutex);
 	return ret;
 }
 EXPORT_SYMBOL(serial8250_register_8250_port);

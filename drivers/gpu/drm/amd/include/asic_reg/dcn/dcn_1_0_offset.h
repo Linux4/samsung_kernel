@@ -2347,8 +2347,6 @@
 #define mmHUBP0_DCHUBP_VMPG_CONFIG_BASE_IDX                                                            2
 #define mmHUBP0_HUBPREQ_DEBUG_DB                                                                       0x0569
 #define mmHUBP0_HUBPREQ_DEBUG_DB_BASE_IDX                                                              2
-#define mmHUBP0_HUBPREQ_DEBUG                                                                          0x056a
-#define mmHUBP0_HUBPREQ_DEBUG_BASE_IDX                                                                 2
 #define mmHUBP0_HUBP_MEASURE_WIN_CTRL_DCFCLK                                                           0x056e
 #define mmHUBP0_HUBP_MEASURE_WIN_CTRL_DCFCLK_BASE_IDX                                                  2
 #define mmHUBP0_HUBP_MEASURE_WIN_CTRL_DPPCLK                                                           0x056f
@@ -2633,8 +2631,6 @@
 #define mmHUBP1_DCHUBP_VMPG_CONFIG_BASE_IDX                                                            2
 #define mmHUBP1_HUBPREQ_DEBUG_DB                                                                       0x062d
 #define mmHUBP1_HUBPREQ_DEBUG_DB_BASE_IDX                                                              2
-#define mmHUBP1_HUBPREQ_DEBUG                                                                          0x062e
-#define mmHUBP1_HUBPREQ_DEBUG_BASE_IDX                                                                 2
 #define mmHUBP1_HUBP_MEASURE_WIN_CTRL_DCFCLK                                                           0x0632
 #define mmHUBP1_HUBP_MEASURE_WIN_CTRL_DCFCLK_BASE_IDX                                                  2
 #define mmHUBP1_HUBP_MEASURE_WIN_CTRL_DPPCLK                                                           0x0633
@@ -2919,8 +2915,6 @@
 #define mmHUBP2_DCHUBP_VMPG_CONFIG_BASE_IDX                                                            2
 #define mmHUBP2_HUBPREQ_DEBUG_DB                                                                       0x06f1
 #define mmHUBP2_HUBPREQ_DEBUG_DB_BASE_IDX                                                              2
-#define mmHUBP2_HUBPREQ_DEBUG                                                                          0x06f2
-#define mmHUBP2_HUBPREQ_DEBUG_BASE_IDX                                                                 2
 #define mmHUBP2_HUBP_MEASURE_WIN_CTRL_DCFCLK                                                           0x06f6
 #define mmHUBP2_HUBP_MEASURE_WIN_CTRL_DCFCLK_BASE_IDX                                                  2
 #define mmHUBP2_HUBP_MEASURE_WIN_CTRL_DPPCLK                                                           0x06f7
@@ -3205,8 +3199,6 @@
 #define mmHUBP3_DCHUBP_VMPG_CONFIG_BASE_IDX                                                            2
 #define mmHUBP3_HUBPREQ_DEBUG_DB                                                                       0x07b5
 #define mmHUBP3_HUBPREQ_DEBUG_DB_BASE_IDX                                                              2
-#define mmHUBP3_HUBPREQ_DEBUG                                                                          0x07b6
-#define mmHUBP3_HUBPREQ_DEBUG_BASE_IDX                                                                 2
 #define mmHUBP3_HUBP_MEASURE_WIN_CTRL_DCFCLK                                                           0x07ba
 #define mmHUBP3_HUBP_MEASURE_WIN_CTRL_DCFCLK_BASE_IDX                                                  2
 #define mmHUBP3_HUBP_MEASURE_WIN_CTRL_DPPCLK                                                           0x07bb

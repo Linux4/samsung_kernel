@@ -20,7 +20,6 @@
 
 ENTRY(ftrace_stub)
 	BR_EX	%r14
-ENDPROC(ftrace_stub)
 
 #define STACK_FRAME_SIZE  (STACK_FRAME_OVERHEAD + __PT_SIZE)
 #define STACK_PTREGS	  (STACK_FRAME_OVERHEAD)
@@ -35,7 +34,7 @@ ENDPROC(ftrace_stub)
 
 ENTRY(_mcount)
 	BR_EX	%r14
-ENDPROC(_mcount)
+
 EXPORT_SYMBOL(_mcount)
 
 ENTRY(ftrace_caller)
@@ -61,13 +60,13 @@ ENTRY(ftrace_caller)
 #ifdef CONFIG_HAVE_MARCH_Z196_FEATURES
 	aghik	%r2,%r0,-MCOUNT_INSN_SIZE
 	lgrl	%r4,function_trace_op
-	lgrl	%r1,ftrace_func
+	lgrl	%r1,ftrace_trace_function
 #else
 	lgr	%r2,%r0
 	aghi	%r2,-MCOUNT_INSN_SIZE
 	larl	%r4,function_trace_op
 	lg	%r4,0(%r4)
-	larl	%r1,ftrace_func
+	larl	%r1,ftrace_trace_function
 	lg	%r1,0(%r1)
 #endif
 	lgr	%r3,%r14
@@ -76,11 +75,10 @@ ENTRY(ftrace_caller)
 #ifdef CONFIG_FUNCTION_GRAPH_TRACER
 # The j instruction gets runtime patched to a nop instruction.
 # See ftrace_enable_ftrace_graph_caller.
-	.globl ftrace_graph_caller
-ftrace_graph_caller:
+ENTRY(ftrace_graph_caller)
 	j	ftrace_graph_caller_end
-	lmg	%r2,%r3,(STACK_PTREGS_GPRS+14*8)(%r15)
-	lg	%r4,(STACK_PTREGS_PSW+8)(%r15)
+	lg	%r2,(STACK_PTREGS_GPRS+14*8)(%r15)
+	lg	%r3,(STACK_PTREGS_PSW+8)(%r15)
 	brasl	%r14,prepare_ftrace_return
 	stg	%r2,(STACK_PTREGS_GPRS+14*8)(%r15)
 ftrace_graph_caller_end:
@@ -89,7 +87,6 @@ ftrace_graph_caller_end:
 	lg	%r1,(STACK_PTREGS_PSW+8)(%r15)
 	lmg	%r2,%r15,(STACK_PTREGS_GPRS+2*8)(%r15)
 	BR_EX	%r1
-ENDPROC(ftrace_caller)
 
 #ifdef CONFIG_FUNCTION_GRAPH_TRACER
 
@@ -103,6 +100,5 @@ ENTRY(return_to_handler)
 	lgr	%r14,%r2
 	lmg	%r2,%r5,32(%r15)
 	BR_EX	%r14
-ENDPROC(return_to_handler)
 
 #endif

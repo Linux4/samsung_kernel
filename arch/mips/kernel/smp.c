@@ -1,5 +1,17 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  *
  * Copyright (C) 2000, 2001 Kanoj Sarcar
  * Copyright (C) 2000, 2001 Ralf Baechle
@@ -27,7 +39,6 @@
 
 #include <linux/atomic.h>
 #include <asm/cpu.h>
-#include <asm/ginvt.h>
 #include <asm/processor.h>
 #include <asm/idle.h>
 #include <asm/r4k-timer.h>
@@ -361,9 +372,6 @@ asmlinkage void start_secondary(void)
 	cpu = smp_processor_id();
 	cpu_data[cpu].udelay_val = loops_per_jiffy;
 
-	set_cpu_sibling_map(cpu);
-	set_cpu_core_map(cpu);
-
 	cpumask_set_cpu(cpu, &cpu_coherent_mask);
 	notify_cpu_starting(cpu);
 
@@ -374,6 +382,9 @@ asmlinkage void start_secondary(void)
 
 	/* The CPU is running and counters synchronised, now mark it online */
 	set_cpu_online(cpu, true);
+
+	set_cpu_sibling_map(cpu);
+	set_cpu_core_map(cpu);
 
 	calculate_cpu_foreign_map();
 
@@ -432,8 +443,6 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 /* preload SMP state for boot cpu */
 void smp_prepare_boot_cpu(void)
 {
-	if (mp_ops->prepare_boot_cpu)
-		mp_ops->prepare_boot_cpu();
 	set_cpu_possible(0, true);
 	set_cpu_online(0, true);
 }
@@ -473,21 +482,12 @@ static void flush_tlb_all_ipi(void *info)
 
 void flush_tlb_all(void)
 {
-	if (cpu_has_mmid) {
-		htw_stop();
-		ginvt_full();
-		sync_ginv();
-		instruction_hazard();
-		htw_start();
-		return;
-	}
-
 	on_each_cpu(flush_tlb_all_ipi, NULL, 1);
 }
 
 static void flush_tlb_mm_ipi(void *mm)
 {
-	drop_mmu_context((struct mm_struct *)mm);
+	local_flush_tlb_mm((struct mm_struct *)mm);
 }
 
 /*
@@ -530,22 +530,17 @@ void flush_tlb_mm(struct mm_struct *mm)
 {
 	preempt_disable();
 
-	if (cpu_has_mmid) {
-		/*
-		 * No need to worry about other CPUs - the ginvt in
-		 * drop_mmu_context() will be globalized.
-		 */
-	} else if ((atomic_read(&mm->mm_users) != 1) || (current->mm != mm)) {
+	if ((atomic_read(&mm->mm_users) != 1) || (current->mm != mm)) {
 		smp_on_other_tlbs(flush_tlb_mm_ipi, mm);
 	} else {
 		unsigned int cpu;
 
 		for_each_online_cpu(cpu) {
 			if (cpu != smp_processor_id() && cpu_context(cpu, mm))
-				set_cpu_context(cpu, mm, 0);
+				cpu_context(cpu, mm) = 0;
 		}
 	}
-	drop_mmu_context(mm);
+	local_flush_tlb_mm(mm);
 
 	preempt_enable();
 }
@@ -566,26 +561,9 @@ static void flush_tlb_range_ipi(void *info)
 void flush_tlb_range(struct vm_area_struct *vma, unsigned long start, unsigned long end)
 {
 	struct mm_struct *mm = vma->vm_mm;
-	unsigned long addr;
-	u32 old_mmid;
 
 	preempt_disable();
-	if (cpu_has_mmid) {
-		htw_stop();
-		old_mmid = read_c0_memorymapid();
-		write_c0_memorymapid(cpu_asid(0, mm));
-		mtc0_tlbw_hazard();
-		addr = round_down(start, PAGE_SIZE * 2);
-		end = round_up(end, PAGE_SIZE * 2);
-		do {
-			ginvt_va_mmid(addr);
-			sync_ginv();
-			addr += PAGE_SIZE * 2;
-		} while (addr < end);
-		write_c0_memorymapid(old_mmid);
-		instruction_hazard();
-		htw_start();
-	} else if ((atomic_read(&mm->mm_users) != 1) || (current->mm != mm)) {
+	if ((atomic_read(&mm->mm_users) != 1) || (current->mm != mm)) {
 		struct flush_tlb_data fd = {
 			.vma = vma,
 			.addr1 = start,
@@ -593,7 +571,6 @@ void flush_tlb_range(struct vm_area_struct *vma, unsigned long start, unsigned l
 		};
 
 		smp_on_other_tlbs(flush_tlb_range_ipi, &fd);
-		local_flush_tlb_range(vma, start, end);
 	} else {
 		unsigned int cpu;
 		int exec = vma->vm_flags & VM_EXEC;
@@ -606,10 +583,10 @@ void flush_tlb_range(struct vm_area_struct *vma, unsigned long start, unsigned l
 			 * mm has been completely unused by that CPU.
 			 */
 			if (cpu != smp_processor_id() && cpu_context(cpu, mm))
-				set_cpu_context(cpu, mm, !exec);
+				cpu_context(cpu, mm) = !exec;
 		}
-		local_flush_tlb_range(vma, start, end);
 	}
+	local_flush_tlb_range(vma, start, end);
 	preempt_enable();
 }
 
@@ -639,28 +616,14 @@ static void flush_tlb_page_ipi(void *info)
 
 void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
-	u32 old_mmid;
-
 	preempt_disable();
-	if (cpu_has_mmid) {
-		htw_stop();
-		old_mmid = read_c0_memorymapid();
-		write_c0_memorymapid(cpu_asid(0, vma->vm_mm));
-		mtc0_tlbw_hazard();
-		ginvt_va_mmid(page);
-		sync_ginv();
-		write_c0_memorymapid(old_mmid);
-		instruction_hazard();
-		htw_start();
-	} else if ((atomic_read(&vma->vm_mm->mm_users) != 1) ||
-		   (current->mm != vma->vm_mm)) {
+	if ((atomic_read(&vma->vm_mm->mm_users) != 1) || (current->mm != vma->vm_mm)) {
 		struct flush_tlb_data fd = {
 			.vma = vma,
 			.addr1 = page,
 		};
 
 		smp_on_other_tlbs(flush_tlb_page_ipi, &fd);
-		local_flush_tlb_page(vma, page);
 	} else {
 		unsigned int cpu;
 
@@ -672,10 +635,10 @@ void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 			 * by that CPU.
 			 */
 			if (cpu != smp_processor_id() && cpu_context(cpu, vma->vm_mm))
-				set_cpu_context(cpu, vma->vm_mm, 1);
+				cpu_context(cpu, vma->vm_mm) = 1;
 		}
-		local_flush_tlb_page(vma, page);
 	}
+	local_flush_tlb_page(vma, page);
 	preempt_enable();
 }
 

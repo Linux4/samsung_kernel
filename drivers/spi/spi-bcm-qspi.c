@@ -1,8 +1,19 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Driver for Broadcom BRCMSTB, NSP,  NS2, Cygnus SPI Controllers
  *
  * Copyright 2016 Broadcom
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License, version 2, as
+ * published by the Free Software Foundation (the "GPL").
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License version 2 (GPLv2) for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * version 2 (GPLv2) along with this source code.
  */
 
 #include <linux/clk.h>
@@ -509,7 +520,7 @@ static void bcm_qspi_chip_select(struct bcm_qspi *qspi, int cs)
 	u32 rd = 0;
 	u32 wr = 0;
 
-	if (cs >= 0 && qspi->base[CHIP_SELECT]) {
+	if (qspi->base[CHIP_SELECT]) {
 		rd = bcm_qspi_read(qspi, CHIP_SELECT, 0);
 		wr = (rd & ~0xff) | (1 << cs);
 		if (rd == wr)
@@ -897,7 +908,6 @@ static int bcm_qspi_transfer_one(struct spi_master *master,
 
 		read_from_hw(qspi, slots);
 	}
-	bcm_qspi_enable_bspi(qspi);
 
 	return 0;
 }
@@ -960,7 +970,7 @@ static int bcm_qspi_exec_mem_op(struct spi_mem *mem,
 	addr = op->addr.val;
 	len = op->data.nbytes;
 
-	if (has_bspi(qspi) && bcm_qspi_bspi_ver_three(qspi) == true) {
+	if (bcm_qspi_bspi_ver_three(qspi) == true) {
 		/*
 		 * The address coming into this function is a raw flash offset.
 		 * But for BSPI <= V3, we need to convert it to a remapped BSPI
@@ -979,7 +989,7 @@ static int bcm_qspi_exec_mem_op(struct spi_mem *mem,
 	    len < 4)
 		mspi_read = true;
 
-	if (!has_bspi(qspi) || mspi_read)
+	if (mspi_read)
 		return bcm_qspi_mspi_exec_mem_op(spi, op);
 
 	ret = bcm_qspi_bspi_set_mode(qspi, op, 0);
@@ -1213,18 +1223,13 @@ int bcm_qspi_probe(struct platform_device *pdev,
 	if (!of_match_node(bcm_qspi_of_match, dev->of_node))
 		return -ENODEV;
 
-	master = devm_spi_alloc_master(dev, sizeof(struct bcm_qspi));
+	master = spi_alloc_master(dev, sizeof(struct bcm_qspi));
 	if (!master) {
 		dev_err(dev, "error allocating spi_master\n");
 		return -ENOMEM;
 	}
 
 	qspi = spi_master_get_devdata(master);
-
-	qspi->clk = devm_clk_get_optional(&pdev->dev, NULL);
-	if (IS_ERR(qspi->clk))
-		return PTR_ERR(qspi->clk);
-
 	qspi->pdev = pdev;
 	qspi->trans_pos.trans = NULL;
 	qspi->trans_pos.byte = 0;
@@ -1252,17 +1257,21 @@ int bcm_qspi_probe(struct platform_device *pdev,
 
 	if (res) {
 		qspi->base[MSPI]  = devm_ioremap_resource(dev, res);
-		if (IS_ERR(qspi->base[MSPI]))
-			return PTR_ERR(qspi->base[MSPI]);
+		if (IS_ERR(qspi->base[MSPI])) {
+			ret = PTR_ERR(qspi->base[MSPI]);
+			goto qspi_resource_err;
+		}
 	} else {
-		return 0;
+		goto qspi_resource_err;
 	}
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "bspi");
 	if (res) {
 		qspi->base[BSPI]  = devm_ioremap_resource(dev, res);
-		if (IS_ERR(qspi->base[BSPI]))
-			return PTR_ERR(qspi->base[BSPI]);
+		if (IS_ERR(qspi->base[BSPI])) {
+			ret = PTR_ERR(qspi->base[BSPI]);
+			goto qspi_resource_err;
+		}
 		qspi->bspi_mode = true;
 	} else {
 		qspi->bspi_mode = false;
@@ -1273,14 +1282,18 @@ int bcm_qspi_probe(struct platform_device *pdev,
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "cs_reg");
 	if (res) {
 		qspi->base[CHIP_SELECT]  = devm_ioremap_resource(dev, res);
-		if (IS_ERR(qspi->base[CHIP_SELECT]))
-			return PTR_ERR(qspi->base[CHIP_SELECT]);
+		if (IS_ERR(qspi->base[CHIP_SELECT])) {
+			ret = PTR_ERR(qspi->base[CHIP_SELECT]);
+			goto qspi_resource_err;
+		}
 	}
 
 	qspi->dev_ids = kcalloc(num_irqs, sizeof(struct bcm_qspi_dev_id),
 				GFP_KERNEL);
-	if (!qspi->dev_ids)
-		return -ENOMEM;
+	if (!qspi->dev_ids) {
+		ret = -ENOMEM;
+		goto qspi_resource_err;
+	}
 
 	for (val = 0; val < num_irqs; val++) {
 		irq = -1;
@@ -1300,7 +1313,7 @@ int bcm_qspi_probe(struct platform_device *pdev,
 					       &qspi->dev_ids[val]);
 			if (ret < 0) {
 				dev_err(&pdev->dev, "IRQ %s not found\n", name);
-				goto qspi_unprepare_err;
+				goto qspi_probe_err;
 			}
 
 			qspi->dev_ids[val].dev = qspi;
@@ -1315,7 +1328,7 @@ int bcm_qspi_probe(struct platform_device *pdev,
 	if (!num_ints) {
 		dev_err(&pdev->dev, "no IRQs registered, cannot init driver\n");
 		ret = -EINVAL;
-		goto qspi_unprepare_err;
+		goto qspi_probe_err;
 	}
 
 	/*
@@ -1327,6 +1340,13 @@ int bcm_qspi_probe(struct platform_device *pdev,
 		soc_intc->bcm_qspi_int_set(soc_intc, MSPI_DONE, true);
 	} else {
 		qspi->soc_intc = NULL;
+	}
+
+	qspi->clk = devm_clk_get(&pdev->dev, NULL);
+	if (IS_ERR(qspi->clk)) {
+		dev_warn(dev, "unable to get clock\n");
+		ret = PTR_ERR(qspi->clk);
+		goto qspi_probe_err;
 	}
 
 	ret = clk_prepare_enable(qspi->clk);
@@ -1349,7 +1369,7 @@ int bcm_qspi_probe(struct platform_device *pdev,
 	qspi->xfer_mode.addrlen = -1;
 	qspi->xfer_mode.hp = -1;
 
-	ret = spi_register_master(master);
+	ret = devm_spi_register_master(&pdev->dev, master);
 	if (ret < 0) {
 		dev_err(dev, "can't register master\n");
 		goto qspi_reg_err;
@@ -1359,10 +1379,11 @@ int bcm_qspi_probe(struct platform_device *pdev,
 
 qspi_reg_err:
 	bcm_qspi_hw_uninit(qspi);
-qspi_unprepare_err:
 	clk_disable_unprepare(qspi->clk);
 qspi_probe_err:
 	kfree(qspi->dev_ids);
+qspi_resource_err:
+	spi_master_put(master);
 	return ret;
 }
 /* probe function to be called by SoC specific platform driver probe */
@@ -1372,10 +1393,10 @@ int bcm_qspi_remove(struct platform_device *pdev)
 {
 	struct bcm_qspi *qspi = platform_get_drvdata(pdev);
 
-	spi_unregister_master(qspi->master);
 	bcm_qspi_hw_uninit(qspi);
 	clk_disable_unprepare(qspi->clk);
 	kfree(qspi->dev_ids);
+	spi_unregister_master(qspi->master);
 
 	return 0;
 }

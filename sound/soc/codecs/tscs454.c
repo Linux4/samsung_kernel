@@ -22,6 +22,7 @@
 
 #include "tscs454.h"
 
+static const unsigned int PLL_48K_RATE = (48000 * 256);
 static const unsigned int PLL_44_1K_RATE = (44100 * 256);
 
 #define COEFF_SIZE 3
@@ -3128,17 +3129,18 @@ static int set_aif_sample_format(struct snd_soc_component *component,
 	unsigned int width;
 	int ret;
 
-	switch (snd_pcm_format_width(format)) {
-	case 16:
+	switch (format) {
+	case SNDRV_PCM_FORMAT_S16_LE:
 		width = FV_WL_16;
 		break;
-	case 20:
+	case SNDRV_PCM_FORMAT_S20_3LE:
 		width = FV_WL_20;
 		break;
-	case 24:
+	case SNDRV_PCM_FORMAT_S24_3LE:
 		width = FV_WL_24;
 		break;
-	case 32:
+	case SNDRV_PCM_FORMAT_S24_LE:
+	case SNDRV_PCM_FORMAT_S32_LE:
 		width = FV_WL_32;
 		break;
 	default:
@@ -3336,7 +3338,6 @@ static const struct snd_soc_component_driver soc_component_dev_tscs454 = {
 	.num_dapm_routes = ARRAY_SIZE(tscs454_intercon),
 	.controls =	tscs454_snd_controls,
 	.num_controls = ARRAY_SIZE(tscs454_snd_controls),
-	.endianness = 1,
 };
 
 #define TSCS454_RATES SNDRV_PCM_RATE_8000_96000
@@ -3458,7 +3459,7 @@ static int tscs454_i2c_probe(struct i2c_client *i2c,
 	/* Sync pg sel reg with cache */
 	regmap_write(tscs454->regmap, R_PAGESEL, 0x00);
 
-	ret = devm_snd_soc_register_component(&i2c->dev, &soc_component_dev_tscs454,
+	ret = snd_soc_register_component(&i2c->dev, &soc_component_dev_tscs454,
 			tscs454_dais, ARRAY_SIZE(tscs454_dais));
 	if (ret) {
 		dev_err(&i2c->dev, "Failed to register component (%d)\n", ret);

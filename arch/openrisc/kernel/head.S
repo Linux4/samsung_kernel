@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * OpenRISC head.S
  *
@@ -9,6 +8,11 @@
  * Modifications for the OpenRISC architecture:
  * Copyright (C) 2003 Matjaz Breskvar <phoenix@bsemi.com>
  * Copyright (C) 2010-2011 Jonas Bonn <jonas@southpole.se>
+ *
+ *      This program is free software; you can redistribute it and/or
+ *      modify it under the terms of the GNU General Public License
+ *      as published by the Free Software Foundation; either version
+ *      2 of the License, or (at your option) any later version.
  */
 
 #include <linux/linkage.h>
@@ -520,15 +524,6 @@ _start:
 
 	l.ori	r3,r0,0x1
 	l.mtspr	r0,r3,SPR_SR
-
-	/*
-	 * Start the TTCR as early as possible, so that the RNG can make use of
-	 * measurements of boot time from the earliest opportunity. Especially
-	 * important is that the TTCR does not return zero by the time we reach
-	 * rand_initialize().
-	 */
-	l.movhi r3,hi(SPR_TTMR_CR)
-	l.mtspr r0,r3,SPR_TTMR
 
 	CLEAR_GPR(r1)
 	CLEAR_GPR(r2)

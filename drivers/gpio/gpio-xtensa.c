@@ -1,7 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2013 TangoTec Ltd.
  * Author: Baruch Siach <baruch@tkos.co.il>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * Driver for the Xtensa LX4 GPIO32 Option
  *
@@ -27,7 +30,7 @@
 
 #include <linux/err.h>
 #include <linux/module.h>
-#include <linux/gpio/driver.h>
+#include <linux/gpio.h>
 #include <linux/bitops.h>
 #include <linux/platform_device.h>
 
@@ -44,14 +47,15 @@ static inline unsigned long enable_cp(unsigned long *cpenable)
 	unsigned long flags;
 
 	local_irq_save(flags);
-	*cpenable = xtensa_get_sr(cpenable);
-	xtensa_set_sr(*cpenable | BIT(XCHAL_CP_ID_XTIOP), cpenable);
+	RSR_CPENABLE(*cpenable);
+	WSR_CPENABLE(*cpenable | BIT(XCHAL_CP_ID_XTIOP));
+
 	return flags;
 }
 
 static inline void disable_cp(unsigned long flags, unsigned long cpenable)
 {
-	xtensa_set_sr(cpenable, cpenable);
+	WSR_CPENABLE(cpenable);
 	local_irq_restore(flags);
 }
 

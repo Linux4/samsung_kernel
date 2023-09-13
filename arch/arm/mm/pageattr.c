@@ -1,6 +1,14 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2014,2017-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 #include <linux/mm.h>
 #include <linux/module.h>
@@ -14,7 +22,8 @@ struct page_change_data {
 	pgprot_t clear_mask;
 };
 
-static int change_page_range(pte_t *ptep, unsigned long addr, void *data)
+static int change_page_range(pte_t *ptep, pgtable_t token, unsigned long addr,
+			void *data)
 {
 	struct page_change_data *cdata = data;
 	pte_t pte = *ptep;
@@ -47,8 +56,7 @@ static int change_memory_common(unsigned long addr, int numpages,
 	if (!size)
 		return 0;
 
-	if (!IS_ENABLED(CONFIG_FORCE_PAGES) &&
-	    !in_range(start, size, MODULES_VADDR, MODULES_END) &&
+	if (!in_range(start, size, MODULES_VADDR, MODULES_END) &&
 	    !in_range(start, size, VMALLOC_START, VMALLOC_END))
 		return -EINVAL;
 
@@ -89,19 +97,3 @@ int set_memory_x(unsigned long addr, int numpages)
 					__pgprot(0),
 					__pgprot(L_PTE_XN));
 }
-
-#ifdef CONFIG_ARCH_SUPPORTS_DEBUG_PAGEALLOC
-void __kernel_map_pages(struct page *page, int numpages, int enable)
-{
-	unsigned long addr;
-
-	if (PageHighMem(page))
-		return;
-
-	addr = (unsigned long) page_address(page);
-	if (enable)
-		set_memory_rw(addr, numpages);
-	else
-		set_memory_ro(addr, numpages);
-}
-#endif

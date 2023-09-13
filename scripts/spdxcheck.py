@@ -32,8 +32,7 @@ class SPDXdata(object):
 def read_spdxdata(repo):
 
     # The subdirectories of LICENSES in the kernel source
-    # Note: exceptions needs to be parsed as last directory.
-    license_dirs = [ "preferred", "dual", "deprecated", "exceptions" ]
+    license_dirs = [ "preferred", "other", "exceptions" ]
     lictree = repo.head.commit.tree['LICENSES']
 
     spdx = SPDXdata()
@@ -59,13 +58,13 @@ def read_spdxdata(repo):
                 elif l.startswith('SPDX-Licenses:'):
                     for lic in l.split(':')[1].upper().strip().replace(' ', '').replace('\t', '').split(','):
                         if not lic in spdx.licenses:
-                            raise SPDXException(None, 'Exception %s missing license %s' %(exception, lic))
+                            raise SPDXException(None, 'Exception %s missing license %s' %(ex, lic))
                         spdx.exceptions[exception].append(lic)
 
                 elif l.startswith("License-Text:"):
                     if exception:
                         if not len(spdx.exceptions[exception]):
-                            raise SPDXException(el, 'Exception %s is missing SPDX-Licenses' %exception)
+                            raise SPDXException(el, 'Exception %s is missing SPDX-Licenses' %excid)
                         spdx.exception_files += 1
                     else:
                         spdx.license_files += 1
@@ -176,13 +175,7 @@ class id_parser(object):
                 self.lines_checked += 1
                 if line.find("SPDX-License-Identifier:") < 0:
                     continue
-                expr = line.split(':')[1].strip()
-                # Remove trailing comment closure
-                if line.strip().endswith('*/'):
-                    expr = expr.rstrip('*/').strip()
-                # Special case for SH magic boot code files
-                if line.startswith('LIST \"'):
-                    expr = expr.rstrip('\"').strip()
+                expr = line.split(':')[1].replace('*/', '').strip()
                 self.parse(expr)
                 self.spdx_valid += 1
                 #

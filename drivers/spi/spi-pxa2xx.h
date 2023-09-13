@@ -1,7 +1,10 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (C) 2005 Stephen Street / StreetFire Sound Labs
  * Copyright (C) 2013, Intel Corporation
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #ifndef SPI_PXA2XX_H
@@ -28,10 +31,10 @@ struct driver_data {
 
 	/* SPI framework hookup */
 	enum pxa_ssp_type ssp_type;
-	struct spi_controller *controller;
+	struct spi_controller *master;
 
 	/* PXA hookup */
-	struct pxa2xx_spi_controller *controller_info;
+	struct pxa2xx_spi_master *master_info;
 
 	/* SSP register addresses */
 	void __iomem *ioaddr;
@@ -61,9 +64,6 @@ struct driver_data {
 
 	/* GPIOs for chip selects */
 	struct gpio_desc **cs_gpiods;
-
-	/* Optional slave FIFO ready signal */
-	struct gpio_desc *gpiod_ready;
 };
 
 struct chip_data {

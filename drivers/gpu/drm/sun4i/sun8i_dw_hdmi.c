@@ -5,11 +5,11 @@
 
 #include <linux/component.h>
 #include <linux/module.h>
-#include <linux/of_device.h>
 #include <linux/platform_device.h>
 
-#include <drm/drm_crtc_helper.h>
 #include <drm/drm_of.h>
+#include <drm/drmP.h>
+#include <drm/drm_crtc_helper.h>
 
 #include "sun8i_dw_hdmi.h"
 #include "sun8i_tcon_top.h"
@@ -20,8 +20,7 @@ static void sun8i_dw_hdmi_encoder_mode_set(struct drm_encoder *encoder,
 {
 	struct sun8i_dw_hdmi *hdmi = encoder_to_sun8i_dw_hdmi(encoder);
 
-	if (hdmi->quirks->set_rate)
-		clk_set_rate(hdmi->clk_tmds, mode->crtc_clock * 1000);
+	clk_set_rate(hdmi->clk_tmds, mode->crtc_clock * 1000);
 }
 
 static const struct drm_encoder_helper_funcs
@@ -34,24 +33,10 @@ static const struct drm_encoder_funcs sun8i_dw_hdmi_encoder_funcs = {
 };
 
 static enum drm_mode_status
-sun8i_dw_hdmi_mode_valid_a83t(struct drm_connector *connector,
-			      const struct drm_display_mode *mode)
+sun8i_dw_hdmi_mode_valid(struct drm_connector *connector,
+			 const struct drm_display_mode *mode)
 {
 	if (mode->clock > 297000)
-		return MODE_CLOCK_HIGH;
-
-	return MODE_OK;
-}
-
-static enum drm_mode_status
-sun8i_dw_hdmi_mode_valid_h6(struct drm_connector *connector,
-			    const struct drm_display_mode *mode)
-{
-	/*
-	 * Controller support maximum of 594 MHz, which correlates to
-	 * 4K@60Hz 4:4:4 or RGB.
-	 */
-	if (mode->clock > 594000)
 		return MODE_CLOCK_HIGH;
 
 	return MODE_OK;
@@ -95,34 +80,10 @@ crtcs_exit:
 	return crtcs;
 }
 
-static int sun8i_dw_hdmi_find_connector_pdev(struct device *dev,
-					     struct platform_device **pdev_out)
-{
-	struct platform_device *pdev;
-	struct device_node *remote;
-
-	remote = of_graph_get_remote_node(dev->of_node, 1, -1);
-	if (!remote)
-		return -ENODEV;
-
-	if (!of_device_is_compatible(remote, "hdmi-connector")) {
-		of_node_put(remote);
-		return -ENODEV;
-	}
-
-	pdev = of_find_device_by_node(remote);
-	of_node_put(remote);
-	if (!pdev)
-		return -ENODEV;
-
-	*pdev_out = pdev;
-	return 0;
-}
-
 static int sun8i_dw_hdmi_bind(struct device *dev, struct device *master,
 			      void *data)
 {
-	struct platform_device *pdev = to_platform_device(dev), *connector_pdev;
+	struct platform_device *pdev = to_platform_device(dev);
 	struct dw_hdmi_plat_data *plat_data;
 	struct drm_device *drm = data;
 	struct device_node *phy_node;
@@ -140,8 +101,6 @@ static int sun8i_dw_hdmi_bind(struct device *dev, struct device *master,
 	plat_data = &hdmi->plat_data;
 	hdmi->dev = &pdev->dev;
 	encoder = &hdmi->encoder;
-
-	hdmi->quirks = of_device_get_match_data(dev);
 
 	encoder->possible_crtcs =
 		sun8i_dw_hdmi_find_possible_crtcs(drm, dev->of_node);
@@ -166,36 +125,10 @@ static int sun8i_dw_hdmi_bind(struct device *dev, struct device *master,
 		return PTR_ERR(hdmi->clk_tmds);
 	}
 
-	hdmi->regulator = devm_regulator_get(dev, "hvcc");
-	if (IS_ERR(hdmi->regulator)) {
-		dev_err(dev, "Couldn't get regulator\n");
-		return PTR_ERR(hdmi->regulator);
-	}
-
-	ret = sun8i_dw_hdmi_find_connector_pdev(dev, &connector_pdev);
-	if (!ret) {
-		hdmi->ddc_en = gpiod_get_optional(&connector_pdev->dev,
-						  "ddc-en", GPIOD_OUT_HIGH);
-		platform_device_put(connector_pdev);
-
-		if (IS_ERR(hdmi->ddc_en)) {
-			dev_err(dev, "Couldn't get ddc-en gpio\n");
-			return PTR_ERR(hdmi->ddc_en);
-		}
-	}
-
-	ret = regulator_enable(hdmi->regulator);
-	if (ret) {
-		dev_err(dev, "Failed to enable regulator\n");
-		goto err_unref_ddc_en;
-	}
-
-	gpiod_set_value(hdmi->ddc_en, 1);
-
 	ret = reset_control_deassert(hdmi->rst_ctrl);
 	if (ret) {
 		dev_err(dev, "Could not deassert ctrl reset control\n");
-		goto err_disable_ddc_en;
+		return ret;
 	}
 
 	ret = clk_prepare_enable(hdmi->clk_tmds);
@@ -207,7 +140,6 @@ static int sun8i_dw_hdmi_bind(struct device *dev, struct device *master,
 	phy_node = of_parse_phandle(dev->of_node, "phys", 0);
 	if (!phy_node) {
 		dev_err(dev, "Can't found PHY phandle\n");
-		ret = -EINVAL;
 		goto err_disable_clk_tmds;
 	}
 
@@ -224,8 +156,10 @@ static int sun8i_dw_hdmi_bind(struct device *dev, struct device *master,
 
 	sun8i_hdmi_phy_init(hdmi->phy);
 
-	plat_data->mode_valid = hdmi->quirks->mode_valid;
-	sun8i_hdmi_phy_set_ops(hdmi->phy, plat_data);
+	plat_data->mode_valid = &sun8i_dw_hdmi_mode_valid;
+	plat_data->phy_ops = sun8i_hdmi_phy_get_ops();
+	plat_data->phy_name = "sun8i_dw_hdmi_phy";
+	plat_data->phy_data = hdmi->phy;
 
 	platform_set_drvdata(pdev, hdmi);
 
@@ -249,12 +183,6 @@ err_disable_clk_tmds:
 	clk_disable_unprepare(hdmi->clk_tmds);
 err_assert_ctrl_reset:
 	reset_control_assert(hdmi->rst_ctrl);
-err_disable_ddc_en:
-	gpiod_set_value(hdmi->ddc_en, 0);
-	regulator_disable(hdmi->regulator);
-err_unref_ddc_en:
-	if (hdmi->ddc_en)
-		gpiod_put(hdmi->ddc_en);
 
 	return ret;
 }
@@ -268,11 +196,6 @@ static void sun8i_dw_hdmi_unbind(struct device *dev, struct device *master,
 	sun8i_hdmi_phy_remove(hdmi);
 	clk_disable_unprepare(hdmi->clk_tmds);
 	reset_control_assert(hdmi->rst_ctrl);
-	gpiod_set_value(hdmi->ddc_en, 0);
-	regulator_disable(hdmi->regulator);
-
-	if (hdmi->ddc_en)
-		gpiod_put(hdmi->ddc_en);
 }
 
 static const struct component_ops sun8i_dw_hdmi_ops = {
@@ -292,24 +215,8 @@ static int sun8i_dw_hdmi_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static const struct sun8i_dw_hdmi_quirks sun8i_a83t_quirks = {
-	.mode_valid = sun8i_dw_hdmi_mode_valid_a83t,
-	.set_rate = true,
-};
-
-static const struct sun8i_dw_hdmi_quirks sun50i_h6_quirks = {
-	.mode_valid = sun8i_dw_hdmi_mode_valid_h6,
-};
-
 static const struct of_device_id sun8i_dw_hdmi_dt_ids[] = {
-	{
-		.compatible = "allwinner,sun8i-a83t-dw-hdmi",
-		.data = &sun8i_a83t_quirks,
-	},
-	{
-		.compatible = "allwinner,sun50i-h6-dw-hdmi",
-		.data = &sun50i_h6_quirks,
-	},
+	{ .compatible = "allwinner,sun8i-a83t-dw-hdmi" },
 	{ /* sentinel */ },
 };
 MODULE_DEVICE_TABLE(of, sun8i_dw_hdmi_dt_ids);

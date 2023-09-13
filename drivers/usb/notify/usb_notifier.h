@@ -9,7 +9,7 @@
 #ifndef __LINUX_USB_NOTIFIER_H__
 #define __LINUX_USB_NOTIFIER_H__
 
-#ifdef CONFIG_USB_DWC3_EXYNOS
+#ifdef CONFIG_USB_DWC3
 extern int dwc3_exynos_id_event(struct device *dev, int state);
 extern int dwc3_exynos_vbus_event(struct device *dev, int state);
 #else

@@ -4,7 +4,6 @@
 #ifndef _A6XX_GMU_H_
 #define _A6XX_GMU_H_
 
-#include <linux/iopoll.h>
 #include <linux/interrupt.h>
 #include "msm_drv.h"
 #include "a6xx_hfi.h"
@@ -12,8 +11,8 @@
 struct a6xx_gmu_bo {
 	void *virt;
 	size_t size;
-	dma_addr_t iova;
-	unsigned long attrs;
+	u64 iova;
+	struct page **pages;
 };
 
 /*
@@ -26,6 +25,9 @@ struct a6xx_gmu_bo {
 
 /* the GMU is coming up for the first time or back from a power collapse */
 #define GMU_COLD_BOOT 1
+
+/* The GMU is being soft reset after a fault */
+#define GMU_RESET 2
 
 /*
  * These define the level of control that the GMU has - the higher the number
@@ -45,11 +47,15 @@ struct a6xx_gmu {
 	struct device *dev;
 
 	void * __iomem mmio;
+	void * __iomem pdc_mmio;
 
 	int hfi_irq;
 	int gmu_irq;
 
-	struct device *gxpd;
+	struct regulator *gx;
+
+	struct iommu_domain *domain;
+	u64 uncached_iova_base;
 
 	int idle_level;
 
@@ -68,12 +74,9 @@ struct a6xx_gmu {
 	unsigned long gmu_freqs[4];
 	u32 cx_arc_votes[4];
 
-	unsigned long freq;
-
 	struct a6xx_hfi_queue queues[2];
 
-	bool initialized;
-	bool hung;
+	struct tasklet_struct hfi_tasklet;
 };
 
 static inline u32 gmu_read(struct a6xx_gmu *gmu, u32 offset)
@@ -86,6 +89,11 @@ static inline void gmu_write(struct a6xx_gmu *gmu, u32 offset, u32 value)
 	return msm_writel(value, gmu->mmio + (offset << 2));
 }
 
+static inline void pdc_write(struct a6xx_gmu *gmu, u32 offset, u32 value)
+{
+	return msm_writel(value, gmu->pdc_mmio + (offset << 2));
+}
+
 static inline void gmu_rmw(struct a6xx_gmu *gmu, u32 reg, u32 mask, u32 or)
 {
 	u32 val = gmu_read(gmu, reg);
@@ -93,16 +101,6 @@ static inline void gmu_rmw(struct a6xx_gmu *gmu, u32 reg, u32 mask, u32 or)
 	val &= ~mask;
 
 	gmu_write(gmu, reg, val | or);
-}
-
-static inline u64 gmu_read64(struct a6xx_gmu *gmu, u32 lo, u32 hi)
-{
-	u64 val;
-
-	val = (u64) msm_readl(gmu->mmio + (lo << 2));
-	val |= ((u64) msm_readl(gmu->mmio + (hi << 2)) << 32);
-
-	return val;
 }
 
 #define gmu_poll_timeout(gmu, addr, val, cond, interval, timeout) \
@@ -159,7 +157,6 @@ void a6xx_hfi_init(struct a6xx_gmu *gmu);
 int a6xx_hfi_start(struct a6xx_gmu *gmu, int boot_state);
 void a6xx_hfi_stop(struct a6xx_gmu *gmu);
 
-bool a6xx_gmu_gx_is_on(struct a6xx_gmu *gmu);
-bool a6xx_gmu_sptprac_is_on(struct a6xx_gmu *gmu);
+void a6xx_hfi_task(unsigned long data);
 
 #endif

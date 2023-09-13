@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 menuconfig IP_DCCP
 	tristate "The DCCP Protocol"
 	depends on INET

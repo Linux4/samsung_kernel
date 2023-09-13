@@ -1,6 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2004-2013 Synopsys, Inc. (www.synopsys.com)
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * Driver for the ARC EMAC 10100 (hardware revision 5)
  *
@@ -145,7 +148,7 @@ static void arc_emac_tx_clean(struct net_device *ndev)
 				 dma_unmap_len(tx_buff, len), DMA_TO_DEVICE);
 
 		/* return the sk_buff to system */
-		dev_consume_skb_irq(skb);
+		dev_kfree_skb_irq(skb);
 
 		txbd->data = 0;
 		txbd->info = 0;
@@ -429,8 +432,7 @@ static int arc_emac_open(struct net_device *ndev)
 	phy_dev->autoneg = AUTONEG_ENABLE;
 	phy_dev->speed = 0;
 	phy_dev->duplex = 0;
-	linkmode_and(phy_dev->advertising, phy_dev->advertising,
-		     phy_dev->supported);
+	phy_dev->advertising &= phy_dev->supported;
 
 	priv->last_rx_bd = 0;
 
@@ -957,8 +959,8 @@ int arc_emac_probe(struct net_device *ndev, int interface)
 	/* Get MAC address from device tree */
 	mac_addr = of_get_mac_address(dev->of_node);
 
-	if (!IS_ERR(mac_addr))
-		ether_addr_copy(ndev->dev_addr, mac_addr);
+	if (mac_addr)
+		memcpy(ndev->dev_addr, mac_addr, ETH_ALEN);
 	else
 		eth_hw_addr_random(ndev);
 

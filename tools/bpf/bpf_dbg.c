@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Minimal BPF debugger
  *
@@ -29,6 +28,7 @@
  *  7) > step [-<n>, +<n>] (performs single stepping through the BPF)
  *
  * Copyright 2013 Daniel Borkmann <borkmann@redhat.com>
+ * Licensed under the GNU General Public License, version 2.0 (GPLv2)
  */
 
 #include <stdio.h>

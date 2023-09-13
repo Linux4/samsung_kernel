@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  *	include/asm-mips/i8259.h
  *
@@ -6,6 +5,11 @@
  *
  *	Copyright (C) 2003  Maciej W. Rozycki
  *	Copyright (C) 2003  Ralf Baechle <ralf@linux-mips.org>
+ *
+ *	This program is free software; you can redistribute it and/or
+ *	modify it under the terms of the GNU General Public License
+ *	as published by the Free Software Foundation; either version
+ *	2 of the License, or (at your option) any later version.
  */
 #ifndef _ASM_I8259_H
 #define _ASM_I8259_H

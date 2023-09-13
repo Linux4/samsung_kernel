@@ -1,9 +1,17 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2007, 2011 Wolfgang Grandegger <wg@grandegger.com>
  * Copyright (C) 2012 Stephane Grosjean <s.grosjean@peak-system.com>
  *
  * Copyright (C) 2016  PEAK System-Technik GmbH
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the version 2 of the GNU General Public License
+ * as published by the Free Software Foundation
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
  */
 
 #include <linux/can.h>
@@ -248,7 +256,8 @@ static int pucan_handle_can_rx(struct peak_canfd_priv *priv,
 		cf_len = get_can_dlc(pucan_msg_get_dlc(msg));
 
 	/* if this frame is an echo, */
-	if (rx_msg_flags & PUCAN_MSG_LOOPED_BACK) {
+	if ((rx_msg_flags & PUCAN_MSG_LOOPED_BACK) &&
+	    !(rx_msg_flags & PUCAN_MSG_SELF_RECEIVE)) {
 		unsigned long flags;
 
 		spin_lock_irqsave(&priv->echo_lock, flags);
@@ -262,13 +271,7 @@ static int pucan_handle_can_rx(struct peak_canfd_priv *priv,
 		netif_wake_queue(priv->ndev);
 
 		spin_unlock_irqrestore(&priv->echo_lock, flags);
-
-		/* if this frame is only an echo, stop here. Otherwise,
-		 * continue to push this application self-received frame into
-		 * its own rx queue.
-		 */
-		if (!(rx_msg_flags & PUCAN_MSG_SELF_RECEIVE))
-			return 0;
+		return 0;
 	}
 
 	/* otherwise, it should be pushed into rx fifo */
@@ -338,8 +341,8 @@ static int pucan_handle_status(struct peak_canfd_priv *priv,
 				return err;
 		}
 
-		/* wake network queue up (echo_skb array is empty) */
-		netif_wake_queue(ndev);
+		/* start network queue (echo_skb array is empty) */
+		netif_start_queue(ndev);
 
 		return 0;
 	}

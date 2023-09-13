@@ -11,6 +11,7 @@
 #include <linux/suspend.h>
 #include <trace/events/power.h>
 #include <linux/wakeup_reason.h>
+#include <linux/debug-snapshot.h>
 
 static LIST_HEAD(syscore_ops_list);
 static DEFINE_MUTEX(syscore_ops_lock);
@@ -63,19 +64,21 @@ int syscore_suspend(void)
 	list_for_each_entry_reverse(ops, &syscore_ops_list, node)
 		if (ops->suspend) {
 			if (initcall_debug)
-				pr_info("PM: Calling %pS\n", ops->suspend);
+				pr_info("PM: Calling %pF\n", ops->suspend);
+			dbg_snapshot_suspend("syscore_suspend", ops->suspend, NULL, 0, DSS_FLAG_IN);
 			ret = ops->suspend();
+			dbg_snapshot_suspend("syscore_suspend", ops->suspend, NULL, 0, DSS_FLAG_OUT);
 			if (ret)
 				goto err_out;
 			WARN_ONCE(!irqs_disabled(),
-				"Interrupts enabled after %pS\n", ops->suspend);
+				"Interrupts enabled after %pF\n", ops->suspend);
 		}
 
 	trace_suspend_resume(TPS("syscore_suspend"), 0, false);
 	return 0;
 
  err_out:
-	log_suspend_abort_reason("System core suspend callback %pS failed",
+	log_suspend_abort_reason("System core suspend callback %pF failed",
 		ops->suspend);
 	pr_err("PM: System core suspend callback %pF failed.\n", ops->suspend);
 
@@ -103,10 +106,12 @@ void syscore_resume(void)
 	list_for_each_entry(ops, &syscore_ops_list, node)
 		if (ops->resume) {
 			if (initcall_debug)
-				pr_info("PM: Calling %pS\n", ops->resume);
+				pr_info("PM: Calling %pF\n", ops->resume);
+			dbg_snapshot_suspend("syscore_resume", ops->resume, NULL, 0, DSS_FLAG_IN);
 			ops->resume();
+			dbg_snapshot_suspend("syscore_resume", ops->resume, NULL, 0, DSS_FLAG_OUT);
 			WARN_ONCE(!irqs_disabled(),
-				"Interrupts enabled after %pS\n", ops->resume);
+				"Interrupts enabled after %pF\n", ops->resume);
 		}
 	trace_suspend_resume(TPS("syscore_resume"), 0, false);
 }
@@ -125,8 +130,10 @@ void syscore_shutdown(void)
 	list_for_each_entry_reverse(ops, &syscore_ops_list, node)
 		if (ops->shutdown) {
 			if (initcall_debug)
-				pr_info("PM: Calling %pS\n", ops->shutdown);
+				pr_info("PM: Calling %pF\n", ops->shutdown);
+			dbg_snapshot_suspend("syscore_shutdown", ops->shutdown, NULL, 0, DSS_FLAG_IN);
 			ops->shutdown();
+			dbg_snapshot_suspend("syscore_shutdown", ops->shutdown, NULL, 0, DSS_FLAG_OUT);
 		}
 
 	mutex_unlock(&syscore_ops_lock);

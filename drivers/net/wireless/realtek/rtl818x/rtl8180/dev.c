@@ -460,10 +460,8 @@ static void rtl8180_tx(struct ieee80211_hw *dev,
 	struct rtl8180_priv *priv = dev->priv;
 	struct rtl8180_tx_ring *ring;
 	struct rtl8180_tx_desc *entry;
-	unsigned int prio = 0;
 	unsigned long flags;
-	unsigned int idx, hw_prio;
-
+	unsigned int idx, prio, hw_prio;
 	dma_addr_t mapping;
 	u32 tx_flags;
 	u8 rc_flags;
@@ -472,9 +470,7 @@ static void rtl8180_tx(struct ieee80211_hw *dev,
 	/* do arithmetic and then convert to le16 */
 	u16 frame_duration = 0;
 
-	/* rtl8180/rtl8185 only has one useable tx queue */
-	if (dev->queues > IEEE80211_AC_BK)
-		prio = skb_get_queue_mapping(skb);
+	prio = skb_get_queue_mapping(skb);
 	ring = &priv->tx_ring[prio];
 
 	mapping = pci_map_single(priv->pdev, skb->data,
@@ -807,7 +803,7 @@ static void rtl8180_config_cardbus(struct ieee80211_hw *dev)
 		rtl818x_iowrite16(priv, FEMR_SE, 0xffff);
 	} else {
 		reg16 = rtl818x_ioread16(priv, &priv->map->FEMR);
-		reg16 |= (1 << 15) | (1 << 14) | (1 << 4);
+			reg16 |= (1 << 15) | (1 << 14) | (1 << 4);
 		rtl818x_iowrite16(priv, &priv->map->FEMR, reg16);
 	}
 
@@ -1727,8 +1723,8 @@ static int rtl8180_probe(struct pci_dev *pdev,
 {
 	struct ieee80211_hw *dev;
 	struct rtl8180_priv *priv;
-	unsigned long mem_len;
-	unsigned int io_len;
+	unsigned long mem_addr, mem_len;
+	unsigned int io_addr, io_len;
 	int err;
 	const char *chip_name, *rf_name = NULL;
 	u32 reg;
@@ -1747,7 +1743,9 @@ static int rtl8180_probe(struct pci_dev *pdev,
 		goto err_disable_dev;
 	}
 
+	io_addr = pci_resource_start(pdev, 0);
 	io_len = pci_resource_len(pdev, 0);
+	mem_addr = pci_resource_start(pdev, 1);
 	mem_len = pci_resource_len(pdev, 1);
 
 	if (mem_len < sizeof(struct rtl818x_csr) ||

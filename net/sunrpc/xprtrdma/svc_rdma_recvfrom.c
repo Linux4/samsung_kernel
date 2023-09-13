@@ -172,10 +172,9 @@ static void svc_rdma_recv_ctxt_destroy(struct svcxprt_rdma *rdma,
 void svc_rdma_recv_ctxts_destroy(struct svcxprt_rdma *rdma)
 {
 	struct svc_rdma_recv_ctxt *ctxt;
-	struct llist_node *node;
 
-	while ((node = llist_del_first(&rdma->sc_recv_ctxts))) {
-		ctxt = llist_entry(node, struct svc_rdma_recv_ctxt, rc_node);
+	while ((ctxt = svc_rdma_next_recv_ctxt(&rdma->sc_recv_ctxts))) {
+		list_del(&ctxt->rc_list);
 		svc_rdma_recv_ctxt_destroy(rdma, ctxt);
 	}
 }
@@ -184,19 +183,21 @@ static struct svc_rdma_recv_ctxt *
 svc_rdma_recv_ctxt_get(struct svcxprt_rdma *rdma)
 {
 	struct svc_rdma_recv_ctxt *ctxt;
-	struct llist_node *node;
 
-	node = llist_del_first(&rdma->sc_recv_ctxts);
-	if (!node)
+	spin_lock(&rdma->sc_recv_lock);
+	ctxt = svc_rdma_next_recv_ctxt(&rdma->sc_recv_ctxts);
+	if (!ctxt)
 		goto out_empty;
-	ctxt = llist_entry(node, struct svc_rdma_recv_ctxt, rc_node);
+	list_del(&ctxt->rc_list);
+	spin_unlock(&rdma->sc_recv_lock);
 
 out:
 	ctxt->rc_page_count = 0;
-	ctxt->rc_read_payload_length = 0;
 	return ctxt;
 
 out_empty:
+	spin_unlock(&rdma->sc_recv_lock);
+
 	ctxt = svc_rdma_recv_ctxt_alloc(rdma);
 	if (!ctxt)
 		return NULL;
@@ -217,9 +218,11 @@ void svc_rdma_recv_ctxt_put(struct svcxprt_rdma *rdma,
 	for (i = 0; i < ctxt->rc_page_count; i++)
 		put_page(ctxt->rc_pages[i]);
 
-	if (!ctxt->rc_temp)
-		llist_add(&ctxt->rc_node, &rdma->sc_recv_ctxts);
-	else
+	if (!ctxt->rc_temp) {
+		spin_lock(&rdma->sc_recv_lock);
+		list_add(&ctxt->rc_list, &rdma->sc_recv_ctxts);
+		spin_unlock(&rdma->sc_recv_lock);
+	} else
 		svc_rdma_recv_ctxt_destroy(rdma, ctxt);
 }
 
@@ -265,8 +268,6 @@ static int svc_rdma_post_recv(struct svcxprt_rdma *rdma)
 {
 	struct svc_rdma_recv_ctxt *ctxt;
 
-	if (test_bit(XPT_CLOSE, &rdma->sc_xprt.xpt_flags))
-		return 0;
 	ctxt = svc_rdma_recv_ctxt_get(rdma);
 	if (!ctxt)
 		return -ENOMEM;
@@ -291,8 +292,11 @@ bool svc_rdma_post_recvs(struct svcxprt_rdma *rdma)
 			return false;
 		ctxt->rc_temp = true;
 		ret = __svc_rdma_post_recv(rdma, ctxt);
-		if (ret)
+		if (ret) {
+			pr_err("svcrdma: failure posting recv buffers: %d\n",
+			       ret);
 			return false;
+		}
 	}
 	return true;
 }
@@ -330,14 +334,17 @@ static void svc_rdma_wc_receive(struct ib_cq *cq, struct ib_wc *wc)
 
 	spin_lock(&rdma->sc_rq_dto_lock);
 	list_add_tail(&ctxt->rc_list, &rdma->sc_rq_dto_q);
-	/* Note the unlock pairs with the smp_rmb in svc_xprt_ready: */
-	set_bit(XPT_DATA, &rdma->sc_xprt.xpt_flags);
 	spin_unlock(&rdma->sc_rq_dto_lock);
+	set_bit(XPT_DATA, &rdma->sc_xprt.xpt_flags);
 	if (!test_bit(RDMAXPRT_CONN_PENDING, &rdma->sc_flags))
 		svc_xprt_enqueue(&rdma->sc_xprt);
 	goto out;
 
 flushed:
+	if (wc->status != IB_WC_WR_FLUSH_ERR)
+		pr_err("svcrdma: Recv: %s (%u/0x%x)\n",
+		       ib_wc_status_msg(wc->status),
+		       wc->status, wc->vendor_err);
 post_err:
 	svc_rdma_recv_ctxt_put(rdma, ctxt);
 	set_bit(XPT_CLOSE, &rdma->sc_xprt.xpt_flags);
@@ -496,68 +503,6 @@ static __be32 *xdr_check_reply_chunk(__be32 *p, const __be32 *end)
 			return NULL;
 	}
 	return p;
-}
-
-/* RPC-over-RDMA Version One private extension: Remote Invalidation.
- * Responder's choice: requester signals it can handle Send With
- * Invalidate, and responder chooses one R_key to invalidate.
- *
- * If there is exactly one distinct R_key in the received transport
- * header, set rc_inv_rkey to that R_key. Otherwise, set it to zero.
- *
- * Perform this operation while the received transport header is
- * still in the CPU cache.
- */
-static void svc_rdma_get_inv_rkey(struct svcxprt_rdma *rdma,
-				  struct svc_rdma_recv_ctxt *ctxt)
-{
-	__be32 inv_rkey, *p;
-	u32 i, segcount;
-
-	ctxt->rc_inv_rkey = 0;
-
-	if (!rdma->sc_snd_w_inv)
-		return;
-
-	inv_rkey = xdr_zero;
-	p = ctxt->rc_recv_buf;
-	p += rpcrdma_fixed_maxsz;
-
-	/* Read list */
-	while (*p++ != xdr_zero) {
-		p++;	/* position */
-		if (inv_rkey == xdr_zero)
-			inv_rkey = *p;
-		else if (inv_rkey != *p)
-			return;
-		p += 4;
-	}
-
-	/* Write list */
-	while (*p++ != xdr_zero) {
-		segcount = be32_to_cpup(p++);
-		for (i = 0; i < segcount; i++) {
-			if (inv_rkey == xdr_zero)
-				inv_rkey = *p;
-			else if (inv_rkey != *p)
-				return;
-			p += 4;
-		}
-	}
-
-	/* Reply chunk */
-	if (*p++ != xdr_zero) {
-		segcount = be32_to_cpup(p++);
-		for (i = 0; i < segcount; i++) {
-			if (inv_rkey == xdr_zero)
-				inv_rkey = *p;
-			else if (inv_rkey != *p)
-				return;
-			p += 4;
-		}
-	}
-
-	ctxt->rc_inv_rkey = be32_to_cpu(inv_rkey);
 }
 
 /* On entry, xdr->head[0].iov_base points to first byte in the
@@ -817,10 +762,12 @@ int svc_rdma_recvfrom(struct svc_rqst *rqstp)
 		goto out_drop;
 	rqstp->rq_xprt_hlen = ret;
 
-	if (svc_rdma_is_backchannel_reply(xprt, p))
-		goto out_backchannel;
-
-	svc_rdma_get_inv_rkey(rdma_xprt, ctxt);
+	if (svc_rdma_is_backchannel_reply(xprt, p)) {
+		ret = svc_rdma_handle_bc_reply(xprt->xpt_bc_xprt, p,
+					       &rqstp->rq_arg);
+		svc_rdma_recv_ctxt_put(rdma_xprt, ctxt);
+		return ret;
+	}
 
 	p += rpcrdma_fixed_maxsz;
 	if (*p != xdr_zero)
@@ -849,8 +796,6 @@ out_postfail:
 	svc_rdma_recv_ctxt_put(rdma_xprt, ctxt);
 	return ret;
 
-out_backchannel:
-	svc_rdma_handle_bc_reply(rqstp, ctxt);
 out_drop:
 	svc_rdma_recv_ctxt_put(rdma_xprt, ctxt);
 	return 0;

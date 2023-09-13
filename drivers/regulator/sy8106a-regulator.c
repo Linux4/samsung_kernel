@@ -22,6 +22,12 @@
  */
 #define SY8106A_GO_BIT			BIT(7)
 
+struct sy8106a {
+	struct regulator_dev *rdev;
+	struct regmap *regmap;
+	u32 fixed_voltage;
+};
+
 static const struct regmap_config sy8106a_regmap_config = {
 	.reg_bits = 8,
 	.val_bits = 8,
@@ -64,32 +70,36 @@ static const struct regulator_desc sy8106a_reg = {
 static int sy8106a_i2c_probe(struct i2c_client *i2c,
 			    const struct i2c_device_id *id)
 {
+	struct sy8106a *chip;
 	struct device *dev = &i2c->dev;
-	struct regulator_dev *rdev;
+	struct regulator_dev *rdev = NULL;
 	struct regulator_config config = { };
-	struct regmap *regmap;
 	unsigned int reg, vsel;
-	u32 fixed_voltage;
 	int error;
 
+	chip = devm_kzalloc(&i2c->dev, sizeof(struct sy8106a), GFP_KERNEL);
+	if (!chip)
+		return -ENOMEM;
+
 	error = of_property_read_u32(dev->of_node, "silergy,fixed-microvolt",
-				     &fixed_voltage);
+				     &chip->fixed_voltage);
 	if (error)
 		return error;
 
-	if (fixed_voltage < SY8106A_MIN_MV * 1000 ||
-	    fixed_voltage > SY8106A_MAX_MV * 1000)
+	if (chip->fixed_voltage < SY8106A_MIN_MV * 1000 ||
+	    chip->fixed_voltage > SY8106A_MAX_MV * 1000)
 		return -EINVAL;
 
-	regmap = devm_regmap_init_i2c(i2c, &sy8106a_regmap_config);
-	if (IS_ERR(regmap)) {
-		error = PTR_ERR(regmap);
+	chip->regmap = devm_regmap_init_i2c(i2c, &sy8106a_regmap_config);
+	if (IS_ERR(chip->regmap)) {
+		error = PTR_ERR(chip->regmap);
 		dev_err(dev, "Failed to allocate register map: %d\n", error);
 		return error;
 	}
 
 	config.dev = &i2c->dev;
-	config.regmap = regmap;
+	config.regmap = chip->regmap;
+	config.driver_data = chip;
 
 	config.of_node = dev->of_node;
 	config.init_data = of_get_regulator_init_data(dev, dev->of_node,
@@ -99,15 +109,15 @@ static int sy8106a_i2c_probe(struct i2c_client *i2c,
 		return -ENOMEM;
 
 	/* Ensure GO_BIT is enabled when probing */
-	error = regmap_read(regmap, SY8106A_REG_VOUT1_SEL, &reg);
+	error = regmap_read(chip->regmap, SY8106A_REG_VOUT1_SEL, &reg);
 	if (error)
 		return error;
 
 	if (!(reg & SY8106A_GO_BIT)) {
-		vsel = (fixed_voltage / 1000 - SY8106A_MIN_MV) /
+		vsel = (chip->fixed_voltage / 1000 - SY8106A_MIN_MV) /
 		       SY8106A_STEP_MV;
 
-		error = regmap_write(regmap, SY8106A_REG_VOUT1_SEL,
+		error = regmap_write(chip->regmap, SY8106A_REG_VOUT1_SEL,
 				     vsel | SY8106A_GO_BIT);
 		if (error)
 			return error;
@@ -120,6 +130,10 @@ static int sy8106a_i2c_probe(struct i2c_client *i2c,
 		dev_err(&i2c->dev, "Failed to register SY8106A regulator: %d\n", error);
 		return error;
 	}
+
+	chip->rdev = rdev;
+
+	i2c_set_clientdata(i2c, chip);
 
 	return 0;
 }

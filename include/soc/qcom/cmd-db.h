@@ -1,10 +1,9 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved. */
+/* SPDX-License-Identifier: GPL-2.0 */
+/* Copyright (c) 2016-2018, The Linux Foundation. All rights reserved. */
 
 #ifndef __QCOM_COMMAND_DB_H__
 #define __QCOM_COMMAND_DB_H__
 
-#include <linux/err.h>
 
 enum cmd_db_hw_type {
 	CMD_DB_HW_INVALID = 0,
@@ -19,27 +18,28 @@ enum cmd_db_hw_type {
 #if IS_ENABLED(CONFIG_QCOM_COMMAND_DB)
 u32 cmd_db_read_addr(const char *resource_id);
 
-const void *cmd_db_read_aux_data(const char *resource_id, size_t *len);
+int cmd_db_read_aux_data(const char *resource_id, u8 *data, size_t len);
+
+size_t cmd_db_read_aux_data_len(const char *resource_id);
 
 enum cmd_db_hw_type cmd_db_read_slave_id(const char *resource_id);
 
 int cmd_db_ready(void);
-
-bool cmd_db_is_standalone(void);
 #else
 static inline u32 cmd_db_read_addr(const char *resource_id)
 { return 0; }
 
-static inline const void *cmd_db_read_aux_data(const char *resource_id, size_t *len)
-{ return ERR_PTR(-ENODEV); }
+static inline int cmd_db_read_aux_data(const char *resource_id, u8 *data,
+				       size_t len)
+{ return -ENODEV; }
+
+static inline size_t cmd_db_read_aux_data_len(const char *resource_id)
+{ return -ENODEV; }
 
 static inline enum cmd_db_hw_type cmd_db_read_slave_id(const char *resource_id)
 { return -ENODEV; }
 
 static inline int cmd_db_ready(void)
 { return -ENODEV; }
-
-static inline bool cmd_db_is_standalone(void)
-{ return false; }
 #endif /* CONFIG_QCOM_COMMAND_DB */
 #endif /* __QCOM_COMMAND_DB_H__ */

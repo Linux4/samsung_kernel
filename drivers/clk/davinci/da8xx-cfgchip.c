@@ -160,8 +160,10 @@ static int __init da8xx_cfgchip_register_div4p5(struct device *dev,
 	struct da8xx_cfgchip_gate_clk *gate;
 
 	gate = da8xx_cfgchip_gate_clk_register(dev, &da8xx_div4p5ena_info, regmap);
+	if (IS_ERR(gate))
+		return PTR_ERR(gate);
 
-	return PTR_ERR_OR_ZERO(gate);
+	return 0;
 }
 
 static int __init

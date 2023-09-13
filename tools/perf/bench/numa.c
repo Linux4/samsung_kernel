@@ -9,6 +9,9 @@
 /* For the CLR_() macros */
 #include <pthread.h>
 
+#include "../perf.h"
+#include "../builtin.h"
+#include "../util/util.h"
 #include <subcmd/parse-options.h>
 #include "../util/cloexec.h"
 
@@ -31,8 +34,6 @@
 #include <sys/types.h>
 #include <linux/kernel.h>
 #include <linux/time64.h>
-#include <linux/numa.h>
-#include <linux/zalloc.h>
 
 #include <numa.h>
 #include <numaif.h>
@@ -301,7 +302,7 @@ static cpu_set_t bind_to_node(int target_node)
 
 	CPU_ZERO(&mask);
 
-	if (target_node == NUMA_NO_NODE) {
+	if (target_node == -1) {
 		for (cpu = 0; cpu < g->p.nr_cpus; cpu++)
 			CPU_SET(cpu, &mask);
 	} else {
@@ -342,7 +343,7 @@ static void bind_to_memnode(int node)
 	unsigned long nodemask;
 	int ret;
 
-	if (node == NUMA_NO_NODE)
+	if (node == -1)
 		return;
 
 	BUG_ON(g->p.nr_nodes > (int)sizeof(nodemask)*8);
@@ -1368,7 +1369,7 @@ static void init_thread_data(void)
 		int cpu;
 
 		/* Allow all nodes by default: */
-		td->bind_node = NUMA_NO_NODE;
+		td->bind_node = -1;
 
 		/* Allow all CPUs by default: */
 		CPU_ZERO(&td->bind_cpumask);
@@ -1630,7 +1631,7 @@ static int __bench_numa(const char *name)
 		"GB/sec,", "total-speed",	"GB/sec total speed");
 
 	if (g->p.show_details >= 2) {
-		char tname[14 + 2 * 11 + 1];
+		char tname[14 + 2 * 10 + 1];
 		struct thread_data *td;
 		for (p = 0; p < g->p.nr_proc; p++) {
 			for (t = 0; t < g->p.nr_threads; t++) {

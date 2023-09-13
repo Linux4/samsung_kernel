@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * STMicroelectronics gyroscopes driver
  *
@@ -6,6 +5,7 @@
  *
  * Denis Ciocca <denis.ciocca@st.com>
  * v. 1.0.0
+ * Licensed under the GPL-2.
  */
 
 #ifndef ST_GYRO_H
@@ -32,7 +32,6 @@ static const struct st_sensors_platform_data gyro_pdata = {
 	.drdy_int_pin = 2,
 };
 
-const struct st_sensor_settings *st_gyro_get_settings(const char *name);
 int st_gyro_common_probe(struct iio_dev *indio_dev);
 void st_gyro_common_remove(struct iio_dev *indio_dev);
 

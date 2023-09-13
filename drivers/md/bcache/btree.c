@@ -99,8 +99,6 @@
 #define PTR_HASH(c, k)							\
 	(((k)->ptr[0] >> c->bucket_bits) | PTR_GEN(k, 0))
 
-static struct workqueue_struct *btree_io_wq;
-
 #define insert_lock(s, b)	((b)->level <= (s)->lock)
 
 /*
@@ -209,11 +207,6 @@ void bch_btree_node_read_done(struct btree *b)
 	struct bset *i = btree_bset_first(b);
 	struct btree_iter *iter;
 
-	/*
-	 * c->fill_iter can allocate an iterator with more memory space
-	 * than static MAX_BSETS.
-	 * See the comment arount cache_set->fill_iter.
-	 */
 	iter = mempool_alloc(&b->c->fill_iter, GFP_NOIO);
 	iter->size = b->c->sb.bucket_size / b->c->sb.block_size;
 	iter->used = 0;
@@ -368,7 +361,7 @@ static void __btree_node_write_done(struct closure *cl)
 	btree_complete_write(b, w);
 
 	if (btree_node_dirty(b))
-		queue_delayed_work(btree_io_wq, &b->work, 30 * HZ);
+		schedule_delayed_work(&b->work, 30 * HZ);
 
 	closure_return_with_destructor(cl, btree_node_write_unlock);
 }
@@ -431,14 +424,13 @@ static void do_btree_node_write(struct btree *b)
 		       bset_sector_offset(&b->keys, i));
 
 	if (!bch_bio_alloc_pages(b->bio, __GFP_NOWARN|GFP_NOWAIT)) {
+		int j;
 		struct bio_vec *bv;
-		void *addr = (void *) ((unsigned long) i & ~(PAGE_SIZE - 1));
-		struct bvec_iter_all iter_all;
+		void *base = (void *) ((unsigned long) i & ~(PAGE_SIZE - 1));
 
-		bio_for_each_segment_all(bv, b->bio, iter_all) {
-			memcpy(page_address(bv->bv_page), addr, PAGE_SIZE);
-			addr += PAGE_SIZE;
-		}
+		bio_for_each_segment_all(bv, b->bio, j)
+			memcpy(page_address(bv->bv_page),
+			       base + j * PAGE_SIZE, PAGE_SIZE);
 
 		bch_submit_bbio(b->bio, b->c, &k.key, 0);
 
@@ -541,7 +533,7 @@ static void bch_btree_leaf_dirty(struct btree *b, atomic_t *journal_ref)
 	BUG_ON(!i->keys);
 
 	if (!btree_node_dirty(b))
-		queue_delayed_work(btree_io_wq, &b->work, 30 * HZ);
+		schedule_delayed_work(&b->work, 30 * HZ);
 
 	set_btree_node_dirty(b);
 
@@ -615,10 +607,6 @@ static void mca_data_alloc(struct btree *b, struct bkey *k, gfp_t gfp)
 static struct btree *mca_bucket_alloc(struct cache_set *c,
 				      struct bkey *k, gfp_t gfp)
 {
-	/*
-	 * kzalloc() is necessary here for initialization,
-	 * see code comments in bch_btree_keys_init().
-	 */
 	struct btree *b = kzalloc(sizeof(struct btree), gfp);
 
 	if (!b)
@@ -842,7 +830,7 @@ int bch_btree_cache_alloc(struct cache_set *c)
 	mutex_init(&c->verify_lock);
 
 	c->verify_ondisk = (void *)
-		__get_free_pages(GFP_KERNEL|__GFP_COMP, ilog2(bucket_pages(c)));
+		__get_free_pages(GFP_KERNEL, ilog2(bucket_pages(c)));
 
 	c->verify_data = mca_bucket_alloc(c, &ZERO_KEY, GFP_KERNEL);
 
@@ -888,17 +876,15 @@ out:
 
 static int mca_cannibalize_lock(struct cache_set *c, struct btree_op *op)
 {
-	spin_lock(&c->btree_cannibalize_lock);
-	if (likely(c->btree_cache_alloc_lock == NULL)) {
-		c->btree_cache_alloc_lock = current;
-	} else if (c->btree_cache_alloc_lock != current) {
+	struct task_struct *old;
+
+	old = cmpxchg(&c->btree_cache_alloc_lock, NULL, current);
+	if (old && old != current) {
 		if (op)
 			prepare_to_wait(&c->btree_cache_wait, &op->wait,
 					TASK_UNINTERRUPTIBLE);
-		spin_unlock(&c->btree_cannibalize_lock);
 		return -EINTR;
 	}
-	spin_unlock(&c->btree_cannibalize_lock);
 
 	return 0;
 }
@@ -933,12 +919,10 @@ static struct btree *mca_cannibalize(struct cache_set *c, struct btree_op *op,
  */
 static void bch_cannibalize_unlock(struct cache_set *c)
 {
-	spin_lock(&c->btree_cannibalize_lock);
 	if (c->btree_cache_alloc_lock == current) {
 		c->btree_cache_alloc_lock = NULL;
 		wake_up(&c->btree_cache_wait);
 	}
-	spin_unlock(&c->btree_cannibalize_lock);
 }
 
 static struct btree *mca_alloc(struct cache_set *c, struct btree_op *op,
@@ -1529,11 +1513,11 @@ out_unlock_nocoalesce:
 
 out_nocoalesce:
 	closure_sync(&cl);
+	bch_keylist_free(&keylist);
 
 	while ((k = bch_keylist_pop(&keylist)))
 		if (!bkey_cmp(k, &ZERO_KEY))
 			atomic_dec(&b->c->prio_blocked);
-	bch_keylist_free(&keylist);
 
 	for (i = 0; i < nodes; i++)
 		if (!IS_ERR_OR_NULL(new_nodes[i])) {
@@ -2660,19 +2644,4 @@ void bch_keybuf_init(struct keybuf *buf)
 
 	spin_lock_init(&buf->lock);
 	array_allocator_init(&buf->freelist);
-}
-
-void bch_btree_exit(void)
-{
-	if (btree_io_wq)
-		destroy_workqueue(btree_io_wq);
-}
-
-int __init bch_btree_init(void)
-{
-	btree_io_wq = alloc_workqueue("bch_btree_io", WQ_MEM_RECLAIM, 0);
-	if (!btree_io_wq)
-		return -ENOMEM;
-
-	return 0;
 }

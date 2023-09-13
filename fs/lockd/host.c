@@ -60,7 +60,6 @@ struct nlm_lookup_host_info {
 	const size_t		hostname_len;	/* it's length */
 	const int		noresvport;	/* use non-priv port */
 	struct net		*net;		/* network namespace to bind */
-	const struct cred	*cred;
 };
 
 /*
@@ -163,7 +162,6 @@ static struct nlm_host *nlm_alloc_host(struct nlm_lookup_host_info *ni,
 	host->h_nsmhandle  = nsm;
 	host->h_addrbuf    = nsm->sm_addrbuf;
 	host->net	   = ni->net;
-	host->h_cred	   = get_cred(ni->cred),
 	strlcpy(host->nodename, utsname()->nodename, sizeof(host->nodename));
 
 out:
@@ -190,7 +188,6 @@ static void nlm_destroy_host_locked(struct nlm_host *host)
 	clnt = host->h_rpcclnt;
 	if (clnt != NULL)
 		rpc_shutdown_client(clnt);
-	put_cred(host->h_cred);
 	kfree(host);
 
 	ln->nrhosts--;
@@ -205,8 +202,6 @@ static void nlm_destroy_host_locked(struct nlm_host *host)
  * @version: NLM protocol version
  * @hostname: '\0'-terminated hostname of server
  * @noresvport: 1 if non-privileged port should be used
- * @net: pointer to net namespace
- * @cred: pointer to cred
  *
  * Returns an nlm_host structure that matches the passed-in
  * [server address, transport protocol, NLM version, server hostname].
@@ -219,8 +214,7 @@ struct nlm_host *nlmclnt_lookup_host(const struct sockaddr *sap,
 				     const u32 version,
 				     const char *hostname,
 				     int noresvport,
-				     struct net *net,
-				     const struct cred *cred)
+				     struct net *net)
 {
 	struct nlm_lookup_host_info ni = {
 		.server		= 0,
@@ -232,7 +226,6 @@ struct nlm_host *nlmclnt_lookup_host(const struct sockaddr *sap,
 		.hostname_len	= strlen(hostname),
 		.noresvport	= noresvport,
 		.net		= net,
-		.cred		= cred,
 	};
 	struct hlist_head *chain;
 	struct nlm_host	*host;
@@ -439,7 +432,12 @@ nlm_bind_host(struct nlm_host *host)
 	 * RPC rebind is required
 	 */
 	if ((clnt = host->h_rpcclnt) != NULL) {
-		nlm_rebind_host(host);
+		if (time_after_eq(jiffies, host->h_nextrebind)) {
+			rpc_force_rebind(clnt);
+			host->h_nextrebind = jiffies + NLM_HOST_REBIND;
+			dprintk("lockd: next rebind in %lu jiffies\n",
+					host->h_nextrebind - jiffies);
+		}
 	} else {
 		unsigned long increment = nlmsvc_timeout;
 		struct rpc_timeout timeparms = {
@@ -460,7 +458,6 @@ nlm_bind_host(struct nlm_host *host)
 			.authflavor	= RPC_AUTH_UNIX,
 			.flags		= (RPC_CLNT_CREATE_NOPING |
 					   RPC_CLNT_CREATE_AUTOBIND),
-			.cred		= host->h_cred,
 		};
 
 		/*
@@ -488,20 +485,13 @@ nlm_bind_host(struct nlm_host *host)
 	return clnt;
 }
 
-/**
- * nlm_rebind_host - If needed, force a portmap lookup of the peer's lockd port
- * @host: NLM host handle for peer
- *
- * This is not needed when using a connection-oriented protocol, such as TCP.
- * The existing autobind mechanism is sufficient to force a rebind when
- * required, e.g. on connection state transitions.
+/*
+ * Force a portmap lookup of the remote lockd port
  */
 void
 nlm_rebind_host(struct nlm_host *host)
 {
-	if (host->h_proto != IPPROTO_UDP)
-		return;
-
+	dprintk("lockd: rebind host %s\n", host->h_name);
 	if (host->h_rpcclnt && time_after_eq(jiffies, host->h_nextrebind)) {
 		rpc_force_rebind(host->h_rpcclnt);
 		host->h_nextrebind = jiffies + NLM_HOST_REBIND;

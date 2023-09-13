@@ -10,7 +10,7 @@
 #include <linux/acpi.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
-
+#include <linux/pm.h>
 #include <linux/pinctrl/pinctrl.h>
 
 #include "pinctrl-intel.h"
@@ -18,7 +18,6 @@
 #define ICL_PAD_OWN	0x020
 #define ICL_PADCFGLOCK	0x080
 #define ICL_HOSTSW_OWN	0x0b0
-#define ICL_GPI_IS	0x100
 #define ICL_GPI_IE	0x110
 
 #define ICL_GPP(r, s, e, g)				\
@@ -37,7 +36,6 @@
 		.padown_offset = ICL_PAD_OWN,		\
 		.padcfglock_offset = ICL_PADCFGLOCK,	\
 		.hostown_offset = ICL_HOSTSW_OWN,	\
-		.is_offset = ICL_GPI_IS,		\
 		.ie_offset = ICL_GPI_IE,		\
 		.pin_base = (s),			\
 		.npins = ((e) - (s) + 1),		\
@@ -405,16 +403,24 @@ static const struct intel_pinctrl_soc_data icllp_soc_data = {
 	.ncommunities = ARRAY_SIZE(icllp_communities),
 };
 
-static INTEL_PINCTRL_PM_OPS(icl_pinctrl_pm_ops);
+static int icl_pinctrl_probe(struct platform_device *pdev)
+{
+	return intel_pinctrl_probe(pdev, &icllp_soc_data);
+}
+
+static const struct dev_pm_ops icl_pinctrl_pm_ops = {
+	SET_LATE_SYSTEM_SLEEP_PM_OPS(intel_pinctrl_suspend,
+				     intel_pinctrl_resume)
+};
 
 static const struct acpi_device_id icl_pinctrl_acpi_match[] = {
-	{ "INT3455", (kernel_ulong_t)&icllp_soc_data },
-	{ }
+	{ "INT3455" },
+	{ },
 };
 MODULE_DEVICE_TABLE(acpi, icl_pinctrl_acpi_match);
 
 static struct platform_driver icl_pinctrl_driver = {
-	.probe = intel_pinctrl_probe_by_hid,
+	.probe = icl_pinctrl_probe,
 	.driver = {
 		.name = "icelake-pinctrl",
 		.acpi_match_table = icl_pinctrl_acpi_match,

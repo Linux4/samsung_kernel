@@ -32,12 +32,9 @@
 #include <linux/backing-dev.h>
 #include <linux/rculist_bl.h>
 #include <linux/cleancache.h>
-#include <linux/fscrypt.h>
 #include <linux/fsnotify.h>
 #include <linux/lockdep.h>
 #include <linux/user_namespace.h>
-#include <linux/fs_context.h>
-#include <uapi/linux/mount.h>
 #include "internal.h"
 
 static int thaw_super_locked(struct super_block *sb);
@@ -258,8 +255,6 @@ static struct super_block *alloc_super(struct file_system_type *type, int flags,
 	s->s_maxbytes = MAX_NON_LFS;
 	s->s_op = &default_op;
 	s->s_time_gran = 1000000000;
-	s->s_time_min = TIME64_MIN;
-	s->s_time_max = TIME64_MAX;
 	s->cleancache_poolid = CLEANCACHE_NO_POOL;
 
 	s->s_shrink.seeks = DEFAULT_SEEKS;
@@ -293,7 +288,6 @@ static void __put_super(struct super_block *s)
 		WARN_ON(s->s_inode_lru.node);
 		WARN_ON(!list_empty(&s->s_mounts));
 		security_sb_free(s);
-		fscrypt_sb_free(s);
 		put_user_ns(s->s_user_ns);
 		kfree(s->s_subtype);
 		call_rcu(&s->rcu, destroy_super_rcu);
@@ -314,8 +308,6 @@ static void put_super(struct super_block *sb)
 	spin_unlock(&sb_lock);
 }
 
-/* @fs.sec -- 89e449513e5bea6196d9aaf62a6936ae -- */
-void (*ufs_debug_func)(void *) = NULL;
 
 /**
  *	deactivate_locked_super	-	drop an active reference to superblock
@@ -450,12 +442,10 @@ void generic_shutdown_super(struct super_block *sb)
 		sync_filesystem(sb);
 		sb->s_flags &= ~SB_ACTIVE;
 
+		fsnotify_unmount_inodes(sb);
 		cgroup_writeback_umount();
 
-		/* evict all inodes with zero refcount */
 		evict_inodes(sb);
-		/* only nonzero refcount inodes can have marks */
-		fsnotify_sb_delete(sb);
 
 		if (sb->s_dio_done_wq) {
 			destroy_workqueue(sb->s_dio_done_wq);
@@ -484,115 +474,29 @@ void generic_shutdown_super(struct super_block *sb)
 
 EXPORT_SYMBOL(generic_shutdown_super);
 
-bool mount_capable(struct fs_context *fc)
-{
-	if (!(fc->fs_type->fs_flags & FS_USERNS_MOUNT))
-		return capable(CAP_SYS_ADMIN);
-	else
-		return ns_capable(fc->user_ns, CAP_SYS_ADMIN);
-}
-
 /**
- * sget_fc - Find or create a superblock
- * @fc:	Filesystem context.
- * @test: Comparison callback
- * @set: Setup callback
- *
- * Find or create a superblock using the parameters stored in the filesystem
- * context and the two callback functions.
- *
- * If an extant superblock is matched, then that will be returned with an
- * elevated reference count that the caller must transfer or discard.
- *
- * If no match is made, a new superblock will be allocated and basic
- * initialisation will be performed (s_type, s_fs_info and s_id will be set and
- * the set() callback will be invoked), the superblock will be published and it
- * will be returned in a partially constructed state with SB_BORN and SB_ACTIVE
- * as yet unset.
+ *	sget_userns -	find or create a superblock
+ *	@type:	filesystem type superblock should belong to
+ *	@test:	comparison callback
+ *	@set:	setup callback
+ *	@flags:	mount flags
+ *	@user_ns: User namespace for the super_block
+ *	@data:	argument to each of them
  */
-struct super_block *sget_fc(struct fs_context *fc,
-			    int (*test)(struct super_block *, struct fs_context *),
-			    int (*set)(struct super_block *, struct fs_context *))
-{
-	struct super_block *s = NULL;
-	struct super_block *old;
-	struct user_namespace *user_ns = fc->global ? &init_user_ns : fc->user_ns;
-	int err;
-
-retry:
-	spin_lock(&sb_lock);
-	if (test) {
-		hlist_for_each_entry(old, &fc->fs_type->fs_supers, s_instances) {
-			if (test(old, fc))
-				goto share_extant_sb;
-		}
-	}
-	if (!s) {
-		spin_unlock(&sb_lock);
-		s = alloc_super(fc->fs_type, fc->sb_flags, user_ns);
-		if (!s)
-			return ERR_PTR(-ENOMEM);
-		goto retry;
-	}
-
-	s->s_fs_info = fc->s_fs_info;
-	err = set(s, fc);
-	if (err) {
-		s->s_fs_info = NULL;
-		spin_unlock(&sb_lock);
-		destroy_unused_super(s);
-		return ERR_PTR(err);
-	}
-	fc->s_fs_info = NULL;
-	s->s_type = fc->fs_type;
-	s->s_iflags |= fc->s_iflags;
-	strlcpy(s->s_id, s->s_type->name, sizeof(s->s_id));
-	list_add_tail(&s->s_list, &super_blocks);
-	hlist_add_head(&s->s_instances, &s->s_type->fs_supers);
-	spin_unlock(&sb_lock);
-	get_filesystem(s->s_type);
-	register_shrinker_prepared(&s->s_shrink);
-	return s;
-
-share_extant_sb:
-	if (user_ns != old->s_user_ns) {
-		spin_unlock(&sb_lock);
-		destroy_unused_super(s);
-		return ERR_PTR(-EBUSY);
-	}
-	if (!grab_super(old))
-		goto retry;
-	destroy_unused_super(s);
-	return old;
-}
-EXPORT_SYMBOL(sget_fc);
-
-/**
- *	sget	-	find or create a superblock
- *	@type:	  filesystem type superblock should belong to
- *	@test:	  comparison callback
- *	@set:	  setup callback
- *	@flags:	  mount flags
- *	@data:	  argument to each of them
- */
-struct super_block *sget(struct file_system_type *type,
+struct super_block *sget_userns(struct file_system_type *type,
 			int (*test)(struct super_block *,void *),
 			int (*set)(struct super_block *,void *),
-			int flags,
+			int flags, struct user_namespace *user_ns,
 			void *data)
 {
-	struct user_namespace *user_ns = current_user_ns();
 	struct super_block *s = NULL;
 	struct super_block *old;
 	int err;
 
-	/* We don't yet pass the user namespace of the parent
-	 * mount through to here so always use &init_user_ns
-	 * until that changes.
-	 */
-	if (flags & SB_SUBMOUNT)
-		user_ns = &init_user_ns;
-
+	if (!(flags & (SB_KERNMOUNT|SB_SUBMOUNT)) &&
+	    !(type->fs_flags & FS_USERNS_MOUNT) &&
+	    !capable(CAP_SYS_ADMIN))
+		return ERR_PTR(-EPERM);
 retry:
 	spin_lock(&sb_lock);
 	if (test) {
@@ -633,6 +537,39 @@ retry:
 	register_shrinker_prepared(&s->s_shrink);
 	return s;
 }
+
+EXPORT_SYMBOL(sget_userns);
+
+/**
+ *	sget	-	find or create a superblock
+ *	@type:	  filesystem type superblock should belong to
+ *	@test:	  comparison callback
+ *	@set:	  setup callback
+ *	@flags:	  mount flags
+ *	@data:	  argument to each of them
+ */
+struct super_block *sget(struct file_system_type *type,
+			int (*test)(struct super_block *,void *),
+			int (*set)(struct super_block *,void *),
+			int flags,
+			void *data)
+{
+	struct user_namespace *user_ns = current_user_ns();
+
+	/* We don't yet pass the user namespace of the parent
+	 * mount through to here so always use &init_user_ns
+	 * until that changes.
+	 */
+	if (flags & SB_SUBMOUNT)
+		user_ns = &init_user_ns;
+
+	/* Ensure the requestor has permissions over the target filesystem */
+	if (!(flags & (SB_KERNMOUNT|SB_SUBMOUNT)) && !ns_capable(user_ns, CAP_SYS_ADMIN))
+		return ERR_PTR(-EPERM);
+
+	return sget_userns(type, test, set, flags, user_ns, data);
+}
+
 EXPORT_SYMBOL(sget);
 
 void drop_super(struct super_block *sb)
@@ -897,35 +834,29 @@ rescan:
 }
 
 /**
- * reconfigure_super - asks filesystem to change superblock parameters
- * @fc: The superblock and configuration
+ *	do_remount_sb2 - asks filesystem to change mount options.
+ *	@mnt:   mount we are looking at
+ *	@sb:	superblock in question
+ *	@sb_flags: revised superblock flags
+ *	@data:	the rest of options
+ *      @force: whether or not to force the change
  *
- * Alters the configuration parameters of a live superblock.
+ *	Alters the mount options of a mounted file system.
  */
-int reconfigure_super(struct fs_context *fc)
+int do_remount_sb2(struct vfsmount *mnt, struct super_block *sb, int sb_flags, void *data, int force)
 {
-	struct super_block *sb = fc->root->d_sb;
 	int retval;
-	bool remount_ro = false;
-	bool force = fc->sb_flags & SB_FORCE;
+	int remount_ro;
 
-	if (fc->sb_flags_mask & ~MS_RMT_MASK)
-		return -EINVAL;
 	if (sb->s_writers.frozen != SB_UNFROZEN)
 		return -EBUSY;
 
-	retval = security_sb_remount(sb, fc->security);
-	if (retval)
-		return retval;
-
-	if (fc->sb_flags_mask & SB_RDONLY) {
 #ifdef CONFIG_BLOCK
-		if (!(fc->sb_flags & SB_RDONLY) && bdev_read_only(sb->s_bdev))
-			return -EACCES;
+	if (!(sb_flags & SB_RDONLY) && bdev_read_only(sb->s_bdev))
+		return -EACCES;
 #endif
 
-		remount_ro = (fc->sb_flags & SB_RDONLY) && !sb_rdonly(sb);
-	}
+	remount_ro = (sb_flags & SB_RDONLY) && !sb_rdonly(sb);
 
 	if (remount_ro) {
 		if (!hlist_empty(&sb->s_pins)) {
@@ -936,18 +867,20 @@ int reconfigure_super(struct fs_context *fc)
 				return 0;
 			if (sb->s_writers.frozen != SB_UNFROZEN)
 				return -EBUSY;
-			remount_ro = !sb_rdonly(sb);
+			remount_ro = (sb_flags & SB_RDONLY) && !sb_rdonly(sb);
 		}
 	}
 	shrink_dcache_sb(sb);
 
-	/* If we are reconfiguring to RDONLY and current sb is read/write,
-	 * make sure there are no files open for writing.
-	 */
+	/* If we are remounting RDONLY and current sb is read/write,
+	   make sure there are no rw files opened */
 	if (remount_ro) {
 		if (force) {
 			sb->s_readonly_remount = 1;
 			smp_wmb();
+
+			if (sb->s_magic == F2FS_SUPER_MAGIC)
+				mnt = ERR_PTR(-EROFS);
 		} else {
 			retval = sb_prepare_remount_readonly(sb);
 			if (retval)
@@ -955,8 +888,17 @@ int reconfigure_super(struct fs_context *fc)
 		}
 	}
 
-	if (fc->ops->reconfigure) {
-		retval = fc->ops->reconfigure(fc);
+	if (mnt && sb->s_op->remount_fs2) {
+		retval = sb->s_op->remount_fs2(mnt, sb, &sb_flags, data);
+		if (retval) {
+			if (!force)
+				goto cancel_readonly;
+			/* If forced remount, go ahead despite any errors */
+			WARN(1, "forced remount of a %s fs returned %i\n",
+			     sb->s_type->name, retval);
+		}
+	} else if (sb->s_op->remount_fs) {
+		retval = sb->s_op->remount_fs(sb, &sb_flags, data);
 		if (retval) {
 			if (!force)
 				goto cancel_readonly;
@@ -965,15 +907,7 @@ int reconfigure_super(struct fs_context *fc)
 			     sb->s_type->name, retval);
 		}
 	}
-
-#ifdef CONFIG_FIVE
-	WRITE_ONCE(sb->s_flags, ((sb->s_flags & ~fc->sb_flags_mask) |
-				 (fc->sb_flags & fc->sb_flags_mask) |
-				 MS_I_VERSION));
-#else
-	WRITE_ONCE(sb->s_flags, ((sb->s_flags & ~fc->sb_flags_mask) |
-				 (fc->sb_flags & fc->sb_flags_mask)));
-#endif
+	sb->s_flags = (sb->s_flags & ~MS_RMT_MASK) | (sb_flags & MS_RMT_MASK);
 	/* Needs to be ordered wrt mnt_is_readonly() */
 	smp_wmb();
 	sb->s_readonly_remount = 0;
@@ -995,20 +929,20 @@ cancel_readonly:
 	return retval;
 }
 
+int do_remount_sb(struct super_block *sb, int flags, void *data, int force)
+{
+	return do_remount_sb2(NULL, sb, flags, data, force);
+}
+
 static void do_emergency_remount_callback(struct super_block *sb)
 {
 	down_write(&sb->s_umount);
 	if (sb->s_root && sb->s_bdev && (sb->s_flags & SB_BORN) &&
 	    !sb_rdonly(sb)) {
-		struct fs_context *fc;
-
-		fc = fs_context_for_reconfigure(sb->s_root,
-					SB_RDONLY | SB_FORCE, SB_RDONLY);
-		if (!IS_ERR(fc)) {
-			if (parse_monolithic_mount_data(fc, NULL) == 0)
-				(void)reconfigure_super(fc);
-			put_fs_context(fc);
-		}
+		/*
+		 * What lock protects sb->s_flags??
+		 */
+		do_remount_sb(sb, SB_RDONLY, NULL, 1);
 	}
 	up_write(&sb->s_umount);
 }
@@ -1126,138 +1060,51 @@ void kill_litter_super(struct super_block *sb)
 }
 EXPORT_SYMBOL(kill_litter_super);
 
-int set_anon_super_fc(struct super_block *sb, struct fs_context *fc)
+static int ns_test_super(struct super_block *sb, void *data)
 {
+	return sb->s_fs_info == data;
+}
+
+static int ns_set_super(struct super_block *sb, void *data)
+{
+	sb->s_fs_info = data;
 	return set_anon_super(sb, NULL);
 }
-EXPORT_SYMBOL(set_anon_super_fc);
 
-static int test_keyed_super(struct super_block *sb, struct fs_context *fc)
+struct dentry *mount_ns(struct file_system_type *fs_type,
+	int flags, void *data, void *ns, struct user_namespace *user_ns,
+	int (*fill_super)(struct super_block *, void *, int))
 {
-	return sb->s_fs_info == fc->s_fs_info;
-}
-
-static int test_single_super(struct super_block *s, struct fs_context *fc)
-{
-	return 1;
-}
-
-/**
- * vfs_get_super - Get a superblock with a search key set in s_fs_info.
- * @fc: The filesystem context holding the parameters
- * @keying: How to distinguish superblocks
- * @fill_super: Helper to initialise a new superblock
- *
- * Search for a superblock and create a new one if not found.  The search
- * criterion is controlled by @keying.  If the search fails, a new superblock
- * is created and @fill_super() is called to initialise it.
- *
- * @keying can take one of a number of values:
- *
- * (1) vfs_get_single_super - Only one superblock of this type may exist on the
- *     system.  This is typically used for special system filesystems.
- *
- * (2) vfs_get_keyed_super - Multiple superblocks may exist, but they must have
- *     distinct keys (where the key is in s_fs_info).  Searching for the same
- *     key again will turn up the superblock for that key.
- *
- * (3) vfs_get_independent_super - Multiple superblocks may exist and are
- *     unkeyed.  Each call will get a new superblock.
- *
- * A permissions check is made by sget_fc() unless we're getting a superblock
- * for a kernel-internal mount or a submount.
- */
-int vfs_get_super(struct fs_context *fc,
-		  enum vfs_get_super_keying keying,
-		  int (*fill_super)(struct super_block *sb,
-				    struct fs_context *fc))
-{
-	int (*test)(struct super_block *, struct fs_context *);
 	struct super_block *sb;
-	int err;
 
-	switch (keying) {
-	case vfs_get_single_super:
-	case vfs_get_single_reconf_super:
-		test = test_single_super;
-		break;
-	case vfs_get_keyed_super:
-		test = test_keyed_super;
-		break;
-	case vfs_get_independent_super:
-		test = NULL;
-		break;
-	default:
-		BUG();
-	}
+	/* Don't allow mounting unless the caller has CAP_SYS_ADMIN
+	 * over the namespace.
+	 */
+	if (!(flags & SB_KERNMOUNT) && !ns_capable(user_ns, CAP_SYS_ADMIN))
+		return ERR_PTR(-EPERM);
 
-	sb = sget_fc(fc, test, set_anon_super_fc);
+	sb = sget_userns(fs_type, ns_test_super, ns_set_super, flags,
+			 user_ns, ns);
 	if (IS_ERR(sb))
-		return PTR_ERR(sb);
+		return ERR_CAST(sb);
 
 	if (!sb->s_root) {
-		err = fill_super(sb, fc);
-		if (err)
-			goto error;
+		int err;
+		err = fill_super(sb, data, flags & SB_SILENT ? 1 : 0);
+		if (err) {
+			deactivate_locked_super(sb);
+			return ERR_PTR(err);
+		}
 
 		sb->s_flags |= SB_ACTIVE;
-		fc->root = dget(sb->s_root);
-	} else {
-		fc->root = dget(sb->s_root);
-		if (keying == vfs_get_single_reconf_super) {
-			err = reconfigure_super(fc);
-			if (err < 0) {
-				dput(fc->root);
-				fc->root = NULL;
-				goto error;
-			}
-		}
 	}
 
-	return 0;
-
-error:
-	deactivate_locked_super(sb);
-	return err;
+	return dget(sb->s_root);
 }
-EXPORT_SYMBOL(vfs_get_super);
 
-int get_tree_nodev(struct fs_context *fc,
-		  int (*fill_super)(struct super_block *sb,
-				    struct fs_context *fc))
-{
-	return vfs_get_super(fc, vfs_get_independent_super, fill_super);
-}
-EXPORT_SYMBOL(get_tree_nodev);
-
-int get_tree_single(struct fs_context *fc,
-		  int (*fill_super)(struct super_block *sb,
-				    struct fs_context *fc))
-{
-	return vfs_get_super(fc, vfs_get_single_super, fill_super);
-}
-EXPORT_SYMBOL(get_tree_single);
-
-int get_tree_single_reconf(struct fs_context *fc,
-		  int (*fill_super)(struct super_block *sb,
-				    struct fs_context *fc))
-{
-	return vfs_get_super(fc, vfs_get_single_reconf_super, fill_super);
-}
-EXPORT_SYMBOL(get_tree_single_reconf);
-
-int get_tree_keyed(struct fs_context *fc,
-		  int (*fill_super)(struct super_block *sb,
-				    struct fs_context *fc),
-		void *key)
-{
-	fc->s_fs_info = key;
-	return vfs_get_super(fc, vfs_get_keyed_super, fill_super);
-}
-EXPORT_SYMBOL(get_tree_keyed);
+EXPORT_SYMBOL(mount_ns);
 
 #ifdef CONFIG_BLOCK
-
 static int set_bdev_super(struct super_block *s, void *data)
 {
 	s->s_bdev = data;
@@ -1266,102 +1113,6 @@ static int set_bdev_super(struct super_block *s, void *data)
 
 	return 0;
 }
-
-static int set_bdev_super_fc(struct super_block *s, struct fs_context *fc)
-{
-	return set_bdev_super(s, fc->sget_key);
-}
-
-static int test_bdev_super_fc(struct super_block *s, struct fs_context *fc)
-{
-	return s->s_bdev == fc->sget_key;
-}
-
-/**
- * get_tree_bdev - Get a superblock based on a single block device
- * @fc: The filesystem context holding the parameters
- * @fill_super: Helper to initialise a new superblock
- */
-int get_tree_bdev(struct fs_context *fc,
-		int (*fill_super)(struct super_block *,
-				  struct fs_context *))
-{
-	struct block_device *bdev;
-	struct super_block *s;
-	fmode_t mode = FMODE_READ | FMODE_EXCL;
-	int error = 0;
-
-	if (!(fc->sb_flags & SB_RDONLY))
-		mode |= FMODE_WRITE;
-
-	if (!fc->source)
-		return invalf(fc, "No source specified");
-
-	bdev = blkdev_get_by_path(fc->source, mode, fc->fs_type);
-	if (IS_ERR(bdev)) {
-		errorf(fc, "%s: Can't open blockdev", fc->source);
-		return PTR_ERR(bdev);
-	}
-
-	/* Once the superblock is inserted into the list by sget_fc(), s_umount
-	 * will protect the lockfs code from trying to start a snapshot while
-	 * we are mounting
-	 */
-	mutex_lock(&bdev->bd_fsfreeze_mutex);
-	if (bdev->bd_fsfreeze_count > 0) {
-		mutex_unlock(&bdev->bd_fsfreeze_mutex);
-		warnf(fc, "%pg: Can't mount, blockdev is frozen", bdev);
-		blkdev_put(bdev, mode);
-		return -EBUSY;
-	}
-
-	fc->sb_flags |= SB_NOSEC;
-	fc->sget_key = bdev;
-	s = sget_fc(fc, test_bdev_super_fc, set_bdev_super_fc);
-	mutex_unlock(&bdev->bd_fsfreeze_mutex);
-	if (IS_ERR(s)) {
-		blkdev_put(bdev, mode);
-		return PTR_ERR(s);
-	}
-
-	if (s->s_root) {
-		/* Don't summarily change the RO/RW state. */
-		if ((fc->sb_flags ^ s->s_flags) & SB_RDONLY) {
-			warnf(fc, "%pg: Can't mount, would change RO state", bdev);
-			deactivate_locked_super(s);
-			blkdev_put(bdev, mode);
-			return -EBUSY;
-		}
-
-		/*
-		 * s_umount nests inside bd_mutex during
-		 * __invalidate_device().  blkdev_put() acquires
-		 * bd_mutex and can't be called under s_umount.  Drop
-		 * s_umount temporarily.  This is safe as we're
-		 * holding an active reference.
-		 */
-		up_write(&s->s_umount);
-		blkdev_put(bdev, mode);
-		down_write(&s->s_umount);
-	} else {
-		s->s_mode = mode;
-		snprintf(s->s_id, sizeof(s->s_id), "%pg", bdev);
-		sb_set_blocksize(s, block_size(bdev));
-		error = fill_super(s, fc);
-		if (error) {
-			deactivate_locked_super(s);
-			return error;
-		}
-
-		s->s_flags |= SB_ACTIVE;
-		bdev->bd_super = s;
-	}
-
-	BUG_ON(fc->root);
-	fc->root = dget(s->s_root);
-	return 0;
-}
-EXPORT_SYMBOL(get_tree_bdev);
 
 static int test_bdev_super(struct super_block *s, void *data)
 {
@@ -1478,31 +1229,6 @@ struct dentry *mount_nodev(struct file_system_type *fs_type,
 }
 EXPORT_SYMBOL(mount_nodev);
 
-int reconfigure_single(struct super_block *s,
-		       int flags, void *data)
-{
-	struct fs_context *fc;
-	int ret;
-
-	/* The caller really need to be passing fc down into mount_single(),
-	 * then a chunk of this can be removed.  [Bollocks -- AV]
-	 * Better yet, reconfiguration shouldn't happen, but rather the second
-	 * mount should be rejected if the parameters are not compatible.
-	 */
-	fc = fs_context_for_reconfigure(s->s_root, flags, MS_RMT_MASK);
-	if (IS_ERR(fc))
-		return PTR_ERR(fc);
-
-	ret = parse_monolithic_mount_data(fc, data);
-	if (ret < 0)
-		goto out;
-
-	ret = reconfigure_super(fc);
-out:
-	put_fs_context(fc);
-	return ret;
-}
-
 static int compare_single(struct super_block *s, void *p)
 {
 	return 1;
@@ -1520,52 +1246,46 @@ struct dentry *mount_single(struct file_system_type *fs_type,
 		return ERR_CAST(s);
 	if (!s->s_root) {
 		error = fill_super(s, data, flags & SB_SILENT ? 1 : 0);
-		if (!error)
-			s->s_flags |= SB_ACTIVE;
+		if (error) {
+			deactivate_locked_super(s);
+			return ERR_PTR(error);
+		}
+		s->s_flags |= SB_ACTIVE;
 	} else {
-		error = reconfigure_single(s, flags, data);
-	}
-	if (unlikely(error)) {
-		deactivate_locked_super(s);
-		return ERR_PTR(error);
+		do_remount_sb(s, flags, data, 0);
 	}
 	return dget(s->s_root);
 }
 EXPORT_SYMBOL(mount_single);
 
-/**
- * vfs_get_tree - Get the mountable root
- * @fc: The superblock configuration context.
- *
- * The filesystem is invoked to get or create a superblock which can then later
- * be used for mounting.  The filesystem places a pointer to the root to be
- * used for mounting in @fc->root.
- */
-int vfs_get_tree(struct fs_context *fc)
+struct dentry *
+mount_fs(struct file_system_type *type, int flags, const char *name, struct vfsmount *mnt, void *data)
 {
+	struct dentry *root;
 	struct super_block *sb;
-	int error;
+	char *secdata = NULL;
+	int error = -ENOMEM;
 
-	if (fc->root)
-		return -EBUSY;
+	if (data && !(type->fs_flags & FS_BINARY_MOUNTDATA)) {
+		secdata = alloc_secdata();
+		if (!secdata)
+			goto out;
 
-	/* Get the mountable root in fc->root, with a ref on the root and a ref
-	 * on the superblock.
-	 */
-	error = fc->ops->get_tree(fc);
-	if (error < 0)
-		return error;
-
-	if (!fc->root) {
-		pr_err("Filesystem %s get_tree() didn't set fc->root\n",
-		       fc->fs_type->name);
-		/* We don't know what the locking state of the superblock is -
-		 * if there is a superblock.
-		 */
-		BUG();
+		error = security_sb_copy_data(data, secdata);
+		if (error)
+			goto out_free_secdata;
 	}
 
-	sb = fc->root->d_sb;
+	if (type->mount2)
+		root = type->mount2(mnt, type, flags, name, data);
+	else
+		root = type->mount(type, flags, name, data);
+	if (IS_ERR(root)) {
+		error = PTR_ERR(root);
+		goto out_free_secdata;
+	}
+	sb = root->d_sb;
+	BUG_ON(!sb);
 	WARN_ON(!sb->s_bdi);
 
 	/*
@@ -1577,11 +1297,9 @@ int vfs_get_tree(struct fs_context *fc)
 	smp_wmb();
 	sb->s_flags |= SB_BORN;
 
-	error = security_sb_set_mnt_opts(sb, fc->security, 0, NULL);
-	if (unlikely(error)) {
-		fc_drop_locked(fc);
-		return error;
-	}
+	error = security_sb_kern_mount(sb, flags, secdata);
+	if (error)
+		goto out_sb;
 
 	/*
 	 * filesystems should never set s_maxbytes larger than MAX_LFS_FILESIZE
@@ -1590,11 +1308,19 @@ int vfs_get_tree(struct fs_context *fc)
 	 * violate this rule.
 	 */
 	WARN((sb->s_maxbytes < 0), "%s set sb->s_maxbytes to "
-		"negative value (%lld)\n", fc->fs_type->name, sb->s_maxbytes);
+		"negative value (%lld)\n", type->name, sb->s_maxbytes);
 
-	return 0;
+	up_write(&sb->s_umount);
+	free_secdata(secdata);
+	return root;
+out_sb:
+	dput(root);
+	deactivate_locked_super(sb);
+out_free_secdata:
+	free_secdata(secdata);
+out:
+	return ERR_PTR(error);
 }
-EXPORT_SYMBOL(vfs_get_tree);
 
 static int __super_setup_bdi_name(struct super_block *sb,
 				  struct backing_dev_info *(*bdi_alloc_func)(gfp_t),
@@ -1683,11 +1409,36 @@ EXPORT_SYMBOL(__sb_end_write);
  */
 int __sb_start_write(struct super_block *sb, int level, bool wait)
 {
-	if (!wait)
-		return percpu_down_read_trylock(sb->s_writers.rw_sem + level-1);
+	bool force_trylock = false;
+	int ret = 1;
 
-	percpu_down_read(sb->s_writers.rw_sem + level-1);
-	return 1;
+#ifdef CONFIG_LOCKDEP
+	/*
+	 * We want lockdep to tell us about possible deadlocks with freezing
+	 * but it's it bit tricky to properly instrument it. Getting a freeze
+	 * protection works as getting a read lock but there are subtle
+	 * problems. XFS for example gets freeze protection on internal level
+	 * twice in some cases, which is OK only because we already hold a
+	 * freeze protection also on higher level. Due to these cases we have
+	 * to use wait == F (trylock mode) which must not fail.
+	 */
+	if (wait) {
+		int i;
+
+		for (i = 0; i < level - 1; i++)
+			if (percpu_rwsem_is_held(sb->s_writers.rw_sem + i)) {
+				force_trylock = true;
+				break;
+			}
+	}
+#endif
+	if (wait && !force_trylock)
+		percpu_down_read(sb->s_writers.rw_sem + level-1);
+	else
+		ret = percpu_down_read_trylock(sb->s_writers.rw_sem + level-1);
+
+	WARN_ON(force_trylock && !ret);
+	return ret;
 }
 EXPORT_SYMBOL(__sb_start_write);
 
@@ -1727,9 +1478,11 @@ static void lockdep_sb_freeze_acquire(struct super_block *sb)
 		percpu_rwsem_acquire(sb->s_writers.rw_sem + level, 0, _THIS_IP_);
 }
 
-static void sb_freeze_unlock(struct super_block *sb, int level)
+static void sb_freeze_unlock(struct super_block *sb)
 {
-	for (level--; level >= 0; level--)
+	int level;
+
+	for (level = SB_FREEZE_LEVELS - 1; level >= 0; level--)
 		percpu_up_write(sb->s_writers.rw_sem + level);
 }
 
@@ -1800,14 +1553,7 @@ int freeze_super(struct super_block *sb)
 	sb_wait_write(sb, SB_FREEZE_PAGEFAULT);
 
 	/* All writers are done so after syncing there won't be dirty data */
-	ret = sync_filesystem(sb);
-	if (ret) {
-		sb->s_writers.frozen = SB_UNFROZEN;
-		sb_freeze_unlock(sb, SB_FREEZE_PAGEFAULT);
-		wake_up(&sb->s_writers.wait_unfrozen);
-		deactivate_locked_super(sb);
-		return ret;
-	}
+	sync_filesystem(sb);
 
 	/* Now wait for internal filesystem counter */
 	sb->s_writers.frozen = SB_FREEZE_FS;
@@ -1819,7 +1565,7 @@ int freeze_super(struct super_block *sb)
 			printk(KERN_ERR
 				"VFS:Filesystem freeze failed\n");
 			sb->s_writers.frozen = SB_UNFROZEN;
-			sb_freeze_unlock(sb, SB_FREEZE_FS);
+			sb_freeze_unlock(sb);
 			wake_up(&sb->s_writers.wait_unfrozen);
 			deactivate_locked_super(sb);
 			return ret;
@@ -1870,7 +1616,7 @@ static int thaw_super_locked(struct super_block *sb)
 	}
 
 	sb->s_writers.frozen = SB_UNFROZEN;
-	sb_freeze_unlock(sb, SB_FREEZE_FS);
+	sb_freeze_unlock(sb);
 out:
 	wake_up(&sb->s_writers.wait_unfrozen);
 	deactivate_locked_super(sb);

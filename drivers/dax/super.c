@@ -1,11 +1,18 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright(c) 2017 Intel Corporation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of version 2 of the GNU General Public License as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
  */
 #include <linux/pagemap.h>
 #include <linux/module.h>
 #include <linux/mount.h>
-#include <linux/pseudo_fs.h>
 #include <linux/magic.h>
 #include <linux/genhd.h>
 #include <linux/pfn_t.h>
@@ -15,7 +22,6 @@
 #include <linux/uio.h>
 #include <linux/dax.h>
 #include <linux/fs.h>
-#include "dax-private.h"
 
 static dev_t dax_devt;
 DEFINE_STATIC_SRCU(dax_srcu);
@@ -66,18 +72,26 @@ struct dax_device *fs_dax_get_by_bdev(struct block_device *bdev)
 EXPORT_SYMBOL_GPL(fs_dax_get_by_bdev);
 #endif
 
-bool __generic_fsdax_supported(struct dax_device *dax_dev,
-		struct block_device *bdev, int blocksize, sector_t start,
-		sector_t sectors)
+/**
+ * __bdev_dax_supported() - Check if the device supports dax for filesystem
+ * @bdev: block device to check
+ * @blocksize: The block size of the device
+ *
+ * This is a library function for filesystems to check if the block device
+ * can be mounted with dax option.
+ *
+ * Return: true if supported, false if unsupported
+ */
+bool __bdev_dax_supported(struct block_device *bdev, int blocksize)
 {
+	struct dax_device *dax_dev;
 	bool dax_enabled = false;
-	pgoff_t pgoff, pgoff_end;
-	char buf[BDEVNAME_SIZE];
-	void *kaddr, *end_kaddr;
-	pfn_t pfn, end_pfn;
-	sector_t last_page;
-	long len, len2;
+	struct request_queue *q;
+	pgoff_t pgoff;
 	int err, id;
+	pfn_t pfn;
+	long len;
+	char buf[BDEVNAME_SIZE];
 
 	if (blocksize != PAGE_SIZE) {
 		pr_debug("%s: error: unsupported blocksize for dax\n",
@@ -85,29 +99,36 @@ bool __generic_fsdax_supported(struct dax_device *dax_dev,
 		return false;
 	}
 
-	err = bdev_dax_pgoff(bdev, start, PAGE_SIZE, &pgoff);
+	q = bdev_get_queue(bdev);
+	if (!q || !blk_queue_dax(q)) {
+		pr_debug("%s: error: request queue doesn't support dax\n",
+				bdevname(bdev, buf));
+		return false;
+	}
+
+	err = bdev_dax_pgoff(bdev, 0, PAGE_SIZE, &pgoff);
 	if (err) {
 		pr_debug("%s: error: unaligned partition for dax\n",
 				bdevname(bdev, buf));
 		return false;
 	}
 
-	last_page = PFN_DOWN((start + sectors - 1) * 512) * PAGE_SIZE / 512;
-	err = bdev_dax_pgoff(bdev, last_page, PAGE_SIZE, &pgoff_end);
-	if (err) {
-		pr_debug("%s: error: unaligned partition for dax\n",
+	dax_dev = dax_get_by_host(bdev->bd_disk->disk_name);
+	if (!dax_dev) {
+		pr_debug("%s: error: device does not support dax\n",
 				bdevname(bdev, buf));
 		return false;
 	}
 
 	id = dax_read_lock();
-	len = dax_direct_access(dax_dev, pgoff, 1, &kaddr, &pfn);
-	len2 = dax_direct_access(dax_dev, pgoff_end, 1, &end_kaddr, &end_pfn);
+	len = dax_direct_access(dax_dev, pgoff, 1, NULL, &pfn);
 	dax_read_unlock(id);
 
-	if (len < 1 || len2 < 1) {
+	put_dax(dax_dev);
+
+	if (len < 1) {
 		pr_debug("%s: error: dax access failed (%ld)\n",
-				bdevname(bdev, buf), len < 1 ? len : len2);
+				bdevname(bdev, buf), len);
 		return false;
 	}
 
@@ -122,20 +143,13 @@ bool __generic_fsdax_supported(struct dax_device *dax_dev,
 		 */
 		WARN_ON(IS_ENABLED(CONFIG_ARCH_HAS_PMEM_API));
 		dax_enabled = true;
-	} else if (pfn_t_devmap(pfn) && pfn_t_devmap(end_pfn)) {
-		struct dev_pagemap *pgmap, *end_pgmap;
+	} else if (pfn_t_devmap(pfn)) {
+		struct dev_pagemap *pgmap;
 
 		pgmap = get_dev_pagemap(pfn_t_to_pfn(pfn), NULL);
-		end_pgmap = get_dev_pagemap(pfn_t_to_pfn(end_pfn), NULL);
-		if (pgmap && pgmap == end_pgmap && pgmap->type == MEMORY_DEVICE_FS_DAX
-				&& pfn_t_to_page(pfn)->pgmap == pgmap
-				&& pfn_t_to_page(end_pfn)->pgmap == pgmap
-				&& pfn_t_to_pfn(pfn) == PHYS_PFN(__pa(kaddr))
-				&& pfn_t_to_pfn(end_pfn) == PHYS_PFN(__pa(end_kaddr)))
+		if (pgmap && pgmap->type == MEMORY_DEVICE_FS_DAX)
 			dax_enabled = true;
 		put_dev_pagemap(pgmap);
-		put_dev_pagemap(end_pgmap);
-
 	}
 
 	if (!dax_enabled) {
@@ -145,49 +159,6 @@ bool __generic_fsdax_supported(struct dax_device *dax_dev,
 	}
 	return true;
 }
-EXPORT_SYMBOL_GPL(__generic_fsdax_supported);
-
-/**
- * __bdev_dax_supported() - Check if the device supports dax for filesystem
- * @bdev: block device to check
- * @blocksize: The block size of the device
- *
- * This is a library function for filesystems to check if the block device
- * can be mounted with dax option.
- *
- * Return: true if supported, false if unsupported
- */
-bool __bdev_dax_supported(struct block_device *bdev, int blocksize)
-{
-	struct dax_device *dax_dev;
-	struct request_queue *q;
-	char buf[BDEVNAME_SIZE];
-	bool ret;
-	int id;
-
-	q = bdev_get_queue(bdev);
-	if (!q || !blk_queue_dax(q)) {
-		pr_debug("%s: error: request queue doesn't support dax\n",
-				bdevname(bdev, buf));
-		return false;
-	}
-
-	dax_dev = dax_get_by_host(bdev->bd_disk->disk_name);
-	if (!dax_dev) {
-		pr_debug("%s: error: device does not support dax\n",
-				bdevname(bdev, buf));
-		return false;
-	}
-
-	id = dax_read_lock();
-	ret = dax_supported(dax_dev, bdev, blocksize, 0,
-			i_size_read(bdev->bd_inode) / 512);
-	dax_read_unlock(id);
-
-	put_dax(dax_dev);
-
-	return ret;
-}
 EXPORT_SYMBOL_GPL(__bdev_dax_supported);
 #endif
 
@@ -196,8 +167,6 @@ enum dax_device_flags {
 	DAXDEV_ALIVE,
 	/* gate whether dax_flush() calls the low level flush routine */
 	DAXDEV_WRITE_CACHE,
-	/* flag to check if device supports synchronous flush */
-	DAXDEV_SYNC,
 };
 
 /**
@@ -315,19 +284,6 @@ long dax_direct_access(struct dax_device *dax_dev, pgoff_t pgoff, long nr_pages,
 }
 EXPORT_SYMBOL_GPL(dax_direct_access);
 
-bool dax_supported(struct dax_device *dax_dev, struct block_device *bdev,
-		int blocksize, sector_t start, sector_t len)
-{
-	if (!dax_dev)
-		return false;
-
-	if (!dax_alive(dax_dev))
-		return false;
-
-	return dax_dev->ops->dax_supported(dax_dev, bdev, blocksize, start, len);
-}
-EXPORT_SYMBOL_GPL(dax_supported);
-
 size_t dax_copy_from_iter(struct dax_device *dax_dev, pgoff_t pgoff, void *addr,
 		size_t bytes, struct iov_iter *i)
 {
@@ -379,18 +335,6 @@ bool dax_write_cache_enabled(struct dax_device *dax_dev)
 }
 EXPORT_SYMBOL_GPL(dax_write_cache_enabled);
 
-bool __dax_synchronous(struct dax_device *dax_dev)
-{
-	return test_bit(DAXDEV_SYNC, &dax_dev->flags);
-}
-EXPORT_SYMBOL_GPL(__dax_synchronous);
-
-void __set_dax_synchronous(struct dax_device *dax_dev)
-{
-	set_bit(DAXDEV_SYNC, &dax_dev->flags);
-}
-EXPORT_SYMBOL_GPL(__set_dax_synchronous);
-
 bool dax_alive(struct dax_device *dax_dev)
 {
 	lockdep_assert_held(&dax_srcu);
@@ -421,14 +365,10 @@ void kill_dax(struct dax_device *dax_dev)
 	spin_lock(&dax_host_lock);
 	hlist_del_init(&dax_dev->list);
 	spin_unlock(&dax_host_lock);
+
+	dax_dev->private = NULL;
 }
 EXPORT_SYMBOL_GPL(kill_dax);
-
-void run_dax(struct dax_device *dax_dev)
-{
-	set_bit(DAXDEV_ALIVE, &dax_dev->flags);
-}
-EXPORT_SYMBOL_GPL(run_dax);
 
 static struct inode *dax_alloc_inode(struct super_block *sb)
 {
@@ -449,9 +389,11 @@ static struct dax_device *to_dax_dev(struct inode *inode)
 	return container_of(inode, struct dax_device, inode);
 }
 
-static void dax_free_inode(struct inode *inode)
+static void dax_i_callback(struct rcu_head *head)
 {
+	struct inode *inode = container_of(head, struct inode, i_rcu);
 	struct dax_device *dax_dev = to_dax_dev(inode);
+
 	kfree(dax_dev->host);
 	dax_dev->host = NULL;
 	if (inode->i_rdev)
@@ -462,31 +404,29 @@ static void dax_free_inode(struct inode *inode)
 static void dax_destroy_inode(struct inode *inode)
 {
 	struct dax_device *dax_dev = to_dax_dev(inode);
+
 	WARN_ONCE(test_bit(DAXDEV_ALIVE, &dax_dev->flags),
 			"kill_dax() must be called before final iput()\n");
+	call_rcu(&inode->i_rcu, dax_i_callback);
 }
 
 static const struct super_operations dax_sops = {
 	.statfs = simple_statfs,
 	.alloc_inode = dax_alloc_inode,
 	.destroy_inode = dax_destroy_inode,
-	.free_inode = dax_free_inode,
 	.drop_inode = generic_delete_inode,
 };
 
-static int dax_init_fs_context(struct fs_context *fc)
+static struct dentry *dax_mount(struct file_system_type *fs_type,
+		int flags, const char *dev_name, void *data)
 {
-	struct pseudo_fs_context *ctx = init_pseudo(fc, DAXFS_MAGIC);
-	if (!ctx)
-		return -ENOMEM;
-	ctx->ops = &dax_sops;
-	return 0;
+	return mount_pseudo(fs_type, "dax:", &dax_sops, NULL, DAXFS_MAGIC);
 }
 
 static struct file_system_type dax_fs_type = {
-	.name		= "dax",
-	.init_fs_context = dax_init_fs_context,
-	.kill_sb	= kill_anon_super,
+	.name = "dax",
+	.mount = dax_mount,
+	.kill_sb = kill_anon_super,
 };
 
 static int dax_test(struct inode *inode, void *data)
@@ -548,7 +488,7 @@ static void dax_add_host(struct dax_device *dax_dev, const char *host)
 }
 
 struct dax_device *alloc_dax(void *private, const char *__host,
-		const struct dax_operations *ops, unsigned long flags)
+		const struct dax_operations *ops)
 {
 	struct dax_device *dax_dev;
 	const char *host;
@@ -571,9 +511,6 @@ struct dax_device *alloc_dax(void *private, const char *__host,
 	dax_add_host(dax_dev, host);
 	dax_dev->ops = ops;
 	dax_dev->private = private;
-	if (flags & DAXDEV_F_SYNC)
-		set_dax_synchronous(dax_dev);
-
 	return dax_dev;
 
  err_dev:
@@ -647,8 +584,6 @@ EXPORT_SYMBOL_GPL(dax_inode);
 
 void *dax_get_private(struct dax_device *dax_dev)
 {
-	if (!test_bit(DAXDEV_ALIVE, &dax_dev->flags))
-		return NULL;
 	return dax_dev->private;
 }
 EXPORT_SYMBOL_GPL(dax_get_private);
@@ -662,7 +597,7 @@ static void init_once(void *_dax_dev)
 	inode_init_once(inode);
 }
 
-static int dax_fs_init(void)
+static int __dax_fs_init(void)
 {
 	int rc;
 
@@ -672,6 +607,10 @@ static int dax_fs_init(void)
 			init_once);
 	if (!dax_cache)
 		return -ENOMEM;
+
+	rc = register_filesystem(&dax_fs_type);
+	if (rc)
+		goto err_register_fs;
 
 	dax_mnt = kern_mount(&dax_fs_type);
 	if (IS_ERR(dax_mnt)) {
@@ -683,51 +622,42 @@ static int dax_fs_init(void)
 	return 0;
 
  err_mount:
+	unregister_filesystem(&dax_fs_type);
+ err_register_fs:
 	kmem_cache_destroy(dax_cache);
 
 	return rc;
 }
 
-static void dax_fs_exit(void)
+static void __dax_fs_exit(void)
 {
 	kern_unmount(dax_mnt);
-	rcu_barrier();
+	unregister_filesystem(&dax_fs_type);
 	kmem_cache_destroy(dax_cache);
 }
 
-static int __init dax_core_init(void)
+static int __init dax_fs_init(void)
 {
 	int rc;
 
-	rc = dax_fs_init();
+	rc = __dax_fs_init();
 	if (rc)
 		return rc;
 
 	rc = alloc_chrdev_region(&dax_devt, 0, MINORMASK+1, "dax");
 	if (rc)
-		goto err_chrdev;
-
-	rc = dax_bus_init();
-	if (rc)
-		goto err_bus;
-	return 0;
-
-err_bus:
-	unregister_chrdev_region(dax_devt, MINORMASK+1);
-err_chrdev:
-	dax_fs_exit();
-	return 0;
+		__dax_fs_exit();
+	return rc;
 }
 
-static void __exit dax_core_exit(void)
+static void __exit dax_fs_exit(void)
 {
-	dax_bus_exit();
 	unregister_chrdev_region(dax_devt, MINORMASK+1);
 	ida_destroy(&dax_minor_ida);
-	dax_fs_exit();
+	__dax_fs_exit();
 }
 
 MODULE_AUTHOR("Intel Corporation");
 MODULE_LICENSE("GPL v2");
-subsys_initcall(dax_core_init);
-module_exit(dax_core_exit);
+subsys_initcall(dax_fs_init);
+module_exit(dax_fs_exit);

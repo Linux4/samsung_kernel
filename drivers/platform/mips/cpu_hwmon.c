@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 #include <linux/err.h>
 #include <linux/module.h>
 #include <linux/reboot.h>
@@ -26,10 +25,9 @@ int loongson3_cpu_temp(int cpu)
 	case PRID_REV_LOONGSON3A_R1:
 		reg = (reg >> 8) & 0xff;
 		break;
+	case PRID_REV_LOONGSON3A_R2:
 	case PRID_REV_LOONGSON3B_R1:
 	case PRID_REV_LOONGSON3B_R2:
-	case PRID_REV_LOONGSON3A_R2_0:
-	case PRID_REV_LOONGSON3A_R2_1:
 		reg = ((reg >> 8) & 0xff) - 100;
 		break;
 	case PRID_REV_LOONGSON3A_R3_0:

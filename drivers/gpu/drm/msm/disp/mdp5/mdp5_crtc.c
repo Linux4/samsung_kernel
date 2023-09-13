@@ -1,18 +1,26 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2014-2015 The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <linux/sort.h>
-
 #include <drm/drm_mode.h>
 #include <drm/drm_crtc.h>
+#include <drm/drm_crtc_helper.h>
 #include <drm/drm_flip_work.h>
-#include <drm/drm_fourcc.h>
-#include <drm/drm_probe_helper.h>
-#include <drm/drm_vblank.h>
 
 #include "mdp5_kms.h"
 
@@ -165,7 +173,7 @@ static void unref_cursor_worker(struct drm_flip_work *work, void *val)
 	struct mdp5_kms *mdp5_kms = get_kms(&mdp5_crtc->base);
 	struct msm_kms *kms = &mdp5_kms->base.base;
 
-	msm_gem_unpin_iova(val, kms->aspace);
+	msm_gem_put_iova(val, kms->aspace);
 	drm_gem_object_put_unlocked(val);
 }
 
@@ -376,7 +384,14 @@ static void mdp5_crtc_mode_set_nofb(struct drm_crtc *crtc)
 
 	mode = &crtc->state->adjusted_mode;
 
-	DBG("%s: set mode: " DRM_MODE_FMT, crtc->name, DRM_MODE_ARG(mode));
+	DBG("%s: set mode: %d:\"%s\" %d %d %d %d %d %d %d %d %d %d 0x%x 0x%x",
+			crtc->name, mode->base.id, mode->name,
+			mode->vrefresh, mode->clock,
+			mode->hdisplay, mode->hsync_start,
+			mode->hsync_end, mode->htotal,
+			mode->vdisplay, mode->vsync_start,
+			mode->vsync_end, mode->vtotal,
+			mode->type, mode->flags);
 
 	mixer_width = mode->hdisplay;
 	if (r_mixer)
@@ -442,18 +457,6 @@ static void mdp5_crtc_atomic_disable(struct drm_crtc *crtc,
 	mdp5_crtc->enabled = false;
 }
 
-static void mdp5_crtc_vblank_on(struct drm_crtc *crtc)
-{
-	struct mdp5_crtc_state *mdp5_cstate = to_mdp5_crtc_state(crtc->state);
-	struct mdp5_interface *intf = mdp5_cstate->pipeline.intf;
-	u32 count;
-
-	count = intf->mode == MDP5_INTF_DSI_MODE_COMMAND ? 0 : 0xffffffff;
-	drm_crtc_set_max_vblank_count(crtc, count);
-
-	drm_crtc_vblank_on(crtc);
-}
-
 static void mdp5_crtc_atomic_enable(struct drm_crtc *crtc,
 				    struct drm_crtc_state *old_state)
 {
@@ -490,7 +493,7 @@ static void mdp5_crtc_atomic_enable(struct drm_crtc *crtc,
 	}
 
 	/* Restore vblank irq handling after power is enabled */
-	mdp5_crtc_vblank_on(crtc);
+	drm_crtc_vblank_on(crtc);
 
 	mdp5_crtc_mode_set_nofb(crtc);
 
@@ -534,15 +537,9 @@ int mdp5_crtc_setup_pipeline(struct drm_crtc *crtc,
 		if (ret)
 			return ret;
 
-		ret = mdp5_mixer_release(new_crtc_state->state, old_mixer);
-		if (ret)
-			return ret;
-
+		mdp5_mixer_release(new_crtc_state->state, old_mixer);
 		if (old_r_mixer) {
-			ret = mdp5_mixer_release(new_crtc_state->state, old_r_mixer);
-			if (ret)
-				return ret;
-
+			mdp5_mixer_release(new_crtc_state->state, old_r_mixer);
 			if (!need_right_mixer)
 				pipeline->r_mixer = NULL;
 		}
@@ -665,7 +662,7 @@ static int mdp5_crtc_atomic_check(struct drm_crtc *crtc,
 
 	ret = mdp5_crtc_setup_pipeline(crtc, state, need_right_mixer);
 	if (ret) {
-		DRM_DEV_ERROR(dev->dev, "couldn't assign mixers %d\n", ret);
+		dev_err(dev->dev, "couldn't assign mixers %d\n", ret);
 		return ret;
 	}
 
@@ -682,7 +679,7 @@ static int mdp5_crtc_atomic_check(struct drm_crtc *crtc,
 	 * and that we don't have conflicting mixer stages:
 	 */
 	if ((cnt + start - 1) >= hw_cfg->lm.nb_stages) {
-		DRM_DEV_ERROR(dev->dev, "too many planes! cnt=%d, start stage=%d\n",
+		dev_err(dev->dev, "too many planes! cnt=%d, start stage=%d\n",
 			cnt, start);
 		return -EINVAL;
 	}
@@ -792,7 +789,6 @@ static void get_roi(struct drm_crtc *crtc, uint32_t *roi_w, uint32_t *roi_h)
 
 static void mdp5_crtc_restore_cursor(struct drm_crtc *crtc)
 {
-	const struct drm_format_info *info = drm_format_info(DRM_FORMAT_ARGB8888);
 	struct mdp5_crtc_state *mdp5_cstate = to_mdp5_crtc_state(crtc->state);
 	struct mdp5_crtc *mdp5_crtc = to_mdp5_crtc(crtc);
 	struct mdp5_kms *mdp5_kms = get_kms(crtc);
@@ -811,7 +807,7 @@ static void mdp5_crtc_restore_cursor(struct drm_crtc *crtc)
 	width = mdp5_crtc->cursor.width;
 	height = mdp5_crtc->cursor.height;
 
-	stride = width * info->cpp[0];
+	stride = width * drm_format_plane_cpp(DRM_FORMAT_ARGB8888, 0);
 
 	get_roi(crtc, &roi_w, &roi_h);
 
@@ -883,7 +879,7 @@ static int mdp5_crtc_cursor_set(struct drm_crtc *crtc,
 	}
 
 	if ((width > CURSOR_WIDTH) || (height > CURSOR_HEIGHT)) {
-		DRM_DEV_ERROR(dev->dev, "bad cursor size: %dx%d\n", width, height);
+		dev_err(dev->dev, "bad cursor size: %dx%d\n", width, height);
 		return -EINVAL;
 	}
 
@@ -907,12 +903,10 @@ static int mdp5_crtc_cursor_set(struct drm_crtc *crtc,
 	if (!cursor_bo)
 		return -ENOENT;
 
-	ret = msm_gem_get_and_pin_iova(cursor_bo, kms->aspace,
+	ret = msm_gem_get_iova(cursor_bo, kms->aspace,
 			&mdp5_crtc->cursor.iova);
-	if (ret) {
-		drm_gem_object_put(cursor_bo);
+	if (ret)
 		return -EINVAL;
-	}
 
 	pm_runtime_get_sync(&pdev->dev);
 
@@ -930,7 +924,7 @@ static int mdp5_crtc_cursor_set(struct drm_crtc *crtc,
 set_cursor:
 	ret = mdp5_ctl_set_cursor(ctl, pipeline, 0, cursor_enable);
 	if (ret) {
-		DRM_DEV_ERROR(dev->dev, "failed to %sable cursor: %d\n",
+		dev_err(dev->dev, "failed to %sable cursor: %d\n",
 				cursor_enable ? "en" : "dis", ret);
 		goto end;
 	}
@@ -1015,6 +1009,23 @@ mdp5_crtc_atomic_print_state(struct drm_printer *p,
 	drm_printf(p, "\tcmd_mode=%d\n", mdp5_cstate->cmd_mode);
 }
 
+static void mdp5_crtc_reset(struct drm_crtc *crtc)
+{
+	struct mdp5_crtc_state *mdp5_cstate;
+
+	if (crtc->state) {
+		__drm_atomic_helper_crtc_destroy_state(crtc->state);
+		kfree(to_mdp5_crtc_state(crtc->state));
+	}
+
+	mdp5_cstate = kzalloc(sizeof(*mdp5_cstate), GFP_KERNEL);
+
+	if (mdp5_cstate) {
+		mdp5_cstate->base.crtc = crtc;
+		crtc->state = &mdp5_cstate->base;
+	}
+}
+
 static struct drm_crtc_state *
 mdp5_crtc_duplicate_state(struct drm_crtc *crtc)
 {
@@ -1040,19 +1051,6 @@ static void mdp5_crtc_destroy_state(struct drm_crtc *crtc, struct drm_crtc_state
 	__drm_atomic_helper_crtc_destroy_state(state);
 
 	kfree(mdp5_cstate);
-}
-
-static void mdp5_crtc_reset(struct drm_crtc *crtc)
-{
-	struct mdp5_crtc_state *mdp5_cstate =
-		kzalloc(sizeof(*mdp5_cstate), GFP_KERNEL);
-
-	if (crtc->state)
-		mdp5_crtc_destroy_state(crtc, crtc->state);
-
-	__drm_atomic_helper_crtc_reset(crtc, &mdp5_cstate->base);
-
-	drm_crtc_vblank_reset(crtc);
 }
 
 static const struct drm_crtc_funcs mdp5_crtc_funcs = {
@@ -1107,7 +1105,7 @@ static void mdp5_crtc_pp_done_irq(struct mdp_irq *irq, uint32_t irqstatus)
 	struct mdp5_crtc *mdp5_crtc = container_of(irq, struct mdp5_crtc,
 								pp_done);
 
-	complete_all(&mdp5_crtc->pp_completion);
+	complete(&mdp5_crtc->pp_completion);
 }
 
 static void mdp5_crtc_wait_for_pp_done(struct drm_crtc *crtc)

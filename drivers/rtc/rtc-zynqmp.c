@@ -1,8 +1,19 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Xilinx Zynq Ultrascale+ MPSoC Real Time Clock Driver
  *
  * Copyright (C) 2015 Xilinx, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
 
@@ -38,6 +49,7 @@
 
 #define RTC_CALIB_DEF		0x198233
 #define RTC_CALIB_MASK		0x1FFFFF
+#define RTC_SEC_MAX_VAL		0xFFFFFFFF
 
 struct xlnx_rtc_dev {
 	struct rtc_device	*rtc;
@@ -58,6 +70,9 @@ static int xlnx_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	 * to get the correct time on read.
 	 */
 	new_time = rtc_tm_to_time64(tm) + 1;
+
+	if (new_time > RTC_SEC_MAX_VAL)
+		return -EINVAL;
 
 	/*
 	 * Writing into calibration register will clear the Tick Counter and
@@ -139,6 +154,9 @@ static int xlnx_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 
 	alarm_time = rtc_tm_to_time64(&alrm->time);
 
+	if (alarm_time > RTC_SEC_MAX_VAL)
+		return -EINVAL;
+
 	writel((u32)alarm_time, (xrtcdev->reg_base + RTC_ALRM));
 
 	xlnx_rtc_alarm_irq_enable(dev, alrm->enabled);
@@ -204,13 +222,6 @@ static int xlnx_rtc_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, xrtcdev);
 
-	xrtcdev->rtc = devm_rtc_allocate_device(&pdev->dev);
-	if (IS_ERR(xrtcdev->rtc))
-		return PTR_ERR(xrtcdev->rtc);
-
-	xrtcdev->rtc->ops = &xlnx_rtc_ops;
-	xrtcdev->rtc->range_max = U32_MAX;
-
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 
 	xrtcdev->reg_base = devm_ioremap_resource(&pdev->dev, res);
@@ -218,8 +229,10 @@ static int xlnx_rtc_probe(struct platform_device *pdev)
 		return PTR_ERR(xrtcdev->reg_base);
 
 	xrtcdev->alarm_irq = platform_get_irq_byname(pdev, "alarm");
-	if (xrtcdev->alarm_irq < 0)
+	if (xrtcdev->alarm_irq < 0) {
+		dev_err(&pdev->dev, "no irq resource\n");
 		return xrtcdev->alarm_irq;
+	}
 	ret = devm_request_irq(&pdev->dev, xrtcdev->alarm_irq,
 			       xlnx_rtc_interrupt, 0,
 			       dev_name(&pdev->dev), xrtcdev);
@@ -229,8 +242,10 @@ static int xlnx_rtc_probe(struct platform_device *pdev)
 	}
 
 	xrtcdev->sec_irq = platform_get_irq_byname(pdev, "sec");
-	if (xrtcdev->sec_irq < 0)
+	if (xrtcdev->sec_irq < 0) {
+		dev_err(&pdev->dev, "no irq resource\n");
 		return xrtcdev->sec_irq;
+	}
 	ret = devm_request_irq(&pdev->dev, xrtcdev->sec_irq,
 			       xlnx_rtc_interrupt, 0,
 			       dev_name(&pdev->dev), xrtcdev);
@@ -248,7 +263,9 @@ static int xlnx_rtc_probe(struct platform_device *pdev)
 
 	device_init_wakeup(&pdev->dev, 1);
 
-	return rtc_register_device(xrtcdev->rtc);
+	xrtcdev->rtc = devm_rtc_device_register(&pdev->dev, pdev->name,
+					 &xlnx_rtc_ops, THIS_MODULE);
+	return PTR_ERR_OR_ZERO(xrtcdev->rtc);
 }
 
 static int xlnx_rtc_remove(struct platform_device *pdev)

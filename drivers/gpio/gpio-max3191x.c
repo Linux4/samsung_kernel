@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * gpio-max3191x.c - GPIO driver for Maxim MAX3191x industrial serializer
  *
@@ -28,6 +27,10 @@
  * https://datasheets.maximintegrated.com/en/ds/MAX31912.pdf
  * https://datasheets.maximintegrated.com/en/ds/MAX31913.pdf
  * https://datasheets.maximintegrated.com/en/ds/MAX31953-MAX31963.pdf
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License (version 2) as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/bitmap.h>
@@ -310,21 +313,18 @@ static int max3191x_set_config(struct gpio_chip *gpio, unsigned int offset,
 
 static void gpiod_set_array_single_value_cansleep(unsigned int ndescs,
 						  struct gpio_desc **desc,
-						  struct gpio_array *info,
 						  int value)
 {
-	unsigned long *values;
+	int i, *values;
 
-	values = bitmap_alloc(ndescs, GFP_KERNEL);
+	values = kmalloc_array(ndescs, sizeof(*values), GFP_KERNEL);
 	if (!values)
 		return;
 
-	if (value)
-		bitmap_fill(values, ndescs);
-	else
-		bitmap_zero(values, ndescs);
+	for (i = 0; i < ndescs; i++)
+		values[i] = value;
 
-	gpiod_set_array_value_cansleep(ndescs, desc, info, values);
+	gpiod_set_array_value_cansleep(ndescs, desc, values);
 	kfree(values);
 }
 
@@ -397,8 +397,7 @@ static int max3191x_probe(struct spi_device *spi)
 	if (max3191x->modesel_pins)
 		gpiod_set_array_single_value_cansleep(
 				 max3191x->modesel_pins->ndescs,
-				 max3191x->modesel_pins->desc,
-				 max3191x->modesel_pins->info, max3191x->mode);
+				 max3191x->modesel_pins->desc, max3191x->mode);
 
 	max3191x->ignore_uv = device_property_read_bool(dev,
 						  "maxim,ignore-undervoltage");

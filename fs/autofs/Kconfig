@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 config AUTOFS4_FS
 	tristate "Old Kconfig name for Kernel automounter support"
 	select AUTOFS_FS

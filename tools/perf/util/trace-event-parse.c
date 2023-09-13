@@ -1,30 +1,46 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2009, Steven Rostedt <srostedt@redhat.com>
+ *
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License (not later!)
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 
+#include "../perf.h"
 #include "debug.h"
 #include "trace-event.h"
 
-#include <linux/ctype.h>
+#include "sane_ctype.h"
 
 static int get_common_field(struct scripting_context *context,
 			    int *offset, int *size, const char *type)
 {
 	struct tep_handle *pevent = context->pevent;
-	struct tep_event *event;
-	struct tep_format_field *field;
+	struct event_format *event;
+	struct format_field *field;
 
 	if (!*size) {
-
-		event = tep_get_first_event(pevent);
-		if (!event)
+		if (!pevent->events)
 			return 0;
 
+		event = pevent->events[0];
 		field = tep_find_common_field(event, type);
 		if (!field)
 			return 0;
@@ -78,9 +94,9 @@ int common_pc(struct scripting_context *context)
 }
 
 unsigned long long
-raw_field_value(struct tep_event *event, const char *name, void *data)
+raw_field_value(struct event_format *event, const char *name, void *data)
 {
-	struct tep_format_field *field;
+	struct format_field *field;
 	unsigned long long val;
 
 	field = tep_find_any_field(event, name);
@@ -92,12 +108,12 @@ raw_field_value(struct tep_event *event, const char *name, void *data)
 	return val;
 }
 
-unsigned long long read_size(struct tep_event *event, void *ptr, int size)
+unsigned long long read_size(struct event_format *event, void *ptr, int size)
 {
-	return tep_read_number(event->tep, ptr, size);
+	return tep_read_number(event->pevent, ptr, size);
 }
 
-void event_format__fprintf(struct tep_event *event,
+void event_format__fprintf(struct event_format *event,
 			   int cpu, void *data, int size, FILE *fp)
 {
 	struct tep_record record;
@@ -109,12 +125,12 @@ void event_format__fprintf(struct tep_event *event,
 	record.data = data;
 
 	trace_seq_init(&s);
-	tep_print_event(event->tep, &s, &record, "%s", TEP_PRINT_INFO);
+	tep_event_info(&s, event, &record);
 	trace_seq_do_fprintf(&s, fp);
 	trace_seq_destroy(&s);
 }
 
-void event_format__print(struct tep_event *event,
+void event_format__print(struct event_format *event,
 			 int cpu, void *data, int size)
 {
 	return event_format__fprintf(event, cpu, data, size, stdout);
@@ -171,6 +187,33 @@ int parse_event_file(struct tep_handle *pevent,
 		     char *buf, unsigned long size, char *sys)
 {
 	return tep_parse_event(pevent, buf, size, sys);
+}
+
+struct event_format *trace_find_next_event(struct tep_handle *pevent,
+					   struct event_format *event)
+{
+	static int idx;
+
+	if (!pevent || !pevent->events)
+		return NULL;
+
+	if (!event) {
+		idx = 0;
+		return pevent->events[0];
+	}
+
+	if (idx < pevent->nr_events && event == pevent->events[idx]) {
+		idx++;
+		if (idx == pevent->nr_events)
+			return NULL;
+		return pevent->events[idx];
+	}
+
+	for (idx = 1; idx < pevent->nr_events; idx++) {
+		if (event == pevent->events[idx - 1])
+			return pevent->events[idx];
+	}
+	return NULL;
 }
 
 struct flag {

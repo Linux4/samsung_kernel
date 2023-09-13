@@ -226,10 +226,8 @@ static int read_mos_reg(struct usb_serial *serial, unsigned int serial_portnum,
 	int status;
 
 	buf = kmalloc(1, GFP_KERNEL);
-	if (!buf) {
-		*data = 0;
+	if (!buf)
 		return -ENOMEM;
-	}
 
 	status = usb_control_msg(usbdev, pipe, request, requesttype, value,
 				     index, buf, 1, MOS_WDR_TIMEOUT);
@@ -640,8 +638,6 @@ static void parport_mos7715_restore_state(struct parport *pp,
 		spin_unlock(&release_lock);
 		return;
 	}
-	mos_parport->shadowDCR = s->u.pc.ctr;
-	mos_parport->shadowECR = s->u.pc.ecr;
 	write_parport_reg_nonblock(mos_parport, MOS7720_DCR,
 				   mos_parport->shadowDCR);
 	write_parport_reg_nonblock(mos_parport, MOS7720_ECR,
@@ -1252,10 +1248,8 @@ static int mos7720_write(struct tty_struct *tty, struct usb_serial_port *port,
 	if (urb->transfer_buffer == NULL) {
 		urb->transfer_buffer = kmalloc(URB_TRANSFER_BUFFER_SIZE,
 					       GFP_ATOMIC);
-		if (!urb->transfer_buffer) {
-			bytes_sent = -ENOMEM;
+		if (!urb->transfer_buffer)
 			goto exit;
-		}
 	}
 	transfer_size = min(count, URB_TRANSFER_BUFFER_SIZE);
 
@@ -1792,20 +1786,69 @@ static int mos7720_tiocmset(struct tty_struct *tty,
 	return 0;
 }
 
-static int get_serial_info(struct tty_struct *tty,
-			   struct serial_struct *ss)
+static int set_modem_info(struct moschip_port *mos7720_port, unsigned int cmd,
+			  unsigned int __user *value)
 {
-	struct usb_serial_port *port = tty->driver_data;
-	struct moschip_port *mos7720_port = usb_get_serial_port_data(port);
+	unsigned int mcr;
+	unsigned int arg;
 
-	ss->type		= PORT_16550A;
-	ss->line		= mos7720_port->port->minor;
-	ss->port		= mos7720_port->port->port_number;
-	ss->irq			= 0;
-	ss->xmit_fifo_size	= NUM_URBS * URB_TRANSFER_BUFFER_SIZE;
-	ss->baud_base		= 9600;
-	ss->close_delay		= 5*HZ;
-	ss->closing_wait	= 30*HZ;
+	struct usb_serial_port *port;
+
+	if (mos7720_port == NULL)
+		return -1;
+
+	port = (struct usb_serial_port *)mos7720_port->port;
+	mcr = mos7720_port->shadowMCR;
+
+	if (copy_from_user(&arg, value, sizeof(int)))
+		return -EFAULT;
+
+	switch (cmd) {
+	case TIOCMBIS:
+		if (arg & TIOCM_RTS)
+			mcr |= UART_MCR_RTS;
+		if (arg & TIOCM_DTR)
+			mcr |= UART_MCR_RTS;
+		if (arg & TIOCM_LOOP)
+			mcr |= UART_MCR_LOOP;
+		break;
+
+	case TIOCMBIC:
+		if (arg & TIOCM_RTS)
+			mcr &= ~UART_MCR_RTS;
+		if (arg & TIOCM_DTR)
+			mcr &= ~UART_MCR_RTS;
+		if (arg & TIOCM_LOOP)
+			mcr &= ~UART_MCR_LOOP;
+		break;
+
+	}
+
+	mos7720_port->shadowMCR = mcr;
+	write_mos_reg(port->serial, port->port_number, MOS7720_MCR,
+		      mos7720_port->shadowMCR);
+
+	return 0;
+}
+
+static int get_serial_info(struct moschip_port *mos7720_port,
+			   struct serial_struct __user *retinfo)
+{
+	struct serial_struct tmp;
+
+	memset(&tmp, 0, sizeof(tmp));
+
+	tmp.type		= PORT_16550A;
+	tmp.line		= mos7720_port->port->minor;
+	tmp.port		= mos7720_port->port->port_number;
+	tmp.irq			= 0;
+	tmp.xmit_fifo_size	= NUM_URBS * URB_TRANSFER_BUFFER_SIZE;
+	tmp.baud_base		= 9600;
+	tmp.close_delay		= 5*HZ;
+	tmp.closing_wait	= 30*HZ;
+
+	if (copy_to_user(retinfo, &tmp, sizeof(*retinfo)))
+		return -EFAULT;
 	return 0;
 }
 
@@ -1824,6 +1867,18 @@ static int mos7720_ioctl(struct tty_struct *tty,
 		dev_dbg(&port->dev, "%s TIOCSERGETLSR\n", __func__);
 		return get_lsr_info(tty, mos7720_port,
 					(unsigned int __user *)arg);
+
+	/* FIXME: These should be using the mode methods */
+	case TIOCMBIS:
+	case TIOCMBIC:
+		dev_dbg(&port->dev, "%s TIOCMSET/TIOCMBIC/TIOCMSET\n", __func__);
+		return set_modem_info(mos7720_port, cmd,
+				      (unsigned int __user *)arg);
+
+	case TIOCGSERIAL:
+		dev_dbg(&port->dev, "%s TIOCGSERIAL\n", __func__);
+		return get_serial_info(mos7720_port,
+				       (struct serial_struct __user *)arg);
 	}
 
 	return -ENOIOCTLCMD;
@@ -1956,7 +2011,6 @@ static struct usb_serial_driver moschip7720_2port_driver = {
 	.ioctl			= mos7720_ioctl,
 	.tiocmget		= mos7720_tiocmget,
 	.tiocmset		= mos7720_tiocmset,
-	.get_serial		= get_serial_info,
 	.set_termios		= mos7720_set_termios,
 	.write			= mos7720_write,
 	.write_room		= mos7720_write_room,

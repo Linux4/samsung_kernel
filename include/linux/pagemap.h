@@ -186,7 +186,7 @@ void release_pages(struct page **pages, int nr);
  * will find the page or it will not. Likewise, the old find_get_page could run
  * either before the insertion or afterwards, depending on timing.
  */
-static inline int __page_cache_add_speculative(struct page *page, int count)
+static inline int page_cache_get_speculative(struct page *page)
 {
 #ifdef CONFIG_TINY_RCU
 # ifdef CONFIG_PREEMPT_COUNT
@@ -202,10 +202,10 @@ static inline int __page_cache_add_speculative(struct page *page, int count)
 	 * SMP requires.
 	 */
 	VM_BUG_ON_PAGE(page_count(page) == 0, page);
-	page_ref_add(page, count);
+	page_ref_inc(page);
 
 #else
-	if (unlikely(!page_ref_add_unless(page, count, 0))) {
+	if (unlikely(!get_page_unless_zero(page))) {
 		/*
 		 * Either the page has been freed, or will be freed.
 		 * In either case, retry here and the caller should
@@ -219,14 +219,27 @@ static inline int __page_cache_add_speculative(struct page *page, int count)
 	return 1;
 }
 
-static inline int page_cache_get_speculative(struct page *page)
-{
-	return __page_cache_add_speculative(page, 1);
-}
-
+/*
+ * Same as above, but add instead of inc (could just be merged)
+ */
 static inline int page_cache_add_speculative(struct page *page, int count)
 {
-	return __page_cache_add_speculative(page, count);
+	VM_BUG_ON(in_interrupt());
+
+#if !defined(CONFIG_SMP) && defined(CONFIG_TREE_RCU)
+# ifdef CONFIG_PREEMPT_COUNT
+	VM_BUG_ON(!in_atomic() && !irqs_disabled());
+# endif
+	VM_BUG_ON_PAGE(page_count(page) == 0, page);
+	page_ref_add(page, count);
+
+#else
+	if (unlikely(!page_ref_add_unless(page, count, 0)))
+		return 0;
+#endif
+	VM_BUG_ON_PAGE(PageCompound(page) && page != compound_head(page), page);
+
+	return 1;
 }
 
 #ifdef CONFIG_NUMA
@@ -234,10 +247,7 @@ extern struct page *__page_cache_alloc(gfp_t gfp);
 #else
 static inline struct page *__page_cache_alloc(gfp_t gfp)
 {
-	if ((gfp & GFP_HIGHUSER_MOVABLE) == GFP_HIGHUSER_MOVABLE)
-		return alloc_pages(gfp | __GFP_CMA, 0);
-	else
-		return alloc_pages(gfp, 0);
+	return alloc_pages(gfp, 0);
 }
 #endif
 
@@ -248,20 +258,14 @@ static inline struct page *page_cache_alloc(struct address_space *x)
 
 static inline gfp_t readahead_gfp_mask(struct address_space *x)
 {
-	gfp_t gfp_mask = mapping_gfp_mask(x) |
-				__GFP_NORETRY | __GFP_NOWARN;
-
-	if (gfp_mask & __GFP_MOVABLE)
-		gfp_mask |= __GFP_CMA;
-
-	return gfp_mask;
+	return mapping_gfp_mask(x) | __GFP_NORETRY | __GFP_NOWARN;
 }
 
 typedef int filler_t(void *, struct page *);
 
-pgoff_t page_cache_next_miss(struct address_space *mapping,
+pgoff_t page_cache_next_hole(struct address_space *mapping,
 			     pgoff_t index, unsigned long max_scan);
-pgoff_t page_cache_prev_miss(struct address_space *mapping,
+pgoff_t page_cache_prev_hole(struct address_space *mapping,
 			     pgoff_t index, unsigned long max_scan);
 
 #define FGP_ACCESSED		0x00000001
@@ -364,16 +368,6 @@ static inline struct page *grab_cache_page_nowait(struct address_space *mapping,
 			mapping_gfp_mask(mapping));
 }
 
-static inline struct page *find_subpage(struct page *page, pgoff_t offset)
-{
-	if (PageHuge(page))
-		return page;
-
-	VM_BUG_ON_PAGE(PageTail(page), page);
-
-	return page + (offset & (compound_nr(page) - 1));
-}
-
 struct page *find_get_entry(struct address_space *mapping, pgoff_t offset);
 struct page *find_lock_entry(struct address_space *mapping, pgoff_t offset);
 unsigned find_get_entries(struct address_space *mapping, pgoff_t start,
@@ -392,15 +386,18 @@ static inline unsigned find_get_pages(struct address_space *mapping,
 unsigned find_get_pages_contig(struct address_space *mapping, pgoff_t start,
 			       unsigned int nr_pages, struct page **pages);
 unsigned find_get_pages_range_tag(struct address_space *mapping, pgoff_t *index,
-			pgoff_t end, xa_mark_t tag, unsigned int nr_pages,
+			pgoff_t end, int tag, unsigned int nr_pages,
 			struct page **pages);
 static inline unsigned find_get_pages_tag(struct address_space *mapping,
-			pgoff_t *index, xa_mark_t tag, unsigned int nr_pages,
+			pgoff_t *index, int tag, unsigned int nr_pages,
 			struct page **pages)
 {
 	return find_get_pages_range_tag(mapping, index, (pgoff_t)-1, tag,
 					nr_pages, pages);
 }
+unsigned find_get_entries_tag(struct address_space *mapping, pgoff_t start,
+			int tag, unsigned int nr_entries,
+			struct page **entries, pgoff_t *indices);
 
 struct page *grab_cache_page_write_begin(struct address_space *mapping,
 			pgoff_t index, unsigned flags);
@@ -428,7 +425,7 @@ static inline struct page *read_mapping_page(struct address_space *mapping,
 }
 
 /*
- * Get index of the page within radix-tree (but not for hugetlb pages).
+ * Get index of the page with in radix-tree
  * (TODO: remove once hugetlb pages will have ->index in PAGE_SIZE)
  */
 static inline pgoff_t page_to_index(struct page *page)
@@ -447,16 +444,15 @@ static inline pgoff_t page_to_index(struct page *page)
 	return pgoff;
 }
 
-extern pgoff_t hugetlb_basepage_index(struct page *page);
-
 /*
- * Get the offset in PAGE_SIZE (even for hugetlb pages).
- * (TODO: hugetlb pages should have ->index in PAGE_SIZE)
+ * Get the offset in PAGE_SIZE.
+ * (TODO: hugepage should have ->index in PAGE_SIZE)
  */
 static inline pgoff_t page_to_pgoff(struct page *page)
 {
-	if (unlikely(PageHuge(page)))
-		return hugetlb_basepage_index(page);
+	if (unlikely(PageHeadHuge(page)))
+		return page->index << compound_order(page);
+
 	return page_to_index(page);
 }
 
@@ -493,9 +489,6 @@ extern int __lock_page_or_retry(struct page *page, struct mm_struct *mm,
 				unsigned int flags);
 extern void unlock_page(struct page *page);
 
-/*
- * Return true if the page was successfully locked
- */
 static inline int trylock_page(struct page *page)
 {
 	page = compound_head(page);
@@ -546,7 +539,7 @@ static inline int lock_page_or_retry(struct page *page, struct mm_struct *mm,
 extern void wait_on_page_bit(struct page *page, int bit_nr);
 extern int wait_on_page_bit_killable(struct page *page, int bit_nr);
 
-/* 
+/*
  * Wait for a page to be unlocked.
  *
  * This must be called with the caller "holding" the page,
@@ -566,9 +559,15 @@ static inline int wait_on_page_locked_killable(struct page *page)
 	return wait_on_page_bit_killable(compound_head(page), PG_locked);
 }
 
-extern void put_and_wait_on_page_locked(struct page *page);
+/*
+ * Wait for a page to complete writeback
+ */
+static inline void wait_on_page_writeback(struct page *page)
+{
+	if (PageWriteback(page))
+		wait_on_page_bit(page, PG_writeback);
+}
 
-void wait_on_page_writeback(struct page *page);
 extern void end_page_writeback(struct page *page);
 void wait_for_stable_page(struct page *page);
 

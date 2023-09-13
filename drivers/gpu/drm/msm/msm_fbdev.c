@@ -1,12 +1,22 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <drm/drm_crtc.h>
 #include <drm/drm_fb_helper.h>
-#include <drm/drm_fourcc.h>
 
 #include "msm_drv.h"
 #include "msm_kms.h"
@@ -81,7 +91,7 @@ static int msm_fbdev_create(struct drm_fb_helper *helper,
 			sizes->surface_height, pitch, format);
 
 	if (IS_ERR(fb)) {
-		DRM_DEV_ERROR(dev->dev, "failed to allocate fb\n");
+		dev_err(dev->dev, "failed to allocate fb\n");
 		return PTR_ERR(fb);
 	}
 
@@ -94,27 +104,31 @@ static int msm_fbdev_create(struct drm_fb_helper *helper,
 	 * in panic (ie. lock-safe, etc) we could avoid pinning the
 	 * buffer now:
 	 */
-	ret = msm_gem_get_and_pin_iova(bo, priv->kms->aspace, &paddr);
+	ret = msm_gem_get_iova(bo, priv->kms->aspace, &paddr);
 	if (ret) {
-		DRM_DEV_ERROR(dev->dev, "failed to get buffer obj iova: %d\n", ret);
+		dev_err(dev->dev, "failed to get buffer obj iova: %d\n", ret);
 		goto fail_unlock;
 	}
 
 	fbi = drm_fb_helper_alloc_fbi(helper);
 	if (IS_ERR(fbi)) {
-		DRM_DEV_ERROR(dev->dev, "failed to allocate fb info\n");
+		dev_err(dev->dev, "failed to allocate fb info\n");
 		ret = PTR_ERR(fbi);
 		goto fail_unlock;
 	}
 
-	DBG("fbi=%pK, dev=%pK", fbi, dev);
+	DBG("fbi=%p, dev=%p", fbi, dev);
 
 	fbdev->fb = fb;
 	helper->fb = fb;
 
+	fbi->par = helper;
 	fbi->fbops = &msm_fb_ops;
 
-	drm_fb_helper_fill_info(fbi, helper, sizes);
+	strcpy(fbi->fix.id, "msm");
+
+	drm_fb_helper_fill_fix(fbi, fb->pitches[0], fb->format->depth);
+	drm_fb_helper_fill_var(fbi, helper, sizes->fb_width, sizes->fb_height);
 
 	dev->mode_config.fb_base = paddr;
 
@@ -127,7 +141,7 @@ static int msm_fbdev_create(struct drm_fb_helper *helper,
 	fbi->fix.smem_start = paddr;
 	fbi->fix.smem_len = bo->size;
 
-	DBG("par=%pK, %dx%d", fbi->par, fbi->var.xres, fbi->var.yres);
+	DBG("par=%p, %dx%d", fbi->par, fbi->var.xres, fbi->var.yres);
 	DBG("allocated %dx%d fb", fbdev->fb->width, fbdev->fb->height);
 
 	mutex_unlock(&dev->struct_mutex);
@@ -162,16 +176,13 @@ struct drm_fb_helper *msm_fbdev_init(struct drm_device *dev)
 
 	ret = drm_fb_helper_init(dev, helper, priv->num_connectors);
 	if (ret) {
-		DRM_DEV_ERROR(dev->dev, "could not init fbdev: ret=%d\n", ret);
+		dev_err(dev->dev, "could not init fbdev: ret=%d\n", ret);
 		goto fail;
 	}
 
 	ret = drm_fb_helper_single_add_all_connectors(helper);
 	if (ret)
 		goto fini;
-
-	/* the fw fb could be anywhere in memory */
-	drm_fb_helper_remove_conflicting_framebuffers(NULL, "msm", false);
 
 	ret = drm_fb_helper_initial_config(helper, 32);
 	if (ret)

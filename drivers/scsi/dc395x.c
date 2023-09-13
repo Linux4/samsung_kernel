@@ -753,6 +753,105 @@ static inline struct ScsiReqBlk *find_cmd(struct scsi_cmnd *cmd,
 	return NULL;
 }
 
+
+static struct ScsiReqBlk *srb_get_free(struct AdapterCtlBlk *acb)
+{
+	struct list_head *head = &acb->srb_free_list;
+	struct ScsiReqBlk *srb = NULL;
+
+	if (!list_empty(head)) {
+		srb = list_entry(head->next, struct ScsiReqBlk, list);
+		list_del(head->next);
+		dprintkdbg(DBG_0, "srb_get_free: srb=%p\n", srb);
+	}
+	return srb;
+}
+
+
+static void srb_free_insert(struct AdapterCtlBlk *acb, struct ScsiReqBlk *srb)
+{
+	dprintkdbg(DBG_0, "srb_free_insert: srb=%p\n", srb);
+	list_add_tail(&srb->list, &acb->srb_free_list);
+}
+
+
+static void srb_waiting_insert(struct DeviceCtlBlk *dcb,
+		struct ScsiReqBlk *srb)
+{
+	dprintkdbg(DBG_0, "srb_waiting_insert: (0x%p) <%02i-%i> srb=%p\n",
+		srb->cmd, dcb->target_id, dcb->target_lun, srb);
+	list_add(&srb->list, &dcb->srb_waiting_list);
+}
+
+
+static void srb_waiting_append(struct DeviceCtlBlk *dcb,
+		struct ScsiReqBlk *srb)
+{
+	dprintkdbg(DBG_0, "srb_waiting_append: (0x%p) <%02i-%i> srb=%p\n",
+		 srb->cmd, dcb->target_id, dcb->target_lun, srb);
+	list_add_tail(&srb->list, &dcb->srb_waiting_list);
+}
+
+
+static void srb_going_append(struct DeviceCtlBlk *dcb, struct ScsiReqBlk *srb)
+{
+	dprintkdbg(DBG_0, "srb_going_append: (0x%p) <%02i-%i> srb=%p\n",
+		srb->cmd, dcb->target_id, dcb->target_lun, srb);
+	list_add_tail(&srb->list, &dcb->srb_going_list);
+}
+
+
+static void srb_going_remove(struct DeviceCtlBlk *dcb, struct ScsiReqBlk *srb)
+{
+	struct ScsiReqBlk *i;
+	struct ScsiReqBlk *tmp;
+	dprintkdbg(DBG_0, "srb_going_remove: (0x%p) <%02i-%i> srb=%p\n",
+		srb->cmd, dcb->target_id, dcb->target_lun, srb);
+
+	list_for_each_entry_safe(i, tmp, &dcb->srb_going_list, list)
+		if (i == srb) {
+			list_del(&srb->list);
+			break;
+		}
+}
+
+
+static void srb_waiting_remove(struct DeviceCtlBlk *dcb,
+		struct ScsiReqBlk *srb)
+{
+	struct ScsiReqBlk *i;
+	struct ScsiReqBlk *tmp;
+	dprintkdbg(DBG_0, "srb_waiting_remove: (0x%p) <%02i-%i> srb=%p\n",
+		srb->cmd, dcb->target_id, dcb->target_lun, srb);
+
+	list_for_each_entry_safe(i, tmp, &dcb->srb_waiting_list, list)
+		if (i == srb) {
+			list_del(&srb->list);
+			break;
+		}
+}
+
+
+static void srb_going_to_waiting_move(struct DeviceCtlBlk *dcb,
+		struct ScsiReqBlk *srb)
+{
+	dprintkdbg(DBG_0,
+		"srb_going_to_waiting_move: (0x%p) <%02i-%i> srb=%p\n",
+		srb->cmd, dcb->target_id, dcb->target_lun, srb);
+	list_move(&srb->list, &dcb->srb_waiting_list);
+}
+
+
+static void srb_waiting_to_going_move(struct DeviceCtlBlk *dcb,
+		struct ScsiReqBlk *srb)
+{
+	dprintkdbg(DBG_0,
+		"srb_waiting_to_going_move: (0x%p) <%02i-%i> srb=%p\n",
+		srb->cmd, dcb->target_id, dcb->target_lun, srb);
+	list_move(&srb->list, &dcb->srb_going_list);
+}
+
+
 /* Sets the timer to wake us up */
 static void waiting_set_timer(struct AdapterCtlBlk *acb, unsigned long to)
 {
@@ -824,7 +923,7 @@ static void waiting_process_next(struct AdapterCtlBlk *acb)
 
 			/* Try to send to the bus */
 			if (!start_scsi(acb, pos, srb))
-				list_move(&srb->list, &pos->srb_going_list);
+				srb_waiting_to_going_move(pos, srb);
 			else
 				waiting_set_timer(acb, HZ/50);
 			break;
@@ -861,15 +960,15 @@ static void send_srb(struct AdapterCtlBlk *acb, struct ScsiReqBlk *srb)
 	if (dcb->max_command <= list_size(&dcb->srb_going_list) ||
 	    acb->active_dcb ||
 	    (acb->acb_flag & (RESET_DETECT + RESET_DONE + RESET_DEV))) {
-		list_add_tail(&srb->list, &dcb->srb_waiting_list);
+		srb_waiting_append(dcb, srb);
 		waiting_process_next(acb);
 		return;
 	}
 
-	if (!start_scsi(acb, dcb, srb)) {
-		list_add_tail(&srb->list, &dcb->srb_going_list);
-	} else {
-		list_add(&srb->list, &dcb->srb_waiting_list);
+	if (!start_scsi(acb, dcb, srb))
+		srb_going_append(dcb, srb);
+	else {
+		srb_waiting_insert(dcb, srb);
 		waiting_set_timer(acb, HZ / 50);
 	}
 }
@@ -946,8 +1045,10 @@ static void build_srb(struct scsi_cmnd *cmd, struct DeviceCtlBlk *dcb,
 			sgp->length++;
 		}
 
-		srb->sg_bus_addr = dma_map_single(&dcb->acb->dev->dev,
-				srb->segment_x, SEGMENTX_LEN, DMA_TO_DEVICE);
+		srb->sg_bus_addr = pci_map_single(dcb->acb->dev,
+						srb->segment_x,
+				            	SEGMENTX_LEN,
+				            	PCI_DMA_TODEVICE);
 
 		dprintkdbg(DBG_SG, "build_srb: [n] map sg %p->%08x(%05x)\n",
 			srb->segment_x, srb->sg_bus_addr, SEGMENTX_LEN);
@@ -1015,9 +1116,9 @@ static int dc395x_queue_command_lck(struct scsi_cmnd *cmd, void (*done)(struct s
 	cmd->scsi_done = done;
 	cmd->result = 0;
 
-	srb = list_first_entry_or_null(&acb->srb_free_list,
-			struct ScsiReqBlk, list);
-	if (!srb) {
+	srb = srb_get_free(acb);
+	if (!srb)
+	{
 		/*
 		 * Return 1 since we are unable to queue this command at this
 		 * point in time.
@@ -1025,13 +1126,12 @@ static int dc395x_queue_command_lck(struct scsi_cmnd *cmd, void (*done)(struct s
 		dprintkdbg(DBG_0, "queue_command: No free srb's\n");
 		return 1;
 	}
-	list_del(&srb->list);
 
 	build_srb(cmd, dcb, srb);
 
 	if (!list_empty(&dcb->srb_waiting_list)) {
 		/* append to waiting queue */
-		list_add_tail(&srb->list, &dcb->srb_waiting_list);
+		srb_waiting_append(dcb, srb);
 		waiting_process_next(acb);
 	} else {
 		/* process immediately */
@@ -1276,11 +1376,11 @@ static int dc395x_eh_abort(struct scsi_cmnd *cmd)
 
 	srb = find_cmd(cmd, &dcb->srb_waiting_list);
 	if (srb) {
-		list_del(&srb->list);
+		srb_waiting_remove(dcb, srb);
 		pci_unmap_srb_sense(acb, srb);
 		pci_unmap_srb(acb, srb);
 		free_tag(dcb, srb);
-		list_add_tail(&srb->list, &acb->srb_free_list);
+		srb_free_insert(acb, srb);
 		dprintkl(KERN_DEBUG, "eh_abort: Command was waiting\n");
 		cmd->result = DID_ABORT << 16;
 		return SUCCESS;
@@ -1869,15 +1969,19 @@ static void sg_update_list(struct ScsiReqBlk *srb, u32 left)
 			xferred -= psge->length;
 		} else {
 			/* Partial SG entry done */
-			dma_sync_single_for_cpu(&srb->dcb->acb->dev->dev,
-					srb->sg_bus_addr, SEGMENTX_LEN,
-					DMA_TO_DEVICE);
+			pci_dma_sync_single_for_cpu(srb->dcb->
+					    acb->dev,
+					    srb->sg_bus_addr,
+					    SEGMENTX_LEN,
+					    PCI_DMA_TODEVICE);
 			psge->length -= xferred;
 			psge->address += xferred;
 			srb->sg_index = idx;
-			dma_sync_single_for_device(&srb->dcb->acb->dev->dev,
-					srb->sg_bus_addr, SEGMENTX_LEN,
-					DMA_TO_DEVICE);
+			pci_dma_sync_single_for_device(srb->dcb->
+					    acb->dev,
+					    srb->sg_bus_addr,
+					    SEGMENTX_LEN,
+					    PCI_DMA_TODEVICE);
 			break;
 		}
 		psge++;
@@ -2984,7 +3088,7 @@ static void disconnect(struct AdapterCtlBlk *acb)
 					goto disc1;
 				}
 				free_tag(dcb, srb);
-				list_move(&srb->list, &dcb->srb_waiting_list);
+				srb_going_to_waiting_move(dcb, srb);
 				dprintkdbg(DBG_KG,
 					"disconnect: (0x%p) Retry\n",
 					srb->cmd);
@@ -3049,7 +3153,7 @@ static void reselect(struct AdapterCtlBlk *acb)
 
 			srb->state = SRB_READY;
 			free_tag(dcb, srb);
-			list_move(&srb->list, &dcb->srb_waiting_list);
+			srb_going_to_waiting_move(dcb, srb);
 			waiting_set_timer(acb, HZ / 20);
 
 			/* return; */
@@ -3172,8 +3276,9 @@ static void pci_unmap_srb(struct AdapterCtlBlk *acb, struct ScsiReqBlk *srb)
 		/* unmap DC395x SG list */
 		dprintkdbg(DBG_SG, "pci_unmap_srb: list=%08x(%05x)\n",
 			srb->sg_bus_addr, SEGMENTX_LEN);
-		dma_unmap_single(&acb->dev->dev, srb->sg_bus_addr, SEGMENTX_LEN,
-				DMA_TO_DEVICE);
+		pci_unmap_single(acb->dev, srb->sg_bus_addr,
+				 SEGMENTX_LEN,
+				 PCI_DMA_TODEVICE);
 		dprintkdbg(DBG_SG, "pci_unmap_srb: segs=%i buffer=%p\n",
 			   scsi_sg_count(cmd), scsi_bufflen(cmd));
 		/* unmap the sg segments */
@@ -3191,8 +3296,8 @@ static void pci_unmap_srb_sense(struct AdapterCtlBlk *acb,
 	/* Unmap sense buffer */
 	dprintkdbg(DBG_SG, "pci_unmap_srb_sense: buffer=%08x\n",
 	       srb->segment_x[0].address);
-	dma_unmap_single(&acb->dev->dev, srb->segment_x[0].address,
-			 srb->segment_x[0].length, DMA_FROM_DEVICE);
+	pci_unmap_single(acb->dev, srb->segment_x[0].address,
+			 srb->segment_x[0].length, PCI_DMA_FROMDEVICE);
 	/* Restore SG stuff */
 	srb->total_xfer_length = srb->xferred;
 	srb->segment_x[0].address =
@@ -3311,7 +3416,7 @@ static void srb_done(struct AdapterCtlBlk *acb, struct DeviceCtlBlk *dcb,
 				tempcnt--;
 			dcb->max_command = tempcnt;
 			free_tag(dcb, srb);
-			list_move(&srb->list, &dcb->srb_waiting_list);
+			srb_going_to_waiting_move(dcb, srb);
 			waiting_set_timer(acb, HZ / 20);
 			srb->adapter_status = 0;
 			srb->target_status = 0;
@@ -3396,13 +3501,14 @@ static void srb_done(struct AdapterCtlBlk *acb, struct DeviceCtlBlk *dcb,
 				cmd->cmnd[0], srb->total_xfer_length);
 	}
 
-	if (srb != acb->tmp_srb) {
-		/* Add to free list */
+	srb_going_remove(dcb, srb);
+	/* Add to free list */
+	if (srb == acb->tmp_srb)
+		dprintkl(KERN_ERR, "srb_done: ERROR! Completed cmd with tmp_srb\n");
+	else {
 		dprintkdbg(DBG_0, "srb_done: (0x%p) done result=0x%08x\n",
 			cmd, cmd->result);
-		list_move_tail(&srb->list, &acb->srb_free_list);
-	} else {
-		dprintkl(KERN_ERR, "srb_done: ERROR! Completed cmd with tmp_srb\n");
+		srb_free_insert(acb, srb);
 	}
 
 	cmd->scsi_done(cmd);
@@ -3431,9 +3537,9 @@ static void doing_srb_done(struct AdapterCtlBlk *acb, u8 did_flag,
 			result = MK_RES(0, did_flag, 0, 0);
 			printk("G:%p(%02i-%i) ", p,
 			       p->device->id, (u8)p->device->lun);
-			list_del(&srb->list);
+			srb_going_remove(dcb, srb);
 			free_tag(dcb, srb);
-			list_add_tail(&srb->list, &acb->srb_free_list);
+			srb_free_insert(acb, srb);
 			p->result = result;
 			pci_unmap_srb_sense(acb, srb);
 			pci_unmap_srb(acb, srb);
@@ -3461,7 +3567,8 @@ static void doing_srb_done(struct AdapterCtlBlk *acb, u8 did_flag,
 			result = MK_RES(0, did_flag, 0, 0);
 			printk("W:%p<%02i-%i>", p, p->device->id,
 			       (u8)p->device->lun);
-			list_move_tail(&srb->list, &acb->srb_free_list);
+			srb_waiting_remove(dcb, srb);
+			srb_free_insert(acb, srb);
 			p->result = result;
 			pci_unmap_srb_sense(acb, srb);
 			pci_unmap_srb(acb, srb);
@@ -3587,9 +3694,9 @@ static void request_sense(struct AdapterCtlBlk *acb, struct DeviceCtlBlk *dcb,
 	srb->total_xfer_length = SCSI_SENSE_BUFFERSIZE;
 	srb->segment_x[0].length = SCSI_SENSE_BUFFERSIZE;
 	/* Map sense buffer */
-	srb->segment_x[0].address = dma_map_single(&acb->dev->dev,
-			cmd->sense_buffer, SCSI_SENSE_BUFFERSIZE,
-			DMA_FROM_DEVICE);
+	srb->segment_x[0].address =
+	    pci_map_single(acb->dev, cmd->sense_buffer,
+			   SCSI_SENSE_BUFFERSIZE, PCI_DMA_FROMDEVICE);
 	dprintkdbg(DBG_SG, "request_sense: map buffer %p->%08x(%05x)\n",
 	       cmd->sense_buffer, srb->segment_x[0].address,
 	       SCSI_SENSE_BUFFERSIZE);
@@ -3600,7 +3707,7 @@ static void request_sense(struct AdapterCtlBlk *acb, struct DeviceCtlBlk *dcb,
 		dprintkl(KERN_DEBUG,
 			"request_sense: (0x%p) failed <%02i-%i>\n",
 			srb->cmd, dcb->target_id, dcb->target_lun);
-		list_move(&srb->list, &dcb->srb_waiting_list);
+		srb_going_to_waiting_move(dcb, srb);
 		waiting_set_timer(acb, HZ / 100);
 	}
 }
@@ -3664,19 +3771,10 @@ static struct DeviceCtlBlk *device_alloc(struct AdapterCtlBlk *acb,
 #endif
 	if (dcb->target_lun != 0) {
 		/* Copy settings */
-		struct DeviceCtlBlk *p = NULL, *iter;
-
-		list_for_each_entry(iter, &acb->dcb_list, list)
-			if (iter->target_id == dcb->target_id) {
-				p = iter;
+		struct DeviceCtlBlk *p;
+		list_for_each_entry(p, &acb->dcb_list, list)
+			if (p->target_id == dcb->target_id)
 				break;
-			}
-
-		if (!p) {
-			kfree(dcb);
-			return NULL;
-		}
-
 		dprintkdbg(DBG_1, 
 		       "device_alloc: <%02i-%i> copy from <%02i-%i>\n",
 		       dcb->target_id, dcb->target_lun,
@@ -4296,7 +4394,7 @@ static void adapter_init_params(struct AdapterCtlBlk *acb)
 	
 	/* link static array of srbs into the srb free list */
 	for (i = 0; i < acb->srb_count - 1; i++)
-		list_add_tail(&acb->srb_array[i].list, &acb->srb_free_list);
+		srb_free_insert(acb, &acb->srb_array[i]);
 }
 
 
@@ -4640,7 +4738,7 @@ static struct scsi_host_template dc395x_driver_template = {
 	.cmd_per_lun            = DC395x_MAX_CMD_PER_LUN,
 	.eh_abort_handler       = dc395x_eh_abort,
 	.eh_bus_reset_handler   = dc395x_eh_bus_reset,
-	.dma_boundary		= PAGE_SIZE - 1,
+	.use_clustering         = DISABLE_CLUSTERING,
 };
 
 
@@ -4707,7 +4805,6 @@ static int dc395x_init_one(struct pci_dev *dev, const struct pci_device_id *id)
 	/* initialise the adapter and everything we need */
  	if (adapter_init(acb, io_port_base, io_port_len, irq)) {
 		dprintkl(KERN_INFO, "adapter init failed\n");
-		acb = NULL;
 		goto fail;
 	}
 

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 
 /*
 
@@ -6,6 +5,14 @@
 
   Copyright 1995-1998 by Leonard N. Zubkoff <lnz@dandelion.com>
 
+  This program is free software; you may redistribute and/or modify it under
+  the terms of the GNU General Public License Version 2 as published by the
+  Free Software Foundation.
+
+  This program is distributed in the hope that it will be useful, but
+  WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY
+  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+  for complete details.
 
   The author respectfully requests that any modifications to this software be
   sent directly to him for evaluation and testing.
@@ -194,8 +201,8 @@ static bool __init blogic_create_initccbs(struct blogic_adapter *adapter)
 	dma_addr_t blkp;
 
 	while (adapter->alloc_ccbs < adapter->initccbs) {
-		blk_pointer = dma_alloc_coherent(&adapter->pci_device->dev,
-				blk_size, &blkp, GFP_KERNEL);
+		blk_pointer = pci_alloc_consistent(adapter->pci_device,
+							blk_size, &blkp);
 		if (blk_pointer == NULL) {
 			blogic_err("UNABLE TO ALLOCATE CCB GROUP - DETACHING\n",
 					adapter);
@@ -220,16 +227,15 @@ static void blogic_destroy_ccbs(struct blogic_adapter *adapter)
 		next_ccb = ccb->next_all;
 		if (ccb->allocgrp_head) {
 			if (lastccb)
-				dma_free_coherent(&adapter->pci_device->dev,
+				pci_free_consistent(adapter->pci_device,
 						lastccb->allocgrp_size, lastccb,
 						lastccb->allocgrp_head);
 			lastccb = ccb;
 		}
 	}
 	if (lastccb)
-		dma_free_coherent(&adapter->pci_device->dev,
-				lastccb->allocgrp_size, lastccb,
-				lastccb->allocgrp_head);
+		pci_free_consistent(adapter->pci_device, lastccb->allocgrp_size,
+					lastccb, lastccb->allocgrp_head);
 }
 
 
@@ -250,8 +256,8 @@ static void blogic_create_addlccbs(struct blogic_adapter *adapter,
 	if (addl_ccbs <= 0)
 		return;
 	while (adapter->alloc_ccbs - prev_alloc < addl_ccbs) {
-		blk_pointer = dma_alloc_coherent(&adapter->pci_device->dev,
-				blk_size, &blkp, GFP_KERNEL);
+		blk_pointer = pci_alloc_consistent(adapter->pci_device,
+							blk_size, &blkp);
 		if (blk_pointer == NULL)
 			break;
 		blogic_init_ccbs(adapter, blk_pointer, blk_size, blkp);
@@ -312,8 +318,8 @@ static void blogic_dealloc_ccb(struct blogic_ccb *ccb, int dma_unmap)
 	if (ccb->command != NULL)
 		scsi_dma_unmap(ccb->command);
 	if (dma_unmap)
-		dma_unmap_single(&adapter->pci_device->dev, ccb->sensedata,
-			 ccb->sense_datalen, DMA_FROM_DEVICE);
+		pci_unmap_single(adapter->pci_device, ccb->sensedata,
+			 ccb->sense_datalen, PCI_DMA_FROMDEVICE);
 
 	ccb->command = NULL;
 	ccb->status = BLOGIC_CCB_FREE;
@@ -706,7 +712,7 @@ static int __init blogic_init_mm_probeinfo(struct blogic_adapter *adapter)
 		if (pci_enable_device(pci_device))
 			continue;
 
-		if (dma_set_mask(&pci_device->dev, DMA_BIT_MASK(32)))
+		if (pci_set_dma_mask(pci_device, DMA_BIT_MASK(32)))
 			continue;
 
 		bus = pci_device->bus->number;
@@ -889,7 +895,7 @@ static int __init blogic_init_mm_probeinfo(struct blogic_adapter *adapter)
 		if (pci_enable_device(pci_device))
 			continue;
 
-		if (dma_set_mask(&pci_device->dev, DMA_BIT_MASK(32)))
+		if (pci_set_dma_mask(pci_device, DMA_BIT_MASK(32)))
 			continue;
 
 		bus = pci_device->bus->number;
@@ -946,7 +952,7 @@ static int __init blogic_init_fp_probeinfo(struct blogic_adapter *adapter)
 		if (pci_enable_device(pci_device))
 			continue;
 
-		if (dma_set_mask(&pci_device->dev, DMA_BIT_MASK(32)))
+		if (pci_set_dma_mask(pci_device, DMA_BIT_MASK(32)))
 			continue;
 
 		bus = pci_device->bus->number;
@@ -2034,7 +2040,7 @@ static void blogic_relres(struct blogic_adapter *adapter)
 	   Release any allocated memory structs not released elsewhere
 	 */
 	if (adapter->mbox_space)
-		dma_free_coherent(&adapter->pci_device->dev, adapter->mbox_sz,
+		pci_free_consistent(adapter->pci_device, adapter->mbox_sz,
 			adapter->mbox_space, adapter->mbox_space_handle);
 	pci_dev_put(adapter->pci_device);
 	adapter->mbox_space = NULL;
@@ -2086,9 +2092,8 @@ static bool blogic_initadapter(struct blogic_adapter *adapter)
 	   Initialize the Outgoing and Incoming Mailbox pointers.
 	 */
 	adapter->mbox_sz = adapter->mbox_count * (sizeof(struct blogic_outbox) + sizeof(struct blogic_inbox));
-	adapter->mbox_space = dma_alloc_coherent(&adapter->pci_device->dev,
-				adapter->mbox_sz, &adapter->mbox_space_handle,
-				GFP_KERNEL);
+	adapter->mbox_space = pci_alloc_consistent(adapter->pci_device,
+				adapter->mbox_sz, &adapter->mbox_space_handle);
 	if (adapter->mbox_space == NULL)
 		return blogic_failure(adapter, "MAILBOX ALLOCATION");
 	adapter->first_outbox = (struct blogic_outbox *) adapter->mbox_space;
@@ -2634,7 +2639,6 @@ static int blogic_resultcode(struct blogic_adapter *adapter,
 	case BLOGIC_BAD_CMD_PARAM:
 		blogic_warn("BusLogic Driver Protocol Error 0x%02X\n",
 				adapter, adapter_status);
-		/* fall through */
 	case BLOGIC_DATA_UNDERRUN:
 	case BLOGIC_DATA_OVERRUN:
 	case BLOGIC_NOEXPECT_BUSFREE:
@@ -3077,11 +3081,11 @@ static int blogic_qcmd_lck(struct scsi_cmnd *command,
 		ccb->opcode = BLOGIC_INITIATOR_CCB_SG;
 		ccb->datalen = count * sizeof(struct blogic_sg_seg);
 		if (blogic_multimaster_type(adapter))
-			ccb->data = (unsigned int) ccb->dma_handle +
+			ccb->data = (void *)((unsigned int) ccb->dma_handle +
 					((unsigned long) &ccb->sglist -
-					(unsigned long) ccb);
+					(unsigned long) ccb));
 		else
-			ccb->data = virt_to_32bit_virt(ccb->sglist);
+			ccb->data = ccb->sglist;
 
 		scsi_for_each_sg(command, sg, count, i) {
 			ccb->sglist[i].segbytes = sg_dma_len(sg);
@@ -3179,9 +3183,9 @@ static int blogic_qcmd_lck(struct scsi_cmnd *command,
 	memcpy(ccb->cdb, cdb, cdblen);
 	ccb->sense_datalen = SCSI_SENSE_BUFFERSIZE;
 	ccb->command = command;
-	sense_buf = dma_map_single(&adapter->pci_device->dev,
+	sense_buf = pci_map_single(adapter->pci_device,
 				command->sense_buffer, ccb->sense_datalen,
-				DMA_FROM_DEVICE);
+				PCI_DMA_FROMDEVICE);
 	if (dma_mapping_error(&adapter->pci_device->dev, sense_buf)) {
 		blogic_err("DMA mapping for sense data buffer failed\n",
 				adapter);
@@ -3601,7 +3605,7 @@ static void blogic_msg(enum blogic_msglevel msglevel, char *fmt,
 			if (buf[0] != '\n' || len > 1)
 				printk("%sscsi%d: %s", blogic_msglevelmap[msglevel], adapter->host_no, buf);
 		} else
-			pr_cont("%s", buf);
+			printk("%s", buf);
 	} else {
 		if (begin) {
 			if (adapter != NULL && adapter->adapter_initd)
@@ -3609,7 +3613,7 @@ static void blogic_msg(enum blogic_msglevel msglevel, char *fmt,
 			else
 				printk("%s%s", blogic_msglevelmap[msglevel], buf);
 		} else
-			pr_cont("%s", buf);
+			printk("%s", buf);
 	}
 	begin = (buf[len - 1] == '\n');
 }
@@ -3851,6 +3855,7 @@ static struct scsi_host_template blogic_template = {
 #endif
 	.unchecked_isa_dma = 1,
 	.max_sectors = 128,
+	.use_clustering = ENABLE_CLUSTERING,
 };
 
 /*

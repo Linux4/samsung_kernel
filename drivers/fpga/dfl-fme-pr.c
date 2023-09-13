@@ -74,7 +74,6 @@ static int fme_pr(struct platform_device *pdev, unsigned long arg)
 	struct dfl_fme *fme;
 	unsigned long minsz;
 	void *buf = NULL;
-	size_t length;
 	int ret = 0;
 	u64 v;
 
@@ -84,6 +83,9 @@ static int fme_pr(struct platform_device *pdev, unsigned long arg)
 		return -EFAULT;
 
 	if (port_pr.argsz < minsz || port_pr.flags)
+		return -EINVAL;
+
+	if (!IS_ALIGNED(port_pr.buffer_size, 4))
 		return -EINVAL;
 
 	/* get fme header region */
@@ -97,17 +99,12 @@ static int fme_pr(struct platform_device *pdev, unsigned long arg)
 		return -EINVAL;
 	}
 
-	if (!access_ok((void __user *)(unsigned long)port_pr.buffer_address,
+	if (!access_ok(VERIFY_READ,
+		       (void __user *)(unsigned long)port_pr.buffer_address,
 		       port_pr.buffer_size))
 		return -EFAULT;
 
-	/*
-	 * align PR buffer per PR bandwidth, as HW ignores the extra padding
-	 * data automatically.
-	 */
-	length = ALIGN(port_pr.buffer_size, 4);
-
-	buf = vmalloc(length);
+	buf = vmalloc(port_pr.buffer_size);
 	if (!buf)
 		return -ENOMEM;
 
@@ -144,7 +141,7 @@ static int fme_pr(struct platform_device *pdev, unsigned long arg)
 	fpga_image_info_free(region->info);
 
 	info->buf = buf;
-	info->count = length;
+	info->count = port_pr.buffer_size;
 	info->region_id = port_pr.port_id;
 	region->info = info;
 
@@ -163,6 +160,9 @@ unlock_exit:
 	mutex_unlock(&pdata->lock);
 free_exit:
 	vfree(buf);
+	if (copy_to_user((void __user *)arg, &port_pr, minsz))
+		return -EFAULT;
+
 	return ret;
 }
 
@@ -444,8 +444,10 @@ static void pr_mgmt_uinit(struct platform_device *pdev,
 			  struct dfl_feature *feature)
 {
 	struct dfl_feature_platform_data *pdata = dev_get_platdata(&pdev->dev);
+	struct dfl_fme *priv;
 
 	mutex_lock(&pdata->lock);
+	priv = dfl_fpga_pdata_get_private(pdata);
 
 	dfl_fme_destroy_regions(pdata);
 	dfl_fme_destroy_bridges(pdata);
@@ -470,12 +472,7 @@ static long fme_pr_ioctl(struct platform_device *pdev,
 	return ret;
 }
 
-const struct dfl_feature_id fme_pr_mgmt_id_table[] = {
-	{.id = FME_FEATURE_ID_PR_MGMT,},
-	{0}
-};
-
-const struct dfl_feature_ops fme_pr_mgmt_ops = {
+const struct dfl_feature_ops pr_mgmt_ops = {
 	.init = pr_mgmt_init,
 	.uinit = pr_mgmt_uinit,
 	.ioctl = fme_pr_ioctl,

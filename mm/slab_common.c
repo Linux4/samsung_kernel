@@ -17,7 +17,6 @@
 #include <linux/uaccess.h>
 #include <linux/seq_file.h>
 #include <linux/proc_fs.h>
-#include <linux/debugfs.h>
 #include <asm/cacheflush.h>
 #include <asm/tlbflush.h>
 #include <asm/page.h>
@@ -27,10 +26,6 @@
 #include <trace/events/kmem.h>
 
 #include "slab.h"
-#ifdef CONFIG_QCOM_MINIDUMP_PANIC_DUMP
-#include <soc/qcom/minidump.h>
-#include <linux/seq_buf.h>
-#endif
 
 enum slab_state slab_state;
 LIST_HEAD(slab_caches);
@@ -89,7 +84,8 @@ EXPORT_SYMBOL(kmem_cache_size);
 #ifdef CONFIG_DEBUG_VM
 static int kmem_cache_sanity_check(const char *name, unsigned int size)
 {
-	if (!name || in_interrupt() || size > KMALLOC_MAX_SIZE) {
+	if (!name || in_interrupt() || size < sizeof(void *) ||
+		size > KMALLOC_MAX_SIZE) {
 		pr_err("kmem_cache_create(%s) integrity check failed\n", name);
 		return -EINVAL;
 	}
@@ -134,9 +130,6 @@ int __kmem_cache_alloc_bulk(struct kmem_cache *s, gfp_t flags, size_t nr,
 #ifdef CONFIG_MEMCG_KMEM
 
 LIST_HEAD(slab_root_caches);
-static DEFINE_SPINLOCK(memcg_kmem_wq_lock);
-
-static void kmemcg_cache_shutdown(struct percpu_ref *percpu_ref);
 
 void slab_init_memcg_params(struct kmem_cache *s)
 {
@@ -147,18 +140,13 @@ void slab_init_memcg_params(struct kmem_cache *s)
 }
 
 static int init_memcg_params(struct kmem_cache *s,
-			     struct kmem_cache *root_cache)
+		struct mem_cgroup *memcg, struct kmem_cache *root_cache)
 {
 	struct memcg_cache_array *arr;
 
 	if (root_cache) {
-		int ret = percpu_ref_init(&s->memcg_params.refcnt,
-					  kmemcg_cache_shutdown,
-					  0, GFP_KERNEL);
-		if (ret)
-			return ret;
-
 		s->memcg_params.root_cache = root_cache;
+		s->memcg_params.memcg = memcg;
 		INIT_LIST_HEAD(&s->memcg_params.children_node);
 		INIT_LIST_HEAD(&s->memcg_params.kmem_caches_node);
 		return 0;
@@ -181,13 +169,8 @@ static int init_memcg_params(struct kmem_cache *s,
 
 static void destroy_memcg_params(struct kmem_cache *s)
 {
-	if (is_root_cache(s)) {
+	if (is_root_cache(s))
 		kvfree(rcu_access_pointer(s->memcg_params.memcg_caches));
-	} else {
-		mem_cgroup_put(s->memcg_params.memcg);
-		WRITE_ONCE(s->memcg_params.memcg, NULL);
-		percpu_ref_exit(&s->memcg_params.refcnt);
-	}
 }
 
 static void free_memcg_params(struct rcu_head *rcu)
@@ -238,13 +221,11 @@ int memcg_update_all_caches(int num_memcgs)
 	return ret;
 }
 
-void memcg_link_cache(struct kmem_cache *s, struct mem_cgroup *memcg)
+void memcg_link_cache(struct kmem_cache *s)
 {
 	if (is_root_cache(s)) {
 		list_add(&s->root_caches_node, &slab_root_caches);
 	} else {
-		css_get(&memcg->css);
-		s->memcg_params.memcg = memcg;
 		list_add(&s->memcg_params.children_node,
 			 &s->memcg_params.root_cache->memcg_params.children);
 		list_add(&s->memcg_params.kmem_caches_node,
@@ -263,7 +244,7 @@ static void memcg_unlink_cache(struct kmem_cache *s)
 }
 #else
 static inline int init_memcg_params(struct kmem_cache *s,
-				    struct kmem_cache *root_cache)
+		struct mem_cgroup *memcg, struct kmem_cache *root_cache)
 {
 	return 0;
 }
@@ -403,7 +384,7 @@ static struct kmem_cache *create_cache(const char *name,
 	s->useroffset = useroffset;
 	s->usersize = usersize;
 
-	err = init_memcg_params(s, root_cache);
+	err = init_memcg_params(s, memcg, root_cache);
 	if (err)
 		goto out_free_cache;
 
@@ -413,7 +394,7 @@ static struct kmem_cache *create_cache(const char *name,
 
 	s->refcount = 1;
 	list_add(&s->list, &slab_caches);
-	memcg_link_cache(s, memcg);
+	memcg_link_cache(s);
 out:
 	if (err)
 		return ERR_PTR(err);
@@ -425,9 +406,8 @@ out_free_cache:
 	goto out;
 }
 
-/**
- * kmem_cache_create_usercopy - Create a cache with a region suitable
- * for copying to userspace
+/*
+ * kmem_cache_create_usercopy - Create a cache.
  * @name: A string which is used in /proc/slabinfo to identify this cache.
  * @size: The size of objects to be created in this cache.
  * @align: The required alignment for the objects.
@@ -436,6 +416,7 @@ out_free_cache:
  * @usersize: Usercopy region size
  * @ctor: A constructor for the objects.
  *
+ * Returns a ptr to the cache on success, NULL on failure.
  * Cannot be called within a interrupt, but can be interrupted.
  * The @ctor is run when new pages are allocated by the cache.
  *
@@ -444,14 +425,12 @@ out_free_cache:
  * %SLAB_POISON - Poison the slab with a known test pattern (a5a5a5a5)
  * to catch references to uninitialised memory.
  *
- * %SLAB_RED_ZONE - Insert `Red` zones around the allocated memory to check
+ * %SLAB_RED_ZONE - Insert `Red' zones around the allocated memory to check
  * for buffer overruns.
  *
  * %SLAB_HWCACHE_ALIGN - Align the objects in this cache to a hardware
  * cacheline.  This can be beneficial if you're counting cycles as closely
  * as davem.
- *
- * Return: a pointer to the cache on success, NULL on failure.
  */
 struct kmem_cache *
 kmem_cache_create_usercopy(const char *name,
@@ -535,31 +514,6 @@ out_unlock:
 }
 EXPORT_SYMBOL(kmem_cache_create_usercopy);
 
-/**
- * kmem_cache_create - Create a cache.
- * @name: A string which is used in /proc/slabinfo to identify this cache.
- * @size: The size of objects to be created in this cache.
- * @align: The required alignment for the objects.
- * @flags: SLAB flags
- * @ctor: A constructor for the objects.
- *
- * Cannot be called within a interrupt, but can be interrupted.
- * The @ctor is run when new pages are allocated by the cache.
- *
- * The flags are
- *
- * %SLAB_POISON - Poison the slab with a known test pattern (a5a5a5a5)
- * to catch references to uninitialised memory.
- *
- * %SLAB_RED_ZONE - Insert `Red` zones around the allocated memory to check
- * for buffer overruns.
- *
- * %SLAB_HWCACHE_ALIGN - Align the objects in this cache to a hardware
- * cacheline.  This can be beneficial if you're counting cycles as closely
- * as davem.
- *
- * Return: a pointer to the cache on success, NULL on failure.
- */
 struct kmem_cache *
 kmem_cache_create(const char *name, unsigned int size, unsigned int align,
 		slab_flags_t flags, void (*ctor)(void *))
@@ -659,7 +613,7 @@ void memcg_create_kmem_cache(struct mem_cgroup *memcg,
 	 * The memory cgroup could have been offlined while the cache
 	 * creation work was pending.
 	 */
-	if (memcg->kmem_state != KMEM_ONLINE)
+	if (memcg->kmem_state != KMEM_ONLINE || root_cache->memcg_params.dying)
 		goto out_unlock;
 
 	idx = memcg_cache_id(memcg);
@@ -696,7 +650,7 @@ void memcg_create_kmem_cache(struct mem_cgroup *memcg,
 	}
 
 	/*
-	 * Since readers won't lock (see memcg_kmem_get_cache()), we need a
+	 * Since readers won't lock (see cache_from_memcg_idx()), we need a
 	 * barrier here to ensure nobody will see the kmem_cache partially
 	 * initialized.
 	 */
@@ -710,95 +664,74 @@ out_unlock:
 	put_online_cpus();
 }
 
-static void kmemcg_workfn(struct work_struct *work)
+static void kmemcg_deactivate_workfn(struct work_struct *work)
 {
 	struct kmem_cache *s = container_of(work, struct kmem_cache,
-					    memcg_params.work);
+					    memcg_params.deact_work);
 
 	get_online_cpus();
 	get_online_mems();
 
 	mutex_lock(&slab_mutex);
-	s->memcg_params.work_fn(s);
+
+	s->memcg_params.deact_fn(s);
+
 	mutex_unlock(&slab_mutex);
 
 	put_online_mems();
 	put_online_cpus();
+
+	/* done, put the ref from slab_deactivate_memcg_cache_rcu_sched() */
+	css_put(&s->memcg_params.memcg->css);
 }
 
-static void kmemcg_rcufn(struct rcu_head *head)
+static void kmemcg_deactivate_rcufn(struct rcu_head *head)
 {
 	struct kmem_cache *s = container_of(head, struct kmem_cache,
-					    memcg_params.rcu_head);
+					    memcg_params.deact_rcu_head);
 
 	/*
-	 * We need to grab blocking locks.  Bounce to ->work.  The
+	 * We need to grab blocking locks.  Bounce to ->deact_work.  The
 	 * work item shares the space with the RCU head and can't be
 	 * initialized eariler.
 	 */
-	INIT_WORK(&s->memcg_params.work, kmemcg_workfn);
-	queue_work(memcg_kmem_cache_wq, &s->memcg_params.work);
+	INIT_WORK(&s->memcg_params.deact_work, kmemcg_deactivate_workfn);
+	queue_work(memcg_kmem_cache_wq, &s->memcg_params.deact_work);
 }
 
-static void kmemcg_cache_shutdown_fn(struct kmem_cache *s)
+/**
+ * slab_deactivate_memcg_cache_rcu_sched - schedule deactivation after a
+ *					   sched RCU grace period
+ * @s: target kmem_cache
+ * @deact_fn: deactivation function to call
+ *
+ * Schedule @deact_fn to be invoked with online cpus, mems and slab_mutex
+ * held after a sched RCU grace period.  The slab is guaranteed to stay
+ * alive until @deact_fn is finished.  This is to be used from
+ * __kmemcg_cache_deactivate().
+ */
+void slab_deactivate_memcg_cache_rcu_sched(struct kmem_cache *s,
+					   void (*deact_fn)(struct kmem_cache *))
 {
-	WARN_ON(shutdown_cache(s));
-}
-
-static void kmemcg_cache_shutdown(struct percpu_ref *percpu_ref)
-{
-	struct kmem_cache *s = container_of(percpu_ref, struct kmem_cache,
-					    memcg_params.refcnt);
-	unsigned long flags;
-
-	spin_lock_irqsave(&memcg_kmem_wq_lock, flags);
-	if (s->memcg_params.root_cache->memcg_params.dying)
-		goto unlock;
-
-	s->memcg_params.work_fn = kmemcg_cache_shutdown_fn;
-	INIT_WORK(&s->memcg_params.work, kmemcg_workfn);
-	queue_work(memcg_kmem_cache_wq, &s->memcg_params.work);
-
-unlock:
-	spin_unlock_irqrestore(&memcg_kmem_wq_lock, flags);
-}
-
-static void kmemcg_cache_deactivate_after_rcu(struct kmem_cache *s)
-{
-	__kmemcg_cache_deactivate_after_rcu(s);
-	percpu_ref_kill(&s->memcg_params.refcnt);
-}
-
-static void kmemcg_cache_deactivate(struct kmem_cache *s)
-{
-	if (WARN_ON_ONCE(is_root_cache(s)))
+	if (WARN_ON_ONCE(is_root_cache(s)) ||
+	    WARN_ON_ONCE(s->memcg_params.deact_fn))
 		return;
 
-	__kmemcg_cache_deactivate(s);
-	s->flags |= SLAB_DEACTIVATED;
-
-	/*
-	 * memcg_kmem_wq_lock is used to synchronize memcg_params.dying
-	 * flag and make sure that no new kmem_cache deactivation tasks
-	 * are queued (see flush_memcg_workqueue() ).
-	 */
-	spin_lock_irq(&memcg_kmem_wq_lock);
 	if (s->memcg_params.root_cache->memcg_params.dying)
-		goto unlock;
+		return;
 
-	s->memcg_params.work_fn = kmemcg_cache_deactivate_after_rcu;
-	call_rcu(&s->memcg_params.rcu_head, kmemcg_rcufn);
-unlock:
-	spin_unlock_irq(&memcg_kmem_wq_lock);
+	/* pin memcg so that @s doesn't get destroyed in the middle */
+	css_get(&s->memcg_params.memcg->css);
+
+	s->memcg_params.deact_fn = deact_fn;
+	call_rcu_sched(&s->memcg_params.deact_rcu_head, kmemcg_deactivate_rcufn);
 }
 
-void memcg_deactivate_kmem_caches(struct mem_cgroup *memcg,
-				  struct mem_cgroup *parent)
+void memcg_deactivate_kmem_caches(struct mem_cgroup *memcg)
 {
 	int idx;
 	struct memcg_cache_array *arr;
 	struct kmem_cache *s, *c;
-	unsigned int nr_reparented;
 
 	idx = memcg_cache_id(memcg);
 
@@ -813,20 +746,30 @@ void memcg_deactivate_kmem_caches(struct mem_cgroup *memcg,
 		if (!c)
 			continue;
 
-		kmemcg_cache_deactivate(c);
+		__kmemcg_cache_deactivate(c);
 		arr->entries[idx] = NULL;
 	}
-	nr_reparented = 0;
-	list_for_each_entry(s, &memcg->kmem_caches,
-			    memcg_params.kmem_caches_node) {
-		WRITE_ONCE(s->memcg_params.memcg, parent);
-		css_put(&memcg->css);
-		nr_reparented++;
-	}
-	if (nr_reparented) {
-		list_splice_init(&memcg->kmem_caches,
-				 &parent->kmem_caches);
-		css_get_many(&parent->css, nr_reparented);
+	mutex_unlock(&slab_mutex);
+
+	put_online_mems();
+	put_online_cpus();
+}
+
+void memcg_destroy_kmem_caches(struct mem_cgroup *memcg)
+{
+	struct kmem_cache *s, *s2;
+
+	get_online_cpus();
+	get_online_mems();
+
+	mutex_lock(&slab_mutex);
+	list_for_each_entry_safe(s, s2, &memcg->kmem_caches,
+				 memcg_params.kmem_caches_node) {
+		/*
+		 * The cgroup is about to be freed and therefore has no charges
+		 * left. Hence, all its caches must be empty by now.
+		 */
+		BUG_ON(shutdown_cache(s));
 	}
 	mutex_unlock(&slab_mutex);
 
@@ -889,20 +832,18 @@ static int shutdown_memcg_caches(struct kmem_cache *s)
 	return 0;
 }
 
-static void memcg_set_kmem_cache_dying(struct kmem_cache *s)
-{
-	spin_lock_irq(&memcg_kmem_wq_lock);
-	s->memcg_params.dying = true;
-	spin_unlock_irq(&memcg_kmem_wq_lock);
-}
-
 static void flush_memcg_workqueue(struct kmem_cache *s)
 {
+	mutex_lock(&slab_mutex);
+	s->memcg_params.dying = true;
+	mutex_unlock(&slab_mutex);
+
 	/*
-	 * SLAB and SLUB deactivate the kmem_caches through call_rcu. Make
+	 * SLUB deactivates the kmem_caches through call_rcu_sched. Make
 	 * sure all registered rcu callbacks have been invoked.
 	 */
-	rcu_barrier();
+	if (IS_ENABLED(CONFIG_SLUB))
+		rcu_barrier_sched();
 
 	/*
 	 * SLAB and SLUB create memcg kmem_caches through workqueue and SLUB
@@ -911,23 +852,15 @@ static void flush_memcg_workqueue(struct kmem_cache *s)
 	 */
 	if (likely(memcg_kmem_cache_wq))
 		flush_workqueue(memcg_kmem_cache_wq);
-
-	/*
-	 * If we're racing with children kmem_cache deactivation, it might
-	 * take another rcu grace period to complete their destruction.
-	 * At this moment the corresponding percpu_ref_kill() call should be
-	 * done, but it might take another rcu grace period to complete
-	 * switching to the atomic mode.
-	 * Please, note that we check without grabbing the slab_mutex. It's safe
-	 * because at this moment the children list can't grow.
-	 */
-	if (!list_empty(&s->memcg_params.children))
-		rcu_barrier();
 }
 #else
 static inline int shutdown_memcg_caches(struct kmem_cache *s)
 {
 	return 0;
+}
+
+static inline void flush_memcg_workqueue(struct kmem_cache *s)
+{
 }
 #endif /* CONFIG_MEMCG_KMEM */
 
@@ -946,6 +879,8 @@ void kmem_cache_destroy(struct kmem_cache *s)
 	if (unlikely(!s))
 		return;
 
+	flush_memcg_workqueue(s);
+
 	get_online_cpus();
 	get_online_mems();
 
@@ -954,32 +889,6 @@ void kmem_cache_destroy(struct kmem_cache *s)
 	s->refcount--;
 	if (s->refcount)
 		goto out_unlock;
-
-#ifdef CONFIG_MEMCG_KMEM
-	memcg_set_kmem_cache_dying(s);
-
-	mutex_unlock(&slab_mutex);
-
-	put_online_mems();
-	put_online_cpus();
-
-	flush_memcg_workqueue(s);
-
-	get_online_cpus();
-	get_online_mems();
-
-	mutex_lock(&slab_mutex);
-
-	/*
-	 * Another thread referenced it again
-	 */
-	if (READ_ONCE(s->refcount)) {
-		spin_lock_irq(&memcg_kmem_wq_lock);
-		s->memcg_params.dying = false;
-		spin_unlock_irq(&memcg_kmem_wq_lock);
-		goto out_unlock;
-	}
-#endif
 
 	err = shutdown_memcg_caches(s);
 	if (!err)
@@ -1004,8 +913,6 @@ EXPORT_SYMBOL(kmem_cache_destroy);
  *
  * Releases as many slabs as possible for a cache.
  * To help debugging, a zero exit status indicates all slabs were released.
- *
- * Return: %0 if all slabs were released, non-zero otherwise
  */
 int kmem_cache_shrink(struct kmem_cache *cachep)
 {
@@ -1021,43 +928,6 @@ int kmem_cache_shrink(struct kmem_cache *cachep)
 }
 EXPORT_SYMBOL(kmem_cache_shrink);
 
-/**
- * kmem_cache_shrink_all - shrink a cache and all memcg caches for root cache
- * @s: The cache pointer
- */
-void kmem_cache_shrink_all(struct kmem_cache *s)
-{
-	struct kmem_cache *c;
-
-	if (!IS_ENABLED(CONFIG_MEMCG_KMEM) || !is_root_cache(s)) {
-		kmem_cache_shrink(s);
-		return;
-	}
-
-	get_online_cpus();
-	get_online_mems();
-	kasan_cache_shrink(s);
-	__kmem_cache_shrink(s);
-
-	/*
-	 * We have to take the slab_mutex to protect from the memcg list
-	 * modification.
-	 */
-	mutex_lock(&slab_mutex);
-	for_each_memcg_cache(c, s) {
-		/*
-		 * Don't need to shrink deactivated memcg caches.
-		 */
-		if (s->flags & SLAB_DEACTIVATED)
-			continue;
-		kasan_cache_shrink(c);
-		__kmem_cache_shrink(c);
-	}
-	mutex_unlock(&slab_mutex);
-	put_online_mems();
-	put_online_cpus();
-}
-
 bool slab_is_available(void)
 {
 	return slab_state >= UP;
@@ -1070,19 +940,10 @@ void __init create_boot_cache(struct kmem_cache *s, const char *name,
 		unsigned int useroffset, unsigned int usersize)
 {
 	int err;
-	unsigned int align = ARCH_KMALLOC_MINALIGN;
 
 	s->name = name;
 	s->size = s->object_size = size;
-
-	/*
-	 * For power of two sizes, guarantee natural alignment for kmalloc
-	 * caches, regardless of SL*B debugging options.
-	 */
-	if (is_power_of_2(size))
-		align = max(align, size);
-	s->align = calculate_alignment(flags, align, size);
-
+	s->align = calculate_alignment(flags, ARCH_KMALLOC_MINALIGN, size);
 	s->useroffset = useroffset;
 	s->usersize = usersize;
 
@@ -1108,15 +969,18 @@ struct kmem_cache *__init create_kmalloc_cache(const char *name,
 
 	create_boot_cache(s, name, size, flags, useroffset, usersize);
 	list_add(&s->list, &slab_caches);
-	memcg_link_cache(s, NULL);
+	memcg_link_cache(s);
 	s->refcount = 1;
 	return s;
 }
 
-struct kmem_cache *
-kmalloc_caches[NR_KMALLOC_TYPES][KMALLOC_SHIFT_HIGH + 1] __ro_after_init =
-{ /* initialization for https://bugs.llvm.org/show_bug.cgi?id=42570 */ };
+struct kmem_cache *kmalloc_caches[KMALLOC_SHIFT_HIGH + 1] __ro_after_init;
 EXPORT_SYMBOL(kmalloc_caches);
+
+#ifdef CONFIG_ZONE_DMA
+struct kmem_cache *kmalloc_dma_caches[KMALLOC_SHIFT_HIGH + 1] __ro_after_init;
+EXPORT_SYMBOL(kmalloc_dma_caches);
+#endif
 
 /*
  * Conversion table for small slabs sizes / 8 to the index in the
@@ -1170,12 +1034,19 @@ struct kmem_cache *kmalloc_slab(size_t size, gfp_t flags)
 
 		index = size_index[size_index_elem(size)];
 	} else {
-		if (WARN_ON_ONCE(size > KMALLOC_MAX_CACHE_SIZE))
+		if (unlikely(size > KMALLOC_MAX_CACHE_SIZE)) {
+			WARN_ON(1);
 			return NULL;
+		}
 		index = fls(size - 1);
 	}
 
-	return kmalloc_caches[kmalloc_type(flags)][index];
+#ifdef CONFIG_ZONE_DMA
+	if (unlikely((flags & GFP_DMA)))
+		return kmalloc_dma_caches[index];
+
+#endif
+	return kmalloc_caches[index];
 }
 
 /*
@@ -1189,15 +1060,15 @@ const struct kmalloc_info_struct kmalloc_info[] __initconst = {
 	{"kmalloc-16",             16},		{"kmalloc-32",             32},
 	{"kmalloc-64",             64},		{"kmalloc-128",           128},
 	{"kmalloc-256",           256},		{"kmalloc-512",           512},
-	{"kmalloc-1k",           1024},		{"kmalloc-2k",           2048},
-	{"kmalloc-4k",           4096},		{"kmalloc-8k",           8192},
-	{"kmalloc-16k",         16384},		{"kmalloc-32k",         32768},
-	{"kmalloc-64k",         65536},		{"kmalloc-128k",       131072},
-	{"kmalloc-256k",       262144},		{"kmalloc-512k",       524288},
-	{"kmalloc-1M",        1048576},		{"kmalloc-2M",        2097152},
-	{"kmalloc-4M",        4194304},		{"kmalloc-8M",        8388608},
-	{"kmalloc-16M",      16777216},		{"kmalloc-32M",      33554432},
-	{"kmalloc-64M",      67108864}
+	{"kmalloc-1024",         1024},		{"kmalloc-2048",         2048},
+	{"kmalloc-4096",         4096},		{"kmalloc-8192",         8192},
+	{"kmalloc-16384",       16384},		{"kmalloc-32768",       32768},
+	{"kmalloc-65536",       65536},		{"kmalloc-131072",     131072},
+	{"kmalloc-262144",     262144},		{"kmalloc-524288",     524288},
+	{"kmalloc-1048576",   1048576},		{"kmalloc-2097152",   2097152},
+	{"kmalloc-4194304",   4194304},		{"kmalloc-8388608",   8388608},
+	{"kmalloc-16777216", 16777216},		{"kmalloc-33554432", 33554432},
+	{"kmalloc-67108864", 67108864}
 };
 
 /*
@@ -1247,36 +1118,9 @@ void __init setup_kmalloc_cache_index_table(void)
 	}
 }
 
-static const char *
-kmalloc_cache_name(const char *prefix, unsigned int size)
+static void __init new_kmalloc_cache(int idx, slab_flags_t flags)
 {
-
-	static const char units[3] = "\0kM";
-	int idx = 0;
-
-	while (size >= 1024 && (size % 1024 == 0)) {
-		size /= 1024;
-		idx++;
-	}
-
-	return kasprintf(GFP_NOWAIT, "%s-%u%c", prefix, size, units[idx]);
-}
-
-static void __init
-new_kmalloc_cache(int idx, int type, slab_flags_t flags)
-{
-	const char *name;
-
-	if (type == KMALLOC_RECLAIM) {
-		flags |= SLAB_RECLAIM_ACCOUNT;
-		name = kmalloc_cache_name("kmalloc-rcl",
-						kmalloc_info[idx].size);
-		BUG_ON(!name);
-	} else {
-		name = kmalloc_info[idx].name;
-	}
-
-	kmalloc_caches[type][idx] = create_kmalloc_cache(name,
+	kmalloc_caches[idx] = create_kmalloc_cache(kmalloc_info[idx].name,
 					kmalloc_info[idx].size, flags, 0,
 					kmalloc_info[idx].size);
 }
@@ -1288,25 +1132,21 @@ new_kmalloc_cache(int idx, int type, slab_flags_t flags)
  */
 void __init create_kmalloc_caches(slab_flags_t flags)
 {
-	int i, type;
+	int i;
 
-	for (type = KMALLOC_NORMAL; type <= KMALLOC_RECLAIM; type++) {
-		for (i = KMALLOC_SHIFT_LOW; i <= KMALLOC_SHIFT_HIGH; i++) {
-			if (!kmalloc_caches[type][i])
-				new_kmalloc_cache(i, type, flags);
+	for (i = KMALLOC_SHIFT_LOW; i <= KMALLOC_SHIFT_HIGH; i++) {
+		if (!kmalloc_caches[i])
+			new_kmalloc_cache(i, flags);
 
-			/*
-			 * Caches that are not of the two-to-the-power-of size.
-			 * These have to be created immediately after the
-			 * earlier power of two caches
-			 */
-			if (KMALLOC_MIN_SIZE <= 32 && i == 6 &&
-					!kmalloc_caches[type][1])
-				new_kmalloc_cache(1, type, flags);
-			if (KMALLOC_MIN_SIZE <= 64 && i == 7 &&
-					!kmalloc_caches[type][2])
-				new_kmalloc_cache(2, type, flags);
-		}
+		/*
+		 * Caches that are not of the two-to-the-power-of size.
+		 * These have to be created immediately after the
+		 * earlier power of two caches
+		 */
+		if (KMALLOC_MIN_SIZE <= 32 && !kmalloc_caches[1] && i == 6)
+			new_kmalloc_cache(1, flags);
+		if (KMALLOC_MIN_SIZE <= 64 && !kmalloc_caches[2] && i == 7)
+			new_kmalloc_cache(2, flags);
 	}
 
 	/* Kmalloc array is now usable */
@@ -1314,15 +1154,16 @@ void __init create_kmalloc_caches(slab_flags_t flags)
 
 #ifdef CONFIG_ZONE_DMA
 	for (i = 0; i <= KMALLOC_SHIFT_HIGH; i++) {
-		struct kmem_cache *s = kmalloc_caches[KMALLOC_NORMAL][i];
+		struct kmem_cache *s = kmalloc_caches[i];
 
 		if (s) {
 			unsigned int size = kmalloc_size(i);
-			const char *n = kmalloc_cache_name("dma-kmalloc", size);
+			char *n = kasprintf(GFP_NOWAIT,
+				 "dma-kmalloc-%u", size);
 
 			BUG_ON(!n);
-			kmalloc_caches[KMALLOC_DMA][i] = create_kmalloc_cache(
-				n, size, SLAB_CACHE_DMA | flags, 0, 0);
+			kmalloc_dma_caches[i] = create_kmalloc_cache(n,
+				size, SLAB_CACHE_DMA | flags, 0, 0);
 		}
 	}
 #endif
@@ -1336,19 +1177,14 @@ void __init create_kmalloc_caches(slab_flags_t flags)
  */
 void *kmalloc_order(size_t size, gfp_t flags, unsigned int order)
 {
-	void *ret = NULL;
+	void *ret;
 	struct page *page;
 
 	flags |= __GFP_COMP;
 	page = alloc_pages(flags, order);
-	if (likely(page)) {
-		ret = page_address(page);
-		mod_node_page_state(page_pgdat(page), NR_SLAB_UNRECLAIMABLE,
-				    1 << order);
-	}
-	ret = kasan_kmalloc_large(ret, size, flags);
-	/* As ret might get tagged, call kmemleak hook after KASAN. */
+	ret = page ? page_address(page) : NULL;
 	kmemleak_alloc(ret, size, 1, flags);
+	kasan_kmalloc_large(ret, size, flags);
 	return ret;
 }
 EXPORT_SYMBOL(kmalloc_order);
@@ -1506,62 +1342,6 @@ static int slab_show(struct seq_file *m, void *p)
 	return 0;
 }
 
-#ifdef CONFIG_QCOM_MINIDUMP_PANIC_DUMP
-void md_dump_slabinfo(void)
-{
-	struct kmem_cache *s;
-	struct slabinfo sinfo;
-
-	if (!md_slabinfo_seq_buf)
-		return;
-
-	/* print_slabinfo_header */
-	#ifdef CONFIG_DEBUG_SLAB
-		seq_buf_printf(md_slabinfo_seq_buf,
-				"slabinfo - version: 2.1 (statistics)\n");
-	#else
-		seq_buf_printf(md_slabinfo_seq_buf,
-				"slabinfo - version: 2.1\n");
-	#endif
-		seq_buf_printf(md_slabinfo_seq_buf,
-				"# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab>");
-		seq_buf_printf(md_slabinfo_seq_buf,
-				" : tunables <limit> <batchcount> <sharedfactor>");
-		seq_buf_printf(md_slabinfo_seq_buf,
-				" : slabdata <active_slabs> <num_slabs> <sharedavail>");
-	#ifdef CONFIG_DEBUG_SLAB
-		seq_buf_printf(md_slabinfo_seq_buf,
-				" : globalstat <listallocs> <maxobjs> <grown> <reaped> <error> <maxfreeable> <nodeallocs> <remotefrees> <alienoverflow>");
-		seq_buf_printf(md_slabinfo_seq_buf,
-				" : cpustat <allochit> <allocmiss> <freehit> <freemiss>");
-	#endif
-		seq_buf_printf(md_slabinfo_seq_buf, "\n");
-
-	/* Loop through all slabs */
-	mutex_lock(&slab_mutex);
-	list_for_each_entry(s, &slab_root_caches, root_caches_node) {
-		memset(&sinfo, 0, sizeof(sinfo));
-		get_slabinfo(s, &sinfo);
-
-		memcg_accumulate_slabinfo(s, &sinfo);
-
-		seq_buf_printf(md_slabinfo_seq_buf,
-		   "%-17s %6lu %6lu %6u %4u %4d",
-		   cache_name(s), sinfo.active_objs, sinfo.num_objs, s->size,
-		   sinfo.objects_per_slab, (1 << sinfo.cache_order));
-
-		seq_buf_printf(md_slabinfo_seq_buf, " : tunables %4u %4u %4u",
-		   sinfo.limit, sinfo.batchcount, sinfo.shared);
-		seq_buf_printf(md_slabinfo_seq_buf,
-		   " : slabdata %6lu %6lu %6lu",
-		   sinfo.active_slabs, sinfo.num_slabs, sinfo.shared_avail);
-		slabinfo_show_stats(NULL, s);
-		seq_buf_printf(md_slabinfo_seq_buf, "\n");
-	}
-	mutex_unlock(&slab_mutex);
-}
-#endif
-
 void dump_unreclaimable_slab(void)
 {
 	struct kmem_cache *s, *s2;
@@ -1599,7 +1379,7 @@ void dump_unreclaimable_slab(void)
 #if defined(CONFIG_MEMCG)
 void *memcg_slab_start(struct seq_file *m, loff_t *pos)
 {
-	struct mem_cgroup *memcg = mem_cgroup_from_seq(m);
+	struct mem_cgroup *memcg = mem_cgroup_from_css(seq_css(m));
 
 	mutex_lock(&slab_mutex);
 	return seq_list_start(&memcg->kmem_caches, *pos);
@@ -1607,7 +1387,7 @@ void *memcg_slab_start(struct seq_file *m, loff_t *pos)
 
 void *memcg_slab_next(struct seq_file *m, void *p, loff_t *pos)
 {
-	struct mem_cgroup *memcg = mem_cgroup_from_seq(m);
+	struct mem_cgroup *memcg = mem_cgroup_from_css(seq_css(m));
 
 	return seq_list_next(p, &memcg->kmem_caches, pos);
 }
@@ -1621,7 +1401,7 @@ int memcg_slab_show(struct seq_file *m, void *p)
 {
 	struct kmem_cache *s = list_entry(p, struct kmem_cache,
 					  memcg_params.kmem_caches_node);
-	struct mem_cgroup *memcg = mem_cgroup_from_seq(m);
+	struct mem_cgroup *memcg = mem_cgroup_from_css(seq_css(m));
 
 	if (p == memcg->kmem_caches.next)
 		print_slabinfo_header(m);
@@ -1670,64 +1450,6 @@ static int __init slab_proc_init(void)
 	return 0;
 }
 module_init(slab_proc_init);
-
-#if defined(CONFIG_DEBUG_FS) && defined(CONFIG_MEMCG_KMEM)
-/*
- * Display information about kmem caches that have child memcg caches.
- */
-static int memcg_slabinfo_show(struct seq_file *m, void *unused)
-{
-	struct kmem_cache *s, *c;
-	struct slabinfo sinfo;
-
-	mutex_lock(&slab_mutex);
-	seq_puts(m, "# <name> <css_id[:dead|deact]> <active_objs> <num_objs>");
-	seq_puts(m, " <active_slabs> <num_slabs>\n");
-	list_for_each_entry(s, &slab_root_caches, root_caches_node) {
-		/*
-		 * Skip kmem caches that don't have any memcg children.
-		 */
-		if (list_empty(&s->memcg_params.children))
-			continue;
-
-		memset(&sinfo, 0, sizeof(sinfo));
-		get_slabinfo(s, &sinfo);
-		seq_printf(m, "%-17s root       %6lu %6lu %6lu %6lu\n",
-			   cache_name(s), sinfo.active_objs, sinfo.num_objs,
-			   sinfo.active_slabs, sinfo.num_slabs);
-
-		for_each_memcg_cache(c, s) {
-			struct cgroup_subsys_state *css;
-			char *status = "";
-
-			css = &c->memcg_params.memcg->css;
-			if (!(css->flags & CSS_ONLINE))
-				status = ":dead";
-			else if (c->flags & SLAB_DEACTIVATED)
-				status = ":deact";
-
-			memset(&sinfo, 0, sizeof(sinfo));
-			get_slabinfo(c, &sinfo);
-			seq_printf(m, "%-17s %4d%-6s %6lu %6lu %6lu %6lu\n",
-				   cache_name(c), css->id, status,
-				   sinfo.active_objs, sinfo.num_objs,
-				   sinfo.active_slabs, sinfo.num_slabs);
-		}
-	}
-	mutex_unlock(&slab_mutex);
-	return 0;
-}
-DEFINE_SHOW_ATTRIBUTE(memcg_slabinfo);
-
-static int __init memcg_slabinfo_init(void)
-{
-	debugfs_create_file("memcg_slabinfo", S_IFREG | S_IRUGO,
-			    NULL, NULL, &memcg_slabinfo_fops);
-	return 0;
-}
-
-late_initcall(memcg_slabinfo_init);
-#endif /* CONFIG_DEBUG_FS && CONFIG_MEMCG_KMEM */
 #endif /* CONFIG_SLAB || CONFIG_SLUB_DEBUG */
 
 static __always_inline void *__do_krealloc(const void *p, size_t new_size,
@@ -1740,7 +1462,7 @@ static __always_inline void *__do_krealloc(const void *p, size_t new_size,
 		ks = ksize(p);
 
 	if (ks >= new_size) {
-		p = kasan_krealloc((void *)p, new_size, flags);
+		kasan_krealloc((void *)p, new_size, flags);
 		return (void *)p;
 	}
 
@@ -1760,8 +1482,6 @@ static __always_inline void *__do_krealloc(const void *p, size_t new_size,
  * This function is like krealloc() except it never frees the originally
  * allocated buffer. Use this if you don't want to free the buffer immediately
  * like, for example, with RCU.
- *
- * Return: pointer to the allocated memory or %NULL in case of error
  */
 void *__krealloc(const void *p, size_t new_size, gfp_t flags)
 {
@@ -1783,8 +1503,6 @@ EXPORT_SYMBOL(__krealloc);
  * lesser of the new and old sizes.  If @p is %NULL, krealloc()
  * behaves exactly like kmalloc().  If @new_size is 0 and @p is not a
  * %NULL pointer, the object pointed to is freed.
- *
- * Return: pointer to the allocated memory or %NULL in case of error
  */
 void *krealloc(const void *p, size_t new_size, gfp_t flags)
 {
@@ -1796,7 +1514,7 @@ void *krealloc(const void *p, size_t new_size, gfp_t flags)
 	}
 
 	ret = __do_krealloc(p, new_size, flags);
-	if (ret && kasan_reset_tag(p) != kasan_reset_tag(ret))
+	if (ret && p != ret)
 		kfree(p);
 
 	return ret;
@@ -1826,52 +1544,6 @@ void kzfree(const void *p)
 	kfree(mem);
 }
 EXPORT_SYMBOL(kzfree);
-
-/**
- * ksize - get the actual amount of memory allocated for a given object
- * @objp: Pointer to the object
- *
- * kmalloc may internally round up allocations and return more memory
- * than requested. ksize() can be used to determine the actual amount of
- * memory allocated. The caller may use this additional memory, even though
- * a smaller amount of memory was initially specified with the kmalloc call.
- * The caller must guarantee that objp points to a valid object previously
- * allocated with either kmalloc() or kmem_cache_alloc(). The object
- * must not be freed during the duration of the call.
- *
- * Return: size of the actual memory used by @objp in bytes
- */
-size_t ksize(const void *objp)
-{
-	size_t size;
-
-	if (WARN_ON_ONCE(!objp))
-		return 0;
-	/*
-	 * We need to check that the pointed to object is valid, and only then
-	 * unpoison the shadow memory below. We use __kasan_check_read(), to
-	 * generate a more useful report at the time ksize() is called (rather
-	 * than later where behaviour is undefined due to potential
-	 * use-after-free or double-free).
-	 *
-	 * If the pointed to memory is invalid we return 0, to avoid users of
-	 * ksize() writing to and potentially corrupting the memory region.
-	 *
-	 * We want to perform the check before __ksize(), to avoid potentially
-	 * crashing in __ksize() due to accessing invalid metadata.
-	 */
-	if (unlikely(objp == ZERO_SIZE_PTR) || !__kasan_check_read(objp, 1))
-		return 0;
-
-	size = __ksize(objp);
-	/*
-	 * We assume that ksize callers could use whole allocated area,
-	 * so we need to unpoison this area.
-	 */
-	kasan_unpoison_shadow(objp, size);
-	return size;
-}
-EXPORT_SYMBOL(ksize);
 
 /* Tracepoints definitions. */
 EXPORT_TRACEPOINT_SYMBOL(kmalloc);

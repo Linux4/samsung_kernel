@@ -1,8 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Windfarm PowerMac thermal control. LM87 sensor
  *
  * Copyright 2012 Benjamin Herrenschmidt, IBM Corp.
+ *
+ * Released under the term of the GNU GPL v2.
+ *
  */
 
 #include <linux/types.h>
@@ -108,8 +110,8 @@ static int wf_lm87_probe(struct i2c_client *client,
 	 * the Xserve G5 has several lm87's. However, for now we only
 	 * care about the internal temperature sensor
 	 */
-	for_each_child_of_node(client->dev.of_node, np) {
-		if (!of_node_name_eq(np, "int-temp"))
+	while ((np = of_get_next_child(client->dev.of_node, np)) != NULL) {
+		if (strcmp(np->name, "int-temp"))
 			continue;
 		loc = of_get_property(np, "location", NULL);
 		if (!loc)

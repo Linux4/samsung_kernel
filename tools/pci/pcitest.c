@@ -1,9 +1,20 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /**
  * Userspace PCI Endpoint Test Module
  *
  * Copyright (C) 2017 Texas Instruments
  * Author: Kishon Vijay Abraham I <kishon@ti.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 of
+ * the License as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <errno.h>
@@ -129,8 +140,6 @@ static int run_test(struct pci_test *test)
 	}
 
 	fflush(stdout);
-	close(fd);
-	return (ret < 0) ? ret : 1 - ret; /* return 0 if test succeeded */
 }
 
 int main(int argc, char **argv)
@@ -153,7 +162,7 @@ int main(int argc, char **argv)
 	/* set default endpoint device */
 	test->device = "/dev/pci-endpoint-test.0";
 
-	while ((c = getopt(argc, argv, "D:b:m:x:i:Ilhrwcs:")) != EOF)
+	while ((c = getopt(argc, argv, "D:b:m:x:i:Ilrwcs:")) != EOF)
 	switch (c) {
 	case 'D':
 		test->device = optarg;
@@ -197,6 +206,7 @@ int main(int argc, char **argv)
 	case 's':
 		test->size = strtoul(optarg, NULL, 0);
 		continue;
+	case '?':
 	case 'h':
 	default:
 usage:
@@ -213,11 +223,11 @@ usage:
 			"\t-r			Read buffer test\n"
 			"\t-w			Write buffer test\n"
 			"\t-c			Copy buffer test\n"
-			"\t-s <size>		Size of buffer {default: 100KB}\n"
-			"\t-h			Print this help message\n",
+			"\t-s <size>		Size of buffer {default: 100KB}\n",
 			argv[0]);
 		return -EINVAL;
 	}
 
-	return run_test(test);
+	run_test(test);
+	return 0;
 }

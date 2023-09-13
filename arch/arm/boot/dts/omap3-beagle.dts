@@ -1,6 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 /dts-v1/;
 
@@ -144,11 +147,10 @@
 
 		clocks = <&emu_src_ck>;
 		clock-names = "apb_pclk";
-		in-ports {
-			port {
-				etb_in: endpoint {
-					remote-endpoint = <&etm_out>;
-				};
+		port {
+			etb_in: endpoint {
+				slave-mode;
+				remote-endpoint = <&etm_out>;
 			};
 		};
 	};
@@ -159,11 +161,9 @@
 
 		clocks = <&emu_src_ck>;
 		clock-names = "apb_pclk";
-		out-ports {
-			port {
-				etm_out: endpoint {
-					remote-endpoint = <&etb_in>;
-				};
+		port {
+			etm_out: endpoint {
+				remote-endpoint = <&etb_in>;
 			};
 		};
 	};

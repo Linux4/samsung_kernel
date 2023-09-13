@@ -1,9 +1,20 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Based on arch/arm/kernel/signal.c
  *
  * Copyright (C) 1995-2009 Russell King
  * Copyright (C) 2012 ARM Ltd.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <linux/cache.h>
@@ -29,7 +40,6 @@
 #include <asm/unistd.h>
 #include <asm/fpsimd.h>
 #include <asm/ptrace.h>
-#include <asm/syscall.h>
 #include <asm/signal32.h>
 #include <asm/traps.h>
 #include <asm/vdso.h>
@@ -286,6 +296,11 @@ static int restore_sve_fpsimd_context(struct user_ctxs *user)
 	 */
 
 	fpsimd_flush_task_state(current);
+	barrier();
+	/* From now, fpsimd_thread_switch() won't clear TIF_FOREIGN_FPSTATE */
+
+	set_thread_flag(TIF_FOREIGN_FPSTATE);
+	barrier();
 	/* From now, fpsimd_thread_switch() won't touch thread.sve_state */
 
 	sve_alloc(current);
@@ -455,7 +470,7 @@ static int parse_user_sigframe(struct user_ctxs *user,
 			offset = 0;
 			limit = extra_size;
 
-			if (!access_ok(base, limit))
+			if (!access_ok(VERIFY_READ, base, limit))
 				goto invalid;
 
 			continue;
@@ -541,7 +556,7 @@ SYSCALL_DEFINE0(rt_sigreturn)
 
 	frame = (struct rt_sigframe __user *)regs->sp;
 
-	if (!access_ok(frame, sizeof (*frame)))
+	if (!access_ok(VERIFY_READ, frame, sizeof (*frame)))
 		goto badframe;
 
 	if (restore_sigframe(regs, frame))
@@ -715,7 +730,7 @@ static int get_sigframe(struct rt_sigframe_user_layout *user,
 	/*
 	 * Check that we can actually write to the signal frame.
 	 */
-	if (!access_ok(user->sigframe, sp_top - sp))
+	if (!access_ok(VERIFY_WRITE, user->sigframe, sp_top - sp))
 		return -EFAULT;
 
 	return 0;
@@ -783,6 +798,7 @@ static void setup_restart_syscall(struct pt_regs *regs)
  */
 static void handle_signal(struct ksignal *ksig, struct pt_regs *regs)
 {
+	struct task_struct *tsk = current;
 	sigset_t *oldset = sigmask_to_save();
 	int usig = ksig->sig;
 	int ret;
@@ -806,8 +822,14 @@ static void handle_signal(struct ksignal *ksig, struct pt_regs *regs)
 	 */
 	ret |= !valid_user_regs(&regs->user_regs, current);
 
-	/* Step into the signal handler if we are stepping */
-	signal_setup_done(ret, ksig, test_thread_flag(TIF_SINGLESTEP));
+	/*
+	 * Fast forward the stepping logic so we step into the signal
+	 * handler.
+	 */
+	if (!ret)
+		user_fastforward_single_step(tsk);
+
+	signal_setup_done(ret, ksig, 0);
 }
 
 /*
@@ -869,7 +891,7 @@ static void do_signal(struct pt_regs *regs)
 		     retval == -ERESTART_RESTARTBLOCK ||
 		     (retval == -ERESTARTSYS &&
 		      !(ksig.ka.sa.sa_flags & SA_RESTART)))) {
-			syscall_set_return_value(current, regs, -EINTR, 0);
+			regs->regs[0] = -EINTR;
 			regs->pc = continue_addr;
 		}
 

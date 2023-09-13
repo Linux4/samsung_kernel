@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  ebtables
  *
@@ -9,6 +8,11 @@
  *
  *  This code is strongly inspired by the iptables code which is
  *  Copyright (C) 1999 Paul `Rusty' Russell & Michael J. Neuling
+ *
+ *  This program is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU General Public License
+ *  as published by the Free Software Foundation; either version
+ *  2 of the License, or (at your option) any later version.
  */
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 #include <linux/kmod.h>
@@ -377,7 +381,7 @@ ebt_check_match(struct ebt_entry_match *m, struct xt_mtchk_param *par,
 	par->match     = match;
 	par->matchinfo = m->data;
 	ret = xt_check_match(par, m->match_size,
-	      ntohs(e->ethproto), e->invflags & EBT_IPROTO);
+	      e->ethproto, e->invflags & EBT_IPROTO);
 	if (ret < 0) {
 		module_put(match->me);
 		return ret;
@@ -414,7 +418,7 @@ ebt_check_watcher(struct ebt_entry_watcher *w, struct xt_tgchk_param *par,
 	par->target   = watcher;
 	par->targinfo = w->data;
 	ret = xt_check_target(par, w->watcher_size,
-	      ntohs(e->ethproto), e->invflags & EBT_IPROTO);
+	      e->ethproto, e->invflags & EBT_IPROTO);
 	if (ret < 0) {
 		module_put(watcher->me);
 		return ret;
@@ -740,7 +744,7 @@ ebt_check_entry(struct ebt_entry *e, struct net *net,
 	tgpar.target   = target;
 	tgpar.targinfo = t->data;
 	ret = xt_check_target(&tgpar, t->target_size,
-	      ntohs(e->ethproto), e->invflags & EBT_IPROTO);
+	      e->ethproto, e->invflags & EBT_IPROTO);
 	if (ret < 0) {
 		module_put(target->me);
 		goto cleanup_watchers;
@@ -1217,6 +1221,10 @@ int ebt_register_table(struct net *net, const struct ebt_table *input_table,
 	mutex_unlock(&ebt_mutex);
 
 	WRITE_ONCE(*res, table);
+
+	if (!ops)
+		return 0;
+
 	ret = nf_register_net_hooks(net, ops, hweight32(table->valid_hooks));
 	if (ret) {
 		__ebt_unregister_table(net, table);
@@ -1237,34 +1245,11 @@ out:
 	return ret;
 }
 
-static struct ebt_table *__ebt_find_table(struct net *net, const char *name)
+void ebt_unregister_table(struct net *net, struct ebt_table *table,
+			  const struct nf_hook_ops *ops)
 {
-	struct ebt_table *t;
-
-	mutex_lock(&ebt_mutex);
-
-	list_for_each_entry(t, &net->xt.tables[NFPROTO_BRIDGE], list) {
-		if (strcmp(t->name, name) == 0) {
-			mutex_unlock(&ebt_mutex);
-			return t;
-		}
-	}
-
-	mutex_unlock(&ebt_mutex);
-	return NULL;
-}
-
-void ebt_unregister_table_pre_exit(struct net *net, const char *name, const struct nf_hook_ops *ops)
-{
-	struct ebt_table *table = __ebt_find_table(net, name);
-
-	if (table)
+	if (ops)
 		nf_unregister_net_hooks(net, ops, hweight32(table->valid_hooks));
-}
-EXPORT_SYMBOL(ebt_unregister_table_pre_exit);
-
-void ebt_unregister_table(struct net *net, struct ebt_table *table)
-{
 	__ebt_unregister_table(net, table);
 }
 

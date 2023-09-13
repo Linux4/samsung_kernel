@@ -25,7 +25,6 @@ struct sock;
 #define ISCSIT_TCP_BACKLOG		256
 #define ISCSI_RX_THREAD_NAME		"iscsi_trx"
 #define ISCSI_TX_THREAD_NAME		"iscsi_ttx"
-#define ISCSI_IQN_LEN			224
 
 /* struct iscsi_node_attrib sanity values */
 #define NA_DATAOUT_TIMEOUT		3
@@ -271,9 +270,9 @@ struct iscsi_conn_ops {
 };
 
 struct iscsi_sess_ops {
-	char	InitiatorName[ISCSI_IQN_LEN];
+	char	InitiatorName[224];
 	char	InitiatorAlias[256];
-	char	TargetName[ISCSI_IQN_LEN];
+	char	TargetName[224];
 	char	TargetAlias[256];
 	char	TargetAddress[256];
 	u16	TargetPortalGroupTag;		/* [0..65535] */
@@ -473,7 +472,6 @@ struct iscsi_cmd {
 	struct timer_list	dataout_timer;
 	/* Iovecs for SCSI data payload RX/TX w/ kernel level sockets */
 	struct kvec		*iov_data;
-	void			*overflow_buf;
 	/* Iovecs for miscellaneous purposes */
 #define ISCSI_MISC_IOVECS			5
 	struct kvec		iov_misc[ISCSI_MISC_IOVECS];
@@ -857,6 +855,7 @@ struct iscsi_wwn_stat_grps {
 };
 
 struct iscsi_tiqn {
+#define ISCSI_IQN_LEN				224
 	unsigned char		tiqn[ISCSI_IQN_LEN];
 	enum tiqn_state_table	tiqn_state;
 	int			tiqn_access_count;

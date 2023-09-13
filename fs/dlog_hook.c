@@ -23,7 +23,6 @@
 #include <linux/hashtable.h>
 #include <linux/ctype.h>
 #include <linux/module.h>
-#include <linux/magic.h>
 #include "mount.h"
 
 #define DEFINE_DLOG(_name) extern int fslog_##_name(const char *fmt, ...)
@@ -208,9 +207,6 @@ static int get_support_part_id(struct vfsmount *mnt)
 	return -1;
 }
 
-#ifndef SDFAT_SUPER_MAGIC
-#define SDFAT_SUPER_MAGIC       0x5EC5DFA4
-#endif
 static int is_sdcard(struct vfsmount *mnt)
 {
 	/* internal storage (external storage till Andorid 8.x) */
@@ -348,3 +344,4 @@ void dlog_hook_rmdir(struct dentry *dentry, struct path *path)
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("Logging unlink file path");
+MODULE_AUTHOR("Samsung Electronics Co., Ltd.");

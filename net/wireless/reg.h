@@ -5,7 +5,6 @@
 
 /*
  * Copyright 2008-2011	Luis R. Rodriguez <mcgrof@qca.qualcomm.com>
- * Copyright (C) 2019 Intel Corporation
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -23,7 +22,6 @@
 enum ieee80211_regd_source {
 	REGD_SOURCE_INTERNAL_DB,
 	REGD_SOURCE_CRDA,
-	REGD_SOURCE_CACHED,
 };
 
 extern const struct ieee80211_regdomain __rcu *cfg80211_regdomain;
@@ -32,6 +30,9 @@ bool reg_is_valid_request(const char *alpha2);
 bool is_world_regdom(const char *alpha2);
 bool reg_supported_dfs_region(enum nl80211_dfs_regions dfs_region);
 enum nl80211_dfs_regions reg_get_dfs_region(struct wiphy *wiphy);
+
+int regulatory_hint_user(const char *alpha2,
+			 enum nl80211_user_reg_hint_type user_reg_hint_type);
 
 /**
  * regulatory_hint_indoor - hint operation in indoor env. or not
@@ -151,6 +152,14 @@ bool regulatory_indoor_allowed(void);
  * TODO: May be make this timeout available through regdb?
  */
 #define REG_PRE_CAC_EXPIRY_GRACE_MS 2000
+
+/**
+ * regulatory_pre_cac_allowed - if pre-CAC allowed in the current dfs domain
+ * @wiphy: wiphy for which pre-CAC capability is checked.
+
+ * Pre-CAC is allowed only in ETSI domain.
+ */
+bool regulatory_pre_cac_allowed(struct wiphy *wiphy);
 
 /**
  * regulatory_propagate_dfs_state - Propagate DFS channel state to other wiphys

@@ -146,7 +146,8 @@ void retransmit_timer(struct timer_list *t)
 	}
 }
 
-void rxe_comp_queue_pkt(struct rxe_qp *qp, struct sk_buff *skb)
+void rxe_comp_queue_pkt(struct rxe_dev *rxe, struct rxe_qp *qp,
+			struct sk_buff *skb)
 {
 	int must_sched;
 
@@ -154,8 +155,7 @@ void rxe_comp_queue_pkt(struct rxe_qp *qp, struct sk_buff *skb)
 
 	must_sched = skb_queue_len(&qp->resp_pkts) > 1;
 	if (must_sched != 0)
-		rxe_counter_inc(SKB_TO_PKT(skb)->rxe, RXE_CNT_COMPLETER_SCHED);
-
+		rxe_counter_inc(rxe, RXE_CNT_COMPLETER_SCHED);
 	rxe_run_task(&qp->comp.task, must_sched);
 }
 
@@ -439,7 +439,6 @@ static void make_send_cqe(struct rxe_qp *qp, struct rxe_send_wqe *wqe,
  */
 static void do_complete(struct rxe_qp *qp, struct rxe_send_wqe *wqe)
 {
-	struct rxe_dev *rxe = to_rdev(qp->ibqp.device);
 	struct rxe_cqe cqe;
 
 	if ((qp->sq_sig_type == IB_SIGNAL_ALL_WR) ||
@@ -451,11 +450,6 @@ static void do_complete(struct rxe_qp *qp, struct rxe_send_wqe *wqe)
 	} else {
 		advance_consumer(qp->sq.queue);
 	}
-
-	if (wqe->wr.opcode == IB_WR_SEND ||
-	    wqe->wr.opcode == IB_WR_SEND_WITH_IMM ||
-	    wqe->wr.opcode == IB_WR_SEND_WITH_INV)
-		rxe_counter_inc(rxe, RXE_CNT_RDMA_SEND);
 
 	/*
 	 * we completed something so let req run again
@@ -558,7 +552,7 @@ int rxe_completer(void *arg)
 {
 	struct rxe_qp *qp = (struct rxe_qp *)arg;
 	struct rxe_dev *rxe = to_rdev(qp->ibqp.device);
-	struct rxe_send_wqe *wqe = NULL;
+	struct rxe_send_wqe *wqe = wqe;
 	struct sk_buff *skb = NULL;
 	struct rxe_pkt_info *pkt = NULL;
 	enum comp_state state;

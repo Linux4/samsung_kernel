@@ -351,10 +351,6 @@
 	vcc-supply = <&vusb2_reg>;
 };
 
-&vpu {
-	status = "disabled";
-};
-
 &wdog1 {
 	status = "disabled";
 };

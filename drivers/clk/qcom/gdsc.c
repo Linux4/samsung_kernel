@@ -1,6 +1,14 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2015, 2017-2018, 2022, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015, 2017-2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #include <linux/bitops.h>
@@ -31,14 +39,9 @@
 #define CFG_GDSCR_OFFSET		0x4
 
 /* Wait 2^n CXO cycles between all states. Here, n=2 (4 cycles). */
-#define EN_REST_WAIT_VAL	0x2
-#define EN_FEW_WAIT_VAL		0x8
-#define CLK_DIS_WAIT_VAL	0x2
-
-/* Transition delay shifts */
-#define EN_REST_WAIT_SHIFT	20
-#define EN_FEW_WAIT_SHIFT	16
-#define CLK_DIS_WAIT_SHIFT	12
+#define EN_REST_WAIT_VAL	(0x2 << 20)
+#define EN_FEW_WAIT_VAL		(0x8 << 16)
+#define CLK_DIS_WAIT_VAL	(0x2 << 12)
 
 #define RETAIN_MEM		BIT(14)
 #define RETAIN_PERIPH		BIT(13)
@@ -146,9 +149,7 @@ static int gdsc_toggle_logic(struct gdsc *sc, enum gdsc_status status)
 		udelay(1);
 	}
 
-	ret = gdsc_poll_status(sc, status);
-	WARN(ret, "%s status stuck at 'o%s'", sc->pd.name, status ? "ff" : "n");
-	return ret;
+	return gdsc_poll_status(sc, status);
 }
 
 static inline int gdsc_deassert_reset(struct gdsc *sc)
@@ -313,18 +314,7 @@ static int gdsc_init(struct gdsc *sc)
 	 */
 	mask = HW_CONTROL_MASK | SW_OVERRIDE_MASK |
 	       EN_REST_WAIT_MASK | EN_FEW_WAIT_MASK | CLK_DIS_WAIT_MASK;
-
-	if (!sc->en_rest_wait_val)
-		sc->en_rest_wait_val = EN_REST_WAIT_VAL;
-	if (!sc->en_few_wait_val)
-		sc->en_few_wait_val = EN_FEW_WAIT_VAL;
-	if (!sc->clk_dis_wait_val)
-		sc->clk_dis_wait_val = CLK_DIS_WAIT_VAL;
-
-	val = sc->en_rest_wait_val << EN_REST_WAIT_SHIFT |
-		sc->en_few_wait_val << EN_FEW_WAIT_SHIFT |
-		sc->clk_dis_wait_val << CLK_DIS_WAIT_SHIFT;
-
+	val = EN_REST_WAIT_VAL | EN_FEW_WAIT_VAL | CLK_DIS_WAIT_VAL;
 	ret = regmap_update_bits(sc->regmap, sc->gdscr, mask, val);
 	if (ret)
 		return ret;
@@ -360,10 +350,8 @@ static int gdsc_init(struct gdsc *sc)
 	else
 		gdsc_clear_mem_on(sc);
 
-	if (!sc->pd.power_off)
-		sc->pd.power_off = gdsc_disable;
-	if (!sc->pd.power_on)
-		sc->pd.power_on = gdsc_enable;
+	sc->pd.power_off = gdsc_disable;
+	sc->pd.power_on = gdsc_enable;
 	pm_genpd_init(&sc->pd, NULL, !on);
 
 	return 0;

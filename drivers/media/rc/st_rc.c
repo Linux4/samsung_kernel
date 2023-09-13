@@ -1,7 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright (C) 2013 STMicroelectronics Limited
  * Author: Srinivas Kandagatla <srinivas.kandagatla@st.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  */
 #include <linux/kernel.h>
 #include <linux/clk.h>
@@ -63,7 +67,8 @@ struct st_rc_device {
 
 static void st_rc_send_lirc_timeout(struct rc_dev *rdev)
 {
-	struct ir_raw_event ev = { .timeout = true, .duration = rdev->timeout };
+	DEFINE_IR_RAW_EVENT(ev);
+	ev.timeout = true;
 	ir_raw_event_store(rdev, &ev);
 }
 
@@ -96,7 +101,7 @@ static irqreturn_t st_rc_rx_interrupt(int irq, void *data)
 	struct st_rc_device *dev = data;
 	int last_symbol = 0;
 	u32 status, int_status;
-	struct ir_raw_event ev = {};
+	DEFINE_IR_RAW_EVENT(ev);
 
 	if (dev->irq_wake)
 		pm_wakeup_event(dev->dev, 0);

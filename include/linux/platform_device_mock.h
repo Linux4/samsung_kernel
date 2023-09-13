@@ -45,7 +45,7 @@ struct device_node *of_fake_node(struct test *test, const char *name);
  */
 struct platform_device *
 of_fake_probe_platform(struct test *test,
-		       struct platform_driver *driver,
+		       const struct platform_driver *driver,
 		       const char *node_name);
 
 /**

@@ -147,13 +147,13 @@ static const struct dma_map_ops ibmebus_dma_ops = {
 	.unmap_page         = ibmebus_unmap_page,
 };
 
-static int ibmebus_match_path(struct device *dev, const void *data)
+static int ibmebus_match_path(struct device *dev, void *data)
 {
 	struct device_node *dn = to_platform_device(dev)->dev.of_node;
 	return (of_find_node_by_path(data) == dn);
 }
 
-static int ibmebus_match_node(struct device *dev, const void *data)
+static int ibmebus_match_node(struct device *dev, void *data)
 {
 	return to_platform_device(dev)->dev.of_node == data;
 }
@@ -261,7 +261,8 @@ static char *ibmebus_chomp(const char *in, size_t count)
 	return out;
 }
 
-static ssize_t probe_store(struct bus_type *bus, const char *buf, size_t count)
+static ssize_t ibmebus_store_probe(struct bus_type *bus,
+				   const char *buf, size_t count)
 {
 	struct device_node *dn = NULL;
 	struct device *dev;
@@ -297,9 +298,10 @@ out:
 		return rc;
 	return count;
 }
-static BUS_ATTR_WO(probe);
+static BUS_ATTR(probe, 0200, NULL, ibmebus_store_probe);
 
-static ssize_t remove_store(struct bus_type *bus, const char *buf, size_t count)
+static ssize_t ibmebus_store_remove(struct bus_type *bus,
+				    const char *buf, size_t count)
 {
 	struct device *dev;
 	char *path;
@@ -323,7 +325,7 @@ static ssize_t remove_store(struct bus_type *bus, const char *buf, size_t count)
 		return -ENODEV;
 	}
 }
-static BUS_ATTR_WO(remove);
+static BUS_ATTR(remove, 0200, NULL, ibmebus_store_remove);
 
 static struct attribute *ibmbus_bus_attrs[] = {
 	&bus_attr_probe.attr,
@@ -402,7 +404,7 @@ static ssize_t name_show(struct device *dev,
 	struct platform_device *ofdev;
 
 	ofdev = to_platform_device(dev);
-	return sprintf(buf, "%pOFn\n", ofdev->dev.of_node);
+	return sprintf(buf, "%s\n", ofdev->dev.of_node->name);
 }
 static DEVICE_ATTR_RO(name);
 

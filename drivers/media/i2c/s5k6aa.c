@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Driver for Samsung S5K6AAFX SXGA 1/6" 1.3M CMOS Image Sensor
  * with embedded SoC ISP.
@@ -8,6 +7,11 @@
  *
  * Based on a driver authored by Dongsoo Nathaniel Kim.
  * Copyright (C) 2009, Dongsoo Nathaniel Kim <dongsoo45.kim@samsung.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  */
 
 #include <linux/clk.h>
@@ -177,7 +181,7 @@ static const char * const s5k6aa_supply_names[] = {
 
 enum s5k6aa_gpio_id {
 	STBY,
-	RSET,
+	RST,
 	GPIO_NUM,
 };
 
@@ -684,7 +688,7 @@ static int s5k6aa_configure_video_bus(struct s5k6aa *s5k6aa,
 	 * but there is nothing indicating how to switch between both
 	 * in the datasheet. For now default BT.601 interface is assumed.
 	 */
-	if (bus_type == V4L2_MBUS_CSI2_DPHY)
+	if (bus_type == V4L2_MBUS_CSI2)
 		cfg = nlanes;
 	else if (bus_type != V4L2_MBUS_PARALLEL)
 		return -EINVAL;
@@ -725,7 +729,7 @@ static int s5k6aa_new_config_sync(struct i2c_client *client, int timeout,
  * @s5k6aa: pointer to &struct s5k6aa describing the device
  * @preset: s5kaa preset to be applied
  *
- * Configure output resolution and color format, pixel clock
+ * Configure output resolution and color fromat, pixel clock
  * frequency range, device frame rate type and frame period range.
  */
 static int s5k6aa_set_prev_config(struct s5k6aa *s5k6aa,
@@ -841,7 +845,7 @@ static int __s5k6aa_power_on(struct s5k6aa *s5k6aa)
 		ret = s5k6aa->s_power(1);
 	usleep_range(4000, 5000);
 
-	if (s5k6aa_gpio_deassert(s5k6aa, RSET))
+	if (s5k6aa_gpio_deassert(s5k6aa, RST))
 		msleep(20);
 
 	return ret;
@@ -851,7 +855,7 @@ static int __s5k6aa_power_off(struct s5k6aa *s5k6aa)
 {
 	int ret;
 
-	if (s5k6aa_gpio_assert(s5k6aa, RSET))
+	if (s5k6aa_gpio_assert(s5k6aa, RST))
 		usleep_range(100, 150);
 
 	if (s5k6aa->s_power) {
@@ -1510,7 +1514,7 @@ static int s5k6aa_configure_gpios(struct s5k6aa *s5k6aa,
 	int ret;
 
 	s5k6aa->gpio[STBY].gpio = -EINVAL;
-	s5k6aa->gpio[RSET].gpio  = -EINVAL;
+	s5k6aa->gpio[RST].gpio  = -EINVAL;
 
 	gpio = &pdata->gpio_stby;
 	if (gpio_is_valid(gpio->gpio)) {
@@ -1533,7 +1537,7 @@ static int s5k6aa_configure_gpios(struct s5k6aa *s5k6aa,
 		if (ret < 0)
 			return ret;
 
-		s5k6aa->gpio[RSET] = *gpio;
+		s5k6aa->gpio[RST] = *gpio;
 	}
 
 	return 0;
@@ -1572,8 +1576,7 @@ static int s5k6aa_probe(struct i2c_client *client,
 
 	sd = &s5k6aa->sd;
 	v4l2_i2c_subdev_init(sd, client, &s5k6aa_subdev_ops);
-	/* Static name; NEVER use in new drivers! */
-	strscpy(sd->name, DRIVER_NAME, sizeof(sd->name));
+	strlcpy(sd->name, DRIVER_NAME, sizeof(sd->name));
 
 	sd->internal_ops = &s5k6aa_subdev_internal_ops;
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;

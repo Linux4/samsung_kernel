@@ -1,10 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  Ralink RT3662/RT3883 SoC PCI support
  *
  *  Copyright (C) 2011-2013 Gabor Juhos <juhosg@openwrt.org>
  *
  *  Parts of this file are based on Ralink's 2.6.21 BSP
+ *
+ *  This program is free software; you can redistribute it and/or modify it
+ *  under the terms of the GNU General Public License version 2 as published
+ *  by the Free Software Foundation.
  */
 
 #include <linux/types.h>
@@ -442,7 +445,8 @@ static int rt3883_pci_probe(struct platform_device *pdev)
 
 	/* find the PCI host bridge child node */
 	for_each_child_of_node(np, child) {
-		if (of_node_is_type(child, "pci")) {
+		if (child->type &&
+		    of_node_cmp(child->type, "pci") == 0) {
 			rpc->pci_controller.of_node = child;
 			break;
 		}
@@ -460,7 +464,8 @@ static int rt3883_pci_probe(struct platform_device *pdev)
 	for_each_available_child_of_node(rpc->pci_controller.of_node, child) {
 		int devfn;
 
-		if (!of_node_is_type(child, "pci"))
+		if (!child->type ||
+		    of_node_cmp(child->type, "pci") != 0)
 			continue;
 
 		devfn = of_pci_get_devfn(child);

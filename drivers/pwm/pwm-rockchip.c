@@ -1,9 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * PWM driver for Rockchip SoCs
  *
  * Copyright (C) 2014 Beniamino Galvani <b.galvani@gmail.com>
  * Copyright (C) 2014 ROCKCHIP, Inc.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * version 2 as published by the Free Software Foundation.
  */
 
 #include <linux/clk.h>
@@ -90,16 +93,16 @@ static void rockchip_pwm_get_state(struct pwm_chip *chip,
 		state->enabled = ((val & enable_conf) == enable_conf) ?
 				 true : false;
 
-	if (pc->data->supports_polarity && !(val & PWM_DUTY_POSITIVE))
-		state->polarity = PWM_POLARITY_INVERSED;
-	else
-		state->polarity = PWM_POLARITY_NORMAL;
+	if (pc->data->supports_polarity) {
+		if (!(val & PWM_DUTY_POSITIVE))
+			state->polarity = PWM_POLARITY_INVERSED;
+	}
 
 	clk_disable(pc->pclk);
 }
 
 static void rockchip_pwm_config(struct pwm_chip *chip, struct pwm_device *pwm,
-			       const struct pwm_state *state)
+			       struct pwm_state *state)
 {
 	struct rockchip_pwm_chip *pc = to_rockchip_pwm_chip(chip);
 	unsigned long period, duty;
@@ -183,7 +186,7 @@ static int rockchip_pwm_enable(struct pwm_chip *chip,
 }
 
 static int rockchip_pwm_apply(struct pwm_chip *chip, struct pwm_device *pwm,
-			      const struct pwm_state *state)
+			      struct pwm_state *state)
 {
 	struct rockchip_pwm_chip *pc = to_rockchip_pwm_chip(chip);
 	struct pwm_state curstate;
@@ -211,6 +214,12 @@ static int rockchip_pwm_apply(struct pwm_chip *chip, struct pwm_device *pwm,
 		if (ret)
 			goto out;
 	}
+
+	/*
+	 * Update the state with the real hardware, which can differ a bit
+	 * because of period/duty_cycle approximation.
+	 */
+	rockchip_pwm_get_state(chip, pwm, state);
 
 out:
 	clk_disable(pc->pclk);
@@ -361,6 +370,7 @@ static int rockchip_pwm_probe(struct platform_device *pdev)
 
 	ret = pwmchip_add(&pc->chip);
 	if (ret < 0) {
+		clk_unprepare(pc->clk);
 		dev_err(&pdev->dev, "pwmchip_add() failed: %d\n", ret);
 		goto err_pclk;
 	}
@@ -382,6 +392,20 @@ err_clk:
 static int rockchip_pwm_remove(struct platform_device *pdev)
 {
 	struct rockchip_pwm_chip *pc = platform_get_drvdata(pdev);
+
+	/*
+	 * Disable the PWM clk before unpreparing it if the PWM device is still
+	 * running. This should only happen when the last PWM user left it
+	 * enabled, or when nobody requested a PWM that was previously enabled
+	 * by the bootloader.
+	 *
+	 * FIXME: Maybe the core should disable all PWM devices in
+	 * pwmchip_remove(). In this case we'd only have to call
+	 * clk_unprepare() after pwmchip_remove().
+	 *
+	 */
+	if (pwm_is_enabled(pc->chip.pwms))
+		clk_disable(pc->clk);
 
 	clk_unprepare(pc->pclk);
 	clk_unprepare(pc->clk);

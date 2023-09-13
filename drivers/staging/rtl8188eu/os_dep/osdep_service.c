@@ -18,6 +18,20 @@ u8 *_rtw_malloc(u32 sz)
 	return kmalloc(sz, in_interrupt() ? GFP_ATOMIC : GFP_KERNEL);
 }
 
+void *rtw_malloc2d(int h, int w, int size)
+{
+	int j;
+	void **a = kzalloc(h * sizeof(void *) + h * w * size, GFP_KERNEL);
+
+	if (!a)
+		goto out;
+
+	for (j = 0; j < h; j++)
+		a[j] = ((char *)(a + h)) + j * w * size;
+out:
+	return a;
+}
+
 void _rtw_init_queue(struct __queue *pqueue)
 {
 	INIT_LIST_HEAD(&pqueue->queue);
@@ -57,6 +71,11 @@ void rtw_free_netdev(struct net_device *netdev)
 
 RETURN:
 	return;
+}
+
+u64 rtw_modular64(u64 x, u64 y)
+{
+	return do_div(x, y);
 }
 
 void rtw_buf_free(u8 **buf, u32 *buf_len)

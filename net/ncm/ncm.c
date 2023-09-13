@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+// KNOX NPA - START
+
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/netfilter.h>
@@ -252,7 +253,7 @@ static void update_intermediate_timeout(unsigned int timeout) {
 
 /* This function is used to get the intermediate flow timeout value */
 unsigned int get_intermediate_timeout(void) {
-	return intermediate_flow_timeout;
+	return intermediate_flow_timeout; 
 }
 EXPORT_SYMBOL(get_intermediate_timeout);
 
@@ -268,105 +269,103 @@ static unsigned int hook_func_ipv4_out_conntrack(void *priv, struct sk_buff *skb
 	char srcaddr[INET6_ADDRSTRLEN_NAP];
 	char dstaddr[INET6_ADDRSTRLEN_NAP];
 
-	if ((skb) && (skb->sk) && (skb->sk->sk_protocol != IPPROTO_UDP) && (skb->sk->sk_protocol != IPPROTO_TCP) && (skb->sk->sk_protocol != IPPROTO_ICMP) && (skb->sk->sk_protocol != IPPROTO_SCTP) && (skb->sk->sk_protocol != IPPROTO_ICMPV6)) {
-		return NF_ACCEPT;
-	}
-	if ((current == NULL) || (current->cred == NULL)) {
-		return NF_ACCEPT;
-	}
-	if ((current->cred->uid.val == INIT_UID_NAP && current->tgid == INIT_UID_NAP) || (current->cred->uid.val == INIT_UID_NAP && current->tgid == INIT_PID_NAP)) {
-		return NF_ACCEPT;
-	}
-
-	if ( (skb) && (skb->sk) && (SOCK_NPA_VENDOR_DATA_GET(skb->sk) != NULL) ) {
-		if ( (SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_pid == INIT_PID_NAP) && (SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_uid == INIT_UID_NAP) && (skb->sk->sk_protocol == IPPROTO_TCP) ) {
+	if ( (skb) && (skb->sk) ) {
+		if ( (skb->sk->knox_pid == INIT_PID_NAP) && (skb->sk->knox_uid == INIT_UID_NAP) && (skb->sk->sk_protocol == IPPROTO_TCP) ) {
 			return NF_ACCEPT;
 		}
 		if ( (skb->sk->sk_protocol == IPPROTO_UDP) || (skb->sk->sk_protocol == IPPROTO_TCP) || (skb->sk->sk_protocol == IPPROTO_ICMP) || (skb->sk->sk_protocol == IPPROTO_SCTP) || (skb->sk->sk_protocol == IPPROTO_ICMPV6) ) {
 			ct = nf_ct_get(skb, &ctinfo);
-			if ( (ct) && (NF_CONN_NPA_VENDOR_DATA_GET(ct) != NULL) && (!atomic_read(&NF_CONN_NPA_VENDOR_DATA_GET(ct)->startFlow)) && (!nf_ct_is_dying(ct)) ) {
+			if ( (ct) && (!atomic_read(&ct->startFlow)) && (!nf_ct_is_dying(ct)) ) {
 				tuple = &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple;
 				if (tuple) {
 					sprintf(srcaddr,"%pI4",(void *)&tuple->src.u3.ip);
 					sprintf(dstaddr,"%pI4",(void *)&tuple->dst.u3.ip);
 					if ( isIpv4AddressEqualsNull(srcaddr, dstaddr) ) {
-						return NF_ACCEPT;
-					}
+						return NF_ACCEPT;	
+					}	
 				} else {
 					return NF_ACCEPT;
 				}
-				atomic_set(&NF_CONN_NPA_VENDOR_DATA_GET(ct)->startFlow, 1);
+				atomic_set(&ct->startFlow, 1);
 				if ( check_intermediate_flag() ) {
-					NF_CONN_NPA_VENDOR_DATA_GET(ct)->npa_timeout = ((u32)(jiffies)) + (get_intermediate_timeout() * HZ);
-					atomic_set(&NF_CONN_NPA_VENDOR_DATA_GET(ct)->intermediateFlow, 1);
+					/* Use 'atomic_set(&ct->intermediateFlow, 1); ct->npa_timeout = ((u32)(jiffies)) + (get_intermediate_timeout() * HZ);' if struct nf_conn->timeout is of type u32; */
+					ct->npa_timeout = ((u32)(jiffies)) + (get_intermediate_timeout() * HZ);
+					atomic_set(&ct->intermediateFlow, 1);
+					/* Use 'unsigned long timeout = ct->timeout.expires - jiffies;
+							if ( (timeout > 0) && ((timeout/HZ) > 5) ) {
+								atomic_set(&ct->intermediateFlow, 1);
+								ct->npa_timeout.expires = (jiffies) + (get_intermediate_timeout() * HZ);
+								add_timer(&ct->npa_timeout);
+							}'
+					if struct nf_conn->timeout is of type struct timer_list; */
 				}
-				NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_uid = SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_uid;
-				NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_pid = SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_pid;
-				memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->process_name,SOCK_NPA_VENDOR_DATA_GET(skb->sk)->process_name,sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->process_name)-1);
-				NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_puid = SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_puid;
-				NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_ppid = SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_ppid;
-				memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name,SOCK_NPA_VENDOR_DATA_GET(skb->sk)->parent_process_name,sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name)-1);
-				memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->domain_name,SOCK_NPA_VENDOR_DATA_GET(skb->sk)->domain_name,sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->domain_name)-1);
+				ct->knox_uid = skb->sk->knox_uid;
+				ct->knox_pid = skb->sk->knox_pid;
+				memcpy(ct->process_name,skb->sk->process_name,sizeof(ct->process_name)-1);
+				ct->knox_puid = skb->sk->knox_puid;
+				ct->knox_ppid = skb->sk->knox_ppid;
+				memcpy(ct->parent_process_name,skb->sk->parent_process_name,sizeof(ct->parent_process_name)-1);
+				memcpy(ct->domain_name,skb->sk->domain_name,sizeof(ct->domain_name)-1);
 				if ( (skb->dev) ) {
-					memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->interface_name,skb->dev->name,sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->interface_name)-1);
+					memcpy(ct->interface_name,skb->dev->name,sizeof(ct->interface_name)-1);
 				} else {
-					sprintf(NF_CONN_NPA_VENDOR_DATA_GET(ct)->interface_name,"%s","null");
+					sprintf(ct->interface_name,"%s","null");
 				}
 				ip_header = (struct iphdr *)skb_network_header(skb);
 				if ( (ip_header) && (ip_header->protocol == IPPROTO_UDP) ) {
 					udp_header = (struct udphdr *)skb_transport_header(skb);
 					if (udp_header) {
 						int udp_payload_size = (ntohs(udp_header->len)) - sizeof(struct udphdr);
-						if ( (NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent + udp_payload_size) > ULLONG_MAX )
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent = ULLONG_MAX;
+						if ( (ct->knox_sent + udp_payload_size) > ULLONG_MAX )
+							ct->knox_sent = ULLONG_MAX;
 						else
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent = NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent + udp_payload_size;
-						if ( (ntohs(udp_header->dest) ==  DNS_PORT_NAP) && (NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_uid == INIT_UID_NAP) && (SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_dns_uid > INIT_UID_NAP) ) {
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_puid = SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_dns_uid;
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_ppid = SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_dns_pid;
-							memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name,SOCK_NPA_VENDOR_DATA_GET(skb->sk)->dns_process_name,sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name)-1);
+							ct->knox_sent = ct->knox_sent + udp_payload_size;
+						if ( (ntohs(udp_header->dest) ==  DNS_PORT_NAP) && (ct->knox_uid == INIT_UID_NAP) && (skb->sk->knox_dns_uid > INIT_UID_NAP) ) {
+							ct->knox_puid = skb->sk->knox_dns_uid;
+							ct->knox_ppid = skb->sk->knox_dns_pid;
+							memcpy(ct->parent_process_name,skb->sk->dns_process_name,sizeof(ct->parent_process_name)-1);
 						}
 					}
 				} else if ( (ip_header) && (ip_header->protocol == IPPROTO_TCP) ) {
 					tcp_header = (struct tcphdr *)skb_transport_header(skb);
 					if (tcp_header) {
 						int tcp_payload_size = (ntohs(ip_header->tot_len)) - (ip_header->ihl * 4) - (tcp_header->doff * 4);
-						if ( (NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent + tcp_payload_size) > ULLONG_MAX )
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent = ULLONG_MAX;
+						if ( (ct->knox_sent + tcp_payload_size) > ULLONG_MAX )
+							ct->knox_sent = ULLONG_MAX;
 						else
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent = NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent + tcp_payload_size;
-						if ( (ntohs(tcp_header->dest) ==  DNS_PORT_NAP) && (NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_uid == INIT_UID_NAP) && (SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_dns_uid > INIT_UID_NAP) ) {
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_puid = SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_dns_uid;
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_ppid = SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_dns_pid;
-							memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name,SOCK_NPA_VENDOR_DATA_GET(skb->sk)->dns_process_name,sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name)-1);
+							ct->knox_sent = ct->knox_sent + tcp_payload_size;
+						if ( (ntohs(tcp_header->dest) ==  DNS_PORT_NAP) && (ct->knox_uid == INIT_UID_NAP) && (skb->sk->knox_dns_uid > INIT_UID_NAP) ) {
+							ct->knox_puid = skb->sk->knox_dns_uid;
+							ct->knox_ppid = skb->sk->knox_dns_pid;
+							memcpy(ct->parent_process_name,skb->sk->dns_process_name,sizeof(ct->parent_process_name)-1);
 						}
 					}
 				} else {
-					NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent = 0;
+					ct->knox_sent = 0;
 				}
 				knox_collect_conntrack_data(ct, NCM_FLOW_TYPE_OPEN, 1);
-			} else if ( (ct) && (NF_CONN_NPA_VENDOR_DATA_GET(ct) != NULL) && (!nf_ct_is_dying(ct)) ) {
+			} else if ( (ct) && (!nf_ct_is_dying(ct)) ) {
 				ip_header = (struct iphdr *)skb_network_header(skb);
 				if ( (ip_header) && (ip_header->protocol == IPPROTO_UDP) ) {
 					udp_header = (struct udphdr *)skb_transport_header(skb);
 					if (udp_header) {
 						int udp_payload_size = (ntohs(udp_header->len)) - sizeof(struct udphdr);
-						if ( (NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent + udp_payload_size) > ULLONG_MAX )
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent = ULLONG_MAX;
+						if ( (ct->knox_sent + udp_payload_size) > ULLONG_MAX )
+							ct->knox_sent = ULLONG_MAX;
 						else
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent = NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent + udp_payload_size;
+							ct->knox_sent = ct->knox_sent + udp_payload_size;
 					}
 				} else if ( (ip_header) && (ip_header->protocol == IPPROTO_TCP) ) {
 					tcp_header = (struct tcphdr *)skb_transport_header(skb);
 					if (tcp_header) {
 						int tcp_payload_size = (ntohs(ip_header->tot_len)) - (ip_header->ihl * 4) - (tcp_header->doff * 4);
-						if ( (NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent + tcp_payload_size) > ULLONG_MAX )
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent = ULLONG_MAX;
+						if ( (ct->knox_sent + tcp_payload_size) > ULLONG_MAX )
+							ct->knox_sent = ULLONG_MAX;
 						else
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent = NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent + tcp_payload_size;
+							ct->knox_sent = ct->knox_sent + tcp_payload_size;
 					}
 				} else {
-					NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent = 0;
+					ct->knox_sent = 0;
 				}
 			}
 		}
@@ -386,105 +385,103 @@ static unsigned int hook_func_ipv6_out_conntrack(void *priv, struct sk_buff *skb
 	char srcaddr[INET6_ADDRSTRLEN_NAP];
 	char dstaddr[INET6_ADDRSTRLEN_NAP];
 
-	if ((skb) && (skb->sk) && (skb->sk->sk_protocol != IPPROTO_UDP) && (skb->sk->sk_protocol != IPPROTO_TCP) && (skb->sk->sk_protocol != IPPROTO_ICMP) && (skb->sk->sk_protocol != IPPROTO_SCTP) && (skb->sk->sk_protocol != IPPROTO_ICMPV6)) {
-		return NF_ACCEPT;
-	}
-	if ((current == NULL) || (current->cred == NULL)) {
-		return NF_ACCEPT;
-	}
-	if ((current->cred->uid.val == INIT_UID_NAP && current->tgid == INIT_UID_NAP) || (current->cred->uid.val == INIT_UID_NAP && current->tgid == INIT_PID_NAP)) {
-		return NF_ACCEPT;
-	}
-
-	if ( (skb) && (skb->sk) && (SOCK_NPA_VENDOR_DATA_GET(skb->sk) != NULL) ) {
-		if ( (SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_pid == INIT_PID_NAP) && (SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_uid == INIT_UID_NAP) && (skb->sk->sk_protocol == IPPROTO_TCP) ) {
+	if ( (skb) && (skb->sk) ) {
+		if ( (skb->sk->knox_pid == INIT_PID_NAP) && (skb->sk->knox_uid == INIT_UID_NAP) && (skb->sk->sk_protocol == IPPROTO_TCP) ) {
 			return NF_ACCEPT;
 		}
 		if ( (skb->sk->sk_protocol == IPPROTO_UDP) || (skb->sk->sk_protocol == IPPROTO_TCP) || (skb->sk->sk_protocol == IPPROTO_ICMP) || (skb->sk->sk_protocol == IPPROTO_SCTP) || (skb->sk->sk_protocol == IPPROTO_ICMPV6) ) {
 			ct = nf_ct_get(skb, &ctinfo);
-			if ( (ct) && (NF_CONN_NPA_VENDOR_DATA_GET(ct) != NULL) && (!atomic_read(&NF_CONN_NPA_VENDOR_DATA_GET(ct)->startFlow)) && (!nf_ct_is_dying(ct)) ) {
+			if ( (ct) && (!atomic_read(&ct->startFlow)) && (!nf_ct_is_dying(ct)) ) {
 				tuple = &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple;
 				if (tuple) {
 					sprintf(srcaddr,"%pI6",(void *)&tuple->src.u3.ip6);
 					sprintf(dstaddr,"%pI6",(void *)&tuple->dst.u3.ip6);
 					if ( isIpv6AddressEqualsNull(srcaddr, dstaddr) ) {
-						return NF_ACCEPT;
-					}
+						return NF_ACCEPT;	
+					}	
 				} else {
 					return NF_ACCEPT;
 				}
-				atomic_set(&NF_CONN_NPA_VENDOR_DATA_GET(ct)->startFlow, 1);
+				atomic_set(&ct->startFlow, 1);
 				if ( check_intermediate_flag() ) {
-					NF_CONN_NPA_VENDOR_DATA_GET(ct)->npa_timeout = ((u32)(jiffies)) + (get_intermediate_timeout() * HZ);
-					atomic_set(&NF_CONN_NPA_VENDOR_DATA_GET(ct)->intermediateFlow, 1);
+					/* Use 'atomic_set(&ct->intermediateFlow, 1); ct->npa_timeout = ((u32)(jiffies)) + (get_intermediate_timeout() * HZ);' if struct nf_conn->timeout is of type u32; */
+					ct->npa_timeout = ((u32)(jiffies)) + (get_intermediate_timeout() * HZ);
+					atomic_set(&ct->intermediateFlow, 1);
+					/* Use 'unsigned long timeout = ct->timeout.expires - jiffies;
+							if ( (timeout > 0) && ((timeout/HZ) > 5) ) {
+								atomic_set(&ct->intermediateFlow, 1);
+								ct->npa_timeout.expires = (jiffies) + (get_intermediate_timeout() * HZ);
+								add_timer(&ct->npa_timeout);
+							}'
+					if struct nf_conn->timeout is of type struct timer_list; */
 				}
-				NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_uid = SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_uid;
-				NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_pid = SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_pid;
-				memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->process_name,SOCK_NPA_VENDOR_DATA_GET(skb->sk)->process_name,sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->process_name)-1);
-				NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_puid = SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_puid;
-				NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_ppid = SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_ppid;
-				memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name,SOCK_NPA_VENDOR_DATA_GET(skb->sk)->parent_process_name,sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name)-1);
-				memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->domain_name,SOCK_NPA_VENDOR_DATA_GET(skb->sk)->domain_name,sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->domain_name)-1);
+				ct->knox_uid = skb->sk->knox_uid;
+				ct->knox_pid = skb->sk->knox_pid;
+				memcpy(ct->process_name,skb->sk->process_name,sizeof(ct->process_name)-1);
+				ct->knox_puid = skb->sk->knox_puid;
+				ct->knox_ppid = skb->sk->knox_ppid;
+				memcpy(ct->parent_process_name,skb->sk->parent_process_name,sizeof(ct->parent_process_name)-1);
+				memcpy(ct->domain_name,skb->sk->domain_name,sizeof(ct->domain_name)-1);
 				if ( (skb->dev) ) {
-					memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->interface_name,skb->dev->name,sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->interface_name)-1);
+					memcpy(ct->interface_name,skb->dev->name,sizeof(ct->interface_name)-1);
 				} else {
-					sprintf(NF_CONN_NPA_VENDOR_DATA_GET(ct)->interface_name,"%s","null");
+					sprintf(ct->interface_name,"%s","null");
 				}
 				ipv6_header = (struct ipv6hdr *)skb_network_header(skb);
 				if ( (ipv6_header) && (ipv6_header->nexthdr == IPPROTO_UDP) ) {
 					udp_header = (struct udphdr *)skb_transport_header(skb);
 					if (udp_header) {
 						int udp_payload_size = (ntohs(udp_header->len)) - sizeof(struct udphdr);
-						if ( (NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent + udp_payload_size) > ULLONG_MAX )
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent = ULLONG_MAX;
+						if ( (ct->knox_sent + udp_payload_size) > ULLONG_MAX )
+							ct->knox_sent = ULLONG_MAX;
 						else
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent = NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent + udp_payload_size;
-						if ( (ntohs(udp_header->dest) ==  DNS_PORT_NAP) && (NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_uid == INIT_UID_NAP) && (SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_dns_uid > INIT_UID_NAP) ) {
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_puid = SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_dns_uid;
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_ppid = SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_dns_pid;
-							memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name,SOCK_NPA_VENDOR_DATA_GET(skb->sk)->dns_process_name,sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name)-1);
+							ct->knox_sent = ct->knox_sent + udp_payload_size;
+						if ( (ntohs(udp_header->dest) ==  DNS_PORT_NAP) && (ct->knox_uid == INIT_UID_NAP) && (skb->sk->knox_dns_uid > INIT_UID_NAP) ) {
+							ct->knox_puid = skb->sk->knox_dns_uid;
+							ct->knox_ppid = skb->sk->knox_dns_pid;
+							memcpy(ct->parent_process_name,skb->sk->dns_process_name,sizeof(ct->parent_process_name)-1);
 						}
 					}
 				} else if ( (ipv6_header) && (ipv6_header->nexthdr == IPPROTO_TCP) ) {
 					tcp_header = (struct tcphdr *)skb_transport_header(skb);
 					if (tcp_header) {
 						int tcp_payload_size = (ntohs(ipv6_header->payload_len)) - (tcp_header->doff * 4);
-						if ( (NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent + tcp_payload_size) > ULLONG_MAX )
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent = ULLONG_MAX;
+						if ( (ct->knox_sent + tcp_payload_size) > ULLONG_MAX )
+							ct->knox_sent = ULLONG_MAX;
 						else
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent = NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent + tcp_payload_size;
-						if ( (ntohs(tcp_header->dest) ==  DNS_PORT_NAP) && (NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_uid == INIT_UID_NAP) && (SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_dns_uid > INIT_UID_NAP) ) {
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_puid = SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_dns_uid;
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_ppid = SOCK_NPA_VENDOR_DATA_GET(skb->sk)->knox_dns_pid;
-							memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name,SOCK_NPA_VENDOR_DATA_GET(skb->sk)->dns_process_name,sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name)-1);
+							ct->knox_sent = ct->knox_sent + tcp_payload_size;
+						if ( (ntohs(tcp_header->dest) ==  DNS_PORT_NAP) && (ct->knox_uid == INIT_UID_NAP) && (skb->sk->knox_dns_uid > INIT_UID_NAP) ) {
+							ct->knox_puid = skb->sk->knox_dns_uid;
+							ct->knox_ppid = skb->sk->knox_dns_pid;
+							memcpy(ct->parent_process_name,skb->sk->dns_process_name,sizeof(ct->parent_process_name)-1);
 						}
 					}
 				} else {
-					NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent = 0;
+					ct->knox_sent = 0;
 				}
 				knox_collect_conntrack_data(ct, NCM_FLOW_TYPE_OPEN, 2);
-			} else if ( (ct) && (NF_CONN_NPA_VENDOR_DATA_GET(ct) != NULL) && (!nf_ct_is_dying(ct)) ) {
+			} else if ( (ct) && (!nf_ct_is_dying(ct)) ) {
 				ipv6_header = (struct ipv6hdr *)skb_network_header(skb);
 				if ( (ipv6_header) && (ipv6_header->nexthdr == IPPROTO_UDP) ) {
 					udp_header = (struct udphdr *)skb_transport_header(skb);
 					if (udp_header) {
 						int udp_payload_size = (ntohs(udp_header->len)) - sizeof(struct udphdr);
-						if ( (NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent + udp_payload_size) > ULLONG_MAX )
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent = ULLONG_MAX;
+						if ( (ct->knox_sent + udp_payload_size) > ULLONG_MAX )
+							ct->knox_sent = ULLONG_MAX;
 						else
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent = NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent + udp_payload_size;
+							ct->knox_sent = ct->knox_sent + udp_payload_size;
 					}
 				} else if ( (ipv6_header) && (ipv6_header->nexthdr == IPPROTO_TCP) ) {
 					tcp_header = (struct tcphdr *)skb_transport_header(skb);
 					if (tcp_header) {
 						int tcp_payload_size = (ntohs(ipv6_header->payload_len)) - (tcp_header->doff * 4);
-						if ( (NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent + tcp_payload_size) > ULLONG_MAX )
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent = ULLONG_MAX;
+						if ( (ct->knox_sent + tcp_payload_size) > ULLONG_MAX )
+							ct->knox_sent = ULLONG_MAX;
 						else
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent = NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent + tcp_payload_size;
+							ct->knox_sent = ct->knox_sent + tcp_payload_size;
 					}
 				} else {
-					NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent = 0;
+					ct->knox_sent = 0;
 				}
 			}
 		}
@@ -502,29 +499,29 @@ static unsigned int hook_func_ipv4_in_conntrack(void *priv, struct sk_buff *skb,
 
 	if (skb){
 		ip_header = (struct iphdr *)skb_network_header(skb);
-		if ( (ip_header) && (ip_header->protocol == IPPROTO_TCP || ip_header->protocol == IPPROTO_UDP || ip_header->protocol == IPPROTO_SCTP || ip_header->protocol == IPPROTO_ICMP || ip_header->protocol == IPPROTO_ICMPV6) ) {
+		if ( (ip_header) && (ip_header->protocol == IPPROTO_TCP || ip_header->protocol == IPPROTO_UDP || ip_header->protocol == IPPROTO_SCTP || ip_header->protocol == IPPROTO_ICMP || ip_header->protocol == IPPROTO_ICMPV6) ) {		
 			ct = nf_ct_get(skb, &ctinfo);
-			if ( (ct) && (NF_CONN_NPA_VENDOR_DATA_GET(ct) != NULL) &&  (!nf_ct_is_dying(ct)) ) {
+			if ( (ct) && (!nf_ct_is_dying(ct)) ) {
 				if (ip_header->protocol == IPPROTO_TCP) {
 					tcp_header = (struct tcphdr *)skb_transport_header(skb);
 					if (tcp_header) {
 						int tcp_payload_size = (ntohs(ip_header->tot_len)) - (ip_header->ihl * 4) - (tcp_header->doff * 4);
-						if ( (NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_recv + tcp_payload_size) > ULLONG_MAX )
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_recv = ULLONG_MAX;
+						if ( (ct->knox_recv + tcp_payload_size) > ULLONG_MAX )
+							ct->knox_recv = ULLONG_MAX;
 						else
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_recv = NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_recv + tcp_payload_size;
+							ct->knox_recv = ct->knox_recv + tcp_payload_size;
 					}
 				} else if (ip_header->protocol == IPPROTO_UDP) {
 					udp_header = (struct udphdr *)skb_transport_header(skb);
 					if (udp_header) {
 						int udp_payload_size = (ntohs(udp_header->len)) - sizeof(struct udphdr);
-						if ( (NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_recv + udp_payload_size) > ULLONG_MAX )
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_recv = ULLONG_MAX;
+						if ( (ct->knox_recv + udp_payload_size) > ULLONG_MAX )
+							ct->knox_recv = ULLONG_MAX;
 						else
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_recv = NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_recv + udp_payload_size;
+							ct->knox_recv = ct->knox_recv + udp_payload_size;
 					}
 				} else {
-					NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_recv = 0;
+					ct->knox_recv = 0;
 				}
 			}
 		}
@@ -544,27 +541,27 @@ static unsigned int hook_func_ipv6_in_conntrack(void *priv, struct sk_buff *skb,
 		ipv6_header = (struct ipv6hdr *)skb_network_header(skb);
 		if ( (ipv6_header) && (ipv6_header->nexthdr == IPPROTO_TCP || ipv6_header->nexthdr == IPPROTO_UDP || ipv6_header->nexthdr == IPPROTO_SCTP || ipv6_header->nexthdr == IPPROTO_ICMP || ipv6_header->nexthdr == IPPROTO_ICMPV6) ) {
 			ct = nf_ct_get(skb, &ctinfo);
-			if ( (ct) && (NF_CONN_NPA_VENDOR_DATA_GET(ct) != NULL) && (!nf_ct_is_dying(ct)) ) {
+			if ( (ct) && (!nf_ct_is_dying(ct)) ) {
 				if (ipv6_header->nexthdr == IPPROTO_TCP) {
 					tcp_header = (struct tcphdr *)skb_transport_header(skb);
 					if (tcp_header) {
 						int tcp_payload_size = (ntohs(ipv6_header->payload_len)) - (tcp_header->doff * 4);
-						if ( (NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_recv + tcp_payload_size) > ULLONG_MAX )
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_recv = ULLONG_MAX;
+						if ( (ct->knox_recv + tcp_payload_size) > ULLONG_MAX )
+							ct->knox_recv = ULLONG_MAX;
 						else
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_recv = NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_recv + tcp_payload_size;
+							ct->knox_recv = ct->knox_recv + tcp_payload_size;
 					}
 				} else if (ipv6_header->nexthdr == IPPROTO_UDP) {
 					udp_header = (struct udphdr *)skb_transport_header(skb);
 					if (udp_header) {
 						int udp_payload_size = (ntohs(udp_header->len)) - sizeof(struct udphdr);
-						if ( (NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_recv + udp_payload_size) > ULLONG_MAX )
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_recv = ULLONG_MAX;
+						if ( (ct->knox_recv + udp_payload_size) > ULLONG_MAX )
+							ct->knox_recv = ULLONG_MAX;
 						else
-							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_recv = NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_recv + udp_payload_size;
+							ct->knox_recv = ct->knox_recv + udp_payload_size;
 					}
 				} else {
-					NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_recv = 0;
+					ct->knox_recv = 0;
 				}
 			}
 		}
@@ -595,6 +592,10 @@ static void registerNetfilterHooks(void) {
 	nfho_ipv6_li_conntrack.pf = PF_INET6;
 	nfho_ipv6_li_conntrack.priority = NF_IP6_PRI_LAST;
 
+	/* For kernel versin below 4.13
+	nf_register_hook(&nfho_ipv4_pr_conntrack); nf_register_hook(&nfho_ipv6_pr_conntrack); nf_register_hook(&nfho_ipv4_li_conntrack); nf_register_hook(&nfho_ipv6_li_conntrack); */
+
+	/* For kernel version above 4.13 */
 	nf_register_net_hook(&init_net,&nfho_ipv4_pr_conntrack);
 	nf_register_net_hook(&init_net,&nfho_ipv6_pr_conntrack);
 	nf_register_net_hook(&init_net,&nfho_ipv4_li_conntrack);
@@ -603,6 +604,10 @@ static void registerNetfilterHooks(void) {
 
 /* The function un-registers the netfilter hook */
 static void unregisterNetFilterHooks(void) {
+	/* For kernel version below 4.13
+	nf_unregister_hook(&nfho_ipv4_pr_conntrack); nf_unregister_hook(&nfho_ipv6_pr_conntrack); nf_unregister_hook(&nfho_ipv4_li_conntrack); nf_unregister_hook(&nfho_ipv6_li_conntrack); */
+
+	/* For kernel version above 4.13 */
 	nf_unregister_net_hook(&init_net,&nfho_ipv4_pr_conntrack);
 	nf_unregister_net_hook(&init_net,&nfho_ipv6_pr_conntrack);
 	nf_unregister_net_hook(&init_net,&nfho_ipv4_li_conntrack);
@@ -611,7 +616,7 @@ static void unregisterNetFilterHooks(void) {
 
 /* Function to collect the conntrack meta-data information. This function is called from ncm.c during the flows first send data and nf_conntrack_core.c when flow is removed. */
 void knox_collect_conntrack_data(struct nf_conn *ct, int startStop, int where) {
-	if ( check_ncm_flag() && (ncm_activated_type == startStop || ncm_activated_type == NCM_FLOW_TYPE_ALL) && (NF_CONN_NPA_VENDOR_DATA_GET(ct) != NULL) ) {
+	if ( check_ncm_flag() && (ncm_activated_type == startStop || ncm_activated_type == NCM_FLOW_TYPE_ALL) ) {
 		struct knox_socket_metadata *ksm = kzalloc(sizeof(struct knox_socket_metadata), GFP_ATOMIC);
 		struct nf_conntrack_tuple *tuple = NULL;
 		struct timespec close_timespec;
@@ -621,9 +626,9 @@ void knox_collect_conntrack_data(struct nf_conn *ct, int startStop, int where) {
 			return;
 		}
 
-		ksm->knox_uid = NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_uid;
-		ksm->knox_pid = NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_pid;
-		memcpy(ksm->process_name, NF_CONN_NPA_VENDOR_DATA_GET(ct)->process_name, sizeof(ksm->process_name)-1);
+		ksm->knox_uid = ct->knox_uid;
+		ksm->knox_pid = ct->knox_pid;
+		memcpy(ksm->process_name, ct->process_name, sizeof(ksm->process_name)-1);
 		ksm->trans_proto = nf_ct_protonum(ct);
 		tuple = &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple;
 		if (tuple != NULL) {
@@ -648,23 +653,23 @@ void knox_collect_conntrack_data(struct nf_conn *ct, int startStop, int where) {
 				ksm->dstport = 0;
 			}
 		}
-		memcpy(ksm->domain_name, NF_CONN_NPA_VENDOR_DATA_GET(ct)->domain_name, sizeof(ksm->domain_name)-1);
-		ksm->open_time = NF_CONN_NPA_VENDOR_DATA_GET(ct)->open_time;
+		memcpy(ksm->domain_name, ct->domain_name, sizeof(ksm->domain_name)-1);
+		ksm->open_time = ct->open_time;
 		if (startStop == NCM_FLOW_TYPE_OPEN) {
 			ksm->close_time = 0;
 		} else if (startStop == NCM_FLOW_TYPE_CLOSE) {
-			ktime_get_ts(&close_timespec);
-            ksm->close_time = close_timespec.tv_sec;
+			close_timespec = current_kernel_time();
+			ksm->close_time = close_timespec.tv_sec;
 		} else if (startStop == NCM_FLOW_TYPE_INTERMEDIATE) {
-			ktime_get_ts(&close_timespec);
-            ksm->close_time = close_timespec.tv_sec;
+			close_timespec = current_kernel_time();
+			ksm->close_time = close_timespec.tv_sec;
 		}
-		ksm->knox_puid = NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_puid;
-		ksm->knox_ppid = NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_ppid;
-		memcpy(ksm->parent_process_name, NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name, sizeof(ksm->parent_process_name)-1);
+		ksm->knox_puid = ct->knox_puid;
+		ksm->knox_ppid = ct->knox_ppid;
+		memcpy(ksm->parent_process_name, ct->parent_process_name, sizeof(ksm->parent_process_name)-1);
 		if ( (nf_ct_protonum(ct) == IPPROTO_UDP) || (nf_ct_protonum(ct) == IPPROTO_TCP) || (nf_ct_protonum(ct) == IPPROTO_SCTP) ) {
-			ksm->knox_sent = NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_sent;
-			ksm->knox_recv = NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_recv;
+			ksm->knox_sent = ct->knox_sent;
+			ksm->knox_recv = ct->knox_recv;
 		} else {
 			ksm->knox_sent = 0;
 			ksm->knox_recv = 0;
@@ -674,7 +679,7 @@ void knox_collect_conntrack_data(struct nf_conn *ct, int startStop, int where) {
 		} else {
 			ksm->knox_uid_dns = ksm->knox_puid;
 		}
-		memcpy(ksm->interface_name, NF_CONN_NPA_VENDOR_DATA_GET(ct)->interface_name, sizeof(ksm->interface_name)-1);
+		memcpy(ksm->interface_name, ct->interface_name, sizeof(ksm->interface_name)-1);
 		if (startStop == NCM_FLOW_TYPE_OPEN) {
 			ksm->flow_type = 1;
 		} else if (startStop == NCM_FLOW_TYPE_CLOSE) {
@@ -1015,4 +1020,5 @@ module_exit(ncm_exit)
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("Network Context Metadata Module:");
-// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
+
+// KNOX NPA - END

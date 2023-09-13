@@ -1,9 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * SPI testing utility (using spidev driver)
  *
  * Copyright (c) 2007  MontaVista Software, Inc.
  * Copyright (c) 2007  Anton Vorontsov <avorontsov@ru.mvista.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License.
  *
  * Cross-compile with cross-gcc -I/path/to/cross-kernel/include
  */
@@ -70,12 +73,12 @@ static void hex_dump(const void *src, size_t length, size_t line_size,
 				while (i++ % line_size)
 					printf("__ ");
 			}
-			printf(" |");
+			printf(" | ");  /* right close */
 			while (line < address) {
 				c = *line++;
-				printf("%c", (c < 32 || c > 126) ? '.' : c);
+				printf("%c", (c < 33 || c == 255) ? 0x2E : c);
 			}
-			printf("|\n");
+			printf("\n");
 			if (length > 0)
 				printf("%s | ", prefix);
 		}

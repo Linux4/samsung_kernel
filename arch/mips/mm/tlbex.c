@@ -545,6 +545,7 @@ void build_tlb_write_entry(u32 **p, struct uasm_label **l,
 		tlbw(p);
 		break;
 
+	case CPU_R4300:
 	case CPU_5KC:
 	case CPU_TX49XX:
 	case CPU_PR4450:
@@ -576,7 +577,6 @@ void build_tlb_write_entry(u32 **p, struct uasm_label **l,
 	case CPU_R5500:
 		if (m4kc_tlbp_war())
 			uasm_i_nop(p);
-		/* fall through */
 	case CPU_ALCHEMY:
 		tlbw(p);
 		break;
@@ -603,12 +603,13 @@ void build_tlb_write_entry(u32 **p, struct uasm_label **l,
 
 	case CPU_VR4131:
 	case CPU_VR4133:
+	case CPU_R5432:
 		uasm_i_nop(p);
 		uasm_i_nop(p);
 		tlbw(p);
 		break;
 
-	case CPU_XBURST:
+	case CPU_JZRISC:
 		tlbw(p);
 		uasm_i_nop(p);
 		break;
@@ -942,8 +943,6 @@ build_get_pgd_vmalloc64(u32 **p, struct uasm_label **l, struct uasm_reloc **r,
 		 * to mimic that here by taking a load/istream page
 		 * fault.
 		 */
-		if (IS_ENABLED(CONFIG_CPU_LOONGSON3_WORKAROUNDS))
-			uasm_i_sync(p, 0);
 		UASM_i_LA(p, ptr, (unsigned long)tlb_do_page_fault_0);
 		uasm_i_jr(p, ptr);
 
@@ -1667,8 +1666,6 @@ static void
 iPTE_LW(u32 **p, unsigned int pte, unsigned int ptr)
 {
 #ifdef CONFIG_SMP
-	if (IS_ENABLED(CONFIG_CPU_LOONGSON3_WORKAROUNDS))
-		uasm_i_sync(p, 0);
 # ifdef CONFIG_PHYS_ADDR_T_64BIT
 	if (cpu_has_64bits)
 		uasm_i_lld(p, pte, 0, ptr);
@@ -2282,8 +2279,6 @@ static void build_r4000_tlb_load_handler(void)
 #endif
 
 	uasm_l_nopage_tlbl(&l, p);
-	if (IS_ENABLED(CONFIG_CPU_LOONGSON3_WORKAROUNDS))
-		uasm_i_sync(&p, 0);
 	build_restore_work_registers(&p);
 #ifdef CONFIG_CPU_MICROMIPS
 	if ((unsigned long)tlb_do_page_fault_0 & 1) {
@@ -2338,8 +2333,6 @@ static void build_r4000_tlb_store_handler(void)
 #endif
 
 	uasm_l_nopage_tlbs(&l, p);
-	if (IS_ENABLED(CONFIG_CPU_LOONGSON3_WORKAROUNDS))
-		uasm_i_sync(&p, 0);
 	build_restore_work_registers(&p);
 #ifdef CONFIG_CPU_MICROMIPS
 	if ((unsigned long)tlb_do_page_fault_1 & 1) {
@@ -2395,8 +2388,6 @@ static void build_r4000_tlb_modify_handler(void)
 #endif
 
 	uasm_l_nopage_tlbm(&l, p);
-	if (IS_ENABLED(CONFIG_CPU_LOONGSON3_WORKAROUNDS))
-		uasm_i_sync(&p, 0);
 	build_restore_work_registers(&p);
 #ifdef CONFIG_CPU_MICROMIPS
 	if ((unsigned long)tlb_do_page_fault_1 & 1) {
@@ -2617,11 +2608,21 @@ void build_tlb_refill_handler(void)
 	check_for_high_segbits = current_cpu_data.vmbits > (PGDIR_SHIFT + PGD_ORDER + PAGE_SHIFT - 3);
 #endif
 
-	if (cpu_has_3kex) {
+	switch (current_cpu_type()) {
+	case CPU_R2000:
+	case CPU_R3000:
+	case CPU_R3000A:
+	case CPU_R3081E:
+	case CPU_TX3912:
+	case CPU_TX3922:
+	case CPU_TX3927:
 #ifndef CONFIG_MIPS_PGD_C0_CONTEXT
-		if (!run_once) {
-			build_setup_pgd();
+		if (cpu_has_local_ebase)
 			build_r3000_tlb_refill_handler();
+		if (!run_once) {
+			if (!cpu_has_local_ebase)
+				build_r3000_tlb_refill_handler();
+			build_setup_pgd();
 			build_r3000_tlb_load_handler();
 			build_r3000_tlb_store_handler();
 			build_r3000_tlb_modify_handler();
@@ -2631,27 +2632,34 @@ void build_tlb_refill_handler(void)
 #else
 		panic("No R3000 TLB refill handler");
 #endif
-		return;
-	}
+		break;
 
-	if (cpu_has_ldpte)
-		setup_pw();
+	case CPU_R8000:
+		panic("No R8000 TLB refill handler yet");
+		break;
 
-	if (!run_once) {
-		scratch_reg = allocate_kscratch();
-		build_setup_pgd();
-		build_r4000_tlb_load_handler();
-		build_r4000_tlb_store_handler();
-		build_r4000_tlb_modify_handler();
+	default:
 		if (cpu_has_ldpte)
-			build_loongson3_tlb_refill_handler();
-		else
+			setup_pw();
+
+		if (!run_once) {
+			scratch_reg = allocate_kscratch();
+			build_setup_pgd();
+			build_r4000_tlb_load_handler();
+			build_r4000_tlb_store_handler();
+			build_r4000_tlb_modify_handler();
+			if (cpu_has_ldpte)
+				build_loongson3_tlb_refill_handler();
+			else if (!cpu_has_local_ebase)
+				build_r4000_tlb_refill_handler();
+			flush_tlb_handlers();
+			run_once++;
+		}
+		if (cpu_has_local_ebase)
 			build_r4000_tlb_refill_handler();
-		flush_tlb_handlers();
-		run_once++;
+		if (cpu_has_xpa)
+			config_xpa_params();
+		if (cpu_has_htw)
+			config_htw_params();
 	}
-	if (cpu_has_xpa)
-		config_xpa_params();
-	if (cpu_has_htw)
-		config_htw_params();
 }

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * linux/fs/befs/linuxvfs.c
  *
@@ -45,7 +44,7 @@ static struct dentry *befs_lookup(struct inode *, struct dentry *,
 				  unsigned int);
 static struct inode *befs_iget(struct super_block *, unsigned long);
 static struct inode *befs_alloc_inode(struct super_block *sb);
-static void befs_free_inode(struct inode *inode);
+static void befs_destroy_inode(struct inode *inode);
 static void befs_destroy_inodecache(void);
 static int befs_symlink_readpage(struct file *, struct page *);
 static int befs_utf2nls(struct super_block *sb, const char *in, int in_len,
@@ -65,7 +64,7 @@ static struct dentry *befs_get_parent(struct dentry *child);
 
 static const struct super_operations befs_sops = {
 	.alloc_inode	= befs_alloc_inode,	/* allocate a new inode */
-	.free_inode	= befs_free_inode, /* deallocate an inode */
+	.destroy_inode	= befs_destroy_inode, /* deallocate an inode */
 	.put_super	= befs_put_super,	/* uninit super */
 	.statfs		= befs_statfs,	/* statfs */
 	.remount_fs	= befs_remount,
@@ -282,9 +281,15 @@ befs_alloc_inode(struct super_block *sb)
 	return &bi->vfs_inode;
 }
 
-static void befs_free_inode(struct inode *inode)
+static void befs_i_callback(struct rcu_head *head)
 {
+	struct inode *inode = container_of(head, struct inode, i_rcu);
 	kmem_cache_free(befs_inode_cachep, BEFS_I(inode));
+}
+
+static void befs_destroy_inode(struct inode *inode)
+{
+	call_rcu(&inode->i_rcu, befs_i_callback);
 }
 
 static void init_once(void *foo)
@@ -893,8 +898,6 @@ befs_fill_super(struct super_block *sb, void *data, int silent)
 	sb_set_blocksize(sb, (ulong) befs_sb->block_size);
 	sb->s_op = &befs_sops;
 	sb->s_export_op = &befs_export_operations;
-	sb->s_time_min = 0;
-	sb->s_time_max = 0xffffffffffffll;
 	root = befs_iget(sb, iaddr2blockno(sb, &(befs_sb->root_dir)));
 	if (IS_ERR(root)) {
 		ret = PTR_ERR(root);

@@ -1,10 +1,21 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * USB USBVISION Video device driver 0.9.10
+ *
+ *
  *
  * Copyright (c) 1999-2005 Joerg Heckenbach <joerg@heckenbach-aw.de>
  *
  * This module is part of usbvision driver project.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
  * Let's call the version 0.... until compression decoding is completely
  * implemented.
@@ -16,6 +27,7 @@
  * Gerd Knorr and zoran 36120/36125 driver by Pauline Middelink
  * Updates to driver completed by Dwaine P. Garden
  *
+ *
  * TODO:
  *     - use submit_urb for all setup packets
  *     - Fix memory settings for nt1004. It is 4 times as big as the
@@ -26,6 +38,7 @@
  *     - optimization for performance.
  *     - Add Videotext capability (VBI).  Working on it.....
  *     - Check audio for other devices
+ *
  */
 
 #include <linux/kernel.h>
@@ -87,14 +100,14 @@
 static int usbvision_nr;
 
 static struct usbvision_v4l2_format_st usbvision_v4l2_format[] = {
-	{ 1, 1,  8, V4L2_PIX_FMT_GREY },
-	{ 1, 2, 16, V4L2_PIX_FMT_RGB565 },
-	{ 1, 3, 24, V4L2_PIX_FMT_RGB24 },
-	{ 1, 4, 32, V4L2_PIX_FMT_RGB32 },
-	{ 1, 2, 16, V4L2_PIX_FMT_RGB555 },
-	{ 1, 2, 16, V4L2_PIX_FMT_YUYV },
-	{ 1, 2, 12, V4L2_PIX_FMT_YVU420 }, /* 1.5 ! */
-	{ 1, 2, 16, V4L2_PIX_FMT_YUV422P }
+	{ 1, 1,  8, V4L2_PIX_FMT_GREY    , "GREY" },
+	{ 1, 2, 16, V4L2_PIX_FMT_RGB565  , "RGB565" },
+	{ 1, 3, 24, V4L2_PIX_FMT_RGB24   , "RGB24" },
+	{ 1, 4, 32, V4L2_PIX_FMT_RGB32   , "RGB32" },
+	{ 1, 2, 16, V4L2_PIX_FMT_RGB555  , "RGB555" },
+	{ 1, 2, 16, V4L2_PIX_FMT_YUYV    , "YUV422" },
+	{ 1, 2, 12, V4L2_PIX_FMT_YVU420  , "YUV420P" }, /* 1.5 ! */
+	{ 1, 2, 16, V4L2_PIX_FMT_YUV422P , "YUV422P" }
 };
 
 /* Function prototypes */
@@ -458,21 +471,24 @@ static int vidioc_querycap(struct file *file, void  *priv,
 					struct v4l2_capability *vc)
 {
 	struct usb_usbvision *usbvision = video_drvdata(file);
+	struct video_device *vdev = video_devdata(file);
 
-	if (!usbvision->dev)
-		return -ENODEV;
-
-	strscpy(vc->driver, "USBVision", sizeof(vc->driver));
-	strscpy(vc->card,
+	strlcpy(vc->driver, "USBVision", sizeof(vc->driver));
+	strlcpy(vc->card,
 		usbvision_device_data[usbvision->dev_model].model_string,
 		sizeof(vc->card));
 	usb_make_path(usbvision->dev, vc->bus_info, sizeof(vc->bus_info));
-	vc->capabilities = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_READWRITE |
-			   V4L2_CAP_STREAMING | V4L2_CAP_DEVICE_CAPS;
+	vc->device_caps = usbvision->have_tuner ? V4L2_CAP_TUNER : 0;
+	if (vdev->vfl_type == VFL_TYPE_GRABBER)
+		vc->device_caps |= V4L2_CAP_VIDEO_CAPTURE |
+			V4L2_CAP_READWRITE | V4L2_CAP_STREAMING;
+	else
+		vc->device_caps |= V4L2_CAP_RADIO;
+
+	vc->capabilities = vc->device_caps | V4L2_CAP_VIDEO_CAPTURE |
+		V4L2_CAP_READWRITE | V4L2_CAP_STREAMING | V4L2_CAP_DEVICE_CAPS;
 	if (usbvision_device_data[usbvision->dev_model].radio)
 		vc->capabilities |= V4L2_CAP_RADIO;
-	if (usbvision->have_tuner)
-		vc->capabilities |= V4L2_CAP_TUNER;
 	return 0;
 }
 
@@ -494,9 +510,9 @@ static int vidioc_enum_input(struct file *file, void *priv,
 	switch (chan) {
 	case 0:
 		if (usbvision_device_data[usbvision->dev_model].video_channels == 4) {
-			strscpy(vi->name, "White Video Input", sizeof(vi->name));
+			strcpy(vi->name, "White Video Input");
 		} else {
-			strscpy(vi->name, "Television", sizeof(vi->name));
+			strcpy(vi->name, "Television");
 			vi->type = V4L2_INPUT_TYPE_TUNER;
 			vi->tuner = chan;
 			vi->std = USBVISION_NORMS;
@@ -505,23 +521,22 @@ static int vidioc_enum_input(struct file *file, void *priv,
 	case 1:
 		vi->type = V4L2_INPUT_TYPE_CAMERA;
 		if (usbvision_device_data[usbvision->dev_model].video_channels == 4)
-			strscpy(vi->name, "Green Video Input", sizeof(vi->name));
+			strcpy(vi->name, "Green Video Input");
 		else
-			strscpy(vi->name, "Composite Video Input",
-				sizeof(vi->name));
+			strcpy(vi->name, "Composite Video Input");
 		vi->std = USBVISION_NORMS;
 		break;
 	case 2:
 		vi->type = V4L2_INPUT_TYPE_CAMERA;
 		if (usbvision_device_data[usbvision->dev_model].video_channels == 4)
-			strscpy(vi->name, "Yellow Video Input", sizeof(vi->name));
+			strcpy(vi->name, "Yellow Video Input");
 		else
-			strscpy(vi->name, "S-Video Input", sizeof(vi->name));
+			strcpy(vi->name, "S-Video Input");
 		vi->std = USBVISION_NORMS;
 		break;
 	case 3:
 		vi->type = V4L2_INPUT_TYPE_CAMERA;
-		strscpy(vi->name, "Red Video Input", sizeof(vi->name));
+		strcpy(vi->name, "Red Video Input");
 		vi->std = USBVISION_NORMS;
 		break;
 	}
@@ -580,9 +595,9 @@ static int vidioc_g_tuner(struct file *file, void *priv,
 	if (vt->index)	/* Only tuner 0 */
 		return -EINVAL;
 	if (vt->type == V4L2_TUNER_RADIO)
-		strscpy(vt->name, "Radio", sizeof(vt->name));
+		strcpy(vt->name, "Radio");
 	else
-		strscpy(vt->name, "Television", sizeof(vt->name));
+		strcpy(vt->name, "Television");
 
 	/* Let clients fill in the remainder of this struct */
 	call_all(usbvision, tuner, g_tuner, vt);
@@ -696,7 +711,7 @@ static int vidioc_querybuf(struct file *file,
 	vb->length = usbvision->curwidth *
 		usbvision->curheight *
 		usbvision->palette.bytes_per_pixel;
-	vb->timestamp = ns_to_timeval(usbvision->frame[vb->index].ts);
+	vb->timestamp = usbvision->frame[vb->index].timestamp;
 	vb->sequence = usbvision->frame[vb->index].sequence;
 	return 0;
 }
@@ -765,7 +780,7 @@ static int vidioc_dqbuf(struct file *file, void *priv, struct v4l2_buffer *vb)
 		V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
 	vb->index = f->index;
 	vb->sequence = f->sequence;
-	vb->timestamp = ns_to_timeval(f->ts);
+	vb->timestamp = f->timestamp;
 	vb->field = V4L2_FIELD_NONE;
 	vb->bytesused = f->scanlength;
 
@@ -805,6 +820,7 @@ static int vidioc_enum_fmt_vid_cap(struct file *file, void  *priv,
 {
 	if (vfd->index >= USBVISION_SUPPORTED_PALETTES - 1)
 		return -EINVAL;
+	strcpy(vfd->description, usbvision_v4l2_format[vfd->index].desc);
 	vfd->pixelformat = usbvision_v4l2_format[vfd->index].format;
 	return 0;
 }
@@ -974,6 +990,7 @@ static ssize_t usbvision_read(struct file *file, char __user *buf,
 	       __func__,
 	       (unsigned long)count, frame->bytes_read);
 
+#if 1
 	/*
 	 * FIXME:
 	 * For now, forget the frame if it has not been read in one shot.
@@ -982,6 +999,15 @@ static ssize_t usbvision_read(struct file *file, char __user *buf,
 
 	/* Mark it as available to be used again. */
 	frame->grabstate = frame_state_unused;
+#else
+	if (frame->bytes_read >= frame->scanlength) {
+		/* All data has been read */
+		frame->bytes_read = 0;
+
+		/* Mark it as available to be used again. */
+		frame->grabstate = frame_state_unused;
+	}
+#endif
 
 	return count;
 }
@@ -1114,9 +1140,8 @@ static int usbvision_radio_close(struct file *file)
 	mutex_lock(&usbvision->v4l2_lock);
 	/* Set packet size to 0 */
 	usbvision->iface_alt = 0;
-	if (usbvision->dev)
-		usb_set_interface(usbvision->dev, usbvision->iface,
-				  usbvision->iface_alt);
+	usb_set_interface(usbvision->dev, usbvision->iface,
+				    usbvision->iface_alt);
 
 	usbvision_audio_off(usbvision);
 	usbvision->radio = 0;
@@ -1266,11 +1291,6 @@ static int usbvision_register_video(struct usb_usbvision *usbvision)
 		v4l2_disable_ioctl(&usbvision->vdev, VIDIOC_G_FREQUENCY);
 		v4l2_disable_ioctl(&usbvision->vdev, VIDIOC_S_TUNER);
 	}
-	usbvision->vdev.device_caps = V4L2_CAP_VIDEO_CAPTURE |
-				      V4L2_CAP_READWRITE | V4L2_CAP_STREAMING;
-	if (usbvision->have_tuner)
-		usbvision->vdev.device_caps |= V4L2_CAP_TUNER;
-
 	if (video_register_device(&usbvision->vdev, VFL_TYPE_GRABBER, video_nr) < 0)
 		goto err_exit;
 	printk(KERN_INFO "USBVision[%d]: registered USBVision Video device %s [v4l2]\n",
@@ -1281,7 +1301,6 @@ static int usbvision_register_video(struct usb_usbvision *usbvision)
 		/* usbvision has radio */
 		usbvision_vdev_init(usbvision, &usbvision->rdev,
 			      &usbvision_radio_template, "USBVision Radio");
-		usbvision->rdev.device_caps = V4L2_CAP_RADIO | V4L2_CAP_TUNER;
 		if (video_register_device(&usbvision->rdev, VFL_TYPE_RADIO, radio_nr) < 0)
 			goto err_exit;
 		printk(KERN_INFO "USBVision[%d]: registered USBVision Radio device %s [v4l2]\n",

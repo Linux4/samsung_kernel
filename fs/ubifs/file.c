@@ -1,8 +1,20 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * This file is part of UBIFS.
  *
  * Copyright (C) 2006-2008 Nokia Corporation.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  *
  * Authors: Artem Bityutskiy (Битюцкий Артём)
  *          Adrian Hunter
@@ -67,7 +79,7 @@ static int read_block(struct inode *inode, void *addr, unsigned int block,
 
 	dlen = le32_to_cpu(dn->ch.len) - UBIFS_DATA_NODE_SZ;
 
-	if (IS_ENCRYPTED(inode)) {
+	if (ubifs_crypt_is_encrypted(inode)) {
 		err = ubifs_decrypt(inode, dn, &dlen, block);
 		if (err)
 			goto dump;
@@ -647,7 +659,7 @@ static int populate_page(struct ubifs_info *c, struct page *page,
 			dlen = le32_to_cpu(dn->ch.len) - UBIFS_DATA_NODE_SZ;
 			out_len = UBIFS_BLOCK_SIZE;
 
-			if (IS_ENCRYPTED(inode)) {
+			if (ubifs_crypt_is_encrypted(inode)) {
 				err = ubifs_decrypt(inode, dn, &dlen, page_block);
 				if (err)
 					goto out_err;
@@ -1081,11 +1093,14 @@ static void do_attr_changes(struct inode *inode, const struct iattr *attr)
 	if (attr->ia_valid & ATTR_GID)
 		inode->i_gid = attr->ia_gid;
 	if (attr->ia_valid & ATTR_ATIME)
-		inode->i_atime = attr->ia_atime;
+		inode->i_atime = timespec64_trunc(attr->ia_atime,
+						  inode->i_sb->s_time_gran);
 	if (attr->ia_valid & ATTR_MTIME)
-		inode->i_mtime = attr->ia_mtime;
+		inode->i_mtime = timespec64_trunc(attr->ia_mtime,
+						  inode->i_sb->s_time_gran);
 	if (attr->ia_valid & ATTR_CTIME)
-		inode->i_ctime = attr->ia_ctime;
+		inode->i_ctime = timespec64_trunc(attr->ia_ctime,
+						  inode->i_sb->s_time_gran);
 	if (attr->ia_valid & ATTR_MODE) {
 		umode_t mode = attr->ia_mode;
 
@@ -1362,6 +1377,7 @@ static inline int mctime_update_needed(const struct inode *inode,
 	return 0;
 }
 
+#ifdef CONFIG_UBIFS_ATIME_SUPPORT
 /**
  * ubifs_update_time - update time of inode.
  * @inode: inode to update
@@ -1376,9 +1392,6 @@ int ubifs_update_time(struct inode *inode, struct timespec64 *time,
 	struct ubifs_budget_req req = { .dirtied_ino = 1,
 			.dirtied_ino_d = ALIGN(ui->data_len, 8) };
 	int err, release;
-
-	if (!IS_ENABLED(CONFIG_UBIFS_ATIME_SUPPORT))
-		return generic_update_time(inode, time, flags);
 
 	err = ubifs_budget_space(c, &req);
 	if (err)
@@ -1399,6 +1412,7 @@ int ubifs_update_time(struct inode *inode, struct timespec64 *time,
 		ubifs_release_budget(c, &req);
 	return 0;
 }
+#endif
 
 /**
  * update_mctime - update mtime and ctime of an inode.
@@ -1465,7 +1479,7 @@ static int ubifs_migrate_page(struct address_space *mapping,
 {
 	int rc;
 
-	rc = migrate_page_move_mapping(mapping, newpage, page, 0);
+	rc = migrate_page_move_mapping(mapping, newpage, page, NULL, mode, 0);
 	if (rc != MIGRATEPAGE_SUCCESS)
 		return rc;
 
@@ -1607,10 +1621,9 @@ static int ubifs_file_mmap(struct file *file, struct vm_area_struct *vma)
 	if (err)
 		return err;
 	vma->vm_ops = &ubifs_file_vm_ops;
-
-	if (IS_ENABLED(CONFIG_UBIFS_ATIME_SUPPORT))
-		file_accessed(file);
-
+#ifdef CONFIG_UBIFS_ATIME_SUPPORT
+	file_accessed(file);
+#endif
 	return 0;
 }
 
@@ -1627,16 +1640,6 @@ static const char *ubifs_get_link(struct dentry *dentry,
 		return ERR_PTR(-ECHILD);
 
 	return fscrypt_get_symlink(inode, ui->data, ui->data_len, done);
-}
-
-static int ubifs_symlink_getattr(const struct path *path, struct kstat *stat,
-				 u32 request_mask, unsigned int query_flags)
-{
-	ubifs_getattr(path, stat, request_mask, query_flags);
-
-	if (IS_ENCRYPTED(d_inode(path->dentry)))
-		return fscrypt_symlink_getattr(path, stat);
-	return 0;
 }
 
 const struct address_space_operations ubifs_file_address_operations = {
@@ -1658,17 +1661,21 @@ const struct inode_operations ubifs_file_inode_operations = {
 #ifdef CONFIG_UBIFS_FS_XATTR
 	.listxattr   = ubifs_listxattr,
 #endif
+#ifdef CONFIG_UBIFS_ATIME_SUPPORT
 	.update_time = ubifs_update_time,
+#endif
 };
 
 const struct inode_operations ubifs_symlink_inode_operations = {
 	.get_link    = ubifs_get_link,
 	.setattr     = ubifs_setattr,
-	.getattr     = ubifs_symlink_getattr,
+	.getattr     = ubifs_getattr,
 #ifdef CONFIG_UBIFS_FS_XATTR
 	.listxattr   = ubifs_listxattr,
 #endif
+#ifdef CONFIG_UBIFS_ATIME_SUPPORT
 	.update_time = ubifs_update_time,
+#endif
 };
 
 const struct file_operations ubifs_file_operations = {

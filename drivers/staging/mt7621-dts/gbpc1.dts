@@ -11,8 +11,7 @@
 
 	memory@0 {
 		device_type = "memory";
-		reg = <0x00000000 0x1c000000>,
-		      <0x20000000 0x04000000>;
+		reg = <0x0 0x1c000000>, <0x20000000 0x4000000>;
 	};
 
 	chosen {
@@ -38,16 +37,24 @@
 	gpio-leds {
 		compatible = "gpio-leds";
 
-		power {
-			label = "green:power";
+		system {
+			label = "gb-pc1:green:system";
 			gpios = <&gpio 6 GPIO_ACTIVE_LOW>;
-			linux,default-trigger = "default-on";
 		};
 
-		system {
-			label = "green:system";
+		status {
+			label = "gb-pc1:green:status";
 			gpios = <&gpio 8 GPIO_ACTIVE_LOW>;
-			linux,default-trigger = "disk-activity";
+		};
+
+		lan1 {
+			label = "gb-pc1:green:lan1";
+			gpios = <&gpio 24 GPIO_ACTIVE_LOW>;
+		};
+
+		lan2 {
+			label = "gb-pc1:green:lan2";
+			gpios = <&gpio 25 GPIO_ACTIVE_LOW>;
 		};
 	};
 };
@@ -65,7 +72,6 @@
 		compatible = "jedec,spi-nor";
 		reg = <0>;
 		spi-max-frequency = <50000000>;
-		broken-flash-reset;
 
 		partition@0 {
 			label = "u-boot";
@@ -87,8 +93,9 @@
 
 		partition@50000 {
 			label = "firmware";
-			reg = <0x50000 0x1fb0000>;
+			reg = <0x50000 0x1FB0000>;
 		};
+
 	};
 };
 
@@ -109,28 +116,27 @@
 	status = "okay";
 };
 
-&pinctrl {
-	pinctrl-names = "default";
-	pinctrl-0 = <&state_default>;
+&ethernet {
+	//mtd-mac-address = <&factory 0xe000>;
+	gmac1: mac@0 {
+		compatible = "mediatek,eth-mac";
+		reg = <0>;
+		phy-handle = <&phy1>;
+	};
 
-	state_default: state-default {
-		gpio-pinmux {
-			groups = "rgmii2", "uart3", "wdt";
-			function = "gpio";
+	mdio-bus {
+		phy1: ethernet-phy@1 {
+			reg = <1>;
+			phy-mode = "rgmii";
 		};
 	};
 };
 
-&switch0 {
-	ports {
-		port@0 {
-			status = "okay";
-			label = "ethblack";
-		};
-
-		port@4 {
-			status = "okay";
-			label = "ethblue";
+&pinctrl {
+	state_default: pinctrl0 {
+		gpio {
+			ralink,group = "wdt", "rgmii2", "uart3";
+			ralink,function = "gpio";
 		};
 	};
 };

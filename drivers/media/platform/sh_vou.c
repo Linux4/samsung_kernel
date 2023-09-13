@@ -138,6 +138,7 @@ static void sh_vou_reg_ab_set(struct sh_vou_device *vou_dev, unsigned int reg,
 
 struct sh_vou_fmt {
 	u32		pfmt;
+	char		*desc;
 	unsigned char	bpp;
 	unsigned char	bpl;
 	unsigned char	rgb;
@@ -151,6 +152,7 @@ static struct sh_vou_fmt vou_fmt[] = {
 		.pfmt	= V4L2_PIX_FMT_NV12,
 		.bpp	= 12,
 		.bpl	= 1,
+		.desc	= "YVU420 planar",
 		.yf	= 0,
 		.rgb	= 0,
 	},
@@ -158,6 +160,7 @@ static struct sh_vou_fmt vou_fmt[] = {
 		.pfmt	= V4L2_PIX_FMT_NV16,
 		.bpp	= 16,
 		.bpl	= 1,
+		.desc	= "YVYU planar",
 		.yf	= 1,
 		.rgb	= 0,
 	},
@@ -165,6 +168,7 @@ static struct sh_vou_fmt vou_fmt[] = {
 		.pfmt	= V4L2_PIX_FMT_RGB24,
 		.bpp	= 24,
 		.bpl	= 3,
+		.desc	= "RGB24",
 		.pkf	= 2,
 		.rgb	= 1,
 	},
@@ -172,6 +176,7 @@ static struct sh_vou_fmt vou_fmt[] = {
 		.pfmt	= V4L2_PIX_FMT_RGB565,
 		.bpp	= 16,
 		.bpl	= 2,
+		.desc	= "RGB565",
 		.pkf	= 3,
 		.rgb	= 1,
 	},
@@ -179,6 +184,7 @@ static struct sh_vou_fmt vou_fmt[] = {
 		.pfmt	= V4L2_PIX_FMT_RGB565X,
 		.bpp	= 16,
 		.bpl	= 2,
+		.desc	= "RGB565 byteswapped",
 		.pkf	= 3,
 		.rgb	= 1,
 	},
@@ -372,9 +378,12 @@ static int sh_vou_querycap(struct file *file, void  *priv,
 
 	dev_dbg(vou_dev->v4l2_dev.dev, "%s()\n", __func__);
 
-	strscpy(cap->card, "SuperH VOU", sizeof(cap->card));
-	strscpy(cap->driver, "sh-vou", sizeof(cap->driver));
-	strscpy(cap->bus_info, "platform:sh-vou", sizeof(cap->bus_info));
+	strlcpy(cap->card, "SuperH VOU", sizeof(cap->card));
+	strlcpy(cap->driver, "sh-vou", sizeof(cap->driver));
+	strlcpy(cap->bus_info, "platform:sh-vou", sizeof(cap->bus_info));
+	cap->device_caps = V4L2_CAP_VIDEO_OUTPUT | V4L2_CAP_READWRITE |
+			   V4L2_CAP_STREAMING;
+	cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
 	return 0;
 }
 
@@ -389,6 +398,9 @@ static int sh_vou_enum_fmt_vid_out(struct file *file, void  *priv,
 
 	dev_dbg(vou_dev->v4l2_dev.dev, "%s()\n", __func__);
 
+	fmt->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+	strlcpy(fmt->description, vou_fmt[fmt->index].desc,
+		sizeof(fmt->description));
 	fmt->pixelformat = vou_fmt[fmt->index].pfmt;
 
 	return 0;
@@ -482,8 +494,7 @@ static void sh_vou_configure_geometry(struct sh_vou_device *vou_dev,
 	if (h_idx)
 		vouvcr |= (1 << 14) | vou_scale_v_fld[h_idx - 1];
 
-	dev_dbg(vou_dev->v4l2_dev.dev, "0x%08x: scaling 0x%x\n",
-		fmt->pfmt, vouvcr);
+	dev_dbg(vou_dev->v4l2_dev.dev, "%s: scaling 0x%x\n", fmt->desc, vouvcr);
 
 	/* To produce a colour bar for testing set bit 23 of VOUVCR */
 	sh_vou_reg_ab_write(vou_dev, VOUVCR, vouvcr);
@@ -779,7 +790,7 @@ static int sh_vou_enum_output(struct file *file, void *fh,
 
 	if (a->index)
 		return -EINVAL;
-	strscpy(a->name, "Video Out", sizeof(a->name));
+	strlcpy(a->name, "Video Out", sizeof(a->name));
 	a->type = V4L2_OUTPUT_TYPE_ANALOG;
 	a->std = vou_dev->vdev.tvnorms;
 	return 0;
@@ -996,7 +1007,7 @@ static int sh_vou_s_selection(struct file *file, void *fh,
 
 	/*
 	 * No down-scaling. According to the API, current call has precedence:
-	 * https://linuxtv.org/downloads/v4l-dvb-apis/uapi/v4l/crop.html#cropping-structures
+	 * http://v4l2spec.bytesex.org/spec/x1904.htm#AEN1954 paragraph two.
 	 */
 	vou_adjust_input(&geo, vou_dev->std);
 
@@ -1133,11 +1144,7 @@ static int sh_vou_open(struct file *file)
 	if (v4l2_fh_is_singular_file(file) &&
 	    vou_dev->status == SH_VOU_INITIALISING) {
 		/* First open */
-		err = pm_runtime_resume_and_get(vou_dev->v4l2_dev.dev);
-		if (err < 0) {
-			v4l2_fh_release(file);
-			goto done_open;
-		}
+		pm_runtime_get_sync(vou_dev->v4l2_dev.dev);
 		err = sh_vou_hw_init(vou_dev);
 		if (err < 0) {
 			pm_runtime_put(vou_dev->v4l2_dev.dev);
@@ -1211,8 +1218,6 @@ static const struct video_device sh_vou_video_template = {
 	.ioctl_ops	= &sh_vou_ioctl_ops,
 	.tvnorms	= V4L2_STD_525_60, /* PAL only supported in 8-bit non-bt656 mode */
 	.vfl_dir	= VFL_DIR_TX,
-	.device_caps	= V4L2_CAP_VIDEO_OUTPUT | V4L2_CAP_READWRITE |
-			  V4L2_CAP_STREAMING,
 };
 
 static int sh_vou_probe(struct platform_device *pdev)

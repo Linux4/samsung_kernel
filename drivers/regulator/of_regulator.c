@@ -1,9 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * OF helpers for regulator framework
  *
  * Copyright (C) 2011 Texas Instruments, Inc.
  * Rajendra Nayak <rnayak@ti.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  */
 
 #include <linux/module.h>
@@ -16,13 +20,11 @@
 #include "internal.h"
 
 static const char *const regulator_states[PM_SUSPEND_MAX + 1] = {
-	[PM_SUSPEND_STANDBY]	= "regulator-state-standby",
 	[PM_SUSPEND_MEM]	= "regulator-state-mem",
 	[PM_SUSPEND_MAX]	= "regulator-state-disk",
 };
 
-static int of_get_regulation_constraints(struct device *dev,
-					struct device_node *np,
+static void of_get_regulation_constraints(struct device_node *np,
 					struct regulator_init_data **init_data,
 					const struct regulator_desc *desc)
 {
@@ -31,12 +33,7 @@ static int of_get_regulation_constraints(struct device *dev,
 	struct device_node *suspend_np;
 	unsigned int mode;
 	int ret, i, len;
-	int n_phandles;
 	u32 pval;
-
-	n_phandles = of_count_phandle_with_args(np, "regulator-coupled-with",
-						NULL);
-	n_phandles = max(n_phandles, 0);
 
 	constraints->name = of_get_property(np, "regulator-name", NULL);
 
@@ -98,8 +95,8 @@ static int of_get_regulation_constraints(struct device *dev,
 	if (!ret)
 		constraints->settling_time_up = pval;
 	if (constraints->settling_time_up && constraints->settling_time) {
-		pr_warn("%pOFn: ambiguous configuration for settling time, ignoring 'regulator-settling-time-up-us'\n",
-			np);
+		pr_warn("%s: ambiguous configuration for settling time, ignoring 'regulator-settling-time-up-us'\n",
+			np->name);
 		constraints->settling_time_up = 0;
 	}
 
@@ -108,8 +105,8 @@ static int of_get_regulation_constraints(struct device *dev,
 	if (!ret)
 		constraints->settling_time_down = pval;
 	if (constraints->settling_time_down && constraints->settling_time) {
-		pr_warn("%pOFn: ambiguous configuration for settling time, ignoring 'regulator-settling-time-down-us'\n",
-			np);
+		pr_warn("%s: ambiguous configuration for settling time, ignoring 'regulator-settling-time-down-us'\n",
+			np->name);
 		constraints->settling_time_down = 0;
 	}
 
@@ -130,12 +127,12 @@ static int of_get_regulation_constraints(struct device *dev,
 		if (desc && desc->of_map_mode) {
 			mode = desc->of_map_mode(pval);
 			if (mode == REGULATOR_MODE_INVALID)
-				pr_err("%pOFn: invalid mode %u\n", np, pval);
+				pr_err("%s: invalid mode %u\n", np->name, pval);
 			else
 				constraints->initial_mode = mode;
 		} else {
-			pr_warn("%pOFn: mapping for mode %d not defined\n",
-				np, pval);
+			pr_warn("%s: mapping for mode %d not defined\n",
+				np->name, pval);
 		}
 	}
 
@@ -147,14 +144,14 @@ static int of_get_regulation_constraints(struct device *dev,
 				ret = of_property_read_u32_index(np,
 					"regulator-allowed-modes", i, &pval);
 				if (ret) {
-					pr_err("%pOFn: couldn't read allowed modes index %d, ret=%d\n",
-						np, i, ret);
+					pr_err("%s: couldn't read allowed modes index %d, ret=%d\n",
+						np->name, i, ret);
 					break;
 				}
 				mode = desc->of_map_mode(pval);
 				if (mode == REGULATOR_MODE_INVALID)
-					pr_err("%pOFn: invalid regulator-allowed-modes element %u\n",
-						np, pval);
+					pr_err("%s: invalid regulator-allowed-modes element %u\n",
+						np->name, pval);
 				else
 					constraints->valid_modes_mask |= mode;
 			}
@@ -162,28 +159,16 @@ static int of_get_regulation_constraints(struct device *dev,
 				constraints->valid_ops_mask
 					|= REGULATOR_CHANGE_MODE;
 		} else {
-			pr_warn("%pOFn: mode mapping not defined\n", np);
+			pr_warn("%s: mode mapping not defined\n", np->name);
 		}
 	}
 
 	if (!of_property_read_u32(np, "regulator-system-load", &pval))
 		constraints->system_load = pval;
 
-	if (n_phandles) {
-		constraints->max_spread = devm_kzalloc(dev,
-				sizeof(*constraints->max_spread) * n_phandles,
-				GFP_KERNEL);
-
-		if (!constraints->max_spread)
-			return -ENOMEM;
-
-		of_property_read_u32_array(np, "regulator-coupled-max-spread",
-					   constraints->max_spread, n_phandles);
-	}
-
-	if (!of_property_read_u32(np, "regulator-max-step-microvolt",
+	if (!of_property_read_u32(np, "regulator-coupled-max-spread",
 				  &pval))
-		constraints->max_uV_step = pval;
+		constraints->max_spread = pval;
 
 	constraints->over_current_protection = of_property_read_bool(np,
 					"regulator-over-current-protection");
@@ -196,11 +181,9 @@ static int of_get_regulation_constraints(struct device *dev,
 		case PM_SUSPEND_MAX:
 			suspend_state = &constraints->state_disk;
 			break;
-		case PM_SUSPEND_STANDBY:
-			suspend_state = &constraints->state_standby;
-			break;
 		case PM_SUSPEND_ON:
 		case PM_SUSPEND_TO_IDLE:
+		case PM_SUSPEND_STANDBY:
 		default:
 			continue;
 		}
@@ -214,13 +197,13 @@ static int of_get_regulation_constraints(struct device *dev,
 			if (desc && desc->of_map_mode) {
 				mode = desc->of_map_mode(pval);
 				if (mode == REGULATOR_MODE_INVALID)
-					pr_err("%pOFn: invalid mode %u\n",
-					       np, pval);
+					pr_err("%s: invalid mode %u\n",
+					       np->name, pval);
 				else
 					suspend_state->mode = mode;
 			} else {
-				pr_warn("%pOFn: mapping for mode %d not defined\n",
-					np, pval);
+				pr_warn("%s: mapping for mode %d not defined\n",
+					np->name, pval);
 			}
 		}
 
@@ -256,8 +239,6 @@ static int of_get_regulation_constraints(struct device *dev,
 		suspend_state = NULL;
 		suspend_np = NULL;
 	}
-
-	return 0;
 }
 
 /**
@@ -267,7 +248,7 @@ static int of_get_regulation_constraints(struct device *dev,
  * @desc: regulator description
  *
  * Populates regulator_init_data structure by extracting data from device
- * tree node, returns a pointer to the populated structure or NULL if memory
+ * tree node, returns a pointer to the populated struture or NULL if memory
  * alloc fails.
  */
 struct regulator_init_data *of_get_regulator_init_data(struct device *dev,
@@ -283,9 +264,7 @@ struct regulator_init_data *of_get_regulator_init_data(struct device *dev,
 	if (!init_data)
 		return NULL; /* Out of memory? */
 
-	if (of_get_regulation_constraints(dev, node, &init_data, desc))
-		return NULL;
-
+	of_get_regulation_constraints(node, &init_data, desc);
 	return init_data;
 }
 EXPORT_SYMBOL_GPL(of_get_regulator_init_data);
@@ -370,8 +349,8 @@ int of_regulator_match(struct device *dev, struct device_node *node,
 							   match->desc);
 			if (!match->init_data) {
 				dev_err(dev,
-					"failed to parse DT for regulator %pOFn\n",
-					child);
+					"failed to parse DT for regulator %s\n",
+					child->name);
 				of_node_put(child);
 				return -EINVAL;
 			}
@@ -385,25 +364,23 @@ int of_regulator_match(struct device *dev, struct device_node *node,
 }
 EXPORT_SYMBOL_GPL(of_regulator_match);
 
-static struct
-device_node *regulator_of_get_init_node(struct device *dev,
-					const struct regulator_desc *desc)
+struct regulator_init_data *regulator_of_get_init_data(struct device *dev,
+					    const struct regulator_desc *desc,
+					    struct regulator_config *config,
+					    struct device_node **node)
 {
 	struct device_node *search, *child;
+	struct regulator_init_data *init_data = NULL;
 	const char *name;
 
 	if (!dev->of_node || !desc->of_match)
 		return NULL;
 
-	if (desc->regulators_node) {
+	if (desc->regulators_node)
 		search = of_get_child_by_name(dev->of_node,
 					      desc->regulators_node);
-	} else {
+	else
 		search = of_node_get(dev->of_node);
-
-		if (!strcmp(desc->of_match, search->name))
-			return search;
-	}
 
 	if (!search) {
 		dev_dbg(dev, "Failed to find regulator container node '%s'\n",
@@ -416,66 +393,47 @@ device_node *regulator_of_get_init_node(struct device *dev,
 		if (!name)
 			name = child->name;
 
-		if (!strcmp(desc->of_match, name)) {
-			of_node_put(search);
-			return of_node_get(child);
+		if (strcmp(desc->of_match, name))
+			continue;
+
+		init_data = of_get_regulator_init_data(dev, child, desc);
+		if (!init_data) {
+			dev_err(dev,
+				"failed to parse DT for regulator %s\n",
+				child->name);
+			break;
 		}
+
+		if (desc->of_parse_cb) {
+			if (desc->of_parse_cb(child, desc, config)) {
+				dev_err(dev,
+					"driver callback failed to parse DT for regulator %s\n",
+					child->name);
+				init_data = NULL;
+				break;
+			}
+		}
+
+		of_node_get(child);
+		*node = child;
+		break;
 	}
 
 	of_node_put(search);
 
-	return NULL;
+	return init_data;
 }
 
-struct regulator_init_data *regulator_of_get_init_data(struct device *dev,
-					    const struct regulator_desc *desc,
-					    struct regulator_config *config,
-					    struct device_node **node)
+static int of_node_match(struct device *dev, const void *data)
 {
-	struct device_node *child;
-	struct regulator_init_data *init_data = NULL;
-
-	child = regulator_of_get_init_node(dev, desc);
-	if (!child)
-		return NULL;
-
-	init_data = of_get_regulator_init_data(dev, child, desc);
-	if (!init_data) {
-		dev_err(dev, "failed to parse DT for regulator %pOFn\n", child);
-		goto error;
-	}
-
-	if (desc->of_parse_cb) {
-		int ret;
-
-		ret = desc->of_parse_cb(child, desc, config);
-		if (ret) {
-			if (ret == -EPROBE_DEFER) {
-				of_node_put(child);
-				return ERR_PTR(-EPROBE_DEFER);
-			}
-			dev_err(dev,
-				"driver callback failed to parse DT for regulator %pOFn\n",
-				child);
-			goto error;
-		}
-	}
-
-	*node = child;
-
-	return init_data;
-
-error:
-	of_node_put(child);
-
-	return NULL;
+	return dev->of_node == data;
 }
 
 struct regulator_dev *of_find_regulator_by_node(struct device_node *np)
 {
 	struct device *dev;
 
-	dev = class_find_device_by_of_node(&regulator_class, np);
+	dev = class_find_device(&regulator_class, NULL, np, of_node_match);
 
 	return dev ? dev_to_rdev(dev) : NULL;
 }
@@ -497,8 +455,7 @@ int of_get_n_coupled(struct regulator_dev *rdev)
 
 /* Looks for "to_find" device_node in src's "regulator-coupled-with" property */
 static bool of_coupling_find_node(struct device_node *src,
-				  struct device_node *to_find,
-				  int *index)
+				  struct device_node *to_find)
 {
 	int n_phandles, i;
 	bool found = false;
@@ -520,10 +477,8 @@ static bool of_coupling_find_node(struct device_node *src,
 
 		of_node_put(tmp);
 
-		if (found) {
-			*index = i;
+		if (found)
 			break;
-		}
 	}
 
 	return found;
@@ -544,22 +499,21 @@ static bool of_coupling_find_node(struct device_node *src,
  */
 bool of_check_coupling_data(struct regulator_dev *rdev)
 {
+	int max_spread = rdev->constraints->max_spread;
 	struct device_node *node = rdev->dev.of_node;
 	int n_phandles = of_get_n_coupled(rdev);
 	struct device_node *c_node;
-	int index;
 	int i;
 	bool ret = true;
 
+	if (max_spread <= 0) {
+		dev_err(&rdev->dev, "max_spread value invalid\n");
+		return false;
+	}
+
 	/* iterate over rdev's phandles */
 	for (i = 0; i < n_phandles; i++) {
-		int max_spread = rdev->constraints->max_spread[i];
 		int c_max_spread, c_n_phandles;
-
-		if (max_spread <= 0) {
-			dev_err(&rdev->dev, "max_spread value invalid\n");
-			return false;
-		}
 
 		c_node = of_parse_phandle(node,
 					  "regulator-coupled-with", i);
@@ -572,19 +526,13 @@ bool of_check_coupling_data(struct regulator_dev *rdev)
 							  NULL);
 
 		if (c_n_phandles != n_phandles) {
-			dev_err(&rdev->dev, "number of coupled reg phandles mismatch\n");
+			dev_err(&rdev->dev, "number of couped reg phandles mismatch\n");
 			ret = false;
 			goto clean;
 		}
 
-		if (!of_coupling_find_node(c_node, node, &index)) {
-			dev_err(&rdev->dev, "missing 2-way linking for coupled regulators\n");
-			ret = false;
-			goto clean;
-		}
-
-		if (of_property_read_u32_index(c_node, "regulator-coupled-max-spread",
-					       index, &c_max_spread)) {
+		if (of_property_read_u32(c_node, "regulator-coupled-max-spread",
+					 &c_max_spread)) {
 			ret = false;
 			goto clean;
 		}
@@ -594,6 +542,11 @@ bool of_check_coupling_data(struct regulator_dev *rdev)
 				"coupled regulators max_spread mismatch\n");
 			ret = false;
 			goto clean;
+		}
+
+		if (!of_coupling_find_node(c_node, node)) {
+			dev_err(&rdev->dev, "missing 2-way linking for coupled regulators\n");
+			ret = false;
 		}
 
 clean:

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /* $Id: lmc_media.c,v 1.13 2000/04/11 05:25:26 asj Exp $ */
 
 #include <linux/kernel.h>
@@ -38,6 +37,9 @@
   * Rob Braun (bbraun@vix.com),
   * Michael Graff (explorer@vix.com) and
   * Matt Thomas (matt@3am-software.com).
+  *
+  * This software may be used and distributed according to the terms
+  * of the GNU General Public License version 2, incorporated herein by reference.
   */
 
 /*

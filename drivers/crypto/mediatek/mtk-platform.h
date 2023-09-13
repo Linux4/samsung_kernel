@@ -1,8 +1,12 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Driver for EIP97 cryptographic accelerator.
  *
  * Copyright (c) 2016 Ryder Lee <ryder.lee@mediatek.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
  */
 
 #ifndef __MTK_PLATFORM_H_

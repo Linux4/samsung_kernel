@@ -1,7 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /* The industrial I/O core
  *
  * Copyright (c) 2008 Jonathan Cameron
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
  *
  * Based on elements of hwmon and input subsystems.
  */
@@ -16,7 +19,6 @@
 #include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/poll.h>
-#include <linux/property.h>
 #include <linux/sched.h>
 #include <linux/wait.h>
 #include <linux/cdev.h>
@@ -85,7 +87,6 @@ static const char * const iio_chan_type_name_spec[] = {
 	[IIO_GRAVITY]  = "gravity",
 	[IIO_POSITIONRELATIVE]  = "positionrelative",
 	[IIO_PHASE] = "phase",
-	[IIO_MASSCONCENTRATION] = "massconcentration",
 };
 
 static const char * const iio_modifier_names[] = {
@@ -126,12 +127,6 @@ static const char * const iio_modifier_names[] = {
 	[IIO_MOD_Q] = "q",
 	[IIO_MOD_CO2] = "co2",
 	[IIO_MOD_VOC] = "voc",
-	[IIO_MOD_PM1] = "pm1",
-	[IIO_MOD_PM2P5] = "pm2p5",
-	[IIO_MOD_PM4] = "pm4",
-	[IIO_MOD_PM10] = "pm10",
-	[IIO_MOD_ETHANOL] = "ethanol",
-	[IIO_MOD_H2] = "h2",
 };
 
 /* relies on pairs of these shared then separate */
@@ -230,9 +225,9 @@ s64 iio_get_time_ns(const struct iio_dev *indio_dev)
 		ktime_get_coarse_ts64(&tp);
 		return timespec64_to_ns(&tp);
 	case CLOCK_BOOTTIME:
-		return ktime_get_boottime_ns();
+		return ktime_get_boot_ns();
 	case CLOCK_TAI:
-		return ktime_get_clocktai_ns();
+		return ktime_get_tai_ns();
 	default:
 		BUG();
 	}
@@ -368,25 +363,39 @@ static void iio_device_unregister_debugfs(struct iio_dev *indio_dev)
 	debugfs_remove_recursive(indio_dev->debugfs_dentry);
 }
 
-static void iio_device_register_debugfs(struct iio_dev *indio_dev)
+static int iio_device_register_debugfs(struct iio_dev *indio_dev)
 {
+	struct dentry *d;
+
 	if (indio_dev->info->debugfs_reg_access == NULL)
-		return;
+		return 0;
 
 	if (!iio_debugfs_dentry)
-		return;
+		return 0;
 
 	indio_dev->debugfs_dentry =
 		debugfs_create_dir(dev_name(&indio_dev->dev),
 				   iio_debugfs_dentry);
+	if (indio_dev->debugfs_dentry == NULL) {
+		dev_warn(indio_dev->dev.parent,
+			 "Failed to create debugfs directory\n");
+		return -EFAULT;
+	}
 
-	debugfs_create_file("direct_reg_access", 0644,
-			    indio_dev->debugfs_dentry, indio_dev,
-			    &iio_debugfs_reg_fops);
+	d = debugfs_create_file("direct_reg_access", 0644,
+				indio_dev->debugfs_dentry,
+				indio_dev, &iio_debugfs_reg_fops);
+	if (!d) {
+		iio_device_unregister_debugfs(indio_dev);
+		return -ENOMEM;
+	}
+
+	return 0;
 }
 #else
-static void iio_device_register_debugfs(struct iio_dev *indio_dev)
+static int iio_device_register_debugfs(struct iio_dev *indio_dev)
 {
+	return 0;
 }
 
 static void iio_device_unregister_debugfs(struct iio_dev *indio_dev)
@@ -516,8 +525,8 @@ ssize_t iio_show_mount_matrix(struct iio_dev *indio_dev, uintptr_t priv,
 EXPORT_SYMBOL_GPL(iio_show_mount_matrix);
 
 /**
- * iio_read_mount_matrix() - retrieve iio device mounting matrix from
- *                           device "mount-matrix" property
+ * of_iio_read_mount_matrix() - retrieve iio device mounting matrix from
+ *                              device-tree "mount-matrix" property
  * @dev:	device the mounting matrix property is assigned to
  * @propname:	device specific mounting matrix property name
  * @matrix:	where to store retrieved matrix
@@ -527,29 +536,40 @@ EXPORT_SYMBOL_GPL(iio_show_mount_matrix);
  *
  * Return: 0 if success, or a negative error code on failure.
  */
-int iio_read_mount_matrix(struct device *dev, const char *propname,
-			  struct iio_mount_matrix *matrix)
+#ifdef CONFIG_OF
+int of_iio_read_mount_matrix(const struct device *dev,
+			     const char *propname,
+			     struct iio_mount_matrix *matrix)
 {
-	size_t len = ARRAY_SIZE(iio_mount_idmatrix.rotation);
-	int err;
+	if (dev->of_node) {
+		int err = of_property_read_string_array(dev->of_node,
+				propname, matrix->rotation,
+				ARRAY_SIZE(iio_mount_idmatrix.rotation));
 
-	err = device_property_read_string_array(dev, propname,
-						matrix->rotation, len);
-	if (err == len)
-		return 0;
+		if (err == ARRAY_SIZE(iio_mount_idmatrix.rotation))
+			return 0;
 
-	if (err >= 0)
-		/* Invalid number of matrix entries. */
-		return -EINVAL;
+		if (err >= 0)
+			/* Invalid number of matrix entries. */
+			return -EINVAL;
 
-	if (err != -EINVAL)
-		/* Invalid matrix declaration format. */
-		return err;
+		if (err != -EINVAL)
+			/* Invalid matrix declaration format. */
+			return err;
+	}
 
 	/* Matrix was not declared at all: fallback to identity. */
 	return iio_setup_mount_idmatrix(dev, matrix);
 }
-EXPORT_SYMBOL(iio_read_mount_matrix);
+#else
+int of_iio_read_mount_matrix(const struct device *dev,
+			     const char *propname,
+			     struct iio_mount_matrix *matrix)
+{
+	return iio_setup_mount_idmatrix(dev, matrix);
+}
+#endif
+EXPORT_SYMBOL(of_iio_read_mount_matrix);
 
 static ssize_t __iio_format_value(char *buf, size_t len, unsigned int type,
 				  int size, const int *vals)
@@ -1092,8 +1112,6 @@ static int iio_device_add_info_mask_type_avail(struct iio_dev *indio_dev,
 	char *avail_postfix;
 
 	for_each_set_bit(i, infomask, sizeof(*infomask) * 8) {
-		if (i >= ARRAY_SIZE(iio_chan_info_postfix))
-			return -EINVAL;
 		avail_postfix = kasprintf(GFP_KERNEL,
 					  "%s_available",
 					  iio_chan_info_postfix[i]);
@@ -1653,13 +1671,15 @@ int __iio_device_register(struct iio_dev *indio_dev, struct module *this_mod)
 	if (ret < 0)
 		return ret;
 
-	if (!indio_dev->info)
-		return -EINVAL;
-
 	/* configure elements for the chrdev */
 	indio_dev->dev.devt = MKDEV(MAJOR(iio_devt), indio_dev->id);
 
-	iio_device_register_debugfs(indio_dev);
+	ret = iio_device_register_debugfs(indio_dev);
+	if (ret) {
+		dev_err(indio_dev->dev.parent,
+			"Failed to register debugfs interfaces\n");
+		return ret;
+	}
 
 	ret = iio_buffer_alloc_sysfs_and_mask(indio_dev);
 	if (ret) {

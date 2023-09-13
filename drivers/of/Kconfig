@@ -43,7 +43,6 @@ config OF_FLATTREE
 
 config OF_EARLY_FLATTREE
 	bool
-	select DMA_DECLARE_COHERENT if HAS_DMA
 	select OF_FLATTREE
 
 config OF_PROMTREE
@@ -82,19 +81,10 @@ config OF_MDIO
 	  OpenFirmware MDIO bus (Ethernet PHY) accessors
 
 config OF_RESERVED_MEM
-	bool
 	depends on OF_EARLY_FLATTREE
-	default y if DMA_DECLARE_COHERENT || DMA_CMA
-
-config OF_RESERVED_MEM_CHECK
-	bool "Reserved memory registration check"
-	depends on OF_RESERVED_MEM
+	bool
 	help
-	  If a device has a reserved memory region and allocates memory
-	  through the DMA API, check to see if the device and region have been
-	  associated through a call to of_reserved_mem_device_init_by_idx()
-	  before performing an allocation. If the association hasn't occurred,
-	  WARN_ON.
+	  Helpers to allow for reservation of memory regions
 
 config OF_RESOLVE
 	bool

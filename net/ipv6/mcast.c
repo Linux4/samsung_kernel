@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *	Multicast support for IPv6
  *	Linux INET6 implementation
@@ -7,6 +6,11 @@
  *	Pedro Roque		<roque@di.fc.ul.pt>
  *
  *	Based on linux/ipv4/igmp.c and linux/ipv4/ip_sockglue.c
+ *
+ *	This program is free software; you can redistribute it and/or
+ *      modify it under the terms of the GNU General Public License
+ *      as published by the Free Software Foundation; either version
+ *      2 of the License, or (at your option) any later version.
  */
 
 /* Changes:
@@ -632,7 +636,7 @@ bool inet6_mc_check(struct sock *sk, const struct in6_addr *mc_addr,
 	}
 	if (!mc) {
 		rcu_read_unlock();
-		return np->mc_all;
+		return true;
 	}
 	read_lock(&mc->sflock);
 	psl = mc->sflist;
@@ -937,7 +941,6 @@ int ipv6_dev_mc_inc(struct net_device *dev, const struct in6_addr *addr)
 {
 	return __ipv6_dev_mc_inc(dev, addr, MCAST_EXCLUDE);
 }
-EXPORT_SYMBOL(ipv6_dev_mc_inc);
 
 /*
  *	device multicast group del
@@ -985,7 +988,6 @@ int ipv6_dev_mc_dec(struct net_device *dev, const struct in6_addr *addr)
 
 	return err;
 }
-EXPORT_SYMBOL(ipv6_dev_mc_dec);
 
 /*
  *	check if the interface/address pair is valid
@@ -1604,7 +1606,10 @@ static struct sk_buff *mld_newpack(struct inet6_dev *idev, unsigned int mtu)
 		     IPV6_TLV_PADN, 0 };
 
 	/* we assume size > sizeof(ra) here */
+	/* limit our allocations to order-0 page */
+	size = min_t(int, size, SKB_MAX_ORDER(0, 0));
 	skb = sock_alloc_send_skb(sk, size, 1, &err);
+
 	if (!skb)
 		return NULL;
 

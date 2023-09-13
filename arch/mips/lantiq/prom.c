@@ -1,12 +1,14 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
+ *  This program is free software; you can redistribute it and/or modify it
+ *  under the terms of the GNU General Public License version 2 as published
+ *  by the Free Software Foundation.
  *
  * Copyright (C) 2010 John Crispin <john@phrozen.org>
  */
 
 #include <linux/export.h>
 #include <linux/clk.h>
-#include <linux/memblock.h>
+#include <linux/bootmem.h>
 #include <linux/of_fdt.h>
 
 #include <asm/bootinfo.h>
@@ -79,7 +81,7 @@ void __init plat_mem_setup(void)
 
 	if (fw_passed_dtb) /* UHI interface */
 		dtb = (void *)fw_passed_dtb;
-	else if (&__dtb_start != &__dtb_end)
+	else if (__dtb_start != __dtb_end)
 		dtb = (void *)__dtb_start;
 	else
 		panic("no dtb found");

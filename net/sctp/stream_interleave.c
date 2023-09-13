@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /* SCTP kernel implementation
  * (C) Copyright Red Hat Inc. 2017
  *
@@ -6,6 +5,22 @@
  *
  * These functions implement sctp stream message interleaving, mostly
  * including I-DATA and I-FORWARD-TSN chunks process.
+ *
+ * This SCTP implementation is free software;
+ * you can redistribute it and/or modify it under the terms of
+ * the GNU General Public License as published by
+ * the Free Software Foundation; either version 2, or (at your option)
+ * any later version.
+ *
+ * This SCTP implementation is distributed in the hope that it
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ *                 ************************
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with GNU CC; see the file COPYING.  If not, see
+ * <http://www.gnu.org/licenses/>.
  *
  * Please send any bug reports or fixes you make to the
  * email addresched(es):
@@ -86,7 +101,7 @@ static void sctp_chunk_assign_mid(struct sctp_chunk *chunk)
 
 static bool sctp_validate_data(struct sctp_chunk *chunk)
 {
-	struct sctp_stream *stream;
+	const struct sctp_stream *stream;
 	__u16 sid, ssn;
 
 	if (chunk->chunk_hdr->type != SCTP_CID_DATA)
@@ -125,7 +140,7 @@ static void sctp_intl_store_reasm(struct sctp_ulpq *ulpq,
 				  struct sctp_ulpevent *event)
 {
 	struct sctp_ulpevent *cevent;
-	struct sk_buff *pos, *loc;
+	struct sk_buff *pos;
 
 	pos = skb_peek_tail(&ulpq->reasm);
 	if (!pos) {
@@ -151,30 +166,23 @@ static void sctp_intl_store_reasm(struct sctp_ulpq *ulpq,
 		return;
 	}
 
-	loc = NULL;
 	skb_queue_walk(&ulpq->reasm, pos) {
 		cevent = sctp_skb2event(pos);
 
 		if (event->stream < cevent->stream ||
 		    (event->stream == cevent->stream &&
-		     MID_lt(event->mid, cevent->mid))) {
-			loc = pos;
+		     MID_lt(event->mid, cevent->mid)))
 			break;
-		}
+
 		if (event->stream == cevent->stream &&
 		    event->mid == cevent->mid &&
 		    !(cevent->msg_flags & SCTP_DATA_FIRST_FRAG) &&
 		    (event->msg_flags & SCTP_DATA_FIRST_FRAG ||
-		     event->fsn < cevent->fsn)) {
-			loc = pos;
+		     event->fsn < cevent->fsn))
 			break;
-		}
 	}
 
-	if (!loc)
-		__skb_queue_tail(&ulpq->reasm, sctp_event2skb(event));
-	else
-		__skb_queue_before(&ulpq->reasm, loc, sctp_event2skb(event));
+	__skb_queue_before(&ulpq->reasm, pos, sctp_event2skb(event));
 }
 
 static struct sctp_ulpevent *sctp_intl_retrieve_partial(
@@ -375,7 +383,7 @@ static void sctp_intl_store_ordered(struct sctp_ulpq *ulpq,
 				    struct sctp_ulpevent *event)
 {
 	struct sctp_ulpevent *cevent;
-	struct sk_buff *pos, *loc;
+	struct sk_buff *pos;
 
 	pos = skb_peek_tail(&ulpq->lobby);
 	if (!pos) {
@@ -395,25 +403,18 @@ static void sctp_intl_store_ordered(struct sctp_ulpq *ulpq,
 		return;
 	}
 
-	loc = NULL;
 	skb_queue_walk(&ulpq->lobby, pos) {
 		cevent = (struct sctp_ulpevent *)pos->cb;
 
-		if (cevent->stream > event->stream) {
-			loc = pos;
+		if (cevent->stream > event->stream)
 			break;
-		}
+
 		if (cevent->stream == event->stream &&
-		    MID_lt(event->mid, cevent->mid)) {
-			loc = pos;
+		    MID_lt(event->mid, cevent->mid))
 			break;
-		}
 	}
 
-	if (!loc)
-		__skb_queue_tail(&ulpq->lobby, sctp_event2skb(event));
-	else
-		__skb_queue_before(&ulpq->lobby, loc, sctp_event2skb(event));
+	__skb_queue_before(&ulpq->lobby, pos, sctp_event2skb(event));
 }
 
 static void sctp_intl_retrieve_ordered(struct sctp_ulpq *ulpq,
@@ -469,15 +470,14 @@ static struct sctp_ulpevent *sctp_intl_order(struct sctp_ulpq *ulpq,
 }
 
 static int sctp_enqueue_event(struct sctp_ulpq *ulpq,
-			      struct sk_buff_head *skb_list)
+			      struct sctp_ulpevent *event)
 {
+	struct sk_buff *skb = sctp_event2skb(event);
 	struct sock *sk = ulpq->asoc->base.sk;
 	struct sctp_sock *sp = sctp_sk(sk);
-	struct sctp_ulpevent *event;
-	struct sk_buff *skb;
+	struct sk_buff_head *skb_list;
 
-	skb = __skb_peek(skb_list);
-	event = sctp_skb2event(skb);
+	skb_list = (struct sk_buff_head *)skb->prev;
 
 	if (sk->sk_shutdown & RCV_SHUTDOWN &&
 	    (sk->sk_shutdown & SEND_SHUTDOWN ||
@@ -489,7 +489,7 @@ static int sctp_enqueue_event(struct sctp_ulpq *ulpq,
 		sk_incoming_cpu_update(sk);
 	}
 
-	if (!sctp_ulpevent_is_enabled(event, ulpq->asoc->subscribe))
+	if (!sctp_ulpevent_is_enabled(event, &sp->subscribe))
 		goto out_free;
 
 	if (skb_list)
@@ -844,24 +844,19 @@ static int sctp_ulpevent_idata(struct sctp_ulpq *ulpq,
 
 	if (!(event->msg_flags & SCTP_DATA_UNORDERED)) {
 		event = sctp_intl_reasm(ulpq, event);
-		if (event) {
+		if (event && event->msg_flags & MSG_EOR) {
 			skb_queue_head_init(&temp);
 			__skb_queue_tail(&temp, sctp_event2skb(event));
 
-			if (event->msg_flags & MSG_EOR)
-				event = sctp_intl_order(ulpq, event);
+			event = sctp_intl_order(ulpq, event);
 		}
 	} else {
 		event = sctp_intl_reasm_uo(ulpq, event);
-		if (event) {
-			skb_queue_head_init(&temp);
-			__skb_queue_tail(&temp, sctp_event2skb(event));
-		}
 	}
 
 	if (event) {
 		event_eor = (event->msg_flags & MSG_EOR) ? 1 : 0;
-		sctp_enqueue_event(ulpq, &temp);
+		sctp_enqueue_event(ulpq, event);
 	}
 
 	return event_eor;
@@ -935,27 +930,20 @@ out:
 static void sctp_intl_start_pd(struct sctp_ulpq *ulpq, gfp_t gfp)
 {
 	struct sctp_ulpevent *event;
-	struct sk_buff_head temp;
 
 	if (!skb_queue_empty(&ulpq->reasm)) {
 		do {
 			event = sctp_intl_retrieve_first(ulpq);
-			if (event) {
-				skb_queue_head_init(&temp);
-				__skb_queue_tail(&temp, sctp_event2skb(event));
-				sctp_enqueue_event(ulpq, &temp);
-			}
+			if (event)
+				sctp_enqueue_event(ulpq, event);
 		} while (event);
 	}
 
 	if (!skb_queue_empty(&ulpq->reasm_uo)) {
 		do {
 			event = sctp_intl_retrieve_first_uo(ulpq);
-			if (event) {
-				skb_queue_head_init(&temp);
-				__skb_queue_tail(&temp, sctp_event2skb(event));
-				sctp_enqueue_event(ulpq, &temp);
-			}
+			if (event)
+				sctp_enqueue_event(ulpq, event);
 		} while (event);
 	}
 }
@@ -992,19 +980,17 @@ static void sctp_intl_stream_abort_pd(struct sctp_ulpq *ulpq, __u16 sid,
 	struct sock *sk = ulpq->asoc->base.sk;
 	struct sctp_ulpevent *ev = NULL;
 
-	if (!sctp_ulpevent_type_enabled(ulpq->asoc->subscribe,
-					SCTP_PARTIAL_DELIVERY_EVENT))
+	if (!sctp_ulpevent_type_enabled(SCTP_PARTIAL_DELIVERY_EVENT,
+					&sctp_sk(sk)->subscribe))
 		return;
 
 	ev = sctp_ulpevent_make_pdapi(ulpq->asoc, SCTP_PARTIAL_DELIVERY_ABORTED,
 				      sid, mid, flags, gfp);
 	if (ev) {
-		struct sctp_sock *sp = sctp_sk(sk);
-
 		__skb_queue_tail(&sk->sk_receive_queue, sctp_event2skb(ev));
 
-		if (!sp->data_ready_signalled) {
-			sp->data_ready_signalled = 1;
+		if (!sctp_sk(sk)->data_ready_signalled) {
+			sctp_sk(sk)->data_ready_signalled = 1;
 			sk->sk_data_ready(sk);
 		}
 	}
@@ -1057,7 +1043,7 @@ static void sctp_intl_reap_ordered(struct sctp_ulpq *ulpq, __u16 sid)
 
 	if (event) {
 		sctp_intl_retrieve_ordered(ulpq, event);
-		sctp_enqueue_event(ulpq, &temp);
+		sctp_enqueue_event(ulpq, event);
 	}
 }
 
@@ -1296,15 +1282,6 @@ static void sctp_handle_iftsn(struct sctp_ulpq *ulpq, struct sctp_chunk *chunk)
 			       ntohl(skip->mid), skip->flags);
 }
 
-static int do_ulpq_tail_event(struct sctp_ulpq *ulpq, struct sctp_ulpevent *event)
-{
-	struct sk_buff_head temp;
-
-	skb_queue_head_init(&temp);
-	__skb_queue_tail(&temp, sctp_event2skb(event));
-	return sctp_ulpq_tail_event(ulpq, &temp);
-}
-
 static struct sctp_stream_interleave sctp_stream_interleave_0 = {
 	.data_chunk_len		= sizeof(struct sctp_data_chunk),
 	.ftsn_chunk_len		= sizeof(struct sctp_fwdtsn_chunk),
@@ -1313,7 +1290,7 @@ static struct sctp_stream_interleave sctp_stream_interleave_0 = {
 	.assign_number		= sctp_chunk_assign_ssn,
 	.validate_data		= sctp_validate_data,
 	.ulpevent_data		= sctp_ulpq_tail_data,
-	.enqueue_event		= do_ulpq_tail_event,
+	.enqueue_event		= sctp_ulpq_tail_event,
 	.renege_events		= sctp_ulpq_renege,
 	.start_pd		= sctp_ulpq_partial_delivery,
 	.abort_pd		= sctp_ulpq_abort_pd,
@@ -1324,16 +1301,6 @@ static struct sctp_stream_interleave sctp_stream_interleave_0 = {
 	.handle_ftsn		= sctp_handle_fwdtsn,
 };
 
-static int do_sctp_enqueue_event(struct sctp_ulpq *ulpq,
-				 struct sctp_ulpevent *event)
-{
-	struct sk_buff_head temp;
-
-	skb_queue_head_init(&temp);
-	__skb_queue_tail(&temp, sctp_event2skb(event));
-	return sctp_enqueue_event(ulpq, &temp);
-}
-
 static struct sctp_stream_interleave sctp_stream_interleave_1 = {
 	.data_chunk_len		= sizeof(struct sctp_idata_chunk),
 	.ftsn_chunk_len		= sizeof(struct sctp_ifwdtsn_chunk),
@@ -1342,7 +1309,7 @@ static struct sctp_stream_interleave sctp_stream_interleave_1 = {
 	.assign_number		= sctp_chunk_assign_mid,
 	.validate_data		= sctp_validate_idata,
 	.ulpevent_data		= sctp_ulpevent_idata,
-	.enqueue_event		= do_sctp_enqueue_event,
+	.enqueue_event		= sctp_enqueue_event,
 	.renege_events		= sctp_renege_events,
 	.start_pd		= sctp_intl_start_pd,
 	.abort_pd		= sctp_intl_abort_pd,
@@ -1358,6 +1325,6 @@ void sctp_stream_interleave_init(struct sctp_stream *stream)
 	struct sctp_association *asoc;
 
 	asoc = container_of(stream, struct sctp_association, stream);
-	stream->si = asoc->peer.intl_capable ? &sctp_stream_interleave_1
-					     : &sctp_stream_interleave_0;
+	stream->si = asoc->intl_enable ? &sctp_stream_interleave_1
+				       : &sctp_stream_interleave_0;
 }

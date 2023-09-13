@@ -1,8 +1,12 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * Copyright (C) 2007 Red Hat, Inc. All Rights Reserved.
  * Copyright (C) 2012 Regents of the University of California
  * Copyright (C) 2017 SiFive
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public Licence
+ * as published by the Free Software Foundation; either version
+ * 2 of the Licence, or (at your option) any later version.
  */
 
 #ifndef _ASM_RISCV_ATOMIC_H
@@ -38,11 +42,11 @@ static __always_inline void atomic_set(atomic_t *v, int i)
 
 #ifndef CONFIG_GENERIC_ATOMIC64
 #define ATOMIC64_INIT(i) { (i) }
-static __always_inline s64 atomic64_read(const atomic64_t *v)
+static __always_inline long atomic64_read(const atomic64_t *v)
 {
 	return READ_ONCE(v->counter);
 }
-static __always_inline void atomic64_set(atomic64_t *v, s64 i)
+static __always_inline void atomic64_set(atomic64_t *v, long i)
 {
 	WRITE_ONCE(v->counter, i);
 }
@@ -66,11 +70,11 @@ void atomic##prefix##_##op(c_type i, atomic##prefix##_t *v)		\
 
 #ifdef CONFIG_GENERIC_ATOMIC64
 #define ATOMIC_OPS(op, asm_op, I)					\
-        ATOMIC_OP (op, asm_op, I, w, int,   )
+        ATOMIC_OP (op, asm_op, I, w,  int,   )
 #else
 #define ATOMIC_OPS(op, asm_op, I)					\
-        ATOMIC_OP (op, asm_op, I, w, int,   )				\
-        ATOMIC_OP (op, asm_op, I, d, s64, 64)
+        ATOMIC_OP (op, asm_op, I, w,  int,   )				\
+        ATOMIC_OP (op, asm_op, I, d, long, 64)
 #endif
 
 ATOMIC_OPS(add, add,  i)
@@ -127,14 +131,14 @@ c_type atomic##prefix##_##op##_return(c_type i, atomic##prefix##_t *v)	\
 
 #ifdef CONFIG_GENERIC_ATOMIC64
 #define ATOMIC_OPS(op, asm_op, c_op, I)					\
-        ATOMIC_FETCH_OP( op, asm_op,       I, w, int,   )		\
-        ATOMIC_OP_RETURN(op, asm_op, c_op, I, w, int,   )
+        ATOMIC_FETCH_OP( op, asm_op,       I, w,  int,   )		\
+        ATOMIC_OP_RETURN(op, asm_op, c_op, I, w,  int,   )
 #else
 #define ATOMIC_OPS(op, asm_op, c_op, I)					\
-        ATOMIC_FETCH_OP( op, asm_op,       I, w, int,   )		\
-        ATOMIC_OP_RETURN(op, asm_op, c_op, I, w, int,   )		\
-        ATOMIC_FETCH_OP( op, asm_op,       I, d, s64, 64)		\
-        ATOMIC_OP_RETURN(op, asm_op, c_op, I, d, s64, 64)
+        ATOMIC_FETCH_OP( op, asm_op,       I, w,  int,   )		\
+        ATOMIC_OP_RETURN(op, asm_op, c_op, I, w,  int,   )		\
+        ATOMIC_FETCH_OP( op, asm_op,       I, d, long, 64)		\
+        ATOMIC_OP_RETURN(op, asm_op, c_op, I, d, long, 64)
 #endif
 
 ATOMIC_OPS(add, add, +,  i)
@@ -166,11 +170,11 @@ ATOMIC_OPS(sub, add, +, -i)
 
 #ifdef CONFIG_GENERIC_ATOMIC64
 #define ATOMIC_OPS(op, asm_op, I)					\
-        ATOMIC_FETCH_OP(op, asm_op, I, w, int,   )
+        ATOMIC_FETCH_OP(op, asm_op, I, w,  int,   )
 #else
 #define ATOMIC_OPS(op, asm_op, I)					\
-        ATOMIC_FETCH_OP(op, asm_op, I, w, int,   )			\
-        ATOMIC_FETCH_OP(op, asm_op, I, d, s64, 64)
+        ATOMIC_FETCH_OP(op, asm_op, I, w,  int,   )			\
+        ATOMIC_FETCH_OP(op, asm_op, I, d, long, 64)
 #endif
 
 ATOMIC_OPS(and, and, i)
@@ -219,10 +223,9 @@ static __always_inline int atomic_fetch_add_unless(atomic_t *v, int a, int u)
 #define atomic_fetch_add_unless atomic_fetch_add_unless
 
 #ifndef CONFIG_GENERIC_ATOMIC64
-static __always_inline s64 atomic64_fetch_add_unless(atomic64_t *v, s64 a, s64 u)
+static __always_inline long atomic64_fetch_add_unless(atomic64_t *v, long a, long u)
 {
-       s64 prev;
-       long rc;
+       long prev, rc;
 
 	__asm__ __volatile__ (
 		"0:	lr.d     %[p],  %[c]\n"
@@ -291,23 +294,14 @@ c_t atomic##prefix##_cmpxchg(atomic##prefix##_t *v, c_t o, c_t n)	\
 
 #ifdef CONFIG_GENERIC_ATOMIC64
 #define ATOMIC_OPS()							\
-	ATOMIC_OP(int,   , 4)
+	ATOMIC_OP( int,   , 4)
 #else
 #define ATOMIC_OPS()							\
-	ATOMIC_OP(int,   , 4)						\
-	ATOMIC_OP(s64, 64, 8)
+	ATOMIC_OP( int,   , 4)						\
+	ATOMIC_OP(long, 64, 8)
 #endif
 
 ATOMIC_OPS()
-
-#define atomic_xchg_relaxed atomic_xchg_relaxed
-#define atomic_xchg_acquire atomic_xchg_acquire
-#define atomic_xchg_release atomic_xchg_release
-#define atomic_xchg atomic_xchg
-#define atomic_cmpxchg_relaxed atomic_cmpxchg_relaxed
-#define atomic_cmpxchg_acquire atomic_cmpxchg_acquire
-#define atomic_cmpxchg_release atomic_cmpxchg_release
-#define atomic_cmpxchg atomic_cmpxchg
 
 #undef ATOMIC_OPS
 #undef ATOMIC_OP
@@ -333,10 +327,9 @@ static __always_inline int atomic_sub_if_positive(atomic_t *v, int offset)
 #define atomic_dec_if_positive(v)	atomic_sub_if_positive(v, 1)
 
 #ifndef CONFIG_GENERIC_ATOMIC64
-static __always_inline s64 atomic64_sub_if_positive(atomic64_t *v, s64 offset)
+static __always_inline long atomic64_sub_if_positive(atomic64_t *v, int offset)
 {
-       s64 prev;
-       long rc;
+       long prev, rc;
 
 	__asm__ __volatile__ (
 		"0:	lr.d     %[p],  %[c]\n"

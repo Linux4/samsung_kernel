@@ -44,6 +44,9 @@
 #include <asm/processor.h>
 #include <asm/fpu/internal.h>
 #include <asm/desc.h>
+#ifdef CONFIG_MATH_EMULATION
+#include <asm/math_emu.h>
+#endif
 
 #include <linux/err.h>
 
@@ -53,7 +56,7 @@
 #include <asm/debugreg.h>
 #include <asm/switch_to.h>
 #include <asm/vm86.h>
-#include <asm/resctrl_sched.h>
+#include <asm/intel_rdt_sched.h>
 #include <asm/proto.h>
 
 #include "process.h"
@@ -62,21 +65,27 @@ void __show_regs(struct pt_regs *regs, enum show_regs_mode mode)
 {
 	unsigned long cr0 = 0L, cr2 = 0L, cr3 = 0L, cr4 = 0L;
 	unsigned long d0, d1, d2, d3, d6, d7;
-	unsigned short gs;
+	unsigned long sp;
+	unsigned short ss, gs;
 
-	if (user_mode(regs))
+	if (user_mode(regs)) {
+		sp = regs->sp;
+		ss = regs->ss;
 		gs = get_user_gs(regs);
-	else
+	} else {
+		sp = kernel_stack_pointer(regs);
+		savesegment(ss, ss);
 		savesegment(gs, gs);
+	}
 
 	show_ip(regs, KERN_DEFAULT);
 
 	printk(KERN_DEFAULT "EAX: %08lx EBX: %08lx ECX: %08lx EDX: %08lx\n",
 		regs->ax, regs->bx, regs->cx, regs->dx);
 	printk(KERN_DEFAULT "ESI: %08lx EDI: %08lx EBP: %08lx ESP: %08lx\n",
-		regs->si, regs->di, regs->bp, regs->sp);
+		regs->si, regs->di, regs->bp, sp);
 	printk(KERN_DEFAULT "DS: %04x ES: %04x FS: %04x GS: %04x SS: %04x EFLAGS: %08lx\n",
-	       (u16)regs->ds, (u16)regs->es, (u16)regs->fs, gs, regs->ss, regs->flags);
+	       (u16)regs->ds, (u16)regs->es, (u16)regs->fs, gs, ss, regs->flags);
 
 	if (mode != SHOW_REGS_ALL)
 		return;
@@ -229,12 +238,13 @@ __switch_to(struct task_struct *prev_p, struct task_struct *next_p)
 {
 	struct thread_struct *prev = &prev_p->thread,
 			     *next = &next_p->thread;
+	struct fpu *prev_fpu = &prev->fpu;
+	struct fpu *next_fpu = &next->fpu;
 	int cpu = smp_processor_id();
 
 	/* never put a printk in __switch_to... printk() calls wake_up*() indirectly */
 
-	if (!test_thread_flag(TIF_NEED_FPU_LOAD))
-		switch_fpu_prepare(prev_p, cpu);
+	switch_fpu_prepare(prev_fpu, cpu);
 
 	/*
 	 * Save away %gs. No need to save %fs, as it was saved on the
@@ -267,7 +277,9 @@ __switch_to(struct task_struct *prev_p, struct task_struct *next_p)
 	/*
 	 * Leave lazy mode, flushing any hypercalls made here.
 	 * This must be done before restoring TLS segments so
-	 * the GDT and LDT are properly updated.
+	 * the GDT and LDT are properly updated, and must be
+	 * done before fpu__restore(), so the TS bit is up
+	 * to date.
 	 */
 	arch_end_context_switch(next_p);
 
@@ -288,12 +300,12 @@ __switch_to(struct task_struct *prev_p, struct task_struct *next_p)
 	if (prev->gs | next->gs)
 		lazy_load_gs(next->gs);
 
+	switch_fpu_finish(next_fpu, cpu);
+
 	this_cpu_write(current_task, next_p);
 
-	switch_fpu_finish(next_p);
-
 	/* Load the Intel cache allocation PQR MSR. */
-	resctrl_sched_in();
+	intel_rdt_sched_in();
 
 	return prev_p;
 }

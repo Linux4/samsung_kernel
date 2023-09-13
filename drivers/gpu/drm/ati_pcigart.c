@@ -32,11 +32,9 @@
  */
 
 #include <linux/export.h>
+#include <drm/drmP.h>
 
 #include <drm/ati_pcigart.h>
-#include <drm/drm_device.h>
-#include <drm/drm_pci.h>
-#include <drm/drm_print.h>
 
 # define ATI_PCIGART_PAGE_SIZE		4096	/**< PCI GART page size */
 
@@ -105,7 +103,7 @@ int drm_ati_pcigart_init(struct drm_device *dev, struct drm_ati_pcigart_info *ga
 	unsigned long pages;
 	u32 *pci_gart = NULL, page_base, gart_idx;
 	dma_addr_t bus_address = 0;
-	int i, j, ret = -ENOMEM;
+	int i, j, ret = 0;
 	int max_ati_pages, max_real_pages;
 
 	if (!entry) {
@@ -119,7 +117,7 @@ int drm_ati_pcigart_init(struct drm_device *dev, struct drm_ati_pcigart_info *ga
 		if (pci_set_dma_mask(dev->pdev, gart_info->table_mask)) {
 			DRM_ERROR("fail to set dma mask to 0x%Lx\n",
 				  (unsigned long long)gart_info->table_mask);
-			ret = -EFAULT;
+			ret = 1;
 			goto done;
 		}
 
@@ -162,13 +160,11 @@ int drm_ati_pcigart_init(struct drm_device *dev, struct drm_ati_pcigart_info *ga
 			drm_ati_pcigart_cleanup(dev, gart_info);
 			address = NULL;
 			bus_address = 0;
-			ret = -ENOMEM;
 			goto done;
 		}
 		page_base = (u32) entry->busaddr[i];
 
 		for (j = 0; j < (PAGE_SIZE / ATI_PCIGART_PAGE_SIZE); j++) {
-			u32 offset;
 			u32 val;
 
 			switch(gart_info->gart_reg_if) {
@@ -184,17 +180,15 @@ int drm_ati_pcigart_init(struct drm_device *dev, struct drm_ati_pcigart_info *ga
 				break;
 			}
 			if (gart_info->gart_table_location ==
-			    DRM_ATI_GART_MAIN) {
+			    DRM_ATI_GART_MAIN)
 				pci_gart[gart_idx] = cpu_to_le32(val);
-			} else {
-				offset = gart_idx * sizeof(u32);
-				writel(val, (void __iomem *)map->handle + offset);
-			}
+			else
+				DRM_WRITE32(map, gart_idx * sizeof(u32), val);
 			gart_idx++;
 			page_base += ATI_PCIGART_PAGE_SIZE;
 		}
 	}
-	ret = 0;
+	ret = 1;
 
 #if defined(__i386__) || defined(__x86_64__)
 	wbinvd();

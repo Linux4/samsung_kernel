@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 menuconfig ARCH_MVEBU
 	bool "Marvell Engineering Business Unit (MVEBU) SoCs"
 	depends on ARCH_MULTI_V7 || ARCH_MULTI_V5
@@ -125,7 +124,7 @@ config MACH_KIRKWOOD
 	select MACH_MVEBU_ANY
 	select ORION_IRQCHIP
 	select ORION_TIMER
-	select FORCE_PCI
+	select PCI
 	select PCI_QUIRKS
 	select PINCTRL_KIRKWOOD
 	help

@@ -1,8 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Driver for ISSI IS31FL32xx family of I2C LED controllers
  *
  * Copyright 2015 Allworx Corp.
+ *
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * Datasheets:
  *   http://www.issi.com/US/product-analog-fxled-driver.shtml
@@ -324,6 +328,12 @@ static int is31fl32xx_init_regs(struct is31fl32xx_priv *priv)
 	return 0;
 }
 
+static inline size_t sizeof_is31fl32xx_priv(int num_leds)
+{
+	return sizeof(struct is31fl32xx_priv) +
+		      (sizeof(struct is31fl32xx_led_data) * num_leds);
+}
+
 static int is31fl32xx_parse_child_dt(const struct device *dev,
 				     const struct device_node *child,
 				     struct is31fl32xx_led_data *led_data)
@@ -444,7 +454,7 @@ static int is31fl32xx_probe(struct i2c_client *client,
 	if (!count)
 		return -EINVAL;
 
-	priv = devm_kzalloc(dev, struct_size(priv, leds, count),
+	priv = devm_kzalloc(dev, sizeof_is31fl32xx_priv(count),
 			    GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;

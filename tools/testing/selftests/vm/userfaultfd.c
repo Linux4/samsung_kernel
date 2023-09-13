@@ -1,8 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Stress userfaultfd syscall.
  *
  *  Copyright (C) 2015  Red Hat, Inc.
+ *
+ *  This work is licensed under the terms of the GNU GPL, version 2. See
+ *  the COPYING file in the top-level directory.
  *
  * This test allocates two virtual areas and bounces the physical
  * memory across the two virtual areas (from area_src to area_dst)
@@ -32,6 +34,18 @@
  * per-CPU threads 1 by triggering userfaults inside
  * pthread_mutex_lock will also verify the atomicity of the memory
  * transfer (UFFDIO_COPY).
+ *
+ * The program takes two parameters: the amounts of physical memory in
+ * megabytes (MiB) of the area and the number of bounces to execute.
+ *
+ * # 100MiB 99999 bounces
+ * ./userfaultfd 100 99999
+ *
+ * # 1GiB 99 bounces
+ * ./userfaultfd 1000 99
+ *
+ * # 10MiB-~6GiB 999 bounces, continue forever unless an error triggers
+ * while ./userfaultfd $[RANDOM % 6000 + 10] 999; do true; done
  */
 
 #define _GNU_SOURCE
@@ -46,7 +60,6 @@
 #include <signal.h>
 #include <poll.h>
 #include <string.h>
-#include <linux/mman.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
 #include <sys/ioctl.h>
@@ -102,30 +115,6 @@ pthread_attr_t attr;
 				 ~(unsigned long)(sizeof(unsigned long long) \
 						  -  1)))
 
-const char *examples =
-    "# Run anonymous memory test on 100MiB region with 99999 bounces:\n"
-    "./userfaultfd anon 100 99999\n\n"
-    "# Run share memory test on 1GiB region with 99 bounces:\n"
-    "./userfaultfd shmem 1000 99\n\n"
-    "# Run hugetlb memory test on 256MiB region with 50 bounces (using /dev/hugepages/hugefile):\n"
-    "./userfaultfd hugetlb 256 50 /dev/hugepages/hugefile\n\n"
-    "# Run the same hugetlb test but using shmem:\n"
-    "./userfaultfd hugetlb_shared 256 50 /dev/hugepages/hugefile\n\n"
-    "# 10MiB-~6GiB 999 bounces anonymous test, "
-    "continue forever unless an error triggers\n"
-    "while ./userfaultfd anon $[RANDOM % 6000 + 10] 999; do true; done\n\n";
-
-static void usage(void)
-{
-	fprintf(stderr, "\nUsage: ./userfaultfd <test type> <MiB> <bounces> "
-		"[hugetlbfs_file]\n\n");
-	fprintf(stderr, "Supported <test type>: anon, hugetlb, "
-		"hugetlb_shared, shmem\n\n");
-	fprintf(stderr, "Examples:\n\n");
-	fprintf(stderr, "%s", examples);
-	exit(1);
-}
-
 static int anon_release_pages(char *rel_area)
 {
 	int ret = 0;
@@ -140,10 +129,8 @@ static int anon_release_pages(char *rel_area)
 
 static void anon_allocate_area(void **alloc_area)
 {
-	*alloc_area = mmap(NULL, nr_pages * page_size, PROT_READ | PROT_WRITE,
-			   MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-	if (*alloc_area == MAP_FAILED) {
-		fprintf(stderr, "mmap of anonymous memory failed");
+	if (posix_memalign(alloc_area, page_size, nr_pages * page_size)) {
+		fprintf(stderr, "out of memory\n");
 		*alloc_area = NULL;
 	}
 }
@@ -452,43 +439,6 @@ static int copy_page(int ufd, unsigned long offset)
 	return __copy_page(ufd, offset, false);
 }
 
-static int uffd_read_msg(int ufd, struct uffd_msg *msg)
-{
-	int ret = read(uffd, msg, sizeof(*msg));
-
-	if (ret != sizeof(*msg)) {
-		if (ret < 0) {
-			if (errno == EAGAIN)
-				return 1;
-			else
-				perror("blocking read error"), exit(1);
-		} else {
-			fprintf(stderr, "short read\n"), exit(1);
-		}
-	}
-
-	return 0;
-}
-
-/* Return 1 if page fault handled by us; otherwise 0 */
-static int uffd_handle_page_fault(struct uffd_msg *msg)
-{
-	unsigned long offset;
-
-	if (msg->event != UFFD_EVENT_PAGEFAULT)
-		fprintf(stderr, "unexpected msg event %u\n",
-			msg->event), exit(1);
-
-	if (bounces & BOUNCE_VERIFY &&
-	    msg->arg.pagefault.flags & UFFD_PAGEFAULT_FLAG_WRITE)
-		fprintf(stderr, "unexpected write fault\n"), exit(1);
-
-	offset = (char *)(unsigned long)msg->arg.pagefault.address - area_dst;
-	offset &= ~(page_size-1);
-
-	return copy_page(uffd, offset);
-}
-
 static void *uffd_poll_thread(void *arg)
 {
 	unsigned long cpu = (unsigned long) arg;
@@ -496,6 +446,7 @@ static void *uffd_poll_thread(void *arg)
 	struct uffd_msg msg;
 	struct uffdio_register uffd_reg;
 	int ret;
+	unsigned long offset;
 	char tmp_chr;
 	unsigned long userfaults = 0;
 
@@ -519,15 +470,25 @@ static void *uffd_poll_thread(void *arg)
 		if (!(pollfd[0].revents & POLLIN))
 			fprintf(stderr, "pollfd[0].revents %d\n",
 				pollfd[0].revents), exit(1);
-		if (uffd_read_msg(uffd, &msg))
-			continue;
+		ret = read(uffd, &msg, sizeof(msg));
+		if (ret < 0) {
+			if (errno == EAGAIN)
+				continue;
+			perror("nonblocking read error"), exit(1);
+		}
 		switch (msg.event) {
 		default:
 			fprintf(stderr, "unexpected msg event %u\n",
 				msg.event), exit(1);
 			break;
 		case UFFD_EVENT_PAGEFAULT:
-			userfaults += uffd_handle_page_fault(&msg);
+			if (msg.arg.pagefault.flags & UFFD_PAGEFAULT_FLAG_WRITE)
+				fprintf(stderr, "unexpected write fault\n"), exit(1);
+			offset = (char *)(unsigned long)msg.arg.pagefault.address -
+				area_dst;
+			offset &= ~(page_size-1);
+			if (copy_page(uffd, offset))
+				userfaults++;
 			break;
 		case UFFD_EVENT_FORK:
 			close(uffd);
@@ -555,6 +516,8 @@ static void *uffd_read_thread(void *arg)
 {
 	unsigned long *this_cpu_userfaults;
 	struct uffd_msg msg;
+	unsigned long offset;
+	int ret;
 
 	this_cpu_userfaults = (unsigned long *) arg;
 	*this_cpu_userfaults = 0;
@@ -563,9 +526,24 @@ static void *uffd_read_thread(void *arg)
 	/* from here cancellation is ok */
 
 	for (;;) {
-		if (uffd_read_msg(uffd, &msg))
-			continue;
-		(*this_cpu_userfaults) += uffd_handle_page_fault(&msg);
+		ret = read(uffd, &msg, sizeof(msg));
+		if (ret != sizeof(msg)) {
+			if (ret < 0)
+				perror("blocking read error"), exit(1);
+			else
+				fprintf(stderr, "short read\n"), exit(1);
+		}
+		if (msg.event != UFFD_EVENT_PAGEFAULT)
+			fprintf(stderr, "unexpected msg event %u\n",
+				msg.event), exit(1);
+		if (bounces & BOUNCE_VERIFY &&
+		    msg.arg.pagefault.flags & UFFD_PAGEFAULT_FLAG_WRITE)
+			fprintf(stderr, "unexpected write fault\n"), exit(1);
+		offset = (char *)(unsigned long)msg.arg.pagefault.address -
+			 area_dst;
+		offset &= ~(page_size-1);
+		if (copy_page(uffd, offset))
+			(*this_cpu_userfaults)++;
 	}
 	return (void *)NULL;
 }
@@ -627,12 +605,6 @@ static int stress(unsigned long *userfaults)
 	if (uffd_test_ops->release_pages(area_src))
 		return 1;
 
-
-	finished = 1;
-	for (cpu = 0; cpu < nr_cpus; cpu++)
-		if (pthread_join(locking_threads[cpu], NULL))
-			return 1;
-
 	for (cpu = 0; cpu < nr_cpus; cpu++) {
 		char c;
 		if (bounces & BOUNCE_POLL) {
@@ -649,6 +621,11 @@ static int stress(unsigned long *userfaults)
 				return 1;
 		}
 	}
+
+	finished = 1;
+	for (cpu = 0; cpu < nr_cpus; cpu++)
+		if (pthread_join(locking_threads[cpu], NULL))
+			return 1;
 
 	return 0;
 }
@@ -1295,7 +1272,8 @@ static void sigalrm(int sig)
 int main(int argc, char **argv)
 {
 	if (argc < 4)
-		usage();
+		fprintf(stderr, "Usage: <test type> <MiB> <bounces> [hugetlbfs_file]\n"),
+				exit(1);
 
 	if (signal(SIGALRM, sigalrm) == SIG_ERR)
 		fprintf(stderr, "failed to arm SIGALRM"), exit(1);
@@ -1308,19 +1286,20 @@ int main(int argc, char **argv)
 		nr_cpus;
 	if (!nr_pages_per_cpu) {
 		fprintf(stderr, "invalid MiB\n");
-		usage();
+		fprintf(stderr, "Usage: <MiB> <bounces>\n"), exit(1);
 	}
 
 	bounces = atoi(argv[3]);
 	if (bounces <= 0) {
 		fprintf(stderr, "invalid bounces\n");
-		usage();
+		fprintf(stderr, "Usage: <MiB> <bounces>\n"), exit(1);
 	}
 	nr_pages = nr_pages_per_cpu * nr_cpus;
 
 	if (test_type == TEST_HUGETLB) {
 		if (argc < 5)
-			usage();
+			fprintf(stderr, "Usage: hugetlb <MiB> <bounces> <hugetlbfs_file>\n"),
+				exit(1);
 		huge_fd = open(argv[4], O_CREAT | O_RDWR, 0755);
 		if (huge_fd < 0) {
 			fprintf(stderr, "Open of %s failed", argv[3]);

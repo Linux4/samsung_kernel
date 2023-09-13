@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * common LSM auditing functions
  *
@@ -6,6 +5,10 @@
  *			Stephen Smalley, <sds@tycho.nsa.gov>
  * 			James Morris <jmorris@redhat.com>
  * Author : Etienne Basset, <etienne.basset@ensta.org>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2,
+ * as published by the Free Software Foundation.
  */
 
 #include <linux/types.h>
@@ -274,9 +277,7 @@ static void dump_common_audit_data(struct audit_buffer *ab,
 		struct inode *inode;
 
 		audit_log_format(ab, " name=");
-		spin_lock(&a->u.dentry->d_lock);
 		audit_log_untrustedstring(ab, a->u.dentry->d_name.name);
-		spin_unlock(&a->u.dentry->d_lock);
 
 		inode = d_backing_inode(a->u.dentry);
 		if (inode) {
@@ -294,9 +295,8 @@ static void dump_common_audit_data(struct audit_buffer *ab,
 		dentry = d_find_alias(inode);
 		if (dentry) {
 			audit_log_format(ab, " name=");
-			spin_lock(&dentry->d_lock);
-			audit_log_untrustedstring(ab, dentry->d_name.name);
-			spin_unlock(&dentry->d_lock);
+			audit_log_untrustedstring(ab,
+					 dentry->d_name.name);
 			dput(dentry);
 		}
 		audit_log_format(ab, " dev=");

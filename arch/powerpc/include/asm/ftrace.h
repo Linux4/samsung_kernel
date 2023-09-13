@@ -8,8 +8,6 @@
 #define MCOUNT_ADDR		((unsigned long)(_mcount))
 #define MCOUNT_INSN_SIZE	4 /* sizeof mcount call */
 
-#define HAVE_FUNCTION_GRAPH_RET_ADDR_PTR
-
 #ifdef __ASSEMBLY__
 
 /* Based off of objdump optput from glibc */
@@ -96,7 +94,7 @@ static inline bool arch_syscall_match_sym_name(const char *sym, const char *name
 #endif /* PPC64_ELF_ABI_v1 */
 #endif /* CONFIG_FTRACE_SYSCALLS */
 
-#if defined(CONFIG_PPC64) && defined(CONFIG_FUNCTION_TRACER)
+#ifdef CONFIG_PPC64
 #include <asm/paca.h>
 
 static inline void this_cpu_disable_ftrace(void)
@@ -108,12 +106,9 @@ static inline void this_cpu_enable_ftrace(void)
 {
 	get_paca()->ftrace_enabled = 1;
 }
-
-void ftrace_free_init_tramp(void);
 #else /* CONFIG_PPC64 */
 static inline void this_cpu_disable_ftrace(void) { }
 static inline void this_cpu_enable_ftrace(void) { }
-static inline void ftrace_free_init_tramp(void) { }
 #endif /* CONFIG_PPC64 */
 #endif /* !__ASSEMBLY__ */
 

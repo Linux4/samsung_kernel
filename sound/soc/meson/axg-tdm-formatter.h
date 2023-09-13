@@ -14,24 +14,18 @@ struct regmap;
 struct snd_soc_dapm_widget;
 struct snd_kcontrol;
 
-struct axg_tdm_formatter_hw {
-	unsigned int skew_offset;
-};
-
 struct axg_tdm_formatter_ops {
 	struct axg_tdm_stream *(*get_stream)(struct snd_soc_dapm_widget *w);
 	void (*enable)(struct regmap *map);
 	void (*disable)(struct regmap *map);
-	int (*prepare)(struct regmap *map,
-		       const struct axg_tdm_formatter_hw *quirks,
-		       struct axg_tdm_stream *ts);
+	int (*prepare)(struct regmap *map, struct axg_tdm_stream *ts);
 };
 
 struct axg_tdm_formatter_driver {
 	const struct snd_soc_component_driver *component_drv;
 	const struct regmap_config *regmap_cfg;
 	const struct axg_tdm_formatter_ops *ops;
-	const struct axg_tdm_formatter_hw *quirks;
+	bool invert_sclk;
 };
 
 int axg_tdm_formatter_set_channel_masks(struct regmap *map,

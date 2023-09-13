@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * 6pack.c	This module implements the 6pack protocol for kernel-based
  *		devices like TTY. It interfaces between a raw TTY and the
@@ -35,6 +34,7 @@
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/semaphore.h>
+#include <linux/compat.h>
 #include <linux/refcount.h>
 
 #define SIXPACK_VERSION    "Revision: 0.3.0"
@@ -68,9 +68,9 @@
 #define SIXP_DAMA_OFF		0
 
 /* default level 2 parameters */
-#define SIXP_TXDELAY			25	/* 250 ms */
+#define SIXP_TXDELAY			(HZ/4)	/* in 1 s */
 #define SIXP_PERSIST			50	/* in 256ths */
-#define SIXP_SLOTTIME			10	/* 100 ms */
+#define SIXP_SLOTTIME			(HZ/10)	/* in 1 s */
 #define SIXP_INIT_RESYNC_TIMEOUT	(3*HZ/2) /* in 1 s */
 #define SIXP_RESYNC_TIMEOUT		5*HZ	/* in 1 s */
 
@@ -121,7 +121,7 @@ struct sixpack {
 	struct timer_list	tx_t;
 	struct timer_list	resync_t;
 	refcount_t		refcnt;
-	struct completion	dead;
+	struct semaphore	dead_sem;
 	spinlock_t		lock;
 };
 
@@ -311,6 +311,7 @@ static void sp_setup(struct net_device *dev)
 {
 	/* Finish setting up the DEVICE info. */
 	dev->netdev_ops		= &sp_netdev_ops;
+	dev->needs_free_netdev	= true;
 	dev->mtu		= SIXP_MTU;
 	dev->hard_header_len	= AX25_MAX_HEADER_LEN;
 	dev->header_ops 	= &ax25_header_ops;
@@ -343,10 +344,10 @@ static void sp_bump(struct sixpack *sp, char cmd)
 
 	sp->dev->stats.rx_bytes += count;
 
-	if ((skb = dev_alloc_skb(count + 1)) == NULL)
+	if ((skb = dev_alloc_skb(count)) == NULL)
 		goto out_mem;
 
-	ptr = skb_put(skb, count + 1);
+	ptr = skb_put(skb, count);
 	*ptr++ = cmd;	/* KISS command */
 
 	memcpy(ptr, sp->cooked_buf + 1, count);
@@ -389,7 +390,7 @@ static struct sixpack *sp_get(struct tty_struct *tty)
 static void sp_put(struct sixpack *sp)
 {
 	if (refcount_dec_and_test(&sp->refcnt))
-		complete(&sp->dead);
+		up(&sp->dead_sem);
 }
 
 /*
@@ -571,7 +572,7 @@ static int sixpack_open(struct tty_struct *tty)
 
 	spin_lock_init(&sp->lock);
 	refcount_set(&sp->refcnt, 1);
-	init_completion(&sp->dead);
+	sema_init(&sp->dead_sem, 0);
 
 	/* !!! length of the buffers. MTU is IP MTU, not PACLEN!  */
 
@@ -665,24 +666,22 @@ static void sixpack_close(struct tty_struct *tty)
 	 * we have to wait for all existing users to finish.
 	 */
 	if (!refcount_dec_and_test(&sp->refcnt))
-		wait_for_completion(&sp->dead);
+		down(&sp->dead_sem);
 
 	/* We must stop the queue to avoid potentially scribbling
-	 * on the free buffers. The sp->dead completion is not sufficient
+	 * on the free buffers. The sp->dead_sem is not sufficient
 	 * to protect us from sp->xbuff access.
 	 */
 	netif_stop_queue(sp->dev);
 
-	unregister_netdev(sp->dev);
-
 	del_timer_sync(&sp->tx_t);
 	del_timer_sync(&sp->resync_t);
 
-	/* Free all 6pack frame buffers after unreg. */
+	/* Free all 6pack frame buffers. */
 	kfree(sp->rbuff);
 	kfree(sp->xbuff);
 
-	free_netdev(sp->dev);
+	unregister_netdev(sp->dev);
 }
 
 /* Perform I/O control on an active 6pack channel. */
@@ -748,6 +747,23 @@ static int sixpack_ioctl(struct tty_struct *tty, struct file *file,
 	return err;
 }
 
+#ifdef CONFIG_COMPAT
+static long sixpack_compat_ioctl(struct tty_struct * tty, struct file * file,
+				unsigned int cmd, unsigned long arg)
+{
+	switch (cmd) {
+	case SIOCGIFNAME:
+	case SIOCGIFENCAP:
+	case SIOCSIFENCAP:
+	case SIOCSIFHWADDR:
+		return sixpack_ioctl(tty, file, cmd,
+				(unsigned long)compat_ptr(arg));
+	}
+
+	return -ENOIOCTLCMD;
+}
+#endif
+
 static struct tty_ldisc_ops sp_ldisc = {
 	.owner		= THIS_MODULE,
 	.magic		= TTY_LDISC_MAGIC,
@@ -755,6 +771,9 @@ static struct tty_ldisc_ops sp_ldisc = {
 	.open		= sixpack_open,
 	.close		= sixpack_close,
 	.ioctl		= sixpack_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl	= sixpack_compat_ioctl,
+#endif
 	.receive_buf	= sixpack_receive_buf,
 	.write_wakeup	= sixpack_write_wakeup,
 };
@@ -837,12 +856,6 @@ static void decode_data(struct sixpack *sp, unsigned char inbyte)
 	if (sp->rx_count != 3) {
 		sp->raw_buf[sp->rx_count++] = inbyte;
 
-		return;
-	}
-
-	if (sp->rx_count_cooked + 2 >= sizeof(sp->cooked_buf)) {
-		pr_err("6pack: cooked buffer overrun, data loss\n");
-		sp->rx_count = 0;
 		return;
 	}
 

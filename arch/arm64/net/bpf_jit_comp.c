@@ -1,8 +1,19 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * BPF JIT compiler for ARM64
  *
  * Copyright (C) 2014-2016 Zi Shen Lim <zlim.lnx@gmail.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define pr_fmt(fmt) "bpf_jit: " fmt
@@ -18,10 +29,6 @@
 #include <asm/set_memory.h>
 
 #include "bpf_jit.h"
-
-#ifdef CONFIG_RKP
-#include <linux/rkp.h>
-#endif
 
 #define TMP_REG_1 (MAX_BPF_JIT_REG + 0)
 #define TMP_REG_2 (MAX_BPF_JIT_REG + 1)
@@ -127,9 +134,10 @@ static inline void emit_a64_mov_i64(const int reg, const u64 val,
 }
 
 /*
- * Kernel addresses in the vmalloc space use at most 48 bits, and the
- * remaining bits are guaranteed to be 0x1. So we can compose the address
- * with a fixed length movn/movk/movk sequence.
+ * This is an unoptimized 64 immediate emission used for BPF to BPF call
+ * addresses. It will always do a full 64 bit decomposition as otherwise
+ * more complexity in the last extra pass is required since we previously
+ * reserved 4 instructions for the address.
  */
 static inline void emit_addr_mov_i64(const int reg, const u64 val,
 				     struct jit_ctx *ctx)
@@ -137,25 +145,22 @@ static inline void emit_addr_mov_i64(const int reg, const u64 val,
 	u64 tmp = val;
 	int shift = 0;
 
-	emit(A64_MOVN(1, reg, ~tmp & 0xffff, shift), ctx);
-	while (shift < 32) {
+	emit(A64_MOVZ(1, reg, tmp & 0xffff, shift), ctx);
+	for (;shift < 48;) {
 		tmp >>= 16;
 		shift += 16;
 		emit(A64_MOVK(1, reg, tmp & 0xffff, shift), ctx);
 	}
 }
 
-static inline int bpf2a64_offset(int bpf_insn, int off,
+static inline int bpf2a64_offset(int bpf_to, int bpf_from,
 				 const struct jit_ctx *ctx)
 {
-	/* BPF JMP offset is relative to the next instruction */
-	bpf_insn++;
-	/*
-	 * Whereas arm64 branch instructions encode the offset
-	 * from the branch itself, so we must subtract 1 from the
-	 * instruction offset.
-	 */
-	return ctx->offset[bpf_insn + off] - (ctx->offset[bpf_insn] - 1);
+	int to = ctx->offset[bpf_to];
+	/* -1 to account for the Branch instruction */
+	int from = ctx->offset[bpf_from] - 1;
+
+	return to - from;
 }
 
 static void jit_fill_hole(void *area, unsigned int size)
@@ -346,8 +351,7 @@ static void build_epilogue(struct jit_ctx *ctx)
  * >0 - successfully JITed a 16-byte eBPF instruction.
  * <0 - failed to JIT.
  */
-static int build_insn(const struct bpf_insn *insn, struct jit_ctx *ctx,
-		      bool extra_pass)
+static int build_insn(const struct bpf_insn *insn, struct jit_ctx *ctx)
 {
 	const u8 code = insn->code;
 	const u8 dst = bpf2a64[insn->dst_reg];
@@ -358,8 +362,7 @@ static int build_insn(const struct bpf_insn *insn, struct jit_ctx *ctx,
 	const s16 off = insn->off;
 	const s32 imm = insn->imm;
 	const int i = insn - ctx->prog->insnsi;
-	const bool is64 = BPF_CLASS(code) == BPF_ALU64 ||
-			  BPF_CLASS(code) == BPF_JMP;
+	const bool is64 = BPF_CLASS(code) == BPF_ALU64;
 	const bool isdw = BPF_SIZE(code) == BPF_DW;
 	u8 jmp_cond, reg;
 	s32 jmp_offset;
@@ -416,7 +419,8 @@ static int build_insn(const struct bpf_insn *insn, struct jit_ctx *ctx,
 			break;
 		case BPF_MOD:
 			emit(A64_UDIV(is64, tmp, dst, src), ctx);
-			emit(A64_MSUB(is64, dst, dst, tmp, src), ctx);
+			emit(A64_MUL(is64, tmp, tmp, src), ctx);
+			emit(A64_SUB(is64, dst, dst, tmp), ctx);
 			break;
 		}
 		break;
@@ -522,7 +526,8 @@ emit_bswap_uxt:
 	case BPF_ALU64 | BPF_MOD | BPF_K:
 		emit_a64_mov_i(is64, tmp2, imm, ctx);
 		emit(A64_UDIV(is64, tmp, dst, tmp2), ctx);
-		emit(A64_MSUB(is64, dst, dst, tmp, tmp2), ctx);
+		emit(A64_MUL(is64, tmp, tmp, tmp2), ctx);
+		emit(A64_SUB(is64, dst, dst, tmp), ctx);
 		break;
 	case BPF_ALU | BPF_LSH | BPF_K:
 	case BPF_ALU64 | BPF_LSH | BPF_K:
@@ -539,7 +544,7 @@ emit_bswap_uxt:
 
 	/* JUMP off */
 	case BPF_JMP | BPF_JA:
-		jmp_offset = bpf2a64_offset(i, off, ctx);
+		jmp_offset = bpf2a64_offset(i + off, i, ctx);
 		check_imm26(jmp_offset);
 		emit(A64_B(jmp_offset), ctx);
 		break;
@@ -554,19 +559,9 @@ emit_bswap_uxt:
 	case BPF_JMP | BPF_JSLT | BPF_X:
 	case BPF_JMP | BPF_JSGE | BPF_X:
 	case BPF_JMP | BPF_JSLE | BPF_X:
-	case BPF_JMP32 | BPF_JEQ | BPF_X:
-	case BPF_JMP32 | BPF_JGT | BPF_X:
-	case BPF_JMP32 | BPF_JLT | BPF_X:
-	case BPF_JMP32 | BPF_JGE | BPF_X:
-	case BPF_JMP32 | BPF_JLE | BPF_X:
-	case BPF_JMP32 | BPF_JNE | BPF_X:
-	case BPF_JMP32 | BPF_JSGT | BPF_X:
-	case BPF_JMP32 | BPF_JSLT | BPF_X:
-	case BPF_JMP32 | BPF_JSGE | BPF_X:
-	case BPF_JMP32 | BPF_JSLE | BPF_X:
-		emit(A64_CMP(is64, dst, src), ctx);
+		emit(A64_CMP(1, dst, src), ctx);
 emit_cond_jmp:
-		jmp_offset = bpf2a64_offset(i, off, ctx);
+		jmp_offset = bpf2a64_offset(i + off, i, ctx);
 		check_imm19(jmp_offset);
 		switch (BPF_OP(code)) {
 		case BPF_JEQ:
@@ -606,8 +601,7 @@ emit_cond_jmp:
 		emit(A64_B_(jmp_cond, jmp_offset), ctx);
 		break;
 	case BPF_JMP | BPF_JSET | BPF_X:
-	case BPF_JMP32 | BPF_JSET | BPF_X:
-		emit(A64_TST(is64, dst, src), ctx);
+		emit(A64_TST(1, dst, src), ctx);
 		goto emit_cond_jmp;
 	/* IF (dst COND imm) JUMP off */
 	case BPF_JMP | BPF_JEQ | BPF_K:
@@ -620,37 +614,23 @@ emit_cond_jmp:
 	case BPF_JMP | BPF_JSLT | BPF_K:
 	case BPF_JMP | BPF_JSGE | BPF_K:
 	case BPF_JMP | BPF_JSLE | BPF_K:
-	case BPF_JMP32 | BPF_JEQ | BPF_K:
-	case BPF_JMP32 | BPF_JGT | BPF_K:
-	case BPF_JMP32 | BPF_JLT | BPF_K:
-	case BPF_JMP32 | BPF_JGE | BPF_K:
-	case BPF_JMP32 | BPF_JLE | BPF_K:
-	case BPF_JMP32 | BPF_JNE | BPF_K:
-	case BPF_JMP32 | BPF_JSGT | BPF_K:
-	case BPF_JMP32 | BPF_JSLT | BPF_K:
-	case BPF_JMP32 | BPF_JSGE | BPF_K:
-	case BPF_JMP32 | BPF_JSLE | BPF_K:
-		emit_a64_mov_i(is64, tmp, imm, ctx);
-		emit(A64_CMP(is64, dst, tmp), ctx);
+		emit_a64_mov_i(1, tmp, imm, ctx);
+		emit(A64_CMP(1, dst, tmp), ctx);
 		goto emit_cond_jmp;
 	case BPF_JMP | BPF_JSET | BPF_K:
-	case BPF_JMP32 | BPF_JSET | BPF_K:
-		emit_a64_mov_i(is64, tmp, imm, ctx);
-		emit(A64_TST(is64, dst, tmp), ctx);
+		emit_a64_mov_i(1, tmp, imm, ctx);
+		emit(A64_TST(1, dst, tmp), ctx);
 		goto emit_cond_jmp;
 	/* function call */
 	case BPF_JMP | BPF_CALL:
 	{
 		const u8 r0 = bpf2a64[BPF_REG_0];
-		bool func_addr_fixed;
-		u64 func_addr;
-		int ret;
+		const u64 func = (u64)__bpf_call_base + imm;
 
-		ret = bpf_jit_get_func_addr(ctx->prog, insn, extra_pass,
-					    &func_addr, &func_addr_fixed);
-		if (ret < 0)
-			return ret;
-		emit_addr_mov_i64(tmp, func_addr, ctx);
+		if (ctx->prog->is_func)
+			emit_addr_mov_i64(tmp, func, ctx);
+		else
+			emit_a64_mov_i64(tmp, func, ctx);
 		emit(A64_BLR(tmp), ctx);
 		emit(A64_MOV(1, r0, A64_R(0)), ctx);
 		break;
@@ -703,19 +683,6 @@ emit_cond_jmp:
 			emit(A64_LDR64(dst, src, tmp), ctx);
 			break;
 		}
-		break;
-
-	/* speculation barrier */
-	case BPF_ST | BPF_NOSPEC:
-		/*
-		 * Nothing required here.
-		 *
-		 * In case of arm64, we rely on the firmware mitigation of
-		 * Speculative Store Bypass as controlled via the ssbd kernel
-		 * parameter. Whenever the mitigation is enabled, it works
-		 * for all of the kernel code with no need to provide any
-		 * additional instructions.
-		 */
 		break;
 
 	/* ST: *(size *)(dst + off) = imm */
@@ -795,43 +762,27 @@ emit_cond_jmp:
 	return 0;
 }
 
-static int build_body(struct jit_ctx *ctx, bool extra_pass)
+static int build_body(struct jit_ctx *ctx)
 {
 	const struct bpf_prog *prog = ctx->prog;
 	int i;
 
-	/*
-	 * - offset[0] offset of the end of prologue,
-	 *   start of the 1st instruction.
-	 * - offset[1] - offset of the end of 1st instruction,
-	 *   start of the 2nd instruction
-	 * [....]
-	 * - offset[3] - offset of the end of 3rd instruction,
-	 *   start of 4th instruction
-	 */
 	for (i = 0; i < prog->len; i++) {
 		const struct bpf_insn *insn = &prog->insnsi[i];
 		int ret;
 
-		if (ctx->image == NULL)
-			ctx->offset[i] = ctx->idx;
-		ret = build_insn(insn, ctx, extra_pass);
+		ret = build_insn(insn, ctx);
 		if (ret > 0) {
 			i++;
 			if (ctx->image == NULL)
 				ctx->offset[i] = ctx->idx;
 			continue;
 		}
+		if (ctx->image == NULL)
+			ctx->offset[i] = ctx->idx;
 		if (ret)
 			return ret;
 	}
-	/*
-	 * offset is allocated with prog->len + 1 so fill in
-	 * the last element with the offset after the last
-	 * instruction (end of program)
-	 */
-	if (ctx->image == NULL)
-		ctx->offset[i] = ctx->idx;
 
 	return 0;
 }
@@ -907,24 +858,21 @@ struct bpf_prog *bpf_int_jit_compile(struct bpf_prog *prog)
 	memset(&ctx, 0, sizeof(ctx));
 	ctx.prog = prog;
 
-	ctx.offset = kcalloc(prog->len + 1, sizeof(int), GFP_KERNEL);
+	ctx.offset = kcalloc(prog->len, sizeof(int), GFP_KERNEL);
 	if (ctx.offset == NULL) {
 		prog = orig_prog;
 		goto out_off;
 	}
 
-	/*
-	 * 1. Initial fake pass to compute ctx->idx and ctx->offset.
-	 *
-	 * BPF line info needs ctx->offset[i] to be the offset of
-	 * instruction[i] in jited image, so build prologue first.
-	 */
-	if (build_prologue(&ctx, was_classic)) {
+	/* 1. Initial fake pass to compute ctx->idx. */
+
+	/* Fake pass to fill in ctx->offset. */
+	if (build_body(&ctx)) {
 		prog = orig_prog;
 		goto out_off;
 	}
 
-	if (build_body(&ctx, extra_pass)) {
+	if (build_prologue(&ctx, was_classic)) {
 		prog = orig_prog;
 		goto out_off;
 	}
@@ -949,7 +897,7 @@ skip_init_ctx:
 
 	build_prologue(&ctx, was_classic);
 
-	if (build_body(&ctx, extra_pass)) {
+	if (build_body(&ctx)) {
 		bpf_jit_binary_free(header);
 		prog = orig_prog;
 		goto out_off;
@@ -977,7 +925,6 @@ skip_init_ctx:
 			bpf_jit_binary_free(header);
 			prog->bpf_func = NULL;
 			prog->jited = 0;
-			prog->jited_len = 0;
 			goto out_off;
 		}
 		bpf_jit_binary_lock_ro(header);
@@ -989,16 +936,8 @@ skip_init_ctx:
 	prog->bpf_func = (void *)ctx.image;
 	prog->jited = 1;
 	prog->jited_len = image_size;
-#ifdef CONFIG_RKP
-	uh_call(UH_APP_RKP, RKP_BPF_LOAD, (u64)header, (u64)(header->pages * PAGE_SIZE), 0, 0);
-#endif
-	if (!prog->is_func || extra_pass) {
-		int i;
 
-		/* offset[prog->len] is the size of program */
-		for (i = 0; i <= prog->len; i++)
-			ctx.offset[i] *= AARCH64_INSN_SIZE;
-		bpf_prog_fill_jited_linfo(prog, ctx.offset + 1);
+	if (!prog->is_func || extra_pass) {
 out_off:
 		kfree(ctx.offset);
 		kfree(jit_data);
@@ -1011,31 +950,24 @@ out:
 	return prog;
 }
 
-u64 bpf_jit_alloc_exec_limit(void)
-{
-	return BPF_JIT_REGION_SIZE;
-}
-
-void *bpf_jit_alloc_exec(unsigned long size)
-{
-	return __vmalloc_node_range(size, PAGE_SIZE, BPF_JIT_REGION_START,
-				    BPF_JIT_REGION_END, GFP_KERNEL,
-				    PAGE_KERNEL, 0, NUMA_NO_NODE,
-				    __builtin_return_address(0));
-}
-
-void bpf_jit_free_exec(void *addr)
-{
-	return vfree(addr);
-}
-
 #ifdef CONFIG_CFI_CLANG
 bool arch_bpf_jit_check_func(const struct bpf_prog *prog)
 {
 	const uintptr_t func = (const uintptr_t)prog->bpf_func;
 
-	/* bpf_func must be correctly aligned and within the BPF JIT region */
-	return (func >= BPF_JIT_REGION_START && func < BPF_JIT_REGION_END &&
-		IS_ALIGNED(func, sizeof(u32)));
+	/*
+	 * bpf_func must be correctly aligned and within the correct region.
+	 * module_alloc places JIT code in the module region, unless
+	 * ARM64_MODULE_PLTS is enabled, in which case we might end up using
+	 * the vmalloc region too.
+	 */
+	if (unlikely(!IS_ALIGNED(func, sizeof(u32))))
+		return false;
+
+	if (IS_ENABLED(CONFIG_ARM64_MODULE_PLTS) &&
+			is_vmalloc_addr(prog->bpf_func))
+		return true;
+
+	return (func >= MODULES_VADDR && func < MODULES_END);
 }
 #endif

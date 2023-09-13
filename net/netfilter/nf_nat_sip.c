@@ -1,10 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /* SIP extension for NAT alteration.
  *
  * (C) 2005 by Christian Hentschel <chentschel@arnet.com.ar>
  * based on RR's ip_nat_ftp.c and other modules.
  * (C) 2007 United Security Providers
  * (C) 2007, 2008, 2011, 2012 Patrick McHardy <kaber@trash.net>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/module.h>
@@ -21,15 +24,11 @@
 #include <net/netfilter/nf_conntrack_seqadj.h>
 #include <linux/netfilter/nf_conntrack_sip.h>
 
-#define NAT_HELPER_NAME "sip"
-
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Christian Hentschel <chentschel@arnet.com.ar>");
 MODULE_DESCRIPTION("SIP NAT helper");
-MODULE_ALIAS_NF_NAT_HELPER(NAT_HELPER_NAME);
+MODULE_ALIAS("ip_nat_sip");
 
-static struct nf_conntrack_nat_helper nat_helper_sip =
-	NF_CT_NAT_HELPER_INIT(NAT_HELPER_NAME);
 
 static unsigned int mangle_packet(struct sk_buff *skb, unsigned int protoff,
 				  unsigned int dataoff,
@@ -113,26 +112,13 @@ static int map_addr(struct sk_buff *skb, unsigned int protoff,
 		newaddr = ct->tuplehash[!dir].tuple.src.u3;
 		newport = ct_sip_info->forced_dport ? :
 			  ct->tuplehash[!dir].tuple.src.u.udp.port;
-	} else if (nf_inet_addr_cmp(&ct->tuplehash[dir].tuple.src.u3, addr) &&
-	    ct->tuplehash[dir].tuple.src.u.udp.port != port) {
-		newaddr = ct->tuplehash[!dir].tuple.dst.u3;
-		newport = 0;
-	} else if (nf_inet_addr_cmp(&ct->tuplehash[dir].tuple.dst.u3, addr) &&
-		   ct->tuplehash[dir].tuple.dst.u.udp.port != port) {
-		newaddr = ct->tuplehash[!dir].tuple.src.u3;
-		newport = 0;
 	} else
 		return 1;
 
 	if (nf_inet_addr_cmp(&newaddr, addr) && newport == port)
 		return 1;
 
-	if (newport == 0)
-		buflen = sip_sprintf_addr(ct, buffer, &newaddr, false);
-	else
-		buflen = sip_sprintf_addr_port(ct, buffer, &newaddr,
-					       ntohs(newport));
-
+	buflen = sip_sprintf_addr_port(ct, buffer, &newaddr, ntohs(newport));
 	return mangle_packet(skb, protoff, dataoff, dptr, datalen,
 			     matchoff, matchlen, buffer, buflen);
 }
@@ -295,7 +281,7 @@ next:
 	if (dir == IP_CT_DIR_REPLY && ct_sip_info->forced_dport) {
 		struct udphdr *uh;
 
-		if (skb_ensure_writable(skb, skb->len)) {
+		if (!skb_make_writable(skb, skb->len)) {
 			nf_ct_helper_log(skb, ct, "cannot mangle packet");
 			return NF_DROP;
 		}
@@ -427,7 +413,7 @@ static unsigned int nf_nat_sip_expect(struct sk_buff *skb, unsigned int protoff,
 		int ret;
 
 		exp->tuple.dst.u.udp.port = htons(port);
-		ret = nf_ct_expect_related(exp, NF_CT_EXP_F_SKIP_MASTER);
+		ret = nf_ct_expect_related(exp);
 		if (ret == 0)
 			break;
 		else if (ret != -EBUSY) {
@@ -620,8 +606,7 @@ static unsigned int nf_nat_sdp_media(struct sk_buff *skb, unsigned int protoff,
 		int ret;
 
 		rtp_exp->tuple.dst.u.udp.port = htons(port);
-		ret = nf_ct_expect_related(rtp_exp,
-					   NF_CT_EXP_F_SKIP_MASTER);
+		ret = nf_ct_expect_related(rtp_exp);
 		if (ret == -EBUSY)
 			continue;
 		else if (ret < 0) {
@@ -629,8 +614,7 @@ static unsigned int nf_nat_sdp_media(struct sk_buff *skb, unsigned int protoff,
 			break;
 		}
 		rtcp_exp->tuple.dst.u.udp.port = htons(port + 1);
-		ret = nf_ct_expect_related(rtcp_exp,
-					   NF_CT_EXP_F_SKIP_MASTER);
+		ret = nf_ct_expect_related(rtcp_exp);
 		if (ret == 0)
 			break;
 		else if (ret == -EBUSY) {
@@ -672,8 +656,8 @@ static struct nf_ct_helper_expectfn sip_nat = {
 
 static void __exit nf_nat_sip_fini(void)
 {
-	nf_nat_helper_unregister(&nat_helper_sip);
 	RCU_INIT_POINTER(nf_nat_sip_hooks, NULL);
+
 	nf_ct_helper_expectfn_unregister(&sip_nat);
 	synchronize_rcu();
 }
@@ -691,7 +675,6 @@ static const struct nf_nat_sip_hooks sip_hooks = {
 static int __init nf_nat_sip_init(void)
 {
 	BUG_ON(nf_nat_sip_hooks != NULL);
-	nf_nat_helper_register(&nat_helper_sip);
 	RCU_INIT_POINTER(nf_nat_sip_hooks, &sip_hooks);
 	nf_ct_helper_expectfn_register(&sip_nat);
 	return 0;

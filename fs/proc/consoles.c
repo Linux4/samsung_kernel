@@ -1,6 +1,7 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2010 Werner Fink, Jiri Slaby
+ *
+ * Licensed under GPLv2
  */
 
 #include <linux/console.h>

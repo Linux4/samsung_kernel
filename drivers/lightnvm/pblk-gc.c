@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2016 CNEX Labs
  * Initial release: Javier Gonzalez <javier@cnexlabs.com>
@@ -17,9 +16,7 @@
  */
 
 #include "pblk.h"
-#include "pblk-trace.h"
 #include <linux/delay.h>
-
 
 static void pblk_gc_free_gc_rq(struct pblk_gc_rq *gc_rq)
 {
@@ -59,28 +56,22 @@ static void pblk_gc_writer_kick(struct pblk_gc *gc)
 	wake_up_process(gc->gc_writer_ts);
 }
 
-void pblk_put_line_back(struct pblk *pblk, struct pblk_line *line)
+static void pblk_put_line_back(struct pblk *pblk, struct pblk_line *line)
 {
 	struct pblk_line_mgmt *l_mg = &pblk->l_mg;
 	struct list_head *move_list;
 
-	spin_lock(&l_mg->gc_lock);
 	spin_lock(&line->lock);
 	WARN_ON(line->state != PBLK_LINESTATE_GC);
 	line->state = PBLK_LINESTATE_CLOSED;
-	trace_pblk_line_state(pblk_disk_name(pblk), line->id,
-					line->state);
-
-	/* We need to reset gc_group in order to ensure that
-	 * pblk_line_gc_list will return proper move_list
-	 * since right now current line is not on any of the
-	 * gc lists.
-	 */
-	line->gc_group = PBLK_LINEGC_NONE;
 	move_list = pblk_line_gc_list(pblk, line);
 	spin_unlock(&line->lock);
-	list_add_tail(&line->list, move_list);
-	spin_unlock(&l_mg->gc_lock);
+
+	if (move_list) {
+		spin_lock(&l_mg->gc_lock);
+		list_add_tail(&line->list, move_list);
+		spin_unlock(&l_mg->gc_lock);
+	}
 }
 
 static void pblk_gc_line_ws(struct work_struct *work)
@@ -88,6 +79,8 @@ static void pblk_gc_line_ws(struct work_struct *work)
 	struct pblk_line_ws *gc_rq_ws = container_of(work,
 						struct pblk_line_ws, ws);
 	struct pblk *pblk = gc_rq_ws->pblk;
+	struct nvm_tgt_dev *dev = pblk->dev;
+	struct nvm_geo *geo = &dev->geo;
 	struct pblk_gc *gc = &pblk->gc;
 	struct pblk_line *line = gc_rq_ws->line;
 	struct pblk_gc_rq *gc_rq = gc_rq_ws->priv;
@@ -95,10 +88,18 @@ static void pblk_gc_line_ws(struct work_struct *work)
 
 	up(&gc->gc_sem);
 
+	gc_rq->data = vmalloc(array_size(gc_rq->nr_secs, geo->csecs));
+	if (!gc_rq->data) {
+		pblk_err(pblk, "could not GC line:%d (%d/%d)\n",
+					line->id, *line->vsc, gc_rq->nr_secs);
+		goto out;
+	}
+
 	/* Read from GC victim block */
 	ret = pblk_submit_read_gc(pblk, gc_rq);
 	if (ret) {
-		line->w_err_gc->has_gc_err = 1;
+		pblk_err(pblk, "failed GC read in line:%d (err:%d)\n",
+								line->id, ret);
 		goto out;
 	}
 
@@ -132,20 +133,22 @@ static __le64 *get_lba_list_from_emeta(struct pblk *pblk,
 				       struct pblk_line *line)
 {
 	struct line_emeta *emeta_buf;
+	struct pblk_line_mgmt *l_mg = &pblk->l_mg;
 	struct pblk_line_meta *lm = &pblk->lm;
 	unsigned int lba_list_size = lm->emeta_len[2];
 	__le64 *lba_list;
 	int ret;
 
-	emeta_buf = kvmalloc(lm->emeta_len[0], GFP_KERNEL);
+	emeta_buf = pblk_malloc(lm->emeta_len[0],
+				l_mg->emeta_alloc_type, GFP_KERNEL);
 	if (!emeta_buf)
 		return NULL;
 
-	ret = pblk_line_emeta_read(pblk, line, emeta_buf);
+	ret = pblk_line_read_emeta(pblk, line, emeta_buf);
 	if (ret) {
 		pblk_err(pblk, "line %d read emeta failed (%d)\n",
 				line->id, ret);
-		kvfree(emeta_buf);
+		pblk_mfree(emeta_buf, l_mg->emeta_alloc_type);
 		return NULL;
 	}
 
@@ -159,16 +162,16 @@ static __le64 *get_lba_list_from_emeta(struct pblk *pblk,
 	if (ret) {
 		pblk_err(pblk, "inconsistent emeta (line %d)\n",
 				line->id);
-		kvfree(emeta_buf);
+		pblk_mfree(emeta_buf, l_mg->emeta_alloc_type);
 		return NULL;
 	}
 
-	lba_list = kvmalloc(lba_list_size, GFP_KERNEL);
-
+	lba_list = pblk_malloc(lba_list_size,
+			       l_mg->emeta_alloc_type, GFP_KERNEL);
 	if (lba_list)
 		memcpy(lba_list, emeta_to_lbas(pblk, emeta_buf), lba_list_size);
 
-	kvfree(emeta_buf);
+	pblk_mfree(emeta_buf, l_mg->emeta_alloc_type);
 
 	return lba_list;
 }
@@ -179,9 +182,8 @@ static void pblk_gc_line_prepare_ws(struct work_struct *work)
 									ws);
 	struct pblk *pblk = line_ws->pblk;
 	struct pblk_line *line = line_ws->line;
+	struct pblk_line_mgmt *l_mg = &pblk->l_mg;
 	struct pblk_line_meta *lm = &pblk->lm;
-	struct nvm_tgt_dev *dev = pblk->dev;
-	struct nvm_geo *geo = &dev->geo;
 	struct pblk_gc *gc = &pblk->gc;
 	struct pblk_line_ws *gc_rq_ws;
 	struct pblk_gc_rq *gc_rq;
@@ -240,13 +242,9 @@ next_rq:
 	gc_rq->nr_secs = nr_secs;
 	gc_rq->line = line;
 
-	gc_rq->data = vmalloc(array_size(gc_rq->nr_secs, geo->csecs));
-	if (!gc_rq->data)
-		goto fail_free_gc_rq;
-
 	gc_rq_ws = kmalloc(sizeof(struct pblk_line_ws), GFP_KERNEL);
 	if (!gc_rq_ws)
-		goto fail_free_gc_data;
+		goto fail_free_gc_rq;
 
 	gc_rq_ws->pblk = pblk;
 	gc_rq_ws->line = line;
@@ -269,7 +267,7 @@ next_rq:
 		goto next_rq;
 
 out:
-	kvfree(lba_list);
+	pblk_mfree(lba_list, l_mg->emeta_alloc_type);
 	kfree(line_ws);
 	kfree(invalid_bitmap);
 
@@ -278,22 +276,17 @@ out:
 
 	return;
 
-fail_free_gc_data:
-	vfree(gc_rq->data);
 fail_free_gc_rq:
 	kfree(gc_rq);
 fail_free_lba_list:
-	kvfree(lba_list);
+	pblk_mfree(lba_list, l_mg->emeta_alloc_type);
 fail_free_invalid_bitmap:
 	kfree(invalid_bitmap);
 fail_free_ws:
 	kfree(line_ws);
 
-	/* Line goes back to closed state, so we cannot release additional
-	 * reference for line, since we do that only when we want to do
-	 * gc to free line state transition.
-	 */
 	pblk_put_line_back(pblk, line);
+	kref_put(&line->ref, pblk_line_put);
 	atomic_dec(&gc->read_inflight_gc);
 
 	pblk_err(pblk, "failed to GC line %d\n", line->id);
@@ -357,13 +350,8 @@ static int pblk_gc_read(struct pblk *pblk)
 
 	pblk_gc_kick(pblk);
 
-	if (pblk_gc_line(pblk, line)) {
+	if (pblk_gc_line(pblk, line))
 		pblk_err(pblk, "failed to GC line %d\n", line->id);
-		/* rollback */
-		spin_lock(&gc->r_lock);
-		list_add_tail(&line->list, &gc->r_list);
-		spin_unlock(&gc->r_lock);
-	}
 
 	return 0;
 }
@@ -372,21 +360,15 @@ static struct pblk_line *pblk_gc_get_victim_line(struct pblk *pblk,
 						 struct list_head *group_list)
 {
 	struct pblk_line *line, *victim;
-	unsigned int line_vsc = ~0x0L, victim_vsc = ~0x0L;
+	int line_vsc, victim_vsc;
 
 	victim = list_first_entry(group_list, struct pblk_line, list);
-
 	list_for_each_entry(line, group_list, list) {
-		if (!atomic_read(&line->sec_to_update))
-			line_vsc = le32_to_cpu(*line->vsc);
-		if (line_vsc < victim_vsc) {
+		line_vsc = le32_to_cpu(*line->vsc);
+		victim_vsc = le32_to_cpu(*victim->vsc);
+		if (line_vsc < victim_vsc)
 			victim = line;
-			victim_vsc = le32_to_cpu(*victim->vsc);
-		}
 	}
-
-	if (victim_vsc == ~0x0)
-		return NULL;
 
 	return victim;
 }
@@ -423,8 +405,6 @@ void pblk_gc_free_full_lines(struct pblk *pblk)
 		spin_lock(&line->lock);
 		WARN_ON(line->state != PBLK_LINESTATE_CLOSED);
 		line->state = PBLK_LINESTATE_GC;
-		trace_pblk_line_state(pblk_disk_name(pblk), line->id,
-					line->state);
 		spin_unlock(&line->lock);
 
 		list_del(&line->list);
@@ -461,18 +441,16 @@ next_gc_group:
 
 	do {
 		spin_lock(&l_mg->gc_lock);
-
-		line = pblk_gc_get_victim_line(pblk, group_list);
-		if (!line) {
+		if (list_empty(group_list)) {
 			spin_unlock(&l_mg->gc_lock);
 			break;
 		}
 
+		line = pblk_gc_get_victim_line(pblk, group_list);
+
 		spin_lock(&line->lock);
 		WARN_ON(line->state != PBLK_LINESTATE_CLOSED);
 		line->state = PBLK_LINESTATE_GC;
-		trace_pblk_line_state(pblk_disk_name(pblk), line->id,
-					line->state);
 		spin_unlock(&line->lock);
 
 		list_del(&line->list);

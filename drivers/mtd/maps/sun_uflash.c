@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /* sun_uflash.c - Driver for user-programmable flash on
  *                Sun Microsystems SME boardsets.
  *

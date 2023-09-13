@@ -15,14 +15,12 @@
 /* all clang versions usable with the kernel support KASAN ABI version 5 */
 #define KASAN_ABI_VERSION 5
 
-#if __has_feature(address_sanitizer) || __has_feature(hwaddress_sanitizer)
 /* emulate gcc's __SANITIZE_ADDRESS__ flag */
+#if __has_feature(address_sanitizer)
 #define __SANITIZE_ADDRESS__
-#define __no_sanitize_address \
-		__attribute__((no_sanitize("address", "hwaddress")))
-#else
-#define __no_sanitize_address
 #endif
+
+#define __no_sanitize_address __attribute__((no_sanitize("address")))
 
 /*
  * Not all versions of clang implement the the type-generic versions
@@ -37,11 +35,14 @@
 #define COMPILER_HAS_GENERIC_BUILTIN_OVERFLOW 1
 #endif
 
-#if __has_feature(shadow_call_stack)
-# define __noscs	__attribute__((__no_sanitize__("shadow-call-stack")))
-#else
-# define __noscs
-#endif
+/* The following are for compatibility with GCC, from compiler-gcc.h,
+ * and may be redefined here because they should not be shared with other
+ * compilers, like ICC.
+ */
+#define barrier() __asm__ __volatile__("" : : : "memory")
+#define __must_be_array(a) BUILD_BUG_ON_ZERO(__same_type((a), &(a)[0]))
+#define __assume_aligned(a, ...)	\
+	__attribute__((__assume_aligned__(a, ## __VA_ARGS__)))
 
 #ifdef CONFIG_LTO_CLANG
 #ifdef CONFIG_FTRACE_MCOUNT_RECORD
@@ -49,6 +50,5 @@
 	__attribute__((__section__(".text..ftrace")))
 #endif
 
-
-#define __nocfi		__attribute__((__no_sanitize__("cfi")))
+#define __nocfi		__attribute__((no_sanitize("cfi")))
 #endif

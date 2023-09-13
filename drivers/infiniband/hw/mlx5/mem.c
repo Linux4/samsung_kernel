@@ -55,16 +55,27 @@ void mlx5_ib_cont_pages(struct ib_umem *umem, u64 addr,
 	int i = 0;
 	struct scatterlist *sg;
 	int entry;
+	unsigned long page_shift = umem->page_shift;
 
-	addr = addr >> PAGE_SHIFT;
+	if (umem->odp_data) {
+		*ncont = ib_umem_page_count(umem);
+		*count = *ncont << (page_shift - PAGE_SHIFT);
+		*shift = page_shift;
+		if (order)
+			*order = ilog2(roundup_pow_of_two(*ncont));
+
+		return;
+	}
+
+	addr = addr >> page_shift;
 	tmp = (unsigned long)addr;
 	m = find_first_bit(&tmp, BITS_PER_LONG);
 	if (max_page_shift)
-		m = min_t(unsigned long, max_page_shift - PAGE_SHIFT, m);
+		m = min_t(unsigned long, max_page_shift - page_shift, m);
 
 	for_each_sg(umem->sg_head.sgl, sg, umem->nmap, entry) {
-		len = sg_dma_len(sg) >> PAGE_SHIFT;
-		pfn = sg_dma_address(sg) >> PAGE_SHIFT;
+		len = sg_dma_len(sg) >> page_shift;
+		pfn = sg_dma_address(sg) >> page_shift;
 		if (base + p != pfn) {
 			/* If either the offset or the new
 			 * base are unaligned update m
@@ -96,10 +107,11 @@ void mlx5_ib_cont_pages(struct ib_umem *umem, u64 addr,
 
 		*ncont = 0;
 	}
-	*shift = PAGE_SHIFT + m;
+	*shift = page_shift + m;
 	*count = i;
 }
 
+#ifdef CONFIG_INFINIBAND_ON_DEMAND_PAGING
 static u64 umem_dma_to_mtt(dma_addr_t umem_dma)
 {
 	u64 mtt_entry = umem_dma & ODP_DMA_ADDR_MASK;
@@ -111,6 +123,7 @@ static u64 umem_dma_to_mtt(dma_addr_t umem_dma)
 
 	return mtt_entry;
 }
+#endif
 
 /*
  * Populate the given array with bus addresses from the umem.
@@ -129,7 +142,8 @@ void __mlx5_ib_populate_pas(struct mlx5_ib_dev *dev, struct ib_umem *umem,
 			    int page_shift, size_t offset, size_t num_pages,
 			    __be64 *pas, int access_flags)
 {
-	int shift = page_shift - PAGE_SHIFT;
+	unsigned long umem_page_shift = umem->page_shift;
+	int shift = page_shift - umem_page_shift;
 	int mask = (1 << shift) - 1;
 	int i, k, idx;
 	u64 cur = 0;
@@ -137,23 +151,25 @@ void __mlx5_ib_populate_pas(struct mlx5_ib_dev *dev, struct ib_umem *umem,
 	int len;
 	struct scatterlist *sg;
 	int entry;
+#ifdef CONFIG_INFINIBAND_ON_DEMAND_PAGING
+	const bool odp = umem->odp_data != NULL;
 
-	if (umem->is_odp) {
+	if (odp) {
 		WARN_ON(shift != 0);
 		WARN_ON(access_flags != (MLX5_IB_MTT_READ | MLX5_IB_MTT_WRITE));
 
 		for (i = 0; i < num_pages; ++i) {
-			dma_addr_t pa =
-				to_ib_umem_odp(umem)->dma_list[offset + i];
+			dma_addr_t pa = umem->odp_data->dma_list[offset + i];
 
 			pas[i] = cpu_to_be64(umem_dma_to_mtt(pa));
 		}
 		return;
 	}
+#endif
 
 	i = 0;
 	for_each_sg(umem->sg_head.sgl, sg, umem->nmap, entry) {
-		len = sg_dma_len(sg) >> PAGE_SHIFT;
+		len = sg_dma_len(sg) >> umem_page_shift;
 		base = sg_dma_address(sg);
 
 		/* Skip elements below offset */
@@ -172,7 +188,7 @@ void __mlx5_ib_populate_pas(struct mlx5_ib_dev *dev, struct ib_umem *umem,
 
 		for (; k < len; k++) {
 			if (!(i & mask)) {
-				cur = base + (k << PAGE_SHIFT);
+				cur = base + (k << umem_page_shift);
 				cur |= access_flags;
 				idx = (i >> shift) - offset;
 

@@ -3,7 +3,6 @@
 #define _IPV6_H
 
 #include <uapi/linux/ipv6.h>
-#include <linux/android_kabi.h>
 
 #define ipv6_optlen(p)  (((p)->hdrlen+1) << 3)
 #define ipv6_authlen(p) (((p)->hdrlen+2) << 2)
@@ -52,7 +51,7 @@ struct ipv6_devconf {
 	__s32		use_optimistic;
 #endif
 #ifdef CONFIG_IPV6_MROUTE
-	atomic_t	mc_forwarding;
+	__s32		mc_forwarding;
 #endif
 	__s32		disable_ipv6;
 	__s32		drop_unicast_in_l2_multicast;
@@ -78,11 +77,6 @@ struct ipv6_devconf {
 	__s32           ndisc_tclass;
 
 	struct ctl_table_header *sysctl_header;
-
-	ANDROID_KABI_RESERVE(1);
-	ANDROID_KABI_RESERVE(2);
-	ANDROID_KABI_RESERVE(3);
-	ANDROID_KABI_RESERVE(4);
 };
 
 struct ipv6_params {
@@ -90,6 +84,7 @@ struct ipv6_params {
 	__s32 autoconf;
 };
 extern struct ipv6_params ipv6_defaults;
+#include <linux/icmpv6.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
 
@@ -108,12 +103,6 @@ static inline struct ipv6hdr *inner_ipv6_hdr(const struct sk_buff *skb)
 static inline struct ipv6hdr *ipipv6_hdr(const struct sk_buff *skb)
 {
 	return (struct ipv6hdr *)skb_transport_header(skb);
-}
-
-static inline unsigned int ipv6_transport_len(const struct sk_buff *skb)
-{
-	return ntohs(ipv6_hdr(skb)->payload_len) + sizeof(struct ipv6hdr) -
-	       skb_network_header_len(skb);
 }
 
 /* 
@@ -286,9 +275,7 @@ struct ipv6_pinfo {
 						 */
 				dontfrag:1,
 				autoflowlabel:1,
-				autoflowlabel_set:1,
-				mc_all:1,
-				rtalert_isolate:1;
+				autoflowlabel_set:1;
 	__u8			min_hopcount;
 	__u8			tclass;
 	__be32			rcv_flowinfo;

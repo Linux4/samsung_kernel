@@ -8,7 +8,6 @@
  */
 
 #include "mtu3.h"
-#include "mtu3_trace.h"
 
 void mtu3_req_complete(struct mtu3_ep *mep,
 		     struct usb_request *req, int status)
@@ -26,8 +25,6 @@ __acquires(mep->mtu->lock)
 
 	mtu = mreq->mtu;
 	mep->busy = 1;
-
-	trace_mtu3_req_complete(mreq);
 	spin_unlock(&mtu->lock);
 
 	/* ep0 makes use of PIO, needn't unmap it */
@@ -72,12 +69,14 @@ static int mtu3_ep_enable(struct mtu3_ep *mep)
 	u32 interval = 0;
 	u32 mult = 0;
 	u32 burst = 0;
+	int max_packet;
 	int ret;
 
 	desc = mep->desc;
 	comp_desc = mep->comp_desc;
 	mep->type = usb_endpoint_type(desc);
-	mep->maxp = usb_endpoint_maxp(desc);
+	max_packet = usb_endpoint_maxp(desc);
+	mep->maxp = max_packet & GENMASK(10, 0);
 
 	switch (mtu->g.speed) {
 	case USB_SPEED_SUPER:
@@ -85,7 +84,7 @@ static int mtu3_ep_enable(struct mtu3_ep *mep)
 		if (usb_endpoint_xfer_int(desc) ||
 				usb_endpoint_xfer_isoc(desc)) {
 			interval = desc->bInterval;
-			interval = clamp_val(interval, 1, 16);
+			interval = clamp_val(interval, 1, 16) - 1;
 			if (usb_endpoint_xfer_isoc(desc) && comp_desc)
 				mult = comp_desc->bmAttributes;
 		}
@@ -97,16 +96,9 @@ static int mtu3_ep_enable(struct mtu3_ep *mep)
 		if (usb_endpoint_xfer_isoc(desc) ||
 				usb_endpoint_xfer_int(desc)) {
 			interval = desc->bInterval;
-			interval = clamp_val(interval, 1, 16);
-			mult = usb_endpoint_maxp_mult(desc) - 1;
+			interval = clamp_val(interval, 1, 16) - 1;
+			burst = (max_packet & GENMASK(12, 11)) >> 11;
 		}
-		break;
-	case USB_SPEED_FULL:
-		if (usb_endpoint_xfer_isoc(desc))
-			interval = clamp_val(desc->bInterval, 1, 16);
-		else if (usb_endpoint_xfer_int(desc))
-			interval = clamp_val(desc->bInterval, 1, 255);
-
 		break;
 	default:
 		break; /*others are ignored */
@@ -209,7 +201,6 @@ error:
 	spin_unlock_irqrestore(&mtu->lock, flags);
 
 	dev_dbg(mtu->dev, "%s active_ep=%d\n", __func__, mtu->active_ep);
-	trace_mtu3_gadget_ep_enable(mep);
 
 	return ret;
 }
@@ -221,7 +212,6 @@ static int mtu3_gadget_ep_disable(struct usb_ep *ep)
 	unsigned long flags;
 
 	dev_dbg(mtu->dev, "%s %s\n", __func__, mep->name);
-	trace_mtu3_gadget_ep_disable(mep);
 
 	if (!(mep->flags & MTU3_EP_ENABLED)) {
 		dev_warn(mtu->dev, "%s is already disabled\n", mep->name);
@@ -252,18 +242,13 @@ struct usb_request *mtu3_alloc_request(struct usb_ep *ep, gfp_t gfp_flags)
 	mreq->request.dma = DMA_ADDR_INVALID;
 	mreq->epnum = mep->epnum;
 	mreq->mep = mep;
-	INIT_LIST_HEAD(&mreq->list);
-	trace_mtu3_alloc_request(mreq);
 
 	return &mreq->request;
 }
 
 void mtu3_free_request(struct usb_ep *ep, struct usb_request *req)
 {
-	struct mtu3_request *mreq = to_mtu3_request(req);
-
-	trace_mtu3_free_request(mreq);
-	kfree(mreq);
+	kfree(to_mtu3_request(req));
 }
 
 static int mtu3_gadget_queue(struct usb_ep *ep,
@@ -293,12 +278,10 @@ static int mtu3_gadget_queue(struct usb_ep *ep,
 		__func__, mep->is_in ? "TX" : "RX", mreq->epnum, ep->name,
 		mreq, ep->maxpacket, mreq->request.length);
 
-	if (req->length > GPD_BUF_SIZE ||
-	    (mtu->gen2cp && req->length > GPD_BUF_SIZE_EL)) {
+	if (req->length > GPD_BUF_SIZE) {
 		dev_warn(mtu->dev,
 			"req length > supported MAX:%d requested:%d\n",
-			mtu->gen2cp ? GPD_BUF_SIZE_EL : GPD_BUF_SIZE,
-			req->length);
+			GPD_BUF_SIZE, req->length);
 		return -EOPNOTSUPP;
 	}
 
@@ -331,7 +314,6 @@ static int mtu3_gadget_queue(struct usb_ep *ep,
 
 error:
 	spin_unlock_irqrestore(&mtu->lock, flags);
-	trace_mtu3_gadget_queue(mreq);
 
 	return ret;
 }
@@ -349,7 +331,6 @@ static int mtu3_gadget_dequeue(struct usb_ep *ep, struct usb_request *req)
 		return -EINVAL;
 
 	dev_dbg(mtu->dev, "%s : req=%p\n", __func__, req);
-	trace_mtu3_gadget_dequeue(mreq);
 
 	spin_lock_irqsave(&mtu->lock, flags);
 
@@ -420,7 +401,6 @@ static int mtu3_gadget_ep_set_halt(struct usb_ep *ep, int value)
 
 done:
 	spin_unlock_irqrestore(&mtu->lock, flags);
-	trace_mtu3_gadget_ep_set_halt(mep);
 
 	return ret;
 }
@@ -593,7 +573,6 @@ static int mtu3_gadget_stop(struct usb_gadget *g)
 
 	spin_unlock_irqrestore(&mtu->lock, flags);
 
-	synchronize_irq(mtu->irq);
 	return 0;
 }
 

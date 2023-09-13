@@ -1,9 +1,17 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2016 MediaTek Inc.
  * Author: Daniel Hsiao <daniel.hsiao@mediatek.com>
  *	Kai-Sean Yang <kai-sean.yang@mediatek.com>
  *	Tiffany Lin <tiffany.lin@mediatek.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #include <linux/fs.h>
@@ -473,15 +481,15 @@ static void vp9_swap_frm_bufs(struct vdec_vp9_inst *inst)
 		 */
 		if ((frm_to_show->fb != NULL) &&
 			(inst->cur_fb->base_y.size >=
-			frm_to_show->fb->base_y.size) &&
-			(inst->cur_fb->base_c.size >=
-			frm_to_show->fb->base_c.size)) {
+			frm_to_show->fb->base_y.size)) {
 			memcpy((void *)inst->cur_fb->base_y.va,
 				(void *)frm_to_show->fb->base_y.va,
-				frm_to_show->fb->base_y.size);
+				vsi->buf_w *
+				vsi->buf_h);
 			memcpy((void *)inst->cur_fb->base_c.va,
 				(void *)frm_to_show->fb->base_c.va,
-				frm_to_show->fb->base_c.size);
+				vsi->buf_w *
+				vsi->buf_h / 2);
 		} else {
 			/* After resolution change case, current CAPTURE buffer
 			 * may have less buffer size than frm_to_show buffer
@@ -694,8 +702,10 @@ static void init_all_fb_lists(struct vdec_vp9_inst *inst)
 
 static void get_pic_info(struct vdec_vp9_inst *inst, struct vdec_pic_info *pic)
 {
-	pic->fb_sz[0] = inst->vsi->buf_sz_y_bs + inst->vsi->buf_len_sz_y;
-	pic->fb_sz[1] = inst->vsi->buf_sz_c_bs + inst->vsi->buf_len_sz_c;
+	pic->y_bs_sz = inst->vsi->buf_sz_y_bs;
+	pic->c_bs_sz = inst->vsi->buf_sz_c_bs;
+	pic->y_len_sz = inst->vsi->buf_len_sz_y;
+	pic->c_len_sz = inst->vsi->buf_len_sz_c;
 
 	pic->pic_w = inst->vsi->pic_w;
 	pic->pic_h = inst->vsi->pic_h;
@@ -704,9 +714,8 @@ static void get_pic_info(struct vdec_vp9_inst *inst, struct vdec_pic_info *pic)
 
 	mtk_vcodec_debug(inst, "pic(%d, %d), buf(%d, %d)",
 		 pic->pic_w, pic->pic_h, pic->buf_w, pic->buf_h);
-	mtk_vcodec_debug(inst, "fb size: Y(%d), C(%d)",
-		pic->fb_sz[0],
-		pic->fb_sz[1]);
+	mtk_vcodec_debug(inst, "Y(%d, %d), C(%d, %d)", pic->y_bs_sz,
+		 pic->y_len_sz, pic->c_bs_sz, pic->c_len_sz);
 }
 
 static void get_disp_fb(struct vdec_vp9_inst *inst, struct vdec_fb **out_fb)
@@ -757,7 +766,7 @@ static int validate_vsi_array_indexes(struct vdec_vp9_inst *inst,
 	return 0;
 }
 
-static void vdec_vp9_deinit(void *h_vdec)
+static void vdec_vp9_deinit(unsigned long h_vdec)
 {
 	struct vdec_vp9_inst *inst = (struct vdec_vp9_inst *)h_vdec;
 	struct mtk_vcodec_mem *mem;
@@ -779,7 +788,7 @@ static void vdec_vp9_deinit(void *h_vdec)
 	vp9_free_inst(inst);
 }
 
-static int vdec_vp9_init(struct mtk_vcodec_ctx *ctx)
+static int vdec_vp9_init(struct mtk_vcodec_ctx *ctx, unsigned long *h_vdec)
 {
 	struct vdec_vp9_inst *inst;
 
@@ -803,7 +812,7 @@ static int vdec_vp9_init(struct mtk_vcodec_ctx *ctx)
 	inst->vsi = (struct vdec_vp9_vsi *)inst->vpu.vsi;
 	init_all_fb_lists(inst);
 
-	ctx->drv_handle = inst;
+	(*h_vdec) = (unsigned long)inst;
 	return 0;
 
 err_deinit_inst:
@@ -812,8 +821,8 @@ err_deinit_inst:
 	return -EINVAL;
 }
 
-static int vdec_vp9_decode(void *h_vdec, struct mtk_vcodec_mem *bs,
-			   struct vdec_fb *fb, bool *res_chg)
+static int vdec_vp9_decode(unsigned long h_vdec, struct mtk_vcodec_mem *bs,
+		   struct vdec_fb *fb, bool *res_chg)
 {
 	int ret = 0;
 	struct vdec_vp9_inst *inst = (struct vdec_vp9_inst *)h_vdec;
@@ -886,7 +895,7 @@ static int vdec_vp9_decode(void *h_vdec, struct mtk_vcodec_mem *bs,
 
 		if (vsi->resolution_changed) {
 			if (!vp9_alloc_work_buf(inst)) {
-				ret = -EIO;
+				ret = -EINVAL;
 				goto DECODE_ERROR;
 			}
 		}
@@ -915,12 +924,14 @@ static int vdec_vp9_decode(void *h_vdec, struct mtk_vcodec_mem *bs,
 
 		if (vsi->show_existing_frame && (vsi->frm_to_show_idx <
 					VP9_MAX_FRM_BUF_NUM)) {
-			mtk_vcodec_debug(inst,
+			mtk_vcodec_err(inst,
 				"Skip Decode drv->new_fb_idx=%d, drv->frm_to_show_idx=%d",
 				vsi->new_fb_idx, vsi->frm_to_show_idx);
 
 			vp9_ref_cnt_fb(inst, &vsi->new_fb_idx,
 					vsi->frm_to_show_idx);
+			ret = -EINVAL;
+			goto DECODE_ERROR;
 		}
 
 		/* VPU assign the buffer pointer in its address space,
@@ -969,8 +980,8 @@ static void get_crop_info(struct vdec_vp9_inst *inst, struct v4l2_rect *cr)
 			 cr->left, cr->top, cr->width, cr->height);
 }
 
-static int vdec_vp9_get_param(void *h_vdec, enum vdec_get_param_type type,
-			      void *out)
+static int vdec_vp9_get_param(unsigned long h_vdec,
+		enum vdec_get_param_type type, void *out)
 {
 	struct vdec_vp9_inst *inst = (struct vdec_vp9_inst *)h_vdec;
 	int ret = 0;
@@ -1000,9 +1011,16 @@ static int vdec_vp9_get_param(void *h_vdec, enum vdec_get_param_type type,
 	return ret;
 }
 
-const struct vdec_common_if vdec_vp9_if = {
+static struct vdec_common_if vdec_vp9_if = {
 	.init		= vdec_vp9_init,
 	.decode		= vdec_vp9_decode,
 	.get_param	= vdec_vp9_get_param,
 	.deinit		= vdec_vp9_deinit,
 };
+
+struct vdec_common_if *get_vp9_dec_comm_if(void);
+
+struct vdec_common_if *get_vp9_dec_comm_if(void)
+{
+	return &vdec_vp9_if;
+}

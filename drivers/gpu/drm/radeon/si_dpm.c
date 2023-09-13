@@ -21,17 +21,15 @@
  *
  */
 
-#include <linux/math64.h>
-#include <linux/seq_file.h>
-
-#include <drm/drm_pci.h>
-
-#include "atom.h"
-#include "r600_dpm.h"
+#include <drm/drmP.h>
 #include "radeon.h"
 #include "radeon_asic.h"
-#include "si_dpm.h"
 #include "sid.h"
+#include "r600_dpm.h"
+#include "si_dpm.h"
+#include "atom.h"
+#include <linux/math64.h>
+#include <linux/seq_file.h>
 
 #define MC_CG_ARB_FREQ_F0           0x0a
 #define MC_CG_ARB_FREQ_F1           0x0b
@@ -3002,9 +3000,6 @@ static void si_apply_state_adjust_rules(struct radeon_device *rdev,
 		    (rdev->pdev->device == 0x6605)) {
 			max_sclk = 75000;
 		}
-
-		if (rdev->pm.dpm.high_pixelclock_count > 1)
-			disable_sclk_switching = true;
 	}
 
 	if (rps->vce_active) {
@@ -5768,12 +5763,10 @@ static void si_request_link_speed_change_before_state_change(struct radeon_devic
 			si_pi->force_pcie_gen = RADEON_PCIE_GEN2;
 			if (current_link_speed == RADEON_PCIE_GEN2)
 				break;
-			/* fall through */
 		case RADEON_PCIE_GEN2:
 			if (radeon_acpi_pcie_performance_request(rdev, PCIE_PERF_REQ_PECI_GEN2, false) == 0)
 				break;
 #endif
-			/* fall through */
 		default:
 			si_pi->force_pcie_gen = si_get_current_pcie_speed(rdev);
 			break;

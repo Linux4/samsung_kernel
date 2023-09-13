@@ -243,7 +243,7 @@ acpi_db_display_internal_object(union acpi_operand_object *obj_desc,
 			acpi_os_printf("[%s] ",
 				       acpi_ut_get_reference_name(obj_desc));
 
-			/* Decode the reference */
+			/* Decode the refererence */
 
 			switch (obj_desc->reference.class) {
 			case ACPI_REFCLASS_LOCAL:
@@ -394,6 +394,7 @@ void acpi_db_decode_locals(struct acpi_walk_state *walk_state)
 	u8 display_locals = FALSE;
 
 	node = walk_state->method_node;
+	obj_desc = walk_state->method_desc;
 
 	/* There are no locals for the module-level code case */
 

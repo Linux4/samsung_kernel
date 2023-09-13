@@ -1,23 +1,22 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
  */
 
 #ifndef UFS_QCOM_H_
 #define UFS_QCOM_H_
 
-#include <linux/reset-controller.h>
-#include <linux/reset.h>
-#include <linux/phy/phy.h>
-#include <linux/pm_qos.h>
-#include "ufshcd.h"
-#ifdef CONFIG_SCSI_UFSHCD_QTI
-#include "unipro.h"
-#endif
-
-#define MAX_UFS_QCOM_HOSTS	2
+#define MAX_UFS_QCOM_HOSTS	1
 #define MAX_U32                 (~(u32)0)
 #define MPHY_TX_FSM_STATE       0x41
-#define MPHY_RX_FSM_STATE       0xC1
 #define TX_FSM_HIBERN8          0x1
 #define HBRN8_POLL_TOUT_MS      100
 #define DEFAULT_CLK_RATE_HZ     1000000
@@ -30,19 +29,14 @@
 #define UFS_HW_VER_STEP_SHFT	(0)
 #define UFS_HW_VER_STEP_MASK	(0xFFFF << UFS_HW_VER_STEP_SHFT)
 
-#define UFS_VENDOR_MICRON	0x12C
-
 /* vendor specific pre-defined parameters */
 #define SLOW 1
 #define FAST 2
 
-#define UFS_QCOM_PHY_SUBMODE_NON_G4	0
-#define UFS_QCOM_PHY_SUBMODE_G4		1
-
 #define UFS_QCOM_LIMIT_NUM_LANES_RX	2
 #define UFS_QCOM_LIMIT_NUM_LANES_TX	2
-#define UFS_QCOM_LIMIT_HSGEAR_RX	UFS_HS_G4
-#define UFS_QCOM_LIMIT_HSGEAR_TX	UFS_HS_G4
+#define UFS_QCOM_LIMIT_HSGEAR_RX	UFS_HS_G3
+#define UFS_QCOM_LIMIT_HSGEAR_TX	UFS_HS_G3
 #define UFS_QCOM_LIMIT_PWMGEAR_RX	UFS_PWM_G4
 #define UFS_QCOM_LIMIT_PWMGEAR_TX	UFS_PWM_G4
 #define UFS_QCOM_LIMIT_RX_PWR_PWM	SLOW_MODE
@@ -51,12 +45,6 @@
 #define UFS_QCOM_LIMIT_TX_PWR_HS	FAST_MODE
 #define UFS_QCOM_LIMIT_HS_RATE		PA_HS_MODE_B
 #define UFS_QCOM_LIMIT_DESIRED_MODE	FAST
-#define UFS_QCOM_LIMIT_PHY_SUBMODE	UFS_QCOM_PHY_SUBMODE_G4
-
-/* default value of auto suspend is 3 seconds */
-#define UFS_QCOM_AUTO_SUSPEND_DELAY	3000
-#define UFS_QCOM_CLK_GATING_DELAY_MS_PWR_SAVE	30
-#define UFS_QCOM_CLK_GATING_DELAY_MS_PERF	50
 
 /* QCOM UFS host controller vendor specific registers */
 enum {
@@ -128,17 +116,6 @@ enum {
 				 DFC_HW_CGC_EN | TRLUT_HW_CGC_EN |\
 				 TMRLUT_HW_CGC_EN | OCSC_HW_CGC_EN)
 
-/* bit definitions for UFS_AH8_CFG register */
-#define CC_UFS_HCLK_REQ_EN		BIT(1)
-#define CC_UFS_SYS_CLK_REQ_EN		BIT(2)
-#define CC_UFS_ICE_CORE_CLK_REQ_EN	BIT(3)
-#define CC_UFS_UNIPRO_CORE_CLK_REQ_EN	BIT(4)
-#define CC_UFS_AUXCLK_REQ_EN		BIT(5)
-
-#define UFS_HW_CLK_CTRL_EN	(CC_UFS_SYS_CLK_REQ_EN |\
-				 CC_UFS_ICE_CORE_CLK_REQ_EN |\
-				 CC_UFS_UNIPRO_CORE_CLK_REQ_EN |\
-				 CC_UFS_AUXCLK_REQ_EN)
 /* bit offset */
 enum {
 	OFFSET_UFS_PHY_SOFT_RESET           = 1,
@@ -168,38 +145,10 @@ enum ufs_qcom_phy_init_type {
 
 /* QUniPro Vendor specific attributes */
 #define PA_VS_CONFIG_REG1	0x9000
-#define BIT_TX_EOB_COND         BIT(23)
-#define PA_VS_CONFIG_REG2       0x9005
-#define H8_ENTER_COND_OFFSET 0x6
-#define H8_ENTER_COND_MASK GENMASK(7, 6)
-#define BIT_RX_EOB_COND		BIT(5)
-#define BIT_LINKCFG_WAIT_LL1_RX_CFG_RDY BIT(26)
-#define SAVECONFIGTIME_MODE_MASK        0x6000
-#define DME_VS_CORE_CLK_CTRL    0xD002
-
-
-/* bit and mask definitions for DME_VS_CORE_CLK_CTRL attribute */
-#define DME_VS_CORE_CLK_CTRL_CORE_CLK_DIV_EN_BIT		BIT(8)
-#define DME_VS_CORE_CLK_CTRL_MAX_CORE_CLK_1US_CYCLES_MASK	0xFF
-
-#define PA_VS_CLK_CFG_REG	0x9004
-#define PA_VS_CLK_CFG_REG_MASK	0x1FF
-#define DME_VS_CORE_CLK_CTRL_MAX_CORE_CLK_1US_CYCLES_MASK_V4	0xFFF
-#define DME_VS_CORE_CLK_CTRL_MAX_CORE_CLK_1US_CYCLES_OFFSET_V4	0x10
-
-#define PA_VS_CORE_CLK_40NS_CYCLES	0x9007
-#define PA_VS_CORE_CLK_40NS_CYCLES_MASK	0xF
-
-#define DL_VS_CLK_CFG		0xA00B
-#define DL_VS_CLK_CFG_MASK	0x3FF
-
 #define DME_VS_CORE_CLK_CTRL	0xD002
 /* bit and mask definitions for DME_VS_CORE_CLK_CTRL attribute */
-#define DME_VS_CORE_CLK_CTRL_MAX_CORE_CLK_1US_CYCLES_MASK_V4	0xFFF
-#define DME_VS_CORE_CLK_CTRL_MAX_CORE_CLK_1US_CYCLES_OFFSET_V4	0x10
-#define DME_VS_CORE_CLK_CTRL_MAX_CORE_CLK_1US_CYCLES_MASK	0xFF
 #define DME_VS_CORE_CLK_CTRL_CORE_CLK_DIV_EN_BIT		BIT(8)
-#define DME_VS_CORE_CLK_CTRL_DME_HW_CGC_EN			BIT(9)
+#define DME_VS_CORE_CLK_CTRL_MAX_CORE_CLK_1US_CYCLES_MASK	0xFF
 
 static inline void
 ufs_qcom_get_controller_revision(struct ufs_hba *hba,
@@ -258,109 +207,6 @@ struct ufs_qcom_testbus {
 	u8 select_minor;
 };
 
-struct gpio_desc;
-
-struct qcom_bus_vectors {
-	uint32_t ab;
-	uint32_t ib;
-};
-
-struct qcom_bus_path {
-	unsigned int num_paths;
-	struct qcom_bus_vectors *vec;
-};
-
-struct qcom_bus_scale_data {
-	struct qcom_bus_path *usecase;
-	unsigned int num_usecase;
-	struct icc_path *ufs_ddr;
-	struct icc_path *cpu_ufs;
-
-	const char *name;
-};
-
-struct qos_cpu_group {
-	cpumask_t mask;
-	unsigned int *votes;
-	struct dev_pm_qos_request *qos_req;
-	bool voted;
-	struct work_struct vwork;
-	struct ufs_qcom_host *host;
-	unsigned int curr_vote;
-};
-
-struct ufs_qcom_qos_req {
-	struct qos_cpu_group *qcg;
-	unsigned int num_groups;
-	struct workqueue_struct *workq;
-};
-
-/* Check for QOS_POWER when added to DT */
-enum constraint {
-	QOS_PERF,
-	QOS_POWER,
-	QOS_MAX,
-};
-
-/*unique number*/
-#define UFS_UN_20_DIGITS 20
-#define UFS_UN_MAX_DIGITS 21 //current max digit + 1
-
-#define SERIAL_NUM_SIZE 7
-
-struct ufs_vendor_dev_info {
-	char unique_number[UFS_UN_MAX_DIGITS];
-	u8 lifetime;
-	unsigned int lc_info;
-	struct ufs_hba *hba;
-};
-
-enum SEC_WB_state {
-	WB_OFF = 0,
-	WB_ON_READY,
-	WB_OFF_READY,
-	WB_ON,
-	NR_WB_STATE
-};
-
-struct SEC_WB_info {
-	bool			wb_support;		/* feature support and enabled */
-	bool			wb_setup_done;		/* setup is done or not */
-	bool			wb_off;			/* WB off or not */
-	atomic_t		wb_off_cnt;		/* WB off count */
-
-	enum SEC_WB_state	state;			/* current state */
-	unsigned long		state_ts;		/* current state timestamp */
-
-	int			up_threshold_block;	/* threshold for WB on : block(4KB) count */
-	int			up_threshold_rqs;	/*               WB on : request count */
-	int			down_threshold_block;	/* threshold for WB off : block count */
-	int			down_threshold_rqs;	/*               WB off : request count */
-
-	int			wb_disable_threshold_lt;	/* LT threshold that WB is not allowed */
-
-	int			on_delay;		/* WB on delay for WB_ON_READY -> WB_ON */
-	int			off_delay;		/* WB off delay for WB_OFF_READY -> WB_OFF */
-
-	/* below values will be used when (wb_off == true) */
-	int			lp_up_threshold_block;		/* threshold for WB on : block(4KB) count */
-	int			lp_up_threshold_rqs;		/*               WB on : request count */
-	int			lp_down_threshold_block;	/* threshold for WB off : block count */
-	int			lp_down_threshold_rqs;		/*               WB off : request count */
-	int			lp_on_delay;	/* on_delay multiplier when (wb_off == true) */
-	int			lp_off_delay;	/* off_delay multiplier when (wb_off == true) */
-
-	int			wb_current_block;	/* current block counts in WB_ON state */
-	int			wb_current_rqs;		/*         request counts in WB_ON */
-
-	unsigned int		wb_curr_issued_block;	/* amount issued block count during current WB_ON session */
-	int			wb_curr_issued_min_block;	/* min. issued block count */
-	int			wb_curr_issued_max_block;	/* max. issued block count */
-	unsigned int		wb_issued_size_cnt[4];	/* volume count of amount issued block per WB_ON session */
-
-	unsigned int		wb_total_issued_mb;	/* amount issued Write Size(MB) in all WB_ON */
-};
-
 struct ufs_qcom_host {
 	/*
 	 * Set this capability if host controller supports the QUniPro mode
@@ -375,18 +221,6 @@ struct ufs_qcom_host {
 	 * configuration even after UFS controller core power collapse.
 	 */
 	#define UFS_QCOM_CAP_RETAIN_SEC_CFG_AFTER_PWR_COLLAPSE	0x2
-
-	/*
-	 * Set this capability if host controller supports Qunipro internal
-	 * clock gating.
-	 */
-	#define UFS_QCOM_CAP_QUNIPRO_CLK_GATING		0x4
-
-	/*
-	 * Set this capability if host controller supports SVS2 frequencies.
-	 */
-	#define UFS_QCOM_CAP_SVS2	0x8
-
 	u32 caps;
 
 	struct phy *generic_phy;
@@ -402,56 +236,13 @@ struct ufs_qcom_host {
 	void __iomem *dev_ref_clk_ctrl_mmio;
 	bool is_dev_ref_clk_enabled;
 	struct ufs_hw_version hw_ver;
+
 	u32 dev_ref_clk_en_mask;
 
 	/* Bitmask for enabling debug prints */
 	u32 dbg_print_en;
 	struct ufs_qcom_testbus testbus;
-
-	/* Reset control of HCI */
-	struct reset_control *core_reset;
-	struct reset_controller_dev rcdev;
-
-	struct gpio_desc *device_reset;
-
-	int limit_tx_hs_gear;
-	int limit_rx_hs_gear;
-	int limit_tx_pwm_gear;
-	int limit_rx_pwm_gear;
-	int limit_rate;
-	int limit_phy_submode;
-
-	bool disable_lpm;
-	struct qcom_bus_scale_data *qbsd;
-	struct ufs_vreg *vddp_ref_clk;
-	struct ufs_vreg *vccq_parent;
-	bool work_pending;
-	bool is_phy_pwr_on;
-	/* Protect the usage of is_phy_pwr_on against racing */
-	struct mutex phy_mutex;
-	bool err_occurred;
-	/* FlashPVL entries */
-	atomic_t scale_up;
-	atomic_t clks_on;
-	struct ufs_qcom_qos_req *ufs_qos;
-	bool bypass_g4_cfgready;
-	bool is_dt_pm_level_read;
-
-	bool skip_flush;
-	u64 transferred_bytes;
-	unsigned int reset_cnt;
-	struct workqueue_struct *SEC_WB_workq;
-	struct work_struct SEC_WB_on_work;
-	struct work_struct SEC_WB_off_work;
-	struct SEC_WB_info sec_wb_info;
 };
-
-#if IS_ENABLED(CONFIG_SEC_UFS_WB_FEATURE)
-static inline bool ufs_sec_is_wb_allowed(struct ufs_qcom_host *host)
-{
-	return host->sec_wb_info.wb_support;
-}
-#endif
 
 static inline u32
 ufs_qcom_get_debug_reg_offset(struct ufs_qcom_host *host, u32 reg)
@@ -467,9 +258,6 @@ ufs_qcom_get_debug_reg_offset(struct ufs_qcom_host *host, u32 reg)
 #define ufs_qcom_is_link_hibern8(hba) ufshcd_is_link_hibern8(hba)
 
 int ufs_qcom_testbus_config(struct ufs_qcom_host *host);
-void ufs_qcom_print_hw_debug_reg_all(struct ufs_hba *hba, void *priv,
-		void (*print_fn)(struct ufs_hba *hba, int offset, int num_regs,
-				const char *str, void *priv));
 
 static inline bool ufs_qcom_cap_qunipro(struct ufs_qcom_host *host)
 {
@@ -478,160 +266,5 @@ static inline bool ufs_qcom_cap_qunipro(struct ufs_qcom_host *host)
 	else
 		return false;
 }
-
-static inline bool ufs_qcom_cap_qunipro_clk_gating(struct ufs_qcom_host *host)
-{
-	return !!(host->caps & UFS_QCOM_CAP_QUNIPRO_CLK_GATING);
-}
-
-static inline bool ufs_qcom_cap_svs2(struct ufs_qcom_host *host)
-{
-	return !!(host->caps & UFS_QCOM_CAP_SVS2);
-}
-
-/**
- * ufshcd_dme_rmw - get modify set a dme attribute
- * @hba - per adapter instance
- * @mask - mask to apply on read value
- * @val - actual value to write
- * @attr - dme attribute
- */
-static inline int ufshcd_dme_rmw(struct ufs_hba *hba, u32 mask,
-				 u32 val, u32 attr)
-{
-	u32 cfg = 0;
-	int err = 0;
-
-	err = ufshcd_dme_get(hba, UIC_ARG_MIB(attr), &cfg);
-	if (err)
-		goto out;
-
-	cfg &= ~mask;
-	cfg |= (val & mask);
-
-	err = ufshcd_dme_set(hba, UIC_ARG_MIB(attr), cfg);
-
-out:
-	return err;
-}
-
-/*
- *  IOCTL opcode for ufs queries has the following opcode after
- *  SCSI_IOCTL_GET_PCI
- */
-#define UFS_IOCTL_QUERY			0x5388
-
-/**
- * struct ufs_ioctl_query_data - used to transfer data to and from user via
- * ioctl
- * @opcode: type of data to query (descriptor/attribute/flag)
- * @idn: id of the data structure
- * @buf_size: number of allocated bytes/data size on return
- * @buffer: data location
- *
- * Received: buffer and buf_size (available space for transferred data)
- * Submitted: opcode, idn, length, buf_size
- */
-struct ufs_ioctl_query_data {
-	/*
-	 * User should select one of the opcode defined in "enum query_opcode".
-	 * Please check include/uapi/scsi/ufs/ufs.h for the definition of it.
-	 * Note that only UPIU_QUERY_OPCODE_READ_DESC,
-	 * UPIU_QUERY_OPCODE_READ_ATTR & UPIU_QUERY_OPCODE_READ_FLAG are
-	 * supported as of now. All other query_opcode would be considered
-	 * invalid.
-	 * As of now only read query operations are supported.
-	 */
-	__u32 opcode;
-	/*
-	 * User should select one of the idn from "enum flag_idn" or "enum
-	 * attr_idn" or "enum desc_idn" based on whether opcode above is
-	 * attribute, flag or descriptor.
-	 * Please check include/uapi/scsi/ufs/ufs.h for the definition of it.
-	 */
-	__u8 idn;
-	/*
-	 * User should specify the size of the buffer (buffer[0] below) where
-	 * it wants to read the query data (attribute/flag/descriptor).
-	 * As we might end up reading less data then what is specified in
-	 * buf_size. So we are updating buf_size to what exactly we have read.
-	 */
-	__u16 buf_size;
-	/*
-	 * placeholder for the start of the data buffer where kernel will copy
-	 * the query data (attribute/flag/descriptor) read from the UFS device
-	 * Note:
-	 * For Read/Write Attribute you will have to allocate 4 bytes
-	 * For Read/Write Flag you will have to allocate 1 byte
-	 */
-	__u8 buffer[0];
-};
-
-#if IS_ENABLED(CONFIG_SEC_UFS_WB_FEATURE)
-#define SEC_UFS_WB_DATA_ATTR(name, fmt, member)				\
-static ssize_t ufs_sec_##name##_show(struct device *dev,		\
-		struct device_attribute *attr, char *buf)		\
-{									\
-	struct ufs_hba *hba = dev_get_drvdata(dev);			\
-	struct ufs_qcom_host *host = ufshcd_get_variant(hba);		\
-	struct SEC_WB_info *wb_info = &host->sec_wb_info;		\
-	return sprintf(buf, fmt, wb_info->member);			\
-}									\
-static ssize_t ufs_sec_##name##_store(struct device *dev,		\
-		struct device_attribute *attr, const char *buf,		\
-		size_t count)						\
-{									\
-	u32 value;							\
-	struct ufs_hba *hba = dev_get_drvdata(dev);			\
-	struct ufs_qcom_host *host = ufshcd_get_variant(hba);		\
-	struct SEC_WB_info *wb_info = &host->sec_wb_info;		\
-									\
-	if (kstrtou32(buf, 0, &value))					\
-		return -EINVAL;						\
-									\
-	wb_info->member = value;					\
-									\
-	return count;							\
-}									\
-static DEVICE_ATTR(name, 0664, ufs_sec_##name##_show, ufs_sec_##name##_store)
-
-#define SEC_UFS_WB_TIME_ATTR(name, fmt, member)				\
-static ssize_t ufs_sec_##name##_show(struct device *dev,		\
-		struct device_attribute *attr, char *buf)		\
-{									\
-	struct ufs_hba *hba = dev_get_drvdata(dev);			\
-	struct ufs_qcom_host *host = ufshcd_get_variant(hba);		\
-	struct SEC_WB_info *wb_info = &host->sec_wb_info;		\
-	return sprintf(buf, fmt, jiffies_to_msecs(wb_info->member));	\
-}									\
-static ssize_t ufs_sec_##name##_store(struct device *dev,		\
-		struct device_attribute *attr, const char *buf,		\
-		size_t count)						\
-{									\
-	u32 value;							\
-	struct ufs_hba *hba = dev_get_drvdata(dev);			\
-	struct ufs_qcom_host *host = ufshcd_get_variant(hba);		\
-	struct SEC_WB_info *wb_info = &host->sec_wb_info;		\
-									\
-	if (kstrtou32(buf, 0, &value))					\
-		return -EINVAL;						\
-									\
-	wb_info->member = msecs_to_jiffies(value);			\
-									\
-	return count;							\
-}									\
-static DEVICE_ATTR(name, 0664, ufs_sec_##name##_show, ufs_sec_##name##_store)
-
-#define SEC_UFS_WB_DATA_RO_ATTR(name, fmt, args...)			\
-static ssize_t ufs_sec_##name##_show(struct device *dev,		\
-		struct device_attribute *attr, char *buf)		\
-{									\
-	struct ufs_hba *hba = dev_get_drvdata(dev);			\
-	struct ufs_qcom_host *host = ufshcd_get_variant(hba);		\
-	struct SEC_WB_info *wb_info = &host->sec_wb_info;		\
-	return sprintf(buf, fmt, args);					\
-}									\
-static DEVICE_ATTR(name, 0444, ufs_sec_##name##_show, NULL)
-#endif	// IS_ENABLED(CONFIG_SEC_UFS_WB_FEATURE)
 
 #endif /* UFS_QCOM_H_ */

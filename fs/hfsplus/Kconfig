@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 config HFSPLUS_FS
 	tristate "Apple Extended HFS file system support"
 	depends on BLOCK

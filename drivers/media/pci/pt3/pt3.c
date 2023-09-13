@@ -626,7 +626,8 @@ static void pt3_cleanup_adapter(struct pt3_board *pt3, int index)
 
 static int pt3_suspend(struct device *dev)
 {
-	struct pt3_board *pt3 = dev_get_drvdata(dev);
+	struct pci_dev *pdev = to_pci_dev(dev);
+	struct pt3_board *pt3 = pci_get_drvdata(pdev);
 	int i;
 	struct pt3_adapter *adap;
 
@@ -645,7 +646,8 @@ static int pt3_suspend(struct device *dev)
 
 static int pt3_resume(struct device *dev)
 {
-	struct pt3_board *pt3 = dev_get_drvdata(dev);
+	struct pci_dev *pdev = to_pci_dev(dev);
+	struct pt3_board *pt3 = pci_get_drvdata(pdev);
 	int i, ret;
 	struct pt3_adapter *adap;
 
@@ -763,7 +765,7 @@ static int pt3_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	i2c->algo = &pt3_i2c_algo;
 	i2c->algo_data = NULL;
 	i2c->dev.parent = &pdev->dev;
-	strscpy(i2c->name, DRV_NAME, sizeof(i2c->name));
+	strlcpy(i2c->name, DRV_NAME, sizeof(i2c->name));
 	i2c_set_adapdata(i2c, pt3);
 	ret = i2c_add_adapter(i2c);
 	if (ret < 0)

@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 config INFINIBAND_SRP
 	tristate "InfiniBand SCSI RDMA Protocol"
 	depends on SCSI && INFINIBAND_ADDR_TRANS

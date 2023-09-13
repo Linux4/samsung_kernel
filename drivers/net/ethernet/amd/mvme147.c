@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /* mvme147.c  : the  Linux/mvme147/lance ethernet driver
  *
  * Copyright (C) 05/1998 Peter Maydell <pmaydell@chiark.greenend.org.uk>

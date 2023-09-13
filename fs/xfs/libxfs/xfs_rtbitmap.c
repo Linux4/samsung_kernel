@@ -13,7 +13,15 @@
 #include "xfs_mount.h"
 #include "xfs_inode.h"
 #include "xfs_bmap.h"
+#include "xfs_bmap_util.h"
+#include "xfs_bmap_btree.h"
+#include "xfs_alloc.h"
+#include "xfs_error.h"
 #include "xfs_trans.h"
+#include "xfs_trans_space.h"
+#include "xfs_trace.h"
+#include "xfs_buf.h"
+#include "xfs_icache.h"
 #include "xfs_rtalloc.h"
 
 
@@ -497,12 +505,6 @@ xfs_rtmodify_summary_int(
 		uint first = (uint)((char *)sp - (char *)bp->b_addr);
 
 		*sp += delta;
-		if (mp->m_rsum_cache) {
-			if (*sp == 0 && log == mp->m_rsum_cache[bbno])
-				mp->m_rsum_cache[bbno]++;
-			if (*sp != 0 && log < mp->m_rsum_cache[bbno])
-				mp->m_rsum_cache[bbno] = log;
-		}
 		xfs_trans_log_buf(tp, bp, first, first + sizeof(*sp) - 1);
 	}
 	if (sum)
@@ -1018,6 +1020,7 @@ xfs_rtalloc_query_range(
 	struct xfs_mount		*mp = tp->t_mountp;
 	xfs_rtblock_t			rtstart;
 	xfs_rtblock_t			rtend;
+	xfs_rtblock_t			rem;
 	int				is_free;
 	int				error = 0;
 
@@ -1026,12 +1029,13 @@ xfs_rtalloc_query_range(
 	if (low_rec->ar_startext >= mp->m_sb.sb_rextents ||
 	    low_rec->ar_startext == high_rec->ar_startext)
 		return 0;
-	high_rec->ar_startext = min(high_rec->ar_startext,
-			mp->m_sb.sb_rextents - 1);
+	if (high_rec->ar_startext > mp->m_sb.sb_rextents)
+		high_rec->ar_startext = mp->m_sb.sb_rextents;
 
 	/* Iterate the bitmap, looking for discrepancies. */
 	rtstart = low_rec->ar_startext;
-	while (rtstart <= high_rec->ar_startext) {
+	rem = high_rec->ar_startext - rtstart;
+	while (rem) {
 		/* Is the first block free? */
 		error = xfs_rtcheck_range(mp, tp, rtstart, 1, 1, &rtend,
 				&is_free);
@@ -1040,7 +1044,7 @@ xfs_rtalloc_query_range(
 
 		/* How long does the extent go for? */
 		error = xfs_rtfind_forw(mp, tp, rtstart,
-				high_rec->ar_startext, &rtend);
+				high_rec->ar_startext - 1, &rtend);
 		if (error)
 			break;
 
@@ -1053,6 +1057,7 @@ xfs_rtalloc_query_range(
 				break;
 		}
 
+		rem -= rtend - rtstart + 1;
 		rtstart = rtend + 1;
 	}
 

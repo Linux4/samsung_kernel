@@ -11,13 +11,9 @@
 #include "util/tool.h"
 #include "util/session.h"
 #include "util/data.h"
-#include "util/map_symbol.h"
 #include "util/mem-events.h"
 #include "util/debug.h"
-#include "util/dso.h"
-#include "util/map.h"
 #include "util/symbol.h"
-#include <linux/err.h>
 
 #define MEM_OPERATION_LOAD	0x1
 #define MEM_OPERATION_STORE	0x2
@@ -233,7 +229,7 @@ out_put:
 static int process_sample_event(struct perf_tool *tool,
 				union perf_event *event,
 				struct perf_sample *sample,
-				struct evsel *evsel __maybe_unused,
+				struct perf_evsel *evsel __maybe_unused,
 				struct machine *machine)
 {
 	return dump_raw_samples(tool, event, sample, machine);
@@ -242,16 +238,18 @@ static int process_sample_event(struct perf_tool *tool,
 static int report_raw_events(struct perf_mem *mem)
 {
 	struct perf_data data = {
-		.path  = input_name,
-		.mode  = PERF_DATA_MODE_READ,
-		.force = mem->force,
+		.file      = {
+			.path = input_name,
+		},
+		.mode      = PERF_DATA_MODE_READ,
+		.force     = mem->force,
 	};
 	int ret;
 	struct perf_session *session = perf_session__new(&data, false,
 							 &mem->tool);
 
-	if (IS_ERR(session))
-		return PTR_ERR(session);
+	if (session == NULL)
+		return -1;
 
 	if (mem->cpu_list) {
 		ret = perf_session__cpu_bitmap(session, mem->cpu_list,

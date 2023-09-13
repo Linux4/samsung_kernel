@@ -22,6 +22,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_irq.h>
+#include <linux/of_pci.h>
 #include <linux/string.h>
 #include <linux/slab.h>
 
@@ -277,7 +278,7 @@ EXPORT_SYMBOL_GPL(of_irq_parse_raw);
  * of_irq_parse_one - Resolve an interrupt for a device
  * @device: the device whose interrupt is to be resolved
  * @index: index of the interrupt to resolve
- * @out_irq: structure of_phandle_args filled by this function
+ * @out_irq: structure of_irq filled by this function
  *
  * This function resolves an interrupt for a node by walking the interrupt tree,
  * finding which interrupt controller node it is attached to, and returning the
@@ -349,8 +350,6 @@ EXPORT_SYMBOL_GPL(of_irq_parse_one);
 int of_irq_to_resource(struct device_node *dev, int index, struct resource *r)
 {
 	int irq = of_irq_get(dev, index);
-	u32 trigger_type;
-	struct of_phandle_args oirq;
 
 	if (irq < 0)
 		return irq;
@@ -368,17 +367,8 @@ int of_irq_to_resource(struct device_node *dev, int index, struct resource *r)
 		of_property_read_string_index(dev, "interrupt-names", index,
 					      &name);
 
-		trigger_type = irqd_get_trigger_type(irq_get_irq_data(irq));
-
-		of_irq_parse_one(dev, index, &oirq);
-
-		if (!trigger_type &&
-			of_device_is_compatible(oirq.np, "arm,gic-v3"))
-			pr_err("IRQ TYPE should not be NONE for %s\n",
-							dev->full_name);
-
 		r->start = r->end = irq;
-		r->flags = IORESOURCE_IRQ | trigger_type;
+		r->flags = IORESOURCE_IRQ | irqd_get_trigger_type(irq_get_irq_data(irq));
 		r->name = name ? name : of_node_full_name(dev);
 	}
 
@@ -511,7 +501,7 @@ void __init of_irq_init(const struct of_device_id *matches)
 		 * pointer, interrupt-parent device_node etc.
 		 */
 		desc = kzalloc(sizeof(*desc), GFP_KERNEL);
-		if (!desc) {
+		if (WARN_ON(!desc)) {
 			of_node_put(np);
 			goto err;
 		}
@@ -598,8 +588,8 @@ static u32 __of_msi_map_rid(struct device *dev, struct device_node **np,
 	 * "msi-map" property.
 	 */
 	for (parent_dev = dev; parent_dev; parent_dev = parent_dev->parent)
-		if (!of_map_rid(parent_dev->of_node, rid_in, "msi-map",
-				"msi-map-mask", np, &rid_out))
+		if (!of_pci_map_rid(parent_dev->of_node, rid_in, "msi-map",
+				    "msi-map-mask", np, &rid_out))
 			break;
 	return rid_out;
 }

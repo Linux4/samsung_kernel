@@ -1,6 +1,19 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright (c) International Business Machines Corp., 2006
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See
+ * the GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  *
  * Author: Artem Bityutskiy (Битюцкий Артём)
  */
@@ -821,22 +834,9 @@ struct ubi_ainf_peb *ubi_early_get_peb(struct ubi_device *ubi,
 	int err = 0;
 	struct ubi_ainf_peb *aeb, *tmp_aeb;
 
-	list_for_each_entry_safe(aeb, tmp_aeb, &ai->free, u.list) {
-
+	if (!list_empty(&ai->free)) {
+		aeb = list_entry(ai->free.next, struct ubi_ainf_peb, u.list);
 		list_del(&aeb->u.list);
-		if (aeb->ec == UBI_UNKNOWN) {
-			ubi_err(ubi, "PEB %d in freelist has unknown EC",
-					aeb->pnum);
-			aeb->ec = ai->mean_ec;
-		}
-		err = early_erase_peb(ubi, ai, aeb->pnum, aeb->ec+1);
-		if (err) {
-			ubi_err(ubi, "Erase failed for PEB %d in freelist",
-					aeb->pnum);
-			list_add(&aeb->u.list, &ai->erase);
-			continue;
-		}
-		aeb->ec += 1;
 		dbg_bld("return free PEB %d, EC %d", aeb->pnum, aeb->ec);
 		return aeb;
 	}
@@ -1072,7 +1072,6 @@ static int scan_peb(struct ubi_device *ubi, struct ubi_attach_info *ai,
 			 * be a result of power cut during erasure.
 			 */
 			ai->maybe_bad_peb_count += 1;
-		/* fall through */
 	case UBI_IO_BAD_HDR:
 			/*
 			 * If we're facing a bad VID header we have to drop *all*

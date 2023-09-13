@@ -1,6 +1,15 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015, Linaro Limited
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -78,6 +87,16 @@ int optee_from_msg_param(struct tee_param *params, size_t num_params,
 				return rc;
 			p->u.memref.shm_offs = mp->u.tmem.buf_ptr - pa;
 			p->u.memref.shm = shm;
+
+			/* Check that the memref is covered by the shm object */
+			if (p->u.memref.size) {
+				size_t o = p->u.memref.shm_offs +
+					   p->u.memref.size - 1;
+
+				rc = tee_shm_get_pa(shm, o, NULL);
+				if (rc)
+					return rc;
+			}
 			break;
 		case OPTEE_MSG_ATTR_TYPE_RMEM_INPUT:
 		case OPTEE_MSG_ATTR_TYPE_RMEM_OUTPUT:
@@ -254,8 +273,7 @@ static void optee_release(struct tee_context *ctx)
 	if (!ctxdata)
 		return;
 
-	shm = tee_shm_alloc(ctx, sizeof(struct optee_msg_arg),
-			    TEE_SHM_MAPPED | TEE_SHM_PRIV);
+	shm = tee_shm_alloc(ctx, sizeof(struct optee_msg_arg), TEE_SHM_MAPPED);
 	if (!IS_ERR(shm)) {
 		arg = tee_shm_get_va(shm, 0);
 		/*
@@ -401,35 +419,9 @@ static bool optee_msg_exchange_capabilities(optee_invoke_fn *invoke_fn,
 	return true;
 }
 
-static struct tee_shm_pool *optee_config_dyn_shm(void)
-{
-	struct tee_shm_pool_mgr *priv_mgr;
-	struct tee_shm_pool_mgr *dmabuf_mgr;
-	void *rc;
-
-	rc = optee_shm_pool_alloc_pages();
-	if (IS_ERR(rc))
-		return rc;
-	priv_mgr = rc;
-
-	rc = optee_shm_pool_alloc_pages();
-	if (IS_ERR(rc)) {
-		tee_shm_pool_mgr_destroy(priv_mgr);
-		return rc;
-	}
-	dmabuf_mgr = rc;
-
-	rc = tee_shm_pool_alloc(priv_mgr, dmabuf_mgr);
-	if (IS_ERR(rc)) {
-		tee_shm_pool_mgr_destroy(priv_mgr);
-		tee_shm_pool_mgr_destroy(dmabuf_mgr);
-	}
-
-	return rc;
-}
-
 static struct tee_shm_pool *
-optee_config_shm_memremap(optee_invoke_fn *invoke_fn, void **memremaped_shm)
+optee_config_shm_memremap(optee_invoke_fn *invoke_fn, void **memremaped_shm,
+			  u32 sec_caps)
 {
 	union {
 		struct arm_smccc_res smccc;
@@ -444,11 +436,10 @@ optee_config_shm_memremap(optee_invoke_fn *invoke_fn, void **memremaped_shm)
 	struct tee_shm_pool_mgr *priv_mgr;
 	struct tee_shm_pool_mgr *dmabuf_mgr;
 	void *rc;
-	const int sz = OPTEE_SHM_NUM_PRIV_PAGES * PAGE_SIZE;
 
 	invoke_fn(OPTEE_SMC_GET_SHM_CONFIG, 0, 0, 0, 0, 0, 0, 0, &res.smccc);
 	if (res.result.status != OPTEE_SMC_RETURN_OK) {
-		pr_err("static shm service not available\n");
+		pr_info("shm service not available\n");
 		return ERR_PTR(-ENOENT);
 	}
 
@@ -474,15 +465,28 @@ optee_config_shm_memremap(optee_invoke_fn *invoke_fn, void **memremaped_shm)
 	}
 	vaddr = (unsigned long)va;
 
-	rc = tee_shm_pool_mgr_alloc_res_mem(vaddr, paddr, sz,
-					    3 /* 8 bytes aligned */);
-	if (IS_ERR(rc))
-		goto err_memunmap;
-	priv_mgr = rc;
+	/*
+	 * If OP-TEE can work with unregistered SHM, we will use own pool
+	 * for private shm
+	 */
+	if (sec_caps & OPTEE_SMC_SEC_CAP_DYNAMIC_SHM) {
+		rc = optee_shm_pool_alloc_pages();
+		if (IS_ERR(rc))
+			goto err_memunmap;
+		priv_mgr = rc;
+	} else {
+		const size_t sz = OPTEE_SHM_NUM_PRIV_PAGES * PAGE_SIZE;
 
-	vaddr += sz;
-	paddr += sz;
-	size -= sz;
+		rc = tee_shm_pool_mgr_alloc_res_mem(vaddr, paddr, sz,
+						    3 /* 8 bytes aligned */);
+		if (IS_ERR(rc))
+			goto err_memunmap;
+		priv_mgr = rc;
+
+		vaddr += sz;
+		paddr += sz;
+		size -= sz;
+	}
 
 	rc = tee_shm_pool_mgr_alloc_res_mem(vaddr, paddr, size, PAGE_SHIFT);
 	if (IS_ERR(rc))
@@ -548,11 +552,10 @@ static optee_invoke_fn *get_invoke_func(struct device_node *np)
 static struct optee *optee_probe(struct device_node *np)
 {
 	optee_invoke_fn *invoke_fn;
-	struct tee_shm_pool *pool = ERR_PTR(-EINVAL);
+	struct tee_shm_pool *pool;
 	struct optee *optee = NULL;
 	void *memremaped_shm = NULL;
 	struct tee_device *teedev;
-	struct tee_context *ctx;
 	u32 sec_caps;
 	int rc;
 
@@ -578,20 +581,13 @@ static struct optee *optee_probe(struct device_node *np)
 	}
 
 	/*
-	 * Try to use dynamic shared memory if possible
+	 * We have no other option for shared memory, if secure world
+	 * doesn't have any reserved memory we can use we can't continue.
 	 */
-	if (sec_caps & OPTEE_SMC_SEC_CAP_DYNAMIC_SHM)
-		pool = optee_config_dyn_shm();
+	if (!(sec_caps & OPTEE_SMC_SEC_CAP_HAVE_RESERVED_SHM))
+		return ERR_PTR(-EINVAL);
 
-	/* Unregister OP-TEE specific client devices on TEE bus */
-	optee_unregister_devices();
-
-	/*
-	 * If dynamic shared memory is not available or failed - try static one
-	 */
-	if (IS_ERR(pool) && (sec_caps & OPTEE_SMC_SEC_CAP_HAVE_RESERVED_SHM))
-		pool = optee_config_shm_memremap(invoke_fn, &memremaped_shm);
-
+	pool = optee_config_shm_memremap(invoke_fn, &memremaped_shm, sec_caps);
 	if (IS_ERR(pool))
 		return (void *)pool;
 
@@ -632,27 +628,10 @@ static struct optee *optee_probe(struct device_node *np)
 	optee_supp_init(&optee->supp);
 	optee->memremaped_shm = memremaped_shm;
 	optee->pool = pool;
-	ctx = teedev_open(optee->teedev);
-	if (IS_ERR(ctx)) {
-		rc = PTR_ERR(ctx);
-		goto err;
-	}
-	optee->ctx = ctx;
-
-	/*
-	 * Ensure that there are no pre-existing shm objects before enabling
-	 * the shm cache so that there's no chance of receiving an invalid
-	 * address during shutdown. This could occur, for example, if we're
-	 * kexec booting from an older kernel that did not properly cleanup the
-	 * shm cache.
-	 */
-	optee_disable_unmapped_shm_cache(optee);
 
 	optee_enable_shm_cache(optee);
 
-	if (optee->sec_caps & OPTEE_SMC_SEC_CAP_DYNAMIC_SHM)
-		pr_info("dynamic shared memory is enabled\n");
-
+	pr_info("initialized driver\n");
 	return optee;
 err:
 	if (optee) {
@@ -674,7 +653,6 @@ err:
 
 static void optee_remove(struct optee *optee)
 {
-	teedev_close_context(optee->ctx);
 	/*
 	 * Ask OP-TEE to free all cached shared memory objects to decrease
 	 * reference counters and also avoid wild pointers in secure world
@@ -708,10 +686,9 @@ static struct optee *optee_svc;
 
 static int __init optee_driver_init(void)
 {
-	struct device_node *fw_np = NULL;
-	struct device_node *np = NULL;
-	struct optee *optee = NULL;
-	int rc = 0;
+	struct device_node *fw_np;
+	struct device_node *np;
+	struct optee *optee;
 
 	/* Node is supposed to be below /firmware */
 	fw_np = of_find_node_by_name(NULL, "firmware");
@@ -729,14 +706,6 @@ static int __init optee_driver_init(void)
 
 	if (IS_ERR(optee))
 		return PTR_ERR(optee);
-
-	rc = optee_enumerate_devices();
-	if (rc) {
-		optee_remove(optee);
-		return rc;
-	}
-
-	pr_info("initialized driver\n");
 
 	optee_svc = optee;
 

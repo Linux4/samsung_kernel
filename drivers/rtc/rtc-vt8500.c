@@ -1,10 +1,18 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * drivers/rtc/rtc-vt8500.c
  *
  *  Copyright (C) 2010 Alexey Charkov <alchark@gmail.com>
  *
  * Based on rtc-pxa.c
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #include <linux/module.h>
@@ -212,8 +220,10 @@ static int vt8500_rtc_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, vt8500_rtc);
 
 	vt8500_rtc->irq_alarm = platform_get_irq(pdev, 0);
-	if (vt8500_rtc->irq_alarm < 0)
+	if (vt8500_rtc->irq_alarm < 0) {
+		dev_err(&pdev->dev, "No alarm IRQ resource defined\n");
 		return vt8500_rtc->irq_alarm;
+	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	vt8500_rtc->regbase = devm_ioremap_resource(&pdev->dev, res);

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*******************************************************************************
  * Filename:  target_core_device.c (based on iscsi_target_device.c)
  *
@@ -8,6 +7,20 @@
  * (c) Copyright 2003-2013 Datera, Inc.
  *
  * Nicholas A. Bellinger <nab@kernel.org>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  ******************************************************************************/
 
@@ -82,7 +95,7 @@ transport_lookup_cmd_lun(struct se_cmd *se_cmd, u64 unpacked_lun)
 		    deve->lun_access_ro) {
 			pr_err("TARGET_CORE[%s]: Detected WRITE_PROTECTED LUN"
 				" Access for 0x%08llx\n",
-				se_cmd->se_tfo->fabric_name,
+				se_cmd->se_tfo->get_fabric_name(),
 				unpacked_lun);
 			rcu_read_unlock();
 			ret = TCM_WRITE_PROTECTED;
@@ -101,7 +114,7 @@ out_unlock:
 		if (unpacked_lun != 0) {
 			pr_err("TARGET_CORE[%s]: Detected NON_EXISTENT_LUN"
 				" Access for 0x%08llx\n",
-				se_cmd->se_tfo->fabric_name,
+				se_cmd->se_tfo->get_fabric_name(),
 				unpacked_lun);
 			return TCM_NON_EXISTENT_LUN;
 		}
@@ -175,7 +188,7 @@ out_unlock:
 	if (!se_lun) {
 		pr_debug("TARGET_CORE[%s]: Detected NON_EXISTENT_LUN"
 			" Access for 0x%08llx\n",
-			se_cmd->se_tfo->fabric_name,
+			se_cmd->se_tfo->get_fabric_name(),
 			unpacked_lun);
 		return -ENODEV;
 	}
@@ -224,7 +237,7 @@ struct se_dev_entry *core_get_se_deve_from_rtpi(
 		if (!lun) {
 			pr_err("%s device entries device pointer is"
 				" NULL, but Initiator has access.\n",
-				tpg->se_tpg_tfo->fabric_name);
+				tpg->se_tpg_tfo->get_fabric_name());
 			continue;
 		}
 		if (lun->lun_rtpi != rtpi)
@@ -391,6 +404,9 @@ int core_enable_device_list_for_node(
 	return 0;
 }
 
+/*
+ *	Called with se_node_acl->lun_entry_mutex held.
+ */
 void core_disable_device_list_for_node(
 	struct se_lun *lun,
 	struct se_dev_entry *orig,
@@ -402,9 +418,6 @@ void core_disable_device_list_for_node(
 	 * reference to se_device->dev_group.
 	 */
 	struct se_device *dev = rcu_dereference_raw(lun->lun_se_dev);
-
-	lockdep_assert_held(&nacl->lun_entry_mutex);
-
 	/*
 	 * If the MappedLUN entry is being disabled, the entry in
 	 * lun->lun_deve_list must be removed now before clearing the
@@ -558,9 +571,9 @@ int core_dev_add_lun(
 		return rc;
 
 	pr_debug("%s_TPG[%u]_LUN[%llu] - Activated %s Logical Unit from"
-		" CORE HBA: %u\n", tpg->se_tpg_tfo->fabric_name,
+		" CORE HBA: %u\n", tpg->se_tpg_tfo->get_fabric_name(),
 		tpg->se_tpg_tfo->tpg_get_tag(tpg), lun->unpacked_lun,
-		tpg->se_tpg_tfo->fabric_name, dev->se_hba->hba_id);
+		tpg->se_tpg_tfo->get_fabric_name(), dev->se_hba->hba_id);
 	/*
 	 * Update LUN maps for dynamically added initiators when
 	 * generate_node_acl is enabled.
@@ -591,9 +604,9 @@ void core_dev_del_lun(
 	struct se_lun *lun)
 {
 	pr_debug("%s_TPG[%u]_LUN[%llu] - Deactivating %s Logical Unit from"
-		" device object\n", tpg->se_tpg_tfo->fabric_name,
+		" device object\n", tpg->se_tpg_tfo->get_fabric_name(),
 		tpg->se_tpg_tfo->tpg_get_tag(tpg), lun->unpacked_lun,
-		tpg->se_tpg_tfo->fabric_name);
+		tpg->se_tpg_tfo->get_fabric_name());
 
 	core_tpg_remove_lun(tpg, lun);
 }
@@ -608,7 +621,7 @@ struct se_lun_acl *core_dev_init_initiator_node_lun_acl(
 
 	if (strlen(nacl->initiatorname) >= TRANSPORT_IQN_LEN) {
 		pr_err("%s InitiatorName exceeds maximum size.\n",
-			tpg->se_tpg_tfo->fabric_name);
+			tpg->se_tpg_tfo->get_fabric_name());
 		*ret = -EOVERFLOW;
 		return NULL;
 	}
@@ -651,7 +664,7 @@ int core_dev_add_initiator_node_lun_acl(
 		return -EINVAL;
 
 	pr_debug("%s_TPG[%hu]_LUN[%llu->%llu] - Added %s ACL for "
-		" InitiatorNode: %s\n", tpg->se_tpg_tfo->fabric_name,
+		" InitiatorNode: %s\n", tpg->se_tpg_tfo->get_fabric_name(),
 		tpg->se_tpg_tfo->tpg_get_tag(tpg), lun->unpacked_lun, lacl->mapped_lun,
 		lun_access_ro ? "RO" : "RW",
 		nacl->initiatorname);
@@ -684,7 +697,7 @@ int core_dev_del_initiator_node_lun_acl(
 
 	pr_debug("%s_TPG[%hu]_LUN[%llu] - Removed ACL for"
 		" InitiatorNode: %s Mapped LUN: %llu\n",
-		tpg->se_tpg_tfo->fabric_name,
+		tpg->se_tpg_tfo->get_fabric_name(),
 		tpg->se_tpg_tfo->tpg_get_tag(tpg), lun->unpacked_lun,
 		nacl->initiatorname, lacl->mapped_lun);
 
@@ -696,9 +709,9 @@ void core_dev_free_initiator_node_lun_acl(
 	struct se_lun_acl *lacl)
 {
 	pr_debug("%s_TPG[%hu] - Freeing ACL for %s InitiatorNode: %s"
-		" Mapped LUN: %llu\n", tpg->se_tpg_tfo->fabric_name,
+		" Mapped LUN: %llu\n", tpg->se_tpg_tfo->get_fabric_name(),
 		tpg->se_tpg_tfo->tpg_get_tag(tpg),
-		tpg->se_tpg_tfo->fabric_name,
+		tpg->se_tpg_tfo->get_fabric_name(),
 		lacl->se_lun_nacl->initiatorname, lacl->mapped_lun);
 
 	kfree(lacl);
@@ -707,17 +720,36 @@ void core_dev_free_initiator_node_lun_acl(
 static void scsi_dump_inquiry(struct se_device *dev)
 {
 	struct t10_wwn *wwn = &dev->t10_wwn;
-	int device_type = dev->transport->get_device_type(dev);
-
+	char buf[17];
+	int i, device_type;
 	/*
 	 * Print Linux/SCSI style INQUIRY formatting to the kernel ring buffer
 	 */
-	pr_debug("  Vendor: %-" __stringify(INQUIRY_VENDOR_LEN) "s\n",
-		wwn->vendor);
-	pr_debug("  Model: %-" __stringify(INQUIRY_MODEL_LEN) "s\n",
-		wwn->model);
-	pr_debug("  Revision: %-" __stringify(INQUIRY_REVISION_LEN) "s\n",
-		wwn->revision);
+	for (i = 0; i < 8; i++)
+		if (wwn->vendor[i] >= 0x20)
+			buf[i] = wwn->vendor[i];
+		else
+			buf[i] = ' ';
+	buf[i] = '\0';
+	pr_debug("  Vendor: %s\n", buf);
+
+	for (i = 0; i < 16; i++)
+		if (wwn->model[i] >= 0x20)
+			buf[i] = wwn->model[i];
+		else
+			buf[i] = ' ';
+	buf[i] = '\0';
+	pr_debug("  Model: %s\n", buf);
+
+	for (i = 0; i < 4; i++)
+		if (wwn->revision[i] >= 0x20)
+			buf[i] = wwn->revision[i];
+		else
+			buf[i] = ' ';
+	buf[i] = '\0';
+	pr_debug("  Revision: %s\n", buf);
+
+	device_type = dev->transport->get_device_type(dev);
 	pr_debug("  Type:   %s ", scsi_device_type(device_type));
 }
 
@@ -758,8 +790,6 @@ struct se_device *target_alloc_device(struct se_hba *hba, const char *name)
 	INIT_LIST_HEAD(&dev->t10_alua.lba_map_list);
 	spin_lock_init(&dev->t10_alua.lba_map_lock);
 
-	INIT_WORK(&dev->delayed_cmd_work, target_do_delayed_work);
-
 	dev->t10_wwn.t10_dev = dev;
 	dev->t10_alua.t10_dev = dev;
 
@@ -775,7 +805,6 @@ struct se_device *target_alloc_device(struct se_hba *hba, const char *name)
 	dev->dev_attrib.emulate_tpws = DA_EMULATE_TPWS;
 	dev->dev_attrib.emulate_caw = DA_EMULATE_CAW;
 	dev->dev_attrib.emulate_3pc = DA_EMULATE_3PC;
-	dev->dev_attrib.emulate_pr = DA_EMULATE_PR;
 	dev->dev_attrib.pi_prot_type = TARGET_DIF_TYPE0_PROT;
 	dev->dev_attrib.enforce_pr_isids = DA_ENFORCE_PR_ISIDS;
 	dev->dev_attrib.force_pr_aptpl = DA_FORCE_PR_APTPL;
@@ -793,18 +822,12 @@ struct se_device *target_alloc_device(struct se_hba *hba, const char *name)
 
 	xcopy_lun = &dev->xcopy_lun;
 	rcu_assign_pointer(xcopy_lun->lun_se_dev, dev);
+	init_completion(&xcopy_lun->lun_ref_comp);
 	init_completion(&xcopy_lun->lun_shutdown_comp);
 	INIT_LIST_HEAD(&xcopy_lun->lun_deve_list);
 	INIT_LIST_HEAD(&xcopy_lun->lun_dev_link);
 	mutex_init(&xcopy_lun->lun_tg_pt_md_mutex);
 	xcopy_lun->lun_tpg = &xcopy_pt_tpg;
-
-	/* Preload the default INQUIRY const values */
-	strlcpy(dev->t10_wwn.vendor, "LIO-ORG", sizeof(dev->t10_wwn.vendor));
-	strlcpy(dev->t10_wwn.model, dev->transport->inquiry_prod,
-		sizeof(dev->t10_wwn.model));
-	strlcpy(dev->t10_wwn.revision, dev->transport->inquiry_rev,
-		sizeof(dev->t10_wwn.revision));
 
 	return dev;
 }
@@ -964,9 +987,34 @@ int target_configure_device(struct se_device *dev)
 		goto out_destroy_device;
 
 	/*
+	 * Startup the struct se_device processing thread
+	 */
+	dev->tmr_wq = alloc_workqueue("tmr-%s", WQ_MEM_RECLAIM | WQ_UNBOUND, 1,
+				      dev->transport->name);
+	if (!dev->tmr_wq) {
+		pr_err("Unable to create tmr workqueue for %s\n",
+			dev->transport->name);
+		ret = -ENOMEM;
+		goto out_free_alua;
+	}
+
+	/*
 	 * Setup work_queue for QUEUE_FULL
 	 */
 	INIT_WORK(&dev->qf_work_queue, target_qf_do_work);
+
+	/*
+	 * Preload the initial INQUIRY const values if we are doing
+	 * anything virtual (IBLOCK, FILEIO, RAMDISK), but not for TCM/pSCSI
+	 * passthrough because this is being provided by the backend LLD.
+	 */
+	if (!(dev->transport->transport_flags & TRANSPORT_FLAG_PASSTHROUGH)) {
+		strncpy(&dev->t10_wwn.vendor[0], "LIO-ORG", 8);
+		strncpy(&dev->t10_wwn.model[0],
+			dev->transport->inquiry_prod, 16);
+		strncpy(&dev->t10_wwn.revision[0],
+			dev->transport->inquiry_rev, 4);
+	}
 
 	scsi_dump_inquiry(dev);
 
@@ -978,6 +1026,8 @@ int target_configure_device(struct se_device *dev)
 
 	return 0;
 
+out_free_alua:
+	core_alua_free_lu_gp_mem(dev);
 out_destroy_device:
 	dev->transport->destroy_device(dev);
 out_free_index:
@@ -996,6 +1046,8 @@ void target_free_device(struct se_device *dev)
 	WARN_ON(!list_empty(&dev->dev_sep_list));
 
 	if (target_dev_configured(dev)) {
+		destroy_workqueue(dev->tmr_wq);
+
 		dev->transport->destroy_device(dev);
 
 		mutex_lock(&device_mutex);
@@ -1083,18 +1135,6 @@ passthrough_parse_cdb(struct se_cmd *cmd,
 	if (cdb[0] == REPORT_LUNS) {
 		cmd->execute_cmd = spc_emulate_report_luns;
 		return TCM_NO_SENSE;
-	}
-
-	/*
-	 * With emulate_pr disabled, all reservation requests should fail,
-	 * regardless of whether or not TRANSPORT_FLAG_PASSTHROUGH_PGR is set.
-	 */
-	if (!dev->dev_attrib.emulate_pr &&
-	    ((cdb[0] == PERSISTENT_RESERVE_IN) ||
-	     (cdb[0] == PERSISTENT_RESERVE_OUT) ||
-	     (cdb[0] == RELEASE || cdb[0] == RELEASE_10) ||
-	     (cdb[0] == RESERVE || cdb[0] == RESERVE_10))) {
-		return TCM_UNSUPPORTED_SCSI_OPCODE;
 	}
 
 	/*

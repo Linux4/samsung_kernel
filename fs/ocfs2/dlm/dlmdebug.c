@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /* -*- mode: c; c-basic-offset: 8; -*-
  * vim: noexpandtab sw=8 ts=8 sts=0:
  *
@@ -7,6 +6,22 @@
  * debug functionality for the dlm
  *
  * Copyright (C) 2004, 2008 Oracle.  All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public
+ * License as published by the Free Software Foundation; either
+ * version 2 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public
+ * License along with this program; if not, write to the
+ * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+ * Boston, MA 021110-1307, USA.
+ *
  */
 
 #include <linux/types.h>
@@ -17,9 +32,9 @@
 #include <linux/debugfs.h>
 #include <linux/export.h>
 
-#include "../cluster/heartbeat.h"
-#include "../cluster/nodemanager.h"
-#include "../cluster/tcp.h"
+#include "cluster/heartbeat.h"
+#include "cluster/nodemanager.h"
+#include "cluster/tcp.h"
 
 #include "dlmapi.h"
 #include "dlmcommon.h"
@@ -27,7 +42,7 @@
 #include "dlmdebug.h"
 
 #define MLOG_MASK_PREFIX ML_DLM
-#include "../cluster/masklog.h"
+#include "cluster/masklog.h"
 
 static int stringify_lockname(const char *lockname, int locklen, char *buf,
 			      int len);
@@ -851,42 +866,109 @@ static const struct file_operations debug_state_fops = {
 /* end  - debug state funcs */
 
 /* files in subroot */
-void dlm_debug_init(struct dlm_ctxt *dlm)
+int dlm_debug_init(struct dlm_ctxt *dlm)
 {
+	struct dlm_debug_ctxt *dc = dlm->dlm_debug_ctxt;
+
 	/* for dumping dlm_ctxt */
-	debugfs_create_file(DLM_DEBUGFS_DLM_STATE, S_IFREG|S_IRUSR,
-			    dlm->dlm_debugfs_subroot, dlm, &debug_state_fops);
+	dc->debug_state_dentry = debugfs_create_file(DLM_DEBUGFS_DLM_STATE,
+						     S_IFREG|S_IRUSR,
+						     dlm->dlm_debugfs_subroot,
+						     dlm, &debug_state_fops);
+	if (!dc->debug_state_dentry) {
+		mlog_errno(-ENOMEM);
+		goto bail;
+	}
 
 	/* for dumping lockres */
-	debugfs_create_file(DLM_DEBUGFS_LOCKING_STATE, S_IFREG|S_IRUSR,
-			    dlm->dlm_debugfs_subroot, dlm, &debug_lockres_fops);
+	dc->debug_lockres_dentry =
+			debugfs_create_file(DLM_DEBUGFS_LOCKING_STATE,
+					    S_IFREG|S_IRUSR,
+					    dlm->dlm_debugfs_subroot,
+					    dlm, &debug_lockres_fops);
+	if (!dc->debug_lockres_dentry) {
+		mlog_errno(-ENOMEM);
+		goto bail;
+	}
 
 	/* for dumping mles */
-	debugfs_create_file(DLM_DEBUGFS_MLE_STATE, S_IFREG|S_IRUSR,
-			    dlm->dlm_debugfs_subroot, dlm, &debug_mle_fops);
+	dc->debug_mle_dentry = debugfs_create_file(DLM_DEBUGFS_MLE_STATE,
+						   S_IFREG|S_IRUSR,
+						   dlm->dlm_debugfs_subroot,
+						   dlm, &debug_mle_fops);
+	if (!dc->debug_mle_dentry) {
+		mlog_errno(-ENOMEM);
+		goto bail;
+	}
 
 	/* for dumping lockres on the purge list */
-	debugfs_create_file(DLM_DEBUGFS_PURGE_LIST, S_IFREG|S_IRUSR,
-			    dlm->dlm_debugfs_subroot, dlm,
-			    &debug_purgelist_fops);
+	dc->debug_purgelist_dentry =
+			debugfs_create_file(DLM_DEBUGFS_PURGE_LIST,
+					    S_IFREG|S_IRUSR,
+					    dlm->dlm_debugfs_subroot,
+					    dlm, &debug_purgelist_fops);
+	if (!dc->debug_purgelist_dentry) {
+		mlog_errno(-ENOMEM);
+		goto bail;
+	}
+
+	return 0;
+
+bail:
+	return -ENOMEM;
+}
+
+void dlm_debug_shutdown(struct dlm_ctxt *dlm)
+{
+	struct dlm_debug_ctxt *dc = dlm->dlm_debug_ctxt;
+
+	if (dc) {
+		debugfs_remove(dc->debug_purgelist_dentry);
+		debugfs_remove(dc->debug_mle_dentry);
+		debugfs_remove(dc->debug_lockres_dentry);
+		debugfs_remove(dc->debug_state_dentry);
+		kfree(dc);
+		dc = NULL;
+	}
 }
 
 /* subroot - domain dir */
-void dlm_create_debugfs_subroot(struct dlm_ctxt *dlm)
+int dlm_create_debugfs_subroot(struct dlm_ctxt *dlm)
 {
 	dlm->dlm_debugfs_subroot = debugfs_create_dir(dlm->name,
 						      dlm_debugfs_root);
+	if (!dlm->dlm_debugfs_subroot) {
+		mlog_errno(-ENOMEM);
+		goto bail;
+	}
+
+	dlm->dlm_debug_ctxt = kzalloc(sizeof(struct dlm_debug_ctxt),
+				      GFP_KERNEL);
+	if (!dlm->dlm_debug_ctxt) {
+		mlog_errno(-ENOMEM);
+		goto bail;
+	}
+
+	return 0;
+bail:
+	dlm_destroy_debugfs_subroot(dlm);
+	return -ENOMEM;
 }
 
 void dlm_destroy_debugfs_subroot(struct dlm_ctxt *dlm)
 {
-	debugfs_remove_recursive(dlm->dlm_debugfs_subroot);
+	debugfs_remove(dlm->dlm_debugfs_subroot);
 }
 
 /* debugfs root */
-void dlm_create_debugfs_root(void)
+int dlm_create_debugfs_root(void)
 {
 	dlm_debugfs_root = debugfs_create_dir(DLM_DEBUGFS_DIR, NULL);
+	if (!dlm_debugfs_root) {
+		mlog_errno(-ENOMEM);
+		return -ENOMEM;
+	}
+	return 0;
 }
 
 void dlm_destroy_debugfs_root(void)

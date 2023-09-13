@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * sun4i-ss-core.c - hardware cryptographic accelerator for Allwinner A20 SoC
  *
@@ -6,7 +5,12 @@
  *
  * Core file which registers crypto algorithms supported by the SS.
  *
- * You could find a link for the datasheet in Documentation/arm/sunxi.rst
+ * You could find a link for the datasheet in Documentation/arm/sunxi/README
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  */
 #include <linux/clk.h>
 #include <linux/crypto.h>
@@ -88,12 +92,11 @@ static struct sun4i_ss_alg_template ss_algs[] = {
 			.cra_driver_name = "cbc-aes-sun4i-ss",
 			.cra_priority = 300,
 			.cra_blocksize = AES_BLOCK_SIZE,
-			.cra_flags = CRYPTO_ALG_KERN_DRIVER_ONLY | CRYPTO_ALG_NEED_FALLBACK,
+			.cra_flags = CRYPTO_ALG_KERN_DRIVER_ONLY,
 			.cra_ctxsize = sizeof(struct sun4i_tfm_ctx),
 			.cra_module = THIS_MODULE,
 			.cra_alignmask = 3,
 			.cra_init = sun4i_ss_cipher_init,
-			.cra_exit = sun4i_ss_cipher_exit,
 		}
 	}
 },
@@ -104,17 +107,17 @@ static struct sun4i_ss_alg_template ss_algs[] = {
 		.decrypt        = sun4i_ss_ecb_aes_decrypt,
 		.min_keysize	= AES_MIN_KEY_SIZE,
 		.max_keysize	= AES_MAX_KEY_SIZE,
+		.ivsize		= AES_BLOCK_SIZE,
 		.base = {
 			.cra_name = "ecb(aes)",
 			.cra_driver_name = "ecb-aes-sun4i-ss",
 			.cra_priority = 300,
 			.cra_blocksize = AES_BLOCK_SIZE,
-			.cra_flags = CRYPTO_ALG_KERN_DRIVER_ONLY | CRYPTO_ALG_NEED_FALLBACK,
+			.cra_flags = CRYPTO_ALG_KERN_DRIVER_ONLY,
 			.cra_ctxsize = sizeof(struct sun4i_tfm_ctx),
 			.cra_module = THIS_MODULE,
 			.cra_alignmask = 3,
 			.cra_init = sun4i_ss_cipher_init,
-			.cra_exit = sun4i_ss_cipher_exit,
 		}
 	}
 },
@@ -131,12 +134,11 @@ static struct sun4i_ss_alg_template ss_algs[] = {
 			.cra_driver_name = "cbc-des-sun4i-ss",
 			.cra_priority = 300,
 			.cra_blocksize = DES_BLOCK_SIZE,
-			.cra_flags = CRYPTO_ALG_KERN_DRIVER_ONLY | CRYPTO_ALG_NEED_FALLBACK,
+			.cra_flags = CRYPTO_ALG_KERN_DRIVER_ONLY,
 			.cra_ctxsize = sizeof(struct sun4i_req_ctx),
 			.cra_module = THIS_MODULE,
 			.cra_alignmask = 3,
 			.cra_init = sun4i_ss_cipher_init,
-			.cra_exit = sun4i_ss_cipher_exit,
 		}
 	}
 },
@@ -152,12 +154,11 @@ static struct sun4i_ss_alg_template ss_algs[] = {
 			.cra_driver_name = "ecb-des-sun4i-ss",
 			.cra_priority = 300,
 			.cra_blocksize = DES_BLOCK_SIZE,
-			.cra_flags = CRYPTO_ALG_KERN_DRIVER_ONLY | CRYPTO_ALG_NEED_FALLBACK,
+			.cra_flags = CRYPTO_ALG_KERN_DRIVER_ONLY,
 			.cra_ctxsize = sizeof(struct sun4i_req_ctx),
 			.cra_module = THIS_MODULE,
 			.cra_alignmask = 3,
 			.cra_init = sun4i_ss_cipher_init,
-			.cra_exit = sun4i_ss_cipher_exit,
 		}
 	}
 },
@@ -174,12 +175,11 @@ static struct sun4i_ss_alg_template ss_algs[] = {
 			.cra_driver_name = "cbc-des3-sun4i-ss",
 			.cra_priority = 300,
 			.cra_blocksize = DES3_EDE_BLOCK_SIZE,
-			.cra_flags = CRYPTO_ALG_KERN_DRIVER_ONLY | CRYPTO_ALG_NEED_FALLBACK,
+			.cra_flags = CRYPTO_ALG_KERN_DRIVER_ONLY,
 			.cra_ctxsize = sizeof(struct sun4i_req_ctx),
 			.cra_module = THIS_MODULE,
 			.cra_alignmask = 3,
 			.cra_init = sun4i_ss_cipher_init,
-			.cra_exit = sun4i_ss_cipher_exit,
 		}
 	}
 },
@@ -190,17 +190,16 @@ static struct sun4i_ss_alg_template ss_algs[] = {
 		.decrypt        = sun4i_ss_ecb_des3_decrypt,
 		.min_keysize    = DES3_EDE_KEY_SIZE,
 		.max_keysize    = DES3_EDE_KEY_SIZE,
+		.ivsize         = DES3_EDE_BLOCK_SIZE,
 		.base = {
 			.cra_name = "ecb(des3_ede)",
 			.cra_driver_name = "ecb-des3-sun4i-ss",
 			.cra_priority = 300,
 			.cra_blocksize = DES3_EDE_BLOCK_SIZE,
-			.cra_flags = CRYPTO_ALG_KERN_DRIVER_ONLY | CRYPTO_ALG_NEED_FALLBACK,
 			.cra_ctxsize = sizeof(struct sun4i_req_ctx),
 			.cra_module = THIS_MODULE,
 			.cra_alignmask = 3,
 			.cra_init = sun4i_ss_cipher_init,
-			.cra_exit = sun4i_ss_cipher_exit,
 		}
 	}
 },
@@ -225,6 +224,7 @@ static struct sun4i_ss_alg_template ss_algs[] = {
 
 static int sun4i_ss_probe(struct platform_device *pdev)
 {
+	struct resource *res;
 	u32 v;
 	int err, i;
 	unsigned long cr;
@@ -239,7 +239,8 @@ static int sun4i_ss_probe(struct platform_device *pdev)
 	if (!ss)
 		return -ENOMEM;
 
-	ss->base = devm_platform_ioremap_resource(pdev, 0);
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	ss->base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(ss->base)) {
 		dev_err(&pdev->dev, "Cannot request MMIO\n");
 		return PTR_ERR(ss->base);

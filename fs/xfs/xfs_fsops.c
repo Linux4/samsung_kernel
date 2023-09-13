@@ -11,11 +11,15 @@
 #include "xfs_trans_resv.h"
 #include "xfs_sb.h"
 #include "xfs_mount.h"
+#include "xfs_defer.h"
 #include "xfs_trans.h"
 #include "xfs_error.h"
+#include "xfs_btree.h"
 #include "xfs_alloc.h"
 #include "xfs_fsops.h"
 #include "xfs_trans_space.h"
+#include "xfs_rtalloc.h"
+#include "xfs_trace.h"
 #include "xfs_log.h"
 #include "xfs_ag.h"
 #include "xfs_ag_resv.h"
@@ -36,6 +40,7 @@ xfs_growfs_data_private(
 	xfs_rfsblock_t		new;
 	xfs_agnumber_t		oagcount;
 	xfs_trans_t		*tp;
+	LIST_HEAD		(buffer_list);
 	struct aghdr_init_data	id = {};
 
 	nb = in->newblocks;
@@ -247,9 +252,9 @@ xfs_growfs_data(
 	if (mp->m_sb.sb_imax_pct) {
 		uint64_t icount = mp->m_sb.sb_dblocks * mp->m_sb.sb_imax_pct;
 		do_div(icount, 100);
-		M_IGEO(mp)->maxicount = XFS_FSB_TO_INO(mp, icount);
+		mp->m_maxicount = icount << mp->m_sb.sb_inopblog;
 	} else
-		M_IGEO(mp)->maxicount = 0;
+		mp->m_maxicount = 0;
 
 	/* Update secondary superblocks now the physical grow has completed */
 	error = xfs_update_secondary_sbs(mp);
@@ -285,7 +290,7 @@ xfs_growfs_log(
  * exported through ioctl XFS_IOC_FSCOUNTS
  */
 
-void
+int
 xfs_fs_counts(
 	xfs_mount_t		*mp,
 	xfs_fsop_counts_t	*cnt)
@@ -298,6 +303,7 @@ xfs_fs_counts(
 	spin_lock(&mp->m_sb_lock);
 	cnt->freertx = mp->m_sb.sb_frextents;
 	spin_unlock(&mp->m_sb_lock);
+	return 0;
 }
 
 /*
@@ -464,13 +470,20 @@ xfs_fs_goingdown(
  */
 void
 xfs_do_force_shutdown(
-	struct xfs_mount *mp,
+	xfs_mount_t	*mp,
 	int		flags,
 	char		*fname,
 	int		lnnum)
 {
-	bool		logerror = flags & SHUTDOWN_LOG_IO_ERROR;
+	int		logerror;
 
+	logerror = flags & SHUTDOWN_LOG_IO_ERROR;
+
+	if (!(flags & SHUTDOWN_FORCE_UMOUNT)) {
+		xfs_notice(mp,
+	"%s(0x%x) called from line %d of file %s.  Return address = "PTR_FMT,
+			__func__, flags, lnnum, fname, __return_address);
+	}
 	/*
 	 * No need to duplicate efforts.
 	 */
@@ -486,34 +499,27 @@ xfs_do_force_shutdown(
 	if (xfs_log_force_umount(mp, logerror))
 		return;
 
-	if (flags & SHUTDOWN_FORCE_UMOUNT) {
-		xfs_alert(mp,
-"User initiated shutdown received. Shutting down filesystem");
-		return;
-	}
-
-	xfs_notice(mp,
-"%s(0x%x) called from line %d of file %s. Return address = "PTR_FMT,
-		__func__, flags, lnnum, fname, __return_address);
-
 	if (flags & SHUTDOWN_CORRUPT_INCORE) {
 		xfs_alert_tag(mp, XFS_PTAG_SHUTDOWN_CORRUPT,
-"Corruption of in-memory data detected.  Shutting down filesystem");
+    "Corruption of in-memory data detected.  Shutting down filesystem");
 		if (XFS_ERRLEVEL_HIGH <= xfs_error_level)
 			xfs_stack_trace();
-	} else if (logerror) {
-		xfs_alert_tag(mp, XFS_PTAG_SHUTDOWN_LOGERROR,
-			"Log I/O Error Detected. Shutting down filesystem");
-	} else if (flags & SHUTDOWN_DEVICE_REQ) {
-		xfs_alert_tag(mp, XFS_PTAG_SHUTDOWN_IOERROR,
-			"All device paths lost. Shutting down filesystem");
-	} else if (!(flags & SHUTDOWN_REMOTE_REQ)) {
-		xfs_alert_tag(mp, XFS_PTAG_SHUTDOWN_IOERROR,
-			"I/O Error Detected. Shutting down filesystem");
+	} else if (!(flags & SHUTDOWN_FORCE_UMOUNT)) {
+		if (logerror) {
+			xfs_alert_tag(mp, XFS_PTAG_SHUTDOWN_LOGERROR,
+		"Log I/O Error Detected.  Shutting down filesystem");
+		} else if (flags & SHUTDOWN_DEVICE_REQ) {
+			xfs_alert_tag(mp, XFS_PTAG_SHUTDOWN_IOERROR,
+		"All device paths lost.  Shutting down filesystem");
+		} else if (!(flags & SHUTDOWN_REMOTE_REQ)) {
+			xfs_alert_tag(mp, XFS_PTAG_SHUTDOWN_IOERROR,
+		"I/O Error Detected. Shutting down filesystem");
+		}
 	}
-
-	xfs_alert(mp,
-		"Please unmount the filesystem and rectify the problem(s)");
+	if (!(flags & SHUTDOWN_FORCE_UMOUNT)) {
+		xfs_alert(mp,
+	"Please umount the filesystem and rectify the problem(s)");
+	}
 }
 
 /*

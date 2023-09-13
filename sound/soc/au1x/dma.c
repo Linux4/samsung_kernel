@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Au1000/Au1500/Au1100 Audio DMA support.
  *

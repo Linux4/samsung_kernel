@@ -1,10 +1,15 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Cryptographic API.
  *
  * Support for VIA PadLock hardware crypto engine.
  *
  * Copyright (c) 2006  Michal Ludvig <michal@logix.cz>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
  */
 
 #include <crypto/internal/hash.h>
@@ -34,6 +39,7 @@ static int padlock_sha_init(struct shash_desc *desc)
 	struct padlock_sha_ctx *ctx = crypto_shash_ctx(desc->tfm);
 
 	dctx->fallback.tfm = ctx->fallback;
+	dctx->fallback.flags = desc->flags & CRYPTO_TFM_REQ_MAY_SLEEP;
 	return crypto_shash_init(&dctx->fallback);
 }
 
@@ -42,6 +48,7 @@ static int padlock_sha_update(struct shash_desc *desc,
 {
 	struct padlock_sha_desc *dctx = shash_desc_ctx(desc);
 
+	dctx->fallback.flags = desc->flags & CRYPTO_TFM_REQ_MAY_SLEEP;
 	return crypto_shash_update(&dctx->fallback, data, length);
 }
 
@@ -58,6 +65,7 @@ static int padlock_sha_import(struct shash_desc *desc, const void *in)
 	struct padlock_sha_ctx *ctx = crypto_shash_ctx(desc->tfm);
 
 	dctx->fallback.tfm = ctx->fallback;
+	dctx->fallback.flags = desc->flags & CRYPTO_TFM_REQ_MAY_SLEEP;
 	return crypto_shash_import(&dctx->fallback, in);
 }
 
@@ -83,6 +91,7 @@ static int padlock_sha1_finup(struct shash_desc *desc, const u8 *in,
 	unsigned int leftover;
 	int err;
 
+	dctx->fallback.flags = desc->flags & CRYPTO_TFM_REQ_MAY_SLEEP;
 	err = crypto_shash_export(&dctx->fallback, &state);
 	if (err)
 		goto out;
@@ -144,6 +153,7 @@ static int padlock_sha256_finup(struct shash_desc *desc, const u8 *in,
 	unsigned int leftover;
 	int err;
 
+	dctx->fallback.flags = desc->flags & CRYPTO_TFM_REQ_MAY_SLEEP;
 	err = crypto_shash_export(&dctx->fallback, &state);
 	if (err)
 		goto out;

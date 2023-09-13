@@ -1,9 +1,12 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  *  arch/arm/include/asm/atomic.h
  *
  *  Copyright (C) 1996 Russell King.
  *  Copyright (C) 2002 Deep Blue Solutions Ltd.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 #ifndef __ASM_ARM_ATOMIC_H
 #define __ASM_ARM_ATOMIC_H
@@ -246,15 +249,15 @@ ATOMIC_OPS(xor, ^=, eor)
 
 #ifndef CONFIG_GENERIC_ATOMIC64
 typedef struct {
-	s64 counter;
+	long long counter;
 } atomic64_t;
 
 #define ATOMIC64_INIT(i) { (i) }
 
 #ifdef CONFIG_ARM_LPAE
-static inline s64 atomic64_read(const atomic64_t *v)
+static inline long long atomic64_read(const atomic64_t *v)
 {
-	s64 result;
+	long long result;
 
 	__asm__ __volatile__("@ atomic64_read\n"
 "	ldrd	%0, %H0, [%1]"
@@ -265,7 +268,7 @@ static inline s64 atomic64_read(const atomic64_t *v)
 	return result;
 }
 
-static inline void atomic64_set(atomic64_t *v, s64 i)
+static inline void atomic64_set(atomic64_t *v, long long i)
 {
 	__asm__ __volatile__("@ atomic64_set\n"
 "	strd	%2, %H2, [%1]"
@@ -274,9 +277,9 @@ static inline void atomic64_set(atomic64_t *v, s64 i)
 	);
 }
 #else
-static inline s64 atomic64_read(const atomic64_t *v)
+static inline long long atomic64_read(const atomic64_t *v)
 {
-	s64 result;
+	long long result;
 
 	__asm__ __volatile__("@ atomic64_read\n"
 "	ldrexd	%0, %H0, [%1]"
@@ -287,9 +290,9 @@ static inline s64 atomic64_read(const atomic64_t *v)
 	return result;
 }
 
-static inline void atomic64_set(atomic64_t *v, s64 i)
+static inline void atomic64_set(atomic64_t *v, long long i)
 {
-	s64 tmp;
+	long long tmp;
 
 	prefetchw(&v->counter);
 	__asm__ __volatile__("@ atomic64_set\n"
@@ -304,9 +307,9 @@ static inline void atomic64_set(atomic64_t *v, s64 i)
 #endif
 
 #define ATOMIC64_OP(op, op1, op2)					\
-static inline void atomic64_##op(s64 i, atomic64_t *v)			\
+static inline void atomic64_##op(long long i, atomic64_t *v)		\
 {									\
-	s64 result;							\
+	long long result;						\
 	unsigned long tmp;						\
 									\
 	prefetchw(&v->counter);						\
@@ -323,10 +326,10 @@ static inline void atomic64_##op(s64 i, atomic64_t *v)			\
 }									\
 
 #define ATOMIC64_OP_RETURN(op, op1, op2)				\
-static inline s64							\
-atomic64_##op##_return_relaxed(s64 i, atomic64_t *v)			\
+static inline long long							\
+atomic64_##op##_return_relaxed(long long i, atomic64_t *v)		\
 {									\
-	s64 result;							\
+	long long result;						\
 	unsigned long tmp;						\
 									\
 	prefetchw(&v->counter);						\
@@ -346,10 +349,10 @@ atomic64_##op##_return_relaxed(s64 i, atomic64_t *v)			\
 }
 
 #define ATOMIC64_FETCH_OP(op, op1, op2)					\
-static inline s64							\
-atomic64_fetch_##op##_relaxed(s64 i, atomic64_t *v)			\
+static inline long long							\
+atomic64_fetch_##op##_relaxed(long long i, atomic64_t *v)		\
 {									\
-	s64 result, val;						\
+	long long result, val;						\
 	unsigned long tmp;						\
 									\
 	prefetchw(&v->counter);						\
@@ -403,9 +406,10 @@ ATOMIC64_OPS(xor, eor, eor)
 #undef ATOMIC64_OP_RETURN
 #undef ATOMIC64_OP
 
-static inline s64 atomic64_cmpxchg_relaxed(atomic64_t *ptr, s64 old, s64 new)
+static inline long long
+atomic64_cmpxchg_relaxed(atomic64_t *ptr, long long old, long long new)
 {
-	s64 oldval;
+	long long oldval;
 	unsigned long res;
 
 	prefetchw(&ptr->counter);
@@ -426,9 +430,9 @@ static inline s64 atomic64_cmpxchg_relaxed(atomic64_t *ptr, s64 old, s64 new)
 }
 #define atomic64_cmpxchg_relaxed	atomic64_cmpxchg_relaxed
 
-static inline s64 atomic64_xchg_relaxed(atomic64_t *ptr, s64 new)
+static inline long long atomic64_xchg_relaxed(atomic64_t *ptr, long long new)
 {
-	s64 result;
+	long long result;
 	unsigned long tmp;
 
 	prefetchw(&ptr->counter);
@@ -446,9 +450,9 @@ static inline s64 atomic64_xchg_relaxed(atomic64_t *ptr, s64 new)
 }
 #define atomic64_xchg_relaxed		atomic64_xchg_relaxed
 
-static inline s64 atomic64_dec_if_positive(atomic64_t *v)
+static inline long long atomic64_dec_if_positive(atomic64_t *v)
 {
-	s64 result;
+	long long result;
 	unsigned long tmp;
 
 	smp_mb();
@@ -474,9 +478,10 @@ static inline s64 atomic64_dec_if_positive(atomic64_t *v)
 }
 #define atomic64_dec_if_positive atomic64_dec_if_positive
 
-static inline s64 atomic64_fetch_add_unless(atomic64_t *v, s64 a, s64 u)
+static inline long long atomic64_fetch_add_unless(atomic64_t *v, long long a,
+						  long long u)
 {
-	s64 oldval, newval;
+	long long oldval, newval;
 	unsigned long tmp;
 
 	smp_mb();

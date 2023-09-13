@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Qualcomm PM8xxx PMIC XOADC driver
  *
@@ -705,8 +704,8 @@ static int pm8xxx_of_xlate(struct iio_dev *indio_dev,
 	 * mux.
 	 */
 	if (iiospec->args_count != 2) {
-		dev_err(&indio_dev->dev, "wrong number of arguments for %pOFn need 2 got %d\n",
-			iiospec->np,
+		dev_err(&indio_dev->dev, "wrong number of arguments for %s need 2 got %d\n",
+			iiospec->np->name,
 			iiospec->args_count);
 		return -EINVAL;
 	}

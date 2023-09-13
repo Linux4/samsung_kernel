@@ -1,10 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * ccs811.c - Support for AMS CCS811 VOC Sensor
  *
  * Copyright (C) 2017 Narcisa Vasile <narcisaanamaria12@gmail.com>
  *
  * Datasheet: ams.com/content/download/951091/2269479/CCS811_DS000459_3-00.pdf
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * IIO driver for AMS CCS811 (I2C address 0x5A/0x5B set by ADDR Low/High)
  *
@@ -75,11 +78,6 @@ struct ccs811_data {
 	struct ccs811_reading buffer;
 	struct iio_trigger *drdy_trig;
 	bool drdy_trig_on;
-	/* Ensures correct alignment of timestamp if present */
-	struct {
-		s16 channels[2];
-		s64 ts __aligned(8);
-	} scan;
 };
 
 static const struct iio_chan_spec ccs811_channels[] = {
@@ -311,17 +309,17 @@ static irqreturn_t ccs811_trigger_handler(int irq, void *p)
 	struct iio_dev *indio_dev = pf->indio_dev;
 	struct ccs811_data *data = iio_priv(indio_dev);
 	struct i2c_client *client = data->client;
+	s16 buf[8]; /* s16 eCO2 + s16 TVOC + padding + 8 byte timestamp */
 	int ret;
 
-	ret = i2c_smbus_read_i2c_block_data(client, CCS811_ALG_RESULT_DATA,
-					    sizeof(data->scan.channels),
-					    (u8 *)data->scan.channels);
+	ret = i2c_smbus_read_i2c_block_data(client, CCS811_ALG_RESULT_DATA, 4,
+					    (u8 *)&buf);
 	if (ret != 4) {
 		dev_err(&client->dev, "cannot read sensor data\n");
 		goto err;
 	}
 
-	iio_push_to_buffers_with_timestamp(indio_dev, &data->scan,
+	iio_push_to_buffers_with_timestamp(indio_dev, buf,
 					   iio_get_time_ns(indio_dev));
 
 err:
@@ -418,11 +416,11 @@ static int ccs811_probe(struct i2c_client *client,
 		data->drdy_trig->dev.parent = &client->dev;
 		data->drdy_trig->ops = &ccs811_trigger_ops;
 		iio_trigger_set_drvdata(data->drdy_trig, indio_dev);
+		indio_dev->trig = data->drdy_trig;
+		iio_trigger_get(indio_dev->trig);
 		ret = iio_trigger_register(data->drdy_trig);
 		if (ret)
 			goto err_poweroff;
-
-		indio_dev->trig = iio_trigger_get(data->drdy_trig);
 	}
 
 	ret = iio_triggered_buffer_setup(indio_dev, NULL,

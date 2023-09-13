@@ -2,12 +2,12 @@
 /*
  *  drivers/usb/notify/host_notify_class.c
  *
- * Copyright (C) 2011-2021 Samsung, Inc.
+ * Copyright (C) 2011-2017 Samsung, Inc.
  * Author: Dongrak Shin <dongrak.shin@samsung.com>
  *
  */
 
- /* usb notify layer v3.6 */
+ /* usb notify layer v3.4 */
 
 #include <linux/module.h>
 #include <linux/types.h>
@@ -353,7 +353,7 @@ int host_notify_dev_register(struct host_notify_dev *ndev)
 
 	dev_set_drvdata(ndev->dev, ndev);
 	ndev->host_state = NOTIFY_HOST_NONE;
-	ndev->power_state = NOTIFY_HOST_SINK;
+	ndev->power_state = NOTIFY_HOST_NONE;
 	return 0;
 }
 EXPORT_SYMBOL_GPL(host_notify_dev_register);
@@ -361,7 +361,7 @@ EXPORT_SYMBOL_GPL(host_notify_dev_register);
 void host_notify_dev_unregister(struct host_notify_dev *ndev)
 {
 	ndev->host_state = NOTIFY_HOST_NONE;
-	ndev->power_state = NOTIFY_HOST_SINK;
+	ndev->power_state = NOTIFY_HOST_NONE;
 	sysfs_remove_group(&ndev->dev->kobj, &host_notify_attr_grp);
 	dev_set_drvdata(ndev->dev, NULL);
 	device_destroy(host_notify.host_notify_class, MKDEV(0, ndev->index));
@@ -369,12 +369,19 @@ void host_notify_dev_unregister(struct host_notify_dev *ndev)
 }
 EXPORT_SYMBOL_GPL(host_notify_dev_unregister);
 
-int notify_class_init(void)
+static int __init notify_class_init(void)
 {
 	return create_notify_class();
 }
 
-void notify_class_exit(void)
+static void __exit notify_class_exit(void)
 {
 	class_destroy(host_notify.host_notify_class);
 }
+
+module_init(notify_class_init);
+module_exit(notify_class_exit);
+
+MODULE_AUTHOR("Dongrak Shin <dongrak.shin@samsung.com>");
+MODULE_DESCRIPTION("Usb host notify driver");
+MODULE_LICENSE("GPL");

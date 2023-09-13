@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  linux/fs/file_table.c
  *
@@ -27,7 +26,6 @@
 #include <linux/task_work.h>
 #include <linux/ima.h>
 #include <linux/swap.h>
-#include <linux/task_integrity.h>
 
 #include <linux/atomic.h>
 
@@ -42,86 +40,6 @@ struct files_stat_struct files_stat = {
 static struct kmem_cache *filp_cachep __read_mostly;
 
 static struct percpu_counter nr_files __cacheline_aligned_in_smp;
-
-#if IS_ENABLED(CONFIG_SEC_DEBUG_FPUT_WATCHDOG)
-#include <linux/sched/debug.h>
-#include <linux/sec_debug.h>
-
-struct fput_watchdog {
-	struct file		*file;
-	struct task_struct	*tsk;
-	struct timer_list	timer;
-};
-
-#define DECLARE_FPUT_WATCHDOG_ON_STACK(wd) \
-	struct fput_watchdog wd
-
-/*
- * fput_watchdog_handler - fput watchdog handler.
- * @data: Watchdog object address.
- *
- * Called when fput() has timed out.
- * There's not much we can do here to recover so panic() to
- * capture or recover from it.
- */
-static void fput_watchdog_handler(struct timer_list *t)
-{
-	struct fput_watchdog *wd = from_timer(wd, t, timer);
-	char d_iname[32] = {0,};
-
-	pr_emerg("**** FPUT timeout ****\npid %8d, %s\n",
-			wd->tsk ? wd->tsk->pid : -1,
-			wd->tsk ? wd->tsk->comm : NULL);
-
-	show_stack(wd->tsk, NULL);
-
-	if (wd->file && wd->file->f_path.dentry)
-		strncpy(d_iname, wd->file->f_path.dentry->d_iname,
-				sizeof(d_iname) - 1);
-
-	if (strncmp(d_iname, "TCP", strlen("TCP"))/* &&
-						     sec_debug_is_enabled() */)
-		panic("__fput() for %s file is not finished for %d sec.\n",
-				d_iname, CONFIG_SEC_DEBUG_FPUT_WATCHDOG_TIMEOUT);
-	else
-		pr_warn("__fput() for %s file is not finished for %d sec.\n",
-				d_iname, CONFIG_SEC_DEBUG_FPUT_WATCHDOG_TIMEOUT);
-}
-
-/**
- *  * fput_watchdog_set - Enable watchdog for given fput.
- *   * @wd: Watchdog. Must be allocated on the stack.
- *    * @file: file to handle.
- *     */
-static void fput_watchdog_set(struct fput_watchdog *wd, struct file *file)
-{
-	struct timer_list *timer = &wd->timer;
-
-	wd->file = file;
-	wd->tsk = current;
-
-	timer_setup_on_stack(timer, fput_watchdog_handler, 0);
-	timer->expires = jiffies + HZ * CONFIG_SEC_DEBUG_FPUT_WATCHDOG_TIMEOUT;
-
-	add_timer(timer);
-}
-
-/**
- *  * fput_watchdog_clear - Disable watchdog.
- *   * @wd: Watchdog to disable.
- *    */
-static void fput_watchdog_clear(struct fput_watchdog *wd)
-{
-	struct timer_list *timer = &wd->timer;
-
-	del_timer_sync(timer);
-	destroy_timer_on_stack(timer);
-}
-#else
-#define DECLARE_FPUT_WATCHDOG_ON_STACK(wd)
-#define fput_watchdog_set(x, y)
-#define fput_watchdog_clear(x)
-#endif
 
 static void file_free_rcu(struct rcu_head *head)
 {
@@ -337,14 +255,11 @@ static void __fput(struct file *file)
 	struct dentry *dentry = file->f_path.dentry;
 	struct vfsmount *mnt = file->f_path.mnt;
 	struct inode *inode = file->f_inode;
-	fmode_t mode = file->f_mode;
-	DECLARE_FPUT_WATCHDOG_ON_STACK(wd);		/* CONFIG_SEC_DEBUG_FPUT_WATCHDOG */
 
 	if (unlikely(!(file->f_mode & FMODE_OPENED)))
 		goto out;
 
 	might_sleep();
-	fput_watchdog_set(&wd, file);			/* CONFIG_SEC_DEBUG_FPUT_WATCHDOG */
 
 	fsnotify_close(file);
 	/*
@@ -355,7 +270,6 @@ static void __fput(struct file *file)
 	locks_remove_file(file);
 
 	ima_file_free(file);
-	five_file_free(file);
 	if (unlikely(file->f_flags & FASYNC)) {
 		if (file->f_op->fasync)
 			file->f_op->fasync(-1, file, 0);
@@ -363,22 +277,19 @@ static void __fput(struct file *file)
 	if (file->f_op->release)
 		file->f_op->release(inode, file);
 	if (unlikely(S_ISCHR(inode->i_mode) && inode->i_cdev != NULL &&
-		     !(mode & FMODE_PATH))) {
+		     !(file->f_mode & FMODE_PATH))) {
 		cdev_put(inode->i_cdev);
 	}
 	fops_put(file->f_op);
 	put_pid(file->f_owner.pid);
-	if ((mode & (FMODE_READ | FMODE_WRITE)) == FMODE_READ)
+	if ((file->f_mode & (FMODE_READ | FMODE_WRITE)) == FMODE_READ)
 		i_readcount_dec(inode);
-	if (mode & FMODE_WRITER) {
+	if (file->f_mode & FMODE_WRITER) {
 		put_write_access(inode);
 		__mnt_drop_write(mnt);
 	}
 	dput(dentry);
-	if (unlikely(mode & FMODE_NEED_UNMOUNT))
-		dissolve_on_fput(mnt);
 	mntput(mnt);
-	fput_watchdog_clear(&wd);			/* CONFIG_SEC_DEBUG_FPUT_WATCHDOG */
 out:
 	file_free(file);
 }
@@ -412,13 +323,12 @@ void flush_delayed_fput(void)
 {
 	delayed_fput(NULL);
 }
-EXPORT_SYMBOL_GPL(flush_delayed_fput);
 
 static DECLARE_DELAYED_WORK(delayed_fput_work, delayed_fput);
 
-void fput_many(struct file *file, unsigned int refs)
+void fput(struct file *file)
 {
-	if (atomic_long_sub_and_test(refs, &file->f_count)) {
+	if (atomic_long_dec_and_test(&file->f_count)) {
 		struct task_struct *task = current;
 
 		if (likely(!in_interrupt() && !(task->flags & PF_KTHREAD))) {
@@ -435,11 +345,6 @@ void fput_many(struct file *file, unsigned int refs)
 		if (llist_add(&file->f_u.fu_llist, &delayed_fput_list))
 			schedule_delayed_work(&delayed_fput_work, 1);
 	}
-}
-
-void fput(struct file *file)
-{
-	fput_many(file, 1);
 }
 
 /*
@@ -460,7 +365,6 @@ void __fput_sync(struct file *file)
 }
 
 EXPORT_SYMBOL(fput);
-EXPORT_SYMBOL(__fput_sync);
 
 void __init files_init(void)
 {
@@ -476,11 +380,10 @@ void __init files_init(void)
 void __init files_maxfiles_init(void)
 {
 	unsigned long n;
-	unsigned long nr_pages = totalram_pages();
-	unsigned long memreserve = (nr_pages - nr_free_pages()) * 3/2;
+	unsigned long memreserve = (totalram_pages - nr_free_pages()) * 3/2;
 
-	memreserve = min(memreserve, nr_pages - 1);
-	n = ((nr_pages - memreserve) * (PAGE_SIZE / 1024)) / 10;
+	memreserve = min(memreserve, totalram_pages - 1);
+	n = ((totalram_pages - memreserve) * (PAGE_SIZE / 1024)) / 10;
 
 	files_stat.max_files = max_t(unsigned long, n, NR_FILE);
 }

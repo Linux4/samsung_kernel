@@ -115,6 +115,7 @@ static struct dentry *csr_dbgdir;
  * @client:	i2c client used to perform IO operations
  *
  * @ee_file:	EEPROM read/write sysfs-file
+ * @csr_file:	CSR read/write debugfs-node
  */
 struct idt_smb_seq;
 struct idt_89hpesx_dev {
@@ -136,6 +137,7 @@ struct idt_89hpesx_dev {
 
 	struct bin_attribute *ee_file;
 	struct dentry *csr_dir;
+	struct dentry *csr_file;
 };
 
 /*
@@ -1126,10 +1128,11 @@ static void idt_get_fw_data(struct idt_89hpesx_dev *pdev)
 
 	device_for_each_child_node(dev, fwnode) {
 		ee_id = idt_ee_match_id(fwnode);
-		if (ee_id)
+		if (!ee_id) {
+			dev_warn(dev, "Skip unsupported EEPROM device");
+			continue;
+		} else
 			break;
-
-		dev_warn(dev, "Skip unsupported EEPROM device %pfw\n", fwnode);
 	}
 
 	/* If there is no fwnode EEPROM device, then set zero size */
@@ -1160,7 +1163,6 @@ static void idt_get_fw_data(struct idt_89hpesx_dev *pdev)
 	else /* if (!fwnode_property_read_bool(node, "read-only")) */
 		pdev->eero = false;
 
-	fwnode_handle_put(fwnode);
 	dev_info(dev, "EEPROM of %d bytes found by 0x%x",
 		pdev->eesize, pdev->eeaddr);
 }
@@ -1376,8 +1378,8 @@ static void idt_create_dbgfs_files(struct idt_89hpesx_dev *pdev)
 	pdev->csr_dir = debugfs_create_dir(fname, csr_dbgdir);
 
 	/* Create Debugfs file for CSR read/write operations */
-	debugfs_create_file(cli->name, 0600, pdev->csr_dir, pdev,
-			    &csr_dbgfs_ops);
+	pdev->csr_file = debugfs_create_file(cli->name, 0600,
+		pdev->csr_dir, pdev, &csr_dbgfs_ops);
 }
 
 /*

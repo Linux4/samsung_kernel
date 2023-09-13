@@ -1,7 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright 1997-1998 Transmeta Corporation -- All Rights Reserved
  * Copyright 2001-2006 Ian Kent <raven@themaw.net>
+ *
+ * This file is part of the Linux kernel and is made available under
+ * the terms of the GNU General Public License, version 2, or at your
+ * option, any later version, incorporated herein by reference.
  */
 
 #include <linux/sched/signal.h>
@@ -17,14 +20,14 @@ void autofs_catatonic_mode(struct autofs_sb_info *sbi)
 	struct autofs_wait_queue *wq, *nwq;
 
 	mutex_lock(&sbi->wq_mutex);
-	if (sbi->flags & AUTOFS_SBI_CATATONIC) {
+	if (sbi->catatonic) {
 		mutex_unlock(&sbi->wq_mutex);
 		return;
 	}
 
 	pr_debug("entering catatonic mode\n");
 
-	sbi->flags |= AUTOFS_SBI_CATATONIC;
+	sbi->catatonic = 1;
 	wq = sbi->queues;
 	sbi->queues = NULL;	/* Erase all wait queues */
 	while (wq) {
@@ -252,7 +255,7 @@ static int validate_request(struct autofs_wait_queue **wait,
 	struct autofs_wait_queue *wq;
 	struct autofs_info *ino;
 
-	if (sbi->flags & AUTOFS_SBI_CATATONIC)
+	if (sbi->catatonic)
 		return -ENOENT;
 
 	/* Wait in progress, continue; */
@@ -287,7 +290,7 @@ static int validate_request(struct autofs_wait_queue **wait,
 			if (mutex_lock_interruptible(&sbi->wq_mutex))
 				return -EINTR;
 
-			if (sbi->flags & AUTOFS_SBI_CATATONIC)
+			if (sbi->catatonic)
 				return -ENOENT;
 
 			wq = autofs_find_wait(sbi, qstr);
@@ -356,7 +359,7 @@ int autofs_wait(struct autofs_sb_info *sbi,
 	pid_t tgid;
 
 	/* In catatonic mode, we don't wait for nobody */
-	if (sbi->flags & AUTOFS_SBI_CATATONIC)
+	if (sbi->catatonic)
 		return -ENOENT;
 
 	/*

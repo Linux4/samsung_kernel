@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 #
 # Input misc drivers configuration
 #
@@ -118,16 +117,6 @@ config INPUT_E3X0_BUTTON
 	  To compile this driver as a module, choose M here: the
 	  module will be called e3x0_button.
 
-config INPUT_MSM_VIBRATOR
-	tristate "Qualcomm MSM vibrator driver"
-	select INPUT_FF_MEMLESS
-	help
-	  Support for the vibrator that is found on various Qualcomm MSM
-	  SOCs.
-
-	  To compile this driver as a module, choose M here: the module
-	  will be called msm_vibrator.
-
 config INPUT_PCSPKR
 	tristate "PC Speaker support"
 	depends on PCSPKR_PLATFORM
@@ -175,26 +164,6 @@ config INPUT_PMIC8XXX_PWRKEY
 	  To compile this driver as a module, choose M here: the
 	  module will be called pmic8xxx-pwrkey.
 
-config INPUT_QPNP_POWER_ON
-	tristate "QPNP PMIC Power-on support"
-	depends on SPMI
-	help
-	  This option enables device driver support for the power-on
-	  functionality of Qualcomm Technologies, Inc. PNP PMICs.  It supports
-	  reporting the change in status of the KPDPWR_N line (connected to the
-	  power-key) as well as reset features.
-
-config INPUT_QCOM_HV_HAPTICS
-	tristate "QTI High Voltage Haptics support"
-	depends on MFD_SPMI_PMIC
-	help
-	  This option enables device driver support for the high voltage haptics
-	  peripheral found on Qualcomm Technologies, Inc. PMICs.  The high voltage
-	  haptics peripheral is capable of driving either LRA or ERM vibrators with
-	  drive voltage up to 10 V, and its 5 integrated pattern sources can be used
-	  for playing different vibration effects. To compile this driver as a module,
-	  choose M here: the module will be called qcom-hv-haptics.
-
 config INPUT_SPARCSPKR
 	tristate "SPARC Speaker support"
 	depends on PCI && SPARC64
@@ -210,15 +179,6 @@ config INPUT_SPARCSPKR
 config INPUT_M68K_BEEP
 	tristate "M68k Beeper support"
 	depends on M68K
-
-config INPUT_MAX77650_ONKEY
-	tristate "Maxim MAX77650 ONKEY support"
-	depends on MFD_MAX77650
-	help
-	  Support the ONKEY of the MAX77650 PMIC as an input device.
-
-	  To compile this driver as a module, choose M here: the module
-	  will be called max77650-onkey.
 
 config INPUT_MAX77693_HAPTIC
 	tristate "MAXIM MAX77693/MAX77843 haptic controller support"
@@ -319,18 +279,6 @@ config INPUT_GPIO_DECODER
 
 	 To compile this driver as a module, choose M here: the module
 	 will be called gpio_decoder.
-
-config INPUT_GPIO_VIBRA
-	tristate "GPIO vibrator support"
-	depends on GPIOLIB || COMPILE_TEST
-	select INPUT_FF_MEMLESS
-	help
-	  Say Y here to get support for GPIO based vibrator devices.
-
-	  If unsure, say N.
-
-	  To compile this driver as a module, choose M here: the module will be
-	  called gpio-vibra.
 
 config INPUT_IXP4XX_BEEPER
 	tristate "IXP4XX Beeper support"
@@ -833,10 +781,10 @@ config INPUT_IDEAPAD_SLIDEBAR
 
 config INPUT_SOC_BUTTON_ARRAY
 	tristate "Windows-compatible SoC Button Array"
-	depends on KEYBOARD_GPIO && ACPI
+	depends on KEYBOARD_GPIO
 	help
-	  Say Y here if you have a SoC-based tablet that originally runs
-	  Windows 8 or a Microsoft Surface Book 2, Pro 5, Laptop 1 or later.
+	  Say Y here if you have a SoC-based tablet that originally
+	  runs Windows 8.
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called soc_button_array.
@@ -902,16 +850,5 @@ config INPUT_SC27XX_VIBRA
 
 	  To compile this driver as a module, choose M here. The module will
 	  be called sc27xx_vibra.
-
-config INPUT_STPMIC1_ONKEY
-	tristate "STPMIC1 PMIC Onkey support"
-	depends on MFD_STPMIC1
-	help
-	  Say Y to enable support of onkey embedded into STPMIC1 PMIC. onkey
-	  can be used to wakeup from low power modes and force a shut-down on
-	  long press.
-
-	  To compile this driver as a module, choose M here: the
-	  module will be called stpmic1_onkey.
 
 endif

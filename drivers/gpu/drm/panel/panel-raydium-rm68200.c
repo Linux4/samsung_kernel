@@ -7,17 +7,14 @@
  */
 
 #include <linux/backlight.h>
-#include <linux/delay.h>
 #include <linux/gpio/consumer.h>
-#include <linux/module.h>
 #include <linux/regulator/consumer.h>
 
 #include <video/mipi_display.h>
 
+#include <drm/drmP.h>
 #include <drm/drm_mipi_dsi.h>
-#include <drm/drm_modes.h>
 #include <drm/drm_panel.h>
-#include <drm/drm_print.h>
 
 /*** Manufacturer Command Set ***/
 #define MCS_CMD_MODE_SW		0xFE /* CMD Mode Switch */
@@ -386,8 +383,7 @@ static int rm68200_probe(struct mipi_dsi_device *dsi)
 	ctx->supply = devm_regulator_get(dev, "power");
 	if (IS_ERR(ctx->supply)) {
 		ret = PTR_ERR(ctx->supply);
-		if (ret != -EPROBE_DEFER)
-			dev_err(dev, "cannot get regulator: %d\n", ret);
+		dev_err(dev, "cannot get regulator: %d\n", ret);
 		return ret;
 	}
 

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /* -*- linux-c -*-
  * sysctl_net.c: sysctl interface to net subsystem.
  *

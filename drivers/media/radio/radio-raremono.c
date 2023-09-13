@@ -181,9 +181,11 @@ static int vidioc_querycap(struct file *file, void *priv,
 {
 	struct raremono_device *radio = video_drvdata(file);
 
-	strscpy(v->driver, "radio-raremono", sizeof(v->driver));
-	strscpy(v->card, "Thanko's Raremono", sizeof(v->card));
+	strlcpy(v->driver, "radio-raremono", sizeof(v->driver));
+	strlcpy(v->card, "Thanko's Raremono", sizeof(v->card));
 	usb_make_path(radio->usbdev, v->bus_info, sizeof(v->bus_info));
+	v->device_caps = V4L2_CAP_TUNER | V4L2_CAP_RADIO;
+	v->capabilities = v->device_caps | V4L2_CAP_DEVICE_CAPS;
 	return 0;
 }
 
@@ -210,7 +212,7 @@ static int vidioc_g_tuner(struct file *file, void *priv,
 	if (v->index > 0)
 		return -EINVAL;
 
-	strscpy(v->name, "AM/FM/SW", sizeof(v->name));
+	strlcpy(v->name, "AM/FM/SW", sizeof(v->name));
 	v->capability = V4L2_TUNER_CAP_LOW | V4L2_TUNER_CAP_STEREO |
 		V4L2_TUNER_CAP_FREQ_BANDS;
 	v->rangelow = AM_FREQ_RANGE_LOW * 16;
@@ -347,14 +349,13 @@ static int usb_raremono_probe(struct usb_interface *intf,
 
 	mutex_init(&radio->lock);
 
-	strscpy(radio->vdev.name, radio->v4l2_dev.name,
+	strlcpy(radio->vdev.name, radio->v4l2_dev.name,
 		sizeof(radio->vdev.name));
 	radio->vdev.v4l2_dev = &radio->v4l2_dev;
 	radio->vdev.fops = &usb_raremono_fops;
 	radio->vdev.ioctl_ops = &usb_raremono_ioctl_ops;
 	radio->vdev.lock = &radio->lock;
 	radio->vdev.release = video_device_release_empty;
-	radio->vdev.device_caps = V4L2_CAP_TUNER | V4L2_CAP_RADIO;
 	radio->v4l2_dev.release = raremono_device_release;
 
 	usb_set_intfdata(intf, &radio->v4l2_dev);

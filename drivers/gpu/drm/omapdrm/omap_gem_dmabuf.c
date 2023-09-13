@@ -1,13 +1,21 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/
  * Author: Rob Clark <rob.clark@linaro.org>
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <linux/dma-buf.h>
-#include <linux/highmem.h>
-
-#include <drm/drm_prime.h>
 
 #include "omap_drv.h"
 
@@ -128,7 +136,8 @@ static const struct dma_buf_ops omap_dmabuf_ops = {
 	.mmap = omap_gem_dmabuf_mmap,
 };
 
-struct dma_buf *omap_gem_prime_export(struct drm_gem_object *obj, int flags)
+struct dma_buf *omap_gem_prime_export(struct drm_device *dev,
+		struct drm_gem_object *obj, int flags)
 {
 	DEFINE_DMA_BUF_EXPORT_INFO(exp_info);
 
@@ -137,7 +146,7 @@ struct dma_buf *omap_gem_prime_export(struct drm_gem_object *obj, int flags)
 	exp_info.flags = flags;
 	exp_info.priv = obj;
 
-	return drm_gem_dmabuf_export(obj->dev, &exp_info);
+	return drm_gem_dmabuf_export(dev, &exp_info);
 }
 
 /* -----------------------------------------------------------------------------
@@ -159,7 +168,7 @@ struct drm_gem_object *omap_gem_prime_import(struct drm_device *dev,
 			 * Importing dmabuf exported from out own gem increases
 			 * refcount on gem itself instead of f_count of dmabuf.
 			 */
-			drm_gem_object_get(obj);
+			drm_gem_object_reference(obj);
 			return obj;
 		}
 	}

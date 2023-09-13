@@ -15,7 +15,6 @@
 #include <linux/of_device.h>
 #include <linux/pm_domain.h>
 #include <linux/pm_runtime.h>
-#include <linux/sched.h>
 #include <linux/serdev.h>
 #include <linux/slab.h>
 
@@ -31,18 +30,7 @@ static ssize_t modalias_show(struct device *dev,
 	if (len != -ENODEV)
 		return len;
 
-	len = of_device_modalias(dev, buf, PAGE_SIZE);
-	if (len != -ENODEV)
-		return len;
-
-	if (dev->parent->parent->bus == &platform_bus_type) {
-		struct platform_device *pdev =
-			to_platform_device(dev->parent->parent);
-
-		len = snprintf(buf, PAGE_SIZE, "platform:%s\n", pdev->name);
-	}
-
-	return len;
+	return of_device_modalias(dev, buf, PAGE_SIZE);
 }
 static DEVICE_ATTR_RO(modalias);
 
@@ -56,18 +44,13 @@ static int serdev_device_uevent(struct device *dev, struct kobj_uevent_env *env)
 {
 	int rc;
 
+	/* TODO: platform modalias */
+
 	rc = acpi_device_uevent_modalias(dev, env);
 	if (rc != -ENODEV)
 		return rc;
 
-	rc = of_device_uevent_modalias(dev, env);
-	if (rc != -ENODEV)
-		return rc;
-
-	if (dev->parent->parent->bus == &platform_bus_type)
-		rc = dev->parent->parent->bus->uevent(dev->parent->parent, env);
-
-	return rc;
+	return of_device_uevent_modalias(dev, env);
 }
 
 static void serdev_device_release(struct device *dev)
@@ -103,17 +86,11 @@ static int serdev_device_match(struct device *dev, struct device_driver *drv)
 	if (!is_serdev_device(dev))
 		return 0;
 
+	/* TODO: platform matching */
 	if (acpi_driver_match_device(dev, drv))
 		return 1;
 
-	if (of_driver_match_device(dev, drv))
-		return 1;
-
-	if (dev->parent->parent->bus == &platform_bus_type &&
-	    dev->parent->parent->bus->match(dev->parent->parent, drv))
-		return 1;
-
-	return 0;
+	return of_driver_match_device(dev, drv);
 }
 
 /**
@@ -239,21 +216,6 @@ void serdev_device_write_wakeup(struct serdev_device *serdev)
 }
 EXPORT_SYMBOL_GPL(serdev_device_write_wakeup);
 
-/**
- * serdev_device_write_buf() - write data asynchronously
- * @serdev:	serdev device
- * @buf:	data to be written
- * @count:	number of bytes to write
- *
- * Write data to the device asynchronously.
- *
- * Note that any accepted data has only been buffered by the controller; use
- * serdev_device_wait_until_sent() to make sure the controller write buffer
- * has actually been emptied.
- *
- * Return: The number of bytes written (less than count if not enough room in
- * the write buffer), or a negative errno on errors.
- */
 int serdev_device_write_buf(struct serdev_device *serdev,
 			    const unsigned char *buf, size_t count)
 {
@@ -266,41 +228,16 @@ int serdev_device_write_buf(struct serdev_device *serdev,
 }
 EXPORT_SYMBOL_GPL(serdev_device_write_buf);
 
-/**
- * serdev_device_write() - write data synchronously
- * @serdev:	serdev device
- * @buf:	data to be written
- * @count:	number of bytes to write
- * @timeout:	timeout in jiffies, or 0 to wait indefinitely
- *
- * Write data to the device synchronously by repeatedly calling
- * serdev_device_write() until the controller has accepted all data (unless
- * interrupted by a timeout or a signal).
- *
- * Note that any accepted data has only been buffered by the controller; use
- * serdev_device_wait_until_sent() to make sure the controller write buffer
- * has actually been emptied.
- *
- * Note that this function depends on serdev_device_write_wakeup() being
- * called in the serdev driver write_wakeup() callback.
- *
- * Return: The number of bytes written (less than count if interrupted),
- * -ETIMEDOUT or -ERESTARTSYS if interrupted before any bytes were written, or
- * a negative errno on errors.
- */
 int serdev_device_write(struct serdev_device *serdev,
 			const unsigned char *buf, size_t count,
-			long timeout)
+			unsigned long timeout)
 {
 	struct serdev_controller *ctrl = serdev->ctrl;
-	int written = 0;
 	int ret;
 
-	if (!ctrl || !ctrl->ops->write_buf || !serdev->ops->write_wakeup)
+	if (!ctrl || !ctrl->ops->write_buf ||
+	    (timeout && !serdev->ops->write_wakeup))
 		return -EINVAL;
-
-	if (timeout == 0)
-		timeout = MAX_SCHEDULE_TIMEOUT;
 
 	mutex_lock(&serdev->write_lock);
 	do {
@@ -310,29 +247,14 @@ int serdev_device_write(struct serdev_device *serdev,
 		if (ret < 0)
 			break;
 
-		written += ret;
 		buf += ret;
 		count -= ret;
 
-		if (count == 0)
-			break;
-
-		timeout = wait_for_completion_interruptible_timeout(&serdev->write_comp,
-								    timeout);
-	} while (timeout > 0);
+	} while (count &&
+		 (timeout = wait_for_completion_timeout(&serdev->write_comp,
+							timeout)));
 	mutex_unlock(&serdev->write_lock);
-
-	if (ret < 0)
-		return ret;
-
-	if (timeout <= 0 && written == 0) {
-		if (timeout == -ERESTARTSYS)
-			return -ERESTARTSYS;
-		else
-			return -ETIMEDOUT;
-	}
-
-	return written;
+	return ret < 0 ? ret : (count ? -ETIMEDOUT : 0);
 }
 EXPORT_SYMBOL_GPL(serdev_device_write);
 
@@ -652,45 +574,16 @@ static inline int acpi_serdev_register_devices(struct serdev_controller *ctrl)
 }
 #endif /* CONFIG_ACPI */
 
-static int platform_serdev_register_devices(struct serdev_controller *ctrl)
-{
-	struct serdev_device *serdev;
-	int err;
-
-	if (ctrl->dev.parent->bus != &platform_bus_type)
-		return -ENODEV;
-
-	serdev = serdev_device_alloc(ctrl);
-	if (!serdev) {
-		dev_err(&ctrl->dev, "failed to allocate serdev device for %s\n",
-				    dev_name(ctrl->dev.parent));
-		return -ENOMEM;
-	}
-
-	pm_runtime_no_callbacks(&serdev->dev);
-
-	err = serdev_device_add(serdev);
-	if (err) {
-		dev_err(&serdev->dev,
-			"failure adding device. status %d\n", err);
-		serdev_device_put(serdev);
-	}
-
-	return err;
-}
-
-
 /**
- * serdev_controller_add_platform() - Add an serdev controller
+ * serdev_controller_add() - Add an serdev controller
  * @ctrl:	controller to be registered.
- * @platform:	whether to permit fallthrough to platform device probe
  *
  * Register a controller previously allocated via serdev_controller_alloc() with
- * the serdev core. Optionally permit probing via a platform device fallback.
+ * the serdev core.
  */
-int serdev_controller_add_platform(struct serdev_controller *ctrl, bool platform)
+int serdev_controller_add(struct serdev_controller *ctrl)
 {
-	int ret, ret_of, ret_acpi, ret_platform = -ENODEV;
+	int ret_of, ret_acpi, ret;
 
 	/* Can't register until after driver model init */
 	if (WARN_ON(!is_registered))
@@ -704,12 +597,9 @@ int serdev_controller_add_platform(struct serdev_controller *ctrl, bool platform
 
 	ret_of = of_serdev_register_devices(ctrl);
 	ret_acpi = acpi_serdev_register_devices(ctrl);
-	if (platform)
-		ret_platform = platform_serdev_register_devices(ctrl);
-	if (ret_of && ret_acpi && ret_platform) {
-		dev_dbg(&ctrl->dev, "no devices registered: of:%d acpi:%d "
-				    "platform:%d\n",
-				    ret_of, ret_acpi, ret_platform);
+	if (ret_of && ret_acpi) {
+		dev_dbg(&ctrl->dev, "no devices registered: of:%d acpi:%d\n",
+			ret_of, ret_acpi);
 		ret = -ENODEV;
 		goto err_rpm_disable;
 	}
@@ -723,7 +613,7 @@ err_rpm_disable:
 	device_del(&ctrl->dev);
 	return ret;
 };
-EXPORT_SYMBOL_GPL(serdev_controller_add_platform);
+EXPORT_SYMBOL_GPL(serdev_controller_add);
 
 /* Remove a device associated with a controller */
 static int serdev_remove_device(struct device *dev, void *data)

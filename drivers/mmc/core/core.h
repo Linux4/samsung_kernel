@@ -1,9 +1,12 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  *  linux/drivers/mmc/core/core.h
  *
  *  Copyright (C) 2003 Russell King, All Rights Reserved.
  *  Copyright 2007 Pierre Ossman
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 #ifndef _MMC_CORE_CORE_H
 #define _MMC_CORE_CORE_H
@@ -14,17 +17,8 @@
 struct mmc_host;
 struct mmc_card;
 struct mmc_request;
-#if defined(CONFIG_SDC_QTI)
-struct mmc_queue;
-#endif
 
 #define MMC_CMD_RETRIES        3
-
-#ifdef CONFIG_MMC_SUPPORT_STLOG
-#include <linux/fslog.h>
-#else
-#define ST_LOG(fmt, ...)
-#endif
 
 struct mmc_bus_ops {
 	void (*remove)(struct mmc_host *);
@@ -38,9 +32,6 @@ struct mmc_bus_ops {
 	int (*shutdown)(struct mmc_host *);
 	int (*hw_reset)(struct mmc_host *);
 	int (*sw_reset)(struct mmc_host *);
-#if defined(CONFIG_SDC_QTI)
-	int (*change_bus_speed)(struct mmc_host *host, unsigned long *freq);
-#endif
 };
 
 void mmc_attach_bus(struct mmc_host *host, const struct mmc_bus_ops *ops);
@@ -68,11 +59,7 @@ void mmc_power_up(struct mmc_host *host, u32 ocr);
 void mmc_power_off(struct mmc_host *host);
 void mmc_power_cycle(struct mmc_host *host, u32 ocr);
 void mmc_set_initial_state(struct mmc_host *host);
-u32 mmc_vddrange_to_ocrmask(int vdd_min, int vdd_max);
-#if defined(CONFIG_SDC_QTI)
-int mmc_clk_update_freq(struct mmc_host *host,
-		unsigned long freq, enum mmc_load state);
-#endif
+
 static inline void mmc_delay(unsigned int ms)
 {
 	if (ms <= 20)
@@ -83,11 +70,8 @@ static inline void mmc_delay(unsigned int ms)
 
 void mmc_rescan(struct work_struct *work);
 void mmc_start_host(struct mmc_host *host);
-void __mmc_stop_host(struct mmc_host *host);
 void mmc_stop_host(struct mmc_host *host);
 
-void _mmc_detect_change(struct mmc_host *host, unsigned long delay,
-			bool cd_irq);
 int _mmc_detect_card_removed(struct mmc_host *host);
 int mmc_detect_card_removed(struct mmc_host *host);
 
@@ -105,22 +89,17 @@ void mmc_remove_host_debugfs(struct mmc_host *host);
 void mmc_add_card_debugfs(struct mmc_card *card);
 void mmc_remove_card_debugfs(struct mmc_card *card);
 
-#if defined(CONFIG_SDC_QTI)
-extern bool mmc_can_scale_clk(struct mmc_host *host);
-extern int mmc_init_clk_scaling(struct mmc_host *host);
-extern int mmc_suspend_clk_scaling(struct mmc_host *host);
-extern int mmc_resume_clk_scaling(struct mmc_host *host);
-extern int mmc_exit_clk_scaling(struct mmc_host *host);
-extern void mmc_deferred_scaling(struct mmc_host *host);
-extern unsigned long mmc_get_max_frequency(struct mmc_host *host);
-extern void mmc_cqe_clk_scaling_start_busy(struct mmc_queue *mq,
-	struct mmc_host *host, bool lock_needed);
-extern void mmc_cqe_clk_scaling_stop_busy(struct mmc_host *host,
-			bool lock_needed, bool is_cqe_dcmd);
-#endif
 int mmc_execute_tuning(struct mmc_card *card);
 int mmc_hs200_to_hs400(struct mmc_card *card);
 int mmc_hs400_to_hs200(struct mmc_card *card);
+
+#ifdef CONFIG_PM_SLEEP
+void mmc_register_pm_notifier(struct mmc_host *host);
+void mmc_unregister_pm_notifier(struct mmc_host *host);
+#else
+static inline void mmc_register_pm_notifier(struct mmc_host *host) { }
+static inline void mmc_unregister_pm_notifier(struct mmc_host *host) { }
+#endif
 
 void mmc_wait_for_req_done(struct mmc_host *host, struct mmc_request *mrq);
 bool mmc_is_req_done(struct mmc_host *host, struct mmc_request *mrq);
@@ -139,16 +118,15 @@ int mmc_erase_group_aligned(struct mmc_card *card, unsigned int from,
 unsigned int mmc_calc_max_discard(struct mmc_card *card);
 
 int mmc_set_blocklen(struct mmc_card *card, unsigned int blocklen);
+int mmc_set_blockcount(struct mmc_card *card, unsigned int blockcount,
+			bool is_rel_write);
 
 int __mmc_claim_host(struct mmc_host *host, struct mmc_ctx *ctx,
 		     atomic_t *abort);
-#if defined(CONFIG_SDC_QTI)
-int mmc_try_claim_host(struct mmc_host *host, struct mmc_ctx *ctx,
-		unsigned int delay_ms);
-#endif
 void mmc_release_host(struct mmc_host *host);
 void mmc_get_card(struct mmc_card *card, struct mmc_ctx *ctx);
 void mmc_put_card(struct mmc_card *card, struct mmc_ctx *ctx);
+int __mmc_try_claim_host(struct mmc_host *host, struct mmc_ctx *ctx, unsigned int delay);
 
 /**
  *	mmc_claim_host - exclusively claim a host
@@ -160,6 +138,15 @@ static inline void mmc_claim_host(struct mmc_host *host)
 {
 	__mmc_claim_host(host, NULL, NULL);
 }
+
+static inline int mmc_try_claim_host(struct mmc_host *host, unsigned int delay)
+{
+
+	int ret;
+	ret = __mmc_try_claim_host(host, NULL, delay);
+	return ret;
+}
+
 
 int mmc_cqe_start_req(struct mmc_host *host, struct mmc_request *mrq);
 void mmc_cqe_post_req(struct mmc_host *host, struct mmc_request *mrq);

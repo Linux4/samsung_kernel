@@ -1,13 +1,14 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Defines machines for CSR SiRFprimaII
  *
  * Copyright (c) 2011 Cambridge Silicon Radio Limited, a CSR plc group company.
+ *
+ * Licensed under GPLv2 or later.
  */
 
 #include <linux/init.h>
 #include <linux/kernel.h>
-#include <linux/sizes.h>
+#include <asm/sizes.h>
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <linux/of.h>

@@ -296,6 +296,8 @@ struct flexrm_mbox {
 	struct dma_pool *bd_pool;
 	struct dma_pool *cmpl_pool;
 	struct dentry *root;
+	struct dentry *config;
+	struct dentry *stats;
 	struct mbox_controller controller;
 };
 
@@ -373,7 +375,7 @@ static u32 flexrm_estimate_header_desc_count(u32 nhcnt)
 	return hcnt;
 }
 
-static void flexrm_flip_header_toggle(void *desc_ptr)
+static void flexrm_flip_header_toogle(void *desc_ptr)
 {
 	u64 desc = flexrm_read_desc(desc_ptr);
 
@@ -707,7 +709,7 @@ static void *flexrm_spu_write_descs(struct brcm_message *msg, u32 nhcnt,
 	wmb();
 
 	/* Flip toggle bit in header */
-	flexrm_flip_header_toggle(orig_desc_ptr);
+	flexrm_flip_header_toogle(orig_desc_ptr);
 
 	return desc_ptr;
 }
@@ -836,7 +838,7 @@ static void *flexrm_sba_write_descs(struct brcm_message *msg, u32 nhcnt,
 	wmb();
 
 	/* Flip toggle bit in header */
-	flexrm_flip_header_toggle(orig_desc_ptr);
+	flexrm_flip_header_toogle(orig_desc_ptr);
 
 	return desc_ptr;
 }
@@ -1163,7 +1165,8 @@ static int flexrm_process_completions(struct flexrm_ring *ring)
 
 static int flexrm_debugfs_conf_show(struct seq_file *file, void *offset)
 {
-	struct flexrm_mbox *mbox = dev_get_drvdata(file->private);
+	struct platform_device *pdev = to_platform_device(file->private);
+	struct flexrm_mbox *mbox = platform_get_drvdata(pdev);
 
 	/* Write config in file */
 	flexrm_write_config_in_seqfile(mbox, file);
@@ -1173,7 +1176,8 @@ static int flexrm_debugfs_conf_show(struct seq_file *file, void *offset)
 
 static int flexrm_debugfs_stats_show(struct seq_file *file, void *offset)
 {
-	struct flexrm_mbox *mbox = dev_get_drvdata(file->private);
+	struct platform_device *pdev = to_platform_device(file->private);
+	struct flexrm_mbox *mbox = platform_get_drvdata(pdev);
 
 	/* Write stats in file */
 	flexrm_write_stats_in_seqfile(mbox, file);
@@ -1599,6 +1603,7 @@ static int flexrm_mbox_probe(struct platform_device *pdev)
 					  1 << RING_CMPL_ALIGN_ORDER, 0);
 	if (!mbox->cmpl_pool) {
 		ret = -ENOMEM;
+		goto fail_destroy_bd_pool;
 	}
 
 	/* Allocate platform MSIs for each ring */
@@ -1619,15 +1624,28 @@ static int flexrm_mbox_probe(struct platform_device *pdev)
 
 	/* Create debugfs root entry */
 	mbox->root = debugfs_create_dir(dev_name(mbox->dev), NULL);
+	if (IS_ERR_OR_NULL(mbox->root)) {
+		ret = PTR_ERR_OR_ZERO(mbox->root);
+		goto fail_free_msis;
+	}
 
 	/* Create debugfs config entry */
-	debugfs_create_devm_seqfile(mbox->dev, "config", mbox->root,
-				    flexrm_debugfs_conf_show);
+	mbox->config = debugfs_create_devm_seqfile(mbox->dev,
+						   "config", mbox->root,
+						   flexrm_debugfs_conf_show);
+	if (IS_ERR_OR_NULL(mbox->config)) {
+		ret = PTR_ERR_OR_ZERO(mbox->config);
+		goto fail_free_debugfs_root;
+	}
 
 	/* Create debugfs stats entry */
-	debugfs_create_devm_seqfile(mbox->dev, "stats", mbox->root,
-				    flexrm_debugfs_stats_show);
-
+	mbox->stats = debugfs_create_devm_seqfile(mbox->dev,
+						  "stats", mbox->root,
+						  flexrm_debugfs_stats_show);
+	if (IS_ERR_OR_NULL(mbox->stats)) {
+		ret = PTR_ERR_OR_ZERO(mbox->stats);
+		goto fail_free_debugfs_root;
+	}
 skip_debugfs:
 
 	/* Initialize mailbox controller */
@@ -1647,7 +1665,7 @@ skip_debugfs:
 		mbox->controller.chans[index].con_priv = &mbox->rings[index];
 
 	/* Register mailbox controller */
-	ret = devm_mbox_controller_register(dev, &mbox->controller);
+	ret = mbox_controller_register(&mbox->controller);
 	if (ret)
 		goto fail_free_debugfs_root;
 
@@ -1658,9 +1676,11 @@ skip_debugfs:
 
 fail_free_debugfs_root:
 	debugfs_remove_recursive(mbox->root);
+fail_free_msis:
 	platform_msi_domain_free_irqs(dev);
 fail_destroy_cmpl_pool:
 	dma_pool_destroy(mbox->cmpl_pool);
+fail_destroy_bd_pool:
 	dma_pool_destroy(mbox->bd_pool);
 fail:
 	return ret;
@@ -1670,6 +1690,8 @@ static int flexrm_mbox_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct flexrm_mbox *mbox = platform_get_drvdata(pdev);
+
+	mbox_controller_unregister(&mbox->controller);
 
 	debugfs_remove_recursive(mbox->root);
 

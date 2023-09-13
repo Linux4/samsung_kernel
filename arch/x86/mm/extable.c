@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 #include <linux/extable.h>
 #include <linux/uaccess.h>
 #include <linux/sched/debug.h>
@@ -9,8 +8,7 @@
 #include <asm/kdebug.h>
 
 typedef bool (*ex_handler_t)(const struct exception_table_entry *,
-			    struct pt_regs *, int, unsigned long,
-			    unsigned long);
+			    struct pt_regs *, int);
 
 static inline unsigned long
 ex_fixup_addr(const struct exception_table_entry *x)
@@ -24,9 +22,7 @@ ex_fixup_handler(const struct exception_table_entry *x)
 }
 
 __visible bool ex_handler_default(const struct exception_table_entry *fixup,
-				  struct pt_regs *regs, int trapnr,
-				  unsigned long error_code,
-				  unsigned long fault_addr)
+				  struct pt_regs *regs, int trapnr)
 {
 	regs->ip = ex_fixup_addr(fixup);
 	return true;
@@ -34,15 +30,60 @@ __visible bool ex_handler_default(const struct exception_table_entry *fixup,
 EXPORT_SYMBOL(ex_handler_default);
 
 __visible bool ex_handler_fault(const struct exception_table_entry *fixup,
-				struct pt_regs *regs, int trapnr,
-				unsigned long error_code,
-				unsigned long fault_addr)
+				struct pt_regs *regs, int trapnr)
 {
 	regs->ip = ex_fixup_addr(fixup);
 	regs->ax = trapnr;
 	return true;
 }
 EXPORT_SYMBOL_GPL(ex_handler_fault);
+
+/*
+ * Handler for UD0 exception following a failed test against the
+ * result of a refcount inc/dec/add/sub.
+ */
+__visible bool ex_handler_refcount(const struct exception_table_entry *fixup,
+				   struct pt_regs *regs, int trapnr)
+{
+	/* First unconditionally saturate the refcount. */
+	*(int *)regs->cx = INT_MIN / 2;
+
+	/*
+	 * Strictly speaking, this reports the fixup destination, not
+	 * the fault location, and not the actually overflowing
+	 * instruction, which is the instruction before the "js", but
+	 * since that instruction could be a variety of lengths, just
+	 * report the location after the overflow, which should be close
+	 * enough for finding the overflow, as it's at least back in
+	 * the function, having returned from .text.unlikely.
+	 */
+	regs->ip = ex_fixup_addr(fixup);
+
+	/*
+	 * This function has been called because either a negative refcount
+	 * value was seen by any of the refcount functions, or a zero
+	 * refcount value was seen by refcount_dec().
+	 *
+	 * If we crossed from INT_MAX to INT_MIN, OF (Overflow Flag: result
+	 * wrapped around) will be set. Additionally, seeing the refcount
+	 * reach 0 will set ZF (Zero Flag: result was zero). In each of
+	 * these cases we want a report, since it's a boundary condition.
+	 * The SF case is not reported since it indicates post-boundary
+	 * manipulations below zero or above INT_MAX. And if none of the
+	 * flags are set, something has gone very wrong, so report it.
+	 */
+	if (regs->flags & (X86_EFLAGS_OF | X86_EFLAGS_ZF)) {
+		bool zero = regs->flags & X86_EFLAGS_ZF;
+
+		refcount_error_report(regs, zero ? "hit zero" : "overflow");
+	} else if ((regs->flags & X86_EFLAGS_SF) == 0) {
+		/* Report if none of OF, ZF, nor SF are set. */
+		refcount_error_report(regs, "unexpected saturation");
+	}
+
+	return true;
+}
+EXPORT_SYMBOL(ex_handler_refcount);
 
 /*
  * Handler for when we fail to restore a task's FPU state.  We should never get
@@ -55,9 +96,7 @@ EXPORT_SYMBOL_GPL(ex_handler_fault);
  * out all the FPU registers) if we can't restore from the task's FPU state.
  */
 __visible bool ex_handler_fprestore(const struct exception_table_entry *fixup,
-				    struct pt_regs *regs, int trapnr,
-				    unsigned long error_code,
-				    unsigned long fault_addr)
+				    struct pt_regs *regs, int trapnr)
 {
 	regs->ip = ex_fixup_addr(fixup);
 
@@ -69,21 +108,8 @@ __visible bool ex_handler_fprestore(const struct exception_table_entry *fixup,
 }
 EXPORT_SYMBOL_GPL(ex_handler_fprestore);
 
-__visible bool ex_handler_uaccess(const struct exception_table_entry *fixup,
-				  struct pt_regs *regs, int trapnr,
-				  unsigned long error_code,
-				  unsigned long fault_addr)
-{
-	WARN_ONCE(trapnr == X86_TRAP_GP, "General protection fault in user access. Non-canonical address?");
-	regs->ip = ex_fixup_addr(fixup);
-	return true;
-}
-EXPORT_SYMBOL(ex_handler_uaccess);
-
 __visible bool ex_handler_ext(const struct exception_table_entry *fixup,
-			      struct pt_regs *regs, int trapnr,
-			      unsigned long error_code,
-			      unsigned long fault_addr)
+			      struct pt_regs *regs, int trapnr)
 {
 	/* Special hack for uaccess_err */
 	current->thread.uaccess_err = 1;
@@ -93,11 +119,9 @@ __visible bool ex_handler_ext(const struct exception_table_entry *fixup,
 EXPORT_SYMBOL(ex_handler_ext);
 
 __visible bool ex_handler_rdmsr_unsafe(const struct exception_table_entry *fixup,
-				       struct pt_regs *regs, int trapnr,
-				       unsigned long error_code,
-				       unsigned long fault_addr)
+				       struct pt_regs *regs, int trapnr)
 {
-	if (pr_warn_once("unchecked MSR access error: RDMSR from 0x%x at rIP: 0x%lx (%pS)\n",
+	if (pr_warn_once("unchecked MSR access error: RDMSR from 0x%x at rIP: 0x%lx (%pF)\n",
 			 (unsigned int)regs->cx, regs->ip, (void *)regs->ip))
 		show_stack_regs(regs);
 
@@ -110,11 +134,9 @@ __visible bool ex_handler_rdmsr_unsafe(const struct exception_table_entry *fixup
 EXPORT_SYMBOL(ex_handler_rdmsr_unsafe);
 
 __visible bool ex_handler_wrmsr_unsafe(const struct exception_table_entry *fixup,
-				       struct pt_regs *regs, int trapnr,
-				       unsigned long error_code,
-				       unsigned long fault_addr)
+				       struct pt_regs *regs, int trapnr)
 {
-	if (pr_warn_once("unchecked MSR access error: WRMSR to 0x%x (tried to write 0x%08x%08x) at rIP: 0x%lx (%pS)\n",
+	if (pr_warn_once("unchecked MSR access error: WRMSR to 0x%x (tried to write 0x%08x%08x) at rIP: 0x%lx (%pF)\n",
 			 (unsigned int)regs->cx, (unsigned int)regs->dx,
 			 (unsigned int)regs->ax,  regs->ip, (void *)regs->ip))
 		show_stack_regs(regs);
@@ -126,14 +148,12 @@ __visible bool ex_handler_wrmsr_unsafe(const struct exception_table_entry *fixup
 EXPORT_SYMBOL(ex_handler_wrmsr_unsafe);
 
 __visible bool ex_handler_clear_fs(const struct exception_table_entry *fixup,
-				   struct pt_regs *regs, int trapnr,
-				   unsigned long error_code,
-				   unsigned long fault_addr)
+				   struct pt_regs *regs, int trapnr)
 {
 	if (static_cpu_has(X86_BUG_NULL_SEG))
 		asm volatile ("mov %0, %%fs" : : "rm" (__USER_DS));
 	asm volatile ("mov %0, %%fs" : : "rm" (0));
-	return ex_handler_default(fixup, regs, trapnr, error_code, fault_addr);
+	return ex_handler_default(fixup, regs, trapnr);
 }
 EXPORT_SYMBOL(ex_handler_clear_fs);
 
@@ -150,9 +170,7 @@ __visible bool ex_has_fault_handler(unsigned long ip)
 	return handler == ex_handler_fault;
 }
 
-__nocfi
-int fixup_exception(struct pt_regs *regs, int trapnr, unsigned long error_code,
-		    unsigned long fault_addr)
+int fixup_exception(struct pt_regs *regs, int trapnr)
 {
 	const struct exception_table_entry *e;
 	ex_handler_t handler;
@@ -176,7 +194,7 @@ int fixup_exception(struct pt_regs *regs, int trapnr, unsigned long error_code,
 		return 0;
 
 	handler = ex_fixup_handler(e);
-	return handler(e, regs, trapnr, error_code, fault_addr);
+	return handler(e, regs, trapnr);
 }
 
 extern unsigned int early_recursion_flag;
@@ -212,9 +230,9 @@ void __init early_fixup_exception(struct pt_regs *regs, int trapnr)
 	 * result in a hard-to-debug panic.
 	 *
 	 * Keep in mind that not all vectors actually get here.  Early
-	 * page faults, for example, are special.
+	 * fage faults, for example, are special.
 	 */
-	if (fixup_exception(regs, trapnr, regs->orig_ax, 0))
+	if (fixup_exception(regs, trapnr))
 		return;
 
 	if (fixup_bug(regs, trapnr))

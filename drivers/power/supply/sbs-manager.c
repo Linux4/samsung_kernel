@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Driver for SBS compliant Smart Battery System Managers
  *
@@ -11,6 +10,10 @@
  * Datasheet LTC1760: http://cds.linear.com/docs/en/datasheet/1760fb.pdf
  *
  * Karl-Heinz Schneider <karl-heinz@schneider-inet.de>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/gpio.h>
@@ -314,7 +317,7 @@ static const struct power_supply_desc sbsm_default_psy_desc = {
 static int sbsm_probe(struct i2c_client *client,
 		      const struct i2c_device_id *id)
 {
-	struct i2c_adapter *adapter = client->adapter;
+	struct i2c_adapter *adapter = to_i2c_adapter(client->dev.parent);
 	struct sbsm_data *data;
 	struct device *dev = &client->dev;
 	struct power_supply_desc *psy_desc;

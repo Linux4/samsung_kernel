@@ -1,17 +1,16 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
- * Clang Control Flow Integrity (CFI) error and slowpath handling.
+ * CFI (Control Flow Integrity) error and slowpath handling
  *
- * Copyright (C) 2019 Google LLC
+ * Copyright (C) 2017 Google, Inc.
  */
 
 #include <linux/gfp.h>
-#include <linux/hardirq.h>
 #include <linux/module.h>
-#include <linux/mutex.h>
 #include <linux/printk.h>
 #include <linux/ratelimit.h>
 #include <linux/rcupdate.h>
+#include <linux/spinlock.h>
+#include <asm/bug.h>
 #include <asm/cacheflush.h>
 #include <asm/set_memory.h>
 
@@ -26,10 +25,12 @@
 
 static inline void handle_cfi_failure(void *ptr)
 {
-	if (IS_ENABLED(CONFIG_CFI_PERMISSIVE))
-		WARN_RATELIMIT(1, "CFI failure (target: %pS):\n", ptr);
-	else
-		panic("CFI failure (target: %pS)\n", ptr);
+#ifdef CONFIG_CFI_PERMISSIVE
+	WARN_RATELIMIT(1, "CFI failure (target: %pF):\n", ptr);
+#else
+	pr_err("CFI failure (target: %pF):\n", ptr);
+	BUG();
+#endif
 }
 
 #ifdef CONFIG_MODULES
@@ -43,7 +44,7 @@ struct shadow_range {
 	unsigned long max_page;
 };
 
-#define SHADOW_ORDER	2
+#define SHADOW_ORDER	1
 #define SHADOW_PAGES	(1 << SHADOW_ORDER)
 #define SHADOW_SIZE \
 	((SHADOW_PAGES * PAGE_SIZE - sizeof(struct shadow_range)) / sizeof(u16))
@@ -56,8 +57,8 @@ struct cfi_shadow {
 	u16 shadow[SHADOW_SIZE];
 };
 
-static DEFINE_MUTEX(shadow_update_lock);
-static struct cfi_shadow __rcu *cfi_shadow __read_mostly;
+static DEFINE_SPINLOCK(shadow_update_lock);
+static struct cfi_shadow __rcu *cfi_shadow __read_mostly = NULL;
 
 static inline int ptr_to_shadow(const struct cfi_shadow *s, unsigned long ptr)
 {
@@ -78,8 +79,7 @@ static inline int ptr_to_shadow(const struct cfi_shadow *s, unsigned long ptr)
 static inline unsigned long shadow_to_ptr(const struct cfi_shadow *s,
 	int index)
 {
-	if (unlikely(index < 0 || index >= SHADOW_SIZE))
-		return 0;
+	BUG_ON(index < 0 || index >= SHADOW_SIZE);
 
 	if (unlikely(s->shadow[index] == SHADOW_INVALID))
 		return 0;
@@ -90,8 +90,7 @@ static inline unsigned long shadow_to_ptr(const struct cfi_shadow *s,
 static inline unsigned long shadow_to_page(const struct cfi_shadow *s,
 	int index)
 {
-	if (unlikely(index < 0 || index >= SHADOW_SIZE))
-		return 0;
+	BUG_ON(index < 0 || index >= SHADOW_SIZE);
 
 	return (s->r.min_page + index) << PAGE_SHIFT;
 }
@@ -139,8 +138,7 @@ static void add_module_to_shadow(struct cfi_shadow *s, struct module *mod)
 	unsigned long check = (unsigned long)mod->cfi_check;
 	int check_index = ptr_to_shadow(s, check);
 
-	if (unlikely((check & PAGE_MASK) != check))
-		return; /* Must be page aligned */
+	BUG_ON((check & PAGE_MASK) != check); /* Must be page aligned */
 
 	if (check_index < 0)
 		return; /* Module not addressable with shadow */
@@ -153,10 +151,9 @@ static void add_module_to_shadow(struct cfi_shadow *s, struct module *mod)
 	/* For each page, store the check function index in the shadow */
 	for (ptr = min_page_addr; ptr <= max_page_addr; ptr += PAGE_SIZE) {
 		int index = ptr_to_shadow(s, ptr);
-
 		if (index >= 0) {
-			/* Each page must only contain one module */
-			WARN_ON(s->shadow[index] != SHADOW_INVALID);
+			/* Assume a page only contains code for one module */
+			BUG_ON(s->shadow[index] != SHADOW_INVALID);
 			s->shadow[index] = (u16)check_index;
 		}
 	}
@@ -175,7 +172,6 @@ static void remove_module_from_shadow(struct cfi_shadow *s, struct module *mod)
 
 	for (ptr = min_page_addr; ptr <= max_page_addr; ptr += PAGE_SIZE) {
 		int index = ptr_to_shadow(s, ptr);
-
 		if (index >= 0)
 			s->shadow[index] = SHADOW_INVALID;
 	}
@@ -190,12 +186,14 @@ static void update_shadow(struct module *mod, unsigned long min_addr,
 	struct cfi_shadow *next = (struct cfi_shadow *)
 		__get_free_pages(GFP_KERNEL, SHADOW_ORDER);
 
+	BUG_ON(!next);
+
 	next->r.mod_min_addr = min_addr;
 	next->r.mod_max_addr = max_addr;
 	next->r.min_page = min_addr >> PAGE_SHIFT;
 	next->r.max_page = max_addr >> PAGE_SHIFT;
 
-	mutex_lock(&shadow_update_lock);
+	spin_lock(&shadow_update_lock);
 	prev = rcu_dereference_protected(cfi_shadow, 1);
 	prepare_next_shadow(prev, next);
 
@@ -203,7 +201,7 @@ static void update_shadow(struct module *mod, unsigned long min_addr,
 	set_memory_ro((unsigned long)next, SHADOW_PAGES);
 	rcu_assign_pointer(cfi_shadow, next);
 
-	mutex_unlock(&shadow_update_lock);
+	spin_unlock(&shadow_update_lock);
 	synchronize_rcu();
 
 	if (prev) {
@@ -217,14 +215,14 @@ void cfi_module_add(struct module *mod, unsigned long min_addr,
 {
 	update_shadow(mod, min_addr, max_addr, add_module_to_shadow);
 }
-EXPORT_SYMBOL_GPL(cfi_module_add);
+EXPORT_SYMBOL(cfi_module_add);
 
 void cfi_module_remove(struct module *mod, unsigned long min_addr,
 	unsigned long max_addr)
 {
 	update_shadow(mod, min_addr, max_addr, remove_module_from_shadow);
 }
-EXPORT_SYMBOL_GPL(cfi_module_remove);
+EXPORT_SYMBOL(cfi_module_remove);
 
 static inline cfi_check_fn ptr_to_check_fn(const struct cfi_shadow __rcu *s,
 	unsigned long ptr)
@@ -247,36 +245,33 @@ static inline cfi_check_fn ptr_to_check_fn(const struct cfi_shadow __rcu *s,
 
 static inline cfi_check_fn find_module_cfi_check(void *ptr)
 {
-	cfi_check_fn f = CFI_CHECK_FN;
 	struct module *mod;
 
 	preempt_disable();
 	mod = __module_address((unsigned long)ptr);
-	if (mod)
-		f = mod->cfi_check;
 	preempt_enable();
 
-	return f;
+	if (mod)
+		return mod->cfi_check;
+
+	return CFI_CHECK_FN;
 }
 
 static inline cfi_check_fn find_cfi_check(void *ptr)
 {
-	bool rcu;
+#ifdef CONFIG_CFI_CLANG_SHADOW
 	cfi_check_fn f;
 
-	rcu = rcu_is_watching();
-	if (!rcu)
-		rcu_nmi_enter();
+	if (!rcu_access_pointer(cfi_shadow))
+		return CFI_CHECK_FN; /* No loaded modules */
 
-#ifdef CONFIG_CFI_CLANG_SHADOW
 	/* Look up the __cfi_check function to use */
-	rcu_read_lock_sched();
-	f = ptr_to_check_fn(rcu_dereference_sched(cfi_shadow),
-			    (unsigned long)ptr);
-	rcu_read_unlock_sched();
+	rcu_read_lock();
+	f = ptr_to_check_fn(rcu_dereference(cfi_shadow), (unsigned long)ptr);
+	rcu_read_unlock();
 
 	if (f)
-		goto out;
+		return f;
 
 	/*
 	 * Fall back to find_module_cfi_check, which works also for a larger
@@ -284,13 +279,7 @@ static inline cfi_check_fn find_cfi_check(void *ptr)
 	 */
 #endif /* CONFIG_CFI_CLANG_SHADOW */
 
-	f = find_module_cfi_check(ptr);
-
-out:
-	if (!rcu)
-		rcu_nmi_exit();
-
-	return f;
+	return find_module_cfi_check(ptr);
 }
 
 void cfi_slowpath_handler(uint64_t id, void *ptr, void *diag)
@@ -302,14 +291,14 @@ void cfi_slowpath_handler(uint64_t id, void *ptr, void *diag)
 	else /* Don't allow unchecked modules */
 		handle_cfi_failure(ptr);
 }
-EXPORT_SYMBOL_GPL(cfi_slowpath_handler);
+EXPORT_SYMBOL(cfi_slowpath_handler);
 #endif /* CONFIG_MODULES */
 
 void cfi_failure_handler(void *data, void *ptr, void *vtable)
 {
 	handle_cfi_failure(ptr);
 }
-EXPORT_SYMBOL_GPL(cfi_failure_handler);
+EXPORT_SYMBOL(cfi_failure_handler);
 
 void __cfi_check_fail(void *data, void *ptr)
 {

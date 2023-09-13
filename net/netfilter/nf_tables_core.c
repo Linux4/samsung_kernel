@@ -1,6 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2008 Patrick McHardy <kaber@trash.net>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * Development of this code funded by Astaro AG (http://www.astaro.com/)
  */
@@ -19,7 +22,6 @@
 #include <net/netfilter/nf_tables_core.h>
 #include <net/netfilter/nf_tables.h>
 #include <net/netfilter/nf_log.h>
-#include <net/netfilter/nft_meta.h>
 
 static noinline void __nft_trace_packet(struct nft_traceinfo *info,
 					const struct nft_chain *chain,
@@ -124,25 +126,14 @@ static void expr_call_ops_eval(const struct nft_expr *expr,
 			       struct nft_regs *regs,
 			       struct nft_pktinfo *pkt)
 {
-#ifdef CONFIG_RETPOLINE
 	unsigned long e = (unsigned long)expr->ops->eval;
-#define X(e, fun) \
-	do { if ((e) == (unsigned long)(fun)) \
-		return fun(expr, regs, pkt); } while (0)
 
-	X(e, nft_payload_eval);
-	X(e, nft_cmp_eval);
-	X(e, nft_meta_get_eval);
-	X(e, nft_lookup_eval);
-	X(e, nft_range_eval);
-	X(e, nft_immediate_eval);
-	X(e, nft_byteorder_eval);
-	X(e, nft_dynset_eval);
-	X(e, nft_rt_get_eval);
-	X(e, nft_bitwise_eval);
-#undef  X
-#endif /* CONFIG_RETPOLINE */
-	expr->ops->eval(expr, regs, pkt);
+	if (e == (unsigned long)nft_meta_get_eval)
+		nft_meta_get_eval(expr, regs, pkt);
+	else if (e == (unsigned long)nft_lookup_eval)
+		nft_lookup_eval(expr, regs, pkt);
+	else
+		expr->ops->eval(expr, regs, pkt);
 }
 
 unsigned int
@@ -153,7 +144,7 @@ nft_do_chain(struct nft_pktinfo *pkt, void *priv)
 	struct nft_rule *const *rules;
 	const struct nft_rule *rule;
 	const struct nft_expr *expr, *last;
-	struct nft_regs regs = {};
+	struct nft_regs regs;
 	unsigned int stackptr = 0;
 	struct nft_jumpstack jumpstack[NFT_JUMP_STACK_SIZE];
 	bool genbit = READ_ONCE(net->nft.gencursor);
@@ -221,6 +212,7 @@ next_rule:
 		chain = regs.verdict.chain;
 		goto do_chain;
 	case NFT_CONTINUE:
+		/* fall through */
 	case NFT_RETURN:
 		nft_trace_packet(&info, chain, rule,
 				 NFT_TRACETYPE_RETURN);
@@ -259,24 +251,12 @@ static struct nft_expr_type *nft_basic_types[] = {
 	&nft_exthdr_type,
 };
 
-static struct nft_object_type *nft_basic_objects[] = {
-#ifdef CONFIG_NETWORK_SECMARK
-	&nft_secmark_obj_type,
-#endif
-};
-
 int __init nf_tables_core_module_init(void)
 {
-	int err, i, j = 0;
+	int err, i;
 
-	for (i = 0; i < ARRAY_SIZE(nft_basic_objects); i++) {
-		err = nft_register_obj(nft_basic_objects[i]);
-		if (err)
-			goto err;
-	}
-
-	for (j = 0; j < ARRAY_SIZE(nft_basic_types); j++) {
-		err = nft_register_expr(nft_basic_types[j]);
+	for (i = 0; i < ARRAY_SIZE(nft_basic_types); i++) {
+		err = nft_register_expr(nft_basic_types[i]);
 		if (err)
 			goto err;
 	}
@@ -284,12 +264,8 @@ int __init nf_tables_core_module_init(void)
 	return 0;
 
 err:
-	while (j-- > 0)
-		nft_unregister_expr(nft_basic_types[j]);
-
 	while (i-- > 0)
-		nft_unregister_obj(nft_basic_objects[i]);
-
+		nft_unregister_expr(nft_basic_types[i]);
 	return err;
 }
 
@@ -300,8 +276,4 @@ void nf_tables_core_module_exit(void)
 	i = ARRAY_SIZE(nft_basic_types);
 	while (i-- > 0)
 		nft_unregister_expr(nft_basic_types[i]);
-
-	i = ARRAY_SIZE(nft_basic_objects);
-	while (i-- > 0)
-		nft_unregister_obj(nft_basic_objects[i]);
 }

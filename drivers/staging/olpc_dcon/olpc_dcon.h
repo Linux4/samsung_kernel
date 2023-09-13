@@ -97,11 +97,6 @@ struct dcon_platform_data {
 	int (*read_status)(u8 *status);
 };
 
-struct dcon_gpio {
-	const char *name;
-	unsigned long flags;
-};
-
 #include <linux/interrupt.h>
 
 irqreturn_t dcon_interrupt(int irq, void *id);

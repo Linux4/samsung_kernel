@@ -26,10 +26,12 @@
 #include <asm/nospec-branch.h>
 #include <asm/fixmap.h>
 
-#ifdef CONFIG_PARAVIRT_XXL
+#ifdef CONFIG_PARAVIRT
 #include <asm/asm-offsets.h>
 #include <asm/paravirt.h>
+#define GET_CR2_INTO(reg) GET_CR2_INTO_RAX ; movq %rax, reg
 #else
+#define GET_CR2_INTO(reg) movq %cr2, reg
 #define INTERRUPT_RETURN iretq
 #endif
 
@@ -193,10 +195,10 @@ ENTRY(secondary_startup_64)
 
 	/* Set up %gs.
 	 *
-	 * The base of %gs always points to fixed_percpu_data. If the
-	 * stack protector canary is enabled, it is located at %gs:40.
-	 * Note that, on SMP, the boot cpu uses init data section until
-	 * the per cpu areas are set up.
+	 * The base of %gs always points to the bottom of the irqstack
+	 * union.  If the stack protector canary is enabled, it is
+	 * located at %gs:40.  Note that, on SMP, the boot cpu uses
+	 * init data section till per cpu areas are set up.
 	 */
 	movl	$MSR_GS_BASE,%ecx
 	movl	initial_gs(%rip),%eax
@@ -251,10 +253,10 @@ END(secondary_startup_64)
  * start_secondary() via .Ljump_to_C_code.
  */
 ENTRY(start_cpu0)
-	UNWIND_HINT_EMPTY
 	movq	initial_stack(%rip), %rsp
+	UNWIND_HINT_EMPTY
 	jmp	.Ljump_to_C_code
-END(start_cpu0)
+ENDPROC(start_cpu0)
 #endif
 
 	/* Both SMP bootup and ACPI suspend change these variables */
@@ -263,7 +265,7 @@ END(start_cpu0)
 	GLOBAL(initial_code)
 	.quad	x86_64_start_kernel
 	GLOBAL(initial_gs)
-	.quad	INIT_PER_CPU_VAR(fixed_percpu_data)
+	.quad	INIT_PER_CPU_VAR(irq_stack_union)
 	GLOBAL(initial_stack)
 	/*
 	 * The SIZEOF_PTREGS gap is a convention which helps the in-kernel
@@ -321,7 +323,7 @@ early_idt_handler_common:
 
 	cmpq $14,%rsi		/* Page fault? */
 	jnz 10f
-	GET_CR2_INTO(%rdi)	/* can clobber %rax if pv */
+	GET_CR2_INTO(%rdi)	/* Can clobber any volatile register if pv */
 	call early_make_pgtable
 	andl %eax,%eax
 	jz 20f			/* All good */
@@ -384,7 +386,7 @@ NEXT_PAGE(early_dynamic_pgts)
 
 	.data
 
-#if defined(CONFIG_XEN_PV) || defined(CONFIG_PVH)
+#if defined(CONFIG_XEN_PV) || defined(CONFIG_XEN_PVH)
 NEXT_PGD_PAGE(init_top_pgt)
 	.quad   level3_ident_pgt - __START_KERNEL_map + _KERNPG_TABLE_NOENC
 	.org    init_top_pgt + L4_PAGE_OFFSET*8, 0

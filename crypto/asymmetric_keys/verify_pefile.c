@@ -1,8 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /* Parse a signed PE binary
  *
  * Copyright (C) 2014 Red Hat, Inc. All Rights Reserved.
  * Written by David Howells (dhowells@redhat.com)
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public Licence
+ * as published by the Free Software Foundation; either version
+ * 2 of the Licence, or (at your option) any later version.
  */
 
 #define pr_fmt(fmt) "PEFILE: "fmt
@@ -96,7 +100,7 @@ static int pefile_parse_binary(const void *pebuf, unsigned int pelen,
 
 	if (!ddir->certs.virtual_address || !ddir->certs.size) {
 		pr_debug("Unsigned PE binary\n");
-		return -ENODATA;
+		return -EKEYREJECTED;
 	}
 
 	chkaddr(ctx->header_size, ddir->certs.virtual_address,
@@ -350,6 +354,7 @@ static int pefile_digest_pe(const void *pebuf, unsigned int pelen,
 		goto error_no_desc;
 
 	desc->tfm   = tfm;
+	desc->flags = CRYPTO_TFM_REQ_MAY_SLEEP;
 	ret = crypto_shash_init(desc);
 	if (ret < 0)
 		goto error;
@@ -402,8 +407,6 @@ error_no_desc:
  *
  *  (*) 0 if at least one signature chain intersects with the keys in the trust
  *	keyring, or:
- *
- *  (*) -ENODATA if there is no signature present.
  *
  *  (*) -ENOPKG if a suitable crypto module couldn't be found for a check on a
  *	chain.

@@ -61,18 +61,18 @@ static inline int psn_compare(u32 psn_a, u32 psn_b)
 }
 
 struct rxe_ucontext {
-	struct ib_ucontext ibuc;
 	struct rxe_pool_entry	pelem;
+	struct ib_ucontext	ibuc;
 };
 
 struct rxe_pd {
-	struct ib_pd            ibpd;
 	struct rxe_pool_entry	pelem;
+	struct ib_pd		ibpd;
 };
 
 struct rxe_ah {
-	struct ib_ah		ibah;
 	struct rxe_pool_entry	pelem;
+	struct ib_ah		ibah;
 	struct rxe_pd		*pd;
 	struct rxe_av		av;
 };
@@ -85,8 +85,8 @@ struct rxe_cqe {
 };
 
 struct rxe_cq {
-	struct ib_cq		ibcq;
 	struct rxe_pool_entry	pelem;
+	struct ib_cq		ibcq;
 	struct rxe_queue	*queue;
 	spinlock_t		cq_lock;
 	u8			notify;
@@ -120,8 +120,8 @@ struct rxe_rq {
 };
 
 struct rxe_srq {
-	struct ib_srq		ibsrq;
 	struct rxe_pool_entry	pelem;
+	struct ib_srq		ibsrq;
 	struct rxe_pd		*pd;
 	struct rxe_rq		rq;
 	u32			srq_num;
@@ -252,7 +252,6 @@ struct rxe_qp {
 
 	struct socket		*sk;
 	u32			dst_cookie;
-	u16			src_port;
 
 	struct rxe_av		pri_av;
 	struct rxe_av		alt_av;
@@ -386,6 +385,7 @@ struct rxe_dev {
 	struct ib_device_attr	attr;
 	int			max_ucontext;
 	int			max_inline_data;
+	struct kref		ref_cnt;
 	struct mutex	usdev_lock;
 
 	struct net_device	*ndev;
@@ -412,6 +412,7 @@ struct rxe_dev {
 	atomic64_t		stats_counters[RXE_NUM_OF_COUNTERS];
 
 	struct rxe_port		port;
+	struct list_head	list;
 	struct crypto_shash	*tfm;
 };
 
@@ -465,7 +466,8 @@ static inline struct rxe_mem *to_rmw(struct ib_mw *mw)
 	return mw ? container_of(mw, struct rxe_mem, ibmw) : NULL;
 }
 
-int rxe_register_device(struct rxe_dev *rxe, const char *ibdev_name);
+int rxe_register_device(struct rxe_dev *rxe);
+int rxe_unregister_device(struct rxe_dev *rxe);
 
 void rxe_mc_cleanup(struct rxe_pool_entry *arg);
 

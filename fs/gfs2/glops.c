@@ -1,7 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) Sistina Software, Inc.  1997-2003 All rights reserved.
  * Copyright (C) 2004-2008 Red Hat, Inc.  All rights reserved.
+ *
+ * This copyrighted material is made available to anyone wishing to use,
+ * modify, copy, or redistribute it subject to the terms and conditions
+ * of the GNU General Public License version 2.
  */
 
 #include <linux/spinlock.h>
@@ -25,7 +28,6 @@
 #include "util.h"
 #include "trans.h"
 #include "dir.h"
-#include "lops.h"
 
 struct workqueue_struct *gfs2_freeze_wq;
 
@@ -87,36 +89,10 @@ static void gfs2_ail_empty_gl(struct gfs2_glock *gl)
 	memset(&tr, 0, sizeof(tr));
 	INIT_LIST_HEAD(&tr.tr_buf);
 	INIT_LIST_HEAD(&tr.tr_databuf);
-	INIT_LIST_HEAD(&tr.tr_ail1_list);
-	INIT_LIST_HEAD(&tr.tr_ail2_list);
 	tr.tr_revokes = atomic_read(&gl->gl_ail_count);
 
-	if (!tr.tr_revokes) {
-		bool have_revokes;
-		bool log_in_flight;
-
-		/*
-		 * We have nothing on the ail, but there could be revokes on
-		 * the sdp revoke queue, in which case, we still want to flush
-		 * the log and wait for it to finish.
-		 *
-		 * If the sdp revoke list is empty too, we might still have an
-		 * io outstanding for writing revokes, so we should wait for
-		 * it before returning.
-		 *
-		 * If none of these conditions are true, our revokes are all
-		 * flushed and we can return.
-		 */
-		gfs2_log_lock(sdp);
-		have_revokes = !list_empty(&sdp->sd_log_revokes);
-		log_in_flight = atomic_read(&sdp->sd_log_in_flight);
-		gfs2_log_unlock(sdp);
-		if (have_revokes)
-			goto flush;
-		if (log_in_flight)
-			log_flush_wait(sdp);
+	if (!tr.tr_revokes)
 		return;
-	}
 
 	/* A shortened, inline version of gfs2_trans_begin()
          * tr->alloced is not set since the transaction structure is
@@ -131,7 +107,6 @@ static void gfs2_ail_empty_gl(struct gfs2_glock *gl)
 	__gfs2_ail_flush(gl, 0, tr.tr_revokes);
 
 	gfs2_trans_end(sdp);
-flush:
 	gfs2_log_flush(sdp, NULL, GFS2_LOG_HEAD_FLUSH_NORMAL |
 		       GFS2_LFC_AIL_EMPTY_GL);
 }
@@ -488,31 +463,20 @@ static int inode_go_lock(struct gfs2_holder *gh)
  * inode_go_dump - print information about an inode
  * @seq: The iterator
  * @ip: the inode
- * @fs_id_buf: file system id (may be empty)
  *
  */
 
-static void inode_go_dump(struct seq_file *seq, struct gfs2_glock *gl,
-			  const char *fs_id_buf)
+static void inode_go_dump(struct seq_file *seq, const struct gfs2_glock *gl)
 {
-	struct gfs2_inode *ip = gl->gl_object;
-	struct inode *inode = &ip->i_inode;
-	unsigned long nrpages;
-
+	const struct gfs2_inode *ip = gl->gl_object;
 	if (ip == NULL)
 		return;
-
-	xa_lock_irq(&inode->i_data.i_pages);
-	nrpages = inode->i_data.nrpages;
-	xa_unlock_irq(&inode->i_data.i_pages);
-
-	gfs2_print_dbg(seq, "%s I: n:%llu/%llu t:%u f:0x%02lx d:0x%08x s:%llu "
-		       "p:%lu\n", fs_id_buf,
+	gfs2_print_dbg(seq, " I: n:%llu/%llu t:%u f:0x%02lx d:0x%08x s:%llu\n",
 		  (unsigned long long)ip->i_no_formal_ino,
 		  (unsigned long long)ip->i_no_addr,
 		  IF2DT(ip->i_inode.i_mode), ip->i_flags,
 		  (unsigned int)ip->i_diskflags,
-		  (unsigned long long)i_size_read(inode), nrpages);
+		  (unsigned long long)i_size_read(&ip->i_inode));
 }
 
 /**
@@ -533,8 +497,7 @@ static void freeze_go_sync(struct gfs2_glock *gl)
 		atomic_set(&sdp->sd_freeze_state, SFS_STARTING_FREEZE);
 		error = freeze_super(sdp->sd_vfs);
 		if (error) {
-			fs_info(sdp, "GFS2: couldn't freeze filesystem: %d\n",
-				error);
+			printk(KERN_INFO "GFS2: couldn't freeze filesystem: %d\n", error);
 			gfs2_assert_withdraw(sdp, 0);
 		}
 		queue_work(gfs2_freeze_wq, &sdp->sd_freeze_work);
@@ -560,14 +523,14 @@ static int freeze_go_xmote_bh(struct gfs2_glock *gl, struct gfs2_holder *gh)
 	if (test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags)) {
 		j_gl->gl_ops->go_inval(j_gl, DIO_METADATA);
 
-		error = gfs2_find_jhead(sdp->sd_jdesc, &head, false);
+		error = gfs2_find_jhead(sdp->sd_jdesc, &head);
 		if (error)
 			gfs2_consist(sdp);
 		if (!(head.lh_flags & GFS2_LOG_HEAD_UNMOUNT))
 			gfs2_consist(sdp);
 
 		/*  Initialize some head of the log stuff  */
-		if (!test_bit(SDF_WITHDRAWN, &sdp->sd_flags)) {
+		if (!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)) {
 			sdp->sd_log_sequence = head.lh_sequence + 1;
 			gfs2_log_pointers_init(sdp, head.lh_blkno);
 		}

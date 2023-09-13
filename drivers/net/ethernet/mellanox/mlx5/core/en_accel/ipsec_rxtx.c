@@ -136,7 +136,7 @@ static void mlx5e_ipsec_set_swp(struct sk_buff *skb,
 				struct mlx5_wqe_eth_seg *eseg, u8 mode,
 				struct xfrm_offload *xo)
 {
-	struct mlx5e_swp_spec swp_spec = {};
+	u8 proto;
 
 	/* Tunnel Mode:
 	 * SWP:      OutL3       InL3  InL4
@@ -146,23 +146,35 @@ static void mlx5e_ipsec_set_swp(struct sk_buff *skb,
 	 * SWP:      OutL3       InL4
 	 *           InL3
 	 * Pkt: MAC  IP     ESP  L4
+	 *
+	 * Offsets are in 2-byte words, counting from start of frame
 	 */
-	swp_spec.l3_proto = skb->protocol;
-	swp_spec.is_tun = mode == XFRM_MODE_TUNNEL;
-	if (swp_spec.is_tun) {
+	eseg->swp_outer_l3_offset = skb_network_offset(skb) / 2;
+	if (skb->protocol == htons(ETH_P_IPV6))
+		eseg->swp_flags |= MLX5_ETH_WQE_SWP_OUTER_L3_IPV6;
+
+	if (mode == XFRM_MODE_TUNNEL) {
+		eseg->swp_inner_l3_offset = skb_inner_network_offset(skb) / 2;
 		if (xo->proto == IPPROTO_IPV6) {
-			swp_spec.tun_l3_proto = htons(ETH_P_IPV6);
-			swp_spec.tun_l4_proto = inner_ipv6_hdr(skb)->nexthdr;
+			eseg->swp_flags |= MLX5_ETH_WQE_SWP_INNER_L3_IPV6;
+			proto = inner_ipv6_hdr(skb)->nexthdr;
 		} else {
-			swp_spec.tun_l3_proto = htons(ETH_P_IP);
-			swp_spec.tun_l4_proto = inner_ip_hdr(skb)->protocol;
+			proto = inner_ip_hdr(skb)->protocol;
 		}
 	} else {
-		swp_spec.tun_l3_proto = skb->protocol;
-		swp_spec.tun_l4_proto = xo->proto;
+		eseg->swp_inner_l3_offset = skb_network_offset(skb) / 2;
+		if (skb->protocol == htons(ETH_P_IPV6))
+			eseg->swp_flags |= MLX5_ETH_WQE_SWP_INNER_L3_IPV6;
+		proto = xo->proto;
 	}
-
-	mlx5e_set_eseg_swp(skb, eseg, &swp_spec);
+	switch (proto) {
+	case IPPROTO_UDP:
+		eseg->swp_flags |= MLX5_ETH_WQE_SWP_INNER_L4_UDP;
+		/* Fall through */
+	case IPPROTO_TCP:
+		eseg->swp_inner_l4_offset = skb_inner_transport_offset(skb) / 2;
+		break;
+	}
 }
 
 void mlx5e_ipsec_set_iv_esn(struct sk_buff *skb, struct xfrm_state *x,
@@ -242,13 +254,11 @@ struct sk_buff *mlx5e_ipsec_handle_tx_skb(struct net_device *netdev,
 	struct mlx5e_ipsec_metadata *mdata;
 	struct mlx5e_ipsec_sa_entry *sa_entry;
 	struct xfrm_state *x;
-	struct sec_path *sp;
 
 	if (!xo)
 		return skb;
 
-	sp = skb_sec_path(skb);
-	if (unlikely(sp->len != 1)) {
+	if (unlikely(skb->sp->len != 1)) {
 		atomic64_inc(&priv->ipsec->sw_stats.ipsec_tx_drop_bundle);
 		goto drop;
 	}
@@ -295,11 +305,10 @@ mlx5e_ipsec_build_sp(struct net_device *netdev, struct sk_buff *skb,
 	struct mlx5e_priv *priv = netdev_priv(netdev);
 	struct xfrm_offload *xo;
 	struct xfrm_state *xs;
-	struct sec_path *sp;
 	u32 sa_handle;
 
-	sp = secpath_set(skb);
-	if (unlikely(!sp)) {
+	skb->sp = secpath_dup(skb->sp);
+	if (unlikely(!skb->sp)) {
 		atomic64_inc(&priv->ipsec->sw_stats.ipsec_rx_drop_sp_alloc);
 		return NULL;
 	}
@@ -311,9 +320,8 @@ mlx5e_ipsec_build_sp(struct net_device *netdev, struct sk_buff *skb,
 		return NULL;
 	}
 
-	sp = skb_sec_path(skb);
-	sp->xvec[sp->len++] = xs;
-	sp->olen++;
+	skb->sp->xvec[skb->sp->len++] = xs;
+	skb->sp->olen++;
 
 	xo = xfrm_offload(skb);
 	xo->flags = CRYPTO_DONE;
@@ -364,11 +372,10 @@ struct sk_buff *mlx5e_ipsec_handle_rx_skb(struct net_device *netdev,
 bool mlx5e_ipsec_feature_check(struct sk_buff *skb, struct net_device *netdev,
 			       netdev_features_t features)
 {
-	struct sec_path *sp = skb_sec_path(skb);
 	struct xfrm_state *x;
 
-	if (sp && sp->len) {
-		x = sp->xvec[0];
+	if (skb->sp && skb->sp->len) {
+		x = skb->sp->xvec[0];
 		if (x && x->xso.offload_handle)
 			return true;
 	}

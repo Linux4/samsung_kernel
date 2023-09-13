@@ -128,6 +128,14 @@ static void tcm_loop_submission_work(struct work_struct *work)
 		set_host_byte(sc, DID_ERROR);
 		goto out_done;
 	}
+	if (scsi_bidi_cmnd(sc)) {
+		struct scsi_data_buffer *sdb = scsi_in(sc);
+
+		sgl_bidi = sdb->table.sgl;
+		sgl_bidi_count = sdb->table.nents;
+		se_cmd->se_cmd_flags |= SCF_BIDI;
+
+	}
 
 	transfer_length = scsi_transfer_length(sc);
 	if (!scsi_prot_sg_count(sc) &&
@@ -296,6 +304,12 @@ static int tcm_loop_target_reset(struct scsi_cmnd *sc)
 	return FAILED;
 }
 
+static int tcm_loop_slave_alloc(struct scsi_device *sd)
+{
+	blk_queue_flag_set(QUEUE_FLAG_BIDI, sd->request_queue);
+	return 0;
+}
+
 static struct scsi_host_template tcm_loop_driver_template = {
 	.show_info		= tcm_loop_show_info,
 	.proc_name		= "tcm_loopback",
@@ -310,7 +324,8 @@ static struct scsi_host_template tcm_loop_driver_template = {
 	.sg_tablesize		= 256,
 	.cmd_per_lun		= 1024,
 	.max_sectors		= 0xFFFF,
-	.dma_boundary		= PAGE_SIZE - 1,
+	.use_clustering		= DISABLE_CLUSTERING,
+	.slave_alloc		= tcm_loop_slave_alloc,
 	.module			= THIS_MODULE,
 	.track_queue_depth	= 1,
 };
@@ -445,6 +460,11 @@ static void tcm_loop_release_core_bus(void)
 	pr_debug("Releasing TCM Loop Core BUS\n");
 }
 
+static char *tcm_loop_get_fabric_name(void)
+{
+	return "loopback";
+}
+
 static inline struct tcm_loop_tpg *tl_tpg(struct se_portal_group *se_tpg)
 {
 	return container_of(se_tpg, struct tcm_loop_tpg, tl_se_tpg);
@@ -545,15 +565,37 @@ static int tcm_loop_write_pending(struct se_cmd *se_cmd)
 	return 0;
 }
 
-static int tcm_loop_queue_data_or_status(const char *func,
-		struct se_cmd *se_cmd, u8 scsi_status)
+static int tcm_loop_write_pending_status(struct se_cmd *se_cmd)
+{
+	return 0;
+}
+
+static int tcm_loop_queue_data_in(struct se_cmd *se_cmd)
 {
 	struct tcm_loop_cmd *tl_cmd = container_of(se_cmd,
 				struct tcm_loop_cmd, tl_se_cmd);
 	struct scsi_cmnd *sc = tl_cmd->sc;
 
 	pr_debug("%s() called for scsi_cmnd: %p cdb: 0x%02x\n",
-		 func, sc, sc->cmnd[0]);
+		 __func__, sc, sc->cmnd[0]);
+
+	sc->result = SAM_STAT_GOOD;
+	set_host_byte(sc, DID_OK);
+	if ((se_cmd->se_cmd_flags & SCF_OVERFLOW_BIT) ||
+	    (se_cmd->se_cmd_flags & SCF_UNDERFLOW_BIT))
+		scsi_set_resid(sc, se_cmd->residual_count);
+	sc->scsi_done(sc);
+	return 0;
+}
+
+static int tcm_loop_queue_status(struct se_cmd *se_cmd)
+{
+	struct tcm_loop_cmd *tl_cmd = container_of(se_cmd,
+				struct tcm_loop_cmd, tl_se_cmd);
+	struct scsi_cmnd *sc = tl_cmd->sc;
+
+	pr_debug("%s() called for scsi_cmnd: %p cdb: 0x%02x\n",
+		 __func__, sc, sc->cmnd[0]);
 
 	if (se_cmd->sense_buffer &&
 	   ((se_cmd->se_cmd_flags & SCF_TRANSPORT_TASK_SENSE) ||
@@ -564,7 +606,7 @@ static int tcm_loop_queue_data_or_status(const char *func,
 		sc->result = SAM_STAT_CHECK_CONDITION;
 		set_driver_byte(sc, DRIVER_SENSE);
 	} else
-		sc->result = scsi_status;
+		sc->result = se_cmd->scsi_status;
 
 	set_host_byte(sc, DID_OK);
 	if ((se_cmd->se_cmd_flags & SCF_OVERFLOW_BIT) ||
@@ -572,17 +614,6 @@ static int tcm_loop_queue_data_or_status(const char *func,
 		scsi_set_resid(sc, se_cmd->residual_count);
 	sc->scsi_done(sc);
 	return 0;
-}
-
-static int tcm_loop_queue_data_in(struct se_cmd *se_cmd)
-{
-	return tcm_loop_queue_data_or_status(__func__, se_cmd, SAM_STAT_GOOD);
-}
-
-static int tcm_loop_queue_status(struct se_cmd *se_cmd)
-{
-	return tcm_loop_queue_data_or_status(__func__,
-					     se_cmd, se_cmd->scsi_status);
 }
 
 static void tcm_loop_queue_tm_rsp(struct se_cmd *se_cmd)
@@ -1118,7 +1149,8 @@ static struct configfs_attribute *tcm_loop_wwn_attrs[] = {
 
 static const struct target_core_fabric_ops loop_ops = {
 	.module				= THIS_MODULE,
-	.fabric_name			= "loopback",
+	.name				= "loopback",
+	.get_fabric_name		= tcm_loop_get_fabric_name,
 	.tpg_get_wwn			= tcm_loop_get_endpoint_wwn,
 	.tpg_get_tag			= tcm_loop_get_tag,
 	.tpg_check_demo_mode		= tcm_loop_check_demo_mode,
@@ -1133,6 +1165,7 @@ static const struct target_core_fabric_ops loop_ops = {
 	.release_cmd			= tcm_loop_release_cmd,
 	.sess_get_index			= tcm_loop_sess_get_index,
 	.write_pending			= tcm_loop_write_pending,
+	.write_pending_status		= tcm_loop_write_pending_status,
 	.set_default_node_attributes	= tcm_loop_set_default_node_attributes,
 	.get_cmd_state			= tcm_loop_get_cmd_state,
 	.queue_data_in			= tcm_loop_queue_data_in,

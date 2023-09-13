@@ -33,14 +33,13 @@ enum dw_pci_ctl_id_t {
 	baytrail,
 	cherrytrail,
 	haswell,
-	elkhartlake,
 };
 
 struct dw_scl_sda_cfg {
-	u16 ss_hcnt;
-	u16 fs_hcnt;
-	u16 ss_lcnt;
-	u16 fs_lcnt;
+	u32 ss_hcnt;
+	u32 fs_hcnt;
+	u32 ss_lcnt;
+	u32 fs_lcnt;
 	u32 sda_hold;
 };
 
@@ -169,22 +168,14 @@ static struct dw_pci_controller dw_pci_controllers[] = {
 		.flags = MODEL_CHERRYTRAIL,
 		.scl_sda_cfg = &byt_config,
 	},
-	[elkhartlake] = {
-		.bus_num = -1,
-		.bus_cfg = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_FAST,
-		.tx_fifo_depth = 32,
-		.rx_fifo_depth = 32,
-		.functionality = I2C_FUNC_10BIT_ADDR,
-		.clk_khz = 100000,
-	},
 };
 
 #ifdef CONFIG_PM
 static int i2c_dw_pci_suspend(struct device *dev)
 {
-	struct dw_i2c_dev *i_dev = dev_get_drvdata(dev);
+	struct pci_dev *pdev = to_pci_dev(dev);
+	struct dw_i2c_dev *i_dev = pci_get_drvdata(pdev);
 
-	i_dev->suspended = true;
 	i_dev->disable(i_dev);
 
 	return 0;
@@ -192,13 +183,10 @@ static int i2c_dw_pci_suspend(struct device *dev)
 
 static int i2c_dw_pci_resume(struct device *dev)
 {
-	struct dw_i2c_dev *i_dev = dev_get_drvdata(dev);
-	int ret;
+	struct pci_dev *pdev = to_pci_dev(dev);
+	struct dw_i2c_dev *i_dev = pci_get_drvdata(pdev);
 
-	ret = i_dev->init(i_dev);
-	i_dev->suspended = false;
-
-	return ret;
+	return i_dev->init(i_dev);
 }
 #endif
 
@@ -234,8 +222,6 @@ static int i2c_dw_pci_probe(struct pci_dev *pdev,
 		return r;
 	}
 
-	pci_set_master(pdev);
-
 	r = pcim_iomap_regions(pdev, 1 << 0, pci_name(pdev));
 	if (r) {
 		dev_err(&pdev->dev, "I/O memory remapping failed\n");
@@ -246,24 +232,18 @@ static int i2c_dw_pci_probe(struct pci_dev *pdev,
 	if (!dev)
 		return -ENOMEM;
 
-	r = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_ALL_TYPES);
-	if (r < 0)
-		return r;
-
 	dev->clk = NULL;
 	dev->controller = controller;
 	dev->get_clk_rate_khz = i2c_dw_get_clk_rate_khz;
 	dev->base = pcim_iomap_table(pdev)[0];
 	dev->dev = &pdev->dev;
-	dev->irq = pci_irq_vector(pdev, 0);
+	dev->irq = pdev->irq;
 	dev->flags |= controller->flags;
 
 	if (controller->setup) {
 		r = controller->setup(pdev, controller);
-		if (r) {
-			pci_free_irq_vectors(pdev);
+		if (r)
 			return r;
-		}
 	}
 
 	dev->functionality = controller->functionality |
@@ -291,10 +271,8 @@ static int i2c_dw_pci_probe(struct pci_dev *pdev,
 	adap->nr = controller->bus_num;
 
 	r = i2c_dw_probe(dev);
-	if (r) {
-		pci_free_irq_vectors(pdev);
+	if (r)
 		return r;
-	}
 
 	pm_runtime_set_autosuspend_delay(&pdev->dev, 1000);
 	pm_runtime_use_autosuspend(&pdev->dev);
@@ -313,8 +291,6 @@ static void i2c_dw_pci_remove(struct pci_dev *pdev)
 	pm_runtime_get_noresume(&pdev->dev);
 
 	i2c_del_adapter(&dev->adapter);
-	devm_free_irq(&pdev->dev, dev->irq, dev);
-	pci_free_irq_vectors(pdev);
 }
 
 /* work with hotplug and coldplug */
@@ -350,15 +326,6 @@ static const struct pci_device_id i2_designware_pci_ids[] = {
 	{ PCI_VDEVICE(INTEL, 0x22C5), cherrytrail },
 	{ PCI_VDEVICE(INTEL, 0x22C6), cherrytrail },
 	{ PCI_VDEVICE(INTEL, 0x22C7), cherrytrail },
-	/* Elkhart Lake (PSE I2C) */
-	{ PCI_VDEVICE(INTEL, 0x4bb9), elkhartlake },
-	{ PCI_VDEVICE(INTEL, 0x4bba), elkhartlake },
-	{ PCI_VDEVICE(INTEL, 0x4bbb), elkhartlake },
-	{ PCI_VDEVICE(INTEL, 0x4bbc), elkhartlake },
-	{ PCI_VDEVICE(INTEL, 0x4bbd), elkhartlake },
-	{ PCI_VDEVICE(INTEL, 0x4bbe), elkhartlake },
-	{ PCI_VDEVICE(INTEL, 0x4bbf), elkhartlake },
-	{ PCI_VDEVICE(INTEL, 0x4bc0), elkhartlake },
 	{ 0,}
 };
 MODULE_DEVICE_TABLE(pci, i2_designware_pci_ids);

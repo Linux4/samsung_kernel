@@ -1,9 +1,13 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Cirrus Logic Madera class codecs common support
  *
- * Copyright (C) 2015-2018 Cirrus Logic, Inc. and
+ * Copyright (C) 2015-2019 Cirrus Logic, Inc. and
  *                         Cirrus Logic International Semiconductor Ltd.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by the
+ * Free Software Foundation; version 2.
  */
 
 #ifndef ASOC_MADERA_H
@@ -181,7 +185,7 @@ extern const unsigned int madera_ng_tlv[];
 
 extern const unsigned int madera_mixer_tlv[];
 extern const char * const madera_mixer_texts[MADERA_NUM_MIXER_INPUTS];
-extern const unsigned int madera_mixer_values[MADERA_NUM_MIXER_INPUTS];
+extern unsigned int madera_mixer_values[MADERA_NUM_MIXER_INPUTS];
 
 #define MADERA_GAINMUX_CONTROLS(name, base) \
 	SOC_SINGLE_RANGE_TLV(name " Input Volume", base + 1,		\
@@ -286,6 +290,9 @@ extern const unsigned int madera_mixer_values[MADERA_NUM_MIXER_INPUTS];
 	MADERA_MIXER_ROUTES(name, name "L"),		\
 	MADERA_MIXER_ROUTES(name, name "R")
 
+#define MADERA_SAMPLE_RATE_CONTROL(name, domain) \
+	SOC_ENUM(name, madera_sample_rate[(domain) - 2])
+
 #define MADERA_RATE_ENUM(xname, xenum) \
 {	.iface = SNDRV_CTL_ELEM_IFACE_MIXER, .name = xname,\
 	.info = snd_soc_info_enum_double, \
@@ -324,10 +331,15 @@ extern const struct snd_soc_dai_ops madera_dai_ops;
 extern const struct snd_soc_dai_ops madera_simple_dai_ops;
 
 extern const struct snd_kcontrol_new madera_inmux[];
-extern const struct snd_kcontrol_new madera_inmode[];
 
 extern const char * const madera_rate_text[MADERA_RATE_ENUM_SIZE];
 extern const unsigned int madera_rate_val[MADERA_RATE_ENUM_SIZE];
+extern const char * const madera_sample_rate_text[MADERA_SAMPLE_RATE_ENUM_SIZE];
+extern const unsigned int madera_sample_rate_val[MADERA_SAMPLE_RATE_ENUM_SIZE];
+extern const char * const madera_dfc_width_text[MADERA_DFC_WIDTH_ENUM_SIZE];
+extern const unsigned int madera_dfc_width_val[MADERA_DFC_WIDTH_ENUM_SIZE];
+extern const char * const madera_dfc_type_text[MADERA_DFC_TYPE_ENUM_SIZE];
+extern const unsigned int madera_dfc_type_val[MADERA_DFC_TYPE_ENUM_SIZE];
 
 extern const struct soc_enum madera_sample_rate[];
 extern const struct soc_enum madera_isrc_fsl[];
@@ -335,8 +347,13 @@ extern const struct soc_enum madera_isrc_fsh[];
 extern const struct soc_enum madera_asrc1_rate[];
 extern const struct soc_enum madera_asrc1_bidir_rate[];
 extern const struct soc_enum madera_asrc2_rate[];
+extern const struct soc_enum madera_output_rate;
+extern const struct soc_enum madera_output_ext_rate;
+extern const struct soc_enum madera_input_rate[];
 extern const struct soc_enum madera_dfc_width[];
 extern const struct soc_enum madera_dfc_type[];
+extern const struct soc_enum madera_fx_rate;
+extern const struct soc_enum madera_spdif_rate;
 
 extern const struct soc_enum madera_in_vi_ramp;
 extern const struct soc_enum madera_in_vd_ramp;
@@ -362,10 +379,14 @@ extern const struct snd_kcontrol_new madera_drc_activity_output_mux[];
 
 extern const struct snd_kcontrol_new madera_adsp_rate_controls[];
 
+const char *madera_sample_rate_val_to_name(unsigned int rate_val);
+
 int madera_dfc_put(struct snd_kcontrol *kcontrol,
 		   struct snd_ctl_elem_value *ucontrol);
 
 int madera_lp_mode_put(struct snd_kcontrol *kcontrol,
+		       struct snd_ctl_elem_value *ucontrol);
+int madera_in_rate_put(struct snd_kcontrol *kcontrol,
 		       struct snd_ctl_elem_value *ucontrol);
 
 int madera_out1_demux_put(struct snd_kcontrol *kcontrol,
@@ -397,36 +418,48 @@ int madera_domain_clk_ev(struct snd_soc_dapm_widget *w,
 			 struct snd_kcontrol *kcontrol,
 			 int event);
 
+int madera_adsp_rate_info(struct snd_kcontrol *kcontrol,
+			  struct snd_ctl_elem_info *uinfo);
+int madera_adsp_rate_get(struct snd_kcontrol *kcontrol,
+			 struct snd_ctl_elem_value *ucontrol);
+int madera_adsp_rate_put(struct snd_kcontrol *kcontrol,
+			 struct snd_ctl_elem_value *ucontrol);
 int madera_set_adsp_clk(struct madera_priv *priv, int dsp_num,
 			unsigned int freq);
 
-int madera_set_sysclk(struct snd_soc_component *component, int clk_id,
+int madera_set_sysclk(struct snd_soc_component *codec, int clk_id,
 		      int source, unsigned int freq, int dir);
+int madera_get_legacy_dspclk_setting(struct madera *madera, unsigned int freq);
+void madera_spin_sysclk(struct madera_priv *priv);
 
 int madera_init_fll(struct madera *madera, int id, int base,
 		    struct madera_fll *fll);
 int madera_set_fll_refclk(struct madera_fll *fll, int source,
-			  unsigned int fref, unsigned int fout);
+			  unsigned int Fref, unsigned int Fout);
 int madera_set_fll_syncclk(struct madera_fll *fll, int source,
-			   unsigned int fref, unsigned int fout);
+			   unsigned int Fref, unsigned int Fout);
 int madera_set_fll_ao_refclk(struct madera_fll *fll, int source,
 			     unsigned int fin, unsigned int fout);
 int madera_fllhj_set_refclk(struct madera_fll *fll, int source,
 			    unsigned int fin, unsigned int fout);
 
 int madera_core_init(struct madera_priv *priv);
-int madera_core_free(struct madera_priv *priv);
+int madera_core_destroy(struct madera_priv *priv);
 int madera_init_overheat(struct madera_priv *priv);
 int madera_free_overheat(struct madera_priv *priv);
-int madera_init_inputs(struct snd_soc_component *component);
-int madera_init_outputs(struct snd_soc_component *component, int n_mono_routes);
+int madera_init_inputs(struct snd_soc_component *codec,
+		       const char * const *dmic_inputs,
+		       int n_dmic_inputs,
+		       const char * const *dmic_refs,
+		       int n_dmic_refs);
+int madera_init_outputs(struct snd_soc_component *codec, int n_mono_routes);
 int madera_init_bus_error_irq(struct madera_priv *priv, int dsp_num,
 			      irq_handler_t handler);
-void madera_free_bus_error_irq(struct madera_priv *priv, int dsp_num);
+void madera_destroy_bus_error_irq(struct madera_priv *priv, int dsp_num);
 
 int madera_init_dai(struct madera_priv *priv, int dai);
 
-int madera_set_output_mode(struct snd_soc_component *component, int output,
+int madera_set_output_mode(struct snd_soc_component *codec, int output,
 			   bool differential);
 
 /* Following functions are for use by machine drivers */

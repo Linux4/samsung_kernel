@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 #define pr_fmt(fmt) "IPsec: " fmt
 
 #include <crypto/aead.h>
@@ -32,6 +31,8 @@ struct esp_output_extra {
 };
 
 #define ESP_SKB_CB(__skb) ((struct esp_skb_cb *)&((__skb)->cb[0]))
+
+static u32 esp4_get_mtu(struct xfrm_state *x, int mtu);
 
 /*
  * Allocate an AEAD request structure with extra space for SG and IV.
@@ -124,13 +125,10 @@ static void esp_output_done(struct crypto_async_request *base, int err)
 	void *tmp;
 	struct xfrm_state *x;
 
-	if (xo && (xo->flags & XFRM_DEV_RESUME)) {
-		struct sec_path *sp = skb_sec_path(skb);
-
-		x = sp->xvec[sp->len - 1];
-	} else {
+	if (xo && (xo->flags & XFRM_DEV_RESUME))
+		x = skb->sp->xvec[skb->sp->len - 1];
+	else
 		x = skb_dst(skb)->xfrm;
-	}
 
 	tmp = ESP_SKB_CB(skb)->tmp;
 	esp_ssg_unref(x, tmp);
@@ -272,6 +270,7 @@ static int esp_output_udp_encap(struct xfrm_state *x, struct sk_buff *skb, struc
 int esp_output_head(struct xfrm_state *x, struct sk_buff *skb, struct esp_info *esp)
 {
 	u8 *tail;
+	u8 *vaddr;
 	int nfrags;
 	int esph_offset;
 	struct page *page;
@@ -285,10 +284,6 @@ int esp_output_head(struct xfrm_state *x, struct sk_buff *skb, struct esp_info *
 		if (err < 0)
 			return err;
 	}
-
-	if (ALIGN(tailen, L1_CACHE_BYTES) > PAGE_SIZE ||
-	    ALIGN(skb->data_len, L1_CACHE_BYTES) > PAGE_SIZE)
-		goto cow;
 
 	if (!skb_cloned(skb)) {
 		if (tailen <= skb_tailroom(skb)) {
@@ -317,9 +312,13 @@ int esp_output_head(struct xfrm_state *x, struct sk_buff *skb, struct esp_info *
 			page = pfrag->page;
 			get_page(page);
 
-			tail = page_address(page) + pfrag->offset;
+			vaddr = kmap_atomic(page);
+
+			tail = vaddr + pfrag->offset;
 
 			esp_output_fill_trailer(tail, esp->tfclen, esp->plen, esp->proto);
+
+			kunmap_atomic(vaddr);
 
 			nfrags = skb_shinfo(skb)->nr_frags;
 
@@ -503,7 +502,7 @@ static int esp_output(struct xfrm_state *x, struct sk_buff *skb)
 		struct xfrm_dst *dst = (struct xfrm_dst *)skb_dst(skb);
 		u32 padto;
 
-		padto = min(x->tfcpad, xfrm_state_mtu(x, dst->child_mtu_cached));
+		padto = min(x->tfcpad, esp4_get_mtu(x, dst->child_mtu_cached));
 		if (skb->len < padto)
 			esp.tfclen = padto - skb->len;
 	}
@@ -694,11 +693,12 @@ static void esp_input_done_esn(struct crypto_async_request *base, int err)
  */
 static int esp_input(struct xfrm_state *x, struct sk_buff *skb)
 {
+	struct ip_esp_hdr *esph;
 	struct crypto_aead *aead = x->data;
 	struct aead_request *req;
 	struct sk_buff *trailer;
 	int ivlen = crypto_aead_ivsize(aead);
-	int elen = skb->len - sizeof(struct ip_esp_hdr) - ivlen;
+	int elen = skb->len - sizeof(*esph) - ivlen;
 	int nfrags;
 	int assoclen;
 	int seqhilen;
@@ -708,13 +708,13 @@ static int esp_input(struct xfrm_state *x, struct sk_buff *skb)
 	struct scatterlist *sg;
 	int err = -EINVAL;
 
-	if (!pskb_may_pull(skb, sizeof(struct ip_esp_hdr) + ivlen))
+	if (!pskb_may_pull(skb, sizeof(*esph) + ivlen))
 		goto out;
 
 	if (elen <= 0)
 		goto out;
 
-	assoclen = sizeof(struct ip_esp_hdr);
+	assoclen = sizeof(*esph);
 	seqhilen = 0;
 
 	if (x->props.flags & XFRM_STATE_ESN) {
@@ -785,6 +785,28 @@ out:
 	return err;
 }
 
+static u32 esp4_get_mtu(struct xfrm_state *x, int mtu)
+{
+	struct crypto_aead *aead = x->data;
+	u32 blksize = ALIGN(crypto_aead_blocksize(aead), 4);
+	unsigned int net_adj;
+
+	switch (x->props.mode) {
+	case XFRM_MODE_TRANSPORT:
+	case XFRM_MODE_BEET:
+		net_adj = sizeof(struct iphdr);
+		break;
+	case XFRM_MODE_TUNNEL:
+		net_adj = 0;
+		break;
+	default:
+		BUG();
+	}
+
+	return ((mtu - x->props.header_len - crypto_aead_authsize(aead) -
+		 net_adj) & ~(blksize - 1)) + net_adj - 2;
+}
+
 static int esp4_err(struct sk_buff *skb, u32 info)
 {
 	struct net *net = dev_net(skb->dev);
@@ -808,9 +830,9 @@ static int esp4_err(struct sk_buff *skb, u32 info)
 		return 0;
 
 	if (icmp_hdr(skb)->type == ICMP_DEST_UNREACH)
-		ipv4_update_pmtu(skb, net, info, 0, IPPROTO_ESP);
+		ipv4_update_pmtu(skb, net, info, 0, 0, IPPROTO_ESP, 0);
 	else
-		ipv4_redirect(skb, net, 0, IPPROTO_ESP);
+		ipv4_redirect(skb, net, 0, 0, IPPROTO_ESP, 0);
 	xfrm_state_put(x);
 
 	return 0;
@@ -1010,6 +1032,7 @@ static const struct xfrm_type esp_type =
 	.flags		= XFRM_TYPE_REPLAY_PROT,
 	.init_state	= esp_init_state,
 	.destructor	= esp_destroy,
+	.get_mtu	= esp4_get_mtu,
 	.input		= esp_input,
 	.output		= esp_output,
 };
@@ -1040,7 +1063,8 @@ static void __exit esp4_fini(void)
 {
 	if (xfrm4_protocol_deregister(&esp4_protocol, IPPROTO_ESP) < 0)
 		pr_info("%s: can't remove protocol\n", __func__);
-	xfrm_unregister_type(&esp_type, AF_INET);
+	if (xfrm_unregister_type(&esp_type, AF_INET) < 0)
+		pr_info("%s: can't remove xfrm type\n", __func__);
 }
 
 module_init(esp4_init);

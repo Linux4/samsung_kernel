@@ -251,7 +251,7 @@ void bch_debug_exit(void)
 	debugfs_remove_recursive(bcache_debug);
 }
 
-void __init bch_debug_init(void)
+void __init bch_debug_init(struct kobject *kobj)
 {
 	/*
 	 * it is unnecessary to check return value of

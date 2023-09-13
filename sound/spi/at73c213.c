@@ -1,8 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Driver for AT73C213 16-bit stereo DAC connected to Atmel SSC
  *
  * Copyright (C) 2006-2007 Atmel Norway
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
  */
 
 /*#define DEBUG*/
@@ -218,9 +221,7 @@ static int snd_at73c213_pcm_open(struct snd_pcm_substream *substream)
 	runtime->hw = snd_at73c213_playback_hw;
 	chip->substream = substream;
 
-	err = clk_enable(chip->ssc->clk);
-	if (err)
-		return err;
+	clk_enable(chip->ssc->clk);
 
 	return 0;
 }
@@ -349,7 +350,7 @@ static int snd_at73c213_pcm_new(struct snd_at73c213 *chip, int device)
 
 	snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, &at73c213_playback_ops);
 
-	snd_pcm_lib_preallocate_pages_for_all(chip->pcm,
+	retval = snd_pcm_lib_preallocate_pages_for_all(chip->pcm,
 			SNDRV_DMA_TYPE_DEV, &chip->ssc->pdev->dev,
 			64 * 1024, 64 * 1024);
 out:
@@ -786,9 +787,7 @@ static int snd_at73c213_chip_init(struct snd_at73c213 *chip)
 		goto out;
 
 	/* Enable DAC master clock. */
-	retval = clk_enable(chip->board->dac_clk);
-	if (retval)
-		goto out;
+	clk_enable(chip->board->dac_clk);
 
 	/* Initialize at73c213 on SPI bus. */
 	retval = snd_at73c213_write_reg(chip, DAC_RST, 0x04);
@@ -901,9 +900,7 @@ static int snd_at73c213_dev_init(struct snd_card *card,
 	chip->card = card;
 	chip->irq = -1;
 
-	retval = clk_enable(chip->ssc->clk);
-	if (retval)
-		return retval;
+	clk_enable(chip->ssc->clk);
 
 	retval = request_irq(irq, snd_at73c213_interrupt, 0, "at73c213", chip);
 	if (retval) {
@@ -1022,9 +1019,7 @@ static int snd_at73c213_remove(struct spi_device *spi)
 	int retval;
 
 	/* Stop playback. */
-	retval = clk_enable(chip->ssc->clk);
-	if (retval)
-		goto out;
+	clk_enable(chip->ssc->clk);
 	ssc_writel(chip->ssc->regs, CR, SSC_BIT(CR_TXDIS));
 	clk_disable(chip->ssc->clk);
 
@@ -1104,16 +1099,9 @@ static int snd_at73c213_resume(struct device *dev)
 {
 	struct snd_card *card = dev_get_drvdata(dev);
 	struct snd_at73c213 *chip = card->private_data;
-	int retval;
 
-	retval = clk_enable(chip->board->dac_clk);
-	if (retval)
-		return retval;
-	retval = clk_enable(chip->ssc->clk);
-	if (retval) {
-		clk_disable(chip->board->dac_clk);
-		return retval;
-	}
+	clk_enable(chip->board->dac_clk);
+	clk_enable(chip->ssc->clk);
 	ssc_writel(chip->ssc->regs, CR, SSC_BIT(CR_TXEN));
 
 	return 0;

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  *	IEEE 802.1Q Multiple Registration Protocol (MRP)
  *
@@ -6,6 +5,10 @@
  *
  *	Adapted from code in net/802/garp.c
  *	Copyright (c) 2008 Patrick McHardy <kaber@trash.net>
+ *
+ *	This program is free software; you can redistribute it and/or
+ *	modify it under the terms of the GNU General Public License
+ *	version 2 as published by the Free Software Foundation.
  */
 #include <linux/kernel.h>
 #include <linux/timer.h>
@@ -290,19 +293,6 @@ static void mrp_attr_destroy(struct mrp_applicant *app, struct mrp_attr *attr)
 {
 	rb_erase(&attr->node, &app->mad);
 	kfree(attr);
-}
-
-static void mrp_attr_destroy_all(struct mrp_applicant *app)
-{
-	struct rb_node *node, *next;
-	struct mrp_attr *attr;
-
-	for (node = rb_first(&app->mad);
-	     next = node ? rb_next(node) : NULL, node != NULL;
-	     node = next) {
-		attr = rb_entry(node, struct mrp_attr, node);
-		mrp_attr_destroy(app, attr);
-	}
 }
 
 static int mrp_pdu_init(struct mrp_applicant *app)
@@ -908,7 +898,6 @@ void mrp_uninit_applicant(struct net_device *dev, struct mrp_application *appl)
 
 	spin_lock_bh(&app->lock);
 	mrp_mad_event(app, MRP_EVENT_TX);
-	mrp_attr_destroy_all(app);
 	mrp_pdu_queue(app);
 	spin_unlock_bh(&app->lock);
 

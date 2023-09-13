@@ -165,10 +165,12 @@ static const struct bsc_clk_param bsc_clk[] = {
 struct brcmstb_i2c_dev {
 	struct device *device;
 	void __iomem *base;
+	void __iomem *irq_base;
 	int irq;
 	struct bsc_regs *bsc_regmap;
 	struct i2c_adapter adapter;
 	struct completion done;
+	bool is_suspended;
 	u32 clk_freq_hz;
 	int data_regsz;
 };
@@ -316,7 +318,7 @@ static int brcmstb_send_i2c_cmd(struct brcmstb_i2c_dev *dev,
 		goto cmd_out;
 	}
 
-	if ((cmd == CMD_RD || cmd == CMD_WR) &&
+	if ((CMD_RD || CMD_WR) &&
 	    bsc_readl(dev, iic_enable) & BSC_IIC_EN_NOACK_MASK) {
 		rc = -EREMOTEIO;
 		dev_dbg(dev->device, "controller received NOACK intr for %s\n",
@@ -464,6 +466,9 @@ static int brcmstb_i2c_xfer(struct i2c_adapter *adapter,
 	int len = 0;
 	int xfersz = brcmstb_i2c_get_xfersz(dev);
 	u32 cond, cond_per_msg;
+
+	if (dev->is_suspended)
+		return -EBUSY;
 
 	/* Loop through all messages */
 	for (i = 0; i < num; i++) {
@@ -640,7 +645,7 @@ static int brcmstb_i2c_probe(struct platform_device *pdev)
 
 	/* set the data in/out register size for compatible SoCs */
 	if (of_device_is_compatible(dev->device->of_node,
-				    "brcm,brcmper-i2c"))
+				    "brcmstb,brcmper-i2c"))
 		dev->data_regsz = sizeof(u8);
 	else
 		dev->data_regsz = sizeof(u32);
@@ -684,7 +689,10 @@ static int brcmstb_i2c_suspend(struct device *dev)
 {
 	struct brcmstb_i2c_dev *i2c_dev = dev_get_drvdata(dev);
 
-	i2c_mark_adapter_suspended(&i2c_dev->adapter);
+	i2c_lock_bus(&i2c_dev->adapter, I2C_LOCK_ROOT_ADAPTER);
+	i2c_dev->is_suspended = true;
+	i2c_unlock_bus(&i2c_dev->adapter, I2C_LOCK_ROOT_ADAPTER);
+
 	return 0;
 }
 
@@ -692,8 +700,10 @@ static int brcmstb_i2c_resume(struct device *dev)
 {
 	struct brcmstb_i2c_dev *i2c_dev = dev_get_drvdata(dev);
 
+	i2c_lock_bus(&i2c_dev->adapter, I2C_LOCK_ROOT_ADAPTER);
 	brcmstb_i2c_set_bsc_reg_defaults(i2c_dev);
-	i2c_mark_adapter_resumed(&i2c_dev->adapter);
+	i2c_dev->is_suspended = false;
+	i2c_unlock_bus(&i2c_dev->adapter, I2C_LOCK_ROOT_ADAPTER);
 
 	return 0;
 }

@@ -1,9 +1,16 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2012 Regents of the University of California
+ *
+ *   This program is free software; you can redistribute it and/or
+ *   modify it under the terms of the GNU General Public License
+ *   as published by the Free Software Foundation, version 2.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
  */
 
-#include <linux/cpu.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/sched.h>
@@ -56,27 +63,26 @@ void die(struct pt_regs *regs, const char *str)
 		do_exit(SIGSEGV);
 }
 
-void do_trap(struct pt_regs *regs, int signo, int code, unsigned long addr)
+void do_trap(struct pt_regs *regs, int signo, int code,
+	unsigned long addr, struct task_struct *tsk)
 {
-	struct task_struct *tsk = current;
-
 	if (show_unhandled_signals && unhandled_signal(tsk, signo)
 	    && printk_ratelimit()) {
 		pr_info("%s[%d]: unhandled signal %d code 0x%x at 0x" REG_FMT,
 			tsk->comm, task_pid_nr(tsk), signo, code, addr);
-		print_vma_addr(KERN_CONT " in ", instruction_pointer(regs));
+		print_vma_addr(KERN_CONT " in ", GET_IP(regs));
 		pr_cont("\n");
 		show_regs(regs);
 	}
 
-	force_sig_fault(signo, code, (void __user *)addr);
+	force_sig_fault(signo, code, (void __user *)addr, tsk);
 }
 
 static void do_trap_error(struct pt_regs *regs, int signo, int code,
 	unsigned long addr, const char *str)
 {
 	if (user_mode(regs)) {
-		do_trap(regs, signo, code, addr);
+		do_trap(regs, signo, code, addr, current);
 	} else {
 		if (!fixup_exception(regs))
 			die(regs, str);
@@ -84,7 +90,7 @@ static void do_trap_error(struct pt_regs *regs, int signo, int code,
 }
 
 #define DO_ERROR_INFO(name, signo, code, str)				\
-asmlinkage __visible void name(struct pt_regs *regs)			\
+asmlinkage void name(struct pt_regs *regs)				\
 {									\
 	do_trap_error(regs, signo, code, regs->sepc, "Oops - " str);	\
 }
@@ -112,23 +118,26 @@ DO_ERROR_INFO(do_trap_ecall_s,
 DO_ERROR_INFO(do_trap_ecall_m,
 	SIGILL, ILL_ILLTRP, "environment call from M-mode");
 
-static inline unsigned long get_break_insn_length(unsigned long pc)
+asmlinkage void do_trap_break(struct pt_regs *regs)
 {
-	bug_insn_t insn;
+#ifdef CONFIG_GENERIC_BUG
+	if (!user_mode(regs)) {
+		enum bug_trap_type type;
 
-	if (probe_kernel_address((bug_insn_t *)pc, insn))
-		return 0;
-	return (((insn & __INSN_LENGTH_MASK) == __INSN_LENGTH_32) ? 4UL : 2UL);
-}
+		type = report_bug(regs->sepc, regs);
+		switch (type) {
+		case BUG_TRAP_TYPE_NONE:
+			break;
+		case BUG_TRAP_TYPE_WARN:
+			regs->sepc += sizeof(bug_insn_t);
+			return;
+		case BUG_TRAP_TYPE_BUG:
+			die(regs, "Kernel BUG");
+		}
+	}
+#endif /* CONFIG_GENERIC_BUG */
 
-asmlinkage __visible void do_trap_break(struct pt_regs *regs)
-{
-	if (user_mode(regs))
-		force_sig_fault(SIGTRAP, TRAP_BRKPT, (void __user *)regs->sepc);
-	else if (report_bug(regs->sepc, regs) == BUG_TRAP_TYPE_WARN)
-		regs->sepc += get_break_insn_length(regs->sepc);
-	else
-		die(regs, "Kernel BUG");
+	force_sig_fault(SIGTRAP, TRAP_BRKPT, (void __user *)(regs->sepc), current);
 }
 
 #ifdef CONFIG_GENERIC_BUG
@@ -136,14 +145,11 @@ int is_valid_bugaddr(unsigned long pc)
 {
 	bug_insn_t insn;
 
-	if (pc < VMALLOC_START)
+	if (pc < PAGE_OFFSET)
 		return 0;
 	if (probe_kernel_address((bug_insn_t *)pc, insn))
 		return 0;
-	if ((insn & __INSN_LENGTH_MASK) == __INSN_LENGTH_32)
-		return (insn == __BUG_INSN_32);
-	else
-		return ((insn & __COMPRESSED_INSN_MASK) == __BUG_INSN_16);
+	return (insn == __BUG_INSN);
 }
 #endif /* CONFIG_GENERIC_BUG */
 
@@ -153,9 +159,9 @@ void __init trap_init(void)
 	 * Set sup0 scratch register to 0, indicating to exception vector
 	 * that we are presently executing in the kernel
 	 */
-	csr_write(CSR_SSCRATCH, 0);
+	csr_write(sscratch, 0);
 	/* Set the exception vector address */
-	csr_write(CSR_STVEC, &handle_exception);
+	csr_write(stvec, &handle_exception);
 	/* Enable all interrupts */
-	csr_write(CSR_SIE, -1);
+	csr_write(sie, -1);
 }

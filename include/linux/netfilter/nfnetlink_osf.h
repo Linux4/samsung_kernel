@@ -21,18 +21,12 @@ struct nf_osf_finger {
 	struct nf_osf_user_finger	finger;
 };
 
-struct nf_osf_data {
-	const char *genre;
-	const char *version;
-};
-
 bool nf_osf_match(const struct sk_buff *skb, u_int8_t family,
 		  int hooknum, struct net_device *in, struct net_device *out,
 		  const struct nf_osf_info *info, struct net *net,
 		  const struct list_head *nf_osf_fingers);
 
-bool nf_osf_find(const struct sk_buff *skb,
-		 const struct list_head *nf_osf_fingers,
-		 const int ttl_check, struct nf_osf_data *data);
+const char *nf_osf_find(const struct sk_buff *skb,
+                        const struct list_head *nf_osf_fingers);
 
 #endif /* _NFOSF_H */

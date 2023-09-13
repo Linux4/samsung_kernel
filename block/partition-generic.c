@@ -120,9 +120,13 @@ ssize_t part_stat_show(struct device *dev,
 {
 	struct hd_struct *p = dev_to_part(dev);
 	struct request_queue *q = part_to_disk(p)->queue;
-	unsigned int inflight;
+	unsigned int inflight[2];
+	int cpu;
 
-	inflight = part_in_flight(q, p);
+	cpu = part_stat_lock();
+	part_round_stats(q, cpu, p);
+	part_stat_unlock();
+	part_in_flight(q, p, inflight);
 	return sprintf(buf,
 		"%8lu %8lu %8llu %8u "
 		"%8lu %8lu %8llu %8u "
@@ -137,7 +141,7 @@ ssize_t part_stat_show(struct device *dev,
 		part_stat_read(p, merges[STAT_WRITE]),
 		(unsigned long long)part_stat_read(p, sectors[STAT_WRITE]),
 		(unsigned int)part_stat_read_msecs(p, STAT_WRITE),
-		inflight,
+		inflight[0],
 		jiffies_to_msecs(part_stat_read(p, io_ticks)),
 		jiffies_to_msecs(part_stat_read(p, time_in_queue)),
 		part_stat_read(p, ios[STAT_DISCARD]),
@@ -459,6 +463,56 @@ static int drop_partitions(struct gendisk *disk, struct block_device *bdev)
 	return 0;
 }
 
+static bool part_zone_aligned(struct gendisk *disk,
+			      struct block_device *bdev,
+			      sector_t from, sector_t size)
+{
+	unsigned int zone_sectors = bdev_zone_sectors(bdev);
+
+	/*
+	 * If this function is called, then the disk is a zoned block device
+	 * (host-aware or host-managed). This can be detected even if the
+	 * zoned block device support is disabled (CONFIG_BLK_DEV_ZONED not
+	 * set). In this case, however, only host-aware devices will be seen
+	 * as a block device is not created for host-managed devices. Without
+	 * zoned block device support, host-aware drives can still be used as
+	 * regular block devices (no zone operation) and their zone size will
+	 * be reported as 0. Allow this case.
+	 */
+	if (!zone_sectors)
+		return true;
+
+	/*
+	 * Check partition start and size alignement. If the drive has a
+	 * smaller last runt zone, ignore it and allow the partition to
+	 * use it. Check the zone size too: it should be a power of 2 number
+	 * of sectors.
+	 */
+	if (WARN_ON_ONCE(!is_power_of_2(zone_sectors))) {
+		u32 rem;
+
+		div_u64_rem(from, zone_sectors, &rem);
+		if (rem)
+			return false;
+		if ((from + size) < get_capacity(disk)) {
+			div_u64_rem(size, zone_sectors, &rem);
+			if (rem)
+				return false;
+		}
+
+	} else {
+
+		if (from & (zone_sectors - 1))
+			return false;
+		if ((from + size) < get_capacity(disk) &&
+		    (size & (zone_sectors - 1)))
+			return false;
+
+	}
+
+	return true;
+}
+
 int rescan_partitions(struct gendisk *disk, struct block_device *bdev)
 {
 	struct parsed_partitions *state = NULL;
@@ -494,14 +548,6 @@ rescan:
 		}
 		return -EIO;
 	}
-
-	/* Partitions are not supported on zoned block devices */
-	if (bdev_is_zoned(bdev)) {
-		pr_warn("%s: ignoring partition table on zoned block device\n",
-			disk->disk_name);
-		goto out;
-	}
-
 	/*
 	 * If any partition code tried to read beyond EOD, try
 	 * unlocking native capacity even if partition table is
@@ -565,6 +611,21 @@ rescan:
 			}
 		}
 
+		/*
+		 * On a zoned block device, partitions should be aligned on the
+		 * device zone size (i.e. zone boundary crossing not allowed).
+		 * Otherwise, resetting the write pointer of the last zone of
+		 * one partition may impact the following partition.
+		 */
+		if (bdev_is_zoned(bdev) &&
+		    !part_zone_aligned(disk, bdev, from, size)) {
+			printk(KERN_WARNING
+			       "%s: p%d start %llu+%llu is not zone aligned\n",
+			       disk->disk_name, p, (unsigned long long) from,
+			       (unsigned long long) size);
+			continue;
+		}
+
 		part = add_partition(disk, p, from, size,
 				     state->parts[p].flags,
 				     &state->parts[p].info);
@@ -578,7 +639,6 @@ rescan:
 			md_autodetect_dev(part_to_dev(part)->devt);
 #endif
 	}
-out:
 	free_partitions(state);
 	return 0;
 }

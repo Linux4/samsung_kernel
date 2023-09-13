@@ -1,8 +1,12 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  *  linux/arch/arm/mm/proc-arm7tdmi.S: utility functions for ARM7TDMI
  *
  *  Copyright (C) 2003-2006 Hyok S. Choi <hyok.choi@samsung.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
  */
 #include <linux/linkage.h>
 #include <linux/init.h>
@@ -72,7 +76,7 @@ __arm7tdmi_setup:
 
 		.align
 
-		.section ".proc.info.init", "a"
+		.section ".proc.info.init", #alloc
 
 .macro arm7tdmi_proc_info name:req, cpu_val:req, cpu_mask:req, cpu_name:req, \
 	extra_hwcaps=0

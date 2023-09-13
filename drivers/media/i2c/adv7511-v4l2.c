@@ -555,7 +555,7 @@ static void log_infoframe(struct v4l2_subdev *sd, const struct adv7511_cfg_read_
 	buffer[3] = 0;
 	buffer[3] = hdmi_infoframe_checksum(buffer, len + 4);
 
-	if (hdmi_infoframe_unpack(&frame, buffer, len + 4) < 0) {
+	if (hdmi_infoframe_unpack(&frame, buffer) < 0) {
 		v4l2_err(sd, "%s: unpack of %s infoframe failed\n", __func__, cri->desc);
 		return;
 	}
@@ -1872,11 +1872,11 @@ static int adv7511_probe(struct i2c_client *client, const struct i2c_device_id *
 		goto err_entity;
 	}
 
-	state->i2c_edid = i2c_new_dummy_device(client->adapter,
+	state->i2c_edid = i2c_new_dummy(client->adapter,
 					state->i2c_edid_addr >> 1);
-	if (IS_ERR(state->i2c_edid)) {
+	if (state->i2c_edid == NULL) {
 		v4l2_err(sd, "failed to register edid i2c client\n");
-		err = PTR_ERR(state->i2c_edid);
+		err = -ENOMEM;
 		goto err_entity;
 	}
 
@@ -1889,11 +1889,11 @@ static int adv7511_probe(struct i2c_client *client, const struct i2c_device_id *
 	}
 
 	if (state->pdata.cec_clk) {
-		state->i2c_cec = i2c_new_dummy_device(client->adapter,
+		state->i2c_cec = i2c_new_dummy(client->adapter,
 					       state->i2c_cec_addr >> 1);
-		if (IS_ERR(state->i2c_cec)) {
+		if (state->i2c_cec == NULL) {
 			v4l2_err(sd, "failed to register cec i2c client\n");
-			err = PTR_ERR(state->i2c_cec);
+			err = -ENOMEM;
 			goto err_unreg_edid;
 		}
 		adv7511_wr(sd, 0xe2, 0x00); /* power up cec section */
@@ -1901,10 +1901,10 @@ static int adv7511_probe(struct i2c_client *client, const struct i2c_device_id *
 		adv7511_wr(sd, 0xe2, 0x01); /* power down cec section */
 	}
 
-	state->i2c_pktmem = i2c_new_dummy_device(client->adapter, state->i2c_pktmem_addr >> 1);
-	if (IS_ERR(state->i2c_pktmem)) {
+	state->i2c_pktmem = i2c_new_dummy(client->adapter, state->i2c_pktmem_addr >> 1);
+	if (state->i2c_pktmem == NULL) {
 		v4l2_err(sd, "failed to register pktmem i2c client\n");
-		err = PTR_ERR(state->i2c_pktmem);
+		err = -ENOMEM;
 		goto err_unreg_cec;
 	}
 
@@ -1940,7 +1940,8 @@ static int adv7511_probe(struct i2c_client *client, const struct i2c_device_id *
 err_unreg_pktmem:
 	i2c_unregister_device(state->i2c_pktmem);
 err_unreg_cec:
-	i2c_unregister_device(state->i2c_cec);
+	if (state->i2c_cec)
+		i2c_unregister_device(state->i2c_cec);
 err_unreg_edid:
 	i2c_unregister_device(state->i2c_edid);
 err_entity:
@@ -1964,9 +1965,10 @@ static int adv7511_remove(struct i2c_client *client)
 
 	adv7511_set_isr(sd, false);
 	adv7511_init_setup(sd);
-	cancel_delayed_work_sync(&state->edid_handler);
+	cancel_delayed_work(&state->edid_handler);
 	i2c_unregister_device(state->i2c_edid);
-	i2c_unregister_device(state->i2c_cec);
+	if (state->i2c_cec)
+		i2c_unregister_device(state->i2c_cec);
 	i2c_unregister_device(state->i2c_pktmem);
 	destroy_workqueue(state->work_queue);
 	v4l2_device_unregister_subdev(sd);
@@ -1978,14 +1980,14 @@ static int adv7511_remove(struct i2c_client *client)
 /* ----------------------------------------------------------------------- */
 
 static const struct i2c_device_id adv7511_id[] = {
-	{ "adv7511-v4l2", 0 },
+	{ "adv7511", 0 },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, adv7511_id);
 
 static struct i2c_driver adv7511_driver = {
 	.driver = {
-		.name = "adv7511-v4l2",
+		.name = "adv7511",
 	},
 	.probe = adv7511_probe,
 	.remove = adv7511_remove,

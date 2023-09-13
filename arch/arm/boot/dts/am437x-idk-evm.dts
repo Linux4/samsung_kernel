@@ -1,6 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2014 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 /dts-v1/;
@@ -496,14 +499,10 @@
 	pinctrl-0 = <&davinci_mdio_default>;
 	pinctrl-1 = <&davinci_mdio_sleep>;
 	status = "okay";
-
-	ethphy0: ethernet-phy@0 {
-		reg = <0>;
-	};
 };
 
 &cpsw_emac0 {
-	phy-handle = <&ethphy0>;
+	phy_id = <&davinci_mdio>, <0>;
 	phy-mode = "rgmii";
 };
 

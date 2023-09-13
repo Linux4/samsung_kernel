@@ -1,7 +1,8 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2008 Intel Corporation
  * Author: Matthew Wilcox <willy@linux.intel.com>
+ *
+ * Distributed under the terms of the GNU GPL, version 2
  *
  * This file implements counting semaphores.
  * A counting semaphore may be acquired 'n' times before sleeping.

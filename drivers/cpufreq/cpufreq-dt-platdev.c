@@ -1,7 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2016 Linaro.
  * Viresh Kumar <viresh.kumar@linaro.org>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
 
 #include <linux/err.h>
@@ -37,6 +40,7 @@ static const struct of_device_id whitelist[] __initconst = {
 	{ .compatible = "fsl,imx27", },
 	{ .compatible = "fsl,imx51", },
 	{ .compatible = "fsl,imx53", },
+	{ .compatible = "fsl,imx7d", },
 
 	{ .compatible = "marvell,berlin", },
 	{ .compatible = "marvell,pxa250", },
@@ -54,7 +58,6 @@ static const struct of_device_id whitelist[] __initconst = {
 	{ .compatible = "renesas,r8a73a4", },
 	{ .compatible = "renesas,r8a7740", },
 	{ .compatible = "renesas,r8a7743", },
-	{ .compatible = "renesas,r8a7744", },
 	{ .compatible = "renesas,r8a7745", },
 	{ .compatible = "renesas,r8a7778", },
 	{ .compatible = "renesas,r8a7779", },
@@ -75,10 +78,7 @@ static const struct of_device_id whitelist[] __initconst = {
 	{ .compatible = "rockchip,rk3328", },
 	{ .compatible = "rockchip,rk3366", },
 	{ .compatible = "rockchip,rk3368", },
-	{ .compatible = "rockchip,rk3399",
-	  .data = &(struct cpufreq_dt_platform_data)
-		{ .have_governor_per_policy = true, },
-	},
+	{ .compatible = "rockchip,rk3399", },
 
 	{ .compatible = "st-ericsson,u8500", },
 	{ .compatible = "st-ericsson,u8540", },
@@ -101,17 +101,8 @@ static const struct of_device_id whitelist[] __initconst = {
  * platforms using "operating-points-v2" property.
  */
 static const struct of_device_id blacklist[] __initconst = {
-	{ .compatible = "allwinner,sun50i-h6", },
-
-	{ .compatible = "arm,vexpress", },
-
 	{ .compatible = "calxeda,highbank", },
 	{ .compatible = "calxeda,ecx-2000", },
-
-	{ .compatible = "fsl,imx7d", },
-	{ .compatible = "fsl,imx8mq", },
-	{ .compatible = "fsl,imx8mm", },
-	{ .compatible = "fsl,imx8mn", },
 
 	{ .compatible = "marvell,armadaxp", },
 
@@ -122,14 +113,11 @@ static const struct of_device_id blacklist[] __initconst = {
 	{ .compatible = "mediatek,mt817x", },
 	{ .compatible = "mediatek,mt8173", },
 	{ .compatible = "mediatek,mt8176", },
-	{ .compatible = "mediatek,mt8183", },
 
 	{ .compatible = "nvidia,tegra124", },
-	{ .compatible = "nvidia,tegra210", },
 
 	{ .compatible = "qcom,apq8096", },
 	{ .compatible = "qcom,msm8996", },
-	{ .compatible = "qcom,qcs404", },
 
 	{ .compatible = "st,stih407", },
 	{ .compatible = "st,stih410", },
@@ -182,4 +170,4 @@ create_pdev:
 			       -1, data,
 			       sizeof(struct cpufreq_dt_platform_data)));
 }
-core_initcall(cpufreq_dt_platdev_init);
+device_initcall(cpufreq_dt_platdev_init);

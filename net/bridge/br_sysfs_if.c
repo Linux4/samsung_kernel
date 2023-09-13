@@ -1,10 +1,14 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *	Sysfs attributes of bridge ports
  *	Linux ethernet bridge
  *
  *	Authors:
  *	Stephen Hemminger		<shemminger@osdl.org>
+ *
+ *	This program is free software; you can redistribute it and/or
+ *	modify it under the terms of the GNU General Public License
+ *	as published by the Free Software Foundation; either version
+ *	2 of the License, or (at your option) any later version.
  */
 
 #include <linux/capability.h>
@@ -55,8 +59,9 @@ static BRPORT_ATTR(_name, 0644,					\
 static int store_flag(struct net_bridge_port *p, unsigned long v,
 		      unsigned long mask)
 {
-	unsigned long flags = p->flags;
-	int err;
+	unsigned long flags;
+
+	flags = p->flags;
 
 	if (v)
 		flags |= mask;
@@ -64,10 +69,6 @@ static int store_flag(struct net_bridge_port *p, unsigned long v,
 		flags &= ~mask;
 
 	if (flags != p->flags) {
-		err = br_switchdev_set_port_flag(p, flags, mask);
-		if (err)
-			return err;
-
 		p->flags = flags;
 		br_port_flags_change(p, mask);
 	}
@@ -318,6 +319,9 @@ static ssize_t brport_store(struct kobject *kobj,
 
 	if (!rtnl_trylock())
 		return restart_syscall();
+
+	if (!p->dev || !p->br)
+		goto out_unlock;
 
 	if (brport_attr->store_raw) {
 		char *buf_copy;

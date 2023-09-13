@@ -84,7 +84,6 @@ static void mbi_free_msi(struct mbi_range *mbi, unsigned int hwirq,
 static int mbi_irq_domain_alloc(struct irq_domain *domain, unsigned int virq,
 				   unsigned int nr_irqs, void *args)
 {
-	msi_alloc_info_t *info = args;
 	struct mbi_range *mbi = NULL;
 	int hwirq, offset, i, err = 0;
 
@@ -104,11 +103,6 @@ static int mbi_irq_domain_alloc(struct irq_domain *domain, unsigned int virq,
 		return -ENOSPC;
 
 	hwirq = mbi->spi_start + offset;
-
-	err = iommu_dma_prepare_msi(info->desc,
-				    mbi_phys_base + GICD_SETSPI_NSR);
-	if (err)
-		return err;
 
 	for (i = 0; i < nr_irqs; i++) {
 		err = mbi_irq_gic_domain_alloc(domain, virq + i, hwirq + i);
@@ -148,7 +142,7 @@ static void mbi_compose_msi_msg(struct irq_data *data, struct msi_msg *msg)
 	msg[0].address_lo = lower_32_bits(mbi_phys_base + GICD_SETSPI_NSR);
 	msg[0].data = data->parent_data->hwirq;
 
-	iommu_dma_compose_msi_msg(irq_data_get_msi_desc(data), msg);
+	iommu_dma_map_msi_msg(data->irq, msg);
 }
 
 #ifdef CONFIG_PCI_MSI
@@ -208,7 +202,7 @@ static void mbi_compose_mbi_msg(struct irq_data *data, struct msi_msg *msg)
 	msg[1].address_lo = lower_32_bits(mbi_phys_base + GICD_CLRSPI_NSR);
 	msg[1].data = data->parent_data->hwirq;
 
-	iommu_dma_compose_msi_msg(irq_data_get_msi_desc(data), &msg[1]);
+	iommu_dma_map_msi_msg(data->irq, &msg[1]);
 }
 
 /* Platform-MSI specific irqchip */
@@ -303,7 +297,7 @@ int __init mbi_init(struct fwnode_handle *fwnode, struct irq_domain *parent)
 	reg = of_get_property(np, "mbi-alias", NULL);
 	if (reg) {
 		mbi_phys_base = of_translate_address(np, reg);
-		if (mbi_phys_base == (phys_addr_t)OF_BAD_ADDR) {
+		if (mbi_phys_base == OF_BAD_ADDR) {
 			ret = -ENXIO;
 			goto err_free_mbi;
 		}

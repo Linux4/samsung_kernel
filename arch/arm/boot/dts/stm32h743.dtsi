@@ -40,15 +40,13 @@
  *     OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "skeleton.dtsi"
 #include "armv7-m.dtsi"
 #include <dt-bindings/clock/stm32h7-clks.h>
 #include <dt-bindings/mfd/stm32h7-rcc.h>
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	#address-cells = <1>;
-	#size-cells = <1>;
-
 	clocks {
 		clk_hse: clk-hse {
 			#clock-cells = <0>;
@@ -339,20 +337,6 @@
 			dma-requests = <32>;
 		};
 
-		sdmmc1: sdmmc@52007000 {
-			compatible = "arm,pl18x", "arm,primecell";
-			arm,primecell-periphid = <0x10153180>;
-			reg = <0x52007000 0x1000>;
-			interrupts = <49>;
-			interrupt-names	= "cmd_irq";
-			clocks = <&rcc SDMMC1_CK>;
-			clock-names = "apb_pclk";
-			resets = <&rcc STM32H7_AHB3_RESET(SDMMC1)>;
-			cap-sd-highspeed;
-			cap-mmc-highspeed;
-			max-frequency = <120000000>;
-		};
-
 		exti: interrupt-controller@58000000 {
 			compatible = "st,stm32h7-exti";
 			interrupt-controller;
@@ -438,6 +422,8 @@
 		};
 
 		lptimer4: timer@58002c00 {
+			#address-cells = <1>;
+			#size-cells = <0>;
 			compatible = "st,stm32-lptimer";
 			reg = <0x58002c00 0x400>;
 			clocks = <&rcc LPTIM4_CK>;
@@ -452,6 +438,8 @@
 		};
 
 		lptimer5: timer@58003000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
 			compatible = "st,stm32-lptimer";
 			reg = <0x58003000 0x400>;
 			clocks = <&rcc LPTIM5_CK>;
@@ -484,7 +472,7 @@
 			interrupt-parent = <&exti>;
 			interrupts = <17 IRQ_TYPE_EDGE_RISING>;
 			interrupt-names = "alarm";
-			st,syscfg = <&pwrcfg 0x00 0x100>;
+			st,syscfg = <&pwrcfg>;
 			status = "disabled";
 		};
 
@@ -522,19 +510,6 @@
 				interrupts = <0>;
 				status = "disabled";
 			};
-		};
-
-		mac: ethernet@40028000 {
-			compatible = "st,stm32-dwmac", "snps,dwmac-4.10a";
-			reg = <0x40028000 0x8000>;
-			reg-names = "stmmaceth";
-			interrupts = <61>;
-			interrupt-names = "macirq";
-			clock-names = "stmmaceth", "mac-clk-tx", "mac-clk-rx";
-			clocks = <&rcc ETH1MAC_CK>, <&rcc ETH1TX_CK>, <&rcc ETH1RX_CK>;
-			st,syscon = <&syscfg 0x4>;
-			snps,pbl = <8>;
-			status = "disabled";
 		};
 	};
 };

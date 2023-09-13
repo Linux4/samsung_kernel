@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * SSM4567 amplifier audio driver
  *
@@ -7,6 +6,8 @@
  *
  * Based on code copyright/by:
  *   Copyright 2013 Analog Devices Inc.
+ *
+ * Licensed under the GPL-2.
  */
 
 #include <linux/acpi.h>

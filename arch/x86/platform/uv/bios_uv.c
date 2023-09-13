@@ -1,6 +1,19 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * BIOS run time interface routines.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
  *  Copyright (c) 2008-2009 Silicon Graphics, Inc.  All Rights Reserved.
  *  Copyright (c) Russ Anderson <rja@sgi.com>
@@ -13,8 +26,6 @@
 #include <linux/io.h>
 #include <asm/uv/bios.h>
 #include <asm/uv/uv_hub.h>
-
-unsigned long uv_systab_phys __ro_after_init = EFI_INVALID_TABLE_ADDR;
 
 struct uv_systab *uv_systab;
 
@@ -34,7 +45,7 @@ static s64 __uv_bios_call(enum uv_bios_cmd which, u64 a1, u64 a2, u64 a3,
 	 * If EFI_OLD_MEMMAP is set, we need to fall back to using our old EFI
 	 * callback method, which uses efi_call() directly, with the kernel page tables:
 	 */
-	if (unlikely(efi_enabled(EFI_OLD_MEMMAP)))
+	if (unlikely(test_bit(EFI_OLD_MEMMAP, &efi.flags)))
 		ret = efi_call((void *)__va(tab->function), (u64)which, a1, a2, a3, a4, a5);
 	else
 		ret = efi_call_virt_pointer(tab, function, (u64)which, a1, a2, a3, a4, a5);
@@ -70,6 +81,18 @@ s64 uv_bios_call_irqsave(enum uv_bios_cmd which, u64 a1, u64 a2, u64 a3,
 	local_irq_restore(bios_flags);
 
 	up(&__efi_uv_runtime_lock);
+
+	return ret;
+}
+
+s64 uv_bios_call_reentrant(enum uv_bios_cmd which, u64 a1, u64 a2, u64 a3,
+					u64 a4, u64 a5)
+{
+	s64 ret;
+
+	preempt_disable();
+	ret = uv_bios_call(which, a1, a2, a3, a4, a5);
+	preempt_enable();
 
 	return ret;
 }
@@ -184,16 +207,17 @@ int uv_bios_set_legacy_vga_target(bool decode, int domain, int bus)
 }
 EXPORT_SYMBOL_GPL(uv_bios_set_legacy_vga_target);
 
+#ifdef CONFIG_EFI
 void uv_bios_init(void)
 {
 	uv_systab = NULL;
-	if ((uv_systab_phys == EFI_INVALID_TABLE_ADDR) ||
-	    !uv_systab_phys || efi_runtime_disabled()) {
+	if ((efi.uv_systab == EFI_INVALID_TABLE_ADDR) ||
+	    !efi.uv_systab || efi_runtime_disabled()) {
 		pr_crit("UV: UVsystab: missing\n");
 		return;
 	}
 
-	uv_systab = ioremap(uv_systab_phys, sizeof(struct uv_systab));
+	uv_systab = ioremap(efi.uv_systab, sizeof(struct uv_systab));
 	if (!uv_systab || strncmp(uv_systab->signature, UV_SYSTAB_SIG, 4)) {
 		pr_err("UV: UVsystab: bad signature!\n");
 		iounmap(uv_systab);
@@ -205,7 +229,7 @@ void uv_bios_init(void)
 		int size = uv_systab->size;
 
 		iounmap(uv_systab);
-		uv_systab = ioremap(uv_systab_phys, size);
+		uv_systab = ioremap(efi.uv_systab, size);
 		if (!uv_systab) {
 			pr_err("UV: UVsystab: ioremap(%d) failed!\n", size);
 			return;
@@ -213,3 +237,4 @@ void uv_bios_init(void)
 	}
 	pr_info("UV: UVsystab: Revision:%x\n", uv_systab->revision);
 }
+#endif

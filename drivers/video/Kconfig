@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-only
 #
 # Video configuration
 #
@@ -12,6 +11,8 @@ config HAVE_FB_ATMEL
 
 source "drivers/char/agp/Kconfig"
 
+source "drivers/gpu/arm/Kconfig"
+
 source "drivers/gpu/vga/Kconfig"
 
 source "drivers/gpu/host1x/Kconfig"
@@ -19,7 +20,7 @@ source "drivers/gpu/ipu-v3/Kconfig"
 
 source "drivers/gpu/drm/Kconfig"
 
-source "drivers/gpu/msm/Kconfig"
+source "drivers/gpu/exynos/Kconfig"
 
 menu "Frame buffer Devices"
 source "drivers/video/fbdev/Kconfig"
