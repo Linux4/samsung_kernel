@@ -7,6 +7,8 @@
  */
 
 #if 0
+	/* Rules start after this line */
+
 	{feature_ped_exception,"/system/bin/run-as"},	/* DEFAULT */
 	{feature_ped_exception,"/system/bin/dumpstate"},	/* DEFAULT */
 	{feature_safeplace_path,"/init"},

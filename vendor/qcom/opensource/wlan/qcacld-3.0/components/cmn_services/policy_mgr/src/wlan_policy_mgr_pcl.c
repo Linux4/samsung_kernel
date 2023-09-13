@@ -2566,11 +2566,6 @@ QDF_STATUS policy_mgr_modify_sap_pcl_based_on_mandatory_channel(
 	uint32_t i, j, pcl_len = 0;
 	bool found;
 	struct policy_mgr_psoc_priv_obj *pm_ctx;
-	qdf_freq_t dfs_sta_freq = INVALID_CHANNEL_ID;
-	qdf_freq_t sta_5GHz_freq = INVALID_CHANNEL_ID;
-	enum hw_mode_bandwidth sta_ch_width;
-	uint8_t sta_vdev_id = 0, scc_on_dfs_channel = 0;
-	bool sta_sap_scc_on_5ghz_channel;
 
 	pm_ctx = policy_mgr_get_context(psoc);
 	if (!pm_ctx) {
@@ -2591,36 +2586,12 @@ QDF_STATUS policy_mgr_modify_sap_pcl_based_on_mandatory_channel(
 		policy_mgr_debug("fav chan:%d",
 			pm_ctx->sap_mandatory_channels[i]);
 
-	policy_mgr_get_sta_sap_scc_on_dfs_chnl(psoc, &scc_on_dfs_channel);
-	if (scc_on_dfs_channel)
-		policy_mgr_is_sta_present_on_dfs_channel(psoc,
-							 &sta_vdev_id,
-							 &dfs_sta_freq,
-							 &sta_ch_width);
-	sta_sap_scc_on_5ghz_channel =
-		policy_mgr_is_connected_sta_5g(psoc, &sta_5GHz_freq);
 	for (i = 0; i < *pcl_len_org; i++) {
 		found = false;
 		if (i >= NUM_CHANNELS) {
 			policy_mgr_debug("index is exceeding NUM_CHANNELS");
 			break;
 		}
-
-		if (scc_on_dfs_channel && policy_mgr_is_force_scc(psoc) &&
-		    pcl_list_org[i] == dfs_sta_freq) {
-			policy_mgr_debug("dfs chan:%d", pcl_list_org[i]);
-			found = true;
-			goto update_pcl;
-		}
-
-		if (sta_sap_scc_on_5ghz_channel &&
-		    policy_mgr_is_force_scc(psoc) &&
-		    pcl_list_org[i] == sta_5GHz_freq) {
-			policy_mgr_debug("scc chan:%d", pcl_list_org[i]);
-			found = true;
-			goto update_pcl;
-		}
-
 		for (j = 0; j < pm_ctx->sap_mandatory_channels_len; j++) {
 			if (pcl_list_org[i] ==
 			    pm_ctx->sap_mandatory_channels[j]) {
@@ -2628,7 +2599,6 @@ QDF_STATUS policy_mgr_modify_sap_pcl_based_on_mandatory_channel(
 				break;
 			}
 		}
-update_pcl:
 		if (found && (pcl_len < NUM_CHANNELS)) {
 			pcl_list_org[pcl_len] = pcl_list_org[i];
 			weight_list_org[pcl_len++] = weight_list_org[i];

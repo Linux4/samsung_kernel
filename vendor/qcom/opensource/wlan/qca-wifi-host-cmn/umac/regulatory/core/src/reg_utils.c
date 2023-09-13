@@ -380,44 +380,39 @@ reg_get_6g_power_type_for_ctry(struct wlan_objmgr_psoc *psoc,
 {
 	*pwr_type_6g = REG_INDOOR_AP;
 
-	if (qdf_mem_cmp(ap_ctry, sta_ctry, REG_ALPHA2_LEN)) {
-		reg_debug("Country IE:%c%c, STA country:%c%c", ap_ctry[0],
-			  ap_ctry[1], sta_ctry[0], sta_ctry[1]);
-		*ctry_code_match = false;
+	reg_debug("Country IE:%c%c, STA country:%c%c", ap_ctry[0],
+		  ap_ctry[1], sta_ctry[0], sta_ctry[1]);
 
-		/*
-		 * If reg_info=0 not included, STA should operate in VLP mode.
-		 * If STA country is US, do not return if Wi-Fi safe mode
-		 * or RF test mode or relaxed connection policy is enabled,
-		 * rather STA should operate in LPI mode.
-		 * wlan_cm_get_check_6ghz_security API returns true if
-		 * neither Safe mode nor RF test mode are enabled.
-		 * wlan_cm_get_relaxed_6ghz_conn_policy API returns true if
-		 * enabled.
-		 */
-		if (ap_pwr_type != REG_INDOOR_AP) {
-			if (!wlan_reg_is_us(sta_ctry))
-				*pwr_type_6g = REG_VERY_LOW_POWER_AP;
-			if (wlan_reg_is_us(sta_ctry) &&
-			    wlan_cm_get_check_6ghz_security(psoc) &&
-			    !wlan_cm_get_relaxed_6ghz_conn_policy(psoc)) {
-				reg_err("US VLP not supported, can't connect");
-				return QDF_STATUS_E_NOSUPPORT;
-			}
-		}
+	if (!qdf_mem_cmp(ap_ctry, sta_ctry, REG_ALPHA2_LEN)) {
+		*ctry_code_match = true;
+		return QDF_STATUS_SUCCESS;
 	}
 
+	*ctry_code_match = false;
+	/**
+	 * Do not return if Wi-Fi safe mode or RF test mode is
+	 * enabled, rather STA should operate in LPI mode.
+	 * wlan_cm_get_check_6ghz_security API returns true if
+	 * neither Safe mode nor RF test mode are enabled.
+	 */
 	if (wlan_reg_ctry_support_vlp(sta_ctry) &&
-	    wlan_reg_ctry_support_vlp(ap_ctry) &&
-	    ap_pwr_type == REG_INDOOR_AP) {
-		reg_debug("STA ctry doesn't match with AP ctry, switch to VLP");
+	    wlan_reg_ctry_support_vlp(ap_ctry)) {
+		 reg_debug("STA ctry doesn't match with AP ctry, switch to VLP");
 		*pwr_type_6g = REG_VERY_LOW_POWER_AP;
+	} else {
+		reg_debug("AP or STA doesn't support VLP");
+		*pwr_type_6g = REG_INDOOR_AP;
 	}
 
-	if (!wlan_reg_ctry_support_vlp(ap_ctry) &&
-	    ap_pwr_type == REG_INDOOR_AP) {
-	    reg_debug("VLP not supported by AP, allow STA IN LPI");
-	    *pwr_type_6g = REG_INDOOR_AP;
+	if (!wlan_reg_ctry_support_vlp(sta_ctry) &&
+	    wlan_cm_get_check_6ghz_security(psoc)) {
+		reg_err("VLP not supported, can't connect");
+		 return QDF_STATUS_E_NOSUPPORT;
+	}
+
+	if (ap_pwr_type == REG_INDOOR_AP) {
+		reg_debug("Indoor AP, allow STA IN LPI");
+		*pwr_type_6g = REG_INDOOR_AP;;
 	}
 
 	return QDF_STATUS_SUCCESS;

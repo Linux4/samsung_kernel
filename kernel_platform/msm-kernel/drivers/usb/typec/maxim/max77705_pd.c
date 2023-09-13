@@ -1114,6 +1114,9 @@ static void max77705_pd_check_pdmsg(struct max77705_usbc_platform_data *usbc_dat
 #if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
 	struct otg_notify *o_notify = get_otg_notify();
 #endif
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+	struct power_supply *psy;
+#endif
 
 	VDM_MSG_IRQ_State.DATA = 0x0;
 	init_usbc_cmd_data(&value);
@@ -1207,8 +1210,19 @@ static void max77705_pd_check_pdmsg(struct max77705_usbc_platform_data *usbc_dat
 		if (usbc_data->cc_data->current_pr == SRC) {
 			max77705_vbus_turn_on_ctrl(usbc_data, OFF, false);
 			schedule_delayed_work(&usbc_data->vbus_hard_reset_work, msecs_to_jiffies(760));
-		} else if (usbc_data->cc_data->current_pr == SNK)
+		} else if (usbc_data->cc_data->current_pr == SNK) {
 			usbc_data->detach_done_wait = 1;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+			psy = power_supply_get_by_name("battery");
+			if (psy) {
+				val.intval = 0;
+				psy_do_property("battery", set,
+					POWER_SUPPLY_EXT_PROP_HARDRESET_OCCUR, val);
+			} else {
+				pr_err("%s: Fail to get psy battery\n", __func__);
+			}
+#endif
+		}
 #ifdef CONFIG_USB_NOTIFY_PROC_LOG
 		event = NOTIFY_EXTRA_HARDRESET_RECEIVED;
 		store_usblog_notify(NOTIFY_EXTRA, (void *)&event, NULL);
@@ -1226,8 +1240,19 @@ static void max77705_pd_check_pdmsg(struct max77705_usbc_platform_data *usbc_dat
 		if (usbc_data->cc_data->current_pr == SRC) {
 			max77705_vbus_turn_on_ctrl(usbc_data, OFF, false);
 			schedule_delayed_work(&usbc_data->vbus_hard_reset_work, msecs_to_jiffies(760));
-		} else if (usbc_data->cc_data->current_pr == SNK)
+		} else if (usbc_data->cc_data->current_pr == SNK) {
 			usbc_data->detach_done_wait = 1;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+			psy = power_supply_get_by_name("battery");
+			if (psy) {
+				val.intval = 1;
+				psy_do_property("battery", set,
+					POWER_SUPPLY_EXT_PROP_HARDRESET_OCCUR, val);
+			} else {
+				pr_err("%s: Fail to get psy battery\n", __func__);
+			}
+#endif
+		}
 #ifdef CONFIG_USB_NOTIFY_PROC_LOG
 		event = NOTIFY_EXTRA_HARDRESET_SENT;
 		store_usblog_notify(NOTIFY_EXTRA, (void *)&event, NULL);

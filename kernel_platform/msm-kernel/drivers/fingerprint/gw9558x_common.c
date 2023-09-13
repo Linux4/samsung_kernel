@@ -454,20 +454,21 @@ int gw9558_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 		gf_dev->btp_vdd = NULL;
 	} else {
 		gf_dev->regulator_3p3 = regulator_get(NULL, gf_dev->btp_vdd);
-		if (IS_ERR(gf_dev->regulator_3p3) || (gf_dev->regulator_3p3) == NULL) {
-			pr_info("not use regulator_3p3\n");
-			gf_dev->regulator_3p3 = NULL;
-		} else {
-			pr_info("btp_regulator ok\n");
+		if ((gf_dev->regulator_3p3) == NULL) {
+			pr_info("fail to get regulator_3p3\n");
+			return -EINVAL;
+		} else if (IS_ERR(gf_dev->regulator_3p3)) {
+			pr_info("fail to get regulator_3p3: %ld", PTR_ERR(gf_dev->regulator_3p3));
+			return PTR_ERR(gf_dev->regulator_3p3);
 		}
+		pr_info("btp_regulator ok\n");
 	}
 
     /* get reset resource */
 	gf_dev->reset_gpio = of_get_named_gpio(np, "goodix,gpio_reset", 0);
 	if (!gpio_is_valid(gf_dev->reset_gpio)) {
 		pr_err("RESET GPIO is invalid.\n");
-		gf_dev->reset_gpio = 0;
-		return -EINVAL;
+		return gf_dev->reset_gpio;
 	}
 	pr_info("goodix_reset:%d\n", gf_dev->reset_gpio);
 	retval = gpio_request(gf_dev->reset_gpio, "goodix_reset");
@@ -507,7 +508,7 @@ int gw9558_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 	gf_dev->p = pinctrl_get_select_default(dev);
 	if (IS_ERR(gf_dev->p)) {
 		pr_err("failed pinctrl_get\n");
-		return -EINVAL;
+		return PTR_ERR(gf_dev->p);
 	}
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
 	gf_dev->pins_poweroff = pinctrl_lookup_state(gf_dev->p, "pins_poweroff");

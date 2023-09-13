@@ -3037,10 +3037,8 @@ wlan_mlme_is_rf_test_mode_enabled(struct wlan_objmgr_psoc *psoc, bool *value)
 	struct wlan_mlme_psoc_ext_obj *mlme_obj;
 
 	mlme_obj = mlme_get_psoc_ext_obj(psoc);
-	if (!mlme_obj) {
-		*value = false;
+	if (!mlme_obj)
 		return QDF_STATUS_E_FAILURE;
-	}
 
 	*value = mlme_obj->cfg.gen.enabled_rf_test_mode;
 
@@ -5548,33 +5546,3 @@ uint32_t wlan_mlme_get_6g_ap_power_type(struct wlan_objmgr_vdev *vdev)
 
 	return mlme_obj->reg_tpc_obj.power_type_6g;
 }
-
-void wlan_mlme_get_safe_mode_enable(struct wlan_objmgr_psoc *psoc,
-				    bool *safe_mode_enable)
-{
-	struct wlan_mlme_psoc_ext_obj *mlme_obj;
-
-	mlme_obj = mlme_get_psoc_ext_obj(psoc);
-	if (!mlme_obj) {
-		mlme_legacy_err("invalid mlme obj");
-		*safe_mode_enable = false;
-		return;
-	}
-
-	*safe_mode_enable = mlme_obj->cfg.gen.safe_mode_enable;
-}
-
-void wlan_mlme_set_safe_mode_enable(struct wlan_objmgr_psoc *psoc,
-		bool safe_mode_enable)
-{
-	struct wlan_mlme_psoc_ext_obj *mlme_obj;
-
-	mlme_obj = mlme_get_psoc_ext_obj(psoc);
-	if (!mlme_obj) {
-		mlme_legacy_err("invalid mlme obj");
-		return;
-	}
-
-	mlme_obj->cfg.gen.safe_mode_enable = safe_mode_enable;
-}
-

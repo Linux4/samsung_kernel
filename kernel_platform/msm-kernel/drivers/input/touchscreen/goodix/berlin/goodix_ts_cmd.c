@@ -48,7 +48,7 @@ static void fw_update(void *device_data)
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		return;
 	}
-
+	mutex_lock(&core_data->modechange_mutex);
 	update_type = sec->cmd_param[0];
 
 	switch (update_type) {
@@ -84,6 +84,7 @@ static void fw_update(void *device_data)
 		sec->cmd_state = SEC_CMD_STATUS_OK;
 	}
 	ts_info("%s", buff);
+	mutex_unlock(&core_data->modechange_mutex);
 }
 
 static void get_chip_vendor(void *device_data)

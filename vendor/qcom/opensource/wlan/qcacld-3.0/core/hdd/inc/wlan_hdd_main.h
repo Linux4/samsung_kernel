@@ -2005,6 +2005,10 @@ struct hdd_rtpm_tput_policy_context {
  * @is_therm_cmd_supp: get temperature command enable or disable
  * @disconnect_for_sta_mon_conc: disconnect if sta monitor intf concurrency
  * @bbm_ctx: bus bandwidth manager context
+ * @is_dual_mac_cfg_updated: indicate whether dual mac cfg has been updated
+ * @twt_en_dis_work: work to send twt enable/disable cmd on MCC/SCC concurrency
+ * @dump_in_progress: Stores value of dump in progress
+ * @hdd_dual_sta_policy: Concurrent STA policy configuration
  */
 struct hdd_context {
 	struct wlan_objmgr_psoc *psoc;
@@ -2360,28 +2364,29 @@ struct hdd_context {
 #ifdef FEATURE_BUS_BANDWIDTH_MGR
 	struct bbm_context *bbm_ctx;
 #endif
-    bool is_regulatory_update_in_progress;
-    qdf_event_t regulatory_update_event;
-    qdf_mutex_t regulatory_status_lock;
-    bool is_fw_dbg_log_levels_configured;
+	bool is_dual_mac_cfg_updated;
+	bool is_regulatory_update_in_progress;
+	qdf_event_t regulatory_update_event;
+	qdf_mutex_t regulatory_status_lock;
+	bool is_fw_dbg_log_levels_configured;
 #ifdef WLAN_SUPPORT_TWT
-    qdf_work_t twt_en_dis_work;
+	qdf_work_t twt_en_dis_work;
 #endif
-    bool is_wifi3_0_target;
-    bool dump_in_progress;
-    uint64_t bw_vote_time;
-    struct hdd_dual_sta_policy dual_sta_policy;
+	bool is_wifi3_0_target;
+	bool dump_in_progress;
+	uint64_t bw_vote_time;
+	struct hdd_dual_sta_policy dual_sta_policy;
 #if defined(WLAN_FEATURE_11BE_MLO) && defined(CFG80211_11BE_BASIC)
-    struct hdd_mld_mac_info mld_mac_info;
+	struct hdd_mld_mac_info mld_mac_info;
 #endif
 #ifdef THERMAL_STATS_SUPPORT
-    bool is_therm_stats_in_progress;
+	bool is_therm_stats_in_progress;
 #endif
 #ifdef WLAN_FEATURE_DYNAMIC_MAC_ADDR_UPDATE
-    bool is_vdev_macaddr_dynamic_update_supported;
+	bool is_vdev_macaddr_dynamic_update_supported;
 #endif
 #ifdef CONFIG_WLAN_FREQ_LIST
-    uint8_t power_type;
+	uint8_t power_type;
 #endif
 };
 
@@ -2626,7 +2631,7 @@ QDF_STATUS hdd_add_adapter_front(struct hdd_context *hdd_ctx,
 				 struct hdd_adapter *adapter);
 
 /**
- * typedef hdd_adapter_iterate_cb() ??Iteration callback function
+ * typedef hdd_adapter_iterate_cb() – Iteration callback function
  * @adapter: current adapter of interest
  * @context: user context supplied to the iterator
  *
@@ -2641,7 +2646,7 @@ typedef QDF_STATUS (*hdd_adapter_iterate_cb)(struct hdd_adapter *adapter,
 					     void *context);
 
 /**
- * hdd_adapter_iterate() ??Safely iterate over all adapters
+ * hdd_adapter_iterate() – Safely iterate over all adapters
  * @cb: callback function to invoke for each adapter
  * @context: user-supplied context to pass to @cb
  *

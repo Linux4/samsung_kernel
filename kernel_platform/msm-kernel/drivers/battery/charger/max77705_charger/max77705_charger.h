@@ -323,7 +323,6 @@ ssize_t max77705_chg_store_attrs(struct device *dev,
 
 #define REDUCE_CURRENT_STEP						100
 #define MINIMUM_INPUT_CURRENT					300
-#define SLOW_CHARGING_CURRENT_STANDARD          400
 
 #define WC_CURRENT_STEP		100
 #define WC_CURRENT_START	480
@@ -355,6 +354,7 @@ typedef struct max77705_charger_platform_data {
 	bool enable_dpm;
 	int disqbat;
 	int dpm_icl;
+	int max_fcc;
 
 	/* OVP/UVLO check */
 	int ovp_uvlo_check_type;

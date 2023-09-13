@@ -466,7 +466,7 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
         PAL_ERR(LOG_TAG, "stream get attributes failed");
         return status;
     }
-    PAL_DBG(LOG_TAG, "Enter tag: 0x%x", tag);
+    PAL_DBG(LOG_TAG, "Enter tag: %d", tag);
     switch (type) {
         case MODULE:
             tkv.clear();
@@ -600,14 +600,7 @@ exit:
     if (calConfig)
         free(calConfig);
 
-#ifdef SEC_AUDIO_ADD_FOR_DEBUG
-    if (status != 0) {
-        PAL_ERR(LOG_TAG, "exit status: %d (failed)", status);
-    } else
-#endif
-    {
-        PAL_DBG(LOG_TAG, "exit status: %d ", status);
-    }
+    PAL_DBG(LOG_TAG, "exit status: %d ", status);
     return status;
 }
 
@@ -1327,11 +1320,6 @@ pcm_start:
             if (setConfig(s, CALIBRATION, TAG_STREAM_VOLUME) != 0) {
                 PAL_ERR(LOG_TAG,"Setting volume failed");
             }
-#ifdef SEC_AUDIO_ADD_FOR_DEBUG
-            else {
-                PAL_INFO(LOG_TAG,"Setting volume success");
-            }
-#endif
         }
     }
 
@@ -1879,8 +1867,15 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct pal_buffer *buf, int * size
         data = buf->buffer;
         data = static_cast<char *>(data) + offset;
         sizeWritten = out_buf_size;  //initialize 0
-
-        if (!pcm) {
+        if (pcm && (mState == SESSION_FLUSHED)) {
+            status = pcm_start(pcm);
+            if (status) {
+                status = errno;
+                PAL_ERR(LOG_TAG, "pcm_start failed %d", status);
+                goto exit;
+            }
+            mState = SESSION_STARTED;
+        } else if (!pcm) {
             PAL_ERR(LOG_TAG, "pcm is NULL");
             status = -EINVAL;
             goto exit;
@@ -1911,8 +1906,15 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct pal_buffer *buf, int * size
     offset = bytesWritten + buf->offset;
     sizeWritten = bytesRemaining;
     data = buf->buffer;
-
-    if (!pcm) {
+    if (pcm && (mState == SESSION_FLUSHED)) {
+        status = pcm_start(pcm);
+        if (status) {
+            status = errno;
+            PAL_ERR(LOG_TAG, "pcm_start failed %d", status);
+            goto exit;
+        }
+        mState = SESSION_STARTED;
+    } else if (!pcm) {
         PAL_ERR(LOG_TAG, "pcm is NULL");
         status = -EINVAL;
         goto exit;
@@ -2661,22 +2663,20 @@ int SessionAlsaPcm::drain(pal_drain_type_t type __unused)
 int SessionAlsaPcm::flush()
 {
     int status = 0;
-    int doFlush = 1;
-    struct mixer_ctl *ctl = NULL;
-    std::string stream = "PCM";
-    std::string flushControl = "flush";
-    std::ostringstream flushCntrlName;
 
-    PAL_VERBOSE(LOG_TAG, "Enter flush\n");
-    if (pcmDevIds.size() > 0)
-        flushCntrlName << stream << pcmDevIds.at(0) << " " << flushControl;
-
-    ctl = mixer_get_ctl_by_name(mixer, flushCntrlName.str().data());
-    if (!ctl) {
-        PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", flushCntrlName.str().data());
-        return -ENOENT;
+    if (!pcm) {
+        PAL_ERR(LOG_TAG, "Pcm is invalid");
+        return -EINVAL;
     }
-    mixer_ctl_set_value(ctl, 0, doFlush);
+    PAL_VERBOSE(LOG_TAG, "Enter flush\n");
+    if (pcm && isActive()) {
+        status = pcm_stop(pcm);
+
+        if (!status)
+            mState = SESSION_FLUSHED;
+        else
+            status = errno;
+    }
 
     PAL_VERBOSE(LOG_TAG, "status %d\n", status);
 

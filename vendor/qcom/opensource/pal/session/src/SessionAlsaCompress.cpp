@@ -1794,26 +1794,20 @@ int SessionAlsaCompress::registerCallBack(session_callback cb, uint64_t cookie)
 int SessionAlsaCompress::flush()
 {
     int status = 0;
-    int doFlush = 1;
-    struct mixer_ctl *ctl = NULL;
-    std::string stream = "COMPRESS";
-    std::string flushControl = "flush";
-    std::ostringstream flushCntrlName;
 
+    if (!compress) {
+        PAL_ERR(LOG_TAG, "Compress is invalid");
+        return -EINVAL;
+    }
     if (playback_started) {
         PAL_VERBOSE(LOG_TAG, "Enter flush\n");
-        if (compressDevIds.size() > 0)
-            flushCntrlName << stream << compressDevIds.at(0) << " " << flushControl;
-
-        ctl = mixer_get_ctl_by_name(mixer, flushCntrlName.str().data());
-        if (!ctl) {
-            PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", flushCntrlName.str().data());
-            return -ENOENT;
+        status = compress_stop(compress);
+        if (!status) {
+            playback_started = false;
         }
-
-        mixer_ctl_set_value(ctl, 0, doFlush);
     }
-    PAL_VERBOSE(LOG_TAG, "status %d\n", status);
+    PAL_VERBOSE(LOG_TAG, "playback_started %d status %d\n", playback_started,
+            status);
     return status;
 }
 

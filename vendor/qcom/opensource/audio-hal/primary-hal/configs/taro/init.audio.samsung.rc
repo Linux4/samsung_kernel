@@ -107,17 +107,6 @@ on post-fs-data
     chown system audio /sys/class/audio/amp/temperature_overcount_1
     chown system audio /sys/class/audio/amp/excursion_max_1
     chown system audio /sys/class/audio/amp/excursion_overcount_1
-    chown system audio /sys/class/audio/amp/temperature_max_2
-    chown system audio /sys/class/audio/amp/temperature_keep_max_2
-    chown system audio /sys/class/audio/amp/temperature_overcount_2
-    chown system audio /sys/class/audio/amp/excursion_max_2
-    chown system audio /sys/class/audio/amp/excursion_overcount_2
-    chown system audio /sys/class/audio/amp/temperature_max_3
-    chown system audio /sys/class/audio/amp/temperature_keep_max_3
-    chown system audio /sys/class/audio/amp/temperature_overcount_3
-    chown system audio /sys/class/audio/amp/excursion_max_3
-    chown system audio /sys/class/audio/amp/excursion_overcount_3
- 
 
 # SSRM Amp temperature
     chown system system /sys/class/audio/amp/surface_temperature_0

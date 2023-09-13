@@ -43,6 +43,10 @@
 #include <asm/errno.h>
 #include <linux/uaccess.h>
 
+#ifdef CONFIG_RKP
+#include <linux/rkp.h>
+#endif
+
 #define KPROBE_HASH_BITS 6
 #define KPROBE_TABLE_SIZE (1 << KPROBE_HASH_BITS)
 
@@ -118,6 +122,9 @@ void __weak *alloc_insn_page(void)
 
 void __weak free_insn_page(void *page)
 {
+#ifdef CONFIG_RKP
+	uh_call(UH_APP_RKP, RKP_KPROBE_PAGE, (u64)page, 4096, 1, 0);
+#endif
 	module_memfree(page);
 }
 

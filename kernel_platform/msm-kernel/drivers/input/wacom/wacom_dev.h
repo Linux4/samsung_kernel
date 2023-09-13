@@ -29,6 +29,13 @@
 #include <linux/usb/typec/manager/usb_typec_manager_notifier.h>
 #endif
 
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+#include <linux/hall/hall_ic_notifier.h>
+#endif
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
+#include "../sec_input/stm32/pogo_notifier_v3.h"
+#endif
+
 #define RETRY_COUNT			3
 
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
@@ -118,6 +125,7 @@ enum COVER_STATE {
 	NOMAL_MODE = 0,
 	BOOKCOVER_MODE,
 	KBDCOVER_MODE,
+	POGOCOVER_MODE,
 };
 
 #define WACOM_PATH_EXTERNAL_FW		"wacom.bin"
@@ -290,6 +298,11 @@ enum {
 	WACOM_DIGITIZER_TEST,
 };
 
+#define EPEN_GARAGE_TEST_OFF			0
+#define EPEN_GARAGE_TEST_ON_SINGLE		1
+#define EPEN_GARAGE_TEST_ON_DUAL_YAXIS	2
+#define EPEN_GARAGE_TEST_ON_DUAL_XAXIS	3
+
 /* elec data */
 #define COM_ELEC_NUM			38
 #define COM_ELEC_DATA_NUM		12
@@ -417,6 +430,8 @@ struct wacom_g5_platform_data {
 	u32 bringup;
 	bool support_cover_noti;
 	bool support_cover_detection;
+	bool support_pogo_cover;
+	bool enable_sysinput_enabled;
 
 	u32	area_indicator;
 	u32	area_navigation;
@@ -518,6 +533,7 @@ struct wacom_i2c {
 	int wcharging_mode;
 
 	struct delayed_work nb_reg_work;
+	struct work_struct nb_swap_work;
 
 	struct notifier_block kbd_nb;
 	struct work_struct kbd_work;
@@ -530,6 +546,8 @@ struct wacom_i2c {
 	u8 dp_connect_cmd;
 
 	struct notifier_block nb;
+	struct notifier_block nb_h;
+	struct notifier_block nb_p;
 
 	/* open test*/
 	volatile bool is_open_test;
@@ -556,17 +574,28 @@ struct wacom_i2c {
 	u32 pen_out_count;
 	volatile bool reset_flag;
 	u8 debug_flag;
-#if WACOM_SEC_FACTORY
-	volatile bool fac_garage_mode;
+
+	/* single garage */
+	int fac_garage_mode;
 	u32 garage_gain0;
 	u32 garage_gain1;
 	u32 garage_freq0;
 	u32 garage_freq1;
-#endif
+
+	/* dual garage */
+	u32 garage_freq0_gain;
+	u32 garage_freq0_garage0;
+	u32 garage_freq0_garage1;
+	u32 garage_freq1_gain;
+	u32 garage_freq1_garage0;
+	u32 garage_freq1_garage1;
+
 	char *ble_hist;
 	char *ble_hist1;
 	int ble_hist_index;
 	char cover;
+	bool hall_wacom;
+	bool pogo_cover;
 	u8 flip_state;
 };
 

@@ -1802,7 +1802,9 @@ static ssize_t isg6320_unknown_state_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct isg6320_data *data = dev_get_drvdata(dev);
-	
+
+	if (data->check_abnormal_working)
+		return snprintf(buf, PAGE_SIZE, "%s\n", "UNKNOWN");
 	return snprintf(buf, PAGE_SIZE, "%s\n",
 		(data->is_unknown_mode == 1) ? "UNKNOWN" : "NORMAL");
 }

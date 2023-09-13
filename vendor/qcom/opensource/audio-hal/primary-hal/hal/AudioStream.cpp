@@ -2546,6 +2546,39 @@ int StreamOutPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, 
                        "hifi-filter_custom_key",
                        sizeof(mPalOutDevice[i].custom_config.custom_key));
             }
+
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            /* During ongoing media/gaming session, if BT device is reconncted since stream
+             * is active on other device APM doesn't send metadata explicitly to AHAL. In
+             * that case, send cachedsource metadata so that encoder session will be
+             * configured accordingly and then switch to BLE device
+             */
+            if ((mPalOutDeviceIds[i] == PAL_DEVICE_OUT_BLUETOOTH_BLE) &&
+                (btSourceMetadata.track_count != 0)) {
+                audio_mode_t mode;
+                bool voice_active = false;
+
+                if (adevice && adevice->voice_) {
+                    voice_active = adevice->voice_->get_voice_call_state(&mode);
+                } else {
+                    AHAL_ERR("adevice voice is null");
+                }
+
+                /* If voice call is in active state we sent voice context as a part metadata
+                 * to BT. During active voice call, when APM tries to route media/touchtone
+                 * streams, don't send cached metadata(media/ringtone) to BT as it may
+                 * be misinterpreted as reconfig.
+                 */
+                if (!voice_active) {
+                    //pass the metadata to PAL
+                    ret = pal_set_param(PAL_PARAM_ID_SET_SOURCE_METADATA,
+                                        (void*)&btSourceMetadata, 0);
+                    if (ret != 0) {
+                        AHAL_ERR("Set PAL_PARAM_ID_SET_SOURCE_METADATA for %d failed", ret);
+                    }
+                }
+            }
+#endif
         }
 
 #ifdef SEC_AUDIO_SPK_AMP_MUTE
@@ -4199,15 +4232,12 @@ StreamOutPrimary::StreamOutPrimary(
             AHAL_ERR("Error usb device is not connected");
             free(dynamic_media_config);
             free(device_cap_query_);
-            dynamic_media_config = NULL;
-            device_cap_query_ = NULL;
+            goto error;
         }
         if (!config->sample_rate || !config->format || !config->channel_mask) {
-            if (dynamic_media_config) {
-                config->sample_rate = dynamic_media_config->sample_rate[0];
-                config->channel_mask = (audio_channel_mask_t) dynamic_media_config->mask[0];
-                config->format = (audio_format_t)dynamic_media_config->format[0];
-            }
+            config->sample_rate = dynamic_media_config->sample_rate[0];
+            config->channel_mask = (audio_channel_mask_t) dynamic_media_config->mask[0];
+            config->format = (audio_format_t)dynamic_media_config->format[0];
             if (config->sample_rate == 0)
                 config->sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
             if (config->channel_mask == AUDIO_CHANNEL_NONE)
@@ -4328,6 +4358,7 @@ StreamOutPrimary::StreamOutPrimary(
     }
 #endif
 
+    (void)FillHalFnPtrs();
     mInitialized = true;
     for(auto dev : mAndroidOutDevices)
         audio_extn_gef_notify_device_config(dev, config_.channel_mask,
@@ -4345,7 +4376,6 @@ StreamOutPrimary::StreamOutPrimary(
 #endif
 
 error:
-    (void)FillHalFnPtrs();
     AHAL_DBG("Exit");
     return;
 }
@@ -4921,12 +4951,7 @@ int StreamInPrimary::SetParameters(const char* kvpairs) {
     struct str_parms *parms = (str_parms *)NULL;
     int ret = 0;
 
-#ifdef SEC_AUDIO_DUMP 
     AHAL_DBG("enter: kvpairs=%s", kvpairs);
-#else
-    AHAL_DBG("enter");
-#endif
-
     if(!mInitialized)
         goto exit;
 
@@ -5168,7 +5193,6 @@ int StreamInPrimary::Open() {
 #ifdef SEC_AUDIO_BLE_OFFLOAD // SEC
             if (audio_is_subset_device(AudioExtn::get_device_types(mAndroidInDevices), AUDIO_DEVICE_IN_BLE_HEADSET)) {
                 device_types.insert(AUDIO_DEVICE_IN_BLE_HEADSET);
-                sec_audio_stream_in->updateRecordMetadataForBLE(this);
             } else
 #endif
             {
@@ -5182,7 +5206,6 @@ int StreamInPrimary::Open() {
 #ifdef SEC_AUDIO_BLE_OFFLOAD // SEC
             if (audio_is_subset_device(AudioExtn::get_device_types(mAndroidInDevices), AUDIO_DEVICE_IN_BLE_HEADSET)) {
                 device_types.insert(AUDIO_DEVICE_IN_BLE_HEADSET);
-                sec_audio_stream_in->updateRecordMetadataForBLE(this);
             } else
 #endif
             {
@@ -5417,12 +5440,6 @@ ssize_t StreamInPrimary::read(const void *buffer, size_t bytes) {
         AutoPerfLock perfLock;
 #ifdef SEC_AUDIO_SAMSUNGRECORD
         preprocess_->SetParamPreProcessSolutions(this, RECORD_PARAM_ALL);
-#if defined(SEC_AUDIO_RECORDALIVE_SUPPORT_MULTIDEVICE_PROVIDEO) && defined(SEC_AUDIO_BLE_OFFLOAD)
-        if (adevice->sec_device_->multidevice_rec
-            && audio_is_subset_device(AudioExtn::get_device_types(mAndroidInDevices), AUDIO_DEVICE_IN_BLE_HEADSET)) {
-            preprocess_->SetParamPreProcessSolutions(this, RECORD_PARAM_BT_MIX_LATENCY);
-        }
-#endif
 #endif
         ret = pal_stream_start(pal_stream_handle_);
         if (ret) {
@@ -5519,7 +5536,7 @@ ssize_t StreamInPrimary::read(const void *buffer, size_t bytes) {
     ret = pal_stream_read(pal_stream_handle_, &palBuffer);
 
 #ifdef SEC_AUDIO_SAMSUNGRECORD
-    preprocess_->Process(this, (void**)&palBuffer.buffer, bytes);
+    ret = preprocess_->Process(this, (void**)&palBuffer.buffer, bytes);
     palBuffer.size = preprocess_->SwapBuffer(this, (void**)&palBuffer.buffer, bytes, palBuffer.size);
 #endif
 
@@ -5655,19 +5672,16 @@ StreamInPrimary::StreamInPrimary(audio_io_handle_t handle,
             AHAL_ERR("Error usb device is not connected");
             free(dynamic_media_config);
             free(device_cap_query_);
-            dynamic_media_config = NULL;
-            device_cap_query_ = NULL;
+            goto error;
         }
-        if (dynamic_media_config) {
-            AHAL_DBG("usb fs=%d format=%d mask=%x",
-                dynamic_media_config->sample_rate[0],
-                dynamic_media_config->format[0], dynamic_media_config->mask[0]);
-            if (!config->sample_rate) {
-                config->sample_rate = dynamic_media_config->sample_rate[0];
-                config->channel_mask = (audio_channel_mask_t) dynamic_media_config->mask[0];
-                config->format = (audio_format_t)dynamic_media_config->format[0];
-                memcpy(&config_, config, sizeof(struct audio_config));
-            }
+        AHAL_DBG("usb fs=%d format=%d mask=%x",
+            dynamic_media_config->sample_rate[0],
+            dynamic_media_config->format[0], dynamic_media_config->mask[0]);
+        if (!config->sample_rate) {
+            config->sample_rate = dynamic_media_config->sample_rate[0];
+            config->channel_mask = (audio_channel_mask_t) dynamic_media_config->mask[0];
+            config->format = (audio_format_t)dynamic_media_config->format[0];
+            memcpy(&config_, config, sizeof(struct audio_config));
         }
     }
 
@@ -5796,9 +5810,9 @@ StreamInPrimary::StreamInPrimary(audio_io_handle_t handle,
         stream_.get()->create_mmap_buffer = astream_in_create_mmap_buffer;
         stream_.get()->get_mmap_position = astream_in_get_mmap_position;
     }
+    (void)FillHalFnPtrs();
     mInitialized = true;
 error:
-    (void)FillHalFnPtrs();
     AHAL_DBG("Exit");
     return;
 }

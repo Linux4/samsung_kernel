@@ -443,82 +443,63 @@ static int stm32_dev_regulator(struct stm32_dev *device_data, int onoff)
 
 static void stm32_enable_irq(struct stm32_dev *stm32, int enable)
 {
-	static int depth;
+	struct irq_desc *desc = irq_to_desc(stm32->dev_irq);
 
 	if (enable != INT_ENABLE && enable != INT_DISABLE_NOSYNC && enable != INT_DISABLE_SYNC)
 		return;
 
 	mutex_lock(&stm32->irq_lock);
 	if (enable == INT_ENABLE) {
-		if (depth) {
-			--depth;
+		while (desc->depth > 0)
 			enable_irq(stm32->dev_irq);
-			input_info(true, &stm32->client->dev, "%s: enable irq\n", __func__);
-		}
+		input_info(true, &stm32->client->dev, "%s: enable dev irq\n", __func__);
+	} else if (enable == INT_DISABLE_NOSYNC) {
+		disable_irq_nosync(stm32->dev_irq);
+		input_info(true, &stm32->client->dev, "%s: disable dev irq nosync\n", __func__);
 	} else {
-		if (!depth) {
-			++depth;
-			if (enable == INT_DISABLE_NOSYNC)
-				disable_irq_nosync(stm32->dev_irq);
-			else
-				disable_irq(stm32->dev_irq);
-			input_info(true, &stm32->client->dev, "%s: disable irq %ssync\n",
-				__func__, enable == INT_DISABLE_NOSYNC ? "no" : "");
-		}
+		disable_irq(stm32->dev_irq);
+		input_info(true, &stm32->client->dev, "%s: disable dev irq\n", __func__);
 	}
 	mutex_unlock(&stm32->irq_lock);
 }
 
 static void stm32_enable_conn_irq(struct stm32_dev *stm32, int enable)
 {
-	static int depth;
-
+	struct irq_desc *desc = irq_to_desc(stm32->conn_irq);
 	if (enable != INT_ENABLE && enable != INT_DISABLE_NOSYNC && enable != INT_DISABLE_SYNC)
 		return;
 
 	mutex_lock(&stm32->irq_lock);
 	if (enable == INT_ENABLE) {
-		if (depth) {
-			--depth;
+		while (desc->depth > 0)
 			enable_irq(stm32->conn_irq);
-			input_info(true, &stm32->client->dev, "%s: enable conn irq\n", __func__);
-		}
+		input_info(true, &stm32->client->dev, "%s: enable conn irq\n", __func__);
+	} else if (enable == INT_DISABLE_NOSYNC) {
+		disable_irq_nosync(stm32->conn_irq);
+		input_info(true, &stm32->client->dev, "%s: disable coon irq nosync\n", __func__);
 	} else {
-		if (!depth) {
-			++depth;
-			if (enable == INT_DISABLE_NOSYNC)
-				disable_irq_nosync(stm32->conn_irq);
-			else
-				disable_irq(stm32->conn_irq);
-			input_info(true, &stm32->client->dev, "%s: disable conn irq \n",
-				__func__);
-		}
+		disable_irq(stm32->conn_irq);
+		input_info(true, &stm32->client->dev, "%s: disable conn irq\n", __func__);
 	}
 	mutex_unlock(&stm32->irq_lock);
 }
 
 static void stm32_enable_conn_wake_irq(struct stm32_dev *stm32, bool enable)
 {
-	static int depth;
+	struct irq_desc *desc = irq_to_desc(stm32->conn_irq);
 
 	mutex_lock(&stm32->irq_lock);
 	if (enable) {
-		if (depth) {
-			--depth;
+		while (desc->wake_depth < 1)
 			enable_irq_wake(stm32->conn_irq);
-			input_info(true, &stm32->client->dev, "%s: enable conn irq\n", __func__);
-		}
+		input_info(true, &stm32->client->dev, "%s: enable conn wake irq\n", __func__);
 	} else {
-		if (!depth) {
-			++depth;
+		while (desc->wake_depth > 0)
 			disable_irq_wake(stm32->conn_irq);
-			input_info(true, &stm32->client->dev, "%s: disable conn irq_wake\n",
-				__func__);
-		}
+		input_info(true, &stm32->client->dev, "%s: disable conn wake irq\n", __func__);
 	}
 	mutex_unlock(&stm32->irq_lock);
 }
-
 
 static int stm32_read_crc(struct stm32_dev *stm32)
 {

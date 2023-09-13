@@ -49,7 +49,7 @@
 
 #define HISTORY_CNT 5
 #define NO_SSR 0xFF
-#define SSR_REASON_LEN	128
+#define SSR_REASON_LEN	256
 #define TIME_LEN	24
 #ifdef CONFIG_SEC_FACTORY
 #define SLPI_STUCK "SLPI_STUCK"
@@ -653,7 +653,7 @@ static ssize_t fac_fstate_store(struct device *dev,
 }
 
 #if defined(CONFIG_TABLET_MODEL_CONCEPT)
-static ssize_t light_debug_info_show(struct device *dev,
+static ssize_t light_utilization_rate_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct adsp_data *data = dev_get_drvdata(dev);
@@ -674,7 +674,7 @@ static ssize_t light_debug_info_show(struct device *dev,
 	pr_info("[FACTORY] %s - Light sensor Debug info:%d %d %d %d", __func__, 
 	         data->msg_buf[MSG_VIR_OPTIC][0], data->msg_buf[MSG_VIR_OPTIC][1], 
 			 data->msg_buf[MSG_VIR_OPTIC][2], data->msg_buf[MSG_VIR_OPTIC][3]);
-	return snprintf(buf, PAGE_SIZE, "\"MAIN_LIGHT_SHARE\":\"%d\", \"SUB_LIGHT_SHARE\":\"%d\"\n", 
+	return snprintf(buf, PAGE_SIZE, "\"MAIN_LIGHT\":\"%d\",\"SUB_LIGHT\":\"%d\"\n", 
 	                data->msg_buf[MSG_VIR_OPTIC][2], data->msg_buf[MSG_VIR_OPTIC][3]);
 }
 #endif
@@ -1166,7 +1166,7 @@ static DEVICE_ATTR(support_algo, 0220, NULL, support_algo_store);
 #if IS_ENABLED(CONFIG_SUPPORT_VIRTUAL_OPTIC)
 static DEVICE_ATTR(fac_fstate, 0220, NULL, fac_fstate_store);
 #if defined(CONFIG_TABLET_MODEL_CONCEPT)
-static DEVICE_ATTR(light_debug_info, 0440, light_debug_info_show, NULL);
+static DEVICE_ATTR(light_utilization_rate, 0440, light_utilization_rate_show, NULL);
 #endif
 #endif
 #if IS_ENABLED(CONFIG_SUPPORT_DEVICE_MODE) && IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
@@ -1202,7 +1202,7 @@ static struct device_attribute *core_attrs[] = {
 #if IS_ENABLED(CONFIG_SUPPORT_VIRTUAL_OPTIC)
 	&dev_attr_fac_fstate,
 #if defined(CONFIG_TABLET_MODEL_CONCEPT)
-	&dev_attr_light_debug_info,
+	&dev_attr_light_utilization_rate,
 #endif
 #endif
 #if IS_ENABLED(CONFIG_SUPPORT_DEVICE_MODE) && IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)

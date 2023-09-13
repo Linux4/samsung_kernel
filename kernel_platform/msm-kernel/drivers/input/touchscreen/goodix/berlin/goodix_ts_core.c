@@ -1134,6 +1134,9 @@ static int goodix_parse_dt(struct device *dev, struct goodix_ts_core *core_data)
 	core_data->refresh_rate_enable = of_property_read_bool(node, "sec,refresh_rate_enable");
 	ts_info("sec,refresh_rate_enable:%d", core_data->refresh_rate_enable);
 
+	of_property_read_u32(node, "sec,specific_fw_update_ver", &core_data->specific_fw_update_ver);
+	ts_info("sec,specific_fw_update_ver:0x%x", core_data->specific_fw_update_ver);
+
 	r = goodix_parse_update_info(node, core_data);
 	if (r) {
 		ts_err("Failed to parse update info");
@@ -1749,7 +1752,7 @@ static void goodix_ts_input_close(struct input_dev *dev)
 	core_data->plat_data->enabled = false;
 
 	/* for debugging */
-	cancel_delayed_work(&core_data->debug_delayed_work);
+	cancel_delayed_work_sync(&core_data->debug_delayed_work);
 
 	cancel_delayed_work(&core_data->work_print_info);
 	sec_input_print_info(core_data->bus->dev, NULL);
@@ -1938,6 +1941,16 @@ static int goodix_check_update_skip(struct goodix_ts_core *core_data, struct goo
 			(ic_info.sec.firmware_version != fw_info_bin->firmware_version))) {
 		ts_info("bringup 3, force fw update because fw version is not equal");
 		return NEED_FW_UPDATE;
+	}
+
+	if (core_data->specific_fw_update_ver) {
+		unsigned int ic_version = (ic_info.sec.ic_name_list << 24) | (ic_info.sec.project_id << 16) | (ic_info.sec.module_version << 8) | (ic_info.sec.firmware_version);
+
+		ts_info("ic_version : 0x%x specific_fw_update_ver : 0x%x", ic_version, core_data->specific_fw_update_ver);
+		if (core_data->specific_fw_update_ver == ic_version) {
+			ts_err("need fw update by specific case : 0x%x", core_data->specific_fw_update_ver);
+			return NEED_FW_UPDATE;
+		}
 	}
 
 	if (ic_info.sec.ic_name_list != fw_info_bin->ic_name_list) {
@@ -2581,6 +2594,8 @@ retry_dev_confirm:
 	pdata->stui_tsp_exit = goodix_stui_tsp_exit;
 	pdata->stui_tsp_type = goodix_stui_tsp_type;
 #endif
+
+	sec_cmd_send_event_to_user(&core_data->sec, NULL, "RESULT=PROBE_DONE");
 
 	return 0;
 

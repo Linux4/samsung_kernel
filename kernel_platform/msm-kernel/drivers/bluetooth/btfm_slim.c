@@ -33,6 +33,12 @@ struct btfmslim *btfm_slim_drv_data;
 
 static int btfm_num_ports_open;
 
+#define SS_SLIMBUS_INIT_DBG 1
+#ifdef SS_SLIMBUS_INIT_DBG
+#define BT_CMD_SS_SLIM_DBG	0xbffa
+static int slimbus_init_err_cnt = 0;
+#endif
+
 int btfm_slim_write(struct btfmslim *btfmslim,
 		uint16_t reg, uint8_t reg_val, uint8_t pgd)
 {
@@ -471,6 +477,11 @@ int btfm_slim_hw_init(struct btfmslim *btfmslim)
 	 */
 	btfmslim->enabled = 1;
 error:
+#ifdef SS_SLIMBUS_INIT_DBG
+	if (ret) {
+		if(++slimbus_init_err_cnt > 5000) slimbus_init_err_cnt = 5000;
+	}
+#endif
 	mutex_unlock(&btfmslim->io_lock);
 	return ret;
 }
@@ -514,9 +525,17 @@ static long btfm_slim_ioctl(struct file *file, unsigned int cmd, unsigned long a
 
 	switch (cmd) {
 	case BT_CMD_SLIM_TEST:
-		BTFMSLIM_INFO("cmd BT_CMD_SLIM_TEST, call btfm_slim_hw_init");
-		ret = btfm_slim_hw_init(btfm_slim_drv_data);
+		//BTFMSLIM_INFO("cmd BT_CMD_SLIM_TEST, call btfm_slim_hw_init");
+		//ret = btfm_slim_hw_init(btfm_slim_drv_data);
+
+		BTFMSLIM_INFO("cmd BT_CMD_SLIM_TEST, ignore btfm_slim_hw_init");
 		break;
+#ifdef SS_SLIMBUS_INIT_DBG
+	case BT_CMD_SS_SLIM_DBG:
+		BTFMSLIM_INFO("cmd BT_CMD_SS_SLIM_DBG err_cnt[%d]", slimbus_init_err_cnt);
+		ret = slimbus_init_err_cnt;
+		break;
+#endif
 	}
 	return ret;
 }

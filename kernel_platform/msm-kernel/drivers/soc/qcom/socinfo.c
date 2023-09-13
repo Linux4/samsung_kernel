@@ -1040,12 +1040,14 @@ msm_get_crash(struct device *dev,
 			break;
 	}
 
+#if 0
 #ifndef CONFIG_SEC_FACTORY
 	if (!is_debug_low) {
 #ifndef CONFIG_SEC_CDSP_NO_CRASH_FOR_ENG
 		BUG_ON(1);
 #endif
 	}
+#endif
 #endif
 	return ret;
 }

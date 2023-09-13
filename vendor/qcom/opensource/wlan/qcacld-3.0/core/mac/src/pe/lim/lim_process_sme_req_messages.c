@@ -3529,7 +3529,7 @@ lim_get_rsn_akm(uint32_t akm)
 		return ANI_AKM_TYPE_NONE;
 }
 
-enum ani_akm_type
+static enum ani_akm_type
 lim_get_connected_akm(struct pe_session *session, int32_t ucast_cipher,
 		      int32_t auth_mode, int32_t akm)
 {
@@ -3883,15 +3883,6 @@ lim_fill_session_params(struct mac_context *mac_ctx,
 				   req->assoc_ie.ptr, req->assoc_ie.len);
 	lim_fill_crypto_params(mac_ctx, session, req);
 
-	/* Reset the SPMK global cache for non-SAE connection */
-	if (session->connected_akm != ANI_AKM_TYPE_SAE) {
-		wlan_mlme_set_sae_single_pmk_bss_cap(mac_ctx->psoc,
-						     session->vdev_id,
-						     false);
-		wlan_mlme_clear_sae_single_pmk_info(session->vdev,
-						    NULL);
-	}
-
 	pe_debug("After stripping Assoc IE len: %d", req->assoc_ie.len);
 	if (req->assoc_ie.len)
 		QDF_TRACE_HEX_DUMP(QDF_MODULE_ID_PE, QDF_TRACE_LEVEL_DEBUG,
@@ -3994,7 +3985,7 @@ lim_cm_handle_join_req(struct cm_vdev_join_req *req)
 	if (QDF_IS_STATUS_ERROR(status))
 		goto fail;
 
-	pe_debug("Freq %d width %d freq0 %d freq1 %d, Smps %d: mode %d action %d, nss 1x1 %d vdev_nss %d nss %d cbMode %d dot11mode %d subfer %d subfee %d csn %d is_cisco %d WPS %d OSEN %d fils %d akm %d",
+	pe_debug("Freq %d width %d freq0 %d freq1 %d, Smps %d: mode %d action %d, nss 1x1 %d vdev_nss %d nss %d cbMode %d dot11mode %d subfer %d subfee %d csn %d is_cisco %d WPS %d OSEN %d fils %d",
 		 pe_session->curr_op_freq, pe_session->ch_width,
 		 pe_session->ch_center_freq_seg0,
 		 pe_session->ch_center_freq_seg1,
@@ -4009,8 +4000,7 @@ lim_cm_handle_join_req(struct cm_vdev_join_req *req)
 		 pe_session->isCiscoVendorAP,
 		 pe_session->wps_registration,
 		 pe_session->isOSENConnection,
-		 lim_is_fils_connection(pe_session),
-		 pe_session->connected_akm);
+		 lim_is_fils_connection(pe_session));
 
 	status = lim_send_connect_req_to_mlm(pe_session);
 	if (QDF_IS_STATUS_ERROR(status)) {
@@ -5174,10 +5164,8 @@ void lim_calculate_tpc(struct mac_context *mac,
 	qdf_freq_t oper_freq, start_freq = 0;
 	struct ch_params ch_params;
 	struct vdev_mlme_obj *mlme_obj;
-	int8_t tpe_power;
+	uint8_t tpe_power;
 	bool skip_tpe = false;
-	bool rf_test_mode = false;
-	bool safe_mode_enable = false;
 
 	mlme_obj = wlan_vdev_mlme_get_cmpt_obj(session->vdev);
 	if (!mlme_obj) {
@@ -5211,25 +5199,13 @@ void lim_calculate_tpc(struct mac_context *mac,
 		/* Power mode calculation for 6G*/
 		ap_power_type_6g = session->ap_power_type;
 		if (LIM_IS_STA_ROLE(session)) {
-			wlan_mlme_get_safe_mode_enable(mac->psoc,
-						       &safe_mode_enable);
-			wlan_mlme_is_rf_test_mode_enabled(mac->psoc,
-							  &rf_test_mode);
-			/*
-			 * set LPI power if safe mode is enabled OR RF test
-			 * mode is enabled.
-			 */
-			if (rf_test_mode || safe_mode_enable) {
-				ap_power_type_6g = REG_INDOOR_AP;
+			if (!session->lim_join_req) {
+				if (!ctry_code_match)
+					ap_power_type_6g = ap_pwr_type;
 			} else {
-				if (!session->lim_join_req) {
-					if (!ctry_code_match)
-						ap_power_type_6g = ap_pwr_type;
-				} else {
-					if (!session->same_ctry_code)
-						ap_power_type_6g =
+				if (!session->same_ctry_code)
+					ap_power_type_6g =
 						session->ap_power_type_6g;
-				}
 			}
 		}
 	}
@@ -5239,12 +5215,6 @@ void lim_calculate_tpc(struct mac_context *mac,
 		num_pwr_levels = mlme_obj->reg_tpc_obj.num_pwr_levels;
 		is_psd_power = mlme_obj->reg_tpc_obj.is_psd_power;
 	} else {
-		/**
-		 * Set is_psd_power based on reg channel list if it is a 6 GHz
-		 * channel and TPE IE is absent.
-		 */
-		if (is_6ghz_freq)
-			is_psd_power = wlan_reg_is_6g_psd_power(mac->pdev);
 		num_pwr_levels = lim_get_num_pwr_levels(is_psd_power,
 							session->ch_width);
 	}
@@ -5273,8 +5243,13 @@ void lim_calculate_tpc(struct mac_context *mac,
 				mlme_obj->reg_tpc_obj.frequency[i] =
 						start_freq + (20 * i);
 			} else {
-				/* Use operating frequency to fetch EIRP pwr */
-				mlme_obj->reg_tpc_obj.frequency[i] = oper_freq;
+				wlan_reg_set_channel_params_for_freq(
+					mac->pdev, oper_freq, 0, &ch_params);
+				mlme_obj->reg_tpc_obj.frequency[i] =
+					ch_params.mhz_freq_seg0;
+				if (ch_params.ch_width != CH_WIDTH_INVALID)
+					ch_params.ch_width =
+						get_next_higher_bw[ch_params.ch_width];
 			}
 			if (is_6ghz_freq) {
 				if (LIM_IS_STA_ROLE(session)) {
@@ -5293,19 +5268,7 @@ void lim_calculate_tpc(struct mac_context *mac,
 				}
 			}
 		}
-		/* Check for regulatory channel power. If it is zero due to
-		 * invalid frequency or other inputs, then assign the regulatory
-		 * power of operating frequency to reg_max.
-		 */
-		if (reg_max) {
-			mlme_obj->reg_tpc_obj.reg_max[i] = reg_max;
-		} else {
-			pe_debug("Reg power due to invalid freq: %d",
-				 mlme_obj->reg_tpc_obj.frequency[i]);
-			reg_max = mlme_obj->reg_tpc_obj.reg_max[0];
-			mlme_obj->reg_tpc_obj.reg_max[i] = reg_max;
-		}
-
+		mlme_obj->reg_tpc_obj.reg_max[i] = reg_max;
 		mlme_obj->reg_tpc_obj.chan_power_info[i].chan_cfreq =
 					mlme_obj->reg_tpc_obj.frequency[i];
 
@@ -5328,22 +5291,26 @@ void lim_calculate_tpc(struct mac_context *mac,
 				tpe_power =  mlme_obj->reg_tpc_obj.eirp_power;
 			else
 				tpe_power = mlme_obj->reg_tpc_obj.tpe[i];
-			/**
-			 * AP advertises TPE IE tx power as 8-bit unsigned int.
-			 * STA needs to convert it into an 8-bit 2s complement
-			 * signed integer in the range –64 dBm to 63 dBm with a
-			 * 0.5 dB step
-			 */
-			tpe_power /= 2;
-			max_tx_power = QDF_MIN(max_tx_power, tpe_power);
+			max_tx_power = QDF_MIN(max_tx_power, (int8_t)tpe_power);
 			pe_debug("TPE: %d", tpe_power);
 		}
+
+		/** If firmware updated max tx power is non zero,
+		 * then allocate the min of firmware updated ap tx
+		 * power and max power derived from above mentioned
+		 * parameters.
+		 */
+		if (mlme_obj->mgmt.generic.tx_pwrlimit)
+			max_tx_power =
+				QDF_MIN(max_tx_power, (int8_t)
+					mlme_obj->mgmt.generic.tx_pwrlimit);
+		else
+			pe_err("HW power limit from FW is zero");
 		mlme_obj->reg_tpc_obj.chan_power_info[i].tx_power =
 						(uint8_t)max_tx_power;
 
-		pe_debug("freq: %d reg power: %d, max_tx_power: %d",
-			 mlme_obj->reg_tpc_obj.frequency[i], reg_max,
-			 max_tx_power);
+		pe_debug("freq: %d max_tx_power: %d",
+			 mlme_obj->reg_tpc_obj.frequency[i], max_tx_power);
 	}
 
 	mlme_obj->reg_tpc_obj.num_pwr_levels = num_pwr_levels;

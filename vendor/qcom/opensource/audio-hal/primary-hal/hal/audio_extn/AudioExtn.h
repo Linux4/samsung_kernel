@@ -130,7 +130,6 @@ public:
     int karaoke_close();
 #ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
     bool is_karaoke_mode();
-    void karaoke_init();
 #endif
 
     /* start kpi optimize perf apis */

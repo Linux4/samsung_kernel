@@ -183,17 +183,13 @@ typedef struct max77705_fuelgauge_platform_data {
 	/* fuel alert can be repeated */
 	bool repeated_fuelalert;
 	int capacity_calculation_type;
-	bool scale_to_102;
 	/* soc should be soc x 10 (0.1% degree)
 	 * only for scaling
 	 */
 	int capacity_max;
 	int capacity_max_margin;
 	int capacity_min;
-
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 	unsigned int full_condition_soc;
-#endif
 } max77705_fuelgauge_platform_data_t;
 
 #define FG_RESET_DATA_COUNT		5
@@ -259,6 +255,7 @@ struct max77705_fuelgauge_data {
 
 	bool capacity_max_conv;
 	bool initial_update_of_soc;
+	bool initial_update_of_alert;
 	bool sleep_initial_update_of_soc;
 	struct mutex fg_lock;
 
@@ -273,6 +270,9 @@ struct max77705_fuelgauge_data {
 	int current_avg;
 
 	int repcap_1st;
+#if defined(CONFIG_UI_SOC_PROLONGING)
+	int prev_raw_soc;
+#endif
 
 	bool using_temp_compensation;
 	bool using_hw_vempty;

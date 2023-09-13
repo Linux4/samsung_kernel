@@ -1,5 +1,8 @@
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
+#include "stm32_pogo_v3.h"
+#else
 #include "stm32_pogo_i2c.h"
-
+#endif
 
 /* Target specific definitions
  *  1. Startup delay
@@ -17,27 +20,26 @@ static const u32 flash_full_erase_time = 40 * 32; /* 2K erase time(40ms) * 32 pa
 static const u32 flash_page_erase_time = 36; /* per page or sector */
 
 /* Flash memory page(or sector) structure */
-stm32_page_type stm32_memory_pages[] = {
-  {2048, 32},
-  {   0,  0}
+struct stm32_page_type stm32_memory_pages[] = {
+	{ 2048, 32 },
+	{ 0, 0 }
 };
 
-stm32_map_type stm32_memory_map =
-{
+struct stm32_map_type stm32_memory_map = {
 	0x08000000, /* flash memory starting address */
 	0x1FFF0000, /* system memory starting address */
 	0x1FFF7800, /* option byte starting address */
-	(stm32_page_type *)stm32_memory_pages,
+	(struct stm32_page_type *)stm32_memory_pages,
 };
 
 static u8 stm32_sysboot_checksum(u8 *src, u32 len);
-static int stm32_sysboot_conv_memory_map(struct stm32_dev *data, u32 address, size_t len, stm32_erase_param_type *erase);
+static int stm32_sysboot_conv_memory_map(struct stm32_dev *data, u32 address, size_t len,
+					 struct stm32_erase_param_type *erase);
 static int stm32_sysboot_i2c_erase(struct stm32_dev *data, u32 address, size_t len);
 static int stm32_sysboot_i2c_read(struct stm32_dev *data, u32 address, u8 *dst, size_t len);
 static int stm32_sysboot_i2c_write(struct stm32_dev *data, u32 address, u8 *src, size_t len);
 static int stm32_sysboot_i2c_sync(struct stm32_dev *data, uint8_t *cmd);
-static int stm32_sysboot_i2c_get_info(struct stm32_dev *data,
-	uint8_t *cmd, uint32_t cmd_size, uint32_t data_size);
+static int stm32_sysboot_i2c_get_info(struct stm32_dev *data, uint8_t *cmd, uint32_t cmd_size, uint32_t data_size);
 static int stm32_sysboot_i2c_read_unprotect(struct stm32_dev *data);
 static int stm32_sysboot_i2c_info(struct stm32_dev *data);
 static int stm32_sysboot_connect(struct stm32_dev *data);
@@ -64,7 +66,7 @@ static int stm32_dev_check_firmware_version(struct stm32_dev *data, const u8 *fw
   * @retval 0 is success, others are fail.
   */
 
- /**
+/**
   * @brief  Calculate 8-bit checksum.
   * @param  source data and length
   * @retval checksum value.
@@ -83,9 +85,10 @@ static u8 stm32_sysboot_checksum(u8 *src, u32 len)
 	return csum;
 }
 
-static int stm32_sysboot_conv_memory_map(struct stm32_dev *data, u32 address, size_t len, stm32_erase_param_type *erase)
+static int stm32_sysboot_conv_memory_map(struct stm32_dev *data, u32 address, size_t len,
+						struct stm32_erase_param_type *erase)
 {
-	stm32_page_type *map = stm32_memory_map.pages;
+	struct stm32_page_type *map = stm32_memory_map.pages;
 	int found = 0;
 	int total_bytes = 0, total_pages = 0;
 	int ix = 0;
@@ -123,7 +126,6 @@ static int stm32_sysboot_conv_memory_map(struct stm32_dev *data, u32 address, si
 	return 0;
 }
 
-
 /**
   * @brief  Read the device memory
   * @param  source(address), destination, length
@@ -131,9 +133,9 @@ static int stm32_sysboot_conv_memory_map(struct stm32_dev *data, u32 address, si
   */
 static int stm32_sysboot_i2c_read(struct stm32_dev *data, u32 address, u8 *dst, size_t len)
 {
-	u8 cmd[STM32_BOOT_I2C_REQ_CMD_LEN] = {0, }; //BOOT_I2C_REQ_CMD_LEN = 2
-	u8 startaddr[STM32_BOOT_I2C_REQ_ADDRESS_LEN] = {0, }; //BOOT_I2C_REQ_ADDRESS_LEN = 5
-	u8 nbytes[STM32_BOOT_I2C_READ_PARAM_LEN] = {0, }; //BOOT_I2C_READ_PARAM_LEN = 2
+	u8 cmd[STM32_BOOT_I2C_REQ_CMD_LEN] = { 0 }; //BOOT_I2C_REQ_CMD_LEN = 2
+	u8 startaddr[STM32_BOOT_I2C_REQ_ADDRESS_LEN] = { 0 }; //BOOT_I2C_REQ_ADDRESS_LEN = 5
+	u8 nbytes[STM32_BOOT_I2C_READ_PARAM_LEN] = { 0 }; //BOOT_I2C_READ_PARAM_LEN = 2
 	int ret = 0;
 	int retry = 0;
 
@@ -190,8 +192,7 @@ static int stm32_sysboot_i2c_read(struct stm32_dev *data, u32 address, u8 *dst, 
 
 		/* receive payload */
 		ret = i2c_master_recv(data->client_boot, dst, len);
-		if (ret < 0)
-		{
+		if (ret < 0) {
 			stm32_delay(STM32_BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
@@ -208,11 +209,11 @@ static int stm32_sysboot_i2c_read(struct stm32_dev *data, u32 address, u8 *dst, 
   */
 static int stm32_sysboot_i2c_write(struct stm32_dev *data, u32 address, u8 *src, size_t len)
 {
-	u8 cmd[STM32_BOOT_I2C_REQ_CMD_LEN] = {0, };
-	u8 startaddr[STM32_BOOT_I2C_REQ_ADDRESS_LEN] = {0, };
+	u8 cmd[STM32_BOOT_I2C_REQ_CMD_LEN] = { 0 };
+	u8 startaddr[STM32_BOOT_I2C_REQ_ADDRESS_LEN] = { 0 };
 	int ret = 0;
 	int retry = 0;
-	char * buf = NULL;
+	char *buf = NULL;
 	/* build command */
 	cmd[0] = STM32_BOOT_I2C_CMD_WRITE;
 	cmd[1] = ~cmd[0];
@@ -226,9 +227,9 @@ static int stm32_sysboot_i2c_write(struct stm32_dev *data, u32 address, u8 *src,
 	buf = kzalloc(len + 2, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
-	buf[0] = len -1;
+	buf[0] = len - 1;
 	memcpy(&buf[1], src, len);
-	buf[len+1] = stm32_sysboot_checksum(buf, len + 1);
+	buf[len + 1] = stm32_sysboot_checksum(buf, len + 1);
 
 	for (retry = 0; retry < STM32_BOOT_I2C_SYNC_RETRY_COUNT; ++retry) {
 		/* transmit command */
@@ -245,7 +246,6 @@ static int stm32_sysboot_i2c_write(struct stm32_dev *data, u32 address, u8 *src,
 			stm32_delay(STM32_BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
-
 
 		/* transmit address */
 		ret = i2c_master_send(data->client_boot, startaddr, 5);
@@ -290,8 +290,8 @@ static int stm32_sysboot_i2c_write(struct stm32_dev *data, u32 address, u8 *src,
 
 static int stm32_sysboot_i2c_erase(struct stm32_dev *data, u32 address, size_t len)
 {
-	u8 cmd[STM32_BOOT_I2C_REQ_CMD_LEN] = {0, };
-	stm32_erase_param_type erase;
+	u8 cmd[STM32_BOOT_I2C_REQ_CMD_LEN] = { 0 };
+	struct stm32_erase_param_type erase;
 	u8 xmit_bytes = 0;
 	int ret = 0;
 	int retry = 0;
@@ -318,7 +318,7 @@ static int stm32_sysboot_i2c_erase(struct stm32_dev *data, u32 address, size_t l
 
 	for (retry = 0; retry < STM32_BOOT_I2C_SYNC_RETRY_COUNT; ++retry) {
 		/* build full erase command */
-		if (erase.page == 0xFFFF)		
+		if (erase.page == 0xFFFF)
 			*(u16 *)xmit = (u16)erase.page;
 		/* build page erase command */
 		else
@@ -334,7 +334,7 @@ static int stm32_sysboot_i2c_erase(struct stm32_dev *data, u32 address, size_t l
 			stm32_delay(STM32_BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
-		
+
 		stm32_delay(STM32_BOOT_I2C_SYNC_RETRY_INTVL);
 
 		/* wait for ACK response */
@@ -351,7 +351,9 @@ static int stm32_sysboot_i2c_erase(struct stm32_dev *data, u32 address, size_t l
 		}
 		/* wait for ACK response */
 		//stm32_delay(2*32);
-		ret = stm32_sysboot_wait_for_ack(data, (erase.page == 0xFFFF) ? STM32_BOOT_I2C_FULL_ERASE_TMOUT : STM32_BOOT_I2C_WAIT_RESP_TMOUT);
+		ret = stm32_sysboot_wait_for_ack(data, (erase.page == 0xFFFF) ?
+						STM32_BOOT_I2C_FULL_ERASE_TMOUT :
+						STM32_BOOT_I2C_WAIT_RESP_TMOUT);
 		if (ret < 0) {
 			stm32_delay(STM32_BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
@@ -395,7 +397,6 @@ static int stm32_sysboot_i2c_erase(struct stm32_dev *data, u32 address, size_t l
 	return ret + STM32_BOOT_ERR_API_ERASE;
 }
 
-
 static int stm32_sysboot_connect(struct stm32_dev *data)
 {
 	struct stm32_devicetree_data *dtdata = data->dtdata;
@@ -417,7 +418,6 @@ static int stm32_sysboot_connect(struct stm32_dev *data)
 
 	/* STEP2. Send SYNC frame then waiting for ACK */
 	ret = stm32_sysboot_mcu_chip_command(data, STM32_BOOT_I2C_CMD_SYNC);
-
 	if (ret >= 0) {
 		/* STEP3. When I2C mode, Turn to the MCU system boot mode once again for protocol == SYSBOOT_PROTO_I2C */
 		/* Assert NRST reset */
@@ -443,12 +443,13 @@ static int stm32_sysboot_wait_for_ack(struct stm32_dev *data, unsigned long time
 
 	while (retry--) {
 		ret = i2c_master_recv(data->client_boot, &resp, 1);
-		if(ret >= 0) {
-			if(!(resp == STM32_BOOT_I2C_RESP_ACK))
-				input_info(true, &data->client->dev, "%s Failed to wait ack 0x%x \n", __func__, resp);
-			return 0;
+		if (ret >= 0) {
+			if (!(resp == STM32_BOOT_I2C_RESP_ACK))
+				input_info(true, &data->client->dev, "%s Failed to wait ack 0x%x\n", __func__, resp);
+				return 0;
 		} else {
-			input_info(true, &data->client->dev, "%s Failed resp 0x%x , ret is %d	\n", __func__, resp, ret);
+			input_info(true, &data->client->dev, "%s Failed resp 0x%x , ret is %d\n", __func__,
+					resp, ret);
 			if (time_after(jiffies, timeout)) {
 				ret = -ETIMEDOUT;
 				break;
@@ -457,7 +458,6 @@ static int stm32_sysboot_wait_for_ack(struct stm32_dev *data, unsigned long time
 		}
 	}
 	return -1;
-
 }
 
 /**
@@ -467,7 +467,7 @@ static int stm32_sysboot_wait_for_ack(struct stm32_dev *data, unsigned long time
   */
 static int stm32_sysboot_i2c_read_unprotect(struct stm32_dev *data)
 {
-	u8 cmd[STM32_BOOT_I2C_REQ_CMD_LEN] = {0, };
+	u8 cmd[STM32_BOOT_I2C_REQ_CMD_LEN] = { 0 };
 	int ret = 0;
 	int retry = 0;
 
@@ -477,26 +477,22 @@ static int stm32_sysboot_i2c_read_unprotect(struct stm32_dev *data)
 
 	input_info(true, &data->client->dev, "%s\n", __func__);
 
-	for (retry = 0; retry < STM32_BOOT_I2C_SYNC_RETRY_COUNT; ++retry)
-	{
+	for (retry = 0; retry < STM32_BOOT_I2C_SYNC_RETRY_COUNT; ++retry) {
 		/* transmit command */
 		ret = i2c_master_send(data->client_boot, cmd, sizeof(cmd));
-		if (ret < 0)
-		{
+		if (ret < 0) {
 			stm32_delay(STM32_BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		/* wait for ACK response */
 		ret = stm32_sysboot_wait_for_ack(data, STM32_BOOT_I2C_FULL_ERASE_TMOUT);
-		if (ret < 0)
-		{
+		if (ret < 0) {
 			stm32_delay(STM32_BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
 		/* wait for ACK response */
 		ret = stm32_sysboot_wait_for_ack(data, STM32_BOOT_I2C_FULL_ERASE_TMOUT);
-		if (ret < 0)
-		{
+		if (ret < 0) {
 			stm32_delay(STM32_BOOT_I2C_SYNC_RETRY_INTVL);
 			continue;
 		}
@@ -507,7 +503,6 @@ static int stm32_sysboot_i2c_read_unprotect(struct stm32_dev *data)
 	return ret + STM32_BOOT_ERR_API_READ_UNPROTECT;
 }
 
-
 /**
   * @brief  Getting STATUS of the TARGET empty check
   * @param  None
@@ -517,7 +512,7 @@ static int stm32_target_empty_check_status(struct stm32_dev *data)
 {
 	u32 value = 0;
 	int ret = 0;
-	input_info(true, &data->client->dev, "%s\n",__func__);
+	input_info(true, &data->client->dev, "%s\n", __func__);
 
 	/* Read first flash memory word ------------------------------------------- */
 	ret = stm32_sysboot_i2c_read(data, stm32_memory_map.flashbase, (u8 *)&value, sizeof(value));
@@ -538,7 +533,6 @@ empty_check_status_fail:
 	return -1;
 }
 
-
 static int stm32_target_option_update(struct stm32_dev *data)
 {
 	int ret = 0;
@@ -547,7 +541,7 @@ static int stm32_target_option_update(struct stm32_dev *data)
 
 	input_info(true, &data->client->dev, "%s\n", __func__);
 
-	for (retry = 0; retry < 3; retry ++ ) {
+	for (retry = 0; retry < 3; retry++) {
 		ret = stm32_sysboot_i2c_read(data, stm32_memory_map.optionbyte, (u8 *)&optionbyte, sizeof(optionbyte));
 		if ((ret < 0) || ((optionbyte & 0xff) != 0xaa)) {
 			ret = stm32_sysboot_i2c_read_unprotect(data);
@@ -563,9 +557,10 @@ static int stm32_target_option_update(struct stm32_dev *data)
 		}
 
 		if (optionbyte & (1 << 24)) {
-		/* Option byte write ---------------------------------------------------- */
+			/* Option byte write ---------------------------------------------------- */
 			optionbyte &= ~(1 << 24);
-			ret = stm32_sysboot_i2c_write(data, stm32_memory_map.optionbyte, (u8 *)&optionbyte, sizeof(optionbyte));
+			ret = stm32_sysboot_i2c_write(data, stm32_memory_map.optionbyte, (u8 *)&optionbyte,
+							sizeof(optionbyte));
 			if (ret < 0) {
 				input_err(true, &data->client->dev, "%s Failed to write optionbyte \n", __func__);
 				stm32_delay(1);
@@ -610,7 +605,8 @@ static int stm32_target_empty_check_clear(struct stm32_dev *data)
 	/* 1> Re-connect to the target */
 	ret = stm32_sysboot_connect(data);
 	if (ret) {
-		input_err(true, &data->client->dev, "%s Cannot connect to the target for RDP check (%d)\n", __func__, ret);
+		input_err(true, &data->client->dev, "%s Cannot connect to the target for RDP check (%d)\n",
+				__func__, ret);
 		goto empty_check_clear_fail;
 	}
 
@@ -621,9 +617,11 @@ static int stm32_target_empty_check_clear(struct stm32_dev *data)
 		/* Tryout the RDP level to 0 */
 		ret = stm32_sysboot_i2c_read_unprotect(data);
 		if (ret)
-			input_err(true, &data->client->dev, "%s Readout unprotect Not OK ... Host restart and try again\n", __func__);
+			input_err(true, &data->client->dev,
+					"%s Readout unprotect Not OK ... Host restart and try again\n", __func__);
 		else
-			input_err(true, &data->client->dev, "%s Readout unprotect OK ... Host restart and try again\n", __func__);
+			input_err(true, &data->client->dev, "%s Readout unprotect OK ... Host restart and try again\n",
+					__func__);
 		/* Put little delay for Target erase all of pages */
 		stm32_delay(50);
 		goto empty_check_clear_fail;
@@ -648,10 +646,9 @@ static int stm32_sysboot_i2c_sync(struct stm32_dev *data, uint8_t *cmd)
 	return ret;
 }
 
-static int stm32_sysboot_i2c_get_info(struct stm32_dev *data,
-	uint8_t *cmd, uint32_t cmd_size, uint32_t data_size)
+static int stm32_sysboot_i2c_get_info(struct stm32_dev *data, uint8_t *cmd, uint32_t cmd_size, uint32_t data_size)
 {
-	uint8_t recv[STM32_BOOT_I2C_RESP_GET_ID_LEN] = {0, };
+	uint8_t recv[STM32_BOOT_I2C_RESP_GET_ID_LEN] = { 0 };
 	int ret = 0;
 	int retry = 0;
 
@@ -690,10 +687,12 @@ static int stm32_sysboot_i2c_get_info(struct stm32_dev *data,
 		if (cmd[0] == STM32_BOOT_I2C_CMD_GET_ID) {
 			memcpy((void *)&(data->icdata.id), &recv[1], recv[0] + 1);
 			data->icdata.id = NTOHS(data->icdata.id);
-			input_err(true, &data->client->dev, "%s succeed to get info id %d\n", __func__, data->icdata.id);
-		} else if(cmd[0] == STM32_BOOT_I2C_CMD_GET_VER) {
-			memcpy((void *)&(data->icdata.ver), recv , 1);
-			input_err(true, &data->client->dev, "%s succeed to get info version %d\n", __func__, data->icdata.ver);
+			input_err(true, &data->client->dev, "%s succeed to get info id %d\n",
+					__func__, data->icdata.id);
+		} else if (cmd[0] == STM32_BOOT_I2C_CMD_GET_VER) {
+			memcpy((void *)&(data->icdata.ver), recv, 1);
+			input_err(true, &data->client->dev, "%s succeed to get info version %d\n",
+					__func__, data->icdata.ver);
 		}
 
 		return 0;
@@ -705,9 +704,9 @@ static int stm32_sysboot_i2c_get_info(struct stm32_dev *data,
 static int stm32_sysboot_mcu_chip_command(struct stm32_dev *data, int command)
 {
 	/* build command */
-	uint8_t cmd[STM32_BOOT_I2C_REQ_CMD_LEN] = {0, };
+	uint8_t cmd[STM32_BOOT_I2C_REQ_CMD_LEN] = { 0 };
 	int ret = 0;
-	input_info(true, &data->client->dev,"%s start\n", __func__);
+	input_info(true, &data->client->dev, "%s start\n", __func__);
 
 	/* execute the command */
 	switch (command) {
@@ -762,13 +761,14 @@ static int stm32_sysboot_mcu_chip_command(struct stm32_dev *data, int command)
 		return -EINVAL;
 	}
 
-	return ret ;
+	return ret;
 }
 
 static int stm32_sysboot_i2c_info(struct stm32_dev *data)
 {
 	int ret = 0;
-	input_info(true, &data->client->dev, "mcu %s \n",__func__);
+
+	input_info(true, &data->client->dev, "mcu %s\n", __func__);
 	memset((void *)&(data->icdata), 0x00, sizeof(data->icdata));
 	stm32_sysboot_mcu_chip_command(data, STM32_BOOT_I2C_CMD_GET_ID);
 	stm32_sysboot_mcu_chip_command(data, STM32_BOOT_I2C_CMD_GET_VER);
@@ -791,7 +791,6 @@ static void stm32_sysboot_disconnect(struct stm32_dev *data)
 	stm32_delay(150);
 }
 
-
 static int stm32_sysboot_mcu_validation(struct stm32_dev *data)
 {
 	int ret = 0;
@@ -810,8 +809,8 @@ static int stm32_sysboot_mcu_validation(struct stm32_dev *data)
 		goto validation_fail;
 	}
 
-	input_info(true, &data->client->dev, "%s Get target info OK Target PID: 0x%X,"
-			"Bootloader version: 0x%X\n", __func__, data->icdata.id,  data->icdata.ver);
+	input_info(true, &data->client->dev, "%s Get target info OK Target PID: 0x%X Bootloader version: 0x%X\n",
+			__func__, data->icdata.id, data->icdata.ver);
 
 	return 0;
 
@@ -820,7 +819,6 @@ validation_fail:
 	input_info(true, &data->client->dev, "%s Failed target disconnected\n", __func__);
 
 	return -1;
-	
 }
 
 static int stm32_dev_firmware_update(struct stm32_dev *data, const u8 *fw_data, size_t size, int retry)
@@ -846,8 +844,7 @@ static int stm32_dev_firmware_update(struct stm32_dev *data, const u8 *fw_data, 
 
 	tmp_data = kzalloc(size, GFP_KERNEL);
 	if (!tmp_data) {
-		input_err(true, &data->client->dev,
-				"%s: Failed to kmalloc\n", __func__);
+		input_err(true, &data->client->dev, "%s: Failed to kmalloc\n", __func__);
 		return -ENOMEM;
 	}
 
@@ -855,8 +852,7 @@ static int stm32_dev_firmware_update(struct stm32_dev *data, const u8 *fw_data, 
 
 	ic_data = kzalloc(size, GFP_KERNEL);
 	if (!ic_data) {
-		input_err(true, &data->client->dev,
-				"%s: Failed to kmalloc\n", __func__);
+		input_err(true, &data->client->dev, "%s: Failed to kmalloc\n", __func__);
 		kfree(tmp_data);
 		return -ENOMEM;
 	}
@@ -886,22 +882,24 @@ static int stm32_dev_firmware_update(struct stm32_dev *data, const u8 *fw_data, 
 	len = size;
 
 	input_err(true, &data->client->dev, "%s len=%d\n", __func__, len);
-		/* Write UserProgram Data */
+	/* Write UserProgram Data */
 	while (len > 0) {
 		wbytes = (len > unit) ? unit : len;
-	  	/* write the unit */
-		for (i = 0; i < wbytes; i++ )
+		/* write the unit */
+		for (i = 0; i < wbytes; i++)
 			senddata[i] = tmp_data[i];
 		ret = stm32_sysboot_i2c_write(data, address, senddata, wbytes);
 		if (ret < 0) {
-			input_err(true, &data->client->dev, "%s Failed to write stm32_fw_debug i2c byte prog code\n", __func__);
+			input_err(true, &data->client->dev, "%s Failed to write stm32_fw_debug i2c byte prog code\n",
+					__func__);
 			stm32_sysboot_disconnect(data);
 			goto ERROR;
-		} 
+		}
 
 		ret = stm32_sysboot_i2c_read(data, address, readdata, wbytes);
 		if (ret < 0) {
-			input_err(true, &data->client->dev, "%s Failed to read stm32_fw_debug i2c byte prog code\n", __func__);
+			input_err(true, &data->client->dev, "%s Failed to read stm32_fw_debug i2c byte prog code\n",
+					__func__);
 			stm32_sysboot_disconnect(data);
 			goto ERROR;
 		}
@@ -918,9 +916,10 @@ static int stm32_dev_firmware_update(struct stm32_dev *data, const u8 *fw_data, 
 	ic_data = ic_data - (address - stm32_memory_map.flashbase);
 
 	checksum_ic = stm32_crc32(ic_data, size);
-	input_info(true, &data->client->dev, "%s: checksum_bin:0x%04X, checksum_ic:0x%04x \n", __func__, checksum_bin, checksum_ic);
+	input_info(true, &data->client->dev, "%s: checksum_bin:0x%04X, checksum_ic:0x%04x\n", __func__,
+			checksum_bin, checksum_ic);
 	if (empty_check_en > 0) {
-		if (stm32_target_empty_check_clear(data)<0) {
+		if (stm32_target_empty_check_clear(data) < 0) {
 			ret = -1;
 			stm32_sysboot_disconnect(data);
 			goto ERROR;
@@ -929,14 +928,12 @@ static int stm32_dev_firmware_update(struct stm32_dev *data, const u8 *fw_data, 
 
 	ret = stm32_sysboot_i2c_read(data, STM32_IC_VERSION_OFFSET, data->mdata.ic_ver, STM32_DEV_FW_VER_SIZE);
 	if (ret < 0)
-		input_err(true, &data->client->dev, "%s Failed to read firmware ic ver :%d info (%d)\n",
-			__func__, data->mdata.ic_ver[3], ret);
-
-
+		input_err(true, &data->client->dev, "%s Failed to read firmware ic ver :%d info (%d)\n", __func__,
+				data->mdata.ic_ver[3], ret);
 
 	/* sysboot_disconnect */
 	stm32_sysboot_disconnect(data);
-	
+
 	input_info(true, &data->client->dev, "%s: done\n", __func__);
 
 	ret = 0;
@@ -953,16 +950,14 @@ static void stm32_dev_save_version_of_bin(struct stm32_dev *data, const u8 *fw_i
 	data->mdata.phone_ver[2] = *(fw_info + STM32_DEV_VERSION_OFFSET + 2);
 	data->mdata.phone_ver[3] = *(fw_info + STM32_DEV_VERSION_OFFSET + 3);
 
-	input_info(true, &data->client->dev, "%s %d%d%d%d\n", __func__,
-			data->mdata.phone_ver[0], data->mdata.phone_ver[1],
-			data->mdata.phone_ver[2], data->mdata.phone_ver[3]);
+	input_info(true, &data->client->dev, "%s %d%d%d%d\n",
+			__func__, data->mdata.phone_ver[0],
+			data->mdata.phone_ver[1], data->mdata.phone_ver[2],
+			data->mdata.phone_ver[3]);
 }
 
 static int stm32_dev_check_firmware_version(struct stm32_dev *data, const u8 *fw_info)
 {
-//	u8 buff[1];
-//	int i;
-//	int ret;
 	/*
 	 * sec_ts_check_firmware_version
 	 * return value = 1 : firmware download needed,
@@ -971,11 +966,10 @@ static int stm32_dev_check_firmware_version(struct stm32_dev *data, const u8 *fw
 
 	stm32_dev_save_version_of_bin(data, fw_info);
 
-	input_info(true, &data->client->dev, "%s phone:%02x%02x%02x%02x ic:%02x%02x%02x%02x\n", __func__,
-			data->mdata.phone_ver[0], data->mdata.phone_ver[1],
-			data->mdata.phone_ver[2], data->mdata.phone_ver[3],
-			data->mdata.ic_ver[0], data->mdata.ic_ver[1],
-			data->mdata.ic_ver[2], data->mdata.ic_ver[3]);
+	input_info(true, &data->client->dev, "%s phone:%02x%02x%02x%02x ic:%02x%02x%02x%02x\n",
+			__func__, data->mdata.phone_ver[0], data->mdata.phone_ver[1],
+			data->mdata.phone_ver[2], data->mdata.phone_ver[3], data->mdata.ic_ver[0],
+			data->mdata.ic_ver[1], data->mdata.ic_ver[2], data->mdata.ic_ver[3]);
 
 	if (data->mdata.phone_ver[3] > data->mdata.ic_ver[3])
 		return 1;
@@ -985,7 +979,6 @@ static int stm32_dev_check_firmware_version(struct stm32_dev *data, const u8 *fw
 		return 1;
 
 	return 0;
-	
 }
 
 static int stm32_dev_checksum(struct stm32_dev *data, const u8 *fw_data, size_t size)
@@ -1007,30 +1000,33 @@ static int stm32_dev_checksum(struct stm32_dev *data, const u8 *fw_data, size_t 
 
 	tmp_data = kzalloc(size, GFP_KERNEL);
 	if (!tmp_data) {
-		input_err(true, &data->client->dev,
-				"%s: Failed to kmalloc\n", __func__);
+		input_err(true, &data->client->dev, "%s: Failed to kmalloc\n", __func__);
 		return -ENOMEM;
 	}
 
 	tmp_data2 = kzalloc(size, GFP_KERNEL);
 	if (!tmp_data2) {
 		kfree(tmp_data);
-		input_err(true, &data->client->dev,
-				"%s: Failed to kmalloc\n", __func__);
+		input_err(true, &data->client->dev, "%s: Failed to kmalloc\n", __func__);
 		return -ENOMEM;
 	}
 
 	memset(tmp_data, 0x00, size);
 	memcpy(tmp_data2, fw_data, size);
 
-	last_sector_number = (size % stm32_memory_map.pages->size) ? (size / stm32_memory_map.pages->size) : (((size / stm32_memory_map.pages->size) > 0) ? ((size / stm32_memory_map.pages->size)-1) : 0);
+	last_sector_number =
+		(size % stm32_memory_map.pages->size) ?
+			(size / stm32_memory_map.pages->size) :
+			(((size / stm32_memory_map.pages->size) > 0) ? ((size / stm32_memory_map.pages->size) - 1) : 0);
 
-	check_size = size - stm32_memory_map.pages->size  * last_sector_number;
+	check_size = size - stm32_memory_map.pages->size * last_sector_number;
 
 	/* verify checkSum */
-	checksum_bin = stm32_crc32(&tmp_data2[stm32_memory_map.pages->size  * last_sector_number], check_size);
+	checksum_bin = stm32_crc32(&tmp_data2[stm32_memory_map.pages->size * last_sector_number], check_size);
 
-	input_info(true, &data->client->dev, "%s: cal checksum:0x%04X last_sector_number:%d size:%ld memory_map_size:%d\n", __func__, checksum_bin, last_sector_number, size, stm32_memory_map.pages->size);
+	input_info(true, &data->client->dev,
+			"%s: cal checksum:0x%04X last_sector_number:%d size:%ld memory_map_size:%d\n",
+			__func__, checksum_bin, last_sector_number, size, stm32_memory_map.pages->size);
 
 	/* boot loader mode */
 	ret = stm32_sysboot_mcu_validation(data);
@@ -1044,17 +1040,18 @@ static int stm32_dev_checksum(struct stm32_dev *data, const u8 *fw_data, size_t 
 
 	/* check empty status */
 	empty_check_en = stm32_target_empty_check_status(data);
-	address = stm32_memory_map.flashbase + (stm32_memory_map.pages->size  * last_sector_number);
+	address = stm32_memory_map.flashbase + (stm32_memory_map.pages->size * last_sector_number);
 	len = check_size;
 
 	input_err(true, &data->client->dev, "%s address: 0x%04x, len=%d\n", __func__, address, len);
-		/* Write UserProgram Data */
+	/* Write UserProgram Data */
 	while (len > 0) {
 		wbytes = (len > unit) ? unit : len;
 
 		ret = stm32_sysboot_i2c_read(data, address, readdata, wbytes);
 		if (ret < 0) {
-			input_err(true, &data->client->dev, "%s Failed to write stm32_fw_debug i2c byte prog code\n", __func__);
+			input_err(true, &data->client->dev, "%s Failed to write stm32_fw_debug i2c byte prog code\n",
+					__func__);
 			stm32_sysboot_disconnect(data);
 			goto ERROR;
 		}
@@ -1069,7 +1066,8 @@ static int stm32_dev_checksum(struct stm32_dev *data, const u8 *fw_data, size_t 
 	tmp_data = tmp_data - check_size;
 	checksum_ic = stm32_crc32(tmp_data, check_size);
 
-	input_info(true, &data->client->dev, "%s: checksum ic:0x%02X bin 0x%02X\n", __func__, checksum_ic, checksum_bin);
+	input_info(true, &data->client->dev, "%s: checksum ic:0x%02X bin 0x%02X\n",
+			__func__, checksum_ic, checksum_bin);
 	/* sysboot_disconnect */
 	stm32_sysboot_disconnect(data);
 
@@ -1105,14 +1103,14 @@ static int stm32_dev_firmware_update_mode(struct stm32_dev *data, int mode)
 		}
 	} else if (mode == 1) {
 		snprintf(fw_path, STM32_DEV_MAX_FW_PATH, "keyboard.bin");
-	} else{
+	} else {
 		input_err(true, &data->client->dev, "%s: mode : %d\n", __func__, mode);
 		return -1;
 	}
 
 	disable_irq(data->client->irq);
 
-	if (request_firmware(&fw_entry, fw_path, &data->client->dev) !=  0) {
+	if (request_firmware(&fw_entry, fw_path, &data->client->dev) != 0) {
 		input_err(true, &data->client->dev, "%s: Failed to request firmware\n", __func__);
 		goto err_request_fw;
 	}
@@ -1122,7 +1120,7 @@ static int stm32_dev_firmware_update_mode(struct stm32_dev *data, int mode)
 		force_firm = true;
 		input_err(true, &data->client->dev, "%s: Failed checksum\n", __func__);
 	}
-	
+
 	ret = stm32_sysboot_mcu_validation(data);
 	if (ret < 0) {
 		input_err(true, &data->client->dev, "%s: Failed mcu validation\n", __func__);
@@ -1142,7 +1140,7 @@ static int stm32_dev_firmware_update_mode(struct stm32_dev *data, int mode)
 	if ((result <= 0) && (!force_firm)) {
 		input_info(true, &data->client->dev, "%s: skip - fw update\n", __func__);
 		goto err_result;
-	} else {	/* firmup case */
+	} else { /* firmup case */
 
 		for (ii = 0; ii < 3; ii++) {
 			ret = stm32_dev_firmware_update(data, fw_entry->data, fw_entry->size, ii);
@@ -1186,8 +1184,7 @@ int stm32_dev_firmware_update_menu(struct stm32_dev *data, int update_type)
 		ret = stm32_dev_firmware_update_mode(data, update_type);
 		break;
 	default:
-		input_err(true, &data->client->dev, "%s: Not support command[%d]\n",
-				__func__, update_type);
+		input_err(true, &data->client->dev, "%s: Not support command[%d]\n", __func__, update_type);
 		break;
 	}
 

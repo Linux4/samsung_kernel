@@ -3132,6 +3132,16 @@ void max77705_usbc_check_sysmsg(struct max77705_usbc_platform_data *usbc_data, u
 		usbc_data->pd_data->cc_sbu_short = false;
 		max77705_check_pdo(usbc_data);
 		break;
+	case SYSMSG_ABNORMAL_TA:
+		{
+			union power_supply_propval value = {0,};
+
+			msg_maxim("ABNORMAL TA detected");
+			value.intval = true;
+			psy_do_property("battery", set,
+				POWER_SUPPLY_EXT_PROP_ABNORMAL_TA, value);
+		}
+		break;
 	default:
 		break;
 	}

@@ -719,20 +719,6 @@ int agm_session_flush(uint64_t hndl)
     return session_obj_flush(handle);
 }
 
-int agm_sessionid_flush(uint32_t session_id)
-{
-    struct session_obj *handle = NULL;
-    int ret = 0;
-
-    handle = session_obj_retrieve_from_pool(session_id);
-    if (!handle) {
-        AGM_LOGE("Incorrect session_id:%d, doesn't match sess_obj from pool",
-                                        session_id);
-        return -EINVAL;
-    }
-    return session_obj_flush(handle);
-}
-
 int agm_session_resume(uint64_t hndl)
 {
     struct session_obj *handle = (struct session_obj *) hndl;

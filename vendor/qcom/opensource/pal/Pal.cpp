@@ -699,14 +699,6 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
         if (!force_switch) {
             for (int i = 0; i < no_of_devices; i++) {
                 newDevices.insert(devices[i].id);
-#ifdef SEC_AUDIO_USB_GAIN_CONTROL
-                if ((no_of_devices > 1) && (sattr.type == PAL_STREAM_GENERIC)
-                        && (devices[i].id == PAL_DEVICE_OUT_USB_HEADSET)) {
-                    PAL_DBG(LOG_TAG, "always switch device for usb combo device");
-                    force_switch = true;
-                    break;
-                }
-#endif
                 if ((devices[i].id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) ||
                     (devices[i].id == PAL_DEVICE_OUT_BLUETOOTH_SCO) ||
                     (devices[i].id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET)) {

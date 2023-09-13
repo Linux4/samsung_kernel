@@ -17,7 +17,7 @@
 struct cam_ois_ctrl_t *g_o_ctrl;
 
 static struct ois_sensor_interface ois_reset;
-#if IS_ENABLED(CONFIG_ADSP_FACTORY)
+#if defined(CONFIG_ADSP_FACTORY)
 extern int ois_reset_register(struct ois_sensor_interface *ois);
 #endif
 #endif
@@ -281,7 +281,7 @@ static int cam_ois_i2c_driver_probe(struct i2c_client *client,
 
 	ois_reset.core = o_ctrl;
 	ois_reset.ois_func = &cam_ois_reset;
-#if IS_ENABLED(CONFIG_ADSP_FACTORY)
+#if defined(CONFIG_ADSP_FACTORY)
 	ois_reset_register(&ois_reset);
 #endif
 #endif
@@ -424,7 +424,7 @@ static int cam_ois_component_bind(struct device *dev,
 
 	ois_reset.core = o_ctrl;
 	ois_reset.ois_func = &cam_ois_reset;
-#if IS_ENABLED(CONFIG_ADSP_FACTORY)
+#if defined(CONFIG_ADSP_FACTORY)
 	ois_reset_register(&ois_reset);
 #endif
 #endif

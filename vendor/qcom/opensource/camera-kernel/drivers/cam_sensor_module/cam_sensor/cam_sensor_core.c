@@ -511,146 +511,6 @@ void cam_sensor_write_enable_crc(struct cam_sensor_ctrl_t *s_ctrl)
 
 #endif
 
-#if defined(CONFIG_CAMERA_HYPERLAPSE_300X)
-int cam_sensor_apply_hyperlapse_settings(
-	struct cam_sensor_ctrl_t *s_ctrl)
-{
-	int rc = 0;
-	struct cam_sensor_i2c_reg_setting reg_fllsetting;
-		struct cam_sensor_i2c_reg_setting reg_streamoffsetting;
-		struct cam_sensor_i2c_reg_setting reg_streamonsetting;
-		int size = 0;
-#if defined(CONFIG_SEC_Q4Q_PROJECT)
-	struct cam_sensor_i2c_reg_array i2c_fll_reg_array[] = {
-		{0x0104, 0x0101, 0, 0},
-		{0x0702, 0x0000, 0, 0},
-		{0x0704, 0x0000, 0, 0},
-		{0x0340, 0x2DA8, 0, 0},
-		{0x0202, 0x0D11, 0, 0},
-		{0x0204, 0x0063, 0, 0},
-		{0x020E, 0x0100, 0, 0},
-		{0x0104, 0x0001, 0, 0},
-	};
-
-	struct cam_sensor_i2c_reg_array i2c_streamoff_reg_array[] = {
-		{0x0B32, 0x0000, 0, 0},
-		{0x0E00, 0x0003, 0, 0},
-		{0x0100, 0x0003, 0, 0},
-	};
-
-	struct cam_sensor_i2c_reg_array i2c_streamon_reg_array[] = {
-		{0x0B32, 0x0000, 0, 0},
-		{0x0100, 0x0103, 0, 0},
-	};
-
-	if (s_ctrl->sensordata->slave_info.sensor_id != SENSOR_ID_S5KGN3)
-	{
-		return rc;
-	}
-#elif defined(CONFIG_SEC_B4Q_PROJECT)
-	struct cam_sensor_i2c_reg_array i2c_fll_reg_array[] = {
-		{0x0104, 0x0101, 0, 0},
-		{0x0702, 0x0000, 0, 0},
-		{0x0704, 0x0000, 0, 0},
-		{0x0340, 0x2F8E, 0, 0},
-		{0x0202, 0x0D11, 0, 0},
-		{0x0204, 0x0063, 0, 0},
-		{0x020E, 0x0100, 0, 0},
-		{0x0104, 0x0001, 0, 0},
-	};
-
-	struct cam_sensor_i2c_reg_array i2c_streamoff_reg_array[] = {
-		{0x0E0A, 0x0000, 0, 0},
-		{0x0100, 0x0000, 0, 0},
-	};
-
-	struct cam_sensor_i2c_reg_array i2c_streamon_reg_array[] = {
-		{0x0100, 0x0100, 0, 0},
-	};
-
-	if (s_ctrl->sensordata->slave_info.sensor_id != SENSOR_ID_S5K2LD)
-	{
-		return rc;
-	}
-#endif
-
-#if defined(CONFIG_SEC_Q4Q_PROJECT) || defined(CONFIG_SEC_B4Q_PROJECT)
-	// SHOOTING_MODE_HYPER_MOTION = 16
-	if (s_ctrl->shooting_mode == 16)
-	{
-		size = ARRAY_SIZE(i2c_fll_reg_array);
-		CAM_ERR(CAM_SENSOR, "[ASTRO_DBG] write register settings :: StreamOff -> FLL -> StreamOn");
-
-		reg_fllsetting.reg_setting = kmalloc(sizeof(struct cam_sensor_i2c_reg_array) * size, GFP_KERNEL);
-		if (reg_fllsetting.reg_setting != NULL) {
-			reg_fllsetting.size = size;
-			reg_fllsetting.addr_type = CAMERA_SENSOR_I2C_TYPE_WORD;
-			reg_fllsetting.data_type = CAMERA_SENSOR_I2C_TYPE_WORD;
-			reg_fllsetting.delay = 0;
-			memcpy(reg_fllsetting.reg_setting, &i2c_fll_reg_array, sizeof(struct cam_sensor_i2c_reg_array) * size);
-			CAM_ERR(CAM_SENSOR, "[ASTRO_DBG] fll size = %d", size);
-		}
-
-		size = ARRAY_SIZE(i2c_streamoff_reg_array);
-		reg_streamoffsetting.reg_setting = kmalloc(sizeof(struct cam_sensor_i2c_reg_array) * size, GFP_KERNEL);
-		if (reg_streamoffsetting.reg_setting != NULL) {
-			reg_streamoffsetting.size = size;
-			reg_streamoffsetting.addr_type = CAMERA_SENSOR_I2C_TYPE_WORD;
-			reg_streamoffsetting.data_type = CAMERA_SENSOR_I2C_TYPE_WORD;
-			reg_streamoffsetting.delay = 0;
-			memcpy(reg_streamoffsetting.reg_setting, &i2c_streamoff_reg_array, sizeof(struct cam_sensor_i2c_reg_array) * size);
-			CAM_ERR(CAM_SENSOR, "[ASTRO_DBG] streamoff size = %d", size);
-		}
-
-		size = ARRAY_SIZE(i2c_streamon_reg_array);
-		reg_streamonsetting.reg_setting = kmalloc(sizeof(struct cam_sensor_i2c_reg_array) * size, GFP_KERNEL);
-		if (reg_streamonsetting.reg_setting != NULL) {
-			reg_streamonsetting.size = size;
-			reg_streamonsetting.addr_type = CAMERA_SENSOR_I2C_TYPE_WORD;
-			reg_streamonsetting.data_type = CAMERA_SENSOR_I2C_TYPE_WORD;
-			reg_streamonsetting.delay = 0;
-			memcpy(reg_streamonsetting.reg_setting, &i2c_streamon_reg_array, sizeof(struct cam_sensor_i2c_reg_array) * size);
-			CAM_ERR(CAM_SENSOR, "[ASTRO_DBG] stream on size = %d", size);
-		}
-		
-		rc = cam_sensor_wait_stream_on(s_ctrl, 20);
-		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "[ASTRO_DBG] failed wait stream_on 1");
-
-		rc = camera_io_dev_write(&s_ctrl->io_master_info, &reg_streamoffsetting);
-		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "[ASTRO_DBG] Failed to write streamoff settings %d", rc);
-
-		rc = cam_sensor_wait_stream_off(s_ctrl);
-		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "[ASTRO_DBG] failed wait stream_off 2");
-
-		rc = camera_io_dev_write(&s_ctrl->io_master_info, &reg_fllsetting);
-		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "[ASTRO_DBG] Failed to write fll settings %d", rc);
-
-		rc = camera_io_dev_write(&s_ctrl->io_master_info, &reg_streamonsetting);
-		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "[ASTRO_DBG] Failed to write streamon settings %d", rc);
-
-		if (reg_fllsetting.reg_setting) {
-			kfree(reg_fllsetting.reg_setting);
-			reg_fllsetting.reg_setting = NULL;
-		}
-		if (reg_streamoffsetting.reg_setting) {
-			kfree(reg_streamoffsetting.reg_setting);
-			reg_streamoffsetting.reg_setting = NULL;
-		}
-		if (reg_streamonsetting.reg_setting) {
-			kfree(reg_streamonsetting.reg_setting);
-			reg_streamonsetting.reg_setting = NULL;
-		}
-	}
-#endif
-	return rc;
-}
-#endif
-
 #if 1
 int cam_sensor_pre_apply_settings(
 	struct cam_sensor_ctrl_t *s_ctrl,
@@ -659,9 +519,6 @@ int cam_sensor_pre_apply_settings(
 	int rc = 0;
 	switch (opcode) {
 		case CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMOFF: {
-#if defined(CONFIG_CAMERA_HYPERLAPSE_300X)
-		cam_sensor_apply_hyperlapse_settings(s_ctrl);
-#endif
 #if defined(CONFIG_CAMERA_FRAME_CNT_CHECK)
 			rc = cam_sensor_wait_stream_on(s_ctrl, 20);
 #endif
@@ -930,13 +787,6 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 		if (s_ctrl->sensordata->slave_info.sensor_id == RETENTION_SENSOR_ID) {
 			check_stream_on = 0;
 		}
-#endif
-		break;
-	}
-	case CAM_SENSOR_PACKET_OPCODE_SENSOR_SHOOTINGMODE: {
-#if defined(CONFIG_CAMERA_HYPERLAPSE_300X)
-		CAM_DBG(CAM_SENSOR, "[ASTRO_DBG] Shooting_Mode : %d", csl_packet->header.request_id);
-		s_ctrl->shooting_mode = csl_packet->header.request_id;
 #endif
 		break;
 	}

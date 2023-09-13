@@ -2753,7 +2753,7 @@ int PayloadBuilder::populateStreamCkv(Stream *s,
             if ((vol_set_param_info.isVolumeUsingSetParam == false) ||
                 ((vol_set_param_info.isVolumeUsingSetParam == true) && !isStreamAvail)) {
                 keyVector.push_back(std::make_pair(VOLUME,LEVEL_15));
-                PAL_INFO(LOG_TAG, "Entered default %x %x", VOLUME, LEVEL_15);
+                PAL_DBG(LOG_TAG, "Entered default %x %x", VOLUME, LEVEL_15);
             }
             break;
      }

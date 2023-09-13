@@ -46,5 +46,13 @@ config FUELGAUGE_MAX77705_TEST
 	  for kunitest
 	  for max77705_fuelgauge_test
 
+config UI_SOC_PROLONGING
+	bool "Ui Soc 100% Prolonging"
+	default n
+	help
+	  Say Y here to enable
+	  Support for UI Soc prolonging.
+	  This is to enable UI Soc prolonging concept.
+
 endmenu
 

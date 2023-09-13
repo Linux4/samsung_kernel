@@ -104,12 +104,10 @@ static int ps5169_set_work_mode()
 	ps5169_write_reg(redrv_data->i2c, 0x9d, 0x00);
 	ps5169_write_reg(redrv_data->i2c, 0x40, 0x80);
 	ps5169_write_reg(redrv_data->i2c, 0xa0, 0x02);
-	ps5169_write_reg(redrv_data->i2c, 0x8d, 0x01);
-	ps5169_write_reg(redrv_data->i2c, 0x90, 0x01);
-	ps5169_write_reg(redrv_data->i2c, 0x51, 0x40);
-	ps5169_write_reg(redrv_data->i2c, 0x50, 0x20);
-	ps5169_write_reg(redrv_data->i2c, 0x54, 0x00);
-	ps5169_write_reg(redrv_data->i2c, 0x5d, 0x44);
+	ps5169_write_reg(redrv_data->i2c, 0x51, redrv_data->reg51_val);
+	ps5169_write_reg(redrv_data->i2c, 0x50, redrv_data->reg50_val);
+	ps5169_write_reg(redrv_data->i2c, 0x54, redrv_data->reg54_val);
+	ps5169_write_reg(redrv_data->i2c, 0x5d, redrv_data->reg5D_val);
 	ps5169_write_reg(redrv_data->i2c, 0x55, 0x00);
 	ps5169_write_reg(redrv_data->i2c, 0x56, 0x00);
 	ps5169_write_reg(redrv_data->i2c, 0x57, 0x00);
@@ -186,6 +184,10 @@ int ps5169_config(int config, int is_DFP)
 		else
 			ps5169_write_reg(redrv_data->i2c, 0x04, 0x44);
 
+		ps5169_write_reg(redrv_data->i2c, 0x8d, 0x01);
+		ps5169_write_reg(redrv_data->i2c, 0x90, 0x01);
+		pr_err("%s: RX1 RX2 termination on\n", __func__);
+
 		value = ps5169_read_reg(redrv_data->i2c, 0x40);
 		pr_info("%s: USB3_ONLY_MODE read 0x40 (%x) (%s)\n",
 				__func__, value, (is_front ? "FRONT":"REAR"));
@@ -215,6 +217,10 @@ int ps5169_config(int config, int is_DFP)
 		ps5169_write_reg(redrv_data->i2c, 0xa1, 0x04);
 		ps5169_write_reg(redrv_data->i2c, 0x04, 0x00);
 
+		ps5169_write_reg(redrv_data->i2c, 0x8d, 0x01);
+		ps5169_write_reg(redrv_data->i2c, 0x90, 0x01);
+		pr_err("%s: RX1 RX2 termination on\n", __func__);
+
 		value = ps5169_read_reg(redrv_data->i2c, 0x40);
 		pr_info("%s: DP2_LANE_USB3_MODE read 0x40 (%x) (%s)\n",
 				__func__, value, (is_front ? "FRONT":"REAR"));
@@ -227,6 +233,10 @@ int ps5169_config(int config, int is_DFP)
 		ps5169_write_reg(redrv_data->i2c, 0xa0, 0x02);
 		ps5169_write_reg(redrv_data->i2c, 0xa1, 0x00);
 		ps5169_write_reg(redrv_data->i2c, 0x04, 0x00);
+
+		ps5169_write_reg(redrv_data->i2c, 0x8d, 0x00);
+		ps5169_write_reg(redrv_data->i2c, 0x90, 0x00);
+		pr_err("%s: RX1 RX2 termination off\n", __func__);
 
 		value = ps5169_read_reg(redrv_data->i2c, 0x40);
 		pr_info("%s: CLEAR_STATE read 0x40 (%x) (%s)\n",
@@ -245,6 +255,34 @@ int ps5169_config(int config, int is_DFP)
 }
 EXPORT_SYMBOL(ps5169_config);
 
+#if defined(CONFIG_OF)
+static int of_ps5169_dt(struct device *dev)
+{
+	struct device_node *np = dev->of_node;
+	int ret;
+
+	ret = of_property_read_u32(np, "ps5619,reg_50", &redrv_data->reg50_val);
+	if (ret)
+		redrv_data->reg50_val = 0x20;
+
+	ret = of_property_read_u32(np, "ps5619,reg_51", &redrv_data->reg51_val);
+	if (ret)
+		redrv_data->reg51_val = 0x40;
+
+	ret = of_property_read_u32(np, "ps5619,reg_54", &redrv_data->reg54_val);
+	if (ret)
+		redrv_data->reg54_val = 0x00;
+
+	ret = of_property_read_u32(np, "ps5619,reg_5D", &redrv_data->reg5D_val);
+	if (ret)
+		redrv_data->reg5D_val = 0x44;
+
+	pr_info("%s: ps5619: 0x50: 0x%02x, 0x51: 0x%02x, 0x54: 0x%02x, 0x5D: 0x%02x\n",
+		__func__, redrv_data->reg50_val, redrv_data->reg51_val, redrv_data->reg54_val, redrv_data->reg5D_val);
+
+	return ret;
+}
+#endif
 
 static int ps5169_set_gpios(struct device *dev)
 {
@@ -499,6 +537,14 @@ static int ps5169_probe(struct i2c_client *i2c,
 		return -ENOMEM;
 	redrv_data->ready = 0;
 
+#if defined(CONFIG_OF)
+	ret = of_ps5169_dt(&i2c->dev);
+	if (ret < 0) {
+		dev_err(&i2c->dev, "Failed to get device of_node\n");
+		ret = 0;
+	}
+#endif
+
 	if (i2c->dev.of_node)
 		ps5169_set_gpios(&i2c->dev);
 	else
@@ -512,20 +558,26 @@ static int ps5169_probe(struct i2c_client *i2c,
 	mutex_init(&redrv_data->i2c_lock);
 
 	if (ps5169_i2c_check() < 0) {
-		pr_err("%s: i2c transfer failed. stop to try i2c transfer\n", __func__);
+		goto err;
 	} else if (ps5169_set_work_mode() < 0) {
-		pr_err("%s: redriver init failed\n", __func__);			
+		goto err;
 	} else {
 		redrv_data->ready = 1;
 		pr_info("%s: redriver is ready\n", __func__);
 	}
 
 	return ret;
+
+err:
+	pr_err("%s: redriver init failed\n", __func__);
+	return ret;
 }
 
 static int ps5169_remove(struct i2c_client *i2c)
 {
 	struct ps5169_data *redrv_data = i2c_get_clientdata(i2c);
+
+	pr_info("%s\n", __func__);
 
 	if (redrv_data->i2c) {
 		mutex_destroy(&redrv_data->i2c_mutex);

@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _DP_PARSER_H_
@@ -241,8 +240,6 @@ enum secdp_PS5169_voltage_type {
  * @get_io: function to be called by client to get io data.
  * @get_io_buf: function to be called by client to get io buffers.
  * @clear_io_buf: function to be called by client to clear io buffers.
- * @mst_fixed_display_type: mst display_type reserved for fixed topology
- * @display_type: display type as defined in device tree.
  */
 struct dp_parser {
 	struct platform_device *pdev;
@@ -270,8 +267,6 @@ struct dp_parser {
 	u32 mst_fixed_port[MAX_DP_MST_STREAMS];
 	u32 qos_cpu_mask;
 	unsigned long qos_cpu_latency;
-	const char *mst_fixed_display_type[MAX_DP_MST_STREAMS];
-	const char *display_type;
 
 #if defined(CONFIG_SECDP)
 	struct regulator *aux_pullup_vreg;

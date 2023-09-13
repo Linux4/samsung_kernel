@@ -2875,7 +2875,7 @@ static int ss_gct_store(struct samsung_display_driver_data *vdd)
 
 	if (vdd->display_enabled == false) {
 		LCD_ERR(vdd, "dsi_display is not enabled.. it may be turning off.\n");
-		goto skip_reset;
+		goto end;
 	}
 
 	/* reset panel  */
@@ -2893,7 +2893,6 @@ static int ss_gct_store(struct samsung_display_driver_data *vdd)
 	ss_panel_on_post(vdd);
 	LCD_INFO(vdd, "reset panel ---\n");
 
-skip_reset:
 	LCD_INFO(vdd, "release commit\n");
 	atomic_add_unless(&vdd->block_commit_cnt, -1, 0);
 	wake_up_all(&vdd->block_commit_wq);
@@ -2905,6 +2904,7 @@ skip_reset:
 	if (vdd->esd_recovery.esd_irq_enable)
 		vdd->esd_recovery.esd_irq_enable(true, true, (void *)vdd, ESD_MASK_GCT_TEST);
 
+end:
 	LCD_INFO(vdd, "lego-opcode gct ---\n");
 
 	return 0;

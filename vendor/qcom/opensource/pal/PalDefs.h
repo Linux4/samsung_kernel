@@ -1153,7 +1153,6 @@ typedef struct pal_param_bta2dp {
 #endif
 #ifdef SEC_AUDIO_BLE_OFFLOAD // SEC
     bool     a2dp_suspended_for_ble;
-    uint32_t bt_mix_latency;
 #endif
 } pal_param_bta2dp_t;
 
