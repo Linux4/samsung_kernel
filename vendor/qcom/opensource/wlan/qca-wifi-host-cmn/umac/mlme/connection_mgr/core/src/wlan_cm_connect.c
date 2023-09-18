@@ -1276,9 +1276,12 @@ static QDF_STATUS cm_update_mlo_filter(struct wlan_objmgr_pdev *pdev,
 }
 #endif
 
-static QDF_STATUS cm_connect_get_candidates(struct wlan_objmgr_pdev *pdev,
-					    struct cnx_mgr *cm_ctx,
-					    struct cm_connect_req *cm_req)
+static QDF_STATUS
+cm_connect_fetch_candidates(struct wlan_objmgr_pdev *pdev,
+			    struct cnx_mgr *cm_ctx,
+			    struct cm_connect_req *cm_req,
+			    qdf_list_t **fetched_candidate_list,
+			    uint32_t *num_bss_found)
 {
 	struct scan_filter *filter;
 	uint32_t num_bss = 0;
@@ -1287,10 +1290,6 @@ static QDF_STATUS cm_connect_get_candidates(struct wlan_objmgr_pdev *pdev,
 	uint8_t vdev_id = wlan_vdev_get_id(cm_ctx->vdev);
 	bool security_valid_for_6ghz;
 	const uint8_t *rsnxe;
-
-	filter = qdf_mem_malloc(sizeof(*filter));
-	if (!filter)
-		return QDF_STATUS_E_NOMEM;
 
 	rsnxe = wlan_get_ie_ptr_from_eid(WLAN_ELEMID_RSNXE,
 					 cm_req->req.assoc_ie.ptr,
@@ -1313,6 +1312,10 @@ static QDF_STATUS cm_connect_get_candidates(struct wlan_objmgr_pdev *pdev,
 			  cm_req->req.chan_freq);
 		return QDF_STATUS_E_INVAL;
 	}
+	filter = qdf_mem_malloc(sizeof(*filter));
+	if (!filter)
+		return QDF_STATUS_E_NOMEM;
+
 	cm_connect_prepare_scan_filter(pdev, cm_ctx, cm_req, filter,
 				       security_valid_for_6ghz);
 
@@ -1324,7 +1327,7 @@ static QDF_STATUS cm_connect_get_candidates(struct wlan_objmgr_pdev *pdev,
 		mlme_debug(CM_PREFIX_FMT "num_entries found %d",
 			   CM_PREFIX_REF(vdev_id, cm_req->cm_id), num_bss);
 	}
-
+	*num_bss_found = num_bss;
 	op_mode = wlan_vdev_mlme_get_opmode(cm_ctx->vdev);
 	if (num_bss && op_mode == QDF_STA_MODE &&
 	    !cm_req->req.is_non_assoc_link)
@@ -1332,8 +1335,27 @@ static QDF_STATUS cm_connect_get_candidates(struct wlan_objmgr_pdev *pdev,
 	qdf_mem_free(filter);
 
 	if (!candidate_list || !qdf_list_size(candidate_list)) {
-		QDF_STATUS status;
+		if (candidate_list)
+			wlan_scan_purge_results(candidate_list);
+		return QDF_STATUS_E_EMPTY;
+	}
+	*fetched_candidate_list = candidate_list;
 
+	return QDF_STATUS_SUCCESS;
+}
+
+static QDF_STATUS cm_connect_get_candidates(struct wlan_objmgr_pdev *pdev,
+					    struct cnx_mgr *cm_ctx,
+					    struct cm_connect_req *cm_req)
+{
+	uint32_t num_bss = 0;
+	qdf_list_t *candidate_list = NULL;
+	uint8_t vdev_id = wlan_vdev_get_id(cm_ctx->vdev);
+	QDF_STATUS status;
+
+	status = cm_connect_fetch_candidates(pdev, cm_ctx, cm_req,
+					     &candidate_list, &num_bss);
+	if (QDF_IS_STATUS_ERROR(status)) {
 		if (candidate_list)
 			wlan_scan_purge_results(candidate_list);
 		mlme_info(CM_PREFIX_FMT "no valid candidate found, num_bss %d scan_id %d",
@@ -1363,8 +1385,99 @@ static QDF_STATUS cm_connect_get_candidates(struct wlan_objmgr_pdev *pdev,
 	}
 	cm_req->candidate_list = candidate_list;
 
-	return QDF_STATUS_SUCCESS;
+	return status;
 }
+
+#ifdef CONN_MGR_ADV_FEATURE
+static void cm_update_candidate_list(struct cnx_mgr *cm_ctx,
+				     struct cm_connect_req *cm_req,
+				     struct scan_cache_node *prev_candidate)
+{
+	struct wlan_objmgr_pdev *pdev;
+	uint32_t num_bss = 0;
+	qdf_list_t *candidate_list = NULL;
+	uint8_t vdev_id = wlan_vdev_get_id(cm_ctx->vdev);
+	QDF_STATUS status;
+	struct scan_cache_node *scan_entry;
+	qdf_list_node_t *cur_node = NULL, *next_node = NULL;
+	struct qdf_mac_addr *bssid;
+	bool found;
+
+	pdev = wlan_vdev_get_pdev(cm_ctx->vdev);
+	if (!pdev) {
+		mlme_err(CM_PREFIX_FMT "Failed to find pdev",
+			 CM_PREFIX_REF(vdev_id, cm_req->cm_id));
+		return;
+	}
+
+	status = cm_connect_fetch_candidates(pdev, cm_ctx, cm_req,
+					     &candidate_list, &num_bss);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		mlme_debug(CM_PREFIX_FMT "failed to fetch bss: %d",
+			   CM_PREFIX_REF(vdev_id, cm_req->cm_id), num_bss);
+		goto free_list;
+	}
+
+	if (qdf_list_peek_front(candidate_list, &cur_node) !=
+					QDF_STATUS_SUCCESS) {
+		mlme_err(CM_PREFIX_FMT"failed to peer front of candidate_list",
+			 CM_PREFIX_REF(vdev_id, cm_req->cm_id));
+		goto free_list;
+	}
+
+	while (cur_node) {
+		qdf_list_peek_next(candidate_list, cur_node, &next_node);
+
+		scan_entry = qdf_container_of(cur_node, struct scan_cache_node,
+					      node);
+		bssid = &scan_entry->entry->bssid;
+		if (qdf_is_macaddr_zero(bssid) ||
+		    qdf_is_macaddr_broadcast(bssid))
+			goto next;
+		found = cm_find_bss_from_candidate_list(cm_req->candidate_list,
+							bssid, NULL);
+		if (found)
+			goto next;
+		status = qdf_list_remove_node(candidate_list, cur_node);
+		if (QDF_IS_STATUS_ERROR(status)) {
+			mlme_err(CM_PREFIX_FMT"failed to remove node for BSS "QDF_MAC_ADDR_FMT" from candidate list",
+				 CM_PREFIX_REF(vdev_id, cm_req->cm_id),
+				 QDF_MAC_ADDR_REF(scan_entry->entry->bssid.bytes));
+			goto free_list;
+		}
+
+		status = qdf_list_insert_after(cm_req->candidate_list,
+					       &scan_entry->node,
+					       &prev_candidate->node);
+		if (QDF_IS_STATUS_ERROR(status)) {
+			mlme_err(CM_PREFIX_FMT"failed to insert node for BSS "QDF_MAC_ADDR_FMT" from candidate list",
+				 CM_PREFIX_REF(vdev_id, cm_req->cm_id),
+				 QDF_MAC_ADDR_REF(scan_entry->entry->bssid.bytes));
+			util_scan_free_cache_entry(scan_entry->entry);
+			qdf_mem_free(scan_entry);
+			goto free_list;
+		}
+		prev_candidate = scan_entry;
+		mlme_debug(CM_PREFIX_FMT"insert new node BSS "QDF_MAC_ADDR_FMT" to existing candidate list",
+			   CM_PREFIX_REF(vdev_id, cm_req->cm_id),
+			   QDF_MAC_ADDR_REF(scan_entry->entry->bssid.bytes));
+next:
+		cur_node = next_node;
+		next_node = NULL;
+	}
+
+free_list:
+	if (candidate_list)
+		wlan_scan_purge_results(candidate_list);
+}
+#else
+static inline void
+cm_update_candidate_list(struct cnx_mgr *cm_ctx,
+			 struct cm_connect_req *cm_req,
+			 struct scan_cache_node *prev_candidate)
+{
+}
+#endif
 
 QDF_STATUS cm_if_mgr_inform_connect_complete(struct wlan_objmgr_vdev *vdev,
 					     QDF_STATUS connect_status)
@@ -1640,12 +1753,18 @@ static QDF_STATUS cm_get_valid_candidate(struct cnx_mgr *cm_ctx,
 	 * Get next candidate if prev_candidate is not NULL, else get
 	 * the first candidate
 	 */
-	if (prev_candidate)
+	if (prev_candidate) {
+		/* Fetch new candidate list and append new entries to the
+		 * current candidate list.
+		 */
+		cm_update_candidate_list(cm_ctx, &cm_req->connect_req,
+					 prev_candidate);
 		qdf_list_peek_next(cm_req->connect_req.candidate_list,
 				   &prev_candidate->node, &cur_node);
-	else
+	} else {
 		qdf_list_peek_front(cm_req->connect_req.candidate_list,
 				    &cur_node);
+	}
 
 	while (cur_node) {
 		qdf_list_peek_next(cm_req->connect_req.candidate_list,

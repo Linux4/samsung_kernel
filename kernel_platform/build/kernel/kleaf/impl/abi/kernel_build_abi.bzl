@@ -174,6 +174,8 @@ def _define_other_targets(
         with_vmlinux_kwargs = dict(kernel_build_kwargs)
         with_vmlinux_kwargs["outs"] = kernel_utils.transform_kernel_build_outs(name + "_with_vmlinux", "outs", new_outs)
         with_vmlinux_kwargs["base_kernel_for_module_outs"] = with_vmlinux_kwargs.pop("base_kernel", default = None)
+        with_vmlinux_kwargs["internal_additional_make_goals"] = ["vmlinux"]
+        with_vmlinux_kwargs["kbuild_symtypes"] = "true"
         kernel_build(name = name + "_with_vmlinux", **with_vmlinux_kwargs)
     else:
         native.alias(name = name + "_with_vmlinux", actual = name)
@@ -262,6 +264,8 @@ def _define_abi_targets(
         notrim_kwargs["trim_nonlisted_kmi"] = False
         notrim_kwargs["kmi_symbol_list_strict_mode"] = False
         notrim_kwargs["base_kernel_for_module_outs"] = notrim_kwargs.pop("base_kernel", default = None)
+        notrim_kwargs["internal_additional_make_goals"] = ["vmlinux"]
+        notrim_kwargs["kbuild_symtypes"] = "true"
         kernel_build(name = name + "_notrim", **notrim_kwargs)
     else:
         native.alias(name = name + "_notrim", actual = name)
@@ -278,6 +282,7 @@ def _define_abi_targets(
         # modules list from base_kernel (GKI). If base_kernel is not set, this
         # likely a GKI build, so use modules_outs from itself.
         gki_modules_list_kernel_build = kernel_build_kwargs.get("base_kernel", name),
+        kernel_build_for_base_modules = kernel_build_kwargs.get("base_kernel", name),
     )
     update_source_file(
         name = name + "_abi_update_symbol_list",

@@ -27,13 +27,6 @@
 static int get_dd_file_key(struct dd_crypt_context *crypt_context,
 		struct fscrypt_key *dd_master_key, unsigned char *raw_key);
 
-extern int fscrypt_get_encryption_kek(
-						struct fscrypt_info *crypt_info,
-						struct fscrypt_key *kek);
-extern int fscrypt_get_encryption_key(
-						struct fscrypt_info *crypt_info,
-						struct fscrypt_key *key);
-
 #define DD_CRYPT_MODE_INVALID     0
 #define DD_CRYPT_MODE_AES_256_XTS 1
 #define DD_CRYPT_MODE_AES_256_CBC 2

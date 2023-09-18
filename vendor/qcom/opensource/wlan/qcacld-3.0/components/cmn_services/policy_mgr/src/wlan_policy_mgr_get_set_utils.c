@@ -8612,14 +8612,26 @@ bool policy_mgr_is_restart_sap_required(struct wlan_objmgr_psoc *psoc,
 
 		if (connection[i].freq != freq &&
 		    WLAN_REG_IS_24GHZ_CH_FREQ(freq) &&
-		    WLAN_REG_IS_5GHZ_CH_FREQ(connection[i].freq) &&
+		    !WLAN_REG_IS_24GHZ_CH_FREQ(connection[i].freq) &&
 		    !wlan_reg_is_dfs_for_freq(pm_ctx->pdev,
 					      connection[i].freq) &&
-		    WLAN_REG_IS_5GHZ_CH_FREQ(user_config_freq)) {
+		    !WLAN_REG_IS_24GHZ_CH_FREQ(user_config_freq)) {
 			policy_mgr_debug("Move SAP from:%d to STA ch:%d  (sap start freq:%d)",
 					 freq, connection[i].freq,
 					 user_config_freq);
 			restart_required = true;
+
+			/*
+			 * SAP in 2.4 Ghz + STA in VLP or Non-VLP 6GHz non-PSC
+			 * channel -> Then SAP stays in 2.4 GHz
+			 *
+			 * SAP in 2.4 Ghz + STA in VLP or Non-VLP 6GHz PSC
+			 * channel -> Restart SAP & SAP follows STA's 6GHz
+			 * channel
+			 */
+			if (wlan_reg_is_6ghz_chan_freq(connection[i].freq) &&
+			    !wlan_reg_is_6ghz_psc_chan_freq(connection[i].freq))
+				restart_required = false;
 
 			if (wlan_reg_is_freq_indoor(pm_ctx->pdev,
 						    connection[i].freq) &&

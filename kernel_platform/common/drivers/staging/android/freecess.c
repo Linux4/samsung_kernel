@@ -133,14 +133,16 @@ int mod_sendmsg(int type, int mod, struct priv_data* data)
 	return RET_OK;
 }
 
-int sig_report(struct task_struct *p)
+int sig_report(struct task_struct *p, bool report_pid)
 {
 	int ret = RET_OK;
 	struct priv_data data;
 	int target_pid = task_tgid_nr(p);
 	memset(&data, 0, sizeof(struct priv_data));
 	data.target_uid = task_uid(p).val;
-	data.flag = 0;
+	if (report_pid) {
+		data.flag = target_pid;
+	}
 	if (thread_group_is_frozen(p) && (target_pid != last_kill_pid)) {
 		last_kill_pid = target_pid;
 		ret = mod_sendmsg(MSG_TO_USER, MOD_SIG, &data);

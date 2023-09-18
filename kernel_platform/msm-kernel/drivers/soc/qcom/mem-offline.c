@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/memory.h>
@@ -221,6 +221,7 @@ static int aop_send_msg(unsigned long addr, bool online)
 	struct qmp_pkt pkt;
 	char mbox_msg[MAX_LEN];
 	unsigned long addr_low, addr_high;
+	int ret;
 
 	addr_low = addr & AOP_MSG_ADDR_MASK;
 	addr_high = (addr >> AOP_MSG_ADDR_HIGH_SHIFT) & AOP_MSG_ADDR_MASK;
@@ -231,7 +232,8 @@ static int aop_send_msg(unsigned long addr, bool online)
 
 	pkt.size = MAX_LEN;
 	pkt.data = mbox_msg;
-	return (mbox_send_message(mailbox.mbox, &pkt) < 0);
+	ret = mbox_send_message(mailbox.mbox, &pkt);
+	return ret;
 }
 
 static long get_memblk_bits(unsigned int seg_idx, unsigned long memblk_addr)
@@ -283,11 +285,11 @@ static int send_msg(struct memory_notify *mn, bool online, int count)
 		else
 			ret = aop_send_msg(__pfn_to_phys(start), online);
 
-		if (ret) {
-			pr_err("PASR: %s %s request addr:0x%llx failed\n",
+		if (ret < 0) {
+			pr_err("PASR: %s %s request addr:0x%llx failed, ret:%d\n",
 			       is_rpm_controller ? "RPM" : "AOP",
 			       online ? "online" : "offline",
-			       __pfn_to_phys(start));
+			       __pfn_to_phys(start), ret);
 			goto undo;
 		}
 
@@ -312,8 +314,9 @@ undo:
 		else
 			ret = aop_send_msg(__pfn_to_phys(start), !online);
 
-		if (ret)
-			panic("Failed to completely online/offline a hotpluggable segment. A quasi state of memblock can cause randomn system failures.");
+		if (ret < 0)
+			panic("Failed to completely online/offline a hotpluggable segment. A quasi state of memblock can cause randomn system failures. ret:%d",
+				ret);
 		segment_size = segment_infos[seg_idx].seg_size;
 		addr += segment_size;
 		seg_idx = get_segment_addr_to_idx(addr);
@@ -1547,6 +1550,11 @@ static int get_ddr_regions_info(void)
 	}
 
 	num_ddr_regions = get_num_ddr_regions(node);
+
+	if (!num_ddr_regions) {
+		pr_err("mem-offine: num_ddr_regions is %d\n", num_ddr_regions);
+		return -EINVAL;
+	}
 
 	ddr_regions = kcalloc(num_ddr_regions, sizeof(*ddr_regions), GFP_KERNEL);
 	if (!ddr_regions)

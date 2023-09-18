@@ -9,7 +9,7 @@
 #include <linux/device.h>
 #include <linux/types.h>
 
-#define UR_AUTO_RESUME_SUPPORTED	BIT(15)
+#define UR_AUTO_RESUME_SUPPORTED	BIT(0)
 
 struct usb_repeater  {
 	struct device		*dev;

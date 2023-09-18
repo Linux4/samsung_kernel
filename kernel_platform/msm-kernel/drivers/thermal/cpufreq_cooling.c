@@ -246,6 +246,8 @@ static int cpufreq_get_requested_power(struct thermal_cooling_device *cdev,
 
 	*power = get_dynamic_power(cpufreq_cdev, freq);
 
+	trace_android_vh_modify_thermal_cpu_get_power(policy, power);
+
 	if (load_cpu) {
 		trace_thermal_power_cpu_get_power(policy->related_cpus, freq,
 						  load_cpu, i, *power);
@@ -530,15 +532,15 @@ __cpufreq_cooling_register(struct device_node *np,
 	struct thermal_cooling_device_ops *cooling_ops;
 	char *name;
 
+	if (IS_ERR_OR_NULL(policy)) {
+		pr_err("%s: cpufreq policy isn't valid: %p\n", __func__, policy);
+		return ERR_PTR(-EINVAL);
+	}
+
 	dev = get_cpu_device(policy->cpu);
 	if (unlikely(!dev)) {
 		pr_warn("No cpu device for cpu %d\n", policy->cpu);
 		return ERR_PTR(-ENODEV);
-	}
-
-	if (IS_ERR_OR_NULL(policy)) {
-		pr_err("%s: cpufreq policy isn't valid: %p\n", __func__, policy);
-		return ERR_PTR(-EINVAL);
 	}
 
 	i = cpufreq_table_count_valid_entries(policy);

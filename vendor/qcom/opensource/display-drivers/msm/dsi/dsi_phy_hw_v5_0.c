@@ -237,7 +237,7 @@ void dsi_phy_hw_v5_0_store_str(struct dsi_phy_hw *phy, u32 *val)
 	u32 hstx_str = 0;
 	u32 cal_sel = 0;
 
-	/* The register setting range is from 'b0000 (weakest) to 'b1111 (strongest). */
+	/* The register setting range is from '0x00 (weakest) to '0xff (strongest). */
 	DSI_PHY_INFO(phy, "base : 0x%X, val : 0x%X\n", phy->base, *val);
 	DSI_W32(phy, DSIPHY_CMN_GLBL_HSTX_STR_CTRL_0, *val);
 	hstx_str = DSI_R32(phy, DSIPHY_CMN_GLBL_HSTX_STR_CTRL_0);

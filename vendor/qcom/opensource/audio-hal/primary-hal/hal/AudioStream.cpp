@@ -1123,9 +1123,9 @@ static void out_update_source_metadata_v7(
             || (source_metadata == NULL)) {
 #ifdef SEC_AUDIO_ADD_FOR_DEBUG
         AHAL_INFO("%s: stream or source_metadata is NULL", __func__);
-#else            
+#else
         AHAL_ERR("%s: stream or source_metadata is NULL", __func__);
-#endif        
+#endif
         return;
     }
 
@@ -2514,6 +2514,9 @@ int StreamOutPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, 
     bool isHifiFilterEnabled = false;
     bool *payload_hifiFilter = &isHifiFilterEnabled;
     size_t param_size = 0;
+#ifdef SEC_AUDIO_HDMI // { SUPPORT_VOIP_VIA_SMART_MONITOR
+    std::set<audio_devices_t> previousDevices = mAndroidOutDevices;
+#endif // } SUPPORT_VOIP_VIA_SMART_MONITOR
 
     stream_mutex_.lock();
     if (!mInitialized) {
@@ -2671,6 +2674,10 @@ int StreamOutPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, 
              strlcpy(mPalOutDevice->custom_config.custom_key, "HAC",
                     sizeof(mPalOutDevice->custom_config.custom_key));
         }
+#ifdef SEC_AUDIO_HDMI // { SUPPORT_VOIP_VIA_SMART_MONITOR
+        // update tx path with custom key if tx path is routed earlier than rx path.
+        sec_stream_out_->RerouteForVoipSmartMonitor(this, previousDevices);
+#endif // } SUPPORT_VOIP_VIA_SMART_MONITOR
 
         if (pal_stream_handle_) {
 #ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
@@ -3418,7 +3425,7 @@ int StreamOutPrimary::Open() {
     {
         std::shared_ptr<StreamOutPrimary> deep_out = adevice->OutGetStream(PAL_STREAM_DEEP_BUFFER);
         if (usecase_ == USECASE_AUDIO_PLAYBACK_PRIMARY &&
-            deep_out && deep_out->HasPalStreamHandle() && 
+            deep_out && deep_out->HasPalStreamHandle() &&
             mAndroidOutDevices.size() == 2 &&
             (AudioExtn::get_device_types(mAndroidOutDevices) & AUDIO_DEVICE_OUT_USB_HEADSET)) {
             ret |= deep_out->ForceRouteStream({AUDIO_DEVICE_NONE});
@@ -3854,6 +3861,11 @@ ssize_t StreamOutPrimary::configurePalOutputStream() {
 #endif // } CONFIG_EFFECTS_VIDEOCALL
 #ifdef SEC_AUDIO_COMMON
 #ifdef SEC_AUDIO_CALL_VOIP
+#ifdef SEC_AUDIO_HDMI // { SUPPORT_VOIP_VIA_SMART_MONITOR
+        // when creating voip_rx stream, update tx path by custom key if voip_tx path is active.
+        sec_stream_out_->RerouteForVoipSmartMonitor(this);
+#endif // } SUPPORT_VOIP_VIA_SMART_MONITOR
+
         if (adevice->voice_ && adevice->voice_->sec_voice_->cng_enable &&
             streamAttributes_.type == PAL_STREAM_VOIP_RX &&
             adevice->voice_->mode_ == AUDIO_MODE_IN_COMMUNICATION) {
@@ -5119,7 +5131,7 @@ int StreamInPrimary::SetParameters(const char* kvpairs) {
     struct str_parms *parms = (str_parms *)NULL;
     int ret = 0;
 
-#ifdef SEC_AUDIO_DUMP 
+#ifdef SEC_AUDIO_DUMP
     AHAL_DBG("enter: kvpairs: %s", kvpairs);
 #else
     AHAL_DBG("enter");
@@ -5413,7 +5425,7 @@ int StreamInPrimary::Open() {
 
     // TODO configure this for any audio format
 #ifdef SEC_AUDIO_EARLYDROP_PATCH
-    //PAL input compressed stream is used only for compress capture 
+    //PAL input compressed stream is used only for compress capture
     if (streamAttributes_.type == PAL_STREAM_COMPRESSED) {
 #else
     // As of now this is configured for AAC only
@@ -5782,7 +5794,7 @@ ssize_t StreamInPrimary::read(const void *buffer, size_t bytes) {
                 strcmp(mPalInDevice[0].custom_config.custom_key,
                     ck_table[CUSTOM_KEY_CAMCORDER_MULTI_AND_BT_MIC])) ||
             (mAndroidInDevices.size() == 2 &&
-                !adevice->sec_device_->multidevice_rec && 
+                !adevice->sec_device_->multidevice_rec &&
                 sec_audio_stream_in->IsBtForMultiDevice(this) &&
                 (strcmp(mPalInDevice[0].custom_config.custom_key,
                     ck_table[CUSTOM_KEY_CAMCORDER_MULTI_AND_BT_MIC]) == 0))) {
@@ -5894,6 +5906,12 @@ exit:
     } else {
         mBytesRead = UINT64_MAX;
     }
+#ifdef SEC_AUDIO_ROUTING_NOISE
+    // P230608-00262 : TX buzzing sound occurs when EP was pulled right after answering the call
+    if (ret < 0) {
+        memset(palBuffer.buffer, 0, bytes);
+    }
+#endif
     stream_mutex_.unlock();
     clock_gettime(CLOCK_MONOTONIC, &readAt);
     AHAL_VERBOSE("Exit: returning size: %zu size ", size);

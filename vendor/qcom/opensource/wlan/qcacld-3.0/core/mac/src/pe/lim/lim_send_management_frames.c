@@ -2810,6 +2810,8 @@ lim_send_assoc_req_mgmt_frame(struct mac_context *mac_ctx,
 		 */
 		populate_dot11f_twt_extended_caps(mac_ctx, pe_session,
 						  &frm->ExtCap);
+	} else {
+		wlan_cm_set_assoc_btm_cap(pe_session->vdev, false);
 	}
 
 	if (QDF_STATUS_SUCCESS != lim_strip_supp_op_class_update_struct(mac_ctx,

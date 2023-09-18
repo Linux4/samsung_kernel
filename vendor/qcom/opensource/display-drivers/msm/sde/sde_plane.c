@@ -29,6 +29,7 @@
 #include "msm_drv.h"
 
 #include "sde_kms.h"
+#include "sde_vm.h"
 #include "sde_fence.h"
 #include "sde_formats.h"
 #include "sde_hw_sspp.h"
@@ -2051,6 +2052,56 @@ static void sde_plane_cleanup_fb(struct drm_plane *plane,
 
 }
 
+static int _sde_plane_validate_fb(struct sde_plane *psde,
+			struct drm_plane_state *state)
+{
+	struct sde_plane_state *pstate;
+	struct sde_kms *sde_kms;
+	struct drm_framebuffer *fb;
+	uint32_t fb_ns = 0, fb_sec = 0, fb_sec_dir = 0;
+	int mode, ret = 0, n, i;
+
+	pstate = to_sde_plane_state(state);
+	mode = sde_plane_get_property(pstate,
+			PLANE_PROP_FB_TRANSLATION_MODE);
+
+	fb = state->fb;
+	if (!fb) {
+		SDE_ERROR("invalid drm_framebuffer\n");
+		return -EINVAL;
+	}
+	n = fb->format->num_planes;
+
+	sde_kms = _sde_plane_get_kms(&psde->base);
+	if (!sde_kms) {
+		SDE_ERROR("invalid kms\n");
+		return -EINVAL;
+	}
+
+	ret = sde_in_trusted_vm(sde_kms);
+	if (ret)
+		return 0;
+
+	for (i = 0; i < n; i++) {
+		ret = msm_fb_obj_get_attrs(fb->obj[i], &fb_ns, &fb_sec,
+				&fb_sec_dir);
+
+		if (ret != 0 || ((fb_ns && (mode != SDE_DRM_FB_NON_SEC)) ||
+			(fb_sec && (mode != SDE_DRM_FB_SEC)) ||
+			(fb_sec_dir && (mode != SDE_DRM_FB_SEC_DIR_TRANS)))) {
+				SDE_ERROR_PLANE(psde,
+					"mode:%d fb:%d dma_buf rc:%d\n", mode,
+					fb->base.id, ret);
+				SDE_EVT32(psde->base.base.id, fb->base.id,
+					fb_ns, fb_sec, fb_sec_dir, ret,
+					SDE_EVTLOG_ERROR);
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
 static void _sde_plane_sspp_atomic_check_mode_changed(struct sde_plane *psde,
 		struct drm_plane_state *state,
 		struct drm_plane_state *old_state)
@@ -2717,6 +2768,10 @@ static int sde_plane_sspp_atomic_check(struct drm_plane *plane,
 		return ret;
 
 	ret = _sde_plane_validate_shared_crtc(psde, state);
+	if (ret)
+		return ret;
+
+	ret = _sde_plane_validate_fb(psde, state);
 	if (ret)
 		return ret;
 

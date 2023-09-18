@@ -70,7 +70,8 @@ KernelBuildAbiInfo = provider(
     fields = {
         "trim_nonlisted_kmi": "Value of `trim_nonlisted_kmi` in [`kernel_build()`](#kernel_build).",
         "combined_abi_symbollist": "The **combined** `abi_symbollist` file from the `_kmi_symbol_list` rule, consist of the source `kmi_symbol_list` and `additional_kmi_symbol_lists`.",
-        "module_outs_file": "A file containing `[kernel_build.module_outs]`(#kernel_build-module_outs).",
+        "module_outs_file": "A file containing `[kernel_build.module_outs]`(#kernel_build-module_outs) and `[kernel_build.module_implicit_outs]`(#kernel_build-module_implicit_outs).",
+        "modules_staging_archive": "Archive containing staging kernel modules. ",
     },
 )
 
@@ -78,16 +79,19 @@ KernelBuildInTreeModulesInfo = provider(
     doc = """A provider that specifies the expectations of a [`kernel_build`](#kernel_build) on its
 [`base_kernel`](#kernel_build-base_kernel) or [`base_kernel_for_module_outs`](#kernel_build-base_kernel_for_module_outs).""",
     fields = {
-        "module_outs_file": "A file containing `[kernel_build.module_outs]`(#kernel_build-module_outs).",
+        "module_outs_file": "A file containing `[kernel_build.module_outs]`(#kernel_build-module_outs) and `[kernel_build.module_implicit_outs]`(#kernel_build-module_implicit_outs).",
     },
 )
 
 KernelUnstrippedModulesInfo = provider(
     doc = "A provider that provides unstripped modules",
     fields = {
-        "base_kernel": "the `base_kernel` target, if exists",
-        "directory": """A [`File`](https://bazel.build/rules/lib/File) that
-points to a directory containing unstripped modules.
+        "directories": """A [depset](https://bazel.build/extending/depsets) of
+[`File`](https://bazel.build/rules/lib/File)s, where
+each item points to a directory containing unstripped modules.
+
+Order matters; earlier elements in the traverse order has higher priority. Hence,
+this depset must have `order` argument specified.
 
 For [`kernel_build()`](#kernel_build), this is a directory containing unstripped in-tree modules.
 - This is `None` if and only if `collect_unstripped_modules = False`

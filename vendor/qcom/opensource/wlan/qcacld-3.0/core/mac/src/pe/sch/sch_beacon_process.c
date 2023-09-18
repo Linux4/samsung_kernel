@@ -288,7 +288,7 @@ sch_bcn_process_sta(struct mac_context *mac_ctx,
 		return false;
 	}
 
-	lim_detect_change_in_ap_capabilities(mac_ctx, bcn, session);
+	lim_detect_change_in_ap_capabilities(mac_ctx, bcn, session, true);
 	beaconParams->bss_idx = session->vdev_id;
 	qdf_mem_copy((uint8_t *) &session->lastBeaconTimeStamp,
 			(uint8_t *) bcn->timeStamp, sizeof(uint64_t));

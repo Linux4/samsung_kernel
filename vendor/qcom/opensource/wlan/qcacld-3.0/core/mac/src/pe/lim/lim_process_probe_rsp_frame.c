@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -275,7 +275,7 @@ lim_process_probe_rsp_frame(struct mac_context *mac_ctx, uint8_t *rx_Packet_info
 		if (session_entry->fWaitForProbeRsp == true) {
 			pe_warn("Check probe resp for caps change");
 			lim_detect_change_in_ap_capabilities(
-				mac_ctx, probe_rsp, session_entry);
+				mac_ctx, probe_rsp, session_entry, true);
 		}
 	}
 	qdf_mem_free(probe_rsp);

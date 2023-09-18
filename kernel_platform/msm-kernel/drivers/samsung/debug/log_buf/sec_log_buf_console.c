@@ -12,6 +12,9 @@
 static void sec_log_buf_write_console(struct console *console, const char *s,
 		unsigned int count)
 {
+	if (!__log_buf_is_acceptable(s, count))
+		return;
+
 	__log_buf_write(s, count);
 }
 

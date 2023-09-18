@@ -47,4 +47,14 @@ config RQ_STAT_SHOW
 	  It's read only node.
 	  shows number of task in each Cluster's rq.
 	  first is little cluster and last one is gold/gold+ cluster
+
+config SCHED_POWER_OPTIMIZE
+	bool "Enable Power optimize tunning feature"
+	default n
+	help
+	  This feature make "up_delay_freq" sysfs node in Walt Governor.
+	  Also, change prediction target load from 80 to 90
+	  when conservative prediction load enable condition.
+	  if we enable and apply some value,
+	  we can make overall system power better.
 endmenu

@@ -45,7 +45,7 @@ u32 vpe_csc_custom_matrix_coeff[MAX_MATRIX_COEFFS] = {
 
 /* offset coefficients in s9 fixed point format */
 u32 vpe_csc_custom_bias_coeff[MAX_BIAS_COEFFS] = {
-	0x33, 0, 0x4
+	0x32, 0, 0x4
 };
 
 /* clamping value for Y/U/V([min,max] for Y/U/V) */

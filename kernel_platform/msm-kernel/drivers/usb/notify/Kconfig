@@ -135,10 +135,20 @@ config USB_HOST_CERTI
 	 The usb framework gets this uevent.
 	 It is made by samsung.
 
-config USB_AUDIO_POWER_SAVING_REVERSE_BYPASS
+config USB_AUDIO_POWER_SAVING
 	bool "Use function saving power with VBUS provided to USB audio"
 	default n
 	help
-	  If you want to use functionality to save power
-	  by changing power source from vbus to reverse bypass for specific USB earphone,
-	  enable this feature.
+	 If you want to use functionality to save power
+	 for specific USB earphone,
+	 enable this feature.
+	 It is made by samsung.
+
+config USB_LPM_CHARGING_SYNC
+	bool "LPM charging type sync"
+	depends on USB_NOTIFY_LAYER
+	help
+	 There is a requirement that LPM animation confirm
+	 the final charging method and show it only once.
+	 It is a function that syncs with the driver stage through sysfs
+	 to let the LPM know the final charging type.

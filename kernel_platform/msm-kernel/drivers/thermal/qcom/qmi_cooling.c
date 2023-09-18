@@ -115,6 +115,7 @@ static char  device_clients[][QMI_TMD_MITIGATION_DEV_ID_LENGTH_MAX_V01] = {
 	{"mmw2_sub1_dsc"},
 	{"mmw3_sub1_dsc"},
 	{"mmw_ific_sub1_dsc"},
+	{"tmd_rf_cal"},
 };
 
 static int qmi_get_max_state(struct thermal_cooling_device *cdev,
@@ -193,7 +194,7 @@ static int qmi_tmd_send_state_request(struct qmi_cooling_device *qmi_cdev,
 		goto qmi_send_exit;
 	}
 	ret = 0;
-	pr_debug("Requested qmi state:%d for %s\n", state, qmi_cdev->cdev_name);
+	pr_info("Requested qmi state:%d for %s\n", state, qmi_cdev->cdev_name);
 
 qmi_send_exit:
 	mutex_unlock(&tmd->mutex);

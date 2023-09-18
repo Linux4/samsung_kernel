@@ -590,6 +590,12 @@ done:
 
 		/* Get TID from struct cb->tid_val, save to tid */
 		tid = qdf_nbuf_get_tid_val(nbuf);
+		if (qdf_unlikely(tid >= CDP_MAX_DATA_TIDS)) {
+			DP_STATS_INC(soc, rx.err.rx_invalid_tid_err, 1);
+			dp_rx_nbuf_free(nbuf);
+			nbuf = next;
+			continue;
+		}
 
 		if (qdf_unlikely(!txrx_peer)) {
 			txrx_peer = dp_rx_get_txrx_peer_and_vdev(soc, nbuf,

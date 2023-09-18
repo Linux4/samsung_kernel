@@ -3134,7 +3134,9 @@ static void sde_crtc_frame_event_work(struct kthread_work *work)
 					| SDE_ENCODER_FRAME_EVENT_PANEL_DEAD
 					| SDE_ENCODER_FRAME_EVENT_DONE))) {
 
+		SDE_ATRACE_BEGIN("crtc_frame_event_runtime");
 		ret = pm_runtime_resume_and_get(crtc->dev->dev);
+		SDE_ATRACE_END("crtc_frame_event_runtime");
 		if (ret < 0) {
 			SDE_ERROR("failed to enable power resource %d\n", ret);
 			SDE_EVT32(ret, SDE_EVTLOG_ERROR);
@@ -3159,7 +3161,9 @@ static void sde_crtc_frame_event_work(struct kthread_work *work)
 					ktime_to_ns(fevent->ts));
 			SDE_EVT32(DRMID(crtc), fevent->event,
 							SDE_EVTLOG_FUNC_CASE2);
+			SDE_ATRACE_BEGIN("crtc_frame_event_bw");
 			sde_core_perf_crtc_release_bw(crtc);
+			SDE_ATRACE_END("crtc_frame_event_bw");
 		} else {
 			SDE_EVT32_VERBOSE(DRMID(crtc), fevent->event,
 							SDE_EVTLOG_FUNC_CASE3);
@@ -6710,6 +6714,16 @@ static void sde_crtc_install_properties(struct drm_crtc *crtc,
 				0x0, 0, ~0, 0, CRTC_PROP_FRAME_DATA_BUF);
 
 	vfree(info);
+}
+
+static bool _is_crtc_intf_mode_wb(struct drm_crtc *crtc)
+{
+	enum sde_intf_mode intf_mode = sde_crtc_get_intf_mode(crtc, crtc->state);
+
+	if ((intf_mode != INTF_MODE_WB_BLOCK) && (intf_mode != INTF_MODE_WB_LINE))
+		return false;
+
+	return true;
 }
 
 static int _sde_crtc_get_output_fence(struct drm_crtc *crtc,

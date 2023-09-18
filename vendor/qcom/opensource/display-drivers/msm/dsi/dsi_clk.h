@@ -290,6 +290,10 @@ int dsi_display_link_clk_force_update_ctrl(void *handle);
  */
 int dsi_display_clk_ctrl(void *handle, u32 clk_type, u32 clk_state);
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+int dsi_display_is_core_clk_on(void *handle);
+#endif
+
 /**
  * dsi_clk_set_link_frequencies() - set frequencies for link clks
  * @client:     DSI clock client pointer.

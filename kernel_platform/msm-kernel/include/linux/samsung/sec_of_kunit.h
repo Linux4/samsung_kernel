@@ -1,7 +1,17 @@
 #ifndef __SEC_OF_KUNIT_H__
 #define __SEC_OF_KUNIT_H__
 
+#include <linux/miscdevice.h>
 #include <linux/of.h>
+
+#include <linux/samsung/builder_pattern.h>
+
+struct sec_of_kunit_data {
+	struct miscdevice misc;
+	struct device_node *root;
+	struct device_node *of_node;
+	struct builder *bd;
+};
 
 /* NOTE: Inspired from 'drivers/of/unittest.c'. */
 
@@ -23,8 +33,12 @@ struct sec_of_dtb_info {
 };
 
 #if IS_ENABLED(CONFIG_KUNIT)
+extern int sec_of_kunit_data_init(struct sec_of_kunit_data *testdata, const char *name, struct builder *bd, const char *compatible, struct sec_of_dtb_info *info);
+extern void sec_of_kunit_data_exit(struct sec_of_kunit_data *testdata);
 extern struct device_node *sec_of_kunit_dtb_to_fdt(struct sec_of_dtb_info *info);
 #else
+static int sec_of_kunit_data_init(struct sec_of_kunit_data *testdata, const char *name, struct builder *bd, const char *compatible, struct sec_of_dtb_info *info) { return -EINVAL; }
+static void sec_of_kunit_data_exit(struct sec_of_kunit_data *testdata) {}
 static inline struct device_node *sec_of_kunit_dtb_to_fdt(struct sec_of_dtb_info *info) { return ERR_PTR(-EINVAL); }
 #endif
 

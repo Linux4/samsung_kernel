@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -52,17 +52,17 @@
 #define CHIP_ID_2			0x16
 
 /* TI eUSB2 repeater registers */
-#define U_TX_ADJUST_PORT1			0x70
-#define U_HS_TX_PRE_EMPHASIS_P1		0x71
-#define U_RX_ADJUST_PORT1			0x72
-#define U_DISCONNECT_SQUELCH_PORT1	0x73
-#define E_HS_TX_PRE_EMPHASIS_P1		0x77
-#define E_TX_ADJUST_PORT1			0x78
-#define E_RX_ADJUST_PORT1			0x79
 #define GPIO0_CONFIG			0x00
 #define GPIO1_CONFIG			0x40
 #define UART_PORT1			0x50
 #define EXTRA_PORT1			0x51
+#define U_TX_ADJUST_PORT1		0x70
+#define U_HS_TX_PRE_EMPHASIS_P1		0x71
+#define U_RX_ADJUST_PORT1		0x72
+#define U_DISCONNECT_SQUELCH_PORT1	0x73
+#define E_HS_TX_PRE_EMPHASIS_P1		0x77
+#define E_TX_ADJUST_PORT1		0x78
+#define E_RX_ADJUST_PORT1		0x79
 #define REV_ID				0xB0
 #define GLOBAL_CONFIG			0xB2
 #define INT_ENABLE_1			0xB3
@@ -101,6 +101,10 @@ static u8 tune_map_nxp[TUNE_MAX_NXP] = {
 };
 
 static u8 tune_map_ti[TUNE_MAX_TI] = {
+	GPIO0_CONFIG,
+	GPIO1_CONFIG,
+	UART_PORT1,
+	EXTRA_PORT1,
 	U_TX_ADJUST_PORT1,
 	U_HS_TX_PRE_EMPHASIS_P1,
 	U_RX_ADJUST_PORT1,
@@ -108,10 +112,6 @@ static u8 tune_map_ti[TUNE_MAX_TI] = {
 	E_HS_TX_PRE_EMPHASIS_P1,
 	E_TX_ADJUST_PORT1,
 	E_RX_ADJUST_PORT1,
-	GPIO0_CONFIG,
-	GPIO1_CONFIG,
-	UART_PORT1,
-	EXTRA_PORT1,
 	REV_ID,
 	GLOBAL_CONFIG,
 	INT_ENABLE_1,
@@ -183,7 +183,7 @@ static int eusb2_i2c_read_reg(struct eusb2_repeater *er, u8 reg, u8 *val)
 	for (i = 0; i < 3 && ret < 0; i++) {
 		dev_err(er->dev, "Failed to read reg:0x%02x ret=%d\n", reg, ret);
 		usleep_range(400, 450);
-		ret = regmap_read(er->regmap, reg, &reg_val);		
+		ret = regmap_read(er->regmap, reg, &reg_val);
 	}
 #endif
 	if (ret < 0) {
@@ -236,9 +236,9 @@ static void eusb2_repeater_update_seq(struct eusb2_repeater *er, u32 *seq, u8 cn
 static void eusb2_repeater_tune_buf_init(void)
 {
 	int i;
-	for (i = 0; i < TUNE_BUF_COUNT; i++) {
+
+	for (i = 0; i < TUNE_BUF_COUNT; i++)
 		ter->tune_buf[i][0] = ter->tune_buf[i][1] = 0;
-	}
 }
 
 static void eusb2_repeater_tune_set(void)
@@ -369,7 +369,7 @@ static ssize_t eusb2_repeater_tune_store(struct device *dev,
 }
 
 static DEVICE_ATTR_RW(eusb2_repeater_tune);
-					       
+
 static struct attribute *eusb2_repeater_attributes[] = {
 	&dev_attr_eusb2_repeater_tune.attr,
 	NULL

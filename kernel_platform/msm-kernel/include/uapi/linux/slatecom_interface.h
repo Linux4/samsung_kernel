@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef LINUX_SLATECOM_INTERFACE_H
 #define LINUX_SLATECOM_INTERFACE_H
@@ -24,6 +24,8 @@
 #define SLATECOM_DEVICE_STATE_TRANSITION 13
 #define SLATE_SEND_TIME_DATA 14
 #define SLATECOM_SEND_DEBUG_CONFIG 15
+#define SLATECOM_SET_BOOT_MODE 16
+#define SLATECOM_GET_BOOT_MODE 17
 #define EXCHANGE_CODE  'V'
 
 struct slate_ui_data {
@@ -33,7 +35,7 @@ struct slate_ui_data {
 	__u32  cmd;
 	__u32  num_of_words;
 	__u8 __user *buffer;
-};
+} __attribute__ ((packed));
 
 enum slate_event_type {
 	SLATE_BEFORE_POWER_DOWN = 1,
@@ -117,5 +119,11 @@ enum debug_config {
 #define SEND_DEBUG_CONFIG \
 	_IOWR(EXCHANGE_CODE, SLATECOM_SEND_DEBUG_CONFIG, \
 	struct slate_ui_data)
+#define SEND_SET_BOOT_MODE \
+	_IOWR(EXCHANGE_CODE, SLATECOM_SET_BOOT_MODE, \
+	uint32_t)
+#define SEND_GET_BOOT_MODE \
+	_IOWR(EXCHANGE_CODE, SLATECOM_GET_BOOT_MODE, \
+	NULL)
 #endif /* LINUX_SLATECOM_INTERFACE_H */
 

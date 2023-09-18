@@ -52,8 +52,6 @@ int ss_wrapper_i2c_transfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int 
 int ss_wrapper_spi_sync(struct spi_device *spi, struct spi_message *message);
 
 struct ss_cmd_set;
-int ss_wrapper_restore_backup_cmd(struct samsung_display_driver_data *vdd,
-					int type, int offset, u8 addr);
 
 int ss_wrapper_parse_cmd_sets(struct samsung_display_driver_data *vdd,
 				struct ss_cmd_set *set, int type,
@@ -86,7 +84,7 @@ int ss_get_all_rx_buf(struct samsung_display_driver_data *vdd, int type,
 			u8 *out_buf);
 int ss_send_cmd_get_rx(struct samsung_display_driver_data *vdd, int type,
 				u8 *out_buf);
-int ss_wrapper_read_from_file(struct samsung_display_driver_data *vdd, const char* panel_name);
+int ss_wrapper_read_from_file(struct samsung_display_driver_data *vdd);
 
 struct ss_cmd_desc;
 bool is_ss_cmd_op_skip(struct samsung_display_driver_data *vdd,

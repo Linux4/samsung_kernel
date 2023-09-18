@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2019, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 /*
@@ -67,6 +67,10 @@
 #include <linux/ipc_logging.h>
 #include <linux/pm.h>
 #include <linux/string.h>
+#include <linux/io.h>
+
+#define SPCOM_POLLING_REGISTER_ADDRESS 0x1885028
+#define SPCOM_STOP_POLLING_VALUE 0xffff
 
 #define SPCOM_LOG_PAGE_CNT 10
 
@@ -678,8 +682,12 @@ static int spcom_handle_create_channel_command(void *cmd_buf, int cmd_size)
 	mutex_lock(&spcom_dev->chdev_count_lock);
 	ret = spcom_create_channel_chardev(cmd->ch_name, cmd->is_sharable);
 	mutex_unlock(&spcom_dev->chdev_count_lock);
-	if (ret)
-		spcom_pr_err("failed to create ch[%s], ret [%d]\n", cmd->ch_name, ret);
+	if (ret) {
+		if (-EINVAL == ret)
+			spcom_pr_err("failed to create channel, ret [%d]\n", ret);
+		else
+			spcom_pr_err("failed to create ch[%s], ret [%d]\n", cmd->ch_name, ret);
+	}
 
 	return ret;
 }
@@ -3031,8 +3039,8 @@ static int spcom_ioctl_handle_poll_event(struct spcom_ioctl_poll_event *arg, int
 				&spcom_dev->rpmsg_state_change);
 
 			if (ret) {/* wait was interrupted */
-				spcom_pr_info("Wait for link state change interrupted, ret[%d]\n",
-						ret);
+				/*spcom_pr_info("Wait for link state change interrupted, ret[%d]\n",
+						ret);*/
 				return -EINTR;
 			}
 		}
@@ -3688,6 +3696,13 @@ static int spcom_rpdev_probe(struct rpmsg_device *rpdev)
 {
 	const char *name;
 	struct spcom_channel *ch;
+
+	/* Stop polling  */
+	void __iomem *stop_polling = NULL;
+	stop_polling = ioremap(SPCOM_POLLING_REGISTER_ADDRESS , sizeof(u32));
+	spcom_pr_dbg("before stop polling register : %x", readl_relaxed(stop_polling));
+	writel_relaxed(SPCOM_STOP_POLLING_VALUE, stop_polling);
+	spcom_pr_dbg("after stop polling register : %x", readl_relaxed(stop_polling));
 
 	if (!rpdev) {
 		spcom_pr_err("rpdev is NULL\n");
