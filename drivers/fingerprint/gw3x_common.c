@@ -156,7 +156,7 @@ static void gw3x_enable_irq(struct gf_device *gf_dev)
 		if ((!IS_ERR_OR_NULL(desc)) && (desc->irq_data.chip->irq_ack))
 			desc->irq_data.chip->irq_ack(&desc->irq_data);
 #if KERNEL_VERSION(5, 4, 0) <= LINUX_VERSION_CODE
-		if (d->parent_data) /* QC case 05534084 */
+		if ((!IS_ERR_OR_NULL(d)) && (d->parent_data)) /* QC case 05534084 */
 			irq_chip_set_parent_state(d, IRQCHIP_STATE_PENDING, false);
 #endif
 		enable_irq(gf_dev->irq);
@@ -656,10 +656,12 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 		gf_dev->btp_vdd = NULL;
 	} else {
 		gf_dev->regulator_3p3 = regulator_get(dev, gf_dev->btp_vdd);
-		if (IS_ERR(gf_dev->regulator_3p3) || (gf_dev->regulator_3p3) == NULL) {
+		if ((gf_dev->regulator_3p3) == NULL) {
 			pr_info("fail to get regulator_3p3\n");
-			gf_dev->regulator_3p3 = NULL;
 			return -EINVAL;
+		} else if (IS_ERR(gf_dev->regulator_3p3)) {
+			pr_info("fail to get regulator_3p3: %ld", PTR_ERR(gf_dev->regulator_3p3));
+			return PTR_ERR(gf_dev->regulator_3p3);
 		}
 		pr_info("btp_regulator ok\n");
 	}
@@ -668,8 +670,7 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 	gf_dev->reset_gpio = of_get_named_gpio(np, "goodix,gpio_reset", 0);
 	if (!gpio_is_valid(gf_dev->reset_gpio)) {
 		pr_err("RESET GPIO is invalid.\n");
-		gf_dev->reset_gpio = 0;
-		return -EINVAL;
+		return gf_dev->reset_gpio;
 	}
 	pr_info("goodix_reset:%d\n", gf_dev->reset_gpio);
 	retval = gpio_request(gf_dev->reset_gpio, "goodix_reset");
@@ -682,8 +683,8 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 	 /*get irq resourece*/
 	gf_dev->irq_gpio = of_get_named_gpio(np, "goodix,gpio_irq", 0);
 	if (!gpio_is_valid(gf_dev->irq_gpio)) {
-		pr_err("IRQ GPIO is invalid\n");
-		return -1;
+		pr_err("IRQ GPIO is invalid.\n");
+		return gf_dev->irq_gpio;
 	}
 	pr_info("irq_gpio:%d\n", gf_dev->irq_gpio);
 	retval = gpio_request(gf_dev->irq_gpio, "goodix_irq");
@@ -721,7 +722,7 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 	gf_dev->p = pinctrl_get_select_default(dev);
 	if (IS_ERR(gf_dev->p)) {
 		pr_err("failed pinctrl_get\n");
-		return -EINVAL;
+		return PTR_ERR(gf_dev->p);
 	}
 
 #if !defined(ENABLE_SENSORS_FPRINT_SECURE) || defined(DISABLED_GPIO_PROTECTION)
@@ -735,7 +736,7 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 		pr_err("could not get pins sleep_state (%li)\n",
 			PTR_ERR(gf_dev->pins_poweroff));
 		pinctrl_put(gf_dev->p);
-		return -EINVAL;
+		return PTR_ERR(gf_dev->pins_poweroff);
 	}
 
 #if !defined(ENABLE_SENSORS_FPRINT_SECURE) || defined(DISABLED_GPIO_PROTECTION)
@@ -749,7 +750,7 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 		pr_err("could not get pins idle_state (%li)\n",
 			PTR_ERR(gf_dev->pins_poweron));
 		pinctrl_put(gf_dev->p);
-		return -EINVAL;
+		return PTR_ERR(gf_dev->pins_poweron);
 	}
 	return retval;
 }
@@ -1093,10 +1094,6 @@ static int gw3x_probe(struct platform_device *pdev)
 
 gw3x_platform_probe_failed:
 	gf_dev = NULL;
-#if !IS_ENABLED(CONFIG_QGKI)
-	pr_err("deferred probe\n");
-	return -EPROBE_DEFER;
-#endif
 gw3x_platform_alloc_failed:
 	pr_err("is failed : %d\n", retval);
 	return retval;

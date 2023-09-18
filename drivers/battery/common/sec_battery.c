@@ -817,7 +817,6 @@ EXPORT_SYMBOL_KUNIT(sec_bat_get_charging_current_in_power_list);
 int sec_bat_set_charging_current(struct sec_battery_info *battery)
 {
 	int ct = battery->cable_type;
-	int siop_lvl = battery->siop_level;
 #if defined(CONFIG_AFC_CHARGER_MODE)
 	static int afc_init = false;
 	union power_supply_propval value = {0, };
@@ -852,7 +851,7 @@ int sec_bat_set_charging_current(struct sec_battery_info *battery)
 
 		if (!is_wireless_fake_type(ct))
 			sec_bat_check_lrp_temp(battery,
-				ct, battery->wire_status, siop_lvl, battery->lcd_status);
+				ct, battery->wire_status, battery->siop_level, battery->lcd_status);
 #endif
 
 #if IS_ENABLED(CONFIG_WIRELESS_CHARGING)

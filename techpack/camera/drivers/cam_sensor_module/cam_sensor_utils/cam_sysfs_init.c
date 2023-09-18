@@ -3280,11 +3280,7 @@ static ssize_t rear_actuator_power_store(struct device *dev,
 	int i = 0, cnt = 0, rc = 0, index = 0;
 	uint32_t target[] = { SEC_WIDE_SENSOR , SEC_TELE2_SENSOR };
 	cnt = ARRAY_SIZE(target);
-#if defined(CONFIG_SEC_P3Q_PROJECT)
-	if (g_a_ctrls[0] != NULL) {
-		mutex_lock(&(g_a_ctrls[0]->actuator_mutex));
-	}
-#endif
+
 	switch (buf[0]) {
 	case '0':
 		if (actuator_power == 0) {
@@ -3358,11 +3354,6 @@ static ssize_t rear_actuator_power_store(struct device *dev,
 
 #if defined(CONFIG_SAMSUNG_OIS_MCU_STM32) || defined(CONFIG_SAMSUNG_OIS_RUMBA_S4)
 	error:
-#endif
-#if defined(CONFIG_SEC_P3Q_PROJECT)
-	if (g_a_ctrls[0] != NULL) {
-		 mutex_unlock(&(g_a_ctrls[0]->actuator_mutex));
-	}
 #endif
 #endif
 	return size;
