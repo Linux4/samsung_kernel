@@ -61,7 +61,7 @@ static struct panel_resol sw83109c_m54x_default_resol[] = {
 	},
 };
 
-#if defined(CONFIG_PANEL_DISPLAY_MODE)
+#if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 static struct common_panel_display_mode sw83109c_m54x_display_mode[] = {
 	/* FHD */
 	[SW83109C_M54X_DISPLAY_MODE_1080x2400_120HS] = {
@@ -92,5 +92,5 @@ static struct common_panel_display_modes sw83109c_m54x_display_modes = {
 	.num_modes = ARRAY_SIZE(sw83109c_m54x_display_mode),
 	.modes = (struct common_panel_display_mode **)&sw83109c_m54x_display_mode_array,
 };
-#endif /* CONFIG_PANEL_DISPLAY_MODE */
+#endif /* CONFIG_USDM_PANEL_DISPLAY_MODE */
 #endif /* __SW83109C_M54X_RESOL_H__ */

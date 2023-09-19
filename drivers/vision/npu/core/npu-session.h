@@ -58,6 +58,13 @@ enum npu_session_state {
 	NPU_SESSION_STATE_CLOSE,
 };
 
+enum npu_imb_async_result {
+	NPU_IMB_ASYNC_RESULT_SKIP = 0x4896,
+	NPU_IMB_ASYNC_RESULT_START,
+	NPU_IMB_ASYNC_RESULT_DONE,
+	NPU_IMB_ASYNC_RESULT_ERROR,
+};
+
 struct ion_info {
 	dma_addr_t		daddr;
 	void				*vaddr;
@@ -168,6 +175,13 @@ struct npu_session {
 #if IS_ENABLED(CONFIG_NPU_USE_IFD)
 	struct npu_scheduler_dvfs_sess_info *dvfs_info;
 #endif
+#if IS_ENABLED(CONFIG_NPU_IMB_ASYNC_ALLOC)
+	struct delayed_work 			imb_async_work;
+	wait_queue_head_t		imb_wq;
+	int 	imb_async_result_code;
+	struct workqueue_struct 		*imb_async_wq;
+	struct addr_info *imb_av;
+#endif
 };
 
 typedef int (*session_cb)(struct npu_session *);
@@ -215,5 +229,12 @@ struct dsp_common_execute_info_v4 *get_execution_info_for_dsp(struct npu_frame *
 #else
 void dsp_exec_graph_info(struct dsp_common_execute_info_v4 *info);
 void npu_session_dump(struct npu_session *session);
+#endif
+#if IS_ENABLED(CONFIG_NPU_IMB_ASYNC_ALLOC)
+int npu_session_imb_async_alloc_init(struct npu_session *session);
+int npu_session_imb_async_init(struct npu_session *session);
+#else	/* CONFIG_NPU_IMB_ASYNC_ALLOC is not defined */
+#define npu_session_imb_async_alloc_init(p)	(0)
+#define npu_session_imb_async_init(p)	(0)
 #endif
 #endif

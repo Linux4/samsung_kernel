@@ -14,10 +14,12 @@
 #include "timenval.h"
 #include "panel_mutex.h"
 
-#ifdef CONFIG_PANEL_AID_DIMMING
+#ifdef CONFIG_USDM_PANEL_DIMMING
 #include "dimming.h"
 #include "panel_dimming.h"
 #endif
+
+#include "panel_kunit.h"
 
 struct panel_info;
 struct panel_device;
@@ -27,9 +29,15 @@ struct panel_irc_info;
 #undef DEBUG_PAC
 #undef CONFIG_PANEL_BL_USE_BRT_CACHE
 
+#define PANEL_BL_PROPERTY_BRIGHTNESS ("brightness")
+#define PANEL_BL_PROPERTY_PREV_BRIGHTNESS ("prev_brightness")
+#define PANEL_BL_PROPERTY_SMOOTH_TRANSITION ("smooth_transition")
+#define PANEL_BL_PROPERTY_ACL_OPR ("acl_opr")
+#define PANEL_BL_PROPERTY_ACL_PWRSAVE ("acl_pwrsave")
+
 #define MAX_PANEL_BL_NAME_SIZE (32)
 
-#ifdef CONFIG_PANEL_BACKLIGHT_PAC_3_0
+#ifdef CONFIG_USDM_PANEL_BACKLIGHT_PAC_3_0
 #define BRT_SCALE	(100)
 #define PANEL_BACKLIGHT_PAC_STEPS	(512)
 #else
@@ -142,10 +150,10 @@ enum panel_bl_hw_type {
 
 enum panel_bl_subdev_type {
 	PANEL_BL_SUBDEV_TYPE_DISP,
-#ifdef CONFIG_SUPPORT_HMD
+#ifdef CONFIG_USDM_PANEL_HMD
 	PANEL_BL_SUBDEV_TYPE_HMD,
 #endif
-#ifdef CONFIG_SUPPORT_AOD_BL
+#ifdef CONFIG_USDM_PANEL_AOD_BL
 	PANEL_BL_SUBDEV_TYPE_AOD,
 #endif
 	MAX_PANEL_BL_SUBDEV,
@@ -169,7 +177,7 @@ struct panel_bl_properties {
 	int acl_opr;
 	int aor_ratio;
 	int smooth_transition;
-#ifdef CONFIG_SUPPORT_MASK_LAYER
+#ifdef CONFIG_USDM_PANEL_MASK_LAYER
 	int mask_layer_br_target;
 	int mask_layer_br_actual;
 	int mask_layer_br_hook;
@@ -225,11 +233,13 @@ static inline bool panel_bl_get_saved_flag(struct panel_bl_device *panel_bl)
 	return panel_bl->props.saved;
 };
 
+int panel_bl_set_property(struct panel_bl_device *panel_bl,
+		int *property, unsigned int value);
 int panel_bl_init(struct panel_bl_device *panel_bl);
 int panel_bl_exit(struct panel_bl_device *panel_bl);
 int panel_bl_probe(struct panel_bl_device *panel_bl);
 int panel_bl_remove(struct panel_bl_device *panel_bl);
-int panel_bl_set_brightness(struct panel_bl_device *panel_bl, int id, u32 send_cmd);
+DECLARE_REDIRECT_MOCKABLE(panel_bl_set_brightness, RETURNS(int), PARAMS(struct panel_bl_device *panel_bl, int id, u32 send_cmd));
 int panel_update_brightness(struct panel_device *panel);
 int panel_update_brightness_cmd_skip(struct panel_device *panel);
 int panel_update_brightness_cmd_skip_nolock(struct panel_device *panel);
@@ -264,5 +274,6 @@ int panel_bl_irc_interpolation(struct panel_bl_device *panel_bl, int id,
 int search_tbl(int *tbl, int sz, enum SEARCH_TYPE type, int value);
 int panel_bl_get_brightness_set_count(struct panel_bl_device *panel_bl);
 void panel_bl_update_acl_state(struct panel_bl_device *panel_bl);
+int panel_update_subdev_brightness(struct panel_device *panel, u32 subdev_id, u32 brightness);
 
 #endif /* __PANEL_BL_H__ */

@@ -81,9 +81,6 @@ extern void cal_asv_set_ssa0(unsigned int id, unsigned int ssa0);
 
 extern int cal_init(void);
 
-/* It is for debugging. */
-extern void cal_vclk_dbg_info(unsigned int id);
-
 #ifdef __cplusplus
 }
 #endif

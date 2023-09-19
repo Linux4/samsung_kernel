@@ -78,7 +78,6 @@ static int get_current_soc( char *name)
 	return value.intval;
 }
 
-#define FULL_CAPACITY 850
 int sec_calc_ttf(struct sec_battery_info * battery, unsigned int ttf_curr)
 {
 	struct sec_cv_slope *cv_data = battery->ttf_d->cv_data;
@@ -91,8 +90,8 @@ int sec_calc_ttf(struct sec_battery_info * battery, unsigned int ttf_curr)
 
 	total_time = get_cc_cv_time(battery, ttf_curr, get_current_soc(battery->pdata->fuelgauge_name), true);
 	if (battery->batt_full_capacity > 0 && battery->batt_full_capacity < 100) {
-		pr_info("%s: time to 85 percent\n", __func__);
-		total_time -= get_cc_cv_time(battery, ttf_curr, FULL_CAPACITY, false);
+		pr_info("%s: time to %d percent\n", __func__, battery->batt_full_capacity);
+		total_time -= get_cc_cv_time(battery, ttf_curr, (battery->batt_full_capacity * 10), false);
 	}
 
 	return total_time;
@@ -142,6 +141,9 @@ void sec_bat_calc_time_to_full(struct sec_battery_info * battery)
 			charge = (battery->max_charge_power / 5) > battery->pdata->charging_current[battery->cable_type].fast_charging_current ?
 					battery->pdata->charging_current[battery->cable_type].fast_charging_current : (battery->max_charge_power / 5);
 		}
+
+		if (battery->cable_type == SEC_BATTERY_CABLE_FPDO_DC)
+			charge = battery->ttf_d->ttf_fpdo_dc_charge_current;
 
 		battery->ttf_d->timetofull = sec_calc_ttf(battery, charge);
 		dev_info(battery->dev, "%s: T: %5d sec, passed time: %5ld, current: %d\n",
@@ -239,6 +241,14 @@ int sec_ttf_parse_dt(struct sec_battery_info *battery)
 		pdata->ttf_dc45_charge_current = pdata->ttf_dc25_charge_current;
 		pr_info("%s: ttf_dc45_charge_current is Empty, Default value %d \n",
 			__func__, pdata->ttf_dc45_charge_current);
+	}
+
+	ret = of_property_read_u32(np, "battery,ttf_fpdo_dc_charge_current",
+					&pdata->ttf_fpdo_dc_charge_current);
+	if (ret) {
+		pdata->ttf_fpdo_dc_charge_current = pdata->ttf_hv_charge_current;
+		pr_info("%s: ttf_fpdo_dc_charge_current is Empty, Default value %d\n",
+			__func__, pdata->ttf_fpdo_dc_charge_current);
 	}
 
 	ret = of_property_read_u32(np, "battery,ttf_capacity",

@@ -710,7 +710,7 @@ struct cmucal_qch cmucal_qch_list[] = {
         CLK_QCH(DFTMUX_CMU_QCH_CIS_CLK5,DMYQCH_CON_DFTMUX_TOP_QCH_CIS_CLK5__QCH_EN, DMYQCH_CON_DFTMUX_TOP_QCH_CIS_CLK5__CLK_REQ, DMYQCH_CON_DFTMUX_TOP_QCH_CIS_CLK5__IGNORE_FORCE_PM_EN),
 };
 
-unsigned int cmucal_option_size = 33;
+unsigned int cmucal_option_size = 0;
 struct cmucal_option cmucal_option_list[] = {
 #if 0
         CLK_OPTION(CTRL_OPTION_S5E8835,CMU_CTRL__ENABLE_PM_EN, CMU_CTRL__ENABLE_AUTOMATIC_CLKGATING),

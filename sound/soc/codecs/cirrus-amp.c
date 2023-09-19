@@ -28,9 +28,12 @@ EXPORT_SYMBOL_GPL(cirrus_amp_class);
 
 struct cirrus_amp_group *amp_group;
 
-static struct cirrus_cal_ops *cirrus_cal_ops[2] = {
+static struct cirrus_cal_ops *cirrus_cal_ops[3] = {
 	&cirrus_cspl_cal_ops,
 	&cirrus_cspl_cal_ops,
+#if IS_ENABLED(CONFIG_SND_SOC_CS35L43)
+	&cirrus_cs35l43_cal_ops
+#endif
 };
 
 struct cirrus_amp *cirrus_get_amp_from_suffix(const char *suffix)
@@ -161,13 +164,17 @@ int cirrus_amp_read_ctl(struct cirrus_amp *amp, const char *name,
 {
 	struct wm_adsp *dsp = snd_soc_component_get_drvdata(amp->component);
 	unsigned int tmp;
-	int ret = 0;
+	int ret = 0, retry = CIRRUS_AMP_CTL_RETRY;
 
 	if (amp->component) {
-		ret = wm_adsp_read_ctl(dsp, name, type, id, (void *)&tmp, 4);
-		*value = (tmp & 0xff0000) >> 8 |
-			(tmp & 0xff00) << 8 |
-			(tmp & 0xff000000) >> 24;
+		do {
+			ret = wm_adsp_read_ctl(dsp, name, type, id, (void *)&tmp, 4);
+			*value = (tmp & 0xff0000) >> 8 |
+				(tmp & 0xff00) << 8 |
+				(tmp & 0xff000000) >> 24;
+			if (ret)
+				dev_err(dsp->dev, "%s: ret = %d\n", __func__, ret);
+		} while (ret != 0 && ret != -EINVAL && retry-- > 0);
 	}
 
 	return ret;
@@ -179,16 +186,22 @@ int cirrus_amp_write_ctl(struct cirrus_amp *amp, const char *name,
 {
 	struct wm_adsp *dsp = snd_soc_component_get_drvdata(amp->component);
 	unsigned int tmp;
+	int ret = 0, retry = CIRRUS_AMP_CTL_RETRY;
 
 	tmp = (value & 0xff0000) >> 8 |
 			(value & 0xff00) << 8 |
 			(value & 0xff000000) >> 24 |
 			(value & 0xff) << 24;
 
-	if (amp->component)
-		return wm_adsp_write_ctl(dsp, name, type, id, (void *)&tmp, 4);
+	if (amp->component) {
+		do  {
+			ret = wm_adsp_write_ctl(dsp, name, type, id, (void *)&tmp, 4);
+			if (ret && ret != -EINVAL)
+				dev_err(dsp->dev, "%s: ret = %d\n", __func__, ret);
+		} while (ret != 0 && ret != -EINVAL && retry-- > 0);
+	}
 
-	return 0;
+	return ret;
 }
 EXPORT_SYMBOL_GPL(cirrus_amp_write_ctl);
 

@@ -1090,14 +1090,21 @@ KUNIT_EXPORT_SYMBOL(cstat_hw_corex_trigger);
 
 int cstat_hw_s_reset(void __iomem *base)
 {
+	int ret;
+
 	/* 2: Core + Configuration register reset for FRO controller */
 	CSTAT_SET_R_DIRECT(base, CSTAT_R_FRO_SW_RESET, 2);
 
 	CSTAT_SET_R_DIRECT(base, CSTAT_R_SW_RESET, 0x1);
 
+	ret = _cstat_hw_wait_idle(base);
+
+	CSTAT_SET_F_DIRECT(base, CSTAT_R_IP_PROCESSING,
+			CSTAT_F_IP_PROCESSING, 0);
+
 	info_hw("[CSTAT] SW reset\n");
 
-	return _cstat_hw_wait_idle(base);
+	return ret;
 }
 KUNIT_EXPORT_SYMBOL(cstat_hw_s_reset);
 
@@ -1170,6 +1177,8 @@ void cstat_hw_core_init(void __iomem *base)
 			CSTAT_F_AUTO_MASK_PREADY, 1);
 	CSTAT_SET_F_DIRECT(base, CSTAT_R_IP_PROCESSING,
 			CSTAT_F_IP_PROCESSING, 1);
+
+	info_hw("[CSTAT] Core init\n");
 }
 KUNIT_EXPORT_SYMBOL(cstat_hw_core_init);
 

@@ -50,6 +50,8 @@
 #define TX_ID_CHECK_CNT		3
 #define MISALIGN_TX_TRY_CNT	3
 
+#define WL_TO_W 99
+
 #if IS_ENABLED(CONFIG_USB_FACTORY_MODE)
 #define FOREACH_BOOT_MODE(GEN_BOOT_MODE) \
 	GEN_BOOT_MODE(NO_MODE) \
@@ -382,6 +384,13 @@ enum d2d_mode {
 	HP_D2D_LCD,
 };
 
+enum mfc_phm_state {
+	EXIT_PHM = 0,
+	ENTER_PHM,
+	FAILED_PHM,
+	END_PHM,
+};
+
 /* full check condition type (can be used overlapped) */
 #define sec_battery_full_condition_t unsigned int
 
@@ -454,7 +463,6 @@ enum sec_battery_check {
 #define SEC_FUELGAUGE_CAPACITY_TYPE_REPCAP	0x80
 
 /* charger function settings (can be used overlapped) */
-#define sec_charger_functions_t unsigned int
 /* SEC_CHARGER_NO_GRADUAL_CHARGING_CURRENT
  * disable gradual charging current setting
  * SUMMIT:AICL, MAXIM:regulation loop
@@ -466,7 +474,12 @@ enum sec_battery_check {
  */
 #define SEC_CHARGER_MINIMUM_SIOP_CHARGING_CURRENT	2
 
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
+#if defined(CONFIG_TABLET_MODEL_CONCEPT) && !defined(CONFIG_SEC_FACTORY)
+#define SLOW_CHARGING_CURRENT_STANDARD          1000
+#else
+#define SLOW_CHARGING_CURRENT_STANDARD          400
+#endif
+
 typedef struct sec_age_data {
 	unsigned int cycle;
 	unsigned int float_voltage;
@@ -477,7 +490,6 @@ typedef struct sec_age_data {
 	unsigned int max_charging_current;
 #endif
 } sec_age_data_t;
-#endif
 
 typedef struct {
 	unsigned int cycle;
@@ -557,20 +569,27 @@ typedef struct {
 	cable_type == SEC_BATTERY_CABLE_OTG || \
 	cable_type == SEC_BATTERY_CABLE_POWER_SHARING)
 
+
+#define chg_can_sleep_type(cable_type) ( \
+	!is_wired_type(cable_type) || cable_type == SEC_BATTERY_CABLE_TIMEOUT)
+
 #define is_slate_mode(battery) ((battery->current_event & SEC_BAT_CURRENT_EVENT_SLATE) \
 		== SEC_BAT_CURRENT_EVENT_SLATE)
 
 #define can_usb_suspend_type(cable_type) ( \
 	cable_type == SEC_BATTERY_CABLE_PDIC || \
+	cable_type == SEC_BATTERY_CABLE_FPDO_DC || \
 	cable_type == SEC_BATTERY_CABLE_PDIC_APDO || \
 	cable_type == SEC_BATTERY_CABLE_USB || \
 	cable_type == SEC_BATTERY_CABLE_USB_CDP)
 
 #define is_pd_wire_type(cable_type) ( \
 	cable_type == SEC_BATTERY_CABLE_PDIC || \
+	cable_type == SEC_BATTERY_CABLE_FPDO_DC || \
 	cable_type == SEC_BATTERY_CABLE_PDIC_APDO)
 
 #define is_pd_apdo_wire_type(cable_type) ( \
+	cable_type == SEC_BATTERY_CABLE_FPDO_DC || \
 	cable_type == SEC_BATTERY_CABLE_PDIC_APDO)
 
 #define is_pd_fpdo_wire_type(cable_type) ( \
@@ -578,6 +597,7 @@ typedef struct {
 
 #define is_hv_pdo_wire_type(cable_type, hv_pdo) ( \
 	(cable_type == SEC_BATTERY_CABLE_PDIC || \
+	cable_type == SEC_BATTERY_CABLE_FPDO_DC || \
 	cable_type == SEC_BATTERY_CABLE_PDIC_APDO) && \
 	hv_pdo)
 

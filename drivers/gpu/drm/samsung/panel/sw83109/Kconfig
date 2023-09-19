@@ -1,6 +1,6 @@
-menuconfig EXYNOS_DECON_LCD_SW83109
+menuconfig USDM_PANEL_SW83109
 	tristate "SW83109 DDI Panel Driver"
-	depends on MCD_PANEL
+	depends on USDM_PANEL
 	depends on USDM_PANEL_OLED_COMMON
 	default n
 	help

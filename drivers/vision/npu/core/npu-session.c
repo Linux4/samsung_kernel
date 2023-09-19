@@ -56,6 +56,16 @@ static void __npu_session_ion_sync_for_device(struct npu_memory_buffer *pbuf,
 			pbuf->sgt->sgl, pbuf->sgt->orig_nents, DMA_FROM_DEVICE);
 }
 
+void npu_session_ion_sync_for_device(struct npu_memory_buffer *pbuf, off_t offset, size_t size, enum dma_data_direction dir)
+{
+	if (likely(pbuf->vaddr)) {
+		BUG_ON(offset < 0);
+		BUG_ON((offset + size) > pbuf->dma_buf->size);
+
+		__npu_session_ion_sync_for_device(pbuf, offset, size, dir);
+	}
+}
+
 #if IS_ENABLED(CONFIG_DSP_USE_VS4L)
 static int __remove_buf_from_load_msg(struct npu_session *session)
 {
@@ -208,6 +218,21 @@ static int npu_session_put_nw_req(struct npu_session *session, nw_cmd_e nw_cmd)
 #if IS_ENABLED(CONFIG_NPU_USE_IMB_ALLOCATOR)
 static struct imb_size_control *imb_size_ctl_ref;
 
+static inline u32 __calc_imb_req_chunk(struct npu_memory_buffer *IMB_mem_buf, u32 core_num)
+{
+	u32 req_chunk_cnt, req_size;
+
+	WARN_ON(!IMB_mem_buf);
+
+	req_size = IMB_mem_buf->ncp_max_size * core_num;
+	req_size = ALIGN(req_size, NPU_IMB_GRANULARITY);
+	req_chunk_cnt = req_size / NPU_IMB_CHUNK_SIZE;
+	if (unlikely(req_chunk_cnt > NPU_IMB_CHUNK_MAX_NUM))
+		req_chunk_cnt = NPU_IMB_CHUNK_MAX_NUM;
+
+	return req_chunk_cnt;
+}
+
 static inline struct npu_system *get_session_system(struct npu_session *session)
 {
 	struct npu_vertex_ctx *vctx;
@@ -221,21 +246,6 @@ static inline struct npu_system *get_session_system(struct npu_session *session)
 	device = container_of(vertex, struct npu_device, vertex);
 	system = &device->system;
 	return system;
-}
-
-static inline u32 __calc_imb_req_chunk(struct npu_memory_buffer *IMB_mem_buf)
-{
-	u32 req_chunk_cnt, req_size;
-
-	WARN_ON(!IMB_mem_buf);
-
-	req_size = IMB_mem_buf->ncp_max_size * 2;
-	req_size = ALIGN(req_size, NPU_IMB_GRANULARITY);
-	req_chunk_cnt = req_size / NPU_IMB_CHUNK_SIZE;
-	if (unlikely(req_chunk_cnt > NPU_IMB_CHUNK_MAX_NUM))
-		req_chunk_cnt = NPU_IMB_CHUNK_MAX_NUM;
-
-	return req_chunk_cnt;
 }
 
 static int __npu_update_imb_size_save_result(struct npu_session *dummy_session, struct nw_result nw_result)
@@ -308,13 +318,146 @@ static int __fw_sync_CMD_IMB_SIZE(struct npu_session *session, u32 new_chunk_cnt
 	return ret;
 }
 
+#if IS_ENABLED(CONFIG_NPU_IMB_ASYNC_ALLOC)
+#define	NPU_IMB_ASYNC_THRESHOLD		(0x1000000)
+
+static void npu_imb_async_work(struct work_struct *work)
+{
+	int ret = 0;
+	u32 i = 0;
+	u32 address_vector_offset;
+	struct address_vector *av;
+	char *ncp_vaddr;
+	u32 IMB_cnt;
+	u32 addr_offset = 0;
+	dma_addr_t dAddr;
+	u32 prev_chunk_cnt;
+	struct npu_session *session;
+	struct npu_system *system;
+	struct npu_memory_buffer *IMB_mem_buf;
+	struct addr_info **imb_av;
+	u32 req_chunk_cnt;
+
+	session = container_of(work, struct npu_session, imb_async_work.work);
+	IMB_cnt = session->IMB_cnt;
+	IMB_mem_buf = session->IMB_mem_buf;
+	imb_av = &session->imb_av;
+	system = get_session_system(session);
+	session->imb_async_result_code = NPU_IMB_ASYNC_RESULT_START;
+	ncp_vaddr = (char *)session->ncp_mem_buf->vaddr;
+	address_vector_offset = session->address_vector_offset;
+
+	av = (struct address_vector *)(ncp_vaddr + address_vector_offset);
+
+	npu_uinfo("Start async alloc for IMB\n", session);
+
+	WARN_ON(!IMB_mem_buf);
+
+	mutex_lock(&system->imb_alloc_lock);
+
+	req_chunk_cnt = __calc_imb_req_chunk(IMB_mem_buf, system->max_npu_core);
+	prev_chunk_cnt = system->imb_alloc_data.alloc_chunk_cnt;
+	for (i = system->imb_alloc_data.alloc_chunk_cnt; i < req_chunk_cnt; i++) {
+		dAddr = system->chunk_imb->paddr + (i * NPU_IMB_CHUNK_SIZE);
+		system->imb_alloc_data.chunk[i].size = NPU_IMB_CHUNK_SIZE;
+		ret = npu_memory_alloc_from_heap(system->pdev, &(system->imb_alloc_data.chunk[i]), dAddr,
+					&system->memory, "IMB", 0);
+		if (unlikely(ret)) {
+			npu_uerr("IMB: npu_memory_alloc_from_heap failed, err: %d\n", session, ret);
+			mutex_unlock(&system->imb_alloc_lock);
+			session->imb_async_result_code = NPU_IMB_ASYNC_RESULT_ERROR;
+			ret = -EFAULT;
+			goto p_err;
+		}
+		system->imb_alloc_data.alloc_chunk_cnt++;
+		npu_udbg("IMB: successfully allocated chunk = %u with size = 0x%X\n", session, i, NPU_IMB_CHUNK_SIZE);
+	}
+
+	/* in allocation case we're not interested in FW size acceptance */
+	__fw_sync_CMD_IMB_SIZE(session, system->imb_alloc_data.alloc_chunk_cnt);
+
+	if (prev_chunk_cnt != system->imb_alloc_data.alloc_chunk_cnt) {
+		npu_udbg("IMB: system total size 0x%X -> 0x%X\n", session,
+			 prev_chunk_cnt * NPU_IMB_CHUNK_SIZE,
+			 system->imb_alloc_data.alloc_chunk_cnt * NPU_IMB_CHUNK_SIZE);
+	}
+
+	IMB_mem_buf->daddr = system->chunk_imb->paddr;
+
+	mutex_unlock(&system->imb_alloc_lock);
+
+	for (i = 0; i < IMB_cnt; i++) {
+		(av + (*imb_av + i)->av_index)->m_addr = IMB_mem_buf->daddr + addr_offset;
+		(session->IMB_info + i)->daddr = IMB_mem_buf->daddr + addr_offset;
+		(session->IMB_info + i)->vaddr = ((void *)((char *)(IMB_mem_buf->vaddr)) + addr_offset);
+		(session->IMB_info + i)->size = (*imb_av + i)->size;
+		addr_offset += ALIGN((*imb_av + i)->size, (u32)NPU_IMB_ALIGN);
+		npu_udbg("IMB: (IMB_mem_buf + %d)->vaddr(%pad), daddr(%pad), size(%zu)\n",
+			 session, i, (session->IMB_info + i)->vaddr, &(session->IMB_info + i)->daddr,
+			 (session->IMB_info + i)->size);
+	}
+
+	npu_session_ion_sync_for_device(IMB_mem_buf, 0, IMB_mem_buf->size, DMA_TO_DEVICE);
+	session->imb_async_result_code = NPU_IMB_ASYNC_RESULT_DONE;
+	npu_uinfo("End async alloc for IMB\n", session);
+p_err:
+	wake_up(&session->imb_wq);
+	if (likely(session->imb_av)) {
+		kfree(session->imb_av);
+		session->imb_av = NULL;
+	}
+	return;
+}
+
+static int npu_imb_alloc_async(struct npu_session *session,
+		struct addr_info **IMB_av, struct npu_memory_buffer *IMB_mem_buf)
+{
+	int ret = 0;
+
+	session->imb_av = (struct addr_info *)kzalloc(sizeof(struct addr_info) * session->IMB_cnt, GFP_KERNEL);
+	if (unlikely(!session->imb_av)) {
+		npu_err("failed in a_IMB_av(ENOMEM)\n");
+		return -ENOMEM;
+	}
+
+	memcpy(session->imb_av, *IMB_av, sizeof(struct addr_info) * session->IMB_cnt);
+	session->IMB_mem_buf = IMB_mem_buf;
+	queue_delayed_work(session->imb_async_wq, &session->imb_async_work, msecs_to_jiffies(0));
+
+	return ret;
+}
+
+int npu_session_imb_async_init(struct npu_session *session)
+{
+	int ret = 0;
+	struct npu_device *device;
+	struct npu_sessionmgr *sess_mgr;
+
+	sess_mgr = (struct npu_sessionmgr *)(session->cookie);
+	device = container_of(sess_mgr, struct npu_device, sessionmgr);
+	INIT_DELAYED_WORK(&session->imb_async_work, npu_imb_async_work);
+
+	session->imb_async_wq = create_singlethread_workqueue(dev_name(device->dev));
+	if (!session->imb_async_wq) {
+		npu_err("fail to create workqueue -> system->imb_async_wq\n");
+		ret = -EFAULT;
+		goto err_probe;
+	}
+
+	init_waitqueue_head(&(session->imb_wq));
+err_probe:
+	return ret;
+}
+
+#endif
+
 static int __alloc_imb_chunk(struct npu_session *session, struct npu_memory_buffer *IMB_mem_buf)
 {
 	int ret = 0;
 	dma_addr_t dAddr;
 	u32 i, prev_chunk_cnt;
 	struct npu_system *system = get_session_system(session);
-	u32 req_chunk_cnt = __calc_imb_req_chunk(IMB_mem_buf);
+	u32 req_chunk_cnt = __calc_imb_req_chunk(IMB_mem_buf, system->max_npu_core);
 
 	WARN_ON(!IMB_mem_buf);
 
@@ -388,7 +531,7 @@ static void __free_imb_mem_buf(struct npu_session *session, bool full)
 				if ((session != session_ref) && (session_ref->IMB_mem_buf) &&
 				    (max_next_size < session_ref->IMB_mem_buf->ncp_max_size)) {
 					max_next_size = session_ref->IMB_mem_buf->ncp_max_size;
-					max_next_req_chunk = __calc_imb_req_chunk(session_ref->IMB_mem_buf);
+					max_next_req_chunk = __calc_imb_req_chunk(session_ref->IMB_mem_buf, system->max_npu_core);
 				}
 			}
 		}
@@ -584,6 +727,10 @@ static inline void __release_imb_mem_buf(struct npu_session *session)
 		if (ion_mem_buf->daddr)
 			npu_memory_free(session->memory, ion_mem_buf);
 #else /* CONFIG_NPU_USE_IMB_ALLOCATOR */
+
+#ifdef CONFIG_NPU_IMB_ASYNC_ALLOC
+		session->imb_async_result_code = NPU_IMB_ASYNC_RESULT_SKIP;
+#endif
 		/* deallocate all memory chunks */
 		__free_imb_mem_buf(session, true);
 #endif
@@ -663,6 +810,14 @@ int npu_session_close(struct npu_session *session)
 	vertex = vctx->vertex;
 	device = container_of(vertex, struct npu_device, vertex);
 	sessionmgr = session->cookie;
+
+#if IS_ENABLED(CONFIG_NPU_IMB_ASYNC_ALLOC)
+	if (session->imb_async_wq) {
+		destroy_workqueue(session->imb_async_wq);
+		session->imb_async_wq = NULL;
+	}
+	session->imb_async_result_code = NPU_IMB_ASYNC_RESULT_SKIP;
+#endif
 
 #if IS_ENABLED(CONFIG_DSP_USE_VS4L)
 	if (session->hids & NPU_HWDEV_ID_DSP) {
@@ -746,6 +901,9 @@ int npu_session_open(struct npu_session **session, void *cookie, void *memory)
 	(*session)->IOFM_mem_buf = NULL;
 	(*session)->IMB_mem_buf = NULL;
 	(*session)->sec_mem_buf = NULL;
+#if IS_ENABLED(CONFIG_NPU_IMB_ASYNC_ALLOC)
+	(*session)->imb_av = NULL;
+#endif
 
 	(*session)->qbuf_IOFM_idx = -1;
 	(*session)->dqbuf_IOFM_idx = -1;
@@ -782,6 +940,7 @@ int npu_session_open(struct npu_session **session, void *cookie, void *memory)
 	(*session)->out_fence_value = 0;
 	(*session)->out_fence_exe_value = 0;
 #endif
+
 	ret = npu_scheduler_register_session(*session);
 	if (unlikely(ret)) {
 		npu_err("fail(%d) in register_session\n", ret);
@@ -789,6 +948,7 @@ int npu_session_open(struct npu_session **session, void *cookie, void *memory)
 		goto p_err;
 	}
 
+	npu_session_imb_async_init(*session);
 	return ret;
 p_err:
 	npu_session_execute_undo_cb(*session);
@@ -1939,6 +2099,11 @@ int __second_parsing_ncp(
 
 				(*WGT_av + WGT_cnt)->av_index = address_vector_index;
 				weight_size = (av + address_vector_index)->size;
+				if (unlikely((weight_offset + weight_size) < weight_size)) {
+					npu_err("weight_offset(0x%x) + weight size (0x%x) seems to be overflow.\n",
+						weight_offset, weight_size);
+					return -ERANGE;
+				}
 				if (unlikely((weight_offset + weight_size) > (u32)session->ncp_mem_buf->size)) {
 					npu_err("weight_offset(0x%x) + weight size (0x%x) seems to go beyond ncp size(0x%x)\n",
 							weight_offset, weight_size, (u32)session->ncp_mem_buf->size);
@@ -2156,16 +2321,6 @@ p_err:
 	return ret;
 }
 
-void npu_session_ion_sync_for_device(struct npu_memory_buffer *pbuf, off_t offset, size_t size, enum dma_data_direction dir)
-{
-	if (likely(pbuf->vaddr)) {
-		BUG_ON(offset < 0);
-		BUG_ON((offset + size) > pbuf->dma_buf->size);
-
-		__npu_session_ion_sync_for_device(pbuf, offset, size, dir);
-	}
-}
-
 int __ion_alloc_IMB(struct npu_session *session, struct addr_info **IMB_av, struct npu_memory_buffer *IMB_mem_buf)
 {
 	int ret = 0;
@@ -2182,6 +2337,25 @@ int __ion_alloc_IMB(struct npu_session *session, struct addr_info **IMB_av, stru
 
 	av = (struct address_vector *)(ncp_vaddr + address_vector_offset);
 #if IS_ENABLED(CONFIG_NPU_USE_IMB_ALLOCATOR)
+#if IS_ENABLED(CONFIG_NPU_IMB_ASYNC_ALLOC)
+	if (session->IMB_size >= NPU_IMB_ASYNC_THRESHOLD) {
+		npu_udbg("Async IMB allocation starts\n", session);
+		ret = npu_imb_alloc_async(session, IMB_av, IMB_mem_buf);
+		if (unlikely(ret)) {
+			session->imb_async_result_code = NPU_IMB_ASYNC_RESULT_ERROR;
+			goto p_err;
+		} else {
+			 npu_udbg("Async IMB allocation ends\n", session);
+			 return ret;
+		}
+	} else {
+		if (session->imb_async_wq) {
+			destroy_workqueue(session->imb_async_wq);
+			session->imb_async_wq = NULL;
+		}
+	}
+#endif
+	npu_udbg("Sync IMB allocation starts\n", session);
 	ret = __alloc_imb_chunk(session, IMB_mem_buf);
 	if (unlikely(ret)) {
 		npu_uerr("IMB: __alloc_imb_chunk is fail(%d)\n", session, ret);
@@ -2211,6 +2385,12 @@ int __ion_alloc_IMB(struct npu_session *session, struct addr_info **IMB_av, stru
 p_err:
 #if !IS_ENABLED(CONFIG_NPU_USE_IMB_ALLOCATOR)
 	npu_memory_free(session->memory, IMB_mem_buf);
+#endif
+#if IS_ENABLED(CONFIG_NPU_IMB_ASYNC_ALLOC)
+	if (session->imb_async_wq) {
+		destroy_workqueue(session->imb_async_wq);
+		session->imb_async_wq = NULL;
+	}
 #endif
 
 	kfree(IMB_mem_buf);
@@ -2314,7 +2494,6 @@ p_err:
 		kfree(OFM_av);
 	if (likely(IMB_av))
 		kfree(IMB_av);
-
 	return ret;
 }
 
@@ -2754,6 +2933,10 @@ int npu_session_s_graph(struct npu_session *session, struct vs4l_graph *info)
 		session->hids & NPU_HWDEV_ID_DSP) {
 	} else if (session->hids & NPU_HWDEV_ID_NPU) {
 #endif
+#if IS_ENABLED(CONFIG_NPU_IMB_ASYNC_ALLOC)
+		session->imb_async_result_code = NPU_IMB_ASYNC_RESULT_SKIP;
+#endif
+
 		ret = __config_session_info(session);
 		if (unlikely(ret)) {
 			npu_uerr("invalid in __config_session_info\n", session);
@@ -3222,6 +3405,7 @@ static int npu_session_queue(struct npu_queue *queue, struct vb_container_list *
 	struct npu_session *session;
 	struct npu_vertex_ctx *vctx;
 	struct npu_profile *profiler;
+	struct npu_system *system;
 
 	struct mbox_process_dat *mbox_process_dat;
 
@@ -3247,6 +3431,7 @@ static int npu_session_queue(struct npu_queue *queue, struct vb_container_list *
 	vctx = container_of(queue, struct npu_vertex_ctx, queue);
 	session = container_of(vctx, struct npu_session, vctx);
 	profiler = vctx->profile;
+	system = get_session_system(session);
 
 	session->qbuf_IOFM_idx = incl->index;
 
@@ -3306,7 +3491,6 @@ static int npu_session_queue(struct npu_queue *queue, struct vb_container_list *
 		IFM_info = &session->IFM_info[incl->index][j];
 		IFM_addr = IFM_info->addr_info;
 		IFM_info->IOFM_buf_idx = incl->index;
-
 		OFM_info = &session->OFM_info[otcl->index][j];
 		OFM_addr = OFM_info->addr_info;
 		OFM_info->IOFM_buf_idx = otcl->index;
@@ -3320,7 +3504,6 @@ static int npu_session_queue(struct npu_queue *queue, struct vb_container_list *
 		ret = __update_qbuf_IOFM_daddr(session, IFM_addr, OFM_addr, j);
 		if (unlikely(ret))
 			goto p_err;
-
 		mbox_process_dat = &session->mbox_process_dat;
 		mbox_process_dat->address_vector_cnt = session->IOFM_cnt;
 		mbox_process_dat->address_vector_start_daddr = (session->IOFM_mem_buf->daddr)
@@ -3330,11 +3513,9 @@ static int npu_session_queue(struct npu_queue *queue, struct vb_container_list *
 											incl->id*VISION_MAX_BUFFER + j);
 		if (unlikely(ret))
 			goto p_err;
-
 		IFM_info->state = SS_BUF_STATE_QUEUE;
 		OFM_info->state = SS_BUF_STATE_QUEUE;
 	}
-
 	npu_arbitration_info_update(session);
 
 	return 0;
@@ -3540,6 +3721,29 @@ static int npu_session_prepare(struct vb_queue *q, struct vb_container_list *cli
 		FM_info->state = SS_BUF_STATE_PREPARE;
 	}
 
+#if IS_ENABLED(CONFIG_NPU_IMB_ASYNC_ALLOC)
+	if (session->IMB_size >= NPU_IMB_ASYNC_THRESHOLD) {
+		npu_udbg("wait async allocation result:0x%x\n",
+				session, session->imb_async_result_code);
+		wait_event(session->imb_wq,
+			(session->imb_async_result_code == NPU_IMB_ASYNC_RESULT_DONE) ||
+			(session->imb_async_result_code == NPU_IMB_ASYNC_RESULT_ERROR));
+
+		if (session->imb_async_wq) {
+			destroy_workqueue(session->imb_async_wq);
+			session->imb_async_wq = NULL;
+		}
+
+		if (session->imb_async_result_code == NPU_IMB_ASYNC_RESULT_ERROR) {
+			npu_err("IMB: fail in ion alloc IMB async\n");
+			ret = -EINVAL;
+			goto p_err;
+		}
+
+		npu_udbg("wait async allocation done result:0x%x\n",
+				session, session->imb_async_result_code);
+	}
+#endif
 p_err:
 	return ret;
 }
@@ -3733,6 +3937,13 @@ p_err:
 int npu_session_undo_s_graph(struct npu_session *session)
 {
 	int ret = 0;
+
+#if IS_ENABLED(CONFIG_NPU_IMB_ASYNC_ALLOC)
+	if (session->imb_async_wq) {
+		destroy_workqueue(session->imb_async_wq);
+		session->imb_async_wq = NULL;
+	}
+#endif
 
 	if (!_undo_s_graph_each_state(session)) {
 		npu_session_register_undo_cb(session, NULL);

@@ -389,8 +389,8 @@ static void __mfc_dec_change_format_10bit(struct mfc_ctx *ctx)
 			/* change to single plane format */
 			ctx->dst_fmt = __mfc_dec_find_format(ctx, V4L2_PIX_FMT_NV12N_P010);
 			break;
-			/* Do not supports CrCb order 10bit format in codec2 */
 		default:
+			/* Do not supports CrCb order 10bit format in codec2 */
 			ctx->dst_fmt = __mfc_dec_find_format(ctx, V4L2_PIX_FMT_NV12M_P010);
 			break;
 		}
@@ -410,8 +410,8 @@ static void __mfc_dec_change_format_10bit(struct mfc_ctx *ctx)
 			/* change to single plane format */
 			ctx->dst_fmt = __mfc_dec_find_format(ctx, V4L2_PIX_FMT_NV12N_10B);
 			break;
-			/* Do not supports CrCb order 10bit format in codec2 */
 		default:
+			/* Do not supports CrCb order 10bit format in codec2 */
 			ctx->dst_fmt = __mfc_dec_find_format(ctx, V4L2_PIX_FMT_NV12M_S10B);
 			break;
 		}

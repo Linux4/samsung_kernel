@@ -992,15 +992,6 @@ config LRU_GEN_STATS
 	  This option has a per-memcg and per-node memory overhead.
 # }
 
-config MEMCG_HEIMDALL
-	bool "memcg optimization for heimdall"
-	depends on MEMCG
-	select CONNECTOR
-	default y
-	help
-	  Enable this will change the memcg-related logics in the way Heimdall
-	  prefers.
-
 source "mm/damon/Kconfig"
 
 config HPA

@@ -15,13 +15,13 @@
 
 #include <linux/types.h>
 #include <linux/kernel.h>
-#ifdef CONFIG_SUPPORT_DDI_FLASH
+#ifdef CONFIG_USDM_PANEL_DDI_FLASH
 #include "../panel_poc.h"
 #endif
 #include "../panel_drv.h"
 #include "../panel.h"
 #include "../maptbl.h"
-#include "oled_common_dump.h"
+#include "oled_function.h"
 #include "sw83109_mdnie.h"
 
 /*
@@ -79,7 +79,7 @@
 #define SW83109_SELF_MASK_CHECKSUM_OFS			0
 #define SW83109_SELF_MASK_CHECKSUM_LEN			12
 
-#ifdef CONFIG_SUPPORT_DDI_CMDLOG
+#ifdef CONFIG_USDM_DDI_CMDLOG
 #define SW83109_CMDLOG_REG			0x9C
 #define SW83109_CMDLOG_OFS			0
 #define SW83109_CMDLOG_LEN			0x80
@@ -92,6 +92,23 @@
 #define SW83109_ERR_FLAG_REG		(0x9F)
 #define SW83109_ERR_FLAG_OFS		(0)
 #define SW83109_ERR_FLAG_LEN		(2)
+
+enum sw83109_function {
+	SW83109_MAPTBL_INIT_GAMMA_MODE2_BRT,
+	SW83109_MAPTBL_INIT_LPM_BRT,
+	SW83109_MAPTBL_GETIDX_LPM_BRT,
+	SW83109_MAPTBL_COPY_FMEM,
+	SW83109_MAPTBL_GETIDX_VRR_FPS,
+	SW83109_MAPTBL_GETIDX_FFC,
+	SW83109_MAPTBL_GETIDX_ACL_OPR,
+	SW83109_MAPTBL_GETIDX_ACL_ONOFF,
+	MAX_SW83109_FUNCTION,
+};
+
+extern struct pnobj_func sw83109_function_table[MAX_SW83109_FUNCTION];
+
+#undef DDI_FUNC
+#define DDI_FUNC(_index) (sw83109_function_table[_index])
 
 enum {
 	GAMMA_MODE2_MAPTBL,
@@ -109,7 +126,7 @@ enum {
 };
 
 enum {
-#ifdef CONFIG_EXYNOS_DECON_LCD_COPR
+#ifdef CONFIG_USDM_PANEL_COPR
 	READ_COPR_SPI,
 	READ_COPR_DSI,
 #endif
@@ -119,7 +136,7 @@ enum {
 	READ_DATE,
 	READ_OCTA_ID_0,
 	READ_OCTA_ID_1,
-	READ_CHIP_ID,
+	/* READ_CHIP_ID, */
 	/* for brightness debugging */
 	READ_RDDPM,
 	READ_RDDSM,
@@ -130,10 +147,10 @@ enum {
 	READ_SELF_MASK_CHECKSUM,
 	READ_TRIM,
 	READ_ERR_FLAG,
-#ifdef CONFIG_SUPPORT_DDI_CMDLOG
+#ifdef CONFIG_USDM_DDI_CMDLOG
 	READ_CMDLOG,
 #endif
-#ifdef CONFIG_SUPPORT_CCD_TEST
+#ifdef CONFIG_USDM_FACTORY_CCD_TEST
 	READ_CCD_STATE,
 #endif
 #ifdef CONFIG_SUPPORT_GRAYSPOT_TEST
@@ -143,7 +160,7 @@ enum {
 };
 
 enum {
-#ifdef CONFIG_EXYNOS_DECON_LCD_COPR
+#ifdef CONFIG_USDM_PANEL_COPR
 	RES_COPR_SPI,
 	RES_COPR_DSI,
 #endif
@@ -152,7 +169,7 @@ enum {
 	RES_CODE,
 	RES_DATE,
 	RES_OCTA_ID,
-	RES_CHIP_ID,
+	/* RES_CHIP_ID, */
 	/* for brightness debugging */
 	RES_RDDPM,
 	RES_RDDSM,
@@ -162,10 +179,10 @@ enum {
 	RES_SELF_DIAG,
 	RES_TRIM,
 	RES_ERR_FLAG,
-#ifdef CONFIG_SUPPORT_DDI_CMDLOG
+#ifdef CONFIG_USDM_DDI_CMDLOG
 	RES_CMDLOG,
 #endif
-#ifdef CONFIG_SUPPORT_CCD_TEST
+#ifdef CONFIG_USDM_FACTORY_CCD_TEST
 	RES_CCD_STATE,
 	RES_CCD_CHKSUM_FAIL,
 #endif
@@ -256,7 +273,7 @@ enum {
 	DUMP_ERR_FG,
 	DUMP_DSI_ERR,
 	DUMP_SELF_DIAG,
-#ifdef CONFIG_SUPPORT_DDI_CMDLOG
+#ifdef CONFIG_USDM_DDI_CMDLOG
 	DUMP_CMDLOG,
 #endif
 };
@@ -278,17 +295,17 @@ static struct dump_expect dsie_cnt_expects[] = {
 	{ .offset = 0, .mask = 0xFF, .value = 0x00, .msg = "DSI Error Count" },
 };
 
-#ifdef CONFIG_SUPPORT_DDI_CMDLOG
+#ifdef CONFIG_USDM_DDI_CMDLOG
 static struct dump_expect cmdlog_expects[] = {
 };
 #endif
 
 static struct dumpinfo sw83109_dmptbl[] = {
-	[DUMP_RDDSM] = DUMPINFO_INIT_V2(rddsm, &sw83109_restbl[RES_RDDSM], show_rddsm, rddsm_expects),
-	[DUMP_ERR_FG] = DUMPINFO_INIT_V2(err_fg, &sw83109_restbl[RES_ERR_FG], show_expects, err_fg_expects),
-	[DUMP_DSI_ERR] = DUMPINFO_INIT_V2(dsi_err, &sw83109_restbl[RES_DSI_ERR], show_dsi_err, dsie_cnt_expects),
-#ifdef CONFIG_SUPPORT_DDI_CMDLOG
-	[DUMP_CMDLOG] = DUMPINFO_INIT_V2(cmdlog, &sw83109_restbl[RES_CMDLOG], show_cmdlog, cmdlog_expects),
+	[DUMP_RDDSM] = DUMPINFO_INIT_V2(rddsm, &sw83109_restbl[RES_RDDSM], &OLED_FUNC(OLED_DUMP_SHOW_RDDSM), rddsm_expects),
+	[DUMP_ERR_FG] = DUMPINFO_INIT_V2(err_fg, &sw83109_restbl[RES_ERR_FG], &OLED_FUNC(OLED_DUMP_SHOW_EXPECTS), err_fg_expects),
+	[DUMP_DSI_ERR] = DUMPINFO_INIT_V2(dsi_err, &sw83109_restbl[RES_DSI_ERR], &OLED_FUNC(OLED_DUMP_SHOW_DSI_ERR), dsie_cnt_expects),
+#ifdef CONFIG_USDM_DDI_CMDLOG
+	[DUMP_CMDLOG] = DUMPINFO_INIT_V2(cmdlog, &sw83109_restbl[RES_CMDLOG], &OLED_FUNC(OLED_DUMP_SHOW_CMDLOG), cmdlog_expects),
 #endif
 };
 
@@ -345,24 +362,10 @@ enum {
 	SW83109_HS_CLK_1471,
 	MAX_SW83109_HS_CLK
 };
-int init_common_table(struct maptbl *tbl);
-int init_gamma_mode2_brt_table(struct maptbl *tbl);
-int getidx_gamma_mode2_brt_table(struct maptbl *tbl);
 
-int init_lpm_brt_table(struct maptbl *tbl);
-int getidx_lpm_brt_table(struct maptbl *tbl);
-
-void copy_common_maptbl(struct maptbl *tbl, u8 *dst);
-void copy_tset_maptbl(struct maptbl *tbl, u8 *dst);
-void copy_fmem_maptbl(struct maptbl *tbl, u8 *dst);
-int getidx_vrr_fps_table(struct maptbl *);
-int sw83109_getidx_ffc_table(struct maptbl *);
 int sw83109_get_cell_id(struct panel_device *panel, void *buf);
 int sw83109_get_manufacture_code(struct panel_device *panel, void *buf);
 int sw83109_get_manufacture_date(struct panel_device *panel, void *buf);
-int sw83109_getidx_acl_opr_table(struct maptbl *tbl);
-int sw83109_getidx_acl_onoff_table(struct maptbl *tbl);
-bool is_panel_state_acl(struct panel_device *panel);
-bool is_panel_state_not_lpm(struct panel_device *panel);
+int sw83109_init(void);
 
 #endif /* __SW83109_H__ */

@@ -472,61 +472,6 @@ static int lb_idle_pull_tasks(int dst_cpu, int src_cpu, int type)
 	return 1;
 }
 
-static int lb_has_pushable_tasks(struct rq *rq)
-{
-	return !plist_head_empty(&rq->rt.pushable_tasks);
-}
-
-#define MIN_RUNNABLE_THRESHOLD	(500000)
-static bool lb_short_runnable(struct task_struct *p)
-{
-	return ktime_get_ns() - ems_last_waked(p) < MIN_RUNNABLE_THRESHOLD;
-}
-
-static int lb_idle_pull_tasks_rt(struct rq *dst_rq)
-{
-	struct rq *src_rq;
-	struct task_struct *pulled_task;
-	int cpu, src_cpu = -1, dst_cpu = dst_rq->cpu, ret = 0;
-
-	if (sched_rt_runnable(dst_rq))
-		return 0;
-
-	for_each_possible_cpu(cpu) {
-		if (lb_has_pushable_tasks(cpu_rq(cpu))) {
-			src_cpu = cpu;
-			break;
-		}
-	}
-
-	if (src_cpu == -1)
-		return 0;
-
-	src_rq = cpu_rq(src_cpu);
-	double_lock_balance(dst_rq, src_rq);
-
-	if (sched_rt_runnable(dst_rq))
-		goto out;
-
-	pulled_task = pick_highest_pushable_task(src_rq, dst_cpu);
-	if (!pulled_task)
-		goto out;
-
-	if (lb_short_runnable(pulled_task) ||
-			pulled_task->migration_disabled)
-		goto out;
-
-	deactivate_task(src_rq, pulled_task, 0);
-	set_task_cpu(pulled_task, dst_cpu);
-	activate_task(dst_rq, pulled_task, 0);
-	ret = 1;
-
-out:
-	double_unlock_balance(dst_rq, src_rq);
-
-	return ret;
-}
-
 static bool compute_imbalance(int cl_idx)
 {
 	int range = get_pe_list(cl_idx)->num_of_cpus;
@@ -592,6 +537,64 @@ static bool determine_short_idle(u64 avg_idle)
 	return avg_idle < idle_threshold;
 }
 
+static int lb_has_pushable_tasks(struct rq *rq)
+{
+	return !plist_head_empty(&rq->rt.pushable_tasks);
+}
+
+#define MIN_RUNNABLE_THRESHOLD	(500000)
+static bool lb_short_runnable(struct task_struct *p)
+{
+	return ktime_get_ns() - ems_last_waked(p) < MIN_RUNNABLE_THRESHOLD;
+}
+
+static int lb_idle_pull_tasks_rt(struct rq *dst_rq)
+{
+	struct rq *src_rq;
+	struct task_struct *pulled_task;
+	int cpu, src_cpu = -1, dst_cpu = dst_rq->cpu, ret = 0;
+
+	if (sched_rt_runnable(dst_rq))
+		return 0;
+
+	for_each_possible_cpu(cpu) {
+		if (lb_has_pushable_tasks(cpu_rq(cpu))) {
+			src_cpu = cpu;
+			break;
+		}
+	}
+
+	if (src_cpu == -1)
+		return 0;
+
+	if (src_cpu == dst_cpu)
+		return 0;
+
+	src_rq = cpu_rq(src_cpu);
+	double_lock_balance(dst_rq, src_rq);
+
+	if (sched_rt_runnable(dst_rq))
+		goto out;
+
+	pulled_task = pick_highest_pushable_task(src_rq, dst_cpu);
+	if (!pulled_task)
+		goto out;
+
+	if (lb_short_runnable(pulled_task) ||
+			pulled_task->migration_disabled)
+		goto out;
+
+	deactivate_task(src_rq, pulled_task, 0);
+	set_task_cpu(pulled_task, dst_cpu);
+	activate_task(dst_rq, pulled_task, 0);
+	ret = 1;
+
+out:
+	double_unlock_balance(dst_rq, src_rq);
+
+	return ret;
+}
+
 void lb_newidle_balance(struct rq *dst_rq, struct rq_flags *rf,
 				int *pulled_task, int *done)
 {
@@ -606,13 +609,6 @@ void lb_newidle_balance(struct rq *dst_rq, struct rq_flags *rf,
 
 	short_idle = determine_short_idle(dst_rq->avg_idle);
 
-	/*
-	 * There is a task waiting to run. No need to search for one.
-	 * Return 0; the task will be enqueued when switching to idle.
-	 */
-	if (dst_rq->ttwu_pending)
-		return;
-
 	dst_rq->idle_stamp = rq_clock(dst_rq);
 
 	/*
@@ -623,21 +619,32 @@ void lb_newidle_balance(struct rq *dst_rq, struct rq_flags *rf,
 
 	rq_unpin_lock(dst_rq, rf);
 
+	/*
+	 * There is a task waiting to run. No need to search for one.
+	 * Return 0; the task will be enqueued when switching to idle.
+	 */
+	if (dst_rq->ttwu_pending)
+		goto out;
+
 	if (dst_rq->nr_running)
 		goto out;
 
 	if (lb_idle_pull_tasks_rt(dst_rq))
 		goto out;
 
+	/* sanity check again after drop rq lock during RT balance */
+	if (dst_rq->nr_running)
+		goto out;
+
 	if (!READ_ONCE(dst_rq->rd->overload))
-		goto repin;
+		goto out;
 
 	if (atomic_read(&dst_rq->nr_iowait) && short_idle)
-		goto repin;
+		goto out;
 
 	/* if system is busy state */
 	if (sysbusy_on_somac())
-		goto repin;
+		goto out;
 
 	raw_spin_rq_unlock(dst_rq);
 
@@ -678,7 +685,6 @@ out:
 	if (*pulled_task)
 		dst_rq->idle_stamp = 0;
 
-repin:
 	rq_repin_lock(dst_rq, rf);
 
 	trace_lb_newidle_balance(dst_cpu, src_cpu, *pulled_task, range, short_idle);

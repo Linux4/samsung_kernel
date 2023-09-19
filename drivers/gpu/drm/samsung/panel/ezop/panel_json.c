@@ -7,13 +7,18 @@
  * published by the Free Software Foundation.
  */
 #include <linux/module.h>
-#include <linux/kallsyms.h>
 #include "panel.h"
 #include "panel_debug.h"
 #include "maptbl.h"
 #include "panel_drv.h"
 #include "panel_json.h"
 #include "panel_delay.h"
+#include "panel_packet.h"
+#include "panel_property.h"
+#include "panel_config.h"
+#include "panel_condition.h"
+#include "panel_expression.h"
+#include "panel_function.h"
 #include "json.h"
 #include "json_writer.h"
 #include "json_reader.h"
@@ -94,7 +99,7 @@ int jsonr_ref_pnobj_object(json_reader_t *r, struct pnobj **pnobj)
 	if (!found) {
 		panel_err("pnobj(%s:%s) not found\n",
 				get_pnobj_name(&t_pnobj),
-				get_pnobj_cmd_type(&t_pnobj));
+				cmd_type_to_string(get_pnobj_cmd_type(&t_pnobj)));
 		return -EINVAL;
 	}
 
@@ -122,11 +127,10 @@ out_free:
 	return err;
 }
 
-int jsonr_ref_function_field(json_reader_t *r,
-		const char *prop, void **out)
+int jsonr_ref_property_field(json_reader_t *r,
+		const char *prop, struct panel_property **out)
 {
 	struct pnobj *pnobj;
-	struct pnobj_func *pnobj_func;
 	int err;
 
 	err = jsonr_ref_pnobj_field(r, prop, &pnobj);
@@ -138,8 +142,27 @@ int jsonr_ref_function_field(json_reader_t *r,
 		return 0;
 	}
 
-	pnobj_func = pnobj_container_of(pnobj, struct pnobj_func);
-	*out = (void *)pnobj_func->symaddr;
+	*out = pnobj_container_of(pnobj, struct panel_property);
+
+	return 0;
+}
+
+int jsonr_ref_function_field(json_reader_t *r,
+		const char *prop, struct pnobj_func **out)
+{
+	struct pnobj *pnobj;
+	int err;
+
+	err = jsonr_ref_pnobj_field(r, prop, &pnobj);
+	if (err < 0)
+		return err;
+
+	if (!pnobj) {
+		*out = NULL;
+		return 0;
+	}
+
+	*out = pnobj_container_of(pnobj, struct pnobj_func);
 
 	return 0;
 }
@@ -383,15 +406,15 @@ int jsonr_maptbl(json_reader_t *r, struct maptbl *m)
 	JEXPECT_OBJECT(r, current_token(r));
 	it_tok = current_token(r); inc_token(r);
 	if (it_tok->size > 0) {
-		err = jsonr_ref_function_field(r, "init", (void **)&m->ops.init);
+		err = jsonr_ref_function_field(r, "init", &m->ops.init);
 		if (err < 0)
 			goto out_free;
 
-		err = jsonr_ref_function_field(r, "getidx", (void **)&m->ops.getidx);
+		err = jsonr_ref_function_field(r, "getidx", &m->ops.getidx);
 		if (err < 0)
 			goto out_free;
 
-		err = jsonr_ref_function_field(r, "copy", (void **)&m->ops.copy);
+		err = jsonr_ref_function_field(r, "copy", &m->ops.copy);
 		if (err < 0)
 			goto out_free;
 	}
@@ -413,6 +436,7 @@ int jsonr_packet_update_info(json_reader_t *r, struct pkt_update_info *pktui)
 {
 	char buf[SZ_128];
 	int err;
+	struct pnobj_func *getidx;
 
 	JEXPECT_OBJECT(r, current_token(r)); inc_token(r);
 
@@ -430,8 +454,9 @@ int jsonr_packet_update_info(json_reader_t *r, struct pkt_update_info *pktui)
 		return err;
 	}
 
+	/* TODO: remove it when EasyOpcode Editor is fixed */
 	/* getidx function */
-	err = jsonr_ref_function_field(r, "getidx", (void **)&pktui->getidx);
+	err = jsonr_ref_function_field(r, "getidx", &getidx);
 	if (err < 0) {
 		panel_err("failed to parse reference of function\n");
 		return err;
@@ -444,13 +469,15 @@ out_free:
 	return err;
 }
 
-int jsonr_packet(json_reader_t *r, struct pktinfo *pkt)
+int jsonr_tx_packet(json_reader_t *r, struct pktinfo *pkt)
 {
 	jsmntok_t *it_tok;
+	char key[SZ_128];
 	char buf[SZ_128];
 	struct pkt_update_info *pktui = NULL;
-	u8 *data = NULL;
-	int i, err;
+	u8 *txbuf = NULL;
+	u8 *initdata = NULL;
+	int i, err, pkt_type;
 
 	if (!pkt) {
 		panel_err("invalid arg\n");
@@ -471,13 +498,28 @@ int jsonr_packet(json_reader_t *r, struct pktinfo *pkt)
 		return err;
 	}
 
+	/* type */
+	err = jsonr_string_field(r, key, buf);
+	if (err < 0) {
+		panel_err("failed to parse string\n");
+		return err;
+	}
+
+	pkt_type = string_to_packet_type(buf);
+	if (pkt_type < 0 || !IS_TX_PKT_TYPE(pkt_type)) {
+		panel_err("invalid type(%s:%d)\n", buf, pkt_type);
+		err = -EINVAL;
+		goto out_free;
+	}
+	pkt->type = pkt_type;
+
 	/* parsing packet data */
 	JEXPECT_STREQ(r, current_token(r), "data"); inc_token(r);
 	JEXPECT_ARRAY(r, current_token(r));
 	it_tok = current_token(r); inc_token(r);
 	if (it_tok->size > 0) {
-		data = kvmalloc(sizeof(u8) * it_tok->size, GFP_KERNEL);
-		err = jsonr_u8_array(r, data, it_tok->size);
+		initdata = kvmalloc(sizeof(u8) * it_tok->size, GFP_KERNEL);
+		err = jsonr_u8_array(r, initdata, it_tok->size);
 		if (err < 0)
 			goto out_free;
 	}
@@ -500,6 +542,9 @@ int jsonr_packet(json_reader_t *r, struct pktinfo *pkt)
 				goto out_free;
 		}
 		pkt->nr_pktui = it_tok->size;
+
+		txbuf = kvmalloc(pkt->dlen, GFP_KERNEL);
+		memcpy(txbuf, initdata, pkt->dlen);
 	}
 
 	/* option */
@@ -507,14 +552,16 @@ int jsonr_packet(json_reader_t *r, struct pktinfo *pkt)
 	if (err < 0)
 		goto out_free;
 
-	pkt->data = data;
+	pkt->initdata = initdata;
+	pkt->txbuf = txbuf ? txbuf : pkt->initdata;
 	pkt->pktui = pktui;
 
 	return 0;
 
 out_free:
 	free_pnobj_name(&pkt->base);
-	kvfree(data);
+	kvfree(initdata);
+	kvfree(txbuf);
 	kfree(pktui);
 
 	return err;
@@ -572,10 +619,74 @@ out_free:
 	return err;
 }
 
+int jsonr_panel_expr_data(json_reader_t *r, struct panel_expr_data *data)
+{
+	char buf[SZ_128];
+	char str[SZ_128];
+	int err;
+
+	JEXPECT_OBJECT(r, current_token(r)); inc_token(r);
+
+	/* type */
+	err = jsonr_string_field(r, buf, str);
+	if (err < 0) {
+		panel_err("failed to parse string\n");
+		return err;
+	}
+
+	err = panel_expr_type_string_to_enum(str);
+	if (err < 0) {
+		panel_err("invalid expr type(%s)\n", str);
+		return err;
+	}
+	data->type = err;
+
+	if (data->type == PANEL_EXPR_TYPE_OPERAND_U32) {
+		err = jsonr_uint_field(r, buf, &data->op.u32);
+		if (err < 0) {
+			panel_err("failed to parse uint\n");
+			return err;
+		}
+	} else if (data->type == PANEL_EXPR_TYPE_OPERAND_S32) {
+		err = jsonr_uint_field(r, buf, &data->op.s32);
+		if (err < 0) {
+			panel_err("failed to parse int\n");
+			return err;
+		}
+	} else if (data->type == PANEL_EXPR_TYPE_OPERAND_STR) {
+		err = jsonr_string_field(r, buf, str);
+		if (err < 0) {
+			panel_err("failed to parse string\n");
+			return err;
+		}
+		data->op.str = kstrndup(str, sizeof(str), GFP_KERNEL);
+	} else if (data->type == PANEL_EXPR_TYPE_OPERAND_PROP) {
+		err = jsonr_string_field(r, buf, str);
+		if (err < 0) {
+			panel_err("failed to parse string\n");
+			return err;
+		}
+		data->op.str = kstrndup(str, sizeof(str), GFP_KERNEL);
+	} else if (data->type == PANEL_EXPR_TYPE_OPERAND_FUNC) {
+		err = jsonr_ref_function_field(r, "op", &data->op.func);
+		if (err < 0) {
+			panel_err("failed to parse reference of function\n");
+			return err;
+		}
+	}
+
+	return 0;
+
+out_free:
+	return err;
+}
+
 int jsonr_condition(json_reader_t *r, struct condinfo *cond)
 {
 	char buf[SZ_128];
-	int err;
+	int i, err;
+	jsmntok_t *it_tok;
+	struct panel_expr_data *item = NULL;
 
 	if (!cond) {
 		panel_err("invalid arg\n");
@@ -596,25 +707,40 @@ int jsonr_condition(json_reader_t *r, struct condinfo *cond)
 		return err;
 	}
 
-	/* condition function */
-	err = jsonr_ref_function_field(r, "cond", (void **)&cond->cond);
-	if (err < 0) {
-		panel_err("failed to parse reference of function\n");
-		goto out_free;
+	/* parsing rule */
+	JEXPECT_STREQ(r, current_token(r), "rule"); inc_token(r);
+	JEXPECT_OBJECT(r, current_token(r)); inc_token(r);
+	{
+		/* parsing panel_expr_data array */
+		JEXPECT_STREQ(r, current_token(r), "item"); inc_token(r);
+		JEXPECT_ARRAY(r, current_token(r));
+		it_tok = current_token(r); inc_token(r);
+		if (it_tok->size > 0) {
+			item = kzalloc(sizeof(*item) * it_tok->size, GFP_KERNEL);
+			for (i = 0; i < it_tok->size; i++) {
+				err = jsonr_panel_expr_data(r, &item[i]);
+				if (err < 0)
+					goto out_free;
+			}
+		}
+		cond->rule.num_item = it_tok->size;
+		cond->rule.item = item;
 	}
 
 	return 0;
 
 out_free:
+	kfree(item);
 	free_pnobj_name(&cond->base);
 	return err;
 }
 
-int jsonr_read_info(json_reader_t *r, struct rdinfo *rdi)
+int jsonr_rx_packet(json_reader_t *r, struct rdinfo *rdi)
 {
+	char key[SZ_128];
 	char buf[SZ_128];
 	u8 *data = NULL;
-	int err;
+	int err, pkt_type;
 
 	if (!rdi) {
 		panel_err("invalid arg\n");
@@ -634,6 +760,21 @@ int jsonr_read_info(json_reader_t *r, struct rdinfo *rdi)
 		panel_err("failed to parse pnobj\n");
 		return err;
 	}
+
+	/* type */
+	err = jsonr_string_field(r, key, buf);
+	if (err < 0) {
+		panel_err("failed to parse string\n");
+		return err;
+	}
+
+	pkt_type = string_to_packet_type(buf);
+	if (pkt_type < 0 || !IS_RX_PKT_TYPE(pkt_type)) {
+		panel_err("invalid type(%s:%d)\n", buf, pkt_type);
+		err = -EINVAL;
+		goto out_free;
+	}
+	rdi->type = pkt_type;
 
 	/* address */
 	err = jsonr_uint_field(r, buf, &rdi->addr);
@@ -746,6 +887,8 @@ int jsonr_resource(json_reader_t *r, struct resinfo *res)
 
 	res->data = data;
 	res->resui = resui;
+	if (!resui)
+		res->state = RES_INITIALIZED;
 
 	return 0;
 
@@ -871,7 +1014,7 @@ int jsonr_dumpinfo(json_reader_t *r, struct dumpinfo *dump)
 	}
 
 	/* callback function */
-	err = jsonr_ref_function_field(r, "callback", (void **)&dump->callback);
+	err = jsonr_ref_function_field(r, "callback", &dump->ops.show);
 	if (err < 0) {
 		panel_err("failed to parse reference of function\n");
 		goto out_free;
@@ -929,6 +1072,13 @@ int jsonr_delayinfo(json_reader_t *r, struct delayinfo *delay)
 		goto out_free;
 	}
 
+	/* nvsync */
+	err = jsonr_uint_field(r, buf, &delay->nvsync);
+	if (err < 0) {
+		panel_err("failed to parse uint\n");
+		goto out_free;
+	}
+
 	return 0;
 
 out_free:
@@ -974,7 +1124,7 @@ out_free:
 	return err;
 }
 
-int jsonr_power_control(json_reader_t *r, struct pctrlinfo *pwrctrl)
+int jsonr_power_ctrl(json_reader_t *r, struct pwrctrl *pwrctrl)
 {
 	char buf[SZ_128];
 	char str[SZ_128];
@@ -999,30 +1149,29 @@ int jsonr_power_control(json_reader_t *r, struct pctrlinfo *pwrctrl)
 		goto out_free;
 	}
 
-	/* pctrl_name */
+	/* key */
 	err = jsonr_string_field(r, buf, str);
 	if (err < 0) {
 		panel_err("failed to parse string\n");
 		goto out_free;
 	}
-	pwrctrl->pctrl_name = kzalloc(strlen(str) + 1, GFP_KERNEL);
-	strncpy(pwrctrl->pctrl_name, str, SZ_128);
+	pwrctrl->key = kzalloc(strlen(str) + 1, GFP_KERNEL);
+	strncpy(pwrctrl->key, str, SZ_128);
 
 	return 0;
 
 out_free:
 	free_pnobj_name(&pwrctrl->base);
-	kfree(pwrctrl->pctrl_name);
+	kfree(pwrctrl->key);
 
 	return err;
 }
 
-int jsonr_property(json_reader_t *r, struct propinfo *prop)
+int jsonr_property(json_reader_t *r, struct panel_property *prop)
 {
 	char buf[SZ_128];
 	char str[SZ_128];
-	char *prop_name = NULL;
-	int err;
+	int err, type;
 
 	if (!prop) {
 		panel_err("invalid arg\n");
@@ -1043,6 +1192,74 @@ int jsonr_property(json_reader_t *r, struct propinfo *prop)
 		goto out_free;
 	}
 
+	/* type */
+	err = jsonr_string_field(r, buf, str);
+	if (err < 0) {
+		panel_err("failed to parse string\n");
+		goto out_free;
+	}
+
+	if (strncmp(buf, "type", SZ_32)) {
+		panel_err("wrong key string(%s)\n", buf);
+		goto out_free;
+	}
+
+	type = string_to_prop_type(str);
+	if (type < 0) {
+		panel_err("unknown prop type(%s)\n", str);
+		goto out_free;
+	}
+
+	if (type == PANEL_PROP_TYPE_RANGE) {
+		/* min */
+		err = jsonr_uint_field(r, buf, &prop->min);
+		if (err < 0) {
+			panel_err("failed to parse uint\n");
+			goto out_free;
+		}
+
+		/* max */
+		err = jsonr_uint_field(r, buf, &prop->max);
+		if (err < 0) {
+			panel_err("failed to parse uint\n");
+			goto out_free;
+		}
+	}
+
+	return 0;
+
+out_free:
+	free_pnobj_name(&prop->base);
+
+	return err;
+}
+
+int jsonr_config(json_reader_t *r, struct pnobj_config *config)
+{
+	char buf[SZ_128];
+	char str[SZ_128];
+	char *prop_name = NULL;
+	int err;
+
+	if (!config) {
+		panel_err("invalid arg\n");
+		return -EINVAL;
+	}
+
+	/* entry */
+	err = jsonr_string(r, buf);
+	if (err < 0) {
+		panel_err("failed to parse string\n");
+		goto out_free;
+	}
+
+	/* parsing base */
+	err = jsonr_pnobj_object(r, &config->base);
+	if (err < 0) {
+		panel_err("failed to parse pnobj\n");
+		goto out_free;
+	}
+
 	/* prop_name */
 	err = jsonr_string_field(r, buf, str);
 	if (err < 0) {
@@ -1053,36 +1270,27 @@ int jsonr_property(json_reader_t *r, struct propinfo *prop)
 	strncpy(prop_name, str, SZ_128);
 
 	/* prop_type */
-	err = jsonr_uint_field(r, buf, &prop->prop_type);
+	err = jsonr_uint_field(r, buf, &config->prop_type);
 	if (err < 0) {
 		panel_err("failed to parse uint\n");
 		goto out_free;
 	}
 
-	if (prop->prop_type == PANEL_OBJ_PROP_TYPE_VALUE) {
+	if (config->prop_type == PANEL_PROP_TYPE_RANGE) {
 		/* prop_type */
-		err = jsonr_uint_field(r, buf, &prop->value);
+		err = jsonr_uint_field(r, buf, &config->value);
 		if (err < 0) {
 			panel_err("failed to parse uint\n");
 			goto out_free;
 		}
-	} else if (prop->prop_type == PANEL_OBJ_PROP_TYPE_STR) {
-		/* prop_type */
-		err = jsonr_string_field(r, buf, str);
-		if (err < 0) {
-			panel_err("failed to parse string\n");
-			goto out_free;
-		}
-		prop->str = kzalloc(strlen(str) + 1, GFP_KERNEL);
-		strncpy(prop->str, str, SZ_128);
 	}
 
-	prop->prop_name = prop_name;
+	config->prop_name = prop_name;
 
 	return 0;
 
 out_free:
-	free_pnobj_name(&prop->base);
+	free_pnobj_name(&config->base);
 	kfree(prop_name);
 
 	return err;
@@ -1147,7 +1355,8 @@ out_free:
 int jsonr_function(json_reader_t *r, struct pnobj_func *func)
 {
 	char buf[SZ_128];
-	struct pnobj *pnobj, t_pnobj;
+	struct pnobj t_pnobj;
+	struct pnobj_func *found;
 	int err;
 
 	if (!func) {
@@ -1169,17 +1378,16 @@ int jsonr_function(json_reader_t *r, struct pnobj_func *func)
 		goto out_free;
 	}
 
-	pnobj = pnobj_find_by_pnobj(get_jsonr_pnobj_list(r), &t_pnobj);
-	if (!pnobj) {
-		panel_err("pnobj(%s:%s) not found\n",
+	found = panel_function_lookup(get_pnobj_name(&t_pnobj));
+	if (!found) {
+		panel_err("pnobj(%s:%s) not found in panel_function_list\n",
 				get_pnobj_name(&t_pnobj),
-				get_pnobj_cmd_type(&t_pnobj));
+				cmd_type_to_string(get_pnobj_cmd_type(&t_pnobj)));
 		err = -EINVAL;
 		goto out_free;
 	}
 
-	memcpy(func, pnobj_container_of(
-				pnobj, struct pnobj_func), sizeof(*func));
+	memcpy(func, found, sizeof(*func));
 
 	return 0;
 
@@ -1207,6 +1415,7 @@ int jsonr_all(json_reader_t *r)
 		pnobj_cmd_type = string_to_cmd_type(buf);
 		if (pnobj_cmd_type < 0) {
 			panel_err("invalid type(%s:%d)\n", buf, pnobj_cmd_type);
+			err = -EINVAL;
 			goto out_free;
 		}
 
@@ -1247,25 +1456,25 @@ int jsonr_all(json_reader_t *r)
 
 				list_add_tail(get_pnobj_list(&dump->base), get_jsonr_pnobj_list(r));
 			} else if (pnobj_cmd_type == CMD_TYPE_PCTRL) {
-				struct pctrlinfo *pwrctrl = kzalloc(sizeof(*pwrctrl), GFP_KERNEL);
+				struct pwrctrl *pwrctrl = kzalloc(sizeof(*pwrctrl), GFP_KERNEL);
 
-				err = jsonr_power_control(r, pwrctrl);
+				err = jsonr_power_ctrl(r, pwrctrl);
 				if (err < 0) {
 					panel_err("failed to parse\n");
 					goto out_free;
 				}
 
 				list_add_tail(get_pnobj_list(&pwrctrl->base), get_jsonr_pnobj_list(r));
-			} else if (pnobj_cmd_type == CMD_TYPE_PROP) {
-				struct propinfo *prop = kzalloc(sizeof(*prop), GFP_KERNEL);
+			} else if (pnobj_cmd_type == CMD_TYPE_CFG) {
+				struct pnobj_config *config = kzalloc(sizeof(*config), GFP_KERNEL);
 
-				err = jsonr_property(r, prop);
+				err = jsonr_config(r, config);
 				if (err < 0) {
 					panel_err("failed to parse\n");
 					goto out_free;
 				}
 
-				list_add_tail(get_pnobj_list(&prop->base), get_jsonr_pnobj_list(r));
+				list_add_tail(get_pnobj_list(&config->base), get_jsonr_pnobj_list(r));
 			} else if (pnobj_cmd_type == CMD_TYPE_SEQ) {
 				struct seqinfo *seq = kzalloc(sizeof(*seq), GFP_KERNEL);
 
@@ -1279,7 +1488,7 @@ int jsonr_all(json_reader_t *r)
 			} else if (IS_CMD_TYPE_RX_PKT(pnobj_cmd_type)) {
 				struct rdinfo *rdi = kzalloc(sizeof(*rdi), GFP_KERNEL);
 
-				err = jsonr_read_info(r, rdi);
+				err = jsonr_rx_packet(r, rdi);
 				if (err < 0) {
 					panel_err("failed to parse\n");
 					goto out_free;
@@ -1299,7 +1508,7 @@ int jsonr_all(json_reader_t *r)
 			} else if (IS_CMD_TYPE_TX_PKT(pnobj_cmd_type)) {
 				struct pktinfo *pkt = kzalloc(sizeof(*pkt), GFP_KERNEL);
 
-				err = jsonr_packet(r, pkt);
+				err = jsonr_tx_packet(r, pkt);
 				if (err < 0) {
 					panel_err("failed to parse\n");
 					goto out_free;
@@ -1339,17 +1548,26 @@ int jsonr_all(json_reader_t *r)
 				list_add_tail(get_pnobj_list(&cond->base), get_jsonr_pnobj_list(r));
 			}
 			else if (pnobj_cmd_type == CMD_TYPE_FUNC) {
-				struct pnobj_func *pnobj_func =
-					kzalloc(sizeof(*pnobj_func), GFP_KERNEL);
+				struct pnobj_func pnobj_func;
 
-				err = jsonr_function(r, pnobj_func);
+				memset(&pnobj_func, 0, sizeof(pnobj_func));
+				err = jsonr_function(r, &pnobj_func);
 				if (err < 0) {
 					panel_err("failed to parse\n");
-					kfree(pnobj_func);
 					goto out_free;
 				}
 
-				kfree(pnobj_func);
+				pnobj_function_list_add(&pnobj_func, get_jsonr_pnobj_list(r));
+			} else if (IS_CMD_TYPE_PROP(pnobj_cmd_type)) {
+				struct panel_property *property = kzalloc(sizeof(*property), GFP_KERNEL);
+
+				err = jsonr_property(r, property);
+				if (err < 0) {
+					panel_err("failed to parse\n");
+					goto out_free;
+				}
+
+				list_add_tail(get_pnobj_list(&property->base), get_jsonr_pnobj_list(r));
 			}
 		}
 	}
@@ -1367,6 +1585,41 @@ out_free:
 	return err;
 }
 
+int panel_json_parse(char *json, size_t size, struct list_head *pnobj_list)
+{
+	json_reader_t *r;
+	jsmnerr_t err;
+	int ret;
+
+	r = jsonr_new(size, pnobj_list);
+	if (!r) {
+		panel_err("failed to create json reader stream\n");
+		return -EINVAL;
+	}
+
+	err = jsonr_parse(r, json);
+	if (err != JSMN_SUCCESS) {
+		panel_err("failed to parse json\n");
+		ret = -EINVAL;
+		goto err;
+	}
+
+	ret = jsonr_all(r);
+	if (ret < 0) {
+		panel_err("failed to parse all json pnobj\n");
+		goto err;
+	}
+
+	jsonr_destroy(&r);
+
+	return 0;
+
+err:
+	jsonr_destroy(&r);
+	return ret;
+}
+
+
 __visible_for_testing void jsonw_pnobj(json_writer_t *w, struct pnobj *pnobj)
 {
 	jsonw_name(w, "pnobj");
@@ -1382,7 +1635,7 @@ __visible_for_testing void jsonw_pnobj(json_writer_t *w, struct pnobj *pnobj)
 static void jsonw_ref(json_writer_t *w,
 		const char *path, const char *key)
 {
-	char refname[KSYM_NAME_LEN + 32];
+	char refname[PNOBJ_FUNC_NAME_LEN + 32];
 
 	jsonw_start_object(w);
 	{
@@ -1400,9 +1653,9 @@ static void jsonw_ref_field(json_writer_t *w,
 }
 
 static void jsonw_ref_function_field(json_writer_t *w,
-		const char *prop, void *f)
+		const char *prop, struct pnobj_func *f)
 {
-	char symname[KSYM_NAME_LEN];
+	char *name;
 
 	if (!f) {
 		panel_err("function is null\n");
@@ -1410,14 +1663,14 @@ static void jsonw_ref_function_field(json_writer_t *w,
 		return;
 	}
 
-	sprint_symbol_no_offset(symname, (unsigned long)f);
-	if (!strncmp(symname, "0x", 2)) {
-		panel_err("failed to lookup symbol name(%lx)\n", f);
+	name = get_pnobj_function_name(f);
+	if (!name) {
+		panel_err("failed to get function name\n");
 		jsonw_null_object_field(w, prop);
 		return;
 	}
 
-	jsonw_ref_field(w, prop, "FUNCTION", symname);
+	jsonw_ref_field(w, prop, "FUNCTION", name);
 }
 
 static void jsonw_ref_pnobj_field(json_writer_t *w,
@@ -1465,9 +1718,9 @@ static void jsonw_maptbl_ops(json_writer_t *w, struct maptbl *m)
 	jsonw_name(w, "ops");
 	jsonw_start_object(w);
 	{
-		jsonw_ref_function_field(w, "init", (void *)m->ops.init);
-		jsonw_ref_function_field(w, "getidx", (void *)m->ops.getidx);
-		jsonw_ref_function_field(w, "copy", (void *)m->ops.copy);
+		jsonw_ref_function_field(w, "init", m->ops.init);
+		jsonw_ref_function_field(w, "getidx", m->ops.getidx);
+		jsonw_ref_function_field(w, "copy", m->ops.copy);
 	}
 	jsonw_end_object(w);
 }
@@ -1492,7 +1745,8 @@ static int jsonw_packet_update_info(json_writer_t *w, struct pkt_update_info *pk
 	jsonw_start_object(w);
 	jsonw_uint_field(w, "offset", pktui->offset);
 	jsonw_ref_pnobj_field(w, "maptbl", (struct pnobj *)pktui->maptbl);
-	jsonw_ref_function_field(w, "getidx", (void *)pktui->getidx);
+	/* TODO: remove it when EasyOpcode Editor is fixed */
+	jsonw_ref_function_field(w, "getidx", NULL);
 	jsonw_end_object(w);
 
 	return 0;
@@ -1511,7 +1765,7 @@ static int jsonw_packet_update_info_array(json_writer_t *w, struct pkt_update_in
 	return 0;
 }
 
-int jsonw_packet(json_writer_t *w, struct pktinfo *pkt)
+int jsonw_tx_packet(json_writer_t *w, struct pktinfo *pkt)
 {
 	size_t i;
 
@@ -1519,10 +1773,12 @@ int jsonw_packet(json_writer_t *w, struct pktinfo *pkt)
 	jsonw_start_object(w);
 	{
 		jsonw_pnobj(w, (struct pnobj *)pkt);
+		jsonw_string_field(w, "type",
+				packet_type_to_string(get_pktinfo_type(pkt)));
 		jsonw_name(w, "data");
 		jsonw_start_array(w);
 		for (i = 0; i < pkt->dlen; i++)
-			jsonw_int(w, pkt->data[i]);
+			jsonw_int(w, pkt->initdata[i]);
 		jsonw_end_array(w);
 		jsonw_uint_field(w, "offset", pkt->offset);
 		jsonw_packet_update_info_array(w, pkt->pktui, pkt->nr_pktui);
@@ -1548,25 +1804,67 @@ int jsonw_keyinfo(json_writer_t *w, struct keyinfo *key)
 	return 0;
 }
 
-int jsonw_condition(json_writer_t *w, struct condinfo *c)
+static int jsonw_panel_expr_data(json_writer_t *w, struct panel_expr_data *data)
 {
-	jsonw_name(w, get_condition_name(c));
 	jsonw_start_object(w);
 	{
-		jsonw_pnobj(w, (struct pnobj *)c);
-		jsonw_ref_function_field(w, "cond", (void *)c->cond);
+		jsonw_string_field(w, "type",
+				panel_expr_type_enum_to_string(data->type));
+		if (data->type == PANEL_EXPR_TYPE_OPERAND_U32)
+			jsonw_uint_field(w, "op", data->op.u32);
+		else if (data->type == PANEL_EXPR_TYPE_OPERAND_S32)
+			jsonw_int_field(w, "op", data->op.s32);
+		else if (data->type == PANEL_EXPR_TYPE_OPERAND_STR)
+			jsonw_string_field(w, "op", data->op.str);
+		else if (data->type == PANEL_EXPR_TYPE_OPERAND_PROP)
+			jsonw_string_field(w, "op", data->op.str);
+		else if (data->type == PANEL_EXPR_TYPE_OPERAND_FUNC)
+			jsonw_ref_function_field(w, "op", (void *)data->op.func);
 	}
 	jsonw_end_object(w);
 
 	return 0;
 }
 
-int jsonw_read_info(json_writer_t *w, struct rdinfo *rdi)
+static int jsonw_condition_rule(json_writer_t *w, struct cond_rule *rule)
+{
+	size_t i;
+
+	jsonw_name(w, "rule");
+	jsonw_start_object(w);
+	{
+		jsonw_name(w, "item");
+		jsonw_start_array(w);
+		for (i = 0; i < rule->num_item; i++)
+			jsonw_panel_expr_data(w, &rule->item[i]);
+		jsonw_end_array(w);
+	}
+	jsonw_end_object(w);
+
+	return 0;
+}
+
+int jsonw_condition(json_writer_t *w, struct condinfo *c)
+{
+	jsonw_name(w, get_condition_name(c));
+	jsonw_start_object(w);
+	{
+		jsonw_pnobj(w, (struct pnobj *)c);
+		jsonw_condition_rule(w, &c->rule);
+	}
+	jsonw_end_object(w);
+
+	return 0;
+}
+
+int jsonw_rx_packet(json_writer_t *w, struct rdinfo *rdi)
 {
 	jsonw_name(w, get_rdinfo_name(rdi));
 	jsonw_start_object(w);
 	{
 		jsonw_pnobj(w, (struct pnobj *)rdi);
+		jsonw_string_field(w, "type",
+				packet_type_to_string(get_rdinfo_type(rdi)));
 		jsonw_uint_field(w, "addr", rdi->addr);
 		jsonw_uint_field(w, "offset", rdi->offset);
 		jsonw_uint_field(w, "len", rdi->len);
@@ -1609,8 +1907,13 @@ int jsonw_resource(json_writer_t *w, struct resinfo *res)
 		jsonw_pnobj(w, (struct pnobj *)res);
 		jsonw_name(w, "data");
 		jsonw_start_array(w);
-		for (i = 0; i < res->dlen; i++)
-			jsonw_int(w, res->data[i]);
+		if (is_resource_mutable(res)) {
+			for (i = 0; i < res->dlen; i++)
+				jsonw_int(w, 0);
+		} else {
+			for (i = 0; i < res->dlen; i++)
+				jsonw_int(w, res->data[i]);
+		}
 		jsonw_end_array(w);
 		jsonw_resource_update_info_array(w, res->resui, res->nr_resui);
 	}
@@ -1631,20 +1934,20 @@ static int jsonw_dump_expect(json_writer_t *w, struct dump_expect *expect)
 	return 0;
 }
 
-int jsonw_dumpinfo(json_writer_t *w, struct dumpinfo *di)
+int jsonw_dumpinfo(json_writer_t *w, struct dumpinfo *dump)
 {
 	int i;
 
-	jsonw_name(w, get_dump_name(di));
+	jsonw_name(w, get_dump_name(dump));
 	jsonw_start_object(w);
 	{
-		jsonw_pnobj(w, (struct pnobj *)di);
-		jsonw_ref_pnobj_field(w, "res", (struct pnobj *)di->res);
-		jsonw_ref_function_field(w, "callback", (void *)di->callback);
+		jsonw_pnobj(w, (struct pnobj *)dump);
+		jsonw_ref_pnobj_field(w, "res", (struct pnobj *)dump->res);
+		jsonw_ref_function_field(w, "callback", (void *)dump->ops.show);
 		jsonw_name(w, "expects");
 		jsonw_start_array(w);
-		for (i = 0; i < di->nr_expects; i++)
-			jsonw_dump_expect(w, &di->expects[i]);
+		for (i = 0; i < dump->nr_expects; i++)
+			jsonw_dump_expect(w, &dump->expects[i]);
 		jsonw_end_array(w);
 	}
 	jsonw_end_object(w);
@@ -1660,6 +1963,7 @@ int jsonw_delayinfo(json_writer_t *w, struct delayinfo *di)
 		jsonw_pnobj(w, (struct pnobj *)di);
 		jsonw_uint_field(w, "usec", di->usec);
 		jsonw_uint_field(w, "nframe", di->nframe);
+		jsonw_uint_field(w, "nvsync", di->nvsync);
 	}
 	jsonw_end_object(w);
 
@@ -1679,31 +1983,46 @@ int jsonw_timer_delay_begin_info(json_writer_t *w, struct timer_delay_begin_info
 	return 0;
 }
 
-int jsonw_power_control(json_writer_t *w, struct pctrlinfo *pi)
+int jsonw_power_ctrl(json_writer_t *w, struct pwrctrl *pi)
 {
 	jsonw_name(w, get_pwrctrl_name(pi));
 	jsonw_start_object(w);
 	{
 		jsonw_pnobj(w, (struct pnobj *)pi);
-		jsonw_string_field(w, "pctrl_name", pi->pctrl_name);
+		jsonw_string_field(w, "key", get_pwrctrl_key(pi));
 	}
 	jsonw_end_object(w);
 
 	return 0;
 }
 
-int jsonw_property(json_writer_t *w, struct propinfo *prop)
+int jsonw_property(json_writer_t *w, struct panel_property *prop)
 {
-	jsonw_name(w, get_prop_name(prop));
+	jsonw_name(w, get_panel_property_name(prop));
 	jsonw_start_object(w);
 	{
-		jsonw_pnobj(w, (struct pnobj *)prop);
-		jsonw_string_field(w, "prop_name", prop->prop_name);
-		jsonw_uint_field(w, "prop_type", prop->prop_type);
-		if (prop->prop_type == PANEL_OBJ_PROP_TYPE_VALUE)
-			jsonw_uint_field(w, "value", prop->value);
-		else if (prop->prop_type == PANEL_OBJ_PROP_TYPE_STR)
-			jsonw_string_field(w, "str", prop->str);
+		jsonw_pnobj(w, (struct pnobj *)&prop->base);
+		jsonw_string_field(w, "type", prop_type_to_string(prop->type));
+		if (prop->type == PANEL_PROP_TYPE_RANGE) {
+			jsonw_uint_field(w, "min", prop->min);
+			jsonw_uint_field(w, "max", prop->max);
+		}
+	}
+	jsonw_end_object(w);
+	
+	return 0;
+}
+
+int jsonw_config(json_writer_t *w, struct pnobj_config *config)
+{
+	jsonw_name(w, get_pnobj_config_name(config));
+	jsonw_start_object(w);
+	{
+		jsonw_pnobj(w, (struct pnobj *)config);
+		jsonw_string_field(w, "prop_name", config->prop_name);
+		jsonw_uint_field(w, "prop_type", config->prop_type);
+		if (config->prop_type == PANEL_PROP_TYPE_RANGE)
+			jsonw_uint_field(w, "value", config->value);
 	}
 	jsonw_end_object(w);
 
@@ -1767,17 +2086,17 @@ int jsonw_pnobj_list(json_writer_t *w, u32 pnobj_cmd_type, struct list_head *pno
 			else if (pnobj_cmd_type == CMD_TYPE_DMP)
 				jsonw_dumpinfo(w, (struct dumpinfo *)pnobj);
 			else if (pnobj_cmd_type == CMD_TYPE_PCTRL)
-				jsonw_power_control(w, (struct pctrlinfo *)pnobj);
-			else if (pnobj_cmd_type == CMD_TYPE_PROP)
-				jsonw_property(w, (struct propinfo *)pnobj);
+				jsonw_power_ctrl(w, (struct pwrctrl *)pnobj);
+			else if (pnobj_cmd_type == CMD_TYPE_CFG)
+				jsonw_config(w, (struct pnobj_config *)pnobj);
 			else if (pnobj_cmd_type == CMD_TYPE_SEQ)
 				jsonw_sequence(w, (struct seqinfo *)pnobj);
 			else if (IS_CMD_TYPE_RX_PKT(pnobj_cmd_type))
-				jsonw_read_info(w, (struct rdinfo *)pnobj);
+				jsonw_rx_packet(w, (struct rdinfo *)pnobj);
 			else if (IS_CMD_TYPE_KEY(pnobj_cmd_type))
 				jsonw_keyinfo(w, (struct keyinfo *)pnobj);
 			else if (IS_CMD_TYPE_TX_PKT(pnobj_cmd_type))
-				jsonw_packet(w, (struct pktinfo *)pnobj);
+				jsonw_tx_packet(w, (struct pktinfo *)pnobj);
 			else if (IS_CMD_TYPE_DELAY(pnobj_cmd_type) ||
 					(pnobj_cmd_type == CMD_TYPE_TIMER_DELAY))
 				jsonw_delayinfo(w, (struct delayinfo *)pnobj);
@@ -1787,6 +2106,8 @@ int jsonw_pnobj_list(json_writer_t *w, u32 pnobj_cmd_type, struct list_head *pno
 				jsonw_condition(w, (struct condinfo *)pnobj);
 			else if (pnobj_cmd_type == CMD_TYPE_FUNC)
 				jsonw_function(w, (struct pnobj_func *)pnobj);
+			else if (IS_CMD_TYPE_PROP(pnobj_cmd_type))
+				jsonw_property(w, (struct panel_property *)pnobj);
 			else {
 				panel_warn("invalid panel object type(%d)\n", pnobj_cmd_type);
 				continue;
@@ -1803,12 +2124,9 @@ int jsonw_maptbl_list(json_writer_t *w, struct list_head *head)
 	return jsonw_pnobj_list(w, CMD_TYPE_MAP, head);
 }
 
-int jsonw_read_info_list(json_writer_t *w, struct list_head *head)
+int jsonw_rx_packet_list(json_writer_t *w, struct list_head *head)
 {
-	jsonw_pnobj_list(w, SPI_PKT_TYPE_RD, head);
-	jsonw_pnobj_list(w, DSI_PKT_TYPE_RD, head);
-
-	return 0;
+	return jsonw_pnobj_list(w, CMD_TYPE_RX_PACKET, head);
 }
 
 int jsonw_resource_list(json_writer_t *w, struct list_head *head)
@@ -1821,7 +2139,7 @@ int jsonw_dumpinfo_list(json_writer_t *w, struct list_head *head)
 	return jsonw_pnobj_list(w, CMD_TYPE_DMP, head);
 }
 
-int jsonw_power_control_list(json_writer_t *w, struct list_head *head)
+int jsonw_power_ctrl_list(json_writer_t *w, struct list_head *head)
 {
 	return jsonw_pnobj_list(w, CMD_TYPE_PCTRL, head);
 }
@@ -1831,6 +2149,11 @@ int jsonw_property_list(json_writer_t *w, struct list_head *head)
 	return jsonw_pnobj_list(w, CMD_TYPE_PROP, head);
 }
 
+int jsonw_config_list(json_writer_t *w, struct list_head *head)
+{
+	return jsonw_pnobj_list(w, CMD_TYPE_CFG, head);
+}
+
 int jsonw_sequence_list(json_writer_t *w, struct list_head *head)
 {
 	return jsonw_pnobj_list(w, CMD_TYPE_SEQ, head);
@@ -1838,26 +2161,17 @@ int jsonw_sequence_list(json_writer_t *w, struct list_head *head)
 
 int jsonw_key_list(json_writer_t *w, struct list_head *head)
 {
-	jsonw_pnobj_list(w, CMD_TYPE_KEY, head);
-
-	return 0;
+	return jsonw_pnobj_list(w, CMD_TYPE_KEY, head);
 }
 
-int jsonw_packet_list(json_writer_t *w, struct list_head *head)
+int jsonw_tx_packet_list(json_writer_t *w, struct list_head *head)
 {
-	jsonw_pnobj_list(w, DSI_PKT_TYPE_WR, head);
-	jsonw_pnobj_list(w, DSI_PKT_TYPE_WR_COMP, head);
-	jsonw_pnobj_list(w, DSI_PKT_TYPE_WR_PPS, head);
-	jsonw_pnobj_list(w, DSI_PKT_TYPE_WR_SR, head);
-	jsonw_pnobj_list(w, DSI_PKT_TYPE_WR_SR_FAST, head);
-
-	return 0;
+	return jsonw_pnobj_list(w, CMD_TYPE_TX_PACKET, head);
 }
 
 int jsonw_delay_list(json_writer_t *w, struct list_head *head)
 {
 	jsonw_pnobj_list(w, CMD_TYPE_DELAY, head);
-	jsonw_pnobj_list(w, CMD_TYPE_VSYNC_DELAY, head);
 	jsonw_pnobj_list(w, CMD_TYPE_TIMER_DELAY, head);
 	jsonw_pnobj_list(w, CMD_TYPE_TIMER_DELAY_BEGIN, head);
 

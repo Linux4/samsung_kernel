@@ -460,9 +460,6 @@ struct link_device {
 	int (*get_cp_crash_reason)(struct link_device *ld, struct io_device *iod,
 			unsigned long arg);
 
-	int (*enable_rx_int)(struct link_device *ld);
-	int (*disable_rx_int)(struct link_device *ld);
-
 	void (*start_timers)(struct mem_link_device *mld);
 	void (*stop_timers)(struct mem_link_device *mld);
 

@@ -5925,14 +5925,16 @@ int slsi_mlme_get_ap_tx_power(struct slsi_dev *sdev, struct net_device *dev, cha
 
 int slsi_mlme_set_max_tx_power(struct slsi_dev *sdev, struct net_device *dev, int *pwr_limit)
 {
-	struct netdev_vif *ndev_vif = netdev_priv(dev);
+#ifndef CONFIG_SCSC_WLAN_CUSTOM_TX_POWER
+	SLSI_NET_DBG1(dev, SLSI_MLME, "CONFIG_SCSC_WLAN_CUSTOM_TX_POWER not defined (s5e8835 only)\n");
+	return -EINVAL;
+#else
 	struct sk_buff    *req;
 	struct sk_buff    *cfm;
 	int               r = 0;
 	int disable_pwr_limit[MAX_TX_PWR_BACKOFF_ARG_CNT] = {
 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
 
-	WLBT_WARN_ON(!SLSI_MUTEX_IS_LOCKED(ndev_vif->vif_mutex));
 	req = fapi_alloc(mlme_set_max_tx_power_req, MLME_SET_MAX_TX_POWER_REQ, 0, 0);
 	if (!req)
 		return -ENOMEM;
@@ -5945,12 +5947,12 @@ int slsi_mlme_set_max_tx_power(struct slsi_dev *sdev, struct net_device *dev, in
 	 * Core1_ANT1_{2.4G, 5G, 6G}, Core1_ANT2_{2.4G, 5G, 6G}.
 	 * We understand Core0/Core1 is for another vendor and we need only be concerned with Core0.
 	 */
-	fapi_set_u8(req, u.mlme_set_max_tx_power_req.max_power2g4ant1, pwr_limit[0]);
-	fapi_set_u8(req, u.mlme_set_max_tx_power_req.max_power5g_ant1, pwr_limit[1]);
-	fapi_set_u8(req, u.mlme_set_max_tx_power_req.max_power6g_ant1, pwr_limit[2]);
-	fapi_set_u8(req, u.mlme_set_max_tx_power_req.max_power2g4ant2, pwr_limit[3]);
-	fapi_set_u8(req, u.mlme_set_max_tx_power_req.max_power5g_ant2, pwr_limit[4]);
-	fapi_set_u8(req, u.mlme_set_max_tx_power_req.max_power6g_ant2, pwr_limit[5]);
+	fapi_set_u8(req, u.mlme_set_max_tx_power_req.max_power2g4ant1, pwr_limit[0] & 0x7f);
+	fapi_set_u8(req, u.mlme_set_max_tx_power_req.max_power5g_ant1, pwr_limit[1] & 0x7f);
+	fapi_set_u8(req, u.mlme_set_max_tx_power_req.max_power6g_ant1, pwr_limit[2] & 0x7f);
+	fapi_set_u8(req, u.mlme_set_max_tx_power_req.max_power2g4ant2, pwr_limit[3] & 0x7f);
+	fapi_set_u8(req, u.mlme_set_max_tx_power_req.max_power5g_ant2, pwr_limit[4] & 0x7f);
+	fapi_set_u8(req, u.mlme_set_max_tx_power_req.max_power6g_ant2, pwr_limit[5] & 0x7f);
 
 	cfm = slsi_mlme_req_cfm(sdev, NULL, req, MLME_SET_MAX_TX_POWER_CFM);
 	if (!cfm)
@@ -5962,8 +5964,13 @@ int slsi_mlme_set_max_tx_power(struct slsi_dev *sdev, struct net_device *dev, in
 		r = -EINVAL;
 	}
 
+	SLSI_NET_INFO(dev, "mlme_set_max_tx_power args:%d %d %d %d %d %d mac_changed %d return %d\n",
+		      pwr_limit[0], pwr_limit[1], pwr_limit[2], pwr_limit[3], pwr_limit[4],
+		      pwr_limit[5], sdev->mac_changed, r);
+
 	kfree_skb(cfm);
 	return r;
+#endif
 }
 
 int slsi_mlme_scheduled_pm_leaky_ap_detect(struct slsi_dev *sdev, struct net_device *dev, struct slsi_sched_pm_leaky_ap *leaky_ap)

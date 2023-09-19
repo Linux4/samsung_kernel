@@ -22,26 +22,26 @@
 #define OLED_SELF_MASK_CRC_LEN (4)
 
 int snprintf_dump_expects(char *buf, size_t size, struct dumpinfo *dump);
-int show_expects(struct dumpinfo *dump);
-int show_resource(struct dumpinfo *dump);
-int show_resource_and_panic(struct dumpinfo *dump);
-int show_rddpm(struct dumpinfo *info);
-int show_rddpm_before_sleep_in(struct dumpinfo *info);
-int show_rddsm(struct dumpinfo *info);
-int show_err(struct dumpinfo *info);
-int show_err_fg(struct dumpinfo *info);
-int show_dsi_err(struct dumpinfo *info);
-int show_self_diag(struct dumpinfo *info);
-#ifdef CONFIG_SUPPORT_DDI_CMDLOG
-int show_cmdlog(struct dumpinfo *info);
+int oled_dump_show_expects(struct dumpinfo *dump);
+int oled_dump_show_resource(struct dumpinfo *dump);
+int oled_dump_show_resource_and_panic(struct dumpinfo *dump);
+int oled_dump_show_rddpm(struct dumpinfo *info);
+int oled_dump_show_rddpm_before_sleep_in(struct dumpinfo *info);
+int oled_dump_show_rddsm(struct dumpinfo *info);
+int oled_dump_show_err(struct dumpinfo *info);
+int oled_dump_show_err_fg(struct dumpinfo *info);
+int oled_dump_show_dsi_err(struct dumpinfo *info);
+int oled_dump_show_self_diag(struct dumpinfo *info);
+#ifdef CONFIG_USDM_DDI_CMDLOG
+int oled_dump_show_cmdlog(struct dumpinfo *info);
 #endif
-int show_ssr_err(struct dumpinfo *info);
-int show_ecc_err(struct dumpinfo *info);
-int show_flash_loaded(struct dumpinfo *info);
-#ifdef CONFIG_SUPPORT_MAFPC
-int show_mafpc_log(struct dumpinfo *info);
-int show_mafpc_flash_log(struct dumpinfo *info);
-int show_abc_crc_log(struct dumpinfo *info);
+int oled_dump_show_ssr_err(struct dumpinfo *info);
+int oled_dump_show_ecc_err(struct dumpinfo *info);
+int oled_dump_show_flash_loaded(struct dumpinfo *info);
+#ifdef CONFIG_USDM_PANEL_MAFPC
+int oled_dump_show_mafpc_log(struct dumpinfo *info);
+int oled_dump_show_mafpc_flash_log(struct dumpinfo *info);
+int oled_dump_show_abc_crc_log(struct dumpinfo *info);
 #endif
-int show_self_mask_crc(struct dumpinfo *info);
+int oled_dump_show_self_mask_crc(struct dumpinfo *info);
 #endif /* __OLED_COMMON_DUMP_H__ */

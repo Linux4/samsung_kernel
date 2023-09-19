@@ -313,4 +313,10 @@ config NPU_WITH_CAM_NOTIFICATION
 	help
 		For Quadra HW
 
+config NPU_IMB_ASYNC_ALLOC
+	bool "IMB async alloc"
+	default n
+	help
+		Alloc IMB asynchronous
+
 endif

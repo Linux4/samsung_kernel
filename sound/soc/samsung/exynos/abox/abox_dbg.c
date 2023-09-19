@@ -38,6 +38,7 @@
 #define ABOX_DBG_DUMP_LIMIT_NS		(5 * NSEC_PER_SEC)
 
 static struct platform_device *p_pdev;
+static struct mutex lock;
 
 void abox_dbg_print_gpr_from_addr(struct device *dev, struct abox_data *data,
 		unsigned int *addr)
@@ -660,6 +661,7 @@ static void abox_dbg_rmem_init(struct abox_data *data)
 		p_dump_gpr_from_addr = dump_gpr_from_addr_min;
 		p_dump_gpr = dump_gpr_min;
 		p_dump_mem = dump_mem_min;
+		mutex_init(&lock);
 		abox_info(dev_abox, "%s debug dump\n", "min");
 	}
 

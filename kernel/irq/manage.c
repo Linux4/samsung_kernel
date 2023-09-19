@@ -136,8 +136,10 @@ void synchronize_irq(unsigned int irq)
 		 * running. Now verify that no threaded handlers are
 		 * active.
 		 */
+		secdbg_dtsk_built_set_data(DTYPE_SYNCIRQ, desc);
 		wait_event(desc->wait_for_threads,
 			   !atomic_read(&desc->threads_active));
+		secdbg_dtsk_built_clear_data();
 		secdbg_base_built_set_task_in_sync_irq(NULL, 0, NULL);
 	}
 }

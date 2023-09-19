@@ -178,14 +178,36 @@ static void mmu_flush_invalidate_as(struct kbase_device *kbdev, struct kbase_as 
 				    const struct kbase_mmu_hw_op_param *op_param)
 {
 	int err = 0;
+	bool gpu_powered;
 	unsigned long flags;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	gpu_powered = kbdev->pm.backend.gpu_powered;
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	/* GPU is off so there's no need to perform flush/invalidate.
+	 * But even if GPU is not actually powered down, after gpu_powered flag
+	 * was set to false, it is still safe to skip the flush/invalidate.
+	 * The TLB invalidation will anyways be performed due to AS_COMMAND_UPDATE
+	 * which is sent when address spaces are restored after gpu_powered flag
+	 * is set to true. Flushing of L2 cache is certainly not required as L2
+	 * cache is definitely off if gpu_powered is false.
+	 */
+	if (!gpu_powered)
+		return;
+
+	if (kbase_pm_context_active_handle_suspend(kbdev,
+				KBASE_PM_SUSPEND_HANDLER_DONT_REACTIVATE)) {
+		/* GPU has just been powered off due to system suspend.
+		 * So again, no need to perform flush/invalidate.
+		 */
+		return;
+	}
 
 	/* AS transaction begin */
 	mutex_lock(&kbdev->mmu_hw_mutex);
-	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
-	if (kbdev->pm.backend.gpu_powered)
-		err = kbase_mmu_hw_do_flush_locked(kbdev, as, op_param);
+	err = kbase_mmu_hw_do_flush(kbdev, as, op_param);
 
 	if (err) {
 		/* Flush failed to complete, assume the GPU has hung and
@@ -198,9 +220,10 @@ static void mmu_flush_invalidate_as(struct kbase_device *kbdev, struct kbase_as 
 			kbase_reset_gpu(kbdev);
 	}
 
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	mutex_unlock(&kbdev->mmu_hw_mutex);
 	/* AS transaction end */
+
+	kbase_pm_context_idle(kbdev);
 }
 
 /**
@@ -2783,6 +2806,10 @@ int kbase_mmu_init(struct kbase_device *const kbdev,
 void kbase_mmu_term(struct kbase_device *kbdev, struct kbase_mmu_table *mmut)
 {
 	int level;
+
+	WARN((mmut->kctx) && (mmut->kctx->as_nr != KBASEP_AS_NR_INVALID),
+	     "kctx-%d_%d must first be scheduled out to flush GPU caches+tlbs before tearing down MMU tables",
+	     mmut->kctx->tgid, mmut->kctx->id);
 
 	if (mmut->pgd != KBASE_MMU_INVALID_PGD_ADDRESS) {
 		mutex_lock(&mmut->mmu_lock);

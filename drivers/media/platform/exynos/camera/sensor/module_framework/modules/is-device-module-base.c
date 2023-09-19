@@ -275,6 +275,12 @@ int sensor_module_deinit(struct v4l2_subdev *subdev)
 		}
 	}
 
+	if (sensor_peri->actuator) {
+		ret = is_sensor_peri_actuator_softlanding(sensor_peri);
+		if (ret)
+			err("failed to soft landing control\n");
+	}
+
 	if (sensor_peri->flash != NULL) {
 		cancel_work_sync(&sensor_peri->flash->flash_data.flash_fire_work);
 		cancel_work_sync(&sensor_peri->flash->flash_data.flash_expire_work);
@@ -746,6 +752,27 @@ int sensor_module_s_ctrl(struct v4l2_subdev *subdev, struct v4l2_control *ctrl)
 		sensor_peri->check_auto_framing = ctrl->value;
 		info("%s Auto framing set. val = %d, sensor id = %d", __func__,
 			sensor_peri->check_auto_framing, sensor_peri->module->sensor_id);
+		break;
+	case V4L2_CID_SENSOR_SET_BAYER_ORDER:
+		switch (ctrl->value) {
+		case SENSOR_COLORFILTERARRANGEMENT_RGGB:
+			sensor_peri->cis.bayer_order = OTF_INPUT_ORDER_BAYER_RG_GB;
+			break;
+		case SENSOR_COLORFILTERARRANGEMENT_GRBG:
+			sensor_peri->cis.bayer_order = OTF_INPUT_ORDER_BAYER_GR_BG;
+			break;
+		case SENSOR_COLORFILTERARRANGEMENT_GBRG:
+			sensor_peri->cis.bayer_order = OTF_INPUT_ORDER_BAYER_GB_RG;
+			break;
+		case SENSOR_COLORFILTERARRANGEMENT_BGGR:
+			sensor_peri->cis.bayer_order = OTF_INPUT_ORDER_BAYER_BG_GR;
+			break;
+		default:
+			break;
+		}
+
+		info("%s bayer order = %d, sensor id = %d", __func__,
+			sensor_peri->cis.bayer_order, sensor_peri->module->sensor_id);
 		break;
 	default:
 		err("err!!! Unknown CID(%#x)", ctrl->id);

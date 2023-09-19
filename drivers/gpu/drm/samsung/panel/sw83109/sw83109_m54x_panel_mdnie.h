@@ -548,11 +548,11 @@ static unsigned char m54x_mdnie_scenario_2_table[SCENARIO_MAX][MODE_MAX][SW83109
 };
 
 static struct maptbl m54x_mdnie_scenario_0_maptbl = DEFINE_3D_MAPTBL(m54x_mdnie_scenario_0_table,
-		init_common_table, getidx_mdnie_scenario_mode_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_MDNIE_SCENARIO_MODE), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_scenario_1_maptbl = DEFINE_3D_MAPTBL(m54x_mdnie_scenario_1_table,
-		init_common_table, getidx_mdnie_scenario_mode_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_MDNIE_SCENARIO_MODE), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_scenario_2_maptbl = DEFINE_3D_MAPTBL(m54x_mdnie_scenario_2_table,
-		init_common_table, getidx_mdnie_scenario_mode_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_MDNIE_SCENARIO_MODE), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 
 /* #################################################################################################### */
 /* ########################################## ACCESSIBILITY ########################################### */
@@ -564,11 +564,11 @@ static unsigned char m54x_mdnie_negative_1_table[SW83109_MDNIE_1_LEN] = {};
 static unsigned char m54x_mdnie_negative_2_table[SW83109_MDNIE_2_LEN] = {};
 
 static struct maptbl m54x_mdnie_negative_0_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_negative_0_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_negative_1_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_negative_1_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_negative_2_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_negative_2_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 
 /* ############################################# COLOR_BLIND ############################################# */
 static unsigned char m54x_mdnie_color_blind_0_table[SW83109_MDNIE_0_LEN] = {
@@ -600,11 +600,11 @@ static unsigned char m54x_mdnie_color_blind_2_table[SW83109_MDNIE_2_LEN] = {
 };
 
 static struct maptbl m54x_mdnie_color_blind_0_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_color_blind_0_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_color_blind_1_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_color_blind_1_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_color_blind_2_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_color_blind_2_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 
 /* ############################################# SCREEN_CURTAIN ############################################# */
 static unsigned char m54x_mdnie_screen_curtain_0_table[SW83109_MDNIE_0_LEN] = {};
@@ -612,11 +612,11 @@ static unsigned char m54x_mdnie_screen_curtain_1_table[SW83109_MDNIE_1_LEN] = {}
 static unsigned char m54x_mdnie_screen_curtain_2_table[SW83109_MDNIE_2_LEN] = {};
 
 static struct maptbl m54x_mdnie_screen_curtain_0_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_screen_curtain_0_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_screen_curtain_1_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_screen_curtain_1_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_screen_curtain_2_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_screen_curtain_2_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 
 /* ############################################# GRAYSCALE ############################################# */
 static unsigned char m54x_mdnie_grayscale_0_table[SW83109_MDNIE_0_LEN] = {};
@@ -624,11 +624,11 @@ static unsigned char m54x_mdnie_grayscale_1_table[SW83109_MDNIE_1_LEN] = {};
 static unsigned char m54x_mdnie_grayscale_2_table[SW83109_MDNIE_2_LEN] = {};
 
 static struct maptbl m54x_mdnie_grayscale_0_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_grayscale_0_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_grayscale_1_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_grayscale_1_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_grayscale_2_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_grayscale_2_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 
 /* ############################################# GRAYSCALE_NEGATIVE ############################################# */
 static unsigned char m54x_mdnie_grayscale_negative_0_table[SW83109_MDNIE_0_LEN] = {};
@@ -636,11 +636,11 @@ static unsigned char m54x_mdnie_grayscale_negative_1_table[SW83109_MDNIE_1_LEN] 
 static unsigned char m54x_mdnie_grayscale_negative_2_table[SW83109_MDNIE_2_LEN] = {};
 
 static struct maptbl m54x_mdnie_grayscale_negative_0_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_grayscale_negative_0_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_grayscale_negative_1_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_grayscale_negative_1_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_grayscale_negative_2_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_grayscale_negative_2_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 
 /* ############################################# COLOR_BLIND_HBM ############################################# */
 static unsigned char m54x_mdnie_color_blind_hbm_0_table[SW83109_MDNIE_0_LEN] = {
@@ -672,11 +672,11 @@ static unsigned char m54x_mdnie_color_blind_hbm_2_table[SW83109_MDNIE_2_LEN] = {
 };
 
 static struct maptbl m54x_mdnie_color_blind_hbm_0_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_color_blind_hbm_0_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_color_blind_hbm_1_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_color_blind_hbm_1_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_color_blind_hbm_2_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_color_blind_hbm_2_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 
 /* #################################################################################################### */
 /* ############################################## BYPASS ############################################## */
@@ -712,11 +712,11 @@ static unsigned char m54x_mdnie_bypass_2_table[SW83109_MDNIE_2_LEN] = {
 };
 
 static struct maptbl m54x_mdnie_bypass_0_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_bypass_0_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_bypass_1_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_bypass_1_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_bypass_2_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_bypass_2_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 
 /* #################################################################################################### */
 /* ############################################### HBM ################################################ */
@@ -750,11 +750,11 @@ static unsigned char m54x_mdnie_hbm_2_table[SW83109_MDNIE_2_LEN] = {
 };
 
 static struct maptbl m54x_mdnie_hbm_0_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_hbm_0_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_hbm_1_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_hbm_1_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_hbm_2_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_hbm_2_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 
 /* #################################################################################################### */
 /* ############################################### HDR ################################################ */
@@ -844,11 +844,11 @@ static unsigned char m54x_mdnie_hdr_2_table[HDR_MAX][SW83109_MDNIE_2_LEN] = {
 };
 
 static struct maptbl m54x_mdnie_hdr_0_maptbl = DEFINE_2D_MAPTBL(m54x_mdnie_hdr_0_table,
-		init_common_table, getidx_mdnie_hdr_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_MDNIE_HDR), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_hdr_1_maptbl = DEFINE_2D_MAPTBL(m54x_mdnie_hdr_1_table,
-		init_common_table, getidx_mdnie_hdr_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_MDNIE_HDR), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_hdr_2_maptbl = DEFINE_2D_MAPTBL(m54x_mdnie_hdr_2_table,
-		init_common_table, getidx_mdnie_hdr_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_MDNIE_HDR), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 
 /* #################################################################################################### */
 /* ############################################## NIGHT ############################################### */
@@ -882,11 +882,11 @@ static unsigned char m54x_mdnie_night_2_table[SW83109_MDNIE_2_LEN] = {
 };
 
 static struct maptbl m54x_mdnie_night_0_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_night_0_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_night_1_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_night_1_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_night_2_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_night_2_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 
 /* #################################################################################################### */
 /* ############################################ COLOR_LENS ############################################ */
@@ -920,11 +920,11 @@ static unsigned char m54x_mdnie_color_lens_2_table[SW83109_MDNIE_2_LEN] = {
 };
 
 static struct maptbl m54x_mdnie_color_lens_0_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_color_lens_0_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_color_lens_1_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_color_lens_1_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_color_lens_2_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_color_lens_2_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 
 /* #################################################################################################### */
 /* ####################################### LIGHT_NOTIFICATION ######################################### */
@@ -958,11 +958,11 @@ static unsigned char m54x_mdnie_light_notification_2_table[SW83109_MDNIE_2_LEN] 
 };
 
 static struct maptbl m54x_mdnie_light_notification_0_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_light_notification_0_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_light_notification_1_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_light_notification_1_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_light_notification_2_maptbl = DEFINE_1D_MAPTBL(m54x_mdnie_light_notification_2_table,
-		init_common_table, getidx_common_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 
 /* #################################################################################################### */
 /* ############################################ ETC TABLES ############################################ */
@@ -1332,15 +1332,15 @@ static unsigned char m54x_trans_mode_table[MAX_TRANS_MODE][1] = {
 
 /* extra maptbl for add-on */
 static struct maptbl m54x_mdnie_scr_white_maptbl = DEFINE_0D_MAPTBL(m54x_scr_white_table,
-		init_common_table, getidx_common_maptbl, copy_scr_white_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_SCR_WHITE));
 static struct maptbl m54x_mdnie_scr_cr_maptbl = DEFINE_0D_MAPTBL(m54x_scr_cr_table,
-		init_common_table, getidx_common_maptbl, copy_scr_cr_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), &OLED_FUNC(OLED_MAPTBL_COPY_SCR_CR));
 static struct maptbl m54x_mdnie_night_mode_maptbl = DEFINE_3D_MAPTBL(m54x_night_mode_table,
-		init_common_table, getidx_mdnie_night_mode_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_MDNIE_NIGHT_MODE), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_color_lens_maptbl = DEFINE_3D_MAPTBL(m54x_color_lens_table,
-		init_common_table, getidx_color_lens_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_COLOR_LENS), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 static struct maptbl m54x_mdnie_trans_mode_maptbl = DEFINE_2D_MAPTBL(m54x_trans_mode_table,
-		init_common_table, getidx_mdnie_trans_mode_maptbl, copy_common_maptbl);
+		&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &OLED_FUNC(OLED_MAPTBL_GETIDX_MDNIE_TRANS_MODE), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT));
 
 static u8 M54X_MDNIE_0[SW83109_MDNIE_0_LEN + 1] = { SW83109_MDNIE_0_REG, 0x00, };
 static u8 M54X_MDNIE_1[SW83109_MDNIE_1_LEN + 1] = { SW83109_MDNIE_1_REG, 0x00, };

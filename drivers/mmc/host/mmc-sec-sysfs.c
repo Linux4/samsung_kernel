@@ -17,6 +17,7 @@
 #include "dw_mmc-exynos.h"
 #include "mmc-sec-feature.h"
 #include "mmc-sec-sysfs.h"
+#include "../core/card.h"
 
 static const char *const uhs_speeds[] = {
 	[UHS_SDR12_BUS_SPEED] = "SDR12",
@@ -372,6 +373,26 @@ static inline void sd_sec_save_err_info(void)
 	SD_SEC_SAVE_STATUS_ERR(noti_cnt);
 }
 
+static ssize_t sd_sec_reason_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct dw_mci *host = dev_get_drvdata(dev);
+	struct mmc_host *mmc = host->slot->mmc;
+	struct mmc_card *card = mmc->card;
+	int len = 0;
+
+	if (!card) {
+		len = snprintf(buf, PAGE_SIZE, "%s\n",
+				svi.failed_init ? "INITFAIL" : "NOCARD");
+		goto out;
+	}
+
+	len = snprintf(buf, PAGE_SIZE, "%s\n",
+			mmc_card_readonly(card) ? "PERMWP" : "NORMAL");
+out:
+	return len;
+}
+
 static ssize_t sd_sec_data_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -435,6 +456,7 @@ static DEVICE_ATTR(err_count, 0444, sd_sec_error_count_show, NULL);
 static DEVICE_ATTR(sd_count, 0444, sd_sec_count_show, NULL);
 static DEVICE_ATTR(data, 0444, sd_sec_cid_show, NULL);
 static DEVICE_ATTR(fc, 0444, sd_sec_health_show, NULL);
+static DEVICE_ATTR(reason, 0444, sd_sec_reason_show, NULL);
 
 static DEVICE_ATTR(sd_data, 0664, sd_sec_data_show, sd_sec_data_store);
 
@@ -456,6 +478,7 @@ static struct attribute *sdinfo_attributes[] = {
 	&dev_attr_sd_count.attr,
 	&dev_attr_data.attr,
 	&dev_attr_fc.attr,
+	&dev_attr_reason.attr,
 	NULL,
 };
 

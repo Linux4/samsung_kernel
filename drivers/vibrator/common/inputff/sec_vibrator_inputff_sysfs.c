@@ -38,6 +38,27 @@ module_param(vib_le_est, uint, 0444);
 MODULE_PARM_DESC(vib_le_est, "sec_vib_inputff_le_est value");
 #endif
 
+__visible_for_testing char *sec_vib_inputff_get_i2c_test(
+	struct sec_vib_inputff_drvdata *ddata)
+{
+	if (ddata->vib_ops->get_i2c_test) {
+		if (ddata->vib_ops->get_i2c_test(ddata->input))
+			return "PASS";
+		else
+			return "FAIL";
+	} else
+		return "NONE";
+}
+
+static ssize_t i2c_test_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct sec_vib_inputff_drvdata *ddata = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n", sec_vib_inputff_get_i2c_test(ddata));
+}
+static DEVICE_ATTR_RO(i2c_test);
+
 __visible_for_testing int sec_vib_inputff_get_i2s_test(
 	struct sec_vib_inputff_drvdata *ddata)
 {
@@ -674,6 +695,7 @@ void sec_vib_inputff_event_cmd(struct sec_vib_inputff_drvdata *ddata)
 #endif //CONFIG_SEC_VIB_FOLD_MODEL
 
 static struct attribute *vib_inputff_sys_attr[] = {
+	&dev_attr_i2c_test.attr,
 	&dev_attr_i2s_test.attr,
 	&dev_attr_firmware_load.attr,
 	&dev_attr_current_temp.attr,

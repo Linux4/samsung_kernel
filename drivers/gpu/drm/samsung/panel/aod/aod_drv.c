@@ -95,11 +95,13 @@ static int aod_init_panel(struct aod_dev_info *aod, int lock)
 	if (lock == INIT_WITH_LOCK)
 		panel_mutex_lock(&panel->op_lock);
 
-	ret = panel_do_aod_seqtbl_by_name_nolock(aod, SELF_MASK_IMG_SEQ);
-	if (ret < 0) {
-		panel_err("failed to run sequence(%s)\n",
-				SELF_MASK_IMG_SEQ);
-		goto err;
+	if (check_aod_seqtbl_exist(aod, SELF_MASK_IMG_SEQ)) {
+		ret = panel_do_aod_seqtbl_by_name_nolock(aod, SELF_MASK_IMG_SEQ);
+		if (ret < 0) {
+			panel_err("failed to run sequence(%s)\n",
+					SELF_MASK_IMG_SEQ);
+			goto err;
+		}
 	}
 
 	ret = panel_do_aod_seqtbl_by_name_nolock(aod, SELF_MASK_ENA_SEQ);
@@ -120,7 +122,7 @@ err:
 
 static int aod_enter_to_lpm(struct aod_dev_info *aod_dev)
 {
-	int ret;
+	int ret = 0;
 	struct aod_ioctl_props *props = &aod_dev->props;
 
 	panel_mutex_lock(&aod_dev->lock);
@@ -386,18 +388,18 @@ static int self_move_pattern_update(struct aod_dev_info *aod)
 
 	props = &aod->props;
 	panel = to_panel_device(aod);
-	if (panel->state.cur_state == PANEL_STATE_ALPM) {
+	if (panel_get_cur_state(panel) == PANEL_STATE_ALPM) {
 		panel_info("self move pattern ignored in LPM\n");
 		return 0;
 	}
 
-	if (panel->state.cur_state != PANEL_STATE_NORMAL ||
+	if (panel_get_cur_state(panel) != PANEL_STATE_NORMAL ||
 			panel->state.disp_on != PANEL_DISPLAY_ON) {
 		panel_info("self move pattern ignored in DISPLAY OFF\n");
 		return 0;
 	}
 
-#ifdef CONFIG_SUPPORT_DSU
+#ifdef CONFIG_USDM_PANEL_MULTI_RESOLUTION
 	if (panel->panel_data.props.mres_updated) {
 		panel_info("self move pattern ignored during mres updates\n");
 		return 0;
@@ -456,7 +458,7 @@ static int __seq_aod_self_move_en(struct aod_dev_info *aod, unsigned long arg)
 	panel = to_panel_device(aod);
 
 	panel_info("inteval : %d\n", props->cur_time.interval);
-	if (panel->state.cur_state != PANEL_STATE_ALPM) {
+	if (panel_get_cur_state(panel) != PANEL_STATE_ALPM) {
 		panel_info("self move on ignored\n");
 		return -EAGAIN;
 	}
@@ -491,7 +493,7 @@ static int __seq_aod_self_move_off(struct aod_dev_info *aod)
 	}
 
 	panel = to_panel_device(aod);
-	if (panel->state.cur_state != PANEL_STATE_ALPM) {
+	if (panel_get_cur_state(panel) != PANEL_STATE_ALPM) {
 		panel_info("self move off ignored\n");
 		return -EAGAIN;
 	}
@@ -517,7 +519,7 @@ static int __seq_aod_self_move_reset(struct aod_dev_info *aod, unsigned long arg
 	}
 
 	panel = to_panel_device(aod);
-	if (panel->state.cur_state != PANEL_STATE_ALPM) {
+	if (panel_get_cur_state(panel) != PANEL_STATE_ALPM) {
 		panel_info("self move off ignored\n");
 		return -EAGAIN;
 	}
@@ -574,7 +576,7 @@ static int __get_ac_img_info(struct aod_dev_info *aod)
 		return -EINVAL;
 	}
 
-	aod->ac_img.buf = img_pktinfo->data;
+	aod->ac_img.buf = get_pktinfo_txbuf(img_pktinfo);
 	aod->ac_img.size = img_pktinfo->dlen;
 
 	return 0;
@@ -598,7 +600,7 @@ static int __get_dc_img_info(struct aod_dev_info *aod)
 		return -EINVAL;
 	}
 
-	aod->dc_img.buf = img_pktinfo->data;
+	aod->dc_img.buf = get_pktinfo_txbuf(img_pktinfo);
 	aod->dc_img.size = img_pktinfo->dlen;
 
 	return 0;
@@ -709,7 +711,7 @@ static int __aod_ioctl_set_time(struct aod_dev_info *aod, unsigned long arg)
 
 	memcpy(&props->cur_time, &cur_time, sizeof(struct aod_cur_time));
 
-	if (panel->state.cur_state != PANEL_STATE_ALPM) {
+	if (panel_get_cur_state(panel) != PANEL_STATE_ALPM) {
 		panel_info("set time ignored\n");
 		return -EAGAIN;
 	}
@@ -744,7 +746,7 @@ static int __aod_ioctl_set_analog_clk(struct aod_dev_info *aod, unsigned long ar
 		clk.en, clk.pos_x, clk.pos_y, clk.rotate);
 	memcpy(&props->analog, &clk, sizeof(struct analog_clk_info));
 
-	if (panel->state.cur_state != PANEL_STATE_ALPM) {
+	if (panel_get_cur_state(panel) != PANEL_STATE_ALPM) {
 		panel_info("set time ignored\n");
 		return -EAGAIN;
 	}
@@ -800,7 +802,7 @@ static int __aod_ioctl_set_digital_clk(struct aod_dev_info *aod, unsigned long a
 
 	memcpy(&props->digital, &clk, sizeof(struct digital_clk_info));
 
-	if (panel->state.cur_state != PANEL_STATE_ALPM) {
+	if (panel_get_cur_state(panel) != PANEL_STATE_ALPM) {
 		panel_info("set time ignored\n");
 		return -EAGAIN;
 	}
@@ -839,7 +841,7 @@ static int __aod_ioctl_set_partial_scan(struct aod_dev_info *aod, unsigned long 
 
 	memcpy(&props->partial, &scan_info, sizeof(struct partial_scan_info));
 
-	if (panel->state.cur_state != PANEL_STATE_ALPM) {
+	if (panel_get_cur_state(panel) != PANEL_STATE_ALPM) {
 		panel_info("Not AOD State.. Partial ignored\n");
 		return -EAGAIN;
 	}

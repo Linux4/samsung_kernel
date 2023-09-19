@@ -303,7 +303,7 @@ static int gnss_mbox_probe(struct platform_device *pdev)
 	irq = platform_get_irq(pdev, 0);
 
 	ret = devm_request_irq(dev, irq, gnss_mbox_handler,
-				IRQF_ONESHOT, pdev->name, &_gnss_mbox[id]);
+				0, pdev->name, &_gnss_mbox[id]);
 	if (ret) {
 		gif_err("Can't request %s interrupt!!!\n", pdev->name);
 		return -EIO;

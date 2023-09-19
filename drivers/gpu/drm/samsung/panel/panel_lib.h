@@ -80,10 +80,6 @@
  *	If pnobj has 'buf or data',  free it.
  */
 
-/* define */
-typedef int (*dump_cb_t)(struct dumpinfo *);
-
-
 /* rdinfo */
 int panel_lib_rdinfo_alloc_buffer(struct rdinfo *m);
 void panel_lib_rdinfo_free_buffer(struct rdinfo *m);
@@ -102,10 +98,5 @@ void panel_lib_resinfo_free_buffer(struct resinfo *m);
 struct resinfo *panel_lib_resinfo_create(char *name, u8 *init_data, u32 dlen, struct res_update_info *resui, u32 nr_resui);
 void panel_lib_resinfo_destroy(struct resinfo *m);
 int panel_lib_resinfo_copy(struct resinfo *dst, struct resinfo *src);
-
-/* dumpinfo */
-struct dumpinfo *panel_lib_dumpinfo_create(char *name, struct resinfo *res, dump_cb_t callback);
-void panel_lib_dumpinfo_destroy(struct dumpinfo *m);
-int panel_lib_dumpinfo_copy(struct dumpinfo *dst, struct dumpinfo *src);
 
 #endif /* __PANEL_LIB_H__ */

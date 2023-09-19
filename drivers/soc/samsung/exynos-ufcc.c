@@ -1438,8 +1438,10 @@ static int init_ufc_domain(struct device_node *dn)
 	}
 
 	ufc.domain_list = kcalloc(ufc.num_of_domain, sizeof(struct ufc_domain *), GFP_KERNEL);
-	if (!ufc.domain_list)
+	if (!ufc.domain_list) {
+		pr_err("%s: failed to alloc for domain list.\n", __func__);
 		return -ENOMEM;
+	}
 
 	for_each_child_of_node(dn, child) {
 		struct cpufreq_policy *policy;
@@ -1467,6 +1469,7 @@ static int init_ufc_domain(struct device_node *dn)
 			pr_err("%s: failed to parse cpufreq_info\n", __func__);
 			return ret;
 		}
+
 
 		register_freq_qos(dom, policy);
 		cpufreq_cpu_put(policy);

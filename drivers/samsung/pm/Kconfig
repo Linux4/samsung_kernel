@@ -42,3 +42,11 @@ config SEC_WAKEUP_CPU_ALLOCATOR
 	default n
 	help
 	  This driver supports SEC Wakeup cpu support
+
+config SEC_PM_CPUFREQ
+        tristate "Enable Samsung Mobile CPU Frequency control support"
+        default n
+        depends on SEC_PM && SEC_FACTORY
+        help
+          This option enables Samsung Mobile CPU Frequency control support.
+          Adjust the minimum and maximum frequency for each CPU clusters.

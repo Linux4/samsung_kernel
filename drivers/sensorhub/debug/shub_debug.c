@@ -17,9 +17,10 @@
 #include <linux/timer.h>
 #include <linux/kernel.h>
 #include <linux/workqueue.h>
-#if defined(CONFIG_SEC_DEBUG)
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
 #include <linux/sec_debug.h>
 #endif
+#include <linux/version.h>
 
 #include "../comm/shub_comm.h"
 #include "../sensormanager/shub_sensor.h"
@@ -125,13 +126,19 @@ static void debug_work_func(struct work_struct *work)
 	if (is_shub_working())
 		check_no_event();
 
-#if defined(CONFIG_SHUB_MTK) && defined(CONFIG_SEC_DEBUG)
+#if defined(CONFIG_SHUB_MTK) && IS_ENABLED(CONFIG_SEC_DEBUG)
 	if (data->hub_crash_timestamp && data->hub_crash_timestamp + 100000000000ULL < get_current_timestamp() ) {
 		shub_infof("hub crash timestamp %llu", data->hub_crash_timestamp);
 		/* only work for debug level is mid */
+#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 0, 0)
+		if (!is_debug_level_low()) {
+			shub_infof("panic!");
+			panic("sensorhub crash error\n");
+#else
 		if (SEC_DEBUG_LEVEL(kernel)) {
 			shub_infof("panic!");
 			panic("sensorhub crash error\n");
+#endif
 		} else {
 			shub_infof("debug level is low");
 		}

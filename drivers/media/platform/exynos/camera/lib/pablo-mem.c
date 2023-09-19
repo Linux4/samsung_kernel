@@ -1132,8 +1132,10 @@ static void pablo_dma_buf_free(struct is_priv_buf *pbuf)
 	pablo_dmabuf_heap_detach_ext(pbuf);
 	CALL_DMABUF_OPS(pbuf, put, pbuf->dma_buf);
 
+#if defined(USE_CAMERA_HEAP)
 	dbg_mem(1, "%s: heap[%d] size(%zu) total[%d]\n",
 		__func__, pbuf->size, pbuf->dma_buf->exp_name, rmem_allocated);
+#endif
 	atomic_sub(pbuf->aligned_size, &mem_stats_sz_active);
 
 	vfree(pbuf);

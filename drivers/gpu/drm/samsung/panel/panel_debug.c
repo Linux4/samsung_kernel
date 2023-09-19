@@ -9,14 +9,20 @@
  */
 
 #include <linux/debugfs.h>
-#include <linux/firmware.h>
+#include <linux/time64.h>
 #include "panel_drv.h"
+#include "panel_firmware.h"
 #include "panel_debug.h"
+
+#if defined(CONFIG_USDM_PANEL_FREQ_HOP)
 #include "panel_freq_hop.h"
+#endif
 #include "panel_obj.h"
+#if defined(CONFIG_USDM_PANEL_FREQ_HOP) || defined(CONFIG_USDM_ADAPTIVE_MIPI)
 #include <linux/dev_ril_bridge.h>
+#endif
 #include <linux/sec_panel_notifier_v2.h>
-#if defined(CONFIG_MCD_PANEL_JSON)
+#if defined(CONFIG_USDM_PANEL_JSON)
 #include "ezop/json_writer.h"
 #include "ezop/panel_json.h"
 #endif
@@ -28,14 +34,18 @@ const char *panel_debugfs_name[] = {
 	[PANEL_DEBUGFS_CMD_LOG] = "cmd_log",
 	[PANEL_DEBUGFS_SEQUENCE] = "sequence",
 	[PANEL_DEBUGFS_RESOURCE] = "resource",
-#if defined(CONFIG_PANEL_FREQ_HOP)
+#if defined(CONFIG_USDM_PANEL_FREQ_HOP)
 	[PANEL_DEBUGFS_FREQ_HOP] = "freq_hop",
 #endif
 #if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2)
 	[PANEL_DEBUGFS_PANEL_EVENT] = "panel_event",
 #endif
-#if defined(CONFIG_MCD_PANEL_JSON)
+#if defined(CONFIG_USDM_PANEL_JSON)
 	[PANEL_DEBUGFS_EZOP] = "ezop",
+	[PANEL_DEBUGFS_FIRMWARE] = "firmware",
+#endif
+#if defined(CONFIG_USDM_ADAPTIVE_MIPI)
+	[PANEL_DEBUGFS_ADAPTIVE_MIPI] = "adaptive_mipi",
 #endif
 };
 
@@ -121,7 +131,7 @@ static int panel_debug_resource_store(struct panel_device *panel,
 	return 0;
 }
 
-#if defined(CONFIG_PANEL_FREQ_HOP)
+#if defined(CONFIG_USDM_PANEL_FREQ_HOP)
 static int panel_debug_freq_hop_show(struct seq_file *s)
 {
 	struct panel_debugfs *debugfs = s->private;
@@ -181,6 +191,207 @@ static int panel_debug_fake_radio_noti(struct panel_device *panel, char *buf)
 }
 #endif
 
+#if defined(CONFIG_USDM_ADAPTIVE_MIPI)
+
+enum {
+	AD_MIPI_DBGFS_OPS_SET,
+	AD_MIPI_DBGFS_OPS_CLEAR,
+	AD_MIPI_DBGFS_OPS_EXEC,
+	AP_MIPI_DBGFS_OPS_MAX
+};
+
+#define AD_MIPI_CMD_STR_SET	"set"
+#define AD_MIPI_CMD_STR_CLEAR	"clear"
+#define AD_MIPI_CMD_STR_EXECUTE	"execute"
+
+struct adap_mipi_debuf_ops {
+	char *cmd;
+	int (*cmd_fn)(struct panel_adaptive_mipi *adap_mipi, char *buf);
+};
+
+#define BAND_INFO_ELEMENT_CNT 11
+
+static int adap_mipi_dbgfs_fn_set(struct panel_adaptive_mipi *adap_mipi, char *buf)
+{
+	int ret;
+	struct band_info band;
+	struct cp_info *cp_info;
+	struct band_info *dst_band;
+	unsigned int temp[4];
+
+	if (adap_mipi == NULL) {
+		panel_err("null adapive mipi\n");
+		return -EINVAL;
+	}
+
+	ret = sscanf(buf, "%u %u %u %u %u %i %i %i %u %u %i",
+		&temp[0], &band.band, &band.channel, &temp[1], &band.bandwidth,
+		&band.sinr, &band.rsrp, &band.rsrq, &temp[2], &temp[3], &band.pusch_power);
+	if (ret != BAND_INFO_ELEMENT_CNT) {
+		panel_err("adaptive mipi: invalid value\n");
+		return -EINVAL;
+	}
+	band.rat = (u8)temp[0];
+	band.connection_status = (u8)temp[1];
+	band.cqi = (u8)temp[2];
+	band.dl_mcs = (u8)temp[3];
+
+	cp_info = &adap_mipi->debug_cp_info;
+	if (cp_info->cell_count >= MAX_BAND) {
+		panel_err("adaptive mipi: exceed band count\n");
+		return -EINVAL;
+	}
+	dst_band = &cp_info->infos[cp_info->cell_count];
+	memcpy(dst_band, &band, sizeof(struct band_info));
+
+	panel_info("adaptive mipi: rat: %d, band: %d, channel: %d, conn_status: %d, bandwidth: %d\n",
+		dst_band->rat, dst_band->band, dst_band->channel, dst_band->connection_status, dst_band->bandwidth);
+	panel_info("adaptive mipi: sinr: %d, rsrp: %d, rsrq: %d, cqi: %d, dl_mcs: %d, pusch_power: %d\n",
+		dst_band->sinr, dst_band->rsrp, dst_band->rsrq, dst_band->cqi, dst_band->dl_mcs, dst_band->pusch_power);
+
+	cp_info->cell_count++;
+
+	return 0;
+}
+
+static int adap_mipi_dbgfs_fn_clear(struct panel_adaptive_mipi *adap_mipi, char *buf)
+{
+	struct cp_info *cp_info;
+
+	if (adap_mipi == NULL) {
+		panel_err("null adapive mipi\n");
+		return -EINVAL;
+	}
+	cp_info = &adap_mipi->debug_cp_info;
+
+	panel_info("adaptive mipi: debug clear: cell_count: %d -> 0\n", cp_info->cell_count);
+
+	cp_info->cell_count = 0;
+
+	return 0;
+}
+
+static int adap_mipi_dbgfs_fn_execute(struct panel_adaptive_mipi *adap_mipi, char *buf)
+{
+	int ret;
+	struct cp_info *cp_info;
+	struct dev_ril_bridge_msg ril_msg;
+
+	if (adap_mipi == NULL) {
+		panel_err("null adapive mipi\n");
+		return -EINVAL;
+	}
+	cp_info = &adap_mipi->debug_cp_info;
+	if (cp_info->cell_count == 0) {
+		panel_err("adaptive mipi: invalid debug cell count: %d\n", cp_info->cell_count);
+		return -EINVAL;
+	}
+	panel_info("adaptive mipi: execute\n");
+
+	ril_msg.dev_id = SUB_CMD_ADAPTIVE_MIPI;
+	ril_msg.data = (void *)&adap_mipi->debug_cp_info;
+
+	if (adap_mipi->radio_noti.notifier_call) {
+		ret = unregister_dev_ril_bridge_event_notifier(&adap_mipi->radio_noti);
+		panel_info("adaptive mipi: unregister ril bridge ret: %d\n", ret);
+		adap_mipi->radio_noti.notifier_call = NULL;
+	}
+
+	ril_notifier(&adap_mipi->radio_noti, 0, &ril_msg);
+
+	return 0;
+}
+
+
+static int panel_debug_adaptive_mipi(struct panel_device *panel, char *buf)
+{
+	int i, ret = -EINVAL;
+	struct panel_adaptive_mipi *adap_mipi;
+	struct adap_mipi_debuf_ops debug_ops[AP_MIPI_DBGFS_OPS_MAX] = {
+		[AD_MIPI_DBGFS_OPS_SET] = {.cmd = AD_MIPI_CMD_STR_SET, .cmd_fn = adap_mipi_dbgfs_fn_set},
+		[AD_MIPI_DBGFS_OPS_CLEAR] = {.cmd = AD_MIPI_CMD_STR_CLEAR, .cmd_fn = adap_mipi_dbgfs_fn_clear},
+		[AD_MIPI_DBGFS_OPS_EXEC] = {.cmd = AD_MIPI_CMD_STR_EXECUTE, .cmd_fn = adap_mipi_dbgfs_fn_execute},
+	};
+
+	if (panel == NULL) {
+		panel_err("null panel\n");
+		return -EINVAL;
+	}
+	adap_mipi = &panel->adap_mipi;
+
+	for (i = 0; i < AP_MIPI_DBGFS_OPS_MAX; i++) {
+		if ((strncmp(debug_ops[i].cmd, buf, strlen(debug_ops[i].cmd)) == 0)
+			&& (debug_ops[i].cmd_fn != NULL)) {
+			ret = debug_ops[i].cmd_fn(adap_mipi, strstrip(buf + strlen(debug_ops[i].cmd)));
+
+			return ret;
+		}
+	}
+
+	panel_err("adaptive mipi: invalid command\n");
+
+	return ret;
+
+}
+
+
+#define BAND_INFO_DEBUG_BUF_SZ	256
+
+static size_t sprinf_band_info(int index, char *buf, struct band_info *band_msg)
+{
+	size_t len;
+
+	if (band_msg == NULL)
+		return 0;
+
+	len = snprintf(buf, BAND_INFO_DEBUG_BUF_SZ, "[%2d] rat:%d, band:%d, channel:%d, status:%d, bw:%d, sinr:%d",
+		index, band_msg->rat, band_msg->band, band_msg->channel, band_msg->connection_status,
+		band_msg->bandwidth, band_msg->sinr);
+
+	len += sprintf(buf + len, "\n");
+
+	return len;
+}
+
+static int panel_debug_adaptive_mipi_show(struct seq_file *s)
+{
+	int i, len = 0;
+	struct panel_debugfs *debugfs = s->private;
+	struct panel_device *panel = debugfs->private;
+	struct panel_adaptive_mipi *adap_mipi;
+	struct cp_info *cp_info;
+	char *buf;
+
+	if (panel == NULL) {
+		panel_err("null panel\n");
+		return -EINVAL;
+	}
+
+	adap_mipi = &panel->adap_mipi;
+	cp_info = &adap_mipi->debug_cp_info;
+
+	if (cp_info->cell_count <= 0)
+		return 0;
+
+	buf = kzalloc(BAND_INFO_DEBUG_BUF_SZ * cp_info->cell_count, GFP_KERNEL);
+	if (buf == NULL) {
+		panel_err("adaptive mipi: alloc failed\n");
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < cp_info->cell_count; i++)
+		len += sprinf_band_info(i, buf + len, &cp_info->infos[i]);
+	buf[len] = 0;
+
+	seq_printf(s, "%s", buf);
+
+	kfree(buf);
+
+	return 0;
+}
+#endif
+
+
 #if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2)
 static int panel_debug_panel_event_show(struct seq_file *s)
 {
@@ -221,7 +432,7 @@ static int panel_debug_panel_event_noti(struct panel_device *panel, char *buf)
 }
 #endif
 
-#if defined(CONFIG_MCD_PANEL_JSON)
+#if defined(CONFIG_USDM_PANEL_JSON)
 char *json_buffer;
 int panel_debug_ezop_jsonw_all(struct panel_device *panel, struct seq_file *s)
 {
@@ -242,14 +453,15 @@ int panel_debug_ezop_jsonw_all(struct panel_device *panel, struct seq_file *s)
 
 	jsonw_pretty(w, true);
 	jsonw_start_object(w);
+	jsonw_property_list(w, &panel->prop_list);
 	jsonw_function_list(w, &panel->func_list);
 	jsonw_maptbl_list(w, &panel->maptbl_list);
 	jsonw_delay_list(w, &panel->dly_list);
 	jsonw_condition_list(w, &panel->cond_list);
-	jsonw_power_control_list(w, &panel->pwrctrl_list);
-	jsonw_property_list(w, &panel->prop_list);
-	jsonw_read_info_list(w, &panel->rdi_list);
-	jsonw_packet_list(w, &panel->pkt_list);
+	jsonw_power_ctrl_list(w, &panel->pwrctrl_list);
+	jsonw_config_list(w, &panel->cfg_list);
+	jsonw_rx_packet_list(w, &panel->rdi_list);
+	jsonw_tx_packet_list(w, &panel->pkt_list);
 	jsonw_key_list(w, &panel->key_list);
 	jsonw_resource_list(w, &panel->res_list);
 	jsonw_dumpinfo_list(w, &panel->dump_list);
@@ -284,97 +496,45 @@ static int panel_debug_ezop_show(struct seq_file *s)
 	return 0;
 }
 
-int panel_debug_ezop_jsonr_all(char *json, size_t size, struct list_head *pnobj_list)
-{
-	json_reader_t *r;
-	jsmnerr_t err;
-	int ret;
-
-	r = jsonr_new(size, pnobj_list);
-	if (!r) {
-		panel_err("failed to create json reader stream\n");
-		return -EINVAL;
-	}
-
-	err = jsonr_parse(r, json);
-	if (err != JSMN_SUCCESS) {
-		panel_err("failed to parse json\n");
-		ret = -EINVAL;
-		goto err;
-	}
-
-	ret = jsonr_all(r);
-	if (ret < 0) {
-		panel_err("failed to parse all json pnobj\n");
-		goto err;
-	}
-
-	jsonr_destroy(&r);
-
-	return 0;
-
-err:
-	jsonr_destroy(&r);
-	return ret;
-}
-
 static int panel_debug_ezop_load_json(struct panel_device *panel,
 		char *json_filename)
 {
-	const struct firmware *fw_entry = NULL;
-	struct list_head json_pnobj_list;
-	struct pnobj_func *pnobj_func;
-	struct pnobj *pnobj, *pos, *next;
-	char *json = NULL;
 	int ret;
+	struct list_head new_pnobj_list;
 
-	INIT_LIST_HEAD(&json_pnobj_list);
+	INIT_LIST_HEAD(&new_pnobj_list);
 
-	ret = request_firmware(&fw_entry, json_filename, panel->dev);
-	if (ret < 0) {
-		panel_err("failed to request firmware(%s)\n", json_filename);
-		return ret;
+	ret = panel_firmware_load(panel, json_filename, &new_pnobj_list);
+	if (ret != 0) {
+		panel_info("firmware not exist\n");
+		return 0;
 	}
 
-	panel_info("firmware:%s size:%ld\n", json_filename, fw_entry->size);
+	return panel_reprobe_with_pnobj_list(panel, &new_pnobj_list);
+}
 
-	json = kvmalloc(fw_entry->size, GFP_KERNEL);
-	if (!json) {
-		panel_err("failed to alloc json buffer\n");
-		ret = -ENOMEM;
-		goto err;
-	}
-	memcpy(json, fw_entry->data, fw_entry->size);
+static int panel_debug_firmware_show(struct seq_file *s)
+{
+	struct panel_debugfs *debugfs = s->private;
+	struct panel_device *panel = debugfs->private;
+	struct timespec64 cur_ts, load_ts, delta_ts;
+	u64 load_time_ms, elapsed_ms;
 
-	list_for_each_entry(pnobj, &panel->func_list, list) {
-		pnobj_func = pnobj_container_of(pnobj, struct pnobj_func);
-		pnobj_function_list_add((void *)pnobj_func->symaddr,
-				&json_pnobj_list);
-	}
+	ktime_get_ts64(&cur_ts);
+	load_ts = panel_firmware_get_load_time(panel);
+	load_time_ms = timespec64_to_ns(&cur_ts) / 1000000;
+	delta_ts = timespec64_sub(cur_ts, load_ts);
+	elapsed_ms = timespec64_to_ns(&delta_ts) / 1000000;
 
-	ret = panel_debug_ezop_jsonr_all(json,
-			fw_entry->size, &json_pnobj_list);
-	if (ret < 0)
-		goto err;
-
-	ret = panel_reprobe_with_pnobj_list(panel, &json_pnobj_list);
-	if (ret < 0)
-		goto err;
-
-	kvfree(json);
-	release_firmware(fw_entry);
+	seq_printf(s, "file: %s\n", panel_firmware_get_name(panel));
+	seq_printf(s, "time: %lld.%lld sec (%lld.%lld sec ago)\n",
+			load_time_ms / 1000UL, load_time_ms % 1000UL / 100UL,
+			elapsed_ms / 1000UL, elapsed_ms % 1000UL / 100UL);
+	seq_printf(s, "count: %d\n", panel_firmware_get_load_count(panel));
+	seq_printf(s, "status: %s\n", is_panel_firmwarel_load_success(panel) ? "OK" : "NOK");
+	seq_printf(s, "checksum: 0x%08llx\n", panel_firmware_get_csum(panel));
 
 	return 0;
-
-err:
-	list_for_each_entry_safe(pos, next, &json_pnobj_list, list) {
-		list_del(&pos->list);
-		destroy_panel_object(pos);
-	}
-	kvfree(json);
-	release_firmware(fw_entry);
-
-	return ret;
 }
 #endif
 
@@ -395,7 +555,7 @@ static int panel_debug_simple_show(struct seq_file *s, void *unused)
 	case PANEL_DEBUGFS_RESOURCE:
 		panel_debug_resource_show(s);
 		break;
-#if defined(CONFIG_PANEL_FREQ_HOP)
+#if defined(CONFIG_USDM_PANEL_FREQ_HOP)
 	case PANEL_DEBUGFS_FREQ_HOP:
 		panel_debug_freq_hop_show(s);
 		break;
@@ -405,9 +565,17 @@ static int panel_debug_simple_show(struct seq_file *s, void *unused)
 		panel_debug_panel_event_show(s);
 		break;
 #endif
-#if defined(CONFIG_MCD_PANEL_JSON)
+#if defined(CONFIG_USDM_PANEL_JSON)
 	case PANEL_DEBUGFS_EZOP:
 		panel_debug_ezop_show(s);
+		break;
+	case PANEL_DEBUGFS_FIRMWARE:
+		panel_debug_firmware_show(s);
+		break;
+#endif
+#if defined(CONFIG_USDM_ADAPTIVE_MIPI)
+	case PANEL_DEBUGFS_ADAPTIVE_MIPI:
+		panel_debug_adaptive_mipi_show(s);
 		break;
 #endif
 	default:
@@ -423,13 +591,15 @@ static ssize_t panel_debug_simple_write(struct file *file,
 	struct seq_file *s;
 	struct panel_debugfs *debugfs;
 	struct panel_device *panel;
-	char argbuf[SZ_128];
+	char argbuf[SZ_256];
 	int rc = 0;
 	int res = 0;
 
 	s = file->private_data;
 	debugfs = s->private;
 	panel = debugfs->private;
+
+	panel_info("%s called\n", __func__);
 
 	switch (debugfs->id) {
 	case PANEL_DEBUGFS_LOG:
@@ -474,7 +644,7 @@ static ssize_t panel_debug_simple_write(struct file *file,
 			return rc;
 
 		break;
-#if defined(CONFIG_PANEL_FREQ_HOP)
+#if defined(CONFIG_USDM_PANEL_FREQ_HOP)
 	case PANEL_DEBUGFS_FREQ_HOP:
 		if (count >= ARRAY_SIZE(argbuf))
 			return -EINVAL;
@@ -504,7 +674,7 @@ static ssize_t panel_debug_simple_write(struct file *file,
 
 		break;
 #endif
-#if defined(CONFIG_MCD_PANEL_JSON)
+#if defined(CONFIG_USDM_PANEL_JSON)
 	case PANEL_DEBUGFS_EZOP:
 		if (count >= ARRAY_SIZE(argbuf))
 			return -EINVAL;
@@ -518,6 +688,20 @@ static ssize_t panel_debug_simple_write(struct file *file,
 			return rc;
 
 		break;
+#endif
+#if defined(CONFIG_USDM_ADAPTIVE_MIPI)
+	case PANEL_DEBUGFS_ADAPTIVE_MIPI:
+		if (count >= ARRAY_SIZE(argbuf))
+			return -EINVAL;
+
+		if (copy_from_user(argbuf, buf, count))
+			return -EOVERFLOW;
+
+		argbuf[count] = '\0';
+		rc = panel_debug_adaptive_mipi(panel, strstrip(argbuf));
+		if (rc)
+			return rc;
+	break;
 #endif
 	default:
 		break;

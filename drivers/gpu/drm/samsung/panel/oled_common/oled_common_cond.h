@@ -17,5 +17,13 @@
 bool oled_cond_is_panel_display_mode_changed(struct panel_device *panel);
 bool oled_cond_is_panel_refresh_rate_changed(struct panel_device *panel);
 bool oled_cond_is_panel_refresh_mode_changed(struct panel_device *panel);
+bool oled_cond_is_panel_refresh_mode_ns(struct panel_device *panel);
+bool oled_cond_is_panel_refresh_mode_hs(struct panel_device *panel);
+bool oled_cond_is_panel_state_lpm(struct panel_device *panel);
+bool oled_cond_is_panel_state_not_lpm(struct panel_device *panel);
+bool oled_cond_is_first_set_bl(struct panel_device *panel);
+bool oled_cond_is_panel_mres_updated(struct panel_device *panel);
+bool oled_cond_is_panel_mres_updated_bigger(struct panel_device *panel);
+bool oled_cond_is_acl_pwrsave_on(struct panel_device *panel);
 
 #endif /* __OLED_COMMON_COND_H__ */

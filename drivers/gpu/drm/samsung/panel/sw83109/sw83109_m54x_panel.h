@@ -15,16 +15,17 @@
 
 #include "../panel.h"
 #include "../panel_drv.h"
+#include "oled_function.h"
 #include "sw83109.h"
 #include "sw83109_dimming.h"
-#ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
+#ifdef CONFIG_USDM_MDNIE
 #include "sw83109_m54x_panel_mdnie.h"
 #endif
 #include "sw83109_m54x_panel_dimming.h"
-#ifdef CONFIG_SUPPORT_AOD_BL
+#ifdef CONFIG_USDM_PANEL_AOD_BL
 #include "sw83109_m54x_panel_aod_dimming.h"
 #endif
-#ifdef CONFIG_EXTEND_LIVE_CLOCK
+#ifdef CONFIG_USDM_PANEL_SELF_DISPLAY
 #include "sw83109_m54x_aod_panel.h"
 #include "../aod/aod_drv.h"
 #endif
@@ -214,16 +215,16 @@ static u8 m54x_acl_opr_table[MAX_SW83109_ACL_OPR][4] = {
 };
 
 static struct maptbl m54x_maptbl[MAX_MAPTBL] = {
-	[GAMMA_MODE2_MAPTBL] = DEFINE_2D_MAPTBL(m54x_brt_table, init_gamma_mode2_brt_table, getidx_gamma_mode2_brt_table, copy_common_maptbl),
-	[TSET_MAPTBL] = DEFINE_0D_MAPTBL(m54x_tset_table, init_common_table, NULL, copy_tset_maptbl),
-	[FMEM_MAPTBL] = DEFINE_0D_MAPTBL(m54x_fmem_table, init_common_table, NULL, copy_fmem_maptbl),
-	[LPM_NIT_MAPTBL] = DEFINE_2D_MAPTBL(m54x_lpm_nit_table, init_lpm_brt_table, getidx_lpm_brt_table, copy_common_maptbl),
-	[FPS_1_MAPTBL] = DEFINE_2D_MAPTBL(m54x_fps_1_table, init_common_table, getidx_vrr_fps_table, copy_common_maptbl),
-	[FPS_2_MAPTBL] = DEFINE_2D_MAPTBL(m54x_fps_2_table, init_common_table, getidx_vrr_fps_table, copy_common_maptbl),
-	[FFC_MAPTBL] = DEFINE_2D_MAPTBL(m54x_ffc_table, init_common_table, sw83109_getidx_ffc_table, copy_common_maptbl),
-	[ACL_ONOFF_MAPTBL] = DEFINE_2D_MAPTBL(m54x_acl_onoff_table, init_common_table, sw83109_getidx_acl_onoff_table, copy_common_maptbl),
-	[ACL_OPR_MAPTBL] = DEFINE_2D_MAPTBL(m54x_acl_opr_table, init_common_table, sw83109_getidx_acl_opr_table, copy_common_maptbl),
-	[AOD_TO_GAMMA_MODE2_MAPTBL] = DEFINE_2D_MAPTBL(m54x_aod_to_gm2_nit_table, init_common_table, getidx_lpm_brt_table, copy_common_maptbl),
+	[GAMMA_MODE2_MAPTBL] = DEFINE_2D_MAPTBL(m54x_brt_table, &DDI_FUNC(SW83109_MAPTBL_INIT_GAMMA_MODE2_BRT), &OLED_FUNC(OLED_MAPTBL_GETIDX_GM2_BRT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[TSET_MAPTBL] = DEFINE_0D_MAPTBL(m54x_tset_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), NULL, &OLED_FUNC(OLED_MAPTBL_COPY_TSET)),
+	[FMEM_MAPTBL] = DEFINE_0D_MAPTBL(m54x_fmem_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), NULL, &DDI_FUNC(SW83109_MAPTBL_COPY_FMEM)),
+	[LPM_NIT_MAPTBL] = DEFINE_2D_MAPTBL(m54x_lpm_nit_table, &DDI_FUNC(SW83109_MAPTBL_INIT_LPM_BRT), &DDI_FUNC(SW83109_MAPTBL_GETIDX_LPM_BRT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[FPS_1_MAPTBL] = DEFINE_2D_MAPTBL(m54x_fps_1_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(SW83109_MAPTBL_GETIDX_VRR_FPS), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[FPS_2_MAPTBL] = DEFINE_2D_MAPTBL(m54x_fps_2_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(SW83109_MAPTBL_GETIDX_VRR_FPS), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[FFC_MAPTBL] = DEFINE_2D_MAPTBL(m54x_ffc_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(SW83109_MAPTBL_GETIDX_FFC), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[ACL_ONOFF_MAPTBL] = DEFINE_2D_MAPTBL(m54x_acl_onoff_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(SW83109_MAPTBL_GETIDX_ACL_ONOFF), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[ACL_OPR_MAPTBL] = DEFINE_2D_MAPTBL(m54x_acl_opr_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(SW83109_MAPTBL_GETIDX_ACL_OPR), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
+	[AOD_TO_GAMMA_MODE2_MAPTBL] = DEFINE_2D_MAPTBL(m54x_aod_to_gm2_nit_table, &OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), &DDI_FUNC(SW83109_MAPTBL_GETIDX_LPM_BRT), &OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT)),
 };
 
 /* ===================================================================================== */
@@ -655,12 +656,11 @@ static DEFINE_PANEL_MDELAY(m54x_wait_34msec, 34);
 static DEFINE_PANEL_MDELAY(m54x_wait_1msec, 1);
 static DEFINE_PANEL_MDELAY(m54x_wait_8msec, 8);
 static DEFINE_PANEL_MDELAY(m54x_wait_16msec, 16);
-
-static DEFINE_COND(m54x_cond_is_panel_state_acl, is_panel_state_acl);
-static DEFINE_COND(m54x_cond_is_panel_state_not_lpm, is_panel_state_not_lpm);
+static DEFINE_FUNC_BASED_COND(m54x_cond_is_panel_state_acl, &OLED_FUNC(OLED_COND_IS_ACL_PWRSAVE_ON));
+static DEFINE_FUNC_BASED_COND(m54x_cond_is_panel_state_not_lpm, &OLED_FUNC(OLED_COND_IS_PANEL_STATE_NOT_LPM));
 
 static struct seqinfo SEQINFO(m54x_set_bl_param_seq);
-#if defined(CONFIG_MCD_PANEL_FACTORY)
+#if defined(CONFIG_USDM_FACTORY)
 static struct seqinfo SEQINFO(m54x_res_init_seq);
 #endif
 
@@ -722,12 +722,12 @@ static void *m54x_res_init_cmdtbl[] = {
 	&PKTINFO(m54x_level6),
 	&sw83109_restbl[RES_CODE],
 	&PKTINFO(m54x_level0),
-#ifdef CONFIG_DISPLAY_USE_INFO
+#ifdef CONFIG_USDM_PANEL_DPUI
 	&sw83109_restbl[RES_ERR_FG],
 	&sw83109_restbl[RES_DSI_ERR],
 #endif
 };
-#if defined(CONFIG_MCD_PANEL_FACTORY)
+#if defined(CONFIG_USDM_FACTORY)
 static DEFINE_SEQINFO(m54x_res_init_seq, m54x_res_init_cmdtbl);
 #endif
 
@@ -785,7 +785,7 @@ static void *m54x_display_off_cmdtbl[] = {
 };
 
 static void *m54x_exit_cmdtbl[] = {
-#ifdef CONFIG_DISPLAY_USE_INFO
+#ifdef CONFIG_USDM_PANEL_DPUI
 	&sw83109_dmptbl[DUMP_RDDSM],
 	&sw83109_dmptbl[DUMP_ERR_FG],
 	&sw83109_dmptbl[DUMP_DSI_ERR],
@@ -901,7 +901,7 @@ struct common_panel_info sw83109_m54x_panel_info = {
 		.get_manufacture_code = sw83109_get_manufacture_code,
 		.get_manufacture_date = sw83109_get_manufacture_date,
 	},
-#if defined(CONFIG_PANEL_DISPLAY_MODE)
+#if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 	.common_panel_modes = &sw83109_m54x_display_modes,
 #endif
 	.mres = {
@@ -921,16 +921,16 @@ struct common_panel_info sw83109_m54x_panel_info = {
 	.dumpinfo = sw83109_dmptbl,
 	.nr_dumpinfo = ARRAY_SIZE(sw83109_dmptbl),
 
-#ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
+#ifdef CONFIG_USDM_MDNIE
 	.mdnie_tune = &sw83109_m54x_mdnie_tune,
 #endif
 	.panel_dim_info = {
 		[PANEL_BL_SUBDEV_TYPE_DISP] = &sw83109_m54x_panel_dimming_info,
-#ifdef CONFIG_SUPPORT_AOD_BL
+#ifdef CONFIG_USDM_PANEL_AOD_BL
 		[PANEL_BL_SUBDEV_TYPE_AOD] = &sw83109_m54x_panel_aod_dimming_info,
 #endif
 	},
-#ifdef CONFIG_EXTEND_LIVE_CLOCK
+#ifdef CONFIG_USDM_PANEL_SELF_DISPLAY
 	.aod_tune = &sw83109_m54x_aod,
 #endif
 };

@@ -1395,6 +1395,7 @@ static void sm5714_muic_handle_attach(struct sm5714_muic_data *muic_data,
 	pr_info("[%s:%s] done\n", MUIC_DEV_NAME, __func__);
 
 	muic_data->attached_dev = new_dev;
+	muic_data->afc_dp_reset_count = 0;
 
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 	if (noti) {
@@ -1538,6 +1539,7 @@ static void sm5714_muic_handle_detach(struct sm5714_muic_data *muic_data,
 	muic_data->bc12_retry_count = 0;
 #endif
 	muic_afc_request_cause_clear();
+	muic_data->afc_dp_reset_count = 0;
 }
 
 static void sm5714_muic_detect_dev(struct sm5714_muic_data *muic_data, int irq)
@@ -1585,8 +1587,6 @@ static void sm5714_muic_detect_dev(struct sm5714_muic_data *muic_data, int irq)
 #endif
 			break;
 		case RID_301K:
-			if (!(vbvolt))
-				break;
 			intr = MUIC_INTR_ATTACH;
 			new_dev = ATTACHED_DEV_JIG_USB_ON_MUIC;
 			pr_info("[%s:%s] JIG_USB_ON(301K)\n", MUIC_DEV_NAME,
@@ -1757,12 +1757,10 @@ static void sm5714_muic_detect_dev(struct sm5714_muic_data *muic_data, int irq)
 				MUIC_DEV_NAME, __func__);
 		}
 	} else if (dev2 & DEV_TYPE2_JIG_USB_ON) {
-		if (vbvolt) {
 			intr = MUIC_INTR_ATTACH;
 			new_dev = ATTACHED_DEV_JIG_USB_ON_MUIC;
 			pr_info("[%s:%s] JIG_USB_ON(301K)\n",
 				MUIC_DEV_NAME, __func__);
-		}
 	} else if (dev2 & DEV_TYPE2_DEBUG_JTAG) {
 		pr_info("[%s:%s] DEBUG_JTAG\n", MUIC_DEV_NAME, __func__);
 		intr = MUIC_INTR_ATTACH;

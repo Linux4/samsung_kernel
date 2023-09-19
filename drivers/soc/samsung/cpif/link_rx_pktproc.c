@@ -1044,10 +1044,8 @@ static void pktproc_perftest_napi_schedule(void *arg)
 	if (!pktproc_get_usage(q))
 		return;
 
-	if (napi_schedule_prep(q->napi_ptr)) {
-		q->disable_irq(q);
+	if (napi_schedule_prep(q->napi_ptr))
 		__napi_schedule(q->napi_ptr);
-	}
 }
 
 static unsigned int pktproc_perftest_gen_rx_packet_sktbuf_mode(
@@ -1258,20 +1256,6 @@ static ssize_t perftest_show(struct device *dev, struct device_attribute *attr, 
 /*
  * NAPI
  */
-static void pktproc_enable_irq(struct pktproc_queue *q)
-{
-#if IS_ENABLED(CONFIG_MCU_IPC)
-	cp_mbox_enable_handler(q->irq_idx, q->mld->irq_cp2ap_msg);
-#endif
-}
-
-static void pktproc_disable_irq(struct pktproc_queue *q)
-{
-#if IS_ENABLED(CONFIG_MCU_IPC)
-	cp_mbox_disable_handler(q->irq_idx, q->mld->irq_cp2ap_msg);
-#endif
-}
-
 static int pktproc_poll(struct napi_struct *napi, int budget)
 {
 	struct pktproc_queue *q = container_of(napi, struct pktproc_queue, napi);
@@ -1299,8 +1283,6 @@ static int pktproc_poll(struct napi_struct *napi, int budget)
 
 	if (rcvd < budget) {
 		napi_complete_done(napi, rcvd);
-		q->enable_irq(q);
-
 		return rcvd;
 	}
 
@@ -1309,7 +1291,6 @@ poll_retry:
 
 poll_exit:
 	napi_complete(napi);
-	q->enable_irq(q);
 
 	return 0;
 }
@@ -1333,10 +1314,8 @@ static irqreturn_t pktproc_irq_handler(int irq, void *arg)
 	tpmon_start();
 #endif
 
-	if (napi_schedule_prep(q->napi_ptr)) {
-		q->disable_irq(q);
+	if (napi_schedule_prep(q->napi_ptr))
 		__napi_schedule(q->napi_ptr);
-	}
 
 	return IRQ_HANDLED;
 }
@@ -2021,8 +2000,6 @@ int pktproc_create(struct platform_device *pdev, struct mem_link_device *mld,
 		}
 
 		/* IRQ handler */
-		q->enable_irq = pktproc_enable_irq;
-		q->disable_irq = pktproc_disable_irq;
 		if (ppa->use_exclusive_irq) {
 #if IS_ENABLED(CONFIG_MCU_IPC)
 			q->irq_idx = ppa->exclusive_irq_idx[q->q_idx];

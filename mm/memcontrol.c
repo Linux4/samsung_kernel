@@ -3613,16 +3613,10 @@ static unsigned long mem_cgroup_usage(struct mem_cgroup *memcg, bool swap)
 		if (swap)
 			val += memcg_page_state(memcg, MEMCG_SWAP);
 	} else {
-#ifdef CONFIG_MEMCG_HEIMDALL
-		val = memcg_page_state(memcg, NR_ANON_MAPPED);
-		if (swap)
-			val += memcg_page_state(memcg, MEMCG_SWAP);
-#else
 		if (!swap)
 			val = page_counter_read(&memcg->memory);
 		else
 			val = page_counter_read(&memcg->memsw);
-#endif
 	}
 	return val;
 }

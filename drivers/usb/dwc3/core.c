@@ -151,7 +151,9 @@ static void __dwc3_set_mode(struct work_struct *work)
 	case DWC3_GCTL_PRTCAP_OTG:
 		dwc3_otg_exit(dwc);
 		spin_lock_irqsave(&dwc->lock, flags);
+		dwc3_lock_logging(DWC3_SET_MODE_FUNC, 1);
 		dwc->desired_otg_role = DWC3_OTG_ROLE_IDLE;
+		dwc3_lock_logging(DWC3_SET_MODE_FUNC, 0);
 		spin_unlock_irqrestore(&dwc->lock, flags);
 		dwc3_otg_update(dwc, 1);
 		break;
@@ -184,9 +186,11 @@ static void __dwc3_set_mode(struct work_struct *work)
 	}
 
 	spin_lock_irqsave(&dwc->lock, flags);
+	dwc3_lock_logging(DWC3_SET_MODE_FUNC, 1);
 
 	dwc3_set_prtcap(dwc, dwc->desired_dr_role);
 
+	dwc3_lock_logging(DWC3_SET_MODE_FUNC, 0);
 	spin_unlock_irqrestore(&dwc->lock, flags);
 
 	switch (dwc->desired_dr_role) {
@@ -242,7 +246,9 @@ void dwc3_set_mode(struct dwc3 *dwc, u32 mode)
 		return;
 
 	spin_lock_irqsave(&dwc->lock, flags);
+	dwc3_lock_logging(DWC3_DRD_SET_MODE_FUNC, 1);
 	dwc->desired_dr_role = mode;
+	dwc3_lock_logging(DWC3_DRD_SET_MODE_FUNC, 0);
 	spin_unlock_irqrestore(&dwc->lock, flags);
 
 	queue_work(system_freezable_wq, &dwc->drd_work);
@@ -1815,7 +1821,9 @@ static int dwc3_suspend_common(struct dwc3 *dwc, pm_message_t msg)
 	case DWC3_GCTL_PRTCAP_DEVICE:
 		if (pm_runtime_suspended(dwc->dev))
 			break;
+		spin_lock_irqsave(&dwc->lock, flags);
 		dwc3_gadget_suspend(dwc);
+		spin_unlock_irqrestore(&dwc->lock, flags);
 		synchronize_irq(dwc->irq_gadget);
 		dwc3_core_exit(dwc);
 		break;
@@ -1847,7 +1855,9 @@ static int dwc3_suspend_common(struct dwc3 *dwc, pm_message_t msg)
 
 		if (dwc->current_otg_role == DWC3_OTG_ROLE_DEVICE) {
 			spin_lock_irqsave(&dwc->lock, flags);
+			dwc3_lock_logging(DWC3_SUSPEND_COMM_FUNC, 1);
 			dwc3_gadget_suspend(dwc);
+			dwc3_lock_logging(DWC3_SUSPEND_COMM_FUNC, 0);
 			spin_unlock_irqrestore(&dwc->lock, flags);
 			synchronize_irq(dwc->irq_gadget);
 		}
@@ -1876,7 +1886,9 @@ static int dwc3_resume_common(struct dwc3 *dwc, pm_message_t msg)
 			return ret;
 
 		dwc3_set_prtcap(dwc, DWC3_GCTL_PRTCAP_DEVICE);
+		spin_lock_irqsave(&dwc->lock, flags);
 		dwc3_gadget_resume(dwc);
+		spin_unlock_irqrestore(&dwc->lock, flags);
 		break;
 	case DWC3_GCTL_PRTCAP_HOST:
 		if (!PMSG_IS_AUTO(msg)) {
@@ -1915,7 +1927,9 @@ static int dwc3_resume_common(struct dwc3 *dwc, pm_message_t msg)
 			dwc3_otg_host_init(dwc);
 		} else if (dwc->current_otg_role == DWC3_OTG_ROLE_DEVICE) {
 			spin_lock_irqsave(&dwc->lock, flags);
+			dwc3_lock_logging(DWC3_RESUME_COMM_FUNC, 1);
 			dwc3_gadget_resume(dwc);
+			dwc3_lock_logging(DWC3_RESUME_COMM_FUNC, 0);
 			spin_unlock_irqrestore(&dwc->lock, flags);
 		}
 

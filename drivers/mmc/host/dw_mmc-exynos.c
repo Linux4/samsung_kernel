@@ -63,9 +63,80 @@ static void dw_mci_exynos_register_dump(struct dw_mci *host)
 		host->sfr_dump->hs400_dline_ctrl = mci_readl(host, HS400_DLINE_CTRL));
 }
 
+static void dw_mci_cmu_dump(struct dw_mci *host)
+{
+	dev_err(host->dev, ": ============== CMU DUMP ===========\n");
+	dev_err(host->dev, ": CLK_CON_MUX_CLKCMU_PERI_NOC:0x1094 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x1094));
+	dev_err(host->dev, ": DBG_NFO_MUX_CLKCMU_PERI_NOC:0x4094 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x4094));
+
+	dev_err(host->dev, ": CLK_CON_GAT_GATE_CLKCMU_PERI_NOC:0x2090 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x2090));
+	dev_err(host->dev, ": DBG_GATE_CLKCMU_PERI_NOC:0xd0 0x%08x\n", readl_relaxed(host->test_cmu1 + 0xd0));
+
+	dev_err(host->dev, ": CLK_CON_DIV_CLKCMU_PERI_NOC:0x188c 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x188c));
+	dev_err(host->dev, ": DBG_NFO_DIV_CLKCMU_PERI_NOC:0x588c 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x588c));
+
+	dev_err(host->dev, ": CLK_CON_MUX_CLKCMU_PERI_MMC_CARD:0x1098 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x1098));
+	dev_err(host->dev, ": DBG_NFO_MUX_CLKCMU_PERI_MMC_CARD:0x4098 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x4098));
+
+	dev_err(host->dev, ": CLK_CON_GAT_GATE_CLKCMU_PERI_MMC_CARD:0x2094 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x2094));
+	dev_err(host->dev, ": DBG_GATE_CLKCMU_PERI_MMC_CARD:0xd4 0x%08x\n", readl_relaxed(host->test_cmu1 + 0xd4));
+
+	dev_err(host->dev, ": CLK_CON_DIV_CLKCMU_PERI_NOC:0x188c 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x188c));
+	dev_err(host->dev, ": DBG_NFO_DIV_CLKCMU_PERI_NOC:0x588c 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x588c));
+
+	dev_err(host->dev, ": PLL_CON3_PLL_SHARED0:0x10c 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x10c));
+	dev_err(host->dev, ": PLL_CON6_PLL_SHARED0:0x118 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x118));
+	dev_err(host->dev, ": PLL_CON7_PLL_SHARED0:0x11c 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x11c));
+	dev_err(host->dev, ": PLL_CON4_PLL_SHARED0:0x110 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x110));
+	dev_err(host->dev, ": PLL_CON0_PLL_SHARED0:0x100 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x100));
+	dev_err(host->dev, ": PLL_LOCKTIME_PLL_SHARED0:0x8 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x8));
+	dev_err(host->dev, ": PLL_CON1_PLL_SHARED0:0x104 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x104));
+	dev_err(host->dev, ": PLL_CON2_PLL_SHARED0:0x108 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x108));
+	dev_err(host->dev, ": PLL_LOCKTIME_REG_PLL_SHARED0:0x80 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x80));
+	dev_err(host->dev, ": DBG_NFO_PLL_SHARED0:0x4100 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x4100));
+
+	dev_err(host->dev, ": PLL_CON3_PLL_SHARED1:0x14c 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x14c));
+	dev_err(host->dev, ": PLL_CON6_PLL_SHARED1:0x158 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x158));
+	dev_err(host->dev, ": PLL_CON7_PLL_SHARED1:0x15c 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x15c));
+	dev_err(host->dev, ": PLL_CON4_PLL_SHARED1:0x150 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x150));
+	dev_err(host->dev, ": PLL_CON0_PLL_SHARED1:0x140 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x140));
+	dev_err(host->dev, ": PLL_LOCKTIME_PLL_SHARED1:0x10 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x10));
+	dev_err(host->dev, ": PLL_CON1_PLL_SHARED1:0x144 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x144));
+	dev_err(host->dev, ": PLL_CON2_PLL_SHARED1:0x148 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x148));
+	dev_err(host->dev, ": PLL_LOCKTIME_REG_PLL_SHARED1:0x84 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x84));
+	dev_err(host->dev, ": DBG_NFO_PLL_SHARED1:0x4140 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x4140));
+
+	dev_err(host->dev, ": PLL_CON3_PLL_MMC:0x20c 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x20c));
+	dev_err(host->dev, ": PLL_CON6_PLL_MMC:0x218 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x218));
+	dev_err(host->dev, ": PLL_CON7_PLL_MMC:0x21c 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x21c));
+	dev_err(host->dev, ": PLL_CON4_PLL_MMC:0x210 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x210));
+	dev_err(host->dev, ": PLL_CON0_PLL_MMC:0x200 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x200));
+	dev_err(host->dev, ": PLL_LOCKTIME_PLL_MMC:0x28 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x28));
+	dev_err(host->dev, ": PLL_CON1_PLL_MMC:0x204 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x204));
+	dev_err(host->dev, ": PLL_CON2_PLL_MMC:0x208 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x208));
+	dev_err(host->dev, ": PLL_LOCKTIME_REG_PLL_MMC:0x90 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x90));
+	dev_err(host->dev, ": DBG_NFO_PLL_MMC:0x4200 0x%08x\n", readl_relaxed(host->test_cmu1 + 0x4200));
+
+	dev_err(host->dev, ":PLL_CON0_MUX_CLKCMU_PERI_NOCP_USER :0x620 0x%08x\n", readl_relaxed(host->test_cmu2 + 0x620));
+	dev_err(host->dev, ":PLL_CON1_MUX_CLKCMU_PERI_NOCP_USER :0x624 0x%08x\n", readl_relaxed(host->test_cmu2 + 0x624));
+	dev_err(host->dev, ":DBG_NFO_MUX_CLKCMU_PERI_NOCP_USER :0x4608 0x%08x\n", readl_relaxed(host->test_cmu2 + 0x4608));
+
+	dev_err(host->dev, ":PLL_CON0_MUX_CLKCMU_PERI_MMC_CARD_USER :0x600 0x%08x\n", readl_relaxed(host->test_cmu2 + 0x600));
+	dev_err(host->dev, ":PLL_CON1_MUX_CLKCMU_PERI_MMC_CARD_USER :0x604 0x%08x\n", readl_relaxed(host->test_cmu2 + 0x604));
+	dev_err(host->dev, ":DBG_NFO_MUX_CLKCMU_PERI_MMC_CARD_USER :0x4600 0x%08x\n", readl_relaxed(host->test_cmu2 + 0x4600));
+
+	dev_err(host->dev, ":CLK_CON_GAT_BLK_PERI_UID_MMC_CARD_IPCLKPORT_SDCLKIN :0x20ec 0x%08x\n", readl_relaxed(host->test_cmu2 + 0x20ec));
+	dev_err(host->dev, ":DBG_NFO_BLK_PERI_UID_MMC_CARD_IPCLKPORT_SDCLKIN :0x4110 0x%08x\n", readl_relaxed(host->test_cmu2 + 0x4110));
+
+	dev_err(host->dev, ":CLK_CON_GAT_BLK_PERI_UID_MMC_CARD_IPCLKPORT_I_ACLK :0x203c 0x%08x\n", readl_relaxed(host->test_cmu2 + 0x203c));
+	dev_err(host->dev, ":DBG_NFO_BLK_PERI_UID_MMC_CARD_IPCLKPORT_I_ACLK :0x4060 0x%08x\n", readl_relaxed(host->test_cmu2 + 0x4060));
+}
+
 static void dw_mci_reg_dump(struct dw_mci *host)
 {
 	u32 reg;
+
+	dw_mci_cmu_dump(host);
 
 	dev_err(host->dev, ": ============== REGISTER DUMP ==============\n");
 	dev_err(host->dev, ": CTRL:	 0x%08x\n", host->sfr_dump->contrl = mci_readl(host, CTRL));
@@ -772,6 +843,8 @@ static int dw_mci_exynos_parse_dt(struct dw_mci *host)
 	default:
 		ret = -ENODEV;
 	}
+	host->test_cmu1 = ioremap(0x12900000, 0x6000);
+	host->test_cmu2 = ioremap(0x10030000, 0x5000);
 	host->priv = priv;
  err_ref_clk:
 	return ret;

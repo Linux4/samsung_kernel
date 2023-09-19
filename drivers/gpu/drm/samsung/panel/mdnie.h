@@ -66,7 +66,7 @@ typedef u8 mdnie_t;
 #define MIN_WCRD_Y	(3050)
 #define MAX_WCRD_Y	(3260)
 
-#ifdef CONFIG_SUPPORT_AFC
+#ifdef CONFIG_USDM_MDNIE_AFC
 #define MAX_AFC_ROI_LEN	(12)
 #endif
 
@@ -281,7 +281,7 @@ enum TRANS_MODE {
 #define MDNIE_LIGHT_NOTIFICATION_SEQ ("mdnie_light_notification_seq")
 #define MDNIE_COLOR_LENS_SEQ ("mdnie_color_lens_seq")
 
-#ifdef CONFIG_SUPPORT_AFC
+#ifdef CONFIG_USDM_MDNIE_AFC
 #define MDNIE_AFC_OFF_SEQ ("mdnie_afc_off_seq")
 #define MDNIE_AFC_ON_SEQ ("mdnie_afc_on_seq")
 #endif
@@ -390,7 +390,7 @@ struct mdnie_properties {
 	/* default whiteRGB : color coordinated wrgb */
 	u8 def_wrgb[MAX_COLOR];
 	s8 def_wrgb_ofs[MAX_COLOR];
-#ifdef CONFIG_SUPPORT_AFC
+#ifdef CONFIG_USDM_MDNIE_AFC
 	u8 afc_roi[MAX_AFC_ROI_LEN];
 	bool afc_on;
 #endif
@@ -429,7 +429,7 @@ struct mdnie_properties {
 	unsigned force_scr_white_mode_none_on_hbm:1; /* don't update scr_white values in HBM */
 
 	/* mdnie tuning */
-#ifdef CONFIG_EXYNOS_DECON_LCD_TUNING
+#ifdef CONFIG_USDM_MDNIE_TUNING
 	char tfilepath[128];			/* tuning file path */
 #endif
 };
@@ -441,12 +441,33 @@ struct mdnie_info {
 	struct panel_mutex lock;
 	struct mdnie_properties props;
 	struct notifier_block fb_notif;
-#ifdef CONFIG_DISPLAY_USE_INFO
+#ifdef CONFIG_USDM_PANEL_DPUI
 	struct notifier_block dpui_notif;
 #endif
 };
 
-#ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
+#define __MDNIE_ATTR_RO(_name, _mode, _flags) {	\
+				.dev_attr = __ATTR(_name, _mode,		\
+					 PN_CONCAT(_name, show), NULL),		\
+				.flags = _flags,				\
+			}
+
+#define __MDNIE_ATTR_WO(_name, _mode, _flags) {	\
+				.dev_attr = __ATTR(_name, _mode,		\
+					 NULL, mdnie_store_check_test_mode),		\
+				.flags = _flags,				\
+				.store = PN_CONCAT(_name, store) \
+			}
+
+#define __MDNIE_ATTR_RW(_name, _mode, _flags) {	\
+				.dev_attr = __ATTR(_name, _mode,		\
+					 PN_CONCAT(_name, show), mdnie_store_check_test_mode),		\
+				.flags = _flags,				\
+				.store = PN_CONCAT(_name, store) \
+			}
+
+
+#ifdef CONFIG_USDM_MDNIE
 extern int mdnie_init(struct mdnie_info *mdnie);
 extern int mdnie_exit(struct mdnie_info *mdnie);
 extern int mdnie_prepare(struct mdnie_info *mdnie, struct mdnie_tune *mdnie_tune);

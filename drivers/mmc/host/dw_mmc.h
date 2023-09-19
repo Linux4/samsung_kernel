@@ -292,6 +292,8 @@ struct dw_mci {
 
 	/* channel id */
 	u32 ch_id;
+	void __iomem		*test_cmu1;
+	void __iomem		*test_cmu2;
 
 	struct regmap *sysreg;
 	struct exynos_access_cxt cxt_coherency; /* io coherency */
@@ -364,9 +366,7 @@ struct dw_mci_board {
 	u32 detect_delay_ms;
 	u8 clk_smpl;
 	bool is_fine_tuned;
-	bool tuned;
 	bool extra_tuning;
-	bool only_once_tune;
 	bool prev_all_pass;
 
 	/* INT QOS khz */

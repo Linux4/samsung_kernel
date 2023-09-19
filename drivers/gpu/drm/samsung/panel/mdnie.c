@@ -23,11 +23,14 @@
 #include "panel_drv.h"
 #include "mdnie.h"
 #include "panel_debug.h"
-#ifdef CONFIG_EXYNOS_DECON_LCD_COPR
+#ifdef CONFIG_USDM_PANEL_COPR
 #include "copr.h"
 #endif
-#ifdef CONFIG_DISPLAY_USE_INFO
+#ifdef CONFIG_USDM_PANEL_DPUI
 #include "dpui.h"
+#endif
+#ifdef CONFIG_USDM_PANEL_TESTMODE
+#include "panel_testmode.h"
 #endif
 
 #ifdef MDNIE_SELF_TEST
@@ -125,7 +128,7 @@ int mdnie_current_state(struct mdnie_info *mdnie)
 	else
 		mdnie_mode = MDNIE_OFF_MODE;
 
-	if (panel->state.cur_state == PANEL_STATE_ALPM &&
+	if (panel_get_cur_state(panel) == PANEL_STATE_ALPM &&
 	((mdnie_mode == MDNIE_ACCESSIBILITY_MODE &&
 	(mdnie->props.accessibility == NEGATIVE ||
 	mdnie->props.accessibility == GRAYSCALE_NEGATIVE)) ||
@@ -232,7 +235,7 @@ __visible_for_testing int mdnie_get_coordinate(struct mdnie_info *mdnie, int *x,
 		return -EINVAL;
 	}
 
-	ret = resource_copy_by_name(panel, coordinate, "coordinate");
+	ret = panel_resource_copy(panel, coordinate, "coordinate");
 	if (ret < 0) {
 		panel_err("failed to copy 'coordinate' resource\n");
 		return -EINVAL;
@@ -416,7 +419,7 @@ static int panel_set_mdnie(struct panel_device *panel)
 	if (!IS_PANEL_ACTIVE(panel))
 		return -EAGAIN;
 
-#ifdef CONFIG_SUPPORT_AFC
+#ifdef CONFIG_USDM_MDNIE_AFC
 	panel_info("do mdnie-seq (mode:%s, afc:%s)\n",
 			mdnie_mode_name[mdnie_mode],
 			!mdnie->props.afc_on ? "off" : "on");
@@ -434,7 +437,7 @@ static int panel_set_mdnie(struct panel_device *panel)
 		goto err;
 	}
 
-#ifdef CONFIG_SUPPORT_AFC
+#ifdef CONFIG_USDM_MDNIE_AFC
 	ret = mdnie_do_sequence_nolock(mdnie,
 			!mdnie->props.afc_on ?
 			MDNIE_AFC_OFF_SEQ : MDNIE_AFC_ON_SEQ);
@@ -605,7 +608,7 @@ int panel_mdnie_update(struct panel_device *panel)
 	}
 	panel_mutex_unlock(&mdnie->lock);
 
-#ifdef CONFIG_EXYNOS_DECON_LCD_COPR
+#ifdef CONFIG_USDM_PANEL_COPR
 	copr_update_start(&panel->copr, 3);
 #endif
 
@@ -834,17 +837,25 @@ static ssize_t lux_store(struct device *dev,
 	int ret, value;
 	int hbm_ce_lux = (mdnie->props.hbm_ce_lux > 0) ?
 		mdnie->props.hbm_ce_lux : 40000;
+	enum HBM hbm;
+	bool update = false;
 
 	ret = kstrtoint(buf, 0, &value);
 	if (ret < 0)
 		return ret;
 
 	panel_mutex_lock(&mdnie->lock);
-	mdnie->props.hbm = (value < hbm_ce_lux) ? 0 : 1;
+	hbm = (value < hbm_ce_lux) ? 0 : 1;
+	if (mdnie->props.hbm != hbm)
+		update = true;
+	mdnie->props.hbm = hbm;
 	panel_mutex_unlock(&mdnie->lock);
-	panel_info("hbm:%d (lux:%d hbm_ce_lux:%d)\n",
-			mdnie->props.hbm, value, hbm_ce_lux);
-	mdnie_update(mdnie);
+
+	if (update) {
+		panel_info("hbm:%d (lux:%d hbm_ce_lux:%d)\n",
+				mdnie->props.hbm, value, hbm_ce_lux);
+		mdnie_update(mdnie);
+	}
 
 	return count;
 }
@@ -1194,7 +1205,7 @@ static ssize_t mdnie_ldu_store(struct device *dev,
 	return count;
 }
 
-#ifdef CONFIG_SUPPORT_HMD
+#ifdef CONFIG_USDM_PANEL_HMD
 static ssize_t hmt_color_temperature_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -1231,7 +1242,7 @@ static ssize_t hmt_color_temperature_store(struct device *dev,
 }
 #endif
 
-#ifdef CONFIG_SUPPORT_AFC
+#ifdef CONFIG_USDM_MDNIE_AFC
 static ssize_t afc_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -1282,25 +1293,48 @@ static ssize_t afc_store(struct device *dev,
 }
 #endif
 
-struct panel_device_attr mdnie_dev_attrs[] = {
-	__PANEL_ATTR_RW(mode, 0664, PA_DEFAULT),
-	__PANEL_ATTR_RW(scenario, 0664, PA_DEFAULT),
-	__PANEL_ATTR_RW(accessibility, 0664, PA_DEFAULT),
-	__PANEL_ATTR_RW(bypass, 0664, PA_DEFAULT),
-	__PANEL_ATTR_RW(lux, 0000, PA_DEFAULT),
-	__PANEL_ATTR_RO(mdnie, 0444, PA_DEFAULT),
-	__PANEL_ATTR_RW(sensorRGB, 0664, PA_DEFAULT),
-	__PANEL_ATTR_RW(whiteRGB, 0664, PA_DEFAULT),
-	__PANEL_ATTR_RW(night_mode, 0664, PA_DEFAULT),
-	__PANEL_ATTR_RW(color_lens, 0664, PA_DEFAULT),
-	__PANEL_ATTR_RW(hdr, 0664, PA_DEFAULT),
-	__PANEL_ATTR_RW(light_notification, 0664, PA_DEFAULT),
-	__PANEL_ATTR_RW(mdnie_ldu, 0664, PA_DEFAULT),
-#ifdef CONFIG_SUPPORT_HMD
-	__PANEL_ATTR_RW(hmt_color_temperature, 0664, PA_DEFAULT),
+ssize_t mdnie_store_check_test_mode(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct panel_device_attr *pattr = container_of(attr, struct panel_device_attr, dev_attr);
+#ifdef CONFIG_USDM_PANEL_TESTMODE
+	struct mdnie_info *mdnie = dev_get_drvdata(dev);
+	struct panel_device *panel = to_panel_device(mdnie);
+	ssize_t ret;
+
+	if (panel_testmode_is_on(panel)) {
+		if (buf[0] != '!') {
+			panel_info("%s_store: testmode is running. ignore inputs.\n", attr->attr.name);
+			return size;
+		}
+		ret = pattr->store(dev, attr, buf + 1, size - 1);
+		if (ret >= 0)
+			ret += 1;
+		return ret;
+	}
 #endif
-#ifdef CONFIG_SUPPORT_AFC
-	__PANEL_ATTR_RW(afc, 0664, PA_DEFAULT),
+	return pattr->store(dev, attr, buf, size);
+}
+
+struct panel_device_attr mdnie_dev_attrs[] = {
+	__MDNIE_ATTR_RW(mode, 0664, PA_DEFAULT),
+	__MDNIE_ATTR_RW(scenario, 0664, PA_DEFAULT),
+	__MDNIE_ATTR_RW(accessibility, 0664, PA_DEFAULT),
+	__MDNIE_ATTR_RW(bypass, 0664, PA_DEFAULT),
+	__MDNIE_ATTR_RW(lux, 0000, PA_DEFAULT),
+	__MDNIE_ATTR_RO(mdnie, 0444, PA_DEFAULT),
+	__MDNIE_ATTR_RW(sensorRGB, 0664, PA_DEFAULT),
+	__MDNIE_ATTR_RW(whiteRGB, 0664, PA_DEFAULT),
+	__MDNIE_ATTR_RW(night_mode, 0664, PA_DEFAULT),
+	__MDNIE_ATTR_RW(color_lens, 0664, PA_DEFAULT),
+	__MDNIE_ATTR_RW(hdr, 0664, PA_DEFAULT),
+	__MDNIE_ATTR_RW(light_notification, 0664, PA_DEFAULT),
+	__MDNIE_ATTR_RW(mdnie_ldu, 0664, PA_DEFAULT),
+#ifdef CONFIG_USDM_PANEL_HMD
+	__MDNIE_ATTR_RW(hmt_color_temperature, 0664, PA_DEFAULT),
+#endif
+#ifdef CONFIG_USDM_MDNIE_AFC
+	__MDNIE_ATTR_RW(afc, 0664, PA_DEFAULT),
 #endif
 };
 
@@ -1405,7 +1439,7 @@ static int mdnie_unregister_fb(struct mdnie_info *mdnie)
 	return 0;
 }
 
-#ifdef CONFIG_DISPLAY_USE_INFO
+#ifdef CONFIG_USDM_PANEL_DPUI
 static int dpui_notifier_callback(struct notifier_block *self,
 				 unsigned long event, void *data)
 {
@@ -1422,7 +1456,7 @@ static int dpui_notifier_callback(struct notifier_block *self,
 
 	panel_mutex_lock(&mdnie->lock);
 
-	resource_copy_by_name(panel, coordinate, "coordinate");
+	panel_resource_copy(panel, coordinate, "coordinate");
 	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d",
 			(coordinate[0] << 8) | coordinate[1]);
 	set_dpui_field(DPUI_KEY_WCRD_X, tbuf, size);
@@ -1470,7 +1504,7 @@ static int mdnie_unregister_dpui(struct mdnie_info *mdnie)
 
 	return 0;
 }
-#endif /* CONFIG_DISPLAY_USE_INFO */
+#endif /* CONFIG_USDM_PANEL_DPUI */
 
 __visible_for_testing int mdnie_init_property(struct mdnie_info *mdnie, struct mdnie_tune *mdnie_tune)
 {
@@ -1775,7 +1809,7 @@ int mdnie_probe(struct mdnie_info *mdnie, struct mdnie_tune *mdnie_tune)
 	if (ret < 0)
 		goto err;
 
-#ifdef CONFIG_DISPLAY_USE_INFO
+#ifdef CONFIG_USDM_PANEL_DPUI
 	ret = mdnie_register_dpui(mdnie);
 	if (ret < 0)
 		goto err;
@@ -1806,7 +1840,7 @@ int mdnie_remove(struct mdnie_info *mdnie)
 
 	mdnie_disable(mdnie);
 	panel_mutex_lock(&mdnie->lock);
-#ifdef CONFIG_DISPLAY_USE_INFO
+#ifdef CONFIG_USDM_PANEL_DPUI
 	mdnie_unregister_dpui(mdnie);
 #endif
 	mdnie_unregister_fb(mdnie);

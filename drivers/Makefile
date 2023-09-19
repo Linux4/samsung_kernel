@@ -203,6 +203,8 @@ include $(srctree)/drivers/Makefile.variant1
 endif
 obj-y += sec_panel_notifier_v2/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += vibrator/common/vib_info/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += gpu/drm/samsung/panel/sw83109/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += gpu/drm/samsung/panel/oled_common/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += samsung/debug/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += staging/android/switch/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += input/input_boost/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
@@ -213,16 +215,14 @@ obj-y += usb/vendor_notify/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += battery/core/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += muic/common/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += kperfmon/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-obj-y += gpu/drm/samsung/panel/sw83109c/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-obj-y += gpu/drm/samsung/panel/oled_common/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += usb/typec/manager/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += gpu/drm/samsung/panel/sw83109c/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += input/sec_input/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-obj-y += gpu/drm/samsung/panel/sw83109/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += input/touchscreen/goodix/berlin/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += fingerprint/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += battery/charger/sm5714_charger/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-obj-y += usb/typec/common/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += gpu/drm/samsung/panel/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += usb/typec/common/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += sti/abc/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += battery/charger/sm5451_charger/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += mfd/sm/sm5714/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT

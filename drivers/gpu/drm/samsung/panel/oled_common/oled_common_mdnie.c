@@ -13,9 +13,10 @@
 #include "../panel_debug.h"
 #include "../maptbl.h"
 #include "../mdnie.h"
+#include "../util.h"
 #include "oled_common.h"
 
-int getidx_mdnie_scenario_mode_maptbl(struct maptbl *tbl)
+int oled_maptbl_getidx_mdnie_scenario_mode(struct maptbl *tbl)
 {
 	struct panel_device *panel;
 	struct mdnie_info *mdnie;
@@ -28,10 +29,9 @@ int getidx_mdnie_scenario_mode_maptbl(struct maptbl *tbl)
 
 	return maptbl_index(tbl, mdnie->props.scenario, mdnie->props.mode, 0);
 }
-EXPORT_SYMBOL(getidx_mdnie_scenario_mode_maptbl);
 
-#ifdef CONFIG_SUPPORT_HMD
-int getidx_mdnie_hmd_maptbl(struct maptbl *tbl)
+#ifdef CONFIG_USDM_PANEL_HMD
+int oled_maptbl_getidx_mdnie_hmd(struct maptbl *tbl)
 {
 	struct mdnie_info *mdnie;
 
@@ -42,10 +42,9 @@ int getidx_mdnie_hmd_maptbl(struct maptbl *tbl)
 
 	return maptbl_get_indexof_row(tbl, mdnie->props.hmd);
 }
-EXPORT_SYMBOL(getidx_mdnie_hmd_maptbl);
 #endif
 
-int getidx_mdnie_hdr_maptbl(struct maptbl *tbl)
+int oled_maptbl_getidx_mdnie_hdr(struct maptbl *tbl)
 {
 	struct panel_device *panel;
 	struct mdnie_info *mdnie;
@@ -58,9 +57,8 @@ int getidx_mdnie_hdr_maptbl(struct maptbl *tbl)
 
 	return maptbl_get_indexof_row(tbl, mdnie->props.hdr);
 }
-EXPORT_SYMBOL(getidx_mdnie_hdr_maptbl);
 
-int getidx_mdnie_trans_mode_maptbl(struct maptbl *tbl)
+int oled_maptbl_getidx_mdnie_trans_mode(struct maptbl *tbl)
 {
 	struct panel_device *panel;
 	struct mdnie_info *mdnie;
@@ -76,9 +74,8 @@ int getidx_mdnie_trans_mode_maptbl(struct maptbl *tbl)
 
 	return maptbl_get_indexof_row(tbl, mdnie->props.trans_mode);
 }
-EXPORT_SYMBOL(getidx_mdnie_trans_mode_maptbl);
 
-int getidx_mdnie_night_mode_maptbl(struct maptbl *tbl)
+int oled_maptbl_getidx_mdnie_night_mode(struct maptbl *tbl)
 {
 	int mode = NIGHT_MODE_OFF;
 	struct panel_device *panel;
@@ -95,9 +92,8 @@ int getidx_mdnie_night_mode_maptbl(struct maptbl *tbl)
 
 	return maptbl_index(tbl, mode, mdnie->props.night_level, 0);
 }
-EXPORT_SYMBOL(getidx_mdnie_night_mode_maptbl);
 
-int getidx_color_lens_maptbl(struct maptbl *tbl)
+int oled_maptbl_getidx_color_lens(struct maptbl *tbl)
 {
 	struct panel_device *panel;
 	struct mdnie_info *mdnie;
@@ -123,9 +119,8 @@ int getidx_color_lens_maptbl(struct maptbl *tbl)
 
 	return maptbl_index(tbl, mdnie->props.color_lens_color, mdnie->props.color_lens_level, 0);
 }
-EXPORT_SYMBOL(getidx_color_lens_maptbl);
 
-void copy_scr_white_maptbl(struct maptbl *tbl, u8 *dst)
+void oled_maptbl_copy_scr_white(struct maptbl *tbl, u8 *dst)
 {
 	struct panel_device *panel;
 	struct mdnie_info *mdnie;
@@ -175,9 +170,8 @@ void copy_scr_white_maptbl(struct maptbl *tbl, u8 *dst)
 	mdnie_cur_wrgb_to_byte_array(mdnie, dst,
 			mdnie->props.scr_white_len);
 }
-EXPORT_SYMBOL(copy_scr_white_maptbl);
 
-void copy_scr_cr_maptbl(struct maptbl *tbl, u8 *dst)
+void oled_maptbl_copy_scr_cr(struct maptbl *tbl, u8 *dst)
 {
 	struct panel_device *panel;
 	struct mdnie_info *mdnie;
@@ -190,10 +184,9 @@ void copy_scr_cr_maptbl(struct maptbl *tbl, u8 *dst)
 
 	memcpy(dst, mdnie->props.scr, mdnie->props.sz_scr);
 }
-EXPORT_SYMBOL(copy_scr_cr_maptbl);
 
-#ifdef CONFIG_SUPPORT_AFC
-void copy_afc_maptbl(struct maptbl *tbl, u8 *dst)
+#ifdef CONFIG_USDM_MDNIE_AFC
+void oled_maptbl_copy_afc(struct maptbl *tbl, u8 *dst)
 {
 	struct panel_device *panel;
 	struct mdnie_info *mdnie;
@@ -207,9 +200,8 @@ void copy_afc_maptbl(struct maptbl *tbl, u8 *dst)
 			sizeof(mdnie->props.afc_roi));
 
 	panel_dbg("afc_on %d\n", mdnie->props.afc_on);
-	print_data(dst, sizeof(mdnie->props.afc_roi));
+	usdm_dbg_bytes(dst, sizeof(mdnie->props.afc_roi));
 }
-EXPORT_SYMBOL(copy_afc_maptbl);
 #endif
 
 MODULE_DESCRIPTION("oled_common_mdnie driver");

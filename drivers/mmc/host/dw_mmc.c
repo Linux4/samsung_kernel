@@ -637,6 +637,11 @@ static void dw_mci_update_clock(struct dw_mci_slot *slot)
 			/* reset controller because a command is stuecked */
 			if (mci_readl(host, RINTSTS) & SDMMC_INT_HLE) {
 				mci_writel(host, RINTSTS, SDMMC_INT_HLE);
+				host->drv_data->dump_reg(host);
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
+				/* Check for HLE issue */
+				dbg_snapshot_expire_watchdog();
+#endif
 				break;
 			}
 		}
@@ -2609,8 +2614,7 @@ static bool dw_mci_clear_pending_cmd_complete(struct dw_mci *host)
 	 * running concurrently so that the del_timer() in the interrupt
 	 * handler couldn't run.
 	 */
-	if (del_timer_sync(&host->cto_timer))
-		dev_err(host->dev, "%s: cto timer is not cleared\n", __func__);
+	WARN_ON(del_timer_sync(&host->cto_timer));
 	clear_bit(EVENT_CMD_COMPLETE, &host->pending_events);
 	dw_mci_debug_req_log(host, host->mrq, STATE_REQ_CMD_COMPLETE_TASKLET, host->state);
 
@@ -2869,9 +2873,8 @@ static void dw_mci_tasklet_func(unsigned long priv)
 				break;
 
 			set_bit(EVENT_XFER_COMPLETE, &host->completed_events);
-			set_bit(EVENT_CMD_COMPLETE, &host->pending_events);
-			dw_mci_debug_req_log(host, host->mrq, STATE_REQ_CMD_COMPLETE_TASKLET, state);
 			set_bit(EVENT_DATA_COMPLETE, &host->pending_events);
+			dw_mci_debug_req_log(host, host->mrq, STATE_REQ_CMD_COMPLETE_TASKLET, state);
 
 			state = STATE_DATA_BUSY;
 			dw_mci_debug_req_log(host, host->mrq, STATE_REQ_DATA_PROCESS, state);
@@ -3333,6 +3336,12 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 			mci_writel(host, RINTSTS, SDMMC_INT_HLE);
 			dw_mci_debug_cmd_log(host->cmd, host, false, DW_MCI_FLAG_ERROR, status);
 			host->cmd_status = pending;
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
+			/* Check for HLE issue */
+#ifndef CONFIG_SCSI_UFS_EXYNOS_BLOCK_WDT_RST
+			dbg_snapshot_expire_watchdog();
+#endif
+#endif
 			tasklet_schedule(&host->tasklet);
 		}
 
@@ -4035,9 +4044,6 @@ static void dw_mci_work_routine_card(struct work_struct *work)
 		if (present == 0) {
 			dw_mci_reset(host);
 			dw_mci_enable_interrupt(host, int_mask);
-
-			if (host->pdata->only_once_tune)
-				host->pdata->tuned = false;
 		}
 		spin_unlock_bh(&host->lock);
 	}
@@ -4114,9 +4120,6 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 
 	if (!device_property_read_u32(dev, "clock-frequency", &clock_frequency))
 		pdata->bus_hz = clock_frequency;
-
-	if (of_find_property(np, "only_once_tune", NULL))
-		pdata->only_once_tune = true;
 
 	if (drv_data && drv_data->parse_dt) {
 		ret = drv_data->parse_dt(host);
@@ -4421,8 +4424,6 @@ int dw_mci_probe(struct dw_mci *host)
 
 	if (ret)
 		goto err_workqueue;
-
-	host->pdata->tuned = false;
 
 	/*
 	 * Enable interrupts for command done, data over, data empty,

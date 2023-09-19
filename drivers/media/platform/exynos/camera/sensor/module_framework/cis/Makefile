@@ -72,6 +72,7 @@ obj-$(CONFIG_CAMERA_CIS_HI1337_OBJ) += is-cis-hi1337.o
 obj-$(CONFIG_CAMERA_CIS_IMX355_OBJ) += is-cis-imx355.o
 obj-$(CONFIG_CAMERA_CIS_GM2_OBJ) += is-cis-gm2.o
 obj-$(CONFIG_CAMERA_CIS_HI846_OBJ) += is-cis-hi846.o
+obj-$(CONFIG_CAMERA_CIS_HI847_OBJ) += is-cis-hi847.o
 obj-$(CONFIG_CAMERA_CIS_GD1_TELE_OBJ) += is-cis-gd1-tele.o
 obj-$(CONFIG_CAMERA_CIS_3M5_FOLD_OBJ) += is-cis-3m5-fold.o
 

@@ -4483,7 +4483,7 @@ static int ufshcd_complete_dev_init(struct ufs_hba *hba)
 					QUERY_FLAG_IDN_FDEVICEINIT, 0, &flag_res);
 		if (!flag_res)
 			break;
-		usleep_range(500, 1000);
+		usleep_range(5000, 10000);
 	} while (ktime_before(ktime_get(), timeout));
 
 	if (err) {
@@ -4852,8 +4852,10 @@ static int ufshcd_verify_dev_init(struct ufs_hba *hba)
 	mutex_unlock(&hba->dev_cmd.lock);
 	ufshcd_release(hba);
 
-	if (err)
+	if (err) {
 		dev_err(hba->dev, "%s: NOP OUT failed %d\n", __func__, err);
+		ufshcd_print_evt_hist(hba);
+	}
 	return err;
 }
 
@@ -6140,6 +6142,9 @@ static bool ufshcd_is_pwr_mode_restore_needed(struct ufs_hba *hba)
 	u32 mode;
 
 	ufshcd_dme_get(hba, UIC_ARG_MIB(PA_PWRMODE), &mode);
+
+	dev_info(hba->dev, "%s : mode = 0x%x, pwr_rx = %d, pwr_tx = %d\n",
+			__func__, mode, pwr_info->pwr_rx, pwr_info->pwr_tx);
 
 	if (pwr_info->pwr_rx != ((mode >> PWRMODE_RX_OFFSET) & PWRMODE_MASK))
 		return true;
@@ -8717,7 +8722,7 @@ static int ufshcd_set_dev_pwr_mode(struct ufs_hba *hba,
 	 */
 	for (retries = 3; retries > 0; --retries) {
 		ret = scsi_execute(sdp, cmd, DMA_NONE, NULL, 0, NULL, &sshdr,
-				   HZ, 0, 0, RQF_PM, NULL);
+				   START_STOP_TIMEOUT, 0, 0, RQF_PM, NULL);
 		/*
 		 * scsi_execute() only returns a negative value if the request
 		 * queue is dying.

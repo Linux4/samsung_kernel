@@ -303,13 +303,16 @@ static int parsing_load_firmware(struct io_device *iod, unsigned long arg)
 		err = -EFAULT;
 		return err;
 	}
-	if (firmware_arg.offset < pdata->code_offset) {
-		gif_err("wrong offset to download firmware\n");
+	if ((firmware_arg.offset < pdata->code_offset) ||
+		(pdata->code_allowed_size < (firmware_arg.offset - pdata->code_offset))) {
+		gif_err("wrong offset to download firmware:0x%x 0x%x 0x%x\n",
+			firmware_arg.offset, pdata->code_offset, pdata->code_allowed_size);
 		err = -EFAULT;
 		return err;
 	}
-	if ((firmware_arg.firmware_size+firmware_arg.offset) > (pdata->code_offset + pdata->code_allowed_size)) {
-		gif_err("size too big to download\n");
+	if (firmware_arg.firmware_size > pdata->code_allowed_size) {
+		gif_err("size too big to download:0x%x 0x%x\n",
+			firmware_arg.firmware_size, pdata->code_allowed_size);
 		err = -EFAULT;
 		return err;
 	}
@@ -360,14 +363,16 @@ static int parsing_load_data(struct io_device *iod, unsigned long arg)
 		err = -EFAULT;
 		return err;
 	}
-	if (data_arg.offset < pdata->code_offset) {
-		gif_err("wrong offset to download configuration data\n");
+	if ((data_arg.offset < pdata->code_offset) ||
+		(pdata->code_allowed_size < (data_arg.offset - pdata->code_offset))) {
+		gif_err("wrong offset to download configuration data:0x%x 0x%x 0x%x\n",
+			data_arg.offset, pdata->code_offset, pdata->code_allowed_size);
 		err = -EFAULT;
 		return err;
 	}
-	if ((data_arg.size+data_arg.offset) >
-			(pdata->code_offset + pdata->code_allowed_size)) {
-		gif_err("size too big to download\n");
+	if (data_arg.size > pdata->code_allowed_size) {
+		gif_err("size too big to download:0x%x 0x%x\n",
+			data_arg.size, pdata->code_allowed_size);
 		err = -EFAULT;
 		return err;
 	}

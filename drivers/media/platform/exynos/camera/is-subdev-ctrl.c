@@ -693,7 +693,9 @@ static int is_subdev_internal_alloc_buffer(struct is_subdev *subdev)
 	u32 sbwc_block_width = 0, sbwc_block_height = 0;
 	u32 sbwc_height;
 	struct is_core *core;
+#if defined(USE_CAMERA_HEAP)
 	char heapname[25] = {0};
+#endif
 
 	FIMC_BUG(!subdev);
 

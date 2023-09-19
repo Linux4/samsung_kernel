@@ -15,6 +15,12 @@
 #include "pablo-hw-api-common.h"
 #include "is-ois-mcu.h"
 
+enum {
+	PMU_POWER_STATE_RESET = 0x00,
+	PMU_POWER_STATE_POWER_UP = 0x10,
+	PMU_POWER_STATE_POWER_DOWN = 0x80,
+};
+
 enum mcu_event_type {
 	MCU_IRQ_WDT,
 	MCU_IRQ_WDT_RST,
@@ -26,11 +32,13 @@ enum mcu_event_type {
 /*
  * Configuation functions
  */
-void __is_mcu_pmu_control(int on);
-int __is_mcu_hw_enable(void __iomem *base);
-int __is_mcu_hw_disable(void __iomem *base);
+ 
+int __is_mcu_mcu_state(void __iomem *base, int *state);
+int __is_mcu_pmu_control(int on);
 int __is_mcu_core_control(void __iomem *base, int on);
 int __is_mcu_qch_control(void __iomem *base, int on);
+int __is_mcu_hw_enable(void __iomem *base);
+int __is_mcu_hw_disable(void __iomem *base);
 long __is_mcu_load_fw(void __iomem *base, struct device *dev);
 unsigned int __is_mcu_get_sram_size(void);
 int __is_mcu_hw_reset_peri(void __iomem *base, int onoff);
@@ -61,3 +69,4 @@ void is_mcu_set_reg_u8(void __iomem *base, int cmd, u8 val);
 u8 is_mcu_get_reg_u8(void __iomem *base, int cmd);
 void is_mcu_hw_set_field(void __iomem *base, int cmd, int field, u32 val);
 #endif
+

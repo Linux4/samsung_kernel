@@ -20,15 +20,28 @@
 
 #define MAX_MAFPC_CTRL_CMD_SIZE 66
 
-#define MAFPC_CRC_LEN 2
+#define MAFPC_CRC_LEN		2
 
-#define MAFPC_HEADER_SIZE 1
-#define MAFPC_HEADER 'M'
+#define MAFPC_HEADER_SIZE	1
+#define MAFPC_HEADER		'M'
+#define MAFPC_DATA_IDENTIFIER	0
 
 #define MAFPC_UPDATED_FROM_SVC		0x01
 #define MAFPC_UPDATED_TO_DEV		0x10
 
 #define MAFPC_V4L2_DEV_NAME	"mafpc-sd"
+
+
+/*reserved mem info for generate lpd burn-in image*/
+struct comp_mem_info {
+	bool reserved;
+
+	phys_addr_t image_base;
+	size_t image_size;
+
+	phys_addr_t lut_base;
+	size_t lut_size;
+};
 
 struct mafpc_device {
 	int id;
@@ -68,6 +81,8 @@ struct mafpc_device {
 	int scale_map_br_tbl_len;
 
 	u32 ctrl_cmd_len;
+
+	struct comp_mem_info comp_mem;
 };
 
 struct mafpc_info {
@@ -93,6 +108,8 @@ struct mafpc_device *get_mafpc_device(struct panel_device *panel);
 #define IOCTL_MAFPC_ON_INSTANT		_IOW(MAFPC_IOCTL_MAGIC, 2, int)
 #define IOCTL_MAFPC_OFF			_IOW(MAFPC_IOCTL_MAGIC, 3, int)
 #define IOCTL_MAFPC_OFF_INSTANT		_IOW(MAFPC_IOCTL_MAGIC, 4, int)
+#define IOCTL_CLEAR_IMAGE_BUFFER	_IOW(MAFPC_IOCTL_MAGIC, 5, int)
+
 
 #define MAFPC_V4L2_IOC_BASE		'V'
 

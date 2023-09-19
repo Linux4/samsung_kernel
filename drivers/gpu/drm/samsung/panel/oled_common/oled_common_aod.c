@@ -13,7 +13,7 @@
 #include "../panel_debug.h"
 #include "oled_common_aod.h"
 
-void oled_aod_copy_digital_pos(struct maptbl *tbl, u8 *dst)
+void oled_maptbl_copy_aod_digital_pos(struct maptbl *tbl, u8 *dst)
 {
 	struct panel_device *panel;
 	struct aod_dev_info *aod;
@@ -55,9 +55,8 @@ void oled_aod_copy_digital_pos(struct maptbl *tbl, u8 *dst)
 	dst[DIG_CLK_HEIGHT1_REG] = (u8)(props->digital.img_height >> 8);
 	dst[DIG_CLK_HEIGHT2_REG] = (u8)(props->digital.img_height & 0xff);
 }
-EXPORT_SYMBOL(oled_aod_copy_digital_pos);
 
-void oled_aod_copy_time(struct maptbl *tbl, u8 *dst)
+void oled_maptbl_copy_aod_time(struct maptbl *tbl, u8 *dst)
 {
 	struct panel_device *panel;
 	struct aod_dev_info *aod;
@@ -78,9 +77,8 @@ void oled_aod_copy_time(struct maptbl *tbl, u8 *dst)
 	panel_info("%x %x %x\n",
 			dst[TIME_HH_REG], dst[TIME_MM_REG], dst[TIME_SS_REG]);
 }
-EXPORT_SYMBOL(oled_aod_copy_time);
 
-void oled_aod_copy_timer_rate(struct maptbl *tbl, u8 *dst)
+void oled_maptbl_copy_aod_timer_rate(struct maptbl *tbl, u8 *dst)
 {
 	struct panel_device *panel;
 	struct aod_dev_info *aod;
@@ -128,9 +126,8 @@ void oled_aod_copy_timer_rate(struct maptbl *tbl, u8 *dst)
 	panel_info("dst[1]:%x, dst[2]:%x\n",
 			dst[1], dst[2]);
 }
-EXPORT_SYMBOL(oled_aod_copy_timer_rate);
 
-void oled_aod_copy_timer_rate_hop(struct maptbl *tbl, u8 *dst)
+void oled_maptbl_copy_aod_timer_rate_hop(struct maptbl *tbl, u8 *dst)
 {
 	u8 value = 0;
 	struct panel_device *panel;
@@ -183,9 +180,8 @@ void oled_aod_copy_timer_rate_hop(struct maptbl *tbl, u8 *dst)
 	dst[1] = value;
 	panel_info("dst[1]:%x, dst[2]:%x\n", dst[1], dst[2]);
 }
-EXPORT_SYMBOL(oled_aod_copy_timer_rate_hop);
 
-void oled_aod_copy_self_move_on_ctrl(struct maptbl *tbl, u8 *dst)
+void oled_maptbl_copy_aod_self_move_on_ctrl(struct maptbl *tbl, u8 *dst)
 {
 	u8 enable = 0;
 	struct panel_device *panel;
@@ -206,9 +202,8 @@ void oled_aod_copy_self_move_on_ctrl(struct maptbl *tbl, u8 *dst)
 
 	panel_info("%x\n", dst[SM_ENABLE_REG]);
 }
-EXPORT_SYMBOL(oled_aod_copy_self_move_on_ctrl);
 
-void oled_aod_copy_analog_pos(struct maptbl *tbl, u8 *dst)
+void oled_maptbl_copy_aod_analog_pos(struct maptbl *tbl, u8 *dst)
 {
 	int pos_x, pos_y;
 	struct panel_device *panel;
@@ -264,9 +259,8 @@ void oled_aod_copy_analog_pos(struct maptbl *tbl, u8 *dst)
 		dst[ANALOG_POS_X1_REG], dst[ANALOG_POS_X2_REG],
 		dst[ANALOG_POS_Y1_REG], dst[ANALOG_POS_Y2_REG]);
 }
-EXPORT_SYMBOL(oled_aod_copy_analog_pos);
 
-void oled_aod_copy_analog_en(struct maptbl *tbl, u8 *dst)
+void oled_maptbl_copy_aod_analog_en(struct maptbl *tbl, u8 *dst)
 {
 	u8 en_reg = 0;
 	struct panel_device *panel;
@@ -287,9 +281,8 @@ void oled_aod_copy_analog_en(struct maptbl *tbl, u8 *dst)
 
 	panel_dbg("%x %x %x\n", dst[0], dst[1], dst[2]);
 }
-EXPORT_SYMBOL(oled_aod_copy_analog_en);
 
-void oled_aod_copy_digital_en(struct maptbl *tbl, u8 *dst)
+void oled_maptbl_copy_aod_digital_en(struct maptbl *tbl, u8 *dst)
 {
 	u8 en_reg = 0;
 	u8 disp_format = 0;
@@ -323,9 +316,8 @@ void oled_aod_copy_digital_en(struct maptbl *tbl, u8 *dst)
 
 	panel_info("%x %x %x %x\n", dst[0], dst[1], dst[2], dst[3]);
 }
-EXPORT_SYMBOL(oled_aod_copy_digital_en);
 
-int oled_aod_getidx_self_mode_pos(struct maptbl *tbl)
+int oled_maptbl_getidx_aod_self_mode_pos(struct maptbl *tbl)
 {
 	int row = 0;
 	struct panel_device *panel;
@@ -368,9 +360,8 @@ int oled_aod_getidx_self_mode_pos(struct maptbl *tbl)
 	}
 	return maptbl_index(tbl, 0, row, 0);
 }
-EXPORT_SYMBOL(oled_aod_getidx_self_mode_pos);
 
-void oled_aod_copy_self_move_reset(struct maptbl *tbl, u8 *dst)
+void oled_maptbl_copy_aod_self_move_reset(struct maptbl *tbl, u8 *dst)
 {
 	struct panel_device *panel;
 	struct aod_dev_info *aod;
@@ -390,9 +381,8 @@ void oled_aod_copy_self_move_reset(struct maptbl *tbl, u8 *dst)
 	panel_info("%x:%x:%x:%x:%x\n",
 			dst[0], dst[1], dst[2], dst[3], dst[4]);
 }
-EXPORT_SYMBOL(oled_aod_copy_self_move_reset);
 
-void oled_aod_copy_icon_ctrl(struct maptbl *tbl, u8 *dst)
+void oled_maptbl_copy_aod_icon_ctrl(struct maptbl *tbl, u8 *dst)
 {
 	u8 enable = 0;
 	struct panel_device *panel;
@@ -432,9 +422,8 @@ void oled_aod_copy_icon_ctrl(struct maptbl *tbl, u8 *dst)
 	panel_info("%x:%x:%x:%x:%x\n",
 			dst[0], dst[1], dst[2], dst[3], dst[4]);
 }
-EXPORT_SYMBOL(oled_aod_copy_icon_ctrl);
 
-void oled_aod_copy_digital_color(struct maptbl *tbl, u8 *dst)
+void oled_maptbl_copy_aod_digital_color(struct maptbl *tbl, u8 *dst)
 {
 	struct panel_device *panel;
 	struct aod_dev_info *aod;
@@ -455,9 +444,8 @@ void oled_aod_copy_digital_color(struct maptbl *tbl, u8 *dst)
 	dst[DIG_COLOR_GREEN_REG] = (u8)((props->digital.color >> 8) & 0xff);
 	dst[DIG_COLOR_BLUE_REG] = (u8)(props->digital.color & 0xff);
 }
-EXPORT_SYMBOL(oled_aod_copy_digital_color);
 
-void oled_aod_copy_digital_un_width(struct maptbl *tbl, u8 *dst)
+void oled_maptbl_copy_aod_digital_un_width(struct maptbl *tbl, u8 *dst)
 {
 	struct panel_device *panel;
 	struct aod_dev_info *aod;
@@ -476,9 +464,8 @@ void oled_aod_copy_digital_un_width(struct maptbl *tbl, u8 *dst)
 	dst[DIG_UN_WIDTH0] = (u8)((props->digital.unicode_width >> 8) & 0xff);
 	dst[DIG_UN_WIDTH1] = (u8)(props->digital.unicode_width & 0xff);
 }
-EXPORT_SYMBOL(oled_aod_copy_digital_un_width);
 
-void oled_aod_copy_partial_mode(struct maptbl *tbl, u8 *dst)
+void oled_maptbl_copy_aod_partial_mode(struct maptbl *tbl, u8 *dst)
 {
 	u8 enable = 0;
 	struct panel_device *panel;
@@ -507,9 +494,8 @@ void oled_aod_copy_partial_mode(struct maptbl *tbl, u8 *dst)
 	dst[SCAN_ENABLE_REG] = 0x81;
 	panel_info("force enable partial hlpm to 0x81\n");
 }
-EXPORT_SYMBOL(oled_aod_copy_partial_mode);
 
-void oled_aod_copy_partial_area(struct maptbl *tbl, u8 *dst)
+void oled_maptbl_copy_aod_partial_area(struct maptbl *tbl, u8 *dst)
 {
 	struct panel_device *panel;
 	struct aod_dev_info *aod;
@@ -529,9 +515,8 @@ void oled_aod_copy_partial_area(struct maptbl *tbl, u8 *dst)
 		dst[PARTIAL_AREA_EL1_REG] = (u8)(props->partial.scan_el & 0xff);
 	}
 }
-EXPORT_SYMBOL(oled_aod_copy_partial_area);
 
-void oled_aod_copy_partial_hlpm(struct maptbl *tbl, u8 *dst)
+void oled_maptbl_copy_aod_partial_hlpm(struct maptbl *tbl, u8 *dst)
 {
 	struct panel_device *panel;
 	struct aod_dev_info *aod;
@@ -558,10 +543,9 @@ void oled_aod_copy_partial_hlpm(struct maptbl *tbl, u8 *dst)
 		dst[PARTIAL_HLPM4_L1_REG] = (u8)(props->partial.hlpm_area_4 & 0xff);
 	}
 }
-EXPORT_SYMBOL(oled_aod_copy_partial_hlpm);
 
 #ifdef SUPPORT_NORMAL_SELF_MOVE
-int oled_aod_getidx_self_pattern(struct maptbl *tbl)
+int oled_maptbl_getidx_aod_self_pattern(struct maptbl *tbl)
 {
 	int row = 0;
 	struct panel_device *panel;
@@ -597,9 +581,8 @@ int oled_aod_getidx_self_pattern(struct maptbl *tbl)
 
 	return maptbl_index(tbl, 0, row, 0);
 }
-EXPORT_SYMBOL(oled_aod_getidx_self_pattern);
 
-void oled_aod_copy_self_move_pattern(struct maptbl *tbl, u8 *dst)
+void oled_maptbl_copy_aod_self_move_pattern(struct maptbl *tbl, u8 *dst)
 {
 	int idx;
 	struct panel_device *panel;
@@ -625,7 +608,6 @@ void oled_aod_copy_self_move_pattern(struct maptbl *tbl, u8 *dst)
 		dst[0], dst[1], dst[2], dst[3],
 		dst[4], dst[5], dst[6], dst[7], dst[8]);
 }
-EXPORT_SYMBOL(oled_aod_copy_self_move_pattern);
 #endif
 
 MODULE_DESCRIPTION("oled_common_aod driver");

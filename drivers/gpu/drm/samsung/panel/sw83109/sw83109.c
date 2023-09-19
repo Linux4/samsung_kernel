@@ -14,25 +14,16 @@
 #include <video/mipi_display.h>
 #include "../panel_kunit.h"
 #include "../panel.h"
+#include "../panel_function.h"
 #include "sw83109.h"
-#ifdef CONFIG_PANEL_AID_DIMMING
+#ifdef CONFIG_USDM_PANEL_DIMMING
 #include "../dimming.h"
 #include "../panel_dimming.h"
 #endif
 #include "../panel_drv.h"
 #include "../panel_debug.h"
 
-#if IS_ENABLED(CONFIG_SEC_ABC)
-#include <linux/sti/abc_common.h>
-#endif
-
-#if IS_ENABLED(CONFIG_DISPLAY_USE_INFO)
-#include "../dpui.h"
-#endif
-
-#include "../abd.h"
-
-#ifdef CONFIG_PANEL_AID_DIMMING
+#ifdef CONFIG_USDM_PANEL_DIMMING
 int generate_brt_step_table(struct brightness_table *brt_tbl)
 {
 	int ret = 0;
@@ -85,10 +76,10 @@ int generate_brt_step_table(struct brightness_table *brt_tbl)
 	}
 	return ret;
 }
-#endif /* CONFIG_PANEL_AID_DIMMING */
+#endif /* CONFIG_USDM_PANEL_DIMMING */
 
-#ifdef CONFIG_MCD_PANEL_LPM
-#ifdef CONFIG_SUPPORT_AOD_BL
+#ifdef CONFIG_USDM_PANEL_LPM
+#ifdef CONFIG_USDM_PANEL_AOD_BL
 int init_aod_dimming_table(struct maptbl *tbl)
 {
 	int id = PANEL_BL_SUBDEV_TYPE_AOD;
@@ -118,35 +109,16 @@ int init_aod_dimming_table(struct maptbl *tbl)
 #endif
 #endif
 
-void copy_tset_maptbl(struct maptbl *tbl, u8 *dst)
+int sw83109_maptbl_init_lpm_brt(struct maptbl *tbl)
 {
-	struct panel_device *panel;
-	struct panel_info *panel_data;
-
-	if (!tbl || !dst)
-		return;
-
-	panel = (struct panel_device *)tbl->pdata;
-	if (unlikely(!panel))
-		return;
-
-	panel_data = &panel->panel_data;
-
-	*dst = (panel_data->props.temperature < 0) ?
-		BIT(7) | abs(panel_data->props.temperature) :
-		panel_data->props.temperature;
-}
-
-int init_lpm_brt_table(struct maptbl *tbl)
-{
-#ifdef CONFIG_SUPPORT_AOD_BL
+#ifdef CONFIG_USDM_PANEL_AOD_BL
 	return init_aod_dimming_table(tbl);
 #else
-	return init_common_table(tbl);
+	return oled_maptbl_init_default(tbl);
 #endif
 }
 
-int getidx_lpm_brt_table(struct maptbl *tbl)
+int sw83109_maptbl_getidx_lpm_brt(struct maptbl *tbl)
 {
 	int row = 0;
 	struct panel_device *panel;
@@ -157,8 +129,8 @@ int getidx_lpm_brt_table(struct maptbl *tbl)
 	panel_bl = &panel->panel_bl;
 	props = &panel->panel_data.props;
 
-#ifdef CONFIG_MCD_PANEL_LPM
-#ifdef CONFIG_SUPPORT_AOD_BL
+#ifdef CONFIG_USDM_PANEL_LPM
+#ifdef CONFIG_USDM_PANEL_AOD_BL
 	panel_bl = &panel->panel_bl;
 	row = get_subdev_actual_brightness_index(panel_bl, PANEL_BL_SUBDEV_TYPE_AOD,
 			panel_bl->subdev[PANEL_BL_SUBDEV_TYPE_AOD].brightness);
@@ -222,7 +194,7 @@ int getidx_sw83109_current_vrr_fps(struct panel_device *panel)
 	return getidx_sw83109_vrr_fps(vrr_fps);
 }
 
-int getidx_vrr_fps_table(struct maptbl *tbl)
+int sw83109_maptbl_getidx_vrr_fps(struct maptbl *tbl)
 {
 	struct panel_device *panel = (struct panel_device *)tbl->pdata;
 	int row = 0, layer = 0, index;
@@ -236,7 +208,7 @@ int getidx_vrr_fps_table(struct maptbl *tbl)
 	return maptbl_index(tbl, layer, row, 0);
 }
 
-void copy_fmem_maptbl(struct maptbl *tbl, u8 *dst)
+void sw83109_maptbl_copy_fmem(struct maptbl *tbl, u8 *dst)
 {
 	struct panel_device *panel;
 	u8 val[SW83109_TRIM_LEN] = { 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12 };
@@ -249,7 +221,7 @@ void copy_fmem_maptbl(struct maptbl *tbl, u8 *dst)
 	if (unlikely(!panel))
 		return;
 
-	ret = resource_copy_by_name(panel, val, "trim");
+	ret = panel_resource_copy(panel, val, "trim");
 	if (unlikely(ret < 0)) {
 		panel_err("%s not found in panel resource\n", "trim");
 		return;
@@ -259,7 +231,7 @@ void copy_fmem_maptbl(struct maptbl *tbl, u8 *dst)
 	memcpy(dst, val, SW83109_TRIM_LEN);
 }
 
-int init_gamma_mode2_brt_table(struct maptbl *tbl)
+int sw83109_maptbl_init_gamma_mode2_brt(struct maptbl *tbl)
 {
 	struct panel_info *panel_data;
 	struct panel_device *panel;
@@ -300,25 +272,7 @@ int init_gamma_mode2_brt_table(struct maptbl *tbl)
 	return 0;
 }
 
-int getidx_gamma_mode2_brt_table(struct maptbl *tbl)
-{
-	int row = 0;
-	struct panel_bl_device *panel_bl;
-	struct panel_device *panel = (struct panel_device *)tbl->pdata;
-
-	if (panel == NULL) {
-		panel_err("panel is null\n");
-		return -EINVAL;
-	}
-	panel_bl = &panel->panel_bl;
-
-	row = get_brightness_pac_step_by_subdev_id(panel_bl, 0, panel_bl->props.brightness);
-
-	return maptbl_index(tbl, 0, row, 0);
-}
-
-
-int sw83109_getidx_ffc_table(struct maptbl *tbl)
+int sw83109_maptbl_getidx_ffc(struct maptbl *tbl)
 {
 	int idx;
 	u32 dsi_clk;
@@ -354,7 +308,7 @@ int sw83109_get_cell_id(struct panel_device *panel, void *buf)
 		panel_err("panel is null\n");
 		return -EINVAL;
 	}
-	resource_copy_by_name(panel, cell_id, "date");
+	panel_resource_copy(panel, cell_id, "date");
 
 	snprintf(buf, PAGE_SIZE, "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n",
 		cell_id[0], cell_id[1], cell_id[2], cell_id[3], cell_id[4],
@@ -370,7 +324,7 @@ int sw83109_get_manufacture_code(struct panel_device *panel, void *buf)
 		panel_err("panel is null\n");
 		return -EINVAL;
 	}
-	resource_copy_by_name(panel, code, "code");
+	panel_resource_copy(panel, code, "code");
 
 	snprintf(buf, PAGE_SIZE, "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n",
 		code[0], code[1], code[2], code[3], code[4],
@@ -389,7 +343,7 @@ int sw83109_get_manufacture_date(struct panel_device *panel, void *buf)
 		panel_err("panel is null\n");
 		return -EINVAL;
 	}
-	resource_copy_by_name(panel, date, "date");
+	panel_resource_copy(panel, date, "date");
 
 	year = ((date[0] & 0xF0) >> 4) + 2011;
 	month = date[0] & 0xF;
@@ -404,7 +358,7 @@ int sw83109_get_manufacture_date(struct panel_device *panel, void *buf)
 	return 0;
 }
 
-int sw83109_getidx_acl_opr_table(struct maptbl *tbl)
+int sw83109_maptbl_getidx_acl_opr(struct maptbl *tbl)
 {
 	struct panel_device *panel = (struct panel_device *)tbl->pdata;
 	struct panel_bl_device *panel_bl;
@@ -432,7 +386,7 @@ int sw83109_getidx_acl_opr_table(struct maptbl *tbl)
 	return maptbl_index(tbl, 0, row, 0);
 }
 
-int sw83109_getidx_acl_onoff_table(struct maptbl *tbl)
+int sw83109_maptbl_getidx_acl_onoff(struct maptbl *tbl)
 {
 	struct panel_device *panel = (struct panel_device *)tbl->pdata;
 	int row;
@@ -446,19 +400,33 @@ int sw83109_getidx_acl_onoff_table(struct maptbl *tbl)
 	return maptbl_index(tbl, 0, row, 0);
 }
 
-bool is_panel_state_acl(struct panel_device *panel)
-{
-	if (panel_bl_get_acl_pwrsave(&panel->panel_bl) == ACL_PWRSAVE_ON)
-		return true;
-	return false;
-}
+struct pnobj_func sw83109_function_table[MAX_SW83109_FUNCTION] = {
+	[SW83109_MAPTBL_INIT_GAMMA_MODE2_BRT] = __PNOBJ_FUNC_INITIALIZER(SW83109_MAPTBL_INIT_GAMMA_MODE2_BRT, sw83109_maptbl_init_gamma_mode2_brt),
+	[SW83109_MAPTBL_INIT_LPM_BRT] = __PNOBJ_FUNC_INITIALIZER(SW83109_MAPTBL_INIT_LPM_BRT, sw83109_maptbl_init_lpm_brt),
+	[SW83109_MAPTBL_GETIDX_LPM_BRT] = __PNOBJ_FUNC_INITIALIZER(SW83109_MAPTBL_GETIDX_LPM_BRT, sw83109_maptbl_getidx_lpm_brt),
+	[SW83109_MAPTBL_COPY_FMEM] = __PNOBJ_FUNC_INITIALIZER(SW83109_MAPTBL_COPY_FMEM, sw83109_maptbl_copy_fmem),
+	[SW83109_MAPTBL_GETIDX_VRR_FPS] = __PNOBJ_FUNC_INITIALIZER(SW83109_MAPTBL_GETIDX_VRR_FPS, sw83109_maptbl_getidx_vrr_fps),
+	[SW83109_MAPTBL_GETIDX_FFC] = __PNOBJ_FUNC_INITIALIZER(SW83109_MAPTBL_GETIDX_FFC, sw83109_maptbl_getidx_ffc),
+	[SW83109_MAPTBL_GETIDX_ACL_OPR] = __PNOBJ_FUNC_INITIALIZER(SW83109_MAPTBL_GETIDX_ACL_OPR, sw83109_maptbl_getidx_acl_opr),
+	[SW83109_MAPTBL_GETIDX_ACL_ONOFF] = __PNOBJ_FUNC_INITIALIZER(SW83109_MAPTBL_GETIDX_ACL_ONOFF, sw83109_maptbl_getidx_acl_onoff),
+};
 
-bool is_panel_state_not_lpm(struct panel_device *panel)
+int sw83109_init(void)
 {
-	if (panel->state.cur_state != PANEL_STATE_ALPM)
-		return true;
+	static bool once;
+	int ret;
 
-	return false;
+	if (once)
+		return 0;
+
+	ret = panel_function_insert_array(sw83109_function_table,
+			ARRAY_SIZE(sw83109_function_table));
+	if (ret < 0)
+		panel_err("failed to insert sw83109_function_table\n");
+
+	once = true;
+
+	return 0;
 }
 
 MODULE_DESCRIPTION("Samsung Mobile Panel Driver");

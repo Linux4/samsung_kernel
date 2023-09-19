@@ -127,7 +127,7 @@
 						10 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 500>; gpio = <&gpm13 0 0x1>; };
 						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 100>; };
 						30 { pname = "VDDD_1.2V_MACRO"; pin = <PIN_REGULATOR 1 0 1200000>; };
-						40 { pname = "VDDA_2.8V_CAM"; pin = <PIN_REGULATOR 1 0 2800000>; };
+						40 { pname = "VDDA_2.8V_CAM"; pin = <PIN_REGULATOR 1 0>; };
 						50 { pname = "on_i2c"; pin = <PIN_I2C 1 5000>; };
 						60 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpm13 0 0x1>; };
 						70 { pname = "pin"; pin = <PIN_FUNCTION 2 1500>; };
@@ -158,7 +158,7 @@
 						10 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 500>; gpio = <&gpm13 0 0x1>; };
 						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 100>; };
 						30 { pname = "VDDD_1.2V_MACRO"; pin = <PIN_REGULATOR 1 0 1200000>; };
-						40 { pname = "VDDA_2.8V_CAM"; pin = <PIN_REGULATOR 1 0 2800000>; };
+						40 { pname = "VDDA_2.8V_CAM"; pin = <PIN_REGULATOR 1 0>; };
 						50 { pname = "on_i2c"; pin = <PIN_I2C 1 5000>; };
 						60 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpm13 0 0x1>; };
 						70 { pname = "pin"; pin = <PIN_FUNCTION 2 1500>; };
@@ -187,7 +187,7 @@
 						10 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 500>; gpio = <&gpm13 0 0x1>; };
 						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 100>; };
 						30 { pname = "VDDD_1.2V_MACRO"; pin = <PIN_REGULATOR 1 0 1200000>; };
-						40 { pname = "VDDA_2.8V_CAM"; pin = <PIN_REGULATOR 1 0 2800000>; };
+						40 { pname = "VDDA_2.8V_CAM"; pin = <PIN_REGULATOR 1 0>; };
 						50 { pname = "on_i2c"; pin = <PIN_I2C 1 5000>; };
 						60 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpm13 0 0x1>; };
 						70 { pname = "pin"; pin = <PIN_FUNCTION 2 1500>; };

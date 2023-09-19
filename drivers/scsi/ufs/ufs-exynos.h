@@ -193,6 +193,7 @@ struct exynos_ufs {
 	struct notifier_block itmon_nb;
 #endif
 	bool skip_flush;
+	bool deep_suspended;
 };
 
 static inline struct exynos_ufs *to_exynos_ufs(struct ufs_hba *hba)

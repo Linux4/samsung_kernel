@@ -67,17 +67,44 @@ void is_mcu_hw_set_field(void __iomem *base, int cmd, int field, u32 val)
 	}
 }
 
-void __is_mcu_pmu_control(int on)
+int __is_mcu_mcu_state(void __iomem *base, int *state)
 {
-	if (on) {
-		exynos_pmu_update(ois_mcu_regs[R_OIS_CPU_CONFIGURATION].sfr_offset,
+	int ret = 0;
+	int state_power = 0, state_qch = 0;
+
+	ret = exynos_pmu_read(ois_mcu_regs[R_OIS_CPU_STATES].sfr_offset, &state_power);
+	if (ret)
+		err_mcu("%s Failed to read pmu (%d)", __func__, ret);
+
+	state_power &= 0xFF;
+
+	state_qch = is_mcu_get_reg(base, R_OIS_CSIS_QCH);
+	state_qch &= 0x04;
+
+	if ((state_power == PMU_POWER_STATE_POWER_UP) && state_qch)
+		*state = true;
+	else
+		*state = false;
+
+	dbg_ois("%s state_power (%X), state_qch (%X), state (%d)", __func__, state_power, state_qch, *state);
+	return ret;
+}
+
+int __is_mcu_pmu_control(int on)
+{
+	int ret = 0;
+
+	if (on)
+		ret = exynos_pmu_update(ois_mcu_regs[R_OIS_CPU_CONFIGURATION].sfr_offset,
 			pmu_ois_mcu_masks[R_OIS_CPU_CONFIGURATION].sfr_offset, 0x1);
-	} else {
-		exynos_pmu_update(ois_mcu_regs[R_OIS_CPU_CONFIGURATION].sfr_offset,
+	else
+		ret = exynos_pmu_update(ois_mcu_regs[R_OIS_CPU_CONFIGURATION].sfr_offset,
 			pmu_ois_mcu_masks[R_OIS_CPU_CONFIGURATION].sfr_offset, 0x0);
-	}
+	if (ret)
+		err_mcu("%s Failed to write pmu (%d)", __func__, ret);
 
 	info_mcu("%s onoff = %d", __func__, on);
+	return ret;
 }
 
 int __is_mcu_core_control(void __iomem *base, int on)

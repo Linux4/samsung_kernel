@@ -221,8 +221,6 @@ struct pktproc_queue {
 
 	/* Func */
 	irqreturn_t (*irq_handler)(int irq, void *arg);
-	void (*enable_irq)(struct pktproc_queue *q);
-	void (*disable_irq)(struct pktproc_queue *q);
 	int (*get_packet)(struct pktproc_queue *q, struct sk_buff **new_skb);
 	int (*clean_rx_ring)(struct pktproc_queue *q, int budget, int *work_done);
 	int (*alloc_rx_buf)(struct pktproc_queue *q);

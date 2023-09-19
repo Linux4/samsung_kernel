@@ -178,10 +178,16 @@ int is_sec_get_sysfs_finfo(struct is_rom_info **finfo, int rom_id)
 		rear3_dualized_rom_probe = false;
 	}
 	else {
-		*finfo = &sysfs_finfo[rom_id];
+		if (rom_id < ROM_ID_MAX)
+			*finfo = &sysfs_finfo[rom_id];
+		else
+			*finfo = 0;
 	}
 #else
-	*finfo = &sysfs_finfo[rom_id];
+	if (rom_id < ROM_ID_MAX)
+		*finfo = &sysfs_finfo[rom_id];
+	else
+		*finfo = 0;
 #endif
 	return 0;
 }

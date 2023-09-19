@@ -16,6 +16,7 @@
 
 static int __init sw83109c_m54x_panel_init(void)
 {
+	sw83109c_init();
 	register_common_panel(&sw83109c_m54x_panel_info);
 
 	return 0;

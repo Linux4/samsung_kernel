@@ -238,6 +238,13 @@ static bool disable_recovery_until_reboot;
 #if defined(CONFIG_WLBT_DCXO_TUNE)
 static unsigned int wlbt_dcxo_caldata = 0;
 static int wlbt_temperature_value = 0;
+
+enum dcxo_config_state {
+	DCXO_CONFIG_NONE = 0,
+	DCXO_CONFIG_DEFAULT,
+	DCXO_CONFIG_SYSFS,
+};
+static enum dcxo_config_state set_dcxo_state = DCXO_CONFIG_NONE;
 #endif
 
 static uint scandump_trigger_fw_panic = 0;
@@ -422,6 +429,13 @@ static ssize_t sysfs_store_wlbt_dcxo_caldata(struct kobject *kobj, struct kobj_a
 		mif_abs = scsc_mx_get_mif_abs(active_mxman->mx);
 
 		r = mifmboxman_set_dcxo_tune_value(mif_abs, wlbt_dcxo_caldata);
+
+		if (r)
+			SCSC_TAG_ERR(MX_PROC, "Failed to set DCXO Tune(return: %d)\n", r);
+		else {
+			set_dcxo_state = DCXO_CONFIG_SYSFS;
+			SCSC_TAG_INFO(MX_PROC, "Succeed to set %s DCXO Tune\n", "SYSFS");
+		}
 	}
 	else {
 		SCSC_TAG_ERR(MXMAN, "Invaild wlbt_dcxo_caldata value\n");
@@ -429,6 +443,52 @@ static ssize_t sysfs_store_wlbt_dcxo_caldata(struct kobject *kobj, struct kobj_a
 	}
 
 	return (r == 0) ? count : -EINVAL;
+}
+
+/* Set wlbt_dcxo_caldata with the default value of the specific path for vendor */
+static void mxman_set_default_dcxo_caldata(struct mxman *mxman)
+{
+	char *default_dcxo_path = "../etc/wifi/wlbt_dcxo_caldata";
+	const struct firmware *e = NULL;
+	int ret;
+	struct scsc_mif_abs *mif_abs;
+
+	if (set_dcxo_state != DCXO_CONFIG_NONE) {
+		SCSC_TAG_WARNING(MXMAN, "'%s' DCXO Config state is not allowed\n",
+			set_dcxo_state == DCXO_CONFIG_DEFAULT ? "DEFAULT":"SYSFS");
+		return;
+	}
+
+	ret = mx140_request_file(mxman->mx, default_dcxo_path, &e);
+	if (ret) {
+		SCSC_TAG_WARNING(MXMAN, "Error Loading %s\n", default_dcxo_path);
+		goto exit;
+	} else if (!e) {
+		SCSC_TAG_WARNING(MXMAN, "mx140_request_file() returned success, but firmware was null.\n");
+		goto exit;
+	}
+
+	ret = sscanf(e->data, "%u,%d", &wlbt_dcxo_caldata, &wlbt_temperature_value);
+	if (ret > 0) {
+		SCSC_TAG_INFO(MXMAN, "dcxo_cal: %u(0x%x), temperature value: %d)\n",
+			wlbt_dcxo_caldata, wlbt_dcxo_caldata, wlbt_temperature_value);
+
+		mif_abs = scsc_mx_get_mif_abs(mxman->mx);
+
+		ret = mifmboxman_set_dcxo_tune_value(mif_abs, wlbt_dcxo_caldata);
+
+		if (ret)
+			SCSC_TAG_ERR(MX_PROC, "Failed to set DCXO Tune(cause: %d)\n", ret);
+		else {
+			set_dcxo_state = DCXO_CONFIG_DEFAULT;
+			SCSC_TAG_INFO(MX_PROC, "Succeed to set %s DCXO Tune\n", "DEFAULT");
+		}
+	}
+	else {
+		SCSC_TAG_ERR(MXMAN, "Invaild format of wlbt_dcxo_caldata value!\n");
+	}
+exit:
+	mx140_release_file(mxman->mx, e);
 }
 #endif
 
@@ -2376,6 +2436,12 @@ static int __mxman_open(struct mxman *mxman, enum scsc_subsystem sub, void *data
 			SCSC_TAG_ERR(MXMAN, "Error mxman_res_init_common\n");
 			goto error;
 		}
+
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+		if (set_dcxo_state == DCXO_CONFIG_NONE) {
+			mxman_set_default_dcxo_caldata(mxman);
+		}
+#endif
 	}
 
 	/* Print information about any active services on any subsystem */
