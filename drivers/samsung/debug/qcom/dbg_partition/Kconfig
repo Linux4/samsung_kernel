@@ -1,0 +1,4 @@
+config SEC_QC_DEBUG_PARTITION
+	tristate "SEC Debug Partition for Qualcomm SoC based models"
+	help
+	  TODO: help is not ready.
